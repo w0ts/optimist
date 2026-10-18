@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* tests/ui_optimist_test.c, the USB input's insert slots on the mixer (op_mixer.c, fx_slots.c ut). Included by
  * ui_optimist_test.c after ui_optimist_mixer.h. */
-#if FELUCCA_USB_AUDIO && FELUCCA_INS_EQ3 && FELUCCA_INS_GATER && FELUCCA_INS_CHORUS
+#if FELUCCA_USB_AUDIO && FELUCCA_INS_GATER && FELUCCA_INS_CHORUS
 /* the USB input's insert slots take every insert type (2026-10-15, the user: "any FX insert on the USB IN track, like any
  * other track"): its TYPE cards list them all; EQ3 in a slot: the row's USB EQ3 and USB EQ3 F sets (the input's own bands),
  * GATER: USB GATER (its own PAT RATE SHAPE), JUNO CHORUS: USB JUNO (its MODE); a pooled type with none free: the card's FULL,

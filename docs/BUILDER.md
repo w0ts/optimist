@@ -92,7 +92,7 @@ In the menu: load the profile (`p`), then `u` (shares one of yours first).
 **The default profile is `synth` (Optimist Synth, the maintainer's own build).** `build`, `package`, `flash`, `config`
 and `make` without a profile use it, the menu opens with it the first time (afterwards where you left off), and it is the
 Pages site's flavour (`web/flavours.json`). Against `user-default` it has the X0X drums, ACID,
-JUNO, PHYS and NOISE engines, BLE, UI=1, EQ3, DUAL and USB audio on and most sample sets and kits off; `PARAM_HELP=0` is the
+JUNO, PHYS and NOISE engines, BLE, UI=1, DUAL and USB audio on and most sample sets and kits off; `PARAM_HELP=0` is the
 one item that goes so that every web editor item (`ED_*`) stays on and the build links. `user-default` is the generic
 reference profile, not the default: the host tests, the gate, `emu-check` and CI's fixtures build it, so its content stays
 as it is. `synth` and `user-default` cannot be deleted. `--defaults` is still every registry default.
@@ -244,7 +244,6 @@ Every track (and the drum bus) can run these at once, each with its own small st
 | FLNG insert (flanger) | `INS_FLANGER` | A flanger type for any insert slot (a track's, the master's, the USB input's) and the returns (FLNG): a short delay swept 0.25 .. 5 ms (~0.25 Hz); FLNG up to the middle mixes it in, past the middle adds feedback. 0 is off. Each instance is a line in the pool; a track that picks it when every instance is in use stays dry until one is free (the INSERTS list shows how many are left). A saved project keeps the type, not the instance: on load the tracks get them in order T1 T2 T3 DR. |
 | FRMT insert (vowel filter) | `INS_FORMANT` | A vowel filter type for the tracks' insert slots (INSERTS > S1 / S2: FRMT): three formant peaks over the sound; FRMT moves the vowel from A (low) through E, I, O to U (high). 0 is off. |
 | WIDE insert (stereo width) | `INS_WIDTH` | A stereo width type for the tracks' insert slots (INSERTS > S1 / S2: WIDE): one side through slowly swept all-pass filters, the other dry, so a centred mono track spreads out; WIDE sets how much. 0 is off. |
-| EQ3 insert (three-band DJ EQ) | `INS_EQ3` | A three-band equaliser type, like Ableton's EQ Three, for any insert slot (a track's, a drum sound's, the master's) and the returns (EQ3): LO MID HI from KILL (the left end) to +6 dB, the crossovers FREQ LO (250 Hz) and FREQ HI (2.5 kHz) at 12 dB/oct (Linkwitz-Riley: the bands sum flat). All three at 0 dB is a bypass that costs nothing; moving in and out of it crossfades in 3 ms. About 75 host instructions a sample on a track. |
 | SFLD insert (sine wavefolder) | `INS_SFOLD` | FOLD with round folds (a sine of the drive): softer, fewer aliases. About 82 host instructions a sample on a track. |
 | RECT insert (rectifier, octave up) | `INS_RECT` | Up to 64 half-wave to full-wave rectified (the octave up), then driven into a soft clip. About 91 host instructions a sample. |
 | HARM insert (harmonic exciter) | `INS_HARM` | v + v²/2 + v³/4 after a soft clip: the octave and the twelfth over each note. About 108 host instructions a sample. |

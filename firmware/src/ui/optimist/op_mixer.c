@@ -243,14 +243,12 @@ static uint32_t mx_items_rsend(mitem_t *it, uint32_t n)
 static uint32_t mx_items_ut_x(mitem_t *it, uint32_t n)
 {
     uint32_t i;
-#if FELUCCA_INS_EQ3
     if (ut_has(FXT_EQ3)) {
         for (i = 0; i < 3u; i++)
             n = mx_add(it, n, MG_UEQ, 0, MI_UEQ, i);
         for (i = 4; i < 6u; i++)
             n = mx_add(it, n, MG_UEQF, 0, MI_UEQ, i);
     }
-#endif
 #if FELUCCA_INS_GATER
     if (ut_has(FXT_GATE))
         for (i = UTV_GPAT; i <= UTV_GSHP; i++)
@@ -408,10 +406,8 @@ static const param_desc_t *mx_desc(uint32_t r, const mitem_t *m, int16_t **vp)
         return ut_desc(UT_ID_TY + m->id, vp);
     case MI_UTSA:
         return ut_desc(UT_ID_AMT + m->id, vp);
-#if FELUCCA_INS_EQ3
     case MI_UEQ:
         return fxs_desc(FXS_ID_UEQ + m->id, vp);
-#endif
 #endif
     case MI_MINST:                                      /* (an index into fx_slots.c mst_list) */
         return fxs_desc(FXS_ID_MST + m->id, vp);

@@ -1886,9 +1886,7 @@ typedef union {                                         /* a voice's slot: the s
 #if FELUCCA_INS_FORMANT
     ifx_fm_t m;
 #endif
-#if FELUCCA_INS_EQ3
     eq_st_t e;
-#endif
     int32_t w;
 } dins_st_t;
 static dins_st_t dins_st[DINS_N][INS_N];
@@ -1922,10 +1920,8 @@ static __attribute__((noinline)) void dins_rest(uint32_t k, uint32_t s, uint32_t
     if (t == FXT_FRMT && a)
         st->m.w = 32768, st->m.a = (uint8_t)a;
 #endif
-#if FELUCCA_INS_EQ3
     if (t == FXT_EQ3 && a && !eq3_flat(EQ3_V(TRK_DRUM)))
         eq3_engage(&st->e, EQ3_V(TRK_DRUM));         /* (a hit from silence: engaged at once, the drum track's bands) */
-#endif
     (void)a;
 }
 static void dins_restart(uint32_t k)                    /* voice k triggered: its lane's slots from rest */
@@ -1955,9 +1951,7 @@ AINL int dins_busy(uint32_t k, uint32_t s)
 #if FELUCCA_INS_FORMANT
     case FXT_FRMT: return st->m.w != 0;
 #endif
-#if FELUCCA_INS_EQ3
     case FXT_EQ3: return st->e.w != 0;
-#endif
     default: return 0;
     }
     (void)st;
@@ -2030,9 +2024,7 @@ static HOT2 __attribute__((noinline)) void dins_one(uint32_t k, uint32_t s, uint
             ifx_sh_run(&st->v, t, a, b, n);
         break;
 #endif
-#if FELUCCA_INS_EQ3
     case FXT_EQ3: (void)eq3_run(&st->e, EQ3_VF(TRK_DRUM), a, b, 0, n); break;   /* (the drum track's bands) */
-#endif
     default: break;
     }
     (void)st, (void)b, (void)n;

@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* Slot-relative automation (builder item SLOT_AUTO, 2026-10-18, the user: "reference the modulation by track, the device
+/* Slot-relative automation (2026-10-18, always built since the same day, the user: "reference the modulation by track, the device
  * emplacements then param id ... the ids are not global and relative to the project"): a track's locks and motion on a
  * parameter of the device in its insert slot S1 / S2, by (slot, the device's parameter number), not by a global value id.
  * The parameter is the device's own (sa_vp: EQ3's LO MID HI FREQ L FREQ H today; a new device adds its own here), so a

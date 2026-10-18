@@ -352,7 +352,7 @@ static int forms_draw(void)
         }
     return 1;
 }
-#if FELUCCA_INS_EQ3 && FELUCCA_INS_PHASER
+#if FELUCCA_INS_PHASER
 /* fx-pool (2026-10-15): a return holding another type (PHSR on A: its RET AMT row, the SENDS / RETURNS cards named PHSR) and
  * EQ3 (a return's RET EQ3 rows, a track's EQ3 and EQ3 FREQ rows): the rows exist, their cards are drawn (opt-fxpool-*.ppm) */
 static int fx_row_of(const char *t)                   /* the master FX screen's row titled t, -1 none */
@@ -2952,10 +2952,10 @@ int main(int argc, char **argv)
         return (int)lock_audit();
 #endif
     rows_tests();
-#if FELUCCA_INS_EQ3 && FELUCCA_INS_PHASER
+#if FELUCCA_INS_PHASER
     fxpool_tests();
 #endif
-#if FELUCCA_USB_AUDIO && FELUCCA_INS_EQ3 && FELUCCA_INS_GATER && FELUCCA_INS_CHORUS
+#if FELUCCA_USB_AUDIO && FELUCCA_INS_GATER && FELUCCA_INS_CHORUS
     usbfx_tests();
 #endif
     key_tests();

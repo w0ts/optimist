@@ -12,7 +12,7 @@
  *   stereo      the master's EQ3 on L and R: the same input, the same output
  *   record      EQ3's TLV round trips (ON, the owners' bands); none at the defaults
  *   cpu         host instructions a sample, engaged, a mono instance and a stereo one (printed; budget CG_COST_EQ3M)
- * Run by tests/run_tests.sh (FELUCCA_INS_EQ3=1). */
+ * Run by tests/run_tests.sh. */
 #include <libproc.h>
 #include <sys/resource.h>
 #define main hostsim_main

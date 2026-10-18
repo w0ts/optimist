@@ -18,7 +18,7 @@ FXT = dict(NONE=0, DIST=1, CHO=2, DLY=3, REV=4, COMP=5, FILT=6, FOLD=7, FUZZ=8, 
 NAME = {v: k for k, v in FXT.items()}
 CFG = {1: "FX_DIST", 2: "FX_CHORUS", 3: "FX_DELAY", 4: "FX_REVERB", 5: "MASTER_COMP", 6: "TRK_FILT", 7: "INS_FOLD",
        8: "INS_FUZZ", 9: "INS_PHASER", 10: "INS_FLANGER", 11: "INS_FORMANT", 12: "INS_WIDTH", 13: "INS_CHORUS", 14: "INS_DELAY",
-       15: "INS_GATER", 16: "FX_DUST", 17: "INS_JCHORUS", 18: "INS_EQ3"}
+       15: "INS_GATER", 16: "FX_DUST", 17: "INS_JCHORUS"}
 AMT = {7: "P_TFOLD", 8: "P_TFUZZ", 9: "P_TPHSR", 10: "P_TFLNG", 11: "P_TFRMT", 12: "P_TWIDE", 13: "P_TCHRS",
        14: "P_TECHO", 15: "P_TGATE"}   # (the further inserts)
 DSEND_CMP = 4                                    # (drum_sends.c: SOUND 3's value ids, 4 the COMP insert)
@@ -34,6 +34,8 @@ MASTER_DEF = [0] + SEND_ORDER                    # (the master slots: ---- REV D
 
 def on(facts, t):
     """type t built (fx_slots.c FXT_BUILT): FILT with the track FILTER or the master DJ filter (core.h TFLT_ON)"""
+    if t == 18:
+        return True                              # (EQ3: always built since 2026-10-18)
     return facts.on("TRK_FILT") or facts.on("FX_DJF") if t == 6 else facts.on(CFG[t])
 
 

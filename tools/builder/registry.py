@@ -34,6 +34,8 @@ MERGED = {
 
 # Dropped items: a .config naming one still loads; the setting is ignored with a warning (configure.py parse)
 RETIRED = {
+    "INS_EQ3": "the EQ3 insert is always built (retired 2026-10-18, bit 143; any old INS_EQ3 value is ignored)",
+    "SLOT_AUTO": "locks and motion on an insert's own values (EQ3's bands) are always built (retired 2026-10-18, bit 351)",
     "INS_WRAP": "the WRAP insert (a wavewrapper) was dropped the day it came, 2026-10-18; its bit 344 and type id 20 stay unused",
     "SPLASH": "the dinghy boot logo is always built (retired 2026-10-15: no ring-only logo, no off; any old SPLASH value is ignored)",
     "IDLE": "the CPU sleeping between main-loop polls is always built (retired 2026-10)",
@@ -511,21 +513,6 @@ _add("INS_JCHORUS", "FELUCCA_INS_JCHORUS", "JUNO CHORUS insert (the Juno-106 cho
           "comes out stereo. About 130 host instructions a sample an instance. 0 is off." + _INS_LIM,
      symbols=("ifx_jcho",), notice="From fm-106 by PatttF (GPL-3.0), after Ultramaster KR-106 (GPL-3.0). Tested in the "
                                    "host tests only, not on a device.")
-# EQ3 (2026-10-15, fx-pool: fx/insfx/eq3.c): a further insert type, any number (its state a few words an owner)
-_add("INS_EQ3", "FELUCCA_INS_EQ3", "EQ3 insert (three-band DJ EQ)", F, 143, default=0,
-     desc="A three-band equaliser type, like Ableton's EQ Three, for any insert slot (a track's, a drum sound's, the "
-          "master's) and the returns (EQ3): LO MID HI from KILL (the left end) to +6 dB, the crossovers FREQ LO (250 Hz) "
-          "and FREQ HI (2.5 kHz) at 12 dB/oct (Linkwitz-Riley: the bands sum flat). All three at 0 dB is a bypass that "
-          "costs nothing; moving in and out of it crossfades in 3 ms. About 75 host instructions a sample on a track.",
-     symbols=("eq3_run",), notice="Tested in the host tests only, not on a device.")
-# slot-relative automation (2026-10-18, the user: "Make it a builder flag for now"; reverted if it does not work). Bit 351
-_add("SLOT_AUTO", "FELUCCA_SLOT_AUTO", "locks and motion on a track insert's own values (EQ3 bands)", F, 351, default=0,
-     experimental=True,
-     desc="A held step locks, and motion recording records, the values of the device in a track's insert slot that "
-          "are not track values (today EQ3's LO MID HI FREQ L FREQ H), by slot and parameter number rather than by a "
-          "global id. Loading another device into the slot clears that slot's events. Needs EQ3, the automation store "
-          "and PLOCK or MOTION. The FX > EQ3 pages become lock pages with a step held.",
-     symbols=("sa_event",), notice="Experimental: tested in the host tests only, not on a device.")
 # the returns' feedback sends (2026-10-16): B -> A, C -> A, C -> B, a block late (fx.c rs_fbv). Bit 167 (reserved 2026-10-16: the next free one after the web editor v14's 158, 159, 165, 166)
 _add("RET_FB", "FELUCCA_RET_FB", "return feedback sends (B to A, C to A, C to B)", F, 167, default=1,
      desc="The master's returns send to the returns on their left too (MASTER > A SENDS, B SENDS, C SENDS: each "

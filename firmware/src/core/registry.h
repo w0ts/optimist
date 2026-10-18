@@ -349,12 +349,6 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #ifndef FELUCCA_RET_FB
 #define FELUCCA_RET_FB 1                   /* the returns' feedback sends B -> A, C -> A, C -> B (fx_slots.c rs_amt, fx.c rs_fbv) */
 #endif
-#ifndef FELUCCA_INS_EQ3
-#define FELUCCA_INS_EQ3 0                  /* EQ3: a three-band DJ EQ (fx/insfx/eq3.c, Ableton's EQ Three), any number */
-#endif
-#ifndef FELUCCA_SLOT_AUTO
-#define FELUCCA_SLOT_AUTO 0                /* experimental: locks and motion on an insert slot's own values by (slot, parameter) (seq/auto_slot.c) */
-#endif
 #ifndef FELUCCA_INS_GATER
 #define FELUCCA_INS_GATER 0                /* GATER: a tempo-synced 16-step volume gate (fx/insfx/gater.c), any number */
 #endif

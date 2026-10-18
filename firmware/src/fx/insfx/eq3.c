@@ -17,7 +17,6 @@
  * The settings: each owner's (eq3_v: T1 T2 T3 DR, the master, the USB input, the returns' lines 0 1 2), a drum sound's the
  * drum track's; the amount (P_TEQ, the master's mst_amt, a return's fxs_ramt, the USB slot's, a lane's dins_amt) its on
  * switch. CPU (host, tests/eq3_test.c): measured per sample, mono and stereo; the CPU guard counts an EQ3 only while engaged */
-#if FELUCCA_INS_EQ3
 AINL int eq3_flat(const int16_t *v) { return !v[EQV_LO] && !v[EQV_MID] && !v[EQV_HI]; }
 /* the CPU guard's cost (cpuguard.c): EQ3 while engaged (not flat), a part's mono instance, host instructions a sample
  * (tests/eq3_test.c measures it and checks it within this); a stereo owner's two sides CG_COST_EQ3S */
@@ -114,4 +113,3 @@ static HOT2 __attribute__((noinline)) int32_t eq3_run(eq_st_t *s, const int16_t 
     return w;
 }
 _Static_assert(CTL == 32, "eq3_run: the gains' ramp is << 5");
-#endif

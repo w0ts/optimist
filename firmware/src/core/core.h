@@ -146,9 +146,9 @@ typedef struct {
 #define SL24_TP (TFLT_ON || FELUCCA_CHORDPLUS)   /* SLOOP 2.4's track values P_TFLT P_STRUM P_VLEAD exist */
 /* any further insert type (fx/insfx/insfx.c); one line: tests/emu/fwfacts.py reads the #defines line by line */
 #define INS_SH (FELUCCA_INS_SFOLD || FELUCCA_INS_RECT || FELUCCA_INS_HARM || FELUCCA_INS_RING || FELUCCA_INS_SUBOCT || FELUCCA_INS_SLEW)
-#define INS_FX (FELUCCA_INS_FOLD || FELUCCA_INS_FUZZ || FELUCCA_INS_PHASER || FELUCCA_INS_FLANGER || FELUCCA_INS_FORMANT || FELUCCA_INS_WIDTH || FELUCCA_INS_CHORUS || FELUCCA_INS_DELAY || FELUCCA_INS_GATER || FELUCCA_INS_JCHORUS || FELUCCA_INS_EQ3 || INS_SH)
-/* slot-relative automation (builder item SLOT_AUTO: seq/auto_slot.c) */
-#define SLOT_AUTO (FELUCCA_SLOT_AUTO && FELUCCA_INS_EQ3 && FELUCCA_AUTO && (FELUCCA_MOTION || FELUCCA_PLOCK))
+#define INS_FX 1                       /* the further insert types: EQ3 always built (2026-10-18), the others builder items */
+/* slot-relative automation (seq/auto_slot.c; a builder item until 2026-10-18) */
+#define SLOT_AUTO (FELUCCA_AUTO && (FELUCCA_MOTION || FELUCCA_PLOCK))
 /* the insert types with a limited number of instances (fx/insfx/fxi.c: CHRS ECHO JUNO FLNG, a builder count each) */
 #define INS_LIM (FELUCCA_INS_CHORUS || FELUCCA_INS_DELAY || FELUCCA_INS_JCHORUS || FELUCCA_INS_FLANGER)
 enum {                          /* per-track parameters */
@@ -226,12 +226,10 @@ enum {                          /* per-track parameters */
      * I+II). Not part of a sound nor of a user preset; the FX record keeps them (fx_slots.c fxs_tlv, JUNO's TLV) */
     P_TJCHO, P_TJMODE,
 #endif
-#if FELUCCA_INS_EQ3
     /* EQ3 (2026-10-15, fx/insfx/eq3.c, fx_slots.c FXT_EQ3): a track's ON (its amount: 1 by default, so the type is heard
      * as soon as a band moves); the bands and frequencies are the owner's (eq3_v). Not part of a sound nor of a user
      * preset; the FX record keeps them (fx_slots.c fxs_tlv, EQ3's TLV) */
     P_TEQ,
-#endif
 #if INS_FX
     /* the shapers' amounts (2026-10-18, fx/insfx/insfx.c; fx_slots.c FXT_SH0 ..): 0 off .. 127, as FOLD's. All six exist
      * when any further type is built. Not part of a sound nor of a user preset; the FX record keeps them (a TLV a type) */

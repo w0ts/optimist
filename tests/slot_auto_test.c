@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* Slot-relative automation (builder item SLOT_AUTO, seq/auto_slot.c): a track's locks and motion on the values of the
+/* Slot-relative automation (seq/auto_slot.c, always built since 2026-10-18): a track's locks and motion on the values of the
  * device in its insert slot S1 / S2 by (slot, parameter), on the lane tests' host (every switch of the store on):
  *   ids        AUTO_SLOTP(s, i) 0xDC .. 0xFB: after the stored tail's 16, below the pseudo-parameters; well formed,
  *              a list of them stored and read back byte for byte
@@ -9,8 +9,6 @@
  *              a hold at the step playing, heard at once, its base the value before the card)
  *   a swap     another type into the slot: that slot's events gone, its value back; the other slot's kept (ruled)
  * Exit status: the number of failed checks. Run by tests/run_tests.sh. */
-#define FELUCCA_INS_EQ3 1
-#define FELUCCA_SLOT_AUTO 1
 #include "lane_host.h"
 
 static int bad;

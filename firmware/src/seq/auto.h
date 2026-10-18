@@ -44,7 +44,7 @@
                                           * automation may break) */
 #define AUTO_TAIL2 (AUTO_LANE0 + AUTO_LANE_N)
 #define AUTO_TAIL2_N (AUTO_COND - AUTO_TAIL2)
-/* slot-relative ids (builder item SLOT_AUTO, seq/auto_slot.c): insert slot s's parameter i of the list's own track, the
+/* slot-relative ids (seq/auto_slot.c): insert slot s's parameter i of the list's own track, the
  * second tail range's last 32 ids (0xDC .. 0xFB; its first 16 stay the stored tail's: auto.c MOT_TAIL2) */
 #define AUTO_SLOTP0 (AUTO_TAIL2 + 16u)
 #define AUTO_SLOTP(s, i) (AUTO_SLOTP0 + (((uint32_t)(s) & 1u) << 4 | ((uint32_t)(i) & 15u)))

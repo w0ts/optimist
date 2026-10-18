@@ -56,13 +56,13 @@ enum { FXT_NONE, FXT_DIST, FXT_CHO, FXT_DLY, FXT_REV, FXT_COMP, FXT_FILT,
                    (FELUCCA_INS_FORMANT ? FXT_BIT(FXT_FRMT) : 0u) | (FELUCCA_INS_WIDTH ? FXT_BIT(FXT_WIDE) : 0u) |  \
                    (FELUCCA_INS_CHORUS > 0 ? FXT_BIT(FXT_CHRS) : 0u) | (FELUCCA_INS_DELAY > 0 ? FXT_BIT(FXT_ECHO) : 0u) | \
                    (FELUCCA_INS_GATER ? FXT_BIT(FXT_GATE) : 0u) | (FELUCCA_FX_DUST ? FXT_BIT(FXT_DUST) : 0u) | \
-                   (FELUCCA_INS_JCHORUS > 0 ? FXT_BIT(FXT_JUNO) : 0u) | (FELUCCA_INS_EQ3 ? FXT_BIT(FXT_EQ3) : 0u) | \
+                   (FELUCCA_INS_JCHORUS > 0 ? FXT_BIT(FXT_JUNO) : 0u) | FXT_BIT(FXT_EQ3) | \
                    (FELUCCA_INS_SFOLD ? FXT_BIT(FXT_SFLD) : 0u) |                                                \
                    (FELUCCA_INS_RECT ? FXT_BIT(FXT_RECT) : 0u) | (FELUCCA_INS_HARM ? FXT_BIT(FXT_HARM) : 0u) |      \
                    (FELUCCA_INS_RING ? FXT_BIT(FXT_RING) : 0u) | (FELUCCA_INS_SUBOCT ? FXT_BIT(FXT_SUBO) : 0u) |    \
                    (FELUCCA_INS_SLEW ? FXT_BIT(FXT_SLEW) : 0u))
 /* a type insfx.c runs (ifx_part, ifx_bus, ifx_st): the further ones (the shapers too), JUNO CHORUS, EQ3 */
-#define IFX_TYPE(t) (IFX_FUR(t) || (FELUCCA_INS_JCHORUS && (t) == FXT_JUNO) || (FELUCCA_INS_EQ3 && (t) == FXT_EQ3))
+#define IFX_TYPE(t) (IFX_FUR(t) || (FELUCCA_INS_JCHORUS && (t) == FXT_JUNO) || (t) == FXT_EQ3)
 _Static_assert(FXT_N <= 32, "the type masks (ins_live): 32 bits");
 #define FXT_SEND_OK(t) ((t) < FXT_N && !(FXT_INSERT >> (t) & 1u) && (t) != FXT_NONE)
 /* each type's per-track amount (a P_* id; its label names the slot), 0xFF: none in this build */
@@ -97,11 +97,7 @@ static const uint8_t FXT_AMT[FXT_N] = {
 #else
     0xFF,
 #endif
-#if FELUCCA_INS_EQ3
     P_TEQ,
-#else
-    0xFF,
-#endif
 #if INS_FX
     FXT_AMT_NEW(FELUCCA_INS_SFOLD, P_TSFLD), 0xFF, FXT_AMT_NEW(FELUCCA_INS_RECT, P_TRECT),
     FXT_AMT_NEW(FELUCCA_INS_HARM, P_THARM), FXT_AMT_NEW(FELUCCA_INS_RING, P_TRING), FXT_AMT_NEW(FELUCCA_INS_SUBOCT, P_TSUBO),
@@ -465,7 +461,6 @@ static void rs_untlv(const uint8_t *a, uint32_t n)      /* (0, 0: none, every se
 }
 
 
-#if FELUCCA_INS_EQ3
 /* ---- EQ3's settings (fx/insfx/eq3.c: the kernel) */
 #define EQ_NO (NTRK + 5u)                               /* the owners (ifx_owner): T1 T2 T3 DR, MST, USB, the returns' lines */
 enum { EQV_LO, EQV_MID, EQV_HI, EQV_FL, EQV_FH, EQV_N };
@@ -567,7 +562,6 @@ static int fxs_fmt(const param_desc_t *d, int32_t v, char *val, const char **uni
     }
     return 1;
 }
-#endif
 
 /* ---- each track's two insert slots (S1, S2; T1 T2 T3 DR). The audio reads ins_slot once a block (fx.c ins_part,
  * dbus_run); the main loop writes them with the interrupts off (a swap is two bytes) */
@@ -983,7 +977,6 @@ static uint32_t fxs_lanes(const uint8_t *a, uint8_t *o)   /* the 16 drum sounds'
 static uint32_t fxs_tlv(uint32_t t, uint8_t *o)
 {
     uint32_t k, any = 0;
-#if FELUCCA_INS_EQ3
     if (t == FXT_EQ3) {                                /* EQ3 (fx-pool): T1 T2 T3 DR's ON, the master's, then every owner's
                                                         * LO MID HI FREQ L FREQ H (eq3_v), when any is off its default */
         for (k = 0; k < NTRK; k++)
@@ -993,7 +986,6 @@ static uint32_t fxs_tlv(uint32_t t, uint8_t *o)
             o[NTRK + 1u + k] = (uint8_t)EQ3_V(k / EQV_N)[k % EQV_N];
         return any || !eq3_dflt() ? FXT_TLV_EQ3 : 0u;
     }
-#endif
 #if FELUCCA_FX_DUST
     if (t == FXT_DUST) {                               /* DUST (2026-10-14): T1 T2 T3 DR's amounts, any set */
         for (k = 0; k < NTRK; k++)
@@ -1072,12 +1064,10 @@ static void fxs_untlv_none(int all)
         trk[k].p[P_TJCHO] = trk[k].p[P_TJMODE] = 0;
     mst_amt[FXT_JUNO] = mst_jmode = 0;
 #endif
-#if FELUCCA_INS_EQ3
     for (k = 0; k < NTRK; k++)
         trk[k].p[P_TEQ] = 1;                           /* (ON: a band moved is heard) */
     mst_amt[FXT_EQ3] = 1;
     eq3_defaults();
-#endif
 #if FELUCCA_MASTER_COMP
     for (k = 0; k < NTRK; k++)
         trk[k].p[P_TCOMP] = 0;
@@ -1115,7 +1105,6 @@ static void fxs_untlv(uint32_t t, const uint8_t *a, uint32_t n, int all)
         mst_jmode = (int16_t)(2u * NTRK + 1u < n && a[2u * NTRK + 1u] <= 2u ? a[2u * NTRK + 1u] : 0u);
     }
 #endif
-#if FELUCCA_INS_EQ3
     if (t == FXT_EQ3) {                                /* (a shorter one: the rest the defaults, as none) */
         for (k = 0; k < NTRK; k++)
             trk[k].p[P_TEQ] = (int16_t)(k < n ? a[k] != 0u : 1u);
@@ -1123,7 +1112,6 @@ static void fxs_untlv(uint32_t t, const uint8_t *a, uint32_t n, int all)
         for (k = 0; k < EQ_NO * EQV_N && NTRK + 1u + k < n; k++)
             EQ3_V(k / EQV_N)[k % EQV_N] = (int16_t)clamp((int8_t)a[NTRK + 1u + k], EQ_D[k % EQV_N].min, EQ_D[k % EQV_N].max);
     }
-#endif
     if (t < FXT_N && FXT_BUS[t] != 0xFFu && n >= 1u)
         TDRUM->p[FXT_BUS[t]] = (int16_t)(a[0] > 127u ? 127u : a[0]);
     if (t == FXT_DIST && n >= 1u + DRUM_LANES)
@@ -1159,7 +1147,7 @@ static int rt_any(void)                                /* a return holds a type 
 #define INS_NLIST (1 + FELUCCA_FX_DIST + TFLT_ON + FELUCCA_MASTER_COMP + FELUCCA_FX_DUST + FELUCCA_INS_FOLD + FELUCCA_INS_FUZZ + \
                    FELUCCA_INS_PHASER + (FELUCCA_INS_FLANGER > 0) + FELUCCA_INS_FORMANT + FELUCCA_INS_WIDTH + \
                    (FELUCCA_INS_CHORUS > 0) + (FELUCCA_INS_DELAY > 0) + FELUCCA_INS_GATER + (FELUCCA_INS_JCHORUS > 0) + \
-                   FELUCCA_INS_EQ3 + FELUCCA_INS_SFOLD + FELUCCA_INS_RECT + FELUCCA_INS_HARM +   \
+                   1 + FELUCCA_INS_SFOLD + FELUCCA_INS_RECT + FELUCCA_INS_HARM +   \
                    FELUCCA_INS_RING + FELUCCA_INS_SUBOCT + FELUCCA_INS_SLEW)
 static const char *ins_names[INS_NLIST];
 static uint8_t ins_list[INS_NLIST];
@@ -1179,7 +1167,6 @@ static const param_desc_t INS_DESC[INS_N] = {{"S1", F_ENUM, 0, INS_NLIST - 1, 0,
                                                         * USB row: USB EQ3, USB EQ3 F) */
 #define FXS_IS_EQ3(k) (((k) >= FXS_ID_TEQ && (k) < FXS_ID_TEQ + 6u) || ((k) >= FXS_ID_MEQ && (k) < FXS_ID_MEQ + 6u) || \
                        ((k) >= FXS_ID_REQ && (k) < FXS_ID_REQ + 6u) || ((k) >= FXS_ID_UEQ && (k) < FXS_ID_UEQ + 6u))
-#if FELUCCA_INS_EQ3
 static int rt_eq3(void)                                /* the line whose return holds EQ3, 3: none */
 {
     uint32_t j;
@@ -1223,7 +1210,6 @@ static const param_desc_t *eq3_desc(uint32_t k, int16_t **vp)
     *vp = &EQ3_V(o)[f];
     return &EQ_D[f];
 }
-#endif
 /* the master's slot s's TYPE as a list entry (the types MST_OK allows) */
 #define MST_NLIST INS_NLIST
 static const char *mst_names[MST_NLIST];
@@ -1263,10 +1249,8 @@ static const param_desc_t *ins_desc(uint32_t k, uint32_t s, int16_t **vp)
 static const param_desc_t *fxs_desc(uint32_t k, int16_t **vp)
 {
     uint32_t t, n = 0, i;
-#if FELUCCA_INS_EQ3
     if (FXS_IS_EQ3(k))
         return eq3_desc(k, vp);
-#endif
     if (k >= FXS_ID_RAMT && k < FXS_ID_RAMT + 3u) {    /* a return's amount: its other type's (a send's: none) */
         uint32_t s = k - FXS_ID_RAMT + 1u;
         t = fxs_slot[s];

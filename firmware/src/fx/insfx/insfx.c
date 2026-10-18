@@ -592,9 +592,7 @@ AINL int32_t ifx_w(uint32_t ty, uint32_t i)
 #if FELUCCA_INS_GATER
     case FXT_GATE: return i < NTRK ? ifx_gate[i].c : IFX_GATE_UT(i);   /* (its closure: 0 open, at rest) */
 #endif
-#if FELUCCA_INS_EQ3
     case FXT_EQ3: return eq3_st[ifx_owner(i)].w;       /* (its share: 0 bypassed) */
-#endif
 #if IFX_DRV || IFX_MOD
     case FXT_SFLD: case FXT_WRAP: case FXT_RECT: case FXT_HARM: case FXT_RING: case FXT_SUBO: case FXT_SLEW: {
         const ifx_drv_t *s = ifx_sh_st(ty, i);
@@ -661,9 +659,7 @@ static HOT2 __attribute__((noinline)) void ifx_run(uint32_t ty, uint32_t i, int3
         break;
     }
 #endif
-#if FELUCCA_INS_EQ3
     case FXT_EQ3: (void)eq3_run(&eq3_st[ifx_owner(i)], EQ3_VF(ifx_owner(i)), a, b, 0, n); break;   /* (a part: mono) */
-#endif
 #if IFX_DRV || IFX_MOD
     case FXT_SFLD: case FXT_WRAP: case FXT_RECT: case FXT_HARM: case FXT_RING: case FXT_SUBO: case FXT_SLEW: {
         ifx_drv_t *s = ifx_sh_st(ty, i);
@@ -740,9 +736,7 @@ static HOT2 __attribute__((noinline)) void ifx_quiet_part(const track_t *t)
 #if FELUCCA_INS_GATER
         case FXT_GATE: ifx_zero(&ifx_gate[k], sizeof ifx_gate[k]); break;   /* (open: its phase from the clock) */
 #endif
-#if FELUCCA_INS_EQ3
         case FXT_EQ3: eq3_st[k].w = 0; break;           /* (bypassed: re-engaging seeds it, eq3.c) */
-#endif
 #if IFX_DRV || IFX_MOD
         case FXT_SFLD: case FXT_WRAP: case FXT_RECT: case FXT_HARM: case FXT_RING: case FXT_SUBO: case FXT_SLEW: {
             ifx_drv_t *s = ifx_sh_st(ty, k);
@@ -778,12 +772,10 @@ AINL void ifx_st_run(uint32_t ty, uint32_t i0, int32_t a, int32_t *l, int32_t *r
         return;
     }
 #endif
-#if FELUCCA_INS_EQ3
     if (ty == FXT_EQ3) {                                /* (a stereo owner: its state's two sides) */
         (void)eq3_run(&eq3_st[ifx_owner(i0)], EQ3_VF(ifx_owner(i0)), a, l, r, n);
         return;
     }
-#endif
 #if FELUCCA_INS_WIDTH
     if (ty == FXT_WIDE) {
         int32_t d[CTL];

@@ -121,6 +121,7 @@ static void host_dyn_eq_defaults(void)
         for (i = P_TDRAT; i <= P_TDCEIL; i++)
             trk[k].p[i] = TP[i].def;
 #endif
+        trk[k].p[P_TEQ] = TP[P_TEQ].def;               /* (EQ3's ON: always built since 2026-10-18) */
     }
     (void)i;
 }

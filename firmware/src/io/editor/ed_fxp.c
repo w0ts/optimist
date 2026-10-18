@@ -74,9 +74,7 @@ static uint32_t fxp_ok(uint32_t ow)
         return (FXT_BUILT & (FXT_BIT(FXT_CHO) | FXT_BIT(FXT_DLY) | FXT_BIT(FXT_REV))) | RT_OK;
     return LIN_OK;
 }
-#if FELUCCA_INS_EQ3
 static const param_desc_t FXP_EQON = PE("ON", N_ONOFF, 1);
-#endif
 /* the descriptor and the value's place of (owner, slot, parameter i); 0: none. A lane's amount: *vp is a copy (lin_desc),
  * written by lin_set (fxp_put). The label of the one descriptor copy may be renamed (the device's page names) */
 static param_desc_t fxp_cp;
@@ -86,7 +84,6 @@ static const param_desc_t *fxp_named(const param_desc_t *d, const char *label)
     fxp_cp.label = label;
     return &fxp_cp;
 }
-#if FELUCCA_INS_EQ3
 /* EQ3's i-th cell (LO MID HI ON FREQ L FREQ H) of the owner o in eq3_v; the ON cell is on_p / on_d */
 static const param_desc_t *fxp_eq3(uint32_t o, uint32_t i, int16_t *on_p, const param_desc_t *on_d, int16_t **vp)
 {
@@ -100,7 +97,6 @@ static const param_desc_t *fxp_eq3(uint32_t o, uint32_t i, int16_t *on_p, const 
     *vp = &EQ3_V(o)[i];
     return &EQ_D[i];
 }
-#endif
 static const param_desc_t *fxp_loc(uint32_t ow, uint32_t sl, uint32_t i, int16_t **vp)
 {
     uint32_t t = fxp_type(ow, sl), id;
@@ -137,10 +133,8 @@ static const param_desc_t *fxp_loc(uint32_t ow, uint32_t sl, uint32_t i, int16_t
         i--;
         if (!FXS_GEN(t))                               /* (a send: its own popup, FX > DLY / REV / CHO) */
             return 0;
-#if FELUCCA_INS_EQ3
         if (t == FXT_EQ3)
             return fxp_eq3(NTRK + 2u + ln, i, &fxs_ramt[k], &FXP_EQON, vp);
-#endif
         if (i || FXT_AMT[t] == 0xFFu)
             return 0;
         *vp = &fxs_ramt[k];
@@ -164,10 +158,8 @@ static const param_desc_t *fxp_loc(uint32_t ow, uint32_t sl, uint32_t i, int16_t
             return &UT_DESC[UTV_JMODE];
         }
 #endif
-#if FELUCCA_INS_EQ3
         if (t == FXT_EQ3)
             return fxp_eq3(NTRK + 1u, i, &ut.amt[sl & 1u], &FXP_EQON, vp);
-#endif
         if (i || FXT_AMT[t] == 0xFFu)
             return 0;
         *vp = &ut.amt[sl & 1u];
@@ -189,10 +181,8 @@ static const param_desc_t *fxp_loc(uint32_t ow, uint32_t sl, uint32_t i, int16_t
             return &TP[i ? P_TJMODE : P_TJCHO];
         }
 #endif
-#if FELUCCA_INS_EQ3
         if (t == FXT_EQ3)
             return fxp_eq3(NTRK, i, &mst_amt[FXT_EQ3], &FXP_EQON, vp);
-#endif
         if (i || !mst_amt_d(t))
             return 0;
         *vp = mst_amt_p(t);
@@ -225,10 +215,8 @@ static const param_desc_t *fxp_loc(uint32_t ow, uint32_t sl, uint32_t i, int16_t
             return &TP[i ? P_TJMODE : P_TJCHO];
         }
 #endif
-#if FELUCCA_INS_EQ3
         if (t == FXT_EQ3)
             return fxp_eq3(ow, i, &tr->p[P_TEQ], i == 3u ? fxp_named(&TP[P_TEQ], "ON") : 0, vp);
-#endif
         id = FXT_AMT[t];
         if (i || id == 0xFFu)
             return 0;
@@ -319,10 +307,8 @@ static uint32_t ed_fxp_sig(uint32_t h)
     p = &lin_slot[0][0];
     for (k = 0; k < DRUM_LANES * INS_N; k++)
         FXP_H(p[k]);
-#if FELUCCA_INS_EQ3
     for (k = 0; k < EQ_NO * EQV_N; k++)
         FXP_H(EQ3_V(k / EQV_N)[k % EQV_N]);
-#endif
 #if FELUCCA_MASTER_COMP
     for (k = 0; k < NTRK * TDYN_N; k++)
         FXP_H(INS_CSET(k / TDYN_N)[k % TDYN_N]);

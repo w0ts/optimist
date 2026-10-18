@@ -1314,16 +1314,12 @@ static void t_usb_types(void)
         for (s = 0; s < INS_N; s++) {
             uint32_t dl = 0, dr = 0, same = 1;
             ut_defaults();
-#if FELUCCA_INS_EQ3
             eq3_defaults();
-#endif
             ut_load(s, t);
             ut_poll();
             okt &= ut.slot[s] == t && ut.slot[s ^ 1u] == FXT_NONE && ut_has(t) == s + 1u;
             ut.amt[s] = ut_on_amt(t);
-#if FELUCCA_INS_EQ3
             EQ3_V(NTRK + 1u)[EQV_LO] = -20, EQ3_V(NTRK + 1u)[EQV_HI] = 6;   /* (the input's own bands) */
-#endif
             ut.v[UTV_GPAT] = 1, ut.v[UTV_GRATE] = 2;     /* (GATER: 8TH at 1/32, closes within a few blocks) */
             for (k = 0; k < 400u; k++) {
                 ut_xblock(k);
@@ -1335,9 +1331,7 @@ static void t_usb_types(void)
             if (!dl || (!dr && t != FXT_WIDE))
                 snprintf(why, sizeof why, "type %u slot %u: L %u R %u", t, s, dl, dr), printf("  (%s)\n", why);
             ut.amt[s] = t == FXT_EQ3 ? 1 : 0;             /* (neutral: EQ3 ON but flat below) */
-#if FELUCCA_INS_EQ3
             EQ3_V(NTRK + 1u)[EQV_LO] = EQ3_V(NTRK + 1u)[EQV_HI] = 0;
-#endif
             for (k = 0; k < (t == FXT_DYN ? 4000u : 200u); k++)   /* (DYN: its AUTO release's slow envelope, seconds) */
                 ut_xblock(1000u + k);
             for (k = 0; k < 8u; k++) {
@@ -1353,20 +1347,14 @@ static void t_usb_types(void)
             ut.v[UTV_GPAT] = 12, ut.v[UTV_GRATE] = 4, ut.v[UTV_GSHP] = 77, ut.v[UTV_JMODE] = 2;
             if (t == FXT_EQ3)
                 ut.amt[s] = 1;
-#if FELUCCA_INS_EQ3
             EQ3_V(NTRK + 1u)[EQV_MID] = -31, EQ3_V(NTRK + 1u)[EQV_FH] = 40;
-#endif
             n = fxr_encode(b);
             ut_defaults();
-#if FELUCCA_INS_EQ3
             eq3_defaults();
-#endif
             k = fxr_decode(b, n, 1) && ut.slot[s] == t && ut.slot[s ^ 1u] == FXT_NONE &&
                 ut.amt[s] == (t == FXT_EQ3 ? 1 : ut_on_amt(t) - 3) && ut.v[UTV_GPAT] == 12 && ut.v[UTV_GRATE] == 4 &&
                 ut.v[UTV_GSHP] == 77 && ut.v[UTV_JMODE] == 2;
-#if FELUCCA_INS_EQ3
             k = k && EQ3_V(NTRK + 1u)[EQV_MID] == -31 && EQ3_V(NTRK + 1u)[EQV_FH] == 40;
-#endif
             oke &= k != 0u;
             if (!k)
                 snprintf(why, sizeof why, "type %u slot %u: the record", t, s), printf("  (%s)\n", why);

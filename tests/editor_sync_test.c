@@ -441,7 +441,6 @@ int main(void)
             rs_amt[RS_AC] = rs_amt[RS_BC] = 0;
             ed9_known_fx();
         }
-#if FELUCCA_INS_EQ3
         {   /* EQ3 into T2's S1: six parameters; LO is dB, ON an enum; a band set is clamped (KILL at the bottom) */
             static const uint8_t TY[] = {1, 1, 0, FXT_EQ3}, DS0[] = {2, 1, 0, 0}, DS3[] = {2, 1, 0, 3}, VA[] = {3, 1, 0};
             ed_begin(ED_FXP); r = ed_fxp(ED_FXP, TY, sizeof TY);
@@ -476,7 +475,6 @@ int main(void)
         ins_defaults();
         eq3_defaults();
         ed9_known_fx();
-#endif
         if (LIN_OK >> FXT_FOLD & 1u) {                 /* a drum sound's slot: the type, then the amount by the lane's rule */
             static const uint8_t LT[] = {1, FXP_LANE0 + 2, 0, FXT_FOLD};
             ed_begin(ED_FXP); r = ed_fxp(ED_FXP, LT, sizeof LT);
@@ -506,7 +504,7 @@ int main(void)
     }
 
     {   /* the tables as JSON: the golden (an every-item build only: the default build has most types off) */
-#if FELUCCA_INS_EQ3 && FELUCCA_INS_GATER && FELUCCA_INS_JCHORUS && FELUCCA_USB_AUDIO
+#if FELUCCA_INS_GATER && FELUCCA_INS_JCHORUS && FELUCCA_USB_AUDIO
         const char *gold = "tests/fxp_table.json";
         FILE *f = tmpfile();
         char *a, *b;

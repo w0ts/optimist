@@ -43,7 +43,7 @@
       "FUZZ": {"text": "Fuzz insert (drive)", "if": "FELUCCA_INS_FUZZ"},
       "PHSR": {"text": "Phaser: mix, then feedback", "if": "FELUCCA_INS_PHASER"},
       "FLNG": {"text": "Flanger: mix, then feedback", "if": "FELUCCA_INS_FLANGER"},
-      "EQ3": {"text": "3-band EQ on or off", "if": "FELUCCA_INS_EQ3"},
+      "EQ3": {"text": "3-band EQ on or off"},
       "FRMT": {"text": "Vowel filter: A E I O U", "if": "FELUCCA_INS_FORMANT"},
       "SFLD": {"text": "Sine folder: round folds", "if": "FELUCCA_INS_SFOLD"},
       "RECT": {"text": "Rectifier: octave up, drive", "if": "FELUCCA_INS_RECT"},
@@ -67,7 +67,7 @@
       "FUZZ": {"text": "Fuzz insert (drive)", "if": "FELUCCA_INS_FUZZ"},
       "PHSR": {"text": "Phaser: mix, then feedback", "if": "FELUCCA_INS_PHASER"},
       "FLNG": {"text": "Flanger: mix, then feedback", "if": "FELUCCA_INS_FLANGER"},
-      "EQ3": {"text": "3-band EQ on or off", "if": "FELUCCA_INS_EQ3"},
+      "EQ3": {"text": "3-band EQ on or off"},
       "FRMT": {"text": "Vowel filter: A E I O U", "if": "FELUCCA_INS_FORMANT"},
       "SFLD": {"text": "Sine folder: round folds", "if": "FELUCCA_INS_SFOLD"},
       "RECT": {"text": "Rectifier: octave up, drive", "if": "FELUCCA_INS_RECT"},
@@ -131,21 +131,21 @@
       "CHRS": {"text": "Chorus: mix, then depth", "if": "FELUCCA_INS_CHORUS"},
       "ECHO": {"text": "Slapback: level, then repeats", "if": "FELUCCA_INS_DELAY"},
       "JUNO": {"text": "Juno-106 chorus: its mix", "if": "FELUCCA_INS_JCHORUS"},
-      "EQ3": {"text": "3-band EQ on or off", "if": "FELUCCA_INS_EQ3"}}},
-    {"kind": "page", "ctx": "EQ3", "if": "FELUCCA_INS_EQ3", "params": {
+      "EQ3": {"text": "3-band EQ on or off"}}},
+    {"kind": "page", "ctx": "EQ3", "params": {
       "LO": "Low band: KILL .. +6 dB", "MID": "Mid band: KILL .. +6 dB", "HI": "High band: KILL .. +6 dB",
       "EQ3": "3-band EQ on or off"}},
-    {"kind": "page", "ctx": "EQ3 FREQ", "if": "FELUCCA_INS_EQ3", "params": {
+    {"kind": "page", "ctx": "EQ3 FREQ", "params": {
       "FREQ L": "Low / mid crossover", "FREQ H": "Mid / high crossover"}},
-    {"kind": "page", "ctx": "MST EQ3", "if": "FELUCCA_INS_EQ3", "params": {
+    {"kind": "page", "ctx": "MST EQ3", "params": {
       "LO": "Master low band: KILL .. +6", "MID": "Master mid band: KILL .. +6", "HI": "Master high band: KILL .. +6",
       "EQ3": "Master EQ on or off"}},
-    {"kind": "page", "ctx": "MST EQ3 F", "if": "FELUCCA_INS_EQ3", "params": {
+    {"kind": "page", "ctx": "MST EQ3 F", "params": {
       "FREQ L": "Master low / mid crossover", "FREQ H": "Master mid / high crossover"}},
-    {"kind": "page", "ctx": "RET EQ3", "if": "FELUCCA_INS_EQ3", "params": {
+    {"kind": "page", "ctx": "RET EQ3", "params": {
       "LO": "Return low band: KILL .. +6", "MID": "Return mid band: KILL .. +6", "HI": "Return high band: KILL .. +6",
       "EQ3": "Return EQ on or off"}},
-    {"kind": "page", "ctx": "RET EQ3 F", "if": "FELUCCA_INS_EQ3", "params": {
+    {"kind": "page", "ctx": "RET EQ3 F", "params": {
       "FREQ L": "Return low / mid crossover", "FREQ H": "Return mid / high crossover"}},
     {"kind": "page", "ctx": "RET AMT", "params": {
       "DST": {"text": "Return distortion (drive)", "if": "FELUCCA_FX_DIST"},
@@ -167,7 +167,7 @@
       "CHRS": {"text": "Return chorus: mix, depth", "if": "FELUCCA_INS_CHORUS"},
       "ECHO": {"text": "Return slapback: level, rep.", "if": "FELUCCA_INS_DELAY"},
       "JUNO": {"text": "Return Juno chorus mix", "if": "FELUCCA_INS_JCHORUS"},
-      "EQ3": {"text": "Return EQ on or off", "if": "FELUCCA_INS_EQ3"}}},
+      "EQ3": {"text": "Return EQ on or off"}}},
     {"kind": "page", "ctx": "GATER", "if": "FELUCCA_INS_GATER", "params": {
       "DEPTH": "How far the gate shuts steps", "PAT": "Gate pattern: 16 steps", "RATE": "Gate step length (in tempo)",
       "SHAPE": "Gate edges: hard to smooth"}},
@@ -206,7 +206,7 @@
       "REV": "This sound's reverb send", "DLY": "This sound's delay send", "CHO": "This sound's chorus send",
       "DST": {"text": "This sound's distortion", "if": "FELUCCA_FX_DIST"},
       "CMP": {"text": "This sound's compressor", "if": "FELUCCA_MASTER_COMP"},
-      "EQ3": {"text": "This sound's 3-band EQ on", "if": "FELUCCA_INS_EQ3"},
+      "EQ3": {"text": "This sound's 3-band EQ on"},
       "DYN": {"text": "This sound's insert 2 (DYN)", "if": "FELUCCA_MASTER_COMP"},
       "FILT": {"text": "This sound's filter insert", "if": "TFLT_ON"},
       "DUST": {"text": "This sound's dust insert", "if": "FELUCCA_FX_DUST"},
@@ -508,10 +508,10 @@
       "ECHO": {"text": "Slapback: level, then repeats", "if": "FELUCCA_INS_DELAY"},
       "GATER": {"text": "Trance gate depth (in tempo)", "if": "FELUCCA_INS_GATER"},
       "JUNO": {"text": "Juno-106 chorus: its mix", "if": "FELUCCA_INS_JCHORUS"},
-      "EQ3": {"text": "3-band EQ on or off", "if": "FELUCCA_INS_EQ3"}}},
-    {"kind": "op", "ctx": "USB EQ3", "if": "FELUCCA_USB_AUDIO && FELUCCA_INS_EQ3", "params": {
+      "EQ3": {"text": "3-band EQ on or off"}}},
+    {"kind": "op", "ctx": "USB EQ3", "if": "FELUCCA_USB_AUDIO", "params": {
       "LO": "USB in low band: KILL .. +6", "MID": "USB in mid band: KILL .. +6", "HI": "USB in high band: KILL .. +6"}},
-    {"kind": "op", "ctx": "USB EQ3 F", "if": "FELUCCA_USB_AUDIO && FELUCCA_INS_EQ3", "params": {
+    {"kind": "op", "ctx": "USB EQ3 F", "if": "FELUCCA_USB_AUDIO", "params": {
       "FREQ L": "USB in low / mid crossover", "FREQ H": "USB in mid / high crossover"}},
     {"kind": "op", "ctx": "USB GATER", "if": "FELUCCA_USB_AUDIO && FELUCCA_INS_GATER", "params": {
       "PAT": "USB in gate pattern: 16 steps", "RATE": "USB in gate step (song tempo)", "SHAPE": "Gate edges: hard to smooth"}},

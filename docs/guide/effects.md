@@ -86,7 +86,7 @@ These three keep a line of memory each, so the builder gives them a count of ins
 
 ### EQ3: a three-band DJ equaliser
 
-EQ3 (builder item `INS_EQ3`) splits the sound at two crossover frequencies and sets the gain of each band, like the three-band DJ equaliser of a mixer. It can sit in any insert slot: a track's, the drum bus', a drum sound's, the master's, the USB input's, or a return's.
+EQ3 (always built) splits the sound at two crossover frequencies and sets the gain of each band, like the three-band DJ equaliser of a mixer. It can sit in any insert slot: a track's, the drum bus', a drum sound's, the master's, the USB input's, or a return's.
 
 - **LO, MID, HI** (page `EQ3`): the gain of each band, KILL (the band is cut off completely) or -30 to +6 dB in 1 dB steps; 0 dB is the default.
 - **FREQ LO, FREQ HI** (page `EQ3 FREQ`): the two crossovers, FREQ LO from 51 Hz to 1 kHz (default 250 Hz) and FREQ HI from 625 Hz to 12 kHz (default 2.5 kHz). The bands add up flat at any setting of the frequencies.
