@@ -141,6 +141,7 @@ export class Updater {
     for (const input of this.access.inputs.values()) {
       if (input.state === "disconnected") continue;
       if (!/fm-1|felucca|optimist|ota|composite|sinco|usb-midi/i.test(input.name || "")) continue;   // never probe other gear
+      if (/bluetooth/i.test(input.name || "")) continue;   // (an update goes over USB: the FM-1's Bluetooth MIDI port, paired too, never)
       const output = outs.find((o) => o.name === input.name) || (outs.length === 1 ? outs[0] : null);
       if (!output) continue;
       try { await input.open(); await output.open(); } catch (_) { continue; }

@@ -4652,10 +4652,13 @@ async function openMidi(nav) {
   catch (e) { return { st: "denied", access: null }; }
 }
 const isFM1Port = (p) => !!p && /felucca|optimist/i.test(p.name || "") && p.state !== "disconnected";
+/* an FM-1 shows as two ports when its Bluetooth MIDI is paired too ("Optimist 112D Bluetooth", listed first on a Mac): the
+   USB one, else the Bluetooth one (the USB port answered INFO in 1 ms, the Bluetooth one not at all, 2026-10-18) */
+const pickFM1 = (ports) => { const c = [...ports].filter(isFM1Port); return c.find((p) => !/bluetooth/i.test(p.name || "")) || c[0]; };
 /* the FM-1's input and output, or null (not plugged in: the statechange event says when it comes) */
 function findPorts(access) {
   if (!access) return null;
-  const input = [...access.inputs.values()].find(isFM1Port), output = [...access.outputs.values()].find(isFM1Port);
+  const input = pickFM1(access.inputs.values()), output = pickFM1(access.outputs.values());
   return input && output ? { input, output } : null;
 }
 /* a port event worth a reconnect: an FM-1 output appeared while we want to be connected and are not */

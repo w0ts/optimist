@@ -423,7 +423,10 @@ export function mountSim(container, opts = {}) {
       new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(TEXT.loadNoAllow)), 60000); }),
     ]).finally(() => clearTimeout(timer));
     say(TEXT.loadFinding);
-    const port = (m) => [...m.values()].find((p) => /felucca|optimist/i.test(p.name || "") && p.state !== "disconnected");
+    /* (the USB port before the Bluetooth one: an FM-1 paired over Bluetooth MIDI too shows both, the Bluetooth one first
+       on a Mac, and only the USB one answers the editor's requests) */
+    const port = (m) => { const c = [...m.values()].filter((p) => /felucca|optimist/i.test(p.name || "") && p.state !== "disconnected");
+      return c.find((p) => !/bluetooth/i.test(p.name || "")) || c[0]; };
     const input = port(acc.inputs), output = port(acc.outputs);
     if (!input || !output) throw new Error(TEXT.loadNoDevice);
     if (input.open) await input.open().catch(() => {});
