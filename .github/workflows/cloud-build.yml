@@ -102,6 +102,7 @@ jobs:
           name: request
           path: work/request.config
           if-no-files-found: error
+          retention-days: 1                    # (a hand-over between jobs: the release and the branch keep the build)
       - name: Say it is building
         if: steps.cache.outputs.cached == 'false'
         env:
@@ -169,6 +170,7 @@ jobs:
           name: firmware
           path: out/
           if-no-files-found: error
+          retention-days: 1                    # (a hand-over between jobs: the release and the branch keep the build)
 
   publish:
     needs: [request, build]

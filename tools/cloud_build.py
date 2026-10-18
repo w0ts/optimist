@@ -19,6 +19,8 @@ default branch, so a request cannot change how it is read.
                                                       branch: its files, <STEM>.config and index.json; then the prune
   python3 tools/cloud_build.py shelf prune SHELF      the builds older than RETAIN_DAYS (env, default 30) off SHELF;
                                                       their stems -> stdout (one a line: the workflow drops their assets)
+  python3 tools/cloud_build.py shelf orphans SHELF    `gh release view --json assets` on stdin -> the release assets of
+                                                      no build on SHELF, a day old or more (the daily run drops them)
 
 The cloud-builds branch is where the web installer finds the builds: GitHub's release downloads send no CORS header,
 so a page cannot fetch them; raw.githubusercontent.com does. The branch is one commit, replaced at each change (its
@@ -212,6 +214,22 @@ def shelf_prune(builds, now, days=RETAIN_DAYS):
     return [b for b in builds if fresh(b)], [b for b in builds if not fresh(b)]
 
 
+def release_orphans(assets, builds, now, grace=timedelta(hours=24)):
+    """the release assets of no build on the branch (one that expired before the branch kept builds, or one whose
+    publish failed after the upload), older than `grace` (a build being published uploads before it reaches the
+    branch); assets: [{"name", "createdAt"}] as `gh release view --json assets` gives them"""
+    keep = {b[k] for b in builds for k in ("fwsc", "ui")}
+    out = []
+    for a in assets:
+        try:
+            made = datetime.strptime(a.get("createdAt", ""), "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+        except ValueError:
+            continue
+        if a.get("name") not in keep and now - made > grace and "/" not in a.get("name", "/"):
+            out.append(a["name"])
+    return out
+
+
 def read_index(shelf):
     f = Path(shelf) / "index.json"
     return json.loads(f.read_text()).get("builds", []) if f.is_file() else []
@@ -238,6 +256,11 @@ def cmd_shelf(a):
     shelf, now = Path(a.shelf), datetime.now(timezone.utc)
     shelf.mkdir(parents=True, exist_ok=True)
     builds = read_index(shelf)
+    if a.action == "orphans":
+        assets = json.loads(sys.stdin.read() or "{}").get("assets") or []
+        for name in release_orphans(assets, builds, now):
+            print(name)
+        return 0
     if a.action == "add":
         entry = shelf_entry(os.environ, now)
         for k in ("fwsc", "ui"):
@@ -314,7 +337,7 @@ def main(argv=None):
     p.add_argument("dir")
     p.set_defaults(fn=cmd_reply)
     p = sub.add_parser("shelf", help="a build onto the cloud-builds branch's checkout, or the expired ones off it")
-    p.add_argument("action", choices=("add", "prune"))
+    p.add_argument("action", choices=("add", "prune", "orphans"))
     p.add_argument("shelf")
     p.add_argument("--files", help="add: the directory with <STEM>.fwsc and <STEM>-ui.zip")
     p.add_argument("--config", help="add: the request's .config")

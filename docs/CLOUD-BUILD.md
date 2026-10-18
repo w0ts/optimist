@@ -71,6 +71,9 @@ steps that call `gh`, never next to code of the requested commit; every action i
 Automatic: a build not asked for again in `RETAIN_DAYS` (30, the workflow's env) leaves the branch and the release
 (the daily **prune**, and each **publish**). The branch is always one commit, replaced (force-pushed with a lease; a
 run that loses the race starts again), so its history does not grow, and it is deleted when its last build expires.
+The daily prune also deletes the release assets of no build on the branch (a day old or more: a build being
+published uploads first) and, once the release holds nothing, the release and its tag. The jobs' hand-over
+artifacts (`request`, `firmware`) are kept 1 day. So nothing is left behind but the toolchain cache the builds share.
 A later request of an expired configuration simply builds it again. By hand: `gh release delete-asset cloud-builds NAME`
 (the next prune leaves the branch's copy until it expires). A user can open as many requests as they like; if that
 is abused, limit who can open issues (Settings > Moderation) or turn the workflow off (Actions > cloud-build > Disable).

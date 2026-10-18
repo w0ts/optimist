@@ -62,3 +62,23 @@ while read -r stem; do
   done
   echo "expired: $stem"
 done < dropped.txt
+
+# the daily run also leaves nothing else behind: release assets of no build on the branch, then the release and its
+# tag once it holds no asset
+if [ "$action" = prune ]; then
+  if "$gh" release view cloud-builds --json assets > assets.json; then
+    python3 tools/cloud_build.py shelf orphans shelf < assets.json > orphans.txt
+    while read -r f; do
+      [ -n "$f" ] || continue
+      "$gh" release delete-asset cloud-builds "$f" -y || echo "no asset $f in the release (already gone)"
+      echo "orphan: $f"
+    done < orphans.txt
+    left="$("$gh" release view cloud-builds --json assets --jq '.assets | length')"
+    if [ "$left" = 0 ]; then
+      "$gh" release delete cloud-builds --cleanup-tag -y
+      echo "the release held nothing: deleted, with its tag"
+    fi
+  else
+    echo "no cloud-builds release"
+  fi
+fi

@@ -167,7 +167,21 @@ with tempfile.TemporaryDirectory() as t:
 with tempfile.TemporaryDirectory() as t:
     t = Path(t)
     subprocess.run(["git", "init", "-q", "--bare", str(t / "remote.git")], check=True)
-    (t / "gh").write_text(f'#!/bin/sh\necho "$@" >> {t / "gh.log"}\n')
+    # (the stub gh: logs its calls; plays the release from assets.json: view, --jq length, delete-asset, delete)
+    (t / "gh").write_text(f"""#!{sys.executable}
+import json, sys
+from pathlib import Path
+a, f = sys.argv[1:], Path({str(t / 'assets.json')!r})
+open({str(t / 'gh.log')!r}, "a").write(" ".join(a) + "\\n")
+if a[:2] == ["release", "view"]:
+    if not f.exists(): sys.exit(1)
+    d = json.loads(f.read_text())
+    print(len(d["assets"]) if "--jq" in a else json.dumps(d))
+elif a[:2] == ["release", "delete-asset"] and f.exists():
+    d = json.loads(f.read_text()); d["assets"] = [x for x in d["assets"] if x["name"] != a[3]]; f.write_text(json.dumps(d))
+elif a[:2] == ["release", "delete"]:
+    f.unlink(missing_ok=True)
+""")
     (t / "gh").chmod(0o755)
     run = t / "run"
     (run / "tools").mkdir(parents=True)
@@ -199,8 +213,8 @@ with tempfile.TemporaryDirectory() as t:
           and {f"{stem1}.fwsc", f"{stem2}-ui.zip", f"{stem2}.config", "index.json"} <= set(files)
           and [b["id"] for b in idx.get("builds", [])] == [KEY2[:16], KEY[:16]])
     r = shelf_sh("prune")
-    check("cloud_shelf.sh prune: nothing expired, nothing pushed", r.returncode == 0 and "nothing expired" in r.stdout
-          and not (t / "gh.log").exists())
+    check("cloud_shelf.sh prune: nothing expired, nothing pushed, nothing deleted (no release: said)", r.returncode == 0
+          and "nothing expired" in r.stdout and "no cloud-builds release" in r.stdout and "delete" not in (t / "gh.log").read_text())
     # (expire them: rewrite the dates on the branch as another run would have left them)
     work = t / "edit"
     subprocess.run(["git", "clone", "-q", f"file://{t / 'remote.git'}", "-b", "cloud-builds", str(work)], check=True)
@@ -209,11 +223,23 @@ with tempfile.TemporaryDirectory() as t:
     (work / "index.json").write_text(json.dumps(old))
     subprocess.run(["git", "-C", str(work), "commit", "-qam", "old"], check=True, env=sh_env)
     subprocess.run(["git", "-C", str(work), "push", "-q", "origin", "cloud-builds"], check=True)
+    old_asset = lambda n: {"name": n, "createdAt": "2026-01-01T00:00:00Z"}
+    (t / "assets.json").write_text(json.dumps({"assets": [old_asset(f"{s}{x}") for s in (stem1, stem2) for x in (".fwsc", "-ui.zip")]
+                                               + [old_asset("optimist-test-0123456789abcdef.fwsc")]}))
     r = shelf_sh("prune")
-    log = (t / "gh.log").read_text() if (t / "gh.log").exists() else ""
-    check("cloud_shelf.sh prune: the last builds expired -> the branch deleted, their release assets deleted",
-          r.returncode == 0 and remote("branch", "--list", "cloud-builds").strip() == ""
-          and f"release delete-asset cloud-builds {stem1}.fwsc -y" in log and f"{stem2}-ui.zip" in log)
+    log = (t / "gh.log").read_text()
+    check("cloud_shelf.sh prune: the last builds expired -> the branch deleted, their assets and an orphan deleted, then "
+          "the empty release with its tag", r.returncode == 0 and remote("branch", "--list", "cloud-builds").strip() == ""
+          and f"release delete-asset cloud-builds {stem1}.fwsc -y" in log and f"{stem2}-ui.zip" in log
+          and "delete-asset cloud-builds optimist-test-0123456789abcdef.fwsc" in log
+          and "release delete cloud-builds --cleanup-tag -y" in log and not (t / "assets.json").exists())
+
+orph = CB.release_orphans([{"name": f"{stem1}.fwsc", "createdAt": "2026-01-01T00:00:00Z"},
+                           {"name": "optimist-old-0123456789abcdef.fwsc", "createdAt": "2026-01-01T00:00:00Z"},
+                           {"name": "optimist-new-0123456789abcdef.fwsc", "createdAt": "2026-10-18T11:00:00Z"},
+                           {"name": "x.fwsc", "createdAt": "?"}], [e1], now)
+check("release orphans: an asset of no build on the branch goes; the branch's, one under a day old (being published) "
+      "and an unreadable date stay", orph == ["optimist-old-0123456789abcdef.fwsc"])
 
 # ---- the workflow's steps on a real profile, at this checkout's HEAD
 profile = (ROOT / "config" / "profiles" / "synth.config").read_text()
