@@ -57,7 +57,9 @@ export const TEXT = {
   reset: "Reset memory", resetAsk: "Erase the simulator's saved projects, presets and samples? (Every build shares them.)",
   resetDone: "Memory erased.", shared: "The simulator's memory (projects, presets, samples) is kept in this browser and shared by every build.",
   install: "Install this build on my FM-1", keysHelp: "Keys: the device's own — A W S E D … play notes (Shift for the octave above), the other keys hold the buttons; the arrows are OCT, Space is PLAY.",
-  load: "Load from FM-1", saveFile: "Save to file", loadFile: "Load file",
+  load: "Load from FM-1", write: "Write to FM-1", saveFile: "Save to file", loadFile: "Load file",
+  writeAsk: "Write the simulator's memory onto the FM-1? This replaces the projects, presets, kits and samples on the device.",
+  writeDoing: "Writing", writeDone: "Written to the FM-1: objects",
   saving: "Saving…", savedFile: "Saved the simulator's memory to a file.", saveFail: "Could not save: ",
   loadingFile: "Loading the file…", loadedFile: "Loaded from the file: objects", loadFileFail: "Could not load the file: ",
   loadNeedsRun: "Start the simulator first, then load into it.",
@@ -175,6 +177,7 @@ export function mountSim(container, opts = {}) {
   el.reset = h("button.o-btn.sm.quiet", { type: "button", onclick: () => resetMemory() }, TEXT.reset);
   el.install = h("button.o-btn.sm", { type: "button", onclick: () => installThis() }, TEXT.install);
   el.load = h("button.o-btn.sm", { type: "button", onclick: () => loadFromDevice() }, TEXT.load);
+  el.write = h("button.o-btn.sm", { type: "button", onclick: () => writeToDevice() }, TEXT.write);
   el.save = h("button.o-btn.sm", { type: "button", onclick: () => saveToFile() }, TEXT.saveFile);
   el.loadf = h("button.o-btn.sm", { type: "button", onclick: () => el.file.click() }, TEXT.loadFile);
   el.file = h("input", { type: "file", accept: ".optimist-backup,application/octet-stream", style: "display:none",
@@ -191,7 +194,7 @@ export function mountSim(container, opts = {}) {
   const root = h("div.os", {},
     h("header", {}, h("h1.oi-title", {}, TEXT.title), TEXT.what ? h("p.oi-what", {}, TEXT.what) : null),
     h("div.os-bar", {}, h("label.o-field", {}, h("span", {}, TEXT.build), el.pick),
-      h("label.o-field", {}, h("span", {}, TEXT.themeLabel), el.theme), el.power, el.save, el.loadf, el.load, el.install, el.reset, el.file),
+      h("label.o-field", {}, h("span", {}, TEXT.themeLabel), el.theme), el.power, el.save, el.loadf, el.load, el.write, el.install, el.reset, el.file),
     el.status,
     el.stage,
     h("p.o-dim.os-help", {}, TEXT.keysHelp, " ", TEXT.shared));
@@ -375,39 +378,56 @@ export function mountSim(container, opts = {}) {
     } catch (e) { st.midiTap = null; say(TEXT.loadFileFail + (e && e.message || e), "err"); }
     el.loadf.disabled = false;
   }
-  /* "Load from FM-1": read the real device's whole user memory (projects, presets, kits, samples) over Web MIDI and
-     restore it into the running simulator. The sim restarts on the restored memory. The device is only read. */
+  /* a backup client talking to a real FM-1 over Web MIDI: open the ports, confirm the link (INFO), -> { client, close }.
+     Throws with a user message if there is no Web MIDI, no device, or the device does not answer (old firmware). */
+  async function openDevice() {
+    if (typeof navigator === "undefined" || typeof navigator.requestMIDIAccess !== "function") throw new Error(TEXT.loadNoMidi);
+    const acc = await navigator.requestMIDIAccess({ sysex: true });
+    const port = (m) => [...m.values()].find((p) => /felucca|optimist/i.test(p.name || "") && p.state !== "disconnected");
+    const input = port(acc.inputs), output = port(acc.outputs);
+    if (!input || !output) throw new Error(TEXT.loadNoDevice);
+    if (input.open) await input.open().catch(() => {});
+    if (output.open) await output.open().catch(() => {});         /* some browsers drop send() on an unopened output */
+    const c = bkClient((bytes) => output.send(bytes));
+    const frame = midiParser();
+    input.onmidimessage = (e) => { for (const msg of frame.feed(e.data)) c.feed(msg); };
+    try { await c.request(1); }                                   /* INFO: tells a dead port from a build with no editor */
+    catch (e) { input.onmidimessage = null; throw new Error(TEXT.loadNoAnswer); }
+    return { client: c, close: () => { input.onmidimessage = null; } };
+  }
+  function deviceError(e) {
+    const msg = e && e.message || String(e);
+    say(/command 43/.test(msg) ? TEXT.loadNoBackup : [TEXT.loadNoMidi, TEXT.loadNoDevice, TEXT.loadNoAnswer].includes(msg) ? msg : TEXT.loadFail + msg, "err");
+  }
+  /* "Load from FM-1": read the real device's whole user memory into the running simulator (the sim restarts on it). */
   async function loadFromDevice() {
     if (!engine) { say(TEXT.loadNeedsRun, "err"); return; }
-    if (typeof navigator === "undefined" || typeof navigator.requestMIDIAccess !== "function") { say(TEXT.loadNoMidi, "err"); return; }
-    el.load.disabled = true;
-    say(TEXT.loadFinding);
+    el.load.disabled = true; say(TEXT.loadFinding);
+    let dev = null;
     try {
-      const acc = await navigator.requestMIDIAccess({ sysex: true });
-      const port = (m) => [...m.values()].find((p) => /felucca|optimist/i.test(p.name || "") && p.state !== "disconnected");
-      const input = port(acc.inputs), output = port(acc.outputs);
-      if (!input || !output) { say(TEXT.loadNoDevice, "err"); el.load.disabled = false; return; }
-      if (input.open) await input.open().catch(() => {});
-      if (output.open) await output.open().catch(() => {});       /* some browsers drop send() on an unopened output */
-      // the real device: a client reading its backup
-      const src = bkClient((bytes) => output.send(bytes));
-      const frame = midiParser();
-      input.onmidimessage = (e) => { for (const msg of frame.feed(e.data)) src.feed(msg); };
-      // confirm the link first (INFO, command 1: every editor build answers it), to tell a dead port from old firmware
-      try { await src.request(1); }
-      catch (e) { input.onmidimessage = null; say(TEXT.loadNoAnswer, "err"); el.load.disabled = false; return; }
-      // the simulator: a client writing it in (through the worklet; its replies come back on st.midiTap)
-      const dst = bkClient((bytes) => engine && engine.post({ type: "midi", data: bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes) }));
-      st.midiTap = (msg) => dst.feed(msg);
-      const r = await bkTransfer(src, dst, (p) => say(p.tag ? `${TEXT.loadDoing} ${p.tag} (${p.done + 1}/${p.total})` : TEXT.loadFinishing));
-      input.onmidimessage = null; st.midiTap = null;
-      say(`${TEXT.loadDone} ${r.done}${r.skipped.length ? ` (${r.skipped.length} ${TEXT.loadSkipped})` : ""}.`, "ok");   /* the sim restarts on the restored memory */
-    } catch (e) {
-      st.midiTap = null;
-      const msg = e && e.message || String(e);
-      say(/command 43/.test(msg) ? TEXT.loadNoBackup : TEXT.loadFail + msg, "err");
-    }
+      dev = await openDevice();
+      const sim = simBkClient();                                  /* NB: openDevice already set the device's input tap; the sim uses st.midiTap */
+      const r = await bkTransfer(dev.client, sim, (p) => say(p.tag ? `${TEXT.loadDoing} ${p.tag} (${p.done + 1}/${p.total})` : TEXT.loadFinishing));
+      say(`${TEXT.loadDone} ${r.done}${r.skipped.length ? ` (${r.skipped.length} ${TEXT.loadSkipped})` : ""}.`, "ok");
+    } catch (e) { deviceError(e); }
+    if (dev) dev.close(); st.midiTap = null;
     el.load.disabled = false;
+  }
+  /* "Write to FM-1": the reverse — write the simulator's whole memory onto the real device (overwrites its memory).
+     Confirmed first. This is how a device with only the backup responder (no live editor) gets edits made in the sim. */
+  async function writeToDevice() {
+    if (!engine) { say(TEXT.loadNeedsRun, "err"); return; }
+    if (typeof window !== "undefined" && !window.confirm(TEXT.writeAsk)) return;
+    el.write.disabled = true; say(TEXT.loadFinding);
+    let dev = null;
+    try {
+      dev = await openDevice();
+      const sim = simBkClient();
+      const r = await bkTransfer(sim, dev.client, (p) => say(p.tag ? `${TEXT.writeDoing} ${p.tag} (${p.done + 1}/${p.total})` : TEXT.loadFinishing));
+      say(`${TEXT.writeDone} ${r.done}${r.skipped.length ? ` (${r.skipped.length} ${TEXT.loadSkipped})` : ""}.`, "ok");
+    } catch (e) { deviceError(e); }
+    if (dev) dev.close(); st.midiTap = null;
+    el.write.disabled = false;
   }
   function installThis() {
     const b = current();
