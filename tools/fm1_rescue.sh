@@ -33,7 +33,7 @@ if [ -n "${1:-}" ]; then
     echo "When it says it is waiting: plug the FM-1 in and switch it on. It will ask you to type the package's hash before writing."
     exec sudo "$DIR/env/bin/python" "$DIR/fm1_rescue.py" "$1" --ask --wait 300
 fi
-for f in "$DIR"/*.fwsc "$HOME"/Downloads/*.fwsc "$HOME"/Desktop/*.fwsc; do
+for f in "$(dirname "$HERE")"/web/stock/FM-1_015.fwsc "$DIR"/*.fwsc "$HOME"/Downloads/*.fwsc "$HOME"/Desktop/*.fwsc; do   # (web/stock: the V15 this tree keeps, Apache-2.0)
     [ -f "$f" ] || continue
     if [ "$(shasum -a 256 "$f" | cut -d' ' -f1)" = "$STOCK" ]; then PKG="$f"; break; fi
 done

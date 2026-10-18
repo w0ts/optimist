@@ -44,3 +44,36 @@ export async function validateStockPackage(bytes) {
   if (product !== "FM-1_015") throw new Error("the official file does not say FM-1_015");
   return { product, image: logicalImage(bytes), sha256: STOCK_V15_SHA256 };
 }
+
+// ---- the official voice banks, for after a return to stock. After M-VAVE's FM1 Open V13 updater (sdk/WebUpdate.js,
+// inspectPackage and restoreFactory; Copyright (c) 2026 Zhuhai Shengke / M-VAVE, GPL-3.0-only): the four DX7 voice banks
+// of V15 (16 KiB) are the first bytes of the package's USR entry (type 50), stored scrambled in 32-byte runs. Optimist
+// writes its own data where V15 keeps them; the installer writes these back to a running V15 (fm1ota.js restoreBanks).
+export const STOCK_BANKS_SHA256 = "ecad0b8620f9d784d46c8da1e3c5de02c40214649ed8dec218026431046aad25";
+export const STOCK_BANKS_SIZE = 16384;
+
+const le = (p, at, n) => { let v = 0; for (let i = 0; i < n; i++) v += p[at + i] * 2 ** (i * 8); return v; };
+// the package's header scrambling: each byte XOR the low byte of a CRC-16 (0x1021) shift register
+function unscramble(bytes, key = 0xFFFF) {
+  const p = Uint8Array.from(bytes);
+  let k = key;
+  for (let i = 0; i < p.length; i++) { p[i] ^= k & 0xFF; k = ((k << 1) ^ (k & 0x8000 ? 0x1021 : 0)) & 0xFFFF; }
+  return p;
+}
+
+// the four banks of the official V15 file (validateStockPackage's bytes), checked by their SHA-256
+export async function stockBanks(fwsc) {
+  const { image } = await validateStockPackage(fwsc);
+  const count = le(unscramble(image.subarray(0, 64)), 8, 2);
+  for (let i = 0; i < count; i++) {
+    const e = unscramble(image.subarray(64 + i * 80, 144 + i * 80));
+    const name = String.fromCharCode(...e.subarray(64)).replace(/\0.*$/s, "");
+    if (le(e, 0, 2) !== 50 || name !== "USR") continue;
+    const off = le(e, 8, 4), out = new Uint8Array(STOCK_BANKS_SIZE);
+    for (let j = 0; j < STOCK_BANKS_SIZE; j += 32)
+      out.set(unscramble(image.subarray(off + j, off + j + 32), 0x980F ^ ((off + j) >>> 2)), j);
+    if (await sha256hex(out) !== STOCK_BANKS_SHA256) break;
+    return out;
+  }
+  throw new Error("the official file's voice banks did not check out");
+}

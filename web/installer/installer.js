@@ -10,6 +10,8 @@
 //   mountInstaller(container, {
 //     packages,      [{ id, title, description, pkg, product, sha256 }]: the site's flavours (web/flavours.json via
 //                    make_site.py); pkg a URL relative to the page
+//     stock,         { pkg, sha256 }: M-VAVE's official V15 the site keeps (web/stock/, make_site.py; Apache-2.0), for
+//                    the return to stock in step 4 without a download; none: the user's own file only
 //     version,       the site's version ("0.1"); shown with the package
 //     source,        the tag or commit the site was made from ("" when unknown): the Source link
 //     onNavigate,    (where) => void, where one of "build" "backup" "editor" "about": the host opens it (its tab, the
@@ -18,7 +20,7 @@
 //     midi,          (options) => Promise<MIDIAccess>: default navigator.requestMIDIAccess (tests pass a mock)
 //   }) -> { unmount(), busy }    busy: true while writing (the host must not unload or hide the page then)
 import { OFFICIAL_LOADER, OUR_LOADER, Updater } from "../fm1ota.js";
-import { STOCK_V15_SHA256, logicalImage, productOf, sha256hex, validateStockPackage } from "../fm1pkg.js";
+import { STOCK_V15_SHA256, logicalImage, productOf, sha256hex, stockBanks, validateStockPackage } from "../fm1pkg.js";
 
 const STYLE_ID = "optimist-installer-style";
 const BUNDLED_CSS = null;                           /* make_site.py puts web/installer/installer.css here */
@@ -91,8 +93,15 @@ export const TEXT = {
   r2h: "Optimist is installed but does not start", r2: "Hold OCT− alone while switching the FM-1 on. The screen says OPTIMIST USB RESCUE; install again from here. After two start-ups that crash, the FM-1 starts in USB rescue by itself.",
   r3h: "Not even the rescue starts", r3: "Hold OCT− and OCT+ together while switching on, and keep them held for 3 seconds: the FM-1 enters the chip's own update mode (UBOOT; the screen stays dark). This page cannot write in that mode: use tools/fm1_rescue.sh on a Mac, M-VAVE's M-UPGRADE, or an ",
   r4h: "Back to the official firmware V15",
-  r4a: "Download FM-1 V15 from ", r4: " (PC Firmware, FM-1 V15) and choose the file here, unchanged. This browser checks its checksum and sends it nowhere; then install it in step 3. Or use M-VAVE's own updater, M-UPGRADE (Downloads, PC Software).",
+  r4own: "This page keeps M-VAVE's official V15 file, unchanged (Apache-2.0, from M-VAVE's FM1 Open kit); its checksum is checked before anything is written. Then install it in step 3.",
+  r4ownBtn: "Use the official V15 kept here",
+  r4a: "Or download FM-1 V15 from ", r4: " (PC Firmware, FM-1 V15) and choose the file here, unchanged. This browser checks its checksum and sends it nowhere; then install it in step 3. Or use M-VAVE's own updater, M-UPGRADE (Downloads, PC Software).",
+  r4aOnly: "Download FM-1 V15 from ",
   stockFile: "Official FM-1.fwsc", stockBad: "Not the official file: ",
+  /* after the return to V15: its voice banks */
+  banksBtn: "Restore the official voice banks",
+  banksNote: "Optimist used the flash where V15 keeps its four voice banks. This writes M-VAVE's banks back (a few seconds); voices you stored in V15 since are replaced.",
+  banksDoing: "Writing the official voice banks… ", banksDone: "The official voice banks are back.",
   untested: "These rescue paths have not been tried on a real FM-1 yet.",
   docs: "The full rescue guide", source: "Source", about: "About and licences", builtFrom: "built from ",
 };
@@ -132,7 +141,7 @@ export async function checkPackage(bytes, expect = null) {
   try { product = productOf(bytes); } catch (e) { throw codeError("notours", e.message); }
   if (!expect) {
     const stock = await validateStockPackage(bytes).catch(() => null);
-    if (stock) return { product: stock.product, sha256: stock.sha256, image: stock.image, stock: true };
+    if (stock) return { product: stock.product, sha256: stock.sha256, image: stock.image, stock: true, banks: await stockBanks(bytes) };
     if (!/^FM-1_[79]\d\d$/.test(product)) throw codeError("notours", product || "no identity");
   } else if (product !== expect.product) throw codeError("badpkg");
   if (!has(bytes, LOADER_MARK)) throw codeError("noloaderpkg");
@@ -141,10 +150,11 @@ export async function checkPackage(bytes, expect = null) {
   return { product, sha256, image: logicalImage(bytes), stock: false };
 }
 
-/* the official V15 file of step 4 */
+/* the official V15 file of step 4 (yours, or the copy the site keeps: opts.stock), with its voice banks (fm1pkg.js
+   stockBanks: written back after the install, restoreBanks) */
 export async function checkStock(bytes) {
   const s = await validateStockPackage(bytes);
-  return { product: s.product, sha256: s.sha256 || STOCK_V15_SHA256, image: s.image, stock: true };
+  return { product: s.product, sha256: s.sha256 || STOCK_V15_SHA256, image: s.image, stock: true, banks: await stockBanks(bytes) };
 }
 
 /* fm1ota.js's steps -> the phase (0..3) and the bar (0..100): the check 0-10, the switch 10-15, the write 15-95 by the
@@ -259,7 +269,9 @@ export function mountInstaller(container, opts = {}) {
       h("dt", {}, TEXT.r1h), h("dd", {}, TEXT.r1),
       h("dt", {}, TEXT.r2h), h("dd", {}, TEXT.r2),
       h("dt", {}, TEXT.r3h), h("dd", {}, TEXT.r3, h("a", { href: "https://github.com/kurogedelic/FM-1-transporter", target: "_blank", rel: "noopener" }, "FM-1-transporter"), "."),
-      h("dt", {}, TEXT.r4h), h("dd", {}, TEXT.r4a, h("a", { href: "https://www.m-vave.com/download", target: "_blank", rel: "noopener" }, "www.m-vave.com/download"), TEXT.r4,
+      h("dt", {}, TEXT.r4h), h("dd", {},
+        opts.stock ? h("p", {}, TEXT.r4own, " ", h("button.o-btn.sm.oi-stockown", { type: "button", onclick: () => loadStock(true) }, TEXT.r4ownBtn)) : null,
+        opts.stock ? TEXT.r4a : TEXT.r4aOnly, h("a", { href: "https://www.m-vave.com/download", target: "_blank", rel: "noopener" }, "www.m-vave.com/download"), TEXT.r4,
         h("label.o-field.oi-stockfield", {}, h("span", {}, TEXT.stockFile), el.stockFile), el.stockMsg)),
     h("p.o-dim", {}, TEXT.untested, " ", link("docs", TEXT.docs)));
 
@@ -323,11 +335,18 @@ export function mountInstaller(container, opts = {}) {
     }
     render();
   }
-  async function loadStock() {
-    const f = el.stockFile.files && el.stockFile.files[0];
-    if (!f) return;
+  async function loadStock(own = false) {   /* own: the copy the site keeps (opts.stock), else the file chosen */
+    const f = !own && el.stockFile.files && el.stockFile.files[0];
+    if (!own && !f) return;
     try {
-      st.stock = await checkStock(new Uint8Array(await f.arrayBuffer()));
+      let bytes;
+      if (own) {
+        say(el.stockMsg, TEXT.pkgLoading);
+        const r = await fetch(opts.stock.pkg);
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        bytes = new Uint8Array(await r.arrayBuffer());
+      } else bytes = new Uint8Array(await f.arrayBuffer());
+      st.stock = await checkStock(bytes);
       st.stock.title = TEXT.stockTitle;
       say(el.stockMsg, TEXT.pkgReady + TEXT.stockTitle, "ok");
       el.stockRow.hidden = false;
@@ -444,7 +463,9 @@ export function mountInstaller(container, opts = {}) {
       el.bar.value = 100;
       say(el.status, "");
       el.ok.replaceChildren(h("span", {}, `${TEXT.done}${pkg.title} (${back}).`), " ",
-        pkg.stock ? null : h("button.o-btn.sm", { type: "button", onclick: () => (opts.onNavigate ? opts.onNavigate("editor") : (location.href = links.editor)) }, TEXT.openEditor));
+        pkg.stock ? (pkg.banks ? h("div.oi-banks", {}, h("p.o-dim", {}, TEXT.banksNote),
+          h("button.o-btn.sm.oi-banksgo", { type: "button", onclick: () => restoreBanks(pkg.banks) }, TEXT.banksBtn)) : null)
+          : h("button.o-btn.sm", { type: "button", onclick: () => (opts.onNavigate ? opts.onNavigate("editor") : (location.href = links.editor)) }, TEXT.openEditor));
       el.ok.hidden = false;
       el.go.textContent = TEXT.installAgain;
     } catch (e) {
@@ -453,6 +474,29 @@ export function mountInstaller(container, opts = {}) {
     }
     st.busy = false; syncChoice(); render();
     if (!el.ok.hidden) el.go.textContent = TEXT.installAgain;
+  }
+  /* the official voice banks back into the V15 just installed (fm1ota.js restoreBanks) */
+  async function restoreBanks(banks) {
+    if (st.busy) return;
+    el.err.hidden = true;
+    let midi;
+    try { midi = await access(); } catch (e) { showError(e, -1); return; }
+    st.busy = true; syncChoice(); render();
+    const btn = el.ok.querySelector(".oi-banksgo");
+    if (btn) btn.disabled = true;
+    try {
+      await new Updater(midi, log).restoreBanks(banks, (n) => {
+        el.bar.value = Math.round(n / banks.length * 100);
+        say(el.status, `${TEXT.banksDoing}${Math.round(n / banks.length * 100)} %`);
+      });
+      say(el.status, TEXT.banksDone, "ok");
+      if (btn) btn.remove();
+    } catch (e) {
+      showError(e, -1);
+      log(String(e && e.stack || e));
+      if (btn) btn.disabled = false;
+    }
+    st.busy = false; syncChoice(); render();
   }
   function showError(e, phase) {
     if (phase >= 0) setPhase(Math.min(phase, 3), "fail");

@@ -17,7 +17,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
-import { STOCK_V15_SHA256, logicalImage, productOf, validateStockPackage } from "./fm1pkg.js";
+import { STOCK_BANKS_SIZE, STOCK_V15_SHA256, logicalImage, productOf, stockBanks, validateStockPackage } from "./fm1pkg.js";
 import { OFFICIAL_LOADER, OUR_LOADER, Updater } from "./fm1ota.js";
 import { FakeFM1, fakePackage } from "./installer/mock_fm1.js";
 import * as INST from "./installer/installer.js";
@@ -3231,6 +3231,24 @@ async function updater() {
     ok(s.product === "FM-1_015" && s.sha256 === STOCK_V15_SHA256 && s.image.length > 0x93000,
        "fm1pkg.js validateStockPackage: the official FM-1.fwsc (FM1_V15)");
   }
+  /* the V15 this tree keeps (web/stock/, Apache-2.0) and its voice banks, written back to a running V15 */
+  const kept = new Uint8Array(readFileSync(join(HERE, "stock", "FM-1_015.fwsc")));
+  const keptOk = await validateStockPackage(kept).then((s) => s.product === "FM-1_015", () => false);
+  ok(keptOk, "web/stock/FM-1_015.fwsc: M-VAVE's V15, unchanged (validateStockPackage)");
+  const banks = await stockBanks(kept);
+  ok(banks.length === STOCK_BANKS_SIZE && String.fromCharCode(...banks.subarray(118, 125)) === "PIANO 1",
+     "fm1pkg.js stockBanks: V15's four voice banks (16 KiB, SHA-256 checked; the first voice PIANO 1)");
+  const v15dev = new FakeFM1(image, { identity: "FM-1_015" });
+  const prog = [];
+  await new Updater(v15dev.access).restoreBanks(banks, (n) => prog.push(n));
+  const ops = v15dev.bankOps.join("");
+  ok(v15dev.banks.every((b, i) => b === banks[i]) && ops === ("33" + "34".repeat(8)).repeat(4) && prog.at(-1) === 16384,
+     "fm1ota.js restoreBanks: per bank an erase (33), eight 512 B writes (34), each acknowledged: the banks as V15 has them");
+  const notV15 = new FakeFM1(image, { identity: "FM-1_720" });
+  const e5 = await new Updater(notV15.access).restoreBanks(banks).then(() => null, (x) => x);
+  ok(e5?.code === "notfound" && !notV15.bankOps, "fm1ota.js restoreBanks: only an FM-1 running V15 (FM-1_015)");
+  const cs = await INST.checkStock(kept);
+  ok(cs.stock && cs.banks && cs.banks.length === STOCK_BANKS_SIZE, "installer: checkStock: the V15 with its voice banks (the restore after the install)");
 }
 
 /* ------------------------------------------- the installer module (web/installer/installer.js) --- */

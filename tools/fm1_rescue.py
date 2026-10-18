@@ -55,6 +55,8 @@ import fm1pkg_make
 
 VID, PID = 0x4C4A, 0x8057
 STOCK_SHA256 = "db1642b2b6fa5c2cccb11ffd13878068bb28601678d3644049f99dc40e7edb8a"
+# M-VAVE's V15 as this tree keeps it (Apache-2.0: M-VAVE's FM1 Open kit, sdk/firmware/FM-1_015.fwsc, sha256 STOCK_SHA256)
+STOCK_IN_TREE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "web", "stock", "FM-1_015.fwsc")
 LOADER_URL = ("https://raw.githubusercontent.com/kagaimiq/jl-uboot-tool/"
               "c32b28e7a04f873f526ba929cb1bae9f05442fe9/data/loaderblobs/usb/wl82loader.bin")
 LOADER_SHA256 = "d41da6126760c9d66660bcc0cac8d27d221806c5e369a8036921efe68dca5376"
@@ -485,7 +487,9 @@ def make_ask(pkg):
 
 def parser():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("package", help="M-VAVE's FM-1 V15 .fwsc (the default), or any known-good FM-1 .fwsc")
+    ap.add_argument("package", nargs="?", default=STOCK_IN_TREE,
+                    help="M-VAVE's FM-1 V15 .fwsc (the default: the copy this tree keeps, web/stock/FM-1_015.fwsc, "
+                         "Apache-2.0), or any known-good FM-1 .fwsc")
     ap.add_argument("--write", action="store_true", help="write the package (without it: check and back up only)")
     ap.add_argument("--confirm-package", metavar="SHA256", help="a package that is not V15 is only written with "
                     "this: the first 8 or more hex digits of its sha256 (--check prints it)")

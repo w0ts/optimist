@@ -71,6 +71,21 @@ function parseIdentity(pkt) {
   return m ? { text: txt, model: m[1], version: parseInt(m[2], 10) } : null;
 }
 
+// a command to the running stock firmware and its reply (M-VAVE's FM1 Open V13 updater, sdk/WebUpdate.js frame / parse,
+// GPL-3.0-only): 00 59, the command, a 24-bit length, the payload, the payload's checksum (~sum), 7-bit packed
+function frame(cmd, payload) {
+  let s = 0;
+  for (const b of payload) s += b;
+  return [0xF0, ...pack7([0x00, 0x59, cmd, payload.length & 0xFF, payload.length >> 8, 0, ...payload, ~s & 0xFF]), 0xF7];
+}
+function parseReply(pkt) {
+  const u = unpack7(pkt.slice(1, -1));
+  if (u.length < 7 || u[0] !== 0 || u[1] !== 0x59 || (u[3] | (u[4] << 8) | (u[5] << 16)) !== u.length - 7) return null;
+  let s = 0;
+  for (let i = 6; i < u.length; i++) s += u[i];
+  return (s & 0xFF) === 0xFF ? { cmd: u[2], data: u.slice(6, -1) } : null;
+}
+
 // one MIDI in/out pair with a SysEx queue
 class Link {
   constructor(input, output) {
@@ -212,6 +227,39 @@ export class Updater {
     const s2 = await this.serve(ota.link, image, 0xF0000000, 180000, (n) => step("write", n));
     ota.link.close();
     return s2;
+  }
+
+  // the official voice banks (fm1pkg.js stockBanks, 16 KiB) written back to a running V15, as M-VAVE's updater does it
+  // (restoreFactory): per 4 KiB bank an erase (command 33), then eight 512 B writes (command 34), each acknowledged
+  // (command 0, data 0). onProgress(bytes written). Only an FM-1 that reports FM-1_015.
+  async restoreBanks(banks, onProgress) {
+    if (!banks || banks.length !== 16384) throw fail("badreq", "not the official voice banks");
+    const dev = await this.find((id) => id.text === "FM-1_015");
+    if (!dev) throw fail("notfound", "no FM-1 running the official V15 found");
+    const ack = async (cmd, payload) => {
+      dev.link.drain();
+      if (!dev.link.send(frame(cmd, payload))) throw fail("lost", "the FM-1 was disconnected");
+      const end = Date.now() + 5000;
+      while (Date.now() < end) {
+        const p = await dev.link.read(Math.min(250, end - Date.now()));
+        if (!p) { if (dev.link.lost) throw fail("lost", "the FM-1 was disconnected"); continue; }
+        const r = parseReply(p);
+        if (r && r.cmd === 0) {
+          if (r.data.length !== 1 || r.data[0] !== 0) throw fail("stopped", "the FM-1 refused the voice banks");
+          return;
+        }
+      }
+      throw fail("stopped", "the FM-1 stopped answering while the voice banks were written: run it again");
+    };
+    try {
+      for (let bank = 0; bank < 16384; bank += 4096) {
+        await ack(33, [5, 0, bank >> 8, 0, 0]);
+        for (let off = bank; off < bank + 4096; off += 512) {
+          await ack(34, [5, off & 0xFF, off >> 8, 0, 0, 0, 2, 0, ...banks.subarray(off, off + 512)]);
+          if (onProgress) onProgress(off + 512);
+        }
+      }
+    } finally { dev.link.close(); }
   }
 
   // resume: the device is already in update mode (loader) -> true when the write finished. accept: the

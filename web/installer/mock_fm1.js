@@ -51,6 +51,8 @@ export class FakeFM1 {
         ? [...Array.from({ length: this.writeBlocks }, (_, k) => [k * 512, 512]), [0xF0000000, 8]]
         : [[0, 64], [0x40, 160], [0x1000, 512], [0xE0000000, 8]];
       this.next();
+    } else if (!this.waiting && this.identity === "FM-1_015" && [33, 34].includes(unpack7(d.slice(1, -1))[2])) {
+      this.bankCmd(unpack7(d.slice(1, -1)));
     } else if (this.waiting) {
       const u = unpack7(d.slice(1, -1));
       const [addr, len] = this.waiting;
@@ -64,6 +66,17 @@ export class FakeFM1 {
       else if (addr === 0xF0000000) setTimeout(() => this.boot(this.finalIdentity, "Felucca"), 300);
       else this.next();
     }
+  }
+  // the stock V15's voice-bank commands (fm1ota.js restoreBanks): 33 erases a 4 KiB bank (0xFF), 34 writes 512 B;
+  // each acknowledged with command 0, data 0. banks: the 16 KiB as written; bankOps: the commands in order
+  bankCmd(u) {
+    this.banks = this.banks || new Uint8Array(16384).fill(0x5A);
+    this.bankOps = this.bankOps || [];
+    const p = u.slice(6, -1), off = p[1] | (p[2] << 8);
+    this.bankOps.push(u[2]);
+    if (u[2] === 33) this.banks.fill(0xFF, off, off + 4096);
+    else this.banks.set(p.slice(8, 520), off);
+    this.tx([0xF0, ...pack7([0, 0x59, 0, 1, 0, 0, 0, 0xFF]), 0xF7]);
   }
   next() {
     const r = this.queue.shift();

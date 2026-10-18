@@ -5,6 +5,7 @@
 
   index.html                  redirect to the installer
   firmware/optimist-VER[-ID].fwsc  the packages (one per flavour in web/flavours.json)
+  firmware/FM-1_015.fwsc      M-VAVE's official V15, unchanged (web/stock/, Apache-2.0): the installer's return to stock
   icon.svg, favicon.ico, apple-touch-icon.png, icon-*.png, manifest.webmanifest   the icon (assets/logo/)
   webapp/installer/index.html the standalone installer (web/installer/index.html): the installer module with fm1pkg.js,
                               fm1ota.js and its CSS, the site's packages (site.json) and the shared style inlined
@@ -74,6 +75,10 @@ BUILDER_FILES = ("index.html", "logic.js", "ui.js", "builder.js", "builder.css",
 
 INSTALLER_IMPORTS = re.compile(r'^import \{[^}]*\} from "\.\./(fm1ota|fm1pkg)\.js";\n', re.M)
 CSS_MARK = "const BUNDLED_CSS = null;"
+
+
+STOCK_NAME = "FM-1_015.fwsc"                       # web/stock/: M-VAVE's FM-1 V15, unchanged (its FM1 Open kit, Apache-2.0)
+STOCK_SHA256 = "db1642b2b6fa5c2cccb11ffd13878068bb28601678d3644049f99dc40e7edb8a"   # (web/fm1pkg.js, tools/fm1_rescue.py)
 
 
 def installer_module(inline):
@@ -216,7 +221,13 @@ def main(pkg, version, out, flavours=None):
                          "pkg": "../../firmware/" + name, "product": product,
                          "sha256": hashlib.sha256(raw).hexdigest()})   # the page checks the download against it
         files.append((Path(fl["pkg"]), name))
-    site = {"version": version, "source": source_ref(), "packages": packages}
+    stock = HERE / "stock" / STOCK_NAME              # M-VAVE's V15 (Apache-2.0): the installer's return to stock, no download
+    stock_sha = hashlib.sha256(stock.read_bytes()).hexdigest()
+    if stock_sha != STOCK_SHA256:
+        raise SystemExit(f"{stock}: sha256 {stock_sha}, not M-VAVE's V15 ({STOCK_SHA256})")
+    files.append((stock, STOCK_NAME))
+    site = {"version": version, "source": source_ref(), "packages": packages,
+            "stock": {"pkg": "../../firmware/" + STOCK_NAME, "sha256": stock_sha}}
     meta = json.dumps(site)
     for mark in ("/*INSTALLER*/", "/*META*/"):
         if html.count(mark) != 1:
