@@ -1105,6 +1105,10 @@ job; ( jobin
     run "BLE RF trims: stock V15's VM read in place (§14: check byte, id / length, last wins, live area, 187's CRC), the copy, VM -> copy -> none" "$OUT/ble_vm_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
+    $CC -Wextra $BLE_SAN -o "$OUT/bt_inq_test" tests/bt_inq_test.c
+    run "BT Classic inquiry probe: the sync word's parity (GIAC, stock V15's LAP, the spec's construction), FHS and EIR parsing" "$OUT/bt_inq_test"
+) >"$U.out" 2>&1 & jobbg
+job; ( jobin
     run "BLE RF capture tool: the VM format, the trace cut into a program (windows, LUT, trims, scan, replay), V15's hash" early_out t_ble_rf
 ) >"$U.out" 2>&1 & jobbg
 # the stack with its WL82 baseband driver in the emulator's BLE engine model, a virtual central end to end (skipped
