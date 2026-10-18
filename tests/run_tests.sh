@@ -143,6 +143,13 @@ t_ble_central() { python3 tests/ble_emu_central_test.py; }
 t_ble_boot() { python3 tests/ble_emu_boot_test.py; }
 t_builder() { python3 tests/builder_test.py; r=$?; python3 tests/builder_core_test.py || r=1; return $r; }
 t_web() { node web/test_web.mjs; r=$?; node web/test_builder.mjs || r=1; python3 tests/cloud_build_test.py || r=1; return $r; }
+# the simulator (docs/SIMULATOR.md): the default configuration's firmware as WebAssembly, run under node
+t_sim() {
+    local py; py="$(python3 -c 'import sys; sys.path.insert(0, "tools"); import deps; print(deps.venv_python())')" || return 1
+    mkdir -p build/sim/test
+    "$py" tools/sim.py build --wasm --out build/sim/test/sim.wasm >build/sim/test-build.log 2>&1 || { tail -20 build/sim/test-build.log; return 1; }
+    node tests/sim_test.mjs build/sim/test/sim.wasm
+}
 early t_ble_emu
 early t_ble_central
 command -v node >/dev/null 2>&1 && early t_web
@@ -1546,6 +1553,14 @@ job; ( jobin
         run "web pages: editor protocol, samples, packages, update protocol, the web builder" early_out t_web
     else
         echo "== skip web tests (no node)"
+    fi
+) >"$U.out" 2>&1 & jobbg
+
+job; ( jobin
+    if command -v node >/dev/null 2>&1 && command -v emcc >/dev/null 2>&1; then
+        run "the simulator: the firmware as WebAssembly (boot, screen, sound, the editor, backup / restore)" t_sim
+    else
+        echo "== skip the simulator test (no node or emcc: brew install emscripten)"
     fi
 ) >"$U.out" 2>&1 & jobbg
 

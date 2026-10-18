@@ -208,10 +208,29 @@ static __attribute__((noinline)) void master_pot(int32_t *knob, int glide)
     song.master_q12 = (k10 * k10) >> 8;                 /* 0 .. ~4096 */
 }
 
+/* The simulator (firmware/sim/sim.c, FELUCCA_SIM) runs fm1_main in three parts, one at a time between its events: the
+ * start-up (fm1_main itself, returning where the loop starts), one pass of the main loop up to its wait
+ * (fm1_main_frame) and one turn of that wait without the sleep (fm1_main_idle_step); their state (knob, healthy_since,
+ * the pass's m) is then file-scope. Only these macros differ: the device's fm1_main is token for token as before */
+#if FELUCCA_SIM
+static int32_t knob = 512 * 16;
+static uint32_t healthy_since, main_m;
+#define MAIN_VARS
+#define MAIN_LOOP_BEGIN } static void fm1_main_frame(void) { uint32_t m = fm1_ms; main_m = m;
+#define MAIN_WAIT_BEGIN } static void fm1_main_idle_step(void) {
+#define MAIN_WAIT_END
+#define MAIN_LOOP_END
+#else
+#define MAIN_VARS int32_t knob = 512 * 16; uint32_t healthy_since;
+#define MAIN_LOOP_BEGIN for (;;) { uint32_t m = fm1_ms;
+#define MAIN_WAIT_BEGIN while (fm1_ms - m < 15u) {
+#define MAIN_WAIT_END fm1_idle(); }
+#define MAIN_LOOP_END }
+#endif
+
 static BOOT_ORDER void fm1_main(void)
 {
-    int32_t knob = 512 * 16;
-    uint32_t healthy_since;
+    MAIN_VARS
     if (felucca_dbg.magic != DBG_MAGIC) {
         memset(&felucca_dbg, 0, sizeof felucca_dbg);
         felucca_dbg.magic = DBG_MAGIC;
@@ -361,8 +380,7 @@ static BOOT_ORDER void fm1_main(void)
     lcd_fill(0, 0, 240, 240, C_BLACK);
 
     healthy_since = fm1_ms;
-    for (;;) {
-        uint32_t m = fm1_ms;
+    MAIN_LOOP_BEGIN
         fm1_wdt_feed();
         felucca_dbg.loop_ms = m ? m : 1u;
 #if FELUCCA_DUAL && FELUCCA_DUALCFG
@@ -521,7 +539,7 @@ static BOOT_ORDER void fm1_main(void)
 #if FELUCCA_DUAL
         dual_frame();                                   /* liveness ping; stage 1: the counter on screen */
 #endif
-        while (fm1_ms - m < 15u) {                               /* ~60 UI frames/s at most */
+        MAIN_WAIT_BEGIN                                 /* while (fm1_ms - m < 15u): ~60 UI frames/s at most */
             ui_input();
             fxi_poll();                         /* (a type picked: its instance within a pass) */
             meter_tap();                        /* (once per audio half: the meters see every one) */
@@ -540,9 +558,8 @@ static BOOT_ORDER void fm1_main(void)
             if (!(fm1_icfg() & 0x200u))
                 fm1_irq_on();
 #endif
-            fm1_idle();
-        }
-    }
+        MAIN_WAIT_END                                   /* fm1_idle(); } */
+    MAIN_LOOP_END
 }
 
 void fm1_cstart(void)
