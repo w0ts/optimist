@@ -679,6 +679,11 @@ _add("KNOB_ACCEL", "FELUCCA_KNOB_ACCEL", "knob acceleration by turn speed", U, 6
      desc="1 / 2 / 3 / 5 / 8 steps a detent when turned fast; never on lists (engines, kits, presets)",
      provenance=x0x("61654ba"),
      notice="Ported from X0X by Charles Vestal (GPL-3.0): knob acceleration. Tested in the emulator only.")
+_add("KEYS_DMA", "FELUCCA_KEYS_DMA", "key scan by DMA (SPI2) instead of bit-banging", U, 63, default=0,
+     desc="The keys' and LEDs' shift register gets its column word from SPI2's DMA instead of 16 bit-banged clock "
+          "edges in the 10 kHz scan interrupt: a shorter interrupt (less time in which the audio can be held off). "
+          "After M-VAVE's official FM1 Open V13 firmware. Off until checked on an FM-1.",
+     tested="emulator SPI2 model only; not checked on an FM-1")
 _add("LCD_BAUD", "LCD_BAUD", "screen data speed (SPI clock)", U, 79, default=1,
      choices=((1, "30 MHz"), (4, "12 MHz (as before X0X)"), (0, "60 MHz")),
      desc="How fast data is sent to the display: 60 MHz / (n + 1). Faster redraws finish sooner (less tearing); the "

@@ -129,6 +129,52 @@ static void fm1__led_lines(uint32_t rowmask)
     }
 }
 
+/* KEYS_DMA (FELUCCA_KEYS_DMA, builder item, default 0 until checked on an FM-1): the 595's column word goes out
+ * through SPI2's DMA on PA3 / PA4 instead of 16 bit-banged clock edges in the timer ISR; the tick only reads the rows,
+ * latches the column the DMA shifted since the last tick and queues the next one (after M-VAVE's FM1 Open V13,
+ * app/board/fm1_input.h fm1_scan_queue / fm1_input_tick, GPL-3.0-only: SPI2 at 0x11E00, IOMAP_CON4 bit 17, baud 29,
+ * a stalled SPI reset after 20 ticks). The polled paths (fm1_input_scan, fm1__sr_word) wait for the DMA instead. */
+#ifndef FELUCCA_KEYS_DMA
+#define FELUCCA_KEYS_DMA 0
+#endif
+#if FELUCCA_KEYS_DMA
+#define FM1_SPI2(off) (*(volatile uint32_t *)(0x11E00u + (off)))   /* 0 CON (bit 15 done, 14 clear), 4 BAUD, 12 ADR, 16 CNT */
+#define FM1_IOMAP_CON4 (*(volatile uint32_t *)0x51020u)
+#define FM1_COL_WORD(c) (0xFFFFu ^ (1u << (c)) ^ ((c) < 2u ? 1u << (11u + (c)) : 0u))   /* the 595 word selecting column c */
+static uint8_t fm1__spi_buf[2] __attribute__((aligned(4)));
+static uint8_t fm1__spi_on, fm1__spi_stall;
+static uint32_t fm1__spi_done(void) { return (FM1_SPI2(0) >> 15) & 1u; }
+static void fm1__spi_send(uint32_t w)           /* w (msb first) into the 595, by DMA; done: fm1__spi_done */
+{
+    fm1__spi_buf[0] = (uint8_t)(w >> 8);
+    fm1__spi_buf[1] = (uint8_t)w;
+    FM1_SPI2(0) |= 1u << 14;
+    __asm__ volatile("csync" ::: "memory");
+    FM1_SPI2(12) = (uint32_t)(uintptr_t)fm1__spi_buf;
+    FM1_SPI2(16) = 2;
+}
+static void fm1__spi_reset(void)
+{
+    FM1_SPI2(0) = 0;
+    __asm__ volatile("csync" ::: "memory");
+    FM1_SPI2(16) = 0;
+    FM1_SPI2(0) = (1u << 14) | (1u << 5) | 1u;
+}
+static void fm1__spi_start(void)                /* PA3 / PA4 to SPI2 (their GPIO set-up stays: outputs) */
+{
+    FM1_IOMAP_CON4 |= 1u << 17;
+    FM1_SPI2(4) = 29;
+    fm1__spi_reset();
+    fm1__spi_on = 1;
+}
+static void fm1__spi_wait(void)                 /* (bounded: a dead SPI leaves the keys as they are) */
+{
+    uint32_t n = 100000u;
+    while (!fm1__spi_done() && --n)
+        ;
+}
+#endif
+
 #if FELUCCA_LIGHTS
 static void fm1__sr_bit(uint32_t w, uint32_t i)  /* bit i of w (msb first) into the 595 */
 {
@@ -147,14 +193,37 @@ static void fm1__sr_latch(void)                 /* the outputs change here only 
 static void fm1__sr_word(uint32_t w)
 {
     uint32_t i;
+#if FELUCCA_KEYS_DMA
+    if (fm1__spi_on) {                          /* (the pins are SPI2's now) */
+        fm1__spi_wait();
+        fm1__spi_send(w);
+        fm1__spi_wait();
+        fm1__sr_latch();
+        return;
+    }
+#endif
     for (i = 0; i < 16u; i++)
         fm1__sr_bit(w, i);
     fm1__sr_latch();
 }
 #else
+static void fm1__sr_latch(void)                 /* the outputs change here only */
+{
+    FM1_PR(FM1_PA, FM1_OUT) |= 1u << 1;
+    FM1_PR(FM1_PA, FM1_OUT) &= ~(1u << 1);
+}
 static void fm1__sr_word(uint32_t w)
 {
     uint32_t i;
+#if FELUCCA_KEYS_DMA
+    if (fm1__spi_on) {                          /* (the pins are SPI2's now) */
+        fm1__spi_wait();
+        fm1__spi_send(w);
+        fm1__spi_wait();
+        fm1__sr_latch();
+        return;
+    }
+#endif
     for (i = 0; i < 16u; i++) {
         if (w & (0x8000u >> i))
             FM1_PR(FM1_PA, FM1_OUT) |= 1u << 4;
@@ -232,6 +301,10 @@ static void fm1_input_init(void)
     fm1__sr_word(0xFFFFu);
     for (i = 0; i < FM1_NENC; i++)
         fm1_in.enc_prev[i] = fm1_in.enc_last[i] = 0xFF;   /* seeded by the first frame */
+#if FELUCCA_KEYS_DMA
+    fm1__spi_start();                              /* the first tick latches column 1: its word on the way */
+    fm1__spi_send(FM1_COL_WORD(1u));               /* (fm1__tick_col starts at 0) */
+#endif
 }
 
 /* keys as SLOOP 2.3 / Felucca 1.0 read them (always built since 2026-10-14): debounced as soon as their column is read
@@ -351,7 +424,51 @@ static void fm1__frame(void)
 
 /* one column per call, from a timer ISR (see top) */
 static uint8_t fm1__tick_col;
+#if FELUCCA_KEYS_DMA
+/* the DMA shifted column n's word since the last tick: read column p, latch n, light n (LIGHTS: its dim pulses
+ * first, timed by TIMER4), queue the word of the column after n. A shift not done yet (or a stalled SPI) skips the
+ * tick; 20 in a row reset SPI2 and queue n again */
+static void fm1_input_tick(void)
+{
+    uint32_t p = fm1__tick_col, n = p + 1u == FM1_NCOL ? 0u : p + 1u, q = n + 1u == FM1_NCOL ? 0u : n + 1u;
+    if (!fm1__spi_done()) {
+        if (++fm1__spi_stall >= 20u) {
+            fm1__spi_reset();
+            fm1__spi_send(FM1_COL_WORD(n));
+            fm1__spi_stall = 0;
+        }
+        return;
+    }
+    fm1__spi_stall = 0;
+    fm1__led_lines(0);
+    fm1_in.raw[p] = (uint8_t)fm1__rows();          /* column p has been latched one tick (the lines dark) */
+    fm1__sr_latch();                               /* column n */
 #if FELUCCA_LIGHTS
+    {
+        uint32_t lit = fm1_led[n], a = fm1_led_dim[n] & ~lit, b = fm1_led_bg[n] & ~lit & ~a;
+        uint32_t ta = a ? FM1__NS_T(FM1_GLOW_NS) : 0u, tb = b ? FM1__NS_T(fm1_led_bg_ns) : 0u, t0, d, on, cur;
+        if (ta | tb) {
+            t0 = fm1_ticks();
+            cur = lit | a | (tb ? b : 0u);
+            fm1__led_lines(cur);
+            while ((d = fm1_ticks() - t0) < (ta > tb ? ta : tb)) {
+                on = lit | (d < ta ? a : 0u) | (d < tb ? b : 0u);
+                if (on != cur)
+                    fm1__led_lines(cur = on);
+            }
+        }
+        fm1__led_lines(lit);
+    }
+#else
+    fm1__led_lines(fm1_led[n] | ((fm1_in.frames & FM1_LED_DIM_MASK) ? 0u : fm1_led_dim[n]));
+#endif
+    fm1__spi_send(FM1_COL_WORD(q));
+    fm1__tick_col = (uint8_t)n;
+    fm1__keys(p);                                  /* its keys now: no wait for the frame's end */
+    if (n == 0u)
+        fm1__frame();
+}
+#elif FELUCCA_LIGHTS
 /* the dim pulses of column p ride on the shift of column n: the lines go lit | glow | backlight of p, each layer
  * ends when its time is up (TIMER4, checked after every bit), and the latch comes with the lines dark */
 static void fm1_input_tick(void)
