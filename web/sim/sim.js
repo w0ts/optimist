@@ -22,13 +22,29 @@ const DB = "optimist-sim", STORE = "state", KEY = "flash";
 const STYLE_ID = "optimist-sim-style";
 const KEYBOARD = "zsxdcvgbhnjmq2w3er5t6y7ui9o0p";   /* the computer keys, in the FM-1's key order (from its lowest) */
 
+/* the FM-1's 27-key keyboard: the black keys carry the function legends (the device, and the chip emulator's panel:
+   fm1-emulator rust-emulator/src/ui.rs). The 11 black keys are these note indices, in this label order */
+const BLACK_NOTES = [1, 3, 5, 8, 10, 13, 15, 17, 20, 22, 25];
+const BLACK_LABELS = ["OP1", "OP2", "OP3", "OP4", "OP5", "OP6", "PIT", "GLO", "MONO", "POLY", ""];
+
+/* the FM-1's colour editions, as panel themes, ported from the chip emulator (fm1-emulator rust-emulator/src/ui_theme.rs,
+   GPL-3.0): the body, bezel, keys and knobs. The screen inside keeps the firmware's own palette (its COLOR menu) */
+const THEMES = [
+  { name: "Classic", body: "#222222", bodyLine: "#303030", edge: "#171717", rim: "#555555", label: "#bec2c1", bezel: "#080808", keybed: "#282828", keybedRim: "#0c0c0c", key: "#262626", keyEdge: "#565656", keyLabel: "#bec2c1", keyPressed: "#4b412a", pressed: "#e7c15b", knobShadow: "#0c0c0c", knobRim: "#424242", knobSkirt: "#121212", knobTick: "#878787", knobCap: "#232323", knobPointer: "#bec2c1", octRecess: "#111111", buttonRecess: "#101010" },
+  { name: "Black", body: "#5d5d5d", bodyLine: "#686868", edge: "#3a3a3a", rim: "#7a7a7a", label: "#eaeaea", bezel: "#0a0a0a", keybed: "#383838", keybedRim: "#2a2a2a", key: "#2a2a2a", keyEdge: "#484848", keyLabel: "#dcdcdc", keyPressed: "#4b412a", pressed: "#e7c15b", knobShadow: "#262626", knobRim: "#303030", knobSkirt: "#141414", knobTick: "#444444", knobCap: "#1c1c1c", knobPointer: "#f2f2f2", octRecess: "#232323", buttonRecess: "#232323" },
+  { name: "Lilac", body: "#c298d4", bodyLine: "#cda7de", edge: "#a27cb6", rim: "#d8b8e6", label: "#3a2c4c", bezel: "#0a0a0b", keybed: "#7a6fb5", keybedRim: "#5c5094", key: "#6e62a8", keyEdge: "#8c82c4", keyLabel: "#1a1628", keyPressed: "#52478a", pressed: "#f6d77a", knobShadow: "#8e6ca2", knobRim: "#2c2a30", knobSkirt: "#141416", knobTick: "#3e3c44", knobCap: "#1c1c1f", knobPointer: "#f4f4f4", octRecess: "#6a5ea2", buttonRecess: "#6a5ea6" },
+  { name: "Orange", body: "#be6d49", bodyLine: "#c87a56", edge: "#9a5136", rim: "#d2845f", label: "#ffffff", bezel: "#0a0a0a", keybed: "#8e5448", keybedRim: "#6c3c32", key: "#844d43", keyEdge: "#a06456", keyLabel: "#f6e4dc", keyPressed: "#63362c", pressed: "#ffd27a", knobShadow: "#86462e", knobRim: "#2c2624", knobSkirt: "#161212", knobTick: "#40383a", knobCap: "#1c1717", knobPointer: "#f4f4f4", octRecess: "#7c4838", buttonRecess: "#854e42" },
+  { name: "Mint", body: "#4b4b4d", bodyLine: "#575759", edge: "#2e2e30", rim: "#666668", label: "#e6e6e8", bezel: "#0a0a0a", keybed: "#79d1c6", keybedRim: "#4f9e92", key: "#6fcabd", keyEdge: "#96e2d8", keyLabel: "#1d3633", keyPressed: "#4b9f93", pressed: "#ffffff", knobShadow: "#1e1e1f", knobRim: "#303032", knobSkirt: "#141415", knobTick: "#444447", knobCap: "#1d1d1f", knobPointer: "#f2f2f2", octRecess: "#62b7aa", buttonRecess: "#68c0b3" },
+  { name: "Cream", body: "#e1d7cc", bodyLine: "#d7ccc1", edge: "#c2b7ab", rim: "#f0e8df", label: "#544e4c", bezel: "#0a0a0d", keybed: "#40464a", keybedRim: "#313538", key: "#36393b", keyEdge: "#52575b", keyLabel: "#a4aaae", keyPressed: "#4b412a", pressed: "#e7c15b", knobShadow: "#b4a99f", knobRim: "#2c2c2c", knobSkirt: "#141414", knobTick: "#424242", knobCap: "#1c1c1c", knobPointer: "#f2f2f2", octRecess: "#3a3d40", buttonRecess: "#3d4044" },
+  { name: "Blue", body: "#f0ece6", bodyLine: "#e5e0d8", edge: "#d2ccc3", rim: "#fbf9f5", label: "#5f7290", bezel: "#0a0a0b", keybed: "#557392", keybedRim: "#3e5874", key: "#4a6888", keyEdge: "#6a88a8", keyLabel: "#0e1520", keyPressed: "#39516c", pressed: "#ffe08a", knobShadow: "#c8c1b6", knobRim: "#2c2c2c", knobSkirt: "#141414", knobTick: "#424242", knobCap: "#1c1c1c", knobPointer: "#f2f2f2", octRecess: "#4e6884", buttonRecess: "#557290" },
+];
+const THEME_KEY = "optimist-sim-theme";
+
 export const TEXT = {
   title: "Simulator",
-  what: "A build's firmware running in this browser: its screen, keys, knobs and sound. It is fast, not exact: it runs " +
-    "on this computer's processor, on one core, without Bluetooth, so it shows sounds, pages and behaviour, not the " +
-    "FM-1's CPU limits. The web editor can connect to it (choose Simulator in its device list), and its Backup and " +
-    "Restore move your work between the simulator and an FM-1.",
+  what: "",
   build: "Build", site: "The site's build", cloud: "Cloud builds",
+  themeLabel: "Theme",
   power: "Start", stop: "Stop", starting: "Starting…", running: "Running", stopped: "Stopped.",
   reboot: "Restarting…", fault: "The firmware stopped (a fault). Start again.", noaudio: "This browser has no AudioWorklet: use Chrome, Edge or Firefox.",
   reset: "Reset memory", resetAsk: "Erase the simulator's saved projects, presets and samples? (Every build shares them.)",
@@ -141,18 +157,40 @@ export function mountSim(container, opts = {}) {
   el.power = h("button.o-btn.primary", { type: "button", onclick: () => (engine ? stop() : start()) }, TEXT.power);
   el.reset = h("button.o-btn.sm.quiet", { type: "button", onclick: () => resetMemory() }, TEXT.reset);
   el.install = h("button.o-btn.sm", { type: "button", onclick: () => installThis() }, TEXT.install);
+  let themeIx = 0;
+  try { const v = THEMES.findIndex((t) => t.name === localStorage.getItem(THEME_KEY)); if (v >= 0) themeIx = v; } catch (e) { /* no storage */ }
+  el.theme = h("select.oi-csearch.os-pick", { "aria-label": TEXT.themeLabel, onchange: () => applyTheme(el.theme.selectedIndex) },
+    ...THEMES.map((t) => h("option", {}, t.name)));
+  el.theme.selectedIndex = themeIx;
   el.status = h("p.os-status.o-dim", { role: "status", "aria-live": "polite" });
   el.canvas = h("canvas.os-screen", { width: "240", height: "240", "aria-label": "The FM-1's screen" });
-  el.panel = h("div.os-panel");
-  el.keys = h("div.os-keys");
+  el.body = h("div.os-body");                 /* the device, drawn in a fixed 1160x700 space (the chip emulator's), scaled to fit */
+  el.stage = h("div.os-stage", {}, el.body);
   const root = h("div.os", {},
-    h("header", {}, h("h1.oi-title", {}, TEXT.title), h("p.oi-what", {}, TEXT.what)),
-    h("div.os-bar", {}, h("label.o-field", {}, h("span", {}, TEXT.build), el.pick), el.power, el.install, el.reset),
+    h("header", {}, h("h1.oi-title", {}, TEXT.title), TEXT.what ? h("p.oi-what", {}, TEXT.what) : null),
+    h("div.os-bar", {}, h("label.o-field", {}, h("span", {}, TEXT.build), el.pick),
+      h("label.o-field", {}, h("span", {}, TEXT.themeLabel), el.theme), el.power, el.install, el.reset),
     el.status,
-    h("div.os-device", {}, el.canvas, el.panel),
-    el.keys,
+    el.stage,
     h("p.o-dim.os-help", {}, TEXT.keysHelp, " ", TEXT.shared));
   container.replaceChildren(root);
+  const fit = () => { const s = Math.min(1, el.stage.clientWidth / 1160); el.body.style.setProperty("--os-scale", s); el.stage.style.height = `${700 * s}px`; };
+  const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(fit) : null;
+  if (ro) ro.observe(el.stage); else if (typeof window !== "undefined") window.addEventListener("resize", fit);
+  st.fitCleanup = () => { if (ro) ro.disconnect(); else if (typeof window !== "undefined") window.removeEventListener("resize", fit); };
+  setTimeout(fit, 0);
+  function applyTheme(ix) {
+    const t = THEMES[ix] || THEMES[0];
+    el.theme.selectedIndex = ix;
+    const v = { body: t.body, "body-line": t.bodyLine, edge: t.edge, rim: t.rim, label: t.label, bezel: t.bezel,
+      keybed: t.keybed, "keybed-rim": t.keybedRim, key: t.key, "key-edge": t.keyEdge, "key-label": t.keyLabel,
+      "key-pressed": t.keyPressed, pressed: t.pressed, "knob-shadow": t.knobShadow, "knob-rim": t.knobRim,
+      "knob-skirt": t.knobSkirt, "knob-tick": t.knobTick, "knob-cap": t.knobCap, "knob-pointer": t.knobPointer,
+      "oct-recess": t.octRecess, "button-recess": t.buttonRecess };
+    for (const [k, val] of Object.entries(v)) el.body.style.setProperty("--os-" + k, val);
+    try { localStorage.setItem(THEME_KEY, t.name); } catch (e) { /* no storage */ }
+  }
+  applyTheme(themeIx);
   const g = el.canvas.getContext("2d");
   const img = g.createImageData(240, 240);
   const say = (t, kind = "") => { el.status.textContent = t; el.status.dataset.kind = kind; };
@@ -298,30 +336,101 @@ export function mountSim(container, opts = {}) {
     root.querySelectorAll("[data-led]").forEach((n) => { const v = l[Number(n.dataset.led)]; n.dataset.on = v === 2 ? "2" : v === 1 ? "1" : ""; });
   }
 
-  /* ---- the panel: buttons (named by the firmware), the knobs, MASTER, the keys */
+  /* ---- the device: reproduced from the chip emulator's panel (fm1-emulator rust-emulator/src/ui.rs), its own
+     coordinates in a 1160x700 space (content offset 20,12). Every element is placed with those exact rects; the
+     whole stage is scaled to the available width. Buttons and keys keep their firmware index in data-led for the LEDs.
+     The knob cluster order and positions, the button grid and the keyboard legends are the emulator's. */
+  const OFF_X = 20, OFF_Y = 12;
+  const at = (x, y, w, hgt) => `position:absolute;left:${x + OFF_X}px;top:${y + OFF_Y}px;width:${w}px;height:${hgt}px`;
+  const box = (x, y, w, hgt, r, varname) => h("div.os-box", { style: `${at(x, y, w, hgt)};border-radius:${r}px;background:var(--os-${varname})` });
+  /* the drawn knobs: x, y (centre), label, encoder index (null = MASTER); the emulator's KNOBS table */
+  const KNOB_LAYOUT = [
+    [91, 106, "MASTER", null], [208, 106, "SELECT", "SELECT"], [91, 224, "PRESETS", "PRESETS"], [208, 224, "ALGORITHM", "ALGORITHM"],
+    [632, 106, "KNOB1", "KNOB1"], [758, 106, "KNOB2", "KNOB2"], [884, 106, "KNOB3", "KNOB3"], [1010, 106, "KNOB4", "KNOB4"],
+  ];
+  const BTN_LABELS = ["FX", "SCL", "ENV", "LFO", "EDIT", "GLO", "HOME", "SAVE", "ARP", "SEQ", "PLAY\nSTOP", "REC"];
   function buildPanel(info) {
-    const btns = (info.buttonNames.length ? info.buttonNames : Array.from({ length: info.buttons }, (_, i) => `B${i + 1}`))
-      .map((name, i) => h("button.os-btn", { type: "button", "data-led": String(i), onpointerdown: (e) => press(e, "button", i), onpointerup: () => send("button", i, 0), onpointerleave: () => send("button", i, 0) }, name));
-    const knobs = Array.from({ length: info.encoders }, (_, i) => knob(i, (info.encoderNames || [])[i]));
-    const master = h("input.os-master", { type: "range", min: "0", max: "1023", value: "700", "aria-label": "MASTER", oninput: (e) => engine && engine.post({ type: "master", value: Number(e.target.value) }) });
-    el.panel.replaceChildren(h("div.os-knobs", {}, knobs, h("label.os-mlabel", {}, "MASTER", master)), h("div.os-btns", {}, btns));
-    el.keys.replaceChildren(...Array.from({ length: info.keys }, (_, i) =>
-      h("button.os-key", { type: "button", "data-led": String(info.buttons + i), onpointerdown: (e) => press(e, "key", i), onpointerup: () => send("key", i, 0), onpointerleave: () => send("key", i, 0) }, KEYBOARD[i] ? KEYBOARD[i].toUpperCase() : "")));
+    const names = info.buttonNames.length ? info.buttonNames : Array.from({ length: info.buttons }, (_, i) => `B${i + 1}`);
+    const findBtn = (label) => { const i = names.findIndex((n) => n.replace(/[^A-Z0-9]/gi, "") === label.replace(/[^A-Z0-9]/gi, "")); return i >= 0 ? i : names.findIndex((n) => n.startsWith(label.slice(0, 3))); };
+    const encNames = (info.encoderNames || []);
+    const findEnc = (label) => { const i = encNames.findIndex((n) => n.replace(/\s/g, "").toUpperCase() === label); return i >= 0 ? i : encNames.findIndex((n) => n.replace(/\s/g, "").toUpperCase().startsWith(label.slice(0, 3))); };
+    const kids = [
+      h("div.os-box.os-rim", { style: `${at(0, 0, 1120, 660)};border-radius:65px;background:var(--os-rim)` }),
+      box(3, 3, 1114, 651, 62, "edge"), box(7, 6, 1106, 640, 58, "body"),
+      h("div.os-bodyline", { style: `${at(11, 10, 1098 - 2, 631 - 2)};border-radius:53px` }),
+      box(290, 52, 270, 272, 34, "bezel"),
+    ];
+    // the screen: the glass, then the live canvas at [315,77,220,220]
+    kids.push(h("div.os-glass", { style: `${at(310, 72, 230, 230)};border-radius:3px` }));
+    el.canvas.style.cssText = `${at(315, 77, 220, 220)};border-radius:2px`;
+    kids.push(el.canvas);
+    // the knobs
+    for (const [x, y, label, enc] of KNOB_LAYOUT) {
+      const idx = enc === null ? null : findEnc(enc);
+      kids.push(knob(x, y, label, idx));
+    }
+    // OCT recess + the two OCT buttons
+    kids.push(box(65, 286, 181, 56, 12, "oct-recess"));
+    const octNames = ["OCT-", "OCT+"];
+    octNames.forEach((label, id) => kids.push(buttonEl(findBtn(label), label.replace("-", "−"), 75 + id * 82, 296, 70, 35)));
+    // the button recess + the 12 buttons, 6 x 2
+    kids.push(box(598, 186, 448, 157, 23, "button-recess"));
+    BTN_LABELS.forEach((label, i) => {
+      kids.push(buttonEl(findBtn(label), label, 615 + (i % 6) * 71, 201 + Math.floor(i / 6) * 70, 57, 55));
+    });
+    // the keybed + the keys
+    kids.push(box(40, 384, 1040, 238, 40, "keybed-rim"), box(43, 387, 1034, 232, 38, "keybed"));
+    kids.push(...keyEls(info.keys, info.buttons));
+    el.body.replaceChildren(...kids);
     if (engine) engine.post({ type: "master", value: 700 });
+    fit();
+  }
+  function buttonEl(i, label, x, y, w, hgt) {
+    return h("button.os-btn", { type: "button", "data-led": i >= 0 ? String(i) : null, style: at(x, y, w, hgt),
+      onpointerdown: (e) => press(e, "button", i), onpointerup: () => send("button", i, 0), onpointerleave: () => send("button", i, 0) },
+      ...String(label).split("\n").map((s, k) => h(k ? "small" : "span", {}, s)));
+  }
+  function keyEls(n, nbtn) {
+    const black = {};
+    BLACK_NOTES.forEach((note, j) => { black[note] = BLACK_LABELS[j]; });
+    const out = [];
+    let wi = 0;
+    for (let note = 0; note < n; note++) {
+      const isBlack = note in black;
+      const x = isBlack ? 58 + (wi - 0.5) * 62.5 : 58 + wi * 62.5;
+      const y = isBlack ? 405 : 510;
+      if (!isBlack) wi++;
+      const label = isBlack ? black[note] : "";
+      out.push(h(`button.os-key.${isBlack ? "os-black" : "os-white"}`, { type: "button", "data-led": String(nbtn + note), style: at(x, y, 49, 94),
+        onpointerdown: (e) => press(e, "key", note), onpointerup: () => send("key", note, 0), onpointerleave: () => send("key", note, 0) },
+        label ? h("span.os-kleg", {}, label) : null, KEYBOARD[note] ? h("span.os-kcap", {}, KEYBOARD[note].toUpperCase()) : null));
+    }
+    return out;
   }
   function press(e, type, i) { e.preventDefault(); send(type, i, 1); }
   function send(type, i, down) { if (engine) engine.post({ type, i, down }); }
-  function knob(i, name) {
-    const label = name || `Knob ${i + 1}`;
-    const k = h("div.os-knob", { role: "slider", tabindex: "0", "aria-label": label, title: `${label}: drag up / down or scroll` }, name ? name.replace(/^KNOB ?/, "K").slice(0, 3) : String(i + 1));
-    let y = null, acc = 0;
-    const turn = (d) => { if (engine && d) engine.post({ type: "enc", i, delta: d }); };
-    k.addEventListener("pointerdown", (e) => { y = e.clientY; acc = 0; k.setPointerCapture(e.pointerId); });
-    k.addEventListener("pointermove", (e) => { if (y === null) return; acc += (y - e.clientY) / 6; y = e.clientY; const d = Math.trunc(acc); acc -= d; turn(d); });
-    k.addEventListener("pointerup", () => { y = null; });
-    k.addEventListener("wheel", (e) => { e.preventDefault(); turn(e.deltaY < 0 ? 1 : -1); }, { passive: false });
-    k.addEventListener("keydown", (e) => { if (e.key === "ArrowUp" || e.key === "ArrowRight") turn(1); else if (e.key === "ArrowDown" || e.key === "ArrowLeft") turn(-1); });
-    return k;
+  /* a knob at centre (cx, cy): rim 26, skirt 22, cap 19, a pointer and 24 ticks (the emulator's c.knob). enc is the
+     encoder index, or null for the MASTER pot (absolute 0..1023). Drag up / down or scroll to turn */
+  function knob(cx, cy, label, enc) {
+    const r = 26;
+    const face = h("div.os-knobface", { role: "slider", tabindex: "0", "aria-label": label, title: `${label}: drag up / down or scroll`,
+      style: `position:absolute;left:${cx + OFF_X - r}px;top:${cy + OFF_Y - r}px;width:${r * 2}px;height:${r * 2}px` }, h("span.os-knobdot"));
+    const name = h("div.os-klabel", { style: `position:absolute;left:${cx + OFF_X - 60}px;top:${cy + OFF_Y - 62}px;width:120px` }, label);
+    const wrap = h("div.os-knobw", {}, name, face);
+    let py = null, acc = 0, master = 700;
+    const setAng = (a) => face.style.setProperty("--a", `${a}deg`);
+    if (enc === null) setAng(master / 1023 * 300 - 150);
+    const turn = (d) => {
+      if (!d) return;
+      if (enc === null) { master = Math.max(0, Math.min(1023, master + d * 12)); setAng(master / 1023 * 300 - 150); if (engine) engine.post({ type: "master", value: master }); }
+      else { setAng((parseFloat(face.style.getPropertyValue("--a")) || 0) + d * 15); if (engine) engine.post({ type: "enc", i: enc, delta: d }); }   /* an encoder: endless, no end stop */
+    };
+    face.addEventListener("pointerdown", (e) => { py = e.clientY; acc = 0; face.setPointerCapture(e.pointerId); });
+    face.addEventListener("pointermove", (e) => { if (py === null) return; acc += (py - e.clientY) / 5; py = e.clientY; const d = Math.trunc(acc); acc -= d; turn(d); });
+    face.addEventListener("pointerup", () => { py = null; });
+    face.addEventListener("wheel", (e) => { e.preventDefault(); turn(e.deltaY < 0 ? 1 : -1); }, { passive: false });
+    face.addEventListener("keydown", (e) => { if (e.key === "ArrowUp" || e.key === "ArrowRight") turn(1); else if (e.key === "ArrowDown" || e.key === "ArrowLeft") turn(-1); });
+    return wrap;
   }
   /* the computer keyboard: the FM-1's keys, while the tab is shown and no text field has the focus */
   function onKey(e, down) {
