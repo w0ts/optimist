@@ -60,7 +60,7 @@ static int16_t rev_line[(FELUCCA_FX_REVERB ? REV_LINE_OWN : 0u) ? REV_LINE_OWN :
 #define FX_Q_MAX 0x40000000u     /* (fx_q, below: the zero-write counts stop here) */
 static struct {
     uint32_t dly_w, cho_w, cho_ph, rev_ph;
-    int32_t dly_lp, dly_le;         /* the delay's COLOR low-pass and its step's remainder (0..32767) */
+    int32_t dly_f[8];               /* the delay filter's two SVF stages (dly_filt; the second for 24 dB): states, remainders */
     uint16_t line_i[4], ap_i[2];
     int32_t line_lp[4];
     uint32_t cho_q, dly_q, rev_q;   /* samples since the bus last wrote a non-zero value into its lines */
@@ -344,21 +344,39 @@ static __attribute__((noinline)) void cho_zero(void)   /* (CHO RET 0: a block, t
         if (!(fxz.cclr = fx_zclear(cho_buf, sizeof cho_buf / 2u, fxz.cclr)))
             fx.cho_q = FX_Q_MAX;                        /* (idle: every cell 0) */
 }
+#define DLY_FST() (fx.dly_f[0] | fx.dly_f[1] | fx.dly_f[4] | fx.dly_f[5])   /* (the delay filter not at rest) */
 static __attribute__((noinline)) void dly_zero(void)   /* (DLY RET 0: the same, and its low-pass) */
 {
-    if (fx.dly_q < DLY_LEN || fx.dly_lp || fxz.dclr) {
-        fx.dly_lp = fx.dly_le = 0;
+    if (fx.dly_q < DLY_LEN || DLY_FST() || fxz.dclr) {
+        memset(fx.dly_f, 0, sizeof fx.dly_f);
         if (!(fxz.dclr = fx_zclear(dly_buf, sizeof dly_buf / 2u, fxz.dclr)))
             fx.dly_q = FX_Q_MAX;
     }
 }
+/* the delay filter for a block (dly_block): the SVF's coefficients at FREQ (G_DCOLOR, the synths' cutoff curve) with
+ * the damping of RES (2.0 .. 0.5, Q12: at most +6 dB at the cutoff, so a resonant loop rings into the saturator rather
+ * than screaming), TYPE, and a second stage for 24 dB */
+typedef struct {
+    tsvf_t c;
+    int32_t k;
+    uint8_t type, two;
+} dlyf_t;
 /* the delay's values for a block: from XIP, through FAR (RAMTEXT is full; once a block, for a running delay): the
- * loop gain, COLOR's low-pass step, the wet level (its MIX times its return, DLY RET: exact at unity); returns the
- * length */
-static __attribute__((noinline)) uint32_t dly_block(int32_t *fb, int32_t *col, int32_t *dmix)
+ * loop gain, the filter, the wet level (its MIX times its return, DLY RET: exact at unity); returns the length */
+static __attribute__((noinline)) uint32_t dly_block(int32_t *fb, dlyf_t *f, int32_t *dmix)
 {
-    *fb = dly_fb(song.g[G_DFDBK]);
-    *col = 2000 + song.g[G_DCOLOR] * 240;
+    int32_t n;
+    f->k = 8192 - song.g[G_DFRES] * 6144 / 127;
+    tsvf_coef_k(&f->c, song.g[G_DCOLOR] << 8, f->k);
+    f->type = (uint8_t)song.g[G_DFTYPE];
+    f->two = (uint8_t)(song.g[G_DFSLOPE] != 0);
+    /* the loop gain over the filter's peak (Q12; LP / HP about 1 / k, PEAK 2 / k, BP 1, per stage): the first echo has
+     * the resonance, the repeats at the cutoff fade as without the filter (FDBK below 100 % never runs away), the rest
+     * faster; at 100 % the cutoff holds for ever. RES 0 (k 2): 4096, the loop as before, exact at 100 % */
+    n = f->type == DLYF_BP ? 4096 : f->type == DLYF_PEAK ? f->k >> 1 : (f->k < 4096 ? f->k : 4096);
+    if (f->two)
+        n = (n * n) >> 12;
+    *fb = (dly_fb(song.g[G_DFDBK]) * n) >> 12;
     *dmix = (int32_t)((uint32_t)(song.g[G_DMIX] * 258) * (uint32_t)FX_RETQ(RET_LV(1)) >> 15);
     return delay_samples();
 }
@@ -382,13 +400,37 @@ AINL int32_t dly_sat(int32_t v)
     return v;
 }
 
-/* delay with a low-passed feedback (in the middle) */
-FX_STEP int32_t dly_step(int32_t in, uint32_t dl, int32_t col, int32_t fb, int32_t dmix, int32_t *wr)
+/* one SVF stage of the delay filter (dsp.c tsvf_tick's, st: its two states, then its two shifts' remainders carried to
+ * the next sample: no bias, no dead band, and silence settles to exactly 0 by itself. tsvf_tick's floor shifts left an offset of a few hundred at low cutoffs, where
+ * its a3 is tiny: the bus never went idle and 24 dB measured no steeper than 12). LP, HP (in - k bp - lp), BP (k bp:
+ * unity at the cutoff), PEAK (lp - hp: unity away from the cutoff, the resonance's lift at it) */
+FX_STEP int32_t dly_filt(const dlyf_t *f, int32_t s, int32_t *st)
 {
-    int32_t x = dly_buf[(fx.dly_w - dl) & (DLY_LEN - 1u)], v, e = (x - fx.dly_lp) * col + fx.dly_le;
-    fx.dly_lp += e >> 15;                               /* (|x - lp| <= 65535, col < 32768: e fits) */
-    fx.dly_le = e & 0x7FFF;
-    v = dly_sat((in >> 1) + mul_tz(fx.dly_lp, fb));
+    const tsvf_t *c = &f->c;
+    int32_t v3 = s - st[1], a = c->a1 * st[0] + c->a2 * v3 + st[2], v1 = a >> 13, lp, kb;
+    st[2] = a - (v1 << 13);
+    a = c->a2 * st[0] + c->a3 * v3 + st[3];
+    lp = st[1] + (a >> 13);
+    st[3] = a - ((a >> 13) << 13);
+    st[0] = clamp(2 * v1 - st[0], -150000, 150000);
+    st[1] = clamp(2 * lp - st[1], -150000, 150000);
+    if (f->type == DLYF_LP)
+        return lp;
+    kb = (f->k * v1) >> 12;
+    if (f->type == DLYF_BP)
+        return kb;
+    return f->type == DLYF_HP ? s - kb - lp : lp - (s - kb - lp);
+}
+
+/* the delay: what goes into the line (the input and the feedback) through the filter, so the first echo is filtered
+ * once and each repeat once more */
+FX_STEP int32_t dly_step(int32_t in, uint32_t dl, const dlyf_t *f, int32_t fb, int32_t dmix, int32_t *wr)
+{
+    int32_t x = dly_buf[(fx.dly_w - dl) & (DLY_LEN - 1u)], v;
+    v = dly_filt(f, (in >> 1) + mul_tz(x, fb), fx.dly_f);
+    if (f->two)
+        v = dly_filt(f, v, fx.dly_f + 4);
+    v = dly_sat(v);
     dly_buf[fx.dly_w & (DLY_LEN - 1u)] = (int16_t)v;
     *wr |= v;
     fx.dly_w++;
@@ -1401,10 +1443,11 @@ static HOT2 __attribute__((noinline)) int32_t cho_run(const int32_t *in, int32_t
 static HOT2 __attribute__((noinline)) int32_t dly_run(const int32_t *in, int32_t *wl, int32_t *wr, uint32_t n, int32_t *wd)
 {
     uint32_t i, dl;
-    int32_t fb, col, dmix, x, pk = 0;
-    dl = FAR(dly_block)(&fb, &col, &dmix);              /* (its divide: only for a running delay) */
+    int32_t fb, dmix, x, pk = 0;
+    dlyf_t f;
+    dl = FAR(dly_block)(&fb, &f, &dmix);                /* (its divide: only for a running delay) */
     for (i = 0; i < n; i++) {
-        x = dly_step(in[i], dl, col, fb, dmix, wd);
+        x = dly_step(in[i], dl, &f, fb, dmix, wd);
         wl[i] += x;
         wr[i] += x;
 #if FELUCCA_UI == 1
@@ -1467,7 +1510,7 @@ static HOT int fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int3
      * its send in rt_line, not here; a line a send reaches may sound although its own send is quiet: rs_wake) */
     gen = rs ? rs_gen() : 0u;
     run_c = FELUCCA_FX_CHORUS && (fx.cho_q < CHO_LEN || (!(gen & 1u) && fx_any(cho_in, n)));   /* (registry.h: an FX not built) */
-    run_d = FELUCCA_FX_DELAY && (fx.dly_q < DLY_LEN || fx.dly_lp || (!(gen & 2u) && fx_any(dly_in, n)));
+    run_d = FELUCCA_FX_DELAY && (fx.dly_q < DLY_LEN || DLY_FST() || (!(gen & 2u) && fx_any(dly_in, n)));
     run_r = FELUCCA_FX_REVERB && (fx.rev_q < REV_Q || REV_LP_BUSY() ||
                                   REV_HALF_BUSY() || (!(gen & 4u) && fx_any(rev_in, n)));   /* (REV_HALF: its filters too) */
     plan = (uint32_t)run_c | (uint32_t)run_d << 1 | (uint32_t)run_r << 2;

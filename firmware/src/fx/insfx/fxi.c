@@ -172,7 +172,7 @@ static uint32_t fxl_take(uint32_t j)
 {
     uint32_t ok;
     fm1_irq_off();
-    ok = !fxl_send_on(j) && (j ? fx.dly_q >= DLY_LEN && !fx.dly_lp && !fxz.dclr : fx.cho_q >= CHO_LEN && !fxz.cclr);
+    ok = !fxl_send_on(j) && (j ? fx.dly_q >= DLY_LEN && !DLY_FST() && !fxz.dclr : fx.cho_q >= CHO_LEN && !fxz.cclr);
     if (ok)
         fxl_lent |= (uint8_t)(1u << j);
     fm1_irq_on();

@@ -299,6 +299,32 @@ static void dstep_from8(dstep_sn_t *o, const step8_t *s)
             dstep_set(&d, lane_of_note(s->note[i] & 127u), lvl, 0);
     memcpy(o, &d, DSTEP_SN);
 }
+/* the delay's FREQ (core.h G_DCOLOR) as a project keeps it: + DLY_FREQ_MARK. A value under it is an older project's (or
+ * SLOOP 2.4's) COLOR, a one-pole low-pass (2000 + 240 v a step, until 2026-10-18), read as the FREQ nearest its cutoff on
+ * the synths' curve (CUTOFF_HZ): DLYC_X -> DLYC_Y interpolated, within 2 steps; SLOOP 2.4 gets the reverse
+ * (sl24_export.c sl24_g_out) */
+#define DLY_FREQ_MARK 128
+#define DLYC_N 10u
+static const uint8_t DLYC_X[DLYC_N] = {0, 8, 16, 24, 35, 50, 70, 85, 100, 115};
+static const uint8_t DLYC_Y[DLYC_N] = {54, 69, 77, 84, 91, 99, 107, 113, 120, 127};
+static int16_t dly_map(int32_t v, const uint8_t *a, const uint8_t *b)   /* a -> b, piecewise linear */
+{
+    uint32_t i;
+    if (v <= a[0])
+        return b[0];
+    for (i = 0; i + 1u < DLYC_N; i++)
+        if (v <= a[i + 1u])
+            return (int16_t)(b[i] + (b[i + 1u] - b[i]) * (v - a[i]) / (a[i + 1u] - a[i]));
+    return b[DLYC_N - 1u];
+}
+static int16_t dly_freq_in(int32_t v)                   /* a project's G_DCOLOR -> the FREQ */
+{
+    return v >= DLY_FREQ_MARK ? (int16_t)clamp(v - DLY_FREQ_MARK, 0, 127) : dly_map(clamp(v, 0, 127), DLYC_X, DLYC_Y);
+}
+static int16_t dly_color_out(int32_t v)                 /* a project's G_DCOLOR -> SLOOP 2.4's COLOR */
+{
+    return v >= DLY_FREQ_MARK ? dly_map(v - DLY_FREQ_MARK, DLYC_Y, DLYC_X) : (int16_t)clamp(v, 0, 127);
+}
 static int16_t swing_from_v3(int32_t v) { return (int16_t)clamp((v * 4 + 2) / 5, 0, 100); }   /* /250 -> /200 */
 
 /* the globals of formats 1..3 (G_* unchanged since; any added later: their defaults) */
@@ -918,6 +944,7 @@ static void proj_capture(project_t *p, dlrec_t *d)   /* what is playing now, as 
     p->g[G_MIDI] = 0;                                   /* (G_MIDI: a status, not saved) */
 #endif
     p->g[G_INFO] = RECQ_PACK();                         /* (G_INFO's slot, the CPU read-out: REC QUANTIZE) */
+    p->g[G_DCOLOR] = (int16_t)(song.g[G_DCOLOR] + DLY_FREQ_MARK);   /* (the delay's FREQ: dly_freq_in) */
     p->sel = song.sel;
     p->rsv[0] = rev_pack();                             /* the reverb's algorithm (rev_type.c; 0 ROOM): bits 0..2 */
     mc_pack(p);                                         /* the master COMP / LIMIT (above): rsv[0] bits 3..7, rsv[1], rsv[2] */
@@ -1007,6 +1034,8 @@ static void proj_apply(const project_t *p, const dlrec_t *d, int all)
     for (i = 0; i < PJ_NG; i++)
         if (all ? i != G_SLOT && i != G_LOAD && i != G_SAVE && i != G_VIEW && i != G_MIDI && i != G_DRREV && i != G_SYNC : i == G_DRLVL)   /* (G_SYNC: the HOME menu's, device-wide) */
             song.g[i] = (int16_t)clamp(p->g[i], GP[i].min, GP[i].max);
+    if (all)
+        song.g[G_DCOLOR] = dly_freq_in(p->g[G_DCOLOR]);  /* (an older project's COLOR: the FREQ of its cutoff) */
     if (all)
         rev_unpack(p->rsv[0]);                          /* the reverb's algorithm (rev_type.c; older projects: 0 ROOM) */
     if (all)

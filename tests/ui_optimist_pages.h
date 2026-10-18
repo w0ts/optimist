@@ -198,7 +198,7 @@ static void pages_master_order_tests(void)
     static const struct { const char *name, *old; uint8_t scope; } W[] = {
         {"INSERTS", "MST INS", SC_FXSLOT}, {"INS DYN 1", "COMP", SC_GLOBAL}, {"INS DYN 2", "LIMIT", SC_GLOBAL},
         {"DUCK", "MASTER", SC_GLOBAL},
-        {"RETURNS", 0, 0}, {"RET REV", "REV/CHO", SC_GLOBAL}, {"RET DELAY", "DLY", SC_GLOBAL},
+        {"RETURNS", 0, 0}, {"RET REV", "REV/CHO", SC_GLOBAL}, {"RET DELAY", "DLY", SC_GLOBAL}, {"RET DLY F", "DLY F", SC_GLOBAL},
         {"SLOTS", "SLOTS", SC_FXSLOT},
 #if FELUCCA_MACROS
         {"MACRO", "MACRO", SC_MACRO},
@@ -249,13 +249,13 @@ static void pages_master_order_tests(void)
         i++;
     }
     ok = order && r == n;
-    check(ok, "MASTER's pages come in the order inserts (INSERTS, INS DYN 1 2, DUCK), returns (RETURNS, RET REV, RET DELAY), SLOTS, MACRO");
+    check(ok, "MASTER's pages come in the order inserts (INSERTS, INS DYN 1 2, DUCK), returns (RETURNS, RET REV, RET DELAY, RET DLY F), SLOTS, MACRO");
     check(cards, "... each moved page's four cards are the ones PAGES gives it; INS DYN 2 GAIN CEIL (GR a read-out), RETURNS has REV DLY CHO RET (the one order)");
     reset_ui();
 }
 static void pages_master_tests(void)
 {
-    static const char *const WANT[] = {"INSERTS", "INS DYN 1", "INS DYN 2", "DUCK", "RETURNS", "RET REV", "RET DELAY", "SLOTS",
+    static const char *const WANT[] = {"INSERTS", "INS DYN 1", "INS DYN 2", "DUCK", "RETURNS", "RET REV", "RET DELAY", "RET DLY F", "SLOTS",
 #if FELUCCA_MACROS
                                        "MACRO",
 #endif
@@ -278,7 +278,7 @@ static void pages_master_tests(void)
         i++;
     }
     check(ui.scr == SCR_FX && ok && i == sizeof WANT / sizeof WANT[0],
-          FELUCCA_MACROS ? "D3: MASTER's 9 pages: INSERTS INS DYN 1 2 DUCK, RETURNS RET REV RET DELAY, SLOTS, MACRO" : "D3: MASTER's pages: INSERTS INS DYN 1 2 DUCK, RETURNS RET REV RET DELAY, SLOTS");
+          FELUCCA_MACROS ? "D3: MASTER's 10 pages: INSERTS INS DYN 1 2 DUCK, RETURNS RET REV RET DELAY RET DLY F, SLOTS, MACRO" : "D3: MASTER's pages: INSERTS INS DYN 1 2 DUCK, RETURNS RET REV RET DELAY RET DLY F, SLOTS");
     pages_master_order_tests();
     head_title(SCR_FX, 0, h, sizeof h);
     check(!strcmp(SCR_NAME[SCR_FX], "MASTER") && !strcmp(h, "Insert"), "D3: the screen is MASTER (its badge), the title \"Insert\"");

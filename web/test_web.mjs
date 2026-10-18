@@ -2716,12 +2716,12 @@ async function masterStrip() {
   /* the popups: each FX's own parameters; the labels are the device's globals (params.c), in the ids the fallback names */
   const popOk = fxs.every((f) => f.labels.every((l, n) => G[f.dflt[n]] === l) && f.labels.includes(f.ret) && f.dflt.every((i) => G[i])
     && f.labels.every((l) => (f.pages || [f.page]).some((pg) => help.page[pg] && help.page[pg][l])));
-  ok(popOk && js(fxs.map((f) => f.labels.join("/"))) === js(["TIME/FDBK/COLR/MIX", "SIZE/DAMP", "CRT/CDP", "THRS/RATIO/ATK/REL/GAIN/CEIL"])
+  ok(popOk && js(fxs.map((f) => f.labels.join("/"))) === js(["TIME/FDBK/FREQ/MIX", "SIZE/DAMP", "CRT/CDP", "THRS/RATIO/ATK/REL/GAIN/CEIL"])
     && /\{"COMP", FAM_GLO, SC_GLOBAL, GR_NONE, \{G_CTHR, G_CRAT, G_CATK, G_CREL\}\}/.test(pc)
     && /\{"LIMIT", FAM_GLO, SC_GLOBAL, GR_NONE, \{G_CGAIN, G_CCEIL, 0xFF, G_CGR\}\}/.test(pc)
     && /\{"DLY", FAM_FX, SC_GLOBAL, GR_NONE, \{G_DTIME, G_DFDBK, G_DCOLOR, G_DMIX\}\}/.test(pc)
     && /\{"REV\/CHO", FAM_FX, SC_GLOBAL, GR_NONE, \{G_RSIZE, G_RDAMP, G_CRATE, G_CDEPTH\}\}/.test(pc),
-    "master strip: Delay TIME FDBK COLR MIX, Reverb SIZE DAMP, Chorus CRT CDP, Comp THRS RATIO ATK REL GAIN CEIL (== params.c), each with its shared help line");
+    "master strip: Delay TIME FDBK FREQ MIX, Reverb SIZE DAMP, Chorus CRT CDP, Comp THRS RATIO ATK REL GAIN CEIL (== params.c), each with its shared help line");
   /* the strip shows every parameter inline up to FX_INLINE_MAX, else the FX's main knobs (data-driven from the labels list) */
   const inl = (labels, main) => E.fxInline({ labels, main }).join("/");
   ok(E.FX_INLINE_MAX === 4 && fxs.filter((f) => f.labels.length <= 4).every((f) => js(E.fxInline(f)) === js(f.labels))

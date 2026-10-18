@@ -338,8 +338,13 @@ enum {                          /* global parameters */
      * 0: silent, that bus not run (its lines cleared). The delay's MIX (G_DMIX) stays its own. The mixer's MASTER row,
      * Returns (op_mixer.c). A project keeps them in its FX record (fx_rec.c FXRET_TLV: none = unity), not in g[] */
     G_CRET, G_DRET, G_RRET,
+    /* the delay's filter (2026-10-18; fx.c dly_step: in the loop, the first echo filtered once, each repeat once more):
+     * TYPE LP HP BP PEAK, SLOPE 12 / 24 dB, RES. Its FREQ is G_DCOLOR (COLOR's slot, the synths' cutoff curve: a project
+     * stores it + DLY_FREQ_MARK, an older one COLOR: project.c). In the FX record (fx_rec.c DLYF_TLV: none = LP, 12, 0) */
+    G_DFTYPE, G_DFSLOPE, G_DFRES,
     G_COUNT
 };
+enum { DLYF_LP, DLYF_HP, DLYF_BP, DLYF_PEAK };
 #define PJ_NG ((uint32_t)G_CTHR)   /* the globals a project's g[] holds (its format: 32 since format 1's 27 grew) */
 #define SL24_AUTO (FELUCCA_SL24_SAFE && FELUCCA_SL24_IMPORT)   /* PROJECT > A24 (sl24_guard.c) */
 #define G_A24 (G_COUNT + 2)     /* PROJECT > A24: import SLOOP 2.4's autosave (GO, twice); no stored value */

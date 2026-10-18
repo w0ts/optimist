@@ -94,8 +94,10 @@ enum {                                                  /* what an export lost (
                                                         /* (bit 10: another branch's) */
     SX24_LFODEST = 33554432,                            /* (a part's LFO DEST slot not one of 2.4's depths: another
                                                          * destination, AMP < 0; the second word's bit 11) */
-    SX24_DACC = 67108864                                /* (the drum track's ACCENT lane, seq/ngate.h: 2.4 and 2.6 have no
+    SX24_DACC = 67108864,                               /* (the drum track's ACCENT lane, seq/ngate.h: 2.4 and 2.6 have no
                                                          * drum accent; the second word's bit 12; ed_sl24.c) */
+    SX24_DLYF = 134217728                               /* (the delay filter not LP 12 dB RES 0, core.h G_DFTYPE: 2.4 has
+                                                         * COLOR alone, FREQ goes as it; the second word's bit 13, its last) */
 };
 #if defined(SL24_TP) && SL24_TP
 static int px_unpack(const project_t *p, int16_t (*x)[3]);   /* project.c: our TFLT STRUM VLEAD */
@@ -222,6 +224,8 @@ static int32_t sl24_g_out(const project_t *q, uint32_t i)
     int32_t v = q->g[i];
     if (i == G_MIDI || i == G_VIEW || i == G_INFO || (i == G_SYNC && (v < 0 || v > 2)))
         return 0;
+    if (i == G_DCOLOR)
+        return dly_color_out(v);                        /* (our FREQ: 2.4's COLOR, project.c) */
     return i == G_DRREV && v < 0 ? 16 : v;
 }
 
@@ -363,6 +367,7 @@ static uint32_t sl24_fx_out(uint8_t *o)
     for (i = 1; i < 4u; i++) {
         lost |= FXS_HAS(T[i]) && TDRUM->p[FXT_AMT[T[i]]] ? SX24_DBUS : 0u;
         lost |= FXS_HAS(T[i]) && (song.g[G_CRET + (T[i] - FXT_CHO)] < 127 || (fx_rmute >> (T[i] - FXT_CHO) & 1u)) ? SX24_FXRET : 0u;   /* (2.4: its wet at unity) */
+        lost |= T[i] == FXT_DLY && (song.g[G_DFTYPE] || song.g[G_DFSLOPE] || song.g[G_DFRES]) ? SX24_DLYF : 0u;   /* (2.4: COLOR's low-pass) */
         lost |= FXS_HAS(T[i]) && dsend_kit[T[i] == FXT_REV ? 0u : T[i] == FXT_DLY ? 1u : 2u] < DKS_DEF ? SX24_DBUS : 0u;
     }                                                   /* (the drum track's send levels: 2.4 has none) */
 #if INS_FX

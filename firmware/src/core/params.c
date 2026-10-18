@@ -26,6 +26,8 @@ static const char *const N_DLY[] = {"1/4", "1/8", "1/16", "1/32", "8T", "16T", "
 static const char *const N_SCALE[] = {"CHR", "MAJ", "MIN", "DOR", "MIX", "PEN", "MPEN", "HARM",
                                     "PHRY", "LYD", "LOC", "MEL", "BLUES", "WHOLE", "DIMHW", "DIMWH"};
 static const char *const N_ONOFF[] = {"OFF", "ON"};
+static const char *const N_DLYF[] = {"LP", "HP", "BP", "PEAK"};   /* (core.h DLYF_*) */
+static const char *const N_SLOPE[] = {"12dB", "24dB"};
 #if FELUCCA_QNT_SEQ
 static const char *const N_QUANT[] = {"OFF", "SNAP", "WHITE", "ALL", "SEQ"};   /* .. Q_SEQ (qnt_seq.c) */
 #define Q_LAST Q_SEQ
@@ -343,7 +345,7 @@ static const param_desc_t GP[G_COUNT] = {
     [G_TUNE] = PD("TUNE", F_INT, -50, 50, 0),
     [G_DTIME] = PE("TIME", N_DLY, 1),
     [G_DFDBK] = PD("FDBK", F_PCT, 0, 120, 60),
-    [G_DCOLOR] = PD("COLR", F_PCT, 0, 127, 70),
+    [G_DCOLOR] = PD("FREQ", F_CUTOFF, 0, 127, 107),   /* the delay filter's cutoff (was COLOR; 107: about 6 kHz, COLOR 70's) */
     [G_DMIX] = PD("MIX", F_PCT, 0, 127, 90),
     [G_RSIZE] = PD("SIZE", F_PCT, 0, 127, 90),
     [G_RDAMP] = PD("DAMP", F_PCT, 0, 127, 60),
@@ -385,6 +387,9 @@ static const param_desc_t GP[G_COUNT] = {
     [G_CRET] = PD("CRET", F_PCT, 0, 127, 127),       /* the FX returns (core.h): CHO DLY REV, 127 unity, 0 off */
     [G_DRET] = PD("DRET", F_PCT, 0, 127, 127),
     [G_RRET] = PD("RRET", F_PCT, 0, 127, 127),
+    [G_DFTYPE] = PE("TYPE", N_DLYF, DLYF_LP),         /* the delay filter (core.h, fx.c dly_step) */
+    [G_DFSLOPE] = PE("SLOPE", N_SLOPE, 0),
+    [G_DFRES] = PD("RES", F_PCT, 0, 127, 0),
 };
 
 static const param_desc_t DRUM_KIT_DESC = {"KIT", F_ENUM, 0, (int16_t)(DRUM_KITS - 1u), 0, DRUM_KIT_NAMES, 0};   /* (drums.c) */
@@ -745,6 +750,7 @@ static const page_t PAGES[] = {
 #endif
     {"SLICER", FAM_FX, SC_TRACK, GR_SLCR, {P_SLCR, P_SLPAT, P_SLRATE, P_SLDEPTH}},   /* drum track too */
     {"DLY", FAM_FX, SC_GLOBAL, GR_NONE, {G_DTIME, G_DFDBK, G_DCOLOR, G_DMIX}},
+    {"DLY F", FAM_FX, SC_GLOBAL, GR_NONE, {G_DFTYPE, G_DFSLOPE, G_DCOLOR, G_DFRES}},   /* the delay's filter (FREQ on both) */
     {"REV/CHO", FAM_FX, SC_GLOBAL, GR_NONE, {G_RSIZE, G_RDAMP, G_CRATE, G_CDEPTH}},
 #if REV_MULTI
     {"REVERB", FAM_FX, SC_BPSET, GR_NONE, {BPS_RTYPE, 0xFF, 0xFF, 0xFF}},   /* TYPE: the algorithms built (rev_type.c) */
@@ -942,7 +948,7 @@ static int engine_page_used(const page_t *pg)
  * it is not shown either */
 static int page_shown(const page_t *pg)
 {
-    if ((pg->graph == GR_SLCR && !FELUCCA_FX_SLICER) || (pg->id[0] == G_DTIME && pg->scope == SC_GLOBAL && !FXS_HAS(FXT_DLY)) ||
+    if ((pg->graph == GR_SLCR && !FELUCCA_FX_SLICER) || ((pg->id[0] == G_DTIME || pg->id[0] == G_DFTYPE) && pg->scope == SC_GLOBAL && !FXS_HAS(FXT_DLY)) ||
         ((pg->id[0] == G_CTHR || pg->id[0] == G_CGAIN) && pg->scope == SC_GLOBAL && !MST_ON(FXT_DYN)) ||   /* (COMP LIMIT:
                                                        * the master's DYN, while one of its slots holds it) */
         (pg->id[0] == G_RSIZE && pg->scope == SC_GLOBAL && !FXS_HAS(FXT_REV) && !FXS_HAS(FXT_CHO)))

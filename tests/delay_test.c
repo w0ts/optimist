@@ -1,5 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The tempo delay (fx.c dly_step) through fx_buses: the gain of each repeat over FDBK and COLOR, FDBK at its top
+/* The tempo delay (fx.c dly_step) through fx_buses: the gain of each repeat over FDBK and FREQ (its filter at LP 12 dB,
+ * RES 0: the old COLOR's place; FREQ 54 / 107 / 127 are COLOR 0 / 70 / 127's cutoffs, project.c dly_freq_in; the filter's
+ * types, slopes and resonance: tests/delay_filter_test.c), FDBK at its top
  * (100 %) repeating for ever, the saturator in the loop, the idle skip.
  *   build/host/delay_test [WAVDIR [TAG]]
  * Numbers: per FDBK (0, 60, 100, 120: 0, 50, 83, 100 %) and COLOR (0, 70, 127) the DC / low gain of one pass (the
@@ -25,14 +27,14 @@ static void check(int ok, const char *what)
 static void dly_clear(void)                     /* the line and the filter to 0, the bus idle */
 {
     memset(dly_buf, 0, sizeof dly_buf);
-    fx.dly_lp = fx.dly_le = 0;
+    memset(fx.dly_f, 0, sizeof fx.dly_f);
     fx.dly_q = FX_Q_MAX;
 }
 
 static int dly_idle(void)                       /* fx_buses would skip the bus on a silent block */
 {
     uint32_t i;
-    int32_t any = fx.dly_lp;
+    int32_t any = DLY_FST();
     for (i = 0; i < DLY_LEN; i++)
         any |= dly_buf[i];
     return fx.dly_q >= DLY_LEN && !any;
@@ -141,10 +143,10 @@ static double bb_gain(int32_t fdbk, int32_t color)
 /* 1. the table: DC and broadband gain per pass at FDBK x COLOR; FDBK 0 one repeat, 60 as it was, 120 a gain of 1 */
 static void t_table(void)
 {
-    static const int32_t FD[4] = {0, 60, 100, 120}, CO[3] = {0, 70, 127};
+    static const int32_t FD[4] = {0, 60, 100, 120}, CO[3] = {54, 107, 127};   /* (the cutoffs of COLOR 0 / 70 / 127) */
     uint32_t f, c;
     int ok0 = 1, ok60 = 1, ok120 = 1;
-    printf("delay: per-repeat gain, DC (pulse area) / broadband (noise RMS); FDBK raw (shown %%), COLOR 0 / 70 / 127\n");
+    printf("delay: per-repeat gain, DC (pulse area) / broadband (noise RMS); FDBK raw (shown %%), FREQ 54 / 107 / 127 (COLOR 0 / 70 / 127)\n");
     for (f = 0; f < 4u; f++) {
         printf("delay:   FDBK %3d (%3d %%):", FD[f], FD[f] * 100 / 120);
         for (c = 0; c < 3u; c++) {
@@ -168,7 +170,7 @@ static void t_curve(void)
     double prev = -1, g102 = 0, g114 = 0;
     int mono = 1;
     for (v = 0; v <= 120; v++) {
-        double g = dc_gain(v, 70, 3);
+        double g = dc_gain(v, 107, 3);
         mono &= g >= prev - 1e-6;
         prev = g;
         if (v == 102)
@@ -184,10 +186,10 @@ static void t_curve(void)
           "the top is stretched: 85 % (102) ~0.72 as before, 95 % (114) between 0.95 and 0.995");
 }
 
-/* 3. FDBK 120 holds: a pulse after 500 passes keeps over 98 % of its area (every COLOR), the bus still running */
+/* 3. FDBK 120 holds: a pulse after 500 passes keeps its area (every FREQ), the bus still running */
 static void t_endless(void)
 {
-    static const int32_t CO[3] = {0, 70, 127};
+    static const int32_t CO[3] = {54, 107, 127};   /* (the cutoffs of COLOR 0 / 70 / 127) */
     uint32_t c, ok = 1, run = 1;
     for (c = 0; c < 3u; c++) {
         uint32_t dl, n, np = 500;
@@ -202,12 +204,14 @@ static void t_endless(void)
         a1 = area(out, dl, 2u * dl), an = area(out, np * dl, (np + 1u) * dl);
         printf("delay:   FDBK 120, COLOR %3d: repeat %u keeps %.4f of repeat 1's area (%.1f s)\n", CO[c], np,
                a1 != 0 ? an / a1 : 0, np * dl / (double)FS);
-        ok &= a1 != 0 && an / a1 > 0.995;
+        ok &= a1 != 0 && an / a1 > (CO[c] < 100 ? 0.99 : 0.995);   /* (FREQ 54: a 12 dB low-pass at 440 Hz in the loop sheds
+                                                    * ~0.7 % of a pulse's area in 500 passes, -0.06 dB: an ideal float SVF
+                                                    * keeps 0.9929 here, ours 0.9937; COLOR's one-pole kept 0.9999) */
         run &= fx.dly_q < DLY_LEN;
         free(in);
         free(out);
     }
-    check(ok, "FDBK 100 %: endless repeats (500 passes, ~62 s, keep over 99.5 % of the first one's area)");
+    check(ok, "FDBK 100 %: endless repeats (500 passes, ~62 s, keep over 99.5 % of the first one's area; 99 % at FREQ 54, 440 Hz)");
     check(run, "FDBK 100 %: the bus keeps running (not skipped as idle)");
 }
 
@@ -239,7 +243,7 @@ static void t_idle(void)
 {
     uint32_t dl, n = 10u * FS / CTL * CTL, f, idle_at = 0;
     int32_t *in = malloc(4u * n);
-    set_dly(120, 70);
+    set_dly(120, 107);
     dl = delay_samples();
     pulse(in, n, dl);
     bus(in, 0, n, 0);
@@ -272,7 +276,7 @@ static void renders(const char *dir, const char *tag)
     for (f = 0; f < 4u; f++) {
         char path[512];
         FILE *w;
-        set_dly(FD[f], 70);
+        set_dly(FD[f], 107);
         song.g[G_DTIME] = 1;                     /* 1/8 at 120 BPM */
         bus(in, out, n, 0);
         snprintf(path, sizeof path, "%s/dly-%s-fdbk%d.wav", dir, tag, FD[f]);

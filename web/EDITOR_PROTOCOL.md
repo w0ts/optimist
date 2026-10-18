@@ -210,6 +210,9 @@ editor takes them from `INFO`; older records load with the SLICER off and CHORD 
 project still stores 32 globals; these six live in its reserved bytes (`project.c` mc_pack), so the format is unchanged.
 REC QUANTIZE (QUANT, 38) made G_COUNT 39; the FX returns (2026-10-12) make it 42: CRET, DRET, RRET at 39..41, the
 chorus', delay's and reverb's return level (0..127, 127 unity), kept in the project's FX record (`fx_rec.c`, TLV 0x41).
+The delay's filter (2026-10-18) makes it 45: TYPE (LP HP BP PEAK), SLOPE (12dB 24dB), RES at 42..44, kept in the FX
+record (TLV 0x45); its FREQ is global 6, COLR's slot relabelled (F_CUTOFF, the synths' 30 Hz..16 kHz curve). A project
+stores FREQ + 128 there; a value under 128 is an older project's COLR, which the device reads as the FREQ of its cutoff.
 
 ## v2: live sync
 

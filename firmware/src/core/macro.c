@@ -52,7 +52,8 @@ static const mac_row_t MAC_ROWS[] = {
     MR(MK_PART, P_DLY,                    0,   0,   36,    0,         0,     0, MAC_S,    0),
     MR(MK_PART, P_REV,                    0,   0,   48,    0,         0,     0, MAC_S,    0),
     MR(MK_SPREAD, P_PAN,                  0,   0,   28,    0,         0,     0, MAC_S,    0),
-    MR(MK_GLOB, G_DCOLOR,                40,   0,    0,    0,       -50,     0,    0,     0),
+    MR(MK_GLOB, G_DCOLOR,                18,   0,    0,    0,       -26,     0,    0,     0),   /* (the delay's FREQ: COLOR's +40 / -50 in
+                                                       * its steps, the same octaves: 6 kHz -> 14 kHz / 1.6 kHz) */
     MR(MK_GLOB, G_CDEPTH,                 0,  40,    0,    0,         0, MAC_S,    0,     0),
     MR(MK_GLOB, G_RSIZE,                  0,   0,   30,    0,         0,     0,  -40,     0),
     MR(MK_GLOB, G_DFDBK,                  0,   0,   24,    0,         0,     0,  -30,     0),

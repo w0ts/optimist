@@ -521,7 +521,8 @@ next page. The badge reads MASTER, the header the page ("Ins tone 1/8"). Its pag
 | INS COMP | THRS · RATIO · ATK · REL (the master compressor) |
 | INS LIMIT | GAIN · CEIL · **TUNE** · GR (a read-out) |
 | RETURNS | CHO RET · DLY RET · REV RET (the FX returns, 100 % unity: the same values as the mixer's MASTER returns set, which keeps one card a slot) |
-| RET DELAY | TIME · FDBK · COLR · MIX |
+| RET DELAY | TIME · FDBK · FREQ · MIX |
+| RET DLY F | TYPE · SLOPE · FREQ · RES (the delay's filter, 2026-10-18) |
 | RET REV | SIZE · DAMP · CRT · CDP (the chorus' rate and depth) |
 | RET TYPE | TYPE (builds with several reverbs) |
 | SLOTS | the four FX slots' types |

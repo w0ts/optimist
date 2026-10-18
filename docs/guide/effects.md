@@ -108,7 +108,11 @@ The master has two insert slots, S1 and S2, after the returns and PUNCH and befo
 
 The send buses (reverb, delay, chorus) come back into the mix through three **returns**, A, B and C. The page `SLOTS` says which send each return carries (REV, DLY, CHO or empty; slot 0 has no return). Picking a send that another return holds swaps the two. A send in no return is not heard, and its line can be lent to the CHRS and ECHO insert copies (they use the chorus' and the delay's lines). A return can also hold an insert type that is not a send (any type the build has except GATER): it then works on that return's line, and the page `RET AMT` holds its amount.
 
-The return levels are on `RETURNS` (Optimist UI) with the cards in the order REV, DLY, CHO: 0..127, 127 unity (the values RRET, DRET, CRET). The effects the returns carry have their own pages: the delay `DLY` / `RET DELAY` (TIME, FDBK 0..120, COLR, MIX; the defaults are FDBK 60, COLR 70, MIX 90), the reverb `REV/CHO` / `RET REV` (SIZE, DAMP, then the chorus's CRT and CDP), and `REVERB` / `RET TYPE`, the reverb algorithm.
+The return levels are on `RETURNS` (Optimist UI) with the cards in the order REV, DLY, CHO: 0..127, 127 unity (the values RRET, DRET, CRET). The effects the returns carry have their own pages: the delay `DLY` / `RET DELAY` (TIME, FDBK 0..120, FREQ, MIX; the defaults are FDBK 60, FREQ about 6 kHz, MIX 90) and its filter `DLY F` / `RET DLY F` (below), the reverb `REV/CHO` / `RET REV` (SIZE, DAMP, then the chorus's CRT and CDP), and `REVERB` / `RET TYPE`, the reverb algorithm.
+
+### The delay's filter
+
+The delay's echoes go through a filter on page `DLY F` (`RET DLY F` in the Optimist UI): **TYPE** LP, HP, BP or PEAK, **SLOPE** 12 or 24 dB an octave, **FREQ** 30 Hz to 16 kHz (the same knob as on `DLY`) and **RES**. It sits in the loop: the first echo is filtered once and every repeat once more, so a low-pass darkens the echoes as they fade (tape and dub delays) and a high-pass thins them. RES lifts the cutoff (PEAK: up to +12 dB a stage, 24 dB with two); the feedback is scaled by that lift, so turning RES up colours the echoes without making the delay run away, and FDBK 100 % still holds the echoes for ever. The defaults (LP, 12 dB, RES 0, FREQ about 6 kHz) sound close to the COLR knob of before; a project saved before keeps its COLR as the FREQ of the same cutoff.
 
 ### Sends between the returns
 

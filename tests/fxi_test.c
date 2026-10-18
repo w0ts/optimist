@@ -304,7 +304,7 @@ static void t_lend(void)
         slots(i, FXT_ECHO, FXT_NONE);
     slots(FXI_CAP[1], FXT_ECHO, FXT_NONE);
     fxs_load(2, FXT_NONE);
-    fx.dly_q = FX_Q_MAX, fx.dly_lp = 0;
+    fx.dly_q = FX_Q_MAX, memset(fx.dly_f, 0, sizeof fx.dly_f);
     blocks(2);
     i = ifx_lim_at(FXT_ECHO, FXI_CAP[1]);
     check("ECHO: DLY out of the slots, its line lent: a 4096-sample slice of it", (fxl_lent & 2u) && i == FXI_CAP[1] &&

@@ -491,6 +491,14 @@ static void fx_slots24(void)
     fxs_set(FXS_DEF);
     check("... REV back in its slot: FXRET lost", (proj_to_sl24(&q, 0, out, 0) & SX24_FXRET) != 0u);
     song.g[G_RRET] = 127;
+    /* the delay filter (2026-10-18): 2.4 has COLOR's low-pass alone */
+    song.g[G_DFTYPE] = song.g[G_DFSLOPE] = song.g[G_DFRES] = 0;
+    check("the delay filter at LP 12 dB RES 0: nothing lost for it", !(proj_to_sl24(&q, 0, out, 0) & SX24_DLYF));
+    song.g[G_DFTYPE] = DLYF_HP;
+    check("HP: DLYF lost, the second word's bit 13", (proj_to_sl24(&q, 0, out, 0) & SX24_DLYF) && (SX24_DLYF >> 14) == 1u << 13);
+    song.g[G_DFTYPE] = 0, song.g[G_DFRES] = 40;
+    check("RES 40: DLYF lost", (proj_to_sl24(&q, 0, out, 0) & SX24_DLYF) != 0u);
+    song.g[G_DFRES] = 0;
 }
 
 /* the LFO's RATE synced (< 0: a note value, SLOOP 2.6's SYNC; 2.4 has none) -> the free rate nearest that note value's

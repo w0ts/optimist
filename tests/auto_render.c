@@ -21,7 +21,9 @@
 #define AUTO_CPU_STEP 6000u                    /* (a 1/32 step at 300 BPM on four tracks: 160 steps a second, ~1 M
                                                 * instructions a second at most: 0.4 % of 240 MHz) */
 
-#define AUTO_RENDER_HASH 0xB556F1CEu           /* (2907501's render of this program, 2026-10-08; again 2026-10-16: lanes 1..8 are other instruments) */
+#define AUTO_RENDER_HASH 0xF5F6203Fu           /* (2907501's render of this program, 2026-10-08; again 2026-10-16: lanes 1..8 are other instruments;
+                                                * 2026-10-18 the delay's filter (FREQ 107, LP 12 dB; 0xB556F1CE before): with the delay
+                                                * left out both render 0xB29A415B, the delay alone moved) */
 
 static void reset(void)
 {

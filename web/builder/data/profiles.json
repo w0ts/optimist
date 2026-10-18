@@ -35,7 +35,7 @@
   {
    "id": "default",
    "title": "Synth",
-   "description": "Optimist Synth, the default build: the synth engines (X0X, ACID, JUNO, PHYS, NOISE), the dual core, the Optimist UI, Bluetooth MIDI, USB audio and the full web editor.",
+   "description": "Optimist Synth, the default build: FM6 with its five voice packs, the X0X drums, ACID, JUNO and PHYS, the dual core, the Optimist UI, Bluetooth MIDI, USB audio, and the web editor's backup and restore.",
    "profile": "synth"
   }
  ]

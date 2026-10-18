@@ -21,7 +21,7 @@
 #define FXR_GEN_N 0u
 #endif
 #define FXR_HEAD (2u + FX_NSLOT)
-#define FXR_MAX (378u + FXR_GEN_N)                     /* the stored form at its longest (FXR_HEAD + the TLVs; 120 -> 156
+#define FXR_MAX (383u + FXR_GEN_N)                     /* the stored form at its longest (FXR_HEAD + the TLVs; 120 -> 156
                                                         * 2026-10-13: + the further inserts' TLVs, 6 x (2 + 4), fx_slots.c
                                                         * fxs_tlv, in every build: a record from any build reads whole;
                                                         * 156 -> 168 2026-10-13: CHRS ECHO, 2 x (2 + 4); 168 -> 186
@@ -32,7 +32,8 @@
                                                         * spare: the editor's backup packs them in two objects since,
                                                         * ed_backup.c FXR1 FXR2; 288 -> 352 2026-10-15 fx-pool: the returns'
                                                         * RET_TLV 2 + 9, EQ3's TLV 2 + 50, ~28 spare; + the note generators'
-                                                        * GEN_TLV 2026-10-15, seq/gen.c: 2 + 4 a slot, 20 slots; 352 -> 378 2026-10-18: the shapers' TLVs 7 x (2 + 4), MST_TLV + 7) */
+                                                        * GEN_TLV 2026-10-15, seq/gen.c: 2 + 4 a slot, 20 slots; 352 -> 378 2026-10-18: the shapers' TLVs 7 x (2 + 4), MST_TLV + 7;
+                                                        * 378 -> 383: the delay filter's DLYF_TLV 2 + 3) */
 /* The track insert slots (2026-10-12, fx_slots.c ins_slot): the header's slot[4] holds the master SENDS, its insert
  * places filled, as far as they go, with the inserts the tracks' slots hold (an older build then hears them on the
  * tracks with an amount: best effort); flags bit 0 (FXR_F_INS) says the record is of this model (the drum sounds' DST CMP
@@ -81,15 +82,33 @@ AINL uint32_t mst_tlv_t(uint32_t i) { return i ? (uint32_t)IFX_FTY(i - 1u) : (ui
  * not at unity (127); none: every return at unity, as every project from before. A load's (`all`), as the layout: a
  * song section keeps the returns playing. 2026-10-16: a 4th byte, the returns' MUTE bits (bit j = line j, fx.c fx_rmute), so
  * the TLV is also written when one is muted; an older reader takes the 3 levels, a 3 byte TLV (or none) loads every return unmuted */
+/* TLV DLYF_TLV (0x45, 2026-10-18): the delay filter's TYPE SLOPE RES (core.h G_DFTYPE G_DFSLOPE G_DFRES, a byte each), only
+ * when not LP, 12 dB, 0; none: those, as every project from before (its FREQ is G_DCOLOR, in project_t). A load's (`all`) */
+#define DLYF_TLV 0x45u
+#define DLYF_N 3u
+_Static_assert(G_DFSLOPE == G_DFTYPE + 1 && G_DFRES == G_DFTYPE + 2, "the delay filter's TLV: TYPE SLOPE RES in a row");
+static uint32_t dlyf_tlv(uint8_t *o)                   /* -> o, its length; 0: the defaults (nothing to keep) */
+{
+    uint32_t k, any = 0;
+    for (k = 0; k < DLYF_N; k++)
+        any |= (o[k] = (uint8_t)song.g[G_DFTYPE + k]);
+    return any ? DLYF_N : 0u;
+}
+static void dlyf_untlv(const uint8_t *a, uint32_t n)   /* (n 0: none, the defaults; a shorter one: the rest at theirs) */
+{
+    uint32_t k;
+    for (k = 0; k < DLYF_N; k++)
+        song.g[G_DFTYPE + k] = (int16_t)(k < n ? clamp(a[k], GP[G_DFTYPE + k].min, GP[G_DFTYPE + k].max) : 0);
+}
 #define FXRET_TLV 0x41u
 #define FXRET_N 3u
 #define FXRET_TLV_N (FXRET_N + 1u)
-_Static_assert(FXR_HEAD + 2u * (FXT_N - 1u) + FXT_TLV_SUM + 2u + DLM_TLV_N + 2u + FXRET_TLV_N + 2u + INS_TLV_N + 2u + SMUTE_TLV_ACC + 2u + MST_TLV_N + 2u + LIN_TLV_N + 2u + NPART + 2u + UT_TLV_N + 2u + RT_TLV_N + 2u + RS_NMAX + FXR_GEN_N <= FXR_MAX, "the FX record: every TLV fits");
+_Static_assert(FXR_HEAD + 2u * (FXT_N - 1u) + FXT_TLV_SUM + 2u + DLM_TLV_N + 2u + FXRET_TLV_N + 2u + INS_TLV_N + 2u + SMUTE_TLV_ACC + 2u + MST_TLV_N + 2u + LIN_TLV_N + 2u + NPART + 2u + UT_TLV_N + 2u + RT_TLV_N + 2u + RS_NMAX + 2u + DLYF_N + FXR_GEN_N <= FXR_MAX, "the FX record: every TLV fits");
 _Static_assert(UT_TLV > VCNT_TLV && RET_TLV > UT_TLV + 1u && RSND_TLV == RET_TLV + 1u, "the USB input's TLV, the returns': ids no other takes (0x49: EQ3's)");
 #if GEN_ON
 _Static_assert(GEN_TLV == RET_TLV + 1u && GEN_TLV_MAX <= 255u, "the note generators' TLV (seq/gen.c): 0x4B, past fx-pool's 0x49 0x4A");
 #endif
-_Static_assert(MST_TLV > SMUTE_TLV && LIN_TLV > MST_TLV && VCNT_TLV > LIN_TLV, "the master's and the lanes' slots' TLVs: ids no FX type nor other TLV takes");
+_Static_assert(MST_TLV > SMUTE_TLV && DLYF_TLV == MST_TLV + 1u && LIN_TLV > DLYF_TLV && VCNT_TLV > LIN_TLV, "the master's and the lanes' slots' TLVs: ids no FX type nor other TLV takes");
 _Static_assert(DLM_TLV >= FXT_N && FXRET_TLV > DLM_TLV && INS_TLV > FXRET_TLV && SMUTE_TLV > INS_TLV, "the drum lanes' mix TLV (drum_mix.c), the returns', the slots', the sequencer mutes': ids no FX type takes");
 _Static_assert(G_DRET == G_CRET + 1 && G_RRET == G_CRET + 2, "the returns' TLV: CHO DLY REV in a row");
 static uint32_t fxret_tlv(uint8_t *o)                  /* -> o, its length; 0: every return at unity, none muted (nothing to keep) */
@@ -407,6 +426,7 @@ static uint32_t fxr_encode(uint8_t *o)
     n = fxr_tlv(o, n, UT_TLV, ut_tlv(o + n + 2u));     /* the USB input track (above) */
 #endif
     n = fxr_tlv(o, n, FXRET_TLV, fxret_tlv(o + n + 2u));   /* the FX returns (above), as the drum lanes' */
+    n = fxr_tlv(o, n, DLYF_TLV, dlyf_tlv(o + n + 2u));  /* the delay filter (above) */
     n = fxr_tlv(o, n, RET_TLV, rt_tlv(o + n + 2u));    /* the returns holding another type (fx_slots.c rt_tlv) */
     n = fxr_tlv(o, n, RSND_TLV, rs_tlv(o + n + 2u));   /* the sends between the returns (fx_slots.c rs_tlv) */
     (void)mst_map(mm);                                 /* the master's slots (above), as the tracks' */
@@ -439,6 +459,7 @@ static int fxr_decode(const uint8_t *a, uint32_t n, int all)
 #endif
     if (all) {
         fxret_untlv(0, 0);                             /* (none: every return at unity) */
+        dlyf_untlv(0, 0);                              /* (none: the delay filter LP, 12 dB, RES 0) */
         rs_untlv(0, 0);                                /* (none: no send between the returns) */
         vcnt_untlv(0, 0);                              /* (none: every part's VOICES at the engine's max) */
 #if FELUCCA_USB_AUDIO
@@ -467,6 +488,9 @@ static int fxr_decode(const uint8_t *a, uint32_t n, int all)
         else if (a[at] == FXRET_TLV) {
             if (all)
                 fxret_untlv(a + at + 2u, a[at + 1u]);
+        } else if (a[at] == DLYF_TLV) {
+            if (all)
+                dlyf_untlv(a + at + 2u, a[at + 1u]);
         } else if (a[at] == RSND_TLV) {
             if (all)
                 rs_untlv(a + at + 2u, a[at + 1u]);

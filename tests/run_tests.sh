@@ -298,6 +298,8 @@ job; ( jobin
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/delay_test" tests/delay_test.c -lm
     run "delay: the gain of each repeat over FDBK / COLOR, 100 % endless, the loop's saturator, idle again when lowered" "$OUT/delay_test"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/delay_filter_test" tests/delay_filter_test.c -lm
+    run "delay filter: LP HP BP PEAK, 12 / 24 dB, RES (the first echo filtered; the loop never runs away below 100 %), its TLV, FREQ in a project (an older COLOR read as its cutoff), SAVE / LOAD" "$OUT/delay_filter_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/dist_test" tests/dist_test.c -lm
