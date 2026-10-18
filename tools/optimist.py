@@ -498,6 +498,8 @@ def check_builds():
 def cmd_test(a):
     py = [sys.executable] if TC.have_module("PIL") else [C.build_python()]
     env = dict(os.environ, AC79_SDK=str(TC.sdk_dir()))      # (the rescue test reads the SDK's uboot.boot)
+    if py[0] != sys.executable:                              # (run_tests.sh calls python3: the one with Pillow first, as CI's runner has none)
+        env["PATH"] = str(Path(py[0]).parent) + os.pathsep + env.get("PATH", "")
     if not a.python:
         # the host tests read build/: a package, app and loader that fit (the installer, update and rescue tests)
         # and the render loops of the default configuration, which holds every item (the target cost; it is
