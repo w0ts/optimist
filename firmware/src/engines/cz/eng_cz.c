@@ -89,6 +89,9 @@ typedef struct {
 #define CZ_E(r1, l1, r2, l2, r3, l3, r4, l4, sus, end) {{r1, r2, r3, r4, 99, 99, 99, 99}, {l1, l2, l3, l4, 0, 0, 0, 0}, sus, end}
 #define CZ_FLAT CZ_E(99, 0, 99, 0, 99, 0, 99, 0, 8, 0)
 enum { CZT_INIT, CZT_BASS, CZT_RESO, CZT_BELL, CZT_BRASS, CZT_PAD, CZT_BREATH, CZT_KEYS, CZT_N };
+/* the user slots' names U01..U26 (the CZ collection, nbank.c) */
+#define U_NAMES_26 "U01", "U02", "U03", "U04", "U05", "U06", "U07", "U08", "U09", "U10", "U11", "U12", "U13", "U14", \
+    "U15", "U16", "U17", "U18", "U19", "U20", "U21", "U22", "U23", "U24", "U25", "U26"
 static const char *const N_CZ_TONE[CZT_N + CZ_NUSER] = {"INIT", "BASS", "RESO", "BELL", "BRASS", "PAD", "BREATH", "KEYS",
 #if CZ_NUSER
     U_NAMES_26                                     /* the CZ collection (cz_bank.c), U01..U26 */

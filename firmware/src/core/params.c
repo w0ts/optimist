@@ -390,35 +390,27 @@ static const param_desc_t *track_desc(const track_t *t, uint32_t id)
     return &TP[id];
 }
 
-/* a knob's steps on value v: clamped to the range; "-" (a value not shown) does not move; a list (F_ENUM) steps
- * one entry a detent past an entry with no name (FM6's ENGINE: a mode this build leaves out), and stays where it
- * is when no named entry is left that way. (Only FM6 with fewer than three modes has such a list or such a
- * value: other builds clamp, as before) */
-#if FELUCCA_ENG_FM6 && FM6_NMODES < 3
-#define PARAM_HIDDEN(d) (!(d)->label || (d)->label[0] == '-')   /* (a value with a range the page does not show) */
+/* a knob's steps on value v: clamped to the range; "-" (a value not shown) does not move. (With FM6 built: its EDIT 2
+ * has "-" values only, so FM6's "-" values are hidden; page_shown leaves that page out. Other engines' "-" cells stay
+ * as they were: dim) */
+#if FELUCCA_ENG_FM6
+static int param_hidden(const param_desc_t *d)          /* one of FM6's EDIT values that is "-" (a range the page does not show) */
+{
+    uint32_t e;
+    if (!d->label)
+        return 1;
+    if (d->label[0] != '-')
+        return 0;
+    for (e = 0; e < NENGINES; e++)
+        if (ENG_IS(ENGINES[e], FM6) && d >= ENGINES[e]->edit && d < ENGINES[e]->edit + 8)
+            return 1;
+    return 0;
+}
+#define PARAM_HIDDEN(d) param_hidden(d)
+#define param_step0(d, v, steps) (PARAM_HIDDEN(d) ? (v) : clamp((v) + (steps), (d)->min, (d)->max))
 #else
 #define PARAM_HIDDEN(d) 0
-#endif
-#if !(FELUCCA_ENG_FM6 && FM6_NMODES < 3)
 #define param_step0(d, v, steps) clamp((v) + (steps), (d)->min, (d)->max)
-#else
-static int32_t param_step0(const param_desc_t *d, int32_t v, int32_t steps)
-{
-    int32_t u, dir = steps < 0 ? -1 : 1;
-    if (PARAM_HIDDEN(d))
-        return v;
-    if (d->fmt != F_ENUM || !d->names)
-        return clamp(v + steps, d->min, d->max);
-    v = clamp(v, d->min, d->max);
-    for (; steps; steps -= dir) {
-        for (u = v + dir; u >= d->min && u <= d->max && !d->names[u]; u += dir)
-            ;
-        if (u < d->min || u > d->max)
-            break;
-        v = u;
-    }
-    return v;
-}
 #endif
 
 #define is_lrate(d) ((d) == &TP[P_LRATE] || (d) == &TP[P_L2RATE])   /* an LFO's RATE (LFO 2's too) */
@@ -912,9 +904,9 @@ static int page_for_drum(const page_t *pg)
                                       );
 }
 
-#if FELUCCA_ANALOG2 || DL_ANY || (FELUCCA_ENG_FM6 && FM6_NMODES == 1)
-#if FELUCCA_ENG_FM6 && FM6_NMODES == 1
-/* an engine's EDIT page shows a value (not only "-" columns: FM6's EDIT 2 with one ENGINE mode built) */
+#if FELUCCA_ANALOG2 || DL_ANY || FELUCCA_ENG_FM6
+#if FELUCCA_ENG_FM6
+/* an engine's EDIT page shows a value (not only "-" columns: FM6's EDIT 2) */
 static int engine_page_used(const page_t *pg)
 {
     uint32_t k;
@@ -990,10 +982,10 @@ static int page_shown(const page_t *pg)
         return pg->id[0] >= 16u ? 1 : pg->id[0] < 8u ? FELUCCA_DRUM_EDIT :
                pg->id[0] < 12u ? FELUCCA_DRUM_USR || FELUCCA_DRUM_KITS : 1;
 #endif
-#if FELUCCA_ENG_FM6 && FM6_NMODES == 1
+#if FELUCCA_ENG_FM6
     if (pg->scope == SC_ENGINE && !is_drum(TSEL) && ENG_IS(ENGINES[TSEL->eng_req % NENGINES], FM6) &&
         !engine_page_used(pg))
-        return 0;                                     /* (FM6 with one ENGINE mode: EDIT 2, PATCH stays) */
+        return 0;                                     /* (FM6: EDIT 2, PATCH stays) */
 #endif
 #if FELUCCA_ANALOG2
     return pg->scope != SC_TRACK || pg->id[0] < P_A2WAVE || pg->id[0] >= P_E0 || pg->graph == GR_ENV2 ||   /* (ENV2: every engine) */

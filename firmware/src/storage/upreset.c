@@ -149,6 +149,10 @@ static void up_vals_put(up_rec_t *r, const int16_t *v0)
         r->p[i] = v[i];
     for (i = 0; i <= P_NLAST - P_E1PIT; i++)
         r->p[P_ENG_END + i] = v[P_E1PIT + i];
+#if FELUCCA_ENG_FM6 && (!defined(UP_HOST) || defined(UP_WITH_ENGINES))
+    if (r->engine == ENG_UID_FM6)
+        r->p[P_E0] = fm6_voice_store(v[P_E0]);          /* (VOICE as stored: INIT, or a pack voice by its fixed number) */
+#endif
 }
 
 #if FELUCCA_ANALOG2 && (!defined(UP_HOST) || defined(UP_WITH_ENGINES))
@@ -188,8 +192,8 @@ static void up_bank_from_v1(up_bank_t *bk)
                 def[k] = TP[k].def;
             up_params(r, v, def);
             analog2_from_super(v, 0);
-            up_vals_put(r, v);
             r->engine = 0;
+            up_vals_put(r, v);
         }
     }
     bk->magic = UP_BANK_MAGIC;
@@ -407,6 +411,9 @@ static const param_desc_t *up_desc(uint32_t uid, uint32_t i)   /* (by the record
     return i >= P_E0 ? &ENGINES[eng_slot(uid)]->edit[i - P_E0] : &TP[i];
 }
 
+#if FELUCCA_ENG_FM6
+static int16_t up_old_fm6[3];                           /* MOD, M.TIM, C.TIM of a record from before 2026-10-18 (up_load bakes them) */
+#endif
 static void up_values(const up_rec_t *r, int16_t *v)   /* mapped and clamped for its engine */
 {
     int16_t def[P_COUNT];
@@ -414,6 +421,13 @@ static void up_values(const up_rec_t *r, int16_t *v)   /* mapped and clamped for
     for (i = 0; i < P_COUNT; i++)
         def[i] = up_desc(r->engine, i)->def;
     up_params(r, v, def);
+#if FELUCCA_ENG_FM6
+    if (r->engine == ENG_UID_FM6) {
+        for (i = 0; i < 3u; i++)
+            up_old_fm6[i] = v[P_E0 + 1u + i];
+        v[P_E0] = fm6_voice_load(v[P_E0]);              /* (stored: INIT, or a pack by its fixed number; R / U of before: INIT) */
+    }
+#endif
     for (i = 0; i < P_COUNT; i++)
         v[i] = (int16_t)clamp(v[i], up_desc(r->engine, i)->min, up_desc(r->engine, i)->max);
 }
@@ -673,9 +687,10 @@ static int up_load(uint32_t k)
         t->p[i] = v[i];
     t->preset = 0;
 #if FELUCCA_UP_FM6 && FELUCCA_ENG_FM6 && FELUCCA_FLASH
-    if (r->engine == ENG_UID_FM6 && upf_get(k, fm6_ed[song.sel % NPART]))   /* its own voice (UP_FM6): kept as the */
-        fm6_cur[song.sel % NPART] = (int16_t)(clamp(t->p[P_E0], 0, FM6_NVOICE - 1) + 1);   /* VOICE's, no reload */
-    else
+    if (r->engine == ENG_UID_FM6 && upf_get(k, fm6_ed[song.sel % NPART])) {   /* its own voice (UP_FM6): kept as the */
+        fm6_bake_old(fm6_ed[song.sel % NPART], up_old_fm6[0], up_old_fm6[1], up_old_fm6[2]);   /* (MOD ..: in the voice) */
+        fm6_cur[song.sel % NPART] = (int16_t)(t->p[P_E0] + 1);   /* VOICE's, no reload */
+    } else
 #endif
     fm6_cur[song.sel % NPART] = 0;                      /* FM6: the VOICE it names, afresh */
     fm1_irq_on();

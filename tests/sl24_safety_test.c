@@ -198,7 +198,7 @@ int main(void)
         fun5(b, 50);                              /* (track 2 an FM6 part on B3: the bank is looked up) */
         t[122] = 9, t[120] = 10, t[121] = 0;
         sum = proj_hash(b, 3836), memcpy(b + 3836, &sum, 4);
-        ok &= sl24_import_buf(b, sizeof b, 0);
+        ok &= sl24_import_buf(b, sizeof b);
         check("imports: slot C (LOAD twice), the autosave (A24), an FM6 part on a bank patch: all three done", ok);
         check("... flash not written at all by them: 2.4's projects, autosave, FM6 bank, samples as they were",
               !memcmp(img, nor, sizeof nor) && all_whole() && whole(FM6B_A));

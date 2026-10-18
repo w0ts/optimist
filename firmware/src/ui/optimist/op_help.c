@@ -118,7 +118,7 @@ static uint32_t hl_text(void)
  * ever draws on it: no band to draw again) */
 static void hl_pre(uint32_t ov)
 {
-    int vis = (hl_menu() || lay_hint_t || (hl.t && hl.scr == ui.scr && lay.shown == LY_PLAY && !name_on())) && ov != 1u && ov != 3u;
+    int vis = (hl_menu() || lay_hint_t || (hl.t && hl.scr == ui.scr && lay.shown == LY_PLAY && !name_on())) && ov != 1u && ov != 3u && ov != 4u;
     if (vis && !hl_menu() && !lay_hint_t && !hl_text())
         vis = 0;                                        /* (a value with no line: nothing; a menu keeps its empty line) */
     if (vis == hl.on)

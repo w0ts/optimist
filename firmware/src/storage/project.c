@@ -923,6 +923,10 @@ static void proj_capture(project_t *p, dlrec_t *d)   /* what is playing now, as 
     mc_pack(p);                                         /* the master COMP / LIMIT (above): rsv[0] bits 3..7, rsv[1], rsv[2] */
     for (i = 0; i < NTRK; i++) {
         proj_patch(v, i);
+#if FELUCCA_ENG_FM6
+        if (i < NPART && ENG_IS(ENGINES[trk[i].eng_req % NENGINES], FM6))
+            v[P_E0] = fm6_voice_store(v[P_E0]);         /* (VOICE as stored: INIT, or a pack voice by its fixed number) */
+#endif
         if (i == TRK_DRUM)                              /* (the drum bus's amounts: the FX record's, fx_slots.c) */
             v[P_DIST] = v[P_CHOR] = v[P_DLY] = v[P_REV] = 0;
         pj_from_p(p->t[i].p, v);
@@ -1047,6 +1051,10 @@ static void proj_apply(const project_t *p, const dlrec_t *d, int all)
         }
         if (k < NPART)
             memcpy(&v[P_L2RATE], l2[k], sizeof l2[k]);
+#if FELUCCA_ENG_FM6
+        if (k < NPART && ENG_IS(ENGINES[e], FM6))
+            v[P_E0] = fm6_voice_load(v[P_E0]);          /* (the stored VOICE: INIT, or a pack voice; an R or U number of before: INIT) */
+#endif
         for (i = 0; i < P_COUNT; i++) {                 /* every value back inside its range */
             const param_desc_t *d = k == TRK_DRUM && i == P_E0 ? &DRUM_KIT_DESC :   /* the drum kit */
                                     k == TRK_DRUM && i == P_DACC ? &DRUM_ACC_DESC :   /* its ACCENT amount */
@@ -1072,6 +1080,7 @@ static void proj_apply(const project_t *p, const dlrec_t *d, int all)
                 fm6_unpack(fm6_ed[k], p->fm6[k]);
                 for (i = 0; i < 6u; i++)
                     fm6_ed[k][FV_ON + i] = (int16_t)((p->fm6_on[k] >> i) & 1u);
+                fm6_bake_old(fm6_ed[k], v[P_E0 + 1u], v[P_E0 + 2u], v[P_E0 + 3u]);   /* (MOD, M.TIM, C.TIM of before: in the voice) */
                 fm6_cur[k] = (int16_t)(t->p[P_E0] + 1);
             }
         }

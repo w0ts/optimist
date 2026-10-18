@@ -24,20 +24,17 @@
  * reply carries the same CRC and that it matches what it put together, else reads again (it changed meanwhile).
  * A build without the export does not answer: the editor shows no button.
  * FELUCCA_SL24_EDIMPORT: a SLOOP 2.4 project from a 2.4 backup file into the working project (as PROJECT > LOAD twice
- * does with one kept in flash: sl24_guard.c sl24_import_buf; nothing written to flash, SAVE keeps it), and 2.4's FM6
- * bank kept in flash read out (the editor puts its patches in the user bank's free slots).
+ * does with one kept in flash: sl24_guard.c sl24_import_buf; nothing written to flash, SAVE keeps it). 2.4's FM6
+ * bank is not imported (command 91 SL24_BANK and the patches after the FUN5 in SL24_PUT went 2026-10-18).
  *   90 SL24_PUT  0 (begin), length (3 x 7), CRC-32 (5 x 7) -> 0, rc
  *                1 (data), offset (3 x 7), CRC-32 of the chunk (5 x 7), pack7 bytes (<= 256, in order) -> 1, offset, rc
  *                2 (commit) -> 2, rc (0 imported, the working project now)
- *                the object: 2.4's FUN5 (3840 B), then optionally a byte of FM6 parts (bit k: part k's patch follows)
- *                and NPART x 128 B, each FM6 part's bank patch (PTCH B1..B27) from the file's object 8 (none: 2.4's
- *                INIT, as 2.4 plays an empty slot)
- *   91 SL24_BANK offset (3 x 7) -> rc (0, 4 none kept), length (3 x 7: 3472), CRC-32 of it all (5 x 7), offset, pack7
- *                bytes (<= 256)
+ *                the object: 2.4's FUN5 (3840 B), nothing after it (an FM6 part on a bank patch B1..B27 starts from
+ *                2.4's INIT, as 2.4 plays an empty slot)
  * rc: 0 ok, 1 arguments / no import begun, 2 CRC, 3 the transport plays, 4 none, 6 too long, 8 not a SLOOP 2.4 project,
  * 9 busy (a restore holds the buffer). A begun import holds proj_tmp as a restore does (10 s without a command: let go). */
 #include "ed_reply.h"         /* (ed_b2..ed_b4, ed_b32) */
-enum { ED_SL24_GET = 78, ED_SL24_PUT = 90, ED_SL24_BANK = 91 };
+enum { ED_SL24_GET = 78, ED_SL24_PUT = 90 };   /* (91, SL24_BANK: 2.4's FM6 bank read out for the editor to import, dropped 2026-10-18) */
 
 #define ed_b7 ed_b32                                     /* n 7-bit groups of v, low first (ed_reply.h) */
 static uint32_t ed_g7(const uint8_t *a, uint32_t n)      /* n 7-bit groups, low first */
@@ -127,18 +124,14 @@ static void ed_sl24_get(const uint8_t *a, uint32_t na)
 #endif
 
 #if FELUCCA_SL24_EDIMPORT
-#define SL24_PUT_MAX (SL24_SIZE + 1u + NPART * 128u)      /* the FUN5, the parts' byte, their patches */
 static struct {
     uint8_t on;                                           /* an import begun (holds proj_tmp: proj_tmp_lent) */
     uint32_t len, crc, got;
 } s24in;
-static uint8_t s24in_fv[1u + NPART * 128u] __attribute__((section(".pool")));   /* the object past the FUN5 (proj_tmp
-                                                        * holds the FUN5 and has no room for both: 4225 B) */
-static uint8_t *ed_sl24_at(uint32_t off) { return off < SL24_SIZE ? (uint8_t *)&proj_tmp + off : s24in_fv + (off - SL24_SIZE); }
+static uint8_t *ed_sl24_at(uint32_t off) { return (uint8_t *)&proj_tmp + off; }
 static uint32_t ed_sl24_crc(void)                         /* the object received, its CRC-32 */
 {
-    uint32_t c = st_crc_upd(0xFFFFFFFFu, &proj_tmp, SL24_SIZE);
-    return ~(s24in.len > SL24_SIZE ? st_crc_upd(c, s24in_fv, s24in.len - SL24_SIZE) : c);
+    return ~st_crc_upd(0xFFFFFFFFu, &proj_tmp, SL24_SIZE);
 }
 
 static uint32_t ed_sl24_put(const uint8_t *a, uint32_t na)
@@ -151,8 +144,8 @@ static uint32_t ed_sl24_put(const uint8_t *a, uint32_t na)
         if (na != 9u)
             return 1;
         n = ed_g7(a + 1, 3);
-        if (n != SL24_SIZE && n != SL24_PUT_MAX)
-            return 6;
+        if (n != SL24_SIZE)
+            return 6;                                     /* (older editors also sent 2.4's FM6 bank patches: refused) */
         if (song.playing || transport_req)
             return 3;
         if (proj_tmp_busy() && !s24in.on)
@@ -190,35 +183,8 @@ static uint32_t ed_sl24_put(const uint8_t *a, uint32_t na)
         return 2;
     if (!sl24_is(b, SL24_SIZE))
         return 8;
-    {
-        const uint8_t *fv[NPART] = {0};
-        uint32_t k, m = s24in.len > SL24_SIZE ? s24in_fv[0] : 0u;
-        for (k = 0; k < NPART; k++)
-            if ((m >> k) & 1u)
-                fv[k] = s24in_fv + 1u + 128u * k;
-        memcpy(st_buf, b, SL24_SIZE);                     /* (the import's source: not in proj_tmp, its destination) */
-        return sl24_import_buf(st_buf, SL24_SIZE, fv) ? 0u : 8u;
-    }
-}
-static void ed_sl24_bank_get(const uint8_t *a, uint32_t na)
-{
-    uint8_t ch[256];
-    uint32_t at = na == 3u ? sl24_bank_at() : 0u, off = na == 3u ? ed_g7(a, 3) : 0u, crc = 0xFFFFFFFFu, i, n = 0;
-    uint32_t rc = na != 3u ? 1u : !at ? 4u : off > SL24_BANK_LEN ? 1u : 0u;
-    for (i = 0; !rc && i < SL24_BANK_LEN; i += n) {      /* (the CRC of it all, in pieces: no RAM copy) */
-        n = SL24_BANK_LEN - i < sizeof ch ? SL24_BANK_LEN - i : (uint32_t)sizeof ch;
-        rc = st_read(at + i, ch, n) ? 4u : 0u;
-        crc = st_crc_upd(crc, ch, n);
-    }
-    n = rc ? 0u : SL24_BANK_LEN - off < sizeof ch ? SL24_BANK_LEN - off : (uint32_t)sizeof ch;
-    if (n && st_read(at + off, ch, n))
-        rc = 4, n = 0;
-    ed_b(rc);
-    ed_b7(rc ? 0u : SL24_BANK_LEN, 3);
-    ed_b7(rc ? 0u : ~crc, 5);
-    ed_b7(off, 3);
-    if (n)
-        ed_pack7(ch, n);
+    memcpy(st_buf, b, SL24_SIZE);                         /* (the import's source: not in proj_tmp, its destination) */
+    return sl24_import_buf(st_buf, SL24_SIZE) ? 0u : 8u;
 }
 #endif
 
@@ -237,10 +203,6 @@ static int ed_sl24(uint32_t cmd, const uint8_t *a, uint32_t na)
         if (na && a[0] == 1u)
             ed_b7(na >= 4u ? ed_g7(a + 1, 3) : 0u, 3);
         ed_b(rc);
-        return 1;
-    }
-    if (cmd == ED_SL24_BANK) {
-        ed_sl24_bank_get(a, na);
         return 1;
     }
 #endif

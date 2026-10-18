@@ -2,8 +2,8 @@
  * Copyright (C) 2026 the Optimist contributors (written for SLOOP-plus, Optimist's earlier name) */
 /* Hand-written pi32v2 inner loops for the hottest DSP kernels (measured with the emulator's FM1_HOT
  * profile). From perf/asm-hotspots (written for the DX7 engine's msfa operator); in this branch they run
- * FM6's operators (eng_fm6.c): MODERN is the same msfa operator (asm_fm_*), MARK I has its own (asm_mki_*);
- * asm_fm6_out is FM6's voice output.
+ * FM6's operators (eng_fm6.c): the msfa operator (asm_fm_*); asm_fm6_out is FM6's voice output.
+ * (MARK I's asm_mki_* went with that mode, 2026-10-18.)
  * Each helper computes exactly what the C loop it replaces computes (same operations, same
  * order, same wrap-around), so the output is bit-identical; the C stays next to every call as the
  * reference and is what the host build and tests run.
@@ -165,111 +165,6 @@ static inline __attribute__((always_inline)) void asm_fm_fb(int32_t *out, int32_
         ASM_FM_FB(ASM_FM_STORE);
     fb[0] = y0;
     fb[1] = (int32_t)p;
-}
-
-/* FM6 MARK I (Dexed's EngineMkI: the DX7's log-sine and exponent tables), eng_fm6.c fm6_mki; env = the
- * operator's attenuation (1024 an octave), a 16-bit sum whose top bit is the sign:
- *   for each of n (> 0) samples:  g += dg;  x = phase [+ in[i]];
- *       j = (x >> 12) & 2047;  e = log[j < 1024 ? j : 2047 - j] + ((x >> 8) & 0x8000) + g;
- *       y = (exp[e & 1023] >> ((e & 0x7FFF) >> 10)) << 13;  y = e & 0x8000 ? -y - 8192 : y;
- *       out[i] = y  or  out[i] += y;  phase += freq
- * log is a quarter cycle (1024 entries, eng_fm6.c FM6_MKI_FOLD): bit 22 of x (j's top bit) as 0 / -1
- * (sextra), x ^ that flips bits 12..21 when it is set, so its 10 bits there are j or 2047 - j.
- * (e & 0xFFFF is not needed: only bits 0..15 of e are read.) neg8k: -8192 in a register. */
-#define ASM_MKI_LOOKUP(X)                                                                               \
-    "%[a] = sextra(" X ", p:22, l:1)\n\t"                                                              \
-    "%[a] ^= " X "\n\t"                                                                                \
-    "%[a] = uextra(%[a], p:12, l:10)\n\t"                                                              \
-    "%[a] = h[%[tl]+%[a]<<1] (u)\n\t"                                                                  \
-    "%[a] += %[g]\n\t"                                                                                 \
-    "%[b] = uextra(" X ", p:23, l:1)\n\t"                                                              \
-    "%[b] <<= 15\n\t"                                                                                  \
-    "%[a] += %[b]\n\t"                                                                                 \
-    "%[b] = uextra(%[a], p:0, l:10)\n\t"                                                               \
-    "%[b] = h[%[te]+%[b]<<1] (u)\n\t"                                                                  \
-    "%[x] = uextra(%[a], p:10, l:5)\n\t"                                                               \
-    "%[b] = %[b] >> %[x]\n\t"                                                                          \
-    "%[b] <<= 13\n\t"                                                                                  \
-    "%[a] = %[a].l (s)\n\t"                                                                            \
-    "%[x] = %[k] - %[b]\n\t"                                                                           \
-    "ifs (%[a] >= 0) {\n\t"                                                                            \
-    "%[x] = %[b]\n\t"                                                                                  \
-    "}\n\t"
-#define ASM_MKI_STORE "[%[out]++=4] = %[x]\n\t"
-#define ASM_MKI_ADD "[%[out]+0] += %[x]\n\t%[out] += 4\n\t"
-
-#define ASM_MKI_PURE(OUT)                                                                               \
-    __asm__ volatile("1:\n\t"                                                                          \
-                     "%[g] += %[dg]\n\t" ASM_MKI_LOOKUP("%[ph]") OUT "%[ph] += %[fq]\n\t"             \
-                     "if (--%[n] != 0) goto 1b\n\t"                                                    \
-                     : [out] "+r"(out), [ph] "+r"(phase), [g] "+r"(g), [n] "+r"(n), [x] "=&r"(x),      \
-                       [a] "=&r"(a), [b] "=&r"(b)                                                       \
-                     : [fq] "r"(freq), [dg] "r"(dg), [tl] "r"(tlog), [te] "r"(texp), [k] "r"(k)         \
-                     : "memory")
-
-static inline __attribute__((always_inline)) void asm_mki_pure(int32_t *out, int32_t phase, int32_t freq, int32_t g,
-                                                               int32_t dg, const uint16_t *tlog,
-                                                               const uint16_t *texp, int32_t n, int add)
-{
-    int32_t x, a, b, k = -8192;
-    if (add)
-        ASM_MKI_PURE(ASM_MKI_ADD);
-    else
-        ASM_MKI_PURE(ASM_MKI_STORE);
-}
-
-/* modulated: x = phase + in[i] (x is free once its two extracts are done: it then holds the shift) */
-#define ASM_MKI_MOD(OUT)                                                                                \
-    __asm__ volatile("1:\n\t"                                                                          \
-                     "%[g] += %[dg]\n\t"                                                               \
-                     "%[x] = [%[in]++=4]\n\t"                                                          \
-                     "%[x] += %[ph]\n\t" ASM_MKI_LOOKUP("%[x]") OUT "%[ph] += %[fq]\n\t"              \
-                     "if (--%[n] != 0) goto 1b\n\t"                                                    \
-                     : [out] "+r"(out), [in] "+r"(in), [ph] "+r"(phase), [g] "+r"(g), [n] "+r"(n),     \
-                       [x] "=&r"(x), [a] "=&r"(a), [b] "=&r"(b)                                         \
-                     : [fq] "r"(freq), [dg] "r"(dg), [tl] "r"(tlog), [te] "r"(texp), [k] "r"(k)         \
-                     : "memory")
-
-static inline __attribute__((always_inline)) void asm_mki_mod(int32_t *out, const int32_t *in, int32_t phase,
-                                                              int32_t freq, int32_t g, int32_t dg,
-                                                              const uint16_t *tlog, const uint16_t *texp,
-                                                              int32_t n, int add)
-{
-    int32_t x, a, b, k = -8192;
-    if (add)
-        ASM_MKI_MOD(ASM_MKI_ADD);
-    else
-        ASM_MKI_MOD(ASM_MKI_STORE);
-}
-
-/* the feedback operator: m = (y0 + y) >> (shift + 1); g += dg; y0 = y; y = op(phase + m); out = y or += y */
-#define ASM_MKI_FB(OUT)                                                                                 \
-    __asm__ volatile("1:\n\t"                                                                          \
-                     "%[x] = %[y0] + %[y]\n\t"                                                         \
-                     "%[x] = %[x] >>> %[sh]\n\t"                                                       \
-                     "%[g] += %[dg]\n\t"                                                               \
-                     "%[y0] = %[y]\n\t"                                                                \
-                     "%[x] += %[ph]\n\t" ASM_MKI_LOOKUP("%[x]")                                       \
-                     "%[y] = %[x]\n\t" OUT "%[ph] += %[fq]\n\t"                                      \
-                     "if (--%[n] != 0) goto 1b\n\t"                                                    \
-                     : [out] "+r"(out), [ph] "+r"(phase), [g] "+r"(g), [n] "+r"(n), [y0] "+r"(y0),     \
-                       [y] "+r"(y), [x] "=&r"(x), [a] "=&r"(a), [b] "=&r"(b)                            \
-                     : [fq] "r"(freq), [dg] "r"(dg), [tl] "r"(tlog), [te] "r"(texp), [k] "r"(k),        \
-                       [sh] "r"(sh)                                                                     \
-                     : "memory")
-
-static inline __attribute__((always_inline)) void asm_mki_fb(int32_t *out, int32_t phase, int32_t freq, int32_t g,
-                                                             int32_t dg, int32_t *fb, int shift,
-                                                             const uint16_t *tlog, const uint16_t *texp,
-                                                             int32_t n, int add)
-{
-    int32_t x, a, b, k = -8192, y0 = fb[0], y = fb[1], sh = shift + 1;
-    if (add)
-        ASM_MKI_FB(ASM_MKI_ADD);
-    else
-        ASM_MKI_FB(ASM_MKI_STORE);
-    fb[0] = y0;
-    fb[1] = y;
 }
 
 /* FM6's voice output (eng_fm6.c fm6_render): the voice clipped at 16 unit sines, times the block's amplitude

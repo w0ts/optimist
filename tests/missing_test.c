@@ -86,8 +86,8 @@ static void settings_save(void) {}
 #include "../firmware/src/ui/sloop/ui_layers.c"
 #include "../firmware/src/ui/sloop/ui_menu.c"
 #include "../firmware/src/ui/sloop/ui_input.c"
-#include "../firmware/src/engines/fm6/fm6_store.c"
-#if FELUCCA_NATIVE_BANKS
+#include "../firmware/src/engines/fm6/fm6_sysex.c"
+#if FELUCCA_NB_LIST
 #include "../firmware/src/storage/nbank.c"       /* the FM6 / CZ collections in PRESETS */
 #endif
 /* the user kit bank (drum_kits.c) on a RAM image of its two sectors, through storage.c */
@@ -403,7 +403,7 @@ int main(int argc, char **argv)
         uint32_t i;
         ui_start();
         usr_slot(1);                                         /* (USR2 holds a sample here) */
-        host_preset(&trk[0], ENG_SLOT_FM6, 3);               /* BELLS: DLY 29 */
+        host_preset(&trk[0], ENG_SLOT_FM6, 1);               /* INIT WIDE: DLY 30 */
         host_preset(&trk[1], ENG_SLOT_SAMPLE, 0);
         trk[1].p[P_E0] = (int16_t)set_of("PIANO");
         host_preset(&trk[2], ENG_SLOT_ANALOG, 2);

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* A SLOOP 2.4 backup file's project into Optimist through the editor (FELUCCA_SL24_EDIMPORT: ed_sl24.c commands 90
- * SL24_PUT and 91 SL24_BANK), on a simulated NOR: begin / data / commit, the CRCs, the FM6 parts' bank patches carried
- * with it, rc for every refusal, and nothing written to flash (2.4's data whole). Run by tests/run_tests.sh. */
+ * SL24_PUT; 91 SL24_BANK and the bank patches after the FUN5 went 2026-10-18), on a simulated NOR: begin / data / commit,
+ * the CRCs, rc for every refusal, and nothing written to flash (2.4's data whole). Run by tests/run_tests.sh. */
 #define FELUCCA_ARRANGER 1
 #define FELUCCA_FLASH 1
 #define FELUCCA_SL24_EXPORT 0
@@ -161,9 +161,9 @@ int main(void)
     song.playing = 0, transport_req = 0;
     check("2.4's project alone (3840 B): imported, rc 0", put(fun5, sizeof fun5, -1, rcs) == 0 && rcs[0] == 0 &&
           !strcmp(last_msg, "2.4 IMPORTED: SAVE IT") + !strcmp(last_msg, "2.4 IMPORTED, NO LOCKS") == 1);
-    ok = trk[1].p[P_E0] == 2 && trk[1].p[P_E1] == 15 && !proj_tmp_lent;
-    check("... the working project: its FM6 part (F3 with its macros: VOICE R03, MOD 15); proj_tmp let go", ok);
-    /* with a bank patch: track 0 an FM6 part on B4, its patch in the object */
+    ok = trk[1].p[P_E0] == 0 && trk[1].p[P_E1] == 0 && !proj_tmp_lent;
+    check("... the working project: its FM6 part (F3 with its macros in the voice: VOICE INIT VOICE); proj_tmp let go", ok);
+    /* a bank patch (B4): not carried any more */
     memcpy(obj, fun5, 3840);
     t = obj + 12 + 64;
     t[122] = 9, t[120] = 8 + 3, t[121] = 0;
@@ -171,25 +171,18 @@ int main(void)
         t[2 * (53 + k)] = 0, t[2 * (53 + k) + 1] = 0;
     s = proj_hash(obj, 3836), memcpy(obj + 3836, &s, 4);
     memcpy(rec, SL24_FM6_F[4], 128), memcpy(rec + 118, "FILE PAD  ", 10);
-    memset(obj + 3840, 0, sizeof obj - 3840);
-    obj[3840] = 1;
-    memcpy(obj + 3841, rec, 128);
-    ok = put(obj, sizeof obj, 7, rcs) == 0 && rcs[1] == 2;
-    check("with the FM6 parts' patches (4225 B), a chunk with a bad CRC refused (rc 2) and sent again: imported", ok);
+    ok = put(obj, 3840, 7, rcs) == 0 && rcs[1] == 2;
+    check("a bank patch B4 in the file's project, a chunk with a bad CRC refused (rc 2) and sent again: imported", ok);
     proj_capture(&cap, &capd);
-    check("... part 1's voice: the file's B4 patch", ((cap.fm6_has & 1u) != 0) && !memcmp(cap.fm6[0], rec, 128));
-    obj[3840] = 0;
-    ok = put(obj, sizeof obj, -1, rcs) == 0;
-    proj_capture(&cap, &capd);
-    check("... no patch for it in the file (bit clear): 2.4's INIT, as 2.4 plays an empty slot",
-          ok && !memcmp(cap.fm6[0], SL24_FM6_INIT, 128));
+    check("... part 1's voice: 2.4's INIT, as 2.4 plays an empty slot (the bank is not imported)",
+          ((cap.fm6_has & 1u) != 0) && !memcmp(cap.fm6[0], SL24_FM6_INIT, 128));
     /* refusals */
     obj[100] ^= 1;
-    check("not a SLOOP 2.4 project (its sum): rc 8, nothing imported", put(obj, sizeof obj, -1, rcs) == 8);
+    check("not a SLOOP 2.4 project (its sum): rc 8, nothing imported", put(obj, 3840, -1, rcs) == 8);
     obj[100] ^= 1;
     nreq = 0, req[nreq++] = 0, w7(1000, 3), w7(0, 5);
     cmd(90);
-    check("a length that is neither 3840 nor 4225: rc 6", ed_out[1] == 6 && !proj_tmp_lent);
+    check("a length that is not 3840 (the old 4225 with the bank patches too): rc 6", ed_out[1] == 6 && !proj_tmp_lent);
     song.playing = 1;
     nreq = 0, req[nreq++] = 0, w7(3840, 3), w7(0, 5);
     cmd(90);
@@ -210,33 +203,6 @@ int main(void)
     cmd(90);
     check("an import left for 10 s: let go too (commit: rc 1)", ed_out[1] == 1);
     check("nothing written to flash by any of it", !memcmp(img, nor, sizeof nor));
-    /* 91: 2.4's FM6 bank kept in flash, read out */
-    nreq = 0, w7(0, 3);
-    cmd(91);
-    check("91 SL24_BANK, no bank in flash: rc 4", ed_out[0] == 4 && r7(ed_out + 1, 3) == 0);
-    {
-        static uint8_t b[SL24_BANK_LEN], got[SL24_BANK_LEN];
-        uint32_t w[4] = {SL24_BANK_MAGIC, 1u | SL24_BANK_N << 16, 1u << 3, 0}, off, crc = 0;
-        st_hdr_t h;
-        memset(b, 0, sizeof b), memcpy(b, w, sizeof w), memcpy(b + 16 + 3 * 128, rec, 128);
-        memcpy(nor + 0xE5000 + 256, b, sizeof b);
-        memset(&h, 0, sizeof h);
-        h.magic = ST_MAGIC, h.type = 8, h.seq = 1, h.len = sizeof b, h.crc = st_crc32(b, sizeof b), h.hcrc = st_crc32(&h, sizeof h - 4u);
-        memcpy(nor + 0xE5000, &h, sizeof h);
-        memcpy(img, nor, sizeof nor);
-        for (off = 0, ok = 1; off < sizeof b; off += 256) {
-            uint32_t n;
-            nreq = 0, w7(off, 3);
-            cmd(91);
-            n = sizeof b - off < 256u ? sizeof b - off : 256u;
-            ok &= ed_out[0] == 0 && r7(ed_out + 1, 3) == sizeof b && r7(ed_out + 9, 3) == off &&
-                  ed_unpack7(ed_out + 12, ed_n - 12u, got + off, n) == n;
-            crc = r7(ed_out + 4, 5);
-        }
-        check("... a bank there: read in 256 B chunks, its length and CRC; the bytes as 2.4 wrote them",
-              ok && crc == (st_crc32(b, sizeof b) & 0x7FFFFFFFFu) && !memcmp(got, b, sizeof b));
-        check("... flash untouched", !memcmp(img, nor, sizeof nor));
-    }
     printf("sl24 editor import test %s\n", bad ? "FAILED" : "passed");
     return bad != 0;
 }

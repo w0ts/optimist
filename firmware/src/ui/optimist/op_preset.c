@@ -6,7 +6,7 @@
  *   the mixer         PRESETS on the SOUND row: a toast "Super saw (ANALOG)" framed in the engine's colour; the
  *                     strips' names in their engine's colour (op_draw.c draw_strip) */
 static uint32_t up_engine_slot(uint32_t k);             /* storage/upreset.c (FELUCCA_UI == 1) */
-#if FELUCCA_NATIVE_BANKS
+#if FELUCCA_NB_LIST
 static uint32_t nb_kind(const track_t *t);              /* storage/nbank.c */
 static void nb_name(uint32_t kind, uint32_t k, char *nm);
 #endif
@@ -19,7 +19,7 @@ static uint32_t pre_entry_of(uint32_t e, uint32_t k, char *nm)
         up_name(k, nm);
         return up_engine_slot(k);
     }
-#if FELUCCA_NATIVE_BANKS
+#if FELUCCA_NB_LIST
     if (e == NB_LIST) {                                 /* (the engine's own collection: the track's engine) */
         nb_name(nb_kind(tsel()), k, nm);
         return tsel()->eng_req % NENGINES;

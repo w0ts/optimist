@@ -4,7 +4,8 @@
 # FM6 engine and this test: Kerem Kilic (Melodee, github.com/keremimo/melodee), GPL-3.0-only; ported to SLOOP
 """FM6 against Dexed, sample by sample (tests/fm6_parity.sh builds the two renderers).
 
-Scores (tests/fm6_score.h) of the factory voices and random DX7 voices, in the three engines,
+Scores (tests/fm6_score.h) of the built-in voices (INIT VOICE, the packs) and random DX7 voices, in Dexed's MODERN engine
+(FM6's only; the MARK I and OPL scores went with those modes, 2026-10-18: the Dexed side still has all three),
 with chords, repeats, releases, velocities, pitch bend, the four controllers, portamento and
 mono; each one renders through Dexed's code (dexed_ref) and through FM6 (fm6_parity), and the
 voice sums (Q24, before either output stage) are compared. Bit-exact is the goal; where the
@@ -123,20 +124,21 @@ def main():
     seed = next((int(a[7:]) for a in sys.argv if a.startswith("--seed=")), 1)
     r = random.Random(seed)
     cases = []
-    for k in range(16):                                                  # the factory voices
+    for k in range(81):                                                  # the built-in voices (INIT VOICE; a build's packs after it)
         v = list(map(int, subprocess.check_output([f6, "--rom", str(k)]).split()))
-        for e in range(3):
-            cases.append((f"rom{k:02d}_e{e}", score(v, e, playing(r, 1500), 1500)))
+        if k and v == rom0:
+            break                                                        # (--rom wraps round: past the last voice)
+        rom0 = rom0 if k else v
+        cases.append((f"rom{k:02d}_e0", score(v, 0, playing(r, 1500), 1500)))
     for k in range(10 if quick else 60):                                 # random voices
         v = rand_voice(r)
-        e = k % 3
-        cases.append((f"rnd{k:02d}_e{e}", score(v, e, playing(r, 1200), 1200)))
+        cases.append((f"rnd{k:02d}_e0", score(v, 0, playing(r, 1200), 1200)))
     for k in range(6 if quick else 24):                                  # controllers, bend
         v = rand_voice(r)
         v[139] = r.randint(20, 99)                                       # PMD
         v[140] = r.randint(0, 99)                                        # AMD
         ev, extra = controllers(r, 1200)
-        cases.append((f"ctl{k:02d}_e{k % 3}", score(v, k % 3, playing(r, 1200) + ev, 1200, extra)))
+        cases.append((f"ctl{k:02d}_e0", score(v, 0, playing(r, 1200) + ev, 1200, extra)))
     for k in range(6 if quick else 18):                                  # portamento, mono
         v = rand_voice(r)
         ev = playing(r, 1200) if k % 2 == 0 else cap8(playing(r, 1200))
@@ -144,7 +146,7 @@ def main():
         ev.append((0, "cc 65 127"))
         if k % 3 == 2:
             ev.append((600, "cc 65 0"))
-        cases.append((f"por{k:02d}_e{k % 3}", score(v, k % 3, ev, 1200, extra)))
+        cases.append((f"por{k:02d}_e0", score(v, 0, ev, 1200, extra)))
     for k in range(4 if quick else 12):                                  # more than 16 keys: stealing
         v = rand_voice(r)
         ev, b, held = [], 0, {}
@@ -155,11 +157,11 @@ def main():
                     ev += [(b, f"on {key} {r.randint(1, 127)}"), (off, f"off {key}")]
                     held[key] = off
             b += r.randint(2, 30)
-        cases.append((f"stl{k:02d}_e{k % 3}", score(v, k % 3, ev, 1200)))
+        cases.append((f"stl{k:02d}_e0", score(v, 0, ev, 1200)))
     for k in range(4 if quick else 12):                                  # operators switched off
         v = rand_voice(r)
         ops = "".join(r.choice("0111") for _ in range(6))
-        cases.append((f"ops{k:02d}_e{k % 3}", score(v, k % 3, playing(r, 1200), 1200, [f"ops {ops}"])))
+        cases.append((f"ops{k:02d}_e0", score(v, 0, playing(r, 1200), 1200, [f"ops {ops}"])))
     exact = 0
     worst = (math.inf, "")
     for name, text in cases:

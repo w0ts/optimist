@@ -1473,7 +1473,7 @@ pictures, `op_preset.c` a preset with its engine, all in SIZE_FILES):
   (the operator picked white, carriers in the engine's colour, a switched-off one dim) over the black keys' map;
   OCT- / OCT+ the page back / on; SHIFT + ENV locks it. Let go after use: SOUND's FM6 rows on that page. **ENV tapped
   is SOUND's FM6 family**: OPERATOR (OP ALG FDBK VCE), the picked operator's six pages (2026-10-18, M-VAVE's grouping: TUNE = DTUNE COARS FINE LEVEL, RATES, LEVELS,
-  SENS = AMS VEL MODE ON, SCALE = L DEP R DEP BREAK, CURVES = L CRV R CRV RT SC), PIT's two, ALGO, LFO, LFO 2, PORTA, STORE (14 rows), the algorithm drawn over the rows on each;
+  SENS = AMS VEL MODE ON, SCALE = L DEP R DEP BREAK, CURVES = L CRV R CRV RT SC), PIT's two, ALGO, LFO, LFO 2, PORTA (13 rows; STORE went 2026-10-18 with the FM6 user bank: a voice is kept by SAVE AS, a DX7 voice arrives by SysEx), the algorithm drawn over the rows on each;
   ENV again the next row, round. Edits go into the part's voice (`fm6_ed`), as SLOOP's editor. On any other engine
   ENV is what it was (the envelopes' rows; no layer). The page tables and the algorithm's maths are copied from
   `ui/sloop/ui_fm6.c`; nothing there is called.
@@ -1568,7 +1568,7 @@ either (8,188 B over); nothing was left out of any configuration measured here: 
 | A name's case | stored as typed (upper case), drawn in sentence case | `name_draw` |
 | ENV on an FM6 track | held = the layer, tapped = SOUND's FM6 rows; SHIFT + ENV the lock there (INIT elsewhere, as 11.3) | `LAYER_BTN`, `lay_btn_layer`, `op_jump`, `home_combo` |
 | The layer let go | after use: SOUND's FM6 rows on its page (unused: nothing) | `fm6_lay_end` |
-| FM6's SOUND rows | OPERATOR, the picked operator's 6 pages, PIT 2, ALGO, LFO, LFO 2, PORTA, STORE; the algorithm over each | `F6_*`, `FMK_PAGES` |
+| FM6's SOUND rows | OPERATOR, the picked operator's 6 pages, PIT 2, ALGO, LFO, LFO 2, PORTA (13 rows; no STORE row, 2026-10-18); the algorithm over each | `F6_*`, `FMK_PAGES` |
 | FM6 on-page picks (2026-10-18, after M-VAVE's FM editor) | on SOUND's FM6 rows SHIFT2 + a black key picks OP1..6 / PIT / GLO / MONO / POLY (the page follows), SHIFT + an operator's key switches it; the 10 keys light while held; RATES / LEVELS / PIT pages draw the EG (the operator pages: TUNE RATES LEVELS SENS SCALE CURVES, M-VAVE's order) (chips, a dot a stage) in place of the algorithm | `fm6_shift_key`, `f6_eg_draw` |
 | A row with no graph | the nearest graph of its family, above first | `snd_graph_page` |
 | The SOUND row's picture | three presets (before, playing, after) with engine names and chips; the drum track its kit as before | `pre_draw` |
@@ -2579,7 +2579,7 @@ entered one stays 400 ms, so an LFO crossing it does not make the cards blink.
 | Card | The actual value |
 |---|---|
 | A drum lane's value (SOUND, SOUND 2, ENV, STEP's LANE page, the mixer's lane rows) | What a hit now plays: the patch, the lane's motion and locks in force, its LFO now. The hit's own formula: drums/lane_play.c `dl_play_ofs`, which `dl_play_hit` now calls too (one code, no drift; drums_mix untouched). On a synthesised kit DECAY, CLICK, BEND and DRIVE are the absolute value the sound gets (`de_synth` on the kit's own sound: kit + offset, 0..127, BEND 0..96), always shown: DRIVE -5 on a sound whose drive is 67 shows -7 % big (the offset, as stored) with the actual bar at 57 of 127 (45 %). TUNE, SNAP, CUT, LEVEL and every sampled, user-sample and X0X sound: the offset a hit plays, shown when it differs (motion, a lock, the LFO) |
-| A synth part's cutoff and shape cards (the engine's: ANALOG CUT, TRIO CUT and DUTY, GRAIN TONE and POS, FM6 MOD, VOICE BUZZ, PHASE DPTH, LOFI / SAMPLE / SLICE TONE or CUT, PHYS BRIT; `EFFV_DEST`) | The card's value + the part's cutoff (shape) modulation now, as track_render computes it: the LFO now (`lfo_val` x `lfo_fade`), the envelope of the newest active voice (`v->env`), the accent; with the macros as they play (`mac_effective`) |
+| A synth part's cutoff and shape cards (the engine's: ANALOG CUT, TRIO CUT and DUTY, GRAIN TONE and POS, VOICE BUZZ, PHASE DPTH, LOFI / SAMPLE / SLICE TONE or CUT, PHYS BRIT; `EFFV_DEST`) | The card's value + the part's cutoff (shape) modulation now, as track_render computes it: the LFO now (`lfo_val` x `lfo_fade`), the envelope of the newest active voice (`v->env`), the accent; with the macros as they play (`mac_effective`) |
 | Any synth value a macro moves (FELUCCA_MACROS) | `mac_effective` |
 | LFO DEST's FLT and SHP, ENV 1 MOD's | The destination card's actual value, on its scale (an engine without such a card: what the source adds, on -64..63), shown while the amount is not 0 |
 | ... PIT | The pitch now from the LFO and the pitch envelope, in 1/16 semitones on +-12 |

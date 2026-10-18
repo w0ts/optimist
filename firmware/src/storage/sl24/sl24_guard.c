@@ -176,30 +176,16 @@ static uint32_t sl24_bank_at(void)
     }
     return best;
 }
-/* its slot k (B1 = 0) -> pk (128 bytes); 0 = not there (no bank, an empty slot, a byte out of range) */
-static int sl24_bank_rec(uint32_t at, uint32_t k, uint8_t *pk)
-{
-    uint32_t used, i;
-    if (!at || k >= SL24_BANK_N || st_read(at + 8u, &used, 4) || !((used >> k) & 1u) || st_read(at + 16u + 128u * k, pk, 128u))
-        return 0;
-    for (i = 0; i < 128u; i++)
-        if (pk[i] > 127u)
-            return 0;
-    return 1;
-}
 #endif
 
 /* LOAD of an empty slot: another firmware's project kept there is said so, nothing is loaded */
 #if FELUCCA_SL24_IMPORT && FELUCCA_FLASH
-#define SL24_FV_AT ((sizeof(project_t) + 3u) & ~3u)    /* in proj_tmp: the FM6 parts' bank patches, past the project_t the
-                                                        * import makes there (its source: st_buf) */
-_Static_assert(sizeof proj_tmp >= SL24_FV_AT + NPART * 128u, "2.4's FM6 patches beside the import in proj_tmp");
 /* FELUCCA_SL24_IMPORT: n bytes at b, a SLOOP 2.4 / 2.5 project (sl24_is; not in proj_tmp), or a 2.6 one (sl26_is: made
  * a 2.5 one first, in place: b holds SL24_SIZE bytes) -> the working project
  * (sl24_import.c), its step extras with it as step-only events of the automation store (FELUCCA_AUTO; a lock's value
- * past a signed byte clamped, said so; else dropped, said so), its FM6 parts' bank patches from fv[] (0: from 2.4's
- * bank in flash), its USR kit as lanes. Nothing is written: SAVE puts the import in a section. -> 1 imported */
-static int sl24_import_buf(uint8_t *b, uint32_t n, const uint8_t *const *fv)
+ * past a signed byte clamped, said so; else dropped, said so), its USR kit as lanes. (An FM6 part's PTCH B1..B27, 2.4's
+ * FM6 patch bank, is no longer imported: that part starts from INIT VOICE, 2026-10-18; F1..F8 are.) Nothing is written: SAVE puts the import in a section. -> 1 imported */
+static int sl24_import_buf(uint8_t *b, uint32_t n)
 {
 #if SEC_LOGGED
     dlrec_t *d = &sec_tmp_dl;                          /* (2.4 has no drum record: the kit as it is, or its USR lanes) */
@@ -207,28 +193,17 @@ static int sl24_import_buf(uint8_t *b, uint32_t n, const uint8_t *const *fv)
     static dlrec_t dd;
     dlrec_t *d = &dd;
 #endif
-    uint8_t (*bv)[128] = (uint8_t (*)[128])(void *)((uint8_t *)&proj_tmp + SL24_FV_AT);   /* (the bank's patches the
-                                                        * parts use: in proj_tmp past the project it receives) */
-    const uint8_t *fl[NPART] = {0};
     stepx_t *x = 0;
-    uint32_t lost, k, at = 0, r = 0, ft = 0, ln, ld;
+    uint32_t lost, k, r = 0, ft = 0, ln, ld;
     if (sl26_is(b, (int)n)) {                          /* (2.6: as 2.5's, its parts' filter TYPE aside) */
         ft = sl26_to_sl24(b);
         n = SL24_SIZE;
-    }
-    if (!fv) {                                         /* (2.4's bank, where it left it) */
-        for (k = 0; k < NPART; k++) {
-            int pt = sl24_ptch(b, k);
-            if (pt >= (int)SL24_NFAC && (at || (at = sl24_bank_at()) != 0) && sl24_bank_rec(at, (uint32_t)pt - SL24_NFAC, bv[k]))
-                fl[k] = bv[k];
-        }
-        fv = fl;
     }
 #if FELUCCA_AUTO
     x = sl24_xs;
 #endif
     lost = !x && sl24_has_extras(b);
-    if (!proj_from_sl24(&proj_tmp.cur, b, (int)n, x, fv))
+    if (!proj_from_sl24(&proj_tmp.cur, b, (int)n, x))
         return 0;
     for (k = 0, ld = 0; k < NPART; k++) {             /* (a part with three or four LFO depths: two kept, params.c lfo1_load) */
         int16_t sl[4];
@@ -262,7 +237,7 @@ static int sl24_import_obj(uint32_t obj)
     st_hdr_t h;
     if (sl24_find(obj, &h) < 0)                        /* (its payload in st_buf) */
         return 0;
-    return sl24_import_buf(st_buf, h.len, 0);
+    return sl24_import_buf(st_buf, h.len);
 }
 static int8_t sl24_armed = -1;                         /* the slot a first LOAD armed */
 static uint32_t sl24_armed_ms;

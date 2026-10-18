@@ -26,7 +26,7 @@ fixed ~40 ms pitch drop (`v->penv`), now called DROP. ANALOG's ENV2 had five fix
 | TRIO | ADSR | cut, shape=PW | all | amp, FLT, SHP | **FLT, PIT, PW** (SHP path), **RES** (E6) |
 | WHEEL (DRAWBAR) | ADSR (organ gate) + PERC decay + CLICK | pitch, amp only | FLT/SHP dead | amp only in effect | **PIT, DRV** (E6), **CLICK** (E5), **TOP** (E3) |
 | GRAIN | ADSR | cut=TONE, shape=POS | all | amp, FLT, SHP | **TONE** (FLT path), **PIT**, **POS** (SHP path), **DENS** (E3) |
-| FM6 | **6 DX7 operator EGs + pitch EG** shape the sound; ADSR opens at once, ~10 s (fm6_amp) | shape=MOD, pitch (plog), amp | SHP=MOD, FLT dead | amp, SHP | **special:** **M.TIM, C.TIM** (aliases of E2/E3: the op EG rates), **MOD** (SHP path), **PIT** |
+| FM6 | **6 DX7 operator EGs + pitch EG** shape the sound; ADSR opens at once, ~10 s (fm6_amp) | shape=MOD, pitch (plog), amp | SHP=MOD, FLT dead | amp, SHP | **special (2026-10-18: M.TIM, C.TIM and MOD went with FM6's EDIT values; its one card is PIT, the others "-"; ENV2's default DEST A is PIT):** ~~M.TIM, C.TIM (aliases of E2/E3: the op EG rates), MOD (SHP path)~~, **PIT** |
 | SLICE | ADSR + DCAY | cut, pitch | FLT, PIT | amp, FLT | **TONE** (FLT path), **PIT**, **DCAY** (E6), **START** (E2) |
 | PHYS | ADSR + the model's own decay (DAMP) | cut=BRIT, pitch | FLT | amp, FLT | **BRIT** (FLT path), **PIT**, **DAMP** (E3), **EXC** (E7) |
 | ACID | **303 MEG/VEG** (its own); the ADSR only gates | **nothing** (`(void)m`: ENV, LFO, pitch never reach it) | all dead, AMP too | none | **special:** aliases of the 303's own: **ENV** (E2), **DEC** (E3), **ACC** (E4), **CUT** (E0) |
@@ -139,7 +139,7 @@ Tests:
 
 1. ANALOG/TRIO/JUNO/NOISE card 4: **RES** / DRV / NOIS(ANALOG) / none?
 2. DIGITAL: **IDX PIT FB MDEC** / IDX PIT only (2 cards blank)?
-3. FM6: **M.TIM C.TIM MOD PIT** (aliases + paths) / a new "PEG depth" card in place of PIT / MOD PIT only?
+3. FM6: **M.TIM C.TIM MOD PIT** (aliases + paths) / a new "PEG depth" card in place of PIT / MOD PIT only? (Settled 2026-10-18 by the FM6 cut: those EDIT values are gone; PIT alone.)
 4. ACID: **aliases ENV DEC ACC CUT** / leave ENV 1 blank on ACID (303 untouched)?
 5. CZ: **aliases DCW W.TIM A.TIM + PIT** / PIT only?
 6. WHEEL: **PIT DRV CLICK TOP** / PIT only?
@@ -150,7 +150,7 @@ Tests:
 ## 8. As built (feat/env1-fixed, 2026-10-16)
 
 The user's rulings: every recommended answer of §7 (ANALOG TRIO JUNO NOISE card 4 RES; DIGITAL IDX PIT FB MDEC; FM6
-M.TIM C.TIM MOD PIT; ACID the aliases ENV DEC ACC CUT; CZ DCW W.TIM A.TIM + PIT; WHEEL PIT DRV CLICK TOP; PHASE DCW PIT
+PIT alone for FM6 (was M.TIM C.TIM MOD PIT until 2026-10-18); ACID the aliases ENV DEC ACC CUT; CZ DCW W.TIM A.TIM + PIT; WHEEL PIT DRV CLICK TOP; PHASE DCW PIT
 DTN SUB; ENV 1 slots on other targets moved to ENV 2 when it is free, else dropped and counted; the page ENV 1 MOD).
 Then (the user, the same day): "in general we should always have filter and amp, by default slot 1 of env2 is filter".
 

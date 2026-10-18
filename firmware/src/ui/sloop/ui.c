@@ -356,7 +356,7 @@ static void preset_go(uint32_t n)                    /* load list index n into t
         up_load(k);
         return;
     }
-#if FELUCCA_NATIVE_BANKS
+#if FELUCCA_NB_LIST
     if (e == NB_LIST) {
         nb_load(k);
         return;

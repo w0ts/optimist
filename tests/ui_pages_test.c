@@ -15,7 +15,7 @@
  *   SAVE    tapped: the song page; held: the SONG layer (sections A..D: play / store, SONG REC)
  *   DRUMS   the grid: sound / step / hit / level knobs, GRID <-> KIT
  *   FM6     ENV on an FM6 track: the operator editor (black keys OP1..OP6 PIT GLO MONO POLY, pages, knobs,
- *           STORE / INIT)
+  *           no STORE page now)
  * then 20000 frames of random use: every draw stays on the screen. */
 #define FELUCCA_ARRANGER 1
 #define main hostsim_main
@@ -114,8 +114,8 @@ static uint32_t fm1_audio_free_half(void) { return 0; }
 #include "../firmware/src/ui/sloop/macro_ui.c"
 #endif
 #include "../firmware/src/ui/sloop/ui_input.c"
-#include "../firmware/src/engines/fm6/fm6_store.c"   /* (no flash on the host: STORE is refused) */
-#if FELUCCA_NATIVE_BANKS
+#include "../firmware/src/engines/fm6/fm6_sysex.c"
+#if FELUCCA_NB_LIST
 #include "../firmware/src/storage/nbank.c"       /* the FM6 / CZ collections in PRESETS (no flash: the CZ one empty) */
 #endif
 #if FELUCCA_DRUM_KITS
@@ -516,7 +516,7 @@ static void fm6_editor_tests(void)
     ui.force = 1; frame(); ppm("fm6-pitch");
     key(K_MONO); check(trk[0].p[P_VOICE] == V_MONO && (keys_lit() >> K_MONO & 1u), "FM6: ENV + MONO: mono, its key lit");
     key(K_POLY); check(trk[0].p[P_VOICE] == V_POLY, "FM6: ENV + POLY: poly");
-    key(K_GLO); check(fm6ui.target == FMT_GLO, "FM6: ENV + GLO: algorithm, LFO, porta, store");
+    key(K_GLO); check(fm6ui.target == FMT_GLO, "FM6: ENV + GLO: algorithm, LFO, porta");
     release(B_ENV);
     check(ui.layer == LY_PLAY && on_fm6k_page() && fm6ui.sub[2] == 0, "FM6: ENV let go after use: the editor stays, same page");
     frames(16);                                   /* (#39: KNOB 1..4 are quiet for 250 ms after a used layer closes) */
@@ -529,16 +529,6 @@ static void fm6_editor_tests(void)
     encs[panel.enc[EN_K2]] = 5; frames(2);
     check(ed[FN_PMODE] == 1 && ed[FN_PTIME] > 0, "FM6: PORTA page: on, a time");
     ui.force = 1; frame(); ppm("fm6-global-porta");
-    fm6ui.sub[2] = 4; fm6k_page_entered();              /* store: slot, STORE / SEND / INIT armed twice */
-    encs[panel.enc[EN_K1]] = 2; frames(2);
-    check(fm6ui.slot == 2, "FM6: STORE page: KNOB 1 the user slot");
-    ui.force = 1; frame(); ppm("fm6-global-store");
-    encs[panel.enc[EN_K4]] = 1; frames(2);
-    check(ui.arm == 0xF2u, "FM6: INIT: one detent arms");
-    encs[panel.enc[EN_K4]] = 1; frames(4);
-    check(ui.arm == 0 && ed[FV_ALG] == 0 && ed[FM6_OPB(2) + FO_OL] == 0, "FM6: INIT: a second one, the init voice");
-    encs[panel.enc[EN_K2]] = 1; frames(2); encs[panel.enc[EN_K2]] = 1; frames(2);
-    check(trk[0].p[P_E0] != (int16_t)(FM6_NROM + 2u), "FM6: STORE without flash (the host): refused, VOICE stays");
     fm1_in.notes = 1u << 3; frames(3);
     check(fm6_sounding(&trk[0]), "FM6: ENV up: a black key plays a note again");
     fm1_in.notes = 0; frames(2);
@@ -584,11 +574,8 @@ static int smp_preset_gone(const char *name)
     return 0;
 }
 
-/* the FM6 editor with VIEW ALL (an operator's pages as rows of 4 x 4 PAGEs, PIT, GLO) and the long ENV
- * press (the algorithm full screen) */
-/* FM6's ENGINE (EDIT 2) lists the modes this build has (eng_fm6.c fm6_desc): run_tests.sh builds this test with
- * all three, with MODERN left out and with MARK I only. The stored value never moves by itself: a part saved
- * with a mode left out keeps it (a build with it plays it as saved) and shows the mode it plays */
+/* FM6's EDIT 2 (once ENGINE) has no value any more (the modes MARK I, MODERN and OPL went 2026-10-18): the page is not shown, PATCH
+ * is; an old part that stored an ENGINE value keeps it unread */
 static uint32_t edit2_page(void)
 {
     uint32_t i;
@@ -609,7 +596,6 @@ static void fm6_engine_tests(void)
 {
     track_t *t = &trk[0];
     uint32_t i, e2 = edit2_page(), n;
-    char v[8];
     song.sel = 0; song.playing = 0; go_home(); frames(2);
     set_engine_of(t, ENG_IX_FM6); frames(3);
     view_set(0);
@@ -618,114 +604,11 @@ static void fm6_engine_tests(void)
         n += ui.page == e2;
     }
     t->p[P_E4] = 1; ui.page = (uint8_t)e2; ui.force = 1; frame(); ppm("fm6-engine-edit2");
-    if (FM6_NMODES == 1) {
-        check(!n && ui.page != e2 && !page_shown(&PAGES[e2]), "FM6, one ENGINE mode: EDIT 2 (nothing on it) not shown, PATCH is");
-        t->p[P_E4] = 0; ui.page = (uint8_t)page_first(FAM_EDIT); frames(2);
-        for (i = 0; i < 4u; i++) { encs[panel.enc[EN_K1 + i]] = 1; frames(2); }
-        check(t->p[P_E4] == 0 && fm6_mode(t->p[P_E4]) == (FELUCCA_FM6_MARK1 ? 1u : FELUCCA_FM6_MODERN ? 0u : 2u),
-              "FM6, one mode: a part saved with another keeps it, plays the one built");
-        return;
-    }
-    check(n && ui.page == e2 && page_shown(&PAGES[e2]), "FM6: EDIT 2 shows ENGINE");
-    t->p[P_E4] = FM6_PLAYS(1);                          /* (a mode built: MARK I, else the first) */
-    encs[panel.enc[EN_K1]] = -5; frames(2);
-    engine_shown(v);
-    check(t->p[P_E4] == (FELUCCA_FM6_MODERN ? 0 : FELUCCA_FM6_MARK1 ? 1 : 2) && v[0],
-          "FM6: KNOB 1 down to the first mode built");
-    for (n = 1, i = 0; i < 4u; i++) {                   /* one detent at a time: the modes built, in order */
-        int16_t was = t->p[P_E4];
-        encs[panel.enc[EN_K1]] = 1; frames(2);
-        n += t->p[P_E4] != was;
-        check(t->p[P_E4] == was || FM6_BUILT(t->p[P_E4]), "FM6: a detent lands on a mode built");
-    }
-    check(n == FM6_NMODES, "FM6: KNOB 1 steps through the modes built only");
-    if (FM6_NMODES == 2 && !FELUCCA_FM6_MODERN) {
-        char mk[8];
-        const char *u;
-        param_format(&ENG_FM6.edit[4], 1, mk, &u);      /* (MARK I as the column shows it) */
-        t->p[P_E4] = 0; ui.force = 1; frame(); ppm("fm6-engine-stored-modern");
-        engine_shown(v);
-        check(!strcmp(v, mk) && t->p[P_E4] == 0, "FM6 without MODERN: a part saved MODERN shows MARK I (plays it), keeps 0");
-        encs[panel.enc[EN_K1]] = -1; frames(2);
-        check(t->p[P_E4] == 0, "... KNOB 1 down: nothing below");
-        encs[panel.enc[EN_K1]] = 1; frames(2);
-        engine_shown(v);
-        check(t->p[P_E4] == 2 && !strcmp(v, "OPL"), "... KNOB 1 up: OPL (a detent shows another mode)");
-    }
-}
-
-static void fm6_view_tests(void)
-{
-    enum { K_OP2 = 3, K_PIT = 15, K_GLO = 17 };
-    int16_t *ed = fm6_ed[0];
-    uint32_t first, act, page, npages, n, sub, a;
-    song.sel = 0; song.playing = 0; go_home(); frames(2);
-    set_engine_of(&trk[0], ENG_IX_FM6); frames(3);
-    view_set(1);
-    tap(B_ENV); frames(2);
-    fm6ui.target = 0; fm6ui.sub[0] = 0; ui.force = 1; frame();
-    check(on_fm6k_page() && fm6ui.mode == FMV_ALL, "FM6 VIEW ALL: the operator's pages as rows");
-    ppm("fm6-all-op1-page1");
-    n = ov_grid(6, fm6ui.sub[0], &first, &act, &page, &npages);
-    check(n == 4u && page == 0u && npages == 2u, "FM6 VIEW ALL: FREQ .. EG LEVEL on PAGE 1/2");
-    tap(B_ENV); tap(B_ENV); tap(B_ENV); frames(2);
-    check(fm6ui.sub[0] == 3u && fm6ui.mode == FMV_ALL && !fm6ui.algo, "FM6 VIEW ALL: ENV tapped three times: EG LEVEL lit (quick taps: no diagram)");
-    tap(B_ENV); frames(2);
-    n = ov_grid(6, fm6ui.sub[0], &first, &act, &page, &npages);
-    check(fm6ui.sub[0] == 4u && n == 2u && act == 0u && page == 1u, "FM6 VIEW ALL: past row 4: PAGE 2/2, KEY SCALE lit");
-    ui.force = 1; frame(); ppm("fm6-all-op1-page2");
-    a = (uint32_t)ed[FM6_OPB(1) + FO_LD];
-    encs[panel.enc[EN_K2]] = 2; frames(2);
-    check((uint32_t)ed[FM6_OPB(1) + FO_LD] == (a + 2u > 99u ? 99u : a + 2u), "FM6 VIEW ALL: KNOB 2 edits the lit row (L DEPTH)");
-    tap(B_ENV); tap(B_ENV); frames(2);
-    check(fm6ui.sub[0] == 0u, "FM6 VIEW ALL: past the last row: PAGE 1, FREQ");
-    press(B_ENV); key(K_PIT); release(B_ENV); frames(2);
-    check(fm6ui.target == FMT_PIT && fm6ui.mode == FMV_ALL, "FM6 VIEW ALL: PIT, its two pages as rows");
-    ui.force = 1; frame(); ppm("fm6-all-pit");
-    press(B_ENV); key(K_GLO); release(B_ENV); frames(2);
-    fm6ui.sub[2] = 0; ui.force = 1; frame(); ppm("fm6-all-glo-page1");
-    fm6ui.sub[2] = 4; fm6k_page_entered(); ui.force = 1; frame(); ppm("fm6-all-glo-page2");
-    n = ov_grid(5, fm6ui.sub[2], &first, &act, &page, &npages);
-    check(n == 1u && page == 1u && npages == 2u, "FM6 VIEW ALL: GLO: STORE alone on PAGE 2/2");
-    press(B_ENV); key(1); release(B_ENV); frames(2);      /* OP1 */
-    /* the long press */
-    fm6ui.sub[0] = 2; sub = fm6ui.sub[0];
-    press(B_ENV); frames(10);
-    check(!fm6ui.algo && fm6ui.mode == FMV_ALL, "ENV held 0.18 s: the page (no diagram yet)");
-    frames(22);
-    check(fm6ui.algo && fm6ui.mode == FMV_ALGO, "ENV held 0.5 s: the algorithm full screen");
-    ui.force = 1; frame(); ppm("fm6-algo-long-press");
-    key(K_OP2);
-    check(fm6ui.target == 1u && fm6ui.algo, "ENV + OP2 on the diagram: OP2 picked, lit there");
-    ui.force = 1; frame(); ppm("fm6-algo-op2");
-    release(B_ENV); frames(2);
-    check(!fm6ui.algo && fm6ui.mode == FMV_ALL && fm6ui.sub[0] == sub, "ENV let go: the page back, the page unturned (no tap)");
-    press(B_ENV); frames(32);
-    check(fm6ui.algo, "ENV held again: the diagram");
-    a = (uint32_t)ed[FM6_OPB(2) + FO_R1];
-    encs[panel.enc[EN_K1]] = 2; frames(2);                /* (two detents: one is jitter, the layer is not used by it) */
-    check(!fm6ui.algo && fm6ui.mode == FMV_ALL && (uint32_t)ed[FM6_OPB(2) + FO_R1] != a,
-          "a knob with ENV held: the page back at once, the edit made (EG RATE R1)");
-    frames(10);
-    check(!fm6ui.algo, "... and the diagram stays away until ENV comes up");
-    release(B_ENV); frames(2);
-    a = (uint32_t)ed[FV_ALG];
-    ed[FV_ALG] = 31; ed[FV_FB] = 6;                     /* algorithm 32: six carriers, OP6's loop */
-    press(B_ENV); frames(32); ui.force = 1; frame(); ppm("fm6-algo-32");
-    release(B_ENV);
-    ed[FV_ALG] = 4; press(B_ENV); frames(32); ui.force = 1; frame(); ppm("fm6-algo-5");
-    release(B_ENV);
-    ed[FV_ALG] = (int16_t)a;
-    view_set(0); frames(2);
-    check(fm6ui.mode == FMV_PAGE, "FM6 VIEW PAGE: the one-page editor as before");
-    ui.force = 1; frame(); ppm("fm6-page-op2");
-    press(B_ENV); frames(32);
-    check(fm6ui.algo && fm6ui.mode == FMV_ALGO, "FM6 VIEW PAGE: the long press shows the diagram too");
-    release(B_ENV); frames(2);
-    check(fm6ui.mode == FMV_PAGE, "... let go: the one page back");
-    view_set(1);
-    set_engine_of(&trk[0], trk_def_engine(0)); apply_preset_to(&trk[0], trk_def_preset(0));
-    trk[0].p[P_VOICE] = V_POLY; go_home(); frames(3);
+    check(!n && ui.page != e2 && !page_shown(&PAGES[e2]), "FM6: EDIT 2 (nothing on it) not shown, PATCH is");
+    t->p[P_E4] = 0; ui.page = (uint8_t)page_first(FAM_EDIT); frames(2);
+    for (i = 0; i < 4u; i++) { encs[panel.enc[EN_K1 + i]] = 1; frames(2); }
+    check(t->p[P_E4] == 0, "FM6: the knobs of EDIT 1 beyond VOICE move nothing (the \"-\" values)");
+    check(t->p[P_E0] >= 0 && t->p[P_E0] < (int16_t)FM6_NVOICE, "FM6: VOICE stays inside the voices this build has");
 }
 
 int main(int argc, char **argv)
@@ -1489,7 +1372,6 @@ int main(int argc, char **argv)
     sloop_auto_ui_tests();
     sloop_step_hold_tests();
     sl24p5_ui_tests();
-    fm6_view_tests();
     param_help_tests();
     topbar_tests();
 #if FELUCCA_DRUM_STEP

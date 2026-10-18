@@ -43,6 +43,8 @@ INSFX_ON="-DFELUCCA_INS_FOLD=1 -DFELUCCA_INS_FUZZ=1 -DFELUCCA_INS_PHASER=1 -DFEL
 BACKPORTS_ON="$BACKPORTS_ON -DFELUCCA_ENG_NOISE=1"
 # ENV 1 MOD's test (tests/env1_test.c): every engine built, so every engine's cards are rendered
 ENV1_ENG="-DFELUCCA_ENG_SLICE=1 -DFELUCCA_ENG_PHYS=1 -DFELUCCA_ENG_ACID=1 -DFELUCCA_ENG_CZ=1 -DFELUCCA_ENG_JUNO=1 -DFELUCCA_ENG_NOISE=1"
+# FM6's voice packs, every one (tools/fm6_packs, firmware/src/engines/fm6/eng_fm6_pk_*.h)
+FM6_PACKS_ON="-DFELUCCA_FM6_PK_KEYS=1 -DFELUCCA_FM6_PK_BASS=1 -DFELUCCA_FM6_PK_BELLS=1 -DFELUCCA_FM6_PK_PADS=1 -DFELUCCA_FM6_PK_80S=1"
 run() { echo "== $1"; d=$1; shift; "$@" || { fail=1; echo "!! FAILED: $d"; : > "$U.fail"; }; }
 
 # ---- the units (see the top): nu started, np printed; unit N's files $JD/N.out, .rc (its exit status, written last
@@ -838,11 +840,11 @@ job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_VIS=1 $SEC4 -o "$OUT/vis_tap_test" tests/vis_tap_test.c -lm
     run "visualiser tap: a block's mix copied whole, block aligned over the wrap" "$OUT/vis_tap_test"
 ) >"$U.out" 2>&1 & jobbg
-for m in "-DFELUCCA_FM6_MODERN=0" "-DFELUCCA_FM6_MODERN=0 -DFELUCCA_FM6_OPL=0"; do
+for m in "$FM6_PACKS_ON"; do
     job; ( jobin
         $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $m -o "$OUT/ui_pages_fm6m_test$nu" tests/ui_pages_test.c -lm
         mkdir -p "$OUT/fm6m"
-        run "live UI, FM6 with fewer ENGINE modes ($m): ENGINE lists those built, one: EDIT 2 hidden; fuzz" "$OUT/ui_pages_fm6m_test$nu" "$OUT/fm6m"
+        run "live UI, FM6 with every voice pack ($m): the PRESETS list with their rows, EDIT 2 hidden; fuzz" "$OUT/ui_pages_fm6m_test$nu" "$OUT/fm6m"
     ) >"$U.out" 2>&1 & jobbg
 done
 job; ( jobin
@@ -873,7 +875,7 @@ job; ( jobin
     run "help lines: every line of tools/param_help.json unpacks (ph_blob.c ph_text) to the table's text, fits PH_LINE, is found" "$OUT/param_help_pack_test"
 ) >"$U.out" 2>&1 & jobbg
 PH_ALL="$BACKPORTS_ON -DFELUCCA_MACROS=1 -DFELUCCA_ENERGY=1 $BP23_ON $X0X_ON $FEL102_ON -DFELUCCA_SLICE=1"
-for m in "" "$PH_ALL" "-DFELUCCA_ANALOG2=0" "-DFELUCCA_FM6_MODERN=0 -DFELUCCA_FM6_OPL=0" "-DFELUCCA_FX_REVERB=0 -DFELUCCA_FX_DELAY=0 -DFELUCCA_DRUM_EDIT=0" "-DFELUCCA_INS_GATER=1" "$INSFX_ON -DFELUCCA_INS_JCHORUS=1"; do
+for m in "" "$PH_ALL" "-DFELUCCA_ANALOG2=0" "$FM6_PACKS_ON" "-DFELUCCA_FX_REVERB=0 -DFELUCCA_FX_DELAY=0 -DFELUCCA_DRUM_EDIT=0" "-DFELUCCA_INS_GATER=1" "$INSFX_ON -DFELUCCA_INS_JCHORUS=1"; do
     job; ( jobin
         $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_PARAM_HELP=1 $SEC4 $m -o "$OUT/param_help_test$nu" tests/param_help_test.c -lm
         mkdir -p "$OUT/help"
@@ -1155,9 +1157,6 @@ job; ( jobin
     $CC -w -I"$HGEN" -Ifirmware/src -DFELUCCA_ENG_FM6=0 -DFELUCCA_ENG_GRAIN=0 -o "$OUT/brt_red" tests/builder_rt_test.c -lm
     run "builder: project full -> reduced (FM6, GRAIN out) -> full keeps the missing engines' parts" sh -c \
         "'$OUT/brt_full' write '$OUT/rtA.bin' && '$OUT/brt_red' reduce '$OUT/rtA.bin' '$OUT/rtB.bin' '$OUT/rtC.bin' && '$OUT/brt_full' check '$OUT/rtA.bin' '$OUT/rtB.bin' '$OUT/rtC.bin'"
-    $CC -w -I"$HGEN" -Ifirmware/src -DFELUCCA_FM6_MODERN=0 -DFELUCCA_FM6_OPL=0 -o "$OUT/brt_mk1" tests/builder_rt_test.c -lm
-    run "builder: an FM6 part saved MODERN on a MARK I only build: plays MARK I, ENGINE hidden, saved back as it was" \
-        "$OUT/brt_mk1" modes "$OUT/rtA.bin" "$OUT/rtM.bin"
 ) >"$U.out" 2>&1 & jobbg
 # missing on this build (firmware/src/storage/miss.c): a project, a song section and a user kit of a full build on a reduced
 # one (its sample header made without PIANO); the screens in $OUT/miss
@@ -1178,7 +1177,7 @@ FELUCCA_SAMPLES_SKIP=PIANO,VIBES,FLUTE python3 tools/gen_samples.py "$OUT/gen_no
 KITS1="-DFELUCCA_DRUM_SYNTH=0 -DFELUCCA_KIT_ACOUSTIC=0 -DFELUCCA_KIT_DEEP=0 -DFELUCCA_KIT_TIGHT=0 -DFELUCCA_KIT_BRIGHT=0"
 # (every sample set: COVER_STRICT, a factory preset per engine; sets left out: INIT where none is left)
 S1="-DCOVER_STRICT=1"
-for c in "$HGEN|$S1" "$HGEN|$S1 -DFELUCCA_ENG_SLICE=1 -DFELUCCA_ENG_PHYS=1 -DFELUCCA_ENG_ACID=1 -DFELUCCA_ENG_CZ=1 -DFELUCCA_FM6_VOICES=0" \
+for c in "$HGEN|$S1" "$HGEN|$S1 -DFELUCCA_ENG_SLICE=1 -DFELUCCA_ENG_PHYS=1 -DFELUCCA_ENG_ACID=1 -DFELUCCA_ENG_CZ=1 $FM6_PACKS_ON" \
          "$HGEN|$S1 $X0X_ON -DFELUCCA_ENG_ACID=1" "$HGEN|$S1 $KITS1" "$OUT/gen_noset|-DFELUCCA_DRUM_SAMPLED=0" \
          "$OUT/gen_nogr|-DFELUCCA_ENG_SLICE=1"; do
     job; ( jobin
@@ -1341,8 +1340,8 @@ for m in 0 1; do
     done
 done
 job; ( jobin
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/fm6_test" tests/fm6_test.c -lm
-    run "FM6: DX7 algorithms, voices, pitch, levels, envelopes, modulation" "$OUT/fm6_test"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src $FM6_PACKS_ON -o "$OUT/fm6_test" tests/fm6_test.c -lm
+    run "FM6: DX7 algorithms, voices (INIT VOICE and every pack's), pitch, levels, envelopes, modulation, SysEx in (the ISR side)" "$OUT/fm6_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/fm6_ams_test" tests/fm6_ams_test.c -lm
@@ -1353,16 +1352,30 @@ job; ( jobin
     run "FM6: the tables built at boot / figured where read, every entry as Dexed's" "$OUT/fm6_tables_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_FM6_MKI_FLASH=1 -o "$OUT/fm6_tables_flash_test" tests/fm6_tables_test.c -lm
-    run "FM6: MARK I's tables in flash (FELUCCA_FM6_MKI_FLASH), every entry as Dexed's" "$OUT/fm6_tables_flash_test"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/fm6_sysex_test" tests/fm6_sysex_test.c -lm
+    run "FM6: DX7 SysEx in (a voice into the FM6 track, a 32-voice bank as the pick list; bad checksums, no FM6 track; the rest let go)" "$OUT/fm6_sysex_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/fm6_store_test" tests/fm6_store_test.c -lm
-    run "FM6: DX7 SysEx in, the user bank at 0xD8000 (an older USR-slot bank moved there), STORE, VOICE U.." "$OUT/fm6_store_test"
+    FC="$CC -O2 -w -I$HGEN -Ifirmware/src -DFELUCCA_FLASH=1"
+    $FC -DFELUCCA_FM6_PK_KEYS=1 -DFELUCCA_FM6_PK_80S=1 -o "$OUT/fm6_compat_w" tests/fm6_compat_test.c -lm
+    $FC -DFELUCCA_FM6_PK_80S=1 -o "$OUT/fm6_compat_80s" tests/fm6_compat_test.c -lm
+    $FC -DFELUCCA_FM6_PK_BASS=1 -o "$OUT/fm6_compat_bass" tests/fm6_compat_test.c -lm
+    $FC -o "$OUT/fm6_compat_none" tests/fm6_compat_test.c -lm
+    $FC $FM6_PACKS_ON -o "$OUT/fm6_compat_all" tests/fm6_compat_test.c -lm
+    run "FM6 old data and pack ids, no pack: an old R / U VOICE number is INIT VOICE, MOD / M.TIM / C.TIM baked into the inline voice, user preset records" "$OUT/fm6_compat_none"
+    run "FM6 old data and pack ids, every pack: the same, no old number lands on a pack voice" "$OUT/fm6_compat_all"
+    run "FM6 pack ids: a project with an 80S voice (packs KEYS + 80S) stores a fixed number" "$OUT/fm6_compat_w" write "$OUT/fm6_compat_A.bin"
+    run "FM6 pack ids: ... it loads as the same voice in a build with the 80S pack alone (another list index)" "$OUT/fm6_compat_80s" check "$OUT/fm6_compat_A.bin"
+    run "FM6 pack ids: ... as INIT VOICE with the voice kept in a build without that pack" "$OUT/fm6_compat_bass" check "$OUT/fm6_compat_A.bin"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_ENG_CZ=1 -o "$OUT/nbank_test" tests/nbank_test.c -lm
-    run "native collections (NATIVE_BANKS): the CZ store (A/B, torn save), PRESETS rows, loads keep FX, cmd 66" "$OUT/nbank_test"
+    run "FM6 voice packs: the headers are what tools/fm6_packs/pk_*.py and levels.json make" python3 tools/gen_fm6_packs.py --check
+    run "FM6 voice packs, 80 voices, listened to by numbers (tools/fm6_packs_check.py): level -15 LUFS as the factory presets, no note over +6 dBFS, none silent, DC, pitch" \
+        python3 tools/fm6_packs_check.py --root .
+) >"$U.out" 2>&1 & jobbg
+job; ( jobin
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_ENG_CZ=1 -DFELUCCA_FM6_PK_KEYS=1 -DFELUCCA_FM6_PK_80S=1 -o "$OUT/nbank_test" tests/nbank_test.c -lm
+    run "native collections: the CZ store (A/B, torn save), PRESETS rows (CZ, FM6's packs and received DX7 bank), loads keep FX, cmd 66" "$OUT/nbank_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     if [ -n "$DEXED_SRC" ]; then
@@ -1397,10 +1410,6 @@ job; ( jobin
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src $INSFX_ON -o "$OUT/regress_insfx" tests/regress.c -lm
     run "regression with the further inserts built (INS_*, in no slot by default): the same goldens, their CPU (cpu/fx/part_<t>, dbus_<t>; BUDGET_UPDATE=1 here keeps them)" "$OUT/regress_insfx" tests/golden.txt tests/cpu_baseline.txt
-) >"$U.out" 2>&1 & jobbg
-job; ( jobin
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_FM6_MKI_FLASH=1 -o "$OUT/regress_mkif" tests/regress.c -lm
-    run "regression with MARK I's tables in flash (FELUCCA_FM6_MKI_FLASH): the same golden renders" "$OUT/regress_mkif" tests/golden.txt tests/cpu_baseline.txt
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_ENG_NOISE=1 -o "$OUT/regress_noise" tests/regress.c -lm

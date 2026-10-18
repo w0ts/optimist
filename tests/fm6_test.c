@@ -83,8 +83,8 @@ static void voices(void)
     static int16_t ed[FM6_NP], back[FM6_NP];
     uint8_t b[128];
     uint32_t v, i;
-    for (v = 0; v < FM6_NROM; v++) {
-        fm6_from_rom(ed, &FM6_ROM[v]);
+    for (v = 0; v < FM6_NVOICE; v++) {                   /* INIT VOICE and the packs this build has */
+        fm6_from_rom(ed, fm6_rom(v));
         fm6_pack(b, ed);
         for (i = 0; i < 128u; i++)
             CHECK(b[i] < 128u, "voice %u byte %u = %u (SysEx data is 7 bits)", v, i, b[i]);
@@ -97,8 +97,8 @@ static void voices(void)
     fm6_unpack(ed, b);
     for (i = 0; i < FV_ON; i++)
         CHECK(ed[i] >= fm6_min(i) && ed[i] <= fm6_max(i), "unpack clamps parameter %u (%d)", i, ed[i]);
-    printf("FM6 voices: %u factory voices pack to 7-bit DX7 data and back; bad data clamped: OK\n",
-           (unsigned)FM6_NROM);
+    printf("FM6 voices: %u built-in voices pack to 7-bit DX7 data and back; bad data clamped: OK\n",
+           (unsigned)FM6_NVOICE);
 }
 
 /* ------------------------------------------------------- rendering --- */
@@ -418,25 +418,56 @@ static void every_algorithm(void)
     puts("FM6: every algorithm at full levels and feedback stays bounded: OK");
 }
 
+/* the USB-ISR side of DX7 SysEx in (eng_fm6.c fm6_sx_byte): a voice frame and a bank frame are taken, anything else is let
+ * go at once; one frame waits for the main loop at a time */
+static void feed(const uint8_t *m, uint32_t n)
+{
+    uint32_t i;
+    for (i = 0; i < n; i++)
+        fm6_sx_byte(m[i]);
+}
 static void sysex_pending(void)
 {
-    static const uint8_t voice[] = {0xF0, 0x43, 0, 0, 1, 0x1B, 42, 0xF7};
-    static const uint8_t ping[] = {0xF0, 0x7D, 0x46, 0x4C, 25, 0xF7};
+#if FELUCCA_FM6_SYSEX
+    static uint8_t voice[163] = {0xF0, 0x43, 0, 0, 1, 0x1B}, bank[4104] = {0xF0, 0x43, 0, 9, 0x20, 0}, other[163];
+    static const uint8_t ping[] = {0xF0, 0x7D, 0x46, 0x4C, 25, 0xF7}, short_voice[] = {0xF0, 0x43, 0, 0, 1, 0x1B, 42, 0xF7};
     uint32_t i;
+    for (i = 6; i < 161u; i++)
+        voice[i] = (uint8_t)(i * 5u & 127u);
+    voice[161] = 7;
+    voice[162] = 0xF7;
+    for (i = 6; i < 4102u; i++)
+        bank[i] = (uint8_t)(i * 3u & 127u);
+    bank[4102] = 9;
+    bank[4103] = 0xF7;
+    memcpy(other, voice, sizeof other);
+    other[6] = 99;
     fm6_rx_ready = fm6_rx_on = 0;
-    fm6_rx_n = 0;
-    for (i = 0; i < sizeof voice; i++) fm6_sx_byte(voice[i]);
-    CHECK(fm6_rx_ready && fm6_rx_n == sizeof voice, "voice queued for the main loop");
-    for (i = 0; i < sizeof ping; i++) fm6_sx_byte(ping[i]);
-    CHECK(fm6_rx_ready && fm6_rx_n == sizeof voice && !memcmp(fm6_rx, voice, sizeof voice),
-          "editor traffic must not discard a pending DX7 frame");
-    fm6_sx_byte(0xF0); fm6_sx_byte(0x43); fm6_sx_byte(0xF7);
-    CHECK(fm6_rx_ready && fm6_rx_n == sizeof voice && !memcmp(fm6_rx, voice, sizeof voice),
-          "a second Yamaha frame must not discard the pending frame");
-    fm6_rx_ready = 0;                              /* main loop consumed it */
-    fm6_sx_byte(0xF0); fm6_sx_byte(0x43); fm6_sx_byte(0xF7);
-    CHECK(fm6_rx_ready && fm6_rx_n == 3 && fm6_rx[2] == 0xF7, "receiver accepts the next frame after consumption");
+    feed(ping, sizeof ping);
+    CHECK(!fm6_rx_ready, "editor traffic (F0 7D ..) is let go, nothing waits");
+    feed(short_voice, sizeof short_voice);
+    CHECK(!fm6_rx_ready, "a voice frame of the wrong length is let go");
+    feed(voice, sizeof voice);
+    CHECK(fm6_rx_ready == 1 && !memcmp(fm6_vox, voice, sizeof voice - 1u), "a voice frame waits for the main loop");
+    feed(ping, sizeof ping);
+    feed(other, sizeof other);
+    CHECK(fm6_rx_ready == 1 && !memcmp(fm6_vox, voice, sizeof voice - 1u), "editor traffic and a second voice must not discard or change the frame that waits");
+    fm6_rx_ready = 0;                                    /* the main loop took it */
+    feed(other, sizeof other);
+    CHECK(fm6_rx_ready == 1 && fm6_vox[6] == 99, "the next frame is taken after the main loop took the first");
     fm6_rx_ready = 0;
+    fm6_pick_ok = 1;
+    feed(bank, sizeof bank);
+    CHECK(fm6_rx_ready == 2 && !fm6_pick_ok && !memcmp(fm6_pick, bank + 6, 4097), "a bank frame: its data and checksum wait in the pick buffer, the old list is gone");
+    fm6_rx_ready = 0;
+    bank[4103] = 0x00;                                   /* no F7 where it should be: more bytes than a bank has */
+    feed(bank, sizeof bank - 1u);
+    fm6_sx_byte(0x55);
+    fm6_sx_byte(0xF7);
+    CHECK(!fm6_rx_ready, "a bank frame one byte too long is let go");
+    fm6_rx_ready = fm6_rx_on = 0;
+    puts("FM6 SysEx in: voice and bank frames taken, anything else let go, one waiting at a time: OK");
+#endif
 }
 
 int main(void)

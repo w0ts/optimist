@@ -16,10 +16,9 @@
  *   - FM6 parts (sl24_fm6.c): a voice that is one of 2.4's F1..F8 exactly (an import of one with its macros at 0)
  *     -> that PTCH; else, when the caller gives 2.4's bank (the editor's "FM6 voices into 2.4's bank": 2.4's bank
  *     kept in flash, or an empty one), the voice into it (the slot holding it, else the first free one: B1..B27;
- *     SX24_BANK: the bank goes into the file as 2.4's object 8); else the closest factory patch to VOICE (SL24_PTCH;
- *     the importer's SL24_FM6V images map back to themselves), U01..U32 -> F1 (LOST: the voice). MOD -> MLVL;
- *     ALG FB MRAT MEG VMOD DTUN 0 (in the voice already); preset = PTCH (F1..F8, else 0). LOST: M.TIM, C.TIM, an
- *     ENGINE other than MARK I (2.4's), operators switched off;
+ *     SX24_BANK: the bank goes into the file as 2.4's object 8); else F1 (LOST: the voice; our R01..R16, which it once
+ *     picked the closest patch by, are gone). MLVL ALG FB MRAT MEG VMOD DTUN 0 (in the voice already); preset = PTCH (F1..F8,
+ *     else 0). LOST: operators switched off;
  *   - the LFO's RATE synced to the tempo (< 0, params.c N_LSYNC: SLOOP 2.6's, not 2.4's) -> the free rate nearest
  *     that note value's at the project's tempo (sl24_rate_out), its locks too (LOST: LSYNC, the sync);
  *   - a part's LFO 2 (project.c l2_pack; the drum track's LFO slots that hold it: their defaults): 2.4's
@@ -98,10 +97,6 @@ enum {                                                  /* what an export lost (
     SX24_DACC = 67108864                                /* (the drum track's ACCENT lane, seq/ngate.h: 2.4 and 2.6 have no
                                                          * drum accent; the second word's bit 12; ed_sl24.c) */
 };
-/* our factory VOICE R01..R16 (eng_fm6.c FM6_PRESETS) -> 2.4's PTCH F1..F8 (TINE EP, GLASS BELL, ROUND BASS, BRASS
- * SECT, SOFT PAD, WOOD BARS, DRAWBARS, NYLON PICK): TINE EP, BRASS SECT, SOLID BASS, BELLS, FM MARIMBA, CLAVINET,
- * DRAWBARS, STRINGS, FM GLASS, FM SYNC LD, HARP, FM KALIMBA, FLUTE, STEEL DRUM, SAW BASS, TUBULAR */
-static const uint8_t SL24_PTCH[16] = {0, 3, 2, 1, 5, 7, 6, 4, 4, 3, 7, 5, 4, 5, 2, 1};
 #if defined(SL24_TP) && SL24_TP
 static int px_unpack(const project_t *p, int16_t (*x)[3]);   /* project.c: our TFLT STRUM VLEAD */
 #endif
@@ -132,9 +127,9 @@ static void sl24_bank_empty(uint8_t *b)
     memcpy(b, w, sizeof w);
 }
 /* FM6 part k's PTCH for 2.4: its voice (all six operators on) when it is one of 2.4's F1..F8; else, given a bank b,
- * the slot it is put in (B1..B27, *lost |= SX24_BANK: the bank goes with the export); else the closest factory patch
- * to its VOICE (SL24_PTCH; *lost |= SX24_FM6) */
-static uint32_t sl24_fm6_ptch(const project_t *q, uint32_t k, int32_t voice, uint8_t *b, uint32_t *lost)
+ * the slot it is put in (B1..B27, *lost |= SX24_BANK: the bank goes with the export); else F1 (*lost |= SX24_FM6:
+ * our factory voices R01..R16, which it once picked the closest patch by, are gone) */
+static uint32_t sl24_fm6_ptch(const project_t *q, uint32_t k, uint8_t *b, uint32_t *lost)
 {
     if ((q->fm6_has >> k) & 1u) {
         int f = (q->fm6_on[k] & 0x3Fu) == 0x3Fu ? sl24_fm6_factory(q->fm6[k]) : -1, s;
@@ -146,7 +141,7 @@ static uint32_t sl24_fm6_ptch(const project_t *q, uint32_t k, int32_t voice, uin
         }
     }
     *lost |= SX24_FM6;
-    return voice >= 0 && voice < 16 ? SL24_PTCH[voice] : 0u;
+    return 0u;
 }
 
 /* our LFO RATE r -> 2.4's: a synced one (< 0: a cycle of LSYNC_P 24ths of a beat) the free rate (LFO_HZ_X100, Hz x 100)
@@ -289,13 +284,13 @@ static uint32_t sl24_trk_out(const project_t *q, uint32_t k, const int16_t *px, 
     for (i = 0; i < PROJ_XW; i++)
         lost |= q->t[TRK_DRUM].p[P_A2WAVE + PROJ_XW * k + i] ? SX24_A2 : 0u;
 #endif
-    if (uid == ENG_UID_FM6) {                           /* PTCH: the voice's own (sl24_fm6_ptch), MOD -> MLVL, the rest 0 */
-        uint32_t pt = sl24_fm6_ptch(q, k, v[P_E0], bank, &lost);
+    if (uid == ENG_UID_FM6) {                           /* PTCH: the voice's own (sl24_fm6_ptch), the rest 0 */
+        uint32_t pt = sl24_fm6_ptch(q, k, bank, &lost);
         for (i = 0; i < 8u; i++)
-            sl24_w16(o + 2u * (SL24_E0 + i), i == 7u ? (int32_t)pt : i == 2u ? sl24_mod_out(v[P_E1]) : 0);
+            sl24_w16(o + 2u * (SL24_E0 + i), i == 7u ? (int32_t)pt : 0);
         o[2u * SL24_NP + 1u] = (uint8_t)(pt < SL24_NFAC ? pt : 0u);   /* (preset: F1..F8's, as 2.4 numbers them) */
         *e_ok = 0;
-        return lost | (v[P_E2] || v[P_E3] || v[P_E4] != 1 ? SX24_FM6 : 0u);   /* (M.TIM, C.TIM, ENGINE: not 2.4's) */
+        return lost;
     }
     if (eng != (uid == ENG_UID_PHYS ? SL25_PHYS : uid)) {   /* (SLOOP has not this engine: its fallback, at its defaults) */
         for (i = 0; i < 8u; i++)

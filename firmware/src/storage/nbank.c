@@ -1,14 +1,16 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Native tone collections (FELUCCA_NATIVE_BANKS): after Melodee 0.12 (Kerem Kilic, github.com/keremimo/melodee,
  * native_presets.c, cz_patch.h at v0.12), GPL-3.0-only; written for SLOOP's stores. */
-/* An FM6 or CZ track's PRESETS list ends with its engine's own collection: tones that set only the engine's values
+/* The FM6 or CZ track's PRESETS list ends with its engine's own collection: tones that set only the engine's values
  * (EDIT: VOICE / TONE to the slot, the others to their defaults), so the track keeps its FX, mix and pattern.
- *   FM6  U01..U32: the FM6 user bank (fm6_store.c, VOICE U..; DX7 VMEM, written by STORE, DX7 SysEx, the editor)
+ *   FM6  the voice packs this build has (K01.. keys, B bass, M bells, P pads, 8 the 80s: eng_fm6.c FM6_PACK, 16 each),
+ *        then R01..R32, the DX7 bank received over USB MIDI (eng_fm6.c fm6_pick: RAM, until power-off; a voice named
+ *        INIT VOICE is left out); loading R.. puts that voice into the track's voice buffer, as a single-voice dump does
  *   CZ   U01..U26: OBJ_CZBANK (storage.c, A/B below the snapshot area): u32 used, then 26 Casio CZ-1 tones of 144 B
  *        (128 synthesis bytes, the 16-byte name; Casio's MIDI layout, as Melodee keeps them), read in place (czb_xip)
- * Melodee has 64 FM6 and 128 CZ slots; Optimist's flash has the bank's 32 and one object's 26. A track refers to its
- * slot (VOICE / TONE): a slot written again changes the tracks playing it. Favorites: core/favorites.c, not for these banks. Not ported: CZ STORE on the
- * device (the editor stores CZ tones). */
+ * Melodee has 128 CZ slots; Optimist's flash has one object's 26. A track refers to its slot (TONE): a slot written again
+ * changes the tracks playing it. Favorites: core/favorites.c, not for these collections. Not ported: CZ STORE on the
+ * device (the editor stores CZ tones). The FM6 user bank U01..U32 of Melodee 0.12 was dropped 2026-10-18. */
 enum { NB_NONE, NB_FM6, NB_CZ };
 
 static uint32_t nb_kind(const track_t *t)
@@ -16,7 +18,7 @@ static uint32_t nb_kind(const track_t *t)
     const engine_t *e = ENGINES[t->eng_req % NENGINES];
     if (is_drum(t))
         return NB_NONE;
-    if (FELUCCA_ENG_FM6 && ENG_IS(e, FM6))
+    if (FELUCCA_FM6_LIST && ENG_IS(e, FM6))
         return NB_FM6;
 #if CZ_NUSER
     if (e == &ENG_CZ)
@@ -24,22 +26,35 @@ static uint32_t nb_kind(const track_t *t)
 #endif
     return NB_NONE;
 }
-static uint32_t nb_slots(uint32_t kind) { return kind == NB_FM6 ? FM6_NUSER : kind == NB_CZ ? CZ_NUSER : 0u; }
+#if FELUCCA_FM6_LIST
+#define NB_FM6_RX (FELUCCA_FM6_SYSEX ? 32u : 0u)          /* the received bank's slots, after the packs' */
+#else
+#define NB_FM6_RX 0u
+#define FM6_NPKV 0u
+#endif
+static uint32_t nb_slots(uint32_t kind) { return kind == NB_FM6 ? FM6_NPKV + NB_FM6_RX : kind == NB_CZ ? CZ_NUSER : 0u; }
 #if CZ_NUSER
 #define NB_CZ_BASE CZT_N                                  /* TONE of U01: after the built-in tones */
 #else
 #define NB_CZ_BASE 0u
 #endif
-static uint32_t nb_base(uint32_t kind) { return kind == NB_FM6 ? FM6_NROM : NB_CZ_BASE; }
+static uint32_t nb_base(uint32_t kind) { return kind == NB_FM6 ? 1u : NB_CZ_BASE; }   /* (FM6: VOICE 0 is INIT VOICE) */
 
 /* slot k's stored bytes and where its name is in them, 0: empty */
 static const uint8_t *nb_raw(uint32_t kind, uint32_t k, uint32_t *name_at)
 {
+#if FELUCCA_FM6_LIST
     if (kind == NB_FM6) {
-        const uint8_t *b = fm6_bank_xip ? fm6_bank_xip + k * 128u : 0;
         *name_at = 118u;
-        return b && memcmp(b + 118, "INIT VOICE", 10) ? b : 0;   /* (an erased slot holds the init voice) */
+        if (k < FM6_NPKV)
+            return (const uint8_t *)fm6_pack_voice(k);
+#if FELUCCA_FM6_SYSEX
+        if (fm6_pick_ok && k - FM6_NPKV < 32u && memcmp(fm6_pick + (k - FM6_NPKV) * 128u + 118, "INIT VOICE", 10))
+            return fm6_pick + (k - FM6_NPKV) * 128u;
+#endif
+        return 0;
     }
+#endif
     *name_at = 128u;
 #if CZ_NUSER
     return czb_tone(CZT_N + k);
@@ -78,11 +93,21 @@ static uint32_t nb_list(uint32_t *rank, uint32_t n, uint32_t *at)
         *rank = c;
     return c;
 }
-static void nb_row(uint32_t k, char *tag, char *nm)       /* "F07" / "Z07" (Melodee's letters), its name */
+static void nb_row(uint32_t k, char *tag, char *nm)       /* "K07" / "R07" (FM6), "Z07" (CZ, Melodee's letter), its name */
 {
     uint32_t kind = nb_kind(TSEL);
+#if FELUCCA_FM6_LIST
+    static const char PKLET[] = {FIF(FELUCCA_FM6_PK_KEYS)('K',) FIF(FELUCCA_FM6_PK_BASS)('B',) FIF(FELUCCA_FM6_PK_BELLS)('M',)
+                                 FIF(FELUCCA_FM6_PK_PADS)('P',) FIF(FELUCCA_FM6_PK_80S)('8',) 'R'};
+    if (kind == NB_FM6) {                               /* a pack's letter and the voice's place in it; R: the received bank */
+        up_slot_label(tag, k < FM6_NPKV ? k % 16u : k - FM6_NPKV);
+        tag[0] = PKLET[k < FM6_NPKV ? k / 16u : FM6_NPACKS];
+        nb_name(kind, k, nm);
+        return;
+    }
+#endif
     up_slot_label(tag, k);
-    tag[0] = kind == NB_FM6 ? 'F' : 'Z';
+    tag[0] = 'Z';
     nb_name(kind, k, nm);
 }
 
@@ -100,8 +125,19 @@ static void nb_load(uint32_t k)
         t->p[P_E0 + i] = e->edit[i].def;
     t->p[P_E0] = (int16_t)(nb_base(kind) + k);
     t->user = 0;
-    if (kind == NB_FM6)
-        fm6_cur[song.sel % NPART] = 0;
+#if FELUCCA_FM6_LIST
+    if (kind == NB_FM6) {
+        if (k < FM6_NPKV) {
+            fm6_cur[song.sel % NPART] = 0;              /* the pack's voice afresh */
+        } else {                                        /* a voice of the received bank: into the buffer, VOICE INIT */
+            uint32_t o;
+            fm6_unpack(fm6_ed[song.sel % NPART], nb_raw(kind, k, &o));
+            t->p[P_E0] = 0;
+            fm6_cur[song.sel % NPART] = 1;
+            fm6_pt[song.sel % NPART].panic = 1;
+        }
+    }
+#endif
     panic_req |= (uint8_t)(1u << song.sel);
     fm1_irq_on();
     sync_reload = 1;

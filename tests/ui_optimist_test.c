@@ -155,11 +155,7 @@ static uint32_t up_engine_slot(uint32_t k) { return k < 2u ? 0u : NENGINES; }   
 static char up_stored[16];                              /* NAME: what up_store was given (upreset.c) */
 static uint32_t up_stores, up_store_slot;
 static int up_store(uint32_t k, const char *name) { up_store_slot = k; str_cpy(up_stored, name, sizeof up_stored); up_stores++; return 0; }
-static uint32_t fm6_stores, fm6_sends, fm6_inits;      /* FM6's STORE row (engines/fm6/fm6_store.c) */
-static void fm6_store(uint32_t k) { (void)k; fm6_stores++; ui_message("STORED"); }
-static void fm6_send(void) { fm6_sends++; }
-static void fm6_init_voice(void) { fm6_inits++; }
-#if FELUCCA_NATIVE_BANKS                                /* the FM6 / CZ collections in PRESETS (storage/nbank.c): no flash here, none stored */
+#if FELUCCA_NB_LIST                                /* the FM6 / CZ collections in PRESETS (storage/nbank.c): no flash here, none stored */
 static uint32_t nb_kind(const track_t *t) { (void)t; return 0; }
 static uint32_t nb_list(uint32_t *rank, uint32_t n, uint32_t *at) { (void)rank; (void)n; (void)at; return 0; }
 static void nb_name(uint32_t kind, uint32_t k, char *nm) { (void)kind; (void)k; nm[0] = 0; }
@@ -2529,7 +2525,7 @@ static void fm6_tests(void)
         ui.row[SCR_SOUND] = F6_OP0 + 4u;                /* SCALE: the algorithm again */
         ui.force = 1;
         frame();
-        check(!f6_eg_row(f6_cur_row()) && px_in(4, 190, 232, 40, C_WHITE), "SCALE: the algorithm again");
+        check(!f6_eg_row(f6_cur_row()) && px_in(4, 120, 232, 112, C_WHITE), "SCALE: the algorithm again");
         ui.row[SCR_SOUND] = 0u;
         ui.force = 1;
         frame();

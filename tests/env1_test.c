@@ -78,18 +78,18 @@ static void t_cards(void)
                 ok &= ids[j] != ids[k];
             nflt += E1K_KIND(c) == E1K_FLT;
             nmv += E1K_KIND(c) == 0x40u;
-            if (E1K_KIND(c) == 0x40u || E1K_KIND(c) == 0x50u)
+            if ((E1K_KIND(c) == 0x40u || E1K_KIND(c) == 0x50u) && !ENG_IS(ENGINES[e], FM6))   /* (FM6's cards past PIT are "-": no EDIT value but VOICE) */
                 ok &= ENGINES[e]->edit[E1K_ARG(c)].max > ENGINES[e]->edit[E1K_ARG(c)].min;   /* (a real value) */
         }
         ok &= nmv <= E1_NMV;
         okf &= nflt == 1u || ENG_IS(ENGINES[e], DRAWBAR) || ENG_IS(ENGINES[e], FM6) || ENG_IS(ENGINES[e], ACID) ||
                ENG_IS(ENGINES[e], CZ) || ENG_IS(ENGINES[e], PHASE);
-        oke &= env2_def_dest(e) == (ENG_IS(ENGINES[e], DRAWBAR) ? LT_E4 : ENG_IS(ENGINES[e], FM6) ? LT_SHP :
+        oke &= env2_def_dest(e) == (ENG_IS(ENGINES[e], DRAWBAR) ? LT_E4 : ENG_IS(ENGINES[e], FM6) ? LT_PIT :
                                     ENG_IS(ENGINES[e], CZ) ? LT_E2 : LT_FLT);
     }
     check(ok, "cards: every engine four cards, distinct ids, at most three moves, each move / alias a real EDIT value");
     check(okf, "cards: a FLT card on every engine with a filter path (not WHEEL FM6 ACID CZ PHASE)");
-    check(oke, "cards: ENV2's default DEST A the filter, WHEEL TOP, FM6 SHP (MOD), CZ DCW (ACID: FLT, its CUT)");
+    check(oke, "cards: ENV2's default DEST A the filter, WHEEL TOP, FM6 PIT, CZ DCW (ACID: FLT, its CUT)");
 }
 
 static void t_default(void)

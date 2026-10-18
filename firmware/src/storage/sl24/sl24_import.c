@@ -16,11 +16,11 @@
  *     of the lanes' 32 levels (sl25_drdly_in: the caller's drum record; as 2.4's G_DRREV becomes the lanes' REV);
  *     APPROXIMATE: 2.5 sends the drums' sum, each lane here sends its own, at 4v + v / 8 (77 -> level 19 = 78);
  *   - FM6 parts: 2.4's EDIT is ALG FB MLVL MRAT MEG VMOD DTUN PTCH, macros over the patch PTCH picks (F1..F8 its
- *     factory patches, B1..B27 its patch bank); ours is VOICE MOD M.TIM C.TIM ENGINE with the voice in the project.
- *     The patch itself becomes the part's voice (sl24_fm6.c: F1..F8 2.4's own, a bank slot's record from fv[] (the
- *     caller: 2.4's bank in flash, or the editor's file), none: 2.4's INIT), ALG FB MRAT MEG VMOD put into it as
- *     2.4 plays them, MLVL -> MOD; VOICE the closest of our factory voices (SL24_FM6V; a bank patch: R01), only a
- *     name now. LOST: DTUN (the carriers' spread);
+ *     factory patches, B1..B27 its patch bank); ours is VOICE with the voice in the project.
+ *     The patch itself becomes the part's voice (sl24_fm6.c: F1..F8 2.4's own; a bank patch B1..B27 is not imported (the
+ *     bank import was dropped 2026-10-18): 2.4's INIT, as 2.4 plays an empty slot), ALG FB MRAT MEG VMOD put into it as
+ *     2.4 plays them, MLVL into the modulators' output levels (3/4 of a step each; ours has no MOD now); VOICE is
+ *     INIT VOICE, only a name. LOST: DTUN (the carriers' spread);
  *   - the drum track's kit (P_E0, and its locks): 2.4's 0..36 (5 sampled, 32 synthesised: the same generator,
  *     tools/gen_drumkits.py) are ours; its USR1..USR4 and USR3+4 kits (37..41): our default kit; USR1..USR3 as the
  *     kit (not a lock) -> each drum lane plays its sound from that user sample slot, as 2.4 does (sl24_usr_lanes:
@@ -80,11 +80,6 @@ static int sl24_any(const void *b, int n) { return sl24_is(b, n) || sl26_is(b, n
 _Static_assert(SL24_TAIL == 764u && SL24_TAIL + 176u == SL24_TRK && 12u + 2u * PJ_NG + NTRK * SL24_TRK + 4u == 3840u,
                "SLOOP 2.4's FUN5 (measured with its own struct: tests/sl24_fun5_gen.c)");
 _Static_assert(P_CHORD == SL24_COMMON - 1u && NTRK == 4u && PJ_NG == 32u, "2.4's ids 0..49 and globals are ours");
-/* 2.4's FM6 factory patches F1..F8 (tools/gen_fm6_patches.py: TINE EP, GLASS BELL, ROUND BASS, BRASS SECT, SOFT PAD,
- * WOOD BARS, DRAWBARS, NYLON PICK) -> our factory VOICE: TINE EP, BELLS, SOLID BASS, BRASS SECT, FM GLASS (the glass
- * pad), FM MARIMBA, DRAWBARS, HARP */
-static const uint8_t SL24_FM6V[8] = {0, 3, 2, 1, 8, 4, 6, 10};
-
 #define SL24_ENG_LOST 0xFFu                             /* (sl24_eng_in: no engine of ours) */
 /* SLOOP's engine number (2.4: 0..9; 2.5 and 2.6: PHYS 10, NOISE 11) -> our UID, SL24_ENG_LOST: none (NOISE, past it) */
 static uint32_t sl24_eng_in(uint32_t e)
@@ -251,9 +246,9 @@ static int32_t sl24_kit_of(const uint8_t *b)
     const uint8_t *s = b + 12u + 2u * PJ_NG + TRK_DRUM * SL24_TRK + 2u * SL24_E0;
     return (int16_t)(s[0] | s[1] << 8);
 }
-/* n bytes at b, a SLOOP 2.4 project (sl24_is) -> q (FUNB) and its extras x[NTRK] (0: not wanted); fv[k] (fv or an
- * entry 0: none) the packed record of FM6 part k's bank patch (PTCH B1..B27); 0 = not one */
-static int proj_from_sl24(project_t *q, const void *b, int n, stepx_t *x, const uint8_t *const *fv)
+/* n bytes at b, a SLOOP 2.4 project (sl24_is) -> q (FUNB) and its extras x[NTRK] (0: not wanted). An FM6 part on one of
+ * 2.4's bank patches (PTCH B1..B27) starts from INIT, as 2.4 plays an empty slot: the bank is not imported */
+static int proj_from_sl24(project_t *q, const void *b, int n, stepx_t *x)
 {
     const uint8_t *c = (const uint8_t *)b;
     uint32_t i, k;
@@ -294,16 +289,13 @@ static int proj_from_sl24(project_t *q, const void *b, int n, stepx_t *x, const 
             eng = 0;
         } else if (eng == ENG_UID_FM6) {                /* the patch as the voice, MOD from MLVL, ENGINE MARK I */
             int32_t pt = e[SL24_E0 + 7u];
-            const uint8_t *src = pt >= 0 && pt < (int32_t)SL24_NFAC ? SL24_FM6_F[pt] : fv && fv[i] ? fv[i] : SL24_FM6_INIT;
+            const uint8_t *src = pt >= 0 && pt < (int32_t)SL24_NFAC ? SL24_FM6_F[pt] : SL24_FM6_INIT;
             memcpy(q->fm6[i], src, 128u);
             sl24_fm6_bake(q->fm6[i], &e[SL24_E0]);
             q->fm6_on[i] = 0x3Fu;                       /* (2.4 has no operator switches: all six on) */
             q->fm6_has |= (uint8_t)(1u << i);
             for (k = 0; k < 8u; k++)
-                v[P_E0 + k] = 0;
-            v[P_E0] = pt >= 0 && pt < 8 ? SL24_FM6V[pt] : 0;
-            v[P_E0 + 1u] = sl24_mod_in(e[SL24_E0 + 2u]);
-            v[P_E0 + 4u] = 1;
+                v[P_E0 + k] = 0;                        /* (VOICE INIT VOICE: the voice is the project's own; MLVL is not imported) */
         } else if (eng == SL24_ENG_LOST) {              /* (2.5's NOISE: ANALOG at its EDIT defaults) */
             for (k = 0; k < 8u; k++)
                 v[P_E0 + k] = eng_built(0) ? ENGINES[eng_slot_built(0)]->edit[k].def : 0;

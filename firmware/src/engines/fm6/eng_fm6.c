@@ -6,22 +6,20 @@
  *
  * In SLOOP: NVOICE (8) voices a part, in the shared budget of 8 (Melodee: 16, as Dexed); SLOOP has no MIDI
  * pitch bend, wheel, foot, breath, aftertouch or CC 5 / 65 input, so the DX7 controllers rest at 0 (their
- * function settings are kept: a voice dump, SysEx, projects); the operator editor is SLOOP's black-key one
- * (ui_fm6.c), the voice's other pages are params.c's (FM6 pages), the user bank lives in a USR sample slot
- * (fm6_store.c).
+ * function settings are kept: a voice dump, projects); the operator editor is the UI's (op_fm6.c, ui_fm6.c), the
+ * voice's other pages are params.c's (FM6 pages).
  *
  * A part's sound is one DX7 voice in an edit buffer, fm6_ed: the 155 parameters of a
  * DX7 single-voice dump (VCED order, OP6 first), the switches of OP1..OP6, then the part's
  * DX7 function settings (pitch bend, portamento, the controllers' ranges and targets). VOICE
- * (P_E0) picks where the voice is loaded from: the factory voices (eng_fm6_rom.h) or the
- * user bank (32 voices in flash, filled by a DX7 bank dump or STORE: fm6_store.c). The
- * operator editor (SLOOP: ui_fm6.c; Melodee: its FM6 pages) edits the buffer, so does a DX7 single-voice dump or parameter
- * change over USB-MIDI, and projects save it.
+ * (P_E0) picks where the voice is loaded from: 0 INIT VOICE, then the voice packs this build has (builder items
+ * FM6_PK_*, 16 voices each; eng_fm6_pk_*.h). The operator editor edits the buffer, so does a DX7 single-voice dump
+ * over USB-MIDI (fm6_sysex.c), and projects and user presets save it. A DX7 32-voice dump is held in RAM as a pick
+ * list at the end of the track's PRESETS (nbank.c) until power-off.
  *
- * The synthesis is Dexed's (Pascal Gauthier; on MSFA by Raph Levien, Google), restated in C so
- * that a part renders the samples Dexed renders: ENGINE (P_E4) picks Dexed's MODERN (MSFA, 24-bit),
- * MARK I (the DX7's log-sine and exponent tables, its 2- and 3-operator feedback loops in
- * algorithms 6 and 4) or OPL resolution. Envelopes in the log domain with the DX7 attack curve
+ * The synthesis is Dexed's MODERN (MSFA, 24-bit), restated in C so that a part renders the samples Dexed renders
+ * (Dexed's MARK I and OPL resolutions, and Melodee's MOD / M.TIM / C.TIM controls, were dropped 2026-10-18).
+ * Envelopes in the log domain with the DX7 attack curve
  * and static times, output, level and rate key scaling, velocity, the 32 algorithms, the LFO,
  * pitch envelope, pitch bend, portamento and the controllers (wheel, foot, breath, aftertouch
  * to pitch, amplitude and EG bias) follow Dexed's code and its DX7 measurements, at 44.1 kHz
@@ -29,11 +27,6 @@
  * and handed over as Dexed does (16 of them). tests/fm6_parity.sh renders scores through both
  * and compares the samples. Tables: tools/gen_tables.py ("DX7 data": Apache License 2.0 /
  * GPL-3.0-or-later, see LICENSING.md).
- *
- * Melodee's own controls sit on top and are neutral at their defaults: MOD (P_E1) and the
- * SHP modulation shift the modulators' levels, M.TIM / C.TIM (P_E2 / P_E3) their envelope rates,
- * and the part's glide, LFO and envelope pitch modulation, unison detune and TUNE move the
- * pitch; the ADSR stays an overall shape.
  *
  * Units: logs in Q24 (1 << 24 = one octave or 6 dB); an operator's output is Q24 with
  * 1 << 24 = a unit sine, added to the next operator's phase as 1 << 24 = one cycle
@@ -52,26 +45,77 @@ enum { FN_PBUP = 161, FN_PBDN, FN_PBSTEP, FN_PMODE, FN_PTIME, FN_GLISS, FN_MWR, 
        FN_BCR, FN_BCA, FN_ATR, FN_ATA, FN_VNORM, FM6_NP };
 #define FM6_NFN (FM6_NP - FN_PBUP)
 #define FM6_OPB(n) ((6u - (n)) * FO_N)                   /* buffer offset of OP n (1..6): OP6 comes first */
-#define FM6_NUSER 32u                                    /* user bank */
-
 static int16_t fm6_ed[NPART][FM6_NP] IN_POOL_AUDIO;      /* the parts' voices (int16: the pages edit them; the
                                                          * control blocks read them) */
 static int16_t fm6_cur[NPART];                           /* VOICE + 1 the buffer was loaded from, 0 = load it */
 static uint8_t fm6_fnok[NPART];                          /* the function settings are set (else: the defaults) */
-/* the user bank, DX7 packed (VMEM): read where it is in flash (fm6_store.c: a USR sample slot), no RAM copy
- * (SLOOP: Melodee keeps one; SLOOP's pool has no 4 KiB to spare); no bank in flash: INIT VOICE x 32 */
-static const uint8_t *volatile fm6_bank_xip;            /* the bank's 4096 bytes, 0 = none */
 
-/* a factory voice: a DX7 packed voice (VMEM, as the user bank; SLOOP: eng_fm6_rom.h packs Melodee's
- * voices at compile time, 0.5 KiB less flash than Melodee's unpacked table): 118 bytes, the name */
+/* a built-in voice: a DX7 packed voice (VMEM, 118 bytes) and its name, 10 characters and a NUL (so that the VOICE list
+ * can point at it); eng_fm6_rom.h has the macros (OP, VOICE ..) and INIT VOICE, the packs (tools/gen_fm6_packs.py) their
+ * 16 voices each. The first 118 bytes and the name sit where a DX7 VMEM voice has them: fm6_unpack reads either */
 typedef struct {
     uint8_t v[118];
-    char name[10];               /* (shorter names: 0 bytes, read as blanks) */
+    char name[11];
 } fm6_rom_t;
-_Static_assert(sizeof(fm6_rom_t) == 128, "FM6: a factory voice is a packed DX7 voice");
-#include "eng_fm6_rom.h"                                 /* FM6_ROM[FM6_NROM] */
+_Static_assert(sizeof(fm6_rom_t) == 129, "FM6: a built-in voice is a packed DX7 voice and a NUL-ended name");
+#include "eng_fm6_rom.h"                                 /* FM6_INIT */
+#if FELUCCA_FM6_PK_KEYS
+#include "eng_fm6_pk_keys.h"                             /* FM6_PK_KEYS[16] */
+#endif
+#if FELUCCA_FM6_PK_BASS
+#include "eng_fm6_pk_bass.h"                             /* FM6_PK_BASS[16] */
+#endif
+#if FELUCCA_FM6_PK_BELLS
+#include "eng_fm6_pk_bells.h"                            /* FM6_PK_BELLS[16] */
+#endif
+#if FELUCCA_FM6_PK_PADS
+#include "eng_fm6_pk_pads.h"                             /* FM6_PK_PADS[16] */
+#endif
+#if FELUCCA_FM6_PK_80S
+#include "eng_fm6_pk_80s.h"                              /* FM6_PK_80S[16] */
+#endif
+#undef OP
+#undef OPX
+#undef OP_OFF
+#undef PEG
+#undef PEG_FLAT
+#undef VOICE
+#undef LFO
+#undef NO_LFO
 #include "../../../hal/fm1_dsp_asm.h"                         /* FELUCCA_ASM: the operator loops in pi32v2 asm */
-#define FM6_NVOICE (FM6_NROM + FM6_NUSER)                /* VOICE: factory voices, then the user bank */
+#define FM6_PKV 16u                                      /* voices a pack */
+#define FM6_NPKV (FM6_NPACKS * FM6_PKV)                  /* pack voices in this build */
+#define FM6_NVOICE (1u + FM6_NPKV)                       /* VOICE: INIT VOICE, then the packs built, in this order */
+static const fm6_rom_t *const FM6_PACK[FM6_NPACKS + 1u] = {   /* (the 0 ends it: no pack, no empty array) */
+    FIF(FELUCCA_FM6_PK_KEYS)(FM6_PK_KEYS,) FIF(FELUCCA_FM6_PK_BASS)(FM6_PK_BASS,) FIF(FELUCCA_FM6_PK_BELLS)(FM6_PK_BELLS,)
+    FIF(FELUCCA_FM6_PK_PADS)(FM6_PK_PADS,) FIF(FELUCCA_FM6_PK_80S)(FM6_PK_80S,) 0};
+static const uint8_t FM6_PACK_NO[FM6_NPACKS + 1u] = {  /* each pack built: its fixed number (what a project stores) */
+    FIF(FELUCCA_FM6_PK_KEYS)(0,) FIF(FELUCCA_FM6_PK_BASS)(1,) FIF(FELUCCA_FM6_PK_BELLS)(2,) FIF(FELUCCA_FM6_PK_PADS)(3,)
+    FIF(FELUCCA_FM6_PK_80S)(4,) 0};
+/* VOICE as a project or a user preset stores it: 0 INIT VOICE; a pack voice 64 + its pack's fixed number x 16 + its place
+ * (the list index depends on the packs a build has, the stored number does not; a pack this build lacks: INIT VOICE,
+ * the voice itself kept inline); 1..63 and the rest were the R and U voices of the builds before the packs: INIT VOICE,
+ * so an old number never lands on a pack voice (the voice itself is stored inline too) */
+#define FM6_PACK_BASE 64u
+static int16_t fm6_voice_store(int32_t v)
+{
+    uint32_t i = (uint32_t)v - 1u;
+    return (int16_t)(v >= 1 && v < (int32_t)FM6_NVOICE ? FM6_PACK_BASE + FM6_PACK_NO[i / FM6_PKV] * FM6_PKV + i % FM6_PKV : 0);
+}
+static int16_t fm6_voice_load(int32_t s)
+{
+    uint32_t pk, n = (uint32_t)s - FM6_PACK_BASE;
+    if (s < (int32_t)FM6_PACK_BASE || n >= 5u * FM6_PKV)
+        return 0;
+    for (pk = 0; pk < FM6_NPACKS; pk++)
+        if (FM6_PACK_NO[pk] == n / FM6_PKV)
+            return (int16_t)(1u + pk * FM6_PKV + n % FM6_PKV);
+    return 0;
+}
+static const fm6_rom_t *fm6_pack_voice(uint32_t k)       /* pack voice k (0 .. FM6_NPKV - 1) */
+{
+    return &FM6_PACK[(k / FM6_PKV) % (FM6_NPACKS ? FM6_NPACKS : 1u)][k % FM6_PKV];
+}
 
 /* parameter ranges in buffer order */
 static const uint8_t FM6_OPMAX[FO_N] = {99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 3, 3, 7, 3, 7, 99, 1, 31, 99, 14};
@@ -170,48 +214,18 @@ static void fm6_name(char *d, const int16_t *ed)         /* the voice name, trai
     d[n] = 0;
 }
 
-static void fm6_user(int16_t *ed, uint32_t k)                   /* user voice k -> a buffer */
+/* VOICE v -> the built-in voice (0 INIT VOICE; a number this build has no voice for plays INIT VOICE: a pack left
+ * out, an older build's R or U voice whose patch the project or user preset did not keep) */
+static const fm6_rom_t *fm6_rom(uint32_t voice)
 {
-    const uint8_t *b = fm6_bank_xip;
-    if (b)
-        fm6_unpack(ed, b + (k % FM6_NUSER) * 128u);
-    else
-        fm6_from_rom(ed, &FM6_INIT);
+    return voice && voice < FM6_NVOICE ? fm6_pack_voice(voice - 1u) : &FM6_INIT;
 }
 
 static void fm6_load(uint32_t p, uint32_t voice)                /* VOICE -> part p's buffer */
 {
-    voice %= FM6_NVOICE;
-    if (voice < FM6_NROM)
-        fm6_from_rom(fm6_ed[p], FELUCCA_FM6_VOICES ? &FM6_ROM[voice] : &FM6_INIT);   /* (factory voices left out) */
-    else
-        fm6_user(fm6_ed[p], voice - FM6_NROM);
+    voice = voice < FM6_NVOICE ? voice : 0u;
+    fm6_from_rom(fm6_ed[p], fm6_rom(voice));
     fm6_cur[p] = (int16_t)(voice + 1u);
-}
-
-static int fm6_slot_is(uint32_t k, const char *name)            /* user slot k holds a voice of that name */
-{
-    static int16_t ed[FM6_NP] IN_POOL;
-    char nm[12];
-    fm6_user(ed, k % FM6_NUSER);
-    fm6_name(nm, ed);
-    return str_eq(nm, name);
-}
-
-/* the slot the STORE page offers for part p: the user voice it plays, while the buffer still carries
- * that voice's name (an edit of it); else the first INIT VOICE slot (a voice from SysEx, a factory
- * one); else k, the last one picked */
-static uint32_t fm6_store_slot(uint32_t p, uint32_t k)
-{
-    char nm[12];
-    uint32_t v = (uint32_t)trk[p].p[P_E0], i;
-    fm6_name(nm, fm6_ed[p]);
-    if (v >= FM6_NROM && v < FM6_NVOICE && fm6_slot_is(v - FM6_NROM, nm))
-        return v - FM6_NROM;
-    for (i = 0; i < FM6_NUSER; i++)
-        if (fm6_slot_is(i, "INIT VOICE"))
-            return i;
-    return k % FM6_NUSER;
 }
 
 /* ---------------------------------------------------------- DX7 data --- */
@@ -273,25 +287,33 @@ static const uint8_t FM6_ALG[32][6] = {
     {0xc1, 0x14, 0x04, 0x04, 0x04, 0x04}, {0xc4, 0x04, 0x04, 0x04, 0x04, 0x04}};
 static int fm6_carrier(uint32_t alg, uint32_t n) { return !(FM6_ALG[alg & 31u][6u - n] & 3u); }   /* OP n: to the voice */
 
+/* A project or a user preset from before 2026-10-18 kept MOD, M.TIM and C.TIM as EDIT values over its voice: MOD moved the
+ * modulators' levels (0.375 dB a step), M.TIM / C.TIM the modulators' / carriers' envelope rates (-t / 5 steps of the
+ * rate index, 64 / 41 rate steps each). Now the voice carries them: done once into the voice just loaded (the stored values
+ * then read 0). MOD becomes the nearest output level step (0.75 dB, a half step away from 0): exact in the upper range of
+ * the level scale, approximate below level 20 */
+static void fm6_bake_old(int16_t *ed, int32_t mod, int32_t mtim, int32_t ctim)
+{
+    uint32_t j, i, alg = (uint32_t)ed[FV_ALG] & 31u;
+    for (j = 0; j < 6u; j++) {
+        int16_t *op = &ed[j * FO_N];
+        int car = !(FM6_ALG[alg][j] & 3u);
+        int32_t dq = -(car ? ctim : mtim) / 5, dr = (dq * 64 + (dq < 0 ? -20 : 20)) / 41;
+        if (!car && mod)
+            fm6_set(ed, j * FO_N + FO_OL, op[FO_OL] + (mod + (mod < 0 ? -1 : 1)) / 2);
+        if (dr)
+            for (i = 0; i < 4u; i++)
+                fm6_set(ed, j * FO_N + FO_R1 + i, op[FO_R1 + i] + dr);
+    }
+}
+
 /* ------------------------------------------------ Dexed's lookups (exact) --- */
 static uint64_t fm6_mulhi(uint64_t a, uint64_t b);
 
-/* SLOOP: the per-sample tables are built in RAM at boot (or before the first FM6 block), the 2^x and
+/* SLOOP: the sine table is built in RAM at boot (or before the first FM6 block), the 2^x and
  * frequency tables are figured where they are read, from 2^(i / 1024) = FM6_P2A x FM6_P2B: each value
  * equals Dexed's table entry (tools/gen_tables.py, tests/fm6_tables_test.c), ~16 KB of flash less */
 static int32_t FM6_SIN[1025] IN_POOL_AUDIO;               /* (built at boot; the operators read it) */
-/* MARK I's log sine: a quarter cycle, 1024 entries; the half cycle a phase reads is the quarter and its mirror,
- * log[j] = log[2047 - j] (j = 0..2047): fm6_mki folds j onto the quarter (FM6_MKI_FOLD).
- * FELUCCA_FM6_MKI_FLASH: both are the generated const tables in flash (gen_tables.py FM6_MKI_LOGQ, _EXPF), the
- * same values, no RAM and nothing built at boot */
-#if FELUCCA_FM6_MKI_FLASH
-#define FM6_MKI_LOG FM6_MKI_LOGQ
-#define FM6_MKI_EXP FM6_MKI_EXPF
-#else
-static uint16_t FM6_MKI_LOG[FELUCCA_FM6_MARK1 ? 1024 : 1], FM6_MKI_EXP[FELUCCA_FM6_MARK1 ? 1024 : 1];
-#endif
-static uint16_t FM6_OPL_LOG[FELUCCA_FM6_OPL ? 512 : 1];   /* (a mode left out: no table) */
-#define FM6_MKI_FOLD(j) (((j) ^ (0u - ((j) >> 10))) & 1023u)   /* j = 0..2047 -> j or 2047 - j */
 static uint8_t fm6_tab_ok;
 
 static uint64_t fm6_p2(uint32_t i)                       /* 2^(i / 1024), i = 0..1024, Q60 */
@@ -316,15 +338,12 @@ static void fm6_tables_init(void)
         u = u2;
     }
     FM6_SIN[1024] = 0;
-#if !FELUCCA_FM6_MKI_FLASH
-    for (i = 0; FELUCCA_FM6_MARK1 && i < 1024u; i++) {   /* MARK I: log sine (a quarter), 4096 + exp reversed */
-        FM6_MKI_LOG[i] = FM6_MKI_LOGQ[i];
-        FM6_MKI_EXP[i ^ 1023u] = (uint16_t)((fm6_p2(i) + (1ull << 47)) >> 48);
-    }
-#endif
-    for (i = 0; FELUCCA_FM6_OPL && i < 256u; i++)        /* OPL: log sine, half a cycle */
-        FM6_OPL_LOG[i] = FM6_OPL_LOG[511u - i] = FM6_OPL_LOGQ[i];
     fm6_tab_ok = 1;
+}
+
+static void fm6_boot(void)                               /* main.c, at start-up */
+{
+    fm6_tables_init();
 }
 
 static inline int32_t fm6_sin(int32_t ph)                /* Q24 phase -> Q24 (MSFA Sin::lookup) */
@@ -521,7 +540,7 @@ typedef struct fm6_voice {                               /* a voice; operators i
     uint8_t plan[6];                                     /* this block's routing (FM6_P_*) */
     int32_t fb[2];                                       /* the feedback operator's last two outputs */
     fm6_peg_t pe;                                        /* the pitch envelope */
-    uint8_t down, sub, note, vel, eng, loop, fbs, quiet, played;
+    uint8_t down, sub, note, vel, fbs, quiet, played;
     uint8_t frozen;                                      /* stopped as by Dexed's panic: not kept running */
     uint8_t still;                                       /* over and at rest: 1 only time goes on, 2 nothing matters */
     int32_t spb;                                         /* the bend and tune it was at rest with */
@@ -545,7 +564,7 @@ typedef struct {
 AINL fm6_mem_t *fm6_mem(uint32_t p);                     /* (engines.c, after every engine) */
 #define fm6_v(p) (fm6_mem(p)->v)
 #define fm6_ms(p) (fm6_mem(p)->ms)
-#define FM6_SILENT 1638400                               /* an envelope level no engine renders (MARK I: -96 dB) */
+#define FM6_SILENT 1638400                               /* an envelope level the operators no longer render (-96 dB) */
 enum { FM6_P_ADD = 4, FM6_P_FB = 0x40, FM6_P_RUN = 0x80 };   /* plan: bits 0-1 out bus, 4-5 in bus */
 
 /* segment ix begins (Env::advance); where it would not move (or an attack to L1 0) the DX7 waits */
@@ -780,19 +799,7 @@ static void fm6_ctl_block(track_t *t, const int16_t *ed)
 }
 
 /* ------------------------------------------------------ the operators --- */
-/* ENGINE (P_E4): 0 MODERN, 1 MARK I, 2 OPL. Each mode is a build switch (registry.h FELUCCA_FM6_MARK1 / _MODERN /
- * _OPL, at least one): a voice asking for one this build leaves out plays MARK I (else the first mode built) and
- * keeps its setting. FM6_MOD / FM6_MKI fold to 0 for a mode left out: its code, asm and tables go */
-#define FM6_MOD(e) (FELUCCA_FM6_MODERN && (e) == 0u)
-#define FM6_MKI(e) (FELUCCA_FM6_MARK1 && (e) == 1u)
-static uint32_t fm6_mode(int32_t v)
-{
-    uint32_t e = (uint32_t)clamp(v, 0, 2);
-    if ((e == 0u && FELUCCA_FM6_MODERN) || (e == 1u && FELUCCA_FM6_MARK1) || (e == 2u && FELUCCA_FM6_OPL))
-        return e;
-    return FELUCCA_FM6_MARK1 ? 1u : FELUCCA_FM6_MODERN ? 0u : 2u;
-}
-#define FM6_ENGINE(t) fm6_mode((t)->p[P_E4])
+/* The one synthesis, Dexed's MODERN (MSFA): an operator is a sine of the Q24 phase (fm6_sin) times its gain. */
 #if DUAL_RENDER                                    /* dual core (dual.c): two parts render at once, */
 static int32_t fm6_bus_c[2][2][CTL] IN_POOL_AUDIO, fm6_sum_c[2][CTL] IN_POOL_AUDIO;   /* each core its own operator buses */
 #define fm6_bus (fm6_bus_c[fm1_cnum() & 1u])
@@ -801,25 +808,18 @@ static int32_t fm6_bus_c[2][2][CTL] IN_POOL_AUDIO, fm6_sum_c[2][CTL] IN_POOL_AUD
 static int32_t fm6_bus[2][CTL] IN_POOL_AUDIO, fm6_sum[CTL] IN_POOL_AUDIO;
 #endif
 
-/* MARK I: a sine from the log-sine and exponent tables (mkiSin); env: attenuation, 1024 an octave.
- * As in Dexed the sum is 16 bits, the sign its top bit (a gain ramp that overshoots wraps it) */
-static inline int32_t fm6_mki(int32_t ph, int32_t env)
-{
-    uint32_t j = ((uint32_t)ph >> 12) & 2047u;           /* (half a cycle: the quarter table, folded) */
-    uint32_t e = ((uint32_t)FM6_MKI_LOG[FM6_MKI_FOLD(j)] + (((uint32_t)ph >> 8) & 0x8000u) + (uint32_t)env) & 0xFFFFu;
-    int32_t y = (int32_t)(((uint32_t)FM6_MKI_EXP[e & 0x3FFu] >> ((e & 0x7FFFu) >> 10)) << 13);
-    return e & 0x8000u ? -y - 8192 : y;
-}
-
-/* OPL: the OPL's quarter-wave ROMs (oplSin); env: attenuation, 8 a step of 3/8 dB; 16 bits as above */
-static inline int32_t fm6_opl(int32_t ph, int32_t env)
-{
-    uint32_t e = ((uint32_t)FM6_OPL_LOG[((uint32_t)ph >> 14) & 511u] + (((uint32_t)ph >> 8) & 0x8000u) +
-                  ((uint32_t)env << 3)) & 0xFFFFu, sh = (e & 0x7FFFu) >> 8;
-    int32_t y = sh > 31u ? 0 : (int32_t)((uint32_t)FM6_OPL_EXP[e & 0xFFu] >> sh);
-    return (e & 0x8000u ? -y - 1 : y) * (1 << 14);
-}
-
+#define FM6_SIN_G(x) ((int32_t)(((int64_t)fm6_sin(x) * g) >> 24))
+/* SLOOP: with FELUCCA_ASM (the target) the operator loops run as the pi32v2 asm of hal/fm1_dsp_asm.h (asm_fm_*, the voice
+ * output asm_fm6_out): the same operations in the same order, bit-identical. The C loops are the reference (the host
+ * build, FELUCCA_ASM=0) and, with FELUCCA_ASM_CHECK=1 (a verification build, not for release), run next to the
+ * asm on a copy: fm6_asm_check counts the calls and the blocks that differ (play_check peek:fm6_asm_check:2). */
+#ifndef FELUCCA_ASM_CHECK
+#define FELUCCA_ASM_CHECK 0
+#endif
+#if FELUCCA_ASM_CHECK && !FELUCCA_ASM
+#error "FELUCCA_ASM_CHECK needs FELUCCA_ASM"
+#endif
+#if !FELUCCA_ASM || FELUCCA_ASM_CHECK
 /* an operator over n samples, modulated by in[] (0: none), added to or into out[] */
 #define FM6_LOOP(Y)                                                                                \
     do {                                                                                           \
@@ -836,52 +836,6 @@ static inline int32_t fm6_opl(int32_t ph, int32_t env)
                 ph += fq;                                                                          \
             }                                                                                      \
     } while (0)
-#define FM6_SIN_G(x) ((int32_t)(((int64_t)fm6_sin(x) * g) >> 24))
-/* SLOOP: with FELUCCA_ASM (the target) the MODERN and MARK I loops run as the pi32v2 asm of hal/fm1_dsp_asm.h
- * (asm_fm_* as on perf/asm-hotspots, asm_mki_*; the voice output: asm_fm6_out): the same operations in the
- * same order, bit-identical. These C loops stay the reference (the host build, FELUCCA_ASM=0, OPL, MARK I's
- * 4 / 6 feedback loop) and, with FELUCCA_ASM_CHECK=1 (a verification build, not for release), run next to the
- * asm on a copy: fm6_asm_check counts the calls and the blocks that differ (play_check peek:fm6_asm_check:2). */
-#if FELUCCA_ASM
-#define FM6_REF(name) name##_c
-#else
-#define FM6_REF(name) name
-#endif
-#ifndef FELUCCA_ASM_CHECK
-#define FELUCCA_ASM_CHECK 0
-#endif
-#if FELUCCA_ASM_CHECK && !FELUCCA_ASM
-#error "FELUCCA_ASM_CHECK needs FELUCCA_ASM"
-#endif
-static void FM6_REF(fm6_op)(fm6_voice_t *s, uint32_t k, int32_t *out, const int32_t *in, int add, uint32_t eng,
-                            uint32_t n)
-{
-    uint32_t ph = s->ph[k], i, fq = (uint32_t)s->fq[k];
-    int32_t g = s->g[k], dg = s->dg[k];
-#if FELUCCA_ASM && !FELUCCA_ASM_CHECK
-    if (0) {                                             /* (the target: MODERN and MARK I run in asm) */
-#else
-    if (FM6_MOD(eng)) {
-        if (in)
-            FM6_LOOP(FM6_SIN_G((int32_t)(ph + (uint32_t)in[i])));
-        else
-            FM6_LOOP(FM6_SIN_G((int32_t)ph));
-    } else if (FM6_MKI(eng)) {
-        if (in)
-            FM6_LOOP(fm6_mki((int32_t)(ph + (uint32_t)in[i]), g));
-        else
-            FM6_LOOP(fm6_mki((int32_t)ph, g));
-#endif
-    } else if (FELUCCA_FM6_OPL) {
-        if (in)
-            FM6_LOOP(fm6_opl((int32_t)(ph + (uint32_t)in[i]), g));
-        else
-            FM6_LOOP(fm6_opl((int32_t)ph, g));
-    }
-    s->ph[k] = ph;
-    s->g[k] = g;
-}
-
 /* the feedback operator: its last two outputs, averaged, modulate it */
 #define FM6_LOOP_FB(Y)                                                                             \
     do {                                                                                           \
@@ -904,24 +858,34 @@ static void FM6_REF(fm6_op)(fm6_voice_t *s, uint32_t k, int32_t *out, const int3
                 ph += fq;                                                                          \
             }                                                                                      \
     } while (0)
-static void FM6_REF(fm6_op_fb)(fm6_voice_t *s, uint32_t k, int32_t *out, int add, uint32_t eng, uint32_t n)
+#if FELUCCA_ASM
+#define FM6_REF(name) name##_c
+#else
+#define FM6_REF(name) name
+#endif
+static void FM6_REF(fm6_op)(fm6_voice_t *s, uint32_t k, int32_t *out, const int32_t *in, int add, uint32_t n)
+{
+    uint32_t ph = s->ph[k], i, fq = (uint32_t)s->fq[k];
+    int32_t g = s->g[k], dg = s->dg[k];
+    if (in)
+        FM6_LOOP(FM6_SIN_G((int32_t)(ph + (uint32_t)in[i])));
+    else
+        FM6_LOOP(FM6_SIN_G((int32_t)ph));
+    s->ph[k] = ph;
+    s->g[k] = g;
+}
+
+static void FM6_REF(fm6_op_fb)(fm6_voice_t *s, uint32_t k, int32_t *out, int add, uint32_t n)
 {
     uint32_t ph = s->ph[k], i, fq = (uint32_t)s->fq[k], sh = s->fbs + 1u;
     int32_t g = s->g[k], dg = s->dg[k], y0 = s->fb[0], y = s->fb[1], m;
-#if !(FELUCCA_ASM && !FELUCCA_ASM_CHECK)                 /* (the target: MODERN and MARK I run in asm) */
-    if (FM6_MOD(eng))
-        FM6_LOOP_FB(FM6_SIN_G((int32_t)(ph + (uint32_t)m)));
-    else if (FM6_MKI(eng))
-        FM6_LOOP_FB(fm6_mki((int32_t)(ph + (uint32_t)m), g));
-    else
-#endif
-    if (FELUCCA_FM6_OPL)
-        FM6_LOOP_FB(fm6_opl((int32_t)(ph + (uint32_t)m), g));
+    FM6_LOOP_FB(FM6_SIN_G((int32_t)(ph + (uint32_t)m)));
     s->ph[k] = ph;
     s->g[k] = g;
     s->fb[0] = y0;
     s->fb[1] = y;
 }
+#endif
 
 #if FELUCCA_ASM
 #if FELUCCA_ASM_CHECK
@@ -935,34 +899,20 @@ static void fm6_asm_cmp(const int32_t *a, const int32_t *b, uint32_t n)
     fm6_asm_check.bad += bad;
 }
 #endif
-/* an operator over n (> 0) samples: MODERN / MARK I in asm, OPL in C */
-static void fm6_op(fm6_voice_t *s, uint32_t k, int32_t *out, const int32_t *in, int add, uint32_t eng, uint32_t n)
+/* an operator over n (1 .. CTL) samples in asm */
+static void fm6_op(fm6_voice_t *s, uint32_t k, int32_t *out, const int32_t *in, int add, uint32_t n)
 {
 #if FELUCCA_ASM_CHECK
     static int32_t ref[CTL];
     static fm6_voice_t rs;
-#endif
-    if (eng > 1u || !n || n > CTL) {
-        fm6_op_c(s, k, out, in, add, eng, n);
-        return;
-    }
-#if FELUCCA_ASM_CHECK
     memcpy(ref, out, n * sizeof ref[0]);
     rs = *s;
-    fm6_op_c(&rs, k, ref, in, add, eng, n);
+    fm6_op_c(&rs, k, ref, in, add, n);
 #endif
-    if (FM6_MOD(eng)) {
-        if (in)
-            asm_fm_mod(out, in, (int32_t)s->ph[k], s->fq[k], s->g[k], s->dg[k], FM6_SIN, (int32_t)n, add);
-        else
-            asm_fm_pure(out, (int32_t)s->ph[k], s->fq[k], s->g[k], s->dg[k], FM6_SIN, (int32_t)n, add);
-    } else if (FELUCCA_FM6_MARK1) {
-        if (in)
-            asm_mki_mod(out, in, (int32_t)s->ph[k], s->fq[k], s->g[k], s->dg[k], FM6_MKI_LOG, FM6_MKI_EXP, (int32_t)n,
-                        add);
-        else
-            asm_mki_pure(out, (int32_t)s->ph[k], s->fq[k], s->g[k], s->dg[k], FM6_MKI_LOG, FM6_MKI_EXP, (int32_t)n, add);
-    }
+    if (in)
+        asm_fm_mod(out, in, (int32_t)s->ph[k], s->fq[k], s->g[k], s->dg[k], FM6_SIN, (int32_t)n, add);
+    else
+        asm_fm_pure(out, (int32_t)s->ph[k], s->fq[k], s->g[k], s->dg[k], FM6_SIN, (int32_t)n, add);
     s->ph[k] += (uint32_t)s->fq[k] * n;                  /* (what the loop left in its registers) */
     s->g[k] += s->dg[k] * (int32_t)n;
 #if FELUCCA_ASM_CHECK
@@ -972,26 +922,16 @@ static void fm6_op(fm6_voice_t *s, uint32_t k, int32_t *out, const int32_t *in, 
 #endif
 }
 
-static void fm6_op_fb(fm6_voice_t *s, uint32_t k, int32_t *out, int add, uint32_t eng, uint32_t n)
+static void fm6_op_fb(fm6_voice_t *s, uint32_t k, int32_t *out, int add, uint32_t n)
 {
 #if FELUCCA_ASM_CHECK
     static int32_t ref[CTL];
     static fm6_voice_t rs;
-#endif
-    if (eng > 1u || !n || n > CTL) {
-        fm6_op_fb_c(s, k, out, add, eng, n);
-        return;
-    }
-#if FELUCCA_ASM_CHECK
     memcpy(ref, out, n * sizeof ref[0]);
     rs = *s;
-    fm6_op_fb_c(&rs, k, ref, add, eng, n);
+    fm6_op_fb_c(&rs, k, ref, add, n);
 #endif
-    if (FM6_MOD(eng))
-        asm_fm_fb(out, (int32_t)s->ph[k], s->fq[k], s->g[k], s->dg[k], s->fb, s->fbs, FM6_SIN, (int32_t)n, add);
-    else if (FELUCCA_FM6_MARK1)
-        asm_mki_fb(out, (int32_t)s->ph[k], s->fq[k], s->g[k], s->dg[k], s->fb, s->fbs, FM6_MKI_LOG, FM6_MKI_EXP,
-                   (int32_t)n, add);
+    asm_fm_fb(out, (int32_t)s->ph[k], s->fq[k], s->g[k], s->dg[k], s->fb, s->fbs, FM6_SIN, (int32_t)n, add);
     s->ph[k] += (uint32_t)s->fq[k] * n;
     s->g[k] += s->dg[k] * (int32_t)n;
 #if FELUCCA_ASM_CHECK
@@ -1002,54 +942,15 @@ static void fm6_op_fb(fm6_voice_t *s, uint32_t k, int32_t *out, int add, uint32_
 }
 #endif /* FELUCCA_ASM */
 
-/* MARK I, algorithms 4 and 6 with feedback: OP6 -> OP5 (-> OP4) and back to OP6, into the voice */
-static void fm6_op_loop(fm6_voice_t *s, int32_t *out, uint32_t n)
-{
-    uint32_t i, j, nl = s->loop, sh = s->fbs + 1u;
-    int32_t y0 = s->fb[0], y = s->fb[1], m;
-    if (!FELUCCA_FM6_MARK1)                              /* (MARK I left out: no loop is planned) */
-        return;
-    for (i = 0; i < n; i++) {
-        m = (y0 + y) >> sh;
-        s->g[0] += s->dg[0];
-        y0 = y;
-        y = fm6_mki((int32_t)(s->ph[0] + (uint32_t)m), s->g[0]);
-        s->ph[0] += (uint32_t)s->fq[0];
-        for (j = 1; j < nl; j++) {
-            y = fm6_mki((int32_t)(s->ph[j] + (uint32_t)y), s->g[j]);
-            s->ph[j] += (uint32_t)s->fq[j];
-        }
-        out[i] = y;
-    }
-    s->fb[0] = y0;
-    s->fb[1] = y;
-}
-
-/* the block's routing (FmCore / EngineMkI / EngineOpl render): which operators sound, into what,
- * from what, their gain ramps; operators below the threshold only keep time */
-static void fm6_plan(fm6_voice_t *s, const int32_t *lv, uint32_t alg, uint32_t eng, uint32_t fbshift)
+/* the block's routing (FmCore / EngineMsfa render): which operators sound, into what, from what, their gain
+ * ramps; operators below the threshold only keep time */
+static void fm6_plan(fm6_voice_t *s, const int32_t *lv, uint32_t alg, uint32_t fbshift)
 {
     uint32_t k, has = 1u, fb_on = fbshift < 16u;
-    s->eng = (uint8_t)eng;
-    s->loop = 0;
     for (k = 0; k < 6u; k++) {
         uint32_t f = FM6_ALG[alg][k], out = f & 3u, in = (f >> 4) & 3u, add = f & 4u, run;
-        int32_t g1, g2;
-        if (FM6_MKI(eng) && !k && fb_on && (alg == 3u || alg == 5u))
-            f = 0xc4u, out = 0, in = 0, add = 4u;        /* MARK I: the loop runs from OP6 */
-        if (FM6_MOD(eng)) {
-            g1 = s->gout[k];
-            g2 = fm6_exp2(lv[k] - (14 << 24));
-            run = g1 >= 1120 || g2 >= 1120;
-        } else if (FM6_MKI(eng)) {
-            g1 = s->gout[k] ? s->gout[k] : 16383;
-            g2 = 16384 - (lv[k] >> 14);
-            run = g1 <= 16284 || g2 <= 16284;
-        } else {
-            g1 = s->gout[k] ? s->gout[k] : 511;
-            g2 = 512 - (lv[k] >> 19);
-            run = g1 <= 507 || g2 <= 507;
-        }
+        int32_t g1 = s->gout[k], g2 = fm6_exp2(lv[k] - (14 << 24));
+        run = g1 >= 1120 || g2 >= 1120;
         s->gout[k] = g2;
         s->plan[k] = 0;
         if (!run) {
@@ -1068,19 +969,6 @@ static void fm6_plan(fm6_voice_t *s, const int32_t *lv, uint32_t alg, uint32_t e
         if (!in && (f & 0xc0u) == 0xc0u && fb_on) {
             s->plan[k] |= FM6_P_FB;
             s->fbs = (uint8_t)fbshift;
-            if (FM6_MKI(eng) && (alg == 3u || alg == 5u || alg == 31u))
-                s->fbs = (uint8_t)(fbshift + 2u < 16u ? fbshift + 2u : 16u);
-            if (FM6_MKI(eng) && (alg == 3u || alg == 5u)) { /* the loop's other operators: a fixed gain */
-                uint32_t j;
-                s->loop = (uint8_t)(alg == 3u ? 3 : 2);
-                for (j = 1; j < s->loop; j++) {
-                    s->gout[j] = 16384 - (lv[j] >> 14);
-                    s->g[j] = s->gout[j] ? s->gout[j] : 16383;
-                    s->dg[j] = 0;
-                    s->plan[j] = 0;
-                }
-                k += s->loop - 1u;
-            }
         }
         has |= 1u << out;
     }
@@ -1088,7 +976,7 @@ static void fm6_plan(fm6_voice_t *s, const int32_t *lv, uint32_t alg, uint32_t e
 
 static void fm6_run(fm6_voice_t *s, uint32_t n)          /* the planned operators over n samples into fm6_sum */
 {
-    uint32_t k, eng = s->eng;
+    uint32_t k;
 #if FELUCCA_ASM
     if (n == 32u)
         asm_zero32(fm6_sum);
@@ -1101,12 +989,10 @@ static void fm6_run(fm6_voice_t *s, uint32_t n)          /* the planned operator
         int32_t *out = o ? fm6_bus[o - 1u] : fm6_sum;
         if (!(pl & FM6_P_RUN))
             continue;
-        if (!k && s->loop)
-            fm6_op_loop(s, out, n);
-        else if (pl & FM6_P_FB)
-            fm6_op_fb(s, k, out, pl & FM6_P_ADD, eng, n);
+        if (pl & FM6_P_FB)
+            fm6_op_fb(s, k, out, pl & FM6_P_ADD, n);
         else
-            fm6_op(s, k, out, in ? fm6_bus[in - 1u] : 0, pl & FM6_P_ADD, eng, n);
+            fm6_op(s, k, out, in ? fm6_bus[in - 1u] : 0, pl & FM6_P_ADD, n);
     }
 }
 
@@ -1116,10 +1002,6 @@ static uint32_t fm6_note(const track_t *t, const voice_t *v)   /* the note the D
 {
     return (uint32_t)clamp((int32_t)v->note + fm6_ed[t - trk][FV_TRNSP] - 24, 0, 127);
 }
-
-/* EDIT macros: MOD shifts the modulators' levels (0.375 dB per step), M.TIM / C.TIM the
- * modulators' / carriers' envelope rates (up = slower, 4 steps an octave of time) */
-static int32_t fm6_time(const track_t *t, int car) { return -t->p[car ? P_E3 : P_E2] / 5; }
 
 /* the operators' pitch, level and rate scaling for the voice's note and velocity (Dx7Note::init / update) */
 static void fm6_keyed(fm6_voice_t *s, const int16_t *ed, uint32_t note)
@@ -1289,7 +1171,7 @@ static void fm6_note_on(track_t *t, voice_t *v)
     fm6_keyed(s, ed, note);
     for (k = 0; k < 6u; k++) {
         s->eg[k].level = 0;
-        fm6_eg_go(&s->eg[k], &ed[k * FO_N], s->ol[k], s->rs[k] + fm6_time(t, fm6_carrier(ed[FV_ALG], 6u - k)), 0);
+        fm6_eg_go(&s->eg[k], &ed[k * FO_N], s->ol[k], s->rs[k], 0);
         s->porta[k] = s->base[k];
     }
     fm6_peg_set(&s->pe, ed);
@@ -1362,13 +1244,12 @@ static void fm6_control(track_t *t, voice_t *v, fm6_voice_t *s, const vmod_t *m)
     uint32_t p = (uint32_t)(t - trk), alg, k, dead = 1;
     const int16_t *ed = fm6_ed[p];
     int32_t lv[6], lfo = fm6_lfo[p].val, dly = fm6_lfo[p].depth, pm, sens, pbase, amd, a1, a2, tune;
-    int32_t mod = (t->p[P_E1] + (m->shape >> 8) - 64) * (1 << 20);   /* MOD and the SHP modulation, Q24 */
     uint32_t pmd = ((uint32_t)ed[FV_LPMD] * 165u) >> 6;
     alg = (uint32_t)ed[FV_ALG] & 31u;
     if (!v->gate && s->down) {                           /* key up: every envelope to its fourth segment */
         s->down = 0;
         for (k = 0; k < 6u; k++)
-            fm6_eg_go(&s->eg[k], &ed[k * FO_N], s->ol[k], s->rs[k] + fm6_time(t, fm6_carrier(alg, 6u - k)), 3);
+            fm6_eg_go(&s->eg[k], &ed[k * FO_N], s->ol[k], s->rs[k], 3);
         fm6_peg_go(&s->pe, 3);
     }
     /* pitch: the LFO (PMD x PMS, after the delay, or a controller's), the pitch envelope, bend */
@@ -1383,7 +1264,7 @@ static void fm6_control(track_t *t, voice_t *v, fm6_voice_t *s, const vmod_t *m)
     }
     tune = song.g[G_TUNE] * 13981;                       /* cents, Q24 */
     pbase = fm6_pt[p].pb + tune;
-    pm += pbase + m->plog;                               /* + Melodee's glide, LFO / ENV pitch, unison */
+    pm += pbase + m->plog;                               /* + the part's glide, LFO / ENV pitch, unison */
     /* amplitude: the LFO (AMD, after the delay) or a controller's, at least the EG bias */
     lfo = (1 << 24) - lfo;
     a1 = (int32_t)(((int64_t)((((uint32_t)ed[FV_LAMD] * 165u) >> 6) * (uint32_t)dly) >> 8) * lfo >> 24);
@@ -1393,8 +1274,7 @@ static void fm6_control(track_t *t, voice_t *v, fm6_voice_t *s, const vmod_t *m)
     amd = (uint32_t)a1 > (uint32_t)amd ? a1 : amd;
     for (k = 0; k < 6u; k++) {
         const int16_t *op = &ed[k * FO_N];
-        int car = fm6_carrier(alg, 6u - k);
-        int32_t rs = s->rs[k] + fm6_time(t, car), level;
+        int32_t rs = s->rs[k], level;
         if (!ed[FV_ON + 5u - k]) {                       /* switched off: the envelope runs on, silent */
             fm6_eg_step(&s->eg[k], op, s->ol[k], rs, s->down);
             lv[k] = 0;
@@ -1430,8 +1310,6 @@ static void fm6_control(track_t *t, voice_t *v, fm6_voice_t *s, const vmod_t *m)
             pt = fm6_pt[p].pt[a];
             level -= (int32_t)(((uint64_t)(uint32_t)level * ((uint64_t)pt << 4)) >> 28);
         }
-        if (!car && mod)
-            level = clamp(level + mod, 0, 20 << 24);
         lv[k] = level;
     }
     for (k = 0; k < 6u; k++) {                           /* the output operators all gone for good? */
@@ -1441,7 +1319,7 @@ static void fm6_control(track_t *t, voice_t *v, fm6_voice_t *s, const vmod_t *m)
             dead = 0;
     }
     s->quiet = dead ? (uint8_t)(s->quiet + (s->quiet < 2u)) : 0;
-    fm6_plan(s, lv, alg, FM6_ENGINE(t), ed[FV_FB] ? 8u - (uint32_t)ed[FV_FB] : 16u);
+    fm6_plan(s, lv, alg, ed[FV_FB] ? 8u - (uint32_t)ed[FV_FB] : 16u);
 }
 
 /* a voice that is over: its envelopes, pitch, gains and phases go on a Dexed block, without the
@@ -1476,7 +1354,7 @@ static void fm6_ghost(track_t *t, voice_t *v, fm6_voice_t *s)
     }
     fm6_control(t, v, s, &m0);
     for (k = 0; k < 6u; k++)
-        if ((s->plan[k] & FM6_P_RUN) || (k && k < s->loop && (s->plan[0] & FM6_P_RUN)))
+        if (s->plan[k] & FM6_P_RUN)
             s->ph[k] += (uint32_t)s->fq[k] << FM6_LG_N;
     s->sub = 0;
     s->still = 0;
@@ -1538,7 +1416,7 @@ static void fm6_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const v
  * (but for its own voice) and at every block */
 static void fm6_sync(track_t *t, const voice_t *self)
 {
-    uint32_t p = (uint32_t)(t - trk), want = (uint32_t)clamp(t->p[P_E0], 0, FM6_NVOICE - 1), i, h = 2166136261u;
+    uint32_t p = (uint32_t)(t - trk), want = (uint32_t)t->p[P_E0] < FM6_NVOICE ? (uint32_t)t->p[P_E0] : 0u, i, h = 2166136261u;
     int16_t *ed = fm6_ed[p];
     if (!fm6_tab_ok)
         fm6_tables_init();                               /* (boot does it: fm6_boot; host builds here) */
@@ -1577,7 +1455,7 @@ static void fm6_sync(track_t *t, const voice_t *self)
             if (s->down)
                 for (k = 0; k < 6u; k++)
                     fm6_eg_go(&s->eg[k], &ed[k * FO_N], s->ol[k],
-                              s->rs[k] + fm6_time(t, fm6_carrier(ed[FV_ALG], 6u - k)), 2);
+                              s->rs[k], 2);
         }
     }
     fm6_pt[p].hash = h;
@@ -1616,119 +1494,99 @@ static void fm6_post(track_t *t, int32_t *out, uint32_t n, uint32_t nr)
 }
 
 /* ------------------------------------------------------------ the engine --- */
-/* the user slots' names (eng_cz.c: its CZ_NUSER take the first ones) */
-#define U_NAMES_26 "U01", "U02", "U03", "U04", "U05", "U06", "U07", "U08", "U09", "U10", "U11", "U12", "U13", "U14", \
-    "U15", "U16", "U17", "U18", "U19", "U20", "U21", "U22", "U23", "U24", "U25", "U26"
-static const char *const N_FM6V[] = {
-    "R01", "R02", "R03", "R04", "R05", "R06", "R07", "R08", "R09", "R10", "R11", "R12", "R13", "R14", "R15", "R16",
-    U_NAMES_26, "U27", "U28", "U29", "U30", "U31", "U32"};
-_Static_assert(sizeof N_FM6V / sizeof N_FM6V[0] == FM6_NVOICE, "FM6: a VOICE name per voice");
+/* VOICE: INIT VOICE, then the packs this build has (the names are the voices' own, NUL-ended in their records) */
+#define FM6_PKN(a) a[0].name, a[1].name, a[2].name, a[3].name, a[4].name, a[5].name, a[6].name, a[7].name, a[8].name, \
+    a[9].name, a[10].name, a[11].name, a[12].name, a[13].name, a[14].name, a[15].name
+static const char *const N_FM6V[FM6_NVOICE] = {
+    FM6_INIT.name, FIF(FELUCCA_FM6_PK_KEYS)(FM6_PKN(FM6_PK_KEYS),) FIF(FELUCCA_FM6_PK_BASS)(FM6_PKN(FM6_PK_BASS),)
+    FIF(FELUCCA_FM6_PK_BELLS)(FM6_PKN(FM6_PK_BELLS),) FIF(FELUCCA_FM6_PK_PADS)(FM6_PKN(FM6_PK_PADS),)
+    FIF(FELUCCA_FM6_PK_80S)(FM6_PKN(FM6_PK_80S),)};
 
-static const char *const N_FM6ENG[] = {"MODERN", "MARK I", "OPL"};   /* Dexed's engine resolutions (a mode this build
-                                                                    * leaves out plays MARK I: fm6_mode) */
-
-/* ENGINE as this build shows and edits it (the knob, VIEW ALL: fm6_desc; the web editor's DESC: fm6_ed_desc): the
- * modes built only. Two built: the one left out has no name, the knob steps past it (params.c param_step). One
- * built: no ENGINE at all ("-": its column and the editor's row go, and EDIT 2, nothing left on it, with them:
- * params.c page_shown). A part saved with a mode left out shows the mode it plays (fm6_mode) and keeps its value
- * until the knob moves (its row names that mode only there: a detent always shows another mode). Range and
- * default stay edit[4]'s, and so does every load and store (projects, presets,
- * user presets, the editor's patches): a build with that mode plays them as saved. All three built: edit[4] */
-#define FM6_NMODES (FELUCCA_FM6_MODERN + FELUCCA_FM6_MARK1 + FELUCCA_FM6_OPL)
-#define FM6_BUILT(e) ((e) == 0 ? FELUCCA_FM6_MODERN : (e) == 1 ? FELUCCA_FM6_MARK1 : FELUCCA_FM6_OPL)
-#define FM6_PLAYS(e) (FM6_BUILT(e) ? (e) : FELUCCA_FM6_MARK1 ? 1 : FELUCCA_FM6_MODERN ? 0 : 2)   /* = fm6_mode */
-#if FM6_NMODES < 3                                       /* (all three: none of it, not a byte of flash) */
-static const char FM6_N_MOD[] = "MODERN", FM6_N_MKI[] = "MARK I", FM6_N_OPL[] = "OPL";
-#define FM6_NAME(e) ((e) == 0 ? FM6_N_MOD : (e) == 1 ? FM6_N_MKI : FM6_N_OPL)
-#define FM6_ENT(v, u) ((u) == (v) ? FM6_NAME(FM6_PLAYS(v)) : FM6_BUILT(u) && (u) != FM6_PLAYS(v) ? FM6_NAME(u) : 0)
-#define FM6_ROW(v) {FM6_ENT(v, 0), FM6_ENT(v, 1), FM6_ENT(v, 2)}
-static const char *const N_FM6ENG_AS[3][3] = {FM6_ROW(0), FM6_ROW(1), FM6_ROW(2)};   /* [stored value][value] */
-#define FM6_ENGD(v) {FM6_NMODES > 1 ? "ENGINE" : "-", F_ENUM, 0, 2, 1, N_FM6ENG_AS[v], 0}
-static const param_desc_t FM6_ENG_D[3] = {FM6_ENGD(0), FM6_ENGD(1), FM6_ENGD(2)};
-
-static const param_desc_t *fm6_desc(const struct track *t, uint32_t k)
-{
-    return k == 4u ? &FM6_ENG_D[clamp(t->p[P_E4], 0, 2)] : 0;
-}
-static const param_desc_t *fm6_ed_desc(uint32_t k)       /* (the editor: the modes built, whatever is stored) */
-{
-    return k == 4u ? &FM6_ENG_D[FM6_PLAYS(1)] : 0;
-}
-#define FM6_DESC fm6_desc
-#else
-static inline const param_desc_t *fm6_ed_desc(uint32_t k) { (void)k; return 0; }
-#define FM6_DESC 0
-#endif
-
-/* the ADSR opens at once and rings 10 s: the DX7 envelopes shape the sound and end the voice;
- * ENGINE: MARK I, as Dexed starts. (SLOOP: four renamed where another engine has the name; no pattern) */
+/* The ADSR opens at once and rings 10 s: the DX7 envelopes shape the sound and end the voice. Without a pack there is
+ * the INIT VOICE only: three starts from it (the packs' voices are in PRESETS after the user presets, nbank.c). */
 static const preset_t FM6_PRESETS[] = {
-    /* VOICE MOD M.TIM C.TIM ENGINE - - - */
-    {"TINE EP", {0, 0, 0, 0, 1, 0, 0, 0}, {0, 127, 127, 127}, 0, 0, FX(0, 50, 25, 35)},
-    {"BRASS SECT", {1, 0, 0, 0, 1, 0, 0, 0}, {0, 127, 127, 127}, 0, 0, FX(0, 20, 20, 40)},
-    {"SOLID BASS", {2, 0, 0, 0, 1, 0, 0, 0}, {0, 127, 127, 127}, 0, 1, FX(0, 0, 10, 10)},
-    {"BELLS", {3, 0, 0, 0, 1, 0, 0, 0}, {0, 127, 127, 127}, 0, 0, FX(0, 0, 30, 70)},
-    {"FM MARIMBA", {4, 0, 0, 0, 1, 0, 0, 0}, {0, 127, 127, 127}, 0, 0, FX(0, 0, 25, 40)},
-    {"CLAVINET", {5, 0, 0, 0, 1, 0, 0, 0}, {0, 127, 127, 127}, 0, 0, FX(32, 20, 30, 20)},
-    {"DRAWBARS", {6, 0, 0, 0, 1, 0, 0, 0}, {0, 127, 127, 127}, 0, 0, FX(21, 40, 0, 30)},
-    {"STRINGS", {7, 0, 0, 0, 1, 0, 0, 0}, {0, 127, 127, 127}, 0, 0, FX(0, 60, 30, 70)},
-    {"FM GLASS", {8, 0, 0, 0, 1, 0, 0, 0}, {0, 127, 127, 127}, 0, 0, FX(0, 60, 40, 80)},
-    {"FM SYNC LD", {9, 0, 0, 0, 1, 0, 0, 0}, {0, 127, 127, 127}, 0, 1, FX(31, 20, 40, 30)},
-    {"HARP", {10, 0, 0, 0, 1, 0, 0, 0}, {0, 127, 127, 127}, 0, 0, FX(0, 30, 30, 60)},
-    {"FM KALIMBA", {11, 0, 0, 0, 1, 0, 0, 0}, {0, 127, 127, 127}, 0, 0, FX(0, 0, 35, 45)},
-    {"FLUTE", {12, 0, 0, 0, 1, 0, 0, 0}, {0, 127, 127, 127}, 0, 1, FX(0, 20, 30, 50)},
-    {"STEEL DRUM", {13, 0, 0, 0, 1, 0, 0, 0}, {0, 127, 127, 127}, 0, 0, FX(0, 0, 30, 40)},
-    {"SAW BASS", {14, 0, 0, 0, 1, 0, 0, 0}, {0, 127, 127, 127}, 0, 1, FX(50, 0, 10, 10)},
-    {"TUBULAR", {15, 0, 0, 0, 1, 0, 0, 0}, {0, 127, 127, 127}, 0, 0, FX(0, 0, 30, 80)},
+    /* VOICE - - - - - - - */
+    {"INIT VOICE", {0, 0, 0, 0, 0, 0, 0, 0}, {0, 127, 127, 127}, 0, 0, FX(0, 0, 0, 0)},
+    {"INIT WIDE", {0, 0, 0, 0, 0, 0, 0, 0}, {0, 127, 127, 127}, 0, 0, FX(0, 40, 30, 50)},
+    {"INIT MONO", {0, 0, 0, 0, 0, 0, 0, 0}, {0, 127, 127, 127}, 0, 1, FX(0, 0, 10, 10)},
 };
 
 static const engine_t ENG_FM6 = {
-    "FM6", {"PATCH", "ENGINE"},                          /* (SLOOP: EDIT 2 named: its one value) */
+    "FM6", {"PATCH", "-"},                               /* (EDIT 2 has no value: params.c page_shown leaves it out) */
     {
         {"VOICE", F_ENUM, 0, FM6_NVOICE - 1, 0, N_FM6V, 0},
-        {"MOD", F_BIPCT, -64, 63, 0, 0, 0},
-        {"M.TIM", F_BIPCT, -64, 63, 0, 0, 0},
-        {"C.TIM", F_BIPCT, -64, 63, 0, 0, 0},
-        {"ENGINE", F_ENUM, 0, 2, 1, N_FM6ENG, 0},
+        {"-", F_INT, 0, 0, 0, 0, 0},
+        {"-", F_INT, 0, 0, 0, 0, 0},
+        {"-", F_INT, 0, 0, 0, 0, 0},
+        {"-", F_INT, 0, 0, 0, 0, 0},
         {"-", F_INT, 0, 0, 0, 0, 0},
         {"-", F_INT, 0, 0, 0, 0, 0},
         {"-", F_INT, 0, 0, 0, 0, 0},
     },
     FM6_PRESETS, sizeof(FM6_PRESETS) / sizeof(FM6_PRESETS[0]), -1, fm6_note_on, fm6_render,
-    0x5D7F, {P_E1, P_E2, P_E3, P_E0}, NVOICE, fm6_amp, FM6_DESC, fm6_block, 1, fm6_alloc, fm6_legato, fm6_key,
+    0x5D7F, {0}, NVOICE, fm6_amp, 0, fm6_block, 1, fm6_alloc, fm6_legato, fm6_key,
     fm6_post,
 };
 
 /* ------------------------------------------------------ DX7 SysEx in --- */
-/* Frames that start F0 43 (Yamaha), collected by the USB ISR (usb.c sysex_byte) for the main
- * loop (fm6_store.c fm6_service): a 32-voice dump is the longest. One frame at a time; a frame
- * arriving while one is waiting is dropped */
-#define FM6_RX 4104u
-static uint8_t fm6_rx[FELUCCA_FM6_SYSEX || FELUCCA_FM6_STORE ? FM6_RX : 1] IN_POOL;   /* (STORE builds the bank here
-                                                        * too; the USB ISR and the main loop only: the pool) */
+/* Two Yamaha frames are taken, collected by the USB ISR (usb.c sysex_byte) for the main loop (fm6_sysex.c fm6_service):
+ *   F0 43 0n 00 01 1B <155 bytes> <checksum> F7    a voice (VCED): replaces the voice of the FM6 track
+ *   F0 43 0n 09 20 00 <4096 bytes> <checksum> F7   32 voices (VMEM): the pick list at the end of the track's PRESETS
+ * The 6 header bytes tell which one is coming; the voice goes into fm6_vox, the bank's data and checksum into
+ * fm6_pick (the list itself: it is kept, in RAM, until power-off). One frame at a time: a frame arriving while one
+ * waits for the main loop is dropped. Anything else (editor traffic, other Yamaha messages) is let go at once */
+#define FM6_RX 4104u                                     /* the longest frame: the bank (usb.c: FM6 is built) */
+#define FM6_VOXN 163u
+#if FELUCCA_FM6_SYSEX
+static uint8_t fm6_vox[FM6_VOXN] IN_POOL;               /* the voice frame; the header of a bank */
+static uint8_t fm6_pick[4097] IN_POOL;                  /* the bank: 32 packed voices and their checksum */
+static volatile uint8_t fm6_pick_ok;                    /* fm6_pick holds a bank whose checksum was right */
+static volatile uint8_t fm6_rx_ready;                   /* 1 a voice, 2 a bank waits for the main loop */
+static uint8_t fm6_rx_on, fm6_rx_kind;
 static uint32_t fm6_rx_n;
-static volatile uint8_t fm6_rx_ready;
-static uint8_t fm6_rx_on;
+#else
+#define fm6_pick_ok 0
+#endif
 
 static void fm6_sx_byte(uint8_t b)
 {
-    if (!FELUCCA_FM6_SYSEX)                              /* (registry.h: no DX7 SysEx in this build) */
-        return;
+#if FELUCCA_FM6_SYSEX
     if (b == 0xF0) {
         fm6_rx_on = !fm6_rx_ready;
         if (fm6_rx_on)
-            fm6_rx_n = 0;                               /* a pending frame belongs to the main loop */
+            fm6_rx_n = fm6_rx_kind = 0;                  /* a pending frame belongs to the main loop */
     }
     if (!fm6_rx_on)
         return;
-    if (fm6_rx_n >= FM6_RX || (fm6_rx_n == 1u && b != 0x43)) {
-        fm6_rx_on = 0;                                   /* too long, or not Yamaha */
+    if (fm6_rx_n < 6u) {
+        fm6_vox[fm6_rx_n++] = b;
+        if (fm6_rx_n == 2u && b != 0x43)
+            fm6_rx_on = 0;                               /* not Yamaha */
+        else if (fm6_rx_n == 6u) {                       /* the header says what comes */
+            const uint8_t *h = fm6_vox;
+            fm6_rx_kind = (uint8_t)((h[2] & 0xF0u) == 0 && h[3] == 0x00 && h[4] == 0x01 && h[5] == 0x1B ? 1u :
+                                    (h[2] & 0xF0u) == 0 && h[3] == 0x09 && h[4] == 0x20 && h[5] == 0x00 ? 2u : 0u);
+            fm6_rx_on = fm6_rx_kind != 0;
+            if (fm6_rx_kind == 2u)
+                fm6_pick_ok = 0;                         /* (the old list goes when a new bank starts) */
+        }
         return;
     }
-    fm6_rx[fm6_rx_n++] = b;
     if (b == 0xF7) {
         fm6_rx_on = 0;
-        RING_PUBLISH();
-        fm6_rx_ready = 1;
+        if ((fm6_rx_kind == 1u && fm6_rx_n == FM6_VOXN - 1u) || (fm6_rx_kind == 2u && fm6_rx_n == FM6_RX - 1u)) {
+            RING_PUBLISH();
+            fm6_rx_ready = fm6_rx_kind;
+        }
+        return;
     }
+    if (fm6_rx_kind == 1u && fm6_rx_n < FM6_VOXN - 1u)
+        fm6_vox[fm6_rx_n++] = b;
+    else if (fm6_rx_kind == 2u && fm6_rx_n < FM6_RX - 1u)
+        fm6_pick[fm6_rx_n++ - 6u] = b;
+    else
+        fm6_rx_on = 0;                                   /* too long */
+#else
+    (void)b;
+#endif
 }

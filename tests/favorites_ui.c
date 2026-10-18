@@ -50,7 +50,7 @@ static void favorites_ui_tests(void)
     t->user = 0;
     fav_open_presets();
     preset_pos(&all);
-    check(cur_page()->graph == GR_BROWSE && all > 80u, "favorites: SAVE > PRESETS is up, the whole list long");
+    check(cur_page()->graph == GR_BROWSE && all > 60u, "favorites: SAVE > PRESETS is up, the whole list long");
     check(!preset_favorite() && fav_list == 0u, "favorites: nothing marked, LIST ALL");
     frame();
     sum_off = fav_screen_sum();
@@ -67,6 +67,7 @@ static void favorites_ui_tests(void)
     check(!preset_favorite() && fav_count() == 0u, "KNOB 3 left: FAV OFF");
     check(fav_screen_sum() == sum_off, "... the screen as before");
 
+    idx[1] = all / 2u, idx[2] = all - 4u;               /* (spread over the list, whatever its length: the FM6 voices came and went) */
     for (i = 0; i < 3u; i++) {                         /* three sounds marked, by the knob */
         preset_go(idx[i]);
         mark[i] = fav_here();
@@ -89,12 +90,12 @@ static void favorites_ui_tests(void)
     check(fav_here() == mark[2], "... two steps back: the last (wraps back)");
 
     fav_list = 0;
-    preset_go(60);                                    /* a sound not marked */
+    preset_go(3);                                    /* a sound not marked */
     fav_list = 1;
     fav_knob(EN_PRESET, 1);
     check(fav_here() == mark[0], "from a sound not marked, one step on: the first marked");
     fav_list = 0;
-    preset_go(60);
+    preset_go(3);
     fav_list = 1;
     fav_knob(EN_PRESET, -1);
     check(fav_here() == mark[2], "... one step back: the last marked");

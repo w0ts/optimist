@@ -83,7 +83,7 @@ static void sl25_project(void)
     int e1;
     check("2.5's FUN5 reads as 2.4's (the same format); ours does not read it as a project",
           sl24_is(f25, sizeof f25) && !proj_import(&q, f25, sizeof f25));
-    ok = proj_from_sl24(&q, f25, sizeof f25, x, 0) && proj_ok(&q);
+    ok = proj_from_sl24(&q, f25, sizeof f25, x) && proj_ok(&q);
     check("2.5: imported, a valid project of ours", ok);
     pj_to_p(v, q.t[0].p);
     ok = q.t[0].engine == ENG_UID_PHYS && q.t[0].preset == 4 && v[P_E0] == 2;
@@ -123,7 +123,7 @@ static void sl26_convert(void)
     ok = (int16_t)(b[8 + 2 * G_DRCH] | b[9 + 2 * G_DRCH] << 8) == GP[G_DRCH].def &&
          (int16_t)(b[8 + 2 * G_INFO] | b[9 + 2 * G_INFO] << 8) == GP[G_INFO].def;
     check("... GLO > TEXTURE's two globals (G_DRCH, G_INFO slots): our defaults", ok);
-    ok = proj_from_sl24(&q, b, 3840, x, 0) && proj_ok(&q);
+    ok = proj_from_sl24(&q, b, 3840, x) && proj_ok(&q);
     check("2.6: imported (through 2.5's), a valid project of ours", ok);
     for (k = 0; k < NTRK; k++) {
         pj_to_p(v, q.t[k].p);
@@ -173,7 +173,7 @@ static void sl26_lsync(void)
             ok1 &= (int16_t)(d[0] | d[1] << 8) == e;
         }
         memcpy(b, c, sizeof c);
-        ok2 &= sl24_import_buf(b, sizeof c, 0) != 0;
+        ok2 &= sl24_import_buf(b, sizeof c) != 0;
         for (k = 0; k < NTRK; k++) {
             int16_t r = (int16_t)(k * 7u + P_LRATE % 40u), e = L[n] >= 1 && L[n] <= 10 ? (int16_t)-L[n] : r;
             pj_to_p(v, proj_tmp.cur.t[k].p);
@@ -228,7 +228,7 @@ static void sl26_flow(void)
     check("... 2.6's original untouched", !memcmp(keep, nor + st_sector(OBJ_PROJECT0 + 1, 0), sizeof keep));
     check("... its drums' delay send (77): every lane's DLY level 19 (78), no chorus", lanes_dly(19));
     memcpy(b, f25, sizeof f25);
-    ok = sl24_import_buf(b, sizeof f25, 0) && lanes_dly(19);
+    ok = sl24_import_buf(b, sizeof f25) && lanes_dly(19);
     check("2.5's drums' delay send (77) imported: every lane's DLY level 19", ok);
     memcpy(b, f25, sizeof f25);
     b[73] = 0;                                    /* (2.4's: its spare byte, 0) */
@@ -236,7 +236,7 @@ static void sl26_flow(void)
         uint32_t s = proj_hash(b, 3836u);
         memcpy(b + 3836, &s, 4);
     }
-    ok = sl24_import_buf(b, sizeof f25, 0) && lanes_dly(0);
+    ok = sl24_import_buf(b, sizeof f25) && lanes_dly(0);
     check("... a drums' delay send of 0 (2.4's spare byte): the lanes' DLY 0, as before", ok);
 }
 
@@ -247,7 +247,7 @@ static void export_engines(void)
     static uint8_t out[3840];
     uint32_t lost;
     memcpy(out, f25, sizeof out);
-    (void)proj_from_sl24(&q, out, sizeof out, 0, 0);
+    (void)proj_from_sl24(&q, out, sizeof out, 0);
     q.t[0].engine = ENG_UID_PHYS;
     q.t[1].engine = ENG_UID_SLICE;
     q.sum = proj_sum(&q);
@@ -257,7 +257,7 @@ static void export_engines(void)
     check("... SLICE (never in a shipped SLOOP) -> its fallback SAMPLE (4) at SAMPLE's defaults, said lost",
           out[76 + 940 + 122] == 4 && (lost & SX24_ENGINE) &&
           (int16_t)(out[76 + 940 + 2 * 53] | out[76 + 940 + 2 * 53 + 1] << 8) == ENGINES[eng_slot_built(4)]->edit[0].def);
-    check("... and back: 10 imports as our PHYS", proj_from_sl24(&r, out, sizeof out, 0, 0) && r.t[0].engine == ENG_UID_PHYS);
+    check("... and back: 10 imports as our PHYS", proj_from_sl24(&r, out, sizeof out, 0) && r.t[0].engine == ENG_UID_PHYS);
     {   /* the drum lanes' DLY -> 2.5's drums' delay send (byte 73) */
         static uint16_t keep[DRUM_LANES];
         uint8_t live = fxs_live;
@@ -303,7 +303,7 @@ static int l2_import(const int16_t (*dep)[4], const int8_t (*tp)[2])
     }
     h = proj_hash(c, sizeof c - 4u), memcpy(c + sizeof c - 4u, &h, 4);
     host_tracks_init();
-    return sl24_import_buf(c, sizeof c, 0) != 0;
+    return sl24_import_buf(c, sizeof c) != 0;
 }
 static int l2_is(uint32_t k, int32_t rate, int32_t wave, int32_t trig, int32_t pol, int32_t da, int32_t aa, int32_t db, int32_t ab)
 {

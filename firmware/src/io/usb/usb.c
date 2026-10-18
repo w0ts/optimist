@@ -633,7 +633,7 @@ static void sysex_byte(uint8_t b)
         return;
     }
 #ifdef FM6_RX                                           /* (not in the update loader nor the host tests) */
-    fm6_sx_byte(b);                                     /* DX7 voices, banks, parameter changes (eng_fm6.c) */
+    fm6_sx_byte(b);                                     /* DX7 voices and banks (eng_fm6.c) */
 #endif
     if (b == 0xF0) {
         usb.sx_on = 1;

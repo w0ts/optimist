@@ -43,6 +43,7 @@ src/engines/drawbar/eng_drawbar.c:drawbar_block:(512+T->dg) | dg = 256 + E6 * 6 
 src/engines/drawbar/eng_drawbar.c:drawbar_block:(uint32_t)(s+49152) | s = sum of DRW_LV levels, each >= 0
 src/engines/fm6/eng_fm6.c:fm6_ctl_block:ed[FN_PBSTEP] | in the else of "if (!ed[FN_PBSTEP])"
 src/engines/fm6/eng_fm6.c:fm6_ctl_block:stp | stp = 12 / ed[FN_PBSTEP] with FN_PBSTEP 1..12 here: fm6_set clamps it to FM6_FNMAX 12 (SysEx, project load, editor) and fm6_fn_reset defaults it to 0
+src/engines/fm6/eng_fm6.c:fm6_pack_voice:(FM6_NPACKS?FM6_NPACKS:1u) | a constant: the packs built (the number of packs, 1 when there is none: the 0 entry of FM6_PACK)
 src/engines/formant/eng_formant.c:formant_render:(((te-tp)>>16)|1u) | "| 1"
 src/engines/formant/eng_formant.c:formant_render:((tp>>16)|1u) | "| 1"
 src/engines/formant/eng_formant.c:formant_render:f | guarded: "f > 0" in the same condition
@@ -179,7 +180,6 @@ src/ui/sloop/ui_fm6.c:fm6k_draw_graph:cols | guarded: "cols ? ... : 40"
 src/ui/sloop/ui_fm6.c:fm6k_draw_graph:rows | guarded: "rows ? ... : 24"
 src/ui/sloop/ui_fm6.c:fm6k_draw_info:n | n from fm6k_cur_page: NPG (>= 1)
 src/ui/sloop/ui_fm6.c:fm6k_next_page:n | n from fm6k_cur_page: NPG (>= 1)
-src/ui/sloop/ui_fm6.c:fm6k_on_store:FMK_NPG(FMK_GLO_PAGES) | a constant (the page count of a const table)
 src/ui/sloop/ui_input.c:layers_input:pages | pages = (TLEN + 15) / 16 >= 1
 src/ui/sloop/ui_layers.c:hold_screen_draw:span | HOLD_CLEAR_MS or HOLD_SAVE_MS, constants
 src/ui/sloop/ui_layers.c:step_note_len:len | TLEN
@@ -217,15 +217,12 @@ src/storage/sections/sec_log.c:sm_more:SEC_ALIGN(SEC_HEAD+n) | SEC_ALIGN(SEC_HEA
 src/ui/sloop/ui_draw.c:graph_adsr4:d | d = 6 + dec * 50 / 127 with DEC a PARAM 0..127: >= 6
 src/ui/sloop/ui_draw.c:graph_adsr4:r | r = 6 + rel * 60 / 127 with REL a PARAM 0..127: >= 6
 src/ui/sloop/ui_fm6.c:fm6k_cur_page:n | fm6k_group: n from NPG, TABLE of the page groups' sizes (each array non-empty)
-src/ui/sloop/ui_fm6.c:fm6k_draw_graph:(int32_t)nstrip | nstrip is 1 or 2
 src/ui/sloop/ui_fm6.c:fm6k_page_draw:d->max | guarded: "d->max ? x * 1000 / d->max : 0"
 src/ui/sloop/ui_input.c:layers_input:nb | nb = FELUCCA_SECTIONS / 4: 1, 2 or 4 (registry.h allows 4, 8, 16 only)
 src/ui/sloop/ui_overview.c:graph_arp:(int32_t)steps | steps = 4 * DIV_DEN[..] (TABLE {1,2,4,8,3,6}): >= 4
 src/ui/sloop/ui_overview.c:graph_arp:hi | hi = 12 (oct - 1) + 7 with oct clamped 1..4: >= 7
 src/ui/sloop/ui_overview.c:graph_arp:cyc | cyc = 2 len - 2 when len > 1, else 1: >= 1
 src/ui/sloop/ui_overview.c:graph_arp:len | len = 3 oct with oct clamped 1..4: >= 3
-src/ui/sloop/ui_overview.c:ov_fm6_draw:ng | fm6k_group: NPG TABLE (each page group non-empty)
-src/ui/sloop/ui_overview.c:ov_fm6_row:d->max | guarded: "d->max ? x * 1000 / d->max : 0"
 src/ui/sloop/macro_ui.c:mac_motion:trk_len(t) | TLEN
 src/ui/sloop/ui_menu.c:menu_input:n | LIGHTS_N (4) or KEYS_N (3): constants (FELUCCA_LIGHTS, MENU LIGHTS / KEYS)
 src/engines/cz/cz_native.c:__attribute__:p->pivot | cz_native_pd: pivot = 1024 - dcw with dcw clamped to 0..1023 by its only caller (cz_native_render): >= 1

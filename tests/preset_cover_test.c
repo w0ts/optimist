@@ -90,8 +90,8 @@ static void settings_save(void) {}
 #include "../firmware/src/ui/sloop/ui_layers.c"
 #include "../firmware/src/ui/sloop/ui_menu.c"
 #include "../firmware/src/ui/sloop/ui_input.c"
-#include "../firmware/src/engines/fm6/fm6_store.c"
-#if FELUCCA_NATIVE_BANKS
+#include "../firmware/src/engines/fm6/fm6_sysex.c"
+#if FELUCCA_NB_LIST
 #include "../firmware/src/storage/nbank.c"       /* the FM6 / CZ collections in PRESETS */
 #endif
 static uint8_t kit_nor[0x2000];

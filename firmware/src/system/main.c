@@ -271,7 +271,7 @@ static BOOT_ORDER void fm1_main(void)
                                                          * LCD, the audio and the BLE radio's start-up program */
 #endif
     BOOT_STAGE(STORES);
-    fm6_boot();                                         /* the FM6 user bank (fm6_store.c) */
+    fm6_boot();                                         /* FM6's sine table (eng_fm6.c) */
 #if CZ_NUSER
     czb_find();                                         /* the CZ collection (nbank.c) */
 #endif
@@ -418,7 +418,7 @@ static BOOT_ORDER void fm1_main(void)
             }
         }
         meter_tap();                                    /* the level meters (meters.c) */
-        fm6_service();                                  /* DX7 SysEx for FM6 (fm6_store.c) */
+        fm6_service();                                  /* DX7 SysEx for FM6 (fm6_sysex.c) */
 #if FELUCCA_OTA
 #if FELUCCA_EDITOR
         ed_service();                                   /* web editor SysEx */

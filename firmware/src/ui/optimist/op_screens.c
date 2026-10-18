@@ -138,7 +138,7 @@ static void op_preset_go(uint32_t n)
         return;
     if (e == NENGINES)
         up_load(k);                                     /* (the stores ask for ui.force: the screen stays, repainted below) */
-#if FELUCCA_NATIVE_BANKS
+#if FELUCCA_NB_LIST
     else if (e == NB_LIST)
         nb_load(k);
 #endif

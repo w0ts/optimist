@@ -101,7 +101,7 @@ def goldens(cfg):
 
 
 COVER_SOURCES = [k for k, it in R.ITEMS.items() if (it.group == "Synth engines" and not it.parent) or
-                 k in ("FM6_VOICES", "DRUM_SYNTH", "DRUM_SAMPLED") or k.startswith(("KIT_", "SET_", "DRUM_X0X"))]
+                 k in ("FM6_PK_KEYS", "DRUM_SYNTH", "DRUM_SAMPLED") or k.startswith(("KIT_", "SET_", "DRUM_X0X"))]
 
 
 def preset_cover(cfg, tag="cover"):
@@ -195,8 +195,6 @@ def random_config(rng):
             cfg[k] = 1 if rng.random() < 0.7 else 0
     if not any(C.built(cfg, k) for k in R.ITEMS if k.startswith("ENG_") and not R.ITEMS[k].parent):
         cfg["ENG_ANALOG"] = 1
-    if not any(cfg[k] for k in ("FM6_MARK1", "FM6_MODERN", "FM6_OPL")):
-        cfg["FM6_MARK1"] = 1
     if not cfg["DRUM_SYNTH"] and not C.built(cfg, "DRUM_SAMPLED"):
         cfg["DRUM_SYNTH"] = 1
     return cfg

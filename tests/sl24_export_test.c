@@ -108,7 +108,7 @@ static void golden(void)
     static dlrec_t d0;
     uint32_t k, i, ok, lost, gone = 0xFFu;                 /* gone: the amount (P_*) of the type FILT took the slot of */
     lost = 0xFFFFu;
-    if (proj_from_sl24(&q, gold, sizeof gold, x, 0)) {
+    if (proj_from_sl24(&q, gold, sizeof gold, x)) {
         /* the export is of the working project (ed_sl24.c) and reads its FX slots (sl24_fx_out): the import applied as
          * LOAD twice does (proj_apply; no FX record in 2.4's: fx_rec.c ins_map, each part S1 DIST S2 FILTER), then
          * exported */
@@ -148,10 +148,10 @@ static void golden(void)
                     "byte for byte; FILT kept; STRUM / VLEAD kept with CHORDPLUS, else lost (0)"
                   : "tracks: values 0..49, E0..E7, engine, preset, steps, nudges, fills byte for byte; FILT lost (0) "
                     "without TRK_FILT; STRUM / VLEAD kept with CHORDPLUS, else lost (0)", ok);
-    ok = p24(out, 1, SL24_E0 + 7u) == 2 && T24(out, 1)[123] == 2;
+    ok = p24(out, 1, SL24_E0 + 7u) == 0 && T24(out, 1)[123] == 0;
     for (i = 0; i < 7u; i++)
-        ok &= p24(out, 1, SL24_E0 + i) == (i == 2u ? 10 : 0);
-    check("FM6 part: PTCH F3 (its macros in the voice: not F3 now) -> R03 -> F3; MLVL 10 back; ALG FB MRAT MEG VMOD DTUN 0", ok);
+        ok &= p24(out, 1, SL24_E0 + i) == 0;
+    check("FM6 part: its macros are in the voice (not F3 now) -> PTCH F1 (lost); the macros ALG FB MLVL MRAT MEG VMOD DTUN 0", ok);
     for (k = 0, ok = 1; k < NTRK; k++) {
         ok &= has24(out, k, 2, P_PAN, (int16_t)(-30 + (int)k)) && has24(out, k, 6, P_LEVEL, 100);
         ok &= k == 1 ? !has24(out, k, 5, SL24_E0 + 1u, 7) : has24(out, k, 5, SL24_E0 + 1u, 7);
@@ -240,10 +240,9 @@ static void native(const char *dir)
     for (i = 0, ok = T24(out, 0)[122] == 0 && T24(out, 0)[123] == 4; i < 8u; i++)
         ok &= p24(out, 0, SL24_E0 + i) == (int16_t)(20 + i);
     check("ANALOG part: engine 0, preset, E0..E7 at 2.4's 53..60", ok);
-    for (i = 0, ok = T24(out, 1)[122] == 9 && p24(out, 1, SL24_E0 + 7u) == 5 && T24(out, 1)[123] == 5; i < 7u; i++)
-        ok &= p24(out, 1, SL24_E0 + i) == (i == 2u ? 2 : 0);
-    check("FM6 part (no voice of its own): engine 9, VOICE R05 (FM MARIMBA) -> PTCH F6 (WOOD BARS), MOD 3 -> MLVL 2, "
-          "the rest 0, preset F6", ok);
+    for (i = 0, ok = T24(out, 1)[122] == 9 && p24(out, 1, SL24_E0 + 7u) == 0 && T24(out, 1)[123] == 0; i < 7u; i++)
+        ok &= p24(out, 1, SL24_E0 + i) == 0;
+    check("FM6 part (no voice of its own): engine 9, PTCH F1 (the closest-patch mapping of R voices is gone), macros 0, preset F1", ok);
     for (i = 0, ok = T24(out, 2)[122] == 2 && T24(out, 2)[123] == 0; i < 8u; i++)
         ok &= p24(out, 2, SL24_E0 + i) == ENG_PHASE.edit[i].def;
     check("CZ part: 2.4 has no CZ -> its fallback PHASE (engine 2) at PHASE's EDIT defaults", ok);
@@ -255,7 +254,7 @@ static void native(const char *dir)
          n24(out, 3) == 3u && l24(out, 0)[2].step == LOCK_FREE;
     check("locks: 2.4's ids, packed; dropped: FX OFF's, FM6's MOD, CZ's EDIT; the user kit lock -> 808", ok);
     /* back in */
-    ok = proj_from_sl24(&r, out, sizeof out, y, 0) && proj_ok(&r);
+    ok = proj_from_sl24(&r, out, sizeof out, y) && proj_ok(&r);
     check("... and back in (the importer): a valid project of ours", ok);
     for (k = 0; k < NTRK; k++) {
         pj_to_p(v, q.t[k].p), pj_to_p(w, r.t[k].p);
@@ -273,9 +272,9 @@ static void native(const char *dir)
         ok &= w[P_E0 + i] == (int16_t)(20 + i);
     check("kept: values 0..49, steps, nudges, fills, ANALOG's EDIT; lost: FX OFF, ANALOG 2 (their defaults)", ok);
     pj_to_p(w, r.t[1].p);
-    ok = r.t[1].engine == ENG_UID_FM6 && w[P_E0] == 4 && w[P_E1] == 3 && w[P_E4] == 1 && ((r.fm6_has >> 1) & 1u) &&
-         !memcmp(r.fm6[1], SL24_FM6_F[5], 128);
-    check("FM6: back to VOICE R05 (F6's image), MOD 3; the voice 2.4's WOOD BARS (R05 itself: lost)", ok);
+    ok = r.t[1].engine == ENG_UID_FM6 && w[P_E0] == 0 && w[P_E1] == 0 && w[P_E4] == 0 && ((r.fm6_has >> 1) & 1u) &&
+         !memcmp(r.fm6[1], SL24_FM6_F[0], 128);
+    check("FM6: back as VOICE INIT VOICE with 2.4's F1 as its voice (the part's own voice was lost)", ok);
     ok = r.t[2].engine == 2 && q.t[2].engine == ENG_UID_CZ;
     pj_to_p(w, r.t[3].p);
     ok &= w[P_E0] == 5 && w[P_E1] == 24;
@@ -314,7 +313,6 @@ static void fm6_voices(void)
     static stepx_t x[NTRK], y[NTRK];
     static uint8_t bank[SL24_BANK_LEN], other[128], mine[128];
     const stepx_t *xp[NTRK] = {&x[0], &x[1], &x[2], &x[3]};
-    const uint8_t *fv[NPART];
     int16_t v[P_COUNT];
     uint32_t k, lost, used, ok;
     ours(&q, x);
@@ -339,14 +337,11 @@ static void fm6_voices(void)
          !memcmp(bank + 16 + 128, mine, 128);
     check("bank: F2 exactly -> PTCH F2; my voice -> B2 (B1 is 2.4's own, kept), once for both parts", ok);
     check("... reported: the bank goes with it; no FM6 loss", (lost & SX24_BANK) && !(lost & SX24_FM6));
-    for (k = 0; k < NPART; k++) {
-        int pt = p24(out, k, SL24_E0 + 7u);
-        fv[k] = pt >= 8 ? bank + 16 + 128 * (pt - 8) : 0;
-    }
-    ok = proj_from_sl24(&r, out, sizeof out, y, fv) && r.fm6_has == 7;
-    for (k = 0; k < NPART; k++)
-        ok &= !memcmp(r.fm6[k], q.fm6[k], 128);
-    check("... and back (the bank's patches given, as the editor does): every voice as it was", ok);
+    ok = proj_from_sl24(&r, out, sizeof out, y) && r.fm6_has == 7;
+    ok &= !memcmp(r.fm6[2], q.fm6[2], 128);             /* (F2 exactly: back as it was) */
+    for (k = 0; k < 2u; k++)
+        ok &= !memcmp(r.fm6[k], SL24_FM6_INIT, 128);    /* (a bank patch is not imported: INIT, 2.4's empty slot) */
+    check("... and back: F2 as it was; a bank patch is not imported (the part starts from INIT)", ok);
     lost = proj_to_sl24(&q, xp, out, 0);
     ok = p24(out, 0, SL24_E0 + 7u) == 0 && p24(out, 2, SL24_E0 + 7u) == 1 && (lost & SX24_FM6) && !(lost & SX24_BANK);
     check("without the bank: my voice -> the closest factory patch (lost), F2 still F2", ok);
@@ -532,7 +527,7 @@ static void lsync24(void)
          has24(out, 1, 7, P_LRATE, (int16_t)near_rate(123, 0.125)) && has24(out, 1, 8, P_LRATE, 33);
     check("LFO sync -> 2.4: 1/4, 4BAR, a 1/32 lock -> the nearest free rates at 123 BPM; free ones as they are; "
           "lost LSYNC", ok);
-    ok = proj_from_sl24(&r, out, sizeof out, y, 0) && proj_ok(&r);
+    ok = proj_from_sl24(&r, out, sizeof out, y) && proj_ok(&r);
     pj_to_p(v, r.t[0].p);
     check("... and back in: the free rate (2.4 has no sync)", ok && v[P_LRATE] == near_rate(123, 1.0));
 }

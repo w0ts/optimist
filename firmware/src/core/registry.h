@@ -383,12 +383,6 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #ifndef FELUCCA_OV_ARP
 #define FELUCCA_OV_ARP 1                  /* the ARP graph and the ARP family in VIEW ALL */
 #endif
-#ifndef FELUCCA_FM6_ALL
-#define FELUCCA_FM6_ALL 1                  /* FM6's operator editor in VIEW ALL: a group's pages as rows */
-#endif
-#ifndef FELUCCA_FM6_ALGO
-#define FELUCCA_FM6_ALGO 1                 /* ENV held on an FM6 track: the algorithm full screen */
-#endif
 #ifndef FELUCCA_SECTIONS
 #define FELUCCA_SECTIONS 16                /* song sections: 4 (A..D, the project slots in RAM and flash, as before), 8
                                             * or 16 (A..P in banks of 4, compressed in one shared log: sec_log.c) */
@@ -414,8 +408,8 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 /* their flash: slots + 4 sectors of 4 KiB at USR3's end, below the banks (0xD8000): USR3 holds that much less */
 #define SN_SECTORS (FELUCCA_SNAPSHOTS ? (uint32_t)FELUCCA_SNAPSHOTS + 4u : 0u)
 #ifndef FELUCCA_NATIVE_BANKS
-#define FELUCCA_NATIVE_BANKS 0             /* native tone collections in PRESETS: FM6 U01..U32 (the FM6 bank), CZ
-                                            * U01..U26 (cz_bank.c; after Melodee 0.12, keremimo/melodee) */
+#define FELUCCA_NATIVE_BANKS 0             /* the CZ native tone collection in PRESETS: CZ U01..U26 (cz_bank.c; after
+                                            * Melodee 0.12, keremimo/melodee) */
 #endif
 /* the CZ collection: 26 native tones of 144 B in one A/B storage object, 2 sectors of 4 KiB at USR3's end below the
  * snapshot area: USR3 holds 8 KiB less (Melodee 0.12 has 128; one object's 3840 B take 26) */
@@ -513,33 +507,28 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #endif
 
 /* ------------------------------------------------------------ FM6 options --- */
-/* Options of FM6 (ignored when FELUCCA_ENG_FM6 is 0). The modes: at least one; a voice asking for a mode left
- * out plays MARK I (else the first built) and keeps its ENGINE setting (eng_fm6.c fm6_mode) */
-#ifndef FELUCCA_FM6_MARK1
-#define FELUCCA_FM6_MARK1 1                /* ENGINE MARK I: the DX7's log-sine / exp resolution */
-#endif
-#ifndef FELUCCA_FM6_MODERN
-#define FELUCCA_FM6_MODERN 1               /* ENGINE MODERN: MSFA 24-bit */
-#endif
-#ifndef FELUCCA_FM6_OPL
-#define FELUCCA_FM6_OPL 1                  /* ENGINE OPL resolution */
-#endif
-#if !FELUCCA_FM6_MARK1 && !FELUCCA_FM6_MODERN && !FELUCCA_FM6_OPL
-#error "FM6 needs at least one ENGINE mode (FELUCCA_FM6_MARK1, _MODERN, _OPL)"
-#endif
-#ifndef FELUCCA_FM6_MKI_FLASH
-#define FELUCCA_FM6_MKI_FLASH 0            /* MARK I's log-sine and exponent tables as const data in flash (generated:
-                                            * tools/gen_tables.py), not RAM tables built at boot: 4 KB of RAM less;
-                                            * the emulator has no XIP cache nor flash wait states: the hardware's
-                                            * cost is not measured */
-#endif
+/* Options of FM6 (ignored when FELUCCA_ENG_FM6 is 0). FM6 plays one synthesis, Dexed's MSFA (the MARK I, MODERN and OPL
+ * modes, the factory voices R01..R16 and the U01..U32 user bank were retired 2026-10-18: builder bits 10, 11, 12, 15, 16,
+ * 80, 81, 89 are never reused). INIT VOICE is always there; the voice packs are builder items; DX7 SysEx is received only */
 #ifndef FELUCCA_FM6_SYSEX
-#define FELUCCA_FM6_SYSEX 1                /* DX7 SysEx in (voice, bank, parameters) and SEND; the web editor's FM6
-                                            * tab needs it */
+#define FELUCCA_FM6_SYSEX 1                /* DX7 SysEx in: a voice replaces the track's, a 32-voice bank is a pick list in PRESETS */
 #endif
-#ifndef FELUCCA_FM6_VOICES
-#define FELUCCA_FM6_VOICES 1               /* the 16 factory voices R01..R16 (0: they play INIT VOICE) */
+#ifndef FELUCCA_FM6_PK_KEYS
+#define FELUCCA_FM6_PK_KEYS 0              /* pack 1: keys and e-pianos, 16 voices */
 #endif
-#ifndef FELUCCA_FM6_STORE
-#define FELUCCA_FM6_STORE 1                /* STORE into the user bank U01..U32 (a USR slot) */
+#ifndef FELUCCA_FM6_PK_BASS
+#define FELUCCA_FM6_PK_BASS 0              /* pack 2: basses */
 #endif
+#ifndef FELUCCA_FM6_PK_BELLS
+#define FELUCCA_FM6_PK_BELLS 0             /* pack 3: bells and mallets */
+#endif
+#ifndef FELUCCA_FM6_PK_PADS
+#define FELUCCA_FM6_PK_PADS 0              /* pack 4: pads, leads, brass and FX */
+#endif
+#ifndef FELUCCA_FM6_PK_80S
+#define FELUCCA_FM6_PK_80S 0               /* pack 5: 80s mega classics */
+#endif
+#define FM6_NPACKS (FELUCCA_FM6_PK_KEYS + FELUCCA_FM6_PK_BASS + FELUCCA_FM6_PK_BELLS + FELUCCA_FM6_PK_PADS + FELUCCA_FM6_PK_80S)
+/* FM6's own collection after the user presets in PRESETS (nbank.c): the packs built, the bank received */
+#define FELUCCA_FM6_LIST (FELUCCA_ENG_FM6 && (FM6_NPACKS || FELUCCA_FM6_SYSEX))
+#define FELUCCA_NB_LIST (FELUCCA_NATIVE_BANKS || FELUCCA_FM6_LIST)   /* an engine's own collection in PRESETS (nbank.c) */

@@ -78,7 +78,9 @@ static int lo_one_ok(void)                              /* the one-card pages ke
     SCR->name(ui.row[ui.scr], nm);
     return (ui.scr == SCR_TEMPO && FELUCCA_REC_MODES && str_eq(nm, "REC 2")) ||   /* (TEMPO and REC full: QUANT alone) */
            (ui.scr == SCR_SOUND && is_drum(TSEL) && str_eq(nm, "SOUND")) ||   /* (the drum lane row: SRC or ACCENT alone) */
-           (ui.scr == SCR_SOUND && !FELUCCA_CHORDPLUS && str_eq(nm, "SCL 2"));    /* (SCL full: TRANSP alone, no CHORD+) */
+           (ui.scr == SCR_SOUND && !FELUCCA_CHORDPLUS && str_eq(nm, "SCL 2")) ||    /* (SCL full: TRANSP alone, no CHORD+) */
+           (ui.scr == SCR_SOUND && !is_drum(TSEL) && ENG_IS(ENGINES[TSEL->eng_req % NENGINES], FM6) &&
+            (str_eq(nm, "EDIT 1") || str_eq(nm, "ENV 1 MOD")));   /* (FM6: VOICE is its one EDIT value, PIT its one ENV 1 card) */
 }
 static void lo_row(uint32_t r, int pages)
 {

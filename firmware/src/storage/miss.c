@@ -24,7 +24,7 @@ static uint32_t proj_orph_uid(uint32_t k);            /* project.c: the engine U
 static int pat_has(uint32_t k, uint32_t s);           /* storage/sections/pat.c */
 #endif
 
-enum { MS_ENG = 1, MS_KIT, MS_SET, MS_USR, MS_FX, MS_FM6, MS_REV, MS_PAT };   /* an item: type << 12 | track << 8 | id
+enum { MS_ENG = 1, MS_KIT, MS_SET, MS_USR, MS_FX, MS_FM6_RETIRED, MS_REV, MS_PAT };   /* an item: type << 12 | track << 8 | id
                                                                                  (MS_PAT: the id is track * 16 + slot) */
 #define MS_ITEM(ty, k, id) ((uint32_t)(ty) << 12 | (uint32_t)(k) << 8 | (uint32_t)(id))
 #define MISS_MAX 12u
@@ -85,10 +85,6 @@ static void miss_part(uint32_t k)
 #if FELUCCA_SLICE
     else if (ENG_IS(e, SLICE) && t->p[P_E0] > 0)       /* (SRC 1..3: USR1..USR3) */
         miss_set(k, SMP_NSETS + (uint32_t)(t->p[P_E0] - 1));
-#endif
-#if FELUCCA_ENG_FM6
-    else if (ENG_IS(e, FM6) && fm6_mode(t->p[P_E4]) != (uint32_t)clamp(t->p[P_E4], 0, 2))
-        miss_add(MS_ITEM(MS_FM6, k, clamp(t->p[P_E4], 0, 2)));
 #endif
     if (fx_on(t)) {
         if (!FELUCCA_FX_DELAY && t->p[P_DLY])
@@ -203,9 +199,6 @@ static __attribute__((noinline)) char *miss_cat(char *p, const char *s)   /* s a
 static char *miss_name(char *p, uint32_t it)
 {
     static const char *const *const NAMES[] = {ENG_UID_NAME, DRUM_KIT_NAMES, SMP_ALL_NAMES, 0, 0,
-#if FELUCCA_ENG_FM6
-                                               N_FM6ENG,
-#endif
     };
     uint32_t ty = it >> 12, id = it & 255u;
     const char *s = MF_NAMES;
@@ -238,7 +231,7 @@ static char *miss_name(char *p, uint32_t it)
     p = miss_cat(p, s);
     if (ty == MS_FX && ((it & 255u) == MF_INS3 || (it & 255u) == MF_ENV1))   /* "3RD INS T2", "3RD INS DR", "ENV DEST T1" */
         return ((it >> 8) & 3u) == TRK_DRUM ? miss_cat(p, " DR") : (p = miss_cat(p, " T1"), p[-1] = (char)('1' + ((it >> 8) & 3u)), p);
-    if (ty == MS_ENG || ty == MS_SET || ty == MS_FM6)
+    if (ty == MS_ENG || ty == MS_SET)
         p = miss_cat(p, " T1"), p[-1] = (char)('1' + ((it >> 8) & 3u));
     return p;
 }

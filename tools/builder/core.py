@@ -144,17 +144,13 @@ def validate(cfg):
     engines = [k for k, it in R.ITEMS.items() if it.group == "Synth engines" and not it.parent]
     if not any(built(cfg, k) for k in engines):
         err.append(Issue("at least one synth engine", engines))
-    fm6_modes = ("FM6_MARK1", "FM6_MODERN", "FM6_OPL")
     if built(cfg, "ENG_FM6"):
-        if not any(cfg[k] for k in fm6_modes):
-            err.append(Issue("FM6 needs at least one ENGINE mode: switch on MARK I, MODERN or OPL (or FM6 off)",
-                             ("ENG_FM6",) + fm6_modes))
-        if cfg.get("FM6_MKI_FLASH") and not cfg["FM6_MARK1"]:
-            warn.append(Issue("MARK I tables in flash without ENGINE mode MARK I: nothing to move (no effect)",
-                              ("FM6_MKI_FLASH", "FM6_MARK1")))
         if not cfg["FM6_KEYS"] and not cfg["FM6_SYSEX"]:
-            warn.append(Issue("FM6 without the operator editor and without DX7 SysEx: preset-only (no voice editing)",
+            warn.append(Issue("FM6 without the operator editor and without DX7 SysEx: INIT VOICE and the voice packs only (no voice editing)",
                               ("FM6_KEYS", "FM6_SYSEX")))
+        if not cfg["FM6_SYSEX"] and not any(cfg[k] for k in ("FM6_PK_KEYS", "FM6_PK_BASS", "FM6_PK_BELLS", "FM6_PK_PADS", "FM6_PK_80S")):
+            warn.append(Issue("FM6 without a voice pack and without DX7 SysEx: INIT VOICE is its only voice to start from",
+                              ("FM6_SYSEX", "FM6_PK_KEYS")))
     sx_users = [k for k in ("MICRO", "FILLS", "PLOCK") if k in R.ITEMS and cfg.get(k)]   # (SLOOP 2.4's sequencer)
     if sx_users and "SL24_XSTEP" in R.ITEMS and not cfg.get("SL24_XSTEP"):
         err.append(Issue("micro timing, fills and parameter locks need their storage: switch on SL24_XSTEP",
@@ -661,7 +657,7 @@ def savings_of(cfg, costs):
 FIT_ORDER = [  # (key, value): least loss first (docs/MEMORY-BUDGET.md section 3); samples last, PERC never
     ("ENG_SLICE", 0), ("ICONS", 0), ("DLY_LEN", 32768), ("OVERVIEW", 0), ("PUNCH_N", 16384),
     ("SL_LEN", 2048), ("ENG_LOFI", 0), ("ENG_FORMANT", 0), ("ENG_PHASE", 0), ("ENG_DRAWBAR", 0),
-    ("FM6_OPL", 0), ("SET_SCRCH", 0), ("SET_STRGS", 0), ("SET_HORNS", 0),
+    ("SET_SCRCH", 0), ("SET_STRGS", 0), ("SET_HORNS", 0),
     ("LCD_DIRTY", 0),   # (after the samples: for main RAM, 656 B, the graph strip redrawn whole; the defaults were 52 B over 2026-10-13)
 ]
 FIT_MARGIN = {"flash": 1024, "ram": 512, "pool": 0, "ramtext": 256}   # the estimate's error (~0.5 %)

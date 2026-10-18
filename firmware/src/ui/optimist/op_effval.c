@@ -146,7 +146,7 @@ static void effv_mods(uint32_t k, const voice_t *v, int32_t lfo, effv_mod_t *m)
 static const uint8_t EFFV_DEST[ENG_UID_N] = {0xF4, 0xFF, 0xF2, 0xF7, 0xF4, 0x4F, 0x75,   /* ANALOG CUT, -, PHASE DPTH,
                                                                                          * LOFI TONE, SAMPLE CUT, VOICE
                                                                                          * BUZZ, TRIO CUT / DUTY */
-                                             0xFF, 0x17, 0x1F, 0xF7, 0xF2, 0xFF, 0xFF,   /* -, GRAIN TONE / POS, FM6 MOD,
+                                             0xFF, 0x17, 0xFF, 0xF7, 0xF2, 0xFF, 0xFF,   /* -, GRAIN TONE / POS, FM6 none,
                                                                                          * SLICE TONE, PHYS BRIT, -, -, */
                                              0x14,                                       /* JUNO CUT / PW (UID 14, as
                                                                                          * feat/engine-juno) */

@@ -223,9 +223,9 @@ Changing a sound (PRESETS, a user preset) never changes the key, the chord mode,
 
 The FM-1's black keys are printed OP1–OP6, PIT, GLO, MONO, POLY: on an FM6 track they mean just that. **Hold ENV** and press a black key to pick what the knobs edit; the white keys keep playing, so you hear each turn.
 
-- **OP1–OP6** the operator · **PIT** the pitch envelope · **GLO** algorithm, feedback, LFO, portamento and STORE · **MONO / POLY** the voice mode.
-- **Pages**, as everywhere: **tap ENV** for the next one; with ENV held, **OCT−** goes back one, **OCT+** on one. An operator has FREQ, LEVEL (with its ON switch), EG RATE, EG LEVEL, KEY SCALE, CURVES; PIT has RATE and LEVEL; GLO has ALGO, LFO, LFO 2, PORTA, STORE.
-- **GLO › STORE**: KNOB 1 picks a user slot U01–U32 (the voice's own, or the first empty one), KNOB 2 **STORE**, KNOB 3 **SEND** (the voice out as a DX7 dump), KNOB 4 **INIT** (the DX7 init voice) — one detent arms, a second one acts.
+- **OP1–OP6** the operator · **PIT** the pitch envelope · **GLO** algorithm, feedback, LFO and portamento · **MONO / POLY** the voice mode.
+- **Pages**, as everywhere: **tap ENV** for the next one; with ENV held, **OCT−** goes back one, **OCT+** on one. An operator has FREQ, LEVEL (with its ON switch), EG RATE, EG LEVEL, KEY SCALE, CURVES; PIT has RATE and LEVEL; GLO has ALGO, LFO, LFO 2, PORTA.
+- **Keeping a voice**: there is no voice bank and no STORE. An edited voice, or one that arrived by SysEx, is kept as a **user preset** (SAVE AS, in a build with `UP_FM6`: the preset holds the whole voice) or by the project itself. INIT VOICE is the plain starting voice.
 - The page stays up when ENV is let go: **KNOB 1–4** edit the four values shown (the black keys play notes again). The screen shows the algorithm — the operator picked in white, carriers in yellow, switched-off or silent operators dim, the lit feedback loop — the voice name and the black keys' map.
 - Edits go into the track's voice; held notes follow them. A project (and a live section) keeps the voice with its edits; **VOICE** (EDIT 1) or a preset loads a voice over them.
 
@@ -309,19 +309,18 @@ Projects, song sections and user presets saved with the single destination of be
 
 The filter saturates softly inside its loop (resonant peaks round off instead of clipping) and RES goes further than before: from about 120 it rings, at 126–127 it oscillates by itself — a sine at the cutoff, in tune with KTR at 64 (it needs a little input to start: an oscillator, the noise). The cutoff moves smoothly under fast envelopes (its coefficients are worked out every 16 samples and glide sample by sample in between). SUPER's presets (SUPER LEAD, SUPER PAD, SUPER CHRD, SUPER PLCK, HOOVER SAW) are ANALOG presets now, on the swarm; SUPERSAW plays the swarm too, on one voice. A project from before keeps its sound and gets the new values at their defaults; a track that was on the SUPER engine comes back on ANALOG's swarm (the ANALOG version of its preset, with its copies, spread, drift, cutoff, resonance and filter type), and a DX7 track plays FM6 (its VOICE). User presets are converted the same way when they load: one stored on SUPER comes back on ANALOG's swarm, one stored on DX7 on FM6.
 
-**FM6** is Kerem Kilic's six-operator FM engine from Melodee: DX7 voices played sample for sample as Dexed plays them (Dexed's code after MSFA, restated in fixed-point C; `tests/fm6_parity.sh` renders the same scores through Dexed's own sources and FM6 and finds them equal). EDIT 1: **VOICE** (R01–R16, Melodee's factory voices, then the user bank U01–U32), **MOD** (the modulators' levels), **M.TIM / C.TIM** (the modulators' / carriers' envelope times); EDIT 2: **ENGINE** — Dexed's resolutions: **MARK I** (the DX7's log-sine tables, its feedback loops; the default), **MODERN** (MSFA's 24-bit sine), **OPL**. The operators themselves: ENV on an FM6 track (above). 8 voices a part, as every engine in Optimist. FM6 renders in fixed point; MARK I and MODERN run in hand-written pi32v2 loops (bit-identical to the C).
+**FM6** is Kerem Kilic's six-operator FM engine from Melodee, cut down in 2026-10-18 to what matters: DX7 voices played sample for sample as Dexed plays them (Dexed's MODERN synthesis, MSFA's code restated in fixed-point C; `tests/fm6_parity.sh` renders the same scores through Dexed's own sources and FM6 and finds them equal), and the operator editor (ENV on an FM6 track, above). EDIT 1 has one value, **VOICE**: **INIT VOICE** (always there, with INIT WIDE and INIT MONO as presets), then the **voice packs** the build carries (builder items `FM6_PK_KEYS`, `FM6_PK_BASS`, `FM6_PK_BELLS`, `FM6_PK_PADS`, `FM6_PK_80S`: 16 voices each, programmed from scratch for Optimist, none copied from a ROM, a cartridge or a .syx file). The packs are listed in the track's PRESETS after the user presets: **K01..K16** keys and e-pianos, **B01..B16** basses, **M01..M16** bells and mallets, **P01..P16** pads, leads, brass and FX, **801..816** 80s mega classics. Gone: the MARK I and OPL modes and the ENGINE value (FM6 plays Dexed's MODERN only), MOD / M.TIM / C.TIM (edit the operators instead), the factory voices R01–R16, the user bank U01–U32 with STORE and SEND, the VIEW ALL rows and the algorithm full screen. 8 voices a part, as every engine in Optimist. FM6 renders in fixed point; the operator loops are hand-written pi32v2 (bit-identical to the C).
 
-**DX7 voices and banks over USB-MIDI.** FM6 takes DX7 SysEx on any channel, for the FM6 track that is selected (else the part of the channel, else the first FM6 part), so Dexed or any DX7 librarian can edit a part live and keep banks:
+**Your own sounds** are ordinary user presets (SAVE AS, with `UP_FM6`). **DX7 voices over USB-MIDI** (`FM6_SYSEX`; receive only): FM6 takes DX7 SysEx on any channel, for the FM6 track that is selected (else track n + 1 of channel n, else the first FM6 track), so Dexed or any DX7 librarian can send a sound:
 
 | SysEx | What FM6 does |
 | --- | --- |
-| `F0 43 0n 00 01 1B` + 155 bytes + checksum `F7` (a voice) | into the FM6 part's voice (the notes stop, as a program change) |
-| `F0 43 0n 09 20 00` + 4096 bytes + checksum `F7` (32 voices) | the user bank U01–U32, saved in flash |
-| `F0 43 1n gg pp dd F7` (a voice parameter; 155 = the operator switches) | into the FM6 part's voice |
-| `F0 43 1n 08 pp dd F7` (a function: 64 mono, 65 bend range, 66 step, 68 glissando, 69 portamento time, 70–77 controllers) | the part's DX7 functions |
-| `F0 43 2n 00 F7` / `F0 43 2n 09 F7` (dump requests) | the part's voice / the user bank, sent back |
+| `F0 43 0n 00 01 1B` + 155 bytes + checksum `F7` (a voice) | into the FM6 part's voice (the notes stop, as a program change); SAVE AS keeps it |
+| `F0 43 0n 09 20 00` + 4096 bytes + checksum `F7` (32 voices) | a temporary pick list at the end of the track's PRESETS (R01.., kept in RAM until power-off): audition them and SAVE AS the ones you want |
 
-The user bank has its own place in the flash, next to [your own drum kits](#your-own-kits): it never takes a USR sample slot, and samples never replace it. (Older builds kept it in a free USR slot; the first start of this one moves it to its place and frees that slot.) The web editor imports .syx voices and banks into its library, auditions a voice on the FM6 track and reads / writes the bank. Optimist has no MIDI pitch bend, wheel, foot, breath or aftertouch input yet: FM6's controller settings are kept (projects, SysEx) but rest.
+Nothing is sent back and nothing is stored in flash: parameter changes, function parameters and dump requests are ignored, as is SEND. The web editor imports .syx voices and banks into its library and auditions a voice on the FM6 track. Optimist has no MIDI pitch bend, wheel, foot, breath or aftertouch input yet: FM6's controller settings are kept in a voice (projects) but rest.
+
+**An old project or user preset** with an FM6 VOICE from the R or U numbers plays its own voice (the project and `UP_FM6` records keep the voice inline); a number with no inline voice starts from INIT VOICE, never from a pack voice (the packs have their own number range). MOD, M.TIM and C.TIM are no longer synthesis values; see the 2026-10-18 note in docs/BUILDER.md for what an old project's non-default settings become.
 
 The sampled sounds (SAMPLE engine, **SET**: PIANO (a grand), BASS, VIBES, HORNS, STRGS, FLUTE, SCRCH, PERC) are free recordings (CC0: Versilian Studios VSCO-2 CE and VCSL, Sonic Pi), retuned and coloured like a record through an old sampler.
 
@@ -785,29 +784,26 @@ turn **LOAD**: the screen says SLOOP 2.4: LOAD = IMPORT; LOAD again within 4 s a
 written: 2.4's original stays where it was, and SAVE puts the import in a section of yours. What comes over: the
 values, engines, steps, drum kits; the nudges, locks and fills (with `FELUCCA_SL24_XSTEP`, which MICRO / FILLS / PLOCK
 turn on; without it the screen says NO LOCKS); the track filter, strum and voice leading with `FELUCCA_TRK_FILT` /
-`FELUCCA_CHORDPLUS`. An **FM6** part keeps its sound: the patch 2.4 played (one of its eight factory patches, or the one
-in 2.4's FM6 bank, read where 2.4 left it) becomes the part's own voice, with 2.4's macros put into it as 2.4 plays them
-(ALG, FB, and on the modulators MRAT, MEG, VMOD); MLVL becomes MOD; VOICE shows the closest of our factory voices (a
-name only now). A **USR1..USR3 drum kit** plays the same user sample slot: each drum sound is the slot's sound for that
+`FELUCCA_CHORDPLUS`. An **FM6** part keeps its sound: the patch 2.4 played (one of its eight factory patches; a bank
+patch is not imported) becomes the part's own voice, with 2.4's macros put into it as 2.4 plays them
+(ALG, FB, and on the modulators MRAT, MEG, VMOD, MLVL: it is added to their output levels); VOICE is INIT VOICE (a
+name only). A part on a bank patch B1..B27 starts from INIT VOICE: the bank is no longer imported. A **USR1..USR3 drum kit** plays the same user sample slot: each drum sound is the slot's sound for that
 lane's note, as in 2.4 (`FELUCCA_DRUM_USR`). Lost: FM6's DTUN (the carriers' spread while playing), a USR4 kit and the
 USR4 half of USR3+4 (our default kit: Optimist has three sample slots), a lock on a USR kit.
 
 **Moving a project back to 2.4** (`FELUCCA_SL24_EXPORT`, off by default). In the web editor, Projects >
 **Export for SLOOP 2.4** saves the working project and the settings as a SLOOP 2.4 backup file; in SLOOP 2.4's own editor,
 BACKUP > Restore it, then SAVE the project there. An FM6 voice that is one of 2.4's factory patches stays that patch (an FM6
-part imported from one with its macros at 0 goes back as it came; MOD goes back as MLVL). With **FM6 voices into 2.4's bank** ticked, any other FM6 voice
+part imported from one with its macros at 0 goes back as it came). With **FM6 voices into 2.4's bank** ticked, any other FM6 voice
 goes into 2.4's FM6 bank (B1..B27) and the file carries the bank: restoring it replaces 2.4's FM6 bank, which is 2.4's
 own bank as Optimist found it in flash with the voices added (or only the voices). The editor lists what was left out.
 
 **A 2.4 backup file into Optimist** (`FELUCCA_SL24_EDIMPORT`, off by default). In the web editor, Projects > **Import a
 SLOOP 2.4 backup**: pick one of the file's projects (its working project or A..D) and it becomes the working project, as
-LOAD twice does on the FM-1, its FM6 bank patches with it; SAVE it in a section. If the file has 2.4's FM6 bank, the
-editor offers to put its patches in the free slots of the FM6 user bank (U01..U32: never over a voice of yours); **SLOOP
-2.4's FM6 bank to the user bank** does the same with the bank 2.4 left in the FM-1's flash.
+LOAD twice does on the FM-1, SAVE it in a section. 2.4's FM6 patch bank (B1..B27) is not imported (the FM6 user bank is gone): a part on a bank patch starts from INIT VOICE.
 
 **What does not round-trip**, Optimist to 2.4: FX OFF; ANALOG 2's pages and ENV2's extras; PHYS, ACID and CZ parts (2.4
-plays their fallback, at its EDIT defaults); an FM6 voice not sent to the bank (the closest factory patch), M.TIM, C.TIM,
-an ENGINE other than MARK I, operators switched off; the X0X kits and user kits (808); the drum lanes' edits and sends
+plays their fallback, at its EDIT defaults); an FM6 voice not sent to the bank (F1 instead), operators switched off; the X0X kits and user kits (808); the drum lanes' edits and sends
 (a USR kit's lanes too); the reverb type, COMP / LIMIT; the MIDI channels; locks on any of these (and on FM6's EDIT
 values); the sections, the song, motion recording, patterns, samples and user presets (the export is the working project).
 2.4 to Optimist: as listed above, and the track filter in a build without `FELUCCA_TRK_FILT`, strum and voice leading

@@ -326,10 +326,8 @@ builder's `BUILD`, 35 for USB audio statistics).
 | 42 SMP_READ | slot 0..2, offset (3 × 7 bit), count (2 × 7 bit, ≤ 256) | slot, offset (3 × 7 bit), pack7 bytes of the slot's flash (fewer at its end) |
 
 `SMP_INFO` (15) now ends with each slot's size in KiB: **USR3 holds 64 KiB** (80 for USR1 and USR2); its last
-16 KiB are the banks: flash 0xD8000..0xD9FFF the FM6 user bank (header "FM6B", the 4096 bank bytes at 0xD9000;
-DX7 bank dumps read and write it, no USR slot is used), 0xDA000..0xDBFFF the user kit bank (A/B). (The first
-drum kits firmware reported 72 KiB and kept the FM6 bank in a free USR slot; the device moves such a bank at
-its first start.) `SMP_WRITE` / `SMP_END` refuse data past a slot's size; a USR3 written longer before reads
+16 KiB are the banks: flash 0xD8000..0xD9FFF was the FM6 user bank (header "FM6B"; dropped 2026-10-18: FM6 keeps
+no bank in flash any more, the area is unused), 0xDA000..0xDBFFF the user kit bank (A/B). `SMP_WRITE` / `SMP_END` refuse data past a slot's size; a USR3 written longer before reads
 as empty.
 
 **A lane** (12 bytes): 8 signed offsets from the kit's sound (TUNE −24..24 semitones, DECAY, SNAP, CLICK
@@ -543,7 +541,7 @@ keremimo/melodee, GPL-3.0-only). The device keeps 26 CZ-1 tones (`nbank.c`, one 
 CZ track plays slot k as TONE U(k+1), the last 26 values of TONE (its DESC: max + 1 - 26 is U01). A tone is Casio's 144 bytes
 (the 128 synthesis bytes of the CZ-1 MIDI layout, then the 16-byte name); on the wire each byte is two nibbles, low first.
 The device does not check the bytes (the editor does, with Melodee's `cz_patch_valid`; the playback masks what it indexes
-with). The FM6 collection is the FM6 user bank (DX7 SysEx, the FM6 panel). A build without the CZ collection does not
+with). FM6 has no collection any more (its user bank went 2026-10-18; see "FM6 and DX7 SysEx"). A build without the CZ collection does not
 answer 66 (no reply: the editor hides its CZ panel).
 
 | cmd | Request | Reply |
@@ -551,12 +549,34 @@ answer 66 (no reply: the editor hides its CZ panel).
 | 66 CZ_BANK | 0 (GET), slot 0..25 | 0, slot, rc (0 ok, 1 empty or no such slot), then (rc 0) 288 nibbles |
 | 66 CZ_BANK | 1 (PUT), slot, 288 nibbles; or 1, slot alone (erase) | 1, slot, rc: 0 written, 1 arguments (a nibble past 15, a length other than 2 or 290), 2 flash, 3 the transport plays (stop first). Writes flash: allow 1 s |
 
+## FM6 and DX7 SysEx (no command)
+
+`firmware/src/engines/fm6/eng_fm6.c`, `fm6_sysex.c`. FM6 (the DX7 engine, Dexed's MODERN synthesis only) lost on 2026-10-18 its
+modes MARK I / OPL, the knobs MOD / M.TIM / C.TIM / ENGINE, the 16 factory voices R01..R16, the user bank U01..U32 in flash,
+STORE, and every DX7 SysEx the device sent (SEND, dump requests, parameter changes). Command 91 went with the bank.
+
+- **The engine's values** (its DESC, NAMES): the page titles are `["PATCH", "-"]`. EDIT value 0 `VOICE` is an enum: 0 `INIT VOICE`, then
+  the voice packs the build has (builder items FM6_PK_KEYS / BASS / BELLS / PADS / 80S, 16 voices each, in that order; the names
+  are the voices' own, at most 10 characters): its range and names depend on the build (a build with no pack: 0..0). EDIT values
+  1..7 are `-`, range 0..0, unused. Presets: `INIT VOICE`, `INIT WIDE`, `INIT MONO` (the packs' voices are in the PRESETS list
+  after the user presets, `nbank.c`). The operator editor on the device (SCRS family 126) keeps its rows, without STORE.
+- **What the device receives** (the user's DAW or the editor, on any MIDI channel n; the device sends nothing back and stores
+  nothing in flash):
+  - `F0 43 0n 00 01 1B <155 VCED bytes> <checksum> F7`: one voice replaces the voice of the FM6 track: the selected track when it
+    plays FM6, else track n + 1, else the first FM6 track, else the device says `FM6: NO FM6 TRACK`. A wrong checksum: `FM6: BAD
+    CHECKSUM`. The user SAVEs AS on the device to keep it.
+  - `F0 43 0n 09 20 00 <4096 VMEM bytes> <checksum> F7`: 32 voices become a temporary pick list at the end of that track's PRESETS
+    (RAM, lost at power-off).
+  - A dump request (`F0 43 2n ..`) gets no answer; a parameter-change message is let go.
+  One frame at a time: a frame arriving while the previous waits for the main loop is dropped (the editor waits 120 ms after a voice).
+- **The editor**: no FM6 panel and no bank any more. A DX7 voice of the library is only auditioned: it selects FM6 on the track if
+  needed and sends the single voice (no readback: there is none); nothing keeps it in the editor's device lists.
+
 ## Backup and restore (commands 43..48)
 
 `firmware/src/io/editor/ed_backup.c` (builds with flash). Everything the device stores is an **object**: a 4-letter tag, a kind
 and the build switch it needs. Kind 0: a `storage.c` object (A/B sector pair, ≤ 3,840 bytes); kind 1: a user
-sample slot, raw (its 480-byte header at 0, its data from 512; or the FM6 user bank: "FM6B" header, the 4,096 bank
-bytes at 0x1000); kind 2: the FM6 user bank; kind 3: a song section's record in the section log (`sec_codec.c`,
+sample slot, raw (its 480-byte header at 0, its data from 512; an older slot holding the FM6 user bank is not read any more); kind 2: the FM6 user bank (listed, never in a build now); kind 3: a song section's record in the section log (`sec_codec.c`,
 compressed; flags byte first: bit 0 the raw project follows, bit 1 a drum record follows, bit 2 a motion chunk
 follows the flags byte: count (0..64), the PLAY bits, count × 3 bytes (place = track × 64 + step, parameter,
 value), and a raw project after a chunk leaves out its magic, size and sum, 12 bytes; bit 3 format 11 (FUNB);
@@ -583,9 +603,9 @@ settings record before the song chain it names):
 | UPR1, UPR2 | user presets 1–16, 17–32 ("UPB3"; a backup of "UPB2" / "UPB1" is converted on restore) | 0 |
 | UPF6 | the FM6 voices of the user presets ("UPF6": a used mask and 32 packed voices, 7 bits a byte; FELUCCA_UP_FM6) | 0 |
 | UKIT | the user drum kit bank ("DKB3", or "DKB1" converted as it loads; FELUCCA_DRUM_KITS) | 0 |
-| FM6B | the FM6 user bank U01–U32 (FELUCCA_FM6_STORE) | 2 |
+| FM6B | the FM6 user bank U01–U32: dropped 2026-10-18, the tag stays in the list so an older backup reads the same; flags bit 0 (in this build) is always 0, no data, a BK_BEGIN of it says rc 5 (not in this build) | 2 |
 | CZBK | the CZ collection U01–U26 (a used mask, then 26 CZ-1 tones of 144 B; FELUCCA_NATIVE_BANKS with CZ) | 0 |
-| USR1..USR3 | the sample slots (one may hold the FM6 user bank) | 1 |
+| USR1..USR3 | the sample slots | 1 |
 | SNAP | the snapshot area, raw (FELUCCA_SNAPSHOTS; restored through the snapshot import, cmds 54..57) | 6 |
 
 | cmd | Request args | Reply args |
@@ -607,7 +627,7 @@ magic; after SLOOP 2.3): nothing written.
 nothing. A restore sends every storage object (kind 0) through BEGIN / DATA / `COMMIT i 1` first, and writes only when
 none is refused: a set holding an object the firmware would not load (rc 8) stops before the first write, not halfway
 (the editor's `bkCheckAll`; against a firmware that answers version 3 it is skipped, as a check-only COMMIT would write).
-The other kinds (sections, samples, the FM6 bank, snapshots) are not checked this way. The check costs a second
+The other kinds (sections, samples, snapshots) are not checked this way. The check costs a second
 transfer of the storage objects.
 
 - **CRC-32** is zlib's (as `SMP_END` and the storage headers). A storage object's CRC is its header's; a sample slot's
@@ -618,8 +638,7 @@ transfer of the storage objects.
   reaches the flash before COMMIT, which checks the length and the CRC and writes the other copy, header last, read
   back: a transfer or a write cut short leaves the old object. A session left for 10 s ends by itself.
 - **Sample slots** are read with 44 and written with the sample upload commands (11..13: erase, data, header last;
-  a cut upload leaves the slot empty, never half valid); **the FM6 bank** with its DX7 bank SysEx (`F0 43 0n 09 20
-  00`), last (it finds its slot after the samples).
+  a cut upload leaves the slot empty, never half valid). An FM6B object of an older backup is skipped (not in this build, rc 5); nothing is sent as DX7 SysEx any more.
 - **Done**: `BK_END 1` drops the RAM copies of the projects (none is written back over what was restored), and the
   device restarts: every object is loaded as at power-on, older formats migrated as usual.
 - **Pages**: a reply is at most 640 bytes (`ed_out.h`: the FM-1's main RAM is full in the larger builds, so the reply
@@ -651,8 +670,7 @@ the editor shows no button. Nothing is written to flash.
   operators on) is that PTCH; MOD becomes 2.4's MLVL. Engines are numbered as SLOOP 2.5 and 2.6 number them (FUN5 did
   not change in 2.5, and 2.6 reads it): our PHYS is their 10 with its EDIT values; SLOOP 2.4 has no 10 and plays such a
   part as ANALOG (its engine % 10), PHYS's EDIT values on ANALOG's knobs. **lost**, bit 0 an engine SLOOP has not
-  (SLICE, ACID, CZ: their fallback SAMPLE, ANALOG, PHASE), 1 an FM6 part (a voice of its own: the closest 2.4 factory patch F1..F8; or M.TIM / C.TIM / an ENGINE
-  other than MARK I), 2 FX OFF, 3 ANALOG 2, 4 a drum kit past 2.4's 37 (808), 5 locks on parameters 2.4 has not, 6 the
+  (SLICE, ACID, CZ: their fallback SAMPLE, ANALOG, PHASE), 1 an FM6 part (a voice that is not one of 2.4's factory patches F1..F8 and is not put into 2.4's bank: the closest of them), 2 FX OFF, 3 ANALOG 2, 4 a drum kit past 2.4's 37 (808), 5 locks on parameters 2.4 has not, 6 the
   drum lanes' record (but their DLY: the level most lanes have is 2.5's drums' delay send, byte 73, which 2.4 ignores), 7 the reverb type / COMP / LIMIT; bit 8 is not a loss: the FM6 voices went into the bank (part 2);
   the FX slots (v10): 9 an amount of an effect in no slot (written 0: 2.4 would play it), 10 COMP (a track's, the drum
   bus's, a drum sound's), 11 a drum sound's DIST, 12 the drum bus's DST CHO DLY REV (9..12: only what is heard here); the automation store (v11): 13 hold
@@ -700,7 +718,7 @@ the editor shows no button. Nothing is written to flash.
   the bank as `{id: 8, …}` when bit 8 says a voice went into it): in SLOOP 2.4's editor, BACKUP > Restore makes it
   2.4's working project (and settings, and FM6 bank: it replaces 2.4's); SAVE it there.
 
-## SLOOP 2.4 import (commands 90, 91)
+## SLOOP 2.4 import (command 90; 91 is retired)
 
 `firmware/src/io/editor/ed_sl24.c` (builds with `FELUCCA_SL24_EDIMPORT`, default off; it needs `FELUCCA_SL24_IMPORT`). A
 firmware without it does not answer: the editor shows no button. Nothing is written to flash.
@@ -710,21 +728,19 @@ firmware without it does not answer: the editor shows no button. Nothing is writ
 | 90 SL24_PUT | 0 (begin), length (3 × 7 bit), CRC-32 (5 × 7 bit) | 0, rc |
 | | 1 (data), offset (3 × 7 bit), CRC-32 of the chunk (5 × 7 bit), pack7 bytes (≤ 256, in order) | 1, offset (3 × 7 bit), rc |
 | | 2 (commit) | 2, rc (0: imported, the working project now) |
-| 91 SL24_BANK | offset (3 × 7 bit) | rc (0 ok, 4 none kept), length (3 × 7 bit: 3472), CRC-32 of it all (5 × 7 bit), offset (3 × 7 bit), pack7 bytes (≤ 256) |
 
 - **The object** (90): a SLOOP 2.4 / 2.5 project (FUN5, 3840 bytes, with its sum) of a SLOOP backup file (its object 0,
   the working project, or 2..5, A..D); a SLOOP 2.6 project (FUN6, 3816 bytes) is made a FUN5 by the editor first
   (`sl26ToFun5`, as the FM-1's `sl24_import.c sl26_to_sl24`: 2.6's ten new parameters but LFO 2's SYNC (it becomes the part's LFO RATE -n, as on the FM-1), its TEXTURE and, on this
-  path, the ANALOG filter TYPE left out), then optionally a byte of FM6 parts (bit k: part k's patch follows) and 3 × 128
-  bytes: each FM6 part's bank patch (PTCH B1..B27) from the file's object 8, packed DX7. 3840 or 4225 bytes. A part
-  on a bank patch the object has not: 2.4's INIT, as 2.4 plays an empty slot. The commit imports it as PROJECT > LOAD
+  path, the ANALOG filter TYPE left out). The object is exactly
+  these 3840 bytes and nothing after them (older editors also sent a byte of FM6 parts and 3 × 128 bytes of 2.4's bank
+  patches: refused, rc 6; the FM6 part of a project keeps whatever voice 2.4's PTCH names). The commit imports it as PROJECT > LOAD
   twice does with a 2.4 project left in flash (`sl24_guard.c sl24_import_buf`): the working project; SAVE keeps it.
 - **rc**: 0 ok, 1 arguments / no import begun, 2 CRC (a chunk: send it again; the object at the commit), 3 the
-  transport plays (stop first), 6 a length other than 3840 or 4225, 8 not a SLOOP 2.4 project, 9 busy (a restore
+  transport plays (stop first), 6 a length other than 3840, 8 not a SLOOP 2.4 project, 9 busy (a restore
   holds the buffer). A begun import holds the project buffer as a restore does: 10 s without a command lets it go.
-- **91** reads 2.4's FM6 bank where 2.4 left it in flash (its object 8, 3472 bytes as 2.4 stores it; the current
-  valid copy, CRC and layout checked): the editor puts its patches in the free (INIT VOICE) slots of the FM6 user
-  bank (the bank's usual write), never over a voice of the user's. rc 4: none kept.
+- **91** (`SL24_BANK`, 2.4's FM6 bank read out of the flash for the editor to import) is retired (2026-10-18): the number stays
+  reserved, the firmware does not answer it, the editor does not send it.
 
 ## Snapshots (commands 54..57, protocol v8)
 
@@ -854,8 +870,7 @@ decoded again. rc: 0 ok, 1 not in order or bad arguments, 2 not a pattern of thi
 a cut record), 3 busy (a restore or another write holds the buffer: ask again), 4 not written (MEM FULL, the arena full,
 a clear while playing). PAT_LIST's "changed" is 0 while the buffer is lent.
 
-85 is kept for a push of the tracks' patterns (PAT_LIST is polled). 86..89 are the FX slots' (v10, below; 88, 89 kept); 90, 91
-are SLOOP 2.4's editor import (`SL24_EDIMPORT`).
+85 is kept for a push of the tracks' patterns (PAT_LIST is polled). 86..89 are the FX slots' (v10, below; 88, 89 kept); 90 is SLOOP 2.4's editor import (`SL24_EDIMPORT`); 91 (`SL24_BANK`) is retired, reserved.
 The backup carries the patterns as PTN1..PTN6 (u8 log id, u16 length, the record, as many as fit each), restored before
 the scenes.
 

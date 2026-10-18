@@ -13,11 +13,11 @@
       "CUT": "ENV 1 to the cutoff", "BITS": "ENV 1 to the bit depth", "DRV": "ENV 1 to the drive",
       "VOWL": "ENV 1 to the vowel", "BUZZ": "ENV 1 to the buzz", "Q": "ENV 1 to the formant Q",
       "PW": "ENV 1 to the pulse width", "CLICK": "ENV 1 to the key click", "TOP": "ENV 1 to the top bars",
-      "POS": "ENV 1 to the grain position", "DENS": "ENV 1 to the grain density", "MOD": "ENV 1 to the FM6 mod levels",
+      "POS": "ENV 1 to the grain position", "DENS": "ENV 1 to the grain density",
       "DCAY": "ENV 1 to the slice decay", "PTCH": "ENV 1 to the slice pitch", "BRIT": "ENV 1 to the brightness",
       "DAMP": "ENV 1 to the damping", "EXC": "ENV 1 to the exciter", "VCF": "ENV 1 to the VCF (Juno)",
       "FREQ": "ENV 1 to the noise frequency", "COLR": "ENV 1 to the noise colour",
-      "DCW": "Its envelope to the DCW", "M.TIM": "Modulator envelope times", "C.TIM": "Carrier envelope times",
+      "DCW": "Its envelope to the DCW",
       "ENV": "303 filter envelope amount", "DEC": "303 filter envelope decay", "ACC": "303 accent amount", "SLD": "303 slide time",
       "W.TIM": "DCW envelope times", "A.TIM": "Level envelope times"}},
     {"kind": "page", "ctx": "ENV2", "if": "FELUCCA_ANALOG2", "params": {
@@ -262,8 +262,7 @@
       "SRC": "Grain source", "POS": "Position in the sample", "SIZE": "Grain size", "DENS": "Grains per second",
       "PTCH": "Grain pitch", "SPRD": "Position spread", "RAND": "Random pitch / reverse", "TONE": "Tone (low-pass)"}},
     {"kind": "eng", "ctx": "FM6", "if": "FELUCCA_ENG_FM6", "params": {
-      "VOICE": "DX7 voice", "MOD": "Modulator levels", "M.TIM": "Modulator envelope times",
-      "C.TIM": "Carrier envelope times", "ENGINE": "Engine resolution"}},
+      "VOICE": "DX7 voice"}},
     {"kind": "eng", "ctx": "SUPER", "if": "FELUCCA_ENG_SUPER && !FELUCCA_ANALOG2", "params": {
       "SUPR": "Saw copies", "SDTN": "Copy spread", "MIX": "Copies level", "DRFT": "Pitch drift",
       "SUB": "Sub octave level", "CUT": "Filter cutoff", "RES": "Filter resonance", "FTYP": "Filter type"}},
@@ -313,8 +312,6 @@
       "wave": "LFO wave", "ksync": "LFO key sync", "pms": "LFO pitch sensitivity"}},
     {"kind": "fm6", "ctx": "porta", "if": "FELUCCA_ENG_FM6 && (!defined(FELUCCA_FM6_KEYS) || FELUCCA_FM6_KEYS)", "params": {
       "porta": "Portamento mode", "time": "Portamento time", "gliss": "Glissando", "dxvel": "DX7 velocity range"}},
-    {"kind": "fm6", "ctx": "store", "if": "FELUCCA_ENG_FM6 && (!defined(FELUCCA_FM6_KEYS) || FELUCCA_FM6_KEYS)", "params": {
-      "slot": "User voice slot", "store": "Store the voice (twice)", "send": "Send as DX7 SysEx (twice)", "init": "Init the voice (twice)"}},
 
 
     {"kind": "op", "ctx": "INSERTS", "if": "FELUCCA_INS_CHORUS || FELUCCA_INS_DELAY || FELUCCA_INS_JCHORUS || FELUCCA_INS_FLANGER", "params": {
@@ -390,9 +387,6 @@
       "SLOT": "User kit slot", "SAVE": "Save the user kit (asks)", "ERASE": "Erase the user kit (asks)",
       "RESET": "Reset to the kit sound (asks)", "FX ON": "Drum effects on or off"}},
     {"kind": "op", "ctx": "ACID GEN", "if": "FELUCCA_ENG_ACID", "params": {"GEN": "Write a new line (asks)"}},
-    {"kind": "op", "ctx": "STORE", "if": "FELUCCA_ENG_FM6 && (!defined(FELUCCA_FM6_KEYS) || FELUCCA_FM6_KEYS)", "params": {
-      "SLOT": "User voice slot", "STORE": "Store the voice (asks)", "SEND": "Send as DX7 SysEx (asks)",
-      "INIT": "Init the voice (asks)"}},
     {"kind": "op", "ctx": "SOUND", "params": {
       "PRESET": "The track's sound", "ENGINE": "Next engine, first sound",
       "INIT": "Engine defaults (asks)", "SAVE AS": "Save as a user preset (asks)",

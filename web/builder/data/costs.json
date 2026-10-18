@@ -138,84 +138,20 @@
     "ramtext": -232
    }
   },
-  "FM6_MARK1": {
-   "0": {
-    "flash": -3064,
-    "ram": -4096,
-    "pool": 0,
-    "ramtext": 0
-   }
-  },
-  "FM6_MKI_FLASH": {
-   "1": {
-    "flash": 2004,
-    "ram": -4096,
-    "pool": 0,
-    "ramtext": 0
-   }
-  },
-  "FM6_MODERN": {
-   "0": {
-    "flash": -456,
-    "ram": 0,
-    "pool": 0,
-    "ramtext": 0
-   }
-  },
-  "FM6_OPL": {
-   "0": {
-    "flash": -1712,
-    "ram": -1536,
-    "pool": 0,
-    "ramtext": 0
-   }
-  },
   "FM6_KEYS": {
    "0": {
-    "flash": -6944,
-    "ram": -64,
-    "pool": -352,
+    "flash": -6272,
+    "ram": 0,
+    "pool": 0,
     "ramtext": 0
    }
   },
   "FM6_SYSEX": {
    "0": {
-    "flash": -1212,
-    "ram": -16,
-    "pool": 0,
-    "ramtext": 0
-   }
-  },
-  "FM6_VOICES": {
-   "0": {
-    "flash": -2044,
+    "flash": -1316,
     "ram": 0,
-    "pool": 0,
-    "ramtext": 0
-   }
-  },
-  "FM6_ALL": {
-   "0": {
-    "flash": -736,
-    "ram": 0,
-    "pool": 0,
-    "ramtext": 0
-   }
-  },
-  "FM6_ALGO": {
-   "0": {
-    "flash": -64,
-    "ram": 0,
-    "pool": 0,
-    "ramtext": 0
-   }
-  },
-  "FM6_STORE": {
-   "0": {
-    "flash": -660,
-    "ram": 0,
-    "pool": -480,
-    "ramtext": 0
+    "pool": -4260,
+    "ramtext": 16
    }
   },
   "NATIVE_BANKS": {
@@ -1322,10 +1258,10 @@
   },
   "UP_FM6": {
    "1": {
-    "flash": 1072,
+    "flash": 900,
     "ram": 0,
     "pool": 0,
-    "ramtext": 16
+    "ramtext": 4
    }
   },
   "SL24_SAFE": {
@@ -1462,6 +1398,46 @@
     "ram": 1856,
     "pool": 288,
     "ramtext": -196
+   }
+  },
+  "FM6_PK_KEYS": {
+   "1": {
+    "flash": 2272,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
+   }
+  },
+  "FM6_PK_BASS": {
+   "1": {
+    "flash": 2336,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
+   }
+  },
+  "FM6_PK_BELLS": {
+   "1": {
+    "flash": 2032,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
+   }
+  },
+  "FM6_PK_PADS": {
+   "1": {
+    "flash": 2032,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
+   }
+  },
+  "FM6_PK_80S": {
+   "1": {
+    "flash": 2272,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
    }
   }
  },
@@ -2877,30 +2853,6 @@
    "pool": 0,
    "ramtext": -4
   },
-  "UI=1,FM6_MARK1=0": {
-   "flash": -160,
-   "ram": 0,
-   "pool": 0,
-   "ramtext": 0
-  },
-  "UI=1,FM6_MKI_FLASH=1": {
-   "flash": 0,
-   "ram": 0,
-   "pool": 0,
-   "ramtext": 0
-  },
-  "UI=1,FM6_MODERN=0": {
-   "flash": -176,
-   "ram": 0,
-   "pool": 0,
-   "ramtext": 0
-  },
-  "UI=1,FM6_OPL=0": {
-   "flash": -156,
-   "ram": 0,
-   "pool": 0,
-   "ramtext": 0
-  },
   "UI=1,FM6_KEYS=0": {
    "flash": 604,
    "ram": -16,
@@ -2909,30 +2861,6 @@
   },
   "UI=1,FM6_SYSEX=0": {
    "flash": 128,
-   "ram": 0,
-   "pool": 0,
-   "ramtext": 0
-  },
-  "UI=1,FM6_VOICES=0": {
-   "flash": -16,
-   "ram": 0,
-   "pool": 0,
-   "ramtext": 0
-  },
-  "UI=1,FM6_ALL=0": {
-   "flash": 740,
-   "ram": 0,
-   "pool": 0,
-   "ramtext": 0
-  },
-  "UI=1,FM6_ALGO=0": {
-   "flash": 68,
-   "ram": 0,
-   "pool": 0,
-   "ramtext": 0
-  },
-  "UI=1,FM6_STORE=0": {
-   "flash": 8,
    "ram": 0,
    "pool": 0,
    "ramtext": 0

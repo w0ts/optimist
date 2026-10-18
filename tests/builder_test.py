@@ -177,17 +177,25 @@ check("the header: a switch off, the name, the hash, the bits",
       "#define FELUCCA_ENG_FM6 0" in h and 'FELUCCA_CFG_NAME "test"' in h and "FELUCCA_CFG_BITS {" in h)
 bad = dict(C.defaults(), **{k: 0 for k in items if items[k].group == "Synth engines" and not items[k].parent})
 check("no synth engine: an error", any("synth engine" in e for e in C.validate(bad)[0]))
-bad = dict(C.defaults(), FM6_MARK1=0, FM6_MODERN=0, FM6_OPL=0)
-check("FM6 without a mode: an error", any("FM6" in e for e in C.validate(bad)[0]))
-mf = dict(C.defaults(), FM6_MKI_FLASH=1)
-check("MARK I tables in flash: off by default, its notice says the hardware cost is not measured",
-      not C.defaults()["FM6_MKI_FLASH"] and any("not measured" in n for n in C.validate(mf)[2]) and
-      "XIP" in items["FM6_MKI_FLASH"].desc and not C.validate(mf)[0])
-check("... without MARK I: a warning", any("MARK I tables" in w for w in C.validate(dict(mf, FM6_MARK1=0))[1]))
+check("FM6's modes are gone: MARK I / MODERN / OPL / MKI_FLASH, STORE, VOICES, ALL, ALGO are retired (their bits 10, 11, 12, 89, 16, 15, 80, 81 never reused), no item",
+      all(k not in items and k in R.RETIRED for k in ("FM6_MARK1", "FM6_MODERN", "FM6_OPL", "FM6_MKI_FLASH", "FM6_STORE",
+                                                    "FM6_VOICES", "FM6_ALL", "FM6_ALGO")) and
+      not {10, 11, 12, 15, 16, 80, 81, 89} & {it.bit for it in items.values()})
+for _k in ("FM6_MARK1", "FM6_MODERN", "FM6_OPL", "FM6_MKI_FLASH", "FM6_STORE", "FM6_VOICES", "FM6_ALL", "FM6_ALGO"):
+    _warns = []
+    _cfg, _nm = C.parse("%s=0\n" % _k, warn=_warns.append)
+    check("an old .config's %s=0 loads, warns \"dropped\" and is ignored" % _k,
+          any("dropped" in x for x in _warns) and _k not in _cfg)
+check("the FM6 voice packs: five items (bits 93..97), off by default, each a flag of its own",
+      [items[k].bit for k in ("FM6_PK_KEYS", "FM6_PK_BASS", "FM6_PK_BELLS", "FM6_PK_PADS", "FM6_PK_80S")] == [93, 94, 95, 96, 97] and
+      not any(C.defaults()[k] for k in ("FM6_PK_KEYS", "FM6_PK_BASS", "FM6_PK_BELLS", "FM6_PK_PADS", "FM6_PK_80S")) and
+      all(items[k].flag == "FELUCCA_" + k for k in ("FM6_PK_KEYS", "FM6_PK_BASS", "FM6_PK_BELLS", "FM6_PK_PADS", "FM6_PK_80S")))
 bad = dict(C.defaults(), DRUM_SYNTH=0, DRUM_SAMPLED=0)
 check("no drum source: an error", any("drum source" in e for e in C.validate(bad)[0]))
 w = dict(C.defaults(), FM6_KEYS=0, FM6_SYSEX=0)
-check("FM6 without editor and SysEx: a warning (preset-only)", any("preset-only" in x for x in C.validate(w)[1]))
+check("FM6 without editor and SysEx: a warning (no voice editing)", any("no voice editing" in x for x in C.validate(w)[1]))
+w = dict(C.defaults(), FM6_SYSEX=0, FM6_PK_KEYS=0, FM6_PK_80S=0)
+check("FM6 without a pack and without SysEx: a warning (INIT VOICE only)", any("INIT VOICE is its only voice" in x for x in C.validate(w)[1]))
 check("DRUM_STEP is on by default (the user-default build has the drum steps on the keys), the store's switches stay off",
       C.defaults()["DRUM_STEP"] == 1 and not any(C.defaults().get(k) for k in ("MICRO", "FILLS", "PLOCK", "CHANCE", "MOTION", "SL24_XSTEP")))
 sx = dict(C.defaults(), MICRO=1, FILLS=1, PLOCK=1, CHANCE=1, MOTION=1)
@@ -203,7 +211,6 @@ if "MOTION" in items:
 # each error names the items it concerns (the menu marks their lines in red as soon as it holds)
 eng = [k for k in items if items[k].group == "Synth engines" and not items[k].parent]
 cases = [("no synth engine", {k: 0 for k in eng}, set(eng)),
-         ("FM6 without a mode", dict(FM6_MARK1=0, FM6_MODERN=0, FM6_OPL=0), {"ENG_FM6", "FM6_MARK1", "FM6_MODERN", "FM6_OPL"}),
          ("no drum source", dict(DRUM_SYNTH=0, DRUM_SAMPLED=0), {"DRUM_SYNTH", "DRUM_SAMPLED"}),
          ("a value out of range", dict(SECTIONS=5), {"SECTIONS"})]
 ok = True
@@ -257,7 +264,7 @@ cover_cases = [(p, C.load_profile(p)[0]) for p in C.profile_names()] + [
     ("no sample set at all", dict(C.defaults(), DRUM_SAMPLED=0, **{k: 0 for k in sets})),
     ("no set of GRAIN's presets", dict(C.defaults(), SET_PIANO=0, SET_VIBES=0, SET_FLUTE=0)),
     ("only PERC (the sampled kits)", dict(C.defaults(), **{k: 0 for k in sets})),
-    ("SLICE, PHYS, CZ, FM6 without its voices", dict(C.defaults(), ENG_SLICE=1, ENG_PHYS=1, ENG_CZ=1, FM6_VOICES=0)),
+    ("SLICE, PHYS, CZ, FM6 without a voice pack", dict(C.defaults(), ENG_SLICE=1, ENG_PHYS=1, ENG_CZ=1, FM6_PK_KEYS=0, FM6_PK_80S=0)),
     ("one sampled kit, no drum synth", dict(C.defaults(), DRUM_SYNTH=0, KIT_ACOUSTIC=0, KIT_DEEP=0, KIT_TIGHT=0,
                                            KIT_BRIGHT=0)),
     ("the X0X kits", dict(C.defaults(), DRUM_X0X909=1, DRUM_X0X808=1)),

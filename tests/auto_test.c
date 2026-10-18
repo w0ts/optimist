@@ -646,7 +646,7 @@ static void t_sl24(void)
     printf("auto: 2.4 export lost 0x%X\n", lost);
     check("exported for 2.4: motion and chance reported (MOTION NOT IN 2.4), locks past 24 reported",
           (lost & SX24_MOTION) && (lost & SX24_CHANCE) && (lost & SX24_LOCK));
-    ok = proj_from_sl24(&q, fun5, SL24_SIZE, y, 0);
+    ok = proj_from_sl24(&q, fun5, SL24_SIZE, y);
     cl = sl24_auto_in(&back, y);
     for (k = 0; k < NPART; k++) {
         int32_t v;

@@ -226,7 +226,7 @@ static void t_roles(void)
         printf("macros: COLOR on %-7s EDIT %u %-5s base %4d: -64 -> %4d, +63 -> %4d\n", ENGINES[e]->name, k + 1u,
                d->label, base, dn, up);
     }
-    check(ok && moved >= 10u, "mapping: COLOR moves each engine's brightness both ways (+48 / -48 its steps, WHEEL >> 3), "
+    check(ok && moved >= 9u, "mapping: COLOR moves each engine's brightness both ways (+48 / -48 its steps, WHEEL >> 3), "
                               "back after the block");
     scene();
     trk[0].p[P_E4] = 60;                             /* ANALOG CUT */

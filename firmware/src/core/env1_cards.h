@@ -10,7 +10,7 @@
  *          for a value the engine reads once a block for the part (WHEEL's DRV CLICK TOP: e->block), moved for the block
  *          from the part's newest voice (voice.c lfo_over_in, as an ENV2 slot on PAN)
  *   alias  the engine's own EDIT value n that already shapes its envelope (ACID's ENV DEC ACC CUT, CZ's DCW W.TIM A.TIM,
- *          FM6's M.TIM C.TIM, PHASE's ENV): the same value shown a second time, nothing stored, nothing computed
+ *          PHASE's ENV): the same value shown a second time, nothing stored, nothing computed
  * The depths are -64..63 (AMT 2 x d on the shared arithmetic). E1C_<NAME>: the engine's four cards {kind | arg},
  * their labels (E1L_*), and ENV 2's default DEST A (the filter where the engine has one, else its nearest: core.h LT_*,
  * at AMT 0: the user raises the amount) */
@@ -49,8 +49,8 @@ enum { E1L_FLT = 8, E1L_PIT, E1L_SHP };
     E1K_PM(5), P_E1X + 1, 5, E1K_PM(3), P_E1X + 2, 3, LT_E4)   /* (no filter: TOP) */
 #define E1C_GRAIN E1C(E1K_FLT, P_ED_FLT, 7, E1K_PIT, P_E1PIT, E1L_PIT, \
     E1K_SHP, P_ED_SHP, 1, E1K_MV(3), P_E1X + 0, 3, LT_FLT)
-#define E1C_FM6 E1C(E1K_AL(2), P_E0 + 2, 2, E1K_AL(3), P_E0 + 3, 3, \
-    E1K_SHP, P_ED_SHP, 1, E1K_PIT, P_E1PIT, E1L_PIT, LT_SHP)   /* (no filter: MOD) */
+#define E1C_FM6 E1C(E1K_PIT, P_E1PIT, E1L_PIT, E1K_AL(5), P_E0 + 5, 5, \
+    E1K_AL(6), P_E0 + 6, 6, E1K_AL(7), P_E0 + 7, 7, LT_PIT)   /* (no filter, no EDIT value but VOICE: PIT, then the "-" cards) */
 #define E1C_SLICE E1C(E1K_FLT, P_ED_FLT, 7, E1K_PIT, P_E1PIT, E1L_PIT, \
     E1K_MV(6), P_E1X + 0, 6, E1K_MV(3), P_E1X + 1, 3, LT_FLT)   /* (PTCH: START is read at the note-on only) */
 #define E1C_PHYS E1C(E1K_FLT, P_ED_FLT, 2, E1K_PIT, P_E1PIT, E1L_PIT, \

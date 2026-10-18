@@ -7,11 +7,10 @@
  *           drum records). Read: the current copy's payload. Written back through st_save: the other copy,
  *           header last, read back; the bytes are those the firmware wrote, in their own format (magic,
  *           version inside), so loading them runs the usual migrations.
- *   BK_FM6  the FM6 user bank (fm6_store.c, 0xD8000 / 0xD9000): its 4096 VMEM bytes; written back through
- *           fm6_bank_save (erase, data, header last).
+ *   BK_FM6  the FM6 user bank (0xD8000 / 0xD9000; dropped 2026-10-18: listed, never in a build)
  *   BK_USR  a user sample slot, raw (its header and data; an older slot holding the FM6 user bank too). Read here;
  *           written with the sample upload commands (11..13, SMP_BEGIN / WRITE / END: erase, data, header
- *           last), the FM6 bank with its DX7 bank SysEx (fm6_store.c).
+ *           last).
  * Commands (a firmware without them does not answer 43):
  *   43 BK_LIST    3 (version), first -> 3, n, switches (2 x 7 bit), project magic (4 ASCII), chunk (2 x 7 bit),
  *                                     first, count, then per object first..first+count-1: tag (4 ASCII), kind,
@@ -54,16 +53,13 @@ enum { BK_ST, BK_USR, BK_FM6, BK_SEC, BK_PRJ, BK_LOG, BK_SNP };   /* BK_SEC: a s
 #define BK_VERSION 4u                         /* 2: BK_LIST ends with what the build holds (bk_caps); 3: paged;
                                                * 4: BK_COMMIT's second byte 1 = check only (the editor checks every object first) */
 #define BK_CHUNK 256u
-#ifdef FM6_BANK_N                             /* (fm6_store.c: the firmware; host tests may leave it out) */
-#define BK_FM6_ON (FELUCCA_ENG_FM6 && FELUCCA_FM6_STORE)
-#define BK_FM6_N FM6_BANK_N
-#else
+/* the FM6 user bank (0xD8000 / 0xD9000) was dropped 2026-10-18: its object stays in the list so that an older backup
+ * (and an older editor's list) reads the same, but it is never in this build (rc 5: not written), nothing reads it */
 #define BK_FM6_ON 0
 #define BK_FM6_N 4096u
 #define fm6_bank_xip ((const uint8_t *)0)
 #define fm6_bank_save(b) ((void)(b), -1)
 #define fm6_bank_find() ((void)0)
-#endif
 #define BK_XID 0xFFu                          /* BK_LOG id of XSTP: not a log id, the extras' pack (bk_xs_pack) */
 #define BK_PID 0xF0u                          /* BK_LOG ids of PTN1..PTN6: the patterns' packs (bk_pt_pack) */
 #define BK_FXID 0xEFu                         /* BK_LOG id of FXSL: the FX records' pack of before (u8 lengths, every record in

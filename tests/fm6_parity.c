@@ -62,8 +62,8 @@ int main(int argc, char **argv)
     int32_t b[CTL];
     uint32_t i, k, ev = 0;
     FILE *f, *f2 = 0;
-    if (argc == 3 && !strcmp(argv[1], "--rom")) {        /* a factory voice as score "voice" values */
-        fm6_from_rom(ed, &FM6_ROM[atoi(argv[2]) % FM6_NROM]);
+    if (argc == 3 && !strcmp(argv[1], "--rom")) {        /* a built-in voice (INIT VOICE, the packs built) as score "voice" values */
+        fm6_from_rom(ed, fm6_rom((uint32_t)atoi(argv[2]) % FM6_NVOICE));
         for (i = 0; i < 155u; i++)
             printf("%d%c", ed[i], i < 154u ? ' ' : '\n');
         return 0;
@@ -76,7 +76,6 @@ int main(int argc, char **argv)
     host_preset(t, FM6_E, 0);
     for (i = 0; i < 8u; i++)
         t->p[P_E0 + i] = 0;
-    t->p[P_E4] = (int16_t)s.engine;
     fm6_cur[0] = (int16_t)(t->p[P_E0] + 1);              /* keep the score's voice in the buffer */
     for (i = 0; i < 155u; i++)
         ed[i] = s.voice[i];

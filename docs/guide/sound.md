@@ -26,7 +26,7 @@ engine gives them (ANALOG shows OSC and FLT, for example).
 | TRIO | `ENG_TRIO` | Three oscillators with ring modulation and hard sync into a multimode filter | OSC: WAVE INT2 INT3 DTN; TONE: MODE CUT RES PW |
 | WHEEL | `ENG_DRAWBAR` | A tonewheel organ: nine drawbars per note, 16 registrations | BARS: REG SUB BODY TOP; TONE: PERC CLICK DRV ROTR |
 | GRAIN | `ENG_GRAIN` | Granular: clouds of grains cut from the sample sets or your USR slots | GRAN: SRC POS SIZE DENS; SPRY: PTCH SPRD RAND TONE |
-| FM6 | `ENG_FM6` | Six-operator FM that plays DX7 voices as Dexed does; its own operator editor (ENV on an FM6 track) and DX7 SysEx | EDIT 1: VOICE MOD M.TIM C.TIM; EDIT 2: ENGINE |
+| FM6 | `ENG_FM6` | Six-operator FM that plays DX7 voices as Dexed does; its own operator editor (ENV on an FM6 track) and DX7 SysEx in; INIT VOICE and the voice packs are its sounds | EDIT 1: VOICE |
 | SLICE | `ENG_SLICE` | A break slicer: cuts a loop into 4, 8, 16 or 32 slices (or one per hit) and plays them from the keys or the sequencer | SLCE: SRC DIV START PTCH; PLAY: MODE REV DCAY TONE |
 | PHYS | `ENG_PHYS` | Physical models: modal, string, membrane and sympathetic strings | MODEL, then STRC BRIT DAMP POS and ACC BOW EXC |
 | ACID | `ENG_ACID` | A TB-303-style bass voice, monophonic | EDIT 1: CUT RESO ENV DEC; EDIT 2: ACC WAVE DRV SLD; ACID GEN: DENS ACC SLD GEN |
@@ -101,7 +101,7 @@ too: turning them is turning the EDIT value.
 | TRIO | FLT | PIT | PW | RES |
 | WHEEL | PIT | DRV | CLICK | TOP |
 | GRAIN | TONE | PIT | POS | DENS |
-| FM6 | M.TIM (its EDIT value) | C.TIM (its EDIT value) | MOD | PIT |
+| FM6 | PIT | - | - | - |
 | SLICE | TONE | PIT | DCAY | PTCH |
 | PHYS | BRIT | PIT | DAMP | EXC |
 | ACID | ENV | DEC | ACC | SLD (the 303's own EDIT values) |

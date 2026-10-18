@@ -62,8 +62,8 @@ static uint8_t fun5[3840];
 
 /* got = base (a packed DX7 voice) with 2.4's macros as its eng_fm6.c fm6_sync puts them, checked by the DX7 chart:
  * algorithm alg (0-based; 4 = DX7's 5: carriers OP1, OP3, OP5), feedback + fb, and on the modulators coarse + mrat
- * (clamped 0..31), rates - meg (0..99), velocity sensitivity + vmod (0..7); carriers and everything else as base */
-static int fm6_baked(const uint8_t *got, const uint8_t *base, int alg, int fb, int mrat, int meg, int vmod)
+ * (clamped 0..31), rates - meg (0..99), velocity sensitivity + vmod (0..7), output level + mlvl x 3/4 (0..99); carriers and everything else as base */
+static int fm6_baked(const uint8_t *got, const uint8_t *base, int alg, int fb, int mrat, int meg, int vmod, int mlvl)
 {
     uint8_t w[128];
     int n, i;
@@ -82,6 +82,7 @@ static int fm6_baked(const uint8_t *got, const uint8_t *base, int alg, int fb, i
             r = s[i] - meg, s[i] = (uint8_t)(r < 0 ? 0 : r > 99 ? 99 : r);
         c = ((s[13] >> 2) & 7) + vmod;
         s[13] = (uint8_t)((s[13] & 3) | (c < 0 ? 0 : c > 7 ? 7 : c) << 2);
+        r = s[14] + mlvl * 3 / 4, s[14] = (uint8_t)(r < 0 ? 0 : r > 99 ? 99 : r);
     }
     return !memcmp(got, w, sizeof w);
 }
@@ -133,7 +134,7 @@ int main(void)
     fclose(f);
     check("tests/sl24_fun5.bin is a SLOOP 2.4 project; ours does not read it as a project (import only when asked)",
           sl24_is(fun5, sizeof fun5) && !proj_import(&q, fun5, sizeof fun5));
-    ok = proj_from_sl24(&q, fun5, sizeof fun5, x, 0) && proj_ok(&q);
+    ok = proj_from_sl24(&q, fun5, sizeof fun5, x) && proj_ok(&q);
     check("imported: a valid project of ours", ok);
     /* values (the generator: track k, value i = k * 7 + i % 40; E i = 10 + i + k) */
     for (k = 0, ok = 1; k < NTRK; k++) {
@@ -165,12 +166,12 @@ int main(void)
          q.t[3].engine == 0;
     check("engines: 2.4's numbers are our UIDs (ANALOG, FM6 9, TRIO)", ok);
     pj_to_p(v, q.t[1].p);
-    check("FM6 part: PTCH F3 (ROUND BASS) -> VOICE R03 (SOLID BASS, a name), MLVL 10 -> MOD 15, M.TIM C.TIM 0, MARK I",
-          v[P_E0] == 2 && v[P_E1] == 15 && v[P_E2] == 0 && v[P_E3] == 0 && v[P_E4] == 1);
+    check("FM6 part: PTCH F3 (ROUND BASS) -> VOICE INIT VOICE (a name), the other EDIT values 0 (MLVL goes into the voice)",
+          v[P_E0] == 0 && v[P_E1] == 0 && v[P_E2] == 0 && v[P_E3] == 0 && v[P_E4] == 0);
     check("... its voice: 2.4's ROUND BASS itself (the part's own, all six operators on); no other part has one",
           q.fm6_has == 2u && q.fm6_on[1] == 0x3Fu && !memcmp(q.fm6[1] + 118, "ROUND BASS", 10));
-    check("... with 2.4's macros in it as 2.4 plays them (ALG 5, FB +2, MRAT -3 MEG +4 VMOD +1 on the modulators)",
-          fm6_baked(q.fm6[1], SL24_FM6_F[2], 4, 2, -3, 2, 1));
+    check("... with 2.4's macros in it as 2.4 plays them (ALG 5, FB +2, MRAT -3 MEG +4 VMOD +1 MLVL 10 on the modulators)",
+          fm6_baked(q.fm6[1], SL24_FM6_F[2], 4, 2, -3, 2, 1, 10));
     pj_to_p(v, q.t[3].p);
     check("drum track: kit 7 (606) stays 7", v[P_E0] == 7);
     ok = q.g[G_VIEW] == GP[G_VIEW].def && q.g[0] == 1 && q.g[PJ_NG - 1] == (int16_t)PJ_NG && q.sel == 2 &&
@@ -231,7 +232,7 @@ int main(void)
         fm1_ms += 500;
         project_load(1);
         ok &= !strncmp(last_msg, "2.4 IMPORTED", 12) && !memcmp(trk[2].step, want2, sizeof want2) &&
-              trk[1].p[P_E0] == 2;
+              trk[1].p[P_E0] == 0;
         check("flash: B shows SLOOP 2.4; LOAD offers, LOAD again (4 s) imports it as the working project", ok);
 #if TFLT_ON
         check("... its FILT in use (-20): every part S1 DIST S2 FILTER (2.4's order: fx_rec.c ins_map, no FX record in 2.4's), "
@@ -293,7 +294,7 @@ int main(void)
         host_tracks_init();
         song.playing = 0, transport_req = 0;
         sl24_auto_import();
-        ok = !strncmp(last_msg, "2.4 IMPORTED", 12) && !memcmp(trk[2].step, want2, sizeof want2) && trk[1].p[P_E0] == 2;
+        ok = !strncmp(last_msg, "2.4 IMPORTED", 12) && !memcmp(trk[2].step, want2, sizeof want2) && trk[1].p[P_E0] == 0;
         check("... A24 imports it as the working project", ok);
 #if FELUCCA_SL24_XSTEP
         for (k = 0, ok = 1; k < NTRK; k++)
@@ -309,55 +310,39 @@ int main(void)
         sl24_auto_import();
         check("no 2.4 autosave: A24 says EMPTY SLOT", sl24_find(OBJ_AUTOSAVE, &ah) < 0 && !strcmp(last_msg, "EMPTY SLOT"));
     }
-    /* FM6 bank patches (PTCH B1..B27): from 2.4's bank where 2.4 left it (0xE5000 / 0xE6000), or the editor's file */
+    /* FM6 bank patches (PTCH B1..B27) are no longer imported (the bank import went 2026-10-18): the part starts from INIT,
+     * 2.4's macros put in; 2.4's flash bank is left alone */
     {
         static uint8_t b24[3840], rec[128], keep[8192];
-        static const int16_t E0[7] = {0, 0, 0, 0, 0, 0, 0}, E1[7] = {0, 9, -6, 2, -64, -9, 30};
-        memcpy(rec, SL24_FM6_F[6], 128);                         /* (a patch of its own: DRAWBARS renamed) */
+        static const int16_t E0[7] = {0, 0, 0, 0, 0, 0, 0}, E1[7] = {5, 9, -6, 2, -64, -9, 30};
+        memcpy(rec, SL24_FM6_F[6], 128);
         memcpy(rec + 118, "MY ORGAN  ", 10);
-        rec[110] = 4;                                            /* (ALG 5) */
+        rec[110] = 4;
         memset(nor, 0xFF, sizeof nor);
-        put_bank24(0, 3, 4, SL24_FM6_F[1]);                      /* (an older copy: B5 GLASS BELL) */
-        put_bank24(1, 4, 4, rec);                                /* (the current: B5 its own) */
+        put_bank24(1, 4, 4, rec);                                /* (2.4's bank holds B5 its own) */
         memcpy(keep, nor + 0xE5000, sizeof keep);
         fun5_with(b24, 0, 8 + 4, E0, 7);
         host_tracks_init();
         song.playing = 0, transport_req = 0;
-        check("bank: the current copy of 2.4's bank found (the newer of A / B, CRC and layout checked)",
-              sl24_bank_at() == 0xE6000u + 256u);
-        ok = sl24_import_buf(b24, sizeof b24, 0) && ((proj_tmp.cur.fm6_has & 1u) != 0) && !memcmp(proj_tmp.cur.fm6[0], rec, 128);
-        check("... PTCH B5: the part's voice is B5's patch as the bank has it (macros 0: as it is)", ok);
-        check("... read only: 2.4's bank as it was", !memcmp(keep, nor + 0xE5000, sizeof keep));
+        ok = sl24_import_buf(b24, sizeof b24) && ((proj_tmp.cur.fm6_has & 1u) != 0) && !memcmp(proj_tmp.cur.fm6[0], SL24_FM6_INIT, 128);
+        check("PTCH B5 (a bank patch): not imported, the part's voice is INIT as 2.4 plays an empty slot", ok);
+        check("... 2.4's bank untouched", !memcmp(keep, nor + 0xE5000, sizeof keep));
         fun5_with(b24, 0, 8 + 4, E1, 7);
-        ok = sl24_import_buf(b24, sizeof b24, 0) && fm6_baked(proj_tmp.cur.fm6[0], rec, 4, 9, 2, -40, -9);
+        ok = sl24_import_buf(b24, sizeof b24) && fm6_baked(proj_tmp.cur.fm6[0], SL24_FM6_INIT, 4, 9, 2, -40, -9, -6);
         pj_to_p(v, proj_tmp.cur.t[0].p);
-        check("... with its macros put in (FB clamped at 7, MEG -64 = 40 rate steps faster), MLVL -6 -> MOD -9", ok && v[P_E1] == -9);
-        fun5_with(b24, 0, 8 + 5, E0, 7);
-        ok = sl24_import_buf(b24, sizeof b24, 0) && !memcmp(proj_tmp.cur.fm6[0], SL24_FM6_INIT, 128);
-        check("... an empty slot (B6): 2.4's INIT, as 2.4 plays it", ok);
-        {
-            const uint8_t *fv[NPART] = {SL24_FM6_F[3], 0, 0};
-            fun5_with(b24, 0, 8 + 4, E0, 7);
-            ok = sl24_import_buf(b24, sizeof b24, fv) && !memcmp(proj_tmp.cur.fm6[0], SL24_FM6_F[3], 128);
-            check("... the editor's file gives the patch: that one, not the flash's", ok);
-        }
-        memset(nor + 0xE6000, 0xFF, 4096);                       /* (copy B gone: A, the older, is current) */
-        memset(nor + 0xE5000 + 800, 0, 4);                       /* (and A damaged: its CRC) */
-        fun5_with(b24, 0, 8 + 4, E0, 7);
-        ok = sl24_bank_at() == 0 && sl24_import_buf(b24, sizeof b24, 0) && !memcmp(proj_tmp.cur.fm6[0], SL24_FM6_INIT, 128);
-        check("... no valid bank: INIT", ok);
+        check("... its macros put into INIT (FB clamped at 7, MEG -64 = 40 rate steps faster), VOICE INIT VOICE", ok && v[P_E0] == 0);
 #if FELUCCA_DRUM_USR && FELUCCA_ANALOG2
         /* 2.4's USR kits: each lane the zone of that user slot holding its GM note */
         usr_nz[1] = 2;
         usr_zone[1][0].lo = 36, usr_zone[1][0].hi = 36;          /* (lane 0: BD 36) */
         usr_zone[1][1].lo = 38, usr_zone[1][1].hi = 42;          /* (lanes SD 38, 39 CP, 42 CH, 40) */
         fun5_with(b24, 0, 0, E0, 37 + 1);                        /* (USR2) */
-        ok = sl24_import_buf(b24, sizeof b24, 0) && proj_tmp.cur.dl_hash != 0;
+        ok = sl24_import_buf(b24, sizeof b24) && proj_tmp.cur.dl_hash != 0;
         ok &= dl.src[0] == DL_USR + 1 && dl_hit(dl.ref[0]) == 0 && dl.src[1] == DL_USR + 1 && dl_hit(dl.ref[1]) == 1 &&
               dl.src[3] == DL_USR + 1 && dl.src[4] == 0 && dl.src[5] == 0 && dl_len(dl.ref[0]) == 1024u;   /* (lanes KICK SNARE CLAP C.HAT O.HAT LOW TOM) */
         check("USR2 kit: its lanes play USR2's zones by their GM note (BD zone 0, SD and CH zone 1), the rest the kit", ok);
         fun5_with(b24, 0, 0, E0, 37 + 3);
-        ok = sl24_import_buf(b24, sizeof b24, 0) && proj_tmp.cur.dl_hash == 0 && dl.src[0] == 0;
+        ok = sl24_import_buf(b24, sizeof b24) && proj_tmp.cur.dl_hash == 0 && dl.src[0] == 0;
         check("USR4 kit (not one of our slots): the default kit, no lanes", ok);
         usr_nz[1] = 0;
 #endif

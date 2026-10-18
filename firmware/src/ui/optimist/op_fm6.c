@@ -3,14 +3,14 @@
  * ui/sloop/ui_fm6.c in this UI's grammar and look (its page tables and the algorithm's drawing maths copied: nothing
  * in ui/sloop is called). On an FM6 track (the FM6 engine is Kerem Kilic's, Melodee: eng_fm6.c):
  *   ENV held     the layer (seq.c LY_OPS): a black key picks what to edit, by the FM-1's printed labels: OP1 .. OP6,
- *                PIT (the pitch envelope), GLO (algorithm, LFO, portamento, store), MONO / POLY the voice mode; the
+ *                PIT (the pitch envelope), GLO (algorithm, LFO, portamento), MONO / POLY the voice mode; the
  *                white keys keep playing (audition). The cards are the page's four values, the panel the algorithm
  *                (the operator picked white, carriers in the engine's colour, an operator switched off dim) over the
  *                black keys' map; OCT- / OCT+ the page back / on. Let go after using it: SOUND's FM6 rows on that
  *                page. SHIFT + ENV locks it (section 2.1)
  *   ENV tapped   SOUND's FM6 family: OPERATOR (OP, ALG, FDBK, VOICE), the six pages of the operator picked (TUNE, RATES,
- *                LEVELS, SENS, SCALE, CURVES), PIT's two, then ALGO, LFO, LFO 2, PORTA, STORE (SLOT, and
- *                STORE SEND INIT as actions); the algorithm drawn over the rows on every one of them. ENV again: the
+ *                LEVELS, SENS, SCALE, CURVES), PIT's two, then ALGO, LFO, LFO 2, PORTA; the algorithm drawn over
+ *                the rows on every one of them. ENV again: the
  *                next row, round. On another engine ENV stays the envelopes' family
  * Edits go into the part's voice (eng_fm6.c fm6_ed), as SLOOP's editor and a DX7 parameter change do. */
 #ifndef FELUCCA_FM6_KEYS
@@ -19,13 +19,10 @@
 #define OP_FM6 (FELUCCA_ENG_FM6 && FELUCCA_FM6_KEYS)
 #define SND_FM6 0xFEu                                   /* op_screens.c snd_fam: SOUND's FM6 rows */
 #if OP_FM6
-static void fm6_store(uint32_t k);                       /* engines/fm6/fm6_store.c (after the UI) */
-static void fm6_send(void);
-static void fm6_init_voice(void);
 static void note_name(char *b, uint32_t n);             /* op_step.c */
 static void val_turn(const param_desc_t *d, int16_t *vp, uint32_t k, int32_t s, int fine);   /* op_screens.c */
 enum { FMT_PIT = 6, FMT_GLO = 7, FMT_MONO = 20, FMT_POLY = 22 };
-enum { FK_NUM, FK_ENUM, FK_BREAK, FK_COARSE, FK_ON, FK_SLOT, FK_GO, FK_NONE };
+enum { FK_NUM, FK_ENUM, FK_BREAK, FK_COARSE, FK_ON, FK_NONE };
 typedef struct {
     const char *lab;
     uint8_t off;                                        /* in the operator (operator pages), else in the voice */
@@ -73,18 +70,15 @@ static const fm6k_page_t FMK_PAGES[] = {
                {"PMS", FV_LPMS, 7, 0, FK_NUM, 0}, FMK_NOP}},
     {"PORTA", {{"PORTA", FN_PMODE, 1, 0, FK_ENUM, FMKN_PMODE}, {"TIME", FN_PTIME, 127, 0, FK_NUM, 0},
                {"GLISS", FN_GLISS, 1, 0, FK_ENUM, FMKN_ONOFF}, {"DXVEL", FN_VNORM, 1, 0, FK_ENUM, FMKN_ONOFF}}},
-    {"STORE", {{"SLOT", 0, FM6_NUSER - 1u, 1, FK_SLOT, 0}, {"STORE", 0, 1, 0, FK_GO, 0},
-               {"SEND", 1, 1, 0, FK_GO, 0}, {"INIT", 2, 1, 0, FK_GO, 0}}},
 };
 #define F6_NPG (sizeof FMK_PAGES / sizeof FMK_PAGES[0])
-enum { F6_OP0 = 1, F6_PIT0 = 7, F6_GLO0 = 9, F6_STORE = 13, F6_ROWS = 1 + (uint32_t)F6_NPG };   /* the rows */
-_Static_assert(F6_ROWS == 14u && F6_STORE == F6_ROWS - 1u, "FM6: OPERATOR, 6 operator pages, PIT 2, GLO 5");
+enum { F6_OP0 = 1, F6_PIT0 = 7, F6_GLO0 = 9, F6_ROWS = 1 + (uint32_t)F6_NPG };   /* the rows */
+_Static_assert(F6_ROWS == 13u, "FM6: OPERATOR, 6 operator pages, PIT 2, GLO 4");
 
 static struct {
     uint8_t target;                                     /* 0..5 = OP1..OP6 (the operator pages edit it) */
     uint8_t row;                                        /* the layer's page: a row of the family (1..13) */
     uint8_t sub[3];                                     /* each kind's page last shown: operator, PIT, GLO */
-    uint8_t slot;                                       /* STORE: the user slot */
     uint8_t picked;                                     /* the layer was used: let go, SOUND's FM6 rows */
 } f6 = {.row = F6_OP0, .sub = {F6_OP0, F6_PIT0, F6_GLO0}};
 
@@ -100,9 +94,9 @@ static uint32_t f6_off(uint32_t r, const fm6k_pd_t *d)  /* where value d of row 
 }
 static int32_t f6_value(uint32_t r, const fm6k_pd_t *d)
 {
-    if (d->kind == FK_NONE || d->kind == FK_GO)
+    if (d->kind == FK_NONE)
         return 0;
-    return d->kind == FK_SLOT ? f6.slot : f6_ed()[f6_off(r, d)];
+    return f6_ed()[f6_off(r, d)];
 }
 static void f6_row_set(uint32_t r)                      /* row r is the page now (the layer's, the family's) */
 {
@@ -111,8 +105,6 @@ static void f6_row_set(uint32_t r)                      /* row r is the page now
         return;
     f6.row = (uint8_t)r;
     f6.sub[f6_kind(r)] = (uint8_t)r;
-    if (r == F6_STORE)                                  /* the voice's own slot, or a free one (Melodee) */
-        f6.slot = (uint8_t)fm6_store_slot(song.sel % NPART, f6.slot);
 }
 
 /* ---- the rows of SOUND's FM6 family (op_screens.c snd_*) */
@@ -146,12 +138,6 @@ static void f6_format(uint32_t r, const fm6k_pd_t *d, int32_t v, char *b)
         else
             fmt_int(b, v);
         break;
-    case FK_SLOT:                                       /* U01 .. U32 */
-        b[0] = 'U';
-        b[1] = (char)('0' + (v + 1) / 10);
-        b[2] = (char)('0' + (v + 1) % 10);
-        b[3] = 0;
-        break;
     default:
         fmt_int(b, v + d->show);
         break;
@@ -181,10 +167,6 @@ static void fm6_cell(uint32_t r, uint32_t k, cell_t *c)
     if (d->kind == FK_NONE)
         return;
     c->label = d->lab;
-    if (d->kind == FK_GO) {
-        cell_act(c, "VOICE", d->lab, 0, d->off != 1u);   /* (INIT destroys, STORE replaces the slot; SEND only sends) */
-        return;
-    }
     c->kind = CK_VAL;
     v = f6_value(r, d);
     f6_format(r, d, v, c->val);
@@ -207,21 +189,16 @@ static void fm6_turn(uint32_t r, uint32_t k, int32_t s, int fine)
         return;
     }
     d = &f6_page(r)->p[k & 3u];
-    if (d->kind == FK_NONE || d->kind == FK_GO)
+    if (d->kind == FK_NONE)
         return;
-    if (d->kind == FK_SLOT) {
-        f6.slot = (uint8_t)clamp((int32_t)f6.slot + (s > 0 ? 1 : -1), 0, d->max);
-        return;
-    }
     fm6_set(f6_ed(), f6_off(r, d), clamp(f6_value(r, d) + (fine ? s : accel(EN_K1 + k, s, d->kind == FK_ENUM ? 0 : d->max)),
                                          0, d->max));
 }
-/* YES: a toggle (two-value lists), or STORE / SEND / INIT (STORE and INIT asked: they replace a voice) */
+/* YES: a toggle (two-value lists) */
 static int fm6_yes(uint32_t r, uint32_t k, uint32_t ok)
 {
-    static const char *const GO[3] = {"STORE", "SEND", "INIT"};
     const fm6k_pd_t *d;
-    char b[8];
+    (void)ok;
     if (!fm6_sel() || !r)
         return 0;
     d = &f6_page(r)->p[k & 3u];
@@ -229,22 +206,7 @@ static int fm6_yes(uint32_t r, uint32_t k, uint32_t ok)
         fm6_set(f6_ed(), f6_off(r, d), !f6_value(r, d));
         return 1;
     }
-    if (d->kind != FK_GO)
-        return 0;
-    if (!ok) {
-        f6_format(r, &FMK_PAGES[F6_STORE - 1u].p[0], f6.slot, b);
-        op_arm(SCR_SOUND, r, k, GO[d->off], d->off ? trk_tag(song.sel) : b, d->off != 1u);   /* "Store U05?", "Send T2?", "Init T2?" */
-        return 1;
-    }
-    ui.toast_next = ok;
-    if (d->off == 0u)
-        fm6_store(f6.slot);
-    else if (d->off == 1u)
-        fm6_send();
-    else
-        fm6_init_voice();
-    ui.toast_next = 0;
-    return 1;
+    return 0;
 }
 
 /* ---- the layer (ENV held on an FM6 track: op_layers.c, LY_OPS) */

@@ -5,7 +5,7 @@
  *     below the snapshot area (every other byte of USR1..USR3 and the banks untouched), alternating copies; found
  *     again at boot; a save cut short (the new copy's commit record torn) leaves the previous one; an erase;
  *   - st_save of a payload built in st_buf saves that payload (storage.c: it no longer reads the current copy over it);
- *   - PRESETS: an FM6 / CZ track lists its used slots (nb_list: count, its own place, the n-th), "F03" / "Z05" and the
+ *   - PRESETS: an FM6 / CZ track lists its used slots (nb_list: count, its own place, the n-th), "K03" / "R05" / "Z05" and the
  *     name (nb_row); a load sets only the engine's values (VOICE / TONE to the slot, the rest of EDIT to defaults; FX,
  *     mix and steps kept), and a CZ part plays the stored bytes (cz_block);
  *   - command 66 (ed_cz): GET / PUT / erase, nibbles low first, round trip; bad nibbles, a wrong length, a slot past
@@ -66,7 +66,7 @@ static void up_slot_label(char *b, uint32_t k)            /* (upreset.c's) */
     b[2] = (char)('0' + (k + 1u) % 10u);
     b[3] = 0;
 }
-#include "../firmware/src/engines/fm6/fm6_store.c"
+#include "../firmware/src/engines/fm6/fm6_sysex.c"
 #include "../firmware/src/storage/nbank.c"
 /* ed_cz.c's surroundings (editor.c) */
 static uint8_t ed_out[600];
@@ -182,27 +182,61 @@ int main(void)
     nb_load(25);
     check("an empty slot: no load", trk[0].p[P_E0] == (int16_t)(CZT_N + 25u));
 
-    /* PRESETS on an FM6 track: the FM6 bank's named voices */
-    {
-        static int16_t ed[FM6_NP];
-        for (i = 0; i < 32u; i++) {
-            fm6_from_rom(ed, &FM6_INIT);
-            if (i == 2u)
-                memcpy(&ed[FV_NAME], (int16_t[10]){'B', 'R', 'A', 'S', 'S', ' ', ' ', ' ', ' ', ' '}, sizeof(int16_t[10]));
-            fm6_pack(bank + i * 128u, ed);
-        }
-    }
-    ok = !fm6_bank_save(bank);
+    /* PRESETS on an FM6 track: the packs this build has (K01.. B01.. M01.. P01.. 801..), then the DX7 bank received (R01..) */
     host_preset(&trk[1], ENG_IX_FM6, 0);
+    trk[1].eng_req = trk[1].engine = (uint8_t)ENG_IX_FM6;
     trk[1].p[P_DLY] = 44;
     song.sel = 1;
     n = nb_list(&r, 0, &at);
-    nb_row(2, tag, nm);
-    check("an FM6 track: the bank's voices not INIT VOICE (U03 BRASS), \"F03\"",
-          ok && n == 1u && at == 2u && str_eq(tag, "F03") && str_eq(nm, "BRASS"));
-    nb_load(2);
-    check("... load: VOICE U03, delay send kept", trk[1].p[P_E0] == (int16_t)(FM6_NROM + 2u) && trk[1].p[P_DLY] == 44 &&
-          !fm6_cur[1]);
+    check("an FM6 track: the packs' voices listed (16 a pack), none received yet", n == FM6_NPKV && at == 0u && r == FM6_NPKV);
+#if FM6_NPACKS
+    nb_row(0, tag, nm);
+    check("... row 0: the first pack's first voice, its letter and its own name",
+          tag[1] == '0' && tag[2] == '1' && !tag[3] && !strncmp(nm, FM6_PACK[0][0].name, strlen(nm)) && nm[0]);
+    nb_row(FM6_NPKV - 1u, tag, nm);
+    check("... the last row: 16 of the last pack", tag[1] == '1' && tag[2] == '6' && !strncmp(nm, FM6_PACK[FM6_NPACKS - 1u][15].name, strlen(nm)) && nm[0]);
+#endif
+#if FM6_NPACKS >= 2
+    nb_load(17);
+    check("... load of the 18th: VOICE = its place (1 + k), the delay send kept, the voice loaded afresh", trk[1].p[P_E0] == 18 && trk[1].p[P_DLY] == 44 && !fm6_cur[1]);
+    nb_list(&r, ~0u, &at);
+    check("... the list's cursor on it", r == 17u);
+    fm6_sync(&trk[1], 0);
+    {
+        char nn[12];
+        fm6_name(nn, fm6_ed[1]);
+        check("... and the buffer holds that voice (its name)", nn[0] && !strncmp(nn, FM6_PACK[1][1].name, strlen(nn)) && fm6_cur[1] == 19);
+    }
+#endif
+    {   /* a DX7 bank received: 32 voices, one of them INIT VOICE (left out) */
+        static uint8_t fr[4104];
+        static int16_t ed[FM6_NP];
+        for (i = 0; i < 32u; i++) {
+            fm6_from_rom(ed, &FM6_INIT);
+            ed[FV_ALG] = (int16_t)(i % 32u);
+            if (i != 4u)
+                memcpy(&ed[FV_NAME], (int16_t[10]){'R', 'X', ' ', 'V', 'O', 'I', 'C', 'E', (int16_t)('A' + i % 26u), ' '}, sizeof(int16_t[10]));
+            fm6_pack(fr + 6 + i * 128u, ed);
+        }
+        fr[0] = 0xF0, fr[1] = 0x43, fr[2] = 0, fr[3] = 9, fr[4] = 0x20, fr[5] = 0;
+        fr[4102] = fm6_chk(fr + 6, 4096);
+        fr[4103] = 0xF7;
+        for (i = 0; i < 4104u; i++)
+            fm6_sx_byte(fr[i]);
+        fm6_service();
+        check("DX7 bank received: the list grows by its voices but INIT VOICE", fm6_pick_ok && nb_list(&r, ~0u, &at) == FM6_NPKV + 31u);
+        n = nb_list(&r, FM6_NPKV + 4u, &at);
+        nb_row(at, tag, nm);
+        check("... the 5th received entry is slot 5 (slot 4 was INIT VOICE): \"R06\" and its name", at == FM6_NPKV + 5u && str_eq(tag, "R06") && !strncmp(nm, "RX VOICEF", 9));
+        trk[1].p[P_E0] = 3;
+        nb_load(FM6_NPKV + 5u);
+        check("... load: the voice into the track's buffer (algorithm 6), VOICE = INIT VOICE (0), the notes stop",
+              fm6_ed[1][FV_ALG] == 5 && trk[1].p[P_E0] == 0 && fm6_cur[1] == 1 && fm6_pt[1].panic && trk[1].p[P_DLY] == 44);
+        fm6_sync(&trk[1], 0);
+        check("... the next block keeps it (no reload over it)", fm6_ed[1][FV_ALG] == 5);
+        nb_load(FM6_NPKV + 4u);
+        check("... the INIT VOICE slot: no load", fm6_ed[1][FV_ALG] == 5);
+    }
 
     /* command 66 */
     tone(t1, 5, "CMD TONE");

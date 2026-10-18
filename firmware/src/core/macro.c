@@ -68,12 +68,12 @@ static const mac_row_t MAC_ROWS[] = {
 static const uint8_t MAC_BRIGHT[ENG_UID_N] = {
     0x04, 0x04, 0x02, 0x07, 0x04, 0x04, 0x05,          /* ANALOG CUT, DIGITAL IDX, PHASE DCW, LOFI TONE, SAMPLE CUT,
                                                         * VOICE BUZZ, TRIO CUT */
-    0x33, 0x07, 0x11, 0x07, 0x02, 0x00, 0x00, 0x04,    /* WHEEL TOP (-8..8), GRAIN TONE, FM6 MOD, SLICE TONE, PHYS
+    0x33, 0x07, 0xFF, 0x07, 0x02, 0x00, 0x00, 0x04,    /* WHEEL TOP (-8..8), GRAIN TONE, FM6 none (no MOD since 2026-10-18), SLICE TONE, PHYS
                                                         * BRIT, ACID CUT, CZ (0x00 as before), JUNO CUT (UID 14, 0x04
                                                         * as feat/engine-juno) */
     0x02};                                             /* NOISE FREQ */
 #else
-static const uint8_t MAC_BRIGHT[ENG_UID_N] = {0x04, 0x04, 0x02, 0x07, 0x04, 0x04, 0x05, 0x33, 0x07, 0x05, 0x11, 0x07};
+static const uint8_t MAC_BRIGHT[ENG_UID_N] = {0x04, 0x04, 0x02, 0x07, 0x04, 0x04, 0x05, 0x33, 0x07, 0x05, 0xFF, 0x07};
 #endif                                                 /* (SUPER CUT at 9) */
 
 #define MAC_MAX 42                                     /* the writes of one block: 12 rows x 3 parts + 5 globals (+ room) */

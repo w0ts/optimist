@@ -53,7 +53,7 @@ LAYOUT = {
     "engines/drawbar": ["eng_drawbar.c"],
     "engines/grain": ["eng_grain.c"],
     "engines/super": ["eng_super.c"],
-    "engines/fm6": ["eng_fm6.c", "eng_fm6_rom.h", "fm6_store.c"],
+    "engines/fm6": ["eng_fm6.c", "eng_fm6_rom.h", "fm6_sysex.c"],
     "engines/slice": ["eng_slice.c"],
     "engines/cz": ["eng_cz.c", "cz_native.c"],
     "engines/phys": ["eng_phys.c", "phys_dsp.c", "phys_symp.c"],

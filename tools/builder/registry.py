@@ -51,6 +51,14 @@ RETIRED = {
     "UA_RESAMPLE": "the USB audio choice of USB_MODE always resamples the capture to the host's clock (retired 2026-10-15; "
                    "USB_MODE=2 now means USB audio + MIDI, resampled)",
     "LFO2": "LFO 2, a second LFO on each synth track, is always built (retired 2026-10-16: no off; any old LFO2 value is ignored)",
+    "FM6_MARK1": "FM6's MARK I mode is gone (retired 2026-10-18, bit 10: FM6 plays Dexed's MODERN only; an old ENGINE setting plays it)",
+    "FM6_MODERN": "FM6's MODERN is its only synthesis (retired 2026-10-18, bit 11; no ENGINE choice, nothing to leave out)",
+    "FM6_OPL": "FM6's OPL mode is gone (retired 2026-10-18, bit 12: FM6 plays Dexed's MODERN only; an old ENGINE setting plays it)",
+    "FM6_MKI_FLASH": "FM6's MARK I tables went with the mode (retired 2026-10-18, bit 89)",
+    "FM6_VOICES": "the 16 factory voices R01..R16 are replaced by the voice packs FM6_PK_* (retired 2026-10-18, bit 15; INIT VOICE is always built)",
+    "FM6_STORE": "the FM6 user bank U01..U32 and STORE are gone (retired 2026-10-18, bit 16: SAVE AS in PRESETS keeps a voice, with UP_FM6)",
+    "FM6_ALL": "FM6's operator editor in VIEW ALL is gone (retired 2026-10-18, bit 80)",
+    "FM6_ALGO": "FM6's algorithm full screen is gone (retired 2026-10-18, bit 81)",
     "VIS": "the SLOOP 2.4 visualiser was dropped from the builder for now (2026-10-10); HOME on TRACKS flips the mixer dial page",
     "KNOB_ONEREST": "the knobs are always read with Felucca 1.6's decoder (one rest state a detent, fast turns counted; "
                     "retired 2026-10-14, released in Felucca 1.1.5 #126 and unchanged since)",
@@ -202,52 +210,42 @@ _add("ENG_GRAIN", "FELUCCA_ENG_GRAIN", "GRAIN (granular on the sample sets)", E,
      desc="Granular synth: plays clouds of tiny grains cut from the sample sets or your USR slots. About 4.9 KB of "
           "flash and 21 KB of pool; with no sample set built it plays your USR samples only.")
 _add("ENG_FM6", "FELUCCA_ENG_FM6", "FM6 (DX7, bit-exact with Dexed)", E, 9, provenance=MELODEE_FM6,
-     desc="Six-operator FM that plays Yamaha DX7 voices the way the Dexed plug-in does, with its own operator "
-          "editor and DX7 SysEx. The biggest engine: about 32 KB of flash, 10 KB of RAM and 12 KB of pool; "
-          "its options below trim it down.")
-_add("FM6_MARK1", "FELUCCA_FM6_MARK1", "FM6 mode MARK I (DX7's own tables)", E, 10, parent="ENG_FM6",
-     desc="The FM6 ENGINE mode that uses the DX7's own log-sine and exponent tables and its feedback behaviour, "
-          "for the most DX7-like sound. Costs about 3.2 KB of flash and 4.1 KB of RAM; off: voices asking for it "
-          "play another mode you kept.")
-_add("FM6_MKI_FLASH", "FELUCCA_FM6_MKI_FLASH", "FM6 MARK I tables in flash", E, 89, default=0, parent="ENG_FM6",
-     desc="with MARK I: its log-sine and exponent tables as generated const data in flash instead of RAM tables built "
-          "at boot (4 KB of RAM less, 1.9 KB of flash more). CPU cost on the FM-1 unknown: the emulator models neither "
-          "the XIP cache nor flash wait states",
-     notice="measured in the emulator only, which has no XIP cache and no flash wait states; "
-            "on the FM-1 every MARK I operator sample reads flash twice: the CPU cost there is not measured.")
-_add("FM6_MODERN", "FELUCCA_FM6_MODERN", "FM6 mode MODERN (clean 24-bit)", E, 11, parent="ENG_FM6",
-     desc="The FM6 ENGINE mode with Dexed's modern 24-bit maths (MSFA). Costs only about 0.6 KB of flash (the sine "
-          "table stays: the LFO uses it); keep at least one of the three modes.")
-_add("FM6_OPL", "FELUCCA_FM6_OPL", "FM6 mode OPL (grittier, chip resolution)", E, 12, parent="ENG_FM6",
-     desc="The FM6 ENGINE mode with the resolution of Yamaha OPL chips, for a different tone from the DX7 modes. "
-          "Costs about 1.9 KB of flash and 1.5 KB of RAM (tables).")
+     desc="Six-operator FM that plays Yamaha DX7 voices the way the Dexed plug-in does (MSFA, bit for bit), with its own "
+          "operator editor and DX7 SysEx in; INIT VOICE and the voice packs below are its sounds. The biggest engine: "
+          "about 28 KB of flash and 6 KB of RAM; its options below trim it down.")
 _add("FM6_KEYS", "FELUCCA_FM6_KEYS", "FM6 operator editor on the black keys", E, 13, parent="ENG_FM6",
      desc="Edit a DX7 voice on the device: hold ENV and press a black key to pick an operator, the pitch envelope or "
-          "the global page, then turn the knobs. About 7.8 KB of flash; off: voices can only be changed by DX7 "
-          "SysEx or the web editor.")
-_add("FM6_SYSEX", "FELUCCA_FM6_SYSEX", "FM6 DX7 SysEx in / SEND (web editor FM6 tab)", E, 14, parent="ENG_FM6",
-     desc="Accepts DX7 voice, bank and parameter changes over USB MIDI, so Dexed or any DX7 librarian can edit a "
-          "part live, and can SEND the voice back; the web editor's FM6 tab needs it. About 1.2 KB of flash; its "
-          "4.1 KB RAM buffer is shared with STORE.")
-_add("FM6_VOICES", "FELUCCA_FM6_VOICES", "FM6 16 factory voices R01..R16", E, 15, parent="ENG_FM6",
-     desc="The 16 built-in DX7 voices R01..R16 (about 2 KB of flash). Off: the R slots play INIT VOICE, a plain "
-          "starting voice; your own bank (U voices) is not affected.")
-_add("FM6_ALL", "FELUCCA_FM6_ALL", "FM6 operator editor in VIEW ALL (pages as rows)", E, 80, parent="ENG_FM6",
-     desc="with VIEW ALL: an operator's pages (or PIT, GLO) as rows of 4 x 4 PAGEs; off: one page at a time "
-          "(saves about 1.2 KB of flash)")
-_add("FM6_ALGO", "FELUCCA_FM6_ALGO", "FM6 algorithm full screen (hold ENV)", E, 81, parent="ENG_FM6",
-     desc="Holding ENV a while on an FM6 track shows the algorithm full screen, with operators numbered and "
-          "carriers, modulators and the feedback loop told apart. Only 48 B of flash; off: holding ENV does nothing extra.")
-_add("FM6_STORE", "FELUCCA_FM6_STORE", "FM6 user bank STORE (U01..U32 in a USR slot)", E, 16, parent="ENG_FM6",
-     desc="STORE your edited voices into a user bank of 32 (U01..U32), kept in a USR sample slot. About 0.6 KB of "
-          "flash and 0.5 KB of RAM; off: no user bank (STORE says NO USER BANK).")
+          "the global page, then turn the knobs. About 6.3 KB of flash; off: a voice can only be replaced by DX7 "
+          "SysEx.")
+_add("FM6_SYSEX", "FELUCCA_FM6_SYSEX", "FM6 DX7 SysEx in (a voice, a 32-voice bank)", E, 14, parent="ENG_FM6",
+     desc="Receives DX7 SysEx over USB MIDI, from Dexed or any DX7 librarian: a single voice replaces the selected FM6 "
+          "track's voice (then SAVE AS keeps it as a user preset), a 32-voice bank becomes a pick list at the end of that "
+          "track's PRESETS (RAM only, until power-off) to audition and SAVE AS. Nothing is sent back. About 1.3 KB of "
+          "flash and 4.3 KB of pool RAM for the frame buffers.")
+_add("FM6_PK_KEYS", "FELUCCA_FM6_PK_KEYS", "FM6 voice pack: keys and e-pianos (16)", E, 93, default=0, parent="ENG_FM6",
+     desc="16 voices of my own for the FM6 track, listed in its PRESETS after the user presets (K01..K16): electric "
+          "pianos, clavs, organs, a harpsichord. About 2.0-2.3 KB of flash.")
+_add("FM6_PK_BASS", "FELUCCA_FM6_PK_BASS", "FM6 voice pack: basses (16)", E, 94, default=0, parent="ENG_FM6",
+     desc="16 bass voices for the FM6 track, listed in its PRESETS after the user presets (B01..B16): slap, fretless, "
+          "synth, pluck and sub basses. About 2.0-2.3 KB of flash.")
+_add("FM6_PK_BELLS", "FELUCCA_FM6_PK_BELLS", "FM6 voice pack: bells and mallets (16)", E, 95, default=0, parent="ENG_FM6",
+     desc="16 voices for the FM6 track, listed in its PRESETS after the user presets (M01..M16): bells, marimba, vibes, "
+          "kalimba, steel drum, glass and chimes. About 2.0-2.3 KB of flash.")
+_add("FM6_PK_PADS", "FELUCCA_FM6_PK_PADS", "FM6 voice pack: pads, leads, brass and FX (16)", E, 96, default=0, parent="ENG_FM6",
+     desc="16 voices for the FM6 track, listed in its PRESETS after the user presets (P01..P16): pads, leads, brass, "
+          "strings and effect sounds. About 2.0-2.3 KB of flash.")
+_add("FM6_PK_80S", "FELUCCA_FM6_PK_80S", "FM6 voice pack: 80s mega classics (16)", E, 97, default=0, parent="ENG_FM6",
+     desc="16 recreations of the famous 80s DX sounds (the e-piano, the bass, the bells, the brass, the marimba, the "
+          "harmonica ...) for the FM6 track, listed in its PRESETS after the user presets (801..816). All programmed "
+          "from scratch, none copied from a ROM or a cartridge. About 2.0-2.3 KB of flash.")
 MELODEE_012 = Provenance("Melodee (keremimo/melodee)", "Kerem Kilic", "GPL-3.0-only", "v0.12 18bfd53", MELODEE_URL)
-_add("NATIVE_BANKS", "FELUCCA_NATIVE_BANKS", "FM6 / CZ native tone collections in PRESETS", E, 235, default=0,
+_add("NATIVE_BANKS", "FELUCCA_NATIVE_BANKS", "CZ native tone collection in PRESETS", E, 235, default=0,
      provenance=MELODEE_012,
-     desc="An FM6 or CZ track's PRESETS list ends with its engine's own tones: FM6 U01..U32 (the FM6 user bank) and, "
-          "with CZ, a collection of 26 CZ-1 tones (the web editor imports and exports Casio .syx). Loading one sets "
-          "only the engine's values: the track keeps its FX, mix and pattern. With CZ the collection takes 8 KiB at "
-          "USR3's end (USR3 holds that much less). About 0.6 KB of flash, 2 KB with CZ (measured); no RAM.",
+     desc="With CZ built, a CZ track's PRESETS list ends with a collection of 26 CZ-1 tones (the web editor imports "
+          "and exports Casio .syx). Loading one sets only the engine's values: the track keeps its FX, mix and pattern. "
+          "The collection takes 8 KiB at USR3's end (USR3 holds that much less). About 2 KB of flash with CZ "
+          "(measured); no RAM. (The FM6 user bank U01..U32 that this item once listed went 2026-10-18; FM6's own "
+          "list is its voice packs and a received DX7 bank, with FM6_SYSEX or a pack.)",
      symbols=("nb_count", "nb_load"))
 _add("ENG_SLICE", "FELUCCA_ENG_SLICE", "SLICE (break slicer + its BREAK sample)", E, 17, default=0,
      desc="Break slicer: cuts a loop (the built-in BREAK, 22 KB of samples, or a USR slot) into 4 / 8 / 16 / 32 "
@@ -905,10 +903,10 @@ _SYMS = {
     "ENG_PHASE": ("ENG_PHASE", "pd_wave"), "ENG_LOFI": ("ENG_LOFI", "lofi_render", "WRAM"),
     "ENG_SAMPLE": ("ENG_SAMPLE",), "ENG_FORMANT": ("ENG_FORMANT", "formant_render"),
     "ENG_TRIO": ("ENG_TRIO", "trio_render"), "ENG_DRAWBAR": ("ENG_DRAWBAR", "drawbar_render"),
-    "ENG_GRAIN": ("ENG_GRAIN", "grain_block"), "ENG_FM6": ("ENG_FM6", "fm6_pt", "FM6_ROM", "fm6k_knob"),
-    "FM6_MARK1": ("FM6_MKI_LOG", "FM6_MKI_EXP", "FM6_MKI_LOGQ", "FM6_MKI_EXPF"),
-    "FM6_OPL": ("FM6_OPL_LOG", "FM6_OPL_EXP"),
-    "FM6_KEYS": ("fm6k_knob",), "FM6_VOICES": ("FM6_ROM",), "ENG_SLICE": ("ENG_SLICE",),
+    "ENG_GRAIN": ("ENG_GRAIN", "grain_block"), "ENG_FM6": ("ENG_FM6", "fm6_pt", "FM6_INIT", "fm6k_knob"),
+    "FM6_KEYS": ("fm6k_knob",), "FM6_PK_KEYS": ("FM6_PK_KEYS",), "FM6_PK_BASS": ("FM6_PK_BASS",),
+    "FM6_PK_BELLS": ("FM6_PK_BELLS",), "FM6_PK_PADS": ("FM6_PK_PADS",), "FM6_PK_80S": ("FM6_PK_80S",),
+    "ENG_SLICE": ("ENG_SLICE",),
     "DRUM_SYNTH": ("DS_KITS",), "DRUM_EDIT": ("de_synth",), "FX_CHORUS": ("cho_buf",),
     "FX_DELAY": ("dly_buf",), "FX_REVERB": ("rev_line", "rev_ap"), "FX_SLICER": ("sl_buf",),
     "FX_PUNCH": ("punch_ring",), "ICONS": ("ICON_DATA",), "EDITOR": ("ed_handle",),

@@ -29,7 +29,7 @@ static uint32_t up_rank(uint32_t slot);
 static void up_name(uint32_t k, char *b);
 static void up_slot_label(char *b, uint32_t k);
 static void up_ui(uint32_t op, uint32_t k);
-#if FELUCCA_NATIVE_BANKS                     /* the engine's own collection after the user presets: nbank.c */
+#if FELUCCA_NB_LIST                     /* the engine's own collection after the user presets: nbank.c */
 #define NB_LIST (NENGINES + 1u)               /* preset_at: an entry of it */
 static uint32_t nb_list(uint32_t *rank, uint32_t n, uint32_t *at);
 static void nb_row(uint32_t k, char *tag, char *nm);
@@ -198,33 +198,27 @@ static const struct __attribute__((packed)) { uint8_t kind : 4, e : 4; const cha
 #if FELUCCA_ANALOG2
     {BK_BASS, 0, "LP24 BASS"},
 #endif
-    {BK_BASS, ENG_UID_FM6, "SOLID BASS"}, {BK_BASS, ENG_UID_FM6, "SAW BASS"},
     {BK_KEYS, 1, "RHODES"}, {BK_KEYS, 1, "DX RHODES"}, {BK_KEYS, 1, "WURLI"}, {BK_KEYS, 1, "M1 PIANO"},
     {BK_KEYS, 1, "AFRO KEYS"}, {BK_KEYS, 4, "GRAND PNO"}, {BK_KEYS, 4, "DUSTY PNO"}, {BK_KEYS, 4, "LOFI KEYS"}, {BK_KEYS, 2, "SOFT KEYS"},
     {BK_KEYS, 1, "CLAV"},
-    {BK_KEYS, ENG_UID_FM6, "TINE EP"}, {BK_KEYS, ENG_UID_FM6, "CLAVINET"},
     {BK_ORGAN, 7, "SOUL ORGAN"}, {BK_ORGAN, 7, "GOSPEL"}, {BK_ORGAN, 7, "JAZZ ORGAN"}, {BK_ORGAN, 7, "DIRTY B3"},
-    {BK_ORGAN, 7, "HOUSE ORGN"}, {BK_ORGAN, ENG_UID_FM6, "DRAWBARS"},
+    {BK_ORGAN, 7, "HOUSE ORGN"},
     {BK_PAD, 0, "WARM PAD"}, {BK_PAD, 6, "SAW PAD"}, {BK_PAD, 1, "GLASS PAD"}, {BK_PAD, 0, "DARK STR"},
     {BK_PAD, 2, "CZ STRING"}, {BK_PAD, 0, "ATMOS PAD"}, {BK_PAD, 8, "LOFI CLOUD"}, {BK_PAD, 8, "VIBE HAZE"},
     {BK_PAD, 5, "CHOIR AAH"}, {BK_PAD, 5, "SOUL OOH"}, {BK_PAD, ENG_UID_SUPER, "SUPER PAD"},
-    {BK_PAD, ENG_UID_FM6, "STRINGS"}, {BK_PAD, ENG_UID_FM6, "FM GLASS"},
     {BK_LEAD, 0, "SUPERSAW"}, {BK_LEAD, ENG_UID_SUPER, "SUPER LEAD"}, {BK_LEAD, 0, "G-FUNK LD"}, {BK_LEAD, 6, "SYNC LEAD"},
     {BK_LEAD, 6, "HOOVER"}, {BK_LEAD, ENG_UID_SUPER, "HOOVER SAW"},
 #if FELUCCA_ANALOG2
     {BK_LEAD, 0, "SYNC SWEEP"}, {BK_LEAD, 0, "FIFTH LEAD"},
 #endif
     {BK_LEAD, 5, "TALKBOX"}, {BK_LEAD, 3, "GAME LEAD"}, {BK_LEAD, 4, "LOFI FLUTE"}, {BK_LEAD, 8, "FLUTE DUST"},
-    {BK_LEAD, ENG_UID_FM6, "FM SYNC LD"}, {BK_LEAD, ENG_UID_FM6, "FLUTE"},
     {BK_PLUCK, 0, "TRAP PLUCK"}, {BK_PLUCK, ENG_UID_SUPER, "SUPER PLCK"}, {BK_PLUCK, 2, "RESO PLUCK"}, {BK_PLUCK, 1, "PLUGG BELL"}, {BK_PLUCK, 1, "TRAP BELL"},
     {BK_PLUCK, 1, "MUSIC BOX"}, {BK_PLUCK, 1, "KALIMBA"}, {BK_PLUCK, 1, "MARIMBA"}, {BK_PLUCK, 4, "VIBES"},
     {BK_PLUCK, 3, "8BIT ARP"},
-    {BK_PLUCK, ENG_UID_FM6, "BELLS"}, {BK_PLUCK, ENG_UID_FM6, "FM MARIMBA"}, {BK_PLUCK, ENG_UID_FM6, "FM KALIMBA"},
-    {BK_PLUCK, ENG_UID_FM6, "STEEL DRUM"}, {BK_PLUCK, ENG_UID_FM6, "TUBULAR"}, {BK_PLUCK, ENG_UID_FM6, "HARP"},
     {BK_STAB, 6, "MIN STAB"}, {BK_STAB, 6, "MIN7 STAB"}, {BK_STAB, 6, "RAVE STAB"}, {BK_STAB, 6, "DUB CHORD"}, {BK_STAB, ENG_UID_SUPER, "SUPER CHRD"},
     {BK_STAB, 0, "SYN BRASS"}, {BK_STAB, 2, "CZ BRASS"}, {BK_STAB, 4, "HORN STAB"}, {BK_STAB, 4, "STRING STB"},
-    {BK_STAB, ENG_UID_FM6, "BRASS SECT"},
     {BK_FX, 4, "SCRATCH"}, {BK_FX, 4, "GM KIT"},
+    {BK_FX, ENG_UID_FM6, "INIT VOICE"}, {BK_FX, ENG_UID_FM6, "INIT WIDE"}, {BK_FX, ENG_UID_FM6, "INIT MONO"},   /* (FM6: the voice packs are nbank.c's) */
 #if FELUCCA_ENG_PHYS
     {BK_PLUCK, ENG_UID_PHYS, "BELL TREE"}, {BK_PLUCK, ENG_UID_PHYS, "WOOD MRMBA"}, {BK_PLUCK, ENG_UID_PHYS, "PLUCK"},
     {BK_PLUCK, ENG_UID_PHYS, "THUMB PNO"}, {BK_PLUCK, ENG_UID_PHYS, "SYMP HARP"}, {BK_PAD, ENG_UID_PHYS, "BOWED METAL"},
@@ -315,7 +309,7 @@ static uint32_t preset_all_pos(uint32_t *total)      /* list index of the select
     if (user_of(TSEL) < UP_SLOTS)
         cur = NLIST + up_rank(user_of(TSEL));
     *total = NLIST + up_count();
-#if FELUCCA_NATIVE_BANKS
+#if FELUCCA_NB_LIST
     {
         uint32_t at, n = nb_list(&i, ~0u, &at);           /* (the engine's own collection: nbank.c) */
         if (i < n)
@@ -331,7 +325,7 @@ static uint32_t preset_all_at(uint32_t n, uint32_t *k)
 {
     if (!bank_ready)
         bank_resolve();
-#if FELUCCA_NATIVE_BANKS
+#if FELUCCA_NB_LIST
     if (n >= NLIST + up_count()) {
         uint32_t r;
         nb_list(&r, n - NLIST - up_count(), k);
@@ -405,7 +399,7 @@ static int fav_cur(uint32_t *e, uint32_t *k)
     uint32_t all, i, u, ke, kk;
     if (is_drum(TSEL))
         return 0;
-#if FELUCCA_NATIVE_BANKS
+#if FELUCCA_NB_LIST
     {
         uint32_t at, r, n = nb_list(&r, ~0u, &at);
         if (r < n)
