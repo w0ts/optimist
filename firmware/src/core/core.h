@@ -229,9 +229,6 @@ enum {                          /* per-track parameters */
      * as soon as a band moves); the bands and frequencies are the owner's (eq3_v). Not part of a sound nor of a user
      * preset; the FX record keeps them (fx_slots.c fxs_tlv, EQ3's TLV) */
     P_TEQ,
-    /* EQ3's bands of the track (2026-10-18: were fx_slots.c eq3_v[track]; the master's, USB's, returns' stay there): LO MID
-     * HI FREQ L FREQ H. Stored as before, in EQ3's TLV */
-    P_TEQLO, P_TEQMID, P_TEQHI, P_TEQFL, P_TEQFH,
 #endif
 #if INS_FX
     /* the shapers' amounts (2026-10-18, fx/insfx/insfx.c; fx_slots.c FXT_SH0 ..): 0 off .. 127, as FOLD's. All six exist

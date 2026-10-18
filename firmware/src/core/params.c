@@ -201,11 +201,6 @@ static const param_desc_t TP[P_COUNT] = {
 #endif
 #if FELUCCA_INS_EQ3
     [P_TEQ] = PE("EQ3", N_ONOFF, 1),               /* EQ3 (insfx/eq3.c): on (its bands: the EQ3 pages) */
-    [P_TEQLO] = {"LO", F_INT, EQ_KILL, 6, 0, 0, EQ_TAG_DB},   /* its bands (2026-10-18: track values), fx_slots.c EQ_D's */
-    [P_TEQMID] = {"MID", F_INT, EQ_KILL, 6, 0, 0, EQ_TAG_DB},
-    [P_TEQHI] = {"HI", F_INT, EQ_KILL, 6, 0, 0, EQ_TAG_DB},
-    [P_TEQFL] = {"FREQ L", F_INT, 0, EQ_FMAX, EQ_FL_DEF, 0, EQ_TAG_FL},
-    [P_TEQFH] = {"FREQ H", F_INT, 0, EQ_FMAX, EQ_FH_DEF, 0, EQ_TAG_FH},
 #endif
     [P_L2RATE] = PD("RATE", F_LFOHZ, -LSYNC_N, 127, 60),   /* LFO 2 (voice.c lfo2_tick): as LFO's RATE (< 0 synced) */
     [P_L2WAVE] = PE("WAVE", N_LWAVE, 0),

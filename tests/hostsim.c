@@ -121,10 +121,6 @@ static void host_dyn_eq_defaults(void)
         for (i = P_TDRAT; i <= P_TDCEIL; i++)
             trk[k].p[i] = TP[i].def;
 #endif
-#if FELUCCA_INS_EQ3
-        for (i = P_TEQLO; i <= P_TEQFH; i++)
-            trk[k].p[i] = TP[i].def;
-#endif
     }
     (void)i;
 }

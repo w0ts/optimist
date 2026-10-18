@@ -471,16 +471,12 @@ static void rs_untlv(const uint8_t *a, uint32_t n)      /* (0, 0: none, every se
 enum { EQV_LO, EQV_MID, EQV_HI, EQV_FL, EQV_FH, EQV_N };
 /* (EQ_KILL EQ_FL_DEF EQ_FH_DEF EQ_FMAX, EQ_TAG_*: params.c, the track's bands are track values since 2026-10-18) */
 #define EQ_V_DEF {0, 0, 0, EQ_FL_DEF, EQ_FH_DEF}
-/* owner o's bands, LO MID HI FREQ L FREQ H: a track's its values P_TEQLO .. (2026-10-18), the master's, USB's, the returns'
- * eq3_vx */
-static int16_t eq3_vx[EQ_NO - NTRK][EQV_N] = {EQ_V_DEF, EQ_V_DEF, EQ_V_DEF, EQ_V_DEF, EQ_V_DEF};
-static __attribute__((noinline)) int16_t *eq3_vp(uint32_t o)   /* (flash: RAM code calls it through FAR) */
-{
-    return o < NTRK ? &trk[o].p[P_TEQLO] : eq3_vx[(o - NTRK) % (EQ_NO - NTRK)];
-}
-#define EQ3_V(o) eq3_vp((uint32_t)(o))
-#define EQ3_VF(o) FAR(eq3_vp)((uint32_t)(o))   /* (from RAM code: insfx.c ifx_run, fx.c dins_one) */
-_Static_assert(EQ_NO == 9u && P_TEQFH == P_TEQLO + EQV_N - 1u, "EQ3: nine owners; a track's five bands in a row");
+/* owner o's bands, LO MID HI FREQ L FREQ H (not track values: with every insert built the track values would pass 127, the
+ * editor's 7-bit ids, 2026-10-18; the user: "EQ3 can go" until plugin settings get ids of their own) */
+static int16_t eq3_v[EQ_NO][EQV_N] = {EQ_V_DEF, EQ_V_DEF, EQ_V_DEF, EQ_V_DEF, EQ_V_DEF, EQ_V_DEF, EQ_V_DEF, EQ_V_DEF, EQ_V_DEF};
+#define EQ3_V(o) eq3_v[(uint32_t)(o) % EQ_NO]
+#define EQ3_VF(o) EQ3_V(o)
+_Static_assert(EQ_NO == 9u, "eq3_v: nine owners");
 /* (made by a few lines of Python: 250 x 2^((p - 32) / 14) Hz, 2500 x 2^((p - 28) / 14) Hz; G = g / (1 + g), g = tan(pi f / 44100), Q16 (a TPT one-pole's: eq3.c);
  * the gains 10^(dB / 20), Q15, [0] KILL, [31] 0 dB) */
 static const uint16_t EQ_FL_HZ[61] = {
@@ -544,7 +540,7 @@ static int fxs_fmt(const param_desc_t *d, int32_t v, char *val, const char **uni
 {
     uint32_t hz;
     if (d->unit != EQ_TAG_DB && d->unit != EQ_TAG_FL && d->unit != EQ_TAG_FH)
-        return 0;                                      /* (by its tag: EQ_D's and the track values' TP[P_TEQLO ..]) */
+        return 0;                                      /* (by its tag) */
     if (d->unit == EQ_TAG_DB) {
         if (v <= EQ_KILL) {
             str_cpy(val, "KILL", 6);

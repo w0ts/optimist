@@ -104,21 +104,16 @@ static const uint8_t MOT_TAIL[MOT_NTAIL] = {
 #endif
 };
 /* the stored tail's second range (2026-10-18: the first was full at AUTO_MUTE0), auto.h AUTO_TAIL2 .. (0xCC ..): the
- * track's DYN settings RATIO ATK REL GAIN CEIL, EQ3's LO MID HI FREQ L FREQ H (fx_slots.c: track values since) */
+ * track's DYN settings RATIO ATK REL GAIN CEIL (fx_slots.c: track values since) */
 static const uint8_t MOT_TAIL2[] = {
 #if FELUCCA_MASTER_COMP
     P_TDRAT, P_TDATK, P_TDREL, P_TDGAIN, P_TDCEIL,
 #else
     P_COUNT, P_COUNT, P_COUNT, P_COUNT, P_COUNT,
 #endif
-#if FELUCCA_INS_EQ3
-    P_TEQLO, P_TEQMID, P_TEQHI, P_TEQFL, P_TEQFH,
-#else
-    P_COUNT, P_COUNT, P_COUNT, P_COUNT, P_COUNT,
-#endif
 };
 #define MOT_NTAIL2 ((uint32_t)sizeof MOT_TAIL2)
-_Static_assert(MOT_NTAIL2 <= AUTO_TAIL2_N, "the second tail range: inside its ids");
+_Static_assert(MOT_NTAIL2 <= 16u, "the second tail range's stored ids: before the slot-relative ones (auto.h AUTO_SLOTP0)");
 static uint32_t mot_id(uint32_t s)                           /* stored -> this build's (P_COUNT: none here) */
 {
     if (s - AUTO_TAIL2 < MOT_NTAIL2)
