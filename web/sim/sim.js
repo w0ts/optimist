@@ -379,7 +379,7 @@ export function mountSim(container, opts = {}) {
       const file = bkUnpackFile(new Uint8Array(await f.arrayBuffer()));
       const r = await bkWriteFromFile(simBkClient(), file, (p) => say(p.tag ? `${TEXT.loadDoing} ${p.tag} (${p.done + 1}/${p.total})` : TEXT.loadFinishing));
       st.midiTap = null;
-      say(`${TEXT.loadedFile} ${r.done}${r.skipped.length ? ` (${r.skipped.length} ${TEXT.loadSkipped})` : ""}.`, "ok");
+      say(`${TEXT.loadedFile} ${r.done}.${skippedText(r.skipped)}`, r.done ? "ok" : "err");
     } catch (e) { st.midiTap = null; say(TEXT.loadFileFail + (e && e.message || e), "err"); }
     el.loadf.disabled = false;
   }
@@ -417,6 +417,8 @@ export function mountSim(container, opts = {}) {
       ? msg : TEXT.loadFail + msg, "err");
   }
   /* "Load from FM-1": read the real device's whole user memory into the running simulator (the sim restarts on it). */
+  /* "6 skipped" -> which and why ("SETT: not valid here (it would not load)") */
+  const skippedText = (sk) => (sk.length ? ` Skipped ${sk.length}: ${sk.map((x) => (typeof x === "string" ? x : `${x.tag.trim()} (${x.why})`)).join(", ")}.` : "");
   async function loadFromDevice() {
     if (!engine) { say(TEXT.loadNeedsRun, "err"); return; }
     el.load.disabled = true; say(TEXT.loadFinding);
@@ -425,7 +427,7 @@ export function mountSim(container, opts = {}) {
       dev = await openDevice();
       const sim = simBkClient();                                  /* NB: openDevice already set the device's input tap; the sim uses st.midiTap */
       const r = await bkTransfer(dev.client, sim, (p) => say(p.tag ? `${TEXT.loadDoing} ${p.tag} (${p.done + 1}/${p.total})` : TEXT.loadFinishing));
-      say(`${TEXT.loadDone} ${r.done}${r.skipped.length ? ` (${r.skipped.length} ${TEXT.loadSkipped})` : ""}.`, "ok");
+      say(`${TEXT.loadDone} ${r.done}.${skippedText(r.skipped)}`, r.done ? "ok" : "err");
     } catch (e) { deviceError(e); }
     if (dev) dev.close(); st.midiTap = null;
     el.load.disabled = false;
@@ -441,7 +443,7 @@ export function mountSim(container, opts = {}) {
       dev = await openDevice();
       const sim = simBkClient();
       const r = await bkTransfer(sim, dev.client, (p) => say(p.tag ? `${TEXT.writeDoing} ${p.tag} (${p.done + 1}/${p.total})` : TEXT.loadFinishing));
-      say(`${TEXT.writeDone} ${r.done}${r.skipped.length ? ` (${r.skipped.length} ${TEXT.loadSkipped})` : ""}.`, "ok");
+      say(`${TEXT.writeDone} ${r.done}.${skippedText(r.skipped)}`, r.done ? "ok" : "err");
     } catch (e) { deviceError(e); }
     if (dev) dev.close(); st.midiTap = null;
     el.write.disabled = false;
