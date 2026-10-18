@@ -361,7 +361,7 @@ static int ble_forget_yes(uint32_t r, uint32_t k, uint32_t ok)   /* FORGET LAST:
 
 #include "../../system/dual_mode.h"                     /* 2ND CORE: DUALM_*, dual_why_name, and the INFO text helpers dual_cat / dual_cnum / dual_chex (LAST RESET: every UI=1 build; pure, no state) */
 /* ---- SYSTEM: SLOOP's HOME-held menu as rows (ui/sloop/ui_menu.c) */
-enum { SI_NONE, SI_COLOR, SI_BRIGHT, SI_LIGHTS, SI_KEYS, SI_LOWCUT, SI_OUT, SI_SYNC, SI_CH1, SI_CH2,
+enum { SI_NONE, SI_BRIGHT, SI_LIGHTS, SI_KEYS, SI_LOWCUT, SI_OUT, SI_SYNC, SI_CH1, SI_CH2,
        SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_HOLD, SI_BLE, SI_KCOL, SI_CLKOUT, SI_CPU1, SI_INFO, SI_BATT, SI_BUILD, SI_REPO,
        SI_DROPS, SI_GUARD, SI_UAINFO, SI_XRUN, SI_DIAG, SI_CREDITS, SI_BLEST, SI_BLEPEER, SI_BLEMIDI, SI_BLELIST, SI_BLEAUTO,
        SI_BLEFGT,
@@ -435,7 +435,8 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
     {"USB STATS", {SI_UAINFO, SI_NONE, SI_NONE, SI_NONE}},   /* the USB audio glitch counters */
 #endif
 #endif
-    {"SCREEN", {SI_COLOR, SI_IF(FELUCCA_BRIGHT, SI_BRIGHT), SI_NONE, SI_KCOL}},   /* (SI_KCOL: KNOB COLORS; KNOB 3 was CARDS, gone 2026-10-12) */
+    {"SCREEN", {SI_IF(FELUCCA_BRIGHT, SI_BRIGHT), SI_NONE, SI_NONE, SI_KCOL}},   /* (SI_KCOL: KNOB COLORS; KNOB 3 was CARDS, gone
+                                                         * 2026-10-12; COLOR gone 2026-10-18: the palette is MONO, panel.c) */
     {"AUDIO", {SI_LOWCUT, SI_NONE, SI_NONE, SI_NONE}},
 #if FELUCCA_LIGHTS
     {"KEYS", {SI_LIGHTS, SI_KEYS, SI_NONE, SI_NONE}},
@@ -554,9 +555,6 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
     }
 #endif
     switch (it) {
-    case SI_COLOR:
-        cell_list(c, "COLOR", PALETTES[settings.palette % NPALETTES].name, NPALETTES - 1, (int32_t)(settings.palette % NPALETTES));
-        break;
 #if FELUCCA_BRIGHT
     case SI_BRIGHT:
         c->label = "BRIGHT";
@@ -1092,11 +1090,6 @@ static void info_cell(uint32_t pg, uint32_t i, cell_t *c)
 static void sys_set(uint32_t it, int32_t s)
 {
     switch (it) {
-    case SI_COLOR:
-        settings.palette = (settings.palette + (s < 0 ? NPALETTES - 1u : 1u)) % NPALETTES;
-        palette_set(settings.palette);
-        ui.force = 1;
-        break;
 #if FELUCCA_BRIGHT
     case SI_BRIGHT:
         bright_set(s ? (uint32_t)clamp((int32_t)bright_level() + (s > 0 ? 1 : -1), 1, 8) : bright_level() % 8u + 1u);
@@ -1160,17 +1153,12 @@ static void sys_set(uint32_t it, int32_t s)
     sys_dirty = 1;
 }
 /* SHIFT held + PRESETS (or the knob) on a setting with no descriptor: its FACTORY value, what a blank FM-1 or an empty
- * settings record gives (the user, 2026-10-13): panel.c settings_init (COLOR 4 MONO, LOWCUT OFF), bright.c bright_boot
+ * settings record gives (the user, 2026-10-13): panel.c settings_init (LOWCUT OFF), bright.c bright_boot
  * (BRIGHT 8, full), the settings word read as 0 (settings_word.c: HOLD 350 ms, KNOB COLORS, CLK OUT, SERIAL, LIGHTS,
  * KEYS OFF; 2ND CORE AUTO). BLE is never reset: a reset must not drop a live connection. 1: it had one */
 static int sys_factory(uint32_t it)
 {
     switch (it) {
-    case SI_COLOR:
-        settings.palette = 4u;                          /* (panel.c settings_init: MONO) */
-        palette_set(settings.palette);
-        ui.force = 1;
-        break;
 #if FELUCCA_BRIGHT
     case SI_BRIGHT:
         bright_set(8u);

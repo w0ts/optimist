@@ -131,7 +131,7 @@ static int glw_walk_line(uint32_t scr, uint32_t i)
 /* SHIFT held + PRESETS on a line with no descriptor: its FACTORY value, what a blank FM-1 / an empty settings record gives
  * (the user, 2026-10-13; panel.c settings_init, bright.c bright_boot, settings_word.c read as 0); BLE is never reset */
 static const struct { const char *label, *val; } GLW_FACTORY[] = {
-    {"MODE", "FREE"}, {"LENGTH", "1"}, {"START", "NOTE"}, {"CLK OUT", "OFF"}, {"COLOR", 0}, {"BRIGHT", "8"},
+    {"MODE", "FREE"}, {"LENGTH", "1"}, {"START", "NOTE"}, {"CLK OUT", "OFF"}, {"BRIGHT", "8"},
     {"KNOB COLORS", "OFF"}, {"BUTTONS", "OFF"}, {"KEYS", "OFF"}, {"LOWCUT", "OFF"}, {"SERIAL", "OFF"}, {"HOLD", "350"},
     {"MASTER", "NONE"}, {"T1", "1"}, {"T2", "2"}, {"T3", "3"}, {"DRUMS", "4"}, {"DRUM BUS", "NONE"}, {"DR1", "NONE"},
     {"DR2", "NONE"}, {"DR3", "NONE"}, {"DR4", "NONE"}, {"DR5", "NONE"}, {"DR6", "NONE"}, {"DR7", "NONE"}, {"DR8", "NONE"},
@@ -141,7 +141,7 @@ static const char *glw_factory(const char *label)      /* its factory text, 0: n
     uint32_t i;
     for (i = 0; i < sizeof GLW_FACTORY / sizeof GLW_FACTORY[0]; i++)
         if (!strcmp(GLW_FACTORY[i].label, label))
-            return GLW_FACTORY[i].val ? GLW_FACTORY[i].val : PALETTES[4].name;   /* (COLOR: MONO, settings_init's 4) */
+            return GLW_FACTORY[i].val;
     return 0;
 }
 static void glw_factory_tests(void)

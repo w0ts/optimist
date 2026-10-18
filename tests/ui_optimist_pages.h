@@ -756,9 +756,9 @@ static void pages_head_tests(void)
         head_now(t);
         check(!strncmp(t, "Rec 2 ", 6) && hd_badge_is("GLOBAL"), "D11: GLOBAL's QUANT line (REC 2): the badge GLOBAL, \"Rec 2 n/N\"");
 #endif
-        line_named(SCR_SYSTEM, "COLOR");
+        line_named(SCR_SYSTEM, "KNOB COLORS");          /* (COLOR, which this read, is gone: 2026-10-18) */
         head_now(t);
-        check(t[0] && strstr(t, "aud") && hd_badge_is("SYSTEM"), "D11: SYSTEM's COLOR line: the badge SYSTEM, the joined page's short title (\"Scr & aud n/N\")");
+        check(t[0] && strstr(t, "aud") && hd_badge_is("SYSTEM"), "D11: SYSTEM's KNOB COLORS line: the badge SYSTEM, the joined page's short title (\"Scr & aud n/N\")");
     }
     reset_ui();
     turn(EN_ALGO, -1);

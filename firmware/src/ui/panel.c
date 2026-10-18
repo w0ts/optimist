@@ -109,6 +109,10 @@ static void settings_init(void)
     }
     if (settings.view > 1u)
         settings.view = 1;
+#if FELUCCA_UI == 1
+    settings.palette = 4;                      /* the Optimist UI: MONO, no COLOR setting (the user, 2026-10-18: "white / mono
+                                                * is fine"); SLOOP's UI keeps its HOME-hold COLOR menu */
+#endif
     palette_set(settings.palette);
 #if FELUCCA_BASSPLUS
     if (settings.lowcut > 2u)

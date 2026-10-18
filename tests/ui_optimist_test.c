@@ -936,16 +936,17 @@ static void confirm_tests(void)
     tap(B_SAVE);
     check(up_ops[1] == 1, "USER CLEAR: asks, then erases");
     {
-        uint32_t p = settings.palette, w = line_named(SCR_SYSTEM, "COLOR");   /* (the first lines are CPU's, read-outs: D2) */
+        uint32_t kc = knob_colors, w = line_named(SCR_SYSTEM, "KNOB COLORS");   /* (the first lines are CPU's, read-outs: D2;
+                                                         * COLOR, which this checked, is gone: 2026-10-18) */
+        knob_colors = 0;
         ui.force = 1;
         frame();
         ppm("opt-system");
         turn(LINE_KNOB(w), 1);
-        check(settings.palette == (p + 1u) % NPALETTES, "SYSTEM Screen: the COLOR line's knob the colours");
+        check(knob_colors, "SYSTEM Screen: the KNOB COLORS line's knob sets it");
         tap(B_SAVE);
-        check(settings.palette == (p + 2u) % NPALETTES, "SYSTEM: YES on the cursor line steps a setting round");
-        settings.palette = p;
-        palette_set(p);
+        check(!knob_colors, "SYSTEM: YES on the cursor line steps a setting round");
+        knob_colors = kc;
     }
     reset_ui();
 }

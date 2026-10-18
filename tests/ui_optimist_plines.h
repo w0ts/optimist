@@ -37,6 +37,21 @@ static void plines_tests(void)
               "... KNOB 1 turned: line 1 the cursor, in the line's colour, as GLOBAL's");
         turn(EN_K1, -1);
     }
+    tap(B_FX);                                          /* the FX family: the slots' needles repeat the values, no picture */
+    frames(2);
+    {
+        uint32_t n = SCR->rows(), found = 0, ok = 1;
+        for (r = 0; r < n; r++) {
+            const page_t *gp = snd_graph_page(r);
+            if (!gp || (gp->graph != GR_INS && gp->graph != GR_FX))
+                continue;
+            found++;
+            ui.row[ui.scr] = r;
+            frames(1);
+            ok &= pl_on();
+        }
+        check(found && ok, "... a synth track's FX pages (INSERTS, SENDS): lines, no needles under 2x2 cards (2026-10-18)");
+    }
     tap(B_ENV);
     frames(2);
     check(row_pic(ui.row[ui.scr]) && !pl_on() && cards_band_is(BAND_2X2), "... ENV (a picture) keeps the 2x2 cards over it");

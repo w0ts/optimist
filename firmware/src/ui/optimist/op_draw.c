@@ -915,14 +915,19 @@ static void list_paint(void)
         cv_rect(237, lst.top + (LIST_H - lst.top) * (int32_t)lst.first / (int32_t)lst.n, 3, h, C_GRAY);
     }
 }
+/* PAGE_LINES: a SOUND page's graph is worth the 2x2 cards over it (the user, 2026-10-18: "use the 2*2 card layout only
+ * when there is something useful to display below it"): a shape (ENV, LFO, ARP, SCL, the steps, the gater), not the FX
+ * slots' needles (faders repeating the cards' values: an insert's had them, a lane's not), nor a lane's name and kit */
+static int pic_useful(const page_t *gp)
+{
+    return has_graph(gp) && gp->graph != GR_FX && gp->graph != GR_INS && gp->graph != GR_DSND;
+}
 /* the picture row cur of the screen shows over its rows: 0 none, 1 SOUND's graph, 2 the session grid (SONG's PATTERNS
  * row), 3 the tempo, 4 FM6's algorithm, 5 the SOUND row's presets */
 static uint32_t row_pic(uint32_t cur)
 {
     const page_t *gp = ui.scr == SCR_SOUND ? snd_graph_page(cur) : 0;
-    uint32_t pic = gp && !(FELUCCA_PAGE_LINES && gp->graph == GR_DSND) ? 1u : ui.scr == SCR_TEMPO ? 3u : 0u;   /* (PAGE_LINES:
-                                                         * the drum lane's picture, its name and kit again, gives way to the
-                                                         * lines: the user, 2026-10-18) */
+    uint32_t pic = gp && (!FELUCCA_PAGE_LINES || pic_useful(gp)) ? 1u : ui.scr == SCR_TEMPO ? 3u : 0u;
     if (ui.scr == SCR_SOUND && snd_fam == SND_FM6)
         pic = 4u;                                       /* FM6's rows: the algorithm (op_fm6draw.c) */
     else if (ui.scr == SCR_SOUND && !snd_page(cur))
