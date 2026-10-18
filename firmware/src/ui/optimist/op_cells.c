@@ -252,7 +252,7 @@ static const page_t LANE_LFO_PG[6] = {{"LFO", FAM_LFO, SC_DSND, GR_LFO, {24, 25,
                                       {"LFO DEST", FAM_LFO, SC_DSND, GR_NONE, {28, 29, 30, 31}},
                                       {"LFO 2", FAM_LFO, SC_DSND, GR_NONE, {32, 33, 34, 35}},
                                       {"LFO2 DEST", FAM_LFO, SC_DSND, GR_NONE, {36, 37, 38, 39}},
-                                      {"ENV2", FAM_ENV, SC_DSND, GR_NONE, {40, 41, 42, 43}},
+                                      {"ENV2", FAM_ENV, SC_DSND, GR_ENV2, {40, 41, 42, 43}},
                                       {"ENV2 DEST", FAM_ENV, SC_DSND, GR_NONE, {44, 45, 46, 47}}};
 _Static_assert(DL_LFO0 + DLF_ALL == 48u, "the lane's LFO, LFO 2, ENV2 ids: 24 .. 47");
 static int16_t dlfv[DLF_ALL];                           /* the cells' values (dlfo_field: the lane's LFO, LFO 2, ENV2) */
