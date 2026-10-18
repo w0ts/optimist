@@ -1891,19 +1891,19 @@ typedef union {                                         /* a voice's slot: the s
 #endif
     int32_t w;
 } dins_st_t;
-static dins_st_t dins_st[NDRUM][INS_N];
-static uint8_t dins_ty[NDRUM][INS_N];                    /* the type each state holds (its restart, the guard) */
-static uint32_t dins_ran[NDRUM];                         /* the types (a bit each) that ran on each voice in the last block
+static dins_st_t dins_st[DINS_N][INS_N];
+static uint8_t dins_ty[DINS_N][INS_N];                    /* the type each state holds (its restart, the guard) */
+static uint32_t dins_ran[DINS_N];                         /* the types (a bit each) that ran on each voice in the last block
                                                          * (cpuguard.c), and this block's */
-static uint32_t dins_now[NDRUM];
+static uint32_t dins_now[DINS_N];
 /* voice k's slot s at rest for type t (as a new voice: a hit starts clean), wet at once at amount a (no fade in) */
 static __attribute__((noinline)) void dins_rest(uint32_t k, uint32_t s, uint32_t t, int32_t a)
 {
-    dins_st_t *st = &dins_st[k % NDRUM][s & 1u];
+    dins_st_t *st = &dins_st[k % DINS_N][s & 1u];
     uint32_t i;
     for (i = 0; i < sizeof *st / 4u; i++)
         ((int32_t *)st)[i] = 0;
-    dins_ty[k % NDRUM][s & 1u] = (uint8_t)t;
+    dins_ty[k % DINS_N][s & 1u] = (uint8_t)t;
 #if FELUCCA_MASTER_COMP
     if (t == FXT_DYN)
         st->c.g13 = 8192;
@@ -2072,14 +2072,28 @@ static HOT2 __attribute__((noinline)) void dins_post(uint32_t k, uint32_t note, 
             send_c[i] += mulq15(ys, x->c);
     }
 }
+#if DINS_X0X
+/* X0X lane l's channel (drum_x0x.c drums_x0x: not a drums.v voice): b 0, -> 1 its inserts run this block (on: the drums'
+ * FX); else the lane's slots on n samples of b, the lane's own state (DINS_XK) */
+static __attribute__((noinline)) uint32_t dins_x0x(uint32_t l, int32_t on, int32_t *b, uint32_t n)
+{
+    uint32_t k = DINS_XK(l), s;
+    l %= DRUM_LANES;
+    if (!b)
+        return FAR(dins_of)(k, DLANE_NOTE(l), on);
+    for (s = 0; s < INS_N; s++)
+        FAR(dins_one)(k, s, dins_ty[k][s], on && (LIN_OK >> lin_slot[l][s] & 1u) ? lin_amt(l, s) : 0, b, n);
+    return 1;
+}
+#endif
 #if FELUCCA_MASTER_COMP
 /* the meters (meters.c): voice k's DYN reduction (its slot holding DYN; 0 none) */
 static int32_t dins_gr16(uint32_t k)
 {
     uint32_t s;
     for (s = 0; s < INS_N; s++)
-        if (dins_ty[k % NDRUM][s] == FXT_DYN)
-            return dins_st[k % NDRUM][s].c.gr16;
+        if (dins_ty[k % DINS_N][s] == FXT_DYN)
+            return dins_st[k % DINS_N][s].c.gr16;
     return 0;
 }
 #endif
@@ -2206,7 +2220,7 @@ static HOT2 __attribute__((noinline)) void dbus_run(uint32_t n)
     uint32_t s0 = ins_slot[TRK_DRUM][0], s1 = ins_slot[TRK_DRUM][1], t, m, nc = DBUS_NC();
     ASTAGE0(0x98);
 #if DINS
-    for (t = 0; t < NDRUM; t++)                         /* (the drums have rendered: the voices' inserts that ran) */
+    for (t = 0; t < DINS_N; t++)                        /* (the drums have rendered: the voices' inserts that ran) */
         dins_ran[t] = dins_now[t], dins_now[t] = 0;
 #endif
     if (!FX_INS_BYPASS) {

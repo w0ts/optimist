@@ -1050,6 +1050,13 @@ static void family_tests(void)
     tap(B_ENV);
     check(ui.scr == SCR_SOUND && snd_fam == (DSND_ENV ? FAM_ENV : FAM_EDIT),
           "the drum track, a lane picked: ENV the lane's ENV row (no drum editor built: the rows stay)");
+#if DL_UI
+    tap(B_FX);
+    n = SCR->rows();
+    for (r = 0, only = 0; r < n; r++)
+        only |= snd_page(r) == &LANE_FX_PG[0];
+    check(ui.scr == SCR_SOUND && snd_fam == FAM_FX && only, "the drum track, a lane picked: FX shows the lane's INSERTS row");
+#endif
     ui.lane = 0;
     lane_select(0);
     song.sel = 0;

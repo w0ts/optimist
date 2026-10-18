@@ -314,7 +314,7 @@ static uint32_t cg_est(void)
     n += cg_ins_rt();                                 /* the returns' other types (fx.c rt_run) */
     n += cg_ins_ut();                                 /* the USB input's (fx.c ut_mix) */
 #if DINS
-    for (i = 0; i < NDRUM; i++)                       /* each drum voice's inserts that ran (fx.c dins_post) */
+    for (i = 0; i < DINS_N; i++)                      /* each drum voice's inserts that ran (fx.c dins_post), each X0X lane's */
         n += cg_dvoice(dins_ran[i]);
 #endif
 #if DRUM_X0X

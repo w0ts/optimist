@@ -403,7 +403,8 @@ static void drum_sound_tests(void)
 #if DRUM_X0X
             dl.src[2] = DL_X909;
             ed_n = 0; ed_dsrc(ED_DRUM_SHOW, a, 1);
-            check((ed_out[3] & 4u) || !FELUCCA_FX_DIST, "editor DRUM_SHOW: an X0X voice's lane has bit 2 (no inserts)");
+            check(DINS_X0X ? !(ed_out[3] & 4u) : (ed_out[3] & 4u) || !FELUCCA_FX_DIST,
+                  "editor DRUM_SHOW: an X0X voice's lane has its inserts (bit 2 clear: fx.c dins_x0x; without them, set)");
             dl.src[2] = DL_KIT0 + DRUM_SAMPLED;
 #endif
         }

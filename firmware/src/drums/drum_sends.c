@@ -38,6 +38,12 @@ static int16_t dsend_kit[3] = {DKS_DEF, DKS_DEF, DKS_DEF};
 #define DINS (FELUCCA_FX_DIST || FELUCCA_MASTER_COMP || TFLT_ON || FELUCCA_FX_DUST || FELUCCA_INS_FOLD || FELUCCA_INS_FUZZ || \
               FELUCCA_INS_PHASER || FELUCCA_INS_FORMANT || FELUCCA_INS_SFOLD || FELUCCA_INS_RECT || \
               FELUCCA_INS_HARM || FELUCCA_INS_RING || FELUCCA_INS_SLEW)
+/* the insert states (fx.c dins_st): a drum voice's each, then an X0X lane's each (2026-10-18, the user: "no insert on drum
+ * lanes" with the X0X kits: their channels are not drums.v voices, drum_x0x.c drums_x0x runs a lane's slots on its
+ * channel, one state a lane) */
+#define DINS_X0X (DINS && DRUM_X0X)
+#define DINS_N (NDRUM + (DINS_X0X ? DRUM_LANES : 0u))
+#define DINS_XK(l) (NDRUM + (uint32_t)(l) % DRUM_LANES)
 static uint8_t dins_amt[2][DRUM_LANES];
 static const param_desc_t *lin_desc(uint32_t l, uint32_t id, int16_t **vp);   /* fx_slots.c: ids 0, 1 the amounts, 2, 3 the TYPEs */
 static void lin_set(uint32_t l, uint32_t id, int32_t v);
@@ -232,9 +238,9 @@ static __attribute__((noinline)) const param_desc_t *dsend_desc(uint32_t l, uint
     uint32_t w = dsend[l % DRUM_LANES];
     if (id >= DSEND_NID)
         return 0;
-#if DRUM_X0X
+#if DRUM_X0X && !DINS_X0X
     if (id >= 3u && dl_kit_of(l % DRUM_LANES, drum_kit()) >= DRUM_UID_X909 && !dl_usr_of(l % DRUM_LANES))
-        return 0;
+        return 0;                                      /* (no insert runs on an X0X channel in this build) */
 #endif
     if (id >= 3u)
         return lin_desc(l, id - 3u, vp);               /* (the slots: fx_slots.c) */

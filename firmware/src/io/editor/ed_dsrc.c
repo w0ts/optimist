@@ -10,7 +10,7 @@
  *   51 DRUM_SHOW  lane                 -> lane, mask (2 x 7 bit: bit i = SOUND value i, TUNE..LEVEL, applies to this
  *                                         lane's source), flags (bit 0 TUNE counts steps, not semitones (an X0X
  *                                         model); bit 1 a user sample: HIT START LEN apply; bit 2 (2026-10) the lane's sound has no
- *                                         per-sound DIST / COMP (an X0X kit's: drum_sends.c dsend_desc)), the lane's name */
+ *                                         per-sound DIST / COMP (an X0X kit's in a build without DINS_X0X: drum_sends.c dsend_desc)), the lane's name */
 #include "ed_reply.h"         /* (ed_b2..ed_b4, ed_b32) */
 enum { ED_DRUM_SRCS = 50, ED_DRUM_SHOW };
 #define ED_SRC_PAGE 24u

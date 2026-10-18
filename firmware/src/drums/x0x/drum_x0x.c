@@ -289,11 +289,14 @@ static void x0x_tap(uint32_t ln, uint32_t n)
     dlt_add(ln, dsend_buf, 0u, n);
 }
 #endif
+#if DINS_X0X
+static uint32_t dins_x0x(uint32_t l, int32_t on, int32_t *b, uint32_t n);   /* fx.c: an X0X lane's inserts */
+#endif
 static __attribute__((noinline)) int32_t drums_x0x(int32_t *ml, int32_t *mr, int32_t *rev, int32_t *mono, uint32_t n,
                                                    int32_t on, int32_t lvl, int32_t pre, int32_t gl,
                                                    int32_t gr, int32_t pk)
 {
-    uint32_t mask = x0x_block(n), ch, i, summed = 0, ln, sl = 0;
+    uint32_t mask = x0x_block(n), ch, i, summed = 0, ln, sl = 0, ins = 0;
     int32_t r, d, c, cl, cr, z0, z1, cp;
     xc.live = mask;                                 /* (the channels sounding or due now) */
     int32_t r0 = dsend_one(on);                     /* (the lanes all alike: their reverb send, nothing else) */
@@ -309,7 +312,10 @@ static __attribute__((noinline)) int32_t drums_x0x(int32_t *ml, int32_t *mr, int
         ASTAGE0(0xA0 + ch);                         /* (the x0x channel rendering: core.h) */
         dsend_of(DLANE_NOTE(xc.lane[ch]), &r, &d, &c);
         ln = xc.lane[ch];                 /* (its lane: its pan, its meter; drum_mix.c) */
-        if (!xc.cut[ch] && r == r0 && !d && !c && !dlm_pan[ln]) {
+#if DINS_X0X
+        ins = dins_x0x(ln, on, 0, n);               /* (its lane's inserts: on its own buffer, fx.c) */
+#endif
+        if (!xc.cut[ch] && !ins && r == r0 && !d && !c && !dlm_pan[ln]) {
 #if FELUCCA_USB_AUDIO
             if ((dlt_live >> ln) & 1u) {            /* a lane a USB channel takes: rendered alone, added (the same sum) */
                 x0x_render(ch, x0x_buf, n, g, 0);
@@ -333,6 +339,10 @@ static __attribute__((noinline)) int32_t drums_x0x(int32_t *ml, int32_t *mr, int
                 xc.flt[ch] += mulq15(x0x_buf[i] - xc.flt[ch], xc.cut[ch]);
                 x0x_buf[i] = xc.flt[ch];
             }
+#if DINS_X0X
+        if (ins)
+            (void)dins_x0x(ln, on, x0x_buf, n);
+#endif
         cl = gl, cr = gr, z0 = 0, z1 = 0;
         dlm_gains(ln, &cl, &z0, &cr, &z1);
         cp = x0x_out(x0x_buf, n, ml, mr, rev, mono, r, d, c, pre, cl, cr, 0, &xc.last[ch]);

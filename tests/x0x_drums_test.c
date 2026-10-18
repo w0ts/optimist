@@ -459,6 +459,24 @@ int main(int argc, char **argv)
                   TDRUM->p[P_E0] == (int16_t)kit);
         }
     }
+#if DINS_X0X && FELUCCA_FX_DIST
+    if (drum_kit_built(DRUM_UID_X909)) {               /* a lane's inserts on an X0X channel (fx.c dins_x0x, 2026-10-18) */
+        uint32_t l = lane_of_note(38), e0, e1;
+        const uint8_t s[INS_N] = {FXT_DIST, FXT_NONE}, z[INS_N] = {FXT_NONE, FXT_NONE};
+        lin_put(l, z);
+        e0 = render(DRUM_UID_X909, 38, 100, 0, 1, ra, 0);
+        lin_put(l, s);
+        lin_set(l, 0, 100);
+        e1 = render(DRUM_UID_X909, 38, 100, 0, 1, rb, 0);
+        check("x0x909: the snare's lane with DIST in S1: heard through it (another render), still ending", !same(ra, rb) &&
+              e1 < RN - FS / 2u && peak(rb, RN) < 200000);
+        lin_set(l, 0, 0);
+        render(DRUM_UID_X909, 38, 100, 0, 1, rb, 0);
+        check("... DIST at 0: the dry render", same(ra, rb));
+        lin_put(l, z);
+        (void)e0;
+    }
+#endif
     printf(fails ? "x0x drums test FAILED (%d)\n" : "x0x drums test passed\n", fails);
     return fails != 0;
 }
