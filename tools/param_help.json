@@ -343,7 +343,7 @@
       "TRK 1": "MIDI channel of track 1", "TRK 2": "MIDI channel of track 2", "TRK 3": "MIDI channel of track 3",
       "DRUMS": "MIDI channel of the drums"}},
     {"kind": "op", "ctx": "INFO", "params": {
-      "INFO": "K2: load now, max 5 s, max",
+      "INFO": "K1: load now, max 5 s, max",
       "DROPS": "Late audio halves (gaps)", "UNDERRUNS": "USB audio, MIDI in lost",
       "GUARD": {"text": "What the CPU guard eases now", "if": "FELUCCA_CPU_GUARD"},
       "CLOCK": "CPU clock", "LOAD": "Audio load of the CPU", "CPU0": "Audio load of the first core",

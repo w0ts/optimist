@@ -787,9 +787,11 @@ job; ( jobin
 ) >"$U.out" 2>&1 & jobbg
 # the builder's default SYS_DEBUG=0 (tests/ui_optimist_sysdbg.h): no INTERNALS / USB STATS, INFO is CPU LOAD, UNDERRUNS, BATTERY
 job; ( jobin
-    mkdir -p "$OUT/optimist-nodbg"
+    mkdir -p "$OUT/optimist-nodbg" "$OUT/optimist-nodbg-dual"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_PARAM_HELP=1 -DFELUCCA_USB_AUDIO=1 -DFELUCCA_SYS_DEBUG=0 $SEC4 -o "$OUT/ui_optimist_nodbg_test" tests/ui_optimist_test.c -lm
     run "Optimist UI without the SYSTEM debug pages (SYS_DEBUG=0): no INTERNALS / USB STATS, INFO = CPU LOAD, UNDERRUNS (drops in), BATTERY, large values" "$OUT/ui_optimist_nodbg_test" "$OUT/optimist-nodbg"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_PARAM_HELP=1 -DFELUCCA_USB_AUDIO=1 -DFELUCCA_SYS_DEBUG=0 -DDUAL_LOAD=1 $SEC4 -o "$OUT/ui_optimist_nodbg_dual_test" tests/ui_optimist_test.c -lm
+    run "Optimist UI without the SYSTEM debug pages, DUAL (SYS_DEBUG=0, DUAL_LOAD): INFO = CPU0, CPU1, UNDERRUNS, BATTERY; KNOB 1 the measure of both" "$OUT/ui_optimist_nodbg_dual_test" "$OUT/optimist-nodbg-dual"
 ) >"$U.out" 2>&1 & jobbg
 # the limited insert types on the Optimist UI (tests/ui_optimist_fxi.h): the free count, WAIT, IN USE, FULL (dim), hidden at
 # 0 instances, the help lines; CHRS ECHO built with 0 / 4, 1 / 0 and 4 / 1 instances (the last two with the help line)

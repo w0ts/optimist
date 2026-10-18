@@ -311,6 +311,6 @@ The stress (60 s, the clock set for a 66 % mean; the FM-1's spikes stood in for 
 
 The last row is the log's signature (a steady rate of late halves at a 66 % mean, the guard idle).
 
-SYSTEM > INFO shows it: the CPU lines (KNOB 2: NOW, MAX 5S, MAX since boot: the longest half, its wait for the interrupt in, % of
+SYSTEM > INFO shows it: the CPU lines (KNOB 1: NOW, MAX 5S, MAX since boot: the longest half, its wait for the interrupt in, % of
 a half), DROPS, UNDERRUNS (USB audio, MIDI in lost), GUARD (the level, MAX n while the voices are capped, the voices shed); SHIFT +
 YES there clears the displays (system/overload.h). The header's rule turns red ~1 s after a drop-out, amber after another underrun.

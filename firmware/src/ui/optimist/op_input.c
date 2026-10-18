@@ -778,7 +778,7 @@ static void op_knobs(uint32_t shift)
             continue;
         turned = 1;
         if (ui.scr == SCR_SYSTEM && info_knob(row, k, s))
-            continue;                                   /* (INFO's KNOB 2: the CPU lines' measure, op_global.c) */
+            continue;                                   /* (INFO's KNOB 1: the CPU lines' measure, op_global.c) */
         if (step_cards_down() && (!fm1_in.buttons || fm1_in.buttons == (1u << panel.btn[B_OCTDN]))) {
             pk_knob(k, s, fm1_in.buttons != 0u);       /* (STEP: the knobs edit only while the cards are up, SELECT or SEQ
                                                          * brings them, or with a button held: LFO + KNOB 1 LEN by one;

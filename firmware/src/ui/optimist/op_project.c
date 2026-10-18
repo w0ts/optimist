@@ -371,12 +371,12 @@ enum { SI_NONE, SI_COLOR, SI_BRIGHT, SI_LIGHTS, SI_KEYS, SI_LOWCUT, SI_OUT, SI_S
 #define LOAD_AMBER 60
 #define LOAD_RED 85
 static uint16_t load_col(int32_t pct) { return pct > LOAD_RED ? C_ERR : pct >= LOAD_AMBER ? C_WARN : C_OK; }
-/* INFO's overload lines (system/overload.h, cpuguard.c): the CPU lines' measure (KNOB 2: NOW, MAX 5S, MAX), DROPS, UNDERRUNS,
+/* INFO's overload lines (system/overload.h, cpuguard.c): the CPU lines' measure (KNOB 1: NOW, MAX 5S, MAX), DROPS, UNDERRUNS,
  * GUARD; DROPS, UNDERRUNS, MAX and the voices shed counted from a baseline SHIFT + YES on INFO sets (op_global.c info_clear;
  * the counters themselves go on: the console still reads them since boot) */
 #define DROPS_RED_MS 5000u                              /* DROPS red while a late half came within this long, else amber */
 static uint32_t info_shed0;
-static uint8_t info_mode;                               /* the CPU lines' measure: OVL_NOW, OVL_MAX5, OVL_MAXALL (INFO's KNOB 2) */
+static uint8_t info_mode;                               /* the CPU lines' measure: OVL_NOW, OVL_MAX5, OVL_MAXALL (INFO's KNOB 1) */
 /* UNDERRUNS: everything else lost since boot: USB audio's playback / capture under- and overruns and missed frames (USB audio
  * builds), MIDI in that found its ring full (USB, TRS, BLE) */
 static uint32_t info_ua_xruns(void)
@@ -610,10 +610,10 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         break;
 #endif
 #endif
-    case SI_CPU: {                                      /* (DUAL: its wait for CPU1 counts in it); KNOB 2: NOW, MAX 5S, MAX (over 100: late) */
+    case SI_CPU: {                                      /* (DUAL: its wait for CPU1 counts in it); KNOB 1: NOW, MAX 5S, MAX (over 100: late) */
         int32_t pct = info_load(OVL_CPU0, (int32_t)(song.cpu_q8 * 100u / 256u));
-        const char *nm = !FELUCCA_SYS_DEBUG ? "CPU LOAD" : DUAL_LOAD ? "CPU0" : "LOAD";   /* (without the debug pages: one
-                                                         * load, CPU0's, which waits for CPU1) */
+        const char *nm = DUAL_LOAD ? "CPU0" : FELUCCA_SYS_DEBUG ? "LOAD" : "CPU LOAD";   /* (DUAL: CPU0 beside CPU1, on the
+                                                         * player's INFO too: the user, 2026-10-18) */
         if (info_mode == OVL_NOW)
             c->label = nm;
         else
@@ -683,7 +683,7 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         break;
     }
 #endif
-#if FELUCCA_SYS_DEBUG
+#if FELUCCA_SYS_DEBUG || DUAL_LOAD
     case SI_CPU1: {                                     /* the second core: ON and its share of each audio half (dual_load.h), OFF and why, or not in the build */
 #if DUAL_LOAD
         int32_t pct = dual_c1_pct();
@@ -694,9 +694,9 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
             c->unit = "";
             c->col = C_WARN;
             cell_gauge(c, 0, 0, 100, 0);
-        } else {                                        /* (KNOB 2: NOW, MAX 5S, MAX: its jobs' longest half) */
+        } else {                                        /* (KNOB 1: NOW, MAX 5S, MAX: its jobs' longest half) */
             pct = info_load(OVL_CPU1, pct);
-            if (info_mode == OVL_NOW)
+            if (info_mode == OVL_NOW && FELUCCA_SYS_DEBUG)
                 c->label = "2ND CORE ON";
             else
                 info_label(c, "CPU1");
@@ -980,14 +980,14 @@ static void sys_rst_cell(cell_t *c)
 #endif
 /* SYSTEM's read-out pages (op_gldraw.c gl_info_draw; the user, 2026-10-15: "the 1st system screen would gain to be split in two
  * pages with easier-to-read text"), each drawn whole, text only:
- *   INFO (page 0, what a musician reads): the clock, the CPU (KNOB 2: now, max 5 s, max), the 2ND CORE (ON + load, OFF + why, NOT IN
+ *   INFO (page 0, what a musician reads): the clock, the CPU (KNOB 1: now, max 5 s, max), the 2ND CORE (ON + load, OFF + why, NOT IN
  *        BUILD), DROPS, UNDERRUNS, GUARD (CPU_GUARD builds), the battery
  *   INTERNALS (page 1): LAST RESET, the longest flash interrupts-off time, the second core's internals (DUAL builds)
  *   USB STATS (page 2, USB audio builds): the USB audio counters */
 #if FELUCCA_SYS_DEBUG
 #define INFO_BASE (6u + (uint32_t)FELUCCA_CPU_GUARD)
 #else
-#define INFO_BASE 3u                                    /* (without the debug pages: CPU LOAD, UNDERRUNS, BATTERY) */
+#define INFO_BASE (3u + (uint32_t)DUAL_LOAD)             /* (without the debug pages: CPU LOAD (CPU0, CPU1), UNDERRUNS, BATTERY) */
 #endif
 #define INFO_N INFO_BASE                                /* INFO's lines */
 #ifndef FELUCCA_STOCK_SUPPLY
@@ -1004,7 +1004,11 @@ static void sys_info_cell(uint32_t i, cell_t *c)        /* INFO's line i */
 #endif
                                             SI_BATT};   /* (SI_CPU1: the 2ND CORE line, in every build; DROPS, UNDERRUNS: the overload monitor) */
 #else
-    static const uint8_t INFO[INFO_BASE] = {SI_CPU, SI_XRUN, SI_BATT};   /* (what a player wants, the user 2026-10-17) */
+    static const uint8_t INFO[INFO_BASE] = {SI_CPU,
+#if DUAL_LOAD
+                                            SI_CPU1,    /* (both cores' load: the user, 2026-10-18) */
+#endif
+                                            SI_XRUN, SI_BATT};   /* (what a player wants, the user 2026-10-17) */
 #endif
     sys_it_cell(INFO[i % INFO_N], c);
 }

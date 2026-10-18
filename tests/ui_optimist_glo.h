@@ -104,8 +104,8 @@ static void glo_list_tests(void)
         check(!strcmp(nm, "INFO") && c.kind == CK_RO && !strcmp(c.label, "INFO") && strcmp(nm1, "INFO") && gl_end(1, 0) == 1u &&
                   c1.kind == CK_RO && c2.kind == CK_RO &&
                   (FELUCCA_SYS_DEBUG ? !strcmp(c1.label, "CLOCK") && !strcmp(c2.label, DUAL_LOAD ? "CPU0" : "LOAD")
-                                     : !strcmp(c1.label, "CPU LOAD") && !strcmp(c2.label, "UNDERRUNS")),
-              "SYSTEM's first page is INFO, one line: the clock and the load (SYS_DEBUG off: the load, the underruns) are its own, the next section starts page 2");
+                                     : DUAL_LOAD ? !strcmp(c1.label, "CPU0") && !strcmp(c2.label, "CPU1") : !strcmp(c1.label, "CPU LOAD") && !strcmp(c2.label, "UNDERRUNS")),
+              "SYSTEM's first page is INFO, one line: the clock and the load (SYS_DEBUG off: the load, the underruns; DUAL: CPU0, CPU1) are its own, the next section starts page 2");
     }
     for (s = 0, ok = 1; s < 2u; s++)                    /* nothing in GLOBAL or SYSTEM is an empty line */
         for (i = 0; i < SCREENS[s ? SCR_SYSTEM : SCR_GLOBAL].rows(); i++) {

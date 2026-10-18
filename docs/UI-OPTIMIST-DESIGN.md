@@ -3328,7 +3328,7 @@ The user: "we should have actually a MAX of the last few seconds and a DROP-OUT 
 between CURRENT, MAX OVER A FEW SECONDS, MAX FOR EVER. And we should also monitor UNDERRUNS"; "the 1st system screen would gain
 to be split in two pages with easier-to-read text" (three pages are fine).
 
-- **INFO** (SYSTEM 1/n), what a musician reads, text only: CLOCK; the CPU line (`LOAD`, `CPU0` in DUAL builds): KNOB 2 turns its
+- **INFO** (SYSTEM 1/n), what a musician reads, text only: CLOCK; the CPU line (`LOAD`, `CPU0` in DUAL builds): KNOB 1 turns its
   measure NOW (the smoothed load) -> MAX 5S (the longest audio half of the last ~5 s, its wait for the interrupt included) -> MAX
   (since boot or the last clear), round; the label says which (`CPU0 MAX 5S`); % of a half, over 100 when a half ran late, in the
   load colours. The 2ND CORE line follows the same measure while the core is up (`CPU1 MAX 5S`). DROPS: late audio halves (gaps in

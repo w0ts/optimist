@@ -18,7 +18,7 @@ static void core_row_tests(void)
         check(dual_mode == DUALM_AUTO, "2ND CORE: a misread's self-disable is not kept in the setting (the next boot starts CPU1 again)");
         dual_c1_q8 = 128u;
         dual.why = DUAL_UP;
-        info_mode = 0;                                  /* (the NOW measure: an earlier test may have turned INFO's KNOB 2) */
+        info_mode = 0;                                  /* (the NOW measure: an earlier test may have turned INFO's KNOB 1) */
         sys_info_cell(2, &c);
         check(!strcmp(c.label, "2ND CORE ON") && !strcmp(c.val, "50") && !strcmp(c.unit, "%") && c.col == C_OK, "2ND CORE ON: the CPU1 load, 50 %, green (under 60)");
         dual_c1_q8 = DUAL_C1_OFF;
@@ -60,7 +60,7 @@ static void core_row_tests(void)
 
 /* the overload monitor (system/overload.h; the user, 2026-10-15: "a MAX of the last few seconds and a DROP-OUT DETECTOR", "the
  * second encoder should switch between CURRENT, MAX OVER A FEW SECONDS, MAX FOR EVER. And we should also monitor UNDERRUNS"):
- * INFO's CPU line in the measure KNOB 2 picks (NOW, MAX 5S, MAX: % of a half, the load's colours, over 100 late), DROPS (late
+ * INFO's CPU line in the measure KNOB 1 picks (NOW, MAX 5S, MAX: % of a half, the load's colours, over 100 late), DROPS (late
  * halves, amber / red), UNDERRUNS (MIDI in lost, USB audio's), GUARD (the CPU guard's level, the voices shed), SHIFT + YES on
  * INFO clearing the displays, and the header's rule for ~1 s after a drop (red) or an underrun (amber), on every page. The ISR's
  * part is fed here as audio.c would (ovl_half) */
@@ -86,7 +86,7 @@ static void overload_tests(void)
     info_mode = OVL_NOW;
     dr = info_line("DROPS");
     xr = info_line("UNDERRUNS");
-    check(dr < INFO_N && xr < INFO_N && info_line("PEAK 5S") == INFO_N, "INFO: DROPS and UNDERRUNS lines (the maxima: the CPU line's KNOB 2)");
+    check(dr < INFO_N && xr < INFO_N && info_line("PEAK 5S") == INFO_N, "INFO: DROPS and UNDERRUNS lines (the maxima: the CPU line's KNOB 1)");
     t = fm1_ms;
     ovl_half(half * 40u / 100u, 0, t);
     ovl_half(half * 70u / 100u, 0, t + 6u);
@@ -96,11 +96,11 @@ static void overload_tests(void)
     frame();
     sys_info_cell(1, &c);
     check(!strcmp(c.label, cpu) && !strcmp(c.val, "50") && c.col == C_OK, "the CPU line: NOW, the load (50 %, green)");
-    turn(EN_K2, 1);
+    turn(EN_K1, 1);
     sys_info_cell(1, &c);
     snprintf(lb, sizeof lb, "%s MAX 5S", cpu);
     check(info_mode == OVL_MAX5 && !strcmp(c.label, lb) && !strcmp(c.val, "70") && !strcmp(c.unit, "%") && c.col == C_WARN &&
-          ui.scr == SCR_SYSTEM, "KNOB 2 on INFO: MAX 5S, the longest half (70 %, amber)");
+          ui.scr == SCR_SYSTEM, "KNOB 1 on INFO: MAX 5S, the longest half (70 %, amber)");
     ovl_half(half * 133u / 100u, 1, t + 1500u);         /* (the user's log: 7,693 us, 133 % of a half) */
     fm1_ms = t + 1600u;
     sys_info_cell(1, &c);
@@ -110,14 +110,14 @@ static void overload_tests(void)
     fm1_ms = t + 1500u + 6u * 1024u;
     sys_info_cell(1, &c);
     check(!strcmp(c.val, "50") && c.col == C_OK, "MAX 5S: ~5 s later the window forgets it (50 %, green)");
-    turn(EN_K2, 1);
+    turn(EN_K1, 1);
     sys_info_cell(1, &c);
     snprintf(lb, sizeof lb, "%s MAX", cpu);
-    check(info_mode == OVL_MAXALL && !strcmp(c.label, lb) && !strcmp(c.val, "133") && c.col == C_ERR, "KNOB 2 again: MAX since boot, 133 % kept");
-    turn(EN_K2, 1);
-    check(info_mode == OVL_NOW, "KNOB 2 again: NOW (round)");
-    turn(EN_K2, -1);
-    check(info_mode == OVL_MAXALL, "KNOB 2 back: MAX");
+    check(info_mode == OVL_MAXALL && !strcmp(c.label, lb) && !strcmp(c.val, "133") && c.col == C_ERR, "KNOB 1 again: MAX since boot, 133 % kept");
+    turn(EN_K1, 1);
+    check(info_mode == OVL_NOW, "KNOB 1 again: NOW (round)");
+    turn(EN_K1, -1);
+    check(info_mode == OVL_MAXALL, "KNOB 1 back: MAX");
     sys_info_cell(dr, &c);
     check(!strcmp(c.val, "1") && c.col == C_WARN, "DROPS: 1 since boot, amber (none in the last 5 s)");
     ovl_half(half * 101u / 100u, 1, fm1_ms);
