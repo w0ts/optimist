@@ -649,6 +649,19 @@ TX/RF (U1, U7); `rxstat` with sync but bad status → modulation/offset (U7, U8)
 **Size and risk.** About 1–2 KB of flash and 4.3 KB of RAM (the table), no change to the audio path when the item is
 off. Asks the user before any flash (one OK = one flash).
 
+### 14.1 As built (2026-10-18)
+
+Builder item `BT_INQ_PROBE` (bit 280, EXPERIMENTAL, default off; needs `USB_MODE` 1, no `BLE`): `firmware/hal/fm1_bredr.h`
+(the registers, the frame, the init list, the clock, the alarm, the slot timers, IRQ 40/41 entries) and
+`firmware/src/bt/bt_inq.c` (1a at boot ~1.5 s, `btclk [run]`; 1b `btinq [SECONDS|stop]`), the portable part
+`firmware/src/bt/bt_inq_core.c` (sync-word parity, FHS, EIR name; host test `tests/bt_inq_test.c`). Stage 1a passes in
+the emulator (`tests/bt_inq_emu_test.py PACKAGE.fwsc`, fm1-emulator `feat/upstream-merge`: 1,599.5 slots/s over
+3,006 ms, 264 alarms of ~267, 3 slot-timer fires, no unknown IRQ 40 bit). Two emulator notes: `0x200E4` has no
+readback (the probe keeps the armed slot itself), and `0x200C4` / `0x20090` are not modelled, so 1b cannot run there.
+The `fm1-emulator-ble` (`feat/ble-engine`) binary stops current builds at boot (an SPI NOR command it lacks); its
+`feat/upstream-merge` sibling also stopped once at a store-immediate form (`0xEA7B`, a negative offset) the compiler
+emitted for the init, now written as a list of plain stores. Not run on an FM-1.
+
 ---
 
 ## 15. Verdict for driving BR/EDR ourselves
