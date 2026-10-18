@@ -17,10 +17,17 @@
 // The simulator's flash is kept in this browser (IndexedDB), one state for every build (the user's choice,
 // 2026-10-18): a build that cannot read what another left handles it as the FM-1 would.
 import { cloudFileUrl, loadCloud, matchCloud } from "../installer/installer.js";
+import { client as bkClient, transfer as bkTransfer } from "./bk.js";
 
 const DB = "optimist-sim", STORE = "state", KEY = "flash";
 const STYLE_ID = "optimist-sim-style";
-const KEYBOARD = "zsxdcvgbhnjmq2w3er5t6y7ui9o0p";   /* the computer keys, in the FM-1's key order (from its lowest) */
+/* the computer-key shortcuts, exactly the chip emulator's (fm1-emulator rust-emulator/src/ui.rs):
+   - the 13 note keys of the lower octave; the same with Shift held play the octave above (the firmware's OCT shifts it) */
+const NOTE_KEYS = ["a", "w", "s", "e", "d", "r", "f", "g", "t", "h", "y", "j", "k"];
+/*   - the 14 buttons, by the firmware's button name: the arrows for OCT, Space for PLAY / STOP, letters for the rest */
+const BUTTON_KEYS = { "OCT-": "arrowleft", "OCT+": "arrowright", FX: "x", SCL: "b", SEL: "b", ENV: "v", LFO: "l", EDIT: "i",
+  GLO: "o", HOME: "u", SAVE: "z", ARP: "p", SEQ: "q", PLAY: " ", "PLAY/STOP": " ", REC: "c" };
+const btnKeyCap = { arrowleft: "←", arrowright: "→", " ": "␣" };   /* ← → ␣ shown on the keys */
 
 /* the FM-1's 27-key keyboard: the black keys carry the function legends (the device, and the chip emulator's panel:
    fm1-emulator rust-emulator/src/ui.rs). The 11 black keys are these note indices, in this label order */
@@ -45,11 +52,19 @@ export const TEXT = {
   what: "",
   build: "Build", site: "The site's build", cloud: "Cloud builds",
   themeLabel: "Theme",
-  power: "Start", stop: "Stop", starting: "Starting…", running: "Running", stopped: "Stopped.",
+  power: "Start", stop: "Stop", starting: "Starting…", stopped: "Stopped.",
   reboot: "Restarting…", fault: "The firmware stopped (a fault). Start again.", noaudio: "This browser has no AudioWorklet: use Chrome, Edge or Firefox.",
   reset: "Reset memory", resetAsk: "Erase the simulator's saved projects, presets and samples? (Every build shares them.)",
   resetDone: "Memory erased.", shared: "The simulator's memory (projects, presets, samples) is kept in this browser and shared by every build.",
-  install: "Install this build on my FM-1", keysHelp: "Keys: Z S X D C V … on the keyboard; knobs: drag or scroll.",
+  install: "Install this build on my FM-1", keysHelp: "Keys: the device's own — A W S E D … play notes (Shift for the octave above), the other keys hold the buttons; the arrows are OCT, Space is PLAY.",
+  load: "Load from FM-1",
+  loadNeedsRun: "Start the simulator first, then load into it.",
+  loadNoMidi: "This browser has no Web MIDI: use Chrome or Edge to read the FM-1.",
+  loadFinding: "Looking for the FM-1 over USB…", loadNoDevice: "No FM-1 found over USB. Connect it (Chrome or Edge), and run Optimist on it.",
+  loadDoing: "Reading", loadFinishing: "Writing it in…", loadDone: "Loaded from the FM-1: objects", loadSkipped: "skipped, this build cannot read",
+  loadNoAnswer: "The FM-1 did not answer. Check it is the right device and runs Optimist (the web editor should connect to it too).",
+  loadNoBackup: "This FM-1's firmware has no editor Backup, so its memory cannot be read. Flash a current build (with the editor) first.",
+  loadFail: "Could not load from the FM-1: ",
   nosim: "This build has no simulator (built before the simulator existed: ask for it again in the builder).",
   loadfail: "Could not load the simulator: ",
 };
@@ -150,13 +165,14 @@ export function mountSim(container, opts = {}) {
   const links = { install: "../installer/", ...(opts.links || {}) };
   const wanted = opts.build ?? (typeof location !== "undefined" ? new URLSearchParams(location.search).get("sim") : null);
   addStyle(container.ownerDocument);
-  const st = { choice: null, cloud: null, ctx: null, node: null, info: null, busy: false, wasm: null, keysDown: new Set() };
+  const st = { choice: null, cloud: null, ctx: null, node: null, info: null, busy: false, wasm: null, keysDown: new Map(), buttonKeys: null };
   const el = {};
 
   el.pick = h("select.oi-csearch.os-pick", { "aria-label": TEXT.build, onchange: () => choose(el.pick.value) });
   el.power = h("button.o-btn.primary", { type: "button", onclick: () => (engine ? stop() : start()) }, TEXT.power);
   el.reset = h("button.o-btn.sm.quiet", { type: "button", onclick: () => resetMemory() }, TEXT.reset);
   el.install = h("button.o-btn.sm", { type: "button", onclick: () => installThis() }, TEXT.install);
+  el.load = h("button.o-btn.sm", { type: "button", onclick: () => loadFromDevice() }, TEXT.load);
   let themeIx = 0;
   try { const v = THEMES.findIndex((t) => t.name === localStorage.getItem(THEME_KEY)); if (v >= 0) themeIx = v; } catch (e) { /* no storage */ }
   el.theme = h("select.oi-csearch.os-pick", { "aria-label": TEXT.themeLabel, onchange: () => applyTheme(el.theme.selectedIndex) },
@@ -169,7 +185,7 @@ export function mountSim(container, opts = {}) {
   const root = h("div.os", {},
     h("header", {}, h("h1.oi-title", {}, TEXT.title), TEXT.what ? h("p.oi-what", {}, TEXT.what) : null),
     h("div.os-bar", {}, h("label.o-field", {}, h("span", {}, TEXT.build), el.pick),
-      h("label.o-field", {}, h("span", {}, TEXT.themeLabel), el.theme), el.power, el.install, el.reset),
+      h("label.o-field", {}, h("span", {}, TEXT.themeLabel), el.theme), el.power, el.load, el.install, el.reset),
     el.status,
     el.stage,
     h("p.o-dim.os-help", {}, TEXT.keysHelp, " ", TEXT.shared));
@@ -260,7 +276,7 @@ export function mountSim(container, opts = {}) {
   function onMessage(m, b) {
     if (m.type === "ready") {
       st.info = m.info; buildPanel(m.info);
-      say(`${TEXT.running}: ${b.title}`, "ok");
+      say("");                                      /* (running: the Stop button says it; no status line) */
       el.power.textContent = TEXT.stop;
       setConnected(true);
     } else if (m.type === "frame") {
@@ -269,6 +285,7 @@ export function mountSim(container, opts = {}) {
       leds(m.leds);
     } else if (m.type === "midi") {
       for (const msg of midiIn.feed(m.data)) {
+        if (st.midiTap) st.midiTap(msg);               /* "Load from FM-1": the restore client reads the sim's replies here */
         if (typeof access.input.onmidimessage === "function") access.input.onmidimessage({ data: msg, timeStamp: performance.now() });
       }
     } else if (m.type === "flash") {
@@ -281,7 +298,7 @@ export function mountSim(container, opts = {}) {
   }
   async function restart(status, b) {   /* bit 0 reboot (a restore, a firmware restart), 1 update mode, 2 fault */
     detach();
-    if (status & 4) { say(TEXT.fault, "err"); el.power.textContent = TEXT.power; return; }
+    if (status & 4) { say(TEXT.fault, "err"); clearScreen(); el.power.textContent = TEXT.power; return; }
     say(TEXT.reboot);
     await new Promise((r) => setTimeout(r, 300));   /* (the last flash message saved first) */
     await boot(b);
@@ -301,8 +318,9 @@ export function mountSim(container, opts = {}) {
       });
     }
     detach();
+    clearScreen();                                   /* the device is off: a black screen */
     el.power.textContent = TEXT.power;
-    say(TEXT.stopped);
+    say("");                                         /* (the Start button already says it is stopped) */
   }
   async function resetMemory() {
     if (!confirmReset()) return;
@@ -313,6 +331,40 @@ export function mountSim(container, opts = {}) {
     if (was) await start();
   }
   function confirmReset() { return typeof window === "undefined" || window.confirm(TEXT.resetAsk); }
+  /* "Load from FM-1": read the real device's whole user memory (projects, presets, kits, samples) over Web MIDI and
+     restore it into the running simulator. The sim restarts on the restored memory. The device is only read. */
+  async function loadFromDevice() {
+    if (!engine) { say(TEXT.loadNeedsRun, "err"); return; }
+    if (typeof navigator === "undefined" || typeof navigator.requestMIDIAccess !== "function") { say(TEXT.loadNoMidi, "err"); return; }
+    el.load.disabled = true;
+    say(TEXT.loadFinding);
+    try {
+      const acc = await navigator.requestMIDIAccess({ sysex: true });
+      const port = (m) => [...m.values()].find((p) => /felucca|optimist/i.test(p.name || "") && p.state !== "disconnected");
+      const input = port(acc.inputs), output = port(acc.outputs);
+      if (!input || !output) { say(TEXT.loadNoDevice, "err"); el.load.disabled = false; return; }
+      if (input.open) await input.open().catch(() => {});
+      if (output.open) await output.open().catch(() => {});       /* some browsers drop send() on an unopened output */
+      // the real device: a client reading its backup
+      const src = bkClient((bytes) => output.send(bytes));
+      const frame = midiParser();
+      input.onmidimessage = (e) => { for (const msg of frame.feed(e.data)) src.feed(msg); };
+      // confirm the link first (INFO, command 1: every editor build answers it), to tell a dead port from old firmware
+      try { await src.request(1); }
+      catch (e) { input.onmidimessage = null; say(TEXT.loadNoAnswer, "err"); el.load.disabled = false; return; }
+      // the simulator: a client writing it in (through the worklet; its replies come back on st.midiTap)
+      const dst = bkClient((bytes) => engine && engine.post({ type: "midi", data: bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes) }));
+      st.midiTap = (msg) => dst.feed(msg);
+      const r = await bkTransfer(src, dst, (p) => say(p.tag ? `${TEXT.loadDoing} ${p.tag} (${p.done + 1}/${p.total})` : TEXT.loadFinishing));
+      input.onmidimessage = null; st.midiTap = null;
+      say(`${TEXT.loadDone} ${r.done}${r.skipped.length ? ` (${r.skipped.length} ${TEXT.loadSkipped})` : ""}.`, "ok");   /* the sim restarts on the restored memory */
+    } catch (e) {
+      st.midiTap = null;
+      const msg = e && e.message || String(e);
+      say(/command 43/.test(msg) ? TEXT.loadNoBackup : TEXT.loadFail + msg, "err");
+    }
+    el.load.disabled = false;
+  }
   function installThis() {
     const b = current();
     if (opts.onNavigate) opts.onNavigate("install", { build: b && b.id });
@@ -382,11 +434,17 @@ export function mountSim(container, opts = {}) {
     kids.push(box(40, 384, 1040, 238, 40, "keybed-rim"), box(43, 387, 1034, 232, 38, "keybed"));
     kids.push(...keyEls(info.keys, info.buttons));
     el.body.replaceChildren(...kids);
+    st.buttonKeys = {};                                  /* the key-char -> firmware button index map for onKey */
+    names.forEach((n, i) => { const key = BUTTON_KEYS[n.replace(/\s/g, "").toUpperCase()]; if (key) st.buttonKeys[key] = i; });
     if (engine) engine.post({ type: "master", value: 700 });
     fit();
   }
+  function clearScreen() { g.fillStyle = "#000"; g.fillRect(0, 0, 240, 240); }
   function buttonEl(i, label, x, y, w, hgt) {
+    const norm = label.replace(/−/g, "-").replace(/\n/g, "/");
+    const key = BUTTON_KEYS[norm] || BUTTON_KEYS[norm.toUpperCase()];
     return h("button.os-btn", { type: "button", "data-led": i >= 0 ? String(i) : null, style: at(x, y, w, hgt),
+      title: key ? `${label.replace(/\n/g, " / ")} · ${btnKeyCap[key] || key.toUpperCase()}` : label,
       onpointerdown: (e) => press(e, "button", i), onpointerup: () => send("button", i, 0), onpointerleave: () => send("button", i, 0) },
       ...String(label).split("\n").map((s, k) => h(k ? "small" : "span", {}, s)));
   }
@@ -401,9 +459,12 @@ export function mountSim(container, opts = {}) {
       const y = isBlack ? 405 : 510;
       if (!isBlack) wi++;
       const label = isBlack ? black[note] : "";
+      const lower = note < NOTE_KEYS.length ? NOTE_KEYS[note] : null;           /* the lower octave's letter */
+      const upper = note >= NOTE_KEYS.length && note - NOTE_KEYS.length < NOTE_KEYS.length ? NOTE_KEYS[note - NOTE_KEYS.length] : null;   /* Shift + letter */
+      const cap = lower ? lower.toUpperCase() : upper ? `⇧${upper.toUpperCase()}` : "";
       out.push(h(`button.os-key.${isBlack ? "os-black" : "os-white"}`, { type: "button", "data-led": String(nbtn + note), style: at(x, y, 49, 94),
         onpointerdown: (e) => press(e, "key", note), onpointerup: () => send("key", note, 0), onpointerleave: () => send("key", note, 0) },
-        label ? h("span.os-kleg", {}, label) : null, KEYBOARD[note] ? h("span.os-kcap", {}, KEYBOARD[note].toUpperCase()) : null));
+        label ? h("span.os-kleg", {}, label) : null, cap ? h("span.os-kcap", {}, cap) : null));
     }
     return out;
   }
@@ -436,15 +497,34 @@ export function mountSim(container, opts = {}) {
   function onKey(e, down) {
     if (!engine || !st.info || e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
     if (e.target && /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) return;
-    const i = KEYBOARD.indexOf(e.key.toLowerCase());
-    if (i < 0 || i >= st.info.keys) return;
+    const k = e.key.toLowerCase();
+    // a button? (its firmware index, from the name -> key map)
+    const bi = st.buttonKeys ? st.buttonKeys[k] : undefined;
+    if (bi !== undefined) {
+      e.preventDefault();
+      const id = `b${bi}`;
+      if (down === st.keysDown.has(id)) return;
+      if (down) st.keysDown.set(id, 1); else st.keysDown.delete(id);
+      send("button", bi, down ? 1 : 0);
+      return;
+    }
+    // a note? the lower octave, or the octave above with Shift held
+    const ni = NOTE_KEYS.indexOf(k);
+    if (ni < 0) return;
+    const note = ni + (e.shiftKey ? NOTE_KEYS.length : 0);
+    if (note >= st.info.keys) return;
     e.preventDefault();
-    if (down === st.keysDown.has(i)) return;
-    if (down) st.keysDown.add(i); else st.keysDown.delete(i);
-    send("key", i, down ? 1 : 0);
+    const id = `k${k}`;                                  /* track by the physical key, so a release with Shift changed still lifts the right note */
+    if (down) {
+      if (st.keysDown.has(id)) return;
+      st.keysDown.set(id, note); send("key", note, 1);
+    } else {
+      if (!st.keysDown.has(id)) return;
+      send("key", st.keysDown.get(id), 0); st.keysDown.delete(id);
+    }
   }
   const kd = (e) => onKey(e, true), ku = (e) => onKey(e, false);
-  const releaseAll = () => { for (const i of st.keysDown) send("key", i, 0); st.keysDown.clear(); };
+  const releaseAll = () => { for (const [id, v] of st.keysDown) { if (id[0] === "k") send("key", v, 0); else send("button", Number(id.slice(1)), 0); } st.keysDown.clear(); };
   let active = false;
 
   loadBuilds();
