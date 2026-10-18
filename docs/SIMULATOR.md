@@ -83,4 +83,7 @@ a simulated second takes.
 
 `make web` serves the local simulator in its Simulator tab (`build/sim/web/optimist-sim.wasm`, the default profile or
 `PROFILE=`): built with `make web SIM=1`, or when `make web` asks because there is none (a terminal only; no, no `emcc` or a
-failed build: the site goes on without it). `tools/optimist.py web --sim [--profile P | --config F]`.
+failed build: the site goes on without it). It asks again when the simulator is outdated: its fingerprint (the
+firmware, `firmware/sim`, `firmware/hal`, the generators, the builder's rules and the configuration: `sim_fingerprint`)
+differs from now, or it was built for another profile; kept otherwise, shown as "outdated" in the Simulator tab.
+`tools/optimist.py web --sim [--profile P | --config F]`.

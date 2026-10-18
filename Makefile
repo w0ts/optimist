@@ -69,7 +69,7 @@ publish unpublish share delete:
 	$(PY) tools/optimist.py config --$@ "$(PROFILE)"
 
 web:
-	$(PY) tools/optimist.py web $(if $(PORT),--port $(PORT)) $(if $(SIM),--sim --profile $(PROFILE))
+	$(PY) tools/optimist.py web $(if $(PORT),--port $(PORT)) --profile $(PROFILE) $(if $(SIM),--sim)
 
 emu:
 	IMAGES=$(abspath $(IMAGES)) $(PY) tools/optimist.py emu $(FW) $(if $(CPU),--cpu $(CPU)) $(if $(FRESH),--fresh)

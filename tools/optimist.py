@@ -265,25 +265,64 @@ def web_open(url):
     return True
 
 
+# what a simulator is built from (tools/sim.py): the firmware and its host layer, the generators, the builder's rules, the
+# configuration; a change in any of them makes a built simulator outdated
+SIM_INPUTS = ("firmware/src", "firmware/sim", "firmware/hal", "tools/sim.py", "tools/build.py", "tools/gen_*.py",
+              "tools/builder/configure.py", "tools/builder/core.py", "tools/builder/registry.py")
+
+
+def sim_fingerprint(cfg):
+    """sha256 of the simulator's inputs (SIM_INPUTS) and the configuration's text: the same sources, the same simulator"""
+    import hashlib
+    h = hashlib.sha256()
+    files = []
+    for pat in SIM_INPUTS:
+        for q in sorted(ROOT.glob(pat)):
+            files += sorted(f for f in q.rglob("*") if f.is_file()) if q.is_dir() else [q]
+    for f in files:
+        h.update(str(f.relative_to(ROOT)).encode() + b"\0" + f.read_bytes() + b"\0")
+    h.update(b"config\0" + (Path(cfg).read_bytes() if Path(cfg).is_file() else b""))
+    return h.hexdigest()
+
+
 def web_sim(a):
     """the local simulator for the site's Simulator tab -> [{id, title, sim}] or []: the one built before (build/sim/web/), or
-    built now: --sim always, else asked when there is none and this is a terminal (a no, no emcc, a failed build: the site
-    goes on without it). The configuration: --profile / --config (default the default profile, as make build)"""
+    built now: --sim always, else asked when there is none or it is outdated (built from other sources or another
+    configuration than now: sim_fingerprint) and this is a terminal; a no, no emcc, a failed build: the site goes on
+    without it (an outdated one: shown as such). The configuration: --profile / --config (default the default profile, as
+    make build)"""
     meta = WEB_SIM.with_suffix(".json")
     if a.config:
         cfg, name = Path(a.config).expanduser(), Path(a.config).stem
     else:
         name = a.profile or DEFAULT_PROFILE
         cfg = C.profile_path(name)
+    try:
+        m = json.loads(meta.read_text()) if WEB_SIM.is_file() else {}
+    except (OSError, ValueError):
+        m = {}
+    fp = sim_fingerprint(cfg)
+    stale = WEB_SIM.is_file() and (m.get("fingerprint") != fp or m.get("config") != name)
+    why = ("" if not stale else f"was built for {m.get('config')}, not {name}" if m.get("config") not in (None, name)
+           else f"(built {m.get('date', '?')}) is older than the firmware sources")
+
+    def ask(question):
+        if not (sys.stdin.isatty() and sys.stdout.isatty()):
+            return False
+        try:
+            return input(question + " [y/N] ").strip().lower() in ("y", "yes")
+        except EOFError:
+            return False
+
     want = a.sim
     if not want and not WEB_SIM.is_file():
-        if sys.stdin.isatty() and sys.stdout.isatty():
-            try:
-                want = input(f"No local simulator yet. Build the Simulator of {name} now (about a minute; needs emcc)? [y/N] ").strip().lower() in ("y", "yes")
-            except EOFError:
-                want = False
-        else:
+        want = ask(f"No local simulator yet. Build the Simulator of {name} now (about a minute; needs emcc)?")
+        if not want and not sys.stdin.isatty():
             print(f"(no local simulator: `make web SIM=1` builds the Simulator of {name})")
+    elif not want and stale:
+        want = ask(f"The local simulator {why}. Rebuild it now (about a minute)?")
+        if not want:
+            print(f"(the local simulator {why}: `make web SIM=1` rebuilds it; the site keeps the old one)")
     if want:
         if not shutil.which("emcc"):
             print("optimist: the simulator needs Emscripten (emcc): `brew install emscripten` (macOS), or emsdk; "
@@ -291,22 +330,22 @@ def web_sim(a):
         else:
             print(f"simulator: building {name} (tools/sim.py --wasm)...", flush=True)
             WEB_SIM.parent.mkdir(parents=True, exist_ok=True)
+            tmp = WEB_SIM.with_suffix(".new.wasm")
             r = subprocess.run([str(deps.venv_python()), str(ROOT / "tools" / "sim.py"), "build", "--wasm", "--config", str(cfg),
-                                "--out", str(WEB_SIM)], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
-            if r.returncode or not WEB_SIM.is_file():
-                print("optimist: the simulator did not build (the site goes on without it):\n" +
-                      "\n".join((r.stderr or "").strip().splitlines()[-6:]), file=sys.stderr)
-                WEB_SIM.unlink(missing_ok=True)
-            else:
-                meta.write_text(json.dumps({"config": name, "date": time.strftime("%Y-%m-%d %H:%M")}) + "\n")
+                                "--out", str(tmp)], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+            if r.returncode or not tmp.is_file():
+                print("optimist: the simulator did not build (the site goes on " + ("with the old one" if WEB_SIM.is_file() else "without it")
+                      + "):\n" + "\n".join((r.stderr or "").strip().splitlines()[-6:]), file=sys.stderr)
+                tmp.unlink(missing_ok=True)
+            else:                                        # (a failed rebuild keeps the old simulator: replaced only on success)
+                tmp.replace(WEB_SIM)
+                m = {"config": name, "date": time.strftime("%Y-%m-%d %H:%M"), "fingerprint": fp}
+                meta.write_text(json.dumps(m) + "\n")
+                stale = False
     if not WEB_SIM.is_file():
         return []
-    try:
-        m = json.loads(meta.read_text())
-    except (OSError, ValueError):
-        m = {}
-    return [{"id": "local", "title": f"Local build: {m.get('config', '?')}" + (f" ({m['date']})" if m.get("date") else ""),
-             "sim": WEB_SIM}]
+    return [{"id": "local", "title": f"Local build: {m.get('config', '?')}" + (f" ({m['date']})" if m.get("date") else "")
+             + (", outdated" if stale else ""), "sim": WEB_SIM}]
 
 
 def cmd_web(a):

@@ -230,6 +230,9 @@ check("web: defaults (port 8766, the browser opens; no package: the local site b
       not hasattr(a, "package") and a.fn is optimist.cmd_web)
 a = ap.parse_args(["web", "--port", "9000", "--no-open", "--site", "s"])
 check("web: --port, --no-open, --site", a.port == 9000 and a.no_open and a.site == "s")
+fa, fb = optimist.sim_fingerprint(optimist.C.profile_path("synth")), optimist.sim_fingerprint(optimist.C.profile_path("drum-machine"))
+check("web: the simulator's fingerprint: the same sources the same, another configuration another (outdated: asked again)",
+      fa == optimist.sim_fingerprint(optimist.C.profile_path("synth")) and fa != fb and len(fa) == 64)
 check("web: the installer and editor URLs", optimist.web_urls(9000) ==
       ("http://localhost:9000/webapp/installer/", "http://localhost:9000/webapp/editor/"))
 with tempfile.TemporaryDirectory() as wd:
