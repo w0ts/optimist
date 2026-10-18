@@ -50,7 +50,7 @@ static void inslots_tests(void)
               "KNOB 3 turned to CMP: T1's S2 holds the COMP (T2's kept), KNOB 4 its amount");
         r = ins_row("DYN");
         SCR->cell(r < SCR->rows() ? r : 0u, 1, &c);
-        check(r < SCR->rows() && c.vp == &ins_cset[0][0], "DYN: a row now, T1's own THRS RATIO GAIN CEIL (DYN 2: ATK REL)");
+        check(r < SCR->rows() && c.vp == &INS_CSET(0)[0], "DYN: a row now, T1's own THRS RATIO GAIN CEIL (DYN 2: ATK REL)");
         song.sel = 1;
         check(ins_row("DYN") >= SCR->rows(), "... T2 selected (no DYN in its slots): no DYN row");
         song.sel = 0;

@@ -26,7 +26,7 @@ enum { ED_FX = 86, ED_FX_PUSH = 87 };
 static uint32_t ed_cset(uint32_t k, uint32_t i)        /* track k's COMP setting i (127: no COMP built) */
 {
 #if FELUCCA_MASTER_COMP
-    return (uint32_t)ins_cset[k % NTRK][i % 3u];
+    return (uint32_t)INS_CSET(k % NTRK)[i % 3u];
 #else
     (void)k, (void)i;
     return 127u;
@@ -94,7 +94,7 @@ static void ed_cset_set(uint32_t k, const uint8_t *a)  /* track k's RATIO ATK RE
 {
     uint32_t i;
     for (i = 0; i < 3u; i++)
-        ins_cset[k % NTRK][i] = (int16_t)clamp(a[i], GP[G_CRAT + i].min, GP[G_CRAT + i].max);
+        INS_CSET(k % NTRK)[i] = (int16_t)clamp(a[i], GP[G_CRAT + i].min, GP[G_CRAT + i].max);
 }
 #endif
 /* 86 FX: 1 = handled (replied; editor.c redraws the screen), 0 = not this command or bad arguments (no reply) */

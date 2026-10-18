@@ -59,7 +59,7 @@
 #define UT_TLV_N (UT_TLV_N0 + 4u)
 #define INS_TLV 0x42u
 #define INS_TLV_N0 (NTRK * INS_N + 3u * NTRK + 3u)    /* (its form before fx-rework: an older reader takes these) */
-#define INS_TLV_N (INS_TLV_N0 + 2u * NTRK)           /* + each track's DYN GAIN CEIL (fx_slots.c ins_cset[k][3, 4]) */
+#define INS_TLV_N (INS_TLV_N0 + 2u * NTRK)           /* + each track's DYN GAIN CEIL (fx_slots.c INS_CSET(k)[3, 4]) */
 _Static_assert(INS_TLV_N0 == 23u && INS_TLV_N == 31u, "the track slots' TLV: 8 + 12 + 3, then 8");
 /* TLV MST_TLV (0x44, fx-rework 2026-10-14): the master's insert slots S1 S2 (2 type ids), then the master's amount of DIST
  * and of each further type FOLD .. GATER (mst_amt: the types with no G_* of their own; FILT DUST DYN are G_FILT G_DUST
@@ -206,7 +206,7 @@ static uint32_t ins_tlv(uint8_t (*m)[INS_N], uint8_t *o)
         any |= (uint32_t)((o[k] = ins_slot[k / INS_N][k % INS_N]) != m[k / INS_N][k % INS_N]);
     for (k = 0; k < 3u * NTRK; k++)
 #if FELUCCA_MASTER_COMP
-        any |= (uint32_t)((o[NTRK * INS_N + k] = (uint8_t)ins_cset[k / 3u][k % 3u]) != (uint8_t)ins_cset[0][k % 3u]);
+        any |= (uint32_t)((o[NTRK * INS_N + k] = (uint8_t)INS_CSET(k / 3u)[k % 3u]) != (uint8_t)INS_CSET(0)[k % 3u]);
 #else
         o[NTRK * INS_N + k] = 0;
 #endif
@@ -214,7 +214,7 @@ static uint32_t ins_tlv(uint8_t (*m)[INS_N], uint8_t *o)
         any |= (uint32_t)((o[NTRK * INS_N + 3u * NTRK + k] = (uint8_t)dsend_kit[k]) != DKS_DEF);
     for (k = 0; k < 2u * NTRK; k++)
 #if FELUCCA_MASTER_COMP
-        any |= (uint32_t)((o[INS_TLV_N0 + k] = (uint8_t)ins_cset[k / 2u][3u + k % 2u]) != 0u);
+        any |= (uint32_t)((o[INS_TLV_N0 + k] = (uint8_t)INS_CSET(k / 2u)[3u + k % 2u]) != 0u);
 #else
         o[INS_TLV_N0 + k] = 0;
 #endif
@@ -229,13 +229,13 @@ static void ins_untlv(const uint8_t *a, uint32_t n, uint8_t (*m)[INS_N])
         ins_put(k, n >= NTRK * INS_N ? a + k * INS_N : m[k]);
 #if FELUCCA_MASTER_COMP
     for (k = 0; n >= NTRK * INS_N + 3u * NTRK && k < 3u * NTRK; k++)
-        ins_cset[k / 3u][k % 3u] = (int16_t)clamp(a[NTRK * INS_N + k], GP[G_CRAT + k % 3u].min, GP[G_CRAT + k % 3u].max);
+        INS_CSET(k / 3u)[k % 3u] = (int16_t)clamp(a[NTRK * INS_N + k], GP[G_CRAT + k % 3u].min, GP[G_CRAT + k % 3u].max);
 #endif
     for (k = 0; k < 3u; k++)
         dsend_kit[k] = (int16_t)(n >= INS_TLV_N0 && a[NTRK * INS_N + 3u * NTRK + k] < DKS_DEF ? a[NTRK * INS_N + 3u * NTRK + k] : DKS_DEF);
 #if FELUCCA_MASTER_COMP
     for (k = 0; k < 2u * NTRK; k++)                    /* (DYN's GAIN CEIL; none: AUTO, OFF, as the COMP of before) */
-        ins_cset[k / 2u][3u + k % 2u] = (int16_t)(n >= INS_TLV_N ? clamp(a[INS_TLV_N0 + k], 0, tdyn_d(3u + k % 2u)->max) : 0);
+        INS_CSET(k / 2u)[3u + k % 2u] = (int16_t)(n >= INS_TLV_N ? clamp(a[INS_TLV_N0 + k], 0, tdyn_d(3u + k % 2u)->max) : 0);
 #endif
 }
 

@@ -59,6 +59,15 @@ static const char *const N_ROLL[] = {"1/8", "1/16", "1/32", "32T", "1/64"};   /*
 static const char *const N_CRAT[] = {"1.5:1", "2:1", "3:1", "4:1", "6:1", "8:1", "20:1", "INF"};
 static const char *const N_CATK[] = {"0.1ms", "0.3ms", "1ms", "3ms", "10ms", "30ms"};
 static const char *const N_CREL[] = {"50ms", "100ms", "200ms", "300ms", "600ms", "1.2s", "AUTO"};
+/* a track's DYN GAIN (fx_slots.c TDYN_GC, the track value P_TDGAIN) and EQ3's ranges and value tags (fx_slots.c fxs_fmt
+ * formats a value by its tag: dB with KILL, the crossovers' Hz) */
+static const char *const N_TDGAIN[] = {"AUTO", "0dB", "1dB", "2dB", "3dB", "4dB", "5dB", "6dB", "7dB", "8dB", "9dB",
+                                       "10dB", "11dB", "12dB", "13dB", "14dB", "15dB"};
+#define EQ_KILL (-31)
+#define EQ_FL_DEF 32                                    /* 250 Hz */
+#define EQ_FH_DEF 28                                    /* 2.5 kHz */
+#define EQ_FMAX 60
+static const char EQ_TAG_DB[] = "dB", EQ_TAG_FL[] = "Hz", EQ_TAG_FH[] = "Hz";
 static const char *const N_CCEIL[] = {"OFF", "-0.1", "-0.3", "-0.5", "-1.0", "-2.0", "-3.0", "-6.0"};
 #if FELUCCA_ANALOG2
 static const char *const N_A2WAVE[] = {"=1", "SAW", "SQR", "TRI", "SIN", "PWM"};   /* eng_analog2.c: =1 osc 1's */
@@ -155,6 +164,11 @@ static const param_desc_t TP[P_COUNT] = {
 #endif
 #if FELUCCA_MASTER_COMP
     [P_TCOMP] = PD("DYN", F_PCT, 0, 127, 0),       /* the DYN insert (fx_slots.c): 0 off, threshold up to -30 dB */
+    [P_TDRAT] = PE("RATIO", N_CRAT, 1),            /* its settings (2026-10-18: track values): as the master COMP's */
+    [P_TDATK] = PE("ATK", N_CATK, 4),
+    [P_TDREL] = PE("REL", N_CREL, 6),
+    [P_TDGAIN] = PE("GAIN", N_TDGAIN, 0),          /*   AUTO: the make-up from the threshold */
+    [P_TDCEIL] = PE("CEIL", N_CCEIL, 0),           /*   OFF: no limiter */
 #endif
 #if INS_FX
     /* the further insert types' amounts (fx/insfx/insfx.c): each 0 off .. 127; the label names the type's slot */
@@ -187,6 +201,11 @@ static const param_desc_t TP[P_COUNT] = {
 #endif
 #if FELUCCA_INS_EQ3
     [P_TEQ] = PE("EQ3", N_ONOFF, 1),               /* EQ3 (insfx/eq3.c): on (its bands: the EQ3 pages) */
+    [P_TEQLO] = {"LO", F_INT, EQ_KILL, 6, 0, 0, EQ_TAG_DB},   /* its bands (2026-10-18: track values), fx_slots.c EQ_D's */
+    [P_TEQMID] = {"MID", F_INT, EQ_KILL, 6, 0, 0, EQ_TAG_DB},
+    [P_TEQHI] = {"HI", F_INT, EQ_KILL, 6, 0, 0, EQ_TAG_DB},
+    [P_TEQFL] = {"FREQ L", F_INT, 0, EQ_FMAX, EQ_FL_DEF, 0, EQ_TAG_FL},
+    [P_TEQFH] = {"FREQ H", F_INT, 0, EQ_FMAX, EQ_FH_DEF, 0, EQ_TAG_FH},
 #endif
     [P_L2RATE] = PD("RATE", F_LFOHZ, -LSYNC_N, 127, 60),   /* LFO 2 (voice.c lfo2_tick): as LFO's RATE (< 0 synced) */
     [P_L2WAVE] = PE("WAVE", N_LWAVE, 0),

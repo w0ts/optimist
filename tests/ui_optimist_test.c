@@ -379,7 +379,7 @@ static void fxpool_tests(void)
     reset_ui();
     fxs_load(3, FXT_PHSR);                              /* (C: CHO's line 0) */
     fxs_load(1, FXT_EQ3);
-    eq3_v[NTRK + 2u + 2u][EQV_LO] = EQ_KILL;            /* (A: REV's line 2) */
+    EQ3_V(NTRK + 2u + 2u)[EQV_LO] = EQ_KILL;            /* (A: REV's line 2) */
     go_home();
     ui.row[SCR_HOME] = MXR_MASTER;
     tap(B_FX);
@@ -397,7 +397,7 @@ static void fxpool_tests(void)
     go_home();
     tap(B_FX);
     check(ui.scr == SCR_SOUND && snd_row_of("EQ3") >= 0 && snd_row_of("EQ3 FREQ") >= 0, "... T1 holding EQ3: its EQ3 and EQ3 FREQ rows");
-    eq3_v[0][EQV_LO] = EQ_KILL, eq3_v[0][EQV_HI] = 4;
+    EQ3_V(0)[EQV_LO] = EQ_KILL, EQ3_V(0)[EQV_HI] = 4;
     ui.row[SCR_SOUND] = (uint8_t)snd_row_of("EQ3"), ui.force = 1, frame(), ppm("opt-fxpool-eq3");
     ui.row[SCR_SOUND] = (uint8_t)snd_row_of("EQ3 FREQ"), ui.force = 1, frame(), ppm("opt-fxpool-eq3freq");
     ins_defaults();                                     /* (every slot the default again, the screens' rows the first) */

@@ -39,12 +39,16 @@
  * older build keeps these events and plays none of them (a hold: motion_param false; a lock: lock_ok false): ids past
  * every build's stored track ids (auto.c MOT_TAIL_END) and below the pseudo-parameters (0xFC: COND, the last free id) */
 #define AUTO_LANE0 0x7Cu
-#define AUTO_LANE_N 128u                 /* 16 lanes x 8 values: 0x7C .. 0xFB */
+#define AUTO_LANE_N 80u                  /* 10 lanes x 8 values: 0x7C .. 0xCB (16 lanes until 2026-10-16: 0xCC .. 0xFB are the
+                                          * stored tail's second range since 2026-10-18, auto.c MOT_TAIL2; the user: old
+                                          * automation may break) */
+#define AUTO_TAIL2 (AUTO_LANE0 + AUTO_LANE_N)
+#define AUTO_TAIL2_N (AUTO_COND - AUTO_TAIL2)
 #define AUTO_IS_LANE(p) ((uint32_t)(p) - AUTO_LANE0 < AUTO_LANE_N)
 #define AUTO_LANE(l, v) (AUTO_LANE0 + (((uint32_t)(l) & 15u) << 3 | ((uint32_t)(v) & 7u)))
 #define AUTO_LANE_L(p) (((uint32_t)(p) - AUTO_LANE0) >> 3)
 #define AUTO_LANE_V(p) (((uint32_t)(p) - AUTO_LANE0) & 7u)
-_Static_assert(AUTO_LANE0 + AUTO_LANE_N <= AUTO_COND, "lane ids below the pseudo-parameters");
+_Static_assert(AUTO_LANE0 + AUTO_LANE_N <= AUTO_COND && AUTO_TAIL2_N == 48u, "lane ids, then the second tail range, below the pseudo-parameters");
 /* a synth note's own end in the stored forms only (seq/ngate.h: the working lists never hold one): note slot k of the
  * step, AUTO_NGATE0 + k, step-only, value 1..127 (1/128 of the step). Past every build's stored track ids (auto.c
  * MOT_TAIL_END), below the drum lanes' ids: an older build keeps them and plays none */

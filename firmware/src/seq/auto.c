@@ -103,8 +103,26 @@ static const uint8_t MOT_TAIL[MOT_NTAIL] = {
     P_COUNT, P_COUNT, P_COUNT, P_COUNT, P_COUNT, P_COUNT,
 #endif
 };
+/* the stored tail's second range (2026-10-18: the first was full at AUTO_MUTE0), auto.h AUTO_TAIL2 .. (0xCC ..): the
+ * track's DYN settings RATIO ATK REL GAIN CEIL, EQ3's LO MID HI FREQ L FREQ H (fx_slots.c: track values since) */
+static const uint8_t MOT_TAIL2[] = {
+#if FELUCCA_MASTER_COMP
+    P_TDRAT, P_TDATK, P_TDREL, P_TDGAIN, P_TDCEIL,
+#else
+    P_COUNT, P_COUNT, P_COUNT, P_COUNT, P_COUNT,
+#endif
+#if FELUCCA_INS_EQ3
+    P_TEQLO, P_TEQMID, P_TEQHI, P_TEQFL, P_TEQFH,
+#else
+    P_COUNT, P_COUNT, P_COUNT, P_COUNT, P_COUNT,
+#endif
+};
+#define MOT_NTAIL2 ((uint32_t)sizeof MOT_TAIL2)
+_Static_assert(MOT_NTAIL2 <= AUTO_TAIL2_N, "the second tail range: inside its ids");
 static uint32_t mot_id(uint32_t s)                           /* stored -> this build's (P_COUNT: none here) */
 {
+    if (s - AUTO_TAIL2 < MOT_NTAIL2)
+        return MOT_TAIL2[s - AUTO_TAIL2];
     return s < P_ENG_END ? s : s < MOT_TAIL_END ? MOT_TAIL[s - P_ENG_END] : (uint32_t)P_COUNT;
 }
 static uint32_t mot_sid(uint32_t id)                         /* this build's -> stored */
@@ -113,6 +131,9 @@ static uint32_t mot_sid(uint32_t id)                         /* this build's -> 
     for (k = 0; id >= P_ENG_END && k < MOT_NTAIL; k++)
         if (MOT_TAIL[k] == id)
             return P_ENG_END + k;
+    for (k = 0; id >= P_ENG_END && id < P_COUNT && k < MOT_NTAIL2; k++)
+        if (MOT_TAIL2[k] == id)
+            return AUTO_TAIL2 + k;
     return id;
 }
 

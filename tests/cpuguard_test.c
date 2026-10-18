@@ -581,7 +581,7 @@ static void test_usb(void)
         ut_load(1, t);
         ut.amt[1] = t == FXT_EQ3 ? 1 : 100;
 #if FELUCCA_INS_EQ3
-        eq3_v[NTRK + 1u][EQV_LO] = t == FXT_EQ3 ? -6 : 0;
+        EQ3_V(NTRK + 1u)[EQV_LO] = t == FXT_EQ3 ? -6 : 0;
 #endif
         CHECK(cg_ins_ut() > 0u || FXT_IS_LIM(t), "the USB input's S2 %u: its cost counted (%u)", t, cg_ins_ut());
         CHECK(cg_est() == n0 + cg_ins_ut(), "... in the estimate (%u vs %u + %u)", cg_est(), n0, cg_ins_ut());
@@ -592,7 +592,7 @@ static void test_usb(void)
     ut_defaults();
     ut_load(0, FXT_EQ3);
     ut.amt[0] = 1;
-    eq3_v[NTRK + 1u][EQV_LO] = 0;
+    EQ3_V(NTRK + 1u)[EQV_LO] = 0;
     CHECK(cg_ins_ut() == 0u, "... EQ3 flat: bypassed, no cost (%u)", cg_ins_ut());
 #endif
     ut_defaults();

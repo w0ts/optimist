@@ -97,7 +97,7 @@ static const param_desc_t *fxp_eq3(uint32_t o, uint32_t i, int16_t *on_p, const 
         return on_d;
     }
     i = i > 3u ? i - 1u : i;
-    *vp = &eq3_v[o][i];
+    *vp = &EQ3_V(o)[i];
     return &EQ_D[i];
 }
 #endif
@@ -209,7 +209,7 @@ static const param_desc_t *fxp_loc(uint32_t ow, uint32_t sl, uint32_t i, int16_t
                 *vp = &tr->p[P_TCOMP];
                 return fxp_named(&TP[P_TCOMP], "THRS");
             }
-            *vp = &ins_cset[ow][i - 1u];
+            *vp = &INS_CSET(ow)[i - 1u];
             return tdyn_d(i - 1u);
         }
 #endif
@@ -321,11 +321,11 @@ static uint32_t ed_fxp_sig(uint32_t h)
         FXP_H(p[k]);
 #if FELUCCA_INS_EQ3
     for (k = 0; k < EQ_NO * EQV_N; k++)
-        FXP_H(eq3_v[k / EQV_N][k % EQV_N]);
+        FXP_H(EQ3_V(k / EQV_N)[k % EQV_N]);
 #endif
 #if FELUCCA_MASTER_COMP
     for (k = 0; k < NTRK * TDYN_N; k++)
-        FXP_H(ins_cset[k / TDYN_N][k % TDYN_N]);
+        FXP_H(INS_CSET(k / TDYN_N)[k % TDYN_N]);
 #endif
 #if FELUCCA_INS_JCHORUS
     FXP_H(mst_jmode);

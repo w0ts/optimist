@@ -61,7 +61,7 @@ int main(void)
         }
     }
     if (AUTO_LANE(15, 7) != 0xFBu || AUTO_LANE(0, 0) != AUTO_LANE0 || AUTO_LANE(15, 7) >= AUTO_NUDGE ||
-        !AUTO_IS_LANE(0x7C) || !AUTO_IS_LANE(0xFB) || AUTO_IS_LANE(0x7B) || AUTO_IS_LANE(0xFC) || MOT_TAIL_END > AUTO_LANE0) {
+        !AUTO_IS_LANE(0x7C) || !AUTO_IS_LANE(0xCB) || AUTO_IS_LANE(0x7B) || AUTO_IS_LANE(0xCC) || AUTO_IS_LANE(0xFC) || MOT_TAIL_END > AUTO_LANE0) {
         printf("lane ids: 0x%02X..0x%02X, the tail ends at %u\n", (unsigned)AUTO_LANE(0, 0), (unsigned)AUTO_LANE(15, 7),
                (unsigned)MOT_TAIL_END);
         bad++;

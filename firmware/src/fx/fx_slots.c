@@ -469,13 +469,18 @@ static void rs_untlv(const uint8_t *a, uint32_t n)      /* (0, 0: none, every se
 /* ---- EQ3's settings (fx/insfx/eq3.c: the kernel) */
 #define EQ_NO (NTRK + 5u)                               /* the owners (ifx_owner): T1 T2 T3 DR, MST, USB, the returns' lines */
 enum { EQV_LO, EQV_MID, EQV_HI, EQV_FL, EQV_FH, EQV_N };
-#define EQ_KILL (-31)
-#define EQ_FL_DEF 32                                    /* 250 Hz */
-#define EQ_FH_DEF 28                                    /* 2.5 kHz */
-#define EQ_FMAX 60
+/* (EQ_KILL EQ_FL_DEF EQ_FH_DEF EQ_FMAX, EQ_TAG_*: params.c, the track's bands are track values since 2026-10-18) */
 #define EQ_V_DEF {0, 0, 0, EQ_FL_DEF, EQ_FH_DEF}
-static int16_t eq3_v[EQ_NO][EQV_N] = {EQ_V_DEF, EQ_V_DEF, EQ_V_DEF, EQ_V_DEF, EQ_V_DEF, EQ_V_DEF, EQ_V_DEF, EQ_V_DEF, EQ_V_DEF};
-_Static_assert(EQ_NO == 9u, "eq3_v: nine owners");
+/* owner o's bands, LO MID HI FREQ L FREQ H: a track's its values P_TEQLO .. (2026-10-18), the master's, USB's, the returns'
+ * eq3_vx */
+static int16_t eq3_vx[EQ_NO - NTRK][EQV_N] = {EQ_V_DEF, EQ_V_DEF, EQ_V_DEF, EQ_V_DEF, EQ_V_DEF};
+static __attribute__((noinline)) int16_t *eq3_vp(uint32_t o)   /* (flash: RAM code calls it through FAR) */
+{
+    return o < NTRK ? &trk[o].p[P_TEQLO] : eq3_vx[(o - NTRK) % (EQ_NO - NTRK)];
+}
+#define EQ3_V(o) eq3_vp((uint32_t)(o))
+#define EQ3_VF(o) FAR(eq3_vp)((uint32_t)(o))   /* (from RAM code: insfx.c ifx_run, fx.c dins_one) */
+_Static_assert(EQ_NO == 9u && P_TEQFH == P_TEQLO + EQV_N - 1u, "EQ3: nine owners; a track's five bands in a row");
 /* (made by a few lines of Python: 250 x 2^((p - 32) / 14) Hz, 2500 x 2^((p - 28) / 14) Hz; G = g / (1 + g), g = tan(pi f / 44100), Q16 (a TPT one-pole's: eq3.c);
  * the gains 10^(dB / 20), Q15, [0] KILL, [31] 0 dB) */
 static const uint16_t EQ_FL_HZ[61] = {
@@ -518,7 +523,7 @@ static int eq3_dflt(void)                               /* every owner's setting
     static const int16_t D[EQV_N] = EQ_V_DEF;
     for (o = 0; o < EQ_NO; o++)
         for (i = 0; i < EQV_N; i++)
-            if (eq3_v[o][i] != D[i])
+            if (EQ3_V(o)[i] != D[i])
                 return 0;
     return 1;
 }
@@ -528,19 +533,18 @@ static void eq3_defaults(void)
     static const int16_t D[EQV_N] = EQ_V_DEF;
     for (o = 0; o < EQ_NO; o++)
         for (i = 0; i < EQV_N; i++)
-            eq3_v[o][i] = D[i];
+            EQ3_V(o)[i] = D[i];
 }
 /* EQ3's descriptors: the gains (KILL, -30 .. +6 dB), FREQ LO, FREQ HI (an index into EQ_FL_HZ / EQ_FH_HZ); fxs_fmt shows
  * them (params.c param_format) */
-static const char EQ_TAG_DB[] = "dB", EQ_TAG_FL[] = "Hz", EQ_TAG_FH[] = "Hz";
 static const param_desc_t EQ_D[EQV_N] = {
     {"LO", F_INT, EQ_KILL, 6, 0, 0, EQ_TAG_DB}, {"MID", F_INT, EQ_KILL, 6, 0, 0, EQ_TAG_DB}, {"HI", F_INT, EQ_KILL, 6, 0, 0, EQ_TAG_DB},
     {"FREQ L", F_INT, 0, EQ_FMAX, EQ_FL_DEF, 0, EQ_TAG_FL}, {"FREQ H", F_INT, 0, EQ_FMAX, EQ_FH_DEF, 0, EQ_TAG_FH}};
 static int fxs_fmt(const param_desc_t *d, int32_t v, char *val, const char **unit)
 {
     uint32_t hz;
-    if (d < EQ_D || d >= EQ_D + EQV_N)
-        return 0;
+    if (d->unit != EQ_TAG_DB && d->unit != EQ_TAG_FL && d->unit != EQ_TAG_FH)
+        return 0;                                      /* (by its tag: EQ_D's and the track values' TP[P_TEQLO ..]) */
     if (d->unit == EQ_TAG_DB) {
         if (v <= EQ_KILL) {
             str_cpy(val, "KILL", 6);
@@ -921,9 +925,10 @@ _Static_assert(TRK_DRUM == NPART && NTRK == NPART + 1, "the COMP TLV: the drum b
  * GAIN (0 AUTO: half the static reduction at full scale, the COMP insert of before; 1..16: 0..15 dB) and CEIL (the
  * limiter after it, N_CCEIL: 0 OFF, the default and every project of before); the drum sounds' the drum track's */
 #define TDYN_N 5u
-static int16_t ins_cset[NTRK][TDYN_N] = {{1, 4, 6, 0, 0}, {1, 4, 6, 0, 0}, {1, 4, 6, 0, 0}, {1, 4, 6, 0, 0}};
-static const char *const N_TDGAIN[] = {"AUTO", "0dB", "1dB", "2dB", "3dB", "4dB", "5dB", "6dB", "7dB", "8dB", "9dB",
-                                       "10dB", "11dB", "12dB", "13dB", "14dB", "15dB"};
+/* track k's DYN settings, RATIO ATK REL GAIN CEIL: its values P_TDRAT .. (2026-10-18: were an array of their own) */
+#define INS_CSET(k) (&trk[(k) % NTRK].p[P_TDRAT])
+_Static_assert(P_TDCEIL == P_TDRAT + TDYN_N - 1u, "DYN's settings: five track values in a row");
+/* (N_TDGAIN: params.c, the track's DYN settings are track values since 2026-10-18) */
 /* setting i's descriptor (RATIO ATK REL: the master's lists; GAIN CEIL: the track's, CEIL OFF by default) */
 static const param_desc_t TDYN_GC[2] = {PE("GAIN", N_TDGAIN, 0), PE("CEIL", N_CCEIL, 0)};
 static const param_desc_t *tdyn_d(uint32_t i) { return i < 3u ? &GP[G_CRAT + i] : &TDYN_GC[(i - 3u) & 1u]; }
@@ -980,7 +985,7 @@ static uint32_t fxs_tlv(uint32_t t, uint8_t *o)
             any |= (o[k] = (uint8_t)trk[k].p[P_TEQ]) != 1u;
         any |= (o[NTRK] = (uint8_t)mst_amt[FXT_EQ3]) != 1u;
         for (k = 0; k < EQ_NO * EQV_N; k++)
-            o[NTRK + 1u + k] = (uint8_t)eq3_v[k / EQV_N][k % EQV_N];
+            o[NTRK + 1u + k] = (uint8_t)EQ3_V(k / EQV_N)[k % EQV_N];
         return any || !eq3_dflt() ? FXT_TLV_EQ3 : 0u;
     }
 #endif
@@ -1030,7 +1035,7 @@ static uint32_t fxs_tlv(uint32_t t, uint8_t *o)
         for (k = 1; k < NTRK; k++)
             any |= (uint32_t)(o[k] = (uint8_t)trk[k - 1u].p[P_TCOMP]);
         for (k = 0; k < 3u; k++)
-            any |= (uint32_t)((o[NTRK + k] = (uint8_t)ins_cset[0][k]) != (uint8_t)GP[G_CRAT + k].def);
+            any |= (uint32_t)((o[NTRK + k] = (uint8_t)INS_CSET(0)[k]) != (uint8_t)GP[G_CRAT + k].def);
         return fxs_lanes(dins_amt[1], o + FXT_TLV_COMP) ? FXT_TLV_COMP + DRUM_LANES : any ? FXT_TLV_COMP : 0u;
     }
 #endif
@@ -1048,8 +1053,8 @@ static void fxs_untlv_none(int all)
 #if INS_FX
     for (k = 0; k < NTRK * (FXT_NEWN - FXT_NEW0); k++)
         trk[k % NTRK].p[P_TFOLD + k / NTRK] = 0;      /* (the further inserts' amounts: built or not) */
-    for (k = 0; k < NTRK * (FXT_SHN - FXT_SH0); k++)
-        trk[k % NTRK].p[P_TSFLD + k / NTRK] = 0;      /* (the shapers') */
+    for (k = 0; k < NTRK * (P_TSLEW - P_TSFLD + 1u); k++)
+        trk[k % NTRK].p[P_TSFLD + k / NTRK] = 0;      /* (the shapers': six amounts, WRAP's type has none since 2b85b896) */
     for (k = 0; k < NTRK; k++)
         fxs_gx_def(k);                                 /* (GATER's PATTERN RATE SHAPE) */
 #endif
@@ -1072,7 +1077,7 @@ static void fxs_untlv_none(int all)
     for (k = 0; k < NTRK; k++)
         trk[k].p[P_TCOMP] = 0;
     for (k = 0; all && k < TDYN_N * NTRK; k++)
-        ins_cset[k / TDYN_N][k % TDYN_N] = tdyn_d(k % TDYN_N)->def;
+        INS_CSET(k / TDYN_N)[k % TDYN_N] = tdyn_d(k % TDYN_N)->def;
 #endif
     (void)all;
 }
@@ -1111,7 +1116,7 @@ static void fxs_untlv(uint32_t t, const uint8_t *a, uint32_t n, int all)
             trk[k].p[P_TEQ] = (int16_t)(k < n ? a[k] != 0u : 1u);
         mst_amt[FXT_EQ3] = (int16_t)(NTRK < n ? a[NTRK] != 0u : 1u);
         for (k = 0; k < EQ_NO * EQV_N && NTRK + 1u + k < n; k++)
-            eq3_v[k / EQV_N][k % EQV_N] = (int16_t)clamp((int8_t)a[NTRK + 1u + k], EQ_D[k % EQV_N].min, EQ_D[k % EQV_N].max);
+            EQ3_V(k / EQV_N)[k % EQV_N] = (int16_t)clamp((int8_t)a[NTRK + 1u + k], EQ_D[k % EQV_N].min, EQ_D[k % EQV_N].max);
     }
 #endif
     if (t < FXT_N && FXT_BUS[t] != 0xFFu && n >= 1u)
@@ -1124,7 +1129,7 @@ static void fxs_untlv(uint32_t t, const uint8_t *a, uint32_t n, int all)
         for (k = 1; k < NTRK; k++)
             trk[k - 1u].p[P_TCOMP] = (int16_t)(a[k] > 127u ? 127u : a[k]);
         for (k = 0; all && k < 3u * NTRK; k++)       /* (every track's: the track slots' TLV may follow) */
-            ins_cset[k / 3u][k % 3u] = (int16_t)clamp(a[NTRK + k % 3u], GP[G_CRAT + k % 3u].min, GP[G_CRAT + k % 3u].max);
+            INS_CSET(k / 3u)[k % 3u] = (int16_t)clamp(a[NTRK + k % 3u], GP[G_CRAT + k % 3u].min, GP[G_CRAT + k % 3u].max);
         for (k = 0; n >= FXT_TLV_COMP + DRUM_LANES && k < DRUM_LANES; k++)
             dins_amt[1][k] = a[FXT_TLV_COMP + k];      /* (S2's) */
     }
@@ -1210,7 +1215,7 @@ static const param_desc_t *eq3_desc(uint32_t k, int16_t **vp)
         return &RON;
     }
     f = f > 3u ? f - 1u : f;                            /* (4 5: FREQ L, FREQ H) */
-    *vp = &eq3_v[o][f];
+    *vp = &EQ3_V(o)[f];
     return &EQ_D[f];
 }
 #endif
@@ -1292,7 +1297,7 @@ static const param_desc_t *fxs_desc(uint32_t k, int16_t **vp)
         return &TP[P_TCOMP];
     }
     if (k >= FX_NSLOT) {                               /* DYN's RATIO ATK REL GAIN CEIL, the selected track's */
-        *vp = &ins_cset[song.sel % NTRK][(k - FX_NSLOT) % TDYN_N];
+        *vp = &INS_CSET(song.sel % NTRK)[(k - FX_NSLOT) % TDYN_N];
         return tdyn_d((k - FX_NSLOT) % TDYN_N);
     }
 #endif

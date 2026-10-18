@@ -384,6 +384,7 @@ static void t_stores(void)
 
 int main(void)
 {
+    host_dyn_eq_defaults();                          /* (DYN EQ3: track values, felucca_init's defaults) */
     t_heard();
     t_solo_set();
     t_mix();

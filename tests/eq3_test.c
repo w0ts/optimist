@@ -38,7 +38,7 @@ static void sine(double f, double a)
 }
 static void set(int lo, int mid, int hi)
 {
-    eq3_v[0][EQV_LO] = (int16_t)lo, eq3_v[0][EQV_MID] = (int16_t)mid, eq3_v[0][EQV_HI] = (int16_t)hi;
+    EQ3_V(0)[EQV_LO] = (int16_t)lo, EQ3_V(0)[EQV_MID] = (int16_t)mid, EQ3_V(0)[EQV_HI] = (int16_t)hi;
 }
 /* T1's inserts over x -> y */
 static void play(void)
@@ -85,7 +85,7 @@ int main(void)
     host_tracks_init();
     ins_put(0, s);
     check("EQ3 built, ON by default (its amount), the defaults: 0 dB, 250 Hz, 2.5 kHz", trk[0].p[P_TEQ] == 1 &&
-          eq3_v[0][EQV_LO] == 0 && EQ_FL_HZ[eq3_v[0][EQV_FL]] == 250 && EQ_FH_HZ[eq3_v[0][EQV_FH]] == 2500);
+          EQ3_V(0)[EQV_LO] == 0 && EQ_FL_HZ[EQ3_V(0)[EQV_FL]] == 250 && EQ_FH_HZ[EQ3_V(0)[EQV_FH]] == 2500);
     sine(1000, 150000);
     play();
     check("flat (0 dB x 3): bypassed, the block bit for bit, its share 0 (nothing run)", !memcmp(x, y, sizeof x) && !eq3_st[0].w);
@@ -151,7 +151,7 @@ int main(void)
         memcpy(y, x, sizeof y);
         for (i = 0; i < NB; i++) {
             int v = (int)(i % 26u) - 13;                 /* -13 .. +12, back and forth through 0 */
-            eq3_v[0][EQV_LO] = (int16_t)(v < -6 ? -12 - v : v > 6 ? 12 - v : v);
+            EQ3_V(0)[EQV_LO] = (int16_t)(v < -6 ? -12 - v : v > 6 ? 12 - v : v);
             ins_part(&trk[0], y + i * CTL, CTL);
         }
         mx = maxstep(x), my = maxstep(y);
@@ -177,7 +177,7 @@ int main(void)
     {   /* the master's: L and R */
         uint8_t m[2] = {FXT_EQ3, FXT_NONE};
         mst_put(m);
-        eq3_v[NTRK][EQV_LO] = -10, eq3_v[NTRK][EQV_HI] = 4;
+        EQ3_V(NTRK)[EQV_LO] = -10, EQ3_V(NTRK)[EQV_HI] = 4;
         sine(300, 150000);
         memcpy(y, x, sizeof y), memcpy(r2, x, sizeof r2);
         for (i = 0; i < NB; i++)
@@ -191,17 +191,17 @@ int main(void)
         eq3_defaults();
         trk[0].p[P_TEQ] = 1;
         check("record: nothing to keep at the defaults", fxs_tlv(FXT_EQ3, t) == 0u);
-        eq3_v[2][EQV_MID] = EQ_KILL, eq3_v[NTRK + 2u][EQV_FH] = 50, trk[1].p[P_TEQ] = 0, mst_amt[FXT_EQ3] = 0;
+        EQ3_V(2)[EQV_MID] = EQ_KILL, EQ3_V(NTRK + 2u)[EQV_FH] = 50, trk[1].p[P_TEQ] = 0, mst_amt[FXT_EQ3] = 0;
         n = fxs_tlv(FXT_EQ3, t);
         fxs_untlv_none(1);
-        check("... none: the defaults (ON, 0 dB)", trk[1].p[P_TEQ] == 1 && eq3_v[2][EQV_MID] == 0 && mst_amt[FXT_EQ3] == 1);
+        check("... none: the defaults (ON, 0 dB)", trk[1].p[P_TEQ] == 1 && EQ3_V(2)[EQV_MID] == 0 && mst_amt[FXT_EQ3] == 1);
         fxs_untlv(FXT_EQ3, t, n, 1);
         check("... set: round trips (ON, the master's ON, a part's band, a return's FREQ H)", n == FXT_TLV_EQ3 &&
-              trk[1].p[P_TEQ] == 0 && mst_amt[FXT_EQ3] == 0 && eq3_v[2][EQV_MID] == EQ_KILL && eq3_v[NTRK + 2u][EQV_FH] == 50);
+              trk[1].p[P_TEQ] == 0 && mst_amt[FXT_EQ3] == 0 && EQ3_V(2)[EQV_MID] == EQ_KILL && EQ3_V(NTRK + 2u)[EQV_FH] == 50);
         n = fxr_encode(b);
         fxs_untlv_none(1);
         fxr_decode(b, n, 1);
-        check("... through the FX record (a load)", trk[1].p[P_TEQ] == 0 && mst_amt[FXT_EQ3] == 0 && eq3_v[2][EQV_MID] == EQ_KILL);
+        check("... through the FX record (a load)", trk[1].p[P_TEQ] == 0 && mst_amt[FXT_EQ3] == 0 && EQ3_V(2)[EQV_MID] == EQ_KILL);
         fxs_untlv_none(1);
     }
     {   /* cpu */

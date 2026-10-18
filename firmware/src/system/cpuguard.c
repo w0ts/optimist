@@ -107,7 +107,7 @@ static uint32_t cg_ins_part(uint32_t p)
         n += CG_COST_JUNO;
 #endif
 #if FELUCCA_INS_EQ3
-    if (ifx_w(FXT_EQ3, p) || (on && INS_ON(p, FXT_EQ3) && trk[p].p[P_TEQ] && !eq3_flat(eq3_v[p])))
+    if (ifx_w(FXT_EQ3, p) || (on && INS_ON(p, FXT_EQ3) && trk[p].p[P_TEQ] && !eq3_flat(EQ3_V(p))))
         n += CG_COST_EQ3M;                            /* (engaged only: flat is bypassed, eq3.c) */
 #endif
     return n;
@@ -147,7 +147,7 @@ static uint32_t cg_ins_bus(void)
         n += CG_COST_JUNO;                            /* (its one stereo instance) */
 #endif
 #if FELUCCA_INS_EQ3
-    if (ifx_w(FXT_EQ3, IFX_BUS) || (fx_on(TDRUM) && INS_ON(TRK_DRUM, FXT_EQ3) && TDRUM->p[P_TEQ] && !eq3_flat(eq3_v[TRK_DRUM])))
+    if (ifx_w(FXT_EQ3, IFX_BUS) || (fx_on(TDRUM) && INS_ON(TRK_DRUM, FXT_EQ3) && TDRUM->p[P_TEQ] && !eq3_flat(EQ3_V(TRK_DRUM))))
         n += CG_COST_EQ3S;
 #endif
     return n;
@@ -206,7 +206,7 @@ static uint32_t cg_ins_mst(void)
             n += CG_COST_JUNO;
 #endif
 #if FELUCCA_INS_EQ3
-        if (t == FXT_EQ3 && (ifx_w(FXT_EQ3, IFX_MST) || (mst_amt[FXT_EQ3] && !eq3_flat(eq3_v[NTRK]))))
+        if (t == FXT_EQ3 && (ifx_w(FXT_EQ3, IFX_MST) || (mst_amt[FXT_EQ3] && !eq3_flat(EQ3_V(NTRK)))))
             n += CG_COST_EQ3S;
 #endif
     }
@@ -244,7 +244,7 @@ static uint32_t cg_ins_rt(void)
             n += CG_COST_JUNO;
 #endif
 #if FELUCCA_INS_EQ3
-        if (t == FXT_EQ3 && (ifx_w(FXT_EQ3, IFX_RT(j)) || (a && !eq3_flat(eq3_v[NTRK + 2u + j]))))
+        if (t == FXT_EQ3 && (ifx_w(FXT_EQ3, IFX_RT(j)) || (a && !eq3_flat(EQ3_V(NTRK + 2u + j)))))
             n += CG_COST_EQ3S;
 #endif
     }
@@ -284,7 +284,7 @@ static uint32_t cg_ins_ut(void)
             n += CG_COST_JUNO;
 #endif
 #if FELUCCA_INS_EQ3
-        if (t == FXT_EQ3 && (ifx_w(FXT_EQ3, IFX_UT) || (a && !eq3_flat(eq3_v[NTRK + 1u]))))
+        if (t == FXT_EQ3 && (ifx_w(FXT_EQ3, IFX_UT) || (a && !eq3_flat(EQ3_V(NTRK + 1u)))))
             n += CG_COST_EQ3S;
 #endif
     }

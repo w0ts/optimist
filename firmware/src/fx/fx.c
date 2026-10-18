@@ -1734,13 +1734,13 @@ static int32_t tcomp_sink[CTL];                         /* (a mono insert: mc_ru
 /* the settings of a COMP insert at amount amt (1..127), track k's RATIO ATK REL */
 AINL void tcomp_settings(mc_set_t *s, int32_t amt, uint32_t k)
 {
-    const int16_t *cs = ins_cset[k % NTRK];
+    const int16_t *cs = INS_CSET(k % NTRK);
     int32_t thr = amt > 0 ? -1 - (amt - 1) * 29 / 126 : 0;
     mc_settings(s, thr, cs[0], cs[1], cs[2], cs[3] > 0 ? cs[3] - 1 : (-thr * MC_SLOPE[cs[0] & 7]) >> 15);   /* (GAIN 0: AUTO) */
 }
 AINL int tcomp_rest(const mc_t *c) { return !c->gr16 && c->g13 == 8192; }
 /* DYN's limiter on a track (fx-rework, 2026-10-14: the compressor and the limiter one effect): track k's CEIL (its own,
- * fx_slots.c ins_cset[k][4]; OFF by default) after its compressor and gain, the master's lookahead brickwall at half
+ * fx_slots.c INS_CSET(k)[4]; OFF by default) after its compressor and gain, the master's lookahead brickwall at half
  * its lookahead (master_comp.c tlim_block) on the track's block (a part: mono; the drum bus: L / R). Off at amount 0 with
  * the rest of DYN. 0.73 ms of delay while it is on */
 static tlim_t tlim[NTRK];
@@ -1749,7 +1749,7 @@ static int32_t tlim_dr[TLIM_N];                         /* (the drum bus's right
 static HOT2 __attribute__((noinline)) void tcomp_run(mc_t *c, int32_t amt, int32_t *l, int32_t *r, uint32_t n, uint32_t k)
 {
     mc_set_t s;
-    tlim_set(&tlim[k % NTRK], TLIM_DR(k), amt ? ins_cset[k % NTRK][4] : 0);
+    tlim_set(&tlim[k % NTRK], TLIM_DR(k), amt ? INS_CSET(k % NTRK)[4] : 0);
     if (!amt && tcomp_rest(c))
         return;                                         /* (off and at rest) */
     tcomp_settings(&s, amt, k);
@@ -1923,8 +1923,8 @@ static __attribute__((noinline)) void dins_rest(uint32_t k, uint32_t s, uint32_t
         st->m.w = 32768, st->m.a = (uint8_t)a;
 #endif
 #if FELUCCA_INS_EQ3
-    if (t == FXT_EQ3 && a && !eq3_flat(eq3_v[TRK_DRUM]))
-        eq3_engage(&st->e, eq3_v[TRK_DRUM]);         /* (a hit from silence: engaged at once, the drum track's bands) */
+    if (t == FXT_EQ3 && a && !eq3_flat(EQ3_V(TRK_DRUM)))
+        eq3_engage(&st->e, EQ3_V(TRK_DRUM));         /* (a hit from silence: engaged at once, the drum track's bands) */
 #endif
     (void)a;
 }
@@ -2031,7 +2031,7 @@ static HOT2 __attribute__((noinline)) void dins_one(uint32_t k, uint32_t s, uint
         break;
 #endif
 #if FELUCCA_INS_EQ3
-    case FXT_EQ3: (void)eq3_run(&st->e, eq3_v[TRK_DRUM], a, b, 0, n); break;   /* (the drum track's bands) */
+    case FXT_EQ3: (void)eq3_run(&st->e, EQ3_VF(TRK_DRUM), a, b, 0, n); break;   /* (the drum track's bands) */
 #endif
     default: break;
     }
@@ -2150,7 +2150,7 @@ static HOT2 __attribute__((noinline)) void dbus_comp_run(int32_t amt, uint32_t n
 }
 static HOT2 __attribute__((noinline)) void dbus_dyn(int32_t a, uint32_t n, uint32_t nc)   /* DYN: COMP, then CEIL on L / R */
 {
-    tlim_set(&tlim[TRK_DRUM], tlim_dr, a ? ins_cset[TRK_DRUM][4] : 0);
+    tlim_set(&tlim[TRK_DRUM], tlim_dr, a ? INS_CSET(TRK_DRUM)[4] : 0);
     if (a || !tcomp_rest(&dbus_comp))                   /* (at 0 it lets go first) */
         dbus_comp_run(a, n, nc);
     if (tlim[TRK_DRUM].on)

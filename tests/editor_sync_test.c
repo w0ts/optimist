@@ -203,6 +203,7 @@ static uint32_t entries(uint32_t from, uint32_t where, uint32_t id, int32_t *las
 int main(void)
 {
     uint32_t n0, i, k;
+    host_dyn_eq_defaults();                          /* (DYN EQ3: track values, felucca_init's defaults) */
     int32_t v = 0;
     song.sel = 0;
     fm1_ms = 1000;
@@ -294,12 +295,15 @@ int main(void)
     n0 = nf;
     dins_amt[1][2] = 90;
 #if FELUCCA_MASTER_COMP
-    ins_cset[0][0] = 5;
+    INS_CSET(0)[0] = 5;
 #endif
     run_ms(ED9_WIN);
-    check(count(ED_FX_PUSH, n0) == 1 && fr[nf - 1][6 + 4 + 3 + DRUM_LSTORE + 2] == 90u
+    for (k = nf; k > n0 && fr[k - 1u][4] != ED_FX_PUSH; k--)
+        ;                                               /* (the FX_PUSH frame: T1's RATIO, a track value since 2026-10-18,
+                                                         * also comes as a PARAMS entry after it) */
+    check(count(ED_FX_PUSH, n0) == 1 && k > n0 && fr[k - 1u][6 + 4 + 3 + DRUM_LSTORE + 2] == 90u
 #if FELUCCA_MASTER_COMP
-          && fr[nf - 1][10] == 5u
+          && fr[k - 1u][10] == 5u
 #endif
           , "v10 FX_PUSH: a drum sound's COMP and the COMP's RATIO: pushed (sounds' DIST x 16, then COMP x 16)");
     {   /* INFO tag 0x56 (ed_fx_info): every type built is listed once, its SOUND 3 value id the fx_slots.c lane id (127 none: the inserts) */
@@ -349,13 +353,13 @@ int main(void)
         check(r2 && r3 && !r4 && dsend_kit[0] == 64 && dsend_kit[1] == 127 && dsend_kit[2] == 127 &&
               ed_out[T + 8u + 3u * NTRK] == 64u
 #if FELUCCA_MASTER_COMP
-              && ins_cset[1][0] == 3 && ins_cset[1][2] == 5 && ins_cset[0][0] == 5 && ed_out[T + 8u + 3u] == 3u
+              && INS_CSET(1)[0] == 3 && INS_CSET(1)[2] == 5 && INS_CSET(0)[0] == 5 && ed_out[T + 8u + 3u] == 3u
 #endif
               , "v10 FX op 5: T2's own COMP settings; op 6 the drum send levels (past 127: 127); track 4: no reply");
         ins_defaults();
         dsend_kit[0] = dsend_kit[1] = dsend_kit[2] = DKS_DEF;
 #if FELUCCA_MASTER_COMP
-        ins_cset[0][0] = ins_cset[1][0] = 1, ins_cset[1][1] = 4, ins_cset[1][2] = 6;
+        INS_CSET(0)[0] = INS_CSET(1)[0] = 1, INS_CSET(1)[1] = 4, INS_CSET(1)[2] = 6;
 #endif
         ed9_known_fx();
     }
@@ -448,12 +452,12 @@ int main(void)
             check(r && ed_out[9] == F_ENUM, "v13 FXP op 2: EQ3's fourth parameter is ON (an enum)");
             q[0] = 4, q[1] = 1, q[2] = 0, q[3] = 0, q[4] = (uint8_t)((-100 + 8192) & 127), q[5] = (uint8_t)((-100 + 8192) >> 7);
             ed_begin(ED_FXP); r = ed_fxp(ED_FXP, q, 6);
-            check(r && eq3_v[1][0] == EQ_KILL, "v13 FXP op 4: a band set below its range is clamped to KILL");
+            check(r && EQ3_V(1)[0] == EQ_KILL, "v13 FXP op 4: a band set below its range is clamped to KILL");
             ed_begin(ED_FXP); r = ed_fxp(ED_FXP, VA, sizeof VA);
             check(r && ed_out[8] == 6u && ed_n == 5u + 4u + 12u, "v13 FXP op 3: the slot's six values");
         }
         n0 = nf;
-        eq3_v[0][1] = 3;
+        EQ3_V(0)[1] = 3;
         run_ms(ED9_WIN);
         check(count(ED_FX_PUSH, n0) == 1, "v13 FXP: an EQ band moved on the device: the FX push goes out");
         n0 = nf;
@@ -464,7 +468,7 @@ int main(void)
                   "v13 FXP op 1: EQ3 into B: its line's RET and the six; its slot 1 its sends (B -> C; RET_FB: B -> A too); the reply ends with the return's send line");
             q[0] = 4, q[1] = FXP_RET0 + 1, q[2] = 0, q[3] = 5, q[4] = (uint8_t)((10 + 8192) & 127), q[5] = (uint8_t)((10 + 8192) >> 7);
             ed_begin(ED_FXP); r = ed_fxp(ED_FXP, q, 6); ed9_known_fx();
-            check(r && eq3_v[NTRK + 2u + fxs_line[2]][3] == 10, "v13 FXP op 4: a return's EQ3 FREQ L (the owner of its line)");
+            check(r && EQ3_V(NTRK + 2u + fxs_line[2])[3] == 10, "v13 FXP op 4: a return's EQ3 FREQ L (the owner of its line)");
         }
         run_ms(2 * ED9_WIN);
         check(count(ED_FX_PUSH, n0) == 0, "v13 FXP: the editor's own writes are known (no push back)");
@@ -495,7 +499,7 @@ int main(void)
             ed_begin(ED_FXP); r = ed_fxp(ED_FXP, m, 4);
             q[0] = 4, q[1] = 0, q[2] = 0, q[3] = 4, q[4] = (uint8_t)((GP[G_CCEIL].max + 8192) & 127), q[5] = (uint8_t)((GP[G_CCEIL].max + 8192) >> 7);
             ed_begin(ED_FXP); r = ed_fxp(ED_FXP, q, 6);
-            check(r && ins_cset[0][3] == GP[G_CCEIL].max, "v13 FXP op 4: a track's DYN GAIN is its own setting (ins_cset)");
+            check(r && INS_CSET(0)[3] == GP[G_CCEIL].max, "v13 FXP op 4: a track's DYN GAIN is its own setting (ins_cset)");
             ins_defaults();
         }
 #endif

@@ -466,7 +466,7 @@ static void job_cpu(const job_t *j)
         if (j->arg == 63u) {
             ins_load(0, 1, FXT_COMP);
             trk[0].p[P_TCOMP] = 127;
-            ins_cset[0][4] = 4;
+            INS_CSET(0)[4] = 4;
         }
 #endif
     }

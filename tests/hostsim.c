@@ -111,6 +111,23 @@ static void host_drum_rev(int32_t g)
         dsend[l] = dsend_word(dsend_near(g), 0, 0);
 }
 
+/* DYN's settings and EQ3's bands are track values since 2026-10-18 (were arrays with their defaults in their initialisers):
+ * the tests that do not init the tracks first call this at their start (felucca_init: model.c track_defaults) */
+static void host_dyn_eq_defaults(void)
+{
+    uint32_t k, i;
+    for (k = 0; k < NTRK; k++) {
+#if FELUCCA_MASTER_COMP
+        for (i = P_TDRAT; i <= P_TDCEIL; i++)
+            trk[k].p[i] = TP[i].def;
+#endif
+#if FELUCCA_INS_EQ3
+        for (i = P_TEQLO; i <= P_TEQFH; i++)
+            trk[k].p[i] = TP[i].def;
+#endif
+    }
+    (void)i;
+}
 static void host_tracks_init(void)                /* as felucca_init: defaults, empty patterns */
 {
     uint32_t i, k;
@@ -129,7 +146,7 @@ static void host_tracks_init(void)                /* as felucca_init: defaults, 
     ins_defaults();                              /* (every track's insert slots: S1 DIST, S2 FILTER; fx_slots.c) */
 #if FELUCCA_MASTER_COMP
     for (i = 0; i < 3u * NTRK; i++)              /* (each track's COMP settings, as at power-on) */
-        ins_cset[i / 3u][i % 3u] = GP[G_CRAT + i % 3u].def;
+        INS_CSET(i / 3u)[i % 3u] = GP[G_CRAT + i % 3u].def;
 #endif
     for (i = 0; i < 3u; i++)
         dsend_kit[i] = DKS_DEF;                  /* (the drum track's send levels at 100 %) */

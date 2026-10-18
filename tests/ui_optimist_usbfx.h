@@ -48,7 +48,7 @@ static void usbfx_tests(void)
     mx.set = (uint8_t)(s < 0 ? 0 : s);
     mix_turn(MXR_USB, 0, -4, 1);
     mix_turn(MXR_USB, 2, 3, 1);
-    check(eq3_v[NTRK + 1u][EQV_LO] == -4 && eq3_v[NTRK + 1u][EQV_HI] == 3 && eq3_v[0][EQV_LO] == 0 && eq3_v[NTRK][EQV_LO] == 0,
+    check(EQ3_V(NTRK + 1u)[EQV_LO] == -4 && EQ3_V(NTRK + 1u)[EQV_HI] == 3 && EQ3_V(0)[EQV_LO] == 0 && EQ3_V(NTRK)[EQV_LO] == 0,
           "... USB EQ3's LO and HI knobs: the input's own bands (not T1's, not the master's)");
     ui.force = 1, frame(), ppm("opt-usbfx-eq3");
     mx.set = (uint8_t)(s < 0 ? 0 : s + 2);

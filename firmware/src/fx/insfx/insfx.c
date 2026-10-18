@@ -662,7 +662,7 @@ static HOT2 __attribute__((noinline)) void ifx_run(uint32_t ty, uint32_t i, int3
     }
 #endif
 #if FELUCCA_INS_EQ3
-    case FXT_EQ3: (void)eq3_run(&eq3_st[ifx_owner(i)], eq3_v[ifx_owner(i)], a, b, 0, n); break;   /* (a part: mono) */
+    case FXT_EQ3: (void)eq3_run(&eq3_st[ifx_owner(i)], EQ3_VF(ifx_owner(i)), a, b, 0, n); break;   /* (a part: mono) */
 #endif
 #if IFX_DRV || IFX_MOD
     case FXT_SFLD: case FXT_WRAP: case FXT_RECT: case FXT_HARM: case FXT_RING: case FXT_SUBO: case FXT_SLEW: {
@@ -780,7 +780,7 @@ AINL void ifx_st_run(uint32_t ty, uint32_t i0, int32_t a, int32_t *l, int32_t *r
 #endif
 #if FELUCCA_INS_EQ3
     if (ty == FXT_EQ3) {                                /* (a stereo owner: its state's two sides) */
-        (void)eq3_run(&eq3_st[ifx_owner(i0)], eq3_v[ifx_owner(i0)], a, l, r, n);
+        (void)eq3_run(&eq3_st[ifx_owner(i0)], EQ3_VF(ifx_owner(i0)), a, l, r, n);
         return;
     }
 #endif

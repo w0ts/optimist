@@ -193,9 +193,11 @@ static uint64_t render(const uint8_t *lay, const ins_t ins, int dist, int cho, i
         close(fd[0]);
 #if FELUCCA_MASTER_COMP
         int16_t cs[NTRK][3];
-        memcpy(cs, ins_cset, sizeof cs);                /* (the COMP settings the test set: kept) */
+        for (i = 0; i < NTRK; i++)                     /* (the COMP settings the test set: kept; track values since 2026-10-18) */
+            memcpy(cs[i], INS_CSET(i), sizeof cs[i]);
         host_tracks_init();
-        memcpy(ins_cset, cs, sizeof cs);
+        for (i = 0; i < NTRK; i++)
+            memcpy(INS_CSET(i), cs[i], sizeof cs[i]);
 #else
         host_tracks_init();
 #endif
@@ -389,10 +391,10 @@ static void t_comp(void)
     ins_all(CMP);
     d = fxs_desc(FX_NSLOT + 2u, &v);
     check("... shown on T1 (COMP in its S2); its knobs the master COMP's RATIO ATK REL lists, T1's own values",
-          page_shown(&PAGES[pg]) && d == &GP[G_CREL] && v == &ins_cset[0][2] && fxs_desc(FX_NSLOT, &v) == &GP[G_CRAT]);
+          page_shown(&PAGES[pg]) && d == &GP[G_CREL] && v == &INS_CSET(0)[2] && fxs_desc(FX_NSLOT, &v) == &GP[G_CRAT]);
     song.sel = 1;
     d = fxs_desc(FX_NSLOT + 2u, &v);
-    check("... T2 selected (no COMP): hidden; its own values", !page_shown(&PAGES[pg]) && v == &ins_cset[1][2]);
+    check("... T2 selected (no COMP): hidden; its own values", !page_shown(&PAGES[pg]) && v == &INS_CSET(1)[2]);
     song.sel = 0;
     ins_all(INS_D);
     r_cmp = 0;
@@ -403,14 +405,14 @@ static void t_comp(void)
     check("COMP in no slot of T1, its amount 120: the mix as at 0, sample for sample", h == dry);
     h = render(FXS_DEF, CMP, 90, 60, 50, 0, 0);
     check("COMP in T1's S2 at 120: the mix changes", h != dry);
-    ins_cset[1][0] = 7;                                 /* (T2's own ratio: T1's sound unchanged) */
+    INS_CSET(1)[0] = 7;                                 /* (T2's own ratio: T1's sound unchanged) */
     check("... T2's RATIO changed (D6: each track's own): T1's mix the same", render(FXS_DEF, CMP, 90, 60, 50, 0, 0) == h);
-    ins_cset[1][0] = GP[G_CRAT].def;
-    ins_cset[0][0] = 7;
+    INS_CSET(1)[0] = GP[G_CRAT].def;
+    INS_CSET(0)[0] = 7;
     check("... T1's RATIO changed: T1's mix changes", render(FXS_DEF, CMP, 90, 60, 50, 0, 0) != h);
-    ins_cset[0][0] = GP[G_CRAT].def;
+    INS_CSET(0)[0] = GP[G_CRAT].def;
     r_cmp = 0;
-    ins_cset[0][0] = 7, ins_cset[0][1] = 0, ins_cset[0][2] = 2;   /* (the top ratio, the fastest attack) */
+    INS_CSET(0)[0] = 7, INS_CSET(0)[1] = 0, INS_CSET(0)[2] = 2;   /* (the top ratio, the fastest attack) */
     for (n = 0; n < 200u; n++) {                       /* a square at -6 dB, 200 blocks: settled */
         for (i = 0; i < CTL; i++)
             x[i] = (i & 8u) ? 16384 : -16384;
@@ -427,7 +429,7 @@ static void t_comp(void)
         tcomp_run(&c, 0, y, y, CTL, 0);
     }
     check("... back at 0: it lets go, then rests (no reduction, unity gain)", c.gr16 == 0 && c.g13 == 8192);
-    ins_cset[0][0] = GP[G_CRAT].def, ins_cset[0][1] = GP[G_CATK].def, ins_cset[0][2] = GP[G_CREL].def;
+    INS_CSET(0)[0] = GP[G_CRAT].def, INS_CSET(0)[1] = GP[G_CATK].def, INS_CSET(0)[2] = GP[G_CREL].def;
     check("COMP 127 on a note, then out of T1's slots in the silence: the next note with the insert at rest, sample for "
           "sample", render_gap(SC, SD, 127, 0) == render_gap(SC, SD, 127, 1));
     check("... its amount set to 0 in the silence (COMP still in S2): the same", render_gap(SC, SC, 0, 0) == render_gap(SC, SC, 0, 1));
@@ -436,24 +438,24 @@ static void t_comp(void)
           render_gap(SC, SC, 127, 0) == render_gap(SC, SC, 127, 1));
     /* the record: the amounts (the COMP TLV), each track's settings (the track slots' TLV) */
     ins_all(CMP);
-    trk[0].p[P_TCOMP] = 33, trk[2].p[P_TCOMP] = 127, TDRUM->p[P_TCOMP] = 9, ins_cset[0][2] = 3, ins_cset[2][0] = 5;
+    trk[0].p[P_TCOMP] = 33, trk[2].p[P_TCOMP] = 127, TDRUM->p[P_TCOMP] = 9, INS_CSET(0)[2] = 3, INS_CSET(2)[0] = 5;
     n = fxr_encode(b);
-    trk[0].p[P_TCOMP] = trk[2].p[P_TCOMP] = TDRUM->p[P_TCOMP] = 0, ins_cset[0][2] = 6, ins_cset[2][0] = 1;
+    trk[0].p[P_TCOMP] = trk[2].p[P_TCOMP] = TDRUM->p[P_TCOMP] = 0, INS_CSET(0)[2] = 6, INS_CSET(2)[0] = 1;
     ins_all(INS_D);
     check("the record: COMP's amounts, T1's REL and T3's RATIO (each its own), T1's slots back with a load",
           fxr_decode(b, n, 1) && trk[0].p[P_TCOMP] == 33 && trk[1].p[P_TCOMP] == 0 && trk[2].p[P_TCOMP] == 127 &&
-          ins_cset[0][2] == 3 && ins_cset[2][0] == 5 && ins_cset[1][0] == 1 && ins_cset[1][2] == 6 && ins_is(0, FXT_DIST, FXT_COMP));
+          INS_CSET(0)[2] == 3 && INS_CSET(2)[0] == 5 && INS_CSET(1)[0] == 1 && INS_CSET(1)[2] == 6 && ins_is(0, FXT_DIST, FXT_COMP));
     check("... the drum bus's amount first in the COMP TLV, back with a load", TDRUM->p[P_TCOMP] == 9);
-    ins_cset[0][2] = 6;
+    INS_CSET(0)[2] = 6;
     check("... a song section: the amounts, not the settings nor the slots", (ins_all(INS_D), fxr_decode(b, n, 0)) &&
-          trk[2].p[P_TCOMP] == 127 && ins_cset[0][2] == 6 && ins_dflt());
+          trk[2].p[P_TCOMP] == 127 && INS_CSET(0)[2] == 6 && ins_dflt());
     {   /* an old record: one RATIO ATK REL for every track (the COMP TLV's): every track takes them */
         uint8_t o[FXR_HEAD + 2u + FXT_TLV_COMP] = {1, 0, FXT_DIST, FXT_CHO, FXT_DLY, FXT_COMP, FXT_COMP, FXT_TLV_COMP,
                                                     0, 20, 0, 0, 3, 2, 5};
         uint32_t k, ok;
         ok = fxr_decode(o, sizeof o, 1);
         for (k = 0; k < NTRK; k++)
-            ok &= ins_cset[k][0] == 3 && ins_cset[k][1] == 2 && ins_cset[k][2] == 5;
+            ok &= INS_CSET(k)[0] == 3 && INS_CSET(k)[1] == 2 && INS_CSET(k)[2] == 5;
         check("an old record (COMP in a master slot, the shared settings): every track's COMP takes them; T1's COMP in a slot",
               ok && trk[0].p[P_TCOMP] == 20 && INS_ON(0, FXT_COMP) && !INS_ON(1, FXT_COMP));
     }
@@ -461,7 +463,7 @@ static void t_comp(void)
     trk[2].p[P_TCOMP] = 50;
     fxr_decode(0, 0, 1);
     check("... a project without a record: every amount 0, the settings the defaults", trk[2].p[P_TCOMP] == 0 &&
-          ins_cset[3][0] == GP[G_CRAT].def && ins_cset[3][2] == GP[G_CREL].def);
+          INS_CSET(3)[0] == GP[G_CRAT].def && INS_CSET(3)[2] == GP[G_CREL].def);
     fxs_set(FXS_DEF);
     ins_all(INS_D);
 #endif
@@ -1010,16 +1012,16 @@ static void t_master(void)
     ok = fxr_decode(0, 0, 1);
     check("... no record: the mapping (FILT DYN), no amount", mst_slot[0] == DEF[0] && mst_slot[1] == DEF[1] && !mst_amt[FXT_DIST]);
 #if FELUCCA_MASTER_COMP
-    ins_cset[2][3] = 5, ins_cset[2][4] = 3;
+    INS_CSET(2)[3] = 5, INS_CSET(2)[4] = 3;
     n = fxr_encode(b);
-    ins_cset[2][3] = ins_cset[2][4] = 0;
+    INS_CSET(2)[3] = INS_CSET(2)[4] = 0;
     check("a track's DYN GAIN and CEIL: in the slots' TLV (31 bytes), back with a load", fxr_decode(b, n, 1) &&
-          ins_cset[2][3] == 5 && ins_cset[2][4] == 3 && !ins_cset[1][3]);
-    ins_cset[2][3] = ins_cset[2][4] = 0;
+          INS_CSET(2)[3] == 5 && INS_CSET(2)[4] == 3 && !INS_CSET(1)[3]);
+    INS_CSET(2)[3] = INS_CSET(2)[4] = 0;
     {   /* the track limiter: a square far over -1 dB stays under the ceiling (after the lookahead) */
         mc_t c = {0, 0, 8192, 0};
         int32_t x[CTL], pk = 0;
-        ins_cset[0][4] = 4;                            /* (-1.0 dB) */
+        INS_CSET(0)[4] = 4;                            /* (-1.0 dB) */
         for (n = 0; n < 100u; n++) {
             for (i = 0; i < CTL; i++)
                 x[i] = (i & 4u) ? 60000 : -60000;
@@ -1028,7 +1030,7 @@ static void t_master(void)
                 pk = x[i] > pk ? x[i] : -x[i] > pk ? -x[i] : pk;
         }
         check("DYN's CEIL on a part: a square at +5 dB over full scale held under -1 dB", pk > 20000 && pk <= MLIM_CLIN[3]);
-        ins_cset[0][4] = 0;
+        INS_CSET(0)[4] = 0;
         tcomp_run(&c, 0, x, x, CTL, 0);
         check("... at 0: the limiter off", !tlim[0].on);
     }
@@ -1320,7 +1322,7 @@ static void t_usb_types(void)
             okt &= ut.slot[s] == t && ut.slot[s ^ 1u] == FXT_NONE && ut_has(t) == s + 1u;
             ut.amt[s] = ut_on_amt(t);
 #if FELUCCA_INS_EQ3
-            eq3_v[NTRK + 1u][EQV_LO] = -20, eq3_v[NTRK + 1u][EQV_HI] = 6;   /* (the input's own bands) */
+            EQ3_V(NTRK + 1u)[EQV_LO] = -20, EQ3_V(NTRK + 1u)[EQV_HI] = 6;   /* (the input's own bands) */
 #endif
             ut.v[UTV_GPAT] = 1, ut.v[UTV_GRATE] = 2;     /* (GATER: 8TH at 1/32, closes within a few blocks) */
             for (k = 0; k < 400u; k++) {
@@ -1334,7 +1336,7 @@ static void t_usb_types(void)
                 snprintf(why, sizeof why, "type %u slot %u: L %u R %u", t, s, dl, dr), printf("  (%s)\n", why);
             ut.amt[s] = t == FXT_EQ3 ? 1 : 0;             /* (neutral: EQ3 ON but flat below) */
 #if FELUCCA_INS_EQ3
-            eq3_v[NTRK + 1u][EQV_LO] = eq3_v[NTRK + 1u][EQV_HI] = 0;
+            EQ3_V(NTRK + 1u)[EQV_LO] = EQ3_V(NTRK + 1u)[EQV_HI] = 0;
 #endif
             for (k = 0; k < (t == FXT_DYN ? 4000u : 200u); k++)   /* (DYN: its AUTO release's slow envelope, seconds) */
                 ut_xblock(1000u + k);
@@ -1352,7 +1354,7 @@ static void t_usb_types(void)
             if (t == FXT_EQ3)
                 ut.amt[s] = 1;
 #if FELUCCA_INS_EQ3
-            eq3_v[NTRK + 1u][EQV_MID] = -31, eq3_v[NTRK + 1u][EQV_FH] = 40;
+            EQ3_V(NTRK + 1u)[EQV_MID] = -31, EQ3_V(NTRK + 1u)[EQV_FH] = 40;
 #endif
             n = fxr_encode(b);
             ut_defaults();
@@ -1363,7 +1365,7 @@ static void t_usb_types(void)
                 ut.amt[s] == (t == FXT_EQ3 ? 1 : ut_on_amt(t) - 3) && ut.v[UTV_GPAT] == 12 && ut.v[UTV_GRATE] == 4 &&
                 ut.v[UTV_GSHP] == 77 && ut.v[UTV_JMODE] == 2;
 #if FELUCCA_INS_EQ3
-            k = k && eq3_v[NTRK + 1u][EQV_MID] == -31 && eq3_v[NTRK + 1u][EQV_FH] == 40;
+            k = k && EQ3_V(NTRK + 1u)[EQV_MID] == -31 && EQ3_V(NTRK + 1u)[EQV_FH] == 40;
 #endif
             oke &= k != 0u;
             if (!k)
@@ -1416,6 +1418,7 @@ static void t_usb_types(void)
 
 int main(void)
 {
+    host_dyn_eq_defaults();                          /* (DYN EQ3: track values, felucca_init's defaults) */
     t_layout();
     t_ins();
     t_comp();
