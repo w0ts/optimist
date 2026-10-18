@@ -385,8 +385,8 @@ static void mixer_sets_tests(void)
         check(ui.scr == SCR_PROJECT && lane_selected() == 1u, "SAVE on a lane's row, a cell turned: PROJECT (no YES on the mixer, D6)");
         tap(B_HOME);
         tap(B_EDIT);
-        check(ui.scr == SCR_SOUND && snd_page(ui.row[SCR_SOUND]) == 0 && lane_selected() == 1u,
-              "... EDIT: the SOUND row of that lane (D7)");
+        check(ui.scr == SCR_SOUND && ui.row[SCR_SOUND] == SND_MAIN_ROW && snd_page(SND_MAIN_ROW)->scope == SC_DSND &&
+                  lane_selected() == 1u, "... EDIT: that lane's MAIN (D7; its SOUND row before it)");
         reset_ui();
         mx.set = 0;
         ui.hot_lit = 0;

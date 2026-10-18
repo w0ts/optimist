@@ -77,9 +77,9 @@ static void se_names_tests(void)
 #endif
     reset_ui();
     song.sel = 0;
-    op_enter(SCR_SOUND);                                /* (no synth SOUND row: PRESETS is the one place for a sound, 2026-10-14) */
+    op_enter(SCR_SOUND);                                /* (the synth SOUND row is back, 2026-10-18: the user's page -1) */
     snd_family(SND_ALL);
-    check(snd_page(0) != 0, "a synth track's SOUND screen opens on a page: no PRESET ENGINE INIT SAVE AS row");
+    check(snd_page(0) == 0 && snd_page(SND_MAIN_ROW) == &main_pg, "a synth track's SOUND screen: the SOUND row (ENGINE PRESET INIT SAVE AS), then MAIN");
 }
 static void se_header_tests(void)
 {

@@ -499,6 +499,57 @@ static void sound_all(void)                             /* SOUND, every row, the
     ui.row[SCR_SOUND] = 0;
     frame();
 }
+/* MAIN and the SOUND row (2026-10-18): EDIT opens on MAIN, the engine's four (engine_t macro); SELECT back: the SOUND
+ * row, ENGINE PRESET INIT SAVE AS; KNOB 2 the sound, KNOB 1 the engine; an engine without its four (FM6): no MAIN */
+static void main_page_tests(void)
+{
+    static track_t keep_all[NTRK];
+    uint32_t sel = song.sel;
+    track_t keep = *TSEL;
+    cell_t c;
+    uint32_t e, ok = 1, pre, k;
+    memcpy(keep_all, trk, sizeof keep_all);             /* (every track as it was after: the later tests' state) */
+    for (e = 0; e < NENGINES; e++) {                    /* MAIN's cards: the engine's macro, the row there exactly when it has one */
+        const engine_t *en = ENGINES[e];
+        uint32_t any = (en->macro[0] | en->macro[1] | en->macro[2] | en->macro[3]) != 0u;
+        if (eng_free(e))
+            continue;
+        set_engine_of(TSEL, e);
+        go_home();
+        tap(B_EDIT);
+        ok &= ui.scr == SCR_SOUND && ui.row[SCR_SOUND] == (any ? SND_MAIN_ROW : 0u);
+        for (k = 0; any && k < 4u; k++)
+            ok &= main_pg.id[k] == (en->macro[k] ? en->macro[k] : 0xFFu);
+        memset(snd_mem, 0, sizeof snd_mem);
+    }
+    *TSEL = keep;
+    check(ok, "EDIT opens on MAIN, the engine's four (engine_t macro); an engine without them (FM6) on the SOUND row");
+    go_home();
+    tap(B_EDIT);
+    SCREENS[SCR_SOUND].cell(ui.row[SCR_SOUND], 0, &c);
+    ok = ui.row[SCR_SOUND] == SND_MAIN_ROW && c.d && str_eq(c.label, track_desc(TSEL, main_pg.id[0])->label);
+    turn(EN_SELECT, -1);
+    ok &= ui.row[SCR_SOUND] == 0u;
+    SCREENS[SCR_SOUND].cell(0, 0, &c);
+    ok &= str_eq(c.label, "ENGINE");
+    SCREENS[SCR_SOUND].cell(0, 1, &c);
+    ok &= str_eq(c.label, "PRESET");
+    SCREENS[SCR_SOUND].cell(0, 2, &c);
+    ok &= str_eq(c.val, "INIT") || str_eq(c.label, "INIT") || c.kind == CK_ACT;
+    check(ok, "MAIN shows the engine's first value; SELECT back from it: the SOUND row ENGINE PRESET INIT SAVE AS");
+    pre = TSEL->preset;
+    turn(EN_K2, 1);
+    ok = TSEL->preset != pre;
+    e = TSEL->eng_req;
+    turn(EN_K1, 1);
+    ok &= TSEL->eng_req != e;
+    *TSEL = keep;
+    check(ok, "the SOUND row: KNOB 2 the next sound, KNOB 1 the next engine");
+    memset(snd_mem, 0, sizeof snd_mem);
+    go_home();
+    memcpy(trk, keep_all, sizeof keep_all);
+    song.sel = (uint8_t)sel;
+}
 static uint32_t row_named(uint32_t scr, const char *name)   /* the row of screen scr named name, or its row count */
 {
     uint32_t r, n = SCREENS[scr].rows();
@@ -562,7 +613,9 @@ static void key_tests(void)
     check(ui.scr == SCR_HOME && ui.row[SCR_HOME] == MXR_T1 && song.sel == 0 && mx_set(MXR_T1) == 0,
           "power-on: the mixer, on T1's row (MASTER above it, out of view), its first knob set");
     sound_all();
-    check(ui.scr == SCR_SOUND && ui.row[SCR_SOUND] == 0 && snd_page(0), "SOUND, every row: on its first page (no PRESET row: PRESETS is the one place for a sound)");
+    check(ui.scr == SCR_SOUND && ui.row[SCR_SOUND] == 0 && !snd_page(0) && snd_page(SND_MAIN_ROW) == &main_pg,
+          "SOUND, every row: the SOUND row first (ENGINE PRESET INIT SAVE AS, 2026-10-18), then MAIN");
+    main_page_tests();
     (void)lv, (void)n;
     ui.force = 1;
     frame();
@@ -648,8 +701,9 @@ static void key_tests(void)
           "SHIFT held + a drum key on the mixer: the lane's sequencer muted instead of picked (2026-10-13), no NO");
     smute_lane = 0;
     tap(B_EDIT);
-    check(ui.scr == SCR_SOUND && ui.row[SCR_SOUND] == 0u && !snd_page(0) && snd_page(1)->scope == SC_DSND,
-          "drum track, EDIT: the SOUND row (KIT LANE), then the lane's SOUND rows (D7)");
+    check(ui.scr == SCR_SOUND && ui.row[SCR_SOUND] == SND_MAIN_ROW && !snd_page(0) && snd_page(1)->scope == SC_DSND &&
+              str_eq(snd_page(1)->title, "MAIN") && snd_page(2)->scope == SC_DSND,
+          "drum track, EDIT: on MAIN (the lane's TUNE DECAY CUT LEVEL), the SOUND row (SRC ACCENT INSTR KIT) before it");
     {
         int8_t t0 = dl.ofs[lane_selected()][DE_TUNE];
         while (!snd_page(ui.row[SCR_SOUND]) || snd_page(ui.row[SCR_SOUND])->id[0] != 0)
@@ -932,8 +986,8 @@ static void family_tests(void)
     check(ui.row[SCR_SOUND] == n - 1u, "SELECT moves within the family");
     sound_all();
     all = SCR->rows();
-    check(ui.scr == SCR_SOUND && snd_fam == SND_ALL && snd_page(0) && all > n + 3u,
-          "HOME > Sound: every row, its pages (no SOUND row)");
+    check(ui.scr == SCR_SOUND && snd_fam == SND_ALL && !snd_page(0) && snd_page(SND_MAIN_ROW) && all > n + 3u,
+          "HOME > Sound: every row: the SOUND row, MAIN, the pages");
     song.sel = TRK_DRUM;
     frame();
     tap(B_EDIT);

@@ -121,18 +121,22 @@ static void edscrs_tests(void)
     song.sel = 0;
     reset_ui();
     check(ok && n > 20u, "SCRS op 1: every row of every screen on every track: its name and first card are what the screen's functions give");
-    {   /* a turn: ENV ATK (SOUND, T1, row 0, card 0) two units up through the screen's own turn; mode 2 its default; a card that is not a value: nothing */
+    {   /* a turn: the first page's first value (SOUND, T1, past the SOUND row and MAIN: ENV ATK, card 0) two units up through
+         * the screen's own turn; mode 2 its default; a card that is not a value: nothing */
         cell_t c;
         int32_t v0;
-        ui.scr = SCR_SOUND, song.sel = 0, ui.lane = 0, snd_fam = SND_ALL, ui.row[SCR_SOUND] = 0;
+        uint32_t r0;
+        ui.scr = SCR_SOUND, song.sel = 0, ui.lane = 0, snd_fam = SND_ALL;
         memset(&c, 0, sizeof c);
         SCREENS[SCR_SOUND].rows();                      /* (the rows first, as the device's frame does: the cells read what it laid out) */
-        SCREENS[SCR_SOUND].cell(0, 0, &c);
-        v0 = *c.vp;
-        ok = c.kind == CK_VAL && c.d && scs_call(2, SCR_SOUND, 0, 127, 127, 0, 0, 1, 2) && ed_out[5] == 2u;
+        r0 = snd_first();
+        ui.row[SCR_SOUND] = (uint8_t)r0;
+        SCREENS[SCR_SOUND].cell(r0, 0, &c);
+        v0 = c.vp ? *c.vp : 0;
+        ok = c.vp && c.kind == CK_VAL && c.d && scs_call(2, SCR_SOUND, 0, 127, 127, r0, 0, 1, 2) && ed_out[5] == 2u;
         scs_parse(ed_out, 8, &w);
         ok &= *c.vp == clamp(v0 + 2, c.d->min, c.d->max) && w.byd[0] && w.val[0] == *c.vp && !strcmp(w.label[0], c.label);
-        ok &= scs_call(2, SCR_SOUND, 0, 127, 127, 0, 0, 2, 0) && *c.vp == c.d->def;
+        ok &= scs_call(2, SCR_SOUND, 0, 127, 127, r0, 0, 2, 0) && *c.vp == c.d->def;
         *c.vp = (int16_t)v0;
         check(ok, "SCRS op 2: a fine turn moves a value by units through the screen's own turn, the reply is the row with the value; mode 2 the default");
     }

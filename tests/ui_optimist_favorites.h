@@ -58,9 +58,16 @@ static void favorites_tests(void)
     char nm[12];
 
     fv_open(0);
-    check(ui.scr == SCR_SOUND && snd_fam == FAM_EDIT && snd_page(0) && snd_page(0)->fam == FAM_EDIT, "favorites: EDIT opens on its first page: no SOUND row, no FAVS row");
+    check(ui.scr == SCR_SOUND && snd_fam == FAM_EDIT && ui.row[SCR_SOUND] == SND_MAIN_ROW && snd_page(SND_MAIN_ROW) == &main_pg,
+          "favorites: EDIT opens on MAIN (2026-10-18), the SOUND row before it, no FAVS row");
     SCREENS[SCR_SOUND].name(0, nm);
-    check(strcmp(nm, "FAVS") != 0 && strcmp(nm, "SOUND") != 0, "... no row of that name");
+    check(strcmp(nm, "SOUND") == 0, "... row 0 is the SOUND row");
+    for (i = 0; i < snd_rows(); i++) {
+        SCREENS[SCR_SOUND].name(i, nm);
+        if (!strcmp(nm, "FAVS"))
+            break;
+    }
+    check(i == snd_rows(), "... no FAVS row");
     settings_later = 0;
     ui.msg[0] = 0;
     fv_save_turn(EN_PRESET, 1);
@@ -92,7 +99,7 @@ static void favorites_tests(void)
     preset_pos(&total);
     check(fav_list == 1u && total == 3u && !strcmp(ui.msg, "FAVORITES ONLY"), "SHIFT2 + SELECT right: the list is the three, \"FAVORITES ONLY\"");
     check(fv_at(0) == mark[0] && fv_at(1) == mark[1] && fv_at(2) == mark[2], "... in the list's order");
-    check(ui.row[SCR_SOUND] == 0u, "... the cursor row did not move (SELECT was the filter's)");
+    check(ui.row[SCR_SOUND] == SND_MAIN_ROW, "... the cursor row did not move (SELECT was the filter's)");
     turn(EN_PRESET, 1);
     check(fv_here() == mark[0], "PRESETS, one on from the last of the three: the first (wraps)");
     ui.msg[0] = 0;

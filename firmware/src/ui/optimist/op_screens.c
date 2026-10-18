@@ -264,12 +264,43 @@ static int val_toggle(const param_desc_t *d, int16_t *vp)   /* YES on an on / of
 static uint8_t snd_fam = SND_ALL;
 static uint8_t snd_ix[OP_MAXROWS];
 static int snd_row_page(const page_t *pg) { return sound_page(pg) && (snd_fam == SND_ALL || pg->fam == snd_fam); }
-static uint32_t snd_first(void) { return is_drum(TSEL) && (snd_fam == SND_ALL || snd_fam == FAM_EDIT) ? 1u : 0u; }   /* the drum track's lane row (SRC, ACCENT); a synth track has no SOUND row: PRESETS is the one place for a sound (the user, 2026-10-14) */
+/* EDIT's first two rows (the user, 2026-10-18: "the 1st edit page would be the best 4 param for that synth ... There should
+ * be a page engine/preset (and kit for drum lanes) ... page -1"): the SOUND row (a synth track: ENGINE PRESET INIT SAVE AS;
+ * the drum track: the lane's SRC ACCENT INSTR and the KIT), then MAIN, the four values that matter most: a synth engine's
+ * engine_t macro (SLOOP's HOME knobs: CUT RES first where it has a filter; none: no MAIN, FM6), a drum lane's TUNE DECAY
+ * CUT LEVEL. EDIT opens on MAIN (snd_mem_row), SELECT back from it is the SOUND row */
+static page_t main_pg = {"MAIN", FAM_EDIT, SC_TRACK, GR_NONE, {0xFF, 0xFF, 0xFF, 0xFF}};
+static const page_t *main_page(void)                    /* the selected track's MAIN (0: none) */
+{
+    uint32_t k, any = 0;
+#if DL_ANY
+    if (is_drum(TSEL)) {
+        static const page_t DR_MAIN = {"MAIN", FAM_EDIT, SC_DSND, GR_DSND, {0, 1, 5, 7}};   /* (dsnd_desc.c DSD) */
+        return lane_snd() ? &DR_MAIN : 0;               /* (the ACCENT lane has no sound) */
+    }
+#else
+    if (is_drum(TSEL))
+        return 0;
+#endif
+    for (k = 0; k < 4u; k++) {
+        uint32_t id = ENGINES[TSEL->eng_req % NENGINES]->macro[k];
+        main_pg.id[k] = (uint8_t)(id && id < P_COUNT ? id : 0xFFu);   /* (0: an engine without its four, FM6) */
+        any |= main_pg.id[k] != 0xFFu;
+    }
+    return any ? &main_pg : 0;
+}
+static int snd_edit_rows(void) { return snd_fam == SND_ALL || snd_fam == FAM_EDIT; }
+static uint32_t snd_first(void) { return snd_edit_rows() ? 1u + (main_page() != 0) : 0u; }   /* the SOUND row, MAIN */
+#define SND_MAIN_ROW 1u                                 /* (row 0 the SOUND row) */
 /* (snd_fam SND_FM6: FM6's operator rows, op_fm6.c, on an FM6 track: ENV tapped) */
 static uint32_t snd_rows(void) { return snd_fam == SND_FM6 ? fm6_rows() : snd_first() + page_rows(snd_row_page, snd_ix); }
 static const page_t *snd_page(uint32_t r)
 {
-    return snd_fam == SND_FM6 ? 0 : r >= snd_first() ? op_pg(snd_ix[(r - snd_first()) % OP_MAXROWS]) : 0;
+    if (snd_fam == SND_FM6)
+        return 0;
+    if (r < snd_first())
+        return r == SND_MAIN_ROW ? main_page() : 0;    /* (MAIN: a page as any; the SOUND row: snd_cell's own) */
+    return op_pg(snd_ix[(r - snd_first()) % OP_MAXROWS]);
 }
 /* a picked lane has its own INSERTS and SENDS (op_cells.c LANE_FX_PG): the drum track's of those names are "DR INSERT" and "DR SENDS" */
 static const char *dr_title(const page_t *pg)
@@ -290,7 +321,7 @@ static void snd_name_row(uint32_t r, char *b)
  * "Bus sends" (the drum bus's own; op_names.c), on a picked lane too (next to its own "Sends"). 0: no alias */
 static const char *dr_alias(const page_t *pg)
 {
-    if (!is_drum(TSEL) || !pg)
+    if (!is_drum(TSEL) || !pg || str_eq(pg->title, "MAIN"))
         return 0;
     if (pg->scope == SC_DSND && pg->fam == FAM_EDIT)
         return pg->id[0] == 0u ? "BODY" : pg->id[0] == 4u ? "TONE" : pg->id[0] == 16u ? "SENDS" : 0;
@@ -317,9 +348,10 @@ static void snd_family(uint32_t fam)                    /* the rows of family fa
         snd_fam = SND_ALL;                              /* (none on this track: every row) */
 }
 /* SOUND remembers its page (the user, 2026-10-13: "screen should remember its page"): per track, since the pages differ by
- * engine, and per family: the row a family showed last on this track (snd_mem_tick, once a frame, while SOUND is up). A
+ * engine, and per family: the row a family showed last on this track, + 1 (snd_mem_tick, once a frame, while SOUND is up). A
  * page button entering the family reopens it there; a row the track no longer has (another engine) is the nearest, the
- * last. Zero is the first row, what a track never looked at gets. RAM only: power-on clears it, no project holds it */
+ * last. Zero is a family never shown on the track: EDIT opens on MAIN, the others on their first row. RAM only: power-on
+ * clears it, no project holds it */
 static uint8_t snd_mem[NTRK][8];                        /* (slot 0: a family no button opens) */
 static uint32_t snd_slot(uint32_t fam)
 {
@@ -329,12 +361,54 @@ static uint32_t snd_slot(uint32_t fam)
 static void snd_mem_tick(void)
 {
     if (ui.scr == SCR_SOUND && snd_fam != SND_ALL && ui.row[SCR_SOUND] < 0xFFu)
-        snd_mem[song.sel % NTRK][snd_slot(snd_fam)] = ui.row[SCR_SOUND];
+        snd_mem[song.sel % NTRK][snd_slot(snd_fam)] = (uint8_t)(ui.row[SCR_SOUND] + 1u);   /* (+ 1: 0 never shown) */
 }
 static uint32_t snd_mem_row(uint32_t fam)               /* the row of family fam to open on (snd_fam is fam already) */
 {
     uint32_t r = snd_mem[song.sel % NTRK][snd_slot(fam)], n = snd_rows();
+    if (!r)                                             /* never shown on this track: EDIT on MAIN (2026-10-18), else the first */
+        return fam == FAM_EDIT && snd_first() > SND_MAIN_ROW ? SND_MAIN_ROW : 0u;
+    r--;
     return r < n ? r : n ? n - 1u : 0u;
+}
+static int snd_init_yes(uint32_t scr, uint32_t r, uint32_t k, uint32_t ok);
+/* the synth SOUND row's card k: ENGINE (its colour, a gauge over the engines), PRESET (the sound's name), INIT, SAVE AS */
+static void snd_synth_cell(uint32_t k, cell_t *c)
+{
+    uint32_t e = TSEL->eng_req % NENGINES;
+    if (k == 0u) {
+        c->label = "ENGINE";
+        c->kind = CK_VAL;
+        str_cpy(c->val, ENGINES[e]->name, sizeof c->val);
+        c->col = ENG_COL[e];
+        cell_gauge(c, 1, 0, NENGINES - 1, (int32_t)e);
+    } else if (k == 1u) {
+        c->label = "PRESET";
+        c->kind = CK_VAL;
+        snd_name(song.sel, c->val);
+    } else {
+        cell_act(c, "SOUND", k == 2u ? "INIT" : "SAVE AS", 0, k == 2u);
+    }
+}
+static void snd_kit_cell(cell_t *c)                     /* the drum SOUND row's KIT (the track's kit, PRESETS' list) */
+{
+#if DL_ANY
+    c->label = "KIT";
+    c->kind = CK_VAL;
+    str_cpy(c->val, drum_kit_name(), sizeof c->val);
+    c->col = kit_col();
+    c->dr = (uint8_t)lane_picked();                     /* (the kit is the track's) */
+    cell_gauge(c, 1, 0, (int32_t)drum_kit_total() - 1, (int32_t)drum_kit_pos());
+#else
+    (void)c;
+#endif
+}
+static void snd_step(int engine, int32_t s)             /* ENGINE: the next / previous engine's first sound; else the next sound or kit */
+{
+    if (engine)
+        op_engine_step(s);
+    else
+        op_preset_step(s);
 }
 static void snd_cell(uint32_t r, uint32_t k, cell_t *c)
 {
@@ -347,8 +421,14 @@ static void snd_cell(uint32_t r, uint32_t k, cell_t *c)
         return;
     }
     cell_clear(c);
-    if (!is_drum(TSEL))
+    if (!is_drum(TSEL)) {                               /* a synth track's SOUND row (2026-10-18, back from 2026-10-14) */
+        snd_synth_cell(k, c);
         return;
+    }
+    if (k == 3u) {                                      /* the KIT (the track's: PRESETS steps it too) */
+        snd_kit_cell(c);
+        return;
+    }
     if (k == 0u) {                                      /* the drum track's lane row: the lane's SRC (the user, 2026-10-13); empty where a build has none */
         if (lane_snd())                                 /* (the ACCENT lane has no sound: no SRC) */
             page_cell(&LANE_SRC_PG, k, c);
@@ -369,8 +449,11 @@ static void snd_turn(uint32_t r, uint32_t k, int32_t s, int fine)
         page_turn(snd_page(r), k, s, fine);
         return;
     }
-    if (!is_drum(TSEL))
+    if (!is_drum(TSEL) || k == 3u) {                    /* a synth's ENGINE PRESET, the drum track's KIT: a step a detent */
+        if (s != OP_RESET && (k == 3u || k < 2u))
+            snd_step(k == 0u && !is_drum(TSEL), s);    /* (= SHIFT + PRESETS, PRESETS) */
         return;
+    }
     if (k == 0u) {                                      /* the lane's SRC (page_turn: no reset to a default) */
         if (lane_snd())
             page_turn(&LANE_SRC_PG, k, s, fine);
@@ -386,7 +469,16 @@ static int snd_yes(uint32_t r, uint32_t k, uint32_t ok)
         return fm6_yes(r, k, ok);
     if (snd_page(r))
         return page_yes(SCR_SOUND, r, snd_page(r), k, ok);
-    return 0;
+    if (is_drum(TSEL) || k < 2u)
+        return 0;
+    if (k == 2u)                                        /* INIT: the engine's defaults (asks) */
+        return snd_init_yes(SCR_SOUND, r, k, ok);
+    if (!ok) {                                          /* SAVE AS: the first free user preset slot, NAME first (asks) */
+        op_arm(SCR_SOUND, r, k, "SAVE AS", "PRESET", 0);
+        return 1;
+    }
+    name_user_free();
+    return 1;
 }
 /* INIT: the engine's defaults, the edits go; asked always (the user 2026-10-13). Its home is PROJECT > USER (op_prjflow.c) */
 static int snd_init_yes(uint32_t scr, uint32_t r, uint32_t k, uint32_t ok)

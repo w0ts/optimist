@@ -25,7 +25,7 @@ static void pm_family_tests(void)
     check(ui.scr == SCR_SOUND && snd_fam == FAM_EDIT && n >= 3u, "page memory, SOUND: EDIT opens its rows");
     turn(EN_SELECT, 2);
     r1 = ui.row[SCR_SOUND];
-    check(r1 == 2u, "... SELECT twice: the third row");
+    check(r1 == SND_MAIN_ROW + 2u, "... SELECT twice: two rows past MAIN, where EDIT opens (2026-10-18)");
     tap(B_HOME);
     check(ui.scr == SCR_HOME, "... HOME: the mixer");
     tap(B_ENV);
@@ -34,7 +34,7 @@ static void pm_family_tests(void)
     tap(B_EDIT);
     frames(2);
     check(ui.scr == SCR_SOUND && snd_fam == FAM_EDIT && ui.row[SCR_SOUND] == r1,
-          "... away through ENV and back by EDIT: the third row again (the family's page last shown)");
+          "... away through ENV and back by EDIT: that row again (the family's page last shown)");
     /* ENV's own page is its own */
     tap(B_HOME);
     tap(B_ENV);
@@ -46,7 +46,8 @@ static void pm_family_tests(void)
     frames(2);
     tap(B_EDIT);
     frames(2);
-    check(snd_fam == FAM_EDIT && ui.row[SCR_SOUND] == 0u, "page memory, SOUND per track: T2's EDIT, never looked at: its first row");
+    check(snd_fam == FAM_EDIT && ui.row[SCR_SOUND] == (snd_first() > SND_MAIN_ROW ? SND_MAIN_ROW : 0u),
+          "page memory, SOUND per track: T2's EDIT, never looked at: its MAIN (the SOUND row where its engine has none)");
     turn(EN_SELECT, 1);
     r2 = ui.row[SCR_SOUND];
     tap(B_HOME);

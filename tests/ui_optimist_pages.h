@@ -112,8 +112,8 @@ static void pages_nav_tests(void)
     tap(B_EDIT);
     frames(2);
     (void)c, (void)c2;
-    check(ui.scr == SCR_SOUND && ui.row[SCR_SOUND] == 0u && snd_page(0) && snd_page(0)->fam == FAM_EDIT && led_lvl(B_EDIT) == 2,
-          "D7: EDIT tapped: its first row is the first edit page (no SOUND row), EDIT full");
+    check(ui.scr == SCR_SOUND && ui.row[SCR_SOUND] == SND_MAIN_ROW && !snd_page(0) && snd_page(SND_MAIN_ROW) == &main_pg &&
+              led_lvl(B_EDIT) == 2, "D7: EDIT tapped: on MAIN, the SOUND row before it (2026-10-18), EDIT full");
     tap(B_EDIT);
     check(snd_page(ui.row[SCR_SOUND]) && snd_page(ui.row[SCR_SOUND])->fam == FAM_EDIT, "D7: EDIT again: the edit pages");
     tap(B_ENV);
@@ -779,7 +779,10 @@ static void pages_head_tests(void)
     {
         char t[32], want[16];
         head_now(t);
-        check(!strncmp(t, "Edit 1 1/", 9), "#2: EDIT 1: \"Edit 1 1/N\", the row's name verbatim (was \"Edit 2/N\" on the row Edit 1)");
+        check(!strncmp(t, "Main 2/", 7), "#2: EDIT opens on MAIN: \"Main 2/N\" (the SOUND row is 1/N)");
+        turn(EN_SELECT, 1);
+        head_now(t);
+        check(!strncmp(t, "Edit 1 3/", 9), "#2: EDIT 1: \"Edit 1 3/N\", the row's name verbatim (was \"Edit 2/N\" on the row Edit 1)");
     }
     reset_ui();
 }
