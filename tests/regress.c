@@ -172,6 +172,7 @@ enum { J_PRESET, J_MODE, J_SENDS, J_DRUMS, J_SONG, J_CPU, J_CHECK, J_SLICER };
 typedef struct {
     char name[64];
     uint8_t kind, e, pi, arg, cpu_notes;
+    uint8_t fm6v;                              /* J_CPU: part 1's FM6 VOICE after its preset (a pack voice), 0 none */
     const uint8_t (*parts)[3];                 /* J_CPU mixes */
     int (*check)(char *msg, uint32_t n);       /* J_CHECK */
     res_t r;
@@ -383,6 +384,8 @@ static void job_cpu(const job_t *j)
         TDRUM->p[P_E0] = (int16_t)(parts[NPART][1] - 1u);   /* (a drum job: its kit) */
     for (p = 0; p < NPART; p++) {
         host_preset(&trk[p], parts[p][0], parts[p][1]);
+        if (p == 0u && j->fm6v)
+            trk[0].p[P_E0] = (int16_t)j->fm6v;          /* (FM6: a pack voice, the sounds the packs hold) */
         trk[p].p[P_VOICE] = V_POLY;
         trk[p].p[P_SUS] = 127;
         trk[p].p[P_AMODE] = 0;
@@ -1037,6 +1040,27 @@ int main(int argc, char **argv)
             j->e = (uint8_t)e;
             j->pi = (uint8_t)pi;
         }
+#if FELUCCA_ENG_FM6 && FM6_NPACKS
+    /* FM6's sounds are its pack voices (its presets are INIT VOICE and two starts from it, one operator: f0f74c5f): each
+     * pack voice with 8 notes held, cpu/FM6/pkNN_<name>; the CPU guard's FM6 cost is the median over cpu/FM6/*
+     * (tools/builder/cpu_costs.py), so the packs' six-operator voices set it, not INIT VOICE (2026-10-18) */
+    for (e = 0; e < NENGINES && ENGINES[e] != &ENG_FM6; e++)
+        ;
+    for (i = 1; e < NENGINES && i < FM6_NVOICE; i++) {
+        job_t *j;
+        slug(s, N_FM6V[i], sizeof s);
+        for (size_t n = strlen(s); n && s[n - 1u] == '_'; n--)
+            s[n - 1u] = 0;                              /* (the names are padded to 10 with blanks) */
+        snprintf(name, sizeof name, "cpu/FM6/pk%02u_%s", i, s);
+        j = add(J_CPU, name);
+        memset(cpu_parts[ncpu], 0, sizeof cpu_parts[ncpu]);
+        cpu_parts[ncpu][0][0] = (uint8_t)e;
+        cpu_parts[ncpu][0][2] = 8;
+        j->parts = (const uint8_t (*)[3])cpu_parts[ncpu++];
+        j->e = (uint8_t)e;
+        j->fm6v = (uint8_t)i;
+    }
+#endif
     {   /* the drum kits: a full groove, and one sound at a time, on the synthesised 909 / 808 and the X0X kits
          * built (kit UIDs, registry.h) */
         static const uint8_t KIT[4] = {DRUM_SAMPLED + 1u, DRUM_SAMPLED, DRUM_UID_X909, DRUM_UID_X808};
@@ -1358,7 +1382,7 @@ int main(int argc, char **argv)
             crash++;
             continue;
         }
-        if (j->e < NENGINES && j->r.ipc > heavy[j->e]) {
+        if (j->e < NENGINES && !j->fm6v && j->r.ipc > heavy[j->e]) {   /* (the heaviest preset: its name below) */
             heavy[j->e] = j->r.ipc;
             heavy_ns[j->e] = j->r.ns;
             heavy_p[j->e] = j->pi;
