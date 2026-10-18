@@ -91,9 +91,10 @@ In the menu: load the profile (`p`), then `u` (shares one of yours first).
 
 **The default profile is `synth` (Optimist Synth, the maintainer's own build).** `build`, `package`, `flash`, `config`
 and `make` without a profile use it, the menu opens with it the first time (afterwards where you left off), and it is the
-Pages site's flavour (`web/flavours.json`). Against `user-default` it has the X0X drums, ACID,
-JUNO, PHYS and NOISE engines, BLE, UI=1, DUAL and USB audio on and most sample sets and kits off; `PARAM_HELP=0` is the
-one item that goes so that every web editor item (`ED_*`) stays on and the build links. `user-default` is the generic
+Pages site's flavour (`web/flavours.json`). It is the maintainer's own configuration as it is (2026-10-18): against
+`user-default` it has the X0X drums, the ACID, JUNO and PHYS engines, all five FM6 voice packs, BLE, UI=1, DUAL and USB
+audio on, and most sample sets, the sampled kits and the web editor's live editing (`ED_LIVE`, so every `ED_*`) off: the
+editor backs up and restores. `user-default` is the generic
 reference profile, not the default: the host tests, the gate, `emu-check` and CI's fixtures build it, so its content stays
 as it is. `synth` and `user-default` cannot be deleted. `--defaults` is still every registry default.
 

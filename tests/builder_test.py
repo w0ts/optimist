@@ -107,10 +107,11 @@ ED = {"ED_FXP": "FELUCCA_ED_FXP", "ED_DLAN": "FELUCCA_ED_DLAN", "ED_SCRN": "FELU
       "ED_UNDO": "FELUCCA_ED_UNDO", "ED_NOTE": "FELUCCA_ED_NOTE", "ED_SOLO": "FELUCCA_ED_SOLO", "ED_STEPLANE": "FELUCCA_ED_STEPLANE", "ED_REC": "FELUCCA_ED_REC"}
 check("web editor items: the thirteen ED_* exist, options of EDITOR, on by default, one flag each",
       all(k in R.ITEMS and R.ITEMS[k].parent == "EDITOR" and R.ITEMS[k].default == 1 and R.ITEMS[k].flag == f for k, f in ED.items()))
-check("... the shipped profiles set them only where the slot asks: user-default leaves SCOPE out (the Optimist UI build links), x0x-drums (it fills the slot to the byte) leaves FXP, FAVS, SCOPE and SONG out",
+check("... the shipped profiles set them only where the slot asks: synth (the maintainer's own, live editing off) all thirteen, user-default FAVS, SCOPE, SCRN, SCRS and TOOLS, x0x-drums (it fills the slot to the byte) FXP, FAVS, SCOPE and SONG",
       {p.stem: sorted(ln.strip() for ln in p.read_text().splitlines() if ln.split("=")[0] in ED) for p in C.PROFILES.glob("*.config")
        if any(ln.split("=")[0] in ED for ln in p.read_text().splitlines())} ==
-      {"synth": ["ED_FAVS=0", "ED_SCOPE=0"], "user-default": ["ED_DLAN=0", "ED_FAVS=0", "ED_NOTE=0", "ED_SCOPE=0", "ED_SCRN=0", "ED_SONG=0", "ED_STEPLANE=0"], "x0x-drums": ["ED_FAVS=0", "ED_FXP=0", "ED_SCOPE=0", "ED_SONG=0"]})
+      {"synth": sorted(f"{k}=0" for k in ED), "user-default": ["ED_FAVS=0", "ED_SCOPE=0", "ED_SCRN=0", "ED_SCRS=0", "ED_TOOLS=0"],
+       "x0x-drums": ["ED_FAVS=0", "ED_FXP=0", "ED_SCOPE=0", "ED_SONG=0"]})
 _fl, _ = C.flags(dict(C.defaults()))
 check("... the default build has every flag on", all(_fl[f] == 1 for f in ED.values()))
 _fl, _ = C.flags(dict(C.defaults(), ED_FXP=0, ED_SCOPE=0))
@@ -314,9 +315,9 @@ check("the default profile is synth (configure, optimist.py), user-default the r
       C.DEFAULT_PROFILE == "synth" and C.REFERENCE_PROFILE == "user-default" and O.DEFAULT_PROFILE == "synth" and
       O.REFERENCE_PROFILE == "user-default" and _syn_name == "Synth")
 _ed_default = {k: v for k, v in C.defaults().items() if k.startswith("ED_")}
-check("the default profile validates, with the full web editor (every ED_* item at its default but the oscilloscope screen and the favorites command: ED_SCOPE=0 ED_FAVS=0 make room, the user's standing approval 2026-10-16; PARAM_HELP off)",
-      not _syn_errs and _syn["PARAM_HELP"] == 0 and _ed_default and all(_syn[k] == v for k, v in _ed_default.items() if k not in ("ED_SCOPE", "ED_FAVS")) and
-      _syn["ED_SCOPE"] == 0 and _syn["ED_FAVS"] == 0)
+check("the default profile validates: the maintainer's own configuration (2026-10-18), the web editor backup / restore only (ED_LIVE and every ED_* off), the help line on",
+      not _syn_errs and _syn["PARAM_HELP"] == 1 and _syn["EDITOR"] == 1 and _syn["ED_LIVE"] == 0 and _ed_default and
+      all(_syn[k] == 0 for k in _ed_default if k != "ED_LIVE"))
 _syn_bud = C.budget(_syn, use_exact=False)                        # (costs.json "synth": a real build of it, the anchor; or the last real build here)
 check("the default profile fits (the builder's budget from its real build: costs.json 'synth', the measurement build)",
       _syn_bud is not None and _syn_bud["distance"] == 0 and not any(over > 0 for _, _, over in C.K.fits(_syn_bud["total"], _syn).values()))
