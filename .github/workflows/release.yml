@@ -5,8 +5,8 @@
 # package names them). The toolchain and the SDK files are downloaded on each runner as in build.yml and are never
 # attached or stored. The tag must match the VERSION file (v0.1 for 0.1; a suffix after a dash is allowed).
 #
-# Not run yet: it needs a real tag push on a repository where Actions run. The release is created as a draft, so
-# the notes and the files can be read before it is published.
+# First run 2026-10-18 (v0.1). The release is created as a draft, so the notes and the files can be read before it is
+# published. The packages are release builds (package --release X.Y: identity FM-1_7(X+2)Y, optimist-X.Y-<name>).
 name: release
 
 on:
@@ -71,7 +71,7 @@ jobs:
       - name: Setup (toolchain, SDK files, Python packages)
         run: python tools/optimist.py setup --yes --no-emu
       - name: Package ${{ matrix.profile }}
-        run: python tools/optimist.py package --profile ${{ matrix.profile }} --out dist --summary dist/${{ matrix.profile }}.json
+        run: python tools/optimist.py package --profile ${{ matrix.profile }} --release "${TAG#v}" --out dist --summary dist/${{ matrix.profile }}.json
       - uses: actions/upload-artifact@v4
         with:
           name: optimist-${{ matrix.profile }}

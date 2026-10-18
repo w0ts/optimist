@@ -442,11 +442,12 @@ def version():
     return f"{v}-dev-{commit}{'-modified' if changed else ''}"
 
 
-def package(cfg, name, outdir, stem=None, echo=False, summary=None):
+def package(cfg, name, outdir, stem=None, echo=False, summary=None, release=None):
     """a real build -> outdir/optimist-<version>-<name>.fwsc + -ui.zip (never a bench or measurement build: the
     builder's environment has no FELUCCA_* variable); -> 0 ok. summary: a JSON file with the result (ok, the
-    files, sizes, the configuration's hash), for scripts and CI"""
-    ok, sizes, out = build(cfg, name, measure=False, echo=echo)
+    files, sizes, the configuration's hash), for scripts and CI. release: X.Y, a release build (build.py --release:
+    its identity and version string), named optimist-X.Y-<name> (release.yml)"""
+    ok, sizes, out = build(cfg, name, measure=False, echo=echo, extra=["--release", release] if release else ())
     pkg, ui = ROOT / "build" / "felucca.fwsc", ROOT / "build" / "felucca-ui.zip"
     result = {"ok": False, "name": name, "hash": f"{cfg_hash(cfg):08x}", "sizes": sizes, "fwsc": None, "ui": None}
     if not ok or not pkg.exists() or not ui.exists():
@@ -455,7 +456,7 @@ def package(cfg, name, outdir, stem=None, echo=False, summary=None):
         print("package: the build failed or does not fit: nothing copied")
         _summary(summary, result)
         return 1
-    slug = stem or f"optimist-{version()}-" + re.sub(r"[^a-z0-9]+", "-", (name or "custom").lower()).strip("-")
+    slug = stem or f"optimist-{release or version()}-" + re.sub(r"[^a-z0-9]+", "-", (name or "custom").lower()).strip("-")
     outdir.mkdir(parents=True, exist_ok=True)
     (outdir / f"{slug}.fwsc").write_bytes(pkg.read_bytes())
     (outdir / f"{slug}-ui.zip").write_bytes(ui.read_bytes())

@@ -150,7 +150,7 @@ def named_package(since=0.0):
 
 def cmd_package(a):
     cfg, name = load_config(a)
-    return C.package(cfg, name, Path(a.out).expanduser(), echo=True, summary=a.summary)
+    return C.package(cfg, name, Path(a.out).expanduser(), echo=True, summary=a.summary, release=a.release)
 
 
 def cmd_config(a):
@@ -566,6 +566,7 @@ def parser():
     p = sub.add_parser("package", help="build, then copy optimist-<name>-<date>.fwsc + -ui.zip to --out")
     add_config_args(p)
     p.add_argument("--out", default=str(ROOT / "firmwares"), help="where the package goes (default firmwares/)")
+    p.add_argument("--release", metavar="X.Y", help="release build: identity FM-1_7(X+2)Y, version X.Y, named optimist-X.Y-<name>")
     p.add_argument("--summary", metavar="FILE", help="write the result as JSON")
     p.add_argument("--in-docker", action="store_true", help="run inside the toolchain image")
     p.set_defaults(fn=cmd_package)

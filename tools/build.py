@@ -123,6 +123,21 @@ def tc_all(*cmds):
         return list(ex.map(lambda c: tc(*c), cmds))
 
 
+def generator_python():
+    """the generators need Pillow: this Python when it has it, else the builder's venv (tools/optimist.py setup makes
+    it; CI runs tools/sim.py and the host tests with the runner's own Python, 2026-10-18)"""
+    import importlib.util
+    if importlib.util.find_spec("PIL") is not None:
+        return sys.executable
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import deps
+    py = deps.venv_python()
+    try:
+        return str(py) if py.exists() else sys.executable
+    except OSError:                                     # (a Docker mount that refuses the venv's symlink)
+        return sys.executable
+
+
 def generate(gen=GEN, env=None):
     """generated headers (fonts, icons, tables, samples) into gen; env: the generators' environment over ours
     (the build: setup_config() has set it; the host tests: HOST_ENV)"""
@@ -137,7 +152,8 @@ def generate(gen=GEN, env=None):
             [tools / "gen_x0x_drums.py", gen / "x0x_drum_samples.h"],
             [tools / "gen_param_help.py", gen / "felucca_param_help.h"]]   # (+ web/editor.html's copy)
     penv = {**os.environ, **(env or {})}
-    procs = [subprocess.Popen([sys.executable, *map(str, c)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+    py = generator_python()
+    procs = [subprocess.Popen([py, *map(str, c)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                               text=True, env=penv) for c in cmds]
     failed = []
     for c, p in zip(cmds, procs):
