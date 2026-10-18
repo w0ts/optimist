@@ -118,6 +118,7 @@ static uint32_t hl_text(void)
  * which value it moves (the user, 2026-10-18: "if in the help bottom line it could say the destination engine and param
  * name"): "ANALOG CUT - Filter cutoff", the engine's own line for that value after the dash while the whole fits the
  * band (else the names alone) -> b (64 bytes); 0: not such a DEST (the table's line stays) */
+#define HL_DEST_ON (1u << 16)                   /* hl_dest's result: a DEST found (never 0), the engine and value under it */
 static uint32_t hl_dest(char *b)
 {
     cell_t c;
@@ -144,7 +145,7 @@ static uint32_t hl_dest(char *b)
         if (text_w(&FONT_S, b) > 232)
             b[n] = 0;                                   /* (too wide for the band: the names alone) */
     }
-    return 0x10000u | (uint32_t)TSEL->eng_req << 8 | v;
+    return HL_DEST_ON | (uint32_t)TSEL->eng_req << 8 | v;
 }
 /* where an automated value's change comes from (the user, 2026-10-18: "when on a automated parameter to know in the
  * bottom line where autom/plock/mod come from"): the sources acting on cell c's value now, as words into b (64 bytes), each

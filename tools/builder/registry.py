@@ -740,6 +740,12 @@ _add("BACKUP", "FELUCCA_BACKUP", "backup / restore from the web editor", Y, 84, 
      desc="everything in flash to one .optimist-backup file and back (editor cmds 43..48); a restore onto another "
           "build reports what it skips and what plays a stand-in", off_warning="no backup: export projects and kits "
           "one by one before an update")
+_add("ED_LIVE", "FELUCCA_ED_LIVE", "web editor: live editing (else backup / restore only)", Y, 350, parent="EDITOR",
+     desc="The web editor edits the FM-1 live: the sounds' values, presets, user presets, tracks, steps, the mixer, "
+          "kits and the ED_* pages, kept in sync both ways. Off: the editor's side is backup and restore only (the "
+          "frames, INFO, BUILD, the user sample slots a restore writes, the snapshots, cmds 43..48: editor/ed_lite.c); "
+          "the web page then shows its Backup alone. The ED_* items do nothing without it.",
+     off_warning="the web editor can only back up and restore this FM-1: no live editing, no presets or kits from the page")
 _add("ED_FXP", "FELUCCA_ED_FXP", "web editor: every effect slot and its parameters (cmd 94)", Y, 144, parent="EDITOR",
      desc="the web editor's FX slots by owner (track inserts, the drum bus and lane inserts, master inserts, returns, the USB input): type list, each type's own parameters (cmd 94 FXP, INFO tag 0x57). Off: the editor's Inserts / Returns pop-ups and the FX slot pages are not offered (the older FX command, 86, keeps its three send effects). About 5.3 KB of flash (measured with the Optimist UI). The INFO tag is sent only when it is built, and the editor hides what it does not find.")
 _add("ED_DLAN", "FELUCCA_ED_DLAN", "web editor: drum lanes' mix, LFOs and mutes (cmd 95)", Y, 145, parent="EDITOR",

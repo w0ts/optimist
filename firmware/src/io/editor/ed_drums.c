@@ -15,18 +15,7 @@
 #include "ed_reply.h"         /* (ed_b2..ed_b4, ed_b32) */
 enum { ED_DRUM_LANES = 36, ED_DRUM_LANE, ED_UKIT_LIST, ED_UKIT_GET, ED_UKIT_PUT, ED_UKIT_OP, ED_SMP_READ };
 
-static void ed_pack7(const uint8_t *p, uint32_t n)
-{
-    while (n) {
-        uint32_t k = n > 7u ? 7u : n, j, m = 0;
-        for (j = 0; j < k; j++)
-            m |= (uint32_t)(p[j] >> 7) << j;
-        ed_b(m);
-        ed_bs(p, k);
-        p += k;
-        n -= k;
-    }
-}
+#include "ed_pack7.h"         /* (ed_pack7: shared with backup and snapshots, ed_lite.c too) */
 
 /* one lane as 12 bytes: offsets, source, reference */
 static void ed_lane_get(uint32_t l, uint8_t *b)

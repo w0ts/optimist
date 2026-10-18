@@ -74,7 +74,9 @@ static void ed_send(void)
     ota_wire_send(ed_out, ed_n);
 }
 static int32_t ed_rv(const uint8_t *p) { return (int32_t)(p[0] | p[1] << 7) - 8192; }
+#if FELUCCA_ED_LIVE
 #include "ed_desc.h"           /* DESC's body (DESC, FXP, DLAN, STEPLANE; SCRN and SCRS its first four) */
+#endif
 
 /* pack7 bytes (a byte of high bits, then up to 7 bytes) back into bytes: the sample slots, kits, backup, snapshots */
 static uint32_t ed_unpack7(const uint8_t *a, uint32_t na, uint8_t *out, uint32_t max)
@@ -88,6 +90,10 @@ static uint32_t ed_unpack7(const uint8_t *a, uint32_t na, uint8_t *out, uint32_t
     }
     return n;
 }
+#if !FELUCCA_ED_LIVE
+#include "ed_lite.c"           /* ED_LIVE=0: backup and restore only (the frames, INFO, BUILD, PING, 11..15, 43..48, 54..57);
+                                * the rest of this file is the live editor */
+#else
 #include "ed_user.c"           /* cmds 11..21: the sample slots and the user presets */
 #include "ed_drums.c"          /* cmds 36..42: drum lanes, user kits, a slot read back */
 #include "ed_dsrc.c"           /* cmds 50, 51: the drum sources and what a lane's SOUND pages show */
@@ -742,3 +748,4 @@ static void ed_service(void)
         ed_handle(f, k);
     }
 }
+#endif   /* FELUCCA_ED_LIVE */

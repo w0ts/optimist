@@ -499,6 +499,10 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #define FELUCCA_PARAM_HELP 0               /* the knob's value in plain words on the top bar ("Filter cutoff"), from
                                             * tools/param_help.json (param_help.c) */
 #endif
+#ifndef FELUCCA_ED_LIVE
+#define FELUCCA_ED_LIVE 1                  /* the web editor's live editing (editor.c: GET / SET / DESC, presets, tracks,
+                                            * steps, sync and the ED_* commands); 0: backup and restore only (ed_lite.c) */
+#endif
 #ifndef FELUCCA_PAGE_LINES
 #define FELUCCA_PAGE_LINES 0               /* the Optimist UI's screens of rows with no picture as GLOBAL's four lines (a row
                                             * a page, KNOB k line k), not 2x2 cards over a row list (op_gldraw.c pl_draw).

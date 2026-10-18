@@ -2464,8 +2464,16 @@ async function editorUiPass() {
   const card = (/<section id="connectcard"[\s\S]*?<\/section>/.exec(html) || [""])[0];
   ok(/<html lang="en" data-conn="off">/.test(html) && /html\[data-conn=off\] \.panel/.test(css) && /html:not\(\[data-conn=off\]\) #connectcard/.test(css)
     && /id="connect"/.test(card) && /id="cstatus"/.test(card) && /data-t="connectHint"/.test(card) && /href="#install"/.test(card)
-    && /dataset\.conn = ready \? "on" : "off"/.test(html) && !/<section[^>]*id="p-\w+"[^>]*>[^<]*\d/.test(card),
+    && /dataset\.conn = lite \? "lite" : ready \? "on" : "off"/.test(html) && !/<section[^>]*id="p-\w+"[^>]*>[^<]*\d/.test(card),
     "ui: not connected, only the connect card (Connect, status, hint, installer link)");
+  {   /* a backup-only firmware (builder ED_LIVE off, ed_lite.c): INFO's tag 0x64; the page loads the backup alone */
+    const enc = (s) => [...s].map((c) => c.charCodeAt(0)).concat(0);
+    const li = E.parse[E.CMD.INFO]([...enc("FELUCCA 0.1"), 0, 0, 0, 64, 0, 0, 6, 0x64, 1, 1]);
+    const lite = readFileSync(new URL("../firmware/src/io/editor/ed_lite.c", import.meta.url), "utf8");
+    ok(li.lite && li.nengines === 0 && li.proto === 6 && /ED_TAG_LITE 0x64u/.test(lite) && /ed_b3\(ED_TAG_LITE, 1, 1\)/.test(lite)
+      && /if \(d\.info\.lite\) return await loadLite\(d\)/.test(html) && /html\[data-conn=lite\] #tabs/.test(css),
+      "ui: a backup-only FM-1 (INFO tag 0x64 == ed_lite.c): read as lite, loadLite, only Backup / Install / Build / Simulator shown");
+  }
   /* auto-connect: MIDI access asked without a click, the FM-1's ports found; refused / no Web MIDI / not plugged in */
   const m = E.makeMockDevice();
   const a = await E.openMidi({ requestMIDIAccess: async (o) => (o && o.sysex ? m.access : null) });
