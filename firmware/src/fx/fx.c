@@ -61,6 +61,7 @@ static int16_t rev_line[(FELUCCA_FX_REVERB ? REV_LINE_OWN : 0u) ? REV_LINE_OWN :
 static struct {
     uint32_t dly_w, cho_w, cho_ph, rev_ph;
     int32_t dly_f[8];               /* the delay filter's two SVF stages (dly_filt; the second for 24 dB): states, remainders */
+    int32_t dly_ec;                 /* the line's rounding error, carried to the next sample written (dly_step) */
     uint16_t line_i[4], ap_i[2];
     int32_t line_lp[4];
     uint32_t cho_q, dly_q, rev_q;   /* samples since the bus last wrote a non-zero value into its lines */
@@ -349,6 +350,7 @@ static __attribute__((noinline)) void dly_zero(void)   /* (DLY RET 0: the same, 
 {
     if (fx.dly_q < DLY_LEN || DLY_FST() || fxz.dclr) {
         memset(fx.dly_f, 0, sizeof fx.dly_f);
+        fx.dly_ec = 0;
         if (!(fxz.dclr = fx_zclear(dly_buf, sizeof dly_buf / 2u, fxz.dclr)))
             fx.dly_q = FX_Q_MAX;
     }
@@ -385,16 +387,40 @@ static __attribute__((noinline)) uint32_t dly_block(int32_t *fb, dlyf_t *f, int3
  * the knee. On a held loop (FDBK 100 %) more input saturates softly instead of clipping hard. (Measured on the golden
  * renders: the loud default-FDBK ones that reached the old clamp move least with this knee; one twice as wide moved
  * them 7 dB more.) */
+/* the line's samples (2026-10-18: the tails sounded low-bit on the FM-1): the loop runs DLY_Q bits finer than the bus
+ * (in << DLY_Q, 8x) and each sample is stored as a 16-bit float: sign, a 3-bit exponent, a 12-bit mantissa, cut toward
+ * zero. Below 4096 (512 of the bus, -36 dBFS) it is linear at 1/8 of the bus' step, so a fading tail stays smooth 18 dB
+ * further down and still ends at exactly 0 (the bus goes idle); above, 12 bits relative to the sample itself. Was int16
+ * at half the bus' scale (in >> 1), each repeat cut to the bus' step. */
+#define DLY_Q 3
+AINL int16_t dly_enc(int32_t v)                     /* |v| <= 32512 << DLY_Q (the saturator's top) */
+{
+    uint32_t a = (uint32_t)(v < 0 ? -v : v), e = 0, t = a;
+    while (t >= 4096u)
+        t >>= 1, e++;                                   /* (at most 6 shifts: 260096 -> 4064) */
+    if (e) {                                            /* (rounded to nearest: a held loop, FDBK 100 %, loses nothing on */
+        a = (a + (1u << (e - 1u))) >> e;                /* average; below 4096 the sample is exact, so mul_tz still */
+        if (a >= 4096u)                                 /* takes every tail to 0) */
+            a >>= 1, e++;
+    }
+    return (int16_t)((v < 0 ? 0x8000u : 0u) | (e << 12) | a);
+}
+AINL int32_t dly_dec(int16_t c)
+{
+    uint32_t u = (uint16_t)c;
+    int32_t m = (int32_t)((u & 0x0FFFu) << ((u >> 12) & 7u));
+    return u & 0x8000u ? -m : m;
+}
 #define DLY_SAT_S 14
 #define DLY_SAT_H (1 << (DLY_SAT_S - 2))
 #define DLY_SAT_K (32512 - DLY_SAT_H)
-AINL int32_t dly_sat(int32_t v)
+AINL int32_t dly_sat(int32_t v)                     /* (v at DLY_Q: the knee on its integer part) */
 {
-    int32_t a = v < 0 ? -v : v;
+    int32_t a = (v < 0 ? -v : v) >> DLY_Q;
     if (a > DLY_SAT_K) {
         a -= DLY_SAT_K;
         a = a > 2 * DLY_SAT_H ? 2 * DLY_SAT_H : a;
-        a = DLY_SAT_K + a - ((a * a) >> DLY_SAT_S);     /* e - e^2 / 4H: H at e = 2H */
+        a = (DLY_SAT_K + a - ((a * a) >> DLY_SAT_S)) << DLY_Q;   /* e - e^2 / 4H: H at e = 2H */
         v = v < 0 ? -a : a;
     }
     return v;
@@ -407,16 +433,18 @@ AINL int32_t dly_sat(int32_t v)
 FX_STEP int32_t dly_filt(const dlyf_t *f, int32_t s, int32_t *st)
 {
     const tsvf_t *c = &f->c;
-    int32_t v3 = s - st[1], a = c->a1 * st[0] + c->a2 * v3 + st[2], v1 = a >> 13, lp, kb;
-    st[2] = a - (v1 << 13);
-    a = c->a2 * st[0] + c->a3 * v3 + st[3];
-    lp = st[1] + (a >> 13);
-    st[3] = a - ((a >> 13) << 13);
-    st[0] = clamp(2 * v1 - st[0], -150000, 150000);
-    st[1] = clamp(2 * lp - st[1], -150000, 150000);
+    int32_t v3 = s - st[1], v1, lp, kb;
+    int64_t a = (int64_t)c->a1 * st[0] + (int64_t)c->a2 * v3 + st[2];
+    v1 = (int32_t)(a >> 13);
+    st[2] = (int32_t)(a - ((int64_t)v1 << 13));
+    a = (int64_t)c->a2 * st[0] + (int64_t)c->a3 * v3 + st[3];
+    lp = st[1] + (int32_t)(a >> 13);
+    st[3] = (int32_t)(a - ((a >> 13) << 13));
+    st[0] = clamp(2 * v1 - st[0], -(150000 << DLY_Q), 150000 << DLY_Q);
+    st[1] = clamp(2 * lp - st[1], -(150000 << DLY_Q), 150000 << DLY_Q);
     if (f->type == DLYF_LP)
         return lp;
-    kb = (f->k * v1) >> 12;
+    kb = (int32_t)(((int64_t)f->k * v1) >> 12);
     if (f->type == DLYF_BP)
         return kb;
     return f->type == DLYF_HP ? s - kb - lp : lp - (s - kb - lp);
@@ -426,15 +454,22 @@ FX_STEP int32_t dly_filt(const dlyf_t *f, int32_t s, int32_t *st)
  * once and each repeat once more */
 FX_STEP int32_t dly_step(int32_t in, uint32_t dl, const dlyf_t *f, int32_t fb, int32_t dmix, int32_t *wr)
 {
-    int32_t x = dly_buf[(fx.dly_w - dl) & (DLY_LEN - 1u)], v;
-    v = dly_filt(f, (in >> 1) + mul_tz(x, fb), fx.dly_f);
+    int32_t x = dly_dec(dly_buf[(fx.dly_w - dl) & (DLY_LEN - 1u)]), v;     /* (DLY_Q: x << 1 of the bus, 8x finer) */
+    int64_t p = (int64_t)x * fb;
+    v = dly_filt(f, (in << (DLY_Q - 1)) + (int32_t)((p < 0 ? p + 0x7FFF : p) >> 15), fx.dly_f);   /* (mul_tz, 64-bit) */
     if (f->two)
         v = dly_filt(f, v, fx.dly_f + 4);
     v = dly_sat(v);
-    dly_buf[fx.dly_w & (DLY_LEN - 1u)] = (int16_t)v;
+    {                                                   /* (the rounding error carried on: the stored stream keeps the exact sum,
+                                                         * a held loop loses nothing; below 4096 a sample is exact, the carry 0) */
+        int32_t w = v + fx.dly_ec;
+        int16_t c = dly_enc(w);
+        fx.dly_ec = w - dly_dec(c);
+        dly_buf[fx.dly_w & (DLY_LEN - 1u)] = c;
+    }
     *wr |= v;
     fx.dly_w++;
-    return mulq15(x << 1, dmix);
+    return mulq15(x >> (DLY_Q - 1), dmix);
 }
 
 #if FELUCCA_REV_ROOM || REV_ALT
