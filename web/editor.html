@@ -4168,8 +4168,8 @@ const FAM = { ENV: 1, LFO: 2, FX: 3, SCL: 4, EDIT: 5, GLO: 6, SAVE: 7, ARP: 8, S
 const FAM_NAMES = ["HOME", "ENV", "LFO", "FX", "SCL", "EDIT", "GLO", "SAVE", "ARP", "SEQ", "TRK"];
 /* the FX slots (v10, INFO tag 0x56, firmware fx_slots.c / ed_fxs.c): four slots, each empty (0) or one effect type; a type sits
    in one slot at most. Type ids (stored by the firmware: they never change) */
-const FXT = { NONE: 0, DIST: 1, CHO: 2, DLY: 3, REV: 4, COMP: 5, FILT: 6, FOLD: 7, FUZZ: 8, PHSR: 9, FLNG: 10, FRMT: 11, WIDE: 12, CHRS: 13, ECHO: 14, GATE: 15, DUST: 16, JUNO: 17, EQ3: 18 };
-const FXT_NAMES = ["----", "DST", "CHO", "DLY", "REV", "DYN", "FILT", "FOLD", "FUZZ", "PHSR", "FLNG", "FRMT", "WIDE", "CHRS", "ECHO", "GATER", "DUST", "JUNO", "EQ3"];   /* (the device names a type after its amount: DESC) */
+const FXT = { NONE: 0, DIST: 1, CHO: 2, DLY: 3, REV: 4, COMP: 5, FILT: 6, FOLD: 7, FUZZ: 8, PHSR: 9, FLNG: 10, FRMT: 11, WIDE: 12, CHRS: 13, ECHO: 14, GATE: 15, DUST: 16, JUNO: 17, EQ3: 18, SFLD: 19, WRAP: 20, RECT: 21, HARM: 22, RING: 23, SUBO: 24, SLEW: 25 };
+const FXT_NAMES = ["----", "DST", "CHO", "DLY", "REV", "DYN", "FILT", "FOLD", "FUZZ", "PHSR", "FLNG", "FRMT", "WIDE", "CHRS", "ECHO", "GATER", "DUST", "JUNO", "EQ3", "SFLD", "WRAP", "RECT", "HARM", "RING", "SUB", "SLEW"];   /* (the device names a type after its amount: DESC) */
 /* type t into slot k as the device's FX > SLOTS does it (fxs_load): a type another slot holds swaps places with this slot's
    (empty never swaps). -> a new layout */
 function fxsLoad(slots, k, t) {

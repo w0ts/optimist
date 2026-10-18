@@ -458,6 +458,34 @@ _add("INS_WIDTH", "FELUCCA_INS_WIDTH", "WIDE insert (stereo width)", F, 261, def
      desc="A stereo width type for the tracks' insert slots (INSERTS > S1 / S2: WIDE): one side through slowly swept "
           "all-pass filters, the other dry, so a centred mono track spreads out; WIDE sets how much. 0 is off.",
      symbols=("ifx_wide",), notice="From Melodee 1.3.1's WIDTH insert by Kerem Kilic (GPL-3.0)." + _INS_NOTE)
+# the shapers (2026-10-18, fx/insfx/insfx.c ifx_drive ifx_mod): FOLD's state (24 B an instance, 15 instances), any slot
+_SH_NOTE = " On any insert slot (tracks, drum sounds but SUB, drum bus, master, returns). Tested in the host tests only, not on a device."
+_add("INS_SFOLD", "FELUCCA_INS_SFOLD", "SFLD insert (sine wavefolder)", F, 343, default=0,
+     desc="A sine wavefolder type (SFLD): like FOLD but the folds are round (a sine of the drive), so it sings and "
+          "aliases less; soft saturation at first, then more and more folds as SFLD rises. 0 is off.",
+     symbols=("ifx_sfld",), notice="The shape of Felucca 1.5.5's PHASE FOLD by Leo Kuroshita (GPL-3.0)." + _SH_NOTE)
+_add("INS_WRAP", "FELUCCA_INS_WRAP", "WRAP insert (wavewrapper)", F, 344, default=0,
+     desc="A wavewrapper type (WRAP): past full scale the wave jumps to the other side instead of folding back, a "
+          "harsh digital buzz; clean at low settings, more jumps as WRAP rises. 0 is off.",
+     symbols=("ifx_wrap",), notice=_SH_NOTE.strip())
+_add("INS_RECT", "FELUCCA_INS_RECT", "RECT insert (rectifier, octave up)", F, 345, default=0,
+     desc="A rectifier type (RECT): up to the middle the wave's lower half is folded up (half-wave, then full-wave: the "
+          "octave up of an Octavia), past the middle it is driven into a soft clip. 0 is off.",
+     symbols=("ifx_rect",), notice=_SH_NOTE.strip())
+_add("INS_HARM", "FELUCCA_INS_HARM", "HARM insert (harmonic exciter)", F, 346, default=0,
+     desc="A harmonic exciter type (HARM): adds the octave and the twelfth over each note, warm rather than buzzy, "
+          "more as HARM rises. 0 is off.", symbols=("ifx_harm",), notice=_SH_NOTE.strip())
+_add("INS_RING", "FELUCCA_INS_RING", "RING insert (ring modulator)", F, 347, default=0,
+     desc="A ring modulator type (RING): the sound times a sine from 26 Hz (a rough tremolo) to 2.6 kHz (bells, "
+          "metal), RING picks its pitch. 0 is off.", symbols=("ifx_ring",), notice=_SH_NOTE.strip())
+_add("INS_SUBOCT", "FELUCCA_INS_SUBOCT", "SUB insert (octave down)", F, 348, default=0,
+     desc="An octave-down type (SUB): a square an octave under the note, following its level, added as SUB rises. "
+          "For single-note lines (bass, leads): chords give a rough sub. Not on drum sounds. 0 is off.",
+     symbols=("ifx_subo",), notice=_SH_NOTE.replace("drum sounds but SUB, ", "").strip())
+_add("INS_SLEW", "FELUCCA_INS_SLEW", "SLEW insert (slew-rate crunch)", F, 349, default=0,
+     desc="A slew limiter type (SLEW): the wave can only move so fast, so edges round into ramps, a slow op-amp's "
+          "dull crunch; light at 1, heavy (muffled, gritty) at 127. 0 is off.", symbols=("ifx_slew",),
+     notice=_SH_NOTE.strip())
 # the insert copies of the "once" effects (fx/insfx/fxi_kern.c, fxi.c, 2026-10-13): a count of instances each, how many
 # tracks may hold the type at once; a track picking it with none left is bypassed (the INSERTS list says FULL)
 _INS_LIM = (" Each instance is a line in the pool; a track that picks it when every instance is in use stays dry "

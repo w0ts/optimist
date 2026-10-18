@@ -12,6 +12,9 @@
  *             A build without the macros does not answer: the editor shows the authored values only. */
 #include "ed_reply.h"         /* (ed_b2..ed_b4, ed_b32) */
 enum { ED_MACRO = 65 };
+/* an entry a value a row of MAC_ROWS moves (at most one each; the drum REV row's 6 bytes): was bounded by every value
+ * (P_COUNT + G_COUNT), which outgrew the reply with the shapers' amounts (2026-10-18) though no macro moves them */
+_Static_assert(10u + 6u * MAC_NROWS <= ED_PAYLOAD_N, "MACRO (every value changed by the macros) fits one reply");
 
 static int ed_macro(uint32_t cmd, const uint8_t *a, uint32_t na)
 {

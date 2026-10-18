@@ -39,7 +39,7 @@ static uint32_t ed_n;
 _Static_assert(3u + 6u + 9u + 9u + 64u * 9u <= ED_PAYLOAD_N, "DESC (64 enum names of 8 at most) fits one reply");
 _Static_assert(2u + 2u * (P_COUNT + G_COUNT) <= ED_PAYLOAD_N, "DUMP fits one reply");
 _Static_assert(3u + 13u + 2u * P_COUNT + 32u <= ED_PAYLOAD_N, "UP_GET fits one reply");
-_Static_assert(10u + 4u * (P_COUNT + G_COUNT) + 6u <= ED_PAYLOAD_N, "MACRO (every value changed by the macros) fits one reply");
+/* (MACRO's: ed_macro.c, by the macros' rows) */
 
 static void ed_begin(uint32_t cmd)
 {
@@ -152,6 +152,7 @@ static const uint8_t ED_TIDS[] = {P_LEVEL, P_PAN, P_MUTE, P_DIST, P_CHOR, P_DLY,
 #if INS_FX
                                    , P_TFOLD, P_TFUZZ, P_TPHSR, P_TFLNG, P_TFRMT, P_TWIDE, P_TCHRS, P_TECHO, P_TGATE   /* (the
                                                                   * further inserts') */
+                                   , P_TSFLD, P_TWRAP, P_TRECT, P_THARM, P_TRING, P_TSUBO, P_TSLEW   /* (the shapers') */
 #endif
 #if FELUCCA_FX_DUST
                                    , P_TDUST                                                    /* (DUST's, 2026-10-14) */

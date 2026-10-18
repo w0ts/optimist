@@ -19,6 +19,8 @@ enum { FXT_NONE, FXT_DIST, FXT_CHO, FXT_DLY, FXT_REV, FXT_COMP, FXT_FILT,
        FXT_DUST,             /* (2026-10-14, fx-rework: the master's DUST, now an insert on any slot: fx.c dust_run) */
        FXT_JUNO,             /* (2026-10-14: JUNO CHORUS, fx/junocho/juno_cho.h; a builder count, fxi.c, as CHRS ECHO) */
        FXT_EQ3,              /* (2026-10-15, fx-pool: EQ3, the three-band DJ EQ, fx/insfx/eq3.c, any number) */
+       FXT_SFLD, FXT_WRAP, FXT_RECT, FXT_HARM, FXT_RING, FXT_SUBO, FXT_SLEW,   /* (2026-10-18: the shapers, insfx.c, a builder
+                                                                                * item each) */
        FXT_N };
 /* fx-rework (2026-10-14): COMP is DYN, the compressor, its make-up and the brickwall limiter as one effect (the
  * master's COMP + LIMIT: master_comp.c), on any insert slot; FILT is the track FILTER and the master DJ filter in one
@@ -26,6 +28,14 @@ enum { FXT_NONE, FXT_DIST, FXT_CHO, FXT_DLY, FXT_REV, FXT_COMP, FXT_FILT,
 #define FXT_DYN FXT_COMP
 #define FXT_NEW0 FXT_FOLD                              /* the further insert types FXT_NEW0 .. FXT_NEWN - 1 (insfx.c) */
 #define FXT_NEWN (FXT_GATE + 1)
+#define FXT_SH0 FXT_SFLD                               /* the shapers FXT_SH0 .. FXT_SHN - 1 (insfx.c ifx_drive ifx_mod) */
+#define FXT_SHN (FXT_SLEW + 1)
+/* a further type (the ranges NEW0 .. NEWN, SH0 .. SHN): an amount a track (P_TFOLD .., P_TSFLD ..), a TLV of NTRK bytes, a
+ * master amount, a cost; IFX_FIX its index in the two ranges, IFX_NFUR their size */
+#define IFX_FUR(t) ((uint32_t)(t) - FXT_NEW0 < (uint32_t)(FXT_NEWN - FXT_NEW0) || (uint32_t)(t) - FXT_SH0 < (uint32_t)(FXT_SHN - FXT_SH0))
+#define IFX_NFUR ((FXT_NEWN - FXT_NEW0) + (FXT_SHN - FXT_SH0))
+#define IFX_FIX(t) ((t) < FXT_SH0 ? (t) - FXT_NEW0 : (t) - FXT_SH0 + (FXT_NEWN - FXT_NEW0))
+#define IFX_FTY(i) ((i) < (uint32_t)(FXT_NEWN - FXT_NEW0) ? FXT_NEW0 + (i) : FXT_SH0 + (i) - (FXT_NEWN - FXT_NEW0))   /* (its inverse) */
 #define FXT_LIM0 FXT_CHRS                              /* the limited ones FXT_LIM0 .. FXT_LIMN - 1 (fxi.c: an instance each) */
 #define FXT_LIMN (FXT_ECHO + 1)                        /* (GATER after them: on every track, not limited) */
 #define FXT_IS_LIM(t) ((uint32_t)(t) - FXT_LIM0 < (uint32_t)(FXT_LIMN - FXT_LIM0) || (FELUCCA_INS_JCHORUS && (t) == FXT_JUNO) || \
@@ -35,7 +45,8 @@ enum { FXT_NONE, FXT_DIST, FXT_CHO, FXT_DLY, FXT_REV, FXT_COMP, FXT_FILT,
 #define FXT_INSERT (FXT_BIT(FXT_DIST) | FXT_BIT(FXT_COMP) | FXT_BIT(FXT_FILT) | FXT_BIT(FXT_FOLD) | FXT_BIT(FXT_FUZZ) | \
                     FXT_BIT(FXT_PHSR) | FXT_BIT(FXT_FLNG) | FXT_BIT(FXT_FRMT) | FXT_BIT(FXT_WIDE) | FXT_BIT(FXT_CHRS) | \
                     FXT_BIT(FXT_ECHO) | FXT_BIT(FXT_GATE) | FXT_BIT(FXT_DUST) | FXT_BIT(FXT_JUNO) | \
-                    FXT_BIT(FXT_EQ3))   /* the others: sends */
+                    FXT_BIT(FXT_EQ3) | FXT_BIT(FXT_SFLD) | FXT_BIT(FXT_WRAP) | FXT_BIT(FXT_RECT) | FXT_BIT(FXT_HARM) | \
+                    FXT_BIT(FXT_RING) | FXT_BIT(FXT_SUBO) | FXT_BIT(FXT_SLEW))   /* the others: sends */
 #define FXT_BUILT ((FELUCCA_FX_DIST ? FXT_BIT(FXT_DIST) : 0u) | (FELUCCA_FX_CHORUS ? FXT_BIT(FXT_CHO) : 0u) | \
                    (FELUCCA_FX_DELAY ? FXT_BIT(FXT_DLY) : 0u) | (FELUCCA_FX_REVERB ? FXT_BIT(FXT_REV) : 0u) |  \
                    (TFLT_ON ? FXT_BIT(FXT_FILT) : 0u) | (FELUCCA_MASTER_COMP ? FXT_BIT(FXT_COMP) : 0u) |   \
@@ -44,9 +55,13 @@ enum { FXT_NONE, FXT_DIST, FXT_CHO, FXT_DLY, FXT_REV, FXT_COMP, FXT_FILT,
                    (FELUCCA_INS_FORMANT ? FXT_BIT(FXT_FRMT) : 0u) | (FELUCCA_INS_WIDTH ? FXT_BIT(FXT_WIDE) : 0u) |  \
                    (FELUCCA_INS_CHORUS > 0 ? FXT_BIT(FXT_CHRS) : 0u) | (FELUCCA_INS_DELAY > 0 ? FXT_BIT(FXT_ECHO) : 0u) | \
                    (FELUCCA_INS_GATER ? FXT_BIT(FXT_GATE) : 0u) | (FELUCCA_FX_DUST ? FXT_BIT(FXT_DUST) : 0u) | \
-                   (FELUCCA_INS_JCHORUS > 0 ? FXT_BIT(FXT_JUNO) : 0u) | (FELUCCA_INS_EQ3 ? FXT_BIT(FXT_EQ3) : 0u))
-/* a type insfx.c runs (ifx_part, ifx_bus, ifx_st): the further ones, JUNO CHORUS, EQ3 */
-#define IFX_TYPE(t) (((t) >= FXT_NEW0 && (t) < FXT_NEWN) || (FELUCCA_INS_JCHORUS && (t) == FXT_JUNO) || (FELUCCA_INS_EQ3 && (t) == FXT_EQ3))
+                   (FELUCCA_INS_JCHORUS > 0 ? FXT_BIT(FXT_JUNO) : 0u) | (FELUCCA_INS_EQ3 ? FXT_BIT(FXT_EQ3) : 0u) | \
+                   (FELUCCA_INS_SFOLD ? FXT_BIT(FXT_SFLD) : 0u) | (FELUCCA_INS_WRAP ? FXT_BIT(FXT_WRAP) : 0u) |     \
+                   (FELUCCA_INS_RECT ? FXT_BIT(FXT_RECT) : 0u) | (FELUCCA_INS_HARM ? FXT_BIT(FXT_HARM) : 0u) |      \
+                   (FELUCCA_INS_RING ? FXT_BIT(FXT_RING) : 0u) | (FELUCCA_INS_SUBOCT ? FXT_BIT(FXT_SUBO) : 0u) |    \
+                   (FELUCCA_INS_SLEW ? FXT_BIT(FXT_SLEW) : 0u))
+/* a type insfx.c runs (ifx_part, ifx_bus, ifx_st): the further ones (the shapers too), JUNO CHORUS, EQ3 */
+#define IFX_TYPE(t) (IFX_FUR(t) || (FELUCCA_INS_JCHORUS && (t) == FXT_JUNO) || (FELUCCA_INS_EQ3 && (t) == FXT_EQ3))
 _Static_assert(FXT_N <= 32, "the type masks (ins_live): 32 bits");
 #define FXT_SEND_OK(t) ((t) < FXT_N && !(FXT_INSERT >> (t) & 1u) && (t) != FXT_NONE)
 /* each type's per-track amount (a P_* id; its label names the slot), 0xFF: none in this build */
@@ -85,6 +100,13 @@ static const uint8_t FXT_AMT[FXT_N] = {
     P_TEQ,
 #else
     0xFF,
+#endif
+#if INS_FX
+    FXT_AMT_NEW(FELUCCA_INS_SFOLD, P_TSFLD), FXT_AMT_NEW(FELUCCA_INS_WRAP, P_TWRAP), FXT_AMT_NEW(FELUCCA_INS_RECT, P_TRECT),
+    FXT_AMT_NEW(FELUCCA_INS_HARM, P_THARM), FXT_AMT_NEW(FELUCCA_INS_RING, P_TRING), FXT_AMT_NEW(FELUCCA_INS_SUBOCT, P_TSUBO),
+    FXT_AMT_NEW(FELUCCA_INS_SLEW, P_TSLEW),
+#else
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
 #endif
 };
 /* THE send order (2026-10-15, the user: "match the order between master return and the send"): REV DLY CHO. The
@@ -306,7 +328,8 @@ AINL int32_t rt_amt(uint32_t j) { return fxs_ramt[fxs_rsl[j % 3u] % FX_NSLOT]; }
  * heard: D7); 0xFF none. The default: DST CHO DLY REV, SLOOP's page as it was */
 static uint32_t fxs_lane_id(uint32_t k)
 {
-    static const uint8_t LID[FXT_N] = {0xFF, 19, 18, 17, 16, 20, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};   /* (by type: NONE DIST
+    static const uint8_t LID[FXT_N] = {0xFF, 19, 18, 17, 16, 20, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+                                       0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};   /* (by type: NONE DIST
                                                         * CHO DLY REV COMP FILT, the further inserts, EQ3 too: none) */
     _Static_assert(sizeof LID == FXT_N, "LID: one entry per FX type (a new type needs its entry, 0xFF: none)");
     uint32_t i, n = 0;
@@ -776,11 +799,14 @@ static void ut_load(uint32_t s, uint32_t t)            /* type t into slot s (th
  * record as before (DIST's and COMP's TLVs: S1's, S2's), the slots in LIN_TLV (fx_rec.c) only when not the default
  * S1 DIST, S2 DYN: every project of before plays as it did */
 static const uint8_t LIN_T[] = {FXT_NONE, FXT_DIST, FXT_DYN, FXT_FILT, FXT_DUST, FXT_FOLD, FXT_FUZZ, FXT_PHSR, FXT_FRMT,
-                                FXT_EQ3};   /* (EQ3, fx-pool: the drum track's bands, the lane's amount its on switch) */   /* (the
-                                                        * stored index: never reorder) */
+                                FXT_EQ3,    /* (EQ3, fx-pool: the drum track's bands, the lane's amount its on switch) */
+                                FXT_SFLD, FXT_WRAP, FXT_RECT, FXT_HARM, FXT_RING, FXT_SLEW};   /* (the shapers, 2026-10-18,
+                                                        * but SUB: a drum hit has no line to follow; the nibble is full) */
+                                                        /* (the stored index: never reorder) */
 #define LIN_NT ((uint32_t)sizeof LIN_T)
 #define LIN_OK (FXT_BUILT & (FXT_BIT(FXT_DIST) | FXT_BIT(FXT_DYN) | FXT_BIT(FXT_FILT) | FXT_BIT(FXT_DUST) | FXT_BIT(FXT_FOLD) | \
-                             FXT_BIT(FXT_FUZZ) | FXT_BIT(FXT_PHSR) | FXT_BIT(FXT_FRMT) | FXT_BIT(FXT_EQ3)))
+                             FXT_BIT(FXT_FUZZ) | FXT_BIT(FXT_PHSR) | FXT_BIT(FXT_FRMT) | FXT_BIT(FXT_EQ3) | FXT_BIT(FXT_SFLD) | \
+                             FXT_BIT(FXT_WRAP) | FXT_BIT(FXT_RECT) | FXT_BIT(FXT_HARM) | FXT_BIT(FXT_RING) | FXT_BIT(FXT_SLEW)))
 #define LIN_DEF0 (FELUCCA_FX_DIST ? FXT_DIST : FXT_NONE)
 #define LIN_DEF1 (FELUCCA_MASTER_COMP ? FXT_DYN : FXT_NONE)
 #define LIN_D2 {LIN_DEF0, LIN_DEF1}
@@ -908,7 +934,8 @@ static const uint8_t FXT_BUS[FXT_N] = {0xFF, P_DIST, P_CHOR, P_DLY, P_REV,
 #else
                                        0xFF,
 #endif
-                                       0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};   /* (FILT; the further inserts, DUST, JUNO: their
+                                       0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+                                       0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};   /* (FILT; the further inserts, DUST, JUNO, the shapers: their
                                                         * own TLV, every track's amount: fxs_tlv) */
 /* JUNO CHORUS's TLV (2026-10-14): T1 T2 T3 DR's MIX, their MODE, the master's MIX and MODE (mst_amt, mst_jmode), when any
  * is set; a shorter one: the rest 0 */
@@ -932,7 +959,7 @@ static void fxs_gx_def(uint32_t k)                     /* track k's GATER values
  * drum bus, 3 parts, 3 settings, 16 drum sounds; DIST: the bus, 16 sounds; CHO DLY REV: the bus). The drum sounds'
  * amounts (phase 5: drum_sends.c dins_amt) come last and only when one is set: a reader of before takes the rest */
 #define FXT_TLV_EQ3 (NTRK + 1u + 5u * (NTRK + 5u))     /* EQ3's: the tracks' ON, the master's, every owner's 5 settings */
-#define FXT_TLV_SUM (23u + 17u + 3u + (FXT_NEWN - FXT_NEW0 + 1u) * NTRK + FXT_TLV_GX + FXT_TLV_JUNO + FXT_TLV_EQ3)   /* (+ the further inserts' and
+#define FXT_TLV_SUM (23u + 17u + 3u + (IFX_NFUR + 1u) * NTRK +FXT_TLV_GX + FXT_TLV_JUNO + FXT_TLV_EQ3)   /* (+ the further inserts' and
                                                         * DUST's: 4 each) */
 #define FXT_TLV_COMP (NTRK + 3u)                       /* (COMP's TLV before the drum sounds' amounts) */
 static uint32_t fxs_lanes(const uint8_t *a, uint8_t *o)   /* the 16 drum sounds' amounts -> o; any set */
@@ -975,7 +1002,7 @@ static uint32_t fxs_tlv(uint32_t t, uint8_t *o)
     }
 #endif
 #if INS_FX
-    if (t >= FXT_NEW0 && t < FXT_NEWN) {                  /* a further insert (insfx.c): T1 T2 T3 DR's amounts, any set */
+    if (IFX_FUR(t)) {                                  /* a further insert (insfx.c): T1 T2 T3 DR's amounts, any set */
         if (FXT_AMT[t] == 0xFFu)
             return 0;                                  /* (not built: its amounts are not here to keep) */
         for (k = 0; k < NTRK; k++)
@@ -1020,6 +1047,8 @@ static void fxs_untlv_none(int all)
 #if INS_FX
     for (k = 0; k < NTRK * (FXT_NEWN - FXT_NEW0); k++)
         trk[k % NTRK].p[P_TFOLD + k / NTRK] = 0;      /* (the further inserts' amounts: built or not) */
+    for (k = 0; k < NTRK * (FXT_SHN - FXT_SH0); k++)
+        trk[k % NTRK].p[P_TSFLD + k / NTRK] = 0;      /* (the shapers') */
     for (k = 0; k < NTRK; k++)
         fxs_gx_def(k);                                 /* (GATER's PATTERN RATE SHAPE) */
 #endif
@@ -1056,7 +1085,7 @@ static void fxs_untlv(uint32_t t, const uint8_t *a, uint32_t n, int all)
             trk[k].p[P_TDUST] = (int16_t)(k < n ? (a[k] > 127u ? 127u : a[k]) : 0u);
 #endif
 #if INS_FX
-    if (t >= FXT_NEW0 && t < FXT_NEWN && FXT_AMT[t] != 0xFFu)
+    if (IFX_FUR(t) && FXT_AMT[t] != 0xFFu)
         for (k = 0; k < NTRK; k++)                     /* (a shorter TLV: the rest 0) */
             trk[k].p[FXT_AMT[t]] = (int16_t)(k < n ? (a[k] > 127u ? 127u : a[k]) : 0u);
     if (t == FXT_GATE && FXT_AMT[t] != 0xFFu)
@@ -1119,7 +1148,8 @@ static int rt_any(void)                                /* a return holds a type 
 #define INS_NLIST (1 + FELUCCA_FX_DIST + TFLT_ON + FELUCCA_MASTER_COMP + FELUCCA_FX_DUST + FELUCCA_INS_FOLD + FELUCCA_INS_FUZZ + \
                    FELUCCA_INS_PHASER + (FELUCCA_INS_FLANGER > 0) + FELUCCA_INS_FORMANT + FELUCCA_INS_WIDTH + \
                    (FELUCCA_INS_CHORUS > 0) + (FELUCCA_INS_DELAY > 0) + FELUCCA_INS_GATER + (FELUCCA_INS_JCHORUS > 0) + \
-                   FELUCCA_INS_EQ3)
+                   FELUCCA_INS_EQ3 + FELUCCA_INS_SFOLD + FELUCCA_INS_WRAP + FELUCCA_INS_RECT + FELUCCA_INS_HARM +   \
+                   FELUCCA_INS_RING + FELUCCA_INS_SUBOCT + FELUCCA_INS_SLEW)
 static const char *ins_names[INS_NLIST];
 static uint8_t ins_list[INS_NLIST];
 static int16_t ins_v[INS_N];

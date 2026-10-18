@@ -367,8 +367,8 @@ static uint32_t sl24_fx_out(uint8_t *o)
     }                                                   /* (the drum track's send levels: 2.4 has none) */
 #if INS_FX
     for (k = 0; k < NTRK; k++)                          /* (each its amount, P_TAIL: not in 2.4's file, nothing to clear) */
-        for (i = FXT_NEW0; i < FXT_NEWN; i++)
-            lost |= INS_ON(k, i) && trk[k].p[FXT_AMT[i]] ? SX24_INSFX : 0u;
+        for (i = 0; i < IFX_NFUR; i++)                  /* (the shapers too) */
+            lost |= INS_ON(k, IFX_FTY(i)) && FXT_AMT[IFX_FTY(i)] != 0xFFu && trk[k].p[FXT_AMT[IFX_FTY(i)]] ? SX24_INSFX : 0u;
 #endif
 #if FELUCCA_MASTER_COMP
     for (k = 0; k < NTRK; k++)

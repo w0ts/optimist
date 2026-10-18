@@ -28,7 +28,8 @@ static void check(const char *what, int ok)
     fails += !ok;
 }
 static const char *const NAME[FXT_N] = {"", "", "", "", "", "", "", "FOLD", "FUZZ", "PHSR", "FLNG", "FRMT", "WIDE", "CHRS", "ECHO",
-                                        "GATER"};
+                                        "GATER", [FXT_SFLD] = "SFLD", [FXT_WRAP] = "WRAP", [FXT_RECT] = "RECT",
+                                        [FXT_HARM] = "HARM", [FXT_RING] = "RING", [FXT_SUBO] = "SUB", [FXT_SLEW] = "SLEW"};
 static int32_t x[N], y[N], z[N];
 
 static void sine(double amp, double f)
@@ -67,6 +68,13 @@ static void reset(void)
     }
     for (k = P_TFOLD; k <= P_TGATE; k++)
         trk[0].p[k] = trk[1].p[k] = trk[2].p[k] = TDRUM->p[k] = 0;
+    for (k = P_TSFLD; k <= P_TSLEW; k++)
+        trk[0].p[k] = trk[1].p[k] = trk[2].p[k] = TDRUM->p[k] = 0;
+#if INS_SH
+    for (k = FXT_SH0; k < FXT_SHN; k++)
+        if (ifx_sh_st(k, 0))
+            memset(ifx_sh_st(k, 0), 0, sizeof(ifx_drv_t) * IFX_NI);
+#endif
 #if FELUCCA_INS_GATER
     memset(ifx_gate, 0, sizeof ifx_gate);               /* (GATER: open, its PATTERN RATE SHAPE the defaults, as at boot) */
     for (k = 0; k < NTRK; k++)
@@ -312,6 +320,79 @@ static void t_specific(void)
     }
 }
 
+#if INS_SH
+/* the shapers' own (2026-10-18): what each does to a sine, a square; a drum voice's slot runs them */
+static void t_shapers(void)
+{
+    static const uint8_t DRV[3] = {FXT_SFLD, FXT_WRAP, FXT_HARM};
+    double t0, t1, f1, f2, h1, h2;
+    char w[140];
+    uint32_t i, k;
+    for (k = 0; k < 3u; k++) {                          /* SFLD WRAP HARM: harmonics rise with the amount */
+        reset();
+        sine(60000, 220);
+        run_part(DRV[k], 10, 10, 0);                    /* (10: under 1x of drive, before WRAP's first jump) */
+        t0 = thd(y, 220);
+        reset();
+        run_part(DRV[k], 127, 127, 0);
+        t1 = thd(y, 220);
+        snprintf(w, sizeof w, "%s: the harmonics rise with the amount (%.1f %% at 10, %.1f %% at 127)", NAME[DRV[k]], t0, t1);
+        check(w, t1 > t0 && t1 > 10);
+    }
+    reset();                                            /* RECT: to 64 the octave up takes over the fundamental (660 Hz: */
+    sine(60000, 660);                                   /* clear of the low band kept dry, ~55 Hz) */
+    run_part(FXT_RECT, 64, 64, 0);
+    f1 = goertzel(y + N / 2u, N / 2u, 660), f2 = goertzel(y + N / 2u, N / 2u, 1320);
+    reset();
+    run_part(FXT_RECT, 16, 16, 0);
+    h1 = goertzel(y + N / 2u, N / 2u, 660), h2 = goertzel(y + N / 2u, N / 2u, 1320);
+    snprintf(w, sizeof w, "RECT: at 64 the octave over the fundamental (1320 / 660 Hz %.2f), at 16 the fundamental still (%.2f)",
+             f2 / (f1 + 1), h2 / (h1 + 1));
+    check(w, f2 > 4 * f1 && h1 > h2);
+    reset();                                            /* RING: the input's frequency gone, side bands instead */
+    sine(60000, 1000);
+    run_part(FXT_RING, 64, 64, 0);
+    f1 = goertzel(y + N / 2u, N / 2u, 1000) / goertzel(x + N / 2u, N / 2u, 1000);
+    snprintf(w, sizeof w, "RING: at 64 the 1 kHz input mostly gone (%.3f of it left), the level kept (RMS %.2f)", f1,
+             rms(y + N / 2u, N / 2u) / rms(x + N / 2u, N / 2u));
+    check(w, f1 < 0.1 && rms(y + N / 2u, N / 2u) > 0.5 * rms(x + N / 2u, N / 2u));
+    reset();                                            /* SUB: an octave down appears */
+    sine(200000, 220);
+    run_part(FXT_SUBO, 127, 127, 0);
+    f1 = goertzel(y + N / 2u, N / 2u, 110) / goertzel(y + N / 2u, N / 2u, 220);
+    f2 = goertzel(x + N / 2u, N / 2u, 110) / goertzel(x + N / 2u, N / 2u, 220);
+    snprintf(w, sizeof w, "SUB: at 127 the octave down at 110 Hz (%.2f of the 220 Hz note; dry %.3f)", f1, f2);
+    check(w, f1 > 0.3 && f2 < 0.05);
+    reset();                                            /* SLEW: a square's upper harmonics rounded off */
+    for (i = 0; i < N; i++)
+        x[i] = (i / 50u) & 1u ? 200000 : -200000;       /* (441 Hz) */
+    run_part(FXT_SLEW, 127, 127, 0);
+    f1 = goertzel(y + N / 2u, N / 2u, 441 * 9) / goertzel(x + N / 2u, N / 2u, 441 * 9);
+    reset();
+    run_part(FXT_SLEW, 1, 1, 0);
+    f2 = goertzel(y + N / 2u, N / 2u, 441 * 9) / goertzel(x + N / 2u, N / 2u, 441 * 9);
+    snprintf(w, sizeof w, "SLEW: a square's 9th harmonic at 127 %.2f of the input's, at 1 %.2f", f1, f2);
+    check(w, f1 < 0.5 && f2 > 0.8);
+#if DINS
+    {                                                   /* a drum voice's S1 (fx.c dins_one), each shaper of LIN_T */
+        static const uint8_t DV[6] = {FXT_SFLD, FXT_WRAP, FXT_RECT, FXT_HARM, FXT_RING, FXT_SLEW};
+        int ok = 1;
+        for (k = 0; k < 6u; k++) {
+            sine(200000, 220);
+            memcpy(y, x, sizeof y);
+            dins_rest(0, 0, DV[k], 127);
+            for (i = 0; i + CTL <= N; i += CTL)
+                dins_one(0, 0, DV[k], 127, y + i, CTL);
+            ok &= !same(x, y, 0) && peak(y) < (1 << 21);
+            dins_rest(0, 0, FXT_NONE, 0);
+        }
+        check("a drum sound's slot: SFLD WRAP RECT HARM RING SLEW run on its voice (changed, bounded)", ok);
+    }
+#endif
+    reset();
+}
+#endif
+
 static void t_store(void)
 {
     uint8_t o[NTRK + FXT_TLV_GX], s[INS_N];   /* (GATER's: its PATTERN RATE SHAPE after the amounts) */
@@ -319,10 +400,12 @@ static void t_store(void)
     int16_t *vp;
     const param_desc_t *d;
     reset();
-    for (t = FXT_NEW0; t < FXT_NEWN; t++)
-        ok &= fxs_tlv(t, o) == 0u;
+    for (t = 0; t < FXT_N; t++)
+        ok &= !IFX_FUR(t) || fxs_tlv(t, o) == 0u;
     check("the further inserts' TLVs: none while every amount is 0", ok);
-    for (t = FXT_NEW0, ok = 1; t < FXT_NEWN; t++) {
+    for (t = 0, ok = 1; t < FXT_N; t++) {
+        if (!IFX_FUR(t) || FXT_AMT[t] == 0xFFu)
+            continue;
         uint8_t a[NTRK] = {(uint8_t)(t * 3u), 0, 127, (uint8_t)t};
         for (k = 0; k < NTRK; k++)
             trk[k].p[FXT_AMT[t]] = a[k];
@@ -338,8 +421,8 @@ static void t_store(void)
     }
     check("each type's TLV: T1 T2 T3 DR's amounts round trip; a cut one: the rest 0", ok);
     fxs_untlv_none(1);
-    for (t = FXT_NEW0, ok = 1; t < FXT_NEWN; t++)
-        for (k = 0; k < NTRK; k++)
+    for (t = 0, ok = 1; t < FXT_N; t++)
+        for (k = 0; IFX_FUR(t) && FXT_AMT[t] != 0xFFu && k < NTRK; k++)
             ok &= trk[k].p[FXT_AMT[t]] == 0;
     check("a record without them: every amount 0", ok);
 #if FELUCCA_AUTO
@@ -349,13 +432,15 @@ static void t_store(void)
     check("motion: FOLD .. WIDE stored as P_ENG_END + 4 .. 9 in every build, both ways; recordable on every track", ok);
 #endif
     d = ins_desc(0, 0, &vp);
-    for (t = FXT_NEW0, ok = d->max + 1 == INS_NLIST; t < FXT_NEWN; t++) {
+    for (t = 0, ok = d->max + 1 == INS_NLIST; t < FXT_N; t++) {
         uint32_t i, f = 0;
+        if (!IFX_FUR(t) || FXT_AMT[t] == 0xFFu)
+            continue;
         for (i = 0; i < INS_NLIST; i++)
             f |= ins_list[i] == t && !strcmp(ins_names[i], NAME[t]);
         ok &= f;
     }
-    check("INSERTS' type list: the six, each named after its amount (FOLD FUZZ PHSR FLNG FRMT WIDE)", ok);
+    check("INSERTS' type list: each further type and shaper built, named after its amount (FOLD .. GATER, SFLD .. SLEW)", ok);
     s[0] = FXT_PHSR, s[1] = FXT_FLNG;
     ins_put(1, s);
     ins_load(1, 0, FXT_FLNG);
@@ -375,8 +460,10 @@ static uint64_t instr_now(void) { return 0; }
 static void t_cost(void)
 {
     uint32_t t, r;
-    for (t = FXT_NEW0; t < FXT_NEWN; t++) {
+    for (t = 0; t < FXT_N; t++) {
         uint64_t i0;
+        if (!IFX_FUR(t) || FXT_AMT[t] == 0xFFu)
+            continue;
         reset();
         sine(60000, 220);
         run_part(t, 127, 127, 0);                       /* (warm) */
@@ -392,10 +479,13 @@ int main(void)
 {
     uint32_t t;
     host_tracks_init();
-    for (t = FXT_NEW0; t < FXT_NEWN; t++)
-        if (FXT_AMT[t] != 0xFFu)
+    for (t = 0; t < FXT_N; t++)
+        if (IFX_FUR(t) && FXT_AMT[t] != 0xFFu)
             t_type(t);
     t_specific();
+#if INS_SH
+    t_shapers();
+#endif
     t_store();
     t_cost();
     printf("insfx: %s\n", fails ? "FAILED" : "all ok");

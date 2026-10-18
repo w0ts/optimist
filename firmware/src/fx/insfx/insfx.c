@@ -21,6 +21,21 @@
  *   WIDE  Melodee's width: the left through four swept all-passes (~0.1 Hz, around 1 kHz), the right dry, the
  *         amount the left's share. A part is mono until its pan: it gets the difference d as mid + side (its block
  *         + d / 2, the side d / 2 to the left and from the right after its level: ifx_side_mix); the drum bus its L.
+ * The shapers (2026-10-18, FOLD's state, its fade and rest; ifx_drive: FOLD's drive, low band, tone and make-up):
+ *   SFLD  the drive into a sine folder (sin of the drive's quarter turns: round folds, fewer aliases than FOLD's corners;
+ *         Felucca's PHASE FOLD shape, eng_phase.c), 0.5x .. ~13x
+ *   WRAP  the drive wrapped at the clip's full scale (a 16-bit overflow: a jump to the other rail, a harsh buzz)
+ *   RECT  1..64 the negative half folded up (clean -> half-wave -> full-wave: the octave up), 64..127 its drive 1x .. 8x
+ *         into the soft clip (an Octavia); a DC blocker after
+ *   HARM  the drive into a soft clip v, then v + v^2 / 2 + v^3 / 4 (the octave and the twelfth, louder as the drive
+ *         rises: a harmonic exciter, warm); a DC blocker after
+ *   (ifx_mod: the whole band, no drive)
+ *   RING  times a sine of 26 Hz .. 2.6 kHz along the amount (an exponential knob): bells, metal; all wet
+ *   SUB   an octave down: a flip-flop on the zero crossings of the band under ~440 Hz (a Schmitt trigger at 1/8 of its
+ *         envelope), a square at its level rounded by a one-pole, added at the amount. Monophonic lines (a chord
+ *         gives a rough sub)
+ *   SLEW  the change a sample limited to the track's peak x 2^-(amount / 12): the edges rounded off into triangles, a
+ *         slow op-amp's crunch, louder highs gone first
  * Each fades its wet share in and out over 2.9 ms (a change of amount from or to 0 makes no click); at 0 and faded
  * nothing runs (the track sample for sample as without). A part's: one state a type a part; the drum bus's: L and R
  * only (its sends' accumulators, the drum sounds' own sends, pass them by, as every bus insert at QUALITY). */
@@ -61,12 +76,18 @@ AINL int ifx_quiet(uint8_t *q, const int32_t *b, uint32_t n)
     return *q >= IFX_QUIET;
 }
 
-/* ---- FOLD, FUZZ: DIST's drive (fx.c dist_gains: relative to the peak, the low band dry, the tone, the make-up) into
- * another shape. a: the amount (0: fading out at the last one) */
-#if FELUCCA_INS_FOLD || FELUCCA_INS_FUZZ
+/* ---- FOLD, FUZZ, the shapers SFLD WRAP RECT HARM: DIST's drive (fx.c dist_gains: relative to the peak, the low band
+ * dry, the tone, the make-up) into another shape; RING SUB SLEW (ifx_mod): the same state, fade and rest. a: the amount
+ * (0: fading out at the last one) */
+#define IFX_DRV (FELUCCA_INS_FOLD || FELUCCA_INS_FUZZ || FELUCCA_INS_SFOLD || FELUCCA_INS_WRAP || FELUCCA_INS_RECT || \
+                 FELUCCA_INS_HARM)
+#define IFX_MOD (FELUCCA_INS_RING || FELUCCA_INS_SUBOCT || FELUCCA_INS_SLEW)
+#if IFX_DRV || IFX_MOD
 typedef struct {
-    dist_t d;
-    int32_t w, dc;                                      /* the wet share (Q15), FUZZ's DC blocker (Q8) */
+    dist_t d;                                           /* (RING: unused; SUB: its band, its rounding, its envelope; SLEW:
+                                                         * l1 its output, env the peak) */
+    int32_t w, dc;                                      /* the wet share (Q15), FUZZ RECT HARM's DC blocker (Q8); RING's
+                                                         * phase, SUB's flip-flop (bit 0) and trigger (bit 1) */
     uint8_t a;                                          /* the last amount (a fade-out runs at it) */
     uint8_t q;                                          /* blocks of silence in (ifx_quiet) */
 } ifx_drv_t;
@@ -76,26 +97,58 @@ static ifx_drv_t ifx_fold[IFX_NI];
 #if FELUCCA_INS_FUZZ
 static ifx_drv_t ifx_fuzz[IFX_NI];
 #endif
-#define IFX_FOLD_D(a) (1 + ((((a) - 1) * 183) >> 8))   /* FOLD's DST: 1 .. 91 (0.5x .. 12.8x, Felucca's 1x .. 12.8x) */
-static HOT2 __attribute__((noinline)) void ifx_drive(ifx_drv_t *s, uint32_t fuzz, int32_t a, int32_t *b, uint32_t n)
+#if FELUCCA_INS_SFOLD
+static ifx_drv_t ifx_sfld[IFX_NI];
+#endif
+#if FELUCCA_INS_WRAP
+static ifx_drv_t ifx_wrap[IFX_NI];
+#endif
+#if FELUCCA_INS_RECT
+static ifx_drv_t ifx_rect[IFX_NI];
+#endif
+#if FELUCCA_INS_HARM
+static ifx_drv_t ifx_harm[IFX_NI];
+#endif
+#if FELUCCA_INS_RING
+static ifx_drv_t ifx_ring[IFX_NI];
+#endif
+#if FELUCCA_INS_SUBOCT
+static ifx_drv_t ifx_subo[IFX_NI];
+#endif
+#if FELUCCA_INS_SLEW
+static ifx_drv_t ifx_slew[IFX_NI];
+#endif
+/* the fade in and out, the rest on silence (ifx_drive, ifx_mod): 1 when there is nothing to run (s at rest) */
+AINL int ifx_drv_idle(ifx_drv_t *s, int32_t a, const int32_t *b, uint32_t n)
 {
-    dist_g_t g;
-    int32_t i, m = 0, lo, l1, dc = s->dc, w = s->w, to = a ? 32768 : 0;
-    if (!a && !w) {
+    if (!a && !s->w) {
         s->d.env = 0;                                   /* (off: it restarts from rest) */
-        return;
+        return 1;
     }
     if (a)
         s->a = (uint8_t)a;
     if (ifx_quiet(&s->q, b, n)) {                       /* (resting on silence: its states 0) */
         s->d.env = 0, s->d.lo = s->d.l1 = 0, s->dc = 0;
-        s->w = to;
-        return;
+        s->w = a ? 32768 : 0;
+        return 1;
     }
-    if (!w)
-        dc = 0;
+    return 0;
+}
+#endif
+#if IFX_DRV
+#define IFX_FOLD_D(a) (1 + ((((a) - 1) * 183) >> 8))   /* FOLD's DST: 1 .. 91 (0.5x .. 12.8x, Felucca's 1x .. 12.8x) */
+#define IFX_RECT_D(a) ((a) <= 64 ? 19 : 19 + ((((a) - 64) * 236) >> 8))   /* RECT's DST: 1x to 64, then .. 77 (7.8x) */
+enum { IFX_FOLD, IFX_FUZZ, IFX_SFLD, IFX_WRAP, IFX_RECT, IFX_HARM };   /* ifx_drive's shapes */
+static HOT2 __attribute__((noinline)) void ifx_drive(ifx_drv_t *s, uint32_t shp, int32_t a, int32_t *b, uint32_t n)
+{
+    dist_g_t g;
+    int32_t i, m = 0, lo, l1, dc, w, to = a ? 32768 : 0, r;
+    if (ifx_drv_idle(s, a, b, n))
+        return;
+    dc = s->w ? s->dc : 0, w = s->w;
     a = s->a;
-    FAR(dist_gains)(&s->d, fuzz ? a : IFX_FOLD_D(a), b, n, &g);
+    r = (a > 64 ? 64 : a) << 9;                         /* (RECT: the negative half's share folded up, Q15) */
+    FAR(dist_gains)(&s->d, shp == IFX_FUZZ ? a : shp == IFX_RECT ? IFX_RECT_D(a) : IFX_FOLD_D(a), b, n, &g);
     lo = s->d.lo, l1 = s->d.l1;
     for (i = 0; i < (int32_t)n; i++) {
         int32_t x = b[i], u, y;
@@ -105,10 +158,26 @@ static HOT2 __attribute__((noinline)) void ifx_drive(ifx_drv_t *s, uint32_t fuzz
         y = u < 0 ? -u : u;
         m = y > m ? y : m;
         u = (u * g.gi) >> g.us;                         /* the drive, the clip's full scale 32768 */
-        if (fuzz) {
+        if (FELUCCA_INS_FUZZ && shp == IFX_FUZZ) {
             y = u > 0 ? (u > 20000 ? 20000 : u) : softclip(u) >> 1;   /* a hard top, a soft halved bottom */
             dc += ((y << 8) - dc) >> 9;                 /* ~14 Hz (its halves are lopsided) */
             y -= dc >> 8;
+        } else if (FELUCCA_INS_SFOLD && shp == IFX_SFLD) {
+            y = sine_i((uint32_t)u << 15);              /* 32768 a quarter turn: sin(u pi / 2), round folds beyond */
+        } else if (FELUCCA_INS_WRAP && shp == IFX_WRAP) {
+            y = (int32_t)(((uint32_t)u + 32768u) & 0xFFFFu) - 32768;   /* u while |u| < 32768, wrapped to the other rail beyond */
+        } else if (FELUCCA_INS_RECT && shp == IFX_RECT) {
+            y = u < 0 ? -u : u;                         /* (to 64: 1x, |u| < 2^15; the step below fits 32 bits) */
+            if (r < 32768)
+                y = u + ((((y - u) >> 1) * r) >> 14);   /* u .. the half-wave (r 1/2) .. the full wave (r 1) */
+            y = softclip(y);
+            dc += ((y << 8) - dc) >> 9;                 /* ~14 Hz: the rectified wave's mean */
+            y = clamp(y - (dc >> 8), -32767, 32767);    /* (|y| <= 2^15: y * go fits, dist_gains) */
+        } else if (FELUCCA_INS_HARM && shp == IFX_HARM) {
+            int32_t v = softclip(u), v2 = (v * v) >> 15;
+            y = softclip(v + (v2 >> 1) + (((v2 * v) >> 15) >> 2));   /* the octave (v^2), the twelfth (v^3): < 1.75 */
+            dc += ((y << 8) - dc) >> 9;                 /* ~14 Hz: v^2's mean */
+            y = clamp(y - (dc >> 8), -32767, 32767);
         } else {
             y = (int32_t)(((uint32_t)u + 32768u) & 0x1FFFFu) - 65536;   /* a triangle of period 2^17: */
             y = 32768 - (y < 0 ? -y : y);               /* u while |u| <= 32768, reflected beyond (every fold more harmonics) */
@@ -122,6 +191,109 @@ static HOT2 __attribute__((noinline)) void ifx_drive(ifx_drv_t *s, uint32_t fuzz
         s->d.env = m;
     if (!w)
         s->d.env = 0;                                   /* (faded out: it restarts from rest) */
+}
+#endif
+#if IFX_MOD
+enum { IFX_RING, IFX_SUBO, IFX_SLEW };                  /* ifx_mod's effects */
+/* 2^(-i / 16), Q16 (SLEW's limit between two octaves) */
+static const uint16_t IFX_EXPN[16] = {65535, 62757, 60097, 57549, 55109, 52773, 50535, 48393,
+                                      46341, 44376, 42495, 40693, 38968, 37316, 35734, 34219};
+/* RING SUB SLEW at amount a on n samples of b (the whole band: no drive, no low band apart) */
+static HOT2 __attribute__((noinline)) void ifx_mod(ifx_drv_t *s, uint32_t fx, int32_t a, int32_t *b, uint32_t n)
+{
+    int32_t i, w, to = a ? 32768 : 0, lp, l1, e, z, lim = 0;
+    uint32_t ph, inc = 0, k = 0;
+    if (ifx_drv_idle(s, a, b, n))
+        return;
+    w = s->w, a = s->a;
+    ph = s->w ? (uint32_t)s->dc : 0u;                   /* (RING's phase, SUB's flip-flop and trigger: from rest at a fade-in) */
+    lp = s->d.lo, l1 = s->d.l1, e = s->d.env, z = s->d.l1;
+    if (fx == IFX_RING)                                 /* 26 Hz .. 2.6 kHz: LFO_INC's 0.05 x 800^(r / 127) Hz x 64 at r 40 .. 127 */
+        inc = IFX_INC(40 + (((a - 1) * 177) >> 8)) << 6;
+    else if (fx == IFX_SUBO)
+        k = (uint32_t)a << 9;                           /* the sub's level, Q16: 0 .. ~1 */
+    else {                                              /* SLEW: the block's peak (instant), its release ~46 ms */
+        int32_t m = 0;
+        for (i = 0; i < (int32_t)n; i++)
+            m = b[i] > m ? b[i] : -b[i] > m ? -b[i] : m;
+        e -= e >> 6;
+        e = m > e ? m : e;
+        a = (a * 21) >> 4;                              /* (2^-(a / 12): 1/38 of the peak a sample at 64, a 220 Hz sine's */
+        lim = mulq16(e, IFX_EXPN[a & 15]) >> (a >> 4);  /* slope; at 127 1/1500: the swing of a 15 Hz one) */
+        lim = lim > 1 ? lim : 1;
+    }
+    for (i = 0; i < (int32_t)n; i++) {
+        int32_t x = b[i], y;
+        w += clamp(to - w, -IFX_SLOPE, IFX_SLOPE);
+        if (FELUCCA_INS_RING && fx == IFX_RING) {
+            y = 2 * mulq16(x, (uint32_t)(sine_i(ph) + 32768)) - x;   /* x times the sine (k Q16 unsigned: 2 x k - 1) */
+            ph += inc;
+        } else if (FELUCCA_INS_SUBOCT && fx == IFX_SUBO) {
+            int32_t al;
+            lp += (x - lp) >> 4;                        /* ~440 Hz: the fundamental's band */
+            al = lp < 0 ? -lp : lp;
+            e += al > e ? (al - e) >> 3 : -((e - al) >> 10);   /* its envelope: ~0.2 ms up, ~23 ms down */
+            if (!(ph & 2u) && lp > (e >> 3))            /* a Schmitt trigger at +- e / 8: a rising crossing flips it */
+                ph ^= 3u;
+            else if ((ph & 2u) && lp < -(e >> 3))
+                ph &= ~2u;
+            l1 += ((ph & 1u ? e : -e) - l1) >> 5;       /* the square at the half rate, rounded (~220 Hz) */
+            y = x + mulq16(l1, k);
+        } else {
+            z += clamp(x - z, -lim, lim);               /* SLEW: no faster than lim a sample */
+            y = z;
+        }
+        b[i] = ifx_mix(x, y, w);
+    }
+    s->d.lo = lp, s->d.env = e, s->dc = (int32_t)ph, s->w = w;
+    s->d.l1 = fx == IFX_SLEW ? z : l1;
+    if (!w)
+        s->d.env = 0, s->d.lo = s->d.l1 = 0;            /* (faded out: it restarts from rest) */
+}
+#endif
+#if IFX_DRV || IFX_MOD
+/* shaper ty's state on instance i (0: not built) */
+AINL ifx_drv_t *ifx_sh_st(uint32_t ty, uint32_t i)
+{
+    switch (ty) {
+#if FELUCCA_INS_SFOLD
+    case FXT_SFLD: return &ifx_sfld[i];
+#endif
+#if FELUCCA_INS_WRAP
+    case FXT_WRAP: return &ifx_wrap[i];
+#endif
+#if FELUCCA_INS_RECT
+    case FXT_RECT: return &ifx_rect[i];
+#endif
+#if FELUCCA_INS_HARM
+    case FXT_HARM: return &ifx_harm[i];
+#endif
+#if FELUCCA_INS_RING
+    case FXT_RING: return &ifx_ring[i];
+#endif
+#if FELUCCA_INS_SUBOCT
+    case FXT_SUBO: return &ifx_subo[i];
+#endif
+#if FELUCCA_INS_SLEW
+    case FXT_SLEW: return &ifx_slew[i];
+#endif
+    default: return 0;
+    }
+    (void)i;
+}
+/* shaper ty at amount a on state s, n samples of b (a part's, a stereo owner's side, a drum voice's: fx.c dins_one) */
+AINL void ifx_sh_run(ifx_drv_t *s, uint32_t ty, int32_t a, int32_t *b, uint32_t n)
+{
+#if IFX_MOD
+    if (ty == FXT_RING || ty == FXT_SUBO || ty == FXT_SLEW) {
+        ifx_mod(s, ty == FXT_RING ? IFX_RING : ty == FXT_SUBO ? IFX_SUBO : IFX_SLEW, a, b, n);
+        return;
+    }
+#endif
+#if IFX_DRV
+    ifx_drive(s, ty == FXT_SFLD ? IFX_SFLD : ty == FXT_WRAP ? IFX_WRAP : ty == FXT_RECT ? IFX_RECT : IFX_HARM, a, b, n);
+#endif
+    (void)s, (void)ty, (void)a, (void)b, (void)n;
 }
 #endif
 
@@ -432,6 +604,12 @@ AINL int32_t ifx_w(uint32_t ty, uint32_t i)
 #if FELUCCA_INS_EQ3
     case FXT_EQ3: return eq3_st[ifx_owner(i)].w;       /* (its share: 0 bypassed) */
 #endif
+#if IFX_DRV || IFX_MOD
+    case FXT_SFLD: case FXT_WRAP: case FXT_RECT: case FXT_HARM: case FXT_RING: case FXT_SUBO: case FXT_SLEW: {
+        const ifx_drv_t *s = ifx_sh_st(ty, i);
+        return s ? s->w : 0;
+    }
+#endif
     default: return 0;
     }
 }
@@ -494,6 +672,14 @@ static HOT2 __attribute__((noinline)) void ifx_run(uint32_t ty, uint32_t i, int3
 #endif
 #if FELUCCA_INS_EQ3
     case FXT_EQ3: (void)eq3_run(&eq3_st[ifx_owner(i)], eq3_v[ifx_owner(i)], a, b, 0, n); break;   /* (a part: mono) */
+#endif
+#if IFX_DRV || IFX_MOD
+    case FXT_SFLD: case FXT_WRAP: case FXT_RECT: case FXT_HARM: case FXT_RING: case FXT_SUBO: case FXT_SLEW: {
+        ifx_drv_t *s = ifx_sh_st(ty, i);
+        if (s)
+            ifx_sh_run(s, ty, a, b, n);
+        break;
+    }
 #endif
     default: break;
     }
@@ -565,6 +751,14 @@ static HOT2 __attribute__((noinline)) void ifx_quiet_part(const track_t *t)
 #endif
 #if FELUCCA_INS_EQ3
         case FXT_EQ3: eq3_st[k].w = 0; break;           /* (bypassed: re-engaging seeds it, eq3.c) */
+#endif
+#if IFX_DRV || IFX_MOD
+        case FXT_SFLD: case FXT_WRAP: case FXT_RECT: case FXT_HARM: case FXT_RING: case FXT_SUBO: case FXT_SLEW: {
+            ifx_drv_t *s = ifx_sh_st(ty, k);
+            if (s)
+                ifx_zero(s, sizeof *s);
+            break;
+        }
 #endif
         default: break;
         }

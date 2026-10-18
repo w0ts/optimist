@@ -21,7 +21,7 @@
 #define FXR_GEN_N 0u
 #endif
 #define FXR_HEAD (2u + FX_NSLOT)
-#define FXR_MAX (352u + FXR_GEN_N)                     /* the stored form at its longest (FXR_HEAD + the TLVs; 120 -> 156
+#define FXR_MAX (378u + FXR_GEN_N)                     /* the stored form at its longest (FXR_HEAD + the TLVs; 120 -> 156
                                                         * 2026-10-13: + the further inserts' TLVs, 6 x (2 + 4), fx_slots.c
                                                         * fxs_tlv, in every build: a record from any build reads whole;
                                                         * 156 -> 168 2026-10-13: CHRS ECHO, 2 x (2 + 4); 168 -> 186
@@ -32,7 +32,7 @@
                                                         * spare: the editor's backup packs them in two objects since,
                                                         * ed_backup.c FXR1 FXR2; 288 -> 352 2026-10-15 fx-pool: the returns'
                                                         * RET_TLV 2 + 9, EQ3's TLV 2 + 50, ~28 spare; + the note generators'
-                                                        * GEN_TLV 2026-10-15, seq/gen.c: 2 + 4 a slot, 20 slots) */
+                                                        * GEN_TLV 2026-10-15, seq/gen.c: 2 + 4 a slot, 20 slots; 352 -> 378 2026-10-18: the shapers' TLVs 7 x (2 + 4), MST_TLV + 7) */
 /* The track insert slots (2026-10-12, fx_slots.c ins_slot): the header's slot[4] holds the master SENDS, its insert
  * places filled, as far as they go, with the inserts the tracks' slots hold (an older build then hears them on the
  * tracks with an amount: best effort); flags bit 0 (FXR_F_INS) says the record is of this model (the drum sounds' DST CMP
@@ -74,8 +74,9 @@ _Static_assert(INS_TLV_N0 == 23u && INS_TLV_N == 31u, "the track slots' TLV: 8 +
 #define LIN_TLV 0x46u
 #define LIN_TLV_N DRUM_LANES
 _Static_assert(LIN_NT <= 16u, "LIN_TLV: a type index a nibble");
-#define MST_TLV_N (INS_N + 1u + (FXT_NEWN - FXT_NEW0))
-AINL uint32_t mst_tlv_t(uint32_t i) { return i ? FXT_NEW0 + i - 1u : (uint32_t)FXT_DIST; }   /* the i-th amount's type */
+#define MST_TLV_N (INS_N + 1u + IFX_NFUR)                /* (+ the shapers' 7 after GATER's, 2026-10-18: a reader of before
+                                                        * takes the amounts it knows) */
+AINL uint32_t mst_tlv_t(uint32_t i) { return i ? (uint32_t)IFX_FTY(i - 1u) : (uint32_t)FXT_DIST; }   /* the i-th amount's type */
 /* TLV FXRET_TLV (0x41, 2026-10-12): the FX returns, CHO DLY REV (core.h G_CRET G_DRET G_RRET, 0..127), only when one is
  * not at unity (127); none: every return at unity, as every project from before. A load's (`all`), as the layout: a
  * song section keeps the returns playing. 2026-10-16: a 4th byte, the returns' MUTE bits (bit j = line j, fx.c fx_rmute), so

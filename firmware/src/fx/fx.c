@@ -1867,6 +1867,7 @@ static HOT2 __attribute__((noinline)) void dust_run(dust_t *s, int32_t d, int32_
  * level, its lane's CUT and DECAY) runs its slots here, then its pan, mix and sends, as drums_mix would have mixed it. So a
  * DYN's threshold is against the level heard (G_DRLVL, the velocity). DYN on a voice: its compressor, the drum track's
  * RATIO ATK REL, no CEIL. The X0X kits' channels mix apart (drum_x0x.c): no per-sound insert there */
+#define DINS_SH(t) ((uint32_t)(t) >= FXT_SH0 && (LIN_OK >> (t) & 1u))   /* a shaper a drum voice runs (built, of LIN_T) */
 typedef union {                                         /* a voice's slot: the state of the type it holds */
     dist_t d;
 #if FELUCCA_MASTER_COMP
@@ -1876,8 +1877,8 @@ typedef union {                                         /* a voice's slot: the s
     tflt_t f;
 #endif
     dust_t u;
-#if FELUCCA_INS_FOLD || FELUCCA_INS_FUZZ
-    ifx_drv_t v;
+#if IFX_DRV || IFX_MOD
+    ifx_drv_t v;                                        /* (FOLD FUZZ, the shapers) */
 #endif
 #if FELUCCA_INS_PHASER
     ifx_ph_t p;
@@ -1909,8 +1910,8 @@ static __attribute__((noinline)) void dins_rest(uint32_t k, uint32_t s, uint32_t
 #endif
     if (t == FXT_DUST)
         st->u.rnd = 0x2545F491 ^ (int32_t)(k * 2654435761u + s);
-#if FELUCCA_INS_FOLD || FELUCCA_INS_FUZZ
-    if ((t == FXT_FOLD || t == FXT_FUZZ) && a)
+#if IFX_DRV || IFX_MOD
+    if ((t == FXT_FOLD || t == FXT_FUZZ || DINS_SH(t)) && a)
         st->v.w = 32768, st->v.a = (uint8_t)a;
 #endif
 #if FELUCCA_INS_PHASER
@@ -1944,8 +1945,9 @@ AINL int dins_busy(uint32_t k, uint32_t s)
 #if TFLT_ON
     case FXT_FILT: return st->f.mode != 0;
 #endif
-#if FELUCCA_INS_FOLD || FELUCCA_INS_FUZZ
-    case FXT_FOLD: case FXT_FUZZ: return st->v.w != 0;
+#if IFX_DRV || IFX_MOD
+    case FXT_FOLD: case FXT_FUZZ: case FXT_SFLD: case FXT_WRAP: case FXT_RECT: case FXT_HARM: case FXT_RING: case FXT_SLEW:
+        return st->v.w != 0;
 #endif
 #if FELUCCA_INS_PHASER
     case FXT_PHSR: return st->p.w != 0;
@@ -2021,6 +2023,12 @@ static HOT2 __attribute__((noinline)) void dins_one(uint32_t k, uint32_t s, uint
 #endif
 #if FELUCCA_INS_FORMANT
     case FXT_FRMT: ifx_formant(&st->m, a, b, n, 3); break;
+#endif
+#if IFX_DRV || IFX_MOD
+    case FXT_SFLD: case FXT_WRAP: case FXT_RECT: case FXT_HARM: case FXT_RING: case FXT_SLEW:
+        if (DINS_SH(t))
+            ifx_sh_run(&st->v, t, a, b, n);
+        break;
 #endif
 #if FELUCCA_INS_EQ3
     case FXT_EQ3: (void)eq3_run(&st->e, eq3_v[TRK_DRUM], a, b, 0, n); break;   /* (the drum track's bands) */

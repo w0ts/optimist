@@ -97,9 +97,9 @@ static uint32_t cg_ins_part(uint32_t p)
 #if INS_FX
     {   /* the further inserts (insfx.c): set in a slot, or fading out */
         uint32_t t;
-        for (t = FXT_NEW0; t < FXT_NEWN; t++)
-            if (FXT_AMT[t] != 0xFFu && ((on && INS_ON(p, t) && trk[p].p[FXT_AMT[t]] && ifx_has(t, p)) || ifx_w(t, p)))
-                n += CG_COST_PINS[t - FXT_NEW0];
+        for (t = 0; t < FXT_N; t++)
+            if (IFX_FUR(t) && FXT_AMT[t] != 0xFFu && ((on && INS_ON(p, t) && trk[p].p[FXT_AMT[t]] && ifx_has(t, p)) || ifx_w(t, p)))
+                n += CG_COST_PINS[IFX_FIX(t)];
     }
 #endif
 #if FELUCCA_INS_JCHORUS
@@ -137,9 +137,9 @@ static uint32_t cg_ins_bus(void)
 #if INS_FX
     {   /* the further inserts (insfx.c ifx_bus: L and R at every level) */
         uint32_t t;
-        for (t = FXT_NEW0; t < FXT_NEWN; t++)
-            if (FXT_AMT[t] != 0xFFu && ((fx_on(TDRUM) && INS_ON(TRK_DRUM, t) && TDRUM->p[FXT_AMT[t]] && ifx_has(t, TRK_DRUM)) || ifx_w(t, IFX_BUS)))
-                n += CG_COST_DBINS[t - FXT_NEW0];
+        for (t = 0; t < FXT_N; t++)
+            if (IFX_FUR(t) && FXT_AMT[t] != 0xFFu && ((fx_on(TDRUM) && INS_ON(TRK_DRUM, t) && TDRUM->p[FXT_AMT[t]] && ifx_has(t, TRK_DRUM)) || ifx_w(t, IFX_BUS)))
+                n += CG_COST_DBINS[IFX_FIX(t)];
     }
 #endif
 #if FELUCCA_INS_JCHORUS
@@ -166,6 +166,12 @@ static uint32_t cg_dvoice(uint32_t m)
     n += m & FXT_BIT(FXT_FUZZ) ? CG_COST_DVINS[3] : 0u;
     n += m & FXT_BIT(FXT_PHSR) ? CG_COST_DVINS[4] : 0u;
     n += m & FXT_BIT(FXT_FRMT) ? CG_COST_DVINS[5] : 0u;
+    n += m & FXT_BIT(FXT_SFLD) ? CG_COST_DVINS[6] : 0u;   /* (the shapers, 2026-10-18: fx_slots.c LIN_T, SUB not there) */
+    n += m & FXT_BIT(FXT_WRAP) ? CG_COST_DVINS[7] : 0u;
+    n += m & FXT_BIT(FXT_RECT) ? CG_COST_DVINS[8] : 0u;
+    n += m & FXT_BIT(FXT_HARM) ? CG_COST_DVINS[9] : 0u;
+    n += m & FXT_BIT(FXT_RING) ? CG_COST_DVINS[10] : 0u;
+    n += m & FXT_BIT(FXT_SLEW) ? CG_COST_DVINS[11] : 0u;
 #if FELUCCA_INS_EQ3
     n += m & FXT_BIT(FXT_EQ3) ? CG_COST_EQ3M : 0u;   /* (dins_one: it ran, engaged or fading) */
 #endif
@@ -193,8 +199,8 @@ static uint32_t cg_ins_mst(void)
 #endif
         if (t == FXT_DUST && FELUCCA_FX_DUST && song.g[G_DUST])
             n += CG_COST_DBDUST;
-        if (t >= FXT_NEW0 && t < FXT_NEWN && mst_amt[t])
-            n += CG_COST_DBINS[t - FXT_NEW0];
+        if (IFX_FUR(t) && mst_amt[t])
+            n += CG_COST_DBINS[IFX_FIX(t)];
 #if FELUCCA_INS_JCHORUS
         if (t == FXT_JUNO && (mst_amt[FXT_JUNO] || ifx_w(FXT_JUNO, IFX_MST)))
             n += CG_COST_JUNO;
@@ -230,8 +236,8 @@ static uint32_t cg_ins_rt(void)
         if (t == FXT_DUST && FELUCCA_FX_DUST && a)
             n += CG_COST_DBDUST;
 #if INS_FX
-        if (t >= FXT_NEW0 && t < FXT_NEWN && (a || ifx_w(t, IFX_RT(j))))
-            n += CG_COST_DBINS[t - FXT_NEW0];
+        if (IFX_FUR(t) && (a || ifx_w(t, IFX_RT(j))))
+            n += CG_COST_DBINS[IFX_FIX(t)];
 #endif
 #if FELUCCA_INS_JCHORUS
         if (t == FXT_JUNO && (a || ifx_w(FXT_JUNO, IFX_RT(j))))
@@ -269,9 +275,9 @@ static uint32_t cg_ins_ut(void)
         if (t == FXT_DUST && FELUCCA_FX_DUST && a)
             n += CG_COST_DBDUST;
 #if INS_FX
-        if (t >= FXT_NEW0 && t < FXT_NEWN && (a || ifx_w(t, IFX_UT)))   /* (CHRS ECHO FLNG: only with an instance, ifx_w 0
+        if (IFX_FUR(t) && (a || ifx_w(t, IFX_UT)))   /* (CHRS ECHO FLNG: only with an instance, ifx_w 0
                                                         * without; GATER: one gain, the bus's cost) */
-            n += CG_COST_DBINS[t - FXT_NEW0];
+            n += CG_COST_DBINS[IFX_FIX(t)];
 #endif
 #if FELUCCA_INS_JCHORUS
         if (t == FXT_JUNO && (a || ifx_w(FXT_JUNO, IFX_UT)))

@@ -57,8 +57,10 @@ COSTS = ROOT / "tools" / "builder" / "costs.json"
 REGISTRY_H = ROOT / "firmware" / "src" / "core" / "registry.h"
 HEADER = ROOT / "firmware" / "src" / "system" / "cpuguard_costs.h"
 NOTES = {"VOICE": 4, "ACID": 1, "JUNO": 6}   # (JUNO: six voices, eng_juno.c JUNO_POLY)
-INS_NEW = ("fold", "fuzz", "phsr", "flng", "frmt", "wide", "chrs", "echo", "gate")   # the further inserts, fx_slots.c FXT_FOLD .. FXT_GATE
-DV_NEW = ("filt", "dust", "fold", "fuzz", "phsr", "frmt")   # a drum sound's slot types past DIST and DYN (fx.c dins_post)
+INS_NEW = ("fold", "fuzz", "phsr", "flng", "frmt", "wide", "chrs", "echo", "gate",   # the further inserts, fx_slots.c FXT_FOLD .. FXT_GATE,
+           "sfld", "wrap", "rect", "harm", "ring", "subo", "slew")       # then the shapers FXT_SFLD .. FXT_SLEW (fx_slots.c IFX_FIX)
+DV_NEW = ("filt", "dust", "fold", "fuzz", "phsr", "frmt",   # a drum sound's slot types past DIST and DYN (fx.c dins_post),
+          "sfld", "wrap", "rect", "harm", "ring", "slew")   # the shapers but SUB (fx_slots.c LIN_T)
 
 
 def engines():
@@ -180,7 +182,7 @@ def header(m):
         f"#define CG_COST_PFILT {m['pfilt']}u     /* a part's FILTER insert while it runs (fx.c tflt_part) */",
         f"#define CG_COST_DBFILT {m['dbfilt']}u    /* the drum bus's FILTER while it runs (fx.c dbus_ins) */",
         f"static const uint16_t CG_COST_PINS[{len(INS_NEW)}] = {{" + ", ".join(str(c) for c in m["pins"]) + "};   /* a "
-        "part's further insert while it runs, FOLD .. GATER (insfx.c ifx_part) */",
+        "part's further insert while it runs, FOLD .. GATER, SFLD .. SLEW (insfx.c ifx_part) */",
         f"static const uint16_t CG_COST_DBINS[{len(INS_NEW)}] = {{" + ", ".join(str(c) for c in m["dbins"]) + "};   /* the "
         "drum bus's "
         "(insfx.c ifx_bus: L and R) */",
@@ -188,7 +190,7 @@ def header(m):
         f"#define CG_COST_DBDUST {m['dbdust']}u    /* the drum bus's DUST while it runs (L and R) */",
         f"#define CG_COST_TLIM {m['tlim']}u      /* a track's DYN CEIL (its limiter) while it runs (master_comp.c tlim_block) */",
         f"static const uint16_t CG_COST_DVINS[{len(DV_NEW)}] = {{" + ", ".join(str(c) for c in m["dvins"]) + "};   /* a "
-        "drum voice's slot while it runs: FILT DUST FOLD FUZZ PHSR FRMT (fx.c dins_post) */",
+        "drum voice's slot while it runs: FILT DUST FOLD FUZZ PHSR FRMT SFLD WRAP RECT HARM RING SLEW (fx.c dins_post) */",
         ""])
 
 

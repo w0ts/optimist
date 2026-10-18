@@ -315,6 +315,28 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #ifndef FELUCCA_INS_WIDTH
 #define FELUCCA_INS_WIDTH 0                /* WIDE: one side through swept all-passes (a mono part becomes stereo) */
 #endif
+/* the shapers (2026-10-18, fx/insfx/insfx.c ifx_drive, ifx_mod: FOLD's state and drive, a builder item each) */
+#ifndef FELUCCA_INS_SFOLD
+#define FELUCCA_INS_SFOLD 0                /* SFLD: a sine wavefolder (round folds, Felucca's PHASE FOLD shape) */
+#endif
+#ifndef FELUCCA_INS_WRAP
+#define FELUCCA_INS_WRAP 0                 /* WRAP: the drive wrapped around (an overflow: a jump, not a fold) */
+#endif
+#ifndef FELUCCA_INS_RECT
+#define FELUCCA_INS_RECT 0                 /* RECT: full-wave rectified, an octave up (an Octavia fuzz) */
+#endif
+#ifndef FELUCCA_INS_HARM
+#define FELUCCA_INS_HARM 0                 /* HARM: v + v^2/2 + v^3/4 after a soft clip: the octave and the twelfth */
+#endif
+#ifndef FELUCCA_INS_RING
+#define FELUCCA_INS_RING 0                 /* RING: a ring modulator, a sine of 26 Hz .. 2.6 kHz along the amount */
+#endif
+#ifndef FELUCCA_INS_SUBOCT
+#define FELUCCA_INS_SUBOCT 0               /* SUB: an octave down (a flip-flop on the zero crossings), monophonic lines */
+#endif
+#ifndef FELUCCA_INS_SLEW
+#define FELUCCA_INS_SLEW 0                 /* SLEW: a slew-rate limit relative to the peak (a slow op-amp's crunch) */
+#endif
 /* the insert copies of the "once" effects (fx/insfx/insfx.c, fxi.c: 2026-10-13), each a builder count: how many tracks
  * may hold the type at once (0: not built, up to NTRK). Their lines are in the pool, one per instance; fxi.c hands an
  * instance to a track holding the type (the main loop), a track left without one is bypassed */

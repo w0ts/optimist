@@ -35,7 +35,8 @@ static int16_t dsend_kit[3] = {DKS_DEF, DKS_DEF, DKS_DEF};
  * the FILTER's bipolar value as int8), run per drum voice (fx.c dins_post); kept in the FX record (fx_slots.c), not in the
  * drum record (dlrec_t: unchanged). The default slots S1 DIST, S2 DYN: [0] the DIST amount, [1] the COMP's, as before */
 #define DINS (FELUCCA_FX_DIST || FELUCCA_MASTER_COMP || TFLT_ON || FELUCCA_FX_DUST || FELUCCA_INS_FOLD || FELUCCA_INS_FUZZ || \
-              FELUCCA_INS_PHASER || FELUCCA_INS_FORMANT)
+              FELUCCA_INS_PHASER || FELUCCA_INS_FORMANT || FELUCCA_INS_SFOLD || FELUCCA_INS_WRAP || FELUCCA_INS_RECT || \
+              FELUCCA_INS_HARM || FELUCCA_INS_RING || FELUCCA_INS_SLEW)
 static uint8_t dins_amt[2][DRUM_LANES];
 static const param_desc_t *lin_desc(uint32_t l, uint32_t id, int16_t **vp);   /* fx_slots.c: ids 0, 1 the amounts, 2, 3 the TYPEs */
 static void lin_set(uint32_t l, uint32_t id, int32_t v);
