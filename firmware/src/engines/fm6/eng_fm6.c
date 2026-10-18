@@ -60,19 +60,22 @@ typedef struct {
 _Static_assert(sizeof(fm6_rom_t) == 129, "FM6: a built-in voice is a packed DX7 voice and a NUL-ended name");
 #include "eng_fm6_rom.h"                                 /* FM6_INIT */
 #if FELUCCA_FM6_PK_KEYS
-#include "eng_fm6_pk_keys.h"                             /* FM6_PK_KEYS[16] */
+#include "eng_fm6_pk_keys.h"                             /* FM6_PK_KEYS_Z, _AT, _N */
 #endif
 #if FELUCCA_FM6_PK_BASS
-#include "eng_fm6_pk_bass.h"                             /* FM6_PK_BASS[16] */
+#include "eng_fm6_pk_bass.h"
 #endif
 #if FELUCCA_FM6_PK_BELLS
-#include "eng_fm6_pk_bells.h"                            /* FM6_PK_BELLS[16] */
+#include "eng_fm6_pk_bells.h"
 #endif
 #if FELUCCA_FM6_PK_PADS
-#include "eng_fm6_pk_pads.h"                             /* FM6_PK_PADS[16] */
+#include "eng_fm6_pk_pads.h"
 #endif
 #if FELUCCA_FM6_PK_80S
-#include "eng_fm6_pk_80s.h"                              /* FM6_PK_80S[16] */
+#include "eng_fm6_pk_80s.h"
+#endif
+#if FM6_NPACKS
+#include "eng_fm6_pk_dict.h"                             /* FM6_PK_DICT: what every pack voice may copy from */
 #endif
 #undef OP
 #undef OPX
@@ -86,9 +89,17 @@ _Static_assert(sizeof(fm6_rom_t) == 129, "FM6: a built-in voice is a packed DX7 
 #define FM6_PKV 16u                                      /* voices a pack */
 #define FM6_NPKV (FM6_NPACKS * FM6_PKV)                  /* pack voices in this build */
 #define FM6_NVOICE (1u + FM6_NPKV)                       /* VOICE: INIT VOICE, then the packs built, in this order */
-static const fm6_rom_t *const FM6_PACK[FM6_NPACKS + 1u] = {   /* (the 0 ends it: no pack, no empty array) */
-    FIF(FELUCCA_FM6_PK_KEYS)(FM6_PK_KEYS,) FIF(FELUCCA_FM6_PK_BASS)(FM6_PK_BASS,) FIF(FELUCCA_FM6_PK_BELLS)(FM6_PK_BELLS,)
-    FIF(FELUCCA_FM6_PK_PADS)(FM6_PK_PADS,) FIF(FELUCCA_FM6_PK_80S)(FM6_PK_80S,) 0};
+/* a pack: its voices' VMEM bytes compressed (tools/fm6_packs/fm6z.py, 2026-10-18: ~3.9 KB less flash for the five), where
+ * each voice's start, their names (uncompressed: the lists show them) */
+typedef struct {
+    const uint8_t *z;
+    const uint16_t *at;
+    const char (*n)[11];
+} fm6_pack_t;
+#define FM6_PK(P) {FM6_PK_##P##_Z, FM6_PK_##P##_AT, FM6_PK_##P##_N},
+static const fm6_pack_t FM6_PACK[FM6_NPACKS + 1u] = {   /* (the last ends it: no pack, no empty array) */
+    FIF(FELUCCA_FM6_PK_KEYS)(FM6_PK(KEYS)) FIF(FELUCCA_FM6_PK_BASS)(FM6_PK(BASS)) FIF(FELUCCA_FM6_PK_BELLS)(FM6_PK(BELLS))
+    FIF(FELUCCA_FM6_PK_PADS)(FM6_PK(PADS)) FIF(FELUCCA_FM6_PK_80S)(FM6_PK(80S)) {0, 0, 0}};
 static const uint8_t FM6_PACK_NO[FM6_NPACKS + 1u] = {  /* each pack built: its fixed number (what a project stores) */
     FIF(FELUCCA_FM6_PK_KEYS)(0,) FIF(FELUCCA_FM6_PK_BASS)(1,) FIF(FELUCCA_FM6_PK_BELLS)(2,) FIF(FELUCCA_FM6_PK_PADS)(3,)
     FIF(FELUCCA_FM6_PK_80S)(4,) 0};
@@ -112,10 +123,46 @@ static int16_t fm6_voice_load(int32_t s)
             return (int16_t)(1u + pk * FM6_PKV + n % FM6_PKV);
     return 0;
 }
-static const fm6_rom_t *fm6_pack_voice(uint32_t k)       /* pack voice k (0 .. FM6_NPKV - 1) */
+static const fm6_pack_t *fm6_pk(uint32_t k) { return &FM6_PACK[(k / FM6_PKV) % (FM6_NPACKS ? FM6_NPACKS : 1u)]; }
+static const char *fm6_pack_name(uint32_t k) { return fm6_pk(k)->n[k % FM6_PKV]; }   /* pack voice k's name, NUL-ended */
+/* pack voice k (0 .. FM6_NPKV - 1) into r: its 118 VMEM bytes decoded (fm6z.py's format: a token, the literals, the match
+ * by its distance back over FM6_PK_DICT and the bytes decoded so far), its name. Callers own r: the render loads a part's
+ * voice into its own (fm6_load), the lists into theirs */
+static void fm6_pk_get(uint32_t k, fm6_rom_t *r)
 {
-    return &FM6_PACK[(k / FM6_PKV) % (FM6_NPACKS ? FM6_NPACKS : 1u)][k % FM6_PKV];
+#if FM6_NPACKS
+    const fm6_pack_t *pk = fm6_pk(k);
+    const uint8_t *b = pk->z + pk->at[k % FM6_PKV];
+    uint8_t *o = r->v;
+    uint32_t n = 0, t, c, l, d;
+    while (n < sizeof r->v) {
+        t = *b++;
+        l = t >> 4;
+        if (l == 15u)
+            do
+                l += c = *b++;
+            while (c == 255u);
+        for (; l && n < sizeof r->v; l--)
+            o[n++] = *b++;
+        if (n >= sizeof r->v)
+            break;
+        d = (uint32_t)b[0] | (uint32_t)b[1] << 8;
+        b += 2;
+        l = (t & 15u) + 4u;
+        if ((t & 15u) == 15u)
+            do
+                l += c = *b++;
+            while (c == 255u);
+        for (; l && n < sizeof r->v; l--, n++)
+            o[n] = n >= d ? o[n - d] : FM6_PK_DICT[sizeof FM6_PK_DICT + n - d];
+    }
+    memcpy(r->name, fm6_pack_name(k), sizeof r->name);
+#else
+    (void)k;
+    *r = FM6_INIT;
+#endif
 }
+
 
 /* parameter ranges in buffer order */
 static const uint8_t FM6_OPMAX[FO_N] = {99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 3, 3, 7, 3, 7, 99, 1, 31, 99, 14};
@@ -215,16 +262,24 @@ static void fm6_name(char *d, const int16_t *ed)         /* the voice name, trai
 }
 
 /* VOICE v -> the built-in voice (0 INIT VOICE; a number this build has no voice for plays INIT VOICE: a pack left
- * out, an older build's R or U voice whose patch the project or user preset did not keep) */
+ * out, an older build's R or U voice whose patch the project or user preset did not keep), decoded into one buffer
+ * read before the next call: the host tests' (the firmware loads through fm6_load, names through fm6_pack_name) */
 static const fm6_rom_t *fm6_rom(uint32_t voice)
 {
-    return voice && voice < FM6_NVOICE ? fm6_pack_voice(voice - 1u) : &FM6_INIT;
+    static fm6_rom_t r;
+    if (!voice || voice >= FM6_NVOICE)
+        return &FM6_INIT;
+    fm6_pk_get(voice - 1u, &r);
+    return &r;
 }
 
 static void fm6_load(uint32_t p, uint32_t voice)                /* VOICE -> part p's buffer */
 {
+    fm6_rom_t r;                                         /* (the render's own: fm6_pack_voice's is the main loop's) */
     voice = voice < FM6_NVOICE ? voice : 0u;
-    fm6_from_rom(fm6_ed[p], fm6_rom(voice));
+    if (voice)
+        fm6_pk_get(voice - 1u, &r);
+    fm6_from_rom(fm6_ed[p], voice ? &r : &FM6_INIT);
     fm6_cur[p] = (int16_t)(voice + 1u);
 }
 
@@ -1528,12 +1583,11 @@ static void fm6_post(track_t *t, int32_t *out, uint32_t n, uint32_t nr)
 
 /* ------------------------------------------------------------ the engine --- */
 /* VOICE: INIT VOICE, then the packs this build has (the names are the voices' own, NUL-ended in their records) */
-#define FM6_PKN(a) a[0].name, a[1].name, a[2].name, a[3].name, a[4].name, a[5].name, a[6].name, a[7].name, a[8].name, \
-    a[9].name, a[10].name, a[11].name, a[12].name, a[13].name, a[14].name, a[15].name
+#define FM6_PKN(a) a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], a[13], a[14], a[15]
 static const char *const N_FM6V[FM6_NVOICE] = {
-    FM6_INIT.name, FIF(FELUCCA_FM6_PK_KEYS)(FM6_PKN(FM6_PK_KEYS),) FIF(FELUCCA_FM6_PK_BASS)(FM6_PKN(FM6_PK_BASS),)
-    FIF(FELUCCA_FM6_PK_BELLS)(FM6_PKN(FM6_PK_BELLS),) FIF(FELUCCA_FM6_PK_PADS)(FM6_PKN(FM6_PK_PADS),)
-    FIF(FELUCCA_FM6_PK_80S)(FM6_PKN(FM6_PK_80S),)};
+    FM6_INIT.name, FIF(FELUCCA_FM6_PK_KEYS)(FM6_PKN(FM6_PK_KEYS_N),) FIF(FELUCCA_FM6_PK_BASS)(FM6_PKN(FM6_PK_BASS_N),)
+    FIF(FELUCCA_FM6_PK_BELLS)(FM6_PKN(FM6_PK_BELLS_N),) FIF(FELUCCA_FM6_PK_PADS)(FM6_PKN(FM6_PK_PADS_N),)
+    FIF(FELUCCA_FM6_PK_80S)(FM6_PKN(FM6_PK_80S_N),)};
 
 /* The ADSR opens at once and rings 10 s: the DX7 envelopes shape the sound and end the voice. Without a pack there is
  * the INIT VOICE only: three starts from it (the packs' voices are in PRESETS after the user presets, nbank.c). */

@@ -192,9 +192,9 @@ int main(void)
 #if FM6_NPACKS
     nb_row(0, tag, nm);
     check("... row 0: the first pack's first voice, its letter and its own name",
-          tag[1] == '0' && tag[2] == '1' && !tag[3] && !strncmp(nm, FM6_PACK[0][0].name, strlen(nm)) && nm[0]);
+          tag[1] == '0' && tag[2] == '1' && !tag[3] && !strncmp(nm, FM6_PACK[0].n[0], strlen(nm)) && nm[0]);
     nb_row(FM6_NPKV - 1u, tag, nm);
-    check("... the last row: 16 of the last pack", tag[1] == '1' && tag[2] == '6' && !strncmp(nm, FM6_PACK[FM6_NPACKS - 1u][15].name, strlen(nm)) && nm[0]);
+    check("... the last row: 16 of the last pack", tag[1] == '1' && tag[2] == '6' && !strncmp(nm, FM6_PACK[FM6_NPACKS - 1u].n[15], strlen(nm)) && nm[0]);
 #endif
 #if FM6_NPACKS >= 2
     nb_load(17);
@@ -205,7 +205,7 @@ int main(void)
     {
         char nn[12];
         fm6_name(nn, fm6_ed[1]);
-        check("... and the buffer holds that voice (its name)", nn[0] && !strncmp(nn, FM6_PACK[1][1].name, strlen(nn)) && fm6_cur[1] == 19);
+        check("... and the buffer holds that voice (its name)", nn[0] && !strncmp(nn, FM6_PACK[1].n[1], strlen(nn)) && fm6_cur[1] == 19);
     }
 #endif
     {   /* a DX7 bank received: 32 voices, one of them INIT VOICE (left out) */

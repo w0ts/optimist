@@ -47,7 +47,7 @@ static const uint8_t *nb_raw(uint32_t kind, uint32_t k, uint32_t *name_at)
     if (kind == NB_FM6) {
         *name_at = 118u;
         if (k < FM6_NPKV)
-            return (const uint8_t *)fm6_pack_voice(k);
+            return 0;                                   /* (a pack voice: compressed, eng_fm6.c; nb_used and nb_name know it) */
 #if FELUCCA_FM6_SYSEX
         if (fm6_pick_ok && k - FM6_NPKV < 32u && memcmp(fm6_pick + (k - FM6_NPKV) * 128u + 118, "INIT VOICE", 10))
             return fm6_pick + (k - FM6_NPKV) * 128u;
@@ -62,12 +62,24 @@ static const uint8_t *nb_raw(uint32_t kind, uint32_t k, uint32_t *name_at)
     return 0;
 #endif
 }
-static int nb_used(uint32_t kind, uint32_t k) { uint32_t o; return k < nb_slots(kind) && nb_raw(kind, k, &o); }
+static int nb_used(uint32_t kind, uint32_t k)
+{
+    uint32_t o;
+#if FELUCCA_FM6_LIST
+    if (kind == NB_FM6 && k < FM6_NPKV)
+        return 1;                                       /* (a pack voice: always there; nb_raw would decode it) */
+#endif
+    return k < nb_slots(kind) && nb_raw(kind, k, &o);
+}
 
 static void nb_name(uint32_t kind, uint32_t k, char *nm)  /* 12 characters at most, trailing blanks cut */
 {
-    uint32_t o, i, n = 0;
+    uint32_t o = 0, i, n = 0;
     const uint8_t *b = nb_raw(kind, k, &o);
+#if FELUCCA_FM6_LIST
+    if (kind == NB_FM6 && k < FM6_NPKV)
+        b = (const uint8_t *)fm6_pack_name(k), o = 0;   /* (its name stored apart, uncompressed: from 0) */
+#endif
     for (i = 0; b && i < 12u && i < (kind == NB_FM6 ? 10u : 16u); i++) {
         nm[i] = (char)(b[o + i] >= 32u && b[o + i] <= 126u ? b[o + i] : ' ');
         if (nm[i] != ' ')
