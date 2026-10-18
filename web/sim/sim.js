@@ -286,7 +286,7 @@ export function mountSim(container, opts = {}) {
     el.power.disabled = true;
     try {
       if (!st.wasm || st.wasm.url !== b.url) {
-        const r = await fetch(b.url);
+        const r = await fetch(b.url, { cache: "no-cache" });
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         st.wasm = { url: b.url, bytes: await r.arrayBuffer() };
       }

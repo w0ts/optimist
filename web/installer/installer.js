@@ -427,7 +427,7 @@ export function mountInstaller(container, opts = {}) {
         pkg.title = `${b.name} (${TEXT.cloudTitle}${b.id})`;
       } else {
         const meta = packages[Number(st.choice)];
-        const r = await fetch(meta.pkg);
+        const r = await fetch(meta.pkg, { cache: "no-cache" });   /* (Pages lets a browser keep a file 10 min: a newer deploy's package against an older page's checksum read "damaged") */
         if (!r.ok) throw codeError("loadfail", `HTTP ${r.status}`);
         pkg = await checkPackage(new Uint8Array(await r.arrayBuffer()), meta);
         pkg.title = meta.title; pkg.version = meta.release || version;
