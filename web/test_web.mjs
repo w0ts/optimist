@@ -3263,6 +3263,13 @@ async function installerModule() {
     "installer style: colours only from the shared tokens (no colour of its own), no SLOOP track colours, no SLOOP tiles");
   ok(/--t2: var\(--t1\); --t3: var\(--t1\); --t4: var\(--t1\);/.test(readFileSync(join(HERE, "style", "optimist.css"), "utf8")) && /--ok: var\(--t1\);/.test(readFileSync(join(HERE, "style", "optimist.css"), "utf8")),
     "web style: one colour on every page (the blue --t1): the track names and an OK are that blue");
+  /* the site's packages by release (make_site.py: releases first, newest first, then the development build) */
+  const pk = (release, date) => ({ title: "x", release, date });
+  const rg = INST.releaseGroups([pk("v0.2", "2026-10-15T00:00:00Z"), pk("v0.2", "2026-10-15T00:00:00Z"), pk("v0.1", "2026-10-01T00:00:00Z"), pk("", ""), pk("", "")], "85258b5c1234");
+  ok(rg.length === 3 && rg[0].key === "v0.2" && rg[0].label === "v0.2 \u00b7 2026-10-15" && JSON.stringify(rg[0].idx) === "[0,1]"
+    && rg[1].key === "v0.1" && rg[2].key === "" && rg[2].label === "Development build (85258b5)" && JSON.stringify(rg[2].idx) === "[3,4]"
+    && INST.releaseGroups([]).length === 0 && INST.releaseGroups([pk("", "")], "")[0].label === "Development build",
+    "installer: the packages by release (each tag with its date, newest first; then the development build with its commit)");
   /* the cloud builds (the cloud-builds branch's index.json, tools/cloud_build.py shelf) */
   const cid = "e1fb1e6cc99a2056", cstem = `optimist-synth-${cid}`, csha = "1".repeat(40);
   const good = { id: cid, key: cid + "0".repeat(48), stem: cstem, name: "Synth", commit: "a".repeat(40), date: "2026-10-18T06:25:00Z", sha256: "e".repeat(64),

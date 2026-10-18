@@ -57,7 +57,7 @@ export const TEXT = {
   denied: "MIDI access was not allowed. Allow MIDI in the site settings (the icon at the left of the address bar), then try again.",
   idOptimist: "Optimist", idRescue: "Optimist in USB rescue", idOfficial: "the official firmware V", idSloop: "SLOOP, Felucca or X0X",
   idUpdate: "in update mode", idOther: "another firmware",
-  chooseLegend: "Firmware to install",
+  chooseLegend: "Firmware to install", relLabel: "Release", devBuild: "Development build",
   useFile: "A file on this computer (.fwsc)", fileLabel: "Package file",
   useCloud: "A cloud build",
   cloudDesc: "Made by the builder's Build in the cloud; each is kept 30 days after it was last asked for.",
@@ -186,6 +186,23 @@ export function errorText(e) {
   return TEXT.error + (e && e.message ? e.message : String(e));
 }
 
+/** the site's packages (site.json, make_site.py) by release: [{ key, label, idx }], idx their indices in packages. Each
+ * release (its tag) newest first as listed, then this commit's development build (release ""), labelled with the commit */
+export function releaseGroups(packages, source = "") {
+  const groups = [];
+  (packages || []).forEach((p, i) => {
+    const key = (p && p.release) || "";
+    let g = groups.find((x) => x.key === key);
+    if (!g) {
+      g = { key, idx: [], label: key ? `${key}${p.date ? ` · ${String(p.date).slice(0, 10)}` : ""}`
+        : `${TEXT.devBuild}${/^[0-9a-f]{7,40}$/.test(source) ? ` (${source.slice(0, 7)})` : source ? ` (${source})` : ""}` };
+      groups.push(g);
+    }
+    g.idx.push(i);
+  });
+  return [...groups.filter((g) => g.key), ...groups.filter((g) => !g.key)];
+}
+
 /* ---- the cloud builds (docs/CLOUD-BUILD.md): the cloud-builds branch's index.json and files (tools/cloud_build.py
    shelf). Read at the branch's commit (the API, which sends CORS), then from raw.githubusercontent.com by that commit:
    release downloads send no CORS header, and a branch name there is cached for minutes */
@@ -294,6 +311,23 @@ export function mountInstaller(container, opts = {}) {
 
   /* ---- 2 Choose */
   const radios = packages.map((p, i) => choiceRow(String(i), p.title, p.description, p.product));
+  const groups = releaseGroups(packages, source), groupOf = (i) => (packages[i] && packages[i].release) || "";
+  st.group = groups.length ? groups[0].key : "";
+  if (groups.length && st.choice === "0") st.choice = String(groups[0].idx[0]);   /* (the newest release's first flavour) */
+  el.rel = groups.length > 1
+    ? h("select.oi-csearch.oi-rel", { "aria-label": TEXT.relLabel, onchange: () => pickGroup(el.rel.value) }, groups.map((g) => h("option", { value: g.key }, g.label)))
+    : null;
+  const relRow = groups.length ? h("div.oi-relrow", {}, h("span.o-dim", {}, `${TEXT.relLabel}: `), el.rel || h("b", {}, groups[0].label)) : null;
+  function showGroup() { radios.forEach((r, i) => { r.hidden = groupOf(i) !== st.group; }); }
+  function pickGroup(key) {
+    st.group = key;
+    showGroup();
+    if (/^\d+$/.test(st.choice) && groupOf(+st.choice) !== key) {   /* a flavour of another release was picked: this one's first */
+      const g = groups.find((x) => x.key === key);
+      if (g) { st.choice = String(g.idx[0]); syncChoice(); loadChoice(); }
+    }
+  }
+  showGroup();
   el.file = h("input.oi-file", { type: "file", accept: ".fwsc", "aria-label": TEXT.fileLabel, onchange: () => { st.choice = "file"; syncChoice(); loadChoice(); } });
   const fileRow = choiceRow("file", TEXT.useFile, null, null, el.file);
   el.csearch = h("input.oi-csearch", { type: "search", placeholder: TEXT.cloudSearch, "aria-label": TEXT.cloudSearch, value: wanted || "",
@@ -305,7 +339,7 @@ export function mountInstaller(container, opts = {}) {
   el.stockRow.hidden = true;
   el.pkginfo = h("p.oi-pkg", { role: "status", "aria-live": "polite" });
   const step2 = card(2, TEXT.s2,
-    h("fieldset.oi-choices", {}, h("legend.o-sr", {}, TEXT.chooseLegend), radios, cloudRow, fileRow, el.stockRow),
+    h("fieldset.oi-choices", {}, h("legend.o-sr", {}, TEXT.chooseLegend), relRow, radios, cloudRow, fileRow, el.stockRow),
     el.pkginfo,
     h("p.o-dim", {}, TEXT.buildOwn, link("build", TEXT.buildLink)));
 
@@ -396,7 +430,7 @@ export function mountInstaller(container, opts = {}) {
         const r = await fetch(meta.pkg);
         if (!r.ok) throw codeError("loadfail", `HTTP ${r.status}`);
         pkg = await checkPackage(new Uint8Array(await r.arrayBuffer()), meta);
-        pkg.title = meta.title; pkg.version = version;
+        pkg.title = meta.title; pkg.version = meta.release || version;
       }
       if (gen !== st.gen) return;
       st.pkg = pkg;

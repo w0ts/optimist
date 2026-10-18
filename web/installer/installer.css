@@ -46,6 +46,9 @@
                                  margin-right: var(--sp-2); cursor: pointer; }
 .oi-file::file-selector-button:hover { background: var(--surface-3); }
 .oi-pkg { overflow-wrap: anywhere; }
+/* the release the flavours below come from (a picker when the site has several) */
+.oi-relrow { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); background: var(--surface-1); }
+.oi-rel { width: auto; max-width: 100%; }
 /* the cloud builds: a search, then one row a build (pick, id, date, configuration link) */
 .oi-cloud { grid-column: 2; display: grid; gap: var(--sp-2); min-width: 0; }
 .oi-csearch { font: inherit; font-family: var(--font-mono); color: var(--text); background: var(--surface-2); border: 1px solid var(--line);

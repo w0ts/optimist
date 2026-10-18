@@ -226,32 +226,27 @@ check("the Dockerfile pins the same toolchain and SDK files as tools/toolchain.p
 
 # web: the local site and its server (make_site and the server loop stubbed: nothing is built or served)
 a = ap.parse_args(["web"])
-check("web: defaults (port 8766, the browser opens, build/felucca.fwsc)", a.port == 8766 and not a.no_open and
-      a.package is None and a.fn is optimist.cmd_web)
-a = ap.parse_args(["web", "--port", "9000", "--no-open", "--package", "p.fwsc", "--site", "s"])
-check("web: --port, --no-open, --package, --site", a.port == 9000 and a.no_open and a.package == "p.fwsc" and a.site == "s")
+check("web: defaults (port 8766, the browser opens; no package: the local site bundles none)", a.port == 8766 and not a.no_open and
+      not hasattr(a, "package") and a.fn is optimist.cmd_web)
+a = ap.parse_args(["web", "--port", "9000", "--no-open", "--site", "s"])
+check("web: --port, --no-open, --site", a.port == 9000 and a.no_open and a.site == "s")
 check("web: the installer and editor URLs", optimist.web_urls(9000) ==
       ("http://localhost:9000/webapp/installer/", "http://localhost:9000/webapp/editor/"))
-rc, out = quiet(optimist.main, ["web", "--package", "/nonexistent/x.fwsc", "--no-open"])
-check("web: no package: exit 1, says to run make build", rc == 1 and "make build" in out)
 with tempfile.TemporaryDirectory() as wd:
     import http.server
     import make_site
-    pkg = Path(wd) / "x.fwsc"
-    pkg.write_bytes(b"x")
     calls, opened = [], []
     saved_site, saved_serve, saved_open = make_site.main, http.server.ThreadingHTTPServer.serve_forever, optimist.web_open
-    make_site.main = lambda p, v, o: calls.append((str(p), v, str(o)))
+    make_site.main = lambda v, o: calls.append((v, str(o)))
     http.server.ThreadingHTTPServer.serve_forever = lambda self: (_ for _ in ()).throw(KeyboardInterrupt())
     optimist.web_open = lambda url: opened.append(url) or True
     try:
-        rc, out = quiet(optimist.main, ["web", "--package", str(pkg), "--site", str(Path(wd) / "site"), "--port", "0"])
-        rc2, out2 = quiet(optimist.main, ["web", "--package", str(pkg), "--site", str(Path(wd) / "site"), "--port", "0",
-                                          "--no-open"])
+        rc, out = quiet(optimist.main, ["web", "--site", str(Path(wd) / "site"), "--port", "0"])
+        rc2, out2 = quiet(optimist.main, ["web", "--site", str(Path(wd) / "site"), "--port", "0", "--no-open"])
     finally:
         make_site.main, http.server.ThreadingHTTPServer.serve_forever, optimist.web_open = saved_site, saved_serve, saved_open
-    check("web: builds the site from the package as 'dev', serves, Ctrl-C ends with 0", rc == 0 and
-          calls[0] == (str(pkg), "dev", str(Path(wd) / "site")) and "stopped" in out)
+    check("web: builds the local site as 'dev' with no firmware (no package needed), serves, Ctrl-C ends with 0", rc == 0 and
+          calls[0] == ("dev", str(Path(wd) / "site")) and "stopped" in out)
     check("web: prints both URLs and the Chrome / Edge note", "/webapp/installer/" in out and "/webapp/editor/" in out and
           "Chrome or Edge" in out)
     check("web: opens the editor, unless --no-open", len(opened) == 1 and opened[0].endswith("/webapp/editor/") and rc2 == 0)
@@ -392,7 +387,7 @@ with tempfile.TemporaryDirectory() as d:
         print("notices: no package in build/: the site check is skipped")
     else:
         os.environ["OPTIMIST_SOURCE_REF"] = "v9.9-test"
-        ms.main(fwsc, "9.9-test", Path(d) / "site")
+        ms.main("9.9-test", Path(d) / "site", [{"id": "synth", "title": "Synth", "description": "", "pkg": fwsc}])
         site = Path(d) / "site"
         page = (site / "webapp/installer/index.html").read_text(encoding="utf-8")
         check("notices: the site root carries LICENSE, LICENSING.md and every LICENSES/ text", all((site / n).is_file() for n in NOTICES))
@@ -410,11 +405,36 @@ with tempfile.TemporaryDirectory() as d:
         man.write_text(json.dumps({"flavours": [
             {"id": "one", "title": "One", "description": "d1", "profile": "p1", "file": str(Path(d) / "a.fwsc")},
             {"id": "two", "title": "Two", "description": "d2", "profile": "p2", "file": str(Path(d) / "b.fw*")}]}))
-        ms.main(None, "9.9-test", Path(d) / "site2", ms.flavours_of(man))
+        ms.main("9.9-test", Path(d) / "site2", ms.flavours_of(man))
         page2 = (Path(d) / "site2" / "webapp/installer/index.html").read_text(encoding="utf-8")
         check("flavours: every manifest entry is published under firmware/ and listed in the installer page",
               all((Path(d) / "site2/firmware" / f"optimist-9.9-test-{i}.fwsc").is_file() for i in ("one", "two"))
               and '"title": "One"' in page2 and '"title": "Two"' in page2 and '"description": "d2"' in page2)
+        # the releases (pages.yml downloads them): DIR/TAG/release.json + the release's packages; a published profile's on
+        # the site under firmware/r/TAG/, a shipped-only one's not; the releases listed first, newest first
+        rel = Path(d) / "releases"
+        for tag, date in (("v0.1", "2026-10-01T00:00:00Z"), ("v0.2", "2026-10-15T00:00:00Z")):
+            (rel / tag).mkdir(parents=True)
+            (rel / tag / "release.json").write_text(json.dumps({"tag": tag, "date": date}))
+            for prof in ("synth", "x0x-drums"):
+                shutil.copy(fwsc, rel / tag / f"optimist-{tag[1:]}-{prof}.fwsc")
+        rs = ms.releases_of(rel, man)
+        ms.main("9.9-test", Path(d) / "site3", ms.flavours_of(man), rs)
+        sj = json.loads((Path(d) / "site3/webapp/installer/site.json").read_text(encoding="utf-8"))
+        rels = [x["release"] for x in sj["packages"]]
+        check("releases: the published flavours of each release on the site (firmware/r/TAG/), not the shipped-only ones",
+              (Path(d) / "site3/firmware/r/v0.2/optimist-0.2-synth.fwsc").is_file()
+              and not (Path(d) / "site3/firmware/r/v0.2/optimist-0.2-x0x-drums.fwsc").exists()
+              and [r["tag"] for r in rs] == ["v0.2", "v0.1"])
+        check("releases: listed first, newest first, then this commit's development packages (release \"\")",
+              rels == ["v0.2", "v0.1", "", ""] and sj["packages"][0]["pkg"] == "../../firmware/r/v0.2/optimist-0.2-synth.fwsc"
+              and sj["packages"][0]["date"].startswith("2026-10-15"))
+        check("the site carries every Simulator module next to the editor (bk.js missing broke the tab)",
+              all((Path(d) / "site3/webapp/editor/sim" / f.name).is_file() for f in (ROOT / "web/sim").iterdir() if f.suffix in (".js", ".css")))
+        ms.main("dev", Path(d) / "site4")
+        check("the local site (make web): no firmware at all", json.loads(
+              (Path(d) / "site4/webapp/installer/site.json").read_text(encoding="utf-8"))["packages"] == []
+              and not list((Path(d) / "site4/firmware").glob("optimist-*.fwsc")))
         check("icon: the site ships the icon files and every page links one relatively",
               all((site / n).is_file() for n in ms.ICONS) and 'href="../../icon.svg"' in page and
               'href="../../icon.svg"' in (site / "webapp/editor/index.html").read_text(encoding="utf-8") and
@@ -432,7 +452,7 @@ with tempfile.TemporaryDirectory() as d:
         check("web site: every relative link and asset of the root, installer and editor pages exists",
               not any(_dead(site / f) for f in ("index.html", "webapp/installer/index.html", "webapp/editor/index.html")))
         check("web site: the installer's package path points at the copied firmware file",
-              (site / "firmware" / "optimist-9.9-test.fwsc").is_file() and "firmware/optimist-9.9-test.fwsc" in page)
+              (site / "firmware" / "optimist-9.9-test-synth.fwsc").is_file() and "firmware/optimist-9.9-test-synth.fwsc" in page)
 
 # git worktrees: the SDK files, the venv, the emulator clone resolve to the main checkout (tools/shared.py)
 import hashlib

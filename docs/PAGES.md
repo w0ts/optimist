@@ -5,7 +5,12 @@ URL once published: <https://w0ts.github.io/optimist/> (the root redirects to th
 
 ## What is published
 
-`web/make_site.py` builds the site (`make web` builds the same thing locally into `build/optimist-site/`):
+`web/make_site.py` builds the site (`make web` builds it locally into `build/optimist-site/`, with no firmware in it:
+its installer offers cloud builds and a `.fwsc` of yours). The published site's installer offers, newest first, each
+published release (not a draft, not a pre-release) with its published flavours (the profiles marked `publish: yes`),
+then this commit's development build of each flavour in `web/flavours.json`; a release picker above them. `pages.yml`
+downloads the releases' packages into the site (`firmware/r/<tag>/`): a page cannot fetch a GitHub release file
+itself (no CORS header), and a published release redeploys the site:
 
 - `webapp/installer/`: the web installer (Chrome or Edge, Web MIDI), with the firmware package choice. Its page
   (`index.html`, from `web/installer/index.html`) is a thin wrapper: the shared header and style, and the installer
@@ -16,8 +21,8 @@ URL once published: <https://w0ts.github.io/optimist/> (the root redirects to th
 ## The installer module
 
 `web/installer/installer.js` exports `mountInstaller(container, { packages, version, source, onNavigate, links, midi })`:
-it renders the four steps (1 Connect: Find the FM-1, what it runs, what to do when it is not found; 2 Choose: the
-manifest's flavours with their descriptions, a `.fwsc` of yours, a link to the builder; 3 Install: the back-up question,
+it renders the four steps (1 Connect: Find the FM-1, what it runs, what to do when it is not found; 2 Choose: a
+release (each with its date; the development build last), then its flavours with their descriptions, a `.fwsc` of yours, a link to the builder; 3 Install: the back-up question,
 the four phases and the bar, the errors in words; 4 When something goes wrong: the rescue paths and the return to the
 official V15) and returns `{ unmount(), busy }` (`busy` while writing: the host must not unload or hide it then).
 `packages` and `version` / `source` are `site.json`'s; `onNavigate(where)` (`"build"`, `"backup"`, `"editor"`,

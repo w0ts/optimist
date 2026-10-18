@@ -15,8 +15,9 @@
                                                          profile first unless a PACKAGE is given (--no-build: the
                                                          newest build/optimist-*.fwsc as it is); asks first
   python tools/optimist.py emu [FIRMWARE] [--cpu MHZ] [--bg] [--list] [--update]
-  python tools/optimist.py web [--port N] [--no-open] [--package F]   the local installer and web editor: builds the site
-                                                         from build/felucca.fwsc, serves it on 127.0.0.1:8766, opens the editor
+  python tools/optimist.py web [--port N] [--no-open]   the local installer, builder and web editor: builds the site (no
+                                                         firmware in it: cloud builds or a .fwsc of yours), serves it on
+                                                         127.0.0.1:8766, opens the editor
   python tools/optimist.py cpu [SECONDS] [--port P] [--csv F]   the audio load of a real FM-1 (its CDC console)
   python tools/optimist.py test [--python]               the host tests (--python: the Python ones only)
   python tools/optimist.py gate [--config F] [--set K=V] [--emu]   the integrator's gate (tools/gate.py --help)
@@ -238,7 +239,6 @@ def cmd_emu(a):
 
 
 WEB_PORT = 8766
-WEB_PKG = ROOT / "build" / "felucca.fwsc"
 WEB_SITE = ROOT / "build" / "optimist-site"
 
 
@@ -264,19 +264,15 @@ def web_open(url):
 
 
 def cmd_web(a):
-    """Build the local site (web/make_site.py) from a package and serve it on 127.0.0.1 until Ctrl-C."""
+    """Build the local site (web/make_site.py --local: no firmware bundled; the installer offers cloud builds and a .fwsc
+    of yours) and serve it on 127.0.0.1 until Ctrl-C."""
     import functools
     import http.server
-    pkg = Path(a.package) if a.package else WEB_PKG
-    if not pkg.is_file():
-        print(f"optimist: no package at {pkg}. Build one first: `make build` (or `python tools/optimist.py build`), "
-              "or pass --package FILE.fwsc", file=sys.stderr)
-        return 1
     sys.path.insert(0, str(ROOT / "web"))
     import make_site
     site = Path(a.site) if a.site else WEB_SITE
     try:
-        make_site.main(pkg, "dev", site)
+        make_site.main("dev", site)
     except SystemExit as e:
         print(f"optimist: the site was not built: {e}", file=sys.stderr)
         return 1
@@ -512,10 +508,9 @@ def parser():
     p = sub.add_parser("emu", help="run a firmware in the emulator (emu --help)", add_help=False)
     p.add_argument("rest", nargs=argparse.REMAINDER)
     p.set_defaults(fn=cmd_emu)
-    p = sub.add_parser("web", help="build the local site from build/felucca.fwsc and serve the installer and the "
-                                   "web editor on 127.0.0.1")
+    p = sub.add_parser("web", help="build the local site (no firmware bundled) and serve the installer, the builder and "
+                                   "the web editor on 127.0.0.1")
     p.add_argument("--port", type=int, default=WEB_PORT, help=f"the port (default {WEB_PORT})")
-    p.add_argument("--package", help="the .fwsc to build the site from (default build/felucca.fwsc)")
     p.add_argument("--site", help="where to write the site (default build/optimist-site)")
     p.add_argument("--no-open", action="store_true", help="do not open the editor in a browser")
     p.set_defaults(fn=cmd_web)

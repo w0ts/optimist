@@ -1,9 +1,10 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # The static web site on GitHub Pages: the web installer and the web editor, made by web/make_site.py (no server).
-# make_site.py bundles the firmware packages listed in web/flavours.json into the site (firmware/optimist-<version>-<id>.fwsc,
-# which the installer page fetches by a relative URL and checks against the SHA-256 written into the page); this builds
-# the profile of each entry, with the toolchain downloaded on the runner as build.yml does. Add a flavour by adding an
-# entry to the manifest. The editor needs no firmware. Details: docs/PAGES.md.
+# The installer offers the published releases, each with its published flavours (firmware/r/<tag>/, downloaded from the
+# releases here: a page cannot fetch a release file itself, GitHub sends it with no CORS header), and this commit's
+# development build of each flavour in web/flavours.json (firmware/optimist-<version>-<id>.fwsc), all fetched by a
+# relative URL and checked against the SHA-256 written into the page. A release published redeploys the site. The
+# toolchain is downloaded on the runner as build.yml does. The editor needs no firmware. Details: docs/PAGES.md.
 #
 # Needs Pages enabled with the source "GitHub Actions" (Settings > Pages); on a private repository that needs a
 # plan that allows Pages for private repositories. Written for the repository once it is public; not run yet.
@@ -14,6 +15,8 @@ on:
   push:
     branches: [main, optimist]
     tags: ["v*"]
+  release:
+    types: [published]                     # (its packages join the installer's list)
   workflow_dispatch:
 
 permissions:
@@ -58,11 +61,25 @@ jobs:
           for profile in $(python3 web/make_site.py --profiles); do
             python tools/sim.py build --wasm --config "config/profiles/$profile.config" --out "dist/optimist-sim-$profile.wasm"
           done
+      - name: The published releases' packages (no draft, no pre-release; the cloud builds are one)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p releases
+          gh release list --limit 30 --json tagName,isDraft,isPrerelease,publishedAt \
+            --jq '.[] | select((.isDraft | not) and (.isPrerelease | not)) | "\(.tagName) \(.publishedAt)"' |
+          while read -r tag date; do
+            case "$tag" in v[0-9]*) ;; *) echo "skipped: $tag (not a v tag)"; continue ;; esac
+            mkdir -p "releases/$tag"
+            printf '{"tag": "%s", "date": "%s"}\n' "$tag" "$date" > "releases/$tag/release.json"
+            gh release download "$tag" --pattern 'optimist-*.fwsc' --dir "releases/$tag" || echo "::warning::$tag: no packages"
+          done
+          ls -R releases
       - name: Make the site
         env:
           OPTIMIST_SOURCE_REF: ${{ github.ref_type == 'tag' && github.ref_name || '' }}   # the page's Source link: the tag
         run: |
-          python3 web/make_site.py --flavours web/flavours.json "$(tr -d '[:space:]' < VERSION)" site
+          python3 web/make_site.py --flavours web/flavours.json "$(tr -d '[:space:]' < VERSION)" site --releases releases
           touch site/.nojekyll
       - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3

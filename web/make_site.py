@@ -4,7 +4,8 @@
 """Make the site (GitHub Pages):
 
   index.html                  redirect to the installer
-  firmware/optimist-VER[-ID].fwsc  the packages (one per flavour in web/flavours.json)
+  firmware/optimist-VER-ID.fwsc  the development packages: one per flavour in web/flavours.json, built from this commit
+  firmware/r/TAG/optimist-VER-PROFILE.fwsc  each published release's packages (--releases): its published flavours
   firmware/FM-1_015.fwsc      M-VAVE's official V15, unchanged (web/stock/, Apache-2.0): the installer's return to stock
   icon.svg, favicon.ico, apple-touch-icon.png, icon-*.png, manifest.webmanifest   the icon (assets/logo/)
   webapp/installer/index.html the standalone installer (web/installer/index.html): the installer module with fm1pkg.js,
@@ -17,9 +18,14 @@
   LICENSE, LICENSING.md, LICENSES/*.txt            the notices the package needs
   src/                        not touched
 
-  web/make_site.py build/felucca-X.Y.fwsc X.Y OUT_DIR          one package
-  web/make_site.py --flavours web/flavours.json X.Y OUT_DIR    the packages the manifest lists (each "file" is a glob,
-                                                               relative to the repository; the newest match is used)
+  web/make_site.py --flavours web/flavours.json X.Y OUT_DIR [--releases DIR]
+                                                               the packages the manifest lists (each "file" is a glob,
+                                                               relative to the repository; the newest match is used), and
+                                                               the releases in DIR (DIR/TAG/release.json + its .fwsc files,
+                                                               what pages.yml downloads): the installer picks a release,
+                                                               then one of its flavours
+  web/make_site.py --local X.Y OUT_DIR                         no firmware at all (make web): the installer offers cloud
+                                                               builds and a .fwsc of yours
   web/make_site.py --profiles                                  the manifest's profiles, one per line (CI builds them)
   web/make_site.py --builder OUT_DIR                           only OUT_DIR/webapp/builder (no package needed)
 
@@ -120,8 +126,11 @@ def shared_css():
 def shared_header(app):
     """the header of the three apps, the editor's menu bar: the dinghy and OPTIMIST (to the site's root), the apps as
     tabs with a separator between them (the current one aria-current)"""
+    items = [(f"../{a}/", a, t) for a, t in APPS]
+    items.insert(2, ("../editor/#sim", "simulator", "Simulator"))   # (a tab of the editor's page, no page of its own: web/sim/)
     links = '<span class="o-sep" role="separator" aria-orientation="vertical"></span>'.join(
-        f'<a href="../{a}/"' + (' aria-current="page"' if a == app else "") + f">{(EDITOR_ICON + ' ' if a == 'editor' else '')}{t}</a>" for a, t in APPS)
+        f'<a href="{href}"' + (' aria-current="page"' if a == app else "") + f">{(EDITOR_ICON + ' ' if a == 'editor' else '')}{t}</a>"
+        for href, a, t in items)
     return (f'<header class="o-head"><a class="o-brand" href="../../" title="Optimist">{logo_svg()}<b>Optimist</b></a>'
             f'<nav class="o-nav" aria-label="Optimist apps"><span class="o-sep" role="separator" aria-orientation="vertical"></span>{links}</nav></header>')
 
@@ -186,7 +195,8 @@ def editor_modules(ed, out, site):
     for f in ("installer.js", "installer.css"):
         shutil.copy(HERE / "installer" / f, ed / "installer" / f)
     (ed / "sim").mkdir(parents=True, exist_ok=True)
-    for f in ("sim.js", "sim-worklet.js", "sim.css"):    # the Simulator tab (web/sim/; docs/SIMULATOR.md)
+    for f in sorted(x.name for x in (HERE / "sim").iterdir() if x.suffix in (".js", ".css")):   # the Simulator tab (web/sim/: every
+        # module it imports, bk.js too; docs/SIMULATOR.md)
         shutil.copy(HERE / "sim" / f, ed / "sim" / f)
     (ed / "installer" / "site.json").write_text(json.dumps(site, indent=1) + "\n", encoding="utf-8")
     builder_site(out, ed / "builder")
@@ -206,24 +216,75 @@ def flavours_of(manifest):
     return out
 
 
-def main(pkg, version, out, flavours=None):
-    """pkg: one package file (the single flavour "Optimist"), or None with flavours = flavours_of(manifest)"""
+def published_profiles():
+    """the profiles marked "# publish: yes" (config/profiles): the flavours a release offers on the site"""
+    out = set()
+    for f in (HERE.parent / "config" / "profiles").glob("*.config"):
+        if re.search(r"^#\s*publish:\s*yes\b", f.read_text(encoding="utf-8"), re.M | re.I):
+            out.add(f.stem)
+    return out
+
+
+def releases_of(folder, manifest=HERE / "flavours.json"):
+    """DIR/TAG/release.json ({tag, date}) + DIR/TAG/optimist-VER-PROFILE.fwsc (release.yml's names) -> the releases,
+    newest first: [{tag, date, flavours: [{id, title, description, pkg}]}], only the published profiles' packages, titled
+    as web/flavours.json titles a flavour of that profile (else the profile's name)"""
+    listed = json.loads(Path(manifest).read_text(encoding="utf-8"))["flavours"]
+    titled = {f["profile"]: f for f in listed}
+    rank = {f["profile"]: k for k, f in enumerate(listed)}   # (the manifest's flavours first, in its order: the default first)
+    published = published_profiles()
+    out = []
+    for d in sorted(Path(folder).iterdir()) if Path(folder).is_dir() else []:
+        meta = d / "release.json"
+        if not meta.is_file():
+            continue
+        info = json.loads(meta.read_text(encoding="utf-8"))
+        tag, date = str(info.get("tag", "")), str(info.get("date", ""))
+        if not re.fullmatch(r"v[0-9A-Za-z._-]{1,32}", tag):
+            raise SystemExit(f"{meta}: tag {tag!r} is not a release tag (v0.1, v0.2-rc1)")
+        flavours = []
+        for f in sorted(d.glob("optimist-*.fwsc")):
+            m = re.fullmatch(r"optimist-[0-9][0-9A-Za-z.]*-([a-z0-9-]+)", f.stem)
+            if not m or m.group(1) not in published:
+                continue                                 # (a shipped-only profile, or not a release package)
+            t = titled.get(m.group(1), {})
+            flavours.append({"id": m.group(1), "title": t.get("title", m.group(1).replace("-", " ")),
+                             "description": t.get("description", ""), "pkg": f})
+        if flavours:
+            flavours.sort(key=lambda f: (rank.get(f["id"], len(rank)), f["id"]))
+            out.append({"tag": tag, "date": date, "flavours": flavours})
+    return sorted(out, key=lambda r: r["date"], reverse=True)
+
+
+def package_entry(path, name, flavour, release="", date=""):
+    """one package of the site: checked (an Optimist / Felucca identity, the update loader in it) -> its site.json entry"""
+    raw = Path(path).read_bytes()
+    product = product_of(raw)
+    if not re.fullmatch(r"FM-1_[79]\d\d", product):
+        raise SystemExit(f"{path}: identity {product!r} is not an Optimist (FM-1_7xx) or Felucca (FM-1_9xx) package")
+    if b"FELUCCA-LOADER-1" not in raw:                  # marker of firmware/loader
+        raise SystemExit(f"{path}: no Felucca update loader in it")
+    return {"id": flavour["id"], "title": flavour["title"], "description": flavour.get("description", ""),
+            "pkg": "../../firmware/" + name, "product": product, "release": release, "date": date,
+            "sha256": hashlib.sha256(raw).hexdigest()}   # the page checks the download against it
+
+
+def main(version, out, flavours=None, releases=None):
+    """flavours: the development packages, flavours_of(manifest) (this commit's build); releases: releases_of(DIR); neither:
+    a site with no firmware (the local one)"""
     out = Path(out)
-    flavours = flavours or [{"id": "", "title": "Optimist", "description": "", "pkg": Path(pkg)}]
+    flavours, releases = flavours or [], releases or []
     html = (HERE / "installer" / "index.html").read_text(encoding="utf-8")
     ver = re.sub(r"[^A-Za-z0-9.-]", "-", version)
     packages, files = [], []
+    for r in releases:                                  # the releases first, newest first: the installer's default pick
+        for fl in r["flavours"]:
+            name = f"r/{r['tag']}/{Path(fl['pkg']).name}"
+            packages.append(package_entry(fl["pkg"], name, fl, r["tag"], r["date"]))
+            files.append((Path(fl["pkg"]), name))
     for fl in flavours:
-        raw = Path(fl["pkg"]).read_bytes()
-        product = product_of(raw)
-        if not re.fullmatch(r"FM-1_[79]\d\d", product):
-            raise SystemExit(f"{fl['pkg']}: identity {product!r} is not an Optimist (FM-1_7xx) or Felucca (FM-1_9xx) package")
-        if b"FELUCCA-LOADER-1" not in raw:              # marker of firmware/loader
-            raise SystemExit(f"{fl['pkg']}: no Felucca update loader in it")
-        name = f"optimist-{ver}{'-' + fl['id'] if len(flavours) > 1 else ''}.fwsc"
-        packages.append({"id": fl["id"], "title": fl["title"], "description": fl.get("description", ""),
-                         "pkg": "../../firmware/" + name, "product": product,
-                         "sha256": hashlib.sha256(raw).hexdigest()})   # the page checks the download against it
+        name = f"optimist-{ver}-{fl['id']}.fwsc"
+        packages.append(package_entry(fl["pkg"], name, fl))
         files.append((Path(fl["pkg"]), name))
         if fl.get("sim"):                               # the flavour's simulator (the Simulator tab: web/sim/sim.js)
             packages[-1]["sim"] = "../../firmware/" + name.replace(".fwsc", ".wasm")
@@ -247,10 +308,12 @@ def main(pkg, version, out, flavours=None):
         d.mkdir(parents=True, exist_ok=True)
     for old in list(fw.glob("felucca-*.fwsc")) + list(fw.glob("sloop-*.fwsc")) + list(fw.glob("optimist-*.fwsc")):   # only the current packages
         old.unlink()
+    shutil.rmtree(fw / "r", ignore_errors=True)
     (inst / "index.html").write_text(html, encoding="utf-8")
     (inst / "installer.js").write_text(installer_module(inline=False), encoding="utf-8")   # for the one-page app
     (inst / "site.json").write_text(json.dumps(site, indent=1) + "\n", encoding="utf-8")
     for src, name in files:
+        (fw / name).parent.mkdir(parents=True, exist_ok=True)
         shutil.copy(src, fw / name)
     (ed / "index.html").write_text(editor_page(), encoding="utf-8")
     builder_site(out)
@@ -288,9 +351,9 @@ if __name__ == "__main__":
         print(f"builder: {builder_site(args[1])}")
     elif args[:1] == ["--profiles"]:
         print("\n".join(f["profile"] for f in json.loads((HERE / "flavours.json").read_text(encoding="utf-8"))["flavours"]))
-    elif args[:1] == ["--flavours"] and len(args) == 4:
-        main(None, args[2], args[3], flavours_of(args[1]))
-    elif len(args) == 3 and args[0] != "--flavours":
-        main(*args)
+    elif args[:1] == ["--flavours"] and len(args) in (4, 6) and (len(args) == 4 or args[4] == "--releases"):
+        main(args[2], args[3], flavours_of(args[1]), releases_of(args[5], args[1]) if len(args) == 6 else None)
+    elif args[:1] == ["--local"] and len(args) == 3:
+        main(args[1], args[2])
     else:
         sys.exit(__doc__)
