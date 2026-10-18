@@ -550,6 +550,33 @@ static void main_page_tests(void)
     memcpy(trk, keep_all, sizeof keep_all);
     song.sel = (uint8_t)sel;
 }
+static uint32_t row_named(uint32_t scr, const char *name);
+/* the help line on a DEST naming an engine value (op_help.c hl_dest, 2026-10-18): the engine, the value's name, its line */
+static void dest_help_tests(void)
+{
+#if FELUCCA_PARAM_HELP
+    char b[64], want[64];
+    int16_t keep = TSEL->p[P_L1DA];
+    uint32_t r, code;
+    const engine_t *e = ENGINES[TSEL->eng_req % NENGINES];
+    go_home();
+    op_enter(SCR_SOUND);
+    snd_family(SND_ALL);
+    r = row_named(SCR_SOUND, "LFO DEST");
+    ui.row[SCR_SOUND] = (uint8_t)r;
+    hl.k = 0;
+    TSEL->p[P_L1DA] = LT_E5;
+    code = hl_dest(b);
+    str_cpy(want, e->name, sizeof want);
+    str_cpy(want + str_len(want), " ", 2);
+    str_cpy(want + str_len(want), track_desc(TSEL, P_E4)->label, sizeof want - str_len(want));
+    check(r < SCR->rows() && code && !strncmp(b, want, str_len(want)), "a DEST on an engine value: the help line names the engine and the value (\"ANALOG CUT - ...\")");
+    TSEL->p[P_L1DA] = LT_PIT;
+    check(!hl_dest(b), "... a DEST on PIT: the table's own line");
+    TSEL->p[P_L1DA] = keep;
+    go_home();
+#endif
+}
 static uint32_t row_named(uint32_t scr, const char *name)   /* the row of screen scr named name, or its row count */
 {
     uint32_t r, n = SCREENS[scr].rows();
@@ -616,6 +643,7 @@ static void key_tests(void)
     check(ui.scr == SCR_SOUND && ui.row[SCR_SOUND] == 0 && !snd_page(0) && snd_page(SND_MAIN_ROW) == &main_pg,
           "SOUND, every row: the SOUND row first (ENGINE PRESET INIT SAVE AS, 2026-10-18), then MAIN");
     main_page_tests();
+    dest_help_tests();
     (void)lv, (void)n;
     ui.force = 1;
     frame();

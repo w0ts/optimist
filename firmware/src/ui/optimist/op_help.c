@@ -114,6 +114,38 @@ static uint32_t hl_text(void)
     }
     return hl.off;
 }
+/* a modulation DEST naming one of the engine's values (LT_E1 .. LT_E8: LFO, LFO 2, ENV2 DEST's slots) says which engine and
+ * which value it moves (the user, 2026-10-18: "if in the help bottom line it could say the destination engine and param
+ * name"): "ANALOG CUT - Filter cutoff", the engine's own line for that value after the dash while the whole fits the
+ * band (else the names alone) -> b (64 bytes); 0: not such a DEST (the table's line stays) */
+static uint32_t hl_dest(char *b)
+{
+    cell_t c;
+    const engine_t *e = ENGINES[TSEL->eng_req % NENGINES];
+    const param_desc_t *d;
+    char t[PH_LINE];
+    uint32_t o, v, n;
+    if (glo_cycle() || hl_menu())
+        return 0;
+    SCREENS[ui.scr % SCR_N].cell(ui.row[ui.scr], hl.k, &c);
+    if (!c.d || c.d->names != N_LT || !c.vp || *c.vp < LT_E1 || *c.vp > LT_E8)
+        return 0;
+    v = (uint32_t)(*c.vp - LT_E1);
+    d = track_desc(TSEL, P_E0 + v);
+    str_cpy(b, e->name, 64);
+    n = str_len(b);
+    b[n++] = ' ';
+    str_cpy(b + n, d->label, 64 - n);
+    o = ph_find(PH_ENG, e->name, d->label);
+    if (o) {
+        n = str_len(b);
+        str_cpy(b + n, " - ", 64 - n);
+        str_cpy(b + n + 3u, ph_text(o, t), 64 - n - 3u);
+        if (text_w(&FONT_S, b) > 232)
+            b[n] = 0;                                   /* (too wide for the band: the names alone) */
+    }
+    return 0x10000u | (uint32_t)TSEL->eng_req << 8 | v;
+}
 /* before the bands (op_frame_draw, ov: the overlay): shown or not this frame; going, the band is cleared (nothing else
  * ever draws on it: no band to draw again) */
 static void hl_pre(uint32_t ov)
@@ -133,12 +165,13 @@ static void hl_pre(uint32_t ov)
 /* after the bands: the line, when what it says changed */
 static void hl_post(void)
 {
-    char b[PH_LINE];
-    uint32_t off, sig;
+    char b[64];
+    uint32_t off, sig, dst;
     if (!hl.on)
         return;
     off = lay_hint_t ? 0xFFFFu : hl_text();             /* (a layer just opened: its hint, op_laydraw.c lay_hint) */
-    sig = hu(hu(0x4E1Fu, settings.palette), off);
+    dst = lay_hint_t ? 0u : hl_dest(b);                 /* (a DEST on an engine value: its engine and name) */
+    sig = hu(hu(hu(0x4E1Fu, settings.palette), off), dst);
     if (sig == ui.sig[5])
         return;
     ui.sig[5] = sig;
@@ -146,6 +179,8 @@ static void hl_post(void)
     cv_hline(0, C_LINE);
     if (off == 0xFFFFu)
         cv_texts(4, 2, "Oct- locks it", C_AMB);
+    else if (dst)
+        cv_texts(4, 2, b, C_AMB);
     else if (off)
         cv_texts(4, 2, ph_text(off, b), C_AMB);
     cv_blit(0, HL_Y);
