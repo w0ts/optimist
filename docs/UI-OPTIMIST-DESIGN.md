@@ -1472,8 +1472,8 @@ pictures, `op_preset.c` a preset with its engine, all in SIZE_FILES):
   by the FM-1's printed labels, the white keys play, the cards are the page's four values, the panel the algorithm
   (the operator picked white, carriers in the engine's colour, a switched-off one dim) over the black keys' map;
   OCT- / OCT+ the page back / on; SHIFT + ENV locks it. Let go after use: SOUND's FM6 rows on that page. **ENV tapped
-  is SOUND's FM6 family**: OPERATOR (OP ALG FDBK VCE), the picked operator's six pages (FREQ, LEVEL, RATES, LEVELS,
-  KEY SCALE, CURVES), PIT's two, ALGO, LFO, LFO 2, PORTA, STORE (14 rows), the algorithm drawn over the rows on each;
+  is SOUND's FM6 family**: OPERATOR (OP ALG FDBK VCE), the picked operator's six pages (2026-10-18, M-VAVE's grouping: TUNE = DTUNE COARS FINE LEVEL, RATES, LEVELS,
+  SENS = AMS VEL MODE ON, SCALE = L DEP R DEP BREAK, CURVES = L CRV R CRV RT SC), PIT's two, ALGO, LFO, LFO 2, PORTA, STORE (14 rows), the algorithm drawn over the rows on each;
   ENV again the next row, round. Edits go into the part's voice (`fm6_ed`), as SLOOP's editor. On any other engine
   ENV is what it was (the envelopes' rows; no layer). The page tables and the algorithm's maths are copied from
   `ui/sloop/ui_fm6.c`; nothing there is called.
@@ -1569,6 +1569,7 @@ either (8,188 B over); nothing was left out of any configuration measured here: 
 | ENV on an FM6 track | held = the layer, tapped = SOUND's FM6 rows; SHIFT + ENV the lock there (INIT elsewhere, as 11.3) | `LAYER_BTN`, `lay_btn_layer`, `op_jump`, `home_combo` |
 | The layer let go | after use: SOUND's FM6 rows on its page (unused: nothing) | `fm6_lay_end` |
 | FM6's SOUND rows | OPERATOR, the picked operator's 6 pages, PIT 2, ALGO, LFO, LFO 2, PORTA, STORE; the algorithm over each | `F6_*`, `FMK_PAGES` |
+| FM6 on-page picks (2026-10-18, after M-VAVE's FM editor) | on SOUND's FM6 rows SHIFT2 + a black key picks OP1..6 / PIT / GLO / MONO / POLY (the page follows), SHIFT + an operator's key switches it; the 10 keys light while held; RATES / LEVELS / PIT pages draw the EG (the operator pages: TUNE RATES LEVELS SENS SCALE CURVES, M-VAVE's order) (chips, a dot a stage) in place of the algorithm | `fm6_shift_key`, `f6_eg_draw` |
 | A row with no graph | the nearest graph of its family, above first | `snd_graph_page` |
 | The SOUND row's picture | three presets (before, playing, after) with engine names and chips; the drum track its kit as before | `pre_draw` |
 | The mixer's PRESETS | a toast, the name and *(ENGINE)*, framed in the engine's colour | `pre_toast`, `ui.toast_col` |
@@ -3075,8 +3076,8 @@ engines, tools/param_help.json), so SLOOP's UI and the web editor are unchanged.
   that it fits whole with its n/N next to the widest badge of its screen ("2 DIGITAL", "4 ACCENT"); the header keeps
   bar.beat (the user's ruling). Renamed: ENV 1 MOD *ENV mod* (ENV DEST *ENV to* until 2026-10-16), ENV2 DEST *ENV2 to*, LFO DEST *LFO to*, LFO 2 *LFO2*, LFO2 DEST
   *LFO2 to*, INSERTS *Insert* (as the mixer's set), SCL *Scale*, FLT 2 *Filter 2*, DR INSERT *DR ins*, BUS SENDS *Bus send*,
-  CMP *Comp*, MASTER's RET DELAY / RET REV *Delay* / *Reverb*, FM6's OPn LEVEL *OPn out*, OPn RATES *OPn rate*, OPn LEVELS
-  *OPn level*, OPn KEY SCA *OPn scale*, OPn CURVES *OPn curve*, PIT RATES / LVLS *Pit rate* / *Pit level*; the rest in
+  CMP *Comp*, MASTER's RET DELAY / RET REV *Delay* / *Reverb*, FM6's OPn TUNE *OPn tune*, OPn RATES *OPn rate*, OPn LEVELS
+  *OPn level*, OPn SENS *OPn sens*, OPn SCALE *OPn scale*, OPn CURVES *OPn curve*, PIT RATES / LVLS *Pit rate* / *Pit level*; the rest in
   sentence case as named. A track's page (SOUND, STEP: the badge names the track) shows the title alone, never the screen's
   word; GLOBAL / SYSTEM's header says only *Global* / *System* (section 31); the other screens keep the screen's word
   (*Master ins tone*, *Project tools*): since batch D (section 33) the screen's word is their badge and the title the page's name alone. GLOBAL / SYSTEM's line names follow the card rule: capitals (KNOB COLORS, CLK IN, LOWCUT).

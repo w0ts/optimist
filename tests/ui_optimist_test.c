@@ -2463,7 +2463,7 @@ static void fm6_tests(void)
     {
         char b[16];
         SCR->name(ui.row[SCR_SOUND], b);
-        check(!strcmp(b, "OP3 FREQ"), "the next row: the operator's FREQ page");
+        check(!strcmp(b, "OP3 TUNE"), "the next row: the operator's TUNE page");
     }
     v = f6_ed()[FM6_OPB(3) + FO_FINE];
     turn(EN_K3, 3);
@@ -2478,6 +2478,62 @@ static void fm6_tests(void)
     check(px_in(4, OY_PANEL + 4, 232, GRAPH_H - 8, C_WHITE), "the algorithm drawn over the rows, the operator white");
     tap(B_ENV);
     check(ui.row[SCR_SOUND] == 0u, "ENV again on the last row: the first again (a button again wraps)");
+    {   /* M-VAVE's FM editor on the device: the operator picked and switched off on the page itself (SHIFT2 / SHIFT + a black key), the EG drawn */
+        uint32_t k, ok = 1, hits = drums.hits;
+        int16_t on4 = f6_ed()[FV_ON + 4];
+        ui.row[SCR_SOUND] = F6_OP0 + 1u;
+        ui.force = 1;
+        frame();
+        press(B_OCTUP);                                 /* SHIFT2 held: the keys name what they pick */
+        frames(HOLD_FRAMES);
+        for (k = 0; k < 27u; k++) {
+            uint8_t q = led_pos[14u + k];
+            uint32_t lv = q == 0xFF ? 9u : (fm1_led[q >> 3] >> (q & 7u)) & 1u ? 2u : (fm1_led_dim[q >> 3] >> (q & 7u)) & 1u ? 1u : 0u;
+            uint32_t want = (fm6_keys_at(F6_OP0 + 1u) >> k) & 1u ? 2u : (FM6_KEYS_FN >> k) & 1u ? 1u : 0u;
+            if (q != 0xFF && lv != want)
+                ok = 0;
+        }
+        check(ok, "SHIFT2 held on SOUND's FM6 rows: the 10 black keys lit (the operator edited full), the others dark");
+        kdown(10);                                      /* OP5 */
+        kup(10);
+        release(B_OCTUP);
+        check(f6.target == 4u && snd_fam == SND_FM6 && lay.shown == LY_PLAY && f6_kind(ui.row[SCR_SOUND]) == 0u && ui.row[SCR_SOUND] == f6.row,
+              "SHIFT2 + a black key on the FM6 rows: OP5 picked on the page, no layer");
+        check(drums.hits == hits, "... silent");
+        press(B_OCTDN);                                 /* SHIFT held: the same key switches the operator */
+        kdown(10);
+        kup(10);
+        release(B_OCTDN);
+        check(f6_ed()[FV_ON + 4] == !on4, "SHIFT + OP5's key: OP5 switched off / on");
+        press(B_OCTDN);
+        kdown(10);
+        kup(10);
+        release(B_OCTDN);
+        check(f6_ed()[FV_ON + 4] == on4, "... and back");
+        press(B_OCTUP);
+        kdown(15);                                      /* PIT */
+        kup(15);
+        release(B_OCTUP);
+        check(f6_kind(ui.row[SCR_SOUND]) == 1u && snd_fam == SND_FM6, "SHIFT2 + the PIT key: the pitch envelope's pages");
+        ui.row[SCR_SOUND] = F6_OP0 + 1u;                /* OPn RATES: the envelope's shape, the algorithm gone */
+        ui.force = 1;
+        frame();
+        ppm("opt-fm6-eg");
+        check(f6_eg_row(f6_cur_row()) && px_in(4, 120, 232, 22, C_WHITE),
+              "OPn RATES: the envelope drawn (the chips, a dot a stage), the operator white");
+        ui.row[SCR_SOUND] = F6_PIT0;
+        ui.force = 1;
+        frame();
+        ppm("opt-fm6-pit");
+        check(f6_eg_row(f6_cur_row()), "PIT RATES: the pitch envelope drawn");
+        ui.row[SCR_SOUND] = F6_OP0 + 4u;                /* SCALE: the algorithm again */
+        ui.force = 1;
+        frame();
+        check(!f6_eg_row(f6_cur_row()) && px_in(4, 190, 232, 40, C_WHITE), "SCALE: the algorithm again");
+        ui.row[SCR_SOUND] = 0u;
+        ui.force = 1;
+        frame();
+    }
     press(B_ENV);                                       /* ENV held: the layer */
     frames(HOLD_FRAMES);
     check(lay.shown == LY_OPS && ly_ops_on, "ENV held on FM6: the operator layer");
@@ -2509,6 +2565,10 @@ static void fm6_tests(void)
     check(f6.row == F6_PIT0, "SELECT in the layer: its pages too (back to PIT 1)");
     turn(EN_SELECT, -3);
     check(f6.row == F6_PIT0, "... stopping at the first (SELECT does not wrap)");
+    ui.force = 1;
+    frame();
+    ppm("opt-fm6-layer-pit");                           /* ENV held on a PIT page: the pitch envelope, over the keys' map */
+    check(f6_eg_row(f6.row) && f6_cur_row() == f6.row, "ENV held on a PIT page: the layer's page is the picture's (the envelope), not SOUND's row");
     key(1);                                             /* F#: OP1 */
     ui.force = 1;
     frame();

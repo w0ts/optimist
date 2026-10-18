@@ -1324,7 +1324,7 @@ async function editorFxp() {
   const stores = scrsGold.ctx.find((c) => c.s === 3).rows.map((r, i) => (r.rf & 1 ? r.name : null)).filter(Boolean);
   ok(js(stores) === js(["PROJECT", "SNAPSHOT", "USER"]), "scrs: a store's row (PROJECT, SNAPSHOT, USER) carries the YES flag");
   const f6 = SR(await rq(E.req.scrsInfo(1, 0, 127, 126))), f6r = SR(await rq(E.req.scrsRow(1, 0, 127, 126, 1)));
-  ok(f6.n === 14 && f6r.name === "OP1 FREQ" && f6r.cells.map((c) => c.label).join() === "MODE,COARS,FINE,DTUNE", "scrs: an FM6 track, family 126: the operator editor's rows (14) as the device has them");
+  ok(f6.n === 14 && f6r.name === "OP1 TUNE" && f6r.cells.map((c) => c.label).join() === "DTUNE,COARS,FINE,LEVEL", "scrs: an FM6 track, family 126: the operator editor's rows (14) as the device has them");
   ok(/scsOpen\(1, drumIndex\(\), l\)/.test(html) && /scsPages/.test(html), "scrs: the lane popup opens the device's pages of the lane; an FM6 track has the operator rows");
   ok(await rq(E.req.scrsInfo(4, 0, 127), { timeout: 100, retries: 0, quiet: true }).then(() => false, () => true) && await rq(E.req.scrsRow(1, 0, 127, 127, 99), { timeout: 100, retries: 0, quiet: true }).then(() => false, () => true),
     "scrs: SYSTEM is not offered here, a row past the table: no reply");

@@ -178,12 +178,12 @@ static void edscrs_tests(void)
             ok &= scs_call(2, SCR_SOUND, 0, 127, SCRS_FAM_FM6, 0, 0, 1, 2) && f6.target == 1u;
             ok &= scs_call(1, SCR_SOUND, 0, 127, SCRS_FAM_FM6, 1, 0, 0, 0);
             scs_parse(ed_out, 8, &w);
-            ok &= !strcmp(w.name, "OP2 FREQ");
+            ok &= !strcmp(w.name, "OP2 TUNE");
             f6.target = 0;
             set_engine_of(&trk[0], keep);
             song.sel = 0;
             reset_ui();
-            check(ok, "SCRS: an FM6 track, fam 126: the operator editor's rows; OP picks the operator the pages edit (OP2 FREQ)");
+            check(ok, "SCRS: an FM6 track, fam 126: the operator editor's rows; OP picks the operator the pages edit (OP2 TUNE)");
         }
     }
 #endif

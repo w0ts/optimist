@@ -8,8 +8,8 @@
  *                (the operator picked white, carriers in the engine's colour, an operator switched off dim) over the
  *                black keys' map; OCT- / OCT+ the page back / on. Let go after using it: SOUND's FM6 rows on that
  *                page. SHIFT + ENV locks it (section 2.1)
- *   ENV tapped   SOUND's FM6 family: OPERATOR (OP, ALG, FDBK, VOICE), the six pages of the operator picked (FREQ,
- *                LEVEL, RATES, LEVELS, KEY SCALE, CURVES), PIT's two, then ALGO, LFO, LFO 2, PORTA, STORE (SLOT, and
+ *   ENV tapped   SOUND's FM6 family: OPERATOR (OP, ALG, FDBK, VOICE), the six pages of the operator picked (TUNE, RATES,
+ *                LEVELS, SENS, SCALE, CURVES), PIT's two, then ALGO, LFO, LFO 2, PORTA, STORE (SLOT, and
  *                STORE SEND INIT as actions); the algorithm drawn over the rows on every one of them. ENV again: the
  *                next row, round. On another engine ENV stays the envelopes' family
  * Edits go into the part's voice (eng_fm6.c fm6_ed), as SLOOP's editor and a DX7 parameter change do. */
@@ -47,18 +47,20 @@ static const char *const FMKN_FIXED[] = {"1HZ", "10HZ", "100HZ", "1KHZ"};
 static const char *const FMKN_PMODE[] = {"PEDAL", "ON"};
 #define FMK_NOP {"", 0, 0, 0, FK_NONE, 0}
 static const fm6k_page_t FMK_PAGES[] = {
-    {"FREQ", {{"MODE", FO_MODE, 1, 0, FK_ENUM, FMKN_MODE}, {"COARS", FO_CRS, 31, 0, FK_COARSE, 0},
-              {"FINE", FO_FINE, 99, 0, FK_NUM, 0}, {"DTUNE", FO_DET, 14, -7, FK_NUM, 0}}},
-    {"LEVEL", {{"LEVEL", FO_OL, 99, 0, FK_NUM, 0}, {"VEL", FO_KVS, 7, 0, FK_NUM, 0},
-               {"AMS", FO_AMS, 3, 0, FK_NUM, 0}, {"ON", 0, 1, 0, FK_ON, FMKN_ONOFF}}},
+    /* the six pages of an operator in M-VAVE's order and grouping (app/screen.c fm_pages, GPL-3.0-only): TUNE (DETUNE COARSE
+     * FINE OUT LVL) first, the knob order of their pages; ours add ON beside MODE on SENS */
+    {"TUNE", {{"DTUNE", FO_DET, 14, -7, FK_NUM, 0}, {"COARS", FO_CRS, 31, 0, FK_COARSE, 0},
+              {"FINE", FO_FINE, 99, 0, FK_NUM, 0}, {"LEVEL", FO_OL, 99, 0, FK_NUM, 0}}},
     {"RATES", {{"R1", FO_R1, 99, 0, FK_NUM, 0}, {"R2", FO_R2, 99, 0, FK_NUM, 0},
                {"R3", FO_R3, 99, 0, FK_NUM, 0}, {"R4", FO_R4, 99, 0, FK_NUM, 0}}},
     {"LEVELS", {{"L1", FO_L1, 99, 0, FK_NUM, 0}, {"L2", FO_L2, 99, 0, FK_NUM, 0},
                 {"L3", FO_L3, 99, 0, FK_NUM, 0}, {"L4", FO_L4, 99, 0, FK_NUM, 0}}},
-    {"KEY SCALE", {{"BREAK", FO_BP, 99, 0, FK_BREAK, 0}, {"L DEP", FO_LD, 99, 0, FK_NUM, 0},
-                   {"R DEP", FO_RD, 99, 0, FK_NUM, 0}, {"RT SC", FO_RS, 7, 0, FK_NUM, 0}}},
+    {"SENS", {{"AMS", FO_AMS, 3, 0, FK_NUM, 0}, {"VEL", FO_KVS, 7, 0, FK_NUM, 0},
+              {"MODE", FO_MODE, 1, 0, FK_ENUM, FMKN_MODE}, {"ON", 0, 1, 0, FK_ON, FMKN_ONOFF}}},
+    {"SCALE", {{"L DEP", FO_LD, 99, 0, FK_NUM, 0}, {"R DEP", FO_RD, 99, 0, FK_NUM, 0},
+               {"BREAK", FO_BP, 99, 0, FK_BREAK, 0}, FMK_NOP}},
     {"CURVES", {{"L CRV", FO_LC, 3, 0, FK_ENUM, FMKN_CURVE}, {"R CRV", FO_RC, 3, 0, FK_ENUM, FMKN_CURVE},
-                FMK_NOP, FMK_NOP}},
+                {"RT SC", FO_RS, 7, 0, FK_NUM, 0}, FMK_NOP}},
     {"PIT RATES", {{"R1", FV_PR, 99, 0, FK_NUM, 0}, {"R2", FV_PR + 1, 99, 0, FK_NUM, 0},
                    {"R3", FV_PR + 2, 99, 0, FK_NUM, 0}, {"R4", FV_PR + 3, 99, 0, FK_NUM, 0}}},
     {"PIT LVLS", {{"L1", FV_PL, 99, -50, FK_NUM, 0}, {"L2", FV_PL + 1, 99, -50, FK_NUM, 0},
@@ -246,11 +248,15 @@ static int fm6_yes(uint32_t r, uint32_t k, uint32_t ok)
 }
 
 /* ---- the layer (ENV held on an FM6 track: op_layers.c, LY_OPS) */
-static void fm6_lay_key(uint32_t k)                     /* a black key: what to edit, or the voice mode */
+static int32_t f6_key_target(uint32_t k)                /* what black key k names: OP1..6 = 0..5, FMT_*, -1 none */
 {
     static const int8_t BK[27] = {-1, 0, -1, 1, -1, 2, -1, -1, 3, -1, 4, -1, -1, 5, -1, FMT_PIT, -1, FMT_GLO,
                                   -1, -1, FMT_MONO, -1, FMT_POLY, -1, -1, -1, -1};
-    int32_t t = k < 27u ? BK[k] : -1;
+    return k < 27u ? BK[k] : -1;
+}
+static void fm6_lay_key(uint32_t k)                     /* a black key: what to edit, or the voice mode */
+{
+    int32_t t = f6_key_target(k);
     if (t < 0 || !fm6_sel())
         return;
     if (t == FMT_MONO || t == FMT_POLY) {
@@ -286,14 +292,15 @@ static void fm6_lay_turn(uint32_t k, int32_t s, int fine)   /* a knob in the lay
 /* the keys fm6_lay_key acts on: OP1..OP6, PIT, GLO, MONO, POLY (the black keys of BK above) */
 #define FM6_KEYS_FN (1u << 1 | 1u << 3 | 1u << 5 | 1u << 8 | 1u << 10 | 1u << 13 | 1u << 15 | \
                      1u << 17 | 1u << FMT_MONO | 1u << FMT_POLY)
-static uint32_t fm6_keys_lit(void)                      /* the keys' lights with ENV held: what is edited, the mode */
+static uint32_t fm6_keys_at(uint32_t row)                /* the keys' lights: what is edited on page row, the mode */
 {
     static const uint8_t KEY[8] = {1, 3, 5, 8, 10, 13, 15, 17};
-    uint32_t kd = f6_kind(f6.row), m = 1u << KEY[kd == 0u ? f6.target % 6u : kd == 1u ? 6u : 7u];
+    uint32_t kd = f6_kind(row), m = 1u << KEY[kd == 0u ? f6.target % 6u : kd == 1u ? 6u : 7u];
     uint32_t v = (uint32_t)tsel()->p[P_VOICE];
     m |= v == V_POLY ? 1u << FMT_POLY : v == V_MONO || v == V_LEGATO ? 1u << FMT_MONO : 0u;
     return m;
 }
+static uint32_t fm6_keys_lit(void) { return fm6_keys_at(f6.row); }   /* (ENV held) */
 #else
 static int fm6_sel(void) { return 0; }
 static uint32_t fm6_rows(void) { return 0; }
@@ -307,5 +314,6 @@ static void fm6_lay_select(int32_t d) { (void)d; }
 static void fm6_lay_turn(uint32_t k, int32_t s, int fine) { (void)k; (void)s; (void)fine; }
 static void fm6_lay_cell(uint32_t k, cell_t *c) { (void)k; cell_clear(c); }
 static uint32_t fm6_keys_lit(void) { return 0; }
+static uint32_t fm6_keys_at(uint32_t row) { (void)row; return 0; }
 #define FM6_KEYS_FN 0u
 #endif

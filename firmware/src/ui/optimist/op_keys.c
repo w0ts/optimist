@@ -163,6 +163,11 @@ static void keys_lit(uint32_t *f, uint32_t *d)
         return;                                         /* (ERASE, REPEAT: play surfaces, dark) */
     }
     if (keys_shifted(fm1_in.buttons)) {
+        if (fm6_on_page()) {                            /* SOUND's FM6 rows: SHIFT2 the operator (PIT, GLO, the mode) edited, SHIFT the operators off */
+            *d = FM6_KEYS_FN;
+            *f = mute_mod(fm1_in.buttons) ? fm6_keys_off() : fm6_keys_at(f6_cur_row());
+            return;
+        }
         if (ui.scr == SCR_STEP && step_keys(fm1_in.buttons)) {
             *f = step_leds(blink) & keys_white(16);     /* (STEP: its white keys stay its steps) */
             *d = step_dim();

@@ -20,7 +20,7 @@ static const char NM_TITLE[] =
     "LFO2 DEST\0LFO2 to\0"       "SCL\0Scale\0"               "SCL 2\0Scale 2\0"           "FLT 2\0Filter 2\0"
     "INSERTS\0Insert\0"         "DR INSERT\0DR ins\0"        "DR SENDS\0DR sends\0"       "BUS SENDS\0Bus sends\0"
     "INS DYN #\0Ins dyn #\0"     "RET DELAY\0Delay\0"         "RET REV\0Reverb\0"
-    "OP# LEVEL\0OP# out\0"       "OP# RATES\0OP# rate\0"      "OP# LEVELS\0OP# level\0"    "OP# KEY SCA\0OP# scale\0"
+    "OP# TUNE\0OP# tune\0"       "OP# RATES\0OP# rate\0"      "OP# LEVELS\0OP# level\0"    "OP# SENS\0OP# sens\0"     "OP# SCALE\0OP# scale\0"
     "OP# CURVES\0OP# curve\0"    "PIT RATES\0Pit rate\0"      "PIT LVLS\0Pit level\0"
     "\0";
 /* a title's short form, where a header is short of room (op_draw.c head_short, after "Voice 2" -> "Voice2"): bar.beat

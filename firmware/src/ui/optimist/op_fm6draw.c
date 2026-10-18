@@ -4,6 +4,49 @@
  * UI's colours: the operator edited white, carriers in the engine's colour, an operator off or at level 0 dim. Over
  * SOUND's FM6 rows (GRAPH_H rows, op_draw.c draw_list) and, larger, as ENV held's map above the black keys' map. */
 #if OP_FM6
+static void op_row_pick(uint32_t r);                    /* op_input.c */
+static int fm6_on_page(void) { return ui.scr == SCR_SOUND && snd_fam == SND_FM6 && fm6_sel(); }   /* SOUND's FM6 rows are up */
+/* the row the pictures are about: SOUND's cursor row when its FM6 rows are up (SELECT moves it, f6.row only follows a
+ * turn), else the layer's page */ 
+static uint32_t f6_cur_row(void) { return fm6_on_page() && lay.shown != LY_OPS ? ui.row[SCR_SOUND] % F6_ROWS : f6.row; }
+static int f6_eg_row(uint32_t r) { return r == F6_OP0 + 1u || r == F6_OP0 + 2u || r == F6_PIT0 || r == F6_PIT0 + 1u; }
+/* SHIFT2 / SHIFT held + a black key on SOUND's FM6 rows (op_input.c shift_keys): the shifts' language (SHIFT2 selects what
+ * the key names, SHIFT mutes it) on the layer's keys. M-VAVE's FM editor (app/screen.c 2316-2352, GPL-3.0-only) picks the
+ * operator with a black key and toggles it with a long press, on the page itself; here the shifts take their place so that
+ * the keys keep playing. Returns 1 when the key was taken (every black key of the layer: a key not named under SHIFT does
+ * nothing) */
+static int fm6_shift_key(uint32_t k, int mute)
+{
+    int32_t t = f6_key_target(k);
+    if (t < 0 || !fm6_on_page())
+        return 0;
+    if (mute) {
+        if (t < 6) {
+            char b[8] = "OP1 ";
+            int16_t *ed = f6_ed();
+            fm6_set(ed, FV_ON + (uint32_t)t, !ed[FV_ON + (uint32_t)t]);
+            b[2] = (char)('1' + t);
+            str_cpy(b + 4, ed[FV_ON + (uint32_t)t] ? "ON" : "OFF", 4);
+            ui_message(b);
+        }
+    } else {
+        fm6_lay_key(k);
+        f6.picked = 0;                                  /* (the rows stay: this is no layer) */
+        ui.row[SCR_SOUND] = 0xFF;                       /* (so that the pick is a change) */
+        op_row_pick(f6.row);
+    }
+    ui.force = 1;
+    return 1;
+}
+static uint32_t fm6_keys_off(void)                      /* SHIFT held: the keys of the operators switched off */
+{
+    static const uint8_t KEY[6] = {1, 3, 5, 8, 10, 13};
+    uint32_t i, m = 0;
+    for (i = 0; i < 6u; i++)
+        if (!f6_ed()[FV_ON + i])
+            m |= 1u << KEY[i];
+    return m;
+}
 /* the modulators of each operator (bit m: OP m+1 modulates it), the carriers, the feedback loop; index 0..5 =
  * OP1..OP6. As eng_fm6.c renders them (FM6_ALG): OP6 .. OP1, through two buses */
 static void f6_graph(const int16_t *v, uint8_t *mods, uint8_t *car, uint8_t *fb)
@@ -66,14 +109,64 @@ static void f6_loop(int32_t x, int32_t y, int32_t bw, int32_t bh, uint16_t c)   
     cv_line(x + bw + 4, y - bh - 3, x, y - bh - 3, c);
     cv_line(x, y - bh - 3, x, y - bh, c);
 }
-static uint32_t f6_graph_sig(void)                      /* what the algorithm's picture shows */
+static uint32_t f6_graph_sig(void)                      /* what the algorithm's (or the envelope's) picture shows */
 {
     const int16_t *v = f6_ed();
-    uint32_t op, sig = (uint32_t)v[FV_ALG] * 977u + f6.target * 131u + (uint32_t)(v[FV_FB] != 0) * 3u +
-                       f6_kind(f6.row) * 7919u + trk_col(song.sel) * 13u;
+    uint32_t op, row = f6_cur_row(), sig = (uint32_t)v[FV_ALG] * 977u + f6.target * 131u + (uint32_t)(v[FV_FB] != 0) * 3u +
+                                           f6_kind(row) * 7919u + trk_col(song.sel) * 13u + row * 104729u;
     for (op = 0; op < 6u; op++)
         sig = sig * 31u + (v[FM6_OPB(op + 1u) + FO_OL] != 0 && v[FV_ON + op]);
+    if (f6_eg_row(row))                                 /* (the envelope: its eight values) */
+        for (op = 0; op < 8u; op++)
+            sig = sig * 31u + (uint32_t)v[f6_kind(row) == 0u ? FM6_OPB(f6.target + 1u) + FO_R1 + op : FV_PR + op];
     return sig;
+}
+/* The envelope pages' picture, after M-VAVE's FM editor (app/screen.c 751-768, 721-735: GPL-3.0-only): the six operators as
+ * chips (the one edited white, one switched off struck through) above a static shape of the EG, a dot a stage. Schematic,
+ * not a trace in milliseconds: a stage's width follows its rate (high = fast; their formula, 8 + (99 - R) * 32 / 99 px),
+ * its height its level, L3 holds until release (a flat stretch before stage 4), the envelope starts at L4. The pitch EG has
+ * its zero line (level 50) */
+static void f6_eg_draw(int32_t y0, int32_t h)
+{
+    const int16_t *v = f6_ed();
+    uint32_t row = f6_cur_row(), pit = f6_kind(row) == 1u, i, sel = f6.target % 6u;
+    const int16_t *r = pit ? v + FV_PR : v + FM6_OPB(sel + 1u) + FO_R1, *l = r + 4;
+    int32_t top = y0 + 21, bot = y0 + h - 18, ph = bot - top, x = 20, ly, nx, ny;
+    uint16_t ec = trk_col(song.sel), c = pit || v[FV_ON + sel] ? ec : C_DIM;
+    char b[8];
+    if (pit)
+        cv_texts(4, y0 + 1, "Pitch EG", C_GRAY);
+    else
+        for (i = 0; i < 6u; i++) {                      /* the chips: OP1 .. OP6, "x1" for one switched off */
+            int on = v[FV_ON + i] != 0, edit = i == sel;
+            int32_t cx = 8 + (int32_t)i * 38;
+            b[0] = on ? 'O' : 'x';
+            b[1] = on ? 'P' : (char)('1' + i);
+            b[2] = on ? (char)('1' + i) : 0;
+            b[3] = 0;
+            if (edit)
+                cv_rect(cx, y0, 34, 16, C_WHITE);
+            else
+                cv_frame(cx, y0, 34, 16, on ? C_GRAY : C_LINE);
+            cv_texts(cx + 17 - text_w(&FONT_S, b) / 2, y0 + 1, b, edit ? C_BLACK : on ? C_HI : C_DIM);
+        }
+    cv_rect(20, bot, 201, 1, C_LINE);                   /* the baseline, the pitch EG's zero line over it */
+    if (pit)
+        cv_rect(20, bot - 50 * ph / 99, 201, 1, C_LINE);
+    ly = bot - l[3] * ph / 99;
+    for (i = 0; i < 4u; i++) {
+        if (i == 3u) {                                  /* L3 holds until the key is released */
+            cv_line(x, ly, x + 30, ly, c);
+            x += 30;
+        }
+        ny = bot - l[i] * ph / 99;
+        nx = x + 8 + (99 - r[i]) * 32 / 99;
+        cv_line(x, ly, nx, ny, c);
+        cv_rect(nx - 2, ny - 2, 5, 5, C_WHITE);
+        x = nx;
+        ly = ny;
+    }
+    cv_texts(4, y0 + h - 16, "R high = fast  L3 holds", C_DIM);
 }
 /* the algorithm in rows y0 .. y0 + h of the canvas begun (big: ENV held's map, the key to the colours). The boxes as tall
  * as the rows let them be, never less than their number (the audit's #25: 12 rows, the digit's 10 of ink and a row of
@@ -88,9 +181,13 @@ static void f6_alg_draw(int32_t y0, int32_t h, int big)
     int32_t tall = !big && h >= 90;                     /* (SOUND's FM6 rows, the rows few: a taller picture, larger boxes) */
     int32_t bw = big ? 14 : tall ? 13 : 10, bh = big ? 7 : tall ? 10 : 7, foot = big ? 6 : 12, rmax = big ? 24 : tall ? 38 : 24,
             cmax = big ? 56 : tall ? 52 : 40, boxed;
-    uint32_t op, m, sel = f6_kind(f6.row) == 0u ? f6.target : 6u;
+    uint32_t op, m, sel = f6_kind(f6_cur_row()) == 0u ? f6.target : 6u;
     uint16_t ec = trk_col(song.sel);
     char b[8];
+    if (f6_eg_row(f6_cur_row())) {                      /* the envelope pages: their shape, not the algorithm */
+        f6_eg_draw(y0, h);
+        return;
+    }
     f6_graph(v, mods, &car, &fb);
     for (op = 0; op < 6u; op++)
         nd[op].w = nd[op].x2 = nd[op].row = -1;
@@ -225,5 +322,9 @@ static void fm6_lay_title(char *t, uint32_t n) { str_cpy(t, "", n); }
 static void fm6_lay_draw(void) {}
 static void fm6_lay_end(void) {}
 static uint32_t f6_graph_sig(void) { return 0; }
+static int fm6_on_page(void) { return 0; }
+static uint32_t f6_cur_row(void) { return 0; }
+static int fm6_shift_key(uint32_t k, int mute) { (void)k; (void)mute; return 0; }
+static uint32_t fm6_keys_off(void) { return 0; }
 static void f6_alg_draw(int32_t y0, int32_t h, int big) { (void)y0; (void)h; (void)big; }
 #endif

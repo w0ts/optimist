@@ -389,6 +389,8 @@ static void shift_keys(uint32_t notes, int mute)
     uint32_t id, r;
     for (id = 0; id < 27u; id++) {
         int32_t m;
+        if (((notes >> id) & 1u) && fm6_shift_key(id, mute))   /* (SOUND's FM6 rows: the operator, PIT, GLO, the mode; op_fm6draw.c) */
+            continue;
         if (!((notes >> id) & 1u) || shift_step_key(id) || (m = smute_key(id)) < 0)
             continue;
         r = mx_row_of_smute(m);
