@@ -2762,7 +2762,7 @@
     "choices": [],
     "provenance": null,
     "children": [],
-    "tested": "emulator SPI2 model only; not checked on an FM-1",
+    "tested": "emulator SPI2 model only; FAILS on the FM-1 (2026-10-18): SPI2 never reports done, no key is read (the UI looks frozen)",
     "provenance_line": ""
    },
    {
@@ -3254,7 +3254,7 @@
     "choices": [],
     "provenance": null,
     "children": [],
-    "tested": "emulator-tested only (it has no cache timing); not checked on an FM-1",
+    "tested": "on one FM-1 2026-10-18: the boot test passes, cache RAM as fast as main RAM, but flash data reads over 16 KB 57x slower (1.7 us vs 32 ns: flash data goes through the data cache, 4 KB left)",
     "provenance_line": ""
    },
    {

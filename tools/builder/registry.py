@@ -683,7 +683,7 @@ _add("KEYS_DMA", "FELUCCA_KEYS_DMA", "key scan by DMA (SPI2) instead of bit-bang
      desc="The keys' and LEDs' shift register gets its column word from SPI2's DMA instead of 16 bit-banged clock "
           "edges in the 10 kHz scan interrupt: a shorter interrupt (less time in which the audio can be held off). "
           "After M-VAVE's official FM1 Open V13 firmware. Off until checked on an FM-1.",
-     tested="emulator SPI2 model only; not checked on an FM-1")
+     tested="emulator SPI2 model only; FAILS on the FM-1 (2026-10-18): SPI2 never reports done, no key is read (the UI looks frozen)")
 _add("LCD_BAUD", "LCD_BAUD", "screen data speed (SPI clock)", U, 79, default=1,
      choices=((1, "30 MHz"), (4, "12 MHz (as before X0X)"), (0, "60 MHz")),
      desc="How fast data is sent to the display: 60 MHz / (n + 1). Faster redraws finish sooner (less tearing); the "
@@ -752,7 +752,7 @@ _add("CPU_GUARD", "FELUCCA_CPU_GUARD", "predictive CPU guard (ease back before s
           "tools/builder/cpu_costs.py from tests/cpu_baseline.txt (docs/CPU-GUARD.md)")
 _add("CACHE_RAM", "FELUCCA_CACHE_RAM", "28 KB more memory from the data cache (for the undo history)", Y, 92, default=0,
      experimental=True, target_only=True,
-     tested="emulator-tested only (it has no cache timing); not checked on an FM-1",
+     tested="on one FM-1 2026-10-18: the boot test passes, cache RAM as fast as main RAM, but flash data reads over 16 KB 57x slower (1.7 us vs 32 ns: flash data goes through the data cache, 4 KB left)",
      desc="Uses 7 of the 8 data-cache ways as 28 KB of RAM, as M-VAVE's own FM-1 firmware and the AC79 SDK's flash-only "
           "builds do; the instruction cache (the flash's code and constants) keeps all its ways. The memory is tested "
           "at start-up; when the test passes it becomes the undo history's second part (28 KB instead of what main "
