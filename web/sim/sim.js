@@ -17,7 +17,7 @@
 // The simulator's flash is kept in this browser (IndexedDB), one state for every build (the user's choice,
 // 2026-10-18): a build that cannot read what another left handles it as the FM-1 would.
 import { cloudFileUrl, loadCloud, matchCloud } from "../installer/installer.js";
-import { client as bkClient, transfer as bkTransfer } from "./bk.js";
+import { client as bkClient, transfer as bkTransfer, readToFile as bkReadToFile, writeFromFile as bkWriteFromFile, unpackFile as bkUnpackFile } from "./bk.js";
 
 const DB = "optimist-sim", STORE = "state", KEY = "flash";
 const STYLE_ID = "optimist-sim-style";
@@ -57,7 +57,9 @@ export const TEXT = {
   reset: "Reset memory", resetAsk: "Erase the simulator's saved projects, presets and samples? (Every build shares them.)",
   resetDone: "Memory erased.", shared: "The simulator's memory (projects, presets, samples) is kept in this browser and shared by every build.",
   install: "Install this build on my FM-1", keysHelp: "Keys: the device's own — A W S E D … play notes (Shift for the octave above), the other keys hold the buttons; the arrows are OCT, Space is PLAY.",
-  load: "Load from FM-1",
+  load: "Load from FM-1", saveFile: "Save to file", loadFile: "Load file",
+  saving: "Saving…", savedFile: "Saved the simulator's memory to a file.", saveFail: "Could not save: ",
+  loadingFile: "Loading the file…", loadedFile: "Loaded from the file: objects", loadFileFail: "Could not load the file: ",
   loadNeedsRun: "Start the simulator first, then load into it.",
   loadNoMidi: "This browser has no Web MIDI: use Chrome or Edge to read the FM-1.",
   loadFinding: "Looking for the FM-1 over USB…", loadNoDevice: "No FM-1 found over USB. Connect it (Chrome or Edge), and run Optimist on it.",
@@ -173,6 +175,10 @@ export function mountSim(container, opts = {}) {
   el.reset = h("button.o-btn.sm.quiet", { type: "button", onclick: () => resetMemory() }, TEXT.reset);
   el.install = h("button.o-btn.sm", { type: "button", onclick: () => installThis() }, TEXT.install);
   el.load = h("button.o-btn.sm", { type: "button", onclick: () => loadFromDevice() }, TEXT.load);
+  el.save = h("button.o-btn.sm", { type: "button", onclick: () => saveToFile() }, TEXT.saveFile);
+  el.loadf = h("button.o-btn.sm", { type: "button", onclick: () => el.file.click() }, TEXT.loadFile);
+  el.file = h("input", { type: "file", accept: ".optimist-backup,application/octet-stream", style: "display:none",
+    onchange: () => { const f = el.file.files && el.file.files[0]; el.file.value = ""; if (f) loadFromFile(f); } });
   let themeIx = 0;
   try { const v = THEMES.findIndex((t) => t.name === localStorage.getItem(THEME_KEY)); if (v >= 0) themeIx = v; } catch (e) { /* no storage */ }
   el.theme = h("select.oi-csearch.os-pick", { "aria-label": TEXT.themeLabel, onchange: () => applyTheme(el.theme.selectedIndex) },
@@ -185,7 +191,7 @@ export function mountSim(container, opts = {}) {
   const root = h("div.os", {},
     h("header", {}, h("h1.oi-title", {}, TEXT.title), TEXT.what ? h("p.oi-what", {}, TEXT.what) : null),
     h("div.os-bar", {}, h("label.o-field", {}, h("span", {}, TEXT.build), el.pick),
-      h("label.o-field", {}, h("span", {}, TEXT.themeLabel), el.theme), el.power, el.load, el.install, el.reset),
+      h("label.o-field", {}, h("span", {}, TEXT.themeLabel), el.theme), el.power, el.save, el.loadf, el.load, el.install, el.reset, el.file),
     el.status,
     el.stage,
     h("p.o-dim.os-help", {}, TEXT.keysHelp, " ", TEXT.shared));
@@ -331,6 +337,44 @@ export function mountSim(container, opts = {}) {
     if (was) await start();
   }
   function confirmReset() { return typeof window === "undefined" || window.confirm(TEXT.resetAsk); }
+  /* a backup client talking to the running simulator over its own virtual port (the worklet's MIDI in and out) */
+  function simBkClient() {
+    const c = bkClient((bytes) => engine && engine.post({ type: "midi", data: bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes) }));
+    st.midiTap = (msg) => c.feed(msg);
+    return c;
+  }
+  function download(name, bytes) {
+    const url = URL.createObjectURL(new Blob([bytes], { type: "application/octet-stream" }));
+    const a = Object.assign(document.createElement("a"), { href: url, download: name });
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  /* Save to file: the simulator's whole memory as a backup file (the editor's format, so a real FM-1 restores it too) */
+  async function saveToFile() {
+    if (!engine) { say(TEXT.loadNeedsRun, "err"); return; }
+    el.save.disabled = true; say(TEXT.saving);
+    try {
+      const bytes = await bkReadToFile(simBkClient(), { product: "Optimist", simulator: true });
+      st.midiTap = null;
+      const b = current();
+      const name = `${(b && b.id ? b.id : "optimist")}-${new Date().toISOString().slice(0, 10)}.optimist-backup`;
+      download(name, bytes);
+      say(TEXT.savedFile, "ok");
+    } catch (e) { st.midiTap = null; say(TEXT.saveFail + (e && e.message || e), "err"); }
+    el.save.disabled = false;
+  }
+  /* Load file: restore a backup file (from the editor, a real FM-1, or a saved sim) into the running simulator */
+  async function loadFromFile(f) {
+    if (!engine) { say(TEXT.loadNeedsRun, "err"); return; }
+    el.loadf.disabled = true; say(TEXT.loadingFile);
+    try {
+      const file = bkUnpackFile(new Uint8Array(await f.arrayBuffer()));
+      const r = await bkWriteFromFile(simBkClient(), file, (p) => say(p.tag ? `${TEXT.loadDoing} ${p.tag} (${p.done + 1}/${p.total})` : TEXT.loadFinishing));
+      st.midiTap = null;
+      say(`${TEXT.loadedFile} ${r.done}${r.skipped.length ? ` (${r.skipped.length} ${TEXT.loadSkipped})` : ""}.`, "ok");
+    } catch (e) { st.midiTap = null; say(TEXT.loadFileFail + (e && e.message || e), "err"); }
+    el.loadf.disabled = false;
+  }
   /* "Load from FM-1": read the real device's whole user memory (projects, presets, kits, samples) over Web MIDI and
      restore it into the running simulator. The sim restarts on the restored memory. The device is only read. */
   async function loadFromDevice() {

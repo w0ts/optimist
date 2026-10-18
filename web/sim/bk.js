@@ -78,6 +78,66 @@ export async function writeObject(c, obj, data) {
 /* END (command 48): 1 = restart on the restored memory, 0 = stay. The device reboots on 1 (the sim ends its run) */
 export async function end(c, restart) { return c.request(CMD.END, [restart ? 1 : 0]).catch(() => null); }
 
+/* the backup file format (web/editor.html backupFile / readBackupFile): "OPTBKUP" 0x01, u32 LE header length, a JSON
+   header {format, version, created, device, objects:[{tag, kind, fm6, len, crc, at}]}, the objects' bytes, u32 LE CRC-32
+   of all before it. Interchangeable with the editor's and the real device's backups. */
+const FILE_MAGIC = [0x4F, 0x50, 0x54, 0x42, 0x4B, 0x55, 0x50, 0x01];
+const KINDS = ["st", "usr", "fm6", "sec", "prj", "log", "snp"];
+
+export function packFile(objects, device = {}, created = new Date().toISOString()) {
+  let at = 0;
+  const hdr = { format: "optimist-backup", version: 1, created, device,
+    objects: objects.map((o) => { const x = { tag: o.tag, kind: o.kind, fm6: !!o.fm6, len: o.data.length, crc: crc32(o.data), at }; at += o.data.length; return x; }) };
+  const h = new TextEncoder().encode(JSON.stringify(hdr));
+  const out = new Uint8Array(12 + h.length + at + 4), dv = new DataView(out.buffer);
+  out.set(FILE_MAGIC, 0); dv.setUint32(8, h.length, true); out.set(h, 12);
+  let p = 12 + h.length;
+  for (const o of objects) { out.set(o.data, p); p += o.data.length; }
+  dv.setUint32(p, crc32(out.subarray(0, p)), true);
+  return out;
+}
+
+export function unpackFile(bytes) {
+  const b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  if (b.length < 16 || FILE_MAGIC.some((c, i) => b[i] !== c)) throw new Error("not an Optimist backup file");
+  const dv = new DataView(b.buffer, b.byteOffset, b.length), n = dv.getUint32(8, true), end = b.length - 4;
+  if (12 + n > end || dv.getUint32(end, true) !== crc32(b.subarray(0, end))) throw new Error("the backup file is damaged (CRC)");
+  const hdr = JSON.parse(new TextDecoder().decode(b.subarray(12, 12 + n)));
+  if (!hdr || hdr.format !== "optimist-backup" || hdr.version !== 1 || !Array.isArray(hdr.objects)) throw new Error("not an Optimist backup file");
+  const base = 12 + n;
+  const objects = hdr.objects.map((o) => {
+    if (base + o.at + o.len > end) throw new Error("the backup file is cut short");
+    const data = Array.from(b.slice(base + o.at, base + o.at + o.len));
+    if (crc32(data) !== o.crc) throw new Error(`object ${o.tag}: CRC`);
+    return { tag: String(o.tag), kind: KINDS.includes(o.kind) ? o.kind : "st", fm6: !!o.fm6, data };
+  });
+  return { device: hdr.device || {}, created: hdr.created, objects };
+}
+
+/* read every non-empty object from a device/sim client into a backup file (bytes) */
+export async function readToFile(c, device) {
+  const objs = (await listObjects(c)).filter((o) => o.len > 0);
+  const objects = [];
+  for (const obj of objs) objects.push({ tag: obj.tag, kind: KINDS[obj.kind] || "st", fm6: !!(obj.flags & 0x01), data: await readObject(c, obj) });
+  return packFile(objects, device);
+}
+
+/* write a backup file's objects into a device/sim client (matched to its current objects by tag), then END(restart).
+   Objects the build does not have or refuses are skipped. onProgress({tag,done,total}). */
+export async function writeFromFile(c, file, onProgress) {
+  const have = await listObjects(c);
+  const items = file.objects.map((o) => ({ o, d: have.find((x) => x.tag === o.tag) })).filter((x) => x.d);
+  let done = 0;
+  const skipped = file.objects.filter((o) => !have.some((x) => x.tag === o.tag)).map((o) => o.tag);
+  for (const { o, d } of items) {
+    onProgress && onProgress({ tag: o.tag, done, total: items.length });
+    try { await writeObject(c, { i: d.i, tag: o.tag }, o.data); done++; } catch (e) { skipped.push(o.tag); }
+  }
+  onProgress && onProgress({ tag: "", done, total: items.length });
+  await end(c, true);
+  return { done, skipped };
+}
+
 /* read every writable object from `src` and write it into `dst` (two clients), then END(restart) on dst.
    onProgress({ tag, done, total }) is called as it goes. Objects a device cannot give or take are skipped. */
 export async function transfer(src, dst, onProgress) {
