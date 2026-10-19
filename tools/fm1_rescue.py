@@ -176,11 +176,14 @@ def load_package(path):
         raw = open(path, "rb").read()
     except OSError as e:
         raise Fail(f"cannot read {path}: {e.strerror}")
+    digest = hashlib.sha256(raw).hexdigest()
     try:
         product = fm1_install.product_of(raw)
         if not re.fullmatch(r"FM-1_\d+", product):
             raise Fail(f"{path}: not an FM-1 package (identity {product!r})")
-        bad = fm1_install.package_damage(fm1_install.logical_image(raw))
+        # M-VAVE's V15 is known by its whole hash: its USR entry fails the per-file CRC as package_damage
+        # computes it (2026-10-17, the file from m-vave.com, sha256 STOCK_SHA256), so that check is for the rest
+        bad = None if digest == STOCK_SHA256 else fm1_install.package_damage(fm1_install.logical_image(raw))
     except fm1_install.InstallError as e:
         raise Fail(f"{path}: not an FM-1 package ({e})")
     if bad:
@@ -188,7 +191,6 @@ def load_package(path):
     flash = package_flash_image(raw)
     if len(flash) != APP_END:
         raise Fail(f"{path}: the flash entry is {len(flash):#x} B, expected {APP_END:#x}")
-    digest = hashlib.sha256(raw).hexdigest()
     return Package(os.path.abspath(path), product, digest, flash, package_chip_key(flash), digest == STOCK_SHA256)
 
 
