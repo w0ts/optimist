@@ -591,7 +591,19 @@ static void dest_help_tests(void)
     str_cpy(want + str_len(want), track_desc(TSEL, P_E4)->label, sizeof want - str_len(want));
     check(r < SCR->rows() && code && !strncmp(b, want, str_len(want)), "a DEST on an engine value: the help line names the engine and the value (\"ANALOG CUT - ...\")");
     TSEL->p[P_L1DA] = LT_PIT;
-    check(!hl_dest(b), "... a DEST on PIT: the table's own line");
+    check(hl_dest(b) && !strcmp(b + str_len(trk_tag(song.sel % NTRK)), " PIT - Pitch of every voice"),
+          "... a DEST on PIT: the track and \"PIT - Pitch of every voice\" (2026-10-19: no more \"What LFO moves\")");
+    TSEL->p[P_L1DA] = LT_PAN;
+    check(hl_dest(b) && strstr(b, "Stereo position") != 0, "... on PAN: SENDS' line (the names left out: too wide for the band)");
+    TSEL->p[P_L1DA] = LT_ATK;
+    check(hl_dest(b) && strstr(b, " ATK - Attack") != 0, "... on ATK: ENV's line");
+    TSEL->p[P_L1DA] = LT_INS1;
+    check(hl_dest(b) && b[0] && !strstr(b, "What LFO"), "... on INS1: the slot and the type it holds (or empty), or the type's line");
+    TSEL->p[P_L1DA] = LT_RES;
+    code = hl_dest(b);
+    check(lo_res(e) >= 8u || (code && !strncmp(b, e->name, str_len(e->name))), "... on RES: the engine's own resonance value");
+    TSEL->p[P_L1DA] = LT_OFF;
+    check(!hl_dest(b), "... OFF: the table's own line");
     TSEL->p[P_L1DA] = keep;
     go_home();
 #endif

@@ -114,45 +114,16 @@ static uint32_t hl_text(void)
     }
     return hl.off;
 }
-/* a modulation DEST naming one of the engine's values (LT_E1 .. LT_E8: LFO, LFO 2, ENV2 DEST's slots) says which engine and
- * which value it moves (the user, 2026-10-18: "if in the help bottom line it could say the destination engine and param
- * name"): "ANALOG CUT - Filter cutoff", the engine's own line for that value after the dash while the whole fits the
- * band (else the names alone) -> b (64 bytes); 0: not such a DEST (the table's line stays) */
-#define HL_DEST_ON (1u << 16)                   /* hl_dest's result: a DEST found (never 0), the engine and value under it */
-static uint32_t hl_dest(char *b)
-{
-    cell_t c;
-    const engine_t *e = ENGINES[TSEL->eng_req % NENGINES];
-    const param_desc_t *d;
-    char t[PH_LINE];
-    uint32_t o, v, n;
-    if (glo_cycle() || hl_menu())
-        return 0;
-    SCREENS[ui.scr % SCR_N].cell(ui.row[ui.scr], hl.k, &c);
-    if (!c.d || c.d->names != N_LT || !c.vp || *c.vp < LT_E1 || *c.vp > LT_E8)
-        return 0;
-    v = (uint32_t)(*c.vp - LT_E1);
-    d = track_desc(TSEL, P_E0 + v);
-    str_cpy(b, e->name, 64);
-    n = str_len(b);
-    b[n++] = ' ';
-    str_cpy(b + n, d->label, 64 - n);
-    o = ph_find(PH_ENG, e->name, d->label);
-    if (o) {
-        n = str_len(b);
-        str_cpy(b + n, " - ", 64 - n);
-        str_cpy(b + n + 3u, ph_text(o, t), 64 - n - 3u);
-        if (text_w(&FONT_S, b) > 232)
-            b[n] = 0;                                   /* (too wide for the band: the names alone) */
-    }
-    return HL_DEST_ON | (uint32_t)TSEL->eng_req << 8 | v;
-}
-/* where an automated value's change comes from (the user, 2026-10-18: "when on a automated parameter to know in the
- * bottom line where autom/plock/mod come from"): the sources acting on cell c's value now, as words into b (64 bytes), each
- * a bit of the result (0: none). A synth part's value: LOCK (a lock in force, auto_base.c lk_param), MOTION (moved by a
- * hold, motion_active), the modulation slots aimed at it (LFO A / B, LFO2 A / B, ENV2 A / B: their DEST its LT_*, or FLT
- * SHP on the engine's cutoff and shape cards; an AMT 0 slot does nothing), ENV1 (an ENV 1 MOD card moving it), MACRO (a
- * macro off home changes it). A drum lane's value: LOCK MOTION (dla), its LFO, LFO 2, ENV2 slots */
+/* a modulation DEST says what it moves, whatever it is (the user, 2026-10-18: "if in the help bottom line it could say
+ * the destination engine and param name"; 2026-10-19: only E1..E8 did, every other DEST kept "What LFO moves (slot A)"):
+ *   an engine value   E1..E8, RES, FLT SHP on the engine's cutoff / shape card: "ANALOG CUT - Filter cutoff"
+ *   an insert slot    INS1 INS2: "T1 S1 FILT - Filter insert: low/high cut" ("T1 S1 empty")
+ *   a part's value    PAN LVL ATK .. L2 AMT, PIT AMP: "T1 PAN - Stereo position of the track"
+ *   a drum lane's     DEST DEST2 of its LFO, LFO 2, ENV2: "KICK TUNE - Drum tune"
+ * the line after the dash while the whole fits the band (else the names alone) -> b (64 bytes); 0: not a DEST, or OFF
+ * (the table's line stays) */
+#define HL_DEST_ON (1u << 16)                   /* hl_dest's result: a DEST found (never 0), a hash of its line under it */
+/* word w after b's words (b: 64 bytes; hl_dest's names, hl_src's sources) */
 static void hl_word(char *b, const char *w)
 {
     uint32_t n = str_len(b);
@@ -160,6 +131,119 @@ static void hl_word(char *b, const char *w)
         b[n++] = ' ';
     str_cpy(b + n, w, 64 - n);
 }
+/* the line of a part's own value as a DEST (PAN .. L2 AMT), as its page says it, into t; 0: none */
+static const char *hl_lt_line(int32_t d, char *t)
+{
+    const char *pg = 0, *lb = N_LT[d];
+    uint32_t o;
+    switch (d) {
+    case LT_PIT: return "Pitch of every voice";
+    case LT_FLT: return "Cutoff of every voice";    /* (an engine with no cutoff card) */
+    case LT_SHP: return "Shape of every voice";
+    case LT_AMP: return "Level of every voice";
+    case LT_L1AMT: return "Both of LFO's AMTs";
+    case LT_L2AMT: return "Both of LFO 2's AMTs";
+    case LT_N1AMT: return "Both of ENV 1's AMTs";
+    case LT_N2AMT: return "Both of ENV 2's AMTs";
+    case LT_ATK: case LT_DEC: case LT_SUS: case LT_REL: pg = "ENV"; break;
+    case LT_ATK2: case LT_DEC2: case LT_SUS2: case LT_REL2: pg = "ENV2"; break;
+    case LT_PAN: case LT_CHO: case LT_DLY: case LT_REV: pg = "SENDS"; break;
+    case LT_LVL: pg = "LEVEL"; break;
+    case LT_L1RT: pg = "LFO", lb = "RATE"; break;
+    case LT_L2RT: pg = "LFO 2", lb = "RATE"; break;
+    case LT_OSC2: pg = "OSC 2", lb = "SEMI"; break;
+    case LT_SDTN: pg = "SWARM"; break;
+    default: return 0;
+    }
+    o = ph_find(PH_PAGE, pg, lb);
+    return o ? ph_text(o, t) : 0;
+}
+/* the names (engine and value, or track / lane and value) -> b, the line of the value -> t (0: none) */
+static const char *hl_dest_names(const cell_t *c, char *b, char *t)
+{
+    const track_t *k = TSEL;
+    const engine_t *e = ENGINES[k->eng_req % NENGINES];
+    int32_t d = *c->vp, q = -1;
+    uint32_t o, n;
+#if LANE_LFO_UI
+    if (c->d->names == N_DLDEST) {                      /* a drum lane's: its value on SOUND / SOUND 2 */
+        str_cpy(b, lane_name(lane_selected()), 64);
+        hl_word(b, N_DLDEST[d % (DE_N + 1u)]);
+        o = ph_find(PH_PAGE, d <= 4 ? "SOUND" : "SOUND 2", N_DLDEST[d % (DE_N + 1u)]);
+        return o ? ph_text(o, t) : 0;
+    }
+#endif
+    if (d >= LT_E1 && d <= LT_E8)
+        q = (int32_t)P_E0 + d - LT_E1;
+    else if (d == LT_RES && lo_res(e) < 8u)
+        q = (int32_t)(P_E0 + lo_res(e));
+    else if (d == LT_FLT || d == LT_SHP)
+        q = effv_dest(k, d == LT_SHP);
+    if (q >= 0) {                                       /* an engine value: the engine's name and its own */
+        const param_desc_t *v = track_desc(k, (uint32_t)q);
+        str_cpy(b, e->name, 64);
+        hl_word(b, v->label);
+        o = ph_find(PH_ENG, e->name, v->label);
+        return o ? ph_text(o, t) : 0;
+    }
+    str_cpy(b, trk_tag(song.sel % NTRK), 64);
+    if (d == LT_INS1 || d == LT_INS2) {                 /* the type the slot holds, as INSERTS says it */
+        uint32_t id = ins_amt(song.sel % NTRK, (uint32_t)(d - LT_INS1));
+        hl_word(b, d == LT_INS1 ? "S1" : "S2");
+        hl_word(b, id < P_COUNT ? TP[id].label : "empty");
+        o = id < P_COUNT ? ph_find(PH_PAGE, "INSERTS", TP[id].label) : 0;
+        return o ? ph_text(o, t) : 0;
+    }
+    n = str_len(b);
+    b[n++] = ' ';
+    lt_text(c->d, d, b + n);
+    return hl_lt_line(d, t);
+}
+static uint32_t hl_dest(char *b)
+{
+    cell_t c;
+    char t[PH_LINE];
+    const char *l;
+    uint32_t n, h = 0x811Cu;
+    if (glo_cycle() || hl_menu())
+        return 0;
+    SCREENS[ui.scr % SCR_N].cell(ui.row[ui.scr], hl.k, &c);
+    if (!c.d || !c.vp || *c.vp <= 0)
+        return 0;                                       /* (OFF: the table's line) */
+#if LANE_LFO_UI
+    if (!(c.d->names == N_LT && *c.vp < LT_N) && !(c.d->names == N_DLDEST && *c.vp <= (int16_t)DE_N))
+#else
+    if (c.d->names != N_LT || *c.vp >= LT_N)
+#endif
+        return 0;
+    b[0] = 0;
+    l = hl_dest_names(&c, b, t);
+    if (l) {
+        char w[64];
+        uint32_t f = 0;
+        n = str_len(b);
+        str_cpy(w, b, sizeof w);
+        str_cpy(w + n, " - ", 64 - n);
+        str_cpy(w + n + 3u, l, 64 - n - 3u);
+        while (w[f] && w[f] != ' ')
+            f++;                                        /* (the first word: the engine, track or lane) */
+        if (text_w(&FONT_S, w) <= 232)
+            str_cpy(b, w, 64);
+        else if (f < n && text_w(&FONT_S, w + f + 1u) <= 232)
+            str_cpy(b, w + f + 1u, 64);                 /* (too wide: without it, "CUT - Filter cutoff") */
+        else if (text_w(&FONT_S, l) <= 232)
+            str_cpy(b, l, 64);                          /* (still: the line alone, the card names the value) */
+    }                                                   /* (else the names alone) */
+    for (n = 0; b[n]; n++)
+        h = (h ^ (uint8_t)b[n]) * 16777619u;
+    return HL_DEST_ON | (h & 0xFFFFu);
+}
+/* where an automated value's change comes from (the user, 2026-10-18: "when on a automated parameter to know in the
+ * bottom line where autom/plock/mod come from"): the sources acting on cell c's value now, as words into b (64 bytes), each
+ * a bit of the result (0: none). A synth part's value: LOCK (a lock in force, auto_base.c lk_param), MOTION (moved by a
+ * hold, motion_active), the modulation slots aimed at it (LFO A / B, LFO2 A / B, ENV2 A / B: their DEST its LT_*, or FLT
+ * SHP on the engine's cutoff and shape cards; an AMT 0 slot does nothing), ENV1 (an ENV 1 MOD card moving it), MACRO (a
+ * macro off home changes it). A drum lane's value: LOCK MOTION (dla), its LFO, LFO 2, ENV2 slots */
 #if !(FELUCCA_MOTION || FELUCCA_PLOCK)
 #define AB_ON(k, id) 0
 #endif

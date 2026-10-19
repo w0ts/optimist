@@ -43,6 +43,20 @@ static void drum_env_tests(void)
         de_synth(&o, d, dl_ofs(2));
         check(o.decay < d->decay && o.click > d->click, "drum ENV: the snare's sound changed (decay shorter, click up)");
     }
+#if FELUCCA_PARAM_HELP && LANE_LFO_UI
+    {   /* the help line on the lane's ENV2 DEST (op_help.c hl_dest, 2026-10-19): the lane, the value, SOUND's line */
+        char b[64];
+        ui.row[SCR_SOUND] = 2;
+        frame();
+        turn(EN_K1, 1);
+        hl.k = 0;
+        check(hl_dest(b) && strstr(b, "TUNE - Drum tune") != 0, "drum ENV2 DEST on TUNE: the help line \"<lane> TUNE - Drum tune\"");
+        turn(EN_K1, -1);
+        check(!hl_dest(b), "... OFF: the table's own line");
+        ui.row[SCR_SOUND] = 0;
+        frame();
+    }
+#endif
     ui.force = 1;
     frame();
     ppm("opt-drum-env-edited");
