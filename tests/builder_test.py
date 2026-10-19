@@ -122,11 +122,11 @@ check("... the thirteen ED_* of before are gone: nine merged into their feature,
 check("... an older .config with a feature's parts all off loads it off, with one of them on it on (a survivor it does not name)",
       C.parse("ED_FXP=0\nED_DLAN=0\nED_SOLO=0\n")[0]["ED_MIX"] == 0 and C.parse("ED_FXP=0\nED_DLAN=1\n")[0]["ED_MIX"] == 1 and
       C.parse("ED_TOOLS=0\n")[0]["ED_SEQ"] == 0 and C.parse("ED_MIX=1\nED_FXP=0\n")[0]["ED_MIX"] == 1)
-check("... the shipped profiles set them only where the slot asks: synth (live editing off) all three off, user-default the screens, x0x-drums all three on",
+check("... the shipped profiles set them only where the slot asks: synth and drum-machine (live editing off) all three off, user-default the screens, x0x-drums all three on",
       {p.stem: sorted(ln.strip() for ln in p.read_text().splitlines() if ln.split("=")[0] in ED) for p in C.PROFILES.glob("*.config")
        if any(ln.split("=")[0] in ED for ln in p.read_text().splitlines())} ==
-      {"synth": ["ED_MIX=0", "ED_SCREENS=0", "ED_SEQ=0"], "user-default": ["ED_SCREENS=0", "ED_SEQ=1"],
-       "x0x-drums": ["ED_MIX=1", "ED_SCREENS=1", "ED_SEQ=1"]})
+      {"synth": ["ED_MIX=0", "ED_SCREENS=0", "ED_SEQ=0"], "drum-machine": ["ED_MIX=0", "ED_SCREENS=0", "ED_SEQ=0"],
+       "user-default": ["ED_SCREENS=0", "ED_SEQ=1"], "x0x-drums": ["ED_MIX=1", "ED_SCREENS=1", "ED_SEQ=1"]})
 _fl, _ = C.flags(dict(C.defaults()))
 check("... the default build has every feature on", all(_fl["FELUCCA_" + k] == 1 for k in ED))
 _fl, _ = C.flags(dict(C.defaults(), ED_MIX=0))

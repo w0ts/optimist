@@ -1,6 +1,6 @@
 {
  "base": {
-  "flash": 678856,
+  "flash": 678852,
   "ram": 83876,
   "pool": 372864,
   "ramtext": 35376
@@ -1361,7 +1361,7 @@
    }
   }
  },
- "measured": "2026-10-19 13:36",
+ "measured": "2026-10-19 14:27",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
@@ -1383,39 +1383,63 @@
  },
  "checks": {
   "drum-machine": {
-   "hash": "37bdef59",
+   "hash": "41ccd025",
    "cfg": {
     "ENG_DIGITAL": 0,
     "ENG_PHASE": 0,
+    "ENG_LOFI": 0,
     "ENG_FORMANT": 0,
     "ENG_TRIO": 0,
     "ENG_DRAWBAR": 0,
     "ENG_FM6": 0,
     "ENG_SLICE": 1,
+    "DRUM_X0X909": 1,
+    "X909_CYM": 0,
+    "DRUM_X0X808": 1,
+    "SET_PIANO": 0,
+    "SET_BASS": 0,
+    "SET_VIBES": 0,
     "SET_HORNS": 0,
     "SET_STRGS": 0,
     "SET_FLUTE": 0,
+    "SET_SCRCH": 0,
+    "DLY_LEN": 32768,
+    "REV_ROOM": 0,
+    "REV_FDN8": 1,
     "PUNCH_N": 16384,
+    "FX_DJF": 0,
+    "FX_DUST": 0,
+    "INS_FUZZ": 1,
     "PATTERNS": 1,
-    "USB_MODE": 1
+    "USB_MODE": 2,
+    "MIDI_EXPR": 0,
+    "MIDI_NOTEOUT": 0,
+    "PARAM_HELP": 1,
+    "EDITOR": 0,
+    "BRIGHT": 0,
+    "SL24_SAFE": 0,
+    "SL24_IMPORT": 0
    },
-   "built_hash": "37bdef59",
+   "built_hash": "27e71907",
    "sizes": {
-    "flash": 612332,
-    "ram": 85716,
-    "pool": 340096,
-    "ramtext": 26500
+    "flash": 516296,
+    "ram": 90300,
+    "pool": 292260,
+    "ramtext": 24580
    }
   },
   "everything-that-fits": {
-   "hash": "2a31df6d",
+   "hash": "237fdde9",
    "cfg": {
     "ENG_TRIO": 0,
+    "SET_VIBES": 0,
+    "SET_HORNS": 0,
     "SET_STRGS": 0,
     "SET_FLUTE": 0,
     "SET_SCRCH": 0,
+    "DLY_LEN": 32768,
     "REV_POOL": 1,
-    "SL_LEN": 2048,
+    "FX_SLICER": 0,
     "PUNCH_N": 16384,
     "FX_DUCK": 0,
     "USB_MODE": 1,
@@ -1424,12 +1448,12 @@
     "ED_LIVE": 0,
     "ENG_CZ": 1
    },
-   "built_hash": "2a31df6d",
+   "built_hash": "599acc42",
    "sizes": {
-    "flash": 614980,
-    "ram": 72404,
-    "pool": 338888,
-    "ramtext": 32540
+    "flash": 554212,
+    "ram": 72340,
+    "pool": 256968,
+    "ramtext": 31796
    }
   },
   "fm-va-studio": {
@@ -1449,14 +1473,14 @@
    },
    "built_hash": "2684a5f7",
    "sizes": {
-    "flash": 602592,
+    "flash": 602584,
     "ram": 84052,
     "pool": 330748,
     "ramtext": 29556
    }
   },
   "synth": {
-   "hash": "022aa5d7",
+   "hash": "34f58194",
    "cfg": {
     "ENG_PHASE": 0,
     "ENG_LOFI": 0,
@@ -1470,7 +1494,6 @@
     "FM6_PK_BELLS": 1,
     "FM6_PK_PADS": 1,
     "FM6_PK_80S": 1,
-    "NATIVE_BANKS": 1,
     "DRUM_SAMPLED": 0,
     "DRUM_USR": 0,
     "DRUM_X0X909": 1,
@@ -1496,23 +1519,30 @@
     "INS_FUZZ": 1,
     "INS_WIDTH": 1,
     "INS_SFOLD": 1,
+    "INS_RECT": 1,
     "INS_HARM": 1,
     "INS_RING": 1,
     "INS_SUBOCT": 1,
+    "INS_SLEW": 1,
+    "INS_TAPE": 1,
+    "INS_SPIT": 1,
     "INS_CHORUS": 1,
     "INS_DELAY": 1,
     "INS_JCHORUS": 2,
     "INS_FLANGER": 1,
     "INS_GATER": 1,
+    "CHORDPLUS": 1,
     "SNAPSHOTS": 8,
     "PATTERNS": 1,
     "USB_MODE": 2,
     "FAVORITES": 0,
     "PARAM_HELP": 1,
+    "LIBRARIAN": 0,
     "ED_LIVE": 0,
     "ED_MIX": 0,
     "ED_SEQ": 0,
     "ED_SCREENS": 0,
+    "TAB_IN_POOL": 1,
     "CPU_GUARD": 1,
     "BLE": 1,
     "BLE_BOND": 1,
@@ -1531,16 +1561,17 @@
     "SL24_XSTEP": 1,
     "SL24_IMPORT": 0,
     "MICRO": 1,
+    "FILLS": 1,
     "PLOCK": 1,
     "COND": 1,
     "SEQTOOLS": 1
    },
-   "built_hash": "773f8fa4",
+   "built_hash": "7cedbc2b",
    "sizes": {
-    "flash": 570752,
-    "ram": 96092,
-    "pool": 302160,
-    "ramtext": 22916
+    "flash": 572052,
+    "ram": 92108,
+    "pool": 310652,
+    "ramtext": 22856
    }
   },
   "user-default": {
@@ -1612,7 +1643,7 @@
    },
    "built_hash": "2460b53e",
    "sizes": {
-    "flash": 578480,
+    "flash": 578464,
     "ram": 93668,
     "pool": 305156,
     "ramtext": 25164
@@ -1643,7 +1674,7 @@
    },
    "built_hash": "76103362",
    "sizes": {
-    "flash": 603336,
+    "flash": 603320,
     "ram": 70956,
     "pool": 334296,
     "ramtext": 26636
@@ -1713,7 +1744,7 @@
    },
    "built_hash": "6c7d5428",
    "sizes": {
-    "flash": 579016,
+    "flash": 579000,
     "ram": 90472,
     "pool": 321636,
     "ramtext": 27256
@@ -1837,7 +1868,7 @@
    },
    "built_hash": "6b5f0888",
    "sizes": {
-    "flash": 539488,
+    "flash": 539456,
     "ram": 90948,
     "pool": 295552,
     "ramtext": 23832
@@ -1913,43 +1944,67 @@
    }
   },
   "drum-machine~": {
-   "hash": "06e90be7",
+   "hash": "4dbe001f",
    "cfg": {
     "ENG_DIGITAL": 0,
     "ENG_PHASE": 0,
+    "ENG_LOFI": 0,
     "ENG_FORMANT": 0,
     "ENG_TRIO": 0,
     "ENG_DRAWBAR": 0,
     "ENG_FM6": 0,
     "ENG_SLICE": 1,
+    "DRUM_X0X909": 1,
+    "X909_CYM": 0,
+    "DRUM_X0X808": 1,
+    "SET_PIANO": 0,
+    "SET_BASS": 0,
+    "SET_VIBES": 0,
     "SET_HORNS": 0,
     "SET_STRGS": 0,
     "SET_FLUTE": 0,
+    "SET_SCRCH": 0,
+    "DLY_LEN": 32768,
+    "REV_ROOM": 0,
+    "REV_FDN8": 1,
     "PUNCH_N": 16384,
+    "FX_DJF": 0,
+    "FX_DUST": 0,
     "TRK_FILT": 1,
+    "INS_FUZZ": 1,
     "INS_HARM": 1,
     "PATTERNS": 1,
-    "USB_MODE": 1,
+    "USB_MODE": 2,
+    "MIDI_EXPR": 0,
+    "MIDI_NOTEOUT": 0,
+    "PARAM_HELP": 1,
     "KNOB_ACCEL": 0,
-    "SPRING": 1
+    "EDITOR": 0,
+    "SPRING": 1,
+    "BRIGHT": 0,
+    "SL24_SAFE": 0,
+    "SL24_IMPORT": 0
    },
-   "built_hash": "06e90be7",
+   "built_hash": "0a77da7d",
    "sizes": {
-    "flash": 614436,
-    "ram": 88132,
-    "pool": 340096,
-    "ramtext": 26344
+    "flash": 520228,
+    "ram": 93180,
+    "pool": 292260,
+    "ramtext": 24884
    }
   },
   "everything-that-fits~": {
-   "hash": "1a5c76eb",
+   "hash": "7fd3750f",
    "cfg": {
     "ENG_TRIO": 0,
+    "SET_VIBES": 0,
+    "SET_HORNS": 0,
     "SET_STRGS": 0,
     "SET_FLUTE": 0,
     "SET_SCRCH": 0,
+    "DLY_LEN": 32768,
     "REV_POOL": 1,
-    "FX_SLICER": 0,
+    "SL_LEN": 2048,
     "PUNCH_N": 16384,
     "FX_DUCK": 0,
     "INS_PHASER": 1,
@@ -1961,12 +2016,12 @@
     "ENG_CZ": 1,
     "DIV_LONG": 0
    },
-   "built_hash": "12c93a34",
+   "built_hash": "7fd3750f",
    "sizes": {
-    "flash": 614096,
-    "ram": 73060,
-    "pool": 322120,
-    "ramtext": 31788
+    "flash": 555280,
+    "ram": 73252,
+    "pool": 272968,
+    "ramtext": 32556
    }
   },
   "fm-va-studio~": {
@@ -1990,14 +2045,14 @@
    },
    "built_hash": "06b7144b",
    "sizes": {
-    "flash": 624348,
+    "flash": 624340,
     "ram": 86436,
     "pool": 340748,
     "ramtext": 26760
    }
   },
   "synth~": {
-   "hash": "2b48bb07",
+   "hash": "3897462c",
    "cfg": {
     "ENG_PHASE": 0,
     "ENG_LOFI": 0,
@@ -2011,7 +2066,6 @@
     "FM6_PK_BELLS": 1,
     "FM6_PK_PADS": 1,
     "FM6_PK_80S": 1,
-    "NATIVE_BANKS": 1,
     "DRUM_SAMPLED": 0,
     "DRUM_USR": 0,
     "DRUM_X0X909": 1,
@@ -2036,25 +2090,30 @@
     "INS_FUZZ": 1,
     "INS_WIDTH": 1,
     "INS_SFOLD": 1,
+    "INS_RECT": 1,
     "INS_HARM": 1,
     "INS_RING": 1,
     "INS_SUBOCT": 1,
-    "INS_SLEW": 1,
+    "INS_TAPE": 1,
+    "INS_SPIT": 1,
     "INS_CHORUS": 1,
     "INS_DELAY": 1,
     "INS_JCHORUS": 2,
     "INS_FLANGER": 1,
     "INS_GATER": 1,
+    "CHORDPLUS": 1,
     "SNAPSHOTS": 8,
     "PATTERNS": 1,
     "USB_MODE": 2,
     "MIDI_NOTEOUT": 0,
     "FAVORITES": 0,
     "PARAM_HELP": 1,
+    "LIBRARIAN": 0,
     "ED_LIVE": 0,
     "ED_MIX": 0,
     "ED_SEQ": 0,
     "ED_SCREENS": 0,
+    "TAB_IN_POOL": 1,
     "CPU_GUARD": 1,
     "BLE": 1,
     "BLE_BOND": 1,
@@ -2073,15 +2132,16 @@
     "SL24_XSTEP": 1,
     "SL24_IMPORT": 0,
     "MICRO": 1,
+    "FILLS": 1,
     "PLOCK": 1,
     "SEQTOOLS": 1
    },
-   "built_hash": "7756b9d4",
+   "built_hash": "57eb6b83",
    "sizes": {
-    "flash": 567788,
-    "ram": 95948,
-    "pool": 302160,
-    "ramtext": 22868
+    "flash": 569656,
+    "ram": 91228,
+    "pool": 310652,
+    "ramtext": 22864
    }
   },
   "user-default~": {
@@ -2155,7 +2215,7 @@
    },
    "built_hash": "08a60216",
    "sizes": {
-    "flash": 576380,
+    "flash": 576348,
     "ram": 96868,
     "pool": 305156,
     "ramtext": 25404
@@ -2188,7 +2248,7 @@
    },
    "built_hash": "2a4e1a30",
    "sizes": {
-    "flash": 604804,
+    "flash": 604788,
     "ram": 70956,
     "pool": 334296,
     "ramtext": 27756
