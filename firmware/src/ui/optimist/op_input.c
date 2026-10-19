@@ -573,12 +573,16 @@ static void op_tap(uint32_t b, uint32_t id)
     else if (b == B_FX && mx_on_usb())
         (void)mx_ut_fx();                               /* (the mixer's USB row: its inserts, op_mixer.c) */
     else if (b == B_SAVE && !op_armed() && fm1_ms - op_t0[id % 14u] >= op_hold_ms()) {
-        if (ui.scr == SCR_PROJECT || ui.scr == SCR_SONG)
+        if (bt_key(B_SAVE, 1))
+            ;                                           /* (SYSTEM > Bluetooth: forget the remembered device, op_global.c) */
+        else if (ui.scr == SCR_PROJECT || ui.scr == SCR_SONG)
             save_hold();                                /* SAVE held alone on PROJECT: SONG; on SONG: PROJECT */
         else
             (void)pk_mute();                            /* STEP, a note picked: muted / not (op_step.c; let go with nothing
                                                          * else used: SAVE then HOME, the undo chord, is no tap) */
     }                                                   /* (held elsewhere: nothing, no YES, as when it was the scenes' layer) */
+    else if (b == B_SAVE && bt_key(B_SAVE, 0))
+        ;                                               /* (SYSTEM > Bluetooth: disconnect, else connect, op_global.c) */
     else if (b == B_SAVE)
         mx_quiet() ? op_enter(SCR_PROJECT) : op_yes();     /* the mixer: PROJECT */
     else if (b == B_HOME) {
@@ -838,6 +842,9 @@ static void op_drain(uint32_t held)
 static void ui_input(void)
 {
     uint32_t pressed = fm1_input_edges(0), notes = fm1_input_note_edges(), held = fm1_in.buttons, id, taps, keys;
+#if FELUCCA_BLE
+    bt_poll();                                          /* SYSTEM > Bluetooth: AUTO at boot, a connect given up (op_bt.c) */
+#endif
     enc_hold = 0;                                       /* (panel.c: every knob readable this pass) */
     if (pressed || notes)
         ui_input_ms = fm1_ms;
@@ -987,11 +994,20 @@ static uint32_t keys_of(uint32_t m)                     /* the white keys of the
             k |= 1u << white_key(w);
     return k;
 }
-/* the window's steps lit (a bit per step): those set (step_shown), the playhead's blinking; *in: those inside LEN */
+/* the playhead's flashes a step while playing (the user, 2026-10-19: "flashes 2 or 4 times per step", aligned with
+ * the bpm): on the track's own grid (seq.c trk_grid: its DIV, the swing), lit for the first half of each */
+#define STEP_FLASHES 4u
+/* the window's steps lit (a bit per step): those set (step_shown), the playhead's blinking (playing: STEP_FLASHES a
+ * step, else the UI's blink); *in: those inside LEN */
 static uint32_t step_win(uint32_t blink, uint32_t *in)
 {
     const track_t *t = tsel();
     uint32_t m = 0, w, len = trk_len(t), at = t->seq_idx % len;
+    if (song.playing) {
+        uint32_t into, slen;
+        (void)trk_grid(t, &into, &slen);
+        blink = slen ? ((into * (2u * STEP_FLASHES) / slen) & 1u) ^ 1u : blink;
+    }
     *in = 0;
     for (w = 0; w < 16u; w++) {
         uint32_t idx = st.page * 16u + w;
