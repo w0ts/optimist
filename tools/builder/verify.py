@@ -141,13 +141,13 @@ def random_sources(rng):
     return cfg
 
 
-def kits_sound(cfg, samples=None):
+def kits_sound(cfg, samples=None, tag="kits"):
     """every drum kit the configuration builds makes sound: tests/kits_sound_test.c (each lane of each kit hit alone
     through drums_render) with this configuration's header; a switch that silences a kit's path fails (the X0X kits
     under the mixer glides did). samples: a directory with this configuration's felucca_samples.h (preset_cover makes one),
-    else build/gen's"""
-    hdr = ROOT / "build" / "host" / "cfg_kits.h"
-    exe = ROOT / "build" / "host" / "kits_sound_cfg"
+    else build/gen's. tag: its files' names (several at once: tests/builder_test.py)"""
+    hdr = ROOT / "build" / "host" / f"cfg_{tag}.h"
+    exe = ROOT / "build" / "host" / f"kits_sound_{tag}"
     hdr.parent.mkdir(parents=True, exist_ok=True)
     hdr.write_text(C.header(cfg, "kits"))
     inc = [f"-I{samples}"] if samples else []

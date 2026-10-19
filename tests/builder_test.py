@@ -293,22 +293,33 @@ cover_cases = [(p, C.load_profile(p)[0]) for p in C.profile_names()] + [
 rng = random.Random(int(os.environ.get("PRESET_COVER_SEED", "1")))
 cover_cases += [(f"random {i}", V.random_sources(rng)) for i in range(int(os.environ.get("PRESET_COVER_N", "12")))]
 if shutil.which("cc"):
-    built_n = refused = 0
-    for what, cfg in cover_cases:
-        if C.validate(cfg)[0]:
-            refused += 1                              # (validate() refuses it: never built)
-            continue
-        ok, out = V.preset_cover(cfg)
-        built_n += 1
+    from concurrent.futures import ThreadPoolExecutor  # noqa: E402
+
+    def cover_one(n, what, cfg):
+        """one case, its own files (cover_<n>): -> (preset cover ok, its output, kits heard ok or None, its output)"""
+        ok, out = V.preset_cover(cfg, f"cover_{n}")
+        if not ok or what.startswith("random") or not (ROOT / "build" / "gen").exists():
+            return ok, out, None, ""
+        # (the named cases: every kit on that list also makes sound, each lane hit alone: kits_sound_test.c)
+        return (ok, out, *V.kits_sound(cfg, ROOT / "build" / "host" / f"gen_cover_{n}", f"kits_{n}"))
+
+    if not (ROOT / "build" / "gen-host" / "felucca_tables.h").exists():   # (preset_cover's headers: once, not by every case)
+        import subprocess  # noqa: E402
+        subprocess.run([sys.executable, "tools/build.py", "--host-headers"], cwd=ROOT, capture_output=True)
+    built = [(n, what, cfg) for n, (what, cfg) in enumerate(cover_cases) if not C.validate(cfg)[0]]
+    refused = len(cover_cases) - len(built)              # (validate() refuses them: never built)
+    # each case compiles and runs two programs (~2.5 s): all at once, JOBS of them (run_tests.sh's; else every CPU)
+    with ThreadPoolExecutor(int(os.environ.get("JOBS") or os.cpu_count() or 4)) as pool:
+        results = list(pool.map(lambda c: cover_one(*c), built))
+    for (n, what, cfg), (ok, out, kok, kout) in zip(built, results):
         if not ok:
             print(f"preset cover: {what}: " + C.dump(cfg, what).replace("\n", " ") + "\n" + out)
         check(f"a preset per engine, a kit per drum source: {what}", ok)
-        if ok and not what.startswith("random") and (ROOT / "build" / "gen").exists():
-            # (the named cases: every kit on that list also makes sound, each lane hit alone: kits_sound_test.c)
-            ok, out = V.kits_sound(cfg, ROOT / "build" / "host" / "gen_cover")
-            if not ok:
-                print(out)
-            check(f"... and every kit of it is heard: {what}", ok)
+        if kok is not None:
+            if not kok:
+                print(kout)
+            check(f"... and every kit of it is heard: {what}", kok)
+    built_n = len(built)
     check(f"... {built_n} configurations checked, {refused} refused by validate()", built_n >= 10)
     if (ROOT / "build" / "gen").exists():
         # verify.goldens' regress binary compiles with a configuration's header (it raised NameError once)
@@ -686,7 +697,7 @@ for n, e in sorted(built_checks.items()):
 
 def gate_configs():
     """-> [(name, cfg)] the configurations prepare_tests builds (tools/optimist.py): the defaults, then the check
-    configurations (check_builds; the BLE test builds, optimist.py ble_test_configs, among them)"""
+    configurations (optimist.py prepare_tests; the BLE test builds, optimist.py ble_test_configs, among them)"""
     return [("defaults (the base)", C.defaults())] + sorted(MC.check_configs().items())
 
 

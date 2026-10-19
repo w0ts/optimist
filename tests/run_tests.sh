@@ -606,20 +606,21 @@ job; ( jobin
     # the ring to the audio interrupt masks no interrupt: seq/ednote.c has one writer and one reader (no cli / sti, no fm1_irq_*, no IRQ_SAVE)
     if grep -nE "fm1_irq_|IRQ_SAVE|IRQ_RESTORE|__asm__ volatile\(\"(cli|sti)" firmware/src/seq/ednote.c | grep -v "^[0-9]*:\s*\*\|/\*"; then echo "!! FAILED: seq/ednote.c masks an interrupt"; : > "$U.fail"; else echo "ednote.c: no interrupt masked (the ISR path takes the ring only)  ok"; fi
 ) >"$U.out" 2>&1 & jobbg
-job; ( jobin
-    for off in "-DFELUCCA_ED_UNDO=0" "-DFELUCCA_ED_NOTE=0" "-DFELUCCA_ED_SOLO=0" "-DFELUCCA_ED_STEPLANE=0" "-DFELUCCA_ED_UNDO=0 -DFELUCCA_ED_NOTE=0 -DFELUCCA_ED_SOLO=0 -DFELUCCA_ED_STEPLANE=0"; do
+# (each variant a unit of its own, 2026-10-19: in one unit they ran one after another, the run's tail on a 112-CPU host)
+for off in "-DFELUCCA_ED_UNDO=0" "-DFELUCCA_ED_NOTE=0" "-DFELUCCA_ED_SOLO=0" "-DFELUCCA_ED_STEPLANE=0" "-DFELUCCA_ED_UNDO=0 -DFELUCCA_ED_NOTE=0 -DFELUCCA_ED_SOLO=0 -DFELUCCA_ED_STEPLANE=0"; do
+    job; ( jobin
         n=$(echo "$off" | tr -c 'A-Z\n' '_' | tr -s '_')
         $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -DFELUCCA_MICRO=1 -DFELUCCA_FILLS=1 -DFELUCCA_PLOCK=1 -DFELUCCA_CHANCE=1 -DFELUCCA_MOTION=1 -DFELUCCA_COND=1 $off -o "$OUT/editor_v14off$n" tests/editor_sync_test.c -lm
         run "editor protocol v14 with items left out ($off): no command, no INFO tag, the rest as before" "$OUT/editor_v14off$n"
-    done
-) >"$U.out" 2>&1 & jobbg
-job; ( jobin
-    for off in "-DFELUCCA_ED_FXP=0" "-DFELUCCA_ED_DLAN=0" "-DFELUCCA_ED_SONG=0" "-DFELUCCA_ED_FAVS=0" "-DFELUCCA_ED_FXP=0 -DFELUCCA_ED_DLAN=0 -DFELUCCA_ED_SONG=0 -DFELUCCA_ED_FAVS=0"; do
+    ) >"$U.out" 2>&1 & jobbg
+done
+for off in "-DFELUCCA_ED_FXP=0" "-DFELUCCA_ED_DLAN=0" "-DFELUCCA_ED_SONG=0" "-DFELUCCA_ED_FAVS=0" "-DFELUCCA_ED_FXP=0 -DFELUCCA_ED_DLAN=0 -DFELUCCA_ED_SONG=0 -DFELUCCA_ED_FAVS=0"; do
+    job; ( jobin
         n=$(echo "$off" | tr -c 'A-Z\n' '_' | tr -s '_')
         $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $off -o "$OUT/editor_off$n" tests/editor_sync_test.c -lm
         run "editor protocol v13 with items left out ($off): no command, no INFO tag, the rest as before" "$OUT/editor_off$n"
-    done
-) >"$U.out" 2>&1 & jobbg
+    ) >"$U.out" 2>&1 & jobbg
+done
 mkdir -p "$OUT/nochord"   # (its screens apart: the STEP page without the chord names)
 mkdir -p "$OUT/nb"
 
@@ -678,17 +679,18 @@ job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_MICRO=1 -DFELUCCA_FILLS=1 -DFELUCCA_PLOCK=1 -DFELUCCA_CHANCE=1 -DFELUCCA_MOTION=1 -DFELUCCA_COND=1 -DFELUCCA_SEQTOOLS=1 -DEDSTL_GOLDEN=1 $SEC4 -o "$OUT/ui_optimist_stl_test" tests/ui_optimist_test.c -lm
     run "Optimist UI with the automation store whole: the editor's STEPLANE lists equal the device's lock pages (hp_locks / lock_param) and tests/steplane_table.json, the web mock's data; locks, KIND, the extras, a drum lane's level" "$OUT/ui_optimist_stl_test" "$OUT/optimist-stl"
 ) >"$U.out" 2>&1 & jobbg
-job; ( jobin
-    mkdir -p "$OUT/optimist-edoff"
-    for off in "-DFELUCCA_ED_SCRN=0" "-DFELUCCA_ED_SCRS=0" "-DFELUCCA_ED_SCOPE=0" "-DFELUCCA_ED_SCRN=0 -DFELUCCA_ED_SCRS=0 -DFELUCCA_ED_SCOPE=0" "-DFELUCCA_ED_SOLO=0"; do
+for off in "-DFELUCCA_ED_SCRN=0" "-DFELUCCA_ED_SCRS=0" "-DFELUCCA_ED_SCOPE=0" "-DFELUCCA_ED_SCRN=0 -DFELUCCA_ED_SCRS=0 -DFELUCCA_ED_SCOPE=0" "-DFELUCCA_ED_SOLO=0"; do
+    job; ( jobin   # (a unit each, its screens in a folder of its own)
         n=$(echo "$off" | tr -c 'A-Z\n' '_' | tr -s '_')
+        mkdir -p "$OUT/optimist-edoff$n"
         $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $BP23_ON -DFELUCCA_CDC=1 -DFELUCCA_BRIGHT=1 -DEDSCRN_GOLDEN=1 $SEC4 $off -o "$OUT/ui_optimist_edoff$n" tests/ui_optimist_test.c -lm
-        run "Optimist UI with editor items left out ($off): no command, no INFO tag, every other test as before" "$OUT/ui_optimist_edoff$n" "$OUT/optimist-edoff"
-    done
-    for off in "-DFELUCCA_ED_TOOLS=0"; do
-        $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_MICRO=1 -DFELUCCA_FILLS=1 -DFELUCCA_PLOCK=1 -DFELUCCA_CHANCE=1 -DFELUCCA_MOTION=1 -DFELUCCA_COND=1 -DFELUCCA_SEQTOOLS=1 $SEC4 $off -o "$OUT/ui_optimist_edofftools" tests/ui_optimist_test.c -lm
-        run "Optimist UI with the editor's TOOLS left out ($off)" "$OUT/ui_optimist_edofftools" "$OUT/optimist-edoff"
-    done
+        run "Optimist UI with editor items left out ($off): no command, no INFO tag, every other test as before" "$OUT/ui_optimist_edoff$n" "$OUT/optimist-edoff$n"
+    ) >"$U.out" 2>&1 & jobbg
+done
+job; ( jobin
+    mkdir -p "$OUT/optimist-edofftools"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_MICRO=1 -DFELUCCA_FILLS=1 -DFELUCCA_PLOCK=1 -DFELUCCA_CHANCE=1 -DFELUCCA_MOTION=1 -DFELUCCA_COND=1 -DFELUCCA_SEQTOOLS=1 $SEC4 -DFELUCCA_ED_TOOLS=0 -o "$OUT/ui_optimist_edofftools" tests/ui_optimist_test.c -lm
+    run "Optimist UI with the editor's TOOLS left out (-DFELUCCA_ED_TOOLS=0)" "$OUT/ui_optimist_edofftools" "$OUT/optimist-edofftools"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_MICRO=1 -DFELUCCA_FILLS=1 -DFELUCCA_PLOCK=1 -DFELUCCA_CHANCE=1 $SEC4 -o "$OUT/ui_optimist_sx_test" tests/ui_optimist_test.c -lm
