@@ -289,9 +289,10 @@ async function editorFM6Engine() {
   const pb = src.slice(src.indexOf("FM6_PRESETS[] = {"), src.indexOf("};", src.indexOf("FM6_PRESETS[] = {")));
   const presets = [...pb.matchAll(/\{"([^"]+)", \{([^}]*)\}, \{([^}]*)\}, (-?\d+), (\d), FX/g)].map((x) => ({ name: x[1],
     e: x[2].split(",").map(Number), env: x[3].split(",").map(Number), mono: +x[5] }));
-  ok(nv && packs.length === 5 && eq(fm6v, ["INIT VOICE"]) && edit.length === 8 && edit.slice(1).every((x) => x.label === "-" && x.min === 0 && x.max === 0)
+  ok(nv && packs.length === 5 && eq(fm6v, ["INIT VOICE"]) && edit.length === 8 && edit.slice(1, 5).every((x) => x.label === "-" && x.min === 0 && x.max === 0)
+    && eq(edit.slice(5).map((x) => x.label), ["LPF", "RES", "HPF"]) && edit.slice(5).every((x) => x.min === 0 && x.max === 127)
     && presets.length === 3 && !/N_FM6ENG/.test(src) && !/"ENGINE"/.test(eb),
-    "FM6: eng_fm6.c parsed (VOICE = INIT VOICE + 5 packs when built, 7 \"-\" parameters, 3 presets, no ENGINE modes)");
+    "FM6: eng_fm6.c parsed (VOICE = INIT VOICE + 5 packs when built, 4 \"-\" parameters, LPF RES HPF, 3 presets, no ENGINE modes)");
 
   const { rq, done } = attachMock({});
   const C = E.CMD, info = E.parse[C.INFO](await rq(E.req.info()));
@@ -303,7 +304,7 @@ async function editorFM6Engine() {
     && d.max === edit[i].max && d.def === edit[i].def && (edit[i].names ? eq(d.names, edit[i].names) : true)),
     "FM6: engine 10, the mock's DESC == ENG_FM6 (a build with no packs: VOICE INIT VOICE, 0..0)");
   const nm = E.parse[C.NAMES](await rq(E.req.names(fm6)));
-  ok(eq(nm.names, presets.map((p) => p.name)) && eq(nm.titles, titles) && eq(titles, ["PATCH", "-"]), "FM6: preset names and page titles == eng_fm6.c");
+  ok(eq(nm.names, presets.map((p) => p.name)) && eq(nm.titles, titles) && eq(titles, ["PATCH", "FILT"]), "FM6: preset names and page titles == eng_fm6.c");
   ok(eq(E.parse[C.NAMES]([4, 0]).names, ["INIT"]) && /ed_str\("INIT", 12\)/.test(readFileSync(new URL("../firmware/src/io/editor/editor.c", import.meta.url), "utf8")),
     "an engine without a playable preset: the Load preset list shows INIT (the device sends it; an empty list too)");
   let same = true;
@@ -1039,12 +1040,12 @@ async function editorFxSlots() {
   const C = E.CMD, T = E.FXT;
   const ef = readFileSync(join(HERE, "../firmware/src/io/editor/ed_fxs.c"), "utf8"), fs = readFileSync(join(HERE, "../firmware/src/fx/fx_slots.c"), "utf8");
   ok(/ED_FX = 86, ED_FX_PUSH = 87/.test(ef) && C.FX === 86 && C.FX_PUSH === 87 && /ed_b\(0x56\)/.test(ef)
-    && /enum \{ FXT_NONE, FXT_DIST, FXT_CHO, FXT_DLY, FXT_REV, FXT_COMP, FXT_FILT,\s+FXT_FOLD, FXT_FUZZ, FXT_PHSR, FXT_FLNG, FXT_FRMT, FXT_WIDE,[^\n]*\n\s+FXT_CHRS, FXT_ECHO,[^\n]*\n\s+FXT_GATE,[^\n]*\n\s+FXT_DUST,[^\n]*\n\s+FXT_JUNO,[^\n]*\n\s+FXT_EQ3,[^\n]*\n\s+FXT_SFLD, FXT_WRAP, FXT_RECT, FXT_HARM, FXT_RING, FXT_SUBO, FXT_SLEW,[^\n]*\n[^\n]*\n\s+FXT_N \}/.test(fs)
+    && /enum \{ FXT_NONE, FXT_DIST, FXT_CHO, FXT_DLY, FXT_REV, FXT_COMP, FXT_FILT,\s+FXT_FOLD, FXT_FUZZ, FXT_PHSR, FXT_FLNG, FXT_FRMT, FXT_WIDE,[^\n]*\n\s+FXT_CHRS, FXT_ECHO,[^\n]*\n\s+FXT_GATE,[^\n]*\n\s+FXT_DUST,[^\n]*\n\s+FXT_JUNO,[^\n]*\n\s+FXT_EQ3,[^\n]*\n\s+FXT_SFLD, FXT_WRAP, FXT_RECT, FXT_HARM, FXT_RING, FXT_SUBO, FXT_SLEW,[^\n]*\n[^\n]*\n[^\n]*\n\s+FXT_TAPE, FXT_SPIT,[^\n]*\n\s+FXT_N \}/.test(fs)
     && T.NONE === 0 && T.DIST === 1 && T.CHO === 2 && T.DLY === 3 && T.REV === 4 && T.COMP === 5 && T.FILT === 6
     && T.FOLD === 7 && T.FUZZ === 8 && T.PHSR === 9 && T.FLNG === 10 && T.FRMT === 11 && T.WIDE === 12
     && T.CHRS === 13 && T.ECHO === 14 && T.GATE === 15 && T.DUST === 16 && T.JUNO === 17 && T.EQ3 === 18
     && T.SFLD === 19 && T.WRAP === 20 && T.RECT === 21 && T.HARM === 22 && T.RING === 23 && T.SUBO === 24 && T.SLEW === 25
-    && E.FXT_NAMES.length === 26,
+    && T.TAPE === 26 && T.SPIT === 27 && E.FXT_NAMES.length === 28,
     "fx slots: commands 86 / 87 and tag 0x56 == ed_fxs.c, the type ids == fx_slots.c FXT_*");
   ok(js(E.fxsLoad([1, 2, 3, 4], 1, 4)) === js([1, 4, 3, 2]) && js(E.fxsLoad([1, 2, 3, 4], 0, 5)) === js([5, 2, 3, 4])
     && js(E.fxsLoad([1, 2, 0, 4], 2, 0)) === js([1, 2, 0, 4]) && js(E.fxsLoad([1, 0, 3, 4], 1, 0)) === js([1, 0, 3, 4])
@@ -1261,14 +1262,17 @@ async function editorFxp() {
   const gsound = scrsGold.ctx.find((c) => c.s === 1 && c.t === 0), gdrum = scrsGold.ctx.find((c) => c.s === 1 && c.t === 3 && c.l === 0);
   const r0 = SR(await rq(E.req.scrsInfo(1, 0, 127)));
   ok(r0.op === 0 && r0.s === 1 && r0.n === gsound.rows.length && r0.name === "SOUND", "scrs: op 0: SOUND of track 1: the device's row count and screen name");
-  const row0 = SR(await rq(E.req.scrsRow(1, 0, 127, 127, 0)));
-  ok(row0.op === 1 && row0.row === 0 && row0.name === gsound.rows[0].name && row0.fam === gsound.rows[0].fam && row0.cells.length === 4 && row0.cells[0].label === gsound.rows[0].c[0][1]
-    && row0.cells[0].val === gsound.rows[0].c[0][2] && row0.cells[0].byd === 1 && row0.cells[0].value === gsound.rows[0].c[0][15], "scrs: op 1: a row: its name, family and four cards as the device draws them");
-  const lane0 = SR(await rq(E.req.scrsRow(1, 3, 0, 127, 1)));
+  /* (the first row whose first card is a value with its descriptor: SOUND's first rows are the sound's own actions since
+     2026-10-19; the lane's ENV row by its name) */
+  const vr = gsound.rows.findIndex((r) => r.c[0][10] === 1 && r.c[0][15] + 3 <= r.c[0][13]), envr = gdrum.rows.findIndex((r) => r.name === "ENV");   /* (room for the +3 turn below) */
+  const row0 = SR(await rq(E.req.scrsRow(1, 0, 127, 127, vr)));
+  ok(vr >= 0 && row0.op === 1 && row0.row === vr && row0.name === gsound.rows[vr].name && row0.fam === gsound.rows[vr].fam && row0.cells.length === 4 && row0.cells[0].label === gsound.rows[vr].c[0][1]
+    && row0.cells[0].val === gsound.rows[vr].c[0][2] && row0.cells[0].byd === 1 && row0.cells[0].value === gsound.rows[vr].c[0][15], "scrs: op 1: a row: its name, family and four cards as the device draws them");
+  const lane0 = SR(await rq(E.req.scrsRow(1, 3, 0, 127, envr)));
   ok(lane0.name === "ENV" && lane0.cells.map((c) => c.label).join() === "CLICK,DECAY,BEND,LEVEL", "scrs: a drum lane's ENV row: CLICK DECAY BEND LEVEL (the device's lane pages)");
-  const tn = SR(await rq(E.req.scrsTurn(1, 0, 127, 127, 0, 0, 1, 3)));
+  const tn = SR(await rq(E.req.scrsTurn(1, 0, 127, 127, vr, 0, 1, 3)));
   ok(tn.op === 2 && tn.cells[0].value === row0.cells[0].value + 3 && tn.cells[0].gv === row0.cells[0].gv + 3, "scrs: op 2: a fine turn moves the value; the reply is the row");
-  const tn2 = SR(await rq(E.req.scrsTurn(1, 0, 127, 127, 0, 0, 2, 0)));
+  const tn2 = SR(await rq(E.req.scrsTurn(1, 0, 127, 127, vr, 0, 2, 0)));
   ok(tn2.cells[0].value === row0.cells[0].ddef, "scrs: op 2 mode 2: the default");
   const projIx = scrsGold.ctx.find((c) => c.s === 3).rows.findIndex((r) => r.name === "TOOLS");
   const y1 = SR(await rq(E.req.scrsYes(3, 0, 127, 127, projIx, 0, false)));
@@ -2760,7 +2764,7 @@ async function masterStrip() {
      returns (2026-10-12: CRET DRET RRET, G_CRET.., the device's mixer MASTER row) are not on the strip yet: DLY RET scales
      dmix, CHO / REV RET their wet (fx.c) */
   const fxc = readFileSync(join(HERE, "../firmware/src/fx/fx.c"), "utf8");
-  ok(js(fxs.map((f) => f.ret)) === js(["MIX", "SIZE", "CDP", "THRS"]) && /dmix = .*song\.g\[G_DMIX\] \* 258.*RET_LV\(1\)/.test(fxc) && /dly_step\((dly_in|in)\[i\], dl, col, fb, dmix/.test(fxc)
+  ok(js(fxs.map((f) => f.ret)) === js(["MIX", "SIZE", "CDP", "THRS"]) && /dmix = .*song\.g\[G_DMIX\] \* 258.*RET_LV\(1\)/.test(fxc) && /dly_step\((dly_in|in)\[i\], dl, &f, fb, dmix/.test(fxc)
     && /song\.g\[G_RRET\]/.test(fxc) && /song\.g\[G_CRET\]/.test(fxc) && /MASTER_BUS = \["DUST", "DUCK", "FILT"\]/.test(html),
     "master strip: Delay MIX, Reverb SIZE, Chorus CDP beside the icons; the firmware's FX returns (DLY RET in dmix, CHO / REV RET) not on the strip yet");
   /* Settings: only true settings; every parameter that left it is in the mixer */

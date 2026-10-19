@@ -183,7 +183,7 @@ def header(m):
         f"#define CG_COST_PFILT {m['pfilt']}u     /* a part's FILTER insert while it runs (fx.c tflt_part) */",
         f"#define CG_COST_DBFILT {m['dbfilt']}u    /* the drum bus's FILTER while it runs (fx.c dbus_ins) */",
         f"static const uint16_t CG_COST_PINS[{len(INS_NEW)}] = {{" + ", ".join(str(c) for c in m["pins"]) + "};   /* a "
-        "part's further insert while it runs, FOLD .. GATER, SFLD .. SLEW (insfx.c ifx_part) */",
+        "part's further insert while it runs, FOLD .. GATER, SFLD .. SLEW, TAPE SPIT (insfx.c ifx_part) */",
         f"static const uint16_t CG_COST_DBINS[{len(INS_NEW)}] = {{" + ", ".join(str(c) for c in m["dbins"]) + "};   /* the "
         "drum bus's "
         "(insfx.c ifx_bus: L and R) */",

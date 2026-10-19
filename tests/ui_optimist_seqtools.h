@@ -223,6 +223,7 @@ static void seqtools_tests(void)
     check(t->p[P_SLEN] == 8 && AL(t)->n == n && strstr(ui.msg, "FULL"), "LENGTH x2 with too many events to copy: PATTERN FULL, nothing done");
     AL(t)->n = 0;
 #endif
+#if FELUCCA_AUTO                                        /* (QUANTIZE: with the automation store, where nudges live) */
     {   /* QUANTIZE (2026-10-19): the nudges to the nearest 1/4, then 1/2, then 1 step; one undo; nothing to do said so */
         static const int8_t NU[4] = {5, -20, 13, 27};
         uint32_t j;
@@ -255,6 +256,7 @@ static void seqtools_tests(void)
         stt_yes();
         check(strstr(ui.msg, "ON THE GRID") != 0, "QNT with nothing nudged: ON THE GRID ALREADY, nothing done");
     }
+#endif
     /* GEN on a synth track (seq/gen.c): a layer over the pattern, never written but by WRITE */
     {
     uint32_t m;

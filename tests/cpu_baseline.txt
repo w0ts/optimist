@@ -301,3 +301,14 @@ cpu/fx/dvoice_rect 604
 cpu/fx/dvoice_harm 636
 cpu/fx/dvoice_ring 570
 cpu/fx/dvoice_slew 544
+cpu/lfo/none 1356
+cpu/lfo/voices 1354
+cpu/lfo/values 1380
+cpu/lfo/fx 1426
+cpu/lfo/fx_off 1404
+cpu/lfo2/off 1356
+cpu/lfo2/on 1362
+cpu/fx/part_tape 1472
+cpu/fx/part_spit 1450
+cpu/fx/dbus_tape 1137
+cpu/fx/dbus_spit 1074
