@@ -4,12 +4,10 @@
  * are in tests/ui_optimist_edv14.h). Included by editor_sync_test.c after ed_sync9.c, its helpers (ed_begin, ed_out, ed_n, check) in scope. */
 static void check(int c, const char *what);            /* (editor_sync_test.c) */
 static uint8_t sync_reload;                                 /* (model.c's: UNDO sets it, as the panel's undo does) */
-static struct { uint32_t last_ms; uint32_t st[NSTEP]; } ed_w;                 /* (editor.c's; the parts these files read) */
-static uint32_t ed_step_sig(const track_t *t, uint32_t i) { (void)t; return i; }
+static struct { uint32_t last_ms; } ed_w;                                     /* (editor.c's; the part these files read) */
 static void ed_known(uint32_t k, uint32_t id) { ed9_known_p(k, id); }
 #include "../firmware/src/io/editor/ed_undo.c"
 #include "../firmware/src/io/editor/ed_solo.c"
-#include "../firmware/src/io/editor/ed_rec.c"
 #include "../firmware/src/io/editor/ed_note.c"
 #include "../firmware/src/io/editor/ed_steplane.c"
 #include "../firmware/src/io/editor/ed_reads.h"
@@ -466,66 +464,13 @@ static void v14_steplane(void)
     v14_stable();
 }
 #endif
-#if FELUCCA_ED_REC
-static uint32_t rec_call(uint32_t op)
-{
-    uint8_t q[1];
-    q[0] = (uint8_t)op;
-    return v14_call(ed_rec, ED_REC, q, 1);
-}
-static void v14_rec(void)                               /* cmd 107: the REC key and its state */
-{
-    uint32_t r;
-    song.rec = 0, rec_wait = 0, ft_on = 0, ft_req = 0, ft_closed = 0, song.playing = 0, arrangement_enabled = 0;
-    r = rec_call(0);
-    check(r && ed_n == 5u + 4u && ed_out[5] == 0 && ed_out[6] == 0 && ed_out[7] == 0 && ed_out[8] == 127, "REC 0: idle: state 0, track 127");
-    r = rec_call(1);
-    check(r && ed_out[5] == 1 && ed_out[6] == 0 && ed_out[7] == 2 && rec_wait == 1 && !song.playing && ed_out[8] == (song.sel % NTRK),
-          "REC 1 stopped: waiting (bit 1), the selected track, the transport stays stopped");
-    r = rec_call(1);
-    check(r && ed_out[7] == 0 && !rec_wait && !song.rec && ed_out[8] == 127, "REC 1 again: off");
-    song.playing = 1;
-    r = rec_call(1);
-    check(r && ed_out[6] == 0 && ed_out[7] == 1 && song.rec == (1u << (song.sel % NTRK)) && !rec_wait && ed_out[8] == (song.sel % NTRK),
-          "REC 1 playing: recording now (bit 0), on the selected track");
-    r = rec_call(1);
-    check(r && ed_out[7] == 0 && !song.rec, "REC 1 recording: off");
-    arrangement_enabled = 1;
-    r = rec_call(1);
-    check(r && ed_out[6] == 1 && ed_out[7] == 0 && !song.rec && !rec_wait && arrangement_enabled == 1, "REC 1 while a song plays: refused (rc 1), nothing changed");
-    arrangement_enabled = 0;
-    song.playing = 0;
-#if FELUCCA_REC_MODES
-    rec_wait = 1, ci_on = 1;
-    r = rec_call(0);
-    check(r && ed_out[7] == 6, "REC 0 counting in: bits 1 and 2");
-    r = rec_call(1);
-    check(r && ed_out[7] == 0 && !rec_wait, "REC 1 counting in: off (the count-in sees the wait gone and ends)");
-    ci_on = 0;
-#endif
-    ft_on = 1, ft_trk = 2;
-    r = rec_call(0);
-    check(r && ed_out[7] == 8 && ed_out[8] == 2, "REC 0 in a free take: bit 3, the take's track");
-    r = rec_call(1);
-    check(r && ed_out[6] == 0 && ft_req == 1 && ft_on == 1, "REC 1 in a free take: the close is asked for (the audio ends it at its next block)");
-    ft_on = 0, ft_req = 0;
-    ft_closed = 1, ft_close_ms = fm1_ms;
-    r = rec_call(1);
-    check(r && ed_out[6] == 2 && !rec_wait && !song.rec, "REC 1 right after a take ended: nothing done (rc 2), as the key");
-    ft_closed = 0;
-    check(!rec_call(2) && !v14_call(ed_rec, ED_REC, (const uint8_t[]){0}, 0), "REC: an unknown op, an empty request: no reply");
-    ed_begin(1); ed_rec_info();
-    check(ed_n == 9u && ed_out[5] == 0x63u && ed_out[6] == 2u && ed_out[7] == 1u && ed_out[8] == (FELUCCA_REC_MODES ? 1u : 0u), "ED_REC on: INFO carries tag 0x63 (version 1, the count-in flag)");
-    song.rec = 0, rec_wait = 0;
-}
-#endif
 static void v14_reads(void)                             /* ed_reads.h: a read asks for no ui.force (the panel flashed while the editor polled) */
 {
     const uint8_t o0[] = {0}, o1[] = {1}, o2[] = {2}, o3[] = {3}, o4[] = {4};
     check(ed_reads(ED_UNDO, o0, 1) && !ed_reads(ED_UNDO, o1, 1) && !ed_reads(ED_UNDO, o2, 1)
-          && ed_reads(ED_SOLO, o0, 1) && !ed_reads(ED_SOLO, o1, 1) && ed_reads(ED_REC, o0, 1) && !ed_reads(ED_REC, o1, 1)
+          && ed_reads(ED_SOLO, o0, 1) && !ed_reads(ED_SOLO, o1, 1)
           && ed_reads(ED_FX, o0, 1) && !ed_reads(ED_FX, o1, 1) && ed_reads(ED_SONGC, o0, 1) && !ed_reads(ED_SONGC, o1, 1),
-          "reads: UNDO SOLO REC FX SONG op 0 read, their other ops write");
+          "reads: UNDO SOLO FX SONG op 0 read, their other ops write");
     check(ed_reads(ED_FXP, o0, 1) && !ed_reads(ED_FXP, o1, 1) && ed_reads(ED_FXP, o2, 1) && ed_reads(ED_FXP, o3, 1) && !ed_reads(ED_FXP, o4, 1)
           && ed_reads(ED_DLAN, o0, 1) && ed_reads(ED_DLAN, o2, 1) && ed_reads(ED_DLAN, o3, 1) && !ed_reads(ED_DLAN, o4, 1)
           && ed_reads(ED_FAV, o1, 1) && !ed_reads(ED_FAV, o2, 1) && ed_reads(ED_STEPLANE, o2, 1) && !ed_reads(ED_STEPLANE, o3, 1),
@@ -555,12 +500,6 @@ static void v14_tests(void)
 #else
     ed_begin(1); ed_solo_info();
     check(ed_n == 5u && !ed_solo(104, (const uint8_t[]){0}, 1), "ED_SOLO off: cmd 104 is not handled, INFO has no tag 0x61");
-#endif
-#if FELUCCA_ED_REC
-    v14_rec();
-#else
-    ed_begin(1); ed_rec_info();
-    check(ed_n == 5u && !ed_rec(107, (const uint8_t[]){0}, 1), "ED_REC off: cmd 107 is not handled, INFO has no tag 0x63");
 #endif
 #if STL_ON
     v14_steplane();

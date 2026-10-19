@@ -490,7 +490,7 @@ def resolve_cli(a):
         if m and m.group(1) in R.MERGED:
             into, why = R.MERGED[m.group(1)]
             print(f"warning: --set {s}: {m.group(1)} was merged into {into} ({why})", file=sys.stderr)
-            cfg[into] = cfg[into] | int(int(m.group(2)) != 0)
+            cfg[into] = int(int(m.group(2)) != 0)               # (as --set of the survivor itself)
             continue
         if m and m.group(1) in R.RETIRED:
             print(f"warning: --set {s}: {m.group(1)} was dropped and the setting is ignored ({R.RETIRED[m.group(1)]})",

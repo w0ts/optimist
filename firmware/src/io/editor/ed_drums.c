@@ -11,12 +11,14 @@
  *                                                      older editor, is ignored); op 3 (rename) is gone: rc 1
  *   42 SMP_READ    slot, off (3 x 7 bit), n (2 x 7 bit, <= 256) -> slot, off, pack7 bytes of the slot's flash
  * Flash writes (40, 41 ops 1..3) are refused while the transport plays (an erase stops the audio).
- * Version 2 of 36, 37, 39, 40 (ed_dsend.c) carries the lanes' sends too. */
+ * Version 2 of 36, 37, 39, 40 (ed_dsend.c) carries the lanes' sends too. The librarian (ED_LIVE off, ed_lite.c) answers
+ * 38..42 alone; the kits' 38..41 come with LIBRARIAN in either editor. */
 #include "ed_reply.h"         /* (ed_b2..ed_b4, ed_b32) */
 enum { ED_DRUM_LANES = 36, ED_DRUM_LANE, ED_UKIT_LIST, ED_UKIT_GET, ED_UKIT_PUT, ED_UKIT_OP, ED_SMP_READ };
 
 #include "ed_pack7.h"         /* (ed_pack7: shared with backup and snapshots, ed_lite.c too) */
 
+#if FELUCCA_ED_LIVE                                         /* (the lanes: the live editor's; the librarian has the kits) */
 /* one lane as 12 bytes: offsets, source, reference */
 static void ed_lane_get(uint32_t l, uint8_t *b)
 {
@@ -38,6 +40,7 @@ static void ed_dl_set(dlanes_t *n)                          /* *n checked, the w
     fm1_irq_on();
     ui.force = 1;
 }
+#endif
 /* the lanes and a user kit on the wire: the layout of the 16 fixed lanes (before 2026-10-16), DRUM_LSTORE lanes, the
  * lanes past DRUM_LANES zeros (read: ignored), so the editor's messages keep their sizes. The lanes' instruments are not
  * in them (a set keeps the device's) */
@@ -48,6 +51,7 @@ _Static_assert(DRUM_LSTORE == 16u && DRUM_LANES <= DRUM_LSTORE && sizeof(dlanes_
 #if FELUCCA_DRUM_KITS                                       /* (ukit_t: drum_kits.c, built only with the user kits) */
 _Static_assert(sizeof(ukit_t) == EDW_UK_N, "the editor's user kit messages: 16 lanes wide");
 #endif
+#if FELUCCA_ED_LIVE
 static void edw_dl_put(const dlanes_t *d, uint8_t *b)       /* d -> its wire form (EDW_DL_N) */
 {
     uint32_t l;
@@ -72,7 +76,8 @@ static void edw_dl_get(const uint8_t *b, dlanes_t *d)       /* the wire form -> 
     d->ukit = b[192];
     memcpy(d->name, b + 193, sizeof d->name);
 }
-#if FELUCCA_DRUM_KITS
+#endif
+#if ED_UKITS
 static void edw_uk_put(const ukit_t *k, uint8_t *b)
 {
     uint32_t l;
@@ -105,7 +110,7 @@ static int ed_drums(uint32_t cmd, const uint8_t *a, uint32_t na)
     if (ed_dsend(cmd, a, na))
         return 1;
     switch (cmd) {
-#if DL_ANY
+#if DL_ANY && FELUCCA_ED_LIVE
     case ED_DRUM_LANES:
         {
             uint8_t w[EDW_DL_N];
@@ -136,6 +141,8 @@ static int ed_drums(uint32_t cmd, const uint8_t *a, uint32_t na)
         ed_pack7(b, sizeof b);
         return 1;
     }
+#endif
+#if DL_ANY
     case ED_SMP_READ: {                                     /* (export: a user sample with its kit) */
         uint32_t off, n;
         if (na < 6u || a[0] >= SMP_USER_SLOTS || !flash_ok)
@@ -149,7 +156,7 @@ static int ed_drums(uint32_t cmd, const uint8_t *a, uint32_t na)
         return 1;
     }
 #endif
-#if FELUCCA_DRUM_KITS
+#if ED_UKITS
     case ED_UKIT_LIST: {
         uint32_t u;
         ed_b(UK_N);

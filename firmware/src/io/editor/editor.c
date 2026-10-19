@@ -6,17 +6,16 @@
  * v5 = SLOOP 2.0: INFO ends with the protocol version (5), steps carry level / ratchet bytes,
  * DRUM_STEP (33) reads / writes the drum track's 16 lanes, TRACK ends with the solo mask;
  * v6 = the builder: INFO adds each engine slot's UID, BUILD (49) the build's profile, hash and items;
- * v7 = Optimist: DRUM_SRCS (50), DRUM_SHOW (51), PAGES (52), STATUS (53), the sends in TRACK_CHANGED; INFO unchanged,
- *      asked; v8 = snapshots (54..57);
- * v9 = only what changed, every track (WATCH bit 2: PARAMS 59, STEPS 60, LANE 61, TRACKS 62, SONG 63 pushes, ed_sync9.c)
- *      and the status stream with the meters (WATCH bit 3: STREAM 58, ed_status.c); asked with WATCH, INFO unchanged);
+ * v7 = Optimist: DRUM_SRCS (50), DRUM_SHOW (51), PAGES (52); INFO unchanged, asked; v8 = snapshots (54..57);
+ * v9 = only what changed, every track (PARAMS 59, STEPS 60, LANE 61, TRACKS 62, SONG 63 pushes, ed_sync9.c): since
+ *      2026-10-19 the only live sync (WATCH on is v9; the v2 / v4 pushes CHANGED, STEP_CHANGED, TRACK_CHANGED, the
+ *      transport STATUS 53, its stream 58 with the meters and the REC key 107 are gone: the web editor used none of them);
  * v10 = the FX slots: INFO tag 0x56, FX (86) and its v9 push FX_PUSH (87), every slot's amount in TRACK_CHANGED (ed_fxs.c);
  * v11 = v10 (the FX slots) plus the automation store (phase 3): AUTO_GET (92), AUTO_SET (93) read and write a track's list of events (ed_stepx.c);
  *      asked (a firmware before it does not answer), INFO unchanged.
  *   F0 7D 46 4C cmd args.. F7     (7D = non-commercial ID, "FL")
  * Values are 14 bit, two 7-bit bytes LSB first, offset by 8192 (so -8192..8191).
- * Every request gets a reply with the same cmd; 23/24/26 are also pushed
- * while watched. Frames arrive through sx_frame (usb.c), replies leave
+ * Every request gets a reply with the same cmd; RELOAD (24) and the v9 frames are pushed while watched. Frames arrive through sx_frame (usb.c), replies leave
  * through ota_wire_send(). */
 #define ED_HDR0 0x7D
 #define ED_HDR1 0x46
@@ -98,7 +97,6 @@ static uint32_t ed_unpack7(const uint8_t *a, uint32_t na, uint8_t *out, uint32_t
 #include "ed_drums.c"          /* cmds 36..42: drum lanes, user kits, a slot read back */
 #include "ed_dsrc.c"           /* cmds 50, 51: the drum sources and what a lane's SOUND pages show */
 #include "ed_pages.c"          /* cmd 52: the pages (the editor lays out a sound as the device does) */
-#include "ed_status.c"         /* cmd 53: the transport, the steps playing, the meters */
 #if FELUCCA_MACROS
 #include "ed_macro.c"          /* cmd 65: what the performance macros make of the values (macro.c) */
 #else
@@ -106,7 +104,7 @@ static uint32_t ed_unpack7(const uint8_t *a, uint32_t na, uint8_t *out, uint32_t
 #endif
 #include "ed_undo.c"           /* v14: cmd 102 undo and redo, INFO tag 0x5F; ed_undo_edit marks the editor's own step writes */
 #if FELUCCA_AUTO
-#include "ed_stepx.c"          /* cmds 92, 93 (v11): the automation store; 72..77: SLOOP 2.4's step extras on it */
+#include "ed_stepx.c"          /* cmds 92, 93 (v11): the automation store */
 #else
 #define ED_STEPX_FN
 #endif
@@ -139,80 +137,19 @@ static uint32_t ed_unpack7(const uint8_t *a, uint32_t na, uint8_t *out, uint32_t
 /* the engine byte of DUMP / RELOAD / TRACK: NENGINES = the drum track (no engine) */
 static uint32_t ed_eng(const track_t *t) { return is_drum(t) ? NENGINES : t->eng_req % NENGINES; }
 
-/* ---- live sync (v2): while the editor WATCHes, device-side changes are pushed.
- * Shadows of the selected track's p[] + song.g[] and of its steps are kept in step
- * with what the editor knows (its own SET / STEP_SET update them); the main loop
- * compares and pushes CHANGED / STEP_CHANGED, or RELOAD after a load or when another
- * track was selected (v3: RELOAD and STEP_CHANGED carry the selected track). Pushes
- * go out only into a half-empty SysEx ring, so they never wait. */
-#define ED_PUSH_MAX 4u                                   /* frames per pass */
-#define ED_NV (P_COUNT + G_COUNT)
-/* v4: the parameters of the tracks that are not selected which TRACK_CHANGED follows (the mixer) */
-static const uint8_t ED_TIDS[] = {P_LEVEL, P_PAN, P_MUTE, P_DIST, P_CHOR, P_DLY, P_REV, P_FXOFF   /* (+ the FX sends: the Mix tab) */
-#if SL24_TP
-                                   , P_TFLT                                                     /* (v10: every FX slot's */
-#endif
-#if FELUCCA_MASTER_COMP
-                                   , P_TCOMP                                                    /* amount: fx_slots.c) */
-#endif
-#if INS_FX
-                                   , P_TFOLD, P_TFUZZ, P_TPHSR, P_TFLNG, P_TFRMT, P_TWIDE, P_TCHRS, P_TECHO, P_TGATE   /* (the
-                                                                  * further inserts') */
-                                   , P_TSFLD, P_TRECT, P_THARM, P_TRING, P_TSUBO, P_TSLEW   /* (the shapers') */
-#endif
-#if FELUCCA_FX_DUST
-                                   , P_TDUST                                                    /* (DUST's, 2026-10-14) */
-#endif
-#if FELUCCA_INS_JCHORUS
-                                   , P_TJCHO                                                    /* (JUNO CHORUS's MIX) */
-#endif
-};
-#define ED_NTID ((uint32_t)sizeof ED_TIDS)
-#define ED_NT (NTRK * ED_NTID)
+/* ---- live sync: while the editor WATCHes, device-side changes are pushed (v9, ed_sync9.c: every track, coalesced), and
+ * RELOAD after a load or when another track was selected. What the selected track plays as (engine, preset) and which
+ * track it is are kept here; the values and steps are ed_sync9.c's shadows. Pushes go out only into a half-empty SysEx
+ * ring, so they never wait. */
 static struct {
     uint8_t on, eng, preset, sel;
-    uint8_t v4;                                          /* WATCH bit 1: TRACK_CHANGED pushes too */
-    uint8_t v9, stream;                                  /* WATCH bit 2: v9 pushes (ed_sync9.c); bit 3: STREAM */
     uint8_t ends;                                        /* WATCH bit 4 (v12): STEPS pushes carry the note ends */
-    uint32_t pos, last_ms, run_ms, resets;
-    int16_t v[ED_NV];                                    /* TSEL->p[], then song.g[] */
-    uint16_t t[ED_NV];                                   /* ms (low 16 bits) of the last push */
-    uint32_t st[NSTEP];                                  /* step signatures */
-    int16_t tv[ED_NT];                                   /* v4: trk[k].p[ED_TIDS[j]] at k * ED_NTID + j */
-    uint16_t tt[ED_NT];
-    uint32_t tpos;
+    uint32_t last_ms, run_ms, resets;
 } ed_w;
 
-static int16_t *ed_val(uint32_t i) { return i < P_COUNT ? &TSEL->p[i] : &song.g[i - P_COUNT]; }
-static uint32_t ed_step_sig(const track_t *t, uint32_t i)   /* step i: all its bytes (a drum step's lanes, a synth
-                                                          * step's own note ends) */
-{
-    uint32_t n, h = 0x811C9DC5u;
-    const uint8_t *b = trk_step_raw(t, i, &n);
-    while (n--)
-        h = (h ^ *b++) * 16777619u;
-    return h;
-}
 #include "ed_steps.c"         /* a step on the wire: STEP_GET / TRACK_STEP bytes (out and in), DRUM_STEP bytes */
-static void ed_shadow_mix(void)                          /* v4: the other tracks' mix as it is (TRACK_CHANGED) */
-{
-    uint32_t i;
-    for (i = 0; i < ED_NT; i++)
-        ed_w.tv[i] = trk[i / ED_NTID].p[ED_TIDS[i % ED_NTID]];
-}
-static void ed_shadow_v(void)                            /* the selected track's parameters and the globals as they are */
-{
-    uint32_t i;
-    for (i = 0; i < ED_NV; i++)
-        ed_w.v[i] = *ed_val(i);
-}
 static void ed_shadow(void)                              /* the editor is in sync */
 {
-    uint32_t i;
-    ed_shadow_v();
-    for (i = 0; i < NSTEP; i++)
-        ed_w.st[i] = ed_step_sig(TSEL, i);
-    ed_shadow_mix();
     ed_w.eng = (uint8_t)ed_eng(TSEL);
     ed_w.preset = TSEL->preset;
     ed_w.sel = song.sel;
@@ -220,7 +157,6 @@ static void ed_shadow(void)                              /* the editor is in syn
 }
 #include "ed_steplane.c"     /* v14: cmd 105 a step in a drum lane's context and its lockable values, INFO tag 0x62 */
 #include "ed_solo.c"          /* v14: cmd 104 track and lane solo and mute, INFO tag 0x61 */
-#include "ed_rec.c"           /* v14: cmd 107 the REC key and its state, INFO tag 0x63 */
 #include "ed_note.c"          /* v14: cmd 103 notes played from the editor, INFO tag 0x60 */
 #include "ed_scope.c"        /* v13: cmd 101 the oscilloscope's trace, INFO tag 0x5E */
 #include "ed_fav.c"           /* v13: cmd 100 the favorites, INFO tag 0x5D */
@@ -256,34 +192,21 @@ static void ed_load_after(const ed_load_t *b)
     ed_w.preset = TSEL->preset;
     for (i = 0; i < P_COUNT; i++)                        /* the load's values; a pending push of another stays */
         if (TSEL->p[i] != b->p[i])
-            ed_w.v[i] = e9.p[song.sel][i] = TSEL->p[i];
+            e9.p[song.sel][i] = TSEL->p[i];
 }
 static int ed_room(void) { return so_w - so_r + 8u <= SXQ / 2u; }
-static void ed_known(uint32_t k, uint32_t id)            /* the editor's own change of trk[k].p[id]: no push */
-{
-    uint32_t j;
-    ed9_known_p(k, id);
-    if (k == song.sel) {
-        ed_w.v[id] = trk[k].p[id];
-        return;
-    }
-    for (j = 0; j < ED_NTID; j++)
-        if (ED_TIDS[j] == id)
-            ed_w.tv[k * ED_NTID + j] = trk[k].p[id];
-}
+static void ed_known(uint32_t k, uint32_t id) { ed9_known_p(k, id); }   /* the editor's own change of trk[k].p[id]: no push */
 
 static void ed_sync(void)                                /* main loop */
 {
-    uint32_t i, n = 0, now = fm1_ms;
+    uint32_t now = fm1_ms;
     if (!ed_w.on || now - ed_w.run_ms < 5u)
         return;
     ed_w.run_ms = now;
     if (!usb.config || usb.resets != ed_w.resets || now - ed_w.last_ms > 3000u) {
-        ed_w.on = ed_w.v9 = ed_w.stream = mt.master = 0; /* no host, USB reset, or 3 s without a request */
+        ed_w.on = 0;                                     /* no host, USB reset, or 3 s without a request */
         return;
     }
-    if (ed_w.stream)
-        ed_stream(now, ed9_room(ED_STREAM_N + 6u));      /* v9: the status stream, 25 Hz at most */
     if (sync_reload || ed_eng(TSEL) != ed_w.eng || TSEL->preset != ed_w.preset || song.sel != ed_w.sel) {
         if (!ed_room())
             return;
@@ -293,54 +216,7 @@ static void ed_sync(void)                                /* main loop */
         ed_send();
         return;
     }
-    if (ed_w.v9) {                                       /* v9: every track, coalesced (ed_sync9.c) */
-        ed9_sync(now);
-        return;
-    }
-    for (i = 0; i < NSTEP && n < ED_PUSH_MAX; i++) {
-        uint32_t h = ed_step_sig(TSEL, i);
-        if (h == ed_w.st[i])
-            continue;
-        if (!ed_room())
-            return;
-        ed_w.st[i] = h;
-        ed_begin(ED_STEP_CHANGED);
-        ed_b2(i, song.sel);
-        ed_send();
-        n++;
-    }
-    for (i = 0; i < ED_NV && n < ED_PUSH_MAX; i++) {    /* round robin: nothing starves */
-        uint32_t k = (ed_w.pos + i) % ED_NV;
-        int16_t v = *ed_val(k);
-        if (v == ed_w.v[k] || (uint16_t)(now - ed_w.t[k]) < 20u)
-            continue;                                    /* coalesced: the latest value goes out later */
-        if (!ed_room())
-            return;
-        ed_w.v[k] = v;
-        ed_w.t[k] = (uint16_t)now;
-        ed_begin(ED_CHANGED);
-        ed_b2(k < P_COUNT ? 0u : 1u, k < P_COUNT ? k : k - P_COUNT);
-        ed_v(v);
-        ed_send();
-        n++;
-        ed_w.pos = k + 1u;
-    }
-    for (i = 0; ed_w.v4 && i < ED_NT && n < ED_PUSH_MAX; i++) {   /* v4: the other tracks' mix */
-        uint32_t k = (ed_w.tpos + i) % ED_NT, tr = k / ED_NTID, id = ED_TIDS[k % ED_NTID];
-        int16_t v = trk[tr].p[id];
-        if (tr == song.sel || v == ed_w.tv[k] || (uint16_t)(now - ed_w.tt[k]) < 20u)
-            continue;                                    /* (the selected track: CHANGED above) */
-        if (!ed_room())
-            return;
-        ed_w.tv[k] = v;
-        ed_w.tt[k] = (uint16_t)now;
-        ed_begin(ED_TRACK_CHANGED);
-        ed_b2(tr, id);
-        ed_v(v);
-        ed_send();
-        n++;
-        ed_w.tpos = k + 1u;
-    }
+    ed9_sync(now);                                       /* every track, coalesced (ed_sync9.c) */
 }
 
 /* descriptor of parameter id of track t: the engine parameters of the engine it asked for
@@ -388,11 +264,11 @@ static const param_desc_t *ed_desc(uint32_t scope, uint32_t id, int16_t **vp)
  * leaves the file out; one loop for them all, not a call each in ed_handle: 2026-10, the slim pass) */
 typedef int (*ed_cmd_t)(uint32_t cmd, const uint8_t *a, uint32_t na);
 static const ed_cmd_t ED_FX_CMDS[] = {ED_FXS_FN ED_FXP_FN ED_DLAN_FN ED_SCRN_FN ED_SONGC_FN ED_TOOLS_FN ED_SCRS_FN ED_FAV_FN
-                                      ED_SCOPE_FN ED_UNDO_FN ED_NOTE_FN ED_SOLO_FN ED_REC_FN ED_STEPLANE_FN 0};   /* 86..107 */
+                                      ED_SCOPE_FN ED_UNDO_FN ED_NOTE_FN ED_SOLO_FN ED_STEPLANE_FN 0};   /* 86..105 */
 /* 65 the macros' effect on the values; 11..21: samples, user presets; 36..42: drum lanes, kits; 43..48: backup; 50, 51
- * drum sources; 52 pages; 53 status; 54..57 snapshots; 66 the CZ collection; 78, 90, 91 SLOOP 2.4; 79..84 patterns;
- * 72..77: step extras; 92, 93: the automation */
-static const ed_cmd_t ED_CMDS[] = {ED_MACRO_FN ED_USER_FN ED_DRUMS_FN ED_BACKUP_FN ED_DSRC_FN ED_PAGES_FN ED_STATUS_FN ED_SNAP_FN
+ * drum sources; 52 pages; 54..57 snapshots; 66 the CZ collection; 78, 90, 91 SLOOP 2.4; 79..84 patterns; 92, 93: the
+ * automation */
+static const ed_cmd_t ED_CMDS[] = {ED_MACRO_FN ED_USER_FN ED_DRUMS_FN ED_BACKUP_FN ED_DSRC_FN ED_PAGES_FN ED_SNAP_FN
                                    ED_CZ_FN ED_SL24_FN ED_PAT_FN ED_STEPX_FN 0};
 static int ed_cmds(const ed_cmd_t *t, uint32_t cmd, const uint8_t *a, uint32_t na)   /* 1: one of t answered */
 {
@@ -415,8 +291,6 @@ static void ed_step_w(uint32_t k, uint32_t i, const uint8_t *a, uint32_t n)
         fm1_irq_on();
         ui.force = 1;
     }
-    if (k == song.sel)
-        ed_w.st[i] = ed_step_sig(t, i);
     ed9_known_step(k, i);
 }
 
@@ -462,7 +336,6 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         ed_note_info();                 /* tag 0x60: notes (v14, ed_note.c) */
         ed_solo_info();                 /* tag 0x61: solo and mute (v14, ed_solo.c) */
         ed_steplane_info();             /* tag 0x62: a step in a lane's context (v14, ed_steplane.c) */
-        ed_rec_info();                  /* tag 0x63: the REC key (v14, ed_rec.c) */
         ed_fx_info();                   /* tag 0x56: the FX slots' types (v10, ed_fxs.c) */
         ed_fxp_info();                  /* tag 0x57: the slots by owner (v13, ed_fxp.c) */
         ed_scope_info();                /* tag 0x5E: the scope (v13, ed_scope.c; the Optimist UI) */
@@ -496,20 +369,16 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
                 *vp = (int16_t)clamp(ed_rv(a + 2), d->min, d->max);
             }
             ui.force = 1;
-            if (a[0] == 1u) {                             /* the editor's own change: no push */
-                ed_w.v[P_COUNT + a[1]] = *vp;
+            if (a[0] == 1u)                               /* the editor's own change: no push */
                 ed9_known_g(a[1]);
-            } else if (a[0] == 0u) {
-                ed_w.v[a[1]] = *vp;
-                ed9_known_p(song.sel, a[1]);
-            }                                             /* (REVERB > TYPE: not pushed, nothing to skip) */
+            else if (a[0] == 0u)
+                ed9_known_p(song.sel, a[1]);                                             /* (REVERB > TYPE: not pushed, nothing to skip) */
         }
         ed_b2(a[0], a[1]);
         ed_v(*vp);
         break;
     case ED_DUMP:
-        ed_shadow_v();                                     /* the editor gets them all here */
-        ed9_known_track(song.sel);
+        ed9_known_track(song.sel);                         /* the editor gets them all here */
         memcpy(e9.g, song.g, sizeof e9.g);
         ed_b2(ed_eng(TSEL), TSEL->preset);
         ed_vs(TSEL->p, P_COUNT);
@@ -578,33 +447,19 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
             ed_str(ENGINES[a[0]]->page_title[i], 8);
         break;
     case ED_WATCH: {                                       /* on -> on */
-        uint32_t keep, m, v4was = ed_w.v4, v9was = ed_w.v9, stwas = ed_w.stream;
+        uint32_t keep, m;
         if (na < 1u)
             return;
         keep = ed_w.on && ed_w.resets == usb.resets && (a[0] & 1u);   /* already watching: the changes not yet */
-        m = a[0] & 1u ? a[0] & 31u : 0u;                              /* pushed stay pending (INFO tag 53 01 bit 0, */
-        ed_w.on = (uint8_t)(m & 1u);                                  /* Felucca 1.0.2 #65); bits 1..4 only while on */
-        ed_w.v4 = (uint8_t)(m >> 1 & 1u);                /* v4: also TRACK_CHANGED; the reply says it is known */
-        ed_w.v9 = (uint8_t)(m >> 2 & 1u);                /* v9: every track's changes, coalesced (ed_sync9.c) */
-        ed_w.stream = (uint8_t)(m >> 3 & 1u);            /* v9: the status stream (ed_status.c) */
+        m = a[0] & 1u ? 1u | 4u | (a[0] & 16u) : 0u;                  /* pushed stay pending (INFO tag 53 01 bit 0, */
+        ed_w.on = (uint8_t)(m & 1u);                                  /* Felucca 1.0.2 #65); on is v9 (bit 2), bit 4 */
         ed_w.ends = (uint8_t)(m >> 4 & 1u);              /* v12: a synth step pushed with its notes' own ends */
-        mt.master = ed_w.stream;                         /* (meters.c: the output's peak too) */
         ed_w.resets = usb.resets;
         if (ed_w.on && !keep) {
             ed_shadow();
             ed9_shadow_all();
-        } else if (keep && ed_w.v4 && !v4was) {
-            ed_shadow_mix();                               /* TRACK_CHANGED newly asked for: from the mix as it is */
         }
-        if (keep && ed_w.v9 && !v9was)
-            ed9_shadow_all();                              /* v9 newly asked for: from the device as it is */
-        if (ed_w.stream && !(keep && stwas)) {             /* a new stream: its first frame goes out */
-            memset(est.last, 0xFF, sizeof est.last);
-            for (i = 0; i <= NTRK; i++)
-                mt.ed[i] = 0;
-            est.ms = fm1_ms - ED_STREAM_MS;
-        }
-        ed_b(m);                                           /* (on, v4, v9, stream, ends: what is on) */
+        ed_b(m);                                           /* (on, v9, ends: what is on; v4 and the stream: never) */
         break;
     }
     case ED_PING:
@@ -630,7 +485,7 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
             *lv = (int16_t)clamp(ed_rv(a + 1), 0, 127);
             t->p[P_MUTE] = (int16_t)(a[3] ? 1 : 0);
             if (a[0] == TRK_DRUM)                          /* the editor's own change: no push */
-                ed_w.v[P_COUNT + G_DRLVL] = *lv, ed9_known_g(G_DRLVL);
+                ed9_known_g(G_DRLVL);
             else
                 ed_known(a[0], P_LEVEL);
             ed_known(a[0], P_MUTE);
@@ -668,8 +523,6 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
             ed_dstep_in(d, a);                              /* (ed_steps.c: the 16 lanes and the ACCENT lane) */
             fm1_irq_on();
             ui.force = 1;
-            if (song.sel == TRK_DRUM)
-                ed_w.st[a[0]] = ed_step_sig(TDRUM, a[0]);
         }
         ed9_known_step(TRK_DRUM, a[0]);
         ed_b(a[0]);
@@ -698,11 +551,8 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         ed_b32(e9.bytes, 5);
         ed_b32(e9.t_max / FM1_TICKS_PER_US, 5);
         ed_b32(e9.t_sum / FM1_TICKS_PER_US, 5);
-        ed_b32(est.frames, 5);
-        ed_b32(mt.seen, 5);
-        ed_b32(mt.missed, 5);
         if (na)
-            e9.scans = e9.frames = e9.bytes = e9.t_max = e9.t_sum = est.frames = mt.seen = mt.missed = 0;
+            e9.scans = e9.frames = e9.bytes = e9.t_max = e9.t_sum = 0;
         break;
     default:
         if (cmd == ED_DRUM_LANES || cmd == ED_DRUM_LANE || cmd == ED_UKIT_OP) {
@@ -730,7 +580,7 @@ static void ed_service(void)
     const uint8_t *p;
     uint32_t n;
     ed_note_tick();                                        /* v14: the editor's notes due, the quiet host's end (ed_note.c) */
-    ed_sync();                                             /* v2 pushes (while watched) */
+    ed_sync();                                             /* the pushes (while watched) */
     if (!ota_frame_get(&p, &n) || n < 4u || p[0] != ED_HDR0 || p[1] != ED_HDR1 || p[2] != ED_HDR2)
         return;
     ed_w.last_ms = fm1_ms;                                 /* any request keeps WATCH alive */

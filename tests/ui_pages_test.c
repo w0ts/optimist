@@ -140,11 +140,10 @@ static void ed_b(uint32_t v) { if (ed_n < sizeof ed_out) ed_out[ed_n++] = (uint8
 static void ed_v(int32_t v) { uint32_t u = (uint32_t)(clamp(v, -8192, 8191) + 8192); ed_b(u); ed_b(u >> 7); }
 static void ed_str(const char *s, uint32_t max)
 { uint32_t i; for (i = 0; s && s[i] && i < max; i++) ed_b((uint8_t)s[i] & 0x7Fu); ed_b(0); }
-static void ed_begin(uint32_t cmd) { ed_n = 0; (void)cmd; }   /* (STREAM: not sent on the host) */
+static void ed_begin(uint32_t cmd) { ed_n = 0; (void)cmd; }
 static void ed_send(void) {}
 #include "../firmware/src/io/editor/ed_dsrc.c"
 #include "../firmware/src/io/editor/ed_pages.c"
-#include "../firmware/src/io/editor/ed_status.c"
 #if FELUCCA_MACROS
 #include "../firmware/src/io/editor/ed_macro.c"      /* cmd 65: what the macros make of the values */
 #endif
@@ -438,26 +437,7 @@ static void drum_sound_tests(void)
               "editor PAGES: every page (family, scope, shown for the drum track, ids, title)");
         song.sel = 0;
     }
-    {   /* the editor's STATUS (53): PLAY / STOP as the button, the steps playing, the peak bytes 0 (no meters) */
-        uint8_t a[1] = {1};
-        uint32_t c, okp = 1, pk = 0;
-        int was = song.playing;
-        ed_n = 0;
-        check(ed_status(ED_STATUS, a, 1) && transport_req == 1u, "editor STATUS 1: PLAY asked (transport_req)");
-        frames(30);
-        ed_n = 0;
-        ed_status(ED_STATUS, a, 0);
-        for (c = 0; c < NTRK; c++) {
-            okp &= ed_out[4 + c * 3] < NSTEP;
-            pk |= ed_out[5 + c * 3] | ed_out[6 + c * 3];
-        }
-        check((ed_out[0] & 1u) && song.playing && ed_out[1] == (uint8_t)((song.g[G_BPM] + 8192) & 127) && okp && ed_n == 4u + NTRK * 3u && !pk,
-              "editor STATUS: playing, BPM, the step of every track, the peak bytes 0");
-        a[0] = 2; ed_n = 0; ed_status(ED_STATUS, a, 1); frames(2);
-        ed_n = 0; ed_status(ED_STATUS, a, 0);
-        check(!song.playing && !(ed_out[0] & 1u) && ed_out[4] == 127u, "editor STATUS 2: STOP; stopped: no step");
-        (void)was;
-    }
+    /* (the editor's STATUS, 53, is gone since 2026-10-19: the web editor has no transport) */
     song.sel = 0; go_home(); frames(2);
     check(!on_dsnd_page(), "another track: no SOUND page");
     view_set(1);

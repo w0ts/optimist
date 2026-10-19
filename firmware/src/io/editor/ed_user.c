@@ -9,8 +9,8 @@
  * SLOOP 2.4 (isod89/sloop-fm1 v2.4, 8d3823f, editor.c ed_flash_busy, GPL-3.0-only) */
 #include "ed_reply.h"         /* (ed_b2..ed_b4, ed_b32) */
 static uint32_t ed_flash_busy(void) { return song.playing || transport_req; }
-#if FELUCCA_ED_LIVE                                     /* (the user presets: the live editor's; ED_LIVE=0 keeps the sample
-                                                         * slots, which a restore writes) */
+#if ED_LIB                                              /* (the user presets: the librarian's, in either editor; else the
+                                                         * sample slots alone, which a restore and the samples page write) */
 /* a user preset's engine on the wire: its slot, 127 when this build leaves the engine out (kept, not loadable) */
 static uint32_t ed_up_eng(uint32_t uid) { return eng_built(uid) ? eng_slot_built(uid) : 127u; }
 #endif
@@ -131,7 +131,7 @@ static int ed_user(uint32_t cmd, const uint8_t *a, uint32_t na)
         for (i = 0; i < SMP_USER_SLOTS; i++)               /* (appended) each slot's KiB: USR3 64 */
             ed_b(SMP_USER_CAP(i) / 1024u);
         return 1;
-#if FELUCCA_ED_LIVE
+#if ED_LIB
     case ED_UP_LIST: {                                     /* start, count -> start, count, total, per slot: used, engine, name */
         uint32_t s0, cnt;
         if (na < 2u)

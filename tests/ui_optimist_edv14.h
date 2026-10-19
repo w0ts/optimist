@@ -5,8 +5,7 @@
  * the automation store whole) also checks tests/steplane_table.json, the web editor's mock data (STEPLANE_WRITE=1 rewrites it). Included after
  * ui_optimist_edscrs.h (its ed_* helpers). */
 #include "../firmware/src/io/editor/ed_out.h"
-static struct { uint32_t last_ms; uint32_t st[NSTEP]; } ed_w;                 /* (editor.c's; the parts the files below read) */
-static uint32_t ed_step_sig(const track_t *t, uint32_t i) { (void)t; return i; }
+static struct { uint32_t last_ms; } ed_w;                                     /* (editor.c's; the part the files below read) */
 static void ed9_known_step(uint32_t t, uint32_t i) { (void)t, (void)i; }
 #include "../firmware/src/io/editor/ed_undo.c"
 #include "../firmware/src/io/editor/ed_steplane.c"

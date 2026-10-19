@@ -30,10 +30,23 @@ MIGRATE = {
 # (configure.py parse); the old key is warned about once
 MERGED = {
     "MIDI_CLKOUT": ("MIDI_CLOCK", "MIDI clock in and out are one item, MIDI_CLOCK (merged 2026-10-15; on if either was on)"),
+    "ED_FXP": ("ED_MIX", "the web editor's mixer is one item, ED_MIX (merged 2026-10-19; on if any of ED_FXP, ED_DLAN, ED_SOLO was on)"),
+    "ED_DLAN": ("ED_MIX", "the web editor's mixer is one item, ED_MIX (merged 2026-10-19; on if any of ED_FXP, ED_DLAN, ED_SOLO was on)"),
+    "ED_SOLO": ("ED_MIX", "the web editor's mixer is one item, ED_MIX (merged 2026-10-19; on if any of ED_FXP, ED_DLAN, ED_SOLO was on)"),
+    "ED_STEPLANE": ("ED_SEQ", "the web editor's sequencer is one item, ED_SEQ (merged 2026-10-19; on if any of ED_STEPLANE, ED_TOOLS, ED_SONG was on)"),
+    "ED_TOOLS": ("ED_SEQ", "the web editor's sequencer is one item, ED_SEQ (merged 2026-10-19; on if any of ED_STEPLANE, ED_TOOLS, ED_SONG was on)"),
+    "ED_SONG": ("ED_SEQ", "the web editor's sequencer is one item, ED_SEQ (merged 2026-10-19; on if any of ED_STEPLANE, ED_TOOLS, ED_SONG was on)"),
+    "ED_SCRS": ("ED_SCREENS", "the web editor's device screens are one item, ED_SCREENS (merged 2026-10-19; on if any of ED_SCRS, ED_SCRN, ED_SCOPE was on)"),
+    "ED_SCRN": ("ED_SCREENS", "the web editor's device screens are one item, ED_SCREENS (merged 2026-10-19; on if any of ED_SCRS, ED_SCRN, ED_SCOPE was on)"),
+    "ED_SCOPE": ("ED_SCREENS", "the web editor's device screens are one item, ED_SCREENS (merged 2026-10-19; on if any of ED_SCRS, ED_SCRN, ED_SCOPE was on)"),
 }
 
 # Dropped items: a .config naming one still loads; the setting is ignored with a warning (configure.py parse)
 RETIRED = {
+    "ED_UNDO": "the web editor's undo and redo are part of live editing, ED_LIVE (retired 2026-10-19, bit 158)",
+    "ED_FAVS": "the web editor's favorites are part of live editing, ED_LIVE (retired 2026-10-19, bit 156; with FAVORITES)",
+    "ED_NOTE": "playing notes from the web editor is part of live editing, ED_LIVE (retired 2026-10-19, bit 159)",
+    "ED_REC": "the web editor's REC key is gone, with its transport and meters (retired 2026-10-19, bit 168)",
     "INS_EQ3": "the EQ3 insert is always built (retired 2026-10-18, bit 143; any old INS_EQ3 value is ignored)",
     "SLOT_AUTO": "locks and motion on an insert's own values (EQ3's bands) are always built (retired 2026-10-18, bit 351)",
     "INS_WRAP": "the WRAP insert (a wavewrapper) was dropped the day it came, 2026-10-18; its bit 344 and type id 20 stay unused",
@@ -725,48 +738,49 @@ _add("LCD_DIRTY", "FELUCCA_LCD_DIRTY", "screen: send only the changed rectangle"
 # ---- system
 Y = "System"
 _add("EDITOR", "FELUCCA_EDITOR", "web editor (USB SysEx)", Y, 54,
-     desc="The web editor's side of the device: editing, presets, samples, backup / restore, snapshots. Firmware "
-          "updates (the installer, M-UPGRADE) and the USB rescue are not part of it: "
-          "every build has them.",
+     desc="The web editor's communication layer: the frames and INFO, BUILD, PING. What it can do comes with its "
+          "options: BACKUP, LIBRARIAN, live editing (ED_LIVE) and its features. Firmware updates (the installer, "
+          "M-UPGRADE) and the USB rescue are not part of it: every build has them.",
      off_warning="without it there is no web editor (so no backup / restore from it); installing and the USB rescue "
                  "still work")
 # (bit 55, IDLE, retired 2026-10: the CPU sleeps between main-loop polls in every build; never reuse the bit)
 _add("BACKUP", "FELUCCA_BACKUP", "backup / restore from the web editor", Y, 84, parent="EDITOR",
-     desc="everything in flash to one .optimist-backup file and back (editor cmds 43..48); a restore onto another "
+     desc="everything in flash to one .optimist-backup file and back (editor cmds 43..48; without live editing the "
+          "sample slots' 11..15 and the snapshots' 54..57 too, which a restore writes through); a restore onto another "
           "build reports what it skips and what plays a stand-in", off_warning="no backup: export projects and kits "
           "one by one before an update")
-_add("ED_LIVE", "FELUCCA_ED_LIVE", "web editor: live editing (else backup / restore only)", Y, 350, parent="EDITOR",
+_add("LIBRARIAN", "FELUCCA_LIBRARIAN", "web editor: librarian (projects, presets, patterns, kits)", Y, 352, parent="EDITOR",
+     desc="The web editor manages the user data one piece at a time: the user presets (the Library: list, rename, move, "
+          "erase, files) and the user drum kits (load, store, erase, files), with live editing or without; without it "
+          "also the sections A..P (load, save, a file each) and the per-track patterns (copy, clear, files), next to "
+          "Backup. Editor cmds 16..21, 38..41; without live editing 9 and 79..84 too (editor/ed_lite.c).",
+     off_warning="no user presets or user kits from the web editor (the device's own SAVE pages keep them)")
+_add("ED_LIVE", "FELUCCA_ED_LIVE", "web editor: live editing (else backup / restore and the librarian)", Y, 350, parent="EDITOR",
      desc="The web editor edits the FM-1 live: the sounds' values, presets, user presets, tracks, steps, the mixer, "
           "kits and the ED_* pages, kept in sync both ways. Off: the editor's side is backup and restore only (the "
           "frames, INFO, BUILD, the user sample slots a restore writes, the snapshots, cmds 43..48: editor/ed_lite.c); "
-          "the web page then shows its Backup alone. The ED_* items do nothing without it.",
-     off_warning="the web editor can only back up and restore this FM-1: no live editing, no presets or kits from the page")
-_add("ED_FXP", "FELUCCA_ED_FXP", "web editor: every effect slot and its parameters (cmd 94)", Y, 144, parent="EDITOR",
-     desc="the web editor's FX slots by owner (track inserts, the drum bus and lane inserts, master inserts, returns, the USB input): type list, each type's own parameters (cmd 94 FXP, INFO tag 0x57). Off: the editor's Inserts / Returns pop-ups and the FX slot pages are not offered (the older FX command, 86, keeps its three send effects). About 5.3 KB of flash (measured with the Optimist UI). The INFO tag is sent only when it is built, and the editor hides what it does not find.")
-_add("ED_DLAN", "FELUCCA_ED_DLAN", "web editor: drum lanes' mix, LFOs and mutes (cmd 95)", Y, 145, parent="EDITOR",
-     desc="the web editor's drum lane pan / mute / solo / sequencer mute, the lane's own LFO and the tracks' sequencer mutes (cmd 95 DLAN, INFO tag 0x58). Off: the lane pop-up keeps its older knobs; no lane LFO, mute or solo from the editor. About 1.6 KB of flash (measured with the Optimist UI). The INFO tag is sent only when it is built, and the editor hides what it does not find.")
-_add("ED_SCRN", "FELUCCA_ED_SCRN", "web editor: GLOBAL and SYSTEM settings (cmd 96)", Y, 146, parent="EDITOR",
-     desc="the web editor's Device settings: GLOBAL and SYSTEM as the Optimist UI's lines, with their help (cmd 96 SCRN, INFO tag 0x59). Needs the Optimist UI (UI=1: with SLOOP's UI nothing is built). Off: the editor's Device-lines settings are hidden. About 1.3 KB of flash (measured with the Optimist UI). The INFO tag is sent only when it is built, and the editor hides what it does not find.")
-_add("ED_SONG", "FELUCCA_ED_SONG", "web editor: the song chain (cmd 97)", Y, 147, parent="EDITOR",
-     desc="the web editor's song chain: PART 1..64 (scene, bars), INSERT / DELETE, LOOP / SONG, SAVE (cmd 97 SONGC, INFO tag 0x5A). Off: the editor's song chain editor is hidden. About 0.7 KB of flash (measured with the Optimist UI). The INFO tag is sent only when it is built, and the editor hides what it does not find.")
-_add("ED_TOOLS", "FELUCCA_ED_TOOLS", "web editor: pattern tools and EUCLID (cmd 98)", Y, 148, parent="EDITOR",
-     desc="the web editor's pattern tools REVERSE, RANDOM, COOK, LENGTH x2 / 1/2 and EUCLID, run by the device's own function (cmd 98 TOOLS, INFO tag 0x5B). Needs the Optimist UI and SEQTOOLS. Off: the editor's tools buttons are hidden. About 0.8 KB of flash (measured with the Optimist UI). The INFO tag is sent only when it is built, and the editor hides what it does not find.")
-_add("ED_SCRS", "FELUCCA_ED_SCRS", "web editor: the Optimist UI's screens as rows of cards (cmd 99)", Y, 149, parent="EDITOR",
-     desc="the web editor's Device screens tab: SOUND, MIX, MASTER, PROJECT, STEPS, SONG and TEMPO pages as the device shows them, any track, lane or FM6 operator (cmd 99 SCRS, INFO tag 0x5C). Needs the Optimist UI (UI=1). Off: no Device screens tab; the editor keeps its own Sound / Mixer / Sequence tabs. About 2.8 KB of flash (measured with the Optimist UI). The INFO tag is sent only when it is built, and the editor hides what it does not find.")
-_add("ED_FAVS", "FELUCCA_ED_FAVS", "web editor: favorites (cmd 100)", Y, 156, parent="EDITOR",
-     desc="the web editor's stars in Load preset and its favorites-only list (cmd 100 FAVS, INFO tag 0x5D). Needs the favorites (FAVORITES). Off: no stars in the editor. About 1.0 KB of flash (measured with the Optimist UI). The INFO tag is sent only when it is built, and the editor hides what it does not find.")
-_add("ED_SCOPE", "FELUCCA_ED_SCOPE", "web editor: the oscilloscope (cmd 101)", Y, 157, parent="EDITOR",
-     desc="the web editor's Device screens > SCOPE: the device's own trace of the master or a track (cmd 101 SCOPE, INFO tag 0x5E). Needs the Optimist UI (UI=1). Off: no scope in the editor. About 0.6 KB of flash (measured with the Optimist UI). The INFO tag is sent only when it is built, and the editor hides what it does not find.")
-_add("ED_UNDO", "FELUCCA_ED_UNDO", "web editor: undo and redo (cmd 102)", Y, 158, parent="EDITOR",
-     desc="the web editor's UNDO and REDO of the patterns through the device's own undo history (cmd 102 UNDO, INFO tag 0x5F); with it built the editor's own step, lock, nudge, fill and chance writes are undo levels, as a panel step key's are (writes to one track within 800 ms are one level). Off: no undo in the editor. The INFO tag is sent only when it is built, and the editor hides what it does not find.")
-_add("ED_NOTE", "FELUCCA_ED_NOTE", "web editor: play notes from the editor (cmd 103)", Y, 159, parent="EDITOR",
-     desc="the web editor's keyboard: a note on / off for a track through the device's own note input (the arp, the chord layout, the voice budget, REC and MIDI OUT KEYS apply), a ring to the audio interrupt of its own, at most 8 notes held, and an automatic note off after 3 s without a request from the host, on a USB reset, or after a given length (cmd 103 NOTE, INFO tag 0x60). Off: the editor cannot play notes. The INFO tag is sent only when it is built, and the editor hides what it does not find.")
-_add("ED_SOLO", "FELUCCA_ED_SOLO", "web editor: track and lane solo and mute (cmd 104)", Y, 165, parent="EDITOR",
-     desc="the web editor's track and drum-lane SOLO and MUTE through the device's own masks (cmd 104 SOLO, INFO tag 0x61): the same state GLO + key 1..8 and the lane rows set. Off: the strip's SOLO stays a label. The INFO tag is sent only when it is built, and the editor hides what it does not find.")
-_add("ED_STEPLANE", "FELUCCA_ED_STEPLANE", "web editor: a step in a drum lane, its lockable values (cmd 105)", Y, 166, parent="EDITOR",
-     desc="the web editor's held step in a track and drum-lane context: level, ratchet, chance, condition, nudge, fill, and the device's own list of lockable values (the Optimist UI's lock pages, a drum lane's TUNE .. LEVEL) with the locks and hold events on the step (cmd 105 STEPLANE, INFO tag 0x62). Needs the automation store. Off: the editor lists raw parameter ids and has no lane context. The INFO tag is sent only when it is built, and the editor hides what it does not find.")
-_add("ED_REC", "FELUCCA_ED_REC", "web editor: the REC key and its state (cmd 107)", Y, 168, parent="EDITOR",
-     desc="the web editor's REC button in the transport bar: the device's own REC key (arm, start recording, stop, close a free take) and its state: recording, waiting for the start, count-in, free take (cmd 107 REC, INFO tag 0x63). Off: the editor has no REC button. The INFO tag is sent only when it is built, and the editor hides what it does not find.")
+          "the web page then shows its Backup (and, with LIBRARIAN, the librarian) alone. The ED_* items do nothing "
+          "without it.",
+     off_warning="no live editing from the web editor: backup and restore, and with LIBRARIAN the projects, presets, "
+                 "patterns and kits")
+# (2026-10-19, the user: "group them in logical features": the thirteen ED_* commands became three features; bits 144..149,
+#  156..159, 165, 166, 168 (ED_FXP .. ED_REC) retired, never reuse them)
+_add("ED_MIX", "FELUCCA_ED_MIX", "web editor: the mixer (effect slots, drum lanes, solo and mute)", Y, 353, parent="EDITOR",
+     desc="The web editor's mixer beyond levels and pans: every FX slot by owner with its parameters (track inserts, the "
+          "drum bus and lane inserts, master inserts, returns, the USB input; cmds 86, 87, 94), the drum lanes' pan, "
+          "mutes, solos and LFOs (cmd 95), track and lane SOLO and MUTE (cmd 104). Off: the editor's Inserts / Returns "
+          "pop-ups and FX pages, the lane LFOs and the strips' SOLO are not offered; the levels, pans and sends stay.")
+_add("ED_SEQ", "FELUCCA_ED_SEQ", "web editor: the sequencer (lane steps, pattern tools, song chain)", Y, 354, parent="EDITOR",
+     desc="The web editor's sequencer tools beyond the steps themselves: a step held in a drum lane's context with the "
+          "device's own list of lockable values (cmd 105; with the automation store), the pattern tools REVERSE, "
+          "RANDOM, COOK, LENGTH and EUCLID run by the device (cmd 98; the Optimist UI and SEQTOOLS), the song chain "
+          "(cmd 97; the arranger). Off: the editor lists raw parameter ids, has no tools buttons and no song chain.")
+_add("ED_SCREENS", "FELUCCA_ED_SCREENS", "web editor: the device's screens (cards, GLOBAL / SYSTEM, scope)", Y, 355,
+     parent="EDITOR",
+     desc="The web editor's Device tab: the Optimist UI's SOUND, MIX, MASTER, PROJECT, STEPS, SONG and TEMPO pages as "
+          "rows of cards (cmd 99), GLOBAL and SYSTEM as the device's lines with their help (cmd 96) and the "
+          "oscilloscope (cmd 101). Needs the Optimist UI (UI=1: with SLOOP's UI nothing is built). Off: no Device tab; "
+          "the editor keeps its own Sound / Mixer / Sequence tabs.")
 # (bit 70, SIZE, retired 2026-10: the UI, storage and editor code is always built minsize, tools/size_fns.py keeps the
 #  audio path out of it; never reuse the bit)
 _add("TAB_IN_POOL", "FELUCCA_TAB_IN_POOL", "sound tables and FM6 buffers in the pool, not main RAM", Y, 300, default=0,

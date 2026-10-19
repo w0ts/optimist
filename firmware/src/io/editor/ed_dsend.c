@@ -33,6 +33,7 @@ static void ed_snd_set(uint16_t *w, const uint8_t *b, uint32_t n)   /* 3n bytes 
 static __attribute__((noinline)) int ed_dsend(uint32_t cmd, const uint8_t *a, uint32_t na)
 {
     uint8_t b[ED_DL2_N];
+#if FELUCCA_ED_LIVE                                            /* (the lanes: the live editor's) */
     if (cmd == ED_DRUM_LANES && na && a[0] == 2u && (na == 1u || na == 1u + ED_DL2_N + (ED_DL2_N + 6u) / 7u)) {
         if (na > 1u) {
             dlrec_t n;
@@ -75,7 +76,8 @@ static __attribute__((noinline)) int ed_dsend(uint32_t cmd, const uint8_t *a, ui
         ed_pack7(b, 15u);
         return 1;
     }
-#if FELUCCA_DRUM_KITS
+#endif
+#if ED_UKITS
 #define ED_KIT2 (EDW_UK_N + 3u * DRUM_LSTORE)                  /* a kit (196 B) and its sends (48 B) */
     if (cmd == ED_UKIT_GET && na && (a[0] & ~15u) == ED_V2) {
         ukit_t k;

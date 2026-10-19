@@ -1,11 +1,9 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* tests/ui_optimist_test.c, 2026-10-16: the returns' MUTE on the mixer's MASTER row (SHIFT = OCT- held, + the RETURNS card's knob, once per hold; the card struck
- * through; a turned level unmutes it; fx.c fx_rmute) and the editor's two commands on the Optimist UI: SOLO op 7 (the same bits the gesture sets) and REC
- * (cmd 107: TOGGLE is the panel's REC press: the arm it makes is disarmed by the REC key, the key's arm by TOGGLE). Included after ui_optimist_edv14.h and
- * ui_optimist_solo.h. */
+ * through; a turned level unmutes it; fx.c fx_rmute) and the editor's SOLO op 7 on the Optimist UI (the same bits the gesture sets; the editor's REC,
+ * cmd 107, is gone since 2026-10-19). Included after ui_optimist_edv14.h and ui_optimist_solo.h. */
 static void ed_known(uint32_t k, uint32_t id) { (void)k, (void)id; }
 #include "../firmware/src/io/editor/ed_solo.c"
-#include "../firmware/src/io/editor/ed_rec.c"
 static int rm_find_ret_card(uint32_t *k, mitem_t *m)   /* the MASTER row's RETURNS set shown, a card of it */
 {
     uint32_t s, c;
@@ -66,25 +64,6 @@ static void retmute_tests(void)
         mix_cell(MXR_MASTER, k, &c);
         check(c.strike, "retmute: ... and the card is struck through");
         fx_rmute = 0;
-    }
-#endif
-#if FELUCCA_ED_REC
-    {
-        uint8_t q[1] = {1};
-        reset_ui();
-        if (song.playing)
-            tap(B_PLAY), frames(3);
-        song.rec = 0, rec_wait = 0;
-        ed_begin(ED_REC);
-        check(ed_rec(ED_REC, q, 1) && rec_wait == 1 && ed_out[7] == 2 && ui.force, "REC (cmd 107) TOGGLE stopped: waiting (bit 1), as the REC key");
-        frames(2);
-        tap(B_REC);
-        check(!rec_wait && !song.rec, "... the REC key disarms what the editor armed");
-        tap(B_REC);
-        check(rec_wait == 1, "the REC key arms ...");
-        ed_begin(ED_REC);
-        check(ed_rec(ED_REC, q, 1) && !rec_wait && ed_out[7] == 0, "... and TOGGLE disarms it");
-        song.rec = 0, rec_wait = 0;
     }
 #endif
 }

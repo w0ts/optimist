@@ -6,6 +6,7 @@ solver. No build here (tools/builder/verify.py builds); run by tests/run_tests.s
 import argparse
 import contextlib
 import io
+import re
 import sys
 from pathlib import Path
 
@@ -101,37 +102,47 @@ check("LFO2: no item, retired (its bit 91 not reused), counted ON in the configu
       "LFO2" not in R.ITEMS and "LFO2" in R.RETIRED and R.HASH_AS.get("LFO2") == 1 and all(it.bit != 91 for it in R.ITEMS.values()) and
       not [p.name for d in (C.PROFILES, ROOT / "tools" / "builder" / "estimate", ROOT / "tests" / "profiles") for p in d.glob("*.config")
            if any(ln.startswith("LFO2=") for ln in p.read_text().splitlines())])
-# the web editor's v13 and v14 commands are thirteen builder items (ED_*): options of EDITOR (the editor), on by default, each its own flag and INFO tag
-ED = {"ED_FXP": "FELUCCA_ED_FXP", "ED_DLAN": "FELUCCA_ED_DLAN", "ED_SCRN": "FELUCCA_ED_SCRN", "ED_SONG": "FELUCCA_ED_SONG",
-      "ED_TOOLS": "FELUCCA_ED_TOOLS", "ED_SCRS": "FELUCCA_ED_SCRS", "ED_FAVS": "FELUCCA_ED_FAVS", "ED_SCOPE": "FELUCCA_ED_SCOPE",
-      "ED_UNDO": "FELUCCA_ED_UNDO", "ED_NOTE": "FELUCCA_ED_NOTE", "ED_SOLO": "FELUCCA_ED_SOLO", "ED_STEPLANE": "FELUCCA_ED_STEPLANE", "ED_REC": "FELUCCA_ED_REC"}
-check("web editor items: the thirteen ED_* exist, options of EDITOR, on by default, one flag each",
-      all(k in R.ITEMS and R.ITEMS[k].parent == "EDITOR" and R.ITEMS[k].default == 1 and R.ITEMS[k].flag == f for k, f in ED.items()))
-check("... the shipped profiles set them only where the slot asks: synth (the maintainer's own, live editing off) all thirteen, user-default FAVS, SCOPE, SCRN, SCRS and TOOLS, x0x-drums (it fills the slot to the byte) FXP, FAVS, SCOPE and SONG",
+# the web editor's live features are three builder items (2026-10-19, the user: "group them in logical features"): options of
+# EDITOR, on by default, each the switch of its commands' own flags (firmware/src/core/registry.h)
+ED = {"ED_MIX": ("FELUCCA_ED_FXS", "FELUCCA_ED_FXP", "FELUCCA_ED_DLAN", "FELUCCA_ED_SOLO"),
+      "ED_SEQ": ("FELUCCA_ED_STEPLANE", "FELUCCA_ED_TOOLS", "FELUCCA_ED_SONG"),
+      "ED_SCREENS": ("FELUCCA_ED_SCRS", "FELUCCA_ED_SCRN", "FELUCCA_ED_SCOPE")}
+ED_OLD = {"ED_FXP": "ED_MIX", "ED_DLAN": "ED_MIX", "ED_SOLO": "ED_MIX", "ED_STEPLANE": "ED_SEQ", "ED_TOOLS": "ED_SEQ", "ED_SONG": "ED_SEQ",
+          "ED_SCRS": "ED_SCREENS", "ED_SCRN": "ED_SCREENS", "ED_SCOPE": "ED_SCREENS"}
+_rh = (ROOT / "firmware" / "src" / "core" / "registry.h").read_text()
+check("web editor items: ED_MIX, ED_SEQ, ED_SCREENS exist, options of EDITOR, on by default, bits 353..355; each command's flag follows its feature",
+      all(k in R.ITEMS and R.ITEMS[k].parent == "EDITOR" and R.ITEMS[k].default == 1 and R.ITEMS[k].flag == "FELUCCA_" + k for k in ED) and
+      sorted(R.ITEMS[k].bit for k in ED) == [353, 354, 355] and
+      all(re.search(rf"#define {f} +FELUCCA_{k}\b", _rh) for k, fs in ED.items() for f in fs))
+check("... the thirteen ED_* of before are gone: nine merged into their feature, UNDO / FAVS / NOTE part of live editing, REC dropped",
+      all(o not in R.ITEMS and R.MERGED.get(o, ("",))[0] == g for o, g in ED_OLD.items()) and
+      all(o not in R.ITEMS and o in R.RETIRED for o in ("ED_UNDO", "ED_FAVS", "ED_NOTE", "ED_REC")) and
+      not re.search(r"FELUCCA_ED_REC\b", _rh) and all(it.bit not in (144, 145, 146, 147, 148, 149, 156, 157, 158, 159, 165, 166, 168)
+                                                       for it in R.ITEMS.values()))
+check("... an older .config with a feature's parts all off loads it off, with one of them on it on (a survivor it does not name)",
+      C.parse("ED_FXP=0\nED_DLAN=0\nED_SOLO=0\n")[0]["ED_MIX"] == 0 and C.parse("ED_FXP=0\nED_DLAN=1\n")[0]["ED_MIX"] == 1 and
+      C.parse("ED_TOOLS=0\n")[0]["ED_SEQ"] == 0 and C.parse("ED_MIX=1\nED_FXP=0\n")[0]["ED_MIX"] == 1)
+check("... the shipped profiles set them only where the slot asks: synth (live editing off) all three off, user-default the screens, x0x-drums all three on",
       {p.stem: sorted(ln.strip() for ln in p.read_text().splitlines() if ln.split("=")[0] in ED) for p in C.PROFILES.glob("*.config")
        if any(ln.split("=")[0] in ED for ln in p.read_text().splitlines())} ==
-      {"synth": sorted(f"{k}=0" for k in ED), "user-default": ["ED_FAVS=0", "ED_SCOPE=0", "ED_SCRN=0", "ED_SCRS=0", "ED_TOOLS=0"],
-       "x0x-drums": ["ED_FAVS=0", "ED_FXP=0", "ED_SCOPE=0", "ED_SONG=0"]})
+      {"synth": ["ED_MIX=0", "ED_SCREENS=0", "ED_SEQ=0"], "user-default": ["ED_SCREENS=0", "ED_SEQ=1"],
+       "x0x-drums": ["ED_MIX=1", "ED_SCREENS=1", "ED_SEQ=1"]})
 _fl, _ = C.flags(dict(C.defaults()))
-check("... the default build has every flag on", all(_fl[f] == 1 for f in ED.values()))
-_fl, _ = C.flags(dict(C.defaults(), ED_FXP=0, ED_SCOPE=0))
-check("... ED_FXP=0 ED_SCOPE=0 switch only those two flags off", _fl["FELUCCA_ED_FXP"] == 0 and _fl["FELUCCA_ED_SCOPE"] == 0 and
-      all(_fl[f] == 1 for k, f in ED.items() if k not in ("ED_FXP", "ED_SCOPE")))
-check("... the header carries them (-D from the generated config: FELUCCA_ED_FXP 0)", "#define FELUCCA_ED_FXP 0" in C.header(dict(C.defaults(), ED_FXP=0), "t"))
-_fl, _ = C.flags(dict(C.defaults(), EDITOR=0, ED_FXP=0))
-check("... with the editor (EDITOR) left out its options are ignored (their default, no effect)", _fl["FELUCCA_EDITOR"] == 0 and _fl["FELUCCA_ED_FXP"] == 1)
+check("... the default build has every feature on", all(_fl["FELUCCA_" + k] == 1 for k in ED))
+_fl, _ = C.flags(dict(C.defaults(), ED_MIX=0))
+check("... ED_MIX=0 switches only the mixer off", _fl["FELUCCA_ED_MIX"] == 0 and _fl["FELUCCA_ED_SEQ"] == 1 and _fl["FELUCCA_ED_SCREENS"] == 1)
+check("... the header carries it (-D from the generated config: FELUCCA_ED_MIX 0)", "#define FELUCCA_ED_MIX 0" in C.header(dict(C.defaults(), ED_MIX=0), "t"))
+_fl, _ = C.flags(dict(C.defaults(), EDITOR=0, ED_MIX=0))
+check("... with the editor (EDITOR) left out its options are ignored (their default, no effect)", _fl["FELUCCA_EDITOR"] == 0 and _fl["FELUCCA_ED_MIX"] == 1)
 # 2026-10-17: a build without the editor was a build without updates (one item, OTA): the FM-1 then answered no installer
 check("updates and the USB rescue are no builder item: no flag of any item is FELUCCA_OTA, so every build answers the installer",
       all(it.flag != "FELUCCA_OTA" for it in R.ITEMS.values()) and "FELUCCA_OTA" not in C.flags(C.defaults())[0])
 _cfg, _ = C.parse("OTA=0\n")
 check("... an old .config's OTA=0 loads as EDITOR=0 (the editor out, updates kept), OTA=1 as EDITOR=1",
       _cfg["EDITOR"] == 0 and C.parse("OTA=1\n")[0]["EDITOR"] == 1 and "OTA" not in _cfg)
-check("... the commands that read the Optimist UI cost nothing without it (NEEDS), ED_FAVS nothing without the favorites",
-      all(C.NEEDS[k].get("UI") == 1 for k in ("ED_SCRN", "ED_SCRS", "ED_SCOPE", "ED_TOOLS")) and C.NEEDS["ED_TOOLS"].get("SEQTOOLS") == 1 and
-      C.NEEDS["ED_FAVS"].get("FAVORITES") == 1 and
-      not C.counted(dict(C.defaults(), UI=0), "ED_SCRS") and C.counted(dict(C.defaults(), UI=1), "ED_SCRS"))
-check("... their bits are the provisional 144..149, 156, 157 (150 is retired, 151 REV_ROOM) and v14's 158, 159, 165, 166, 168 (160 CHORD_NAMES, 161..164 and 175.. the backports')",
-      sorted(R.ITEMS[k].bit for k in ED) == [144, 145, 146, 147, 148, 149, 156, 157, 158, 159, 165, 166, 168])
+check("... the device screens cost nothing without the Optimist UI (NEEDS), every feature nothing without live editing",
+      C.NEEDS["ED_SCREENS"].get("UI") == 1 and all(C.NEEDS[k].get("ED_LIVE") == 1 for k in ED) and
+      not C.counted(dict(C.defaults(), UI=0), "ED_SCREENS") and C.counted(dict(C.defaults(), UI=1), "ED_SCREENS"))
 # SIZE (bit 70) and IDLE (bit 55) are retired, always built: an old .config naming them loads, warns, builds as ever
 _w = io.StringIO()
 with contextlib.redirect_stderr(_w):

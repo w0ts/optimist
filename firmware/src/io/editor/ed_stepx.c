@@ -1,9 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Editor protocol: a track's automation (seq/auto.h: locks, motion, nudges, fills, chance; included by editor.c with
  * FELUCCA_AUTO; web/EDITOR_PROTOCOL.md "The automation store"). v11 (phase 3; v10 is main's FX slots, 86 FX, 87 FX_PUSH): one pair, AUTO_GET / AUTO_SET, reads and
- * writes the list as it is. The older step extras' commands (SLOOP 2.4 has them as its 37..42; here 72..77) still
- * answer, now on the list: a lock is a step-only event of a value (param OUR P_* id), a nudge and a fill condition
- * step-only AUTO_NUDGE / AUTO_FILL events. Writes take the IRQ off.
+ * writes the list as it is. Writes take the IRQ off. (The older step extras' commands 72..77, SLOOP 2.4's 37..42, are gone
+ * since 2026-10-19: the web editor reads and writes the list.)
  *   92 AUTO_GET  track [, first]          -> track, n (the list's events, 2 x 7 bit), the PLAY bit, first, count, then
  *                count x (place, param (2 x 7 bit: the stored id), value v14); at most 64 a reply: ask again from
  *                first + count
@@ -12,17 +11,9 @@
  *                op 0 SET place, param (2 x 7 bit), v14 (clamped to the value's range)
  *                op 1 DEL place, param (2 x 7 bit)
  *                op 2 CLEAR which (1 the hold events, 2 the step-only ones, 3 all)
- *                op 3 PLAY on (0 / 1: the track's hold events play)
- *   72 LOCK_GET   track                   -> track, n, n x (step, param, v14)
- *   73 LOCK_SET   track, step, param [, v14: absent = delete] -> track, step, param, rc (1 set / deleted, 0 not
- *                 lockable or the list full), v14 (the value kept, clamped; 0 deleted)
- *   74 MICRO_GET  track                   -> track, 64 x (nudge + 64)
- *   75 MICRO_SET  track, step, nudge + 64 -> track, step, nudge + 64 (clamped to -32..31)
- *   76 FILL_GET   track                   -> track, 64 x condition (0 normal, 1 fill only, 2 no fill)
- *   77 FILL_SET   track, step, condition  -> track, step, condition */
+ *                op 3 PLAY on (0 / 1: the track's hold events play) */
 #include "ed_reply.h"         /* (ed_b2..ed_b4, ed_b32) */
 #include "ed_out.h"            /* (ED_PAYLOAD_N) */
-enum { ED_LOCK_GET = 72, ED_LOCK_SET, ED_MICRO_GET, ED_MICRO_SET, ED_FILL_GET, ED_FILL_SET };
 enum { ED_AUTO_GET = 92, ED_AUTO_SET = 93 };   /* (85 is kept for a push of the patterns: EDITOR_PROTOCOL.md) */
 #define ED_AUTO_PAGE 64u
 _Static_assert(9u + 5u * ED_AUTO_PAGE <= ED_PAYLOAD_N, "AUTO_GET: a page of events fits one reply");
@@ -145,73 +136,9 @@ static int ed_auto(uint32_t cmd, const uint8_t *a, uint32_t na)
 
 static int ed_stepx(uint32_t cmd, const uint8_t *a, uint32_t na)
 {
-    track_t *t;
-    uint32_t i, n = 0, at;
-    int32_t v;
-    if (((cmd < ED_LOCK_GET || cmd > ED_FILL_SET) && cmd != ED_AUTO_GET && cmd != ED_AUTO_SET) || na < 1u || a[0] >= NTRK)
+    if ((cmd != ED_AUTO_GET && cmd != ED_AUTO_SET) || na < 1u || a[0] >= NTRK)
         return 0;
-    t = &trk[a[0]];
     ed_b(a[0]);
-    if (cmd == ED_AUTO_GET || cmd == ED_AUTO_SET)
-        return ed_auto(cmd, a, na);
-    switch (cmd) {
-    case ED_LOCK_GET: {
-        const auto_list_t *l = AL(t);
-        at = ed_n;
-        ed_b(0);
-        for (i = 0; i < l->n; i++)
-            if ((l->ev[i].place & AUTO_ONLY) && !AUTO_PSEUDO(l->ev[i].param) && mot_id(l->ev[i].param) < P_COUNT) {
-                ed_b2(l->ev[i].place & AUTO_STEP, mot_id(l->ev[i].param));
-                ed_v(l->ev[i].value);
-                n++;
-            }
-        ed_out[at] = (uint8_t)n;
-        return 1;
-    }
-    case ED_LOCK_SET: {
-        int ok = 0;
-        if (na < 3u || a[1] >= NSTEP)
-            return 0;
-        ed_undo_edit(t);
-        fm1_irq_off();
-        if (na < 5u) {                                    /* (no value: the lock goes) */
-            lock_drop(t, a[1], a[2]);
-            ok = 1;
-        } else {
-#if FELUCCA_PLOCK
-            ok = lock_set(t, a[1], a[2], ed_rv(a + 3));
-#endif
-        }
-        if (!lock_get(t, a[1], a[2], &v))
-            v = 0;
-        fm1_irq_on();
-        ed_b3(a[1], a[2], (uint32_t)ok);
-        ed_v(v);
-        return 1;
-    }
-    case ED_MICRO_GET:
-        for (i = 0; i < NSTEP; i++)
-            ed_b((uint32_t)(step_micro(t, i) + 64));
-        return 1;
-    case ED_FILL_GET:
-        for (i = 0; i < NSTEP; i++)
-            ed_b(step_fill(t, i));
-        return 1;
-    case ED_MICRO_SET:
-    case ED_FILL_SET:
-        if (na < 3u || a[1] >= NSTEP)
-            return 0;
-        ed_undo_edit(t);
-        fm1_irq_off();
-        if (cmd == ED_MICRO_SET)
-            (void)step_micro_set(t, a[1], (int32_t)a[2] - 64);
-        else
-            (void)step_fill_set(t, a[1], a[2]);
-        fm1_irq_on();
-        ed_b2(a[1], cmd == ED_MICRO_SET ? (uint32_t)(step_micro(t, a[1]) + 64) : step_fill(t, a[1]));
-        return 1;
-    default:
-        return 0;
-    }
+    return ed_auto(cmd, a, na);
 }
 #define ED_STEPX_FN ed_stepx,               /* (editor.c: its table of commands) */

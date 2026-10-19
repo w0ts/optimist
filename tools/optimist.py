@@ -428,7 +428,7 @@ def ble_test_configs():
             return load_config(argparse.Namespace(profile=REFERENCE_PROFILE, config=None, defaults=False, set=list(sets),
                                                   name=None, ble_drop=ble_drop))[0]
     return [(f"{REFERENCE_PROFILE}+ble-test", load(["BLE=1", "BLE_DIAG=1", "BLE_CENTRAL=1", *BLE_TEST_ROOM], ble_drop="FLUTE")),
-            (f"{REFERENCE_PROFILE}+ble-full", load([*BLE_FULL_SET, *BLE_TEST_ROOM, "PATTERNS=0", "ED_FXP=0", "ED_SCRS=0", "ED_TOOLS=0", "ED_SONG=0", "ED_SOLO=0", "ED_REC=0", "ED_UNDO=0", "DUAL=0"]))]
+            (f"{REFERENCE_PROFILE}+ble-full", load([*BLE_FULL_SET, *BLE_TEST_ROOM, "PATTERNS=0", "ED_MIX=0", "ED_SEQ=0", "ED_SCREENS=0", "DUAL=0"]))]
 
 
 def prepare_tests():
@@ -456,7 +456,8 @@ def prepare_tests():
     shutil.copy(ROOT / "build" / "felucca.elf", ble / "felucca-ble.elf")     # (its symbols: the blell RAM block)
     print(f"test: building {REFERENCE_PROFILE} with the whole BLE option set, as it goes on the FM-1 (BLE, USB_MODE, "
           "BLE_BOND, BLE_CENTRAL, BLE_DIAG: the package tests/ble_emu_boot_test.py starts with BLUETOOTH saved ON)")
-    # (ED_FXP=0 and ED_SCRS=0 too since 2026-10-16, batch 163: the web editor's two large commands, no BLE test uses them; 836 B over the slot.)
+    # (the web editor's mixer, sequencer and device screens off too, ED_MIX / ED_SEQ / ED_SCREENS since 2026-10-19 (ED_FXP and
+    # ED_SCRS since 2026-10-16, batch 163, 836 B over the slot): no BLE test uses them.)
     # (PATTERNS=0 in this set since 2026-10-15, batch 141 (batch 140 had FM6_SYSEX=0 for a 40 B overflow): the batches' growth
     # (fx-rework, JUNO, env-dests) put the whole set 2,600 B over the slot (ld: region XIP overflowed); --ble-drop FLUTE frees
     # nothing here (user-default has it off). The patterns and scenes (about 5.6 KB) are not used by any BLE test.
