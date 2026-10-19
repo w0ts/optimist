@@ -784,8 +784,8 @@ static void key_tests(void)
 static int px_in(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t col)   /* colour col drawn in the box */
 {
     uint32_t i, j;
-    for (j = y; j < y + h; j++)
-        for (i = x; i < x + w; i++)
+    for (j = y; j < y + h && j < 240u; j++)                 /* (the box clipped to the screen: a read past it is undefined) */
+        for (i = x; i < x + w && i < 240u; i++)
             if (screen[j * 240u + i] == swap16(col))
                 return 1;
     return 0;

@@ -234,9 +234,10 @@ static void geo_fx_needles(void)
         for (k = 0; k < 4u; k++) {                      /* (each needle named as its card) */
             char b[16];
             page_cell(gp, k, &c);
-            if (c.label && c.gk != GK_NONE)
-                ok &= (uint32_t)px_in((uint32_t)(FXN_X(k) - text_w(&FONT_S, card_label(&c, b, sizeof b)) / 2), OP_PY + (uint32_t)GRAPH_H - 16u,
-                                      (uint32_t)text_w(&FONT_S, b), 14, C_GRAY);
+            if (c.label && c.gk != GK_NONE) {
+                uint32_t w = (uint32_t)text_w(&FONT_S, card_label(&c, b, sizeof b));   /* (b filled first: a call's arguments have no order) */
+                ok &= (uint32_t)px_in((uint32_t)FXN_X(k) - w / 2u, OP_PY + (uint32_t)GRAPH_H - 16u, w, 14, C_GRAY);
+            }
         }
     }
     check(gp && ok, "#31 SOUND FX: the needles are the page's own values (KNOB 1 full, KNOB 2 none), under the 2x2 cards, named");
