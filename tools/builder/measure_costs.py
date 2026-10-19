@@ -91,21 +91,32 @@ PAIRS = [{"MOTION": 1, "SECTIONS": 4},
          # the user sample zones (eng_sample.c SMP_USR_ZONES, 1.3 KB of RAM and their code) are built with any of SAMPLE,
          # GRAIN, SLICE and the drums' user samples: only all four off drop them (2026-10-14, a user's configuration
          # 1,344 B of RAM over without this)
-         {"ENG_SAMPLE": 0, "ENG_GRAIN": 0, "ENG_SLICE": 0, "DRUM_USR": 0}]
+         {"ENG_SAMPLE": 0, "ENG_GRAIN": 0, "ENG_SLICE": 0, "DRUM_USR": 0},
+         # the FILTER insert's code and state (core.h TFLT_ON) are built with the track FILTER or the master DJ filter
+         # (on by default): TRK_FILT's delta is ~0, without FX_DJF it pays them (2026-10-19: drum-machine + TRK_FILT
+         # 1,104 B of RAM and 2.4 KB of flash, its delta 96 B of flash)
+         {"FX_DJF": 0, "TRK_FILT": 1}]
 # items off by default that share code and state built with any of them: each one's delta pays it, so the group's
 # shared part is measured (all of them on: (sum of their deltas - what that build adds) / (n - 1)) and counted once
 # (configure.py group_delta). Found 2026-10-14: each insert beyond the first was 0.76 KB of RAM over
-def _any_of(header, macro):
-    """-> (keys) the registry items of a firmware macro defined as an OR of FELUCCA_ switches (core.h INS_FX), so a
-    new member joins its group without an edit here"""
+def _any_of(header, *macros):
+    """-> (keys) the registry items of firmware macros defined as an OR of FELUCCA_ switches (core.h INS_FX; a
+    definition may go on over lines with a backslash), so a new member joins its group without an edit here"""
     import re
-    m = re.search(r"^#define " + macro + r" \((.*?)\)\s*$", (C.ROOT / "firmware" / "src" / header).read_text(), re.M)
-    flags = re.findall(r"FELUCCA_\w+", m.group(1)) if m else []
+    text = (C.ROOT / "firmware" / "src" / header).read_text().replace("\\\n", " ")
+    flags = []
+    for macro in macros:
+        m = re.search(r"^#define " + macro + r" \((.*?)\)\s*$", text, re.M)
+        flags += re.findall(r"FELUCCA_\w+", m.group(1)) if m else []
     by_flag = {it.flag: k for k, it in R.ITEMS.items() if it.flag}
     return tuple(by_flag[f] for f in flags if f in by_flag and not R.ITEMS[by_flag[f]].default)
 
 
 GROUPS = {"INS_FX": _any_of("core/core.h", "INS_FX"),   # (the insert slots)
+          # the shaper inserts (FOLD FUZZ SFLD RECT HARM, RING SUB SLEW: fx/insfx/insfx.c ifx_drv_t and its fade and
+          # rest): the first one built pays ~0.6 KB of RAM the others share (2026-10-19: SLEW +384 B in synth, its
+          # delta from the defaults +1,008)
+          "INS_SHAPE": _any_of("fx/insfx/insfx.c", "IFX_DRV", "IFX_MOD"),
           # the automation store's code (seq/auto.c, storage/auto_proj.c: ~7 KB of flash, a little RAM and pool):
           # as pairs (MOTION+CHANCE, ...) a change of one of four left out the combinations without MOTION (9 KB over
           # for CHANCE off in a user's configuration, 2026-10-14)
