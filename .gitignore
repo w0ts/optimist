@@ -11,3 +11,4 @@ tools/builder/venv/
 /config/user.config
 /.claude/
 /config/ble/
+/worktrees/
