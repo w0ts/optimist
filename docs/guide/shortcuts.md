@@ -95,7 +95,7 @@ On STEP the white keys stay steps under the shifts: SHIFT and SHIFT2 with a step
 | SHIFT2 + PRESETS | no step held | follow the playhead again |
 | SELECT | no step held | the next card page |
 | SELECT turned or SEQ tapped, the cards down | STEP | the cards back, the page kept (once up: SELECT the rows, SEQ the next page) |
-| KNOB 1, the cards down | STEP | **the note picker:** the next / previous note (drums: hit of the selected lane), framed |
+| KNOB 1, the cards down | STEP | **the note picker:** the next / previous note, note by note: left to right, the lowest first in a chord (drums: hit of the selected lane), framed |
 | KNOB 2, a note picked | STEP | the note a step earlier / later (its locks and motion with it); SHIFT held: its nudge |
 | KNOB 3, a note picked | STEP | its pitch; drums: its lane (that lane selected) |
 | KNOB 4, a note picked | STEP | its length; drums: its level |
