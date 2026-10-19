@@ -1106,11 +1106,32 @@ static void edit_cond(track_t *t, uint32_t idx, int32_t v) { (void)step_cond_set
  * its lane), KNOB 4 its length (the drum track: its level); SAVE its cards as if its step were held (the step, its
  * extras, its p-locks; HOME lets go), SAVE held muted / not (seq/auto.h AUTO_MUTE), HOME held deleted. The edits are the
  * held step's (held_*), run on the picked step; it is drawn framed (op_stepdraw.c) */
+static int roll_carried(const track_t *t, const step_t *s, uint32_t idx, uint32_t i);   /* op_stepdraw.c */
+/* the notes that start at synth step idx (not carried on from the step before), lowest first, into k[] (their slots in
+ * the step); -> how many. KNOB 1 walks these one by one (the user, 2026-10-19: "not step by step but note by note. most
+ * left note first and in case of equality, the lowest one") */
+static __attribute__((noinline)) uint32_t pk_heads(const track_t *t, uint32_t idx, uint8_t *k)   /* (once: pk_ok is
+                                                                                                * called all over) */
+{
+    const step_t *s = &t->step[idx];
+    uint32_t i, j, n = 0;
+    if (!step_on(s))
+        return 0;
+    for (i = 0; i < s->n && i < 4u; i++) {
+        if (roll_carried(t, s, idx, i))
+            continue;
+        for (j = n; j > 0 && s->note[k[j - 1u]] > s->note[i]; j--)
+            k[j] = k[j - 1u];
+        k[j] = (uint8_t)i, n++;
+    }
+    return n;
+}
 static int pk_note(const track_t *t, uint32_t idx)       /* a note starts at idx (what KNOB 1 walks) */
 {
+    uint8_t k[4];
     if (idx >= trk_len(t))
         return 0;
-    return is_drum(t) ? dstep_has(&t->dstep[idx], lane_selected()) : step_on(&t->step[idx]);
+    return is_drum(t) ? dstep_has(&t->dstep[idx], lane_selected()) : pk_heads(t, idx, k) > 0u;
 }
 static int pk_ok(void) { return st.pk != PK_NONE && st.pk_trk == song.sel && pk_note(tsel(), st.pk); }
 static void pk_hold(uint32_t *sv)                       /* the picked step held as by a finger (sv: what was) */
@@ -1132,28 +1153,45 @@ static void pk_free(const uint32_t *sv)                 /* ... let go: the pick 
     ui.cards_t = 0;                                     /* (the held edits show the cards: the picker's are the grid) */
     op_repaint();
 }
-static void pk_walk(int32_t s)                          /* KNOB 1: s notes on, stopping at the first / last */
+static __attribute__((noinline)) void pk_walk(int32_t s)   /* KNOB 1: s notes on, stopping at the first / last (once:
+                                                            * inlined into ui_input it cost 950 B) */
 {
     const track_t *t = tsel();
-    int32_t len = (int32_t)trk_len(t), d = s > 0 ? 1 : -1, n = s > 0 ? s : -s, i, j;
-    if (st.pk != PK_NONE && st.pk_trk == song.sel && st.pk < (uint32_t)len)
-        i = st.pk;                                      /* (from the pick, picked or deleted) */
-    else
+    int32_t len = (int32_t)trk_len(t), d = s > 0 ? 1 : -1, n = s > 0 ? s : -s, i, j, r = -1, m = 0, drum = is_drum(t);
+    uint32_t was = st.pk_trk == song.sel ? st.pk * 4u + st.nsel : 0xFFFFu;
+    uint8_t k[4];
+    if (st.pk != PK_NONE && st.pk_trk == song.sel && st.pk < (uint32_t)len) {
+        i = st.pk;                                      /* (from the pick, picked or deleted: its notes first) */
+        m = drum ? 1 : (int32_t)pk_heads(t, (uint32_t)i, k);
+        for (r = 0; r < m && !drum && k[r] != st.nsel; r++)
+            ;
+        if (r == m)
+            r = d > 0 ? -1 : m;                         /* (its note gone: from the step's edge) */
+    } else {
         i = d > 0 ? (int32_t)st.page * 16 - 1 : (int32_t)st.page * 16 + 16;   /* (none: from the window's edge) */
+    }
     while (n-- > 0) {
+        if (r + d >= 0 && r + d < m && !drum) {
+            r += d;                                     /* (the next note of the same step, higher / lower) */
+            continue;
+        }
         for (j = i + d; j >= 0 && j < len && !pk_note(t, (uint32_t)j); j += d)
             ;
         if (j < 0 || j >= len)
             break;
         i = j;
+        m = drum ? 1 : (int32_t)pk_heads(t, (uint32_t)i, k);
+        r = d > 0 ? 0 : m - 1;                          /* (its lowest, back: its highest) */
     }
     if (i < 0 || i >= len || !pk_note(t, (uint32_t)i)) {
-        ui_message(is_drum(t) ? "NO HITS ON THIS LANE" : "NO NOTES");
+        ui_message(drum ? "NO HITS ON THIS LANE" : "NO NOTES");
         return;
     }
-    if ((uint32_t)i != st.pk || st.pk_trk != song.sel)
+    r = r < 0 ? 0 : r >= m ? m - 1 : r;
+    st.pk = (uint8_t)i, st.pk_trk = song.sel, st.snap = st.snapl = 0;
+    st.nsel = drum ? 0u : k[r];                         /* (the note in its step: what KNOB 3 and the cards edit) */
+    if (st.pk * 4u + st.nsel != was)
         st.sess = (undo_sess += 4u) | 3u;               /* (a note picked: its edits one undo level) */
-    st.pk = (uint8_t)i, st.pk_trk = song.sel, st.nsel = 0, st.snap = st.snapl = 0;
     st.page = (uint8_t)(i / 16), st.follow = 0;
     op_repaint();
 }
@@ -1197,8 +1235,8 @@ static int pk_save(void)                                /* SAVE tapped: the pick
     st.fabs[st.pk % 16u] = st.pk;
     st.pend = 0;
     st.latch = 1;
-    st.t_down = fm1_ms - op_hold_ms();                  /* (held long: its cards up, as a held step's) */
-    st.nsel = 0;
+    st.t_down = fm1_ms - op_hold_ms();                  /* (held long: its cards up, as a held step's; st.nsel: the note
+                                                         * KNOB 1 picked) */
     hp_reopen();
     step_cards_show();
     return 1;

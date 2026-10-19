@@ -132,9 +132,59 @@ static void picker_drum_tests(void)
     check(!dstep_has(&t->dstep[3], 3) && !step_muted(t, 3, 3) && dstep_has(&t->dstep[4], 0), "picker, drums: HOME held: the hit and its mute gone, the other lane's hit kept");
 #endif
 }
+/* KNOB 1 walks note by note (the user, 2026-10-19: "most left note first and in case of equality, the lowest one"):
+ * step 2 holds 67 and 60 (stored in that order), step 5 holds 64; a carried note (SF_CARRY) is not one of its own */
+static void picker_chord_tests(void)
+{
+    track_t *t;
+    uint32_t got[6], i, ok;
+    reset_ui();
+    song.sel = 0;
+    t = TSEL;
+    t->p[P_SLEN] = 16;
+    track_defaults_steps(t);
+    fm1_irq_off();
+    t->step[2].time = ST_NOTE, t->step[2].n = 2, t->step[2].note[0] = 67, t->step[2].note[1] = 60, t->step[2].vel = 100;
+    t->step[5].time = ST_NOTE, t->step[5].n = 1, t->step[5].note[0] = 64, t->step[5].vel = 100;
+    fm1_irq_on();
+    tap(B_SEQ);
+    pk_cards_down();
+    for (i = 0; i < 4u; i++) {
+        turn(EN_K1, 1);
+        got[i] = st.pk * 128u + t->step[st.pk].note[st.nsel];
+    }
+    check(got[0] == 2u * 128u + 60u && got[1] == 2u * 128u + 67u && got[2] == 5u * 128u + 64u && got[3] == got[2],
+          "picker, chord: KNOB 1 note by note, left first, the lowest first: step 3's 60, its 67, step 6's 64, then stays");
+    turn(EN_K1, -1);
+    ok = st.pk == 2u && t->step[2].note[st.nsel] == 67u;
+    turn(EN_K1, -1);
+    check(ok && st.pk == 2u && t->step[2].note[st.nsel] == 60u, "picker, chord: back: step 3's 67, then its 60");
+    turn(EN_K1, 1);
+    turn(EN_K3, 1);
+    check(t->step[2].note[1] == 60u && t->step[2].note[0] != 67u, "picker, chord: KNOB 3 moves the picked note only (67), the 60 kept");
+    tap(B_SAVE);
+    check(st.latch && t->step[2].note[st.nsel] == t->step[2].note[0], "picker, chord: SAVE: the cards of the note picked, not the first");
+    tap(B_HOME);
+    fm1_irq_off();
+    t->step[3].time = ST_NOTE, t->step[3].n = 2, t->step[3].note[0] = 60, t->step[3].note[1] = 62, t->step[3].vel = 100;
+    t->step[3].flags |= SF_CARRY;                       /* (the 60 sounds on from step 3, the 62 starts here) */
+    fm1_irq_on();
+    reset_ui();
+    tap(B_SEQ);
+    pk_cards_down();
+    for (i = 0; i < 6u; i++) {
+        turn(EN_K1, 1);
+        got[i] = st.pk * 128u + t->step[st.pk].note[st.nsel];
+    }
+    check(got[2] == 3u * 128u + 62u && got[3] == 5u * 128u + 64u, "picker, chord: a carried note passed, the one that starts there picked");
+    fm1_irq_off();
+    t->step[3].flags = 0;
+    fm1_irq_on();
+}
 static void picker_tests(void)
 {
     picker_synth_tests();
+    picker_chord_tests();
     picker_drum_tests();
     reset_ui();
 }
