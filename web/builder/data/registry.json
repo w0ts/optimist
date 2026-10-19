@@ -595,6 +595,31 @@
     "provenance_line": "Felucca (hugelton/Felucca) by Leo Kuroshita (Hügelton) (GPL-3.0-only)"
    },
    {
+    "key": "ENG_DRONE",
+    "flag": "FELUCCA_ENG_DRONE",
+    "label": "DRONE (drones, ambient, binaural beats)",
+    "group": "Synth engines",
+    "bit": 358,
+    "default": 0,
+    "parent": null,
+    "desc": "Continuous tones for drones and ambient (engine 16): a stack of up to three oscillators a note (one, a detuned unison, or the key with an octave, fifth, fourth or third), sine to triangle to saw, a soft low-pass, a slow random drift of the whole part and soft noise (AIR). BEAT plays binaural beats: each ear its own pitch, 0.05 to 40 Hz apart (headphones). HOLD latches the keys. 7 presets (theta, alpha, delta and gamma beats among them); 4 voices a part, each about twice an ANALOG voice's CPU (host-measured). About 4.8 KB of flash and 0.6 KB of RAM.",
+    "experimental": false,
+    "notice": "",
+    "off_warning": "",
+    "env": "",
+    "target_only": false,
+    "symbols": [
+     "ENG_DRONE",
+     "drone_render"
+    ],
+    "no_image": false,
+    "choices": [],
+    "provenance": null,
+    "children": [],
+    "tested": "emulator-tested only",
+    "provenance_line": ""
+   },
+   {
     "key": "DRUM_SYNTH",
     "flag": "FELUCCA_DRUM_SYNTH",
     "label": "drum synth (all 32 synthesised kits)",
@@ -4191,6 +4216,7 @@
    "ENG_FM6",
    "NATIVE_BANKS",
    "ENG_SLICE",
+   "ENG_DRONE",
    "ENG_PHYS",
    "ENG_ACID",
    "ENG_NOISE",

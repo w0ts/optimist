@@ -73,8 +73,8 @@ working project as a SLOOP 2.7 song file to go the other way.
 ## What is in it
 
 - **Four tracks:** three synth tracks and a drum track with 10 lanes on the black keys, ghost and hard hits, ratchets.
-- **Up to 16 synth engines:** ANALOG 2, FM6 (plays DX7 voices as Dexed does), JUNO, ACID, CZ, PHYS, DIGITAL, PHASE,
-  LOFI, SAMPLE, VOICE, TRIO, WHEEL, GRAIN, SLICE, NOISE. Two LFOs and two envelopes per sound.
+- **Up to 17 synth engines:** ANALOG 2, FM6 (plays DX7 voices as Dexed does), JUNO, ACID, CZ, PHYS, DIGITAL, PHASE,
+  LOFI, SAMPLE, VOICE, TRIO, WHEEL, GRAIN, SLICE, NOISE, DRONE (drones and binaural beats). Two LFOs and two envelopes per sound.
 - **Drums:** 37 kits (5 sampled, 32 synthesised), the X0X 909 and 808, every sound editable, your samples and kits.
 - **Effects:** two insert slots on every track, drum sound and the master (DYN, EQ3, filters, drive, chorus, echo, the
   Juno chorus and more), reverb, delay and chorus sends with three returns, punch-in effects.

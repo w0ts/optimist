@@ -64,6 +64,8 @@ enum { E1L_FLT = 8, E1L_PIT, E1L_SHP };
     E1K_SHP, P_ED_SHP, 1, E1K_MV(5), P_E1X + 0, 5, LT_FLT)
 #define E1C_NOISE E1C(E1K_FLT, P_ED_FLT, 2, E1K_PIT, P_E1PIT, E1L_PIT, \
     E1K_SHP, P_ED_SHP, 1, E1K_MV(3), P_E1X + 0, 3, LT_FLT)
+#define E1C_DRONE E1C(E1K_FLT, P_ED_FLT, 4, E1K_PIT, P_E1PIT, E1L_PIT, \
+    E1K_SHP, P_ED_SHP, 0, E1K_MV(6), P_E1X + 0, 6, LT_FLT)   /* (FLT: CUT, SHP: WAVE, the move: AIR) */
 typedef struct {
     uint8_t c[4];                                     /* the cards: E1K_* */
     uint8_t id[4];                                    /* the value each keeps (an alias: its EDIT value) */

@@ -2422,6 +2422,10 @@ static HOT void mix_part(track_t *t, uint32_t n MIXACC_PARAM)
         if (ifx_jsd[(uint32_t)(t - trk) % NPART])       /* JUNO CHORUS's side (fxi_kern.c): as WIDE's */
             ifx_side_mix(ifx_jside[(uint32_t)(t - trk) % NPART], lvl0, dl, ga, gb, MX(mix_l), MX(mix_r), n);
 #endif
+#if FELUCCA_ENG_DRONE
+        if (ENG_IS(ENGINES[t->engine % NENGINES], DRONE) && drone_sd[(uint32_t)(t - trk) % NPART])   /* DRONE's BEAT: */
+            ifx_side_mix(drone_side[(uint32_t)(t - trk) % NPART], lvl0, dl, ga, gb, MX(mix_l), MX(mix_r), n);   /* the ears' side */
+#endif
     }
 }
 #include "punch/punch.c"            /* PUNCH-IN FX on the whole mix (FX held + a white key) */

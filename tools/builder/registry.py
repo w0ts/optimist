@@ -281,6 +281,13 @@ _add("ENG_SLICE", "FELUCCA_ENG_SLICE", "SLICE (break slicer + its BREAK sample)"
      desc="Break slicer: cuts a loop (the built-in BREAK, 22 KB of samples, or a USR slot) into 4 / 8 / 16 / 32 "
           "slices or one per hit and plays them from the keys or the sequencer. About 27 KB of flash and 6 KB of "
           "RAM; off by default.", provenance=FELUCCA)
+_add("ENG_DRONE", "FELUCCA_ENG_DRONE", "DRONE (drones, ambient, binaural beats)", E, 358, default=0,
+     desc="Continuous tones for drones and ambient (engine 16): a stack of up to three oscillators a note (one, a "
+          "detuned unison, or the key with an octave, fifth, fourth or third), sine to triangle to saw, a soft "
+          "low-pass, a slow random drift of the whole part and soft noise (AIR). BEAT plays binaural beats: each "
+          "ear its own pitch, 0.05 to 40 Hz apart (headphones). HOLD latches the keys. 7 presets (theta, alpha, "
+          "delta and gamma beats among them); 4 voices a part, each about twice an ANALOG voice's CPU "
+          "(host-measured). About 4.8 KB of flash and 0.6 KB of RAM.")
 # (bit 91, LFO2, retired 2026-10-16: LFO 2, a second LFO on each synth track, is always built; never reuse the bit)
 
 # ---- drums
@@ -940,7 +947,7 @@ _SYMS = {
     "ENG_GRAIN": ("ENG_GRAIN", "grain_block"), "ENG_FM6": ("ENG_FM6", "fm6_pt", "FM6_INIT", "fm6k_knob"),
     "FM6_KEYS": ("fm6k_knob",), "FM6_PK_KEYS": ("FM6_PK_KEYS",), "FM6_PK_BASS": ("FM6_PK_BASS",),
     "FM6_PK_BELLS": ("FM6_PK_BELLS",), "FM6_PK_PADS": ("FM6_PK_PADS",), "FM6_PK_80S": ("FM6_PK_80S",),
-    "ENG_SLICE": ("ENG_SLICE",),
+    "ENG_SLICE": ("ENG_SLICE",), "ENG_DRONE": ("ENG_DRONE", "drone_render"),
     "DRUM_SYNTH": ("DS_KITS",), "DRUM_EDIT": ("de_synth",), "FX_CHORUS": ("cho_buf",),
     "FX_DELAY": ("dly_buf",), "FX_REVERB": ("rev_line", "rev_ap"), "FX_SLICER": ("sl_buf",),
     "FX_PUNCH": ("punch_ring",), "EDITOR": ("ed_handle",),

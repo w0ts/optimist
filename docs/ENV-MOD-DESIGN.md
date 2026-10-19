@@ -35,6 +35,7 @@ DEST B + AMT B, the shared `LT_*` list in `core/core.h`). Code: `firmware/src/co
 | ACID | ENV, DEC, ACC, SLD (aliases of the 303's own) | FLT (its CUT) |
 | CZ | DCW, W.TIM, A.TIM (aliases), PIT | E2 (DCW) |
 | NOISE | FREQ (FLT), PIT, COLR (SHP), RES | FLT |
+| DRONE | CUT (FLT), PIT, WAVE (SHP), AIR | FLT |
 
 Drum lanes have their own ENV page (CLICK DECAY BEND LEVEL). SLICE's fourth card is PTCH, not START (START is read once at
 the note-on, so ENV 1 did nothing there).

@@ -190,7 +190,7 @@ static void track_defaults(track_t *t)
  * engine's preset table may change order; tests/ui_pages_test.c checks every preset is here once */
 enum { BK_BASS, BK_KEYS, BK_ORGAN, BK_PAD, BK_LEAD, BK_PLUCK, BK_STAB, BK_FX };
 static const char *const BANK_KIND[] = {"BASS", "KEYS", "ORGN", "PAD", "LEAD", "PLCK", "STAB", "FX"};
-static const struct __attribute__((packed)) { uint8_t kind : 4, e : 4; const char *name; } BANK[] = {   /* (5 bytes an entry: an engine UID < 16) */
+static const struct __attribute__((packed)) { uint8_t kind : 3, e : 5; const char *name; } BANK[] = {   /* (5 bytes an entry: an engine UID < 32) */
     {BK_BASS, 0, "808 BOOM"}, {BK_BASS, 0, "808 DIRTY"}, {BK_BASS, 0, "808 SLIDE"}, {BK_BASS, 0, "SUB BASS"},
     {BK_BASS, 0, "PLUGG BASS"}, {BK_BASS, 0, "REESE"}, {BK_BASS, 0, "WOBBLE"}, {BK_BASS, 0, "ACID 303"},
     {BK_BASS, 1, "FM BASS"}, {BK_BASS, 2, "CZ BASS"}, {BK_BASS, 6, "FAT BASS"}, {BK_BASS, 0, "FUNK BASS"},
@@ -236,6 +236,11 @@ static const struct __attribute__((packed)) { uint8_t kind : 4, e : 4; const cha
     {BK_FX, ENG_UID_NOISE, "WIND"}, {BK_FX, ENG_UID_NOISE, "RAIN"}, {BK_LEAD, ENG_UID_NOISE, "ARCADE"},
     {BK_FX, ENG_UID_NOISE, "METAL"},
 #endif
+#if FELUCCA_ENG_DRONE
+    {BK_PAD, ENG_UID_DRONE, "DRONE"}, {BK_FX, ENG_UID_DRONE, "THETA"}, {BK_FX, ENG_UID_DRONE, "ALPHA"},
+    {BK_FX, ENG_UID_DRONE, "DELTA"}, {BK_FX, ENG_UID_DRONE, "GAMMA"}, {BK_PAD, ENG_UID_DRONE, "CHOIR"},
+    {BK_FX, ENG_UID_DRONE, "BREATH"},
+#endif
 #if FELUCCA_ENG_CZ
     {BK_BASS, ENG_UID_CZ, "PD BASS"}, {BK_LEAD, ENG_UID_CZ, "RESO SWEEP"}, {BK_PLUCK, ENG_UID_CZ, "GLASS BELL"},
     {BK_STAB, ENG_UID_CZ, "WIRE BRASS"}, {BK_PAD, ENG_UID_CZ, "SOFT PAD"}, {BK_FX, ENG_UID_CZ, "NOISE BREATH"},
@@ -250,7 +255,7 @@ static const struct __attribute__((packed)) { uint8_t kind : 4, e : 4; const cha
     {BK_PAD, 8, "GRAIN PAD"},
 #endif
 };
-_Static_assert(ENG_UID_N <= 16u && BK_FX < 16, "BANK: an entry's kind and engine UID in a byte");
+_Static_assert(ENG_UID_N <= 32u && BK_FX < 8, "BANK: an entry's kind and engine UID in a byte");
 #define NBANK_ALL (sizeof BANK / sizeof BANK[0])
 static uint32_t bank_eng(uint32_t i) { return eng_slot_built(BANK[i].e); }   /* entry i's engine slot */
 /* the list as this build has it: the entries whose engine is built and whose preset exists (a reduced build:
