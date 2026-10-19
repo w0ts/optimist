@@ -193,7 +193,7 @@ static void t_svf(void)
     tsvf_t c;
     for (r = 0; r <= 127; r++)
         for (cut = -300; cut <= (127 << 8) + 300; cut++, n += 3) {
-            int32_t kt = 8192 - r * 7168 / 127, kd = 8192 - r * 245, cc = clamp(cut, 0, 127 << 8);
+            int32_t kt = 8192 - r * 7168 / 127, kd = 8192 - (r >> 2) * 245, cc = clamp(cut, 0, 127 << 8);   /* (kd: ds_filter's res 0..31, d->flt >> 3: past it g (g + k) overflows) */
             tsvf_coef_k(&c, cc, kt);
             ref_trio_coef(cc, kt, &a1, &a2, &a3);
             bad += c.a1 != a1 || c.a2 != a2 || c.a3 != a3;
@@ -211,7 +211,7 @@ static void t_svf(void)
         for (r = 0; r < (int32_t)N_RAND; r++, n++) {
             int32_t x = (int32_t)(tst_rand() >> 15) - 65536, v3, v1, v2, lp, bp;
             if (!(r & 4095)) {
-                tsvf_coef_k(&c, (int32_t)(tst_rand() % (128u << 8)), k = 8192 - (int32_t)(tst_rand() % 128u) * 245);
+                tsvf_coef_k(&c, (int32_t)(tst_rand() % (128u << 8)), k = 8192 - (int32_t)(tst_rand() % 32u) * 245);   /* (res 0..31, as drum_synth.c) */
             }
             v3 = x - f2;                                      /* drum_synth.c ds_render (and SUPER tsvf_lpbp) */
             v1 = (c.a1 * f1 + c.a2 * v3) >> 13;
