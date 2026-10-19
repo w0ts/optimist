@@ -198,9 +198,9 @@ static struct {
     uint32_t live;                                 /* a bit per channel sounding or with a hit due (x0x_sounding) */
 } xc;
 
-/* an X0X voice sounds, or a hit is due in this block: drums_mix's glides (FELUCCA_GLIDE) and the quiet test
+/* an X0X voice sounds, or a hit is due in this block: the drum glides (drums.c dgl_block) and the quiet test
  * (project.c audio_quiet) count the X0X channels, which are not drums.v voices */
-AINL uint32_t x0x_sounding(void) { return xc.live; }   /* (inlined: drums_mix runs from RAM) */
+AINL uint32_t x0x_sounding(void) { return xc.live; }
 
 /* a hit of note on X0X kit k (lane l); 0: the machine lacks it (the stand-in plays it) */
 static int x0x_on(uint32_t k, uint32_t note, uint32_t vel, uint32_t l)

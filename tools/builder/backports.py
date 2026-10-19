@@ -22,7 +22,6 @@ LABEL = {  # short menu labels (the title stays in the details)
     "FELUCCA_ENG_PHYS": "PHYS (physical models)", "FELUCCA_ENG_ACID": "ACID (TB-303 bass + line generator)",
     "FELUCCA_ENG_CZ": "CZ (CZ-1 style tones)",
     "FELUCCA_ENG_JUNO": "JUNO (Juno-106 voice)",
-    "FELUCCA_GLIDE": "mixer glides ~10 ms (no zipper)",
     "FELUCCA_LIGHTS": "menu LIGHTS / KEYS / NOTES (play in the dark)",
     "FELUCCA_REC_MODES": "REC screen dials: mode, length, count-in",
     "FELUCCA_BPM_LOCK": "BPM LOCK: SELECT is the tempo only with GLO",
@@ -94,9 +93,6 @@ DESC = {  # what each switch does for the user (plain words; sizes from tools/bu
     "FELUCCA_LIGHTS": "Lights for playing in the dark: MENU LIGHTS (every button glows OFF / LOW / MID / HIGH), KEYS (C "
                       "or white keys glow) and NOTES (the note lights of KEYLIT on / off at run time). About 1.2 KB of "
                       "flash.",
-    "FELUCCA_GLIDE": "Part level, pan and sends, the master volume and the drum track's level, pan and sends glide over "
-                     "~10 ms instead of jumping, which removes the zipper noise of a moving knob. About 1.3 KB of "
-                     "flash, 0.3 KB of RAM and 0.7 KB of fast RAM code; the sound changes only while a gain moves.",
     "FELUCCA_BPM_LOCK": "SELECT changes the tempo only while GLO is held, so the tempo cannot slip live; GLO > GLOBAL's "
                         "BPM knob and tap tempo still work. No menu item: the build switch is the choice. About 64 B "
                         "of flash.",
@@ -211,7 +207,7 @@ BITS = {  # switch -> stable BUILD bit (append only)
     # (110: FELUCCA_BK_CHECK, retired 2026-10-14: always built; never reuse the bit)
     # (109: FELUCCA_TRS_NOISE, retired 2026-10-14: always built; never reuse the bit)
     # (108: FELUCCA_KNOB_ONEREST, retired 2026-10-14: Felucca 1.6's knob decoder is always built; never reuse the bit)
-    "FELUCCA_GLIDE": 107,
+    # (107: FELUCCA_GLIDE, retired 2026-10-19: the mixer glides are always built; never reuse the bit)
     "FELUCCA_LIGHTS": 106,
     "FELUCCA_REC_MODES": 105,
     # (104: FELUCCA_KEYS_FAST, retired 2026-10-14: always built; never reuse the bit)

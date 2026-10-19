@@ -121,16 +121,6 @@ AINL void dsend_of(uint32_t note, int32_t *r, int32_t *d, int32_t *c)
     *d = dsend_dt[dsend_dly(w) & fxs_lm[1]];
     *c = dsend_ct[dsend_cho(w) & fxs_lm[2]];
 }
-#if FELUCCA_GLIDE
-/* the sends of lane l (DRUM_LANES: the click's wood block), as dsend_of gives them for its notes */
-static void dsend_lane(uint32_t l, int32_t *r, int32_t *d, int32_t *c)
-{
-    uint32_t w = l < DRUM_LANES ? dsend[l] : 0u;
-    *r = dsend_rt[dsend_rev(w) & fxs_lm[0]];
-    *d = dsend_dt[dsend_dly(w) & fxs_lm[1]];
-    *c = dsend_ct[dsend_cho(w) & fxs_lm[2]];
-}
-#endif
 
 /* every lane sends the same reverb and nothing else: that send (Q15; the SLICER then takes it after itself, from
  * the sum, as the drum track's one send was), else -1 (each voice its own, before the SLICER). XIP */

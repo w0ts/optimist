@@ -23,10 +23,9 @@ machine code: the measure of a merge is that each caller compiles to the same in
    profiles (user-default, fm-va-studio, drum-machine, everything-that-fits, x0x-drums) and **all-ports**
    (x0x-drums + ACID, PHYS, CZ, SPRING, BASS+, SLICE: every port built at once) are compared.
 2. **Host renders:** `tests/dsp_ab.sh [BASE_REV]` builds the golden renders (`tests/regress.c`), the skip scenarios
-   (`tests/skip_test.c`) and every X0X note (`tests/x0x_drums_test.c`) from BASE_REV and from this tree, in nine
-   configurations (default; X0X kits; every backported engine and effect; X0X + ACID + GLIDE; the SLOOP 2.3
-   switches; SLICE; REV_HALF + SPRING; ANALOG2=0, the original ANALOG / SUPER; USB audio), and compares hashes and
-   WAVs. It also prints each render's host CPU (instructions per sample) A and B.
+   (`tests/skip_test.c`) and every X0X note (`tests/x0x_drums_test.c`) from BASE_REV and from this tree, in eight
+   configurations (default; X0X kits; every backported engine and effect; X0X + ACID; SLICE; REV_HALF + SPRING;
+   ANALOG2=0, the original ANALOG / SUPER; USB audio), and compares hashes and WAVs. It also prints each render's host CPU (instructions per sample) A and B.
 3. **Block against copies:** `tests/dsp_shared_test.c` keeps every replaced copy verbatim as a reference and runs it
    against the shared block, exhaustively or over 2^24 inputs (`run_tests.sh` runs it).
 4. **Goldens:** `tests/golden.txt` and `tests/golden_cz.txt` unchanged.

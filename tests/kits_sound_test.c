@@ -1,9 +1,9 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Every drum kit this build has makes sound: each lane of each built kit (drum_kit_built), hit alone at a step's
  * velocity on an otherwise silent drum track, is heard through drums_render. Built with the configuration's
- * switches (tools/builder/verify.py: -include its header; run_tests.sh: the X0X kits with GLIDE), so a switch that
- * silences a kit's path fails here (the X0X kits under FELUCCA_GLIDE were silent: drums_mix's glides returned
- * before the X0X channels when no other drum voice sounded).
+ * switches (tools/builder/verify.py: -include its header; run_tests.sh: the X0X kits), so a switch that
+ * silences a kit's path fails here (the X0X kits were once silent under the mixer glides: drums_mix's glides
+ * returned before the X0X channels when no other drum voice sounded).
  *   build/host/kits_sound_test        -> "N kits x 16 lanes heard" or the silent ones, exit 1 */
 #define main hostsim_main
 #include "hostsim.c"

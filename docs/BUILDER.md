@@ -254,7 +254,6 @@ Every track (and the drum bus) can run these at once, each with its own small st
 | SLEW insert (slew-rate crunch) | `INS_SLEW` | A slew limiter type (SLEW): the wave can only move so fast, so edges round into ramps, a slow op-amp's dull crunch; light at 1, heavy (muffled, gritty) at 127. 0 is off. |
 | return feedback sends (B to A, C to A, C to B) | `RET_FB` | The master's returns send to the returns on their left too (MASTER > A SENDS, B SENDS, C SENDS: each return to the other two), for feedback between the effects: a delay into a reverb and back. Each such send takes its return's output of the block before (a loop of 32 samples, 0.73 ms), DC-blocked, limited to -12 dBFS and soft-clipped, at a quarter of the gain of a send to the right, so no loop runs away. Without it a return sends only to its right (A to B and C, B to C). About 1.2 KB of RAM; nothing runs while every such send is 0. |
 | GATER insert (tempo-synced trance gate) | `INS_GATER` | A rhythmic volume gate type for the tracks' insert slots (INSERTS > S1 / S2: GATER), locked to the tempo and the sequencer's steps (it restarts with PLAY, follows the swing): one of 16 built-in 16-step patterns (trance gates, 1/8 and 1/16 chops, offbeats, dotted, clave), a RATE of 1/8, 1/16, 1/32 or their triplets, DEPTH (the amount: how far a closed step closes, 0 off) and SHAPE (hard to smooth). Every track can run it at once. |
-| mixer glides ~10 ms (no zipper) | `GLIDE` | Part level, pan and sends, the master volume and the drum track's level, pan and sends glide over ~10 ms instead of jumping, which removes the zipper noise of a moving knob. About 1.3 KB of flash, 0.3 KB of RAM and 0.7 KB of fast RAM code; the sound changes only while a gain moves. |
 
 #### FX: limited instances (once, or a set count)
 
@@ -592,8 +591,8 @@ root causes found by bisection that day, now in the model:
 - Items only built with another: DRUM_ACCENT needs the automation store (core.h `#undef`s it otherwise: parsed,
   `NEEDS_AUTO`), SEQTOOLS needs the Optimist UI (`NEEDS`; it put 5.5 KB of flash into user-default's estimate).
 - `project.c sl24_xs` (704 B pool) is built with the store and SLOOP 2.4's import or export; the user sample zones
-  (1.3 KB RAM) with any of SAMPLE, GRAIN, SLICE, DRUM_USR (a pair, all four off); SL24_SAFE with SL24_IMPORT, GLIDE
-  with PATTERNS, CPU_GUARD with ACID and the X0X kits, BLE's bond / central / diagnostics (pairs).
+  (1.3 KB RAM) with any of SAMPLE, GRAIN, SLICE, DRUM_USR (a pair, all four off); SL24_SAFE with SL24_IMPORT,
+  CPU_GUARD with ACID and the X0X kits, BLE's bond / central / diagnostics (pairs).
 
 **Checked against real builds.** Every run of measure_costs.py that builds also makes a measurement build of every
 profile, of each configuration in `tools/builder/estimate/` (`mots-ui` is a user's own, with the Optimist UI) and of

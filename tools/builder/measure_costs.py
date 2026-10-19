@@ -61,11 +61,11 @@ PAIRS = [{"MOTION": 1, "SECTIONS": 4},   # (motion beside the four project slots
          {"USB_MODE": 2},
          # found 2026-10-12 (the "mots" check 4.7 KB under its real build; ~/costs bisection, each pair 0.3-1.6 KB of
          # flash beyond its items' deltas): the CPU guard's parts in the ACID engine and the X0X drums (cpuguard.c,
-         # eng_acid.c, drum_x0x.c: built only with both); GLIDE with PATTERNS and MACROS with USB_MODE 0 measured
-         # so (+1.6 KB, +1.2 KB), the code behind it not traced
+         # eng_acid.c, drum_x0x.c: built only with both); MACROS with USB_MODE 0 measured
+         # so (+1.2 KB), the code behind it not traced
          {"CPU_GUARD": 1, "ENG_ACID": 1}, {"CPU_GUARD": 1, "DRUM_X0X909": 1}, {"CPU_GUARD": 1, "DRUM_X0X808": 1},
          {"CPU_GUARD": 1, "DRUM_X0X909": 1, "DRUM_X0X808": 1},
-         {"GLIDE": 1, "PATTERNS": 1}, {"USB_MODE": 0, "MACROS": 1},
+         {"USB_MODE": 0, "MACROS": 1},
          # BLE's bond and central together share code each one's delta pays (-3.5 KB flash, -0.35 KB RAM); the central
          # with the diagnostics has more (+1.9 KB, +0.4 KB RAM); and each with the CDC console (the BLE test builds,
          # tools/optimist.py BLE_FULL_SET: 7 KB under without these)

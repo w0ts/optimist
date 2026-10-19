@@ -144,7 +144,7 @@ def random_sources(rng):
 def kits_sound(cfg, samples=None):
     """every drum kit the configuration builds makes sound: tests/kits_sound_test.c (each lane of each kit hit alone
     through drums_render) with this configuration's header; a switch that silences a kit's path fails (the X0X kits
-    under GLIDE did). samples: a directory with this configuration's felucca_samples.h (preset_cover makes one),
+    under the mixer glides did). samples: a directory with this configuration's felucca_samples.h (preset_cover makes one),
     else build/gen's"""
     hdr = ROOT / "build" / "host" / "cfg_kits.h"
     exe = ROOT / "build" / "host" / "kits_sound_cfg"
@@ -179,9 +179,9 @@ def emu_boot(fwsc, outdir):
     return float(m.group(1)) == 0.0, f"emulator boot: rms {m.group(1)}"
 
 
-# experimental items the random configurations still draw: the X0X kits and the mixer glides (their combination
-# once silenced the X0X kits; kits_sound checks every drawn configuration)
-RANDOM_EXPERIMENTAL = ("DRUM_X0X909", "DRUM_X0X808", "GLIDE")
+# experimental items the random configurations still draw: the X0X kits (with the mixer glides they were once
+# silenced; kits_sound checks every drawn configuration)
+RANDOM_EXPERIMENTAL = ("DRUM_X0X909", "DRUM_X0X808")
 
 
 def random_config(rng):
