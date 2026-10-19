@@ -502,6 +502,23 @@ _add("INS_SLEW", "FELUCCA_INS_SLEW", "SLEW insert (slew-rate crunch)", F, 349, d
      desc="A slew limiter type (SLEW): the wave can only move so fast, so edges round into ramps, a slow op-amp's "
           "dull crunch; light at 1, heavy (muffled, gritty) at 127. 0 is off.", symbols=("ifx_slew",),
      notice=_SH_NOTE.strip())
+# TAPE SPIT (2026-10-19, fx/insfx/tapespit.c): the shapers' range, their own state (76 B an instance, 15 instances)
+MELODEE_144 = Provenance("Melodee 1.4.4 (keremimo/melodee)", "Kerem Kilic", "GPL-3.0-only", "v1.4.4 4f5fb6d", MELODEE_URL)
+_TS_NOTE = (" On the tracks' slots, the drum bus, master, returns and USB input; not on drum sounds (their list is full)."
+            " Tested in the host tests only, not on a device.")
+_add("INS_TAPE", "FELUCCA_INS_TAPE", "TAPE insert (tape tone)", F, 356, default=0, provenance=MELODEE_144,
+     desc="A tape tone type (TAPE): the highs rolled off (from 6.5 kHz at 1 to 1.7 kHz at 127) and the mids moved "
+          "around at random every couple of seconds, at times inverted against the lows and highs, as a worn tape "
+          "plays. TAPE sets how far it wanders and how dark it gets. 0 is off.", symbols=("ifx_tape",),
+     notice="From Melodee 1.3.0's TAPE insert by Kerem Kilic (GPL-3.0); fixed point here, its RATE and MIX fixed."
+            + _TS_NOTE)
+_add("INS_SPIT", "FELUCCA_INS_SPIT", "SPIT insert (random resonant band, driven)", F, 357, default=0,
+     provenance=MELODEE_144,
+     desc="A spitting band type (SPIT): one resonant band jumping at random between 180 Hz and 5.9 kHz a few times a "
+          "second, driven into a soft clip at the sound's own level and mixed over it. SPIT sharpens the band and "
+          "the drive. 0 is off.", symbols=("ifx_spit",),
+     notice="From Melodee 1.3.0's SPIT insert by Kerem Kilic (GPL-3.0); fixed point here, the clip follows the "
+            "input's level (Melodee's has a fixed ceiling)." + _TS_NOTE)
 # the insert copies of the "once" effects (fx/insfx/fxi_kern.c, fxi.c, 2026-10-13): a count of instances each, how many
 # tracks may hold the type at once; a track picking it with none left is bypassed (the INSERTS list says FULL)
 _INS_LIM = (" Each instance is a line in the pool; a track that picks it when every instance is in use stays dry "

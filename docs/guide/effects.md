@@ -54,10 +54,12 @@ The amount is one value per type, kept for the track whatever the slot, so prese
 | RING | a ring modulator | the sine's pitch, 26 Hz .. 2.6 kHz | none |
 | SUB | an octave down, for one-note lines (a chord gives a rough sub) | the sub's level | none |
 | SLEW | a slew limiter: edges rounded into ramps, a dull crunch | light .. heavy | none |
+| TAPE | a worn tape's tone: the highs rolled off, the mids wandering at random (at times inverted) | how far it wanders, how dark | none |
+| SPIT | a resonant band jumping at random (180 Hz .. 5.9 kHz), driven into a soft clip at the sound's level | the band's sharpness and the drive | none |
 
-A drum sound can hold DIST, DYN (its compressor, with the drum track's RATIO ATK REL and no CEIL), FILT, DUST, FOLD, FUZZ, PHSR, FRMT, EQ3 and the shapers SFLD, RECT, HARM, RING and SLEW (not SUB). Its amount belongs to the slot, not to the type: changing the type resets the amount to 0.
+A drum sound can hold DIST, DYN (its compressor, with the drum track's RATIO ATK REL and no CEIL), FILT, DUST, FOLD, FUZZ, PHSR, FRMT, EQ3 and the shapers SFLD, RECT, HARM, RING and SLEW (not SUB, TAPE, SPIT). Its amount belongs to the slot, not to the type: changing the type resets the amount to 0.
 
-Each type is a builder item (DIST `FX_DIST`; DYN `MASTER_COMP`; FILT, DJ filter `FX_DJF`; DUST `FX_DUST`; `INS_FOLD`, `INS_FUZZ`, `INS_PHASER`, `INS_FLANGER`, `INS_FORMANT`, `INS_WIDTH`, `INS_GATER`, `INS_CHORUS`, `INS_DELAY`, `INS_JCHORUS`; the shapers `INS_SFOLD`, `INS_RECT`, `INS_HARM`, `INS_RING`, `INS_SUBOCT`, `INS_SLEW`). Only the types the build has appear in the lists. A project that names a type this build lacks keeps it, unheard.
+Each type is a builder item (DIST `FX_DIST`; DYN `MASTER_COMP`; FILT, DJ filter `FX_DJF`; DUST `FX_DUST`; `INS_FOLD`, `INS_FUZZ`, `INS_PHASER`, `INS_FLANGER`, `INS_FORMANT`, `INS_WIDTH`, `INS_GATER`, `INS_CHORUS`, `INS_DELAY`, `INS_JCHORUS`; the shapers `INS_SFOLD`, `INS_RECT`, `INS_HARM`, `INS_RING`, `INS_SUBOCT`, `INS_SLEW`; `INS_TAPE`, `INS_SPIT`, after Melodee's). Only the types the build has appear in the lists. A project that names a type this build lacks keeps it, unheard.
 
 ### DYN: compressor and limiter
 

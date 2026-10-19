@@ -245,6 +245,7 @@ static HOT2 __attribute__((noinline)) void ifx_mod(ifx_drv_t *s, uint32_t fx, in
         s->d.env = 0, s->d.lo = s->d.l1 = 0;            /* (faded out: it restarts from rest) */
 }
 #endif
+#include "tapespit.c"                                   /* TAPE SPIT (2026-10-19): the shapers' range, their own state */
 #if IFX_DRV || IFX_MOD
 /* shaper ty's state on instance i (0: not built) */
 AINL ifx_drv_t *ifx_sh_st(uint32_t ty, uint32_t i)
@@ -599,6 +600,12 @@ AINL int32_t ifx_w(uint32_t ty, uint32_t i)
         return s ? s->w : 0;
     }
 #endif
+#if FELUCCA_INS_TAPE || FELUCCA_INS_SPIT
+    case FXT_TAPE: case FXT_SPIT: {
+        const ifx_ts_t *s = ifx_ts_st(ty, i);
+        return s ? s->w : 0;
+    }
+#endif
     default: return 0;
     }
 }
@@ -665,6 +672,16 @@ static HOT2 __attribute__((noinline)) void ifx_run(uint32_t ty, uint32_t i, int3
         ifx_drv_t *s = ifx_sh_st(ty, i);
         if (s)
             ifx_sh_run(s, ty, a, b, n);
+        break;
+    }
+#endif
+#if FELUCCA_INS_TAPE || FELUCCA_INS_SPIT
+    case FXT_TAPE: case FXT_SPIT: {
+        ifx_ts_t *s = ifx_ts_st(ty, i);
+        if (s && !s->rnd)                               /* (a stereo owner's L and R one seed: their places move together) */
+            s->rnd = (int32_t)(0x2545F491u + 2654435761u * (i < NPART ? i + 16u : (i - NPART) >> 1));
+        if (s)
+            ifx_ts_run(s, ty == FXT_SPIT, a, b, n, sh);
         break;
     }
 #endif
@@ -740,6 +757,14 @@ static HOT2 __attribute__((noinline)) void ifx_quiet_part(const track_t *t)
 #if IFX_DRV || IFX_MOD
         case FXT_SFLD: case FXT_WRAP: case FXT_RECT: case FXT_HARM: case FXT_RING: case FXT_SUBO: case FXT_SLEW: {
             ifx_drv_t *s = ifx_sh_st(ty, k);
+            if (s)
+                ifx_zero(s, sizeof *s);
+            break;
+        }
+#endif
+#if FELUCCA_INS_TAPE || FELUCCA_INS_SPIT
+        case FXT_TAPE: case FXT_SPIT: {
+            ifx_ts_t *s = ifx_ts_st(ty, k);
             if (s)
                 ifx_zero(s, sizeof *s);
             break;

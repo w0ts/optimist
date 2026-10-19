@@ -145,7 +145,7 @@ typedef struct {
 #define TFLT_ON (FELUCCA_TRK_FILT || FELUCCA_FX_DJF)
 #define SL24_TP (TFLT_ON || FELUCCA_CHORDPLUS)   /* SLOOP 2.4's track values P_TFLT P_STRUM P_VLEAD exist */
 /* any further insert type (fx/insfx/insfx.c); one line: tests/emu/fwfacts.py reads the #defines line by line */
-#define INS_SH (FELUCCA_INS_SFOLD || FELUCCA_INS_RECT || FELUCCA_INS_HARM || FELUCCA_INS_RING || FELUCCA_INS_SUBOCT || FELUCCA_INS_SLEW)
+#define INS_SH (FELUCCA_INS_SFOLD || FELUCCA_INS_RECT || FELUCCA_INS_HARM || FELUCCA_INS_RING || FELUCCA_INS_SUBOCT || FELUCCA_INS_SLEW || FELUCCA_INS_TAPE || FELUCCA_INS_SPIT)
 #define INS_FX 1                       /* the further insert types: EQ3 always built (2026-10-18), the others builder items */
 /* slot-relative automation (seq/auto_slot.c; a builder item until 2026-10-18) */
 #define SLOT_AUTO (FELUCCA_AUTO && (FELUCCA_MOTION || FELUCCA_PLOCK))
@@ -234,6 +234,7 @@ enum {                          /* per-track parameters */
     /* the shapers' amounts (2026-10-18, fx/insfx/insfx.c; fx_slots.c FXT_SH0 ..): 0 off .. 127, as FOLD's. All six exist
      * when any further type is built. Not part of a sound nor of a user preset; the FX record keeps them (a TLV a type) */
     P_TSFLD, P_TRECT, P_THARM, P_TRING, P_TSUBO, P_TSLEW,
+    P_TTAPE, P_TSPIT,                            /* (TAPE SPIT, 2026-10-19: fx/insfx/tapespit.c, after the shapers' range) */
 #endif
     /* LFO 2 (voice.c lfo2_tick): a second LFO a part, after every other value so that no id before
      * moves. RATE as LFO's (0..127 free, -1..-10 synced: LSYNC_N), WAVE as LFO's, TRIG (NOTE: a fresh phrase restarts

@@ -29,7 +29,8 @@ static void check(const char *what, int ok)
 }
 static const char *const NAME[FXT_N] = {"", "", "", "", "", "", "", "FOLD", "FUZZ", "PHSR", "FLNG", "FRMT", "WIDE", "CHRS", "ECHO",
                                         "GATER", [FXT_SFLD] = "SFLD", [FXT_WRAP] = "WRAP", [FXT_RECT] = "RECT",
-                                        [FXT_HARM] = "HARM", [FXT_RING] = "RING", [FXT_SUBO] = "SUB", [FXT_SLEW] = "SLEW"};
+                                        [FXT_HARM] = "HARM", [FXT_RING] = "RING", [FXT_SUBO] = "SUB", [FXT_SLEW] = "SLEW",
+                                        [FXT_TAPE] = "TAPE", [FXT_SPIT] = "SPIT"};
 static int32_t x[N], y[N], z[N];
 
 static void sine(double amp, double f)
@@ -68,12 +69,17 @@ static void reset(void)
     }
     for (k = P_TFOLD; k <= P_TGATE; k++)
         trk[0].p[k] = trk[1].p[k] = trk[2].p[k] = TDRUM->p[k] = 0;
-    for (k = P_TSFLD; k <= P_TSLEW; k++)
+    for (k = P_TSFLD; k <= P_TSPIT; k++)
         trk[0].p[k] = trk[1].p[k] = trk[2].p[k] = TDRUM->p[k] = 0;
 #if INS_SH
     for (k = FXT_SH0; k < FXT_SHN; k++)
         if (ifx_sh_st(k, 0))
             memset(ifx_sh_st(k, 0), 0, sizeof(ifx_drv_t) * IFX_NI);
+#endif
+#if FELUCCA_INS_TAPE || FELUCCA_INS_SPIT
+    for (k = FXT_TAPE; k <= FXT_SPIT; k++)
+        if (ifx_ts_st(k, 0))
+            memset(ifx_ts_st(k, 0), 0, sizeof(ifx_ts_t) * IFX_NI);
 #endif
 #if FELUCCA_INS_GATER
     memset(ifx_gate, 0, sizeof ifx_gate);               /* (GATER: open, its PATTERN RATE SHAPE the defaults, as at boot) */
@@ -373,6 +379,34 @@ static void t_shapers(void)
     f2 = goertzel(y + N / 2u, N / 2u, 441 * 9) / goertzel(x + N / 2u, N / 2u, 441 * 9);
     snprintf(w, sizeof w, "SLEW: a square's 9th harmonic at 127 %.2f of the input's, at 1 %.2f", f1, f2);
     check(w, f1 < 0.5 && f2 > 0.8);
+#if FELUCCA_INS_TAPE
+    reset();                                            /* TAPE: darker with the amount (its tone 6.5 kHz .. 1.7 kHz) */
+    sine(60000, 5000);
+    run_part(FXT_TAPE, 127, 127, 0);
+    f1 = rms(y + N / 2u, N / 2u) / rms(x + N / 2u, N / 2u);
+    reset();
+    run_part(FXT_TAPE, 1, 1, 0);
+    f2 = rms(y + N / 2u, N / 2u) / rms(x + N / 2u, N / 2u);
+    snprintf(w, sizeof w, "TAPE: a 5 kHz sine at 127 %.2f of the input, at 1 %.2f (darker with the amount)", f1, f2);
+    check(w, f1 < 0.5 * f2 && f2 > 0.4);
+#endif
+#if FELUCCA_INS_SPIT
+    reset();                                            /* SPIT: its clip at the input's peak: a soft part stays soft */
+    sine(20000, 440);
+    run_part(FXT_SPIT, 127, 127, 0);
+    f1 = rms(y + N / 2u, N / 2u) / rms(x + N / 2u, N / 2u);
+    snprintf(w, sizeof w, "SPIT: a soft 440 Hz sine at 127 comes out changed, no louder than twice (RMS %.2f of it)", f1);
+    check(w, f1 > 0.1 && f1 < 2.0 && !same(x, y, N / 2u));
+#endif
+#if FELUCCA_INS_TAPE && FELUCCA_INS_SPIT
+    for (k = FXT_TAPE; k <= FXT_SPIT; k++) {            /* a stereo owner's L and R wander together (one seed) */
+        reset();
+        sine(60000, 330);
+        run_bus(k, 127);
+        snprintf(w, sizeof w, "%s: on the drum bus, the same L and R in: the same out (their places move together)", NAME[k]);
+        check(w, same(y, z, 0));
+    }
+#endif
 #if DINS
     {                                                   /* a drum voice's S1 (fx.c dins_one), each shaper of LIN_T */
         static const uint8_t DV[5] = {FXT_SFLD, FXT_RECT, FXT_HARM, FXT_RING, FXT_SLEW};

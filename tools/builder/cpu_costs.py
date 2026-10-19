@@ -58,7 +58,8 @@ REGISTRY_H = ROOT / "firmware" / "src" / "core" / "registry.h"
 HEADER = ROOT / "firmware" / "src" / "system" / "cpuguard_costs.h"
 NOTES = {"VOICE": 4, "ACID": 1, "JUNO": 6}   # (JUNO: six voices, eng_juno.c JUNO_POLY)
 INS_NEW = ("fold", "fuzz", "phsr", "flng", "frmt", "wide", "chrs", "echo", "gate",   # the further inserts, fx_slots.c FXT_FOLD .. FXT_GATE,
-           "sfld", "wrap", "rect", "harm", "ring", "subo", "slew")       # then the shapers FXT_SFLD .. FXT_SLEW (fx_slots.c IFX_FIX)
+           "sfld", "wrap", "rect", "harm", "ring", "subo", "slew",       # then the shapers FXT_SFLD .. FXT_SLEW (fx_slots.c IFX_FIX),
+           "tape", "spit")                                               # TAPE SPIT (2026-10-19)
 DV_NEW = ("filt", "dust", "fold", "fuzz", "phsr", "frmt",   # a drum sound's slot types past DIST and DYN (fx.c dins_post),
           "sfld", "wrap", "rect", "harm", "ring", "slew")   # the shapers but SUB (fx_slots.c LIN_T)
 

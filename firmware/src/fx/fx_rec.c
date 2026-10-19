@@ -21,7 +21,7 @@
 #define FXR_GEN_N 0u
 #endif
 #define FXR_HEAD (2u + FX_NSLOT)
-#define FXR_MAX (383u + FXR_GEN_N)                     /* the stored form at its longest (FXR_HEAD + the TLVs; 120 -> 156
+#define FXR_MAX (397u + FXR_GEN_N)                     /* the stored form at its longest (FXR_HEAD + the TLVs; 120 -> 156
                                                         * 2026-10-13: + the further inserts' TLVs, 6 x (2 + 4), fx_slots.c
                                                         * fxs_tlv, in every build: a record from any build reads whole;
                                                         * 156 -> 168 2026-10-13: CHRS ECHO, 2 x (2 + 4); 168 -> 186
@@ -33,7 +33,8 @@
                                                         * ed_backup.c FXR1 FXR2; 288 -> 352 2026-10-15 fx-pool: the returns'
                                                         * RET_TLV 2 + 9, EQ3's TLV 2 + 50, ~28 spare; + the note generators'
                                                         * GEN_TLV 2026-10-15, seq/gen.c: 2 + 4 a slot, 20 slots; 352 -> 378 2026-10-18: the shapers' TLVs 7 x (2 + 4), MST_TLV + 7;
-                                                        * 378 -> 383: the delay filter's DLYF_TLV 2 + 3) */
+                                                        * 378 -> 383: the delay filter's DLYF_TLV 2 + 3; 383 -> 397 2026-10-19:
+                                                        * TAPE SPIT, their TLVs 2 x (2 + 4) and the type list's 2 x 2, MST_TLV + 2) */
 /* The track insert slots (2026-10-12, fx_slots.c ins_slot): the header's slot[4] holds the master SENDS, its insert
  * places filled, as far as they go, with the inserts the tracks' slots hold (an older build then hears them on the
  * tracks with an amount: best effort); flags bit 0 (FXR_F_INS) says the record is of this model (the drum sounds' DST CMP
