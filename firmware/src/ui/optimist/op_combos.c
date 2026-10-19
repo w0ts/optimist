@@ -155,7 +155,8 @@ static int save_combo(uint32_t b)
     case B_SCL:
     case B_ARP:
         lay.quiet = 1;                                  /* (no layer map for the button: it saved) */
-        save_sound();
+        if (!mx_on_usb())                               /* (the mixer's USB row: no sound to save; FX alone its inserts) */
+            save_sound();
         return 1;
     case B_REC:
         lay.rec_pend = 1;                               /* SONG REC (at its release) */

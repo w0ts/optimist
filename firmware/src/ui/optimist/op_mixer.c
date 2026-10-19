@@ -75,15 +75,19 @@ static uint32_t mx_row(void) { return ui.row[SCR_HOME] % MXR_N; }
  * do nothing there, FX is the master FX (the user, 2026-10-12: "many buttons like env lfo are active while on master
  * and send to track 1. wrong") */
 static int mx_on_master(void) { return ui.scr == SCR_HOME && mx_row() == MXR_MASTER; }
-/* the mixer on its USB row: no instrument either (the track buttons dark, the keys silent), not the master */
+/* the mixer on its USB row: no instrument either (the track buttons dark, the keys silent), not the master; FX its inserts
+ * (mx_ut_fx below) */
 static int mx_on_usb(void) { return ui.scr == SCR_HOME && mx_is_usb(mx_row()); }
 /* MASTER selected, on any page (the user, 2026-10-12: "i want uniformity"): the mixer's row, the master FX screen, a
  * layer's ui.master. The track buttons are dark and do nothing there */
 static int master_sel(void) { return mx_on_master() || ui.scr == SCR_FX || ui.master; }
 #define MX_TRK_BTNS (1u << B_ENV | 1u << B_LFO | 1u << B_EDIT | 1u << B_ARP | 1u << B_SCL | 1u << B_SEQ)   /* the track buttons */
+/* the ACCENT lane selected (the mixer's row, or picked anywhere): no sound, so no FX and no EDIT (the user, 2026-10-19: "accent
+ * has fx, makes no sense. and it has edit, makes no sense either") */
+static int acc_sel(void) { return ui.lane && is_drum(TSEL) && lane_acc() && !master_sel() && !mx_on_usb(); }
 static uint32_t mx_dead_mask(void)                      /* the buttons that do nothing here: a bit per B_* */
 {
-    return (master_sel() ? MX_TRK_BTNS : 0u) | (mx_on_usb() ? MX_TRK_BTNS | 1u << B_FX : 0u);
+    return (master_sel() ? MX_TRK_BTNS : 0u) | (mx_on_usb() ? MX_TRK_BTNS : 0u) | (acc_sel() ? 1u << B_FX | 1u << B_EDIT : 0u);
 }
 static int mx_master_dead(uint32_t b) { return b < 32u && (mx_dead_mask() >> b & 1u); }
 static uint32_t mx_trk_of(uint32_t r) { return r >= MXR_DR ? TRK_DRUM : r > MXR_MASTER ? r - MXR_T1 : 0u; }   /* (MASTER: T1, unused) */
@@ -645,6 +649,31 @@ static void mx_apply(uint32_t r)                        /* the cursor on row r: 
         lane_pick(r - MXR_LANE0);
     op_repaint();                                       /* (the walk: in place, no clear) */
 }
+#if FELUCCA_USB_AUDIO
+/* FX on the USB row (the user, 2026-10-19: "the usb channel should have it's inserts on FX key, like other tracks"; FX lit
+ * there): its insert slots; tapped again, its next insert set (an insert's own settings: USB EQ3, USB GATER, ...); after the
+ * last, the row's first set again (VOLUME PAN FX ON), so a tap always moves. The input has no SOUND pages: these are its
+ * row's sets. 0: none (no insert slot in this build) */
+static int mx_ut_ins(uint8_t g) { return g == MG_INS || g == MG_UEQ || g == MG_UEQF || g == MG_UGT || g == MG_UJC; }
+static int mx_ut_fx(void)
+{
+    mitem_t it[MX_MAXI];
+    uint32_t r = MXR_USB, n = mx_items(r, it) / 4u, s = mx_set(r), i, first = n, next = n;
+    for (i = 0; i < n; i++)
+        if (mx_ut_ins(it[i * 4u].grp)) {
+            first = first < n ? first : i;
+            next = next < n || i <= s || !mx_ut_ins(it[s * 4u].grp) ? next : i;   /* (the next one after the shown one) */
+        }
+    if (first >= n)
+        return 0;
+    mx.set = (uint8_t)(next < n ? next : mx_ut_ins(it[s * 4u].grp) ? 0u : first);   /* (past the last: out, to the first set) */
+    ui.hot = 0;
+    ui.hot_lit = 0;
+    return 1;
+}
+#else
+static int mx_ut_fx(void) { return 0; }
+#endif
 static void mx_page(int32_t d)                         /* SELECT: the knob sets, stopping at the ends (GLO tapped opens
                                                          * GLOBAL since 2026-10-12: op_global.c) */
 {

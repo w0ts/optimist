@@ -205,6 +205,21 @@ static void acc_sound_tests(void)
         }
     }
     check(ok, "ENV, LFO, EDIT on the ACCENT lane: SOUND stays, no empty page, every cell readable");
+    {   /* FX and EDIT: dark and doing nothing on it (the user, 2026-10-19: "accent has fx, makes no sense. and it has edit") */
+        uint32_t av = op_btn_avail(), sc = ui.scr;
+        tap(B_FX), frames(2);
+        ok = !(av >> B_FX & 1u) && !(av >> B_EDIT & 1u) && ui.scr == sc && lane_selected() == DRUM_ACC;
+        go_home();
+        ui.row[SCR_HOME] = MXR_ACC;
+        frames(2);
+        av = op_btn_avail();
+        check(ok && lane_selected() == DRUM_ACC && !(av >> B_FX & 1u) && !(av >> B_EDIT & 1u),
+              "FX and EDIT dark on the ACCENT lane (SOUND, the mixer's ACCENT row): no sound, nothing to set");
+        lane_select(DRUM_ACC);
+        ui.lane = 1;
+        op_enter(SCR_SOUND);
+        frames(2);
+    }
     turn(EN_PRESET, 1);
     frames(2);
     check(lane_selected() == DRUM_ACC, "PRESETS on the ACCENT lane: the kit as on DR, the lane stays");
