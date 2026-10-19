@@ -100,8 +100,9 @@ static void lay_bits(void)
         uint32_t v = l == LY_STEP ? STEP_LY_BIT : LAYER_BTN[l] < NB && !off ? (1u << panel.btn[LAYER_BTN[l]]) : 0u;
         if (mst && (l == LY_ERASE || l == LY_ROLL || l == LY_OPS))
             v = 0;                                      /* (MASTER: no erase, repeat or operator keys on T1's data) */
-        if (l != LY_STEP && LAYER_BTN[l] < NB && mx_master_dead(LAYER_BTN[l]))
-            v = 0;                                      /* (the mixer's MASTER: no track button's layer) */
+        if (l != LY_STEP && LAYER_BTN[l] < NB && (mx_master_dead(LAYER_BTN[l]) || (l == LY_FX && mx_on_usb())))
+            v = 0;                                      /* (the mixer's MASTER: no track button's layer; its USB row: FX taps its
+                                                         * inserts, no track's FX layer) */
         if (l == LY_MIX && !off)
             v |= (1u << panel.btn[B_PLAY]);
         if (ly_bit[l] != v)
@@ -752,7 +753,7 @@ static void lay_frame(uint32_t held)
     lay_bits();
     for (l = LY_FX; l < LY_COUNT && !off; l++)
         if (LAYER_BTN[l] < NB && (held & (1u << panel.btn[LAYER_BTN[l]])) && (l != LY_OPS || fm6_sel()) &&
-            !(mx_on_master() && mx_master_dead(LAYER_BTN[l]))) {   /* (the mixer's MASTER row: its dead track buttons
+            !((mx_on_master() || acc_sel()) && mx_master_dead(LAYER_BTN[l])) && !(l == LY_FX && mx_on_usb())) {   /* (the mixer's MASTER row: its dead track buttons
                                                          * hold no layer and show no map; a layer held over MASTER's pages stays) */
             h = l;
             break;

@@ -570,6 +570,8 @@ static void op_tap(uint32_t b, uint32_t id)
         return;                                         /* (the mixer's MASTER: a track button does nothing) */
     if (b == B_FX && mx_on_master())
         op_enter(SCR_FX);                               /* (the mixer's MASTER: FX is the master FX) */
+    else if (b == B_FX && mx_on_usb())
+        (void)mx_ut_fx();                               /* (the mixer's USB row: its inserts, op_mixer.c) */
     else if (b == B_SAVE && !op_armed() && fm1_ms - op_t0[id % 14u] >= op_hold_ms()) {
         if (ui.scr == SCR_PROJECT || ui.scr == SCR_SONG)
             save_hold();                                /* SAVE held alone on PROJECT: SONG; on SONG: PROJECT */
@@ -1069,8 +1071,8 @@ static uint32_t op_btn_avail(void)                      /* a bit per panel butto
         int on = (fam >> PAGE_FAM[i]) & 1u;
         if (b == B_ENV && fm6_sel())
             on = 1;                                     /* (an FM6 track: its operators, held: their pages) */
-        if (b == B_FX && ui.scr == SCR_FX)
-            on = 1;                                     /* (the global FX: its next page) */
+        if (b == B_FX && (ui.scr == SCR_FX || mx_on_usb()))
+            on = 1;                                     /* (the global FX: its next page; the mixer's USB row: its inserts) */
         if (st_holding() && (b != B_EDIT || is_drum(TSEL)))
             on = 1;                                     /* (a step held: the page buttons lock their page) */
         l = b == B_LFO ? LY_PLAY : lay_btn_layer(b);
@@ -1083,8 +1085,8 @@ static uint32_t op_btn_avail(void)                      /* a bit per panel butto
         m &= ~(1u << B_ARP | 1u << B_SCL);             /* (the drum track and its lanes: no arp, no scale; a held layer alone is no light, 2026-10-15) */
     if (ui.scr == SCR_STEP && !step_yes_any())
         m &= ~(1u << B_SAVE);                           /* (STEP: SAVE lit only where YES acts: a tool card, a toggle or GO, a held step) */
-    m &= ~mx_dead_mask();                               /* the mixer's USB row: no track button, no FX; MASTER (any page): no
-                                                         * track button (op_mixer.c) */
+    m &= ~mx_dead_mask();                               /* the mixer's USB row: no track button (FX: its inserts); MASTER (any
+                                                         * page): no track button (op_mixer.c) */
     if (master_sel())
         m |= 1u << B_FX;                                /* (MASTER: FX the master FX) */
     return m;

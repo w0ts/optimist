@@ -69,6 +69,23 @@ static void usbfx_tests(void)
     }
     check(ok, "... the help line on USB EQ3's and USB GATER's cards");
 #endif
+    {   /* FX on the USB row (2026-10-19, the user: "the usb channel should have it's inserts on FX key, like other tracks"): its
+         * insert slots, then each insert set in turn, round; FX lit; no track's FX layer, the track selected untouched */
+        mitem_t it[MX_MAXI];
+        uint32_t i, ns = mx_items(MXR_USB, it) / 4u, want[8], nw = 0, sel = song.sel;
+        for (i = 0; i < ns && nw < 8u; i++)
+            if (mx_ut_ins(it[i * 4u].grp))
+                want[nw++] = i;
+        mx.set = 0;
+        for (i = 0, ok = nw >= 3u; i <= nw + 1u && ok; i++) {   /* (slots, USB EQ3, USB EQ3 F, USB GATER, out to VOLUME .., the slots) */
+            tap(B_FX), frames(2);
+            ok &= mx.set == (i < nw ? want[i] : i == nw ? 0u : want[0]) && ui.scr == SCR_HOME && ui.row[SCR_HOME] == MXR_USB;
+        }
+        check(ok && want[0] == 1u && song.sel == sel, "... FX on its row: its insert slots, then USB EQ3, USB EQ3 F, USB GATER in turn, then out to VOLUME PAN FX ON, again (the track selected untouched)");
+        press(B_FX), frames(30);
+        check(lay.shown != LY_FX && (op_btn_avail() >> B_FX & 1u), "... FX lit there; held, no track's FX layer");
+        release(B_FX), frames(2);
+    }
 #if FELUCCA_INS_JCHORUS
     ut_load(1, FXT_JUNO);
     s = ut_set_of("USB JUNO");

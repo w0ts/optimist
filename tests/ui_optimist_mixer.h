@@ -48,11 +48,12 @@ static void mixer_walk_tests(void)
     ok &= mxd.first == MXR_USB && mxd.last == MXR_N && px_in(2, 3, 50, 19, C_HI);   /* (alone; the badge "5 USB") */
     {
         uint32_t av = op_btn_avail();
-        ok &= !(av & (1u << B_ENV | 1u << B_EDIT | 1u << B_FX));   /* (no instrument: the track buttons dark) */
+        ok &= !(av & (1u << B_ENV | 1u << B_EDIT)) && (av & 1u << B_FX);   /* (no instrument: the track buttons dark; FX its
+                                                         * inserts, 2026-10-19) */
     }
     ppm("opt-mixer-usb");
     check(ok, "ALGORITHM walks T1 T2 T3 DR and the 16 lanes (each selected), then the USB input's row, alone (the badge 5 USB, the "
-          "track buttons dark), stopping there");
+          "track buttons dark, FX lit: its inserts), stopping there");
     turn(EN_ALGO, -1);
     ok = mx_row() == MXR_LN - 1u;
 #else
