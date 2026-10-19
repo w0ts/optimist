@@ -21,6 +21,7 @@
  *   87 FX_PUSH  (v9 push, WATCH bit 2) op 0 and the same state, when it changed on the device (ed_sync9.c ed9_fx) */
 #include "ed_reply.h"         /* (ed_b2..ed_b4, ed_b32) */
 enum { ED_FX = 86, ED_FX_PUSH = 87 };
+#if FELUCCA_ED_FXS                                     /* (the mixer, builder ED_MIX: its push tells the editor of FXP's and DLAN's changes too) */
 #define ED_FX_N (4u + 3u + 2u * DRUM_LSTORE + NTRK * INS_N + 3u * NTRK + 3u)   /* the state's bytes after the op (16 lanes: past DRUM_LANES 0) */
 
 static uint32_t ed_cset(uint32_t k, uint32_t i)        /* track k's COMP setting i (127: no COMP built) */
@@ -148,3 +149,8 @@ static int ed_fxs(uint32_t cmd, const uint8_t *a, uint32_t na)
     return 1;
 }
 #define ED_FXS_FN ed_fxs,                   /* (editor.c: its table of commands) */
+#else
+#define ED_FXS_FN
+static void ed_fx_info(void) {}
+static uint32_t ed_fx_sig(void) { return 0; }       /* (no FX push: nothing to compare) */
+#endif

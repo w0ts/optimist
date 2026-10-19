@@ -169,9 +169,16 @@
   html[data-conn=off] .panel, html[data-conn=off] .tbar > :not(#mock), html[data-conn=off] #status,
   html[data-conn=off] #hint { display: none !important; }
   html:not([data-conn=off]) #connectcard { display: none; }
-  /* a backup-only firmware (data-conn=lite, loadLite): the Backup on the Projects tab, Install, Build, the Simulator */
-  html[data-conn=lite] #tabs > button[data-tab]:not([data-tab=projects]):not([data-tab=install]):not([data-tab=build]):not([data-tab=sim]),
+  /* a backup-only firmware (data-conn=lite, loadLite): the Backup on the Projects tab, Install, Build, the Simulator; with the
+     librarian (data-lib) the Library tab too and the librarian above the Backup, the Library's buttons that play or read the
+     sound left out (no live editing) */
+  html[data-conn=lite] #tabs > button[data-tab]:not([data-tab=projects]):not([data-tab=library]):not([data-tab=install]):not([data-tab=build]):not([data-tab=sim]),
+  html[data-conn=lite]:not([data-lib]) #tabs > button[data-tab=library], html:not([data-conn=lite]) #libr, html[data-conn=lite]:not([data-lib]) #libr,
+  html[data-conn=lite] #libaud, html[data-conn=lite] #libsave, html[data-conn=lite] #czbox,
   html[data-conn=lite] #slots, html[data-conn=lite] #p-projects > .pghelp, html[data-conn=lite] .tbar > :not(#mock) { display: none !important; }
+  #libr .lbr { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0 8px; }
+  #libr .lbr .pslot { min-width: 34px; }
+  #libr td .pslot.sel, #libr .lbr .pslot.sel { outline: 2px solid var(--accent, currentColor); }
   .connectcard { max-width: 460px; margin: 12vh auto 0; text-align: center; }
   .connectcard .clogo { font-size: 34px; letter-spacing: .02em; margin: 0 0 18px; }
   .connectcard #cstatus { min-height: 1.4em; }
@@ -1620,6 +1627,7 @@
   <section class="panel" id="p-projects" data-tab="projects" data-dev hidden>
     <details class="pghelp"><summary title="About this page" aria-label="About this page">i</summary><p class="dim" data-t="projHelp"></p></details>
     <div class="slots" id="slots"></div>
+    <div id="libr"></div>
     <h2 id="backup-head" data-t="bkTitle" data-ic="port_disk"></h2>
     <p class="dim" data-t="bkHelp"></p>
     <div id="backup"></div>
@@ -2441,6 +2449,7 @@ const parse = {
     o.dlan = null;                                   /* 58: the drum lanes' mix, LFOs and sequencer mutes (v13, ed_dlan.c) */
     o.fxp = null;                                    /* 57: every FX slot by owner (v13, ed_fxp.c): {usb, owners} */
     o.lite = false;                                  /* 64: a backup-only firmware (builder ED_LIVE off, ed_lite.c): Backup alone */
+    o.lib = false;                                   /* 64 bit 1: and the librarian (builder LIBRARIAN): sections, presets, kits, patterns */
     while (o.proto >= 6 && r.i + 2 <= a.length) {    /* WATCH while on keeps what is not pushed yet, bit 1 no RELOAD */
       const id = r.b(), n = r.b();                   /* after the editor's own PRESET / G_ENGSEL (Felucca 1.0.2 #65) */
       if (r.i + n > a.length) break;
@@ -2460,7 +2469,7 @@ const parse = {
       if (id === 0x5D && n >= 2 && a[r.i] >= 1) o.fav = { max: a[r.i + 1] };   /* 5D: version, FAV_N */
       if (id === 0x5C && n >= 3 && a[r.i] >= 1) o.scrs = { mask: a[r.i + 1] | (a[r.i + 2] << 7) };   /* 5C: version, the screens built (2 x 7 bits) */
       if (id === 0x59 && n >= 2 && a[r.i] >= 1) o.scrn = { screens: a[r.i + 1] };   /* 59: version, screens (GLOBAL, SYSTEM) */
-      if (id === 0x64 && n >= 1) o.lite = !!(a[r.i] & 1);   /* 64: backup and restore only (loadLite) */
+      if (id === 0x64 && n >= 1) { o.lite = !!(a[r.i] & 1); o.lib = !!(a[r.i] & 2); }   /* 64: backup and restore only (loadLite), bit 1 the librarian */
       if (id === 0x58 && n >= 2 && a[r.i] >= 1) o.dlan = { groups: a[r.i + 1] };   /* 58: version, groups */
       if (id === 0x5F && n >= 2 && a[r.i] >= 1) o.undo = { many: !!(a[r.i + 1] & 1) };   /* 5F: version, flags (bit 0 a history of many levels) */
       if (id === 0x60 && n >= 2 && a[r.i] >= 1) o.note = { quiet: a[r.i + 1] };   /* 60: version, the silence after which held notes end (s) */
@@ -6581,8 +6590,8 @@ const TEXT = {
   soloUsbTip: "Solo of the USB input (the firmware's USB solo is not in the protocol yet)",
   soloTip: "Solo (set on the device with GLO + the track key; the editor's solo comes with protocol v14)",
   sideMissing: "This firmware has no", sideMissingHelp: "These editor features need a builder item (ED_*) or the Optimist UI (UI=1) in the firmware's build; the editor says so instead of hiding them. Build with them on, or update the firmware.",
-  fxpOpen: "Open", instrument: "Instrument", fxpMissingShort: "No slot editing: this firmware has no FX slot command (ED_FXP off, or an older build)",
-  fxpMissing: "This firmware has no slot editing (the builder item ED_FXP is off, or the build is older than protocol v13): the insert effects cannot be chosen from the editor. The sends and the master controls still work.",
+  fxpOpen: "Open", instrument: "Instrument", fxpMissingShort: "No slot editing: this firmware has no FX slot command (ED_MIX off, or an older build)",
+  fxpMissing: "This firmware has no slot editing (the builder item ED_MIX is off, or the build is older than protocol v13): the insert effects cannot be chosen from the editor. The sends and the master controls still work.",
   saTitle: "Step automation", saChance: "Chance", saChanceTip: "How often the step plays, 0..100 % (the device's EXTRA page: steps of 5)", saCond: "Condition",
   saCondTip: "Play the step on some passes only: 1:2 = the first of every 2 passes, 2:3 = the second of every 3 ... (the device's COND)", saNone: "always", saMotion: "motion", saExtras: "extras",
   saFull: "The event list is full (128 events a pattern, 24 locks): remove one first", saRefused: "The device does not take that value on this step",
@@ -6632,6 +6641,10 @@ const TEXT = {
   snLoaded: "Snapshot loaded: ", snCleared: "Snapshot cleared: ", snExported: "Snapshot exported: ",
   snImported: "Snapshot imported: ", snFail: "Snapshot: ", snNotes: "Loaded, but: ", snSlot: "slot",
   snSections: "sections", snSong: "song", snBadFile: "Cannot read the file: ",
+  lbrTitle: "Librarian", lbrHelp: "Everything you made, one piece at a time: the sections (A..P), the per-track patterns and the user drum kits here, the user presets on the Library tab. Stop playback before saving, erasing or importing.",
+  lbrSections: "Sections", lbrPatterns: "Patterns", lbrKits: "User drum kits", lbrPatHelp: "Click a pattern to pick it, drag it onto another slot to copy it. LEN is shown in the slot.",
+  lbrExport: "Export", lbrImport: "Import", lbrClear: "Clear", lbrNoPat: "This build has no per-track patterns.", lbrNoKits: "This build has no user drum kits.",
+  lbrBadFile: "Not a file of this kind: ", lbrExported: "Exported: ", lbrImported: "Imported: ", lbrConfirmImport: "Replace {x} with the file's?",
   bkTitle: "Backup", bkHelp: "Everything the FM-1 keeps (projects, the working project, user presets, drum kits, drum sounds, settings, the samples if you like) in one file. Do it before installing a firmware.",
   bkBackup: "Back up", bkSamples: "with the samples ({n} KiB)", bkRestore: "Restore from a file…", bkRestoreGo: "Restore the ticked ones",
   bkStopped: "Stopped only. The FM-1 restarts when done.", bkConfirm: "Write {n} objects back into the FM-1 (what is there is replaced)?",
@@ -6884,6 +6897,7 @@ function renderPanels() {
   const lite = !!dev && !!dev.info && dev.info.lite;   /* (a backup-only firmware: the Backup alone, loadLite) */
   const ready = !!dev && (!!dev.dump || lite);
   document.documentElement.dataset.conn = lite ? "lite" : ready ? "on" : "off";   /* not connected: the connect card only (the Install and Build tabs need no device) */
+  if (lite && dev.info.lib) document.documentElement.dataset.lib = ""; else delete document.documentElement.dataset.lib;
   if (APPS.includes(want)) document.documentElement.dataset.app = want; else delete document.documentElement.dataset.app;
   let hint = "";
   for (const p of document.querySelectorAll(".panel[data-tab]")) {
@@ -6929,7 +6943,7 @@ try { localStorage.removeItem("optimist-editor-theme"); } catch (e) { /* no stor
 const QS = new URLSearchParams(location.search);
 const MOCK = QS.get("mock") === "1";
 /* the v13 commands the mock serves: ?fxp=1 the FX owners' slots and the lanes' mix, ?scrn=1 (or ?fxp=1) the other six; ?off=dlan,scope,... leaves any out, as a firmware built without
-   those builder items (ED_FXP ED_DLAN ED_SCRN ED_SONG ED_TOOLS ED_SCRS ED_FAVS ED_SCOPE): fxp dlan scrn songc tools scrs fav scope */
+   those builder items (ED_MIX: fxp dlan, ED_SEQ: songc tools, ED_SCREENS: scrn scrs scope; fav: FAVORITES) */
 function mockV13(qs) {
   const fx = qs.get("fxp") === "1", ui = fx || qs.get("scrn") === "1", off = new Set((qs.get("off") || "").split(",").filter(Boolean));
   const on = { fxp: fx, dlan: fx, scrn: ui, songc: ui, tools: ui, scrs: ui, fav: ui, scope: ui, usb: fx, accent: fx };
@@ -7211,9 +7225,11 @@ async function loadLite(d) {
   try { d.bk = await bkListAll((r, o) => d.link.request(r, o), quiet); }
   catch (e) { if (e.message === "closed") throw e; d.bk = null; }
   d.s24 = d.s24in = false;
+  if (d.info.lib) await libLiteRead(d);
   tab = "projects";
   renderPanels();
   renderBackup();
+  if (d.info.lib) { renderLibr(); renderLib(); renderBank(); }
   sayK("ready");
 }
 async function getDescOrNull(s, i) { try { return await getDesc(s, i); } catch (e) { if (e.message === "closed") throw e; return null; } }
@@ -7272,8 +7288,9 @@ function renderTrackbar() {
 function sideNote() {
   const n = $("sidenote");
   if (!n) return;
-  const i = dev && dev.info, miss = i ? [[i.fxp, "FX slot editing (ED_FXP)"], [i.tools, "Tools (ED_TOOLS, Optimist UI)"], [i.scrs, "Device screens (ED_SCRS, Optimist UI)"], [i.scrn, "device settings lines (ED_SCRN, Optimist UI)"],
-    [i.songc, "Song chain (ED_SONG)"], [i.fav, "favorites (ED_FAVS)"], [i.dlan, "drum sound mix (ED_DLAN)"], [i.scope, "scope (ED_SCOPE, Optimist UI)"], [i.rec, "the transport REC (command 107)"], [dev.autoOk, "step automation (the store: motion / chance / conditions)"]].filter(([on]) => !on).map(([, name]) => name) : [];
+  const i = dev && dev.info, miss = i ? [[i.fxp, "FX slot editing (ED_MIX)"], [i.dlan, "drum sound mix (ED_MIX)"], [i.tools, "Tools (ED_SEQ, Optimist UI)"], [i.songc, "Song chain (ED_SEQ)"],
+    [i.scrs, "Device screens (ED_SCREENS, Optimist UI)"], [i.scrn, "device settings lines (ED_SCREENS, Optimist UI)"], [i.scope, "scope (ED_SCREENS, Optimist UI)"],
+    [i.fav, "favorites (FAVORITES)"], [dev.autoOk, "step automation (the store: motion / chance / conditions)"]].filter(([on]) => !on).map(([, name]) => name) : [];
   n.hidden = !miss.length;
   n.textContent = miss.length ? `${t("sideMissing")}: ${miss.join(", ")}.` : "";
   n.title = t("sideMissingHelp");
@@ -7608,9 +7625,198 @@ async function project(op, slot) {
     if (r.busy) throw new Error("Stop playback before loading or saving a section.");
     dev.slotUsed[slot] = r.used;
     renderSlots();
-    if (!op && r.used === 1) await afterSoundChange();
+    if (!op && r.used === 1 && !dev.info.lite) await afterSoundChange();   /* (the librarian: nothing live to read back) */
     sayK(op ? "savedSlot" : r.used === 1 ? "loadedSlot" : r.used > 1 ? "keptSlot" : "emptySlot", String(slot + 1));
   } catch (err) { report(err); } finally { busy--; }
+}
+
+/* ---------------------------------------------------------- librarian --- */
+/* A backup-only build with the librarian (INFO tag 0x64 bit 1, builder LIBRARIAN, firmware ed_lite.c): every piece of user
+   data one at a time, nothing edited live. The sections A..P (PROJECT: load into the working project, save it there; a
+   file each: the section's backup object, imported onto any letter through BK_BEGIN / DATA / COMMIT, then BK_END: the
+   FM-1 restarts as after a restore), the per-track patterns (PAT_LIST, PAT_OP copy / clear, PAT_READ / PAT_WRITE: a
+   file each), the user kits (UKIT_*: the drum kit store's own load / store / erase / export / import); the user presets
+   are the Library tab's (UP_*). */
+const LBR = { FORMAT: "optimist-pattern", VERSION: 1 };
+const lbr = { sel: null, busy: false };   /* sel: the picked pattern {k, s} */
+async function libLiteRead(d) {
+  const quiet = { timeout: 400, retries: 0, quiet: true };
+  const nsec = d.info.pat ? d.info.pat.scenes : (d.bk && d.bk.objs.filter((o) => o.kind === "sec").length) || 4;
+  d.slotUsed = [];
+  for (let k = 0; k < nsec; k++) {
+    try { d.slotUsed[k] = parse[CMD.PROJECT](await d.link.request(req.project(2, k), quiet)).used; }
+    catch (e) { if (e.message === "closed") throw e; d.slotUsed[k] = null; }
+  }
+  try { d.bank = await bank.list((r, o) => d.link.request(r, { ...o, quiet: true })); }
+  catch (e) { if (e.message === "closed") throw e; d.bank = null; }
+  try { await drumsRead(d); } catch (e) { if (e.message === "closed") throw e; d.ukits = null; }
+  d.patL = null;
+  if (d.info.pat) {
+    try { d.patL = parse[CMD.PAT_LIST](await d.link.request(req.patList(0), quiet)); }
+    catch (e) { if (e.message === "closed") throw e; }
+  }
+}
+async function lbrOp(fn) {
+  if (!dev || lbr.busy) return;
+  lbr.busy = true;
+  renderLibr();
+  try { await op(fn); } finally { lbr.busy = false; renderLibr(); }
+}
+const secLetter = (k) => String.fromCharCode(65 + k);
+const secObj = (k) => dev.bk && dev.bk.objs.find((o) => o.tag === `S${String(k + 1).padStart(2, "0")} `);
+async function bkReadObj(o) {     /* one object of the list, CRC-checked chunks */
+  const data = new Uint8Array(o.len);
+  for (let off = 0, tries = 0; off < o.len;) {
+    const r = parse[CMD.BK_READ](await rq(req.bkRead(o.i, off), { timeout: 1500, retries: 2 }));
+    const c = Uint8Array.from(r.data).subarray(0, o.len - off);
+    if (r.i !== o.i || r.off !== off || !c.length || crc32(Uint8Array.from(r.data)) !== r.crc) {
+      if (++tries > 2) throw new Error(`${o.tag}: ${t("bkBadChunk")} ${off}`);
+      continue;
+    }
+    tries = 0;
+    data.set(c, off);
+    off += c.length;
+  }
+  if (crc32(data) !== o.crc) throw new Error(`${o.tag}: CRC`);
+  return data;
+}
+function lbrSection(k, opn) {
+  if (opn === 0 && dev.slotUsed[k] !== 1) return;
+  lbrOp(async () => {
+    await project(opn, k);
+    dev.bk = await bkListAll(rq, { timeout: 1500, retries: 1 });   /* (a save changes the section's object) */
+  });
+}
+function lbrSecExport(k) {
+  lbrOp(async () => {
+    dev.bk = await bkListAll(rq, { timeout: 1500, retries: 1 });
+    const o = secObj(k);
+    if (!o || !o.hasData) { sayK("emptySlot", secLetter(k)); return; }
+    const data = await bkReadObj(o), d = dev.info;
+    const file = backupFile({ version: d.version, proto: d.proto, switches: dev.bk.switches, magic: dev.bk.magic, bk: dev.bk.version, caps: dev.bk.caps },
+      [{ tag: o.tag, kind: o.kind, fm6: o.fm6, data }]);
+    saveBlob(`optimist-section-${secLetter(k)}.optimist-backup`, new Blob([file], { type: "application/octet-stream" }));
+    sayK("lbrExported", `${t("section")} ${secLetter(k)}`);
+  });
+}
+async function lbrSecImport(k, f) {
+  let x;
+  try { x = readBackupFile(new Uint8Array(await f.arrayBuffer())).objects.find((o) => o.kind === "sec"); }
+  catch (e) { sayK("lbrBadFile", e.message); return; }
+  if (!x) { sayK("lbrBadFile", f.name); return; }
+  const o = secObj(k);
+  if (!o) { sayK("lbrBadFile", `${t("section")} ${secLetter(k)}`); return; }
+  if (dev.slotUsed[k] && !confirm(t("lbrConfirmImport").replace("{x}", `${t("section")} ${secLetter(k)}`) + "\n\n" + t("bkStopped"))) return;
+  lbrOp(async () => {
+    await bkWriteObj(o.i, x.data);
+    await rq(req.bkEnd(true), { timeout: 1500, retries: 0 });   /* (the FM-1 restarts and loads it, as after a restore) */
+    sayK("lbrImported", `${t("section")} ${secLetter(k)}`);
+  });
+}
+async function lbrPatList() {
+  dev.patL = parse[CMD.PAT_LIST](await rq(req.patList(0)));
+}
+function lbrPatDo(r) {
+  lbrOp(async () => {
+    const x = parse[CMD.PAT_OP](await rq(r, { timeout: 1500, retries: 0 }));
+    if (x.rc) throw new Error(t("flashFail").replace("{rc}", x.rc));
+    await lbrPatList();
+  });
+}
+function lbrPatCopy(k, a, k2, b) {
+  const L = dev.patL;
+  if (!L || (k === k2 && a === b) || !L.len[k][a]) return;
+  if (L.len[k2][b] && !confirm(t("patOver").replace("{p}", b + 1))) return;
+  lbr.sel = { k: k2, s: b };
+  lbrPatDo(req.patOp(1, k, a, k2, b));
+}
+function lbrPatClear({ k, s }) {
+  const L = dev.patL, u = L ? patUsers(L, k, s) : "";
+  if (L && L.len[k][s] && confirm(t(u ? "patClearUsed" : "patClear").replace("{p}", s + 1).replace("{u}", u.split("").join(" ")))) lbrPatDo(req.patOp(2, k, s));
+}
+function lbrPatExport({ k, s }) {
+  lbrOp(async () => {
+    const bytes = await patReadAll(rq, k, s);
+    if (!bytes.length) { sayK("emptySlot", `${s + 1}`); return; }
+    saveBlob(`optimist-pattern-t${k + 1}-${s + 1}.json`, new Blob([JSON.stringify({ format: LBR.FORMAT, version: LBR.VERSION, track: k, bytes: [...bytes] })],
+      { type: "application/json" }));
+    sayK("lbrExported", `${t("track")} ${k + 1} · ${t("pattern")} ${s + 1}`);
+  });
+}
+async function lbrPatImport({ k, s }, f) {
+  let x;
+  try { x = JSON.parse(await f.text()); } catch (e) { sayK("lbrBadFile", e.message); return; }
+  if (!x || x.format !== LBR.FORMAT || x.version !== LBR.VERSION || !Array.isArray(x.bytes) || x.bytes.length > PATREC.MAX
+    || x.bytes.some((b) => !Number.isInteger(b) || b < 0 || b > 255)) { sayK("lbrBadFile", f.name); return; }
+  if (dev.patL && dev.patL.len[k][s] && !confirm(t("lbrConfirmImport").replace("{x}", `${t("track")} ${k + 1} · ${t("pattern")} ${s + 1}`))) return;
+  lbrOp(async () => {
+    await patWriteAll(rq, k, s, Uint8Array.from(x.bytes));   /* (another kind of track's: rc 2, said) */
+    await lbrPatList();
+    sayK("lbrImported", `${t("track")} ${k + 1} · ${t("pattern")} ${s + 1}`);
+  });
+}
+const lbrFile = (accept, fn) => {
+  const f = el("input", { type: "file", accept, hidden: true });
+  f.addEventListener("change", () => { const x = f.files[0]; f.value = ""; if (x) fn(x); });
+  return f;
+};
+function lbrSections() {
+  const tb = el("table", { class: "ukits" });
+  (dev.slotUsed || []).forEach((u, k) => {
+    const imp = lbrFile(".optimist-backup,application/octet-stream", (f) => lbrSecImport(k, f));
+    const b = (key, fn, on = true, ic) => el("button", { ic, disabled: lbr.busy || !on, onclick: fn }, t(key));
+    tb.append(el("tr", {}, el("td", { text: secLetter(k) }),
+      el("td", { class: "dim", text: u == null ? t("unknown") : t(SLOT_STATE[u] || "used") }),
+      el("td", {}, b("load", () => lbrSection(k, 0), u === 1, "symbol_folder_open"), b("save", () => lbrSection(k, 1), true, "port_disk"),
+        b("lbrExport", () => lbrSecExport(k), u === 1 && !!secObj(k), "symbol_download"),
+        b("lbrImport", () => imp.click(), !!secObj(k), "symbol_upload"), imp)));
+  });
+  return [el("h3", { text: t("lbrSections") }), tb];
+}
+function lbrPatterns() {
+  const L = dev.patL;
+  if (!dev.info.pat || !L || !L.len) return [el("h3", { text: t("lbrPatterns") }), el("p", { class: "dim", text: t("lbrNoPat") })];
+  const rows = L.len.map((lens, k) => el("div", { class: "lbr", role: "group", "aria-label": `${t("track")} ${k + 1}` },
+    el("span", { class: "kl", text: `${t("track")} ${k + 1}` }),
+    ...lens.map((n, s) => {
+      const v = patSlotView(L, k, s), on = lbr.sel && lbr.sel.k === k && lbr.sel.s === s;
+      return el("button", { type: "button", class: `pslot ${v.cls}${on ? " sel" : ""}`, text: v.text, title: `${t("pattern")} ${s + 1}`,
+        draggable: n ? "true" : "false", disabled: lbr.busy,
+        onclick: () => { lbr.sel = { k, s }; renderLibr(); },
+        ondragstart: (e) => e.dataTransfer.setData("text/plain", `${k},${s}`),
+        ondragover: (e) => e.preventDefault(),
+        ondrop: (e) => { e.preventDefault(); const [k0, a] = e.dataTransfer.getData("text/plain").split(",").map(Number); lbrPatCopy(k0, a, k, s); },
+        onkeydown: (e) => { if (e.key === "Delete" || e.key === "Backspace") lbrPatClear({ k, s }); } });
+    })));
+  const sel = lbr.sel, used = !!sel && !!L.len[sel.k][sel.s];
+  const imp = lbrFile(".json,application/json", (f) => sel && lbrPatImport(sel, f));
+  const b = (key, fn, on, ic) => el("button", { ic, disabled: lbr.busy || !on, onclick: fn }, t(key));
+  return [el("h3", { text: t("lbrPatterns") }), el("p", { class: "dim", text: t("lbrPatHelp") }), ...rows,
+    el("p", { class: "bar" }, el("b", { text: sel ? `${t("track")} ${sel.k + 1} · ${t("pattern")} ${sel.s + 1}` : "" }),
+      b("lbrExport", () => lbrPatExport(sel), used, "symbol_download"), b("lbrImport", () => imp.click(), !!sel, "symbol_upload"), imp,
+      b("lbrClear", () => lbrPatClear(sel), used, "symbol_trash"))];
+}
+function lbrKits() {
+  if (!dev.ukits) return [el("h3", { text: t("lbrKits") }), el("p", { class: "dim", text: t("lbrNoKits") })];
+  const act = (k, fn, on = true) => el("button", { text: t(k), disabled: dlBusy || lbr.busy || !on, onclick: fn });
+  const rows = dev.ukits.map((u) => el("tr", {}, el("td", { text: kitName(u.slot) }), el("td", { class: "dim", text: u.used ? t("used") : t("empty") }),
+    el("td", {}, act("dlLoad", () => ukitDo(u.slot, 0), u.used), act("dlStore", () => ukitDo(u.slot, 2)),
+      act("erase", () => ukitDo(u.slot, 1), u.used), act("dlExport", () => ukitExport(u.slot), u.used))));
+  const imp = lbrFile(".json,application/json", (f) => ukitImport(f));
+  return [el("h3", { text: t("lbrKits") }), el("table", { class: "ukits" }, ...rows),
+    el("p", { class: "bar" }, el("button", { ic: "symbol_upload", disabled: dlBusy || lbr.busy, onclick: () => imp.click() }, t("dlImport")), imp)];
+}
+function renderLibr() {
+  const box = $("libr");
+  if (!box) return;
+  if (!dev || !dev.info || !dev.info.lite || !dev.info.lib) { box.replaceChildren(); return; }
+  box.replaceChildren(el("h2", { text: t("lbrTitle") }), el("p", { class: "dim", text: t("lbrHelp") }),
+    ...lbrSections(), ...lbrPatterns(), ...lbrKits(),
+    el("p", { class: "bar" }, el("button", { ic: "control_arrow_loop", disabled: lbr.busy, onclick: () => lbrOp(async () => {
+      dev.bk = await bkListAll(rq, { timeout: 1500, retries: 1 });
+      await libLiteRead(dev);
+      renderBank();
+    }) }, t("reload"))));
 }
 
 /* ---------------------------------------------------------- steps --- */
@@ -8725,6 +8931,12 @@ const auditionCh = () => (dev && dev.dump ? auditionChannel(dev.dump.g[gDrCh()] 
 /* v2 (the lane sends) first; a firmware without them does not answer it: version 1 (no send columns). Then the
    sources and what each lane shows (50, 51; older firmware: from the names) */
 async function drumsRead(d = dev) {
+  if (d.info && d.info.lite) {                      /* (the librarian: the user kits alone, their sends with them) */
+    d.dl = null; d.dlV2 = true;
+    d.ukits = parse[CMD.UKIT_LIST](await d.link.request(req.ukitList(), { timeout: 400, retries: 1, quiet: true })).kits;
+    if (d === dev) renderLibr();
+    return;
+  }
   let r = null;
   const rqd = (x, o) => d.link.request(x, o);
   if (d.dlV2 !== false)
@@ -8734,7 +8946,8 @@ async function drumsRead(d = dev) {
     });
   if (d.dlV2 !== true) d.dlV2 = !!r;
   d.dl = parse[CMD.DRUM_LANES](r || await d.link.request(req.drumLanes(null, d.dlV2), { timeout: 400, retries: 1, quiet: true }));
-  d.ukits = parse[CMD.UKIT_LIST](await d.link.request(req.ukitList(), { timeout: 400, retries: 1, quiet: true })).kits;
+  try { d.ukits = parse[CMD.UKIT_LIST](await d.link.request(req.ukitList(), { timeout: 400, retries: 1, quiet: true })).kits; }
+  catch (e) { if (e.message === "closed") throw e; d.ukits = null; }   /* (a build without the librarian: no user kits, the lanes as ever) */
   if (d.info && d.info.ntrk) d.dlKit = parse[CMD.TRACK_PARAM](await d.link.request(req.trackParam(d.info.ntrk - 1, d.info.pe0))).value;
   if (d.dsrc === undefined) d.dsrc = await readDrumSources(rqd);
   await readShows(d);
@@ -8759,6 +8972,7 @@ async function laneSend(l, srcChanged) {
   if (srcChanged) await readShows(d, [lane]);
 }
 function renderKit() {
+  if (dev && dev.info && dev.info.lite) { renderLibr(); return; }   /* (the librarian: its kits table, no lanes) */
   const bar = $("kitbar"), tiles = $("klanes"), pane = $("klane");
   if (!bar) return;
   if (!dev || !dev.dl) { bar.replaceChildren(); tiles.replaceChildren(); pane.replaceChildren(); renderKitExtras(); return; }
@@ -13015,7 +13229,7 @@ function renderLib() {
 function renderBank() {
   const pane = $("bankpane");
   $("bankhint").hidden = !!(dev && dev.bank);
-  $("bankhint").textContent = t(!dev || !dev.dump ? "bankConnect" : "bankNone");
+  $("bankhint").textContent = t(!dev || (!dev.dump && !dev.info.lib) ? "bankConnect" : "bankNone");
   if (!dev || !dev.bank) { pane.hidden = true; return; }
   pane.hidden = false;
   const b = dev.bank, used = b.slots.filter((x) => x.used).length;
@@ -13228,7 +13442,7 @@ function bankLoad(slot) {
     selfLoad();
     const rc = await bank.load(rqf, slot);
     if (rc) { sayK("emptySlot", slotName(slot)); return; }
-    await afterSoundChange();
+    if (!dev.info.lite) await afterSoundChange();    /* (the librarian: no sound to read back) */
     sayK("loadedUser", `${slotName(slot)} ${s.name}`);
   });
 }

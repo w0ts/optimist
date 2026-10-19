@@ -718,8 +718,8 @@ static void t_editor(void)
     a[1] = 3, a[2] = 0;
     check("AUTO_SET PLAY 0: the track's motion off", ed_call(ED_AUTO_SET, a, 3) && !(auto_w.on & 2u));
     {
-        static const uint8_t lset[5] = {1, 5, P_PAN, (uint8_t)((20 + 8192) & 127), (uint8_t)((20 + 8192) >> 7)};
-        check("the older LOCK_SET (73) writes a step-only event of the list", ed_call(ED_LOCK_SET, lset, 5) && ed_out[3] == 1 &&
+        static const uint8_t lset[7] = {1, 0, 5 | AUTO_ONLY, P_PAN & 127, P_PAN >> 7, (uint8_t)((20 + 8192) & 127), (uint8_t)((20 + 8192) >> 7)};
+        check("AUTO_SET a step-only event is a lock (SLOOP 2.4's LOCK_SET, 73, is gone since 2026-10-19)", ed_call(ED_AUTO_SET, lset, 7) && ed_out[2] == 0 &&
               lock_get(&trk[1], 5, P_PAN, &v) && v == 20 && AL(&trk[1])->n == 1u);
     }
 }

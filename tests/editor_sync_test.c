@@ -1,11 +1,10 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* Editor protocol v9 on the host (firmware/src/io/editor/ed_sync9.c, ed_status.c's STREAM, meters.c): the device side of "only what
- * changed": every track's parameters, steps and drum lanes pushed, a burst coalesced to the last value per key per
- * window, the editor's own writes not echoed, pushes only into a half-empty SysEx ring with no request waiting (a reply
- * never waits behind one), the status stream at 25 Hz at most and only while something changes, and the meter tap: the
- * TRACKS screen and the editor each get every peak, neither steals the other's; a peak never latches (the Optimist 0.1
- * meters read trk.peak, which only the TRACKS screen ever cleared). Also: the bandwidth of a busy song with knob sweeps
- * on every track, and the scan's cost in host instructions per window (printed). */
+/* Editor protocol v9 on the host (firmware/src/io/editor/ed_sync9.c, meters.c): the device side of "only what changed":
+ * every track's parameters, steps and drum lanes pushed, a burst coalesced to the last value per key per window, the
+ * editor's own writes not echoed, pushes only into a half-empty SysEx ring with no request waiting (a reply never waits
+ * behind one), and the meter tap: a peak never latches (the Optimist 0.1 meters read trk.peak, which only the TRACKS
+ * screen ever cleared). Also: the bandwidth of a busy song with knob sweeps on every track, and the scan's cost in host
+ * instructions per window (printed). (The status stream with the meters, STREAM 58, is gone since 2026-10-19.) */
 #define FELUCCA_ARRANGER 1
 #define FELUCCA_OTA 1
 #define main hostsim_main
@@ -79,7 +78,6 @@ static uint32_t project_state(uint32_t s) { return (uint32_t)project_used(s); } 
 static void sl24_auto_import(void) {}                          /* (sl24_guard.c: no 2.4 autosave here) */
 #endif
 #include "../firmware/src/io/editor/ed_steps.c"
-#include "../firmware/src/io/editor/ed_status.c"
 #include "../firmware/src/io/editor/ed_song.c"
 #include "../firmware/src/io/editor/ed_dlan.c"
 static uint8_t settings_later;                                 /* (model.c: the settings are saved a moment after an edit) */
@@ -705,47 +703,12 @@ int main(void)
     for (i = n0, k = 0; i < nf; i++) k |= frn[i] > ED9_MAX;
     check(!k, "v9: no push frame longer than 96 bytes (32 USB-MIDI packets: under half the ring)");
 
-    /* the stream: 25 Hz at most, only while something changes or sounds; the peaks of every window, none lost */
-    memset(est.last, 0xFF, sizeof est.last);
-    est.ms = fm1_ms - ED_STREAM_MS;
-    mt.master = 1;
-    n0 = nf;
-    for (i = 0; i < 400; i++) { fm1_ms++; ed_stream(fm1_ms, 1); drain(); }
-    check(count(ED_STREAM, n0) == 1, "STREAM: silent and stopped: the first frame, then nothing (only what changed)");
-    n0 = nf;
-    for (i = 0; i < 1000; i++) {                         /* 1 s of sound: the ISR's peaks, the tap every 5.8 ms half */
-        fm1_ms++;
-        trk[0].peak = trk[0].peak > 9000 ? trk[0].peak : (int32_t)(i % 97 == 0 ? 30000 : 8000);
-        drums.peak = 12000;
-        if (i % 6 == 0) { audio_halves++; host_half ^= 1u; abuf[host_half * HALF_WORDS + 3] = 20000 << OUT_SHIFT; meter_tap(); }
-        ed_stream(fm1_ms, 1);
-        drain();
-    }
-    {
-        uint32_t s = count(ED_STREAM, n0), pk0 = 0, pkm = 0, j, big = 0;
-        for (j = n0; j < nf; j++) {
-            if (fr[j][4] != ED_STREAM) continue;
-            pk0 = fr[j][10] | fr[j][11] << 7;
-            pkm = fr[j][9 + 3 * NTRK] | fr[j][10 + 3 * NTRK] << 7;
-            big += pk0 == 30000u >> 2;
-        }
-        check(s >= 24u && s <= 26u, "STREAM: sounding: 25 frames a second (40 ms apart)");
-        check(big >= 9u && pkm == 20000u >> 2, "STREAM: every 30000 peak reached a frame (none falls between frames); the master's peak from the output");
-    }
-    n0 = nf;
-    trk[0].peak = drums.peak = 0;
-    for (i = 0; i < 400; i++) { fm1_ms++; if (i % 6 == 0) { audio_halves++; abuf[0] = abuf[HALF_WORDS + 3] = abuf[3] = 0; meter_tap(); } ed_stream(fm1_ms, 1); drain(); }
-    check(count(ED_STREAM, n0) <= 2u && fr[nf - 1][10] == 0 && fr[nf - 1][11] == 0 && fr[nf - 1][9 + 3 * NTRK] == 0, "STREAM: silence after sound: the last peaks, one frame at 0, then quiet (no latched peak)");
-    n0 = nf;
-    for (i = 0; i < 200; i++) { fm1_ms++; ed_stream(fm1_ms, 0); }
-    check(count(ED_STREAM, n0) == 0, "STREAM: no room: nothing sent");
-
-    /* the tap: the TRACKS screen and the editor both see a peak; a reader's look clears only its own */
+    /* the tap: the TRACKS screen sees a peak once, the ISR's value emptied (the editor's stream is gone, 2026-10-19) */
     trk[1].peak = 5000;
     audio_halves++;
     meter_tap();
-    check(meter_ui_take(1) == 5000 && meter_ui_take(1) == 0 && mt.ed[1] == 5000 && trk[1].peak == 0,
-          "meters: the tap takes the ISR's peak once per half for both readers; the TRACKS screen's look leaves the editor's");
+    check(meter_ui_take(1) == 5000 && meter_ui_take(1) == 0 && trk[1].peak == 0,
+          "meters: the tap takes the ISR's peak once per half; the TRACKS screen's look clears it");
 
     /* bandwidth and cost: a busy song (every track's steps playing, a knob swept on each track) for 2 s */
     {

@@ -366,8 +366,6 @@ static int ed_steplane(uint32_t cmd, const uint8_t *a, uint32_t na)
             auto_touch(trk_index(t));
             IRQ_RESTORE(ie2);
         }
-        if (track == song.sel)
-            ed_w.st[step] = ed_step_sig(t, step);
         ed9_known_step(track, step);                    /* (the editor's own write: no STEPS push for it) */
         ui.force = 1;
     }

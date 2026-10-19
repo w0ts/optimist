@@ -38,7 +38,16 @@ HINT = "run python3 tools/builder/measure_costs.py --missing"
 # "pairs" (configure.py budget adds it when the configuration has all of them). A pair that contains an earlier
 # one (all its conditions) comes after it
 SETS = ("PIANO", "BASS", "VIBES", "HORNS", "STRGS", "FLUTE", "SCRCH")   # (registry SET_*)
-PAIRS = [{"MOTION": 1, "SECTIONS": 4},   # (motion beside the four project slots vs inside the section records)
+PAIRS = [{"MOTION": 1, "SECTIONS": 4},
+         # the web editor's three features share their table, their reads and the FX push's signature (editor.c ED_FX_CMDS,
+         # ed_reads.h, ed_fxs.c ed_fx_sig): all three off frees more than their deltas (2026-10-19)
+         {"ED_MIX": 0, "ED_SEQ": 0, "ED_SCREENS": 0},
+         # without live editing the librarian brings the sections and the patterns too, and BACKUP the sample slots and the
+         # snapshots (ed_lite.c: the base is the frames, INFO, BUILD, PING)
+         {"ED_LIVE": 0, "LIBRARIAN": 0}, {"ED_LIVE": 0, "BACKUP": 0}, {"ED_LIVE": 0, "BACKUP": 0, "LIBRARIAN": 0},
+         # one core with the CDC console (the BLE test builds' set): the second core's code that DUAL=0 leaves out is not
+         # the same with the console's (2026-10-19: user-default+ble-full estimated 840 B of RAMTEXT over from ble-test)
+         {"DUAL": 0, "USB_MODE": 1},   # (motion beside the four project slots vs inside the section records)
          # the reverb's algorithms share their line buffer, the half-rate filters and the code that switches them
          # (the buffer itself is computed: configure.py rev_lines; the automation store: auto_store)
          {"REV_PLATE": 1, "REV_FDN8": 1, "SPRING": 0}, {"REV_PLATE": 1, "REV_FDN8": 1, "SPRING": 1},
@@ -296,9 +305,9 @@ for _pair, _with in _ui_pairs():
     PAIRS.append(_pair)
     if _with:
         PAIR_WITH[pair_name(_pair)] = _with
-# (after the UI pairs, which it contains: UI=1,ED_TOOLS=0 measures 0 B, the editor's TOOLS being built only with
-# SEQTOOLS too; with it the command is 1.8 KB, 2026-10-17)
-PAIRS.append({"UI": 1, "SEQTOOLS": 1, "ED_TOOLS": 0})
+# (after the UI pairs, which it contains: the sequencer's TOOLS command is built only with SEQTOOLS too (1.8 KB with it,
+# 2026-10-17; ED_TOOLS then, ED_SEQ since 2026-10-19)
+PAIRS.append({"UI": 1, "SEQTOOLS": 1, "ED_SEQ": 0})
 
 
 def beyond(sizes, cfg, costs, name):

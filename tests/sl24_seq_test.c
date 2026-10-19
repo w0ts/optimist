@@ -326,28 +326,30 @@ static void ed_v(int32_t v) { uint32_t u = (uint32_t)(clamp(v, -8192, 8191) + 81
 static int32_t ed_rv(const uint8_t *p) { return (int32_t)(p[0] | p[1] << 7) - 8192; }
 static void ed_undo_edit(track_t *t) { (void)t; }   /* (v14: the editor's writes mark the Optimist UI's undo history, io/editor/ed_undo.c: not under test here) */
 #include "../firmware/src/io/editor/ed_stepx.c"
-/* ---- the editor's step extras (ed_stepx.c, cmds 72..77): a request handled -> its reply bytes in ed_out */
+/* ---- the editor's step extras through the automation store (ed_stepx.c, AUTO_GET 92 / AUTO_SET 93; SLOOP 2.4's 72..77
+ * are gone since 2026-10-19): a request handled -> its reply bytes in ed_out */
 static int ed_call(uint32_t cmd, const uint8_t *a, uint32_t na)
 {
     ed_n = 0;
     return ed_stepx(cmd, a, na);
 }
+#define V14(v) (uint8_t)(((v) + 8192) & 127), (uint8_t)(((v) + 8192) >> 7)
 static void t_editor(void)
 {
-    static const uint8_t lset[5] = {1, 5, P_PAN, (uint8_t)((20 + 8192) & 127), (uint8_t)((20 + 8192) >> 7)};
-    static const uint8_t mset[3] = {1, 6, 64 - 40}, fset[3] = {1, 7, FC_NOFILL}, ldel[3] = {1, 5, P_PAN}, get[1] = {1};
+    static const uint8_t lset[7] = {1, 0, 5 | AUTO_ONLY, P_PAN & 127, P_PAN >> 7, V14(20)};
+    static const uint8_t mset[7] = {1, 0, 6 | AUTO_ONLY, AUTO_NUDGE & 127, AUTO_NUDGE >> 7, V14(MICRO_MIN)};
+    static const uint8_t mbad[7] = {1, 0, 6 | AUTO_ONLY, AUTO_NUDGE & 127, AUTO_NUDGE >> 7, V14(MICRO_MIN - 8)};
+    static const uint8_t fset[7] = {1, 0, 7 | AUTO_ONLY, AUTO_FILL & 127, AUTO_FILL >> 7, V14(FC_NOFILL)};
+    static const uint8_t ldel[5] = {1, 1, 5 | AUTO_ONLY, P_PAN & 127, P_PAN >> 7}, get[1] = {1};
     reset(120);
     int32_t v = 0;
-    check(ed_call(ED_LOCK_SET, lset, 5) && ed_out[3] == 1 && lock_get(&trk[1], 5, P_PAN, &v) && v == 20,
-          "editor 73 LOCK_SET: track 2, step 6, PAN = 20");
-    check(ed_call(ED_LOCK_GET, get, 1) && ed_out[0] == 1 && ed_out[1] == 1 && ed_out[2] == 5 && ed_out[3] == P_PAN,
-          "editor 72 LOCK_GET: one lock, its step and param");
-    check(ed_call(ED_MICRO_SET, mset, 3) && step_micro(&trk[1], 6) == MICRO_MIN && ed_out[2] == 64 + MICRO_MIN,
-          "editor 75 MICRO_SET: -40 clamped to -32");
-    check(ed_call(ED_FILL_SET, fset, 3) && step_fill(&trk[1], 7) == FC_NOFILL, "editor 77 FILL_SET: NO FILL");
-    check(ed_call(ED_MICRO_GET, get, 1) && ed_n == 65u && ed_out[7] == 64 + MICRO_MIN &&
-          ed_call(ED_FILL_GET, get, 1) && ed_n == 65u && ed_out[8] == FC_NOFILL, "editor 74 / 76: 64 nudges, 64 conditions");
-    check(ed_call(ED_LOCK_SET, ldel, 3) && !lock_get(&trk[1], 5, P_PAN, &v), "editor 73 without a value: deleted");
+    check(ed_call(ED_AUTO_SET, lset, 7) && ed_out[2] == 0 && lock_get(&trk[1], 5, P_PAN, &v) && v == 20,
+          "editor AUTO_SET a lock: track 2, step 6, PAN = 20");
+    check(ed_call(ED_AUTO_SET, mset, 7) && ed_out[2] == 0 && step_micro(&trk[1], 6) == MICRO_MIN, "editor AUTO_SET a nudge: step 7, the earliest");
+    check(ed_call(ED_AUTO_SET, mbad, 7) && ed_out[2] == 1 && step_micro(&trk[1], 6) == MICRO_MIN, "editor AUTO_SET a nudge past its range: refused, the old one kept");
+    check(ed_call(ED_AUTO_SET, fset, 7) && ed_out[2] == 0 && step_fill(&trk[1], 7) == FC_NOFILL, "editor AUTO_SET a fill condition: NO FILL");
+    check(ed_call(ED_AUTO_GET, get, 1) && ed_out[0] == 1 && ed_out[1] == 3 && ed_out[5] == 3, "editor AUTO_GET: the three events");
+    check(ed_call(ED_AUTO_SET, ldel, 5) && ed_out[2] == 0 && !lock_get(&trk[1], 5, P_PAN, &v), "editor AUTO_SET DEL: the lock gone");
 }
 #endif
 

@@ -13,9 +13,14 @@ Commands 58-64 (only what changed, for every track, and the status stream with t
 Commands 92-93 (the automation store) added to v10 form protocol v11 (below, "The automation store").
 Protocol v12 is v11 plus a flag byte on `SL24_GET` (78) that asks for a second lost word (below, "SLOOP 2.4 export"); `INFO` is unchanged.
 Commands 94..101 and `INFO` tags `57`..`5E` (every effect slot of every owner and its parameters; the drum lanes' mix, LFOs and the sequencer mutes; GLOBAL and SYSTEM as the Optimist UI's lines; the song chain; the pattern tools) form protocol v13 (below, "v13: FX owners" .. "v13: sequence tools"); the protocol byte stays.
-Each of the eight is a builder item (`ED_FXP` 94 / tag 57, `ED_DLAN` 95 / 58, `ED_SCRN` 96 / 59, `ED_SONG` 97 / 5A, `ED_TOOLS` 98 / 5B, `ED_SCRS` 99 / 5C, `ED_FAVS` 100 / 5D, `ED_SCOPE` 101 / 5E; docs/BUILDER.md): a build that leaves one out sends no INFO tag for it and does not answer its command, so an editor offers a command only when its tag is in INFO (web/editor.html hides the pop-up, tab, button or settings that need it and keeps the rest; its mock serves any subset, `?off=dlan,scope`). The commands that read the Optimist UI (96, 98, 99, 101) are built only with it (UI=1), and 100 only with the favorites.
+Since 2026-10-19 they come with three builder items, features (docs/BUILDER.md): `ED_MIX` (86, 87, 94, 95, 104), `ED_SEQ` (97, 98, 105) and `ED_SCREENS` (96, 99, 101); 100 and 102, 103 are part of live editing (`ED_LIVE`). Before, each of the eight was its own item (`ED_FXP` 94 / tag 57, `ED_DLAN` 95 / 58, `ED_SCRN` 96 / 59, `ED_SONG` 97 / 5A, `ED_TOOLS` 98 / 5B, `ED_SCRS` 99 / 5C, `ED_FAVS` 100 / 5D, `ED_SCOPE` 101 / 5E; docs/BUILDER.md): a build that leaves one out sends no INFO tag for it and does not answer its command, so an editor offers a command only when its tag is in INFO (web/editor.html hides the pop-up, tab, button or settings that need it and keeps the rest; its mock serves any subset, `?off=dlan,scope`). The commands that read the Optimist UI (96, 98, 99, 101) are built only with it (UI=1), and 100 only with the favorites.
 Commands 102..105, 107 and `INFO` tags `5F`..`63` (undo and redo, notes played from the editor, track, drum-lane, USB input and return solo and mute, a drum lane's step with the device's own list of lockable values, the REC key) form protocol v14 (below, "v14: undo" .. "v14: REC"); the protocol byte stays (command 106 is not used).
-Each of the five is a builder item (`ED_UNDO` 102 / tag 5F, `ED_NOTE` 103 / 60, `ED_SOLO` 104 / 61, `ED_STEPLANE` 105 / 62, `ED_REC` 107 / 63; docs/BUILDER.md), on by default, and a build that leaves one out sends no INFO tag for it and does not answer its command (an editor offers a command only when its tag is in INFO, as for v13).
+Each of the five was a builder item until 2026-10-19 (`ED_UNDO` 102 / tag 5F, `ED_NOTE` 103 / 60, `ED_SOLO` 104 / 61, `ED_STEPLANE` 105 / 62, `ED_REC` 107 / 63; docs/BUILDER.md), on by default, and a build that leaves one out sends no INFO tag for it and does not answer its command (an editor offers a command only when its tag is in INFO, as for v13).
+**Removed 2026-10-19** (the web editor used none of them; a build answers none): `STATUS` 53 and its stream `STREAM` 58 (the
+transport, the steps playing, the meters; `WATCH` bit 3 is never granted), `REC` 107 and its tag 63, SLOOP 2.4's step extras 72..77
+(the automation store, 92 / 93, has them), and the v2 / v4 pushes `CHANGED` 23, `STEP_CHANGED` 26, `TRACK_CHANGED` 32: `WATCH`
+on is v9 (bits 0 and 2 in the reply, bit 4 as asked), `RELOAD` 24 is still pushed. `SYNC_STATS` 64 ends after the scans' sum.
+The sections below keep their description for older firmware.
 v12 also carries each POLY note's own end (2026-10-12, feat/note-gates, below "A note's own end"): four bytes after a synth
 step's rat, and the step flag `SF_CARRY` (0x80, which a 7-bit byte cannot hold) on bit 2 of its hi byte.
 
@@ -216,6 +221,8 @@ stores FREQ + 128 there; a value under 128 is an older project's COLR, which the
 
 ## v2: live sync
 
+*Since 2026-10-19 `WATCH` on is v9 (below): `CHANGED`, `STEP_CHANGED` and `TRACK_CHANGED` are no longer pushed; `RELOAD` is.*
+
 - `WATCH 1` starts the pushes. Watching ends by itself 3 s after the last request of any kind (send
   `PING` about every 1 s), on a USB reset, and when the host goes away; `WATCH 0` ends it at once.
 - **CHANGED** (scope, id, v14): a parameter changed on the device (knob, menu, sequencer edit of a
@@ -410,6 +417,8 @@ exactly when `DRUM_SRCS` is; ask `PAGES` 0 the same way (no reply: the editor's 
   (`LANE_NOTE`). Notes travel between SysEx frames and get no reply; with REC on they are recorded like a keyboard's.
 
 ## v7: transport and meters (command 53)
+
+*Removed 2026-10-19: no build answers it (above, "Removed"). What follows is the older firmware's.*
 
 `firmware/src/io/editor/ed_status.c`. A firmware without it does not answer (ask once, short timeout): the editor shows no
 PLAY / STOP, no playhead and no meters.
@@ -842,6 +851,8 @@ the notes' own ends, neither ever in a working list). The editor's `autoLane(par
 
 ## SLOOP 2.4's step extras (commands 72..77)
 
+*Removed 2026-10-19: no build answers it (above, "Removed"). What follows is the older firmware's.*
+
 Built with `FELUCCA_MICRO`, `FELUCCA_FILLS` or `FELUCCA_PLOCK` (BUILD bits 177..179; firmware/src/io/editor/ed_stepx.c): each
 step's nudge, its fill condition and the track's parameter locks, in SLOOP 2.4's model (2.4 has them as its 37..42,
 which are our drum commands). A param is Optimist's P_* id. A firmware without them does not reply. Since v11 they read
@@ -1224,6 +1235,8 @@ An event of `LOCK_SET` / `AUTO_SET` on the same step is the same event: the edit
 web/editor.html (`STEPLANE_TABLE`: data only, the mock device does not answer the command).
 
 ## v14: REC (command 107 REC; INFO tag 63)
+
+*Removed 2026-10-19: no build answers it (above, "Removed"). What follows is the older firmware's.*
 
 `firmware/src/io/editor/ed_rec.c`. The device's REC key for the transport bar, and its state: the same state machine as the panel's REC (`seq.c`: `rec_wait`, `ci_on`, `ft_on`, `song.rec`), whichever UI is built. **There is no per-track record arm**: the device has one global REC, and what it records is the selected track (`TRACK` 27 changes that; `track` below says which). `STATUS` (53) flags bit 1 stays as it was (`song.rec != 0`, recording now): the waiting, the count-in and the free take are only here. `INFO` tag `63 len 02 version flags` (version 1; `flags` bit 0: the count-in exists in this build, the REC MODES' `FELUCCA_REC_MODES`; without it bit 2 of `state` is never set).
 

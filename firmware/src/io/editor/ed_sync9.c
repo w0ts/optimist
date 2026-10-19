@@ -260,6 +260,7 @@ static int ed9_tracks(void)                             /* TRACKS: an engine, pr
 }
 static int ed9_fx(void)                                 /* FX_PUSH: the slots, the COMP settings, a sound's insert */
 {
+#if FELUCCA_ED_FXS
     uint32_t h = ed_fx_sig();
     if (h == e9.fx_sig || !ed9_room(8u + ED_FX_N))
         return 0;
@@ -268,6 +269,9 @@ static int ed9_fx(void)                                 /* FX_PUSH: the slots, t
     ed_fx_out(0);
     ed9_send();
     return 1;
+#else
+    return 0;
+#endif
 }
 static int ed9_song(uint32_t now)                       /* SONG: the sections stored, the chain, the snapshots */
 {

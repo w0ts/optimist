@@ -60,6 +60,7 @@ def parse(text, base=None, strict=True, warn=None, reject_unknown=False):
     cfg = dict(base if base is not None else defaults())
     name = ""
     merged_on = {}                                      # (a merged item on in the text: its survivor is on, whatever order)
+    named = set()                                       # (the keys the text sets itself)
     for n, ln in enumerate(text.splitlines(), 1):
         s = ln.strip()
         m = re.match(r"#\s*name:\s*(.+)", s)
@@ -92,8 +93,9 @@ def parse(text, base=None, strict=True, warn=None, reject_unknown=False):
                 say(f"line {n}: {k} is not an item of this builder and the setting is ignored")
             continue
         cfg[k] = v
-    for into, on in merged_on.items():
-        cfg[into] = cfg[into] | on
+        named.add(k)
+    for into, on in merged_on.items():                  # (a survivor the text does not set: what its old items were, so
+        cfg[into] = cfg[into] | on if into in named else on   # an older .config with all of them off keeps it off)
     return cfg, name
 
 
@@ -377,8 +379,7 @@ SL24_XS = 4 * 176          # storage/project.c sl24_xs: NTRK stepx_t (seq/stepx.
 # items only another item's code includes (the build is the same without it): counted only with that one. Found
 # 2026-10-14: SEQTOOLS (ui/optimist/op_tools.c) put 5.5 KB of flash into user-default's estimate, which has SLOOP's UI
 NEEDS = {"SEQTOOLS": {"UI": 1},
-         "ED_SCRN": {"UI": 1}, "ED_SCRS": {"UI": 1}, "ED_SCOPE": {"UI": 1}, "ED_TOOLS": {"UI": 1, "SEQTOOLS": 1},   # (the web editor's commands that read the Optimist UI: nothing built with SLOOP's UI)
-         "ED_FAVS": {"FAVORITES": 1},
+         "ED_SCREENS": {"UI": 1},           # (the web editor's device screens read the Optimist UI: nothing built with SLOOP's UI)
          "BT_INQ_PROBE": {"USB_MODE": 1}}   # (the probe is part of the CDC console: io/console.c)
 # (the web editor's ED_* commands: only editor.c's live dispatch calls them; ED_LIVE off builds ed_lite.c, none of them)
 NEEDS = {**NEEDS, **{k: {**NEEDS.get(k, {}), "ED_LIVE": 1} for k in R.ITEMS if k.startswith("ED_") and k != "ED_LIVE"}}

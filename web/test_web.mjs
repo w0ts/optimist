@@ -995,8 +995,9 @@ async function editorKitEditor() {
 async function editorMixSends() {
   const C = E.CMD, FX = [33, 34, 35, 36], FXOFF = 50;
   const ec = readFileSync(join(HERE, "../firmware/src/io/editor/editor.c"), "utf8");
-  ok(/ED_TIDS\[\] = \{P_LEVEL, P_PAN, P_MUTE, P_DIST, P_CHOR, P_DLY, P_REV, P_FXOFF\b[^}]*, P_TFLT[^}]*, P_TCOMP[^}]*\}/.test(ec),
-    "mix: TRACK_CHANGED follows the sends, the bypass and (v10) every FX slot's amount, FILT and CMP (editor.c)");
+  const e9s = readFileSync(join(HERE, "../firmware/src/io/editor/ed_sync9.c"), "utf8");
+  ok(!/ED_TIDS|ED_TRACK_CHANGED\);/.test(ec) && /int16_t p\[NTRK\]\[P_COUNT\]/.test(e9s),
+    "mix: the sends, the bypass and every FX slot's amount come with v9's PARAMS (every value of every track, ed_sync9.c); TRACK_CHANGED is no longer pushed (2026-10-19)");
   const { m, rq, ev, done } = attachMock({ watchMs: 1000 });
   const info = E.parse[C.INFO](await rq(E.req.info()));
   const labels = [];
@@ -1513,7 +1514,9 @@ async function editorAuto() {
 /* ------------------------------------ SLOOP 2.4's step extras: nudge, fill, locks (cmds 72..77, ed_stepx.c) --- */
 async function editorStepx() {
   const C = E.CMD;
-  ok(C.LOCK_GET === 72 && C.LOCK_SET === 73 && C.MICRO_GET === 74 && C.MICRO_SET === 75 && C.FILL_GET === 76 && C.FILL_SET === 77, "stepx: commands 72..77");
+  ok(C.LOCK_GET === 72 && C.LOCK_SET === 73 && C.MICRO_GET === 74 && C.MICRO_SET === 75 && C.FILL_GET === 76 && C.FILL_SET === 77
+    && !/ED_LOCK_GET|ED_MICRO_GET|ED_FILL_GET/.test(readFileSync(join(HERE, "../firmware/src/io/editor/ed_stepx.c"), "utf8")),
+    "stepx: commands 72..77 (an older firmware's: the firmware answers none since 2026-10-19, the editor uses AUTO 92 / 93)");
   const { rq, done } = attachMock({ stepx: 7 });
   E.parse[C.INFO](await rq(E.req.info()));
   const f = E.stepxBuilt(E.parse[C.BUILD](await rq(E.req.build())));
@@ -1639,8 +1642,9 @@ async function editorDaw() {
   E.parse[C.INFO](await o.rq(E.req.info()));
   ok(await o.rq(E.req.status(), { timeout: 60, retries: 0, quiet: true }).then(() => "reply", () => "none") === "none", "daw: older firmware: no STATUS reply (no transport, no playhead)");
   o.done();
-  const es = readFileSync(join(HERE, "../firmware/src/io/editor/ed_status.c"), "utf8");
-  ok(/ED_STATUS = 53/.test(es), "daw: command 53 == ed_status.c");
+  const edc = readFileSync(join(HERE, "../firmware/src/io/editor/editor.c"), "utf8");
+  ok(!existsSync(join(HERE, "../firmware/src/io/editor/ed_status.c")) && !existsSync(join(HERE, "../firmware/src/io/editor/ed_rec.c"))
+    && !/ED_STATUS_FN|ED_REC_FN|ed_stream\(/.test(edc), "daw: the firmware has no STATUS 53, STREAM 58 or REC 107 any more (2026-10-19): the editor never asks them");
 }
 
 /* protocol v9: WATCH bits 2 (every track's changes, coalesced) and 3 (the status stream with the meters); a v8 firmware
@@ -1650,9 +1654,9 @@ async function editorV9() {
   ok(C.STREAM === 58 && C.PARAMS === 59 && C.STEPS === 60 && C.LANE === 61 && C.TRACKS === 62 && C.SONG === 63 && C.SYNC_STATS === 64
     && E.WATCH.ALL === 15 && js(E.req.watch(15)) === js([22, [15]]) && js(E.req.watch(true)) === js([22, [1]]) && js(E.req.watch(3)) === js([22, [3]]),
     "v9: command numbers, WATCH bits (1 on, 2 v4, 4 v9 pushes, 8 the stream)");
-  const ed = readFileSync(join(HERE, "../firmware/src/io/editor/ed_sync9.c"), "utf8"), es = readFileSync(join(HERE, "../firmware/src/io/editor/ed_status.c"), "utf8");
-  ok(/ED_PARAMS = 59, ED_STEPS, ED_LANE_PUSH, ED_TRACKS_PUSH, ED_SONG_PUSH, ED_SYNC_STATS/.test(ed) && /ED_STREAM = 58/.test(es) && /#define ED9_GLOBAL 127u/.test(ed)
-    && E.PARAMS_GLOBAL === 127, "v9: the numbers == ed_sync9.c / ed_status.c");
+  const ed = readFileSync(join(HERE, "../firmware/src/io/editor/ed_sync9.c"), "utf8");
+  ok(/ED_PARAMS = 59, ED_STEPS, ED_LANE_PUSH, ED_TRACKS_PUSH, ED_SONG_PUSH, ED_SYNC_STATS/.test(ed) && /#define ED9_GLOBAL 127u/.test(ed)
+    && E.PARAMS_GLOBAL === 127, "v9: the numbers == ed_sync9.c");
   /* v8 firmware: WATCH 15 -> 3: no v9, no stream (the editor polls STATUS, the kit, DUMP as before) */
   {
     const { rq, done } = attachMock({ v9: false });
@@ -1724,10 +1728,8 @@ async function editorV9() {
     "v9 STREAM: tagged blocks after the master's peak are collected and skipped (the patterns' extension point)");
   /* the master COMP / LIMIT's gain reduction: block 0x47 (ed_status.c ED_BLK_GR), dB / 4 each; none: null (the GR meter hidden) */
   const sg = E.parse[C.STREAM]([0, 0x5A, 0x40, 127, 3, 0, 0, 3, 0, 0, 3, 0, 0, 3, 0, 0, 0, 0, 0x50, 1, 1, 0x47, 2, 18, 5], info);
-  const est = readFileSync(join(HERE, "../firmware/src/io/editor/ed_status.c"), "utf8");
-  ok(sg.gr && sg.gr.comp === 4.5 && sg.gr.limit === 1.25 && sx.gr === null && /#define ED_BLK_GR 0x47u/.test(est)
-    && /ed_b\(ED_BLK_GR\);\s*\/\*[^*]*\*\/\s*ed_b\(2\);\s*ed_b\(mt\.grc\);\s*ed_b\(mt\.grl\);/.test(est),
-    "v9 STREAM: the GR block (0x47: COMP, LIMIT, quarter dB) read after other blocks; a frame without it: no GR");
+  ok(sg.gr && sg.gr.comp === 4.5 && sg.gr.limit === 1.25 && sx.gr === null,
+    "v9 STREAM (an older firmware's): the GR block (0x47: COMP, LIMIT, quarter dB) read after other blocks; a frame without it: no GR");
   const so = E.parse[C.SONG]([5, 0, 0, 4, 1, 9]);
   ok(so.used === 5 && so.parts === 4 && so.loop === 1 && so.snaps === 9, "v9: SONG: the sections stored, the song, the snapshot count");
   const tf = E.parse[C.TRACKS]([1, 4, 2, 3, 0x64, 0x40, 0, 0, 0, 0, 0x50, 0x40, 1, 0, 0, 0, 0x50, 0x40, 0, 1, 10, 5, 0x40, 0x40, 0, 0, 2]);
@@ -2472,9 +2474,25 @@ async function editorUiPass() {
     const enc = (s) => [...s].map((c) => c.charCodeAt(0)).concat(0);
     const li = E.parse[E.CMD.INFO]([...enc("FELUCCA 0.1"), 0, 0, 0, 64, 0, 0, 6, 0x64, 1, 1]);
     const lite = readFileSync(new URL("../firmware/src/io/editor/ed_lite.c", import.meta.url), "utf8");
-    ok(li.lite && li.nengines === 0 && li.proto === 6 && /ED_TAG_LITE 0x64u/.test(lite) && /ed_b3\(ED_TAG_LITE, 1, 1\)/.test(lite)
+    ok(li.lite && li.nengines === 0 && li.proto === 6 && /ED_TAG_LITE 0x64u/.test(lite) && /ed_b3\(ED_TAG_LITE, 1, 1u \| ED_LITE_LIB\)/.test(lite)
       && /if \(d\.info\.lite\) return await loadLite\(d\)/.test(html) && /html\[data-conn=lite\] #tabs/.test(css),
       "ui: a backup-only FM-1 (INFO tag 0x64 == ed_lite.c): read as lite, loadLite, only Backup / Install / Build / Simulator shown");
+  }
+  {   /* the librarian (builder LIBRARIAN, ed_lite.c): INFO as the live header with tag 0x64 = 3 and the patterns' 0x55; the page
+         reads the sections, the user bank, the kits and the patterns, shows the Library tab and the librarian, nothing live */
+    const enc = (s) => [...s].map((c) => c.charCodeAt(0)).concat(0);
+    const li = E.parse[E.CMD.INFO]([...enc("FELUCCA 0.1"), 2, 90, 0, 64, 50, ...enc("ANALOG"), ...enc("FM6"), 4, 6, 0, 9, 0x55, 2, 16, 16, 0x64, 1, 3]);
+    const lite = readFileSync(new URL("../firmware/src/io/editor/ed_lite.c", import.meta.url), "utf8");
+    const reg = readFileSync(new URL("../tools/builder/registry.py", import.meta.url), "utf8");
+    ok(li.lite && li.lib && li.nengines === 2 && li.pcount === 90 && li.engines[1] === "FM6" && li.ntrk === 4 && li.pat && li.pat.slots === 16
+      && /ed_b3\(ED_TAG_LITE, 1, 1u \| ED_LITE_LIB\)/.test(lite) && /ED_LITE_LIB \(FELUCCA_LIBRARIAN \? 2u : 0u\)/.test(lite)
+      && /case ED_PROJECT:/.test(lite) && /#include "ed_drums\.c"/.test(lite) && /#include "ed_pat\.c"/.test(lite)
+      && /_add\("LIBRARIAN", "FELUCCA_LIBRARIAN"[^\n]*Y, 352, parent="EDITOR"/.test(reg)
+      && /if \(d\.info\.lib\) await libLiteRead\(d\)/.test(html) && /html\[data-conn=lite\]:not\(\[data-lib\]\) #tabs > button\[data-tab=library\]/.test(css)
+      && /:not\(\[data-tab=library\]\)/.test(css) && /<div id="libr"><\/div>/.test(html) && /function renderLibr\(\)/.test(html),
+      "ui: the librarian (INFO tag 0x64 bit 1 == ed_lite.c, builder LIBRARIAN bit 352): read as lite + lib, the Library tab and the librarian shown");
+    const lo = E.parse[E.CMD.INFO]([...enc("FELUCCA 0.1"), 0, 0, 0, 64, 0, 0, 6, 0x64, 1, 1]);
+    ok(lo.lite && !lo.lib, "ui: a backup-only FM-1 without the librarian: lite, no lib");
   }
   /* auto-connect: MIDI access asked without a click, the FM-1's ports found; refused / no Web MIDI / not plugged in */
   const m = E.makeMockDevice();

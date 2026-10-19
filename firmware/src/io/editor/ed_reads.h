@@ -7,7 +7,7 @@ static int ed_reads(uint32_t cmd, const uint8_t *a, uint32_t na)
 {
     uint32_t op = na ? a[0] : 127u, m;
     switch (cmd) {
-    case 86u: case 97u: case 98u: case 102u: case 104u: case 107u: m = 1u; break;   /* FX SONG TOOLS UNDO SOLO REC: op 0, the state */
+    case 86u: case 97u: case 98u: case 102u: case 104u: m = 1u; break;   /* FX SONG TOOLS UNDO SOLO: op 0, the state */
     case 94u: case 95u: m = 0xDu; break;                   /* FXP DLAN: ops 0, 2, 3 (the list, a DESC, the values) */
     case 96u: case 99u: case 100u: m = 3u; break;          /* SCRN SCRS FAV: ops 0, 1 (the screen / list, a line / row / engine's marks) */
     case 105u: m = 7u; break;                              /* STEPLANE: ops 0..2 (LIST, DESC, STEP) */
