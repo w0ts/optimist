@@ -66,12 +66,12 @@ FM1_INLINE uint32_t fm1_usb_sie_on(void) { return FM1_USB_CON0 & 4u; }
 FM1_INLINE void fm1_usb_sie_wr_start(uint32_t r, uint32_t v)
 {
     FM1_USB_CON1 = ((r << 8) & 0xFFFF00u) | (v & 0xFFu);
-    __asm__ volatile("csync" ::: "memory");
+    FM1_CSYNC();
 }
 FM1_INLINE void fm1_usb_sie_rd_start(uint32_t r)
 {
     FM1_USB_CON1 = ((r << 8) & 0xFFBF00u) | 0x4000u;
-    __asm__ volatile("csync" ::: "memory");
+    FM1_CSYNC();
 }
 FM1_INLINE uint32_t fm1_usb_sie_done(void) { return FM1_USB_CON1 & 0x8000u; }
 FM1_INLINE uint32_t fm1_usb_sie_data(void) { return FM1_USB_CON1 & 0xFFu; }
@@ -81,17 +81,17 @@ FM1_INLINE void fm1_usb_ep_txbuf(uint32_t ep, void *p) { FM1_USB_EP_TADR(ep) = (
 FM1_INLINE void fm1_usb_ep_rxbuf(uint32_t ep, void *p) { FM1_USB_EP_RADR(ep) = (uint32_t)(uintptr_t)p; }
 FM1_INLINE void fm1_usb_ep0_send(void *p, uint32_t n)
 {
-    __asm__ volatile("csync" ::: "memory");             /* the buffer is written before the DMA starts */
+    FM1_CSYNC();             /* the buffer is written before the DMA starts */
     FM1_USB_EP0_ADR = (uint32_t)(uintptr_t)p;
     FM1_USB_EP_CNT(0) = n;
 }
 FM1_INLINE void fm1_usb_ep_send(uint32_t ep, void *p, uint32_t n)
 {
-    __asm__ volatile("csync" ::: "memory");
+    FM1_CSYNC();
     FM1_USB_EP_TADR(ep) = (uint32_t)(uintptr_t)p;
     FM1_USB_EP_CNT(ep) = n;
 }
-FM1_INLINE void fm1_usb_rx_sync(void) { __asm__ volatile("ssync" ::: "memory"); }
+FM1_INLINE void fm1_usb_rx_sync(void) { FM1_SSYNC(); }
 
 FM1_INLINE void fm1_usb_ep_enable(uint32_t eps) { FM1_USB_CON0 &= ~(eps << 19); }
 

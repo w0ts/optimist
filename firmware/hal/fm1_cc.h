@@ -8,3 +8,13 @@
 #pragma once
 
 #define FM1_INLINE static inline __attribute__((always_inline))
+
+/* the core's synchronisation instructions (pi32v2): csync, ssync. A host build (the tests, with the host's compiler)
+ * has neither: a compiler barrier stands in (gcc emits unused static helpers at -O0, and its assembler refused them) */
+#if defined(__PI32V2__)
+#define FM1_CSYNC() __asm__ volatile("csync" ::: "memory")
+#define FM1_SSYNC() __asm__ volatile("ssync" ::: "memory")
+#else
+#define FM1_CSYNC() __asm__ volatile("" ::: "memory")
+#define FM1_SSYNC() __asm__ volatile("" ::: "memory")
+#endif

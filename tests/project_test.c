@@ -74,8 +74,9 @@ static int steps_ok(const proj_trk_t *n, const step8_t *o, int drum)
     uint32_t k, i;
     for (k = 0; k < NSTEP; k++) {
         if (drum) {
-            const dstep_t *d = &n->dstep[k];
+            dstep_t dd = {0}, *d = &dd;                 /* (a stored step, dstep_sn_t, read as the RAM step the helpers take) */
             uint32_t want = 0;
+            memcpy(&dd, &n->dstep[k], DSTEP_SN);
             if (o[k].time == ST_NOTE)
                 for (i = 0; i < o[k].n; i++)
                     want |= 1u << lane_of_note(o[k].note[i]);
@@ -391,7 +392,12 @@ int main(void)
     q.t[1].engine = 8;
     q.t[0].step[3].lvl = 0x9C;
     q.t[0].step[3].rat = 0x27;
-    dstep_set(&q.t[TRK_DRUM].dstep[5], 13, LV_GHOST, 2);
+    {
+        dstep_t d = {0};                                /* (the stored step through the RAM step's helper and back) */
+        memcpy(&d, &q.t[TRK_DRUM].dstep[5], DSTEP_SN);
+        dstep_set(&d, 13, LV_GHOST, 2);
+        memcpy(&q.t[TRK_DRUM].dstep[5], &d, DSTEP_SN);
+    }
     q.sum = proj_sum(&q);
     memcpy(&buf, &q, sizeof q);
     q.t[2].p[P_FXOFF] = 1;
@@ -427,7 +433,7 @@ int main(void)
     for (t = 1; t < NTRK; t++)
         ok &= q.t[t].preset == 0xFF && q.t[t].p[P_SLCR] == 0 && q.t[t].p[P_LEVEL] == TP[P_LEVEL].def &&
               q.t[t].p[PJ_E0] == ENGINES[trk_def_engine(t)]->edit[0].def &&
-              (t == TRK_DRUM ? dstep_mask(&q.t[t].dstep[0]) == 0u : q.t[t].step[0].time == ST_REST);
+              (t == TRK_DRUM ? ((q.t[t].dstep[0].on[0] | q.t[t].dstep[0].on[1] << 8) & DRUM_LMASK) == 0u : q.t[t].step[0].time == ST_REST);
     bad += check("FUN1 -> today's: track 1 mapped, tracks 2..4 defaults", ok);
 
     /* capture / apply: the working project round trip */
