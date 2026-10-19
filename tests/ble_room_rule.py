@@ -20,7 +20,8 @@ def expected_room(cfg, costs):
     removal alone covers it in the rule's order, and the one BLE takes (None: nothing overflows, or no single item)"""
     over = C.over_any(cfg, costs)
     sav = C.savings_of(cfg, costs)
-    order = [k for k, v in sav.items() if k != "BLE" and over and all(v[r] >= n for r, n in over.items()) and
+    order = [k for k, v in sav.items() if k != "BLE" and R.ITEMS[k].parent != "BLE" and over and   # (nor BLE's own options)
+             all(v[r] >= n for r, n in over.items()) and
              not C.validate(dict(cfg, **{k: off_value(k)}))[0]]
     order.sort(key=lambda k: (not k.startswith("SET_"), sav[k]["flash"], k))
     chosen = (DEFAULT if DEFAULT in order else order[0]) if order else None
