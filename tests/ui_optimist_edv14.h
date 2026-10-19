@@ -33,7 +33,7 @@ static uint32_t edstl_expect(uint32_t track, uint32_t lane, uint8_t (*kid)[2])
             const param_desc_t *d;
             int32_t id = lock_param(&PAGES[ix[p]], k, &d);
             uint8_t kd, v;
-            if (id < 0 || (!ui.lane && ((uint32_t)id & LOCK_LANE)))
+            if (id < 0 || ((uint32_t)id & LOCK_SLOT) || (!ui.lane && ((uint32_t)id & LOCK_LANE)))   /* (a slot's value: not listed) */
                 continue;
             kd = ((uint32_t)id & LOCK_LANE) ? 1u : 0u, v = (uint8_t)(kd ? (uint32_t)id & 7u : (uint32_t)id);
             for (i = 0; i < n && !(kid[i][0] == kd && kid[i][1] == v); i++)

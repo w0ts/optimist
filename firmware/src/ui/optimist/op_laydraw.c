@@ -128,11 +128,13 @@ static void tiles_keys(tile_t *tl, uint32_t erase)      /* ERASE, REPEAT: the ke
     uint32_t i, j, q;
     uint16_t hc_ = erase ? C_ERR : trk_col(song.sel);
     for (i = 0; i < 16u; i++) {
-        uint32_t k = is_drum(t) ? key_of_lane(i) : white_key(i), down = (fm1_in.notes >> k) & 1u, present = 0;
+        uint32_t k, down, present = 0;
         char b[8];
-        uint16_t col = is_drum(t) ? lane_col(i % DRUM_LANES) : trk_col(song.sel);
+        uint16_t col;
         if (is_drum(t) && i >= DRUM_LANES)
             continue;                                   /* (the drum track: a tile per lane, its black key) */
+        k = is_drum(t) ? key_of_lane(i) : white_key(i), down = (fm1_in.notes >> k) & 1u;
+        col = is_drum(t) ? lane_col(i) : trk_col(song.sel);
         if (is_drum(t)) {
             str_cpy(b, LANE_SHORT_OF(i), sizeof b);
             for (j = 0; j < trk_len(t); j++)
@@ -343,7 +345,7 @@ static void tempo_draw(int32_t h)
     cv_texts(100, 40 + dy + bs - 16, "RX", sy.src ? C_OK : C_DIM);
 }
 
-/* ---- the PATTERNS row's panel: the 4 x 16 session grid (PATTERNS-DESIGN 6.2), h rows from the panel's top */
+/* ---- the PATTERNS row's panel: the 4 x 16 session grid (docs/PATTERNS-DESIGN.md section 4), h rows from the panel's top */
 #if FELUCCA_PATTERNS
 static uint32_t song_grid_sig(void)
 {

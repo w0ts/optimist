@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* Editor protocol v14: a step in the context of a track and a drum lane (included by editor.c; web/EDITOR_PROTOCOL.md "v14: step lanes"). INFO tag 0x62.
+/* Editor protocol v14: a step in the context of a track and a drum lane (included by editor.c; web/EDITOR_PROTOCOL.md "Step lanes"). INFO tag 0x62.
  * The Optimist UI's held step, for the editor: the lane's level and ratchet, the step's extras (chance, condition, nudge, fill) as the one automation
  * store keeps them (seq/auto.c), and the device's own list of lockable values for the track and lane with the locks and hold events on the step. The
  * list is the Optimist UI's lock pages (op_step.c lock_pg_ok / hp_locks / lock_param, with the track and the lane set as the held step has them), or,
@@ -36,8 +36,8 @@ typedef struct {
 static void stl_add(stl_walk_t *w, uint32_t kind, uint32_t id, uint32_t page, uint32_t cell, const char *title, const param_desc_t *d)
 {
     stl_e e;
-    if (!d || w->n >= STL_MAX)
-        return;
+    if (!d || w->n >= STL_MAX || (kind == 0u ? id >= P_COUNT : id > 7u))
+        return;                                         /* (an id seen[] / lseen cannot hold: none) */
     if (kind == 0u ? (w->seen[id >> 3] >> (id & 7u)) & 1u : (w->lseen >> (id & 7u)) & 1u)
         return;                                         /* (a value once) */
     if (kind == 0u)
@@ -76,7 +76,8 @@ static void stl_pages(stl_walk_t *w, uint32_t track, uint32_t lane)
         for (k = 0; k < 4u; k++) {
             const param_desc_t *d;
             int32_t id = lock_param(pg, k, &d);
-            if (id >= 0 && (lane < DRUM_LANES || !((uint32_t)id & LOCK_LANE)))   /* (DR itself has no lane values) */
+            if (id >= 0 && !((uint32_t)id & LOCK_SLOT) && (lane < DRUM_LANES || !((uint32_t)id & LOCK_LANE)))   /* (DR itself
+                                                         * has no lane values; an insert slot's value, LOCK_SLOT, is no kind here) */
                 stl_add(w, (uint32_t)id & LOCK_LANE ? 1u : 0u, (uint32_t)id & LOCK_LANE ? (uint32_t)id & 7u : (uint32_t)id, w->page, k,
                         dr_alias(pg) ? dr_alias(pg) : pg->title, d);
         }
