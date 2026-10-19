@@ -40,6 +40,12 @@
 #if FELUCCA_ENG_NOISE
 #include "noise/eng_noise.c"                  /* NOISE (Felucca-Engines eng_noise.c, MIT; this file MIT-headed): engine 15 */
 #endif
+#if FELUCCA_ENG_DRONE && !FELUCCA_ANALOG2
+#error "the DRONE engine takes its engine number (16) from the ANALOG 2 build"
+#endif
+#if FELUCCA_ENG_DRONE
+#include "drone/eng_drone.c"                  /* DRONE (drones, ambient, binaural beats): engine 16 */
+#endif
 
 /* The part's engine memory: the running state an engine keeps per part beyond its voices (FM6's voices and MONO
  * keys, PHYS's model slots, GRAIN's grains and seek index, ACID's 303). A part plays one engine at a time, so one
@@ -99,6 +105,7 @@ void *acid_mem(int k) { return part_mem[(uint32_t)k % NPART].acid; }
 #define ENG_IX_FM6 ((uint32_t)ENG_SLOT_FM6)   /* FM6's slot (bench.c, the tests), 0xFF when not built */
 static const engine_t *const ENGINES[NENGINES] = {ENGINE_LIST(ENG_PTR_)};
 #define ENG_IX_NOISE ((uint32_t)ENG_SLOT_NOISE)
+#define ENG_IX_DRONE ((uint32_t)ENG_SLOT_DRONE)
 #define ENG_IX_PHYS ((uint32_t)ENG_SLOT_PHYS)  /* (the tests) */
 #define ENG_IX_ACID ((uint32_t)ENG_SLOT_ACID)
 #define ENG_IX_CZ ((uint32_t)ENG_SLOT_CZ)

@@ -391,8 +391,8 @@ int main(int argc, char **argv)
 {
     host_tracks_init();
     check(ENG_IX_NOISE < NENGINES && !strcmp(ENGINES[ENG_IX_NOISE]->name, "NOISE") && eng_uid(ENG_IX_NOISE) == ENG_UID_NOISE &&
-              ENG_UID_NOISE == 15u && ENG_UID_N == 16u && ENG_FALLBACK[ENG_UID_NOISE] == 0u,
-          "engine UID 15 is NOISE, its fallback ANALOG, 16 engine UIDs (14 is JUNO's)");
+              ENG_UID_NOISE == 15u && ENG_UID_N == 17u && ENG_FALLBACK[ENG_UID_NOISE] == 0u,
+          "engine UID 15 is NOISE, its fallback ANALOG, 17 engine UIDs (14 is JUNO's, 16 DRONE's)");
     check(ENGINES[ENG_IX_NOISE]->npresets >= 4u && !strcmp(ENGINES[ENG_IX_NOISE]->presets[0].name, "WIND"),
           "the presets WIND RAIN ARCADE METAL");
     t_level();

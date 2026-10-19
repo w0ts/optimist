@@ -737,6 +737,35 @@ static void mono_remove(track_t *t, uint32_t note)
 static volatile uint32_t note_hits[NPART][4];
 #endif
 
+#if FELUCCA_ENG_DRONE
+/* DRONE's HOLD (eng_drone.c): a key latches its note (trk_note_off keeps it: drone_latch_off marks its voices); the
+ * same key on a sounding note lets it go (its release). drone_unlatch: 1 the note was sounding and is let go now */
+static int drone_latch(const track_t *t) { return ENG_IS(ENGINES[t->engine % NENGINES], DRONE) && t->p[P_E7] != 0; }
+static void drone_latch_off(const track_t *t, uint32_t note)
+{
+    uint32_t i;
+    for (i = 0; i < NVOICE; i++)
+        if (t->v[i].gate && t->v[i].note == note)
+            drone_pt[(uint32_t)(t - trk) % NPART].latched |= 1u << i;
+}
+static int drone_unlatch(track_t *t, uint32_t note)
+{
+    uint32_t i;
+    int hit = 0;
+    for (i = 0; i < NVOICE; i++)
+        if (t->v[i].gate && t->v[i].note == note) {
+            t->v[i].gate = 0;
+            t->v[i].stage = 3;
+            drone_pt[(uint32_t)(t - trk) % NPART].latched &= ~(1u << i);
+            hit = 1;
+        }
+    if (hit && t->mono_note == note) {                  /* (MONO / LEGATO / UNISON: the stack goes with it) */
+        t->nmono = 0;
+        t->mono_note = 0;
+    }
+    return hit;
+}
+#endif
 static void trk_note_on(track_t *t, uint32_t note, uint32_t vel)
 {
     uint32_t any = 0, i, mode = (uint32_t)t->p[P_VOICE];
@@ -760,6 +789,10 @@ static void trk_note_on(track_t *t, uint32_t note, uint32_t vel)
         t->xp_vel[i] = (uint8_t)vel;
         return;
     }
+#if FELUCCA_ENG_DRONE
+    if (drone_latch(t) && drone_unlatch(t, note))
+        return;
+#endif
     for (i = 0; i < NVOICE; i++)
         any |= t->v[i].gate;
     if (!any) {                                        /* fresh phrase: LFO retrigger and fade */
@@ -814,6 +847,12 @@ static void trk_note_off(track_t *t, uint32_t note)
     uint32_t i, k = 0, mode = (uint32_t)t->p[P_VOICE];
     if (is_drum(t))
         return;                                         /* one-shots */
+#if FELUCCA_ENG_DRONE
+    if (drone_latch(t)) {                               /* HOLD: latched until the key again (trk_note_on) or HOLD OFF */
+        drone_latch_off(t, note);
+        return;
+    }
+#endif
 #if FELUCCA_CHORDPLUS
     strum_cancel(t, note, 0);
 #endif
