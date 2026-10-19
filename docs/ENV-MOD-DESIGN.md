@@ -122,7 +122,7 @@ odd AMTs (one LSB). ENV 1 AMP below 127 or negative also cannot be kept, because
 | E2 | storage: MREC_TAG 0xD3 + the 0xD2 fold, UP_VER 4, sections/locks conversion, sl24_export, ed_backup | MREC tag 0xD3, UP_VER 4 |
 | E3 | UI: PAGES, page_desc labels/aliases, op_effval/op_graph, SLOOP pages, param_help | none |
 | E4 | editor: INFO bump, file conversion, mock tables, test_web | INFO version +1 |
-| E5 | docs: sound.md, UI-OPTIMIST-DESIGN.md, DOC-COVERAGE | none |
+| E5 | docs: sound.md, UI-OPTIMIST-DESIGN.md | none |
 
 Tests:
 * **Golden renders** (`tests/golden.txt`, regress.c; golden_cz/juno/noise) **should not change**, because every preset

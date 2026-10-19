@@ -5,7 +5,7 @@
 // Install, When something goes wrong) into `container`. The same module runs the standalone page
 // (web/installer/index.html, webapp/installer/ on the site) and is shipped as webapp/installer/installer.js for the
 // one-page app, where the editor mounts it as a tab. The update itself is web/fm1ota.js and web/fm1pkg.js, unchanged
-// (the M-UPGRADE protocol over Web MIDI; the return to the official V15 after Felucca 1.0.1). docs/PAGES.md.
+// (the M-UPGRADE protocol over Web MIDI; the return to the official V15 after Felucca 1.0.1). docs/WEB.md.
 //
 //   mountInstaller(container, {
 //     packages,      [{ id, title, description, pkg, product, sha256 }]: the site's flavours (web/flavours.json via
@@ -33,8 +33,7 @@ const isOta = (id) => /^ota-/i.test(id.model);
 const STEP1_READS = 74;                             /* the reads of step 1 on a real FM-1 (SLOOP 2.0's loader) */
 const DEFAULT_LINKS = { build: "../builder/", backup: "../editor/#backup", editor: "../editor/", sim: "../editor/", about: "../../LICENSING.md" };
 
-/* every text on the page (English only). Checked against OPTIMIST.md ("Install", "Rescue, going back, credits"),
-   README.md ("Your data and SLOOP 2.4") and the code (firmware/src/system/recovery.c, bootguard.h, main.c) */
+/* every text on the page (English only). Checked against README.md ("Your first install", "Getting back") and the code (firmware/src/system/recovery.c, bootguard.h, main.c) */
 export const TEXT = {
   title: "Install Optimist",
   what: "This page installs Optimist, a free, open-source firmware for the M-VAVE FM-1, from this browser over USB. " +
@@ -203,7 +202,7 @@ export function releaseGroups(packages, source = "") {
   return [...groups.filter((g) => g.key), ...groups.filter((g) => !g.key)];
 }
 
-/* ---- the cloud builds (docs/CLOUD-BUILD.md): the cloud-builds branch's index.json and files (tools/cloud_build.py
+/* ---- the cloud builds (docs/WEB.md): the cloud-builds branch's index.json and files (tools/cloud_build.py
    shelf). Read at the branch's commit (the API, which sends CORS), then from raw.githubusercontent.com by that commit:
    release downloads send no CORS header, and a branch name there is cached for minutes */
 export const CLOUD_BRANCH = "cloud-builds";
@@ -280,7 +279,7 @@ export function mountInstaller(container, opts = {}) {
   const packages = opts.packages || [];
   const version = opts.version || "";
   const source = opts.source || "";
-  const links = { ...DEFAULT_LINKS, docs: `${REPO}/blob/${source || "main"}/OPTIMIST.md#rescue-going-back-credits`, ...(opts.links || {}) };
+  const links = { ...DEFAULT_LINKS, docs: `${REPO}/blob/${source || "main"}/README.md#getting-back`, ...(opts.links || {}) };
   const nav = (typeof navigator !== "undefined" && navigator) || {};
   const midiOf = opts.midi || (typeof nav.requestMIDIAccess === "function" ? (o) => nav.requestMIDIAccess(o) : null);
   const secure = typeof isSecureContext === "undefined" || isSecureContext;

@@ -1,7 +1,7 @@
 # An "AirPods edition": Bluetooth Classic A2DP source, measured
 
 Status: research and measurement only. Nothing was flashed, no firmware was changed. Date: 2026-10-18.
-Builds on [BT-AUDIO-FEASIBILITY.md](BT-AUDIO-FEASIBILITY.md) (route A/B/C/D, the first codec bench). Context:
+Builds on the BT audio study (2026-10-08) (route A/B/C/D, the first codec bench). Context:
 [BLE-STACK.md](BLE-STACK.md), [BLE-HW-FACTS.md](BLE-HW-FACTS.md).
 
 Goal: FM-1 → AirPods over A2DP. AirPods take **SBC or AAC** from non-Apple sources and **do not support aptX** [S1].

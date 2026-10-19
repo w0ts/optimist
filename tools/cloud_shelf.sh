@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-3.0-only
-# The cloud-builds branch, where the web installer lists and fetches the cloud builds (docs/CLOUD-BUILD.md): run by
+# The cloud-builds branch, where the web installer lists and fetches the cloud builds (docs/WEB.md): run by
 # .github/workflows/cloud-build.yml from the default branch's checkout, with GH_TOKEN (contents: write) and REPO.
 #
 #   bash tools/cloud_shelf.sh add      out/<STEM>.fwsc, -ui.zip and work/request.config onto the branch (env as for

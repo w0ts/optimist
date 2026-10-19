@@ -8,7 +8,7 @@ needs the user's own stock V15 once, to capture the radio's tables (§12.3). Bui
 and its options `BLE_DIAG` (the `blell` diagnostics, off by default, §12.7), `BLE_BOND` (bonding, §5.1) and `BLE_CENTRAL`
 (the DEVICES list, connecting out to BLE-MIDI devices and reconnecting the last one, §13).
 
-Note: a firmware built with BLE contains radio tables captured from M-VAVE's V15 (information only). Background: `BLE-MIDI-FEASIBILITY.md` §9 (route C, the stock firmware's behaviour in §9.2).
+Note: a firmware built with BLE contains radio tables captured from M-VAVE's V15 (information only). Background: the BLE MIDI study (2026-10-08) §9 (route C, the stock firmware's behaviour in §9.2).
 
 Tags: **[M]** measured this session (host tests, the JieLi toolchain). **[S]** from a published
 specification. **[I]** inference, not measured. **[HW?]** needs the hardware fact sheet or a device.
@@ -1009,7 +1009,7 @@ register. Paths below are relative to the repository.
      that start-up as failed, and the next boot leaves the radio off (`boot_failed 1` in `bletrim`, the row shows ON
      with nothing under it): switch BLUETOOTH OFF there (§11.5). A power-off / on instead clears the count and the
      radio starts again. Should even that not come up, power on with
-     OCT− and OCT+ held 3 s (UBOOT, OPTIMIST.md). A hang in the menu's first ON is not saved (the menu has not closed).
+     OCT− and OCT+ held 3 s (UBOOT, README.md "Getting back"). A hang in the menu's first ON is not saved (the menu has not closed).
 6. Send back: `fm1-console.log` (steps 4 and 5) and what nRF Connect saw.
 7. **A connection** (BLUETOOTH ON, the radio started): `blell clear`, then connect from the central (Audio MIDI Setup >
    Bluetooth, or nRF Connect), then `blell`, and `blell` again a few seconds later: the second shows what is still

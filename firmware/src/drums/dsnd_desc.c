@@ -2,7 +2,7 @@
 /* The drum track's SOUND pages' values and the kit list, the part of ui/sloop/ui_drums.c that is model, not
  * screen: the descriptors of a lane's values (dsnd_desc_lane, DSD, the SRC names), the factory and user kit list the
  * PRESETS knob steps through. Shared by both UIs (FELUCCA_UI) and the web editor (ed_dsrc.c); moved verbatim
- * from ui_drums.c (2026-10-08, docs/UI-FEASIBILITY.md section 4.1 step 2). felucca.c includes it before the UI */
+ * from ui_drums.c (2026-10-08). felucca.c includes it before the UI */
 
 /* the selected drum lane: one value for the whole device, as song.sel is the selected track (UI-OPTIMIST-DESIGN.md
  * section 7). The Optimist UI's pick (HOME held + a drum key) sets it; its mixer, SOUND rows (and STEP, later)

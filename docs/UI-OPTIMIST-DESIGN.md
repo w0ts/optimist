@@ -41,7 +41,7 @@
 Status: **design; phase 1 (the skeleton), 1b (the review's rulings), 2 (STEP), 4 (the layers, TEMPO, SONG), the
 loose ends (NAME, FM6, 11.4), 5b (the drum mixer, SCOPE, no footer, 11.5), the follow-up (nothing wraps, 11.7) and 3 (the automation store, 11.8)
 built** (2026-10-08, section 11).
-Written on 2026-10-08; the decisions are in section 0. The study it rests on is docs/UI-FEASIBILITY.md (the seam); the sequencer facts come from
+Written on 2026-10-08; the decisions are in section 0. The study it rests on is the UI study (2026-10-08) (the seam); the sequencer facts come from
 docs/PATTERNS-DESIGN.md (patterns, scenes, the song) and the SLOOP 2.4 ports (seq/stepx.h, seq/seq24.c).
 
 Labels: **[M]** measured (a file and line, a tool run, a build), **[E]** estimate (how it was made is said), **[P]**
@@ -117,9 +117,9 @@ proposal (to accept or change), **[D]** decided (section 0), **[O]** open.
 | Thing | Where | Facts [M] |
 |---|---|---|
 | Panel | ui/panel.c:9-14 | 14 buttons (FX SCL ENV LFO EDIT GLO HOME SAVE ARP SEQ PLAY REC OCT- OCT+), 7 encoders (SELECT ALGORITHM PRESETS KNOB 1..4). **No encoder push**: the map has none |
-| Keys | OPTIMIST.md, "The drum track" | 16 white keys F3..G5, the black keys between them; the drum track plays one sound per white key |
+| Keys | docs/guide/drums.md | 16 white keys F3..G5, the black keys between them; the drum track plays one sound per white key |
 | Screen | ui/sloop/ui_song.c:2, :37 | 240 x 240; the canvas holds at most 124 rows, screens draw in bands |
-| SLOOP's UI | ui/sloop, 8,958 lines; UI-FEASIBILITY §1.2 | tap = pages, hold = a layer (keys and knobs change job), hold + HOME = lock; 58,195 B of code and icons [S], FONT_L dropped since (the large font from the small one, 2026-10-08) |
+| SLOOP's UI | ui/sloop, 8,958 lines; the UI study (2026-10-08) §1.2 | tap = pages, hold = a layer (keys and knobs change job), hold + HOME = lock; 58,195 B of code and icons [S], FONT_L dropped since (the large font from the small one, 2026-10-08) |
 | The ISR's key routing | seq/seq.c:66-84 | `ly_bit[]` per layer, `layer_now()` (the held function button in LY_* order, else `ly_lock`), `dyn_bit` (OCT: ghost / hard), `lk_q` (layer keys to the UI); KB_GRID (the drum grid's keys with no layer, FELUCCA_DRUM_STEP) |
 | PRESETS today | ui/sloop/ui_input.c:1213 | a turn loads a sound **only on the browse page and TRACKS**: "elsewhere a stray turn would throw away the sound being edited" |
 | Pages | core/params.c:488 | a table of {title, family, scope, graph, 4 param ids}: about 45 rows with every switch; VIEW ALL shows a family as rows of four values, the lit row is the one the knobs edit |
@@ -128,9 +128,9 @@ proposal (to accept or change), **[D]** decided (section 0), **[O]** open.
 | Locks | seq/seq24.c:58-65 | on its step the parameter takes the value, **back at the next step without a lock on it**; a knob turned meanwhile wins; the order ruled: motion, then fill, then lock, then macros |
 | Motion | seq/motion.c:19-22 | an event is **3 bytes** {place, param, int8 value}: "every recordable value fits a signed byte"; **holds until the next event**, the patch comes back at the pattern restart and at STOP; 64 events; with PATTERNS a pattern carries its own 64 |
 | Chance | seq/chance.c | a synth step's chance lives in bits 2..6 of `step_t.flags`; the drum step has no free bit |
-| Recording | OPTIMIST.md "Recording", REC MODES | live, latency-compensated, overdub; free take; tempo and count-in modes; a take closes at a pattern switch |
-| Confirm idioms today | OPTIMIST.md | four: AGAIN within 3 s (sections, patterns), a second detent (STORE, SNAPSHOT), the 2 s ring (REC held clears a track), "turn to GO" (NEW) |
-| The seam | UI-FEASIBILITY §4.1 | six steps; 1..4 are zero-behaviour refactors (notifications, model ops out of the UI, the entry interface, params.c split), 5 is the build-time choice `FELUCCA_UI`, 6 the keyboard contract |
+| Recording | docs/guide/sloop-ui.md "Recording", REC MODES | live, latency-compensated, overdub; free take; tempo and count-in modes; a take closes at a pattern switch |
+| Confirm idioms today | SLOOP's UI (2026-10-08) | four: AGAIN within 3 s (sections, patterns), a second detent (STORE, SNAPSHOT), the 2 s ring (REC held clears a track), "turn to GO" (NEW) |
+| The seam | the UI study (2026-10-08) §4.1 | six steps; 1..4 are zero-behaviour refactors (notifications, model ops out of the UI, the entry interface, params.c split), 5 is the build-time choice `FELUCCA_UI`, 6 the keyboard contract |
 
 **Felucca 1.0.1's UI** (its source, GPL-3.0-only, Leo Kuroshita; 5,838 lines of ui*.c) [M]:
 
@@ -339,7 +339,7 @@ code [S], so there is room in principle, but the user-default profile was 13.2 K
 is a measured build with the three faces and the renderer** (section 8). The fallback, as a builder choice: the same
 screens drawn in Terminus, with the M and L sizes as the S glyphs scaled, which is what SLOOP's UI does now.
 Terminus S stays in every build whatever the choice: main.c's UBOOT and RESTORED screens, the OTA screens, recovery
-and dual.c draw with it (UI-FEASIBILITY §1.2), so the Felucca faces come on top of it, not instead of it.
+and dual.c draw with it (the UI study (2026-10-08) §1.2), so the Felucca faces come on top of it, not instead of it.
 
 ## 4. The screens
 
@@ -857,10 +857,10 @@ store plus 4 x 176 B of stepx (704 B): about +630 B; the stage's copy the same.
 
 | Need | Today | Change [E] |
 |---|---|---|
-| the seam | UI-FEASIBILITY §4.1 steps 1..4 | prerequisite, zero-behaviour (~900 lines moved) |
+| the seam | the UI study (2026-10-08) §4.1 steps 1..4 | prerequisite, zero-behaviour (~900 lines moved) |
 | **the selected lane**, one value for the device | `dl_ui_pick` (drum_edit.c:28), `ui.lane`: UI state | a core value next to `song.sel`, set by the pick, read by the mixer's drum column, SOUND and STEP; ~20 lines |
 | **keys as steps with no held button** | `ly_lock` LY_STEP, KB_GRID (seq.c:84-90) | the STEP screen sets it; the SEQ-tapped-again toggle clears it |
-| **the pick gesture**: SHIFT + keys (where the keys play) and SEQ held + keys (on STEP) go to the UI *and* play the sound | layer keys are silent (keyboard_block) | a per-layer "keys also play" flag; SHIFT and SEQ held become pick layers whose keys the UI drains from `lk_q`; UI-FEASIBILITY step 6's contract extended |
+| **the pick gesture**: SHIFT + keys (where the keys play) and SEQ held + keys (on STEP) go to the UI *and* play the sound | layer keys are silent (keyboard_block) | a per-layer "keys also play" flag; SHIFT and SEQ held become pick layers whose keys the UI drains from `lk_q`; the UI study (2026-10-08) step 6's contract extended |
 | **SHIFT as the clear modifier** | SHIFT is the menu | on STEP the keys are the UI's already (steps), so SHIFT + a step is UI-side, as SHIFT + a knob and SHIFT + REC; the menu moves to a SYSTEM row; EDIT held stays LY_ERASE |
 | **YES / NO** | — | UI state (the armed action, 3 s), the actions as core calls (seam step 2) |
 | **the scope's audio tap** | FELUCCA_VIS's ring (the mix, one block copy per ISR block); `scope_buf` no longer exists | the same ring, switched to the cursor's source (the master or one track); the 12 styles not built with this UI; the mixer's GR bar reads `G_CGR` |
@@ -873,12 +873,12 @@ store plus 4 x 176 B of stepx (704 B): about +630 B; the stage's copy the same.
 
 | Item | Bytes | Source |
 |---|---|---|
-| SLOOP's UI code and icons, which the new UI replaces at build time | **-58,195** | UI-FEASIBILITY §1.2 [S] |
+| SLOOP's UI code and icons, which the new UI replaces at build time | **-58,195** | the UI study (2026-10-08) §1.2 [S] |
 | the new UI: one list renderer, one grid, the cards, the mixer columns, the dialogs, the screens | +30,000 .. +45,000 | [E: Felucca's ui_draw + ui_graph + ui_input + ui.c are 4,260 lines; SLOOP's UI is 8,958 lines for 58 KB] |
 | Inter Tight tables, three faces | **+41,890** | [M, 2026-10-08: a scratch user-default build of aaa284f with Felucca's text renderer and the three faces linked in: S 16,573, M 19,463, L 5,854] |
 | the anti-aliased text renderer (decoder, phases, kerning) | **+1,464** of code, **+1,250 B of RAM** (the Huffman lookup tables 1,032, the ramp cache 218) | [M, the same build; the whole port: **+43,608 B flash, +1,248 B RAM**, pool and RAMTEXT unchanged; the build ends 41,016 B over the slot from a baseline 2,592 B under] |
 | the ring masks, the Fukiai icons (not ported) | +2,000 .. +6,000 | [E] |
-| Terminus S: stays, the core screens draw with it; only SLOOP's scaled large size goes | 0 | UI-FEASIBILITY §1.2 |
+| Terminus S: stays, the core screens draw with it; only SLOOP's scaled large size goes | 0 | the UI study (2026-10-08) §1.2 |
 | **net** | about **+20 .. +40 KB** against the SLOOP UI build | [E] |
 
 **Measured 2026-10-08** (aaa284f, `tools/optimist.py build --profile user-default --measure`, the port in a
@@ -891,8 +891,8 @@ other choice; the S and M faces only (36 KB, the big numerals drawn as M scaled)
 with room (x0x-drums had 40 KB free on 2026-10-07) and Terminus on user-default; or a sample set traded for it.
 The renderer itself is cheap (1.5 KB of code); the tables are the cost, and they were measured, not estimated.
 
-RAM: the canvas is shared (59,520 B of pool, UI-FEASIBILITY §1.2); the new UI's own state is a few hundred bytes
-[E]. CPU: the UI runs in the main loop only; the XIP cache risk of UI-FEASIBILITY §4.2 applies: every screen must
+RAM: the canvas is shared (59,520 B of pool, the UI study (2026-10-08) §1.2); the new UI's own state is a few hundred bytes
+[E]. CPU: the UI runs in the main loop only; the XIP cache risk of the UI study (2026-10-08) §4.2 applies: every screen must
 pass the emulator CPU budget test.
 
 ## 9. Phases
@@ -902,13 +902,13 @@ commit for review. Effort in focused working days [E].
 
 | Phase | Content | Gate | Effort |
 |---|---|---|---|
-| **0** the seam | UI-FEASIBILITY steps 1..4: `core_say` / `core_dirty`, `model.c`, the entry interface, params.c split | sizes within ±64 B, every golden, ui_pages_test's 185 checks | 2 |
+| **0** the seam | the UI study (2026-10-08) steps 1..4: `core_say` / `core_dirty`, `model.c`, the entry interface, params.c split | sizes within ±64 B, every golden, ui_pages_test's 185 checks | 2 |
 | **1** the skeleton | builder choice `FELUCCA_UI` (step 5); `ui/optimist`: the row / cards / panel / footer renderer in Terminus, HOME mixer, SOUND rows from PAGES, PROJECT, SYSTEM, YES / NO and the confirm; **the font measurement** (section 8) | a UI test (keys and encoders to actions, every message fits), emulator screenshots for review, the measured sizes | 3 |
 | **2** STEP | keys as steps, OCT pages, the pick layer (core), the step cards, the lock gesture on today's two stores, the layers kept | ui tests, sl24_seq_test and patterns_seq_test unchanged | 2.5 |
 | **3** the automation store | section 6: the event, `auto_step`, the records, the edges, the int8 check, the STEP marks | host tests: both kinds on one parameter, fills, a 2.4 round trip, a Felucca motion record, every pattern test | 2.5 |
 | **4** SONG and the layers' vocabulary | the scene and chain rows, the PATTERNS row's grid, SAVE / LFO layers as section 4.9, the TEMPO page once decided | patterns_ui_test rewritten for this UI, song tests | 2 |
 | **5** the look | Felucca's gfx text renderer, the three faces, the rings, the icons, as a builder choice; profiles set | measured sizes per profile, screenshots, the CPU budget test | 2 |
-| **6** docs and the editor | an OPTIMIST.md chapter per screen; the editor needs no protocol change for the UI itself (AUTO_GET / SET comes with phase 3's protocol version) | | 1 |
+| **6** docs and the editor | a guide chapter per screen; the editor needs no protocol change for the UI itself (AUTO_GET / SET comes with phase 3's protocol version) | | 1 |
 
 ## 10. Open questions
 
@@ -946,7 +946,7 @@ commit for review. Effort in focused working days [E].
 Branch `feat/ui-optimist`, on optimist 024737d (rebased from aaa284f once feat/patterns-left landed). Builder item
 **UI, bit 251, a choice, default 0** (UI group, EXPERIMENTAL): 0 = SLOOP's UI, 1 = this one. Every profile keeps 0.
 
-**The seam** (UI-FEASIBILITY §4.1, the part this phase needs; zero behaviour, the SLOOP build byte for byte):
+**The seam** (the UI study (2026-10-08) §4.1, the part this phase needs; zero behaviour, the SLOOP build byte for byte):
 
 - `core/model.c`: moved verbatim from `ui/sloop/ui.c`: the core's forward declarations the UIs use, `user_of`,
   `up_gen`, `sync_reload`, `FELUCCA_VERSION`, the power-on sounds (`TRK_DEF`, `trk_def_*`), `param_kept`,
@@ -2373,7 +2373,7 @@ unchanged.
 
 ## 15. SLOOP backports (feat/sloop-backports, 2026-10-11)
 
-Fixes ported from upstream SLOOP (isod89/sloop-fm1, GPL-3.0-only). Most are the SLOOP UI's (docs/SLOOP-UI-CHANGES.md);
+Fixes ported from upstream SLOOP (isod89/sloop-fm1, GPL-3.0-only). Most are the SLOOP UI's (SLOOP's own change list);
 what reaches this UI:
 
 - **A held or latched arp follows TRN, ROOT, SCALE and QNT** (SLOOP #191, 2.6 d30d655, after Felucca 1.5). The arp keeps

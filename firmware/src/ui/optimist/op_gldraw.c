@@ -122,8 +122,8 @@ static uint32_t gl_info(void)                           /* 1 + the read-out page
     return it == SI_INFO ? 1u + INFO_PG_INFO : it == SI_DIAG ? 1u + INFO_PG_DIAG : it == SI_UAINFO ? 1u + INFO_PG_USB : 0u;
 }
 /* SYSTEM > CREDITS, after ABOUT: who made what Optimist is built from, as text lines in INFO's style (the name left in
- * grey, the who right, no bars, no knob does anything); the rest, with licences and commits: LICENSING.md
- * (docs/CREDITS-AUDIT.md). Names only, nominative: JUNO models the Roland Juno-106, Optimist is not affiliated */
+ * grey, the who right, no bars, no knob does anything); the rest, with licences and commits: LICENSING.md.
+ * Names only, nominative: JUNO models the Roland Juno-106, Optimist is not affiliated */
 static const char *const CRED[][2] = {
     {"VERSION", FELUCCA_VERSION},                       /* ("OPTIMIST 0.1"; a release: its own string) */
     {"FELUCCA", "Leo Kuroshita"},                       /* (the platform: Hugelton Instruments) */

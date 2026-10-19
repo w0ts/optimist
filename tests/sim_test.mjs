@@ -2,7 +2,7 @@
 // The browser simulator's WebAssembly (tools/sim.py build --wasm -> build/sim/sim.wasm), under node, no browser: it
 // boots, draws, sounds after a key, answers the web editor's SysEx (INFO, GET / SET / DESC, PROJECT, BK_LIST) and
 // keeps what it saved in its flash across a restart (a fresh instance on the same flash bytes). Prints the wall time a
-// simulated second takes. docs/SIMULATOR.md.
+// simulated second takes. docs/WEB.md.
 //   node tests/sim_test.mjs [build/sim/sim.wasm]
 import { readFileSync } from 'node:fs';
 import { performance } from 'node:perf_hooks';

@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The colour language of the screens (docs/WEB-DESIGN-BRIEF.md "Colour language"), the web editor's: colour carries
+/* The colour language of the screens, the web editor's too (docs/WEB-STYLE.md): colour carries
  * meaning only. A track shows the colour of the engine it plays (the drum track: its kit's kind), the status colours
  * say ok / notice / error (gfx.c C_OK C_WARN C_ERR), white is what you touch, the rest is neutral (the palette's
  * steps, the studio screens' greys). No colour per track number or per knob. One table, tools/colors.json

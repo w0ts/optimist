@@ -3243,14 +3243,14 @@ async function installerModule() {
     `installer: every error fm1ota.js throws has its own message (${thrown.join(" ")})`);
   ok(INST.errorText({ code: "mismatch", detail: "FM-1_000" }) === T.rescueBack && INST.errorText({ code: "mismatch", detail: "FM-1_905" }).endsWith("FM-1_905")
     && INST.errorText(new Error("x")) === T.error + "x", "installer: back in USB rescue after a write is said plainly; an unknown error keeps its message");
-  /* the texts: what the docs say (OPTIMIST.md, README.md, the firmware) */
-  const man = readFileSync(join(HERE, "../OPTIMIST.md"), "utf8"), readme = readFileSync(join(HERE, "../README.md"), "utf8");
+  /* the texts: what the docs say (README.md, "Getting back" and "Your first install"; the firmware) */
+  const readme = readFileSync(join(HERE, "../README.md"), "utf8"), man = readme;
   const rec = readFileSync(join(HERE, "../firmware/src/system/recovery.c"), "utf8"), guard = readFileSync(join(HERE, "../firmware/src/system/bootguard.h"), "utf8");
   ok(/hold \*\*OCT−\*\* alone while switching on \(\*OPTIMIST USB RESCUE\*\)/.test(man) && rec.includes('"OPTIMIST USB RESCUE"') && /\(buttons & 3u\) == 1u/.test(guard)
     && T.r2.includes("Hold OCT− alone while switching the FM-1 on") && T.r2.includes("OPTIMIST USB RESCUE") && T.notfoundHelp.some((l) => l.includes("hold OCT− alone")),
-    "installer: USB rescue = OCT− alone at power-on, OPTIMIST USB RESCUE (OPTIMIST.md, recovery.c, bootguard.h)");
+    "installer: USB rescue = OCT− alone at power-on, OPTIMIST USB RESCUE (README.md, recovery.c, bootguard.h)");
   ok(/#define BOOTGUARD_HOLD_MS 3000u/.test(guard) && /OCT− \+ OCT\+\*\* while switching on and keep them held for \*\*3 s\*\*/.test(man) && /3 seconds/.test(T.r3) && /UBOOT/.test(T.r3),
-    "installer: UBOOT = OCT− + OCT+ held 3 s at power-on (bootguard.h, OPTIMIST.md)");
+    "installer: UBOOT = OCT− + OCT+ held 3 s at power-on (bootguard.h, README.md)");
   ok(/an install writes only the firmware area/.test(readme) && T.what.includes("An install writes only the firmware area") && /Back up first/.test(T.what)
     && /SLOOP 2\.4 data is kept/.test(readme) && T.what.includes("SLOOP 2.4's data is kept") && !/minute|seconds? to install/i.test(Object.values(T).flat().join(" ")),
     "installer: what is kept is what README.md says (only the firmware area written; back up; SLOOP 2.4 kept); no timing promised");

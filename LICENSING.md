@@ -34,7 +34,7 @@ from `hugelton/Felucca` at the tags `v0.9-beta` e5a908d, `v1.0` 727f272 and `v1.
   rendered from them by `tools/gen_web_icon.py`): **GPL-3.0-only, Optimist's own.** A simplified redrawing, as filled
   shapes, of the boot logo's dinghy line art (`LG_SEGS` in `firmware/src/ui/splash.c`, drawn for Optimist, with the
   class emblem on the sail as that file describes it); no third-party image was used. The sailing class's name and
-  emblem belong to their owners; the icon only says what the firmware is named after (`docs/NAMING.md`).
+  emblem belong to their owners; the icon only says what the firmware is named after.
 
 Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments\
 Modifications Copyright (C) 2026 Kerem Kilic (Ellic Studio) (Melodee's notice, for the parts ported from Melodee)\
@@ -42,7 +42,7 @@ USB audio (from Melodee): Copyright (C) 2026 Kerem Kilic (Ellic Studio)\
 Copyright (C) 2026 the Optimist contributors
 
 Each ported or derived part keeps its authors' notice in its files and is listed in the third-party table below
-(`docs/CREDITS-AUDIT.md`: the audit of 2026-10-15 behind this list). Some upstream projects put no copyright line
+(audited 2026-10-15). Some upstream projects put no copyright line
 in their files (fm-106, Ultramaster KR-106, Flowstate, X0X's DSP files): their copyright is their authors' all the
 same, and the table names them.
 

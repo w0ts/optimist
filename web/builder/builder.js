@@ -4,7 +4,7 @@
 // activate() / deactivate() (the keyboard shortcuts and, the first time, Python), destroy(). Nothing here touches the
 // page outside the container but the shortcuts while active and one <link> for builder.css. The list, the cards, the
 // messages and the details are the menu's (tools/builder/menu.py); every rule runs in Python (py-worker.js ->
-// tools/builder/web_api.py). docs/BUILDER-WEB.md.
+// tools/builder/web_api.py). docs/WEB.md.
 import {
   CLOUD_RELEASE, PYODIDE_VERSION, REGIONS, SORTS, assetStem, barModel, fmtK, built, cloudConfigUrl, cloudIssueUrl, commitOf, repoOf, defaultPreset, defaults, deltaOf, fileName, fmt,
   changeText, gaugeModel, hasInfo, indexRegistry, kDelta, messagesOf, offFits, oneLine, overflowLines, presets, pyodideBase, treeOf,
@@ -465,7 +465,7 @@ async function copyKey() {
   catch (e) { toast(`${ev.key ? "Cloud key" : "Configuration hash"}: ${key}`); }   // (no clipboard here: shown instead)
 }
 
-/* ---- cloud builds (docs/CLOUD-BUILD.md): a build of the same key already made is offered at once, else the issue form */
+/* ---- cloud builds (docs/WEB.md): a build of the same key already made is offered at once, else the issue form */
 function buildState(ev) {
   if (!S.ready) return { ok: false, why: "" };
   if (ev.errors.length) return { ok: false, why: "This configuration has errors: fix them before a cloud build." };

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// The Simulator tab (docs/SIMULATOR.md): a build's firmware compiled for the browser (tools/sim.py --wasm) runs in an
+// The Simulator tab (docs/WEB.md): a build's firmware compiled for the browser (tools/sim.py --wasm) runs in an
 // AudioWorklet (sim-worklet.js); this module is the page around it, mounted like the installer and the builder:
 //
 //   mountSim(container, {

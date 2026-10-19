@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
-"""The cloud build's steps that read a request (.github/workflows/cloud-build.yml, docs/CLOUD-BUILD.md).
+"""The cloud build's steps that read a request (.github/workflows/cloud-build.yml, docs/WEB.md).
 
 The web builder opens a pre-filled issue (.github/ISSUE_TEMPLATE/cloud-build.yml): a commit and a .config. The
 issue body is untrusted text: it is read here, never put into a shell line. The workflow runs this file from the

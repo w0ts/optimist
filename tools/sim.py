@@ -10,7 +10,7 @@ image, the screen a 240x240 buffer, the keys and knobs set from outside, USB MID
 is the platform: what the browser (web/sim/) or a host test calls. What cannot run there is switched off whatever the
 configuration says (SIM_FORCE): the second core, Bluetooth, the cache RAM, the key scan's DMA, USB audio / serial.
 --wasm (emcc, Emscripten): build/sim/sim.wasm, a standalone module with no imports (tests/sim_test.mjs). Without it, an
-attempt at a host executable with $CC (the sources carry ELF section names: macOS's cc refuses them). docs/SIMULATOR.md.
+attempt at a host executable with $CC (the sources carry ELF section names: macOS's cc refuses them). docs/WEB.md.
 """
 import argparse
 import os

@@ -21,7 +21,7 @@ help:
 	@echo "make unpublish PROFILE=name    CI no longer builds it"
 	@echo "make share     PROFILE=name    move one of my profiles (config/my-profiles) to config/profiles"
 	@echo "make delete    PROFILE=name    delete a profile (mine first, else the shipped one; never synth or user-default)"
-	@echo "make web      [PORT=8766]       build the local site from build/felucca.fwsc (run make build first), serve the installer and the web editor on 127.0.0.1, open the editor (Chrome or Edge for Web MIDI)"
+	@echo "make web      [PORT=8766] [SIM=1] the site on 127.0.0.1 (installer, editor, builder, simulator; no firmware in it), open the editor (Chrome or Edge)"
 	@echo "make emu     [FW=name] [CPU=96|own] [FRESH=1] run a firmware in the emulator (asks when FW is empty);"
 	@echo "                              its saved flash is kept between runs (emulator/state/), FRESH=1 starts without it"
 	@echo "make emu-list                  list the firmware the emulator finds (build/ and $(IMAGES)/)"
@@ -32,7 +32,7 @@ help:
 	@echo "                              default the Docker VM's CPUs less two; a progress line with the time left) for the terminal and"
 	@echo "                              the web builder (tools/builder/costs.json, web/builder/data/); commit both"
 	@echo "make gate  [CONFIG=f] [SET=\"K=V ..\"] [EMU=1]  the integrator's gate: costs, every published profile, the host"
-	@echo "                              tests, a final user-default build (EMU=1: then emu-check); docs/INTEGRATION.md"
+	@echo "                              tests, a final user-default build (EMU=1: then emu-check)"
 	@echo "make emu-check [PKG=file.fwsc] [ONLY=fx,..]  the emulator smoke checks on the last build (needs Rust; BUILDING.md)"
 	@echo "The same without make: $(PY) tools/optimist.py --help"
 	@echo "Put downloaded firmware (.fwsc) in $(IMAGES)/; it is git-ignored."
@@ -96,7 +96,7 @@ costs-all: sdk
 	$(PY) tools/builder/measure_costs.py $(if $(JOBS),--jobs $(JOBS))
 	$(PY) tools/export_builder_web.py
 
-# (the integrator's routine: docs/INTEGRATION.md; tools/gate.py --help)
+# (tools/gate.py --help)
 gate: sdk
 	$(PY) tools/optimist.py gate $(if $(CONFIG),--config $(CONFIG)) $(foreach kv,$(SET),--set $(kv)) $(if $(EMU),--emu)
 

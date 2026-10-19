@@ -25,7 +25,7 @@ CONST_TOKEN = re.compile(r"^(?:\d[\w.]*|sizeof|[+\-*/%<>()&|~^ ]|<<|>>)$")
 CONSTS = set()                       # object-like #defines and enum constants of the firmware (macros())
 
 
-# firmware/src is in folders by domain (docs/SOURCE-LAYOUT.md); X0X's float units were in subfolders this
+# firmware/src is in folders by domain; X0X's float units were in subfolders this
 # audit never read (it read firmware/src/*.[ch]), and stay out of it: auditing them is a task of its own
 NOT_AUDITED = {
     "drums/x0x/drum808.c", "drums/x0x/drum808.h", "drums/x0x/drum909.c", "drums/x0x/drum909.h",

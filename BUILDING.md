@@ -24,7 +24,7 @@ python tools/optimist.py emu        # pick a firmware (build/ or firmwares/) and
 | `setup [--check] [--yes] [--no-emu]` | check the prerequisites; fetch the builder's venv (Textual, Pillow), the three SDK files and the toolchain (Linux x86-64) or its Docker image (elsewhere); `--check` fetches nothing, `--yes` does not ask |
 | `builder [--profile P \| --config F]` | the interactive builder menu (docs/BUILDER.md) |
 | `build [--profile P \| --config F \| --defaults] [--set KEY=V] [--release X.Y] [--measure] [--summary F]` | build without the menu: `build/optimist-<version>-dev-<commit>.fwsc` and its `-ui.zip` |
-| `package [... the same ...] [--out DIR] [--summary F]` | build, then copy `optimist-<version>-<profile>.fwsc` and its `-ui.zip` to `DIR` (default `firmwares/`) |
+| `package [... the same ...] [--release X.Y] [--out DIR] [--summary F]` | build, then copy `optimist-<version>-<profile>.fwsc` and its `-ui.zip` to `DIR` (default `firmwares/`); with `--release`, a release build named `optimist-X.Y-<profile>.fwsc` |
 | `flash [PACKAGE.fwsc \| --no-build] [--profile P \| --config F] [--port NAME] [--yes]` | install a build on an FM-1 over USB-MIDI (`make flash [PKG=file]`): with no package it builds the chosen profile first (the stage lines `==> [3/5] app` are the progress), so it never flashes a stale file; `--no-build` flashes the newest `build/optimist-*.fwsc` as it is instead; shows the running FM-1's identity and the package's, how to recover, and asks (`--yes` does not); refuses without a build, a package that is not an Optimist one (stock, SLOOP, Felucca: `tools/fm1_install.py` does those), or an FM-1 it cannot find; never passes `--force`. It runs `tools/fm1_install.py`, the web installer's update. Needs mido and python-rtmidi, which `setup` puts in the builder venv (`tools/requirements-flash.txt`; a failed install there only turns `flash` off) |
 | `costs [measure_costs.py args]` | measure the builder's costs that `tools/builder/costs.json` lacks (new items); run after merging a batch, `make costs` (docs/BUILDER.md) |
 | `config ...` | the builder without the menu (`--list`, `--budget`, `--fit`, `--write`; the profiles CI builds: `--profiles`, `--publish`, `--unpublish`, `--share`, `--delete`, docs/BUILDER.md; `tools/builder/configure.py --help`) |
@@ -41,7 +41,7 @@ The same profile and configuration give the same `.fwsc` bytes whichever way the
 (natively, in the image, with a mounted copy, `--in-docker`): see "Reproducibility" below.
 
 On macOS and Linux the older commands still work and call `tools/optimist.py`: `make builder`,
-`make build`, `make package PROFILE=drum-machine`, `make emu FW=optimist` (96 MHz; `CPU=own`: the firmware's own clock; `FRESH=1`: without the flash saved in earlier runs), `make emu-update`, `make web` (the local installer and web editor: builds the site from `build/felucca.fwsc`, serves it on 127.0.0.1:8766 (`PORT=` for another), prints the installer and editor URLs and opens the editor; needs a build first, and Chrome or Edge for Web MIDI; `python3 tools/optimist.py web --help`),
+`make build`, `make package PROFILE=drum-machine`, `make emu FW=optimist` (96 MHz; `CPU=own`: the firmware's own clock; `FRESH=1`: without the flash saved in earlier runs), `make emu-update`, `make web` (the site on your machine: installer, editor, builder and simulator, served on 127.0.0.1:8766 (`PORT=` for another); it holds no firmware: install a `.fwsc` of yours or a cloud build; it offers to build the local simulator when there is none or it is outdated, `SIM=1` always; Chrome or Edge for Web MIDI; `python3 tools/optimist.py web --help`),
 `make test`, `make setup`, `make profiles`, `make publish PROFILE=name` (`make help` lists them), `tools/menuconfig`, `tools/emu.sh`, `./build.sh`.
 
 Put downloaded firmware (stock, Felucca, X0X... `.fwsc`) in `firmwares/` (git-ignored).
@@ -227,16 +227,12 @@ of `fm1-ui.exe`, starting it; `--bg` with a detached process), `test --python`, 
 
 ## Releases and the hosted site
 
-- `.github/workflows/release.yml`, on a `v*` tag (it must match `VERSION`): builds every profile of `config/profiles/`
-  (`python tools/optimist.py package --profile P --out dist`, as `build.yml` does, same cached toolchain) and drafts a
-  GitHub release with `optimist-<version>-<profile>.fwsc`, `...-ui.zip` and `SHA256SUMS.txt`. Publish the draft by hand
-  after reading it.
-- `.github/workflows/pages.yml`, on a `v*` tag or by hand: builds the profile of each flavour in `web/flavours.json` (today Synth, the default profile), runs
-  `web/make_site.py --flavours web/flavours.json <version> site` and deploys `site/` with GitHub Pages. The site is static; it holds one
-  firmware (`firmware/optimist-<version>.fwsc`, fetched by the installer page by a relative URL and checked against the
-  SHA-256 in the page), the installer and the editor. All its URLs are relative, so it works under `/<repository>/`.
-- Neither has run (a tag and a repository where Actions and Pages are on are needed; Pages on a private repository
-  needs a plan that allows it). Their YAML is checked with `actionlint`.
+- `.github/workflows/release.yml`, on a `v*` tag (it must match `VERSION`): release builds of every profile of
+  `config/profiles/` (`package --profile P --release <version>`: `optimist-<version>-<profile>.fwsc` and its `-ui.zip`)
+  in a **draft** release with `SHA256SUMS.txt`. Publish the draft after reading it.
+- `.github/workflows/pages.yml`, on a push to `main` (and when a release is published): the site at
+  <https://w0ts.github.io/optimist/>, with every published release's flavours, this commit's development build of
+  `web/flavours.json`'s flavours and their simulators. How it is made, cutting a release, cloud builds: docs/WEB.md.
 
 ## Emulator
 
@@ -368,7 +364,7 @@ M-VAVE's own updater app goes back to V15 from one. The same holds for every `9X
 (Felucca, SLOOP); nothing found suggests a numeric window.
 
 The sources in `firmware/src/` are in folders by domain (`core/`, `seq/`, `storage/`, `engines/<engine>/`, `fx/`,
-`drums/`, `display/`, `ui/`, `io/`, `system/`; the file-by-file table is docs/SOURCE-LAYOUT.md). `firmware/src/felucca.c`
+`drums/`, `display/`, `ui/`, `io/`, `system/`, `bt/`). `firmware/src/felucca.c`
 is still the one translation unit that includes them all.
 
 Build options (environment, `0` or `1`; defaults in `firmware/src/felucca.c`):
@@ -396,7 +392,7 @@ Build options (environment, `0` or `1`; defaults in `firmware/src/felucca.c`):
 | `FELUCCA_SIMD_PROBE` | 0 | EXPERIMENTAL hardware probe: tests the SIMD forms at boot, shows PASS / FAIL, uses the SIMD `sine_i` only after a PASS (implies `FELUCCA_SIMD`; `FELUCCA_SIMD_PROBE_TEST=1`: emulator test of the trap report) |
 
 Backported features (defaults in `firmware/src/core/backports.h`; source, licence and measured cost of each in
-`tools/backports.json`; what they do: OPTIMIST.md, "Optional features"):
+`tools/backports.json`; what they do: docs/BUILDER.md and docs/guide/):
 
 | Flag | Default | |
 | --- | --- | --- |
@@ -500,22 +496,21 @@ those before 716bf52 (OBJ_UPFM6 at 0xE7000 / 0xE8000, the SDK VM written).
 
 ### The gate
 
-`make gate` (`python tools/optimist.py gate`; `tools/gate.py --help`) is what the integrator runs before a push
-(docs/INTEGRATION.md): the builder costs check, every published profile built, `CONFIG=file` and
+`make gate` (`python tools/optimist.py gate`; `tools/gate.py --help`) runs before a push: the builder
+costs check, every published profile built, `CONFIG=file` and
 `SET="KEY=V ..."` builds if given, the host tests, then user-default built again last so `build/` holds its
 package and ELF (`EMU=1`: then `make emu-check` on it). Each step logs to `build/gate/`; every step runs even
 after a failed one. About 5 minutes (the host tests most of it; 20 with `JOBS=1`).
 
 ## Install
 
-The web installer (Chrome or Edge) is on the project's GitHub Pages site once that is enabled (see
-"Releases and the hosted site" below), or make it locally, as below. The
-`.fwsc` of each release is on the GitHub releases page.
+The web installer (Chrome or Edge) is at <https://w0ts.github.io/optimist/webapp/editor/#install>, or on your machine
+with `make web`. The `.fwsc` of each release is on the GitHub releases page.
 
 From the build tooling: `make flash` (`python3 tools/optimist.py flash [PACKAGE.fwsc]`; it builds first when no package is
 named), or `f` in the builder menu (it builds first when the menu has no current build of the configuration shown; a
 progress bar follows the build and the flash). It shows the identity of the FM-1 and of the package, asks, then runs `fm1_install.py` (below) on it. Its mido and
-python-rtmidi come from the builder venv (`make setup`). Back up first and know the way back: OPTIMIST.md, "Rescue, going back".
+python-rtmidi come from the builder venv (`make setup`). Back up first and know the way back: README.md, "Getting back".
 
 From the command line with `fm1_install.py` directly (needs `pip3 install mido python-rtmidi`; for stock, SLOOP or other Felucca packages too):
 
@@ -524,14 +519,7 @@ python3 tools/fm1_install.py build/felucca.fwsc
 python3 tools/fm1_install.py --info          # identity of the connected FM-1
 ```
 
-Or, to install your own build from the web installer, make a local copy of the site and open it from `localhost`
-(Web MIDI needs a secure context):
+Or `make web` and the installer's *A file on this computer* (the page runs on `localhost`: Web MIDI needs a secure
+context).
 
-```
-python3 web/make_site.py build/felucca.fwsc dev /tmp/felucca-site
-cd /tmp/felucca-site && python3 -m http.server 8000
-# open http://localhost:8000/webapp/installer/
-```
-
-Installing firmware is at your own risk. If an install fails and the FM-1 no longer
-starts, recovery needs [FM-1-transporter](https://github.com/kurogedelic/FM-1-transporter).
+Installing firmware is at your own risk. If an install fails and the FM-1 no longer starts: README.md, "Getting back".
