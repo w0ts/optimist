@@ -95,7 +95,11 @@ PAIRS = [{"MOTION": 1, "SECTIONS": 4},
          # the FILTER insert's code and state (core.h TFLT_ON) are built with the track FILTER or the master DJ filter
          # (on by default): TRK_FILT's delta is ~0, without FX_DJF it pays them (2026-10-19: drum-machine + TRK_FILT
          # 1,104 B of RAM and 2.4 KB of flash, its delta 96 B of flash)
-         {"FX_DJF": 0, "TRK_FILT": 1}]
+         {"FX_DJF": 0, "TRK_FILT": 1},
+         # one core with the FDN8 reverb: DUAL=0 frees 1,008 B less RAM and 1,264 B more RAMTEXT than in the defaults
+         # (2026-10-19, each item of user-default+ble-test beside DUAL on / off: only REV_FDN8 moved it over 100 B;
+         # user-default+ble-full estimated 856 B of RAM under)
+         {"REV_FDN8": 1, "DUAL": 0}]
 # items off by default that share code and state built with any of them: each one's delta pays it, so the group's
 # shared part is measured (all of them on: (sum of their deltas - what that build adds) / (n - 1)) and counted once
 # (configure.py group_delta). Found 2026-10-14: each insert beyond the first was 0.76 KB of RAM over
@@ -125,7 +129,9 @@ GROUPS = {"INS_FX": _any_of("core/core.h", "INS_FX"),   # (the insert slots)
 # measured against)
 PAIR_WITH = {"REV_ROOM=0,REV_HALF=1": {"REV_PLATE": 1}, "MICRO=1,FILLS=1": {"SL24_XSTEP": 1},
              "MICRO=1,PLOCK=1": {"SL24_XSTEP": 1}, "FILLS=1,PLOCK=1": {"SL24_XSTEP": 1},
-             "MICRO=1,FILLS=1,PLOCK=1": {"SL24_XSTEP": 1}, "MOTION=1,PLOCK=1": {"SL24_XSTEP": 1}}
+             "MICRO=1,FILLS=1,PLOCK=1": {"SL24_XSTEP": 1}, "MOTION=1,PLOCK=1": {"SL24_XSTEP": 1},
+             "REV_FDN8=1,DUAL=0": {"REV_ROOM": 0}}   # (FDN8 the only reverb, as the BLE builds have it: beside ROOM its
+                                                     # RAMTEXT part, -1,264 B, did not carry over)
 # a value that is not valid alone (the last reverb algorithm off): measured with these set too, less their own deltas
 # (so those are measured first)
 WITH = {("REV_ROOM", 0): {"REV_PLATE": 1},
@@ -288,7 +294,13 @@ def beyond(sizes, cfg, costs, name):
     earlier = [pair_name(p) for p in PAIRS[:[pair_name(q) for q in PAIRS].index(name)]]
     known = dict(costs, pairs={n: d for n, d in costs.get("pairs", {}).items() if n in earlier})
     est = C.budget(cfg, known, use_exact=False, anchor=False)["total"]
-    return {r: sizes[r] - est[r] for r in REG}
+    return {r: sizes[r] - est[r] if r not in PAIR_NOT.get(name, ()) else 0 for r in REG}
+
+
+# a pair's region that does not carry over to other configurations, kept 0: REV_FDN8=1,DUAL=0's RAMTEXT (-1.2 KB) is
+# shared with USB_MODE's and DUAL=0,USB_MODE=1's (the RAM code placed again), so with them it counted it twice
+# (2026-10-19: user-default+ble-full 924 B of RAMTEXT under; its flash and RAM, the single flips' in ble-test, kept)
+PAIR_NOT = {"REV_FDN8=1,DUAL=0": ("ramtext",)}
 
 
 def unmeasured(costs):

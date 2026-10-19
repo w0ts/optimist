@@ -276,9 +276,15 @@ def header(cfg, name="custom"):
 
 
 def item_delta(costs, key, value):
-    """bytes this item at this value adds to the default build, per region (None: not measured)"""
+    """bytes this item at this value adds to the default build, per region (None: not measured). An item switched
+    off or down (a value under its default) never adds: a region it measured as growing counts 0 (the user, 2026-10-19,
+    "clamp at 0": FX_DIST, MIDI_NOTEOUT, MISSING_WARN off made the default build 300-700 B larger in flash, the RAM code
+    placed again, and the figure grew as a feature went). Not the other way: an item on that saves a region is often
+    real (TAB_IN_POOL's RAM to the pool, X909_CYM=2's smaller cymbals)"""
     d = costs.get("deltas", {}).get(key, {}).get(str(value))
-    return d
+    if d is None or not value < R.ITEMS[key].default:
+        return d
+    return {r: min(0, b) for r, b in d.items()}
 
 
 def item_delta_alone(costs, key, value):
