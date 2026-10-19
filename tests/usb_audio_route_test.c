@@ -30,6 +30,8 @@ static void setup(void)
     for (uint32_t k = 0; k < NPART; k++) host_preset(&trk[k], 0, 5);
     memset(drums.v, 0, sizeof drums.v);
     drums.tail = 0;
+    dgl.on = 0;                                       /* (the voices cut here, not by a block: the drum glides start
+                                                       * at their targets, as after a silent block) */
 }
 
 /* the sum: (L + R) / 2 exactly (a floor), each side x 0.5; two Q15 sides never leave Q15 */
