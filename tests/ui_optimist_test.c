@@ -2877,8 +2877,8 @@ static void led_tests(void)
     song.sel = 0;
     frames(2);
     check(led_lvl(B_LFO) == 1 && led_lvl(B_ENV) == 1 && led_lvl(B_FX) == 1, "LEDs, a synth track: ENV LFO FX are half lit");
-    check(led_lvl(B_HOME) == 2 && led_lvl(B_SAVE) == 1 && led_lvl(B_PLAY) == 1 && led_lvl(B_REC) == 1,
-          "LEDs: HOME (the screen) full, SAVE PLAY REC half lit");
+    check(led_lvl(B_HOME) == 2 && led_lvl(B_SAVE) == 1 && led_lvl(B_PLAY) == 0 && led_lvl(B_REC) == 1,
+          "LEDs: HOME (the screen) full, SAVE REC half lit, PLAY's red off (stopped: its green is dim, ui_optimist_lamp.h)");
     song.sel = TRK_DRUM;
     frames(2);
     check(led_lvl(B_LFO) == 0 && led_lvl(B_ENV) == 0, "LEDs, the drum track, no lane picked: no LFO, no ENV (a lane's pages)");

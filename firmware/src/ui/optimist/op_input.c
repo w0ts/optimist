@@ -927,20 +927,33 @@ static void led_btn(uint8_t *nl, uint32_t b, int on) { led_put(nl, panel.btn[b],
 /* PLAY's second LED, green: a matrix site with no key (row PA5 = row bit 1, column 8; FM1_KEYMAP -1). Found on a unit by MAKU
  * (okumurari2/maku, GPL-3.0-only, firmware/src/ui_input.c LED_PLAY_GREEN: "found on the hardware at column 8, row PA9 (bit 1)")
  * and drawn by simonjohansson/fm1-emulator (fm1-panel.c); stock V15 lights it too (measured here in the emulator). It is a single
- * green LED. RED is REC's own LED (red on the unit), which already shows the take: lit while recording, blinking while armed.
- * So the transport reads: GREEN = playing (steady), RED = recording (REC), both never together: a take that records puts the
- * green out. The count-in clicks the green on each beat (as MAKU does). Stopped: dark. */
+ * green LED; PLAY's own LED is red. The two read as one transport light (the user, 2026-10-19: "green while paused (dimmed),
+ * fully green while playing, flashing red, and red while recording, flashing green"):
+ *   stopped    green dim, red off
+ *   playing    green full, red on each beat
+ *   recording  red full, green on each beat (a take: song.rec, or the free take)
+ * The count-in pulses the green on each beat of its bar (as MAKU does). REC's own LED shows the take as before. */
 #define OP_LAMP_COL 8u
 #define OP_LAMP_ROW 1u
-static uint32_t lamp_on(void)                           /* the green lamp under PLAY */
+static int play_led(void);
+static int op_recording(void) { return song.rec != 0u || ft_on; }
+static uint32_t lamp_on(void)                           /* the green lamp under PLAY, full */
 {
-    if (song.rec != 0u || ft_on)
-        return 0;                                       /* (recording: REC's red alone) */
+    if (op_recording())
+        return (uint32_t)play_led();                    /* (recording: the red is full, the green on each beat) */
 #if FELUCCA_REC_MODES
     if (ci_on)                                          /* (the count-in: a pulse on each beat of the bar) */
         return ci_u % BEAT_U < BEAT_U / 4u;
 #endif
     return song.playing != 0u && !rec_wait;
+}
+static uint32_t lamp_dim(void)                          /* ... dim: stopped (the transport waits) */
+{
+#if FELUCCA_REC_MODES
+    if (ci_on)
+        return 0;
+#endif
+    return !song.playing && !op_recording();
 }
 static int play_led(void)                               /* PLAY flashes on every beat, as heard */
 {
@@ -1109,12 +1122,13 @@ static void ui_leds(void)
         ready = 1;
     }
     for (c = 0; c < NB; c++)
-        led_btn(dl, c, (int)((avail >> c) & 1u));       /* (the half light: under the full light below) */
+        led_btn(dl, c, c != B_PLAY && (avail >> c & 1u));   /* (the half light: under the full light below; PLAY's red never: stopped,
+                                                         * its green is dim instead) */
     led_btn(nl, op_screen_btn(), 1);
     if (lay.shown != LY_PLAY)                           /* the layer shown: its button (locked: blinking) */
         led_btn(nl, LAYER_BTN[lay.shown], lay.lock == LY_PLAY || ((fm1_ms / 300u) & 1u));
     led_btn(nl, B_SAVE, armed && blink);                /* YES is asked for */
-    led_btn(nl, B_PLAY, play_led() || (song.playing && !song.rec && ft_on));
+    led_btn(nl, B_PLAY, op_recording() || play_led());  /* (recording: full; playing: on each beat) */
     led_btn(nl, B_REC, song.rec != 0u || ft_on || (rec_wait && blink));
     if (is_drum(TSEL)) {                                /* the drum track: OCT lit while held on STEP (a ghost / hard hit) */
         led_btn(nl, B_OCTDN, ui.scr == SCR_STEP && btn_held(B_OCTDN));
@@ -1124,7 +1138,9 @@ static void ui_leds(void)
         led_btn(nl, B_OCTUP, song.octave > 0 && ((avail >> B_OCTUP) & 1u));
     }
     if (lamp_on())
-        nl[OP_LAMP_COL] |= (uint8_t)(1u << OP_LAMP_ROW);   /* PLAY's green LED (REC's red is its own button) */
+        nl[OP_LAMP_COL] |= (uint8_t)(1u << OP_LAMP_ROW);   /* PLAY's green LED: full */
+    else if (lamp_dim())
+        dl[OP_LAMP_COL] |= (uint8_t)(1u << OP_LAMP_ROW);   /* ... dim (the HAL's glow layer, as an available button's) */
     keys_lit(&kf, &kd);                                 /* the keys: full, dim, dark in every mode (op_keys.c, D10) */
     for (c = 0; c < 27u; c++) {
         led_put(nl, 14u + c, (int)((kf >> c) & 1u));
