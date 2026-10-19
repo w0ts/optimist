@@ -32,7 +32,7 @@ SIZE_FILES = ["ui/sloop/ui.c", "ui/sloop/ui_drums.c", "ui/sloop/ui_colors.c", "u
               "ui/sloop/ui_overview.c", "ui/sloop/ui_drumstep.c", "ui/sloop/ui_layers.c", "ui/sloop/ui_pat.c", "ui/sloop/ui_menu.c",
               "ui/sloop/ui_input.c", "ui/splash.c", "storage/storage.c", "storage/upreset.c", "storage/project.c",
               "seq/arranger_scene.c", "drums/drum_kits.c", "engines/fm6/fm6_sysex.c", "io/editor/editor.c",
-              "io/editor/ed_drums.c", "io/editor/ed_backup.c", "io/editor/ed_cz.c", "storage/nbank.c",
+              "io/editor/ed_drums.c", "io/editor/ed_backup.c", "io/editor/ed_lite.c", "io/editor/ed_cz.c", "storage/nbank.c",
               "io/console.c", "io/console_run.c", "storage/sections/sec_log.c", "storage/sections/sections.c",
               "storage/sections/sec_codec.c", "io/editor/ed_dsend.c", "io/editor/ed_dsrc.c",
               "io/editor/ed_macro.c", "io/editor/ed_pages.c", "io/editor/ed_snap.c", "io/editor/ed_status.c",
@@ -77,7 +77,7 @@ OS_FILES = ["felucca.c", "system/main.c", "system/supply.c", "system/recovery.c"
             "ble/ble_ll_central.c", "ble/ble_hw_wl82_central.c", "ble/ble_gattc.c", "ble/ble_central.c",
             "ble/ble_smp_init.c", "io/midi/ble_connect.c",
             # EXPERIMENTAL: the Bluetooth Classic inquiry probe (BT_INQ_PROBE): its interrupts and the main loop's prints
-            "bt/bt_inq.c", "bt/bt_inq_core.c", "bt/bt_page.c", "bt/bt_lmp.c", "bt/bt_acl.c", "bt/bt_l2cap.c", "bt/bt_avdtp.c"]
+            "bt/bt_inq.c", "bt/bt_inq_core.c", "bt/bt_inq_con.c", "bt/bt_page.c", "bt/bt_lmp.c", "bt/bt_acl.c", "bt/bt_l2cap.c", "bt/bt_avdtp.c"]
 # the sound side: what the audio ISR, the second core and the voices run (never minsize)
 AUDIO_FILES = ["engines/engines.c", "dsp/dsp.c", "engines/analog/eng_analog.c", "engines/analog/eng_analog2.c",
                "engines/digital/eng_digital.c", "engines/phase/eng_phase.c", "engines/lofi/eng_lofi.c",
@@ -88,7 +88,7 @@ AUDIO_FILES = ["engines/engines.c", "dsp/dsp.c", "engines/analog/eng_analog.c", 
                "engines/juno/eng_juno.c", "engines/noise/eng_noise.c",
                "fx/fx.c", "fx/punch/punch.c", "system/dual.c", "core/audio.c", "seq/seq.c", "seq/arranger.c",
                "io/midi/midi_control.c", "io/midi/clock_sync.c", "io/midi/clock_out.c", "io/midi/midi_uart.c",
-               "io/usb/usb_audio_stream.c", "seq/seq24.c", "seq/ednote.c", "seq/auto.c", "seq/auto_base.c", "drums/lane_play.c", "seq/seq_mute.c",
+               "io/usb/usb_audio_stream.c", "seq/seq24.c", "seq/ednote.c", "seq/auto.c", "seq/auto_slot.c", "seq/auto_base.c", "drums/lane_play.c", "seq/seq_mute.c",
                "seq/gen.c"]
 # X0X's float units: units of their own (tools/build.py), outside the unity build and these lists
 FLOAT_UNITS = ("drums/x0x/drum808.c", "drums/x0x/drum909.c", "drums/x0x/x0x_drums.c", "engines/acid/acid_dsp.c",
