@@ -432,71 +432,75 @@ def ble_test_configs():
 
 
 def prepare_tests():
-    """build/ as the host tests read it -> 0 ok. First two BLE builds (build/ble/felucca-ble.fwsc for the emulator
-    tests tests/ble_emu_test.py and ble_emu_central_test.py; build/ble/felucca-ble-full.fwsc, the whole BLE option
-    set, for tests/ble_emu_boot_test.py), then two builds: the target-cost check holds the loops of the
-    default configuration (every item: too big for the slot, so a measurement build: felucca.dis), the
-    installer, update and rescue tests a package that fits and its app (user-default: felucca.fwsc,
-    felucca.bin, loader/ota.bin). The regression goldens need neither: tests/run_tests.sh renders against
-    build/gen-host, every sample set whatever the profile (tools/build.py --host-headers)"""
-    check_builds()
-    print(f"test: building {REFERENCE_PROFILE} with BLE, BLE_DIAG and BLE_CENTRAL (the package tests/ble_emu_test.py "
-          "runs in the emulator, which reads the diagnostics block and the DEVICES list's scan table; the builder's "
-          "own --ble-drop FLUTE makes room where it must; the radio's tables: the committed ones, "
-          "or a capture from FM1_STOCK_FWSC)")
+    """build/ as the host tests read it -> 0 ok. Two BLE builds (build/ble/felucca-ble.fwsc for the emulator tests
+    tests/ble_emu_test.py and ble_emu_central_test.py; build/ble/felucca-ble-full.fwsc, the whole BLE option set, for
+    tests/ble_emu_boot_test.py), and two builds: the target-cost check holds the loops of the default configuration
+    (every item: too big for the slot, so a measurement build: felucca.dis), the installer, update and rescue tests a
+    package that fits and its app (user-default: felucca.fwsc, felucca.bin, loader/ota.bin). The regression goldens
+    need neither: tests/run_tests.sh renders against build/gen-host, every sample set whatever the profile
+    (tools/build.py --host-headers). All four at once, each in its own directory (build/slots/t-*), with the check
+    configurations' builds (2026-10-19, the user: every phase of the tests on every CPU); then build/ as the four in
+    turn left it before: the package's files, the measurement build's over them, the package's app back"""
+    import measure_costs as MC
     (_, ble_cfg), (_, full_cfg) = ble_test_configs()
     cfg, name = C.load_profile(REFERENCE_PROFILE)
-    ok, _, _ = C.build(ble_cfg, name + " ble", echo=True)
-    if not ok:
-        print("test: the BLE build failed", file=sys.stderr)
-        return 1
+    slots = ROOT / "build" / "slots"
+    builds = [("ble", ble_cfg, name + " ble", False), ("ble-full", full_cfg, name + " ble-full", False),
+              ("ref", cfg, name, False), ("default", C.defaults(), "default", True)]
+    checks = check_todo()
+    jobs = int(os.environ.get("JOBS") or 0) or MC.default_jobs()
+    print(f"test: {len(builds)} builds the tests read ({REFERENCE_PROFILE} with BLE, BLE_DIAG and BLE_CENTRAL; with the "
+          f"whole BLE option set; {REFERENCE_PROFILE}; a measurement build of the defaults) and {len(checks)} "
+          f"measurement builds of the builder's check configurations, {jobs} at a time")
+    from concurrent.futures import ThreadPoolExecutor
+
+    def one(b):
+        tag, bcfg, bname, measure = b
+        return C.build(bcfg, bname, measure=measure, outdir=slots / f"t-{tag}")
+
+    def chk(c):
+        n, ccfg = c
+        ok, _, _ = C.build(ccfg, f"m-chk-{n}"[:16], measure=True, outdir=slots / f"t-chk-{n}"[:40])
+        if not ok:
+            print(f"test: the measurement build of check configuration {n} failed (the drift check notes it)")
+
+    with ThreadPoolExecutor(jobs) as ex:
+        res = list(ex.map(one, builds))
+        list(ex.map(chk, checks))
+    for (tag, *_), (ok, _, out) in zip(builds, res):
+        if not ok:
+            print(out[-3000:])
+            print(f"test: the {tag} build failed", file=sys.stderr)
+            return 1
     ble = ROOT / "build" / "ble"
-    ble.mkdir(exist_ok=True)
-    shutil.copy(ROOT / "build" / "felucca.fwsc", ble / "felucca-ble.fwsc")
-    shutil.copy(ROOT / "build" / "felucca.elf", ble / "felucca-ble.elf")     # (its symbols: the blell RAM block)
-    print(f"test: building {REFERENCE_PROFILE} with the whole BLE option set, as it goes on the FM-1 (BLE, USB_MODE, "
-          "BLE_BOND, BLE_CENTRAL, BLE_DIAG: the package tests/ble_emu_boot_test.py starts with BLUETOOTH saved ON)")
-    # (the web editor's mixer, sequencer and device screens off too, ED_MIX / ED_SEQ / ED_SCREENS since 2026-10-19 (ED_FXP and
-    # ED_SCRS since 2026-10-16, batch 163, 836 B over the slot): no BLE test uses them.)
-    # (PATTERNS=0 in this set since 2026-10-15, batch 141 (batch 140 had FM6_SYSEX=0 for a 40 B overflow): the batches' growth
-    # (fx-rework, JUNO, env-dests) put the whole set 2,600 B over the slot (ld: region XIP overflowed); --ble-drop FLUTE frees
-    # nothing here (user-default has it off). The patterns and scenes (about 5.6 KB) are not used by any BLE test.
-    # Before that nothing was dropped: 2,720 B free 2026-10-10, 20,968 B with BLE_TEST_ROOM's later additions)
-    ok, _, _ = C.build(full_cfg, name + " ble-full", echo=True)
-    if not ok:
-        print("test: the full BLE build failed", file=sys.stderr)
-        return 1
-    shutil.copy(ROOT / "build" / "felucca.fwsc", ble / "felucca-ble-full.fwsc")
-    shutil.copy(ROOT / "build" / "felucca.elf", ble / "felucca-ble-full.elf")
-    print(f"test: building {REFERENCE_PROFILE} (the package and app the installer and rescue tests read)")
-    ok, _, _ = C.build(cfg, name, echo=True)
-    app = ROOT / "build" / "felucca.bin"
-    if not ok or not app.exists():
+    ble.mkdir(parents=True, exist_ok=True)
+    for tag, stem in (("ble", "felucca-ble"), ("ble-full", "felucca-ble-full")):
+        shutil.copy(slots / f"t-{tag}" / "felucca.fwsc", ble / f"{stem}.fwsc")
+        shutil.copy(slots / f"t-{tag}" / "felucca.elf", ble / f"{stem}.elf")     # (its symbols: the blell RAM block)
+    for tag in ("ref", "default"):                      # (the package's build, then the measurement's over it)
+        for f in (slots / f"t-{tag}").iterdir():
+            if f.name == "slots":
+                continue
+            dst = ROOT / "build" / f.name
+            if f.is_dir():
+                shutil.copytree(f, dst, dirs_exist_ok=True)
+            else:
+                shutil.copy2(f, dst)
+    app = slots / "t-ref" / "felucca.bin"
+    if not app.exists():
         print("test: the build failed", file=sys.stderr)
         return 1
-    image = app.read_bytes()
-    print("test: a measurement build of the default configuration (the render loops of every item)")
-    ok, _, _ = C.build(C.defaults(), "default", measure=True, echo=True)
-    app.write_bytes(image)          # (the measurement build's app does not fit; the package's does)
-    if not ok:
-        print("test: the measurement build failed", file=sys.stderr)
-        return 1
+    shutil.copy2(app, ROOT / "build" / "felucca.bin")   # (the measurement build's app does not fit; the package's does)
     return 0
 
 
-def check_builds():
-    """measurement builds of the builder's check configurations (every profile, tools/builder/estimate/*.config) not
-    built from this source yet: tests/builder_test.py holds the size estimate against them (its drift check), so a
-    costs.json the firmware moved away from fails the normal test run. ~15 s each; made first, so the builds the
-    tests read (the packages, the defaults' felucca.dis) come after"""
+def check_todo():
+    """the builder's check configurations (every profile, tools/builder/estimate/*.config) not built from this source
+    yet: tests/builder_test.py holds the size estimate against them (its drift check), so a costs.json the firmware
+    moved away from fails the normal test run (prepare_tests builds them, beside its own)"""
     import measure_costs as MC
-    ble = dict(ble_test_configs())                      # (built below anyway, as the packages)
-    todo = [(n, cfg) for n, cfg in MC.check_configs().items() if n not in ble and not C.exact_sizes(cfg)]
-    print(f"test: measurement builds of {len(todo)} builder check configurations (the estimate's drift check)")
-    for n, cfg in todo:
-        ok, _, _ = C.build(cfg, f"m-chk-{n}"[:16], measure=True)   # (measure_costs.py measure_checks: the same name, the same bytes)
-        if not ok:
-            print(f"test: the measurement build of check configuration {n} failed (the drift check notes it)")
+    ble = dict(ble_test_configs())                      # (built anyway, as the packages)
+    return [(n, cfg) for n, cfg in MC.check_configs().items() if n not in ble and not C.exact_sizes(cfg)]
 
 
 def cmd_test(a):
