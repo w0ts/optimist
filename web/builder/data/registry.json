@@ -3978,34 +3978,6 @@
     "provenance_line": "isod89/sloop-fm1 @ d691ba7 (SLOOP 2.3) by isod89 (the dim pulses after Felucca 1.0.1 #35 by Leo Kuroshita; NOTES by renebohne, PR #11) (GPL-3.0-only)"
    },
    {
-    "key": "GLIDE",
-    "flag": "FELUCCA_GLIDE",
-    "label": "mixer glides ~10 ms (no zipper)",
-    "group": "System",
-    "bit": 107,
-    "default": 0,
-    "parent": null,
-    "desc": "Part level, pan and sends, the master volume and the drum track's level, pan and sends glide over ~10 ms instead of jumping, which removes the zipper noise of a moving knob. About 1.3 KB of flash, 0.3 KB of RAM and 0.7 KB of fast RAM code; the sound changes only while a gain moves.",
-    "experimental": false,
-    "notice": "Ported from X0X by Charles Vestal (GPL-3.0). Fixed-point glides of the mixer gains.",
-    "off_warning": "",
-    "env": "",
-    "target_only": false,
-    "symbols": [],
-    "no_image": false,
-    "choices": [],
-    "provenance": {
-     "project": "charlesvestal/fm1-x0x",
-     "author": "Charles Vestal",
-     "licence": "GPL-3.0-only",
-     "commit": "49b1fc8 (X0X 0.10.1-beta)",
-     "url": "https://github.com/charlesvestal/fm1-x0x"
-    },
-    "children": [],
-    "tested": "emulator-tested only",
-    "provenance_line": "charlesvestal/fm1-x0x @ 49b1fc8 (X0X 0.10.1-beta) by Charles Vestal (GPL-3.0-only)"
-   },
-   {
     "key": "BPM_LOCK",
     "flag": "FELUCCA_BPM_LOCK",
     "label": "BPM LOCK: SELECT is the tempo only with GLO",
@@ -4784,7 +4756,6 @@
    "CACHE_RAM",
    "ASM",
    "DUAL",
-   "GLIDE",
    "SL24_SAFE",
    "SL24_IMPORT",
    "SL24_EXPORT",

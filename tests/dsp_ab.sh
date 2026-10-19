@@ -21,14 +21,13 @@ git archive "$BASE" | tar -x -C "$AB/base"
 CC="${CC:-cc} -O2 -w"
 X0X_ON="-DFELUCCA_DRUM_X909=1 -DFELUCCA_DRUM_X808=1"
 BP_ON="-DFELUCCA_CHANCE=1 -DFELUCCA_KEYLIT=1 -DFELUCCA_QNT_SEQ=1 -DFELUCCA_SPRING=1 -DFELUCCA_BASSPLUS=1 -DFELUCCA_BRIGHT=1 -DFELUCCA_MOTION=1 -DFELUCCA_ENG_PHYS=1 -DFELUCCA_ENG_ACID=1 -DFELUCCA_ENG_CZ=1 -DFELUCCA_SECTIONS=4"
-BP23_ON="-DFELUCCA_GLIDE=1"
 fail=0
 for side in base this; do
     root=$AB/base; [ $side = this ] && root=.
     (cd "$root" && python3 tools/build.py --host-headers > /dev/null) || { echo "dsp_ab: host headers ($side) failed"; exit 1; }
 done
 n=0
-for cfg in "" "$X0X_ON" "$BP_ON" "$X0X_ON -DFELUCCA_ENG_ACID=1 -DFELUCCA_GLIDE=1" "$BP23_ON" "-DFELUCCA_ENG_SLICE=1" \
+for cfg in "" "$X0X_ON" "$BP_ON" "$X0X_ON -DFELUCCA_ENG_ACID=1" "-DFELUCCA_ENG_SLICE=1" \
            "-DFELUCCA_REV_HALF=1 -DFELUCCA_SPRING=1" "-DFELUCCA_ANALOG2=0" "-DFELUCCA_USB_AUDIO=1"; do
     n=$((n + 1))
     for side in base this; do

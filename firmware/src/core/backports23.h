@@ -8,9 +8,8 @@
  *                                                                                        SLOOP 2.3
  *   FELUCCA_LIGHTS        menu LIGHTS / KEYS (the buttons and keys glow), NOTES (KEYLIT at run time)
  *                                                          SLOOP 2.3 (Felucca 1.0.1 #35, renebohne #11)
- *   FELUCCA_GLIDE         part level, pan and sends, MASTER, the drum track's level, pan and lane sends glide over
- *                         ~10 ms (no zipper)                       X0X 0.10.1-beta (charlesvestal/fm1-x0x 49b1fc8)
- * The fixes of SLOOP 2.3 that were switches here are always built since 2026-10-14 (the refusals below). */
+ * The fixes of SLOOP 2.3 that were switches here are always built since 2026-10-14, X0X 0.10.1's mixer glides
+ * (49b1fc8: dsp.c glide_next) since 2026-10-19 (the refusals below). */
 #ifndef FELUCCA_BACKPORTS23_H
 #define FELUCCA_BACKPORTS23_H
 
@@ -19,9 +18,6 @@
 #endif
 #ifndef FELUCCA_LIGHTS
 #define FELUCCA_LIGHTS 0         /* hal/fm1_input.h (the backlight layer), lights.c, ui_input.c, ui_menu.c */
-#endif
-#ifndef FELUCCA_GLIDE
-#define FELUCCA_GLIDE 0          /* fx.c glide_next: mix_part, mix_finish (MASTER); drums.c drums_mix (dgl) */
 #endif
 #ifndef FELUCCA_VIS
 #define FELUCCA_VIS 0            /* SLOOP 2.4's visualiser (backports24.h; here for BP23_SET: its style is in the settings word) */
@@ -51,6 +47,9 @@
 #endif
 #if defined(FELUCCA_LAYER_QUIET) && !FELUCCA_LAYER_QUIET
 #error "FELUCCA_LAYER_QUIET was retired: the knobs are always quiet as a layer is let go (Felucca 1.0.2 #39 .. 1.6, SLOOP 2.6)"
+#endif
+#if defined(FELUCCA_GLIDE) && !FELUCCA_GLIDE
+#error "FELUCCA_GLIDE was retired: the mixer gains always glide over ~10 ms (X0X 49b1fc8)"
 #endif
 #if defined(FELUCCA_DLY_HALVE) && !FELUCCA_DLY_HALVE
 #error "FELUCCA_DLY_HALVE was retired: a delay time longer than the line always halves (X0X 892a3b5 .. 1.0.6)"

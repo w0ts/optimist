@@ -414,7 +414,7 @@ job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src $INSFX_ON -DFELUCCA_TRK_FILT=1 -DFELUCCA_MASTER_COMP=1 -DFELUCCA_MACROS=1 -o "$OUT/lfo_slots_test_ins" tests/lfo_slots_test.c -lm
     run "LFO DEST's INS1 / INS2 named by every insert type built (FILT COMP FOLD ... ECHO), empty, swapped" "$OUT/lfo_slots_test_ins"
 ) >"$U.out" 2>&1 & jobbg
-BP23_ON="-DFELUCCA_REC_MODES=1 -DFELUCCA_LIGHTS=1 -DFELUCCA_GLIDE=1"
+BP23_ON="-DFELUCCA_REC_MODES=1 -DFELUCCA_LIGHTS=1"
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src $BP23_ON -o "$OUT/bp23_test" tests/bp23_test.c -lm
     run "SLOOP 2.3 / X0X 0.10.1 backports (each switch on): no stuck note after a VOICE change, overload fades, REC modes and count-in, glides" "$OUT/bp23_test"
@@ -530,16 +530,12 @@ job; ( jobin
     run "X0X 909 / 808 kits: every note bounded and ended, levels, velocity, offsets, ratchets, SOUND editor, sends, mute, lanes, projects" "$OUT/x0x_drums_test" "$OUT/x0x_drums"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src $X0X_ON -DFELUCCA_GLIDE=1 -o "$OUT/x0x_drums_glide" tests/x0x_drums_test.c -lm
-    run "X0X kits with the mixer glides (GLIDE): heard when no other drum voice sounds (drums_mix counts the X0X channels)" "$OUT/x0x_drums_glide"
-) >"$U.out" 2>&1 & jobbg
-job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/kits_sound_test" tests/kits_sound_test.c -lm
     run "every built drum kit makes sound: each lane of each kit, hit alone" "$OUT/kits_sound_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src $X0X_ON -DFELUCCA_GLIDE=1 -o "$OUT/kits_sound_x0x" tests/kits_sound_test.c -lm
-    run "every built drum kit makes sound, the X0X kits and GLIDE built" "$OUT/kits_sound_x0x"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src $X0X_ON -o "$OUT/kits_sound_x0x" tests/kits_sound_test.c -lm
+    run "every built drum kit makes sound, the X0X kits built (drums_mix's glides count the X0X channels)" "$OUT/kits_sound_x0x"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_DRUM_X909=1 -DFELUCCA_X909_CYM=0 -o "$OUT/x0x_drums_test1" tests/x0x_drums_test.c -lm
@@ -604,8 +600,8 @@ job; ( jobin
     run "drum lanes PAN / MUTE / SOLO: the mix (sample for sample), the lanes' meters, the FX record TLV, PROJECT SAVE / LOAD" "$OUT/drum_lanemix_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src $X0X_ON -DFELUCCA_GLIDE=1 -o "$OUT/drum_lanemix_x0x" tests/drum_lanemix_test.c -lm
-    run "drum lanes PAN / MUTE / SOLO with the X0X kits and GLIDE built: the same, the X0X channels panned and metered per lane" "$OUT/drum_lanemix_x0x"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src $X0X_ON -o "$OUT/drum_lanemix_x0x" tests/drum_lanemix_test.c -lm
+    run "drum lanes PAN / MUTE / SOLO with the X0X kits built: the same, the X0X channels panned and metered per lane" "$OUT/drum_lanemix_x0x"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O1 -Wall -o "$OUT/edge_walk_test" tests/edge_walk_test.c

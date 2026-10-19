@@ -4,8 +4,7 @@
  *   recmode  the REC screen's MODE (FREE / TEMPO) and START (NOTE / COUNT: one bar of clicks) (FELUCCA_REC_MODES;
  *            SLOOP 2.3's t_recmode)
  *   glide    a fast LEVEL turn (a step every UI frame), a PAN jump, MASTER halved: the gain each block starts from
- *            moves by at most ~7 % of a step a block and settles exactly (FELUCCA_GLIDE, X0X 0.10.1); printed for
- *            the build without the switch too (the whole step in one block)
+ *            moves by at most ~7 % of a step a block and settles exactly (X0X 0.10.1; always built since 2026-10-19)
  *   shed     overload: a releasing voice first, then the oldest held one that is not a bass or a lead, faded
  *            (always built; after SLOOP 2.3's t_shed)
  * Exit status: the number of failed checks. */
@@ -235,11 +234,7 @@ static void t_glide(void)
     for (k = 0; k < 440u; k++) {                      /* 20 UI frames of 22 blocks: LEVEL -4 each frame (a fast turn) */
         if (k % 22u == 0u && k < 440u)
             t->p[P_LEVEL] = (int16_t)(t->p[P_LEVEL] - 4);
-#if FELUCCA_GLIDE
-        cur = t->gl_v;
-#else
-        cur = t->lvl;
-#endif
+        cur = t->gl[0];
         if (prev >= 0 && (prev - cur > maxd || cur - prev > maxd))
             maxd = prev - cur > 0 ? prev - cur : cur - prev;
         prev = cur;
@@ -247,14 +242,9 @@ static void t_glide(void)
     }
     step = LEVEL_Q12[120] - LEVEL_Q12[116];          /* (the largest step of the turn: its first) */
     run_ms(200);
-#if FELUCCA_GLIDE
-    lvl_end = t->gl_v;
-#else
-    lvl_end = t->lvl;
-#endif
-    printf("bp23: glide %s: LEVEL -4 a UI frame: the largest move in one block %d (Q12; the largest -4 step, 120 -> 116: %d)\n",
-           FELUCCA_GLIDE ? "on" : "off", maxd, step);
-#if FELUCCA_GLIDE
+    lvl_end = t->gl[0];
+    printf("bp23: glide: LEVEL -4 a UI frame: the largest move in one block %d (Q12; the largest -4 step, 120 -> 116: %d)\n",
+           maxd, step);
     check(maxd * 100 <= step * 8 && lvl_end == LEVEL_Q12[t->p[P_LEVEL]], "glide: a LEVEL step moves <= 8 % of itself a block, and settles exactly");
     {   /* MASTER halved at once: ~10 ms to 63 %, settled exactly */
         uint32_t b63 = 0;
@@ -273,12 +263,12 @@ static void t_glide(void)
         int32_t gl0;
         t->p[P_PAN] = 0;
         run_ms(50);
-        gl0 = t->gl_pl;
+        gl0 = t->gl[1];
         t->p[P_PAN] = 64;
         run_block();
-        check(t->gl_pl < gl0 && gl0 - t->gl_pl < 4096 / 10, "glide: PAN hard right: the left gain starts down by < 10 % a block");
+        check(t->gl[1] < gl0 && gl0 - t->gl[1] < 4096 / 10, "glide: PAN hard right: the left gain starts down by < 10 % a block");
         run_ms(200);
-        check(t->gl_pl == 0 && t->gl_pr == 4096, "glide: ... and gets there exactly");
+        check(t->gl[1] == 0 && t->gl[2] == 4096, "glide: ... and gets there exactly");
     }
     {   /* the drum track: GLO > DRUMS LEVEL down while a hit sounds */
         int32_t lv0;
@@ -293,7 +283,6 @@ static void t_glide(void)
         check(lv0 == 100 * 200 && dgl.lv < lv0 && lv0 - dgl.lv <= (80 * 200) / 12,
               "glide: DRUMS LEVEL 100 -> 20 under a hit: one block moves < 1/12 of the way");
     }
-#endif
     trk_note_off(t, 48);
     run_ms(100);
 }

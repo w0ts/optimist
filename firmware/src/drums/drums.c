@@ -439,34 +439,30 @@ static void drum_on(uint32_t note, uint32_t vel)
     dl_smp_fx(vi, lane);
 }
 
-#if FELUCCA_GLIDE
-/* the drum track's glides (FELUCCA_GLIDE, after X0X 0.10.1: fx.c glide_next): its LEVEL (GLO > DRUMS LEVEL) and PAN
- * ramp per sample; each lane's sends (its REV / DLY / CHO) move a one-pole step a block (a
- * staircase of 0.7 ms steps over ~10 ms). Nothing sounding: they settle at once */
+/* the drum track's glides (after X0X 0.10.1: fx.c glide_next): its LEVEL (GLO > DRUMS LEVEL) ramps per sample, in
+ * the mute / solo fade's ramp; its PAN steps once a block (0.7 ms steps, each < 7 % of the move); nothing sounding,
+ * they settle at once. The lanes' sends do not glide (X0X's do not) */
 static struct {
-    int32_t lv, pl, pr;                          /* where the level and the pan gains are */
+    int32_t lv0, lv, pl, pr;                     /* the level this block starts and ends at; the pan gains */
     uint8_t on;                                  /* 0: the next block starts at the targets */
-    int16_t r[DRUM_LANES + 1], d[DRUM_LANES + 1], c[DRUM_LANES + 1];   /* each lane's sends (+ the click) */
 } dgl;
-static __attribute__((noinline)) void dgl_lanes(int settle)   /* (XIP) the lanes' sends one block on */
+/* one block on (XIP: once a block) to LEVEL lvl, the pan gains gl gr; 0: nothing sounds (settled, nothing to mix) */
+static __attribute__((noinline)) int dgl_block(int32_t lvl, int32_t gl, int32_t gr)
 {
-    uint32_t l;
-    for (l = 0; l <= DRUM_LANES; l++) {
-        int32_t r, d, c;
-        dsend_lane(l, &r, &d, &c);
-        dgl.r[l] = (int16_t)(settle ? r : glide_next(dgl.r[l], r));
-        dgl.d[l] = (int16_t)(settle ? d : glide_next(dgl.d[l], d));
-        dgl.c[l] = (int16_t)(settle ? c : glide_next(dgl.c[l], c));
-    }
-}
-AINL void dgl_sends(uint32_t note, int32_t *r, int32_t *d, int32_t *c)
-{
-    uint32_t l = dnote_lane(note);
-    *r = dgl.r[l];
-    *d = dgl.d[l];
-    *c = dgl.c[l];
-}
+    uint32_t any = drums.tail != 0, j;
+    for (j = 0; j < NDRUM; j++)
+        any |= drums.v[j].active;
+#if DRUM_X0X
+    any |= x0x_sounding() != 0;                 /* (the X0X channels: not drums.v voices) */
 #endif
+    if (!any || !dgl.on) {                      /* nothing sounds (or the first block): at the targets */
+        dgl.on = (uint8_t)any;
+        dgl.lv = lvl, dgl.pl = gl, dgl.pr = gr;
+    }
+    dgl.lv0 = dgl.lv;
+    dgl.lv = glide_next(dgl.lv, lvl), dgl.pl = glide_next(dgl.pl, gl), dgl.pr = glide_next(dgl.pr, gr);
+    return any != 0;
+}
 
 /* adds the drums into the dry mix and the reverb send; mono != 0: into mono instead, before the
  * pan and the send (the SLICER, slicer.c slicer_drums, does those after it) */
@@ -478,37 +474,15 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
     int32_t pre = mono && FAR(dsend_one)(on) < 0;   /* the SLICER on, the lanes not alike: sends before it */
     int32_t gl, gr;
     pan_gains(trk[TRK_DRUM].p[P_PAN], &gl, &gr);      /* (dsp.c) */
-#if FELUCCA_GLIDE
-    int32_t lv0, gl0, gr0, dlv, dgl_l, dgl_r;
-    {
-        uint32_t any = drums.tail != 0, j;
-        for (j = 0; j < NDRUM; j++)
-            any |= drums.v[j].active;
-#if DRUM_X0X
-        any |= x0x_sounding() != 0;                 /* (the X0X channels: not drums.v voices) */
-#endif
-        if (!any || !dgl.on) {                      /* nothing sounds (or the first block): at the targets */
-            dgl.on = (uint8_t)any;
-            dgl.lv = lvl, dgl.pl = gl, dgl.pr = gr;
-            FAR(dgl_lanes)(1);
-            if (!any)
-                return;
-        } else {
-            FAR(dgl_lanes)(0);
-        }
-        lv0 = dgl.lv, gl0 = dgl.pl, gr0 = dgl.pr;
-        dgl.lv = glide_next(lv0, lvl), dgl.pl = glide_next(gl0, gl), dgl.pr = glide_next(gr0, gr);
-        dlv = dgl.lv - lv0, dgl_l = dgl.pl - gl0, dgl_r = dgl.pr - gr0;
-    }
-#endif
+    int32_t ga, gb;
+    if (!FAR(dgl_block)(lvl, gl, gr))
+        return;
+    gl = dgl.pl, gr = dgl.pr;
+    ga = mulq15(dgl.lv0, 32767 - drums.a0), gb = mulq15(dgl.lv, 32767 - drums.a1);   /* level x mute, over the block */
 #if DINS
     dins_mix_t dx;
     dx.ml = ml, dx.mr = mr, dx.rev = rev, dx.mono = mono, dx.pre = pre, dx.on = on;
-#if FELUCCA_GLIDE
-    dx.gl0 = gl0, dx.gld = dgl_l, dx.gr0 = gr0, dx.grd = dgl_r;
-#else
     dx.gl0 = gl, dx.gld = 0, dx.gr0 = gr, dx.grd = 0;
-#endif
 #endif
     for (i = 0; i < n && drums.tail; i++) {         /* declick tail, ~0.4 ms */
         if (mono) {
@@ -536,13 +510,8 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
             v->s[7] = 0;
             continue;
         }
-#if FELUCCA_GLIDE
-        int32_t pl0 = gl0, pld = dgl_l, pr0 = gr0, prd = dgl_r;
-        dgl_sends(DLANE_NOTE(drums.lane[k]), &r, &d, &c);
-#else
         int32_t pl0 = gl, pld = 0, pr0 = gr, prd = 0;
         dsend_of(DLANE_NOTE(drums.lane[k]), &r, &d, &c);
-#endif
         dlm_gains(ln, &pl0, &pld, &pr0, &prd);
 #if DINS
         uint32_t ins = dins_of(k, DLANE_NOTE(drums.lane[k]), on);     /* its inserts run: mixed after its loop (dins_post) */
@@ -552,12 +521,7 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
         if (!ds_render(&drums.ds[k], ds_buf + o, m - o))
             v->active = 0;
         for (i = o; i < m; i++) {
-#if FELUCCA_GLIDE
-            int32_t s = mulq15(ds_buf[i], mulq15(lv0 + ((dlv * (int32_t)i) >> CTL_LOG2),
-                                                  32767 - drums.a0 - (((drums.a1 - drums.a0) * (int32_t)i) >> CTL_LOG2)));
-#else
-            int32_t s = mulq15(ds_buf[i], mulq15(lvl, 32767 - drums.a0 - (((drums.a1 - drums.a0) * (int32_t)i) >> CTL_LOG2)));
-#endif
+            int32_t s = mulq15(ds_buf[i], ga + (((gb - ga) * (int32_t)i) >> CTL_LOG2));
 #if FELUCCA_DRUM_EDIT
             if (dv.on[k])                              /* the lane's CUT - */
                 s = dl_smp_apply(k, s, v);
@@ -574,13 +538,8 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
                 mono[i] += s;
                 continue;
             }
-#if FELUCCA_GLIDE
-            ml[i] += (s * (pl0 + ((pld * (int32_t)i) >> CTL_LOG2))) >> 12;
-            mr[i] += (s * (pr0 + ((prd * (int32_t)i) >> CTL_LOG2))) >> 12;
-#else
             ml[i] += (s * pl0) >> 12;
             mr[i] += (s * pr0) >> 12;
-#endif
 #if FELUCCA_USB_AUDIO
             track_capture[i * NTRK + TRK_DRUM] += s;
 #endif
@@ -625,20 +584,14 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
             v->s[7] = 0;
             continue;
         }
-#if FELUCCA_GLIDE
-        int32_t g1, dg, pl0 = gl0, pld = dgl_l, pr0 = gr0, prd = dgl_r;
-        dgl_sends(DLANE_NOTE(drums.lane[k]), &r, &d, &c);
-        g = mulq15(lv0, v->vel * 258);
+        int32_t g1, dg, pl0 = gl, pld = 0, pr0 = gr, prd = 0;
+        dsend_of(DLANE_NOTE(drums.lane[k]), &r, &d, &c);
+        g = mulq15(dgl.lv0, v->vel * 258);
         g += g * 3 >> 2;                           /* x1.75 (+5 dB): as loud as the synthesised kits */
         g1 = mulq15(dgl.lv, v->vel * 258);
         g1 += g1 * 3 >> 2;
+        g = mulq15(g, 32767 - drums.a0), g1 = mulq15(g1, 32767 - drums.a1);   /* x mute, over the block */
         dg = g1 - g;
-#else
-        int32_t pl0 = gl, pld = 0, pr0 = gr, prd = 0;
-        dsend_of(DLANE_NOTE(drums.lane[k]), &r, &d, &c);
-        g = mulq15(lvl, v->vel * 258);
-        g += g * 3 >> 2;                           /* x1.75 (+5 dB): as loud as the synthesised kits */
-#endif
         dlm_gains(ln, &pl0, &pld, &pr0, &prd);
 #if DINS
         uint32_t ins = dins_of(k, DLANE_NOTE(drums.lane[k]), on);
@@ -663,11 +616,7 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
             if (!v->active)
                 break;
             s = lerp16(v->s[2], v->s[3], frac);         /* (dsp.c) */
-#if FELUCCA_GLIDE
-            s = mulq15(s, mulq15(g + ((dg * (int32_t)i) >> CTL_LOG2), 32767 - drums.a0 - (((drums.a1 - drums.a0) * (int32_t)i) >> CTL_LOG2)));
-#else
-            s = mulq15(s, mulq15(g, 32767 - drums.a0 - (((drums.a1 - drums.a0) * (int32_t)i) >> CTL_LOG2)));
-#endif
+            s = mulq15(s, g + ((dg * (int32_t)i) >> CTL_LOG2));
             if (drums.kit[k] == 1u || drums.kit[k] == 4u) {
                 drums.filter[k] += (s - drums.filter[k]) >> (drums.kit[k] == 1u ? 2 : 1);
                 s = drums.filter[k];
@@ -693,13 +642,8 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
                 mono[i] += s;
                 continue;
             }
-#if FELUCCA_GLIDE
-            ml[i] += (s * (pl0 + ((pld * (int32_t)i) >> CTL_LOG2))) >> 12;
-            mr[i] += (s * (pr0 + ((prd * (int32_t)i) >> CTL_LOG2))) >> 12;
-#else
             ml[i] += (s * pl0) >> 12;
             mr[i] += (s * pr0) >> 12;
-#endif
 #if FELUCCA_USB_AUDIO
             track_capture[i * NTRK + TRK_DRUM] += s;
 #endif
