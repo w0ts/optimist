@@ -20,7 +20,8 @@ int main(void)
     static const uint8_t ver[6] = {37 << 1, 0x06, 0xFF, 0xFF, 0x01, 0x00};
 
     n = btl_features_req(o);
-    check("features_req: opcode 39, TID 0, 8 feature bytes of 0", n == 9 && o[0] == 78 && !o[1] && !o[8]);
+    check("features_req: opcode 39, TID 0, the features: encryption (byte 0 bit 3), SSP controller and host (byte 2 bits 0, 5), the rest 0",
+          n == 9 && o[0] == 78 && o[1] == 0x08 && !o[2] && o[3] == 0x21 && !o[4] && !o[5] && !o[6] && !o[7] && !o[8]);   /* (3242a360) */
     n = btl_version_req(o);
     check("version_req: VersNr 6, CompId FFFF, SubVersNr 1", n == 6 && !memcmp(o, ver, 6));
     check("host_connection_req: one byte, opcode 51", btl_host_conn_req(o) == 1 && o[0] == 102);
