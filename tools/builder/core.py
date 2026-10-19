@@ -500,6 +500,8 @@ def anchors(costs, exclude=(), extra=()):
 # margin of 32 B an item put the BLE test builds, 18 items from user-default, 576 B over). Errs over: a
 # configuration predicted to fit must fit
 ANCHOR_MARGIN = {"flash": 256, "ram": 0, "pool": 0, "ramtext": 0}
+ALIGN_NOISE = 32       # flash bytes a change can move by alignment alone (measured: SNAPSHOTS 4 -> 2 +4 B, PAGE_LINES and
+                       # ED_STEPLANE off +8 B, 2026-10-18): growth within it is not an item adding code (_grown)
 
 
 def additive(cfg, costs):
@@ -541,10 +543,11 @@ def nearest_anchor(cfg, costs, exclude=(), extra=()):
 def _grown(cfg, acfg, costs):
     """the items whose change from the anchor's configuration to cfg adds flash (the margin counts these only: an
     item switched OFF never raises the estimate, 2026-10-16: a margin per changed item made switching a 40 B feature off
-    show 216 B MORE flash, and a user saw the figure grow as he removed features)"""
+    show 216 B MORE flash, and a user saw the figure grow as he removed features); a growth within ALIGN_NOISE is alignment,
+    not code (2026-10-19: three items measured +4..+8 B off and drew the whole 256 B margin)"""
     ic, ia = additive(cfg, costs)[1], additive(acfg, costs)[1]
     ec, ea = effective(cfg), effective(acfg)
-    return sum(1 for k in ec if ec[k] != ea[k] and ic.get(k, {}).get("flash", 0) - ia.get(k, {}).get("flash", 0) > 0)
+    return sum(1 for k in ec if ec[k] != ea[k] and ic.get(k, {}).get("flash", 0) - ia.get(k, {}).get("flash", 0) > ALIGN_NOISE)
 
 
 def budget(cfg, costs, anchor=True, exclude=(), exact=None, extra_anchors=()):

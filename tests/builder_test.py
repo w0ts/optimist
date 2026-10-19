@@ -306,8 +306,8 @@ import tempfile  # noqa: E402
 from contextlib import redirect_stderr, redirect_stdout  # noqa: E402
 
 pub = C.published_profiles()
-check(f"published profiles ({', '.join(pub)}): shipped ones, synth and user-default among them",
-      {"synth", "user-default"} <= set(pub) and set(pub) <= set(C.profile_names()))
+check(f"published profiles ({', '.join(pub)}): shipped ones, synth among them (user-default: the tests' reference, unpublished, the user 2026-10-19)",
+      "synth" in pub and set(pub) <= set(C.profile_names()))
 # the default profile is Synth (the maintainer's own build); user-default stays the generic reference profile
 _syn, _syn_name = C.load_profile(C.DEFAULT_PROFILE)
 _syn_errs, _, _ = C.validate(_syn)
@@ -701,7 +701,8 @@ if costs:
             if _t is None:
                 continue
             _b1 = C.budget(_t, costs, use_exact=False)["total"]
-            _up = {r: _b1[r] - _b0[r] for r in ("flash", "ram", "pool") if _b1[r] > _b0[r]}
+            _up = {r: _b1[r] - _b0[r] for r in ("flash", "ram", "pool")    # (a few bytes of flash: alignment, K.ALIGN_NOISE)
+                   if _b1[r] > _b0[r] + (K.ALIGN_NOISE if r == "flash" else 0)}
             if _up:
                 _mono_bad.append(f"{_pn or 'defaults'}: {_k}=0 {_up}")
 for _line in _mono_bad:
