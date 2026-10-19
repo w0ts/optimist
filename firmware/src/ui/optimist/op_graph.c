@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The forms values are drawn with, the SOUND rows' graphs and the modal (docs/UI-OPTIMIST-DESIGN.md section 3).
+/* The forms values are drawn with, the SOUND rows' graphs and the modal (docs/UI-OPTIMIST-DESIGN.md 3.2 Forms).
  *   draw_gauge   one primitive set for every value, chosen from its range (op_cells.c cell_gauge): a bar from the
  *                left, a bar from the centre (bipolar), a row of dots (a short list), a tick (a long list), a pill
  *   sound graph  the cursor row's picture on SOUND where the core has one: the envelope (ENV, ENV2), the LFO's wave,

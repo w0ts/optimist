@@ -158,7 +158,7 @@ static void foreign_ids(void)
           ok && same_as_model() && slg_has(30) && slg_has(3));
 }
 
-/* phase 0b: the busy 64-step section (tests/sec_projects.h) as codec A wrote it and as codec B does: how many fit
+/* codec B: the busy 64-step section (tests/sec_projects.h) as codec A wrote it and as codec B does: how many fit
  * (the reserve kept); 16 busy codec B sections and 16 pattern records, stores of the playing one cut at a random
  * program (compactions in them): each section decodes to its project after every restart */
 static void busy_sections(void)
@@ -182,7 +182,7 @@ static void busy_sections(void)
         ;
     printf("busy 64-step sections: codec A %u B, %u of 16 fit; codec B %u B, %u of 16 fit (the reserve kept)\n", na, fit_a,
            nb, fit_b);
-    check("phase 0b: 16 busy 64-step sections fit with codec B (codec A: fewer)", fit_b == SEC_IDS && fit_a < fit_b);
+    check("codec B: 16 busy 64-step sections fit with codec B (codec A: fewer)", fit_b == SEC_IDS && fit_a < fit_b);
     log_reset();
     for (i = 0; i < 16u; i++) {                         /* 16 pattern records, as a PATTERNS build would keep */
         make(150, 7000 + i);

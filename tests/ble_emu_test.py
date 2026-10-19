@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
-"""BLE MIDI end to end in the FM-1 emulator (route C: our stack, its WL82 baseband driver, docs/BLE-STACK.md §11).
+"""BLE MIDI end to end in the FM-1 emulator (route C: our stack, its WL82 baseband driver, docs/BLE-STACK.md §10).
 
 Runs a BLE build (FELUCCA_BLE=1) in the emulator's `diagnose` with its BLE engine model and virtual central
 (fm1-emulator, branch feat/ble-engine: rust-emulator/README.md "Bluetooth LE (BLE MIDI) model") and checks:
@@ -46,7 +46,7 @@ MIDI_UUID = "00 c7 c4 4e e3 6c 51 a7 33 4b e8 ed 5a 0e b8 03"      # 03B80E5A-ED
 
 def name_ad(addr):
     """the scan response's Complete Local Name for an address (LSB first): "Optimist XXXX", XXXX = its last four hex
-    digits (docs/BLE-DEVICES-DESIGN.md §3.4)"""
+    digits (docs/BLE-DEVICES-DESIGN.md §1, "Name")"""
     name = f"Optimist {int(addr[1], 16):02X}{int(addr[0], 16):02X}".encode()
     return " ".join(f"{b:02x}" for b in bytes([len(name) + 1, 0x09]) + name)
 MHZ = "96"

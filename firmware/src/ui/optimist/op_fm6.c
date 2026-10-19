@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* FM6's operator editor in this UI (docs/UI-OPTIMIST-DESIGN.md sections 2.1, 4.3, 4.9; section 11.4), the function of
+/* FM6's operator editor in this UI (docs/UI-OPTIMIST-DESIGN.md 4.12 The FM6 editor), the function of
  * ui/sloop/ui_fm6.c in this UI's grammar and look (its page tables and the algorithm's drawing maths copied: nothing
  * in ui/sloop is called). On an FM6 track (the FM6 engine is Kerem Kilic's, Melodee: eng_fm6.c):
  *   ENV held     the layer (seq.c LY_OPS): a black key picks what to edit, by the FM-1's printed labels: OP1 .. OP6,

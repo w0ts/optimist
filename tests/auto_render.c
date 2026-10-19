@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* A render of the step extras and motion (docs/UI-OPTIMIST-DESIGN.md 6, phase 3): the four tracks for eight bars at
+/* A render of the step extras and motion (docs/UI-OPTIMIST-DESIGN.md 7 The automation store): the four tracks for eight bars at
  * 120 BPM with nudges on the drum and synth steps (micro timing), fill conditions (a fill held in bar 3), locks of
  * PAN and ENV DEST FLT, motion on CHORUS (hold events), a synth step's chance bits; the mix hashed (FNV-1a over every
  * sample). Built with the SLOOP 2.4 sequencer switches and MOTION on. It writes the extras through whichever store

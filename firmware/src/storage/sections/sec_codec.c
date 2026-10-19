@@ -6,7 +6,7 @@
  *   - each track's steps up to its pattern length only (LEN): a bitmap of the non-empty ones (a REST on a synth
  *     track, no lane on the drum track: seq.c steps_clear), then those steps; the steps past LEN are not kept
  *     (they read as empty). A step is 10 bytes (codec A, every record before 2026-10-07) or, codec B
- *     (docs/PATTERNS-DESIGN.md phase 0b), a mask of its non-zero bytes then those bytes: a busy 64-step
+ *     (since 2026-10-07), a mask of its non-zero bytes then those bytes: a busy 64-step
  *     section takes about half. The encoder keeps B when its steps take fewer bytes than A's (dense random
  *     steps do not), so a record is never longer than before;
  *   - the FM6 voices (128 B), switches and functions only of the parts in fm6_has; the others' functions read
@@ -38,7 +38,7 @@
  * shorter than the raw one: it refuses the record (reads it as empty) and never decodes B steps as 10-byte ones.
  * SEC_RAW alone: the raw project. SEC_B alone: not a record */
 #define SEC_B 16u
-/* flags: a scene (docs/PATTERNS-DESIGN.md 2.2, every build reads it): the body without its steps (each track's step
+/* flags: a scene (docs/PATTERNS-DESIGN.md sections 1 and 2, every build reads it): the body without its steps (each track's step
  * bitmap all 0), then 4 bytes, each track's pattern (slot 0..15, PAT_NONE: the track empty, PAT_KEEP: it goes on
  * with what it plays); pat.c puts the patterns in (sec_read: flattened). Never raw, never with a motion chunk (the
  * motion is the patterns'). A firmware before phase 1 refuses the flag: the section reads as empty there, kept */
@@ -163,7 +163,7 @@ static int sec_unstep_b(const uint8_t **a, const uint8_t *e, uint8_t *s)
     return 1;
 }
 #ifdef SEC_TEST_A
-static int sec_test_a;                                /* (the host tests: codec A, as every record before phase 0b) */
+static int sec_test_a;                                /* (the host tests: codec A, as every record before codec B) */
 #else
 #define sec_test_a 0
 #endif

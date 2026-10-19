@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* tests/ui_optimist_test.c, SYSTEM > CALIBRATE > HOLD: a click is a tap, a hold shows the layer (docs/UI-OPTIMIST-DESIGN.md
- * section 11.6; the FM-1 showed the map one click in two at SLOOP's 140 ms). Included after the helpers. */
+ * 2.2 Taps, holds, YES and NO; the FM-1 showed the map one click in two at SLOOP's 140 ms). Included after the helpers. */
 
 /* FX held ms milliseconds, then let go: whether its map showed, whether it counted as a tap (SOUND's FX rows) */
 static void hold_fx(uint32_t ms, int *map, int *tapped)

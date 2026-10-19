@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* Editor protocol v10: the FX slots (fx/fx_slots.c; included by editor.c; web/EDITOR_PROTOCOL.md "v10: FX slots").
+/* Editor protocol v10: the FX slots (fx/fx_slots.c; included by editor.c; web/EDITOR_PROTOCOL.md "FX").
  * INFO tag 0x56 lists the effect types built; a type's amounts stay where they are: a track's (and the drum bus's) are its
  * P_* values (DESC / TRACK_PARAM / the v9 PARAMS push), a drum sound's REV DLY CHO its lane's sends (DRUM_LANE v2). What
  * this command adds: the master slots' layout (the sends), the tracks' insert slots, each track's COMP settings, each

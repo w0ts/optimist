@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Editor protocol v13: every effect slot of the firmware, and its parameters, by owner (fx/fx_slots.c; included by editor.c
- * before ed_fxs.c; web/EDITOR_PROTOCOL.md "v13: FX owners"). INFO tag 0x57 = this command is here.
+ * before ed_fxs.c; web/EDITOR_PROTOCOL.md "FX"). INFO tag 0x57 = this command is here.
  * An OWNER is where a slot lives: 0..3 the tracks T1 T2 T3 DR (two insert slots S1 S2 each), 4 the master (S1 S2), 5 the
  * USB input (S1 S2, and slot 2: its own values VOLUME PAN MUTE FX ON REV DLY CHO), 6..8 the returns A B C (slot 0: a send
  * type CHO DLY REV, or any other type the return may hold; slot 1, 2026-10-16: its sends to the returns to its right, named

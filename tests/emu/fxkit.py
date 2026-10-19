@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """The FX slots at the panel of SLOOP's UI, for the emulator checks (fx_slots.c; the per-track insert slots' design,
-docs/UI-OPTIMIST-DESIGN.md "Insert slots"): the types; the master SLOTS page (the four SENDS slots: each knob steps
+docs/UI-OPTIMIST-DESIGN.md 9 Track insert slots and effects pages): the types; the master SLOTS page (the four SENDS slots: each knob steps
 through the sends this build lists, a type held elsewhere swaps); the INSERTS page (the selected track's two insert
 slots S1 and S2: K1 / K3 the TYPE, K2 / K4 its amount; the drum track's act on the drum bus; a type the other slot holds
 swaps them); the SOUND 3 page (the picked drum sound's DST, its sends, CMP while there is room), and the captures the

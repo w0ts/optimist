@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* ALGORITHM's walk and a drum lane's own sound (docs/UI-OPTIMIST-DESIGN.md section 16; the user, 2026-10-12: "the
+/* ALGORITHM's walk and a drum lane's own sound (docs/UI-OPTIMIST-DESIGN.md 2.7 Pages with no track, 5 The drum track; the user, 2026-10-12: "the
  * algo button should work the same on all pages, master (if it makes sense), t1, t2,t3,t4 and then individual drum
  * lanes (if it makes sense)", "really the algo knob should select the track and drum sub track every where", "i want
  * uniformity"; "the preset on a drum lane should change the drum lane preset, not the kit").

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """The same notes give the same samples in the emulator, and a FELUCCA_DUAL build gives the samples of the
-single-core build (docs/DUAL-CORE.md 3.1: CPU1's parts are added with integer sums, the output is bit-identical).
+single-core build (docs/DUAL-CORE.md section 1: CPU1's parts are added with integer sums, the output is bit-identical).
 Not part of make test (it needs the emulator):
 
   python3 tests/emu_dual_check.py FIRMWARE.fwsc [REFERENCE.fwsc ...] [MHZ]      (MHZ: 96 by default)

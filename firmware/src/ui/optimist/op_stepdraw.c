@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* STEP's panel (docs/UI-OPTIMIST-DESIGN.md section 4.2): the window's 16 steps as columns under the keys.
+/* STEP's panel (docs/UI-OPTIMIST-DESIGN.md 4.2 STEP): the window's 16 steps as columns under the keys.
  *   the drum track   the 16 lanes (and the ACCENT lane, 17) x the 16 steps: a hit in its lane's colour, its level as the shade (ghost dim ..
  *                    hard full), its ratchet as notches; the selected lane's row lit; at the left each lane's colour
  *                    chip and two-letter code (LANE_CODE, as the mixer), the selected lane's white

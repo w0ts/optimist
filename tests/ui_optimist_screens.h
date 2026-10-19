@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* Per-screen oddities (batch E of the 2026-10-14 coherence audit; docs/UI-OPTIMIST-DESIGN.md section 36; the style guide
+/* Per-screen oddities (batch E of the 2026-10-14 coherence audit; docs/UI-OPTIMIST-DESIGN.md 3.3 The header, 3.6 Empties and geometry; the style guide
  * of optimist-work/visaudit). Each check: the old text or layout gone, the new one there.
  *   #2   the header's title is the cursor row's name verbatim ("Edit 1 2/7"; the SOUND walk in ui_optimist_pages.h
  *        checks every row), GLOBAL's second REC page "Rec 2 n/N"; short of room the title takes its short form and

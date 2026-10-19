@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The host's side of the central role (BLE_CENTRAL; docs/BLE-DEVICES-DESIGN.md P3 / P4): one connection out to a
+/* The host's side of the central role (BLE_CENTRAL; docs/BLE-STACK.md §9.2, docs/BLE-DEVICES-DESIGN.md §4): one connection out to a
  * BLE-MIDI peripheral, from the initiator to "ready" (MIDI both ways):
  *   ble_central_connect   initiate (ble_ll_connect) to the peer's AdvA; connected as master -> the GATT client
  *                         (ble_gattc.c) starts, and with the peer's bond the link is encrypted at once (Apple's

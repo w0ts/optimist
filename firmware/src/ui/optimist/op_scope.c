@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* SCOPE (docs/UI-OPTIMIST-DESIGN.md sections 4.10, 11.5). The user: "an osc view for
+/* SCOPE (docs/UI-OPTIMIST-DESIGN.md 4.10 SCOPE). The user: "an osc view for
  * master, per track, and levels on the mixer with the compressor effect (a bar pushing down)".
  *   source the walk's: ALGORITHM's selected track (T1 T2 T3 DR, a drum lane being DR), MASTER = the master output (ui.master,
  *          op_walk.c: here MASTER stays on SCOPE, the user 2026-10-13); one row, one page of cards, the source's values (a

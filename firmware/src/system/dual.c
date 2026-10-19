@@ -20,7 +20,7 @@
  * DUAL_JOIN_US, or a fault on CPU1, puts CPU1 back into reset for good and CPU0 renders everything
  * (the parts CPU1 was rendering may click once).
  *
- * FM-1s whose CPU1 misreads RAM (docs/DUAL-CORE.md 3.5): CPU1 runs only the next posted job with a matching check
+ * FM-1s whose CPU1 misreads RAM (docs/DUAL-CORE.md section 4): CPU1 runs only the next posted job with a matching check
  * word (hal/fm1_dual_guard.h, after X0X), reads a boot canary before its hello, and is held at the first request it
  * refuses (MISREAD) or a wrong canary (CANARY). 2ND CORE OFF (dual_mode.h) or a boot after an early crash: one core.
  * FELUCCA_STOCK_SUPPLY: the FM-1's own supply start-up at the top of the boot (supply_boot, hal/fm1_supply.h). */
@@ -159,7 +159,7 @@ static void dualcfg_defaults(dualcfg_t *c)
                                                     * and starts it again after (dual_radio_hold / _release: not measured yet) */
 #define DUAL_BLE_RULE_NOW 0                        /* (the BLUETOOTH rule, 2026-10-15..16: CPU1 only with BLUETOOTH OFF; dropped
                                                     * once stock's order and supply ran both with BLE on, B25 2026-10-16) */
-/* stock V15's start-up order (docs/DUAL-CORE.md 3.6; B25 on the FM-1, 2026-10-16): the rails first (supply.c), CPU1 at
+/* stock V15's start-up order (docs/DUAL-CORE.md section 3; B25 on the FM-1, 2026-10-16): the rails first (supply.c), CPU1 at
  * dual_boot in its RAM loop, the BLE radio before audio_init (main.c), CPU1's jobs from BLE running + 400 ms; flash
  * operations park CPU1 as stock does (dual_flash_enter: 2) */
 #define DUAL_STOCK_NOW 1

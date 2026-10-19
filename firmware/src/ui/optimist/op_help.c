@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The help line (FELUCCA_PARAM_HELP, builder item PARAM_HELP; docs/UI-OPTIMIST-DESIGN.md section 21; the user,
+/* The help line (FELUCCA_PARAM_HELP, builder item PARAM_HELP; docs/UI-OPTIMIST-DESIGN.md 12 The help line; the user,
  * 2026-10-13: "we should have a help text on the bottom last line. this info text should be displayed everywhere when
  * i modify a value or in the vertical menus"). One line of small type on the screen's last HL_H rows, in plain words:
  *   a value turned     on any screen (SOUND, the mixer, MASTER, STEP's cards, TEMPO, SONG ...): what the knob changes,

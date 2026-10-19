@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* tests/ui_optimist_test.c, the user's requests of 2026-10-11 (batch 35, docs/UI-OPTIMIST-DESIGN.md section 13):
+/* tests/ui_optimist_test.c, the user's requests of 2026-10-11 (batch 35, docs/UI-OPTIMIST-DESIGN.md 4.1 The mixer (HOME)):
  *   PRESETS repaints in place: a kit or a preset browsed on the mixer (a drum lane's row too) never clears the whole
  *   screen to black ("the screen flashes in mixer when i select drum lane presets")
  * Included by ui_optimist_test.c after ui_optimist_ble.h. */

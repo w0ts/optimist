@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* Favorites in the Optimist UI (FELUCCA_FAVORITES; docs/UI-OPTIMIST-DESIGN.md section 37), included by ui_optimist_test.c
+/* Favorites in the Optimist UI (FELUCCA_FAVORITES; docs/UI-OPTIMIST-DESIGN.md 13 Favorites), included by ui_optimist_test.c
  * after WK / kdown / kup. Favorites live where presets are picked (the user, 2026-10-14: "we have a preset button, that is
  * enough"): no SOUND / FAVS row on EDIT. SAVE + PRESETS since 2026-10-16 (saved into the favorites; SHIFT2 + PRESETS is
  * the next instrument).

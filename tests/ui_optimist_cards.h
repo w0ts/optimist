@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* tests/ui_optimist_test.c, the cards (the user, 2026-10-12: "Cards are ALWAYS 2x2 on every screen with cards except the
- * mixer"; docs/UI-OPTIMIST-DESIGN.md sections 3 and 11.6): the cursor row's values as SLOOP 2.4's big values 2 x 2 on
+ * mixer"; docs/UI-OPTIMIST-DESIGN.md 3.1 Cards and lists): the cursor row's values as SLOOP 2.4's big values 2 x 2 on
  * every screen with cards, the mixer's four in a line (1x4). There is no CARDS setting any more: SYSTEM > SCREEN has no
  * CARDS cell and the settings word's bit 23 is neither read nor written. Included by ui_optimist_test.c after its
  * helpers and ui_optimist_drummix.h (the settings word). */

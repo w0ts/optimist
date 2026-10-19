@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Editor protocol v13: the Optimist UI's screens as rows of cards (ui/optimist/op_screens.c screen_t; included by editor.c; web/EDITOR_PROTOCOL.md
- * "v13: the device's screens"; builds with the Optimist UI only: FELUCCA_UI == 1). SCRN hands GLOBAL and SYSTEM out as lines; this does it for
+ * "The device's screens"; builder item ED_SCREENS). SCRN hands GLOBAL and SYSTEM out as lines; this does it for
  * every other screen the device draws as rows of four cards: SOUND (any track's pages, a drum lane's), MASTER, PROJECT (slots, snapshots, user
  * presets, TOOLS), STEPS, SONG, TEMPO. The device builds each card in its own screen's functions (rows, name, cell, turn, yes: the table
  * SCREENS) and the editor draws what they say, turns and asks through the same ones, so it shows the same pages in the same order with the same

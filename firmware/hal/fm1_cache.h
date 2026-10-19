@@ -2,7 +2,7 @@
 /* Cache RAM (FELUCCA_CACHE_RAM, the builder's CACHE_RAM, EXPERIMENTAL, default 0): 7 of the 8 data-cache ways used as
  * 28 KiB of RAM at 0x01F28000..0x01F2F000, the configuration M-VAVE's FM-1 firmware (V15) runs with and the AC79 SDK's
  * default for a flash-only build (cpu/wl82/sdk_ld_sfc.c FREE_DACHE_WAY = 7 unless SDRAM can be switched on). All 8
- * instruction-cache ways (the flash's code and constants) stay caches. docs/MEMORY-MAP.md, "Cache RAM".
+ * instruction-cache ways (the flash's code and constants) stay caches. docs/MEMORY-MAP.md 2.2, "Cache RAM".
  *
  * The registers (corex2, the SDK's asm/csfr.h): CACHE_CON 0x01EEE008 (bit 14 = idle, read only; bit 8 = the cache on,
  * bit 9 = on for SDRAM / PSRAM: the SDK sets it only when those controllers are on), DCACHE_WAY 0x01EEE00C, ICACHE_WAY

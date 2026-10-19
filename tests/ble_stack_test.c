@@ -1149,7 +1149,7 @@ static uint8_t scan_rep(uint8_t *p, uint8_t type, uint8_t a0, uint8_t n)
     return (uint8_t)(8u + n);
 }
 
-/* the scan for the DEVICES list (BLE_CENTRAL, docs/BLE-DEVICES-DESIGN.md §1.4.1): one link, time-sliced with
+/* the scan for the DEVICES list (BLE_CENTRAL, docs/BLE-DEVICES-DESIGN.md §1, docs/BLE-STACK.md §9.1): one link, time-sliced with
  * advertising, never while connected; the reports' ring between the RX interrupt and the main loop */
 static void test_scan(void)
 {

@@ -677,7 +677,7 @@ int main(int argc, char **argv)
     }
     fresh_flash();
     check("an erased area: every slot empty", sn_size(0) == 0u && sn_size(SN_BAK) == 0u && sn_free_count() == SN_SECTORS);
-    {   /* sizes (docs/SNAPSHOTS.md): the power-on state; a typical one (3 sections of 16 steps a track, a few edits) */
+    {   /* sizes (docs/SNAPSHOTS.md "Flash area"): the power-on state; a typical one (3 sections of 16 steps a track, a few edits) */
         uint32_t p0, s, k, t;
         host_tracks_init();
         sn_save(2, 0);

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-only
-# The JieLi pi32v2 toolchain (Linux x86-64) for macOS, Windows and Linux arm64 (BUILDING.md, "Docker").
+# The JieLi pi32v2 toolchain (Linux x86-64) for macOS, Windows and Linux arm64 (BUILDING.md, "The Docker image").
 #
 #   python tools/optimist.py setup            builds this image when the host cannot run the toolchain
 #   docker build --platform linux/amd64 -t optimist-toolchain:20250324.1 tools/docker

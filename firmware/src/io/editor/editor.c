@@ -1,18 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
-/* Editor protocol: SysEx for the web editor (web/EDITOR_PROTOCOL.md; v2 = user presets + live sync,
- * v3 = four tracks: the v1 / v2 commands act on the selected track, cmds 27-30 reach any track;
- * v4 = TRACK_PARAM (31) and the TRACK_CHANGED push (32), enabled by WATCH bit 1;
- * v5 = SLOOP 2.0: INFO ends with the protocol version (5), steps carry level / ratchet bytes,
- * DRUM_STEP (33) reads / writes the drum track's 16 lanes, TRACK ends with the solo mask;
- * v6 = the builder: INFO adds each engine slot's UID, BUILD (49) the build's profile, hash and items;
- * v7 = Optimist: DRUM_SRCS (50), DRUM_SHOW (51), PAGES (52); INFO unchanged, asked; v8 = snapshots (54..57);
- * v9 = only what changed, every track (PARAMS 59, STEPS 60, LANE 61, TRACKS 62, SONG 63 pushes, ed_sync9.c): since
- *      2026-10-19 the only live sync (WATCH on is v9; the v2 / v4 pushes CHANGED, STEP_CHANGED, TRACK_CHANGED, the
- *      transport STATUS 53, its stream 58 with the meters and the REC key 107 are gone: the web editor used none of them);
- * v10 = the FX slots: INFO tag 0x56, FX (86) and its v9 push FX_PUSH (87), every slot's amount in TRACK_CHANGED (ed_fxs.c);
- * v11 = v10 (the FX slots) plus the automation store (phase 3): AUTO_GET (92), AUTO_SET (93) read and write a track's list of events (ed_stepx.c);
- *      asked (a firmware before it does not answer), INFO unchanged.
+/* Editor protocol: SysEx for the web editor (web/EDITOR_PROTOCOL.md: the frames, every command, which builder item
+ * answers it). The core here: INFO (1), BUILD (49), PING (25), WATCH and RELOAD (24); the live sync is ed_sync9.c (the
+ * PARAMS 59, STEPS 60, LANE 61, TRACKS 62, SONG 63 pushes while watched); each other command set is its own ed_*.c.
  *   F0 7D 46 4C cmd args.. F7     (7D = non-commercial ID, "FL")
  * Values are 14 bit, two 7-bit bytes LSB first, offset by 8192 (so -8192..8191).
  * Every request gets a reply with the same cmd; RELOAD (24) and the v9 frames are pushed while watched. Frames arrive through sx_frame (usb.c), replies leave

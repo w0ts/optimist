@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Editor protocol v13: the Optimist UI's GLOBAL and SYSTEM screens as lists of lines (ui/optimist/op_global.c, op_project.c;
- * included by editor.c; web/EDITOR_PROTOCOL.md "v13: GLOBAL and SYSTEM"; builds with the Optimist UI only: FELUCCA_UI == 1).
+ * included by editor.c; web/EDITOR_PROTOCOL.md "GLOBAL and SYSTEM"; builder item ED_SCREENS).
  * The settings of the FM-1 (BPM, SWING, the REC modes, MIDI, the channels, screen, lights, audio, USB, Bluetooth, USB AUDIO's
  * four channels, calibrate, about, the info read-outs) are not parameters with a descriptor each: the device builds each line from a
  * cell (op_cells.c cell_t) and turns it with its own rules. This command hands those cells out as the device draws them

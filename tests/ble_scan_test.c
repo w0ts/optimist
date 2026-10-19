@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The scanner's software half (firmware/src/ble/ble_scan.c; docs/BLE-DEVICES-DESIGN.md §2, P2):
+/* The scanner's software half (firmware/src/ble/ble_scan.c; docs/BLE-DEVICES-DESIGN.md §2, docs/BLE-STACK.md §9.1):
  *   AD parser  flags, 128-bit UUID lists (complete / incomplete, the BLE-MIDI UUID among others), the complete and the
  *              shortened name (complete wins), a structure that runs past the end, zero padding
  *   table      a BLE-MIDI controller with its name in the scan response, a beacon never listed, a device with the UUID

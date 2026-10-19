@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* Editor protocol v14: notes played from the editor (included by editor.c; web/EDITOR_PROTOCOL.md "v14: playing notes"). INFO tag 0x60 = here.
+/* Editor protocol v14: notes played from the editor (included by editor.c; web/EDITOR_PROTOCOL.md "Notes from the editor"). INFO tag 0x60 = here.
  * The requests run in the main loop; the sound is made in the audio interrupt from a ring of its own (seq/ednote.c: one writer, one reader, no
  * interrupt masked). This file keeps the policy: at most 8 notes held, each with its own end (dur), and the rule that no note hangs: the host quiet
  * for 3 s, USB unconfigured or reset, a track's note-off lost to a full ring (retried) all end the notes.

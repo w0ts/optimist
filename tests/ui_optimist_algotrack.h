@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* tests/ui_optimist_test.c, ALGORITHM is the track and nothing else (docs/UI-OPTIMIST-DESIGN.md section 26; the user,
+/* tests/ui_optimist_test.c, ALGORITHM is the track and nothing else (docs/UI-OPTIMIST-DESIGN.md 2.7 Pages with no track; the user,
  * 2026-10-13: "ALGORITHM moves track - NO. only the track!"). On every screen and in every performance layer a turn moves
  * the walk (MASTER T1 T2 T3 DR, the 16 lanes) and changes no setting, no cursor row, no page; and the controls that had
  * been ALGORITHM's elsewhere work without it: on GLOBAL and SYSTEM SELECT pages and a knob picks its line, on the BLE

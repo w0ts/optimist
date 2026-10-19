@@ -29,7 +29,7 @@ typedef struct {
                                   * before a step, so a spike's own half never counts as what a level saves */
     uint32_t gsum;
     uint32_t steps, early, sheds; /* steps up (early: on a prediction, before the half), voices shed */
-    /* the reactive path (docs/CPU-GUARD.md "Spikes"): late halves among lighter ones, as a busy FM-1 shows them (other
+    /* the reactive path (docs/CPU-GUARD.md "What it does", Reactive path): late halves among lighter ones, as a busy FM-1 shows them (other
      * interrupts, flash cache misses: a half 1.5 x the mean now and then), which neither 8 halves in a row over the ceiling
      * nor a late half after one over it ever catch */
     uint16_t spk;                /* the late halves' leaky count: + CG_SPK_HIT a late half, - 1 a half; CG_SPK_ON reacts */

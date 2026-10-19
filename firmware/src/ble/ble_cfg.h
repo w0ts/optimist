@@ -14,7 +14,7 @@
 /* ---- GAP */
 #ifndef BLE_DEVICE_NAME
 #define BLE_DEVICE_NAME "Optimist"       /* the advertised name and GAP Device Name: "Optimist XXXX", XXXX the last four hex
-                                          * digits of the device address (BLE_NAME_HEX; docs/BLE-DEVICES-DESIGN.md §3.4;
+                                          * digits of the device address (BLE_NAME_HEX; docs/BLE-DEVICES-DESIGN.md §1;
                                           * stock V15's was "FM-1_BLE", Optimist's before 2026-10-16 "FM-1 XXXX"; at most 24 characters; not "Optimist (Felucca)" as the
                                           * USB name: a scanned device's name is kept to BLE_NAME_MAX = 16 characters, which would cut the XXXX; the
                                           * editors match /felucca|optimist/i) */
@@ -121,7 +121,7 @@
 #error "BLE_SMP_SEC_REQ / BLE_MIDI_NEED_ENC need BLE_SMP_LEGACY=1"
 #endif
 
-/* ---- central role, part 1: scanning for the DEVICES list (docs/BLE-DEVICES-DESIGN.md P2, HW §21.2) */
+/* ---- central role, part 1: scanning for the DEVICES list (docs/BLE-STACK.md §9.1, HW §21.2) */
 #ifndef BLE_SCAN_INTERVAL
 #define BLE_SCAN_INTERVAL 64u            /* x 0.625 ms = 40 ms: the channel moves on 37 -> 38 -> 39 every interval */
 #endif
@@ -141,7 +141,7 @@
 #error "BLE_SCAN_RING: a power of two"
 #endif
 
-/* ---- central role, part 2: connecting out (docs/BLE-DEVICES-DESIGN.md P3 / P4, HW §21.3 / §21.4). Our CONNECT_IND:
+/* ---- central role, part 2: connecting out (docs/BLE-STACK.md §9.1, HW §21.3 / §21.4). Our CONNECT_IND:
  * a random access address (Core Vol 6 Part B 2.1.2) and a random CRCInit (the vendor's fixed 0x1983AE is not used),
  * WinSize 2 and WinOffset random in [Interval / 2, Interval - 1] as the vendor (§21.3), Hop random 5..16, all 37
  * channels, and these: */

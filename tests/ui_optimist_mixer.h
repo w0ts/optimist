@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* tests/ui_optimist_test.c, the horizontal mixer (docs/UI-OPTIMIST-DESIGN.md sections 4.1, 11.6), SCOPE, the header's
- * engine and no footer (11.5). Included by ui_optimist_test.c after its helpers. */
+/* tests/ui_optimist_test.c, the horizontal mixer (docs/UI-OPTIMIST-DESIGN.md 4.1 The mixer (HOME)), SCOPE, the header's
+ * engine and no footer (4.10 SCOPE). Included by ui_optimist_test.c after its helpers. */
 #include "../firmware/src/storage/settings_word.c"     /* the settings word (project.c's, not in PROJ_HOST) */
 
 static uint32_t mx_row_y(uint32_t r) { mrect_t q; mx_rect(r, &q); return (uint32_t)(OP_PY + q.y); }   /* row r on the screen */

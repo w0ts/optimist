@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* Cells and the rows made of today's pages (docs/UI-OPTIMIST-DESIGN.md sections 2, 4.3): a row is up to four
+/* Cells and the rows made of today's pages (docs/UI-OPTIMIST-DESIGN.md 2.1 The knobs, 4.3 SOUND): a row is up to four
  * cells, a cell a value a knob turns (by its descriptor: core/params.c TP, GP, the engines' edit[], the drum lanes'
  * DSD), an action YES does, a row YES enters, or a read-out. The SOUND screen's rows are the selected track's
  * PAGES (params.c), in their order, as page_shown and page_for_drum leave them for this track; the drum track's are

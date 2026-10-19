@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* SYSTEM (docs/UI-OPTIMIST-DESIGN.md section 4.7); PROJECT moved to op_prjflow.c (section 4.6). An action cell does
+/* SYSTEM (docs/UI-OPTIMIST-DESIGN.md 4.7 GLOBAL and SYSTEM); PROJECT is op_prjflow.c (4.6 PROJECT). An action cell does
  * nothing when turned: its knob makes it the hot cell, YES does it, and what destroys asks first (op_state.c op_arm). */
 
 #if FELUCCA_BLE
@@ -264,7 +264,7 @@ static void dev_draw(uint32_t y, uint32_t h)
     ui.sig[2] = sig;
     cv_tall(y, h, C_BLACK, dev_paint);
 }
-/* ---- SYSTEM > Bluetooth and Devices, the lines (docs/UI-OPTIMIST-DESIGN.md section 39): STATE in words, the DEVICE the
+/* ---- SYSTEM > Bluetooth and Devices, the lines (docs/UI-OPTIMIST-DESIGN.md 4.7 GLOBAL and SYSTEM): STATE in words, the DEVICE the
  * link is with, MIDI activity, RECONNECT (the list's NONE / LAST) and FORGET LAST. Read from ble_devices.c, nothing new kept
  * but the activity's two counters */
 #define bact bdp.act                                    /* (in the list's drawing state: the list and this line are never both shown) */

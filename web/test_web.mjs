@@ -1406,7 +1406,7 @@ async function editorPages() {
     && html.includes('"data-kind"') && html.includes("--knob-value"), "pages: Sound tab knobs, its title, the drum track's panel, Edit sound from the Mix tab, kind attributes");
 }
 
-/* ------------------------------------- v14: undo / redo, notes, solo (cmds 102..104; web/EDITOR_PROTOCOL.md "v14") --- */
+/* ------------------------------------- v14: undo / redo, notes, solo (cmds 102..104; web/EDITOR_PROTOCOL.md "Undo", "Notes from the editor", "Solo and mute") --- */
 async function editorV14() {
   const C = E.CMD;
   ok(C.UNDO === 102 && C.NOTE === 103 && C.SOLO === 104 && C.STEPLANE === 105, "v14: commands 102 UNDO, 103 NOTE, 104 SOLO, 105 STEPLANE");
@@ -2420,7 +2420,7 @@ async function editorBackup() {
     ok(rep4.some((x) => /section A track 2 uses PHYS: plays ANALOG/.test(x)) && rep4.some((x) => /section A drums use kit DEEP/.test(x)) &&
       E.bkReport({ objects: [{ tag: "S01 ", kind: "sec", data: rawm.subarray(0, 5) }] }, withMot).some((x) => /older format/.test(x)),
       "... a raw record with motion (the project less magic, size and sum): its tracks; a cut chunk does not parse");
-    /* codec B steps (sec_codec.c SEC_RAW | SEC_B, flags 0x11, docs/PATTERNS-DESIGN.md phase 0b): per step a mask of its
+    /* codec B steps (sec_codec.c SEC_RAW | SEC_B, flags 0x11): per step a mask of its
        non-zero bytes (bit 7: a second mask byte, bytes 7..9), then those bytes; codec A records (above) still read */
     const recB = [0x11, 0, 0, 0, 0, 0, 0, 0, 0];
     for (let t = 0; t < 4; t++) {

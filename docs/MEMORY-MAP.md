@@ -1,173 +1,146 @@
-# Memory map of the FM-1 (flash and RAM), and what the free space is for
+# Memory map of the FM-1 (flash and RAM), and the budget
 
-Written 2026-10-08 from the sources at optimist d415e60: `firmware/app.ld`, `firmware/src/storage/storage.c` (its
-flash map comment), `firmware/src/engines/sample/eng_sample.c` (the user sample slots), `firmware/src/seq/undo.c`,
-`tools/build.py` (the limits and checks), and the flash table in docs/SNAPSHOTS.md section 4. For what each feature
-costs, see docs/MEMORY-BUDGET.md and docs/BUILDER.md ("Budget").
-
-The pool and main-RAM moves of 2026-10-12 and 2026-10-13 (engine memory shared per part, the main loop's buffers, the user presets' bank, FM6's cold buffers) are listed with their measured sizes in docs/MEMORY-BUDGET.md section 7; the regions below describe the result.
+State 2026-10-19. Sources: `firmware/app.ld`, `firmware/hal/fm1_flash_map.h`, `firmware/src/storage/storage.c` (its map
+comment), `firmware/src/engines/sample/eng_sample.c`, `firmware/src/seq/undo.c`, `tools/build.py` (limits and checks),
+`tools/builder/core.py` (`LIMITS`, `SPARE`, `FIT_ORDER`). What each feature costs: `tools/builder/costs.json` (measured on
+a build farm, shown in `docs/BUILDER.md`). This file holds no per-feature sizes: they change every week.
 
 The FM-1 has two kinds of memory:
 
-- **Flash, 1 MiB**: permanent, survives power-off. It holds the firmware *and* your data, in separate areas.
-- **RAM, about 500 KiB**: fast working memory, lost at power-off (except NOINIT, which survives a reset).
+- **Flash, 1 MiB**: survives power-off. The firmware and your data live in separate areas.
+- **RAM, about 500 KiB**: lost at power-off, except NOINIT, which survives a reset.
 
 ## 1. Flash (1 MiB)
 
-```
-0x000000 ┌──────────────────────────────┐
-         │ boot                  16 KiB │
-0x004000 ├──────────────────────────────┤
-         │ APP SLOT             568 KiB │  ← the firmware: what the builder sizes
-0x093000 ├──────────────────────────────┤
-         │ free                   8 KiB │  ← the app slot's room to grow
-0x095000 ├──────────────────────────────┤
-         │ FM6 voices (UP_FM6)    8 KiB │  ← the user presets' FM6 voices (free without UP_FM6)
-0x097000 ├──────────────────────────────┤
-         │ YOUR DATA           ~340 KiB │  ← fixed areas, the same whatever you build
-         │ (and a few system areas)     │
-0x100000 └──────────────────────────────┘
-```
-
 | Address | Size | What | Kind |
 |---|---|---|---|
-| 0x000000–0x003FFF | 16 KiB | boot (before the app) | system |
-| 0x004000–0x092FFF | 568 KiB (581,564 B) | **the firmware**: code, built-in samples, fonts, tables; the update loader writes only here | app |
-| 0x093000–0x094FFF | 8 KiB | free: the app slot's room to grow (outside the store's allow-list) | — |
-| 0x095000–0x096FFF | 8 KiB | **the user presets' FM6 voices** with `UP_FM6` (OBJ_UPFM6, A/B), else free | data |
-| 0x097000–0x09EFFF | 32 KiB | **song sections / projects** (the section log, compressed) | data |
-| 0x09F000 | 4 KiB | **autosave**, copy A (the working project: Optimist starts where you left it) | data |
-| 0x0A0000–0x0B3FFF | 80 KiB | **USR1** user sample slot | data |
-| 0x0B4000–0x0C7FFF | 80 KiB | **USR2** user sample slot | data |
-| 0x0C8000– … | the rest, see 1.1 | **USR3** user sample slot | data |
-| … –0x0D7FFF | (SNAPSHOTS + 4) × 4 KiB | **snapshots** (whole-state slots), from USR3's end | data |
-| (just below the snapshots) | 8 KiB | the CZ tone collection, only with NATIVE_BANKS and the CZ engine | data |
-| 0x0D8000–0x0D9FFF | 8 KiB | **FM6 user bank** | data |
-| 0x0DA000–0x0DBFFF | 8 KiB | **user drum kits** | data |
-| 0x0DC000–0x0DFFFF | 16 KiB | **user presets** | data |
-| 0x0E0000–0x0E4FFF | 20 KiB | firmware update staging | system |
-| 0x0E5000–0x0E6FFF | 8 KiB | **drum records** of the projects | data |
-| 0x0E7000 | 4 KiB | retired: `UP_FM6`'s old copy A (before fix/upfm6-off-vm), read once at start to move the voices, **never written** | — |
+| 0x000000-0x003FFF | 16 KiB | boot | system |
+| 0x004000-0x092FFF | 568 KiB (581,564 B) | **the firmware** (code, built-in samples, fonts, tables); the update loader writes only here | app |
+| 0x093000-0x094FFF | 8 KiB | free: the app slot's room to grow | - |
+| 0x095000-0x096FFF | 8 KiB | the user presets' FM6 voices with `UP_FM6` (OBJ_UPFM6, A/B), else free | data |
+| 0x097000-0x09EFFF | 32 KiB | song sections / projects (the section log, compressed) | data |
+| 0x09F000 | 4 KiB | autosave, copy A (the working project) | data |
+| 0x0A0000-0x0B3FFF | 80 KiB | USR1 user sample slot | data |
+| 0x0B4000-0x0C7FFF | 80 KiB | USR2 user sample slot | data |
+| 0x0C8000-... | see 1.1 | USR3 user sample slot, then the snapshots (and the CZ collection) | data |
+| 0x0D8000-0x0D9FFF | 8 KiB | the retired FM6 user bank (dropped 2026-10-18; unused) | - |
+| 0x0DA000-0x0DBFFF | 8 KiB | user drum kits | data |
+| 0x0DC000-0x0DFFFF | 16 KiB | user presets | data |
+| 0x0E0000-0x0E4FFF | 20 KiB | firmware update staging | system |
+| 0x0E5000-0x0E6FFF | 8 KiB | drum records of the projects | data |
+| 0x0E7000 | 4 KiB | retired `UP_FM6` copy A; read once at start to move the voices, **never written** | - |
 | 0x0E8000 | 4 KiB | **SDK VM (stock settings, RF calibration): never written** | system |
-| 0x0E9000 | 4 KiB | SDK (BTIF) | system |
-| 0x0EA000–0x0FBFFF | 72 KiB | the package's SDK "USR" region: unused (never written), and the stock firmware's restore wipes it | — |
-| 0x0FC000–0x0FEFFF | 12 KiB | **settings A/B, autosave copy B** | data |
-| 0x0FF000 | 4 KiB | SDK (key_mac): never written | system |
+| 0x0E9000 | 4 KiB | SDK BTIF: never written | system |
+| 0x0EA000-0x0FBFFF | 72 KiB | the SDK's USR region: never written; the stock firmware's restore wipes it | - |
+| 0x0FC000-0x0FEFFF | 12 KiB | settings A/B, autosave copy B | data |
+| 0x0FF000 | 4 KiB | SDK key_mac: never written | system |
 
-**USR1, USR2, USR3** are the three user sample slots: samples loaded from the web editor, played by the SAMPLE engine
-and by SLICE (its sources USR1..USR3).
+Your data is about 340 KiB in fixed areas, the same for every build. The one build setting that moves space between
+them is `SNAPSHOTS` (with the CZ collection), which trades USR3 sample space for snapshots.
 
-### 1.1 USR3 and the snapshots share 64 KiB
+### 1.1 USR3, the snapshots and the CZ collection
 
-The snapshot area (`SN_SECTORS` = SNAPSHOTS + 4 sectors: one per slot, one for BEFORE LOAD, three spare) is taken from
-the end of USR3, and so is the CZ collection (2 sectors) when it is built (`SMP_USR3_END` in eng_sample.c):
+The snapshot area (`SN_SECTORS` = SNAPSHOTS + 4 sectors of 4 KiB: one per slot, one for BEFORE LOAD, three spare) is
+carved from the end of USR3, and so is the CZ collection (2 sectors, only with `NATIVE_BANKS` and the CZ engine):
+`SMP_USR3_END` in `eng_sample.c`. Without either, USR3 holds 64 KiB.
 
-| SNAPSHOTS | snapshot area | USR3 left | USR3 left with the CZ collection |
+| SNAPSHOTS | snapshot area | USR3 left | with the CZ collection |
 |---|---|---|---|
 | 0 | 0 | 64 KiB | 56 KiB |
-| 4 (the default) | 32 KiB | 32 KiB | 24 KiB |
+| 4 (default) | 32 KiB | 32 KiB | 24 KiB |
 | 8 | 48 KiB | 16 KiB | 8 KiB |
 
 A longer USR3 sample written before reads as empty.
 
-### 1.2 What Optimist never writes: the stock firmware's SDK VM
+### 1.2 What Optimist never writes
 
-The stock firmware keeps its SDK VM at **0xE8000**: its own settings and the radio calibration, a record log after
-the magic `55 AA AA 55` [measured on an FM-1 with stock V15, 2026-10-08: records 106/107/187/108/113/109, all CRCs
-valid]. Until fix/upfm6-off-vm, `UP_FM6` kept the FM6 voices in two copies at 0xE7000 and 0xE8000, so a save could
-erase that VM. The voices now live at 0x95000–0x96FFF (0x93000–0x94FFF stays free, the app slot's room to grow), and nothing of Optimist writes the SDK's sectors again:
+`firmware/hal/fm1_flash_map.h` holds the map. `FL_NEVER` (0xE7000-0xFBFFF and 0xFF000-) is refused even where an
+allow-list says yes: by the store (`storage.c` `st_save`, `felucca.c` `st_erase` / `st_prog`) and, for `FL_SDK_SYS`
+(0xE7000-0xE9FFF and key_mac), by the RAM flash driver itself (`fm1_flash.h`), the update loader included. Static asserts
+in `storage.c`, `drum_store.c`, `sec_log.c`, `snap_store.c` and `ota.c` check that every fixed object is inside the
+store's allow-list and off the SDK's sectors; `tests/upfm6_move_test.c` checks every sector of the map.
 
-- `firmware/hal/fm1_flash_map.h` holds the map. `FL_NEVER` (0xE7000–0xFBFFF: the retired sector, the SDK VM, BTIF,
-  the SDK's USR; 0xFF000–: key_mac) is refused even where an allow-list would say yes, by the store (`storage.c`
-  `st_save`, `felucca.c` `st_erase` / `st_prog`) and, for `FL_SDK_SYS` (0xE7000–0xE9FFF and key_mac), by the RAM flash
-  driver itself (`fm1_flash.h` `fl_erase4k_ram` / `fl_prog_ram`), the update loader included.
-- The build checks it (`_Static_assert` in storage.c, drum_store.c, sec_log.c, snap_store.c, ota.c): every fixed
-  object, the drum records, the section log, the snapshot area, the user sample slots and the update staging are
-  inside the store's allow-list and off the SDK's sectors. `tests/upfm6_move_test.c` checks every sector of the map.
-- **The move**: at start (`storage.c` `st_upf_move`, from `upreset.c` `up_boot`), when 0x95000 / 0x96000 hold no
-  valid voices object, the newest valid one of the old copies (0xE7000 or 0xE8000) is copied there. Only an object of
-  ours is taken (FELU, type OBJ_UPFM6, the copy it was written to, both CRCs, "UPF6" in it), never the SDK VM. The old
-  sectors are only read. An object of ours found at 0xE8000 already took the VM's place: it is left there (erasing it
-  restores nothing; the stock firmware rebuilds its VM when it runs).
+The stock firmware keeps its VM at **0xE8000** (its settings and the radio calibration, a record log after the magic
+`55 AA AA 55`; seen on an FM-1 with V15). Until `fix/upfm6-off-vm`, `UP_FM6` stored the FM6 voices at 0xE7000 and 0xE8000.
+They now live at 0x95000-0x96FFF. At start (`storage.c` `st_upf_move`, from `upreset.c`), when 0x95000 holds no valid
+voices object, the newest valid old copy of ours (FELU, OBJ_UPFM6, both CRCs, "UPF6") is copied there; the old sectors
+are only read.
 
-What each path does at 0x95000–0x96FFF (and at the app's room, 0x93000–0x94FFF):
+Who writes near the app slot: the update loader writes only [0x4000, 0x93000), and its record sweep
+(`ldr_records_drop`) never erases 0xE7000-0xE9FFF or a sector that starts with a valid object of ours (`tests/ldr_test.c`);
+the package `flash.bin` is [0, 0x93000) (`fm1pkg_make.py` `FLASH_SIZE`); `tools/fm1_rescue.py` writes only the sectors of
+[0x4000, 0x93000) that differ from V15; the web installer and `tools/fm1_install.py` write nothing themselves. Back to
+stock V15: the stock loader writes V15's 0x93000 B; on the unit measured 0x93000-0x96FFF read all FF afterwards, so the
+voices probably survive, but the stock SDK may place its VM anywhere it sees as free.
 
-| Path | Writes there? |
-|---|---|
-| the update loader (`firmware/loader`, `ldr_core.c`) | writes only the app area [0x4000, 0x93000). Its record sweep (`ldr_records_drop`) erases a sector of [0x93000, 0xFC000) (the app's room included) whose last 256 B hold a valid update record ("TA" tag and CRC16), but never one of 0xE7000–0xE9FFF, and never a sector that starts with a valid object of ours ("FELU" and its header CRC-32): the voices object ends at +0xF08, so 8 of its payload bytes sit where a record would be, and a valid copy is never taken for one (`tests/ldr_test.c`, the sweep). Only a copy cut before its header was written (no valid data) could still match, ~2^-32 |
-| the package (`tools/fm1pkg_make.py`) | `flash.bin` is [0, 0x93000) (`FLASH_SIZE`); a larger app area is refused |
-| the web installer (`web/fm1ota.js`) and `tools/fm1_install.py` | write nothing themselves: they serve the package to the firmware (step 1: the loader staged at 0xE0000–0xE4FFF, ota.c) and to the loader |
-| `tools/fm1_rescue.py` | writes only the 4 KiB sectors of [0x4000, 0x93000) that differ from V15; it reads the whole flash for its backup |
-| back to stock V15 | Optimist stages the stock update loader (`usb_hid_ota.bin`) at 0xE0000–0xE4FFF and that loader writes the V15 package: its `flash.bin` is 0x93000 B (its last data byte 0x92DD3); its other entries are the SDK USR area (0xEA000–) and the loader; 699,936 B is the whole package, not the flash image. On the unit measured, 0x93000–0x96FFF read all FF after V15 had run. So the voices likely survive a trip to stock, but this is not guaranteed: the stock SDK may stage its update or place its VM anywhere in the space it sees as free (its package's VM region starts at 0x93000), as for all of Optimist's data |
+**SLOOP 2.4** [inferred from its sources]: its USR4 sample slot runs 0xE7000-0xFAFFF, over the SDK VM, BTIF and USR. That is
+2.4's behaviour, not ours; our guard for 2.4 (`sl24_guard.c` `st_keep_sample`) only reads and marks sectors as kept.
 
-**SLOOP 2.4 and the SDK VM** [inferred from 2.4's sources, not measured]: 2.4's USR4 user sample slot runs from
-0xE7000 to 0xFAFFF, over the SDK VM, BTIF and the SDK's USR area, so a 2.4 user who loaded a long USR4 sample lost the
-stock firmware's VM there. That is 2.4's behaviour, not Optimist's. Optimist's guard for 2.4 (`sl24_guard.c`
-`st_keep_sample`) only reads that sample's header and marks its sectors as kept: it never writes there.
-
-**The app slot's room to grow**: until now 0x93000–0x96FFF (16 KiB) was free right after the slot. The FM6 voices take
-its last 8 KiB (0x95000–0x96FFF), so the slot keeps 8 KiB of contiguous room to grow, 0x93000–0x94FFF; growing past it
-means moving the voices (`storage.c` asserts they start 8 KiB past the slot). Growing into the room also means moving
-`FLASH_SIZE` (fm1pkg_make.py, which asserts it stays below 0x95000), the loader's `LDR_APP_HI` and the rescue tool's
-`APP_END` together. Nothing in `tools/build.py` counted on that room: its budget is the slot itself (`APP_SLOT`, 581,564 B),
-and the package, the loader and the rescue tool stop at 0x93000.
+**The app slot's room to grow** is 0x93000-0x94FFF (8 KiB). Using it means moving `FLASH_SIZE` (`fm1pkg_make.py`, which
+asserts it stays below 0x95000), the loader's `LDR_APP_HI` and the rescue tool's `APP_END` together, and moving the voices.
 
 ## 2. RAM
 
-RAM and POOL are one contiguous SRAM address range (0x01C08000..0x01C74000) split by app.ld [inferred: the stock
-firmware places its own data across the boundary, e.g. the BLE baseband at 0x01C26480; no datasheet]. The split
-budgets main RAM, the scarcer (`.data` + `.bss`, what builder items add to), against the pool. A buffer the main loop
-alone uses can live in either; moving one changes neither flash nor the undo total (the ring takes main RAM and pool
-alike). Whether the FM-1 reads both parts at the same speed is not measured: the emulator has no memory timing (one
-issue per instruction, one flat SRAM): the tables the audio loops read (TAB_RAM) stay in main RAM unless the builder's
-EXPERIMENTAL `TAB_IN_POOL` moves them, and the CDC console's `tabbench` times one loop over SINE, main RAM and the pool
-on the FM-1 to settle it.
+RAM and POOL are one contiguous SRAM range (0x01C08000-0x01C74000) split by `app.ld` [the stock firmware places data
+across the boundary; no datasheet]. Main RAM is the scarcer. A buffer only the main loop uses can go to the pool with
+`IN_POOL` (`core.h`); moving one changes neither flash nor the undo total. Whether the FM-1 reads both at the same speed
+is unmeasured (the emulator has no memory timing); the audio loops' tables (`TAB_RAM`) stay in main RAM unless the
+EXPERIMENTAL `TAB_IN_POOL` moves them, and the console's `tabbench` times SINE in main RAM against the pool.
 
-| Region (app.ld) | Size | What is in it | The part nothing is linked into |
-|---|---|---|---|
-| **RAMTEXT** 0x01C00000 | 32,512 B | the audio path copied from flash at boot (`.ram_text`, `.ram_hot`): faster than running from flash | spare for more of the audio path |
-| **RAM** 0x01C08000 | 96 KiB | the firmware's variables (`.data` + `.bss`) | **the undo history** |
-| **POOL** 0x01C20000 | 336 KiB | first `.pool_init`: with `TAB_IN_POOL` (EXPERIMENTAL) the TAB_RAM tables (SINE, TANH_Q15, GRAIN's window), copied from flash at boot (main.c, after .data), else empty; then big zeroed buffers (`.pool`): delay line, reverbs, FM6 voices, USB audio rings, the section stage, and the main loop's buffers marked `IN_POOL` (core.h: the user presets' bank, proj_tmp, st_buf, proj_v3_tmp, the editor's v9 shadows and reply buffer, undo, the section log's index) | the last 8 KiB are always kept free (`build.py`; the reason is not documented); the rest: **the undo history** |
-| stacks 0x01C74000 | 32 KiB | the two CPU stacks (user 0x01C74100–0x01C7A000, system 0x01C7A100–0x01C7C000), each after a guard word | fixed |
-| **NOINIT** 0x01C7C000 | 15,696 B | survives a reset (not a power-off): the pending arena (sections saved while playing, waiting to be written to flash once the transport stops, since a flash write stops the audio), the panel table and settings, the boot guard, the crash / debug record; with SECTIONS=4 the four project slots | fixed |
+| Region (app.ld) | Size | What |
+|---|---|---|
+| RAMTEXT 0x01C00000 | 32,512 B | the audio path copied from flash at boot: `.ram_text` (flash driver, CPU1 spin loop) and `.ram_hot` (`HOT`: the mix, drums, most engines) |
+| RAM 0x01C08000 | 96 KiB | `.ram_hot2` (`HOT2`: code that no longer fits RAMTEXT, mostly FX), `.data`, `.bss` |
+| POOL 0x01C20000 | 336 KiB (344,064 B) | `.pool_init` (with `TAB_IN_POOL`: the TAB_RAM tables, copied at boot), then `.pool`: delay line, reverbs, engine memory shared per part, USB audio rings, slicer and punch buffers, the screen canvas, the main loop's `IN_POOL` buffers |
+| stacks 0x01C74000 | 32 KiB | user 0x01C74100-0x01C7A000 and system 0x01C7A100-0x01C7C000, each after a guard band; CPU1's stack is in the pool |
+| NOINIT 0x01C7C000 | 15,696 B | survives a reset: the pending arena (sections saved while playing, written when the transport stops), panel table and settings, boot guard, crash record, with SECTIONS=4 the project slots |
 
 ### 2.1 Free RAM is the undo history
 
-`undo.c` (FELUCCA_UNDO_HISTORY 1, the default) keeps its ring in the memory nothing else is linked into
-(`_undo_*` in app.ld): the pool after `.pool` up to its last 8 KiB, then main RAM after `.bss`. Its size follows the
-build: a feature that takes RAM or pool takes undo levels away. A level keeps only the steps that changed (10 bytes
-each, plus a small header) [estimate: a whole 64-step track rewritten is about 650 B]. `build.py` refuses a build
-whose ring is under 1 KiB (then build FELUCCA_UNDO_HISTORY=0, the single level of SLOOP 2.x); `FELUCCA_UNDO_CAP`
-caps it. The builder's Reserve items keep a minimum of it (and of free app flash) so a configuration cannot fill the device to the last byte: `RESERVE_UNDO_KB` makes the estimate warn and `tools/build.py` refuse a ring below it (docs/BUILDER.md, Reserve).
-
-Free **app flash** is not used by anything: it is the room to add features. Your saves never use it.
+`undo.c` (`FELUCCA_UNDO_HISTORY`, default 1) keeps its ring in the memory nothing else is linked into (`_undo_*` in
+`app.ld`): the pool after `.pool` up to its last 8 KiB, then main RAM after `.bss`. A feature that takes RAM or pool takes
+undo levels away. A level keeps only changed steps (10 B each plus a header) [estimate: a rewritten 64-step track is about
+650 B]. The ring is `(98,304 - RAM) + (344,064 - 8,192 - pool)`. `FELUCCA_UNDO_CAP` caps it. The builder's Reserve items
+(`RESERVE_UNDO_KB`, `RESERVE_FLASH_KB`) keep a minimum of ring and of free app flash. Free **app flash** is only room for
+features; saves never use it.
 
 ### 2.2 Cache RAM (EXPERIMENTAL `CACHE_RAM`, off by default)
 
-The chip's caches have their own memory: 8 instruction-cache ways at 0x01F20000 and 8 data-cache ways at
-0x01F28000, 4 KiB each. M-VAVE's FM-1 firmware (V15) keeps one data way as a cache and uses the other seven
-(0x01F28000..0x01F2F000, 28 KiB) as RAM, as the AC79 SDK does for a flash-only build whose SDRAM is never switched on (`cpu/wl82/sdk_ld_sfc.c`
-FREE_DACHE_WAY = 7; 0 in its SDRAM link); V15 itself puts only 32 bytes there. With the builder's `CACHE_RAM` Optimist does the same at
-start-up (`hal/fm1_cache.h`: the SDK's sequence, from RAM, before CPU1 and the interrupts), tests the 28 KiB and, when
-the test passes, gives them to the undo history in place of main RAM's leftover (`.cache_ram` in app.ld is empty: an
-object placed there must check `fm1_cache_ram_ok()`). On a failed test the way masks are put back and nothing uses it.
-Not known yet [unmeasured]: whether the FM-1 reads flash constants through the data cache (then keeping one data way
-could cost the audio CPU: the CDC console's `tabbench` "flash 16K" line, with the item off and on, settles it), and
-whether the cache RAM can be used by DMA or by CPU1 (nothing there uses either). The emulator maps the whole 64 KiB as
-plain RAM and has no cache timing.
+The chip has 8 instruction-cache ways at 0x01F20000 and 8 data-cache ways at 0x01F28000, 4 KiB each. V15 keeps one data way
+as cache and uses the other seven (0x01F28000-0x01F2F000, 28 KiB) as RAM, as the AC79 SDK does for a flash-only build. With
+`CACHE_RAM`, `hal/fm1_cache.h` does the same at start-up (the SDK's sequence, from RAM, before CPU1 and the interrupts),
+tests the 28 KiB, and on a pass gives them to the undo ring in place of main RAM's leftover (`.cache_ram` is empty; an
+object placed there must check `fm1_cache_ram_ok()`). On a failed test the way masks are put back. The builder offers 2, 4 or 7 ways
+(8, 16, 28 KB). **Measured on one FM-1 (2026-10-18, `registry.py` `CACHE_RAM`):** the boot test passes and cache RAM is as
+fast as main RAM, but flash data reads over 16 KB are 57 times slower (1.7 us against 32 ns), because flash data goes
+through the data cache and only 4 KB is left; so it stays off. Not known: whether DMA or CPU1 can use the memory.
 
-## 3. Two builds, measured
+## 3. The budget
 
-| Build | Flash app (of 581,564) | Main RAM (of 98,304) | Pool (of 344,064) | RAM code (of 32,512) | Undo ring |
-|---|---|---|---|---|---|
-| user-default, d415e60 | 578,972 (2,592 free) | 80,728 | 307,376 | 30,744 | ≈ 46 KiB |
-| the user's "mots" config, a1b2366 | 499,736 (81,828 free) | 97,240 | 304,396 | 29,512 | ≈ 32.5 KiB |
+**Limits** (`tools/builder/core.py` `LIMITS`, `tools/build.py`): app flash 581,564 B; main RAM 98,304 B; pool 344,064 B
+with 8,192 B always kept spare (`SPARE`; the reason is not documented); RAMTEXT 32,512 B. The builder's estimate adds a
+margin (`FIT_MARGIN`: flash 1,024 B, RAM 512 B, RAMTEXT 256 B).
 
-Undo ring = (98,304 − RAM) + (344,064 − 8,192 − pool).
+**What `tools/build.py` refuses:** an image over the app slot; main RAM over 96 KiB; less than 8,192 B of pool spare;
+RAMTEXT over 32,512 B; an undo ring under 1,408 B (then build `FELUCCA_UNDO_HISTORY=0`, the single level of SLOOP 2.x);
+a ring or free flash under the Reserve the user asked for; a direct call between RAM code and XIP code (`HOT` code calls
+other `HOT` code directly and XIP code only through a pointer, `FAR`); a reference to a ROM address. It also prints the
+region sizes and the ring on every build.
 
-## 4. In short
+**Where the bytes go** (shape, not numbers): the built-in sample sets are about half the image (PERC, the GM kit, cannot be
+left out; other sets can, with `SAMPLES_SKIP`, and can still be uploaded to USR1-3); then fonts, the UI, FM6, the drums, the
+sequencer, the FX buses. The pool is mostly the delay line (default 128 KB), the punch ring (64 KB), the screen canvas
+(about 58 KB), the slicer (32 KB), engine memory (shared per part), and USB audio's rings (12 KB). Removing an item
+removes its code, RAM and pool together.
 
-- The builder sizes **only the firmware**: the app slot, and the RAM, pool and RAM code it needs.
-- **Your data lives in fixed flash areas** (about 340 KiB), the same for every build. The one build setting that
-  moves space between them is SNAPSHOTS (and the CZ collection), which trades USR3 sample space for snapshots.
-- **Free RAM and pool become undo levels; free app flash is room for features.**
+**Fitting order** (`FIT_ORDER`, the builder's "fit" drops these, least loss first, until the estimate fits): ENG_SLICE,
+then `DLY_LEN` 32768 (0.74 s; saves 64 KB of pool; a 1/4-note delay needs 81 BPM or more), `PUNCH_N` 16384 (saves 32 KB),
+`SL_LEN` 2048 (saves 16 KB), the LOFI, FORMANT, PHASE and DRAWBAR engines, the SCRCH, STRGS and HORNS sample sets, and
+last `LCD_DIRTY`. PERC is never dropped. Other levers measured earlier (sizes from 2026-10-05, order of magnitude only):
+parameter icons off about 5.6 KB; FM6's black-key editor about 5.4 KB; a sample set 20-44 KB; USB audio and the console off
+about 2.5 KB of flash and 12 KB of pool; OTA off 12.8 KB (not an option: it is the update path).
+
+**What runs from RAM:** `.ram_hot` holds `mix_block`, the drum mix, the buses, ANALOG 2 with its asm kernels, FORMANT,
+DIGITAL, TRIO, PHASE, WHEEL, SAMPLE and LOFI; FM6 and GRAIN run from XIP. The reverb and some FX code that did not fit
+RAMTEXT is `HOT2` (main RAM). The emulator has no cache or flash waits, so the placement is judged on the FM-1. An
+`FELUCCA_ASM_CHECK` build keeps everything in XIP.

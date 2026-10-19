@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The console's `blell` (docs/BLE-STACK.md §12.7): ble_diag.h's counters, the link layer's state and, on the FM-1, the
+/* The console's `blell` (docs/BLE-STACK.md §11): ble_diag.h's counters, the link layer's state and, on the FM-1, the
  * engine's registers, one "key value" line each in the console's style. Included after ble_ll.c (it reads bll). */
 #include "ble_diag.h"
 
@@ -388,7 +388,7 @@ static void bd_midi(ble_diag_put put, const struct ble_diag *d)
 }
 
 #if BLE_CENTRAL
-/* scanning (ble_dgs: the driver's and the link layer's counters; docs/BLE-DEVICES-DESIGN.md P2) */
+/* scanning (ble_dgs: the driver's and the link layer's counters; docs/BLE-STACK.md §9.1) */
 static void bd_scan(ble_diag_put put)
 {
     const struct ble_diag_scan *s = &ble_dgs;
@@ -418,7 +418,7 @@ static void bd_scan(ble_diag_put put)
     bd_kv(put, "scan_last_tog", s->last_tog);
 }
 
-/* connecting out (ble_dgc; docs/BLE-DEVICES-DESIGN.md P3 / P4, HW §21.9 C3-C6): a step that stops shows where */
+/* connecting out (ble_dgc; docs/BLE-DEVICES-DESIGN.md §4, HW §21.9 C3-C6): a step that stops shows where */
 static void bd_central(ble_diag_put put)
 {
     const struct ble_diag_central *c = &ble_dgc;
@@ -523,7 +523,7 @@ static void bd_central(ble_diag_put put)
 }
 #endif
 
-/* everything, in the order docs/BLE-STACK.md §12.7 lists it; r: the engine's registers (r->valid 0: none) */
+/* everything, in this order (docs/BLE-STACK.md §11 names the first fields to read); r: the engine's registers (r->valid 0: none) */
 static void ble_diag_print(ble_diag_put put, const struct ble_diag_regs *r)
 {
     const struct ble_diag *d = &ble_dg;

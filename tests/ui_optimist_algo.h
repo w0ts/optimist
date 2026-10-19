@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* tests/ui_optimist_test.c, the user's requests of 2026-10-12 (docs/UI-OPTIMIST-DESIGN.md section 2.4):
+/* tests/ui_optimist_test.c, the user's requests of 2026-10-12 (docs/UI-OPTIMIST-DESIGN.md 2.7 Pages with no track):
  *   "the algo button should work the same on all pages, master (if it makes sense), t1, t2,t3,t4 and then individual
  *   drum lanes (if it makes sense)", then "i want uniformity": one walk, the mixer's order MASTER T1 T2 T3 DR and the
  *   16 lanes, the same on every page and layer

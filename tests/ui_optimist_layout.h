@@ -1,4 +1,4 @@
-/* Layout and empties (batch D of the 2026-10-14 coherence audit; docs/UI-OPTIMIST-DESIGN.md section 33), every screen walked
+/* Layout and empties (batch D of the 2026-10-14 coherence audit; docs/UI-OPTIMIST-DESIGN.md 3.6 Empties and geometry), every screen walked
  * as tests/ui_optimist_names.h walks it (every engine on a synth track, the drum track and each lane, STEP's pages and a held
  * step's, the mixer's sets, the master FX, PROJECT, SONG, TEMPO, SCOPE, the layers, NAME):
  *   #7   one rule for "nothing": a knob with no parameter is its frame alone (no label, no value, no dash); a parameter

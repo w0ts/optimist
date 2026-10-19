@@ -1,4 +1,4 @@
-/* Geometry (batch B of the 2026-10-14 coherence audit; docs/UI-OPTIMIST-DESIGN.md section 34; the style guide's sections
+/* Geometry (batch B of the 2026-10-14 coherence audit; docs/UI-OPTIMIST-DESIGN.md 3.6 Empties and geometry, 12 The help line; the style guide's sections
  * 3, 5, 8, 9):
  *   #6   the help band: with the help line built, the screen's last OP_FOOT rows are the line's alone. No blit but the
  *        line's own (0, OP_FOOT_Y, 240 x OP_FOOT) reaches them in the whole run (every test before this one, the walk

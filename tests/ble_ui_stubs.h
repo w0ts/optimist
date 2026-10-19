@@ -6,7 +6,7 @@
 #ifndef TEST_BLE_UI_STUBS_H
 #define TEST_BLE_UI_STUBS_H
 #if FELUCCA_BLE
-static uint8_t ble_on, ble_link;               /* (the radio, firmware/src/io/midi/midi_ble.c: HOME > BLUETOOTH) */
+static uint8_t ble_on, ble_link;               /* (the radio, firmware/src/io/midi/midi_ble.c: SYSTEM > Bluetooth) */
 static uint32_t ble_sets;
 static uint8_t ble_up = 1;                       /* (the radio started this boot: midi_ble.c) */
 static volatile uint32_t bmi_w, bmo_w;           /* (midi_ble.c: BLE MIDI in queued, out queued: the activity) */

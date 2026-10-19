@@ -131,7 +131,7 @@ static void con_flr(const char *p)                  /* flash read over SPI (no X
 #endif
 
 #if FELUCCA_BLE
-/* the radio's stored calibration (midi_ble.c, ble/ble_vm.c; docs/BLE-HW-FACTS.md §14, §18): read only */
+/* the radio's stored calibration (midi_ble.c, ble/ble_vm.c; docs/BLE-HW-FACTS.md §14, §15.4; docs/BLE-STACK.md §8.2): read only */
 static void con_bytes(const char *k, const uint8_t *d, uint32_t n)   /* "key: XX XX ..", 16 a line */
 {
     uint32_t i;
@@ -295,7 +295,7 @@ static void con_bletrim(void)                       /* what the radio uses, Opti
 #if FELUCCA_BLE && BLE_DIAG       /* FELUCCA_BLE_DIAG (builder item BLE_DIAG): without it no blell, no counters, no rings */
 #include "../ble/ble_diag.c"           /* blell: the link layer's counters (ble/ble_diag.h) */
 
-/* blell: link-layer diagnostics, RAM only (docs/BLE-STACK.md §12.7); 'blell clear' zeroes the counters; 'blell regs'
+/* blell: link-layer diagnostics, RAM only (docs/BLE-STACK.md §11); 'blell clear' zeroes the counters; 'blell regs'
  * adds the engine's registers and columns (op 2 reads: on request only, never from the start path or an interrupt) */
 static void con_blell(const char *p)
 {
@@ -561,7 +561,7 @@ static void con_dbg(void)
     for (i = 0; i < sizeof NAMES / sizeof NAMES[0] && i < sizeof felucca_dbg / 4u; i++)
         con_kx(NAMES[i], w[i]);
 #if FELUCCA_BLE && BLE_HW_WL82
-    /* the BLE breadcrumb before the last reset (hal/fm1_ble_rf.h, docs/BLE-STACK.md §12.8): 0xB1 SS GG RR, SS the
+    /* the BLE breadcrumb before the last reset (hal/fm1_ble_rf.h, docs/BLE-STACK.md §11, "The BLE breadcrumb"): 0xB1 SS GG RR, SS the
      * BLUETOOTH ON step, GG rf_ops / 256 and RR the rf_init group; then the BLE interrupts taken since that ON; then
      * rf_init's op, its index in the group and the last register access begun */
     con_kx("prev_ble", fm1_ble_bc.prev);

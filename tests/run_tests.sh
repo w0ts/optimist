@@ -416,7 +416,7 @@ job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src $SL24_ON $SEC4 -o "$OUT/sl24_seq_test" tests/sl24_seq_test.c -lm
     run "SLOOP 2.4 sequencer backports (each switch on): DIV 1/2..2BAR, delay 1/8D 1/16D, micro timing, fills, parameter locks (beside motion)" "$OUT/sl24_seq_test"
 ) >"$U.out" 2>&1 & jobbg
-# the automation store (docs/UI-OPTIMIST-DESIGN.md 6, phase 3): the int8 check, a render equal to 2907501's, the store
+# the automation store (docs/UI-OPTIMIST-DESIGN.md 7 The automation store): the int8 check, a render equal to 2907501's, the store
 job; ( jobin
     $CC -O1 -w -I"$HGEN" -Ifirmware/src $SEC4 -DFELUCCA_ENG_PHYS=1 -DFELUCCA_ENG_ACID=1 -DFELUCCA_ENG_CZ=1 -DFELUCCA_MOTION=1 -DFELUCCA_PLOCK=1 -DFELUCCA_MICRO=1 -DFELUCCA_FILLS=1 -DFELUCCA_TRK_FILT=1 -DFELUCCA_CHORDPLUS=1 -o "$OUT/auto_int8_check" tests/auto_int8_check.c -lm
     run "the automation store's int8 check: every lockable / recordable value (TP[], every engine's EDIT) fits a signed byte" "$OUT/auto_int8_check"
@@ -1385,7 +1385,7 @@ job; ( jobin
     $CC -O1 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_CPU_GUARD=1 -DFELUCCA_ENG_ACID=1 -o "$OUT/cpuguard_test" tests/cpuguard_test.c -lm
     run "CPU guard: cost model, prediction, hysteresis, what each level eases, never the bass or lead; the reactive path (late halves among light ones)" "$OUT/cpuguard_test"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src $(python3 tools/config_flags.py tests/profiles/mots-like.config) -o "$OUT/overload_stress" tests/overload_stress.c -lm
-    run "overload stress (a measurement, docs/CPU-GUARD.md Spikes): per-half costs while chords are played, the guard with and without its reactive path" "$OUT/overload_stress" 10
+    run "overload stress (a measurement, docs/CPU-GUARD.md, the reactive path): per-half costs while chords are played, the guard with and without its reactive path" "$OUT/overload_stress" 10
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O1 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_CPU_GUARD=1 -DFELUCCA_ENG_ACID=1 $INSFX_ON -o "$OUT/cpuguard_ifx_test" tests/cpuguard_test.c -lm

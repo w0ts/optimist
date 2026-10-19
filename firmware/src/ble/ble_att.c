@@ -2,7 +2,7 @@
 /* The ATT server (Core Specification Vol 3 Part F) over a static GATT database (Part G), and the BLE-MIDI
  * service's data path.
  *
- * Handles (fixed: Service Changed is never indicated, the database never changes while we run; docs/BLE-STACK.md 11.10):
+ * Handles (fixed: Service Changed is never indicated, the database never changes while we run; docs/BLE-STACK.md §5):
  *    1  GAP service 0x1800           2,3 Device Name (read)     4,5 Appearance (read)
  *    6,7 Peripheral Preferred Connection Parameters (read)
  *    8  GATT service 0x1801          9,10 Service Changed (indicate)   11 its CCCD

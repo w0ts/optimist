@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The held performance layers (docs/UI-OPTIMIST-DESIGN.md section 4.9, phase 4): a page button held, its keys and
+/* The held performance layers (docs/UI-OPTIMIST-DESIGN.md 4.9 The performance layers): a page button held, its keys and
  * knobs change job and the screen shows their map (op_laydraw.c: 16 tiles for the white keys, the knobs' four
  * cells); tapped, the button still opens its rows (op_input.c). The keys' part runs in the audio ISR as for SLOOP's
  * UI (seq.c layer_now: FX punch-in, EDIT erase, ARP note repeat), the others reach the UI through seq.c lk_q:
@@ -741,7 +741,7 @@ static int lay_knobs(void)
     if ((s = panel_enc(EN_SELECT)) != 0) {
         turned = 1;
         if (lay_is(LY_OPS))
-            fm6_lay_select(s);                          /* ENV held on FM6: its pages (section 2's paging rule) */
+            fm6_lay_select(s);                          /* ENV held on FM6: its pages (docs/UI-OPTIMIST-DESIGN.md 2.4 Paging) */
     }
     return 1 + (int)turned;
 }

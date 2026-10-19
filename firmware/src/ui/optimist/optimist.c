@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The Optimist UI, phases 1, 2 and 4 of docs/UI-OPTIMIST-DESIGN.md: the skeleton, STEP, the
+/* The Optimist UI, docs/UI-OPTIMIST-DESIGN.md 1.2 The code: the skeleton, STEP, the
  * layers, TEMPO and SONG. Every screen
  * is a list of rows, a row up to four cells; the cursor row's cells are the four cards and KNOB 1..4 edit them.
  * SELECT is the cursor, ALGORITHM the track, PRESETS the hot cell's value one unit a detent; SAVE tapped is YES,

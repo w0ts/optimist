@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* tests/ui_optimist_colours.h, batch C of the coherence audit (docs/UI-OPTIMIST-DESIGN.md, style guide 7): colour means
+/* tests/ui_optimist_colours.h, batch C of the coherence audit (docs/UI-OPTIMIST-DESIGN.md 3.5 Colour means something): colour means
  * something. The GLO layer's mute tiles are filled only when muted; red only on what destroys or replaces work (the
  * action cards walked against a list, the modals agree with their cards); recording is green, waiting amber, never red;
  * dim only on a free / unused thing; no read-out in the palette's secondary step; SUPER, ANALOG and the drum coral differ

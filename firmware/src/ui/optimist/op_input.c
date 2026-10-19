@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The panel (docs/UI-OPTIMIST-DESIGN.md sections 2, 2.1) and the entry points the core calls (system/main.c).
+/* The panel (docs/UI-OPTIMIST-DESIGN.md 2 The grammar) and the entry points the core calls (system/main.c).
  *   SELECT       the cursor: the row               ALGORITHM   the walk MASTER T1..DR the lanes, the page's part (op_walk.c)
  *   PRESETS      the sound (DR: the kit; a lane: its own sound)   KNOB 1..4   the cursor row's cells; a turn makes its cell hot
  *   SAVE tapped  YES: enter, toggle, do, confirm    HOME tapped NO: cancel, back; at the root nothing
@@ -599,7 +599,7 @@ static void op_tap(uint32_t b, uint32_t id)
 }
 
 #if FELUCCA_FAVORITES
-/* FAVORITES (docs section 37) are marked and browsed where presets are picked, not on a SOUND row (the user, 2026-10-14: "we have a
+/* FAVORITES (docs/UI-OPTIMIST-DESIGN.md 13 Favorites) are marked and browsed where presets are picked, not on a SOUND row (the user, 2026-10-14: "we have a
  * preset button, that is enough"): SAVE held + PRESETS marks the sound playing a favorite (right: saved into the favorites, 2026-10-16)
  * or unmarks it (left), SHIFT2 + SELECT browses only the favorites (right) or every sound (left); a synth track's, not under a
  * question, the NAME screen, STEP or MASTER */

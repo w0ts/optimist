@@ -376,7 +376,7 @@ static void pat_state_load(void)
             pat_cur[k] = b[k] < PAT_N ? b[k] : PAT_NONE;
 }
 
-/* ---- launching a pattern on a track (docs/PATTERNS-DESIGN.md 5.2). The main loop decodes it into the stage
+/* ---- launching a pattern on a track (docs/PATTERNS-DESIGN.md section 3). The main loop decodes it into the stage
  * (sec_stage_p.t[k], its motion and extras into the stage's stores: pat_service), the audio ISR switches the track
  * at its moment (pat_switch, from seq_tick): at the end of the pattern playing (PW_END), on the next bar (PW_BAR)
  * or on the next step, where the pattern is (PW_NOW). A scene staged meanwhile takes the track's pattern with it

@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* tests/editor_sync_test.c: editor protocol v14 (web/EDITOR_PROTOCOL.md "v14"): 102 UNDO, 103 NOTE, 104 SOLO, 105 STEPLANE
+/* tests/editor_sync_test.c: editor protocol v14 (web/EDITOR_PROTOCOL.md "Undo", "Notes from the editor", "Solo and mute", "Step lanes"): 102 UNDO, 103 NOTE, 104 SOLO, 105 STEPLANE
  * (firmware/src/io/editor/ed_undo.c, ed_note.c, ed_solo.c, ed_steplane.c; seq/ednote.c). STEPLANE is built off here: its list is
  * the Optimist UI's lock pages (tests/ui_optimist_edv14.h, every check of it). Included by editor_sync_test.c after ed_sync9.c, its helpers (ed_begin, ed_out, ed_n, check) in scope. */
 static void check(int c, const char *what);            /* (editor_sync_test.c) */

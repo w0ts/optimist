@@ -2981,7 +2981,7 @@
     "bit": 61,
     "default": 0,
     "parent": null,
-    "desc": "Avoids audio dropouts under heavy load by easing quality back step by step before cutting notes. Under overload (the measured load or the one predicted from the voices sounding, over 85 % for 8 halves, or a late half): first ACID without oversampling and ANALOG 2's swarm at 2 copies, then UNISON at 2 voices, then voices shed, never the bass or the lead (MONO / LEGATO / UNISON parts) nor the drums; back after 2 s under 80 % counting what each step saved. The CPU meter shows %G1..%G3. Weights: tools/builder/cpu_costs.py from tests/cpu_baseline.txt (docs/CPU-GUARD.md)",
+    "desc": "Avoids audio dropouts under heavy load by easing quality back step by step before cutting notes. Under overload (the measured load or the one predicted from the voices sounding, over 85 % for 8 halves, or a late half): first ACID without oversampling and ANALOG 2's swarm at 2 copies, then UNISON at 2 voices, then voices shed, never the bass or the lead (MONO / LEGATO / UNISON parts) nor the drums; back after 2 s under 80 % counting what each step saved; SYSTEM > INFO's GUARD line (SYS_DEBUG) shows the step. Weights: tools/builder/cpu_costs.py from tests/cpu_baseline.txt (docs/CPU-GUARD.md)",
     "experimental": false,
     "notice": "",
     "off_warning": "",
@@ -3074,7 +3074,7 @@
     "bit": 58,
     "default": 2,
     "parent": null,
-    "desc": "The FM-1's second CPU core renders synth parts 2 and 3 while the first renders the rest, cutting the first core's load by 40 to 44 % in the emulator, with the same sound. It costs about 1.8 KB of flash, 1.9 KB of RAM and 6 KB of pool. On some FM-1s the second core misreads RAM at the boot loader's supply: it then runs nothing it misread, is held for the session and the FM-1 goes on with one core (the message CPU1 OFF MISREAD); a boot after one that crashed in its first 30 s stays on one core.",
+    "desc": "The FM-1's second CPU core renders synth parts 2 and 3 while the first renders the rest, cutting the first core's load by 40 to 44 % in the emulator, with the same sound. It costs about 3.3 KB of flash, 3.7 KB of RAM and 6 KB of pool. On some FM-1s the second core misreads RAM at the boot loader's supply: it then runs nothing it misread, is held for the session and the FM-1 goes on with one core (the message CPU1 OFF MISREAD); a boot after one that crashed in its first 30 s stays on one core.",
     "experimental": false,
     "notice": "Its guard against misread RAM is ported from X0X by Charles Vestal (GPL-3.0): the second core runs only the next job, with a matching check word, and is held at the first one it refuses.",
     "off_warning": "",
@@ -3102,7 +3102,7 @@
     "children": [
      "STOCK_SUPPLY"
     ],
-    "tested": "emulator-tested; one user's FM-1 runs it",
+    "tested": "on the FM-1: the default since 2026-10-16",
     "provenance_line": "X0X (charlesvestal/fm1-x0x) @ 47f8e4c by Charles Vestal (GPL-3.0-only)"
    },
    {
@@ -3141,7 +3141,7 @@
     "bit": 252,
     "default": 0,
     "parent": null,
-    "desc": "BLE MIDI as the stock firmware offers it (named Optimist XXXX, the BLE-MIDI service), from a stack written for Optimist (docs/BLE-STACK.md): BLE in plays the synth, the FM-1's own notes go out with real timestamps. Tested on an FM-1 with macOS Audio MIDI Setup (not yet with iOS or Windows). The radio's start-up tables, captured from the stock V15 firmware, are included: no V15 file is needed (FM1_STOCK_FWSC makes a fresh capture instead, with the same result). Bluetooth starts OFF: switch it on in HOME > MENU > BLUETOOTH. MIDI IN must be NOTES for notes to play (HOME menu SYSTEM). About 30 KB of flash and 6 KB of RAM (the menu shows the measured figures; BLE_DIAG below adds more); where the build then overflows, ticking it removes the smallest single item that frees enough (sample sets first, then other items), or the one you pick instead.",
+    "desc": "BLE MIDI as the stock firmware offers it (named Optimist XXXX, the BLE-MIDI service), from a stack written for Optimist (docs/BLE-STACK.md): BLE in plays the synth, the FM-1's own notes go out with real timestamps. Tested on an FM-1 with macOS Audio MIDI Setup (not yet with iOS or Windows). The radio's start-up tables, captured from the stock V15 firmware, are included: no V15 file is needed (FM1_STOCK_FWSC makes a fresh capture instead, with the same result). Bluetooth starts OFF: switch it on in SYSTEM > Bluetooth. About 32 KB of flash and 6.5 KB of RAM (the menu shows the measured figures; BLE_DIAG below adds more); where the build then overflows, ticking it removes the smallest single item that frees enough (sample sets first, then other items), or the one you pick instead.",
     "experimental": false,
     "notice": "",
     "off_warning": "",
@@ -3193,7 +3193,7 @@
     "bit": 254,
     "default": 0,
     "parent": "BLE",
-    "desc": "LE legacy pairing with Just Works (no passkey, as the FM-1 has no screen keypad for it) and bonding, so a Mac or phone that pairs once gets an encrypted link and finds the FM-1 bonded after a power-off. The FM-1 hands out its identity and takes the other side's (its IRK and identity address, kept until power-off for now), which reconnecting to devices with private addresses needs later. Pairing happens only when the other side asks for it. Not yet tested on an FM-1. About 6.7 KB of flash and 0.7 KB of RAM.",
+    "desc": "LE legacy pairing with Just Works (no passkey, as the FM-1 has no screen keypad for it) and bonding, so a Mac or phone that pairs once gets an encrypted link and finds the FM-1 bonded after a power-off. The FM-1 hands out its identity and takes the other side's (its IRK and identity address, kept until power-off for now), which reconnecting to devices with private addresses needs later. Pairing happens only when the other side asks for it. Paired with a Mac on an FM-1 (2026-10-18). About 3.6 KB of flash and 0.4 KB of RAM.",
     "experimental": false,
     "notice": "",
     "off_warning": "",
@@ -3206,7 +3206,7 @@
     "choices": [],
     "provenance": null,
     "children": [],
-    "tested": "host and emulator only",
+    "tested": "on an FM-1 with a Mac (2026-10-18)",
     "provenance_line": ""
    },
    {
@@ -3217,7 +3217,7 @@
     "bit": 255,
     "default": 0,
     "parent": "BLE",
-    "desc": "HOME > MENU > BLUETOOTH > DEVICES lists the BLE-MIDI devices nearby (keyboards, controllers, a Mac or an iPhone app that advertises BLE MIDI, another FM-1) with their names and relative signal bars, scanning only while the list is open (the FM-1 stops advertising meanwhile). Picking one connects to it as a central (pairing with Just Works when it asks, as Apple's devices do), MIDI both ways; it becomes the last device, which the FM-1 reconnects to by itself while Bluetooth is on. Brings the bonding of BLE_BOND with it. Without this item DEVICES shows NONE and the last device only. Not yet tested on an FM-1.",
+    "desc": "SYSTEM > Devices lists the BLE-MIDI devices nearby (keyboards, controllers, a Mac or an iPhone app that advertises BLE MIDI, another FM-1) with their names and relative signal bars, scanning only while the list is open (the FM-1 stops advertising meanwhile). Picking one connects to it as a central (pairing with Just Works when it asks, as Apple's devices do), MIDI both ways; it becomes the last device, which the FM-1 reconnects to by itself while Bluetooth is on. Brings the bonding of BLE_BOND with it. Without this item DEVICES shows NONE and the last device only.",
     "experimental": false,
     "notice": "",
     "off_warning": "",
@@ -3230,7 +3230,7 @@
     "choices": [],
     "provenance": null,
     "children": [],
-    "tested": "host and emulator only",
+    "tested": "on an FM-1: an iPhone app reconnected as the last device (2026-10-18)",
     "provenance_line": ""
    },
    {
@@ -3241,7 +3241,7 @@
     "bit": 280,
     "default": 0,
     "parent": null,
-    "desc": "Stage 1 of our own Bluetooth Classic stack (docs/BT-CLASSIC-HW-FACTS.md section 14), for testing on an FM-1 from the CDC console (needs USB_MODE 1, and BLE off: one engine on the radio at a time). At start-up it starts the radio with the stored calibration (stock V15's VM; none: nothing is started) and checks the Bluetooth clock and its interrupts for 3 s, transmitting nothing (console btclk). btinq [SECONDS] then runs an inquiry (10.24 s by default): the FM-1 sends inquiry IDs and prints every device that answers (its address, class, clock, signal and EIR name) and a status line a second; btscan [SECONDS] is the other side (an inquiry scan: a phone or computer searching finds OPTIMIST BT); both take options for the hardware's unknowns (entries, RX gain, window, frequency, carrier offset) and bttrace / btrx print their interrupts and receptions. btpage ADDR pages a device as the master and sets the link up with a minimal LMP (features, version, host connection, setup complete; a Raspberry Pi accepted it as a connection): no profile, no audio yet. About 26 KB of flash (most of it the radio's start-up program, which BLE carries too), 1.8 KB of RAM and 13 KB of pool.",
+    "desc": "The first stages of our own Bluetooth Classic stack (docs/BT-CLASSIC.md section 14), for testing on an FM-1 from the CDC console (needs USB_MODE 1, and BLE off: one engine on the radio at a time). At start-up it starts the radio with the stored calibration (stock V15's VM; none: nothing is started) and checks the Bluetooth clock and its interrupts for 3 s, transmitting nothing (console btclk). btinq [SECONDS] then runs an inquiry (10.24 s by default): the FM-1 sends inquiry IDs and prints every device that answers (its address, class, clock, signal and EIR name) and a status line a second; btscan [SECONDS] is the other side (an inquiry scan: a phone or computer searching finds OPTIMIST BT); both take options for the hardware's unknowns (entries, RX gain, window, frequency, carrier offset) and bttrace / btrx print their interrupts and receptions. btpage ADDR pages a device as the master and sets the link up with a minimal LMP (features, version, host connection, setup complete; a Raspberry Pi accepted it as a connection): no profile, no audio yet. About 33 KB of flash (most of it the radio's start-up program, which BLE carries too), 2.3 KB of RAM and 15 KB of pool.",
     "experimental": true,
     "notice": "experimental: a Bluetooth Classic inquiry probe; no BLE in this build",
     "off_warning": "",
@@ -3254,7 +3254,7 @@
     "choices": [],
     "provenance": null,
     "children": [],
-    "tested": "host-tested (sync word, FHS, EIR) and emulator-tested (clock and interrupts only); not run on an FM-1",
+    "tested": "host-tested (sync word, FHS, EIR) and emulator-tested; run on an FM-1 2026-10-18 (clock, inquiry, paging)",
     "provenance_line": ""
    },
    {

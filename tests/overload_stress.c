@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The chord-burst stress (docs/CPU-GUARD.md "Spikes"): the mix as the audio ISR renders it, a DMA half (HALF_FRAMES) at a
+/* The chord-burst stress (docs/CPU-GUARD.md "What it does", Reactive path): the mix as the audio ISR renders it, a DMA half (HALF_FRAMES) at a
  * time, each half's cost counted by the kernel (proc_pid_rusage ri_instructions, instructions a sample; macOS), while the
  * keys are played as fast as a player recording live would: chords of 3..5 keys and runs of single notes on a POLY pad,
  * a bass line, the drums on 16ths (the 8-voice budget full most of the time: every new note steals one).

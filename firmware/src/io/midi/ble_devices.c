@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* HOME > SYSTEM > BLUETOOTH > DEVICES: the one list (docs/BLE-DEVICES-DESIGN.md §2.3, the user's rulings of 2026-10-09):
+/* SYSTEM > Devices: the one list (docs/BLE-DEVICES-DESIGN.md §1, §2, the user's rulings of 2026-10-09):
  *   NONE    stay visible as a peripheral, connect to nothing by ourselves (today's behaviour);
  *   LAST    the one remembered device: one the FM-1 itself connected to, as a central, and reconnects to while
  *           BLUETOOTH is ON (only when there is one). A Mac or phone connecting to the FM-1 is accepted as always and
@@ -235,7 +235,7 @@ static void ble_dev_pick(uint32_t row)
     if ((int)row == last) {                      /* LAST: the choice; connected to now when the list hears it, else
                                                   * searched for once the list closes (ble_connect.c) */
         if (!ble_on)
-            ble_midi_set(1);                     /* (YES with BLUETOOTH OFF switches it ON: decided, §6.1 #8) */
+            ble_midi_set(1);                     /* (YES with BLUETOOTH OFF switches it ON: docs/BLE-DEVICES-DESIGN.md §1) */
         ble_store_select(&ble_store, BLE_SEL_LAST);
         ble_store_changed();
 #if BLE_CENTRAL
@@ -280,8 +280,8 @@ static void ble_dev_forget(void)                 /* FORGET LAST: the entry and i
     ble_dev_say("FORGOTTEN", BDL_GOOD);
 }
 
-/* ---- what the list shows: the pieces both UIs draw (ui/sloop/ui_menu.c, ui/optimist/op_project.c), in capitals; each
- * UI draws them its own way (and sets its case). */
+/* ---- what the list shows: the pieces ui/optimist/op_project.c draws, in capitals (it sets
+ * their case). */
 static int ble_radio_ok(void);                   /* (midi_ble.c: the stored RF trims were found) */
 
 /* what the radio does: 0 off (or ON but not started this boot), 1 advertising, 2 a link is up (either role; ours once

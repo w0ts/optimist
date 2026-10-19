@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* FM-1 to FM-1 (docs/BLE-DEVICES-DESIGN.md P5, §9.3): two whole copies of our BLE stack (tests/ble_f2f_unit.c, one
+/* FM-1 to FM-1 (docs/BLE-DEVICES-DESIGN.md §4.4, §4.2): two whole copies of our BLE stack (tests/ble_f2f_unit.c, one
  * object each) connected through a fake air that carries every PDU (all acknowledged): unit a is the FM-1 that picks
  * the other in DEVICES (central), unit b another FM-1 as it ships (BLE_MIDI_NEED_ENC=0), unit c one built with
  * BLE_MIDI_NEED_ENC=1 (its MIDI characteristic behind encryption: Insufficient Authentication until then).

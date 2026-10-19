@@ -25,5 +25,5 @@
 #include "ble_hw_stub.c"            /* a stand-in that never advertises (the stack alone) */
 #else
 #define BLE_HW_WL82 1
-#include "ble_hw_wl82.c"            /* the AC791N / WL82 baseband engine (hal/fm1_ble.h, docs/BLE-STACK.md 11) */
+#include "ble_hw_wl82.c"            /* the AC791N / WL82 baseband engine (hal/fm1_ble.h, docs/BLE-STACK.md §7) */
 #endif

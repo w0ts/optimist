@@ -780,7 +780,7 @@ _add("CPU_GUARD", "FELUCCA_CPU_GUARD", "predictive CPU guard (ease back before s
           "overload (the measured load or the one predicted from the voices sounding, over 85 % for 8 halves, "
           "or a late half): first ACID without oversampling and ANALOG 2's swarm at 2 copies, then UNISON at 2 "
           "voices, then voices shed, never the bass or the lead (MONO / LEGATO / UNISON parts) nor the drums; back "
-          "after 2 s under 80 % counting what each step saved. The CPU meter shows %G1..%G3. Weights: "
+          "after 2 s under 80 % counting what each step saved; SYSTEM > INFO's GUARD line (SYS_DEBUG) shows the step. Weights: "
           "tools/builder/cpu_costs.py from tests/cpu_baseline.txt (docs/CPU-GUARD.md)")
 _add("CACHE_RAM", "FELUCCA_CACHE_RAM", "more memory from the data cache (for the undo history)", Y, 92, default=0,
      choices=((0, "off"), (2, "8 KB (6 cache ways kept)"), (4, "16 KB (4 kept)"), (7, "28 KB (1 kept, as V15)")),
@@ -811,11 +811,11 @@ _add("DUAL", "FELUCCA_DUAL", "second CPU core renders parts 2-3", X, 58, default
      notice="Its guard against misread RAM is ported from X0X by Charles Vestal (GPL-3.0): the second core runs only "
             "the next job, with a matching check word, and is held at the first one it refuses.",
      desc="The FM-1's second CPU core renders synth parts 2 and 3 while the first renders the rest, "
-          "cutting the first core's load by 40 to 44 % in the emulator, with the same sound. It costs about 1.8 KB of "
-          "flash, 1.9 KB of RAM and 6 KB of pool. On some FM-1s the second core misreads RAM at the boot loader's "
+          "cutting the first core's load by 40 to 44 % in the emulator, with the same sound. It costs about 3.3 KB of "
+          "flash, 3.7 KB of RAM and 6 KB of pool. On some FM-1s the second core misreads RAM at the boot loader's "
           "supply: it then runs nothing it misread, is held for the session and the FM-1 goes on with one core "
           "(the message CPU1 OFF MISREAD); a boot after one that crashed in its first 30 s stays on one core.",
-     tested="emulator-tested; one user's FM-1 runs it")
+     tested="on the FM-1: the default since 2026-10-16")
 _add("STOCK_SUPPLY", "FELUCCA_STOCK_SUPPLY", "raise the core rails to the FM-1's stock values at start-up (for the second core)",
      X, 62, default=1, parent="DUAL", target_only=True, provenance=MELODEE_SUPPLY,
      notice="At your own risk: the FM-1's own firmware raises its rails this way, every custom firmware "
@@ -838,8 +838,8 @@ _add("BLE", "FELUCCA_BLE", "Bluetooth LE MIDI, our own stack", M, 252, default=0
           "Tested on an FM-1 with macOS Audio MIDI Setup (not yet with iOS or Windows). "
           "The radio's start-up tables, captured from the stock V15 firmware, are included: no V15 file is needed "
           "(FM1_STOCK_FWSC makes a fresh capture instead, with the same result). "
-          "Bluetooth starts OFF: switch it on in HOME > MENU > BLUETOOTH. MIDI IN must be NOTES for notes to play "
-          "(HOME menu SYSTEM). About 30 KB of flash and 6 KB of RAM (the menu shows the measured figures; BLE_DIAG below adds more); where "
+          "Bluetooth starts OFF: switch it on in SYSTEM > Bluetooth. About 32 KB of flash and 6.5 KB of RAM (the menu "
+          "shows the measured figures; BLE_DIAG below adds more); where "
           "the build then overflows, ticking it removes the smallest single item that frees enough (sample sets "
           "first, then other items), or the one you pick instead.", symbols=("ble_in_q",),
      tested="tested on an FM-1 with macOS Audio MIDI Setup, not yet with iOS or Windows")
@@ -856,23 +856,23 @@ _add("BLE_BOND", "FELUCCA_BLE_BOND", "BLE bonding: pairing (Just Works) and an e
      desc="LE legacy pairing with Just Works (no passkey, as the FM-1 has no screen keypad for it) and "
           "bonding, so a Mac or phone that pairs once gets an encrypted link and finds the FM-1 bonded after a power-off. "
           "The FM-1 hands out its identity and takes the other side's (its IRK and identity address, kept until "
-          "power-off for now), which reconnecting to devices with private addresses needs later. Pairing happens only when the other side asks for it. Not yet "
-          "tested on an FM-1. About 6.7 KB of flash and 0.7 KB of RAM.",
-     symbols=("bsmp",), tested="host and emulator only")
+          "power-off for now), which reconnecting to devices with private addresses needs later. Pairing happens only when the other side asks for it. Paired "
+          "with a Mac on an FM-1 (2026-10-18). About 3.6 KB of flash and 0.4 KB of RAM.",
+     symbols=("bsmp",), tested="on an FM-1 with a Mac (2026-10-18)")
 _add("BLE_CENTRAL", "FELUCCA_BLE_CENTRAL", "BLE devices: connect to BLE-MIDI devices, reconnect the last one", M, 255,
      default=0, parent="BLE", target_only=True,
-     desc="HOME > MENU > BLUETOOTH > DEVICES lists the BLE-MIDI devices nearby (keyboards, controllers, "
+     desc="SYSTEM > Devices lists the BLE-MIDI devices nearby (keyboards, controllers, "
           "a Mac or an iPhone app that advertises BLE MIDI, another FM-1) with their names and relative signal bars, "
           "scanning only while the list is open (the FM-1 stops advertising meanwhile). Picking one connects to it as "
           "a central (pairing with Just Works when it asks, as Apple's devices do), MIDI both ways; it becomes the "
           "last device, which the FM-1 reconnects to by itself while Bluetooth is on. Brings the bonding of BLE_BOND "
-          "with it. Without this item DEVICES shows NONE and the last device only. Not yet tested on an FM-1.",
-     symbols=("ble_found",), tested="host and emulator only")
+          "with it. Without this item DEVICES shows NONE and the last device only.",
+     symbols=("ble_found",), tested="on an FM-1: an iPhone app reconnected as the last device (2026-10-18)")
 _add("BT_INQ_PROBE", "FELUCCA_BT_INQ_PROBE", "Bluetooth Classic inquiry probe (console btclk / btinq)", M, 280,
      default=0, experimental=True, target_only=True,
-     tested="host-tested (sync word, FHS, EIR) and emulator-tested (clock and interrupts only); not run on an FM-1",
+     tested="host-tested (sync word, FHS, EIR) and emulator-tested; run on an FM-1 2026-10-18 (clock, inquiry, paging)",
      notice="experimental: a Bluetooth Classic inquiry probe; no BLE in this build",
-     desc="Stage 1 of our own Bluetooth Classic stack (docs/BT-CLASSIC-HW-FACTS.md section 14), for testing on an "
+     desc="The first stages of our own Bluetooth Classic stack (docs/BT-CLASSIC.md section 14), for testing on an "
           "FM-1 from the CDC console (needs USB_MODE 1, and BLE off: one engine on the radio at a time). At start-up "
           "it starts the radio with the stored calibration (stock V15's VM; none: nothing is started) and checks the "
           "Bluetooth clock and its interrupts for 3 s, transmitting nothing (console btclk). btinq [SECONDS] then runs "
@@ -882,8 +882,8 @@ _add("BT_INQ_PROBE", "FELUCCA_BT_INQ_PROBE", "Bluetooth Classic inquiry probe (c
           "(entries, RX gain, window, frequency, carrier offset) and bttrace / btrx print their interrupts and receptions. "
           "btpage ADDR pages a device as the master and sets the link up with a minimal LMP (features, version, host "
           "connection, setup complete; a Raspberry Pi accepted it as a connection): no profile, no audio yet. "
-          "About 26 KB of flash (most of it the radio's start-up program, which BLE carries too), 1.8 KB of RAM and "
-          "13 KB of pool.",
+          "About 33 KB of flash (most of it the radio's start-up program, which BLE carries too), 2.3 KB of RAM and "
+          "15 KB of pool.",
      symbols=("bti_st",))
 
 for _it in _ITEMS:

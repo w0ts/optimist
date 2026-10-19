@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
-/* Editor protocol: the user sample slots and the user presets (included by editor.c; web/EDITOR_PROTOCOL.md).
+/* Editor protocol: the user sample slots and the user presets (included by editor.c; web/EDITOR_PROTOCOL.md "Sample slots and user presets").
  *   11 SMP_BEGIN  12 SMP_WRITE  13 SMP_END  14 SMP_ERASE  15 SMP_INFO
  *   16 UP_LIST  17 UP_GET  18 UP_PUT  19 UP_STORE  20 UP_LOAD  21 UP_ERASE
  * The ones that erase or write flash are refused while the transport plays or PLAY is queued, as the panel's own

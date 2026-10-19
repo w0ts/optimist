@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* Editor protocol v13: the favorites (core/favorites.c, FELUCCA_FAVORITES; included by editor.c; web/EDITOR_PROTOCOL.md "v13: the favorites").
+/* Editor protocol v13: the favorites (core/favorites.c, FELUCCA_FAVORITES; included by editor.c; web/EDITOR_PROTOCOL.md "Favorites").
  * The device marks sounds as favorites (SHIFT2 + PRESETS on its panel) and PRESETS can browse the marked ones only (SHIFT2 + SELECT); this is the
  * same store: a factory sound is marked by its engine and name, a user preset by its slot, up to FAV_N (64) marks; saved with the settings.
  *   100 FAVS  op [...] -> op [...]

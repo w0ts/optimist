@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The automation store (firmware/src/seq/auto.h, auto.c; storage/auto_proj.c, sections/pat.c, stepx_log.c,
- * motion_flash.c; docs/UI-OPTIMIST-DESIGN.md section 6, phase 3) on a simulated NOR with the section log and the
+ * motion_flash.c; docs/UI-OPTIMIST-DESIGN.md 7 The automation store) on a simulated NOR with the section log and the
  * patterns, every switch of the store on (MOTION, PLOCK, MICRO, FILLS, CHANCE):
  *   list       128 events a list, (place, param) once, the pseudo-parameters' ranges; full: no lock, no motion
  *   play       a hold event holds until the next of its parameter (the pattern restart: the patch), a step-only one

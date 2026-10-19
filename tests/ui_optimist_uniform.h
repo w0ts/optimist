@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* tests/ui_optimist_test.c, the uniform-UI changes (the user's rulings on the audit, 2026-10-13; docs/UI-OPTIMIST-DESIGN.md
- * sections 2, 2.1). Each test says what is gone and what is there. Included after ui_optimist_algotrack.h. */
+ * 2.3 The two shifts, and SAVE). Each test says what is gone and what is there. Included after ui_optimist_algotrack.h. */
 #if FELUCCA_ARRANGER
 static void un_song_rec_tests(void)                     /* #16a: SONG's MODE row, KNOB 2 = the SONG REC card: picked by a turn, armed by YES */
 {

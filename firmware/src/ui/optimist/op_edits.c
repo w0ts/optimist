@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* What the work has that is not stored (docs/UI-OPTIMIST-DESIGN.md section 23; the user, 2026-10-13: "always ask if the
+/* What the work has that is not stored (docs/UI-OPTIMIST-DESIGN.md 2.5 Questions, toasts and what asks; the user, 2026-10-13: "always ask if the
  * sound/preset has edits"; a scene loaded stopped asks "only when the current work differs from what is stored").
  *   a track's sound   edited when its sound differs from what it was when it was loaded or saved: a signature of
  *                     the values a preset sets (model.c param_kept: not the pattern, not the mix) and, on the drum

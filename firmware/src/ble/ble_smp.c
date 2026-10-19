@@ -12,7 +12,7 @@
  *   (Identity Information: an IRK, Identity Address Information: our static address; we never use a private
  *   address, so the IRK only lets the central file us by identity: smp_own_irk), then take the central's keys:
  *   its IRK and identity address go to the firmware (ble_app_peer_id: what finds a device behind a resolvable
- *   private address, docs/BLE-DEVICES-DESIGN.md §3.3, §4.4); its LTK and CSRK are not kept (we find a returning
+ *   private address, docs/BLE-DEVICES-DESIGN.md §4.3, docs/BLE-STACK.md §9.2); its LTK and CSRK are not kept (we find a returning
  *   central by EDIV / Rand). The bond is one key slot (ble_host_set_key) and goes to the firmware to keep across
  *   power-offs (ble_app_bond).
  *   BLE_SMP_SEC_REQ=1: a Security Request (bonding) at the start of every connection.

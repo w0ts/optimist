@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Editor protocol: what the drum lanes' SOURCE and SOUND pages offer, so the editor builds its kit editor from the
- * device (included by editor.c after ed_drums.c; web/EDITOR_PROTOCOL.md "Drum sources"). Built with the lanes'
+ * device (included by editor.c after ed_drums.c; web/EDITOR_PROTOCOL.md "Drum sources, sounds and pages"). Built with the lanes'
  * pages (DL_ANY, ui_drums.c); a build without them does not answer.
  *   50 DRUM_SRCS  start                -> start, total, n, then n x (src, kind, name): the SRC list as the device
  *                                         steps through it (ui_drums.c DS_SRC_NAMES, dsnd_idx_src); kind: 0 the

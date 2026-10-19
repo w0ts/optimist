@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Editor protocol: the per-track patterns and scenes (FELUCCA_PATTERNS, storage/sections/pat.c; web/EDITOR_PROTOCOL.md
- * "Patterns"), included by editor.c. INFO tag 0x55 says the build has them. The web editor shows the 16 slots of a
- * track in its mixer strip and the scenes on the MASTER strip (docs/PATTERNS-DESIGN.md 7.1). Values are 7-bit:
+ * "Patterns and scenes"), included by editor.c. INFO tag 0x55 says the build has them. The web editor shows the 16 slots of a
+ * track in its mixer strip and the scenes on the MASTER strip (docs/PATTERNS-DESIGN.md section 5). Values are 7-bit:
  * a slot 0..15, 127 none, 126 keep (a scene's), 125 stop (a launch).
  *   79 PAT_LIST   op (0 all, 1 the tracks only)  -> op, changed (the tracks whose working copy differs from its
  *                 source: bit k), per track: cur, req, when (0 end, 1 next bar, 2 now); op 0 then: per track x 16

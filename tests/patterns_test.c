@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* Per-track patterns and scenes (firmware/src/storage/sections/pat.c, docs/PATTERNS-DESIGN.md phase 1) on a simulated NOR with the
+/* Per-track patterns and scenes (firmware/src/storage/sections/pat.c, docs/PATTERNS-DESIGN.md section 1) on a simulated NOR with the
  * section log. Built with FELUCCA_PATTERNS=1 (the default here):
  *   - a stored scene reads back as the project stored (steps, LEN DIV SWING GATE, motion, step extras), byte for byte
  *     as a section would; an empty track costs no pattern;

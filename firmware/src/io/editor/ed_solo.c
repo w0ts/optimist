@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* Editor protocol v14: track and drum-lane SOLO and MUTE (included by editor.c; web/EDITOR_PROTOCOL.md "v14: solo and mute"). INFO tag 0x61 = here.
+/* Editor protocol v14: track and drum-lane SOLO and MUTE (included by editor.c; web/EDITOR_PROTOCOL.md "Solo and mute"). INFO tag 0x61 = here.
  * The device's own grammar and no state of its own: a track's SOLO is a bit of song.solo (GLO + key 5..8 toggles it; every other track is silent:
  * trk_silent), a track's MUTE is P_MUTE (GLO + key 1..4, TRACK_MIX), a drum lane's SOLO and MUTE are drums/drum_mix.c's masks (dlm_set_solo,
  * dlm_set_mute: any lane soloed silences the others, a soloed lane also muted stays silent), the values DLAN (95) group 0 edits.

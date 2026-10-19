@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* FM-1 (AC791N / WL82) BLE baseband: the registers, the link-column port, the interrupt lines and the radio
  * bring-up, for the route C driver (src/ble/ble_hw_wl82.c, FELUCCA_BLE). Written only from the clean-room fact
- * sheet docs/BLE-HW-FACTS.md (branch feat/ble-facts, 41b7374; §14-§19 from d907ce3): every register access names its
+ * sheet docs/BLE-HW-FACTS.md (branch feat/ble-facts, 41b7374; §14-§17 from d907ce3): every register access names its
  * section there as "HW §n". Nothing in this file ran on a real FM-1; the emulator models only the baseband engine
  * (fm1-emulator feat/ble-engine), not the radio analog side.
  *
@@ -228,7 +228,7 @@ static void fm1_ble_rf_init(const uint8_t *x106, const uint8_t *x107, const uint
     FM1_BT_C08 = 0x03100000u;                              /* TODO(hardware) [9:0] / [19:10]: BT TX trims, live from
                                                             * BBP read-backs on every boot (HW §16.2, not the VM) */
     FM1_BT_C0C = 0x80808080u;
-    FM1_BT_C10 = 0x80008080u;                              /* TODO(hardware) bytes 0..2: the same (HW §16.2, §16.5);
+    FM1_BT_C10 = 0x80008080u;                              /* TODO(hardware) bytes 0..2: the same (HW §16.2, §12);
                                                             * stock's first write, not calibrated */
     FM1_BT_C14 = 0x80u;
     FM1_BT_C18 = 0;

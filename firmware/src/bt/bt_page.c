@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* EXPERIMENTAL Bluetooth Classic probe, stage 2 (BT_INQ_PROBE): `btpage ADDR [SECONDS] [OPTIONS]` pages a device as the
- * master (docs/BT-CLASSIC-HW-FACTS.md §8.3: the ID train with the device's access code, its ID answer, our FHS, its
+ * master (docs/BT-CLASSIC.md §8.3: the ID train with the device's access code, its ID answer, our FHS, its
  * second ID, our POLL), keeps the link up with the engine's POLL / NULL and runs the minimal LMP of bt_lmp.c: our
  * features, version and host connection requests, the answers to what the device asks, setup complete. Every step is
  * printed as a `btpage:` line. Included by bt_inq.c (its frame, rings, options and printing). No vendor code. */

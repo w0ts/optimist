@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* Bluetooth Classic (BR/EDR) inquiry probe, stage 1 of our own Classic stack (docs/BT-CLASSIC-HW-FACTS.md §14):
+/* Bluetooth Classic (BR/EDR) inquiry probe, stage 1 of our own Classic stack (docs/BT-CLASSIC.md §14):
  * the portable part, written from the Bluetooth Core specification (Vol 2 Part B §6.3.3 sync word, §6.5.1.4 FHS,
  * Vol 3 Part C §8 EIR) and the fact sheet. No vendor code. Portable C, no C library; host-tested in
  * tests/bt_inq_test.c.

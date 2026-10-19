@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The link layer's central role (BLE_CENTRAL; Core Specification Vol 6 Part B, docs/BLE-DEVICES-DESIGN.md, HW §21),
+/* The link layer's central role (BLE_CENTRAL; Core Specification Vol 6 Part B, docs/BLE-STACK.md §9.1, HW §21),
  * part of ble_ll.c (included there: it shares bll and the TX queues):
  *   - scanning for the DEVICES list: the raw reports' ring between the RX interrupt and the main loop (4.4.3);
  *   - initiating: our CONNECT_IND built before the engine starts (2.3.3.1; the access address by 2.1.2, a random

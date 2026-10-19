@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* Connecting out (BLE_CENTRAL; docs/BLE-DEVICES-DESIGN.md §1.4, §3.3, §9.3, P3 / P4, the LAST ruling §0.1): the main
+/* Connecting out (BLE_CENTRAL; docs/BLE-DEVICES-DESIGN.md §1, §4.2, §4.3): the main
  * loop's side of the central role, part of ble_devices.c (included there: it shares the store, the scan table, the
  * list's messages).
  *   a pick       YES on a nearby row: connect to it (the stack: initiator, master link, pairing, BLE-MIDI subscribed,
@@ -357,7 +357,7 @@ static void rc_link(void)
 static void ble_connect_pick(const struct ble_found *e)
 {
     if (!ble_on)
-        ble_midi_set(1);                          /* (YES with BLUETOOTH OFF switches it ON: decided, §6.1 #8) */
+        ble_midi_set(1);                          /* (YES with BLUETOOTH OFF switches it ON: docs/BLE-DEVICES-DESIGN.md §1) */
     if (!ble_up)
         return;
     if (ble_connected() && !ble_ll_central()) {

@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* Each note's own end (POLY notes recorded over each other with REC QUANTIZE OFF; docs/UI-OPTIMIST-DESIGN.md).
+/* Each note's own end (POLY notes recorded over each other with REC QUANTIZE OFF; docs/UI-OPTIMIST-DESIGN.md 6 Recording).
  *
  * In RAM a synth step carries ngate[4] (core.h step_t): note k ends ngate[k] / 128 of the step after the step's start,
  * 0 = at the step's GATE, as before. The playback (seq.c seq_step, seq_noffs), the edits, undo and the displays use it

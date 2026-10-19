@@ -25,10 +25,10 @@
  *                            'bletrim' prints the last one entered and the set: on a unit where the start-up stops,
  *                            the group it stopped in
  *
- * TODO(hardware), with the experiments of HW §16.5 / §18.3:
+ * TODO(hardware), the unknowns in HW §12 and §16.2:
  *   - the window-D read-back loop (§16.2, 3,537 transactions in stock's boot 2): left out; its results depend on
  *     read-backs the emulator returns as 0 (U17). §18.3 step 3, the read-back build: write a window entry and read
- *     it back through 0xD3 (a read-back console command still to write, HW §18.2), then decide how to measure and
+ *     it back through 0xD3 (a read-back console command still to write, HW §18), then decide how to measure and
  *     write those entries;
  *   - the RF-die LUT words a stored trim changes (VM 107 -> entries 0xE0-0xFF of both words, VM 187 bytes 48-63, the
  *     scan -> word-1 entries 0x00-0x7F): written as captured (the emulator's calibration), their mapping unknown.
@@ -202,7 +202,7 @@ static void fm1_rfspi(uint32_t addr, uint32_t cmd, uint32_t data)   /* HW §5.2:
  * reads neither low (bit 17) nor high (bit 18): bisection over FM1_VCO_BANDS, a higher band when low. The step:
  * the band into 0x11938 [25:19], 0x11938 bits 16 / 18 and 0x11934 bit 24 pulsed low then high, 0x11968 bit 28,
  * eight strobes of 0x11978 then 0, the comparator in 0x11978 (the registers and the order as stock's boot-2 trace
- * shows them: BLE-STACK.md §12). Its result is reported only: stock's final band and fine code follow as constants
+ * shows them: BLE-STACK.md §8.1). Its result is reported only: stock's final band and fine code follow as constants
  * (TODO(hardware) above). */
 static void fm1_ble_vco_scan(uint32_t fine0)
 {

@@ -92,7 +92,7 @@ SCAN_LEAD = SCAN_REGS[:3] + (0x11940, 0x11900)
 KEEP = {0x11900: 1 << 14}               # bit 14 of 0x11900 kept as found (§16.2)
 
 # ---- the trim fields (§14.5, §16.4). Records: 0 = VM 106, 1 = 107, 2 = 108, 3 = 187. Widths [I] where the sheet
-# measured only an xor 03 probe: a field that took both bits is 2 wide, one bit 1 wide (BLE-STACK.md §12)
+# measured only an xor 03 probe: a field that took both bits is 2 wide, one bit 1 wide (docs/BLE-HW-FACTS.md §16.4)
 REC = {106: 0, 107: 1, 108: 2, 187: 3}
 K_FIELD, K_NONZERO = 0, 1
 MMIO_FIELDS = [   # (address, shift, width, record id, byte)
@@ -841,7 +841,7 @@ def ensure(cache=CACHE, stock_arg=None, diagnose_arg=None, say=print, committed=
         bad = committed_reason(committed)
         if bad:
             raise CaptureError(f"no usable BLE radio tables: {bad}; or capture them from your stock V15: "
-                               "FM1_STOCK_FWSC=/path/to/FM-1.fwsc (docs/BLE-STACK.md section 12)")
+                               "FM1_STOCK_FWSC=/path/to/FM-1.fwsc (docs/BLE-STACK.md section 8.3)")
         say(f"ble      {committed.relative_to(ROOT) if committed.is_relative_to(ROOT) else committed} "
             f"(committed, captured {PINNED[:12]} from stock V15)")
         return committed
