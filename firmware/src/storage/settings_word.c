@@ -36,18 +36,11 @@ static uint32_t bp23_word(void)
     w = (w & ~(1u << 14)) | (uint32_t)(bp_set[BPS_MOUT] != MOUT_KEYS) << 14;   /* (SLOOP 2.4: the same bits: the sequencer out) */
     w = (w & ~(1u << 29)) | (uint32_t)(bp_set[BPS_MOUT] == MOUT_SEQ) << 29;   /* (ours: the keys not) */
 #endif
-#if FELUCCA_MIDI_INCLK && FELUCCA_UI != 1
-    w = (w & ~(1u << 15)) | (uint32_t)(bp_set[BPS_MIN] != 0) << 15;
-#elif FELUCCA_UI == 1
     w &= ~(1u << 15);                               /* (the Optimist UI has no MIDI IN setting any more: the bit is free, notes always play) */
-#endif
 #if FELUCCA_CDC
     w = (w & ~(1u << 16)) | (uint32_t)(usb_serial != 0u) << 16;
 #endif
     w = (w & ~(3u << 11)) | (((uint32_t)song.g[G_SYNC] & 3u) ^ SYNC_AUTO) << 11;
-#if FELUCCA_VIS
-    w = (w & ~(15u << 17)) | (uint32_t)(vis_style % 12u) << 17;   /* the visualiser's style (SLOOP 2.4: the same bits) */
-#endif
     w = (w & ~(3u << 21)) | (uint32_t)(hold_sel % HOLD_N) << 21;
     /* bit 23: reserved, kept as read (bp23_kept): the Optimist UI's CARDS 1x4 / 2x2 until 2026-10-12, no longer read */
 #if FELUCCA_BLE
@@ -75,14 +68,8 @@ static void bp23_from_word(uint32_t w)
 #if FELUCCA_MIDI_OUT
     bp_set[BPS_MOUT] = (int16_t)(!((w >> 14) & 1u) ? MOUT_KEYS : ((w >> 29) & 1u) ? MOUT_SEQ : MOUT_BOTH);   /* (2.4's SEQ: BOTH) */
 #endif
-#if FELUCCA_MIDI_INCLK && FELUCCA_UI != 1
-    bp_set[BPS_MIN] = (int16_t)((w >> 15) & 1u);
-#endif
 #if FELUCCA_CDC
     usb_serial = (uint8_t)((w >> 16) & 1u);         /* (presented from the next start: usb_start) */
-#endif
-#if FELUCCA_VIS
-    vis_style = (uint8_t)(((w >> 17) & 15u) % 12u);    /* (0 in SLOOP 2.3 = OSCILLOSCOPE) */
 #endif
     hold_sel = (uint8_t)(((w >> 21) & 3u) % HOLD_N);
     /* (bit 23: reserved, kept as read in bp23_kept; it was the Optimist UI's CARDS 1x4, gone 2026-10-12) */
@@ -94,11 +81,7 @@ static void bp23_from_word(uint32_t w)
     clko_on = (uint8_t)((w >> 26) & 1u);              /* (a word without the bit: no clock sent) */
 #endif
 #if FELUCCA_DUAL
-#if defined(FELUCCA_UI) && FELUCCA_UI == 1
     dual_mode = DUALM_AUTO;                           /* (the Optimist UI has no 2ND CORE line: always on, a stored OFF from before is dropped) */
-#else
-    dual_mode = (uint8_t)dual_mode_in(w);             /* (a word without the bits: AUTO; read before dual_boot) */
-#endif
 #endif
     sync_boot = (uint8_t)(((w >> 11) & 3u) ^ SYNC_AUTO);
     song.g[G_SYNC] = sync_boot;

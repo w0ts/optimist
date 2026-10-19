@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The sequencer mutes (firmware/src/seq/seq_mute.c; the user, 2026-10-13: "for midi, not audio"):
- *   keys     smute_key: the 16 white keys the drum lanes play are the 16 lanes, the black keys F# G# A# C# are T1 T2 T3 DR,
- *            the other black keys nothing
+ *   keys     smute_key: the black keys the drum lanes play are the lanes, the first four white keys F G A B are T1 T2 T3
+ *            DR, the last upper key the ACCENT lane (when built), the other keys nothing
  *   seq      a muted track plays no note, for its sound or MIDI out, and the notes sounding end; a muted drum lane does
  *            not hit (sound or MIDI) while the others do; the keys played live still sound; unmuted: as before
  *   record   nothing muted: no TLV; muted: a TLV round trip through the FX record and PROJECT SAVE / LOAD; a project
@@ -162,17 +162,18 @@ static void stop(void)
 static void t_keys(void)
 {
     uint32_t k, l, nb = 0, ok = 1;
-    static const uint8_t BLK[4] = {1, 3, 5, 8};
+    static const uint8_t TRK[4] = {0, 2, 4, 6};          /* F G A B */
     for (l = 0; l < DRUM_LANES; l++)
         ok &= smute_key(key_of_lane(l)) == (int32_t)l;
-    check(ok, "the white keys the lanes play (key_of_lane) mute the lanes in order");
+    check(ok, "the keys the lanes play (key_of_lane: the black keys) mute the lanes in order");
     ok = 1;
     for (k = 0; k < 4u; k++)
-        ok &= smute_key(BLK[k]) == 16 + (int32_t)k;
-    check(ok, "the black keys F# G# A# C# mute T1 T2 T3 DR");
+        ok &= smute_key(TRK[k]) == 16 + (int32_t)k;
+    check(ok, "the first four white keys F G A B mute T1 T2 T3 DR");
     for (k = 0; k < 27u; k++)
         nb += smute_key(k) < 0;
-    check(nb == 27u - DRUM_LANES - 4u, "the other keys mute nothing (27 keys: the lanes + 4 tracks)");
+    check(nb == 27u - DRUM_LANES - 4u - (FELUCCA_DRUM_ACCENT && DACC_KEY_ON ? 1u : 0u),
+          "the other keys mute nothing (27 keys: the lanes + 4 tracks + the ACCENT lane's key)");
     check(smute_key(27) < 0 && smute_key(200) < 0, "a key past the keyboard: nothing");
     ok = 1;
     for (k = 0; k < 27u; k++)
@@ -182,7 +183,7 @@ static void t_keys(void)
     smute_trk = 0, smute_lane = 0;
     check(smute_toggle(2) == 1 && smute_lane_on(2) && smute_keys_lit() == 1u << key_of_lane(2), "toggle a lane: on, its key lit");
     check(smute_toggle(2) == 0 && !smute_lane_on(2) && smute_keys_lit() == 0u, "... again: off");
-    check(smute_toggle(17) == 1 && smute_trk_on(1) && smute_keys_lit() == 1u << 3, "toggle T2 (black key 2, G#): on, lit");
+    check(smute_toggle(17) == 1 && smute_trk_on(1) && smute_keys_lit() == 1u << 2, "toggle T2 (white key 2, G): on, lit");
     check(smute_toggle(-1) == 0 && smute_toggle(20) == 0 && smute_trk == 2u && smute_lane == 0u, "a key that mutes nothing: nothing changes");
     smute_trk = 0;
 }

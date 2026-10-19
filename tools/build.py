@@ -66,7 +66,7 @@ BACKEND = None                      # how the toolchain runs (tools/toolchain.py
 # form the stock updater and every installer accept (M-VAVE 0XX, Baud Girl 020-09X, Lunar 5XX, Felucca /
 # SLOOP / X0X 9XX); development builds FM-1_700, release X.Y FM-1_7(X+2)Y (release_product)
 PRODUCT = "FM-1_700"
-VERSION = None                      # FELUCCA_VERSION for release builds (default: firmware/src/ui/sloop/ui.c)
+VERSION = None                      # FELUCCA_VERSION for release builds (default: firmware/src/core/model.c)
 OPTIMIST_VERSION = (Path(__file__).resolve().parent.parent / "VERSION").read_text().strip()   # the one version number
 MEASURE = False                     # --measure: link past the slot and the pool (sizes only, never a package)
 CFG_FLAGS = set()                   # the switches build/gen/felucca_config.h sets (the env loop below skips them)
@@ -239,7 +239,7 @@ BACKPORT_FLAGS += ("FELUCCA_ENG_NOISE",)       # (the NOISE engine, engine 15: i
 def build_app():
     flags = [*CFLAGS, "-Ifirmware/hal", "-Ifirmware/src", "-I" + GEN_REL]
     for flag in ("FELUCCA_FLASH", "FELUCCA_OTA", "FELUCCA_OTA_DRYRUN", "FELUCCA_CDC", "FELUCCA_UART",
-                 "FELUCCA_ICONS", "FELUCCA_SLICE", "FELUCCA_FM6_KEYS", "FELUCCA_ANALOG2",
+                 "FELUCCA_SLICE", "FELUCCA_FM6_KEYS", "FELUCCA_ANALOG2",
                  "FELUCCA_ASM", "FELUCCA_ASM_CHECK",
                  "FELUCCA_USB_AUDIO", "FELUCCA_SIMD", "FELUCCA_SIMD_CHECK", "FELUCCA_SIMD_PROBE",
                  "FELUCCA_SIMD_PROBE_TEST", "FELUCCA_DRUM_EDIT", "FELUCCA_DRUM_USR", "FELUCCA_DRUM_KITS",

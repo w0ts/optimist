@@ -1,8 +1,8 @@
 # Effects: insert slots, sends, returns and the master
 
-This chapter is about everything that changes the sound after the engine: the insert slots, the send buses and their returns, the master, and the punch-in effects. It is written for a user. The numbers are the ones in the firmware (ranges, defaults, lists); CPU and memory costs are in [BUILDER.md](../BUILDER.md). What a build contains depends on its builder items: a type that is not built is not in the lists. The punch-in effects on SLOOP's interface: [SLOOP's interface](sloop-ui.md#the-master-and-the-punch-in-effects).
+This chapter is about everything that changes the sound after the engine: the insert slots, the send buses and their returns, the master, and the punch-in effects. It is written for a user. The numbers are the ones in the firmware (ranges, defaults, lists); CPU and memory costs are in [BUILDER.md](../BUILDER.md). What a build contains depends on its builder items: a type that is not built is not in the lists.
 
-Page names below are the firmware's. The Optimist UI shows most of them in its FX family of the track and on the master FX screen, with the short forms in its names table (for example `INSERTS` is shown as "Insert"). SLOOP's UI shows the same pages in its FX layer, and the master's pages in GLO. Where the two differ, the text says so.
+Page names below are the firmware's. The Optimist UI shows most of them in its FX family of the track and on the master FX screen, with the short forms in its names table (for example `INSERTS` is shown as "Insert").
 
 ## The signal path
 
@@ -23,7 +23,7 @@ An **insert slot** holds one effect type and runs in series on its track. There 
 
 A type is in at most one slot of a track: picking the type the other slot holds swaps the two slots (and their amounts). A type that is in no slot is not heard, and its amount is kept.
 
-**Where:** the `INSERTS` page of the track (SLOOP UI: FX layer; Optimist UI: the track's FX family, and the mixer's insert cards) has S1 TYPE, its amount, S2 TYPE, its amount. Pick the type with the knob on the TYPE card; the amount is the next card. A slot set to `----` is empty.
+**Where:** the `INSERTS` page of the track (the track's FX family, and the mixer's insert cards) has S1 TYPE, its amount, S2 TYPE, its amount. Pick the type with the knob on the TYPE card; the amount is the next card. A slot set to `----` is empty.
 
 **Defaults:** a new track has S1 DIST and S2 FILT, both at amount 0 (bypassed; a bypassed slot costs a compare a block). A drum sound has S1 DIST and S2 DYN. Old projects keep the layout they were saved with and convert on load (below).
 
@@ -74,7 +74,7 @@ DYN is one effect with two stages. On a track:
 
 The pages: `DYN` has THRS, RATIO, GAIN, CEIL; `DYN 2` has ATK and REL. They appear while one of the track's slots holds DYN. Each track has its own RATIO, ATK, REL, GAIN and CEIL. On the drum track the DYN works on the drum bus (the compressor on its five channels, the limiter on the left and right), and the drum sounds' own DYN takes the drum track's settings.
 
-On the master DYN is the master compressor and the brickwall limiter: THRS (-30..0 dB, 0 off), RATIO, ATK, REL, then GAIN (0..15 dB, no AUTO) and CEIL (default -3.0 dB). The Optimist UI shows them as `INS DYN 1` (THRS RATIO ATK REL) and `INS DYN 2` (GAIN CEIL GR, GR being a read-out of the reduction), only while a master slot holds DYN; the mixer's MASTER row shows INS DYN as THRS RATIO GAIN CEIL. SLOOP's UI has the pages `COMP` and `LIMIT`.
+On the master DYN is the master compressor and the brickwall limiter: THRS (-30..0 dB, 0 off), RATIO, ATK, REL, then GAIN (0..15 dB, no AUTO) and CEIL (default -3.0 dB). They show as `INS DYN 1` (THRS RATIO ATK REL) and `INS DYN 2` (GAIN CEIL GR, GR being a read-out of the reduction), only while a master slot holds DYN; the mixer's MASTER row shows INS DYN as THRS RATIO GAIN CEIL.
 
 ### GATER: a trance gate
 
@@ -84,7 +84,7 @@ GATER chops the track's volume in time with the tempo. Pages: `GATER` with DEPTH
 
 These three keep a line of memory each, so the builder gives them a count of instances (0 off, 1 to 4: CHRS and ECHO per track, JUNO per slot). A track that picks one when every instance is in use stays dry on that slot until one is free; the INSERTS list shows how many are left. A saved project keeps the type, not the instance: on load the tracks get the instances in order T1 T2 T3 DR (the master's JUNO instance is counted in the CPU guard).
 
-**JUNO** is the Juno-106's chorus (from fm-106, the MN3009 model): the `JUNO CHO` page has MIX (127 = the Juno's chorus fully on) and MODE (I, II, I+II). A mono track comes out in stereo. The page shows while one of the track's slots holds JUNO. On the master it is `MST JUNO` (SLOOP UI), `INS JUNO` (Optimist UI), with the same two cards.
+**JUNO** is the Juno-106's chorus (from fm-106, the MN3009 model): the `JUNO CHO` page has MIX (127 = the Juno's chorus fully on) and MODE (I, II, I+II). A mono track comes out in stereo. The page shows while one of the track's slots holds JUNO. On the master it is the page `MST JUNO`, shown as `INS JUNO`, with the same two cards.
 
 ### EQ3: a three-band DJ equaliser
 
@@ -99,7 +99,7 @@ EQ3 (always built) splits the sound at two crossover frequencies and sets the ga
 
 ### Master insert slots
 
-The master has two insert slots, S1 and S2, after the returns and PUNCH and before the master volume. The Optimist UI shows them as `INSERTS` on the master FX screen (and the mixer's MASTER row, INSERT); SLOOP's UI has the page `MST INS` (S1, S2 and their amounts).
+The master has two insert slots, S1 and S2, after the returns and PUNCH and before the master volume. Their page is `MST INS`, shown as `INSERTS` on the master FX screen (and the mixer's MASTER row, INSERT).
 
 - They take every type the build has except GATER (it needs a track's tempo values). CHRS, ECHO, FLNG and JUNO take an instance from the pool, as on a track.
 - Their amounts: FILT is the master's DJ filter (-64..63), DUST the master DUST, DYN the master compressor's THRS; any other type has its own master amount.
@@ -134,7 +134,7 @@ In the Optimist UI they are on the mixer's MASTER row, after the returns: `A SEN
 
 ### The sends row
 
-In the Optimist UI the track's sends are on `SENDS`: REV, DLY, CHO (the slots a return holds; blank where no return carries one) and, as the fourth card, PAN. The same set is on the drum track and on each drum lane (the lane's own levels, 0..31 shown as percent). On the drum track `BUS SENDS` holds the drum bus's own sends; the drum sounds' sends are on `DR SENDS`. SLOOP's UI has the shorter `FX` page (the DIST amount and the three sends).
+The track's sends are on `SENDS`: REV, DLY, CHO (the slots a return holds; blank where no return carries one) and, as the fourth card, PAN. The same set is on the drum track and on each drum lane (the lane's own levels, 0..31 shown as percent). On the drum track `BUS SENDS` holds the drum bus's own sends; the drum sounds' sends are on `DR SENDS`.
 
 ## USB audio in, as a track
 

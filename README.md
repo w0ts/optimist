@@ -38,9 +38,9 @@ Four ready-made builds, in every release; the builder makes any other.
 | Flavour | What it is |
 | --- | --- |
 | **Synth** (the default) | FM6 with five voice packs, ANALOG 2, JUNO, ACID, PHYS, the X0X 909 / 808 drums, Bluetooth MIDI, USB audio, the second core, the Optimist UI. The web editor does backup and restore only. |
-| **drum machine** | Every kit, the drum editor, your samples and kits, SLICE, GRAIN, ANALOG 2 for bass; SLOOP's interface. |
-| **FM + VA studio** | ANALOG 2, FM6, DIGITAL, SAMPLE, TRIO, every kit; SLOOP's interface. |
-| **everything fits** | Every engine but TRIO, and almost every feature that fits; SLOOP's interface. |
+| **drum machine** | Every kit, the drum editor, your samples and kits, SLICE, GRAIN, ANALOG 2 for bass. |
+| **FM + VA studio** | ANALOG 2, FM6, DIGITAL, SAMPLE, TRIO, every kit. |
+| **everything fits** | Every engine but TRIO, and almost every feature that fits. |
 
 ## Your first install
 
@@ -95,7 +95,6 @@ working project as a SLOOP 2.7 song file to go the other way.
 | | |
 | --- | --- |
 | [The Optimist UI](docs/guide/interface.md) · [every shortcut](docs/guide/shortcuts.md) | the controls, pages, settings and read-outs |
-| [SLOOP's interface](docs/guide/sloop-ui.md) | the layers, recording, punch-in effects, songs |
 | [Sound](docs/guide/sound.md) · [Drums](docs/guide/drums.md) | the engines, voices, modulation and presets · kits, drum sounds, your samples and kits |
 | [Effects](docs/guide/effects.md) · [Sequencer](docs/guide/sequencer.md) | inserts, sends, returns, the master · steps, locks, motion, patterns, the song |
 | [MIDI, Bluetooth, USB audio, the web editor](docs/guide/midi-usb.md) | connections and the editor |

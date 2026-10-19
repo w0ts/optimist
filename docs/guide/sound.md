@@ -2,8 +2,7 @@
 
 This chapter is about what makes a synth track sound the way it does, and where each control is. The builder reference,
 [docs/BUILDER.md](../BUILDER.md), lists what each engine costs and how to leave it out. Names in capitals are the labels
-on the screen. "The Optimist UI" is builder item `UI=1`; Synth (the default flavour) uses the Optimist UI; drum machine, FM + VA studio and everything fits use SLOOP's
-([SLOOP's interface](sloop-ui.md)).
+on the screen.
 
 ## Engines
 
@@ -137,7 +136,7 @@ sound) is unchanged.
 ### Destinations: two free slots on one shared list
 
 LFO, LFO 2 and ENV 2 each have a second page with two free destinations: **DEST A** with **AMT A**, and **DEST B** with
-**AMT B** (the pages LFO DEST, LFO2 DEST, ENV2 DEST; on SLOOP's UI the cards read DST A and DST B). All three read
+**AMT B** (the pages LFO DEST, LFO2 DEST, ENV2 DEST). All three read
 **one shared list of destinations** (`firmware/src/core/core.h`, LT_*):
 
 - PIT, FLT, SHP, AMP: pitch, filter, shape (the engine's SHP value), amplitude (on ENV 2 or an LFO: on top of ENV 1's);
@@ -158,7 +157,7 @@ Defaults and rules worth knowing:
   and the filter follows ENV 2. Engines without a filter take their nearest: WHEEL TOP, FM6 SHP (MOD), CZ DCW (E2).
   On ACID, FLT is the 303's CUT and RES its RESO.
 - **DROP** is the old fixed pitch drop that ENV DEST PIT gave: a fast fall from each note's start. It is its own value
-  (VOICE 2, card 4, on the Optimist UI; VOICE 3 on SLOOP's UI), no longer a destination.
+  (VOICE 2, card 4), no longer a destination.
 - A project, a section or a user preset made with the old fixed destinations (FLT, SHP, PIT, AMP depths) loads with the
   same sound. One made with ENV DEST's two free slots (2026-10-14 to 16) loads onto ENV 1 MOD: FLT, SHP and PIT become
   their depths, AMP is ENV 1 itself; any other destination moves to ENV 2 when ENV 2 is free (ENV's ATK DEC SUS REL
@@ -187,7 +186,6 @@ start from the engine's defaults. A user preset's LOAD over an edited sound is a
 
 - On the Optimist UI, **SHIFT2** (OCT+ held) + PRESETS marks the sound that plays (turn right) or clears it (turn left).
   SHIFT2 + SELECT browses only the favorites. On PROJECT > USER, SHIFT2 + the ITEM knob marks a user preset.
-- On SLOOP's UI, SAVE > PRESETS: KNOB 3 FAV marks the sound, KNOB 4 LIST shows ALL or only the favorites.
 - A favorite shows a star after its name. Up to 64 factory sounds (kept by engine and name, so a mark survives a build
   that leaves engines out) and any of the 32 user presets can be marked. The FM6 and CZ banks and the drum track have none.
 - Favorites are kept with the settings (136 bytes at the end of the settings record).

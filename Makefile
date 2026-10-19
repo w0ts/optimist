@@ -33,7 +33,7 @@ help:
 	@echo "                              the web builder (tools/builder/costs.json, web/builder/data/); commit both"
 	@echo "make gate  [CONFIG=f] [SET=\"K=V ..\"] [EMU=1]  the integrator's gate: costs, every published profile, the host"
 	@echo "                              tests, a final user-default build (EMU=1: then emu-check)"
-	@echo "make emu-check [PKG=file.fwsc] [ONLY=fx,..]  the emulator smoke checks on the last build (needs Rust; BUILDING.md)"
+	@echo "make emu-check [PKG=file.fwsc] [ONLY=boot,..]  the emulator smoke checks on the last build (needs Rust; BUILDING.md)"
 	@echo "The same without make: $(PY) tools/optimist.py --help"
 	@echo "Put downloaded firmware (.fwsc) in $(IMAGES)/; it is git-ignored."
 

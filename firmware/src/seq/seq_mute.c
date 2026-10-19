@@ -22,25 +22,16 @@ static uint32_t smute_lane;                     /* bit l: drum lane l's (bit DRU
  * keys); the tracks: the Optimist UI's first four white keys (F G A B), SLOOP's black keys F# G# A# C# */
 static int32_t smute_key(uint32_t k)
 {
-#if FELUCCA_UI == 1
     static const int8_t T[12] = {0, -1, 1, -1, 2, -1, 3, -1, -1, -1, -1, -1};   /* from F: F G A B */
-#else
-    static const int8_t T[12] = {-1, 0, -1, 1, -1, 2, -1, -1, 3, -1, -1, -1};   /* from F: F# G# A# C# */
-#endif
     uint32_t l;
     if (k >= 27u)
         return -1;
-#if FELUCCA_UI == 1 && FELUCCA_DRUM_ACCENT && DACC_KEY_ON
+#if FELUCCA_DRUM_ACCENT && DACC_KEY_ON
     if (k == DACC_KEY)
         return SMUTE_ACC;                          /* (the last upper key: the ACCENT lane's sequencer mute) */
 #endif
-#if FELUCCA_UI == 1
     if ((l = lane_of_key(k)) < DRUM_LANES)
         return (int32_t)l;
-#else
-    if (punch_key(k) >= 0)                         /* (SLOOP's: a white key's lane; a black key no lane's) */
-        return (l = (uint32_t)punch_key(k)) < DRUM_LANES ? (int32_t)l : -1;
-#endif
     return k < 12u && T[k] >= 0 ? SMUTE_T0 + T[k] : -1;
 }
 static int smute_trk_on(uint32_t k) { return (smute_trk >> (k & 3u)) & 1u; }

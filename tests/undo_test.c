@@ -317,7 +317,7 @@ static void t_playing(uint32_t t)
 {
     state_t P[4];
     uint32_t pass, ok = 1, n, m, tk;
-    static const uint8_t KEYS[3] = {7, 9, 11};          /* white keys: notes / lanes */
+    static const uint8_t KEYS[2][3] = {{7, 9, 11}, {8, 10, 13}};   /* white keys: notes; the drum track: black keys, lanes 3 4 5 */
     reset();
     undo_clear();
     song.g[G_BPM] = 120;
@@ -332,7 +332,7 @@ static void t_playing(uint32_t t)
         uint32_t at = 3u + pass * 3u, b;
         while (trk[t].seq_idx != at)
             run_blk();
-        fm1_in.notes = 1u << KEYS[pass];
+        fm1_in.notes = 1u << KEYS[t == TRK_DRUM][pass];
         for (b = 0; b < 30u; b++)
             run_blk();
         fm1_in.notes = 0;

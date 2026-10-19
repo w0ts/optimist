@@ -19,7 +19,7 @@ int main(int argc,char **argv)
     for(i=0;i<DRUM_LANES;i++)assert(dstep_has(&step,i) && dstep_lvl(&step,i)==(i&3u) && dstep_rat(&step,i)==((i>>2)&3u));
     dstep_clr(&step,5);assert(!dstep_has(&step,5) && dstep_has(&step,4) && dstep_has(&step,6) && dstep_lvl(&step,6)==2u);
     for(i=0;i<27u;i++)assert(lane_of_key(i)<DRUM_LANES || lane_of_key(i)==DLANE_NONE);   /* (10 lanes: the keys past them none) */
-    assert(lane_of_key(0)==0 && lane_of_key(1)==0 && lane_of_key(16)==9 && key_of_lane(9)==16 && lane_of_key(17)==9 && lane_of_key(18)==DLANE_NONE);
+    assert(lane_of_key(0)==DLANE_NONE && lane_of_key(1)==0 && lane_of_key(3)==1 && lane_of_key(22)==9 && key_of_lane(9)==22 && lane_of_key(25)==DLANE_NONE);   /* (the black keys F#3 .. D#5; F#5 the ACCENT lane, seq.c) */
     for(i=35;i<=81;i++)assert(lane_of_note(i)<DRUM_LANES || INST_FAM[inst_of_gm(i)]==5u);   /* (no percussion lane by default) */
     for(i=0;i<DRUM_LANES;i++)assert(lane_of_note(LANE_NOTE_OF(i))==i);
     /* Render the same hits through all five kits; each must be distinct,

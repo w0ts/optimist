@@ -43,12 +43,6 @@
 #ifndef FELUCCA_SL24_IMPORT
 #define FELUCCA_SL24_IMPORT 1    /* sl24_import.c, sl24_guard.c sl24_load: a SLOOP 2.4 slot, LOAD twice: imported */
 #endif
-#ifndef FELUCCA_SEL_PAGES
-#define FELUCCA_SEL_PAGES 1      /* ui.c page_walk, ui_input.c (the SELECT knob) */
-#endif
-#ifndef FELUCCA_BIGVALS
-#define FELUCCA_BIGVALS 1        /* ui_draw.c graph_big, ui.c (big_l / big_v / big_u / big_c: 112 B of RAM) */
-#endif
 #ifndef FELUCCA_SL24_EXPORT
 #define FELUCCA_SL24_EXPORT 0    /* sl24_export.c, ed_sl24.c (editor command 78): the working project as a SLOOP 2.4
                                   * backup file, from the web editor (nothing written to flash) */

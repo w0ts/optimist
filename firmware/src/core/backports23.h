@@ -19,9 +19,6 @@
 #ifndef FELUCCA_LIGHTS
 #define FELUCCA_LIGHTS 0         /* hal/fm1_input.h (the backlight layer), lights.c, ui_input.c, ui_menu.c */
 #endif
-#ifndef FELUCCA_VIS
-#define FELUCCA_VIS 0            /* SLOOP 2.4's visualiser (backports24.h; here for BP23_SET: its style is in the settings word) */
-#endif
 /* Retired 2026-10-14, always built: upstream's fix is unchanged in its current release (tools/builder/registry.py
  * RETIRED). A build that still asks for one of them off is refused */
 #if defined(FELUCCA_MONO_RELEASE) && !FELUCCA_MONO_RELEASE

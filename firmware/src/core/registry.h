@@ -403,9 +403,6 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #undef FELUCCA_MIDI_INCLK
 #define FELUCCA_MIDI_INCLK 1               /* HOME menu > MIDI IN = CLOCK: MIDI in takes the clock only, no notes
                                             * (SLOOP 2.4) */
-#ifndef FELUCCA_OV_ARP
-#define FELUCCA_OV_ARP 1                  /* the ARP graph and the ARP family in VIEW ALL */
-#endif
 #ifndef FELUCCA_SECTIONS
 #define FELUCCA_SECTIONS 16                /* song sections: 4 (A..D, the project slots in RAM and flash, as before), 8
                                             * or 16 (A..P in banks of 4, compressed in one shared log: sec_log.c) */
@@ -492,9 +489,6 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #ifndef FELUCCA_ED_NOTE
 #define FELUCCA_ED_NOTE 1                    /* web editor protocol v14: notes played from the editor (cmd 103, tag 0x60) (io/editor/ed_*.c, seq/ednote.c) */
 #endif
-#ifndef FELUCCA_OVERVIEW
-#define FELUCCA_OVERVIEW 1                 /* VIEW ALL: a page family at once (ui_overview.c, GLO > SYSTEM VIEW) */
-#endif
 #ifndef FELUCCA_CPU_GUARD
 #define FELUCCA_CPU_GUARD 0                /* the predictive CPU guard: eases back quality, then UNISON, then notes
                                             * under overload (cpuguard.c, after Flowstate; docs/CPU-GUARD.md) */
@@ -506,10 +500,6 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #ifndef FELUCCA_FAVORITES
 #define FELUCCA_FAVORITES 1                /* mark sounds as favorites and browse only them: SAVE > PRESETS KNOB 3 FAV, KNOB 4
                                             * LIST ALL / FAV (core/favorites.c, model.c; Felucca 1.6; SLOOP's UI) */
-#endif
-#ifndef FELUCCA_CHORD_NAMES
-#define FELUCCA_CHORD_NAMES 1              /* the STEP page names a step's chord: Am, Fmaj7, Bm7b5 (ui.c chord_name, from
-                                            * isod89/sloop-fm1 PR #45) */
 #endif
 #ifndef FELUCCA_PARAM_HELP
 #define FELUCCA_PARAM_HELP 0               /* the knob's value in plain words on the top bar ("Filter cutoff"), from
@@ -536,11 +526,6 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #define FELUCCA_SYS_DEBUG 1                /* the Optimist UI's SYSTEM debug pages: INTERNALS, USB STATS and INFO's clock,
                                             * second core, drops, guard lines (op_project.c); off, INFO is CPU LOAD,
                                             * UNDERRUNS, BATTERY. The builder's default is 0; the host tests keep them */
-#endif
-#ifndef FELUCCA_DRUM_STEP
-#define FELUCCA_DRUM_STEP 0                /* the drum track's SEQ layer as a TR step sequencer: one sound's 16 steps over
-                                            * an overview of the 16 sounds, SEQ + EDIT picks the sound on the white keys,
-                                            * the page follows the playhead (ui_drumstep.c; PR #45 of isod89/sloop-fm1) */
 #endif
 #ifndef FELUCCA_DRUM_ACCENT
 #define FELUCCA_DRUM_ACCENT 1              /* the drum track's ACCENT lane is heard: its steps raise every hit of the step

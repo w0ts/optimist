@@ -1,6 +1,6 @@
 # Shortcuts: every gesture of the Optimist UI
 
-Every button, knob and key gesture of the Optimist UI (builder item `UI`, value 1), grouped by what you want to do, then the ones that belong to one page. The guides explain them: [interface](interface.md) for the controls and pages, [sequencer](sequencer.md) for steps, p-locks and patterns. A gesture whose feature is not in your build does nothing (the builder item is named in brackets).
+Every button, knob and key gesture of the Optimist UI, grouped by what you want to do, then the ones that belong to one page. The guides explain them: [interface](interface.md) for the controls and pages, [sequencer](sequencer.md) for steps, p-locks and patterns. A gesture whose feature is not in your build does nothing (the builder item is named in brackets).
 
 ## Reading this page
 

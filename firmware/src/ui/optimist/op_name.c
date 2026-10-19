@@ -16,7 +16,7 @@
  * modal over a used slot). Kits keep numbers (the user's ruling). The keys type and never sound: the keys go to the
  * UI as STEP's do (seq.c ly_lock LY_STEP). Names are kept as typed, upper case, at most 12 characters, and drawn in
  * sentence case. A user preset's name is its record's (upreset.c up_rec_t.name); a project's is the section log's
- * names record (storage/sections/sections.c sec_name_set, FELUCCA_UI == 1): only builds with the log (SECTIONS 8 or
+ * names record (storage/sections/sections.c sec_name_set): only builds with the log (SECTIONS 8 or
  * 16) name projects, the four RAM slots save as before. */
 enum { NK_NONE, NK_USER, NK_PROJ };
 #define NM_LEN 12u
@@ -43,7 +43,7 @@ static struct {
     char ph[NM_LEN + 1u];                              /* the automatic name ("ANALOG 07", "PROJECT 3") */
 } nm;
 #if SEC_LOGGED
-static void sec_name(uint32_t s, char *b);             /* storage/sections/sections.c (FELUCCA_UI == 1) */
+static void sec_name(uint32_t s, char *b);             /* storage/sections/sections.c */
 static int sec_name_set(uint32_t s, const char *nm);
 #endif
 static int up_store(uint32_t k, const char *name);     /* storage/upreset.c */

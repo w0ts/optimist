@@ -721,9 +721,6 @@ static const page_t PAGES[] = {
     /* LFO 2 (voice.c lfo2_tick; the synth tracks' only: page_for_drum). DEST AMT leave two cards for a second pair */
     {"LFO 2", FAM_LFO, SC_TRACK, GR_LFO2, {P_L2RATE, P_L2WAVE, P_L2TRIG, P_L2POL}},
     {"LFO2 DEST", FAM_LFO, SC_TRACK, GR_NONE, {P_L2DA, P_L2AA, P_L2DB, P_L2AB}},
-#if FELUCCA_UI != 1
-    {"FX", FAM_FX, SC_TRACK, GR_FX, {P_DIST, P_CHOR, P_DLY, P_REV}},   /* S1's amount, the master sends (page_id) */
-#endif
     /* the track's two insert slots: S1 TYPE, its amount, S2 TYPE, its amount (fx_slots.c; the ids: page_id) */
     {"INSERTS", FAM_FX, SC_TRACK, GR_INS, {PID_INST, 0xFF, PID_INST + 1, 0xFF}},
 #if FELUCCA_MASTER_COMP
@@ -744,9 +741,7 @@ static const page_t PAGES[] = {
      * its slots, or a lane's of the drum track, holds it) */
     {"EQ3", FAM_FX, SC_FXSLOT, GR_NONE, {FXS_ID_TEQ, FXS_ID_TEQ + 1, FXS_ID_TEQ + 2, FXS_ID_TEQ + 3}},
     {"EQ3 FREQ", FAM_FX, SC_FXSLOT, GR_NONE, {FXS_ID_TEQ + 4, FXS_ID_TEQ + 5, 0xFF, 0xFF}},
-#if FELUCCA_UI == 1
     {"SENDS", FAM_FX, SC_TRACK, GR_FX, {P_REV, P_DLY, P_CHOR, 0xFF}},   /* the sends (page_id: A B C's); DR: its levels */
-#endif
 #if FELUCCA_TRK_FILT
     {"FILTER", FAM_FX, SC_TRACK, GR_NONE, {P_TFLT, 0xFF, 0xFF, 0xFF}},   /* the track's filter, the drum track's too (2.4) */
 #endif
@@ -777,12 +772,7 @@ static const page_t PAGES[] = {
     {"FLT 2", FAM_EDIT, SC_TRACK, GR_NONE, {P_A2FTYP, 0xFF, 0xFF, 0xFF}},
 #endif
     {"VOICE", FAM_EDIT, SC_TRACK, GR_NONE, {P_VOICE, P_GLIDE, P_GLMODE, P_PRIO}},
-#if FELUCCA_UI == 1
     {"VOICE 2", FAM_EDIT, SC_TRACK, GR_NONE, {P_ALLOC, P_DETUNE, P_VOICES, P_ED_PIT}},   /* (the Optimist UI: PAN and MUTE are the mixer's, the user 2026-10-14; DROP on card 4: the pitch drop, ENV DEST PIT before 2026-10-14; card 3: feat/voice-count's VOICES) */
-#else
-    {"VOICE 2", FAM_EDIT, SC_TRACK, GR_NONE, {P_ALLOC, P_DETUNE, P_PAN, P_MUTE}},
-    {"VOICE 3", FAM_EDIT, SC_TRACK, GR_NONE, {P_ED_PIT, 0xFF, 0xFF, 0xFF}},   /* DROP: the pitch drop (ENV DEST PIT before) */
-#endif
 #if DL_ANY
     /* the drum track's EDIT family: the sound picked (ui_drums.c; ids are its values, not P_*) */
     {"SOUND", FAM_EDIT, SC_DSND, GR_DSND, {0, 1, 2, 3}},
@@ -855,7 +845,6 @@ static uint32_t page_id(const page_t *pg, uint32_t k)
     k &= 3u;
     if (pg->graph == GR_INS)
         return k & 1u ? ins_amt(song.sel, k >> 1) : PID_INST + (k >> 1);
-#if FELUCCA_UI == 1
     if (pg->graph == GR_FX) {   /* the returns' order (fx_slots.c fxs_card: card k is R(k+1)) */
         uint32_t t;
         if (k == 3u)                                    /* card 4: the track's PAN (the drum track's too) */
@@ -867,17 +856,6 @@ static uint32_t page_id(const page_t *pg, uint32_t k)
             return PID_DKS + FXS_DSI(t);                /* (PID_DKS: REV DLY CHO) */
         return FXT_AMT[t];
     }
-#else
-    if (pg->graph == GR_FX) {
-        uint32_t t = k ? fxs_send(k - 1u) : FXT_NONE;
-        if (!k)
-            return ins_amt(song.sel, 0);
-        if (t == FXT_NONE)
-            return 0xFFu;
-        return is_drum(TSEL) ? PID_DKS + FXS_DSI(t) : (uint32_t)FXT_AMT[t];   /* (the drum track: its send levels, the lanes'
-                                                                              * multipliers; its bus sends nothing) */
-    }
-#endif
     if (PG_E1(pg)) {                                    /* ENV 1 MOD: the engine's four cards (env1_cards.h) */
         return env1_id(TSEL->eng_req, k);
     }
@@ -1034,7 +1012,7 @@ static int cell_built(const page_t *pg, uint32_t id)
         return id == G_DUST ? FELUCCA_FX_DUST : id == G_DUCK ? FELUCCA_FX_DUCK : id == G_FILT ? FELUCCA_FX_DJF :
                (id >= G_CTHR && id <= G_CCEIL) || id == G_CGR ? FELUCCA_MASTER_COMP :
                id == G_RSIZE || id == G_RDAMP ? FXS_HAS(FXT_REV) :   /* (in a slot: fx_slots.c) */
-               id == G_CRATE || id == G_CDEPTH ? FXS_HAS(FXT_CHO) : id == G_SYNC ? FELUCCA_MIDI_CLOCK : id == G_VIEW ? FELUCCA_OVERVIEW : id == G_A24 ? SL24_AUTO : 1;
+               id == G_CRATE || id == G_CDEPTH ? FXS_HAS(FXT_CHO) : id == G_SYNC ? FELUCCA_MIDI_CLOCK : id == G_VIEW ? 0 : id == G_A24 ? SL24_AUTO : 1;
     return 1;
 }
 #if FELUCCA_MISSING_WARN

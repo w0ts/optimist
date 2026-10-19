@@ -206,7 +206,7 @@ static void t_keys(void)
     check(total_ons() == 0u && out_n == 0u, "a track OFF: its keys send nothing");
     song.sel = TRK_DRUM;
     song.g[G_DRCH] = 4;
-    fm1_in.notes = 1u << 7;
+    fm1_in.notes = 1u << 8;                               /* (a drum lane: a black key, C#4) */
     blocks(2);
     fm1_in.notes = 0;
     blocks(2);

@@ -593,7 +593,6 @@ static uint32_t pat_free(uint32_t k)
             return s;
     return PAT_NONE;
 }
-#if FELUCCA_UI == 1
 /* the Optimist UI's SONG screen (ui/optimist/op_song.c): scene s names v (a slot, PAT_KEEP, PAT_NONE) for track k.
  * Stopped: its record written again with that reference (the arena's or the log's, into the log), its FX record
  * keyed again (fx_rec_log.c: it pairs with the scene by the record's hash). -> 0 done, else said */
@@ -628,5 +627,4 @@ static int pat_scene_ref_set(uint32_t s, uint32_t k, uint32_t v)
     sec_gen++;                                         /* (a staged scene: read again) */
     return 0;
 }
-#endif
 #endif

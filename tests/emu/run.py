@@ -5,9 +5,8 @@
 
   python3 tests/emu/run.py [FIRMWARE.fwsc] [--only CHECK[,CHECK..]] [--mhz N] [--out DIR] [--jobs N] [--list]
 
-FIRMWARE: a package with its ELF beside it (default build/felucca.fwsc, the last build). The checks drive the panel
-of SLOOP's UI (FELUCCA_UI 0); a build of the Optimist UI (FELUCCA_UI 1) runs boot, upfm6 (without its preset save)
-and timing only (its gestures differ). Each check prints PASS / FAIL lines and works in OUT/<check>/ (default build/emu-check/: its package copy,
+FIRMWARE: a package with its ELF beside it (default build/felucca.fwsc, the last build). The checks that drove SLOOP's
+UI's panel (patterns, fx, insfx, persist, scenefx) went with it (2026-10-19). Each check prints PASS / FAIL lines and works in OUT/<check>/ (default build/emu-check/: its package copy,
 flash state, WAVs and screens). Exit 1 on any FAIL (a check that stops on an error counts as one).
 
 A DUAL build whose second core starts (FELUCCA_DUAL, not parked) is refused (exit 2): the emulator's timing model does
@@ -39,17 +38,12 @@ fwfacts = importlib.import_module("fwfacts")
 session = importlib.import_module("session")
 
 ROOT = HERE.parents[1]
-# name: (module, what it covers, which UIs)
+# name: (module, what it covers)
 CHECKS = {
-    "boot": ("check_boot", "a clean boot: no crash record, the boot guard clears, halves/s, late 0, a note", (0, 1)),
-    "patterns": ("check_patterns", "launches (end, bar, now), scenes, the song chain, clear, steps and onsets", (0,)),
-    "fx": ("check_fx", "FX slots: COMP heard, bypass, slot swap, determinism, restore, the drum inserts", (0,)),
-    "insfx": ("check_insfx", "the further inserts (INS_*): listed, transparent at 0, heard, bypassed, back at 0", (0,)),
-    "persist": ("check_persist", "save, power cycle, load: patterns, scenes, the song, FX", (0,)),
-    "scenefx": ("check_scenefx", "F1: a scene stored from the SAVE layer keeps its FX", (0,)),
-    "autosave": ("check_autosave", "stopped, an edit: autosaved once unchanged 10 s (at once after power-on, 60 s after a save, 2 min under changes); a power cycle keeps it", (0, 1)),
-    "upfm6": ("check_upfm6", "UP_FM6 moved off the SDK VM; 0xE7000..0xE9FFF untouched", (0, 1)),
-    "timing": ("check_timing", "tests/emu_boot_check.py: no late half at 48, 96 and 192 MHz", (0, 1)),
+    "boot": ("check_boot", "a clean boot: no crash record, the boot guard clears, halves/s, late 0, a note"),
+    "autosave": ("check_autosave", "stopped, an edit: autosaved once unchanged 10 s (at once after power-on, 60 s after a save, 2 min under changes); a power cycle keeps it"),
+    "upfm6": ("check_upfm6", "UP_FM6 moved off the SDK VM; 0xE7000..0xE9FFF untouched"),
+    "timing": ("check_timing", "tests/emu_boot_check.py: no late half at 48, 96 and 192 MHz"),
 }
 
 
@@ -153,8 +147,8 @@ def main(argv=None):
         Path(a.child_result).write_text(f"{p} {f}\n")
         return 0
     if a.list:
-        for k, (_, what, uis) in CHECKS.items():
-            print(f"{k:9s} {what}" + ("" if 1 in uis else " (SLOOP's UI only)"))
+        for k, (_, what) in CHECKS.items():
+            print(f"{k:9s} {what}")
         return 0
     fw = Path(a.firmware).resolve()
     if not fw.exists() or not fw.with_suffix(".elf").exists():
@@ -164,7 +158,6 @@ def main(argv=None):
         print(f"emu-check: {fw} is a DUAL build whose second core starts: the emulator gate runs DUAL profiles single "
               "core (build it with OPTIMIST_DUAL_PARK=1; EMU_DUAL=1 to run anyway; tests/emu/run.py --help)", file=sys.stderr)
         return 2
-    ui = fwfacts.Facts(fw).ui
     names = [n.strip() for n in a.only.split(",")] if a.only else list(CHECKS)
     bad = [n for n in names if n not in CHECKS]
     if bad:
@@ -172,15 +165,12 @@ def main(argv=None):
         return 2
     t0 = time.time()
     a.out = str(Path(a.out).resolve())                  # (the checks' processes run in ROOT)
-    run_names = [n for n in names if ui in CHECKS[n][2]]
+    run_names = names
     jobs = a.jobs if a.jobs > 0 else min(len(run_names) or 1, os.cpu_count() or 1)
     a.jobs = jobs
     alone = jobs > 1 and any(n in ALONE for n in run_names)
-    print(f"emu-check: {fw} ({'the Optimist UI' if ui else 'SLOOP UI'}), {a.mhz} MHz, out {a.out}, "
+    print(f"emu-check: {fw}, {a.mhz} MHz, out {a.out}, "
           f"{jobs} at once{', timing alone after them' if alone else ''}", flush=True)
-    for n in names:
-        if n not in run_names:
-            print(f"skip  {n}: SLOOP's UI gestures (this build has the Optimist UI)")
     names = run_names
     if jobs == 1:
         done = {n: run_one(n, fw, a.out, a.mhz) for n in names}

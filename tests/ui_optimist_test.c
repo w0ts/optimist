@@ -13,7 +13,6 @@
  *   messages every message and every question fits the header (232 px)
  * then random use: every draw stays on the screen. Renders the screens to PPM (DIR/opt-*.ppm) for review. */
 #define FELUCCA_ARRANGER 1
-#define FELUCCA_UI 1
 #define STP_PAT 0u                      /* STEP's first row, PATTERN (no LANE page after it since 2026-10-14) */
 #if FELUCCA_PATTERNS
 #define FELUCCA_FLASH 1                 /* (the section log: phase 4's switch set) */

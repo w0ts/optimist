@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* tests/editor_sync_test.c: editor protocol v14 (web/EDITOR_PROTOCOL.md "v14"): 102 UNDO, 103 NOTE, 104 SOLO, 105 STEPLANE
- * (firmware/src/io/editor/ed_undo.c, ed_note.c, ed_solo.c, ed_steplane.c; seq/ednote.c). SLOOP's-UI path of STEPLANE (the Optimist UI's list and its golden
- * are in tests/ui_optimist_edv14.h). Included by editor_sync_test.c after ed_sync9.c, its helpers (ed_begin, ed_out, ed_n, check) in scope. */
+ * (firmware/src/io/editor/ed_undo.c, ed_note.c, ed_solo.c, ed_steplane.c; seq/ednote.c). STEPLANE is built off here: its list is
+ * the Optimist UI's lock pages (tests/ui_optimist_edv14.h, every check of it). Included by editor_sync_test.c after ed_sync9.c, its helpers (ed_begin, ed_out, ed_n, check) in scope. */
 static void check(int c, const char *what);            /* (editor_sync_test.c) */
 static uint8_t sync_reload;                                 /* (model.c's: UNDO sets it, as the panel's undo does) */
 static struct { uint32_t last_ms; } ed_w;                                     /* (editor.c's; the part these files read) */
@@ -310,160 +310,6 @@ static void v14_solo(void)
     v14_ret_mute();
 }
 #endif
-#if STL_ON
-static uint32_t stl_u(const uint8_t *a, uint32_t p) { return (uint32_t)(a[p] | a[p + 1] << 7); }
-static uint32_t stl_call(uint32_t op, uint32_t track, uint32_t lane, uint32_t step, uint32_t x, int32_t v)
-{
-    uint8_t q[8];
-    uint32_t u = (uint32_t)(clamp(v, -8192, 8191) + 8192);
-    q[0] = (uint8_t)op, q[1] = (uint8_t)track, q[2] = (uint8_t)lane, q[3] = (uint8_t)step, q[4] = (uint8_t)x, q[5] = (uint8_t)(u & 127u), q[6] = (uint8_t)(u >> 7);
-    return v14_call(ed_steplane, ED_STEPLANE, q, op == 0u ? 3u : op == 1u ? 4u : op == 2u ? 4u : op == 5u || op == 6u ? 5u : 7u);
-}
-/* a state reply's fields: ed_out[5] op, 6 rc, 7 track, 8 lane, 9 step, 10 flags, 11 level, 12 ratchet, 13 chance, 14 cond, 15 nudge + 64, 16 fill, 17 n, then n x (i, kind, v14) */
-#define OKC(c) do { int c_ = (c); if (!c_) printf("  (STEPLANE check failed at editor_v14.h:%d)\n", __LINE__); ok &= (uint32_t)c_; } while (0)
-static void v14_steplane(void)
-{
-    uint32_t n, np, i, ok, r, seen[P_COUNT];
-    track_t *t = &trk[0];
-    v14_stable();
-    memset(t->step, 0, sizeof t->step);
-    memset(seen, 0, sizeof seen);
-    for (i = 0; i < NTRK; i++)
-        trk[i].p[P_SLEN] = 16;
-    memset(AL(t), 0, sizeof *AL(t));
-    r = stl_call(0, 0, 127, 0, 0, 0);
-    n = ed_out[8], np = ed_out[9];
-    check(r && ed_out[5] == 0 && n > 0 && np > 0 && n <= 127u, "STEPLANE LIST (synth track): the device's lockable values, at least one page");
-    ok = 1;
-    for (i = 0; i < n; i++) {
-        uint32_t id;
-        if (!stl_call(1, 0, 127, i, 0, 0)) {
-            ok = 0;
-            continue;
-        }
-        id = ed_out[10];
-        ok &= ed_out[8] == i && ed_out[9] == 0 && id < P_COUNT && lock_ok(t, id) && !seen[id] && ed_out[11] < np;
-        seen[id] = 1;
-    }
-    check(ok, "STEPLANE DESC: every value is a track parameter lock_ok takes, once, on a page below np");
-    check(!seen[P_MUTE] && !seen[P_SLEN] && !seen[P_SDIV] && !seen[P_VOICES], "STEPLANE LIST: the values the device refuses (MUTE, LEN, DIV, VOICES) are not offered");
-    r = stl_call(1, 0, 127, n, 0, 0);
-    check(r && ed_n == 9u, "STEPLANE DESC past the list: the header only");
-    /* locks on a synth step */
-    t->step[5].time = ST_NOTE, t->step[5].n = 1, t->step[5].note[0] = 60;
-    stl_call(1, 0, 127, 0, 0, 0);
-    {
-        uint32_t id0 = ed_out[10];
-        const param_desc_t *d0 = lock_desc(t, id0);
-        int32_t v;
-        r = stl_call(4, 0, 127, 5, 0, d0->max);
-        check(r && ed_out[5] == 4 && ed_out[6] == 0 && ed_out[17] == 1 && ed_out[18] == 0 && ed_out[19] == 1 && lock_get(t, 5, id0, &v) && v == d0->max, "STEPLANE LOCK: the lock is the step's event; the state lists it (i 0, kind 1, the value)");
-        r = stl_call(4, 0, 127, 5, 0, 9000);
-        check(r && lock_get(t, 5, id0, &v) && v == d0->max, "STEPLANE LOCK: a value past the range is clamped");
-        r = stl_call(6, 0, 127, 5, 0, 0);
-#if FELUCCA_MOTION
-        check(r && ed_out[6] == 0 && ed_out[17] == 1 && ed_out[19] == 2 && hold_get(t, 5, id0, &v) && !lock_get(t, 5, id0, &v), "STEPLANE KIND: the lock becomes a hold event (the device's YES)");
-        r = stl_call(4, 0, 127, 5, 0, d0->min);
-        check(r && hold_get(t, 5, id0, &v) && v == d0->min && !lock_get(t, 5, id0, &v), "STEPLANE LOCK on a hold event: its value moves, the kind stays");
-#else
-        check(r && ed_out[6] == 4, "STEPLANE KIND without motion: nothing to do (rc 4)");
-#endif
-        r = stl_call(5, 0, 127, 5, 0, 0);
-        check(r && ed_out[6] == 0 && ed_out[17] == 0 && !lock_get(t, 5, id0, &v) && !hold_get(t, 5, id0, &v), "STEPLANE UNLOCK: both kinds of the value go");
-        r = stl_call(6, 0, 127, 5, 0, 0);
-        check(r && ed_out[6] == 4, "STEPLANE KIND with no event: rc 4");
-        r = stl_call(4, 0, 127, 5, 99, 0);
-        check(r && ed_out[6] == 1, "STEPLANE LOCK of a value past the list: rc 1");
-        stl_call(4, 0, 127, 5, 0, d0->max);
-#if FELUCCA_ED_UNDO                                       /* (without the UNDO command nothing takes the level back) */
-        (void)v14_call(ed_undo, ED_UNDO, (const uint8_t[]){1}, 1);
-        check(!lock_get(t, 5, id0, &v), "STEPLANE: the lock written is an undo level (UNDO removes it)");
-#endif
-    }
-    /* the extras, level and ratchet */
-    ok = 1;
-#if FELUCCA_CHANCE
-    r = stl_call(3, 0, 127, 5, 2, 50);
-    OKC(r && ed_out[6] == 0 && ed_out[13] == 50 && step_chance_ev(t, 5) == 50);
-    r = stl_call(3, 0, 127, 5, 2, 101);
-    OKC(r && ed_out[6] == 1);
-    r = stl_call(3, 0, 127, 9, 2, 50);
-    OKC(r && ed_out[6] == 3);                               /* (an empty step has no chance) */
-#endif
-#if FELUCCA_COND
-    r = stl_call(3, 0, 127, 5, 3, 4);
-    OKC(r && ed_out[6] == 0 && ed_out[14] == 4 && step_cond(t, 5) == 4);
-    r = stl_call(3, 0, 127, 5, 3, 10);
-    OKC(r && ed_out[6] == 1);
-#endif
-#if FELUCCA_MICRO
-    r = stl_call(3, 0, 127, 5, 4, -7);
-    OKC(r && ed_out[6] == 0 && ed_out[15] == 64 - 7 && step_micro(t, 5) == -7);
-    r = stl_call(3, 0, 127, 5, 4, 32);
-    OKC(r && ed_out[6] == 1);
-#endif
-#if FELUCCA_FILLS
-    r = stl_call(3, 0, 127, 5, 5, 1);
-    OKC(r && ed_out[6] == 0 && ed_out[16] == 1 && step_fill(t, 5) == 1);
-#endif
-    r = stl_call(3, 0, 127, 5, 0, 3);
-    OKC(r && ed_out[6] == 0 && ed_out[11] == 3 && (t->step[5].lvl & 3u) == 3u);
-    r = stl_call(3, 0, 127, 5, 1, 2);
-    OKC(r && ed_out[12] == 2 && (t->step[5].rat & 3u) == 2u);
-    r = stl_call(3, 0, 127, 5, 7, 0);
-    OKC(r && ed_out[6] == 1);
-    r = stl_call(2, 0, 127, 5, 0, 0);
-    OKC(r && ed_out[10] == 3 && ed_out[11] == 3 && ed_out[12] == 2);
-    check(ok, "STEPLANE SET / STEP: chance, condition, nudge, fill, level, ratchet through the store; out-of-range rc 1; an empty step rc 3");
-    /* the drum track */
-    {
-        dstep_t *d = &TDRUM->dstep[7];
-        int32_t v;
-        memset(d, 0, sizeof *d);
-        memset(AL(TDRUM), 0, sizeof *AL(TDRUM));
-        dstep_set(d, 2, LV_NORM, 0);
-        r = stl_call(0, 3, 2, 0, 0, 0);
-#if DLA_ON && FELUCCA_PLOCK
-        n = ed_out[8];
-        ok = r && n == DE_N;
-        for (i = 0; i < n; i++) {
-            stl_call(1, 3, 2, i, 0, 0);
-            ok &= ed_out[8] == i && ed_out[9] == 1 && ed_out[10] == i;
-        }
-        check(ok, "STEPLANE LIST (drum lane): the lane's eight values TUNE .. LEVEL, kind 1");
-        r = stl_call(4, 3, 2, 7, 0, 5);
-        check(r && ed_out[6] == 0 && ed_out[10] & 1 && lane_lock_get(TDRUM, 7, 2, 0, &v) && v == 5 && ed_out[17] == 1, "STEPLANE LOCK on a drum lane: the lane's lock (TUNE = 5) on its hit");
-        r = stl_call(4, 3, 2, 8, 0, 5);
-        check(r && ed_out[6] == 3 && !lane_lock_get(TDRUM, 8, 2, 0, &v), "STEPLANE LOCK on a step the lane does not hit: rc 3 (D4), nothing written");
-        r = stl_call(5, 3, 2, 7, 0, 0);
-        check(r && ed_out[17] == 0 && !lane_lock_get(TDRUM, 7, 2, 0, &v), "STEPLANE UNLOCK on a drum lane");
-        r = stl_call(4, 3, 3, 7, 0, 5);
-        check(r && ed_out[6] == 3, "STEPLANE LOCK on another lane that does not hit there: rc 3");
-#else
-        check(r && ed_out[8] == 0, "STEPLANE LIST (drum lane) without lane locks: empty");
-#endif
-        r = stl_call(3, 3, 2, 7, 0, 3);
-        check(r && ed_out[6] == 0 && ed_out[11] == 3 && dstep_lvl(d, 2) == 3, "STEPLANE SET level on a drum lane: the lane's level only");
-        r = stl_call(3, 3, 2, 7, 1, 2);
-        check(r && ed_out[6] == 0 && dstep_rat(d, 2) == 2 && dstep_lvl(d, 2) == 3, "STEPLANE SET ratchet on a drum lane");
-        r = stl_call(3, 3, 5, 7, 0, 3);
-        check(r && ed_out[6] == 3 && !dstep_has(d, 5), "STEPLANE SET level on a lane without a hit: rc 3, no hit made");
-        r = stl_call(2, 3, 2, 7, 0, 0);
-        check(r && ed_out[10] == 3 && ed_out[11] == 3 && ed_out[12] == 2, "STEPLANE STEP on a drum lane: flags (hit, lockable), level, ratchet");
-        r = stl_call(2, 3, 127, 7, 0, 0);
-        check(r && ed_out[10] == 3, "STEPLANE STEP on DR itself (lane 127): the step has a hit");
-        memset(d, 0, sizeof *d);
-        memset(AL(TDRUM), 0, sizeof *AL(TDRUM));
-    }
-    check(!stl_call(0, 4, 127, 0, 0, 0) && !stl_call(0, 0, 3, 0, 0, 0) && !stl_call(0, 3, 20, 0, 0, 0) && !stl_call(2, 0, 127, 64, 0, 0) && !stl_call(9, 0, 127, 0, 0, 0),
-          "STEPLANE: a track past 3, a lane on a synth track, a lane past 16, a step past 63, an unknown op: no reply");
-    ed_begin(1); ed_steplane_info();
-    check(ed_n == 10u && ed_out[5] == 0x62u && ed_out[7] == 1u && (ed_out[8] & 2u) == (FELUCCA_PLOCK ? 2u : 0u) && (ed_out[9] & 1u) == (FELUCCA_CHANCE ? 1u : 0u), "ED_STEPLANE on: INFO carries tag 0x62 (version 1, the flags)");
-    memset(t->step, 0, sizeof t->step);
-    memset(AL(t), 0, sizeof *AL(t));
-    v14_stable();
-}
-#endif
 static void v14_reads(void)                             /* ed_reads.h: a read asks for no ui.force (the panel flashed while the editor polled) */
 {
     const uint8_t o0[] = {0}, o1[] = {1}, o2[] = {2}, o3[] = {3}, o4[] = {4};
@@ -501,10 +347,6 @@ static void v14_tests(void)
     ed_begin(1); ed_solo_info();
     check(ed_n == 5u && !ed_solo(104, (const uint8_t[]){0}, 1), "ED_SOLO off: cmd 104 is not handled, INFO has no tag 0x61");
 #endif
-#if STL_ON
-    v14_steplane();
-#else
-    ed_begin(1); ed_steplane_info();
-    check(ed_n == 5u && !ed_steplane(105, (const uint8_t[]){0, 0, 127}, 3), "ED_STEPLANE off (or no automation store): cmd 105 is not handled, INFO has no tag 0x62");
-#endif
+    ed_begin(1); ed_steplane_info();                    /* (STEPLANE needs the Optimist UI's lock pages: tests/ui_optimist_edv14.h) */
+    check(ed_n == 5u && !ed_steplane(105, (const uint8_t[]){0, 0, 127}, 3), "ED_STEPLANE off (the editor without the UI): cmd 105 is not handled, INFO has no tag 0x62");
 }

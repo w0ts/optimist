@@ -53,11 +53,7 @@ static volatile struct {
 } fm1_in;
 static uint8_t fm1_led[FM1_NCOL];
 #ifndef FM1_LED_DIM_MASK
-#if defined(FELUCCA_UI) && FELUCCA_UI == 1
 #define FM1_LED_DIM_MASK 7u
-#else
-#define FM1_LED_DIM_MASK 3u
-#endif
 #endif
 static uint8_t fm1_led_dim[FM1_NCOL];
 #ifndef FELUCCA_LIGHTS

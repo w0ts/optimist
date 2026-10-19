@@ -12,81 +12,43 @@
  *            the scan names each item once, in order, by the build's own names; the top bar line; once per
  *            item and power-on; the real UI: the message after a load, nothing again on a reload, only PHYS
  *            when the song changes to B while playing (proj_apply from the audio side), SAVE > TOOLS > MISS
- *            (the count, the items one by one), a user kit's load; screens DIR/miss-*.ppm */
+ *            (the count, the items one by one), a user kit's load. The UI side is miss.c's own (miss_tick, miss_knob,
+ *            as the Optimist UI's main loop calls them), with the message fields a UI keeps */
 #define FELUCCA_ARRANGER 1
 #define main hostsim_main
 #include "hostsim.c"
 #undef main
 #include <assert.h>
-static uint16_t screen[240*240];
-static void lcd_sync(void) {}
-static void lcd_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *p)
-{ uint32_t i,j; assert(x+w<=240 && y+h<=240); for(j=0;j<h;j++) for(i=0;i<w;i++) screen[(y+j)*240+x+i]=p[j*w+i]; }
-#include "../firmware/src/display/gfx.c"
-static void lcd_fill(uint32_t x,uint32_t y,uint32_t w,uint32_t h,uint16_t c)
-{ uint32_t i,j; assert(x+w<=240&&y+h<=240); for(j=0;j<h;j++)for(i=0;i<w;i++)screen[(y+j)*240+x+i]=swap16(c); }
-static int32_t encs[7];
-static uint32_t fm1_ticks(void) { return fm1_ms * 1000u * 24u; }
-#define FM1_TICKS_PER_US 24u
-static int32_t fm1_enc_take(uint32_t e) { int32_t s = encs[e]; encs[e] = 0; return s; }
-static uint8_t fm1_led[16], fm1_led_dim[16];
-#define FM1_NCOL 16u
-static const int8_t FM1_KEYMAP[5][16];
-static void fm1_led_key(uint32_t id, int on) { (void)id; (void)on; }
-static uint32_t edges_btn, notes_seen;
-static uint32_t fm1_input_edges(int x) { uint32_t e = edges_btn; (void)x; edges_btn = 0; return e; }
-static uint32_t fm1_input_note_edges(void) { uint32_t e = fm1_in.notes & ~notes_seen; notes_seen = fm1_in.notes; return e; }
-static void fm1_wdt_feed(void) {}
-static int32_t fm1_adc_read(int c) { (void)c; return -1; }
-static struct { uint32_t magic, stage, page, home, ui_frames; } felucca_dbg;
-#define FELUCCA_ICONS 1
-#include "../firmware/src/ui/panel.c"
-#include "../firmware/src/core/model.c"          /* the model operations (apply_preset_to, BANK), before either UI */
-#include "../firmware/src/drums/dsnd_desc.c"      /* the drum lanes' SOUND values and the kit list */
-#include "../firmware/src/ui/sloop/ui.c"
-#include "../firmware/src/ui/sloop/ui_drums.c"
-#include "../firmware/src/ui/sloop/ui_colors.c"  /* the colour language (engine, drum kind, status) */
+/* what a UI keeps that miss.c's main-loop side reads and writes (the Optimist UI's op_state.c ui): the message, its
+ * frames left, the layer held; the page shown (cur_page: TOOLS when its count is asked) */
+static struct { char msg[40]; uint32_t msg_t; uint8_t layer, hold_kind; int force; } ui;
+static uint8_t settings_later;
+static void ui_message(const char *m) { str_cpy(ui.msg, m, sizeof ui.msg); ui.msg_t = 40; }
+static void ui_say(const char *a, const char *b) { (void)b; ui_message(a); }
 static int project_used(uint32_t i) { return i < 2; }
-#if FELUCCA_SL24_SAFE
-static uint32_t project_state(uint32_t s) { return (uint32_t)project_used(s); }   /* (sl24_guard.c: no slot of 2.4's here) */
-static void sl24_auto_import(void) {}                          /* (sl24_guard.c: no 2.4 autosave here) */
-#endif
-static void project_save(uint32_t i) { (void)i; }
-static void project_load(uint32_t i) { (void)i; }
-static void arrangement_save(void) {}
-static uint32_t arrangement_ready(void) { return 3; }
 static void arrangement_apply(uint32_t s) { (void)s; }
-static void song_backup(void) {}
-static void song_restore(void) {}
+static void arrangement_save(void) {}                     /* (the arranger's side the sequencer calls: gcc keeps seq_start) */
+static uint32_t arrangement_ready(void) { return 3; }
 static void section_store(uint32_t s) { live_sec = (int8_t)s; }
 static void section_load(uint32_t s) { live_sec = (int8_t)s; }
 #if FELUCCA_QCHAIN
-static uint32_t section_bars(uint32_t s) { (void)s; return 1u; }   /* (the quick chain's bars: sections.c) */
+static uint32_t section_bars(uint32_t s) { (void)s; return 1u; }
 #endif
+static void song_backup(void) {}
+static void song_restore(void) {}
 static int up_used(uint32_t k) { (void)k; return 0; }
 static int up_load(uint32_t k) { (void)k; return 1; }
 static uint32_t up_count(void) { return 0; }
 static uint32_t up_nth(uint32_t n) { return n; }
 static uint32_t up_rank(uint32_t s) { return s; }
 static void up_name(uint32_t k, char *b) { (void)k; b[0] = 0; }
-static void up_slot_label(char *b, uint32_t k) { fmt_int(b, (int32_t)k + 1); }
-static void up_ui(uint32_t op, uint32_t k) { (void)op; (void)k; }
-#include "snap_ui_stub.h"
-static void settings_save(void) {}
-#include "../firmware/src/ui/sloop/ui_song.c"
-#include "../firmware/src/ui/sloop/ui_studio.c"
-#include "../firmware/src/ui/sloop/ui_tempo.c"
-#include "../firmware/src/ui/sloop/ui_fm6.c"
-#include "../firmware/src/ui/sloop/icons.c"
+#include "../firmware/src/core/model.c"          /* the model operations (apply_preset_to, BANK) */
+#include "../firmware/src/drums/dsnd_desc.c"      /* the drum lanes' SOUND values and the kit list */
+static const page_t *page_now = &PAGES[0];
+static const page_t *cur_page(void) { return page_now; }
 #define PROJ_HOST 1
 #include "../firmware/src/storage/project.c"
 #include "../firmware/src/storage/miss.c"
-#include "../firmware/src/ui/sloop/ui_draw.c"
-#include "../firmware/src/ui/sloop/ui_overview.c"
-#include "../firmware/src/ui/sloop/ui_layers.c"
-#include "../firmware/src/ui/sloop/ui_menu.c"
-#include "../firmware/src/ui/sloop/ui_input.c"
-#include "../firmware/src/engines/fm6/fm6_sysex.c"
 #if FELUCCA_NB_LIST
 #include "../firmware/src/storage/nbank.c"       /* the FM6 / CZ collections in PRESETS */
 #endif
@@ -102,34 +64,17 @@ static uint32_t kit_tmp[4096 / 4];
 #define UK_HOST 1
 #define UK_TMP ((ukit_bank_t *)(void *)kit_tmp)
 #include "../firmware/src/drums/drum_kits.c"
-#include "../firmware/src/ui/splash.c"
 
-static const char *outdir;
-static void ppm(const char *name)
-{
-    char path[512];
-    unsigned i;
-    FILE *f;
-    snprintf(path, sizeof path, "%s/%s.ppm", outdir, name);
-    f = fopen(path, "wb");
-    assert(f);
-    fprintf(f, "P6\n240 240\n255\n");
-    for (i = 0; i < 240 * 240; i++) {
-        uint16_t p = swap16(screen[i]);
-        uint8_t rgb[3] = {(uint8_t)((p >> 11) * 255 / 31), (uint8_t)(((p >> 5) & 63) * 255 / 63), (uint8_t)((p & 31) * 255 / 31)};
-        fwrite(rgb, 1, 3, f);
-    }
-    fclose(f);
-}
+/* a frame of the main loop, as the Optimist UI's (op_input.c: miss_tick; the message's frames counted down) */
 static void frame(void)
 {
     uint32_t q;
     static int32_t o[CTL * 2];
     for (q = 0; q < 22u; q++)
         mix_block(o, CTL);
-    ui_input();
-    ui_leds();
-    ui_draw();
+    miss_tick();
+    if (ui.msg_t)
+        ui.msg_t--;
     fm1_ms += 16;
 }
 static void frames(uint32_t n) { while (n--) frame(); }
@@ -189,14 +134,7 @@ static uint32_t kit_of(const char *name)
             return i;
     return 0;
 }
-static void ui_start(void)
-{
-    panel = PANEL_DEFAULT;
-    layers_init();
-    settings.palette = 4;
-    palette_set(4);
-    host_tracks_init();
-}
+static void ui_start(void) { host_tracks_init(); }
 static void load(const pfile_t *f, int all) { proj_apply(&f->p, &f->d, all); }   /* (all 0: a song section) */
 
 #if !FELUCCA_ENG_FM6                                    /* ---- the reduced build */
@@ -219,7 +157,6 @@ static int reduce(char **argv)
           !SMP_SETS[set_of("PIANO")].nz && SMP_SETS[set_of("BASS")].nz);
     check("reduced: A, B and the kit bank read", rd(argv[2], &a, sizeof a) && proj_ok(&a.p) && rd(argv[3], &b, sizeof b) &&
           proj_ok(&b.p) && rd(argv[4], kits, sizeof kits));
-    outdir = argv[5];
     ui_start();
     /* the scan, by itself */
     {
@@ -254,37 +191,30 @@ static int reduce(char **argv)
     memset(miss_said, 0, sizeof miss_said);                 /* (power-on again, for the UI below) */
 
     /* the UI: the message after a load; not again; a song section while playing: only what is new */
-    go_home();
-    ui.force = 1;
     frame();
     load(&a, 1);                                /* (project_apply: a load) */
     frame();
     check("after the load: the top bar says it", ui.msg_t > 40u && !strcmp(ui.msg, "MISSING: FM6 T1, DELAY +8"));
     ui.force = 1;
     frame();
-    ppm("miss-load");
     frames(160);
     check("the message goes after ~2.5 s", ui.msg_t == 0u);
     load(&a, 1);
     frames(2);
     check("the same project again: nothing said", ui.msg_t == 0u);
     song.playing = 1;
-    edges_btn |= 1u << panel.btn[B_SAVE];                   /* SAVE held: the song layer (SAVE + a key: a section) */
-    fm1_in.buttons |= 1u << panel.btn[B_SAVE];
-    frames(24);                                             /* (past HOLD 350 ms: the layer shows) */
+    ui.layer = LY_SONG;                                     /* (a layer held: the shorter line) */
+    frames(24);
     load(&b, 0);                                /* (sections.c / arranger_scene.c: from the audio ISR) */
     frame();
     check("playing, the song changes to B: only PHYS T2", !strcmp(ui.msg, "MISSING: PHYS T2"));
     ui.force = 1;
     frame();
-    ppm("miss-section-layer");
-    check("... said on the song layer too (SAVE held)", ui.layer != LY_PLAY && ui.msg_t);
-    ui.layer_used = 1;                                      /* (a key was used: no tap on release) */
-    fm1_in.buttons &= ~(1u << panel.btn[B_SAVE]);
+    check("... said with a layer held too", ui.layer != LY_PLAY && ui.msg_t);
+    ui.layer = LY_PLAY;
     frames(2);
     ui.force = 1;
     frame();
-    ppm("miss-section");
     check("... its part plays ANALOG meanwhile, the audio goes on", ENGINES[trk[1].eng_req] == &ENG_ANALOG && song.playing);
     frames(160);
     load(&a, 0);
@@ -293,39 +223,34 @@ static int reduce(char **argv)
     check("A, B, A, B: nothing more", ui.msg_t == 0u);
     song.playing = 0;
 
-    /* SAVE > TOOLS > MISS: the count, the items one by one */
+    /* TOOLS > MISS: the count, the items one by one */
     for (i = 0; i < NPAGES && !(PAGES[i].scope == SC_GLOBAL && PAGES[i].id[2] == G_MISS); i++)
         ;
-    check("SAVE > TOOLS has MISS on KNOB 3", i < NPAGES && PAGES[i].fam == FAM_SAVE && str_eq(PAGES[i].title, "TOOLS"));
-    open_family(FAM_SAVE);
-    ui.page = (uint8_t)i;
-    page_entered();
+    check("TOOLS has MISS on KNOB 3", i < NPAGES && str_eq(PAGES[i].title, "TOOLS"));
+    page_now = &PAGES[i];
     frames(2);
     check("TOOLS: MISS shows the count (B: 10)", miss_n == 10);
     ui.force = 1;
     frame();
-    ppm("miss-tools");
-    encs[panel.enc[EN_K3]] = 1;
+    miss_knob(1);
     frame();
     e = strstr(ui.msg, "MISSING 2/10: ");
     check("MISS turned: the next item, 2/10 DELAY", e == ui.msg && !strcmp(ui.msg + 14, "DELAY"));
     ui.force = 1;
     frame();
-    ppm("miss-tools-2");
-    encs[panel.enc[EN_K3]] = -1;
+    miss_knob(-1);
     frame();
-    encs[panel.enc[EN_K3]] = -3;                            /* (a fast turn: still one item) */
+    miss_knob(-3);                                          /* (a fast turn: still one item) */
     frame();
     check("... back past the first: 10/10 DUST", !strcmp(ui.msg, "MISSING 10/10: DUST"));
     for (i = 0; i < 3u; i++) {
-        encs[panel.enc[EN_K3]] = 1;
+        miss_knob(1);
         frame();
     }
     frame();
     check("... 3/10 PHYS T2", !strcmp(ui.msg, "MISSING 3/10: PHYS T2"));
     ui.force = 1;
     frame();
-    ppm("miss-tools-3");
 
     /* the user replaces what is missing: it leaves the list */
     trk[1].eng_req = (uint8_t)ENG_SLOT_ANALOG;             /* (the orphan: another sound now) */
@@ -341,7 +266,7 @@ static int reduce(char **argv)
     TDRUM->p[P_E0] = (int16_t)DRUM_DEFAULT_KIT;
     memset(miss_said, 0, sizeof miss_said);                 /* (power-on again: A said them all already) */
     miss_fresh(miss_scan());                                /* (the parts' items: said) */
-    go_home();
+    page_now = &PAGES[0];
     frames(2);
     ui.msg_t = 0;
     check("the full build's kit 1 loads", ukit_load(0) == 1);
@@ -354,7 +279,6 @@ static int reduce(char **argv)
     check("... all of them in the list", n >= 5u);
     ui.force = 1;
     frame();
-    ppm("miss-kit");
 
     /* the X0X kits (UIDs 37 / 38, off here): the track on the 909, a lane on the 808, both named */
     {
@@ -434,6 +358,6 @@ int main(int argc, char **argv)
     if (argc == 6 && !strcmp(argv[1], "reduce"))
         return reduce(argv);
 #endif
-    fprintf(stderr, "usage: missing_test write A B K (full build) | reduce A B K DIR (reduced build)\n");
+    fprintf(stderr, "usage: missing_test write A B K (full build) | reduce A B K DIR (reduced build; DIR unused)\n");
     return 2;
 }

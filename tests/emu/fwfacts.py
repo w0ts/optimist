@@ -126,9 +126,3 @@ class Facts:
         body = re.sub(r"/\*.*?\*/", " ", m.group(1), flags=re.S)
         return len(re.findall(r"\b(G_\w+)\b", body))
 
-    @property
-    def ui(self):
-        """0 SLOOP's UI, 1 the Optimist UI (the configuration; without it the ELF: the Optimist UI's op_* code)"""
-        if self.cfg_found and "FELUCCA_UI" in self.env:
-            return self.on("FELUCCA_UI")
-        return int(b"\0op_mixer" in self.fw.with_suffix(".elf").read_bytes())

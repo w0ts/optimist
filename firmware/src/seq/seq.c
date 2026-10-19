@@ -52,9 +52,7 @@ static uint8_t kb_root[27];                    /* KS_NOTE: the key's own note (i
 static int8_t kb_oct[27];                      /* KS_NOTE: the octave buttons when the key went down (arp_add, #191) */
 static uint8_t last_note = 60;
 static uint8_t pen_n = 1, pen_note[4] = {60};   /* the last chord / note played: the SEQ layer writes it */
-#if FELUCCA_UI == 1
 static int8_t pen_oct;                          /* song.octave when the pen was written (STEP entry follows OCT) */
-#endif
 static uint8_t pen_lane;                       /* the last drum lane played: the SEQ layer's lane */
 static volatile uint8_t transport_req;   /* 1 start, 2 stop (from the UI) */
 /* the TEMPO page's nudge (both UIs: ui/optimist/op_tempo.c, ui/sloop/ui_tempo.c): OCT- / OCT+ held nudge the clock a
@@ -99,12 +97,6 @@ static uint32_t layer_now(void)
             return l;
     return LY_PLAY;
 }
-#if FELUCCA_DRUM_STEP
-/* the DRUMS grid page shown (the UI sets it every frame): with no layer, the keys are its steps (KB_GRID events of
- * lk_q, ui_drumstep.c grid_key) and play nothing. SLOOP 2.4 "Drums with the keys" (isod89, GPL-3.0) */
-#define KB_GRID LY_COUNT
-static volatile uint8_t kb_grid;
-#endif
 /* the keys of the layers the UI handles (steps, key, mix): key k down / up, in order */
 #define LKQ 16u
 static volatile uint16_t lk_q[LKQ];
@@ -194,7 +186,7 @@ static int kb_raw(const track_t *t)
  * as a lane, no sound) */
 static uint32_t kb_drum_lane(uint32_t k)
 {
-#if FELUCCA_UI == 1 && FELUCCA_DRUM_ACCENT && DACC_KEY_ON
+#if FELUCCA_DRUM_ACCENT && DACC_KEY_ON
     if (k == DACC_KEY)
         return DRUM_ACC;
 #endif
@@ -461,7 +453,7 @@ static uint32_t (*pat_switch)(track_t *t, uint32_t abs, uint32_t len);
 /* the patterns' undo / redo: one level, or a history of many (FELUCCA_UNDO_HISTORY): undo.c. The note generators'
  * ON states (gen.c, below) go with a track's pattern: WRITE turns its slot OFF, one undo brings both back */
 #ifndef GEN_BUILT
-#define GEN_BUILT (FELUCCA_SEQTOOLS && FELUCCA_UI == 1)   /* (the Optimist UI's pages set them; tests/gen_test.c: 1 alone) */
+#define GEN_BUILT FELUCCA_SEQTOOLS              /* (the Optimist UI's pages set them) */
 #endif
 #if GEN_BUILT
 static uint32_t gen_on_mask(uint32_t k);
@@ -2062,17 +2054,8 @@ static void key_down(uint32_t k)
     default:
         break;
     }
-#if FELUCCA_DRUM_STEP
-    if (is_drum(t) && layer == LY_PLAY && kb_grid) {   /* the DRUMS grid page: a step key */
-        kb_kind[k] = KS_UI;
-        kb_nt[k][0] = (uint8_t)KB_GRID;
-        lk_push(KB_GRID, k, 1);
-        return;
-    }
-#endif
     if (is_drum(t)) {                                 /* the drum track: the key's lane */
         uint32_t lane = kb_drum_lane(k), lvl = key_lvl();
-#if FELUCCA_UI == 1
         if (layer != LY_ROLL)
             lvl = LV_NORM;                            /* (the Optimist UI: OCT- / OCT+ held are SHIFT / SHIFT2, mute and select;
                                                        * a ghost or hard hit is entered on STEP; the ARP layer keeps its rolls') */
@@ -2082,7 +2065,6 @@ static void key_down(uint32_t k)
             lk_push(LY_STEP, k, 1);
             return;
         }
-#endif
         if (lane == DLANE_NONE)
             return;                                   /* (a key with no lane plays nothing) */
         kb_nt[k][0] = (uint8_t)lane;
@@ -2151,9 +2133,7 @@ static void key_down(uint32_t k)
             pen_n = 0;
         for (i = 0; i < kb_n[k] && pen_n < 4u; i++)
             pen_note[pen_n++] = kb_nt[k][i];
-#if FELUCCA_UI == 1
         pen_oct = (int8_t)song.octave;
-#endif
     }
 }
 
@@ -2209,7 +2189,6 @@ static void key_up(uint32_t k)
     }
 }
 
-#if FELUCCA_DRUM_STEP || FELUCCA_UI == 1   /* (the Optimist UI: a drum lane picked previews, stopped) */
 /* the UI asks to hear drum sounds (a sound or a step picked with a knob, a step set from a key): aud_lanes the
  * lanes, each at its level aud_lvl (2 bits a lane), played here, in the audio context (SLOOP 2.4, isod89, GPL-3.0) */
 static volatile uint32_t aud_lanes, aud_lvl;
@@ -2241,14 +2220,11 @@ static void audition_block(void)
         if (m & 1u)
             trk_note_on(TDRUM, DLANE_NOTE(l), lvl_vel((lv >> (2u * l)) & 3u, 100));
 }
-#endif
 
 static void keyboard_block(void)
 {
     uint32_t cur = fm1_in.notes, ch = cur ^ kb_prev, k, r;
-#if FELUCCA_DRUM_STEP || FELUCCA_UI == 1
     audition_block();
-#endif
     if (!(layer_buttons() & ly_bit[LY_ROLL]))         /* ARP up (and not locked): the rolls end (the keys stay silent) */
         for (r = 0; r < NROLL; r++)
             if (roll[r].on)

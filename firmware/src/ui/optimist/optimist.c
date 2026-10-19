@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The Optimist UI (FELUCCA_UI=1), phases 1, 2 and 4 of docs/UI-OPTIMIST-DESIGN.md: the skeleton, STEP, the
+/* The Optimist UI, phases 1, 2 and 4 of docs/UI-OPTIMIST-DESIGN.md: the skeleton, STEP, the
  * layers, TEMPO and SONG. Every screen
  * is a list of rows, a row up to four cells; the cursor row's cells are the four cards and KNOB 1..4 edit them.
  * SELECT is the cursor, ALGORITHM the track, PRESETS the hot cell's value one unit a detent; SAVE tapped is YES,
@@ -29,9 +29,9 @@
  * grid and roll), op_laydraw.c (a layer's map, the TEMPO and session-grid pictures), op_input.c (the panel, the
  * entry points), op_keys.c (the keys' lights: full, dim, dark in every mode). After op_cells.c, op_fm6.c (FM6's operator editor: ENV held, the SOUND family) and after
  * op_laydraw.c its drawing, op_fm6draw.c. */
-#include "../sloop/ui_colors.c"         /* the colour language (engine, kit kind): shared with SLOOP's UI */
+#include "../colors.c"                  /* the colour language (engine, kit kind; the web editor's too) */
 #if FELUCCA_BRIGHT
-#include "../sloop/bright.c"            /* the backlight level (main.c reads BL_DUTY, project.c bright_boot) */
+#include "../bright.c"                  /* the backlight level (main.c reads BL_DUTY, project.c bright_boot) */
 #endif
 #include "op_state.c"
 #include "op_names.c"             /* the names table: card labels, list cells, titles (one spelling each) */

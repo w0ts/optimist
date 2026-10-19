@@ -534,9 +534,9 @@ if emu.shutil.which("git"):
             check("worktree profiles: the main checkout has no config/profiles -> the worktree's own",
                   shared.config_dir(wt, {}) == (wt / "config", False))
             (main_repo / "config" / "profiles").mkdir(parents=True)
-            (main_repo / "config" / "profiles" / "user-default.config").write_text("# name: Main\nICONS=0\n")
+            (main_repo / "config" / "profiles" / "user-default.config").write_text("# name: Main\nMISSING_WARN=0\n")
             (wt / "config" / "profiles").mkdir(parents=True)
-            (wt / "config" / "profiles" / "user-default.config").write_text("# name: Wt\nICONS=1\n")
+            (wt / "config" / "profiles" / "user-default.config").write_text("# name: Wt\nMISSING_WARN=1\n")
             check("worktree profiles: config/ is the main checkout's", shared.config_dir(wt, {}) == (main_repo / "config", True))
             check("worktree profiles: the main checkout itself is not 'shared'",
                   shared.config_dir(main_repo, {}) == (main_repo / "config", False))

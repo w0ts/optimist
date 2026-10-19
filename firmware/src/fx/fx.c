@@ -1171,7 +1171,6 @@ static HOT2 __attribute__((noinline)) int32_t cho_gain(int32_t *wl, int32_t *wr,
     }
     return wr[n - 1u];
 }
-#if FELUCCA_UI == 1
 /* the mixer's MASTER page (op_mixdraw.c): the FX returns' levels, CHO DLY REV. One sample of each return a block (its
  * last: the chorus' right, the delay's, the reverb's right as what it added to wet_r), the largest |value| kept, never
  * lowered here: the main loop empties it (ui/meters.c meter_tap), as trk.peak. Out of the per-sample loops and out of
@@ -1198,7 +1197,6 @@ static HOT2 __attribute__((noinline)) void fx_ret_tap(int32_t cpk, int32_t dpk, 
         if (v[k] > fx_ret_pk[k])
             fx_ret_pk[k] = v[k];
 }
-#endif
 /* The reverb one block late on the second core (FELUCCA_DUAL 2, perf/mots-asm 2026-10-13; DUAL_REV=0: never). While
  * CPU1 is up (dual.c sets rev_late each block it posts a job), fx_buses does not run the reverb's block: it keeps the
  * send and the block's decisions (the LFO's read points, the ROOM's gains, fx_ret_block's plan: the guard, REV RET),
@@ -1467,12 +1465,10 @@ static HOT2 __attribute__((noinline)) int32_t cho_run(const int32_t *in, int32_t
     }
     if (cg)                                             /* (CHO RET below unity: the chorus' wet alone so far) */
         (void)cho_gain(wl, wr, n);
-#if FELUCCA_UI == 1
     for (i = 0; i < n; i++) {
         int32_t a = wr[i] < 0 ? -wr[i] : wr[i];
         pk = a > pk ? a : pk;
     }
-#endif
     return pk;
 }
 static HOT2 __attribute__((noinline)) int32_t dly_run(const int32_t *in, int32_t *wl, int32_t *wr, uint32_t n, int32_t *wd)
@@ -1485,9 +1481,7 @@ static HOT2 __attribute__((noinline)) int32_t dly_run(const int32_t *in, int32_t
         x = dly_step(in[i], dl, &f, fb, dmix, wd);
         wl[i] += x;
         wr[i] += x;
-#if FELUCCA_UI == 1
         pk = (x < 0 ? -x : x) > pk ? (x < 0 ? -x : x) : pk;
-#endif
     }
     return pk;
 }
@@ -1505,10 +1499,8 @@ static HOT int fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int3
     int32_t ca0, ca1, cb0, cb1, ma, mb, dca, dcb, wc = 0, wd = 0, wv = 0;
     int run_c, run_d, run_r;
     uint32_t plan, s, gen, rs = rs_on;               /* (rs: a chain of the returns, rs_block) */
-#if FELUCCA_UI == 1
     int32_t rpk = 0;                                    /* the reverb's */
     int32_t cpk = 0, dpk = 0;                           /* the chorus', the delay's largest |sample| of the block (the mixer's returns) */
-#endif
 #if REV_LATE
     int had = rvj.pend;                                 /* a kept block to hear now */
 #else
@@ -1568,9 +1560,7 @@ static HOT int fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int3
                 if (rs)
                     rs_cho0(n);                         /* (a chain: the wet so far kept, the chorus' alone below) */
                 pk = cho_run(cho_in, wet_l, wet_r, n, ab, &wc, plan & FXB_CG);
-#if FELUCCA_UI == 1
                 cpk = pk;
-#endif
                 (void)pk;
                 if (rs)
                     rs_cho1(n);
@@ -1583,19 +1573,15 @@ static HOT int fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int3
         } else if (j == 1u) {
             if (run_d) {
                 int32_t pk = dly_run(dly_in, wet_l, wet_r, n, &wd);
-#if FELUCCA_UI == 1
                 dpk = pk;
-#endif
                 (void)pk;
             } else {
                 fx.dly_w += n;
             }
         } else {
-#if FELUCCA_UI == 1
             if (!FX_ALL_IDLE)
                 for (i = 0; i < n; i++)
                     ret_cd[i] = wet_r[i];               /* (the wet before the reverb: to tell its own, fx_rev_pk) */
-#endif
 #if REV_LATE
             if (rev_late) {                             /* kept for the next block (rev_job); the last one heard */
                 for (i = 0; i < n; i++)
@@ -1628,20 +1614,16 @@ static HOT int fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int3
 #else
             rev_bus(rev_in, wet_l, wet_r, n, ma, mb, g, lpk, run_r, &wv);   /* (the tank TYPE picks) */
 #endif
-#if FELUCCA_UI == 1
             if (!FX_ALL_IDLE)
                 rpk = fx_rev_pk(wet_r, n);
-#endif
         }
         if (rs)
             rs_post(j, n);                              /* (its output into the lines to its right, before they run) */
     }
     if (rs)
         FAR(rs_done)();
-#if FELUCCA_UI == 1
     if (!FX_ALL_IDLE)                                   /* (all idle: wet_r not written, every return 0) */
         fx_ret_tap(cpk, dpk, rpk);
-#endif
 #undef CHO_R0
 #undef CHO_R1
     fx.cho_q = fx_q(fx.cho_q, wc, n);
@@ -1851,7 +1833,6 @@ static HOT2 __attribute__((noinline)) void tcomp_quiet(track_t *t, int32_t *b, u
     c->g13 = 8192;
     tlim[k].on = 0;                                     /* (its lookahead starts empty with the next note) */
 }
-#if FELUCCA_UI == 1
 /* the Optimist UI's mixer rows (ui/optimist/op_mixdraw.c): part k's COMP insert's gain reduction now, dB x 4 (as
  * master_comp.c mc_take_gr scales it); read only, one word, no lock (a block's value either side is as good) */
 static uint32_t tcomp_gr_q4(uint32_t k)
@@ -1860,9 +1841,7 @@ static uint32_t tcomp_gr_q4(uint32_t k)
     return (uint32_t)(c < 0 ? 0 : c > 127 ? 127 : c);
 }
 #endif
-#endif
 
-#if FELUCCA_UI == 1
 /* The Optimist UI's SCOPE (ui/optimist/op_scope.c): the visualiser's ring below, one source at a time. scope_src, set
  * by the main loop only: 0 the master (the mix, as the visualiser takes it), 1..3 part 1..3's block after its inserts
  * (DIST, SLICER, FILTER, COMP; before its level and pan: mix_part), 4 the drum track (the mix after the drums less the
@@ -1870,7 +1849,6 @@ static uint32_t tcomp_gr_q4(uint32_t k)
 static volatile uint8_t scope_src;
 static __attribute__((noinline)) void vis_tap_block(const int32_t *l, const int32_t *r, uint32_t n);
 #define SCOPE_DR 4u
-#endif
 
 /* ---- DUST (an insert type since 2026-10-14, fx-rework: was the master's own): an old sampler and a record. Its amount
  * 0..127 turns up together: drive into a soft clip, a lower sample rate (held samples, 44.1 -> 11 kHz), fewer bits
@@ -2399,10 +2377,8 @@ static HOT void mix_part(track_t *t, uint32_t n MIXACC_PARAM)
         slicer_track(t, b, n);                          /* slicer.c: first (D2), before the inserts, level, pan, sends */
         if ((FELUCCA_FX_DIST || TFLT_ON || FELUCCA_MASTER_COMP || INS_FX || FELUCCA_FX_DUST) && !FX_INS_BYPASS)
             ins_part(t, b, n);                          /* its two insert slots, S1 then S2 (above) */
-#if FELUCCA_UI == 1
         if (scope_src && t == &trk[scope_src - 1u])     /* the SCOPE on this part: its block, both sides */
             FAR(vis_tap_block)(b, b, n);
-#endif
         int32_t g[6] = {lvl, gl, gr, c, d, r}, lvl0, dl, gl0, gr0, dgl, dgr, xmax;
         FAR(gl_part)(t, g);                             /* the sends step once a block (0.7 ms steps, each < 7 % of
                                                          * the move: into the buses, unheard) */
@@ -2599,20 +2575,14 @@ static HOT2 __attribute__((noinline)) void rt_line(uint32_t j, uint32_t n)   /* 
     rt_tail[j] = t != FXT_NONE ? (uint8_t)RT_TAIL : (uint8_t)(rt_tail[j] - 1u);
     if (!g)
         return;
-#if FELUCCA_UI == 1
     int32_t pk = 0;
-#endif
     for (i = 0; i < n; i++) {
         int32_t a = g >= 32768 ? l[i] : (l[i] >> 4) * (g >> 3) >> 8, b = g >= 32768 ? r[i] : (r[i] >> 4) * (g >> 3) >> 8;
         mix_l[i] += a, mix_r[i] += b;
-#if FELUCCA_UI == 1
         pk = (b < 0 ? -b : b) > pk ? (b < 0 ? -b : b) : pk;
-#endif
     }
-#if FELUCCA_UI == 1
     if (pk > fx_ret_pk[j])
         fx_ret_pk[j] = pk;                              /* (the mixer's return meter: this line's block peak, after its return level) */
-#endif
 }
 static HOT2 __attribute__((noinline)) void rt_run(uint32_t n)
 {
@@ -2697,7 +2667,6 @@ static HOT2 __attribute__((noinline)) void ut_mix(uint32_t n)
 }
 #endif
 static int32_t master_cur = -1;                        /* the volume knob, ramped per sample (no zipper) */
-#if FELUCCA_VIS || FELUCCA_UI == 1
 /* The visualiser's tap (ui_vis.c; the Optimist UI's SCOPE and the mixer's master column, op_scope.c): each block's
  * mix, copied whole once a block (a word loop, both sides), as MASTER all the way up: after the buses and the master compressor, before the volume, the limiter and the knee (the
  * UI applies the knee). 1024 frames of each side: 23 ms at 44.1 kHz. In flash: called through FAR from the RAM code.
@@ -2714,8 +2683,6 @@ static __attribute__((noinline)) void vis_tap_block(const int32_t *l, const int3
     }
     vis_wr += n;
 }
-#endif
-#if FELUCCA_UI == 1
 /* the SCOPE on the drum track (scope_src SCOPE_DR): the drums add into the mix, so the ring's next block is the mix
  * after them less the mix before them; mark before the drums, take after (mix_block; nothing when not chosen) */
 static __attribute__((noinline)) void scope_drums_mark(uint32_t n)
@@ -2736,9 +2703,6 @@ static __attribute__((noinline)) void scope_drums_take(uint32_t n)
     vis_wr += n;
 }
 #define SCOPE_DRUMS(f) do { if (scope_src == SCOPE_DR) FAR(f)(n); } while (0)
-#else
-#define SCOPE_DRUMS(f) ((void)0)
-#endif
 /* the buses, the master chain and the output (mix_block, and dual.c's mix_block_dual) */
 /* the returns into the mix (mix_finish; the tests): the sends between them (rs_block: a chain, fx_buses runs every return
  * in their order), else those holding another type (rt_run) first, then the buses */
@@ -2767,12 +2731,8 @@ static inline __attribute__((always_inline)) void mix_finish(int32_t *out, uint3
     if (FELUCCA_FX_PUNCH)
         punch_process(mix_l, mix_r, n);
     mst_run(mix_l, mix_r, n);                           /* the master's insert slots (above) */
-#if FELUCCA_VIS
-    FAR(vis_tap_block)(mix_l, mix_r, n);                /* the visualiser: this block's mix, copied (ui_vis.c) */
-#elif FELUCCA_UI == 1
     if (!scope_src)                                     /* the SCOPE on the master, the mixer's master column */
         FAR(vis_tap_block)(mix_l, mix_r, n);
-#endif
     m0 = master_cur < 0 ? (int32_t)song.master_q12 : master_cur;   /* MASTER glides (~10 ms; X0X 0.10.1) */
     m1 = glide_next(m0, (int32_t)song.master_q12);
     master_cur = m1;

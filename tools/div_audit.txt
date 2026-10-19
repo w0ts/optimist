@@ -112,8 +112,6 @@ src/fx/slicer/slicer.c:sl_enter:SL_DEN[(uint32_t)t->p[P_SLRATE] | TABLE SL_DEN {
 src/fx/slicer/slicer.c:slicer_track:bpm | bpm = song.g[G_BPM]: BPM
 src/core/model.c:apply_preset_to:e->npresets | npresets 0: eng_first_playable gives PRESET_INIT, INIT returns first
 src/core/model.c:preset_name:ENGINES[e]->npresets | guarded: "k == PRESET_INIT || !ENGINES[e]->npresets ? "INIT" : ..."
-src/ui/sloop/ui.c:cursor_set:len | "P_SLEN > 0 ? P_SLEN : 1"
-src/ui/sloop/ui.c:-:((d)->max-(d)->min) | RATIO() (the macro at the top of ui.c, before any function): guarded "max > min ?"
 src/ui/optimist/op_draw.c:list_paint:(int32_t)lst.n | inside "if (lst.n > lst.shown)": lst.n > shown >= 0, so >= 1
 src/ui/optimist/op_graph.c:draw_gauge:span | span = gmax - gmin > 0: cell_gauge sets GK_NONE (drawn as nothing, the switch default) when max <= min
 src/ui/optimist/op_graph.c:draw_gauge:n | GK_DOTS: n = span + 1 >= 2 (span > 0, as above)
@@ -155,17 +153,6 @@ src/ui/optimist/op_name.c:nm_knob:n | n = sizeof NM_SET - 1, a constant (43)
 src/ui/optimist/op_name.c:nm_white:n | n = str_len(nm_group(p)): NM_ABC's 16 entries have 2 or 3 characters, the digits' group 1 (one[0] from NM_NUM, never 0)
 src/ui/optimist/op_project.c:dev_paint:bdp.n | drawn only when bdp.n > bdp.shown (the scroll bar), so bdp.n >= 1; ble_dev_rows is at least 1 (NONE)
 src/ui/optimist/op_preset.c:pre_draw:total | used only when cur < total, so total >= 1
-src/ui/sloop/ui_draw.c:draw_tracks:(2u*len) | len = "P_SLEN > 0 ? P_SLEN : 1"
-src/ui/sloop/ui_draw.c:draw_tracks:len | same
-src/ui/sloop/ui_draw.c:graph_browse:total | returns when total is 0
-src/ui/sloop/ui_draw.c:graph_roll:(hi-lo) | hi - lo >= 12 (forced just before)
-src/ui/sloop/ui_drums.c:graph_dsnd:(1024+(int32_t)x*1024/(w>1?w:1)) | the X0X sketch: x >= 0 and the inner divisor >= 1, so >= 1024
-src/ui/sloop/ui_drums.c:graph_dsnd:(w>1?w:1) | "w > 1 ? w : 1"
-src/ui/sloop/ui_drums.c:graph_dsnd:h | returns before the graph when h < 8
-src/ui/sloop/ui_drums.c:graph_dsnd:(rate?rate:1u) | "rate ? rate : 1"
-src/ui/sloop/ui_drums.c:graph_dsnd:mx | only for pk[x] != 0, and mx >= every pk[x]
-src/ui/sloop/ui_drums.c:graph_dsnd:pk | "pk = pk ? pk : 1"
-src/ui/sloop/ui_drums.c:graph_dsnd:pow2_q16 | pow2_q16() >= 2^16 / 2^8 for its input range (pitch_inc() >= 796,253)
 src/ui/optimist/op_graph.c:denv_x0x:(1024+x*1024/(w>1?w:1)) | the X0X sketch (graph_dsnd's, copied): x >= 0 and the inner divisor >= 1, so >= 1024
 src/ui/optimist/op_graph.c:denv_x0x:(w>1?w:1) | "w > 1 ? w : 1"
 src/ui/optimist/op_graph.c:denv_x0x:h | graph_denv returns before the graph when h < 8
@@ -173,21 +160,6 @@ src/ui/optimist/op_graph.c:denv_sample:(rate?rate:1u) | "rate ? rate : 1"
 src/ui/optimist/op_graph.c:denv_sample:mx | only for pk[x] != 0, and mx >= every pk[x] (mx starts at 1)
 src/ui/optimist/op_graph.c:denv_sample:pow2_q16 | pow2_q16() >= 2^16 / 2^8 for its input range (pitch_inc() >= 796,253), as graph_dsnd
 src/ui/optimist/op_graph.c:denv_synth:pk | "pk = pk ? pk : 1"
-src/ui/sloop/ui_fm6.c:fm6k_draw_graph:cols | guarded: "cols ? ... : 40"
-src/ui/sloop/ui_fm6.c:fm6k_draw_graph:rows | guarded: "rows ? ... : 24"
-src/ui/sloop/ui_fm6.c:fm6k_draw_info:n | n from fm6k_cur_page: NPG (>= 1)
-src/ui/sloop/ui_fm6.c:fm6k_next_page:n | n from fm6k_cur_page: NPG (>= 1)
-src/ui/sloop/ui_input.c:layers_input:pages | pages = (TLEN + 15) / 16 >= 1
-src/ui/sloop/ui_layers.c:hold_screen_draw:span | HOLD_CLEAR_MS or HOLD_SAVE_MS, constants
-src/ui/sloop/ui_layers.c:step_note_len:len | TLEN
-src/ui/sloop/ui_layers.c:step_note_resize:len | TLEN
-src/ui/sloop/ui_layers.c:tap_tempo:sum | guarded: "if (sum)"
-src/ui/sloop/ui_song.c:song_screen_draw:(e->bars?e->bars:1) | "bars ? bars : 1"
-src/ui/sloop/ui_studio.c:drum_screen_draw:(int32_t)(drum_kit_total()-1u) | drum_kit_total() >= DRUM_KITS >= DRUM_SAMPLED = 5
-src/ui/sloop/ui_studio.c:drum_screen_draw:(int32_t)(len>1u?len-1u:1u) | "len > 1 ? len - 1 : 1"
-src/ui/sloop/ui_studio.c:loop_pos:len | clamped to 1..NSTEP
-src/ui/sloop/ui_studio.c:mix_row_draw:len | clamped to 1..64
-src/ui/sloop/ui_studio.c:studio_tracks_draw:(d->max-d->min) | only when d->max > d->min (the line guards it)
 src/io/usb/usb_audio_stream.c:ua_receive:frame | frame = 2 x ua_sample_bytes() (2 or 3): >= 4
 src/core/voice.c:env_tick:v->kill | inside "if (v->kill > 1)"
 src/core/voice.c:glide_set:ticks | glide_ticks() >= 1: 2^24 / ENV_LIN[i] with every ENV_LIN entry <= 12,173,943 < 2^24, else 1
@@ -211,17 +183,6 @@ src/engines/phys/phys_dsp.c:__attribute__:px_exp2(dcut/12) | dcut = 12 st + non-
 src/engines/phys/phys_dsp.c:__attribute__:(9830+nl) | nl is |nl| (made non-negative just before): >= 9830
 src/engines/phys/phys_symp.c:__attribute__:f[k] | guarded: f[k] < 65536 continues the loop
 src/storage/sections/sec_log.c:sm_more:SEC_ALIGN(SEC_HEAD+n) | SEC_ALIGN(SEC_HEAD + n) >= 16 (SEC_HEAD is 16)
-src/ui/sloop/ui_draw.c:graph_adsr4:d | d = 6 + dec * 50 / 127 with DEC a PARAM 0..127: >= 6
-src/ui/sloop/ui_draw.c:graph_adsr4:r | r = 6 + rel * 60 / 127 with REL a PARAM 0..127: >= 6
-src/ui/sloop/ui_fm6.c:fm6k_cur_page:n | fm6k_group: n from NPG, TABLE of the page groups' sizes (each array non-empty)
-src/ui/sloop/ui_fm6.c:fm6k_page_draw:d->max | guarded: "d->max ? x * 1000 / d->max : 0"
-src/ui/sloop/ui_input.c:layers_input:nb | nb = FELUCCA_SECTIONS / 4: 1, 2 or 4 (registry.h allows 4, 8, 16 only)
-src/ui/sloop/ui_overview.c:graph_arp:(int32_t)steps | steps = 4 * DIV_DEN[..] (TABLE {1,2,4,8,3,6}): >= 4
-src/ui/sloop/ui_overview.c:graph_arp:hi | hi = 12 (oct - 1) + 7 with oct clamped 1..4: >= 7
-src/ui/sloop/ui_overview.c:graph_arp:cyc | cyc = 2 len - 2 when len > 1, else 1: >= 1
-src/ui/sloop/ui_overview.c:graph_arp:len | len = 3 oct with oct clamped 1..4: >= 3
-src/ui/sloop/macro_ui.c:mac_motion:trk_len(t) | TLEN
-src/ui/sloop/ui_menu.c:menu_input:n | LIGHTS_N (4) or KEYS_N (3): constants (FELUCCA_LIGHTS, MENU LIGHTS / KEYS)
 src/engines/cz/cz_native.c:__attribute__:p->pivot | cz_native_pd: pivot = 1024 - dcw with dcw clamped to 0..1023 by its only caller (cz_native_render): >= 1
 src/engines/cz/cz_native.c:__attribute__:(2048u-p->pivot) | pivot <= 1024 (as above): >= 1024
 src/engines/cz/cz_native.c:cz_native_render:(int32_t)(96u+kf*kfnote) | 96 + an unsigned product: >= 96
@@ -230,16 +191,6 @@ src/engines/cz/cz_native.c:cz_scale:CZ_POW16[v&15] | TABLE CZ_POW16 (65536..1255
 src/engines/cz/eng_cz.c:cz_env_tick:rate | the divide runs only under "if (dist && rate)"
 src/engines/noise/eng_noise.c:noise_render:(uint32_t)(4096+((g*(g+k))>>12)) | g is an SVF_G entry (>= 0) and k = 8192 - RES * 7800 / 127 >= 392 for RES 0..127 (the parameter's range): >= 4096
 src/storage/snapshots/snap_store.c:sn_wr_commit:w->parts | sn_wr_commit runs only on an open writer, whose parts sn_wr_begin set to sn_parts_for(total) >= 1
-src/ui/sloop/ui_draw.c:draw_columns:(int32_t)(n-1u) | sn_ui_n() is FELUCCA_SNAPSHOTS + 1 >= 3 (the page exists only with 2, 4 or 8 slots)
-src/ui/sloop/ui_vis.c:vis_fft:len | the radix-2 loop: len = 2, 4, .. VIS_FFT (starts at 2, doubles)
-src/ui/sloop/ui_vis.c:vis_heat:(AT[k]-AT[k-1u]) | TABLE AT {0, 77, 140, 204, 255} strictly increasing, k 1..4
-src/ui/sloop/ui_vis.c:vis_orbit:PER[i] | TABLE PER {1, 2, 4, 8}
-src/ui/sloop/ui_vis.c:vis_poly:(py[j]-py[i]) | guarded: only when the edge crosses the row (py[i] <= sy < py[j] or py[j] <= sy < py[i]), so py[j] != py[i]
-src/ui/sloop/ui_vis.c:vis_poly:n | inside "for (i = 0; i < n ...)": n >= 1 (every caller passes 4, vis_sloop)
-src/ui/sloop/ui_vis.c:vis_ring:(sc>1600?sc:1600) | >= 1600
-src/ui/sloop/ui_vis.c:vis_scope:(vs.scale?vs.scale:1) | "x ? x : 1"
-src/ui/sloop/ui_vis.c:vis_sloop:sc | sc = vs.scale > 1600 ? vs.scale : 1600: >= 1600
-src/ui/sloop/ui_vis.c:vis_update:vs.ljscale | clamped >= 1 right after its update, before the divides ("if (vs.ljscale < 1) vs.ljscale = 1")
 src/storage/sections/sections.c:sec_service:cn | guarded: "if (cn && ...)", cn a single read of the volatile chain_n
 src/seq/seq.c:live_block:(chain_n<CHAIN_MAX?chain_n:CHAIN_MAX) | guarded: "if (chain_n && ...)" in live_block (the audio context, once a block); the UI writes chain_n with the IRQ off (ui_layers.c)
 src/fx/fx.c:__attribute__:((r*r)>>15) | room_long: r = 32768 - c with PARAM G_RDAMP 0..127: c = 1 + 200 d <= 25401 (r >= 7367, r r >> 15 >= 1656), or with REV_ROOM_HALF c = 32768 - room_half_k(32767 - 200 d), room_half_k >= 12425 there (r r >> 15 >= 4711; computed over d 0..127)
@@ -274,7 +225,6 @@ src/engines/juno/juno_dsp.h:juno_coef:(4096+((k*((g2*g2)>>15))>>15)) | k (RES_K,
 src/engines/juno/juno_dsp.h:juno_run:(1+(energy>>2)) | energy is a max of a peak follower and absolute values: >= 0, so >= 1
 src/engines/juno/juno_dsp.h:juno_res_at:(uint32_t)r->fb | FB_SCALE_T, a table of fm-106's FB_SCALE (5161..17203; gen_juno_tables.py): >= 5161
 
-src/ui/sloop/ui.c:preset_move:t | guarded: "if (!total) return", t is total
 src/fx/fx.c:__attribute__:e | the return feedback send's limiter: the divide (RS_FBT << 15) / e is the true arm of "e > RS_FBT", so e is above the threshold, never 0 (div_audit reads rs_fb_level's function as __attribute__)
 src/engines/fm6/eng_fm6.c:fm6_pk:(FM6_NPACKS?FM6_NPACKS:1u) | a constant: the packs built (the number of packs, 1 when there is none: the 0 entry of FM6_PACK)
 src/seq/auto_slot.c:sa_knob:trk_len(t) | trk_len (seq.c) returns P_SLEN when above 0, else 1: never 0

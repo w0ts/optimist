@@ -22,7 +22,7 @@
  * rc 0 done. A bad op: no reply; the selected track is the device's (TRACK, 27). INFO tag 0x5B: version 1. */
 #include "ed_reply.h"         /* (ed_b2..ed_b4, ed_b32) */
 enum { ED_TOOLS = 98 };
-#if FELUCCA_UI == 1 && FELUCCA_SEQTOOLS && FELUCCA_ED_TOOLS
+#if FELUCCA_SEQTOOLS && FELUCCA_ED_TOOLS
 static void ed_tools_state(uint32_t op, uint32_t rc, const char *sa, const char *sb)
 {
     track_t *t = TSEL;

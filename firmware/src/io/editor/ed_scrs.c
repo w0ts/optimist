@@ -22,7 +22,7 @@
 #include "ed_reply.h"         /* (ed_b2..ed_b4, ed_b32) */
 #include "ed_desc.h"          /* (DESC's body) */
 enum { ED_SCRS = 99, SCRS_FAM_FM6 = 126 };
-#if FELUCCA_UI == 1 && FELUCCA_ED_SCRS
+#if FELUCCA_ED_SCRS
 #include "ed_cell.h"          /* (a card's bytes, SCRN's too) */
 #define SCRS_MASK ((1u << SCR_HOME) | (1u << SCR_SOUND) | (1u << SCR_FX) | (1u << SCR_PROJECT) | (1u << SCR_STEP) | (1u << SCR_SONG) | (1u << SCR_TEMPO) | (1u << SCR_SCOPE))
 static struct {                                         /* what a call changed on the device's UI, to put back */

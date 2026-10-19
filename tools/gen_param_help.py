@@ -18,7 +18,7 @@ The table (tools/param_help.json): groups, each {"kind": "page" | "eng" | "fm6",
   fm6   the FM6 operator editor (ui_fm6.c) by its page name
   op    the Optimist UI's help line (ui/optimist/op_help.c): its settings, actions and cells without a descriptor, by
         the row's name as the screen names it (GLOBAL and SYSTEM: the section, PROJECT: the row) or the screen's name,
-        then the cell's label; built only with FELUCCA_UI == 1 (the editor's copy has them too: its GLOBAL / SYSTEM lines)
+        then the cell's label (the editor's copy has them too: its GLOBAL / SYSTEM lines)
 Each line fits the top bar: WIDTH_PX pixels of the UI font (Terminus 8x16, assets/fonts/ter-u16n.bdf).
 
 The header: one const string in flash (PH_BLOB), the groups one after the other, each wrapped in its "if" so a
@@ -40,7 +40,6 @@ FONT = ROOT / "assets" / "fonts" / "ter-u16n.bdf"
 WIDTH_PX = 232                     # the top bar from x 4 to 236 (ui_draw.c draw_head), the live screens' header too
 KINDS = {"page": 1, "eng": 2, "fm6": 3, "op": 4}
 EDITOR_KINDS = ("page", "eng", "fm6", "op")   # (op: the Optimist UI's own lines: the editor's SCRN lines, GLOBAL and SYSTEM, by their row)
-OP_IF = "FELUCCA_UI == 1"          # (an op group: in the Optimist UI's builds only)
 BEGIN = "/* PARAM_HELP BEGIN: tools/gen_param_help.py from tools/param_help.json (do not edit here) */"
 END = "/* PARAM_HELP END */"
 
@@ -200,8 +199,6 @@ def header(table, every=False):
     out += ["};", "static const char PH_BLOB[] ="]
     for g in table["groups"]:
         cond = "" if every else g.get("if", "")
-        if g["kind"] == "op" and not every:
-            cond = f"{OP_IF} && ({cond})" if cond else OP_IF
         if cond:
             out.append(f"#if {cond}")
         out.append(f'    "\\{KINDS[g["kind"]]:03o}" {c_str(g["ctx"])} "\\0"')

@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""The panel gestures of SLOOP's UI (FELUCCA_UI 0) for the emulator checks, and the firmware state they read.
+"""The panel gestures of SLOOP's UI for the emulator checks, and the firmware state they read. The checks that drove
+SLOOP's UI went with it (2026-10-19); the state reads stay (common.py, tests/emu_mem_align_test.py).
 
 Gestures (docs/PATTERNS-DESIGN.md section 6, docs/SNAPSHOTS.md, fx_slots.c):
   SEQ held + white keys          step entry on the selected track (KNOB1 the note, KNOB4 the length)

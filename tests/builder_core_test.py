@@ -102,9 +102,9 @@ for n in C.profile_names():
         check(f"evaluate: profile {n}: its key and canonical form", False)
 
 # ---- savings (core.savings_of): an item's options already off are not saved again when it goes off
-lite = dict(C.defaults(), UI=1, ED_LIVE=0)
+lite = dict(C.defaults(), ED_LIVE=0)
 lite_off = dict(lite, **{k: 0 for k in R.ITEMS if k.startswith("ED_") and k != "ED_LIVE"})
-ed_live = K.savings_of(dict(C.defaults(), UI=1), costs)["EDITOR"]["flash"]
+ed_live = K.savings_of(dict(C.defaults()), costs)["EDITOR"]["flash"]
 check("savings: the web editor with live editing off saves under half of what it saves with it, the ED_* items "
       "on or off (2026-10-18: 24.5 KB shown, 7.2 KB measured)",
       all(0 < K.savings_of(c, costs)["EDITOR"]["flash"] < ed_live // 2 for c in (lite, lite_off)))

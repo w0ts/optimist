@@ -1,13 +1,10 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* SLOOP 2.4 phase 5, the visualiser's audio tap (fx.c vis_tap_block); build with FELUCCA_VIS=1 (tests/run_tests.sh):
+/* The audio tap of the Optimist UI's SCOPE and the mixer's master column (fx.c vis_tap_block; first SLOOP 2.4's visualiser's):
  * a block's mix is copied whole (two copies, no work per sample), the write position stays block aligned.
  * Exit status: the number of failed checks. */
 #define main hostsim_main
 #include "hostsim.c"
 #undef main
-#if !FELUCCA_VIS
-#error "build with -DFELUCCA_VIS=1"
-#endif
 
 static int fails;
 static void check(int ok, const char *what)

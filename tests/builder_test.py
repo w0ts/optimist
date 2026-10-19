@@ -57,11 +57,11 @@ check("... a .config naming it is refused", refused)
 # the dropped visualiser (registry.py RETIRED): a .config that still names VIS loads, says "dropped", builds as VIS = 0
 _w = io.StringIO()
 with contextlib.redirect_stderr(_w):
-    _cfg, _ = C.parse("# name: old\nVIS=1\nICONS=0\n")
+    _cfg, _ = C.parse("# name: old\nVIS=1\nMISSING_WARN=0\n")
 _h, _ = C.flags(_cfg)
 check("a .config naming the dropped VIS loads, warns \"dropped\" and keeps its other keys",
       "VIS" not in _cfg and "VIS" not in R.ITEMS and "dropped" in _w.getvalue() and "VIS" in _w.getvalue() and
-      _cfg["ICONS"] == 0)
+      _cfg["MISSING_WARN"] == 0)
 check("... and builds as FELUCCA_VIS 0 (the header has no such switch on)", not _h.get("FELUCCA_VIS", 0))
 _w = io.StringIO()
 with contextlib.redirect_stderr(_w):
@@ -73,7 +73,7 @@ check("... also non-strict and as --set VIS=1: a warning, no error", _w.getvalue
 # says why, and builds without it (FELUCCA_SIMD not in the header: the firmware's default, 0)
 _w = io.StringIO()
 with contextlib.redirect_stderr(_w):
-    _cfg, _ = C.parse("# name: old\nSIMD=1\nASM=1\nICONS=0\n")
+    _cfg, _ = C.parse("# name: old\nSIMD=1\nASM=1\nMISSING_WARN=0\n")
     _a = argparse.Namespace(config=None, profile=None, set=["SIMD=1"], name=None, ble_drop=None)
     _c3, _ = C.resolve_cli(_a)[:2]
 _h, _ = C.flags(_cfg)
@@ -81,7 +81,7 @@ check("SIMD: not offered (no item, not in the menu's JSON), its bit 57 not reuse
       "SIMD" not in R.ITEMS and "SIMD" in R.RETIRED and all(it.bit != 57 for it in R.ITEMS.values()) and
       all(d["key"] != "SIMD" for d in R.to_json()["items"]) and "SIMD" not in C.load_costs().get("deltas", {}))
 check("SIMD=1 in a .config and as --set: loads, warns \"wrong on the real FM-1, 2026-10-12\" each time, built without it",
-      "SIMD" not in _cfg and "SIMD" not in _c3 and _cfg["ICONS"] == 0 and
+      "SIMD" not in _cfg and "SIMD" not in _c3 and _cfg["MISSING_WARN"] == 0 and
       _w.getvalue().count("SIMD: wrong on the real FM-1, 2026-10-12") == 2 and "FELUCCA_SIMD" not in _h and
       "FELUCCA_SIMD " not in C.header(_cfg))
 check("no shipped profile or estimate configuration names SIMD",
@@ -92,11 +92,11 @@ check("no shipped profile or estimate configuration names SIMD",
 for _v in (0, 1):
     _w = io.StringIO()
     with contextlib.redirect_stderr(_w):
-        _cfg, _ = C.parse(f"# name: old\nLFO2={_v}\nICONS=0\n")
+        _cfg, _ = C.parse(f"# name: old\nLFO2={_v}\nMISSING_WARN=0\n")
         _a = argparse.Namespace(config=None, profile=None, set=[f"LFO2={_v}"], name=None, ble_drop=None)
         _c3, _ = C.resolve_cli(_a)[:2]
     check(f"LFO2={_v} in an old .config and as --set: loads, warns \"dropped\" each time, keeps its other keys, ignored",
-          "LFO2" not in _cfg and "LFO2" not in _c3 and _cfg["ICONS"] == 0 and _w.getvalue().count("LFO2 was dropped") == 2 and
+          "LFO2" not in _cfg and "LFO2" not in _c3 and _cfg["MISSING_WARN"] == 0 and _w.getvalue().count("LFO2 was dropped") == 2 and
           "FELUCCA_LFO2" not in C.header(_cfg))
 check("LFO2: no item, retired (its bit 91 not reused), counted ON in the configuration hash, no shipped profile or estimate names it",
       "LFO2" not in R.ITEMS and "LFO2" in R.RETIRED and R.HASH_AS.get("LFO2") == 1 and all(it.bit != 91 for it in R.ITEMS.values()) and
@@ -140,25 +140,34 @@ check("updates and the USB rescue are no builder item: no flag of any item is FE
 _cfg, _ = C.parse("OTA=0\n")
 check("... an old .config's OTA=0 loads as EDITOR=0 (the editor out, updates kept), OTA=1 as EDITOR=1",
       _cfg["EDITOR"] == 0 and C.parse("OTA=1\n")[0]["EDITOR"] == 1 and "OTA" not in _cfg)
-check("... the device screens cost nothing without the Optimist UI (NEEDS), every feature nothing without live editing",
-      C.NEEDS["ED_SCREENS"].get("UI") == 1 and all(C.NEEDS[k].get("ED_LIVE") == 1 for k in ED) and
-      not C.counted(dict(C.defaults(), UI=0), "ED_SCREENS") and C.counted(dict(C.defaults(), UI=1), "ED_SCREENS"))
+check("... every web editor feature costs nothing without live editing (NEEDS); the device screens counted in every "
+      "build (the Optimist UI, the only one)", all(C.NEEDS[k].get("ED_LIVE") == 1 for k in ED) and
+      "UI" not in C.NEEDS.get("ED_SCREENS", {}) and C.counted(dict(C.defaults(), ED_LIVE=1), "ED_SCREENS"))
+# UI (bit 251) is retired with SLOOP's UI (2026-10-19), and the items only it used: an old .config naming them loads,
+# warns "dropped", builds the Optimist UI; a cost measured "with UI=1" (costs.json) applies to every build
+_w = io.StringIO()
+with contextlib.redirect_stderr(_w):
+    _cfg, _ = C.parse("# name: old\nUI=0\nICONS=1\nOVERVIEW=1\nDRUM_STEP=1\nSEL_PAGES=1\nMISSING_WARN=0\n")
+check("a .config naming UI=0 and SLOOP's UI's items loads, each said dropped, its other keys kept; the Optimist UI built",
+      not any(k in _cfg or k in R.ITEMS for k in ("UI", "ICONS", "OVERVIEW", "DRUM_STEP", "SEL_PAGES")) and
+      _w.getvalue().count("dropped") == 5 and _cfg["MISSING_WARN"] == 0 and "FELUCCA_UI" not in C.flags(_cfg)[0] and
+      K.holds(_cfg, "UI", 1) and not K.holds(_cfg, "UI", 0))
 # SIZE (bit 70) and IDLE (bit 55) are retired, always built: an old .config naming them loads, warns, builds as ever
 _w = io.StringIO()
 with contextlib.redirect_stderr(_w):
-    _cfg, _ = C.parse("# name: old\nSIZE=0\nIDLE=0\nICONS=0\n")
+    _cfg, _ = C.parse("# name: old\nSIZE=0\nIDLE=0\nMISSING_WARN=0\n")
 _h, _e = C.flags(_cfg)
 check("a .config with the retired SIZE=0 / IDLE=0 loads, warns \"dropped\" for each and keeps its other keys",
       "SIZE" not in R.ITEMS and "IDLE" not in R.ITEMS and "SIZE" not in _cfg and "IDLE" not in _cfg and
-      _w.getvalue().count("dropped") == 2 and _cfg["ICONS"] == 0)
+      _w.getvalue().count("dropped") == 2 and _cfg["MISSING_WARN"] == 0)
 check("... and the build has no switch for them (FELUCCA_IDLE, FELUCCA_SIZE)", "FELUCCA_IDLE" not in _h and "FELUCCA_SIZE" not in _e)
 # an item this builder does not know (a newer builder's, or one removed without a RETIRED line): ignored with a
 # warning, never an error, so a saved .config always loads
 _w = io.StringIO()
 with contextlib.redirect_stderr(_w):
-    _cfg, _ = C.parse("# name: old\nNO_SUCH_ITEM=1\nICONS=0\n")
+    _cfg, _ = C.parse("# name: old\nNO_SUCH_ITEM=1\nMISSING_WARN=0\n")
 check("a .config naming an item this builder does not know loads, warns once and keeps its other keys",
-      "NO_SUCH_ITEM" not in _cfg and _cfg["ICONS"] == 0 and _w.getvalue().count("warning:") == 1 and
+      "NO_SUCH_ITEM" not in _cfg and _cfg["MISSING_WARN"] == 0 and _w.getvalue().count("warning:") == 1 and
       "NO_SUCH_ITEM" in _w.getvalue())
 ported =[it for it in items.values() if it.provenance]
 check(f"ported items ({len(ported)}) carry project, author and licence",
@@ -208,8 +217,8 @@ w = dict(C.defaults(), FM6_KEYS=0, FM6_SYSEX=0)
 check("FM6 without editor and SysEx: a warning (no voice editing)", any("no voice editing" in x for x in C.validate(w)[1]))
 w = dict(C.defaults(), FM6_SYSEX=0, FM6_PK_KEYS=0, FM6_PK_80S=0)
 check("FM6 without a pack and without SysEx: a warning (INIT VOICE only)", any("INIT VOICE is its only voice" in x for x in C.validate(w)[1]))
-check("DRUM_STEP is on by default (the user-default build has the drum steps on the keys), the store's switches stay off",
-      C.defaults()["DRUM_STEP"] == 1 and not any(C.defaults().get(k) for k in ("MICRO", "FILLS", "PLOCK", "CHANCE", "MOTION", "SL24_XSTEP")))
+check("the automation store's switches stay off by default",
+      not any(C.defaults().get(k) for k in ("MICRO", "FILLS", "PLOCK", "CHANCE", "MOTION", "SL24_XSTEP")))
 sx = dict(C.defaults(), MICRO=1, FILLS=1, PLOCK=1, CHANCE=1, MOTION=1)
 check("the store's switches need SL24_XSTEP: the validation says why (the CLI prints it, it used to exit 1 silently)",
       any("SL24_XSTEP" in e for e in C.validate(sx)[0]) and not C.validate(dict(sx, SL24_XSTEP=1))[0])
@@ -253,9 +262,9 @@ if costs and "MOTION" in items:
     sv = C.savings_of(dict(C.defaults(), MOTION=1, SECTIONS=4), costs)
     check("... switching MOTION off at SECTIONS 4 saves its delta and the pair's",
           all(sv["MOTION"][r] == m4[r] - s4[r] for r in C.REGIONS))
-text = C.dump(dict(C.defaults(), ICONS=0, DLY_LEN=32768), "x")
+text = C.dump(dict(C.defaults(), MISSING_WARN=0, DLY_LEN=32768), "x")
 back, name = C.parse(text)
-check("a .config round trip (only what differs is written)", back["ICONS"] == 0 and back["DLY_LEN"] == 32768 and
+check("a .config round trip (only what differs is written)", back["MISSING_WARN"] == 0 and back["DLY_LEN"] == 32768 and
       name == "x" and "ENG_ANALOG" not in text)
 costs = C.load_costs()
 if costs:
@@ -347,17 +356,17 @@ shipped, mine = C.PROFILES, C.MY_PROFILES
 with tempfile.TemporaryDirectory() as tmp:
     C.PROFILES, C.MY_PROFILES = Path(tmp) / "profiles", Path(tmp) / "my-profiles"
     C.PROFILES.mkdir()
-    (C.PROFILES / "a.config").write_text("# name: A\n# what it is\nICONS=0\n")
+    (C.PROFILES / "a.config").write_text("# name: A\n# what it is\nMISSING_WARN=0\n")
     check("a profile without the flag: not published", C.published_profiles() == [])
     C.set_published("a", True)
     text = (C.PROFILES / "a.config").read_text()
     check("set_published on: the flag after the name, the rest kept",
-          C.published_profiles() == ["a"] and text.startswith("# name: A\n# publish: yes\n# what it is\nICONS=0")
-          and C.load_profile("a")[0]["ICONS"] == 0)
+          C.published_profiles() == ["a"] and text.startswith("# name: A\n# publish: yes\n# what it is\nMISSING_WARN=0")
+          and C.load_profile("a")[0]["MISSING_WARN"] == 0)
     C.set_published("a", False)
     check("... off: the same line says no", C.published_profiles() == [] and
           "# publish: no\n" in (C.PROFILES / "a.config").read_text())
-    C.save_my_profile(dict(C.defaults(), ICONS=0), "b")
+    C.save_my_profile(dict(C.defaults(), MISSING_WARN=0), "b")
     try:
         C.set_published("b", True)
         refused = False
@@ -369,7 +378,7 @@ with tempfile.TemporaryDirectory() as tmp:
           p == C.PROFILES / "b.config" and not (C.MY_PROFILES / "b.config").exists() and "b" in C.profile_names()
           and C.set_published("b", True) and C.published_profiles() == ["b"])
     C.save_my_profile(C.defaults(), "c")
-    (C.PROFILES / "c.config").write_text("ICONS=0\n")
+    (C.PROFILES / "c.config").write_text("MISSING_WARN=0\n")
     try:
         C.share_profile("c")
         refused = False
@@ -386,9 +395,9 @@ with tempfile.TemporaryDirectory() as tmp:
     check("delete_profile: one of mine, or a shipped one (git has it back)",
           p_mine == C.MY_PROFILES / "gone.config" and p_shipped == C.PROFILES / "a.config" and
           "gone" not in C.my_profile_names() and "a" not in C.profile_names())
-    (C.PROFILES / "user-default.config").write_text("ICONS=0\n")
+    (C.PROFILES / "user-default.config").write_text("MISSING_WARN=0\n")
     refused = []
-    (C.PROFILES / "synth.config").write_text("ICONS=0\n")
+    (C.PROFILES / "synth.config").write_text("MISSING_WARN=0\n")
     for n in ("synth", "user-default", "nope"):
         try:
             C.delete_profile(n)

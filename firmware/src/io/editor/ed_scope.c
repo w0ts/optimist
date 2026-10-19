@@ -9,7 +9,7 @@
  * ring's largest sample (>> 2, at most 8191). INFO tag 0x5E: version 1, n. */
 #include "ed_reply.h"         /* (ed_b2..ed_b4, ed_b32) */
 enum { ED_SCOPE = 101 };
-#if FELUCCA_UI == 1 && FELUCCA_ED_SCOPE
+#if FELUCCA_ED_SCOPE
 static int ed_scope(uint32_t cmd, const uint8_t *a, uint32_t na)
 {
     uint32_t w, i, pk = 0, sh, at;

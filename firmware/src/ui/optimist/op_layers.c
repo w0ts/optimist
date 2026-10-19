@@ -47,7 +47,7 @@ static void section_load(uint32_t s);
 static uint32_t arrangement_ready(void);
 #if SEC_LOGGED
 static int section_cue(uint32_t s);
-static int sec_scene_clear(uint32_t s);                /* sections.c (FELUCCA_UI == 1) */
+static int sec_scene_clear(uint32_t s);                /* sections.c */
 #endif
 #if FELUCCA_QCHAIN
 static uint32_t section_bars(uint32_t s);

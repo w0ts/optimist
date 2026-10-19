@@ -84,12 +84,12 @@
       "ECHO": {"text": "Slapback: level, then repeats", "if": "FELUCCA_INS_DELAY"},
       "GATER": {"text": "Trance gate depth (in tempo)", "if": "FELUCCA_INS_GATER"},
       "JUNO": {"text": "Juno-106 chorus: its mix", "if": "FELUCCA_INS_JCHORUS"}}},
-    {"kind": "page", "ctx": "SENDS", "if": "FELUCCA_UI == 1", "params": {
+    {"kind": "page", "ctx": "SENDS", "params": {
       "CHO": {"text": "Chorus send", "if": "FELUCCA_FX_CHORUS"},
       "DLY": {"text": "Delay send", "if": "FELUCCA_FX_DELAY"},
       "REV": {"text": "Reverb send", "if": "FELUCCA_FX_REVERB"},
       "PAN": "Stereo position of the track"}},
-    {"kind": "page", "ctx": "BUS SENDS", "if": "FELUCCA_UI == 1", "params": {
+    {"kind": "page", "ctx": "BUS SENDS", "params": {
       "CHO": {"text": "Drum bus chorus send", "if": "FELUCCA_FX_CHORUS"},
       "DLY": {"text": "Drum bus delay send", "if": "FELUCCA_FX_DELAY"},
       "REV": {"text": "Drum bus reverb send", "if": "FELUCCA_FX_REVERB"}}},
@@ -204,8 +204,6 @@
       "VCE": "Voice mode", "GLD": "Glide time", "GLMOD": "Glide: rate or time", "PRIO": "Mono note priority"}},
     {"kind": "page", "ctx": "VOICE 2", "params": {
       "ALLOC": "Voice allocation", "VOICES": "Voices, 1 to the engine's max", "DTUNE": "Unison detune", "PAN": "Track pan", "MUTE": "Track mute",
-      "DROP": {"text": "Pitch drop at each note", "if": "FELUCCA_UI == 1"}}},
-    {"kind": "page", "ctx": "VOICE 3", "if": "FELUCCA_UI != 1", "params": {
       "DROP": "Pitch drop at each note"}},
     {"kind": "page", "ctx": "LEVEL", "if": "0", "params": {"LVL": "Track level"}},
     {"kind": "page", "ctx": "BYPASS", "if": "0", "params": {"FX": "Effects on or off (dry)"}},
@@ -249,7 +247,7 @@
       "COLOR": "Macro: dark to bright", "MOTN": "Macro: still to moving", "SPACE": "Macro: close to huge", "ENRGY": "Macro: sparse to intense"}},
     {"kind": "page", "ctx": "SYSTEM", "params": {
       "CLK": "MIDI clock followed", "SYNC": {"text": "MIDI clock source", "if": "FELUCCA_MIDI_CLOCK"},
-      "VIEW": {"text": "Show one page or all", "if": "FELUCCA_OVERVIEW"}, "CPU": "CPU load"}},
+      "CPU": "CPU load"}},
     {"kind": "page", "ctx": "DRUMS", "params": {
       "CH": "Drum MIDI channel (0: off)", "LVL": "Drum level"}},
     {"kind": "page", "ctx": "PROJECT", "params": {
