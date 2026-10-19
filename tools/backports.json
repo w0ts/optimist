@@ -464,37 +464,6 @@
       "warning": false
     },
     {
-      "switch": "FELUCCA_BPM_LOCK",
-      "title": "BPM LOCK: SELECT sets the tempo only with GLO held (no tempo slip live)",
-      "default": 0,
-      "group": "ui",
-      "source": {
-        "repo": "https://github.com/hugelton/Felucca",
-        "commit": "db70550 (Felucca 1.0.2, #58)",
-        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
-        "licence": "GPL-3.0-only",
-        "files": "firmware/src/ui_input.c (SELECT, PREF_BPM_LOCK), ui_menu.c BPM LOCK"
-      },
-      "files": [
-        "firmware/src/ui/sloop/ui.c tempo_knob",
-        "firmware/src/ui/sloop/ui_layers.c layer_knobs (GLO + SELECT)",
-        "tests/fel102_ui.c"
-      ],
-      "cost": {
-        "flash": 64,
-        "ram": 16,
-        "pool": 0,
-        "ramtext": 0,
-        "cpu": "none",
-        "project_bytes": 0,
-        "measured": "user-default 2026-10-06, BPM_LOCK=1 minus 0"
-      },
-      "storage": "none: the build switch is the choice (Felucca: MENU > BPM LOCK, a settings bit)",
-      "limits": "no menu item (our menu has no free row with BRIGHT and LIGHTS); GLO > GLOBAL's BPM knob and tap tempo (GLO + the last key) still set the tempo",
-      "notice": "After Felucca 1.0.2 by Leo Kuroshita (GPL-3.0), #58.",
-      "warning": false
-    },
-    {
       "switch": "FELUCCA_DIV_ORDER",
       "title": "Note divisions in length order on the knobs and gauges (1/4 1/8 8T 1/16 16T 1/32)",
       "default": 0,
@@ -554,37 +523,6 @@
       "storage": "none: the build switch is the choice (Felucca: MENU > FX LATCH, a settings bit)",
       "limits": "our punch effects (punch.c), not Felucca's FX macros: one latched effect at a time (another key switches to it); the FILTER / DUST / DUCK knobs were already kept after FX is let go; no menu item",
       "notice": "After Felucca 1.0.2 FX LATCH by Leo Kuroshita (GPL-3.0), #40.",
-      "warning": false
-    },
-    {
-      "switch": "FELUCCA_MOTION_MARK",
-      "title": "Motion mark: a card whose parameter the track's MOTION moves carries a mark (page and VIEW ALL)",
-      "default": 0,
-      "group": "sequencer",
-      "source": {
-        "repo": "https://github.com/hugelton/Felucca",
-        "commit": "db70550 (Felucca 1.0.2, #63)",
-        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
-        "licence": "GPL-3.0-only",
-        "files": "firmware/src/motion.c motion_mask, panel.c card_mot"
-      },
-      "files": [
-        "firmware/src/seq/motion.c motion_drives",
-        "firmware/src/ui/sloop/ui_draw.c draw_column, ui_overview.c ov_cell",
-        "tests/fel102_ui.c"
-      ],
-      "cost": {
-        "flash": 276,
-        "ram": 0,
-        "pool": 0,
-        "ramtext": 4,
-        "cpu": "a scan of at most 64 motion records per track card drawn (main loop)",
-        "project_bytes": 0,
-        "measured": "user-default + MOTION 2026-10-06, MOTION_MARK=1 minus 0 (RAM code +4: placement)"
-      },
-      "storage": "none",
-      "limits": "a 4 x 4 px square at the card's top right in the track colour (Felucca: the motion icon in place of the parameter's); the selected track's cards only; needs MOTION",
-      "notice": "After Felucca 1.0.2 by Leo Kuroshita (GPL-3.0), #63.",
       "warning": false
     },
     {
@@ -864,64 +802,6 @@
       "storage": "the step-extras record (lock[24] {step, param, int16} per track, SLOOP 2.4's FUN5 tail; our ids)",
       "limits": "beside motion recording: motion first, the lock wins on its step. One list with motion (2026-10-15, seq/auto_base.c auto_param): every value that can be locked can be recorded and the other way round (the FX insert amounts, ARP, scale, CHORD, GATE, the drum kit and macro positions too); never the voice allocation (VOICE GLMODE PRIO ALLOC VOICES), MUTE, the FX bypass, LEN DIV SWING, the LFO DEST slots, nor a value without a stored id (LFO 2, GATER PATTERN RATE SHAPE, JUNO MODE). One base with motion: a value changed while playing under a lock or a hold (a preset, MIDI, the editor) goes back to the patch at STOP; a knob turned while not recording is the new patch",
       "notice": "Parameter locks from SLOOP 2.4 by isod89 (GPL-3.0).",
-      "warning": false
-    },
-    {
-      "switch": "FELUCCA_SEL_PAGES",
-      "title": "SELECT turns the pages of a family (ENV, LFO, FX, EDIT, ARP, SEQ, SCL, GLO, SAVE); the tempo on TRACKS, HOME and while a layer is held",
-      "default": 1,
-      "group": "ui",
-      "source": {
-        "repo": "https://github.com/isod89/sloop-fm1",
-        "commit": "8d3823f (SLOOP 2.4)",
-        "author": "isod89 (SLOOP)",
-        "licence": "GPL-3.0-only",
-        "files": "firmware/src/ui.c page_walk, firmware/src/ui_input.c (SELECT)"
-      },
-      "files": [
-        "firmware/src/ui/sloop/ui.c page_walk",
-        "firmware/src/ui/sloop/ui_input.c SELECT knob"
-      ],
-      "cost": {
-        "flash": 0,
-        "ram": 0,
-        "pool": 0,
-        "ramtext": 0,
-        "cpu": "main loop only, a short scan of the page table per turn",
-        "project_bytes": 0
-      },
-      "storage": "none",
-      "limits": "flash cost not measured yet (costs.json). Pages this track does not show are skipped; the FM6 editor, SONG and DRUMS screens and the REC screen keep SELECT as the tempo",
-      "notice": "",
-      "warning": false
-    },
-    {
-      "switch": "FELUCCA_BIGVALS",
-      "title": "Big values: pages without a graph show their four values in large type, placed as the knobs are, the turned one white",
-      "default": 1,
-      "group": "ui",
-      "source": {
-        "repo": "https://github.com/isod89/sloop-fm1",
-        "commit": "8d3823f (SLOOP 2.4)",
-        "author": "isod89 (SLOOP)",
-        "licence": "GPL-3.0-only",
-        "files": "firmware/src/ui_draw.c graph_big / big_page / draw_column, ui.c big_*"
-      },
-      "files": [
-        "firmware/src/ui/sloop/ui_draw.c graph_big, big_page, draw_column (fills ui.big_*), graph_signature, draw_graph",
-        "firmware/src/ui/sloop/ui.c ui.big_l / big_v / big_u / big_c"
-      ],
-      "cost": {
-        "flash": 608,
-        "ram": 112,
-        "pool": 0,
-        "ramtext": 0,
-        "cpu": "main loop: the strip is redrawn when a value changes (the columns' text is hashed)",
-        "project_bytes": 0
-      },
-      "storage": "none",
-      "limits": "the small cards stay on top (with the macro / motion marks); the big view has no marks of its own. Values longer than the half screen are cut",
-      "notice": "",
       "warning": false
     },
     {

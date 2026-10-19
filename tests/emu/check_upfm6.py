@@ -59,19 +59,6 @@ def run(ctx):
         ctx.check("... U01's voice kept (upf_used)", used == 1, f"upf_used {used:#x}")
         ctx.check("... 0xE7000..0xE9FFF as seeded (the old copy, the SDK VM, BTIF)", e.nor(SYS_LO, SYS_HI - SYS_LO) ==
                   sys0, "")
-        if f.ui == 0:
-            ok = P.goto("SAVE", "USER")
-            e.click("KNOB1", -40)                         # (U01)
-            P.arm_act("KNOB4")
-            P.shot("user-saved")
-            P.home()
-            b = head(e, NEW_B)
-            ctx.check("a user preset SAVE into U01: OBJ_UPFM6 written as copy B at 0x96000 (the next seq)",
-                      ok and a is not None and b is not None and b[0] == 1 and b[1] == a[1] + 1,
-                      f"head at 0x96000 {b}, A {a}")
-            ctx.check("... 0xE7000..0xE9FFF still as seeded", e.nor(SYS_LO, SYS_HI - SYS_LO) == sys0, "")
-        else:
-            ctx.info("the user preset save", "skipped: SLOOP's UI gestures (this build has the Optimist UI)")
         used1, heads = e.peek("upf_used")[0], (head(e, NEW_A), head(e, NEW_B))
         e.quit()
         e, P = ctx.open(fresh=False, settle=3.0)

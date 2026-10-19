@@ -2,7 +2,7 @@
 
 Every gesture in one list: [shortcuts.md](shortcuts.md).
 
-This guide covers the Optimist user interface (builder item `UI`, value 1). Synth (the default flavour) uses the Optimist UI; drum machine, FM + VA studio and everything fits use SLOOP's: [SLOOP's interface](sloop-ui.md). What each button and knob does is read from the source (`firmware/src/ui/optimist`); the design decisions are in [UI-OPTIMIST-DESIGN.md](../UI-OPTIMIST-DESIGN.md). What a build contains depends on its profile: a page or line whose feature is not built is not shown.
+This guide covers the Optimist user interface, the one every build has (SLOOP's interface was removed 2026-10-19). What each button and knob does is read from the source (`firmware/src/ui/optimist`); the design decisions are in [UI-OPTIMIST-DESIGN.md](../UI-OPTIMIST-DESIGN.md). What a build contains depends on its profile: a page or line whose feature is not built is not shown.
 
 ## The controls
 

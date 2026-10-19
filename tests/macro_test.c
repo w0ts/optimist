@@ -22,7 +22,23 @@ static uint32_t trk_def_engine(uint32_t i) { return i < NPART ? (const uint8_t[]
 #include "../firmware/src/storage/project.c"
 #include "../firmware/src/storage/sections/sec_codec.c"
 #if FELUCCA_MOTION
-#include "../firmware/src/ui/sloop/macro_ui.c"
+/* a macro turned, recorded as a UI records it (SLOOP's UI did: its macro_ui.c, gone with it): while a track records an
+ * event of the drum track (where the positions are kept: MAC_ID) at the step playing, the next one once past its half;
+ * else the position under the motion. What it checks is the core's side: the event played back into mac_pre */
+static void mac_motion(uint32_t id, int32_t value)
+{
+    track_t *t = TDRUM;
+    uint32_t into, slen, idx;
+    if (!song.playing || !song.rec) {
+        motion_knob(t, id, value);
+        return;
+    }
+    idx = TRK_IDX(t, trk_grid(t, &into, &slen), trk_len(t));
+    if (into > slen / 2u)
+        idx = (idx + 1u) % trk_len(t);
+    auto_take(t, TRK_DRUM, id);
+    (void)motion_set_event(t, idx, id, value);
+}
 #if FELUCCA_AUTO
 #include "auto_view.h"              /* (the automation store as motion's old store) */
 #endif

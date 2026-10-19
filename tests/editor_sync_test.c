@@ -7,6 +7,7 @@
  * instructions per window (printed). (The status stream with the meters, STREAM 58, is gone since 2026-10-19.) */
 #define FELUCCA_ARRANGER 1
 #define FELUCCA_OTA 1
+#define FELUCCA_ED_STEPLANE 0   /* (its list is the Optimist UI's lock pages: tests/ui_optimist_edv14.h) */
 #define main hostsim_main
 #include "hostsim.c"
 #undef main

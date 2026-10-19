@@ -2,9 +2,9 @@
 
 How to write, edit and shape a pattern on Optimist: the steps and the STEP page, p-locks, motion recording, chance, conditions, nudge and micro timing, fills, the EUCLID generator, the TOOLS, the arpeggiator, scales and chords, patterns and scenes, sections and the song, snapshots, undo and redo, mute and solo, the performance macros and the drum ACCENT lane.
 
-This is the user's guide for the sequencer. SLOOP's way of playing is in [SLOOP's interface](sloop-ui.md); the design is in [PATTERNS-DESIGN.md](../PATTERNS-DESIGN.md), [SNAPSHOTS.md](../SNAPSHOTS.md) and [UI-OPTIMIST-DESIGN.md](../UI-OPTIMIST-DESIGN.md).
+This is the user's guide for the sequencer. The design is in [PATTERNS-DESIGN.md](../PATTERNS-DESIGN.md), [SNAPSHOTS.md](../SNAPSHOTS.md) and [UI-OPTIMIST-DESIGN.md](../UI-OPTIMIST-DESIGN.md).
 
-Two user interfaces share one sequencer, chosen when the firmware is built (builder item `UI`): SLOOP's (hold a function button, touch a key; the builder's default) and the Optimist UI (Synth's) (lists of rows, SELECT / ALGORITHM / PRESETS, SAVE = yes, HOME = no). Each section below says what the sequencer does, then the gesture on each. Many features are builder items; a build without the item has no such page (the builder shows the name, [BUILDER.md](../BUILDER.md)).
+Each section below says what the sequencer does, then the gesture (lists of rows, SELECT / ALGORITHM / PRESETS, SAVE = yes, HOME = no). Many features are builder items; a build without the item has no such page (the builder shows the name, [BUILDER.md](../BUILDER.md)).
 
 **SHIFT and SHIFT2 on the Optimist UI.** SHIFT is OCT- held, SHIFT2 is OCT+ held. OCT- and OCT+ change the octave when they are let go, and only if nothing else was used while they were held.
 
@@ -12,7 +12,7 @@ Two user interfaces share one sequencer, chosen when the firmware is built (buil
 
 Each of the four tracks (T1 T2 T3 synths, DR the drum track) has a pattern of up to 64 steps. A synth step holds a note or a chord (up to 4 notes), a level, a ratchet and a length (ties). A drum step holds, per drum lane, a hit with a level and a ratchet. The 16 white keys are the 16 steps of the page shown (steps 1-16, 17-32, 33-48, 49-64, up to the track's length).
 
-**The PATTERN row** (SLOOP UI: SEQ with no step held; Optimist UI: STEP with no step held) has four values:
+**The PATTERN row** (STEP with no step held) has four values:
 
 | Value | What it does | Default |
 | --- | --- | --- |
@@ -33,7 +33,6 @@ Each of the four tracks (T1 T2 T3 synths, DR the drum track) has a pattern of up
 - On the Optimist UI a held synth step moved with OCT- / OCT+ shifts its notes an octave. On the drum track, a **tapped drum hit cycles normal, hard, ghost, off** (a soft hit goes straight off). SEQ + a step clears a drum step completely; on a synth track SHIFT + a step clears its p-locks only (below), and SEQ held + keys sets the notes the next tapped steps take.
 - The drum track: SHIFT + a key picks the drum lane (the key plays its sound; the last upper key is the ACCENT lane, below). The grid shows the lit steps of the picked lane.
 
-On SLOOP's UI the same edits are on the SEQ layer: KNOB 1 sound or note, KNOB 2 LEVEL, KNOB 3 RATCHET, KNOB 4 LENGTH with a step held; with none held KNOB 2 DIV, KNOB 3 SWING, KNOB 4 LEN. The drum grid on the keys is builder item `DRUM_STEP`.
 
 ## P-locks (parameter locks)
 
@@ -41,9 +40,8 @@ A **p-lock** gives one step its own value of a sound parameter. The value holds 
 
 - **Record:** hold a step, then turn the knob of the value to lock.
   - Optimist UI: with the step held, press a page button (ENV, LFO, FX, SCL or ARP): that page's cells become the step's events. A turn writes a lock; a cell that holds one shows a padlock mark. Press the same button again for the family's next page; SELECT pages through the step, its extras and then the sound pages. A held step with no note ("an empty step") takes the lock on the rest; no note is made. A press that is only a short tap on a set step does not change it.
-  - SLOOP UI: on the SEQ layer, hold a step and turn PRESETS; ALGORITHM picks which value (the last sound value you turned on a page at first). The title reads *lock flt +12*.
 - **Clear:**
-  - One value: SHIFT + its knob (Optimist UI). On SLOOP's UI OCT- with the step held clears the step's nudge, locks and fill.
+  - One value: SHIFT + its knob.
   - All p-locks of a step: **SHIFT + the step** (Optimist UI). The notes, nudge, fill, chance and motion of the step stay.
   - All locks, nudges, fills and motion of the track's pattern: **SHIFT + SEQ** (asked: "Clear T1 locks?").
 - **Lock or hold:** with a lock cell selected, YES (SAVE) turns the lock into a hold event at that step (motion: the value goes on until the next event of that value); YES again turns it back into a step-only lock.
@@ -56,20 +54,19 @@ A **p-lock** gives one step its own value of a sound parameter. The value holds 
 
 **Motion recording** (builder item `MOTION`): while a track records (REC pressed while playing), turning a knob of a sound value records it on the step that is playing. When the step comes round again the value is set again, and it holds until the next event of that value. Filter sweeps, send throws, a decay that changes every step. Each pass starts from the sound as it was and STOP puts it back. Record from the Optimist UI by REC and a knob on any page of the track's sound; the macros record too.
 
-- SLOOP UI: SEQ until the MOTION page: PLAY on / off for the track, EVNT (the events), FREE (what is left of the 128), CLEAR (twice).
 - Optimist UI: clear the track's automation with SHIFT + SEQ (above); a recording pass is undone with the pass.
 - Motion is saved with the project and with each song section.
 
 ## Chance and conditions
 
-**Chance.** A step plays with a probability: 0 to 100 % in 5 % steps, default 100 %. When a step does not play it is a rest (its ratchets too). A tie is not rolled. Builder item `CHANCE`. Optimist UI: hold a step, SELECT to the extras page, the CHANCE card (drum and synth steps; on drums the whole step). SLOOP UI: SEQ again opens STEP 2, KNOB 2 PROB (synth tracks).
+**Chance.** A step plays with a probability: 0 to 100 % in 5 % steps, default 100 %. When a step does not play it is a rest (its ratchets too). A tie is not rolled. Builder item `CHANCE`. Hold a step, SELECT to the extras page, the CHANCE card (drum and synth steps; on drums the whole step).
 
-**Conditions.** A step **condition** a:b plays the step only on loop a of every b passes of its own track: 1:2, 2:2, 1:3, 2:3, 3:3, 1:4, 2:4, 3:4, 4:4 (builder item `COND`). Each track counts the passes through its length; the count restarts on PLAY, on a song section and when a launched pattern takes over. Held step, extras page, the COND card (`-` is none; SHIFT + its knob clears it). The order on a step: the condition first, then FILL, then the chance. A step that fails any of them plays nothing and applies no lock. SLOOP's UI plays conditions and draws the dot; it has no page to edit them.
+**Conditions.** A step **condition** a:b plays the step only on loop a of every b passes of its own track: 1:2, 2:2, 1:3, 2:3, 3:3, 1:4, 2:4, 3:4, 4:4 (builder item `COND`). Each track counts the passes through its length; the count restarts on PLAY, on a song section and when a launched pattern takes over. Held step, extras page, the COND card (`-` is none; SHIFT + its knob clears it). The order on a step: the condition first, then FILL, then the chance. A step that fails any of them plays nothing and applies no lock.
 
 ## Nudge, micro timing and fills
 
-- **Nudge / micro timing** (`MICRO`): a step plays up to half a step early (-32) or just under half late (+31), in 1/64 of a step; its ratchets move with it. Optimist UI: held step, extras page, the NUDGE card. SLOOP UI: SEQ, hold a step, KNOB 4 NUDGE. Clear the nudge with SHIFT + its knob or OCT- with the step held. This is SLOOP 2.4's micro timing, kept in 2.4's own layout.
-- **Fills** (`FILLS`): a step set to FILL ONLY plays only during a fill; NO FILL stays silent during one. Optimist UI: held step, SAVE cycles normal, FILL ONLY, NO FILL (or the FILL card in the extras). SLOOP UI: held step + OCT+. **Fills are played** with GLO + key 9 (a fill while held) and GLO + key 10 (the next bar is a fill; again cancels it). STOP ends both. With fills built the FX bypass moves from GLO + keys 9-12 to GLO + black keys 1-4.
+- **Nudge / micro timing** (`MICRO`): a step plays up to half a step early (-32) or just under half late (+31), in 1/64 of a step; its ratchets move with it. Held step, extras page, the NUDGE card. Clear the nudge with SHIFT + its knob. This is SLOOP's micro timing.
+- **Fills** (`FILLS`): a step set to FILL ONLY plays only during a fill; NO FILL stays silent during one. Held step, SAVE cycles normal, FILL ONLY, NO FILL (or the FILL card in the extras). **Fills are played** with GLO + key 9 (a fill while held) and GLO + key 10 (the next bar is a fill; again cancels it). STOP ends both. With fills built the FX bypass moves from GLO + keys 9-12 to GLO + black keys 1-4.
 
 ## The note generator: EUCLID
 
@@ -100,7 +97,7 @@ Hold ARP and hold a key (note repeat, locked to the tempo and swing); on the Opt
 - **ARP:** MODE (OFF, UP, DN, UPDN, RND, ORD), RATE (1/4, 1/8, 1/16, 1/32, 8T, 16T; default 1/16), OCT (1 to 4), GATE.
 - **ARP 2:** SWG (swing), PROB (probability of a note), HOLD (on / off: keep the notes after the keys are let go) and ORD (NOTE or PLAY order).
 
-The ARP values are p-locks and motion, like the sound values (above). A recorded roll is written as ratchets. On the drum track OCT- / OCT+ (SLOOP UI) make a roll ghost or hard.
+The ARP values are p-locks and motion, like the sound values (above). A recorded roll is written as ratchets.
 
 ## Scale and chords
 
@@ -118,7 +115,7 @@ See [PATTERNS-DESIGN.md](../PATTERNS-DESIGN.md).
 
 ## Sections and the song
 
-Sections A to P (16, in four banks of four; a build may have 8 or 4) hold the four tracks: sounds, patterns, kit. **SAVE held** is the scenes layer on the Optimist UI: white key n starts scene A-P at the next bar (stopped: loads it), REC held + n stores the loop into n, SHIFT + n clears n (asked), SAVE + PLAY plays the song from its start, SAVE + REC tapped records the song as you play the sections, and two taps or more of keys while holding SAVE queue a quick chain (`QCHAIN`, up to 8, not saved). The SONG screen edits the chain by hand. The sections are stored compressed in one log; the SONG title shows how full the memory is. On SLOOP's UI see [Songs](sloop-ui.md#songs).
+Sections A to P (16, in four banks of four; a build may have 8 or 4) hold the four tracks: sounds, patterns, kit. **SAVE held** is the scenes layer: white key n starts scene A-P at the next bar (stopped: loads it), REC held + n stores the loop into n, SHIFT + n clears n (asked), SAVE + PLAY plays the song from its start, SAVE + REC tapped records the song as you play the sections, and two taps or more of keys while holding SAVE queue a quick chain (`QCHAIN`, up to 8, not saved). The SONG screen edits the chain by hand. The sections are stored compressed in one log; the SONG title shows how full the memory is.
 
 ## Snapshots
 
@@ -126,18 +123,18 @@ A **snapshot** keeps the working project, every section and the song in one slot
 
 ## Undo and redo
 
-Every step key pressed, every tool, every recording pass, erase, clear and held-layer edit opens one **undo** level, many levels deep, on every track including the drums. Optimist UI: SAVE then HOME is undo; SHIFT (OCT- held) then SAVE is **redo**; EDIT + OCT- / OCT+ do the same. SLOOP UI: hold EDIT and press OCT- (undo) or OCT+ (redo). Loading a project or playing a section clears the history. How many levels depends on the memory the build leaves free.
+Every step key pressed, every tool, every recording pass, erase, clear and held-layer edit opens one **undo** level, many levels deep, on every track including the drums. SAVE then HOME is undo; SHIFT (OCT- held) then SAVE is **redo**; EDIT + OCT- / OCT+ do the same. Loading a project or playing a section clears the history. How many levels depends on the memory the build leaves free.
 
 ## Mute and solo
 
 There are two kinds of **mute**.
 
-- **The mixer mute** silences the sound (the MIDI out goes on). Optimist UI: SHIFT2 with the knob of a mixer row's volume card toggles it; the muted track is struck through in the mixer, in the header badge and on its volume card. SLOOP UI and the GLO layer: keys 1-4 mute tracks 1-4, keys 5-8 **solo** them (several solos add up). A muted track fades out in a few ms.
+- **The mixer mute** silences the sound (the MIDI out goes on). SHIFT2 with the knob of a mixer row's volume card toggles it; the muted track is struck through in the mixer, in the header badge and on its volume card. On the GLO layer: keys 1-4 mute tracks 1-4, keys 5-8 **solo** them (several solos add up). A muted track fades out in a few ms.
 - **The sequencer mute** stops the steps from triggering notes, for the internal sound and for MIDI out, while the notes already sounding end by their gates; a muted track's locks do not apply, a muted lane has no locks or motion; keys played live still sound. Optimist UI, on the mixer: **SHIFT + a key**: the 16 white drum keys are the 16 lanes, the black keys F#, G#, A#, C# are T1, T2, T3 and DR, and the last upper key is the ACCENT lane. The ACCENT row's MUTE card does the same. It is saved with the project.
 
 ## Performance macros: COLOR, MOTION, SPACE, ENERGY
 
-Four knobs (builder items `MACROS` and `ENERGY`), each from -100 % to +100 %; at 0 % (home) nothing moves. On the Optimist UI they are the last page of the MASTER FX screen, MACRO, named COLOR, MOTN, SPACE and ENRGY (SLOOP UI: GLO until MACRO).
+Four knobs (builder items `MACROS` and `ENERGY`), each from -100 % to +100 %; at 0 % (home) nothing moves. They are the last page of the MASTER FX screen, MACRO, named COLOR, MOTN, SPACE and ENRGY.
 
 | Macro | Right | Left |
 | --- | --- | --- |

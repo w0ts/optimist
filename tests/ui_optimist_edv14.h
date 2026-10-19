@@ -128,11 +128,112 @@ static void edstl_golden(void)
 }
 #endif
 #endif
+#if FELUCCA_ED_STEPLANE && STL_ON && FELUCCA_PLOCK
+/* the generic part of STEPLANE (it was tests/editor_v14.h's, on SLOOP's UI until 2026-10-19): a synth step's lock, its
+ * clamp, KIND, UNLOCK; SET and STEP through the store (chance, condition, nudge, fill, level, ratchet); a drum lane's
+ * level and ratchet. A state reply: ed_out[5] op, 6 rc, 10 flags, 11 level, 12 ratchet, 13 chance, 14 cond, 15 nudge
+ * + 64, 16 fill, 17 n, then n x (i, kind, v14) */
+#define OKC(c) do { int c_ = (c); if (!c_) printf("  (STEPLANE check failed at ui_optimist_edv14.h:%d)\n", __LINE__); ok &= (uint32_t)c_; } while (0)
+static void edv14_generic(void)
+{
+    track_t *t = &trk[0];
+    uint32_t r, ok = 1, i;
+    int32_t v;
+    memset(t->step, 0, sizeof t->step);
+    memset(AL(t), 0, sizeof *AL(t));
+    for (i = 0; i < NTRK; i++)
+        trk[i].p[P_SLEN] = 16;
+    t->step[5].time = ST_NOTE, t->step[5].n = 1, t->step[5].note[0] = 60;
+    edstl_call(1, 0, 127, 0, 0, 0);
+    {
+        uint32_t id0 = ed_out[10];
+        const param_desc_t *d0 = lock_desc(t, id0);
+        r = edstl_call(4, 0, 127, 5, 0, d0->max);
+        check(r && ed_out[5] == 4 && ed_out[6] == 0 && ed_out[17] == 1 && ed_out[18] == 0 && ed_out[19] == 1 && lock_get(t, 5, id0, &v) && v == d0->max,
+              "STEPLANE LOCK: the lock is the step's event; the state lists it (i 0, kind 1, the value)");
+        r = edstl_call(4, 0, 127, 5, 0, 9000);
+        check(r && lock_get(t, 5, id0, &v) && v == d0->max, "STEPLANE LOCK: a value past the range is clamped");
+        r = edstl_call(6, 0, 127, 5, 0, 0);
+#if FELUCCA_MOTION
+        check(r && ed_out[6] == 0 && ed_out[17] == 1 && ed_out[19] == 2 && hold_get(t, 5, id0, &v) && !lock_get(t, 5, id0, &v), "STEPLANE KIND: the lock becomes a hold event (the device's YES)");
+        r = edstl_call(4, 0, 127, 5, 0, d0->min);
+        check(r && hold_get(t, 5, id0, &v) && v == d0->min && !lock_get(t, 5, id0, &v), "STEPLANE LOCK on a hold event: its value moves, the kind stays");
+#else
+        check(r && ed_out[6] == 4, "STEPLANE KIND without motion: nothing to do (rc 4)");
+#endif
+        r = edstl_call(5, 0, 127, 5, 0, 0);
+        check(r && ed_out[6] == 0 && ed_out[17] == 0 && !lock_get(t, 5, id0, &v) && !hold_get(t, 5, id0, &v), "STEPLANE UNLOCK: both kinds of the value go");
+        r = edstl_call(6, 0, 127, 5, 0, 0);
+        check(r && ed_out[6] == 4, "STEPLANE KIND with no event: rc 4");
+        r = edstl_call(4, 0, 127, 5, 99, 0);
+        check(r && ed_out[6] == 1, "STEPLANE LOCK of a value past the list: rc 1");
+        (void)edstl_call(5, 0, 127, 5, 0, 0);
+    }
+#if FELUCCA_CHANCE
+    r = edstl_call(3, 0, 127, 5, 2, 50);
+    OKC(r && ed_out[6] == 0 && ed_out[13] == 50 && step_chance_ev(t, 5) == 50);
+    r = edstl_call(3, 0, 127, 5, 2, 101);
+    OKC(r && ed_out[6] == 1);
+    r = edstl_call(3, 0, 127, 9, 2, 50);
+    OKC(r && ed_out[6] == 3);                               /* (an empty step has no chance) */
+#endif
+#if FELUCCA_COND
+    r = edstl_call(3, 0, 127, 5, 3, 4);
+    OKC(r && ed_out[6] == 0 && ed_out[14] == 4 && step_cond(t, 5) == 4);
+    r = edstl_call(3, 0, 127, 5, 3, 10);
+    OKC(r && ed_out[6] == 1);
+#endif
+#if FELUCCA_MICRO
+    r = edstl_call(3, 0, 127, 5, 4, -7);
+    OKC(r && ed_out[6] == 0 && ed_out[15] == 64 - 7 && step_micro(t, 5) == -7);
+    r = edstl_call(3, 0, 127, 5, 4, 32);
+    OKC(r && ed_out[6] == 1);
+#endif
+#if FELUCCA_FILLS
+    r = edstl_call(3, 0, 127, 5, 5, 1);
+    OKC(r && ed_out[6] == 0 && ed_out[16] == 1 && step_fill(t, 5) == 1);
+#endif
+    r = edstl_call(3, 0, 127, 5, 0, 3);
+    OKC(r && ed_out[6] == 0 && ed_out[11] == 3 && (t->step[5].lvl & 3u) == 3u);
+    r = edstl_call(3, 0, 127, 5, 1, 2);
+    OKC(r && ed_out[12] == 2 && (t->step[5].rat & 3u) == 2u);
+    r = edstl_call(3, 0, 127, 5, 7, 0);
+    OKC(r && ed_out[6] == 1);
+    r = edstl_call(2, 0, 127, 5, 0, 0);
+    OKC(r && ed_out[10] == 3 && ed_out[11] == 3 && ed_out[12] == 2);
+    check(ok, "STEPLANE SET / STEP: chance, condition, nudge, fill, level, ratchet through the store; out-of-range rc 1; an empty step rc 3");
+    {
+        dstep_t *d = &TDRUM->dstep[7];
+        memset(d, 0, sizeof *d);
+        memset(AL(TDRUM), 0, sizeof *AL(TDRUM));
+        dstep_set(d, 2, LV_NORM, 0);
+        r = edstl_call(3, 3, 2, 7, 0, 3);
+        check(r && ed_out[6] == 0 && ed_out[11] == 3 && dstep_lvl(d, 2) == 3, "STEPLANE SET level on a drum lane: the lane's level only");
+        r = edstl_call(3, 3, 2, 7, 1, 2);
+        check(r && ed_out[6] == 0 && dstep_rat(d, 2) == 2 && dstep_lvl(d, 2) == 3, "STEPLANE SET ratchet on a drum lane");
+        r = edstl_call(3, 3, 5, 7, 0, 3);
+        check(r && ed_out[6] == 3 && !dstep_has(d, 5), "STEPLANE SET level on a lane without a hit: rc 3, no hit made");
+        r = edstl_call(2, 3, 2, 7, 0, 0);
+        check(r && ed_out[10] == 3 && ed_out[11] == 3 && ed_out[12] == 2, "STEPLANE STEP on a drum lane: flags (hit, lockable), level, ratchet");
+        r = edstl_call(2, 3, 127, 7, 0, 0);
+        check(r && ed_out[10] == 3, "STEPLANE STEP on DR itself (lane 127): the step has a hit");
+        memset(d, 0, sizeof *d);
+        memset(AL(TDRUM), 0, sizeof *AL(TDRUM));
+    }
+    check(!edstl_call(2, 0, 127, 64, 0, 0) && !edstl_call(9, 0, 127, 0, 0, 0), "STEPLANE: a step past 63, an unknown op: no reply");
+    memset(t->step, 0, sizeof t->step);
+    memset(AL(t), 0, sizeof *AL(t));
+}
+#undef OKC
+#endif
 static void edv14_tests(void)
 {
 #if FELUCCA_ED_STEPLANE && STL_ON && FELUCCA_PLOCK
     uint32_t r;
     int32_t v;
+    reset_ui();
+    song.sel = 0;
+    edv14_generic();
     reset_ui();
     song.sel = 0;
     r = edstl_check_list(0, 127);

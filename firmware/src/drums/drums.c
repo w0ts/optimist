@@ -179,25 +179,18 @@ static uint32_t lane_of_key(uint32_t k)
 {
     static const int8_t W[12] = {0, -1, 1, -1, 2, -1, 3, 4, -1, 5, -1, 6};   /* from F */
     int32_t i = W[k % 12u];
-#if FELUCCA_UI == 1
     static const int8_t B[12] = {-1, 0, -1, 1, -1, 2, -1, -1, 3, -1, 4, -1};   /* from F: F# G# A# C# D# */
     i = B[k % 12u];
     if (i < 0)
         return DLANE_NONE;
     i += (int32_t)(k / 12u) * 5;
     (void)W;
-#else
-    if (i < 0)
-        i = W[(k - 1u) % 12u];
-    i += (int32_t)(k / 12u) * 7;
-#endif
     return (uint32_t)i < DRUM_LANES ? (uint32_t)i : DLANE_NONE;
 }
 /* the key of lane l (key index), for the key LEDs: the Optimist UI its black key, SLOOP's its white key */
 static uint32_t key_of_lane(uint32_t l)
 {
     static const uint8_t K[7] = {0, 2, 4, 6, 7, 9, 11};      /* F G A B C D E */
-#if FELUCCA_UI == 1
     static const uint8_t B[5] = {1, 3, 5, 8, 10};           /* F# G# A# C# D# */
 #if FELUCCA_DRUM_ACCENT && DACC_KEY_ON
     if (l == DRUM_ACC)
@@ -205,9 +198,6 @@ static uint32_t key_of_lane(uint32_t l)
 #endif
     (void)K;
     return (l / 5u) * 12u + B[l % 5u];
-#else
-    return (l / 7u) * 12u + K[l % 7u];
-#endif
 }
 /* a lane in the editor's messages (io/editor): 0..15 the lanes, 16 the ACCENT lane (the 16 fixed lanes' numbering) <->
  * the device's (DRUM_ACC 10); a wire lane DRUM_LANES..15: EDL_NONE */

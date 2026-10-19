@@ -54,7 +54,6 @@ static void meter_tap(void)
         if (pk > mt.lane[c])
             mt.lane[c] = pk;
     }
-#if FELUCCA_UI == 1
     for (c = 0; c < 3u; c++) {          /* the FX returns (fx.c fx_ret_tap), as the tracks */
         int32_t pk;
         fm1_irq_off();
@@ -64,7 +63,6 @@ static void meter_tap(void)
         if (pk > mt.ret[c])
             mt.ret[c] = pk;
     }
-#endif
 #if FELUCCA_MASTER_COMP
     {   /* the COMP inserts' gain reduction now (a word each, read only), the largest since the screen took it */
         uint32_t g;
@@ -111,7 +109,6 @@ static int32_t meter_ui_take(uint32_t c)
     mt.ui[c] = 0;
     return pk;
 }
-#if FELUCCA_UI == 1
 /* the mixer's MASTER page: FX return k's (0 CHO, 1 DLY, 2 REV) largest |output| since its last look */
 static int32_t meter_ret_take(uint32_t k)
 {
@@ -119,7 +116,6 @@ static int32_t meter_ret_take(uint32_t k)
     mt.ret[k % 3u] = 0;
     return pk;
 }
-#endif
 /* the TRACKS screen: drum lane l's largest |output| since its last look */
 static int32_t meter_lane_take(uint32_t l)
 {

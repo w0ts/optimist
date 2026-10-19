@@ -64,17 +64,11 @@
 #ifndef FELUCCA_ENG_JUNO
 #define FELUCCA_ENG_JUNO 0       /* the JUNO engine (engine 14), the Juno-106 voice of fm-106 */
 #endif
-#ifndef FELUCCA_BPM_LOCK
-#define FELUCCA_BPM_LOCK 0       /* #58: SELECT sets the tempo only with GLO held (no slip live) */
-#endif
 #ifndef FELUCCA_DIV_ORDER
 #define FELUCCA_DIV_ORDER 0      /* #48: divisions on the knobs and gauges in length order (1/4 1/8 8T 1/16 ...) */
 #endif
 #ifndef FELUCCA_PUNCH_LATCH
 #define FELUCCA_PUNCH_LATCH 0    /* #40: FX + key latches its punch effect; the same key or FX + OCT- turns it off */
-#endif
-#ifndef FELUCCA_MOTION_MARK
-#define FELUCCA_MOTION_MARK 0    /* #63, with MOTION: a mark on the cards whose parameter the track's motion moves */
 #endif
 #ifndef FELUCCA_UP_FM6
 #define FELUCCA_UP_FM6 0         /* FM6 user presets keep their voice (OBJ_UPFM6, flash 0x95000 / 0x96000) */

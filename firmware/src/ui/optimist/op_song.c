@@ -14,7 +14,7 @@
  *   PART 1 .. 64  the chain: SCENE, BARS, INSERT (a copy after it), DELETE; edited stopped; the part playing white
  * MODE comes before the parts so that it is not 64 rows down. Without PATTERNS a scene row says STORED / EMPTY. */
 #if FELUCCA_PATTERNS
-static int pat_scene_ref_set(uint32_t s, uint32_t k, uint32_t v);   /* pat.c (FELUCCA_UI == 1) */
+static int pat_scene_ref_set(uint32_t s, uint32_t k, uint32_t v);   /* pat.c */
 #endif
 #if SEC_LOGGED
 static void prj_mem(cell_t *c, uint32_t k);            /* op_project.c: the MEM gauge */

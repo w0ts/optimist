@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Charles Vestal (X0X: charlesvestal/fm1-x0x 61654ba, the backlight PWM and its 8 steps) */
 /* MENU > BRIGHT (FELUCCA_BRIGHT, backports.h): the screen's backlight, 1..8 (8 = full, as before). The HAL
- * PWMs PA2 from the 10 kHz TIMER5 ISR (hal/fm1_lcd_hw.h fm1_lcd_bl_tick, main.c). Included by ui_menu.c.
+ * PWMs PA2 from the 10 kHz TIMER5 ISR (hal/fm1_lcd_hw.h fm1_lcd_bl_tick, main.c). Included by ui/optimist/optimist.c.
  *
  * On X0X a real FM-1 froze at level 1 (duty 1/16) and, the
  * level being saved, froze again at every boot until reflashed (X0X issue #2; X0X removed the feature in

@@ -119,13 +119,11 @@ static int up_valid(const up_rec_t *r)
 }
 
 static int up_used(uint32_t k) { return k < UP_SLOTS && up_valid(up_rec(k)); }
-#if FELUCCA_UI == 1
 /* the engine slot of user preset k (the Optimist UI names it beside the preset), NENGINES: empty or not built */
 static uint32_t up_engine_slot(uint32_t k)
 {
     return up_used(k) && eng_built(up_rec(k)->engine) ? eng_slot_built(up_rec(k)->engine) : NENGINES;
 }
-#endif
 
 #include "../core/lfo_store.h"                     /* (LFO DEST: lfo1_store, lfo1_load) */
 #include "../core/env_store.h"                     /* (ENV 1 MOD, ENV2 DEST: env1_fold, env_store, env_load) */

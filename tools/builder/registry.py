@@ -43,6 +43,16 @@ MERGED = {
 
 # Dropped items: a .config naming one still loads; the setting is ignored with a warning (configure.py parse)
 RETIRED = {
+    "UI": "the Optimist UI is the only user interface: SLOOP's UI was removed (retired 2026-10-19, bit 251; any old UI value is ignored)",
+    "ICONS": "the parameter icons were SLOOP's UI's (retired 2026-10-19 with it, bit 52)",
+    "OVERVIEW": "VIEW ALL was SLOOP's UI's (retired 2026-10-19 with it, bit 53)",
+    "OV_ARP": "the ARP graph and ARP in VIEW ALL were SLOOP's UI's (retired 2026-10-19 with it, bit 82)",
+    "DRUM_STEP": "the drum steps on the keys of SLOOP's DRUMS grid went with SLOOP's UI (retired 2026-10-19, bit 154; the Optimist UI's drum keys are always its steps)",
+    "CHORD_NAMES": "the chord names on SLOOP's STEP page went with SLOOP's UI (retired 2026-10-19, bit 160)",
+    "BPM_LOCK": "BPM LOCK (SELECT the tempo only with GLO) was SLOOP's UI's (retired 2026-10-19 with it, bit 132)",
+    "MOTION_MARK": "the marks on the cards motion moves were SLOOP's UI's (retired 2026-10-19 with it, bit 134)",
+    "SEL_PAGES": "SELECT turning a family's pages was SLOOP's UI's (retired 2026-10-19 with it, bit 215)",
+    "BIGVALS": "the big values on pages without a graph were SLOOP's UI's (retired 2026-10-19 with it, bit 217)",
     "ED_UNDO": "the web editor's undo and redo are part of live editing, ED_LIVE (retired 2026-10-19, bit 158)",
     "ED_FAVS": "the web editor's favorites are part of live editing, ED_LIVE (retired 2026-10-19, bit 156; with FAVORITES)",
     "ED_NOTE": "playing notes from the web editor is part of live editing, ED_LIVE (retired 2026-10-19, bit 159)",
@@ -87,7 +97,7 @@ RETIRED = {
 # Retired items every image is still built as (their firmware default): the configuration hash counts them at that
 # value (configure.py cfg_hash), so retiring one changes no image's hash. SIMD was default 0 in every profile; LFO2 is
 # counted ON (the image every build is now; a build that had it off is a different image).
-HASH_AS = {"SIMD": 0, "KNOB_ONEREST": 1, "MONO_RELEASE": 1, "ST_STRICT": 1, "USB_FLOW": 1, "SHED_FADE": 1, "KEYS_FAST": 1, "TRS_NOISE": 1, "BK_CHECK": 1, "LAYER_QUIET": 1, "DLY_HALVE": 1, "LFO2": 1, "GLIDE": 1}   # (each was its default in every profile)
+HASH_AS = {"SIMD": 0, "KNOB_ONEREST": 1, "MONO_RELEASE": 1, "ST_STRICT": 1, "USB_FLOW": 1, "SHED_FADE": 1, "KEYS_FAST": 1, "TRS_NOISE": 1, "BK_CHECK": 1, "LAYER_QUIET": 1, "DLY_HALVE": 1, "LFO2": 1, "GLIDE": 1, "UI": 1, "ICONS": 0, "OVERVIEW": 0, "OV_ARP": 1, "DRUM_STEP": 1, "CHORD_NAMES": 1, "BPM_LOCK": 0, "MOTION_MARK": 1, "SEL_PAGES": 0, "BIGVALS": 0}   # (each was its default in every profile)
 
 # Never offered: used by X0X only by permission of its author, no licence
 FORBIDDEN = {
@@ -662,77 +672,38 @@ _add("MIDI_NOTEOUT", "FELUCCA_MIDI_OUT", "MIDI note out of the sequencer (GLOBAL
 
 # ---- UI
 U = "UI"
-_add("UI", "FELUCCA_UI", "user interface: SLOOP's pages or the Optimist rows", U, 251, default=0,
-     choices=((0, "SLOOP's UI (pages, held layers)"), (1, "Optimist UI (phase 1)")),
-     desc="Which user interface the firmware is built with (docs/UI-OPTIMIST-DESIGN.md). SLOOP's (the default): pages "
-          "opened by the buttons, the layers held. The Optimist UI, phase 1 of its design: every screen a list of rows, "
-          "the cursor row's four values on the knobs; HOME is the mixer (SELECT the row, the knobs the four tracks), "
-          "SOUND the track's pages as rows, PROJECT and SYSTEM; SAVE = YES, HOME = NO, one confirm for what destroys. "
-          "Not built yet in it: STEP, SONG, the held layers (only PLAY and REC), the Felucca look. Its own code "
-          "replaces SLOOP's UI code, so it is smaller (the measured sizes: docs/UI-OPTIMIST-DESIGN.md section 11).")
-_add("ICONS", "FELUCCA_ICONS", "parameter icons", U, 52,
-     desc="A small 12 x 12 icon beside each parameter label. About 5.4 KB of flash; off: no icons, and the "
-          "labels get their full width back.")
-_add("OVERVIEW", "FELUCCA_OVERVIEW", "VIEW ALL overview (4 x 4 PAGEs)", U, 53,
-     desc="GLO > SYSTEM VIEW ALL: shows a whole page family at once, 4 rows x 4 knobs a PAGE, PAGE n/m. About 2.4 KB "
-          "of flash; off: one page at a time.")
-_add("OV_ARP", "FELUCCA_OV_ARP", "ARP graph and ARP in VIEW ALL", U, 82, parent="OVERVIEW",
-     desc="Shows the arpeggiator's graph and puts the ARP settings into VIEW ALL. About 0.6 KB of flash; off: the "
-          "ARP graph and its VIEW ALL rows are not built.")
 _add("MISSING_WARN", "FELUCCA_MISSING_WARN", "say what a project uses and this build lacks", U, 90,
      desc="'MISSING: PHYS T2, KIT 909' in the top bar when a project, song section, user preset or kit uses an "
           "engine, kit, sample set or FX this build leaves out (once per item until power-off; never stalls the "
-          "audio); SAVE > TOOLS > MISS lists them again. Off: they play their stand-ins silently (saves 1.5 KB of flash)")
-_add("DRUM_STEP", "FELUCCA_DRUM_STEP", "drum steps on the keys (SLOOP 2.4 'Drums with the keys')", U, 154,
-     provenance=SLOOP_24,
-     desc="On the DRUMS grid page (SEQ tapped on the drum track) the 16 white keys are the 16 steps of the sound KNOB 1 "
-          "picks: press to set a step (you hear the sound), again to clear it; the first four black keys pick the page "
-          "of steps. You hear what you pick: the sound when KNOB 1 changes it (on the grid and in the SEQ layer), the "
-          "step's sounds when KNOB 2 moves to it. SELECT switches grid and kit (it is the tempo there without this "
-          "item). Extra: while playing, the page follows the playhead (black key 5 turns it on / off). SEQ + a white key picks the "
-          "sound (the SEQ layer's keys are its sounds). With the automation store built (PLOCK, MICRO, FILLS, CHANCE, "
-          "MOTION), a step key held past the HOLD time is a held step as in the SEQ layer of the synth tracks: KNOB 4 "
-          "nudge, PRESETS lock value, ALGORITHM lock parameter, KNOB 2 chance, OCT+ fill, OCT- clear (all of it). No data change. "
-          "About 1.4 KB of flash, 16 B of RAM; the audition runs in the audio interrupt (no fast RAM code). Off: the "
-          "keys play the pads on the grid page, as before.",
-     notice="After SLOOP 2.4 'Drums with the keys' by isod89 (GPL-3.0), idea first from PR #45 by Erick Buendia Barrientos "
-            "(Erbubar23). Tested in the host UI tests only, not on a device.")
+          "audio); PROJECT > TOOLS > MISSING lists them again. Off: they play their stand-ins silently (saves 1.5 KB of flash)")
 _add("FAVORITES", "FELUCCA_FAVORITES", "favorites: mark sounds, browse only them", U, 141, provenance=FELUCCA,
-     desc="SAVE > PRESETS (SLOOP's UI): KNOB 3 FAV marks the selected track's sound as a favorite (ON / OFF), KNOB 4 LIST "
-          "shows ALL or only the favorites (the PRESETS knob and KNOB 1 then walk just those); a marked sound shows a star "
-          "in the list. The Optimist UI: with the presets: SHIFT2 (OCT+ held) + PRESETS marks the sound playing, SHIFT2 + SELECT "
+     desc="With the presets: SHIFT2 (OCT+ held) + PRESETS marks the sound playing, SHIFT2 + SELECT "
           "browses only the favorites, a star after a favorite's name in the toast and in PROJECT > USER (SHIFT2 + ITEM marks a slot). Up to 64 factory sounds (kept by engine and name: they stay marked over builds that leave engines "
           "out) and any of the 32 user presets (an erased preset loses its mark); the FM6 / CZ banks and the drum track have "
           "none. Kept with the settings (136 B at the end of the settings record: an older record reads whole with none; "
           "a build without this item keeps the rest and forgets them on its next save). About 1 KB of flash, 136 B of pool. "
-          "Off: PRESETS KNOB 3 and 4 stay empty.",
+          "Off: no marks.",
      notice="After Felucca 1.6's favorites by Leo Kuroshita (GPL-3.0). Tested in the host UI and storage tests only, not on "
             "a device.")
 _add("PARAM_HELP", "FELUCCA_PARAM_HELP", "help line: what the knob changes, in words", U, 138, default=0,
-     desc="while a knob turns, the top bar (the live screens' header) names its value in plain words, e.g. 'Filter "
-          "cutoff', 'Reverb send', until ~1 s after the last detent; only the lines of the features built (tools/param_help.json, also the "
-          "web editor's tooltips). The Optimist UI (UI=1): the screen's last line, while a value turns and ~2 s after, and "
-          "always on GLOBAL, SYSTEM and PROJECT (the cursor line, the hot action, '(asks)' where it asks first). About "
-          "5.5 KB of flash (UI=1: 7.7 KB, its own lines too; the texts packed), no RAM code",
+     desc="the screen's last line names what a knob changes in plain words, e.g. 'Filter cutoff', 'Reverb send', while "
+          "a value turns and ~2 s after, and always on GLOBAL, SYSTEM and PROJECT (the cursor line, the hot action, "
+          "'(asks)' where it asks first); only the lines of the features built (tools/param_help.json, also the web "
+          "editor's tooltips). About 7.7 KB of flash (the texts packed), no RAM code",
      symbols=("ph_find", "PH_BLOB"))
 _add("PAGE_LINES", "FELUCCA_PAGE_LINES", "pages as lines (GLOBAL's look), not 2x2 cards + list", U, 342, default=1,
-     desc="The Optimist UI (UI=1): a screen of rows with no picture (EDIT, VOICE, PROJECT, SONG, the master FX, SOUND's "
+     desc="A screen of rows with no picture (EDIT, VOICE, PROJECT, SONG, the master FX, SOUND's "
           "pages without a graph) shows its cursor row as four lines, as GLOBAL and SYSTEM do: the value's name, the "
           "value large on the right, its bar across the screen; KNOB k is line k, SELECT the next row (the header names "
           "it and its n/N). Screens with a picture (ENV, LFO, ARP, the FX needles, TEMPO, SCOPE) keep the 2x2 cards over "
           "it, the mixer its 1x4 cards. Off: the 2x2 cards with the row list under them, as before. No data change.")
 _add("SYS_DEBUG", "FELUCCA_SYS_DEBUG", "SYSTEM's debug pages (internals, USB stats)", U, 341, default=0,
-     desc="The Optimist UI (UI=1): SYSTEM keeps its pages for finding faults: INTERNALS (the last reset, the flash's "
+     desc="SYSTEM keeps its pages for finding faults: INTERNALS (the last reset, the flash's "
           "interrupts-off time, the second core's internals), USB STATS (the USB audio glitch counters) and on INFO the "
           "clock, the second core, the drops and the CPU guard apart. Off: INFO shows what a player wants, CPU LOAD, "
           "UNDERRUNS (the drop-outs counted in) and BATTERY, in the large face, and the code of the rest is left out "
-          "(about 2.9 KB less flash, measured on a UI=1 USB-audio build). The red / amber mark on the header's rule after a "
+          "(about 2.9 KB less flash, measured on a USB-audio build). The red / amber mark on the header's rule after a "
           "drop-out stays either way.")
-_add("CHORD_NAMES", "FELUCCA_CHORD_NAMES", "chord names on the STEP page", U, 160,
-     desc="SEQ > STEP shows a step of several notes by its chord in any inversion: C, Am, Bdim, Caug, Dsus2, Dsus4, "
-          "E5, G7, Fmaj7, F#m7, Bm7b5. Other note sets stay a note and the count ('C4 +2'). About 0.3 KB of flash; "
-          "off: the step's first note and the count.",
-     provenance=PR45)
 _add("KNOB_ACCEL", "FELUCCA_KNOB_ACCEL", "knob acceleration by turn speed", U, 67,
      desc="1 / 2 / 3 / 5 / 8 steps a detent when turned fast; never on lists (engines, kits, presets)",
      provenance=x0x("61654ba"),
@@ -796,7 +767,7 @@ _add("ED_SCREENS", "FELUCCA_ED_SCREENS", "web editor: the device's screens (card
      parent="EDITOR",
      desc="The web editor's Device tab: the Optimist UI's SOUND, MIX, MASTER, PROJECT, STEPS, SONG and TEMPO pages as "
           "rows of cards (cmd 99), GLOBAL and SYSTEM as the device's lines with their help (cmd 96) and the "
-          "oscilloscope (cmd 101). Needs the Optimist UI (UI=1: with SLOOP's UI nothing is built). Off: no Device tab; "
+          "oscilloscope (cmd 101). Off: no Device tab; "
           "the editor keeps its own Sound / Mixer / Sequence tabs.")
 # (bit 70, SIZE, retired 2026-10: the UI, storage and editor code is always built minsize, tools/size_fns.py keeps the
 #  audio path out of it; never reuse the bit)
@@ -972,7 +943,7 @@ _SYMS = {
     "ENG_SLICE": ("ENG_SLICE",),
     "DRUM_SYNTH": ("DS_KITS",), "DRUM_EDIT": ("de_synth",), "FX_CHORUS": ("cho_buf",),
     "FX_DELAY": ("dly_buf",), "FX_REVERB": ("rev_line", "rev_ap"), "FX_SLICER": ("sl_buf",),
-    "FX_PUNCH": ("punch_ring",), "ICONS": ("ICON_DATA",), "EDITOR": ("ed_handle",),
+    "FX_PUNCH": ("punch_ring",), "EDITOR": ("ed_handle",),
     "DRUM_X0X909": ("drum909_trigger", "x0x_smp_hh_m"),
     "X909_CYM": ("x0x_smp_ride_m", "x0x_smp_crash_m"), "DRUM_X0X808": ("drum808_trigger",),
     "CPU_GUARD": ("cg", "cg_post", "CG_VCOST"),

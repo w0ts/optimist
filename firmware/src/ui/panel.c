@@ -93,10 +93,6 @@ static uint8_t settings_later;                 /* changed while playing: saved o
 #if FELUCCA_LIGHTS
 #include "lights.c"            /* menu LIGHTS / KEYS / NOTES (SLOOP 2.3) */
 #endif
-#if FELUCCA_VIS
-static uint8_t vis_style;                       /* the visualiser's style, 0..11 (ui_vis.c); kept with the settings (bits 17-20) */
-static uint8_t vis_on, vis_shown_last, vis_name_t;   /* on, drawn last frame, its name's time (ui_vis.c, ui_draw.c) */
-#endif
 
 static void settings_init(void)
 {
@@ -109,10 +105,8 @@ static void settings_init(void)
     }
     if (settings.view > 1u)
         settings.view = 1;
-#if FELUCCA_UI == 1
     settings.palette = 4;                      /* the Optimist UI: MONO, no COLOR setting (the user, 2026-10-18: "white / mono
                                                 * is fine"); SLOOP's UI keeps its HOME-hold COLOR menu */
-#endif
     palette_set(settings.palette);
 #if FELUCCA_BASSPLUS
     if (settings.lowcut > 2u)

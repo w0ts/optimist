@@ -1,7 +1,7 @@
 # MIDI, Bluetooth, USB audio and the web editor
 
 Where each setting is on the Optimist UI: GLOBAL > MIDI and Channels, SYSTEM > Bluetooth, Devices and USB AUDIO
-([the interface](interface.md)). On SLOOP's interface they are in the HOME menu > SYSTEM ([SLOOP's interface](sloop-ui.md)).
+([the interface](interface.md)).
 
 ## MIDI in
 

@@ -182,10 +182,6 @@ job; ( jobin
     run "knob acceleration by turn speed (X0X curve), lists exact" "$OUT/knob_accel_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
-    $CC -o "$OUT/knob_gate_test" tests/knob_gate_test.c
-    run "layer knob gate: one detent of jitter is nothing, two net detents from the press are a turn" "$OUT/knob_gate_test"
-) >"$U.out" 2>&1 & jobbg
-job; ( jobin
     run "divides by a variable: each listed with why it cannot be 0 (a wrong value; the div0 trap is off)" python3 tools/div_audit.py
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
@@ -239,10 +235,6 @@ job; ( jobin
     $CC -I"$OUT/font4" -I"$HGEN" -Ifirmware/src -o "$OUT/font_test4" tests/font_test.c
     run "font: the 1-bit pixel font draws what the alpha font drew (every glyph, S and L, clipped)" sh -c "\"$OUT/font_test1\" \"$OUT/font1.bin\" && \"$OUT/font_test4\" \"$OUT/font4.bin\" && cmp \"$OUT/font1.bin\" \"$OUT/font4.bin\""
 ) >"$U.out" 2>&1 & jobbg
-job; ( jobin
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src $SEC4 -o "$OUT/song_ui_test" tests/song_ui_test.c -lm
-    run "song screen: commands, load (OCT+ twice), display bounds" "$OUT/song_ui_test" "$OUT/song-screen.ppm"
-) >"$U.out" 2>&1 & jobbg
 
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/studio_drums_test" tests/studio_drums_test.c -lm
@@ -250,7 +242,7 @@ job; ( jobin
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/seq2_test" tests/seq2_test.c -lm
-    run "sequencer 2.0: no drift, ratchets, roll, erase / undo, ghost / hard, chords, mute / solo" "$OUT/seq2_test"
+    run "sequencer 2.0: no drift, ratchets, roll, erase / undo, chords, mute / solo" "$OUT/seq2_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src $BACKPORTS_ON $SEC4 -o "$OUT/backports_test" tests/backports_test.c -lm
@@ -479,18 +471,6 @@ job; ( jobin
     run "drum lane LFOs in a build that does not play them (DLFO_ON 0): kept through the record, never heard (the render as without), MISS: LANE LFO" "$OUT/lane_lfo_old"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SL24_ON $SEC4 -o "$OUT/ui_pages_sl24_test" tests/ui_pages_test.c -lm
-    run "live UI with the SLOOP 2.4 sequencer switches on (tests/sl24seq_ui.c: nudge, fill conditions, GLO fills, FX bypass on black keys)" "$OUT/ui_pages_sl24_test" "$OUT"
-) >"$U.out" 2>&1 & jobbg
-job; ( jobin
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SL24_ON -DFELUCCA_CHANCE=1 $SEC4 -o "$OUT/ui_pages_auto_test" tests/ui_pages_test.c -lm
-    run "live UI, SLOOP's step automation through the store (tests/sloop_auto_ui.c: locks, nudges, fills, motion cleared, STEP 2's drum chance on steps 1 / 64, the 128 limit, undo, FOLLOW)" "$OUT/ui_pages_auto_test" "$OUT"
-) >"$U.out" 2>&1 & jobbg
-job; ( jobin
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SL24_ON -DFELUCCA_CHANCE=1 -DFELUCCA_DRUM_STEP=1 $SEC4 -o "$OUT/ui_pages_dsauto_test" tests/ui_pages_test.c -lm
-    run "live UI, DRUM STEP with the store on (tests/drum_step_ui.c: the grid's held steps, nudge / lock / chance / fill / clear on steps 1 and 64, tap vs hold, motion cleared; sloop_auto_ui.c again)" "$OUT/ui_pages_dsauto_test" "$OUT"
-) >"$U.out" 2>&1 & jobbg
-job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_QCHAIN=1 $SEC4 -o "$OUT/sl24_chain_test" tests/sl24_chain_test.c -lm
     run "SLOOP 2.4 quick chain (FELUCCA_QCHAIN): sections in order, each for its bars, looped; STOP ends it" "$OUT/sl24_chain_test"
 ) >"$U.out" 2>&1 & jobbg
@@ -604,10 +584,6 @@ job; ( jobin
     run "drum lanes PAN / MUTE / SOLO with the X0X kits built: the same, the X0X channels panned and metered per lane" "$OUT/drum_lanemix_x0x"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
-    $CC -O1 -Wall -o "$OUT/edge_walk_test" tests/edge_walk_test.c
-    run "stop-at-edge walk (edge_walk.c): the mixer (DR / lane 1) and the DRUMS grid (kick / T3), a fresh turn crosses, list_top" "$OUT/edge_walk_test"
-) >"$U.out" 2>&1 & jobbg
-job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src $SEC4 -o "$OUT/backup_test" tests/backup_test.c -lm
     run "backup / restore: every stored object round trip, torn transfers and commits, an older project migrates" "$OUT/backup_test"
 ) >"$U.out" 2>&1 & jobbg
@@ -626,7 +602,7 @@ job; ( jobin
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -DFELUCCA_MICRO=1 -DFELUCCA_FILLS=1 -DFELUCCA_PLOCK=1 -DFELUCCA_CHANCE=1 -DFELUCCA_MOTION=1 -DFELUCCA_COND=1 -o "$OUT/editor_v14_test" tests/editor_sync_test.c -lm
-    run "editor protocol v14 with the automation store whole: UNDO (the editor's writes are levels), NOTE (the ring to the audio interrupt, no hanging note), SOLO, STEPLANE (locks, lane locks, the extras)" "$OUT/editor_v14_test"
+    run "editor protocol v14 with the automation store whole: UNDO (the editor's writes are levels), NOTE (the ring to the audio interrupt, no hanging note), SOLO, STEPLANE off (the editor without the UI: its checks are the Optimist UI test's)" "$OUT/editor_v14_test"
     # the ring to the audio interrupt masks no interrupt: seq/ednote.c has one writer and one reader (no cli / sti, no fm1_irq_*, no IRQ_SAVE)
     if grep -nE "fm1_irq_|IRQ_SAVE|IRQ_RESTORE|__asm__ volatile\(\"(cli|sti)" firmware/src/seq/ednote.c | grep -v "^[0-9]*:\s*\*\|/\*"; then echo "!! FAILED: seq/ednote.c masks an interrupt"; : > "$U.fail"; else echo "ednote.c: no interrupt masked (the ISR path takes the ring only)  ok"; fi
 ) >"$U.out" 2>&1 & jobbg
@@ -644,43 +620,11 @@ job; ( jobin
         run "editor protocol v13 with items left out ($off): no command, no INFO tag, the rest as before" "$OUT/editor_off$n"
     done
 ) >"$U.out" 2>&1 & jobbg
-job; ( jobin
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -o "$OUT/ui_pages_test" tests/ui_pages_test.c -lm
-    run "live UI: pages, layers (punch, steps, erase, roll, key, mix), holds, drums, REC, fuzz" "$OUT/ui_pages_test" "$OUT"
-) >"$U.out" 2>&1 & jobbg
 mkdir -p "$OUT/nochord"   # (its screens apart: the STEP page without the chord names)
-job; ( jobin
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_CHORD_NAMES=0 $SEC4 -o "$OUT/ui_pages_nochord_test" tests/ui_pages_test.c -lm
-    run "live UI without the chord names (FELUCCA_CHORD_NAMES=0): the STEP page as before" "$OUT/ui_pages_nochord_test" "$OUT/nochord"
-) >"$U.out" 2>&1 & jobbg
 mkdir -p "$OUT/nb"
-job; ( jobin
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_ENG_CZ=1 -DFELUCCA_NATIVE_BANKS=1 $SEC4 -o "$OUT/ui_pages_nb_test" tests/ui_pages_test.c -lm
-    run "live UI with FELUCCA_NATIVE_BANKS=1 (CZ on): pages, PRESETS, fuzz as before (tests/nbank_test.c: its rows)" "$OUT/ui_pages_nb_test" "$OUT/nb"
-) >"$U.out" 2>&1 & jobbg
 
-job; ( jobin
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_DRUM_STEP=1 $SEC4 -o "$OUT/ui_pages_dstep_test" tests/ui_pages_test.c -lm
-    run "live UI with FELUCCA_DRUM_STEP=1: the TR step sequencer (key -> step, pages, FOLLOW, the sound pick), screens, fuzz" "$OUT/ui_pages_dstep_test" "$OUT"
-) >"$U.out" 2>&1 & jobbg
-job; ( jobin
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $BP23_ON -DFELUCCA_CDC=1 $SEC4 -o "$OUT/ui_pages_bp23_test" tests/ui_pages_test.c -lm
-    run "live UI with the SLOOP 2.3 / X0X 0.10.1 switches on (tests/bp23_ui.c: panel table, REC screen, LIGHTS / KEYS / NOTES)" "$OUT/ui_pages_bp23_test" "$OUT"
-) >"$U.out" 2>&1 & jobbg
-job; ( jobin
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $BP23_ON -DFELUCCA_BRIGHT=1 -DFELUCCA_BASSPLUS=1 -DFELUCCA_CDC=1 $SEC4 -o "$OUT/ui_pages_menu_test" tests/ui_pages_test.c -lm
-    run "HOME menu in sections (SLOOP 2.4): every screen, SELECT, the knobs per row, SYNC / OUT / IN / channels / USB SERIAL" "$OUT/ui_pages_menu_test" "$OUT"
-) >"$U.out" 2>&1 & jobbg
 mkdir -p "$OUT/menu-noclko"
-job; ( jobin
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $BP23_ON -DFELUCCA_BRIGHT=1 -DFELUCCA_BASSPLUS=1 -DFELUCCA_CDC=1 -DFELUCCA_MIDI_CLKOUT=0 $SEC4 -o "$OUT/ui_pages_menu_noclko_test" tests/ui_pages_test.c -lm
-    run "HOME menu without MIDI_CLKOUT: no CLOCK OUT row and no MIDI extras screen (no empty screen)" "$OUT/ui_pages_menu_noclko_test" "$OUT/menu-noclko"
-) >"$U.out" 2>&1 & jobbg
 mkdir -p "$OUT/menu-ble"
-job; ( jobin
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $BP23_ON -DFELUCCA_BRIGHT=1 -DFELUCCA_BASSPLUS=1 -DFELUCCA_CDC=1 -DFELUCCA_BLE=1 $SEC4 -o "$OUT/ui_pages_menu_ble_test" tests/ui_pages_test.c -lm
-    run "HOME menu with BLE built in: BLUETOOTH and DEVICES on a SYSTEM screen of their own, OFF by default, ON / OFF by the knob and OCT+, the radio told once; DEVICES: NONE / LAST / nearby, the scan while open, picks, FORGET; the status area (CONNECTING, PAIRING, the passkey, CONNECTED, FAILED kept until the user acts, no new attempt meanwhile), the passkey reconnection, the level kept with LAST" "$OUT/ui_pages_menu_ble_test" "$OUT/menu-ble"
-) >"$U.out" 2>&1 & jobbg
 # the audio ISR against the main loop while recording live notes (2026-10-15 freeze): fixed seeds, one core and the
 # second core as a thread (tests/audio_hang_batch.sh: the long mode, ASan / UBSan / TSan, signal preemption)
 job; ( jobin
@@ -732,7 +676,7 @@ job; ( jobin
 job; ( jobin
     mkdir -p "$OUT/optimist-stl"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_MICRO=1 -DFELUCCA_FILLS=1 -DFELUCCA_PLOCK=1 -DFELUCCA_CHANCE=1 -DFELUCCA_MOTION=1 -DFELUCCA_COND=1 -DFELUCCA_SEQTOOLS=1 -DEDSTL_GOLDEN=1 $SEC4 -o "$OUT/ui_optimist_stl_test" tests/ui_optimist_test.c -lm
-    run "Optimist UI with the automation store whole: the editor's STEPLANE lists equal the device's lock pages (hp_locks / lock_param) and tests/steplane_table.json, the web mock's data" "$OUT/ui_optimist_stl_test" "$OUT/optimist-stl"
+    run "Optimist UI with the automation store whole: the editor's STEPLANE lists equal the device's lock pages (hp_locks / lock_param) and tests/steplane_table.json, the web mock's data; locks, KIND, the extras, a drum lane's level" "$OUT/ui_optimist_stl_test" "$OUT/optimist-stl"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     mkdir -p "$OUT/optimist-edoff"
@@ -823,15 +767,13 @@ for m in "-DFELUCCA_INS_CHORUS=0 -DFELUCCA_INS_DELAY=4" "-DFELUCCA_INS_CHORUS=1 
         run "Optimist UI, limited inserts (${m}): the free count, WAIT, IN USE, FULL dim, a type with no instance hidden, the help lines" "$OUT/ui_optimist_fxi_test$nu" "$OUT/optimist-fxi$nu"
     ) >"$U.out" 2>&1 & jobbg
 done
-# GATER's pages and picture on both UIs (tests/ui_optimist_gater.h, tests/sloop_gater_ui.c): its row only while a slot holds it
+# GATER's pages and picture (tests/ui_optimist_gater.h): its row only while a slot holds it
 # (a synth track, the drum track), the cards, the pattern's name, RATE as a division, the picture's playhead, the help lines
 for m in "-DFELUCCA_INS_GATER=1" "-DFELUCCA_INS_GATER=1 -DFELUCCA_PARAM_HELP=1"; do
     job; ( jobin
-        mkdir -p "$OUT/optimist-gater$nu" "$OUT/pages-gater$nu"
+        mkdir -p "$OUT/optimist-gater$nu"
         $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $m -o "$OUT/ui_optimist_gater_test$nu" tests/ui_optimist_test.c -lm
         run "Optimist UI, GATER (${m}): its FX row only while a slot holds it (T1, the drum track), DEPTH PAT RATE SHAPE, the pattern's name, RATE a division, the page remembered, the picture and its playhead, the help lines" "$OUT/ui_optimist_gater_test$nu" "$OUT/optimist-gater$nu"
-        $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $m -o "$OUT/ui_pages_gater_test$nu" tests/ui_pages_test.c -lm
-        run "SLOOP UI, GATER (${m}): the page in the FX family, DEPTH PAT RATE SHAPE, the icons, the picture and its playhead, the help lines" "$OUT/ui_pages_gater_test$nu" "$OUT/pages-gater$nu"
     ) >"$U.out" 2>&1 & jobbg
 done
 # batch D (tests/ui_optimist_layout.h) on a build without DUST: no DUST card anywhere (the mixer, the master FX, the layers)
@@ -856,33 +798,11 @@ job; ( jobin
     run "Optimist UI with the mots-like build's flags (tests/profiles/mots-like.config): the whole test, as the user flashes it" "$OUT/ui_optimist_mots_test" "$OUT/optimist-mots"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_VIS=1 $SEC4 -o "$OUT/vis_tap_test" tests/vis_tap_test.c -lm
-    run "visualiser tap: a block's mix copied whole, block aligned over the wrap" "$OUT/vis_tap_test"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src $SEC4 -o "$OUT/vis_tap_test" tests/vis_tap_test.c -lm
+    run "the SCOPE's tap: a block's mix copied whole, block aligned over the wrap" "$OUT/vis_tap_test"
 ) >"$U.out" 2>&1 & jobbg
-for m in "$FM6_PACKS_ON"; do
-    job; ( jobin
-        $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $m -o "$OUT/ui_pages_fm6m_test$nu" tests/ui_pages_test.c -lm
-        mkdir -p "$OUT/fm6m"
-        run "live UI, FM6 with every voice pack ($m): the PRESETS list with their rows, EDIT 2 hidden; fuzz" "$OUT/ui_pages_fm6m_test$nu" "$OUT/fm6m"
-    ) >"$U.out" 2>&1 & jobbg
-done
-job; ( jobin
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $BACKPORTS_ON -DFELUCCA_MACROS=1 -DFELUCCA_ENERGY=1 -DFELUCCA_PARAM_HELP=1 $SEC4 -o "$OUT/ui_pages_bp_test" tests/ui_pages_test.c -lm
-    run "live UI with every backported switch on (tests/backports_ui.c: chance, played-note keys, reverb type, BASS+, brightness, motion page, ACID GEN) and the help line, fuzz" "$OUT/ui_pages_bp_test" "$OUT"
-) >"$U.out" 2>&1 & jobbg
-job; ( jobin
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $X0X_ON -DFELUCCA_PARAM_HELP=1 $SEC4 -o "$OUT/ui_pages_x0x_test" tests/ui_pages_test.c -lm
-    run "live UI with the X0X kits built (their SOUND pages; the drum ENV of a LEVEL-only sound, the 909 rim shot), fuzz" "$OUT/ui_pages_x0x_test" "$OUT"
-) >"$U.out" 2>&1 & jobbg
-# the Felucca 1.0.2 / 1.0.3 small options (tests/fel102_ui.c), all on
-FEL102_ON="-DFELUCCA_BPM_LOCK=1 -DFELUCCA_DIV_ORDER=1 -DFELUCCA_PUNCH_LATCH=1 -DFELUCCA_MOTION=1 -DFELUCCA_MOTION_MARK=1"
-job; ( jobin
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $FEL102_ON -DFELUCCA_PARAM_HELP=1 $SEC4 -o "$OUT/ui_pages_fel102_test" tests/ui_pages_test.c -lm
-    run "live UI with the Felucca 1.0.2 / 1.0.3 options on (tests/fel102_ui.c: BPM LOCK, DIV ORDER, PUNCH LATCH, the motion mark), fuzz" "$OUT/ui_pages_fel102_test" "$OUT"
-) >"$U.out" 2>&1 & jobbg
-
-# the knobs' help lines (FELUCCA_PARAM_HELP, tools/param_help.json; tests/param_help_ui.c): every value a knob reaches
-# in a build has a line that fits the top bar, in these switch sets; the editor's copy is the table's
+# the knobs' help lines (FELUCCA_PARAM_HELP, tools/param_help.json; the Optimist UI's coverage: tests/ui_optimist_test.c):
+# the table valid, the editor's copy of it up to date, every line unpacks
 job; ( jobin
     run "help lines: tools/param_help.json valid, web/editor.html's copy up to date" python3 tools/gen_param_help.py --check
     run "FXP table: tests/fxp_table.json, web/editor.html's mock copy up to date" python3 tools/gen_fxp_table.py --check
@@ -893,14 +813,6 @@ job; ( jobin
     $CC -I"$OUT/phpack" -o "$OUT/param_help_pack_test" tests/param_help_pack_test.c
     run "help lines: every line of tools/param_help.json unpacks (ph_blob.c ph_text) to the table's text, fits PH_LINE, is found" "$OUT/param_help_pack_test"
 ) >"$U.out" 2>&1 & jobbg
-PH_ALL="$BACKPORTS_ON -DFELUCCA_MACROS=1 -DFELUCCA_ENERGY=1 $BP23_ON $X0X_ON $FEL102_ON -DFELUCCA_SLICE=1"
-for m in "" "$PH_ALL" "-DFELUCCA_ANALOG2=0" "$FM6_PACKS_ON" "-DFELUCCA_FX_REVERB=0 -DFELUCCA_FX_DELAY=0 -DFELUCCA_DRUM_EDIT=0" "-DFELUCCA_INS_GATER=1" "$INSFX_ON -DFELUCCA_INS_JCHORUS=1"; do
-    job; ( jobin
-        $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_PARAM_HELP=1 $SEC4 $m -o "$OUT/param_help_test$nu" tests/param_help_test.c -lm
-        mkdir -p "$OUT/help"
-        run "help lines: every page, engine and mode, drum sound, FM6 page and live screen has its line; only a knob turning shows it (${m:-defaults})" "$OUT/param_help_test$nu" "$OUT/help"
-    ) >"$U.out" 2>&1 & jobbg
-done
 
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/soak_test" tests/soak_test.c -lm
@@ -1017,7 +929,7 @@ job; ( jobin
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src $SEC4 -DFELUCCA_CDC=1 -o "$OUT/midi_seq_test" tests/midi_seq_test.c -lm
-    run "SEQ -> MIDI OUT and IN = CLOCK (SLOOP 2.4): every note ended, STOP, arp, rolls, channel moves, no echo" "$OUT/midi_seq_test"
+    run "SEQ -> MIDI OUT (SLOOP 2.4): every note ended, STOP, arp, rolls, channel moves, no echo; MIDI IN plays every note" "$OUT/midi_seq_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src $SEC4 -DFELUCCA_CDC=1 -DFELUCCA_BLE=1 -o "$OUT/midi_seq_ble_test" tests/midi_seq_test.c -lm
@@ -1239,10 +1151,6 @@ for f in "" "-DFELUCCA_MOTION=0" "-DFELUCCA_SL24_XSTEP=1 -DFELUCCA_MICRO=1"; do
     ) >"$U.out" 2>&1 & jobbg
 done
 job; ( jobin
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/patterns_ui_test" tests/patterns_ui_test.c -lm
-    run "the PATTERN layer (LFO held): launch end / bar / now, tracks, stop, STORE, COPY, CLEAR, DUPLICATE, scene launch (black 10), knobs, tiles, messages, the SAVE layer's changed mark, MISSING for a lost pattern" "$OUT/patterns_ui_test"
-) >"$U.out" 2>&1 & jobbg
-job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/patterns_ed_test" tests/patterns_ed_test.c -lm
     run "editor cmds 83 / 84 (pattern read / write): chunks of 256 B, checked as the stage decodes, the log or the arena, refused when out of order / of another kind / too long / proj_tmp lent, clear" "$OUT/patterns_ed_test"
 ) >"$U.out" 2>&1 & jobbg
@@ -1406,10 +1314,6 @@ job; ( jobin
     run "FM6 voice packs: the headers are what tools/fm6_packs/pk_*.py and levels.json make" python3 tools/gen_fm6_packs.py --check
     run "FM6 voice packs, 80 voices, listened to by numbers (tools/fm6_packs_check.py): level -15 LUFS as the factory presets, no note over +6 dBFS, none silent, DC, pitch" \
         python3 tools/fm6_packs_check.py --root .
-) >"$U.out" 2>&1 & jobbg
-job; ( jobin
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_ENG_CZ=1 -DFELUCCA_FM6_PK_KEYS=1 -DFELUCCA_FM6_PK_80S=1 -o "$OUT/nbank_test" tests/nbank_test.c -lm
-    run "native collections: the CZ store (A/B, torn save), PRESETS rows (CZ, FM6's packs and received DX7 bank), loads keep FX, cmd 66" "$OUT/nbank_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     if [ -n "$DEXED_SRC" ]; then

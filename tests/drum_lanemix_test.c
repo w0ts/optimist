@@ -325,6 +325,12 @@ static int lanes_are_set(void)
     return dlm_pan[0] == -64 && dlm_pan[7] == 63 && dlm_pan[8] == -5 && dlm_pan[1] == 0 && dlm_mute == ((1u << 3) | (1u << 6)) &&
            dlm_solo == (1u << 9) && dlm_heard == ((1u << 9) | (1u << DRUM_LANES));
 }
+/* what a load or a decode gives back of lanes_set: the pans, the mutes; no solo (dlm_untlv), so every lane not muted heard */
+static int lanes_loaded(void)
+{
+    return dlm_pan[0] == -64 && dlm_pan[7] == 63 && dlm_pan[8] == -5 && dlm_pan[1] == 0 && dlm_mute == ((1u << 3) | (1u << 6)) &&
+           dlm_solo == 0 && dlm_heard == ((DRUM_LMASK & ~((1u << 3) | (1u << 6))) | (1u << DRUM_LANES));
+}
 static int lanes_default(void)
 {
     uint32_t l, ok = dlm_mute == 0 && dlm_solo == 0 && dlm_heard == (DRUM_LMASK | 1u << DRUM_LANES);
@@ -345,8 +351,8 @@ static void t_record(void)
     n = fxr_encode(b);
     check("pans, mutes, a solo: a record with their TLV", n == FXR_HEAD + 2u + DLM_TLV_N && b[FXR_HEAD] == DLM_TLV);
     dlm_none();
-    check("... decoded back the same", fxr_decode(b, n, 1) && lanes_are_set());
-    check("... a song section (all 0) takes them too", (dlm_none(), fxr_decode(b, n, 0)) && lanes_are_set());
+    check("... decoded back: the pans and mutes, no solo (a load never solos a lane)", fxr_decode(b, n, 1) && lanes_loaded());
+    check("... a song section (all 0) takes them too", (dlm_none(), fxr_decode(b, n, 0)) && lanes_loaded());
     b[FXR_HEAD + 1u] = 3u;
     n = FXR_HEAD + 5u;
     check("a TLV too short for them (a damaged one): every lane at the centre, heard", fxr_decode(b, n, 1) && lanes_default());
@@ -368,7 +374,7 @@ static void t_stores(void)
     host_tracks_init();
     dlm_none();
     project_load(2);
-    check("PROJECT SAVE C with lanes panned, muted, soloed; LOAD C: the same", ok && lanes_are_set());
+    check("PROJECT SAVE C with lanes panned, muted, soloed; LOAD C: the pans and mutes, no solo", ok && lanes_loaded());
     dlm_none();
     project_save(1);
     lanes_set();
@@ -379,7 +385,7 @@ static void t_stores(void)
     slg_boot();
     dlm_none();
     project_load(2);
-    check("after a restart: C loads its lanes", lanes_are_set());
+    check("after a restart: C loads its lanes (no solo)", lanes_loaded());
 }
 
 int main(void)

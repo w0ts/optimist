@@ -3,7 +3,7 @@
  *   MIDI OUT  SEQ: the sequencer, the drums, the arp and the rolls go out on the track's channel, every note is
  *             ended, STOP ends what is on, KEYS (the default) sends none of it, a channel changed under a note ends
  *             it where it began, notes in from MIDI are never sent back; OUT / IN are no project's
- *   MIDI IN   CLOCK: note-ons are dropped, a held note still ends
+ *   MIDI IN   every note plays (SLOOP's IN = CLOCK went with its UI: bit 15 of the settings word is written 0)
  * Exit status: the number of failed checks. */
 #define main hostsim_main
 #include "hostsim.c"
@@ -168,7 +168,8 @@ static void t_word(void)
     check(((bp23_word() >> 11) & 3u) == 0u, "settings word: AUTO is 0 (older records read AUTO)");
     bp_set[BPS_MOUT] = 1; bp_set[BPS_MIN] = 1;
     w = bp23_word();
-    check(((w >> 14) & 3u) == 3u, "settings word: bit 14 OUT = SEQ, bit 15 IN = CLOCK (as 2.4)");
+    check(((w >> 14) & 3u) == 1u, "settings word: bit 14 OUT = SEQ (as 2.4); bit 15 (2.4's IN = CLOCK) written 0");
+    bp_set[BPS_MIN] = 0;
 #if FELUCCA_CDC
     usb_serial = 1;
     check(((bp23_word() >> 16) & 1u) == 1u, "settings word: bit 16 USB SERIAL (as 2.4)");
@@ -377,7 +378,7 @@ static void t_roll(void)
     clear_out();
     song.sel = TRK_DRUM;
     fm1_in.buttons = ly_bit[LY_ROLL];
-    fm1_in.notes = 1u << 7;
+    fm1_in.notes = 1u << 8;                              /* (a lane's black key, C#4) */
     blocks(800);
     check(ons[9] >= 3u, "a drum roll goes out on the drum channel");
     fm1_in.notes = 0;
@@ -391,19 +392,18 @@ static void t_in_clock(void)
     reset();
     send(0x90, 60, 100);
     check(gated(&trk[0], 60), "IN = NOTES: a note plays");
-    bp_set[BPS_MIN] = 1;
+    bp_set[BPS_MIN] = 1;                                  /* (2.4's IN = CLOCK, as an old setting holds it: never read) */
     send(0x90, 62, 100);
-    check(!gated(&trk[0], 62), "IN = CLOCK: a note on is dropped");
+    check(gated(&trk[0], 62), "a note on plays whatever the old IN setting holds (SLOOP's IN = CLOCK is gone)");
     send(0x80, 60, 0);
-    check(!gated(&trk[0], 60), "its note off still ends a note held before");
-    send(0x99, 36, 100);
     send(0x80, 62, 0);
     check(ngated(&trk[0]) == 0u, "no hanging note");
     {
         uint32_t d0 = drums.age;
         send(0x99, 38, 100);
-        check(drums.age == d0, "no drum hit either");
+        check(drums.age != d0, "a drum hit in plays too");
     }
+    bp_set[BPS_MIN] = 0;
 }
 
 /* MIDI OUT = KEYS / BOTH / SEQ (the user, 2026-10-17): a key goes out with KEYS and BOTH, not with SEQ (the sequencer alone);

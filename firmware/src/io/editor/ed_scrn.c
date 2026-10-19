@@ -22,7 +22,7 @@
 #include "ed_reply.h"         /* (ed_b2..ed_b4, ed_b32) */
 #include "ed_desc.h"          /* (DESC's body) */
 enum { ED_SCRN = 96 };
-#if FELUCCA_UI == 1 && FELUCCA_ED_SCRN
+#if FELUCCA_ED_SCRN
 #include "ed_cell.h"          /* (a card's bytes, SCRS's too) */
 static int scrn_ok(uint32_t s) { return s < 2u && !(s == 1u && GL_DEV); }
 static void scrn_line(uint32_t s, uint32_t i)

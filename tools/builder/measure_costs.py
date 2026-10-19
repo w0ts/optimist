@@ -110,8 +110,6 @@ GROUPS = {"INS_FX": _any_of("core/core.h", "INS_FX"),   # (the insert slots)
           # as pairs (MOTION+CHANCE, ...) a change of one of four left out the combinations without MOTION (9 KB over
           # for CHANCE off in a user's configuration, 2026-10-14)
           "AUTO": _any_of("core/backports24seq.h", "FELUCCA_AUTO")}
-# each group is measured with the Optimist UI too ("NAME|UI=1", after the pairs: what they share differs with it)
-GROUP_WHEN = {"UI": 1}
 # a pair whose values are not valid alone: measured with these set too (their cost is in the estimate it is
 # measured against)
 PAIR_WITH = {"REV_ROOM=0,REV_HALF=1": {"REV_PLATE": 1}, "MICRO=1,FILLS=1": {"SL24_XSTEP": 1},
@@ -121,7 +119,6 @@ PAIR_WITH = {"REV_ROOM=0,REV_HALF=1": {"REV_PLATE": 1}, "MICRO=1,FILLS=1": {"SL2
 # (so those are measured first)
 WITH = {("REV_ROOM", 0): {"REV_PLATE": 1},
         ("MICRO", 1): {"SL24_XSTEP": 1}, ("FILLS", 1): {"SL24_XSTEP": 1}, ("PLOCK", 1): {"SL24_XSTEP": 1},   # (their storage)
-        ("SEQTOOLS", 1): {"UI": 1},
         ("BT_INQ_PROBE", 1): {"USB_MODE": 1}}   # (the Classic probe: inside the CDC console, BLE off)   # (the Optimist UI's: nothing without it)
 # an item the firmware switches off without the automation store (configure.py NEEDS_AUTO: DRUM_ACCENT, 0 B on the
 # defaults, +148 B of flash with the store): measured with MOTION on, and counted only where the store is built
@@ -129,38 +126,6 @@ for _k in C.NEEDS_AUTO:
     for _v in ([c[0] for c in R.ITEMS[_k].choices] if R.ITEMS[_k].is_choice else [0, 1]):
         if _v != R.ITEMS[_k].default:
             WITH.setdefault((_k, _v), {"MOTION": 1})
-# the Optimist UI (UI=1) is a second firmware for many items: their UI code is its own, or not built at all
-# (PARAM_HELP, FM6_KEYS, the engines' pages...: 0.4-2.5 KB of flash each away from their SLOOP-UI deltas, a user's
-# configuration 17.7 KB under its real build, 2026-10-14). So every item value is measured with UI=1 as well (a pair
-# {UI: 1, item: value}), after the pairs above, and then those pairs again with UI=1; each as the delta was (an
-# option with its parent on, WITH's values set too). The items the Optimist UI needs (WITH ... UI) are measured
-# with it already
-_BASE_PAIRS = list(PAIRS)
-
-
-def _ui_pairs():
-    out = []
-    for k, it in R.ITEMS.items():
-        if k == "UI" or it.no_image or WITH.get((k, 1), {}).get("UI"):
-            continue
-        for v in ([c[0] for c in it.choices] if it.is_choice else [0, 1]):
-            if v == it.default:
-                continue
-            pair = {"UI": 1, k: v}
-            with_ = dict(WITH.get((k, v), {}))
-            if it.parent and not R.ITEMS[it.parent].default:
-                with_[it.parent] = parent_on(R.ITEMS[it.parent])
-            if C.validate(dict(C.defaults(), **pair, **with_))[0]:
-                continue
-            out.append((pair, with_))
-    for pair in _BASE_PAIRS:
-        with_ = PAIR_WITH.get(pair_name(pair), {})
-        ui = dict({"UI": 1}, **pair)
-        if not C.validate(dict(C.defaults(), **ui, **with_))[0]:
-            out.append((ui, with_))
-    return out
-
-
 def parent_on(p):
     """the value an option is measured under: a bool parent on; a choice parent at its default, or at its first
     value that builds it when the default leaves it out (DUAL's 0: STOCK_SUPPLY measured 0 B under it)"""
@@ -301,13 +266,9 @@ def pair_name(pair):
     return ",".join(f"{k}={v}" for k, v in pair.items())
 
 
-for _pair, _with in _ui_pairs():
-    PAIRS.append(_pair)
-    if _with:
-        PAIR_WITH[pair_name(_pair)] = _with
-# (after the UI pairs, which it contains: the sequencer's TOOLS command is built only with SEQTOOLS too (1.8 KB with it,
-# 2026-10-17; ED_TOOLS then, ED_SEQ since 2026-10-19)
-PAIRS.append({"UI": 1, "SEQTOOLS": 1, "ED_SEQ": 0})
+# the sequencer's TOOLS command is built only with SEQTOOLS too (1.8 KB with it, 2026-10-17; ED_TOOLS then, ED_SEQ since
+# 2026-10-19). (Until 2026-10-19 every item was measured again with UI=1, the Optimist UI, beside SLOOP's: one UI now)
+PAIRS.append({"SEQTOOLS": 1, "ED_SEQ": 0})
 
 
 def beyond(sizes, cfg, costs, name):
@@ -429,7 +390,7 @@ def main(argv=None):
         need = unmeasured(old) if old else [(k, 0) for k in R.ITEMS]
         stale = [k for k in old.get("deltas", {}) if k not in R.ITEMS]
         mp = (missing_pairs(old) if old else PAIRS) + \
-            [{"group": n} for g in GROUPS for n in (g, g + "|" + pair_name(GROUP_WHEN)) if n not in old.get("groups", {})]
+            [{"group": g} for g in GROUPS if g not in old.get("groups", {})]
         mc = missing_checks(old)
         for line in [f"  not measured: {k}={v}" for k, v in need] + [f"  not measured: pair {p}" for p in mp] + \
                     [f"  costs.json has an item the registry lacks: {k}" for k in stale] + \
@@ -527,19 +488,6 @@ def run(a, old, logd, new_pairs, write):
         s = measure(cfg, f"m-pair-{PAIRS.index(pair)}", logd / f"pair-{name.replace(',', '-')}.log")
         out["pairs"][name] = beyond(s, cfg, out, name)
         print(f"  {name}: {out['pairs'][name]} beyond the estimate without it  ({time.time() - t0:.0f} s)", flush=True)
-    for gname, members in GROUPS.items():               # (the groups with the Optimist UI: after its pairs)
-        vname = gname + "|" + pair_name(GROUP_WHEN)
-        if a.only is not None and vname in out["groups"] and not any(k in a.only for k in members):
-            continue
-        out["groups"].pop(vname, None)
-        cfg = dict(C.defaults(), **GROUP_WHEN, **{k: 1 for k in members})
-        s = measure(cfg, f"m-grp-{gname}-ui"[:16], logd / f"group-{gname}-ui.log")
-        est = C.budget(cfg, dict(out, groups={n: g for n, g in out["groups"].items()
-                                                  if n != gname and not n.startswith(gname + "|")}), use_exact=False,
-                       anchor=False)["total"]
-        out["groups"][vname] = {"members": list(members), "when": dict(GROUP_WHEN),
-                                "shared": {r: round((est[r] - s[r]) / (len(members) - 1)) for r in REG}}
-        print(f"  group {vname}: {out['groups'][vname]['shared']} shared  ({time.time() - t0:.0f} s)", flush=True)
     out["checks"] = measure_checks(logd)
     if not write:                                       # (the plan pass: the builds are listed, nothing is written)
         return 0

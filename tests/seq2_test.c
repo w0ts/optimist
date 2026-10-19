@@ -6,7 +6,6 @@
  *   ratchet  x2 / x3 / x4 hits evenly in their step (drums and synth)
  *   roll     ARP + key: hits on the grid at G_ROLL; recorded as ratchets (1/32 -> x2 on 1/16 steps)
  *   erase    EDIT + key: the lane goes as the playhead passes (playing), all of it (stopped); undo / redo
- *   levels   OCT- / OCT+ held on the drum track: ghost / hard hits, recorded as such
  *   chords   P_CHORD: one key plays the chord of the scale (white keys walk the degrees from C4)
  *   mute     P_MUTE / solo: no new notes, the output fades
  *   fx       P_FXOFF: the track as dry as with no DIST, SLICER, sends; the values kept
@@ -207,7 +206,7 @@ static void t_ratchet(void)
 
 static void t_roll(void)
 {
-    uint32_t i, k = 6, n;                           /* key 6 = B3 -> lane 3 (clap) */
+    uint32_t i, k = 8, n;                           /* key 8 = C#4 -> lane 3 (the black keys: drums.c lane_of_key) */
     reset(120);
     song.g[G_ROLL] = 2;                              /* 1/32 */
     song.sel = TRK_DRUM;
@@ -248,8 +247,8 @@ static void t_erase_undo(void)
     transport_req = 1;
     while (TDRUM->seq_idx != 4u)
         run_block();
-    fm1_in.buttons = ly_bit[LY_ERASE];               /* EDIT held + the hat key (C4 = key 7) */
-    fm1_in.notes = 1u << 7;
+    fm1_in.buttons = ly_bit[LY_ERASE];               /* EDIT held + the hat key (D#4 = key 10: lane 4) */
+    fm1_in.notes = 1u << 10;
     while (TDRUM->seq_idx != 7u)
         run_block();
     for (i = 0; i < 20u; i++)                        /* (into step 7, not 8) */
@@ -275,7 +274,7 @@ static void t_erase_undo(void)
     transport_req = 2;
     run_block();
     fm1_in.buttons = ly_bit[LY_ERASE];               /* stopped: every hat of the pattern */
-    fm1_in.notes = 1u << 7;
+    fm1_in.notes = 1u << 10;
     run_block();
     fm1_in.notes = fm1_in.buttons = 0;
     run_block();
@@ -283,45 +282,6 @@ static void t_erase_undo(void)
     for (i = 0; i < 16u; i++)
         left += dstep_has(&TDRUM->dstep[i], 4);
     check(left == 0u, "EDIT + hat while stopped: every hat gone");
-}
-
-static void t_levels(void)
-{
-    uint32_t i, gh = 0, hd = 0;
-    reset(120);
-    song.sel = TRK_DRUM;
-    song.rec = 1u << TRK_DRUM;
-    transport_req = 1;
-    run_block();
-    fm1_in.buttons = dyn_bit[0];                     /* OCT- held: a ghost snare (G3 = key 2: lane 2, SNARE) */
-    fm1_in.notes = 1u << 2;
-    run_block();
-    fm1_in.notes = 0;
-    run_block();
-    while (TDRUM->seq_idx != 3u)
-        run_block();
-    fm1_in.buttons = dyn_bit[1];                     /* OCT+ held: a hard kick */
-    fm1_in.notes = 1u << 0;
-    run_block();
-    fm1_in.notes = fm1_in.buttons = 0;
-    run_block();
-    for (i = 0; i < 16u; i++) {
-        if (dstep_has(&TDRUM->dstep[i], 1))
-            gh = dstep_lvl(&TDRUM->dstep[i], 1);
-        if (dstep_has(&TDRUM->dstep[i], 0))
-            hd = dstep_lvl(&TDRUM->dstep[i], 0);
-    }
-    check(gh == LV_GHOST && hd == LV_HARD, "OCT- / OCT+ held on the drums: a ghost snare and a hard kick recorded");
-    {
-        uint32_t vg = 0, vh = 0;
-        for (i = 0; i < nhits; i++) {
-            if (hits[i].note == 38)
-                vg = hits[i].vel;
-            if (hits[i].note == 36)
-                vh = hits[i].vel;
-        }
-        check(vg == 42u && vh == 127u, "... and played at 42 / 127");
-    }
 }
 
 static void t_chords(void)
@@ -373,6 +333,7 @@ static uint64_t fx_render_here(int dist, int rev, int slcr, int off, int eng)
     uint64_t h = 1469598103934665603ull;
     uint32_t b, i;
     reset(120);
+    song.sel = 0;                                    /* (track 1 plays the key: its FX are set below) */
     if (eng >= 0)
         host_preset(&trk[0], (uint32_t)eng, 0);
     trk[0].p[P_DIST] = (int16_t)dist;
@@ -515,7 +476,6 @@ int main(void)
     t_ratchet();
     t_roll();
     t_erase_undo();
-    t_levels();
     t_chords();
     t_mute();
     t_fxbypass();

@@ -260,7 +260,7 @@ static void prj_ask(uint32_t r, uint32_t kind, uint32_t op, uint32_t s)
 static void prj_do(uint32_t kind, uint32_t op, uint32_t s)
 {
     if (kind == PR_PROJECT) {
-#if SEC_LOGGED && FELUCCA_UI == 1
+#if SEC_LOGGED
         if (op == PO_DELETE) {
             (void)sec_scene_clear(s);                   /* (the section log's tombstones: its record, FX, extras and LFO records) */
             prj_op_reset();

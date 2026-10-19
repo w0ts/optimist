@@ -38,22 +38,6 @@ static int motion_valid(const motion_store_t *m)
     return 1;
 }
 
-#if FELUCCA_MOTION_MARK
-/* #63 (after Felucca 1.0.2 motion.c motion_mask, hugelton/Felucca db70550, by Leo Kuroshita, GPL-3.0-only): does
- * track k's MOTION change parameter id (PLAY on, a hold event for it)? The page's cards mark it (ui_draw.c). Main
- * loop only, at most AUTO_MAX events, per card drawn */
-static int motion_drives(uint32_t k, uint32_t id)
-{
-    const auto_list_t *l = AUTO_L(k);
-    uint32_t i;
-    if (k >= NTRK || !((auto_w.on >> k) & 1u))
-        return 0;
-    for (i = 0; i < l->n; i++)
-        if (!(l->ev[i].place & AUTO_ONLY) && mot_id(l->ev[i].param) == id)
-            return 1;
-    return 0;
-}
-#endif
 static uint32_t motion_count(const track_t *t) { return auto_count(AL(t), AUTO_HOLDS); }
 
 /* a new step of track t (its motion plays) is about to play (auto_step, the ISR): step 0, each pass from the patch */

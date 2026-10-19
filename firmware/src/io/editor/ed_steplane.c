@@ -52,7 +52,7 @@ static void stl_add(stl_walk_t *w, uint32_t kind, uint32_t id, uint32_t page, ui
     w->n++;
     w->pg_has = 1;
 }
-#if FELUCCA_UI == 1 && FELUCCA_PLOCK
+#if FELUCCA_PLOCK
 static struct { uint8_t sel, lane, lsel; } stl_was;
 static void stl_in(uint32_t track, uint32_t lane)       /* the held step's context: the track, the lane picked (as ed_scrs.c scrs_in) */
 {
@@ -126,7 +126,7 @@ static uint32_t stl_walk(uint32_t track, uint32_t lane, uint32_t want, stl_e *ou
 #endif
         return w.n;
     }
-#if !(FELUCCA_UI == 1 && FELUCCA_PLOCK)
+#if !FELUCCA_PLOCK
     if (is_drum(&trk[track]) && lane < DRUM_LANES) {    /* (SLOOP's UI has no lane pages: the lane's values are TUNE .. LEVEL) */
 #if DLA_ON && FELUCCA_PLOCK
         uint32_t v;

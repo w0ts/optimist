@@ -314,13 +314,21 @@ def built_parent(cfg, key):
     return not parent or built(cfg, parent)
 
 
+def holds(cfg, key, v):
+    """key = v in this configuration; a retired item: at the value every image is built as (R.HASH_AS: UI=1, the
+    Optimist UI, since SLOOP's UI went, 2026-10-19), so the costs measured "with UI=1" apply to every build"""
+    if key in R.RETIRED:
+        return R.HASH_AS.get(key) == v
+    return key in cfg and cfg[key] == v and built_parent(cfg, key)
+
+
 def pair_delta(cfg, costs):
     """what items set together cost beyond their own deltas (costs.json "pairs": measured with all of them set,
     less each one's delta; and the groups, group_delta), per region"""
     out = group_delta(cfg, costs)
     for name, d in (costs or {}).get("pairs", {}).items():
         conds = _pair_conds(name)
-        if all(k in cfg and cfg[k] == v and built_parent(cfg, k) for k, v in conds):   # (an option of an item that is off is not in the build)
+        if all(holds(cfg, k, v) for k, v in conds):   # (an option of an item that is off is not in the build)
             for r in REGIONS:
                 out[r] += d.get(r, 0)
     return out
@@ -336,7 +344,7 @@ def group_delta(cfg, costs):
         if "when" in g:
             continue
         for v in groups.values():                       # (a variant measured where its "when" holds: NAME|UI=1)
-            if v.get("when") and v["members"] == g["members"] and all(cfg.get(k) == x for k, x in v["when"].items()):
+            if v.get("when") and v["members"] == g["members"] and all(holds(cfg, k, x) for k, x in v["when"].items()):
                 g = v
         m = sum(1 for k in g["members"] if k in cfg and built(cfg, k) and cfg[k] != R.ITEMS[k].default)
         for r in REGIONS:
@@ -377,10 +385,8 @@ SL24_XS = 4 * 176          # storage/project.c sl24_xs: NTRK stepx_t (seq/stepx.
 
 
 # items only another item's code includes (the build is the same without it): counted only with that one. Found
-# 2026-10-14: SEQTOOLS (ui/optimist/op_tools.c) put 5.5 KB of flash into user-default's estimate, which has SLOOP's UI
-NEEDS = {"SEQTOOLS": {"UI": 1},
-         "ED_SCREENS": {"UI": 1},           # (the web editor's device screens read the Optimist UI: nothing built with SLOOP's UI)
-         "BT_INQ_PROBE": {"USB_MODE": 1}}   # (the probe is part of the CDC console: io/console.c)
+# 2026-10-14 (SEQTOOLS and ED_SCREENS needed UI=1, the Optimist UI: always built since SLOOP's UI went, 2026-10-19)
+NEEDS = {"BT_INQ_PROBE": {"USB_MODE": 1}}   # (the probe is part of the CDC console: io/console.c)
 # (the web editor's ED_* commands: only editor.c's live dispatch calls them; ED_LIVE off builds ed_lite.c, none of them)
 NEEDS = {**NEEDS, **{k: {**NEEDS.get(k, {}), "ED_LIVE": 1} for k in R.ITEMS if k.startswith("ED_") and k != "ED_LIVE"}}
 
@@ -389,7 +395,7 @@ def counted(cfg, key):
     """the item's measured delta is in this configuration's build (NEEDS_AUTO, NEEDS)"""
     if key in NEEDS_AUTO and not auto_built(cfg):
         return False
-    return all(cfg.get(k) == v for k, v in NEEDS.get(key, {}).items())
+    return all(holds(cfg, k, v) if k in R.RETIRED else cfg.get(k) == v for k, v in NEEDS.get(key, {}).items())
 
 
 def auto_built(cfg):
@@ -660,7 +666,7 @@ def savings_of(cfg, costs):
 
 # ---- fitting: drop items in a fixed order of least loss until the estimate fits
 FIT_ORDER = [  # (key, value): least loss first (docs/MEMORY-BUDGET.md section 3); samples last, PERC never
-    ("ENG_SLICE", 0), ("ICONS", 0), ("DLY_LEN", 32768), ("OVERVIEW", 0), ("PUNCH_N", 16384),
+    ("ENG_SLICE", 0), ("DLY_LEN", 32768), ("PUNCH_N", 16384),
     ("SL_LEN", 2048), ("ENG_LOFI", 0), ("ENG_FORMANT", 0), ("ENG_PHASE", 0), ("ENG_DRAWBAR", 0),
     ("SET_SCRCH", 0), ("SET_STRGS", 0), ("SET_HORNS", 0),
     ("LCD_DIRTY", 0),   # (after the samples: for main RAM, 656 B, the graph strip redrawn whole; the defaults were 52 B over 2026-10-13)

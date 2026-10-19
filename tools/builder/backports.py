@@ -24,10 +24,8 @@ LABEL = {  # short menu labels (the title stays in the details)
     "FELUCCA_ENG_JUNO": "JUNO (Juno-106 voice)",
     "FELUCCA_LIGHTS": "menu LIGHTS / KEYS / NOTES (play in the dark)",
     "FELUCCA_REC_MODES": "REC screen dials: mode, length, count-in",
-    "FELUCCA_BPM_LOCK": "BPM LOCK: SELECT is the tempo only with GLO",
     "FELUCCA_DIV_ORDER": "divisions in length order (1/8 8T 1/16 ...)",
     "FELUCCA_PUNCH_LATCH": "punch LATCH: FX + key latches its effect",
-    "FELUCCA_MOTION_MARK": "mark the parameters motion recording moves",
     "FELUCCA_UP_FM6": "FM6 user presets keep their voice",
     "FELUCCA_SL24_SAFE": "SLOOP's data kept safe (never erased)",
     "FELUCCA_SL24_XSTEP": "step extras storage (nudge, locks, fills; 2.4)",
@@ -35,8 +33,6 @@ LABEL = {  # short menu labels (the title stays in the details)
     "FELUCCA_MICRO": "micro timing: nudge a step (SLOOP 2.4)", "FELUCCA_FILLS": "fills: GLO + 9 / 10, step conditions (SLOOP 2.4)",
     "FELUCCA_PLOCK": "parameter locks per step (SLOOP 2.4)", "FELUCCA_QCHAIN": "quick chain: SAVE + section taps (SLOOP 2.4)",
     "FELUCCA_SL24_IMPORT": "import SLOOP 2.7 projects (LOAD twice)",
-    "FELUCCA_SEL_PAGES": "SELECT turns the pages of a family (SLOOP 2.4)",
-    "FELUCCA_BIGVALS": "big values on pages without a graph (SLOOP 2.4)",
     "FELUCCA_SL24_EXPORT": "export a project for SLOOP 2.7 (web editor)",
     "FELUCCA_SL24_EDIMPORT": "import a SLOOP 2.7 song or backup (web editor)",
     "FELUCCA_COND": "step conditions 1:2 .. 4:4 (Felucca 1.5.6)",
@@ -93,16 +89,11 @@ DESC = {  # what each switch does for the user (plain words; sizes from tools/bu
     "FELUCCA_LIGHTS": "Lights for playing in the dark: MENU LIGHTS (every button glows OFF / LOW / MID / HIGH), KEYS (C "
                       "or white keys glow) and NOTES (the note lights of KEYLIT on / off at run time). About 1.2 KB of "
                       "flash.",
-    "FELUCCA_BPM_LOCK": "SELECT changes the tempo only while GLO is held, so the tempo cannot slip live; GLO > GLOBAL's "
-                        "BPM knob and tap tempo still work. No menu item: the build switch is the choice. About 64 B "
-                        "of flash.",
     "FELUCCA_DIV_ORDER": "Lists note divisions in length order (1/4 1/8 8T 1/16 16T 1/32) on ARP RATE, SEQ DIV, DELAY "
                          "TIME and SLICER RATE; stored values are unchanged. About 0.2 KB of flash.",
     "FELUCCA_PUNCH_LATCH": "PUNCH: FX + a key latches its effect so you can let go; the same key or FX + OCT- turns it "
                            "off, another key switches to its effect, and FX stays lit while one plays. About 80 B of "
                            "flash.",
-    "FELUCCA_MOTION_MARK": "With motion recording: a small square in the track colour marks the parameter cards that "
-                           "the track's motion moves (page and VIEW ALL). About 0.3 KB of flash.",
     "FELUCCA_UP_FM6": "FM6 user presets keep their whole voice (operator edits included) instead of only the VOICE "
                       "number. About 0.7 KB of flash plus a 3.6 KB store in flash; a preset written from the web "
                       "editor drops its kept voice.",
@@ -151,15 +142,6 @@ DESC["FELUCCA_PLOCK"] = (
     "motion and the other step events, several a step; "
     "it goes back at the next step without one. Beside motion recording: motion plays first, the lock wins on its step. "
     "The drum kit locks; the macros' places do not. Needs SL24_XSTEP. 4.4 KB of flash with the editor commands, 0.5 KB of RAM, 0.1 KB of RAM code.")
-DESC["FELUCCA_SEL_PAGES"] = (
-    "Turning SELECT on a parameter page (ENV, LFO, FX, EDIT, ARP, SEQ, SCL, GLO, SAVE) goes to the previous or next "
-    "page of that group, as SLOOP 2.4 and as tapping the group's button again, but both ways and stopping at the ends. "
-    "On TRACKS, the SONG and DRUM screens, the REC screen and while a layer is held, SELECT stays the tempo. Off: SELECT "
-    "is always the tempo. Flash only (about 0.2 KB, unmeasured).")
-DESC["FELUCCA_BIGVALS"] = (
-    "Pages without a graph (EDIT, VOICE, the DEST pages, GLOBAL, MASTER, SYSTEM...) use the empty middle of the screen: "
-    "their four values in large type, placed as the knobs are (KNOB 1 2 above, KNOB 3 4 below), the one you turn in "
-    "white; a page with one value shows it across the middle. As SLOOP 2.4. Costs 608 B of flash and 112 B of RAM.")
 DESC["FELUCCA_QCHAIN"] = (
     "Quick chain, as SLOOP 2.4: while playing, hold SAVE and tap up to 8 sections (of the bank shown: A..P with 16 "
     "sections): the first plays from the next bar, and when SAVE is let go they play in that order, each for the bars "
@@ -180,18 +162,17 @@ DESC["FELUCCA_SL24_EDIMPORT"] = (
 DESC["FELUCCA_COND"] = (
     "Step conditions from Felucca 1.5.6: a step plays only on loop a of every b of its track (1:2 2:2 1:3 2:3 3:3 1:4 "
     "2:4 3:4 4:4), counted from PLAY, a song section or a launched pattern. With FILL and the chance on the same step: "
-    "the condition, then FILL, then the chance. The Optimist UI: a held step's EXTRA page, COND; SLOOP's UI plays them. "
+    "the condition, then FILL, then the chance. A held step's EXTRA page, COND. "
     "A step-only event of the automation store (it builds the store); an older build plays such a step always. About "
     "1.4 KB of flash beside the store's other items (11 KB when it builds the store alone).")
 DESC["FELUCCA_SEQTOOLS"] = (
-    "The sequence tools of Felucca 1.5.6 on STEP's last three pages (the Optimist UI): TOOLS (REVERSE, RANDOM: new notes "
+    "The sequence tools of Felucca 1.5.6 on STEP's last three pages: TOOLS (REVERSE, RANDOM: new notes "
     "in the scale or a new beat, COOK: a few small changes, LENGTH x2 / half), each one asking first, and the note generators "
     "GEN / GEN OUT (EUCLID, RANDOM, PULSE; REPLACE, ADD or MASK the pattern): played live over the pattern, never written "
     "into it but by WRITE, which asks. On a drum lane picked with ALGORITHM, that lane only. Notes keep their exact lengths; locks, chance "
-    "and conditions move with their steps (the EDIT layer's SHIFT and LENGTH too). About 5.3 KB of flash; nothing with "
-    "SLOOP's UI.")
+    "and conditions move with their steps (the EDIT layer's SHIFT and LENGTH too). About 5.3 KB of flash.")
 PARENT = {"FELUCCA_SPRING": "FX_REVERB", "FELUCCA_DLY_DOT": "FX_DELAY", "FELUCCA_PUNCH_LATCH": "FX_PUNCH",
-          "FELUCCA_MOTION_MARK": "MOTION", "FELUCCA_UP_FM6": "ENG_FM6"}   # options of a registry item
+          "FELUCCA_UP_FM6": "ENG_FM6"}   # options of a registry item
 AFTER = {"FELUCCA_SPRING": "REV_FDN8"}   # an option's place among its parent's (SPRING beside the other reverb algorithms)
 BITS = {  # switch -> stable BUILD bit (append only)
     "FELUCCA_CHANCE": 64, "FELUCCA_KEYLIT": 65, "FELUCCA_QNT_SEQ": 66, "FELUCCA_KNOB_ACCEL": 67,
@@ -210,10 +191,8 @@ BITS = {  # switch -> stable BUILD bit (append only)
     # (101: FELUCCA_ST_STRICT, retired 2026-10-14: always built; never reuse the bit)
     # (100: FELUCCA_MONO_RELEASE, retired 2026-10-14: always built; never reuse the bit)
     # (130: FELUCCA_LAYER_QUIET, retired 2026-10-14: always built; never reuse the bit)
-    "FELUCCA_BPM_LOCK": 132,
     "FELUCCA_DIV_ORDER": 133,
     "FELUCCA_PUNCH_LATCH": 131,
-    "FELUCCA_MOTION_MARK": 134,
     "FELUCCA_ENG_NOISE": 140,                              # (the NOISE engine; 139 is JUNO's: feat/engine-juno)
     "FELUCCA_UP_FM6": 135,
     "FELUCCA_ENG_CZ": 136,
@@ -226,8 +205,6 @@ BITS = {  # switch -> stable BUILD bit (append only)
     "FELUCCA_DIV_LONG": 175, "FELUCCA_DLY_DOT": 176, "FELUCCA_MICRO": 177, "FELUCCA_FILLS": 178,
     "FELUCCA_PLOCK": 179, "FELUCCA_QCHAIN": 180,
     "FELUCCA_SL24_EDIMPORT": 181,                       # (SLOOP 2.4 leftovers: the editor import of a 2.4 backup file)
-    "FELUCCA_SEL_PAGES": 215,                           # (SLOOP 2.4 phase 5, the UI: 215..229)
-    "FELUCCA_BIGVALS": 217,
     "FELUCCA_COND": 240,                                # (Felucca 1.5.6: 240..244)
     "FELUCCA_SEQTOOLS": 241,
 }
