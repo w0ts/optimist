@@ -1303,6 +1303,13 @@ for x in "0 0 0" "1 1 1" "1 0 0"; do
         run "SLOOP 2.5 / 2.6 projects imported (golden FUN5 / FUN6 from their own types), XSTEP=$1 TRK_FILT=$2 CHORDPLUS=$3: 2.5's PHYS / NOISE, FUN6 -> FUN5, LOAD twice; PHYS exported as 2.5's" "$OUT/sl26_import_test$1$2$3"
     ) >"$U.out" 2>&1 & jobbg
 done
+for x in "0 0 0" "1 1 1"; do
+    set -- $x
+    job; ( jobin
+        $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SL24_XSTEP=$1 -DFELUCCA_TRK_FILT=$2 -DFELUCCA_CHORDPLUS=$3 -DFELUCCA_SL24_EXPORT=1 -o "$OUT/sl27_import_test$1$2$3" tests/sl27_import_test.c -lm
+        run "a SLOOP 2.7 project (golden FUN6 from 2.7.1's own types), XSTEP=$1 TRK_FILT=$2 CHORDPLUS=$3: its 16 drum sounds on our lanes with their TUNE / DECAY, held notes as SF_CARRY (never a chance), the arp's modes, LOAD twice; exported and back" "$OUT/sl27_import_test$1$2$3"
+    ) >"$U.out" 2>&1 & jobbg
+done
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/sec_log_test" tests/sec_log_test.c -lm
     run "song sections: the log (restarts, compaction, writes and erases cut, MEM FULL and its reserve; the patterns' ids 24..87 kept, 16 busy codec B sections)" "$OUT/sec_log_test"

@@ -63,12 +63,11 @@ _Static_assert(SL24_TAIL == 764u && SL24_TAIL + 176u == SL24_TRK && SL24_HDR + N
                "SLOOP 2.4's FUN5 (tests/sl24_fun5_gen.c), its kit 5 = 808, its engines 0..9 our UIDs");
 #define SL25_PHYS 10u                                   /* SLOOP 2.5's PHYS (core.h ENGI_PHYS) */
 #define SL25_DRDLY (8u + 2u * PJ_NG + 1u)               /* (as sl24_import.c) 2.5's G_DRDLY, the byte after sel */
-#define SL24_PERSIST 88u                                /* 2.4's persist_t (its settings, BACKUP object 1) */
 
 enum {                                                  /* what an export lost (the wire: 2 words of 2 x 7 bits) */
     SX24_ENGINE = 1, SX24_FM6 = 2, SX24_FXOFF = 4, SX24_A2 = 8, SX24_KIT = 16, SX24_LOCK = 32, SX24_LANES = 64,
     SX24_MASTER = 128,
-    SX24_BANK = 256,                                    /* (not a loss: FM6 voices went into the bank, which goes with it) */
+                                                        /* (256: SX24_BANK, the 2.4 backup's FM6 bank, gone) */
     SX24_SLOTS = 512, SX24_COMP = 1024, SX24_DINS = 2048, SX24_DBUS = 4096,  /* (the FX slots: sl24_fx_out) */
     SX24_MOTION = 8192,                                 /* (the automation store: hold events, sl24_auto_out; the last bit
                                                          * of the first word) */
@@ -103,44 +102,14 @@ enum {                                                  /* what an export lost (
 static int px_unpack(const project_t *p, int16_t (*x)[3]);   /* project.c: our TFLT STRUM VLEAD */
 #endif
 
-/* 2.4's FM6 bank (sl24_fm6.c SL24_BANK_LEN, as 2.4 stores it) at b: the slot holding the packed voice pk, else the
- * first free one, given pk; -1 full */
-static int sl24_bank_put(uint8_t *b, const uint8_t *pk)
-{
-    uint32_t used, k;
-    memcpy(&used, b + 8, 4);
-    for (k = 0; k < SL24_BANK_N; k++)
-        if (((used >> k) & 1u) && !memcmp(b + 16u + 128u * k, pk, 128u))
-            return (int)k;
-    for (k = 0; k < SL24_BANK_N; k++)
-        if (!((used >> k) & 1u)) {
-            memcpy(b + 16u + 128u * k, pk, 128u);
-            used |= 1u << k;
-            memcpy(b + 8, &used, 4);
-            return (int)k;
-        }
-    return -1;
-}
-/* an empty 2.4 FM6 bank at b (SL24_BANK_LEN bytes) */
-static void sl24_bank_empty(uint8_t *b)
-{
-    uint32_t w[4] = {SL24_BANK_MAGIC, 1u | SL24_BANK_N << 16, 0, 0};
-    memset(b, 0, SL24_BANK_LEN);
-    memcpy(b, w, sizeof w);
-}
-/* FM6 part k's PTCH for 2.4: its voice (all six operators on) when it is one of 2.4's F1..F8; else, given a bank b,
- * the slot it is put in (B1..B27, *lost |= SX24_BANK: the bank goes with the export); else F1 (*lost |= SX24_FM6:
- * our factory voices R01..R16, which it once picked the closest patch by, are gone) */
-static uint32_t sl24_fm6_ptch(const project_t *q, uint32_t k, uint8_t *b, uint32_t *lost)
+/* FM6 part k's PTCH for SLOOP: its voice (all six operators on) when it is one of SLOOP's F1..F8; else F1 (*lost |=
+ * SX24_FM6: a song file carries no FM6 bank) */
+static uint32_t sl24_fm6_ptch(const project_t *q, uint32_t k, uint32_t *lost)
 {
     if ((q->fm6_has >> k) & 1u) {
-        int f = (q->fm6_on[k] & 0x3Fu) == 0x3Fu ? sl24_fm6_factory(q->fm6[k]) : -1, s;
+        int f = (q->fm6_on[k] & 0x3Fu) == 0x3Fu ? sl24_fm6_factory(q->fm6[k]) : -1;
         if (f >= 0)
             return (uint32_t)f;
-        if (b && (q->fm6_on[k] & 0x3Fu) == 0x3Fu && (s = sl24_bank_put(b, q->fm6[k])) >= 0) {
-            *lost |= SX24_BANK;
-            return SL24_NFAC + (uint32_t)s;
-        }
     }
     *lost |= SX24_FM6;
     return 0u;
@@ -230,7 +199,7 @@ static int32_t sl24_g_out(const project_t *q, uint32_t i)
 }
 
 /* track k's stored values -> 2.4's p[61], engine, preset at o; -> SX24_* lost */
-static uint32_t sl24_trk_out(const project_t *q, uint32_t k, const int16_t *px, uint8_t *o, int *e_ok, uint8_t *bank)
+static uint32_t sl24_trk_out(const project_t *q, uint32_t k, const int16_t *px, uint8_t *o, int *e_ok)
 {
     int16_t v[P_COUNT];
     uint32_t i, lost = 0, uid = q->t[k].engine, eng = k == TRK_DRUM ? 0u : sl24_eng_out(uid);
@@ -289,7 +258,7 @@ static uint32_t sl24_trk_out(const project_t *q, uint32_t k, const int16_t *px, 
         lost |= q->t[TRK_DRUM].p[P_A2WAVE + PROJ_XW * k + i] ? SX24_A2 : 0u;
 #endif
     if (uid == ENG_UID_FM6) {                           /* PTCH: the voice's own (sl24_fm6_ptch), the rest 0 */
-        uint32_t pt = sl24_fm6_ptch(q, k, bank, &lost);
+        uint32_t pt = sl24_fm6_ptch(q, k, &lost);
         for (i = 0; i < 8u; i++)
             sl24_w16(o + 2u * (SL24_E0 + i), i == 7u ? (int32_t)pt : 0);
         o[2u * SL24_NP + 1u] = (uint8_t)(pt < SL24_NFAC ? pt : 0u);   /* (preset: F1..F8's, as 2.4 numbers them) */
@@ -402,6 +371,76 @@ static uint8_t sl25_drdly_out(void)
     return (uint8_t)(dsend_lvl(best) * clamp(dsend_kit[1], 0, DKS_DEF) / DKS_DEF);   /* (x the drum track's DLY level) */
 }
 
+/* a synth part's 64 steps at o (as stored, 10 B each) -> SLOOP's flags: accent, slide; SF_CARRY (the notes already
+ * sounding go on) -> 2.7's held notes (bits 3..6, its core.h SF_CONT_ALL: each note goes on from the step before); our
+ * chance bits (2..6, seq/chance.c) are 2.7's SF_CONT: never written (SX24_CHANCE when one was set) */
+static uint32_t sl27_flags_out(uint8_t *o)
+{
+    uint32_t i, lost = 0;
+    for (i = 0; i < NSTEP; i++) {
+        uint8_t *f = o + STEP_SN * i + 6u;              /* (pstep_t.flags) */
+        lost |= *f & 0x7Cu ? SX24_CHANCE : 0u;
+        *f = (uint8_t)((*f & (SF_ACCENT | SF_SLIDE)) | (*f & SF_CARRY ? 0x78u : 0u));
+    }
+    return lost;
+}
+/* the working drum lanes -> SLOOP's drum track at o (its 16 fixed sounds, our INST 0..15): each lane's hits on the
+ * sound of its instrument (two lanes on one: both, the higher level and ratchet), MID TOM and CLAVE (not SLOOP's) on
+ * LOW TOM and RIM (SX24_LANES); and 2.7's per-sound TUNE (-8 .. +7) and DECAY (-4 .. +3, the nearest of its DECAY_K
+ * steps, sl27_dec_in) from the lane's TUNE / DECAY, packed as 2.7's drum_tw_put does (the drum track's E1..E7, g[G_SAVE]
+ * its mark and check: an older SLOOP plays every sound as the kit has it); a value past those ranges, another lane
+ * edit (SNAP .. LEVEL), two lanes on one sound tuned apart, a lane on a user sample or another kit, lanes sending
+ * apart: SX24_LANES */
+static uint32_t sl27_drums_out(const project_t *q, uint8_t *o)
+{
+    static const int8_t DK[8] = {-26, -17, -10, -4, 0, 6, 13, 21};
+    const dstep_sn_t *st = q->t[TRK_DRUM].dstep;
+    uint8_t *t = o + SL24_HDR + TRK_DRUM * SL24_TRK, *s = t + 2u * SL24_NP + 2u;
+    uint32_t snd[DRUM_LANES], tw[16] = {0}, set = 0, lost = 0, i, l, k, c = 0x5Au;
+    uint16_t w[7] = {0};
+    for (l = 0; l < DRUM_LANES; l++) {
+        uint32_t in = lane_inst(l), v, b = 0;
+        const int8_t *x = dl.ofs[l];
+        int32_t tu = x[DE_TUNE], dc = x[DE_DECAY];
+        snd[l] = in == INST_MT ? INST_LT : in == INST_CLAVE ? INST_RIM : in;
+        lost |= snd[l] != in || dl.src[l] != DL_KIT || dsend[l] != dsend[0] ? SX24_LANES : 0u;   /* (SLOOP: every sound from
+                                                     * the kit, one send of each bus for the drums: 2.5's G_DRDLY, G_DRREV) */
+        for (k = 1; k < 8u; k++)                        /* (the nearest DECAY step, b = 2.7's DECAY + 4; a tie: the shorter) */
+            b = (DK[k] > dc ? DK[k] - dc : dc - DK[k]) < (DK[b] > dc ? DK[b] - dc : dc - DK[b]) ? k : b;
+        v = ((uint32_t)clamp(tu, -8, 7) & 15u) | ((b - 4u) & 7u) << 4;
+        lost |= tu < -8 || tu > 7 || DK[b] != dc || x[DE_SNAP] || x[DE_CLICK] || x[DE_BEND] || x[DE_CUT] || x[DE_DRIVE] ||
+                x[DE_LEVEL] ? SX24_LANES : 0u;
+        lost |= (set >> snd[l] & 1u) && tw[snd[l]] != v ? SX24_LANES : 0u;
+        tw[snd[l]] = v, set |= 1u << snd[l];
+    }
+    memset(s, 0, 640u);
+    for (i = 0; i < NSTEP; i++) {
+        dstep_sn_t d;
+        memset(&d, 0, sizeof d);
+        for (l = 0; l < DRUM_LANES; l++) {
+            uint32_t n = snd[l], lv, rt, ol, orr;
+            if (!((st[i].on[l >> 3] >> (l & 7u)) & 1u))
+                continue;
+            lv = (st[i].lvl[l >> 2] >> ((l & 3u) * 2u)) & 3u, rt = (st[i].rat[l >> 2] >> ((l & 3u) * 2u)) & 3u;
+            ol = (d.lvl[n >> 2] >> ((n & 3u) * 2u)) & 3u, orr = (d.rat[n >> 2] >> ((n & 3u) * 2u)) & 3u;
+            d.on[n >> 3] |= (uint8_t)(1u << (n & 7u));
+            d.lvl[n >> 2] = (uint8_t)((d.lvl[n >> 2] & ~(3u << ((n & 3u) * 2u))) | (lv > ol ? lv : ol) << ((n & 3u) * 2u));
+            d.rat[n >> 2] = (uint8_t)((d.rat[n >> 2] & ~(3u << ((n & 3u) * 2u))) | (rt > orr ? rt : orr) << ((n & 3u) * 2u));
+        }
+        memcpy(s + STEP_SN * i, &d, sizeof d);
+    }
+    for (l = 0; l < 16u; l++)
+        for (k = 0; k < 7u; k++)
+            if ((tw[l] >> k) & 1u)
+                w[(l * 7u + k) / 16u] |= (uint16_t)(1u << ((l * 7u + k) % 16u));
+    for (k = 0; k < 7u; k++) {
+        sl24_w16(t + 2u * (SL24_E0 + 1u + k), (int16_t)w[k]);
+        c += (w[k] & 0xFFu) * (k * 2u + 3u) + (uint32_t)(w[k] >> 8) * (k * 2u + 4u);
+    }
+    sl24_w16(o + 8u + 2u * G_SAVE, (int32_t)(0x5400u | (c & 0xFFu)));
+    return lost;
+}
+
 #if FELUCCA_AUTO
 /* track k's automation (seq/auto.h) as 2.4's extras x: its nudges, fills and first NLOCK step-only events of a value;
  * -> SX24_* of what 2.4 has no place for: MOTION (hold events), CHANCE, COND, LOCK (more than NLOCK), LAUTO (a drum lane's
@@ -415,7 +454,7 @@ static uint32_t sl24_auto_out(stepx_t *x, const auto_list_t *l)
 #endif
 /* q (ours, valid) and its extras x[k] (0: none) -> a SLOOP 2.4 project at o (SL24_SIZE bytes, sl24_is says yes);
  * returns what was lost (SX24_*) */
-static uint32_t proj_to_sl24(const project_t *q, const stepx_t *const *x, uint8_t *o, uint8_t *bank)
+static uint32_t proj_to_sl24(const project_t *q, const stepx_t *const *x, uint8_t *o)
 {
     int16_t px[NTRK][4];
     uint32_t i, k, lost = 0, s;
@@ -436,40 +475,17 @@ static uint32_t proj_to_sl24(const project_t *q, const stepx_t *const *x, uint8_
     o[8u + 2u * PJ_NG] = q->sel < NTRK ? q->sel : 0u;
     o[SL25_DRDLY] = sl25_drdly_out();                   /* (2.5's drums' delay send; 2.4's spare, which it ignores) */
     lost |= q->rsv[0] | q->rsv[1] | q->rsv[2] ? SX24_MASTER : 0u;
-#if FELUCCA_ANALOG2
-    lost |= q->dl_hash ? SX24_LANES : 0u;
-#endif
     for (k = 0; k < NTRK; k++) {
         uint8_t *t = o + SL24_HDR + k * SL24_TRK;
         int e_ok;
-        lost |= sl24_trk_out(q, k, px[k], t, &e_ok, bank);
+        lost |= sl24_trk_out(q, k, px[k], t, &e_ok);
         memcpy(t + 2u * SL24_NP + 2u, q->t[k].step, 640u);
+        lost |= k == TRK_DRUM ? 0u : sl27_flags_out(t + 2u * SL24_NP + 2u);
         lost |= sl24_tail_out(x ? x[k] : 0, k, e_ok, q->g[G_BPM], t + SL24_TAIL);
     }
     lost |= sl24_fx_out(o);
+    lost |= sl27_drums_out(q, o);                       /* (after the drum track's values: its E1..E7 hold 2.7's TUNE / DECAY) */
     s = proj_hash(o, SL24_SIZE - 4u);
     memcpy(o + SL24_SIZE - 4u, &s, 4);
     return lost;
-}
-
-/* 2.4's settings (its persist_t, "PER3", 88 B: magic, palette, low cut, zoom, the panel table, its song order, its
- * lights word) at o, from ours: the panel table as it is (the same PAN5 panel_t, 32 B), its song order 2.4's
- * default (A B C D, 4 bars each), its word from ours (sl24_word) */
-static void sl24_persist(uint8_t *o, uint32_t palette, uint32_t lowcut, uint32_t zoom, const void *panel, uint32_t word)
-{
-    uint32_t w[4] = {0x50455233u, palette < 5u ? palette : 0u, lowcut != 0u, zoom != 0u}, i;
-    memset(o, 0, SL24_PERSIST);
-    memcpy(o, w, sizeof w);
-    memcpy(o + 16, panel, 32u);
-    o[48] = 4;                                          /* count 4, loop 0, 2 spare, then 16 x {scene, bars} */
-    for (i = 0; i < 16u; i++)
-        o[52u + 2u * i] = (uint8_t)(i % 4u), o[53u + 2u * i] = 4;
-    memcpy(o + 84, &word, 4);
-}
-/* our settings word (project.c bp23_word: 2.3's bits) and SYNC -> 2.4's lights word (its panel.c lights_word): bits
- * 0..7 LIGHTS KEYS, 9 10 the REC screen's, 14 MIDI OUT SEQ, 15 IN CLOCK, 16 USB SERIAL as they are; 8 the inverse
- * (ours NOTES OFF, 2.4's notes lit); 12..13 SYNC (INT USB TRS; AUTO -> INT); USB AUDIO (11), the visualiser 0 */
-static uint32_t sl24_word(uint32_t w, int32_t sync)
-{
-    return (w & 0x1C6FFu) | (~w & 0x100u) | (uint32_t)(sync >= 0 && sync <= 2 ? sync : 0) << 12;
 }

@@ -3,17 +3,18 @@
  * (tools/backports.json: provenance, measured cost). A switch at 0 builds exactly the firmware without it.
  * Included by backports.h. Plan: docs/SLOOP24-BACKPORT.md (fm1-firmware), phase 0 here.
  *
- *   FELUCCA_SL24_SAFE  started on flash SLOOP 2.4 wrote: nothing Optimist cannot read is erased or written over
- *                      (the project slots, the autosave, 2.4's FM6 bank, a user sample past our slots); 2.4's
- *                      projects show as 2.4's, not EMPTY; 2.4's settings word and user presets read right; SLOOP
- *                      2.5 / 2.6's settings (their SYN kits, 2.6's MIDI part after them) never read as ours, never
- *                      written over (ours kept beside them: sl24_guard.c sl25_set_scan)                         ours
+ *   FELUCCA_SL24_SAFE  started on flash SLOOP (2.7; its map is 2.4's) wrote: nothing Optimist cannot read is erased or
+ *                      written over (the section slots, the autosave, SLOOP's FM6 bank, a user sample past our
+ *                      slots); its projects show as SLOOP's, not EMPTY; its user presets read right; its settings
+ *                      (the SYN kits, the MIDI part, 2.7's side record of theme and favourites) never read as ours,
+ *                      never written over (ours kept beside them: sl24_guard.c sl25_set_scan)                   ours
  *   FELUCCA_SL24_XSTEP the step extras (nudge, locks, fills, stepx.h, 2.4's layout) kept with each project: a store
  *                      per project buffer, a record of their own beside each section and the autosave in the
  *                      section log (SECTIONS 8 / 16; with 4: RAM only)                                      ours
- *   FELUCCA_SL24_IMPORT a SLOOP 2.4 / 2.5 project (FUN5, 3840 B; 2.5's PHYS as ours) or 2.6 one (FUN6, 3816 B: made a
- *                      2.5 one first) kept in an old slot: LOAD twice imports it as the working
- *                      project (params, engines, kits, USR kits as lanes, FM6 patches as voices, the extras with XSTEP); A24 the autosave; never automatic  ours
+ *   FELUCCA_SL24_IMPORT a SLOOP 2.7 project (FUN6, 3816 B: made a FUN5 first; a FUN5, ours exported, as it is) kept in
+ *                      a section slot: LOAD twice imports it as the working project (params, engines, kits, its 16
+ *                      drum sounds on our lanes with 2.7's TUNE / DECAY, USR kits as lanes, FM6 patches as voices,
+ *                      held notes, the extras with XSTEP); PROJECT > SLOOP IMPORT the autosave; never automatic   ours
  *   FELUCCA_SEL_PAGES  SELECT on a page turns to the previous / next page of its family (ENV, LFO, FX, EDIT, ARP,
  *                      SEQ, SCL, GLO, SAVE); on TRACKS, a screen of its own, the REC screen and while a layer is
  *                      held it stays the tempo                                                  SLOOP 2.4 ui.c page_walk
@@ -23,12 +24,11 @@
  *   FELUCCA_BIGVALS    pages without a graph (EDIT, VOICE, the DEST pages, GLOBAL, MASTER, SYSTEM...) show their four
  *                      values in large type in the empty middle, placed as the knobs are, the turned one white
  *                                                                                  SLOOP 2.4 ui_draw.c graph_big
- *   FELUCCA_SL24_EXPORT the working project as a SLOOP 2.5 project (FUN5 with 2.5's engine numbers, lossy; 2.4 and 2.6
- *                      read it, 2.4 a PHYS part as ANALOG) in a SLOOP backup file, from the web
- *                      editor (PROJECTS > Export for SLOOP 2.4); 2.4's editor restores it. Nothing written    ours
- *   FELUCCA_SL24_EDIMPORT a project of a SLOOP 2.4 backup file (the web editor: PROJECTS > Import a SLOOP 2.4
- *                      backup) becomes the working project, its FM6 bank patches with it; 2.4's FM6 bank kept in
- *                      flash read out for the user bank. Nothing written to flash                              ours */
+ *   FELUCCA_SL24_EXPORT the working project as a SLOOP FUN5 (lossy; 2.7 reads it) in a SLOOP 2.7 song file, from the
+ *                      web editor (PROJECTS > Export for SLOOP 2.7); 2.7's editor loads it (Song & sections > Load a
+ *                      song file: SLOOP's settings untouched). Nothing written                                ours
+ *   FELUCCA_SL24_EDIMPORT a project of a SLOOP 2.7 song or backup file (the web editor: PROJECTS > Import a SLOOP 2.7
+ *                      song or backup) becomes the working project. Nothing written to flash                  ours */
 #ifndef FELUCCA_BACKPORTS24_H
 #define FELUCCA_BACKPORTS24_H
 

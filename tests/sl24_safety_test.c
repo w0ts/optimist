@@ -192,9 +192,9 @@ int main(void)
         uint32_t sum;
         memcpy(img, nor, sizeof nor);
         project_load(2), fm1_ms += 100, project_load(2);
-        ok = !strncmp(last_msg, "2.4 IMPORTED", 12);
+        ok = !strncmp(last_msg, "SLOOP IMPORTED", 14);
         sl24_auto_import();
-        ok &= !strncmp(last_msg, "2.4 IMPORTED", 12);
+        ok &= !strncmp(last_msg, "SLOOP IMPORTED", 14);
         fun5(b, 50);                              /* (track 2 an FM6 part on B3: the bank is looked up) */
         t[122] = 9, t[120] = 10, t[121] = 0;
         sum = proj_hash(b, 3836), memcpy(b + 3836, &sum, 4);

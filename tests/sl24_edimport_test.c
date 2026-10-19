@@ -160,7 +160,7 @@ int main(void)
     host_tracks_init();
     song.playing = 0, transport_req = 0;
     check("2.4's project alone (3840 B): imported, rc 0", put(fun5, sizeof fun5, -1, rcs) == 0 && rcs[0] == 0 &&
-          !strcmp(last_msg, "2.4 IMPORTED: SAVE IT") + !strcmp(last_msg, "2.4 IMPORTED, NO LOCKS") == 1);
+          !strncmp(last_msg, "SLOOP IMPORTED", 14));   /* (the golden hits all 16 drum sounds: DRUMS CUT said first) */
     ok = trk[1].p[P_E0] == 0 && trk[1].p[P_E1] == 0 && !proj_tmp_lent;
     check("... the working project: its FM6 part (F3 with its macros in the voice: VOICE INIT VOICE); proj_tmp let go", ok);
     /* a bank patch (B4): not carried any more */

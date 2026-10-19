@@ -659,7 +659,20 @@ transfer of the storage objects.
 everything before it (u32 LE). Each object is the device's own bytes (its magic and format inside); the editor
 refuses a damaged file and leaves out objects the connected device does not have (shown, unticked).
 
-## SLOOP 2.4 export (command 78)
+## Backup-only builds and the librarian (INFO tag 64)
+
+A build with live editing off (builder `ED_LIVE=0`, `firmware/src/io/editor/ed_lite.c`) answers INFO with tag `0x64`, one
+byte: bit 0 backup only (no live sync, no GET / SET / DESC / DUMP / WATCH), bit 1 the librarian (builder `LIBRARIAN`). Without
+the librarian INFO has no engine, no parameter and no track, and the build answers 1, 25, 49, 11..15, 43..48 and 54..57. With
+it, INFO is the live header (the engines, `P_COUNT`, `G_COUNT` 0, `NSTEP`, `P_E0`, the names, the tracks, the UIDs) with
+the patterns' tag 55 when they are built, and the build answers too: 9 `PROJECT` (load, save, query), 16..21 the user
+presets, 38..42 the user kits and `SMP_READ` (36 / 37, the lanes, are not answered: the kits' v2 forms are), 79..84 the
+patterns and scenes. The page shows the Projects tab (the librarian: sections, patterns, kits; the Backup) and the Library
+tab (the user presets). A section's file is a backup file holding its one `Snn ` object, written onto any section with
+`BK_BEGIN` / `DATA` / `COMMIT` and `BK_END 1` (the FM-1 restarts); its FX slots, lane LFOs and motion are other objects
+and do not come with it.
+
+## SLOOP export (command 78)
 
 `firmware/src/io/editor/ed_sl24.c` (builds with `FELUCCA_SL24_EXPORT`, default off). A firmware without it does not answer:
 the editor shows no button. Nothing is written to flash.
@@ -668,13 +681,18 @@ the editor shows no button. Nothing is written to flash.
 | --- | --- | --- |
 | 78 SL24_GET | part, offset (3 × 7 bit) [, flags (v12): 1 = send the second lost word] | part, rc (0 ok, 1 arguments, 2 busy: a restore or an import holds the buffer), length (3 × 7 bit), CRC-32 of the part (5 × 7 bit), lost (2 × 7 bit: bits 0..13), offset, pack7 bytes (≤ 256; none at its end) [, v12 with the flag: lost2 (2 × 7 bit), the reply's last two bytes] |
 
-- **part 0**: the working project as SLOOP 2.4's project (FUN5, 3840 bytes, its FNV-1a sum; `sl24_export.c`), with
-  the step extras when the build keeps them. An FM6 voice that is one of 2.4's factory patches F1..F8 exactly (all six
-  operators on) is that PTCH; MOD becomes 2.4's MLVL. Engines are numbered as SLOOP 2.5 and 2.6 number them (FUN5 did
+- **part 0** (the only part): the working project as a SLOOP FUN5 (3840 bytes, its FNV-1a sum; `sl24_export.c`), which
+  SLOOP 2.7 reads (its `proj_from_v5`), with the step extras when the build keeps them. The drum lanes go onto SLOOP's 16
+  sounds by their instruments (MID TOM on LOW TOM, CLAVE on RIM), each sound's TUNE and DECAY in 2.7's own packing (the
+  drum track's E1..E7, `G_SAVE` its mark: 2.7's `drum_tw_put`); a synth step's `SF_CARRY` is 2.7's held notes (flags bits
+  3..6), our chance bits never go out (bit 14 below). An FM6 voice that is one of SLOOP's factory patches F1..F8 exactly
+  (all six operators on) is that PTCH; MOD becomes MLVL. Engines are numbered as SLOOP 2.5 and 2.6 number them (FUN5 did
   not change in 2.5, and 2.6 reads it): our PHYS is their 10 with its EDIT values; SLOOP 2.4 has no 10 and plays such a
   part as ANALOG (its engine % 10), PHYS's EDIT values on ANALOG's knobs. **lost**, bit 0 an engine SLOOP has not
-  (SLICE, ACID, CZ: their fallback SAMPLE, ANALOG, PHASE), 1 an FM6 part (a voice that is not one of 2.4's factory patches F1..F8 and is not put into 2.4's bank: the closest of them), 2 FX OFF, 3 ANALOG 2, 4 a drum kit past 2.4's 37 (808), 5 locks on parameters 2.4 has not, 6 the
-  drum lanes' record (but their DLY: the level most lanes have is 2.5's drums' delay send, byte 73, which 2.4 ignores), 7 the reverb type / COMP / LIMIT; bit 8 is not a loss: the FM6 voices went into the bank (part 2);
+  (SLICE, ACID, CZ: their fallback SAMPLE, ANALOG, PHASE), 1 an FM6 part (a voice that is not one of SLOOP's factory patches F1..F8: F1), 2 FX OFF, 3 ANALOG 2, 4 a drum kit past 2.4's 37 (808), 5 locks on parameters 2.4 has not, 6 the
+  drum lanes beyond SLOOP's (a lane on a user sample or another kit, MID TOM / CLAVE, an edit past TUNE / DECAY, two lanes
+  on one sound tuned apart, lanes sending apart: their DLY goes as the level most lanes have, 2.5's drums' delay send, byte
+  73), 7 the reverb type / COMP / LIMIT; bit 8 is retired (the 2.4 backup's FM6 bank);
   the FX slots (v10): 9 an amount of an effect in no slot (written 0: 2.4 would play it), 10 COMP (a track's, the drum
   bus's, a drum sound's), 11 a drum sound's DIST, 12 the drum bus's DST CHO DLY REV (9..12: only what is heard here); the automation store (v11): 13 hold
   events (motion), which 2.4 has not (bit 5 also says more than 24 locks a track); **lost2** (v12, bit 0 of the second
@@ -708,20 +726,15 @@ the editor shows no button. Nothing is written to flash.
   v12 editor asks again with 4 bytes, reads the missing second word as 0 and bit 13 as "motion or chance". The editor's
   "left out" list (`S24.LOST`, `S24.LOST2`) has motion and chance as separate entries. Tests: `tests/auto_test.c`
   (firmware side), `web/test_web.mjs` (a v12 editor on a v11 firmware and on a v12 one, a v11 request on a v12 one).
-- **part 1**: the settings as SLOOP 2.4's `persist_t` (88 bytes, "PER3": palette, low cut, zoom, the panel table,
-  2.4's song order A B C D, its lights word).
-- **part 2**: as part 0, but an FM6 voice that is not a factory patch goes into 2.4's FM6 bank (PTCH B1..B27): the
-  slot that holds it already, else the first free one (a full bank: the closest factory patch, bit 1).
-- **part 3**: that bank, 2.4's object 8 as 2.4 stores it (`fm6_bank_t`, 3472 bytes: "FM6B", version 1, 27 slots, the
-  used bits, 27 packed DX7 records): the bank 2.4 left in flash (0xE5000 / 0xE6000, read only) with the voices added,
-  else a bank of only those.
+- **parts 1..3** (2.4's settings, the project with 2.4's FM6 bank, the bank) are retired (2026-10-19): rc 1. The editor
+  asks for part 0, offset 0 at connect to know the build has the export.
 - Each read makes the part again from the state now; the editor reads a part again when its CRC moved between chunks.
-- The editor saves them in SLOOP 2.4's backup file (`{format: "sloop-backup", version: 1, firmware, date, objects:
-  [{id: 0, …}, {id: 1, …}]}`, data base64, CRC-32 zlib; with **FM6 voices into 2.4's bank** ticked, parts 2, 1 and 3,
-  the bank as `{id: 8, …}` when bit 8 says a voice went into it): in SLOOP 2.4's editor, BACKUP > Restore makes it
-  2.4's working project (and settings, and FM6 bank: it replaces 2.4's); SAVE it there.
+- The editor saves it as SLOOP 2.7's song file (`{format: "sloop-song", version: 1, name, firmware, date, order: null,
+  objects: [{id: 0, …}]}`, data base64, CRC-32 zlib; 2.7's `songObjects` checks it): in SLOOP's editor, Song & sections
+  > Load a song file makes it the loop (2.7 holds one song: its sections are emptied), never touching SLOOP's settings,
+  kits, theme or favourites (a backup's restore would: why the export is no longer one); SAVE it there.
 
-## SLOOP 2.4 import (command 90; 91 is retired)
+## SLOOP import (command 90; 91 is retired)
 
 `firmware/src/io/editor/ed_sl24.c` (builds with `FELUCCA_SL24_EDIMPORT`, default off; it needs `FELUCCA_SL24_IMPORT`). A
 firmware without it does not answer: the editor shows no button. Nothing is written to flash.
@@ -732,15 +745,19 @@ firmware without it does not answer: the editor shows no button. Nothing is writ
 | | 1 (data), offset (3 × 7 bit), CRC-32 of the chunk (5 × 7 bit), pack7 bytes (≤ 256, in order) | 1, offset (3 × 7 bit), rc |
 | | 2 (commit) | 2, rc (0: imported, the working project now) |
 
-- **The object** (90): a SLOOP 2.4 / 2.5 project (FUN5, 3840 bytes, with its sum) of a SLOOP backup file (its object 0,
-  the working project, or 2..5, A..D); a SLOOP 2.6 project (FUN6, 3816 bytes) is made a FUN5 by the editor first
-  (`sl26ToFun5`, as the FM-1's `sl24_import.c sl26_to_sl24`: 2.6's ten new parameters but LFO 2's SYNC (it becomes the part's LFO RATE -n, as on the FM-1), its TEXTURE and, on this
-  path, the ANALOG filter TYPE left out). The object is exactly
+- **The object** (90): a SLOOP 2.7 project of a SLOOP song file (its object 0, the loop) or backup file (its object 0,
+  the working project, or 2..5, A..D): FUN6 (3816 bytes) made a FUN5 by the editor first (`sl26ToFun5`, as the FM-1's
+  `sl24_import.c sl26_to_sl24`: the ten 2.6 parameters but LFO 2's SYNC (it becomes the part's LFO RATE -n, as on the
+  FM-1), its TEXTURE and, on this path, the ANALOG filter TYPE left out; the drum track's E1..E7 and `G_SAVE`, 2.7's drum
+  TUNE / DECAY, kept), or a FUN5 as it is (ours exported). The FM-1 puts SLOOP's 16 drum sounds on our lanes
+  (`sl27_lanes_in`: a sound with hits on its default lane, the rest on the lanes left; more than 10 used: the 10 with the
+  most hits, said DRUMS CUT), each with its TUNE / DECAY; 2.7's held notes become `SF_CARRY`; an arp mode we have not,
+  the nearest (ARP CUT). The object is exactly
   these 3840 bytes and nothing after them (older editors also sent a byte of FM6 parts and 3 × 128 bytes of 2.4's bank
   patches: refused, rc 6; the FM6 part of a project keeps whatever voice 2.4's PTCH names). The commit imports it as PROJECT > LOAD
   twice does with a 2.4 project left in flash (`sl24_guard.c sl24_import_buf`): the working project; SAVE keeps it.
 - **rc**: 0 ok, 1 arguments / no import begun, 2 CRC (a chunk: send it again; the object at the commit), 3 the
-  transport plays (stop first), 6 a length other than 3840, 8 not a SLOOP 2.4 project, 9 busy (a restore
+  transport plays (stop first), 6 a length other than 3840, 8 not a SLOOP project, 9 busy (a restore
   holds the buffer). A begun import holds the project buffer as a restore does: 10 s without a command lets it go.
 - **91** (`SL24_BANK`, 2.4's FM6 bank read out of the flash for the editor to import) is retired (2026-10-18): the number stays
   reserved, the firmware does not answer it, the editor does not send it.

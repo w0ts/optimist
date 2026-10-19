@@ -83,7 +83,7 @@ static size_t settings(uint8_t *o)
     }
     memcpy(o, &p, sizeof p);
     memcpy(o + sizeof p, &k, sizeof k);
-#if SL_VER == 26
+#if SL_VER >= 26
     {   /* the MIDI part (project.c midi_part_fill): CC 20 learned on P_PAN of track 2, channels 2 3 4, drums 11 | OTHER
          * OFF, BEND 7 */
         uint8_t *m = o + sizeof p + sizeof k;
@@ -92,6 +92,10 @@ static size_t settings(uint8_t *o)
         m[0] = (uint8_t)e, m[1] = (uint8_t)(e >> 8);
         m[2u * ML_N] = 2, m[2u * ML_N + 1u] = 3, m[2u * ML_N + 2u] = 4, m[2u * ML_N + 3u] = 11u | 1u << 7;
         m[2u * ML_N + 4u] = 7;
+#if SL_VER == 27
+        m[2u * ML_N + 5u] = 5, m[2u * ML_N + 6u] = 1u | 1u << 1, m[2u * ML_N + 7u] = 9;   /* GLO > MIDI 3: FX CH 5, DR MAP 1-16
+                                                                                    * + CLK OUT, REMOTE 9 (project.c) */
+#endif
         return sizeof p + sizeof k + 2u * ML_N + 8u;
     }
 #endif
@@ -119,7 +123,7 @@ static void ubank(up_bank_t *bk)
         a[n++] = 0;
         for (i = 0; i < P_COUNT; i++) {
             int32_t v = i >= P_E0 ? (int32_t)(100u + 10u * j + i - P_E0) : (int32_t)((i * 5u + j) % 90u) - 30;
-#if SL_VER == 26
+#if SL_VER >= 26
             if (i == P_FTYPE)
                 v = j == 0 ? 2 : 0;
 #endif
@@ -132,6 +136,59 @@ static void ubank(up_bank_t *bk)
         bk->r[slot] = r;
     }
 }
+
+#if SL_VER == 27
+/* 2.7 in a FUN6 (its project.c): saved by 2.7 (rsv[0] bit 6); the arp's new modes (params.c N_AMODE: 11 PINKY, 14 CHORD)
+ * and KBD HOLD (P_AHOLD with the arp OFF); a NOTE step's notes held from the step before (core.h SF_CONT: step 4 note 0,
+ * step 5 every note; every other step accent / slide only); the 16 drum sounds' TUNE / DECAY (project.c drum_tw_put:
+ * 7 bits a sound in the drum track's E1..E7, G_SAVE its mark and check) */
+static void sl27_extras(project_t *q)
+{
+    static const int8_t TUNE[DRUM_LANES] = {5, -8, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1};
+    static const int8_t DEC[DRUM_LANES] = {0, 0, -4, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0};
+    uint16_t w[7] = {0};
+    uint32_t k, i, l, b, s = 0x5Au;
+    int16_t *e = q->t[TRK_DRUM].e;
+    q->rsv[0] = (uint8_t)(q->rsv[0] | 0x40u);
+    q->t[0].p[P_AMODE] = 11, q->t[0].p[P_AHOLD] = 0;
+    q->t[1].p[P_AMODE] = 0, q->t[1].p[P_AHOLD] = 1;
+    q->t[2].p[P_AMODE] = 14, q->t[2].p[P_AHOLD] = 0;
+    for (k = 0; k < 3u; k++)
+        for (i = 0; i < NSTEP; i++) {
+            step_t *st = &q->t[k].step[i];
+            st->flags = (uint8_t)(st->flags & (SF_ACCENT | SF_SLIDE));
+            if (i == 4u)
+                st->time = ST_NOTE, st->n = 2, st->flags |= SF_CONT(0);
+            if (i == 5u)
+                st->time = ST_NOTE, st->n = 4, st->flags |= SF_CONT_ALL;
+        }
+    for (l = 0; l < DRUM_LANES; l++) {
+        uint32_t v = ((uint32_t)TUNE[l] & 15u) | ((uint32_t)DEC[l] & 7u) << 4;
+        for (b = 0; b < 7u; b++)
+            if ((v >> b) & 1u)
+                w[(l * 7u + b) / 16u] |= (uint16_t)(1u << ((l * 7u + b) % 16u));
+    }
+    for (l = 0; l < 7u; l++)
+        e[l + 1u] = (int16_t)w[l];
+    {   /* the drum track's hits (drums.c dstep_set: on, then 2 bits of level and of ratchet a sound): 7 of the 16 sounds,
+         * step 0 KICK hard + HAT, 4 SNARE, 8 KICK 2 + CONGA x2, 12 COWBELL + CLAP soft; every other step empty */
+        static const uint8_t HIT[7][4] = {{0, 0, 3, 0}, {0, 4, 0, 0}, {4, 2, 0, 0}, {8, 1, 0, 0}, {8, 14, 0, 1},
+                                          {12, 15, 0, 0}, {12, 3, 2, 0}};
+        dstep_t *d = q->t[TRK_DRUM].dstep;
+        memset(d, 0, NSTEP * sizeof *d);
+        for (i = 0; i < 7u; i++) {
+            dstep_t *s = &d[HIT[i][0]];
+            uint32_t ln = HIT[i][1];
+            s->on[ln >> 3] |= (uint8_t)(1u << (ln & 7u));
+            s->lvl[ln >> 2] |= (uint8_t)(HIT[i][2] << ((ln & 3u) * 2u));
+            s->rat[ln >> 2] |= (uint8_t)(HIT[i][3] << ((ln & 3u) * 2u));
+        }
+    }
+    for (i = 1; i < 8u; i++)
+        s += ((uint32_t)(uint16_t)e[i] & 0xFFu) * (i * 2u + 1u) + ((uint32_t)(uint16_t)e[i] >> 8) * (i * 2u + 2u);
+    q->g[G_SAVE] = (int16_t)(0x5400 | (s & 0xFFu));
+}
+#endif
 
 int main(int argc, char **argv)
 {
@@ -182,7 +239,7 @@ int main(int argc, char **argv)
         lock(t, 0, 2, P_PAN, -30 + k);           /* kept */
         lock(t, 1, 5, P_E0 + 1, 7);              /* EDIT 2: ours P_E1 (dropped on an engine not ours) */
         lock(t, 2, 6, P_LEVEL, 100);
-#if SL_VER == 26
+#if SL_VER >= 26
         lock(t, 3, 7, P_ITYPE, 4);               /* 2.6's own: LOST */
         lock(t, 4, 8, P_LSYNC, 2);
 #endif
@@ -203,12 +260,24 @@ int main(int argc, char **argv)
     q.rsv[0] = 0x80u | 3u | 1u << 4, q.rsv[1] = 9;  /* GLO > TEXTURE (project.c proj_tx_put): LOST */
     q.g[G_DRCH] = (int16_t)(100 | (64 + 5) << 7), q.g[G_INFO] = 40;
 #endif
+#if SL_VER == 27
+    sl27_extras(&q);
+#endif
     q.sum = fnv(&q, sizeof q - 4u);
     n = settings(set);
     ubank(&ub);
 #if SL_VER == 25
     return put(dir, "sl25_fun5.bin", &q, sizeof q) || put(dir, "sl25_settings.bin", set, n) ||
            put(dir, "sl25_upb1.bin", &ub, sizeof ub);
+#elif SL_VER == 27
+    {   /* the settings' side record (2.7: the theme and the favourites, at ST_SIDE_OFF of the copy's sector): any bytes
+         * but erased flash, for the safety test (never read, never written over) */
+        uint8_t side[80];
+        for (i = 0; i < 80; i++)
+            side[i] = (uint8_t)(i * 7 + 1);
+        return put(dir, "sl27_fun6.bin", &q, sizeof q) || put(dir, "sl27_settings.bin", set, n) ||
+               put(dir, "sl27_upb1.bin", &ub, sizeof ub) || put(dir, "sl27_side.bin", side, sizeof side);
+    }
 #else
     return put(dir, "sl26_fun6.bin", &q, sizeof q) || put(dir, "sl26_settings.bin", set, n) ||
            put(dir, "sl26_upb1.bin", &ub, sizeof ub);

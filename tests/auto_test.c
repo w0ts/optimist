@@ -642,7 +642,7 @@ static void t_sl24(void)
     proj_capture(&gp, &gd);
     for (k = 0; k < NTRK; k++)
         lost |= sl24_auto_out(&x[k], AUTO_L(k));
-    lost |= proj_to_sl24(&gp, xp, fun5, 0);
+    lost |= proj_to_sl24(&gp, xp, fun5);
     printf("auto: 2.4 export lost 0x%X\n", lost);
     check("exported for 2.4: motion and chance reported (MOTION NOT IN 2.4), locks past 24 reported",
           (lost & SX24_MOTION) && (lost & SX24_CHANCE) && (lost & SX24_LOCK));
