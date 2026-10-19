@@ -137,7 +137,7 @@ static struct {
     int cccd, writes, midi_ok;
     uint8_t wcmd[8];
     int ltk_used;
-    /* an iPhone app's MIDI characteristic (blell-dev3, BLE-STACK.md §13.9): authenticated encryption needed */
+    /* an iPhone app's MIDI characteristic (blell-dev3, docs/BLE-STACK.md §9.2): authenticated encryption needed */
     int mitm_need, iphone, sc_only, io;        /* CCCD only with an authenticated key; its Pairing Response AuthReq 01
                                                 * and a Pairing Failed after a Just Works pairing; refused even after a
                                                 * legacy passkey (a Secure Connections-only peer); its IO capability */
@@ -825,7 +825,7 @@ static void p_events_watch(int n)
     }
 }
 
-/* an iPhone app's MIDI characteristic (blell-dev3, BLE-STACK.md §13.9): Insufficient Authentication even after a Just
+/* an iPhone app's MIDI characteristic (blell-dev3, docs/BLE-STACK.md §9.2): Insufficient Authentication even after a Just
  * Works pairing; a passkey pairing (we display, its user types) is what it takes */
 static void iphone(void)
 {

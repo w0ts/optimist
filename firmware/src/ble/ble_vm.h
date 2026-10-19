@@ -1,11 +1,11 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The radio's stored calibration (route C, docs/BLE-STACK.md §12): a read-only reader of stock V15's SDK "VM" store
+/* The radio's stored calibration (route C, docs/BLE-STACK.md §8.2): a read-only reader of stock V15's SDK "VM" store
  * and the copy Optimist keeps of the four RF records. Written from docs/BLE-HW-FACTS.md §14 / §15.4 (branch
  * feat/ble-facts, d907ce3), not from vendor code. Portable C, no C library; host-tested in tests/ble_vm_test.c.
  *
  *   VM      where: a short list of candidate areas, the first that starts 55 AA AA 55 AND whose first record (length
- *           > 0, inside the area) passes its check is the live one (the magic alone is not enough: Optimist keeps
- *           UP_FM6's voices at 0x093000 on an FM-1, which must never read as a VM):
+ *           > 0, inside the area) passes its check is the live one (the magic alone is not enough: other data may
+ *           sit at a candidate, e.g. UP_FM6's voices at 0x095000 on an FM-1, which must never read as a VM):
  *             0x0E8000, 4 KiB: measured on an FM-1 (2026-10-08, console 'flr' after stock V15 booted, then Optimist
  *                      installed by stock's updater): the magic and the six records 106 107 187 108 113 109; the
  *                      next sector, 0x0E9000, is BTIF (record 102), so this area cannot be longer than 4 KiB;

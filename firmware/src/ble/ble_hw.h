@@ -96,7 +96,7 @@ BLE_API void ble_hw_tx_kick(void);
 #if BLE_CENTRAL
 /* scanning (HW §21.2): the same link in state 1, on 37 -> 38 -> 39 (software moves the channel in each event
  * interrupt), the RX interrupt's reports handed to ble_ll_hw_adv_report(). One link only: advertising is stopped
- * first (ble_hw_adv_stop) and started again after ble_hw_scan_stop (docs/BLE-DEVICES-DESIGN.md §1.4.1). */
+ * first (ble_hw_adv_stop) and started again after ble_hw_scan_stop (docs/BLE-DEVICES-DESIGN.md §1, docs/BLE-STACK.md §9.1). */
 struct ble_hw_scan {
     uint16_t interval, window;   /* x 0.625 ms; window + 4 <= interval */
     uint8_t active;              /* 1: the engine sends SCAN_REQ on an ADV_IND (FORMAT bit8 0), with the Core's backoff */

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* One whole FM-1 BLE stack (the firmware's sources, BLE_API static as in its unity build) behind a fake baseband, for
  * tests/ble_f2f_test.c, which links two (or three) of these into one program and carries the packets between them:
- * FM-1 to FM-1 (docs/BLE-DEVICES-DESIGN.md P5, §9.3). Built once per unit with -DF2F_U=<name>: every function here is
+ * FM-1 to FM-1 (docs/BLE-DEVICES-DESIGN.md §4.4, §4.2). Built once per unit with -DF2F_U=<name>: every function here is
  * <name>_<function> (tests/ble_f2f.h). The firmware's settings as built: BLE_CENTRAL brings LL encryption and legacy
  * pairing; BLE_MIDI_NEED_ENC as given (0 by default: no security on the MIDI characteristic). */
 #include <stdint.h>

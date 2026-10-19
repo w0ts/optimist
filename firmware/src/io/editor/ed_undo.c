@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* Editor protocol v14: undo and redo (included by editor.c before ed_steps.c; web/EDITOR_PROTOCOL.md "v14: undo"). INFO tag 0x5F = this command is here.
+/* Editor protocol v14: undo and redo (included by editor.c before ed_steps.c; web/EDITOR_PROTOCOL.md "Undo"). INFO tag 0x5F = this command is here.
  * The device's own history (seq/undo.c: the steps, the pattern's LEN and DIV, the automation store's events of a track) undone and redone by the
  * function the panel calls (undo_apply, main loop only: it takes the audio interrupt off itself, or is told it is inside it by undo_isr; the editor's
  * requests run in ed_service, never in an interrupt). The editor's own step writes are levels of that history too (ed_undo_edit marks the track first).

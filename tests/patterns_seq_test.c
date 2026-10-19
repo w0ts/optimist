@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Launching patterns while playing (firmware/src/storage/sections/pat.c pat_launch / pat_service / pat_switch,
- * docs/PATTERNS-DESIGN.md phase 2), FELUCCA_PATTERNS=1 on a simulated NOR with the section log, the real sequencer:
+ * docs/PATTERNS-DESIGN.md section 3), FELUCCA_PATTERNS=1 on a simulated NOR with the section log, the real sequencer:
  *   end      the launched pattern starts at its step 1 when the playing one wraps (odd LEN: its own phrase)
  *   bar      OCT-: on the next bar, from its step 1 (not at the pattern's end)
  *   now      OCT+: on the next step, where it is (legato)

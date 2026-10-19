@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// emu-drv: a line-driven FM-1 emulator session for the emulator smoke checks (tests/emu/, docs: BUILDING.md, Tests).
+// emu-drv: a line-driven FM-1 emulator session for the emulator smoke checks (tests/emu/, docs: BUILDING.md, "The emulator checks").
 // Built by tests/emu/session.py against the emulator's library (fm1_emu, the fork's feat/upstream-merge), as
 // play_check is, but kept running: a check reads the firmware's state between its steps and decides what to do next.
 //

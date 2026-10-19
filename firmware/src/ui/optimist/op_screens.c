@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The screens as lists of rows (docs/UI-OPTIMIST-DESIGN.md sections 4.1, 4.3, 4.4, 4.6, 4.7). A screen gives its
+/* The screens as lists of rows (docs/UI-OPTIMIST-DESIGN.md section 4, The screens). A screen gives its
  * rows' count, names and cells, and what a knob, PRESETS and YES do on them; op_input.c and op_draw.c know nothing
  * else of a screen.
  *   HOME (MIX)  the mixer: op_mixer.c (the rows are the tracks, the knobs the selected row's values)
@@ -150,7 +150,7 @@ static void op_preset_go(uint32_t n)
     op_preset_shown(was);
 }
 #if FELUCCA_FAVORITES
-/* FAVORITES (docs section 37): the selected track's sound is a favorite. The mark is a settings change: written once the
+/* FAVORITES (docs/UI-OPTIMIST-DESIGN.md 13 Favorites): the selected track's sound is a favorite. The mark is a settings change: written once the
  * audio is quiet and the panel idle (settings_later; project.c sections_flush), never on a detent */
 static int op_fav_here(void)
 {

@@ -3,7 +3,7 @@
  * buttons that are lit up are wrong"): for every screen x track kind (a synth track, the drum track with no lane, a drum
  * lane, MASTER) and every panel button but PLAY, REC and OCT (always on), the LED is lit (half or full) exactly when a
  * tap changes what the screen shows, or a hold works a layer (ly_bit: the layer's keys and knobs). A button that does
- * neither is dark; SAVE (off STEP) must work as a tap. The measured table is docs/UI-OPTIMIST-DESIGN.md section 14. Included after led_lvl (the LED test). */
+ * neither is dark; SAVE (off STEP) must work as a tap. The table is docs/UI-OPTIMIST-DESIGN.md 11 LEDs. Included after led_lvl (the LED test). */
 enum { BK_SYN, BK_DR, BK_LANE, BK_MASTER, BK_N };
 static const char *const BK_NAME[BK_N] = {"synth", "DR", "lane", "MASTER"};
 static const uint8_t BK_SCR[] = {SCR_HOME, SCR_SOUND, SCR_STEP, SCR_FX, SCR_GLOBAL, SCR_PROJECT, SCR_SYSTEM, SCR_SONG, SCR_TEMPO,

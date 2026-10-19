@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Editor protocol v9: only what changed, for every track (included by editor.c; tests/editor_sync_test.c;
- * web/EDITOR_PROTOCOL.md "v9"). Asked with WATCH bit 2; while on it replaces the v2..v4 pushes CHANGED (23),
- * STEP_CHANGED (26) and TRACK_CHANGED (32). RELOAD (24) stays the "re-read everything" signal.
+ * web/EDITOR_PROTOCOL.md "Live sync"). The only live sync: on while WATCH is on (the v2..v4 pushes are gone).
+ * RELOAD (24) stays the "re-read everything" signal.
  *
  *   59 PARAMS (push)  n x (where, id, v14): where 0..NTRK-1 a track's P_*, 127 a global G_*
  *   60 STEPS  (push)  track, first index, count, count x step (a synth track: the 11 TRACK_STEP bytes from n; the drum

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """The BLE radio start-up program (tools/ble_rf_capture.py) packed for flash: capture format 3.
 
-The capture makes a format-2 program (one op per register / window / LUT write, docs/BLE-STACK.md section 12); its
+The capture makes a format-2 program (one op per register / window / LUT write, docs/BLE-STACK.md section 8.1); its
 SHA-256 (with the address, AGC and field tables) is the pinned fingerprint. The firmware stores it packed with two ops
 of its own, which hal/fm1_ble_rf.h runs write for write as the ops they replace:
 

@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* GLOBAL and SYSTEM, GLO's settings (docs/UI-OPTIMIST-DESIGN.md sections 4.7, 4.11, 20; the user, 2026-10-12: "the system
+/* GLOBAL and SYSTEM, GLO's settings (docs/UI-OPTIMIST-DESIGN.md 4.7 GLOBAL and SYSTEM; the user, 2026-10-12: "the system
  * menu would be better and more readable as vertical list of options", "select scroll by page", "algo one by one",
  * "consistency is key in our ui", "when we scroll with algo, we scroll page by page (the selection on the page moves line
  * by line; 2026-10-13: "ALGORITHM moves track - NO. only the track!": no line-by-line encoder any more)", "glo still pages thru pages of glo and then system, it should switch between the two"). Two vertical lists,

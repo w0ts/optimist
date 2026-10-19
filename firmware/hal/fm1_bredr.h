@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* FM-1 (AC791N / WL82) BR/EDR (Bluetooth Classic) baseband: the registers, the frame control block, the slot clock,
  * the alarm, the slot timers and the interrupt lines, for the EXPERIMENTAL inquiry probe (src/bt/bt_inq.c,
- * FELUCCA_BT_INQ_PROBE). Written only from the clean-room fact sheet docs/BT-CLASSIC-HW-FACTS.md: every access names
+ * FELUCCA_BT_INQ_PROBE). Written only from the clean-room fact sheet docs/BT-CLASSIC.md: every access names
  * its section there as "BR §n". Nothing in this file ran on a real FM-1; the emulator models only the clock, the
  * alarm and the slot timers (fm1-emulator feat/ble-engine wireless.rs), not the engine.
  *
@@ -25,7 +25,7 @@
 #define FM1_BR_FINE    FM1_BR_REG(0x20024u)   /* us inside the slot */
 #define FM1_BR_EIRRX   FM1_BR_REG(0x200C4u)   /* [15:0] EIR RX buffer offset, bit31 armed (BR §2.2) */
 #define FM1_BR_ALARM   FM1_BR_REG(0x200E4u)   /* the slot of IRQ 40 bit 9 (write only in the emulator) */
-#define FM1_BR_TBASE   FM1_BR_REG(0x2FC44u)   /* the BR/EDR table's address (BR §2.4) */
+#define FM1_BR_TBASE   FM1_BR_REG(0x2FC44u)   /* the BR/EDR table's address (BR §2, the shared block's table) */
 #define FM1_BR_BTEN    FM1_BR_REG(0x2FC40u)   /* bit10 the BR/EDR block */
 #define FM1_BR_STIM    FM1_BR_REG(0x2FD40u)   /* slot timers: [7:0] enable, [15:8] acknowledge, [23:16] pending */
 #define FM1_BR_STIM_AT(k) FM1_BR_REG(0x2FD44u + 4u * (k))

@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* Editor protocol v13: the SCOPE (ui/optimist/op_scope.c; included by editor.c; web/EDITOR_PROTOCOL.md "v13: the scope"; builds with the Optimist UI only).
+/* Editor protocol v13: the SCOPE (ui/optimist/op_scope.c; included by editor.c; web/EDITOR_PROTOCOL.md "Scope"; builder item ED_SCREENS).
  * The device's oscilloscope: one ring of the audio (fx.c vis_pcm) of one source at a time, drawn trigger-stable (the latest rising zero crossing after a swing
  * below) and scaled to its peak. This hands out the same trace: the editor asks for a source and gets the points the device would draw.
  *   101 SCOPE  src -> src, shift, peak v14, n (2 x 7 bits), n heights (0..127, 64 the zero line, up is above)

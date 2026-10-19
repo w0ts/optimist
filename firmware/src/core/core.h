@@ -67,10 +67,9 @@ enum { Q_OFF, Q_SNAP, Q_WHITE, Q_ALL, Q_SEQ };   /* P_QUANT (SCL › KEYS): seq.
  * pointer). build.py checks both directions. Nothing HOT runs while the flash is busy (the flash
  * driver runs with interrupts off). The host build (tests) has one address space: no section. */
 /* HOT2: the same, for what no longer fits RAMTEXT: linked at the start of RAM, before .data (app.ld
- * .ram_hot2; same rules: it calls HOT / HOT2 code directly, XIP code through a pointer). Empty in the
- * integrated build: main RAM went to FM6's tables (built at boot, ~11.8 KB), so RAMTEXT holds the mix,
- * ANALOG 2, FORMANT, DIGITAL, TRIO, PHASE, WHEEL, SAMPLE and LOFI; FM6's code and GRAIN run from XIP
- * (docs/MEMORY-BUDGET.md: the sizes and the other choices). TAB_RAM
+ * .ram_hot2; same rules: it calls HOT / HOT2 code directly, XIP code through a pointer): mostly the effects
+ * (fx.c, the inserts, the master comp, the spring); FM6's code and GRAIN run from XIP (docs/MEMORY-MAP.md
+ * section 2 and 3). TAB_RAM
  * (felucca_tables.h) puts a constant table that the sample loops read into .data: copied to RAM at
  * boot, so the UI's font reads cannot evict it from the data cache either (no extra flash). */
 #if defined(__PI32V2__) && !(defined(FELUCCA_ASM_CHECK) && FELUCCA_ASM_CHECK)

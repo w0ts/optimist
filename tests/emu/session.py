@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""One FM-1 emulator session for the emulator smoke checks (tests/emu/run.py; BUILDING.md, Tests).
+"""One FM-1 emulator session for the emulator smoke checks (tests/emu/run.py; BUILDING.md, "The emulator checks").
 
 The session runs tests/emu/drv (a line-driven driver on the emulator's library, fm1_emu) and keeps it running: a
 check drives the panel (keys, knobs), records the audio, reads the firmware's own state through the ELF's symbols

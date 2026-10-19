@@ -2,7 +2,7 @@
 /* The song sections' record codec (firmware/src/storage/sections/sec_codec.c): round trips (a decoded record is the project as
  * the codec keeps it: steps past LEN and the functions of parts without an FM6 voice at their defaults), the raw
  * fallback for the dense worst case, damaged records refused, and the sizes it reaches: the power-on project,
- * typical 16-step sections, a dense one; how many fit a 4 KiB sector. Codec B (docs/PATTERNS-DESIGN.md phase 0b):
+ * typical 16-step sections, a dense one; how many fit a 4 KiB sector. Codec B (sec_codec.c):
  * the demo, typical, busy and dense projects (tests/sec_projects.h), every engine x preset on the demo's patterns and
  * 2,000 random projects give the same bytes after load -> store -> load, their codec A records (an older firmware's)
  * load as the same project and store again as the same codec B record, an older firmware refuses codec B (shorter
@@ -12,7 +12,7 @@
 #include "hostsim.c"
 #undef main
 #define PROJ_HOST 1
-#define SEC_TEST_A 1                                  /* (codec A on demand: the records before phase 0b) */
+#define SEC_TEST_A 1                                  /* (codec A on demand: the records before codec B) */
 static uint32_t trk_def_engine(uint32_t i) { return i < NPART ? (const uint8_t[]){0, 1, 4}[i] : 0u; }
 #include "../firmware/src/storage/project.c"
 #include "../firmware/src/storage/sections/sec_codec.c"
@@ -41,7 +41,7 @@ static uint32_t round_trip(const project_t *p, const dlrec_t *d, int *same)
             (p->dl_hash ? !memcmp(&E, d, sizeof E) : 1);
     return n;
 }
-/* codec B (phase 0b) for p: a load, a store, a load gives the same bytes and the same project; the record codec A
+/* codec B for p: a load, a store, a load gives the same bytes and the same project; the record codec A
  * wrote for it (an older firmware's) loads as the same project and is stored again as this record (the lazy
  * migration); an older firmware refuses this record (it takes SEC_RAW | SEC_B for raw and checks the raw length:
  * the record is shorter). -> 1 all held; *na, *nb: the two records' lengths */
@@ -266,7 +266,7 @@ int main(void)
     check("a record cut short anywhere: refused", all);
     rec[0] = SEC_RAW;
     check("a record that says raw with a compressed length: refused", !sec_decode(rec, n, &Q, &E));
-    {   /* codec B (docs/PATTERNS-DESIGN.md phase 0b) */
+    {   /* codec B (sec_codec.c) */
         uint32_t na, nb, e, pi, np = 0, ra[4], rb[4], fuzz_ok = 0, mut = 0, took = 0;
         static uint8_t keep[64][SEC_REC_MAX];
         static uint32_t keep_n[64];

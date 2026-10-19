@@ -66,7 +66,7 @@ static void bti_opts(const char *p, uint32_t *seconds)
     int ok = 0;
     uint32_t s;
     bti.o_pat = 0, bti.o_agc = 0xFFu, bti.o_win = 0, bti.o_frq = 0, bti.o_pll = 0, bti.o_sweep = 1, bti.o_pwr = 11u;
-    bti.o_ble = 1, bti.o_prio = BTI_RUN_PRIO, bti.o_noclk = 0, bti.o_pcon = 0, bti.o_pclk = 0, bti.o_ppar = 0xFFu, bti.o_padj = 0;       /* (sweep by default: BR §14.4; pll=N alone fixes the offset) */
+    bti.o_ble = 1, bti.o_prio = BTI_RUN_PRIO, bti.o_noclk = 0, bti.o_pcon = 0, bti.o_pclk = 0, bti.o_ppar = 0xFFu, bti.o_padj = 0;       /* (sweep by default: BR §14; pll=N alone fixes the offset) */
     s = con_num(&p, &ok);
     if (ok && s >= 1u && s <= 120u)
         *seconds = s;

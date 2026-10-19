@@ -448,7 +448,7 @@ def skipped_sets():
     are stable IDs (docs/BUILDER.md): a set left out keeps its number as an empty set (no zones: SAMPLE and GRAIN
     play nothing on it, its presets are left out, the UI's BANK skips them), so the sets after it, USR1..3
     (SMP_NSETS + k) and every project keep their numbers. PERC goes with the sampled drum kits (FELUCCA_DRUM_SAMPLED
-    =0 in tools/configure.py); the default build has every set (docs/MEMORY-BUDGET.md)"""
+    =0 in tools/configure.py); the default build has every set (docs/MEMORY-MAP.md section 3)"""
     names = {n.strip().upper() for n in os.environ.get("FELUCCA_SAMPLES_SKIP", "").split(",") if n.strip()}
     known = {n for n, _ in CC0_SETS} | {"PERC"}
     bad = names - known

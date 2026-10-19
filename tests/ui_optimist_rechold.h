@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* tests/ui_optimist_test.c, REC held clears the selected track (SLOOP's hold, docs/UI-OPTIMIST-DESIGN.md 11.6).
+/* tests/ui_optimist_test.c, REC held clears the selected track (SLOOP's hold, docs/UI-OPTIMIST-DESIGN.md 6 Recording).
  * Included after the helpers. */
 
 static void rh_hold_ms(uint32_t ms)                     /* REC pressed, held ms, not let go */

@@ -12,7 +12,7 @@ Each file becomes one zone: mono, 22050 Hz, IMA ADPCM (sampleio.py, the same enc
 as the built-in sets and the web editor). ROOT is a MIDI note (default: from the file
 name, C4 = 60, else 60); without LO-HI the zones split the keyboard between their roots.
 A slot holds 80 KiB (about 7 s at 22050 Hz); USR3 64 KiB on the banks firmware (its last 16 KiB hold the
-FM6 user bank and the user drum kits; SMP_INFO says each slot's size). Protocol: web/EDITOR_PROTOCOL.md, cmds 11..15.
+FM6 user bank and the user drum kits; SMP_INFO says each slot's size). Protocol: web/EDITOR_PROTOCOL.md "Sample slots and user presets", cmds 11..15.
 Needs mido (and a backend such as python-rtmidi) for the device commands.
 """
 import re

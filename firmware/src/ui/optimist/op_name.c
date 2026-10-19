@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
-/* NAME: a user preset or a project named on the device before it is written (docs/UI-OPTIMIST-DESIGN.md sections
- * 0 "Names", 4.3, 4.6; section 11.4). Ported from Felucca 1.0.1's ui_name.c (Leo Kuroshita, GPL-3.0-only): its
+/* NAME: a user preset or a project named on the device before it is written (docs/UI-OPTIMIST-DESIGN.md 4.11
+ * NAME). Ported from Felucca 1.0.1's ui_name.c (Leo Kuroshita, GPL-3.0-only): its
  * gesture, its key map and its multi-tap typing; the grammar is this UI's:
  *   SAVE          done: the name is written with what it names (stopped: STOP BEFORE SAVE keeps the screen)
  *   HOME tapped   the character before the cursor deleted; with the cursor at the start: cancel, nothing written

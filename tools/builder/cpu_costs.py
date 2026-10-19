@@ -6,7 +6,7 @@ Inputs:
                            of each engine x preset with 8 notes held (VOICE 4, ACID 1, JUNO 6: its voices), of the idle mix
                            and of the idle mix with the drum groove
   tools/builder/costs.json "cpu": the target's instructions per host instruction, per engine where measured
-                           ("scale_pct", "engine_pct"), fitted in the emulator (docs/CPU-GUARD.md, "Calibration")
+                           ("scale_pct", "engine_pct"), fitted in the emulator (docs/CPU-GUARD.md, "The cost model")
 Output: firmware/src/system/cpuguard_costs.h (target instructions a sample):
   CG_COST_BASE    the idle mix (buses, master, the parts' fixed work, the sequencer)
   CG_COST_DRUMS   the drum groove on top of it (any drum voice sounding)
@@ -34,7 +34,7 @@ Output: firmware/src/system/cpuguard_costs.h (target instructions a sample):
                   cpu/fx/part_off
   CG_COST_DBFILT  the drum bus's FILTER while it runs (fx.c dbus_ins): cpu/fx/dbus_filt (the groove, the drum track's
                   FILTER low-pass) less cpu/fx/dbus_off. cpu/fx/ins_worst (three full parts with DIST + COMP, the drum
-                  bus DIST + FILTER, the groove) is the check of the sum (docs/CPU-GUARD.md)
+                  bus DIST + FILTER, the groove) is the check of the sum (tests/regress.c)
   CG_COST_PINS[i], CG_COST_DBINS[i]  the further inserts FOLD FUZZ PHSR FLNG FRMT WIDE CHRS ECHO GATER (fx/insfx/insfx.c) while they
                   run, a part's: cpu/fx/part_<t> (S1 at 127) less cpu/fx/part_off; the drum bus's (on its L and R):
                   cpu/fx/dbus_<t> less cpu/fx/dbus_off; 0 when not measured

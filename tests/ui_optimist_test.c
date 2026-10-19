@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The Optimist UI (FELUCCA_UI=1, firmware/src/ui/optimist, docs/UI-OPTIMIST-DESIGN.md phase 1) on a framebuffer with
+/* The Optimist UI (firmware/src/ui/optimist, docs/UI-OPTIMIST-DESIGN.md) on a framebuffer with
  * panel / flash / storage doubles, the audio (mix_block) running between frames as on the device, in the style of
  * tests/ui_pages_test.c (SLOOP's UI). It checks:
  *   rows     every screen's rows resolve, on every engine and on the drum track: names fit the panel, labels the
@@ -1087,7 +1087,7 @@ static void family_tests(void)
     reset_ui();
 }
 
-/* ---- STEP: the keys are steps (docs/UI-OPTIMIST-DESIGN.md section 4.2) */
+/* ---- STEP: the keys are steps (docs/UI-OPTIMIST-DESIGN.md 4.2 STEP) */
 static uint32_t WK(uint32_t w) { return white_key(w); }   /* white key w's key index */
 static uint32_t BK(uint32_t l) { return key_of_lane(l); }   /* drum lane l's black key (2026-10-16: it selects and plays the lane) */
 static void kdown(uint32_t k) { fm1_in.notes |= 1u << k; frame(); }
@@ -2282,7 +2282,7 @@ static void tracks_default(void)
     ui.lane = 0;
 }
 
-/* ---- the loose ends (section 11.4): the SONG shortcut, undo of the step extras, NAME, FM6's editor, the graphs on
+/* ---- the loose ends (docs/UI-OPTIMIST-DESIGN.md 4.5, 4.11, 4.12): the SONG shortcut, undo of the step extras, NAME, FM6's editor, the graphs on
  * every row of a family, the presets' engines */
 static void name_type(uint32_t place, uint32_t taps)    /* white key place tapped taps times, then the letter kept */
 {
@@ -2860,7 +2860,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_strike.h"                     /* 2026-10-15: a muted track struck through (mixer, header, volume card) */
 #include "ui_optimist_smute.h"                      /* 2026-10-13: the sequencer mutes, SHIFT held + a key on the mixer */
 #include "ui_optimist_algotrack.h"                  /* 2026-10-13: ALGORITHM is the track and nothing else, every screen and layer */
-#include "ui_optimist_uniform.h"                   /* 2026-10-13: the uniform-UI rulings (docs section 2.1) */
+#include "ui_optimist_uniform.h"                   /* 2026-10-13: the uniform-UI rulings (docs/UI-OPTIMIST-DESIGN.md 2.3) */
 #include "ui_optimist_pagemem.h"                    /* 2026-10-13: every screen remembers its page (SOUND per track, the held step) */
 /* ---- the buttons' half light: what has a function glows dim, the active button full, what has nothing is dark */
 static uint32_t led_lvl(uint32_t b)                     /* 2 full, 1 dim, 0 dark: the LED of panel button b */
@@ -2934,7 +2934,7 @@ static void led_tests(void)
 #include "ui_optimist_colours.h"                     /* batch C: colour means something (mute tiles, red, dim, REC, SUPER) */
 #include "ui_optimist_plines.h"                      /* PAGE_LINES: the rows with no picture as GLOBAL's lines */
 #include "ui_optimist_screens.h"                     /* batch E: per-screen oddities (titles, STEP, drums, names, pictures) */
-#include "ui_optimist_favorites.h"                   /* FELUCCA_FAVORITES: the FAVORITES row under the SOUND row (docs section 37) */
+#include "ui_optimist_favorites.h"                   /* FELUCCA_FAVORITES: the FAVORITES row under the SOUND row (docs/UI-OPTIMIST-DESIGN.md 13 Favorites) */
 
 #ifndef UIO_NO_MAIN                                     /* (tests/audio_hang_stress.c: its own main) */
 #include "ui_optimist_lockaudit.h"

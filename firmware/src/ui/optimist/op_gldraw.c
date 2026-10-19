@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* GLOBAL and SYSTEM drawn as a list (op_global.c; docs/UI-OPTIMIST-DESIGN.md section 20): no cards, the page's 4 lines
+/* GLOBAL and SYSTEM drawn as a list (op_global.c; docs/UI-OPTIMIST-DESIGN.md 4.7 GLOBAL and SYSTEM): no cards, the page's 4 lines
  * from under the header to the screen's foot (the page's title is the header's, next to the GLOBAL / SYSTEM badge:
  * "Channels 5/5", op_draw.c head_other; no title line here, the user, 2026-10-14). The 4 lines share the room down to the
  * help line evenly (gl_pitch). A line: the setting's name (no knob numbers, the user, 2026-10-15), its value on the right as the cards write it (amber: a read-out, or an action's

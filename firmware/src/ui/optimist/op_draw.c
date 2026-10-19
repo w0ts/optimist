@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The renderer (docs/UI-OPTIMIST-DESIGN.md section 3), Felucca 1.0's structure in Terminus:
+/* The renderer (docs/UI-OPTIMIST-DESIGN.md 3 The look), Felucca 1.0's structure in Terminus:
  *   y   0..24   the header: the selected track's engine (in its colour), the screen and row, the loop position, the
  *               tempo; a passive message (2.5 s: MISSING, RECORDING) takes it over
  *   y  28..72   four cards: the cursor row's cells, KNOB 1..4 (label, value, unit, its form; the hot cell white)

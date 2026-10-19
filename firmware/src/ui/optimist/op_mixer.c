@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The mixer, horizontal (docs/UI-OPTIMIST-DESIGN.md section 4.1; the user, 2026-10-08: "Horizontal mixer is better"):
+/* The mixer, horizontal (docs/UI-OPTIMIST-DESIGN.md 4.1 The mixer (HOME); the user, 2026-10-08: "Horizontal mixer is better"):
  * the rows are the tracks, the four knobs four values of the SELECTED row, shown on the cards (1x4 on the channels and
  * lanes; MASTER alone has the room for the 2x2 big cards, op_layers.c cards_2x2).
  *   rows       MASTER (above T1), T1 T2 T3, DR, then the drum track's 16 lanes; the panel shows the cursor's group

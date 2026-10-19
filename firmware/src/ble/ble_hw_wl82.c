@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The baseband driver (ble_hw.h) on the AC791N / WL82 BLE engine, route C (docs/BLE-STACK.md §10, FELUCCA_BLE).
+/* The baseband driver (ble_hw.h) on the AC791N / WL82 BLE engine, route C (docs/BLE-STACK.md §7, the interface §3; FELUCCA_BLE).
  *
  * Clean room: written from the hardware fact sheet docs/BLE-HW-FACTS.md (feat/ble-facts 41b7374, TX: §8.2 at a3b2f06; "HW §n"
  * below), the Bluetooth Core Specification (Vol 6 Part B) and the answers the emulator's engine model gave from
@@ -21,7 +21,7 @@
  * (4), as stock (HW §5.5 step 5, §10: priority 2). Both run at one priority, so they never nest in each other, the
  * single context ble_hw.h asks for. The engine keeps the radio timing in hardware; software deadlines are long:
  * state 7 before the transmit window (>= 1.25 ms after the CONNECT_IND), a TX refill and the instant writes within
- * one interval (>= 7.5 ms). An audio half (the audio ISR, measured in docs/BLE-STACK.md §11) fits inside them, so
+ * one interval (>= 7.5 ms). An audio half (the audio ISR, docs/BLE-STACK.md §7, "Interrupts") fits inside them, so
  * the audio is never delayed by BLE; BLE waits for the audio instead.
  *
  * What the engine model settled (the agent that wrote it, from stock V15): a repeated SN is dropped by the engine
@@ -577,7 +577,7 @@ BLE_API void ble_hw_chmap_update(const uint8_t chm[5], uint16_t instant)
 }
 
 /* the data length: RXMAXBUF stays 255 (HW §3), the TX buffers hold 255; nothing to program. Whether the engine
- * times 251-octet PDUs is open question 4 (docs/BLE-STACK.md §10); stock never uses DLE (model) */
+ * times 251-octet PDUs is open (docs/BLE-STACK.md §12); stock never uses DLE (model) */
 BLE_API void ble_hw_set_lengths(uint8_t max_tx, uint8_t max_rx)
 {
     (void)max_tx;

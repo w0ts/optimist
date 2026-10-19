@@ -764,7 +764,7 @@ def setup_config(path):
 
 def ble_rf_tables():
     """a BLE build (FELUCCA_BLE=1) needs build/gen/ble_rf_tables.h: the radio's start-up as stock V15 performs it
-    (tools/ble_rf_capture.py; docs/BLE-STACK.md section 12). The tables are committed (firmware/hal/ble_rf_tables_v15.h)
+    (tools/ble_rf_capture.py; docs/BLE-STACK.md section 8.3). The tables are committed (firmware/hal/ble_rf_tables_v15.h)
     and used when there is neither FM1_STOCK_FWSC nor a matching local cache. A local cache (config/ble/, git-ignored,
     survives a clean of build/) that matches is used as it is; FM1_STOCK_FWSC makes it again when it is missing, stale,
     or made from another firmware file (the same content)"""

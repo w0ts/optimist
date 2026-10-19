@@ -665,7 +665,7 @@ def savings_of(cfg, costs):
 
 
 # ---- fitting: drop items in a fixed order of least loss until the estimate fits
-FIT_ORDER = [  # (key, value): least loss first (docs/MEMORY-BUDGET.md section 3); samples last, PERC never
+FIT_ORDER = [  # (key, value): least loss first (docs/MEMORY-MAP.md section 3); samples last, PERC never
     ("ENG_SLICE", 0), ("DLY_LEN", 32768), ("PUNCH_N", 16384),
     ("SL_LEN", 2048), ("ENG_LOFI", 0), ("ENG_FORMANT", 0), ("ENG_PHASE", 0), ("ENG_DRAWBAR", 0),
     ("SET_SCRCH", 0), ("SET_STRGS", 0), ("SET_HORNS", 0),

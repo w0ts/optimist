@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The generic FX slots (docs: fm1-firmware FX-SLOTS-INSERTS-DESIGN.md, and the per-track insert slots' design,
- * 2026-10-12, its design D1..D9 in docs/UI-OPTIMIST-DESIGN.md "Insert slots"; included by params.c after rev_type.c).
+ * 2026-10-12, docs/UI-OPTIMIST-DESIGN.md 9 Track insert slots and effects pages; included by params.c after rev_type.c).
  *   - Effect TYPES: DIST, FILTER, COMP are inserts; CHO, DLY, REV send buses. A type's amount belongs to the type, not
  *     to a slot (D4): a track's P_DIST P_TFLT P_TCOMP, its sends P_CHOR P_DLY P_REV, so presets, locks, motion, MACRO
  *     and SLOOP 2.4 keep their meaning whatever the slots. A type in no slot is not heard and keeps its amounts.

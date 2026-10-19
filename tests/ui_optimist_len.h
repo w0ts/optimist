@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* tests/ui_optimist_test.c, LEN in powers of two and SHIFT = LFO held (docs/UI-OPTIMIST-DESIGN.md section 11.6).
+/* tests/ui_optimist_test.c, LEN in powers of two and SHIFT = LFO held (docs/UI-OPTIMIST-DESIGN.md 2.1 The knobs).
  * Included by ui_optimist_test.c after its helpers. */
 
 static void len_set_turn(int32_t from, uint32_t role, int32_t s)   /* LEN at from, then a turn of s on role */

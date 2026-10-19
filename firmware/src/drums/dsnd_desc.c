@@ -5,8 +5,8 @@
  * from ui_drums.c (2026-10-08). felucca.c includes it before the UI */
 
 /* the selected drum lane: one value for the whole device, as song.sel is the selected track (UI-OPTIMIST-DESIGN.md
- * section 7). The Optimist UI's pick (HOME held + a drum key) sets it; its mixer, SOUND rows (and STEP, later)
- * show and edit that lane. SLOOP's UI keeps its own: the lane played last (seq.c pen_lane) */
+ * 5 The drum track). The pick (SHIFT2 + a lane key) sets it; the mixer, SOUND rows and STEP show and edit that
+ * lane. The SEQ layer's lane is the one played last (seq.c pen_lane) */
 static uint8_t lane_sel;
 static uint32_t lane_selected(void) { return lane_sel > DRUM_ACC ? 0u : lane_sel; }
 static void lane_select(uint32_t l) { lane_sel = (uint8_t)(l > DRUM_ACC ? l % DRUM_LANES : l); }   /* (16: the ACCENT lane, no sound) */

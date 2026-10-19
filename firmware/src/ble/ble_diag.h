@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* Link-layer diagnostics for the console's `blell` (docs/BLE-STACK.md §12.7): plain counters, the last CONNECT_IND,
+/* Link-layer diagnostics for the console's `blell` (docs/BLE-STACK.md §11): plain counters, the last CONNECT_IND,
  * the last control and ATT opcodes, and a ring of the last 32 timestamped events. RAM only, a few hundred bytes.
  * Written only from the BLE interrupts' context (ble_hw.h: the driver's ISRs, or the main loop with them held), so
  * nothing here needs a lock; the console reads it (a value may be one event stale) and `blell clear` zeroes it with
@@ -10,7 +10,7 @@
 #include "ble_cfg.h"
 
 /* BLE_DIAG: 1 keeps the counters, the rings and the console's `blell`; 0 compiles them out (builder item BLE_DIAG,
- * FELUCCA_BLE_DIAG, docs/BLE-STACK.md §12.7). The host tests, which build this stack without felucca.c, keep it on.
+ * FELUCCA_BLE_DIAG, docs/BLE-STACK.md §11). The host tests, which build this stack without felucca.c, keep it on.
  * BLE_DG(statement) is a recording; with BLE_DIAG 0 it is nothing, and recording never changes what the stack does. */
 #ifndef BLE_DIAG
 #ifdef FELUCCA_BLE_DIAG
@@ -186,7 +186,7 @@ struct ble_diag {
 
 static struct ble_diag ble_dg = {.magic = BLE_DIAG_MAGIC, .first_rx_evt = 0xFFFFu, .first_evt = 0xFFFFu};
 
-/* scanning (BLE_CENTRAL; docs/BLE-DEVICES-DESIGN.md P2, HW §21.2), a block of its own so ble_dg's layout (which
+/* scanning (BLE_CENTRAL; docs/BLE-STACK.md §9.1, HW §21.2), a block of its own so ble_dg's layout (which
  * tests/ble_emu_test.py reads) stays as it is. Driver: starts .. upper_max; link layer: rep_* .. ring_full */
 #define BLE_DIAG_SCAN_MAGIC 0x4E414353u /* "SCAN" */
 struct ble_diag_scan {
@@ -206,7 +206,7 @@ struct ble_diag_scan {
 static struct ble_diag_scan ble_dgs = {.magic = BLE_DIAG_SCAN_MAGIC};
 
 #if BLE_CENTRAL
-/* connecting out (BLE_CENTRAL; docs/BLE-DEVICES-DESIGN.md P3 / P4, HW §21.3 / §21.4 / §21.9), a block of its own as
+/* connecting out (BLE_CENTRAL; docs/BLE-DEVICES-DESIGN.md §4, HW §21.3 / §21.4 / §21.9), a block of its own as
  * ble_dgs: each step of the initiator, the master link, its procedures, the GATT client, the SMP initiator and the
  * reconnection, so a hardware run shows where a connection stops. c3_..c6_ / c7: the fact sheet's §21.9 questions */
 #define BLE_DIAG_CENT_MAGIC 0x544E4543u /* "CENT" */

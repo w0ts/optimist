@@ -37,8 +37,8 @@ Four ready-made builds, in every release; the builder makes any other.
 
 | Flavour | What it is |
 | --- | --- |
-| **Synth** (the default) | FM6 with five voice packs, ANALOG 2, JUNO, ACID, PHYS, the X0X 909 / 808 drums, Bluetooth MIDI, USB audio, the second core, the Optimist UI. The web editor does backup and restore only. |
-| **drum machine** | Every kit, the drum editor, your samples and kits, SLICE, GRAIN, ANALOG 2 for bass. |
+| **Synth** (the default) | FM6 with five voice packs, ANALOG 2, JUNO, ACID, PHYS, the X0X 909 / 808 drums, Bluetooth MIDI, USB audio, the second core. The web editor does backup and restore only. |
+| **drum machine** | Every kit, the drum editor, your samples and kits, SLICE, GRAIN, ANALOG 2 for bass. No web editor: back up with another flavour first. |
 | **FM + VA studio** | ANALOG 2, FM6, DIGITAL, SAMPLE, TRIO, every kit. |
 | **everything fits** | Every engine but TRIO, and almost every feature that fits. |
 
@@ -72,21 +72,21 @@ working project as a SLOOP 2.7 song file to go the other way.
 
 ## What is in it
 
-- **Four tracks:** three synth tracks and a drum track with 16 sounds on the white keys, ghost and hard hits, ratchets.
+- **Four tracks:** three synth tracks and a drum track with 10 lanes on the black keys, ghost and hard hits, ratchets.
 - **Up to 16 synth engines:** ANALOG 2, FM6 (plays DX7 voices as Dexed does), JUNO, ACID, CZ, PHYS, DIGITAL, PHASE,
   LOFI, SAMPLE, VOICE, TRIO, WHEEL, GRAIN, SLICE, NOISE. Two LFOs and two envelopes per sound.
 - **Drums:** 37 kits (5 sampled, 32 synthesised), the X0X 909 and 808, every sound editable, your samples and kits.
 - **Effects:** two insert slots on every track, drum sound and the master (DYN, EQ3, filters, drive, chorus, echo, the
   Juno chorus and more), reverb, delay and chorus sends with three returns, punch-in effects.
-- **Sequencer:** 64 steps a track, parameter locks, motion recording, chance and conditions, EUCLID, fills, patterns and
+- **Sequencer:** 64 steps a track, parameter locks, motion recording, chance and conditions, note generators (EUCLID, RANDOM, PULSE), pattern tools, fills, patterns and
   scenes, sections A–P and a song chain, snapshots, undo.
 - **Connections:** USB and TRS MIDI in, MIDI out, MIDI clock in and out, Bluetooth MIDI, USB audio (experimental).
-- **Two interfaces,** a build-time choice: the Optimist UI (rows of values, SELECT / ALGORITHM / PRESETS, SAVE = yes,
-  HOME = no) or SLOOP's (hold a button, touch a key).
+- **One interface:** rows of values on the screen, SELECT / ALGORITHM / PRESETS, SAVE = yes, HOME = no, and held buttons
+  for performance layers. PLAY's two lights show the transport: green dim stopped, green full playing, red full recording.
 
 <p align="center">
   <img src="assets/screens/device-mixer.webp" alt="The FM-1's screen: the mixer with the tracks T1 to T3 and the drum track playing" width="260">
-  <img src="assets/screens/device-drums.webp" alt="The FM-1's screen: the drum track's sixteen lanes with their steps" width="260">
+  <img src="assets/screens/device-drums.webp" alt="The FM-1's screen: the drum track's lanes with their steps" width="260">
   <img src="assets/screens/device-master.webp" alt="The FM-1's screen: the master page with its level meter and the three effect returns" width="260">
 </p>
 
@@ -94,7 +94,7 @@ working project as a SLOOP 2.7 song file to go the other way.
 
 | | |
 | --- | --- |
-| [The Optimist UI](docs/guide/interface.md) · [every shortcut](docs/guide/shortcuts.md) | the controls, pages, settings and read-outs |
+| [The interface](docs/guide/interface.md) · [every shortcut](docs/guide/shortcuts.md) | the controls, pages, settings and read-outs |
 | [Sound](docs/guide/sound.md) · [Drums](docs/guide/drums.md) | the engines, voices, modulation and presets · kits, drum sounds, your samples and kits |
 | [Effects](docs/guide/effects.md) · [Sequencer](docs/guide/sequencer.md) | inserts, sends, returns, the master · steps, locks, motion, patterns, the song |
 | [MIDI, Bluetooth, USB audio, the web editor](docs/guide/midi-usb.md) | connections and the editor |

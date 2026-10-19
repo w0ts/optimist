@@ -37,7 +37,7 @@ BLE_API void ble_app_peer_id(const uint8_t irk[16], const uint8_t addr[6], uint8
 #endif
 
 #if BLE_CENTRAL
-/* ---- connecting out as central (BLE_CENTRAL, docs/BLE-DEVICES-DESIGN.md P3 / P4; ble_central.c) */
+/* ---- connecting out as central (BLE_CENTRAL, docs/BLE-DEVICES-DESIGN.md §4; ble_central.c) */
 struct ble_peer {
     uint8_t addr[6], addr_rand;          /* its AdvA as heard now (least significant octet first; an RPA stays one) */
     uint8_t bonded;                      /* ltk / rand / ediv are its bond: the link is encrypted with them */

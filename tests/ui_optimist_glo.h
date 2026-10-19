@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* tests/ui_optimist_test.c, GLOBAL and SYSTEM as one settings list (docs/UI-OPTIMIST-DESIGN.md sections 4.11, 20; the
+/* tests/ui_optimist_test.c, GLOBAL and SYSTEM as one settings list (docs/UI-OPTIMIST-DESIGN.md 4.7 GLOBAL and SYSTEM; the
  * user, 2026-10-12: "the system menu would be better and more readable as vertical list of options", "select scroll by
  * page", "algo one by one", "when we scroll with algo, we scroll page by page (the selection on the page moves line by
  * line)"). A line a setting: the cells of TEMPO's and SYSTEM's rows, in order, under section names; pages of 4 lines

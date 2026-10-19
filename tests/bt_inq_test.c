@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Host test of the Classic inquiry probe's portable part (firmware/src/bt/bt_inq_core.c):
- *   the sync word's 34 parity bits for the GIAC (the value docs/BT-CLASSIC-HW-FACTS.md §5.3 lists) and for stock
+ *   the sync word's 34 parity bits for the GIAC (the value docs/BT-CLASSIC.md §5.3 lists) and for stock
  *   V15's own LAP (its page-scan frame in the emulator's RAM, §11), and for LAPs with bit 23 set and clear (the two
  *   Barker words) against an independent bit-list computation of the spec's construction;
  *   stock V15's FHS and EIR as the emulator's RAM held them (§8.2, §8.4): address, class, SR, EIR bit, the name. */
@@ -45,7 +45,7 @@ static uint64_t got_parity(uint32_t lap)
 int main(void)
 {
     static const uint8_t giac[5] = {0xE2, 0x3A, 0x1A, 0x33, 0x02}, v15[5] = {0x08, 0xD9, 0x39, 0x52, 0x02};
-    /* stock V15 in the emulator (BT-CLASSIC-HW-FACTS §8.4, §8.2): its FHS and the start of its EIR */
+    /* stock V15 in the emulator (docs/BT-CLASSIC.md §8.4, §8.2): its FHS and the start of its EIR */
     static const uint8_t fhs[18] = {0x08, 0xD9, 0x39, 0x52, 0x32, 0x65, 0x76, 0x94, 0xF4, 0x06, 0xD9,
                                     0x04, 0x04, 0x24, 0x00, 0x00, 0x00, 0x00};
     static const uint8_t eir[25] = {0x06, 0x09, 'F', 'M', '-', '1', 0x00, 0x11, 0xFF, 'b', 'r', '2', '2',

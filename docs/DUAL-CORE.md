@@ -1,497 +1,131 @@
-# Second core (CPU1) for audio rendering: design and prototype
+# The second core (CPU1)
 
-Status: **the default in every build (the builder's DUAL item is on unless a profile turns it off; user ruling 2026-10-16). Verified on an FM-1: a soak of about 75 minutes with BLE on and USB MIDI, 2ND CORE ON, zero drops and zero underruns.** Earlier reports from other FM-1s (section 6, "2ND CORE OFF TIMEOUT") are what the stock-order start-up (3.6) fixed; a unit that still misreads RAM falls back to one core by itself (CPU1 OFF MISREAD).
-Build flag `FELUCCA_DUAL`: the builder's default is 2 (second core on); a profile may set `DUAL=0` for the single-core firmware, and a raw compile without the builder still defaults to 0. The emulator gate builds DUAL profiles single-core (`OPTIMIST_DUAL_PARK=1`) unless `EMU_DUAL=1`.
-Branch `feat/dual-core` (from `feat/sloop-plus`). Emulator changes: `fm1-emulator`, branch `feat/dual-core-emu`.
+Status 2026-10-19: **on by default.** The builder's `DUAL` item defaults to 2 (`tools/builder/registry.py`); a profile
+may set `DUAL=0`. A raw compile without the builder still defaults `FELUCCA_DUAL` to 0 (`firmware/src/felucca.c`).
+Verified on an FM-1: a soak of about 75 minutes with BLE on and USB MIDI, zero drops and zero underruns. Some units
+misread RAM on CPU1; those fall back to one core by themselves (section 5).
 
-Tags: **[V]** verified this session (code, disassembly, emulator run). **[SDK]** read in the JieLi AC79
-SDK copy (`~/GitHub/ac79-sdk`). **[I]** inference, not measured. **[HW?]** unknowable without hardware.
+Tags: **[HW?]** cannot be known without hardware; **[I]** inferred.
 
-## 1. Audio architecture today (what runs where)
+## 1. What it does
 
-- **One compilation unit** (`felucca.c` includes everything). All code and constants run from XIP flash,
-  except `.ram_text` (the flash driver, ~1 KB) [V].
-- **Audio interrupt (ALNK0, priority 3)**, `audio.c fm1_alnk0_irq`: renders one I2S half buffer of
-  `HALF_FRAMES` = 256 frames (5.8 ms) in 8 blocks of `CTL` = 32 samples, each by `mix_block` (`fx.c`) [V]:
-  1. clear the accumulators (`send_c/d/r`, `mix_l/r`);
-  2. `events_block` (`seq.c`): the transport clock, sequencer steps, arpeggiator, the USB / UART MIDI
-     queues, key events from the UI, engine switches (`engine_block`), note-ons / note-offs and voice
-     allocation (the shared budget of 8 voices, `voice.c`);
-  3. `duck_block`;
-  4. `mix_part` for each of the 3 synth parts: `track_render` (LFO, envelopes, glide, the engine's
-     `block` hook and `render` per voice) -> DIST insert -> SLICER -> level / pan / mute-solo fade ->
-     sends, **added** into the shared accumulators;
-  5. drums (`slicer_drums` -> `drums_render`), added into the same accumulators;
-  6. `fx_buses` (chorus, tempo delay, FDN reverb), DUST, PUNCH, DJ filter, master volume, limiter.
-  Then the 24-bit scaling. A half that takes > 85 % of its time sheds a voice before the next half
-  (`shed_voice`). `song.cpu_q8` / `felucca_dbg` hold the load (TIMER4 ticks).
-- **TIMER5 interrupt** (10 kHz, outranks ALNK0, so it nests inside the render): input scan, USB poll
-  (2 kHz). USB / UART MIDI only fill queues; `events_block` consumes them [V].
-- **Main loop** (`main.c`): UI input and drawing, editor SysEx, OTA, autosave / section / settings
-  saves. The UI changes track parameters (`trk[].p[]`) directly; engine / preset switches with IRQs off
-  (`set_engine_of`), notes through queues. Because the main loop only runs when the audio interrupt
-  does not, **the render always sees a whole block's parameters** (a write lands between blocks).
-- **Flash writes** (`fm1_flash.h`, `felucca.c st_read / st_erase / st_prog`, `editor.c`, `ota.c`):
-  all go through `irq_save()` + a `.ram_text` routine (`FL_FAR`), with IRQs off on CPU0, in the main
-  loop. The SFC (XIP) is off while they run: any XIP fetch then would read garbage. An erase also
-  silences the DMA buffer (`fl_erase4k_quiet`).
+CPU0 runs the audio interrupt (ALNK0, priority 3): per 256-frame half buffer, in 8 blocks of 32 samples, `mix_block`
+(`fx.c`) renders events, the 3 synth parts, the drums, the FX buses and the master. With CPU1 up, **jobs are forked
+per block and joined**: CPU1 renders whole parts into its **own accumulators**, CPU0 renders the rest, waits, adds
+CPU1's sums, then runs the buses and master (`mix_block_dual`, `firmware/src/system/dual.c`).
 
-## 2. Evidence on CPU1
+- All sums are 32-bit integer additions, so the order does not matter: **the output is bit-identical to one core
+  rendering everything**, as long as no job touches another job's state.
+- `dual_split` assigns jobs (the three parts, the drum track, the reverb's kept block) each block by their measured
+  render time, longest first onto the core with less load. A build with `DUAL_PARTS` set keeps a fixed split (the
+  emulator's references).
+- **The reverb runs one block (0.73 ms) late** while CPU1 is up (`REV_LATE`, `fx.c`; `DUAL_REV=0` builds without it).
+  `fx_buses` keeps the block's send and decisions; `rev_job` runs the tank during the next block. With CPU1 down the
+  reverb runs inline; if CPU1 dies, the tail jumps one block once.
+- Measured (emulator, instructions not cycles): CPU0 load down 40-44 % at 312 MHz with the same sound. Bench at 480 MHz:
+  CPU0 20.7 %, CPU1 16.9 % with the late reverb. The real gain on hardware is lower and unmeasured (cache misses, XIP
+  waits and bus contention are not modelled).
+- Cost (`tools/builder/costs.json`, `DUAL`): about 3.4 KB of flash, 3.7 KB of RAM, 6.1 KB of pool, 660 B of RAM code.
+  (The builder's own item text still says 1.8 KB / 1.9 KB.)
 
-### 2.1 Stock M-VAVE firmware [V: vendor objdump of `FM-1.fwsc`, emulator run]
-- Start (stock code at XIP `0x02059a2e`):
-  ```
-  [0x01C7FFF8] = 0x020001B8          ; CPU1 entry, in XIP
-  save [0x10008]; [0x10008] |= 8     ; a clock/system register; restored after the ack (meaning unknown)
-  b[0x01C22328] = 0                  ; ack byte
-  [0x1EEE004] |= 8 ; &= ~2           ; C1_CON: run, out of reset
-  wait b[0x01C22328] != 0; restore [0x10008]
-  ```
-- CPU1 entry `0x020001B8`: `usp = 0x01C182D0; sp = 0x01C192D0; reti = 0x01C02428; rti`.
-- `0x01C02428` (RAM): writes the ack byte, `cli`, `r0 = cnum`, a per-core IRQ-nesting counter, two
-  calls into XIP init code, `sti`, then **a mailbox loop in RAM** polling a state byte at `0x01C192E0`
-  (5 -> run a function, write 6; 2 -> run another). Stock CPU1 idles in RAM.
-- Stock pauses CPU1 around flash operations: Cx_CON bit 2 (pause request), wait bit 4 (stopped),
-  bit 3 (resume) — **inferred by the emulator author from the stock code** (`rust-emulator/SMP.md`).
+State shared by parts is made per core or per part: scratch and accumulators (`mixacc_t`, `mix_part(t, n, A)`), the DX7
+scratch (`fm1_cnum()`), FORMANT's noise (one generator per part, so a different but equally random sequence), SUPER's
+voice count (a snapshot at block start), the DX7 cartridge check and table init (CPU0 before the fork), the LFO S&H and PHYS
+reset draws (CPU0 before the fork, in part order). A new shared static in a render path breaks the split silently:
+`tests/emu_dual_check.py` compares single, `DUAL_PARTS=0` and dual takes sample for sample.
 
-### 2.2 JieLi AC79 SDK [SDK]
-- `CPU_CORE_NUM 2` (`asm/cpu.h:43`); a custom dual-core FreeRTOS port (closed `port.c`).
-- Core id: `asm volatile("%0 = cnum")` (`cpu.h:79-84`); CNUM is SR6, also `q32DSP(n)->CNUM`.
-- `startup.S.o` (cpu.a): `cpu1_start` = `usp = _cpu1_ustack; sp = _cpu1_sstack; reti = cpu1_main; rti` —
-  the same shape as the stock entry. `cpu1_main` (`apps/common/system/init.c:99-123`): sets
-  `cpu1_run_flag`, IRQs off, `interrupt_init(); debug_init(); os_start()`.
-- Register block `corex2(0)` at 0x1EEE000: `C0_CON` 0x1EEE000, **`C1_CON` 0x1EEE004**, `CACHE_CON`
-  0x1EEE008 (bit 14 idle). Halting the other core (`cpu/wl82/debug.c:464-471`):
-  `Cx_CON &= ~BIT(3); Cx_CON |= BIT(1)` -> bit 3 = run, bit 1 = reset/halt.
-- **One cache controller** for both cores (`corex2(0)` only; `dcache_way_use_select(cpu_way, prp_way)`
-  splits ways between CPU and peripherals, not per core). The uncached alias exists only for SDRAM
-  (0x4000000 -> 0x8000000, `cpu.h:45-53`); **internal SRAM (0x01C00000..) has no alias** and the SDK
-  uses plain variables for cross-core flags (`cpu1_run_flag`, spinlocks). The SDK's cross-core
-  primitives are `csync` + `testset` spinlocks (`cpu.h:189-190`) and `lockset/lockclr` (a global bus lock).
-  I found no D-cache flush around cross-core data in the SDK [SDK, I: SRAM is coherent or uncached].
-- Soft IRQs 120..127; core 1 takes SOFT4 (124) as its IPI; `request_irq(index, prio, handler, cpu_id)`.
-  Vector table at 0x01C7FE00 (`ISR_ENTRY`); **0x01C7FFF8 = slot 126 (SOFT6)**.
-- Flash: closed `vm_sfc.c.o` (`norflash_set_write_cpu_hold`, `cpu_enter_sfc_critical`,
-  `another_cpu_irq`). Comment `init.c:276`: with `cpu1_run_flag = 0`, flash writes do not suspend
-  CPU1, **but then everything CPU1 runs must be in internal RAM**.
-- Faults: `debug.c` reports `DBG_MSG` bits per core (bit 0 WDT, 6/8 c1 MMU, 10/11 c1 PC/write limit,
-  16-18 c1 bus invalid) and ends in `__cpu_reset()`. One watchdog for the chip.
+## 2. The mailbox and the protocol (`firmware/hal/fm1_dual.h`, `fm1_dual_guard.h`)
 
-### 2.3 Emulator model [V: `rust-emulator/src/cpu.rs`, `cache.rs`]
-- C1_CON bit 3 set + bit 1 clear starts CPU1 at `[0x01C7FFF8]`, supervisor context, CNUM = 1.
-  Bit 1 destroys it (reset). Bit 2 pause -> bit 4 stopped; bit 3 resume.
-- Cores alternate per instruction on one shared bus and memory; no cache model (functional only);
-  LOCKSET serializes the bus; per-core IRQ configs, shared soft-IRQ latch.
-- **Fixed on `feat/dual-core-emu`:**
-  1. Guest time. Before, CPU1's instructions also advanced guest time, so with CPU1 running every
-     timer (and the firmware's own CPU meter) ran twice as fast per CPU0 instruction. Now a pair of
-     instructions (one per core) takes one step of guest time; `cpu.core_steps[0/1]` count each core.
-     Test `both_cores_share_one_step_of_guest_time`. (Stock FM-1 / Baud Girl, which start CPU1, now
-     get twice the CPU0 work per unit of guest time: their 200M-step counters changed, they boot to
-     their home screens; Felucca / Jangada / SLOOP 2.2 / SLOOP plus counters unchanged.)
-  2. **A CPU bug that is not dual-core specific:** the 32-bit add-immediate forms (`rX = rY + imm`,
-     0xe100..0xe130 / 0xe0e0) did not set the carry flag, but the compiler pairs them with `addc` for
-     64-bit sums (`r12 = r10 + 32; r13 = r11 + r0 + c`, in `dx7_tables_init`). A stale carry made
-     `dx7_sintab[0]` = 2^26 instead of 0 in one build and not in another (which build depended on
-     register allocation). This is what first made the dual build sound different from the default
-     build in the emulator. Test `add_immediate_sets_the_carry_for_a_following_addc`. Real hardware
-     is assumed to set the carry here (the vendor compiler relies on it).
-  3. `play_check` gained `cores` and `words:ADDR:N`; `diagnose` prints both instruction counts.
+- Internal SRAM, every field has one writer, each core's fields on their own 64-byte lines. No cache maintenance
+  (internal SRAM, as the SDK's own cross-core flags [I, HW?]).
+- CPU0: write `arg` (job mask), `check = FM1_DUAL_CHECK(req, arg)`, `csync`, `req = req + 1`. CPU1 (a polling loop in
+  RAM) runs a job only when `req == done + 1` (its own `done`), `arg` is allowed and `check` matches; it reads `arg`
+  once, runs the job from XIP, `csync`, `done = req`. CPU0 waits for `done == req`.
+- CPU1 polls once per pass with 32 nops (no bus traffic), beat and ping every 256 passes. The sleep variant
+  (`FELUCCA_DUAL_IDLE=1`, wake by soft IRQ 124) is off by default: the wake never reached CPU1 on the FM-1, and it did
+  not start under the stock order (TIMEOUT).
+- A join is bounded to two blocks (`DUAL_JOIN_US`, 1.45 ms).
 
-### 2.4 What is not known [HW?]
-- Whether the boot ROM on CPU1 really jumps through `0x01C7FFF8` on this chip revision (stock does it,
-  so very likely), and what `[0x10008]` bit 3 does.
-- Whether the CPU0 guards (`fm1_guard.h`: PC limit, bus-invalid enables in `DBG_EN`, write limits)
-  also apply to CPU1 or its ROM start. **A hypothesis for the earlier probe that reset the device**:
-  a guard (PC limit, bus invalid) or an exception taken by CPU1 with the vectors of the probe. Not
-  checked. The prototype starts CPU1 with only the stack and write guards on (they are CPU0-only).
-- Memory ordering between the cores (store buffers, whether `csync` orders stores for the other core),
-  cache coherence of SRAM, the cost of the shared bus when both cores run (contention), the real
-  clock. The emulator cannot show any of these.
+## 3. Start and stop on the FM-1
 
-## 3. Design
+Start sequence, as the stock M-VAVE app does it (disassembled): `[0x01C7FFF8]` = CPU1 entry; `[0x10008] |= 8` until CPU1
+answers; `C1_CON` (`0x1EEE004`) `|= 8`, `&= ~2`; wait for the ack. Stop: `C1_CON &= ~8, |= 2`. The entry sets
+`cli`, `icfg = 0`, the stacks, and `rti`s into C. CPU1 has its own EMU bank (stack limit on, div0 and float traps off).
 
-### 3.1 Work split: fork / join per block, bit-identical
-CPU1 renders **whole synth parts** (`mix_part`: engine, DIST, SLICER, level, pan, sends) for parts in
-`DUAL_PARTS` (default parts 2 and 3) into **its own accumulators**; CPU0 renders the other part and the
-drums, then waits for CPU1, adds its accumulators and runs the buses and the master (`mix_block_dual`,
-`src/system/dual.c`). All the sums are 32-bit integer additions, so the order does not matter: **the output is
-bit-identical to one core rendering everything**, as long as no part's render touches state of another
-part. The alternative (CPU1 runs the FX buses one block behind) would change the sound (latency) and
-was not taken.
+**Stock V15's start-up order is the normal order of a DUAL build** (reverse-engineered from V15, measured on the FM-1:
+before it, every BLE + dual boot crashed within 2-60 s; after it, 3 x 180 s runs clean):
 
-State audited for cross-part sharing in the render path (`static` globals of the engines, voice.c,
-slicer.c, fx.c), and fixed under `FELUCCA_DUAL >= 2`:
-| Shared state | Problem | Fix |
-|---|---|---|
-| `part_buf`, `send_*`, `mix_*` (fx.c) | one scratch / accumulator set | `mixacc_t` per core; `mix_part(t, n, A)` (macro `MX`, the default build is unchanged in source) |
-| `dx7_core.c` `bus/ext/tmp`, `eng_dx7.c` `buf` | function-static scratch blocks | one set per core, indexed by `fm1_cnum()` |
-| `eng_formant.c formant_nz` | one noise generator for all parts | one per part (so the dual build's FORMANT breath noise / random vowels are a different, equally random sequence than the default build's; the same with and without CPU1) |
-| `eng_super.c super_nv = voices_busy()` | reads every part's voices, which the other core is ending | a snapshot (`dual_vbusy`) at the block start, after the events (differs from the default build only when a voice ends inside the block on an earlier part *and* SUPER's copy cap changes at that moment) |
-| `dx7_cart_check` (in DX7's `block` hook) | a cartridge lookup writes globals | done by CPU0 before the fork |
-| `dx7_tables_init` | first-use init from either core | at boot |
-| `rng()` (`libc.c rng_state`) in the render: an LFO's wrap (`voice.c track_lfo_tick`, the S&H value), PHYS's reset on a MODEL change under a sounding note | both cores draw at once (a race on `rng_state`), and the draws come in the cores' order: a DUAL_PARTS=3 build gave T1 the S&H value the single-core build gives T3 | the LFOs' draws by CPU0 before the fork, in part order (`dual.c dual_lfo_draw` -> `dual_lfo_rnd`): the single-core values; PHYS's reset seed from a per-part generator (a different, equally random seed than the default build's) |
-Read-only during the render: `song`, `duck`, the tables, `clk_*`. Per part already: `dx7_part`,
-`drw_t/v`, `gr_p`, `sl[]`, DX7 slots (each touched by its own part only in the render).
+1. **The rails first** (`system/supply.c`, `hal/fm1_supply.h`, top of `fm1_main`, IRQs off): the builder item
+   `STOCK_SUPPLY` (default on with `DUAL`) sets the rails as the stock app does (the 1.4 V rail onto the DC-DC, VDC14
+   1.60 V, SYSVDD 1.38 V, never lowered, the PLL untouched, the 2.6 V detector after). The boot loader leaves 1.26 V /
+   1.40 V on the LDO and CPU1 merely spinning crashed CPU0 there. A wrong read-back keeps CPU1 off (`2ND CORE OFF
+   SUPPLY`). **Risk, at your own risk:** above the AC79 datasheet's table, absolute limits not public, unit variation,
+   heat and battery not measured.
+2. CPU1 starts at `dual_boot` and spins in its RAM loop (no job yet), as stock does.
+3. The BLE radio starts before `audio_init`, IRQs off (`main.c`).
+4. CPU1's jobs begin 400 ms after BLE is running (`dual_stock_after_ble`).
+5. **Every flash write or erase parks CPU1** (`fm1_dual_mb.park`): CPU1 waits for the cache idle bit and spins in RAM;
+   CPU0 waits up to 200 us, else pauses it in hardware (`C1_CON` bit 2, stopped bit 4), writes, resumes (bit 3). The
+   SFC (XIP) is off during flash work, so CPU1 may never fetch from XIP then. By construction CPU1 runs XIP code only
+   between `req` and `done`, both inside CPU0's audio interrupt; `irq_save()` also checks it.
+6. The TIMER5 and ALNK0 entries run from RAM (`isr_timer5_ram`, `isr_alnk0_ram`).
+7. BLUETOOTH ON at runtime (a radio started while audio runs, which stock never does) holds CPU1 for the radio's
+   program and starts it again after (`dual_radio_hold` / `_release`; emulator-tested only).
 
-### 3.2 Handoff (mailbox `fm1_dual_mb`, internal SRAM, `hal/fm1_dual.h`)
-- Every field has one writer. CPU0: `arg` (part mask), then `csync`, then `req = req + 1`. CPU1 (RAM
-  loop) sees `req != done`, `csync`, runs the job from XIP, returns to the RAM loop, `csync`,
-  `done = req`. CPU0 waits for `done == req`, `csync`, adds CPU1's accumulators.
-- No cache maintenance: internal SRAM, as the SDK's own cross-core flags [I, HW?]. If hardware shows
-  stale data, the fallback is the SDK's `flush_dcache`/`flushinv_dcache` on `dual_acc[1]` and the
-  track state (its cost would eat part of the gain).
-- CPU1 has IRQs off for its whole life and polls (no IPI). Polling costs bus bandwidth [HW?]; SOFT4
-  (as the SDK) is the alternative if contention shows.
+**CPU1's stack** is `fm1_c1_stack`, 6 KiB in the pool, set by the entry: the spinning build runs its jobs on `usp`
+(5 KiB), the sleeping one in the wake interrupt on `ssp`. `tools/build.py cpu1_stack` checks the static worst path
+(ACID about 2.5 KB, PHYS 1.6 KB) against 3,840 B and fails over it.
 
-### 3.3 Flash writes
-The SDK rule (`init.c:276`) is kept by construction: **CPU1 executes XIP code only between `req` and
-`done`, and both happen inside CPU0's audio interrupt**; outside, it spins in `fm1_dual_idle_ram`
-(`.ram_text`, no calls, no constants; the build's "no calls in .ram_text" check holds). Flash
-operations run in the main loop with IRQs off, so they can never overlap a job. `irq_save()` (every
-flash operation) calls `dual_flash_enter()`, which checks that CPU1 is idle and halts it if not (it
-cannot happen unless the protocol is broken). Since 2026-10-16 every flash write or erase (not the reads,
-`fm1_flash_reading`) also parks CPU1 as stock V15 does (its 0x01C02536, BOOST-RESEARCH.md 7.3): CPU0 sets
-`fm1_dual_mb.park`, CPU1 in its RAM loop waits for the cache idle (CACHE_CON bit 14, bounded), answers
-`parked` and spins in RAM; CPU0 waits 200 us at most for that, then pauses it in hardware (C1_CON bit 2, the
-stopped bit 4), writes, resumes it (bit 3) and clears `park` (counters `cpu1_fpause_n / _noack / _nostop`).
+**Boot-order check:** CPU1 may start only after the UBOOT hold and the boot guard, never on the recovery path.
+`tools/build.py boot_order()` reads the call graph of `boot_hold`, `bootguard_begin`, `fm1_main`, `recovery_main`,
+`dual_boot`, `fm1_dual_start` (kept out of line, +192 B).
 
-### 3.4 Failure behaviour (never brick, never hang)
-- Boot: no hello within 50 ms -> CPU1 back into reset (C1_CON bit 1), single core for this boot.
-- A job not done within one half buffer (5.8 ms), or a CPU1 fault reported (`fm1_fault_c` on CNUM 1
-  parks CPU1 in RAM and sets `fault`) -> CPU1 into reset for good, CPU0 renders those parts itself
-  from then on (a click once: a part may be half-advanced). The UI says "CPU1 OFF <why>" once; the
-  console shows `cpu1_up/why/jobs/wait_max_us`.
-- Each core's load (`system/dual_load.h`): CPU1 adds the timer ticks of each job (two `fm1_ticks()` reads in
-  `dual_job`) to `dual_c1_ticks`, which it alone writes; once an audio half CPU0 takes the ticks since the last
-  half and smooths them as `song.cpu_q8` (audio.c), into `dual_c1_q8`. SYSTEM's CPU row shows CLOCK, CPU0 (its
-  figure includes the wait in `dual_join`) and CPU1, OFF once CPU1 is down; SLOOP's CPU readout cycles CPU0,
-  CPU1 (unit `%C1`) and the clock. A single-core build has none of it.
-- Watchdog: one chip watchdog fed by CPU0's main loop (unchanged); CPU1 never feeds it. A CPU0 hang
-  still resets the chip; a CPU1 hang cannot hang CPU0 (timeouts everywhere CPU0 waits).
-- Resets (UBOOT entry, OTA, reboot) are chip resets (P33): CPU1 resets with them.
-- The bus and PC guards are enabled after CPU1's start (unknown whether they cover CPU1's ROM path).
+## 4. Fallbacks (never brick, never hang)
 
-### 3.5 FM-1s whose CPU1 misreads RAM (fix/cpu1-guard, 2026-10-13)
-On some FM-1s core 1 reads words that are not in RAM at the boot loader's supply (fm1-x0x#10, Melodee #17;
-Jangada measured one unit: faults within ~6 s at the stock VDC14 3 / SYSVDD 11, clean for 15 min at 5 / 15).
-Optimist used to run any job whose `req != done`. Now (`hal/fm1_dual_guard.h`, after X0X 47f8e4c):
-- **Request check:** CPU0 writes `arg`, then `check = FM1_DUAL_CHECK(req, arg)`, then `req`. CPU1 runs a job
-  only when `req == done + 1` (its own `done`, never read back), `arg` is within `DUAL_PARTS` and `check`
-  matches; it reads `arg` once and renders that. Anything else is counted in `bad` (with `bad_req`,
-  `bad_done`), never run, and CPU0 holds CPU1 at the first one (`dual_join`, and before every post): the
-  parts go back to CPU0, `CPU1 OFF MISREAD` once. The spin loop (`FELUCCA_DUAL_IDLE=0`) waits past a bad
-  request in RAM, so a misread never makes it fetch from the flash outside a job.
-- **Boot canary:** CPU0 fills 32 words (zeros, ones, mixed) before the start; CPU1 reads them 64 times
-  before its hello and reports the wrong reads (`canary` = 1 + count). Not 1 -> held (`CANARY`). A
-  cheap first look: the misreads measured came under load, after seconds.
-- **2ND CORE setting** (`src/system/dual_mode.h`, settings word bits 27..28: 0 AUTO, 1 OFF; a record
-  without them reads AUTO). OFF: CPU1 is never started. A boot that follows one that crashed in its first
-  30 s (`bootguard.failed`) stays on one core (`AFTER CRASH`). With `DUAL_MODE_MENU 1` (set when a menu
-  can switch it back) AUTO turns itself OFF after a misread, canary, timeout or fault, saved once stopped;
-  without that menu the self-disable lasts the session.
-- **STOCK SUPPLY** (`FELUCCA_STOCK_SUPPLY`, builder `STOCK_SUPPLY`, on by default in builds with the second
-  core, EXPERIMENTAL; `system/supply.c`, `hal/fm1_supply.h`; replaces the earlier `DUAL_BOOST`): at the top of
-  the boot (IRQs off, before CPU1, the audio and the BLE radio) the rails are set as the stock M-VAVE
-  application sets them (V15 `app_core` 0x02004F90..0x0200509A; the sequence as Melodee 1.3.6 ports it,
-  7a51700): LDO13 on, DCDC13 on, LDO13 off (the 1.4 V rail onto the DC-DC); P3_ANA_CON1 = 0x20, CON5 = 0x74
-  (VDDIOM / VDDIOW 3.2 V, written once: stock passes through 2.8 V), CON6 VD14_HD_SEL 1, CON7 = 0xA5, CON8 =
-  0x96 (the DC-DC's bias, duty, oscillator, current sense), CON9 bit 4; VDC14 (CON6 [2:0]) up to 7 = 1.60 V a
-  step every 100 us; CON0 bit 7, P3_ANA_KEEP [5:0] cleared, CON2 bit 6, P3_VLD_KEEP bit 5 cleared; SYSVDD (CON9
-  [3:0]) up to 15 = 1.38 V last; never lowered; the PLL is never written. Read back: DC-DC on and LDO off,
-  VDC14 7, SYSVDD 15, VDDIOM 4, no P33 timeout; else CPU1 is not started (`2ND CORE OFF SUPPLY`,
-  `dual_supply_why`) and the rails stay where the sequence stopped. SYSTEM > INTERNALS: `SUPPLY 1.38 V 1.60 V
-  DC-DC` (or `NOT RAISED`). Why: every custom firmware runs at the boot loader's 1.26 V / 1.40 V on the LDO;
-  stock runs 1.38 / 1.60 V on the DC-DC at the same 360 MHz. On the test unit (test/overnight B23, 2026-10-16)
-  configurations that crashed CPU0 within 17-61 s at the boot loader's rails survived 3 x 180 s with 1.50 V /
-  1.38 V (Jangada's levels), the real dual core too (~228 k CPU1 jobs a run); the stock sequence itself is
-  under test (B24 `dcdc on`). Risks: above the AC79 datasheet's table, absolute limits not public, unit to unit
-  variation, heat and battery effect not measured; the misread / canary / AFTER CRASH fallbacks stay.
-- The 2.6 V low-voltage detector (P3_VLVD_CON 0x11 = 0x78, then |= 1: VLVD_SEL 7, VLVD_EN, as stock's `app_core`
-  after its rails) follows the rails and is read back with them (FM1_SUP_LVR).
-
-### 3.6 Stock V15's start-up order (2026-10-16: the normal behaviour of DUAL builds)
-Reverse-engineered from the unmodified V15 (BOOST-RESEARCH.md 7; disassembly + MMIO trace in the emulator; the
-timeline's ms are the emulator's) and measured on the FM-1 as the console test image B25 (`dualcfg stockorder on`,
-test/overnight bd9f1868): with BLUETOOTH ON and the heavy saved song, 3 runs x 180 s each of the replay, of the
-same with the XIP entries and of the same with the plain pause, all with CPU1 up (~248 k jobs a run), audio
-peak 73 %, no flips; before it every BLE + dual boot crashed within 2-60 s. Each step and why:
-1. **The rails first** (supply.c `supply_boot`, top of `fm1_main`, IRQs off): stock raises them at 36.6 ms,
-   before its RF program (39 ms). At the boot loader's 1.26 V / 1.40 V on the LDO, CPU1 merely spinning crashed
-   CPU0 within 17-61 s (B22s); the radio's start-up crashed even single-core JieLi stacks at 1.40 V (fm1-radio).
-2. **CPU1 at `dual_boot`, in its RAM spin loop** (no job yet): stock starts CPU1 at 1.94 ms and leaves it polling a
-   RAM byte through the whole radio bring-up. `DUAL_DEFER` (CPU1 after the radio) is gone from product builds.
-3. **The BLE radio before `audio_init`**, IRQs still off (main.c): stock's RF program runs 39-253 ms with no audio
-   I/O (ALNK starts at 466.6 ms) and no CPU1 job; ours runs before the audio interrupt, TIMER5 and any render exist.
-4. **CPU1's jobs from BLE running + 400 ms** (`dual_stock_after_ble`, `dual.hold_at`, TIMER4 ms): stock's first
-   CPU1 job is ~436 ms after its BLE IRQs are on.
-5. **Flash writes park CPU1** (3.3), as stock's 106 pauses in its first second.
-6. **TIMER5 / ALNK0 entries from RAM** (`isr_timer5_ram`, `isr_alnk0_ram`, fm1_isr.S): every wild PC before was the
-   TIMER5 stub fetched from XIP with a bit wrong. (B25: no difference measured against the XIP stubs.)
-7. **No BLUETOOTH rule**: CPU1 runs with BLE on. A BLUETOOTH ON at runtime (the radio started while the audio runs,
-   which stock never does) holds CPU1 for the radio's program and starts it again after (`dual_radio_hold` /
-   `_release`; emulator: no late half; not measured on the FM-1 yet).
-The fallbacks stay: a wrong supply read-back (SUPPLY), a misread, a wrong canary, a timeout, a fault, AFTER CRASH ->
-one core. The sleep variant (`FELUCCA_DUAL_IDLE=1`) did not start under this order on the FM-1 (TIMEOUT): spin only.
-Emulator gate: the emulator's timing model does not represent the chip's dual-core timing (at 96 MHz one late half
-showed between 5 and 15 s, in the boot's burst of 23 flash writes, with the park; the park's own wait measured 27 TIMER4
-ticks (~1 us), the erase's IRQs-off window 192,916 ticks (8 ms) at that emulated clock; none at 192 MHz, none on the
-FM-1). So `tests/emu/run.py` refuses a DUAL build whose CPU1 starts: a DUAL profile's gate build is made with
-`OPTIMIST_DUAL_PARK=1` (single core). The second core is verified by the host tests, the BLE emulator tests
-(dual_stockorder_emu_test, dual_ble_rule_emu_test), emu_boot_check and the hardware matrix / soak.
-
-- Console: `cpu1_mode`, `cpu1_bad`, `cpu1_canary`, `supply_was`, `supply_now`, `supply_err`, `supply_regs` (STOCK_SUPPLY). Emulator fallbacks:
-  `DUAL_FAILTEST=4` (a wrong check word at job 3000 -> MISREAD), `5` (a wrong canary -> CANARY).
-
-Also fixed on the way (default build too): DX7 phase sums (`phase += freq`, `phase + in[i]`) relied on
-signed overflow, undefined in C (UBSan on the host regress shows it); they now wrap in `uint32_t`
-(`dx7_wrap`). Same samples where the compiler already wrapped.
-
-## 4. Prototype
-
-| File | What |
+| Message (SYSTEM > INFO "2ND CORE OFF ...") | Cause |
 |---|---|
-| `firmware/hal/fm1_dual.h` | C1_CON / SPL vector / [0x10008] registers, `fm1_cnum()`, the mailbox, the RAM idle loop, the CPU1 entry (asm), start with timeout, halt |
-| `firmware/src/system/dual.c` | CPU1's main, boot, `mix_block_dual` (fork / join), timeouts, the flash check, the stage-1 counter, the UI notice |
-| `firmware/src/fx/fx.c` | `mix_part(t, n, A)` per-core accumulators (`MX`), `mix_finish` shared by both mixers |
-| `firmware/src/system/bench.c` | emulator scenarios `FELUCCA_BENCH` 1..3 (+ `FELUCCA_BENCH_SAVE`), per-block signatures |
-| `firmware/hal/fm1_irq.h`, `fm1_flash.h` | CPU1 fault hook; `FM1_FLASH_ENTER` in `irq_save` |
-| `tools/build.py` | `FELUCCA_DUAL` 0/1/2, `FELUCCA_BENCH` 0..3, `FELUCCA_BENCH_SAVE`, `DUAL_PARTS` (part mask), `DUAL_FAILTEST` 0..3 |
+| NO START | no hello within 50 ms: CPU1 back into reset |
+| TIMEOUT / FAULT | a job not done within the join bound, or a fault on CPU1 (`fm1_fault_c` parks it): CPU1 into reset for good, CPU0 renders its parts from then on (one click) |
+| MISREAD / CANARY | the request check refused a request, or the boot canary (32 words read 64 times) read wrong: CPU1 held |
+| SUPPLY | the rails' read-back was wrong (`STOCK_SUPPLY`) |
+| AFTER CRASH | the boot before crashed within its first 30 s: this boot stays on one core |
+| OVERLOAD | the main loop had no pass for 1.5 s (`DUAL_STARVE_MS`): CPU1 taken down |
+| SETTING | the 2ND CORE setting is OFF (`dual_mode.h`, settings word bits 27-28: 0 AUTO, 1 OFF) |
 
-Build: `FELUCCA_DUAL=2 JIELI_TOOLCHAIN=~/.jieli/toolchain-docker sh build.sh`. Cost: +1.5 KB flash
-(576 KB of the 581.5 KB slot), +2 KB RAM (CPU1's accumulators), +6 KB pool (CPU1's stacks), +23 insns
-of `.ram_text`. The default build (`FELUCCA_DUAL=0`) keeps its source paths; host tests unchanged
-(131 golden renders, 0 changed; the 3 DX7 health failures and 3 CPU-over-budget entries were there before).
+With `DUAL_MODE_MENU 1` AUTO turns itself OFF after a misread, canary, timeout or fault and saves it; without that menu
+(the Optimist UI today) the self-disable lasts the session. A single watchdog serves the chip and only CPU0 feeds it;
+a CPU1 hang cannot hang CPU0. Resets are chip resets and reset CPU1. Recovery ladder if a boot loops: the boot guard
+starts USB recovery mode after two failed boots; hold OCT- at power-on for recovery by hand; OCT- + OCT+ for 5 s
+enters the mask-ROM UBOOT.
 
-### 4.1 The split by cost and the reverb one block late (2026-10-13, perf/mots-hot, perf/rev-pipe)
+Misread RAM (some units, at the boot loader's supply, seen on X0X, Melodee and Jangada units): guard ported from X0X
+(GPL-3.0). The load of each core shows in SYSTEM's CPU row (`dual_load.h`: CLOCK, CPU0 including the wait in `dual_join`,
+CPU1).
 
-`dual.c` splits each block's jobs between the cores by their measured render time (`dual_split`: the three parts, the
-drum track, and the reverb's kept block), longest first onto the core with less. `DUAL_PARTS` set at build time keeps
-the old fixed split (the emulator's references).
+## 5. Testing
 
-The reverb tank runs one block (32 samples, 0.73 ms) late while CPU1 is up (`fx.c` `REV_LATE`, `DUAL_REV=0` builds
-without it). `fx_buses` keeps the block's send and its decisions (the reverb LFO's read points, the ROOM's gains,
-`fx_ret_block`'s plan: the CPU guard's fade, REV RET). `rev_job` then runs the tank during the next block's render, on
-whichever core the split picks, and its wet is heard in that block. The tank's state moves in the same order as inline
-(a block's decision, its tank, the next decision), so the wet is the inline wet one block later, sample for sample
-(bench 15 with `FELUCCA_BENCH_REVONLY=1`, signature 6: 255 blocks).
+- Console: `cpu1_mode`, `cpu1_bad`, `cpu1_canary`, `cpu1_up/why/jobs/wait_max_us`, `cpu1_supply_was`, `supply_*`.
+- Emulator: fault injection `DUAL_FAILTEST` (1 no hello, 2 a job that never ends, 3 CPU1 fault, 4 a wrong check word,
+  5 a wrong canary, 6 a lost wake, 7 a wake that never arrives). The emulator's timing model does not represent the
+  chip's dual-core timing (a late half showed at 96 MHz in a burst of flash writes, none at 192 MHz or on the FM-1),
+  so `tests/emu/run.py` builds a DUAL profile single-core (`OPTIMIST_DUAL_PARK=1`) unless `EMU_DUAL=1`.
+  The second core is verified by the host tests, `dual_stockorder_emu_test`, `dual_ble_rule_emu_test`,
+  `emu_boot_check` (48 / 96 / 192 MHz: no late half, CPU1 taking jobs), `emu_dual_check` and the hardware soak.
+- Bench scenarios: `FELUCCA_BENCH` 1-3 (+ more), `bench.c`; the signature locates the first differing part and block.
+- Test image: `OPTIMIST_DUALCFG=1` (console `dualcfg`, `reboot`) switches orders and probes; only in console test builds.
 
-The reverb's line and cells have one owner. Only `rev_job` touches them, on one core, between the fork and the join;
-the decisions are made on CPU0 after the join. Nothing in the main loop writes them (fx-lend lends the CHO and DLY
-lines only, never the reverb's).
+## 6. Open limits
 
-With CPU1 down, the reverb runs inline as before:
-- a DUAL build with 2ND CORE OFF, or CPU1 never up: no change;
-- CPU1 put down by a fault or a timeout: the kept block's tank runs on CPU0 (the tank stays continuous), but its wet
-  is skipped. The tail jumps one block (32 samples) once, in the block after the fault's own late half. This is a
-  single-block discontinuity, not a crossfade: a crossfade did not fit the mots build's flash (8 B over). With
-  `DUAL_FAILTEST=2`, the largest sample step is the timeout's late half, the same as with `DUAL_REV=0`.
+- **Hardware unknowns [HW?]:** memory ordering and coherence of SRAM between cores (stale part samples on parts 2-3
+  would be the symptom; fallback: SDK D-cache flushes), bus and cache contention (both cores fetch through one cache and
+  one flash), whether CPU0's PC and bus guards cover CPU1.
+- **Why some units misread RAM on CPU1** is not understood; the supply raise and the guard are mitigations.
+- **The sleep variant** never ran on the FM-1; only the spin runs there.
+- **Sound vs single core:** bit-identical in the emulator except FORMANT's noise sequence, SUPER's copy cap in a rare
+  block, and PHYS's reset seed.
+- **Maintenance:** keep render state per part or per core; re-run the single / dual0 / dual comparison.
 
-A single-core build never takes this path, so the host goldens are unchanged.
-
-Bench 15 (mots, 480 MHz), CPU0 / CPU1:
-- `DUAL_REV=0`: 22.4 % / 16.0 %;
-- late reverb: 20.7 % / 16.9 %.
-
-## 5. Emulator results [V]
-
-Emulator `feat/dual-core-emu`, `play_check`, 1 s boot then 3 s recorded. Scenarios (`bench.c`): 8 voices
-in 3 synth parts (3 + 3 + 2 notes) with a drum groove and the presets' FX sends:
-B1 DX STRINGS / DX 8OP KEY / DX PAD (all DX7), B2 SUPER PAD x3, B3 DX 8OP KEY / SUPER PAD / DX STRINGS.
-`single` = default build, `dual0` = dual build with `DUAL_PARTS=0` (CPU1 running, no work),
-`dual` = parts 2 and 3 on CPU1. Load = the firmware's own meter (`song.cpu_q8`, TIMER4 time inside the
-audio interrupt per half, averaged), `max_us` = the longest half (budget 5805 us).
-
-**312 MHz (no voice shedding anywhere):**
-
-| Scenario | single max_us / load | dual max_us / load | CPU0 reduction (load) | Audio single vs dual |
-|---|---|---|---|---|
-| B1 all DX7 | 2278 / 31.6 % | 1443 / 17.6 % | -44 % | bit-identical (132 298 frames) |
-| B2 SUPER x3 | 1987 / 28.1 % | 1291 / 16.0 % | -43 % | bit-identical |
-| B3 DX7 + SUPER + DX7 | 2206 / 31.6 % | 1476 / 19.1 % | -40 % | bit-identical |
-
-`dual0` measured the same as `single` (within 0.5 %): the mailbox and CPU1 spinning cost CPU0 nothing
-measurable in the emulator. (WAVs align at a 2-frame offset: CPU1's start shifts the audio start.)
-CPU0 still does the events, part 1, the drums, the three FX buses and the master; the ideal split is
-not 50 %. Moving the FX buses or a third part would need another design (latency) or a better balance
-(`DUAL_PARTS` picks the parts; a per-block balance by voices is possible, not done).
-
-**96 MHz (overload):** single-core B1 runs at 104 % (312 late halves of 517, voices shed), dual at 70 %
-(1 late half, no shedding needed); B3 106 % vs 69 %; B2 66 % vs 61 % (the single build shed voices).
-Outputs then differ, as the single build drops voices.
-
-**Fallbacks (`DUAL_FAILTEST`, B3, 4 s, each verified):** (1) CPU1 never says hello -> 50 ms timeout, CPU1
-held in reset, single core, audio and UI normal; (2) a job that never ends -> one late half (max 7042 us),
-CPU1 into reset, CPU0 renders all parts from then on; (3) CPU1's fault handler -> CPU0 sees `fault`,
-halts it, no late half. The exception itself cannot be raised on CPU1 in the emulator (its vector
-routing on hardware is unknown).
-
-**Flash save while playing (`FELUCCA_BENCH_SAVE=1`, B3, dual):** a project save (sector erase +
-program, IRQs off, in the main loop) 1.5 s in: "SAVED" on screen, CPU1 stayed up (`up=1`, jobs went
-on to 4864 / 4865 in flight), ping / pong in step, no fault, no late half.
-
-**Plain builds:** stage 2 (`FELUCCA_DUAL=2`, no bench) at 48 MHz: boots, 3 held keys play, 5312 jobs,
-load 44 %. Stage 1 (`FELUCCA_DUAL=1`): "CPU1 <count> OK" at the bottom of the screen, counting.
-Regression set on the fixed emulator: Felucca LCD 4235962 / audio 318151, Jangada 4211962 / 318136,
-SLOOP 2.2 284160 / 315581, SLOOP plus 284160 / 315570 (all unchanged); emulator unit tests and the
-ignored firmware tests (Felucca package, USB-MIDI host, web bridge) pass.
-
-What the emulator cannot tell: cycles (it counts instructions), cache misses and XIP wait states (two
-cores fetching from one flash cache will slow each other), SRAM bus contention, memory ordering.
-**The real gain on hardware is unknown**; it will be lower than the 40-44 % above.
-
-## 6. Hardware test plan (one device report so far, below)
-
-Packages (only emulator-tested, **EXPERIMENTAL**), in `~/GitHub/fm1-firmware/`:
-- `sloop-dual-EXPERIMENTAL-stage1-2026-10-05.fwsc` — `FELUCCA_DUAL=1`
-- `sloop-dual-EXPERIMENTAL-stage2-2026-10-05.fwsc` — `FELUCCA_DUAL=2`
-
-Before anything: check the way back works on this device, with a known-good package (SLOOP plus,
-or the stock `FM-1.fwsc`): install it with M-UPGRADE / the web installer and see it boot. Keep the
-stock package and M-UPGRADE at hand. Have a USB cable to the computer, the CDC console open if possible.
-
-Recovery ladder (from mildest):
-1. A CPU1 problem the firmware notices: it says "CPU1 OFF <why>" and runs single-core. Nothing to do.
-2. The device resets during boot (as the earlier probe did): the boot guard counts warm resets; after
-   two failed boots in a row the firmware starts its **USB recovery mode** (no CPU1 start there), where
-   a package can be installed again. A third reset there falls back to the mask-ROM UBOOT.
-3. Hold OCT- at power-on: recovery mode by hand. OCT- + OCT+ for 5 s (stopped): UBOOT.
-4. The mask-ROM USB updater (UBOOT) takes M-UPGRADE / FM-1-transporter whatever the app does;
-   the earlier probe that reset the device was recovered this way.
-
-Stage 1 (CPU1 starts, counts, nothing else):
-- Install stage 1. Watch the boot: the SLOOP logo, then the normal screen with "CPU1 <n> OK" at the
-  bottom, the number growing twice a second.
-- Outcomes: counting + OK = CPU1 runs our code from the SPL vector and SRAM writes are seen across
-  cores. "CPU1 NO START" = no hello in 50 ms (CPU1 held in reset; SLOOP works single-core): the start
-  sequence or the vector does not do on this chip what the emulator assumes. "LATE" = CPU1 started
-  but stopped answering pings. Reset loop -> recovery mode (ladder 2): note it; the start crashes the
-  chip (guards? exception routing? the [0x10008] bit?).
-- Leave it running 10 minutes, play, save a project (flash with CPU1 alive), power-cycle.
-- USB CDC console, command `status`: `cpu1_up`, `cpu1_why`, `cpu1_jobs`, `cpu1_wait_max_us`.
-
-Stage 2 (parts 2 and 3 on CPU1), only after stage 1 passed:
-- Load a heavy project (3 DX7 / SUPER parts, 8 voices, drums, sends). Compare by ear with SLOOP plus.
-- Console: `cpu_pct`, `audio_max_us`, `voices_shed`, `cpu1_jobs`, `cpu1_wait_max_us`, `late` (felucca_dbg).
-  Record them for the same project on SLOOP plus: that is the real gain.
-- Listen for clicks / garbage on parts 2 and 3 only (stale data between cores = a coherence or ordering
-  problem: then add D-cache flushes or the SDK's barriers, see 3.2).
-- Save while playing; edit parameters while playing; switch engines on parts 2 / 3; USB MIDI in.
-- If "CPU1 OFF TIMEOUT / FAULT" appears: note when; it fell back, the device should keep working.
-- 2026-10-14, the first report from a device (mots, 32b8b927): SYSTEM > INFO "2ND CORE OFF TIMEOUT", no USB stream.
-  Cause not measured. Since f36e1b47: CPU0 wakes CPU1 again (latch cleared, set again) every 100 us while a posted
-  job is not picked up (`took`), in case `idle` does not wake on a wake latched before it executes (a wake posted
-  as CPU1 leaves its handler would be lost) [HW?]; a join whose job finished while CPU0 was in TIMER5 is not a
-  TIMEOUT; INFO shows CPU1 JOB/REWAKE (jobs in thousands / wakes sent again) and CPU1 STOP (`<s>s W`: the job never
-  picked up, `<s>s J<n>`: in job n, 1-4 a part, 5 the drums, 6 the reverb; unit: CPU0's wait). Emulator:
-  `DUAL_FAILTEST=6` (one lost wake at job 3000) recovers with 1 rewake, no late half.
-- 2026-10-15, the second report (mots, batch 141 a3ce53c4, with the rewake): "2ND CORE OFF TIMEOUT", CPU1 JOB/REWAKE
-  0/58, CPU1 STOP "--". 58 rewakes are one whole join (a rewake at 100, 200 .. 5800 us, the TIMEOUT past 5805 us) with
-  the job never picked up: the rewake did not help. STOP "--" was dual.down_ms == 0: the stop was recorded, at fm1_ms 0,
-  before TIMER5's first millisecond, i.e. the first audio interrupt's first job (the emulator's `DUAL_FAILTEST=7`, a
-  wake that never reaches CPU1, gives the same 0/58 and fm1_ms 0). Since fix/dual-idle: the stop is recorded on every
-  path (`dual_stop_t`, dual_mode.h) and INFO shows CPU1 STOP `<t>[*] W|J<n>|IDLE #<job>` (t since CPU1 started, `*`:
-  before the ms clock's first tick, #0: the first job), CPU1 HELLO (how far CPU1 got: MAIN, HELLO, SLEEP / SPIN,
-  WOKEN, TOOK JOB, JOB DONE; P1 / P0: its wake still pending at the stop, read from FM1_IPND(3) bit 28, a layout only
-  the emulator's [HW?]) and CPU1 BEAT IDLE / SPIN (CPU1's beat: returns from `idle` or spin loops, then its wake
-  handler's entries). `OPTIMIST_DUAL_IDLE=0` builds the spin variant through `tools/optimist.py build`.
-- 2026-10-15, the third and fourth reports: A (36bf9ee8, asleep): STOP "17ms* W #0", HELLO SLEEP, BEAT 0/0: CPU1
-  reached `idle` and never left it. B (36bf9ee8, a tight spin with a store every pass): every power-on followed by a
-  boot "2ND CORE OFF AFTER CRASH" (the power-on boot reset within 30 s, slow to boot). Every firmware that runs CPU1 on
-  the FM-1 (stock V15, X0X, Melodee, Jangada) polls in RAM; none wakes it by interrupt. What they do and we did not
-  (fix/dual-idle f2a97992): `cli; icfg = 0` at CPU1's entry; all 32 words of CPU1's interrupt bank cleared; CPU1's own
-  EMU bank (0x1EEF2D0: a stack limit, the div0 and float traps off); the mailbox split into one cache line per core;
-  a CPU1 debug-unit error (DBG_MSG's CPU1 bits) raises the exception on CPU0 (Melodee, measured): it now holds CPU1
-  (FAULT) and CPU0 resumes, instead of the crash report's reset. The asleep build also follows the SDK's IPI
-  (q32DSP(n) at 0x1EEF100 + 0x200 n; SOFT4 on CPU1 at priority 6, CPU1's IPMASK 0x1EEF3A8 = 0, the pending read from
-  CPU1's IPND3 0x1EEF38C); the spin polls once a pass with 32 nops, its beat and ping every 256 passes. INFO adds
-  LAST RESET (how the boot before ended: POWER ON / CRASH / WDT / SOFT, its run time, its stage) and CPU1 FAULT;
-  the console `boot`, and `OPTIMIST_CDC_FORCE=1` (the console presented without USB SERIAL ON).
-
-What to watch overall: resets (and when), the screen message, audio glitches on parts 2-3 only, the
-console counters, battery drain (CPU1 sleeps between jobs with `FELUCCA_DUAL_IDLE`, the default:
-compare with `FELUCCA_DUAL_IDLE=0`, where it spins in RAM), heat. If CPU1 never wakes on the device
-(soft interrupt 124 not reaching it), every block times out once and CPU1 goes down at the first job:
-"CPU1 OFF TIMEOUT"; then test `FELUCCA_DUAL_IDLE=0`.
-
-## 7. Risks and open points
-
-- **Start on hardware [HW?]:** the vector, the [0x10008] bit and C1_CON order follow the stock app, but
-  the one previous probe that started CPU1 reset the device; why is unknown. Our differences from stock:
-  CPU1 runs our C code with IRQs off and never calls the SDK's `interrupt_init / debug_init`; CPU0's
-  guards are on (stack, write limits) during the start; vectors are all fatal stubs (an exception on
-  CPU1 lands in `fm1_fault_c`, which parks it if CNUM = 1, if the vector is used by CPU1 at all).
-- **2026-10-15 evening, the rule shipped (dropped 2026-10-16, 3.6):** with the BLE radio started, CPU1 running faulted on every boot of this FM-1
-  (random exception types, during and after the radio's start-up program); with BLUETOOTH OFF it ran clean (B9a: 42,952
-  jobs in 33 s). The user's ruling: the second core runs only while BLUETOOTH is OFF (`dual_ble_rule`, dual_mode.h):
-  started from the main loop after boot only if BLUETOOTH is OFF; switching it ON stops CPU1 first (`dual_radio_hold`:
-  between two audio blocks, `DUAL_BLE`), never restarted until the next boot; INFO "2ND CORE OFF BLUETOOTH". Builds without
-  BLE start CPU1 at boot as before. `FELUCCA_DUAL_IDLE` defaults to 0 (the spin: the wake never reached CPU1 on the FM-1).
-  A join is bounded to two blocks (1.45 ms; it was a half for each of 8 blocks), and a main loop with no pass for 1.5 s
-  takes CPU1 down (`DUAL_OVERLOAD`): a watchdog reset at main-loop stage 2 (B9a, CPU1 running, a heavy edit) is the case.
-  Test image: `OPTIMIST_DUALCFG=1` (the console's `dualcfg`, `reboot`); emulator: tests/dual_ble_rule_emu_test.py.
-- **CPU1's stack, since 2026-10-15:** 10 KiB, sp = ssp at +5120 (the wake interrupt's), usp at +10240 (CPU1's C code,
-  and a spinning build's jobs): 5 KiB each. The layout below gave usp only the lowest 2 KiB; the spinning builds (B..B4)
-  rendered their jobs there and an ACID part (2,948 B static) ran through the bottom into `part_mem`, just below in
-  `.pool`, and CPU0 crashed rendering from it in the first blocks of every power-on (hal/fm1_dual.h).
-- **CPU1's stack (measured 2026-10-12, superseded):** `fm1_c1_stack`, 6 KiB, is set as usp +2048, ssp +4096, sp +6144. The SDK's
-  `cpu1_start` sets `usp` and then `sp` to the *system* stack (`_cpu1_sstack`): CPU1 is handed over in interrupt
-  context, where sp is the system stack, and its rti saves sp into ssp and takes usp. The emulator models it so: the
-  main loop runs on usp's top (+2048, 12 B used), and the wake interrupt with the job runs on +6144, the value the rti
-  left in ssp; ssp's own 2 KiB (+2048..+4095) is never touched. Under any reading of the entry, the job has at least
-  4 KiB below its top before another stack. Its worst depth, parts 2-3 on CPU1 (the mots configuration; emulator
-  high-water of the zeroed pool, bench scenarios 1, 2, 6, 7, 12, 14 / static, `tools/build.py cpu1_stack`):
-
-  | Engine | Emulator | Static |
-  |---|---|---|
-  | ACID (Soft drive) | 1,936 B | 2,452 B |
-  | PHYS (SYMP) | 1,556 B | 1,556 B |
-  | ANALOG | 680 B | 668 B |
-  | FM6 | 648 B | 856 B |
-  | PHASE | 456 B | 456 B |
-
-  ACID goes past "its own" 2 KiB into ssp's, which nothing uses: no overflow. Every DUAL build checks the static worst
-  path against 3,840 B (4 KiB less 256 for the main loop's frames and the interrupt's entry) and fails over it.
-- **Coherence / ordering [HW?]:** assumed coherent internal SRAM (as the SDK's flags); `csync` around
-  the flags. If wrong: stale part samples (audible on parts 2-3).
-- **Flash:** CPU1 off XIP during flash work by construction, checked at every `irq_save`. The stock
-  firmware pauses CPU1 by hardware instead; if hardware shows XIP trouble anyway (prefetch?), add that.
-- **Bus / cache contention:** both cores fetch code through one cache and the XIP flash: the gain may
-  shrink a lot. Moving the audio hot path to RAM (`.ram_hot`, SPEED-IDEAS 2.1) helps both.
-- **Power:** with `FELUCCA_DUAL_IDLE` (default with `FELUCCA_DUAL=2`) CPU1 sleeps in `idle` between
-  jobs: CPU0 posts a job (`req`), then sets soft interrupt 124 (SOFT4, the SDK's CPU1 IPI) in the
-  shared latch; CPU1 has only that source enabled, in its own configuration bank (+0x200, as the
-  emulator models the stock firmware), and its handler (`isr_c1_wake` -> `fm1_cpu1_wake`, RAM) clears
-  the latch first, then runs every posted job and publishes `done`, so a job posted after its last look
-  wakes it again (no lost wake). Emulator (integration, B1 at 312 MHz): CPU1 halted in ~84 % of its
-  slots, audio bit-identical with the single-core build, fallbacks (`DUAL_FAILTEST` 2, 3) as before.
-  Unverified on a device: the per-core bank address, the shared latch, `idle` waking on CPU1.
-  `FELUCCA_DUAL_IDLE=0` keeps the RAM spin (`fm1_dual_idle_ram`).
-  The sleep loop is `idle` + 4 `csync`, not `idle; goto idle`: a woken core runs 4 issue slots before
-  the interrupt enters (FM-1_996, measured on CPU0; the emulator models it since `feat/upstream-merge`),
-  and the bare loop re-entered `idle` inside that window, so CPU1 never took a job: the first audio
-  half waited `DUAL_JOIN_US` (late 1, 6.5 ms at boot) and CPU1 went down as TIMEOUT for good.
-  `tools/build.py` refuses an `idle` reached again within 4 instructions; `tests/emu_boot_check.py`
-  boots a package at 48 / 96 / 192 MHz and checks no late half and CPU1 taking its jobs.
-- **Interrupt nesting:** TIMER5 nests in the audio interrupt (as before); it only fills queues, so CPU1
-  never sees a half-changed track.
-- **Sound vs the default build:** bit-identical in the emulator for the three scenarios; FORMANT's
-  random sequence differs (per-part generator), SUPER's copy cap can differ in a rare block, and so can PHYS's
-  reset seed on a MODEL change under a sounding note. `tests/emu_dual_check.py` compares a build's takes with
-  references (the same .config with DUAL=0, DUAL_PARTS=0, DUAL_PARTS=3) sample for sample, an LFO S&H take
-  included. Two things in the emulator move a take without the render being at fault: the autosave (its flash
-  writes hold the key scan off ~55 ms at 96 MHz: a key pressed then plays late; the takes end before it can start,
-  20 s after boot) and the CPU guard (over its ceiling it sheds voices on the measured load, which CPU1 lowers:
-  compare at a clock where neither build is over it, 96 MHz for the mots .config).
-- **Maintenance:** any new cross-part state in a render path (a shared static scratch, a global RNG)
-  breaks the split silently: keep render state per part or per core (`DX7_CORE()` pattern), and re-run
-  the single / dual0 / dual WAV comparison (`bench.c` signatures locate the first differing part/block).
-
-- **Boot order (build check):** CPU1 may start only after the UBOOT hold and the boot guard, never on the recovery path. A DUAL build keeps `boot_hold`, `bootguard_begin`, `fm1_main`, `recovery_main`, `dual_boot` and `fm1_dual_start` out of line (`BOOT_ORDER`, noinline, +192 B), and `tools/build.py boot_order()` reads their call graph: the start only through `dual_boot` <- `fm1_main` <- `fm1_cstart`, which calls `boot_hold` and `bootguard_begin` first, and `recovery_main` cannot reach it.
-
-## Parked by default (2026-10-15; superseded the same evening by the BLUETOOTH rule, then by stock's order, 3.6)
-
-Until the hardware tests settle the second core (the FM-1's power-on crash while CPU1 rendered jobs), a DUAL build never starts CPU1:
-`dual.why` is `DUAL_PARKED`, SYSTEM > INFO reads "2ND CORE OFF PARKED", and no render job ever runs on CPU1. A hardware test build that
-must run CPU1 sets `OPTIMIST_DUAL_PARK=0` in the environment (tools/build.py, like `OPTIMIST_DUAL_IDLE`); the emulator checks that
-need CPU1 up (tests/emu_dual_check.py, tests/emu_boot_check.py on a DUAL=2 build) are built that way too.
+Code map: `firmware/hal/fm1_dual.h` (registers, mailbox, RAM loop, entry), `fm1_dual_guard.h` (check, canary),
+`firmware/src/system/dual.c` (CPU1 main, boot, fork/join, split, timeouts), `dual_mode.h` (setting, reasons),
+`dual_load.h` (load), `supply.c`, `fx/fx.c` (`mix_part`, `rev_job`), `system/bench.c`, `tools/build.py` (flags,
+`cpu1_stack`, `boot_order`).

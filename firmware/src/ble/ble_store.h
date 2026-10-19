@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The one remembered device (docs/BLE-DEVICES-DESIGN.md §3.1, with the user's ruling of 2026-10-09: LAST is the device
+/* The one remembered device (docs/BLE-DEVICES-DESIGN.md §3, with the user's ruling of 2026-10-09: LAST is the device
  * the FM-1 itself connected to, as a central, and reconnects to; a Mac or phone that connects to the FM-1 is accepted
  * as always and never becomes LAST). 70 octets at the end of the settings record (storage/project.c persist_t.ble_dev,
  * the CRC-checked settings object: never the SDK's VM area 0xE7000-0xE9FFF), plus the DEVICES choice NONE / LAST.

@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* tests/ui_optimist_test.c, the page organisation (the user's decisions, 2026-10-12; docs/UI-OPTIMIST-DESIGN.md
- * section 17): D1 GLO and SELECT walk one cycle, GLOBAL then SYSTEM, SHIFT held on the mixer does nothing; D2 SYSTEM's first row CLOCK +
+ * 2.7, 3.3, 4.7, 11): D1 GLO and SELECT walk one cycle, GLOBAL then SYSTEM, SHIFT held on the mixer does nothing; D2 SYSTEM's first row CLOCK +
  * LOAD; D6 SAVE on the mixer is PROJECT; D7 EDIT's first row is SOUND; D8 the SCENES layer says "Select: song"; P25 a
  * dark family button does nothing; P28 CALIBRATE > PANEL asks first. Included after ui_optimist_glo.h (glo_find). */
 static void pages_nav_tests(void)

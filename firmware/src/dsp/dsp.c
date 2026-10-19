@@ -131,7 +131,7 @@ AINL int32_t softclip(int32_t x)
 /* linear up to k, above it a tanh knee with the same slope at the joint (softclip of twice the excess, halved):
  * only peaks saturate. Was the same five lines in fx.c (knee, k 16384), ANALOG 2 (16000; eng_analog2.c a2_out_c,
  * whose asm twin asm_a2_out keeps its own copy), SUPER, TRIO (input and output). (|x| - k) * 2 must fit an int32:
- * |x| < 2^30. Kept as copies (measured, docs/DSP-SHARED.md): FORMANT (24000; the call costs formant_render 4 B of
+ * |x| < 2^30. Kept as copies (measured, docs/DSP-SHARED.md "Left separate, and why"): FORMANT (24000; the call costs formant_render 4 B of
  * RAM code, register allocation), the original ANALOG of ANALOG2=0 (the host compiles the call 10 % slower), PHYS
  * (it clamps the excess first) */
 AINL int32_t soft_knee(int32_t x, int32_t k)

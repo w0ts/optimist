@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* tests/ui_optimist_test.c, the drum lane: a change previews its sound only when stopped, the pick's key is silent
- * while playing (docs/UI-OPTIMIST-DESIGN.md section 11.6). Included after the helpers. */
+ * while playing (docs/UI-OPTIMIST-DESIGN.md 5 The drum track). Included after the helpers. */
 
 static void lane_transport(int play)                    /* start / stop, settled */
 {

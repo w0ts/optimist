@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* EXPERIMENTAL Bluetooth Classic (BR/EDR) inquiry probe (builder item BT_INQ_PROBE, FELUCCA_BT_INQ_PROBE): stage 1 of
- * our own Classic stack, docs/BT-CLASSIC-HW-FACTS.md §14. Written only from that fact sheet (cited as "BR §n") and
+ * our own Classic stack, docs/BT-CLASSIC.md §14. Written only from that fact sheet (cited as "BR §n") and
  * the Core specification; no vendor code. Included by io/console.c (it needs the CDC console, USB_MODE 1) in a build
  * without BLE (one engine on the radio at a time). The registers are hal/fm1_bredr.h's.
  *
@@ -540,7 +540,7 @@ static int bti_prepare(uint32_t mode)
     if (!bti_radio_up())
         return 0;
     bti_bredr_up();
-    if (bti.o_ble)                                 /* the LE block's enable (BR §14.4: RX much better with it; stock V15
+    if (bti.o_ble)                                 /* the LE block's enable (BR §14: RX much better with it; stock V15
                                                     * writes it after the BR/EDR init). Once on, on until the next boot:
                                                     * `noble` on the first run after a boot measures without it */
         bti_le_up();

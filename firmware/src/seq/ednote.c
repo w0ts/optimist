@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* Notes played from the web editor (editor protocol v14, command 103 NOTE; web/EDITOR_PROTOCOL.md "v14: playing notes"). seq.c includes this
+/* Notes played from the web editor (editor protocol v14, command 103 NOTE; web/EDITOR_PROTOCOL.md "Notes from the editor"). seq.c includes this
  * after its note input (input_on / input_off, midi_map) and before midi_control.c.
  *
  * The editor's requests run in the main loop (io/editor/ed_note.c); the sound is made in the audio interrupt (events_block). Between them a ring of

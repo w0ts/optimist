@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Which engine a preset is (the user, 2026-10-08: "when I select a preset, I don't see which engine preset it is";
- * section 11.4). Wherever a sound is browsed or named the engine goes with it, in the engine's colour:
+ * 4.3 SOUND). Wherever a sound is browsed or named the engine goes with it, in the engine's colour:
  *   the SOUND row     its picture over the rows (op_draw.c draw_list): the preset before, the one playing and the
  *                     one after, each with its engine's name and colour chip (a user preset: its record's engine)
  *   the mixer         PRESETS on the SOUND row: a toast "Super saw (ANALOG)" framed in the engine's colour; the

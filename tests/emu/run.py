@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
-"""The emulator smoke checks (make emu-check; BUILDING.md, Tests). Opt-in: they need Rust (cargo) and the emulator
+"""The emulator smoke checks (make emu-check; BUILDING.md, "The emulator checks"). Opt-in: they need Rust (cargo) and the emulator
 (tests/emu/session.py says which); not part of make test or make gate.
 
   python3 tests/emu/run.py [FIRMWARE.fwsc] [--only CHECK[,CHECK..]] [--mhz N] [--out DIR] [--jobs N] [--list]
@@ -14,7 +14,7 @@ not represent the chip's dual-core timing (2026-10-16: a DUAL build with stock's
 in the boot's burst of flash writes, none at 192 MHz, none on the FM-1), so the gate runs a DUAL profile single core:
 its build with OPTIMIST_DUAL_PARK=1 (CPU1 never started). The second core itself is verified by the host tests (the
 supply sequence, the order, the read-back, the fallback), the BLE emulator tests (tests/dual_stockorder_emu_test.py,
-tests/dual_ble_rule_emu_test.py), tests/emu_boot_check.py and the hardware matrix / soak (docs/DUAL-CORE.md 3.6).
+tests/dual_ble_rule_emu_test.py), tests/emu_boot_check.py and the hardware matrix / soak (docs/DUAL-CORE.md sections 3 and 5).
 EMU_DUAL=1 runs the checks on it anyway (for a look, not a gate).
 
 --jobs N: the checks run N at a time, each in a process of its own (its emulator, its OUT/<check>/ with its flash

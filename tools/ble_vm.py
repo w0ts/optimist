@@ -21,7 +21,7 @@ only, a writer. Written from docs/BLE-HW-FACTS.md §14 (branch feat/ble-facts, d
   187      64-byte payload + CRC-16/XMODEM of it, little-endian, + 00 00 (§14.5)
 
 The firmware's reader is firmware/src/ble/ble_vm.c (the same rules and candidates, tested in tests/ble_vm_test.c). The
-BLE code never writes the VM (but see docs/BLE-STACK.md §12: UP_FM6's store overlaps 0x0E8000); this writer exists to
+BLE code never writes the VM (docs/BLE-HW-FACTS.md §15, docs/MEMORY-MAP.md 1.2: what else writes near it); this writer exists to
 build test images and the capture's perturbed second boot."""
 import sys
 
@@ -152,7 +152,7 @@ def rewrite(image, area, changes):
     return bytes(out)
 
 
-# ---- decoding what the FM-1's console printed (BLE-STACK.md §12.7): 'blevmdump', or 'flr' reads, or a backup
+# ---- decoding what the FM-1's console printed (docs/BLE-STACK.md §11): 'blevmdump', or 'flr' reads, or a backup
 
 def parse_dump(text, seen=None):
     """console lines "0E8000: 55 AA AA 55 ..." (flr / blevmdump: a 6-digit hex offset, a colon, hex bytes) -> a
@@ -181,7 +181,7 @@ def parse_dump(text, seen=None):
 
 def report(image, base, seen=None):
     """a decoded VM as text: every candidate's first word, the live area, every valid record, the RF set
-    (BLE-HW-FACTS §18.1 step 4); seen: the offsets a console log gave (parse_dump), else the image is all read"""
+    (docs/BLE-HW-FACTS.md §14.1, §15); seen: the offsets a console log gave (parse_dump), else the image is all read"""
     vm = read(image, base)
     out = []
     for a, n in CANDIDATES:

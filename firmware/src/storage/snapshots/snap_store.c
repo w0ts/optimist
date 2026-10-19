@@ -22,7 +22,7 @@
 #define SN_USER 8u                                    /* user slots in the format (a build shows FELUCCA_SNAPSHOTS) */
 #define SN_BAK SN_USER                                /* BEFORE LOAD */
 #define SN_NSLOT (SN_USER + 1u)
-#define SN_PARTS 8u                                   /* the longest stream: 8 sectors (docs/SNAPSHOTS.md: <= 29.3 KB) */
+#define SN_PARTS 8u                                   /* the longest stream: 8 sectors (docs/SNAPSHOTS.md "Flash area": <= 29.3 KB) */
 #define SN_MAX (SN_PARTS * SN_PAY)
 _Static_assert(SN_SECTORS <= 16u && SN_BASE >= 0xC8000u, "the snapshot area: inside USR3");
 #include "../../../hal/fm1_flash_map.h"

@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Editor protocol v13: the drum lanes' place in the mix, their LFOs and the sequencer mutes (included by editor.c before
- * ed_fxp.c; web/EDITOR_PROTOCOL.md "v13: drum lanes' mix"). INFO tag 0x58 = this command is here.
+ * ed_fxp.c; web/EDITOR_PROTOCOL.md "Drum lanes' mix"). INFO tag 0x58 = this command is here.
  * What the device UI edits per lane that no earlier command reached: the lane's PAN, MUTE and SOLO (drums/drum_mix.c), its
  * own LFO (RATE WAVE PHS FADE and two DEST / AMT slots: drums/lane_play.c), the sequencer mutes of the lanes, the ACCENT
  * lane and the tracks (seq/seq_mute.c). Described like FXP's: the device's own descriptors.

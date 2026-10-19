@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Editor protocol v13: the song chain (seq/arranger.h; the Optimist UI's SONG screen, ui/optimist/op_song.c, MODE and PART rows;
- * included by editor.c; web/EDITOR_PROTOCOL.md "v13: the song chain"; builds with the arranger: FELUCCA_ARRANGER). The scenes and the
+ * included by editor.c; web/EDITOR_PROTOCOL.md "The song chain"; builds with the arranger: FELUCCA_ARRANGER). The scenes and the
  * patterns are SCENE / PAT_* (81, 79..84); this is the order they play in: PART 1..64 (a scene, a number of bars), LOOP or SONG mode.
  * The rules are the device's: edited stopped only ("STOP FIRST"), INSERT copies the part after it, DELETE leaves one, SAVE puts the chain
  * into flash (arrangement_save; the editor asks for it, the device does it when its YES says so).

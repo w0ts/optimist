@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Editor protocol: a track's automation (seq/auto.h: locks, motion, nudges, fills, chance; included by editor.c with
- * FELUCCA_AUTO; web/EDITOR_PROTOCOL.md "The automation store"). v11 (phase 3; v10 is main's FX slots, 86 FX, 87 FX_PUSH): one pair, AUTO_GET / AUTO_SET, reads and
+ * FELUCCA_AUTO; web/EDITOR_PROTOCOL.md "The automation store"). v11: one pair, AUTO_GET / AUTO_SET, reads and
  * writes the list as it is. Writes take the IRQ off. (The older step extras' commands 72..77, SLOOP 2.4's 37..42, are gone
  * since 2026-10-19: the web editor reads and writes the list.)
  *   92 AUTO_GET  track [, first]          -> track, n (the list's events, 2 x 7 bit), the PLAY bit, first, count, then
@@ -14,7 +14,7 @@
  *                op 3 PLAY on (0 / 1: the track's hold events play) */
 #include "ed_reply.h"         /* (ed_b2..ed_b4, ed_b32) */
 #include "ed_out.h"            /* (ED_PAYLOAD_N) */
-enum { ED_AUTO_GET = 92, ED_AUTO_SET = 93 };   /* (85 is kept for a push of the patterns: EDITOR_PROTOCOL.md) */
+enum { ED_AUTO_GET = 92, ED_AUTO_SET = 93 };   /* (85: unused) */
 #define ED_AUTO_PAGE 64u
 _Static_assert(9u + 5u * ED_AUTO_PAGE <= ED_PAYLOAD_N, "AUTO_GET: a page of events fits one reply");
 

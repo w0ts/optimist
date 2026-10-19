@@ -63,7 +63,7 @@ static int vm_data(ble_vm_read_fn rd, void *ctx, uint32_t at, uint32_t len, uint
 }
 
 /* candidate i holds a VM: the magic, then a first record (length > 0) inside the area whose check holds. The magic
- * alone is not enough: other data may sit at a candidate (Optimist keeps UP_FM6's voices at 0x093000 on an FM-1) */
+ * alone is not enough: other data may sit at a candidate (UP_FM6's voices at 0x095000 on an FM-1) */
 static int vm_is_vm(ble_vm_read_fn rd, void *ctx, uint32_t i)
 {
     static const uint8_t magic[4] = {0x55, 0xAA, 0xAA, 0x55};

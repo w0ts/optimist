@@ -12,7 +12,7 @@
  *     UIDs 0..9 (ANALOG .. GRAIN, FM6) are theirs, our PHYS (11) is their 10 with its EDIT values (the same eight);
  *     SLICE, ACID, CZ (10, 12, 13) -> their fallback (registry.h: SAMPLE, ANALOG, PHASE) with that engine's EDIT
  *     defaults (LOST: the engine). SLOOP 2.4 has no 10: it plays a PHYS part as ANALOG (its proj_apply: engine %
- *     NENGINES), PHYS's EDIT values on ANALOG's knobs (web/EDITOR_PROTOCOL.md: the export is for 2.5 and later);
+ *     NENGINES), PHYS's EDIT values on ANALOG's knobs (web/EDITOR_PROTOCOL.md "SLOOP files");
  *   - FM6 parts (sl24_fm6.c): a voice that is one of 2.4's F1..F8 exactly (an import of one with its macros at 0)
  *     -> that PTCH; else, when the caller gives 2.4's bank (the editor's "FM6 voices into 2.4's bank": 2.4's bank
  *     kept in flash, or an empty one), the voice into it (the slot holding it, else the first free one: B1..B27;

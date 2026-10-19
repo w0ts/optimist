@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* tests/ui_optimist_test.c, under the 2x2 cards: the picture when the screen has one, else the row list (the user,
  * 2026-10-12: "Keep the graph", "we can keep the list below when there is nothing to display besides the 4 cards",
- * "arp is the same as lfo/env. no list"; docs/UI-OPTIMIST-DESIGN.md sections 3 and 11.6). A screen with a picture
+ * "arp is the same as lfo/env. no list"; docs/UI-OPTIMIST-DESIGN.md 3.1 Cards and lists). A screen with a picture
  * (SOUND's graphs: ENV, LFO, the FX needles, ARP, SCL; TEMPO, SCOPE) shows it on the whole panel with no rows; a screen
  * with none (EDIT, VOICE, PROJECT, SYSTEM, SONG, the master FX) shows its rows under the big values, the cursor's bar
  * among them; SONG's PATTERNS row keeps its rows under the session grid; the header names the row and its n/N on every

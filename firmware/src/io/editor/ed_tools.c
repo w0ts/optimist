@@ -1,11 +1,11 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* Editor protocol v13: the Optimist UI's STEP TOOLS and EUCLID pages (ui/optimist/op_tools.c; included by editor.c; web/EDITOR_PROTOCOL.md
- * "v13: sequence tools"; builds with the Optimist UI and FELUCCA_SEQTOOLS). REVERSE, RANDOM, COOK and LENGTH (x2, 1/2) act on the selected
+/* Editor protocol v13: STEP's TOOLS, GEN and GEN OUT pages (ui/optimist/op_tools.c; included by editor.c; web/EDITOR_PROTOCOL.md
+ * "Sequence tools"; builds with ED_SEQ and FELUCCA_SEQTOOLS). REVERSE, RANDOM, COOK and LENGTH (x2, 1/2) act on the selected
  * track's pattern (a drum track: the whole kit, or one lane), each one undo level, through the device's own function (tl_run: the UI's YES
  * calls the same one), so the steps and their events move exactly as on the device. EUCLID is the note generator (HITS spread over STEPS,
  * turned by ROT, repeated through LEN): ON writes it over the pattern, OFF keeps it or gives the pattern back.
  *   98 TOOLS  op [args] -> op, rc, then the state
- *       state: track, lane (the one EUCLID writes: 0..15), len, hits, steps, rot, on (the generator is on here), then op 1's message: a, b
+ *       state: track, lane (the one EUCLID writes: 0..9), len, hits, steps, rot, on (the generator is on here), then op 1's message: a, b
  *       op 0  -                                 get the state
  *       op 1  verb (0 REVERSE 1 RANDOM 2 COOK 3 LENGTH 4 QUANTIZE), lane (127: the whole kit / a synth track), half (LENGTH: 1 = 1/2,
  *             0 = x2; QUANTIZE: the grid, 1 2 4 a step)
@@ -19,7 +19,7 @@
  *                                                         PULSE EVERY OFFSET RATCHET), fitted to its range
  *       op 8  mode (0 REPLACE 1 ADD 2 MASK)
  *       op 9  on (0 / 1), lane (127: keep the lane)      ON / OFF, the pattern untouched (OFF with what plays written: op 4)
- * rc 0 done. A bad op: no reply; the selected track is the device's (TRACK, 27). INFO tag 0x5B: version 1. */
+ * rc 0 done. A bad op: no reply; the selected track is the device's (TRACK, 27). INFO tag 0x5B: version 2. */
 #include "ed_reply.h"         /* (ed_b2..ed_b4, ed_b32) */
 enum { ED_TOOLS = 98 };
 #if FELUCCA_SEQTOOLS && FELUCCA_ED_TOOLS

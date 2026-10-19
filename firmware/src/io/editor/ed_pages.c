@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Editor protocol: the device's pages, so the editor lays out a track's sound as the device does, whatever the engine
- * and the build (included by editor.c; web/EDITOR_PROTOCOL.md "Pages").
+ * and the build (included by editor.c; web/EDITOR_PROTOCOL.md "Drum sources, sounds and pages").
  *   52 PAGES  start  -> start, total, n, then n x (family, scope, shown, id0..id3, title): params.c PAGES in order;
  *                       family FAM_*, scope SC_* (0 a track's P_*, 1 a global G_*, 2 the engine's P_E*; others are the
  *                       device's own screens), shown 1 when the page is there for the selected track (page_shown: an

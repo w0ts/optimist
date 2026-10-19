@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* Editor protocol: SLOOP 2.7's files (included by editor.c; web/EDITOR_PROTOCOL.md "SLOOP export" and "SLOOP import").
+/* Editor protocol: SLOOP 2.7's files (included by editor.c; web/EDITOR_PROTOCOL.md "SLOOP files").
  * FELUCCA_SL24_EXPORT: the editor reads the working project and writes it into a SLOOP 2.7 song file ("sloop-song",
  * its object 0), which 2.7's editor loads (Song & sections > Load a song file): the project becomes its loop, its
  * settings untouched.

@@ -594,7 +594,7 @@ static void test_usb(void)
     ut_defaults();
 }
 #endif
-/* 10. the reactive path (docs/CPU-GUARD.md "Spikes"): late halves among light ones, the interrupt held off (the half's own time
+/* 10. the reactive path (docs/CPU-GUARD.md "What it does", Reactive path): late halves among light ones, the interrupt held off (the half's own time
  * normal, the DMA moved on: cg.late) as the user's log shows them (1,567 late halves at a 66 % mean). Before, the guard never
  * moved for them; now three within ~30 halves step it, at the top a voice is cut and the voices capped, the cap comes back a
  * voice every 2 s with none late, and a reaction's level comes off only under the load the drop-outs came at */

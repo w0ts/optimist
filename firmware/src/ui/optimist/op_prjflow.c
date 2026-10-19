@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* PROJECT (docs/UI-OPTIMIST-DESIGN.md section 4.6, 2026-10-14 flow). A storage row (PROJECT, SNAPSHOT, USER) is four cards:
+/* PROJECT (docs/UI-OPTIMIST-DESIGN.md 4.6 PROJECT). A storage row (PROJECT, SNAPSHOT, USER) is four cards:
  * BANK (only a store of more than 16 slots), OPERATION (LOAD, the default; SAVE; DELETE), ITEM (the slot, a knob that walks
  * all of them, the bank following) and, on PROJECT, NEW (a blank project: it touches no slot). The 16 white keys are the
  * slots of the current bank: key n selects item n AND runs the operation on it, through the confirm; YES runs it on the

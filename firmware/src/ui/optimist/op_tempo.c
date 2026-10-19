@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* TEMPO, a page held open by PLAY (docs/UI-OPTIMIST-DESIGN.md section 4.8, phase 4): PLAY held past TEMPO_HOLD_MS
+/* TEMPO, a page held open by PLAY (docs/UI-OPTIMIST-DESIGN.md 4.8 TEMPO): PLAY held past TEMPO_HOLD_MS
  * shows it, let go the screen before comes back; a tap of PLAY stays start / stop (on its release: a press cannot
  * know yet that it is a tap). A key while PLAY is down opens it at once.
  *   rows       TEMPO: BPM · NUDGE · SWING · SYNC     REC: MODE · LENGTH · START · CLICK (the REC MODES dials)

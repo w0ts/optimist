@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The automation store's int8 check (docs/UI-OPTIMIST-DESIGN.md 6.2): an event's value is a signed byte, so every
+/* The automation store's int8 check (docs/UI-OPTIMIST-DESIGN.md 7 The automation store): an event's value is a signed byte, so every
  * parameter an event may set (motion's set, the locks' set) must have its range inside -128..127, in TP[] and in
  * every engine's edit descriptors (and the mode-dependent ones, desc()). Prints each id whose range does not fit,
  * with whether it is recordable (motion) or lockable; exit status: the number of such ids that are recordable or

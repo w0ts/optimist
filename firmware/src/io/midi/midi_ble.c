@@ -10,7 +10,7 @@
  *        millisecond in ble_out_q while a central listens; the stack packs them into notifications at the next
  *        connection event, with real BLE-MIDI timestamps.
  *   ble_midi_route  bit 0 in, bit 1 out; both by default, as stock. Nothing is bridged between USB / TRS and BLE.
- *   ble_on          HOME > SYSTEM > BLUETOOTH (ui_menu.c ble_midi_set): OFF by default, kept in the settings word (bit
+ *   ble_on          SYSTEM > Bluetooth (ui/optimist/op_project.c; ble_midi_set): OFF by default, kept in the settings word (bit
  *                   SETTINGS_BLE_ON_BIT = 24, 1 = ON: settings_word.c; a fresh unit, an older word or SLOOP's reads OFF). OFF from boot: the radio
  *                   is never started (no rf_init, no BLE / RF register written), so a radio start-up that hangs cannot
  *                   stop the FM-1 booting; it starts at boot only when ON was saved, else when the menu switches it ON.
@@ -26,7 +26,7 @@ static uint8_t ble_midi_route = BLE_ROUTE_IN | BLE_ROUTE_OUT;
 static uint32_t ble_in_q[BMQ], ble_in_t[BMQ], ble_out_q[BMQ], ble_out_ms[BMQ];
 static volatile uint32_t bmi_w, bmi_r, bmo_w, bmo_r;
 static volatile uint8_t ble_out_on;            /* a central has the MIDI notifications on */
-static uint8_t ble_on;                         /* HOME > BLUETOOTH: the radio is on (0, the default: never advertises) */
+static uint8_t ble_on;                         /* SYSTEM > Bluetooth: the radio is on (0, the default: never advertises) */
 static uint8_t ble_held[16][16];               /* the notes a central has on (bit per note, per channel), TIMER5's */
 static volatile uint8_t ble_release;           /* the link is gone / off: end those notes (ble_midi_poll) */
 static uint8_t ble_was_conn;
@@ -155,7 +155,7 @@ static uint8_t ble_addr_kept[8];
 static uint8_t settings_later;                  /* (ui/panel.c: saved with the settings once quiet, project.c) */
 static uint8_t ble_up;                          /* the radio and the stack started (once per boot: ble_radio_start) */
 static void ble_midi_set(uint8_t on);
-#include "ble_devices.c"                        /* HOME > BLUETOOTH > DEVICES: NONE / LAST / nearby, the device store */
+#include "ble_devices.c"                        /* SYSTEM > Devices: NONE / LAST / nearby, the device store */
 
 static uint8_t ble_midi_addr(uint8_t a[6])
 {
@@ -239,7 +239,7 @@ static void ble_bond_restore(void) {}
 #endif
 
 /* The radio's stored calibration (ble/ble_vm.c; docs/BLE-HW-FACTS.md §14, §15.4): stock V15's VM read in place at
- * every boot (never written by BLE; where it is and what else writes near it: docs/BLE-STACK.md §12.2, §12.8), the four RF records kept in a copy with the settings (project.c persist_t.ble_rf),
+ * every boot (never written by BLE; where it is and what else writes near it: docs/BLE-STACK.md §8.2, docs/BLE-HW-FACTS.md §15), the four RF records kept in a copy with the settings (project.c persist_t.ble_rf),
  * and the precedence VM -> copy -> none. With none the radio is never started: BLUETOOTH shows NO RF CAL, the
  * console's 'bletrim' says why, and nothing is transmitted uncalibrated. */
 static uint8_t ble_rf_kept[BLE_RF_COPY_SIZE];   /* the copy (persist_t.ble_rf, project.c) */
@@ -360,7 +360,7 @@ static void ble_midi_init(void)                 /* at boot, after the audio and 
     BLE_MS(ble_ms_running);
 }
 
-/* HOME > SYSTEM > BLUETOOTH (ui_menu.c), main loop. ON: advertise again. OFF: stop advertising, or ask a connected
+/* SYSTEM > Bluetooth (op_project.c), main loop. ON: advertise again. OFF: stop advertising, or ask a connected
  * central to go (LL_TERMINATE_IND; it is gone once that is acknowledged and nothing advertises after it), and end
  * what it left sounding. With no link the baseband's interrupts are off (ble_hw_adv_stop, fm1_ble_link_stop). */
 static void ble_midi_set(uint8_t on)

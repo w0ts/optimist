@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments (Felucca 1.2 .. 1.5.6 SEQ TOOLS,
  * hugelton/Felucca 9f6a885, firmware/src/ui_tools.c: REVERSE, RANDOM, COOK, EUCLID, DOUBLE, HALF) */
-/* STEP's TOOLS, GEN and GEN OUT pages (FELUCCA_SEQTOOLS, backports15.h; docs/UI-OPTIMIST-DESIGN.md section 22). Included by
+/* STEP's TOOLS, GEN and GEN OUT pages (FELUCCA_SEQTOOLS, backports15.h; docs/UI-OPTIMIST-DESIGN.md 8 Sequencer features). Included by
  * optimist.c before op_step.c, which shows them as STEP's last three pages (SELECT, SEQ tapped again).
  *
  *   TOOLS   REVERSE · RANDOM · COOK · LENGTH · QUANTIZE. A turn arms the card (the hot one; LENGTH's turn says x2 or

@@ -1,6 +1,6 @@
 # Shortcuts: every gesture of the Optimist UI
 
-Every button, knob and key gesture of the Optimist UI, grouped by what you want to do, then the ones that belong to one page. The guides explain them: [interface](interface.md) for the controls and pages, [sequencer](sequencer.md) for steps, p-locks and patterns. A gesture whose feature is not in your build does nothing (the builder item is named in brackets).
+Every button, knob and key gesture, grouped by what you want to do, then the ones that belong to one page. [The interface](interface.md) explains the controls and pages, [the sequencer](sequencer.md) steps, p-locks and patterns. A gesture whose feature is not in your build does nothing (the builder item is in brackets).
 
 ## Reading this page
 
@@ -10,10 +10,10 @@ Every button, knob and key gesture of the Optimist UI, grouped by what you want 
 | **SHIFT2** | OCT+ held. It **picks, turns on, adds**: a track or lane selected, a layer locked open, a hard hit, launch now, the next instrument |
 | **tap** | press and let go before the hold time (350 ms; SYSTEM > CALIBRATE > HOLD: 250, 350 or 500 ms) with nothing else used meanwhile. SAVE, HOME, the page buttons and the OCT buttons act **when let go** |
 | **held** | kept down past the hold time: a layer's key map shows (it works from the press) |
-| **A + B** | A held, then B pressed (or turned). The order matters only for SAVE and HOME together (undo, redo) |
-| **YES / NO** | SAVE / HOME. A question ("Store scene B?") waits 3 s: YES does it, NO cancels it, anything else cancels it too |
+| **A + B** | A held, then B pressed or turned. The order matters only for SAVE and HOME together (undo, redo) |
+| **YES / NO** | SAVE / HOME. A question ("Store scene B?") waits 3 s: YES does it, NO or anything else cancels it |
 | **the track keys** | the first four white keys: T1, T2, T3, DR |
-| **the lane keys** | the black keys F#3 .. D#5: drum lanes 1-10; F#5, the last upper key: the ACCENT lane |
+| **the lane keys** | the black keys F#3 to D#5: drum lanes 1 to 10. F#5, the last upper key: the ACCENT lane |
 | **a lane picked** | a drum lane selected (its lane key, SHIFT2 + its lane key, ALGORITHM past DR, a lane row on the mixer) |
 
 ## Moving around
@@ -32,6 +32,7 @@ Every button, knob and key gesture of the Optimist UI, grouped by what you want 
 | OCT- and OCT+ tapped together | a synth track's STEP | **FOLD** the piano roll (see Steps) |
 | ENV, LFO, EDIT, FX, SCL, ARP tapped | a track | SOUND, that family's rows; again: its next row |
 | FX tapped | the mixer's MASTER row | the master FX page; again: its next page |
+| FX tapped | the mixer's USB IN row | its insert slots |
 | SEQ tapped | anywhere | STEP; on STEP: its next page (PATTERN, TOOLS, GEN, GEN OUT) |
 | GLO tapped | anywhere | GLOBAL; on GLOBAL: SYSTEM; on SYSTEM: GLOBAL |
 | HOME tapped | a page | back to the mixer, on its row |
@@ -45,7 +46,8 @@ Every button, knob and key gesture of the Optimist UI, grouped by what you want 
 |---|---|---|
 | KNOB 1-4 | a page | card 1-4; the turned card is the cursor and the help line names it |
 | SHIFT + a knob | a page | the value back to its default (the mixer's volume and return cards: their mute, see Mixing) |
-| LFO + a knob | PATTERN's LEN | by one step, not in powers of two |
+| LFO + a knob | any page | the finer path: a value by one, PATTERN's LEN by one step, not in powers of two |
+| REC + a knob | any page, no step held | that value's motion and p-locks cleared on every step of the track (see Clearing) |
 | SAVE | a card that is an action, an on / off or a GO | does it (an action asks first) |
 | PRESETS | a synth track | its preset (asks "Discard T1 edits?" over edits) |
 | PRESETS | DR, a lane on the kit | the kit |
@@ -63,7 +65,7 @@ Every button, knob and key gesture of the Optimist UI, grouped by what you want 
 | OCT- / OCT+ tapped | a synth track | the octave, -3 to +3 |
 | a lane key | the drum track | off STEP it plays and picks the lane; on STEP it picks it (heard when stopped, silent while playing) |
 | a white key | the drum track, any page | a step of the selected lane (the 16 steps of the window), as on STEP |
-| the keys | MASTER, SCOPE, GLOBAL, SYSTEM, PROJECT, SONG | silent, and the shifts do nothing with them (MASTER keeps the track's keys when you came with both OCT) |
+| the keys | MASTER, SCOPE, GLOBAL, SYSTEM, PROJECT, SONG, the USB IN row | silent, and the shifts do nothing with them (MASTER keeps the track's keys when you came with both OCT) |
 
 ## Transport, tempo and recording
 
@@ -82,7 +84,7 @@ Every button, knob and key gesture of the Optimist UI, grouped by what you want 
 
 ## Steps (STEP)
 
-STEP is where the white keys stay steps under the shifts: SHIFT and SHIFT2 with a step key never mute or select there. A lane key alone selects its lane on STEP (it plays it elsewhere), so SHIFT2 + it is inverted too: it plays the lane without selecting it. SHIFT + a lane key mutes it, as everywhere. To change the track on STEP, use ALGORITHM.
+On STEP the white keys stay steps under the shifts: SHIFT and SHIFT2 with a step key never mute or select there. A lane key alone selects its lane on STEP (it plays it elsewhere), so SHIFT2 + it is inverted too: it plays the lane without selecting it. SHIFT + a lane key mutes it, as everywhere. To change the track on STEP, use ALGORITHM.
 
 | Gesture | Where | Does |
 |---|---|---|
@@ -97,11 +99,11 @@ STEP is where the white keys stay steps under the shifts: SHIFT and SHIFT2 with 
 | KNOB 2, a note picked | STEP | the note a step earlier / later (its locks and motion with it); SHIFT held: its nudge |
 | KNOB 3, a note picked | STEP | its pitch; drums: its lane (that lane selected) |
 | KNOB 4, a note picked | STEP | its length; drums: its level |
-| SAVE, a note picked | STEP, the cards down | the note's cards, as if its step were held (its extras, its p-lock pages); HOME: they go |
+| SAVE, a note picked | STEP, the cards down | the note's cards, as if its step were held; HOME: they go |
 | SAVE held alone, let go | STEP, a note picked | the note muted / on again: kept, dim, played as a rest (not the ACCENT lane) |
-| HOME held alone, let go | STEP, a note picked | the note deleted (HOME tapped: back HOME as ever) |
+| HOME held alone, let go | STEP, a note picked | the note deleted (HOME tapped: back, as ever) |
 | a step key held | STEP | the cards are the step's: synth NOTE, LEVEL, RATCHET, LENGTH; drums LEVEL, RATCHET, TUNE, DECAY. Several held steps edit together |
-| step held + a knob | STEP | that value; SHIFT + the knob: back to NORMAL, x1, one step (on a p-lock card: that lock cleared, see Clearing) |
+| step held + a knob | STEP | that value; SHIFT + the knob: back to NORMAL, x1, one step (on a p-lock card: that lock cleared) |
 | step held + PRESETS | STEP | move the step in time (its locks and motion go with it) |
 | step held + ALGORITHM | synth | the selected note a semitone up / down; folded: to the next row shown |
 | step held + ALGORITHM | drums | the hit to the lane above / below |
@@ -112,11 +114,11 @@ STEP is where the white keys stay steps under the shifts: SHIFT and SHIFT2 with 
 | SEQ + keys | a synth track's STEP | the notes played become the next steps |
 | SEQ held alone, let go | STEP | the keys play with STEP up; again: they are steps |
 | OCT- and OCT+ tapped together (let go within 400 ms) | a synth track's STEP | FOLD on / off: only the rows of the pattern's notes, or the scale's notes when a scale is set |
-| TOOLS: a knob, then SAVE | STEP's TOOLS page | REVERSE, RANDOM, COOK, LENGTH x2 / half (asked) [SEQTOOLS] |
+| TOOLS: a knob, then SAVE | STEP's TOOLS page | the tool: REVERSE, RANDOM, COOK, DOUBLE, HALF, QNT 1, QNT 1/2, QNT 1/4 (asked) [SEQTOOLS] |
 
 ## Clearing, undo and redo
 
-Every clear of recorded material is on REC, and its ring is the confirmation: hold until it closes, let go before and nothing happens. What each clear removes, from the smallest to the largest; notes, their levels and their recorded lengths are only removed where the table says so.
+Every clear of recorded material is on REC, and its ring is the confirmation: hold until it closes, let go before and nothing happens. From the smallest to the largest. Notes, their levels and their recorded lengths are removed only where the table says so.
 
 | Gesture | Where | Clears |
 |---|---|---|
@@ -160,20 +162,20 @@ Hold the button: its map shows and the keys and knobs are the layer's. **SHIFT2 
 |---|---|---|---|
 | **FX** (punch) | the 16 white keys: 16 punch-in effects (latched with PUNCH_LATCH) | FILTER, DUST, DUCK, the track's FILT | OCT-: a latched effect off |
 | **EDIT** (erase) | erase that note / lane as it plays; drum SOUND page: picks that sound | SHIFT (rotate), LENGTH (x2 / half), TRANSPOSE | |
-| **ARP** (roll) | note repeat at the tempo | RATE | drums: ghost / hard rolls |
-| **SCL** (key) | the song's key (root) | CHORD, SCALE, QUANT, TRANSPOSE | |
+| **ARP** (roll) | note repeat at the tempo | RATE | |
+| **SCL** (key) | the song's key (root) | CHORD, SCALE, KEYS, TRANSPOSE | |
 | **GLO** (mix) | 1-4 mute T1-DR, 16 tap tempo; with FILLS 9 fill while held, 10 next bar a fill, black 1-4 FX bypass T1-DR (without FILLS: 9-12) | LEVEL of T1, T2, T3, DR | |
 | **LFO** (patterns, scenes) [PATTERNS] | above, Saving | the page under | OCT+ + a key: launch now; OCT- (SHIFT) + a key: clear |
 | **ENV** on an FM6 track (operators) | black keys pick OP1-OP6, PIT, GLO, MONO, POLY; white keys play | the page's four values | previous / next page |
 
 ## Mixing: mutes
 
-There is one mute, the sequencer's: a muted track or lane plays no more steps, what already sounds rings out. There is no solo.
+There is one mute, the sequencer's: a muted track or lane plays no more steps, and what already sounds rings out. There is no solo.
 
 | Gesture | Where | Does |
 |---|---|---|
 | SHIFT + a track key / a lane key | a page with keys, not STEP's white keys | that track's / lane's mute on / off (the key plays nothing) |
-| SHIFT + the volume knob | the mixer (a track's VOLUME, a lane's LEVEL, ACCENT, USB IN) | that row's mute on / off (USB IN: its own mute) |
+| SHIFT + the volume knob | the mixer (a track's VOLUME, a lane's LEVEL, ACCENT, USB IN) | that row's mute on / off |
 | SHIFT + a RET card's knob | the mixer's MASTER row | that return muted on / off |
 | GLO + keys 1-4 | anywhere | mute T1-DR |
 | the volume knob turned | a muted row | unmuted, the value moves |
@@ -188,8 +190,12 @@ What only one page has; everything above works there too.
 
 **NAME** (before a save). The white keys type like a phone (AB, CD ... the same key within 0.8 s cycles); black keys: F# left, G# space, A# right, C# delete, D# ABC / 123. KNOB 1 the cursor, KNOB 2 the character; SHIFT + a knob clears the name. SAVE done, HOME deletes a character (at the start: cancel), PLAY stops.
 
-**GLOBAL and SYSTEM.** KNOB k edits line k; SAVE is YES on the cursor line; PRESETS does nothing. SYSTEM > INFO: KNOB 2 shows the CPU NOW, MAX 5 S or MAX; SHIFT + SAVE clears the counters. The Bluetooth DEVICES list: SELECT moves, SAVE connects (asked), HOME back, SHIFT + a button forgets the last device (asked).
+**GLOBAL and SYSTEM.** KNOB k edits line k; SAVE is YES on the cursor line; PRESETS does nothing. SYSTEM > INFO: KNOB 1 shows the CPU load NOW, MAX 5 S or MAX; SHIFT + SAVE clears the counters. The Bluetooth DEVICES list: SELECT moves, SAVE connects (asked), HOME back, SHIFT + a button forgets the last device (asked).
 
 **SCOPE** (HOME on the mixer). ALGORITHM the source; the knobs LEVEL, PAN, FX, DRIVE of a track, or FILT, THRS, RATIO of MASTER; SAVE the track's FX on / dry.
 
 **The mixer.** See Mixing. The drum track's lane keys play and pick their lane (not right after a knob turn); its white keys are steps.
+
+## At power-on
+
+OCT- + OCT+ held while switching on and let go soon: SYSTEM > CALIBRATE's panel teaching. Kept held for 3 s: the chip's own update mode (UBOOT). OCT- alone: the USB rescue. With the FM-1 running and stopped, OCT- + OCT+ held 5 s (a countdown shows from 2 s): update mode.

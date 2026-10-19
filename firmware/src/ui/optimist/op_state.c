@@ -1,12 +1,12 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The Optimist UI's state, its messages and its one confirm idiom (docs/UI-OPTIMIST-DESIGN.md sections 2, 2.1).
+/* The Optimist UI's state, its messages and its one confirm idiom (docs/UI-OPTIMIST-DESIGN.md 2.2 Taps, holds, YES and NO; 2.5 Questions, toasts and what asks).
  * Messages stay as SLOOP's: the header, a fixed part and a variable part, coloured by the words of the fixed part;
  * ~2.5 s. The confirm: a destructive action arms, the header asks "CLEAR T2? YES", YES (SAVE tapped) does it, NO
  * (HOME tapped), another cursor row or 3 s let it go. Every confirm of the UI is this one; there is no "AGAIN". */
 /* the cursor row's background: the line's colour at full strength (the user, 2026-10-14: the dark tint was not
  * recognisable); the row's text and bars are its ink, black or white, whichever reads better on it (gfx.c ink_on; the
  * user, 2026-10-18: white on a light colour was hard to read), the bars on a trough of the colour away from the ink:
- * 3/8 under white, 5/8 under black (docs/UI-OPTIMIST-DESIGN.md look) */
+ * 3/8 under white, 5/8 under black (docs/UI-OPTIMIST-DESIGN.md 3.1 Cards and lists) */
 static uint16_t cur_bg(uint16_t c) { return c; }
 static uint16_t cur_ink(uint16_t c) { return ink_on(cur_bg(c)); }
 static uint16_t cur_trough(uint16_t c) { return col_shade(c, cur_ink(c) == C_WHITE ? 3u : 5u); }

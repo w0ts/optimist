@@ -180,7 +180,7 @@ uint32_t btl_answer(const uint8_t *p, uint32_t len, const char *name, uint8_t *o
     case BTL_START_ENCRYPTION_REQ:                 /* link established, begin E0 encryption */
     {
         /* INTEGRATION: enable E0 in the WL82 baseband (firmware/src/bt/bt_inq.c sets cryptk + linkcntl).
-         * This is a hardware register write; see BT-AUDIO-AIRPODS.md §2.1 and BT-CLASSIC-HW-FACTS.md.
+         * This is a hardware register write; see docs/BT-CLASSIC.md §2.
          * For now, return placeholder. */
         return btl_reply(out, BTL_START_ENCRYPTION_RES, tid, op, 0);
     }

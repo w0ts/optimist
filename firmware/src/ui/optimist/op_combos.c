@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The held buttons with a button (docs/UI-OPTIMIST-DESIGN.md sections 2.1, 2.1.1): SAVE held + a button saves what it
+/* The held buttons with a button (docs/UI-OPTIMIST-DESIGN.md 2.3 The two shifts, and SAVE): SAVE held + a button saves what it
  * owns, SHIFT (OCT- held: off, less) + a button clears it, SHIFT2 (OCT+ held: on, more) + a layer's button locks the
  * layer open (in either order):
  *   SAVE + SEQ    the working pattern into its slot (asked over a used one)

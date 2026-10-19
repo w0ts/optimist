@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* tests/ui_optimist_test.c, the user's rulings of 2026-10-12 (docs/UI-OPTIMIST-DESIGN.md sections 4.2 and 4.8):
+/* tests/ui_optimist_test.c, the user's rulings of 2026-10-12 (docs/UI-OPTIMIST-DESIGN.md 4.2 STEP, 4.8 TEMPO):
  *   the mixer's MASTER page   under GR the FX returns' meters, REV DLY CHO (those built), no T1 .. DR lines; the
  *                             returns measured in fx.c (fx_ret_tap, a sample a block), taken by ui/meters.c
  *   OCT on STEP's roll        the view an octave down / up from its fit, the keyboard octave untouched; both: the fit

@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The automation store (docs/UI-OPTIMIST-DESIGN.md section 6, phase 3): one list of events per pattern (a track's
+/* The automation store (docs/UI-OPTIMIST-DESIGN.md 7 The automation store): one list of events per pattern (a track's
  * working pattern, a pattern record), FELUCCA_AUTO. An event is Felucca's motion event, 3 bytes, with one bit given a
  * meaning:
  *
