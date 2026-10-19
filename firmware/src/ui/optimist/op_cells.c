@@ -596,7 +596,8 @@ static void page_cell(const page_t *pg, uint32_t k, cell_t *c)
 {
     int16_t *vp;
     uint32_t id = page_id(pg, k);
-    cell_param(c, page_desc(pg, k, &vp), vp);
+    const param_desc_t *d = page_desc(pg, k, &vp);      /* (the descriptor first: C leaves the order of a call's arguments open, and gcc read vp before page_desc set it) */
+    cell_param(c, d, vp);
     if (id >= PID_INST && id < PID_INST + INS_N)        /* INSERTS: S1 / S2 TYPE (the selected track's) */
         cell_ins_note(c, song.sel, id - PID_INST);
     c->dr = (uint8_t)(c->label && c->label[0] && dr_value(pg, k));
