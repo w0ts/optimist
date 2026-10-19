@@ -92,38 +92,9 @@ static uint32_t btl_name_res(const uint8_t *p, uint32_t len, uint32_t tid, const
 /* SSP Just Works pairing: IO capability response, confirm exchange, DHKey exchange, start encryption.
  * INTEGRATION: These call bts_ssp_* functions (bt_safer.h) when the crypto layer is ready.
  * For now, they return NOT_ACCEPTED to signal lack of support. */
-static uint32_t btl_io_cap_res(uint8_t *out, uint32_t tid)
-{
-    uint32_t n = btl_pdu(out, BTL_IO_CAPABILITY_RES, tid);
-    out[n++] = 0x03u;                              /* NoInputNoOutput: AirPods-compatible */
-    out[n++] = 0x00u;                              /* OOB data flag: not present */
-    out[n++] = 0x00u;                              /* authentication requirements: Just Works */
-    return n;
-}
 
-static uint32_t btl_ssp_confirm(uint8_t *out, uint32_t tid, const uint8_t confirm[16])
-{
-    uint32_t n = btl_pdu(out, BTL_SIMPLE_PAIRING_CONFIRM, tid), i;
-    for (i = 0; i < 16u; i++)
-        out[n++] = confirm[i];
-    return n;
-}
 
-static uint32_t btl_ssp_random(uint8_t *out, uint32_t tid, const uint8_t random[16])
-{
-    uint32_t n = btl_pdu(out, BTL_SIMPLE_PAIRING_RANDOM, tid), i;
-    for (i = 0; i < 16u; i++)
-        out[n++] = random[i];
-    return n;
-}
 
-static uint32_t btl_encaps_pk(uint8_t *out, uint32_t op, uint32_t tid, const uint8_t pk[32])
-{
-    uint32_t n = btl_pdu(out, op, tid), i;
-    for (i = 0; i < 32u; i++)
-        out[n++] = pk[i];
-    return n;
-}
 
 uint32_t btl_answer(const uint8_t *p, uint32_t len, const char *name, uint8_t *out)
 {
@@ -152,38 +123,7 @@ uint32_t btl_answer(const uint8_t *p, uint32_t len, const char *name, uint8_t *o
         return btl_reply(out, BTL_ACCEPTED, tid, op, 0);
     case BTL_SWITCH_REQ:
         return btl_reply(out, BTL_NOT_ACCEPTED, tid, op, BTL_ERR_ROLE_SWITCH_NOT_ALLOWED);
-    case BTL_IO_CAPABILITY_REQ:                    /* SSP pairing initiation: respond with NoInputNoOutput */
-        return btl_io_cap_res(out, tid);
-    case BTL_LINK_KEY_REQ:                         /* no stored link key yet (pairing in progress or first time) */
-        return btl_reply(out, BTL_NOT_ACCEPTED, tid, op, 0x02u);  /* 0x02 = no link key for BD_ADDR */
-    case BTL_ENCAPSULATED_P192:                    /* remote public key (32 B X || 32 B Y, little-endian) */
-    {
-        /* INTEGRATION: store remote_pub_x/y from p[1..32] and p[33..64]; compute DHKey via bts_ecc_shared_secret.
-         * For now, return placeholder. The DHKey must match: the LTK generation depends on it. */
-        uint8_t dummy_pk[32] = {0};
-        return btl_encaps_pk(out, BTL_ENCAPSULATED_P192, tid, dummy_pk);
-    }
-    case BTL_SIMPLE_PAIRING_CONFIRM:               /* remote confirm value (16 bytes) */
-    {
-        /* INTEGRATION: store remote_confirm from p[1..16]; compute own confirm via bts_ssp_f1 and respond.
-         * For now, return placeholder. */
-        uint8_t dummy_confirm[16] = {0};
-        return btl_ssp_confirm(out, tid, dummy_confirm);
-    }
-    case BTL_SIMPLE_PAIRING_RANDOM:                /* remote random value (16 bytes) */
-    {
-        /* INTEGRATION: verify remote_confirm via bts_ssp_f1, derive DHKey (already shared), compute LTK via
-         * bts_ssp_f2 or bts_ssp_f3. For now, return placeholder. */
-        uint8_t dummy_random[16] = {0};
-        return btl_ssp_random(out, tid, dummy_random);
-    }
-    case BTL_START_ENCRYPTION_REQ:                 /* link established, begin E0 encryption */
-    {
-        /* INTEGRATION: enable E0 in the WL82 baseband (firmware/src/bt/bt_inq.c sets cryptk + linkcntl).
-         * This is a hardware register write; see docs/BT-CLASSIC.md §2.
-         * For now, return placeholder. */
-        return btl_reply(out, BTL_START_ENCRYPTION_RES, tid, op, 0);
-    }
+    /* (pairing and encryption, SSP Just Works: bt_ssp.c answers them before this: bt_page.c bp_lmp_in) */
     case BTL_ESCAPE << 8 | BTL_X_FEATURES_REQ:      /* a page of extended features: none */
         n = btl_pdu(out, BTL_ESCAPE, tid);
         out[n++] = BTL_X_FEATURES_RES;
@@ -210,12 +150,7 @@ uint32_t btl_answer(const uint8_t *p, uint32_t len, const char *name, uint8_t *o
     case BTL_QOS:
     case BTL_TIMING_ACC_RES:
     case BTL_CLKOFFSET_RES:
-    case BTL_ENCRYPTION_MODE_RES:
-    case BTL_START_ENCRYPTION_RES:
-    case BTL_LINK_KEY_RES:
     case BTL_SRES:
-    case BTL_ENCAPSULATED_H256:                    /* remote P-256 key: handled in handler case */
-    case BTL_ENCRYPTION_KEY_SIZE_RES:
     case BTL_ESCAPE << 8 | BTL_X_ACCEPTED:
     case BTL_ESCAPE << 8 | BTL_X_NOT_ACCEPTED:
     case BTL_ESCAPE << 8 | BTL_X_FEATURES_RES:
@@ -249,20 +184,18 @@ const char *btl_name(uint32_t op)
     case BTL_SETUP_COMPLETE: return "setup_complete";
     case BTL_HOST_CONN_REQ: return "host_connection_req";
     case BTL_SUPERVISION_TO: return "supervision_timeout";
-    case BTL_LINK_KEY_REQ: return "link_key_req";
-    case BTL_LINK_KEY_RES: return "link_key_res";
     case BTL_AU_RAND: return "au_rand";
     case BTL_SRES: return "sres";
-    case BTL_IO_CAPABILITY_REQ: return "io_capability_req";
-    case BTL_IO_CAPABILITY_RES: return "io_capability_res";
+    case BTL_ESCAPE << 8 | BTL_X_IO_CAPABILITY_REQ: return "io_capability_req";
+    case BTL_ESCAPE << 8 | BTL_X_IO_CAPABILITY_RES: return "io_capability_res";
+    case BTL_ENCAPSULATED_HEADER: return "encapsulated_header";
+    case BTL_ENCAPSULATED_PAYLOAD: return "encapsulated_payload";
     case BTL_SIMPLE_PAIRING_CONFIRM: return "simple_pairing_confirm";
-    case BTL_SIMPLE_PAIRING_RANDOM: return "simple_pairing_random";
-    case BTL_ENCAPSULATED_H256: return "encapsulated_h256";
-    case BTL_ENCAPSULATED_P192: return "encapsulated_p192";
+    case BTL_SIMPLE_PAIRING_NUMBER: return "simple_pairing_number";
+    case BTL_DHKEY_CHECK: return "dhkey_check";
+    case BTL_ENCRYPTION_MODE_REQ: return "encryption_mode_req";
     case BTL_ENCRYPTION_KEY_SIZE_REQ: return "encryption_key_size_req";
-    case BTL_ENCRYPTION_KEY_SIZE_RES: return "encryption_key_size_res";
     case BTL_START_ENCRYPTION_REQ: return "start_encryption_req";
-    case BTL_START_ENCRYPTION_RES: return "start_encryption_res";
     case BTL_ESCAPE << 8 | BTL_X_FEATURES_REQ: return "features_req_ext";
     case BTL_ESCAPE << 8 | BTL_X_FEATURES_RES: return "features_res_ext";
     case BTL_ESCAPE << 8 | BTL_X_NOT_ACCEPTED: return "not_accepted_ext";

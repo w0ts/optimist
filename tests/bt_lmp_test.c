@@ -15,7 +15,7 @@ static void check(const char *what, int ok)
 
 int main(void)
 {
-    uint8_t o[BTL_MAX + 8], in[8];
+    uint8_t o[128], in[128];
     uint32_t n, tid = 9;
     static const uint8_t ver[6] = {37 << 1, 0x06, 0xFF, 0xFF, 0x01, 0x00};
 
@@ -60,6 +60,13 @@ int main(void)
     n = btl_answer(in, 2, "X", o);
     check("an unknown extended PDU -> not_accepted_ext(127, ext, 0x19)",
           n == 5 && o[1] == 2 && o[2] == 127 && o[3] == 23 && o[4] == 0x19);
+    /* (pairing and encryption: bt_ssp.c answers them before btl_answer, tests/bt_ssp_test.c; the opcodes are the spec's,
+     * checked against Wireshark's table 2026-10-19: io_capability is escape-4 25 / 26, start_encryption_req 17) */
+    in[0] = BTL_ESCAPE << 1 | 1, in[1] = BTL_X_IO_CAPABILITY_REQ;
+    check("pairing opcodes: io_capability_req is escape-4 25, named as such",
+          btl_opcode(in, 2, &n) == (BTL_ESCAPE << 8 | 25u) && !strcmp(btl_name(BTL_ESCAPE << 8 | 25u), "io_capability_req") &&
+              BTL_START_ENCRYPTION_REQ == 17 && BTL_AU_RAND == 11 && BTL_SRES == 12 && BTL_DHKEY_CHECK == 65);
+    (void)o;
     in[0] = 60 << 1 | 1;
     n = btl_answer(in, 1, "X", o);
     check("an unknown PDU -> not_accepted(op, 0x19)", n == 3 && o[0] == (4 << 1 | 1) && o[1] == 60 && o[2] == 0x19);

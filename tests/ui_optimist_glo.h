@@ -259,7 +259,10 @@ static void glo_tests(void)
         tap(B_HOME);
         check(!op_armed() && ui.scr == SCR_SYSTEM, "... HOME: cancelled");
 #if FELUCCA_BLE
-        w = line_named(SCR_SYSTEM, "DEVICES");
+        bt.boot = 1;
+        ble_store_reset(&ble_store);
+        bt_enter(1);                                    /* (MIDI, nothing remembered: SAVE opens the devices list) */
+        w = line_named(SCR_SYSTEM, "MODE");
         frame();
         tap(B_SAVE);
         ok = dev_listing();
@@ -268,7 +271,8 @@ static void glo_tests(void)
         ok &= song.sel == i && dev_listing() && ui.row[SCR_SYSTEM] <= 1u;
         tap(B_HOME);
         check(ok && !dev_listing() && ui.scr == SCR_SYSTEM && ui.row[SCR_SYSTEM] == w,
-              "Bluetooth: YES on DEVICES opens the list, SELECT moves its cursor (no track), HOME back to the DEVICES line");
+              "Bluetooth: SAVE on the page, nothing remembered, opens the list, SELECT moves its cursor (no track), HOME back to the MODE line");
+        bt_enter(0);
 #endif
     }
     reset_ui();

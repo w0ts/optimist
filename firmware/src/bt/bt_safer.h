@@ -20,17 +20,13 @@ void bts_e22(const uint8_t rand[16], const uint8_t *pin, uint32_t plen, uint8_t 
 /* E3: Kc from the link key, EN_RAND and COF (the ACO of the last authentication for a combination key) */
 void bts_e3(const uint8_t key[16], const uint8_t rand[16], const uint8_t cof[12], uint8_t out[16]);
 
-/* SSP: f1, f2, f3, g functions (Core spec Vol 2 Part H §7.2.1 / §7.2.6). Input/output: big-endian for SSP context.
- * f1(P192_private_key, remote_P192_public_key, NONA (6), NONB (6)) -> confirm_value (16)
- * f2(P192_private_key, remote_P192_public_key, NONA (6), NONB (6)) -> DHKey confirmation (16)
- * f3/f4(DHKey (32), NONA (6), NONB (6)) -> LTK (16)  [also called link key function]
- * g(X (32), Y (32)) -> return value for numeric comparison (32-bit) */
-void bts_ssp_f1(const uint8_t priv[32], const uint8_t pub_x[32], const uint8_t pub_y[32],
-                const uint8_t nona[6], const uint8_t nonb[6], uint8_t confirm[16]);
-void bts_ssp_f2(const uint8_t priv[32], const uint8_t pub_x[32], const uint8_t pub_y[32],
-                const uint8_t nona[6], const uint8_t nonb[6], uint8_t ltk[16]);
-void bts_ssp_f3(const uint8_t dhkey[32], const uint8_t nona[6], const uint8_t nonb[6], uint8_t ltk[16]);
-void bts_ssp_g(const uint8_t x[32], const uint8_t y[32], uint32_t *out);
+/* SSP (Core Vol 2 Part H 7.7, P-192): every value in the spec's order, most significant octet first (Part G 7's sample
+ * data); LMP's air order is the reverse. u, v: the two public keys' x (24); nonces 16; addresses 6; w the DHKey (24) */
+void bts_ssp_f1(const uint8_t u[24], const uint8_t v[24], const uint8_t x[16], uint8_t z, uint8_t out[16]);
+uint32_t bts_ssp_g(const uint8_t u[24], const uint8_t v[24], const uint8_t x[16], const uint8_t y[16]);
+void bts_ssp_f2(const uint8_t w[24], const uint8_t n1[16], const uint8_t n2[16], const uint8_t a1[6], const uint8_t a2[6], uint8_t out[16]);
+void bts_ssp_f3(const uint8_t w[24], const uint8_t n1[16], const uint8_t n2[16], const uint8_t r[16], const uint8_t iocap[3],
+                const uint8_t a1[6], const uint8_t a2[6], uint8_t out[16]);
 
 /* ECDH P-192 key pair generation and shared secret (DHKey). Generated once at boot and stored in RAM.
  * Both functions are from micro-ecc (BSD-2-Clause); the public key is little-endian (as used in LMP). */

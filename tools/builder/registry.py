@@ -892,6 +892,16 @@ _add("BT_INQ_PROBE", "FELUCCA_BT_INQ_PROBE", "Bluetooth Classic inquiry probe (c
           "About 33 KB of flash (most of it the radio's start-up program, which BLE carries too), 2.3 KB of RAM and "
           "15 KB of pool.",
      symbols=("bti_st",))
+_add("BT_AUDIO", "FELUCCA_BT_AUDIO", "Bluetooth Classic Audio (A2DP Source, SBC)", M, 281,
+     default=0, experimental=True, target_only=True,
+     tested="host-tested (SSP, SAFER+, SBC encoder, AVDTP, L2CAP) and unit-tested",
+     notice="experimental: Bluetooth Classic A2DP audio source",
+     desc="Bluetooth Classic audio out (A2DP source, SBC 44.1 kHz) to headphones and speakers: SYSTEM > Bluetoo"
+          "th's AUDIO MAN and AUDIO AUTO modes, the radio carrying BLE MIDI or audio, one at a time. Our own st"
+          "ack: inquiry, paging, Secure Simple Pairing (Just Works), E0 encryption, L2CAP, AVDTP and a fixed-po"
+          "int SBC encoder. Host-tested; on the FM-1 the scan has heard no device yet, so no audio has been str"
+          "eamed.",
+     symbols=("ba_sbc", "bt_sbc_encode"))
 
 for _it in _ITEMS:
     if _it.group == "FX":

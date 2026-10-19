@@ -28,7 +28,7 @@ static struct {
 } ba IN_POOL;
 
 enum { BA_IDLE, BA_SDP, BA_SDP_DONE, BA_AV_SIG, BA_AV_DISC, BA_AV_CAPS, BA_AV_CONF, BA_AV_OPEN, BA_AV_MEDIA,
-       BA_AV_READY, BA_FAILED };
+       BA_AV_START, BA_AV_READY, BA_FAILED };
 
 static void ba_reset(void)
 {
@@ -229,6 +229,9 @@ static void ba_av_in(const uint8_t *p, uint32_t n)
         con_puts("btpage: AVDTP OPEN accepted: opening the media channel\r\n");
         ba_open(BA_CH_MEDIA, ba.avdtp_psm);
         ba.stage = BA_AV_MEDIA;
+    } else if (sig == BV_START) {
+        con_puts("btpage: AVDTP STREAM OPEN (signalling and media channels up, stream started)\r\n");
+        ba.stage = BA_AV_READY;
     } else {
         ba_line("AVDTP accepted (signal, label)", sig, label);
     }
@@ -245,10 +248,84 @@ static void ba_chan_open(uint32_t c)               /* both configurations done *
         ba_av_cmd(BV_DISCOVER, 0, 0);
         ba.stage = BA_AV_DISC;
     } else {
-        con_puts("btpage: AVDTP STREAM OPEN (signalling and media channels up, SBC configured)\r\n");
-        ba.stage = BA_AV_READY;
+        uint8_t par[1];
+        con_puts("btpage: AVDTP media channel open: sending START\r\n");
+        par[0] = (uint8_t)(ba.acp << 2);
+        ba_av_cmd(BV_START, par, 1);
+        ba.stage = BA_AV_START;
     }
 }
+
+#if FELUCCA_BT_AUDIO                               /* the media channel: BT_AUDIO only (the probe stops at the channel's set-up) */
+#include "bt_sbc.h"
+#include "bt_sbc.c"                                /* the SBC encoder the media channel sends (bt_audio_feed) */
+static uint16_t ba_rtp_seq;
+static uint32_t ba_rtp_ts;
+static struct bt_sbc_ctx ba_sbc;
+static int16_t ba_pcm_acc[BT_SBC_SAMPLES_PER_FRAME * 2];
+static uint32_t ba_pcm_cnt;
+static uint8_t ba_sbc_init_done;
+
+static void ba_media_send(const uint8_t *sbc_frame, uint32_t sbc_len)
+{
+    uint8_t pkt[4 + 12 + 1 + 128];
+    uint32_t payload_len = 12u + 1u + sbc_len;
+    uint32_t i;
+    if (ba.stage != BA_AV_READY || !ba.ch[BA_CH_MEDIA].dcid || sbc_len > 128u)
+        return;
+    pkt[0] = (uint8_t)(payload_len & 0xFFu);
+    pkt[1] = (uint8_t)(payload_len >> 8);
+    pkt[2] = (uint8_t)(ba.ch[BA_CH_MEDIA].dcid & 0xFFu);
+    pkt[3] = (uint8_t)(ba.ch[BA_CH_MEDIA].dcid >> 8);
+    pkt[4] = 0x80u;
+    pkt[5] = 0x60u;
+    pkt[6] = (uint8_t)(ba_rtp_seq >> 8);
+    pkt[7] = (uint8_t)(ba_rtp_seq & 0xFFu);
+    ba_rtp_seq++;
+    pkt[8] = (uint8_t)(ba_rtp_ts >> 24);
+    pkt[9] = (uint8_t)((ba_rtp_ts >> 16) & 0xFFu);
+    pkt[10] = (uint8_t)((ba_rtp_ts >> 8) & 0xFFu);
+    pkt[11] = (uint8_t)(ba_rtp_ts & 0xFFu);
+    ba_rtp_ts += 128u;
+    pkt[12] = 0x01u;
+    pkt[13] = 0x02u;
+    pkt[14] = 0x03u;
+    pkt[15] = 0x04u;
+    pkt[16] = 0x01u;
+    for (i = 0; i < sbc_len; i++)
+        pkt[17 + i] = sbc_frame[i];
+    ba_send(pkt, 4u + payload_len);
+}
+
+int bt_audio_feed(const int32_t *q15_pcm, uint32_t n)   /* 1: it streams (audio.c mutes the FM-1's own output) */
+{
+    uint32_t i;
+    if (ba.stage != BA_AV_READY || !ba.ch[BA_CH_MEDIA].dcid || bti.mode != BTI_M_CONN) {
+        ba_pcm_cnt = 0;
+        return 0;
+    }
+    if (!ba_sbc_init_done) {
+        bt_sbc_init(&ba_sbc, 44100, 53, 1);
+        ba_sbc_init_done = 1;
+    }
+    for (i = 0; i < n; i++) {
+        int32_t l = q15_pcm[2u * i];
+        int32_t r = q15_pcm[2u * i + 1u];
+        if (l < -32768) l = -32768; else if (l > 32767) l = 32767;
+        if (r < -32768) r = -32768; else if (r > 32767) r = 32767;
+        ba_pcm_acc[2u * ba_pcm_cnt] = (int16_t)l;
+        ba_pcm_acc[2u * ba_pcm_cnt + 1u] = (int16_t)r;
+        ba_pcm_cnt++;
+        if (ba_pcm_cnt >= BT_SBC_SAMPLES_PER_FRAME) {
+            uint8_t frame[128];
+            uint32_t slen = bt_sbc_encode(&ba_sbc, ba_pcm_acc, frame);
+            ba_media_send(frame, slen);
+            ba_pcm_cnt = 0;
+        }
+    }
+    return 1;
+}
+#endif
 
 static void ba_chan_data(uint32_t c, const uint8_t *p, uint32_t n)
 {

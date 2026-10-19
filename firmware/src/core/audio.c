@@ -87,6 +87,15 @@ static void audio_block(int32_t *out, uint32_t n)       /* mix (fx.c), then Q15 
 #if FELUCCA_USB_AUDIO
     ua_block(out, n);                                   /* the stems out, the computer's audio in */
 #endif
+#if FELUCCA_BT_AUDIO
+    {
+        int bt_audio_feed(const int32_t *q15_pcm, uint32_t n);
+        if (bt_audio_feed(out, n))                      /* (streaming to Bluetooth: the FM-1's own output silent, the user
+                                                         * 2026-10-19; back as soon as the link stops streaming) */
+            for (i = 0; i < 2u * n; i++)
+                out[i] = 0;
+    }
+#endif
     for (i = 0; i < n; i++) {                           /* (no scope tap: SLOOP's HOME scope is gone) */
         out[2u * i] <<= OUT_SHIFT;
         out[2u * i + 1u] <<= OUT_SHIFT;

@@ -95,17 +95,10 @@ static uint32_t op_clean;                               /* (op_input.c: the butt
 static void op_eat(uint32_t mask) { op_clean &= ~mask; }
 
 /* SHIFT (OCT- held) + button b (pressed now): 1 taken */
-#if FELUCCA_BLE
-static int dev_home_combo(void);                        /* op_project.c: SHIFT + a button on the BLE devices: FORGET LAST */
-#endif
 static int info_clear(void);                            /* op_global.c: SHIFT + YES on SYSTEM's INFO page clears DROPS */
 static int shift_combo(uint32_t b)
 {
     uint32_t l = lay_btn_layer(b);
-#if FELUCCA_BLE
-    if (dev_home_combo())
-        return 1;
-#endif
     if (l != LY_PLAY && b != B_ENV)
         return 1;                                       /* (a layer's button: nothing; SHIFT2 locks it) */
     switch (b) {

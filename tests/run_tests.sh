@@ -1048,6 +1048,12 @@ job; ( jobin
     run "BT Classic inquiry probe: the sync word's parity (GIAC, stock V15's LAP, the spec's construction), FHS and EIR parsing" "$OUT/bt_inq_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
+    $CC -Wextra $BLE_SAN -o "$OUT/bt_crypto_test" tests/bt_crypto_test.c
+    run "BT Classic / SSP cryptography: SAFER+ (Ar, A'r), E1/E21/E22/E3, P-192 ECDH, SSP f1/f2/f3/g (Core Vol 2 Part G)" "$OUT/bt_crypto_test"
+    $CC -Wextra $BLE_SAN -o "$OUT/bt_ssp_test" tests/bt_ssp_test.c
+    run "BT Classic pairing (bt_ssp.c): SSP Just Works as the responder against a simulated initiator, the link key, SRES, Kc" "$OUT/bt_ssp_test"
+) >"$U.out" 2>&1 & jobbg
+job; ( jobin
     $CC -Wextra $BLE_SAN -o "$OUT/bt_lmp_test" tests/bt_lmp_test.c
     run "BT Classic probe LMP: the master's link set-up PDUs and the answers to a slave's requests (Core spec Vol 2 Part C)" "$OUT/bt_lmp_test"
 ) >"$U.out" 2>&1 & jobbg
@@ -1058,6 +1064,10 @@ job; ( jobin
 job; ( jobin
     $CC -Wextra $BLE_SAN -o "$OUT/bt_avdtp_test" tests/bt_avdtp_test.c
     run "BT Classic probe AVDTP: commands, a sink endpoint picked, SBC capabilities read and chosen, SET_CONFIGURATION" "$OUT/bt_avdtp_test"
+) >"$U.out" 2>&1 & jobbg
+job; ( jobin
+    $CC -Wextra $BLE_SAN -o "$OUT/bt_sbc_test" tests/bt_sbc_test.c -lm
+    run "BT Classic / A2DP SBC codec: fixed-point encoder, Joint Stereo, Loudness bit allocation, frame packaging" "$OUT/bt_sbc_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     run "BLE RF capture tool: the VM format, the trace cut into a program (windows, LUT, trims, scan, replay), V15's hash" early_out t_ble_rf

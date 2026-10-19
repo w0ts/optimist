@@ -573,12 +573,16 @@ static void op_tap(uint32_t b, uint32_t id)
     else if (b == B_FX && mx_on_usb())
         (void)mx_ut_fx();                               /* (the mixer's USB row: its inserts, op_mixer.c) */
     else if (b == B_SAVE && !op_armed() && fm1_ms - op_t0[id % 14u] >= op_hold_ms()) {
-        if (ui.scr == SCR_PROJECT || ui.scr == SCR_SONG)
+        if (bt_key(B_SAVE, 1))
+            ;                                           /* (SYSTEM > Bluetooth: forget the remembered device, op_global.c) */
+        else if (ui.scr == SCR_PROJECT || ui.scr == SCR_SONG)
             save_hold();                                /* SAVE held alone on PROJECT: SONG; on SONG: PROJECT */
         else
             (void)pk_mute();                            /* STEP, a note picked: muted / not (op_step.c; let go with nothing
                                                          * else used: SAVE then HOME, the undo chord, is no tap) */
     }                                                   /* (held elsewhere: nothing, no YES, as when it was the scenes' layer) */
+    else if (b == B_SAVE && bt_key(B_SAVE, 0))
+        ;                                               /* (SYSTEM > Bluetooth: disconnect, else connect, op_global.c) */
     else if (b == B_SAVE)
         mx_quiet() ? op_enter(SCR_PROJECT) : op_yes();     /* the mixer: PROJECT */
     else if (b == B_HOME) {
@@ -838,6 +842,9 @@ static void op_drain(uint32_t held)
 static void ui_input(void)
 {
     uint32_t pressed = fm1_input_edges(0), notes = fm1_input_note_edges(), held = fm1_in.buttons, id, taps, keys;
+#if FELUCCA_BLE
+    bt_poll();                                          /* SYSTEM > Bluetooth: AUTO at boot, a connect given up (op_bt.c) */
+#endif
     enc_hold = 0;                                       /* (panel.c: every knob readable this pass) */
     if (pressed || notes)
         ui_input_ms = fm1_ms;
