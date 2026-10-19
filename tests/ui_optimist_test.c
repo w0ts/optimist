@@ -790,7 +790,7 @@ static int px_in(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t col)  
                 return 1;
     return 0;
 }
-static int px_at(uint32_t x, uint32_t y, uint16_t col) { return screen[y * 240u + x] == swap16(col); }   /* that pixel */
+static int px_at(uint32_t x, uint32_t y, uint16_t col) { return x < 240u && y < 240u && screen[y * 240u + x] == swap16(col); }   /* that pixel (off the screen: none) */
 /* ---- the confirm idiom */
 static void confirm_tests(void)
 {
