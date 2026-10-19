@@ -1136,7 +1136,11 @@ static void op_frame_draw(void)
     }
     if (lay.shown != LY_PLAY)
         lay_draw_cards();                               /* a layer: its knobs' cards, its tiles (op_laydraw.c) */
-    else if (ui.scr != SCR_STEP && !glo_cycle() && !pl_on())
+    else if (ui.scr != SCR_STEP && !glo_cycle() && !pl_on()
+#if FELUCCA_BLE
+             && !dev_listing()                          /* (the BLE devices: no cards, the list the whole panel, the user 2026-10-19) */
+#endif
+             )
         draw_cards();                                   /* (the mixer too: its knobs are the selected row's; STEP: step_frame) */
     if (ov == 1u || ov == 3u || ov == 4u) {
         draw_overlay(ov);                               /* the modal, the REC ring, a Bluetooth code: the whole panel */
@@ -1156,7 +1160,7 @@ static void op_frame_draw(void)
             pl_draw();                                  /* PAGE_LINES: the cursor row as four lines (op_gldraw.c) */
 #if FELUCCA_BLE
         else if (dev_listing())
-            dev_draw(OP_PY, OH_BODY);                   /* SYSTEM > BLUETOOTH > the BLE devices (op_project.c) */
+            dev_draw(OH_HEAD, OP_FOOT_Y - OH_HEAD);     /* SYSTEM > BLUETOOTH > the BLE devices, under the header (op_project.c) */
 #endif
         else if (prj_listing())
             prj_draw(OP_PY, OH_BODY);                   /* PROJECT's slot rows: the strip and the item (op_prjflow.c) */

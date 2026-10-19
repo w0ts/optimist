@@ -25,19 +25,23 @@
  * writes flash. */
 #include "fm1_ble.h"                               /* the radio's start-up (fm1_ble_rf_init), the LE block's init */
 #include "fm1_bredr.h"                             /* the BR/EDR block */
+#if !FELUCCA_BLE
 #include "../ble/ble_vm.c"                         /* the stored trims in stock V15's VM (read only) */
+#endif
 #include "bt_inq_core.c"
 
 #if !FELUCCA_FLASH
 #error "BT_INQ_PROBE reads the RF trims from flash (FELUCCA_FLASH)"
 #endif
-#if FELUCCA_BLE
+#if FELUCCA_BT_INQ_PROBE && FELUCCA_BLE
 #error "BT_INQ_PROBE: build without BLE (one engine on the radio at a time)"
 #endif
 
+#if !FELUCCA_BLE
 /* fm1_ble.h carries the BLE driver's two interrupt entries; this build never attaches them */
 void ble_wl82_event_irq(void) {}
 void ble_wl82_rx_irq(void) {}
+#endif
 
 #define BTI_IRQ_PRIO 2u                            /* at boot: the library's (BR §9.3), below the audio (3) */
 #define BTI_RUN_PRIO 5u                            /* during a run (prio=N): above the audio (3) and TIMER5 (4), so a
@@ -633,14 +637,22 @@ static int bti_run_start(uint32_t mode, uint32_t slots)
     return 1;
 }
 
+#if FELUCCA_BT_AUDIO
+static void bta_saw(const uint8_t a[6], uint32_t cod);   /* bt_audio.c: the screen's device list, fed by the scan */
+static void bta_named(const uint8_t a[6], const char *nm);
+#endif
 #include "bt_inq_con.c"                            /* the options, the printing, the console commands */
 
 #include "bt_page.c"                               /* stage 2: btpage (the page, the link, the minimal LMP) */
+#if FELUCCA_BT_AUDIO
+#include "bt_audio.c"                              /* the screen's side: scan, pick, reconnect (SYSTEM > Bluetooth AUDIO) */
+#endif
 
 static void bti_poll(void)                         /* the main loop */
 {
     static uint8_t boot_done, done_printed;
-    if (!boot_done && fm1_ms > 1500u) {            /* 1a once at boot (nothing transmitted) */
+    if (FELUCCA_BT_INQ_PROBE && !boot_done && fm1_ms > 1500u) {   /* 1a once at boot (nothing transmitted; the probe's
+                                                    * only: with BT_AUDIO the radio is BLE's until an AUDIO mode) */
         boot_done = 1;
         bti_clk_start();
     }

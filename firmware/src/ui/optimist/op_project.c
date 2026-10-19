@@ -10,7 +10,8 @@
  * button asks FORGET LAST (the modal; SAVE yes). The panel is drawn by dev_draw (op_draw.c calls it), the cards show the
  * row's action and its signal. The words are in sentence case, as the rest of the UI; a device's name is shown as it
  * advertises itself ("KeyStep 37", "MPC Live"), never recased. */
-#define DEV_ROW_H 20
+#define DEV_ROW_H 36                                    /* a row: the name in the large face (the user, 2026-10-19: "use a bigger font") */
+#define DEV_TY ((DEV_ROW_H - 16) / 2)                   /* the small words' and the bars' top in a row (the tag, NONE's mark) */
 #define BLE_ACT_MS 300u                                 /* SYSTEM > Bluetooth's MIDI IN / OUT lit this long after a message */
 #define DEV_STATUS_H 24                                 /* the status line under the rows */
 #define DEV_LINE_W 232                                  /* the status line's room: 4 px in from each side */
@@ -42,14 +43,16 @@ static uint32_t hu(uint32_t h, uint32_t v);
 static const char *cut(char *b, const char *s, uint32_t n);
 static const felucca_font_t *font_big(void);            /* op_graph.c */
 
+static void bt_scan(int on);                            /* op_bt.c */
+static uint32_t bt_rows(void);
+static void bt_row(uint32_t i, char nm[BLE_NAME_MAX + 1u], const char **tag, int32_t *bars);
+static void bt_pick(uint32_t i);
+static int bt_audio(void);
+static uint32_t bt_list_line(char *b, uint32_t room);
+static uint32_t bt_list_line_name_at(void);
+static uint32_t bt_list_sig(void);
 static int dev_listing(void) { return bdv.open != 0u && ui.scr == SCR_SYSTEM; }
-static uint32_t dev_rows(void)
-{
-    int last;
-    uint32_t nn;
-    uint8_t near[BLE_SCAN_N];
-    return ble_dev_rows(&last, near, &nn);
-}
+static uint32_t dev_rows(void) { return bt_rows(); }
 static void dev_open(void)
 {
     bdv.open = 1;
@@ -60,7 +63,7 @@ static void dev_open(void)
     ui.hot = 0;
     ui.hot_lit = 0;
     op_disarm();
-    ble_devices_open(1);                                /* (the scan starts) */
+    bt_scan(1);                                         /* (the scan starts) */
     ui.force = 1;
 }
 static void dev_close(void)
@@ -68,7 +71,7 @@ static void dev_close(void)
     if (!bdv.open)
         return;
     bdv.open = 0;
-    ble_devices_open(0);                                /* (the scan stops, advertising goes on) */
+    bt_scan(0);                                         /* (the scan stops, advertising goes on) */
     bdp.act.i = bmi_w, bdp.act.o = bmo_w;               /* (the MIDI line's counters take the status line's place: dark) */
     bdp.act.ti = bdp.act.to = fm1_ms - BLE_ACT_MS;
     ui.row[SCR_SYSTEM] = bdv.sys_row;
@@ -77,75 +80,12 @@ static void dev_close(void)
     op_disarm();
     ui.force = 1;
 }
-static void dev_cell(uint32_t r, uint32_t k, cell_t *c)   /* the cards: K1 what YES does here, K2 the signal */
+static void dev_cell(uint32_t r, uint32_t k, cell_t *c) { (void)r, (void)k, cell_clear(c); }   /* (no cards over the list) */
+static int dev_yes(uint32_t r, uint32_t ok)             /* SAVE on a row: connect to it, back to the page */
 {
-    int last;
-    uint8_t near[BLE_SCAN_N];
-    uint32_t nn, bars;
-    const char *tag;
-    cell_clear(c);
-    if (r >= ble_dev_rows(&last, near, &nn))
-        return;
-    ble_dev_row(r, last, near, 0, &tag, 0, &bars);
-    if (k == 0u) {                                      /* (what YES does: the tag says what the row is doing now) */
-        cell_act(c, "DEVICE", r == 0u ? "CHOOSE" : str_eq(tag, "CONNECTED") ? "RECONNECT" : str_len(tag) > 4u ? "RETRY" : "CONNECT", 0, 0);
-    } else if (k == 1u && r && str_len(tag) <= 4u) {   /* (the signal: none for a link up or being made, "" / LAST) */
-        c->kind = CK_RO;
-        c->label = "SIGNAL";
-        fmt_int(c->val, (int32_t)bars);
-        c->unit = "/3";
-        cell_gauge(c, 1, 0, 3, (int32_t)bars);
-    }
-}
-static int dev_yes(uint32_t r, uint32_t ok)             /* SAVE: pick / connect; confirmed (the modal): FORGET LAST */
-{
-    if (!ok) {                                          /* an action card: asks first (the user 2026-10-13) */
-        cell_t c;
-        char nm[BLE_NAME_MAX + 1u];
-        int last;
-        uint8_t near[BLE_SCAN_N];
-        uint32_t nn, bars;
-        const char *tag, *verb;
-        dev_cell(r, 0, &c);
-        verb = c.label ? c.label : "CHOOSE";
-        nm[0] = 0;
-        {
-            int nr = bdv.key_ok ? ble_dev_key_row(&bdv.key) : (int)r;   /* (the device the pick will take: its row now) */
-            if (nr > 0 && (uint32_t)nr < ble_dev_rows(&last, near, &nn))
-                ble_dev_row((uint32_t)nr, last, near, nm, &tag, 0, &bars);
-        }
-        op_arm(SCR_SYSTEM, r, 0, verb, nm[0] ? nm : "DEVICE", 0);   /* ("Connect?" over the name as advertised, the modal sizes it) */
-        ui.arm_raw = nm[0] != 0;
-        return 1;
-    }
-    if (str_eq(ui.arm_verb, "FORGET?")) {                                   /* (SHIFT + a button: FORGET LAST) */
-        ble_dev_forget();
-        ui.row[SCR_SYSTEM] = 0;                         /* (NONE is the choice again) */
-        return 1;
-    }
-    if (bdv.key_ok && (r == bdv.key_row || (r < bdv.key_row && r + 1u == dev_rows())))   /* (a shrunk list clamps the row) */
-        ble_dev_pick_key(&bdv.key);                     /* (the row the user saw: that device, not that place) */
-    else {                                              /* (the cursor moved since the draw: the key of this row, now) */
-        struct ble_dev_key k;
-        ble_dev_key_of(r, &k);
-        ble_dev_pick_key(&k);
-    }
-    return 1;
-}
-static int dev_home_combo(void)                         /* SHIFT + a button on the list: FORGET LAST, asked (op_combos.c) */
-{
-    char nm[BLE_NAME_MAX + 1u];
-    if (!dev_listing())
-        return 0;
-    if (op_armed())
-        return 1;                                       /* (asked already: the 3 s run on, as SAVE's combos wait) */
-    if (!ble_store_has_last(&ble_store)) {
-        ui_message("NO LAST DEVICE");
-        return 1;
-    }
-    ble_store_name(&ble_store, nm);
-    op_arm(SCR_SYSTEM, ui.row[SCR_SYSTEM], 0, "FORGET", nm, 1);
-    ui.arm_raw = 1;                                     /* (the name as advertised) */
+    (void)ok;
+    bt_pick(r);
+    dev_close();
     return 1;
 }
 /* the signal of a nearby row: three bars rising, as many lit as the scan heard (ble_dev_row: relative, no RSSI gain
@@ -158,14 +98,6 @@ static void dev_bars(int32_t x, int32_t y, uint32_t n, int on)
             cv_frame(x + k * 6, y + 16 - 4 * (k + 1), 4, 4 * (k + 1), C_LINE);
         else
             cv_rect(x + k * 6, y + 16 - 4 * (k + 1), 4, 4 * (k + 1), (uint32_t)k < n ? (on ? cur_ink(bdp.bar) : C_GRAY) : cur_trough(bdp.bar));
-}
-/* a row's text: NONE's is our words (sentence case), a device's name stays as it advertises itself */
-static void dev_row_text(char *out, uint32_t room, uint32_t row, const char *nm)
-{
-    if (row == 0u)
-        op_case(out, nm, room);
-    else
-        str_cpy(out, nm, room);
 }
 static void dev_paint(void)                             /* the panel's band in its own coordinates (cv_tall) */
 {
@@ -186,30 +118,24 @@ static void dev_paint(void)                             /* the panel's band in i
     }
 #endif
     for (i = bdp.first; i < bdp.n && i < bdp.first + bdp.shown; i++) {
-        int32_t y = (int32_t)(i - bdp.first) * DEV_ROW_H, right = wide - 4, room;
-        int chosen, on = i == bdp.cur;
+        int32_t y = (int32_t)(i - bdp.first) * DEV_ROW_H, right = wide - 4, room, bars;
+        int on = i == bdp.cur;
         const char *tag;
-        uint32_t bars;
-        ble_dev_row(i, bdp.last, bdp.near, nm, &tag, &chosen, &bars);
+        bt_row(i, nm, &tag, &bars);
         if (on)
             cv_rect(0, y, wide, DEV_ROW_H - 1, cur_bg(bdp.bar));   /* the cursor row: the track's colour, its ink */
-        if (chosen)
-            cv_rect(4, y + 7, 6, 6, on ? cur_ink(bdp.bar) : C_HI);   /* the choice (NONE or LAST) */
-        if (i && (!tag[0] || str_len(tag) <= 4u)) {      /* (CONNECTED / CONNECTING / PAIRING take the bars' place) */
-            dev_bars(wide - 22, y, bars, on);
+        if (bars >= 0 && (!tag[0] || str_len(tag) <= 4u)) {   /* (CONNECTED / CONNECTING / PAIRING take the bars' place) */
+            dev_bars(wide - 22, y + DEV_TY, (uint32_t)bars, on);
             right = wide - 28;
         }
-        if ((int)i == bdp.last && str_eq(tag, "LAST") && (ble_store.dev.info & BLE_DEV_BONDED))
-            tag = "PAIRED";                           /* (LAST bonded: its keys kept, it reconnects encrypted) */
         if (tag[0]) {
             op_case(b, tag, sizeof b);
             right -= text_w(&FONT_S, b);
-            cv_text(right, y + 1, &FONT_S, b, on ? cur_ink(bdp.bar) : C_GRAY);
+            cv_text(right, y + DEV_TY, &FONT_S, b, on ? cur_ink(bdp.bar) : C_GRAY);
             right -= 8;
         }
-        room = right - 16;
-        dev_row_text(b, sizeof b, i, nm);
-        cv_text(16, y + 1, &FONT_S, cut(nm, b, room > 8 ? (uint32_t)room / 8u : 1u), on ? cur_ink(bdp.bar) : chosen ? C_HI : C_GRAY);
+        room = right - 4;
+        cv_text(4, y + 2, font_big(), cut(b, nm, room > 16 ? (uint32_t)room / 16u : 1u), on ? cur_ink(bdp.bar) : C_GRAY);
     }
     if (bdp.n > bdp.shown) {                            /* where the window is in the list */
         cv_rect(238, 0, 1, (int32_t)rows_h, C_LINE);
@@ -235,10 +161,12 @@ static void dev_line_text(char *out, uint32_t room, const char *line, uint32_t a
 /* the list in the panel y, h tall (op_draw.c, when dev_listing): lazy, redrawn when what it shows changes */
 static void dev_draw(uint32_t y, uint32_t h)
 {
-    uint32_t nn, sig;
+    uint32_t sig;
     char b[sizeof bdp.st];
-    bdp.n = ble_dev_rows(&bdp.last, bdp.near, &nn);
-    bdp.cur = ui.row[SCR_SYSTEM] < bdp.n ? ui.row[SCR_SYSTEM] : bdp.n - 1u;
+    bdp.n = bt_rows();
+    if (ui.row[SCR_SYSTEM] >= bdp.n && bdp.n)
+        ui.row[SCR_SYSTEM] = (uint8_t)(bdp.n - 1u);     /* (the list shrank) */
+    bdp.cur = ui.row[SCR_SYSTEM];
     bdp.shown = (h - DEV_STATUS_H) / DEV_ROW_H;
     bdp.first = bdv.first;                              /* (kept: the window moves only when the cursor leaves it) */
     if (bdp.cur < bdp.first)
@@ -248,17 +176,20 @@ static void dev_draw(uint32_t y, uint32_t h)
     if (bdp.first + bdp.shown > bdp.n)                  /* (the list shrank: no empty rows under the last one) */
         bdp.first = bdp.n > bdp.shown ? bdp.n - bdp.shown : 0u;
     bdv.first = (uint8_t)bdp.first;
-    ble_dev_key_of(bdp.cur, &bdv.key);                  /* (what is highlighted: YES picks it by what it is) */
-    bdv.key_row = (uint8_t)bdp.cur;
-    bdv.key_ok = 1;
+    bdv.key_ok = 0;
+    if (!bt_audio() && bdp.cur < bdp.n) {               /* (MIDI: what is highlighted, SAVE picks it by what it is) */
+        ble_dev_key_of(bdp.cur + 1u, &bdv.key);
+        bdv.key_row = (uint8_t)bdp.cur;
+        bdv.key_ok = 1;
+    }
     bdp.h = h;
     bdp.bar = trk_col(song.sel);
 #if BLE_CENTRAL
     bdp.key = ble_connect_passkey();
 #endif
-    bdp.tone = ble_dev_line(b, sizeof b, nn);
-    dev_line_text(bdp.st, sizeof bdp.st, b, ble_dev_line_name_at());
-    sig = hu(hs(hu(hu(hu(ble_dev_sig(), bdp.cur), bdp.first), bdp.bar), bdp.st), h) | 1u;
+    bdp.tone = bt_list_line(b, sizeof b);
+    dev_line_text(bdp.st, sizeof bdp.st, b, bt_list_line_name_at());
+    sig = hu(hs(hu(hu(hu(bt_list_sig(), bdp.cur), bdp.first), bdp.bar), bdp.st), h) | 1u;
     if (sig == ui.sig[2])
         return;
     ui.sig[2] = sig;
@@ -267,12 +198,58 @@ static void dev_draw(uint32_t y, uint32_t h)
 /* ---- SYSTEM > Bluetooth and Devices, the lines (docs/UI-OPTIMIST-DESIGN.md 4.7 GLOBAL and SYSTEM): STATE in words, the DEVICE the
  * link is with, MIDI activity, RECONNECT (the list's NONE / LAST) and FORGET LAST. Read from ble_devices.c, nothing new kept
  * but the activity's two counters */
+static int32_t sys_step(int32_t v, int32_t s, int32_t max);
 #define bact bdp.act                                    /* (in the list's drawing state: the list and this line are never both shown) */
+static const char *const BLE_MODES[5] = {"OFF", "MIDI MAN", "MIDI AUTO", "AUDIO MAN", "AUDIO AUTO"};
+static uint8_t ble_ui_mode;
+
+static void ble_mode_sync(void)                         /* the radio switched elsewhere (a pick with it off, NO CAL): MODE
+                                                         * follows; else MODE is the choice (op_bt.c, kept in the record) */
+{
+    if (ble_ui_mode && ble_ui_mode < 3u && !ble_on)
+        ble_ui_mode = 0;
+    else if (!ble_ui_mode && ble_on)
+        ble_ui_mode = 1;
+}
+#include "op_bt.c"                                      /* the one pattern for MIDI and AUDIO: SAVE, AUTO, the list's rows */
+
+static void ble_mode_cell(cell_t *c)
+{
+    ble_mode_sync();
+    c->kind = CK_VAL;
+    c->label = "MODE";
+    c->big = 1;
+    str_cpy(c->val, !ble_radio_ok() && ble_ui_mode ? "NO CAL" : BLE_MODES[ble_ui_mode % 5u], sizeof c->val);
+    c->col = ble_ui_mode && !ble_radio_ok() ? C_WARN : 0;
+}
+
+static void ble_mode_set(int32_t s)
+{
+    ble_mode_sync();
+    bt_enter((uint32_t)sys_step((int32_t)ble_ui_mode, s, BT_AUDIO_BUILT ? 4 : 2));   /* (no AUDIO modes without BT_AUDIO) */
+}
+
 static const char *const BLE_ST[9] = {"OFF", "ADVERTISING", "CONNECTED", "NO CAL", "SCANNING", "CONNECTING", "SEARCHING",
                                       "PAIRING", "FAILED"};   /* (ble_dev_status's codes) */
+#if FELUCCA_BT_AUDIO
+static const char *const BTA_ST[12] = {"OFF", "SCANNING", "NOT CONNECTED", "NOT CONNECTED", "CONNECTING", "SETTING UP",
+                                       "SETTING UP", "CONNECTED", "REFUSED", "NOT CONNECTED", "NOT CONNECTED", "NOT CONNECTED"};
+                                                        /* (bt_audio.c BTA_S_*, said as MIDI says them) */
+#endif
 static void ble_state_cell(cell_t *c)
 {
     uint32_t s = ble_dev_status();
+#if FELUCCA_BT_AUDIO
+    if (ble_ui_mode >= 3u) {                            /* an AUDIO mode: the Classic link's state */
+        uint32_t a = bta_state();
+        c->kind = CK_RO;
+        c->label = "STATE";
+        c->big = 1;
+        str_cpy(c->val, bt.want ? "CONNECTING" : BTA_ST[a % 12u], sizeof c->val);
+        c->col = a == BTA_S_STREAMING ? C_OK : a == BTA_S_REFUSED ? C_ERR : 0;
+        return;
+    }
+#endif
     c->kind = CK_RO;
     c->label = "STATE";
     c->big = 1;
@@ -287,33 +264,44 @@ static void ble_peer_cell(cell_t *c)
     const char *v = "NONE";
     c->kind = CK_RO;
     c->label = "DEVICE";
-    c->big = 1;
 #if BLE_CENTRAL
-    if (ble_on && ble_up && ble_connect_status(nm, sizeof nm) != RCS_NONE && rc_nm_at < str_len(nm))
+    if (!bt_audio() && ble_on && ble_up && ble_connect_status(nm, sizeof nm) != RCS_NONE && rc_nm_at < str_len(nm))
         v = nm + rc_nm_at;                              /* (connecting / pairing / connected to a pick) */
-    else if (ble_connect_last_up() || ble_seeking() == 2)
-        ble_store_name(&ble_store, nm), v = nm;         /* (our link to LAST, or the search for it) */
     else
 #endif
-        if (ble_on && ble_connected())
+    if (bt_has_last())
+        bt_last_name(nm), v = nm;
+    else if (!bt_audio() && ble_on && ble_connected())
         v = "HOST";
     str_cpy(c->val, v, sizeof c->val);
-    c->col = ble_connected() ? C_OK : 0;
+    c->big = str_len(c->val) <= 9u;                     /* (a longer name in the small face; 13 characters of it shown) */
+    c->col = bt_linked() ? C_OK : 0;
 }
 static void ble_midi_cell(cell_t *c)
 {
-    uint32_t in, out;
-    if (bmi_w != bact.i)
-        bact.i = bmi_w, bact.ti = fm1_ms;
-    if (bmo_w != bact.o)
-        bact.o = bmo_w, bact.to = fm1_ms;
-    in = fm1_ms - bact.ti < BLE_ACT_MS;
-    out = fm1_ms - bact.to < BLE_ACT_MS;
+    ble_mode_sync();
     c->kind = CK_RO;
-    c->label = "MIDI";
     c->big = 1;
-    str_cpy(c->val, in && out ? "IN OUT" : in ? "IN" : out ? "OUT" : "--", sizeof c->val);
-    c->col = in || out ? C_OK : 0;
+    if (ble_ui_mode >= 3u) {
+        c->label = "FORMAT";
+        str_cpy(c->val, "SBC 44.1k", sizeof c->val);
+        c->col = C_OK;
+    } else if (ble_on) {
+        uint32_t in, out;
+        if (bmi_w != bact.i)
+            bact.i = bmi_w, bact.ti = fm1_ms;
+        if (bmo_w != bact.o)
+            bact.o = bmo_w, bact.to = fm1_ms;
+        in = fm1_ms - bact.ti < BLE_ACT_MS;
+        out = fm1_ms - bact.to < BLE_ACT_MS;
+        c->label = "ACTIVITY";
+        str_cpy(c->val, in && out ? "IN OUT" : in ? "IN" : out ? "OUT" : "--", sizeof c->val);
+        c->col = in || out ? C_OK : 0;
+    } else {
+        c->label = "ACTIVITY";
+        str_cpy(c->val, "--", sizeof c->val);
+        c->col = 0;
+    }
 }
 #if BLE_CENTRAL
 static void ble_auto_cell(cell_t *c)                    /* RECONNECT: LAST's name when it is the choice, else OFF (NONE); a
@@ -445,10 +433,7 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
     {"USB", {SI_USB, SI_NONE, SI_NONE, SI_NONE}},
 #endif
 #if FELUCCA_BLE
-    {"BLUETOOTH", {SI_BLE, SI_BLEST, SI_BLEPEER, SI_BLEMIDI}},   /* the radio ON / OFF, its STATE in words, the DEVICE it is
-                                                         * connected to, MIDI in / out activity (ble_*_cell above) */
-    {"DEVICES", {SI_BLELIST, SI_IF(BLE_CENTRAL, SI_BLEAUTO), SI_IF(BLE_CENTRAL, SI_BLEFGT), SI_NONE}},   /* the list (YES), RECONNECT
-                                                         * (NONE / LAST), FORGET LAST (asked): LAST exists only with BLE_CENTRAL */
+    {"BLUETOOTH", {SI_BLE, SI_BLEPEER, SI_BLEMIDI, SI_BLEST}},   /* 1 screen: MODE, DEVICE, ACTIVITY/FORMAT, STATE */
 #endif
 #if FELUCCA_USB_AUDIO
     /* where each source goes (the user, 2026-10-17: "each track, including master, can be assigned to none, 1, 2, 1+2, 3, 4,
@@ -581,8 +566,7 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
 #endif
 #if FELUCCA_BLE
     case SI_BLE:
-        cell_list(c, "BLUETOOTH", !ble_on ? "OFF" : !ble_radio_ok() ? "NO CAL" : "ON", 1, ble_on != 0u);   /* (a link: STATE says it) */
-        c->col = ble_on && !ble_radio_ok() ? C_WARN : 0;      /* (NO CAL: no stored RF trims, the radio never starts: midi_ble.c) */
+        ble_mode_cell(c);
         break;
     case SI_BLEST:
         ble_state_cell(c);
@@ -1132,8 +1116,9 @@ static void sys_set(uint32_t it, int32_t s)
         break;
 #endif
 #if FELUCCA_BLE
-    case SI_BLE:                                        /* right ON, left OFF (OFF: a connected central is let go) */
-        ble_midi_set((uint8_t)(s > 0 ? 1u : s < 0 ? 0u : !ble_on));
+    case SI_BLE:                                        /* MODE: OFF, MIDI MAN, MIDI AUTO, AUDIO MAN, AUDIO AUTO, a detent a
+                                                         * mode (YES: round; OFF: a connected central is let go) */
+        ble_mode_set(s);
         break;
 #if BLE_CENTRAL
     case SI_BLEAUTO:                                    /* (kept in the device store, saved with the settings: ble_devices.c) */
@@ -1235,12 +1220,14 @@ static int sys_yes(uint32_t r, uint32_t k, uint32_t ok)
 #if FELUCCA_BLE
     if (bdv.open)
         return dev_yes(r, ok);
-    if (it == SI_BLELIST) {                             /* YES on DEVICES: the list (BLUETOOTH's YES toggles it, as every on / off line) */
+    if (it == SI_BLE || it == SI_BLEPEER || it == SI_BLEST || it == SI_BLEMIDI) {   /* the Bluetooth page, any line */
+        bt_save();
+        return 1;
+    }
+    if (it == SI_BLELIST) {                             /* DEVICES: the devices nearby */
         dev_open();
         return 1;
     }
-    if (it == SI_BLEST || it == SI_BLEPEER || it == SI_BLEMIDI)
-        return 0;                                       /* (read-outs) */
 #if BLE_CENTRAL
     if (it == SI_BLEFGT)
         return ble_forget_yes(r, k, ok);

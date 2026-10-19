@@ -356,7 +356,7 @@ static BOOT_ORDER void fm1_main(void)
                                                          * IRQs (45, 29 at priority 2, below the audio) on with the
                                                          * rest just below */
 #endif
-#if FELUCCA_BT_INQ_PROBE
+#if FELUCCA_BT_INQ_PROBE || FELUCCA_BT_AUDIO
     bti_attach();                                       /* EXPERIMENTAL Classic probe (bt/bt_inq.c): IRQ 40 / 41, held */
 #endif
     BOOT_STAGE(IRQS);
@@ -482,7 +482,7 @@ static BOOT_ORDER void fm1_main(void)
 #if FELUCCA_CDC
         cdc_task();
 #endif
-#if FELUCCA_BT_INQ_PROBE
+#if FELUCCA_BT_INQ_PROBE || FELUCCA_BT_AUDIO
         bti_poll();                                     /* the Classic probe's 1a at boot, its prints (bt/bt_inq.c) */
 #endif
 #if FELUCCA_DUAL && FELUCCA_DUALCFG && FELUCCA_CDC

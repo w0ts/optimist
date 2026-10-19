@@ -108,6 +108,9 @@ static void dual_flash_leave(void);
 #ifndef FELUCCA_BLE_CENTRAL
 #define FELUCCA_BLE_CENTRAL 0    /* with BLE: the scanner for DEVICES' nearby rows (ble/ble_scan.c, io/midi/ble_devices.c) */
 #endif
+#ifndef FELUCCA_BT_AUDIO
+#define FELUCCA_BT_AUDIO 0
+#endif
 #ifndef FELUCCA_BT_INQ_PROBE
 #define FELUCCA_BT_INQ_PROBE 0   /* EXPERIMENTAL: the Bluetooth Classic inquiry probe (bt/bt_inq.c, docs/BT-CLASSIC.md
                                   * §14): console btclk / btinq; needs the CDC console, no BLE */
@@ -117,6 +120,9 @@ static void dual_flash_leave(void);
 #endif
 #if FELUCCA_BLE
 #include "io/midi/midi_ble.c"        /* the stack (ble/ble_stack.c) and its MIDI in / out */
+#endif
+#if FELUCCA_BT_AUDIO
+#include "bt/bt_audio.h"             /* Bluetooth audio's state for the screen (the code: bt/bt_audio.c, after the Classic stack) */
 #endif
 #define FELUCCA_ARRANGER 1
 #include "seq/arranger.c"
@@ -273,6 +279,12 @@ static void ota_commit(const uint8_t *parm)
 #endif
 #if FELUCCA_CDC
 #include "io/console.c"
+#elif FELUCCA_BT_AUDIO || FELUCCA_BT_INQ_PROBE
+static inline void con_puts(const char *s) { (void)s; }
+static inline void con_putc(char c) { (void)c; }
+static inline void con_dec(int32_t v) { (void)v; }
+static inline void con_hex(uint32_t v, uint32_t d) { (void)v; (void)d; }
+#include "bt/bt_inq.c"
 #endif
 #if FELUCCA_OTA
 #include "system/recovery.c"        /* early, polled USB updater; no synth or settings */

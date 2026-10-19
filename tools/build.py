@@ -770,7 +770,8 @@ def ble_rf_tables():
     or made from another firmware file (the same content)"""
     v = CFG_VALUES.get("FELUCCA_BLE", os.environ.get("FELUCCA_BLE", "0"))
     probe = CFG_VALUES.get("FELUCCA_BT_INQ_PROBE", os.environ.get("FELUCCA_BT_INQ_PROBE", "0"))   # (the Classic probe
-    if str(v) != "1" and str(probe) != "1":                                                    #  starts the same radio)
+    bta = CFG_VALUES.get("FELUCCA_BT_AUDIO", os.environ.get("FELUCCA_BT_AUDIO", "0"))         #  and audio start the
+    if str(v) != "1" and str(probe) != "1" and str(bta) != "1":                               #  same radio)
         return
     import ble_rf_capture as cap
     try:

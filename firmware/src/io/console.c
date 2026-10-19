@@ -288,8 +288,8 @@ static void con_bletrim(void)                       /* what the radio uses, Opti
 }
 #endif
 
-#if FELUCCA_BT_INQ_PROBE
-#include "../bt/bt_inq.c"              /* EXPERIMENTAL: the Bluetooth Classic inquiry probe (btclk, btinq) */
+#if FELUCCA_BT_INQ_PROBE || FELUCCA_BT_AUDIO
+#include "../bt/bt_inq.c"              /* EXPERIMENTAL: the Bluetooth Classic inquiry probe / audio stack */
 #endif
 
 #if FELUCCA_BLE && BLE_DIAG       /* FELUCCA_BLE_DIAG (builder item BLE_DIAG): without it no blell, no counters, no rings */
@@ -989,7 +989,7 @@ static void con_exec(const char *p)
                  "  blell [clear|regs]"
 #endif
 #endif
-#if FELUCCA_BT_INQ_PROBE
+#if FELUCCA_BT_INQ_PROBE || FELUCCA_BT_AUDIO
                  "  btclk [run]  btinq|btscan [SECONDS] [even|odd|all agc=N win=N frq=N pll=N sweep|nosweep pwr=N prio=N]|stop"
                  "  btpage ADDR [SECONDS] [OPTIONS]|stop  bttrace [N]  btrx [N]"
 #endif
@@ -1036,7 +1036,7 @@ static void con_exec(const char *p)
         con_blell(p);
 #endif
 #endif
-#if FELUCCA_BT_INQ_PROBE
+#if FELUCCA_BT_INQ_PROBE || FELUCCA_BT_AUDIO
     else if (con_word(&p, "btclk"))
         con_btclk(p);
     else if (con_word(&p, "btinq"))

@@ -3283,6 +3283,31 @@
     "provenance_line": ""
    },
    {
+    "key": "BT_AUDIO",
+    "flag": "FELUCCA_BT_AUDIO",
+    "label": "Bluetooth Classic Audio (A2DP Source, SBC)",
+    "group": "MIDI & USB",
+    "bit": 281,
+    "default": 0,
+    "parent": null,
+    "desc": "Bluetooth Classic audio out (A2DP source, SBC 44.1 kHz) to headphones and speakers: SYSTEM > Bluetooth's AUDIO MAN and AUDIO AUTO modes, the radio carrying BLE MIDI or audio, one at a time. Our own stack: inquiry, paging, Secure Simple Pairing (Just Works), E0 encryption, L2CAP, AVDTP and a fixed-point SBC encoder. Host-tested; on the FM-1 the scan has heard no device yet, so no audio has been streamed.",
+    "experimental": true,
+    "notice": "experimental: Bluetooth Classic A2DP audio source",
+    "off_warning": "",
+    "env": "",
+    "target_only": true,
+    "symbols": [
+     "ba_sbc",
+     "bt_sbc_encode"
+    ],
+    "no_image": false,
+    "choices": [],
+    "provenance": null,
+    "children": [],
+    "tested": "host-tested (SSP, SAFER+, SBC encoder, AVDTP, L2CAP) and unit-tested",
+    "provenance_line": ""
+   },
+   {
     "key": "CHANCE",
     "flag": "FELUCCA_CHANCE",
     "label": "per-step chance (STEP 2 PROB)",
@@ -4304,7 +4329,8 @@
    "MIDI_EXPR",
    "MIDI_NOTEOUT",
    "BLE",
-   "BT_INQ_PROBE"
+   "BT_INQ_PROBE",
+   "BT_AUDIO"
   ],
   "UI": [
    "MISSING_WARN",

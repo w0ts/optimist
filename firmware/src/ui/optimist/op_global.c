@@ -361,6 +361,35 @@ static int gl_on_tempo(void)                            /* GLOBAL's page shows T
 }
 /* GLO tapped: GLOBAL; on GLOBAL, SYSTEM; on SYSTEM (its BLE devices list too: closed), GLOBAL. Each keeps its line */
 static void glo_tap(void) { op_enter(ui.scr == SCR_GLOBAL ? SCR_SYSTEM : SCR_GLOBAL); }
+#if FELUCCA_BLE
+/* SYSTEM's Bluetooth page, whatever line the cursor is on, and its devices list (the user, 2026-10-19): SAVE tapped
+ * connects / lets go (op_bt.c bt_save; on the list, the row: sys_yes), SAVE held forgets the last device. HOME is HOME's,
+ * as anywhere. 1: taken (op_input.c) */
+static int bt_page(void)
+{
+    uint32_t e;
+    if (dev_listing())
+        return 1;
+    if (ui.scr != SCR_SYSTEM || GL_DEV || ui.row[SCR_SYSTEM] >= gl_n(1))
+        return 0;
+    e = gl_ent(1, ui.row[SCR_SYSTEM]);
+    return str_eq(SYS[(e >> 2) % NSYS].name, "BLUETOOTH");
+}
+static int bt_key(uint32_t b, int held)
+{
+    if (b != B_SAVE || !bt_page() || op_armed())
+        return 0;
+    if (held)
+        bt_forget();
+    else if (dev_listing())
+        return 0;                                       /* (the list: SAVE on the row, sys_yes) */
+    else
+        bt_save();
+    return 1;
+}
+#else
+#define bt_key(b, held) 0
+#endif
 
 static const screen_t SCREENS[SCR_N] = {
     {mix_rows, mix_name, mix_cell, mix_turn, mix_yes},

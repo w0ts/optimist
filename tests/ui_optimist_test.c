@@ -327,11 +327,12 @@ static void forms_of(uint32_t scr)
                    (c.d && c.d->max == c.d->min) ||
                    (scr == SCR_SYSTEM && c.kind == CK_RO && c.label && (!strcmp(c.label, "VERSION") || !strcmp(c.label, "INFO") || !strcmp(c.label, "INTERNALS") || !strcmp(c.label, "USB STATS") || !strcmp(c.label, "CREDITS") ||
                                                                  !strcmp(c.label, "BUILD") || !strcmp(c.label, "STATE") ||
-                                                                 !strcmp(c.label, "DEVICE") || !strcmp(c.label, "MIDI") ||
+                                                                 !strcmp(c.label, "DEVICE") || !strcmp(c.label, "ACTIVITY") ||
+                                                                 !strcmp(c.label, "FORMAT") ||
                                                                  !strcmp(c.label, " "))) ||   /* (text: no range) */
                    (scr == SCR_SYSTEM && c.kind == CK_VAL && sys_item_of(r, k) >= SI_UAS0) ||   /* (USB AUDIO's channels: a list of
                                                          * names, text only) */
-                   (scr == SCR_SYSTEM && c.label && (!strcmp(c.label, "RECONNECT") || !strcmp(c.label, "LAST DEVICE"))) ||   /* (OFF / NONE or a device's name) */
+                   (scr == SCR_SYSTEM && sys_item_of(r, k) == SI_BLE) ||   /* (Bluetooth's MODE: OFF, MIDI MAN ... words) */
                    (scr == SCR_SONG && !(c.val[0] >= '0' && c.val[0] <= '9'));   /* (SONG: "KEEP", "--", "SEC") */
             if ((c.kind == CK_VAL || c.kind == CK_RO) && !name && c.gk == GK_NONE) {
                 printf("  no form: screen %u row %u cell %u '%s'\n", scr, r, k, c.label ? c.label : "");

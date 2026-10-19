@@ -24,6 +24,38 @@ static struct {
     uint8_t txq[BP_TXQ][BTL_MAX], txl[BP_TXQ], txllid[BP_TXQ];
     uint32_t txw, txr, stop_ms;
 } bp;
+#if FELUCCA_BT_AUDIO
+/* pairing and encryption on the link (bt_ssp.c, SSP Just Works, the device starts it): a fresh state each connection, its
+ * PDUs through bp_queue; the randomness for the key and the nonces from the link's own noise (bp_noise: each reception's
+ * status, clock and timing) and the clocks, through SHA-256: no hardware random source is known on the FM-1, and Just
+ * Works has no protection against an active attacker anyway */
+#include "bt_sha256.c"
+#include "bt_safer.c"                                /* (SAFER+, E1 / E3, the SSP f1-f3 and P-192 through micro-ecc) */
+#include "bt_ssp.c"
+static struct btp bp_ssp;
+static uint32_t bp_noise, bp_rng_n;
+static int bp_rng(uint8_t *d, unsigned n)
+{
+    while (n) {
+        struct bt_sha256 c;
+        uint8_t h[32];
+        uint32_t w[4] = {bp_noise, bti_clkn(), fm1_ms, bp_rng_n++}, k;
+        bt_sha256_init(&c);
+        bt_sha256_add(&c, (const uint8_t *)w, sizeof w);
+        bt_sha256_done(&c, h);
+        for (k = 0; k < 32u && n; k++, n--)
+            *d++ = h[k];
+        bp_noise = bp_noise * 31u + h[0];
+    }
+    return 1;
+}
+static void bp_queue(const uint8_t *pdu, uint32_t len, const char *why);
+static void bp_ssp_send(void *ctx, const uint8_t *pdu, uint32_t len)
+{
+    (void)ctx;
+    bp_queue(pdu, len, "pairing");
+}
+#endif
 
 static const char *const bp_type_name[16] = {"NULL", "POLL", "FHS", "DM1", "DH1", "HV1", "HV2", "HV3",
                                              "DV", "AUX1", "DM3", "DH3", "EV4", "EV5", "DM5", "DH5"};
@@ -99,6 +131,12 @@ static void bp_conn_enter(void)                    /* BR §8.3 sub-state 2 -> th
         f->linkcntl[i] |= 1u << 14;
     }
     bti.mode = BTI_M_CONN;
+#if FELUCCA_BT_AUDIO
+    for (i = 0; i < 2u; i++)
+        f->linkcntl[i] &= (uint16_t)~(1u << 7 | 1u << 15);   /* (a new link: no encryption until it is started) */
+    uECC_set_rng(bp_rng);
+    btp_begin(&bp_ssp, bti.own, bp.remote, bp_rng, bp_ssp_send, 0);
+#endif
     bp.conn_ms = fm1_ms;
     bp.last_good_ms = fm1_ms;
     bp_event(BTI_K_CONN, 0, 0, 0, 0);
@@ -164,6 +202,9 @@ static void bp_conn_rx(void)                       /* a packet in the connection
             continue;
         any = 1;
         stat = f->rxstat[i], hdr = f->rxphdr[i], type = stat & 15u, llid = hdr & 3u, len = (hdr >> 3) & 0x3FFu;
+#if FELUCCA_BT_AUDIO
+        bp_noise = bp_noise * 0x9E3779B1u + (stat ^ (uint32_t)f->rx_clkn_lo << 8 ^ f->rxbit);   /* (the randomness: bp_rng) */
+#endif
         bti_rxlog(i, stat);
         bp.type_n[type]++;
         if ((stat >> 8) == 0x8Fu) {
@@ -265,6 +306,24 @@ static void bp_tx_service(void)                    /* the main loop: one LMP PDU
     fm1_br_irqs_hold(0);
 }
 
+#if FELUCCA_BT_AUDIO
+/* E0 in the engine (docs/BT-CLASSIC.md 9, [I]: not yet seen working): step 1 Kc' (= Kc: key size 16) into cryptk, RX
+ * decryption (linkcntl bit 15) on both buffers; step 2 TX encryption (bit 7) too. The key's octet order in cryptk is the
+ * air order, low octet first in each half-word: a guess the hardware test settles */
+static void bp_e0(uint32_t step)
+{
+    struct fm1_br_frame *f = fm1_br_frame(bti_tab, 0);
+    uint32_t i;
+    fm1_br_irqs_hold(1);
+    if (step == 1u)
+        for (i = 0; i < 8u; i++)
+            f->cryptk[i] = (uint16_t)(bp_ssp.kc[2u * i] | (uint32_t)bp_ssp.kc[2u * i + 1u] << 8);
+    for (i = 0; i < 2u; i++)
+        f->linkcntl[i] |= (uint16_t)(step == 1u ? 1u << 15 : 1u << 7);
+    fm1_br_irqs_hold(0);
+    con_puts(step == 1u ? "btpage: E0 key loaded, RX decryption on\r\n" : "btpage: TX encryption on: the link is encrypted\r\n");
+}
+#endif
 static void bp_lmp_in(const struct bti_rx *r)
 {
     uint8_t out[BTL_MAX + 8];
@@ -301,6 +360,18 @@ static void bp_lmp_in(const struct bti_rx *r)
         bp.stopping = 1;
         bp.stop_ms = fm1_ms;
     }
+#if FELUCCA_BT_AUDIO
+    {
+        uint32_t was = bp_ssp.st;
+        if (btp_in(&bp_ssp, r->data, r->len)) {
+            if (bp_ssp.st == BTP_STARTING && was != BTP_STARTING)
+                bp_e0(1);                               /* (we sent start_encryption_req: Kc' in, RX decryption on) */
+            else if (bp_ssp.st == BTP_ENCRYPTED && was == BTP_STARTING)
+                bp_e0(2);                               /* (it accepted: TX encryption on too) */
+            return;
+        }
+    }
+#endif
     n = btl_answer(r->data, r->len, "OPTIMIST BT", out);
     if (n)
         bp_queue(out, n, "answer");

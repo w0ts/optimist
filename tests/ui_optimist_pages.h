@@ -43,13 +43,17 @@ static void pages_nav_tests(void)
         check(ui.scr == SCR_GLOBAL, "D1: GLO from another screen: GLOBAL");
         check(glo_find(SCR_GLOBAL, "SYSTEM") == ng, "D1: GLOBAL has no SYSTEM line (GLO reaches SYSTEM)");
 #if FELUCCA_BLE
+        bt.boot = 1;
+        ble_store_reset(&ble_store);
+        bt_enter(1);                                    /* (MIDI, nothing remembered: SAVE opens the devices list) */
         op_enter(SCR_SYSTEM);
-        line_named(SCR_SYSTEM, "DEVICES");
+        line_named(SCR_SYSTEM, "MODE");
         frame();
         tap(B_SAVE);
         i = (uint32_t)dev_listing();
         tap(B_GLO);
         check(i && !dev_listing() && ui.scr == SCR_GLOBAL, "D1: GLO on the BLE devices list (SYSTEM): GLOBAL, the list closed");
+        bt_enter(0);
         tap(B_HOME);
 #endif
     }

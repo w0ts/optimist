@@ -202,6 +202,9 @@ static void bti_print_rx(const struct bti_rx *r)
         bti_fhs_parse(r->data, &fh);
         int32_t dclk = (int32_t)(((fh.clk << 1) - r->clkn) << 5) >> 5;   /* remote CLK - our RX CLKN: 27 bits (BR §6.1) */
         ble_cpy(bti.last_addr, fh.addr, 6);
+#if FELUCCA_BT_AUDIO
+        bta_saw(fh.addr, fh.cod);                  /* (the screen's list: bt_audio.c) */
+#endif
         if (!bti_new(fh.addr, dclk))
             return;
         con_puts("btinq: FHS ");
@@ -219,6 +222,10 @@ static void bti_print_rx(const struct bti_rx *r)
     } else if (r->kind == BTI_K_EIR) {
         char name[33];
         uint32_t n = bti_eir_name(r->data, r->len, name, sizeof name);
+#if FELUCCA_BT_AUDIO
+        if (n)
+            bta_named(bti.last_addr, name);
+#endif
         con_puts("btinq: EIR ");
         bti_addr(bti.last_addr);
         bti_kv(" len=", r->len);

@@ -147,6 +147,8 @@ static void t_record(void)
     q = p;
 #if FELUCCA_USB_AUDIO
     check("the favorites are the record's last field but the USB routing", off + sizeof(fav_t) == offsetof(persist_t, ua_src));
+#elif FELUCCA_BLE
+    check("the favorites are the record's last field but Bluetooth's (op_bt.c)", off + sizeof(fav_t) == offsetof(persist_t, bt_rec));
 #else
     check("the favorites are the record's last field", off + sizeof(fav_t) == sizeof(persist_t));
 #endif

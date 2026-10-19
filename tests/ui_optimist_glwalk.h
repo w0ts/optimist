@@ -160,18 +160,20 @@ static void glw_factory_tests(void)
             glw_line(scr, i, &c, v);
             if (c.kind != CK_VAL || c.d)
                 continue;                               /* (a descriptor's line: its default, glw_walk_line) */
-            if (!strcmp(c.label, "BLUETOOTH") || !strcmp(c.label, "RECONNECT")) {   /* never reset: a live connection stays */
 #if FELUCCA_BLE
-                uint8_t was = ble_on;
-                ble_on = 1;
+            if (scr == SCR_SYSTEM && i < gl_n(1) && sys_item(gl_ent(1, i) >> 2, gl_ent(1, i) & 3u) == SI_BLE) {   /* Bluetooth's
+                                                         * MODE: never reset (a live connection stays) */
+                uint8_t was = ble_ui_mode;
+                bt.boot = 1;
+                bt_enter(1);
                 press(B_OCTDN);
                 turn(LINE_KNOB(i), 1);
                 release(B_OCTDN);
-                ble_ok &= ble_on == 1u;
-                ble_on = was;
-#endif
+                ble_ok &= ble_on == 1u && ble_ui_mode == 1u;
+                bt_enter(was);
                 continue;
             }
+#endif
             f = glw_factory(c.label);
             if (!f) {
                 printf("  glwalk: %s has no factory value in the test's table\n", c.label);
@@ -374,12 +376,10 @@ static void glwalk_tests(void)
     i = line_named(SCR_SYSTEM, "PANEL");
     glw_line(SCR_SYSTEM, i, &c, v);
     {
-        uint32_t want = 1u;                             /* (Calibrate's PANEL; with BLE also DEVICES, and LAST DEVICE when one is kept) */
-#if FELUCCA_BLE
-        want += 1u + (BLE_CENTRAL && ble_store_has_last(&ble_store) ? 1u : 0u);
-#endif
+        uint32_t want = 1u;                             /* (Calibrate's PANEL: the Bluetooth page has no action line, SAVE acts
+                                                         * on any of its lines, op_bt.c) */
         check(ok && acts == want && c.kind == CK_ACT && !strcmp(v, "CALIBRATE"),
-              "no GLOBAL / SYSTEM line draws YES; the actions (Calibrate's PANEL; with BLE DEVICES and LAST DEVICE) draw their verb");
+              "no GLOBAL / SYSTEM line draws YES; the action (Calibrate's PANEL) draws its verb");
     }
     glw_factory_tests();
     glw_sync_long_tests();
