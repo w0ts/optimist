@@ -44,6 +44,14 @@ static void stt_do(uint32_t card)                       /* TOOLS' one card: its 
     if (op_armed())                                     /* (REVERSE, RANDOM, COOK ask first, the user 2026-10-13) */
         tap(B_SAVE);
 }
+static void stt_pick(uint32_t sel)                      /* TOOLS' card on choice sel (TS_*), a detent at a time */
+{
+    uint32_t n = (sel + TS_N - tl.sel) % TS_N;
+    if (!n)
+        n = TS_N;
+    while (n--)
+        kturn(EN_K1, 1);
+}
 static void stt_note(step_t *s, uint32_t note, uint32_t flags, uint32_t g)
 {
     memset(s, 0, sizeof *s);
@@ -215,6 +223,38 @@ static void seqtools_tests(void)
     check(t->p[P_SLEN] == 8 && AL(t)->n == n && strstr(ui.msg, "FULL"), "LENGTH x2 with too many events to copy: PATTERN FULL, nothing done");
     AL(t)->n = 0;
 #endif
+    {   /* QUANTIZE (2026-10-19): the nudges to the nearest 1/4, then 1/2, then 1 step; one undo; nothing to do said so */
+        static const int8_t NU[4] = {5, -20, 13, 27};
+        uint32_t j;
+        int ok = 1;
+#if FELUCCA_AUTO
+        AL(t)->n = 0;
+#endif
+        for (j = 0; j < 4u; j++)
+            (void)step_micro_set(t, j, NU[j]);
+        stt_pick(TS_Q4);
+        stt_yes();
+        ok = step_micro(t, 0) == 0 && step_micro(t, 1) == -16 && step_micro(t, 2) == 16 && step_micro(t, 3) == MICRO_MAX;
+        check(ok && strstr(ui.msg, "QUANTIZED"), "QNT 1/4: 5 -20 13 27 (1/64 step) -> 0 -16 16 31 (half a step late kept at 31)");
+        stt_undo();
+        for (j = 0, ok = 1; j < 4u; j++)
+            ok &= step_micro(t, j) == NU[j];
+        check(ok, "... one undo level: the nudges as they were");
+        stt_pick(TS_Q2);
+        stt_yes();
+        check(step_micro(t, 0) == 0 && step_micro(t, 1) == -32 && step_micro(t, 2) == 0 && step_micro(t, 3) == MICRO_MAX,
+              "QNT 1/2: 5 -20 13 27 -> 0 -32 0 31");
+        stt_pick(TS_Q1);
+        stt_yes();
+        for (j = 0, ok = 1; j < 4u; j++)
+            ok &= step_micro(t, j) == 0;
+#if FELUCCA_AUTO
+        ok &= AL(t)->n == 0;                            /* (on the grid: the events gone, no room taken) */
+#endif
+        check(ok, "QNT 1: every start on the grid, the nudge events gone");
+        stt_yes();
+        check(strstr(ui.msg, "ON THE GRID") != 0, "QNT with nothing nudged: ON THE GRID ALREADY, nothing done");
+    }
     /* GEN on a synth track (seq/gen.c): a layer over the pattern, never written but by WRITE */
     {
     uint32_t m;

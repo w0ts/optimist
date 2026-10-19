@@ -81,7 +81,7 @@ STEP's last two pages (SELECT, or SEQ tapped again) are TOOLS and EUCLID (builde
 
 ## TOOLS
 
-Page TOOLS of STEP: four cards, a turn arms the card and YES (SAVE) does it, with a toast. Each is one undo level. The scope is what ALGORITHM selected: a synth track, the whole kit (DR), or one picked lane.
+Page TOOLS of STEP: one card whose turn picks the tool (REVERSE, RANDOM, COOK, DOUBLE, HALF, QNT 1, QNT 1/2, QNT 1/4); a turn arms the card and YES (SAVE) does it, with a toast. Each is one undo level. The scope is what ALGORITHM selected: a synth track, the whole kit (DR), or one picked lane.
 
 | Tool | What it does |
 | --- | --- |
@@ -89,6 +89,7 @@ Page TOOLS of STEP: four cards, a turn arms the card and YES (SAVE) does it, wit
 | RANDOM | synth track: new notes on the same rhythm (a walk through the track's scale; on CHR the minor pentatonic of the root). Drums: a beat, or the picked lane drawn at random |
 | COOK | a few changes: some notes a scale step or octave, a level NORM or HARD, a chance of 50 or 75 %; drums: some hits moved, added or taken. "NOTHING TO COOK" on an empty pattern |
 | LENGTH | x2 (the pattern copied after itself, at most 64 steps, "PATTERN FULL" or "64 STEPS: NO ROOM" if not) or 1/2 (the steps past the new LEN are kept) |
+| QUANTIZE | QNT 1, QNT 1/2 or QNT 1/4: the nudged starts (REC QUANT OFF, or NUDGE on the STEP page) move to the nearest whole, half or quarter step; QNT 1 puts every note back on the grid. The lengths stay. A nudge belongs to the step, so on DR it is the whole kit even with a lane picked; half a step late is kept at 31/64. "ON THE GRID ALREADY" when nothing is nudged |
 
 Every tool works on steps 1 to LEN. The events of a step (locks, motion, chance, conditions, nudges, fills) move with it. The EDIT layer's SHIFT and LENGTH x2 move and copy the events too.
 

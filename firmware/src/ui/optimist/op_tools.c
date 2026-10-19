@@ -4,8 +4,12 @@
 /* STEP's TOOLS, GEN and GEN OUT pages (FELUCCA_SEQTOOLS, backports15.h; docs/UI-OPTIMIST-DESIGN.md section 22). Included by
  * optimist.c before op_step.c, which shows them as STEP's last three pages (SELECT, SEQ tapped again).
  *
- *   TOOLS   REVERSE · RANDOM · COOK · LENGTH. A turn arms the card (the hot one; LENGTH's turn says x2 or 1/2), YES
- *           (SAVE tapped) does it, a toast says what was done. Each is one undo level (SAVE then HOME).
+ *   TOOLS   REVERSE · RANDOM · COOK · LENGTH · QUANTIZE. A turn arms the card (the hot one; LENGTH's turn says x2 or
+ *           1/2, QUANTIZE's 1, 1/2 or 1/4 step), YES (SAVE tapped) does it, a toast says what was done. Each is one undo
+ *           level (SAVE then HOME). QUANTIZE (2026-10-19, after Melodee 1.2.1's note tools by Kerem Kilic, GPL-3.0)
+ *           moves the nudged starts (REC QUANT OFF's, the STEP page's NUDGE) to the nearest 1, 1/2 or 1/4 of a step;
+ *           a nudge is the step's, so on DR it is the whole kit's even with a lane picked. Half a step late is not a
+ *           nudge (MICRO_MAX 31/64): a start that rounds there stays at 31/64
  *   GEN     TYPE · its three values (EUCLID: HITS STEPS ROT; RANDOM: DENSITY SEED ACCENT; PULSE: EVERY OFFSET
  *           RATCHET): the note generator of the track (a drum track: of its selected lane), seq/gen.c, a layer played
  *           over the pattern, never written into it; a turn is heard at the next step. HOME + a knob: its default.
@@ -26,7 +30,7 @@
  * walks the minor pentatonic of its ROOT, HALF keeps the steps past the new LEN, DOUBLE refuses when the copies of
  * the events do not fit the track's 128 (PATTERN FULL). */
 #if FELUCCA_SEQTOOLS
-enum { TL_REV, TL_RND, TL_COOK, TL_LEN };
+enum { TL_REV, TL_RND, TL_COOK, TL_LEN, TL_QNT };
 #define TL_KICK 0u                      /* drums.c LANE_NAME: KICK, SNARE, CLOSED HAT, OPEN HAT */
 #define TL_SNARE 2u
 #define TL_HATC 4u
@@ -37,9 +41,17 @@ static struct {
     uint8_t sel;                        /* the tool the one TOOLS card has picked: TS_* below */
     uint32_t sess;                      /* the undo session of the last tool */
 } tl = {0, 0, 0};
-enum { TS_REV, TS_RND, TS_COOK, TS_DBL, TS_HALF, TS_N };   /* (the card's choices; DOUBLE and HALF are LENGTH's two) */
-static const char *const TS_NAME[TS_N] = {"REVERSE", "RANDOM", "COOK", "DOUBLE", "HALF"};
-static uint32_t ts_tool(uint32_t sel) { return sel == TS_DBL || sel == TS_HALF ? (uint32_t)TL_LEN : sel; }
+enum { TS_REV, TS_RND, TS_COOK, TS_DBL, TS_HALF, TS_Q1, TS_Q2, TS_Q4, TS_N };   /* (the card's choices; DOUBLE and HALF
+                                                        * are LENGTH's two, QNT 1 .. 1/4 QUANTIZE's three) */
+static const char *const TS_NAME[TS_N] = {"REVERSE", "RANDOM", "COOK", "DOUBLE", "HALF", "QNT 1", "QNT 1/2", "QNT 1/4"};
+static uint32_t ts_tool(uint32_t sel)
+{
+    return sel == TS_DBL || sel == TS_HALF ? (uint32_t)TL_LEN : sel >= TS_Q1 && sel < TS_N ? (uint32_t)TL_QNT : sel;
+}
+static uint32_t ts_arg(uint32_t sel)                    /* tl_run's arg: LENGTH's 1/2, QUANTIZE's grid (1 2 4 a step) */
+{
+    return sel == TS_HALF ? 1u : sel == TS_Q1 ? 1u : sel == TS_Q2 ? 2u : sel == TS_Q4 ? 4u : 0u;
+}
 
 static uint32_t tl_rnd(uint32_t n) { return n ? rng() % n : 0u; }
 static int32_t tl_lane(void) { return is_drum(TSEL) && lane_picked() ? (int32_t)lane_selected() : -1; }
@@ -606,6 +618,34 @@ static void tl_double_do(track_t *t, uint32_t len)
     t->p[P_SLEN] = (int16_t)nl;
 }
 
+/* ---- QUANTIZE: each nudge of steps 1..len to the nearest multiple of 64 / div (1/64 of a step: 1, 1/2, 1/4 of it),
+ * 0 on the grid (its event goes), half a step late kept at MICRO_MAX; -> how many moved (the IRQ off) */
+static uint32_t tl_quantize(track_t *t, uint32_t len, uint32_t div)
+{
+    uint32_t i, n = 0;
+    int32_t q = 64 / (int32_t)(div == 2u || div == 4u ? div : 1u), v, m;
+    for (i = 0; i < len; i++) {
+        v = step_micro(t, i);
+        if (!v)
+            continue;
+        m = (v + q / 2 >= 0 ? (v + q / 2) / q : -((q - 1 - (v + q / 2)) / q)) * q;   /* (floor((v + q / 2) / q) q) */
+        m = clamp(m, MICRO_MIN, MICRO_MAX);
+        if (m != v) {
+            (void)step_micro_set(t, i, m);              /* (never more events: one changed or gone) */
+            n++;
+        }
+    }
+    return n;
+}
+static int tl_has_nudge(const track_t *t, uint32_t len)
+{
+    uint32_t i;
+    for (i = 0; i < len; i++)
+        if (step_micro(t, i))
+            return 1;
+    return 0;
+}
+
 /* ---- the pages */
 static void tl_cell(uint32_t pg, uint32_t k, cell_t *c)   /* pg 0 TOOLS, 1 GEN, 2 GEN OUT */
 {
@@ -613,7 +653,7 @@ static void tl_cell(uint32_t pg, uint32_t k, cell_t *c)   /* pg 0 TOOLS, 1 GEN, 
     if (!pg) {
         if (k == 0u) {                                       /* (one card: its knob picks the tool, YES does it) */
             c->kind = CK_VAL;                                /* (a value cell: the turn reaches tl_turn, an action cell's would only pick it) */
-            cell_list(c, "TOOL", TS_NAME[tl.sel % TS_N], (int32_t)TS_N - 1, tl.sel);       /* (dots: the five tools) */
+            cell_list(c, "TOOL", TS_NAME[tl.sel % TS_N], (int32_t)TS_N - 1, tl.sel);       /* (dots: the eight choices) */
         } else if (k == 1u) {                                  /* what it will work on: the track, or the picked drum lane */
             int32_t ln = tl_lane();
             c->kind = CK_VAL;
@@ -642,14 +682,30 @@ static void tl_say(const char *a, const char *b)       /* what was done: a toast
     ui_say(a, b);
     ui.toast_next = 0;
 }
-/* tool k (TL_REV .. TL_LEN; half: LENGTH is 1/2, else x2) on track t, drum lane `lane` (-1: the whole kit or a synth track): what it says is
+/* tool k (TL_REV .. TL_QNT; arg: LENGTH 1 is 1/2, else x2; QUANTIZE the grid, 1 2 4 a step) on track t, drum lane `lane` (-1: the
+ * whole kit or a synth track): what it says is
  * a toast as two strings (*sa, *sb; buf holds one of them). One undo level when it changes the pattern. The Optimist UI's YES and the
  * web editor's TOOLS (io/editor/ed_tools.c) both call it. 1 done (or said why not: it is a toast either way) */
-static int tl_run(track_t *t, uint32_t k, int32_t lane, uint32_t half, const char **sa, const char **sb, char *buf)
+static int tl_run(track_t *t, uint32_t k, int32_t lane, uint32_t arg, const char **sa, const char **sb, char *buf)
 {
-    uint32_t len = trk_len(t), i, n = 0, nl;
+    uint32_t len = trk_len(t), i, n = 0, nl, half = arg != 0u;
     const char *who = lane >= 0 ? lane_name((uint32_t)lane) : trk_tag(song.sel), *what;
     *sa = who, *sb = "";
+    if (k == TL_QNT) {                                  /* (the step's nudge: the track's, a lane picked or not) */
+        if (!tl_has_nudge(t, len)) {
+            *sa = "ON THE GRID ALREADY";
+            return 1;
+        }
+        tl_mark(t);
+        fm1_irq_off();
+        n = tl_quantize(t, len, arg);
+        fm1_irq_on();
+        sync_reload = 1;
+        str_cpy(buf, "QUANTIZED: ", 24);
+        fmt_int(buf + str_len(buf), (int32_t)n);
+        *sa = buf, *sb = n == 1u ? " NOTE" : " NOTES";
+        return 1;
+    }
     if (k == TL_LEN) {
         if (!half && (len >= NSTEP || !tl_ev_double(t, len, tl_dbl_len(len), 1))) {
             *sa = len >= NSTEP ? "64 STEPS: NO ROOM" : "PATTERN FULL";
@@ -732,7 +788,7 @@ static int tl_yes(uint32_t pg, uint32_t k, uint32_t ok)
         op_arm(SCR_STEP, ui.row[SCR_STEP], k, TS_NAME[tl.sel % TS_N], a, 0);
         return 1;
     }
-    (void)tl_run(t, ts_tool(tl.sel), lane, tl.sel == TS_HALF, &sa, &sb, b);
+    (void)tl_run(t, ts_tool(tl.sel), lane, ts_arg(tl.sel), &sa, &sb, b);
     tl_say(sa, sb);
     return 1;
 }
