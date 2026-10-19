@@ -43,7 +43,6 @@ src/engines/drawbar/eng_drawbar.c:drawbar_block:(512+T->dg) | dg = 256 + E6 * 6 
 src/engines/drawbar/eng_drawbar.c:drawbar_block:(uint32_t)(s+49152) | s = sum of DRW_LV levels, each >= 0
 src/engines/fm6/eng_fm6.c:fm6_ctl_block:ed[FN_PBSTEP] | in the else of "if (!ed[FN_PBSTEP])"
 src/engines/fm6/eng_fm6.c:fm6_ctl_block:stp | stp = 12 / ed[FN_PBSTEP] with FN_PBSTEP 1..12 here: fm6_set clamps it to FM6_FNMAX 12 (SysEx, project load, editor) and fm6_fn_reset defaults it to 0
-src/engines/fm6/eng_fm6.c:fm6_pack_voice:(FM6_NPACKS?FM6_NPACKS:1u) | a constant: the packs built (the number of packs, 1 when there is none: the 0 entry of FM6_PACK)
 src/engines/formant/eng_formant.c:formant_render:(((te-tp)>>16)|1u) | "| 1"
 src/engines/formant/eng_formant.c:formant_render:((tp>>16)|1u) | "| 1"
 src/engines/formant/eng_formant.c:formant_render:f | guarded: "f > 0" in the same condition
@@ -64,7 +63,6 @@ src/fx/fx.c:duck_block:(len>>5) | len = BEAT_U / 2, a constant
 src/fx/fx.c:master_out:(uint32_t)lim_env | inside "if (lim_env > LIM_T)", LIM_T > 0
 src/fx/fx.c:mix_part:((xmax>r?xmax:r)|1) | "| 1"
 src/fx/fx.c:mix_part:((k>m?k:m)|1) | "| 1" (FELUCCA_GLIDE: the largest send over the block)
-src/fx/fx.c:__attribute__:(m|1) | "| 1" (dbus_sends: the largest drum-track send over the block)
 src/fx/fx.c:__attribute__:(mx|1) | "| 1" (ut_mix: the USB input's largest send over the block)
 src/display/gfx.c:cv_begin:w | only when w * h > CV_MAX, which needs w != 0
 src/ui/knob_accel.h:knob_accel:a | only when a > 1
@@ -279,4 +277,9 @@ src/engines/juno/juno_dsp.h:juno_res_at:(uint32_t)r->fb | FB_SCALE_T, a table of
 
 src/ui/sloop/ui.c:preset_move:t | guarded: "if (!total) return", t is total
 src/fx/fx.c:__attribute__:e | the return feedback send's limiter: the divide (RS_FBT << 15) / e is the true arm of "e > RS_FBT", so e is above the threshold, never 0 (div_audit reads rs_fb_level's function as __attribute__)
-src/bt/bt_inq.c:bti_clk_print:ms | guarded on the same line (ms ? ... : 0): a 1a run that has not lasted a millisecond prints 0
+src/engines/fm6/eng_fm6.c:fm6_pk:(FM6_NPACKS?FM6_NPACKS:1u) | a constant: the packs built (the number of packs, 1 when there is none: the 0 entry of FM6_PACK)
+src/seq/auto_slot.c:sa_knob:trk_len(t) | trk_len (seq.c) returns P_SLEN when above 0, else 1: never 0
+src/storage/project.c:dly_map:(a[i+1u]-a[i]) | a is DLYC_X or DLYC_Y (dly_freq_in / dly_freq_out), both strictly rising: neighbouring entries differ
+src/drums/lane_play.c:denv_fix:c->atk | guarded on the same line (c->atk ? 32768u / c->atk : 0u)
+src/drums/lane_play.c:denv_fix:c->dec | guarded on the same line (c->dec ? 32768u / c->dec : 0u)
+src/bt/bt_inq_con.c:bti_clk_print:ms | guarded on the same line (ms ? ... : 0): a 1a run that has not lasted a millisecond prints 0
