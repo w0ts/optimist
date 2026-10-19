@@ -953,23 +953,26 @@ int main(int argc, char **argv)
         }
         check("... each section loads its own layout (the default: none stored)", nn);
 #if !FELUCCA_MOTION
-        {   /* the backup: the sections, the autosave, the drum records and FXR1 FXR2 (the FX records in two packs, u16
-             * lengths: fx-rework 2026-10-14), into a wiped device; an older backup's FXSL (u8 lengths, one pack) restored */
-            static const char *const TAG[7] = {"DLNS", "S01 ", "S02 ", "S03 ", "AUTO", "FXR1", "FXR2"};
-            static uint8_t d[7][SEC_REC_MAX + 64], old[SEC_REC_MAX + 64];
-            int ix[7], ixo = bk_find("FXSL");
-            uint32_t ln[7], rc = 0, at2, no = 0;
+        {   /* the backup: the sections, the autosave, the drum records and FX31 .. FX33 (the FX records in three packs,
+             * u16 lengths: 2026-10-19; FX32, sections G..L, empty here), into a wiped device; an older backup's FXSL (u8
+             * lengths, one pack) restored; FXR1 FXR2 (two packs, before) listed, empty (restored only) */
+            static const char *const TAG[8] = {"DLNS", "S01 ", "S02 ", "S03 ", "AUTO", "FX31", "FX32", "FX33"};
+            static uint8_t d[8][SEC_REC_MAX + 64], old[SEC_REC_MAX + 64];
+            int ix[8], ixo = bk_find("FXSL"), ix1 = bk_find("FXR1"), ix2 = bk_find("FXR2");
+            uint32_t ln[8], rc = 0, at2, no = 0;
             uint8_t z[1] = {0};
-            for (k = 0, nn = 1; k < 7u; k++) {
+            for (k = 0, nn = 1; k < 8u; k++) {
                 ix[k] = bk_find(TAG[k]);
                 ln[k] = ix[k] >= 0 ? bk_get(ix[k], d[k]) : 0u;
-                nn &= ix[k] >= 0 && ln[k] > 0u;
+                nn &= ix[k] >= 0 && (ln[k] > 0u || k == 6u);
             }
-            check("backup: FXR1 and FXR2 (raw log objects) are listed with data beside the sections, AUTO and DLNS; FXSL "
-                  "listed, empty (restore only)", nn && ixo >= 0 && bk_get(ixo, old) == 0u);
+            check("backup: FX31 and FX33 (raw log objects) are listed with data beside the sections, AUTO and DLNS; FXSL, "
+                  "FXR1, FXR2 listed, empty (restore only)", nn && ixo >= 0 && bk_get(ixo, old) == 0u && ix1 >= 0 &&
+                  bk_get(ix1, old) == 0u && ix2 >= 0 && bk_get(ix2, old) == 0u);
             fresh_flash();
-            for (k = 0; k < 7u; k++)
-                rc |= bk_put(ix[k], d[k], ln[k]);
+            for (k = 0; k < 8u; k++)
+                if (ln[k])
+                    rc |= bk_put(ix[k], d[k], ln[k]);
             ed_n = 0;
             ed_backup(ED_BK_END, z, 1);
             power_cycle();
@@ -977,7 +980,7 @@ int main(int argc, char **argv)
             project_load(0);
             check("... written back into a wiped device, a restart: the work's and section A's layouts",
                   rc == 0 && nn && !memcmp(fxs_slot, L[0], 4));
-            for (k = 5; k < 7u; k++)                   /* (an older backup's FXSL: the same records, u8 lengths) */
+            for (k = 5; k < 8u; k++)                   /* (an older backup's FXSL: the same records, u8 lengths) */
                 for (at2 = 0; at2 < ln[k]; at2 += 3u + (d[k][at2 + 1u] | d[k][at2 + 2u] << 8)) {
                     uint32_t rl = d[k][at2 + 1u] | d[k][at2 + 2u] << 8;
                     old[no] = d[k][at2], old[no + 1u] = (uint8_t)rl;
@@ -999,7 +1002,7 @@ int main(int argc, char **argv)
             rc = bk_put(ix[5], d[5], ln[5]);
             ed_n = 0;
             ed_backup(ED_BK_END, z, 1);
-            check("... an FXR1 object that is not one (id 17): refused at the commit (rc 2)", rc == 2u && !slg_has(FXR_ID0));
+            check("... an FX31 object that is not one (id 17): refused at the commit (rc 2)", rc == 2u && !slg_has(FXR_ID0));
         }
 #endif
 #endif
@@ -1253,7 +1256,7 @@ int main(int argc, char **argv)
 #if BK_ALL_ON
         /* (run_tests.sh: every switch that adds a BK_OBJS entry on at once, a new one goes into that line too; BK_ALL_ON =
          * the bytes of the builder's item bits, as the target has them, FELUCCA_CFG_BITS sized to it) */
-        static const char *const all[] = {"DLNS", "PTN6", "S16 ", "SNG1", "XSTP", "FXSL", "FXR1", "FXR2", "DLFO", "UPF6", "FM6B", "CZBK", "SNAP"};
+        static const char *const all[] = {"DLNS", "PTN6", "S16 ", "SNG1", "XSTP", "FXSL", "FXR1", "FXR2", "FX31", "FX32", "FX33", "DLFO", "UPF6", "FM6B", "CZBK", "SNAP"};
         for (k = 0, ok = 1; k < sizeof all / sizeof all[0]; k++)
             ok &= bk_list_find(all[k], NULL, NULL, NULL, NULL) >= 0;
         for (k = 0; k < BK_N; k++)

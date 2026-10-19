@@ -1913,6 +1913,66 @@
     "provenance_line": ""
    },
    {
+    "key": "INS_TAPE",
+    "flag": "FELUCCA_INS_TAPE",
+    "label": "TAPE insert (tape tone)",
+    "group": "FX: any number (each track its own)",
+    "bit": 356,
+    "default": 0,
+    "parent": null,
+    "desc": "A tape tone type (TAPE): the highs rolled off (from 6.5 kHz at 1 to 1.7 kHz at 127) and the mids moved around at random every couple of seconds, at times inverted against the lows and highs, as a worn tape plays. TAPE sets how far it wanders and how dark it gets. 0 is off.",
+    "experimental": false,
+    "notice": "From Melodee 1.3.0's TAPE insert by Kerem Kilic (GPL-3.0); fixed point here, its RATE and MIX fixed. On the tracks' slots, the drum bus, master, returns and USB input; not on drum sounds (their list is full). Tested in the host tests only, not on a device.",
+    "off_warning": "",
+    "env": "",
+    "target_only": false,
+    "symbols": [
+     "ifx_tape"
+    ],
+    "no_image": false,
+    "choices": [],
+    "provenance": {
+     "project": "Melodee 1.4.4 (keremimo/melodee)",
+     "author": "Kerem Kilic",
+     "licence": "GPL-3.0-only",
+     "commit": "v1.4.4 4f5fb6d",
+     "url": "https://github.com/keremimo/melodee"
+    },
+    "children": [],
+    "tested": "emulator-tested only",
+    "provenance_line": "Melodee 1.4.4 (keremimo/melodee) @ v1.4.4 4f5fb6d by Kerem Kilic (GPL-3.0-only)"
+   },
+   {
+    "key": "INS_SPIT",
+    "flag": "FELUCCA_INS_SPIT",
+    "label": "SPIT insert (random resonant band, driven)",
+    "group": "FX: any number (each track its own)",
+    "bit": 357,
+    "default": 0,
+    "parent": null,
+    "desc": "A spitting band type (SPIT): one resonant band jumping at random between 180 Hz and 5.9 kHz a few times a second, driven into a soft clip at the sound's own level and mixed over it. SPIT sharpens the band and the drive. 0 is off.",
+    "experimental": false,
+    "notice": "From Melodee 1.3.0's SPIT insert by Kerem Kilic (GPL-3.0); fixed point here, the clip follows the input's level (Melodee's has a fixed ceiling). On the tracks' slots, the drum bus, master, returns and USB input; not on drum sounds (their list is full). Tested in the host tests only, not on a device.",
+    "off_warning": "",
+    "env": "",
+    "target_only": false,
+    "symbols": [
+     "ifx_spit"
+    ],
+    "no_image": false,
+    "choices": [],
+    "provenance": {
+     "project": "Melodee 1.4.4 (keremimo/melodee)",
+     "author": "Kerem Kilic",
+     "licence": "GPL-3.0-only",
+     "commit": "v1.4.4 4f5fb6d",
+     "url": "https://github.com/keremimo/melodee"
+    },
+    "children": [],
+    "tested": "emulator-tested only",
+    "provenance_line": "Melodee 1.4.4 (keremimo/melodee) @ v1.4.4 4f5fb6d by Kerem Kilic (GPL-3.0-only)"
+   },
+   {
     "key": "INS_CHORUS",
     "flag": "FELUCCA_INS_CHORUS",
     "label": "CHRS insert (chorus copies for the tracks)",
@@ -4453,6 +4513,8 @@
    "INS_RING",
    "INS_SUBOCT",
    "INS_SLEW",
+   "INS_TAPE",
+   "INS_SPIT",
    "RET_FB",
    "INS_GATER"
   ],

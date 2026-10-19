@@ -511,11 +511,12 @@ static void job_cpu(const job_t *j)
         trk[k].p[FXT_AMT[ty]] = 127;
     }
 #if DINS
-    if (j->arg >= 114u && j->arg < 120u) {   /* a drum sound's S1 holding a shaper (as 64 .. 69): SFLD WRAP RECT HARM RING SLEW */
+    if (j->arg >= 130u && j->arg < 136u) {   /* a drum sound's S1 holding a shaper (as 64 .. 69): SFLD WRAP RECT HARM RING SLEW
+                                              * (130 ..: 2026-10-19, TAPE SPIT took the part's and bus's 114 .. 117) */
         static const uint8_t T[6] = {FXT_SFLD, FXT_WRAP, FXT_RECT, FXT_HARM, FXT_RING, FXT_SLEW};
         uint32_t l;
         for (l = 0; l < DRUM_LANES; l++) {
-            const uint8_t s[INS_N] = {T[j->arg - 114u], FXT_NONE};
+            const uint8_t s[INS_N] = {T[j->arg - 130u], FXT_NONE};
             lin_put(l, s);
             dins_amt[0][l] = 127u;
             dins_amt[1][l] = 0;
@@ -1245,8 +1246,9 @@ int main(int argc, char **argv)
                                                        * bus's (as the further inserts above), a drum sound's (as 64 .. 69) */
             static const char *const NM[2u * (FXT_SHN - FXT_SH0) + 6u] = {
                 "cpu/fx/part_sfld", "cpu/fx/part_wrap", "cpu/fx/part_rect", "cpu/fx/part_harm", "cpu/fx/part_ring",
-                "cpu/fx/part_subo", "cpu/fx/part_slew", "cpu/fx/dbus_sfld", "cpu/fx/dbus_wrap", "cpu/fx/dbus_rect",
-                "cpu/fx/dbus_harm", "cpu/fx/dbus_ring", "cpu/fx/dbus_subo", "cpu/fx/dbus_slew", "cpu/fx/dvoice_sfld",
+                "cpu/fx/part_subo", "cpu/fx/part_slew", "cpu/fx/part_tape", "cpu/fx/part_spit", "cpu/fx/dbus_sfld",
+                "cpu/fx/dbus_wrap", "cpu/fx/dbus_rect", "cpu/fx/dbus_harm", "cpu/fx/dbus_ring", "cpu/fx/dbus_subo",
+                "cpu/fx/dbus_slew", "cpu/fx/dbus_tape", "cpu/fx/dbus_spit", "cpu/fx/dvoice_sfld",
                 "cpu/fx/dvoice_wrap", "cpu/fx/dvoice_rect", "cpu/fx/dvoice_harm", "cpu/fx/dvoice_ring", "cpu/fx/dvoice_slew"};
             static const uint8_t DV[6] = {FXT_SFLD, FXT_WRAP, FXT_RECT, FXT_HARM, FXT_RING, FXT_SLEW};
             uint32_t n7 = FXT_SHN - FXT_SH0, dv = i >= 2u * n7, bus = !dv && i >= n7;
@@ -1263,7 +1265,7 @@ int main(int argc, char **argv)
                 cpu_parts[ncpu][0][0] = (uint8_t)ES(1), cpu_parts[ncpu][0][1] = 0, cpu_parts[ncpu][0][2] = 8;
             j->parts = (const uint8_t (*)[3])cpu_parts[ncpu++];
             j->e = 0xFF;
-            j->arg = (uint8_t)(dv ? 114u + (i - 2u * n7) : 100u + i);
+            j->arg = (uint8_t)(dv ? 130u + (i - 2u * n7) : 100u + i);
         }
 #endif
         if (EB(1) && EB(2) && EB(5)) {                /* the worst case: 2 heavy inserts on each of the 4 tracks */

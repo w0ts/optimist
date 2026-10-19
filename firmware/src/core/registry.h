@@ -334,6 +334,13 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #ifndef FELUCCA_INS_SLEW
 #define FELUCCA_INS_SLEW 0                 /* SLEW: a slew-rate limit relative to the peak (a slow op-amp's crunch) */
 #endif
+/* TAPE, SPIT (2026-10-19, fx/insfx/tapespit.c, after Melodee 1.3.0's FX_TAPE FX_SPIT: a builder item each) */
+#ifndef FELUCCA_INS_TAPE
+#define FELUCCA_INS_TAPE 0                 /* TAPE: a wandering tape tone, its mids moved and inverted, the highs rolled off */
+#endif
+#ifndef FELUCCA_INS_SPIT
+#define FELUCCA_INS_SPIT 0                 /* SPIT: a resonant band jumping at random, driven into a soft clip */
+#endif
 /* the insert copies of the "once" effects (fx/insfx/insfx.c, fxi.c: 2026-10-13), each a builder count: how many tracks
  * may hold the type at once (0: not built, up to NTRK). Their lines are in the pool, one per instance; fxi.c hands an
  * instance to a track holding the type (the main loop), a track left without one is bypassed */

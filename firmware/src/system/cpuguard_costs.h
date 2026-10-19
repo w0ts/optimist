@@ -18,8 +18,8 @@ static const uint16_t CG_X0X[24] = {204, 234, 185, 201, 200, 187, 169, 84, 85, 6
 #define CG_COST_PDIST 46u     /* a part's DIST insert while it runs (fx.c ins_part) */
 #define CG_COST_PFILT 36u     /* a part's FILTER insert while it runs (fx.c tflt_part) */
 #define CG_COST_DBFILT 184u    /* the drum bus's FILTER while it runs (fx.c dbus_ins) */
-static const uint16_t CG_COST_PINS[16] = {40, 55, 66, 64, 78, 78, 78, 47, 25, 64, 0, 59, 97, 35, 59, 0};   /* a part's further insert while it runs, FOLD .. GATER, SFLD .. SLEW (insfx.c ifx_part) */
-static const uint16_t CG_COST_DBINS[16] = {72, 69, 132, 127, 131, 74, 73, 55, 30, 109, 0, 116, 154, 81, 109, 46};   /* the drum bus's (insfx.c ifx_bus: L and R) */
+static const uint16_t CG_COST_PINS[18] = {40, 55, 66, 64, 78, 78, 78, 47, 25, 64, 0, 59, 97, 35, 59, 0, 0, 0};   /* a part's further insert while it runs, FOLD .. GATER, SFLD .. SLEW, TAPE SPIT (insfx.c ifx_part) */
+static const uint16_t CG_COST_DBINS[18] = {72, 69, 132, 127, 131, 74, 73, 55, 30, 109, 0, 116, 154, 81, 109, 46, 0, 0};   /* the drum bus's (insfx.c ifx_bus: L and R) */
 #define CG_COST_PDUST 50u     /* a part's DUST insert while it runs (fx.c dust_run) */
 #define CG_COST_DBDUST 73u    /* the drum bus's DUST while it runs (L and R) */
 #define CG_COST_TLIM 76u      /* a track's DYN CEIL (its limiter) while it runs (master_comp.c tlim_block) */

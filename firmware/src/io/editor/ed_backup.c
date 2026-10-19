@@ -67,6 +67,11 @@ enum { BK_ST, BK_USR, BK_FM6, BK_SEC, BK_PRJ, BK_LOG, BK_SNP };   /* BK_SEC: a s
 #define BK_FXID1 0xEDu                        /* BK_LOG ids of FXR1, FXR2: the FX records' packs, sections A..I, then J..P and
                                                * the autosave (bk_fx_pack: u16 lengths; FXR_MAX outgrew one u8-length pack) */
 #define BK_FXID2 0xECu
+#define BK_FX3ID0 0xEBu                       /* BK_LOG ids of FX31 FX32 FX33 (2026-10-19, TAPE SPIT outgrew two packs): the
+                                               * same records in three packs, A..F, G..L, M..P and AUTO; FXR1 FXR2 restored
+                                               * only since */
+#define BK_FX3ID1 0xE8u
+#define BK_FX3ID2 0xE7u
 #define BK_DLID 0xEEu                         /* BK_LOG id of DLFO: the drum lane LFO records' pack of before (u8 lengths):
                                                * restored, never read (DLF1 DLF2 since 2026-10-18) */
 #define BK_DLID1 0xEAu                        /* BK_LOG ids of DLF1, DLF2: the same records in two packs, u16 lengths (the
@@ -97,8 +102,12 @@ static const bk_obj_t BK_OBJS[] = {
 #endif
     {{'F', 'X', 'S', 'L'}, BK_LOG, BK_FXID, 1},           /* (the FX slots' records of the sections and the autosave, one raw
                                                             * object: an older backup's, restored only) */
-    {{'F', 'X', 'R', '1'}, BK_LOG, BK_FXID1, 1},          /* (the same records in two packs: A..I, then J..P and AUTO) */
+    {{'F', 'X', 'R', '1'}, BK_LOG, BK_FXID1, 1},          /* (the same records in two packs: A..I, then J..P and AUTO;
+                                                            * restored only since 2026-10-19) */
     {{'F', 'X', 'R', '2'}, BK_LOG, BK_FXID2, 1},
+    {{'F', 'X', '3', '1'}, BK_LOG, BK_FX3ID0, 1},         /* (the same records in three packs: A..F, G..L, M..P and AUTO) */
+    {{'F', 'X', '3', '2'}, BK_LOG, BK_FX3ID1, 1},
+    {{'F', 'X', '3', '3'}, BK_LOG, BK_FX3ID2, 1},
     {{'D', 'L', 'F', 'O'}, BK_LOG, BK_DLID, 1},           /* (the drum lanes' LFO records of the sections and the autosave, one
                                                             * object: an older backup's, restored only) */
     {{'D', 'L', 'F', '1'}, BK_LOG, BK_DLID1, 1},          /* (the same records in two packs: A..I, then J..P and AUTO) */
@@ -324,8 +333,11 @@ static uint32_t bk_pt_commit(const uint8_t *b, uint32_t n)
  * the log record as it is stored (key, the stored form). Written back whole at the commit, paired by their key with
  * S01.. and AUTO. FXSL, an older backup's: the same with u8 lengths, every id in one object (restored only) */
 #define BK_FX_SPLIT 9u
-_Static_assert((17u - BK_FX_SPLIT > BK_FX_SPLIT ? 17u - BK_FX_SPLIT : BK_FX_SPLIT) * (3u + sizeof fxr_rbuf) <= SEC_REC_MAX,
-               "FXR1 / FXR2: every FX record of a pack fits a section record's buffer");
+#define BK_FX3_N 6u                                    /* FX31 0..5, FX32 6..11, FX33 12..16 */
+AINL uint32_t bk_fx3_lo(uint32_t id) { return id == BK_FX3ID0 ? 0u : id == BK_FX3ID1 ? BK_FX3_N : 2u * BK_FX3_N; }
+AINL uint32_t bk_fx3_hi(uint32_t id) { return id == BK_FX3ID2 ? 16u : bk_fx3_lo(id) + BK_FX3_N - 1u; }
+AINL int bk_fx3(uint32_t id) { return id == BK_FX3ID0 || id == BK_FX3ID1 || id == BK_FX3ID2; }
+_Static_assert(BK_FX3_N * (3u + sizeof fxr_rbuf) <= SEC_REC_MAX, "FX31 .. FX33: every FX record of a pack fits a section record's buffer");
 static uint32_t bk_fx_pack(uint8_t *o, uint32_t lo, uint32_t hi)
 {
     uint32_t id, n = 0, rl;
@@ -425,7 +437,9 @@ static uint32_t bk_info(uint32_t i, uint32_t *crc)
             n = (int)bk_xs_pack(sec_rbuf);
 #endif
         else if (o->kind == BK_LOG && (o->id == BK_FXID1 || o->id == BK_FXID2))
-            n = (int)(o->id == BK_FXID1 ? bk_fx_pack(sec_rbuf, 0, BK_FX_SPLIT - 1u) : bk_fx_pack(sec_rbuf, BK_FX_SPLIT, 16));
+            n = 0;                                     /* (FXR1 FXR2: restored only since 2026-10-19, FX31 .. FX33 written) */
+        else if (o->kind == BK_LOG && bk_fx3(o->id))
+            n = (int)bk_fx_pack(sec_rbuf, bk_fx3_lo(o->id), bk_fx3_hi(o->id));
         else if (o->kind == BK_LOG && (o->id == BK_DLID1 || o->id == BK_DLID2))
             n = (int)(o->id == BK_DLID1 ? bk_dl_pack(sec_rbuf, 0, BK_FX_SPLIT - 1u) : bk_dl_pack(sec_rbuf, BK_FX_SPLIT, 16));
         else if (o->kind == BK_LOG && o->id == BK_DLID)
@@ -524,6 +538,8 @@ static __attribute__((noinline)) uint32_t bk_commit_sec(uint32_t i)
         return bk_fx_commit(BK_BUF, n, 0, BK_FX_SPLIT - 1u, 3);
     if (BK_OBJS[i].kind == BK_LOG && id == BK_FXID2)
         return bk_fx_commit(BK_BUF, n, BK_FX_SPLIT, 16, 3);
+    if (BK_OBJS[i].kind == BK_LOG && bk_fx3(id))
+        return bk_fx_commit(BK_BUF, n, bk_fx3_lo(id), bk_fx3_hi(id), 3);
     if (BK_OBJS[i].kind == BK_LOG && id == BK_DLID)
         return bk_dl_commit(BK_BUF, n, 0, 16, 2);      /* (an older backup's DLFO: every id, u8 lengths) */
     if (BK_OBJS[i].kind == BK_LOG && id == BK_DLID1)

@@ -282,3 +282,5 @@ src/storage/project.c:dly_map:(a[i+1u]-a[i]) | a is DLYC_X or DLYC_Y (dly_freq_i
 src/drums/lane_play.c:denv_fix:c->atk | guarded on the same line (c->atk ? 32768u / c->atk : 0u)
 src/drums/lane_play.c:denv_fix:c->dec | guarded on the same line (c->dec ? 32768u / c->dec : 0u)
 src/bt/bt_inq_con.c:bti_clk_print:ms | guarded on the same line (ms ? ... : 0): a 1a run that has not lasted a millisecond prints 0
+src/fx/insfx/tapespit.c:__attribute__:(20+3*a) | ifx_ts_block: a is the amount, 0 .. 127 (uint8_t s->a): 20 .. 401
+src/fx/insfx/tapespit.c:__attribute__:(uint32_t)(s->env>256?s->env:256) | ifx_ts_block: at least 256 by the ternary on the same line

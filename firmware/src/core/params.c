@@ -193,6 +193,8 @@ static const param_desc_t TP[P_COUNT] = {
     [P_TRING] = PD("RING", F_PCT, 0, 127, 0),      /* the ring's sine: 26 Hz .. 2.6 kHz */
     [P_TSUBO] = PD("SUB", F_PCT, 0, 127, 0),       /* the octave down's level */
     [P_TSLEW] = PD("SLEW", F_PCT, 0, 127, 0),      /* the slew limit: light .. heavy */
+    [P_TTAPE] = PD("TAPE", F_PCT, 0, 127, 0),      /* the tape's character: how far its tone wanders, how dark */
+    [P_TSPIT] = PD("SPIT", F_PCT, 0, 127, 0),      /* the band's sharpness and the drive into the clip */
 #endif
 #if FELUCCA_FX_DUST
     [P_TDUST] = PD("DUST", F_PCT, 0, 127, 0),      /* the DUST insert (fx.c dust_run): a track's lo-fi / vinyl */
