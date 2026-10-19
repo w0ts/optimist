@@ -582,7 +582,7 @@ static void mix_turn(uint32_t r, uint32_t k, int32_t s, int fine)
 #if FELUCCA_USB_AUDIO
     else if (m.kind == MI_UTST) {                       /* the USB input's slot TYPE: as a track's (no reset) */
         if (s != OP_RESET)
-            ut_load(m.id, ut_list[(uint32_t)ut_type_turn(m.id, param_step(d, *vp, fine ? s : accel(EN_K1 + k, s, accel_range(d)))) %
+            ut_load(m.id, ut_list[(uint32_t)ut_type_turn(m.id, param_step(d, *vp, fine ? s : k_accel(k, s, d))) %
                                   FXT_N]);   /* (the other slot's type skipped) */
     }
 #endif
@@ -595,10 +595,10 @@ static void mix_turn(uint32_t r, uint32_t k, int32_t s, int fine)
                      ins_list[(uint32_t)ins_skip(mx_trk_of(r), m.id, *vp, param_step(d, *vp, s)) % INS_NLIST]);
     } else if (m.kind == MI_LANE && (m.id == 21u || m.id == 22u)) {   /* a lane slot's TYPE: no reset (as a track's) */
         if (s != OP_RESET)
-            mx_lane_set(r - MXR_LANE0, m.id, param_step(d, *vp, fine ? s : accel(EN_K1 + k, s, accel_range(d))));
+            mx_lane_set(r - MXR_LANE0, m.id, param_step(d, *vp, fine ? s : k_accel(k, s, d)));
     } else if (m.kind == MI_LANE) {
         int8_t was = dl.ofs[(r - MXR_LANE0) % DRUM_LANES][DE_LEVEL];   /* (the lane's offset, where mx_lane_set writes it) */
-        mx_lane_set(r - MXR_LANE0, m.id, s == OP_RESET ? d->def : param_step(d, *vp, fine ? s : accel(EN_K1 + k, s, accel_range(d))));
+        mx_lane_set(r - MXR_LANE0, m.id, s == OP_RESET ? d->def : param_step(d, *vp, fine ? s : k_accel(k, s, d)));
         if (m.id == DE_LEVEL && (dl.ofs[(r - MXR_LANE0) % DRUM_LANES][DE_LEVEL] != was || s == OP_RESET))
             mx_unmute(r, &m);
     }

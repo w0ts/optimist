@@ -302,7 +302,7 @@ static uint32_t hl_src(char *b)
     cell_t c;
     uint32_t m = 0;
     b[0] = 0;
-    if (glo_cycle() || hl_menu() || (ui.scr == SCR_STEP && st.held))
+    if (glo_cycle() || hl_menu() || st_holding())
         return 0;
     SCREENS[ui.scr % SCR_N].cell(ui.row[ui.scr], hl.k, &c);
     if (c.kind != CK_VAL || !c.vp)

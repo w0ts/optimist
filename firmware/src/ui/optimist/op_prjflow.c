@@ -359,7 +359,7 @@ static uint32_t prj_bank_tap(uint32_t up)               /* 1: the tap was a bank
     prj_slot_set(kind, cur < n ? cur : n - 1u);
     fmt_int(b, (int32_t)nb + 1);
     str_app(b, "/", sizeof b);
-    fmt_int(b + str_len(b), (int32_t)prj_banks(kind));
+    fmt_app(b, (int32_t)prj_banks(kind));
     ui.force = 1;
     ui.toast_next = 1;
     ui_say("BANK ", b);

@@ -212,7 +212,7 @@ static void op_yes(void)
         ui.toast_next = 0;
         return;
     }
-    if (ui.scr == SCR_STEP && st.held) {                /* a step held: the hot lock's HOLD, else its fill condition */
+    if (st_holding()) {                                 /* a step held: the hot lock's HOLD, else its fill condition */
         held_yes();
         return;
     }
@@ -244,7 +244,7 @@ static void op_no(void)
         pk_unlatch();
         return;
     }
-    if (ui.scr == SCR_STEP && st.held) {                /* a step held, HOME tapped: the step cleared */
+    if (st_holding()) {                                 /* a step held, HOME tapped: the step cleared */
         held_clear();
         return;
     }
@@ -288,6 +288,13 @@ static int op_rec(void)                                 /* one record arm, on th
         rec_wait = 1;                                   /* stopped: the first note starts it */
     return 1;
 }
+static void rh_ring_go(void)                            /* the ring starts: on this track, a picked lane's steps only */
+{
+    rh.ring = 1;
+    rh.t1 = fm1_ms;
+    rh.trk = song.sel;
+    rh.lane = (int8_t)(is_drum(TSEL) && lane_picked() ? (int32_t)lane_selected() : -1);
+}
 /* REC held (op_state.c rh): once a frame. Held RH_ARM_MS after a plain press, the press is undone and the ring fills;
  * RH_CLEAR_MS more, the track is cleared (op_clear_track: undoable, "T2 cleared"); let go before: nothing */
 static void rec_held(uint32_t held)
@@ -302,10 +309,7 @@ static void rec_held(uint32_t held)
         song.rec = rh.prev_rec;                         /* a hold: the press is undone */
         rec_wait = rh.prev_wait;
         ui.msg_t = 0;
-        rh.ring = 1;
-        rh.t1 = fm1_ms;
-        rh.trk = song.sel;
-        rh.lane = (int8_t)(is_drum(TSEL) && lane_picked() ? (int32_t)lane_selected() : -1);   /* (a lane picked: only its steps) */
+        rh_ring_go();
     }
     if (rh.ring && fm1_ms - rh.t1 >= RH_CLEAR_MS) {
         ui.toast_next = 1;                              /* (what it says: a toast, as a confirmed clear) */
@@ -327,10 +331,7 @@ static void rec_motion_ring(void)
     rh.on = 0;
     rh.knob = rh.kdone = 0;
     rh.motion = 1;
-    rh.ring = 1;
-    rh.t1 = fm1_ms;
-    rh.trk = song.sel;
-    rh.lane = (int8_t)(is_drum(TSEL) && lane_picked() ? (int32_t)lane_selected() : -1);
+    rh_ring_go();
 }
 /* select track i (ALGORITHM, the editor): its sound and pattern from now on */
 static void track_select(uint32_t i)
@@ -496,7 +497,7 @@ static void op_press(uint32_t b, uint32_t held)
     }
     if (op_combo(b, held))                              /* a locked layer let go, a lock, SAVE / SHIFT + it */
         return;
-    if (ui.scr == SCR_STEP && st.held && b < NB && JUMP_FAM[b] != 0xFF) {   /* a step held + a page button: locks */
+    if (st_holding() && b < NB && JUMP_FAM[b] != 0xFF) {   /* a step held + a page button: locks */
         if ((b != B_EDIT || is_drum(TSEL)) && b != B_GLO)   /* (EDIT: the drum lane's SOUND pages, its locks) */
             step_lock_page(JUMP_FAM[b]);
         op_clean &= ~BIT(b);
@@ -521,7 +522,7 @@ static void op_press(uint32_t b, uint32_t held)
         break;
     case B_OCTDN:
     case B_OCTUP:
-        if (ui.scr == SCR_STEP && st.held) {            /* a step held: its notes an octave (synths), nothing else */
+        if (st_holding()) {                             /* a step held: its notes an octave (synths), nothing else */
             if (!is_drum(TSEL))
                 held_octave(b == B_OCTDN ? -1 : 1);
             op_clean &= ~BIT(b);
@@ -630,7 +631,7 @@ static int op_presets_turn(void)
         op_clean &= ~BIT(B_SAVE);                       /* (SAVE let go: no YES) */
 #endif
     } else if (btn_held(B_OCTUP) && !op_armed() && !rh.ring && !name_on() && ui.scr != SCR_FX && !ui.master &&
-        !mx_on_master() && !(ui.scr == SCR_STEP && st.held)) {
+        !mx_on_master() && !st_holding()) {
         if (lane_presets())
             lane_kind_step(s);                          /* (a lane off KIT: its sound's next / previous kind, op_walk.c) */
         else
@@ -663,7 +664,7 @@ static int knob_auto_clear(uint32_t row, uint32_t k, const cell_t *c)
     int32_t sid = -1;
     uint32_t i, n;
     (void)row, (void)k;
-    if (ui.scr == SCR_STEP && st.held)
+    if (st_holding())
         return 0;                                       /* (a step held: SHIFT + the knob, that step's only) */
     for (i = 0; i < NTRK && c->vp; i++)
         if (c->vp >= trk[i].p && c->vp < trk[i].p + P_COUNT)
@@ -680,7 +681,7 @@ static int knob_auto_clear(uint32_t row, uint32_t k, const cell_t *c)
         ui_say(c->label ? c->label : "", ": NO LOCKS");
         return 1;
     }
-    undo_mark(t, (undo_sess += 4u) | 3u);
+    undo_level(t);
     fm1_irq_off();
     n = auto_clear_where(t, sid, -1);
     fm1_irq_on();
@@ -1070,7 +1071,7 @@ static uint32_t op_btn_avail(void)                      /* a bit per panel butto
             on = 1;                                     /* (an FM6 track: its operators, held: their pages) */
         if (b == B_FX && ui.scr == SCR_FX)
             on = 1;                                     /* (the global FX: its next page) */
-        if (ui.scr == SCR_STEP && st.held && (b != B_EDIT || is_drum(TSEL)))
+        if (st_holding() && (b != B_EDIT || is_drum(TSEL)))
             on = 1;                                     /* (a step held: the page buttons lock their page) */
         l = b == B_LFO ? LY_PLAY : lay_btn_layer(b);
         if (l != LY_PLAY && ly_bit[l])
@@ -1078,7 +1079,7 @@ static uint32_t op_btn_avail(void)                      /* a bit per panel butto
         if (on)
             m |= 1u << b;
     }
-    if (is_drum(TSEL) && !(ui.scr == SCR_STEP && st.held))
+    if (is_drum(TSEL) && !st_holding())
         m &= ~(1u << B_ARP | 1u << B_SCL);             /* (the drum track and its lanes: no arp, no scale; a held layer alone is no light, 2026-10-15) */
     if (ui.scr == SCR_STEP && !step_yes_any())
         m &= ~(1u << B_SAVE);                           /* (STEP: SAVE lit only where YES acts: a tool card, a toggle or GO, a held step) */
@@ -1176,7 +1177,7 @@ static void ui_draw(void)
             ui_message("TAKE DROPPED");
         } else {
             str_cpy(m, n == 1u ? "LOOP 1 BAR " : n == 2u ? "LOOP 2 BARS " : "LOOP 4 BARS ", sizeof m);
-            fmt_int(m + str_len(m), song.g[G_BPM]);
+            fmt_app(m, song.g[G_BPM]);
             str_app(m, " BPM", sizeof m);
             ui_message(m);
         }

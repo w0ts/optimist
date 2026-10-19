@@ -63,6 +63,13 @@ static uint32_t hs(uint32_t h, const char *s)          /* a signature: FNV-1a ov
     return h * 16777619u;
 }
 static uint32_t hu(uint32_t h, uint32_t v) { return (h ^ v) * 16777619u; }
+static uint32_t hbytes(uint32_t h, const void *p, uint32_t n)   /* ... over n bytes */
+{
+    const uint8_t *b = (const uint8_t *)p;
+    while (n--)
+        h = (h ^ *b++) * 16777619u;
+    return h;
+}
 static uint32_t hc(uint32_t h, const cell_t *c)        /* a cell's signature: all it draws */
 {
     h = hs(hs(hu(hu(hu(h, c->kind + c->mark * 16u + c->dim * 256u + c->dr * 512u + c->strike * 1024u), c->col), (uint32_t)c->gk << 16 ^ (uint16_t)c->gv), c->label ? c->label : ""), c->val);
@@ -155,7 +162,7 @@ static void head_pos(uint32_t scr, uint32_t row, char *p)
     p[0] = ' ';
     fmt_int(p + 1, (int32_t)(at < n ? at : n - 1u) + 1);
     str_cpy(p + str_len(p), "/", 2);
-    fmt_int(p + str_len(p), (int32_t)n);
+    fmt_app(p, (int32_t)n);
 }
 /* the title t (32 bytes) and the page's n/N in w characters: the n/N always whole, the name cut before it; a name too
  * long loses the screen's word first ("Sound ENV dest 3/12" -> "ENV dest 3/12"). 1: the name was cut (never on a track
@@ -166,7 +173,7 @@ static int head_fit(char *t, const char *pos, int32_t w)
     int32_t k = w - (int32_t)str_len(pos), i;
     const char *nm = t;
     if ((int32_t)str_len(t) <= k) {
-        str_cpy(t + str_len(t), pos, 32u - str_len(t));
+        str_app(t, pos, 32u);
         return 0;
     }
     for (i = 0; t[i] && t[i] != ' '; i++)
@@ -176,7 +183,7 @@ static int head_fit(char *t, const char *pos, int32_t w)
     cut(c, nm, (uint32_t)(k < 1 ? 1 : k > 24 ? 24 : k));
     for (k = (int32_t)str_len(c); k > 1 && c[k - 1] == ' '; k--)
         c[k - 1] = 0;
-    str_cpy(c + str_len(c), pos, sizeof c - str_len(c));
+    str_app(c, pos, sizeof c);
     str_cpy(t, c, 32);
     return 1;                                           /* (cut: a word dropped, or the name) */
 }
@@ -216,8 +223,8 @@ static uint32_t head_muted(void)                        /* the selected track's 
 static const char *head_badge(char *b, uint32_t n)
 {
     fmt_int(b, (int32_t)song.sel % NTRK + 1);           /* (the number only: 1 2 3, the drum track 4) */
-    str_cpy(b + str_len(b), " ", n - str_len(b));
-    str_cpy(b + str_len(b), head_engine(), n - str_len(b));
+    str_app(b, " ", n);
+    str_app(b, head_engine(), n);
     return b;
 }
 /* the preset follows the page's name where it fits whole (the title keeps its room first; the preset is dropped before
@@ -1068,7 +1075,7 @@ static void draw_ring(void)
     str_cpy(b, "Clear ", sizeof b);
     str_cpy(b + 6, rh.lane >= 0 ? lane_name((uint32_t)rh.lane) : trk_tag(rh.trk), sizeof b - 6u);   /* (a lane: "Clear SNARE") */
     if (rh.motion)
-        str_cpy(b + str_len(b), " locks", sizeof b - str_len(b));   /* (SHIFT + REC: "Clear T1 locks", the notes stay) */
+        str_app(b, " locks", sizeof b);   /* (SHIFT + REC: "Clear T1 locks", the notes stay) */
     cv_texts(120 - text_w(&FONT_S, b) / 2, cy + RING_R + 4, b, tc);
     cv_texts(120 - text_w(&FONT_S, "Keep holding") / 2, cy + RING_R + 20, "Keep holding", C_GRAY);
     cv_blit(0, OP_PY);

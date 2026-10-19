@@ -53,6 +53,7 @@ static struct {
                                          * touches + 1, | 0x80 moving left), the next one goes past; 0 none */
     uint8_t snapl;                      /* ... grown by LENGTH to touch another: the step it touches + 1; 0 none */
 } st = {.follow = 1, .lock_pg = 0xFF, .ph_drawn = 0xFF, .pk = 0xFF};
+static int st_holding(void) { return ui.scr == SCR_STEP && st.held; }   /* STEP, a step held */
 #define LOCK_NONE 0xFFu
 #define PK_NONE 0xFFu
 static void hp_sync(void);
@@ -131,7 +132,7 @@ static uint32_t pick_base(void)                         /* the pick's note 0 wit
 static void note_name(char *b, uint32_t n)              /* "C#4" (b holds 5) */
 {
     str_cpy(b, N_NOTE[n % 12u], 3);
-    fmt_int(b + str_len(b), (int32_t)(n / 12u) - 1);
+    fmt_app(b, (int32_t)(n / 12u) - 1);
 }
 static void step_pick_name(char *b, uint32_t n)         /* "KICK", "C4 E4+" (b holds n >= 14) */
 {
@@ -637,6 +638,13 @@ static void held_clear(void)                            /* a step held, HOME tap
 
 /* ---- the held steps' values: KNOB k (drums: 0 LEVEL, 1 RATCHET; synths: 0 NOTE, 1 LEVEL, 2 RATCHET, 3 LENGTH);
  * s OP_RESET: back to normal (NORM, x1, one step) */
+/* a step's level (lvl 1: the next of LV_UP's ranks) or ratchet (0..3) turned by s; OP_RESET: the default */
+static uint32_t lr_turn(int lvl, uint32_t v, int32_t s)
+{
+    if (lvl)
+        return s == OP_RESET ? LV_NORM : LV_UP[clamp((int32_t)lvl_rank(v) + s, 0, 3)];
+    return s == OP_RESET ? 0u : (uint32_t)clamp((int32_t)v + s, 0, 3);
+}
 static void edit_drum(track_t *t, uint32_t idx, int32_t s)
 {
     dstep_t *d = &t->dstep[idx];
@@ -645,9 +653,9 @@ static void edit_drum(track_t *t, uint32_t idx, int32_t s)
     if (!dstep_has(d, l))
         return;
     if (k == 0u)
-        lv = s == OP_RESET ? LV_NORM : LV_UP[clamp((int32_t)lvl_rank(lv) + s, 0, 3)];
+        lv = lr_turn(1, lv, s);
     else
-        rt = s == OP_RESET ? 0u : (uint32_t)clamp((int32_t)rt + s, 0, 3);
+        rt = lr_turn(0, rt, s);
     dstep_set(d, l, lv, rt);
 }
 static void edit_synth(track_t *t, uint32_t idx, int32_t s)
@@ -669,9 +677,9 @@ static void edit_synth(track_t *t, uint32_t idx, int32_t s)
             continue;
         }
         if (k == 1u)
-            lv = s == OP_RESET ? LV_NORM : LV_UP[clamp((int32_t)lvl_rank(lv) + s, 0, 3)];
+            lv = lr_turn(1, lv, s);
         else
-            rt = s == OP_RESET ? 0u : (uint32_t)clamp((int32_t)rt + s, 0, 3);
+            rt = lr_turn(0, rt, s);
         st_->lvl = (uint8_t)((st_->lvl & ~(3u << sh)) | lv << sh);
         st_->rat = (uint8_t)((st_->rat & ~(3u << sh)) | rt << sh);
     }
@@ -1474,7 +1482,7 @@ static void lock_turn_id(int32_t id, const param_desc_t *d, uint32_t k, int32_t 
             ui_message("NOT LOCKABLE");
         return;
     }
-    step = fine || s == OP_RESET ? s : accel(EN_K1 + k, s, accel_range(d));
+    step = fine || s == OP_RESET ? s : k_accel(k, s, d);
     t = held_open();                                    /* (a lock written or dropped: undone with the step, undo.c) */
     for (w = 0; w < 16u; w++)
         if ((i = held_at(w)) >= 0)
@@ -1973,12 +1981,12 @@ static void step_foot(char *h, char *k, uint32_t n)
         str_cpy(h, "Nudge ", n);
         if (step_micro(tsel(), (uint32_t)i) > 0)
             str_app(h, "+", n);
-        fmt_int(h + str_len(h), step_micro(tsel(), (uint32_t)i));
+        fmt_app(h, step_micro(tsel(), (uint32_t)i));
         str_app(h, "  ", n);
 #endif
 #if FELUCCA_CHANCE
         str_app(h, "Chance ", n);
-        fmt_int(h + str_len(h), (int32_t)step_chance_of(tsel(), (uint32_t)i));
+        fmt_app(h, (int32_t)step_chance_of(tsel(), (uint32_t)i));
         str_app(h, "%", n);
 #endif
         str_cpy(k, "Step ", n);

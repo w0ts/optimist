@@ -15,6 +15,7 @@ static void str_app(char *d, const char *s, unsigned max)   /* s appended to d (
     unsigned n = str_len(d);
     str_cpy(d + n, s, max - n);
 }
+static void fmt_app(char *d, int32_t v) { fmt_int(d + str_len(d), v); }   /* v's digits appended to d */
 enum { SCR_HOME, SCR_SOUND, SCR_FX, SCR_PROJECT, SCR_SYSTEM, SCR_STEP, SCR_SONG, SCR_TEMPO, SCR_SCOPE, SCR_GLOBAL, SCR_N };
 static const char *const SCR_NAME[SCR_N] = {"MIX", "SOUND", "MASTER", "PROJECT", "SYSTEM", "STEPS", "SONG", "TEMPO",
                                             "SCOPE", "GLOBAL"};
@@ -283,7 +284,7 @@ static void op_arm(uint32_t scr, uint32_t row, uint32_t k, const char *q, const 
 {
     uint32_t n;
     str_cpy(ui.arm_verb, q, sizeof ui.arm_verb - 1u);
-    str_cpy(ui.arm_verb + str_len(ui.arm_verb), "?", 2);
+    str_app(ui.arm_verb, "?", sizeof ui.arm_verb);
     str_cpy(ui.arm_arg, arg, sizeof ui.arm_arg);
     ui.arm_danger = (uint8_t)(danger != 0u);
     ui.arm_raw = 0;
@@ -324,3 +325,5 @@ static int32_t accel_range(const param_desc_t *d)   /* none for lists: one entry
 {
     return d->fmt == F_ENUM || d->fmt == F_ONOFF ? 0 : d->max - d->min;
 }
+static int32_t k_accel(uint32_t k, int32_t s, const param_desc_t *d) { return accel(EN_K1 + k, s, accel_range(d)); }
+static void undo_level(track_t *t) { undo_mark(t, (undo_sess += 4u) | 3u); }   /* an undo level of the UI's */

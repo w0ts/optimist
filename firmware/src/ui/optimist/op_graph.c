@@ -364,7 +364,7 @@ static void graph_lane_of(int kit)
     const char *sub = kit ? drum_kit_style() : lane_snd() ? lane_sound_name(l) : acc;
     if (!kit && !lane_snd()) {
         fmt_int(acc + 1, TDRUM->p[P_DACC]);
-        str_cpy(acc + str_len(acc), " to the hits", sizeof acc - str_len(acc));
+        str_app(acc, " to the hits", sizeof acc);
     }
     cv_text(4, ny, &FONT_L, kit ? drum_kit_name() : lane_name(l), kit ? kit_col() : op_lane_col(l));
     if (GRAPH_H >= 58)
@@ -390,7 +390,7 @@ static void denv_time(uint32_t ms)                      /* the length, in the la
 {
     char b[12];
     fmt_int(b, (int32_t)ms);
-    str_cpy(b + str_len(b), "ms", 4);
+    str_app(b, "ms", sizeof b);
     cv_texts(denv_tx - 8 - text_w(&FONT_S, b), GR_TOP, b, C_GRAY);
 }
 #if DRUM_X0X
@@ -622,7 +622,7 @@ static void modal_words(char *v, char *a, char *q)      /* the verb, its target 
         n = str_len(q);
         q[n - 1u] = ' ';                                /* ("Forget? " + name + "?") */
         str_cpy(q + n, a, sizeof ui.arm_q - n);
-        str_cpy(q + str_len(q), "?", sizeof ui.arm_q - str_len(q));
+        str_app(q, "?", sizeof ui.arm_q);
     } else {
         op_case(a, ui.arm_arg, sizeof ui.arm_arg);
         op_case(q, ui.arm_q, sizeof ui.arm_q);

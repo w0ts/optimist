@@ -650,11 +650,11 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         if (n) {                                        /* (where, since boot: "USB3 MIDI1") */
             if (nu) {
                 str_cpy(u, " USB", sizeof u);
-                fmt_int(u + str_len(u), (int32_t)(nu < 9999u ? nu : 9999u));
+                fmt_app(u, (int32_t)(nu < 9999u ? nu : 9999u));
             }
             if (mi) {
                 str_app(u, " MIDI", sizeof u);
-                fmt_int(u + str_len(u), (int32_t)(mi < 9999u ? mi : 9999u));
+                fmt_app(u, (int32_t)(mi < 9999u ? mi : 9999u));
             }
         }
         c->unit = u;
@@ -669,11 +669,11 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         str_cpy(c->val, CG_NAME[l], sizeof c->val);
         if (cg.vcap) {                                  /* (reacting at the top: the voices capped) */
             str_app(c->val, " MAX", sizeof c->val);
-            fmt_int(c->val + str_len(c->val), cg.vcap);
+            fmt_app(c->val, cg.vcap);
         }
         if (n && str_len(c->val) + 5u < sizeof c->val) {
             str_app(c->val, " -", sizeof c->val);
-            fmt_int(c->val + str_len(c->val), (int32_t)(n < 999u ? n : 999u));
+            fmt_app(c->val, (int32_t)(n < 999u ? n : 999u));
         }
         c->unit = n ? "V" : "";
         c->col = !l ? C_OK : l < CG_L_REVERB ? C_WARN : C_ERR;
@@ -737,7 +737,7 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         }
         fmt_int(c->val, (int32_t)bars);
         str_app(c->val, "/3 ", sizeof c->val);
-        fmt_int(c->val + str_len(c->val), song.batt_raw);
+        fmt_app(c->val, song.batt_raw);
         c->unit = usb.config && !usb.suspended ? "USB" : "";
         c->col = bars == 0u ? C_WARN : 0;
         cell_gauge(c, 0, 0, 3, (int32_t)bars);

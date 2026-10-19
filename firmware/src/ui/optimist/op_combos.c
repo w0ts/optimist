@@ -69,7 +69,7 @@ static void op_clear_motion(uint32_t k, int32_t lane)
 {
     track_t *t = &trk[k % NTRK];
 #if FELUCCA_AUTO
-    undo_mark(t, (undo_sess += 4u) | 3u);               /* (an undo level: the automation comes back, seq/undo.c) */
+    undo_level(t);               /* (an undo level: the automation comes back, seq/undo.c) */
     fm1_irq_off();
     (void)auto_clear_where(t, -1, lane);                /* (motion and locks; the whole track: nudges, fills, chance too) */
     fm1_irq_on();
@@ -180,7 +180,7 @@ static int op_combo(uint32_t b, uint32_t held)
         op_eat(op_combo_bit(b));
         return 1;
     }
-    if (ui.scr == SCR_STEP && st.held)
+    if (st_holding())
         return 0;                                       /* (a step held: SAVE its fill, a page button its locks) */
     if (b == B_OCTUP && lay.held != LY_PLAY && lay.held != LY_OPS && lay.held != LY_ROLL && FIF(FELUCCA_PATTERNS)(lay.held != LY_PAT &&) 1) {
         l = lay.held;                                   /* a layer held, then SHIFT2: locked open (ENV on FM6, ARP, LFO: their OCT+

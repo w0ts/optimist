@@ -711,7 +711,7 @@ static void page_turn(const page_t *pg, uint32_t k, int32_t s, int fine)
     if (len_cell(d))
         page_set(pg, k, vp, fine || ui.shift ? clamp(*vp + s, d->min, d->max) : len_pow2(*vp, s, d->min, d->max), s);
     else
-        page_set(pg, k, vp, param_step(d, *vp, fine ? s : accel(EN_K1 + k, s, accel_range(d))), s);
+        page_set(pg, k, vp, param_step(d, *vp, fine ? s : k_accel(k, s, d)), s);
 }
 
 /* the ACCENT amount (core.h P_DACC), the drum track's own value (not a lane's: the SOUND row's fourth card on every
@@ -720,7 +720,7 @@ static void acc_cell(cell_t *c) { cell_param(c, &DRUM_ACC_DESC, &TDRUM->p[P_DACC
 static void acc_turn(uint32_t k, int32_t s, int fine)
 {
     const param_desc_t *d = &DRUM_ACC_DESC;
-    int32_t v = s == OP_RESET ? d->def : param_step(d, TDRUM->p[P_DACC], fine ? s : accel(EN_K1 + k, s, accel_range(d)));
+    int32_t v = s == OP_RESET ? d->def : param_step(d, TDRUM->p[P_DACC], fine ? s : k_accel(k, s, d));
     TDRUM->p[P_DACC] = (int16_t)v;
 #if FELUCCA_MOTION
     motion_knob(TDRUM, P_DACC, v);
@@ -776,7 +776,7 @@ static int page_yes(uint32_t scr, uint32_t row, const page_t *pg, uint32_t k, ui
     }
 #if FELUCCA_ENG_ACID
     if (pg->scope == SC_BPSET && id == BPS_GGO) {       /* ACID GEN > GO: a new line */
-        undo_mark(TSEL, (undo_sess += 4u) | 3u);
+        undo_level(TSEL);
         fm1_irq_off();
         acid_generate(TSEL, (uint32_t)bp_set[BPS_GDENS], (uint32_t)bp_set[BPS_GACC], (uint32_t)bp_set[BPS_GSLD],
                       fm1_ms * 2654435761u ^ rng());
