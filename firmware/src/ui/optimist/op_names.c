@@ -19,7 +19,7 @@ static const char NM_TITLE[] =
     "ENV 1 MOD\0ENV mod\0"       "ENV2 DEST\0ENV2 to\0"       "LFO DEST\0LFO to\0"         "LFO 2\0LFO2\0"
     "LFO2 DEST\0LFO2 to\0"       "SCL\0Scale\0"               "SCL 2\0Scale 2\0"           "FLT 2\0Filter 2\0"
     "INSERTS\0Insert\0"         "DR INSERT\0DR ins\0"        "DR SENDS\0DR sends\0"
-    "INS DYN #\0Ins dyn #\0"     "RET DELAY\0Delay\0"         "RET REV\0Reverb\0"
+    "INS DYN #\0Ins dyn #\0"     "RET DELAY\0Delay\0"         "RET REV\0Reverb\0"         "EQ3 FREQ\0EQ3 frq\0"   /* (fits " 5/7", a build without DUST) */
     "OP# TUNE\0OP# tune\0"       "OP# RATES\0OP# rate\0"      "OP# LEVELS\0OP# level\0"    "OP# SENS\0OP# sens\0"     "OP# SCALE\0OP# scale\0"
     "OP# CURVES\0OP# curve\0"    "PIT RATES\0Pit rate\0"      "PIT LVLS\0Pit level\0"
     "\0";
