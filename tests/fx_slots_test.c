@@ -1139,9 +1139,14 @@ static void t_lanes(void)
     dins_amt[0][4] = 60, dins_amt[1][4] = 30;
     for (i = 0; d && i <= (uint32_t)d->max && lin_list[i] != LIN_DEF1; i++)
         ;
-    dsend_set(4, 5, (int32_t)i);                       /* (S1 to S2's type: they swap, amounts too) */
-    check("S1 to DYN: the two swap, their amounts with them", lin_slot[4][0] == LIN_DEF1 && lin_slot[4][1] == LIN_DEF0 &&
-          dins_amt[0][4] == 30 && dins_amt[1][4] == 60);
+    /* a knob (dsend_set) never takes the other slot's type: it skips it the way it turns (02f459e9, the user: "it should
+     * not STEAL FX from S1, it should skip it"); an exact type asked for (a load, the web editor: lin_set) still swaps */
+    dsend_set(6, 5, (int32_t)i);
+    check("a knob turning S1 onto S2's type (DYN): skipped, S2 keeps DYN", lin_slot[6][0] != LIN_DEF1 && lin_slot[6][0] != LIN_DEF0 &&
+          lin_slot[6][1] == LIN_DEF1);
+    lin_set(4, 2, (int32_t)i);                          /* (S1 to S2's type, asked exactly: they swap, amounts too) */
+    check("S1 set to DYN exactly (a load, the editor): the two swap, their amounts with them", lin_slot[4][0] == LIN_DEF1 &&
+          lin_slot[4][1] == LIN_DEF0 && dins_amt[0][4] == 30 && dins_amt[1][4] == 60);
 #if TFLT_ON
     for (i = 0; i <= (uint32_t)d->max && lin_list[i] != FXT_FILT; i++)
         ;
