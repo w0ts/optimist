@@ -1,6 +1,6 @@
 {
  "base": {
-  "flash": 678852,
+  "flash": 678452,
   "ram": 83876,
   "pool": 372864,
   "ramtext": 35376
@@ -1361,7 +1361,7 @@
    }
   }
  },
- "measured": "2026-10-19 14:27",
+ "measured": "2026-10-19 14:34",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
@@ -1422,7 +1422,7 @@
    },
    "built_hash": "27e71907",
    "sizes": {
-    "flash": 516296,
+    "flash": 515944,
     "ram": 90300,
     "pool": 292260,
     "ramtext": 24580
@@ -1450,20 +1450,21 @@
    },
    "built_hash": "599acc42",
    "sizes": {
-    "flash": 554212,
+    "flash": 553812,
     "ram": 72340,
     "pool": 256968,
     "ramtext": 31796
    }
   },
   "fm-va-studio": {
-   "hash": "2684a5f7",
+   "hash": "6324cfda",
    "cfg": {
     "ENG_PHASE": 0,
     "ENG_LOFI": 0,
     "ENG_FORMANT": 0,
     "ENG_DRAWBAR": 0,
     "ENG_GRAIN": 0,
+    "SET_VIBES": 0,
     "SET_HORNS": 0,
     "SET_FLUTE": 0,
     "SET_SCRCH": 0,
@@ -1471,9 +1472,9 @@
     "PATTERNS": 1,
     "USB_MODE": 1
    },
-   "built_hash": "2684a5f7",
+   "built_hash": "6324cfda",
    "sizes": {
-    "flash": 602584,
+    "flash": 569008,
     "ram": 84052,
     "pool": 330748,
     "ramtext": 29556
@@ -1568,7 +1569,7 @@
    },
    "built_hash": "7cedbc2b",
    "sizes": {
-    "flash": 572052,
+    "flash": 571508,
     "ram": 92108,
     "pool": 310652,
     "ramtext": 22856
@@ -1643,41 +1644,46 @@
    },
    "built_hash": "2460b53e",
    "sizes": {
-    "flash": 578464,
+    "flash": 577904,
     "ram": 93668,
     "pool": 305156,
     "ramtext": 25164
    }
   },
   "x0x-drums": {
-   "hash": "76103362",
+   "hash": "3bb4aebd",
    "cfg": {
     "ENG_DIGITAL": 0,
     "ENG_PHASE": 0,
+    "ENG_LOFI": 0,
     "ENG_FORMANT": 0,
     "ENG_TRIO": 0,
     "ENG_DRAWBAR": 0,
+    "ENG_GRAIN": 0,
     "ENG_FM6": 0,
     "ENG_SLICE": 1,
     "DRUM_SAMPLED": 0,
     "DRUM_X0X909": 1,
     "DRUM_X0X808": 1,
     "SET_PIANO": 0,
+    "SET_BASS": 0,
     "SET_VIBES": 0,
     "SET_HORNS": 0,
     "SET_STRGS": 0,
     "SET_FLUTE": 0,
+    "SET_SCRCH": 0,
     "DLY_LEN": 32768,
     "REV_POOL": 1,
     "PATTERNS": 1,
-    "USB_MODE": 1
+    "USB_MODE": 1,
+    "ENG_ACID": 1
    },
-   "built_hash": "76103362",
+   "built_hash": "3bb4aebd",
    "sizes": {
-    "flash": 603320,
-    "ram": 70956,
-    "pool": 334296,
-    "ramtext": 26636
+    "flash": 545816,
+    "ram": 70668,
+    "pool": 314676,
+    "ramtext": 25648
    }
   },
   "mots-ui": {
@@ -1744,7 +1750,7 @@
    },
    "built_hash": "6c7d5428",
    "sizes": {
-    "flash": 579000,
+    "flash": 578488,
     "ram": 90472,
     "pool": 321636,
     "ramtext": 27256
@@ -1801,7 +1807,7 @@
    },
    "built_hash": "2437393f",
    "sizes": {
-    "flash": 586688,
+    "flash": 586320,
     "ram": 71500,
     "pool": 321892,
     "ramtext": 32488
@@ -1868,7 +1874,7 @@
    },
    "built_hash": "6b5f0888",
    "sizes": {
-    "flash": 539456,
+    "flash": 539088,
     "ram": 90948,
     "pool": 295552,
     "ramtext": 23832
@@ -1937,7 +1943,7 @@
    },
    "built_hash": "7c971d3c",
    "sizes": {
-    "flash": 529104,
+    "flash": 528720,
     "ram": 85784,
     "pool": 277120,
     "ramtext": 21648
@@ -1987,7 +1993,7 @@
    },
    "built_hash": "0a77da7d",
    "sizes": {
-    "flash": 520228,
+    "flash": 519844,
     "ram": 93180,
     "pool": 292260,
     "ramtext": 24884
@@ -2018,14 +2024,14 @@
    },
    "built_hash": "7fd3750f",
    "sizes": {
-    "flash": 555280,
+    "flash": 554800,
     "ram": 73252,
     "pool": 272968,
     "ramtext": 32556
    }
   },
   "fm-va-studio~": {
-   "hash": "06b7144b",
+   "hash": "6c5c4a9e",
    "cfg": {
     "ENG_PHASE": 0,
     "ENG_LOFI": 0,
@@ -2033,6 +2039,7 @@
     "ENG_TRIO": 0,
     "ENG_DRAWBAR": 0,
     "ENG_GRAIN": 0,
+    "SET_VIBES": 0,
     "SET_HORNS": 0,
     "SET_FLUTE": 0,
     "SET_SCRCH": 0,
@@ -2043,9 +2050,9 @@
     "ED_MIX": 0,
     "MOTION": 1
    },
-   "built_hash": "06b7144b",
+   "built_hash": "6c5c4a9e",
    "sizes": {
-    "flash": 624340,
+    "flash": 590748,
     "ram": 86436,
     "pool": 340748,
     "ramtext": 26760
@@ -2138,7 +2145,7 @@
    },
    "built_hash": "57eb6b83",
    "sizes": {
-    "flash": 569656,
+    "flash": 569112,
     "ram": 91228,
     "pool": 310652,
     "ramtext": 22864
@@ -2215,43 +2222,48 @@
    },
    "built_hash": "08a60216",
    "sizes": {
-    "flash": 576348,
+    "flash": 575980,
     "ram": 96868,
     "pool": 305156,
     "ramtext": 25404
    }
   },
   "x0x-drums~": {
-   "hash": "2a4e1a30",
+   "hash": "2e2382bf",
    "cfg": {
     "ENG_DIGITAL": 0,
+    "ENG_LOFI": 0,
     "ENG_FORMANT": 0,
     "ENG_TRIO": 0,
     "ENG_DRAWBAR": 0,
+    "ENG_GRAIN": 0,
     "ENG_FM6": 0,
     "ENG_SLICE": 1,
     "DRUM_SAMPLED": 0,
     "DRUM_X0X909": 1,
     "DRUM_X0X808": 1,
     "SET_PIANO": 0,
+    "SET_BASS": 0,
     "SET_VIBES": 0,
     "SET_HORNS": 0,
     "SET_STRGS": 0,
     "SET_FLUTE": 0,
+    "SET_SCRCH": 0,
     "DLY_LEN": 32768,
     "REV_POOL": 1,
     "PATTERNS": 1,
     "USB_MODE": 1,
     "LCD_BAUD": 4,
     "STOCK_SUPPLY": 0,
+    "ENG_ACID": 1,
     "SL24_EDIMPORT": 1
    },
-   "built_hash": "2a4e1a30",
+   "built_hash": "2e2382bf",
    "sizes": {
-    "flash": 604788,
-    "ram": 70956,
-    "pool": 334296,
-    "ramtext": 27756
+    "flash": 547612,
+    "ram": 70732,
+    "pool": 314676,
+    "ramtext": 26764
    }
   },
   "mots-ui~": {
@@ -2318,7 +2330,7 @@
    },
    "built_hash": "3665a37e",
    "sizes": {
-    "flash": 562716,
+    "flash": 562204,
     "ram": 89704,
     "pool": 321636,
     "ramtext": 27272
@@ -2377,7 +2389,7 @@
    },
    "built_hash": "5fe2a7b7",
    "sizes": {
-    "flash": 573856,
+    "flash": 573744,
     "ram": 72380,
     "pool": 321892,
     "ramtext": 31176
@@ -2446,7 +2458,7 @@
    },
    "built_hash": "00faa928",
    "sizes": {
-    "flash": 544068,
+    "flash": 543556,
     "ram": 91332,
     "pool": 303680,
     "ramtext": 23620
@@ -2515,7 +2527,7 @@
    },
    "built_hash": "559ca6b9",
    "sizes": {
-    "flash": 525384,
+    "flash": 524840,
     "ram": 85800,
     "pool": 244352,
     "ramtext": 19276

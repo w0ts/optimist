@@ -76,12 +76,13 @@ def _need(cfg, costs):
 
 def candidates(cfg, costs, over):
     """-> [(key, {region: freed})] items built in cfg whose removal alone covers the overflow `over`, sample sets
-    first (smallest first), then the other items, smallest first; BLE itself and anything that would make the
-    configuration invalid are left out"""
+    first (smallest first), then the other items, smallest first; BLE itself, its own options (BLE_DIAG, BLE_BOND,
+    BLE_CENTRAL: what was asked for with it, 2026-10-19: x0x-drums + BLE_DIAG had BLE_DIAG removed to make room for BLE)
+    and anything that would make the configuration invalid are left out"""
     sav = C.savings_of(cfg, costs)
     out = []
     for k, s in sav.items():
-        if k == TRIGGER or any(s[r] < o for r, o in over.items()):
+        if k == TRIGGER or R.ITEMS[k].parent == TRIGGER or any(s[r] < o for r, o in over.items()):
             continue
         if C.validate(dict(cfg, **{k: _off_value(k)}))[0]:
             continue
