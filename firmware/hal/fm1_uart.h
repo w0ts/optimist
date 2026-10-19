@@ -47,16 +47,16 @@ FM1_INLINE void fm1_uart1_midi_init(volatile uint8_t *ring, uint32_t len)
     FM1_UT1_RXCNT = len;
     FM1_UT1_BAUD = 48000000u / 31250u / 4u - 1u;       /* 383 */
     FM1_UT1_OTCNT = 60000u;
-    __asm__ volatile("csync" ::: "memory");
+    FM1_CSYNC();
     FM1_UT1_CON0 = 0x40u | 0x80u | 0x1000u | 0x400u;   /* RXDMA, RDC, clear R/OT; no IEs */
-    __asm__ volatile("csync" ::: "memory");
+    FM1_CSYNC();
     FM1_UT1_CON0 |= 1u;                                /* UTEN last */
 }
 
 FM1_INLINE uint32_t fm1_uart1_rx_take(void)
 {
     FM1_UT1_CON0 |= 0x80u;                             /* RDC: latch the count */
-    __asm__ volatile("csync" ::: "memory");
+    FM1_CSYNC();
     FM1_UT1_CON0 |= 0x1400u;                           /* clear RPND / OTPND */
     return FM1_UT1_HRXCNT & 0xFFFFu;
 }
