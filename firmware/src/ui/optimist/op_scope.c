@@ -34,7 +34,10 @@ static void scope_cell(uint32_t r, uint32_t k, cell_t *c)
         page_cell(&SCOPE_MASTER, k, c);
         return;
     }
-    cell_param(c, scope_desc(r, k, &vp), vp);           /* (a value the track or the build has not: the frame alone, #7) */
+    {
+        const param_desc_t *d = scope_desc(r, k, &vp);  /* (the descriptor first: it sets vp; a call's arguments have no order) */
+        cell_param(c, d, vp);                           /* (a value the track or the build has not: the frame alone, #7) */
+    }
     if (c->d)
         c->col = trk_col(r - 1u);
 }
@@ -56,7 +59,10 @@ static int scope_yes(uint32_t r, uint32_t k, uint32_t ok)
     r = scope_row();
     if (!r)
         return page_yes(SCR_SCOPE, r, &SCOPE_MASTER, k, ok);
-    return val_toggle(scope_desc(r, k, &vp), vp);       /* (FX: on / dry) */
+    {
+        const param_desc_t *d = scope_desc(r, k, &vp);  /* (the descriptor first: it sets vp) */
+        return val_toggle(d, vp);                       /* (FX: on / dry) */
+    }
 }
 
 /* ---- the source, once a frame from the main loop: the ISR reads it at the next block */

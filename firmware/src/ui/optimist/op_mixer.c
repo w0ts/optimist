@@ -478,13 +478,15 @@ static void mix_cell(uint32_t r, uint32_t k, cell_t *c)
 {
     mitem_t m;
     int16_t *vp;
+    const param_desc_t *d;
     cell_clear(c);
     r %= MXR_N;
     if (!mx_item(r, k, &m))
         return;
     switch (m.kind) {
     default:
-        cell_param(c, mx_desc(r, &m, &vp), vp);
+        d = mx_desc(r, &m, &vp);                        /* (first: it sets vp; C leaves a call's argument order open) */
+        cell_param(c, d, vp);
         if (!c->d)                                      /* (an empty slot's amount: the knob's frame alone, audit #7) */
             return;
         if (m.kind == MI_INST)
