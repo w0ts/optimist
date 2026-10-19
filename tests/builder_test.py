@@ -268,8 +268,9 @@ check("a .config round trip (only what differs is written)", back["MISSING_WARN"
       name == "x" and "ENG_ANALOG" not in text)
 costs = C.load_costs()
 if costs:
-    fitted, ch = C.fit(C.defaults(), costs)
-    check("fit: the default build made to fit by the estimate", fitted is not None and
+    fitted, ch = C.fit(C.load_profile("user-default")[0], costs)   # (not the raw defaults: nearly every item on, 97 KB over
+                                                                  # 2026-10-19, never meant to fit; the user: "fit user-default")
+    check("fit: user-default made to fit by the estimate", fitted is not None and
           all(o <= 0 for _, _, o in C.fits(C.budget(fitted, costs)["total"]).values()))
 
 # every engine built has a preset on the PRESETS list and every drum source built a kit, on any configuration
@@ -719,21 +720,28 @@ if not _have:
 #    flash, RAM or pool. The causes it found: a margin per changed item (ANCHOR_MARGIN) that a 40 B item did not
 #    cover, and the pairs measured with the Optimist UI against a UI cost that had since grown 10 KB (each "UI=1,ED_X=0"
 #    pair then carried the difference: switching an ED_* item off read 5-7 KB more)
+#    Allowed by name (the user, 2026-10-19, "named allowances"), each measured: the items that move memory between
+#    regions (off, REV_POOL's reverb line and TAB_IN_POOL's tables go back to main RAM; SECTIONS 0 keeps motion in the
+#    project slots, in the pool), DIV_ORDER (its build is 284 B smaller in flash on than off) and FX_DJF (beside
+#    TRK_FILT the FILTER insert's code stays: off saves nothing, +124 B). RAM moves by 16-32 B of alignment as flash does
+_MONO_MOVES = ("REV_POOL", "TAB_IN_POOL", "SECTIONS")
+_MONO_ALLOW = {"DIV_ORDER": "flash", "FX_DJF": "flash"}
+_MONO_NOISE = {"flash": K.ALIGN_NOISE, "ram": 32, "pool": 0}
 _mono_bad = []
 if costs:
     for _pn in ("synth", "user-default", None):
         _mcfg = C.defaults() if _pn is None else C.load_profile(_pn)[0]
         _b0 = C.budget(_mcfg, costs, use_exact=False)["total"]
         for _k, _it in items.items():
-            if _it.no_image or (_it.parent and not C.built(_mcfg, _it.parent)):
+            if _it.no_image or (_it.parent and not C.built(_mcfg, _it.parent)) or _k in _MONO_MOVES:
                 continue
             _v = K._off_value(_mcfg, _k)                # (core's: configure does not re-export it)
             _t = K._drop(_mcfg, _k, _v) if _v is not None and _mcfg[_k] else None
             if _t is None:
                 continue
             _b1 = C.budget(_t, costs, use_exact=False)["total"]
-            _up = {r: _b1[r] - _b0[r] for r in ("flash", "ram", "pool")    # (a few bytes of flash: alignment, K.ALIGN_NOISE)
-                   if _b1[r] > _b0[r] + (K.ALIGN_NOISE if r == "flash" else 0)}
+            _up = {r: _b1[r] - _b0[r] for r in ("flash", "ram", "pool")    # (a few bytes: alignment, _MONO_NOISE)
+                   if _b1[r] > _b0[r] + _MONO_NOISE[r] and _MONO_ALLOW.get(_k) != r}
             if _up:
                 _mono_bad.append(f"{_pn or 'defaults'}: {_k}=0 {_up}")
 for _line in _mono_bad:
