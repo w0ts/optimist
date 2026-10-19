@@ -15,7 +15,7 @@ static uint32_t edstl_call(uint32_t op, uint32_t track, uint32_t lane, uint32_t 
 {
     uint8_t q[8];
     uint32_t u = (uint32_t)(clamp(v, -8192, 8191) + 8192);
-    q[0] = (uint8_t)op, q[1] = (uint8_t)track, q[2] = (uint8_t)lane, q[3] = (uint8_t)step, q[4] = (uint8_t)x, q[5] = (uint8_t)(u & 127u), q[6] = (uint8_t)(u >> 7);
+    q[0] = (uint8_t)op, q[1] = (uint8_t)track, q[2] = (uint8_t)(lane == 127u ? 127u : edl_out(lane)), q[3] = (uint8_t)step, q[4] = (uint8_t)x, q[5] = (uint8_t)(u & 127u), q[6] = (uint8_t)(u >> 7);
     ed_begin(ED_STEPLANE);
     return (uint32_t)ed_steplane(ED_STEPLANE, q, op == 0u ? 3u : op <= 2u ? 4u : op >= 5u && op <= 6u ? 5u : 7u);
 }
@@ -101,7 +101,8 @@ static void edstl_golden(void)
             const param_desc_t *d;
             stl_e e;
             edstl_call(1, track, lane, i, 0, 0);
-            (void)stl_walk(track, lane, i, &e, 0, 0);
+            if (i >= stl_walk(track, lane, i, &e, 0, 0))      /* (past the list: e is not written) */
+                break;
             d = e.d;
             fprintf(f, "%s  {\"kind\":%u,\"id\":%u,\"page\":%u,\"cell\":%u,\"title\":\"%s\",\"d\":", i ? ",\n" : "", e.kind, e.id, e.page, e.cell, e.title);
             edstl_json_desc(f, d);
