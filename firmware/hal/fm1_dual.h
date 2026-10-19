@@ -586,10 +586,32 @@ static uint32_t fm1_dual_stack_used(uint32_t region)
         i++;
     return (n - i) * 4u;
 }
+/* CPU1 held with the bus-invalid traps off (SLOOP 2.7.1 fm1_cpu1_halt, after Felucca 1.6.1, Leo Kuroshita, GPL-3.0):
+ * holding CPU1 cuts its access on the bus, and the chip flags that some instructions later as a bus-invalid access
+ * (DBG_MSG bits 4, 5, 16..21). With FM1_GUARD_BUS on, CPU0 took that exception, and bits 19..21 are in FM1_DBG_C0:
+ * fm1_dual_exc_c read it as CPU0's own, the crash report and a reboot. So: traps off, hold, let the flag come, clear
+ * it, traps back as they were. Registers only: safe when CPU1 never ran */
+#define FM1_DBG_BUS 0x003F0030u
 static void fm1_dual_halt(void)
 {
+    uint32_t locked = !(FM1_DBG_WR_EN & 1u), en, bus = FM1_DBG_BUS;
+    volatile uint32_t n;
+    __asm__("" : "+r"(bus));                              /* (as Felucca: ~bus not folded into a constant) */
     fm1_dual_on = 0;
+    if (locked)
+        FM1_DBG_WR_EN = 0xE7u;                            /* (writing 0xE7 toggles the unlock) */
+    en = FM1_DBG_EN;
+    FM1_DBG_EN = en & ~bus;
+    fl_csync();
     FM1_C1_CON &= ~8u;
     FM1_C1_CON |= 2u;
+    fl_csync();
+    for (n = 0; n < 256u; n++)                            /* the flag comes some instructions after the hold */
+        ;
+    FM1_DBG_MSG_CLR = bus;
+    fl_csync();
+    FM1_DBG_EN = en;
+    if (locked && (FM1_DBG_WR_EN & 1u))
+        FM1_DBG_WR_EN = 0xE7u;
     fm1_dual_sync();
 }
