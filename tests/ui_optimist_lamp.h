@@ -32,8 +32,49 @@ static void lamp_count(uint32_t frames_n, uint32_t *g_on, uint32_t *g_off, uint3
         *r_on += led_lvl(B_PLAY) == 2u, *r_off += led_lvl(B_PLAY) != 2u;
     }
 }
+/* STEP's playhead key while playing (cada478d, the user: "flash the step in step seq mode, four times per step"): over
+ * one step of the track's own grid (clk_beat / clk_pos as the sequencer reads them), its key goes on STEP_FLASHES
+ * times; a swung odd step (longer or shorter) the same. -> the times the playhead's bit went on over the first two steps
+ * of a beat (an even and an odd one) */
+static uint32_t lamp_flashes(void)
+{
+    const uint32_t N = 1024u;
+    uint32_t i, in, was = 0, ons = 0, into, len;
+    for (i = 0; i < N; i++) {
+        uint32_t at;
+        clk_beat = 0, clk_pos = (uint32_t)((uint64_t)i * (BEAT_U / 2u) / N);   /* (1/16: two steps a half beat) */
+        at = trk_grid(TSEL, &into, &len) % 16u;
+        TSEL->seq_idx = at;                             /* (the playhead on the step the grid is in) */
+        ons += ((step_win(0, &in) >> at) & 1u) && !was;
+        was = (step_win(0, &in) >> at) & 1u;
+    }
+    return ons;
+}
+static void lamp_step_tests(void)
+{
+    track_t *t;
+    uint32_t kb = clk_beat, kp = clk_pos, a, b;
+    int16_t sd, ss, gs = song.g[G_SWING];
+    reset_ui();
+    song.sel = 0;
+    t = TSEL;
+    sd = t->p[P_SDIV], ss = t->p[P_SSWING];
+    tap(B_SEQ);
+    song.playing = 1;
+    t->p[P_SDIV] = 2, t->p[P_SSWING] = 0, song.g[G_SWING] = 0;   /* (1/16: four steps a beat, straight) */
+    a = lamp_flashes();
+    t->p[P_SSWING] = 60;                                /* (swung: the even step longer, the odd one late and shorter) */
+    b = lamp_flashes();
+    check(a == 2u * STEP_FLASHES && b == 2u * STEP_FLASHES && STEP_FLASHES == 4u,
+          "STEP: playing, the playhead's key flashes 4 times a step on the track's grid, swung steps too");
+    song.playing = 0;
+    t->p[P_SDIV] = sd, t->p[P_SSWING] = ss, song.g[G_SWING] = gs;
+    clk_beat = kb, clk_pos = kp;
+    reset_ui();
+}
 static void lamp_tests(void)
 {
+    lamp_step_tests();
     uint32_t go, gf, ro, rf;
     lamp_idle();
     check(FM1_KEYMAP[OP_LAMP_ROW][OP_LAMP_COL] == -1, "lamp: PLAY's green is a matrix LED with no key (no button's LED is taken)");
