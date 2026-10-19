@@ -142,17 +142,7 @@ async def main():
         await toggle(app, pilot, "DRUM_SYNTH")
         check("the drum synth back: the marks go at once", not any("✗" in label(app, k) for k in app.nodes))
         check("... CANNOT BUILD stays in the panel until the next b", panel(app).startswith("CANNOT BUILD"))
-        for k in ("FM6_MARK1", "FM6_MODERN", "FM6_OPL"):
-            if not app.cfg[k]:
-                continue
-            app.query_one("#tree").move_cursor(app.nodes["ENG_FM6"])
-            app.nodes["ENG_FM6"].expand()
-            await pilot.pause()
-            await toggle(app, pilot, k)
-        check("FM6 without an ENGINE mode: FM6 and its three modes marked",
-              all("✗" in label(app, k) for k in ("ENG_FM6", "FM6_MARK1", "FM6_MODERN", "FM6_OPL")))
-        await toggle(app, pilot, "FM6_MARK1")
-        check("... a mode back: no mark", not any("✗" in label(app, k) for k in app.nodes))
+        # (FM6's three ENGINE modes and their "none left" mark: gone with the modes, 2026-10-18, FM6 plays MODERN only)
         if "MOTION" in app.nodes:
             await toggle(app, pilot, "MOTION")
             check("motion recording with 16 sections: valid, no mark", app.cfg["MOTION"] == 1 and

@@ -394,7 +394,12 @@
       "BUTTONS": "Buttons glow in the dark", "KEYS": "Which keys glow"}},
     {"kind": "op", "ctx": "AUDIO", "params": {"LOWCUT": "Output low cut or bass boost"}},
     {"kind": "op", "ctx": "USB", "if": "FELUCCA_CDC", "params": {"SERIAL": "USB serial console (restart)"}},
-    {"kind": "op", "ctx": "BLUETOOTH", "if": "FELUCCA_BLE", "params": {"BLE": "BLE MIDI. SAVE: the devices"}},
+    {"kind": "op", "ctx": "BLUETOOTH", "if": "FELUCCA_BLE", "params": {
+      "BLUETOOTH": "Bluetooth MIDI on or off", "STATE": "What the link does now",
+      "DEVICE": "The device it is linked with", "MIDI": "Bluetooth MIDI in / out now"}},
+    {"kind": "op", "ctx": "DEVICES", "if": "FELUCCA_BLE", "params": {"DEVICES": "SAVE: the devices nearby"}},
+    {"kind": "op", "ctx": "DEVICES", "if": "BLE_CENTRAL", "params": {
+      "RECONNECT": "At start: the last one or off", "LAST DEVICE": "Forget the last device (asks)"}},
     {"kind": "op", "ctx": "USB AUDIO", "if": "FELUCCA_USB_AUDIO", "params": {
       "MASTER": "Master to USB inputs", "T1": "Track 1 to USB inputs", "T2": "Track 2 to USB inputs",
       "T3": "Track 3 to USB inputs", "DRUMS": "Drums to USB inputs", "DRUM BUS": "Drum bus to USB inputs",
@@ -476,7 +481,8 @@
       "DR": "DR's pattern playing now"}},
     {"kind": "op", "ctx": "TOOLS", "if": "FELUCCA_SEQTOOLS", "params": {
       "REVERSE": "Turn, then SAVE: steps back", "RANDOM": "Turn, then SAVE: new notes",
-      "COOK": "Turn, then SAVE: vary it", "LENGTH": "Turn, then SAVE: x2 or 1/2"}},
+      "COOK": "Turn, then SAVE: vary it", "LENGTH": "Turn, then SAVE: x2 or 1/2",
+      "TOOL": "Pick a tool, then SAVE", "ON": "What the tool works on"}},
     {"kind": "op", "ctx": "GEN", "if": "FELUCCA_SEQTOOLS", "params": {
       "TYPE": "Euclid, Random or Pulse",
       "HITS": "Euclid: hits spread evenly", "STEPS": "Euclid: over how many steps",

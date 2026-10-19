@@ -41,16 +41,31 @@ static struct {
     uint8_t sel;                        /* the tool the one TOOLS card has picked: TS_* below */
     uint32_t sess;                      /* the undo session of the last tool */
 } tl = {0, 0, 0};
-enum { TS_REV, TS_RND, TS_COOK, TS_DBL, TS_HALF, TS_Q1, TS_Q2, TS_Q4, TS_N };   /* (the card's choices; DOUBLE and HALF
-                                                        * are LENGTH's two, QNT 1 .. 1/4 QUANTIZE's three) */
-static const char *const TS_NAME[TS_N] = {"REVERSE", "RANDOM", "COOK", "DOUBLE", "HALF", "QNT 1", "QNT 1/2", "QNT 1/4"};
+enum { TS_REV, TS_RND, TS_COOK, TS_DBL, TS_HALF,
+#if FELUCCA_AUTO                                        /* (QUANTIZE moves nudges: they live in the automation store) */
+       TS_Q1, TS_Q2, TS_Q4,
+#endif
+       TS_N };   /* (the card's choices; DOUBLE and HALF are LENGTH's two, QNT 1 .. 1/4 QUANTIZE's three) */
+static const char *const TS_NAME[TS_N] = {"REVERSE", "RANDOM", "COOK", "DOUBLE", "HALF",
+#if FELUCCA_AUTO
+                                          "QNT 1", "QNT 1/2", "QNT 1/4"
+#endif
+};
 static uint32_t ts_tool(uint32_t sel)
 {
-    return sel == TS_DBL || sel == TS_HALF ? (uint32_t)TL_LEN : sel >= TS_Q1 && sel < TS_N ? (uint32_t)TL_QNT : sel;
+#if FELUCCA_AUTO
+    if (sel >= TS_Q1 && sel < TS_N)
+        return TL_QNT;
+#endif
+    return sel == TS_DBL || sel == TS_HALF ? (uint32_t)TL_LEN : sel;
 }
 static uint32_t ts_arg(uint32_t sel)                    /* tl_run's arg: LENGTH's 1/2, QUANTIZE's grid (1 2 4 a step) */
 {
-    return sel == TS_HALF ? 1u : sel == TS_Q1 ? 1u : sel == TS_Q2 ? 2u : sel == TS_Q4 ? 4u : 0u;
+#if FELUCCA_AUTO
+    if (sel == TS_Q1 || sel == TS_Q2 || sel == TS_Q4)
+        return sel == TS_Q1 ? 1u : sel == TS_Q2 ? 2u : 4u;
+#endif
+    return sel == TS_HALF ? 1u : 0u;
 }
 
 static uint32_t tl_rnd(uint32_t n) { return n ? rng() % n : 0u; }
@@ -618,6 +633,7 @@ static void tl_double_do(track_t *t, uint32_t len)
     t->p[P_SLEN] = (int16_t)nl;
 }
 
+#if FELUCCA_AUTO
 /* ---- QUANTIZE: each nudge of steps 1..len to the nearest multiple of 64 / div (1/64 of a step: 1, 1/2, 1/4 of it),
  * 0 on the grid (its event goes), half a step late kept at MICRO_MAX; -> how many moved (the IRQ off) */
 static uint32_t tl_quantize(track_t *t, uint32_t len, uint32_t div)
@@ -645,6 +661,7 @@ static int tl_has_nudge(const track_t *t, uint32_t len)
             return 1;
     return 0;
 }
+#endif
 
 /* ---- the pages */
 static void tl_cell(uint32_t pg, uint32_t k, cell_t *c)   /* pg 0 TOOLS, 1 GEN, 2 GEN OUT */
@@ -691,6 +708,7 @@ static int tl_run(track_t *t, uint32_t k, int32_t lane, uint32_t arg, const char
     uint32_t len = trk_len(t), i, n = 0, nl, half = arg != 0u;
     const char *who = lane >= 0 ? lane_name((uint32_t)lane) : trk_tag(song.sel), *what;
     *sa = who, *sb = "";
+#if FELUCCA_AUTO
     if (k == TL_QNT) {                                  /* (the step's nudge: the track's, a lane picked or not) */
         if (!tl_has_nudge(t, len)) {
             *sa = "ON THE GRID ALREADY";
@@ -706,6 +724,7 @@ static int tl_run(track_t *t, uint32_t k, int32_t lane, uint32_t arg, const char
         *sa = buf, *sb = n == 1u ? " NOTE" : " NOTES";
         return 1;
     }
+#endif
     if (k == TL_LEN) {
         if (!half && (len >= NSTEP || !tl_ev_double(t, len, tl_dbl_len(len), 1))) {
             *sa = len >= NSTEP ? "64 STEPS: NO ROOM" : "PATTERN FULL";
