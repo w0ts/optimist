@@ -1,6 +1,6 @@
 # Effects: insert slots, sends, returns and the master
 
-This chapter is about everything that changes the sound after the engine: the insert slots, the send buses and their returns, the master, and the punch-in effects. It is written for a user. The numbers are the ones in the firmware (ranges, defaults, lists); CPU and memory costs are in [BUILDER.md](../BUILDER.md). What a build contains depends on its builder items: a type that is not built is not in the lists. The manual [OPTIMIST.md](../../OPTIMIST.md) has the punch-in effects and the master DUST, DUCK and FILT in its own sections.
+This chapter is about everything that changes the sound after the engine: the insert slots, the send buses and their returns, the master, and the punch-in effects. It is written for a user. The numbers are the ones in the firmware (ranges, defaults, lists); CPU and memory costs are in [BUILDER.md](../BUILDER.md). What a build contains depends on its builder items: a type that is not built is not in the lists. The punch-in effects on SLOOP's interface: [SLOOP's interface](sloop-ui.md#the-master-and-the-punch-in-effects).
 
 Page names below are the firmware's. The Optimist UI shows most of them in its FX family of the track and on the master FX screen, with the short forms in its names table (for example `INSERTS` is shown as "Insert"). SLOOP's UI shows the same pages in its FX layer, and the master's pages in GLO. Where the two differ, the text says so.
 

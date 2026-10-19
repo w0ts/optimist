@@ -3,7 +3,7 @@
 Written 2026-10-18 by the clean-room reader, as stage 0 of our own Classic stack (goal: A2DP source, FM-1 →
 AirPods, SBC, GPL-clean, no JieLi library linked). It does for the BR/EDR engine what
 [BLE-HW-FACTS.md](BLE-HW-FACTS.md) did for the LE engine, and it continues route C of
-[BT-AUDIO-FEASIBILITY.md](BT-AUDIO-FEASIBILITY.md) §3.3. The implementers must not read vendor code, vendor IR or
+the BT audio study (2026-10-08) §3.3. The implementers must not read vendor code, vendor IR or
 vendor disassembly. They work from the Bluetooth Core Specification (Vol 2 Part B, Baseband) and this sheet.
 
 This sheet contains facts only: addresses, bit fields, values, sequences, timing, interrupts, RAM layouts and
@@ -563,7 +563,7 @@ an SDR, not for a phone.
 - Frames at 2.5 s [M:d]: frame 0 = inquiry scan (GIAC, `format` 11, FHS + EIR "FM-1", class `0x240404`); frame 1 =
   page scan (`format` 5, its own address `D9:06:F4:1D:99:4C` as LAP `1D994C`, UAP `F4`, NAP `D906`, parity
   `08 D9 39 52 02`), RX into `rx_fhs`, `TXPWER` 11 + 16. So V15 is **discoverable and connectable** on BR/EDR
-  (in the emulator; its A2DP sink record is in BT-AUDIO-FEASIBILITY §2.4). The address is generated per unit
+  (in the emulator; its A2DP sink record is in the BT audio study (2026-10-08) §2.4). The address is generated per unit
   (BLE-HW-FACTS §11, §14.5) [I].
 - Consequence: a second FM-1 on stock V15 (or a phone) is a known inquiry target for stage 1.
 
@@ -779,5 +779,5 @@ Outputs `optimist-work/btclassic/run4/`, flashes in `FLASHES.md` (probe4a-h).
 - **View: go for stage 1 and 2; no promise yet for A2DP.** The hardware does the hard per-slot work (hop kernel,
   trains, coding, ARQ, E0, AFH remap), and the software interface is the same kind of SRAM frame engine that our
   BLE route C mastered. Inquiry is a cheap, decisive experiment. The real cost and risk sit in the host-side
-  protocols and interoperability with AirPods (BT-AUDIO-FEASIBILITY §3.3: 9–18 person-months), not in the
+  protocols and interoperability with AirPods (the BT audio study (2026-10-08) §3.3: 9–18 person-months), not in the
   baseband; that decision can wait for stage 2's result (a paged ACL link with LMP version exchange).

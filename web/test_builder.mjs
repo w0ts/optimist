@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Node checks of the web builder (web/builder/, docs/BUILDER-WEB.md), no browser and no network. Run from the repo root:
+// Node checks of the web builder (web/builder/, docs/WEB.md), no browser and no network. Run from the repo root:
 //   node web/test_builder.mjs
 // - drift: web/builder/data/ is what tools/export_builder_web.py makes from the builder now (registry, costs,
 //   profiles, the Python files);

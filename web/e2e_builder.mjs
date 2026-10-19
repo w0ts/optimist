@@ -2,7 +2,7 @@
 // The web builder in a real (headless) Chrome with Pyodide: the page's answers (its Python, py-worker.js ->
 // tools/builder/web_api.py) against the CLI builder's (tests/builder_web_ref.py and `tools/optimist.py cloud-key --json`)
 // for every profile and seeded random edits: identical. Then the page itself: the list, a toggle, the search, the sort,
-// the download, light / dark and a 390 px phone with no sideways scroll. docs/BUILDER-WEB.md.
+// the download, light / dark and a 390 px phone with no sideways scroll. docs/WEB.md.
 // Not part of `make test` (it needs Chrome and, by default, the network: Pyodide comes from cdn.jsdelivr.net). Run from
 // the repo root:
 //   node web/e2e_builder.mjs [--shots DIR]

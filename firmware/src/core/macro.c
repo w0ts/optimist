@@ -3,7 +3,7 @@
  * 3962560, GPL-3.0-only): four knobs with fixed meanings, each moving several parameters at once from a home where
  * it moves nothing, applied in the audio ISR over the authored values; ENERGY's bands. Rewritten for Optimist: a
  * fixed table instead of a World's mappings, no curves, no smoothing classes, no cross-macro rules. */
-/* GLO > MACRO (FELUCCA_MACROS, registry.h; docs/BUILDER.md, OPTIMIST.md): COLOR (dark .. bright), MOTION (still ..
+/* GLO > MACRO (FELUCCA_MACROS, registry.h; docs/BUILDER.md, docs/guide/sequencer.md): COLOR (dark .. bright), MOTION (still ..
  * alive), SPACE (close .. huge), ENERGY (sparse .. intense), each -64..63, 0 = home: nothing moves.
  *
  * Where they are kept: the drum track's ENV DEST FLT / PIT / SHP and LFO DEST FLT values (MAC_ID, params.c), which

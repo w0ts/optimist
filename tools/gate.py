@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
-"""The integrator's gate (docs/INTEGRATION.md): what must pass before an integration branch is pushed, on this
+"""The gate: what must pass before a batch of changes is pushed, on this
 machine, in one command. `make gate` or `python3 tools/optimist.py gate`.
 
   python3 tools/gate.py [--config FILE ...] [--set KEY=V ...] [--no-profiles] [--emu [--only CHECKS]]

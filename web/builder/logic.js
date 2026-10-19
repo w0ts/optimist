@@ -3,7 +3,7 @@
 // does it. The rules themselves (validate, the budget, fit, the key) run in Python: py-worker.js, tools/builder/web_api.py.
 // node web/test_builder.mjs tests these.
 
-export const PYODIDE_VERSION = "314.0.7";            // pinned (released 2026-09-14); docs/BUILDER-WEB.md
+export const PYODIDE_VERSION = "314.0.7";            // pinned (released 2026-09-14); docs/WEB.md
 export const PYODIDE_CDN = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/`;
 export const REGIONS = ["flash", "ram", "pool", "ramtext"];
 export const SORTS = [null, ...REGIONS];             // the menu's o: default order, then each region, largest first
@@ -191,7 +191,7 @@ export function gaugeModel(region, used, cap, over) {
     tip: `${region.toUpperCase()}: ${fmt(used)} of ${fmt(cap)} B` + (isOver ? `, over by ${fmt(over)} B` : `, ${fmt(-over)} B free`) };
 }
 
-/** the notices policy: what the page shows of a view (docs/BUILDER-WEB.md "Messages").
+/** the notices policy: what the page shows of a view (docs/WEB.md "Messages").
     -> {errors: [{kind, head, text, sub: [lines], keys}], experimental: [{key, label, text}], notes: [{text, labels}]}
     errors: what stops a build or what the user must change (a parse error, an overflow as ONE line, the undo ring, an
     unmet rule); experimental: one line per EXPERIMENTAL item that is on; notes: everything else (the NOTICE texts:
@@ -238,7 +238,7 @@ export function messagesOf(view, reg) {
     its notice, where it comes from, what turning it off loses) */
 export const hasInfo = (it) => !!(it.experimental || it.notice || it.provenance_line || it.off_warning);
 
-/** a proposal's change as a short line (docs/BUILDER-WEB.md "Ways to fit"): "FM6 off", "Delay length: 64K -> 32K", "keep 200 KB flash free -> 0 KB" */
+/** a proposal's change as a short line (docs/WEB.md "Ways to fit"): "FM6 off", "Delay length: 64K -> 32K", "keep 200 KB flash free -> 0 KB" */
 export function changeText(c, byKey) {
   const it = byKey[c.key], name = (v) => (it && it.choices.length ? (it.choices.find((x) => x[0] === v) || [v, String(v)])[1] : v ? "on" : "off");
   if (c.reserve) return `${c.label}: ${c.from} -> ${c.to} KB`;

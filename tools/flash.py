@@ -30,7 +30,7 @@ OPTIMIST_ID = re.compile(r"FM-1_7(00|[2-6]\d)")         # (Optimist: 700 develop
 NEED = "needs mido and python-rtmidi in the builder venv: run `make setup` (python tools/optimist.py setup)"
 RECOVER = ("If the install is cut off the FM-1 stays in update mode: run flash again to finish. If it no longer "
            "starts: hold OCT- alone while switching on (USB rescue) and flash again, or go back to the official "
-           "firmware; OPTIMIST.md, \"Rescue, going back\". Back up your projects first (the editor's Backup).")
+           "firmware; README.md, \"Getting back\". Back up your projects first (the editor's Backup).")
 
 
 class FlashError(Exception):

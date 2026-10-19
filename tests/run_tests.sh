@@ -143,7 +143,7 @@ t_ble_central() { python3 tests/ble_emu_central_test.py; }
 t_ble_boot() { python3 tests/ble_emu_boot_test.py; }
 t_builder() { python3 tests/builder_test.py; r=$?; python3 tests/builder_core_test.py || r=1; return $r; }
 t_web() { node web/test_web.mjs; r=$?; node web/test_builder.mjs || r=1; python3 tests/cloud_build_test.py || r=1; return $r; }
-# the simulator (docs/SIMULATOR.md): the default configuration's firmware as WebAssembly, run under node
+# the simulator (docs/WEB.md): the default configuration's firmware as WebAssembly, run under node
 t_sim() {
     local py; py="$(python3 -c 'import sys; sys.path.insert(0, "tools"); import deps; print(deps.venv_python())')" || return 1
     mkdir -p build/sim/test

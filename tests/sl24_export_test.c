@@ -64,7 +64,7 @@ _Static_assert(sizeof proj_tmp >= SL24_SIZE, "ed_sl24.c makes the export in proj
 #else
 #define SL24_TP_ON 0
 #endif
-/* what an import of 2.4's keeps (sl24_import.c, OPTIMIST.md "Bringing a 2.4 project over", sl24_import_test's "FILT with
+/* what an import of 2.4's keeps (sl24_import.c, sl24_import_test's "FILT with
  * TRK_FILT, the parts' STRUM and VLEAD with CHORDPLUS, else 0"): its FILT (value and locks) only in a TRK_FILT build, its
  * STRUM and VLEAD only in a CHORDPLUS build. A build with one switch has the three ids (SL24_TP) but drops the other's */
 #define FILT_IN TFLT_ON

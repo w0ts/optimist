@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// The simulator's audio thread (docs/SIMULATOR.md): one instance of a build's firmware (firmware/sim/sim.c, compiled
+// The simulator's audio thread (docs/WEB.md): one instance of a build's firmware (firmware/sim/sim.c, compiled
 // by tools/sim.py --wasm) runs here, inside the AudioWorklet, so the sound never waits for the page. The page
 // (web/sim/sim.js) sends the keys, buttons, knobs and MIDI as messages; this thread sends back the screen (the bands
 // that changed), the LEDs, the firmware's MIDI out, the flash when it changed (for the browser's saved state) and the

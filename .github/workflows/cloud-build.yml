@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-only
-# Cloud builds (docs/CLOUD-BUILD.md): the web builder's "Build in the cloud" opens an issue from the cloud-build form
+# Cloud builds (docs/WEB.md): the web builder's "Build in the cloud" opens an issue from the cloud-build form
 # (.github/ISSUE_TEMPLATE/cloud-build.yml) with a commit and a .config. This reads it (tools/cloud_build.py, from the
 # default branch: the issue body is untrusted text and never reaches a shell line), checks it with that commit's own
 # builder (`optimist.py cloud-key --strict`), builds it unless the same cloud key was built before, attaches the
@@ -211,7 +211,7 @@ jobs:
       - name: Attach to the cloud-builds pre-release (a copy already there, from an identical request, is kept)
         if: needs.build.result == 'success'
         run: |
-          gh release view cloud-builds >/dev/null 2>&1 || gh release create cloud-builds --prerelease --latest=false --title "Cloud builds" --notes "Firmware built from the web builder's configurations (docs/CLOUD-BUILD.md). Each file is named by its configuration's cloud key; the issue that asked for it has the details." || gh release view cloud-builds >/dev/null
+          gh release view cloud-builds >/dev/null 2>&1 || gh release create cloud-builds --prerelease --latest=false --title "Cloud builds" --notes "Firmware built from the web builder's configurations (docs/WEB.md). Each file is named by its configuration's cloud key; the issue that asked for it has the details." || gh release view cloud-builds >/dev/null
           have="$(gh release view cloud-builds --json assets --jq '.assets[].name')"
           for f in "out/$STEM.fwsc" "out/$STEM-ui.zip"; do
             grep -qxF "$(basename "$f")" <<< "$have" || gh release upload cloud-builds "$f"

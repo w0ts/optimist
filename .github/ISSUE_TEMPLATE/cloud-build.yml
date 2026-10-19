@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-only
-# A cloud build request: the web builder's "Build in the cloud" button opens this form filled in (docs/CLOUD-BUILD.md).
+# A cloud build request: the web builder's "Build in the cloud" button opens this form filled in (docs/WEB.md).
 # .github/workflows/cloud-build.yml builds it and answers in the issue. The field ids (commit, config) are the
 # query parameters the builder fills; their labels are the headings tools/cloud_build.py reads.
 name: Cloud build

@@ -748,7 +748,7 @@ with tempfile.TemporaryDirectory() as td:
     rc, out, pr = flash_run(["--no-build"], t, answer="n", packages=new)
     check("flash: shows the running identity, the package and the recovery, then asks",
           "Optimist_730  [running]" in out and "optimist-1.0-b.fwsc" in out and "FM-1_730" in out and
-          "Rescue, going back" in out and len(pr) == 1 and "Flash" in pr[0])
+          "Getting back" in out and len(pr) == 1 and "Flash" in pr[0])
     check("flash: answer n: cancelled, exit 1, nothing written", rc == 1 and "cancelled" in out and not t.wrote())
     t = FakeTool()
     rc, out, pr = flash_run(["--no-build"], t, answer="", packages=new)

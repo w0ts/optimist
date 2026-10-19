@@ -318,7 +318,7 @@ async def main():
                 title = str(app.screen.title_) if type(app.screen).__name__ == "Pick" else ""
                 check("f: a confirmation screen with the running identity, the package and the recovery",
                       "Optimist_730  [running]" in title and pkg.name in title and "FM-1_730" in title and
-                      "Rescue, going back" in title and app.screen.options[0] == "Cancel")
+                      "Getting back" in title and app.screen.options[0] == "Cancel")
                 check("... only the identity was read so far (nothing written before the answer)",
                       calls == [["--info"]])
                 await pilot.press("escape")

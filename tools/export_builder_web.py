@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
-"""Export the firmware builder for the web builder page (web/builder/, docs/BUILDER-WEB.md): the page runs the same
+"""Export the firmware builder for the web builder page (web/builder/, docs/WEB.md): the page runs the same
 Python rules (tools/builder/core.py) in the browser with Pyodide, so it needs their source and the data the CLI
 reads from the disk.
 

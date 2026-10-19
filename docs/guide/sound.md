@@ -1,9 +1,9 @@
 # Sound: engines, voices, modulation, presets
 
-This chapter is about what makes a synth track sound the way it does, and where each control is. The manual,
-[OPTIMIST.md](../../OPTIMIST.md), is the reference for every page of every engine; the builder reference,
+This chapter is about what makes a synth track sound the way it does, and where each control is. The builder reference,
 [docs/BUILDER.md](../BUILDER.md), lists what each engine costs and how to leave it out. Names in capitals are the labels
-on the screen. "The Optimist UI" is the interface chosen with the builder item `UI=1`; SLOOP's UI is the default.
+on the screen. "The Optimist UI" is builder item `UI=1`; Synth (the default flavour) uses the Optimist UI; drum machine, FM + VA studio and everything fits use SLOOP's
+([SLOOP's interface](sloop-ui.md)).
 
 ## Engines
 
@@ -34,11 +34,32 @@ engine gives them (ANALOG shows OSC and FLT, for example).
 | JUNO | `ENG_JUNO` | The Juno-106 voice: DCO with saw, pulse, sub and noise, a 4-pole ladder filter, a 4-position high-pass | EDIT 1: WAVE PW SUB NOIS; EDIT 2: CUT RES KEY HPF |
 | NOISE | `ENG_NOISE` | White, pink and brown noise, crackle, a shift register and metal tones through a resonant filter | EDIT 1: MODE COLR FREQ RES; EDIT 2: TRK DENS DRFT CRSH |
 
-The card names above are read from the engines' tables in `firmware/src/engines` and from the manual's engine
-sections; the manual says what each card does. On a JUNO track, ENV is the Juno's envelope and LFO the Juno's LFO (see
-OPTIMIST.md, "JUNO, a Juno-106 voice"); the Juno-106 chorus is an insert type, not a part of the engine
-([insert effects](../../OPTIMIST.md#insert-effects-generic-slots-builder-items-ins_-fx_)). JUNO has 8 presets of our own,
-no Roland factory patches. ACID has 4 presets, NOISE 4, CZ 8, PHYS 9.
+The card names above are read from the engines' tables in `firmware/src/engines`. ACID has 4 presets, NOISE 4, CZ 8,
+PHYS 9, JUNO 8; none of them are a manufacturer's factory sounds.
+
+### Engine notes
+
+- **ANALOG 2:** OSC 2 has WAVE2, SEMI (osc 2's interval, ±24 semitones) and SYNC (hard sync; the SHP modulation then
+  sweeps osc 2: the sync sweep); SWARM has SWARM (0–6 detuned copies, the supersaw), SDTN (their spread) and DRFT (a slow
+  random drift, free-running oscillators); FLT 2 has FTYP (LP12, LP24, BP, HP). The filter saturates in its loop and
+  self-oscillates at RES 126–127.
+- **FM6:** DX7 voices played as Dexed plays them. EDIT 1 has one value, VOICE: INIT VOICE and the voice packs the build
+  carries (`FM6_PK_*`, 16 voices each, programmed for Optimist: K keys, B basses, M bells, P pads and leads, 8 80s
+  classics), listed in PRESETS after the user presets. **ENV held** on an FM6 track is the operator editor: the black
+  keys pick OP1–OP6, PIT, GLO, MONO, POLY, the knobs edit, the white keys keep playing. An edited voice is kept as a user
+  preset (SAVE AS, with `UP_FM6`) or by the project. **DX7 SysEx in** (`FM6_SYSEX`, receive only): a single voice goes
+  into the selected FM6 track; a 32-voice bank becomes a temporary pick list at the end of PRESETS until power-off.
+- **ACID:** one TB-303-style voice; a step's ACCENT is the 303's accent, a SLIDE glides into the next step. **ACID GEN**
+  (EDIT): DENS, ACC, SLD, then GEN twice writes a new acid line into the pattern (in the track's key; undo brings the old one back).
+- **JUNO:** the Juno-106 voice, six voices. The track's ENV is the Juno's envelope (ENV > FLT is the VCF ENV amount), its
+  LFO the Juno's LFO (SHP moves the pulse width). The Juno-106 chorus is an insert type ([effects](effects.md)), on any track.
+- **CZ:** two lines, each with 8-step pitch, timbre and volume envelopes (the tone's; not editable yet), ring and noise
+  modulation, vibrato. ATK DEC SUS REL do not shape a CZ voice.
+- **NOISE:** MODE ANLG (white noise and impulses), DUST (crackle), LFSR (a shift register clocked by the key), META (a
+  metallic tone); COLR tilts white to brown; FREQ and RES a filter from low-pass to band-pass.
+- **PHYS:** MODEL picks modal (bells, bars), a plucked string, a drum head or a string with sympathetic strings.
+- **SAMPLE:** SET plays a built-in set (PIANO, BASS, VIBES, HORNS, STRGS, FLUTE, SCRCH, PERC; the builder chooses which)
+  or your USR1–USR3 slots ([drums and samples](drums.md#your-samples)).
 
 ## Voices
 
@@ -151,6 +172,11 @@ LFO, LFO 2 and ENV 2 are stored with the project, in the project's modulation re
 its default. User presets store them in the bank UPB3 (216-byte records, UP_VER 4; the older records and banks UPB2 and
 UPB1 are read and converted).
 
+### LFO RATE in time with the tempo
+
+Turn RATE down past its slowest free rate (0.05 Hz) and it locks to the tempo: one cycle is **4BAR**, **2BAR**, **1BAR**,
+**1/2**, **1/4**, **1/8**, **8T**, **1/16**, **16T** or **1/32**. It follows the tempo and an external MIDI clock.
+
 ## Presets, favorites, the user bank
 
 **PRESETS** browses the sounds of a synth track by kind (basses, keys, organs, pads, leads, plucks and bells, stabs);
@@ -165,3 +191,21 @@ start from the engine's defaults. A user preset's LOAD over an edited sound is a
 - A favorite shows a star after its name. Up to 64 factory sounds (kept by engine and name, so a mark survives a build
   that leaves engines out) and any of the 32 user presets can be marked. The FM6 and CZ banks and the drum track have none.
 - Favorites are kept with the settings (136 bytes at the end of the settings record).
+
+## The factory sounds
+
+About 90 starting points (more with the optional engines), each a full patch on one engine, level-matched. A new project
+starts at 90 BPM with *808 BOOM*, *RHODES*, *LOFI FLUTE* and the 808 kit.
+
+| Kind | Sounds (engine) |
+| --- | --- |
+| **Bass** | 808 BOOM, 808 DIRTY, 808 SLIDE, SUB BASS, PLUGG BASS, REESE, WOBBLE, ACID 303, FUNK BASS, LP24 BASS (ANALOG) · FM BASS (DIGITAL) · CZ BASS (PHASE) · FAT BASS (TRIO) · WOW BASS (VOICE) · GB BASS (LOFI) · UP BASS, DEEP BASS (SAMPLE) |
+| **Keys** | RHODES, DX RHODES, WURLI, M1 PIANO, AFRO KEYS, CLAV (DIGITAL) · GRAND PNO, DUSTY PNO, LOFI KEYS (SAMPLE) · SOFT KEYS (PHASE) |
+| **Organ** | SOUL ORGAN, GOSPEL, JAZZ ORGAN, DIRTY B3, HOUSE ORGN (WHEEL) |
+| **Pad** | WARM PAD, DARK STR, ATMOS PAD, SUPER PAD (ANALOG) · SAW PAD (TRIO) · GLASS PAD (DIGITAL) · CZ STRING (PHASE) · LOFI CLOUD, VIBE HAZE (GRAIN) · CHOIR AAH, SOUL OOH (VOICE) |
+| **Lead** | SUPERSAW, SUPER LEAD, HOOVER SAW, SYNC SWEEP, FIFTH LEAD, G-FUNK LD (ANALOG) · SYNC LEAD, HOOVER (TRIO) · TALKBOX (VOICE) · GAME LEAD (LOFI) · LOFI FLUTE (SAMPLE) · FLUTE DUST (GRAIN) |
+| **Pluck & bell** | TRAP PLUCK, SUPER PLCK (ANALOG) · RESO PLUCK (PHASE) · PLUGG BELL, TRAP BELL, MUSIC BOX, KALIMBA, MARIMBA (DIGITAL) · VIBES (SAMPLE) · 8BIT ARP (LOFI) |
+| **Stab** | MIN STAB, MIN7 STAB, RAVE STAB, DUB CHORD (TRIO) · SUPER CHRD, SYN BRASS (ANALOG) · CZ BRASS (PHASE) · HORN STAB, STRING STB (SAMPLE) |
+| **FX** | SCRATCH, GM KIT (SAMPLE) |
+
+The sampled sets are free recordings (CC0: Versilian Studios VSCO-2 CE and VCSL, Sonic Pi).

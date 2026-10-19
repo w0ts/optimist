@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
-/* The model operations both UIs and the core call (docs/UI-FEASIBILITY.md section 4.1, step 2): what loading a
+/* The model operations both UIs and the core call: what loading a
  * sound, an engine or the power-on defaults does to a track, the curated preset list (BANK) the PRESETS knob
  * browses, and the core's forward declarations the UIs need. Moved verbatim from ui/sloop/ui.c (2026-10-08) so
  * that a build with the other UI (FELUCCA_UI, ui/optimist) has them too; felucca.c includes it before the UI.

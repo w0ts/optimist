@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only
    The web builder's own layout (the module web/builder/builder.js): every rule under .ob-root, so it cannot leak into the host
    page. The tokens and the o- components are the shared style's (web/style/optimist.css, docs/WEB-STYLE.md): the host
-   includes it. docs/BUILDER-WEB.md. */
+   includes it. docs/WEB.md. */
   /* the builder's own layout; the tokens and components are the shared style's (prefers-color-scheme: light there) */
   
   

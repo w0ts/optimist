@@ -1,6 +1,6 @@
 # BLE baseband hardware facts for route C (AC791N / WL82)
 
-Written 2026-10-08 by the clean-room reader for route C of [BLE-MIDI-FEASIBILITY.md](BLE-MIDI-FEASIBILITY.md) §9.3:
+Written 2026-10-08 by the clean-room reader for route C of the BLE MIDI study (2026-10-08) §9.3:
 our own GPL link layer on the JieLi AC791N (WL82) BLE baseband. The implementers must not read vendor code,
 vendor IR or vendor disassembly. They work from the Bluetooth Core specification and this sheet.
 
@@ -1250,13 +1250,13 @@ captured the same way on every machine. Two boot-2 runs gave identical write seq
 
 ## 18. Hardware: reading the VM, capturing on the device, bring-up order
 
-Additions for the hardware test plan, BLE-MIDI-FEASIBILITY.md §9.6 (§18.4 says what to add there). Nothing here ran on
+Additions for the hardware test plan, the BLE MIDI study (2026-10-08) §9.6 (§18.4 says what to add there). Nothing here ran on
 hardware.
 
 ### 18.1 Reading the VM of a stock-only FM-1 (before anything else is installed)
 
 1. **Whole-flash backup through UBOOT, writing nothing**: put the FM-1 in UBOOT (stock V15's soft key
-   `F0 22 24 35 7D F7`, as reported in docs/FM1-SCENE-2026-10.md §"Ways into UBOOT" [R there], or the other ways
+   `F0 22 24 35 7D F7`, as reported in the FM-1 scene survey (2026-10) §"Ways into UBOOT" [R there], or the other ways
    listed there), then `sudo …/python tools/fm1_rescue.py FM-1.fwsc` **without** `--write`. It checks the chip
    (key `980F`, flash `856014`), reads all 1 MiB and saves `fm1-backup-YYYYMMDD-HHMMSS.bin` next to the package
    [V `fm1_rescue.py`]. Power-cycle to leave UBOOT [I].
@@ -1301,7 +1301,7 @@ Each step only after the previous passed. "Sniffer" as in §12.
 6. **Scan response, connection, data**: U5, U6, U7 with the sniffer, then BLE MIDI.
 7. **Soak**: link from cold to warm (U13); a fresh-flash unit (no VM) to test the "none" path of §15.4.
 
-### 18.4 What to add to BLE-MIDI-FEASIBILITY.md §9.6
+### 18.4 What to add to the BLE MIDI study (2026-10-08) §9.6
 
 - A step **0** before step 1: "Back up the whole flash through UBOOT with `tools/fm1_rescue.py FM-1.fwsc` (no
   `--write`) and keep the file; decode the VM per BLE-HW-FACTS §14.3 (§18.1)."

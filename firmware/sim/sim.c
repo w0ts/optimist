@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The simulator's platform: Optimist's own firmware (src/felucca.c, one compilation unit) on the host HAL of
- * firmware/sim/hal, driven from outside through the exports below (web/sim/, tests/sim_test.mjs). docs/SIMULATOR.md.
+ * firmware/sim/hal, driven from outside through the exports below (web/sim/, tests/sim_test.mjs). docs/WEB.md.
  *
  * The scheduler (sim_run): the simulated clock (hal/sim_core.h) moves from event to event: the TIMER5 tick (10 kHz:
  * the keys, the USB poll, fm1_ms), the audio DMA's half-buffer switch (every HALF_FRAMES frames at 44.1 kHz: the half

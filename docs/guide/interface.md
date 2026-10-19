@@ -2,7 +2,7 @@
 
 Every gesture in one list: [shortcuts.md](shortcuts.md).
 
-This guide covers the Optimist user interface (builder item `UI`, value 1; SLOOP's interface is the default and is described in [OPTIMIST.md](../../OPTIMIST.md)). What each button and knob does is read from the source (`firmware/src/ui/optimist`); the design decisions are in [UI-OPTIMIST-DESIGN.md](../UI-OPTIMIST-DESIGN.md). What a build contains depends on its profile: a page or line whose feature is not built is not shown.
+This guide covers the Optimist user interface (builder item `UI`, value 1). Synth (the default flavour) uses the Optimist UI; drum machine, FM + VA studio and everything fits use SLOOP's: [SLOOP's interface](sloop-ui.md). What each button and knob does is read from the source (`firmware/src/ui/optimist`); the design decisions are in [UI-OPTIMIST-DESIGN.md](../UI-OPTIMIST-DESIGN.md). What a build contains depends on its profile: a page or line whose feature is not built is not shown.
 
 ## The controls
 
@@ -133,7 +133,7 @@ The first SYSTEM pages are read-outs, text only; no knob does anything there. Th
 | CLOCK | The CPU clock, in MHz. |
 | CPU0 (LOAD without a second core) | The audio render load of CPU0, in percent; with a second core it includes CPU0's wait for CPU1. Knob 2 chooses what it shows: NOW, the maximum of the last 5 seconds, or the maximum since boot. Over 100 means a late half. |
 | 2ND CORE ON | The share of each audio half CPU1 takes. |
-| 2ND CORE OFF, then a reason | CPU0 renders everything. The reason: NO START, TIMEOUT, FAULT, FLASH, MISREAD, CANARY, AFTER CRASH, SETTING or PARKED. In the current default build the second core is PARKED: it is never started (2026-10-15, until the hardware tests settle it), so INFO says 2ND CORE OFF PARKED; a build made with `OPTIMIST_DUAL_PARK=0` starts it. |
+| 2ND CORE OFF, then a reason | CPU0 renders everything. The reason: NO START, TIMEOUT, FAULT, FLASH, MISREAD, CANARY, AFTER CRASH, SETTING, BLUETOOTH (in a Bluetooth build the second core runs only while BLUETOOTH is OFF, [MIDI and Bluetooth](midi-usb.md#bluetooth-midi)) or PARKED (a build made with `OPTIMIST_DUAL_PARK=1`). |
 | DROPS | How many audio halves were late (a gap in the sound) since boot or the last clear; red for a while after a new one. |
 | UNDERRUNS | USB audio's and MIDI in's losses together, and where (`USB3 MIDI1`). |
 | GUARD | What the CPU guard is easing now, the voices it capped (`MAX n`) and the voices it shed. In builds with the CPU guard. |
@@ -164,13 +164,15 @@ These counters exist to find the cause of an occasional glitch while the compute
 
 ## Connections
 
-- **BLE MIDI** (our own Bluetooth stack): SYSTEM > BLUETOOTH above. The manual's note on it is the paragraph "HOME double tap > SYSTEM menu > BLUETOOTH" in [OPTIMIST.md](../../OPTIMIST.md) (written for the SLOOP UI), and the stack is in [docs/BLE-STACK.md](../BLE-STACK.md).
-- **USB** carries MIDI, and in a USB audio build the computer's audio: [OPTIMIST.md, USB audio](../../OPTIMIST.md#usb-audio-experimental). The USB port item of the builder chooses console, USB audio or MIDI only.
-- **TRS MIDI** in and out, **MIDI clock in and out**, sync: [OPTIMIST.md, MIDI clock and sync](../../OPTIMIST.md#midi-clock-and-sync) and GLOBAL's MIDI page above.
+MIDI in and out, the clock, Bluetooth MIDI, USB audio and the web editor: [MIDI, Bluetooth, USB audio and the web
+editor](midi-usb.md).
 
-## The local installer and web editor: `make web`
+## The site on your computer: `make web`
 
-After `make build`, `make web` (or `python3 tools/optimist.py web`) makes the local site from `build/felucca.fwsc`, serves it on 127.0.0.1:8766 (`make web PORT=9000` for another port), prints the installer and editor URLs (`http://localhost:8766/webapp/installer/` and `/webapp/editor/`) and opens the editor. Use Chrome or Edge: Web MIDI is not in Safari or Firefox. Ctrl-C stops the server. Details: [BUILDING.md](../../BUILDING.md).
+`make web` (or `python3 tools/optimist.py web`) serves the same site as w0ts.github.io/optimist on 127.0.0.1:8766
+(`make web PORT=9000` for another port) and opens the editor: the installer (a `.fwsc` of yours or a cloud build), the
+editor, the builder and a local simulator (it offers to build one). Chrome or Edge: Web MIDI is not in Safari or
+Firefox. Ctrl-C stops the server. Details: [BUILDING.md](../../BUILDING.md).
 
 ## The update loader and package ids
 

@@ -162,7 +162,7 @@ def site_commit():
 
 
 def builder_site(out, dst=None):
-    """webapp/builder/: the web builder (web/builder/, docs/BUILDER-WEB.md), its data exported fresh from this source
+    """webapp/builder/: the web builder (web/builder/, docs/WEB.md), its data exported fresh from this source
     (tools/export_builder_web.py) and build-info.json (the commit, for the cloud key). dst: another directory (the
     editor's builder/, for its Build tab: the same files, no index.html page needed but harmless)"""
     dst = Path(dst) if dst else Path(out) / "webapp" / "builder"
@@ -196,7 +196,7 @@ def editor_modules(ed, out, site):
         shutil.copy(HERE / "installer" / f, ed / "installer" / f)
     (ed / "sim").mkdir(parents=True, exist_ok=True)
     for f in sorted(x.name for x in (HERE / "sim").iterdir() if x.suffix in (".js", ".css")):   # the Simulator tab (web/sim/: every
-        # module it imports, bk.js too; docs/SIMULATOR.md)
+        # module it imports, bk.js too; docs/WEB.md)
         shutil.copy(HERE / "sim" / f, ed / "sim" / f)
     (ed / "installer" / "site.json").write_text(json.dumps(site, indent=1) + "\n", encoding="utf-8")
     builder_site(out, ed / "builder")

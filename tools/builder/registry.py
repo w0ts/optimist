@@ -72,7 +72,7 @@ RETIRED = {
 # counted ON (the image every build is now; a build that had it off is a different image).
 HASH_AS = {"SIMD": 0, "KNOB_ONEREST": 1, "MONO_RELEASE": 1, "ST_STRICT": 1, "USB_FLOW": 1, "SHED_FADE": 1, "KEYS_FAST": 1, "TRS_NOISE": 1, "BK_CHECK": 1, "LAYER_QUIET": 1, "DLY_HALVE": 1, "LFO2": 1}   # (each was its default in every profile)
 
-# Never offered: used by X0X only by permission of its author, no licence (FM1-SCENE-2026-10.md section 2)
+# Never offered: used by X0X only by permission of its author, no licence
 FORBIDDEN = {
     "X0X_BREAKS": "X0X's break player (dsp/breaks*, BB Gen): used by X0X by permission only, no licence",
 }

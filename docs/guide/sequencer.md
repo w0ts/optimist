@@ -2,9 +2,9 @@
 
 How to write, edit and shape a pattern on Optimist: the steps and the STEP page, p-locks, motion recording, chance, conditions, nudge and micro timing, fills, the EUCLID generator, the TOOLS, the arpeggiator, scales and chords, patterns and scenes, sections and the song, snapshots, undo and redo, mute and solo, the performance macros and the drum ACCENT lane.
 
-This is the user's guide for the sequencer. The manual [OPTIMIST.md](../../OPTIMIST.md) is the reference for the whole instrument (it describes SLOOP's way of playing in detail), [PATTERNS-DESIGN.md](../PATTERNS-DESIGN.md) and [SNAPSHOTS.md](../SNAPSHOTS.md) hold the design, and [UI-OPTIMIST-DESIGN.md](../UI-OPTIMIST-DESIGN.md) holds every decision of the Optimist UI.
+This is the user's guide for the sequencer. SLOOP's way of playing is in [SLOOP's interface](sloop-ui.md); the design is in [PATTERNS-DESIGN.md](../PATTERNS-DESIGN.md), [SNAPSHOTS.md](../SNAPSHOTS.md) and [UI-OPTIMIST-DESIGN.md](../UI-OPTIMIST-DESIGN.md).
 
-Two user interfaces share one sequencer, chosen when the firmware is built (builder item `UI`): SLOOP's (hold a function button, touch a key; the default) and the Optimist UI (lists of rows, SELECT / ALGORITHM / PRESETS, SAVE = yes, HOME = no). Each section below says what the sequencer does, then the gesture on each. Many features are builder items; a build without the item has no such page (the builder shows the name, [BUILDER.md](../BUILDER.md)).
+Two user interfaces share one sequencer, chosen when the firmware is built (builder item `UI`): SLOOP's (hold a function button, touch a key; the builder's default) and the Optimist UI (Synth's) (lists of rows, SELECT / ALGORITHM / PRESETS, SAVE = yes, HOME = no). Each section below says what the sequencer does, then the gesture on each. Many features are builder items; a build without the item has no such page (the builder shows the name, [BUILDER.md](../BUILDER.md)).
 
 **SHIFT and SHIFT2 on the Optimist UI.** SHIFT is OCT- held, SHIFT2 is OCT+ held. OCT- and OCT+ change the octave when they are let go, and only if nothing else was used while they were held.
 
@@ -117,7 +117,7 @@ See [PATTERNS-DESIGN.md](../PATTERNS-DESIGN.md).
 
 ## Sections and the song
 
-Sections A to P (16, in four banks of four; a build may have 8 or 4) hold the four tracks: sounds, patterns, kit. **SAVE held** is the scenes layer on the Optimist UI: white key n starts scene A-P at the next bar (stopped: loads it), REC held + n stores the loop into n, SHIFT + n clears n (asked), SAVE + PLAY plays the song from its start, SAVE + REC tapped records the song as you play the sections, and two taps or more of keys while holding SAVE queue a quick chain (`QCHAIN`, up to 8, not saved). The SONG screen edits the chain by hand. The sections are stored compressed in one log; the SONG title shows how full the memory is. On SLOOP's UI see "Song mode" in [OPTIMIST.md](../../OPTIMIST.md).
+Sections A to P (16, in four banks of four; a build may have 8 or 4) hold the four tracks: sounds, patterns, kit. **SAVE held** is the scenes layer on the Optimist UI: white key n starts scene A-P at the next bar (stopped: loads it), REC held + n stores the loop into n, SHIFT + n clears n (asked), SAVE + PLAY plays the song from its start, SAVE + REC tapped records the song as you play the sections, and two taps or more of keys while holding SAVE queue a quick chain (`QCHAIN`, up to 8, not saved). The SONG screen edits the chain by hand. The sections are stored compressed in one log; the SONG title shows how full the memory is. On SLOOP's UI see [Songs](sloop-ui.md#songs).
 
 ## Snapshots
 
@@ -125,7 +125,7 @@ A **snapshot** keeps the working project, every section and the song in one slot
 
 ## Undo and redo
 
-Every step key pressed, every tool, every recording pass, erase, clear and held-layer edit opens one **undo** level, many levels deep, on every track including the drums. Optimist UI: SAVE then HOME is undo; SHIFT (OCT- held) then SAVE is **redo**; EDIT + OCT- / OCT+ do the same. SLOOP UI: hold EDIT and press OCT- (undo) or OCT+ (redo). Loading a project or playing a section clears the history. How many levels depends on the memory the build leaves free ([OPTIMIST.md](../../OPTIMIST.md), "Undo, clear, save, autosave").
+Every step key pressed, every tool, every recording pass, erase, clear and held-layer edit opens one **undo** level, many levels deep, on every track including the drums. Optimist UI: SAVE then HOME is undo; SHIFT (OCT- held) then SAVE is **redo**; EDIT + OCT- / OCT+ do the same. SLOOP UI: hold EDIT and press OCT- (undo) or OCT+ (redo). Loading a project or playing a section clears the history. How many levels depends on the memory the build leaves free.
 
 ## Mute and solo
 
