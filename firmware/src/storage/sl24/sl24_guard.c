@@ -148,36 +148,6 @@ static uint32_t sl_word_out(uint32_t ours, uint32_t kept)
     return s <= SYNC_TRS ? (w & ~(3u << 12)) | s << 12 : w;
 }
 
-#if (FELUCCA_SL24_IMPORT || FELUCCA_SL24_EXPORT) && FELUCCA_FLASH
-/* SLOOP 2.4's FM6 patch bank (its fm6_bank.c: storage object 8, "FM6B", 27 packed records) where 2.4 left it, at our
- * drum records' 0xE5000 / 0xE6000 (kept there: storage.c st_off_limits). Read only, straight from flash (no RAM
- * copy, st_buf untouched: an import holds the project there): the current valid copy (header, payload CRC, layout),
- * -> its payload's flash offset, 0 none */
-static uint32_t sl24_bank_at(void)
-{
-    uint32_t c, best = 0, seq = 0, i, crc, w[4];
-    uint8_t ch[128];
-    for (c = 0; c < 2u; c++) {
-        uint32_t off = ST_DLANES_SECTOR + c * ST_SECTOR;
-        st_hdr_t h;
-        if (st_read(off, &h, sizeof h) || h.magic != ST_MAGIC || h.type != SL24_BANK_OBJ || h.len != SL24_BANK_LEN ||
-            h.hcrc != st_crc32(&h, sizeof h - 4u) || (best && h.seq <= seq))
-            continue;
-        for (i = 0, crc = 0xFFFFFFFFu; i < SL24_BANK_LEN; i += sizeof ch) {
-            uint32_t n = SL24_BANK_LEN - i < sizeof ch ? SL24_BANK_LEN - i : (uint32_t)sizeof ch;
-            if (st_read(off + ST_PAYLOAD_OFF + i, ch, n))
-                break;
-            crc = st_crc_upd(crc, ch, n);
-        }
-        if (i < SL24_BANK_LEN || ~crc != h.crc || st_read(off + ST_PAYLOAD_OFF, w, sizeof w) || w[0] != SL24_BANK_MAGIC ||
-            w[1] != (1u | SL24_BANK_N << 16) || (w[2] >> SL24_BANK_N))
-            continue;
-        best = off + ST_PAYLOAD_OFF, seq = h.seq;
-    }
-    return best;
-}
-#endif
-
 /* LOAD of an empty slot: another firmware's project kept there is said so, nothing is loaded */
 #if FELUCCA_SL24_IMPORT && FELUCCA_FLASH
 /* FELUCCA_SL24_IMPORT: n bytes at b, a SLOOP 2.4 / 2.5 project (sl24_is; not in proj_tmp), or a 2.6 one (sl26_is: made
@@ -194,8 +164,10 @@ static int sl24_import_buf(uint8_t *b, uint32_t n)
     dlrec_t *d = &dd;
 #endif
     stepx_t *x = 0;
-    uint32_t lost, k, r = 0, ft = 0, ln, ld;
-    if (sl26_is(b, (int)n)) {                          /* (2.6: as 2.5's, its parts' filter TYPE aside) */
+    sl27_dt_t dt;
+    uint32_t lost, k, r = 0, ft = 0, ld, dc;
+    sl27_dt_in(b, &dt);                                /* (2.7's drum TUNE / DECAY: before a conversion) */
+    if (sl26_is(b, (int)n)) {                          /* (2.6 / 2.7: as 2.5's, its parts' filter TYPE aside) */
         ft = sl26_to_sl24(b);
         n = SL24_SIZE;
     }
@@ -203,8 +175,11 @@ static int sl24_import_buf(uint8_t *b, uint32_t n)
     x = sl24_xs;
 #endif
     lost = !x && sl24_has_extras(b);
+    sl27_arp_cut = 0;
     if (!proj_from_sl24(&proj_tmp.cur, b, (int)n, x))
         return 0;
+    memset(d, 0, sizeof *d);
+    dc = (uint32_t)sl27_lanes_in(&proj_tmp.cur, &dt, d);   /* (SLOOP's 16 sounds onto our lanes: before the USR lanes) */
     for (k = 0, ld = 0; k < NPART; k++) {             /* (a part with three or four LFO depths: two kept, params.c lfo1_load) */
         int16_t sl[4];
         int32_t sp;
@@ -212,12 +187,10 @@ static int sl24_import_buf(uint8_t *b, uint32_t n)
     }
     if (ft)
         sl26_ftype_in(&proj_tmp.cur, ft);
-    ln = (uint32_t)sl24_usr_lanes(b, d);               /* (its USR kit: the lanes' record; d cleared first) */
-    ln |= (uint32_t)sl25_drdly_in(b, d);               /* (2.5's drums' delay send: the lanes' DLY) */
-    if (ln) {
-        proj_tmp.cur.dl_hash = dlrec_hash(d);
-        proj_tmp.cur.sum = proj_sum(&proj_tmp.cur);
-    }
+    (void)sl24_usr_lanes(b, d);                        /* (its USR kit: the lanes' sources) */
+    (void)sl25_drdly_in(b, d);                         /* (2.5's drums' delay send: the lanes' DLY) */
+    proj_tmp.cur.dl_hash = dlrec_hash(d);              /* (the lanes' instruments: always a record) */
+    proj_tmp.cur.sum = proj_sum(&proj_tmp.cur);
 #if FELUCCA_AUTO
     {                                                  /* (after the lanes: the store follows the final sum) */
         auto_store_t *m = auto_fresh(&proj_tmp.cur);
@@ -226,8 +199,8 @@ static int sl24_import_buf(uint8_t *b, uint32_t n)
     }
 #endif
     project_apply(&proj_tmp.cur, d);
-    ui_message(lost ? "2.4 IMPORTED, NO LOCKS" : r ? "2.4 IMPORTED, LOCK CLAMPED" : ld ? "2.4 IMPORTED, LFO CUT" :
-               "2.4 IMPORTED: SAVE IT");
+    ui_message(dc ? "SLOOP IMPORTED, DRUMS CUT" : lost ? "SLOOP IMPORTED, NO LOCKS" : r ? "SLOOP IMPORTED, LOCK CLAMPED" :
+               ld ? "SLOOP IMPORTED, LFO CUT" : sl27_arp_cut ? "SLOOP IMPORTED, ARP CUT" : "SLOOP IMPORTED: SAVE IT");
     return 1;
 }
 /* the 2.4 project kept in storage object obj (an old slot, the autosave) -> the working project (sl24_import_buf);

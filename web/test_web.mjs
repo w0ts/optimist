@@ -40,7 +40,7 @@ const E = vm.runInNewContext(proto + `
    readDX7File, parseDX7Sysex, dx7Checksum, dx7Message, cleanPatch, dx7ForDevice, dx7Init, dx7Name, FM6, CZ, czSyx, czRead,
    DL, refBytes, refFrom, laneFrom, laneBytes, lanesFrom, lanesBytes, kitFrom, kitBytes, kitFile, readKitFile, kitSlots, emptyLane,
    emptySnd, sndBytes, sndFrom, BK, bkListAll, bkCheckAll, backupFile, readBackupFile, bkPlan, bkReport, bkSlotParts, crc32,
-   SN, snInfo, snapFile, readSnapFile, snAreaStreams, snReadAll, snWriteAll, snSections, S24, sl24ReadPart, sl24BackupFile, sl24Lost, b64dec, sl24IsFun5, sl26ToFun5, sl24ReadFile, sl24Send, b64enc,
+   SN, snInfo, snapFile, readSnapFile, snAreaStreams, snReadAll, snWriteAll, snSections, S24, sl24ReadPart, sl27SongFile, sl24Lost, b64dec, sl24IsFun5, sl26ToFun5, sl24ReadFile, sl24Send, b64enc,
    DRUM_KIT_NAMES, SRC_KIND, KIND_TAG, srcFallback, readDrumSources, srcGroups, laneKind, laneShowGuess, readDrumShow, laneEdited,
    auditionChannel, auditionMsgs, kitStartFactory, knobValue, readDevicePages, soundLayout, FAM, X0X_VOICES, REV_ALGOS, revTypes, revName, readReverbType, readMidiSettings,
    WATCH, watchCaps, PARAMS_GLOBAL,
@@ -2021,24 +2021,28 @@ async function editorSl24() {
     done();
   }
   const { m, rq, done } = attachMock({ sl24: true });
-  const p = await E.sl24ReadPart(rq, 0), st = await E.sl24ReadPart(rq, 1);
-  ok(p.data.length === 3840 && p.data[0] === 0x35 && p.data[3] === 0x46 && st.data.length === 88 && p.lost === 0x22 &&
-     E.sl24Lost(p.lost).join() === "fm6,locks", "sl24: both parts read in CRC-checked chunks, what was lost");
+  const p = await E.sl24ReadPart(rq, 0);
+  let gone = false;
+  try { await E.sl24ReadPart(rq, 1); } catch (e) { gone = /rc 1/.test(e.message); }
+  ok(p.data.length === 3840 && p.data[0] === 0x35 && p.data[3] === 0x46 && p.lost === 0x22 &&
+     E.sl24Lost(p.lost).join() === "fm6,locks", "sl24: the project read in CRC-checked chunks, what was lost");
+  ok(gone, "sl24: part 1 (2.4's settings) is gone: rc 1");
   ok(p.ext === true && p.lost2 === 0, "sl24: a firmware with v12 sends the second word (here 0)");
   m.state.sl24Bump = 3;
   const p2 = await E.sl24ReadPart(rq, 0);
   ok(p2.data.length === 3840 && E.crc32(p2.data) === E.crc32(p.data), "sl24: the project changed between chunks: read again, consistent");
-  const f = JSON.parse(JSON.stringify(E.sl24BackupFile(p.data, st.data, "Optimist 2.4x", "2026-10-08")));
-  /* SLOOP 2.4's editor.html backupObjects, as it is: format, version, ids, lengths, CRCs, objects 0 and 1 */
-  const RESTORE = [6, 7, 8, 2, 3, 4, 5, 0, 1], SAMPLES = [32, 33, 34, 35], got = new Map();
-  let fine = f.format === "sloop-backup" && f.version >= 1 && Array.isArray(f.objects);
+  const f = JSON.parse(JSON.stringify(E.sl27SongFile(p.data, "Optimist 2.4x", "2026-10-08", "my song")));
+  /* SLOOP 2.7.1's editor.html songObjects, as it is: format, version, ids 0 and the sections 2..5, lengths, CRCs, a loop
+     (0); an order, when there, 36 bytes */
+  const SECS = [2, 3, 4, 5], got = new Map();
+  let fine = f.format === "sloop-song" && f.version >= 1 && Array.isArray(f.objects) && (f.order == null || E.b64dec(f.order).length === 36);
   for (const o of f.objects) {
     const d = Uint8Array.from(E.b64dec(o.data || ""));
-    fine &&= [...RESTORE, ...SAMPLES].includes(o.id) && d.length === o.len && E.crc32(d) === (o.crc >>> 0);
+    fine &&= (o.id === 0 || SECS.includes(o.id)) && d.length === o.len && E.crc32(d) === (o.crc >>> 0);
     got.set(o.id, d);
   }
-  ok(fine && got.has(0) && got.has(1) && got.size === 2 && eq(Array.from(got.get(0)), Array.from(p.data)) && eq(Array.from(got.get(1)), Array.from(st.data)),
-    "sl24: the file is SLOOP 2.4's backup (its checks pass): the project (0), the settings (1), nothing else");
+  ok(fine && got.has(0) && got.size === 1 && eq(Array.from(got.get(0)), Array.from(p.data)) && f.name === "my song",
+    "sl24: the file is SLOOP 2.7's song file (its checks pass): the project (0) alone, no settings (a load never writes SLOOP's)");
   done();
 }
 /* the second lost word (protocol v12): the new editor on a v11 firmware (the flagged request says rc 1: no second word, 0, and
@@ -2110,6 +2114,15 @@ async function editorSl24In() {
   let bad = false;
   try { E.sl24ReadFile({ ...file, objects: [{ ...file.objects[0], crc: 1 }] }); } catch (e) { bad = true; }
   ok(bad && !E.sl24IsFun5(Uint8Array.from(p0).fill(1, 100, 101)), "sl24 in: a damaged object or project refused");
+  {   /* a SLOOP 2.7 song file (its songCapture: the loop 0; tests/sl27_fun6.bin from 2.7.1's own types) -> its project as
+         FUN5, the drum track's E1..E7 and G_SAVE (2.7's drum TUNE / DECAY: sl24_import.c sl27_dt_in) carried */
+    const f7 = Uint8Array.from(readFileSync(join(HERE, "../tests/sl27_fun6.bin")));
+    const g = E.sl24ReadFile(JSON.parse(JSON.stringify({ format: "sloop-song", version: 1, name: "x", order: null, objects: [obj(0, f7)] })));
+    const d = g.projects.length === 1 && g.projects[0].id === 0 ? g.projects[0].data : null;
+    const e6 = 76 + 934 * 3 + 2 * 53, e5 = 76 + 940 * 3 + 2 * 53, gs = 8 + 2 * 19;
+    ok(d && E.sl24IsFun5(d) && eq(Array.from(d.subarray(e5, e5 + 16)), Array.from(f7.subarray(e6, e6 + 16))) && d[gs] === f7[gs] && d[gs + 1] === f7[gs + 1],
+      "sl24 in: a SLOOP 2.7 song file: its project as FUN5, the drum TUNE / DECAY words (E1..E7) and their G_SAVE mark kept");
+  }
   {   /* a SLOOP 2.6 backup (tests/sl26_fun6.bin: FUN6 from 2.6's own types, tests/sl25_gen.c) -> its project as 2.5's */
     const f6 = Uint8Array.from(readFileSync(join(HERE, "../tests/sl26_fun6.bin")));
     const g = E.sl24ReadFile(JSON.parse(JSON.stringify({ format: "sloop-backup", version: 1, objects: [obj(2, f6), obj(1, new Uint8Array(88))] })));
@@ -2154,17 +2167,6 @@ async function editorSl24In() {
     ok(await E.sl24Send(rq, bad8) === 8, "sl24 in: not a 2.4 project: rc 8");
     const longer = new Uint8Array(4225); longer.set(o);
     ok(await E.sl24Send(rq, longer) === 6, "sl24 in: an object longer than the FUN5 (an older editor's bank patches): rc 6");
-    done();
-  }
-  {
-    const { rq, done } = attachMock({ sl24: true });
-    const p = await E.sl24ReadPart(rq, 2), bk = await E.sl24ReadPart(rq, 3), st = await E.sl24ReadPart(rq, 1);
-    ok(p.data.length === 3840 && bk.data.length === 3472 && (p.lost & 256) && E.sl24Lost(p.lost).join() === "locks",
-      "sl24 out: with the bank: the project (part 2) and the bank (part 3); 'bank' is not listed as lost");
-    const fo = JSON.parse(JSON.stringify(E.sl24BackupFile(p.data, st.data, "Optimist", "2026-10-08", bk.data)));
-    const RESTORE = [6, 7, 8, 2, 3, 4, 5, 0, 1];
-    ok(fo.objects.map((x) => x.id).join() === "0,1,8" && fo.objects.every((x) => RESTORE.includes(x.id) && E.b64dec(x.data).length === x.len &&
-       E.crc32(Uint8Array.from(E.b64dec(x.data))) === x.crc >>> 0), "sl24 out: the file carries 2.4's FM6 bank as its object 8 (2.4's checks pass)");
     done();
   }
 }
@@ -3252,8 +3254,8 @@ async function installerModule() {
   ok(/#define BOOTGUARD_HOLD_MS 3000u/.test(guard) && /OCT− \+ OCT\+\*\* while switching on and keep them held for \*\*3 s\*\*/.test(man) && /3 seconds/.test(T.r3) && /UBOOT/.test(T.r3),
     "installer: UBOOT = OCT− + OCT+ held 3 s at power-on (bootguard.h, README.md)");
   ok(/an install writes only the firmware area/.test(readme) && T.what.includes("An install writes only the firmware area") && /Back up first/.test(T.what)
-    && /SLOOP 2\.4 data is kept/.test(readme) && T.what.includes("SLOOP 2.4's data is kept") && !/minute|seconds? to install/i.test(Object.values(T).flat().join(" ")),
-    "installer: what is kept is what README.md says (only the firmware area written; back up; SLOOP 2.4 kept); no timing promised");
+    && /SLOOP 2\.7 data is kept/.test(readme) && T.what.includes("SLOOP's data is kept") && !/minute|seconds? to install/i.test(Object.values(T).flat().join(" ")),
+    "installer: what is kept is what README.md says (only the firmware area written; back up; SLOOP 2.7 kept); no timing promised");
   ok(/Safari and the browsers on iPhone and iPad do not have Web MIDI/.test(T.nomidi) && /Chrome or Edge/.test(T.connectHow), "installer: Chrome or Edge; no Web MIDI on Safari, iPhone, iPad, said plainly");
   /* the page and the style */
   const page = readFileSync(join(HERE, "installer", "index.html"), "utf8"), css = readFileSync(join(HERE, "installer", "installer.css"), "utf8");

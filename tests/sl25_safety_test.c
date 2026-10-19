@@ -71,8 +71,10 @@ static void check(const char *what, int ok)
 
 #define SET_A 0xFC000u                            /* the settings object's copies */
 #define SET_B 0xFD000u
-static uint8_t sl25[1552], sl26[1592];
-/* the object as SLOOP's storage.c writes it (st_save3: the copy that is not its current one, seq + 1) */
+static uint8_t sl25[1552], sl26[1592], sl27[1592], side27[80];
+static const uint8_t *sloop_side;                 /* (2.7: its side record, ST_SIDE_OFF 64 of the copy's sector; 0 none) */
+/* the object as SLOOP's storage.c writes it (st_save3: the copy that is not its current one, seq + 1; 2.7 its side
+ * record with it) */
 static void sloop_save(const uint8_t *p, uint32_t len)
 {
     st_hdr_t a, b, h;
@@ -81,6 +83,8 @@ static void sloop_save(const uint8_t *p, uint32_t len)
     uint32_t seq = cur == 2u ? 0u : cur ? b.seq : a.seq;
     memset(nor + off, 0xFF, 4096);
     memcpy(nor + off + ST_PAYLOAD_OFF, p, len);
+    if (sloop_side)
+        memcpy(nor + off + 64u, sloop_side, sizeof side27);
     h.magic = ST_MAGIC, h.type = OBJ_SETTINGS, h.slot = (uint16_t)c, h.seq = seq + 1u, h.len = len;
     h.crc = st_crc32(p, len);
     h.rsv[0] = h.rsv[1] = 0xFFFFFFFFu;
@@ -187,6 +191,15 @@ int main(void)
           !memcmp(sl25 + 88, "DSU1", 4) && !memcmp(sl26 + 88, "DSU1", 4) && !memcmp(sl25, sl26, 1552));
     round_trip("2.5", sl25, sizeof sl25);
     round_trip("2.6", sl26, sizeof sl26);
+    if (!load("tests/sl27_settings.bin", sl27, sizeof sl27) || !load("tests/sl27_side.bin", side27, sizeof side27)) {
+        printf("tests/sl27_settings.bin, sl27_side.bin missing (run from the repo root)\n");
+        return 1;
+    }
+    check("golden: 2.7's object is 2.6's layout (88 + 1464 + its 40-B MIDI part, MIDI 3 in the part's last 3 bytes)",
+          !memcmp(sl27, sl26, 1592u - 3u) && memcmp(sl27 + 1589, sl26 + 1589, 3));
+    sloop_side = side27;                          /* (2.7: the theme and the favourites at 64 of its sector: never touched) */
+    round_trip("2.7", sl27, sizeof sl27);
+    sloop_side = 0;
 
     memset(nor, 0xFF, sizeof nor);                /* an older Optimist saved over 2.5's start: ours newer, theirs kept */
     sloop_save(sl25, sizeof sl25);

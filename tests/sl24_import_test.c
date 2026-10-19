@@ -125,7 +125,7 @@ int main(void)
     static project_t q;
     static stepx_t x[NTRK];
     int16_t v[P_COUNT];
-    uint32_t k, i, ok;
+    uint32_t k, i, ok, cut = 0;
     FILE *f = fopen("tests/sl24_fun5.bin", "rb");
     if (!f || fread(fun5, 1, sizeof fun5, f) != sizeof fun5) {
         printf("tests/sl24_fun5.bin missing (run from the repo root)\n");
@@ -141,7 +141,9 @@ int main(void)
         pj_to_p(v, q.t[k].p);
         for (i = 0; i < 50u; i++)
             ok &= (SL24_TP && k == TRK_DRUM && (i == P_GLMODE || i == P_PRIO || i == P_ALLOC || i == P_DETUNE)) ||
-                  v[i] == (int16_t)(k * 7u + i % 40u);   /* (the drum track's four hold TFLT .. : px_pack) */
+                  (i == P_AMODE && k != TRK_DRUM && v[i] == sl27_amode_in((int32_t)(k * 7u + i % 40u), &cut)) ||
+                  v[i] == (int16_t)(k * 7u + i % 40u);   /* (the drum track's four hold TFLT .. : px_pack; a part's arp MODE:
+                                                          * the nearest of ours, sl27_amode_in) */
         ok &= v[P_FXOFF] == TP[P_FXOFF].def && v[P_A2WAVE] == TP[P_A2WAVE].def;
         if (k == 0 || k == 2)
             for (i = 0; i < 8u; i++)
@@ -178,8 +180,11 @@ int main(void)
          fun5[8 + 2 * G_INFO] && q.g[G_INFO] == 0;
     check("globals as stored but G_ROUTE (our G_VIEW): the default, slot 15 (16 there; our REC QUANTIZE): 0, ON; the track",
           ok);
-    ok = !memcmp(q.t[2].step, fun5 + 12 + 64 + 2 * 940 + 124, sizeof q.t[2].step);
-    check("steps: byte for byte (2.4's 10-byte steps are ours)", ok);
+    for (i = 0, ok = 1; i < NSTEP; i++) {
+        const uint8_t *g = fun5 + 12 + 64 + 2 * 940 + 124 + 10u * i;
+        ok &= !memcmp(&q.t[2].step[i], g, 6) && q.t[2].step[i].flags == sl27_flags_in(g[6]) && !memcmp(&q.t[2].step[i].vel, g + 7, 3);
+    }
+    check("steps: byte for byte (SLOOP's 10-byte steps are ours) but the flags (accent, slide; SLOOP's held notes SF_CARRY)", ok);
     for (k = 0, ok = 1; k < NTRK; k++)
         ok &= x[k].micro[3] == (int8_t)(-5 - (int)k) && x[k].micro[10] == MICRO_MAX && stepx_fill(&x[k], 1) == FC_FILL &&
               stepx_fill(&x[k], 2) == FC_NOFILL && stepx_fill(&x[k], 0) == FC_NORM;
@@ -231,7 +236,7 @@ int main(void)
         ok = project_state(1) == PJ_SL24 && !strcmp(last_msg, "SLOOP: LOAD = IMPORT");
         fm1_ms += 500;
         project_load(1);
-        ok &= !strncmp(last_msg, "2.4 IMPORTED", 12) && !memcmp(trk[2].step, want2, sizeof want2) &&
+        ok &= !strncmp(last_msg, "SLOOP IMPORTED", 14) && !memcmp(trk[2].step, want2, sizeof want2) &&
               trk[1].p[P_E0] == 0;
         check("flash: B shows SLOOP 2.4; LOAD offers, LOAD again (4 s) imports it as the working project", ok);
 #if TFLT_ON
@@ -244,7 +249,7 @@ int main(void)
 #endif
         check("... 2.4's original untouched", !memcmp(keep, nor + st_sector(OBJ_PROJECT0 + 1, 0), sizeof keep));
 #if FELUCCA_SL24_XSTEP
-        for (k = 0, ok = !strcmp(last_msg, "2.4 IMPORTED: SAVE IT") || !strcmp(last_msg, "2.4 IMPORTED, LFO CUT"); k < NTRK; k++)
+        for (k = 0, ok = !strcmp(last_msg, "SLOOP IMPORTED, DRUMS CUT"); k < NTRK; k++)   /* (the golden: all 16 drum sounds hit) */
             ok &= !memcmp(sx_work(k), &x[k], sizeof x[k]);
         check("... its step extras are the working ones (XSTEP)", ok);
         project_save(5);
@@ -255,7 +260,8 @@ int main(void)
             ok &= !memcmp(sx_work(k), &x[k], sizeof x[k]);
         check("... SAVE into F, LOAD F: the import and its extras", ok);
 #else
-        check("... without XSTEP its extras are dropped, and it says so", !strcmp(last_msg, "2.4 IMPORTED, NO LOCKS"));
+        check("... without XSTEP its extras are dropped (the golden's 16 drum sounds said first: DRUMS CUT)",
+              !strcmp(last_msg, "SLOOP IMPORTED, DRUMS CUT"));
 #endif
         fm1_ms += 5000;
         project_load(1);
@@ -294,7 +300,7 @@ int main(void)
         host_tracks_init();
         song.playing = 0, transport_req = 0;
         sl24_auto_import();
-        ok = !strncmp(last_msg, "2.4 IMPORTED", 12) && !memcmp(trk[2].step, want2, sizeof want2) && trk[1].p[P_E0] == 0;
+        ok = !strncmp(last_msg, "SLOOP IMPORTED", 14) && !memcmp(trk[2].step, want2, sizeof want2) && trk[1].p[P_E0] == 0;
         check("... A24 imports it as the working project", ok);
 #if FELUCCA_SL24_XSTEP
         for (k = 0, ok = 1; k < NTRK; k++)
@@ -338,12 +344,25 @@ int main(void)
         usr_zone[1][1].lo = 38, usr_zone[1][1].hi = 42;          /* (lanes SD 38, 39 CP, 42 CH, 40) */
         fun5_with(b24, 0, 0, E0, 37 + 1);                        /* (USR2) */
         ok = sl24_import_buf(b24, sizeof b24) && proj_tmp.cur.dl_hash != 0;
-        ok &= dl.src[0] == DL_USR + 1 && dl_hit(dl.ref[0]) == 0 && dl.src[1] == DL_USR + 1 && dl_hit(dl.ref[1]) == 1 &&
-              dl.src[3] == DL_USR + 1 && dl.src[4] == 0 && dl.src[5] == 0 && dl_len(dl.ref[0]) == 1024u;   /* (lanes KICK SNARE CLAP C.HAT O.HAT LOW TOM) */
+        {   /* (the lanes play SLOOP's sounds with hits, sl27_lanes_in: each by its instrument's GM note) */
+            uint32_t l, nb = 0;
+            for (l = 0; l < DRUM_LANES; l++) {
+                uint32_t nt = LANE_NOTE_OF(l);
+                if (nt == 36u)
+                    ok &= dl.src[l] == DL_USR + 1 && dl_hit(dl.ref[l]) == 0 && dl_len(dl.ref[l]) == 1024u, nb++;
+                else if (nt >= 38u && nt <= 42u)
+                    ok &= dl.src[l] == DL_USR + 1 && dl_hit(dl.ref[l]) == 1, nb++;
+                else
+                    ok &= dl.src[l] == 0;
+            }
+            ok &= nb >= 2u;
+        }
         check("USR2 kit: its lanes play USR2's zones by their GM note (BD zone 0, SD and CH zone 1), the rest the kit", ok);
         fun5_with(b24, 0, 0, E0, 37 + 3);
-        ok = sl24_import_buf(b24, sizeof b24) && proj_tmp.cur.dl_hash == 0 && dl.src[0] == 0;
-        check("USR4 kit (not one of our slots): the default kit, no lanes", ok);
+        ok = sl24_import_buf(b24, sizeof b24);
+        for (k = 0; k < DRUM_LANES; k++)
+            ok &= dl.src[k] == 0;
+        check("USR4 kit (not one of our slots): the default kit, no lane on a user slot", ok);
         usr_nz[1] = 0;
 #endif
     }

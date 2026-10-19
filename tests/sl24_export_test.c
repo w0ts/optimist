@@ -1,15 +1,15 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* Ours -> SLOOP 2.4 (FELUCCA_SL24_EXPORT: sl24_export.c proj_to_sl24, sl24_persist, sl24_word), and back through the
- * importer (sl24_import.c proj_from_sl24). Run by tests/run_tests.sh (XSTEP, TRK_FILT, CHORDPLUS: as
+/* Ours -> a SLOOP FUN5 (FELUCCA_SL24_EXPORT: sl24_export.c proj_to_sl24; SLOOP 2.7 reads it), and back through the
+ * importer (sl24_import.c proj_from_sl24, sl27_lanes_in). Run by tests/run_tests.sh (XSTEP, TRK_FILT, CHORDPLUS: as
  * sl24_import_test: both switches, each alone).
- *   1. tests/sl24_fun5.bin (golden, written with SLOOP 2.4's own types: tests/sl24_fun5_gen.c) -> import -> export:
- *      byte for byte 2.4's file again, but for exactly what the import loses (listed in the checks);
- *   2. a project of ours using what 2.4 has not (FX OFF, ANALOG 2, a CZ part, an FM6 voice and its MOD, an X0X kit,
- *      the drum lanes, MIDI channels, the master) -> export: each field read at 2.4's offsets, the losses reported
- *      -> import: what comes back, and exactly what does not;
- *   3. the settings for 2.4's backup file (its persist_t, 88 B) and its lights word.
- * With an argument (a directory) it writes sl24_export.bin and sl24_persist.bin there, for
- * tests/sl24_export_check24.c (2.4's own types read them; not run here, it needs 2.4's tree). */
+ *   1. tests/sl24_fun5.bin (golden, written with SLOOP 2.4's own types: tests/sl24_fun5_gen.c; FUN5 is the layout 2.7
+ *      still reads) -> import -> export: byte for byte the file again, but for exactly what the import changes (the
+ *      arp modes, the steps' flags, the drum sounds past 10, 2.7's drum mark; listed in the checks);
+ *   2. a project of ours using what SLOOP has not (FX OFF, ANALOG 2, a CZ part, an FM6 voice and its MOD, an X0X kit,
+ *      the drum lanes, MIDI channels, the master) -> export: each field read at SLOOP's offsets, the losses reported
+ *      -> import: what comes back, and exactly what does not.
+ * With an argument (a directory) it writes sl24_export.bin there, for tests/sl27_check.c (SLOOP 2.7.1's own project.c
+ * reads it; not run here, it needs 2.7.1's tree). */
 #define FELUCCA_ARRANGER 1
 #define FELUCCA_FLASH 1
 #define FELUCCA_SL24_EXPORT 1
@@ -99,6 +99,55 @@ static uint32_t n24(const uint8_t *b, uint32_t k)       /* its locks used */
 
 static uint8_t gold[SL24_SIZE], out[SL24_SIZE], again[SL24_SIZE];
 
+/* our drum steps s (64 x 10 B, the default lanes: LANE_DEF_INST) -> SLOOP's at o (each lane's hits on its instrument's
+ * sound: none of the defaults is MID TOM or CLAVE, none twice) */
+static void lanes_as_sounds(const uint8_t *s, uint8_t *o)
+{
+    uint32_t i, l;
+    memset(o, 0, 640u);
+    for (i = 0; i < NSTEP; i++)
+        for (l = 0; l < DRUM_LANES; l++) {
+            const uint8_t *a = s + 10u * i;
+            uint8_t *b = o + 10u * i;
+            uint32_t n = LANE_DEF_INST[l];
+            if (!((a[l >> 3] >> (l & 7u)) & 1u))
+                continue;
+            b[n >> 3] |= (uint8_t)(1u << (n & 7u));
+            b[2u + (n >> 2)] |= (uint8_t)(((a[2u + (l >> 2)] >> ((l & 3u) * 2u)) & 3u) << ((n & 3u) * 2u));
+            b[6u + (n >> 2)] |= (uint8_t)(((a[6u + (l >> 2)] >> ((l & 3u) * 2u)) & 3u) << ((n & 3u) * 2u));
+        }
+}
+/* track k's 64 stored steps a (exported) against g (SLOOP's, imported): a part's byte for byte but the flags (SLOOP's
+ * accent / slide / held notes as the import and the export make them, sl27_flags_in / sl27_flags_out); the drum
+ * track's sounds: each with hits in a as in g (on, level, ratchet), and *kept of them (the import puts up to
+ * DRUM_LANES on lanes: the others' hits gone) */
+static int steps_as(const uint8_t *a, const uint8_t *g, uint32_t k, uint32_t *kept)
+{
+    uint32_t i, s, in_a = 0;
+    int ok = 1;
+    for (i = 0; i < NSTEP; i++) {
+        const uint8_t *x = a + 10u * i, *y = g + 10u * i;
+        if (k != TRK_DRUM) {
+            uint32_t f = sl27_flags_in(y[6]);
+            ok &= !memcmp(x, y, 6) && x[6] == ((f & 3u) | (f & SF_CARRY ? 0x78u : 0u)) && !memcmp(x + 7, y + 7, 3);
+            continue;
+        }
+        for (s = 0; s < 16u; s++) {
+            uint32_t on = (x[s >> 3] >> (s & 7u)) & 1u, lv = (x[2u + (s >> 2)] >> ((s & 3u) * 2u)) & 3u,
+                     rt = (x[6u + (s >> 2)] >> ((s & 3u) * 2u)) & 3u;
+            in_a |= on << s;
+            ok &= !on || (((y[s >> 3] >> (s & 7u)) & 1u) && lv == ((y[2u + (s >> 2)] >> ((s & 3u) * 2u)) & 3u) &&
+                          rt == ((y[6u + (s >> 2)] >> ((s & 3u) * 2u)) & 3u));
+        }
+    }
+    for (i = 0; k == TRK_DRUM && i < NSTEP; i++)        /* (a sound kept: every hit of it) */
+        for (s = 0; s < 16u; s++)
+            ok &= !((in_a >> s) & 1u) || ((g[10u * i + (s >> 3)] >> (s & 7u)) & 1u) == ((a[10u * i + (s >> 3)] >> (s & 7u)) & 1u);
+    if (kept)
+        *kept = (uint32_t)__builtin_popcount(in_a);
+    return ok;
+}
+
 /* 1. the golden 2.4 project, in and out again */
 static void golden(void)
 {
@@ -106,14 +155,17 @@ static void golden(void)
     static stepx_t x[NTRK];
     const stepx_t *xp[NTRK] = {&x[0], &x[1], &x[2], &x[3]};
     static dlrec_t d0;
-    uint32_t k, i, ok, lost, gone = 0xFFu;                 /* gone: the amount (P_*) of the type FILT took the slot of */
+    uint32_t k, i, ok, lost, cut = 0, gone = 0xFFu;        /* gone: the amount (P_*) of the type FILT took the slot of */
+    static sl27_dt_t dt0;
     lost = 0xFFFFu;
     if (proj_from_sl24(&q, gold, sizeof gold, x)) {
         /* the export is of the working project (ed_sl24.c) and reads its FX slots (sl24_fx_out): the import applied as
-         * LOAD twice does (proj_apply; no FX record in 2.4's: fx_rec.c ins_map, each part S1 DIST S2 FILTER), then
-         * exported */
+         * LOAD twice does (sl27_lanes_in: SLOOP's sounds onto our lanes; proj_apply; no FX record in 2.4's: fx_rec.c
+         * ins_map, each part S1 DIST S2 FILTER), then exported */
+        (void)sl27_lanes_in(&q, &dt0, &d0);
+        q.dl_hash = dlrec_hash(&d0), q.sum = proj_sum(&q);   /* (as sl24_import_buf: the lanes' record taken) */
         proj_apply(&q, &d0, 1);
-        lost = proj_to_sl24(&q, xp, out, 0);
+        lost = proj_to_sl24(&q, xp, out);
         host_tracks_init(), fxs_set(FXS_DEF);            /* (the state the other parts start from) */
     }
     check("golden FUN5 -> ours -> 2.4: a SLOOP 2.4 project (magic, size, FNV sum)", sl24_is(out, sizeof out));
@@ -125,8 +177,12 @@ static void golden(void)
     (void)gone;
     ok = !memcmp(out, gold, 8u) && !memcmp(out + 8u, gold + 8u, 2u * G_MIDI) && r16(out, 8u + 2u * G_MIDI) == 0 &&
          r16(out, 8u + 2u * G_SYNC) == 0 && r16(out, 8u + 2u * G_VIEW) == 0 && r16(out, 8u + 2u * G_INFO) == 0 &&
-         !memcmp(out + 8u + 2u * (G_INFO + 1u), gold + 8u + 2u * (G_INFO + 1u), 2u * (PJ_NG - G_INFO - 1u) + 4u);
-    check("globals as 2.4 wrote them but MIDI (13 -> 0), SYNC (14, past TRS -> INT), ROUTE (1 -> 0), slot 15 (-> 0)", ok);
+         (uint16_t)r16(out, 8u + 2u * G_SAVE) == 0x545Au;   /* (2.7's drum TUNE / DECAY mark: none tuned) */
+    for (i = G_INFO + 1u; i < PJ_NG; i++)
+        ok &= i == G_SAVE || r16(out, 8u + 2u * i) == r16(gold, 8u + 2u * i);
+    ok &= !memcmp(out + 8u + 2u * PJ_NG, gold + 8u + 2u * PJ_NG, 4u);
+    check("globals as 2.4 wrote them but MIDI (13 -> 0), SYNC (14, past TRS -> INT), ROUTE (1 -> 0), slot 15 (-> 0); "
+          "G_SAVE 2.7's drum mark", ok);
     for (k = 0, ok = 1; k < NTRK; k++) {
         const uint8_t *a = T24(out, k), *g = T24(gold, k);
         for (i = 0; i < SL24_COMMON; i++)                                          /* values 0..49 */
@@ -135,13 +191,20 @@ static void golden(void)
                   : SL24_TP_ON && k == TRK_DRUM && (i == P_GLMODE || i == P_PRIO || i == P_ALLOC || i == P_DETUNE)
                       ? p24(out, k, i) == TP[i].def     /* (the import packs TFLT STRUM there: px_pack; the drum's own lost) */
                       : i == gone ? p24(out, k, i) == 0 && p24(gold, k, i) != 0   /* (P7-4: not heard here) */
+                      : i == P_AMODE && k < NPART ? p24(out, k, i) == sl27_amode_in(p24(gold, k, i), &cut)   /* (ours: 6) */
                       : p24(out, k, i) == p24(gold, k, i);
         ok &= p24(out, k, 50) == (FILT_IN ? p24(gold, k, 50) : 0);                 /* FILT (heard: in a slot) */
         ok &= p24(out, k, 51) == (CHORD_IN && k < NPART ? p24(gold, k, 51) : 0);   /* STRUM, VLEAD: the parts' */
         ok &= p24(out, k, 52) == (CHORD_IN && k < NPART ? p24(gold, k, 52) : 0) && p24(gold, k, 52) == 1;
-        ok &= k == 1 || !memcmp(a + 2u * SL24_E0, g + 2u * SL24_E0, 16u);           /* E0..E7 (FM6: below) */
+        ok &= k == 1 || (k == TRK_DRUM ? !memcmp(a + 2u * SL24_E0, g + 2u * SL24_E0, 2u) && !memcmp(a + 2u * SL24_E0 + 2u,
+                                                                                                   "\0\0\0\0\0\0\0\0\0\0\0\0\0\0", 14u)
+                                       : !memcmp(a + 2u * SL24_E0, g + 2u * SL24_E0, 16u));   /* E0..E7 (FM6: below; the drum
+                                                                                     * track's E1..E7: 2.7's TUNE / DECAY, none) */
         ok &= a[122] == g[122] && (k == 1 || a[123] == g[123]);                    /* engine, preset */
-        ok &= !memcmp(a + 124, g + 124, 640u);                                     /* the steps */
+        {
+            uint32_t kept = 0;
+            ok &= steps_as(a + 124, g + 124, k, &kept) && (k != TRK_DRUM || kept == DRUM_LANES);   /* the steps */
+        }
         ok &= !memcmp(a + SL24_TAIL, g + SL24_TAIL, 64u) && !memcmp(a + SL24_TAIL + 160u, g + SL24_TAIL + 160u, 16u);
     }
     check(FILT_IN ? "tracks: values 0..49 (but the type FILT displaced: 0), E0..E7, engine, preset, steps, nudges, fills "
@@ -161,7 +224,8 @@ static void golden(void)
     check("locks: PAN, LEVEL, EDIT 2 back with 2.4's ids; lost: FILT's (without TRK_FILT), FM6's EDIT, kit USR2 -> 808", ok);
 }
 
-/* 2. ours, with what 2.4 has not */
+/* 2. ours, with what 2.4 has not; track k's value i 0..49 (the arp MODE one of ours: 0..5) */
+static int16_t ours_v(uint32_t k, uint32_t i) { return i == P_AMODE ? (int16_t)(k % 6u) : (int16_t)((int16_t)(k * 11u + i * 3u) - 20); }
 static void ours(project_t *q, stepx_t *x)
 {
     int16_t v[P_COUNT];
@@ -178,7 +242,7 @@ static void ours(project_t *q, stepx_t *x)
         for (i = 0; i < P_COUNT; i++)
             v[i] = TP[i].def;
         for (i = 0; i < SL24_COMMON; i++)
-            v[i] = (int16_t)(k * 11u + i * 3u) - 20;
+            v[i] = ours_v(k, i);
         for (i = 0; i < 8u; i++)
             v[P_E0 + i] = (int16_t)(20 + i + k);
         if (k == 0)
@@ -190,6 +254,19 @@ static void ours(project_t *q, stepx_t *x)
         pj_from_p(q->t[k].p, v);
         for (i = 0; i < 640u; i++)
             ((uint8_t *)q->t[k].step)[i] = (uint8_t)(i * 7u + k);
+        for (i = 0; i < NSTEP; i++) {                   /* (what ours holds: a part's flags accent / slide; the drum
+                                                         * track's 10 lanes, lanes 10..15 zero) */
+            uint8_t *s = (uint8_t *)&q->t[k].step[i];
+            if (k != TRK_DRUM)
+                s[6] &= 3u;
+            else {                                      /* (and no level / ratchet on a lane without its hit) */
+                uint32_t l;
+                s[1] &= 3u;
+                for (l = 0; l < 16u; l++)
+                    if (!((s[l >> 3] >> (l & 7u)) & 1u))
+                        s[2u + (l >> 2)] &= (uint8_t)~(3u << ((l & 3u) * 2u)), s[6u + (l >> 2)] &= (uint8_t)~(3u << ((l & 3u) * 2u));
+            }
+        }
         stepx_clear(&x[k]);
         x[k].micro[5] = (int8_t)(-7 - (int)k);
         stepx_fill_set(&x[k], 6, FC_FILL);
@@ -216,8 +293,14 @@ static void native(const char *dir)
     const stepx_t *xp[NTRK] = {&x[0], &x[1], &x[2], &x[3]};
     int16_t v[P_COUNT], w[P_COUNT];
     uint32_t k, i, ok, lost;
+    static sl27_dt_t dt0;
+    static dlrec_t dr;
+    static uint8_t want[640];
     ours(&q, x);
-    lost = proj_to_sl24(&q, xp, out, 0);
+    memset(&dl, 0, sizeof dl);                          /* (the working lanes: the defaults, lane 3 on another kit) */
+    dl.src[2] = DL_KIT0 + 1u;
+    lost = proj_to_sl24(&q, xp, out);
+    lanes_as_sounds((const uint8_t *)q.t[TRK_DRUM].step, want);
     check("ours -> 2.4: a SLOOP 2.4 project", sl24_is(out, sizeof out));
     check("... lost, reported: ENGINE (CZ), FM6, FX OFF, ANALOG 2, KIT, LOCKS, the drum LANES, the MASTER (rsv)",
           lost == (SX24_ENGINE | SX24_FM6 | SX24_FXOFF | SX24_A2 | SX24_KIT | SX24_LOCK | SX24_LANES | SX24_MASTER));
@@ -231,12 +314,14 @@ static void native(const char *dir)
             d[i] = (int16_t)((int16_t)(k * 11u + (P_LEG_PIT + i) * 3u) - 20);
         for (i = 0; i < SL24_COMMON; i++)
             ok &= p24(out, k, i) == (k < NPART && i >= P_LEG_PIT && i <= P_LEG_AMP ? leg_canon(d, i - P_LEG_PIT)
-                                                                                  : (int16_t)(k * 11u + i * 3u) - 20);
+                                                                                  : ours_v(k, i));
         ok &= p24(out, k, 50) == 0 && p24(out, k, 51) == 0 && p24(out, k, 52) == 0;
-        ok &= !memcmp(T24(out, k) + 124, q.t[k].step, 640u) && (int8_t)T24(out, k)[SL24_TAIL + 5u] == -7 - (int)k;
+        ok &= !memcmp(T24(out, k) + 124, k == TRK_DRUM ? want : (const uint8_t *)q.t[k].step, 640u) &&
+              (int8_t)T24(out, k)[SL24_TAIL + 5u] == -7 - (int)k;
         ok &= stepx_fill((const stepx_t *)(const void *)(T24(out, k) + SL24_TAIL), 6) == FC_FILL;
     }
-    check("values 0..49 at 2.4's offsets, its 50..52 at 0 (TFLT STRUM VLEAD: off); steps, nudges, fills", ok);
+    check("values 0..49 at 2.4's offsets, its 50..52 at 0 (TFLT STRUM VLEAD: off); steps (the drum lanes on their "
+          "instruments' sounds), nudges, fills", ok);
     for (i = 0, ok = T24(out, 0)[122] == 0 && T24(out, 0)[123] == 4; i < 8u; i++)
         ok &= p24(out, 0, SL24_E0 + i) == (int16_t)(20 + i);
     check("ANALOG part: engine 0, preset, E0..E7 at 2.4's 53..60", ok);
@@ -246,8 +331,8 @@ static void native(const char *dir)
     for (i = 0, ok = T24(out, 2)[122] == 2 && T24(out, 2)[123] == 0; i < 8u; i++)
         ok &= p24(out, 2, SL24_E0 + i) == ENG_PHASE.edit[i].def;
     check("CZ part: 2.4 has no CZ -> its fallback PHASE (engine 2) at PHASE's EDIT defaults", ok);
-    ok = p24(out, 3, SL24_E0) == 5 && p24(out, 3, SL24_E0 + 1u) == 24;
-    check("drum track: the X0X kit (37) -> 808 (5), E1 as it is", ok);
+    ok = p24(out, 3, SL24_E0) == 5 && p24(out, 3, SL24_E0 + 1u) == 0 && (uint16_t)r16(out, 8u + 2u * G_SAVE) == 0x545Au;
+    check("drum track: the X0X kit (37) -> 808 (5); E1..E7 2.7's drum TUNE / DECAY (none: 0, G_SAVE its mark)", ok);
     ok = has24(out, 0, 2, P_PAN, -10) && has24(out, 0, 4, SL24_E0 + 2u, 9) && n24(out, 0) == 2u &&
          has24(out, 1, 1, P_LEVEL, 90) && n24(out, 1) == 1u && n24(out, 2) == 0u &&
          has24(out, 3, 8, SL24_E0, 12) && has24(out, 3, 9, SL24_E0, 5) && has24(out, 3, 10, SL24_E0 + 1u, 2) &&
@@ -255,7 +340,9 @@ static void native(const char *dir)
     check("locks: 2.4's ids, packed; dropped: FX OFF's, FM6's MOD, CZ's EDIT; the user kit lock -> 808", ok);
     /* back in */
     ok = proj_from_sl24(&r, out, sizeof out, y) && proj_ok(&r);
-    check("... and back in (the importer): a valid project of ours", ok);
+    memset(&dr, 0, sizeof dr);
+    ok &= !sl27_lanes_in(&r, &dt0, &dr) && !memcmp(dr.l.ins, "\0\0\0\0\0\0\0\0\0\0", DRUM_LANES);   /* (as sl24_import_buf) */
+    check("... and back in (the importer): a valid project of ours, the drum sounds on their default lanes", ok);
     for (k = 0; k < NTRK; k++) {
         pj_to_p(v, q.t[k].p), pj_to_p(w, r.t[k].p);
         for (i = 0; i < SL24_COMMON; i++)
@@ -277,7 +364,7 @@ static void native(const char *dir)
     check("FM6: back as VOICE INIT VOICE with 2.4's F1 as its voice (the part's own voice was lost)", ok);
     ok = r.t[2].engine == 2 && q.t[2].engine == ENG_UID_CZ;
     pj_to_p(w, r.t[3].p);
-    ok &= w[P_E0] == 5 && w[P_E1] == 24;
+    ok &= w[P_E0] == 5 && w[P_E1] == 0;   /* (our drum E1, the ACCENT amount: its default) */
     ok &= r.g[G_BPM] == 123 && r.g[G_MIDI] == 0 && r.g[G_DRREV] == 16 && r.dl_hash == 0 && !r.rsv[0] && r.sel == 1;
     check("lost: CZ (PHASE now), the X0X kit (808), MIDI channels, the lanes' record, the reverb type", ok);
     ok = stepx_lock_find(&y[0], 2, P_PAN) >= 0 && stepx_lock_find(&y[0], 4, P_E0 + 2u) >= 0 &&
@@ -288,12 +375,13 @@ static void native(const char *dir)
     /* export (import (export)) = export: the losses happen once */
     {
         const stepx_t *yp[NTRK] = {&y[0], &y[1], &y[2], &y[3]};
-        lost = proj_to_sl24(&r, yp, again, 0);
+        dl.src[2] = DL_KIT;                             /* (the working lanes as the import made them: the kit's) */
+        lost = proj_to_sl24(&r, yp, again);
         check("2.4 -> ours -> 2.4 again: the same bytes; the FM6 voice is 2.4's F6 now: no loss there", !memcmp(again, out, sizeof out) &&
               lost == 0);
     }
     /* no extras: tails empty */
-    proj_to_sl24(&q, 0, again, 0);
+    proj_to_sl24(&q, 0, again);
     for (k = 0, ok = 1; k < NTRK; k++)
         ok &= n24(again, k) == 0 && !T24(again, k)[SL24_TAIL + 5u] && !T24(again, k)[SL24_TAIL + 161u];
     check("without step extras: 2.4's tails empty (no nudge, every lock slot free, every step NORM)", ok);
@@ -306,19 +394,18 @@ static void native(const char *dir)
     }
 }
 
-/* 2b. FM6 voices both ways: 2.4's factory patches by PTCH, the others through 2.4's bank (the editor's choice) */
+/* 2b. FM6 voices out: SLOOP's factory patches by PTCH, any other voice F1 (a song file carries no FM6 bank) */
 static void fm6_voices(void)
 {
     static project_t q, r;
     static stepx_t x[NTRK], y[NTRK];
-    static uint8_t bank[SL24_BANK_LEN], other[128], mine[128];
+    static uint8_t mine[128];
     const stepx_t *xp[NTRK] = {&x[0], &x[1], &x[2], &x[3]};
     int16_t v[P_COUNT];
-    uint32_t k, lost, used, ok;
+    uint32_t k, lost, ok;
     ours(&q, x);
     memcpy(mine, SL24_FM6_F[6], 128), memcpy(mine + 118, "MY ORGAN  ", 10);
-    memcpy(other, SL24_FM6_F[0], 128), memcpy(other + 118, "2.4 OWN   ", 10);
-    for (k = 0; k < NPART; k++) {                       /* parts 0, 1 my voice, part 2 2.4's F2 exactly */
+    for (k = 0; k < NPART; k++) {                       /* parts 0, 1 my voice, part 2 SLOOP's F2 exactly */
         pj_to_p(v, q.t[k].p);
         v[P_E0] = 0, v[P_E1] = 0, v[P_E2] = 0, v[P_E3] = 0, v[P_E4] = 1;
         pj_from_p(q.t[k].p, v);
@@ -328,72 +415,16 @@ static void fm6_voices(void)
     }
     q.fm6_has = 7;
     q.sum = proj_sum(&q);
-    sl24_bank_empty(bank);
-    used = 1, memcpy(bank + 8, &used, 4), memcpy(bank + 16, other, 128);   /* (2.4's bank kept: B1 its own) */
-    lost = proj_to_sl24(&q, xp, out, bank);
-    memcpy(&used, bank + 8, 4);
-    ok = p24(out, 0, SL24_E0 + 7u) == 9 && p24(out, 1, SL24_E0 + 7u) == 9 && p24(out, 2, SL24_E0 + 7u) == 1 &&
-         T24(out, 2)[123] == 1 && T24(out, 0)[123] == 0 && used == 3u && !memcmp(bank + 16, other, 128) &&
-         !memcmp(bank + 16 + 128, mine, 128);
-    check("bank: F2 exactly -> PTCH F2; my voice -> B2 (B1 is 2.4's own, kept), once for both parts", ok);
-    check("... reported: the bank goes with it; no FM6 loss", (lost & SX24_BANK) && !(lost & SX24_FM6));
-    ok = proj_from_sl24(&r, out, sizeof out, y) && r.fm6_has == 7;
-    ok &= !memcmp(r.fm6[2], q.fm6[2], 128);             /* (F2 exactly: back as it was) */
-    for (k = 0; k < 2u; k++)
-        ok &= !memcmp(r.fm6[k], SL24_FM6_INIT, 128);    /* (a bank patch is not imported: INIT, 2.4's empty slot) */
-    check("... and back: F2 as it was; a bank patch is not imported (the part starts from INIT)", ok);
-    lost = proj_to_sl24(&q, xp, out, 0);
-    ok = p24(out, 0, SL24_E0 + 7u) == 0 && p24(out, 2, SL24_E0 + 7u) == 1 && (lost & SX24_FM6) && !(lost & SX24_BANK);
-    check("without the bank: my voice -> the closest factory patch (lost), F2 still F2", ok);
-    used = (1u << SL24_BANK_N) - 1u, memcpy(bank + 8, &used, 4);
-    memset(bank + 16 + 128, 0, 128);                    /* (full, none of them mine) */
-    lost = proj_to_sl24(&q, xp, out, bank);
-    check("a full bank: the closest factory patch (lost)", p24(out, 0, SL24_E0 + 7u) == 0 && (lost & SX24_FM6));
-    q.fm6_on[1] = 0x1F;                                 /* (OP6 off: 2.4 has no switches) */
-    sl24_bank_empty(bank);
-    lost = proj_to_sl24(&q, xp, out, bank);
-    check("an operator switched off: not 2.4's (lost), the others still go to the bank",
-          p24(out, 1, SL24_E0 + 7u) == 0 && p24(out, 0, SL24_E0 + 7u) == 8 && (lost & SX24_FM6) && (lost & SX24_BANK));
-}
-
-/* 3. the settings for 2.4 */
-static void settings24(const char *dir)
-{
-    static uint8_t o[SL24_PERSIST + 4];
-    uint8_t pan[32];
-    uint32_t i, m, ok;
-    for (i = 0; i < 32u; i++)
-        pan[i] = (uint8_t)(i + 1);
-    memset(o, 0xEE, sizeof o);
-    sl24_persist(o, 3, 1, 7, pan, 0x12345u);
-    memcpy(&m, o, 4);
-    ok = m == 0x50455233u && o[4] == 3 && o[8] == 1 && o[12] == 1 && !memcmp(o + 16, pan, 32) && o[48] == 4 &&
-         o[49] == 0 && o[52] == 0 && o[53] == 4 && o[52 + 2 * 5] == 1 && o[52 + 2 * 15] == 3 && o[84] == 0x45 &&
-         o[86] == 0x01 && o[SL24_PERSIST] == 0xEE;
-    check("2.4's persist_t: PER3, palette, low cut, zoom (0 / 1), the panel table, song A B C D x 4 bars, the word; 88 B", ok);
-    sl24_persist(o, 9, 0, 0, pan, 0);
-    check("... a palette 2.4 has not (past its 5): GREEN", o[4] == 0);
-    ok = sl24_word(7u << 21 | 0x100u, 0) == 0u && sl24_word(3u << 24 | 0x100u, 0) == 0u &&
-         sl24_word(1u << 25 | 0x100u, 0) == 0u && sl24_word(1u << 24 | 0x100u, 0) == 0u;   /* HOLD 21..22, CARDS 23, BLUETOOTH 24, KNOB COLORS 25 */
-    check("the lights word: our HOLD (21..22), CARDS (23), BLUETOOTH (24), KNOB COLORS (25) and bits 24..31 never reach a 2.4 file", ok);
-    ok = sl24_word(0x1C6FFu, 1) == 0x1D7FFu && sl24_word(0x100u, 3) == 0u && sl24_word(0u, 2) == 0x2100u &&
-         sl24_word(0x1800u, 0) == 0x100u && sl24_word(0xFFFFFFFFu, 0) == 0x1C6FFu;
-    check("the lights word: 2.3's bits, MIDI OUT / IN, USB SERIAL as they are; NOTES inverted; SYNC (AUTO -> INT) at 12", ok);
-    if (dir) {
-        char p[512];
-        FILE *f;
-        for (i = 0; i < 32u; i++)                       /* (a real panel table for 2.4's checks: PAN5, the identity) */
-            pan[i] = 0;
-        m = 0x50414E35u, memcpy(pan, &m, 4);
-        for (i = 0; i < 14u; i++)
-            pan[4 + i] = (uint8_t)i;
-        for (i = 0; i < 7u; i++)
-            pan[18 + i] = (uint8_t)i, pan[25 + i] = 1;
-        sl24_persist(o, 2, 1, 0, pan, sl24_word(0x4012u, 1));
-        snprintf(p, sizeof p, "%s/sl24_persist.bin", dir);
-        if ((f = fopen(p, "wb")))
-            fwrite(o, 1, SL24_PERSIST, f), fclose(f);
-    }
+    lost = proj_to_sl24(&q, xp, out);
+    ok = p24(out, 0, SL24_E0 + 7u) == 0 && p24(out, 1, SL24_E0 + 7u) == 0 && p24(out, 2, SL24_E0 + 7u) == 1 &&
+         T24(out, 2)[123] == 1 && (lost & SX24_FM6);
+    check("FM6: F2 exactly -> PTCH F2; my voice -> F1, said lost", ok);
+    ok = proj_from_sl24(&r, out, sizeof out, y) && r.fm6_has == 7 && !memcmp(r.fm6[2], q.fm6[2], 128) &&
+         !memcmp(r.fm6[0], SL24_FM6_F[0], 128);
+    check("... and back: F2 as it was, my voice F1's", ok);
+    q.fm6_on[2] = 0x1F;                                 /* (OP6 off: SLOOP has no switches) */
+    lost = proj_to_sl24(&q, xp, out);
+    check("an operator switched off on F2: not SLOOP's (F1, lost)", p24(out, 2, SL24_E0 + 7u) == 0 && (lost & SX24_FM6));
 }
 
 /* the FX slots (fx_slots.c, the working project's: sl24_fx_out): a type in no slot written 0 (2.4 would play it), and what
@@ -406,17 +437,17 @@ static void fx_slots24(void)
     uint32_t k, ok, lost, base;
     ours(&q, x);
     ins_defaults();
-    base = proj_to_sl24(&q, 0, out, 0);
+    base = proj_to_sl24(&q, 0, out);
     check("FX slots: the default layout and track slots, every insert amount 0: nothing more lost than before",
           !(base & (SX24_SLOTS | SX24_COMP | SX24_DINS | SX24_DBUS | SX24_INSORD)));
     fxs_set(NOREV);
-    lost = proj_to_sl24(&q, 0, out, 0);
+    lost = proj_to_sl24(&q, 0, out);
     for (k = 0, ok = 1; k < NTRK; k++)
         ok &= p24(out, k, P_REV) == 0 && p24(out, k, P_DLY) == (int16_t)(k * 11u + P_DLY * 3u) - 20 && q.t[k].p[P_REV] != 0;
     check("REV in no master slot: its amounts written 0 (2.4 would play them), the others as they are; SLOTS lost", ok && lost == (base | SX24_SLOTS));
     fxs_set(FXS_DEF);
     ins_put(1, NOINS);
-    lost = proj_to_sl24(&q, 0, out, 0);
+    lost = proj_to_sl24(&q, 0, out);
     check("T2's slots empty: its DST (set) written 0, the other parts' as they are; SLOTS lost",
           p24(out, 1, P_DIST) == 0 && (q.t[1].p[P_DIST] == 0 || lost == (base | SX24_SLOTS)) &&
           p24(out, 2, P_DIST) == q.t[2].p[P_DIST]);
@@ -424,18 +455,18 @@ static void fx_slots24(void)
 #if FELUCCA_MASTER_COMP
     ins_load(1, 1, FXT_COMP);
     trk[1].p[P_TCOMP] = 40;
-    check("COMP in T2's S2 and its amount: COMP lost", proj_to_sl24(&q, 0, out, 0) == (base | SX24_COMP));
+    check("COMP in T2's S2 and its amount: COMP lost", proj_to_sl24(&q, 0, out) == (base | SX24_COMP));
     ins_defaults();
-    check("... COMP in no slot of T2 (its amount not heard): not lost", proj_to_sl24(&q, 0, out, 0) == base);
+    check("... COMP in no slot of T2 (its amount not heard): not lost", proj_to_sl24(&q, 0, out) == base);
     trk[1].p[P_TCOMP] = 0, dins_amt[1][7] = 3;
-    check("a drum sound's COMP (always heard, D7): COMP lost", proj_to_sl24(&q, 0, out, 0) == (base | SX24_COMP));
+    check("a drum sound's COMP (always heard, D7): COMP lost", proj_to_sl24(&q, 0, out) == (base | SX24_COMP));
     dins_amt[1][7] = 0;
 #endif
     dins_amt[0][2] = 9, TDRUM->p[P_DLY] = 20;
-    check("a drum sound's DIST, the drum bus's DLY: DINS, DBUS lost", proj_to_sl24(&q, 0, out, 0) == (base | SX24_DINS | SX24_DBUS));
+    check("a drum sound's DIST, the drum bus's DLY: DINS, DBUS lost", proj_to_sl24(&q, 0, out) == (base | SX24_DINS | SX24_DBUS));
     dins_amt[0][2] = 0, TDRUM->p[P_DLY] = 0;
     dsend_kit[1] = 64;
-    check("the drum track's DLY level at 50 %: DBUS lost (2.4 has none)", proj_to_sl24(&q, 0, out, 0) == (base | SX24_DBUS));
+    check("the drum track's DLY level at 50 %: DBUS lost (2.4 has none)", proj_to_sl24(&q, 0, out) == (base | SX24_DBUS));
     dsend_kit[1] = DKS_DEF;
 #if FELUCCA_TRK_FILT
     {
@@ -444,9 +475,9 @@ static void fx_slots24(void)
         trk[0].p[P_TFLT] = -20, trk[0].p[P_DIST] = 50;
         ins_put(0, FD);
         check("T1's FILTER before its DIST, both on: INSORD lost (2.4 runs DIST, then FILT)",
-              (proj_to_sl24(&q, 0, out, 0) & SX24_INSORD) != 0u);
+              (proj_to_sl24(&q, 0, out) & SX24_INSORD) != 0u);
         ins_defaults();
-        check("... S1 DIST S2 FILTER (2.4's order): not lost", (proj_to_sl24(&q, 0, out, 0) & SX24_INSORD) == 0u);
+        check("... S1 DIST S2 FILTER (2.4's order): not lost", (proj_to_sl24(&q, 0, out) & SX24_INSORD) == 0u);
         trk[0].p[P_TFLT] = f, trk[0].p[P_DIST] = d;
     }
 #endif
@@ -460,12 +491,12 @@ static void fx_slots24(void)
                 uint8_t s[2] = {(uint8_t)t, FXT_NONE};
                 uint32_t l0, l1;
                 ins_put(k, s);
-                l0 = proj_to_sl24(&q, 0, out, 0);
+                l0 = proj_to_sl24(&q, 0, out);
                 trk[k].p[FXT_AMT[t]] = 90;
-                l1 = proj_to_sl24(&q, 0, out, 0);
+                l1 = proj_to_sl24(&q, 0, out);
                 s[0] = FXT_NONE;
                 ins_put(k, s);                          /* (in no slot: not heard, nothing lost for it) */
-                if ((l0 & SX24_INSFX) || !(l1 & SX24_INSFX) || (proj_to_sl24(&q, 0, out, 0) & SX24_INSFX))
+                if ((l0 & SX24_INSFX) || !(l1 & SX24_INSFX) || (proj_to_sl24(&q, 0, out) & SX24_INSFX))
                     break;
                 trk[k].p[FXT_AMT[t]] = 0;
             }
@@ -477,27 +508,27 @@ static void fx_slots24(void)
 #endif
     /* the FX returns (2026-10-12, core.h G_CRET G_DRET G_RRET): 2.4 has none, its wet comes back at unity */
     song.g[G_CRET] = song.g[G_DRET] = song.g[G_RRET] = 127;
-    base = proj_to_sl24(&q, 0, out, 0);
+    base = proj_to_sl24(&q, 0, out);
     check("FX returns at unity: nothing lost for them", !(base & SX24_FXRET));
     check("the second word's bits are each their own: CHANCE 0, LSYNC 1, LAUTO 2, DLFO 3, FXRET 4, INSORD 6",
           (SX24_CHANCE >> 14) == 1u && (SX24_LSYNC >> 14) == 2u && (SX24_LAUTO >> 14) == 4u && (SX24_DLFO >> 14) == 8u &&
           (SX24_FXRET >> 14) == 16u && (SX24_INSORD >> 14) == 64u && SX24_INSORD == 1048576u);
     song.g[G_DRET] = 64;
-    check("DLY RET at one half: FXRET lost (2.4 plays it at unity)", proj_to_sl24(&q, 0, out, 0) == (base | SX24_FXRET));
+    check("DLY RET at one half: FXRET lost (2.4 plays it at unity)", proj_to_sl24(&q, 0, out) == (base | SX24_FXRET));
     fxs_set(NOREV);
     song.g[G_DRET] = 127, song.g[G_RRET] = 0;
     check("REV RET at 0 with REV in no slot: not heard here either, nothing more lost for it",
-          (proj_to_sl24(&q, 0, out, 0) & SX24_FXRET) == 0u);
+          (proj_to_sl24(&q, 0, out) & SX24_FXRET) == 0u);
     fxs_set(FXS_DEF);
-    check("... REV back in its slot: FXRET lost", (proj_to_sl24(&q, 0, out, 0) & SX24_FXRET) != 0u);
+    check("... REV back in its slot: FXRET lost", (proj_to_sl24(&q, 0, out) & SX24_FXRET) != 0u);
     song.g[G_RRET] = 127;
     /* the delay filter (2026-10-18): 2.4 has COLOR's low-pass alone */
     song.g[G_DFTYPE] = song.g[G_DFSLOPE] = song.g[G_DFRES] = 0;
-    check("the delay filter at LP 12 dB RES 0: nothing lost for it", !(proj_to_sl24(&q, 0, out, 0) & SX24_DLYF));
+    check("the delay filter at LP 12 dB RES 0: nothing lost for it", !(proj_to_sl24(&q, 0, out) & SX24_DLYF));
     song.g[G_DFTYPE] = DLYF_HP;
-    check("HP: DLYF lost, the second word's bit 13", (proj_to_sl24(&q, 0, out, 0) & SX24_DLYF) && (SX24_DLYF >> 14) == 1u << 13);
+    check("HP: DLYF lost, the second word's bit 13", (proj_to_sl24(&q, 0, out) & SX24_DLYF) && (SX24_DLYF >> 14) == 1u << 13);
     song.g[G_DFTYPE] = 0, song.g[G_DFRES] = 40;
-    check("RES 40: DLYF lost", (proj_to_sl24(&q, 0, out, 0) & SX24_DLYF) != 0u);
+    check("RES 40: DLYF lost", (proj_to_sl24(&q, 0, out) & SX24_DLYF) != 0u);
     song.g[G_DFRES] = 0;
 }
 
@@ -522,14 +553,14 @@ static void lsync24(void)
     int16_t v[P_COUNT];
     uint32_t lost, base, ok;
     ours(&q, x);
-    base = proj_to_sl24(&q, xp, out, 0);
+    base = proj_to_sl24(&q, xp, out);
     check("LFO sync: a free RATE everywhere: LSYNC not lost", !(base & SX24_LSYNC));
     pj_to_p(v, q.t[0].p), v[P_LRATE] = -5, pj_from_p(q.t[0].p, v);      /* 1/4 at 123 BPM: 2.05 Hz */
     pj_to_p(v, q.t[2].p), v[P_LRATE] = -1, pj_from_p(q.t[2].p, v);      /* 4BAR: 0.128 Hz */
     stepx_lock_set(&x[1], 7, P_LRATE, -10);             /* 1/32: 16.4 Hz */
     stepx_lock_set(&x[1], 8, P_LRATE, 33);
     q.sum = proj_sum(&q);
-    lost = proj_to_sl24(&q, xp, out, 0);
+    lost = proj_to_sl24(&q, xp, out);
     ok = lost == (base | SX24_LSYNC) && p24(out, 0, P_LRATE) == near_rate(123, 1.0) &&
          p24(out, 2, P_LRATE) == near_rate(123, 16.0) && p24(out, 1, P_LRATE) == (int16_t)(11u + P_LRATE * 3u) - 20 &&
          has24(out, 1, 7, P_LRATE, (int16_t)near_rate(123, 0.125)) && has24(out, 1, 8, P_LRATE, 33);
@@ -552,7 +583,6 @@ int main(int argc, char **argv)
     golden();
     native(argc > 1 ? argv[1] : 0);
     fm6_voices();
-    settings24(argc > 1 ? argv[1] : 0);
     fx_slots24();
     lsync24();
     printf("sl24 export test %s\n", bad ? "FAILED" : "passed");

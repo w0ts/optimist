@@ -109,7 +109,7 @@ static void sl26_convert(void)
     static project_t q;
     static stepx_t x[NTRK];
     int16_t v[P_COUNT];
-    uint32_t k, i, ok, ft;
+    uint32_t k, i, ok, ft, cut = 0;
     memcpy(b, f26, sizeof f26);
     ft = sl26_to_sl24(b);
     check("2.6 -> 2.5 in place: a FUN5 (sl24_is); the parts' filter TYPE: track 1 ANALOG HP (TRIO's BP not heard)",
@@ -129,6 +129,7 @@ static void sl26_convert(void)
         pj_to_p(v, q.t[k].p);
         for (i = 0; i < 50u; i++)
             ok &= i == P_LRATE || (SL24_TP && k == TRK_DRUM && (i == P_GLMODE || i == P_PRIO || i == P_ALLOC || i == P_DETUNE)) ||
+                  (i == P_AMODE && k < NPART && v[i] == sl27_amode_in((int32_t)(k * 7u + i % 40u), &cut)) ||   /* (ours: 6) */
                   v[i] == (int16_t)(k * 7u + i % 40u);
         if (k < NPART)
             for (i = 0; i < 8u; i++)
@@ -219,7 +220,7 @@ static void sl26_flow(void)
     check("flash: a 2.6 slot shows as SLOOP's (never EMPTY); LOAD offers", ok);
     fm1_ms += 500;
     project_load(1);
-    ok = !strncmp(last_msg, "2.4 IMPORTED", 12) && proj_tmp.cur.t[1].engine == ENG_UID_PHYS && proj_tmp.cur.t[2].engine == 6 &&
+    ok = !strncmp(last_msg, "SLOOP IMPORTED", 14) && proj_tmp.cur.t[1].engine == ENG_UID_PHYS && proj_tmp.cur.t[2].engine == 6 &&
          trk[2].eng_req == eng_slot(6);           /* (the project's UID: PHYS is not in every build, its slot then ANALOG's) */
 #if FELUCCA_ANALOG2
     ok &= trk[0].p[P_A2FTYP] == 3 && trk[2].p[P_A2FTYP] == TP[P_A2FTYP].def;
@@ -251,7 +252,7 @@ static void export_engines(void)
     q.t[0].engine = ENG_UID_PHYS;
     q.t[1].engine = ENG_UID_SLICE;
     q.sum = proj_sum(&q);
-    lost = proj_to_sl24(&q, 0, out, 0);
+    lost = proj_to_sl24(&q, 0, out);
     check("export: our PHYS -> SLOOP 2.5's 10 with its EDIT values (2.5 and 2.6 play it)",
           out[76 + 122] == 10 && (int16_t)(out[76 + 2 * 54] | out[76 + 2 * 54 + 1] << 8) == 11);
     check("... SLICE (never in a shipped SLOOP) -> its fallback SAMPLE (4) at SAMPLE's defaults, said lost",
@@ -266,21 +267,21 @@ static void export_engines(void)
         fxs_live |= (uint8_t)(1u << FXT_DLY);
         for (l = 0; l < DRUM_LANES; l++)
             dsend[l] = dsend_word(l % 3u + 3u, 19, l % 2u);
-        (void)proj_to_sl24(&q, 0, out, 0);
+        (void)proj_to_sl24(&q, 0, out);
         ok = out[73] == 78 && sl24_is(out, sizeof out);
         for (l = 0; l < DRUM_LANES; l++)
             dsend[l] = dsend_word(4, l < 10u ? 0u : 31u, 0);
-        (void)proj_to_sl24(&q, 0, out, 0);
+        (void)proj_to_sl24(&q, 0, out);
         ok &= out[73] == 0;
         for (l = 0; l < DRUM_LANES; l++)
             dsend[l] = dsend_word(4, l < DRUM_LANES / 2u ? 7u : 5u, 0);
-        (void)proj_to_sl24(&q, 0, out, 0);
+        (void)proj_to_sl24(&q, 0, out);
         ok &= out[73] == 20;
         check("export: 2.5's drums' delay send = the lanes' DLY most have (19 -> 78; 10 x 0 -> 0; 5 + 5: the lower)", ok);
         for (l = 0; l < DRUM_LANES; l++)
             dsend[l] = dsend_word(4, 19, 0);
         fxs_live &= (uint8_t)~(1u << FXT_DLY);
-        (void)proj_to_sl24(&q, 0, out, 0);
+        (void)proj_to_sl24(&q, 0, out);
         check("... 0 while DLY is in no FX slot (the lanes send nothing here)", out[73] == 0);
         fxs_live = live;
         memcpy(dsend, keep, sizeof keep);
@@ -325,8 +326,8 @@ static void sl26_lfo2(void)
     static uint8_t out[3840];
     uint32_t k, lost;
     int ok;
-    ok = l2_import(0, 0) && (!strcmp(last_msg, "2.4 IMPORTED, LFO CUT") ||
-                              !strcmp(last_msg, "2.4 IMPORTED, NO LOCKS"));   /* (without XSTEP the golden's step locks are lost first) */
+    ok = l2_import(0, 0) && (!strcmp(last_msg, "SLOOP IMPORTED, LFO CUT") || !strcmp(last_msg, "SLOOP IMPORTED, DRUMS CUT") ||
+                              !strcmp(last_msg, "SLOOP IMPORTED, NO LOCKS"));   /* (without XSTEP the golden's step locks are lost first) */
     for (k = 0; k < NPART; k++)                         /* (golden: TRIG 9.., POL 10..: FREE, UNI; depths k 7 + 13 ..) */
         ok &= l2_is(k, -8 - (int32_t)k, 4, 1, 1, LT_FLT, 28 + 14 * (int32_t)k, LT_SHP, 30 + 14 * (int32_t)k) && l1_is(k, 0, 0, 0, 0);
     check("2.6 LFO TRIG FREE, POL UNI -> LFO 2: its two depths of the most weight (FLT SHP), RATE (SYNC), WAVE; LFO off; PIT AMP "
@@ -337,7 +338,7 @@ static void sl26_lfo2(void)
     ok &= l2_is(2, 60, 0, 0, 0, 0, 0, 0, 0) && l1_is(2, LT_FLT, 12, LT_SHP, 14);
     check("... POL UNI on PIT -40: LFO 2 PIT -80 (AMT 2 x); TRIG FREE on AMP 127: AMP 127; NOTE BI: LFO's two slots, LFO 2 off", ok);
     proj_capture(&q, &tdl);
-    lost = proj_to_sl24(&q, 0, out, 0);
+    lost = proj_to_sl24(&q, 0, out);
 #define O16(k, id) ((int16_t)(out[76u + (k) * 940u + 2u * (id)] | out[76u + (k) * 940u + 2u * (id) + 1u] << 8))
     ok = O16(0, P_LEG_PIT) == -40 && O16(0, P_LWAVE) == 4 && O16(0, P_LPHASE) == 0 && O16(1, P_LEG_AMP) == 127 &&
          O16(2, P_LEG_PIT) == 0 && O16(2, P_LEG_FLT) == 6 && O16(2, P_LEG_SHP) == 7 && (lost & SX24_LFO2) && (lost & SX24_LSYNC) &&
@@ -351,17 +352,17 @@ static void sl26_lfo2(void)
     trk[2].p[P_L2TRIG] = trk[2].p[P_L2POL] = 0;
     trk[2].p[P_LRATE] = 3;
     proj_capture(&q, &tdl);
-    lost = proj_to_sl24(&q, 0, out, 0);
+    lost = proj_to_sl24(&q, 0, out);
     ok = !(lost & (SX24_LFO2 | SX24_LFODEST)) && O16(2, P_LRATE) == 70 && O16(2, P_LWAVE) == 1 && O16(2, P_LEG_FLT) == -30;
     check("... a NOTE BI LFO 2 alone: 2.4's LFO exactly, nothing lost", ok);
     trk[2].p[P_L1DA] = LT_PIT, trk[2].p[P_L1AA] = 6;
     proj_capture(&q, &tdl);
-    lost = proj_to_sl24(&q, 0, out, 0);
+    lost = proj_to_sl24(&q, 0, out);
     check("... beside a LFO that acts: lost (SX24_LFO2), LFO as it is", (lost & SX24_LFO2) && O16(2, P_LRATE) == 3 &&
           O16(2, P_LEG_PIT) == 3 && O16(2, P_LEG_FLT) == 0);
     trk[2].p[P_L1DB] = LT_PAN, trk[2].p[P_L1AB] = 50;
     proj_capture(&q, &tdl);
-    lost = proj_to_sl24(&q, 0, out, 0);
+    lost = proj_to_sl24(&q, 0, out);
     check("... LFO DEST B on PAN: not 2.4's (SX24_LFODEST), A still written", (lost & SX24_LFODEST) && O16(2, P_LEG_PIT) == 3);
 #undef O16
     check("the second lost word's bits 9 and 11: SX24_LFO2, SX24_LFODEST", SX24_LFO2 >> 14 == 1u << 9 && SX24_LFODEST >> 14 == 1u << 11);

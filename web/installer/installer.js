@@ -39,7 +39,7 @@ export const TEXT = {
   what: "This page installs Optimist, a free, open-source firmware for the M-VAVE FM-1, from this browser over USB. " +
     "An install writes only the firmware area, not the area where the FM-1 keeps your projects, presets, kits and samples. " +
     "Optimist is a work in progress: an install can fail, its formats change between versions, and coming from another " +
-    "firmware it may erase what it cannot read (SLOOP 2.4's data is kept). Back up first. No warranty.",
+    "firmware it may erase what it cannot read (SLOOP's data is kept). Back up first. No warranty.",
   s1: "Connect", s2: "Choose", s3: "Install", s4: "When something goes wrong",
   connectHow: "Use Chrome or Edge. Connect the FM-1 with a USB data cable, straight into the computer (no hub), and switch it on.",
   find: "Find the FM-1", findAgain: "Find again",

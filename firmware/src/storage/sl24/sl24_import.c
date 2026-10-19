@@ -233,6 +233,123 @@ static void sl26_ftype_in(project_t *q, uint32_t ft)
     q->sum = proj_sum(q);
 }
 
+/* SLOOP 2.7 (v2.7.1 4ec1ac82) in a FUN6, read before sl26_to_sl24: each of its 16 drum sounds' TUNE (4 bits, -8 .. +7
+ * semitones) and DECAY (3 bits, -4 .. +3), two's complement, 7 bits a sound in the drum track's E1..E7 (its drum track
+ * has no engine), valid while g[G_SAVE] holds 2.7's mark and check of them (its project.c drum_tw_put / drum_tw_get);
+ * an older SLOOP's project: every sound as the kit has it. Its sounds are our instruments 0..15 (drums.c INST_*: the
+ * same GM notes, the same order) */
+#define SL27_SOUNDS 16u
+#define SL27_DT_MARK 0x5400u
+_Static_assert(G_SAVE == 19u && SL27_SOUNDS == DRUM_LSTORE && INST_COWBELL == 15, "2.7's G_SAVE, its 16 sounds our INST_*");
+typedef struct { int8_t tune[SL27_SOUNDS], dec[SL27_SOUNDS]; } sl27_dt_t;
+/* b: a FUN6 (2.6 / 2.7) or a FUN5 (2.7 reads one: ours, sl24_export.c) */
+static void sl27_dt_in(const uint8_t *b, sl27_dt_t *o)
+{
+    const uint8_t *t = b + 12u + 2u * PJ_NG + TRK_DRUM * (sl26_is(b, SL26_SIZE) ? SL26_TRK : SL24_TRK) + 2u * SL24_E0;
+    uint16_t e[8], g;
+    uint32_t i, l, k, s = 0x5Au;
+    memcpy(e, t, sizeof e);
+    memcpy(&g, b + 8u + 2u * G_SAVE, 2);
+    for (i = 1; i < 8u; i++)
+        s += (e[i] & 0xFFu) * (i * 2u + 1u) + (uint32_t)(e[i] >> 8) * (i * 2u + 2u);
+    memset(o, 0, sizeof *o);
+    if (g != (SL27_DT_MARK | (s & 0xFFu)))
+        return;
+    for (l = 0; l < SL27_SOUNDS; l++) {
+        uint32_t v = 0;
+        for (k = 0; k < 7u; k++)
+            v |= (uint32_t)((e[1u + (l * 7u + k) / 16u] >> ((l * 7u + k) % 16u)) & 1u) << k;
+        o->tune[l] = (int8_t)((int32_t)((v & 15u) ^ 8u) - 8);
+        o->dec[l] = (int8_t)((int32_t)(((v >> 4) & 7u) ^ 4u) - 4);
+    }
+}
+/* 2.7's DECAY d (-4 .. +3) -> our lane DECAY (drum_edit.c DE_DECAY): the same DECAY_K steps (5.4 % a step) 2.7 adds to
+ * a synthesised sound's decays (its drum_synth.c DK_IDX); a sampled sound's: APPROXIMATE (2.7 shortens it to -60 dB in
+ * 60 .. 500 ms, ours scales its envelope by the same steps) */
+static uint32_t sl27_arp_cut;                           /* (proj_from_sl24: a part's arp MODE was not one of ours) */
+static int8_t sl27_dec_in(int32_t d)
+{
+    static const int8_t DK[8] = {-26, -17, -10, -4, 0, 6, 13, 21};
+    return DK[(uint32_t)(d + 4) & 7u];
+}
+/* the drum track of q as SLOOP stores it (16 sounds, a bit each in the steps: sound s = our INST s) -> our lanes, each
+ * playing its sound (d->l.ins) with its hits, levels and ratchets, and 2.7's TUNE / DECAY (dt): a sound with hits that
+ * is a lane's default instrument (drums.c LANE_DEF_INST: KICK SNARE CLAP ..) on that lane, the others with hits on the
+ * lanes left, in SLOOP's order; a lane left over keeps its default. More than DRUM_LANES sounds with hits: those with
+ * the most (a tie: SLOOP's order); -> 1 a sound with hits was cut (said so). Ours exported (sl27_drums_out) with the
+ * default lanes comes back as it was */
+static int sl27_lanes_in(project_t *q, const sl27_dt_t *dt, dlrec_t *d)
+{
+    dstep_sn_t *st = (dstep_sn_t *)q->t[TRK_DRUM].dstep;
+    uint32_t hits[SL27_SOUNDS] = {0}, keep = 0, used = 0, i, s, l, n = 0;
+    int8_t lane[SL27_SOUNDS];
+    for (i = 0; i < NSTEP; i++)
+        for (s = 0; s < SL27_SOUNDS; s++)
+            hits[s] += (st[i].on[s >> 3] >> (s & 7u)) & 1u;
+    for (s = 0; s < SL27_SOUNDS; s++)
+        used |= (uint32_t)(hits[s] != 0u) << s;
+    while (n < DRUM_LANES && (used & ~keep)) {          /* (the most hits first; a tie: the lower sound) */
+        uint32_t b = 0, bh = 0;
+        for (s = 0; s < SL27_SOUNDS; s++)
+            if ((used & ~keep) >> s & 1u && hits[s] > bh)
+                b = s, bh = hits[s];
+        keep |= 1u << b, n++;
+    }
+    {
+        uint32_t taken = 0, placed = 0;                 /* (lanes, sounds) */
+        memset(lane, -1, sizeof lane);
+        for (l = 0; l < DRUM_LANES; l++)                /* (a kept sound on its default lane) */
+            if (LANE_DEF_INST[l] < SL27_SOUNDS && keep >> LANE_DEF_INST[l] & 1u)
+                lane[LANE_DEF_INST[l]] = (int8_t)l, taken |= 1u << l, placed |= 1u << LANE_DEF_INST[l];
+        for (s = 0, l = 0; s < SL27_SOUNDS; s++) {      /* (the other kept ones: the lanes left, in order) */
+            if (!(keep >> s & 1u) || (placed >> s & 1u))
+                continue;
+            while (taken >> l & 1u)
+                l++;
+            lane[s] = (int8_t)l, taken |= 1u << l;
+        }
+    }
+    for (s = 0; s < SL27_SOUNDS; s++)
+        if (lane[s] >= 0) {
+            l = (uint32_t)lane[s];
+            d->l.ins[l] = (uint8_t)(s == LANE_DEF_INST[l] ? 0u : s + 1u);
+            d->l.ofs[l][DE_TUNE] = dt->tune[s];
+            d->l.ofs[l][DE_DECAY] = sl27_dec_in(dt->dec[s]);
+        }
+    for (i = 0; i < NSTEP; i++) {
+        dstep_sn_t o;
+        memset(&o, 0, sizeof o);
+        for (s = 0; s < SL27_SOUNDS; s++) {
+            uint32_t ln, lv, rt;
+            if (lane[s] < 0 || !((st[i].on[s >> 3] >> (s & 7u)) & 1u))
+                continue;
+            ln = (uint32_t)lane[s];
+            lv = (st[i].lvl[s >> 2] >> ((s & 3u) * 2u)) & 3u;
+            rt = (st[i].rat[s >> 2] >> ((s & 3u) * 2u)) & 3u;
+            o.on[ln >> 3] |= (uint8_t)(1u << (ln & 7u));
+            o.lvl[ln >> 2] |= (uint8_t)(lv << ((ln & 3u) * 2u));
+            o.rat[ln >> 2] |= (uint8_t)(rt << ((ln & 3u) * 2u));
+        }
+        st[i] = o;
+    }
+    return (used & ~keep) != 0u;
+}
+/* 2.7's arp MODE (its params.c N_AMODE: OFF UP DN UPDN RND ORD, then REPEAT DNUP UP+8 CONV DIVG PINKY THUMB WALK CHORD)
+ * -> ours (the first six): the nearest; -> 1 in *cut when it was not one of ours */
+static int16_t sl27_amode_in(int32_t m, uint32_t *cut)
+{
+    static const uint8_t NEAR[9] = {1, 3, 1, 3, 3, 1, 1, 4, 0};   /* REPEAT UP, DNUP UPDN, UP+8 UP, CONV UPDN, DIVG UPDN,
+                                                                * PINKY UP, THUMB UP, WALK RND, CHORD OFF */
+    if (m >= 0 && m <= 5)
+        return (int16_t)m;
+    *cut = 1;
+    return (int16_t)(m >= 6 && m < 15 ? NEAR[m - 6] : 0);
+}
+/* a synth step's flags as SLOOP stores them -> ours: accent, slide; 2.7's held notes (bits 3..6, its core.h SF_CONT: a
+ * note goes on from the step before) -> SF_CARRY (the notes already sounding go on); bits 2..6 are our chance
+ * (seq/chance.c): never taken from SLOOP */
+static uint8_t sl27_flags_in(uint32_t f) { return (uint8_t)((f & (SF_ACCENT | SF_SLIDE)) | (f & 0x78u ? SF_CARRY : 0u)); }
+
 /* track k of a SLOOP 2.4 project (sl24_is) at b: its PTCH when it is an FM6 part, else -1 */
 static int sl24_ptch(const uint8_t *b, uint32_t k)
 {
@@ -286,6 +403,9 @@ static int proj_from_sl24(project_t *q, const void *b, int n, stepx_t *x)
 #endif
         if (i == TRK_DRUM) {
             v[P_E0] = sl24_kit(e[SL24_E0]);
+            for (k = 1; k < 8u; k++)                    /* (SLOOP's E1..E7 there: 2.7's drum TUNE / DECAY bits, sl27_dt_in;
+                                                         * ours: E1 the ACCENT amount, core.h P_DACC: its default) */
+                v[P_E0 + k] = 0;
             eng = 0;
         } else if (eng == ENG_UID_FM6) {                /* the patch as the voice, MOD from MLVL, ENGINE MARK I */
             int32_t pt = e[SL24_E0 + 7u];
@@ -300,10 +420,14 @@ static int proj_from_sl24(project_t *q, const void *b, int n, stepx_t *x)
             for (k = 0; k < 8u; k++)
                 v[P_E0 + k] = eng_built(0) ? ENGINES[eng_slot_built(0)]->edit[k].def : 0;
         }
+        if (i != TRK_DRUM)
+            v[P_AMODE] = sl27_amode_in(v[P_AMODE], &sl27_arp_cut);
         pj_from_p(q->t[i].p, v);
         q->t[i].engine = (uint8_t)(eng == SL24_ENG_LOST ? 0u : eng);
         q->t[i].preset = eng == SL24_ENG_LOST ? 0u : s[2u * SL24_NP + 1u];
         memcpy(q->t[i].step, s + 2u * SL24_NP + 2u, sizeof q->t[i].step);
+        for (k = 0; i != TRK_DRUM && k < NSTEP; k++)
+            q->t[i].step[k].flags = sl27_flags_in(q->t[i].step[k].flags);
         if (x) {
             stepx_t *d = &x[i];
             uint32_t m = 0;
@@ -332,14 +456,15 @@ static int proj_from_sl24(project_t *q, const void *b, int n, stepx_t *x)
     return 1;
 }
 
-/* the drum record for a SLOOP 2.4 project (sl24_is) at b -> d (cleared first): its USR1..USR3 kit (USR3+4: USR3's
+/* lane l's GM note in the drum record d being made (its instrument there, sl27_lanes_in; not the working project's) */
+#define SL24_LANE_NOTE(d, l) (INST_NOTE[(d)->l.ins[l] && (d)->l.ins[l] <= INST_N ? (d)->l.ins[l] - 1u : LANE_DEF_INST[l]])
+/* the drum record for a SLOOP 2.4 project (sl24_is) at b -> d (its lanes' instruments set: sl27_lanes_in): its USR1..USR3 kit (USR3+4: USR3's
  * part) as 2.4 plays one, each lane the zone of that user sample slot whose notes hold the lane's GM note
  * (drums.c LANE_NOTE, 2.4's too; FELUCCA_DRUM_USR: a lane on a user sample, drum_edit.c). A lane the slot has no
  * zone for plays our default kit's sound (2.4: silent). -> 1 a lane was set */
 static int sl24_usr_lanes(const uint8_t *b, dlrec_t *d)
 {
     int r = 0;
-    memset(d, 0, sizeof *d);
 #if FELUCCA_DRUM_USR && FELUCCA_ANALOG2
     {
         int32_t kit = sl24_kit_of(b);
@@ -348,7 +473,7 @@ static int sl24_usr_lanes(const uint8_t *b, dlrec_t *d)
             return 0;                                   /* (not a user kit; USR4: not one of our slots) */
         for (l = 0; l < DRUM_LANES; l++)
             for (j = 0; j < usr_nz[k] && j < 16u; j++)
-                if (LANE_NOTE_OF(l) >= usr_zone[k][j].lo && LANE_NOTE_OF(l) <= usr_zone[k][j].hi) {
+                if (SL24_LANE_NOTE(d, l) >= usr_zone[k][j].lo && SL24_LANE_NOTE(d, l) <= usr_zone[k][j].hi) {
                     d->l.src[l] = (uint8_t)(DL_USR + k);
                     dl_set_ref(d->l.ref[l], j, 0, 0);
                     r = 1;

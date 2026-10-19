@@ -1,8 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* Editor protocol: SLOOP 2.4's files (included by editor.c; web/EDITOR_PROTOCOL.md "SLOOP 2.4 export" and "SLOOP 2.4
- * import"). FELUCCA_SL24_EXPORT: the editor reads parts and writes them into a SLOOP 2.4 backup file ("sloop-backup",
- * its objects 0, 1 and, with the FM6 voices, 8), which 2.4's editor restores: the project becomes 2.4's working
- * project, the settings its settings, the bank its FM6 patch bank.
+/* Editor protocol: SLOOP 2.7's files (included by editor.c; web/EDITOR_PROTOCOL.md "SLOOP export" and "SLOOP import").
+ * FELUCCA_SL24_EXPORT: the editor reads the working project and writes it into a SLOOP 2.7 song file ("sloop-song",
+ * its object 0), which 2.7's editor loads (Song & sections > Load a song file): the project becomes its loop, its
+ * settings untouched.
  *   78 SL24_GET  part, offset (3 x 7 bit)[, flags (v12: bit 0 = send the second lost word)] -> part, rc (0 ok, 1
  *                arguments, 2 busy: a restore or an import holds the buffer), length (3 x 7 bit), CRC-32 of the part
  *                (5 x 7 bit), lost (2 x 7 bit: sl24_export.c SX24_* bits 0..13), offset, pack7 bytes (<= 256; none at
@@ -13,13 +13,9 @@
  *                motion and locks, SX24_LAUTO; bit 3: a drum lane's LFO, SX24_DLFO; both on bit 13 too without the
  *                flag; bit 9: a part's LFO 2 not written as 2.4's LFO, SX24_LFO2; bit 12: the drum track's ACCENT lane, SX24_DACC; bit 13: the delay filter's TYPE / SLOPE / RES, SX24_DLYF). A firmware before v12 answers the
  *                5-byte request with rc 1.
- *     part 0  the working project as 2.4's FUN5 (3840 B, sl24_export.c proj_to_sl24), its step extras too; an FM6
- *             voice that is not one of 2.4's F1..F8: the closest of them (lost SX24_FM6)
- *     part 1  the settings as 2.4's persist_t (88 B: palette, low cut, zoom, the panel table, 2.4's song order, the
- *             lights word: sl24_persist)
- *     part 2  as 0, but such a voice goes into 2.4's FM6 bank (B1..B27; lost SX24_BANK when one did)
- *     part 3  that bank (3472 B, 2.4's object 8 as 2.4 stores it): 2.4's own bank kept in flash with the voices
- *             added to it (the slot already holding a voice, else a free one), else a bank of only those
+ *     part 0  the working project as a FUN5 (3840 B, which 2.7 reads: sl24_export.c proj_to_sl24), its step extras
+ *             too; an FM6 voice that is not one of SLOOP's F1..F8: F1 (lost SX24_FM6). Parts 1..3 (2.4's settings,
+ *             the project with its FM6 bank, the bank) went with the 2.4 backup file: rc 1
  * Each read makes the part again from the state now (no buffer kept, nothing written): the editor checks that every
  * reply carries the same CRC and that it matches what it put together, else reads again (it changed meanwhile).
  * A build without the export does not answer: the editor shows no button.
@@ -46,63 +42,38 @@ static uint32_t ed_g7(const uint8_t *a, uint32_t n)      /* n 7-bit groups, low 
 }
 
 #if FELUCCA_SL24_EXPORT
-_Static_assert(sizeof proj_tmp >= SL24_SIZE && sizeof(panel_t) == 32u, "the export is made in proj_tmp; 2.4's PAN5");
-/* 2.4's bank as the export starts it, at b: its own kept in flash (sl24_guard.c), else an empty one */
-static void ed_sl24_bank(uint8_t *b)
+_Static_assert(sizeof proj_tmp >= SL24_SIZE, "the export is made in proj_tmp");
+static uint32_t ed_sl24_make(uint32_t *lost)            /* part 0 -> its length, made in proj_tmp */
 {
-#if FELUCCA_SL24_SAFE
-    uint32_t at = sl24_bank_at();
-    if (at && !st_read(at, b, SL24_BANK_LEN))
-        return;
-#endif
-    sl24_bank_empty(b);
-}
-static uint32_t ed_sl24_make(uint32_t part, uint32_t *lost)   /* -> its length, made in proj_tmp */
-{
-    uint8_t *o = (uint8_t *)&proj_tmp;
-    *lost = 0;
-    if (part != 1u) {
-        const stepx_t *x[NTRK] = {0};
-        uint32_t r = 0;
+    const stepx_t *x[NTRK] = {0};
+    uint32_t r = 0;
 #if FELUCCA_AUTO
-        uint32_t k;
-        for (k = 0; k < NTRK; k++) {                      /* (the automation as 2.4's extras: auto.h) */
-            r |= sl24_auto_out(&sl24_xs[k], AUTO_L(k));
-            x[k] = &sl24_xs[k];
-        }
-#endif
-        r |= dlfo_any_live() ? (uint32_t)SX24_DLFO : 0u;  /* (the drum lanes' LFOs: lane_play.c) */
-#if FELUCCA_AUTO
-        for (k = 0; k < NPART; k++)                       /* (a note's own end: 2.4 has the step's GATE only) */
-            r |= ngate_any(trk[k].step, k) ? (uint32_t)SX24_NGATE : 0u;
-        r |= dacc_any(trk[TRK_DRUM].step) ? (uint32_t)SX24_DACC : 0u;   /* (the ACCENT lane: 2.4 has none) */
-#endif
-        proj_capture(&autosave_buf, &autosave_dl);        /* (autosave_buf: the work, as the snapshots take it) */
-        if (part == 0u) {
-            *lost = proj_to_sl24(&autosave_buf, x, o, 0) | r;
-            return SL24_SIZE;
-        }
-        ed_sl24_bank(part == 2u ? st_buf : o);            /* (st_buf: the half not sent, made again for each read) */
-        *lost = proj_to_sl24(&autosave_buf, x, part == 2u ? o : st_buf, part == 2u ? st_buf : o) | r;
-        return part == 2u ? SL24_SIZE : SL24_BANK_LEN;
+    uint32_t k;
+    for (k = 0; k < NTRK; k++) {                          /* (the automation as SLOOP's extras: auto.h) */
+        r |= sl24_auto_out(&sl24_xs[k], AUTO_L(k));
+        x[k] = &sl24_xs[k];
     }
-#if BP23_SET
-    sl24_persist(o, settings.palette, settings.lowcut, settings.zoom, &panel, sl24_word(bp23_word(), song.g[G_SYNC]));
-#else
-    sl24_persist(o, settings.palette, settings.lowcut, settings.zoom, &panel, sl24_word(0x100u, song.g[G_SYNC]));
 #endif
-    return SL24_PERSIST;
+    r |= dlfo_any_live() ? (uint32_t)SX24_DLFO : 0u;      /* (the drum lanes' LFOs: lane_play.c) */
+#if FELUCCA_AUTO
+    for (k = 0; k < NPART; k++)                           /* (a note's own end: SLOOP has the step's GATE only) */
+        r |= ngate_any(trk[k].step, k) ? (uint32_t)SX24_NGATE : 0u;
+    r |= dacc_any(trk[TRK_DRUM].step) ? (uint32_t)SX24_DACC : 0u;   /* (the ACCENT lane: SLOOP has none) */
+#endif
+    proj_capture(&autosave_buf, &autosave_dl);            /* (autosave_buf: the work, as the snapshots take it) */
+    *lost = proj_to_sl24(&autosave_buf, x, (uint8_t *)&proj_tmp) | r;
+    return SL24_SIZE;
 }
 
 static void ed_sl24_get(const uint8_t *a, uint32_t na)
 {
     uint32_t part = na ? a[0] : 127u, off = na >= 4u ? ed_g7(a + 1, 3) : 0u, len = 0, lost = 0;
     uint32_t want2 = na == 5u && a[4] == 1u;              /* (v12: the flag; other flag bits: rc 1) */
-    uint32_t rc = (na != 4u && !want2) || part > 3u, n, crc = 0, w1, w2;
+    uint32_t rc = (na != 4u && !want2) || part != 0u, n, crc = 0, w1, w2;
     if (!rc && proj_tmp_busy())
         rc = 2;
     if (!rc) {
-        len = ed_sl24_make(part, &lost);
+        len = ed_sl24_make(&lost);
         crc = st_crc32(&proj_tmp, len);
         rc = off > len;
     }
