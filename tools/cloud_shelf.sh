@@ -24,7 +24,9 @@ fi
 done=0
 for try in 1 2 3 4 5; do
   rm -rf shelf
-  old="$(git ls-remote --heads "$url" cloud-builds | cut -f1)"
+  # (the branch named in full, refs/heads/cloud-builds: the release of the same name has a tag cloud-builds, and a bare
+  # name pushed to that tag: every push was refused as "stale info", 2026-10-19)
+  old="$(git ls-remote "$url" refs/heads/cloud-builds | cut -f1)"
   if [ -n "$old" ]; then
     git clone -q --depth 1 --branch cloud-builds "$url" shelf
   else
@@ -39,14 +41,14 @@ for try in 1 2 3 4 5; do
   fi
   n="$(python3 -c 'import json, sys; print(len(json.load(open(sys.argv[1]))["builds"]))' shelf/index.json)"
   if [ "$n" = 0 ]; then
-    if [ -z "$old" ] || git -C shelf push -q --force-with-lease="cloud-builds:$old" origin :cloud-builds; then
+    if [ -z "$old" ] || git -C shelf push -q --force-with-lease="refs/heads/cloud-builds:$old" origin :refs/heads/cloud-builds; then
       echo "no build left: the branch is gone"; done=1; break
     fi
   else
     git -C shelf checkout -q --orphan next
     git -C shelf add -A
     git -C shelf commit -q -m "Cloud builds: $n (tools/cloud_shelf.sh)"
-    if git -C shelf push -q --force-with-lease="cloud-builds:$old" origin next:cloud-builds; then
+    if git -C shelf push -q --force-with-lease="refs/heads/cloud-builds:$old" origin next:refs/heads/cloud-builds; then
       echo "cloud-builds: $n builds"; done=1; break
     fi
   fi
