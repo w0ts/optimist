@@ -163,7 +163,7 @@ static void song_pat_cell(uint32_t k, cell_t *c)        /* track k's playing pat
     if (pat_req[k] != PAT_NONE) {
         str_app(c->val, ">", sizeof c->val);
         if (pat_req[k] < PAT_N)
-            fmt_int(c->val + str_len(c->val), pat_req[k] + 1);
+            fmt_app(c->val, pat_req[k] + 1);
         else
             str_app(c->val, "-", sizeof c->val);
     }

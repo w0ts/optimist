@@ -263,7 +263,7 @@ static uint32_t effv_cell(cell_t *c)
     int32_t val, mn, mx, e;
     uint32_t r = 1;
     c->ak = GK_NONE;
-    if (c->kind != CK_VAL || !c->vp || !c->d || (ui.scr == SCR_STEP && st.held))
+    if (c->kind != CK_VAL || !c->vp || !c->d || st_holding())
         return 0;
     e = *c->vp;
     if (c->vp >= dsv && c->vp < dsv + DE_N) {           /* a drum lane value */

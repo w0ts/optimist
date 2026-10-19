@@ -429,10 +429,7 @@ static void sg_roll(const track_t *t)
         roll_label(snt, C_NOTE);                        /* (its name in the gutter, over the one drawn) */
     if (sel && !st.held && sat / 16u == st.page) {      /* the picked note's step: framed in C_NOTE (a held one: white, below) */
         int32_t x = RL_X + (int32_t)(sat % 16u) * RL_CW;
-        RR(x - 1, SG_TOP - 1 < 0 ? 0 : SG_TOP - 1, RL_CW, 1, C_NOTE);
-        RR(x - 1, ye, RL_CW, 1, C_NOTE);
-        RR(x - 1, SG_TOP, 1, ye - SG_TOP, C_NOTE);
-        RR(x + RL_CW - 2, SG_TOP, 1, ye - SG_TOP, C_NOTE);
+        cv_frame(x - 1 - sg_ox, SG_TOP - 1, RL_CW, ye - SG_TOP + 2, C_NOTE);
     }
     for (i = 0; i < (pen_n ? (uint32_t)pen_n : 1u) && i < 4u; i++) {   /* the pick (what a tapped step takes): a white
                                                          * mark at the gutter's edge on its rows (the audit's #17: no
@@ -489,19 +486,13 @@ static void sg_marks(const track_t *t)
 static uint32_t step_sig(void)                          /* all the panel shows but the playhead */
 {
     const track_t *t = TSEL;
-    const uint8_t *p = (const uint8_t *)(is_drum(t) ? (const void *)t->dstep : (const void *)t->step);
     uint32_t h = hu(hu(hu(hu(hu(13u, trk_len(t)), st.page), st.held), lane_sel * 2u + is_drum(t) + (uint32_t)st.nsel * 64u), trk_col(song.sel)), i;
-    for (i = 0; i < NSTEP * sizeof(step_t); i++)
-        h = (h ^ p[i]) * 16777619u;
+    h = hbytes(h, is_drum(t) ? (const void *)t->dstep : (const void *)t->step, NSTEP * sizeof(step_t));
 #if FELUCCA_AUTO
-    p = (const uint8_t *)AL(t);                         /* (the events' marks) */
-    for (i = 0; i < 1u + 3u * AL(t)->n; i++)
-        h = (h ^ p[i]) * 16777619u;
+    h = hbytes(h, AL(t), 1u + 3u * AL(t)->n);           /* (the events' marks) */
 #endif
 #if GEN_ON
-    p = (const uint8_t *)gen;                           /* (the generators: what plays) */
-    for (i = 0; i < sizeof gen; i++)
-        h = (h ^ p[i]) * 16777619u;
+    h = hbytes(h, gen, sizeof gen);                     /* (the generators: what plays) */
 #endif
     if (is_drum(t))
         for (i = 0; i < DRUM_UILANES; i++)

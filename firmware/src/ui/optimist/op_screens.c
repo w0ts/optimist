@@ -54,7 +54,7 @@ static void op_project_new(void)
 static void op_clear_track(uint32_t i)                  /* the REC ring and TOOLS' CLRSQ: the track's pattern (undo brings it back) */
 {
     track_t *t = &trk[i % NTRK];
-    undo_mark(t, (undo_sess += 4u) | 3u);
+    undo_level(t);
     fm1_irq_off();
     track_defaults_steps(t);
     t->nheld = 0;                                       /* and the latched arp chord */
@@ -72,7 +72,7 @@ static void op_clear_lane(uint32_t l)
 {
     track_t *t = &trk[TRK_DRUM];
     uint32_t i;
-    undo_mark(t, (undo_sess += 4u) | 3u);
+    undo_level(t);
     fm1_irq_off();
     for (i = 0; i < NSTEP; i++) {
         dstep_clr(&t->dstep[i], l);
@@ -244,7 +244,7 @@ static void val_turn(const param_desc_t *d, int16_t *vp, uint32_t k, int32_t s, 
 {
     if (!d || !vp || PARAM_HIDDEN(d) || is_go(d) || d->max == d->min)
         return;
-    *vp = (int16_t)(s == OP_RESET ? d->def : param_step(d, *vp, fine ? s : accel(EN_K1 + k, s, accel_range(d))));
+    *vp = (int16_t)(s == OP_RESET ? d->def : param_step(d, *vp, fine ? s : k_accel(k, s, d)));
 }
 static int val_toggle(const param_desc_t *d, int16_t *vp)   /* YES on an on / off value */
 {

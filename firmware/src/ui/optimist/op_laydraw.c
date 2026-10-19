@@ -23,7 +23,7 @@ static void lay_title(char *t, uint32_t n)
     else
         str_cpy(t, LAY_NAME[lay.shown % LY_COUNT], n);
     if (lay.lock != LY_PLAY)
-        str_cpy(t + str_len(t), " LOCKED", n - str_len(t));
+        str_app(t, " LOCKED", n);
 }
 /* a layer that is not the track's: its name is the header's badge (the audit's #11: "SCENES", "REPEAT", "FX") */
 static const char *lay_badge(void) { return LAY_NAME[lay.shown % LY_COUNT]; }
@@ -211,8 +211,8 @@ static void tiles_fill(tile_t *tl, char *sub, uint32_t n)
         }
         str_cpy(sub, "KEY ", n);
         str_cpy(sub + 4, N_NOTE[root], n - 4u);
-        str_cpy(sub + str_len(sub), " ", n - str_len(sub));
-        str_cpy(sub + str_len(sub), N_SCALE[clamp(trk[0].p[P_SCALE], 0, NSCALES - 1)], n - str_len(sub));
+        str_app(sub, " ", n);
+        str_app(sub, N_SCALE[clamp(trk[0].p[P_SCALE], 0, NSCALES - 1)], n);
         break;
     }
     case LY_MIX:
@@ -246,7 +246,7 @@ static void tiles_fill(tile_t *tl, char *sub, uint32_t n)
             int used = pat_has(sel, i), cur = pat_cur[sel] == i, q = pat_req[sel] == i;
             fmt_int(b, (int32_t)i + 1);
             if (cur && ((lay.pchg >> sel) & 1u))
-                str_cpy(b + str_len(b), "*", 2);
+                str_app(b, "*", sizeof b);
             tile_set(&tl[i], b, cur ? C_OK : q ? C_WARN : used ? col_shade(trk_col(sel), 4u) : OP_SURF,
                      cur || q || used ? C_BLACK : C_DIM, used ? trk_col(sel) : 0);
         }

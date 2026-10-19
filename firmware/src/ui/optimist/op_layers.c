@@ -93,7 +93,7 @@ static uint32_t lay_btn_layer(uint32_t b)               /* the layer button b ho
  * is the steps' locks and the keys stay steps); PLAY is the TEMPO page's (its keys tap the tempo: lk_q LY_MIX) */
 static void lay_bits(void)
 {
-    uint32_t l, off = ui.scr == SCR_STEP && st.held, mst = ui.master;
+    uint32_t l, off = (uint32_t)st_holding(), mst = ui.master;
     if (ly_ops_on != (uint8_t)fm6_sel())
         ly_ops_on = (uint8_t)fm6_sel();                 /* (seq.c: ENV is a layer on an FM6 track only) */
     for (l = LY_FX; l < LY_COUNT; l++) {
@@ -748,7 +748,7 @@ static int lay_knobs(void)
 /* ---- once a frame (op_input.c): the layer held, shown, its end */
 static void lay_frame(uint32_t held)
 {
-    uint32_t l, h = LY_PLAY, off = ui.scr == SCR_STEP && st.held;
+    uint32_t l, h = LY_PLAY, off = (uint32_t)st_holding();
     lay_bits();
     for (l = LY_FX; l < LY_COUNT && !off; l++)
         if (LAYER_BTN[l] < NB && (held & (1u << panel.btn[LAYER_BTN[l]])) && (l != LY_OPS || fm6_sel()) &&

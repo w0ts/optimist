@@ -330,7 +330,7 @@ static void mx_master_gr(void)
         cv_rect(MXM_GW - (int32_t)gr, 5, (int32_t)gr, MXM_GH, C_WARN);
         b[0] = '-';
         fmt_int(b + 1, (int32_t)(q4 / 4u));
-        str_cpy(b + str_len(b), " dB", sizeof b - str_len(b));
+        str_app(b, " dB", sizeof b);
         cv_texts(0, 0, b, C_WARN);
     } else if (FELUCCA_MASTER_COMP) {
         cv_texts(0, 0, "off", C_DIM);

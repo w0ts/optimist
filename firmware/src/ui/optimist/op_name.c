@@ -385,7 +385,7 @@ static void name_draw_field(void)
     {
         char n[8];
         fmt_int(n, nm.len);
-        str_cpy(n + str_len(n), "/12", 4);
+        str_app(n, "/12", sizeof n);
         cv_text(231 - text_w(&FONT_S, n), 1, &FONT_S, n, nm.len >= NM_LEN ? C_WARN : C_DIM);
     }
     for (i = 0; i < NM_LEN; i++) {

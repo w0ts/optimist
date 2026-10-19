@@ -211,10 +211,15 @@ static void msg_seen(void)
     if (ui.arm_scr != ARM_NONE && !modal_fits())
         modal_bad++;
 }
+/* FRAME_HASH=1: one FNV-1a hash of every frame drawn, printed at the end (a refactor of the drawing keeps every pixel:
+ * the same hash before and after) */
+static uint32_t frame_hash = 2166136261u, frame_n;
+static void frame_hash_print(void) { printf("frame hash %08x over %u frames\n", frame_hash, frame_n); }
 static void frame(void)                                 /* one UI frame (~16 ms): the audio, input, LEDs, draw */
 {
     uint32_t q;
     static int32_t o[CTL * 2];
+    static int hashing = -1;
     for (q = 0; q < 22u; q++)
         mix_block(o, CTL);
     ui_input();
@@ -222,6 +227,14 @@ static void frame(void)                                 /* one UI frame (~16 ms)
     ui_leds();
     ui_draw();
     fm1_ms += 16;
+    if (hashing < 0 && (hashing = getenv("FRAME_HASH") != NULL))
+        atexit(frame_hash_print);
+    if (hashing) {
+        const uint8_t *p = (const uint8_t *)screen;
+        for (q = 0; q < sizeof screen; q++)
+            frame_hash = (frame_hash ^ p[q]) * 16777619u;
+        frame_n++;
+    }
 }
 static void frames(uint32_t n) { while (n--) frame(); }
 #define HOLD_FRAMES (op_hold_ms() / 16u + 3u)            /* a button held past SYSTEM HOLD: its layer shows */
