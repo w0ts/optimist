@@ -98,13 +98,25 @@ jobs:
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
         with:
           path: site
+          retention-days: 1
 
   deploy:
     needs: site
     runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+      actions: write                       # (to delete the older site artifacts below)
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
         uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
+      - name: Keep only the newest site artifact (the older ones are deployed already; storage is billed)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/artifacts?name=github-pages&per_page=100" --jq '.artifacts | sort_by(.created_at) | reverse | .[1:] | .[].id' | while read -r id; do
+            gh api -X DELETE "repos/$GITHUB_REPOSITORY/actions/artifacts/$id"
+          done
