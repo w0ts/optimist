@@ -1058,7 +1058,7 @@ the exact note lengths) move as on the device, one undo level each, and the edit
 | op | Request args |
 |---|---|
 | 0 | - (the state) |
-| 1 | verb (0 REVERSE, 1 RANDOM, 2 COOK, 3 LENGTH), lane (0..15 or 127: the whole kit / a synth track), half (LENGTH: 1 = 1/2, 0 = x2) |
+| 1 | verb (0 REVERSE, 1 RANDOM, 2 COOK, 3 LENGTH, 4 QUANTIZE), lane (0..15 or 127: the whole kit / a synth track), half (LENGTH: 1 = 1/2, 0 = x2; QUANTIZE: the grid, 1 2 or 4 a step: the nudges to the nearest 1, 1/2, 1/4 step) |
 | 2 | k (0 HITS, 1 STEPS, 2 ROT), value: EUCLID's value, written at once while it is on |
 | 3 | lane (127: as it is): EUCLID ON, the generator writes the pattern |
 | 4 | EUCLID OFF, the generated steps kept |

@@ -7,7 +7,8 @@
  *   98 TOOLS  op [args] -> op, rc, then the state
  *       state: track, lane (the one EUCLID writes: 0..15), len, hits, steps, rot, on (the generator is on here), then op 1's message: a, b
  *       op 0  -                                 get the state
- *       op 1  verb (0 REVERSE 1 RANDOM 2 COOK 3 LENGTH), lane (127: the whole kit / a synth track), half (LENGTH: 1 = 1/2, 0 = x2)
+ *       op 1  verb (0 REVERSE 1 RANDOM 2 COOK 3 LENGTH 4 QUANTIZE), lane (127: the whole kit / a synth track), half (LENGTH: 1 = 1/2,
+ *             0 = x2; QUANTIZE: the grid, 1 2 4 a step)
  *       op 2  k (0 HITS, 1 STEPS, 2 ROT), value            EUCLID's value, written at once while it is on
  *       op 3  lane (127: keep the lane)                   EUCLID ON: the pattern is written (rc 1: another generator is on)
  *       op 4  -                                           EUCLID OFF, the generated steps kept
@@ -68,13 +69,13 @@ static int ed_tools(uint32_t cmd, const uint8_t *a, uint32_t na)
     }
     if (op == 1u) {
         int32_t lane;
-        if (na < 4u || a[1] > TL_LEN)
+        if (na < 4u || a[1] > TL_QNT)                    /* (TL_QNT, 2026-10-19: a[3] its grid, 1 2 4 a step) */
             return 0;
         lane = a[2] < DRUM_LANES && is_drum(t) ? (int32_t)a[2] : -1;
         if (ng_cur()->on)
             rc = 2u;                                    /* (the generator is on: the pattern is its, turn it off first) */
         else
-            (void)tl_run(t, a[1], lane, a[3] != 0u, &sa, &sb, b);
+            (void)tl_run(t, a[1], lane, a[1] == TL_QNT ? a[3] : a[3] != 0u, &sa, &sb, b);
     } else if (op == 2u || op == 3u) {                  /* 2 EUCLID's value; 3 EUCLID ON here (the generator layer: the pattern untouched) */
         if (op == 2u && (na < 3u || a[1] > 2u))
             return 0;

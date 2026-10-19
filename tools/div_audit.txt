@@ -284,3 +284,5 @@ src/drums/lane_play.c:denv_fix:c->dec | guarded on the same line (c->dec ? 32768
 src/bt/bt_inq_con.c:bti_clk_print:ms | guarded on the same line (ms ? ... : 0): a 1a run that has not lasted a millisecond prints 0
 src/fx/insfx/tapespit.c:__attribute__:(20+3*a) | ifx_ts_block: a is the amount, 0 .. 127 (uint8_t s->a): 20 .. 401
 src/fx/insfx/tapespit.c:__attribute__:(uint32_t)(s->env>256?s->env:256) | ifx_ts_block: at least 256 by the ternary on the same line
+src/ui/optimist/op_tools.c:tl_quantize:(int32_t)(div==2u||div==4u?div:1u) | 2, 4, or 1 by the ternary on the same line
+src/ui/optimist/op_tools.c:tl_quantize:q | q = 64 / (1, 2 or 4): 64, 32 or 16
