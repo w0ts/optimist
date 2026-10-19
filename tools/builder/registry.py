@@ -37,6 +37,8 @@ RETIRED = {
     "INS_EQ3": "the EQ3 insert is always built (retired 2026-10-18, bit 143; any old INS_EQ3 value is ignored)",
     "SLOT_AUTO": "locks and motion on an insert's own values (EQ3's bands) are always built (retired 2026-10-18, bit 351)",
     "INS_WRAP": "the WRAP insert (a wavewrapper) was dropped the day it came, 2026-10-18; its bit 344 and type id 20 stay unused",
+    "KEYS_DMA": "the key scan by SPI2's DMA failed on the FM-1, 2026-10-18 (SPI2 never reports done: no key is read, "
+                "the UI looks frozen); dropped 2026-10-19, its bit 63 stays unused; the keys are bit-banged",
     "SPLASH": "the dinghy boot logo is always built (retired 2026-10-15: no ring-only logo, no off; any old SPLASH value is ignored)",
     "IDLE": "the CPU sleeping between main-loop polls is always built (retired 2026-10)",
     "SIZE": "the UI, stores and editor are always built for size (minsize; retired 2026-10, no -Os-everywhere choice)",
@@ -705,11 +707,7 @@ _add("KNOB_ACCEL", "FELUCCA_KNOB_ACCEL", "knob acceleration by turn speed", U, 6
      desc="1 / 2 / 3 / 5 / 8 steps a detent when turned fast; never on lists (engines, kits, presets)",
      provenance=x0x("61654ba"),
      notice="Ported from X0X by Charles Vestal (GPL-3.0): knob acceleration. Tested in the emulator only.")
-_add("KEYS_DMA", "FELUCCA_KEYS_DMA", "key scan by DMA (SPI2) instead of bit-banging", U, 63, default=0,
-     desc="The keys' and LEDs' shift register gets its column word from SPI2's DMA instead of 16 bit-banged clock "
-          "edges in the 10 kHz scan interrupt: a shorter interrupt (less time in which the audio can be held off). "
-          "After M-VAVE's official FM1 Open V13 firmware. Off until checked on an FM-1.",
-     tested="emulator SPI2 model only; FAILS on the FM-1 (2026-10-18): SPI2 never reports done, no key is read (the UI looks frozen)")
+# (bit 63, KEYS_DMA, dropped 2026-10-19: failed on the FM-1, RETIRED above; never reuse the bit)
 _add("LCD_BAUD", "LCD_BAUD", "screen data speed (SPI clock)", U, 79, default=1,
      choices=((1, "30 MHz"), (4, "12 MHz (as before X0X)"), (0, "60 MHz")),
      desc="How fast data is sent to the display: 60 MHz / (n + 1). Faster redraws finish sooner (less tearing); the "
