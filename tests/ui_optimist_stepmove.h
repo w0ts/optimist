@@ -227,7 +227,7 @@ static void step_move_drum_tests(void)
     t = TSEL;
     dstep_set(&t->dstep[1], 2, LV_HARD, 1);
     dstep_set(&t->dstep[1], 3, LV_NORM, 0);
-#if FELUCCA_AUTO
+#if DLA_ON                                              /* (lane locks: with PLOCK or MOTION, drum_edit.c) */
     AL(t)->n = 0;
     (void)auto_put(AL(t), 1 | AUTO_ONLY, AUTO_LANE(2, 0), 5);
 #endif
@@ -235,7 +235,7 @@ static void step_move_drum_tests(void)
     turn(EN_ALGO, 1);
     check(dstep_has(&t->dstep[1], 1) && !dstep_has(&t->dstep[1], 2) && lane_selected() == 1, "step move, drums: ALGORITHM up: the hit one lane up (as drawn), the lane follows");
     check(dstep_lvl(&t->dstep[1], 1) == LV_HARD && dstep_rat(&t->dstep[1], 1) == 1 && dstep_has(&t->dstep[1], 3), "step move, drums: ... its level and ratchet kept, the other lanes alone");
-#if FELUCCA_AUTO
+#if DLA_ON                                              /* (lane locks: with PLOCK or MOTION, drum_edit.c) */
     {
         int32_t v;
         check(auto_get(AL(t), 1 | AUTO_ONLY, AUTO_LANE(1, 0), &v) && v == 5 && !auto_get(AL(t), 1 | AUTO_ONLY, AUTO_LANE(2, 0), &v), "step move, drums: ... its lock followed it");
@@ -248,7 +248,7 @@ static void step_move_drum_tests(void)
     turn(EN_PRESET, 1);
     check(dstep_has(&t->dstep[2], 2) && !dstep_has(&t->dstep[1], 2) && dstep_has(&t->dstep[1], 3) && st.held == 1u << 2,
           "step move, drums: PRESETS right: the lane's hit one step on, the other lanes stay");
-#if FELUCCA_AUTO
+#if DLA_ON                                              /* (lane locks: with PLOCK or MOTION, drum_edit.c) */
     {
         int32_t v;
         check(auto_get(AL(t), 2 | AUTO_ONLY, AUTO_LANE(2, 0), &v) && v == 5, "step move, drums: ... its lock too");
@@ -273,7 +273,7 @@ static void lane_clear_tests(void)
     for (i = 0; i < 4u; i++)
         dstep_set(&t->dstep[i], 2, LV_NORM, 0), dstep_set(&t->dstep[i], 3, LV_NORM, 0);
     dstep_set(&t->dstep[1], DRUM_ACC, LV_NORM, 0);
-#if FELUCCA_AUTO
+#if DLA_ON                                              /* (lane locks: with PLOCK or MOTION, drum_edit.c) */
     AL(t)->n = 0;
     (void)auto_put(AL(t), 1 | AUTO_ONLY, AUTO_LANE(2, 0), 5);
     (void)auto_put(AL(t), 1 | AUTO_ONLY, AUTO_LANE(3, 0), 6);
@@ -295,7 +295,7 @@ static void lane_clear_tests(void)
         check(gone && kept && dstep_has(&t->dstep[1], DRUM_ACC), "lane clear: only that lane's steps went; the other lanes and the accents stay");
     }
     check(!strcmp(ui.msg, "CLAP CLEARED"), "lane clear: the toast names the lane (lane 3, CLAP)");
-#if FELUCCA_AUTO
+#if DLA_ON                                              /* (lane locks: with PLOCK or MOTION, drum_edit.c) */
     {
         int32_t v;
         check(!auto_get(AL(t), 1 | AUTO_ONLY, AUTO_LANE(2, 0), &v) && !auto_get(AL(t), 2, AUTO_LANE(2, 1), &v) &&
