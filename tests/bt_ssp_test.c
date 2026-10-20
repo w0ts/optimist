@@ -274,11 +274,40 @@ static void run_initiator(void)
     }
 }
 
+/* a bonded device (its link key kept from an earlier pairing, the FM-1's settings record): no pairing; our au_rand, its
+ * SRES with the key checked, the encryption asked for; a device with another key fails (bt_acl.c then pairs afresh) */
+static void run_bonded(int wrong_key)
+{
+    const uint8_t own[6] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66}, peer[6] = {0x24, 0xed, 0x1f, 0x0a, 0x80, 0xac};
+    uint8_t lk[16], lk_dev[16];
+    uint32_t i;
+    na_ = nb_ = ra_ = rb_ = 0;
+    rng(lk, 16);
+    memcpy(lk_dev, lk, 16);
+    if (wrong_key)
+        lk_dev[3] ^= 0x40u;
+    btp_begin(&ia, own, peer, rng, to_b, 0);
+    btp_bond(&ia, lk);
+    btp_begin(&rb, peer, own, rng, to_a, 0);           /* (the device: its kept key, as after a pairing) */
+    for (i = 0; i < 16u; i++)
+        rb.lk[i] = lk_dev[i];
+    rb.st = BTP_PAIRED;
+    btp_auth(&ia);
+    pump();
+    if (wrong_key)
+        check("bonded, the device with another key: its SRES refused, failed", ia.st == BTP_FAILED);
+    else
+        check("bonded: no pairing, our au_rand, its SRES with the kept key checked: the encryption asked for",
+              ia.st == BTP_MODEREQ && last_a_op == BTL_ENCRYPTION_MODE_REQ && !memcmp(ia.aco, rb.aco, 12));
+}
+
 int main(void)
 {
     run(0);
     run(1);
     run_initiator();
+    run_bonded(0);
+    run_bonded(1);
     printf("bt_ssp: %d failed\n", fails);
     return fails != 0;
 }

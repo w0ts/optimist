@@ -230,9 +230,12 @@ static void bt_forget(void)                             /* SAVE held */
     bt_last_name(nm);
     bt_stop();
 #if FELUCCA_BT_AUDIO
-    if (bt_audio())
+    if (bt_audio()) {
         bta.have_last = 0;
-    else
+        bta.bonded = 0;                                 /* (its key goes too) */
+        memset(bta.lk, 0, sizeof bta.lk);
+        bta.key_new = 1;
+    } else
 #endif
     {
 #if BLE_CENTRAL
@@ -270,6 +273,11 @@ static void bt_enter(uint32_t m)
 static void bt_poll(void)
 {
 #if FELUCCA_BT_AUDIO
+    if (bta.key_new) {                                  /* (our address made, a device bonded or forgotten: kept) */
+        bta.key_new = 0;
+        sys_dirty = 1;
+        settings_later = 1;
+    }
     if (bt_audio()) {                                   /* (the link ended by itself: where it had got to) */
         const char *w = bta_lost();
         if (w) {
@@ -380,6 +388,30 @@ static void bt_rec_in(const uint8_t r[BT_REC_SIZE])
     str_cpy(bta.last_name, (const char *)r + 12, sizeof bta.last_name);
 #endif
 }
+
+#if FELUCCA_BT_AUDIO
+/* the key record's bytes (storage/persist_rec.c bt_key): the mark, our address, the bond */
+#define BT_KEY_MARK 0x314B5442u                         /* "BTK1" */
+static void bt_key_out(uint8_t r[32])
+{
+    uint32_t mk = BT_KEY_MARK;
+    memset(r, 0, 32);
+    memcpy(r, &mk, 4);
+    r[4] = bta.own_set, r[5] = bta.bonded;
+    memcpy(r + 6, bta.own, 6);
+    memcpy(r + 12, bta.lk, 16);
+}
+static void bt_key_in(const uint8_t r[32])
+{
+    uint32_t mk;
+    memcpy(&mk, r, 4);
+    if (mk != BT_KEY_MARK)
+        return;
+    bta.own_set = (uint8_t)(r[4] == 1u), bta.bonded = (uint8_t)(r[5] == 1u);
+    memcpy(bta.own, r + 6, 6);
+    memcpy(bta.lk, r + 12, 16);
+}
+#endif
 
 /* the devices list's status line (op_project.c dev_draw): MIDI ble_devices.c's; AUDIO the scan's */
 static uint32_t bt_list_line(char *b, uint32_t room)

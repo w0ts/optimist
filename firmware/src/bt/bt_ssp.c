@@ -27,6 +27,7 @@ enum { BTP_IDLE, BTP_IOCAP, BTP_PK_RX, BTP_PK_TX, BTP_CONFIRM, BTP_NUMBER, BTP_D
 struct btp {
     uint8_t st, tid, pk_rx, pk_tx, reason;
     uint8_t init;                                       /* 1: we started it (btp_start): A is us, B the device */
+    uint8_t bonded;                                     /* 1: the link key is a bond's, kept from an earlier pairing */
     uint8_t own_addr[6], peer_addr[6];                  /* air order */
     uint8_t priv[24], pub[48], peer_pub[48], dhkey[24]; /* spec order */
     uint8_t na[16], nb[16];                             /* the initiator's and the responder's nonce, spec order */
@@ -226,6 +227,23 @@ static void btp_begin(struct btp *p, const uint8_t own[6], const uint8_t peer[6]
     for (i = 0; i < 6u; i++)
         p->own_addr[i] = own[i], p->peer_addr[i] = peer[i];
     p->rng = rng, p->send = send, p->ctx = ctx;
+}
+/* a device we are bonded with: its link key, the pairing skipped; btp_auth then authenticates it (our au_rand, its SRES
+ * with the key), and the encryption follows as after a pairing */
+static void btp_bond(struct btp *p, const uint8_t lk[16])
+{
+    uint32_t i;
+    for (i = 0; i < 16u; i++)
+        p->lk[i] = lk[i];
+    p->init = 1, p->bonded = 1;
+    p->st = BTP_PAIRED;
+}
+static void btp_auth(struct btp *p)
+{
+    p->tid = 0;
+    (void)p->rng(p->au, 16);
+    btp_put(p, BTL_AU_RAND, p->au, 16);
+    p->st = BTP_AUTHING;
 }
 static void btp_start(struct btp *p)                    /* we start the pairing (the master: TID 0) */
 {
