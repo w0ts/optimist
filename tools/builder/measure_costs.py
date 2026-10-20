@@ -136,8 +136,8 @@ PAIR_WITH = {"REV_ROOM=0,REV_HALF=1": {"REV_PLATE": 1}, "MICRO=1,FILLS=1": {"SL2
 # (so those are measured first)
 WITH = {("REV_ROOM", 0): {"REV_PLATE": 1},
         ("MICRO", 1): {"SL24_XSTEP": 1}, ("FILLS", 1): {"SL24_XSTEP": 1}, ("PLOCK", 1): {"SL24_XSTEP": 1}}   # (their storage)   # (the Optimist UI's: nothing without it)
-# an item the firmware switches off without the automation store (configure.py NEEDS_AUTO: DRUM_ACCENT, 0 B on the
-# defaults, +148 B of flash with the store): measured with MOTION on, and counted only where the store is built
+# an item the firmware switches off without the automation store (configure.py NEEDS_AUTO; DRUM_ACCENT was one, 0 B on
+# the defaults, +148 B of flash with the store, until it was retired 2026-10-20): measured with MOTION on, and counted only where the store is built
 for _k in C.NEEDS_AUTO:
     for _v in ([c[0] for c in R.ITEMS[_k].choices] if R.ITEMS[_k].is_choice else [0, 1]):
         if _v != R.ITEMS[_k].default:

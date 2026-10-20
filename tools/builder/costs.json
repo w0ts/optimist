@@ -1328,14 +1328,6 @@
     "ramtext": 40
    }
   },
-  "DRUM_ACCENT": {
-   "0": {
-    "flash": -812,
-    "ram": 0,
-    "pool": 0,
-    "ramtext": 0
-   }
-  },
   "REV_ROOM": {
    "0": {
     "flash": -3936,
