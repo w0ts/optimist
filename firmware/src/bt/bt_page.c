@@ -219,6 +219,7 @@ static void bp_page_rx(void)                       /* BR §8.3 "On IRQ 40 RX" (t
         bp_conn_enter();
 }
 
+static void bp_tx_media(struct fm1_br_frame *f);
 static void bp_conn_rx(void)                       /* a packet in the connection: both buffers, the filled first */
 {
     struct fm1_br_frame *f = fm1_br_frame(bti_tab, 0);
@@ -259,6 +260,7 @@ static void bp_conn_rx(void)                       /* a packet in the connection
             bp.last_good_ms = fm1_ms;
         }
     }
+    bp_tx_media(f);                                /* (the stream's next packets at once, not at the main loop's pace) */
 }
 
 static void bp_rx(void)                            /* IRQ 40 RX in the page or connection modes */
@@ -309,21 +311,19 @@ static void bp_queue(const uint8_t *pdu, uint32_t len, const char *why)
     con_puts("\r\n");
 }
 
-static void bp_tx_service(void)                    /* the main loop: a PDU into an empty TX buffer (BR §5.5): the LMP /
-                                                    * L2CAP queue first, else an audio packet */
+/* an audio packet into every empty TX buffer (BR §5.5), DH5 / DH3 / DH1 by its length: IRQ 40 itself (bp_conn_rx, each
+ * reception: the stream needs 172 DH5 a second and the main loop runs ~65 times, measured 2026-10-20 on the WH-1000XM4:
+ * audio_sent 2,008, dropped 3,527 in 30 s), or the main loop with IRQ 40 held. Never ahead of the LMP / L2CAP queue */
+static void bp_tx_media(struct fm1_br_frame *f)
 {
-    struct fm1_br_frame *f = fm1_br_frame(bti_tab, 0);
-    uint32_t i, k, n;
-    if (bti.mode != BTI_M_CONN)
-        return;
-    if (bp.txr == bp.txw) {
-        if (bp_mq.r == bp_mq.w)
-            return;
-        fm1_br_irqs_hold(1);
+    uint32_t i, k, n, pass;
+    for (pass = 0; pass < 2u && bp_mq.r != bp_mq.w && bp.txr == bp.txw; pass++) {
         i = f->txtog & 1u;
         if (!(f->txbufcntl[i] & 1u))
             i ^= 1u;
-        if (f->txbufcntl[i] & 1u) {
+        if (!(f->txbufcntl[i] & 1u))
+            return;                                /* (both buffers full: the engine has two to send) */
+        {
             uint32_t q = bp_mq.r % BP_MQ, t;
             n = bp_mq.n[q];
             for (k = 0; k < n; k++)
@@ -336,6 +336,20 @@ static void bp_tx_service(void)                    /* the main loop: a PDU into 
             bp_mq.r++;
             bp.mq_sent++;
         }
+    }
+}
+static void bp_tx_service(void)                    /* the main loop: a PDU into an empty TX buffer (BR §5.5): the LMP /
+                                                    * L2CAP queue first, else an audio packet */
+{
+    struct fm1_br_frame *f = fm1_br_frame(bti_tab, 0);
+    uint32_t i, k, n;
+    if (bti.mode != BTI_M_CONN)
+        return;
+    if (bp.txr == bp.txw) {
+        if (bp_mq.r == bp_mq.w)
+            return;
+        fm1_br_irqs_hold(1);
+        bp_tx_media(f);
         fm1_br_irqs_hold(0);
         return;
     }
