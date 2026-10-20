@@ -38,14 +38,20 @@ static void bta_named(const uint8_t a[6], const char *nm)   /* its EIR's name (b
     if (i >= 0)
         str_cpy(bta.d[i].name, nm, sizeof bta.d[i].name);
 }
+/* the furthest step of the link while it was up (bta_state), said when it ends by itself (bta_lost: the user,
+ * 2026-10-20, "remained in connecting for a while and then disconnected. No error") */
+enum { BTA_W_NONE, BTA_W_LINK, BTA_W_PAIR, BTA_W_ENC, BTA_W_AUDIO, BTA_W_STREAM };
+static uint8_t bta_seen;
 static void bta_stop(void)
 {
+    bta_seen = BTA_W_NONE;
     if (bti_busy())
         bti_run_stop();
     bta.mode = BTA_OFF;
 }
 static void bta_hangup(void)                            /* the link (or the page) ends, the mode stays: SAVE connects again */
 {
+    bta_seen = BTA_W_NONE;                              /* (let go: nothing to say) */
     if (bti_busy())
         bti_run_stop();
     bta.tried = 0;
@@ -92,8 +98,15 @@ static uint32_t bta_state(void)
     if (bti.mode == BTI_M_INQ && bti_st.phase == BTI_INQ_RUN)
         return BTA_S_SCANNING;
     if (bti.mode == BTI_M_CONN && bti_st.phase == BTI_INQ_RUN)
+    {
+        uint32_t w = ba.stage == BA_AV_READY ? BTA_W_STREAM : bp_ssp.st == BTP_ENCRYPTED ? BTA_W_AUDIO
+                   : bp_ssp.st >= BTP_MODEREQ && bp_ssp.st != BTP_FAILED ? BTA_W_ENC
+                   : bp_ssp.st != BTP_IDLE ? BTA_W_PAIR : BTA_W_LINK;
+        if (w > bta_seen || ba.stage == BA_FAILED)
+            bta_seen = ba.stage == BA_FAILED ? BTA_W_NONE : (uint8_t)w;   /* (refused: REFUSED says it) */
         return ba.stage == BA_AV_READY ? BTA_S_STREAMING : ba.stage == BA_FAILED ? BTA_S_REFUSED
              : ba.stage >= BA_AV_SIG ? BTA_S_SETUP : BTA_S_LINKED;
+    }
     if (bti.mode == BTI_M_PAGE && bti_st.phase == BTI_INQ_RUN)
         return BTA_S_PAGING;
     if (bta.mode == BTA_AUTO)
@@ -101,6 +114,16 @@ static uint32_t bta_state(void)
     if (bta.tried)
         return BTA_S_FAILED;                            /* (paged, no answer; or the link closed) */
     return bta.n ? BTA_S_FOUND : BTA_S_NONE;
+}
+static const char *bta_lost(void)                       /* the link ended by itself: where it had got to, once; else 0 */
+{
+    static const char *const W[] = {0, "LOST AFTER CONNECTING", "LOST WHILE PAIRING", "LOST AT ENCRYPTION",
+                                    "LOST IN AUDIO SETUP", "LOST WHILE STREAMING"};
+    uint32_t w = bta_seen;
+    if (!w || (bta_state() >= BTA_S_PAGING && bta_state() <= BTA_S_STREAMING))
+        return 0;                                       /* (nothing seen, or still up) */
+    bta_seen = BTA_W_NONE;
+    return W[w % 6u];
 }
 static const char *bta_dev_name(uint32_t i)             /* found device i as shown: its name, else its address's last bytes */
 {
