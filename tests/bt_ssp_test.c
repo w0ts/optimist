@@ -152,7 +152,10 @@ static void run(int bad_check)
     check("Na accepted, our Nb sent; our commitment checks: Cb = f1(PKbx, PKax, Nb, 0)", ok && !memcmp(cb, cb_ok, 16));
     /* 5. the DHKey checks: Ea = f3(DHKey, Na, Nb, 0, IOcapA, A, B) to us, then our Eb = f3(DHKey, Nb, Na, 0, IOcapB, B, A) */
     rev(a1, peer, 6), rev(a2, own, 6);
-    bts_ssp_f3(dhkey, na, nb, r0, iocap_a, a1, a2, e);
+    {   /* (f3 takes IOcap in the spec's order: AuthReq, OOB, IO capability; the PDU carries it reversed) */
+        uint8_t io[3] = {iocap_a[2], iocap_a[1], iocap_a[0]};
+        bts_ssp_f3(dhkey, na, nb, r0, io, a1, a2, e);
+    }
     if (bad_check)
         e[5] ^= 1u;
     rev(e_air, e, 16);
@@ -170,7 +173,8 @@ static void run(int bad_check)
     if (p) {
         uint8_t eb[16];
         rev(eb, p, 16);
-        bts_ssp_f3(dhkey, nb, na, r0, iocap_b, a2, a1, e);
+        uint8_t io[3] = {iocap_b[2], iocap_b[1], iocap_b[0]};
+        bts_ssp_f3(dhkey, nb, na, r0, io, a2, a1, e);
         ok &= !memcmp(eb, e, 16);
     }
     check("its DHKey check accepted, ours sent and right: Eb = f3(DHKey, Nb, Na, 0, IOcapB, B, A)", ok);
