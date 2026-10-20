@@ -9,6 +9,10 @@
 #define BP_OFF_FHS 4252u                           /* our FHS for the page (18 B) */
 #define BP_OFF_TX0 4272u                           /* the two LMP TX payloads (17 B each) */
 #define BP_OFF_TX1 4292u
+#define BP_OFF_TXB0 4480u                          /* the two DH5 TX payloads (339 B each, after the table: BTI_TAB_ALLOC) */
+#define BP_OFF_TXB1 (4480u + 344u)
+#define BP_TXB 339u                                /* a DH5 payload (BR §5.5) */
+#define BP_MQ 4u                                   /* the audio packets queued (~23 ms of the stream) */
 #define BP_OFF_RX0 1088u                           /* the connection's two RX buffers: the table's link_rx_bulk (BR §3) */
 #define BP_OFF_RX1 (1088u + 680u)
 #define BP_LT_ADDR 1u
@@ -23,7 +27,30 @@ static struct {
     uint32_t type_n[16];
     uint8_t txq[BP_TXQ][BTL_MAX], txl[BP_TXQ], txllid[BP_TXQ];
     uint32_t txw, txr, stop_ms;
+    uint8_t slots5;                                /* LMP_max_slot_req 5: 0 not asked, 1 asked, 2 granted, 3 refused */
+    uint32_t mq_drop, mq_sent;                     /* audio packets dropped (the queue full), sent */
 } bp;
+/* the audio packets (bt_acl.c ba_media_send, from the audio interrupt): whole L2CAP frames, each one DH5 (or DH3 / DH1
+ * when shorter), never cut; the main loop's bp_tx_service sends them after the LMP and L2CAP signalling */
+static struct {
+    uint8_t d[BP_MQ][BP_TXB];
+    uint16_t n[BP_MQ];
+    volatile uint32_t w, r;
+} bp_mq IN_POOL;
+static int bp_media_queue(const uint8_t *frame, uint32_t len)   /* 1 queued; 0 dropped whole (full, too long, no 5 slots) */
+{
+    uint32_t i, k;
+    if (bp.slots5 != 2u || len > BP_TXB || bp_mq.w - bp_mq.r >= BP_MQ) {
+        bp.mq_drop++;
+        return 0;
+    }
+    k = bp_mq.w % BP_MQ;
+    for (i = 0; i < len; i++)
+        bp_mq.d[k][i] = frame[i];
+    bp_mq.n[k] = (uint16_t)len;
+    bp_mq.w++;
+    return 1;
+}
 #if FELUCCA_BT_AUDIO
 /* pairing and encryption on the link (bt_ssp.c, SSP Just Works, the device starts it): a fresh state each connection, its
  * PDUs through bp_queue; the randomness for the key and the nonces from the link's own noise (bp_noise: each reception's
@@ -281,12 +308,36 @@ static void bp_queue(const uint8_t *pdu, uint32_t len, const char *why)
     con_puts("\r\n");
 }
 
-static void bp_tx_service(void)                    /* the main loop: one LMP PDU into an empty TX buffer (BR §5.5) */
+static void bp_tx_service(void)                    /* the main loop: a PDU into an empty TX buffer (BR §5.5): the LMP /
+                                                    * L2CAP queue first, else an audio packet */
 {
     struct fm1_br_frame *f = fm1_br_frame(bti_tab, 0);
     uint32_t i, k, n;
-    if (bti.mode != BTI_M_CONN || bp.txr == bp.txw)
+    if (bti.mode != BTI_M_CONN)
         return;
+    if (bp.txr == bp.txw) {
+        if (bp_mq.r == bp_mq.w)
+            return;
+        fm1_br_irqs_hold(1);
+        i = f->txtog & 1u;
+        if (!(f->txbufcntl[i] & 1u))
+            i ^= 1u;
+        if (f->txbufcntl[i] & 1u) {
+            uint32_t q = bp_mq.r % BP_MQ, t;
+            n = bp_mq.n[q];
+            for (k = 0; k < n; k++)
+                bti_tab[(i ? BP_OFF_TXB1 : BP_OFF_TXB0) + k] = bp_mq.d[q][k];
+            t = n > 183u ? 15u : n > 27u ? 11u : 4u;   /* DH5, DH3, DH1 (BR §5.2) */
+            f->txptr[i] = (uint16_t)(i ? BP_OFF_TXB1 : BP_OFF_TXB0);
+            f->txphdr[i] = (uint16_t)(n << 3 | 1u << 2 | 2u);   /* LLID 2: an L2CAP start, whole; FLOW 1 */
+            f->linkcntl[i] = (uint16_t)((f->linkcntl[i] & 0x80B0u) | t | 0x4000u);
+            f->txbufcntl[i] &= (uint8_t)~1u;
+            bp_mq.r++;
+            bp.mq_sent++;
+        }
+        fm1_br_irqs_hold(0);
+        return;
+    }
     fm1_br_irqs_hold(1);
     i = f->txtog & 1u;
     if (!(f->txbufcntl[i] & 1u))
@@ -349,6 +400,11 @@ static void bp_lmp_in(const struct bti_rx *r)
         con_puts(" reason 0x");
         con_hex(r->data[2], 2);
         con_puts("\r\n");
+        if (r->data[1] == BTL_MAX_SLOT_REQ && bp.slots5 == 1u)
+            bp.slots5 = 3;                         /* (no 5 slots: the audio cannot go, ba says so) */
+    } else if (op == BTL_ACCEPTED && r->len > 1u && r->data[1] == BTL_MAX_SLOT_REQ && bp.slots5 == 1u) {
+        bp.slots5 = 2;
+        con_puts("btpage: 5-slot packets granted: the audio in DH5\r\n");
     } else if (op == BTL_SETUP_COMPLETE) {
         bp.setup_in = 1;
         con_puts("btpage: the device sent setup_complete");
@@ -375,6 +431,12 @@ static void bp_lmp_in(const struct bti_rx *r)
     n = btl_answer(r->data, r->len, "OPTIMIST BT", out);
     if (n)
         bp_queue(out, n, "answer");
+    if (bp.setup_in && bp.setup_out && !bp.slots5) {   /* the link set up: 5-slot packets for the audio (Part C 4.1.10) */
+        out[0] = (uint8_t)(BTL_MAX_SLOT_REQ << 1 | 0u);
+        out[1] = 5;
+        bp.slots5 = 1;
+        bp_queue(out, 2, "5-slot packets for the audio");
+    }
 }
 
 #include "bt_acl.c"                                /* stage 3: L2CAP and SDP over the link */
@@ -438,6 +500,10 @@ static void bp_print_sec(void)
         bti_kv(" out=", bp.lmp_out);
         bti_kv(" q=", bp.txw - bp.txr);
         bti_kv(" last_good_ms=", fm1_ms - bp.last_good_ms);
+        if (bp.mq_sent || bp.mq_drop) {
+            bti_kv(" audio_sent=", bp.mq_sent);                /* (DH5 packets of the stream; dropped whole: the queue full) */
+            bti_kv(" audio_drop=", bp.mq_drop);
+        }
         con_puts(" types{");
         for (i = 0; i < 16u; i++)
             if (bp.type_n[i]) {
@@ -524,6 +590,9 @@ static int bp_start(const uint8_t addr[6], uint32_t slots)
     f->rxptr[1] = FM1_BR_OFF_FHS;
     bp.page_ids = bp.fhs_acked = bp.good = bp.bad = bp.nobuf = bp.acl = bp.lmp_in = bp.lmp_out = 0;
     bp.setup_out = bp.setup_in = bp.stopping = 0;
+    bp.slots5 = 0;
+    bp.mq_drop = bp.mq_sent = 0;
+    bp_mq.r = bp_mq.w;                             /* (a new link: no audio queued) */
     ba_reset();
     bp.txw = bp.txr = 0;
     for (i = 0; i < 16u; i++)

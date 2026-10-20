@@ -271,12 +271,15 @@ static int16_t ba_pcm_acc[BT_SBC_SAMPLES_PER_FRAME * 2];
 static uint32_t ba_pcm_cnt;
 static uint8_t ba_sbc_init_done;
 
-static void ba_media_send(const uint8_t *sbc_frame, uint32_t sbc_len)
+#define BA_MFRAMES 2u                              /* SBC frames a packet: 2 x 119 B + 17 B of headers in one DH5 (339 B) */
+static uint8_t ba_mbuf[BA_MFRAMES * 128u];
+static uint32_t ba_mlen, ba_mn;
+static void ba_media_send(const uint8_t *sbc_frame, uint32_t sbc_len, uint32_t frames)   /* one L2CAP frame, whole */
 {
-    uint8_t pkt[4 + 12 + 1 + 128];
+    uint8_t pkt[4 + 12 + 1 + BA_MFRAMES * 128u];
     uint32_t payload_len = 12u + 1u + sbc_len;
     uint32_t i;
-    if (ba.stage != BA_AV_READY || !ba.ch[BA_CH_MEDIA].dcid || sbc_len > 128u)
+    if (ba.stage != BA_AV_READY || !ba.ch[BA_CH_MEDIA].dcid || sbc_len > BA_MFRAMES * 128u)
         return;
     pkt[0] = (uint8_t)(payload_len & 0xFFu);
     pkt[1] = (uint8_t)(payload_len >> 8);
@@ -291,15 +294,15 @@ static void ba_media_send(const uint8_t *sbc_frame, uint32_t sbc_len)
     pkt[9] = (uint8_t)((ba_rtp_ts >> 16) & 0xFFu);
     pkt[10] = (uint8_t)((ba_rtp_ts >> 8) & 0xFFu);
     pkt[11] = (uint8_t)(ba_rtp_ts & 0xFFu);
-    ba_rtp_ts += 128u;
+    ba_rtp_ts += 128u * frames;
     pkt[12] = 0x01u;
     pkt[13] = 0x02u;
     pkt[14] = 0x03u;
     pkt[15] = 0x04u;
-    pkt[16] = 0x01u;
+    pkt[16] = (uint8_t)frames;                     /* (the media payload header: the frames in the packet) */
     for (i = 0; i < sbc_len; i++)
         pkt[17 + i] = sbc_frame[i];
-    ba_send(pkt, 4u + payload_len);
+    (void)bp_media_queue(pkt, 4u + payload_len);   /* (whole, one DH5; full: dropped whole, never cut) */
 }
 
 int bt_audio_feed(const int32_t *q15_pcm, uint32_t n)   /* 1: it streams (audio.c mutes the FM-1's own output) */
@@ -323,8 +326,14 @@ int bt_audio_feed(const int32_t *q15_pcm, uint32_t n)   /* 1: it streams (audio.
         ba_pcm_cnt++;
         if (ba_pcm_cnt >= BT_SBC_SAMPLES_PER_FRAME) {
             uint8_t frame[128];
-            uint32_t slen = bt_sbc_encode(&ba_sbc, ba_pcm_acc, frame);
-            ba_media_send(frame, slen);
+            uint32_t slen = bt_sbc_encode(&ba_sbc, ba_pcm_acc, frame), k;
+            for (k = 0; k < slen && ba_mlen + k < sizeof ba_mbuf; k++)
+                ba_mbuf[ba_mlen + k] = frame[k];
+            ba_mlen += k;
+            if (++ba_mn == BA_MFRAMES) {
+                ba_media_send(ba_mbuf, ba_mlen, ba_mn);
+                ba_mlen = ba_mn = 0;
+            }
             ba_pcm_cnt = 0;
         }
     }
