@@ -535,8 +535,8 @@ static uint32_t page_rows(int (*want)(const page_t *), uint8_t *ix)
     return n;
 }
 
-/* the limited insert types' instances (fxi.c, main loop) on a slot's TYPE cell, track k's slot s: the free count beside
- * the name ("CHRS 2/4": free of available: built plus lent), and a slot with none left drawn dim as "S1 AMT" over the name CHRS struck through (bypassed; the same look while
+/* the limited insert types' instances (fxi.c, main loop) on a slot's TYPE cell, track k's slot s: the free count before
+ * the name ("2/4 CHRS": free of available: built plus lent), and a slot with none left drawn dim as "S1 AMT" over the name CHRS struck through (bypassed; the same look while
  * the same pass the type is picked, FXI_WAIT with fxi_can 0, before the main loop marks it FULL), "WAIT" while the
  * next pass hands one out (a pass: not seen). A type on every track (cap FXI_ANY) or not limited: unchanged */
 #if INS_LIM
@@ -549,15 +549,17 @@ static uint32_t page_rows(int (*want)(const page_t *), uint8_t *ix)
 /* owner o's (fxi.c: a track, FXI_MST, FXI_UT) slot s holding type t, its state st */
 static void cell_lim_note(cell_t *c, uint32_t o, uint32_t t, uint32_t s, uint32_t st)
 {
-    static char lab[2][8], un[2][4];
+    static char lab[2][8];
     uint32_t cap = fxi_cap(t), a = t < FXT_N ? FXT_AMT[t] : 0xFFu;
     const char *v = 0;
     if (a == 0xFFu || cap == 0u || cap == FXI_ANY || st == FXI_NA)
         return;
     c->hlp = t == FXT_CHRS ? "CHRS" : t == FXT_JUNO ? "JUNO" : t == FXT_FLNG ? "FLNG" : "ECHO";
     if (st == FXI_OK) {
-        un[s & 1u][0] = (char)('0' + fxi_free(t)), un[s & 1u][1] = '/', un[s & 1u][2] = (char)('0' + cap), un[s & 1u][3] = 0;
-        c->unit = un[s & 1u];
+        char nm[sizeof c->val];                         /* (the count before the name: "2/4 CHRS") */
+        str_cpy(nm, c->val, sizeof nm);
+        c->val[0] = (char)('0' + fxi_free(t)), c->val[1] = '/', c->val[2] = (char)('0' + cap), c->val[3] = ' ';
+        str_cpy(c->val + 4, nm, sizeof c->val - 4u);
         return;
     }
     if (st == FXI_WAIT && fxi_can(o, t))

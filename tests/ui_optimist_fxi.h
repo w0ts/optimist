@@ -40,7 +40,7 @@ static void fxu_fresh(void)
 static void fxu_count(uint32_t t, uint32_t n, const char *nm)
 {
     cell_t c;
-    char want[8], why[80];
+    char want[8], why[80], full[24];
     uint32_t k;
     fxu_fresh();
     ins_load(0, 0, t);
@@ -49,8 +49,9 @@ static void fxu_count(uint32_t t, uint32_t n, const char *nm)
     fxi_poll();
     fxu_cell(0, 0, &c);
     snprintf(want, sizeof want, "%u/%u", n - 1u, n);
-    snprintf(why, sizeof why, "%s: the free count %s beside the name (was '%s' '%s')", nm, want, c.val, c.unit);
-    check(fxi_state(0, 0) == FXI_OK && !strcmp(c.val, nm) && !strcmp(c.unit, want) && !c.dim && !strcmp(c.label, "S1"), why);
+    snprintf(why, sizeof why, "%s: the free count %s before the name (was '%s' '%s')", nm, want, c.val, c.unit);
+    snprintf(full, sizeof full, "%s %s", want, nm);
+    check(fxi_state(0, 0) == FXI_OK && !strcmp(c.val, full) && !c.unit[0] && !c.dim && !strcmp(c.label, "S1"), why);
     for (k = 1; k < NTRK && k < n; k++) {
         ins_load(k, 0, t);
         fxi_poll();
@@ -58,7 +59,8 @@ static void fxu_count(uint32_t t, uint32_t n, const char *nm)
     fxu_cell(0, 0, &c);
     snprintf(want, sizeof want, "%u/%u", n < NTRK ? 0u : n - NTRK, n);
     snprintf(why, sizeof why, "%s: every instance out: %s", nm, want);
-    check(!strcmp(c.unit, want) && fxi_free(t) == (n < NTRK ? 0u : n - NTRK), why);
+    snprintf(full, sizeof full, "%s %s", want, nm);
+    check(!strcmp(c.val, full) && fxi_free(t) == (n < NTRK ? 0u : n - NTRK), why);
     if (n < NTRK) {
         ins_load(n, 1, t);                              /* (one more track than instances) */
         check(!fxi_can(n, t), "none free: fxi_can 0");
@@ -77,7 +79,7 @@ static void fxu_count(uint32_t t, uint32_t n, const char *nm)
             snprintf(shot, sizeof shot, "opt-fxi-full-%s", nm), ppm(shot);
         }
         fxu_cell(0, 0, &c);
-        check(fxi_state(0, 0) == FXI_OK && !c.dim && !strcmp(c.val, nm), "... the track holding one is untouched");
+        check(fxi_state(0, 0) == FXI_OK && !c.dim && strstr(c.val, nm), "... the track holding one is untouched");
         {   /* the mixer's insert set shows it too */
             uint32_t r = MXR_T1 + n, sset, kk, seen = 0;
             mitem_t m;
