@@ -330,7 +330,7 @@ int bt_audio_feed(const int32_t *q15_pcm, uint32_t n)   /* 1: it streams (audio.
             for (k = 0; k < slen && ba_mlen + k < sizeof ba_mbuf; k++)
                 ba_mbuf[ba_mlen + k] = frame[k];
             ba_mlen += k;
-            if (++ba_mn == BA_MFRAMES) {
+            if (++ba_mn == (bp.slots5 == 2u ? BA_MFRAMES : 1u)) {   /* (DH5: two frames; DH3: one) */
                 ba_media_send(ba_mbuf, ba_mlen, ba_mn);
                 ba_mlen = ba_mn = 0;
             }

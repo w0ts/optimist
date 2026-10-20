@@ -27,7 +27,8 @@ static struct {
     uint32_t type_n[16];
     uint8_t txq[BP_TXQ][BTL_MAX], txl[BP_TXQ], txllid[BP_TXQ];
     uint32_t txw, txr, stop_ms;
-    uint8_t slots5;                                /* LMP_max_slot_req 5: 0 not asked, 1 asked, 2 granted, 3 refused */
+    uint8_t slots5;                                /* the multi-slot request: 0 not asked, 1 asked for 5, 2 granted 5, 3
+                                                    * asked for 3 (5 refused), 4 granted 3, 5 refused both */
     uint32_t mq_drop, mq_sent;                     /* audio packets dropped (the queue full), sent */
 } bp;
 /* the audio packets (bt_acl.c ba_media_send, from the audio interrupt): whole L2CAP frames, each one DH5 (or DH3 / DH1
@@ -40,7 +41,7 @@ static struct {
 static int bp_media_queue(const uint8_t *frame, uint32_t len)   /* 1 queued; 0 dropped whole (full, too long, no 5 slots) */
 {
     uint32_t i, k;
-    if (bp.slots5 != 2u || len > BP_TXB || bp_mq.w - bp_mq.r >= BP_MQ) {
+    if ((bp.slots5 != 2u && bp.slots5 != 4u) || len > (bp.slots5 == 2u ? BP_TXB : 183u) || bp_mq.w - bp_mq.r >= BP_MQ) {
         bp.mq_drop++;
         return 0;
     }
@@ -400,11 +401,20 @@ static void bp_lmp_in(const struct bti_rx *r)
         con_puts(" reason 0x");
         con_hex(r->data[2], 2);
         con_puts("\r\n");
-        if (r->data[1] == BTL_MAX_SLOT_REQ && bp.slots5 == 1u)
-            bp.slots5 = 3;                         /* (no 5 slots: the audio cannot go, ba says so) */
-    } else if (op == BTL_ACCEPTED && r->len > 1u && r->data[1] == BTL_MAX_SLOT_REQ && bp.slots5 == 1u) {
-        bp.slots5 = 2;
-        con_puts("btpage: 5-slot packets granted: the audio in DH5\r\n");
+        if (r->data[1] == BTL_MAX_SLOT_REQ && bp.slots5 == 1u) {   /* (5 refused: 3; a Raspberry Pi refused 5 with 0x34,
+                                                    * Reserved Slot Violation, 2026-10-20) */
+            out[0] = (uint8_t)(BTL_MAX_SLOT_REQ << 1 | 0u);
+            out[1] = 3;
+            bp.slots5 = 3;
+            bp_queue(out, 2, "3-slot packets then");
+        } else if (r->data[1] == BTL_MAX_SLOT_REQ && bp.slots5 == 3u) {
+            bp.slots5 = 5;
+            con_puts("btpage: no multi-slot packets: the audio cannot go (DM1 is too slow for SBC)\r\n");
+        }
+    } else if (op == BTL_ACCEPTED && r->len > 1u && r->data[1] == BTL_MAX_SLOT_REQ && (bp.slots5 == 1u || bp.slots5 == 3u)) {
+        bp.slots5 = bp.slots5 == 1u ? 2u : 4u;
+        con_puts(bp.slots5 == 2u ? "btpage: 5-slot packets granted: the audio in DH5, two SBC frames each\r\n"
+                                 : "btpage: 3-slot packets granted: the audio in DH3, one SBC frame each\r\n");
     } else if (op == BTL_SETUP_COMPLETE) {
         bp.setup_in = 1;
         con_puts("btpage: the device sent setup_complete");
