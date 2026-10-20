@@ -259,7 +259,7 @@ includes by a relative path, `fm1_usb.h`, `fm1_uart.h`, `fm1_xip.h`, through a c
   added at once; the MASTER pot from the page; the battery reads full.
 
 Switched off whatever the configuration says (`tools/sim.py` `SIM_FORCE` and `SIM_FLAGS`): the second core (`DUAL`),
-Bluetooth (`BLE`, `BT_INQ_PROBE`), the cache RAM, USB audio and the serial console (`USB_MODE=0`), SIMD, the asm kernels
+Bluetooth (`BLE`, `BT_AUDIO`), the cache RAM, USB audio and the serial console (`USB_MODE=0`), SIMD, the asm kernels
 (their C runs), the stock supply start-up and the bench. No TRS MIDI IN, no CPU clock measured, no watchdog, no crash report
 from a CPU exception (a wasm trap is thrown to the page).
 

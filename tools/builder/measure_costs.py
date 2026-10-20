@@ -135,8 +135,7 @@ PAIR_WITH = {"REV_ROOM=0,REV_HALF=1": {"REV_PLATE": 1}, "MICRO=1,FILLS=1": {"SL2
 # a value that is not valid alone (the last reverb algorithm off): measured with these set too, less their own deltas
 # (so those are measured first)
 WITH = {("REV_ROOM", 0): {"REV_PLATE": 1},
-        ("MICRO", 1): {"SL24_XSTEP": 1}, ("FILLS", 1): {"SL24_XSTEP": 1}, ("PLOCK", 1): {"SL24_XSTEP": 1},   # (their storage)
-        ("BT_INQ_PROBE", 1): {"USB_MODE": 1}}   # (the Classic probe: inside the CDC console, BLE off)   # (the Optimist UI's: nothing without it)
+        ("MICRO", 1): {"SL24_XSTEP": 1}, ("FILLS", 1): {"SL24_XSTEP": 1}, ("PLOCK", 1): {"SL24_XSTEP": 1}}   # (their storage)   # (the Optimist UI's: nothing without it)
 # an item the firmware switches off without the automation store (configure.py NEEDS_AUTO: DRUM_ACCENT, 0 B on the
 # defaults, +148 B of flash with the store): measured with MOTION on, and counted only where the store is built
 for _k in C.NEEDS_AUTO:

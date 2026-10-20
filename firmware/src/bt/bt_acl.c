@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* EXPERIMENTAL Bluetooth Classic probe, stages 3 and 4 (BT_INQ_PROBE): L2CAP over the link btpage set up; once LMP is
+/* EXPERIMENTAL Bluetooth Classic probe, stages 3 and 4 (BT_AUDIO): L2CAP over the link btpage set up; once LMP is
  * set up, an SDP client looks for an A2DP sink (class 0x110B: its AVDTP PSM), then AVDTP as the initiator: the
  * signalling channel, DISCOVER, GET_CAPABILITIES, SET_CONFIGURATION (SBC), OPEN, the media channel (bt_l2cap.c,
  * bt_avdtp.c). It answers the device's information requests, refuses its connections and its AVDTP commands. Every

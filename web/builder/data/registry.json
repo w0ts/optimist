@@ -3259,30 +3259,6 @@
     "provenance_line": ""
    },
    {
-    "key": "BT_INQ_PROBE",
-    "flag": "FELUCCA_BT_INQ_PROBE",
-    "label": "Bluetooth Classic inquiry probe (console btclk / btinq)",
-    "group": "MIDI & USB",
-    "bit": 280,
-    "default": 0,
-    "parent": null,
-    "desc": "The first stages of our own Bluetooth Classic stack (docs/BT-CLASSIC.md section 14), for testing on an FM-1 from the CDC console (needs USB_MODE 1, and BLE off: one engine on the radio at a time). At start-up it starts the radio with the stored calibration (stock V15's VM; none: nothing is started) and checks the Bluetooth clock and its interrupts for 3 s, transmitting nothing (console btclk). btinq [SECONDS] then runs an inquiry (10.24 s by default): the FM-1 sends inquiry IDs and prints every device that answers (its address, class, clock, signal and EIR name) and a status line a second; btscan [SECONDS] is the other side (an inquiry scan: a phone or computer searching finds OPTIMIST BT); both take options for the hardware's unknowns (entries, RX gain, window, frequency, carrier offset) and bttrace / btrx print their interrupts and receptions. btpage ADDR pages a device as the master and sets the link up with a minimal LMP (features, version, host connection, setup complete; a Raspberry Pi accepted it as a connection): no profile, no audio yet. About 33 KB of flash (most of it the radio's start-up program, which BLE carries too), 2.3 KB of RAM and 15 KB of pool.",
-    "experimental": true,
-    "notice": "experimental: a Bluetooth Classic inquiry probe; no BLE in this build",
-    "off_warning": "",
-    "env": "",
-    "target_only": true,
-    "symbols": [
-     "bti_st"
-    ],
-    "no_image": false,
-    "choices": [],
-    "provenance": null,
-    "children": [],
-    "tested": "host-tested (sync word, FHS, EIR) and emulator-tested; run on an FM-1 2026-10-18 (clock, inquiry, paging)",
-    "provenance_line": ""
-   },
-   {
     "key": "BT_AUDIO",
     "flag": "FELUCCA_BT_AUDIO",
     "label": "Bluetooth Classic Audio (A2DP Source, SBC)",
@@ -4329,7 +4305,6 @@
    "MIDI_EXPR",
    "MIDI_NOTEOUT",
    "BLE",
-   "BT_INQ_PROBE",
    "BT_AUDIO"
   ],
   "UI": [

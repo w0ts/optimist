@@ -1,10 +1,10 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* EXPERIMENTAL Bluetooth Classic (BR/EDR) inquiry probe (builder item BT_INQ_PROBE, FELUCCA_BT_INQ_PROBE): stage 1 of
- * our own Classic stack, docs/BT-CLASSIC.md §14. Written only from that fact sheet (cited as "BR §n") and
- * the Core specification; no vendor code. Included by io/console.c (it needs the CDC console, USB_MODE 1) in a build
- * without BLE (one engine on the radio at a time). The registers are hal/fm1_bredr.h's.
+/* EXPERIMENTAL Bluetooth Classic (BR/EDR) inquiry (builder item BT_AUDIO, FELUCCA_BT_AUDIO): stage 1 of our own
+ * Classic stack, docs/BT-CLASSIC.md §14. Written only from that fact sheet (cited as "BR §n") and
+ * the Core specification; no vendor code. Included by io/console.c with the CDC console (USB_MODE 1), else by
+ * felucca.c; the radio carries BLE or BR/EDR, one at a time (bt_audio.c hands it over). The registers are hal/fm1_bredr.h's.
  *
- *   1a  the BR/EDR block's clock and interrupts: run once ~1.5 s after boot (and by `btclk run`): the radio's start-up
+ *   1a  the BR/EDR block's clock and interrupts, by `btclk run` (the console): the radio's start-up
  *       with the stored trims (hal/fm1_ble.h, the VM only), the BR/EDR init (BR §10.2), then 3 s of the slot clock
  *       (expect +1,600 a second), the 18-slot alarm (IRQ 40 bit 9) and slot timer 0 every 1,600 slots (IRQ 41).
  *       Nothing is transmitted. `btclk` prints the result (bti_st: the emulator check reads it)
@@ -31,10 +31,7 @@
 #include "bt_inq_core.c"
 
 #if !FELUCCA_FLASH
-#error "BT_INQ_PROBE reads the RF trims from flash (FELUCCA_FLASH)"
-#endif
-#if FELUCCA_BT_INQ_PROBE && FELUCCA_BLE
-#error "BT_INQ_PROBE: build without BLE (one engine on the radio at a time)"
+#error "BT_AUDIO reads the RF trims from flash (FELUCCA_FLASH)"
 #endif
 
 #if !FELUCCA_BLE
@@ -650,12 +647,7 @@ static void bta_named(const uint8_t a[6], const char *nm);
 
 static void bti_poll(void)                         /* the main loop */
 {
-    static uint8_t boot_done, done_printed;
-    if (FELUCCA_BT_INQ_PROBE && !boot_done && fm1_ms > 1500u) {   /* 1a once at boot (nothing transmitted; the probe's
-                                                    * only: with BT_AUDIO the radio is BLE's until an AUDIO mode) */
-        boot_done = 1;
-        bti_clk_start();
-    }
+    static uint8_t done_printed;
     if (bti_st.phase == BTI_CLK_RUN && fm1_ms - bti_st.ms0 >= 3000u) {
         bti_clk_end();
         bti_clk_print();                           /* (shown only with a terminal open: `btclk` again) */

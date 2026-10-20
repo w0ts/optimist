@@ -1045,7 +1045,7 @@ job; ( jobin
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -Wextra $BLE_SAN -o "$OUT/bt_inq_test" tests/bt_inq_test.c
-    run "BT Classic inquiry probe: the sync word's parity (GIAC, stock V15's LAP, the spec's construction), FHS and EIR parsing" "$OUT/bt_inq_test"
+    run "BT Classic inquiry: the sync word's parity (GIAC, stock V15's LAP, the spec's construction), FHS and EIR parsing" "$OUT/bt_inq_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -Wextra $BLE_SAN -o "$OUT/bt_crypto_test" tests/bt_crypto_test.c

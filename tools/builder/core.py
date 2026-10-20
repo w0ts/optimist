@@ -192,9 +192,6 @@ def validate(cfg):
     if reserve_undo(cfg) and not cfg.get("UNDO_HISTORY"):
         err.append(Issue("keeping undo history needs the undo / redo history (UNDO_HISTORY): without it there is a "
                          "single level", ["RESERVE_UNDO_KB", "UNDO_HISTORY"]))
-    if cfg.get("BT_INQ_PROBE") and (cfg["USB_MODE"] != 1 or cfg.get("BLE")):
-        err.append(Issue("the Bluetooth Classic probe prints on the CDC console and needs the radio to itself: "
-                         "USB_MODE 1 (CDC serial console) and BLE off", ["BT_INQ_PROBE", "USB_MODE", "BLE"]))
     if cfg["USB_MODE"] == 2:
         warn.append(Issue("USB audio: EXPERIMENTAL, its audio quality on the FM-1 not checked yet (the CDC "
                           "console goes; +12 KB pool)", ["USB_MODE"]))
@@ -392,7 +389,7 @@ SL24_XS = 4 * 176          # storage/project.c sl24_xs: NTRK stepx_t (seq/stepx.
 
 # items only another item's code includes (the build is the same without it): counted only with that one. Found
 # 2026-10-14 (SEQTOOLS and ED_SCREENS needed UI=1, the Optimist UI: always built since SLOOP's UI went, 2026-10-19)
-NEEDS = {"BT_INQ_PROBE": {"USB_MODE": 1}}   # (the probe is part of the CDC console: io/console.c)
+NEEDS = {}
 # (the web editor's ED_* commands: only editor.c's live dispatch calls them; ED_LIVE off builds ed_lite.c, none of them)
 NEEDS = {**NEEDS, **{k: {**NEEDS.get(k, {}), "ED_LIVE": 1} for k in R.ITEMS if k.startswith("ED_") and k != "ED_LIVE"}}
 
