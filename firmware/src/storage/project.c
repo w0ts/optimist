@@ -1518,6 +1518,7 @@ static void persist_boot(void)                    /* before settings_init / pane
 #endif
 #if FELUCCA_FLASH
     persist_t p;
+    persist_v3_t p3;                               /* (a record of before PER4: read so, then turned into p) */
     uint32_t f = irq_save();
     flash_ok = FL_FAR(fl_jedec_ram)() == 0x856014u;       /* the expected 1 MiB part, else stay RAM-only */
     irq_restore(f);
@@ -1534,17 +1535,30 @@ static void persist_boot(void)                    /* before settings_init / pane
 #if FELUCCA_SL24_SAFE
         sl25_set_scan();                           /* (SLOOP 2.5 / 2.6's record: never read as ours, never erased) */
 #endif
-        int n = st_load(OBJ_SETTINGS, &p, sizeof p);
+        int n = st_load(OBJ_SETTINGS, &p, sizeof p), ok = 0, song = 1;   /* (song: the record has a song order) */
+        if (n >= PERSIST4_LEN && p.magic == PERSIST_MAGIC4) {   /* PER4: the one layout of every build */
+            if (n < (int)sizeof p)
+                memset((uint8_t *)&p + n, 0, sizeof p - (uint32_t)n);   /* (a normal build's record in the DUALCFG image) */
+            ok = 1;
+        } else {                                   /* an older one: as it was read before PER4, then turned into PER4 */
+            n = st_load(OBJ_SETTINGS, &p3, sizeof p3);
 #if FELUCCA_SL24_SAFE
-        if (n < 0)
-            n = sl25_set_load(&p, sizeof p);       /* (none of ours yet: their 88 bytes, read as 2.4's) */
+            if (n < 0)
+                n = sl25_set_load(&p3, sizeof p3); /* (none of ours yet: their 88 bytes, read as 2.4's) */
 #endif
-        n = persist_upgrade(&p, n);
-        if (((n == (int)sizeof p || n == PERSIST_NO_VIEW) && p.magic == PERSIST_MAGIC)
+            n = persist_upgrade(&p3, n);
+            if (((n == (int)sizeof p3 || n == PERSIST_NO_VIEW) && p3.magic == PERSIST_MAGIC)
 #if FELUCCA_ARRANGER
-            || (n == (int)(16u + sizeof(panel_t)) && p.magic == 0x50455232u)
+                || (n == (int)(16u + sizeof(panel_t)) && p3.magic == 0x50455232u)
 #endif
-            ) {
+                ) {
+                persist_from_v3(&p, &p3);
+                song = p3.magic == PERSIST_MAGIC;  /* (PER2's had none) */
+                ok = 1;
+                settings_later = 1;                /* (written back as PER4 once quiet) */
+            }
+        }
+        if (ok) {
             settings.magic = SETTINGS_MAGIC;
             settings.palette = p.palette;
             settings.lowcut = p.lowcut;
@@ -1581,7 +1595,7 @@ static void persist_boot(void)                    /* before settings_init / pane
 #if FELUCCA_ARRANGER
             arr_config_t c;
             arr_from_rec(&c, &p.arrangement);
-            if (p.magic == PERSIST_MAGIC && arr_stored_ok(&c))   /* (any of A..P, not only A..D) */
+            if (song && arr_stored_ok(&c))         /* (any of A..P, not only A..D) */
                 arrangement = c, song_tag = (uint16_t)arr_tag_of(&p.arrangement);
             else
                 arr_to_rec(&p.arrangement, &arrangement, 0);
@@ -1590,8 +1604,8 @@ static void persist_boot(void)                    /* before settings_init / pane
             persist_ble(&p, 0);                    /* (the BLE address, trims, bond, devices) */
 #endif
             persist_saved = p;
-        } else if (n == (int)(8u + sizeof(panel_t)) && p.magic == 0x50455231u) {   /* "PER1": palette, panel */
-            const uint32_t *w = (const uint32_t *)&p;
+        } else if (n == (int)(8u + sizeof(panel_t)) && p3.magic == 0x50455231u) {   /* "PER1": palette, panel */
+            const uint32_t *w = (const uint32_t *)&p3;
             panel_t old;
             memcpy(&old, w + 2, sizeof old);
             settings.magic = SETTINGS_MAGIC;
@@ -1645,8 +1659,8 @@ static void settings_save(void)
     persist_t p;
     if (!flash_ok)
         return;
-    memset(&p, 0, sizeof p);
-    p.magic = PERSIST_MAGIC;
+    p = persist_saved;                             /* (PER4: what this build has no field for stays as read) */
+    p.magic = PERSIST_MAGIC4;
     p.palette = settings.palette;
     p.lowcut = settings.lowcut;
     p.zoom = settings.zoom;
