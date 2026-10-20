@@ -1074,8 +1074,8 @@ job; ( jobin
     run "BT Classic probe AVDTP: commands, a sink endpoint picked, SBC capabilities read and chosen, SET_CONFIGURATION" "$OUT/bt_avdtp_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
-    $CC -Wextra $BLE_SAN -o "$OUT/bt_sbc_test" tests/bt_sbc_test.c -lm
-    run "BT Classic / A2DP SBC codec: fixed-point encoder, Joint Stereo, Loudness bit allocation, frame packaging" "$OUT/bt_sbc_test"
+    $CC -O2 -w $BLE_SAN -Itests/ref/sbc_dec -o "$OUT/bt_sbc_test" tests/bt_sbc_test.c tests/ref/sbc_dec/*.c -lm
+    run "BT Classic / A2DP SBC encoder (AOSP's, bt/sbc/) against AOSP's decoder: every frame of two tones decoded, the tones back, as the FM-1 sets the stream" "$OUT/bt_sbc_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     run "BLE RF capture tool: the VM format, the trace cut into a program (windows, LUT, trims, scan, replay), V15's hash" early_out t_ble_rf
