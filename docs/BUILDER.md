@@ -79,17 +79,17 @@ make publish PROFILE=my-groove    # CI builds it (--unpublish to stop); commit t
 make delete PROFILE=my-groove     # mine first, else the shipped one
 ```
 
-The estimate for each shipped profile (`config --budget`, 2026-10-19; the limits are in `tools/builder/core.py`
+The estimate for each shipped profile (`config --budget`, 2026-10-20; the limits are in `tools/builder/core.py`
 `LIMITS`):
 
 | Profile | App flash (of 581,564) | RAM (of 98,304) | Pool (of 344,064) | RAM code (of 32,512) |
 |---|---|---|---|---|
-| user-default | 577,904 | 93,668 | 305,156 | 25,164 |
-| synth | 571,956 | 92,108 | 310,652 | 22,856 |
-| fm-va-studio | 569,008 | 84,052 | 330,748 | 29,556 |
-| everything-that-fits | 553,812 | 72,340 | 256,968 | 31,796 |
-| x0x-drums | 545,816 | 70,668 | 314,676 | 25,648 |
-| drum-machine | 515,944 | 90,300 | 292,260 | 24,580 |
+| user-default | 579,440 | 93,708 | 305,156 | 25,164 |
+| synth | 573,616 | 92,204 | 310,652 | 22,848 |
+| fm-va-studio | 579,764 | 85,636 | 306,812 | 27,300 |
+| everything-that-fits | 565,180 | 73,924 | 265,800 | 31,892 |
+| x0x-drums | 557,708 | 72,316 | 323,508 | 25,720 |
+| drum-machine | 526,752 | 91,884 | 300,388 | 24,588 |
 
 ## What is switchable
 
