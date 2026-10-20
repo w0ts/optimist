@@ -194,7 +194,7 @@ class Builder(App):
             box = f"<{lab}>"
         else:
             box = "[x]" if v else "[ ]"
-        t = Text(f"{box} {it.label}", style="" if live else "dim")
+        t = Text(f"{box} {it.label}", style="" if live and not it.fixed else "dim")
         if it.experimental:
             t.append("  EXPERIMENTAL", style="bold magenta")
         if it.notice and v:
@@ -404,6 +404,9 @@ class Builder(App):
         if not isinstance(key, str):
             return
         it = R.ITEMS[key]
+        if it.fixed:                                     # (USB MIDI: every build has it)
+            self.notify(it.desc, title=it.label, timeout=6)
+            return
         before = dict(self.cfg)
         if it.is_choice:
             vals = [c[0] for c in it.choices]

@@ -30,6 +30,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": true,
+    "fixed": false,
     "choices": [
      [
       0,
@@ -73,6 +74,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": true,
+    "fixed": false,
     "choices": [
      [
       0,
@@ -119,6 +121,7 @@
      "analog_render"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -144,6 +147,7 @@
      "digital_render"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -169,6 +173,7 @@
      "pd_wave"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -195,6 +200,7 @@
      "WRAM"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -219,6 +225,7 @@
      "ENG_SAMPLE"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -244,6 +251,7 @@
      "formant_render"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -269,6 +277,7 @@
      "trio_render"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -294,6 +303,7 @@
      "drawbar_render"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -319,6 +329,7 @@
      "grain_block"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -346,6 +357,7 @@
      "fm6k_knob"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": {
      "project": "Melodee (keremimo/melodee)",
@@ -385,6 +397,7 @@
      "fm6k_knob"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -407,6 +420,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -431,6 +445,7 @@
      "FM6_PK_KEYS"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -455,6 +470,7 @@
      "FM6_PK_BASS"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -479,6 +495,7 @@
      "FM6_PK_BELLS"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -503,6 +520,7 @@
      "FM6_PK_PADS"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -527,6 +545,7 @@
      "FM6_PK_80S"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -552,6 +571,7 @@
      "nb_load"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": {
      "project": "Melodee (keremimo/melodee)",
@@ -582,6 +602,7 @@
      "ENG_SLICE"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": {
      "project": "Felucca (hugelton/Felucca)",
@@ -613,6 +634,7 @@
      "drone_render"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -637,6 +659,7 @@
      "DS_KITS"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -662,6 +685,7 @@
      "x0x_smp_hh_m"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": {
      "project": "X0X (charlesvestal/fm1-x0x)",
@@ -695,6 +719,7 @@
      "x0x_smp_crash_m"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [
      [
       1,
@@ -732,6 +757,7 @@
      "drum808_trigger"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": {
      "project": "X0X (charlesvestal/fm1-x0x)",
@@ -760,6 +786,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [
@@ -788,6 +815,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -810,6 +838,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -832,6 +861,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -854,6 +884,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -876,6 +907,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -900,6 +932,7 @@
      "de_synth"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -922,6 +955,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -944,6 +978,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -966,6 +1001,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -988,6 +1024,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -1010,6 +1047,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -1032,6 +1070,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -1054,6 +1093,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -1076,6 +1116,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -1098,6 +1139,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -1120,6 +1162,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -1144,6 +1187,7 @@
      "cho_buf"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -1168,6 +1212,7 @@
      "dly_buf"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [
@@ -1193,6 +1238,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [
      [
       65536,
@@ -1231,6 +1277,7 @@
      "rev_ap"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [
@@ -1263,6 +1310,7 @@
      "rev_ap"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -1287,6 +1335,7 @@
      "rvp_params"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -1311,6 +1360,7 @@
      "rvf_params"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -1335,6 +1385,7 @@
      "rva_params"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -1357,6 +1408,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -1381,6 +1433,7 @@
      "rev_half"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -1405,6 +1458,7 @@
      "sl_buf"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [
@@ -1429,6 +1483,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [
      [
       4096,
@@ -1462,6 +1517,7 @@
      "punch_ring"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [
@@ -1487,6 +1543,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [
      [
       32768,
@@ -1518,6 +1575,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -1540,6 +1598,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -1562,6 +1621,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -1587,6 +1647,7 @@
      "mlim"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -1609,6 +1670,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": {
      "project": "SLOOP 2.4 (isod89/sloop-fm1)",
@@ -1639,6 +1701,7 @@
      "ifx_fold"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": {
      "project": "Felucca 1.5.6 (hugelton/Felucca)",
@@ -1669,6 +1732,7 @@
      "ifx_fuzz"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": {
      "project": "Felucca 1.5.6 (hugelton/Felucca)",
@@ -1699,6 +1763,7 @@
      "ifx_phsr"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": {
      "project": "Felucca 1.5.6 (hugelton/Felucca)",
@@ -1729,6 +1794,7 @@
      "ifx_frmt"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": {
      "project": "Melodee 1.3.1 (keremimo/melodee)",
@@ -1759,6 +1825,7 @@
      "ifx_wide"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": {
      "project": "Melodee 1.3.1 (keremimo/melodee)",
@@ -1789,6 +1856,7 @@
      "ifx_sfld"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -1813,6 +1881,7 @@
      "ifx_rect"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -1837,6 +1906,7 @@
      "ifx_harm"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -1861,6 +1931,7 @@
      "ifx_ring"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -1885,6 +1956,7 @@
      "ifx_subo"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -1909,6 +1981,7 @@
      "ifx_slew"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -1933,6 +2006,7 @@
      "ifx_tape"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": {
      "project": "Melodee 1.4.4 (keremimo/melodee)",
@@ -1963,6 +2037,7 @@
      "ifx_spit"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": {
      "project": "Melodee 1.4.4 (keremimo/melodee)",
@@ -1993,6 +2068,7 @@
      "ifx_chrs"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [
      [
       0,
@@ -2038,6 +2114,7 @@
      "ifx_echo"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [
      [
       0,
@@ -2083,6 +2160,7 @@
      "ifx_jcho"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [
      [
       0,
@@ -2134,6 +2212,7 @@
      "rs_fbv"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -2158,6 +2237,7 @@
      "ifx_flng"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [
      [
       0,
@@ -2209,6 +2289,7 @@
      "ifx_gate"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -2231,6 +2312,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": {
      "project": "SLOOP 2.4 (isod89/sloop-fm1)",
@@ -2259,6 +2341,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [
      [
       16,
@@ -2298,6 +2381,7 @@
      "ed_snap"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [
      [
       4,
@@ -2340,6 +2424,7 @@
      "pat_migrate"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -2362,6 +2447,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -2388,6 +2474,7 @@
      "MAC_ROWS"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": {
      "project": "Flowstate (zakariachowdhury/flowstate-fm1)",
@@ -2420,6 +2507,7 @@
      "EN_EDGE"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": {
      "project": "Flowstate (zakariachowdhury/flowstate-fm1)",
@@ -2431,6 +2519,29 @@
     "children": [],
     "tested": "emulator-tested only",
     "provenance_line": "Flowstate (zakariachowdhury/flowstate-fm1) @ 3962560 by Zakaria Chowdhury (GPL-3.0-only)"
+   },
+   {
+    "key": "USB_MIDI",
+    "flag": "",
+    "label": "USB MIDI (always: notes, clock, the editor, updates)",
+    "group": "USB & BT & MIDI",
+    "bit": 362,
+    "default": 1,
+    "parent": null,
+    "desc": "USB MIDI is in every build: notes and clock both ways, the web editor, and firmware updates (the installer and the builder flash through it). Shown for the record, it cannot be switched off.",
+    "experimental": false,
+    "notice": "",
+    "off_warning": "",
+    "env": "",
+    "target_only": false,
+    "symbols": [],
+    "no_image": true,
+    "fixed": true,
+    "choices": [],
+    "provenance": null,
+    "children": [],
+    "tested": "emulator-tested only",
+    "provenance_line": ""
    },
    {
     "key": "USB_CONSOLE",
@@ -2448,6 +2559,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -2470,6 +2582,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": {
      "project": "Melodee (keremimo/melodee)",
@@ -2498,6 +2611,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -2522,6 +2636,7 @@
      "clko_block"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -2544,6 +2659,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": {
      "project": "Melodee (keremimo/melodee)",
@@ -2572,6 +2688,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": {
      "project": "SLOOP 2.4 (isod89/sloop-fm1)",
@@ -2600,6 +2717,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -2622,6 +2740,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": {
      "project": "Felucca (hugelton/Felucca)",
@@ -2653,6 +2772,7 @@
      "PH_BLOB"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -2675,6 +2795,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -2697,6 +2818,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -2719,6 +2841,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": {
      "project": "X0X (charlesvestal/fm1-x0x)",
@@ -2747,6 +2870,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [
      [
       1,
@@ -2788,6 +2912,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": {
      "project": "X0X (charlesvestal/fm1-x0x)",
@@ -2818,6 +2943,7 @@
      "ed_handle"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [
@@ -2847,6 +2973,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -2869,6 +2996,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -2891,6 +3019,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -2913,6 +3042,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -2935,6 +3065,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -2957,6 +3088,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -2979,6 +3111,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -3005,6 +3138,7 @@
      "CG_VCOST"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": {
      "project": "Flowstate (zakariachowdhury/flowstate-fm1)",
@@ -3033,6 +3167,7 @@
     "target_only": true,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [
      [
       0,
@@ -3072,6 +3207,7 @@
     "target_only": true,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -3094,6 +3230,7 @@
     "target_only": true,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [
      [
       0,
@@ -3133,6 +3270,7 @@
     "target_only": true,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": {
      "project": "Melodee (keremimo/melodee)",
@@ -3163,6 +3301,7 @@
      "ble_in_q"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [
@@ -3191,6 +3330,7 @@
      "con_blell"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -3215,6 +3355,7 @@
      "bsmp"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -3239,6 +3380,7 @@
      "ble_found"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -3264,6 +3406,7 @@
      "bt_sbc_encode"
     ],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -3286,6 +3429,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": {
      "project": "hugelton/Felucca",
@@ -3314,6 +3458,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": {
      "project": "hugelton/Felucca",
@@ -3342,6 +3487,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": {
      "project": "hugelton/Felucca",
@@ -3370,6 +3516,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": {
      "project": "hugelton/Felucca",
@@ -3398,6 +3545,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": {
      "project": "hugelton/Felucca",
@@ -3426,6 +3574,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": {
      "project": "charlesvestal/fm1-x0x",
@@ -3454,6 +3603,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": {
      "project": "hugelton/Felucca",
@@ -3482,6 +3632,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": {
      "project": "hugelton/Felucca",
@@ -3510,6 +3661,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": {
      "project": "charlesvestal/fm1-x0x",
@@ -3538,6 +3690,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": {
      "project": "hugelton/Felucca-Engines",
@@ -3566,6 +3719,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": {
      "project": "keremimo/melodee",
@@ -3594,6 +3748,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": {
      "project": "PatttF/fm-106",
@@ -3622,6 +3777,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": {
      "project": "isod89/sloop-fm1",
@@ -3650,6 +3806,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": {
      "project": "isod89/sloop-fm1",
@@ -3678,6 +3835,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": {
      "project": "hugelton/Felucca",
@@ -3706,6 +3864,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": {
      "project": "hugelton/Felucca",
@@ -3734,6 +3893,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": {
      "project": "hugelton/Felucca",
@@ -3762,6 +3922,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": {
      "project": "isod89/sloop-fm1",
@@ -3790,6 +3951,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": {
      "project": "isod89/sloop-fm1",
@@ -3818,6 +3980,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": {
      "project": "isod89/sloop-fm1",
@@ -3846,6 +4009,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": {
      "project": "isod89/sloop-fm1",
@@ -3874,6 +4038,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": {
      "project": "isod89/sloop-fm1",
@@ -3902,6 +4067,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": {
      "project": "isod89/sloop-fm1",
@@ -3930,6 +4096,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": {
      "project": "isod89/sloop-fm1",
@@ -3958,6 +4125,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": {
      "project": "isod89/sloop-fm1",
@@ -3986,6 +4154,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": {
      "project": "isod89/sloop-fm1",
@@ -4014,6 +4183,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": {
      "project": "isod89/sloop-fm1",
@@ -4042,6 +4212,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": {
      "project": "isod89/sloop-fm1",
@@ -4070,6 +4241,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": {
      "project": "hugelton/Felucca",
@@ -4098,6 +4270,7 @@
     "target_only": false,
     "symbols": [],
     "no_image": false,
+    "fixed": false,
     "choices": [],
     "provenance": {
      "project": "hugelton/Felucca",
@@ -4283,6 +4456,7 @@
    "SEQTOOLS"
   ],
   "USB & BT & MIDI": [
+   "USB_MIDI",
    "USB_CONSOLE",
    "USB_AUDIO",
    "UART",

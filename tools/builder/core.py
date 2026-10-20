@@ -94,6 +94,9 @@ def parse(text, base=None, strict=True, warn=None, reject_unknown=False):
             continue
         cfg[k] = v
         named.add(k)
+    for k, it in R.ITEMS.items():                      # (a fixed item: what every build has, whatever the text says)
+        if it.fixed:
+            cfg[k] = it.default
     for into, on in merged_on.items():                  # (a survivor the text does not set: what its old items were, so
         cfg[into] = cfg[into] | on if into in named else on   # an older .config with all of them off keeps it off)
     return cfg, name
