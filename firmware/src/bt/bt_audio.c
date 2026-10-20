@@ -27,6 +27,10 @@ static void bta_saw(const uint8_t a[6], uint32_t cod)   /* an FHS heard (bt_inq_
     struct bta_dev *d;
     if (bta.mode == BTA_OFF || bta_find(a) >= 0 || bta.n >= BTA_DEVS)
         return;
+    if (((cod >> 8) & 0x1Fu) != 0x04u)
+        return;                                         /* (audio devices only, major class 4: headphones, speakers. The
+                                                         * user picked a Mac, "L..O", class 0x2E410C, from the list,
+                                                         * 2026-10-20: no sink, a link that could only hang) */
     d = &bta.d[bta.n++];
     ble_cpy(d->addr, a, 6);
     d->audio = (uint8_t)(((cod >> 8) & 0x1Fu) == 0x04u);   /* (major class 4: Audio / Video) */
