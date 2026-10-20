@@ -237,3 +237,4 @@ src/fx/insfx/tapespit.c:__attribute__:(20+3*a) | ifx_ts_block: a is the amount, 
 src/fx/insfx/tapespit.c:__attribute__:(uint32_t)(s->env>256?s->env:256) | ifx_ts_block: at least 256 by the ternary on the same line
 src/ui/optimist/op_tools.c:tl_quantize:(int32_t)(div==2u||div==4u?div:1u) | 2, 4, or 1 by the ternary on the same line
 src/ui/optimist/op_tools.c:tl_quantize:q | q = 64 / (1, 2 or 4): 64, 32 or 16
+src/bt/sbc/sbc_encoder.c:SBC_Encoder_Init:pstrEncParams->s16NumOfChannels | 2 always: bt_sbc_init sets BT_SBC_CHANNELS (AOSP code; the branch is mono / dual channel, never taken: joint stereo or stereo)
