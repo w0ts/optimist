@@ -60,7 +60,7 @@ static int glo_yes(uint32_t r, uint32_t k, uint32_t ok)
 #define GL_PAGE 4u                                      /* the lines on screen, the knobs' */
 /* the lines of a screen, at most: SYSTEM's in this build (11 always, BRIGHT 1, USB audio 5, LIGHTS 2, CDC 1, BLE 5 + 2 with
  * BLE_CENTRAL), never under 24 (GLOBAL's 19 at most); sized from the build so no RAM goes to lines it cannot have */
-#if FELUCCA_BLE
+#if FELUCCA_BT_UI
 #define GL_NBLE (5u + 2u * (BLE_CENTRAL != 0))
 #else
 #define GL_NBLE 0u
@@ -87,7 +87,7 @@ static int glo_yes(uint32_t r, uint32_t k, uint32_t ok)
 #endif
 #define GL_NSYSL (11u + GL_NBRI + GL_NUA + GL_NLIT + GL_NCDC + GL_NBLE)
 #define GL_MAXL (GL_NSYSL > 24u ? GL_NSYSL : 24u)
-#if FELUCCA_BLE
+#if FELUCCA_BT_UI
 #define GL_DEV (bdv.open != 0u)                         /* SYSTEM shows the BLE devices list (op_project.c) */
 #else
 #define GL_DEV 0
@@ -361,7 +361,7 @@ static int gl_on_tempo(void)                            /* GLOBAL's page shows T
 }
 /* GLO tapped: GLOBAL; on GLOBAL, SYSTEM; on SYSTEM (its BLE devices list too: closed), GLOBAL. Each keeps its line */
 static void glo_tap(void) { op_enter(ui.scr == SCR_GLOBAL ? SCR_SYSTEM : SCR_GLOBAL); }
-#if FELUCCA_BLE
+#if FELUCCA_BT_UI
 /* SYSTEM's Bluetooth page, whatever line the cursor is on, and its devices list (the user, 2026-10-19): SAVE tapped
  * connects / lets go (op_bt.c bt_save; on the list, the row: sys_yes), SAVE held forgets the last device. HOME is HOME's,
  * as anywhere. 1: taken (op_input.c) */

@@ -29,6 +29,12 @@
  * grid and roll), op_laydraw.c (a layer's map, the TEMPO and session-grid pictures), op_input.c (the panel, the
  * entry points), op_keys.c (the keys' lights: full, dim, dark in every mode). After op_cells.c, op_fm6.c (FM6's operator editor: ENV held, the SOUND family) and after
  * op_laydraw.c its drawing, op_fm6draw.c. */
+#ifndef FELUCCA_BT_AUDIO
+#define FELUCCA_BT_AUDIO 0
+#endif
+#ifndef FELUCCA_BT_UI
+#define FELUCCA_BT_UI (FELUCCA_BLE || FELUCCA_BT_AUDIO)   /* SYSTEM > Bluetooth: with either (felucca.c; host tests here) */
+#endif
 #include "../colors.c"                  /* the colour language (engine, kit kind; the web editor's too) */
 #if FELUCCA_BRIGHT
 #include "../bright.c"                  /* the backlight level (main.c reads BL_DUTY, project.c bright_boot) */

@@ -2,7 +2,7 @@
 /* SYSTEM (docs/UI-OPTIMIST-DESIGN.md 4.7 GLOBAL and SYSTEM); PROJECT is op_prjflow.c (4.6 PROJECT). An action cell does
  * nothing when turned: its knob makes it the hot cell, YES does it, and what destroys asks first (op_state.c op_arm). */
 
-#if FELUCCA_BLE
+#if FELUCCA_BT_UI
 /* ---- BLE devices: SYSTEM > BLUETOOTH, YES on the BLE row opens the list (the same one SLOOP's menu has: NONE, LAST, the
  * BLE-MIDI devices nearby, io/midi/ble_devices.c; the rows, their tags, the status line and the connecting logic are
  * its, shared). While it is open SYSTEM's rows ARE the list: SELECT moves the cursor (it stops at the ends), SAVE picks
@@ -223,10 +223,23 @@ static void ble_mode_cell(cell_t *c)
     c->col = ble_ui_mode && !ble_radio_ok() ? C_WARN : 0;
 }
 
+/* the modes this build has (the user, 2026-10-20: "the page should adapt and show only what is baked in the
+ * firmware"): MIDI's with BLE, AUDIO's with BT_AUDIO */
+static const uint8_t BT_MODES[] = {0u,
+#if FELUCCA_BLE
+                                   1u, 2u,
+#endif
+#if FELUCCA_BT_AUDIO
+                                   3u, 4u,
+#endif
+};
 static void ble_mode_set(int32_t s)
 {
+    uint32_t i = 0, n = sizeof BT_MODES;
     ble_mode_sync();
-    bt_enter((uint32_t)sys_step((int32_t)ble_ui_mode, s, BT_AUDIO_BUILT ? 4 : 2));   /* (no AUDIO modes without BT_AUDIO) */
+    while (i + 1u < n && BT_MODES[i] != ble_ui_mode)
+        i++;
+    bt_enter(BT_MODES[sys_step((int32_t)i, s, (int32_t)n - 1)]);
 }
 
 static const char *const BLE_ST[9] = {"OFF", "ADVERTISING", "CONNECTED", "NO CAL", "SCANNING", "CONNECTING", "SEARCHING",
@@ -282,7 +295,7 @@ static void ble_midi_cell(cell_t *c)
     ble_mode_sync();
     c->kind = CK_RO;
     c->big = 1;
-    if (ble_ui_mode >= 3u) {
+    if (ble_ui_mode >= 3u || !FELUCCA_BLE) {           /* (no BLE: the audio's line, whatever the mode) */
         c->label = "FORMAT";
         str_cpy(c->val, "SBC 44.1k", sizeof c->val);
         c->col = C_OK;
@@ -432,7 +445,7 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
 #if FELUCCA_CDC
     {"USB", {SI_USB, SI_NONE, SI_NONE, SI_NONE}},
 #endif
-#if FELUCCA_BLE
+#if FELUCCA_BT_UI
     {"BLUETOOTH", {SI_BLE, SI_BLEPEER, SI_BLEMIDI, SI_BLEST}},   /* 1 screen: MODE, DEVICE, ACTIVITY/FORMAT, STATE */
 #endif
 #if FELUCCA_USB_AUDIO
@@ -460,7 +473,7 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
 static uint8_t sys_dirty;                               /* a setting changed: saved when SYSTEM or GLOBAL is left */
 static uint32_t sys_rows(void)
 {
-#if FELUCCA_BLE
+#if FELUCCA_BT_UI
     if (bdv.open)
         return dev_rows();                              /* (the BLE devices list: its rows) */
 #endif
@@ -468,7 +481,7 @@ static uint32_t sys_rows(void)
 }
 static void sys_name(uint32_t r, char *b)
 {
-#if FELUCCA_BLE
+#if FELUCCA_BT_UI
     if (bdv.open) {
         str_cpy(b, "DEVICES", 12);                      /* (the list's header: "Devices 2/4") */
         return;
@@ -564,7 +577,7 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         c->col = usb_serial == usb_cdc_on ? 0 : C_WARN;  /* (amber: a restart applies it) */
         break;
 #endif
-#if FELUCCA_BLE
+#if FELUCCA_BT_UI
     case SI_BLE:
         ble_mode_cell(c);
         break;
@@ -778,7 +791,7 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
 }
 static void sys_cell(uint32_t r, uint32_t k, cell_t *c)
 {
-#if FELUCCA_BLE
+#if FELUCCA_BT_UI
     if (bdv.open) {
         dev_cell(r, k, c);
         return;
@@ -1115,7 +1128,7 @@ static void sys_set(uint32_t it, int32_t s)
         usb_serial = (uint8_t)(s > 0 ? 1u : s < 0 ? 0u : !usb_serial);
         break;
 #endif
-#if FELUCCA_BLE
+#if FELUCCA_BT_UI
     case SI_BLE:                                        /* MODE: OFF, MIDI MAN, MIDI AUTO, AUDIO MAN, AUDIO AUTO, a detent a
                                                          * mode (YES: round; OFF: a connected central is let go) */
         ble_mode_set(s);
@@ -1197,7 +1210,7 @@ static void sys_turn(uint32_t r, uint32_t k, int32_t s, int fine)
     uint32_t it = sys_item(r, k);
     int16_t *vp;
     const param_desc_t *d = sys_desc(it, &vp);
-#if FELUCCA_BLE
+#if FELUCCA_BT_UI
     if (bdv.open)
         return;                                         /* (the list: a knob does nothing) */
 #endif
@@ -1217,7 +1230,7 @@ static int sys_yes(uint32_t r, uint32_t k, uint32_t ok)
     uint32_t it = sys_item(r, k);
     int16_t *vp;
     const param_desc_t *d = sys_desc(it, &vp);
-#if FELUCCA_BLE
+#if FELUCCA_BT_UI
     if (bdv.open)
         return dev_yes(r, ok);
     if (it == SI_BLE || it == SI_BLEPEER || it == SI_BLEST || it == SI_BLEMIDI) {   /* the Bluetooth page, any line */
@@ -1261,7 +1274,7 @@ static int sys_yes(uint32_t r, uint32_t k, uint32_t ok)
 }
 static void sys_leave(void)                             /* SYSTEM left: the settings into flash (as SLOOP's menu_close) */
 {
-#if FELUCCA_BLE
+#if FELUCCA_BT_UI
     dev_close();                                        /* (the devices list open: it closes, the scan stops) */
 #endif
     if (!sys_dirty)

@@ -1566,7 +1566,7 @@ static void persist_boot(void)                    /* before settings_init / pane
 #if FELUCCA_USB_AUDIO
             persist_ua_load(&p);                   /* SYSTEM > USB AUDIO: the capture channels' sources */
 #endif
-#if FELUCCA_BLE
+#if FELUCCA_BT_UI
             bt_rec_in(p.bt_rec);                   /* SYSTEM > Bluetooth: MODE, AUDIO's last device (op_bt.c) */
 #endif
 #if FELUCCA_DUAL && FELUCCA_DUALCFG
@@ -1671,7 +1671,7 @@ static void settings_save(void)
 #if FELUCCA_USB_AUDIO
     persist_ua_save(&p);
 #endif
-#if FELUCCA_BLE
+#if FELUCCA_BT_UI
     bt_rec_out(p.bt_rec);
 #endif
 #if FELUCCA_DUAL && FELUCCA_DUALCFG
