@@ -6,7 +6,7 @@
 #define BT_AVDTP_H
 #include <stdint.h>
 
-enum { BV_DISCOVER = 1, BV_GET_CAPS = 2, BV_SET_CONF = 3, BV_OPEN = 6, BV_START = 7, BV_CLOSE = 8 };
+enum { BV_DISCOVER = 1, BV_GET_CAPS = 2, BV_SET_CONF = 3, BV_OPEN = 6, BV_START = 7, BV_CLOSE = 8, BV_SUSPEND = 9 };
 enum { BV_CMD = 0, BV_ACCEPT = 2, BV_REJECT = 3 };
 
 /* a single-packet command: label 0-15, signal id, parameters -> its length in out */

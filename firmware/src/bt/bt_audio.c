@@ -115,6 +115,21 @@ static uint32_t bta_state(void)
         return BTA_S_FAILED;                            /* (paged, no answer; or the link closed) */
     return bta.n ? BTA_S_FOUND : BTA_S_NONE;
 }
+/* the output: Bluetooth (the stream) or the FM-1's own (the stream suspended, the link kept: back at once) */
+static int bta_out_bt(void) { return !ba.paused; }
+static void bta_output(int bt)
+{
+    uint8_t par[1];
+    if (bta_state() != BTA_S_STREAMING)
+        return;
+    par[0] = (uint8_t)(ba.acp << 2);
+    if (!bt && !ba.paused) {
+        ba.paused = 1;                                  /* (the FM-1's output from this block: audio.c) */
+        ba_av_cmd(BV_SUSPEND, par, 1);
+    } else if (bt && ba.paused) {
+        ba_av_cmd(BV_START, par, 1);                    /* (Bluetooth again once accepted: bt_acl.c) */
+    }
+}
 static const char *bta_lost(void)                       /* the link ended by itself: where it had got to, once; else 0 */
 {
     static const char *const W[] = {0, "LOST AFTER CONNECTING", "LOST WHILE PAIRING", "LOST AT ENCRYPTION",
