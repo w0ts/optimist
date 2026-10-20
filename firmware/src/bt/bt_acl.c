@@ -308,7 +308,10 @@ static void ba_media_send(const uint8_t *sbc_frame, uint32_t sbc_len, uint32_t f
 int bt_audio_feed(const int32_t *q15_pcm, uint32_t n)   /* 1: it streams (audio.c mutes the FM-1's own output) */
 {
     uint32_t i;
-    if (ba.stage != BA_AV_READY || ba.paused || !ba.ch[BA_CH_MEDIA].dcid || bti.mode != BTI_M_CONN) {
+    if (ba.stage != BA_AV_READY || ba.paused || !ba.ch[BA_CH_MEDIA].dcid || bti.mode != BTI_M_CONN ||
+        bti_st.phase != BTI_INQ_RUN || bp.stopping) {      /* (the run over or being let go: bti_run_stop keeps the mode
+                                                    * and the stage, so the FM-1's own output stayed muted after a
+                                                    * disconnect, the user 2026-10-20) */
         ba_pcm_cnt = 0;
         return 0;
     }
