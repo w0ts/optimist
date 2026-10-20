@@ -13,7 +13,7 @@ Everything that changes the sound after the engine: the insert slots, the send b
 
 An **insert slot** holds one effect type and runs in series on its track. Two on each synth track (T1, T2, T3), two on the drum bus, two on **every drum lane**, two on the master and two on the USB input track. A type is in at most one slot of a track: picking the type the other slot holds swaps the two slots (and their amounts). A type that is in no slot is not heard, and its amount is kept.
 
-**Where:** the INSERTS page of the track (the track's FX family, and the mixer's inserts set) has S1 TYPE, its amount, S2 TYPE, its amount. Turn the knob of the TYPE card to pick the type; the amount is the next card. A slot set to `----` is empty.
+**Where:** the INSERTS page of the track (the track's FX family, and the mixer's inserts set) has S1 TYPE, its amount, S2 TYPE, its amount. Turn the knob of the TYPE card to pick the type (the list: ---- for none, then the types A to Z); the amount is the next card. A slot set to `----` is empty.
 
 **Defaults:** a new track has S1 DIST and S2 FILT, both at amount 0 (bypassed). A drum lane has S1 DIST and S2 DYN. The master has S1 FILT (0) and S2 DYN.
 
