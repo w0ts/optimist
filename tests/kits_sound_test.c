@@ -51,11 +51,18 @@ int main(void)
         if (!drum_kit_built(kit))
             continue;
         kits++;
-        for (l = 0; l < DRUM_LANES; l++)
-            if (hit_peak(kit, LANE_NOTE_OF(l)) == 0) {
-                printf("kit %2u %-10s lane %2u (note %u): silent  FAIL\n", kit, DRUM_KIT_NAMES[kit], l, LANE_NOTE_OF(l));
+        for (l = 0; l < DRUM_LANES; l++) {
+            int lack = 0;                               /* an X0X kit with nothing else built: the sounds it lacks are
+                                                         * silent by design (x0x_standin: none) */
+#if DRUM_X0X
+            lack = kit >= DRUM_UID_X909 && x0x_standin(kit) >= DRUM_KITS && !x0x_show(kit, l);
+#endif
+            if ((hit_peak(kit, LANE_NOTE_OF(l)) == 0) != lack) {
+                printf("kit %2u %-10s lane %2u (note %u): %s  FAIL\n", kit, DRUM_KIT_NAMES[kit], l, LANE_NOTE_OF(l),
+                       lack ? "heard, but nothing is built to play it" : "silent");
                 silent++;
             }
+        }
     }
 #if DRUM_X0X && FELUCCA_DRUM_KITS
     {   /* every X0X voice of this build as a lane's source (drum_edit.c DL_X909 / DL_X808) on the power-on kit */

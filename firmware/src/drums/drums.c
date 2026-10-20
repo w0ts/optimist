@@ -52,6 +52,8 @@ _Static_assert(sizeof DRUM_SRC_NAMES / sizeof DRUM_SRC_NAMES[0] ==
  * goes back to a full build as it was). Sampled <-> synthesised: the other source's first kit; X0X 909 / 808: the
  * synthesised 909 / 808, else the first sampled kit */
 #define DRUM_SFIRST (DRUM_SMASK & 1 ? 0u : DRUM_SMASK & 2 ? 1u : DRUM_SMASK & 4 ? 2u : DRUM_SMASK & 8 ? 3u : 4u)
+#define DRUM_XFIRST (FELUCCA_DRUM_X909 ? DRUM_UID_X909 : DRUM_UID_X808)   /* (an X0X-only build's kit) */
+#define DRUM_OTHER (DRUM_SMASK ? DRUM_SFIRST : FELUCCA_DRUM_SYNTH ? DRUM_SAMPLED : DRUM_XFIRST)   /* a kit not built: this */
 static int drum_kit_built(uint32_t k)
 {
     if (k < DRUM_SAMPLED)
@@ -66,13 +68,13 @@ static __attribute__((noinline)) uint32_t drum_kit_of(int32_t v)   /* (one copy:
     uint32_t k = (uint32_t)clamp(v, 0, DRUM_KITS - 1);
     /* an X0X kit not built: the synthesised 909 / 808 (37 -> 6, 38 -> 5; a style kit: its machine's), else sampled */
     if (k >= DRUM_SYNTH_END && !drum_kit_built(k))
-        k = FELUCCA_DRUM_SYNTH ? DRUM_UID_X909 + DRUM_SAMPLED + 1u - DRUM_UID_XMACH(k) : DRUM_SFIRST;
+        k = FELUCCA_DRUM_SYNTH ? DRUM_UID_X909 + DRUM_SAMPLED + 1u - DRUM_UID_XMACH(k) : DRUM_OTHER;
     if ((DRUM_SMASK == 31 && FELUCCA_DRUM_SYNTH) || drum_kit_built(k))   /* (every other kit built: as before) */
         return k;
-    return k < DRUM_SAMPLED && FELUCCA_DRUM_SYNTH ? DRUM_SAMPLED : DRUM_SMASK ? DRUM_SFIRST : DRUM_SAMPLED;
+    return k < DRUM_SAMPLED && FELUCCA_DRUM_SYNTH ? DRUM_SAMPLED : DRUM_OTHER;
 }
 static uint32_t drum_kit(void) { return drum_kit_of(TDRUM->p[P_E0]); }
-#define DRUM_DEFAULT_KIT (FELUCCA_DRUM_SYNTH ? DRUM_SAMPLED : DRUM_SFIRST)   /* power-on: 808 */
+#define DRUM_DEFAULT_KIT (FELUCCA_DRUM_SYNTH ? DRUM_SAMPLED : DRUM_SMASK ? DRUM_SFIRST : DRUM_XFIRST)   /* power-on: 808 */
 
 static struct {
     voice_t v[NDRUM];
@@ -388,6 +390,8 @@ static void drum_on(uint32_t note, uint32_t vel)
         if (x0x_on(kit, note, vel, lane))
             return;
         kit = x0x_standin(kit);                     /* a sound the machine lacks */
+        if (kit >= DRUM_KITS)
+            return;                                 /* (nothing else built: silent) */
     }
 #endif
     if (FELUCCA_DRUM_SYNTH && kit >= DRUM_SAMPLED) {   /* synthesised kit */

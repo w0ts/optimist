@@ -522,6 +522,12 @@ job; ( jobin
     run "every built drum kit makes sound, the X0X kits built (drums_mix's glides count the X0X channels)" "$OUT/kits_sound_x0x"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src $X0X_ON -DFELUCCA_DRUM_SYNTH=0 -DFELUCCA_DRUM_SAMPLED=0 -o "$OUT/kits_sound_x0xonly" tests/kits_sound_test.c -lm
+    run "the X0X kits as the only drum source: every sound they have heard, the ones they lack silent (no stand-in)" "$OUT/kits_sound_x0xonly"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_DRUM_X909=1 -DFELUCCA_DRUM_SYNTH=0 -DFELUCCA_DRUM_SAMPLED=0 -o "$OUT/kits_sound_x909only" tests/kits_sound_test.c -lm
+    run "the X0X 909 alone: the 808 plays the 909 (its stand-in), every sound the 909 has heard" "$OUT/kits_sound_x909only"
+) >"$U.out" 2>&1 & jobbg
+job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_DRUM_X909=1 -DFELUCCA_X909_CYM=0 -o "$OUT/x0x_drums_test1" tests/x0x_drums_test.c -lm
     run "X0X 909 without its ride and crash samples; the 808 not built: its stand-in" "$OUT/x0x_drums_test1"
 ) >"$U.out" 2>&1 & jobbg
@@ -1133,7 +1139,7 @@ KITS1="-DFELUCCA_DRUM_SYNTH=0 -DFELUCCA_KIT_ACOUSTIC=0 -DFELUCCA_KIT_DEEP=0 -DFE
 # (every sample set: COVER_STRICT, a factory preset per engine; sets left out: INIT where none is left)
 S1="-DCOVER_STRICT=1"
 for c in "$HGEN|$S1" "$HGEN|$S1 -DFELUCCA_ENG_SLICE=1 -DFELUCCA_ENG_PHYS=1 -DFELUCCA_ENG_ACID=1 -DFELUCCA_ENG_CZ=1 $FM6_PACKS_ON" \
-         "$HGEN|$S1 $X0X_ON -DFELUCCA_ENG_ACID=1" "$HGEN|$S1 $KITS1" "$OUT/gen_noset|-DFELUCCA_DRUM_SAMPLED=0" \
+         "$HGEN|$S1 $X0X_ON -DFELUCCA_ENG_ACID=1" "$HGEN|$S1 $KITS1" "$HGEN|$S1 $X0X_ON -DFELUCCA_DRUM_SYNTH=0 -DFELUCCA_DRUM_SAMPLED=0" "$OUT/gen_noset|-DFELUCCA_DRUM_SAMPLED=0" \
          "$OUT/gen_nogr|-DFELUCCA_ENG_SLICE=1"; do
     job; ( jobin
         $CC -w -I"${c%%|*}" -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 ${c#*|} -o "$OUT/preset_cover_test$nu" tests/preset_cover_test.c -lm
