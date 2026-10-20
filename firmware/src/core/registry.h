@@ -192,12 +192,10 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #undef DRUM_SMASK
 #define DRUM_SMASK 0
 #endif
-#if !FELUCCA_DRUM_SYNTH && !DRUM_SMASK
-#error "the drum track needs a drum source: the drum synth or a sampled kit"
-#endif
 /* Kit UIDs 37 and 38: X0X's circuit-modelled TR-909 and TR-808 (drum_x0x.c), each a switch of its own, off by
  * default. Every build knows their UIDs and names: a project, a user kit or a lane naming one keeps it, and a
- * build without it plays a stand-in (the synthesised 909 / 808 kit, else the first sampled kit). UIDs 39..46: their
+ * build without it plays a stand-in (the synthesised 909 / 808 kit, else the first sampled kit, else the other X0X
+ * kit). An X0X kit alone is a drum source (the user, 2026-10-20): the sounds it lacks are silent then. UIDs 39..46: their
  * style kits (drum_x0x.c X0X_STYLE: the same voices with their own SOUND settings), there with their machine; the
  * same stand-ins. Synthesised kits added after these take UIDs from 47. */
 #ifndef FELUCCA_DRUM_X909
@@ -210,6 +208,9 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #define FELUCCA_DRUM_X808 0                /* X0X's TR-808 (8W8 models, 16 sounds) */
 #endif
 #define DRUM_X0X (FELUCCA_DRUM_X909 || FELUCCA_DRUM_X808)
+#if !FELUCCA_DRUM_SYNTH && !DRUM_SMASK && !DRUM_X0X
+#error "the drum track needs a drum source: a drum synth (the synthesised kits, X0X 909, X0X 808) or a sampled kit"
+#endif
 #define DRUM_UID_X909 37u
 #define DRUM_UID_X808 38u
 #define DRUM_UID_XSTYLE 39u                /* 39..42: X9 TECH, X9 HOUSE, X9 UKG, X9 ACID; 43..46: X8 TRAP, X8 BOOM, */

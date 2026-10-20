@@ -322,7 +322,7 @@ _add("DRUM_X0X808", "FELUCCA_DRUM_X808", "X0X 808 kit (circuit-modelled TR-808)"
 D = "Drums"
 _add("DRUM_SAMPLED", "FELUCCA_DRUM_SAMPLED", "sampled drums (the PERC set, 99 KB)", D, 19, env="PERC",
      desc="The recorded drum samples (the PERC set, about 99 KB of flash) behind the five sampled kits below. "
-          "Switching this off drops all of them; the drum track then needs the drum synth.")
+          "Switching this off drops all of them; the drum track then needs a drum synth.")
 _KIT_DESC = {
     "ACOUSTIC": "The sampled kit as recorded (the basic kit of the PERC set).",
     "DEEP": "The sampled kit tuned down and softened by a low-pass filter: a darker, heavier kit.",

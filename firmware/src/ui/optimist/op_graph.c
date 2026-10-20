@@ -513,6 +513,8 @@ static void graph_denv(void)
     }
     if (!usr && kit >= DRUM_UID_X909)
         kit = x0x_standin(kit);                         /* (a note the machine lacks: the stand-in's sound) */
+    if (!usr && kit >= DRUM_KITS)
+        return;                                         /* (none: an X0X-only build, the note silent) */
 #endif
     if (usr || kit < DRUM_SAMPLED || !FELUCCA_DRUM_SYNTH)
         denv_sample(l, usr, o, y0, h, c);
