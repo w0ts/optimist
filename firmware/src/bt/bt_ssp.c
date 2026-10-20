@@ -11,20 +11,27 @@
  * order, most significant first (bt_safer.h). P-192 keys travel as X then Y, 24 octets each, air order.
  *
  *   btp_begin(p, own, peer, rng, send, ctx)  a new link (own and peer addresses in air order, as the FHS carries them)
+ *   btp_start(p)                             the FM-1 starts it, as the initiator (the master's: headphones refuse the
+ *                                            audio channel until the link is paired and encrypted, "security block"):
+ *                                            pairing, then our LMP_au_rand (their SRES checked), then the encryption
  *   btp_in(p, pdu, len)                      a received LMP PDU: 1 it was the pairing's (answered here), 0 not ours
  *   p->st                                    BTP_* : where the pairing is; BTP_ENCRYPTED: kc is the key to load */
 #include "bt_lmp.h"
 #include "bt_safer.h"
 
-enum { BTP_IDLE, BTP_IOCAP, BTP_PK_RX, BTP_PK_TX, BTP_CONFIRM, BTP_NUMBER, BTP_DHCHECK, BTP_PAIRED, BTP_AUTHED,
-       BTP_KEYSIZE, BTP_STARTING, BTP_ENCRYPTED, BTP_FAILED };
+enum { BTP_IDLE, BTP_IOCAP, BTP_PK_RX, BTP_PK_TX, BTP_CONFIRM, BTP_NUMBER, BTP_DHCHECK, BTP_PAIRED, BTP_AUTHING,
+       BTP_AUTHED, BTP_MODEREQ, BTP_KEYSIZE, BTP_STARTING, BTP_ENCRYPTED, BTP_FAILED };   /* (AUTHING, MODEREQ: the
+                                                         * initiator's: our au_rand out, our encryption mode request out) */
 #define BTP_IOCAP_NOIO 3u                               /* NoInputNoOutput: Just Works (Part C 4.2.7.1) */
 #define BTP_AUTH_GENERAL_BONDING 4u                     /* MITM not required, general bonding (we keep the key while on) */
 struct btp {
     uint8_t st, tid, pk_rx, pk_tx, reason;
+    uint8_t init;                                       /* 1: we started it (btp_start): A is us, B the device */
     uint8_t own_addr[6], peer_addr[6];                  /* air order */
     uint8_t priv[24], pub[48], peer_pub[48], dhkey[24]; /* spec order */
-    uint8_t na[16], nb[16];                             /* the initiator's and our nonce, spec order */
+    uint8_t na[16], nb[16];                             /* the initiator's and the responder's nonce, spec order */
+    uint8_t cb[16], au[16];                             /* the initiator's: the responder's commitment (spec order), our
+                                                         * AU_RAND (air order) */
     uint8_t iocap_a[3], iocap_b[3];                     /* the IO capability, OOB, auth requirements of each side */
     uint8_t lk[16];                                     /* the link key, air order (E1 / E3 take it so: bt_safer.h) */
     uint8_t aco[12], en_rand[16], kc[16];               /* air order */
@@ -83,7 +90,7 @@ static void btp_send_pk(struct btp *p)                  /* our next piece of the
     }
     p->pk_tx++;
 }
-static void btp_keys(struct btp *p)                     /* both keys known: the DHKey, our nonce and commitment */
+static void btp_dhkey(struct btp *p)                    /* both keys known: DHKey = P-192(our private key, its public key) */
 {
     uint8_t pa[64], pb[64], s[32];
     uint32_t i;
@@ -95,6 +102,10 @@ static void btp_keys(struct btp *p)                     /* both keys known: the 
         pa[i] = pa[32u + i] = pb[i] = 0;
     bts_ecc_shared_secret(pa, pb, s);
     btp_rev(p->dhkey, s, 24);
+}
+static void btp_keys(struct btp *p)                     /* the responder: the DHKey, our nonce and commitment */
+{
+    btp_dhkey(p);
     (void)p->rng(p->nb, 16);
     {   /* Cb = f1(PKbx, PKax, Nb, 0) */
         uint8_t cb[16], air[16];
@@ -104,11 +115,15 @@ static void btp_keys(struct btp *p)                     /* both keys known: the 
     }
     p->st = BTP_NUMBER;
 }
+static void btp_ab(const struct btp *p, uint8_t a[6], uint8_t b[6])   /* A (the initiator), B: spec order */
+{
+    btp_spec_addr(a, p->init ? p->own_addr : p->peer_addr);
+    btp_spec_addr(b, p->init ? p->peer_addr : p->own_addr);
+}
 static void btp_link_key(struct btp *p)                 /* LK = f2(DHKey, Na, Nb, "btlk", BD_ADDR_A, BD_ADDR_B), A the initiator */
 {
     uint8_t a1[6], a2[6], lk[16];
-    btp_spec_addr(a1, p->peer_addr);
-    btp_spec_addr(a2, p->own_addr);
+    btp_ab(p, a1, a2);
     bts_ssp_f2(p->dhkey, p->na, p->nb, a1, a2, lk);
     btp_rev(p->lk, lk, 16);
 }
@@ -116,8 +131,7 @@ static int btp_dh_check(struct btp *p, const uint8_t *ea_air)   /* the initiator
 {
     uint8_t a1[6], a2[6], r[16] = {0}, e[16], ea[16];
     uint32_t i;
-    btp_spec_addr(a1, p->peer_addr);
-    btp_spec_addr(a2, p->own_addr);
+    btp_ab(p, a1, a2);
     bts_ssp_f3(p->dhkey, p->na, p->nb, r, p->iocap_a, a1, a2, e);   /* Ea = f3(DHKey, Na, Nb, rb, IOcapA, A, B) */
     btp_rev(ea, ea_air, 16);
     for (i = 0; i < 16u; i++)
@@ -130,6 +144,66 @@ static int btp_dh_check(struct btp *p, const uint8_t *ea_air)   /* the initiator
     return 1;
 }
 
+/* ---- the initiator (btp_start): the same PDUs the other way round (Part C 4.2.7, Figures 4.39..4.52) */
+static void btp_new_key(struct btp *p)                  /* a fresh P-192 key pair a pairing (little-endian halves: bt_safer.h) */
+{
+    uint8_t pub[64], priv[32];
+    uint32_t i;
+    bts_ecc_make_key(pub, priv);
+    for (i = 0; i < 24u; i++)
+        p->pub[i] = pub[23u - i], p->pub[24u + i] = pub[32u + 23u - i], p->priv[i] = priv[23u - i];
+}
+static void btp_i_number(struct btp *p)                 /* its commitment in: our Na */
+{
+    uint8_t air[16];
+    (void)p->rng(p->na, 16);
+    btp_rev(air, p->na, 16);
+    btp_put(p, BTL_SIMPLE_PAIRING_NUMBER, air, 16);
+    p->st = BTP_NUMBER;
+}
+static int btp_i_nb(struct btp *p, const uint8_t *nb_air)   /* its Nb in: its commitment checked, our Ea out */
+{
+    uint8_t cb[16], a1[6], a2[6], r[16] = {0}, e[16], air[16];
+    uint32_t i;
+    btp_rev(p->nb, nb_air, 16);
+    bts_ssp_f1(p->peer_pub, p->pub, p->nb, 0, cb);      /* Cb = f1(PKbx, PKax, Nb, 0) */
+    for (i = 0; i < 16u; i++)
+        if (cb[i] != p->cb[i])
+            return 0;
+    btp_accept(p, BTL_SIMPLE_PAIRING_NUMBER);
+    btp_ab(p, a1, a2);
+    bts_ssp_f3(p->dhkey, p->na, p->nb, r, p->iocap_a, a1, a2, e);   /* Ea = f3(DHKey, Na, Nb, 0, IOcapA, A, B) */
+    btp_rev(air, e, 16);
+    btp_put(p, BTL_DHKEY_CHECK, air, 16);
+    p->st = BTP_DHCHECK;
+    return 1;
+}
+static int btp_i_eb(struct btp *p, const uint8_t *eb_air)   /* its Eb in: checked, the link key, our au_rand out */
+{
+    uint8_t a1[6], a2[6], r[16] = {0}, e[16], eb[16];
+    uint32_t i;
+    btp_ab(p, a1, a2);
+    bts_ssp_f3(p->dhkey, p->nb, p->na, r, p->iocap_b, a2, a1, e);   /* Eb = f3(DHKey, Nb, Na, 0, IOcapB, B, A) */
+    btp_rev(eb, eb_air, 16);
+    for (i = 0; i < 16u; i++)
+        if (e[i] != eb[i])
+            return 0;
+    btp_accept(p, BTL_DHKEY_CHECK);
+    btp_link_key(p);
+    p->tid = 0;                                         /* (our transaction: the master's) */
+    (void)p->rng(p->au, 16);
+    btp_put(p, BTL_AU_RAND, p->au, 16);                 /* we authenticate it: SRES = E1(LK, AU_RAND, its address) */
+    p->st = BTP_AUTHING;
+    return 1;
+}
+static void btp_i_encrypt(struct btp *p)                /* authenticated: we ask for encryption (the key size, EN_RAND follow) */
+{
+    uint8_t on = 1;
+    p->tid = 0;
+    btp_put(p, BTL_ENCRYPTION_MODE_REQ, &on, 1);
+    p->st = BTP_MODEREQ;
+}
+
 static void btp_begin(struct btp *p, const uint8_t own[6], const uint8_t peer[6], int (*rng)(uint8_t *, unsigned),
                       void (*send)(void *, const uint8_t *, uint32_t), void *ctx)
 {
@@ -140,6 +214,18 @@ static void btp_begin(struct btp *p, const uint8_t own[6], const uint8_t peer[6]
     for (i = 0; i < 6u; i++)
         p->own_addr[i] = own[i], p->peer_addr[i] = peer[i];
     p->rng = rng, p->send = send, p->ctx = ctx;
+}
+static void btp_start(struct btp *p)                    /* we start the pairing (the master: TID 0) */
+{
+    if (p->st != BTP_IDLE)
+        return;
+    p->init = 1;
+    p->tid = 0;
+    p->iocap_a[0] = BTP_IOCAP_NOIO, p->iocap_a[1] = 0, p->iocap_a[2] = BTP_AUTH_GENERAL_BONDING;
+    btp_new_key(p);
+    p->pk_rx = p->pk_tx = 0;
+    btp_put(p, BTL_ESCAPE << 8 | BTL_X_IO_CAPABILITY_REQ, p->iocap_a, 3);
+    p->st = BTP_IOCAP;
 }
 static int btp_in(struct btp *p, const uint8_t *pdu, uint32_t len)
 {
@@ -167,6 +253,34 @@ static int btp_in(struct btp *p, const uint8_t *pdu, uint32_t len)
         p->pk_rx = p->pk_tx = 0;
         p->st = BTP_PK_RX;
         return 1;
+    case BTL_ESCAPE << 8 | BTL_X_IO_CAPABILITY_RES:     /* (the initiator) its IO capability: our public key goes first */
+        if (!p->init || p->st != BTP_IOCAP || n < 3u)
+            return 0;
+        p->iocap_b[0] = par[0], p->iocap_b[1] = par[1], p->iocap_b[2] = par[2];
+        p->st = BTP_PK_TX;
+        btp_send_pk(p);                                 /* (the header; the payloads follow each LMP_accepted) */
+        return 1;
+    case BTL_SIMPLE_PAIRING_CONFIRM:                    /* (the initiator) its commitment Cb: our Na */
+        if (!p->init || p->st != BTP_CONFIRM || n < 16u)
+            return 0;
+        btp_rev(p->cb, par, 16);
+        btp_i_number(p);
+        return 1;
+    case BTL_SRES:                                      /* (the initiator) its answer to our au_rand */
+        if (!p->init || p->st != BTP_AUTHING || n < 4u)
+            return 0;
+        {
+            uint8_t sres[4];
+            bts_e1(p->lk, p->au, p->peer_addr, sres, p->aco);   /* (the ACO: the encryption's COF) */
+            if (sres[0] != par[0] || sres[1] != par[1] || sres[2] != par[2] || sres[3] != par[3]) {
+                p->st = BTP_FAILED;
+                p->reason = BTL_ERR_AUTH_FAILURE;
+                return 1;                               /* (the page layer sees FAILED: the link is let go) */
+            }
+        }
+        p->st = BTP_AUTHED;
+        btp_i_encrypt(p);
+        return 1;
     case BTL_ENCAPSULATED_HEADER:                       /* its public key's header: P-192 only */
         if (p->st != BTP_PK_RX)
             return 0;
@@ -193,13 +307,27 @@ static int btp_in(struct btp *p, const uint8_t *pdu, uint32_t len)
         }
         btp_accept(p, op);
         if (++p->pk_rx == 3u) {
-            p->st = BTP_PK_TX;
-            btp_send_pk(p);                             /* (our header; the payloads follow each LMP_accepted) */
+            if (p->init) {                              /* (the initiator: both keys now, its commitment next) */
+                btp_dhkey(p);
+                p->st = BTP_CONFIRM;
+            } else {
+                p->st = BTP_PK_TX;
+                btp_send_pk(p);                         /* (our header; the payloads follow each LMP_accepted) */
+            }
         }
         return 1;
     case BTL_SIMPLE_PAIRING_NUMBER:                     /* Na: accepted, then our Nb (the device checks our commitment) */
         if (p->st != BTP_NUMBER || n < 16u)
             return 0;
+        if (p->init) {                                  /* (the initiator: its Nb, its commitment checked) */
+            if (!btp_i_nb(p, par)) {
+                p->tid = 0;
+                btp_put(p, BTL_ESCAPE << 8 | BTL_X_NUMERIC_COMPARISON_FAILED, 0, 0);
+                p->st = BTP_FAILED;
+                p->reason = BTL_ERR_AUTH_FAILURE;
+            }
+            return 1;
+        }
         btp_rev(p->na, par, 16);
         btp_accept(p, op);
         {
@@ -212,6 +340,11 @@ static int btp_in(struct btp *p, const uint8_t *pdu, uint32_t len)
     case BTL_DHKEY_CHECK:                               /* Ea checked, our Eb back; the link key */
         if (p->st != BTP_DHCHECK || n < 16u)
             return 0;
+        if (p->init) {                                  /* (the initiator: its Eb) */
+            if (!btp_i_eb(p, par))
+                btp_fail(p, op, BTL_ERR_AUTH_FAILURE);
+            return 1;
+        }
         if (!btp_dh_check(p, par)) {
             btp_fail(p, op, BTL_ERR_AUTH_FAILURE);
             return 1;
@@ -248,8 +381,16 @@ static int btp_in(struct btp *p, const uint8_t *pdu, uint32_t len)
         if ((par[0] == BTL_ENCAPSULATED_HEADER || par[0] == BTL_ENCAPSULATED_PAYLOAD) && p->st == BTP_PK_TX) {
             if (p->pk_tx < 4u)
                 btp_send_pk(p);
+            else if (p->init)
+                p->st = BTP_PK_RX;                      /* (the initiator: ours is out, its key next) */
             else
                 btp_keys(p);                            /* (both keys exchanged: commitment) */
+            return 1;
+        }
+        if (par[0] == BTL_ENCRYPTION_MODE_REQ && p->st == BTP_MODEREQ) {   /* (the initiator: on, the key size next) */
+            uint8_t ks = 16;
+            p->st = BTP_KEYSIZE;
+            btp_put(p, BTL_ENCRYPTION_KEY_SIZE_REQ, &ks, 1);
             return 1;
         }
         if (par[0] == BTL_SIMPLE_PAIRING_NUMBER || par[0] == BTL_DHKEY_CHECK || par[0] == BTL_SIMPLE_PAIRING_CONFIRM)
