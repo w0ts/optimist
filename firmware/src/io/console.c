@@ -972,6 +972,25 @@ static void con_tabbench(void)
 
 #include "console_run.c"                              /* play pause rec proj heavy wdtreset (scripted tests) */
 
+#if FELUCCA_BT_AUDIO && FELUCCA_DUAL >= 2
+/* `cpu1park`: CPU1 parked and started again exactly as the radio's start-up does (system/dual.c dual_radio_hold /
+ * dual_radio_release), with no radio in between: whether the restart itself comes back (2026-10-20: CPU1 "NO START"
+ * after a radio start-up, the restart never measured). Run it with CPU1 up (a fresh boot, before any Bluetooth) */
+static void con_cpu1park(void)
+{
+    uint32_t t0;
+    con_kv("cpu1_up_before", dual.up);
+    con_kv("cpu1_why_before", dual.why);
+    dual_radio_hold();
+    con_kv("cpu1_parked", dual.parked);
+    t0 = fm1_ms;
+    while (fm1_ms - t0 < 50u)
+        ;
+    dual_radio_release();
+    con_kv("cpu1_up_after", dual.up);
+    con_kv("cpu1_why_after", dual.why);
+}
+#endif
 static void con_exec(const char *p)
 {
     if (con_run(p))
@@ -992,6 +1011,9 @@ static void con_exec(const char *p)
 #if FELUCCA_BT_AUDIO
                  "  btclk [run]  btinq|btscan [SECONDS] [even|odd|all agc=N win=N frq=N pll=N sweep|nosweep pwr=N prio=N]|stop"
                  "  btpage ADDR [SECONDS] [OPTIONS]|stop  bttrace [N]  btrx [N]"
+#if FELUCCA_DUAL >= 2
+                 "  cpu1park"
+#endif
 #endif
                  "  uboot yes\r\n");
     else if (con_word(&p, "status"))
@@ -1037,6 +1059,10 @@ static void con_exec(const char *p)
 #endif
 #endif
 #if FELUCCA_BT_AUDIO
+#if FELUCCA_DUAL >= 2
+    else if (con_word(&p, "cpu1park"))
+        con_cpu1park();
+#endif
     else if (con_word(&p, "btclk"))
         con_btclk(p);
     else if (con_word(&p, "btinq"))
