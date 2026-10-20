@@ -15,6 +15,9 @@ static struct {
     uint8_t mode, n, cur, have_last, last[6], tried;
     char last_name[17];
     struct bta_dev d[BTA_DEVS];
+    uint8_t own[6], own_set;                            /* our BR/EDR address: made once, kept (bt_inq.c bti_own_addr) */
+    uint8_t bonded, lk[16];                             /* the last device's link key from its pairing (air order) */
+    uint8_t key_new;                                    /* the address or the key changed: the settings record to save */
 } bta;
 
 static void bta_start(uint32_t m);

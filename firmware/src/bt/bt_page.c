@@ -164,6 +164,8 @@ static void bp_conn_enter(void)                    /* BR §8.3 sub-state 2 -> th
         f->linkcntl[i] &= (uint16_t)~(1u << 7 | 1u << 15);   /* (a new link: no encryption until it is started) */
     uECC_set_rng(bp_rng);
     btp_begin(&bp_ssp, bti.own, bp.remote, bp_rng, bp_ssp_send, 0);
+    if (bta.bonded && bta.have_last && ble_eq(bp.remote, bta.last, 6))
+        btp_bond(&bp_ssp, bta.lk);                 /* (bonded: its key, no pairing: bt_acl.c ba_poll authenticates) */
 #endif
     bp.conn_ms = fm1_ms;
     bp.last_good_ms = fm1_ms;

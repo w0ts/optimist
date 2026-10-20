@@ -1569,6 +1569,9 @@ static void persist_boot(void)                    /* before settings_init / pane
 #if FELUCCA_BT_UI
             bt_rec_in(p.bt_rec);                   /* SYSTEM > Bluetooth: MODE, AUDIO's last device (op_bt.c) */
 #endif
+#if FELUCCA_BT_AUDIO
+            bt_key_in(p.bt_key);                   /* our BR/EDR address, the last device's link key (op_bt.c) */
+#endif
 #if FELUCCA_DUAL && FELUCCA_DUALCFG
             if (p.dualcfg.magic == DUALCFG_MAGIC)
                 dualcfg = p.dualcfg;               /* (else the defaults: dualcfg_boot) */
@@ -1673,6 +1676,9 @@ static void settings_save(void)
 #endif
 #if FELUCCA_BT_UI
     bt_rec_out(p.bt_rec);
+#endif
+#if FELUCCA_BT_AUDIO
+    bt_key_out(p.bt_key);
 #endif
 #if FELUCCA_DUAL && FELUCCA_DUALCFG
     p.dualcfg = dualcfg;

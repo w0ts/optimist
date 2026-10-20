@@ -456,6 +456,18 @@ static void ba_poll(void)
             btp_start(&bp_ssp);
             return;
         }
+        if (bp_ssp.st == BTP_PAIRED && bp_ssp.bonded) {
+            con_puts("btpage: bonded: authenticating with the saved link key, then the encryption\r\n");
+            btp_auth(&bp_ssp);
+            return;
+        }
+        if (bp_ssp.st == BTP_FAILED && bp_ssp.bonded) {   /* (the device lost our key: a fresh pairing) */
+            ba_line("the saved key refused (reason, 0): pairing afresh", bp_ssp.reason, 0);
+            bta.bonded = 0;
+            btp_begin(&bp_ssp, bti.own, bp.remote, bp_rng, bp_ssp_send, 0);
+            btp_start(&bp_ssp);
+            return;
+        }
         if (bp_ssp.st == BTP_FAILED) {
             ba_line("pairing failed (reason, 0)", bp_ssp.reason, 0);
             ba.stage = BA_FAILED;
@@ -463,6 +475,14 @@ static void ba_poll(void)
         }
         if (bp_ssp.st != BTP_ENCRYPTED)
             return;                                /* (under way: ours or the device's) */
+        if (!bp_ssp.bonded && bta.have_last && ble_eq(bp.remote, bta.last, 6)) {   /* a fresh pairing: its key kept */
+            uint32_t k;
+            for (k = 0; k < 16u; k++)
+                bta.lk[k] = bp_ssp.lk[k];
+            bta.bonded = 1;
+            bta.key_new = 1;
+            con_puts("btpage: bonded: the link key kept for the next connection\r\n");
+        }
         con_puts("btpage: paired and encrypted: opening the audio channel\r\n");
         ba.stage = BA_AV_SIG;
         ba_open(BA_CH_SIG, ba.avdtp_psm);

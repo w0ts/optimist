@@ -526,17 +526,27 @@ static void bti_giac(struct fm1_br_frame *f)       /* the GIAC's access code (BR
 
 static const uint8_t bti_eir_tx[25] = {12, 0x09, 'O', 'P', 'T', 'I', 'M', 'I', 'S', 'T', ' ', 'B', 'T'};   /* + zeros */
 
-static void bti_own_addr(void)                     /* a random address for this boot (LAP outside 0x9E8B00-3F) */
+static void bti_own_addr(void)                     /* our address: made once (LAP outside 0x9E8B00-3F), then kept in the
+                                                    * settings record (bta.own: a bonded device knows us by it) */
 {
-    uint32_t r;
+    uint32_t r, i;
     if (bti.own[0] | bti.own[1] | bti.own[2])
         return;
+    if (bta.own_set) {
+        for (i = 0; i < 6u; i++)
+            bti.own[i] = bta.own[i];
+        return;
+    }
     do
         r = fm1_ble_rng32();
     while (((r & 0xFFFFC0u) == 0x9E8B00u) || (r & 0xFFFFFFu) == 0);
     bti.own[0] = (uint8_t)r, bti.own[1] = (uint8_t)(r >> 8), bti.own[2] = (uint8_t)(r >> 16);
     r = fm1_ble_rng32();
     bti.own[3] = (uint8_t)r, bti.own[4] = (uint8_t)(r >> 8), bti.own[5] = (uint8_t)((r >> 16) & 0xFCu);
+    for (i = 0; i < 6u; i++)
+        bta.own[i] = bti.own[i];
+    bta.own_set = 1;
+    bta.key_new = 1;                               /* (kept from now: the settings record) */
 }
 
 /* the common start of a run (the interrupts held when it returns 1): the radio, the block, the priority, the frame */

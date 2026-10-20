@@ -52,6 +52,10 @@ typedef struct {
     uint8_t bt_rec[32];                            /* appended after them: SYSTEM > Bluetooth's MODE and AUDIO's last device
                                                     * (ui/optimist/op_bt.c bt_rec_out, its own mark; zero: none) */
 #endif
+#if FELUCCA_BT_AUDIO
+    uint8_t bt_key[32];                            /* appended after it: our BR/EDR address and the last audio device's link
+                                                    * key (op_bt.c bt_key_out, its own mark; zero: none, a new address) */
+#endif
 #if FELUCCA_DUAL && FELUCCA_DUALCFG
     dualcfg_t dualcfg;                             /* the second-core test image only (system/dual.c, the console's dualcfg):
                                                     * after everything; a normal build reads it as a longer record's tail */
@@ -81,6 +85,13 @@ _Static_assert(PERSIST_BLE(ble_rf) == PERSIST_BLE(ble_addr) + 8 && PERSIST_BLE(b
  * filled in and made whole), PERSIST_NO_VIEW for the one short form still read, else what n was (not read) */
 static int persist_upgrade(persist_t *pp, int n)
 {
+#if FELUCCA_BT_AUDIO
+    if (n == (int)__builtin_offsetof(persist_t, bt_key)) {   /* (first: a record from before the key is whole without it) */
+        memset(pp->bt_key, 0, sizeof pp->bt_key);
+        n = (int)sizeof *pp;
+    } else if (n < (int)sizeof *pp)
+        memset(pp->bt_key, 0, sizeof pp->bt_key);
+#endif
 #if FELUCCA_BT_UI
     if (n == (int)__builtin_offsetof(persist_t, bt_rec)) {   /* (first: a record from before it is whole without it) */
         memset(pp->bt_rec, 0, sizeof pp->bt_rec);
