@@ -40,7 +40,7 @@ static void bta_named(const uint8_t a[6], const char *nm)   /* its EIR's name (b
 }
 /* the furthest step of the link while it was up (bta_state), said when it ends by itself (bta_lost: the user,
  * 2026-10-20, "remained in connecting for a while and then disconnected. No error") */
-enum { BTA_W_NONE, BTA_W_LINK, BTA_W_PAIR, BTA_W_ENC, BTA_W_AUDIO, BTA_W_STREAM };
+enum { BTA_W_NONE, BTA_W_LINK, BTA_W_PAIR, BTA_W_ENC, BTA_W_AUDIO, BTA_W_STREAM, BTA_W_REFUSED };
 static uint8_t bta_seen;
 static void bta_stop(void)
 {
@@ -102,8 +102,10 @@ static uint32_t bta_state(void)
         uint32_t w = ba.stage == BA_AV_READY ? BTA_W_STREAM : bp_ssp.st == BTP_ENCRYPTED ? BTA_W_AUDIO
                    : bp_ssp.st >= BTP_MODEREQ && bp_ssp.st != BTP_FAILED ? BTA_W_ENC
                    : bp_ssp.st != BTP_IDLE ? BTA_W_PAIR : BTA_W_LINK;
-        if (w > bta_seen || ba.stage == BA_FAILED)
-            bta_seen = ba.stage == BA_FAILED ? BTA_W_NONE : (uint8_t)w;   /* (refused: REFUSED says it) */
+        if (ba.stage == BA_FAILED)
+            bta_seen = BTA_W_REFUSED;                   /* (refused, or a set-up given up: said when the link ends) */
+        else if (w > bta_seen)
+            bta_seen = (uint8_t)w;
         return ba.stage == BA_AV_READY ? BTA_S_STREAMING : ba.stage == BA_FAILED ? BTA_S_REFUSED
              : ba.stage >= BA_AV_SIG ? BTA_S_SETUP : BTA_S_LINKED;
     }
@@ -133,12 +135,12 @@ static void bta_output(int bt)
 static const char *bta_lost(void)                       /* the link ended by itself: where it had got to, once; else 0 */
 {
     static const char *const W[] = {0, "LOST AFTER CONNECTING", "LOST WHILE PAIRING", "LOST AT ENCRYPTION",
-                                    "LOST IN AUDIO SETUP", "LOST WHILE STREAMING"};
+                                    "LOST IN AUDIO SETUP", "LOST WHILE STREAMING", "REFUSED"};
     uint32_t w = bta_seen;
     if (!w || (bta_state() >= BTA_S_PAGING && bta_state() <= BTA_S_STREAMING))
         return 0;                                       /* (nothing seen, or still up) */
     bta_seen = BTA_W_NONE;
-    return W[w % 6u];
+    return W[w % 7u];
 }
 static const char *bta_dev_name(uint32_t i)             /* found device i as shown: its name, else its address's last bytes */
 {

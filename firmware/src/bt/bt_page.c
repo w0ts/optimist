@@ -465,6 +465,7 @@ static void bp_lmp_in(const struct bti_rx *r)
     }
 }
 
+static void bp_leave(void);                        /* (below: bt_acl.c lets a failed set-up go) */
 #include "bt_acl.c"                                /* stage 3: L2CAP and SDP over the link */
 
 static void bp_print_rx(const struct bti_rx *r)   /* bti_print_rx's page / connection kinds */

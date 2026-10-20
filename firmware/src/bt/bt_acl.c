@@ -490,8 +490,11 @@ static void ba_poll(void)
         ba.stage = BA_AV_SIG;
         ba_open(BA_CH_SIG, ba.avdtp_psm);
     }
-    if (ba.stage > BA_IDLE && ba.stage < BA_AV_READY && fm1_ms - ba.t0 >= BA_SETUP_MS) {
+    if (ba.stage < BA_AV_READY && ba.stage != BA_FAILED && fm1_ms - bp.conn_ms >= BA_SETUP_MS) {   /* (from the link up:
+                                                    * a link stuck before SDP too, its LMP set-up not done: AirPods sat in
+                                                    * SETTING UP for minutes, 2026-10-20) */
         ba_line("set-up given up (stage, pairing state)", ba.stage, bp_ssp.st);
         ba.stage = BA_FAILED;
+        bp_leave();                                /* (and the link let go: the device free for the next try) */
     }
 }
