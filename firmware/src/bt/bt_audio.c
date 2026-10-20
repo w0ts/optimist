@@ -46,14 +46,14 @@ static void bta_stop(void)
 {
     bta_seen = BTA_W_NONE;
     if (bti_busy())
-        bti_run_stop();
+        bp_leave();                                     /* (a link: detached, as the spec has it; bt_page.c) */
     bta.mode = BTA_OFF;
 }
 static void bta_hangup(void)                            /* the link (or the page) ends, the mode stays: SAVE connects again */
 {
     bta_seen = BTA_W_NONE;                              /* (let go: nothing to say) */
     if (bti_busy())
-        bti_run_stop();
+        bp_leave();                                     /* (a link: detached, as the spec has it; bt_page.c) */
     bta.tried = 0;
 }
 static int bta_page(const uint8_t a[6])

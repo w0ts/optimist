@@ -631,21 +631,31 @@ static int bp_start(const uint8_t addr[6], uint32_t slots)
     return 1;
 }
 
+/* the link let go as the spec has it: LMP_detach (0x13, the user ended it), the run stopped 300 ms after (bp_poll),
+ * so the device knows at once and can be connected to again (cut without it, it waits for its supervision timeout,
+ * 20 s on headphones, and refuses meanwhile: the user, 2026-10-20, "it does not disconnect correctly"); no link up
+ * (a page): stopped at once. The console's `btpage stop` and the page's SAVE (bt_audio.c bta_hangup) alike */
+static void bp_leave(void)
+{
+    if (bti.mode == BTI_M_CONN && bti_st.phase == BTI_INQ_RUN) {
+        uint8_t out[4];
+        if (!bp.stopping)
+            bp_queue(out, btl_detach(out, 0x13u), "let go");
+        bp.stopping = 1;
+        bp.stop_ms = fm1_ms;
+    } else {
+        fm1_br_irqs_hold(1);
+        bti_run_stop();
+        fm1_br_irqs_hold(0);
+    }
+}
+
 static void con_btpage(const char *p)
 {
     uint8_t a[6];
     uint32_t s = 10u;
     if (con_word(&p, "stop")) {
-        if (bti.mode == BTI_M_CONN && bti_st.phase == BTI_INQ_RUN) {
-            uint8_t out[4];
-            bp_queue(out, btl_detach(out, 0x13u), "stop");
-            bp.stopping = 1;
-            bp.stop_ms = fm1_ms;
-        } else {
-            fm1_br_irqs_hold(1);
-            bti_run_stop();
-            fm1_br_irqs_hold(0);
-        }
+        bp_leave();
         return;
     }
     if (!bp_parse_addr(&p, a)) {
