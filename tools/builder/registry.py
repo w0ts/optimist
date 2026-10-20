@@ -43,6 +43,7 @@ MERGED = {
 
 # Dropped items: a .config naming one still loads; the setting is ignored with a warning (configure.py parse)
 RETIRED = {
+    "BT_INQ_PROBE": "the Bluetooth Classic inquiry probe was dropped 2026-10-20 (bit 280 stays unused); its stack is BT_AUDIO's, and with USB_MODE 1 so are the console's btinq / btpage",
     "UI": "the Optimist UI is the only user interface: SLOOP's UI was removed (retired 2026-10-19, bit 251; any old UI value is ignored)",
     "ICONS": "the parameter icons were SLOOP's UI's (retired 2026-10-19 with it, bit 52)",
     "OVERVIEW": "VIEW ALL was SLOOP's UI's (retired 2026-10-19 with it, bit 53)",
@@ -875,23 +876,6 @@ _add("BLE_CENTRAL", "FELUCCA_BLE_CENTRAL", "BLE devices: connect to BLE-MIDI dev
           "last device, which the FM-1 reconnects to by itself while Bluetooth is on. Brings the bonding of BLE_BOND "
           "with it. Without this item DEVICES shows NONE and the last device only.",
      symbols=("ble_found",), tested="on an FM-1: an iPhone app reconnected as the last device (2026-10-18)")
-_add("BT_INQ_PROBE", "FELUCCA_BT_INQ_PROBE", "Bluetooth Classic inquiry probe (console btclk / btinq)", M, 280,
-     default=0, experimental=True, target_only=True,
-     tested="host-tested (sync word, FHS, EIR) and emulator-tested; run on an FM-1 2026-10-18 (clock, inquiry, paging)",
-     notice="experimental: a Bluetooth Classic inquiry probe; no BLE in this build",
-     desc="The first stages of our own Bluetooth Classic stack (docs/BT-CLASSIC.md section 14), for testing on an "
-          "FM-1 from the CDC console (needs USB_MODE 1, and BLE off: one engine on the radio at a time). At start-up "
-          "it starts the radio with the stored calibration (stock V15's VM; none: nothing is started) and checks the "
-          "Bluetooth clock and its interrupts for 3 s, transmitting nothing (console btclk). btinq [SECONDS] then runs "
-          "an inquiry (10.24 s by default): the FM-1 sends inquiry IDs and prints every device that answers (its "
-          "address, class, clock, signal and EIR name) and a status line a second; btscan [SECONDS] is the other side (an "
-          "inquiry scan: a phone or computer searching finds OPTIMIST BT); both take options for the hardware's unknowns "
-          "(entries, RX gain, window, frequency, carrier offset) and bttrace / btrx print their interrupts and receptions. "
-          "btpage ADDR pages a device as the master and sets the link up with a minimal LMP (features, version, host "
-          "connection, setup complete; a Raspberry Pi accepted it as a connection): no profile, no audio yet. "
-          "About 33 KB of flash (most of it the radio's start-up program, which BLE carries too), 2.3 KB of RAM and "
-          "15 KB of pool.",
-     symbols=("bti_st",))
 _add("BT_AUDIO", "FELUCCA_BT_AUDIO", "Bluetooth Classic Audio (A2DP Source, SBC)", M, 281,
      default=0, experimental=True, target_only=True,
      tested="host-tested (SSP, SAFER+, SBC encoder, AVDTP, L2CAP) and unit-tested",

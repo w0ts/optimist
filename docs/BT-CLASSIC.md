@@ -1,7 +1,7 @@
 # Bluetooth Classic (BR/EDR): the hardware, our probe, and the A2DP plan
 
 Status 2026-10-19: **research and an EXPERIMENTAL probe, paused.** No Classic code is in a normal build. The
-builder item `BT_INQ_PROBE` (bit 280, EXPERIMENTAL, default off, needs `USB_MODE` 1 and no `BLE`) builds a probe
+builder item `BT_INQ_PROBE` (bit 280, dropped 2026-10-20: its stack is `BT_AUDIO`'s) built a probe
 that, from the CDC console, scans, pages a Raspberry Pi, sets up the link, and reads its A2DP record. Pairing and
 encryption (the step before audio) are not done. Nothing here plays audio.
 
