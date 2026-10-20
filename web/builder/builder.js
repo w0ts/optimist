@@ -311,7 +311,7 @@ function itemRow(key, hasKids) {
       it.choices.map(([cv, lab]) => el("option", { value: cv, selected: cv === val, text: lab })));
     if (!it.choices.some(([cv]) => cv === val)) ctl.prepend(el("option", { value: val, selected: true, text: `${val} (not a choice)` }));
   } else {
-    ctl = el("input", { id, type: "checkbox", "aria-labelledby": `lab-${key}`, "aria-describedby": `tags-${key}`, checked: !!val, disabled: !S.ready, onchange: (e) => setItem(key, e.target.checked ? 1 : 0), onfocus: () => select(key) });
+    ctl = el("input", { id, type: "checkbox", "aria-labelledby": `lab-${key}`, "aria-describedby": `tags-${key}`, checked: !!val, disabled: !S.ready || !!it.fixed, onchange: (e) => setItem(key, e.target.checked ? 1 : 0), onfocus: () => select(key) });
   }
   const tags = el("span", { class: "tags", id: `tags-${key}` });
   if (it.experimental) tags.append(el("span", { class: "o-tag " + (val && live ? "warn" : "outline"), text: "experimental" }));

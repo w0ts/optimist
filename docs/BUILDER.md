@@ -271,6 +271,7 @@ These run once (on the master, or as the one effect each: chorus, delay, reverb,
 
 | Item | Key | What it does |
 |---|---|---|
+| USB MIDI (always: notes, clock, the editor, updates) | `USB_MIDI` | USB MIDI is in every build: notes and clock both ways, the web editor, and firmware updates (the installer and the builder flash through it). Shown for the record, it cannot be switched off. |
 | USB serial console (logs, diagnostics) | `USB_CONSOLE` | A read-only serial console on the USB port, next to USB MIDI: the logs and the diagnostic commands (with Bluetooth audio, its btinq / btpage traces). Not with USB audio: the USB port has three data endpoints, USB MIDI takes one and USB audio the other two. |
 | USB audio (4 stems in, stereo out) | `USB_AUDIO` | 4 stems in + stereo out (UAC1) next to USB MIDI; the stems are resampled to the computer's clock (cubic, after X0X 80b7d40), so a host passing the input live to an output does not drop out. Needs +12 KB pool (a resampler in the audio path is CPU-heavy). It streams on the FM-1 since 2026-10-12 (before, a USB audio build hung and went to the USB rescue); its audio quality is not checked yet. Not with the serial console: the USB port has three data endpoints, USB MIDI takes one and USB audio the other two. |
 | TRS MIDI IN | `UART` | MIDI input on the TRS jack (notes and clock from a keyboard or sequencer). About 0.6 KB of flash; off: the jack hears nothing, and SYNC TRS has no clock. |

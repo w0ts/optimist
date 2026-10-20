@@ -158,6 +158,7 @@ class Item:
     target_only: bool = False        # only for the target build (the host tests keep their own default)
     symbols: tuple = ()              # ELF symbols that must be gone (or <= 4 B) when the item is off
     tested: str = "emulator-tested only"   # what an EXPERIMENTAL item has been tested on (the warning says it)
+    fixed: bool = False              # always on: shown (greyed), never changed (USB MIDI: every build has it)
     no_image: bool = False           # a build setting, not firmware: nothing in the image (not in the hash or the BUILD
                                      # bits), its costs.json deltas are 0 (written, never built)
     children: list = field(default_factory=list)
@@ -638,6 +639,10 @@ _add("ENERGY", "FELUCCA_ENERGY", "ENERGY bands thin / thicken the drums", Q, 121
 # takes EP1, USB audio EP2 both ways and EP3 IN, the console EP2 and EP3 (io/usb/usb.c). (bit 47, USB_MODE, the one
 # choice before: MIGRATE reads it; never reuse the bit)
 M = "USB & BT & MIDI"
+_add("USB_MIDI", "", "USB MIDI (always: notes, clock, the editor, updates)", M, 362, default=1, no_image=True,
+     fixed=True,
+     desc="USB MIDI is in every build: notes and clock both ways, the web editor, and firmware updates (the installer "
+          "and the builder flash through it). Shown for the record, it cannot be switched off.")
 _add("USB_CONSOLE", "", "USB serial console (logs, diagnostics)", M, 360, default=0,
      desc="A read-only serial console on the USB port, next to USB MIDI: the logs and the diagnostic commands "
           "(with Bluetooth audio, its btinq / btpage traces). Not with USB audio: the USB port has three data "
@@ -928,7 +933,8 @@ def to_json():
     out = []
     for it in _ITEMS:
         d = {k: getattr(it, k) for k in ("key", "flag", "label", "group", "bit", "default", "parent", "desc",
-                                          "experimental", "notice", "off_warning", "env", "target_only", "symbols", "no_image")}
+                                          "experimental", "notice", "off_warning", "env", "target_only", "symbols", "no_image",
+                                          "fixed")}
         d["choices"] = [list(c) for c in it.choices]
         d["provenance"] = it.provenance.__dict__ if it.provenance else None
         out.append(d)
