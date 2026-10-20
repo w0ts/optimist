@@ -449,6 +449,15 @@ static void ba_poll(void)
 {
     if (bti.mode != BTI_M_CONN)
         return;
+    if (ba.stage < BA_AV_READY && ba.stage != BA_FAILED && fm1_ms - bp.conn_ms >= BA_SETUP_MS) {   /* (first, from the link
+                                                    * up, whatever the step: a pairing that never ends returns below each
+                                                    * pass. 2026-10-20: SETTING UP for minutes; the device a Mac, "L..O",
+                                                    * whose user was asked to confirm the pairing) */
+        ba_line("set-up given up (stage, pairing state)", ba.stage, bp_ssp.st);
+        ba.stage = BA_FAILED;
+        bp_leave();                                /* (and the link let go: the device free for the next try) */
+        return;
+    }
     if (ba.stage == BA_IDLE && bp.setup_in && bp.setup_out) {
         ba.stage = BA_SDP;
         ba.t0 = fm1_ms;
@@ -489,12 +498,5 @@ static void ba_poll(void)
         con_puts("btpage: paired and encrypted: opening the audio channel\r\n");
         ba.stage = BA_AV_SIG;
         ba_open(BA_CH_SIG, ba.avdtp_psm);
-    }
-    if (ba.stage < BA_AV_READY && ba.stage != BA_FAILED && fm1_ms - bp.conn_ms >= BA_SETUP_MS) {   /* (from the link up:
-                                                    * a link stuck before SDP too, its LMP set-up not done: AirPods sat in
-                                                    * SETTING UP for minutes, 2026-10-20) */
-        ba_line("set-up given up (stage, pairing state)", ba.stage, bp_ssp.st);
-        ba.stage = BA_FAILED;
-        bp_leave();                                /* (and the link let go: the device free for the next try) */
     }
 }
