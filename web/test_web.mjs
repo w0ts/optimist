@@ -21,6 +21,7 @@ import { STOCK_BANKS_SIZE, STOCK_V15_SHA256, logicalImage, productOf, stockBanks
 import { OFFICIAL_LOADER, OUR_LOADER, Updater } from "./fm1ota.js";
 import { FakeFM1, fakePackage } from "./installer/mock_fm1.js";
 import * as INST from "./installer/installer.js";
+import { findButton } from "./sim/buttons.js";
 
 let failed = 0;
 const ok = (cond, what) => { console.log(`${what.padEnd(64)} ${cond ? "ok" : "FAIL"}`); if (!cond) failed++; };
@@ -3373,5 +3374,13 @@ chopTests();
 await packages();
 await updater();
 await installerModule();
+/* the simulator's panel: a drawn button finds its firmware button by name (github issue 9: OCT+ drew as OCT-) */
+{
+  const names = ["OCT-", "OCT+", "FX", "SEL", "ENV", "LFO", "EDIT", "GLO", "HOME", "SAVE", "ARP", "SEQ", "PLAY", "REC"];
+  ok(findButton(names, "OCT-") === 0 && findButton(names, "OCT−") === 0 && findButton(names, "OCT+") === 1,
+    "sim: OCT- / OCT+ (and the drawn OCT−) find their own buttons, not both the first");
+  ok(findButton(names, "PLAY") === 12 && findButton(names, "PLAY/STOP") === 12 && findButton(names, "NOPE") === -1,
+    "sim: PLAY/STOP found by its 3-letter prefix; an unknown label is -1");
+}
 console.log(failed ? `WEB TESTS FAILED (${failed})` : "web tests passed");
 process.exit(failed ? 1 : 0);

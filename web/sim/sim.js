@@ -18,6 +18,7 @@
 // The simulator's flash is kept in this browser (IndexedDB), one state for every build (the user's choice,
 // 2026-10-18): a build that cannot read what another left handles it as the FM-1 would.
 import { cloudFileUrl, loadCloud, matchCloud } from "../installer/installer.js";
+import { findButton } from "./buttons.js";
 import { client as bkClient, transfer as bkTransfer, readToFile as bkReadToFile, writeFromFile as bkWriteFromFile, unpackFile as bkUnpackFile } from "./bk.js";
 
 const DB = "optimist-sim", STORE = "state", KEY = "flash";
@@ -522,7 +523,7 @@ export function mountSim(container, opts = {}) {
   const BTN_LABELS = ["FX", "SCL", "ENV", "LFO", "EDIT", "GLO", "HOME", "SAVE", "ARP", "SEQ", "PLAY\nSTOP", "REC"];
   function buildPanel(info) {
     const names = info.buttonNames.length ? info.buttonNames : Array.from({ length: info.buttons }, (_, i) => `B${i + 1}`);
-    const findBtn = (label) => { const i = names.findIndex((n) => n.replace(/[^A-Z0-9]/gi, "") === label.replace(/[^A-Z0-9]/gi, "")); return i >= 0 ? i : names.findIndex((n) => n.startsWith(label.slice(0, 3))); };
+    const findBtn = (label) => findButton(names, label);
     const encNames = (info.encoderNames || []);
     const findEnc = (label) => { const i = encNames.findIndex((n) => n.replace(/\s/g, "").toUpperCase() === label); return i >= 0 ? i : encNames.findIndex((n) => n.replace(/\s/g, "").toUpperCase().startsWith(label.slice(0, 3))); };
     const kids = [
