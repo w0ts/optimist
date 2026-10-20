@@ -269,6 +269,15 @@ static void bt_enter(uint32_t m)
  * a connect is wanted (MAN and AUTO alike: no link made again by itself) */
 static void bt_poll(void)
 {
+#if FELUCCA_BT_AUDIO
+    if (bt_audio()) {                                   /* (the link ended by itself: where it had got to) */
+        const char *w = bta_lost();
+        if (w) {
+            ui_message(w);
+            bt.want = 0;
+        }
+    }
+#endif
     if (!bt.boot) {
         if (fm1_ms < 1500u)
             return;                                     /* (the radio and the settings up first) */

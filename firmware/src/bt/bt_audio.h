@@ -25,3 +25,4 @@ static int bta_page(const uint8_t a[6]);
 static void bta_scan(int on);
 static uint32_t bta_state(void);
 static const char *bta_dev_name(uint32_t i);
+static const char *bta_lost(void);
