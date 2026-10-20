@@ -216,7 +216,7 @@ def load_costs(path=COSTS):
 
 def _needs_auto():
     """-> (keys) the items the firmware switches off without the automation store (core.h: "#if FELUCCA_X &&
-    !FELUCCA_AUTO" then "#undef FELUCCA_X": DRUM_ACCENT's lane is stored as its events), read from the headers so a
+    !FELUCCA_AUTO" then "#undef FELUCCA_X"; none today: DRUM_ACCENT, retired 2026-10-20, was one), read from the headers so a
     new one is covered without an edit here"""
     by_flag = {it.flag: k for k, it in R.ITEMS.items() if it.flag}
     out = []

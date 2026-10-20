@@ -951,28 +951,6 @@
     "provenance_line": "X0X (charlesvestal/fm1-x0x) @ 80b7d40 by Charles Vestal (GPL-3.0-only)"
    },
    {
-    "key": "DRUM_ACCENT",
-    "flag": "FELUCCA_DRUM_ACCENT",
-    "label": "drum ACCENT lane (909 style)",
-    "group": "Drums",
-    "bit": 340,
-    "default": 1,
-    "parent": null,
-    "desc": "A 17th step lane on the drum track, the ACCENT lane: no sound of its own, its steps raise every hit of the step by the drum track's ACCENT amount (0 to 127 velocity, default 27: a normal hit plays at full velocity), into each kit's own velocity response (the X0X 909 / 808: their accent input); MIDI out sends the raised velocity. It works as a lane: steps, levels, ratchets, chance and conditions, copy, erase, the STEP tools, patterns, sections, snapshots. Off: the lane is kept and edited but not heard. Needs the automation store (motion, locks, chance or conditions).",
-    "experimental": false,
-    "notice": "",
-    "off_warning": "",
-    "env": "",
-    "target_only": false,
-    "symbols": [],
-    "no_image": false,
-    "choices": [],
-    "provenance": null,
-    "children": [],
-    "tested": "emulator-tested only",
-    "provenance_line": ""
-   },
-   {
     "key": "SET_PIANO",
     "flag": "",
     "label": "PIANO (Steinway, 44 KB)",
@@ -4146,9 +4124,7 @@
   "pool": 8192,
   "ramtext": 0
  },
- "needs_auto": [
-  "DRUM_ACCENT"
- ],
+ "needs_auto": [],
  "fit_order": [
   [
    "ENG_SLICE",
@@ -4231,8 +4207,7 @@
    "DRUM_USR",
    "DRUM_KITS",
    "DRUM_X0X909",
-   "DRUM_X0X808",
-   "DRUM_ACCENT"
+   "DRUM_X0X808"
   ],
   "Sample sets": [
    "SET_PIANO",

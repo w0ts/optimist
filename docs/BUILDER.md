@@ -172,7 +172,6 @@ figure and `tools/build.py` refuses a build whose real ring is; the flash reserv
 | X0X 909 kit (circuit-modelled TR-909) | `DRUM_X0X909` | X0X's TR-909 drum kit (kit UID 37; the drum models are circuit-modelled, hi-hats, ride and crash are samples), on the 16 lanes; SHAKER, CONGA, COWBELL play the synthesised 909's. Big: about 151 KB of flash (see its cymbal option) and uses floating point. A build without it plays the synthesised 909 for it and keeps the kit |
 | (sub-item) X0X 909: ride and crash sample quality | `X909_CYM` | 8-bit block floating point as before; 6-bit: 22 KB less, 30 dB against the 16-bit source instead of 42 (screens x0xdrums-perf-2026-10-06); off: RIDE and CRASH play the synthesised 909's (the hi-hat samples stay) |
 | X0X 808 kit (circuit-modelled TR-808) | `DRUM_X0X808` | X0X's TR-808 drum kit (kit UID 38; 16 circuit-modelled sounds) on the 16 lanes; MIDI also plays MT, LC, HC and the claves (note 75). About 30 KB of flash and uses floating point. A build without it plays the synthesised 808 for it and keeps the kit |
-| drum ACCENT lane (909 style) | `DRUM_ACCENT` | A 17th step lane on the drum track, the ACCENT lane: no sound of its own, its steps raise every hit of the step by the drum track's ACCENT amount (0 to 127 velocity, default 27: a normal hit plays at full velocity), into each kit's own velocity response (the X0X 909 / 808: their accent input); MIDI out sends the raised velocity. It works as a lane: steps, levels, ratchets, chance and conditions, copy, erase, the STEP tools, patterns, sections, snapshots. Off: the lane is kept and edited but not heard. Needs the automation store (motion, locks, chance or conditions). |
 
 #### Sample sets
 
@@ -427,7 +426,7 @@ What the sum model adds beyond per-item deltas:
   by REV_HALF, moved to the pool by REV_POOL), the automation store's arrays (`auto_store`; the store is built with any
   of MOTION, CHANCE, SL24_XSTEP, MICRO, FILLS, PLOCK), and `part_mem`, the synth parts' engine states (a union of FM6,
   PHYS, GRAIN and ACID: the largest one built).
-- Items only built with another: DRUM_ACCENT needs the automation store.
+- Built only with another, not an item: the drum ACCENT lane is there wherever the automation store is (it is stored as its events).
 
 **Checked against real builds.** Every run of `measure_costs.py` that builds also makes a measurement build of every
 profile, of each configuration in `tools/builder/estimate/` and of each one's probe (4 items changed), the `checks` of
