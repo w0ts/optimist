@@ -153,10 +153,12 @@ static void dualcfg_defaults(dualcfg_t *c)
 #define DUAL_HOLD_NOW dual.hold_at                 /* (BLE running + 400 ms: dual_stock_after_ble) */
 #endif
 #define DUAL_LATE_NOW DUAL_LATE_MS
-#define DUAL_PARK_NOW (fm1_ms != 0u)               /* at boot (before TIMER5: fm1_ms 0) CPU1 runs free in its RAM loop through
-                                                    * the RF program, as stock's (B25 on the FM-1: 3 x 3 x 180 s with BLE on);
-                                                    * a BLUETOOTH ON later, with the audio running, holds it for the program
-                                                    * and starts it again after (dual_radio_hold / _release: not measured yet) */
+#define DUAL_PARK_NOW 0                            /* CPU1 runs free through the radio's start-up program, at boot as stock's
+                                                    * (B25 on the FM-1: 3 x 3 x 180 s with BLE on) and later too (BLUETOOTH ON,
+                                                    * an AUDIO mode). The later hold and restart (dual_radio_hold / _release)
+                                                    * never came back: measured 2026-10-20, the console's cpu1park (the hold and
+                                                    * the release alone, no radio) took a CPU1 that was up to NO START; the user
+                                                    * saw NO START after switching Bluetooth on */
 #define DUAL_BLE_RULE_NOW 0                        /* (the BLUETOOTH rule, 2026-10-15..16: CPU1 only with BLUETOOTH OFF; dropped
                                                     * once stock's order and supply ran both with BLE on, B25 2026-10-16) */
 /* stock V15's start-up order (docs/DUAL-CORE.md section 3; B25 on the FM-1, 2026-10-16): the rails first (supply.c), CPU1 at
