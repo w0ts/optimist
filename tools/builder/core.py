@@ -193,9 +193,12 @@ def validate(cfg):
     if reserve_undo(cfg) and not cfg.get("UNDO_HISTORY"):
         err.append(Issue("keeping undo history needs the undo / redo history (UNDO_HISTORY): without it there is a "
                          "single level", ["RESERVE_UNDO_KB", "UNDO_HISTORY"]))
-    if cfg["USB_MODE"] == 2:
-        warn.append(Issue("USB audio: EXPERIMENTAL, its audio quality on the FM-1 not checked yet (the CDC "
-                          "console goes; +12 KB pool)", ["USB_MODE"]))
+    if cfg["USB_CONSOLE"] and cfg["USB_AUDIO"]:
+        err.append(Issue("the serial console or USB audio, not both: the USB port has three data endpoints, USB MIDI "
+                         "takes one and USB audio the other two", ["USB_CONSOLE", "USB_AUDIO"]))
+    elif cfg["USB_AUDIO"]:
+        warn.append(Issue("USB audio: EXPERIMENTAL, its audio quality on the FM-1 not checked yet (+12 KB pool)",
+                          ["USB_AUDIO"]))
     return err, warn, note
 
 
@@ -222,8 +225,8 @@ def flags(cfg):
         if it.parent and not built(cfg, it.parent):
             v = it.default                              # (an option of an item left out: its default, ignored)
         out[it.flag] = v
-    out["FELUCCA_USB_AUDIO"] = 1 if cfg["USB_MODE"] == 2 else 0
-    out["FELUCCA_CDC"] = 1 if cfg["USB_MODE"] == 1 else 0
+    out["FELUCCA_USB_AUDIO"] = cfg["USB_AUDIO"]
+    out["FELUCCA_CDC"] = cfg["USB_CONSOLE"]
     out["FELUCCA_SLICE"] = cfg["ENG_SLICE"]
     if not built(cfg, "DRUM_SAMPLED") or not any(cfg[k] for k in R.ITEMS if k.startswith("KIT_")):
         out["FELUCCA_DRUM_SAMPLED"] = 0

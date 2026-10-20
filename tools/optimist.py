@@ -400,7 +400,7 @@ def cmd_cpu(a):
     return fm1_cpu.main(a.rest)
 
 
-BLE_FULL_SET = ("BLE=1", "USB_MODE=1", "BLE_BOND=1", "BLE_CENTRAL=1", "BLE_DIAG=1")   # (the FM-1 build)
+BLE_FULL_SET = ("BLE=1", "USB_CONSOLE=1", "USB_AUDIO=0", "BLE_BOND=1", "BLE_CENTRAL=1", "BLE_DIAG=1")   # (the FM-1 build)
 # items the BLE test packages do not exercise, out of them so that BLE_DIAG and the whole option set fit beside
 # user-default's store and the flash the queued branches add (the user, 2026-10-10: "remove anything you want from
 # ble test"); the shipped profiles keep all of them. The tests (ble_emu_test.py, ble_emu_central_test.py,

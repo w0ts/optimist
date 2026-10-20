@@ -47,7 +47,7 @@ PAIRS = [{"MOTION": 1, "SECTIONS": 4},
          {"ED_LIVE": 0, "LIBRARIAN": 0}, {"ED_LIVE": 0, "BACKUP": 0}, {"ED_LIVE": 0, "BACKUP": 0, "LIBRARIAN": 0},
          # one core with the CDC console (the BLE test builds' set): the second core's code that DUAL=0 leaves out is not
          # the same with the console's (2026-10-19: user-default+ble-full estimated 840 B of RAMTEXT over from ble-test)
-         {"DUAL": 0, "USB_MODE": 1},   # (motion beside the four project slots vs inside the section records)
+         {"DUAL": 0, "USB_CONSOLE": 1},   # (motion beside the four project slots vs inside the section records)
          # the reverb's algorithms share their line buffer, the half-rate filters and the code that switches them
          # (the buffer itself is computed: configure.py rev_lines; the automation store: auto_store)
          {"REV_PLATE": 1, "REV_FDN8": 1, "SPRING": 0}, {"REV_PLATE": 1, "REV_FDN8": 1, "SPRING": 1},
@@ -64,24 +64,24 @@ PAIRS = [{"MOTION": 1, "SECTIONS": 4},
          # its arrays are computed: configure.py auto_store)
          {"MICRO": 1, "FILLS": 1}, {"MICRO": 1, "PLOCK": 1}, {"FILLS": 1, "PLOCK": 1},
          {"MICRO": 1, "FILLS": 1, "PLOCK": 1},
-         # BLE with the CDC console (USB_MODE 1): the console's blevm / bletrim commands; with BLE_DIAG blell's printing
-         {"BLE": 1, "USB_MODE": 1}, {"BLE": 1, "BLE_DIAG": 1, "USB_MODE": 1},
+         # BLE with the CDC console (USB_CONSOLE): the console's blevm / bletrim commands; with BLE_DIAG blell's printing
+         {"BLE": 1, "USB_CONSOLE": 1}, {"BLE": 1, "BLE_DIAG": 1, "USB_CONSOLE": 1},
          # USB audio + MIDI (with its resampler since 2026-10-15; MIDI only by default since 2026-10-12)
-         {"USB_MODE": 2},
+         {"USB_AUDIO": 1},
          # found 2026-10-12 (the "mots" check 4.7 KB under its real build; ~/costs bisection, each pair 0.3-1.6 KB of
          # flash beyond its items' deltas): the CPU guard's parts in the ACID engine and the X0X drums (cpuguard.c,
-         # eng_acid.c, drum_x0x.c: built only with both); MACROS with USB_MODE 0 measured
+         # eng_acid.c, drum_x0x.c: built only with both); MACROS with USB_CONSOLE 0 measured
          # so (+1.2 KB), the code behind it not traced
          {"CPU_GUARD": 1, "ENG_ACID": 1}, {"CPU_GUARD": 1, "DRUM_X0X909": 1}, {"CPU_GUARD": 1, "DRUM_X0X808": 1},
          {"CPU_GUARD": 1, "DRUM_X0X909": 1, "DRUM_X0X808": 1},
-         {"USB_MODE": 0, "MACROS": 1},
+         {"MACROS": 1},
          # BLE's bond and central together share code each one's delta pays (-3.5 KB flash, -0.35 KB RAM); the central
          # with the diagnostics has more (+1.9 KB, +0.4 KB RAM); and each with the CDC console (the BLE test builds,
          # tools/optimist.py BLE_FULL_SET: 7 KB under without these)
          {"BLE": 1, "BLE_BOND": 1, "BLE_CENTRAL": 1}, {"BLE": 1, "BLE_CENTRAL": 1, "BLE_DIAG": 1},
          {"BLE": 1, "BLE_BOND": 1, "BLE_CENTRAL": 1, "BLE_DIAG": 1},
-         {"BLE": 1, "BLE_BOND": 1, "BLE_CENTRAL": 1, "USB_MODE": 1}, {"BLE": 1, "BLE_CENTRAL": 1, "BLE_DIAG": 1, "USB_MODE": 1},
-         {"BLE": 1, "BLE_BOND": 1, "BLE_CENTRAL": 1, "BLE_DIAG": 1, "USB_MODE": 1},
+         {"BLE": 1, "BLE_BOND": 1, "BLE_CENTRAL": 1, "USB_CONSOLE": 1}, {"BLE": 1, "BLE_CENTRAL": 1, "BLE_DIAG": 1, "USB_CONSOLE": 1},
+         {"BLE": 1, "BLE_BOND": 1, "BLE_CENTRAL": 1, "BLE_DIAG": 1, "USB_CONSOLE": 1},
          # SLOOP 2.4's guard and import: core.h SL24_AUTO (PROJECT > A24) and project.c's shared reader are built
          # with both / either, so the two off together save 3.9 KB less than their deltas
          {"SL24_SAFE": 0, "SL24_IMPORT": 0},
@@ -297,7 +297,7 @@ def beyond(sizes, cfg, costs, name):
 
 
 # a pair's region that does not carry over to other configurations, kept 0: REV_FDN8=1,DUAL=0's RAMTEXT (-1.2 KB) is
-# shared with USB_MODE's and DUAL=0,USB_MODE=1's (the RAM code placed again), so with them it counted it twice
+# shared with USB_CONSOLE's and DUAL=0,USB_CONSOLE=1's (the RAM code placed again), so with them it counted it twice
 # (2026-10-19: user-default+ble-full 924 B of RAMTEXT under; its flash and RAM, the single flips' in ble-test, kept)
 PAIR_NOT = {"REV_FDN8=1,DUAL=0": ("ramtext",)}
 

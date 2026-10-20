@@ -26,7 +26,7 @@ The web editor talks to the FM-1 over USB only.
 
 ## USB audio (experimental)
 
-Builder item `USB_MODE` 2 (in the Synth build). On the same cable as MIDI, the computer sees two class-compliant audio devices, no driver needed, 44.1 kHz, 16 or 24 bit:
+Builder item `USB_AUDIO` (in the Synth build). On the same cable as MIDI, the computer sees two class-compliant audio devices, no driver needed, 44.1 kHz, 16 or 24 bit:
 
 - **Optimist In:** four capture channels to the computer. SYSTEM > USB AUDIO has one line per source: MASTER (the output after the master inserts), T1 to T3 (a track's stem: after its inserts, level and mute, before pan, sends and master), DRUMS (the drum track's lanes summed), DRUM BUS, and each drum lane DR1 to DR10. Each source goes to NONE, 1, 2, 1+2, 3, 4 or 3+4. A stereo source on a pair goes left and right; on one channel, its two sides are averaged. A mono source on a pair is on both. Sources on one channel add up. By default T1 is on 1, T2 on 2, T3 on 3 and DRUMS on 4.
 - **Optimist Out:** stereo from the computer into the FM-1's output (also usable as the **USB IN** mixer track, [effects](effects.md)).
