@@ -48,7 +48,7 @@ void ble_wl82_rx_irq(void) {}
 /* the table (BR §3), then our own TX buffers inside the engine's 32 KB window */
 #define BTI_OFF_FHS_TX 4200u                       /* the inquiry scan's FHS payload (18 B) */
 #define BTI_OFF_EIR_TX 4224u                       /* its EIR (25 B as stock's) */
-#define BTI_TAB_ALLOC 4480u
+#define BTI_TAB_ALLOC (4480u + 2u * 344u)          /* (+ bt_page.c's two DH5 TX buffers, BP_OFF_TXB0 / 1) */
 static uint8_t bti_tab[BTI_TAB_ALLOC] IN_POOL __attribute__((aligned(4)));   /* zeroed (the pool); the engine's DMA */
 static uint8_t bti_le_bb[64] IN_POOL __attribute__((aligned(4)));    /* the LE block's RAM window, no links (`ble`) */
 
