@@ -234,7 +234,7 @@ static void op_no(void)
         op_disarm();                                    /* cancel */
         return;
     }
-#if FELUCCA_BLE
+#if FELUCCA_BT_UI
     if (dev_listing()) {                                /* the BLE devices: back to SYSTEM's BLUETOOTH row (op_project.c) */
         dev_close();
         return;
@@ -842,7 +842,7 @@ static void op_drain(uint32_t held)
 static void ui_input(void)
 {
     uint32_t pressed = fm1_input_edges(0), notes = fm1_input_note_edges(), held = fm1_in.buttons, id, taps, keys;
-#if FELUCCA_BLE
+#if FELUCCA_BT_UI
     bt_poll();                                          /* SYSTEM > Bluetooth: AUTO at boot, a connect given up (op_bt.c) */
 #endif
     enc_hold = 0;                                       /* (panel.c: every knob readable this pass) */
@@ -1054,7 +1054,7 @@ static uint32_t op_fam_mask(void)                       /* a bit per family the 
  * OCT- is SHIFT, OCT+ SHIFT2, so both also where the shifts work: the pages with keys (a key's mute, a key selected),
  * SOUND (a knob's default, PRESETS), STEP, the mixer off MASTER; OCT- the BLE devices list (FORGET LAST). Dark: the NAME
  * screen, MASTER, GLOBAL (but the tempo line), SYSTEM, PROJECT, SONG, SCOPE and the other pages of no keys */
-#if FELUCCA_BLE
+#if FELUCCA_BT_UI
 static int dev_listing(void);                           /* op_project.c: the BLE devices list is open */
 #endif
 static uint32_t op_oct_avail(void)
@@ -1065,7 +1065,7 @@ static uint32_t op_oct_avail(void)
         m = both;                                       /* (the track <-> MASTER toggle; the TEMPO nudge) */
     if (mixer || ui.scr == SCR_SOUND || ui.scr == SCR_STEP || (!keys_none() && !name_on()))
         m |= both;                                      /* (SHIFT: a value's default, a key's mute; SHIFT2: a key selected, PRESETS) */
-#if FELUCCA_BLE
+#if FELUCCA_BT_UI
     if (dev_listing())
         m |= 1u << B_OCTDN;
 #endif

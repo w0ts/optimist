@@ -48,7 +48,7 @@ typedef struct {
     uint8_t ua_dst[PERSIST_UA_SRC];                /* appended after them: each source's channels (ua_tap.h ua_dst, UAD_*) */
     uint32_t ua_mark3;                             /* PERSIST_UA_MARK3: they are set */
 #endif
-#if FELUCCA_BLE
+#if FELUCCA_BT_UI
     uint8_t bt_rec[32];                            /* appended after them: SYSTEM > Bluetooth's MODE and AUDIO's last device
                                                     * (ui/optimist/op_bt.c bt_rec_out, its own mark; zero: none) */
 #endif
@@ -81,7 +81,7 @@ _Static_assert(PERSIST_BLE(ble_rf) == PERSIST_BLE(ble_addr) + 8 && PERSIST_BLE(b
  * filled in and made whole), PERSIST_NO_VIEW for the one short form still read, else what n was (not read) */
 static int persist_upgrade(persist_t *pp, int n)
 {
-#if FELUCCA_BLE
+#if FELUCCA_BT_UI
     if (n == (int)__builtin_offsetof(persist_t, bt_rec)) {   /* (first: a record from before it is whole without it) */
         memset(pp->bt_rec, 0, sizeof pp->bt_rec);
         n = (int)sizeof *pp;

@@ -953,7 +953,7 @@ static int pl_on(void)
 #if FELUCCA_PAGE_LINES
     return lay.shown == LY_PLAY && !name_on() && ui.scr != SCR_HOME && ui.scr != SCR_STEP && ui.scr != SCR_SCOPE &&
            !glo_cycle() && !prj_listing() && SCR->rows() && !row_pic(ui.row[ui.scr])
-#if FELUCCA_BLE
+#if FELUCCA_BT_UI
            && !dev_listing()
 #endif
         ;
@@ -1137,7 +1137,7 @@ static void op_frame_draw(void)
     if (lay.shown != LY_PLAY)
         lay_draw_cards();                               /* a layer: its knobs' cards, its tiles (op_laydraw.c) */
     else if (ui.scr != SCR_STEP && !glo_cycle() && !pl_on()
-#if FELUCCA_BLE
+#if FELUCCA_BT_UI
              && !dev_listing()                          /* (the BLE devices: no cards, the list the whole panel, the user 2026-10-19) */
 #endif
              )
@@ -1158,7 +1158,7 @@ static void op_frame_draw(void)
             gl_draw();                                  /* GLOBAL, SYSTEM: the settings list (op_gldraw.c) */
         else if (pl_on())
             pl_draw();                                  /* PAGE_LINES: the cursor row as four lines (op_gldraw.c) */
-#if FELUCCA_BLE
+#if FELUCCA_BT_UI
         else if (dev_listing())
             dev_draw(OH_HEAD, OP_FOOT_Y - OH_HEAD);     /* SYSTEM > BLUETOOTH > the BLE devices, under the header (op_project.c) */
 #endif

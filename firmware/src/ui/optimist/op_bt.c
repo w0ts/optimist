@@ -276,7 +276,11 @@ static void bt_poll(void)
         if (bt.rec_mode <= 4u && (bt.rec_mode >= 3u ? BT_AUDIO_BUILT : bt.rec_mode == 0u || ble_on))
             bt_enter(bt.rec_mode);
         else                                            /* (no record yet: as the MODE line read before it) */
+#if BLE_CENTRAL
             bt_enter(!ble_on ? 0u : bt_has_last() && ble_store.sel == BLE_SEL_LAST ? 2u : 1u);
+#else
+            bt_enter(ble_on ? 1u : 0u);
+#endif
     }
     if (!bt.want)
         goto idle;

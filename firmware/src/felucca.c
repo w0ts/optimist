@@ -111,8 +111,11 @@ static void dual_flash_leave(void);
 #ifndef FELUCCA_BT_AUDIO
 #define FELUCCA_BT_AUDIO 0
 #endif
+#define FELUCCA_BT_UI (FELUCCA_BLE || FELUCCA_BT_AUDIO)   /* SYSTEM > Bluetooth: with either; it shows what is built (op_bt.c) */
 #if FELUCCA_BLE
 #include "io/midi/midi_ble.c"        /* the stack (ble/ble_stack.c) and its MIDI in / out */
+#elif FELUCCA_BT_AUDIO
+#include "io/midi/ble_none.c"        /* no BLE: the page's MIDI side stands in (always off, no device) */
 #endif
 #if FELUCCA_BT_AUDIO
 #include "bt/bt_audio.h"             /* Bluetooth audio's state for the screen (the code: bt/bt_audio.c, after the Classic stack) */
@@ -277,6 +280,7 @@ static inline void con_puts(const char *s) { (void)s; }
 static inline void con_putc(char c) { (void)c; }
 static inline void con_dec(int32_t v) { (void)v; }
 static inline void con_hex(uint32_t v, uint32_t d) { (void)v; (void)d; }
+#include "io/console_parse.h"     /* (con_num, con_word: the Classic stack's option parsing, no console to feed it) */
 #include "bt/bt_inq.c"
 #endif
 #if FELUCCA_OTA
