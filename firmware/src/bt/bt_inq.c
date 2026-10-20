@@ -165,7 +165,14 @@ static int bti_radio_up(void)                      /* the radio's start-up, once
         bti_st.phase = BTI_NO_TRIMS;
         return 0;
     }
+#if FELUCCA_DUAL >= 2
+    dual_radio_hold();                             /* (CPU1 not running while the radio's start-up program runs, as BLE's:
+                                                    * system/dual.c; unheld, CPU1 did not come back, 2026-10-20) */
+#endif
     fm1_ble_rf_init(t.x106, t.x107, t.x108, t.x187);
+#if FELUCCA_DUAL >= 2
+    dual_radio_release();
+#endif
     bti_st.rf_up = 1;
     return 1;
 }

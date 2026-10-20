@@ -641,7 +641,8 @@ static __attribute__((noinline)) void dual_boot(void)
         dual_down(DUAL_CANARY, 0);
 }
 
-#if DUAL_DEFER || (defined(FELUCCA_BLE) && FELUCCA_BLE)   /* (the BLE builds: dual_radio_release starts a parked CPU1) */
+#if DUAL_DEFER || (defined(FELUCCA_BLE) && FELUCCA_BLE) || (defined(FELUCCA_BT_AUDIO) && FELUCCA_BT_AUDIO)   /* (the radio's
+                                                   * builds: dual_radio_release starts a parked CPU1) */
 /* main loop, once: CPU1 started now (X0X plat_cpu2_set): its entry word is in the locked top of RAM and it goes
  * through the chip's ROM, which the PC limits refuse; both set back after */
 static __attribute__((noinline)) void dual_start_late(void)
@@ -678,8 +679,9 @@ static int dual_ble_gate(void)
 }
 #endif
 
-#if defined(FELUCCA_BLE) && FELUCCA_BLE
-/* main loop, before the BLE radio's start-up program (midi_ble.c ble_radio_start): CPU1 into reset (it is in its RAM
+#if (defined(FELUCCA_BLE) && FELUCCA_BLE) || (defined(FELUCCA_BT_AUDIO) && FELUCCA_BT_AUDIO)
+/* main loop, before the radio's start-up program (midi_ble.c ble_radio_start; bt/bt_inq.c bti_radio_up, Bluetooth
+ * audio: the same program, 2026-10-20 CPU1 "NO START" after an AUDIO mode started it unheld): CPU1 into reset (it is in its RAM
  * loop: no job outside the audio interrupt), the mailbox back to its start; dual_radio_release starts it again after */
 static void dual_radio_hold(void)
 {
