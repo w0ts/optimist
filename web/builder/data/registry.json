@@ -4,7 +4,6 @@
   "groups": [
    "Reserve",
    "Synth engines",
-   "Drum synths",
    "Drums",
    "Sample sets",
    "FX: any number (each track its own)",
@@ -624,7 +623,7 @@
     "key": "DRUM_SYNTH",
     "flag": "FELUCCA_DRUM_SYNTH",
     "label": "synthesised kits (32: 808, 909 and others)",
-    "group": "Drum synths",
+    "group": "Drums",
     "bit": 18,
     "default": 1,
     "parent": null,
@@ -648,7 +647,7 @@
     "key": "DRUM_X0X909",
     "flag": "FELUCCA_DRUM_X909",
     "label": "X0X 909 kit (circuit-modelled TR-909)",
-    "group": "Drum synths",
+    "group": "Drums",
     "bit": 86,
     "default": 0,
     "parent": null,
@@ -681,7 +680,7 @@
     "key": "X909_CYM",
     "flag": "FELUCCA_X909_CYM",
     "label": "X0X 909: ride and crash sample quality",
-    "group": "Drum synths",
+    "group": "Drums",
     "bit": 87,
     "default": 1,
     "parent": "DRUM_X0X909",
@@ -719,7 +718,7 @@
     "key": "DRUM_X0X808",
     "flag": "FELUCCA_DRUM_X808",
     "label": "X0X 808 kit (circuit-modelled TR-808)",
-    "group": "Drum synths",
+    "group": "Drums",
     "bit": 88,
     "default": 0,
     "parent": null,
@@ -4201,12 +4200,10 @@
    "ENG_CZ",
    "ENG_JUNO"
   ],
-  "Drum synths": [
+  "Drums": [
    "DRUM_SYNTH",
    "DRUM_X0X909",
-   "DRUM_X0X808"
-  ],
-  "Drums": [
+   "DRUM_X0X808",
    "DRUM_SAMPLED",
    "DRUM_EDIT",
    "DRUM_USR",

@@ -165,7 +165,7 @@ def validate(cfg):
                          "(or the reverb bus off)",
                          ["FX_REVERB"] + revs))
     kits = [k for k in R.ITEMS if k.startswith("KIT_")]
-    synths = ["DRUM_SYNTH", "DRUM_X0X909", "DRUM_X0X808"]   # (the Drum synths group: each a drum source on its own)
+    synths = ["DRUM_SYNTH", "DRUM_X0X909", "DRUM_X0X808"]   # (the drum synths, first in Drums: each a drum source on its own)
     if not any(built(cfg, k) for k in synths + kits):
         err.append(Issue("the drum track needs a drum source: a drum synth (the synthesised kits, X0X 909, X0X 808) "
                          "or a sampled kit", synths + ["DRUM_SAMPLED"] + kits))
