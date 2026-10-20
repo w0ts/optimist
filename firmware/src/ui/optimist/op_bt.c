@@ -332,6 +332,27 @@ idle:
     return;
 }
 
+#if FELUCCA_BT_AUDIO
+#include "op_volgest.h"
+/* SHIFT + the volume knob (system/main.c master_pot, a reading at a time): 15 % of its travel switches the output
+ * between Bluetooth audio and the FM-1's own, while audio streams (op_volgest.h); 1: the volume holds */
+static struct vgest bt_vg;
+static int bt_vol_hold(int32_t knob)
+{
+    int t, held = vgest_step(&bt_vg, btn_held(B_OCTDN), knob, &t);
+    if (t) {
+        if (!bt_audio() || bta_state() != BTA_S_STREAMING) {
+            ui_message("NO BT AUDIO DEVICE");
+        } else {
+            int to_bt = !bta_out_bt();
+            bta_output(to_bt);
+            ui_message(to_bt ? "OUTPUT: BLUETOOTH" : "OUTPUT: INTERNAL");
+        }
+    }
+    return held;
+}
+#endif
+
 /* the settings record's bytes (storage/persist_rec.c): the mark, the mode, the AUDIO last device */
 #define BT_REC_SIZE 32u
 static void bt_rec_out(uint8_t r[BT_REC_SIZE])

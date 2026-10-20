@@ -23,6 +23,8 @@ static struct {
     struct ba_ch ch[BA_NCH];
     uint8_t stage, id, label, cont[17], contn, acp, conf[4];
     uint32_t t0;                                   /* fm1_ms: the set-up's start (BA_SETUP_MS: given up) */
+    uint8_t paused;                                /* the stream suspended: the FM-1's own output plays (SHIFT + the
+                                                    * volume knob, bt_audio.c bta_output) */
     uint16_t tid, avdtp_psm;
     uint8_t sdp[BA_SDPMAX];
     uint32_t sdpn;
@@ -40,6 +42,7 @@ static void ba_reset(void)
     ba.label = 0;
     ba.sdpn = 0;
     ba.contn = 0;
+    ba.paused = 0;
     for (i = 0; i < BA_NCH; i++)
         ba.ch[i].state = 0;
 }
@@ -233,6 +236,7 @@ static void ba_av_in(const uint8_t *p, uint32_t n)
     } else if (sig == BV_START) {
         con_puts("btpage: AVDTP STREAM OPEN (signalling and media channels up, stream started)\r\n");
         ba.stage = BA_AV_READY;
+        ba.paused = 0;                             /* (a START after a SUSPEND: Bluetooth again) */
     } else {
         ba_line("AVDTP accepted (signal, label)", sig, label);
     }
@@ -301,7 +305,7 @@ static void ba_media_send(const uint8_t *sbc_frame, uint32_t sbc_len)
 int bt_audio_feed(const int32_t *q15_pcm, uint32_t n)   /* 1: it streams (audio.c mutes the FM-1's own output) */
 {
     uint32_t i;
-    if (ba.stage != BA_AV_READY || !ba.ch[BA_CH_MEDIA].dcid || bti.mode != BTI_M_CONN) {
+    if (ba.stage != BA_AV_READY || ba.paused || !ba.ch[BA_CH_MEDIA].dcid || bti.mode != BTI_M_CONN) {
         ba_pcm_cnt = 0;
         return 0;
     }

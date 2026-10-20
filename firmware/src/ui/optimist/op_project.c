@@ -258,7 +258,8 @@ static void ble_state_cell(cell_t *c)
         c->kind = CK_RO;
         c->label = "STATE";
         c->big = 1;
-        str_cpy(c->val, bt.want ? "CONNECTING" : BTA_ST[a % 12u], sizeof c->val);
+        str_cpy(c->val, bt.want ? "CONNECTING" : a == BTA_S_STREAMING && !bta_out_bt() ? "INTERNAL OUT" : BTA_ST[a % 12u],
+                sizeof c->val);
         c->col = a == BTA_S_STREAMING ? C_OK : a == BTA_S_REFUSED ? C_ERR : 0;
         return;
     }

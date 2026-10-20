@@ -26,3 +26,5 @@ static void bta_scan(int on);
 static uint32_t bta_state(void);
 static const char *bta_dev_name(uint32_t i);
 static const char *bta_lost(void);
+static int bta_out_bt(void);
+static void bta_output(int bt);

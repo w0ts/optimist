@@ -1057,7 +1057,9 @@ job; ( jobin
     $CC -Wextra $BLE_SAN -o "$OUT/bt_crypto_test" tests/bt_crypto_test.c
     run "BT Classic / SSP cryptography: SAFER+ (Ar, A'r), E1/E21/E22/E3, P-192 ECDH, SSP f1/f2/f3/g (Core Vol 2 Part G)" "$OUT/bt_crypto_test"
     $CC -Wextra $BLE_SAN -o "$OUT/bt_ssp_test" tests/bt_ssp_test.c
-    run "BT Classic pairing (bt_ssp.c): SSP Just Works as the responder against a simulated initiator, the link key, SRES, Kc" "$OUT/bt_ssp_test"
+    run "BT Classic pairing (bt_ssp.c): SSP Just Works as the responder against a simulated initiator, and as the initiator against our responder: the link key, SRES, Kc" "$OUT/bt_ssp_test"
+    $CC -Wextra -o "$OUT/vol_gesture_test" tests/vol_gesture_test.c
+    run "SHIFT + the volume knob (op_volgest.h): 15 % switches the output once a press, the volume held, then taken back with no jump" "$OUT/vol_gesture_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -Wextra $BLE_SAN -o "$OUT/bt_lmp_test" tests/bt_lmp_test.c

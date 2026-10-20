@@ -204,6 +204,10 @@ static __attribute__((noinline)) void master_pot(int32_t *knob, int glide)
     if (a < 0 || FELUCCA_BENCH)
         return;
     *knob = glide ? *knob + (a * 16 - *knob) / 8 : a * 16;
+#if FELUCCA_BT_AUDIO
+    if (glide && bt_vol_hold(*knob))
+        return;                                         /* SHIFT + the knob: the output switch, the volume held (op_bt.c) */
+#endif
     k10 = (uint32_t)(*knob / 16);
     song.master_q12 = (k10 * k10) >> 8;                 /* 0 .. ~4096 */
 }
