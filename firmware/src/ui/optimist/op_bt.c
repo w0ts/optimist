@@ -349,7 +349,15 @@ static int bt_vol_hold(int32_t knob)
 {
     int t, held = vgest_step(&bt_vg, btn_held(B_OCTDN), knob, &t);
     if (t) {
-        if (!bt_audio() || bta_state() != BTA_S_STREAMING) {
+        char nm[BLE_NAME_MAX + 1u];
+        if (bt_audio() && bta_state() != BTA_S_STREAMING && bt_has_last()) {   /* (not streaming: the last device, connected
+                                                         * to; its stream plays there once up. The user, 2026-10-20: "in
+                                                         * manual mode, shift + volume should connect to the last device") */
+            if (!bt_connecting() && !bt_linked())
+                bt_go();
+            bt_last_name(nm);
+            ui_say("CONNECTING ", nm);
+        } else if (!bt_audio() || bta_state() != BTA_S_STREAMING) {
             ui_message("NO BT AUDIO DEVICE");
         } else {
             int to_bt = !bta_out_bt();
