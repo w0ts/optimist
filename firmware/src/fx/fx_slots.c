@@ -69,6 +69,15 @@ enum { FXT_NONE, FXT_DIST, FXT_CHO, FXT_DLY, FXT_REV, FXT_COMP, FXT_FILT,
 _Static_assert(FXT_N <= 32, "the type masks (ins_live): 32 bits");
 #define FXT_SEND_OK(t) ((t) < FXT_N && !(FXT_INSERT >> (t) & 1u) && (t) != FXT_NONE)
 /* each type's per-track amount (a P_* id; its label names the slot), 0xFF: none in this build */
+/* the TYPE lists' order (a track's, the master's, the USB input's slots): ---- first, then by name, A to Z (the user,
+ * 2026-10-20: "could the FX be sorted alpha in the selector for the inserts ? ... can be done at compile time"); every
+ * type but FXT_NONE and the reserved WRAP, once (tests/ui_optimist_fxi.h holds the names to it) */
+static const uint8_t FXT_ALPHA[] = {FXT_CHO,  FXT_CHRS, FXT_DLY,  FXT_DIST, FXT_DUST, FXT_COMP, FXT_ECHO, FXT_EQ3,  FXT_FILT,
+                                    FXT_FLNG, FXT_FOLD, FXT_FRMT, FXT_FUZZ, FXT_GATE, FXT_HARM, FXT_JUNO, FXT_PHSR, FXT_RECT,
+                                    FXT_REV,  FXT_RING, FXT_SFLD, FXT_SLEW, FXT_SPIT, FXT_SUBO, FXT_TAPE, FXT_WIDE};
+#define FXT_NALPHA (sizeof FXT_ALPHA / sizeof FXT_ALPHA[0])
+_Static_assert(FXT_NALPHA == FXT_N - 2u, "FXT_ALPHA: a new type goes in, in its name's place");
+#define FXT_LISTED(i) ((i) ? (uint32_t)FXT_ALPHA[(i) - 1u] : (uint32_t)FXT_NONE)   /* entry i of a TYPE list: ----, A..Z */
 static const uint8_t FXT_AMT[FXT_N] = {
     0xFF, P_DIST, P_CHOR, P_DLY, P_REV,
 #if FELUCCA_MASTER_COMP
@@ -760,7 +769,7 @@ static int16_t ut_tv[INS_N];
 static param_desc_t ut_td[INS_N] = {{"S1", F_ENUM, 0, 0, 0, ut_names, 0}, {"S2", F_ENUM, 0, 0, 0, ut_names, 0}};
 static const param_desc_t *ut_desc(uint32_t id, int16_t **vp)   /* (ids: UT_ID_TY above) */
 {
-    uint32_t t, n = 0, s = id & 1u;
+    uint32_t t, n = 0, s = id & 1u, i;
     if (id < UTV_N) {
         *vp = &ut.v[id];
         return ut_vd(id);
@@ -775,8 +784,8 @@ static const param_desc_t *ut_desc(uint32_t id, int16_t **vp)   /* (ids: UT_ID_T
     if (id < UT_ID_TY)
         return 0;
     ut_tv[s] = 0;
-    for (t = 0; t < FXT_N; t++)
-        if (t == FXT_NONE || UT_OK >> t & 1u) {
+    for (i = 0; i <= FXT_NALPHA; i++)
+        if ((t = FXT_LISTED(i)) == FXT_NONE || UT_OK >> t & 1u) {
             ut_names[n] = t == FXT_NONE ? "----" : TP[FXT_AMT[t]].label;
             if (ut.slot[s] == t)
                 ut_tv[s] = (int16_t)n;
@@ -1250,10 +1259,10 @@ static int16_t mst_v[INS_N];
 static param_desc_t mst_d[INS_N] = {{"S1", F_ENUM, 0, 0, 0, mst_names, 0}, {"S2", F_ENUM, 0, 0, 0, mst_names, 0}};
 static const param_desc_t *mst_desc(uint32_t s, int16_t **vp)
 {
-    uint32_t t, n = 0;
+    uint32_t t, n = 0, i;
     mst_v[s & 1u] = 0;                                 /* (a type this build lacks: shown empty, kept) */
-    for (t = 0; t < FXT_N; t++)
-        if (t == FXT_NONE || MST_OK >> t & 1u) {
+    for (i = 0; i <= FXT_NALPHA; i++)
+        if ((t = FXT_LISTED(i)) == FXT_NONE || MST_OK >> t & 1u) {
             mst_names[n] = t == FXT_NONE ? "----" : t == FXT_DYN ? "DYN" : mst_amt_d(t)->label;   /* (DYN: by its name, not THRS) */
             if (mst_slot[s & 1u] == t)
                 mst_v[s & 1u] = (int16_t)n;
@@ -1266,10 +1275,10 @@ static const param_desc_t *mst_desc(uint32_t s, int16_t **vp)
 /* track k's slot s's TYPE as a list entry (*vp: its index in ins_list) */
 static const param_desc_t *ins_desc(uint32_t k, uint32_t s, int16_t **vp)
 {
-    uint32_t t, n = 0;
+    uint32_t t, n = 0, i;
     ins_v[s & 1u] = 0;                                 /* (a type this build lacks: shown empty, kept) */
-    for (t = 0; t < FXT_N; t++)
-        if (t == FXT_NONE || (FXT_BUILT & FXT_INSERT) >> t & 1u) {
+    for (i = 0; i <= FXT_NALPHA; i++)
+        if ((t = FXT_LISTED(i)) == FXT_NONE || (FXT_BUILT & FXT_INSERT) >> t & 1u) {
             ins_names[n] = t == FXT_NONE ? "----" : TP[FXT_AMT[t]].label;
             if (ins_slot[k % NTRK][s & 1u] == t)
                 ins_v[s & 1u] = (int16_t)n;

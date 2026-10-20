@@ -96,10 +96,31 @@ static void fxu_count(uint32_t t, uint32_t n, const char *nm)
     }
 }
 #endif
+/* a TYPE list (n names): ---- first, then A to Z, each once (fx_slots.c FXT_ALPHA; the user, 2026-10-20: "could the FX
+ * be sorted alpha in the selector for the inserts ?") */
+static int fxu_sorted(const char *const *nm, uint32_t n)
+{
+    uint32_t i;
+    if (!n || strcmp(nm[0], "----"))
+        return 0;
+    for (i = 2; i < n; i++)
+        if (strcmp(nm[i - 1u], nm[i]) >= 0)
+            return 0;
+    return 1;
+}
 static void fxi_ui_tests(void)
 {
     cell_t c;
+    int16_t *v;
     fxu_fresh();
+    (void)ins_desc(0, 0, &v);
+    (void)mst_desc(0, &v);
+    check(fxu_sorted(ins_names, INS_NLIST) && fxu_sorted(mst_names, (uint32_t)mst_d[0].max + 1u),
+          "the TYPE lists (a track's slots, the master's): ----, then A to Z");
+#if FELUCCA_USB_AUDIO
+    (void)ut_desc(UT_ID_TY, &v);
+    check(fxu_sorted(ut_names, (uint32_t)ut_td[0].max + 1u), "the USB input's TYPE list: ----, then A to Z");
+#endif
     check(fxu_listed(FXT_CHRS) == (FXU_NC > 0), "CHRS is in the picker's list when built (count > 0) and hidden at 0");
     check(fxu_listed(FXT_ECHO) == (FXU_NE > 0), "ECHO is in the picker's list when built (count > 0) and hidden at 0");
     fxu_cell(0, 0, &c);
