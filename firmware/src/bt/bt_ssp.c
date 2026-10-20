@@ -115,6 +115,14 @@ static void btp_keys(struct btp *p)                     /* the responder: the DH
     }
     p->st = BTP_NUMBER;
 }
+/* an IO capability as f3 takes it: the spec's order, the authentication requirements first (Part H 7.7.4: "the most
+ * significant octet ... AuthReq, then OOB, the least significant IO capability"); the LMP PDUs carry it the other way
+ * round (Part C 5.2: IO capability, OOB, AuthReq). The FM-1, 2026-10-20: a Raspberry Pi refused our Ea (0x05) until
+ * this was turned round */
+static void btp_iocap_spec(uint8_t d[3], const uint8_t pdu[3])
+{
+    d[0] = pdu[2], d[1] = pdu[1], d[2] = pdu[0];
+}
 static void btp_ab(const struct btp *p, uint8_t a[6], uint8_t b[6])   /* A (the initiator), B: spec order */
 {
     btp_spec_addr(a, p->init ? p->own_addr : p->peer_addr);
@@ -129,15 +137,17 @@ static void btp_link_key(struct btp *p)                 /* LK = f2(DHKey, Na, Nb
 }
 static int btp_dh_check(struct btp *p, const uint8_t *ea_air)   /* the initiator's Ea, then our Eb (Part H 7.7.4) */
 {
-    uint8_t a1[6], a2[6], r[16] = {0}, e[16], ea[16];
+    uint8_t a1[6], a2[6], r[16] = {0}, e[16], ea[16], io[3];
     uint32_t i;
     btp_ab(p, a1, a2);
-    bts_ssp_f3(p->dhkey, p->na, p->nb, r, p->iocap_a, a1, a2, e);   /* Ea = f3(DHKey, Na, Nb, rb, IOcapA, A, B) */
+    btp_iocap_spec(io, p->iocap_a);
+    bts_ssp_f3(p->dhkey, p->na, p->nb, r, io, a1, a2, e);   /* Ea = f3(DHKey, Na, Nb, rb, IOcapA, A, B) */
     btp_rev(ea, ea_air, 16);
     for (i = 0; i < 16u; i++)
         if (e[i] != ea[i])
             return 0;
-    bts_ssp_f3(p->dhkey, p->nb, p->na, r, p->iocap_b, a2, a1, e);   /* Eb = f3(DHKey, Nb, Na, ra, IOcapB, B, A) */
+    btp_iocap_spec(io, p->iocap_b);
+    bts_ssp_f3(p->dhkey, p->nb, p->na, r, io, a2, a1, e);   /* Eb = f3(DHKey, Nb, Na, ra, IOcapB, B, A) */
     btp_accept(p, BTL_DHKEY_CHECK);
     btp_rev(ea, e, 16);
     btp_put(p, BTL_DHKEY_CHECK, ea, 16);
@@ -163,7 +173,7 @@ static void btp_i_number(struct btp *p)                 /* its commitment in: ou
 }
 static int btp_i_nb(struct btp *p, const uint8_t *nb_air)   /* its Nb in: its commitment checked, our Ea out */
 {
-    uint8_t cb[16], a1[6], a2[6], r[16] = {0}, e[16], air[16];
+    uint8_t cb[16], a1[6], a2[6], r[16] = {0}, e[16], air[16], io[3];
     uint32_t i;
     btp_rev(p->nb, nb_air, 16);
     bts_ssp_f1(p->peer_pub, p->pub, p->nb, 0, cb);      /* Cb = f1(PKbx, PKax, Nb, 0) */
@@ -172,7 +182,8 @@ static int btp_i_nb(struct btp *p, const uint8_t *nb_air)   /* its Nb in: its co
             return 0;
     btp_accept(p, BTL_SIMPLE_PAIRING_NUMBER);
     btp_ab(p, a1, a2);
-    bts_ssp_f3(p->dhkey, p->na, p->nb, r, p->iocap_a, a1, a2, e);   /* Ea = f3(DHKey, Na, Nb, 0, IOcapA, A, B) */
+    btp_iocap_spec(io, p->iocap_a);
+    bts_ssp_f3(p->dhkey, p->na, p->nb, r, io, a1, a2, e);   /* Ea = f3(DHKey, Na, Nb, 0, IOcapA, A, B) */
     btp_rev(air, e, 16);
     btp_put(p, BTL_DHKEY_CHECK, air, 16);
     p->st = BTP_DHCHECK;
@@ -180,10 +191,11 @@ static int btp_i_nb(struct btp *p, const uint8_t *nb_air)   /* its Nb in: its co
 }
 static int btp_i_eb(struct btp *p, const uint8_t *eb_air)   /* its Eb in: checked, the link key, our au_rand out */
 {
-    uint8_t a1[6], a2[6], r[16] = {0}, e[16], eb[16];
+    uint8_t a1[6], a2[6], r[16] = {0}, e[16], eb[16], io[3];
     uint32_t i;
     btp_ab(p, a1, a2);
-    bts_ssp_f3(p->dhkey, p->nb, p->na, r, p->iocap_b, a2, a1, e);   /* Eb = f3(DHKey, Nb, Na, 0, IOcapB, B, A) */
+    btp_iocap_spec(io, p->iocap_b);
+    bts_ssp_f3(p->dhkey, p->nb, p->na, r, io, a2, a1, e);   /* Eb = f3(DHKey, Nb, Na, 0, IOcapB, B, A) */
     btp_rev(eb, eb_air, 16);
     for (i = 0; i < 16u; i++)
         if (e[i] != eb[i])
