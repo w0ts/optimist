@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
 """Start-ups with BLUETOOTH saved ON, in the FM-1 emulator, for a package with the whole BLE option set (BLE,
-USB_MODE, BLE_BOND, BLE_CENTRAL, BLE_DIAG: the one that goes on the FM-1). Each boot must reach the UI (its frames
+USB_CONSOLE, BLE_BOND, BLE_CENTRAL, BLE_DIAG: the one that goes on the FM-1). Each boot must reach the UI (its frames
 counted, the start-up breadcrumb past the splash), keep the watchdog fed, take no CPU exception and advertise:
 
   on         BLUETOOTH ON saved by the menu (a flash with the VM, no LAST): advertising from boot, a central connects

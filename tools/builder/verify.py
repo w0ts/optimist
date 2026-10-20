@@ -187,10 +187,10 @@ RANDOM_EXPERIMENTAL = ("DRUM_X0X909", "DRUM_X0X808")
 def random_config(rng):
     cfg = C.defaults()
     for k, it in R.ITEMS.items():
-        if (it.experimental and k not in RANDOM_EXPERIMENTAL) or k in ("EDITOR",):
+        if (it.experimental and k not in RANDOM_EXPERIMENTAL) or k in ("EDITOR", "USB_AUDIO"):
             continue
         if it.is_choice:
-            cfg[k] = rng.choice([c[0] for c in it.choices if not (k == "USB_MODE" and c[0] == 2)])
+            cfg[k] = rng.choice([c[0] for c in it.choices])
         else:
             cfg[k] = 1 if rng.random() < 0.7 else 0
     if not any(C.built(cfg, k) for k in R.ITEMS if k.startswith("ENG_") and not R.ITEMS[k].parent):

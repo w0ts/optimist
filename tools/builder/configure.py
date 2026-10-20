@@ -199,7 +199,7 @@ def apply_env(cfg, env):
     if "FELUCCA_USB_AUDIO" in env or "FELUCCA_CDC" in env:
         ua = env.get("FELUCCA_USB_AUDIO") == "1"
         cdc = env.get("FELUCCA_CDC", "0" if ua else "1") == "1"
-        cfg["USB_MODE"] = 2 if ua else 1 if cdc else 0
+        cfg["USB_AUDIO"], cfg["USB_CONSOLE"] = int(ua), int(cdc and not ua)
     for s in (x.strip().upper() for x in env.get("FELUCCA_SAMPLES_SKIP", "").split(",") if x.strip()):
         if f"SET_{s}" in cfg:
             cfg[f"SET_{s}"] = 0

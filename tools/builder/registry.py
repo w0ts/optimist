@@ -24,6 +24,7 @@ FELUCCA_URL = "https://github.com/hugelton/Felucca"
 MIGRATE = {
     "OTA": lambda v: {"EDITOR": int(v != 0)},   # (2026-10-17: the editor alone; updates and the USB rescue always built)
     "REVERB": lambda v: {"REV_ROOM": int(v == 0), "REV_PLATE": int(v == 1), "REV_FDN8": int(v == 2)},   # the one-tank choice
+    "USB_MODE": lambda v: {"USB_CONSOLE": int(v == 1), "USB_AUDIO": int(v == 2)},   # (2026-10-20: two checkboxes; bit 47 unused)
 }
 
 # Items merged into another: a .config (or --set) naming one is read as the survivor, turned ON if either was on
@@ -181,7 +182,7 @@ def fx_group(key, parent=None):
     return FX_ONCE if (parent or key) in FX_ONCE_KEYS else FX_ANY
 
 
-GROUPS = ["Reserve", "Synth engines", "Drums", "Sample sets", FX_ANY, FX_ONCE, "Sequencer", "MIDI & USB", "UI", "System"]
+GROUPS = ["Reserve", "Synth engines", "Drums", "Sample sets", FX_ANY, FX_ONCE, "Sequencer", "USB & BT & MIDI", "UI", "System"]
 
 _ITEMS = []
 
@@ -632,19 +633,23 @@ _add("ENERGY", "FELUCCA_ENERGY", "ENERGY bands thin / thicken the drums", Q, 121
           "eighths, no ghosts, as written, harder hits, hat ratchets and a snare fill every second pass. About "
           "0.6 KB of flash.", symbols=("EN_EDGE",))
 
-# ---- MIDI & USB
-M = "MIDI & USB"
-_add("USB_MODE", "", "USB port", M, 47, default=0,
-     choices=((0, "MIDI only"), (1, "CDC serial console"), (2, "USB audio + MIDI, resampled (EXPERIMENTAL)")),
-     desc="What the USB port offers. USB MIDI (notes, clock, the editor and updates) is in every choice. MIDI only "
-          "(default): nothing more (smallest). CDC console: a read-only serial console for diagnostics. USB audio + "
-          "MIDI (EXPERIMENTAL): 4 stems in + stereo out (UAC1) next to USB MIDI; the stems are resampled to the "
-          "computer's clock (cubic, after X0X 80b7d40), so a host passing the input live to an output does not drop "
-          "out. It replaces the console and needs +12 KB pool (a resampler in the audio path is CPU-heavy). It streams on the FM-1 since 2026-10-12 (before, a USB audio build hung and "
-          "went to the USB rescue); its audio quality is not checked yet.",
+# ---- USB & BT & MIDI (the user, 2026-10-20). USB MIDI (notes, clock, the editor and updates) is in every build. The USB
+# port's two extras, each a checkbox, not both: the controller has three data endpoints (hal/fm1_usb.h EP1..3), USB MIDI
+# takes EP1, USB audio EP2 both ways and EP3 IN, the console EP2 and EP3 (io/usb/usb.c). (bit 47, USB_MODE, the one
+# choice before: MIGRATE reads it; never reuse the bit)
+M = "USB & BT & MIDI"
+_add("USB_CONSOLE", "", "USB serial console (logs, diagnostics)", M, 360, default=0,
+     desc="A read-only serial console on the USB port, next to USB MIDI: the logs and the diagnostic commands "
+          "(with Bluetooth audio, its btinq / btpage traces). Not with USB audio: the USB port has three data "
+          "endpoints, USB MIDI takes one and USB audio the other two.")
+_add("USB_AUDIO", "", "USB audio (4 stems in, stereo out)", M, 361, default=0,
+     desc="4 stems in + stereo out (UAC1) next to USB MIDI; the stems are resampled to the computer's clock (cubic, "
+          "after X0X 80b7d40), so a host passing the input live to an output does not drop out. Needs +12 KB pool "
+          "(a resampler in the audio path is CPU-heavy). It streams on the FM-1 since 2026-10-12 (before, a USB audio "
+          "build hung and went to the USB rescue); its audio quality is not checked yet. Not with the serial console: "
+          "the USB port has three data endpoints, USB MIDI takes one and USB audio the other two.",
      provenance=MELODEE_USB,
-     notice="USB audio capture resampler ported from X0X by Charles Vestal (GPL-3.0), 80b7d40: part of the USB audio "
-            "choice of this item.")
+     notice="USB audio capture resampler ported from X0X by Charles Vestal (GPL-3.0), 80b7d40.")
 _add("UART", "FELUCCA_UART", "TRS MIDI IN", M, 48,
      desc="MIDI input on the TRS jack (notes and clock from a keyboard or sequencer). About 0.6 KB of flash; off: "
           "the jack hears nothing, and SYNC TRS has no clock.")
@@ -851,10 +856,10 @@ _add("BLE", "FELUCCA_BLE", "Bluetooth LE MIDI, our own stack", M, 252, default=0
      tested="tested on an FM-1 with macOS Audio MIDI Setup, not yet with iOS or Windows")
 _add("BLE_DIAG", "FELUCCA_BLE_DIAG", "BLE diagnostics: the console's blell, counters and rings", M, 253, default=0,
      parent="BLE", target_only=True,
-     desc="For finding BLE faults: the console's blell command (needs a CDC / console build, USB_MODE 1) "
+     desc="For finding BLE faults: the console's blell command (needs the serial console, USB_CONSOLE) "
           "and the counters and rings behind it (link-layer events, the radio's receive and transmit state, the "
           "protocol packets, BLE-MIDI in). About 6 KB of flash and 2.3 KB of RAM, and 6 KB of flash more with the "
-          "console (USB_MODE 1) for blell itself. Leave it off for normal use: BLE works the same without it; "
+          "console (USB_CONSOLE) for blell itself. Leave it off for normal use: BLE works the same without it; "
           "bletrim and blevm stay, and so does the boot breadcrumb.",
      symbols=("con_blell",))
 _add("BLE_BOND", "FELUCCA_BLE_BOND", "BLE bonding: pairing (Just Works) and an encrypted link", M, 254, default=0,
