@@ -155,7 +155,7 @@ figure and `tools/build.py` refuses a build whose real ring is; the flash reserv
 | JUNO (Juno-106 voice) | `ENG_JUNO` | Juno-106 voice from fm-106 / KR-106 (engine 14): the DCO (saw, pulse, sub, noise), the 4-pole OTA ladder filter and the 4-position HPF; the track's ENV and LFO drive it; 6 voices, 8 patches of our own (no Roland factory patches). About 2x the CPU of an ANALOG voice. |
 | (sub-item) FM6 user presets keep their voice | `UP_FM6` | FM6 user presets keep their whole voice (operator edits included) instead of only the VOICE number. About 0.7 KB of flash plus a 3.6 KB store in flash; a preset written from the web editor drops its kept voice. |
 
-#### Drum synths
+#### Drums
 
 | Item | Key | What it does |
 |---|---|---|
@@ -164,10 +164,6 @@ figure and `tools/build.py` refuses a build whose real ring is; the flash reserv
 | (sub-item) X0X 909: ride and crash sample quality | `X909_CYM` | 8-bit block floating point as before; 6-bit: 22 KB less, 30 dB against the 16-bit source instead of 42 (screens x0xdrums-perf-2026-10-06); off: RIDE and CRASH play the synthesised 909's (the hi-hat samples stay) |
 | X0X 808 kit (circuit-modelled TR-808) | `DRUM_X0X808` | X0X's TR-808 drum kit (kit UID 38; 16 circuit-modelled sounds) on the 16 lanes; MIDI also plays MT, LC, HC and the claves (note 75). About 30 KB of flash and uses floating point. A build without it plays the synthesised 808 for it and keeps the kit |
 
-#### Drums
-
-| Item | Key | What it does |
-|---|---|---|
 | sampled drums (the PERC set, 99 KB) | `DRUM_SAMPLED` | The recorded drum samples (the PERC set, about 99 KB of flash) behind the five sampled kits below. Switching this off drops all of them; the drum track then needs a drum synth. |
 | (sub-item) sampled kit ACOUSTIC | `KIT_ACOUSTIC` | The sampled kit as recorded (the basic kit of the PERC set). It shares the PERC samples with the other sampled kits, so leaving it out saves no memory (only leaving out all of them does); a project using it plays another kit. |
 | (sub-item) sampled kit DEEP | `KIT_DEEP` | The sampled kit tuned down and softened by a low-pass filter: a darker, heavier kit. It shares the PERC samples with the other sampled kits, so leaving it out saves no memory (only leaving out all of them does); a project using it plays another kit. |
