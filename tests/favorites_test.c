@@ -123,7 +123,7 @@ static void t_store(void)
 }
 
 /* a record as a build before the favorites wrote it: n bytes of recognisable values */
-static void fill(persist_t *p, uint32_t seed)
+static void fill(persist_v3_t *p, uint32_t seed)
 {
     uint8_t *b = (uint8_t *)p;
     uint32_t i;
@@ -140,19 +140,20 @@ static void fill(persist_t *p, uint32_t seed)
 
 static void t_record(void)
 {
-    persist_t p, q;
+    persist_v3_t p, q;
+    persist_t c;                                   /* (the record converted to PER4: what the build then reads) */
     int n, r;
-    uint32_t off = (uint32_t)offsetof(persist_t, fav);
+    uint32_t off = (uint32_t)offsetof(persist_v3_t, fav);
     fill(&p, 3);
     q = p;
 #if FELUCCA_USB_AUDIO
-    check("the favorites are the record's last field but the USB routing", off + sizeof(fav_t) == offsetof(persist_t, ua_src));
-#elif FELUCCA_BLE
-    check("the favorites are the record's last field but Bluetooth's (op_bt.c)", off + sizeof(fav_t) == offsetof(persist_t, bt_rec));
+    check("the favorites are the record's last field but the USB routing", off + sizeof(fav_t) == offsetof(persist_v3_t, ua_src));
+#elif FELUCCA_BT_UI
+    check("the favorites are the record's last field but Bluetooth's (op_bt.c)", off + sizeof(fav_t) == offsetof(persist_v3_t, bt_rec));
 #else
-    check("the favorites are the record's last field", off + sizeof(fav_t) == sizeof(persist_t));
+    check("the favorites are the record's last field", off + sizeof(fav_t) == sizeof(persist_v3_t));
 #endif
-    check("... and the record still fits a sector and stays below SLOOP 2.5's (checked at build)", sizeof(persist_t) <= ST_PAYLOAD_MAX);
+    check("... and the record still fits a sector and stays below SLOOP 2.5's (checked at build)", sizeof(persist_v3_t) <= ST_PAYLOAD_MAX);
 
     /* a record a build before the favorites wrote: its length is the offset of fav */
     memset(&p.fav, 0xA5, sizeof p.fav);            /* (what st_load leaves past n: not zeroed) */
@@ -172,19 +173,19 @@ static void t_record(void)
     memset(&fav, 0, sizeof fav);
     fav_set(1, "RHODES", 1), fav_set(4, "GRAND PNO", 1), fav_user_set(7, 1);
     fill(&p, 11);
-    persist_fav_save(&p);
+    p.fav = fav, p.fav.mark = FAV_MARK;            /* (as a PER3 build saved them) */
     q = p;
     r = persist_upgrade(&p, (int)sizeof p);
     check("a full record keeps its length and everything in it", r == (int)sizeof p && !memcmp(&p, &q, sizeof p));
     memset(&fav, 0, sizeof fav);
-    persist_fav_load(&p);
+    persist_from_v3(&c, &p), persist_fav_load(&c);
     check("... the favorites load back from it", fav_has(1, "RHODES") && fav_has(4, "GRAND PNO") && fav_user_has(7) && fav_count() == 2u);
 
     /* a record whose tail is another layout (a BLE build's address and trims where a build without BLE has the favorites) */
     fill(&p, 13);
     memset(&fav, 0, sizeof fav);
     fav_set(5, "X", 1);
-    persist_fav_load(&p);
+    persist_from_v3(&c, &p), persist_fav_load(&c);
     check("bytes of another layout in the tail are no favorites (no mark): the store is cleared", !fav_count() && !fav.user);
 
     /* a record saved before VIEW: still short (accepted as it was), no favorites */
@@ -192,21 +193,21 @@ static void t_record(void)
     memset(&p.fav, 0xA5, sizeof p.fav);
     r = persist_upgrade(&p, PERSIST_NO_VIEW);
     memset(&fav, 0, sizeof fav);
-    persist_fav_load(&p);
+    persist_from_v3(&c, &p), persist_fav_load(&c);
     check("a record from before VIEW: as before (its short length), no favorites", r == PERSIST_NO_VIEW && !fav_count() && !fav.user);
 #if FELUCCA_BLE
     fill(&p, 9);
     q = p;
     memset(&p.ble_dev, 0xA5, sizeof p.ble_dev);
     memset(&p.fav, 0xA5, sizeof p.fav);
-    r = persist_upgrade(&p, (int)offsetof(persist_t, ble_dev));
+    r = persist_upgrade(&p, (int)offsetof(persist_v3_t, ble_dev));
     check("a BLE build's record from before the device store: whole, address, trims and bond kept, no device, no favorites",
           r == (int)sizeof p && !memcmp(p.ble_addr, q.ble_addr, sizeof p.ble_addr) && !memcmp(p.ble_bond, q.ble_bond, sizeof p.ble_bond) &&
           !memcmp(p.ble_rf, q.ble_rf, sizeof p.ble_rf) && p.bp23 == q.bp23 && !memcmp(&p.fav, &(fav_t){0}, sizeof p.fav));
     fill(&p, 9);
     q = p;
     memset(&p.fav, 0xA5, sizeof p.fav);
-    r = persist_upgrade(&p, (int)offsetof(persist_t, ble_addr));
+    r = persist_upgrade(&p, (int)offsetof(persist_v3_t, ble_addr));
     check("a record from a build without BLE: whole, no address, no favorites, the settings word kept",
           r == (int)sizeof p && p.bp23 == q.bp23 && !memcmp(&p.fav, &(fav_t){0}, sizeof p.fav));
 #endif
@@ -217,14 +218,15 @@ static void t_record(void)
  * -3 / -6 dB sums load as L+R (the user, 2026-10-15: one sum, (L + R) / 2) */
 static void t_ua(void)
 {
-    persist_t p, q;
+    persist_v3_t p, q;
+    persist_t c;                                   /* (the record converted to PER4: what the build then reads) */
     int r;
     fill(&p, 7);
     q = p;
     memset(p.ua_src, 0xA5, sizeof p.ua_src), p.ua_mark = 0xA5A5A5A5u;
     memset(p.ua_dst, 0xA5, sizeof p.ua_dst), p.ua_mark3 = 0xA5A5A5A5u;
-    r = persist_upgrade(&p, (int)offsetof(persist_t, ua_src));
-    persist_ua_load(&p);
+    r = persist_upgrade(&p, (int)offsetof(persist_v3_t, ua_src));
+    persist_from_v3(&c, &p), persist_ua_load(&c);
     check("USB AUDIO: a record from before it reads whole, the routing the default, the favorites kept",
           r == (int)sizeof p && ua_ident && !memcmp(&p.fav, &q.fav, sizeof p.fav) && p.bp23 == q.bp23);
     /* a UAR2 record (each channel's source, 2026-10-15/16): read whole, converted to each source's channels */
@@ -232,48 +234,73 @@ static void t_ua(void)
     p.ua_mark = PERSIST_UA_MARK;
     p.ua_src[0] = 1, p.ua_src[1] = 2, p.ua_src[2] = 11 + 9, p.ua_src[3] = 7;   /* (MAIN L, MAIN R, DR10, DRUMS) */
     memset(p.ua_dst, 0xA5, sizeof p.ua_dst), p.ua_mark3 = 0xA5A5A5A5u;
-    r = persist_upgrade(&p, (int)offsetof(persist_t, ua_dst));
-    persist_ua_load(&p);
+    r = persist_upgrade(&p, (int)offsetof(persist_v3_t, ua_dst));
+    persist_from_v3(&c, &p), persist_ua_load(&c);
     check("USB AUDIO: a UAR2 record reads whole: MAIN L + R on 1, 2 -> MASTER on 1+2, DR10 on 3, DRUMS on 4, T1..T3 none",
           r == (int)sizeof p && ua_dst[UAS_MAIN] == UAD_12 && ua_dst[UAS_N - 1u] == UAD_3 && ua_dst[UAS_DRUMS] == UAD_4 &&
           ua_dst[UAS_T1] == UAD_NONE && ua_dst[UAS_T3] == UAD_NONE && dlt_mask == 1u << (DRUM_LANES - 1u));
     p.ua_mark = PERSIST_UA_MARK1;
     p.ua_src[0] = 4, p.ua_src[1] = 11, p.ua_src[2] = 13 + 9, p.ua_src[3] = 13 + 10;   /* (M-6, B-3, DR10, out of range: 10 lanes) */
-    persist_ua_load(&p);
+    persist_from_v3(&c, &p), persist_ua_load(&c);
     check("USB AUDIO: a UAR1 record: the -6 dB master on 1 (its sum), the bus on 2, a lane kept, out of range none",
           ua_dst[UAS_MAIN] == UAD_1 && ua_dst[UAS_DBUS] == UAD_2 && ua_dst[UAS_N - 1u] == UAD_3 && ua_dst[UAS_DRUMS] == UAD_NONE);
-    persist_ua_save(&q);
+    persist_ua_save(&c);
     ua_route_default();
-    persist_ua_load(&q);
-    check("USB AUDIO: saved as UAR3 (UAR2's mark cleared) and read back", q.ua_mark3 == PERSIST_UA_MARK3 && !q.ua_mark &&
+    persist_ua_load(&c);
+    check("USB AUDIO: saved as UAR3 (UAR2's mark cleared) and read back", c.ua_mark3 == PERSIST_UA_MARK3 && !c.ua_mark &&
           ua_dst[UAS_MAIN] == UAD_1 && ua_dst[UAS_N - 1u] == UAD_3 && !ua_ident);
     ua_route_default();
 }
 #endif
 
+/* PER4 (2026-10-20): one layout whatever the build's switches; this file is built plain, with USB audio and with BLE
+ * (run_tests.sh), and each build checks the same numbers */
+#define PERSIST4_EXPECT (16u + sizeof(panel_t) + sizeof(arr_rec_t) + 12u + 8u + 100u + 28u + 70u + 136u + 4u + 2u + 4u + 24u + 4u + 64u)
+static void t_layout(void)
+{
+    char w[160];
+    snprintf(w, sizeof w, "PER4: the same size in every build (the switches move nothing): %u B (expected %u; panel %u, song %u)",
+             (unsigned)sizeof(persist_t), (unsigned)PERSIST4_EXPECT, (unsigned)sizeof(panel_t), (unsigned)sizeof(arr_rec_t));
+    check(w, sizeof(persist_t) == PERSIST4_EXPECT);
+    printf("  offsets: bp23 %u ble %u fav %u ua_src %u ua_mark %u ua_dst %u ua_mark3 %u bt_rec %u bt_key %u\n",
+           (unsigned)offsetof(persist_t, bp23), (unsigned)offsetof(persist_t, ble_addr), (unsigned)offsetof(persist_t, fav),
+           (unsigned)offsetof(persist_t, ua_src), (unsigned)offsetof(persist_t, ua_mark), (unsigned)offsetof(persist_t, ua_dst),
+           (unsigned)offsetof(persist_t, ua_mark3), (unsigned)offsetof(persist_t, bt_rec), (unsigned)offsetof(persist_t, bt_key));
+    check("... every field at its place: settings word, BLE, favorites, USB routing, Bluetooth",
+          offsetof(persist_t, bp23) == 16u + sizeof(panel_t) + sizeof(arr_rec_t) + 8u &&
+          offsetof(persist_t, fav) == offsetof(persist_t, ble_addr) + 206u &&
+          offsetof(persist_t, ua_src) == offsetof(persist_t, fav) + 136u &&
+          offsetof(persist_t, bt_rec) == offsetof(persist_t, ua_mark3) + 4u && offsetof(persist_t, bt_key) + 32u == sizeof(persist_t));
+    check("... and it fits a sector and stays below SLOOP 2.5's", sizeof(persist_t) <= ST_PAYLOAD_MAX && sizeof(persist_t) < 88u + 1464u);
+}
+
 static void t_flash(void)
 {
     persist_t p, q, r;
+    persist_v3_t old;
     int n;
     uint32_t i;
     memset(nor, 0xFF, sizeof nor);
     memset(&fav, 0, sizeof fav);
     fav_set(2, "SOUL ORGAN", 1), fav_user_set(0, 1);
-    fill(&p, 21);
+    fill(&old, 21);
+    persist_from_v3(&p, &old);
     persist_fav_save(&p);
     check("saved (st_save of the settings object)", st_save(OBJ_SETTINGS, &p, sizeof p) == 0);
     memset(&q, 0xCC, sizeof q);
     n = st_load(OBJ_SETTINGS, &q, sizeof q);
     check("read back whole, byte for byte", n == (int)sizeof q && !memcmp(&p, &q, sizeof p));
-    n = persist_upgrade(&q, n);
     memset(&fav, 0, sizeof fav);
     persist_fav_load(&q);
-    check("... and its favorites come back", n == (int)sizeof q && fav_has(2, "SOUL ORGAN") && fav_user_has(0) && fav_count() == 1u);
-    /* a build without the favorites reads the same object with its smaller buffer: the prefix, as its own */
-    memset(&r, 0xCC, sizeof r);
-    n = st_load(OBJ_SETTINGS, &r, (uint32_t)offsetof(persist_t, fav));
-    check("a build without the favorites (a smaller buffer) reads the same prefix, whole", n == (int)offsetof(persist_t, fav) &&
-          !memcmp(&p, &r, (size_t)n));
+    check("... and its favorites come back, the record PER4, the settings word kept", q.magic == PERSIST_MAGIC4 &&
+          q.bp23 == old.bp23 && fav_has(2, "SOUL ORGAN") && fav_user_has(0) && fav_count() == 1u);
+    /* another build's fields (here: bytes this build has no use for) survive a save that starts from the record read */
+    r = q;
+    memset(r.bt_key, 0x5A, sizeof r.bt_key), memset(r.ua_dst, 0x3C, sizeof r.ua_dst);
+    p = r;                                         /* (settings_save: p = persist_saved, then this build's own fields) */
+    persist_fav_save(&p);
+    check("a save keeps the fields of another build's switches as read (settings_save starts from the record read)",
+          !memcmp(p.bt_key, r.bt_key, sizeof p.bt_key) && !memcmp(p.ua_dst, r.ua_dst, sizeof p.ua_dst));
     for (i = 0; i < 0x100000u; i++)
         if (nor[i] != 0xFF && (i < 0xFC000u || i >= 0xFE000u)) {
             check("nothing is written outside the settings object's two sectors", 0);
@@ -285,6 +312,7 @@ static void t_flash(void)
 int main(void)
 {
     t_store();
+    t_layout();
     t_record();
 #if FELUCCA_USB_AUDIO
     t_ua();

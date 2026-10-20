@@ -60,19 +60,20 @@ typedef struct {
     dualcfg_t dualcfg;                             /* the second-core test image only (system/dual.c, the console's dualcfg):
                                                     * after everything; a normal build reads it as a longer record's tail */
 #endif
-} persist_t;
+} persist_v3_t;                                    /* ("PER3": the layout of before 2026-10-20, its fields by the build's
+                                                    * switches; read once and turned into persist_t, below) */
 #define PERSIST_UA_MARK3 0x33524155u               /* "UAR3": each source's channels (ua_tap.h ua_dst) */
 #define PERSIST_UA_MARK 0x32524155u                /* "UAR2": each channel's source, the list without -3 / -6 dB */
 #define PERSIST_UA_MARK1 0x31524155u               /* "UAR1": the list with them (feat/usb-out-routing 1074f2ee) */
-#define PERSIST_NO_VIEW ((int)__builtin_offsetof(persist_t, view))   /* the record's length before view */
+#define PERSIST_NO_VIEW ((int)__builtin_offsetof(persist_v3_t, view))   /* the record's length before view */
 #if FELUCCA_BLE
-#define PERSIST_BLE(f) ((int)__builtin_offsetof(persist_t, f))
-#define PERSIST_BLE_END (PERSIST_BLE(ble_dev) + (int)sizeof(((persist_t *)0)->ble_dev))   /* (the BLE fields: bytes, in a row) */
-_Static_assert(PERSIST_BLE(ble_rf) == PERSIST_BLE(ble_addr) + 8 && PERSIST_BLE(ble_bond) == PERSIST_BLE(ble_rf) + BLE_RF_COPY_SIZE &&
-               PERSIST_BLE(ble_dev) == PERSIST_BLE(ble_bond) + BLE_BOND_SIZE, "the settings record's BLE fields in a row");
+#define PERSIST3_BLE(f) ((int)__builtin_offsetof(persist_v3_t, f))
+#define PERSIST3_BLE_END (PERSIST3_BLE(ble_dev) + (int)sizeof(((persist_v3_t *)0)->ble_dev))   /* (the BLE fields: bytes, in a row) */
+_Static_assert(PERSIST3_BLE(ble_rf) == PERSIST3_BLE(ble_addr) + 8 && PERSIST3_BLE(ble_bond) == PERSIST3_BLE(ble_rf) + BLE_RF_COPY_SIZE &&
+               PERSIST3_BLE(ble_dev) == PERSIST3_BLE(ble_bond) + BLE_BOND_SIZE, "the settings record's BLE fields in a row");
 #endif
 #if FELUCCA_BRIGHT || BP23_SET
-#define PERSIST_NO_BRIGHT ((int)__builtin_offsetof(persist_t, bright))   /* .. before bright (a build without it) */
+#define PERSIST_NO_BRIGHT ((int)__builtin_offsetof(persist_v3_t, bright))   /* .. before bright (a build without it) */
 #endif
 #if FELUCCA_ARRANGER
 #define PERSIST_MAGIC 0x50455233u                  /* "PER3": includes the song order */
@@ -83,45 +84,45 @@ _Static_assert(PERSIST_BLE(ble_rf) == PERSIST_BLE(ble_addr) + 8 && PERSIST_BLE(b
 /* the n bytes st_load (or sl25_set_load) gave, in *pp (the rest of it not set): brought to this build's record. Returns
  * the length to take it as: sizeof(persist_t) for a whole record (anything shorter that is complete for an older build is
  * filled in and made whole), PERSIST_NO_VIEW for the one short form still read, else what n was (not read) */
-static int persist_upgrade(persist_t *pp, int n)
+static int persist_upgrade(persist_v3_t *pp, int n)
 {
 #if FELUCCA_BT_AUDIO
-    if (n == (int)__builtin_offsetof(persist_t, bt_key)) {   /* (first: a record from before the key is whole without it) */
+    if (n == (int)__builtin_offsetof(persist_v3_t, bt_key)) {   /* (first: a record from before the key is whole without it) */
         memset(pp->bt_key, 0, sizeof pp->bt_key);
         n = (int)sizeof *pp;
     } else if (n < (int)sizeof *pp)
         memset(pp->bt_key, 0, sizeof pp->bt_key);
 #endif
 #if FELUCCA_BT_UI
-    if (n == (int)__builtin_offsetof(persist_t, bt_rec)) {   /* (first: a record from before it is whole without it) */
+    if (n == (int)__builtin_offsetof(persist_v3_t, bt_rec)) {   /* (first: a record from before it is whole without it) */
         memset(pp->bt_rec, 0, sizeof pp->bt_rec);
         n = (int)sizeof *pp;
     } else if (n < (int)sizeof *pp)
         memset(pp->bt_rec, 0, sizeof pp->bt_rec);
 #endif
 #if FELUCCA_USB_AUDIO
-    if (n < (int)__builtin_offsetof(persist_t, ua_dst))   /* (first: a record from before the USB routing is whole without it, */
+    if (n < (int)__builtin_offsetof(persist_v3_t, ua_dst))   /* (first: a record from before the USB routing is whole without it, */
         memset(pp->ua_src, 0, sizeof pp->ua_src), pp->ua_mark = 0;
     if (n < (int)sizeof *pp)                         /* one from before the routing by source keeps its channels' sources) */
         memset(pp->ua_dst, 0, sizeof pp->ua_dst), pp->ua_mark3 = 0;
-    if (n == (int)__builtin_offsetof(persist_t, ua_src) || n == (int)__builtin_offsetof(persist_t, ua_dst))
+    if (n == (int)__builtin_offsetof(persist_v3_t, ua_src) || n == (int)__builtin_offsetof(persist_v3_t, ua_dst))
         n = (int)sizeof *pp;
 #endif
 #if FELUCCA_FAVORITES
     if (n < (int)sizeof *pp)                         /* (st_load sets the first n bytes only) */
         memset(&pp->fav, 0, sizeof pp->fav);
-    if (n == (int)__builtin_offsetof(persist_t, fav))
+    if (n == (int)__builtin_offsetof(persist_v3_t, fav))
         n = (int)sizeof *pp;                         /* a record from before the favorites: whole, none (it must not be taken */
 #endif                                             /* for a shorter one below: that would drop the BLE fields or the word) */
 #if FELUCCA_BLE
-    if (n == PERSIST_BLE(ble_dev) || n == PERSIST_BLE(ble_bond) || n == PERSIST_BLE(ble_rf)) {   /* saved by a BLE build
+    if (n == PERSIST3_BLE(ble_dev) || n == PERSIST3_BLE(ble_bond) || n == PERSIST3_BLE(ble_rf)) {   /* saved by a BLE build
                                                     * before the device store, the bond or the trim copy: those 0 */
-        memset((uint8_t *)pp + n, 0, (uint32_t)(PERSIST_BLE_END - n));
+        memset((uint8_t *)pp + n, 0, (uint32_t)(PERSIST3_BLE_END - n));
         n = (int)sizeof *pp;
     }
     if (n < (int)sizeof *pp) {                   /* saved by a build without BLE: no address yet, the rest ours */
-        memset(pp->ble_addr, 0, (uint32_t)(PERSIST_BLE_END - PERSIST_BLE(ble_addr)));
-        if (n == PERSIST_BLE(ble_addr))
+        memset(pp->ble_addr, 0, (uint32_t)(PERSIST3_BLE_END - PERSIST3_BLE(ble_addr)));
+        if (n == PERSIST3_BLE(ble_addr))
             n = (int)sizeof *pp;
     }
 #endif
@@ -158,21 +159,116 @@ static int persist_upgrade(persist_t *pp, int n)
     return n;
 }
 
+/* "PER4", 2026-10-20: one layout for every build. Each field is there whatever the build's switches, at its place, its
+ * size fixed here (and checked against the code's own when the feature is built): a build without a feature keeps those
+ * bytes as it read them (settings_save starts from the record read), so switching USB audio, the console, BLE or
+ * Bluetooth audio in the builder no longer loses the settings. Before, the layout followed the switches: a record of
+ * another build was read shifted (longer) or had its settings word cleared (shorter): SERIAL, KNOB COLORS and the rest
+ * went off "by themselves" (the user, 2026-10-20). New fields: appended at the end only. */
+#define PERSIST_MAGIC4 0x34524550u                 /* "PER4" */
+#define PERSIST4_BLE_RF 100u                       /* ble/ble_vm.h BLE_RF_COPY_SIZE */
+#define PERSIST4_BLE_BOND 28u                      /* io/midi/midi_ble.c BLE_BOND_SIZE */
+#define PERSIST4_BLE_DEV 70u                       /* ble/ble_store.h BLE_DEV_STORE_SIZE */
+#define PERSIST4_UA_ROUTE 4u                       /* io/usb/ua_tap.h UA_ROUTE_N */
+#define PERSIST4_FAV 136u                          /* core/favorites.c fav_t (its bytes: the type is the build's) */
+typedef struct {
+    uint32_t magic, palette, lowcut, zoom;
+    panel_t panel;
+#if FELUCCA_ARRANGER
+    arr_rec_t arrangement;
+#endif
+    uint32_t view, bright, bp23;                   /* (bright: always 0; bp23: the settings word, bp23_word) */
+    uint8_t ble_addr[8], ble_rf[PERSIST4_BLE_RF], ble_bond[PERSIST4_BLE_BOND], ble_dev[PERSIST4_BLE_DEV];   /* (in a row) */
+    uint8_t fav[PERSIST4_FAV];                     /* (a fav_t when FAVORITES is built: persist_fav_load / _save) */
+    uint8_t ua_src[PERSIST4_UA_ROUTE];
+    uint8_t pad[2];                                /* (ua_mark on 4 bytes, written down: nothing left to the compiler) */
+    uint32_t ua_mark;
+    uint8_t ua_dst[PERSIST_UA_SRC];
+    uint32_t ua_mark3;
+    uint8_t bt_rec[32], bt_key[32];
+#if FELUCCA_DUAL && FELUCCA_DUALCFG
+    dualcfg_t dualcfg;                             /* (the second-core test image only: after everything) */
+#endif
+} persist_t;
+#if FELUCCA_DUAL && FELUCCA_DUALCFG
+#define PERSIST4_LEN ((int)__builtin_offsetof(persist_t, dualcfg))   /* a normal build's record: whole without it */
+#else
+#define PERSIST4_LEN ((int)sizeof(persist_t))
+#endif
+#if FELUCCA_BLE
+#define PERSIST_BLE(f) ((int)__builtin_offsetof(persist_t, f))
+#define PERSIST_BLE_END (PERSIST_BLE(ble_dev) + (int)sizeof(((persist_t *)0)->ble_dev))
+_Static_assert(BLE_RF_COPY_SIZE == PERSIST4_BLE_RF && BLE_BOND_SIZE == PERSIST4_BLE_BOND &&
+               BLE_DEV_STORE_SIZE == PERSIST4_BLE_DEV, "the record's BLE fields: their sizes");
+#endif
+#if FELUCCA_FAVORITES
+_Static_assert(sizeof(fav_t) == PERSIST4_FAV, "the record's favorites: their size");
+#endif
+#if FELUCCA_USB_AUDIO
+_Static_assert(UA_ROUTE_N == PERSIST4_UA_ROUTE, "the record's USB capture sources: their count");
+#endif
+
+/* a "PER3" record read (persist_upgrade's, accepted) -> ours: the fields this build had then, at their new places */
+static void persist_from_v3(persist_t *d, const persist_v3_t *s)
+{
+    memset(d, 0, sizeof *d);
+    d->magic = PERSIST_MAGIC4;
+    d->palette = s->palette, d->lowcut = s->lowcut, d->zoom = s->zoom;
+    d->panel = s->panel;
+#if FELUCCA_ARRANGER
+    d->arrangement = s->arrangement;
+#endif
+    d->view = s->view;
+#if FELUCCA_BRIGHT || BP23_SET
+    d->bright = s->bright;
+#endif
+#if BP23_SET
+    d->bp23 = s->bp23;
+#endif
+#if FELUCCA_BLE
+    memcpy(d->ble_addr, s->ble_addr, sizeof d->ble_addr);
+    memcpy(d->ble_rf, s->ble_rf, sizeof d->ble_rf);
+    memcpy(d->ble_bond, s->ble_bond, sizeof d->ble_bond);
+    memcpy(d->ble_dev, s->ble_dev, sizeof d->ble_dev);
+#endif
+#if FELUCCA_FAVORITES
+    memcpy(d->fav, &s->fav, sizeof d->fav);
+#endif
+#if FELUCCA_USB_AUDIO
+    memcpy(d->ua_src, s->ua_src, sizeof d->ua_src);
+    d->ua_mark = s->ua_mark;
+    memcpy(d->ua_dst, s->ua_dst, sizeof d->ua_dst);
+    d->ua_mark3 = s->ua_mark3;
+#endif
+#if FELUCCA_BT_UI
+    memcpy(d->bt_rec, s->bt_rec, sizeof d->bt_rec);
+#endif
+#if FELUCCA_BT_AUDIO
+    memcpy(d->bt_key, s->bt_key, sizeof d->bt_key);
+#endif
+#if FELUCCA_DUAL && FELUCCA_DUALCFG
+    d->dualcfg = s->dualcfg;
+#endif
+}
+
 #if FELUCCA_FAVORITES
 /* the favorites of a record read (persist_boot) into the store, and out of it (settings_save) */
 static void persist_fav_load(const persist_t *p)
 {
-    if (p->fav.mark != FAV_MARK) {                 /* none saved, or a record whose layout is another build's (BLE) here */
+    fav_t f;
+    memcpy(&f, p->fav, sizeof f);
+    if (f.mark != FAV_MARK) {                      /* none saved */
         memset(&fav, 0, sizeof fav);
         return;
     }
-    fav = p->fav;
+    fav = f;
     fav_tidy(&fav);
 }
 static void persist_fav_save(persist_t *p)
 {
-    p->fav = fav;
-    p->fav.mark = FAV_MARK;
+    fav_t f = fav;
+    f.mark = FAV_MARK;
+    memcpy(p->fav, &f, sizeof f);
 }
 #endif
 
