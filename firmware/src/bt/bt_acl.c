@@ -22,6 +22,7 @@ static struct {
     uint32_t rxn, rxneed;                          /* bytes of the frame so far, its whole length */
     struct ba_ch ch[BA_NCH];
     uint8_t stage, id, label, cont[17], contn, acp, conf[4];
+    uint32_t t0;                                   /* fm1_ms: the set-up's start (BA_SETUP_MS: given up) */
     uint16_t tid, avdtp_psm;
     uint8_t sdp[BA_SDPMAX];
     uint32_t sdpn;
@@ -424,15 +425,37 @@ static void ba_in(const struct bti_rx *r)          /* an ACL fragment: LLID 2 st
     }
 }
 
-static void ba_poll(void)                          /* the main loop: SDP once LMP is set up, then AVDTP */
+#define BA_SETUP_MS 20000u                         /* the link up to the stream started: else given up, said */
+/* the main loop: SDP once LMP is set up; then the pairing and the encryption, ours to start unless the device started
+ * them (the FM-1, 2026-10-20: the WH-1000XM4 answered the AVDTP channel "pending: authentication", then "security
+ * block"); then AVDTP */
+static void ba_poll(void)
 {
     if (bti.mode != BTI_M_CONN)
         return;
     if (ba.stage == BA_IDLE && bp.setup_in && bp.setup_out) {
         ba.stage = BA_SDP;
+        ba.t0 = fm1_ms;
         ba_open(BA_CH_SDP, BL_PSM_SDP);
     } else if (ba.stage == BA_SDP_DONE && ba.avdtp_psm) {
+        if (bp_ssp.st == BTP_IDLE) {
+            con_puts("btpage: pairing: we start it (Secure Simple Pairing, Just Works), then the encryption\r\n");
+            btp_start(&bp_ssp);
+            return;
+        }
+        if (bp_ssp.st == BTP_FAILED) {
+            ba_line("pairing failed (reason, 0)", bp_ssp.reason, 0);
+            ba.stage = BA_FAILED;
+            return;
+        }
+        if (bp_ssp.st != BTP_ENCRYPTED)
+            return;                                /* (under way: ours or the device's) */
+        con_puts("btpage: paired and encrypted: opening the audio channel\r\n");
         ba.stage = BA_AV_SIG;
         ba_open(BA_CH_SIG, ba.avdtp_psm);
+    }
+    if (ba.stage > BA_IDLE && ba.stage < BA_AV_READY && fm1_ms - ba.t0 >= BA_SETUP_MS) {
+        ba_line("set-up given up (stage, pairing state)", ba.stage, bp_ssp.st);
+        ba.stage = BA_FAILED;
     }
 }

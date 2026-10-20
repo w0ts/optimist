@@ -204,10 +204,77 @@ static void run(int bad_check)
     check("every PDU we sent was looked at (none left over)", rd == nout);
 }
 
+/* the FM-1 as the initiator (btp_start: headphones refuse the audio channel until the link is paired and encrypted,
+ * "security block", the WH-1000XM4 2026-10-20): our initiator against our responder, PDU by PDU; the encryption steps
+ * as a slave answers them (the responder's own encryption path is the master's) */
+static struct btp ia, rb;
+static uint8_t qa[64][BTL_MAX], qb[64][BTL_MAX];
+static uint32_t qal[64], qbl[64], na_, nb_, ra_, rb_;
+static void to_b(void *ctx, const uint8_t *pdu, uint32_t len) { (void)ctx; memcpy(qa[na_], pdu, len); qal[na_++] = len; }
+static void to_a(void *ctx, const uint8_t *pdu, uint32_t len) { (void)ctx; memcpy(qb[nb_], pdu, len); qbl[nb_++] = len; }
+static uint32_t last_a_op;                              /* the last PDU A sent (its opcode) */
+static void pump(void)                                  /* both queues delivered until nothing moves */
+{
+    uint32_t tid;
+    while (ra_ < na_ || rb_ < nb_) {
+        if (ra_ < na_) {
+            last_a_op = btl_opcode(qa[ra_], qal[ra_], &tid);
+            if (last_a_op == BTL_ENCRYPTION_MODE_REQ || last_a_op == BTL_ENCRYPTION_KEY_SIZE_REQ ||
+                last_a_op == BTL_START_ENCRYPTION_REQ) {
+                ra_++;
+                return;                                 /* (the slave's answers: by hand) */
+            }
+            (void)btp_in(&rb, qa[ra_], qal[ra_]);
+            ra_++;
+        }
+        if (rb_ < nb_) {
+            (void)btp_in(&ia, qb[rb_], qbl[rb_]);
+            rb_++;
+        }
+    }
+}
+static void slave_accepts(uint32_t of)
+{
+    uint8_t b[2] = {(uint8_t)(BTL_ACCEPTED << 1 | 0u), (uint8_t)of};   /* (in our transaction: TID 0) */
+    (void)btp_in(&ia, b, 2);
+}
+static void run_initiator(void)
+{
+    const uint8_t own[6] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66}, peer[6] = {0x24, 0xed, 0x1f, 0x0a, 0x80, 0xac};
+    uint8_t kc[16];
+    na_ = nb_ = ra_ = rb_ = 0;
+    uECC_set_rng(rng);
+    btp_begin(&ia, own, peer, rng, to_b, 0);
+    btp_begin(&rb, peer, own, rng, to_a, 0);
+    btp_start(&ia);
+    check("initiator: btp_start sends our IO capability (NoInputNoOutput)", na_ == 1u && ia.st == BTP_IOCAP);
+    pump();
+    check("initiator: keys, commitment, nonces and DHKey checks with a responder: both paired, the same link key",
+          rb.st >= BTP_PAIRED && rb.st != BTP_FAILED && !memcmp(ia.lk, rb.lk, 16) && !memcmp(ia.dhkey, rb.dhkey, 24));
+    check("initiator: then we authenticate it (our au_rand, its SRES checked): the encryption asked for",
+          ia.st == BTP_MODEREQ && last_a_op == BTL_ENCRYPTION_MODE_REQ && !memcmp(ia.aco, rb.aco, 12));
+    slave_accepts(BTL_ENCRYPTION_MODE_REQ);
+    check("initiator: its accept of the mode: our key size request (16)", ia.st == BTP_KEYSIZE &&
+          btl_opcode(qa[na_ - 1u], qal[na_ - 1u], &(uint32_t){0}) == BTL_ENCRYPTION_KEY_SIZE_REQ && qa[na_ - 1u][1] == 16u);
+    slave_accepts(BTL_ENCRYPTION_KEY_SIZE_REQ);
+    bts_e3(rb.lk, qa[na_ - 1u] + 1, rb.aco, kc);       /* (the slave's Kc from our EN_RAND and its own ACO) */
+    check("initiator: then start_encryption_req; Kc = E3(LK, EN_RAND, ACO) the same both sides",
+          ia.st == BTP_STARTING && !memcmp(kc, ia.kc, 16));
+    slave_accepts(BTL_START_ENCRYPTION_REQ);
+    check("initiator: its accept: encrypted", ia.st == BTP_ENCRYPTED);
+    {   /* a wrong SRES: the pairing fails (no encryption on a link we could not authenticate) */
+        uint8_t b[5] = {(uint8_t)(BTL_SRES << 1 | 0u), 0, 0, 0, 0};
+        ia.st = BTP_AUTHING;
+        (void)btp_in(&ia, b, 5);
+        check("initiator: a wrong SRES: failed", ia.st == BTP_FAILED);
+    }
+}
+
 int main(void)
 {
     run(0);
     run(1);
+    run_initiator();
     printf("bt_ssp: %d failed\n", fails);
     return fails != 0;
 }
