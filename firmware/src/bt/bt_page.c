@@ -45,9 +45,8 @@ static struct {
     uint32_t rs_sum, rs_n, rs_min, rs_max;         /* this second's RSSI1 (BR §4) at each reception: the gain set at the
                                                     * page stays for the link (bti_agc_follow runs in bti_page_rx only) */
     uint8_t agc_follow;                            /* `btpage follow=1`: bti_agc_follow at each reception of the link */
-    uint8_t fec;                                   /* the device's LMP_preferred_rate asks for FEC (its data rate bit 0
-                                                    * clear): the audio in DM5 / DM3, bt_acl.c's lower bitpool (the XM4
-                                                    * asks while it crackles, 2026-10-21) */
+    uint32_t rb_sum, rb_n, rb_min, rb_max;         /* this second's rxbit (BR §4) of the good receptions: where in our
+                                                    * window the device's answers land (timing drift? the XM4, 2026-10-21) */
 } bp;
 /* the audio packets (bt_acl.c ba_media_send, from the audio interrupt): whole L2CAP frames, each one DH5 (or DH3 / DH1
  * when shorter), never cut; the main loop's bp_tx_service sends them after the LMP and L2CAP signalling */
@@ -283,6 +282,15 @@ static void bp_conn_rx(void)                       /* a packet in the connection
         if ((stat >> 8) == 0x8Fu) {
             bp.good++;
             bp.last_good_ms = fm1_ms;
+            if (FELUCCA_BT_DIAG) {
+                uint32_t b = f->rxbit & 0x3FFu;
+                bp.rb_sum += b;
+                bp.rb_n++;
+                if (b < bp.rb_min)
+                    bp.rb_min = b;
+                if (b > bp.rb_max)
+                    bp.rb_max = b;
+            }
             if (llid == 3u && len >= 1u && len <= BTL_MAX)
                 bp_event(BTI_K_LMP, i, stat, bti_tab + (i ? BP_OFF_RX1 : BP_OFF_RX0), len);
             else if (len && llid) {
@@ -387,10 +395,7 @@ static void bp_tx_media(struct fm1_br_frame *f)
             n = bp_mq.n[q];
             for (k = 0; k < n; k++)
                 bti_tab[(i ? BP_OFF_TXB1 : BP_OFF_TXB0) + k] = bp_mq.d[q][k];
-            if (bp.fec && n <= 224u)
-                t = n > 121u ? 14u : n > 17u ? 10u : 3u;   /* DM5, DM3, DM1: FEC, as the device asked (BR §5.2) */
-            else
-                t = n > 183u ? 15u : n > 27u ? 11u : 4u;   /* DH5, DH3, DH1 (BR §5.2) */
+            t = n > 183u ? 15u : n > 27u ? 11u : 4u;   /* DH5, DH3, DH1 (BR §5.2) */
             f->txptr[i] = (uint16_t)(i ? BP_OFF_TXB1 : BP_OFF_TXB0);
             f->txphdr[i] = (uint16_t)(n << 3 | 1u << 2 | 2u);   /* LLID 2: an L2CAP start, whole; FLOW 1 */
             f->linkcntl[i] = (uint16_t)((f->linkcntl[i] & 0x80B0u) | t | 0x4000u);
@@ -505,13 +510,6 @@ static void bp_lmp_in(const struct bti_rx *r)
         bp.setup_in = 1;
         con_puts("btpage: the device sent setup_complete");
         con_puts(bp.setup_out ? ": the link is set up (LMP)\r\n" : "\r\n");
-    } else if (op == BTL_PREFERRED_RATE && r->len > 1u) {   /* (Vol 2 Part C 4.1.7: bit 0 set, no FEC; clear, FEC) */
-        uint8_t fec = !(r->data[1] & 1u);
-        if (fec != bp.fec) {
-            bp.fec = fec;
-            con_puts(fec ? "btpage: the device asks for FEC: the audio in DM5, bitpool down\r\n"
-                         : "btpage: the device asks for no FEC: the audio in DH5 again\r\n");
-        }
     } else if (op == BTL_DETACH) {
         con_puts("btpage: the device detached, reason 0x");
         con_hex(r->len > 1u ? r->data[1] : 0, 2);
@@ -621,7 +619,6 @@ static void bp_print_sec(void)
             bti_kv(" mq_busy=", bp.mq_busy);
             bp.mq_hi = 0;
         }
-        con_puts(bp.fec ? " fec" : "");
 #if FELUCCA_BT_DIAG
         bti_kv(" flow0=", bp.flow0);
         con_puts(" pll=");
@@ -638,6 +635,17 @@ static void bp_print_sec(void)
             if (n) {
                 bti_kv(" rssi=", lo);
                 bti_kv("/", sum / n);
+                bti_kv("/", hi);
+            }
+            fm1_br_irqs_hold(1);
+            sum = bp.rb_sum, n = bp.rb_n, lo = bp.rb_min, hi = bp.rb_max;
+            bp.rb_sum = bp.rb_n = bp.rb_max = 0;
+            bp.rb_min = 0xFFFFFFFFu;
+            fm1_br_irqs_hold(0);
+            if (n) {
+                bti_kv(" rxbit=", lo);
+                bti_kv("/", (sum * 10u / n) / 10u);
+                bti_kv(".", (sum * 10u / n) % 10u);
                 bti_kv("/", hi);
             }
         }
@@ -758,7 +766,8 @@ static int bp_start(const uint8_t addr[6], uint32_t slots)
     bp.name_done = 0;
     bp.mq_drop = bp.mq_sent = bp.mq_hi = bp.mq_busy = bp.flow0 = bp.rs_sum = bp.rs_n = bp.rs_max = 0;
     bp.rs_min = 0xFFFFFFFFu;
-    bp.fec = 0;
+    bp.rb_sum = bp.rb_n = bp.rb_max = 0;
+    bp.rb_min = 0xFFFFFFFFu;
     bp_mq.r = bp_mq.w;                            /* (a new link: no audio queued) */
     ba_reset();
     bp.txw = bp.txr = 0;
