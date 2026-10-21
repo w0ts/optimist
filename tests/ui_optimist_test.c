@@ -1784,6 +1784,18 @@ static void layer_tests(void)
             }
             (void)n3;
             check(hit, "a card with a list value (not a sound): KNOB turned: the popup list of its values (pop_kind 3)");
+            if (hit) {   /* at the list's end: nothing drawn below it (the first items were shown there) */
+                for (r = 0; r < 70u; r++)
+                    turn(EN_K1 + (k - 1u), 1);
+                frames(3);
+                check(*pen.vp == pen.d->max && op_overlay() == 5u, "... turned to the end of the list: the last value, the popup up");
+                {
+                    uint32_t y, any = 0;
+                    for (y = 168u; y < 190u; y++)
+                        any |= px_in(14, y, 200, 1, C_GRAY) || px_in(14, y, 200, 1, C_WHITE);
+                    check(!any, "... nothing below the last item (no wrap to the top of the list)");
+                }
+            }
             reset_ui();
             song.sel = 0;
             op_enter(SCR_SOUND);
