@@ -1734,6 +1734,38 @@ static void layer_tests(void)
         turn(EN_K1, 1);                                 /* EDIT page 1: KNOB 1 the sound (the user, 2026-10-21: "see the popup") */
         frames(3);
         check(op_overlay() == 5u && pop_kind == 1u, "EDIT's SOUND row, KNOB 1: the popup list of the sounds too");
+        {   /* any card with a list value (an insert's type, a scale, a mode): the same popup, its names, the value in the middle */
+            static const uint8_t SCRS[3] = {SCR_SOUND, SCR_FX, SCR_STEP};
+            uint32_t si, r, k, hit = 0, n3 = 0;
+            for (si = 0; si < 3u && !hit; si++) {
+                op_enter(SCRS[si]);
+                for (r = 0; r < SCR->rows() && !hit; r++)
+                    for (k = 0; k < 4u && !hit; k++) {
+                        cell_t cc;
+                        frames(200);
+                        ui.row[ui.scr] = (uint8_t)r;
+                        frame();
+                        SCR->cell(r, k, &cc);
+                        if (cc.kind != CK_VAL || !cc.d || cc.d->fmt != F_ENUM || cc.d->max - cc.d->min < 2 || is_go(cc.d) || ui.scr == SCR_STEP)
+                            continue;
+                        turn(EN_K1 + k, 1);
+                        frames(3);
+                        n3++;
+                        if (op_overlay() == 5u && pop_kind == 3u) {
+                            hit = 1;
+                            ppm("opt-enum-popup");
+                        }
+                    }
+            }
+            (void)n3;
+            check(hit, "a card with a list value (not a sound): KNOB turned: the popup list of its values (pop_kind 3)");
+            reset_ui();
+            song.sel = 0;
+            op_enter(SCR_SOUND);
+            ui.row[SCR_SOUND] = 0;
+            ui.force = 1;
+            frames(2);
+        }
         {   /* scrolling with the popup up: its box is drawn once a detent, the panel under it not at all (it flashed) */
             uint32_t d, worst = 0;
             for (d = 0; d < 8u; d++) {
