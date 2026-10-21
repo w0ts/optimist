@@ -268,6 +268,9 @@ static int px_in(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t col);
 static void check(int ok, const char *what) { printf("optimist ui: %-72s %s\n", what, ok ? "ok" : "FAIL"); fails += !ok; }
 static void reset_ui(void)
 {
+#if FELUCCA_FAVORITES
+    fav_list = 0;                                       /* (LIST ALL: a favorites test leaves the list filtered otherwise) */
+#endif
     fm1_in.buttons = 0;
     fm1_in.notes = 0;
     op_disarm();
@@ -1780,7 +1783,14 @@ static void layer_tests(void)
         }
         turn(EN_K1, 1);                                 /* EDIT page 1: KNOB 1 the sound (the user, 2026-10-21: "see the popup") */
         frames(3);
-        check(op_overlay() == 5u && pop_kind == 1u, "EDIT's SOUND row, KNOB 1: the popup list of the sounds too");
+        check(op_overlay() == 5u && pop_kind == 4u, "EDIT's SOUND row, KNOB 1 (ENGINE): the popup lists the engines only");
+        ppm("opt-engine-popup");
+        frames(200);
+        turn(EN_K2, 1);                                 /* KNOB 2: the PRESET, the engine's own sounds */
+        frames(3);
+        check(op_overlay() == 5u && pop_kind == 1u, "EDIT's SOUND row, KNOB 2 (PRESET): the popup list of the sounds");
+        frames(200);
+        ppm("opt-edit-after-popup");
         {   /* any card with a list value (an insert's type, a scale, a mode): the same popup, its names, the value in the middle */
             static const uint8_t SCRS[3] = {SCR_SOUND, SCR_FX, SCR_STEP};
             uint32_t si, r, k, hit = 0, n3 = 0;
@@ -3369,14 +3379,17 @@ static void preset_engine_tests(void)
         release(B_OCTUP);
         check(back == e0 && ui.scr == SCR_HOME && !op_armed(), "... and back; OCT+ let go: nothing else (no octave, no SYSTEM)");
         press(B_OCTUP);
-        for (i = 0; i < ne + 1u && ok; i++) {
+        for (i = 0; i < ne + 1u; i++)
+            turn(EN_PRESET, -1);                        /* (down to the first instrument: the list stops there, no wrap) */
+        for (i = 0, ok = 0; i < ne + 2u; i++) {
             uint32_t was = TSEL->eng_req;
             turn(EN_PRESET, 1);
-            if (ne > 1u && TSEL->eng_req == was)
-                ok = 0;
+            ok += TSEL->eng_req != was;
         }
         release(B_OCTUP);
-        check(ok, "... every turn a new instrument, round the list");
+        check(ne <= 1u || ok == ne - 1u, "... every turn a new instrument up to the last, which stays (no wrap round)");
+        set_engine_of(TSEL, e0);                        /* (the track as it was) */
+        snd_mark(song.sel);
         reset_ui();
     }
     {   /* the master FX slots name their role by type, not place (the user, 2026-10-12: "slot 1 is insert, right ?") */

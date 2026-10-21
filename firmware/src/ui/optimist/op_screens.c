@@ -17,6 +17,7 @@ typedef struct {
 static void op_enter(uint32_t scr);                     /* op_input.c */
 static void name_user_free(void);                       /* op_name.c: NAME for the first free user preset slot */
 static void pre_toast(void);                            /* op_preset.c: a preset's name and engine, a toast */
+static void pre_toast_engine(void);                     /* op_preset.c: the engine step's popup list of the engines */
 
 /* ---- shared actions */
 /* a new project: every track empty, the default sounds (as SLOOP's ui_input.c project_new, TOOLS > NEW) */
@@ -152,7 +153,11 @@ static void op_preset_load(uint32_t e, uint32_t k)      /* list entry (e, k) of 
 /* list index n of the preset list as browsed (the track's engine's sounds, or the marked ones) */
 static void op_preset_go(uint32_t n)
 {
-    uint32_t k, e = preset_at(n, &k);
+    uint32_t k, e, total;
+    (void)preset_pos(&total);
+    if (n >= total)
+        return;                                         /* (not in the list as browsed) */
+    e = preset_at(n, &k);
     op_preset_load(e, k);
 }
 #if FELUCCA_FAVORITES
@@ -206,7 +211,9 @@ static void op_preset_step(int32_t s)                   /* the next / previous s
     } else if (cur >= total) {                          /* (LIST FAV, a sound not marked: the first / last marked) */
         op_preset_go(s > 0 ? (uint32_t)((s - 1) % t) : (uint32_t)(t - 1 - (-s - 1) % t));
     } else {
-        op_preset_go((uint32_t)(((int32_t)cur + s % t + t) % t));
+        int32_t to = clamp((int32_t)cur + s, 0, t - 1);   /* (a list stops at its ends: no wrap round) */
+        if ((uint32_t)to != cur)
+            op_preset_go((uint32_t)to);
     }
     ed_done();
 }
@@ -234,14 +241,27 @@ static void op_engine_step(int32_t s)
         op_preset_step(s);
         return;
     }
+    if (fav_list && i >= n) {                           /* (LIST FAV, a sound not marked: the first / last marked sound's group) */
+        i = s > 0 ? 0u : n - 1u;
+        for (j = 0; j < n && i > 0u && list_eng(i - 1u) == list_eng(i); j++)
+            i--;
+        op_preset_go(i);
+        ed_done();
+        return;
+    }
     if (i >= n)                                         /* (a user sound: from its engine's group, or the top) */
         for (i = 0; i < n - 1u && list_eng(i) != e0; i++)
             ;
-    for (j = 0; j < n && list_eng(i) == e0; j++)        /* past the selected engine's group */
-        i = s > 0 ? (i + 1u) % n : (i + n - 1u) % n;
+    for (j = 0; j < n && list_eng(i) == e0; j++) {      /* past the selected engine's group (no wrap: the first and last engines stop) */
+        if ((s > 0 && i + 1u >= n) || (s < 0 && i == 0u)) {
+            ed_done();
+            return;
+        }
+        i = s > 0 ? i + 1u : i - 1u;
+    }
     et = list_eng(i);
-    for (j = 0; j < n && list_eng((i + n - 1u) % n) == et && (i + n - 1u) % n != i; j++)
-        i = (i + n - 1u) % n;                           /* (back to that group's first sound) */
+    for (j = 0; j < n && i > 0u && list_eng(i - 1u) == et; j++)
+        i--;                                            /* (back to that group's first sound) */
     if (fav_list) {
         op_preset_go(i);
     } else {
@@ -422,7 +442,7 @@ static void snd_step(int engine, int32_t s)             /* ENGINE: the next / pr
     else
         op_preset_step(s);
     if (!op_armed())
-        pre_toast();                                    /* (EDIT's SOUND row too: the popup list, as PRESETS shows it; asked "Discard edits?": none) */
+        engine ? pre_toast_engine() : pre_toast();                                    /* (EDIT's SOUND row too: the popup list, as PRESETS shows it; asked "Discard edits?": none) */
 }
 static void snd_cell(uint32_t r, uint32_t k, cell_t *c)
 {

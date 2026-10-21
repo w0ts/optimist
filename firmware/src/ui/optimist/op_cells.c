@@ -196,10 +196,24 @@ static int value_long(const param_desc_t *d, int32_t v, char *b)
 }
 
 /* the sound a track plays, by name (b holds 14) */
+#if FELUCCA_NB_LIST
+static uint32_t nb_kind(const track_t *t);              /* storage/nbank.c */
+static void nb_name(uint32_t kind, uint32_t k, char *nm);
+#endif
 static void snd_name(uint32_t c, char *b)
 {
     const track_t *t = &trk[c % NTRK];
     const engine_t *e = ENGINES[t->eng_req % NENGINES];
+#if FELUCCA_NB_LIST
+    if (c != TRK_DRUM && t == TSEL) {                   /* the engine's own collection (the FM6 voice packs, a received bank): the voice's name */
+        uint32_t at, r, n = nb_list(&r, ~0u, &at);
+        if (r < n) {
+            nb_list(&r, r, &at);
+            nb_name(nb_kind(t), at, b);
+            return;
+        }
+    }
+#endif
     if (c == TRK_DRUM)
         str_cpy(b, drum_kit_name(), 14);
     else if (user_of(t) < UP_SLOTS)

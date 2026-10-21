@@ -125,4 +125,28 @@ static void plines_tests(void)
     }
 #endif
     reset_ui();
+    {   /* a sound picked from the popup list: the PRESET line of EDIT's first page shows it once the popup is gone */
+        uint32_t i, before = 0, after = 0;
+        char name0[14];
+        reset_ui();
+        song.sel = 0;
+        tap(B_EDIT);
+        ui.row[ui.scr] = 0;
+        ui.force = 1;
+        frames(4);
+        SCR->cell(0, 1, &c);
+        str_cpy(name0, c.val, sizeof name0);
+        for (i = 24u * 240u; i < 240u * 240u; i++)
+            before = before * 31u + screen[i];
+        turn(EN_K2, 1);
+        frames(3);
+        check(op_overlay() == 5u, "EDIT page 1, KNOB 2 (PRESET): the popup list");
+        frames(200);
+        SCR->cell(0, 1, &c);
+        for (i = 24u * 240u; i < 240u * 240u; i++)
+            after = after * 31u + screen[i];
+        check(op_overlay() != 5u && strcmp(name0, c.val) != 0 && before != after,
+              "... gone: the PRESET line shows the sound picked (the panel drawn again)");
+        ppm("opt-edit-after-popup");
+    }
 }

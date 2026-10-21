@@ -110,6 +110,7 @@ static void cards_tests(void)
     {   /* the hot value in white in its quadrant (KNOB 4: bottom right) */
         tap(B_ENV);
         turn(EN_K4, 1);
+        frames(200);                                    /* (a list value's popup gone: the cards drawn again) */
         ui.force = 1;
         frame();
         check(ui.hot == 3u && px_in(126, OY_CARD + BIG_H + 13u, 110, 30, C_WHITE) &&

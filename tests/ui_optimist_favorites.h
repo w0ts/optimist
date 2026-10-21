@@ -21,6 +21,18 @@ static uint32_t fv_at(uint32_t n)                       /* the filtered list's e
     uint32_t k, e = preset_at(n, &k);
     return e << 16 | (k & 0xFFFFu);
 }
+static void fv_go_unmarked(void)                        /* the selected track onto a sound of its engine's list that is not marked */
+{
+    uint32_t j, kk, tt, e;
+    fav_list = 0;
+    (void)preset_pos(&tt);
+    for (j = 0; j < tt; j++) {
+        e = preset_at(j, &kk);
+        if (!fav_entry(e, kk))
+            break;
+    }
+    op_preset_go(j);
+}
 static void fv_open(uint32_t trk)                       /* SOUND > EDIT on track trk, nothing marked, LIST ALL */
 {
     reset_ui();
@@ -101,28 +113,28 @@ static void favorites_tests(void)
     check(fv_at(0) == mark[0] && fv_at(1) == mark[1] && fv_at(2) == mark[2], "... in the list's order");
     check(ui.row[SCR_SOUND] == SND_MAIN_ROW, "... the cursor row did not move (SELECT was the filter's)");
     turn(EN_PRESET, 1);
-    check(fv_here() == mark[0], "PRESETS, one on from the last of the three: the first (wraps)");
+    check(fv_here() == mark[2], "PRESETS, one on from the last of the three: it stays (a list does not wrap)");
     ui.msg[0] = 0;
     pre_toast();
     check(strstr(ui.msg, " *") != 0, "... the toast puts a star after a favorite's name");
-    turn(EN_PRESET, 1);
-    check(fv_here() == mark[1], "... one on: the second");
+    turn(EN_PRESET, -1);
+    check(fv_here() == mark[1], "... one back: the second");
     turn(EN_PRESET, -2);
-    check(fv_here() == mark[2], "... two back: the last");
+    check(fv_here() == mark[0], "... two back: the first, no lower");
     fv_shift2_turn(EN_PRESET, 1);
     check(fv_here() == mark[0] || fv_here() == mark[1] || fv_here() == mark[2], "SHIFT2 + PRESETS (the next instrument): one of the favorites");
     fav_list = 0;
-    op_preset_go(60);
+    fv_go_unmarked();
     fav_list = 1;
     turn(EN_PRESET, 1);
     check(fv_here() == mark[0], "from a sound not marked, one step on: the first marked");
     fav_list = 0;
-    op_preset_go(60);
+    fv_go_unmarked();
     fav_list = 1;
     turn(EN_PRESET, -1);
     check(fv_here() == mark[2], "... one step back: the last marked");
     fav_list = 0;
-    op_preset_go(60);
+    fv_go_unmarked();
     fav_list = 1;
     fv_shift2_turn(EN_PRESET, 1);
     check(fv_here() == mark[0] || fv_here() == mark[1] || fv_here() == mark[2], "SHIFT2 + PRESETS (the next instrument) from a sound not marked: a favorite");
