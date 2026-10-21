@@ -277,6 +277,7 @@ static int fails;
 static uint32_t key_led(uint32_t k);                     /* ui_optimist_pages.h */
 static int px_in(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t col);
 static void check(int ok, const char *what) { printf("optimist ui: %-72s %s\n", what, ok ? "ok" : "FAIL"); fails += !ok; }
+#define RING_FRAMES ((RH_CLEAR_MS + 40u) / 16u + 2u)    /* (a delete's ring held to its end: frames of 16 ms) */
 static void reset_ui(void)
 {
 #if FELUCCA_FAVORITES
@@ -2648,14 +2649,27 @@ static void song_tests(void)
         frames(2);
         check(project_used(2), "... NO: the scene is kept");
         ui.row[SCR_SONG] = (uint8_t)c;
+        fm1_in.notes |= 1u << WK(2);
+        frames(HOLD_FRAMES);
+        check(op_armed() && ui.arm_ring, "SONG: a scene key held: the ring (the hold confirms)");
+        fm1_in.notes &= ~(1u << WK(2));
+        frames(2);
+        check(!op_armed() && project_used(2), "... let go before the end: cancelled, the scene kept");
+        ui.row[SCR_SONG] = (uint8_t)c;
         press(B_SAVE);
         frames(HOLD_FRAMES);
+        check(op_armed() && ui.arm_ring && !strcmp(ui.arm_q, "CLEAR SCENE C?") && ui.scr == SCR_SONG, "SONG: SAVE held on a scene row: clear that scene, the ring fills (not PROJECT)");
+        frames(40);
+        ppm("opt-delete-ring");
         release(B_SAVE);
         frames(2);
-        check(op_armed() && !strcmp(ui.arm_q, "CLEAR SCENE C?") && ui.scr == SCR_SONG, "SONG: SAVE held on a scene row: clear that scene, asked (not PROJECT)");
-        tap(B_HOME);
+        check(!op_armed() && project_used(2) && ui.scr == SCR_SONG, "... let go before the end: cancelled, the scene is kept, no PROJECT");
+        press(B_SAVE);
+        frames(HOLD_FRAMES + RING_FRAMES);
+        check(!op_armed() && !project_used(2), "... held to the end: the scene is cleared");
+        release(B_SAVE);
         frames(2);
-        check(project_used(2), "... NO: the scene is kept");
+        scene_store_now(2);                             /* (stored again: the tests after it use the scene) */
         ui.row[SCR_SONG] = 0;
         press(B_HOME);
         key(WK(2));

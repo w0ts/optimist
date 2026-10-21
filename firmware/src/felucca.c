@@ -111,6 +111,10 @@ static void dual_flash_leave(void);
 #ifndef FELUCCA_BT_AUDIO
 #define FELUCCA_BT_AUDIO 0
 #endif
+#ifndef FELUCCA_BT_DIAG
+#define FELUCCA_BT_DIAG 0        /* with BT_AUDIO: the Classic stack's counters, trace and logs, btrx / bttrace, the live
+                                  * btpage pll= / agc= / follow= (bt/bt_inq.c, bt_page.c): a console debug build's */
+#endif
 #define FELUCCA_BT_UI (FELUCCA_BLE || FELUCCA_BT_AUDIO)   /* SYSTEM > Bluetooth: with either; it shows what is built (op_bt.c) */
 #if FELUCCA_BLE
 #include "io/midi/midi_ble.c"        /* the stack (ble/ble_stack.c) and its MIDI in / out */

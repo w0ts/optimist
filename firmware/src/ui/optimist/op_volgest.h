@@ -2,7 +2,7 @@
 /* SHIFT + the volume knob: the output switch (the user, 2026-10-20: "shift plus move a bit the knob, like 15% to
  * toggle" between Bluetooth audio and the FM-1's own output). The volume knob is a pot read by the ADC (system/main.c
  * master_pot): its place is the volume, so while SHIFT is held the volume stays where it was, a move of 15 % of the
- * travel either way switches once, and after SHIFT is let go the knob takes the volume back only once it comes back
+ * travel either way switches once, and after SHIFT is let go (a switch made) the knob takes the volume back only once it comes back
  * to where it was (a soft takeover: no jump). Pure (no hardware, no UI): op_bt.c calls it, tests/vol_gesture_test.c
  * tests it. */
 #ifndef OP_VOLGEST_H
@@ -30,9 +30,11 @@ static int vgest_step(struct vgest *g, int shift, int32_t knob, int *toggle)
         }
         return 1;
     }
-    if (g->on) {                                        /* SHIFT let go: a moved knob waits to come back */
+    if (g->on) {                                        /* SHIFT let go: a moved knob waits to come back, after a switch only
+                                                         * (a plain SHIFT, an octave, left the knob dead until wiggled back:
+                                                         * the user, 2026-10-21) */
         g->on = 0;
-        g->wait = knob - g->k0 >= VG_NEAR || g->k0 - knob >= VG_NEAR;
+        g->wait = g->done && (knob - g->k0 >= VG_NEAR || g->k0 - knob >= VG_NEAR);
         g->above = knob > g->k0;
     }
     if (g->wait) {

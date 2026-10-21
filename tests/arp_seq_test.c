@@ -146,6 +146,54 @@ int main(void)
     }
     song.rec = 0;
 
+    /* the same on a MONO part: with the arp on the chord is still a chord (not one note a step), the arp walks it */
+    reset(1);
+    t->p[P_VOICE] = V_MONO;
+    for (i = 0; i < 16u; i++)
+        put_step(t, i, 0, 0, ST_REST, 0);
+    song.rec = 1;
+    transport_req = 1;
+    run_to(8, seq);
+    input_on(t, 60, 100);
+    input_on(t, 64, 100);
+    for (i = 0; i < 400u; i++)
+        block();
+    input_off(t, 60);
+    input_off(t, 64);
+    for (i = 0; i < 100u; i++)
+        block();
+    {
+        uint32_t k, first = 99;
+        for (k = 0; k < 16u; k++)
+            if (t->step[k].time == ST_NOTE && t->step[k].n) {
+                first = k;
+                break;
+            }
+        check(first != 99u && t->step[first].n == 2u, "REC, ARP UP, MONO part: the chord is two notes in its step");
+    }
+    t->p[P_AMODE] = 0;
+    for (i = 0; i < 16u; i++)
+        put_step(t, i, 0, 0, ST_REST, 0);
+    song.rec = 1;
+    transport_req = 1;
+    run_to(8, seq);
+    input_on(t, 60, 100);
+    input_on(t, 64, 100);
+    for (i = 0; i < 100u; i++)
+        block();
+    input_off(t, 60);
+    input_off(t, 64);
+    {
+        uint32_t k, first = 99;
+        for (k = 0; k < 16u; k++)
+            if (t->step[k].time == ST_NOTE && t->step[k].n) {
+                first = k;
+                break;
+            }
+        check(first != 99u && t->step[first].n == 1u, "... ARP off, MONO: one note a step, as ever");
+    }
+    song.rec = 0;
+
     printf("arp seq: %d failed\n", fails);
     return fails;
 }
