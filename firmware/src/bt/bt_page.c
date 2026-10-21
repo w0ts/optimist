@@ -245,6 +245,8 @@ static void bp_tx_media(struct fm1_br_frame *f);
 static void bp_stat_note(uint32_t stat)            /* IRQ 40: one rxstat into this second's table (bp_status) */
 {
     uint32_t v = stat & 0xFFF0u, k;
+    if (!FELUCCA_BT_DIAG)
+        return;
     for (k = 0; k < 6u; k++) {
         if (bp.st_n[k] && bp.st_v[k] == v) {
             bp.st_n[k]++;
@@ -275,7 +277,7 @@ static void bp_conn_rx(void)                       /* a packet in the connection
 #endif
         bti_rxlog(i, stat);
         bp_stat_note(stat);
-        if (llid && !(hdr & 4u))
+        if (FELUCCA_BT_DIAG && llid && !(hdr & 4u))
             bp.flow0++;
         bp.type_n[type]++;
         if ((stat >> 8) == 0x8Fu) {
@@ -304,7 +306,7 @@ static void bp_conn_rx(void)                       /* a packet in the connection
             bp.last_good_ms = fm1_ms;
         }
     }
-    {
+    if (FELUCCA_BT_DIAG) {
         uint32_t r = f->rssi[1];
         bp.rs_sum += r;
         bp.rs_n++;
@@ -587,6 +589,7 @@ static void bp_print_rx(const struct bti_rx *r)   /* bti_print_rx's page / conne
     }
 }
 
+#if FELUCCA_CDC && FELUCCA_BT_DIAG
 static void bp_print_sec(void)
 {
     uint32_t i;
@@ -618,8 +621,9 @@ static void bp_print_sec(void)
             bti_kv(" mq_busy=", bp.mq_busy);
             bp.mq_hi = 0;
         }
-        bti_kv(" flow0=", bp.flow0);
         con_puts(bp.fec ? " fec" : "");
+#if FELUCCA_BT_DIAG
+        bti_kv(" flow0=", bp.flow0);
         con_puts(" pll=");
         con_dec(bti.pll_now);
         {
@@ -658,6 +662,7 @@ static void bp_print_sec(void)
                 bti_kv("more:", more);
             con_puts("}");
         }
+#endif
         con_puts(" types{");
         for (i = 0; i < 16u; i++)
             if (bp.type_n[i]) {
@@ -670,6 +675,7 @@ static void bp_print_sec(void)
     con_puts("\r\n");
 }
 
+#endif
 static void bp_poll(void)                          /* the main loop, page / connection modes */
 {
     bp_tx_service();
@@ -690,6 +696,7 @@ static void bp_poll(void)                          /* the main loop, page / conn
     }
 }
 
+#if FELUCCA_CDC && FELUCCA_BT_DIAG
 static int bp_parse_addr(const char **p, uint8_t a[6])   /* "AA:BB:CC:DD:EE:FF" (NAP:UAP:LAP, as printed) */
 {
     const char *s = *p;
@@ -717,6 +724,7 @@ static int bp_parse_addr(const char **p, uint8_t a[6])   /* "AA:BB:CC:DD:EE:FF" 
     return 1;
 }
 
+#endif
 static int bp_start(const uint8_t addr[6], uint32_t slots)
 {
     struct fm1_br_frame *f = fm1_br_frame(bti_tab, 0);
@@ -783,15 +791,19 @@ static void bp_leave(void)
     }
 }
 
+#if FELUCCA_CDC && FELUCCA_BT_DIAG
 static void con_btpage(const char *p)
 {
     uint8_t a[6];
     uint32_t s = 10u;
+#if FELUCCA_BT_DIAG
     int32_t v;
+#endif
     if (con_word(&p, "stop")) {
         bp_leave();
         return;
     }
+#if FELUCCA_BT_DIAG
     if (bti_opt_num(&p, "pll", &v)) {             /* the carrier offset now, in a running link (the sweep's pick stays
                                                     * for the whole link, bti_page_rx: does it drift? the XM4, 2026-10-21) */
         con_puts("btpage: pll ");
@@ -817,8 +829,9 @@ static void con_btpage(const char *p)
         con_puts(bp.agc_follow ? "btpage: agc follows\r\n" : "btpage: agc fixed\r\n");
         return;
     }
+#endif
     if (!bp_parse_addr(&p, a)) {
-        con_puts("btpage AA:BB:CC:DD:EE:FF [SECONDS] [OPTIONS] | pll=N | stop\r\n");
+        con_puts("btpage AA:BB:CC:DD:EE:FF [SECONDS] [OPTIONS] | stop\r\n");
         return;
     }
     bti_opts(p, &s);
@@ -840,3 +853,4 @@ static void con_btpage(const char *p)
     bti_opts_print();
     con_puts("\r\n");
 }
+#endif

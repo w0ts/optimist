@@ -688,10 +688,14 @@ static void bta_named(const uint8_t a[6], const char *nm);
 
 static void bti_poll(void)                         /* the main loop */
 {
+#if FELUCCA_CDC && FELUCCA_BT_DIAG
     static uint8_t done_printed;
+#endif
     if (bti_st.phase == BTI_CLK_RUN && fm1_ms - bti_st.ms0 >= 3000u) {
         bti_clk_end();
+#if FELUCCA_CDC && FELUCCA_BT_DIAG
         bti_clk_print();                           /* (shown only with a terminal open: `btclk` again) */
+#endif
     }
     while (bti_rr != bti_rw) {
         RING_PUBLISH();
@@ -701,6 +705,7 @@ static void bti_poll(void)                         /* the main loop */
     }
     if (bti.mode >= BTI_M_PAGE)
         bp_poll();
+#if FELUCCA_CDC && FELUCCA_BT_DIAG               /* (the console's lines: with no console they print nothing) */
     if (bti_st.phase == BTI_INQ_RUN) {
         done_printed = 0;
         if (fm1_ms - bti.sec_ms >= 1000u) {
@@ -727,4 +732,5 @@ static void bti_poll(void)                         /* the main loop */
             bti_kv(" ms, IDs heard=", bti_st.ids);
         con_puts(" ('bttrace' for the first interrupts, 'btrx' for every reception)\r\n");
     }
+#endif
 }

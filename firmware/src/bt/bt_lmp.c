@@ -173,6 +173,10 @@ uint32_t btl_answer(const uint8_t *p, uint32_t len, const char *name, uint8_t *o
 
 const char *btl_name(uint32_t op)
 {
+#if defined(FELUCCA_BT_DIAG) && !FELUCCA_BT_DIAG      /* (the names are only ever printed: BT_DIAG) */
+    (void)op;
+    return "";
+#else
     switch (op) {
     case BTL_NAME_REQ: return "name_req";
     case BTL_NAME_RES: return "name_res";
@@ -210,4 +214,5 @@ const char *btl_name(uint32_t op)
     case BTL_ESCAPE << 8 | BTL_X_NOT_ACCEPTED: return "not_accepted_ext";
     default: return "?";
     }
+#endif
 }

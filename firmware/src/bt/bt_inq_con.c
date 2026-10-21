@@ -9,6 +9,7 @@ static void bti_kv(const char *k, uint32_t v)
     con_dec((int32_t)v);
 }
 
+#if FELUCCA_CDC && FELUCCA_BT_DIAG
 static void bti_clk_print(void)
 {
     uint32_t ms = bti_st.ms1 - bti_st.ms0, slots = (bti_st.clk1 - bti_st.clk0) & BTI_CLK;
@@ -134,6 +135,7 @@ static void bti_opts_print(void)
     con_puts(bti.le_up ? " le=on]" : " le=off]");
 }
 
+#endif
 
 /* ---- the main loop: decode the ring, print */
 static void bti_addr(const uint8_t a[6])
@@ -246,6 +248,7 @@ static void bti_print_rx(const struct bti_rx *r)
     }
 }
 
+#if FELUCCA_CDC && FELUCCA_BT_DIAG
 static void bti_print_hist(const char *k, const uint32_t *key, const uint32_t *n, uint32_t other, uint32_t digits)
 {
     uint32_t i;
@@ -289,6 +292,8 @@ static void bti_print_sec(void)
 }
 
 
+#endif
+#if FELUCCA_BT_DIAG
 static void con_btrx(const char *p)                /* every reception of the last run (the first BTI_RXLOG) */
 {
     static const char *const mode[4] = {"inq", "scan", "page", "conn"};
@@ -319,7 +324,9 @@ static void con_btrx(const char *p)                /* every reception of the las
         con_puts("\r\n");
     }
 }
+#endif
 
+#if FELUCCA_CDC && FELUCCA_BT_DIAG
 /* ---- the console: btclk [run], btinq / btscan [SECONDS] [OPTIONS] | stop, bttrace [N] */
 static void con_btclk(const char *p)
 {
@@ -361,6 +368,8 @@ static void con_btrun(const char *p, uint32_t mode)
     con_puts("\r\n");
 }
 
+#endif
+#if FELUCCA_BT_DIAG
 static void con_bttrace(const char *p)
 {
     uint32_t i, n, k, t0;
@@ -409,3 +418,4 @@ static void con_bttrace(const char *p)
         con_puts("\r\n");
     }
 }
+#endif
