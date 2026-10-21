@@ -203,7 +203,7 @@ static void op_repaint(void)
     memset(ui.sig, 0, sizeof ui.sig);
     mx_redraw();
 }
-static uint8_t pop_kind;                                /* the toast is a popup list of the sounds (op_preset.c): 1 the presets, 2 the drum kits; any message clears it */
+static uint8_t pop_kind;                                /* the toast is a popup list of the sounds (op_preset.c): 1 the presets, 2 the drum kits, 3 a card's list value; any message clears it */
 static void ui_say(const char *a, const char *b)
 {
     uint32_t n;

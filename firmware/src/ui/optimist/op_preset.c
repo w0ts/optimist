@@ -103,8 +103,16 @@ static void pre_toast_fav(const char *what)
     ui.toast_col = C_HI;
 }
 #endif
+/* (pop_kind 3's list, pop_enum_open below) */
+static struct {
+    const param_desc_t *d;
+    const int16_t *vp;
+    uint16_t col;
+} pen;
 static uint32_t pre_sig(void)
 {
+    if (pop_kind == 3u)
+        return hu(hu(0x3E1u, (uint32_t)(int32_t)*pen.vp), settings.palette + (uint32_t)(uintptr_t)pen.d);
     uint32_t total, cur = preset_pos(&total);
     return (((0x9E5u * 16777619u ^ cur) * 16777619u ^ total) * 16777619u ^
             (tsel()->eng_req * 64u + (uint32_t)user_of(tsel()) + settings.palette * 4096u)) * 31u +
@@ -116,6 +124,37 @@ static uint32_t pre_sig(void)
 /* PRESETS and the engine step: a popup list of the sounds over the panel, the one playing in the middle (framed and lit in
  * its engine's colour), the others scrolling past it as you turn; gone with the toast, ~1.5 s after the last turn (the user,
  * 2026-10-21: "when changing preset, engine, a popup with the scrolling list"). The drum track: its factory kits */
+/* a list value of any card (the user, 2026-10-21: "generic, everywhere we select a value from a list": an insert's type, a scale, an
+ * arp mode...): pop_kind 3, the descriptor's names min..max, the value in the middle. Opened by pop_enum_open after the knob's turn */
+static void pen_name(int32_t v, char *nm)                  /* the list entry v as its card reads it (nm holds 16) */
+{
+    const char *unit;
+    cell_t c;
+    param_format(pen.d, v, nm, &unit);
+    if (pen.d->names == ins_names || pen.d->names == fxs_names) {
+        char b[16];
+        str_cpy(nm, nm_card(nm, 0, b, sizeof b), 16);
+    }
+    memset(&c, 0, sizeof c);
+    str_cpy(c.val, nm, sizeof c.val);
+    cell_empty_slot(&c);
+    str_cpy(nm, c.val, 16);
+}
+static void pop_enum_open(uint32_t row, uint32_t k)
+{
+    cell_t c;
+    if ((pop_kind != 0u && pop_kind != 3u && ui.toast_t) || op_armed())
+        return;                                         /* (a sound's popup, or a question, is up already) */
+    SCR->cell(row, k, &c);
+    if (c.kind != CK_VAL || !c.d || !c.vp || c.d->fmt != F_ENUM || c.d->max - c.d->min < 2 || c.d->max - c.d->min > 63 || is_go(c.d))
+        return;
+    pen.d = c.d, pen.vp = c.vp, pen.col = trk_col(song.sel);
+    ui.toast_next = 1;
+    ui_message(c.d->label);
+    ui.toast_next = 0;
+    ui.toast_col = pen.col;
+    pop_kind = 3;
+}
 static void pop_drum_kits(uint32_t *list, uint32_t *n, uint32_t *at)   /* the kits of this build, the one playing's place */
 {
     uint32_t i;
@@ -140,7 +179,7 @@ static void pop_paint(void)                             /* the box in its own co
     char t[12];
     cv_rect(8, 0, 224, pop.h, pop.fr);                  /* the frame, the engine's colour */
     cv_rect(10, 2, 220, pop.h - 4, OP_SURF);
-    str_cpy(t, pop_kind == 2u ? "KIT" : "SOUND", sizeof t);
+    str_cpy(t, pop_kind == 2u ? "KIT" : pop_kind == 3u ? pen.d->label : "SOUND", sizeof t);
     cv_text(16, 6, &FONT_S, t, C_GRAY);
     fmt_int(t, (int32_t)pop.cur + 1);
     str_app(t, "/", sizeof t);
@@ -151,7 +190,11 @@ static void pop_paint(void)                             /* the box in its own co
         char nm[16], en[12];
         uint16_t ec;
         ry = 20 + (int32_t)row * 14;
-        if (pop_kind == 2u) {
+        if (pop_kind == 3u) {
+            pen_name(pen.d->min + (int32_t)idx, nm);
+            en[0] = 0;
+            ec = pop.fr;
+        } else if (pop_kind == 2u) {
             str_cpy(nm, DRUM_KIT_NAMES[pop.kits[idx]], sizeof nm);
             str_cpy(en, DRUM_KIT_STYLES[pop.kits[idx]], sizeof en);
             ec = pop.fr;
@@ -177,10 +220,14 @@ static void pop_paint(void)                             /* the box in its own co
 }
 static void draw_pop(void)
 {
-    if (pop_kind == 2u)
+    if (pop_kind == 2u) {
         pop_drum_kits(pop.kits, &pop.total, &pop.cur);
-    else
+    } else if (pop_kind == 3u) {
+        pop.total = (uint32_t)(pen.d->max - pen.d->min + 1);
+        pop.cur = (uint32_t)clamp((int32_t)*pen.vp - pen.d->min, 0, (int32_t)pop.total - 1);
+    } else {
         pop.cur = preset_pos(&pop.total);
+    }
     if (!pop.total || pop.cur >= pop.total)
         return;
     pop.fr = ui.toast_col ? ui.toast_col : C_HI;

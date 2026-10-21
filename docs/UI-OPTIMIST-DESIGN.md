@@ -286,6 +286,7 @@ A page button held shows the layer's map (16 tiles for the white keys, the knobs
 | EDIT | erase as it plays | SHIFT LENGTH TRANSPOSE |
 | (SOUND's first row, EDIT) | PRESETS, SHIFT2 + PRESETS | four lines (ENGINE, PRESET, INIT, SAVE AS) and the popup list below, no picture (the drum track keeps its kit picture) |
 | PRESETS, SHIFT2 + PRESETS | a popup list of the sounds over the panel (the drum track: its kits): the one playing lit in the middle, in its engine's colour, scrolling as you turn, gone ~1.5 s after the last turn |
+| (any card with a list value) | a knob | the same popup list of that card's values (an insert's type, a scale, a mode, a destination), the value in the middle, up to 11 rows under the header, gone ~1.5 s after the last turn (op_preset.c pop_enum_open; pop_kind 3; two-value toggles, GO buttons and numbers have none) |
 | LFO (patterns, scenes; held or locked it shows SONG's PATTERNS row, back to the screen it left when let go; a knob turned at once, before the hold, is SHIFT and keeps the screen; KNOB 1..4 there select T1..DR and cue their patterns) | white n launches pattern n at its pass's end (OCT+: now), SAVE + n stores, HOME + n clears; black 1-4 pick the track, 5 stop, 9 duplicate, 10 turns the white keys to scenes A-P (same verbs; two launched in one hold: a chain) | none: LFO held + a knob is the fine edit of the screen under it |
 | ENV on FM6 | black keys pick OP1..OP6 PIT GLO MONO POLY | the page's four values |
 

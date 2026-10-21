@@ -834,6 +834,8 @@ static void op_knobs(uint32_t shift)
             continue;                                   /* REC held: its motion and locks cleared, the value stays */
         if (c.kind == CK_VAL)
             SCR->turn(row, k, shift ? OP_RESET : s, 0);  /* SHIFT held: back to its default */
+        if (c.kind == CK_VAL && !shift)
+            pop_enum_open(row, k);                      /* (a list value: the popup list, op_preset.c) */
     }
 knobs_done:
     if (turned) {
