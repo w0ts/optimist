@@ -1,6 +1,6 @@
 {
  "base": {
-  "flash": 689592,
+  "flash": 689596,
   "ram": 84772,
   "pool": 372884,
   "ramtext": 35536
@@ -1311,7 +1311,7 @@
    }
   }
  },
- "measured": "2026-10-21 14:57",
+ "measured": "2026-10-21 15:02",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
@@ -1409,7 +1409,7 @@
    }
   },
   "fm-va-studio": {
-   "hash": "1912772b",
+   "hash": "313ce10e",
    "cfg": {
     "ENG_PHASE": 0,
     "ENG_LOFI": 0,
@@ -1421,22 +1421,23 @@
     "SET_FLUTE": 0,
     "SET_SCRCH": 0,
     "FX_PUNCH": 0,
+    "FX_DJF": 0,
     "PATTERNS": 1,
     "USB_CONSOLE": 1,
     "ED_MIX": 0,
     "ED_SCREENS": 0,
     "COND": 1
    },
-   "built_hash": "1912772b",
+   "built_hash": "313ce10e",
    "sizes": {
-    "flash": 582312,
-    "ram": 86404,
-    "pool": 306832,
-    "ramtext": 27388
+    "flash": 579796,
+    "ram": 85332,
+    "pool": 306808,
+    "ramtext": 26908
    }
   },
   "synth": {
-   "hash": "0acb8b6e",
+   "hash": "529e725f",
    "cfg": {
     "ENG_PHASE": 0,
     "ENG_LOFI": 0,
@@ -1491,6 +1492,7 @@
     "SNAPSHOTS": 8,
     "PATTERNS": 1,
     "USB_AUDIO": 1,
+    "MIDI_EXPR": 0,
     "FAVORITES": 0,
     "PARAM_HELP": 1,
     "LIBRARIAN": 0,
@@ -1522,12 +1524,12 @@
     "COND": 1,
     "SEQTOOLS": 1
    },
-   "built_hash": "4f11e353",
+   "built_hash": "510b4d96",
    "sizes": {
-    "flash": 581596,
+    "flash": 581148,
     "ram": 92908,
     "pool": 310672,
-    "ramtext": 22856
+    "ramtext": 22680
    }
   },
   "x0x-drums": {
@@ -1625,7 +1627,7 @@
    }
   },
   "synth+ble-test": {
-   "hash": "4e45d488",
+   "hash": "2db26c35",
    "cfg": {
     "ENG_DIGITAL": 0,
     "ENG_PHASE": 0,
@@ -1680,6 +1682,7 @@
     "SNAPSHOTS": 8,
     "PATTERNS": 1,
     "USB_AUDIO": 1,
+    "MIDI_EXPR": 0,
     "FAVORITES": 0,
     "PARAM_HELP": 1,
     "LIBRARIAN": 0,
@@ -1704,16 +1707,16 @@
     "SL24_SAFE": 0,
     "SL24_IMPORT": 0
    },
-   "built_hash": "17570fe2",
+   "built_hash": "62689ef3",
    "sizes": {
-    "flash": 548716,
+    "flash": 548268,
     "ram": 90284,
     "pool": 301068,
-    "ramtext": 21548
+    "ramtext": 21372
    }
   },
   "synth+ble-full": {
-   "hash": "74b243bb",
+   "hash": "2141d5c6",
    "cfg": {
     "ENG_DIGITAL": 0,
     "ENG_PHASE": 0,
@@ -1767,6 +1770,7 @@
     "CHORDPLUS": 1,
     "SNAPSHOTS": 8,
     "USB_CONSOLE": 1,
+    "MIDI_EXPR": 0,
     "FAVORITES": 0,
     "PARAM_HELP": 1,
     "LIBRARIAN": 0,
@@ -1792,12 +1796,12 @@
     "SL24_SAFE": 0,
     "SL24_IMPORT": 0
    },
-   "built_hash": "606a2f59",
+   "built_hash": "1e294f48",
    "sizes": {
-    "flash": 543704,
+    "flash": 543288,
     "ram": 85272,
     "pool": 282252,
-    "ramtext": 19128
+    "ramtext": 18984
    }
   },
   "drum-machine~": {
@@ -1884,7 +1888,7 @@
    }
   },
   "fm-va-studio~": {
-   "hash": "55c1f223",
+   "hash": "36a064da",
    "cfg": {
     "ENG_PHASE": 0,
     "ENG_LOFI": 0,
@@ -1897,6 +1901,7 @@
     "SET_FLUTE": 0,
     "SET_SCRCH": 0,
     "FX_PUNCH": 0,
+    "FX_DJF": 0,
     "PATTERNS": 1,
     "USB_CONSOLE": 1,
     "PARAM_HELP": 1,
@@ -1904,16 +1909,16 @@
     "MOTION": 1,
     "COND": 1
    },
-   "built_hash": "55c1f223",
+   "built_hash": "36a064da",
    "sizes": {
-    "flash": 601300,
-    "ram": 87300,
-    "pool": 308000,
-    "ramtext": 24596
+    "flash": 598804,
+    "ram": 86244,
+    "pool": 307952,
+    "ramtext": 24112
    }
   },
   "synth~": {
-   "hash": "7b854706",
+   "hash": "0ca37453",
    "cfg": {
     "ENG_PHASE": 0,
     "ENG_LOFI": 0,
@@ -1966,6 +1971,7 @@
     "SNAPSHOTS": 8,
     "PATTERNS": 1,
     "USB_AUDIO": 1,
+    "MIDI_EXPR": 0,
     "MIDI_NOTEOUT": 0,
     "FAVORITES": 0,
     "PARAM_HELP": 1,
@@ -1997,12 +2003,12 @@
     "PLOCK": 1,
     "SEQTOOLS": 1
    },
-   "built_hash": "7db4fb2b",
+   "built_hash": "0173904a",
    "sizes": {
-    "flash": 579520,
+    "flash": 579088,
     "ram": 92060,
     "pool": 310672,
-    "ramtext": 22760
+    "ramtext": 22600
    }
   },
   "x0x-drums~": {
@@ -2104,7 +2110,7 @@
    }
   },
   "synth+ble-test~": {
-   "hash": "1b2f46fe",
+   "hash": "60765f93",
    "cfg": {
     "ENG_DIGITAL": 0,
     "ENG_PHASE": 0,
@@ -2163,6 +2169,7 @@
     "SNAPSHOTS": 8,
     "PATTERNS": 1,
     "USB_AUDIO": 1,
+    "MIDI_EXPR": 0,
     "PARAM_HELP": 1,
     "LIBRARIAN": 0,
     "ED_LIVE": 0,
@@ -2187,16 +2194,16 @@
     "SL24_SAFE": 0,
     "SL24_IMPORT": 0
    },
-   "built_hash": "4a89a5cc",
+   "built_hash": "29623495",
    "sizes": {
-    "flash": 551992,
+    "flash": 551540,
     "ram": 91420,
     "pool": 235612,
-    "ramtext": 21320
+    "ramtext": 21140
    }
   },
   "synth+ble-full~": {
-   "hash": "0319be67",
+   "hash": "0774f99a",
    "cfg": {
     "ENG_DIGITAL": 0,
     "ENG_PHASE": 0,
@@ -2250,6 +2257,7 @@
     "SNAPSHOTS": 8,
     "PATTERNS": 1,
     "USB_CONSOLE": 1,
+    "MIDI_EXPR": 0,
     "FAVORITES": 0,
     "PARAM_HELP": 1,
     "LIBRARIAN": 0,
@@ -2273,12 +2281,12 @@
     "SL24_SAFE": 0,
     "SL24_IMPORT": 0
    },
-   "built_hash": "0d0b0831",
+   "built_hash": "380efeb8",
    "sizes": {
-    "flash": 550812,
+    "flash": 550324,
     "ram": 85064,
     "pool": 282252,
-    "ramtext": 19204
+    "ramtext": 18988
    }
   }
  },
