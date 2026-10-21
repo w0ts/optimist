@@ -335,6 +335,14 @@ void drum909_init(drum909_t *d)
         d9_smp_rate(s);
         d9_env_set(&s->out, 0.0f);
         d9_shape_prep(&s->shape, s->drive, s->dist_type);
+#if X0X_909_HAT == 2                      /* (Optimist: the 6-bit hats) */
+        if (i < 2) {
+            s->buf = (const int8_t *)x0x_smp_hh_p;
+            s->sh = x0x_smp_hh_e6;
+            s->len = X0X_SMP_HH_LEN;
+            s->b6 = 1;
+        } else
+#endif
 #if X0X_909_CYM == 2                      /* (Optimist: the 6-bit ride and crash) */
         if (i == 2 || i == 3) {
             s->buf = (const int8_t *)(i == 2 ? x0x_smp_crash_p : x0x_smp_ride_p);
@@ -347,7 +355,11 @@ void drum909_init(drum909_t *d)
         else if (i == 3) { s->buf = x0x_smp_ride_m; s->sh = x0x_smp_ride_e; s->len = X0X_SMP_RIDE_LEN; }
         else
 #endif
+#if X0X_909_HAT == 2
+        { s->buf = (const int8_t *)x0x_smp_hh_p; s->sh = x0x_smp_hh_e6; s->len = 0u; }   /* (no ride or crash: no sample, a table that stays) */
+#else
         { s->buf = x0x_smp_hh_m; s->sh = x0x_smp_hh_e; s->len = i < 2 ? X0X_SMP_HH_LEN : 0u; }
+#endif
     }
 
     d->accent = 2.0f;
@@ -716,7 +728,7 @@ static void d9_render_clap(d9_clap_t *v, const float *nz, const d9_bus_t *bus, i
  * ride and crash as 6-bit mantissas, four in three bytes (tools/gen_x0x_drums.py pack6) */
 static inline int32_t d9_smp_at(const d9_smp_t *s, const int8_t *buf, const uint8_t *sh, uint32_t p)
 {
-#if X0X_909_CYM == 2
+#if X0X_909_CYM == 2 || X0X_909_HAT == 2
     if (s->b6) {
         const uint8_t *q = (const uint8_t *)buf + 3u * (p >> 2);
         const uint32_t w = (uint32_t)q[0] | (uint32_t)q[1] << 8 | (uint32_t)q[2] << 16;

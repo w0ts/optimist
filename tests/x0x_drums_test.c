@@ -393,7 +393,35 @@ int main(int argc, char **argv)
         }
         printf("  6-bit cymbals: %.1f dB against the 8-bit ones\n", 10.0 * log10(sg / (e > 0.0 ? e : 1.0)));
         check("x0x909: the 6-bit ride and crash read back within 28 dB of the 8-bit ones (X909_CYM 2)",
-              10.0 * log10(sg / (e > 0.0 ? e : 1.0)) > 28.0 && nz > 80000u && x909.smp[2].b6 && !x909.smp[0].b6);
+              10.0 * log10(sg / (e > 0.0 ? e : 1.0)) > 28.0 && nz > 80000u && x909.smp[2].b6 && !x909.smp[0].b6 == !(FELUCCA_X909_HAT == 2));
+    }
+#endif
+#if FELUCCA_DRUM_X909
+    {   /* the saturators' tanh: the table as built (X0X_TANH 1: 1024 points, 2: 256) against the real one over -10 .. 10 */
+        double worst = 0.0, u;
+        for (u = -10.0; u <= 10.0; u += 0.00137) {
+            double d = fabs((double)d9_tanh((float)u) - tanh(u));
+            worst = d > worst ? d : worst;
+        }
+        printf("  tanh table: worst error %.2e (X0X_TANH %d)\n", worst, (int)X0X_TANH);
+        check("x0x909: the tanh table is within 1e-5 of tanh (1024 points) / 1.5e-4 (256 points)", worst < (X0X_TANH == 2 ? 1.5e-4 : 1e-5));
+    }
+#endif
+#if FELUCCA_DRUM_X909 && FELUCCA_X909_HAT == 2
+    {   /* the 6-bit hats (X909_HAT 2) against the 8-bit ones, as d9_render_smp reads them */
+        double e = 0.0, sg = 0.0;
+        uint32_t p, nz = 0;
+        const d9_smp_t *s = &x909.smp[0];
+        x0x_ready();
+        for (p = 0; p < s->len; p++) {
+            double a = (double)((int32_t)x0x_smp_hh_m[p] << x0x_smp_hh_e[p / X0X_SMP_BLOCK]), b = (double)d9_smp_at(s, s->buf, s->sh, p);
+            e += (a - b) * (a - b);
+            sg += a * a;
+            nz += b != 0.0;
+        }
+        printf("  6-bit hats: %.1f dB against the 8-bit ones\n", 10.0 * log10(sg / (e > 0.0 ? e : 1.0)));
+        check("x0x909: the 6-bit hats read back within 28 dB of the 8-bit ones (X909_HAT 2), the open hat the same buffer",
+              10.0 * log10(sg / (e > 0.0 ? e : 1.0)) > 28.0 && nz > 10000u && x909.smp[0].b6 && x909.smp[1].b6 && x909.smp[1].buf == s->buf);
     }
 #endif
 #if FELUCCA_DRUM_X808

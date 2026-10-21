@@ -302,6 +302,15 @@ _add("X909_CYM", "FELUCCA_X909_CYM", "X0X 909: ride and crash sample quality", D
      choices=((1, "8-bit (93 KB, 42 dB)"), (2, "6-bit (70 KB, 30 dB)"), (0, "off")),
      desc="8-bit block floating point as before; 6-bit: 22 KB less, 30 dB against the 16-bit source instead of 42 "
           "(screens x0xdrums-perf-2026-10-06); off: RIDE and CRASH play the synthesised 909's (the hi-hat samples stay)")
+_add("X909_HAT", "FELUCCA_X909_HAT", "X0X 909: hi-hat sample quality", D, 365, parent="DRUM_X0X909",
+     choices=((1, "8-bit (21 KB, 42 dB)"), (2, "6-bit (16 KB, 30 dB)")),
+     desc="The closed and open hat samples as 8-bit block floating point as before, or 6-bit (four mantissas in three "
+          "bytes, as the ride and crash's 6-bit): about 5 KB less, 30 dB against the 16-bit source instead of 42 "
+          "(measured by tools/gen_x0x_drums.py; the 909's own cymbals are 6-bit). No other 909 voice reads a sample")
+_add("X0X_TANH", "FELUCCA_X0X_TANH", "X0X 909: saturator curve (tanh) resolution", D, 366, parent="DRUM_X0X909",
+     choices=((1, "1024 points (4.1 KB)"), (2, "256 points (1 KB)")),
+     desc="The 909's saturators read tanh from a table with linear interpolation: 1024 points as before, or 256 points: "
+          "3 KB less, within 1e-4 of tanh (80 dB below the signal), no audible change (tests/x0x_drums_test.c measures it)")
 _add("DRUM_X0X808", "FELUCCA_DRUM_X808", "X0X 808 kit (circuit-modelled TR-808)", D, 88, default=0,
      provenance=x0x("80b7d40"), notice=X0X_DRUMS_NOTICE,
      desc="X0X's TR-808 drum kit (kit UID 38; 16 circuit-modelled sounds) on the 16 lanes; MIDI also plays MT, LC, "
@@ -952,6 +961,7 @@ _SYMS = {
     "FX_PUNCH": ("punch_ring",), "EDITOR": ("ed_handle",),
     "DRUM_X0X909": ("drum909_trigger", "x0x_smp_hh_m"),
     "X909_CYM": ("x0x_smp_ride_m", "x0x_smp_crash_m"), "DRUM_X0X808": ("drum808_trigger",),
+    "X909_HAT": ("x0x_smp_hh_m",), "X0X_TANH": ("x0x_tanh_tab",),
     "CPU_GUARD": ("cg", "cg_post", "CG_VCOST"),
 }
 for _k, _v in _SYMS.items():

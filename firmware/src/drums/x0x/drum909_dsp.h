@@ -193,6 +193,17 @@ static inline float d9_tri(uint32_t ph)
 /* ===================================================================== */
 static inline float d9_tanh(float u)
 {
+#if X0X_TANH == 2                                  /* (Optimist, X0X_TANH 2: the 256-point table, a quarter of the flash) */
+    const float a = fm_fabsf(u) * X0X_TANH_SCALE_S;
+    float t;
+    if (a >= (float)X0X_TANH_NS) {
+        t = 1.0f;
+    } else {
+        const int32_t i = (int32_t)a;
+        const float fr = a - (float)i;
+        t = x0x_tanh_tab_s[i] + (x0x_tanh_tab_s[i + 1] - x0x_tanh_tab_s[i]) * fr;
+    }
+#else
     const float a = fm_fabsf(u) * X0X_TANH_SCALE;
     float t;
     if (a >= (float)X0X_TANH_N) {
@@ -202,6 +213,7 @@ static inline float d9_tanh(float u)
         const float fr = a - (float)i;
         t = x0x_tanh_tab[i] + (x0x_tanh_tab[i + 1] - x0x_tanh_tab[i]) * fr;
     }
+#endif
     return u < 0.0f ? -t : t;
 }
 
