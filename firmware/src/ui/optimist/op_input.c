@@ -655,7 +655,7 @@ static int op_presets_turn(void)
         else
             op_engine_step(s);                          /* SHIFT2 + PRESETS: the instruments (DR: its kits) */
         if (!op_armed())
-            pre_toast();                                /* (asked "Discard edits?": no toast) */
+            lane_presets() ? pre_toast() : pre_toast_engine();                                /* (asked "Discard edits?": no toast) */
     } else if (ui.scr == SCR_STEP) {                    /* STEP: the window's pages, every track (the user, 2026-10-11:
                                                          * "in the step sequencer it scroll pages thru the piano roll"),
                                                          * stopping at the ends; a step held: nothing (the held keys are

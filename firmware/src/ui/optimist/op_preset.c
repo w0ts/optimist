@@ -111,6 +111,8 @@ static struct {
 } pen;
 static uint32_t pre_sig(void)
 {
+    if (pop_kind == 4u)
+        return hu(0x4E6u, tsel()->eng_req + settings.palette * 64u);
     if (pop_kind == 3u)
         return hu(hu(0x3E1u, (uint32_t)(int32_t)*pen.vp), settings.palette + (uint32_t)(uintptr_t)pen.d);
     uint32_t total, cur = preset_pos(&total);
@@ -155,6 +157,38 @@ static void pop_enum_open(uint32_t row, uint32_t k)
     ui.toast_col = pen.col;
     pop_kind = 3;
 }
+/* the ENGINE step's popup (EDIT's ENGINE card, SHIFT2 + PRESETS; the user, 2026-10-21: "the engine ... should only list the engines"):
+ * the engines, in the whole list's order, the track's lit in the middle in its colour */
+static void pop_engines(uint32_t *list, uint32_t *n, uint32_t *at)
+{
+    uint32_t i, j, k, e;
+    *n = 0, *at = 0;
+    for (i = 0; i < NLIST && *n < 32u; i++) {
+        e = preset_all_at(i, &k);
+        if (e >= NENGINES)
+            continue;
+        for (j = 0; j < *n && list[j] != e; j++)
+            ;
+        if (j == *n) {
+            if (e == TSEL->eng_req % NENGINES)
+                *at = *n;
+            list[(*n)++] = e;
+        }
+    }
+}
+static void pre_toast_engine(void)
+{
+    uint32_t e = tsel()->eng_req % NENGINES;
+    if (is_drum(TSEL)) {
+        pre_toast();
+        return;
+    }
+    ui.toast_next = 1;
+    ui_message(ENGINES[e]->name);
+    ui.toast_next = 0;
+    ui.toast_col = ENG_COL[e];
+    pop_kind = 4;
+}
 static void pop_drum_kits(uint32_t *list, uint32_t *n, uint32_t *at)   /* the kits of this build, the one playing's place */
 {
     uint32_t i;
@@ -180,7 +214,7 @@ static void pop_paint(void)                             /* the box in its own co
     char t[12];
     cv_rect(8, 0, 224, pop.h, pop.fr);                  /* the frame, the engine's colour */
     cv_rect(10, 2, 220, pop.h - 4, OP_SURF);
-    str_cpy(t, pop_kind == 2u ? "KIT" : pop_kind == 3u ? pen.d->label : "SOUND", sizeof t);
+    str_cpy(t, pop_kind == 2u ? "KIT" : pop_kind == 3u ? pen.d->label : pop_kind == 4u ? "ENGINE" : "SOUND", sizeof t);
     cv_text(16, 6, &FONT_S, t, C_GRAY);
     fmt_int(t, (int32_t)pop.cur + 1);
     str_app(t, "/", sizeof t);
@@ -191,9 +225,13 @@ static void pop_paint(void)                             /* the box in its own co
         char nm[16], en[12];
         uint16_t ec;
         ry = 20 + (int32_t)row * POP_RH;
-        if (pop_kind == 3u && ((int32_t)pop.cur + off < 0 || (int32_t)pop.cur + off >= (int32_t)pop.total))
-            continue;                                   /* (a card's list stops at its ends: nothing past them, not the other end's items) */
-        if (pop_kind == 3u) {
+        if ((int32_t)pop.cur + off < 0 || (int32_t)pop.cur + off >= (int32_t)pop.total)
+            continue;                                   /* (a list stops at its ends: nothing past them, not the other end's items; the user, 2026-10-21) */
+        if (pop_kind == 4u) {
+            str_cpy(nm, ENGINES[pop.kits[idx]]->name, sizeof nm);
+            en[0] = 0;
+            ec = ENG_COL[pop.kits[idx]];
+        } else if (pop_kind == 3u) {
             pen_name(pen.d->min + (int32_t)idx, nm);
             en[0] = 0;
             ec = pop.fr;
@@ -232,6 +270,8 @@ static void draw_pop(void)
 {
     if (pop_kind == 2u) {
         pop_drum_kits(pop.kits, &pop.total, &pop.cur);
+    } else if (pop_kind == 4u) {
+        pop_engines(pop.kits, &pop.total, &pop.cur);
     } else if (pop_kind == 3u) {
         pop.total = (uint32_t)(pen.d->max - pen.d->min + 1);
         pop.cur = (uint32_t)clamp((int32_t)*pen.vp - pen.d->min, 0, (int32_t)pop.total - 1);
@@ -240,10 +280,8 @@ static void draw_pop(void)
     }
     if (!pop.total || pop.cur >= pop.total)
         return;
-    pop.fr = ui.toast_col ? ui.toast_col : C_HI;
-    pop.half = (pop.total - 1u) / 2u < 9u ? (pop.total - 1u) / 2u : 9u;   /* (most of the screen, under the header: 200 rows of 240: the user, 2026-10-21) */
-    while (pop.half > 0u && (int32_t)(pop.half * 2u + 1u) * POP_RH + 24 > 200)
-        pop.half--;
+    pop.fr = pop_kind == 4u ? ENG_COL[tsel()->eng_req % NENGINES] : ui.toast_col ? ui.toast_col : C_HI;
+    pop.half = 2u;                                      /* (five rows whatever the list holds: the ends of a short list are blank, the user, 2026-10-21) */
     pop.h = (int32_t)(pop.half * 2u + 1u) * POP_RH + 24;
     cv_tall((uint32_t)((240 - pop.h) / 2), (uint32_t)pop.h, C_BLACK, pop_paint);
 }
