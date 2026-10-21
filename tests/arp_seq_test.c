@@ -116,6 +116,36 @@ int main(void)
     arp_remove(t, 72);
     check(t->nheld == 0u, "the key let go: nothing held");
 
+    /* REC with the arp on: what is played is recorded (a chord as a chord), not what the arp makes of it */
+    reset(1);
+    for (i = 0; i < 16u; i++)
+        put_step(t, i, 0, 0, ST_REST, 0);
+    song.rec = 1;
+    transport_req = 1;
+    run_to(8, seq);
+    input_on(t, 60, 100);
+    input_on(t, 64, 100);
+    for (i = 0; i < 400u; i++)
+        block();
+    input_off(t, 60);
+    input_off(t, 64);
+    for (i = 0; i < 100u; i++)
+        block();
+    {
+        uint32_t k, first = 99, notes = 0, only2 = 1;
+        for (k = 0; k < 16u; k++)
+            if (t->step[k].time == ST_NOTE && t->step[k].n) {
+                if (first == 99u)
+                    first = k;
+                notes += t->step[k].n;
+                for (i = 0; i < t->step[k].n; i++)
+                    only2 &= t->step[k].note[i] == 60 || t->step[k].note[i] == 64;
+            }
+        check(first != 99u && t->step[first].n == 2u && only2, "REC, ARP UP: a chord played is a chord in its step (60 and 64), not the arp's walk through it");
+        check(notes <= 4u, "... and no note per arp tick (the arp's output is not written back)");
+    }
+    song.rec = 0;
+
     printf("arp seq: %d failed\n", fails);
     return fails;
 }

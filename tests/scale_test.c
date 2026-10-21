@@ -162,9 +162,9 @@ static void key_events_test(void)
     fm1_in.notes = (1u << 11) | (1u << 10); /* E and D#: only Eb sounds/records */
     keyboard_block();
     assert(t->arp_phys == 1 && t->nheld == 1 && t->held[0] == 63);
-    assert(t->step[0].n == 0);             /* ARP on: what it plays is recorded, not the key */
+    assert(t->step[0].n == 1 && t->step[0].note[0] == 63);   /* ARP on: what is played is recorded (the key), not what the arp makes of it */
     arp_tick(t, CTL * (uint32_t)song.g[G_BPM]);
-    assert(t->step[0].n == 1 && t->step[0].note[0] == 63);
+    assert(t->step[0].n == 1 && t->step[0].note[0] == 63);    /* (the arp's own note is not written back) */
     assert(mo_w == 1 && ((midi_out_q[0] >> 16) & 127u) == 63);
     t->p[P_SCALE] = 9;
     t->p[P_ROOT] = 6;
