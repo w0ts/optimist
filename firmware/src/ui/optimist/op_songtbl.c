@@ -46,6 +46,11 @@ static void stb_text(uint32_t kind, uint32_t col, uint32_t lane, char *o)
         v = "A";
     str_cpy(o, v, 4);
 }
+/* the large face (FONT_S at 2x) where the text fits its box, the small one where it does not (two-digit numbers in a column of 23 px) */
+static const felucca_font_t *stb_font(const char *t, int32_t maxw)
+{
+    return text_w(&FONT_L, t) <= maxw ? &FONT_L : &FONT_S;
+}
 static void stb_paint(void)
 {
     uint32_t nl = stb.kind == SG_SCENE ? 5u : 2u, lane, i, c0 = stb.col / STB_COLS * STB_COLS;
@@ -53,8 +58,10 @@ static void stb_paint(void)
     char b[20];
     static const char *const SN[5] = {"T1", "T2", "T3", "DR", "BARS"}, *const PN[2] = {"SCN", "BARS"};
     for (lane = 0; lane < nl; lane++) {                 /* the lanes' names */
-        y = 22 + (int32_t)lane * ph + (ph - (int32_t)FONT_S.h) / 2;
-        cv_text(3, y, &FONT_S, stb.kind == SG_SCENE ? SN[lane] : PN[lane],
+        const char *ln = stb.kind == SG_SCENE ? SN[lane] : PN[lane];
+        const felucca_font_t *lf = stb_font(ln, STB_X0 - 5);
+        y = 22 + (int32_t)lane * ph + (ph - (int32_t)lf->h) / 2;
+        cv_text(3, y, lf, ln,
                 lane == stb.lane ? C_WHITE : lane == (stb.kind == SG_SCENE ? 4u : 1u) ? STB_PURPLE : stb.kind == SG_SCENE ? trk_col(lane) : C_GRAY);
     }
     for (i = 0; i < STB_COLS && c0 + i < stb.n; i++) {
@@ -69,7 +76,10 @@ static void stb_paint(void)
         } else {
             fmt_int(b, (int32_t)(c0 + i) + 1);
         }
-        cv_text(x + (STB_CW - text_w(&FONT_S, b)) / 2, 4, &FONT_S, b, hc_);
+        {
+            const felucca_font_t *hf = (int32_t)FONT_L.h <= 18 ? stb_font(b, STB_CW - 2) : &FONT_S;   /* (the head band is 18 rows) */
+            cv_text(x + (STB_CW - text_w(hf, b)) / 2, 4, hf, b, hc_);
+        }
         for (lane = 0; lane < nl; lane++) {
             const char *v = stb.t[lane][i];
             uint16_t col = lane == nl - 1u ? STB_PURPLE : stb.kind == SG_SCENE ? (kp && lane == stb.lane && lane < 4u ? knob_col(rel, trk_col(lane)) : kp && lane == stb.lane ? knob_col(rel, STB_PURPLE) : trk_col(lane)) : kp ? knob_col(rel, C_HI) : C_HI;
@@ -88,7 +98,10 @@ static void stb_paint(void)
                 cv_rect(x, y + 1, 1, ph - 2, C_WHITE);
                 cv_rect(x + STB_CW - 3, y + 1, 1, ph - 2, C_WHITE);
             }
-            cv_text(x + (STB_CW - 2 - text_w(&FONT_S, v)) / 2, y + (ph - (int32_t)FONT_S.h) / 2, &FONT_S, v, col);
+            {
+                const felucca_font_t *vf = stb_font(v, STB_CW - 4);
+                cv_text(x + (STB_CW - 2 - text_w(vf, v)) / 2, y + (ph - (int32_t)vf->h) / 2, vf, v, col);
+            }
         }
     }
     if (stb.kind == SG_SCENE) {                         /* the foot: the window, and what the cursor is on */
