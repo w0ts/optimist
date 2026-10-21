@@ -12,7 +12,9 @@
 #define BP_OFF_TXB0 4480u                          /* the two DH5 TX payloads (339 B each, after the table: BTI_TAB_ALLOC) */
 #define BP_OFF_TXB1 (4480u + 344u)
 #define BP_TXB 339u                                /* a DH5 payload (BR §5.5) */
-#define BP_MQ 4u                                   /* the audio packets queued (~23 ms of the stream) */
+#define BP_MQ 16u                                  /* the audio packets queued (~140 ms of the stream at 3 SBC frames a
+                                                    * packet; 4 = 23 ms overflowed on every radio hiccup: audio_drop
+                                                    * 11 %, heard as crackles, 2026-10-21) */
 #define BP_OFF_RX0 1088u                           /* the connection's two RX buffers: the table's link_rx_bulk (BR §3) */
 #define BP_OFF_RX1 (1088u + 680u)
 #define BP_LT_ADDR 1u
@@ -34,6 +36,8 @@ static struct {
     uint8_t slots5;                                /* the multi-slot request: 0 not asked, 1 asked for 5, 2 granted 5, 3
                                                     * asked for 3 (5 refused), 4 granted 3, 5 refused both */
     uint32_t mq_drop, mq_sent;                     /* audio packets dropped (the queue full), sent */
+    uint32_t mq_hi, mq_busy;                       /* the queue's deepest this second; audio waiting with both TX
+                                                    * buffers still held by the engine (its retransmissions) */
     uint8_t name_done;                             /* the device's name read whole (or refused): the pairing may start */
 } bp;
 /* the audio packets (bt_acl.c ba_media_send, from the audio interrupt): whole L2CAP frames, each one DH5 (or DH3 / DH1
@@ -55,6 +59,8 @@ static int bp_media_queue(const uint8_t *frame, uint32_t len)   /* 1 queued; 0 d
         bp_mq.d[k][i] = frame[i];
     bp_mq.n[k] = (uint16_t)len;
     bp_mq.w++;
+    if (bp_mq.w - bp_mq.r > bp.mq_hi)
+        bp.mq_hi = bp_mq.w - bp_mq.r;
     return 1;
 }
 #if FELUCCA_BT_AUDIO
@@ -329,8 +335,10 @@ static void bp_tx_media(struct fm1_br_frame *f)
         i = f->txtog & 1u;
         if (!(f->txbufcntl[i] & 1u))
             i ^= 1u;
-        if (!(f->txbufcntl[i] & 1u))
+        if (!(f->txbufcntl[i] & 1u)) {
+            bp.mq_busy++;
             return;                                /* (both buffers full: the engine has two to send) */
+        }
         {
             uint32_t q = bp_mq.r % BP_MQ, t;
             n = bp_mq.n[q];
@@ -555,6 +563,9 @@ static void bp_print_sec(void)
         if (bp.mq_sent || bp.mq_drop) {
             bti_kv(" audio_sent=", bp.mq_sent);                /* (DH5 packets of the stream; dropped whole: the queue full) */
             bti_kv(" audio_drop=", bp.mq_drop);
+            bti_kv(" mq_hi=", bp.mq_hi);                       /* (this second's deepest queue, of BP_MQ) */
+            bti_kv(" mq_busy=", bp.mq_busy);
+            bp.mq_hi = 0;
         }
         con_puts(" types{");
         for (i = 0; i < 16u; i++)
@@ -644,7 +655,7 @@ static int bp_start(const uint8_t addr[6], uint32_t slots)
     bp.setup_out = bp.setup_in = bp.stopping = 0;
     bp.slots5 = 0;
     bp.name_done = 0;
-    bp.mq_drop = bp.mq_sent = 0;
+    bp.mq_drop = bp.mq_sent = bp.mq_hi = bp.mq_busy = 0;
     bp_mq.r = bp_mq.w;                             /* (a new link: no audio queued) */
     ba_reset();
     bp.txw = bp.txr = 0;
