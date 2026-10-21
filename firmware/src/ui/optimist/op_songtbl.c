@@ -36,11 +36,11 @@ static void stb_text(uint32_t kind, uint32_t col, uint32_t lane, char *o)
     v = c.val;
     if (!c.label)
         v = "";
-    else if (!strcmp(v, "KEEP"))
+    else if (str_eq(v, "KEEP"))
         v = "K";
-    else if (!strcmp(v, "SEC") || !strcmp(v, "SCENE"))
+    else if (str_eq(v, "SEC") || str_eq(v, "SCENE"))
         v = "S";
-    else if (!strcmp(v, "AUTO"))
+    else if (str_eq(v, "AUTO"))
         v = "A";
     str_cpy(o, v, 4);
 }
