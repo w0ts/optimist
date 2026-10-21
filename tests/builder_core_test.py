@@ -158,8 +158,8 @@ check("describe: JSON with the registry and NEEDS_AUTO as configure read them",
       len(K.describe()["registry"]["items"]) == len(R.ITEMS))
 out = io.StringIO()
 with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
-    rc = O.main(["cloud-key", "--commit", SHA, "user-default"])
-    ud = C.load_profile("user-default")[0]
+    rc = O.main(["cloud-key", "--commit", SHA, "synth"])
+    ud = C.load_profile("synth")[0]
 check("optimist.py cloud-key PROFILE: the key, then the canonical form",
       rc == 0 and out.getvalue().startswith(f"# key {K.cloud_key(ud, SHA)}\n") and
       out.getvalue().endswith(K.canonical(ud)))

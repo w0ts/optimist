@@ -167,7 +167,7 @@ def share_profile(name):
 
 
 DEFAULT_PROFILE = "synth"               # make's, tools/optimist.py's and the menu's default (Optimist Synth): never deleted
-REFERENCE_PROFILE = "user-default"      # the generic profile the tests, the gate and the emulator checks build: never deleted
+REFERENCE_PROFILE = "synth"             # the profile the tests, the gate and the emulator checks build (user-default went 2026-10-21): never deleted
 
 
 def delete_profile(name):

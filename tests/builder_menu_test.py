@@ -164,7 +164,7 @@ async def main():
                   not any("last kit" in label(app, k) for k in kits[1:]))
     # BLE in the menu (tools/builder/room.py after_toggle): ticking it removes nothing, like any other tick (2026-10-21)
     costs = C.load_costs()
-    for prof in ("user-default", "drum-machine", "everything-that-fits", "fm-va-studio", "x0x-drums"):
+    for prof in ("synth", "drum-machine", "everything-that-fits", "fm-va-studio", "x0x-drums"):
         base, _ = C.load_profile(prof)
         if base["BLE"]:                   # (BLE on in the profile already: ticking it would turn it off)
             print(f"BLE ticked on {prof}: the profile has BLE on already (user-default since 2026-10-17), not a case")
@@ -179,7 +179,7 @@ async def main():
             check("... the bars show the overflow when it does not fit", bool(app.over) == shown_over(withble, costs))
             await toggle(app, pilot, "BLE")
             check("... unticked: the profile again", app.cfg == base)
-    for prof in ("user-default", "drum-machine", "fm-va-studio", "x0x-drums"):    # (BLE_DIAG ticked after BLE)
+    for prof in ("synth", "drum-machine", "fm-va-studio", "x0x-drums"):    # (BLE_DIAG ticked after BLE)
         base, _ = C.load_profile(prof)
         app = M.Builder(dict(base), prof)
         async with app.run_test(size=(200, 60)) as pilot:

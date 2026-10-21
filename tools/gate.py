@@ -7,11 +7,11 @@ machine, in one command. `make gate` or `python3 tools/optimist.py gate`.
 
 The steps, each logged to build/gate/<step>.log (the terminal gets one line a step, and the log's tail on a FAIL):
   costs       every builder item has a measured cost (measure_costs.py --missing --check, as CI)
-  profile P   each published profile builds (as CI's profiles job; --no-profiles: user-default only)
+  profile P   each published profile builds (as CI's profiles job; --no-profiles: synth only)
   config F    each --config FILE builds
-  set         user-default with every --set KEY=V builds (one build)
-  test        the host tests (optimist.py test: its BLE, user-default and measurement builds, tests/run_tests.sh)
-  final       user-default built again last: build/ holds its package and ELF (make flash, make emu-check)
+  set         synth with every --set KEY=V builds (one build)
+  test        the host tests (optimist.py test: its BLE, synth and measurement builds, tests/run_tests.sh)
+  final       synth built again last: build/ holds its package and ELF (make flash, make emu-check)
   emu         with --emu: the emulator smoke checks on that build (tests/emu/run.py; make emu-check)
 Every step runs, a failed one does not stop the rest (but no emu without a final build). Exit 1 on any FAIL."""
 import argparse
@@ -38,22 +38,22 @@ def published():
         names = json.loads(p.stdout.strip().splitlines()[-1])
     except (ValueError, IndexError):
         raise SystemExit(f"gate: config --published gave no list: {(p.stdout + p.stderr).strip()[-300:]}")
-    return ["user-default"] + [n for n in names if n != "user-default"]
+    return ["synth"] + [n for n in names if n != "synth"]
 
 
 def plan(a):
     """-> [(step name, command)] in the order they run"""
     steps = [("costs", [sys.executable, str(ROOT / "tools" / "builder" / "measure_costs.py"), "--missing",
                         "--check"])]
-    for n in (["user-default"] if a.no_profiles else published()):
+    for n in (["synth"] if a.no_profiles else published()):
         steps.append((f"profile {n}", OPT + ["build", "--profile", n]))
     for f in a.config or []:
         steps.append((f"config {Path(f).name}", OPT + ["build", "--config", str(Path(f).resolve())]))
     if a.set:
-        steps.append(("set " + " ".join(a.set), OPT + ["build", "--profile", "user-default"] +
+        steps.append(("set " + " ".join(a.set), OPT + ["build", "--profile", "synth"] +
                       [x for kv in a.set for x in ("--set", kv)]))
     steps.append(("test", OPT + ["test"]))
-    steps.append(("final", OPT + ["build", "--profile", "user-default"]))
+    steps.append(("final", OPT + ["build", "--profile", "synth"]))
     if a.emu:
         steps.append(("emu", [sys.executable, str(ROOT / "tests" / "emu" / "run.py"),
                               str(ROOT / "build" / "felucca.fwsc")] + (["--only", a.only] if a.only else [])))
@@ -79,9 +79,9 @@ def run_step(i, name, cmd):
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="gate", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--config", action="append", metavar="FILE", help="a .config to build too (repeatable)")
-    ap.add_argument("--set", action="append", metavar="KEY=V", help="user-default with this item changed (repeatable: "
+    ap.add_argument("--set", action="append", metavar="KEY=V", help="synth with this item changed (repeatable: "
                     "one build with all of them)")
-    ap.add_argument("--no-profiles", action="store_true", help="build user-default only, not every published profile")
+    ap.add_argument("--no-profiles", action="store_true", help="build synth only, not every published profile")
     ap.add_argument("--emu", action="store_true", help="then the emulator smoke checks on the final build")
     ap.add_argument("--only", metavar="CHECKS", help="with --emu: these checks only (tests/emu/run.py --list)")
     a = ap.parse_args(argv)

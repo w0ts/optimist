@@ -19,7 +19,7 @@ python tools/optimist.py builder --config my.config       # the menu on a saved 
 
 Keys: `space` / `enter` toggle (a sized item: its next value), `/` search, `p` profiles (shipped + yours), `s` save as
 your own profile (`config/my-profiles`, git-ignored), `u` publish the profile or not (CI builds the published ones; one
-of yours is moved to `config/profiles` first, to commit), `d` delete a profile (never `user-default` or `synth`), `w`
+of yours is moved to `config/profiles` first, to commit), `d` delete a profile (never `synth`), `w`
 write a `.config`, `l` load, `o` sort by size (cycles registry order, flash, RAM, pool, RAM code; items without a
 measured cost last), `b` build, `e` build and run in the emulator (96 MHz, background), `f` flash to the FM-1, `x` / `c`
 expand / collapse all, `left` / `right` page the list, `q` quit.
@@ -64,10 +64,9 @@ A profile is a saved configuration. Shipped ones are in `config/profiles` (`make
 | Profile | What |
 |---|---|
 | `synth` | **the default** (Optimist Synth, the maintainer's own build): `build`, `package`, `flash`, `config` and `make` use it without a profile, the menu opens with it the first time, and it is the Pages site's flavour (`web/flavours.json`) |
-| `user-default` | the generic reference: the host tests, the gate, `emu-check` and CI's fixtures build it |
 | `drum-machine`, `everything-that-fits`, `fm-va-studio`, `x0x-drums` | refits for a purpose, each fitting the flash slot |
 
-`synth` and `user-default` cannot be deleted. `--defaults` is every registry default (too big for the slot).
+`synth` cannot be deleted (it is also the reference: the host tests, the gate, `emu-check` and CI's fixtures build it; `user-default` went 2026-10-21). `--defaults` is every registry default (too big for the slot).
 
 A shipped profile with the line `# publish: yes` is built by CI (`.github/workflows/build.yml` takes the list from
 `config --published`); `# publish: no` or no line: not built. Today `synth`, `drum-machine`, `everything-that-fits` and
@@ -84,8 +83,7 @@ The estimate for each shipped profile (`config --budget`, 2026-10-20; the limits
 
 | Profile | App flash (of 581,564) | RAM (of 98,304) | Pool (of 344,064) | RAM code (of 32,512) |
 |---|---|---|---|---|
-| user-default | 579,440 | 93,708 | 305,156 | 25,164 |
-| synth | 573,616 | 92,204 | 310,652 | 22,848 |
+| synth | 578,588 | 92,684 | 310,672 | 22,760 |
 | fm-va-studio | 579,764 | 85,636 | 306,812 | 27,300 |
 | everything-that-fits | 565,180 | 73,924 | 265,800 | 31,892 |
 | x0x-drums | 557,708 | 72,316 | 323,508 | 25,720 |

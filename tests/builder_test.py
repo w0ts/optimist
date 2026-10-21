@@ -122,11 +122,11 @@ check("... the thirteen ED_* of before are gone: nine merged into their feature,
 check("... an older .config with a feature's parts all off loads it off, with one of them on it on (a survivor it does not name)",
       C.parse("ED_FXP=0\nED_DLAN=0\nED_SOLO=0\n")[0]["ED_MIX"] == 0 and C.parse("ED_FXP=0\nED_DLAN=1\n")[0]["ED_MIX"] == 1 and
       C.parse("ED_TOOLS=0\n")[0]["ED_SEQ"] == 0 and C.parse("ED_MIX=1\nED_FXP=0\n")[0]["ED_MIX"] == 1)
-check("... the shipped profiles set them only where the slot asks: synth and drum-machine (live editing off) all three off, user-default the screens",
+check("... the shipped profiles set them only where the slot asks: synth and drum-machine (live editing off) all three off, fm-va-studio the mixer and the screens",
       {p.stem: sorted(ln.strip() for ln in p.read_text().splitlines() if ln.split("=")[0] in ED) for p in C.PROFILES.glob("*.config")
        if any(ln.split("=")[0] in ED for ln in p.read_text().splitlines())} ==
       {"synth": ["ED_MIX=0", "ED_SCREENS=0", "ED_SEQ=0"], "drum-machine": ["ED_MIX=0", "ED_SCREENS=0", "ED_SEQ=0"],
-       "user-default": ["ED_SCREENS=0", "ED_SEQ=1"]})
+       "fm-va-studio": ["ED_MIX=0", "ED_SCREENS=0"]})
 _fl, _ = C.flags(dict(C.defaults()))
 check("... the default build has every feature on", all(_fl["FELUCCA_" + k] == 1 for k in ED))
 _fl, _ = C.flags(dict(C.defaults(), ED_MIX=0))
@@ -268,7 +268,7 @@ check("a .config round trip (only what differs is written)", back["MISSING_WARN"
       name == "x" and "ENG_ANALOG" not in text)
 costs = C.load_costs()
 if costs:
-    fitted, ch = C.fit(C.load_profile("user-default")[0], costs)   # (not the raw defaults: nearly every item on, 97 KB over
+    fitted, ch = C.fit(C.load_profile("synth")[0], costs)   # (not the raw defaults: nearly every item on, 97 KB over
                                                                   # 2026-10-19, never meant to fit; the user: "fit user-default")
     check("fit: user-default made to fit by the estimate", fitted is not None and
           all(o <= 0 for _, _, o in C.fits(C.budget(fitted, costs)["total"]).values()))
@@ -344,8 +344,8 @@ check(f"published profiles ({', '.join(pub)}): shipped ones, synth among them (u
 _syn, _syn_name = C.load_profile(C.DEFAULT_PROFILE)
 _syn_errs, _, _ = C.validate(_syn)
 check("the default profile is synth (configure, optimist.py), user-default the reference profile (tests, gate)",
-      C.DEFAULT_PROFILE == "synth" and C.REFERENCE_PROFILE == "user-default" and O.DEFAULT_PROFILE == "synth" and
-      O.REFERENCE_PROFILE == "user-default" and _syn_name == "Synth")
+      C.DEFAULT_PROFILE == "synth" and C.REFERENCE_PROFILE == "synth" and O.DEFAULT_PROFILE == "synth" and
+      O.REFERENCE_PROFILE == "synth" and _syn_name == "Synth")
 _ed_default = {k: v for k, v in C.defaults().items() if k.startswith("ED_")}
 check("the default profile validates: the maintainer's own configuration (2026-10-18), the web editor backup / restore only (ED_LIVE and every ED_* off), the help line on",
       not _syn_errs and _syn["PARAM_HELP"] == 1 and _syn["EDITOR"] == 1 and _syn["ED_LIVE"] == 0 and _ed_default and
@@ -410,14 +410,14 @@ with tempfile.TemporaryDirectory() as tmp:
     (C.PROFILES / "user-default.config").write_text("MISSING_WARN=0\n")
     refused = []
     (C.PROFILES / "synth.config").write_text("MISSING_WARN=0\n")
-    for n in ("synth", "user-default", "nope"):
+    for n in ("synth", "synth", "nope"):
         try:
             C.delete_profile(n)
             refused.append(False)
         except C.ConfigError:
             refused.append(True)
     check("... never synth (make's and the CLI's default) or user-default (the reference profile), nor a name with no profile",
-          all(refused) and {"synth", "user-default"} <= set(C.profile_names()))
+          all(refused) and {"synth", "synth"} <= set(C.profile_names()))
     with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
         rc_del, rc_bad = C.main(["--delete", "b"]), C.main(["--delete", "b"])
     check("config --delete NAME (2: no such profile)", rc_del == 0 and rc_bad == 2 and "b" not in C.profile_names())
@@ -512,7 +512,7 @@ if shared:
 # one item (make_room: the named one, or the smallest single item that frees enough); the checks below hold it to the
 # same figures as before. Nothing here is pinned: every figure comes from costs.json as it is (BLE's measured cost, with
 # and without BLE_DIAG), and the expected item is computed per profile from the budget alone, not from room.py.
-dflt_real, _ = C.load_profile("user-default")
+dflt_real, _ = C.load_profile("synth")
 check("BLE, measured cost (costs.json): user-default with BLE fits as it is",
       not C.over_any(dict(dflt_real, BLE=1), costs))
 
@@ -588,7 +588,7 @@ def room_scenarios(prof, diag):
           all(refused(prof, sets, b) for b in bad))
 
 
-PROFILES_BLE = ("user-default", "drum-machine", "everything-that-fits", "fm-va-studio", "x0x-drums")
+PROFILES_BLE = ("synth", "drum-machine", "everything-that-fits", "fm-va-studio", "x0x-drums")
 for _prof in PROFILES_BLE:
     for _diag in (0, 1):
         room_scenarios(_prof, _diag)
@@ -701,7 +701,7 @@ _MONO_ALLOW = {"DIV_ORDER": "flash", "FX_DJF": "flash"}
 _MONO_NOISE = {"flash": K.ALIGN_NOISE, "ram": 32, "pool": 0}
 _mono_bad = []
 if costs:
-    for _pn in ("synth", "user-default", None):
+    for _pn in ("synth", None):
         _mcfg = C.defaults() if _pn is None else C.load_profile(_pn)[0]
         _b0 = C.budget(_mcfg, costs, use_exact=False)["total"]
         for _k, _it in items.items():
@@ -719,7 +719,7 @@ if costs:
 for _line in _mono_bad:
     print(f"  not monotonic: {_line}")
 check("estimate is monotonic: switching an item off (with its dependants) never raises the flash, RAM or pool, "
-      "in synth, user-default and the defaults", not _mono_bad)
+      "in synth and the defaults", not _mono_bad)
 # ---- the undo history's ring, shown as information (the builder's reserve entries were retired 2026-10-21)
 sys.path.insert(0, str(ROOT / "tools"))
 import build as BUILD  # noqa: E402  (its check() is the real build's refusal)
