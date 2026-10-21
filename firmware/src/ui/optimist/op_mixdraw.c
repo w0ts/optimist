@@ -168,7 +168,7 @@ static void mx_paint_master(void)
     for (i = 0; i < 4u; i++) {
         int32_t x = MXM_X + (int32_t)(((15u - (uint32_t)(-DB[i] / 6) - 5u) * 4u + 4u) * MXM_W / 44u);
         fmt_int(b, DB[i]);
-        cv_texts(x - text_w(&FONT_S, b) + (i ? text_w(&FONT_S, b) / 2 : 0), MXM_VY + MXM_VH + 4, b, C_DIM);
+        cv_texts(x - text_ws(b) + (i ? text_ws(b) / 2 : 0), MXM_VY + MXM_VH + 4, b, C_DIM);
     }
     cv_texts(MXM_X, MXM_GY - 5, "GR", C_DIM);
     n = mx_rets(ret);
@@ -259,7 +259,7 @@ static uint32_t mx_gr_q4(uint32_t r)
 {
 #if FELUCCA_MASTER_COMP
     if (r == MXR_MASTER)
-        return MST_ON(FXT_DYN) && (song.g[G_CTHR] || song.g[G_CCEIL]) ? (uint32_t)clamp(-(int32_t)mc_gr_view * 4, 0, 127) : 0u;
+        return MST_ON(FXT_DYN) && (song.g[G_CTHR] || song.g[G_CCEIL]) ? (uint32_t)ui_clamp(-(int32_t)mc_gr_view * 4, 0, 127) : 0u;
     if (r >= MXR_T1 && r < MXR_DR) {
         const track_t *t = &trk[r - MXR_T1];
         return fx_on(t) && INS_ON(r - MXR_T1, FXT_COMP) && t->p[P_TCOMP] > 0 ? tcomp_gr_q4(r - MXR_T1) : 0u;
@@ -351,7 +351,7 @@ static void mx_steps_paint(uint32_t r, int32_t x, int32_t y)
     if (mx_is_usb(r))
         return;                                         /* (no sequence) */
     const track_t *t = &trk[mx_trk_of(r)];
-    uint32_t len = (uint32_t)clamp(t->p[P_SLEN], 1, NSTEP), at = t->seq_idx % len, page = at & ~15u, i, np;
+    uint32_t len = (uint32_t)ui_clamp(t->p[P_SLEN], 1, NSTEP), at = t->seq_idx % len, page = at & ~15u, i, np;
     uint16_t c = mx_smuted(r) ? C_DIM : mx_col(r);   /* (the sequencer muted: the steps grey, no playhead) */
     mrect_t q;
     if (r == MXR_MASTER)
@@ -379,7 +379,7 @@ static void mx_steps(uint32_t r)
     if (mx_is_usb(r))
         return;
     const track_t *t = &trk[mx_trk_of(r)];
-    uint32_t len = (uint32_t)clamp(t->p[P_SLEN], 1, NSTEP), at = t->seq_idx % len, page = at & ~15u, i, sig;
+    uint32_t len = (uint32_t)ui_clamp(t->p[P_SLEN], 1, NSTEP), at = t->seq_idx % len, page = at & ~15u, i, sig;
     uint16_t bg = C_BLACK;
     mrect_t q;
     if (r == MXR_MASTER)

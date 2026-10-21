@@ -148,7 +148,7 @@ static void scope_trace(void)
     at = sc_trigger(w, (int32_t)(pk >> 3));
     for (i = 0; i < SC_N; i++) {
         int32_t x = sc.flat ? 0 : sc_at(w, at + i * SC_DEC);
-        sc.y[i] = (uint8_t)clamp(mid - (x >> sh), 1, SC_H - 2);
+        sc.y[i] = (uint8_t)ui_clamp(mid - (x >> sh), 1, SC_H - 2);
     }
     sc.col = col;
     cv_tall(OP_PY, SC_H, C_BLACK, scope_paint);
@@ -166,7 +166,7 @@ static void scope_tabs(void)                            /* the sources under the
         scope_src_name(r, nm);
         if (r == cur)
             cv_rect(x + 1, 0, 46, SC_TAB_H, scope_col(r));
-        cv_texts(x + (48 - text_w(&FONT_S, op_case(b, nm, sizeof b))) / 2, 1, b, r == cur ? ink_on(scope_col(r)) : scope_col(r));
+        cv_texts(x + (48 - text_ws(op_case(b, nm, sizeof b))) / 2, 1, b, r == cur ? ink_on(scope_col(r)) : scope_col(r));
     }
     cv_blit(0, SC_TAB_Y);
 }

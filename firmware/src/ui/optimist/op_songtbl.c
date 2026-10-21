@@ -106,14 +106,14 @@ static void stb_paint(void)
     }
     if (stb.kind == SG_SCENE) {                         /* the foot: the window, and what the cursor is on */
         b[0] = (char)('A' + c0 % 16u), b[1] = '-', b[2] = (char)('A' + (c0 + STB_COLS - 1u) % 16u), b[3] = 0;
-        cv_text(3, GL_END - 14, &FONT_S, b, C_GRAY);
+        cv_texts(3, GL_END - 14, b, C_GRAY);
     } else {
         fmt_int(b, (int32_t)c0 + 1);
         str_app(b, "-", sizeof b);
         fmt_app(b, (int32_t)(c0 + STB_COLS < stb.n ? c0 + STB_COLS : stb.n));
         str_app(b, " OF ", sizeof b);
         fmt_app(b, (int32_t)stb.n);
-        cv_text(3, GL_END - 14, &FONT_S, b, C_GRAY);
+        cv_texts(3, GL_END - 14, b, C_GRAY);
     }
 }
 static void song_tbl_draw(void)
@@ -157,11 +157,11 @@ static int song_tbl_knobs(void)
         uint32_t k;
         static const uint8_t KN[4] = {EN_K1, EN_K2, EN_K3, EN_K4};
         if ((s = panel_enc(EN_SELECT)) != 0) {
-            op_row_pick((uint32_t)clamp((int32_t)a + s, 0, (int32_t)n - 1));
+            op_row_pick((uint32_t)step_in(a, s, n));
             any = 1;
         }
         if ((s = panel_enc(EN_ALGO)) != 0) {
-            stb_lane = (uint8_t)clamp((int32_t)stb_lane + s, 0, (int32_t)nl - 1);
+            stb_lane = (uint8_t)step_in(stb_lane, s, nl);
             any = 1;
         }
         for (k = 0; k < 4u; k++) {
@@ -187,7 +187,7 @@ static int song_tbl_knobs(void)
         uint32_t k;
         static const uint8_t KN[4] = {EN_K1, EN_K2, EN_K3, EN_K4};
         if ((s = panel_enc(EN_SELECT)) != 0) {
-            op_row_pick(song_row_of_part((uint32_t)clamp((int32_t)a + s, 0, (int32_t)n - 1)));
+            op_row_pick(song_row_of_part((uint32_t)step_in(a, s, n)));
             any = 1;
         }
         for (k = 0; k < 4u; k++) {

@@ -42,6 +42,7 @@ static void cell_clear(cell_t *c)
     memset(c, 0, sizeof *c);
     c->unit = "";
 }
+static __attribute__((noinline)) void cell_val(cell_t *c, const char *s) { str_cpy(c->val, s, sizeof c->val); }   /* (42 sites) */
 /* an action's card: the verb is its val when set, else its label (the list's narrow columns draw the label); the small
  * label above is obj, else the label over a val ("PANEL" over CALIBRATE), else none (op_draw.c act_text) */
 static void cell_act(cell_t *c, const char *obj, const char *label, const char *verb, uint32_t danger)
@@ -51,7 +52,7 @@ static void cell_act(cell_t *c, const char *obj, const char *label, const char *
     c->label = label;
     c->danger = (uint8_t)(danger != 0u);
     if (verb)
-        str_cpy(c->val, verb, sizeof c->val);
+        cell_val(c, verb);
 }
 /* recording is a thing that runs, not one that destroys (style guide 7: red only destroys or replaces): green while it
  * records, amber (pending) while it waits for the first note or the bar; the song's REC: 2 recording, 1 armed */
@@ -74,7 +75,7 @@ static void cell_gauge(cell_t *c, uint32_t list, int32_t min, int32_t max, int32
 {
     c->gmin = (int16_t)min;
     c->gmax = (int16_t)max;
-    c->gv = (int16_t)clamp(v, min, max);
+    c->gv = (int16_t)ui_clamp(v, min, max);
     c->gk = max <= min ? GK_NONE : list ? (max - min == 1 ? GK_PILL : max - min < 12 ? GK_DOTS : GK_POS)
                                         : min < 0 && max > 0 ? GK_BIP : GK_BAR;
 }
@@ -119,7 +120,7 @@ static int g_built(uint32_t id)
 static void cell_empty_slot(cell_t *c)
 {
     if (c->val[0] == '-' && c->val[1] == '-' && (!c->val[2] || (c->val[2] == '-' && c->val[3] == '-' && !c->val[4]))) {
-        str_cpy(c->val, "EMPTY", sizeof c->val);
+        cell_val(c, "EMPTY");
         c->dim = 1;
     }
 }
@@ -151,7 +152,7 @@ static void cell_param(cell_t *c, const param_desc_t *d, int16_t *vp)
     }
     if (d->names == ins_names || d->names == fxs_names) {   /* an insert's type, a slot's: its name as the cards name it */
         char b[16];                                     /* (DST -> DIST, FILT -> FILTER, CMP -> COMP: op_names.c) */
-        str_cpy(c->val, nm_card(c->val, 0, b, sizeof b), sizeof c->val);
+        cell_val(c, nm_card(c->val, 0, b, sizeof b));
     }
     if (d->fmt == F_ENUM)
         cell_empty_slot(c);
@@ -587,7 +588,7 @@ static void cell_lim_note(cell_t *c, uint32_t o, uint32_t t, uint32_t s, uint32_
     str_cpy(lab[s & 1u], s ? "S2 " : "S1 ", sizeof lab[0]);
     str_cpy(lab[s & 1u] + 3, TP[a].label, sizeof lab[0] - 3u);
     c->label = lab[s & 1u];
-    str_cpy(c->val, v, sizeof c->val);
+    cell_val(c, v);
     c->gk = GK_NONE;
 }
 static void cell_ins_note(cell_t *c, uint32_t k, uint32_t s)   /* track k's slot s */
@@ -725,7 +726,7 @@ static void page_turn(const page_t *pg, uint32_t k, int32_t s, int fine)
         return;
     }
     if (len_cell(d))
-        page_set(pg, k, vp, fine || ui.shift ? clamp(*vp + s, d->min, d->max) : len_pow2(*vp, s, d->min, d->max), s);
+        page_set(pg, k, vp, fine || ui.shift ? ui_clamp(*vp + s, d->min, d->max) : len_pow2(*vp, s, d->min, d->max), s);
     else
         page_set(pg, k, vp, param_step(d, *vp, fine ? s : k_accel(k, s, d)), s);
 }

@@ -107,13 +107,9 @@ static void dev_paint(void)                             /* the panel's band in i
 #if BLE_CENTRAL
     if (bdp.key != BLE_NO_PASSKEY) {                    /* pairing with a code: the phone's user types it */
         char d[7];
-        int32_t k;
-        uint32_t pk = bdp.key;
-        for (k = 5; k >= 0; k--, pk /= 10u)
-            d[k] = (char)('0' + pk % 10u);
-        d[6] = 0;
-        cv_text(120 - text_w(&FONT_S, bdp.st) / 2, (int32_t)bdp.h / 2 - 30, &FONT_S, bdp.st, C_HI);
-        cv_text(120 - text_w(font_big(), d) / 2, (int32_t)bdp.h / 2 - 8, font_big(), d, C_WHITE);
+        pk_digits(d, bdp.key);
+        cv_text_mid((int32_t)bdp.h / 2 - 30, &FONT_S, bdp.st, C_HI);
+        cv_text_mid((int32_t)bdp.h / 2 - 8, font_big(), d, C_WHITE);
         return;
     }
 #endif
@@ -130,19 +126,18 @@ static void dev_paint(void)                             /* the panel's band in i
         }
         if (tag[0]) {
             op_case(b, tag, sizeof b);
-            right -= text_w(&FONT_S, b);
-            cv_text(right, y + DEV_TY, &FONT_S, b, on ? cur_ink(bdp.bar) : C_GRAY);
+            right -= text_ws(b);
+            cv_texts(right, y + DEV_TY, b, on ? cur_ink(bdp.bar) : C_GRAY);
             right -= 8;
         }
         room = right - 4;
         cv_text(4, y + 2, font_big(), cut(b, nm, room > 16 ? (uint32_t)room / 16u : 1u), on ? cur_ink(bdp.bar) : C_GRAY);
     }
     if (bdp.n > bdp.shown) {                            /* where the window is in the list */
-        cv_rect(238, 0, 1, (int32_t)rows_h, C_LINE);
-        cv_rect(237, (int32_t)(rows_h * bdp.first / bdp.n), 3, (int32_t)(rows_h * bdp.shown / bdp.n), C_GRAY);
+        scroll_bar(0, (int32_t)rows_h, (int32_t)bdp.first, (int32_t)bdp.shown, (int32_t)bdp.n);
     }
     cv_rect(0, (int32_t)rows_h, 240, 1, C_LINE);
-    cv_text(4, (int32_t)rows_h + 5, &FONT_S, bdp.st, bdp.tone == BDL_GOOD ? C_OK : bdp.tone == BDL_WARN ? C_WARN : bdp.tone == BDL_BAD ? C_ERR : C_DIM);
+    cv_texts(4, (int32_t)rows_h + 5, bdp.st, bdp.tone == BDL_GOOD ? C_OK : bdp.tone == BDL_WARN ? C_WARN : bdp.tone == BDL_BAD ? C_ERR : C_DIM);
 }
 /* the status line as drawn: the words in sentence case, a device's name in it as advertised (from at, ble_dev_line_name_at),
  * cut at the end to the room (the name goes first, then the words) */
@@ -155,7 +150,7 @@ static void dev_line_text(char *out, uint32_t room, const char *line, uint32_t a
     str_cpy(words, line, at + 1u);
     op_case(out, words, room);
     str_app(out, line + at, room);
-    while (out[0] && text_w(&FONT_S, out) > DEV_LINE_W)
+    while (out[0] && text_ws(out) > DEV_LINE_W)
         out[str_len(out) - 1u] = 0;
 }
 /* the list in the panel y, h tall (op_draw.c, when dev_listing): lazy, redrawn when what it shows changes */
@@ -219,7 +214,7 @@ static void ble_mode_cell(cell_t *c)
     c->kind = CK_VAL;
     c->label = "MODE";
     c->big = 1;
-    str_cpy(c->val, !ble_radio_ok() && ble_ui_mode ? "NO CAL" : BLE_MODES[ble_ui_mode % 5u], sizeof c->val);
+    cell_val(c, !ble_radio_ok() && ble_ui_mode ? "NO CAL" : BLE_MODES[ble_ui_mode % 5u]);
     c->col = ble_ui_mode && !ble_radio_ok() ? C_WARN : 0;
 }
 
@@ -258,8 +253,7 @@ static void ble_state_cell(cell_t *c)
         c->kind = CK_RO;
         c->label = "STATE";
         c->big = 1;
-        str_cpy(c->val, bt.want ? "CONNECTING" : a == BTA_S_STREAMING && !bta_out_bt() ? "INTERNAL OUT" : BTA_ST[a % 12u],
-                sizeof c->val);
+        cell_val(c, bt.want ? "CONNECTING" : a == BTA_S_STREAMING && !bta_out_bt() ? "INTERNAL OUT" : BTA_ST[a % 12u]);
         c->col = a == BTA_S_STREAMING ? C_OK : a == BTA_S_REFUSED ? C_ERR : 0;
         return;
     }
@@ -267,7 +261,7 @@ static void ble_state_cell(cell_t *c)
     c->kind = CK_RO;
     c->label = "STATE";
     c->big = 1;
-    str_cpy(c->val, ble_on && !ble_up && s == 0u ? "STARTING" : BLE_ST[s % 9u], sizeof c->val);
+    cell_val(c, ble_on && !ble_up && s == 0u ? "STARTING" : BLE_ST[s % 9u]);
     c->col = s == 2u ? C_OK : s == 3u ? C_WARN : s == 8u ? C_ERR : 0;
 }
 /* the device the link is with (or being made with, or searched for): its name as advertised; HOST, a computer or phone that
@@ -287,7 +281,7 @@ static void ble_peer_cell(cell_t *c)
         bt_last_name(nm), v = nm;
     else if (!bt_audio() && ble_on && ble_connected())
         v = "HOST";
-    str_cpy(c->val, v, sizeof c->val);
+    cell_val(c, v);
     c->big = str_len(c->val) <= 9u;                     /* (a longer name in the small face; 13 characters of it shown) */
     c->col = bt_linked() ? C_OK : 0;
 }
@@ -298,7 +292,7 @@ static void ble_midi_cell(cell_t *c)
     c->big = 1;
     if (ble_ui_mode >= 3u || !FELUCCA_BLE) {           /* (no BLE: the audio's line, whatever the mode) */
         c->label = "FORMAT";
-        str_cpy(c->val, "SBC 44.1k", sizeof c->val);
+        cell_val(c, "SBC 44.1k");
         c->col = C_OK;
     } else if (ble_on) {
         uint32_t in, out;
@@ -309,11 +303,11 @@ static void ble_midi_cell(cell_t *c)
         in = fm1_ms - bact.ti < BLE_ACT_MS;
         out = fm1_ms - bact.to < BLE_ACT_MS;
         c->label = "ACTIVITY";
-        str_cpy(c->val, in && out ? "IN OUT" : in ? "IN" : out ? "OUT" : "--", sizeof c->val);
+        cell_val(c, in && out ? "IN OUT" : in ? "IN" : out ? "OUT" : "--");
         c->col = in || out ? C_OK : 0;
     } else {
         c->label = "ACTIVITY";
-        str_cpy(c->val, "--", sizeof c->val);
+        cell_val(c, "--");
         c->col = 0;
     }
 }
@@ -327,9 +321,9 @@ static void ble_auto_cell(cell_t *c)                    /* RECONNECT: LAST's nam
     if (ble_store_has_last(&ble_store) && ble_store.sel == BLE_SEL_LAST) {
         char nm[BLE_NAME_MAX + 1u];
         ble_store_name(&ble_store, nm);
-        str_cpy(c->val, nm, sizeof c->val);
+        cell_val(c, nm);
     } else
-        str_cpy(c->val, "OFF", sizeof c->val);
+        cell_val(c, "OFF");
 }
 static void ble_auto_set(int32_t s)                     /* right LAST, left NONE, YES (0) the other: ble_devices.c's pick */
 {
@@ -507,7 +501,7 @@ static const param_desc_t *sys_desc(uint32_t it, int16_t **vp)
 }
 static int32_t sys_step(int32_t v, int32_t s, int32_t max)   /* a knob stops at the ends; YES (s 0) goes round */
 {
-    return s ? clamp(v + (s > 0 ? 1 : -1), 0, max) : (v >= max ? 0 : v + 1);
+    return s ? ui_clamp(v + (s > 0 ? 1 : -1), 0, max) : (v >= max ? 0 : v + 1);
 }
 #ifndef FELUCCA_COMMIT
 #define FELUCCA_COMMIT ""
@@ -549,7 +543,7 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
 #if FELUCCA_USB_AUDIO
     if (si_ua(it)) {                                    /* a source's channels: text only, no bar (the list walks it) */
         c->label = ua_src_name(it - SI_UAS0);
-        str_cpy(c->val, ua_dst_name(ua_dst[it - SI_UAS0]), sizeof c->val);
+        cell_val(c, ua_dst_name(ua_dst[it - SI_UAS0]));
         return;
     }
 #endif
@@ -602,7 +596,7 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         if (ble_store_has_last(&ble_store))
             cell_act(c, 0, "LAST DEVICE", "FORGET", 1);
         else
-            c->kind = CK_RO, c->label = "LAST DEVICE", str_cpy(c->val, "NONE", sizeof c->val);
+            c->kind = CK_RO, c->label = "LAST DEVICE", cell_val(c, "NONE");
         break;
 #endif
 #endif
@@ -664,7 +658,7 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
     case SI_GUARD: {                                    /* what the CPU guard eases now, and the voices it shed (cpuguard.c) */
         uint32_t n = cg.sheds - info_shed0, l = cg.level <= CG_TOP ? cg.level : CG_TOP;
         sys_ro(c, "GUARD");
-        str_cpy(c->val, CG_NAME[l], sizeof c->val);
+        cell_val(c, CG_NAME[l]);
         if (cg.vcap) {                                  /* (reacting at the top: the voices capped) */
             str_app(c->val, " MAX", sizeof c->val);
             fmt_app(c->val, cg.vcap);
@@ -686,7 +680,7 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         c->kind = CK_RO;
         if (pct < 0) {                                  /* (down: CPU0 renders everything, dual.c; why it is down, else NO REASON) */
             c->label = "2ND CORE OFF";
-            str_cpy(c->val, dual.why ? dual_why_name(dual.why) : "NO REASON", sizeof c->val);
+            cell_val(c, dual.why ? dual_why_name(dual.why) : "NO REASON");
             c->unit = "";
             c->col = C_WARN;
             cell_gauge(c, 0, 0, 100, 0);
@@ -703,7 +697,7 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         }
 #else
         sys_ro(c, "2ND CORE");
-        str_cpy(c->val, "NOT IN BUILD", sizeof c->val);
+        cell_val(c, "NOT IN BUILD");
         c->unit = "";
         c->col = C_DIM;
         cell_gauge(c, 0, 0, 100, 0);
@@ -728,7 +722,7 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         sys_ro(c, "BATTERY");
         c->unit = "";
         if (!song.batt_raw) {
-            str_cpy(c->val, "NO READING", sizeof c->val);
+            cell_val(c, "NO READING");
             c->col = C_DIM;
             cell_gauge(c, 0, 0, 3, 0);
             break;
@@ -743,7 +737,7 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
     }
     case SI_BUILD:                                      /* the build's date and time (the compiler's) */
         sys_ro(c, "BUILD");
-        str_cpy(c->val, __DATE__, sizeof c->val);
+        cell_val(c, __DATE__);
         c->unit = __TIME__;
         break;
     case SI_REPO:                                       /* the source, as text: the link right-aligned in the unit */
@@ -780,7 +774,7 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
     case SI_ABOUT: {                                    /* a read-out: the version itself (YES still says it whole) */
         const char *v = FELUCCA_VERSION;
         sys_ro(c, "VERSION");
-        str_cpy(c->val, v + (str_len(v) > 9u && !memcmp(v, "OPTIMIST ", 9) ? 9u : 0u), sizeof c->val);  /* "OPTIMIST 0.1": 0.1 */
+        cell_val(c, v + (str_len(v) > 9u && !memcmp(v, "OPTIMIST ", 9) ? 9u : 0u));  /* "OPTIMIST 0.1": 0.1 */
         c->unit = FELUCCA_COMMIT;                       /* (the commit it was built from, "" without) */
         break;
     }
@@ -835,7 +829,7 @@ static void sys_ua_cell(uint32_t i, cell_t *c)
         if (v)
             info_num(c, v - 1u, " frames");
         else
-            str_cpy(c->val, "NONE YET", sizeof c->val);
+            cell_val(c, "NONE YET");
         break;
     case 7: v = ua.gap_max / 24u; info_num(c, v, " us"); break;
     default: v = ua.gap_n; info_num(c, v, ""); break;
@@ -1036,7 +1030,7 @@ static void sys_diag_cell(uint32_t i, cell_t *c)        /* INTERNALS' line i */
         c->kind = CK_RO;
         c->label = "SUPPLY";
         if (supply.err) {
-            str_cpy(c->val, "NOT RAISED", sizeof c->val);   /* (the read-back was wrong: one core, 2ND CORE OFF SUPPLY) */
+            cell_val(c, "NOT RAISED");   /* (the read-back was wrong: one core, 2ND CORE OFF SUPPLY) */
             c->unit = "";
             c->col = C_WARN;
             return;
@@ -1090,7 +1084,7 @@ static void sys_set(uint32_t it, int32_t s)
     switch (it) {
 #if FELUCCA_BRIGHT
     case SI_BRIGHT:
-        bright_set(s ? (uint32_t)clamp((int32_t)bright_level() + (s > 0 ? 1 : -1), 1, 8) : bright_level() % 8u + 1u);
+        bright_set(s ? (uint32_t)ui_clamp((int32_t)bright_level() + (s > 0 ? 1 : -1), 1, 8) : bright_level() % 8u + 1u);
         break;
 #endif
 #if FELUCCA_LIGHTS

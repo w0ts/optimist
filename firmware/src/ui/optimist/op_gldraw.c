@@ -54,7 +54,7 @@ static uint32_t gl_tog(const cell_t *c)
  * its name, the unit and the on / off mark (a value too long for it, "DRUM BUS L+R", keeps the small face) */
 static int gl_big(const char *name, const char *v, int32_t uw, uint32_t tog)
 {
-    return 6 + text_w(&FONT_S, name) + 12 + text_w(font_big(), v) + uw + (tog ? GL_CK + 6 : 0) <= 236;
+    return 6 + text_ws(name) + 12 + text_w(font_big(), v) + uw + (tog ? GL_CK + 6 : 0) <= 236;
 }
 /* line c's place from its top y: the name and the unit's text row (gl_lrow.ty), the value's (.fy, in the face .f), the bar's
  * (.by); the name, the value and the unit's width as drawn */
@@ -68,7 +68,7 @@ static void gl_lrow(const cell_t *c, int32_t y, gl_lrow_t *r)
     char lv[14];
     cut(r->nm, nm_card(c->label ? c->label : "", 0, r->nm, sizeof r->nm), 12);
     cut(r->v, gl_text(c, lv), 13);
-    r->uw = c->kind != CK_ACT && c->unit[0] ? text_w(&FONT_S, c->unit) : 0;
+    r->uw = c->kind != CK_ACT && c->unit[0] ? text_ws(c->unit) : 0;
     r->f = &FONT_S;
     r->ty = r->fy = gl_ty(y, GL_BH);                    /* (the text, then the bar, centred in the line) */
     r->by = gl_by(y);
@@ -149,7 +149,7 @@ static void gl_cred_draw(int32_t y0)
     for (i = 0; i < CRED_N; i++) {
         ty = y0 + (int32_t)i * ph + (ph - (int32_t)FONT_S.h) / 2;
         cv_texts(6, ty, nm_card(CRED[i][0], 0, b, sizeof b), C_GRAY);
-        cv_texts(236 - text_w(&FONT_S, CRED[i][1]), ty, CRED[i][1], i ? C_HI : C_WHITE);
+        cv_texts(236 - text_ws(CRED[i][1]), ty, CRED[i][1], i ? C_HI : C_WHITE);
     }
 }
 #define GL_INFO_BIG 40                                  /* a read-out page's pitch from which its values take the large face */
@@ -169,7 +169,7 @@ static void gl_info_draw(int32_t y0)
         info_cell(pg, i, &c);
         vc = c.col ? c.col : C_GRAY;
         ty = fy = y + (ph - (int32_t)FONT_S.h) / 2;
-        uw = c.unit[0] ? text_w(&FONT_S, c.unit) : 0;
+        uw = c.unit[0] ? text_ws(c.unit) : 0;
         nm = nm_card(c.label, 0, b, sizeof b);
         cut(lv, c.val, 13);
         if (ph >= GL_INFO_BIG && gl_big(nm, lv, uw, 0)) {   /* (few read-outs: the values large, as the settings' lines) */

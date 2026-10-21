@@ -16,6 +16,36 @@ static void str_app(char *d, const char *s, unsigned max)   /* s appended to d (
     str_cpy(d + n, s, max - n);
 }
 static void fmt_app(char *d, int32_t v) { fmt_int(d + str_len(d), v); }   /* v's digits appended to d */
+static void pk_digits(char d[7], uint32_t v)        /* a pairing code: its 6 digits, leading zeros kept */
+{
+    int32_t k;
+    for (k = 5; k >= 0; k--, v /= 10u)
+        d[k] = (char)('0' + v % 10u);
+    d[6] = 0;
+}
+/* where a list's window is: a line over len px from top, the window's part of it in grey (first, shown of n rows) */
+static void scroll_bar(int32_t top, int32_t len, int32_t first, int32_t shown, int32_t n)
+{
+    cv_rect(238, top, 1, len, C_LINE);
+    cv_rect(237, top + len * first / n, 3, len * shown / n, C_GRAY);
+}
+/* the UI's clamp: a call (dsp_common.h's is inlined for the sound; at 66 UI sites the copies cost more than calls) */
+static __attribute__((noinline)) int32_t ui_clamp(int32_t v, int32_t lo, int32_t hi) { return clamp(v, lo, hi); }
+static __attribute__((noinline)) int32_t step_in(int32_t v, int32_t s, int32_t n)   /* v moved by s, within 0..n-1 */
+{
+    return clamp(v + s, 0, n - 1);
+}
+/* text in the small face: the drawing files' most frequent calls, their arguments in registers (calls, never inlined:
+ * cv_text's fifth argument and the face at every call cost more); the end x, the width, centred on the screen */
+static __attribute__((noinline)) int32_t cv_texts(int32_t x, int32_t y, const char *s, uint16_t c)
+{
+    return cv_text(x, y, &FONT_S, s, c);
+}
+static __attribute__((noinline)) int32_t text_ws(const char *s) { return text_w(&FONT_S, s); }
+static __attribute__((noinline)) void cv_text_mid(int32_t y, const felucca_font_t *f, const char *s, uint16_t c)
+{
+    cv_text(120 - text_w(f, s) / 2, y, f, s, c);
+}
 enum { SCR_HOME, SCR_SOUND, SCR_FX, SCR_PROJECT, SCR_SYSTEM, SCR_STEP, SCR_SONG, SCR_TEMPO, SCR_SCOPE, SCR_GLOBAL, SCR_N };
 static const char *const SCR_NAME[SCR_N] = {"MIX", "SOUND", "MASTER", "PROJECT", "SYSTEM", "STEPS", "SONG", "TEMPO",
                                             "SCOPE", "GLOBAL"};

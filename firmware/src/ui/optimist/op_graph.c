@@ -34,12 +34,6 @@
 #define CARD_W 57
 #define OP_SURF C_BLACK                 /* the cards' and tiles' surface: black, outlined (gfx.c cv_box; no grey fills) */
 
-/* text in the small face: the drawing files' most frequent call, its four arguments in registers (a call, never inlined:
- * cv_text's fifth argument and the face at every call cost more); the end x */
-static __attribute__((noinline)) int32_t cv_texts(int32_t x, int32_t y, const char *s, uint16_t c)
-{
-    return cv_text(x, y, &FONT_S, s, c);
-}
 static void cv_hline(int32_t y, uint16_t c) { cv_rect(0, y, 240, 1, c); }   /* a rule across the screen */
 static uint32_t trk_on_step(uint32_t c, uint32_t i)    /* step i of track c has something to play */
 {
@@ -132,34 +126,33 @@ static int32_t page_frac(const page_t *pg, uint32_t k, int32_t full)   /* value 
  * come from the page's own descriptors (page_frac), so ENV and ANALOG 2's ENV2 share it */
 #define GR_TOP 4
 #define GR_BOT (GRAPH_H - 5)
+/* an exponential segment of n px from (*px, *py) at x0: the level base + span * exp(-4.6 u) (Q15, k^n = exp(-4.6)), 0..1000
+ * from bot up to GR_TOP; *px, *py its end */
+static void eg_seg(int32_t *px, int32_t *py, int32_t x0, int32_t n, int32_t base, int32_t span, int32_t bot, uint16_t c)
+{
+    int32_t i, e = 32768, y;
+    for (i = 1; i <= n; i++) {
+        e = (e * (32768 - 150733 / n)) >> 15;
+        y = bot - (base + (span * e >> 15)) * (bot - GR_TOP) / 1000;
+        cv_line(*px, *py, x0 + i, y, c);
+        *px = x0 + i;
+        *py = y;
+    }
+}
 static void graph_adsr4(int32_t atk, int32_t dec, int32_t sus127, int32_t rel, uint16_t c)
 {
     int32_t a = 4 + atk * 50 / 127, d = 6 + dec * 50 / 127, r = 6 + rel * 60 / 127;
     int32_t top = GR_TOP, bot = GR_BOT, sus = sus127 * 1000 / 127;     /* 0..1000 */
-    int32_t x0 = 6, x1 = x0 + a, x3 = 232 - r, i, px, py;
-    int32_t e = 32768;                                                  /* exp(-4.6 u), Q15 */
+    int32_t x0 = 6, x1 = x0 + a, x3 = 232 - r, px, py;
 #define EGY(lvl) (bot - (lvl) * (bot - top) / 1000)
     cv_line(x0, bot, x1, top, c);                                       /* attack: linear */
     px = x1;
     py = top;
-    for (i = 1; i <= d; i++) {                                          /* decay: exponential to SUS */
-        int32_t lvl;
-        e = (e * (32768 - 150733 / d)) >> 15;                           /* k^d = exp(-4.6) */
-        lvl = sus + ((1000 - sus) * e >> 15);
-        cv_line(px, py, x1 + i, EGY(lvl), c);
-        px = x1 + i;
-        py = EGY(lvl);
-    }
+    eg_seg(&px, &py, x1, d, sus, 1000 - sus, bot, c);                   /* decay: exponential to SUS */
     cv_line(px, py, x3, EGY(sus), c);                                   /* sustain */
     px = x3;
     py = EGY(sus);
-    e = 32768;
-    for (i = 1; i <= r; i++) {                                          /* release: exponential to 0 */
-        e = (e * (32768 - 150733 / r)) >> 15;
-        cv_line(px, py, x3 + i, EGY(sus * e >> 15), c);
-        px = x3 + i;
-        py = EGY(sus * e >> 15);
-    }
+    eg_seg(&px, &py, x3, r, 0, sus, bot, c);                            /* release: exponential to 0 */
     cv_hline(bot + 1, C_LINE);
 #undef EGY
 }
@@ -227,7 +220,7 @@ static void graph_fx(const page_t *pg, uint16_t c)
         cv_rect(x - 3, bot - h, 7, 1, nc);
         {
             const char *l = card_label(&e, b, sizeof b);
-            cv_texts(x - text_w(&FONT_S, l) / 2, bot + 2, l, C_GRAY);
+            cv_texts(x - text_ws(l) / 2, bot + 2, l, C_GRAY);
         }
     }
 }
@@ -281,10 +274,10 @@ static void graph_arp(uint16_t c)
 {
     const track_t *t = TSEL;
     uint8_t nt[16];
-    uint32_t cnt = arp_ref(t, nt), mode = (uint32_t)t->p[P_AMODE] % 6u, oct = (uint32_t)clamp(t->p[P_AOCT], 1, 4);
+    uint32_t cnt = arp_ref(t, nt), mode = (uint32_t)t->p[P_AMODE] % 6u, oct = (uint32_t)ui_clamp(t->p[P_AOCT], 1, 4);
     uint32_t len = cnt * oct, steps = 4u * DIV_DEN[(uint32_t)t->p[P_ARATE] % 6u], i, b, lo = 127, hi = 0;
     int32_t top = GR_TOP + 2, bot = GR_BOT, span, sw = 236 / (int32_t)steps, mh;
-    int32_t gate = sw * t->p[P_AGATE] / 128, late = (int32_t)clamp(t->p[P_ASWING], 0, 100) * sw / 200;
+    int32_t gate = sw * t->p[P_AGATE] / 128, late = (int32_t)ui_clamp(t->p[P_ASWING], 0, 100) * sw / 200;
     uint16_t mc = mode ? c : col_shade(c, 3u);          /* (OFF: the pattern UP would play, shaded) */
     for (i = 0; i < cnt; i++) {
         lo = nt[i] < lo ? nt[i] : lo;
@@ -313,7 +306,7 @@ static void graph_arp(uint16_t c)
 static void graph_steps(uint16_t col)                    /* the pattern: every step over its length */
 {
     const track_t *t = TSEL;
-    uint32_t len = (uint32_t)clamp(t->p[P_SLEN], 1, NSTEP), i;
+    uint32_t len = (uint32_t)ui_clamp(t->p[P_SLEN], 1, NSTEP), i;
     for (i = 0; i < len; i++) {
         int32_t rows = len > 32u ? 2 : 1, rh = (GRAPH_H - 16 - 6 * (rows - 1)) / rows, x = 4 + (int32_t)(i % 32u) * 7,
                 y = i < 32u ? 8 : 14 + rh;
@@ -370,7 +363,7 @@ static void graph_lane_of(int kit)
     if (GRAPH_H >= 58)
         cv_texts(4, 40 + ny - 6, sub, C_GRAY);
     else                                                /* (2x2: beside the name, at the right) */
-        cv_texts(236 - text_w(&FONT_S, sub), 22, sub, C_GRAY);
+        cv_texts(236 - text_ws(sub), 22, sub, C_GRAY);
 }
 static void graph_lane(void) { graph_lane_of(0); }
 /* ---- the drum track's ENV: the picked lane's envelope as the drums run it (SLOOP's ui_drums.c graph_dsnd, its maths
@@ -383,7 +376,7 @@ static int32_t denv_tx;                                  /* the label row: where
 static void denv_head(uint32_t l, const char *right)
 {
     cv_texts(4, GR_TOP, lane_name(l), op_lane_col(l));
-    denv_tx = 236 - text_w(&FONT_S, right);
+    denv_tx = 236 - text_ws(right);
     cv_texts(denv_tx, GR_TOP, right, C_GRAY);
 }
 static void denv_time(uint32_t ms)                      /* the length, in the label row before the tag (the audit's #32: never on the baseline) */
@@ -391,7 +384,7 @@ static void denv_time(uint32_t ms)                      /* the length, in the la
     char b[12];
     fmt_int(b, (int32_t)ms);
     str_app(b, "ms", sizeof b);
-    cv_texts(denv_tx - 8 - text_w(&FONT_S, b), GR_TOP, b, C_GRAY);
+    cv_texts(denv_tx - 8 - text_ws(b), GR_TOP, b, C_GRAY);
 }
 #if DRUM_X0X
 static void denv_x0x(uint32_t l, uint32_t kit, const int8_t *o, int32_t y0, int32_t h, uint16_t c)
@@ -406,7 +399,7 @@ static void denv_x0x(uint32_t l, uint32_t kit, const int8_t *o, int32_t y0, int3
 static void denv_sample(uint32_t l, uint32_t usr, const int8_t *o, int32_t y0, int32_t h, uint16_t c)
 {
     const smp_zone_t *z = 0;
-    uint32_t pos = 0, end = 0, k = o && o[DE_DECAY] < 0 ? DECAY_K[clamp(127 + 2 * o[DE_DECAY], 0, 127)] : 0u;
+    uint32_t pos = 0, end = 0, k = o && o[DE_DECAY] < 0 ? DECAY_K[ui_clamp(127 + 2 * o[DE_DECAY], 0, 127)] : 0u;
     uint32_t i, n, per, rate, x;
     int32_t e = 32767, pk[DENV_W], mx = 1;
     voice_t v;
@@ -630,6 +623,12 @@ static void modal_words(char *v, char *a, char *q)      /* the verb, its target 
         op_case(q, ui.arm_q, sizeof ui.arm_q);
     }
 }
+static void modal_frame(uint16_t fr)                    /* the modal's box over the panel, framed in fr */
+{
+    cv_begin(240, MODAL_H, C_BLACK);
+    cv_rect(8, 1, 224, MODAL_H - 2, fr);
+    cv_rect(11, 4, 218, MODAL_H - 8, OP_SURF);
+}
 static void draw_modal(void)
 {
     char v[sizeof ui.arm_verb], a[sizeof ui.arm_arg], q[sizeof ui.arm_q];
@@ -637,9 +636,7 @@ static void draw_modal(void)
     uint16_t fr = ui.arm_danger ? C_ERR : C_WARN, tc = target_col(ui.arm_arg);
     modal_words(v, a, q);
     ft = text_w(fl, a) <= MODAL_W ? fl : &FONT_S;
-    cv_begin(240, MODAL_H, C_BLACK);
-    cv_rect(8, 1, 224, MODAL_H - 2, fr);               /* the frame: red destroys, amber the rest */
-    cv_rect(11, 4, 218, MODAL_H - 8, OP_SURF);
+    modal_frame(fr);                                    /* the frame: red destroys, amber the rest */
     if (a[0] && text_w(fl, q) <= MODAL_W) {
         int32_t x;
         v[str_len(v) - 1u] = ' ';                       /* "Clear? " -> "Clear " (the "?" goes after the target) */
@@ -649,11 +646,11 @@ static void draw_modal(void)
         x = cv_text(x, 30, fl, a, tc);
         cv_text(x, 30, fl, "?", C_WHITE);
     } else {
-        cv_text(120 - text_w(fl, v) / 2, 12, fl, v, C_WHITE);
-        cv_text(120 - text_w(ft, a) / 2, 50, ft, a, tc);
+        cv_text_mid(12, fl, v, C_WHITE);
+        cv_text_mid(50, ft, a, tc);
     }
     cv_texts(24, MODAL_H - 21, "Home no", C_GRAY);   /* (as the panel: HOME left of SAVE; over the box's foot) */
-    cv_texts(216 - text_w(&FONT_S, "Save yes"), MODAL_H - 21, "Save yes", C_WHITE);
+    cv_texts(216 - text_ws("Save yes"), MODAL_H - 21, "Save yes", C_WHITE);
     cv_blit(0, OP_PY);
 }
 static void draw_toast(void)                             /* the result of a confirmed action: small, in the middle */
@@ -664,7 +661,7 @@ static void draw_toast(void)                             /* the result of a conf
         str_cpy(m, ui.msg, sizeof m);
     else
         op_case(m, ui.msg, sizeof m);                   /* our words: "T1 cleared" */
-    w = text_w(&FONT_S, m) + 24;
+    w = text_ws(m) + 24;
     uint32_t st = ui.msg_st ? ui.msg_st : msg_status(ui.msg);   /* (the whole message: "DR CLEARED" is green) */
     w = w > 236 ? 236 : w;
     cv_begin((uint32_t)w, 36, C_BLACK);
@@ -684,21 +681,15 @@ static void draw_code(void)
 {
     char d[7], nm[BLE_NAME_MAX + 12u];
     const felucca_font_t *fl = font_big();
-    uint32_t v = ble_connect_passkey();
-    int32_t k;
-    for (k = 5; k >= 0; k--, v /= 10u)
-        d[k] = (char)('0' + v % 10u);
-    d[6] = 0;
+    pk_digits(d, ble_connect_passkey());
     str_cpy(nm, "Type it on ", sizeof nm);
     ble_connect_name(nm + str_len(nm));                 /* (the name as advertised) */
-    while (nm[0] && text_w(&FONT_S, nm) > MODAL_W)
+    while (nm[0] && text_ws(nm) > MODAL_W)
         nm[str_len(nm) - 1u] = 0;
-    cv_begin(240, MODAL_H, C_BLACK);
-    cv_rect(8, 1, 224, MODAL_H - 2, C_HI);              /* (a frame as the modal's: nothing to answer here) */
-    cv_rect(11, 4, 218, MODAL_H - 8, OP_SURF);
-    cv_text(120 - text_w(&FONT_S, "Bluetooth code") / 2, 12, &FONT_S, "Bluetooth code", C_GRAY);
-    cv_text(120 - text_w(fl, d) / 2, (int32_t)MODAL_H / 2 - 10, fl, d, C_WHITE);
-    cv_text(120 - text_w(&FONT_S, nm) / 2, MODAL_H - 26, &FONT_S, nm, C_GRAY);
+    modal_frame(C_HI);                                  /* (a frame as the modal's: nothing to answer here) */
+    cv_text_mid(12, &FONT_S, "Bluetooth code", C_GRAY);
+    cv_text_mid((int32_t)MODAL_H / 2 - 10, fl, d, C_WHITE);
+    cv_text_mid(MODAL_H - 26, &FONT_S, nm, C_GRAY);
     cv_blit(0, OP_PY);
 }
 #else

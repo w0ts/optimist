@@ -227,11 +227,11 @@ static uint32_t hl_dest(char *b)
         str_cpy(w + n + 3u, l, 64 - n - 3u);
         while (w[f] && w[f] != ' ')
             f++;                                        /* (the first word: the engine, track or lane) */
-        if (text_w(&FONT_S, w) <= 232)
+        if (text_ws(w) <= 232)
             str_cpy(b, w, 64);
-        else if (f < n && text_w(&FONT_S, w + f + 1u) <= 232)
+        else if (f < n && text_ws(w + f + 1u) <= 232)
             str_cpy(b, w + f + 1u, 64);                 /* (too wide: without it, "CUT - Filter cutoff") */
-        else if (text_w(&FONT_S, l) <= 232)
+        else if (text_ws(l) <= 232)
             str_cpy(b, l, 64);                          /* (still: the line alone, the card names the value) */
     }                                                   /* (else the names alone) */
     for (n = 0; b[n]; n++)
@@ -368,7 +368,7 @@ static void hl_post(void)
             str_cpy(w + n, ": ", 64 - n);
             str_cpy(w + n + 2u, dst ? b : ph_text(off, t), 64 - n - 2u);
         }
-        for (n = str_len(w); n > 1u && text_w(&FONT_S, w) > 232; n--)
+        for (n = str_len(w); n > 1u && text_ws(w) > 232; n--)
             w[n - 1u] = 0;
         str_cpy(b, w, sizeof b);
         dst = 1;                                        /* (drawn as the composed line below) */

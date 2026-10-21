@@ -217,11 +217,11 @@ static void pop_paint(void)                             /* the box in its own co
     cv_rect(8, 0, 224, pop.h, pop.fr);                  /* the frame, the engine's colour */
     cv_rect(10, 2, 220, pop.h - 4, OP_SURF);
     str_cpy(t, pop_kind == 2u ? "KIT" : pop_kind == 3u ? pen.d->label : pop_kind == 4u ? "ENGINE" : "SOUND", sizeof t);
-    cv_text(16, 6, &FONT_S, t, C_GRAY);
+    cv_texts(16, 6, t, C_GRAY);
     fmt_int(t, (int32_t)pop.cur + 1);
     str_app(t, "/", sizeof t);
     fmt_app(t, (int32_t)pop.total);
-    cv_text(224 - text_w(&FONT_S, t), 6, &FONT_S, t, C_GRAY);
+    cv_texts(224 - text_ws(t), 6, t, C_GRAY);
     for (row = 0, off = -(int32_t)pop.half; row < pop.half * 2u + 1u; row++, off++) {
         uint32_t idx = (uint32_t)(((int32_t)pop.cur + off + (int32_t)pop.total * 2) % (int32_t)pop.total), eng;
         char nm[16], en[12];
@@ -264,8 +264,8 @@ static void pop_paint(void)                             /* the box in its own co
 #endif
             f = text_w(&FONT_L, nm) <= 190 ? &FONT_L : &FONT_S;   /* (the large face where the name fits) */
             if (off == 0 && en[0])                              /* (the one playing: its tag in the header, always) */
-                cv_text(16 + text_w(&FONT_S, pop_kind == 2u ? "KIT" : "SOUND") + 12, 6, &FONT_S, en, ec);
-            if (text_w(f, nm) + text_w(&FONT_S, en) + 8 > 190)
+                cv_texts(16 + text_ws(pop_kind == 2u ? "KIT" : "SOUND") + 12, 6, en, ec);
+            if (text_w(f, nm) + text_ws(en) + 8 > 190)
                 en[0] = 0;                                      /* (the tag only where it fits beside the name) */
             if (off == 0)
                 cv_rect(12, ry - 1, 216, POP_RH - 2, C_LINE);   /* (the one playing: a lit band) */
@@ -276,7 +276,7 @@ static void pop_paint(void)                             /* the box in its own co
                 cv_rect(16, ry + POP_RH / 2 - 4, 6, 8, ec);     /* the engine's chip */
             }
             cv_text(28, ry + (POP_RH - (int32_t)f->h) / 2, f, nm, off == 0 ? C_WHITE : C_GRAY);
-            cv_text(224 - text_w(&FONT_S, en), ry + (POP_RH - (int32_t)FONT_S.h) / 2, &FONT_S, en, ec);                /* (the engine's name in its colour on every row: not dimmed) */
+            cv_text(224 - text_ws(en), ry + (POP_RH - (int32_t)FONT_S.h) / 2, &FONT_S, en, ec);                /* (the engine's name in its colour on every row: not dimmed) */
         }
     }
 }
@@ -288,7 +288,7 @@ static void draw_pop(void)
         pop_engines(pop.kits, &pop.total, &pop.cur);
     } else if (pop_kind == 3u) {
         pop.total = (uint32_t)(pen.d->max - pen.d->min + 1);
-        pop.cur = (uint32_t)clamp((int32_t)*pen.vp - pen.d->min, 0, (int32_t)pop.total - 1);
+        pop.cur = (uint32_t)ui_clamp((int32_t)*pen.vp - pen.d->min, 0, (int32_t)pop.total - 1);
     } else {
         pop.cur = preset_pos(&pop.total);
     }
@@ -331,11 +331,11 @@ static void pre_draw(void)
         if (i == 1u)
             cv_rect(0, y0 + p, 240, 1, C_LINE), cv_rect(0, y0 + 2 * p - 1, 240, 1, C_LINE);   /* (lined, on black) */
         cv_rect(4, y + 4, 8, 8, ec);                    /* the engine's chip */
-        cv_text(18, y, &FONT_S, nm, i == 1u ? C_WHITE : C_DIM);   /* (a preset's name as stored, never re-cased) */
+        cv_texts(18, y, nm, i == 1u ? C_WHITE : C_DIM);   /* (a preset's name as stored, never re-cased) */
 #if FELUCCA_FAVORITES
         if (fav_entry(e, k))
-            cv_text(18 + text_w(&FONT_S, nm) + 4, y, &FONT_S, "*", i == 1u ? C_WHITE : C_DIM);
+            cv_texts(18 + text_ws(nm) + 4, y, "*", i == 1u ? C_WHITE : C_DIM);
 #endif
-        cv_text(236 - text_w(&FONT_S, en), y, &FONT_S, en, i == 1u ? ec : col_shade(ec, 3u));
+        cv_texts(236 - text_ws(en), y, en, i == 1u ? ec : col_shade(ec, 3u));
     }
 }

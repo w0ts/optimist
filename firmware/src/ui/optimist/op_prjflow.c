@@ -66,7 +66,7 @@ static const page_t *tools_page(void)                  /* TOOLS: CLRSQ INIT MISS
 static uint32_t prj_kind(uint32_t r) { return PRJ[r % NPRJ]; }
 static uint32_t prj_rows(void) { return NPRJ; }
 static void prj_name(uint32_t r, char *b) { str_cpy(b, PRJ_NAME[prj_kind(r)], 12); }
-static uint32_t prj_slot(void) { return (uint32_t)clamp(song.g[G_SLOT], 1, FELUCCA_SECTIONS) - 1u; }
+static uint32_t prj_slot(void) { return (uint32_t)ui_clamp(song.g[G_SLOT], 1, FELUCCA_SECTIONS) - 1u; }
 
 /* ---- the stores: how many slots, which is the item, is it used */
 static uint32_t prj_slot_n(uint32_t kind)
@@ -169,7 +169,7 @@ static void prj_cell(uint32_t r, uint32_t k, cell_t *c)
     } else if (k == 1u) {                               /* OPERATION: its verb, red when it would destroy or replace */
         c->label = "ACTION";
         c->kind = CK_VAL;
-        str_cpy(c->val, PO_NAME[op], sizeof c->val);
+        cell_val(c, PO_NAME[op]);
         c->col = prj_danger(kind, op, s) ? C_ERR : 0;
         cell_gauge(c, 1, 0, (int32_t)prj_nops(kind) - 1, (int32_t)op);
     } else if (k == 2u) {                               /* ITEM: the slot, lit when used, dim when free */
@@ -221,7 +221,7 @@ static void prj_turn(uint32_t r, uint32_t k, int32_t s, int fine)
 #endif
     if (k == 1u) {
         uint32_t op = prj_op();
-        prj_op_v = (uint8_t)(s == OP_RESET ? PO_LOAD : clamp((int32_t)op + d, 0, (int32_t)prj_nops(kind) - 1));
+        prj_op_v = (uint8_t)(s == OP_RESET ? PO_LOAD : step_in(op, d, prj_nops(kind)));
         return;
     }
     if (s == OP_RESET || k == 3u)
@@ -234,7 +234,7 @@ static void prj_turn(uint32_t r, uint32_t k, int32_t s, int fine)
         return;
     }
     if (k == 2u)                                        /* ITEM: across the banks, the bank follows */
-        prj_slot_set(kind, (uint32_t)clamp((int32_t)cur + d, 0, (int32_t)prj_slot_n(kind) - 1));
+        prj_slot_set(kind, (uint32_t)step_in(cur, d, prj_slot_n(kind)));
 }
 
 /* ask to run operation op on slot s of the cursor row's store: the confirm (SAVE yes, HOME no), or, with nothing to load
@@ -477,12 +477,12 @@ static void prj_paint(void)                             /* the panel's band in i
         if (cur)
             cv_frame(x - 1, -1, 15, 14, C_WHITE);
     }
-    cv_text(0, 20, &FONT_S, op_case(b, pdp.head, sizeof b), pdp.danger ? C_ERR : C_HI);   /* what a key does now */
+    cv_texts(0, 20, op_case(b, pdp.head, sizeof b), pdp.danger ? C_ERR : C_HI);   /* what a key does now */
     cv_text(0, 40, text_w(font_big(), op_case(b, pdp.name, sizeof b)) <= 236 ? font_big() : &FONT_S, b, pdp.used >> pdp.cur & 1u ? C_WHITE : C_DIM);
     if (pdp.d1[0])
-        cv_text(0, 76, &FONT_S, op_case(b, pdp.d1, sizeof b), pdp.col1);
+        cv_texts(0, 76, op_case(b, pdp.d1, sizeof b), pdp.col1);
     if (pdp.d2[0])
-        cv_text(0, 94, &FONT_S, op_case(b, pdp.d2, sizeof b), pdp.col2);
+        cv_texts(0, 94, op_case(b, pdp.d2, sizeof b), pdp.col2);
 }
 static int prj_listing(void) { return ui.scr == SCR_PROJECT && prj_slots_row(prj_kind(ui.row[SCR_PROJECT])); }
 static void prj_draw(uint32_t y, uint32_t h)            /* op_draw.c, when prj_listing: lazy, redrawn when what it shows changes */

@@ -108,7 +108,7 @@ static void tp_cell(uint32_t r, uint32_t k, cell_t *c)
     if (!r) {                                           /* NUDGE: what OCT- / OCT+ do now, a read-out */
         c->label = "NUDGE";
         c->kind = CK_RO;
-        str_cpy(c->val, clk_nudge < 0 ? "-3.9" : clk_nudge > 0 ? "+3.9" : "0", sizeof c->val);
+        cell_val(c, clk_nudge < 0 ? "-3.9" : clk_nudge > 0 ? "+3.9" : "0");
         c->unit = "%";
         cell_gauge(c, 0, -1, 1, clk_nudge < 0 ? -1 : clk_nudge > 0 ? 1 : 0);
         return;
@@ -116,7 +116,7 @@ static void tp_cell(uint32_t r, uint32_t k, cell_t *c)
     c->kind = CK_VAL;
     if (k == 1u) {
         c->label = "LENGTH";
-        str_cpy(c->val, LEN[rec_len_ix()], sizeof c->val);
+        cell_val(c, LEN[rec_len_ix()]);
         c->unit = "bar";
         cell_gauge(c, 1, 0, 2, (int32_t)rec_len_ix());
         return;
@@ -153,7 +153,7 @@ static void tp_turn(uint32_t r, uint32_t k, int32_t s, int fine)
         return;
     }
     if (k == 1u) {                                      /* LENGTH: the selected track's, 1 / 2 / 4 bars */
-        tsel()->p[P_SLEN] = (int16_t)REC_LENS[clamp((int32_t)rec_len_ix() + (s > 0 ? 1 : -1), 0, 2)];
+        tsel()->p[P_SLEN] = (int16_t)REC_LENS[ui_clamp((int32_t)rec_len_ix() + (s > 0 ? 1 : -1), 0, 2)];
         sync_reload = 1;
         return;
     }

@@ -593,7 +593,9 @@ static void save_hold(void)
 }
 static void op_tap(uint32_t b, uint32_t id)
 {
-    if (lay_btn_layer(b) != LY_PLAY && fm1_ms - op_t0[id % 14u] > LAY_TAP_MS && !(b == B_SAVE && op_armed()))
+    const uint32_t held = fm1_ms - op_t0[id % 14u];       /* (how long it was down: read once) */
+    const int hold = held >= op_hold_ms();
+    if (lay_btn_layer(b) != LY_PLAY && held > LAY_TAP_MS && !(b == B_SAVE && op_armed()))
         return;                                         /* (held: the layer was looked at, no tap) */
     if (b < NB && mx_master_dead(b))
         return;                                         /* (the mixer's MASTER: a track button does nothing) */
@@ -601,7 +603,7 @@ static void op_tap(uint32_t b, uint32_t id)
         op_enter(SCR_FX);                               /* (the mixer's MASTER: FX is the master FX) */
     else if (b == B_FX && mx_on_usb())
         (void)mx_ut_fx();                               /* (the mixer's USB row: its inserts, op_mixer.c) */
-    else if (b == B_SAVE && !op_armed() && fm1_ms - op_t0[id % 14u] >= op_hold_ms()) {
+    else if (b == B_SAVE && !op_armed() && hold) {
         if (bt_key(B_SAVE, 1))
             ;                                           /* (SYSTEM > Bluetooth: forget the remembered device, op_global.c) */
         else if (ui.scr == SCR_PROJECT || ui.scr == SCR_SONG)
@@ -615,18 +617,18 @@ static void op_tap(uint32_t b, uint32_t id)
     else if (b == B_SAVE)
         mx_quiet() ? op_enter(SCR_PROJECT) : op_yes();     /* the mixer: PROJECT */
     else if (b == B_HOME) {
-        if (fm1_ms - op_t0[id % 14u] >= op_hold_ms() && pk_delete())
+        if (hold && pk_delete())
             ;                                           /* (held alone on STEP, a note picked: deleted, op_step.c) */
-        else if (!(mx_quiet() && fm1_ms - op_t0[id % 14u] >= op_hold_ms()))
+        else if (!(mx_quiet() && hold))
             op_no();                                    /* (held alone on the mixer: nothing) */
     } else if (b == B_OCTDN || b == B_OCTUP)
         oct_tap(b);                                     /* (a tap: let go with nothing used meanwhile) */
-    else if (b == B_SEQ && ui.scr == SCR_SONG && fm1_ms - op_t0[id % 14u] < op_hold_ms())
+    else if (b == B_SEQ && ui.scr == SCR_SONG && !hold)
         song_view_cycle();                              /* SEQ tapped on SONG: its views in turn (the user, 2026-10-20) */
-    else if (b == B_SEQ && ui.scr != SCR_STEP && fm1_ms - op_t0[id % 14u] >= op_hold_ms())
+    else if (b == B_SEQ && ui.scr != SCR_STEP && hold)
         song_shortcut(0);                               /* SEQ held alone off STEP: SONG (the user, 2026-10-20) */
     else if (b == B_SEQ)
-        step_seq_tap(fm1_ms - op_t0[id % 14u] >= op_hold_ms());   /* STEP; on it the next page; long: the keys */
+        step_seq_tap(hold);   /* STEP; on it the next page; long: the keys */
     else if (b == B_GLO)
         glo_tap();                                      /* GLOBAL, again SYSTEM, again GLOBAL (op_global.c) */
     else if (b == B_FX && ui.scr == SCR_FX)
@@ -635,6 +637,8 @@ static void op_tap(uint32_t b, uint32_t id)
         op_jump(JUMP_FAM[b]);
 }
 
+/* PRESETS free to act: no question, no REC ring, not the NAME screen, not MASTER (the mixer's either) */
+static int pre_free(void) { return !op_armed() && !rh.ring && !name_on() && ui.scr != SCR_FX && !ui.master && !mx_on_master(); }
 #if FELUCCA_FAVORITES
 /* FAVORITES (docs/UI-OPTIMIST-DESIGN.md 13 Favorites) are marked and browsed where presets are picked, not on a SOUND row (the user, 2026-10-14: "we have a
  * preset button, that is enough"): SAVE held + PRESETS marks the sound playing a favorite (right: saved into the favorites, 2026-10-16)
@@ -642,8 +646,7 @@ static void op_tap(uint32_t b, uint32_t id)
  * question, the NAME screen, STEP or MASTER */
 static int fav_gesture_ok(void)
 {
-    return !is_drum(TSEL) && !op_armed() && !rh.ring && !name_on() && ui.scr != SCR_STEP && ui.scr != SCR_FX && !sys_scr(ui.scr) &&
-           !ui.master && !mx_on_master();
+    return !is_drum(TSEL) && pre_free() && ui.scr != SCR_STEP && !sys_scr(ui.scr);
 }
 #endif
 /* PRESETS browses the selected track's presets (the drum track: its kits), one a detent, on every screen but STEP,
@@ -669,8 +672,7 @@ static int op_presets_turn(void)
         pre_toast_fav(0);
         op_clean &= ~BIT(B_SAVE);                       /* (SAVE let go: no YES) */
 #endif
-    } else if (btn_held(B_OCTUP) && !op_armed() && !rh.ring && !name_on() && ui.scr != SCR_FX && !ui.master &&
-        !mx_on_master() && !st_holding()) {
+    } else if (btn_held(B_OCTUP) && pre_free() && !st_holding()) {
         if (lane_presets())
             lane_kind_step(s);                          /* (a lane off KIT: its sound's next / previous kind, op_walk.c) */
         else
@@ -683,7 +685,7 @@ static int op_presets_turn(void)
                                                          * the window's) */
         if (!op_armed() && !rh.ring && !st.held)
             step_scroll(s > 0 ? 1 : -1);
-    } else if (!op_armed() && !rh.ring && !name_on() && ui.scr != SCR_FX && !ui.master && !mx_on_master()) {   /* (MASTER, the mixer's too: nothing) */
+    } else if (pre_free()) {   /* (MASTER, the mixer's too: nothing) */
         if (lane_presets())
             lane_sound_step(s);                         /* a lane off KIT: its own sound, the kit and the other lanes stay */
         else {
@@ -807,7 +809,7 @@ static void op_knobs(uint32_t shift)
         else if (step_cards_down())
             step_cards_show();                          /* (STEP, the cards down: they come back, the page kept) */
         else
-            op_row_pick((uint32_t)clamp((int32_t)row + s, 0, (int32_t)n - 1));
+            op_row_pick((uint32_t)step_in(row, s, n));
         turned = 1;
     }
     if ((s = panel_enc(EN_ALGO)) != 0 && !ft_on) {      /* the walk: MASTER T1..DR the lanes, the page's part (op_walk.c;
@@ -1012,6 +1014,12 @@ static void led_put(uint8_t *nl, uint32_t id, int on)
         nl[q >> 3] |= (uint8_t)(1u << (q & 7u));
 }
 static void led_btn(uint8_t *nl, uint32_t b, int on) { led_put(nl, panel.btn[b], on); }   /* button b's LED */
+static void led_keys(uint8_t *nl, uint32_t m)       /* the 27 keys' LEDs (ids 14..40): key k lit by bit k of m */
+{
+    uint32_t k;
+    for (k = 0; k < 27u; k++)
+        led_put(nl, 14u + k, (int)((m >> k) & 1u));
+}
 /* PLAY's second LED, green: a matrix site with no key (row PA5 = row bit 1, column 8; FM1_KEYMAP -1). Found on a unit by MAKU
  * (okumurari2/maku, GPL-3.0-only, firmware/src/ui_input.c LED_PLAY_GREEN: "found on the hardware at column 8, row PA9 (bit 1)")
  * and drawn by simonjohansson/fm1-emulator (fm1-panel.c); stock V15 lights it too (measured here in the emulator). It is a single
@@ -1243,16 +1251,13 @@ static void ui_leds(void)
     else if (lamp_dim())
         dl[OP_LAMP_COL] |= (uint8_t)(1u << OP_LAMP_ROW);   /* ... dim (the HAL's glow layer, as an available button's) */
     keys_lit(&kf, &kd);                                 /* the keys: full, dim, dark in every mode (op_keys.c, D10) */
-    for (c = 0; c < 27u; c++) {
-        led_put(nl, 14u + c, (int)((kf >> c) & 1u));
-        led_put(dl, 14u + c, (int)((kd >> c) & 1u));
-    }
+    led_keys(nl, kf);
+    led_keys(dl, kd);
 #if FELUCCA_LIGHTS
     {   /* menu LIGHTS / KEYS: the backlight layer under what is lit; off while a mode lights its keys (D10) */
         uint8_t bl[FM1_NCOL] = {0};
         uint32_t back = kf | kd ? 0u : lights_keys_mask(), k;
-        for (k = 0; k < 27u; k++)
-            led_put(bl, 14u + k, (int)((back >> k) & 1u));
+        led_keys(bl, back);
         if (lights_lvl)
             for (k = 0; k < NB; k++)
                 led_btn(bl, k, 1);
