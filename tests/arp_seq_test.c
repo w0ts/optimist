@@ -171,6 +171,88 @@ int main(void)
             }
         check(first != 99u && t->step[first].n == 2u, "REC, ARP UP, MONO part: the chord is two notes in its step");
     }
+    /* DBG: overdub in the middle of a long note (a TIE step) */
+    reset(1);
+    t->p[P_VOICE] = V_MONO;
+    for (i = 0; i < 16u; i++)
+        put_step(t, i, 0, 0, ST_REST, 0);
+    put_step(t, 4, 1, (const uint8_t[]){76}, ST_NOTE, 0);
+    for (i = 5; i < 9u; i++)
+        put_step(t, i, 0, 0, ST_TIE, 0);
+    song.rec = 1;
+    transport_req = 1;
+    run_to(6, seq);
+    input_on(t, 60, 100);
+    for (i = 0; i < 150u; i++)
+        block();
+    input_off(t, 60);
+    for (i = 0; i < 100u; i++)
+        block();
+    check(t->step[4].time == ST_NOTE && t->step[4].note[0] == 76 && t->step[5].time == ST_TIE, "overdub in a long note: its start and the tie before are untouched");
+    check(t->step[6].time == ST_NOTE && t->step[6].n == 2u && t->step[6].note[0] == 76 && t->step[6].note[1] == 60 && (t->step[6].flags & SF_CARRY),
+          "... the step played into: the long note goes on through it (carried, not struck again), the new note joins it");
+    check(t->step[6].ngate[0] == 0u && t->step[6].ngate[1] != 0u, "... the new note ends with its step, the long one has no end of its own");
+    check(t->step[7].time == ST_TIE && t->step[8].time == ST_TIE && t->step[9].time == ST_REST, "... the ties after it stay: the long note plays to its end");
+    {   /* played back (the arp off): 76 sounds through steps 5..8, 60 only in step 6 */
+        uint32_t has76 = 0, has60 = 0, in7_76 = 0, in7_60 = 0, k;
+        song.rec = 0;
+        t->p[P_AMODE] = 0;
+        seq_stop();
+        transport_req = 1;
+        for (k = 0; k < 20000u && !(song.playing && t->seq_idx >= 6u); k++)
+            block();
+        for (k = 0; k < 40u; k++) {
+            block();
+            if (t->seq_idx == 6u)
+                has60 |= t->v[0].note == 60 && t->v[0].gate, has76 |= t->v[0].note == 76;
+        }
+        for (k = 0; k < 3000u && t->seq_idx < 7u; k++)
+            block();
+        for (k = 0; k < 40u && t->seq_idx == 7u; k++) {
+            uint32_t v;
+            block();
+            for (v = 0; v < NVOICE; v++) {
+                in7_76 |= t->v[v].note == 76 && t->v[v].gate;
+                in7_60 |= t->v[v].note == 60 && t->v[v].gate;
+            }
+        }
+        printf("arp seq: playback: step 6: 60 sounds %u / 76 seen %u; step 7: 76 still held %u, 60 held %u\n", has60, has76, in7_76, in7_60);
+        check(in7_76 && !in7_60, "played back: the long note goes on into step 7, the overdubbed note ended with its step");
+    }
+    song.rec = 0;
+    /* overdub on a MONO part with the arp on: the notes there stay, the new one joins them */
+    reset(1);
+    t->p[P_VOICE] = V_MONO;
+    for (i = 0; i < 16u; i++)
+        put_step(t, i, 1, (const uint8_t[]){72}, ST_NOTE, 0);
+    song.rec = 0;
+    reset(1);
+    t->p[P_VOICE] = V_MONO;
+    for (i = 0; i < 16u; i++)
+        put_step(t, i, 1, (const uint8_t[]){72}, ST_NOTE, 0);
+    song.rec = 1;
+    transport_req = 1;
+    run_to(4, seq);
+    input_on(t, 60, 100);
+    for (i = 0; i < 300u; i++)
+        block();
+    input_off(t, 60);
+    for (i = 0; i < 100u; i++)
+        block();
+    {
+        uint32_t k, kept = 0, joined = 0, bad = 0;
+        for (k = 0; k < 16u; k++) {
+            uint32_t j, has72 = 0, has60 = 0;
+            for (j = 0; j < t->step[k].n; j++)
+                has72 |= t->step[k].note[j] == 72, has60 |= t->step[k].note[j] == 60;
+            kept += has72;
+            joined += has60;
+            bad += !has72;
+        }
+        printf("arp seq: overdub: 72 kept in %u steps, 60 joined %u, steps that lost 72: %u\n", kept, joined, bad);
+        check(bad == 0u && joined >= 1u, "REC overdub, ARP UP, MONO: the notes there stay (all 16 steps keep 72), the played one joins");
+    }
+    song.rec = 0;
     t->p[P_AMODE] = 0;
     for (i = 0; i < 16u; i++)
         put_step(t, i, 0, 0, ST_REST, 0);
