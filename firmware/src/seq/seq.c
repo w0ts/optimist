@@ -1476,6 +1476,39 @@ static void erase_now(track_t *t)             /* a key just went down */
     }
 }
 static int erasing(const track_t *t) { return trk_index(t) == er_trk && (er_lanes || er_notes[0] || er_notes[1] || er_notes[2] || er_notes[3]); }
+/* the wipe (the user, 2026-10-21): SHIFT2 + REC held while playing, every note (every lane) of the selected track the
+ * sequencer enters is erased, as EDIT + every key at once would: the erase masks all on, one undo level for the whole
+ * hold (undo_erase_sess), the step playing now goes too. A key's erase held meanwhile is given back at the end. 1: on */
+static uint8_t wipe_on, wipe_sel;
+static uint32_t wipe_lanes, wipe_notes[4];                /* (the key erase's masks while it wipes) */
+static int seq_wipe(int on)
+{
+    track_t *t = &trk[song.sel % NTRK];
+    if (wipe_on && (!on || wipe_sel != song.sel)) {         /* the end (or another track picked: this one's wipe ends, below a new one begins) */
+        fm1_irq_off();
+        er_lanes = wipe_lanes;
+        memcpy(er_notes, wipe_notes, sizeof er_notes);
+        fm1_irq_on();
+        wipe_on = 0;
+    }
+    if (on && !wipe_on && song.playing) {
+        undo_erase_sess = (undo_sess += 4u) | 2u;           /* one undo for the whole hold */
+        fm1_irq_off();
+        wipe_lanes = er_trk == song.sel ? er_lanes : 0u;
+        if (er_trk == song.sel)
+            memcpy(wipe_notes, er_notes, sizeof wipe_notes);
+        else
+            memset(wipe_notes, 0, sizeof wipe_notes);
+        er_trk = (uint8_t)song.sel;
+        er_lanes = ~0u;
+        memset(er_notes, 0xFF, sizeof er_notes);
+        wipe_sel = (uint8_t)song.sel;
+        wipe_on = 1;
+        erase_now(t);
+        fm1_irq_on();
+    }
+    return wipe_on;
+}
 
 /* ------------------------------------------------------------- arp --- */
 /* where each track's held[i] came from, so the arp maps it again as it plays (arp_next: TRN, ROOT, SCALE, QNT as they

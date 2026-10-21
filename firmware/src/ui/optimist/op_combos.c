@@ -131,6 +131,14 @@ static int shift2_combo(uint32_t b)
             song_shortcut(0);
         return 1;
     }
+    if (b == B_REC) {                                   /* SHIFT2 + REC held: the notes under the playhead wiped as it plays (op_input.c wipe_frame) */
+        if (song.playing || transport_req) {
+            wipe_req = 1;
+        } else {
+            ui_message("PLAY FIRST");                   /* (stopped: it would clear the whole pattern) */
+        }
+        return 1;
+    }
     if (l == LY_PLAY)
         return 0;
     lay_lock(l);

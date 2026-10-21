@@ -42,6 +42,9 @@ static struct {
     uint16_t st_v[6];                              /* this second's rxstat values (TYPE masked off) and their counts: */
     uint32_t st_n[6], st_more, flow0;              /* which of the unknown bits (§5.4, U6) move while the stream backs
                                                     * up (the XM4 crackles, 2026-10-21); flow0: ACL payloads FLOW 0 */
+    uint32_t rs_sum, rs_n, rs_min, rs_max;         /* this second's RSSI1 (BR §4) at each reception: the gain set at the
+                                                    * page stays for the link (bti_agc_follow runs in bti_page_rx only) */
+    uint8_t agc_follow;                            /* `btpage follow=1`: bti_agc_follow at each reception of the link */
 } bp;
 /* the audio packets (bt_acl.c ba_media_send, from the audio interrupt): whole L2CAP frames, each one DH5 (or DH3 / DH1
  * when shorter), never cut; the main loop's bp_tx_service sends them after the LMP and L2CAP signalling */
@@ -297,6 +300,17 @@ static void bp_conn_rx(void)                       /* a packet in the connection
             bp.good++;
             bp.last_good_ms = fm1_ms;
         }
+    }
+    {
+        uint32_t r = f->rssi[1];
+        bp.rs_sum += r;
+        bp.rs_n++;
+        if (r < bp.rs_min)
+            bp.rs_min = r;
+        if (r > bp.rs_max)
+            bp.rs_max = r;
+        if (bp.agc_follow)
+            bti_agc_follow(f);
     }
     bp_tx_media(f);                                /* (the stream's next packets at once, not at the main loop's pace) */
 }
@@ -595,6 +609,21 @@ static void bp_print_sec(void)
         con_puts(" pll=");
         con_dec(bti.pll_now);
         {
+            uint32_t sum, n, lo, hi;
+            fm1_br_irqs_hold(1);
+            sum = bp.rs_sum, n = bp.rs_n, lo = bp.rs_min, hi = bp.rs_max;
+            bp.rs_sum = bp.rs_n = bp.rs_max = 0;
+            bp.rs_min = 0xFFFFFFFFu;
+            fm1_br_irqs_hold(0);
+            bti_kv(" agc=", bti.agc);
+            con_puts(bp.agc_follow ? "f" : "");
+            if (n) {
+                bti_kv(" rssi=", lo);
+                bti_kv("/", sum / n);
+                bti_kv("/", hi);
+            }
+        }
+        {
             uint16_t sv[6];
             uint32_t sn[6], more;
             fm1_br_irqs_hold(1);                   /* (a copy, then cleared: IRQ 40 is held only for that) */
@@ -705,7 +734,8 @@ static int bp_start(const uint8_t addr[6], uint32_t slots)
     bp.setup_out = bp.setup_in = bp.stopping = 0;
     bp.slots5 = 0;
     bp.name_done = 0;
-    bp.mq_drop = bp.mq_sent = bp.mq_hi = bp.mq_busy = bp.flow0 = 0;
+    bp.mq_drop = bp.mq_sent = bp.mq_hi = bp.mq_busy = bp.flow0 = bp.rs_sum = bp.rs_n = bp.rs_max = 0;
+    bp.rs_min = 0xFFFFFFFFu;
     bp_mq.r = bp_mq.w;                             /* (a new link: no audio queued) */
     ba_reset();
     bp.txw = bp.txr = 0;
@@ -755,6 +785,21 @@ static void con_btpage(const char *p)
         con_puts(" -> ");
         con_dec(bti.pll_now);
         con_puts("\r\n");
+        return;
+    }
+    if (bti_opt_num(&p, "agc", &v)) {             /* the receive gain now, fixed (0..15), in a running link */
+        struct fm1_br_frame *f = fm1_br_frame(bti_tab, 0);
+        bti_kv("btpage: agc ", bti.agc);
+        bti.agc = (uint8_t)(v < 0 ? 0 : v > 15 ? 15 : v);
+        bp.agc_follow = 0;
+        f->rxgain0 = bti.agc;
+        bti_kv(" -> ", bti.agc);
+        con_puts("\r\n");
+        return;
+    }
+    if (bti_opt_num(&p, "follow", &v)) {          /* the gain following RSSI1 at each reception of the link (as paging) */
+        bp.agc_follow = v != 0;
+        con_puts(bp.agc_follow ? "btpage: agc follows\r\n" : "btpage: agc fixed\r\n");
         return;
     }
     if (!bp_parse_addr(&p, a)) {
