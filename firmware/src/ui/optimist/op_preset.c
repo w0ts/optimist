@@ -55,7 +55,7 @@ static void pre_toast_drum(void)
     if (!on && !dl.ukit && drum_kit_built(drum_kit()))
         pop_kind = 2;                                   /* (a factory kit: the popup list of the kits, over the toast) */
 }
-static void pre_toast(void)
+static void pre_toast_kind(uint32_t kind)               /* kind 1: the PRESETS knob's popup (the whole list), 5: EDIT's PRESET card's (the engine's own sounds) */
 {
     char nm[16], m[30], en[10];
     uint32_t total, cur, e;
@@ -83,8 +83,10 @@ static void pre_toast(void)
     ui_message(m);
     ui.toast_next = 0;
     ui.toast_col = e < NENGINES ? ENG_COL[e] : C_HI;
-    pop_kind = 1;                                       /* (the popup list of the sounds, the toast's place: draw_pop) */
+    pop_kind = (uint8_t)kind;                           /* (the popup list of the sounds, the toast's place: draw_pop) */
 }
+static void pre_toast(void) { pre_toast_kind(1u); }
+static void pre_toast_edit(void) { pre_toast_kind(5u); }
 #if FELUCCA_FAVORITES
 /* a toast over the sound playing: "FAV + NAME" marked, "FAV - NAME" unmarked; the list kept: "FAVORITES ONLY" / "ALL SOUNDS" */
 static void pre_toast_fav(const char *what)
@@ -256,7 +258,7 @@ static void pop_paint(void)                             /* the box in its own co
             cv_rect(16, ry + POP_RH / 2 - 4, 6, 8, ec);         /* the engine's chip */
             cv_text(28, ry + (POP_RH - (int32_t)f->h) / 2, f, nm, off == 0 ? C_WHITE : C_GRAY);
 #if FELUCCA_FAVORITES
-            if (pop_kind == 1u) {
+            if (pop_kind == 1u || pop_kind == 5u) {
                 uint32_t fk, fe = preset_at(idx, &fk);
                 if (fav_entry(fe, fk))
                     cv_text(28 + text_w(f, nm) + 4, ry + (POP_RH - (int32_t)f->h) / 2, f, "*", off == 0 ? C_WHITE : C_GRAY);

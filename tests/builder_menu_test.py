@@ -196,6 +196,18 @@ async def main():
         bars = lambda: str(app.query_one("#bars").content)
         check("the bars show the undo ring", "UNDO" in bars() and "ring" in bars())
         check("no Reserve group in the menu", "RESERVE_UNDO_KB" not in [n.data for g in app.query_one("#tree").root.children for n in g.children])
+    app = M.Builder(C.defaults(), "default")             # q and ctrl+c are refused while the FM-1 is written, work again after
+    async with app.run_test(size=(200, 60)) as pilot:
+        await pilot.pause()
+        app.flashing = True
+        await pilot.press("q")
+        await pilot.press("ctrl+c")
+        await pilot.pause()
+        check("flashing: q and ctrl+c are refused, the menu stays", app.is_running)
+        app.flashing = False
+        await pilot.press("q")
+        await pilot.pause()
+        check("... not flashing: q quits", not app.is_running)
     # f: Flash to FM-1 (fm1_install mocked: no device is touched)
     import flash as FL
     calls = []

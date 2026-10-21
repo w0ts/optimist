@@ -315,7 +315,40 @@ def against_js():
     ok(I.LOADER_MARK in raw, f"{clean.name} carries the Felucca loader marker")
 
 
+def interrupts():
+    """Ctrl+C is refused while the FM-1 is written (no_interrupt), and the handlers come back"""
+    import os
+    import signal
+    was = signal.getsignal(signal.SIGINT)
+    err = io.StringIO()
+    got = None
+    try:
+        with I.no_interrupt(err):
+            os.kill(os.getpid(), signal.SIGINT)
+            time.sleep(0.05)
+            inside = signal.getsignal(signal.SIGINT)
+    except KeyboardInterrupt:
+        got = "KeyboardInterrupt"
+        inside = None
+    ok(got is None and "Ctrl+C is ignored" in err.getvalue(), "no_interrupt: SIGINT during the write is said and ignored")
+    ok(signal.getsignal(signal.SIGINT) == was and inside != was, "... the handler is back afterwards")
+    box = []
+    t = threading.Thread(target=lambda: box.append(_thread_guard()))
+    t.start()
+    t.join()
+    ok(box == [True], "... a thread (no signal handlers there): nothing happens, no error")
+
+
+def _thread_guard():
+    try:
+        with I.no_interrupt(io.StringIO()):
+            return True
+    except Exception:
+        return False
+
+
 wire()
+interrupts()
 installs()
 errors()
 against_js()

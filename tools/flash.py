@@ -10,8 +10,10 @@ Never picks a stock or foreign package: the default is the newest build/optimist
 Optimist one (identity FM-1_700, or FM-1_720 .. 769 for a release) that fm1_install.load_package accepts.
 Nothing here touches MIDI itself: every device access goes through run_tool() (fm1_install.py in a subprocess),
 which the tests replace."""
+import contextlib
 import os
 import re
+import signal
 import subprocess
 import sys
 import zipfile
@@ -81,10 +83,12 @@ def run_tool(args, capture=True, on_line=None):
     py = midi_python()
     if not py:
         raise FlashError(NEED)
-    if on_line:
-        rc, out = progress.stream([py, str(TOOL), *args], on_line=on_line, env=dict(os.environ, PYTHONUNBUFFERED="1"))
-        return rc, out.strip()
-    r = subprocess.run([py, str(TOOL), *args], capture_output=capture, text=True)
+    writing = "--info" not in args                      # (a write: Ctrl+C is refused until it is done, FI.no_interrupt in the tool too)
+    with (FI.no_interrupt() if writing else contextlib.nullcontext()):
+        if on_line:
+            rc, out = progress.stream([py, str(TOOL), *args], on_line=on_line, env=dict(os.environ, PYTHONUNBUFFERED="1"))
+            return rc, out.strip()
+        r = subprocess.run([py, str(TOOL), *args], capture_output=capture, text=True)
     return r.returncode, ((r.stdout or "") + (r.stderr or "")).strip()
 
 
