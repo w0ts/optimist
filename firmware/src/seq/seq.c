@@ -486,7 +486,28 @@ static uint32_t rec_target(const track_t *t, uint32_t *later)
 static void step_add(track_t *t, uint32_t idx, uint32_t note, uint32_t vel, uint32_t lvl, uint32_t rat)
 {
     step_t *s = &t->step[idx];
-    uint32_t k;
+    uint32_t k, conv = 0;
+    if (s->time == ST_TIE && !t->rh_n && rec_poly(t) && !is_drum(t)) {  /* played into the middle of a long note (not one this take is holding): it goes on, only this note is touched (the user, 2026-10-21) */
+        uint32_t len = trk_len(t), j = idx, g = 0;
+        do
+            j = (j + len - 1u) % len;
+        while (++g < len && t->step[j].time == ST_TIE);
+        if (t->step[j].time == ST_NOTE && t->step[j].n && !t->step[j].rat) {
+            const step_t *h = &t->step[j];
+            step_t ns;
+            memset(&ns, 0, sizeof ns);
+            ns.time = ST_NOTE;
+            ns.flags = SF_CARRY;                    /* (the notes sounding go on through it, not struck again) */
+            ns.vel = h->vel;
+            for (k = 0; k < h->n && k < 4u; k++)
+                if (!h->ngate[k] && h->note[k] != note)   /* (one with an end of its own ended there; the same note: struck again) */
+                    ns.note[ns.n++] = h->note[k];
+            if (ns.n) {
+                *s = ns;
+                conv = 1;
+            }
+        }
+    }
     if (s->time != ST_NOTE || !s->n || !rec_poly(t)) {
         s->n = 0;                                   /* a fresh step */
         s->flags = 0;
@@ -503,7 +524,7 @@ static void step_add(track_t *t, uint32_t idx, uint32_t note, uint32_t vel, uint
         k = s->n - 1u;
         s->note[k] = (uint8_t)note;
     }
-    s->ngate[k] = 0;                                /* (its end: the step's GATE, a note's own end set later) */
+    s->ngate[k] = (uint8_t)(conv ? 127u : 0u);      /* (its end: the step's GATE, a note's own end set later; in a long note's step: this step's end, the long one goes on) */
     s->lvl = (uint8_t)((s->lvl & ~(3u << (2u * k))) | (lvl & 3u) << (2u * k));
     s->rat = (uint8_t)((s->rat & ~(3u << (2u * k))) | (rat & 3u) << (2u * k));
     s->time = ST_NOTE;
@@ -654,7 +675,7 @@ static void rec_restart(track_t *t, uint32_t idx, uint32_t abs, uint32_t own)
 static void rec_note(track_t *t, uint32_t note, uint32_t vel, uint32_t rat, int hold)
 {
     uint32_t len = trk_len(t), later, abs = rec_target(t, &later), idx = TRK_IDX(t, abs, len), k;
-    uint32_t had = t->step[idx].time == ST_NOTE && t->step[idx].n;   /* (overdub: notes there already) */
+    uint32_t had = (t->step[idx].time == ST_NOTE && t->step[idx].n) || (t->step[idx].time == ST_TIE && !t->rh_n && rec_poly(t));   /* (overdub: notes there already, or a long note's tie) */
     uint32_t over = hold && t->rh_n && t->rh_start != idx, carry = 0;   /* notes held, this one in another step */
     undo_mark(t, UNDO_REC(t));
     if (over && t->rh_ties && abs == t->rh_start_abs + t->rh_ties)
