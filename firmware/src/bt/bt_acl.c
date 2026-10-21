@@ -306,7 +306,11 @@ static int16_t ba_pcm_acc[BT_SBC_SAMPLES_PER_FRAME * 2];
 static uint32_t ba_pcm_cnt;
 static uint8_t ba_sbc_init_done;
 
-#define BA_MFRAMES 2u                              /* SBC frames a packet: 2 x 119 B + 17 B of headers in one DH5 (339 B) */
+#define BA_MFRAMES 3u                              /* SBC frames a packet: 3 x 105 B (bitpool 46) + 17 B of L2CAP and
+                                                    * media headers in one DH5 (339 B): 115 DH5 a second instead of 172
+                                                    * at bitpool 53 (2 x 119 B), a third of the air time left for the
+                                                    * retransmissions (2026-10-21) */
+#define BA_BITPOOL 46u                             /* the most that fits BA_MFRAMES frames in a DH5 */
 static uint8_t ba_mbuf[BA_MFRAMES * 128u];
 static uint32_t ba_mlen, ba_mn;
 static void ba_media_send(const uint8_t *sbc_frame, uint32_t sbc_len, uint32_t frames)   /* one L2CAP frame, whole */
@@ -351,7 +355,8 @@ int bt_audio_feed(const int32_t *q15_pcm, uint32_t n)   /* 1: it streams (audio.
         return 0;
     }
     if (!ba_sbc_init_done) {
-        bt_sbc_init(&ba_sbc, 44100, 53, 1);
+        uint8_t bp_max = ba.conf[3] < BA_BITPOOL ? ba.conf[3] : (uint8_t)BA_BITPOOL;   /* (the agreed range) */
+        bt_sbc_init(&ba_sbc, 44100, bp_max < ba.conf[2] ? ba.conf[2] : bp_max, 1);
         ba_sbc_init_done = 1;
     }
     for (i = 0; i < n; i++) {
@@ -368,7 +373,7 @@ int bt_audio_feed(const int32_t *q15_pcm, uint32_t n)   /* 1: it streams (audio.
             for (k = 0; k < slen && ba_mlen + k < sizeof ba_mbuf; k++)
                 ba_mbuf[ba_mlen + k] = frame[k];
             ba_mlen += k;
-            if (++ba_mn == (bp.slots5 == 2u ? BA_MFRAMES : 1u)) {   /* (DH5: two frames; DH3: one) */
+            if (++ba_mn == (bp.slots5 == 2u ? BA_MFRAMES : 1u)) {   /* (DH5: BA_MFRAMES frames; DH3: one) */
                 ba_media_send(ba_mbuf, ba_mlen, ba_mn);
                 ba_mlen = ba_mn = 0;
             }
