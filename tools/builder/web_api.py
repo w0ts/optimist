@@ -88,7 +88,7 @@ def view(values, name="", commit=None):
     over = {r: o for r, (_, _, o) in K.fits(b["total"], cfg).items() if o > 0} if b else {}
     undo = None
     if b and K.built(cfg, "UNDO_HISTORY"):
-        undo = {"ring": K.undo_ring(b["total"]), "short": K.undo_short(cfg, b["total"]), "keep": K.reserve_undo(cfg)}
+        undo = {"ring": K.undo_ring(b["total"])}
     return {"eval": ev,
             "savings": K.savings_of(cfg, COSTS) if COSTS else {},
             "conflicts": {k: [str(e) for e in v] for k, v in K.conflicts(cfg).items()},

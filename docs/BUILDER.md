@@ -100,7 +100,7 @@ and is ignored, a retired key (below) warns "dropped".
 
 Errors the configuration checks (`validate()` in `tools/builder/core.py`): no synth engine; no drum source (the drum
 synth or a sampled kit); a reverb with no algorithm; PATTERNS with SECTIONS 4; MICRO, FILLS or PLOCK without SL24_XSTEP; an
-undo reserve without UNDO_HISTORY; the Bluetooth Classic probe without a console or with BLE. Warnings the menu gives: FM6 without its editor and without SysEx has no voice
+the Bluetooth Classic probe without a console or with BLE. Warnings the menu gives: FM6 without its editor and without SysEx has no voice
 editing; sample sets without SAMPLE or GRAIN play nowhere; an experimental item says what it has been tested on.
 
 Every engine a build has keeps at least one entry on the PRESETS list, and every drum source at least one kit. An engine
@@ -112,17 +112,7 @@ PIANO, VIBES and FLUTE but with another melodic set gets a real preset, GRAIN PA
 The text of the menu's details panel (`desc` in the registry), one table a group, generated from it:
 `tests/builder_test.py` fails when an item is missing or its text differs, so regenerate a row from the registry, do no
 edit it here. Sizes are about, from `costs.json`. A `(sub-item)` is an option of the item above it. Items marked
-EXPERIMENTAL are emulator-tested only unless their text says more. The two Reserve items change nothing in the firmware
-(no flag, no code, not in the configuration's hash, no `costs.json` delta); they are budget settings saved with the
-configuration. The undo reserve warns when the ring (`(98,304 - RAM) + (344,064 - 8,192 - pool)`) is smaller than the
-figure and `tools/build.py` refuses a build whose real ring is; the flash reserve is subtracted from the app slot.
-
-#### Reserve
-
-| Item | Key | What it does |
-|---|---|---|
-| keep at least this much undo history | `RESERVE_UNDO_KB` | Keeps headroom for the undo history instead of filling RAM and pool to the last byte: the history's ring is what they leave free ((98,304 - RAM) + (344,064 - 8,192 - pool), docs/MEMORY-MAP.md). The estimate shows the ring and warns below this figure; a build whose real ring is smaller is refused. Nothing in the firmware changes (it needs the undo / redo history item). |
-| keep at least this much app flash free | `RESERVE_FLASH_KB` | Keeps room in the app slot for later (a feature, an update) instead of filling it to the last byte: the budget subtracts it from the slot and a build that leaves less free is refused. Nothing in the firmware changes. |
+EXPERIMENTAL are emulator-tested only unless their text says more. The builder's reserve entries (a minimum of undo history or of free app flash) were retired 2026-10-21: the estimate shows the undo ring as information.
 
 #### Synth engines
 
@@ -290,8 +280,7 @@ These run once (on the master, or as the one effect each: chorus, delay, reverb,
 |---|---|---|
 | say what a project uses and this build lacks | `MISSING_WARN` | 'MISSING: PHYS T2, KIT 909' in the top bar when a project, song section, user preset or kit uses an engine, kit, sample set or FX this build leaves out (once per item until power-off; never stalls the audio); PROJECT > TOOLS > MISSING lists them again. Off: they play their stand-ins silently (saves 1.5 KB of flash) |
 | favorites: mark sounds, browse only them | `FAVORITES` | With the presets: SHIFT2 (OCT+ held) + PRESETS marks the sound playing, SHIFT2 + SELECT browses only the favorites, a star after a favorite's name in the toast and in PROJECT > USER (SHIFT2 + ITEM marks a slot). Up to 64 factory sounds (kept by engine and name: they stay marked over builds that leave engines out) and any of the 32 user presets (an erased preset loses its mark); the FM6 / CZ banks and the drum track have none. Kept with the settings (136 B at the end of the settings record: an older record reads whole with none; a build without this item keeps the rest and forgets them on its next save). About 1 KB of flash, 136 B of pool. Off: no marks. |
-| help line: what the knob changes, in words | `PARAM_HELP` | the screen's last line names what a knob changes in plain words, e.g. 'Filter cutoff', 'Reverb send', while a value turns and ~2 s after, and always on GLOBAL, SYSTEM and PROJECT (the cursor line, the hot action, '(asks)' where it asks first); only the lines of the features built (tools/param_help.json, also the web editor's tooltips). About 7.7 KB of flash (the texts packed), no RAM code |
-| pages as lines (GLOBAL's look), not 2x2 cards + list | `PAGE_LINES` | A screen of rows with no picture (EDIT, VOICE, PROJECT, SONG, the master FX, SOUND's pages without a graph) shows its cursor row as four lines, as GLOBAL and SYSTEM do: the value's name, the value large on the right, its bar across the screen; KNOB k is line k, SELECT the next row (the header names it and its n/N). Screens with a picture (ENV, LFO, ARP, the FX needles, TEMPO, SCOPE) keep the 2x2 cards over it, the mixer its 1x4 cards. Off: the 2x2 cards with the row list under them, as before. No data change. |
+| help line: what the knob changes, in words | `PARAM_HELP` | the screen's last line names what a knob changes in plain words, e.g. 'Filter cutoff', 'Reverb send', while a value turns and ~2 s after, and always on GLOBAL, SYSTEM and PROJECT (the cursor line, the hot action, ' -> SAVE' after an action that asks first: the button that runs it); only the lines of the features built (tools/param_help.json, also the web editor's tooltips). About 7.7 KB of flash (the texts packed), no RAM code |
 | SYSTEM's debug pages (internals, USB stats) | `SYS_DEBUG` | SYSTEM keeps its pages for finding faults: INTERNALS (the last reset, the flash's interrupts-off time, the second core's internals), USB STATS (the USB audio glitch counters) and on INFO the clock, the second core, the drops and the CPU guard apart. Off: INFO shows what a player wants, CPU LOAD, UNDERRUNS (the drop-outs counted in) and BATTERY, in the large face, and the code of the rest is left out (about 2.9 KB less flash, measured on a USB-audio build). The red / amber mark on the header's rule after a drop-out stays either way. |
 | knob acceleration by turn speed | `KNOB_ACCEL` | 1 / 2 / 3 / 5 / 8 steps a detent when turned fast; never on lists (engines, kits, presets) |
 | screen data speed (SPI clock) | `LCD_BAUD` | How fast data is sent to the display: 60 MHz / (n + 1). Faster redraws finish sooner (less tearing); the ST7789V takes ~62 MHz, so 60 MHz is the limit. No flash cost; the faster settings are untested here on hardware. |
@@ -440,22 +429,16 @@ estimate (`costs.json`'s anchors only) must be within 1 KB of flash and 256 B el
 (`ESTIMATE_TOL`). A change that moves the firmware past that fails the test run; `make costs` fixes it. `--python` and
 `--no-build` runs have no real build and skip it.
 
-### Making room for BLE
+### BLE and the room it needs
 
-BLE costs about 32 KB of flash and 6.6 KB of RAM (`BLE` in `costs.json`); `BLE_DIAG` adds 6 KB and 2.4 KB. Where the
-build would overflow, ticking BLE in the menu removes **the smallest single item that frees enough** (sample sets
-first, then other items), and says so in the message panel with the alternatives; a removed set can still be uploaded to
-a USR slot. An item has to free every region that overflows. Where no single item frees enough (today `drum-machine`
-and `everything-that-fits`), nothing is removed and the message says "no single item frees enough": remove several by
-hand, or let `--fit` choose. The rules are in `tools/builder/room.py` (the menu, the command line and the web builder
-share them); `tests/builder_test.py` computes the expected item for every profile from `costs.json` and checks it.
+BLE costs about 29 KB of flash and 6 KB of RAM from the defaults (`BLE` in `costs.json`), about 18 KB when Bluetooth
+Classic Audio is built (they share the Bluetooth stack: the pair `BLE=1,BT_AUDIO=1`); `BLE_DIAG` adds 6 KB and 2.4 KB.
+Ticking BLE in the menu (the CLI menu and the web builder) **removes nothing**: like any other tick the meters go over and
+the message says it does not fit (the user, 2026-10-21; an earlier rule unticked an item for you, which made BLE on show
+more free flash than BLE off). Remove what you want by hand, or let `--fit` choose.
 
-- BLE fits as it is: nothing is removed. Unticking BLE brings back what was removed, except what you changed by hand.
-- Another item unticked while one is removed and the build then fits with the first back: the first comes back.
-- Loading a profile or a `.config` forgets what was removed; a `.config` holds the resulting values.
-
-Headless: `--ble-drop ITEM` on `optimist.py build|package` and `configure.py` (with `--set BLE=1`) does the same removal.
-`optimist.py test` builds its BLE emulator packages with it.
+Headless: `--ble-drop ITEM` on `optimist.py build|package` and `configure.py` (with `--set BLE=1`) removes that one item,
+which must free enough (`tools/builder/room.py` make_room). `optimist.py test` builds its BLE emulator packages with it.
 
 **Shared DSP blocks (`docs/DSP-SHARED.md`).** A block several items use is `always_inline`, so each built item compiles its
 own copy and an item left out takes its copy with it: no "shared by A or B" term is needed. A shared *table* is

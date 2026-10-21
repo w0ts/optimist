@@ -506,13 +506,12 @@ if shared:
     check("sampled kits: the last ticked one's saving is the samples, the others' next to nothing",
           abs(sv[kits[0]]["flash"] - shared["flash"]) < 1024 and C.is_last_kit(two, kits[0]) and
           abs(C.savings_of(C.defaults(), costs)[kits[1]]["flash"]) < 1024 and not C.is_last_kit(C.defaults(), kits[0]))
-# BLE replaces samples (tools/builder/room.py), BUILDER.md "Making room for BLE": ticking BLE where the build would
-# overflow removes ONE item, the smallest single item that frees enough, the sample sets first and then the other items
-# (FLUTE, the default choice, when it alone is enough); the message offers the others; another pick brings the first
-# one back when the build then fits; a profile where BLE fits loses nothing; BLE off gives back what was removed unless
-# the user changed it by hand; --ble-drop is the same choice headless. Nothing here is pinned: every figure comes from
-# costs.json as it is (BLE's measured cost, with and without BLE_DIAG), and the expected item is computed per profile
-# below from the budget alone, not from room.py, so the checks hold whatever BLE and the profiles cost.
+# BLE and the room it needs (tools/builder/room.py, BUILDER.md "BLE and the room it needs"): ticking BLE in a menu removes
+# NOTHING, like any other tick (the user, 2026-10-21: the meters go over and say it does not fit; the old rule unticked an
+# item and made BLE on show more free flash than off). `--ble-drop ITEM` is the explicit headless choice: it removes that
+# one item (make_room: the named one, or the smallest single item that frees enough); the checks below hold it to the
+# same figures as before. Nothing here is pinned: every figure comes from costs.json as it is (BLE's measured cost, with
+# and without BLE_DIAG), and the expected item is computed per profile from the budget alone, not from room.py.
 dflt_real, _ = C.load_profile("user-default")
 check("BLE, measured cost (costs.json): user-default with BLE fits as it is",
       not C.over_any(dict(dflt_real, BLE=1), costs))
@@ -541,10 +540,12 @@ def room_scenarios(prof, diag):
     sets = ["BLE=1"] + (["BLE_DIAG=1"] if diag else [])
     withble = with_ble(base, diag)
     over, order, chosen = expected_room(withble, costs)
-    cfg1, rm = RM.after_toggle(base, withble, "BLE", RM.NONE, costs)
-    real = (costs.get("checks", {}).get(prof) or {}).get("sizes", {})     # (the profile's own measured build, without BLE)
-    check(f"{tag}: the profile builds without BLE (its measured flash, RAM and pool are inside the device's)",
-          bool(real) and all(real[r] <= C.LIMITS[r] for r in ("flash", "ram", "pool")))
+    cfg0, rm0 = RM.after_toggle(base, withble, "BLE", RM.NONE, costs)
+    check(f"{tag}: BLE ticked in a menu: nothing is removed, no message, whether it fits or not (like any other tick)",
+          cfg0 == withble and not rm0.dropped and not rm0.note)
+    cfgu, rmu = RM.after_toggle(withble, base, "BLE", RM.NONE, costs)
+    check(f"{tag}: BLE unticked: the configuration is the profile's again, nothing to give back", cfgu == base and not rmu.dropped)
+    cfg1, rm = RM.make_room(withble, costs)             # (the explicit rule, --ble-drop's)
     if not over:
         check(f"{tag}: BLE fits as it is: nothing is removed, no message",
               cfg1 == withble and not rm.dropped and not rm.note and cli(prof, sets) == withble)
@@ -570,37 +571,8 @@ def room_scenarios(prof, diag):
     check(f"{tag}: every item the message offers alone frees enough and keeps the configuration valid",
           all(not C.over_any(dict(withble, **{k: off_value(k)}), costs) for k in order) and
           [k for k, _ in RM.candidates(withble, costs, over)] == order)
-    if others:
-        pick = others[0]
-        hand = dict(cfg1, **{pick: off_value(pick)})
-        cfg2, rm2 = RM.after_toggle(cfg1, hand, pick, rm, costs)
-        fits_back = not C.over_any(dict(hand, **{chosen: base[chosen]}), costs)
-        check(f"{tag}: {RM.short(pick)} picked instead: {RM.short(chosen)} " + ("comes back, the pick stays off, it fits"
-              if fits_back else "stays removed (the build would overflow with it)"),
-              (cfg2[chosen] == base[chosen] and cfg2[pick] == off_value(pick) and not rm2.dropped and
-               "restored" in rm2.note and not C.over_any(cfg2, costs)) if fits_back else
-              (cfg2 == hand and rm2.dropped == rm.dropped))
     small = [k for k, v in C.savings_of(withble, costs).items()
              if k not in order and k != "BLE" and not R.ITEMS[k].is_choice and 0 < v["flash"] and not C.validate(dict(withble, **{k: 0}))[0]]
-    if small:
-        cfg2b, rm2b = RM.after_toggle(cfg1, dict(cfg1, **{small[0]: 0}), small[0], rm, costs)
-        check(f"{tag}: a pick too small to make room ({small[0]}) leaves {RM.short(chosen)} removed",
-              cfg2b[chosen] == off_value(chosen) and rm2b.dropped == rm.dropped)
-    cfg4, rm4 = RM.after_toggle(cfg1, dict(cfg1, BLE=0, **({"BLE_DIAG": 1} if diag else {})), "BLE", rm, costs)
-    check(f"{tag}: BLE unticked: {RM.short(chosen)} is back, the configuration is the profile's again",
-          cfg4[chosen] == base[chosen] and {k for k in cfg4 if cfg4[k] != base[k]} <= {"BLE_DIAG"} and
-          f"{RM.short(chosen)} restored" in rm4.note and not rm4.dropped)
-    byhand = dict(cfg1, **{chosen: base[chosen]})
-    cfgh, rmh = RM.after_toggle(cfg1, byhand, chosen, rm, costs)
-    cfg5, _ = RM.after_toggle(cfgh, dict(cfgh, BLE=0), "BLE", rmh, costs)
-    check(f"{tag}: {RM.short(chosen)} ticked by hand again, then BLE off: the hand's choice stands, the overflow is shown",
-          not rmh.dropped and cfgh[chosen] == base[chosen] and bool(C.over_any(cfgh, costs)) and cfg5[chosen] == base[chosen])
-    mine = [k for k in sorted(R.ITEMS) if k.startswith("SET_") and k != chosen and base[k]]
-    if mine:
-        cfgm, rmm = RM.after_toggle(cfg1, dict(cfg1, **{mine[0]: 0}), mine[0], rm, costs)
-        cfg6, _ = RM.after_toggle(cfgm, dict(cfgm, BLE=0), "BLE", rmm, costs)
-        check(f"{tag}: {mine[0]} switched off by hand stays off after BLE off (never restored or touched)",
-              cfg6[mine[0]] == 0 and cfg6[chosen] == base[chosen])
     with contextlib.redirect_stdout(io.StringIO()) as said:
         c_chosen = cli(prof, sets, ble_drop=chosen)
     check(f"{tag}: --ble-drop {chosen} gives the menu's configuration and prints its message",
@@ -748,58 +720,18 @@ for _line in _mono_bad:
     print(f"  not monotonic: {_line}")
 check("estimate is monotonic: switching an item off (with its dependants) never raises the flash, RAM or pool, "
       "in synth, user-default and the defaults", not _mono_bad)
-# ---- the Reserve items (RESERVE_UNDO_KB, RESERVE_FLASH_KB): headroom kept, nothing in the image
+# ---- the undo history's ring, shown as information (the builder's reserve entries were retired 2026-10-21)
 sys.path.insert(0, str(ROOT / "tools"))
 import build as BUILD  # noqa: E402  (its check() is the real build's refusal)
-ures, fres = items["RESERVE_UNDO_KB"], items["RESERVE_FLASH_KB"]
-check("reserve: two items, first in the menu, default 0, no flag, no image, no cost",
-      R.GROUPS[0] == "Reserve" and [it.key for it in R.top_level("Reserve")] == ["RESERVE_UNDO_KB", "RESERVE_FLASH_KB"] and
-      ures.default == fres.default == 0 and not ures.flag and not fres.flag and ures.no_image and fres.no_image)
-rcfg = dict(C.defaults(), RESERVE_UNDO_KB=32, RESERVE_FLASH_KB=64)
-check("reserve: not in the header, hash or BUILD bits: the image is the same",
-      C.header(rcfg) == C.header(C.defaults()) and C.cfg_hash(rcfg) == C.cfg_hash(C.defaults()) and
-      C.cfg_bits(rcfg) == C.cfg_bits(C.defaults()))
-check("reserve: part of the saved configuration (dump / parse round trip, in the Reserve group first)",
-      C.parse(C.dump(rcfg, "r"))[0] == rcfg and C.dump(rcfg).index("# Reserve") < C.dump(dict(rcfg, ENG_FM6=0)).index("ENG_FM6=0"))
-check("reserve: costs.json has a 0 delta for every value, so --missing --check passes",
-      not MC.unmeasured(costs) and all(not any(d.values()) for k in ("RESERVE_UNDO_KB", "RESERVE_FLASH_KB")
-                                       for d in costs["deltas"][k].values()) and
-      all(len(costs["deltas"][k]) == len(R.ITEMS[k].choices) - 1 for k in ("RESERVE_UNDO_KB", "RESERVE_FLASH_KB")))
-check("reserve: the budget's totals do not move", C.budget(rcfg, costs)["total"] == C.budget(C.defaults(), costs)["total"])
+check("reserve: the retired items are not offered", "RESERVE_UNDO_KB" not in items and "RESERVE_FLASH_KB" not in items and
+      "RESERVE_UNDO_KB" in R.RETIRED and "RESERVE_FLASH_KB" in R.RETIRED)
 tot = {"flash": 500000, "ram": 80000, "pool": 300000, "ramtext": 30000}
 ring = (98304 - 80000) + (344064 - 8192 - 300000)
-check("reserve: the estimate shows the undo ring, (98,304 - RAM) + (344,064 - 8,192 - pool)",
-      C.undo_ring(tot) == ring == 54176 and C.undo_ring(dict(tot, ram=100000, pool=400000)) == 0)
-check("reserve undo: no shortfall at or above N, the shortfall below it, none with no minimum",
-      C.undo_short(dict(C.defaults(), RESERVE_UNDO_KB=32), tot) == 0 and
-      C.undo_short(dict(C.defaults(), RESERVE_UNDO_KB=0), tot) == 0 and
-      C.undo_short(dict(C.defaults(), RESERVE_UNDO_KB=32), dict(tot, pool=330000)) == 32768 - ((98304 - 80000) + (344064 - 8192 - 330000)) and
-      "undo ring" in C.fmt_budget(dict(C.defaults(), RESERVE_UNDO_KB=32), dict(costs, base=dict(costs["base"], **tot))) and
-      "BELOW" in C.fmt_budget(dict(C.defaults(), RESERVE_UNDO_KB=32), dict(costs, base=dict(costs["base"], pool=330000, ram=80000))))
-check("reserve undo: asking for it without the undo history is an error", C.validate(dict(C.defaults(), RESERVE_UNDO_KB=8, UNDO_HISTORY=0))[0]
-      and not C.validate(dict(C.defaults(), UNDO_HISTORY=0))[0])
-f0 = C.fits(tot)["flash"]
-check("reserve flash: the slot limit shrinks by N KB (the fit test and the bars), the other regions do not",
-      C.fits(tot, dict(C.defaults(), RESERVE_FLASH_KB=64))["flash"][1] == f0[1] - 65536 and
-      C.fits(tot, dict(C.defaults(), RESERVE_FLASH_KB=64))["pool"] == C.fits(tot)["pool"] and
-      C.fits(dict(tot, flash=C.LIMITS["flash"] - 70000), dict(C.defaults(), RESERVE_FLASH_KB=64))["flash"][2] < 0 and
-      C.fits(dict(tot, flash=C.LIMITS["flash"] - 60000), dict(C.defaults(), RESERVE_FLASH_KB=64))["flash"][2] > 0)
-check("reserve flash: over_any counts it (a configuration that fits the slot but not the slot less N)",
-      "flash" in C.over_any(dict(C.defaults(), RESERVE_FLASH_KB=64), dict(costs, base=dict(costs["base"], flash=C.LIMITS["flash"] - 40000, ram=0, pool=0, ramtext=0)),
-                            margin={r: 0 for r in C.REGIONS}) and
-      "flash" not in C.over_any(C.defaults(), dict(costs, base=dict(costs["base"], flash=C.LIMITS["flash"] - 40000, ram=0, pool=0, ramtext=0)),
-                                margin={r: 0 for r in C.REGIONS}))
-# the real build's refusal (tools/build.py check): the same functions it calls at the end of every non-measurement link
-BUILD.RESERVE.clear()
-check("build.py: no reserve, nothing refused", BUILD.reserve_check(BUILD.APP_SLOT, 0) == [])
-BUILD.RESERVE.update(RESERVE_FLASH_KB=16, RESERVE_UNDO_KB=8)
-check("build.py: at the reserve is accepted", BUILD.reserve_check(BUILD.APP_SLOT - 16384, 8192) == [])
-bad = BUILD.reserve_check(BUILD.APP_SLOT - 16383, 8191)
-check("build.py: one byte under either reserve is refused, each by its own message",
-      len(bad) == 2 and "flash" in bad[0] and "undo" in bad[1] and len(BUILD.reserve_check(BUILD.APP_SLOT - 16383, 9000)) == 1
-      and len(BUILD.reserve_check(BUILD.APP_SLOT - 100, 8192)) == 1)
-check("build.py: a build with no undo history has no ring to keep", BUILD.reserve_check(BUILD.APP_SLOT - 20000, None) == [])
-BUILD.RESERVE.clear()
+check("undo ring: the estimate shows it, (98,304 - RAM) + (344,064 - 8,192 - pool)",
+      C.undo_ring(tot) == ring == 54176 and C.undo_ring(dict(tot, ram=100000, pool=400000)) == 0 and
+      "undo ring" in C.fmt_budget(C.defaults(), dict(costs, base=dict(costs["base"], **tot))))
+check("a .config naming a retired reserve item still loads (the setting is ignored, with a warning)",
+      "RESERVE_UNDO_KB" not in C.parse("RESERVE_UNDO_KB=8\nRESERVE_FLASH_KB=16\n", strict=False)[0])
 
 # the boot order (tools/build.py boot_order): CPU1 starts only after the UBOOT check and the boot guard, never from recovery.
 # A synthetic disassembly: {function: [callee, ...]} in address order

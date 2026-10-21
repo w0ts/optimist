@@ -1,23 +1,17 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""Making room for an item that does not fit: "BLE replaces samples" (docs/BUILDER.md, "Making room for BLE").
+"""Making room for BLE, headless only: `--ble-drop ITEM` (docs/BUILDER.md, "Making room for BLE"). The menus (the CLI menu,
+the web page) no longer do it: ticking BLE removes nothing, the meters show an overflow like any other tick (2026-10-21).
 
-BLE (about +29 KB of flash and +6 KB of RAM, costs.json) overflows the app slot of the fuller profiles.
-Ticking it removes one item to make room, FLUTE (the sample set) by default where that is enough; the user can have another set or big item
-removed instead. The same rules serve the menu (menu.py: toggling) and the headless path (configure.py /
-optimist.py --ble-drop KEY), and use what the builder has: the budget (costs.json), savings_of (what each built
-item frees), validate (a candidate that makes the configuration invalid is not offered) and over_any (the same
-margin as --fit). Nothing here touches the firmware: a build without BLE is exactly what it was.
+BLE (about +18 KB of flash with Bluetooth Classic Audio built, +29 KB without, and +6 KB of RAM, costs.json) overflows the
+app slot of the fuller profiles. `--ble-drop ITEM` removes that one item, which must free enough. It uses what the builder
+has: the budget (costs.json), savings_of (what each built item frees), validate (a candidate that makes the configuration
+invalid is not offered) and over_any (the same margin as --fit). Nothing here touches the firmware: a build without BLE is
+exactly what it was.
 
 Pure functions on plain dicts: a configuration in, a new configuration out (nothing mutated), plus a Room (what was
-removed, and the message to show). The menu keeps the Room between toggles; the rules, in after_toggle():
-
-  - BLE ticked and the build then overflows: the default item (SET_FLUTE) goes, when removing it is enough; the
-    message names it and offers the other sets and big items that would free enough, with their sizes;
-  - BLE ticked and the build fits as it is (a smaller profile): nothing is removed;
-  - another item removed while one is auto-removed: the auto-removed one comes back when the build then fits
-    with it, so the user's pick replaces the default;
-  - BLE unticked: what was removed comes back, except what the user ticked or unticked by hand since;
-  - BLE_DIAG ticked while BLE is already on: nothing is made or given back (the bars show an overflow it causes).
+removed, and the message to show). Only make_room does anything now: with BLE on and the build overflowing, `drop` (the
+item named, or SET_FLUTE) goes when that frees enough, else the smallest item that does; the message offers the others.
+after_toggle (the menus' hook) removes nothing.
 """
 from dataclasses import dataclass
 
@@ -147,25 +141,8 @@ def restore(cfg, room):
 
 
 def after_toggle(before, after, key, room, costs=None):
-    """the user toggled `key` (before -> after configurations): -> (cfg, Room), the cfg with room made or given
-    back as the rules in the module docstring say"""
-    costs = costs or C.load_costs()
-    was, now = C.built(before, TRIGGER), C.built(after, TRIGGER)
-    if key == TRIGGER:
-        if now and not was:
-            return make_room(after, costs)
-        if was and not now:
-            back = restore(after, room)
-            names = [short(k) for k, _ in room.dropped if back[k] != after[k]]
-            return back, Room(note=("BLE off: " + ", ".join(names) + " restored") if names else "")
-        return after, room
-    held = tuple((k, p) for k, p in room.dropped if k != key)      # (the user's hand on it: no longer ours)
-    if held != room.dropped:
-        return after, Room(held, room.note if held else "")
-    if not room.dropped or not now or after[key] >= before[key]:
-        return after, room
-    back = restore(after, room)                                     # (the user removed something else)
-    if costs and not _need(back, costs):
-        names = ", ".join(short(k) for k in room.keys())
-        return back, Room(note=f"{short(key)} removed instead: {names} restored")
-    return after, room
+    """the user toggled `key` (before -> after configurations): -> (cfg, Room). Ticking BLE removes nothing, as any other
+    tick (the user, 2026-10-21: "like ANY other tick: the meters go over and it tells you it does not fit"; the rule
+    that unticked an item behind the user's back made BLE ON show more free flash than OFF). make_room stays for
+    the headless --ble-drop, which names the item explicitly"""
+    return after, NONE

@@ -82,6 +82,11 @@ PAIRS = [{"MOTION": 1, "SECTIONS": 4},
          {"BLE": 1, "BLE_BOND": 1, "BLE_CENTRAL": 1, "BLE_DIAG": 1},
          {"BLE": 1, "BLE_BOND": 1, "BLE_CENTRAL": 1, "USB_CONSOLE": 1}, {"BLE": 1, "BLE_CENTRAL": 1, "BLE_DIAG": 1, "USB_CONSOLE": 1},
          {"BLE": 1, "BLE_BOND": 1, "BLE_CENTRAL": 1, "BLE_DIAG": 1, "USB_CONSOLE": 1},
+         # BLE and Bluetooth Classic Audio share the Bluetooth stack (HCI, the controller, L2CAP): with BT_AUDIO on, BLE costs
+         # ~11 KB less than its delta from the defaults (2026-10-21, real builds of mots-2: BLE off 582,596, on 600,352 B,
+         # the estimate said 611,664; with them both off the delta is 28.8 KB, with BT_AUDIO already built 17.8 KB)
+         {"BLE": 1, "BT_AUDIO": 1}, {"BLE": 1, "BLE_CENTRAL": 1, "BT_AUDIO": 1},
+         {"BLE": 1, "BLE_BOND": 1, "BLE_CENTRAL": 1, "BT_AUDIO": 1},
          # SLOOP 2.4's guard and import: core.h SL24_AUTO (PROJECT > A24) and project.c's shared reader are built
          # with both / either, so the two off together save 3.9 KB less than their deltas
          {"SL24_SAFE": 0, "SL24_IMPORT": 0},

@@ -524,9 +524,10 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #define ED_LIB FELUCCA_LIBRARIAN           /* (the user presets and kits answered: either editor, with the librarian) */
 #define ED_UKITS (FELUCCA_DRUM_KITS && ED_LIB)   /* (the user kits' commands, 38..41) */
 #ifndef FELUCCA_PAGE_LINES
-#define FELUCCA_PAGE_LINES 0               /* the Optimist UI's screens of rows with no picture as GLOBAL's four lines (a row
+#define FELUCCA_PAGE_LINES 1               /* the Optimist UI's screens of rows with no picture as GLOBAL's four lines (a row
                                             * a page, KNOB k line k), not 2x2 cards over a row list (op_gldraw.c pl_draw).
-                                            * The builder's default is 1; the host tests keep the cards (ui_optimist_plines.h) */
+                                            * Always on in a firmware build (the builder item was retired 2026-10-21); the host
+                                            * tests pass 0 to keep the cards they were written for (ui_optimist_test.c) */
 #endif
 #ifndef FELUCCA_SYS_DEBUG
 #define FELUCCA_SYS_DEBUG 1                /* the Optimist UI's SYSTEM debug pages: INTERNALS, USB STATS and INFO's clock,

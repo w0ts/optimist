@@ -44,6 +44,9 @@ MERGED = {
 
 # Dropped items: a .config naming one still loads; the setting is ignored with a warning (configure.py parse)
 RETIRED = {
+    "RESERVE_UNDO_KB": "the builder's reserve entries were useless and not working (retired 2026-10-21, bit 59: the user: \"remove the reserve entry from console and web builder\"); the budget shows the undo ring as information",
+    "RESERVE_FLASH_KB": "the builder's reserve entries were useless and not working (retired 2026-10-21, bit 60)",
+    "PAGE_LINES": "the screens of rows with no picture are always GLOBAL's four lines, not 2x2 cards over a row list (retired 2026-10-21, bit 342; the user: \"remove the entry of the builder and turn it on by default\")",
     "DRUM_ACCENT": "the drum track's ACCENT lane is always built, on (retired 2026-10-20, bit 340; the user: \"drum accent does not need to be a builder choice. on by default\"); without the automation store the firmware still leaves it out, the lane being its events",
     "BT_INQ_PROBE": "the Bluetooth Classic inquiry probe was dropped 2026-10-20 (bit 280 stays unused); its stack is BT_AUDIO's, and with USB_MODE 1 so are the console's btinq / btpage",
     "UI": "the Optimist UI is the only user interface: SLOOP's UI was removed (retired 2026-10-19, bit 251; any old UI value is ignored)",
@@ -100,7 +103,7 @@ RETIRED = {
 # Retired items every image is still built as (their firmware default): the configuration hash counts them at that
 # value (configure.py cfg_hash), so retiring one changes no image's hash. SIMD was default 0 in every profile; LFO2 is
 # counted ON (the image every build is now; a build that had it off is a different image).
-HASH_AS = {"SIMD": 0, "KNOB_ONEREST": 1, "MONO_RELEASE": 1, "ST_STRICT": 1, "USB_FLOW": 1, "SHED_FADE": 1, "KEYS_FAST": 1, "TRS_NOISE": 1, "BK_CHECK": 1, "LAYER_QUIET": 1, "DLY_HALVE": 1, "LFO2": 1, "GLIDE": 1, "UI": 1, "ICONS": 0, "OVERVIEW": 0, "OV_ARP": 1, "DRUM_STEP": 1, "CHORD_NAMES": 1, "BPM_LOCK": 0, "MOTION_MARK": 1, "SEL_PAGES": 0, "BIGVALS": 0, "DRUM_ACCENT": 1}   # (each was its default in every profile)
+HASH_AS = {"SIMD": 0, "KNOB_ONEREST": 1, "MONO_RELEASE": 1, "ST_STRICT": 1, "USB_FLOW": 1, "SHED_FADE": 1, "KEYS_FAST": 1, "TRS_NOISE": 1, "BK_CHECK": 1, "LAYER_QUIET": 1, "DLY_HALVE": 1, "LFO2": 1, "GLIDE": 1, "UI": 1, "ICONS": 0, "OVERVIEW": 0, "OV_ARP": 1, "DRUM_STEP": 1, "CHORD_NAMES": 1, "BPM_LOCK": 0, "MOTION_MARK": 1, "SEL_PAGES": 0, "BIGVALS": 0, "DRUM_ACCENT": 1, "PAGE_LINES": 1}   # (each was its default in every profile)
 
 # Never offered: used by X0X only by permission of its author, no licence
 FORBIDDEN = {
@@ -193,22 +196,6 @@ def _add(*a, **k):
     _ITEMS.append(it)
     return it
 
-
-# ---- reserve: headroom the user keeps instead of filling the device to the last byte. Settings of the build, not
-# firmware: no flag, nothing in the image, no cost (costs.json: 0); tools/builder/configure.py reserve_* applies them
-# to the budget and tools/build.py refuses a build that leaves less (docs/BUILDER.md, docs/MEMORY-MAP.md section 2.1)
-RES = "Reserve"
-_add("RESERVE_UNDO_KB", "", "keep at least this much undo history", RES, 59, default=0, no_image=True,
-     choices=((0, "no minimum"), (4, "4 KB"), (8, "8 KB"), (16, "16 KB"), (32, "32 KB")),
-     desc="Keeps headroom for the undo history instead of filling RAM and pool to the last byte: the history's ring "
-          "is what they leave free ((98,304 - RAM) + (344,064 - 8,192 - pool), docs/MEMORY-MAP.md). The estimate "
-          "shows the ring and warns below this figure; a build whose real ring is smaller is refused. Nothing in "
-          "the firmware changes (it needs the undo / redo history item).")
-_add("RESERVE_FLASH_KB", "", "keep at least this much app flash free", RES, 60, default=0, no_image=True,
-     choices=((0, "no minimum"), (8, "8 KB"), (16, "16 KB"), (32, "32 KB"), (64, "64 KB")),
-     desc="Keeps room in the app slot for later (a feature, an update) instead of filling it to the last byte: the "
-          "budget subtracts it from the slot and a build that leaves less free is refused. Nothing in the firmware "
-          "changes.")
 
 # ---- engines (UID = FUN7 number, firmware/src/core/registry.h ENGINE_LIST)
 # A tracks whose engine a build leaves out plays a stand-in engine (ANALOG 2 for most) and the MISSING warning
@@ -704,15 +691,9 @@ _add("FAVORITES", "FELUCCA_FAVORITES", "favorites: mark sounds, browse only them
 _add("PARAM_HELP", "FELUCCA_PARAM_HELP", "help line: what the knob changes, in words", U, 138, default=0,
      desc="the screen's last line names what a knob changes in plain words, e.g. 'Filter cutoff', 'Reverb send', while "
           "a value turns and ~2 s after, and always on GLOBAL, SYSTEM and PROJECT (the cursor line, the hot action, "
-          "'(asks)' where it asks first); only the lines of the features built (tools/param_help.json, also the web "
+          "' -> SAVE' after an action that asks first: the button that runs it); only the lines of the features built (tools/param_help.json, also the web "
           "editor's tooltips). About 7.7 KB of flash (the texts packed), no RAM code",
      symbols=("ph_find", "PH_BLOB"))
-_add("PAGE_LINES", "FELUCCA_PAGE_LINES", "pages as lines (GLOBAL's look), not 2x2 cards + list", U, 342, default=1,
-     desc="A screen of rows with no picture (EDIT, VOICE, PROJECT, SONG, the master FX, SOUND's "
-          "pages without a graph) shows its cursor row as four lines, as GLOBAL and SYSTEM do: the value's name, the "
-          "value large on the right, its bar across the screen; KNOB k is line k, SELECT the next row (the header names "
-          "it and its n/N). Screens with a picture (ENV, LFO, ARP, the FX needles, TEMPO, SCOPE) keep the 2x2 cards over "
-          "it, the mixer its 1x4 cards. Off: the 2x2 cards with the row list under them, as before. No data change.")
 _add("SYS_DEBUG", "FELUCCA_SYS_DEBUG", "SYSTEM's debug pages (internals, USB stats)", U, 341, default=0,
      desc="SYSTEM keeps its pages for finding faults: INTERNALS (the last reset, the flash's "
           "interrupts-off time, the second core's internals), USB STATS (the USB audio glitch counters) and on INFO the "

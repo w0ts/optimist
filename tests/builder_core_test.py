@@ -81,13 +81,9 @@ check(f"key: an option of an item left out ({opt} of {par}) does not change it",
       K.cloud_key(off, SHA) == K.cloud_key(dict(off, **{opt: alt}), SHA))
 on = dict(d, **{par: 1})
 check("key: ... and does with its item built", K.cloud_key(on, SHA) != K.cloud_key(dict(on, **{opt: alt}), SHA))
-reserve = [k for k, it in R.ITEMS.items() if it.no_image]
-check("key: the reserve items (not in the image) do not change it",
-      reserve and K.cloud_key(dict(d, **{k: 8 for k in reserve}), SHA) == key)
-check("canonical: sorted KEY=value lines, the retired items at their image value, no reserve item",
+check("canonical: sorted KEY=value lines, the retired items at their image value",
       K.canonical(d).splitlines() == sorted(K.canonical(d).splitlines()) and
-      all(f"{k}={v}" in K.canonical(d).splitlines() for k, v in R.HASH_AS.items()) and
-      not any(ln.split("=")[0] in reserve for ln in K.canonical(d).splitlines()))
+      all(f"{k}={v}" in K.canonical(d).splitlines() for k, v in R.HASH_AS.items()))
 text = C.dump(dict(d, **{par: 1, opt: alt}), "a name").splitlines()
 shuffled = text[:]
 random.Random(3).shuffle(shuffled)
@@ -114,12 +110,11 @@ check("savings: the web editor with live editing off saves under half of what it
 def everything_on():
     cfg = C.defaults()
     for k, it in R.ITEMS.items():
-        if k not in ("RESERVE_UNDO_KB", "RESERVE_FLASH_KB"):
-            cfg[k] = max(c[0] for c in it.choices) if it.is_choice else 1
+        cfg[k] = max(c[0] for c in it.choices) if it.is_choice else 1
     return cfg
 
 
-tight = dict(C.defaults(), ENG_PHYS=1, RESERVE_FLASH_KB=200)
+tight = dict(C.defaults(), ENG_PHYS=1)
 with contextlib.redirect_stderr(io.StringIO()):
     fitting = C.load_profile("synth")[0]
 check("proposals: a configuration that fits has none", K.fits(K.budget(fitting, costs)["total"], fitting) and not any(o > 0 for _, _, o in K.fits(K.budget(fitting, costs)["total"], fitting).values()) and K.proposals(fitting, costs) == [])
@@ -138,8 +133,6 @@ fitted, _ = K.fit(tight, costs)
 check("proposals: 'least loss' is core.fit's result (the CLI's) when that fits", fitted is None or (least and least["values"] == fitted))
 check("proposals: fitting ones come first; when none fits the closest are shown (fits False)",
       [p["fits"] for p in P1] == sorted((p["fits"] for p in P1), reverse=True) and P2 and any(not p["fits"] for p in P2) == (not any(p["fits"] for p in P2)) or any(p["fits"] for p in P2))
-check("proposals: the reserves proposal lowers RESERVE_FLASH_KB first",
-      any(p["id"] == "reserves" and p["changes"][0]["key"] == "RESERVE_FLASH_KB" and p["values"]["RESERVE_FLASH_KB"] == 0 for p in P1))
 check("proposals: 'keep my engines' leaves every built engine as it was",
       all(p["values"][k] == base[k] for base, ps in ((tight, P1), (everything_on(), P2)) for p in ps if p["id"] == "engines"
           for k, it in R.ITEMS.items() if it.group == "Synth engines"))
