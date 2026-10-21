@@ -3,9 +3,11 @@
  * step sequencer"): SCENES, a table of 8 scenes a window (A-H, I-P) by 5 lanes (T1 T2 T3 DR: the pattern each track plays,
  * BARS: AUTO or the scene's length), and PARTS, a timeline of 8 parts a window by 2 lanes (the scene, and the bars: S the
  * scene's own, A the longest pattern, or a number). The rows, cells and turns underneath are op_song.c's, unchanged; this
- * file draws them as a table and gives the knobs STEP's language:
- *   KNOB 1 (and SELECT)  the cursor along the columns          KNOB 2   moves the part itself left / right (PARTS)
- *   ALGORITHM, KNOB 3    the cursor up / down the lanes        KNOB 4   adjusts the value under the cursor
+ * file draws them as a table and gives the knobs:
+ *   SCENES (the user, 2026-10-21: "simpler"): KNOB 1..4 the value of T1 T2 T3 DR of the scene under the cursor, PRESETS its
+ *     BARS; SELECT the cursor along the scenes, ALGORITHM the lane highlight
+ *   PARTS (the same, 2026-10-21): KNOB 1 the scene of the part under the cursor, KNOBS 2..4 the scenes of the three parts after
+ *     it, PRESETS its BARS; SELECT the cursor along the parts, ALGORITHM the lane highlight
  * The PATTERNS grid is LFO's screen (op_layers.c lay_pat_peek), not SONG's. */
 #define STB_COLS 8u                     /* the columns of a window */
 #define STB_X0 38                       /* the first column's left, after the lanes' names */
@@ -53,11 +55,13 @@ static void stb_paint(void)
     for (lane = 0; lane < nl; lane++) {                 /* the lanes' names */
         y = 22 + (int32_t)lane * ph + (ph - (int32_t)FONT_S.h) / 2;
         cv_text(3, y, &FONT_S, stb.kind == SG_SCENE ? SN[lane] : PN[lane],
-                lane == stb.lane ? C_WHITE : lane == (stb.kind == SG_SCENE ? 4u : 1u) ? STB_PURPLE : C_GRAY);
+                lane == stb.lane ? C_WHITE : lane == (stb.kind == SG_SCENE ? 4u : 1u) ? STB_PURPLE : stb.kind == SG_SCENE ? knob_col(lane, C_GRAY) : C_GRAY);
     }
     for (i = 0; i < STB_COLS && c0 + i < stb.n; i++) {
         int32_t x = STB_X0 + (int32_t)i * STB_CW;
-        uint16_t hc_ = stb.live[i] == 1u ? C_OK : stb.live[i] == 2u ? C_WARN : stb.live[i] == 3u ? C_DIM : C_GRAY;
+        uint32_t rel = c0 + i - stb.col;                /* (PARTS: the cursor's part is KNOB 1's, the next three KNOBS 2..4's: their knob colours) */
+        int kp = stb.kind == SG_PART && c0 + i >= stb.col && rel < 4u;
+        uint16_t hc_ = stb.live[i] == 1u ? C_OK : stb.live[i] == 2u ? C_WARN : stb.live[i] == 3u ? C_DIM : kp ? knob_col(rel, C_GRAY) : C_GRAY;
         if (c0 + i == stb.col)
             hc_ = C_WHITE;
         if (stb.kind == SG_SCENE) {                     /* the column's head: the scene's letter */
@@ -68,7 +72,7 @@ static void stb_paint(void)
         cv_text(x + (STB_CW - text_w(&FONT_S, b)) / 2, 4, &FONT_S, b, hc_);
         for (lane = 0; lane < nl; lane++) {
             const char *v = stb.t[lane][i];
-            uint16_t col = lane == nl - 1u ? STB_PURPLE : stb.kind == SG_SCENE ? trk_col(lane) : C_HI;
+            uint16_t col = lane == nl - 1u ? STB_PURPLE : stb.kind == SG_SCENE ? knob_col(lane, trk_col(lane)) : kp ? knob_col(rel, C_HI) : C_HI;
             y = 22 + (int32_t)lane * ph;
             if (v[0] == '-' || v[0] == 0 || (stb.live[i] == 3u && lane != nl - 1u))
                 col = C_DIM;                            /* (nothing there: dim; the BARS lane stays purple) */
@@ -97,7 +101,7 @@ static void stb_paint(void)
 static void song_tbl_draw(void)
 {
     uint32_t a, kind = song_kind(ui.row[SCR_SONG], &a), nl = kind == SG_SCENE ? 5u : 2u, c0, i, lane;
-    uint32_t sig = hu(hu(0x57B1u + kind, settings.palette), arrangement_clock.running * 256u + arrangement_clock.index);
+    uint32_t sig = hu(hu(0x57B1u + kind, settings.palette + knob_colors * 256u), arrangement_clock.running * 256u + arrangement_clock.index);
     if (stb_lane >= nl)
         stb_lane = (uint8_t)(nl - 1u);
     stb.kind = kind, stb.col = a, stb.lane = stb_lane;
@@ -124,7 +128,6 @@ static void song_tbl_draw(void)
     cv_tall(GL_TOP, GL_BAND, C_BLACK, stb_paint);
 }
 /* the knobs on a table (STEP's language): 1 when one turned */
-static void song_part_move(uint32_t a, int32_t d);      /* op_song.c */
 static int song_tbl_knobs(void)
 {
     uint32_t a, kind = song_kind(ui.row[SCR_SONG], &a), n = kind == SG_SCENE ? song_nscn() : arrangement.count, nl = kind == SG_SCENE ? 5u : 2u;
@@ -132,41 +135,57 @@ static int song_tbl_knobs(void)
     int any = 0;
     if (stb_lane >= nl)
         stb_lane = (uint8_t)(nl - 1u);
-    s = panel_enc(EN_K1);
-    if (s == 0)
-        s = panel_enc(EN_SELECT);                       /* (SELECT walks the columns as KNOB 1) */
-    if (s != 0) {
-        int32_t c = clamp((int32_t)a + s, 0, (int32_t)n - 1);
-        op_row_pick(kind == SG_SCENE ? (uint32_t)c : song_row_of_part((uint32_t)c));
-        any = 1;
-    }
-    if ((s = panel_enc(EN_K2)) != 0) {                  /* the part itself, left / right; the scenes stay where their letters are */
-        if (kind == SG_PART) {
-            for (; s > 0; s--)
-                song_part_move(a, 1);
-            for (; s < 0; s++)
-                song_part_move(a, -1);
-        } else {
-            ui_message("SCENES STAY PUT");
+    if (kind == SG_SCENE) {                             /* SCENES: a knob a track's value, PRESETS the bars; SELECT the scene, ALGORITHM the lane */
+        uint32_t k;
+        if ((s = panel_enc(EN_SELECT)) != 0) {
+            op_row_pick((uint32_t)clamp((int32_t)a + s, 0, (int32_t)n - 1));
+            any = 1;
         }
-        any = 1;
-    }
-    if ((s = panel_enc(EN_ALGO)) != 0) {                /* up / down the lanes */
-        stb_lane = (uint8_t)clamp((int32_t)stb_lane + s, 0, (int32_t)nl - 1);
-        any = 1;
-    }
-    if ((s = panel_enc(EN_K3)) != 0) {
-        stb_lane = (uint8_t)clamp((int32_t)stb_lane + s, 0, (int32_t)nl - 1);
-        any = 1;
-    }
-    if ((s = panel_enc(EN_K4)) != 0) {                  /* the value under the cursor */
-        if (kind == SG_SCENE && stb_lane == 4u)
+        if ((s = panel_enc(EN_ALGO)) != 0) {
+            stb_lane = (uint8_t)clamp((int32_t)stb_lane + s, 0, (int32_t)nl - 1);
+            any = 1;
+        }
+        for (k = 0; k < 4u; k++) {
+            static const uint8_t KN[4] = {EN_K1, EN_K2, EN_K3, EN_K4};
+            if ((s = panel_enc(KN[k])) == 0)
+                continue;
+            if (!((sg.scn >> a) & 1u))
+                ui_message("EMPTY SCENE");              /* (nothing stored: SAVE + its key stores the loop) */
+            else
+                song_turn(ui.row[SCR_SONG], k, s, 0);
+            stb_lane = (uint8_t)k;
+            any = 1;
+        }
+        if ((s = panel_enc(EN_PRESET)) != 0) {
             song_scene_bars_turn(a, s);
-        else if (kind == SG_SCENE && !((sg.scn >> a) & 1u))
-            ui_message("EMPTY SCENE");                  /* (nothing stored: SAVE + its key stores the loop) */
-        else
-            song_turn(ui.row[SCR_SONG], stb_lane, s, 0);
-        any = 1;
+            stb_lane = 4u;
+            any = 1;
+        }
+        return any;
+    }
+    {                                                   /* PARTS: KNOB 1 the part under the cursor's scene, KNOBS 2..4 the next parts', PRESETS its bars */
+        uint32_t k;
+        static const uint8_t KN[4] = {EN_K1, EN_K2, EN_K3, EN_K4};
+        if ((s = panel_enc(EN_SELECT)) != 0) {
+            op_row_pick(song_row_of_part((uint32_t)clamp((int32_t)a + s, 0, (int32_t)n - 1)));
+            any = 1;
+        }
+        if ((s = panel_enc(EN_ALGO)) != 0) {
+            stb_lane = (uint8_t)clamp((int32_t)stb_lane + s, 0, (int32_t)nl - 1);
+            any = 1;
+        }
+        for (k = 0; k < 4u; k++) {
+            if ((s = panel_enc(KN[k])) == 0)
+                continue;
+            if (a + k < n)
+                song_turn(song_row_of_part(a + k), 0, s, 0);
+            any = 1;
+        }
+        if ((s = panel_enc(EN_PRESET)) != 0) {
+            song_turn(ui.row[SCR_SONG], 1, s, 0);
+            stb_lane = 1u;
+            any = 1;
+        }
     }
     return any;
 }

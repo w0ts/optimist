@@ -559,10 +559,13 @@ static void op_press(uint32_t b, uint32_t held)
  * FX on and MUTE are knobs, the SOUND row is EDIT's first). SHIFT held alone there does nothing (D1: SYSTEM is in GLO's cycle) */
 static int mx_quiet(void) { return ui.scr == SCR_HOME && !op_armed(); }
 /* SAVE held alone past the hold time, let go with nothing else used (the user, 2026-10-16): PROJECT <-> SONG (SAVE tapped
- * runs PROJECT's operation, launches SONG's scene) */
+ * runs PROJECT's operation, launches SONG's scene); on a SONG scene row it clears the scene instead */
 static void save_hold(void)
 {
-    if (ui.scr == SCR_SONG)
+    uint32_t a;
+    if (ui.scr == SCR_SONG && song_rows() > ui.row[SCR_SONG] && song_kind(ui.row[SCR_SONG], &a) == SG_SCENE)
+        scene_clear_ask(a);                             /* SAVE held on a scene: clear it (asked; the user, 2026-10-21) */
+    else if (ui.scr == SCR_SONG)
         op_enter(SCR_PROJECT);
     else
         song_shortcut(0);
