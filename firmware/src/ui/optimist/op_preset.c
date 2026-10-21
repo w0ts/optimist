@@ -248,22 +248,34 @@ static void pop_paint(void)                             /* the box in its own co
             ec = eng < NENGINES ? ENG_COL[eng] : C_GRAY;
         }
         {
-            const felucca_font_t *f = text_w(&FONT_L, nm) <= 190 ? &FONT_L : &FONT_S;   /* (the large face where the name fits) */
-            if (off == 0 && en[0])                              /* (the one playing: its tag in the header, always) */
-                cv_text(16 + text_w(&FONT_S, pop_kind == 2u ? "KIT" : "SOUND") + 12, 6, &FONT_S, en, ec);
-            if (text_w(f, nm) + text_w(&FONT_S, en) + 24 > 224)
-                en[0] = 0;                                      /* (the tag only where it fits beside the name) */
-            if (off == 0)
-                cv_rect(12, ry - 1, 216, POP_RH - 2, C_LINE);   /* (the one playing: a lit band) */
-            cv_rect(16, ry + POP_RH / 2 - 4, 6, 8, ec);         /* the engine's chip */
-            cv_text(28, ry + (POP_RH - (int32_t)f->h) / 2, f, nm, off == 0 ? C_WHITE : C_GRAY);
+            int32_t um = 0, fm = 0;                             /* the bullet on the left (the engine's chip) becomes a star for a user preset (the engine's colour) or a favorite (amber) */
+            const felucca_font_t *f;
 #if FELUCCA_FAVORITES
             if (pop_kind == 1u || pop_kind == 5u) {
                 uint32_t fk, fe = preset_at(idx, &fk);
-                if (fav_entry(fe, fk))
-                    cv_text(28 + text_w(f, nm) + 4, ry + (POP_RH - (int32_t)f->h) / 2, f, "*", off == 0 ? C_WHITE : C_GRAY);
+                um = fe == NENGINES;
+                fm = fav_entry(fe, fk);
+            }
+#else
+            if (pop_kind == 1u || pop_kind == 5u) {
+                uint32_t fk;
+                um = preset_at(idx, &fk) == NENGINES;
             }
 #endif
+            f = text_w(&FONT_L, nm) <= 190 ? &FONT_L : &FONT_S;   /* (the large face where the name fits) */
+            if (off == 0 && en[0])                              /* (the one playing: its tag in the header, always) */
+                cv_text(16 + text_w(&FONT_S, pop_kind == 2u ? "KIT" : "SOUND") + 12, 6, &FONT_S, en, ec);
+            if (text_w(f, nm) + text_w(&FONT_S, en) + 8 > 190)
+                en[0] = 0;                                      /* (the tag only where it fits beside the name) */
+            if (off == 0)
+                cv_rect(12, ry - 1, 216, POP_RH - 2, C_LINE);   /* (the one playing: a lit band) */
+            if (um || fm) {
+                uint16_t sc = fm ? C_WARN : ec;
+                cv_text(14, ry + (POP_RH - (int32_t)FONT_L.h) / 2, &FONT_L, "*", off == 0 ? sc : col_shade(sc, 3u));
+            } else {
+                cv_rect(16, ry + POP_RH / 2 - 4, 6, 8, ec);     /* the engine's chip */
+            }
+            cv_text(28, ry + (POP_RH - (int32_t)f->h) / 2, f, nm, off == 0 ? C_WHITE : C_GRAY);
             cv_text(224 - text_w(&FONT_S, en), ry + (POP_RH - (int32_t)FONT_S.h) / 2, &FONT_S, en, off == 0 ? ec : col_shade(ec, 3u));
         }
     }
