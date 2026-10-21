@@ -95,11 +95,8 @@ static uint32_t at_inert_state(void)
 static void at_inert_tests(void)
 {
     static const uint8_t PG[] = {SCR_PROJECT, SCR_SONG, SCR_FX};
-    static const uint8_t BTN[] = {B_FX, B_ARP, B_GLO   /* (SAVE is no layer since 2026-10-16) */
-#if FELUCCA_PATTERNS
-                                  , B_LFO               /* (the patterns layer; without them LFO is only SHIFT) */
-#endif
-    };
+    static const uint8_t BTN[] = {B_FX, B_ARP, B_GLO};   /* (SAVE is no layer since 2026-10-16; LFO, the patterns layer, walks the
+                                                          * track since 2026-10-20: ui_optimist_test.c) */
     uint32_t i, ok = 1, sum, st;
     for (i = 0; i < sizeof PG; i++) {
         uint32_t bad;
@@ -119,7 +116,7 @@ static void at_inert_tests(void)
     }
     check(ok, "ALGORITHM does nothing on PROJECT, SONG and the master FX screen (no track, screen, row or setting; GLOBAL and SYSTEM scroll their lines)");
     ok = 1;
-    for (i = 0; i < sizeof BTN; i++) {                  /* layers over the SOUND page of T2: FX ARP GLO LFO are global */
+    for (i = 0; i < sizeof BTN; i++) {                  /* layers over the SOUND page of T2: FX ARP GLO are global */
         uint32_t bad;
         reset_ui();
         song.sel = 1;
@@ -138,7 +135,7 @@ static void at_inert_tests(void)
             printf("  algotrack: layer button %u moved on ALGORITHM\n", BTN[i]);
         ok &= !bad;
     }
-    check(ok, "ALGORITHM does nothing in the global layers (FX ARP GLO LFO held): no track, no setting");
+    check(ok, "ALGORITHM does nothing in the global layers (FX ARP GLO held): no track, no setting");
     reset_ui();
     song.sel = 1;
     sum = at_sum();

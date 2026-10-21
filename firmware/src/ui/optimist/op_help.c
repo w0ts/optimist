@@ -6,7 +6,7 @@
  *                      while it turns and HL_FRAMES (~2 s) after its last detent; another screen lets it go
  *   a vertical menu    GLOBAL and SYSTEM's settings list (the cursor line) and PROJECT (the cursor row's hot cell): always
  *                      there, the list made shorter for it (op_gldraw.c GL_LINE_H, op_draw.c LIST_H); an action that
- *                      asks first says so ("(asks)")
+ *                      asks first says so (" -> SAVE")
  *   a layer opened     its "Oct- locks it", once a power-on, ~2.5 s (op_laydraw.c lay_hint; the audit's #24)
  * Not under a question (the modal), the REC ring, a layer's map (but that hint) or NAME (its own hints, op_name.c). Its rows are a band of their own (op_graph.c
  * OP_FOOT, the audit's #6): every screen's content ends above it whether the line shows or not, so the line covers

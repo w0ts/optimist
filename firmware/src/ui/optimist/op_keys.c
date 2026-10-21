@@ -54,30 +54,36 @@ static void keys_mix(uint32_t *f, uint32_t *d)          /* GLO held: the MIX lay
 }
 static void keys_scenes(uint32_t *f, uint32_t *d, uint32_t blink)   /* LFO held, black 10: the scenes */
 {
-    uint32_t i;
-    *d = keys_white(LAY_NSCN);
+    uint32_t i, m = song_scenes_mask();                 /* (off: empty, dim: something in it, full: the one playing) */
+    *d = 0;
+    for (i = 0; i < LAY_NSCN; i++)
+        if ((m >> i) & 1u)
+            *d |= key_w((int32_t)i);
     for (i = 0; i < LAY_NSCN; i++)
         if ((live_sec == (int8_t)i && !arrangement_clock.running) || (live_req == (int8_t)i && blink))
             *f |= key_w((int32_t)i);
 }
 #if FELUCCA_PATTERNS
-static void keys_pat_white(uint32_t *f, uint32_t *d, uint32_t blink)   /* the selected track's patterns */
+static void keys_pat_white(uint32_t *f, uint32_t *d, uint32_t blink)   /* the selected track's patterns: off empty, dim stored
+                                                         * (the user, 2026-10-20), full the one playing, the queued one blinking */
 {
-    uint32_t sel = song.sel % NTRK;
-    *d |= keys_white(PAT_N);
+    uint32_t sel = song.sel % NTRK, i;
+    for (i = 0; i < PAT_N; i++)
+        if (pat_has(sel, i))
+            *d |= key_w((int32_t)i);
     *f |= (pat_cur[sel] < PAT_N ? key_w(pat_cur[sel]) : 0u) | (pat_req[sel] < PAT_N && blink ? key_w(pat_req[sel]) : 0u);
 }
 static void keys_pat(uint32_t *f, uint32_t *d, uint32_t blink)       /* LFO held: the patterns (black 10: the scenes), the black keys' jobs */
 {
     uint32_t k, b;
-    if (lay.pmod == 10u)
-        keys_scenes(f, d, blink);
+    if (lay.pmod == 10u || btn_held(B_SEQ))
+        keys_scenes(f, d, blink);                       /* (SEQ held: the scenes, as black 10 would) */
     else
         keys_pat_white(f, d, blink);
     for (k = 0; k < 27u; k++) {
         b = pat_black(k);
         if (b < 1u || b > 10u || (b >= 6u && b <= 8u))
-            continue;                                   /* (6 7 8 were store, copy, clear: now SAVE + n, SHIFT + n) */
+            continue;                                   /* (6 7 8 were store, copy, clear: now SAVE + n, HOME + n) */
         *d |= 1u << k;
         if (b == song.sel % NTRK + 1u || b == lay.pmod)
             *f |= 1u << k;
@@ -193,8 +199,12 @@ static void keys_lit(uint32_t *f, uint32_t *d)
         return;
     }
 #endif
+    if (ui.scr == SCR_SONG && !song_on_pat_row() && !mk_live()) {
+        song_keys_led(f, d, blink);                     /* (SONG: the scenes, the parts window, the cycle key) */
+        return;
+    }
     if (keys_none())
-        return;                                         /* (GLOBAL, SYSTEM, MASTER FX, SONG, SCOPE: no track, the keys do nothing: dark) */
+        return;                                         /* (GLOBAL, SYSTEM, MASTER FX, SCOPE: no track, the keys do nothing: dark) */
     if (is_drum(TSEL) && !master_sel()) {               /* the drum track: the lanes' black keys dim, the selected one full; */
         uint32_t in, on = step_win(blink, &in);         /* the white keys its steps, as on STEP (they are steps on every page) */
         for (k = 0; k < 27u; k++)

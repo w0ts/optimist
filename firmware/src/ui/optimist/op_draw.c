@@ -34,6 +34,10 @@ static void mx_draw(void);                              /* op_mixdraw.c: the mix
 static void mx_redraw(void);
 static void scope_draw(void);                           /* op_scope.c: the oscilloscope */
 static uint32_t op_overlay(void);
+static int song_tbl_on(void);                            /* op_songtbl.c: SONG's scenes table and parts timeline */
+static void song_tbl_draw(void);
+static uint32_t pre_sig(void);                          /* op_preset.c */
+static void draw_pop(void);                             /* op_preset.c: PRESETS' popup list */
 static uint32_t f6_graph_sig(void);                     /* op_fm6draw.c: FM6's algorithm */
 static void f6_alg_draw(int32_t y0, int32_t h, int big);
 static void gl_draw(void);                              /* op_gldraw.c: GLOBAL and SYSTEM's list */
@@ -292,7 +296,7 @@ static const uint8_t HEAD_TRK_LY[LY_COUNT] = {
     [LY_FX] = 0,        /* filter, dust, duck are the song's (TRK FLT is the only track knob) */
     [LY_ERASE] = 1, [LY_ROLL] = 0, [LY_STEP] = 1, [LY_SCALE] = 1, [LY_MIX] = 0, [LY_SONG] = 0, [LY_OPS] = 1,
 #if FELUCCA_PATTERNS
-    [LY_PAT] = 0,       /* every track's pattern */
+    [LY_PAT] = 1,       /* (ALGORITHM picks the track the keys launch for, op_layers.c lay_knobs) */
 #endif
 };
 static uint32_t head_has_track(void)
@@ -938,7 +942,8 @@ static uint32_t row_pic(uint32_t cur)
     if (ui.scr == SCR_SOUND && snd_fam == SND_FM6)
         pic = 4u;                                       /* FM6's rows: the algorithm (op_fm6draw.c) */
     else if (ui.scr == SCR_SOUND && !snd_page(cur))
-        pic = 5u;                                       /* the SOUND row: the presets with their engines */
+        pic = FELUCCA_PAGE_LINES && !is_drum(TSEL) ? 0u : 5u;   /* the SOUND row: the presets with their engines; with the lines the
+                                                         * row is four lines and PRESETS' popup list is the engines' list (the user, 2026-10-21) */
 #if FELUCCA_PATTERNS
     if (song_on_pat_row())
         pic = 2u;
@@ -951,7 +956,7 @@ static uint32_t row_pic(uint32_t cur)
 static int pl_on(void)
 {
 #if FELUCCA_PAGE_LINES
-    return lay.shown == LY_PLAY && !name_on() && ui.scr != SCR_HOME && ui.scr != SCR_STEP && ui.scr != SCR_SCOPE &&
+    return lay.shown == LY_PLAY && !name_on() && ui.scr != SCR_HOME && ui.scr != SCR_STEP && ui.scr != SCR_SCOPE && !song_tbl_on() &&
            !glo_cycle() && !prj_listing() && SCR->rows() && !row_pic(ui.row[ui.scr])
 #if FELUCCA_BT_UI
            && !dev_listing()
@@ -1053,7 +1058,7 @@ static void draw_under(void)
 }
 
 /* ---- the overlay: the modal (a question) or the toast (a result) over the panel */
-static uint32_t op_overlay(void) { return op_code_on() ? 4u : rh.ring ? 3u : op_armed() ? 1u : ui.toast_t ? 2u : 0u; }
+static uint32_t op_overlay(void) { return op_code_on() ? 4u : rh.ring ? 3u : op_armed() ? 1u : ui.toast_t ? (pop_kind ? 5u : 2u) : 0u; }   /* (5: PRESETS' popup list, op_preset.c) */
 /* REC held: the ring over the panel (SLOOP's hold screen's ring, copied: 36 px, 7 thick, filling clockwise from the
  * top), in the track's instrument colour, its name, "Keep holding"; no question: the ring is the confirmation */
 #define RING_R (MODAL_H >= 117 ? 36 : 28)               /* the ring's outer radius: smaller over the help band's shorter panel */
@@ -1085,6 +1090,7 @@ static void draw_overlay(uint32_t ov)
     uint32_t sig = ov == 4u ? hu(hu(5u, ble_code_sig()), settings.palette)
                  : ov == 3u ? hu(hu(hu(0x71u, (fm1_ms - rh.t1) * 64u / RH_CLEAR_MS), (rh.trk * 16u + settings.palette) * 32u + (uint32_t)(rh.lane + 1)), rh.motion)
                  : ov == 1u ? hs(hs(hu(hu(3u, ui.arm_danger), settings.palette), ui.arm_verb), ui.arm_arg)
+                 : ov == 5u ? hu(hu(0x505u, pre_sig()), pop_kind)
                            : hs(hu(4u, ui.msg_st), ui.msg);
     if (sig == ui.sig[4])
         return;
@@ -1095,6 +1101,8 @@ static void draw_overlay(uint32_t ov)
         draw_ring();
     else if (ov == 1u)
         draw_modal();
+    else if (ov == 5u)
+        draw_pop();
     else
         draw_toast();
 }
@@ -1118,7 +1126,7 @@ static void op_frame_draw(void)
     {                                                   /* STEP's grid takes the panel from y 25 (no cards): the band again whole when
                                                          * that changes (a layer on STEP, the NAME screen) */
         static uint8_t was_full;
-        uint32_t full = (ui.scr == SCR_STEP || glo_cycle() || pl_on()) && lay.shown == LY_PLAY && !name_on();   /* (GLOBAL and
+        uint32_t full = (ui.scr == SCR_STEP || glo_cycle() || pl_on() || song_tbl_on()) && lay.shown == LY_PLAY && !name_on();   /* (GLOBAL and
                                                          * SYSTEM's list too: no cards, op_gldraw.c) */
         if (full != was_full && !ui.force) {
             lcd_fill(0, OH_HEAD, 240, 240 - OH_HEAD, C_BLACK);
@@ -1136,7 +1144,7 @@ static void op_frame_draw(void)
     }
     if (lay.shown != LY_PLAY)
         lay_draw_cards();                               /* a layer: its knobs' cards, its tiles (op_laydraw.c) */
-    else if (ui.scr != SCR_STEP && !glo_cycle() && !pl_on()
+    else if (ui.scr != SCR_STEP && !glo_cycle() && !pl_on() && !song_tbl_on()
 #if FELUCCA_BT_UI
              && !dev_listing()                          /* (the BLE devices: no cards, the list the whole panel, the user 2026-10-19) */
 #endif
@@ -1146,7 +1154,9 @@ static void op_frame_draw(void)
         draw_overlay(ov);                               /* the modal, the REC ring, a Bluetooth code: the whole panel */
     } else {
         uint32_t under = ui.sig[2];
-        if (lay.shown != LY_PLAY)
+        if (ov == 5u)
+            ;                                           /* (PRESETS' popup list covers the panel: not drawn under it at each detent, that flashed; again when it closes) */
+        else if (lay.shown != LY_PLAY)
             lay_draw_tiles();
         else if (ui.scr == SCR_HOME)
             mx_draw();                                  /* the mixer's rows: op_mixdraw.c */
@@ -1154,6 +1164,8 @@ static void op_frame_draw(void)
             scope_draw();                               /* the oscilloscope: op_scope.c */
         else if (ui.scr == SCR_STEP)
             step_frame();                               /* the grid / the roll, the cards over it: op_stepdraw.c */
+        else if (song_tbl_on())
+            song_tbl_draw();                            /* SONG: the scenes table, the parts timeline (op_songtbl.c) */
         else if (glo_cycle())
             gl_draw();                                  /* GLOBAL, SYSTEM: the settings list (op_gldraw.c) */
         else if (pl_on())
@@ -1166,7 +1178,7 @@ static void op_frame_draw(void)
             prj_draw(OP_PY, OH_BODY);                   /* PROJECT's slot rows: the strip and the item (op_prjflow.c) */
         else
             draw_list();
-        if (ov == 2u) {                                 /* the toast over the live panel: again when it redrew */
+        if (ov == 2u || ov == 5u) {                     /* the toast (or the popup list) over the live panel: again when it redrew */
             if (ui.sig[2] != under)
                 ui.sig[4] = 0;
             draw_overlay(ov);

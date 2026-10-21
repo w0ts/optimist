@@ -410,7 +410,7 @@
       "DR7": "Drum lane 7 to USB inputs", "DR8": "Drum lane 8 to USB inputs", "DR9": "Drum lane 9 to USB inputs",
       "DR10": "Drum lane 10 to USB inputs"}},
     {"kind": "op", "ctx": "CALIBRATE", "params": {
-      "PANEL": "Teach buttons, knobs (asks)", "HOLD": "Time a press becomes a hold"}},
+      "PANEL": "Teach buttons, knobs -> SAVE", "HOLD": "Time a press becomes a hold"}},
     {"kind": "op", "ctx": "ABOUT", "params": {
       "VERSION": "Firmware version and commit", "BUILD": "When this firmware was built",
       " ": "Source code on GitHub"}},
@@ -422,21 +422,21 @@
       "ACTION": "Load, save, clear, then a key", "ITEM": "Slot: turn or key (dim: free)"}},
     {"kind": "op", "ctx": "USER", "params": {
       "BANK": "16 slots a bank (the keys)", "ACTION": "Load, save, clear, then a key",
-      "ITEM": "Slot: turn or key (dim: free)", "INIT": "Reset the sound (asks)"}},
+      "ITEM": "Slot: turn or key (dim: free)", "INIT": "Reset the sound -> SAVE"}},
     {"kind": "op", "ctx": "TOOLS", "params": {
-      "CLRSQ": "Clear the pattern (asks)", "INIT": "Reset the sound (asks)",
+      "CLRSQ": "Clear the pattern -> SAVE", "INIT": "Reset the sound -> SAVE",
       "MISS": {"text": "What this build is missing", "if": "FELUCCA_MISSING_WARN"},
-      "NEW": "New project: clears (asks)"}},
-    {"kind": "op", "ctx": "SLOOP", "if": "SL24_AUTO", "params": {"IMPORT": "Import SLOOP autosave (asks)"}},
+      "NEW": "New project: clears -> SAVE"}},
+    {"kind": "op", "ctx": "SLOOP", "if": "SL24_AUTO", "params": {"IMPORT": "Import SLOOP autosave -> SAVE"}},
     {"kind": "op", "ctx": "MEMORY", "if": "SEC_LOGGED", "params": {
       "USED": "Project memory used", "FREE": "Sections that still fit"}},
     {"kind": "op", "ctx": "KIT", "if": "DL_ANY", "params": {
-      "SLOT": "User kit slot", "SAVE": "Save the user kit (asks)", "ERASE": "Erase the user kit (asks)",
-      "RESET": "Reset to the kit sound (asks)", "FX ON": "Drum effects on or off"}},
-    {"kind": "op", "ctx": "ACID GEN", "if": "FELUCCA_ENG_ACID", "params": {"GEN": "Write a new line (asks)"}},
+      "SLOT": "User kit slot", "SAVE": "Save the user kit -> SAVE", "ERASE": "Erase the user kit -> SAVE",
+      "RESET": "Reset to kit sound -> SAVE", "FX ON": "Drum effects on or off"}},
+    {"kind": "op", "ctx": "ACID GEN", "if": "FELUCCA_ENG_ACID", "params": {"GEN": "Write a new line -> SAVE"}},
     {"kind": "op", "ctx": "SOUND", "params": {
       "PRESET": "The track's sound", "ENGINE": "Next engine, first sound",
-      "INIT": "Engine defaults (asks)", "SAVE AS": "Save as a user preset (asks)",
+      "INIT": "Engine defaults -> SAVE", "SAVE AS": "Save as a user preset -> SAVE",
       "KIT": {"text": "The drum kit", "if": "DL_ANY"},
       "INSTR": {"text": "The lane's instrument", "if": "DL_ANY"},
       "FX ON": "Track effects on or off"}},
@@ -445,7 +445,7 @@
     {"kind": "op", "ctx": "STEPS", "if": "FELUCCA_DRUM_ACCENT && DACC_KEY_ON", "params": {
       "ACCENT": "Velocity added on accent step"}},
     {"kind": "op", "ctx": "INSERTS", "if": "DL_ANY", "params": {
-      "LANE PRESET": "This lane's sound (asks)", "LANE SLOT": "User sample of this lane",
+      "LANE PRESET": "This lane's sound -> SAVE", "LANE SLOT": "User sample of this lane",
       "NO KIT": "Nothing to pick for this lane"}},
     {"kind": "op", "ctx": "INSERTS", "if": "FELUCCA_DRUM_ACCENT && DACC_KEY_ON", "params": {
       "ACCENT LANE": "Raises every hit of its step",
@@ -540,8 +540,8 @@
       "REV": "Reverb return level", "DLY": "Delay return level", "CHO": "Chorus return level",
       "REV RET": "Reverb return level", "DLY RET": "Delay return level", "CHO RET": "Chorus return level"}},
     {"kind": "op", "ctx": "SONG", "if": "FELUCCA_ARRANGER", "params": {
-      "MODE": "Play the loop or the song", "REC": "Record song order (asks)", "SAVE": "Keep the song order (asks)",
-      "SCENE": "Scene this part plays", "BARS": "Bars this part plays", "INSERT": "Insert a copy (asks)",
-      "DELETE": "Delete this part (asks)"}}
+      "MODE": "Play the loop or the song", "REC": "Record song order -> SAVE", "SAVE": "Keep the song order -> SAVE",
+      "SCENE": "Scene this part plays", "BARS": "Bars this part plays", "INSERT": "Insert a copy -> SAVE",
+      "DELETE": "Delete this part -> SAVE"}}
   ]
 }

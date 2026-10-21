@@ -531,16 +531,19 @@ static void pat_scene_apply(int applied)
 }
 
 /* ---- the PATTERN layer's operations (ui/sloop/ui_pat.c; the editor's later). Stopped: the log; playing: the
- * arena (written when quiet, as a section stored while playing). -> 0 done, else the message said */
+ * arena (written when quiet, as a section stored while playing), a clear a pending tombstone (sec_log.c slg_clear_pending).
+ * -> 0 done, else the message said */
 static int pat_write(uint32_t k, uint32_t s, uint32_t n)   /* sec_rbuf (n bytes; 0: cleared) -> pattern (k, s) */
 {
     uint32_t id = PAT_ID(k, s), lens = n;
     int rc;
     if (n && !sec_room_ids(&id, &lens, 1, 0))
         rc = 1;
-    else if (!n && song.playing)
-        rc = 4;                                        /* (the arena keeps no "cleared": a flash write waits) */
-    else
+    else if (!n && song.playing) {
+        sec_pend_del(pat_pend(k, s));                  /* (cleared while playing: a store waiting in the arena goes, the log's record */
+        (void)slg_clear_pending(id);                   /*  reads as none now, its tombstone is written when quiet) */
+        rc = 0;
+    } else
         rc = pat_put(id, pat_pend(k, s), sec_rbuf, n, song.playing || !flash_ok);
     if (!rc && !n && pat_cur[k] == s)
         pat_cur[k] = PAT_NONE;                         /* (the working copy's source is gone: it is unsaved, not "missing") */
@@ -579,7 +582,7 @@ static uint32_t pat_changed(void)
     (void)sec_capture();
     for (k = 0; k < NTRK; k++) {
         n = pat_encode(&proj_tmp.cur, k, sec_rbuf);
-        if (pat_cur[k] < PAT_N ? !pat_same(k, pat_cur[k], sec_rbuf, n) : n != 0u)
+        if (pat_cur[k] < PAT_N ? (n ? !pat_same(k, pat_cur[k], sec_rbuf, n) : pat_has(k, pat_cur[k])) : n != 0u)   /* (an empty track whose source holds nothing: as stored) */
             m |= 1u << k;
     }
     return m;
@@ -593,17 +596,16 @@ static uint32_t pat_free(uint32_t k)
             return s;
     return PAT_NONE;
 }
-/* the Optimist UI's SONG screen (ui/optimist/op_song.c): scene s names v (a slot, PAT_KEEP, PAT_NONE) for track k.
- * Stopped: its record written again with that reference (the arena's or the log's, into the log), its FX record
- * keyed again (fx_rec_log.c: it pairs with the scene by the record's hash). -> 0 done, else said */
+/* the Optimist UI's SONG screen (ui/optimist/op_song.c): scene s names v (a slot, PAT_KEEP, PAT_NONE) for track k: one
+ * byte of its record. Stopped: the record written again with that reference (the arena's or the log's, into the log), its
+ * FX and LFO records keyed again (fx_rec_log.c: they pair with the scene by the record's hash). Playing (the user,
+ * 2026-10-20: "it should be saving just few bytes"): the same into the pending arena, written when quiet, as a scene
+ * stored live; the scene playing goes on as it is and takes the new reference when launched again. -> 0 done, else said */
 static int pat_scene_ref_set(uint32_t s, uint32_t k, uint32_t v)
 {
     uint32_t n, i, key, k2;
+    int arena = song.playing || transport_req || !flash_ok;
     s %= SEC_IDS;
-    if (song.playing || transport_req) {
-        ui_message("STOP FIRST");
-        return 1;
-    }
     n = sec_fetch(s, s, sec_rbuf, SEC_REC_MAX);
     if (n <= NTRK || !(sec_rbuf[0] & SEC_SCN) || k >= NTRK)
         return 1;
@@ -611,8 +613,8 @@ static int pat_scene_ref_set(uint32_t s, uint32_t k, uint32_t v)
     if (sec_rbuf[n - NTRK + k] == (uint8_t)v)
         return 0;
     sec_rbuf[n - NTRK + k] = (uint8_t)v;
-    if (pat_put(s, s, sec_rbuf, n, !flash_ok)) {
-        ui_message("SAVE ERROR");
+    if (pat_put(s, s, sec_rbuf, n, arena)) {
+        ui_message(arena ? "STOP TO SAVE MORE" : "SAVE ERROR");   /* (the RAM arena is full until the next write) */
         return 1;
     }
     k2 = proj_hash(sec_rbuf, n);
@@ -621,9 +623,16 @@ static int pat_scene_ref_set(uint32_t s, uint32_t k, uint32_t v)
         uint32_t rl = xrec_sec_get(x, s);
         if (rl > 4u && !memcmp(x->buf, &key, 4)) {
             memcpy(x->buf, &k2, 4);
-            (void)xrec_sec_put(x, s, x->buf, rl);
+            if (arena) {
+                sec_pend_del(x->pend0 + s);
+                (void)sec_pend_put(x->pend0 + s, x->buf, rl);   /* (no room: the default layout, as a record with an old key) */
+            } else {
+                (void)xrec_sec_put(x, s, x->buf, rl);
+            }
         }
     }
+    if (arena)
+        sec_dirty |= (uint16_t)(1u << s);              /* (written when quiet) */
     sec_gen++;                                         /* (a staged scene: read again) */
     return 0;
 }

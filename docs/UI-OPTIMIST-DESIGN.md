@@ -85,8 +85,24 @@ SHIFT is OCT- held, SHIFT2 is OCT+ held. They read one language, as the buttons 
 |---|---|---|
 | SAVE | SEQ | store the working pattern into its slot (asked over a used one) |
 | SAVE | ENV LFO EDIT FX SCL ARP | the sound as a user preset (NAME first); on the drum track its 10 lanes as a user kit |
-| SAVE | REC tapped | SONG REC on / off |
-| SAVE | PLAY | play the song from its start |
+| SEQ | REC tapped | SONG REC on / off |
+| SEQ | PLAY | play the song from its start |
+| SEQ held alone (not on STEP) | | SONG (on SONG: SELECT's cursor unchanged) |
+| (on SONG) | white keys 1..16 | scene A..P: the cursor there and the scene launched (playing: next bar, stopped: loaded); SHIFT2 + the key: launched as soon as possible (the next block, not the bar) |
+| SHIFT2 (OCT+) held | SEQ | SONG, from any screen (STEP too; a long SEQ is the same off STEP) |
+| (SONG, SCENES) | KNOB 1 (and SELECT) / ALGORITHM and KNOB 3 / KNOB 4 / KNOB 2 | a table of 8 scenes a window (A-H, I-P) by 5 lanes (T1 T2 T3 DR: the pattern each track plays; BARS, purple: AUTO or 1..64, how long the scene plays before something else may start): KNOB 1 the cursor along the scenes, ALGORITHM and KNOB 3 up / down the lanes, KNOB 4 the value under the cursor (the STEP editor's language); KNOB 2 does nothing here (the scenes stay where their letters are). A hand launch while playing waits for the end of a pass of the playing scene's bars |
+| (SONG, PARTS) | the same | a timeline of 8 parts a window by 2 lanes: SCN (the scene's letter) and BARS (purple): S the scene's own BARS (the default), A the scene's longest pattern whatever its BARS says, 1..64. KNOB 2 moves the part itself left / right (it swaps with its neighbour, the cursor goes with it, the clock follows when playing); SAVE asks to insert a copy after it; a part key held (or SHIFT + it) cuts it and what follows |
+| (on SONG) | SEQ tapped | the views in turn: SONG (scenes and parts: white keys the scenes, black keys the parts), patterns, settings (MODE), each at the row it was left on |
+| (on SONG) | SAVE + a scene key | stores the loop into that scene (asked over a used one) |
+| (on SONG) | HOME + a scene key | asks to clear that scene |
+| (on SONG) | a scene key held (alone) | asks to clear that scene |
+| (on SONG) | SHIFT + a scene key / a part key | the same questions as the holds: clear that scene, delete that part and what follows |
+| (patterns view: the PATTERNS row, the LFO layer) | a pattern key held (alone) | asks to clear that pattern (HOME + key still does; SHIFT + key is the launch's next-bar timing there) |
+| (on SONG, PATTERNS row) | SEQ held + a white key | SEQ + n stores the four tracks' patterns as scene n (asked over a used one; SEQ + SAVE + n does too), SEQ + HOME + n clears it; scenes are launched from the SONG view or black key 10's scenes view |
+| (on SONG) | a part key held (alone) | asks to delete that part and every part after it (part 1 stays) |
+| (on SONG) | a part key held + a scene key | that scene is the part's; the part (and those between) made when past the chain's end |
+| (on SONG) | black keys 1..8, OCT- / OCT+ | the cursor to part n of the window of eight the cursor there and the song jumps to it at the next bar (stopped: its scene loaded); SHIFT2 + the key: at once (the part from its first bar, the next block); OCT moves the window by eight |
+| (on SONG) | F#5 (the last black key) | the cursor between the PATTERNS row and MODE (on PATTERNS the layer's keys stay) |
 | SAVE | PRESETS | the sound a favorite (right) or not (left) (section 13) |
 | SHIFT | a key | that track's or lane's sequencer mute |
 | SHIFT2 | a key | that track or lane selected |
@@ -131,7 +147,7 @@ ALGORITHM follows the same rule (`algo_has_track`, using the header's classifica
 
 - **Cards are 2 x 2** on every screen with cards except the mixer's channel and lane rows (which want the height and keep four small cards; its MASTER row takes the big cards). KNOB 1 top left, 2 top right, 3 bottom left, 4 bottom right; label small at the left of the label row, unit right-aligned in it, the value large, its form under it, the hot card white. There is no CARDS setting (settings word bit 23 is reserved).
 - **Under the cards**, a screen shows its picture alone on the rest of the panel when the picture is worth it: the envelope (ENV, ENV2), the LFO wave, the arpeggio (ARP, every row), the scale, the gater, the pattern's steps, FM6's algorithm, TEMPO, SCOPE. A row's picture is its family's nearest one (LFO DEST shows the LFO).
-- **No picture: four lines** (builder item `PAGE_LINES`, default on). EDIT, VOICE, a lane's pages, PROJECT, SONG, the master FX, and SOUND pages whose picture only repeats the cards (the FX needles, a lane's name and kit) show the cursor row as four lines in GLOBAL's look, value k on line k, SELECT the next row; the header names the row and its n/N. Off: the 2 x 2 cards with the row list (five rows of 19 px) under them. `pl_on`, `pl_draw`, `pic_useful`.
+- **No picture: four lines** (always on: the builder item `PAGE_LINES` was retired 2026-10-21). EDIT, VOICE, a lane's pages, PROJECT, SONG, the master FX, and SOUND pages whose picture only repeats the cards (the FX needles, a lane's name and kit) show the cursor row as four lines in GLOBAL's look, value k on line k, SELECT the next row; the header names the row and its n/N. Off: the 2 x 2 cards with the row list (five rows of 19 px) under them. `pl_on`, `pl_draw`, `pic_useful`.
 - Lists put a row's name in a column (9 characters from x 4) and its four cells at x 84 + 38 k; a longer text pushes its neighbours right, and only a row that cannot hold every text whole gives up characters, the longest first (`row_layout`).
 - The cursor row is the line's colour at full strength with black or white ink chosen by contrast (`ink_on`: no text on a fill is hard to read on the FM-1). GLOBAL / SYSTEM's cursor line is inverted instead: the line's colour as text on black. The BLE devices list keeps its own rows.
 
@@ -268,7 +284,9 @@ A page button held shows the layer's map (16 tiles for the white keys, the knobs
 | SCL | the song's key | CHORD SCALE QUANT TRANSPOSE |
 | GLO (mix) | 1-4 sequencer mute T1..DR; with FILLS 9 a fill held, 10 the next bar, black 1-4 FX bypass (without FILLS 9-12); 16 tap tempo | the four levels |
 | EDIT | erase as it plays | SHIFT LENGTH TRANSPOSE |
-| LFO (patterns, scenes) | white n launches pattern n at its pass's end (OCT+: now), SAVE + n stores, SHIFT + n clears; black 1-4 pick the track, 5 stop, 9 duplicate, 10 turns the white keys to scenes A-P (same verbs; two launched in one hold: a chain) | none: LFO held + a knob is the fine edit of the screen under it |
+| (SOUND's first row, EDIT) | PRESETS, SHIFT2 + PRESETS | four lines (ENGINE, PRESET, INIT, SAVE AS) and the popup list below, no picture (the drum track keeps its kit picture) |
+| PRESETS, SHIFT2 + PRESETS | a popup list of the sounds over the panel (the drum track: its kits): the one playing lit in the middle, in its engine's colour, scrolling as you turn, gone ~1.5 s after the last turn |
+| LFO (patterns, scenes; held or locked it shows SONG's PATTERNS row, back to the screen it left when let go; a knob turned at once, before the hold, is SHIFT and keeps the screen; KNOB 1..4 there select T1..DR and cue their patterns) | white n launches pattern n at its pass's end (OCT+: now), SAVE + n stores, HOME + n clears; black 1-4 pick the track, 5 stop, 9 duplicate, 10 turns the white keys to scenes A-P (same verbs; two launched in one hold: a chain) | none: LFO held + a knob is the fine edit of the screen under it |
 | ENV on FM6 | black keys pick OP1..OP6 PIT GLO MONO POLY | the page's four values |
 
 A layer's "Oct- locks it" hint shows once per power-on (on the help line, else under the tiles). The tiles for the 16 sounds are the 16 white keys; ERASE and REPEAT on the drum track act on the lanes.
@@ -303,7 +321,7 @@ On an FM6 track ENV held is the operator layer (the black keys pick OP1..6, PIT,
 - **REC QUANTIZE** (TEMPO / GLOBAL, per project, saved in the G_INFO slot, bit 0 = OFF): ON (default) snaps a recorded note's start and length to whole steps. OFF keeps the start as the step's nudge (own steps only, with MICRO) and the length as TIE steps plus a GATE lock on the last step (`rec_len_end`): a NOTE plays GATE / 128 of a step. Within 4 of the track's GATE: no lock.
 - **Overlapping notes** (POLY): a note keeps sounding while others are played over it. The new step becomes a chord of the new note and the held ones with the step flag `SF_CARRY` (`step_t.flags` bit 7; chance uses bits 2..6): carried notes already sounding go on, not struck again. MONO / LEGATO / UNISON keep one note a step.
 - **Each note's own end** (POLY, REC QUANTIZE OFF): a note up while others are down ends at its own time. The byte `step_t.ngate` (ends at ngate / 128 of the step) lives in RAM; stored as step-only events `AUTO_NGATE0 + k` (0x78..0x7B, `seq/ngate.h`). A chord's keys up within 1/8 of a step share an end. The STEP card LENGTH shows tenths (*1.8 ST*) through TIEs and carry steps (`note_span`, shared with the web editor's `noteSpan`).
-- Undo, redo and the song: sections 2.6 and 4.5. SONG REC (SAVE + REC) records the scenes you launch and their bars.
+- Undo, redo and the song: sections 2.6 and 4.5. SONG REC (SEQ + REC) records the scenes you launch and their bars.
 
 ## 7. The automation store
 

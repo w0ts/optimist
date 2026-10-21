@@ -69,8 +69,10 @@ static struct {
     uint32_t head;                                     /* the sector written now (index) */
     uint32_t fill;                                     /* where in it the next record goes */
     uint32_t sorder[SEC_LOG_SECTORS];                  /* each sector's sequence number, 0 = erased */
+    uint32_t tomb[(SLG_IDS + 31u) / 32u];              /* ids cleared while playing, the flash not written yet (slg_clear_pending) */
     uint8_t up;
 } slg IN_POOL;
+#define SLG_TOMB(id) ((slg.tomb[(id) >> 5] >> ((id) & 31u)) & 1u)
 
 static uint32_t slg_off(uint32_t s) { return SEC_LOG_BASE + s * SEC_SECT; }
 /* where id's newest record is in flash, 0 none (a record is never at offset 0: the first sector's head is) */
@@ -555,13 +557,43 @@ static int slg_put(uint32_t id, const uint8_t *data, uint32_t len, int playing)
         if (rc)
             return rc == -2 ? 1 : -1;                  /* (-2: the sectors' ends: MEM FULL as well) */
     }
-    return slg_append_raw(id, slg.seq++, data, len) ? -1 : 0;
+    if (slg_append_raw(id, slg.seq++, data, len))
+        return -1;
+    slg.tomb[id >> 5] &= ~(1u << (id & 31u));          /* (written: no clear is pending any more) */
+    return 0;
+}
+/* id cleared while playing (the user, 2026-10-20): it reads as none at once (slg_has, slg_get), the tombstone is
+ * written when quiet (slg_tombs_write). A record put again meanwhile is written, and the clear is gone. 1: pending */
+static int slg_clear_pending(uint32_t id)
+{
+    if (!slg.up || id >= SLG_IDS || !slg.at[id] || !slg.alen[id])
+        return 0;
+    slg.tomb[id >> 5] |= 1u << (id & 31u);
+    return 1;
+}
+static int slg_tombs_any(void)
+{
+    uint32_t i;
+    for (i = 0; i < sizeof slg.tomb / sizeof slg.tomb[0]; i++)
+        if (slg.tomb[i])
+            return 1;
+    return 0;
+}
+/* quiet: the pending clears into the log (a failed one stays pending, tried again) -> 0 all written */
+static int slg_tombs_write(void)
+{
+    uint32_t id;
+    int left = 0;
+    for (id = 0; id < SLG_IDS; id++)
+        if (SLG_TOMB(id) && slg_put(id, 0, 0, 1))
+            left = 1;
+    return left;
 }
 /* section id -> buf (SEC_REC_MAX), -> its length; 0 none (empty), -1 unreadable */
 static int slg_get(uint32_t id, uint8_t *buf)
 {
-    if (id >= SLG_IDS || !slg.at[id] || !slg.alen[id])
+    if (id >= SLG_IDS || !slg.at[id] || !slg.alen[id] || SLG_TOMB(id))
         return 0;
     return st_read(slg_at(id) + SEC_HEAD, buf, slg.alen[id]) ? -1 : (int)slg.alen[id];
 }
-static int slg_has(uint32_t id) { return id < SLG_IDS && slg.at[id] && slg.alen[id]; }
+static int slg_has(uint32_t id) { return id < SLG_IDS && slg.at[id] && slg.alen[id] && !SLG_TOMB(id); }

@@ -86,7 +86,7 @@ with every track changed. MEM FULL appears when that reserve would not be left.
   - SAVE + n: store the working copy into slot n (asked over a used one); SHIFT (OCT-) + n: clear slot n (asked, says
     "CLEAR USED" when a scene plays it; refused while playing: `STOP FIRST`).
   - black keys 1..4 pick the track, 5 stops it at its end, 9 duplicates the working copy into the first free slot,
-    10 toggles the scenes (the white keys become scenes A..P: n launches, SAVE + n stores the loop, SHIFT + n clears).
+    10 toggles the scenes (the white keys become scenes A..P: n launches, SAVE + n stores the loop, HOME + n clears).
     Black 6..8 do nothing (they were store, copy and clear).
   - KNOB 1..4 cue the previous / next stored pattern of track k at its end.
   - SAVE + SEQ stores the working copy into the slot it came from, else the first free one.

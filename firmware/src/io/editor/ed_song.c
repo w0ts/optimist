@@ -56,7 +56,7 @@ static int ed_songc(uint32_t cmd, const uint8_t *a, uint32_t na)
         else if (a[1] >= arrangement.count)
             rc = 4u;
         else if (op == 1u) {
-            if (a[2] >= ARR_SCENES || a[3] < 1u || a[3] > 64u)
+            if (a[2] >= ARR_SCENES || (a[3] > 64u && a[3] != ARR_BARS_A))
                 rc = 4u;
             else
                 arrangement.entry[a[1]].scene = a[2], arrangement.entry[a[1]].bars = a[3];

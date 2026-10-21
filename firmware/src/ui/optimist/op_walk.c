@@ -135,6 +135,13 @@ static void algo_walk(int32_t s, int lay)
     if (n != p)
         walk_to(n, lay);
 }
+/* ALGORITHM on the PATTERNS layer (LFO held; the user, 2026-10-20): T1 .. DR only, the track the keys launch patterns for */
+static void algo_walk_trk(int32_t s)
+{
+    uint32_t p = walk_pos(0), n = (uint32_t)clamp((int32_t)p + s, MXR_T1, MXR_DR);
+    if (n != p)
+        walk_to(n, 0);
+}
 
 /* ---- a lane's own sound */
 enum { LK_KIT, LK_USR, LK_SAMPLED, LK_SYNTH, LK_X0X, LK_N };

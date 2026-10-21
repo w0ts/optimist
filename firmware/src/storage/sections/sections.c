@@ -243,6 +243,27 @@ static int sec_song_get(arr_config_t *c, uint16_t tag)
     *c = t;
     return 1;
 }
+/* the scenes' BARS (the user, 2026-10-21): one record of the log, id 18 (a song id every build keeps through a compaction),
+ * 16 bytes, scene s's at s: 0 AUTO, 1..64. A record of another length is not ours: every scene AUTO. All AUTO: no record */
+#define SEC_ID_SBARS 18u
+_Static_assert(SEC_ID_SBARS > SEC_ID_SONG && SEC_ID_SBARS < 23u, "the scenes' BARS: a song id of the log, not the patterns' state or the names");
+static int sec_sbars_put(void)
+{
+    uint8_t b[16];
+    uint32_t i, any = 0;
+    for (i = 0; i < 16u; i++)
+        b[i] = scene_bars[i], any |= scene_bars[i];
+    if (!any && !slg_has(SEC_ID_SBARS))
+        return 0;
+    return slg_put(SEC_ID_SBARS, b, any ? sizeof b : 0u, 0) < 0 ? -1 : 0;
+}
+static void sec_sbars_get(void)
+{
+    uint32_t i;
+    int n = slg_has(SEC_ID_SBARS) ? slg_get(SEC_ID_SBARS, sec_rbuf) : 0;
+    for (i = 0; i < 16u; i++)
+        scene_bars[i] = n == 16 && sec_rbuf[i] <= 64u ? sec_rbuf[i] : 0u;
+}
 #endif
 #if FELUCCA_AUTO
 /* section s's record (n bytes in sec_rbuf, just put in the arena): its extras beside it (SEC_IDS + s); 0 ok */
@@ -416,17 +437,17 @@ static int sec_scene_clear(uint32_t s)
     uint32_t i;
     int rc = 0;
     s %= SEC_IDS;
-    if (song.playing || transport_req) {
-        ui_message("STOP FIRST");
-        return 1;
-    }
     sec_pend_drop(s);
 #if FELUCCA_AUTO
     sec_pend_del(SEC_IDS + s);
 #endif
     for (i = 0; !rc && i < sizeof ID0; i++)
-        if (slg_has(ID0[i] + s))
-            rc = slg_put(ID0[i] + s, sec_rbuf, 0, 0);
+        if (slg_has(ID0[i] + s)) {
+            if (song.playing || transport_req)         /* (playing: the record reads as none now, its tombstone is written when quiet) */
+                (void)slg_clear_pending(ID0[i] + s), sec_dirty |= 0x8000u;
+            else
+                rc = slg_put(ID0[i] + s, sec_rbuf, 0, 0);
+        }
     if (rc) {
         ui_message("SAVE ERROR");
         return 1;
@@ -480,8 +501,8 @@ static int sec_name_set(uint32_t s, const char *nm)   /* stopped: slot s named n
     return slg_put(SEC_ID_NAMES, &sec_nm.n[0][0], sizeof sec_nm.n, 0) != 0;
 }
 
-#if FELUCCA_QCHAIN
-/* the bars a section's loop takes: its longest pattern, ceil(LEN x step / bar), 1..64 (SLOOP 2.4 section_bars) */
+/* the bars a section's loop takes: its longest pattern, ceil(LEN x step / bar), 1..64 (SLOOP 2.4 section_bars); a part
+ * whose BARS says AUTO lasts this long, the shorter patterns looping until the scene's end (arrangement_apply) */
 static uint32_t project_bars(const project_t *p)
 {
     uint32_t k, bars = 1;
@@ -498,7 +519,6 @@ static uint32_t section_bars(uint32_t s)
     project_t *p = &proj_tmp.cur;                      /* (the main loop's scratch, as section_load) */
     return sec_read(s % SEC_IDS, p, &sec_tmp_dl) ? project_bars(p) : 1u;
 }
-#endif
 /* a live jump (song layer while playing): staged now, applied by the audio ISR on the next bar; 0 = empty */
 static int section_cue(uint32_t s)
 {
@@ -546,9 +566,13 @@ static void sections_write(void)                       /* the pending sections a
                     continue;
                 }
             }
+    if (flash_ok && slg_tombs_write())
+        ui_message("SAVE ERROR");                      /* (kept pending: tried again) */
     sec_dirty = 0;
     for (i = 0; i < SEC_IDS; i++)
         sec_dirty |= (uint16_t)((uint32_t)sec_pend_has(i) << i);
+    if (slg_tombs_any())
+        sec_dirty |= 0x8000u;                          /* (a clear still waits) */
 #if FELUCCA_PATTERNS
     for (i = SEC_PEND_PAT; i < SEC_PEND_FX; i++)
         if (sec_pend_has(i))
@@ -569,6 +593,8 @@ static void arrangement_apply(uint32_t scene)
         sec_misses++;
         return;
     }
+    arrangement_clock.pat_bars = (uint8_t)project_bars(&sec_stage_p);   /* (a part that says A: the scene's longest pattern) */
+    arrangement_clock.auto_bars = scene_bars[scene % 16u] ? scene_bars[scene % 16u] : arrangement_clock.pat_bars;   /* (a part that says S: the scene's BARS, AUTO its longest pattern) */
     for (k = 0; k < NTRK; k++) {
         track_t *t = &trk[k];
         seq_release(t);
@@ -614,7 +640,7 @@ static void sec_service(void)
     }
     if (want < 0 || live_req >= 0 || (sec_stage_id == (int8_t)want && sec_stage_gen == sec_gen))
         return;
-    if (song.playing && arrangement_clock.running && arrangement_clock.bar + 1u >= arrangement.entry[arrangement_clock.index].bars &&
+    if (song.playing && arrangement_clock.running && arrangement_clock.bar + 1u >= arr_eff_bars(&arrangement.entry[arrangement_clock.index], &arrangement_clock) &&
         sec_stage_id >= 0)
         return;                                        /* (the bar the stage is due: leave it) */
     sec_stage_id = -1;

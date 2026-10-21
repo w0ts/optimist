@@ -79,7 +79,7 @@ static void cards_tests(void)
     frame();
     check(cards_screen_ok(SCR_TEMPO, "tempo"), "cards 2x2: TEMPO");
     {
-        static const uint8_t S[] = {SCR_SONG, SCR_FX, SCR_PROJECT, SCR_SCOPE};
+        static const uint8_t S[] = {SCR_FX, SCR_PROJECT, SCR_SCOPE};   /* (SONG's scenes and parts are tables since 2026-10-21: op_songtbl.c) */
         uint32_t i, ok = 1;
         for (i = 0; i < sizeof S; i++) {
             reset_ui();
@@ -87,7 +87,7 @@ static void cards_tests(void)
             frame();
             ok &= (uint32_t)cards_screen_ok(S[i], S[i] == SCR_SCOPE ? "scope" : 0);
         }
-        check(ok, "cards 2x2: SONG, FX, PROJECT, SCOPE");
+        check(ok, "cards 2x2: FX, PROJECT, SCOPE");
         for (i = 0, ok = 1; i < 2u; i++) {              /* GLOBAL and SYSTEM: the settings list, no cards (op_gldraw.c) */
             reset_ui();
             op_enter(i ? SCR_SYSTEM : SCR_GLOBAL);

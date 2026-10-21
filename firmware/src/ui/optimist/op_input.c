@@ -65,7 +65,7 @@ static int keys_none(void)
  * the walk agree, plus the mixer (its rows are the tracks) and SCOPE (no badge, but its source follows ALGORITHM). Inert:
  * SYSTEM (BLE list; GLOBAL and SYSTEM's lists: ALGORITHM scrolls their lines, glo_walk), PROJECT, SONG, MASTER FX (opened by the FX button; reached by the walk it is the walk's MASTER
  * stop and ALGORITHM right leaves it), TEMPO, NAME, an armed question; a held layer follows the layer's
- * own flag (ERASE, STEP, SCALE, OPS walk; FX, ROLL, MIX, SONG, PATTERNS-all do not). The master FX cards in a layer
+ * own flag (ERASE, STEP, SCALE, OPS walk; FX, ROLL, MIX, SONG do not; PATTERNS walks T1..DR, op_layers.c). The master FX cards in a layer
  * (ui.master) keep the walk: it is how you leave MASTER */
 static int algo_has_track(void)
 {
@@ -473,6 +473,11 @@ static void oct_tap(uint32_t b)                         /* the keyboard octave, 
     int32_t o = song.octave + (b == B_OCTDN ? -1 : 1);
     if (prj_bank_tap(b == B_OCTUP))
         return;                                         /* (PROJECT: the bank) */
+    if (ui.scr == SCR_SONG && !name_on()) {
+        if (!song_on_pat_row())
+            song_page_tap(b == B_OCTUP);                /* (SONG: the parts window by eight) */
+        return;                                         /* (the PATTERNS row, the LFO patterns screen: nothing, the keys launch patterns) */
+    }
     if (is_drum(TSEL))
         return;
     oct_set(o < -3 ? -3 : o > 3 ? 3 : o);
@@ -592,6 +597,10 @@ static void op_tap(uint32_t b, uint32_t id)
             op_no();                                    /* (held alone on the mixer: nothing) */
     } else if (b == B_OCTDN || b == B_OCTUP)
         oct_tap(b);                                     /* (a tap: let go with nothing used meanwhile) */
+    else if (b == B_SEQ && ui.scr == SCR_SONG && fm1_ms - op_t0[id % 14u] < op_hold_ms())
+        song_view_cycle();                              /* SEQ tapped on SONG: its views in turn (the user, 2026-10-20) */
+    else if (b == B_SEQ && ui.scr != SCR_STEP && fm1_ms - op_t0[id % 14u] >= op_hold_ms())
+        song_shortcut(0);                               /* SEQ held alone off STEP: SONG (the user, 2026-10-20) */
     else if (b == B_SEQ)
         step_seq_tap(fm1_ms - op_t0[id % 14u] >= op_hold_ms());   /* STEP; on it the next page; long: the keys */
     else if (b == B_GLO)
@@ -745,6 +754,13 @@ static void op_knobs(uint32_t shift)
     }
     if (step_knobs())                                   /* STEP, a step held: SELECT, ALGORITHM its own */
         turned = 1;
+    if (song_tbl_on()) {                                /* SONG's tables: the cursor, the part, the lane, the value (op_songtbl.c) */
+        if (song_tbl_knobs())
+            turned = 1;
+        if (op_presets_turn())
+            turned = 1;
+        goto knobs_done;
+    }
 #if FELUCCA_FAVORITES
     if (btn_held(B_OCTUP) && fav_gesture_ok() && (s = panel_enc(EN_SELECT)) != 0) {   /* SHIFT2 + SELECT: the favorites only / all */
         op_fav_list(s > 0);
@@ -770,7 +786,14 @@ static void op_knobs(uint32_t shift)
     }
     if ((s = panel_enc(EN_ALGO)) != 0 && !ft_on) {      /* the walk: MASTER T1..DR the lanes, the page's part (op_walk.c;
                                                          * not in a free take) */
-        if (glo_cycle() && lay_now() == LY_PLAY && !name_on())
+        if (ui.scr == SCR_SONG && song_on_pat_row() && lay_now() == LY_PLAY && !name_on() && !op_armed())
+        {
+            uint32_t was = song.sel;
+            algo_walk_trk(s);                           /* (SONG's PATTERNS row: the track the keys launch for, T1..DR; the user, 2026-10-20) */
+            if (song.sel != was)
+                ui_say("PATTERNS ", trk_tag(song.sel)); /* (no badge here: the header's title has no room for it) */
+        }
+        else if (glo_cycle() && lay_now() == LY_PLAY && !name_on())
             glo_walk(s);                                /* (GLOBAL, SYSTEM: the cursor a line a detent, no track here; a layer over them keeps the walk's rules) */
         else
             algo_walk(s, 0);
@@ -784,6 +807,10 @@ static void op_knobs(uint32_t shift)
         if ((s = panel_enc(EN_K1 + k)) == 0)
             continue;
         turned = 1;
+#if FELUCCA_PATTERNS
+        if (ui.shift && !lpk.on)
+            lpk.fine = 1;                               /* (LFO + a knob before the patterns show: SHIFT, they stay away) */
+#endif
         if (ui.scr == SCR_SYSTEM && info_knob(row, k, s))
             continue;                                   /* (INFO's KNOB 1: the CPU lines' measure, op_global.c) */
         if (step_cards_down() && (!fm1_in.buttons || fm1_in.buttons == (1u << panel.btn[B_OCTDN]))) {
@@ -805,6 +832,7 @@ static void op_knobs(uint32_t shift)
         if (c.kind == CK_VAL)
             SCR->turn(row, k, shift ? OP_RESET : s, 0);  /* SHIFT held: back to its default */
     }
+knobs_done:
     if (turned) {
 #if FELUCCA_PATTERNS
         if (lay.held == LY_PAT)
@@ -877,8 +905,13 @@ static void ui_input(void)
         tp.pend = 0;
         oct_both = 0;
     }
+    if (notes && keys && song_pat_ctx())
+        song_pat_arm(notes);                            /* (the patterns' keys: a hold clears the pattern) */
     if (notes && keys) {
         lay.used = 1;
+        op_clean &= ~held;
+    } else if (notes && ui.scr == SCR_SONG && !name_on()) {   /* SONG: scenes, parts, PATTERNS / MODE (op_song.c): a key loads / launches, SHIFT2 + it selects */
+        song_keys(notes);
         op_clean &= ~held;
     } else if (notes && (mute_mod(held) || sel_mod(held))) {   /* SHIFT + a key: its mute; SHIFT2 + a key: selected */
         shift_keys(notes, mute_mod(held));
@@ -1143,6 +1176,10 @@ static void ui_leds(void)
     led_btn(nl, op_screen_btn(), 1);
     if (lay.shown != LY_PLAY)                           /* the layer shown: its button (locked: blinking) */
         led_btn(nl, LAYER_BTN[lay.shown], lay.lock == LY_PLAY || ((fm1_ms / 300u) & 1u));
+#if FELUCCA_PATTERNS
+    else if (lpk.on)                                    /* (the patterns layer: SONG's PATTERNS row, LFO lit as for a layer) */
+        led_btn(nl, B_LFO, lay.lock == LY_PLAY || ((fm1_ms / 300u) & 1u));
+#endif
     led_btn(nl, B_SAVE, armed && blink);                /* YES is asked for */
     led_btn(nl, B_PLAY, op_recording() || play_led());  /* (recording: full; playing: on each beat) */
     led_btn(nl, B_REC, song.rec != 0u || ft_on || (rec_wait && blink));

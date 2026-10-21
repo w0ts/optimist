@@ -73,13 +73,6 @@ static void lay_cell(uint32_t k, cell_t *c)
         }
         return;
     }
-#if FELUCCA_PATTERNS
-    if (l == LY_PAT) {
-        song_pat_cell(k, c);                            /* (as SONG's PATTERNS row: "3", "3>5") */
-        c->kind = CK_RO;                                /* (read only: LFO held + a knob is SHIFT, not a cue) */
-        return;
-    }
-#endif
     if (l == LY_SONG) {
 #if SEC_LOGGED
         if (k < 2u) {
@@ -154,35 +147,6 @@ static void tiles_keys(tile_t *tl, uint32_t erase)      /* ERASE, REPEAT: the ke
                  present && !down ? col : 0);
     }
 }
-/* the LFO layer's scenes (black 10): the 16 scene tiles, the song's state under them (was the SAVE layer's) */
-static void lay_scene_tiles(tile_t *tl, char *sub, uint32_t n)
-{
-    uint32_t i;
-    char b[4];
-    uint32_t ready = arrangement_ready();
-    for (i = 0; i < LAY_NSCN; i++) {
-        int used = (ready >> i) & 1u, playing = live_sec == (int8_t)i && !arrangement_clock.running;
-        b[0] = (char)('A' + i), b[1] = 0;
-#if FELUCCA_PATTERNS
-        if (playing && pat_scene_dirty(i))
-            b[1] = '*', b[2] = 0;                   /* "B*": its patterns changed since */
-#endif
-        tile_set(&tl[i], b, used ? (playing ? C_OK : C_GRAY) : OP_SURF, used ? C_BLACK : C_DIM,
-                 live_req == (int8_t)i ? C_WARN : 0);
-    }
-    str_cpy(sub, srec == 2u ? "Song rec: recording" : srec ? "Song rec: armed" : "Scenes: Save+n  Oct-+n clear", n);
-#if FELUCCA_QCHAIN
-    if (lay.chain_n >= 2u || chain_n) {
-        uint32_t m = lay.chain_n >= 2u ? lay.chain_n : chain_n, k = 5;
-        str_cpy(sub, "CHAIN", n);
-        for (i = 0; i < m && i < CHAIN_MAX && k + 2u < n; i++) {
-            sub[k++] = ' ';
-            sub[k++] = (char)('A' + ((lay.chain_n >= 2u ? lay.chain[i] : chain_sec[i]) % 16u));
-        }
-        sub[k] = 0;
-    }
-#endif
-}
 static void tiles_fill(tile_t *tl, char *sub, uint32_t n)
 {
     static const char *const PSHORT[16] = {"LOOP 4", "LOOP 8", "LOOP16", "LOOP32", "STUTT", "REV", "STOP", "HALF",
@@ -241,23 +205,6 @@ static void tiles_fill(tile_t *tl, char *sub, uint32_t n)
         tile_set(&tl[15], b, song.playing && clk_pos < BEAT_U / 4u ? C_WHITE : OP_SURF, song.playing && clk_pos < BEAT_U / 4u ? C_BLACK : C_WHITE, 0);
         tile_set(&tl[14], "TAP >", C_BLACK, C_DIM, 0);
         break;
-#if FELUCCA_PATTERNS
-    case LY_PAT:
-        pat_refresh();
-        for (i = 0; i < PAT_N; i++) {
-            int used = pat_has(sel, i), cur = pat_cur[sel] == i, q = pat_req[sel] == i;
-            fmt_int(b, (int32_t)i + 1);
-            if (cur && ((lay.pchg >> sel) & 1u))
-                str_app(b, "*", sizeof b);
-            tile_set(&tl[i], b, cur ? C_OK : q ? C_WARN : used ? col_shade(trk_col(sel), 4u) : OP_SURF,
-                     cur || q || used ? C_BLACK : C_DIM, used ? trk_col(sel) : 0);
-        }
-        str_cpy(sub, fm1_in.buttons & (1u << panel.btn[B_SAVE]) ? "Store: a slot" : op_shift(fm1_in.buttons) ? "Clear: a slot" :
-                     "Save+n store  Oct-+n clear", n);
-        if (lay.pmod == 10u)
-            lay_scene_tiles(tl, sub, n);                /* (black 10: the scenes, the same verbs) */
-        break;
-#endif
     default:
         break;
     }
