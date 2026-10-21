@@ -106,6 +106,10 @@ static void favorites_tests(void)
         fv_save_turn(EN_PRESET, 1);
     }
     check(fav_count() == 3u, "three sounds marked, by SAVE + PRESETS");
+    pre_toast();                                        /* (the popup list: a favorite's bullet is an amber star) */
+    frames(3);
+    check(op_overlay() == 5u && px_in(14, 40, 30, 190, C_WARN), "the popup marks a favorite with an amber star in place of the bullet");
+    ppm("opt-fav-popup");
     ui.msg[0] = 0;
     fv_shift2_turn(EN_SELECT, 1);
     preset_pos(&total);
