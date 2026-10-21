@@ -75,7 +75,7 @@ rc, _ = quiet(ap.parse_args, ["build", "--profile", "a", "--config", "b"])
 check("build: --profile and --config together is a usage error", rc == 2)
 cfg, name = optimist.load_config(ap.parse_args(["build"]))
 check(f"build without a configuration builds {optimist.DEFAULT_PROFILE} (Synth), not the reference profile",
-      name and cfg and optimist.DEFAULT_PROFILE == "synth" and name == "Synth" and optimist.REFERENCE_PROFILE == "user-default")
+      name and cfg and optimist.DEFAULT_PROFILE == "synth" and name == "Synth" and optimist.REFERENCE_PROFILE == "synth")
 rc, out = quiet(optimist.main, ["build", "--config", str(ROOT / "no-such.config")])
 check("a missing .config: exit 2 and its name", rc == 2 and "no-such.config" in out)
 rc, out = quiet(optimist.main, ["config", "--profile", "drum-machine", "--budget"])
@@ -772,10 +772,10 @@ with tempfile.TemporaryDirectory() as td:
     check("flash: ... and the package that build made is the one written (not the older newest file), after asking",
           rc == 0 and t.wrote() == [[str(new), "--yes"]] and len(pr) == 1)
     t = FakeTool()
-    rc, out, pr = flash_run(["--profile", "user-default"], t, answer="y", packages=old, build=(True, new))
+    rc, out, pr = flash_run(["--profile", "drum-machine"], t, answer="y", packages=old, build=(True, new))
     check("flash: --profile names what is built (the configuration build would build for it)",
           len(BUILT) == 1 and rc == 0 and
-          BUILT[0][0] == optimist.load_config(ap.parse_args(["flash", "--profile", "user-default"]))[1])
+          BUILT[0][0] == optimist.load_config(ap.parse_args(["flash", "--profile", "drum-machine"]))[1])
     t = FakeTool()
     rc, out, pr = flash_run([], t, answer="y", packages=old, build=(False, None))
     check("flash: the build fails: exit 1, 'nothing was flashed', the device not read, nothing asked",

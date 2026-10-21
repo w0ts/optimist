@@ -51,7 +51,7 @@ import deps
 import toolchain as TC
 
 DEFAULT_PROFILE = C.DEFAULT_PROFILE            # Optimist Synth: what build, builder and make use without a profile
-REFERENCE_PROFILE = C.REFERENCE_PROFILE        # user-default: the generic profile the host tests, the gate and the emulator checks build
+REFERENCE_PROFILE = C.REFERENCE_PROFILE        # synth: the profile the host tests, the gate and the emulator checks build
 PY_TESTS = ("tests/builder_test.py", "tests/builder_core_test.py", "tests/builder_flash_guard_test.py",
             "tests/builder_progress_test.py", "tests/optimist_cli_test.py", "tests/install_test.py",
             "tests/rescue_test.py", "tests/rescue_any_test.py",
@@ -420,7 +420,7 @@ BLE_TEST_ROOM = ("CHANCE=0", "MOTION=0", "SL24_XSTEP=0", "MICRO=0", "FILLS=0", "
 
 
 def ble_test_configs():
-    """-> [(name, cfg)] the two BLE builds prepare_tests makes (the emulator tests' packages): user-default with BLE,
+    """-> [(name, cfg)] the two BLE builds prepare_tests makes (the emulator tests' packages): the reference profile with BLE,
     BLE_DIAG, BLE_CENTRAL (FLUTE dropped where it must) and with the whole option set. Also check configurations of
     the size estimate (tools/builder/measure_costs.py check_configs), so they are anchors with a measured build"""
     def load(sets, ble_drop=None):
@@ -436,7 +436,7 @@ def prepare_tests():
     tests/ble_emu_test.py and ble_emu_central_test.py; build/ble/felucca-ble-full.fwsc, the whole BLE option set, for
     tests/ble_emu_boot_test.py), and two builds: the target-cost check holds the loops of the default configuration
     (every item: too big for the slot, so a measurement build: felucca.dis), the installer, update and rescue tests a
-    package that fits and its app (user-default: felucca.fwsc, felucca.bin, loader/ota.bin). The regression goldens
+    package that fits and its app (the reference profile: felucca.fwsc, felucca.bin, loader/ota.bin). The regression goldens
     need neither: tests/run_tests.sh renders against build/gen-host, every sample set whatever the profile
     (tools/build.py --host-headers). All four at once, each in its own directory (build/slots/t-*), with the check
     configurations' builds (2026-10-19, the user: every phase of the tests on every CPU); then build/ as the four in
@@ -619,7 +619,7 @@ def parser():
     p.add_argument("rest", nargs=argparse.REMAINDER)
     p.set_defaults(fn=cmd_cpu)
     for n, fn, h in (("gate", cmd_gate, "the integrator's gate: costs, the profiles, the host tests, a final "
-                      "user-default build (gate --help)"),
+                      "synth build (gate --help)"),
                      ("emu-check", cmd_emu_check, "the emulator smoke checks on a build (emu-check --help)")):
         p = sub.add_parser(n, help=h, add_help=False)
         p.add_argument("rest", nargs=argparse.REMAINDER)
