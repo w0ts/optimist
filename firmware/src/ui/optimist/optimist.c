@@ -70,6 +70,7 @@
 #include "op_scope.c"
 #include "op_stepdraw.c"
 #include "op_laydraw.c"
+#include "op_songtbl.c"            /* SONG: the scenes table and the parts timeline (the user, 2026-10-21) */
 #include "op_fm6draw.c"
 #include "op_input.c"
 #include "op_keys.c"

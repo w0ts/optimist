@@ -29,10 +29,10 @@ static void un_song_rec_tests(void)                     /* #16a: SONG's MODE row
     tap(B_SAVE);
     check(srec == 0, "YES on the card again: SONG REC off");
     ui.row[SCR_SONG] = (uint8_t)mode;
-    press(B_SAVE);
+    press(B_SEQ);
     tap(B_REC);
-    release(B_SAVE);
-    check(op_armed() && !strcmp(ui.arm_q, "RECORD OVER SONG?"), "SAVE + REC unchanged: asks too");
+    release(B_SEQ);
+    check(op_armed() && !strcmp(ui.arm_q, "RECORD OVER SONG?"), "SEQ + REC unchanged: asks too");
     tap(B_HOME);
     arrangement.count = 1;
     reset_ui();

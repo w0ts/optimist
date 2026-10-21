@@ -252,13 +252,6 @@ static void risk_tests(void)
     rk_cell(SCR_PROJECT, "TOOLS", "NEW");
     rk_cell(SCR_SOUND, "SOUND", "INIT");                /* INIT sound */
     rk_cell(SCR_SYSTEM, 0, "PANEL");                    /* CALIBRATE */
-#if FELUCCA_ARRANGER
-    if (arrangement.count < 2u) {                       /* (a second part, so that one can go) */
-        arrangement.entry[1] = arrangement.entry[0];
-        arrangement.count = 2;
-    }
-    rk_cell(SCR_SONG, "PART 1", "DELETE");              /* DELETE a part: no undo for the song's order */
-#endif
     rk_edit();
     rk_combo(B_ENV, "SHIFT + ENV: INIT");
     /* (SHIFT + SEQ asks nothing since 2026-10-16: the motion and locks are SHIFT + REC's ring, its own confirmation) */
@@ -268,9 +261,9 @@ static void risk_tests(void)
         op_enter(SCR_HOME);
         frame();
         h0 = rk_state();
-        press(B_SAVE);
+        press(B_SEQ);
         tap(B_REC);
-        release(B_SAVE);
+        release(B_SEQ);
         if (!op_armed() || strcmp(ui.arm_q, "RECORD OVER SONG?")) {
             printf("  risk: SONG REC: no \"Record over song?\" (%s)\n", op_armed() ? ui.arm_q : "none");
             rk_ok = 0;
@@ -284,6 +277,8 @@ static void risk_tests(void)
         ui.row[SCR_SONG] = 1;                           /* (scene B's row: YES loads it, stopped) */
         frame();
         rk_edit();
+        step_t sv5 = TSEL->step[5];
+        TSEL->step[5].time = ST_NOTE, TSEL->step[5].n = 1, TSEL->step[5].note[0] = 61;   /* (a pattern changed: only that is asked) */
         h0 = rk_state();
         tap(B_SAVE);
         if (!op_armed() || strcmp(ui.arm_q, "LOAD SCENE B?")) {
@@ -291,12 +286,27 @@ static void risk_tests(void)
             rk_ok = 0;
         }
         rk_after("a scene loaded stopped over a changed work", h0);
+        TSEL->step[5] = sv5;                            /* (the pattern as it was: a sound tweak alone asks nothing) */
+#if FELUCCA_PATTERNS
+        {
+            uint32_t k;
+            for (k = 0; k < NTRK; k++)
+                (void)pat_store_slot(k, 15);            /* (every track's pattern stored: as stored, the load asks nothing) */
+        }
+#endif
         work_mark();                                    /* (as stored: loaded at once, nothing asked) */
         tap(B_SAVE);
         if (op_armed() || live_sec != 1) {
             printf("  risk: scene load over an unchanged work: %s\n", op_armed() ? "asked" : "not loaded");
             rk_ok = 0;
         }
+#if FELUCCA_PATTERNS
+        {
+            uint32_t k;
+            for (k = 0; k < NTRK; k++)
+                (void)pat_write(k, 15, 0);
+        }
+#endif
     }
     song.sel = TRK_DRUM;                                /* the drum lane's user kit: SAVE, ERASE, RESET name it */
     ui.lane = 1;

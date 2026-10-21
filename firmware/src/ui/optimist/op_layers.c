@@ -11,15 +11,15 @@
  *   EDIT  erase as it plays                      KNOB  SHIFT LENGTH TRANSPOSE (undo: SAVE then HOME)
  *   LFO   the patterns and the scenes (PATTERNS): ui/sloop's ui_pat.c, copied: white n launches the selected track's
  *         pattern n at its end (OCT+ held: now; OCT- held is SHIFT, the clear), SAVE + n stores the working pattern into slot n
- *         (asked over a used one), SHIFT + n clears it (asked); the black keys 1-4 the track, 5 stop, 9 duplicate, 10
+ *         (asked over a used one), HOME + n clears it (asked); the black keys 1-4 the track, 5 stop, 9 duplicate, 10
  *         the scenes (the user, 2026-10-16): the white keys are scenes A-P until black 10 again or the layer goes, the
  *         same verbs: n launches scene n at the next bar (stopped: loaded; two or more in one hold: a chain, QCHAIN),
- *         SAVE + n stores the loop into it, SHIFT + n clears it. SONG's PATTERNS row has these keys too. Its cards show
+ *         SAVE + n stores the loop into it, HOME + n clears it. SONG's PATTERNS row has these keys too. Its cards show
  *         each track's pattern. KNOB: none, LFO held is SHIFT (the user, 2026-10-08): a knob turned edits the screen
  *         under it, fine (LEN by one)
  * Lock a layer: SHIFT2 + its button in either order (the layer held then SHIFT2, or SHIFT2 held then the button; ENV on
  * FM6, ARP and LFO: SHIFT2 first, their OCT+ has a job): it stays with the button let go; any button but PLAY, REC and
- * OCT lets it go (and does only that). SAVE is no layer (2026-10-16): SAVE + REC is SONG REC, SAVE + PLAY the song. The logic of the
+ * OCT lets it go (and does only that). SAVE is no layer (2026-10-16): SEQ + REC is SONG REC, SEQ + PLAY the song (2026-10-20). The logic of the
  * keys and knobs is SLOOP's (ui/sloop/ui_layers.c, ui_pat.c), copied: nothing in ui/sloop is called. */
 #define LAY_SHOW_MS op_hold_ms()        /* a layer shows after this (a click does not flash it: SYSTEM HOLD, op_state.c) */
 #define LAY_TAP_MS (op_hold_ms() + OP_TAP_GAP)   /* a page button held longer is no tap (the map was looked at) */
@@ -37,6 +37,16 @@ static int pat_scene_refs(uint32_t i, uint8_t *r);
 static int proj_tmp_busy(void);
 #endif
 static int song_on_pat_row(void);                      /* op_song.c */
+static void song_keys(uint32_t notes);                  /* op_song.c: the keys on SONG */
+static void song_key(uint32_t k);
+static void song_page_tap(int up);
+static void song_part_cut(uint32_t a);
+static void song_scene_bars_text(uint32_t sc, char *b);
+static void song_view_cycle(void);
+static uint32_t song_scenes_mask(void);
+static void song_pat_arm(uint32_t notes);
+static int song_pat_ctx(void);
+static void song_keys_led(uint32_t *f, uint32_t *d, uint32_t blink);
 static void song_shortcut(int32_t s);
 static void fm6_lay_end(void);                          /* op_fm6draw.c: ENV let go after use */
 static void tempo_key(int32_t w);                       /* op_tempo.c */
@@ -49,9 +59,7 @@ static uint32_t arrangement_ready(void);
 static int section_cue(uint32_t s);
 static int sec_scene_clear(uint32_t s);                /* sections.c */
 #endif
-#if FELUCCA_QCHAIN
-static uint32_t section_bars(uint32_t s);
-#endif
+static uint32_t section_bars(uint32_t s);              /* sections.c / arranger_scene.c: a scene's longest pattern, in bars */
 
 static struct {
     uint8_t lock;                       /* the layer locked open (LY_*), LY_PLAY none */
@@ -61,8 +69,8 @@ static struct {
     uint8_t quiet;                      /* a combination took its button (SAVE + FX: a save): no map */
     uint8_t hot;                        /* the layer's hot knob (the last one turned) */
     uint8_t chord;                      /* SAVE then HOME (1: undo) / HOME then SAVE (2: redo) waiting for a release */
-    uint8_t rec_pend;                   /* SAVE + REC: SONG REC at REC's release */
-    uint8_t song_go;                    /* SAVE + PLAY while playing: stopped, the song starts once stopped */
+    uint8_t rec_pend;                   /* SEQ + REC: SONG REC at REC's release */
+    uint8_t song_go;                    /* SEQ + PLAY while playing: stopped, the song starts once stopped */
     uint32_t t0;                        /* the held layer's press */
     uint8_t tap_n;                      /* tap tempo: the taps counted, their times */
     uint32_t tap_ms[4];
@@ -120,7 +128,11 @@ static void lay_lock(uint32_t l)
 {
     lay.lock = (uint8_t)l;
     lay.used = 1;
+#if FELUCCA_PATTERNS
+    lay.shown = (uint8_t)(l == LY_PAT ? LY_PLAY : l);   /* (LY_PAT: SONG's PATTERNS row, lay_pat_peek) */
+#else
     lay.shown = (uint8_t)l;
+#endif
     ui.force = 1;
 }
 
@@ -270,7 +282,36 @@ static void scene_load_now(uint32_t s)                  /* stopped: scene s is t
     work_mark();                                        /* (the work as stored: op_edits.c) */
     ui_say("LOADED ", b);
 }
-static void scene_launch(uint32_t s)                    /* playing: at the next bar; stopped: loaded */
+#if FELUCCA_PATTERNS
+static uint32_t pat_changed(void);                      /* pat.c: the tracks whose working copy differs from its source pattern */
+#endif
+/* a scene loaded stopped is asked first only when the patterns on the tracks are not as stored (the user, 2026-10-20:
+ * "only if there are changes in the current playing patterns"); a sound or mix tweak alone loads at once */
+static int scene_unsaved(void)
+{
+#if FELUCCA_PATTERNS
+    return pat_changed() != 0u;
+#else
+    return work_changed();
+#endif
+}
+/* the bars scene s plays before something else may start: its BARS, AUTO its longest pattern (the user, 2026-10-21) */
+#if SEC_LOGGED
+static int proj_tmp_busy(void);
+#endif
+static uint32_t scene_len_bars(uint32_t s)
+{
+    if (scene_bars[s % 16u])
+        return scene_bars[s % 16u];
+#if SEC_LOGGED
+    return proj_tmp_busy() ? 1u : section_bars(s);      /* (a restore or an editor write holds proj_tmp, which a scene read uses) */
+#else
+    return section_bars(s);
+#endif
+}
+static void scene_launch_at(uint32_t s, int now);
+static void scene_launch(uint32_t s) { scene_launch_at(s, 0); }   /* playing: at the next bar; stopped: loaded */
+static void scene_launch_at(uint32_t s, int now)       /* now (SHIFT2 + a scene key): as soon as possible, the next block */
 {
     char b[2] = {(char)('A' + s % 16u), 0};
     if (arrangement_clock.running) {
@@ -292,16 +333,20 @@ static void scene_launch(uint32_t s)                    /* playing: at the next 
             lay.chain[lay.chain_n++] = (uint8_t)s;      /* (the LFO layer's scenes: the taps of the hold may chain) */
 #endif
 #endif
+        live_len = (uint8_t)(now || live_sec < 0 ? 0u : scene_len_bars((uint32_t)live_sec));   /* (the scene playing: a launch waits for the end of a pass of its bars) */
 #if SEC_LOGGED
-        if (!section_cue(s)) {                          /* (staged now: the ISR plays it on the next bar) */
+        live_now = (uint8_t)(now != 0);                 /* (before the cue: the ISR may take it at once) */
+        if (!section_cue(s)) {                          /* (staged now: the ISR plays it on the next bar, or at once) */
+            live_now = 0;
             ui_say("EMPTY ", b);
             return;
         }
 #else
+        live_now = (uint8_t)(now != 0);
         live_req = (int8_t)s;
 #endif
-        ui_say("NEXT: ", b);
-    } else if (work_changed()) {                        /* stopped, the work not as stored: asked ("Load scene B?";
+        ui_say(now ? "NOW: " : "NEXT: ", b);
+    } else if (scene_unsaved()) {                       /* stopped, the work not as stored: asked ("Load scene B?";
                                                          * the user, 2026-10-13; playing: a launch, never asked) */
         char t[8];
         scene_tag(t, s);
@@ -357,7 +402,7 @@ static void scene_store(uint32_t s)                     /* SAVE + a scene: asked
     else
         scene_store_now(s);
 }
-static void scene_clear_ask(uint32_t s)                 /* SHIFT + a scene */
+static void scene_clear_ask(uint32_t s)                 /* HOME + a scene */
 {
     char b[8];
     scene_tag(b, s);
@@ -386,7 +431,7 @@ static void song_rec_arm(void)                          /* SONG REC armed: the o
     srec = 1;
     ui_message(live_sec < 0 ? "SONG REC: PICK A SCENE" : "SONG REC: NEXT BAR");
 }
-static void song_rec_toggle(void)                       /* SAVE + REC tapped: the order you play becomes the song */
+static void song_rec_toggle(void)                       /* SEQ + REC tapped: the order you play becomes the song */
 {
     if (srec) {
         fm1_irq_off();
@@ -401,7 +446,7 @@ static void song_rec_toggle(void)                       /* SAVE + REC tapped: th
         song_rec_arm();
     }
 }
-static void song_play(void)                             /* SAVE + PLAY: the song from its start */
+static void song_play(void)                             /* SEQ + PLAY: the song from its start */
 {
     if (!arr_valid(&arrangement, arrangement_ready())) {
         ui_message("EMPTY SECTION: REC");
@@ -502,7 +547,7 @@ static void pat_layer_key(uint32_t k, int32_t w)
         return;
     }
     if (b >= 6u && b <= 8u)
-        return;                                         /* (store, copy and clear were modifiers: now SAVE + n, SHIFT + n, the user 2026-10-13) */
+        return;                                         /* (store, copy and clear were modifiers: now SAVE + n, HOME + n, the user 2026-10-13) */
     if (b == 9u) {                                      /* DUPLICATE: into the first free slot */
         s = pat_free(t);
         pat_name(nm, t, s);
@@ -514,18 +559,19 @@ static void pat_layer_key(uint32_t k, int32_t w)
     }
     if (w < 0 || w >= (int32_t)PAT_N)
         return;
-    if (lay.pmod == 10u) {                              /* the scenes: n launches, SAVE + n stores the loop, SHIFT + n clears */
+    if (lay.pmod == 10u || btn_held(B_SEQ)) {           /* the scenes (black 10, or SEQ held; the user, 2026-10-20): SEQ + n stores the four
+                                                         * patterns as scene n (SAVE + n too), HOME + n clears, n alone (black 10's view) launches */
         if (w >= LAY_NSCN)
             return;
-        if (btn_held(B_SAVE))
+        if (btn_held(B_SAVE) || (btn_held(B_SEQ) && !btn_held(B_HOME)))
             scene_store((uint32_t)w);
-        else if (btn_held(B_OCTDN))
+        else if (btn_held(B_HOME))
             scene_clear_ask((uint32_t)w);
         else
-            scene_launch((uint32_t)w);
+            scene_launch_at((uint32_t)w, btn_held(B_OCTUP));   /* (SHIFT2 + n: as soon as possible) */
     } else if (btn_held(B_SAVE)) {   /* SAVE + n: the working pattern into slot n (asked) */
         pat_store_ask(t, (uint32_t)w);
-    } else if (btn_held(B_OCTDN)) {              /* SHIFT + n: clear slot n (asked) */
+    } else if (btn_held(B_HOME)) {               /* HOME + n: clear slot n (asked; the user, 2026-10-20: HOME clears, as elsewhere) */
         pat_clear_ask(t, (uint32_t)w);
     } else {
         pat_launch_key(t, (uint32_t)w);
@@ -568,6 +614,9 @@ static void op_act(uint32_t a, uint32_t k)
 #endif
     case OA_SCN_LOAD:
         scene_load_now(k);
+        break;
+    case OA_PART_CUT:
+        song_part_cut(k);
         break;
     case OA_SREC:
         if (!srec && !arrangement_clock.running)
@@ -724,8 +773,13 @@ static int lay_knobs(void)
         ui.force = 1;
     }
 #if FELUCCA_PATTERNS
-    if (lay_now() == LY_PAT)
+    if (lay_now() == LY_PAT) {
+        if ((s = panel_enc(EN_ALGO)) != 0 && !ft_on) {
+            algo_walk_trk(s);                           /* (the keys launch the selected track's patterns: ALGORITHM picks it) */
+            return 2;
+        }
         return 0;                                       /* LFO held = SHIFT: the knobs are the screen's (op_knobs) */
+    }
 #endif
     for (k = 0; k < 4u; k++)
         if ((s = panel_enc(EN_K1 + k)) != 0) {
@@ -746,6 +800,31 @@ static int lay_knobs(void)
     return 1 + (int)turned;
 }
 
+#if FELUCCA_PATTERNS
+/* LFO held (or locked) shows SONG's PATTERNS row (the user, 2026-10-20: "the quick screen pattern should be the same as ours"):
+ * the screen it was on is left for it and back again when the layer ends; already there: nothing moves */
+static struct { uint8_t on, scr, row, fine; } lpk;    /* fine: a knob turned during the hold (LFO is SHIFT: the cells' fine path), no peek then */
+static uint32_t song_pat_row_idx(void);                 /* op_song.c */
+static int name_on(void);                               /* op_name.c */
+static void lay_pat_peek(int want)
+{
+    if (!want && !lpk.on)
+        lpk.fine = 0;
+    if (lpk.on && ui.scr != SCR_SONG) {
+        lpk.on = 0;                                     /* (a page button took you elsewhere: that is where you stay; no peek again before LFO is let go) */
+        lpk.fine = 1;
+    }
+    if (want && !lpk.on && !lpk.fine && !song_on_pat_row() && !name_on() && !op_armed()) {
+        lpk.on = 1, lpk.scr = ui.scr, lpk.row = ui.row[SCR_SONG];
+        op_enter(SCR_SONG);
+        op_row_pick(song_pat_row_idx());
+    } else if (!want && lpk.on) {
+        lpk.on = 0;
+        ui.row[SCR_SONG] = lpk.row;
+        op_enter(lpk.scr);
+    }
+}
+#endif
 /* ---- once a frame (op_input.c): the layer held, shown, its end */
 static void lay_frame(uint32_t held)
 {
@@ -784,6 +863,11 @@ static void lay_frame(uint32_t held)
     l = lay_now();
     if (l == LY_PLAY || (lay.lock == LY_PLAY && (lay.quiet || (!lay.used && fm1_ms - lay.t0 < LAY_SHOW_MS))))
         l = LY_PLAY;
+#if FELUCCA_PATTERNS
+    lay_pat_peek(l == LY_PAT);                          /* (the patterns layer is SONG's PATTERNS row: its screen, its grid) */
+    if (l == LY_PAT)
+        l = LY_PLAY;
+#endif
     if (l != lay.shown) {
         lay.shown = (uint8_t)l;
         lay.hot = 0;
@@ -792,6 +876,6 @@ static void lay_frame(uint32_t held)
     ui.layer = lay.shown;
     if (lay.song_go && !song.playing && !transport_req) {
         lay.song_go = 0;
-        transport_req = 1;                              /* (SAVE + PLAY while playing: the song from its start) */
+        transport_req = 1;                              /* (SEQ + PLAY while playing: the song from its start) */
     }
 }

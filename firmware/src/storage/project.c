@@ -1625,6 +1625,7 @@ static void persist_boot(void)                    /* before settings_init / pane
 #if FELUCCA_ARRANGER
     if (song_tag && !sec_song_get(&arrangement, song_tag))
         song_tag = 0;                              /* (not the log's chain: the record's 16 parts) */
+    sec_sbars_get();                               /* (the scenes' BARS: their record, none: AUTO) */
 #endif
 #else
     {   /* projects: fill empty RAM slots from flash, so the slot list is right after power-on. A slot
@@ -1723,6 +1724,10 @@ static void arrangement_save(void)
         int rc = sec_song_put(&arrangement, &song_tag);
         if (rc) {
             ui_message(rc == 1 ? "MEM FULL" : "SAVE ERROR");
+            return;
+        }
+        if (sec_sbars_put()) {                     /* (the scenes' BARS beside it) */
+            ui_message("SAVE ERROR");
             return;
         }
     }

@@ -806,7 +806,7 @@ job; ( jobin
 job; ( jobin
     mkdir -p "$OUT/optimist-mots"
     MOTS_FLAGS=$(python3 tools/config_flags.py tests/profiles/mots-like.config)
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $MOTS_FLAGS -o "$OUT/ui_optimist_mots_test" tests/ui_optimist_test.c -lm
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $MOTS_FLAGS -DFELUCCA_PAGE_LINES=1 -o "$OUT/ui_optimist_mots_test" tests/ui_optimist_test.c -lm
     run "Optimist UI with the mots-like build's flags (tests/profiles/mots-like.config): the whole test, as the user flashes it" "$OUT/ui_optimist_mots_test" "$OUT/optimist-mots"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin

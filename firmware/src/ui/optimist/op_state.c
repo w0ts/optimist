@@ -24,7 +24,7 @@ static const char *const SCR_NAME[SCR_N] = {"MIX", "SOUND", "MASTER", "PROJECT",
 #define ARM_NONE 0xFFu
 #define ARM_OP 0xFDu                  /* arm_scr: an action of no screen cell, arm_row its OA_*, arm_k its argument */
 enum { OA_SCN_STORE, OA_SCN_CLR, OA_PAT_STORE, OA_PAT_CLR, OA_INIT, OA_EXTRAS, OA_DISCARD, OA_SREC,
-       OA_SCN_LOAD };
+       OA_SCN_LOAD, OA_PART_CUT };
 
 static struct {
     /* read by the core under SLOOP's names: project.c (menu: autosave waits), main.c (force, page: the crash
@@ -101,6 +101,7 @@ static struct {
 static int cards_2x2(void);                             /* op_layers.c (it reads the layer shown) */
 static int lane_picked(void);                               /* op_mixer.c: a drum lane selected, not DR itself */
 static int algo_has_track(void);                        /* op_input.c: the pages ALGORITHM walks on */
+static void algo_walk_trk(int32_t s);                    /* op_walk.c: the PATTERNS layer's walk, T1..DR */
 static void algo_walk(int32_t s, int lay);              /* op_walk.c: ALGORITHM, on every page and layer */
 static void lane_sound_step(int32_t s);                 /* op_walk.c: PRESETS on a lane, its own sound */
 static int lane_presets(void);
@@ -202,9 +203,11 @@ static void op_repaint(void)
     memset(ui.sig, 0, sizeof ui.sig);
     mx_redraw();
 }
+static uint8_t pop_kind;                                /* the toast is a popup list of the sounds (op_preset.c): 1 the presets, 2 the drum kits; any message clears it */
 static void ui_say(const char *a, const char *b)
 {
     uint32_t n;
+    pop_kind = 0;
     str_cpy(ui.msg, a, sizeof ui.msg);
     n = str_len(ui.msg);
     str_cpy(ui.msg + n, b, sizeof ui.msg - n);

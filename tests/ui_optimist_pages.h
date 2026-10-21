@@ -134,8 +134,7 @@ static void pages_nav_tests(void)
     frames(HOLD_FRAMES);
     key(key_of_lane(9));
     frames(2);
-    check(lay.shown == LY_PAT && lay.pmod == 10u && !strncmp(lay_sub, "Scenes", 6) && text_w(&FONT_S, lay_sub) <= 232,
-          "D8: LFO held, black 10: the scenes, the line under them says so (and it fits)");
+    check(lpk.on && lay.pmod == 10u, "D8: LFO held, black 10: the scenes view (the keys), the patterns screen shown");
     key(key_of_lane(9));
     release(B_LFO);
 #endif
@@ -412,7 +411,8 @@ static void keys_global_tests(void)
                 sel0 = lane_selected();
                 kdown(WK(3));
                 check(ui.scr == SCRS[i] && kb_kind[WK(3)] != KS_NOTE && kb_kind[WK(3)] != KS_DRUM, "MASTER FX / SCOPE / SONG: a key plays nothing");
-                keys_are(0, 0, "MASTER FX / SCOPE / SONG: the keys are dark");
+                if (SCRS[i] != SCR_SONG)                /* (SONG: its keys are the scenes, the parts, the PATTERNS / MODE key since 2026-10-20) */
+                    keys_are(0, 0, "MASTER FX / SCOPE / SONG: the keys are dark");
                 kup(WK(3));
                 kdown(1);
                 check(kb_kind[1] != KS_NOTE && kb_kind[1] != KS_DRUM, "MASTER FX / SCOPE / SONG: a black key plays nothing");
@@ -439,7 +439,7 @@ static void keys_global_tests(void)
 #if FELUCCA_PATTERNS
         hold_layer(B_LFO);
         kdown(WK(1));
-        check(kb_kind[WK(1)] == KS_UI && lay.shown == LY_PAT, "GLOBAL, LFO held + a key: a pattern (the layer's key)");
+        check(kb_kind[WK(1)] == KS_UI && lpk.on, "GLOBAL, LFO held + a key: a pattern (the layer's key)");
         kup(WK(1));
         let_go(B_LFO);
 #endif
@@ -577,8 +577,8 @@ static void pages_keys_tests(void)
         uint32_t f, d;
         frames(2);
         keys_lit(&f, &d);
-        check((f & kws(0, 15)) == (arrangement_clock.running ? 0u : kw(0)) && ((f | d) & kws(0, 15)) == kws(0, LAY_NSCN - 1u),
-              "D10: LFO layer, black 10: the scenes dim, the playing one full");
+        check((f & kws(0, 15)) == (arrangement_clock.running ? 0u : kw(0)) && (((f | d) & kws(0, 15)) & ~kws(0, LAY_NSCN - 1u)) == 0u,
+              "D10: LFO layer, black 10: the filled scenes lit (an empty one dark), the playing one full");
     }
     key(key_of_lane(9));
     let_go(B_LFO);
@@ -596,8 +596,8 @@ static void pages_keys_tests(void)
         uint32_t blk = 0, kk;
         for (kk = 0; kk < 27u; kk++)
             blk |= (uint32_t)(pat_black(kk) >= 1u && pat_black(kk) <= 10u) << kk;
-        check(key_led(1) == 2u && key_led(3) == 1u && key_led(0) >= 1u && key_led(25) == 0u && (blk & 1u << 22),
-              "D10: LFO layer: the patterns and the 10 black keys dim, the selected track's key full");
+        check(key_led(1) == 2u && key_led(3) == 1u && key_led(0) <= 1u && key_led(25) == 0u && (blk & 1u << 22),
+              "D10: LFO layer: the black keys dim, the selected track's key full, the stored patterns lit (the white keys off or dim)");
     }
     let_go(B_LFO);
 #endif

@@ -94,5 +94,34 @@ static void plines_tests(void)
         }
         check(ok, "... PROJECT: every row lines, but the slot listings");
     }
+#if FELUCCA_PAGE_LINES
+    {   /* SONG's scenes and parts are tables (op_songtbl.c), SETTINGS (MODE) is lines */
+        op_enter(SCR_SONG);
+        ui.row[SCR_SONG] = (uint8_t)song_row_of(SG_SCENE, 2);
+        scene_bars[2] = 8;
+        stb_lane = 4;
+        ui.force = 1;
+        frames(2);
+        check(song_tbl_on() && !pl_on(), "SONG, a scene row: the SCENES table, not lines");
+        check(px_in(3, (uint32_t)(OH_HEAD + 22 + 4 * (GL_END - 22 - 16) / 5), 36, 30, C_WHITE) &&
+              px_in(STB_X0, (uint32_t)(OH_HEAD + 22 + 4 * (GL_END - 22 - 16) / 5), 3 * STB_CW, 30, 0xB31Fu),
+              "... the BARS lane's name in white (the cursor's lane), its values purple");
+        ppm("opt-song-scenes-table");
+        scene_bars[2] = 0;
+        stb_lane = 0;
+        arrangement.count = 5;
+        arrangement.entry[0].scene = 0, arrangement.entry[1].scene = 1, arrangement.entry[2].scene = 1, arrangement.entry[3].scene = 2, arrangement.entry[4].scene = 0;
+        arrangement.entry[1].bars = 8, arrangement.entry[3].bars = ARR_BARS_A;
+        ui.row[SCR_SONG] = (uint8_t)song_row_of(SG_PART, 1);
+        ui.force = 1;
+        frames(2);
+        check(song_tbl_on() && !pl_on(), "... a part row: the PARTS timeline");
+        ppm("opt-song-parts-table");
+        ui.row[SCR_SONG] = (uint8_t)song_row_of(SG_MODE, 0);
+        ui.force = 1;
+        frames(2);
+        check(pl_on() && !song_tbl_on(), "... SETTINGS (MODE): four lines");
+    }
+#endif
     reset_ui();
 }

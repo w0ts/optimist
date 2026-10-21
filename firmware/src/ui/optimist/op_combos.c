@@ -7,11 +7,11 @@
  *                 lanes as a user kit                                         SHIFT + ENV: INIT (asked)
  *                                                                             SHIFT2 + FX EDIT ARP SCL GLO LFO (ENV on
  *                                                                             FM6): the layer locked open
- *   SAVE + REC    tapped: SONG REC; held + a scene key: the loop into it       SHIFT + REC   held, the ring closed: the
+ *   SEQ + REC     tapped: SONG REC; SAVE + a scene key: the loop into it       SHIFT + REC   held, the ring closed: the
  *                                                                             track's motion and locks (a lane picked:
  *                                                                             the lane's; the notes stay); a SONG scene
  *                                                                             row: the scene cleared (asked)
- *   SAVE + PLAY   the song from its start                                     SHIFT + PLAY  stop, every voice off
+ *   SEQ + PLAY    the song from its start                                      SHIFT + PLAY  stop, every voice off
  *   SAVE then HOME: undo                                                      HOME then SAVE: redo
  *                                                                             both OCT: track <-> MASTER (op_walk.c)
  * The undo and redo act when one of the two is let go (a key or a knob meanwhile: nothing). */
@@ -126,6 +126,11 @@ static int shift_combo(uint32_t b)
 static int shift2_combo(uint32_t b)
 {
     uint32_t l = lay_btn_layer(b);
+    if (b == B_SEQ) {                                   /* SHIFT2 held + SEQ: SONG, from any screen (a long SEQ is STEP's keys there) */
+        if (ui.scr != SCR_SONG)
+            song_shortcut(0);
+        return 1;
+    }
     if (l == LY_PLAY)
         return 0;
     lay_lock(l);
@@ -151,6 +156,14 @@ static int save_combo(uint32_t b)
         if (!mx_on_usb())                               /* (the mixer's USB row: no sound to save; FX alone its inserts) */
             save_sound();
         return 1;
+    default:
+        return 0;
+    }
+}
+/* SEQ held + button b (the user, 2026-10-20: the song's gestures are SEQ's, SEQ held long opening SONG): 1 taken */
+static int seq_combo(uint32_t b)
+{
+    switch (b) {
     case B_REC:
         lay.rec_pend = 1;                               /* SONG REC (at its release) */
         return 1;
@@ -195,6 +208,10 @@ static int op_combo(uint32_t b, uint32_t held)
         op_eat(op_combo_bit(b) | op_combo_bit(B_SAVE));
         return 1;
     }
+    if ((others & op_combo_bit(B_SEQ)) && !op_armed() && seq_combo(b)) {
+        op_eat(op_combo_bit(b) | op_combo_bit(B_SEQ));
+        return 1;
+    }
     if (b == B_SAVE && (others & op_combo_bit(B_HOME)) && !op_armed()) {
         lay.chord = 2;                                  /* HOME then SAVE: redo, when one of them is let go */
         op_eat(op_combo_bit(B_SAVE) | op_combo_bit(B_HOME));
@@ -202,7 +219,7 @@ static int op_combo(uint32_t b, uint32_t held)
     }
     return 0;
 }
-/* buttons let go (op_input.c): the undo / redo chord, SAVE + REC's SONG REC, PLAY's tap and the TEMPO page */
+/* buttons let go (op_input.c): the undo / redo chord, SEQ + REC's SONG REC, PLAY's tap and the TEMPO page */
 static void op_released(uint32_t rel)
 {
     if (lay.chord && (rel & (op_combo_bit(B_SAVE) | op_combo_bit(B_HOME)))) {

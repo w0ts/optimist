@@ -4,6 +4,7 @@
 #include "arranger.h"
 static arr_config_t arrangement;
 static arr_clock_t arrangement_clock;
+static uint8_t scene_bars[16];                        /* each scene's BARS: 0 AUTO (its longest pattern), 1..64 (the user, 2026-10-21); saved with the song (sections.c) */
 static uint8_t arrangement_enabled;
 static uint32_t arrangement_ready(void);              /* project.c */
 static void arrangement_apply(uint32_t scene);         /* project.c */

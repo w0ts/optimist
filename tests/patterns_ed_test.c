@@ -3,7 +3,7 @@
  * and sections (FELUCCA_PATTERNS=1, a simulated NOR): a stored pattern read in chunks of 256 bytes comes back byte for
  * byte; a record written in chunks (pack7, in order) is checked as the stage would decode it, then stored (stopped:
  * the log; playing: the arena) and plays; a chunk out of order, a record of another track's kind, one too long, a
- * restore holding proj_tmp, a clear while playing: refused with their rc and nothing written; proj_tmp is lent
+ * restore holding proj_tmp, a clear while playing: done at once in RAM (its tombstone is written when quiet); proj_tmp is lent
  * only while a record is received (given back at the end, and after 10 s); the launch waiting for the slot written
  * is decoded again. Run by tests/run_tests.sh. */
 #define FELUCCA_ARRANGER 1
@@ -211,7 +211,7 @@ int main(void)
     check("PAT_WRITE with total 0 clears the slot", wr(0, 8, g, 0, 256u, 0) == 0 && !slg_has(PAT_ID(0, 8)) && pat_get(0, 8, g) == 0u);
     pat_cur[0] = 5;
     check("... clearing the working copy's own source: it has none then (unsaved, not missing)", wr(0, 5, g, 0, 256u, 0) == 0 && pat_cur[0] == PAT_NONE);
-    /* ---- playing: the arena; a clear is refused */
+    /* ---- playing: the arena; a clear reads as none at once, its tombstone waits for the quiet */
     song.playing = 1;
     {
         uint32_t seq = slg.seq;
@@ -220,7 +220,8 @@ int main(void)
         n2 = (int)pat_encode(&proj_tmp.cur, 1, r2);
         check("playing: PAT_WRITE (T2, 16 steps): rc 0, the record waits in the arena", wr(1, 3, r2, (uint32_t)n2, 100u, 0) == 0 && sec_pend_has(pat_pend(1, 3)) &&
               slg.seq == seq && pat_get(1, 3, g) == (uint32_t)n2 && !memcmp(g, r2, (size_t)n2));
-        check("playing: a clear (total 0): rc 4, nothing changed", wr(0, 6, g, 0, 256u, 0) == 4 && slg_has(PAT_ID(0, 6)));
+        check("playing: a clear (total 0): rc 0, the slot reads as none, its tombstone pending", wr(0, 6, g, 0, 256u, 0) == 0 && !slg_has(PAT_ID(0, 6)) &&
+              slg_tombs_any() && slg.seq == seq + 0u);
     }
     /* a launch waiting for the slot written meanwhile is decoded again */
     pat_req[1] = 3;

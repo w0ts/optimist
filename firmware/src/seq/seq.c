@@ -2294,8 +2294,11 @@ static void click_tick(void)
  * next bar, every track from its step 0 (as the song does). SONG REC writes the order you play into the
  * song chain (arrangement): each section with the bars it played, from the bar after the arm. */
 static volatile int8_t live_req = -1;              /* section asked for (UI), applied on the next bar */
+static volatile uint8_t live_now;                  /* ... applied at the next block instead (the UI's SHIFT2 + a scene key: as soon as possible) */
 static volatile int8_t live_sec = -1;              /* the section playing: last jumped to, loaded or stored */
 static uint32_t live_bar = 0xFFFFFFFFu;            /* clk_beat / 4 of the last bar seen */
+static uint32_t live_nbar;                         /* the bars completed since the scene was applied (counted at each bar line) */
+static volatile uint8_t live_len;                  /* the bars of the scene playing (the UI sets it at a launch): a launch waits for the end of a pass of them; 0 / 1: the next bar */
 #if FELUCCA_QCHAIN
 /* QUICK CHAIN (SLOOP 2.4, isod89/sloop-fm1 8d3823f seq.c chain_*, GPL-3.0-only): SAVE held, two or more section
  * taps: the sections in order, looped, each for the bars its longest pattern takes (chain_bar, worked out by the UI
@@ -2348,9 +2351,13 @@ static void srec_stop(void)
 static void seq_reset_tracks(uint32_t pos);
 static void live_block(void)                       /* once a block while playing a loop (not the song) */
 {
-    if ((clk_beat & 3u) || (clk_beat >> 2) == live_bar)
+    int asap = live_now && live_req >= 0;           /* (a scene asked for as soon as possible: no waiting for the bar) */
+    if (!asap && ((clk_beat & 3u) || (clk_beat >> 2) == live_bar))
         return;
-    live_bar = clk_beat >> 2;                       /* a new bar */
+    if (!asap) {
+        live_bar = clk_beat >> 2;                   /* a new bar */
+        live_nbar++;
+    }
     if (srec == 2u && srec_n) {
         arr_entry_t *e = &srec_e[srec_n - 1u];
         if (e->bars < 64u) {
@@ -2367,9 +2374,11 @@ static void live_block(void)                       /* once a block while playing
         live_req = (int8_t)chain_sec[chain_i];
     }
 #endif
-    if (live_req >= 0) {
+    if (live_req >= 0 && (asap || live_len < 2u || live_nbar % live_len == 0u)) {   /* (the scene playing has not played its bars: the launch waits) */
         uint32_t s = (uint32_t)live_req;
         live_req = -1;
+        live_now = 0;
+        live_nbar = 0;
         {                                           /* (the UI asked for a section it checked: no hash here) */
             arrangement_apply(s);
             song.rec = 0;                           /* (a take does not run on into another section) */
@@ -2421,6 +2430,7 @@ static void seq_reset_tracks(uint32_t pos)
     clk_pos = pos;
 #if FELUCCA_ARRANGER
     live_bar = 0xFFFFFFFFu;                        /* (bar 0 is a new bar: SONG REC can start on it) */
+    live_nbar = 0xFFFFFFFFu;                       /* (bar 0 is a new bar: no bar completed yet, 0 after its count) */
 #endif
 #if FELUCCA_FILLS
     fill_last_bar = 0xFFFFFFFFu;                   /* (the same for an armed fill bar: a section's bar 0) */
@@ -2549,6 +2559,7 @@ static void seq_stop(void)
     if (song.playing)
         srec_stop();                                /* SONG REC: the order played so far is the song */
     live_req = -1;
+    live_now = 0;
 #if FELUCCA_QCHAIN
     chain_n = 0;                                    /* STOP ends a quick chain */
 #endif
@@ -3116,6 +3127,10 @@ static void events_block(uint32_t n)
         }
         else if (scene >= 0) {
             arrangement_apply((uint32_t)scene);
+            if (live_req == (int8_t)scene) {
+                live_req = -1;                      /* (a part key's jump: its scene was staged by the UI, now played) */
+                live_now = 0;
+            }
             seq_reset_tracks(arrangement_clock.phase);   /* (the remainder: exactly on the bar) */
         }
     } else if (song.playing) {

@@ -100,8 +100,7 @@ EXPERIMENTAL `TAB_IN_POOL` moves them, and the console's `tabbench` times SINE i
 `undo.c` (`FELUCCA_UNDO_HISTORY`, default 1) keeps its ring in the memory nothing else is linked into (`_undo_*` in
 `app.ld`): the pool after `.pool` up to its last 8 KiB, then main RAM after `.bss`. A feature that takes RAM or pool takes
 undo levels away. A level keeps only changed steps (10 B each plus a header) [estimate: a rewritten 64-step track is about
-650 B]. The ring is `(98,304 - RAM) + (344,064 - 8,192 - pool)`. `FELUCCA_UNDO_CAP` caps it. The builder's Reserve items
-(`RESERVE_UNDO_KB`, `RESERVE_FLASH_KB`) keep a minimum of ring and of free app flash. Free **app flash** is only room for
+650 B]. The ring is `(98,304 - RAM) + (344,064 - 8,192 - pool)`. `FELUCCA_UNDO_CAP` caps it. The builder shows the ring in its estimate (information; the reserve entries were retired 2026-10-21). Free **app flash** is only room for
 features; saves never use it.
 
 ### 2.2 Cache RAM (EXPERIMENTAL `CACHE_RAM`, off by default)
@@ -123,7 +122,7 @@ margin (`FIT_MARGIN`: flash 1,024 B, RAM 512 B, RAMTEXT 256 B).
 
 **What `tools/build.py` refuses:** an image over the app slot; main RAM over 96 KiB; less than 8,192 B of pool spare;
 RAMTEXT over 32,512 B; an undo ring under 1,408 B (then build `FELUCCA_UNDO_HISTORY=0`, the single level of SLOOP 2.x);
-a ring or free flash under the Reserve the user asked for; a direct call between RAM code and XIP code (`HOT` code calls
+a direct call between RAM code and XIP code (`HOT` code calls
 other `HOT` code directly and XIP code only through a pointer, `FAR`); a reference to a ROM address. It also prints the
 region sizes and the ring on every build.
 

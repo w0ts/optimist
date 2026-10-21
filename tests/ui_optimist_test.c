@@ -12,6 +12,9 @@
  *   undo     SAVE then HOME undoes, HOME then SAVE redoes, neither is a YES or a NO; EDIT + OCT- / OCT+ too
  *   messages every message and every question fits the header (232 px)
  * then random use: every draw stays on the screen. Renders the screens to PPM (DIR/opt-*.ppm) for review. */
+#ifndef FELUCCA_PAGE_LINES
+#define FELUCCA_PAGE_LINES 0            /* (the firmware always builds the lines, registry.h; these tests keep the 2x2 cards they were written for, the lines builds pass 1) */
+#endif
 #define FELUCCA_ARRANGER 1
 #define STP_PAT 0u                      /* STEP's first row, PATTERN (no LANE page after it since 2026-10-14) */
 #if FELUCCA_PATTERNS
@@ -28,9 +31,12 @@ static uint16_t screen[240 * 240];
 static void lcd_sync(void) {}
 static uint32_t band_y = 240u, band_hits;               /* the help band's first row (op_graph.c OP_FOOT_Y, set in main), and
                                                          * the blits that reached it besides the line's own (ui_optimist_geometry.h) */
+static uint32_t probe_hits;                             /* the blits that cover the probe pixel (120, 180): inside PRESETS' popup, a flash when more than one a frame */
 static void lcd_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *p)
 {
     uint32_t i, j;
+    if (x <= 120u && 120u < x + w && y <= 180u && 180u < y + h)
+        probe_hits++;
     assert(x + w <= 240 && y + h <= 240);
     if (y + h > band_y && !(x == 0u && y == band_y && w == 240u && h == 240u - band_y))
         band_hits++;
@@ -257,6 +263,7 @@ static void key(uint32_t k) { fm1_in.notes |= 1u << k; frame(); fm1_in.notes &= 
 static void cards_up(void) { if (ui.scr == SCR_STEP && !ui.cards_t && !st.held) tap(B_SEQ); }   /* STEP: SEQ brings the
                                                          * cards back (the page kept), the knobs edit only under them */
 static int fails;
+static uint32_t key_led(uint32_t k);                     /* ui_optimist_pages.h */
 static int px_in(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t col);
 static void check(int ok, const char *what) { printf("optimist ui: %-72s %s\n", what, ok ? "ok" : "FAIL"); fails += !ok; }
 static void reset_ui(void)
@@ -1651,7 +1658,16 @@ static void layer_tests(void)
     /* LFO: the patterns (the built black-key modifiers) */
     press(B_LFO);
     frames(HOLD_FRAMES);
-    check(lay.shown == LY_PAT, "LFO held: the patterns' map");
+    check(lpk.on && ui.scr == SCR_SONG && song_on_pat_row(), "LFO held: SONG's PATTERNS row (the patterns screen)");
+    {
+        uint32_t sel0 = song.sel;
+        turn(EN_ALGO, 1);
+        check(song.sel == (sel0 + 1u < 4u ? sel0 + 1u : sel0) && lpk.on && !ui.master,
+              "LFO held (PATTERNS): ALGORITHM walks the track, never MASTER");
+        turn(EN_ALGO, -8);
+        check(song.sel == 0u && lpk.on && !ui.master && ui.scr != SCR_FX,
+              "... left past T1: stays on T1 (no MASTER, the screen kept)");
+    }
     for (k = 0; k < 8u; k++)
         t->step[k].time = ST_NOTE, t->step[k].n = 1, t->step[k].note[0] = (uint8_t)(48 + k);
     fm1_in.notes |= 1u << 13;                           /* black key 6 was the store modifier: nothing now */
@@ -1664,13 +1680,13 @@ static void layer_tests(void)
         t->step[k].time = ST_NOTE, t->step[k].n = 1, t->step[k].note[0] = (uint8_t)(48 + k);
     press(B_SAVE);                                      /* LFO held, then SAVE + n: store into slot n */
     key(WK(1));
-    check(lay.shown == LY_PAT, "LFO held + SAVE: the patterns' map stays");
+    check(lpk.on, "LFO held + SAVE: the patterns screen stays");
     release(B_SAVE);
     check(pat_has(0, 1), "LFO held + SAVE + key 2: the working copy stored into T1 2");
-    press(B_OCTDN);                                      /* LFO held, then SHIFT + n: clear slot n (asked) */
+    press(B_HOME);                                       /* LFO held, then HOME + n: clear slot n (asked) */
     key(WK(1));
-    check(op_armed() && !strcmp(ui.arm_q, "CLEAR T1 2?") && lay.lock == LY_PLAY, "LFO held + SHIFT + key 2: clear slot 2, asked");
-    release(B_OCTDN);
+    check(op_armed() && !strcmp(ui.arm_q, "CLEAR T1 2?") && lay.lock == LY_PLAY, "LFO held + HOME + key 2: clear slot 2, asked");
+    release(B_HOME);
     frames(2);
     check(lay.lock == LY_PLAY, "... HOME let go after a clear: the layer is not locked");
     tap(B_SAVE);
@@ -1692,16 +1708,100 @@ static void layer_tests(void)
     ui.force = 1;
     frame();
     ppm("opt-layer-lfo");
-    {   /* LFO held is SHIFT (11.6): a knob edits the screen under it, no cue (ui_optimist_len.h: LEN by one) */
-        uint8_t rq = pat_req[0];
-        int16_t lv = trk[0].p[P_LEVEL];
+    {   /* LFO held long enough: the patterns screen, its knobs are the patterns' (the track selected, a cue); a knob turned
+         * at once (before the hold) is SHIFT and keeps the screen under it (ui_optimist_len.h: LEN by one) */
+        check(lpk.on && ui.scr == SCR_SONG, "LFO held: the patterns screen (SONG's PATTERNS row)");
+        turn(EN_K2, 1);
+        check(song.sel == 1u && lay.shown == LY_PLAY, "LFO held + KNOB 2 on the patterns screen: T2 selected");
         turn(EN_K1, 1);
-        frame();
-        check(pat_req[0] == rq && lay.shown == LY_PLAY, "LFO held + KNOB 1: no cue, the screen under (SHIFT)");
-        trk[0].p[P_LEVEL] = lv;
+        song.sel = 0;
     }
     release(B_LFO);
     track_defaults_steps(t);
+    {   /* PRESETS / the engine step: a popup list of the sounds over the panel (op_preset.c draw_pop) */
+        reset_ui();
+        song.sel = 0;
+        op_enter(SCR_SOUND);
+        ui.row[SCR_SOUND] = 0;
+        ui.force = 1;
+        frames(2);
+        turn(EN_PRESET, 1);
+        frames(3);
+        check(op_overlay() == 5u && pop_kind == 1u, "PRESETS turned: the popup list of the sounds");
+        ppm("opt-preset-popup");
+        {   /* scrolling with the popup up: its box is drawn once a detent, the panel under it not at all (it flashed) */
+            uint32_t d, worst = 0;
+            for (d = 0; d < 8u; d++) {
+                probe_hits = 0;
+                turn(EN_PRESET, 1);
+                frame();
+                if (probe_hits > worst)
+                    worst = probe_hits;
+            }
+            check(worst <= 1u, "PRESETS scrolled with the popup up: one blit over its box a detent (no flash from the panel under it)");
+        }
+        press(B_OCTUP);
+        turn(EN_PRESET, 1);
+        release(B_OCTUP);
+        frames(3);
+        check(op_overlay() == 5u, "SHIFT2 + PRESETS (the engine step): the popup list too");
+        ppm("opt-engine-popup");
+        frames(OP_TOAST_FRAMES + 5u);
+        check(op_overlay() == 0u, "... gone with the toast, ~1.5 s after the last turn");
+        song.sel = TRK_DRUM;
+        ui.lane = 0;
+        ui.force = 1;
+        frames(2);
+        turn(EN_PRESET, 1);
+        frames(3);
+        ppm("opt-kit-popup");
+        song.sel = 0;
+        reset_ui();
+    }
+    {   /* SAVE tapped on the patterns screen (LFO held): the track's pattern is stored, the screen stays */
+        reset_ui();
+        op_enter(SCR_HOME);
+        frame();
+        press(B_LFO);
+        frames(HOLD_FRAMES);
+        tap(B_SAVE);
+        frames(2);
+        check(lpk.on && ui.scr == SCR_SONG && (op_armed() || pat_has(0, 0) || pat_cur[0] < PAT_N || !strncmp(ui.msg, "NO FREE", 7)),
+              "LFO held + SAVE tapped: the patterns screen stays, the track's pattern is stored (asked over a used slot)");
+        if (op_armed())
+            tap(B_HOME);
+        {
+            int32_t oc = song.octave;
+            tap(B_OCTUP);
+            tap(B_OCTDN);
+            frames(2);
+            check(song.octave == oc && strncmp(ui.msg, "OCTAVE", 6) != 0 && lpk.on, "... OCT+ / OCT- on the patterns screen: nothing (no octave change)");
+        }
+        release(B_LFO);
+        frames(2);
+        check(ui.scr == SCR_HOME && !lpk.on, "... LFO let go: back to the mixer");
+        reset_ui();
+        op_enter(SCR_HOME);
+        frame();
+        press(B_LFO);
+        frames(HOLD_FRAMES);
+        tap(B_ENV);                                     /* a page button during the hold: you go there and stay */
+        frames(2);
+        release(B_LFO);
+        frames(3);
+        check(ui.scr == SCR_SOUND && !lpk.on, "LFO held + ENV tapped, LFO let go: SOUND stays (no jump back to the screen it came from)");
+        reset_ui();
+        op_enter(SCR_HOME);
+        frame();
+        press(B_LFO);
+        frames(HOLD_FRAMES);
+        tap(B_SEQ);                                     /* SEQ tapped: SONG's views in turn, still the peek */
+        frames(2);
+        release(B_LFO);
+        frames(3);
+        check(ui.scr == SCR_HOME && !lpk.on, "LFO held + SEQ tapped, LFO let go: back to the mixer");
+        reset_ui();
+    }
 #endif
     {   /* every layer's title and footer lines fit; a scene's and a note's letter keep their capital */
         static const uint8_t L[] = {LY_FX, LY_ERASE, LY_ROLL, LY_SCALE, LY_MIX FIF(FELUCCA_PATTERNS)(, LY_PAT, LY_PAT)};
@@ -1755,7 +1855,7 @@ static void save_layer_tests(void)
     press(B_LFO);
     frames(HOLD_FRAMES);
     key(BK(9));                                         /* black 10: the white keys are the scenes */
-    check(lay.shown == LY_PAT && lay.pmod == 10u && !strcmp(ui.msg, "SCENES"), "LFO + black 10: the scenes");
+    check(lpk.on && lay.pmod == 10u && !strcmp(ui.msg, "SCENES"), "LFO + black 10: the scenes");
     ui.force = 1;
     frame();
     ppm("opt-layer-scenes");
@@ -1771,11 +1871,11 @@ static void save_layer_tests(void)
           "the scenes, SAVE + key 2: store the loop into B, asked (used); no SONG REC");
     tap(B_SAVE);
     check(!op_armed() && (saves || project_used(1)), "... YES: stored");
-    press(B_OCTDN);
+    press(B_HOME);
     key(WK(0));
-    release(B_OCTDN);
+    release(B_HOME);
     check(op_armed() && !strcmp(ui.arm_q, "CLEAR SCENE A?") && strncmp(ui.msg, "UNDO", 4) && strncmp(ui.msg, "NOTHING", 7),
-          "the scenes, SHIFT + key 1: clear A, asked; no undo");
+          "the scenes, HOME + key 1: clear A, asked; no undo");
     tap(B_HOME);
     key(BK(9));
     check(lay.pmod == 0u && !strcmp(ui.msg, "PATTERNS"), "black 10 again: the patterns");
@@ -1784,17 +1884,17 @@ static void save_layer_tests(void)
     frames(2);
     check(lay.pmod == 0u, "LFO let go: the patterns again next time");
 #endif
-    press(B_SAVE);
+    press(B_SEQ);
     tap(B_REC);
-    check(srec == 1, "SAVE + REC tapped: SONG REC armed");
+    check(srec == 1, "SEQ + REC tapped: SONG REC armed");
     tap(B_REC);
-    release(B_SAVE);
+    release(B_SEQ);
     check(srec == 0, "... again: off");
     arrangement.count = 2;                              /* (a song of A and B: both stored) */
     arrangement.entry[0].scene = 0, arrangement.entry[1].scene = 1, arrangement.entry[0].bars = arrangement.entry[1].bars = 4;
-    hold2(B_SAVE, B_PLAY);
+    hold2(B_SEQ, B_PLAY);
     frames(3);
-    check(arrangement_enabled && (song.playing || transport_req), "SAVE + PLAY: the song from its start");
+    check(arrangement_enabled && (song.playing || transport_req), "SEQ + PLAY: the song from its start");
     tap(B_PLAY);
     frames(3);
     arrangement_enabled = 0;
@@ -2120,6 +2220,146 @@ static void song_tests(void)
     frames(HOLD_FRAMES);
     release(B_SAVE);
     check(ui.scr == SCR_SONG, "SAVE held on PROJECT: the SONG screen");
+    op_enter(SCR_HOME);
+    frame();
+    press(B_SEQ);
+    frames(HOLD_FRAMES);
+    release(B_SEQ);
+    check(ui.scr == SCR_SONG, "SEQ held alone off STEP: the SONG screen (2026-10-20)");
+    op_enter(SCR_HOME);
+    frame();
+    tap(B_SEQ);
+    check(ui.scr == SCR_STEP, "SEQ tapped off STEP: still STEP");
+    op_enter(SCR_SONG);
+    frame();
+    {   /* the keys on SONG (2026-10-20): white = scenes, black = the parts window, F#5 = PATTERNS / MODE */
+        uint32_t cnt = arrangement.count;
+        arrangement.count = 25;
+        ui.row[SCR_SONG] = 0;
+        key(WK(2));
+        check(ui.row[SCR_SONG] == 2u && ui.scr == SCR_SONG, "SONG: white key 3: the cursor on scene C (and it is launched: loaded, asked, or said empty)");
+        if (op_armed())
+            tap(B_HOME);
+        press(B_OCTUP);
+        key(WK(3));
+        release(B_OCTUP);
+        if (op_armed())
+            tap(B_HOME);
+        check(ui.row[SCR_SONG] == 3u && ui.scr == SCR_SONG, "SONG: SHIFT2 + white key 4: the cursor on scene D (launched as soon as possible)");
+        ui.row[SCR_SONG] = 2;
+        tap(B_SEQ);
+        check(ui.scr == SCR_SONG && ui.row[SCR_SONG] >= song_row_of_part(0), "SONG: SEQ tapped on a scene: the next view, the PARTS timeline");
+        tap(B_SEQ);
+        check(ui.scr == SCR_SONG && ui.row[SCR_SONG] == song_base_mode(), "... again: SETTINGS (MODE)");
+        tap(B_SEQ);
+        check(ui.scr == SCR_SONG && ui.row[SCR_SONG] == 2u, "... again: SCENES, on the row it was left on (C)");
+        ui.row[SCR_SONG] = (uint8_t)song_row_of_part(3);
+        tap(B_SEQ);
+        tap(B_SEQ);
+        tap(B_SEQ);
+        check(ui.row[SCR_SONG] == song_row_of_part(3), "... and PARTS again on the part it was left on");
+        op_enter(SCR_HOME);
+        frame();
+        press(B_OCTUP);
+        press(B_SEQ);
+        release(B_SEQ);
+        release(B_OCTUP);
+        frames(2);
+        check(ui.scr == SCR_SONG, "SHIFT2 held + SEQ: the SONG screen (from the mixer)");
+        op_enter(SCR_STEP);
+        frame();
+        press(B_OCTUP);
+        press(B_SEQ);
+        release(B_SEQ);
+        release(B_OCTUP);
+        frames(2);
+        check(ui.scr == SCR_SONG, "SHIFT2 held + SEQ on STEP: the SONG screen too (no octave, no STEP tap)");
+        arrangement_clock.running = 0;
+        arrangement.entry[2].scene = 0;
+        fm1_in.notes |= 1u << BK(2);
+        frame();
+        key(WK(1));
+        fm1_in.notes &= ~(1u << BK(2));
+        frame();
+        if (op_armed())
+            tap(B_HOME);
+        check(arrangement.entry[2].scene == 1u && arrangement.count == 25u && ui.row[SCR_SONG] == song_row_of_part(2),
+              "SONG: a part key held + a scene key: that scene is the part's (part 3 = B)");
+        arrangement.count = 3;
+        arrangement.entry[2].bars = 8;
+        fm1_in.notes |= 1u << BK(5);
+        frame();
+        key(WK(2));
+        fm1_in.notes &= ~(1u << BK(5));
+        frame();
+        if (op_armed())
+            tap(B_HOME);
+        check(arrangement.count == 6u && arrangement.entry[5].scene == 2u && arrangement.entry[3].scene == 2u &&
+                  arrangement.entry[4].bars == 0u && ui.row[SCR_SONG] == song_row_of_part(5),
+              "SONG: a part key past the chain held + a scene key: the part is made (and those between), this scene");
+        arrangement.count = 25;
+        {   /* a key held with nothing else pressed: a scene key asks to clear it, a part key to delete it and what follows */
+            uint32_t r;
+            ui.row[SCR_SONG] = 0;
+            fm1_in.notes |= 1u << BK(4);
+            frames(HOLD_FRAMES);
+            check(op_armed() && !strcmp(ui.arm_q, "DELETE PART 5 + AFTER?"), "SONG: a part key held: delete that part and everything after, asked");
+            tap(B_SAVE);
+            fm1_in.notes &= ~(1u << BK(4));
+            frames(2);
+            check(arrangement.count == 4u, "... YES: the chain ends before part 5");
+            arrangement.count = 25;
+            fm1_in.notes |= 1u << BK(0);
+            frames(HOLD_FRAMES);
+            check(!op_armed() && !strcmp(ui.msg, "ONE PART LEFT"), "SONG: part 1 held: it cannot go (one part left)");
+            fm1_in.notes &= ~(1u << BK(0));
+            frames(2);
+            press(B_OCTDN);
+            key(BK(4));
+            release(B_OCTDN);
+            check(op_armed() && !strcmp(ui.arm_q, "DELETE PART 5 + AFTER?"), "SONG: SHIFT + a part key: delete that part and what follows, asked");
+            tap(B_HOME);
+            (void)r;
+        }
+        key(BK(0));
+        check(ui.row[SCR_SONG] == song_row_of_part(0), "SONG: black key 1 = part 1");
+        key(BK(7));
+        check(ui.row[SCR_SONG] == song_row_of_part(7), "SONG: black key 8 = part 8 (the window holds 8)");
+        key(BK(8));
+        check(ui.row[SCR_SONG] == song_row_of_part(7), "SONG: black key 9 does nothing (it is no part key)");
+        arrangement_clock.running = 1, arrangement_clock.index = 0, arrangement_clock.bar = 0;
+        arrangement_clock.jump = arrangement_clock.jump_now = 0;
+        arrangement.entry[4].scene = 1;                 /* (scene B: stored by the scene tests above) */
+        key(BK(4));
+        check(arrangement_clock.jump == 5u && arrangement_clock.jump_now == 0u && ui.row[SCR_SONG] == song_row_of_part(4),
+              "SONG: black key 5: the song jumps to part 5 at the next bar (the cursor there)");
+        arrangement_clock.jump = arrangement_clock.jump_now = 0;
+        press(B_OCTUP);
+        key(BK(4));
+        release(B_OCTUP);
+        check(arrangement_clock.jump == 5u && arrangement_clock.jump_now == 1u, "SONG: SHIFT2 + black key 5: the jump at once (as soon as possible)");
+        arrangement_clock.jump = arrangement_clock.jump_now = 0;
+        arrangement_clock.running = 0;
+        tap(B_OCTUP);
+        frames(2);
+        check(ui.row[SCR_SONG] == song_row_of_part(12), "SONG: OCT+: the window by eight, the cursor at the same place (part 5 -> 13)");
+        key(BK(2));
+        check(ui.row[SCR_SONG] == song_row_of_part(10), "SONG: page 2, black key 3 = part 11");
+        tap(B_OCTUP);
+        tap(B_OCTUP);
+        key(BK(7));
+        check(sg_page == 3u && ui.row[SCR_SONG] != song_row_of_part(31 % 25), "SONG: page 4 holds part 25: black key 8 past the chain does nothing");
+        tap(B_OCTDN);
+        tap(B_OCTDN);
+        tap(B_OCTDN);
+        key(BK(0));
+        check(ui.row[SCR_SONG] == song_row_of_part(0), "SONG: OCT- back to page 1");
+        key(25);
+        check(ui.row[SCR_SONG] == song_base_mode(), "SONG: F#5 from a part: SETTINGS (the MODE row)");
+        key(25);
+        check(ui.row[SCR_SONG] < song_nscn(), "SONG: F#5 on SETTINGS: back to the scenes");
+        arrangement.count = (uint8_t)cnt;
+    }
     n = song_rows();
     check(n == LAY_NSCN + (FELUCCA_PATTERNS ? 1u : 0u) + 1u + arrangement.count,
           "SONG: the scenes, PATTERNS, MODE, then the chain's parts");
@@ -2142,14 +2382,82 @@ static void song_tests(void)
         tap(B_HOME);
         ui.hot = 0;
         for (r = 0; r < 20u; r++)
-            turn(EN_K1, -1);                            /* (down to "--": none; KNOB 1, PRESETS is the sound only) */
+            turn(EN_K4, -1);                            /* (down to "--": none; KNOB 4 the table's value, lane T1) */
         {
             cell_t cc;
             song_cell(c, 0, &cc);
-            check(sg.ed_s == 2 && cc.col == C_WARN, "KNOB 1 on its T1 cell: the reference edited (amber until written)");
+            check(sg.ed_s == 2 && cc.col == C_WARN, "KNOB 4 on its T1 cell: the reference edited (amber until written)");
         }
         frames(60);
         check(sg.ed_s == 0xFF && pat_scene_refs(2, refs) && refs[0] == PAT_NONE, "... written once it rests: T1 none");
+        turn(EN_K4, 1);
+        turn(EN_ALGO, 1);                               /* (another lane, a cell before the first rested: the first stays) */
+        turn(EN_K4, 1);
+        turn(EN_ALGO, -1);
+        frames(60);
+        check(pat_scene_refs(2, refs) && refs[0] == PAT_KEEP && refs[1] < PAT_N && refs[2] == PAT_NONE && refs[3] == PAT_NONE,
+              "SONG scene C: KNOB 4 on T1 then on T2 at once: both references kept (one edit never undoes the other)");
+        {   /* playing: a scene's reference and the chain edit too (the arena, the RAM chain), saved when quiet */
+            uint32_t was = refs[0], cnt0 = arrangement.count;
+            song.playing = 1;
+            ui.row[SCR_SONG] = (uint8_t)c;
+            turn(EN_K4, 1);
+            frames(60);
+            check(sg.ed_s == 0xFF && pat_scene_refs(2, refs) && refs[0] != was && sec_pend_has(2),
+                  "SONG, playing: KNOB 4 on a scene's T1 reference changes it (the pending arena, no STOP FIRST)");
+            ui.row[SCR_SONG] = (uint8_t)song_row_of_part(0);
+            frame();
+            turn(EN_K2, 1);
+            check(arrangement.entry[0].bars > 0u && strcmp(ui.msg, "STOP FIRST") != 0, "SONG, playing: a part's bars turn too");
+            song_part_insert(0);
+            check(arrangement.count == cnt0 + 1u && strcmp(ui.msg, "STOP FIRST") != 0, "SONG, playing: INSERT a part works");
+            song_part_cut(1);
+            song_part_assign(cnt0, 1);
+            check(arrangement.count == cnt0 + 1u && strcmp(ui.msg, "STOP FIRST") != 0, "SONG, playing: a part is made (part key + scene key)");
+            song_part_cut(cnt0);
+            check(arrangement.count == cnt0, "SONG, playing: the part cut works");
+            song.playing = 0;
+        }
+        {   /* a part's SCENE card: a scene with T1..DR all "-" is grey and struck, a scene with a pattern is not */
+            cell_t pc;
+            uint32_t k;
+            arrangement.entry[0].scene = 2;
+            song_refresh(1);
+            song_cell(song_row_of(SG_PART, 0), 0, &pc);
+            check(!pc.strike && !pc.dim, "SONG part: its scene has a pattern: the letter plain");
+            for (k = 0; k < NTRK; k++)
+                pat_scene_ref_set(2, k, PAT_NONE);
+            song_refresh(1);
+            song_cell(song_row_of(SG_PART, 0), 0, &pc);
+            check(pc.strike && pc.dim, "SONG part: its scene has T1..DR all \"-\": the letter grey and struck through");
+            pat_scene_ref_set(2, 0, PAT_KEEP);
+            song_refresh(1);
+        }
+        ui.row[SCR_SONG] = (uint8_t)c;
+        fm1_in.notes |= 1u << WK(2);
+        frames(HOLD_FRAMES);
+        check(op_armed() && !strcmp(ui.arm_q, "CLEAR SCENE C?"), "SONG: a scene key held: clear that scene, asked");
+        tap(B_HOME);
+        fm1_in.notes &= ~(1u << WK(2));
+        frames(2);
+        check(project_used(2), "... NO: the scene is kept");
+        ui.row[SCR_SONG] = 0;
+        press(B_HOME);
+        key(WK(2));
+        release(B_HOME);
+        check(op_armed() && !strcmp(ui.arm_q, "CLEAR SCENE C?") && ui.row[SCR_SONG] == (uint8_t)c, "SONG: HOME + a scene key: clear that scene, asked");
+        tap(B_HOME);
+        press(B_SAVE);
+        key(WK(2));
+        release(B_SAVE);
+        check(op_armed() && !strcmp(ui.arm_q, "STORE SCENE C?"), "SONG: SAVE + a scene key: store the loop into it, asked over a used one");
+        tap(B_HOME);
+        check(project_used(2) && !op_armed(), "... NO: kept, nothing asked");
+        press(B_OCTDN);
+        key(WK(2));
+        release(B_OCTDN);
+        check(op_armed() && !strcmp(ui.arm_q, "CLEAR SCENE C?"), "SONG: SHIFT + a scene key: clear that scene, asked");
+        tap(B_HOME);
         ui.force = 1;
         frame();
         ppm("opt-song-scenes");
@@ -2159,28 +2467,125 @@ static void song_tests(void)
         ui.row[SCR_SONG] = (uint8_t)song_row_of(SG_PAT, 0);
         frames(2);
         check(ly_lock == LY_PAT && song_on_pat_row(), "PATTERNS row: the keys launch the selected track's patterns");
+        song.sel = 0;
+        turn(EN_ALGO, 2);
+        check(song.sel == 2u && ui.scr == SCR_SONG && !ui.master && !strcmp(ui.msg, "PATTERNS T3"), "PATTERNS row: ALGORITHM walks the track (T3), a message names it");
+        turn(EN_ALGO, -9);
+        check(song.sel == 0u && ui.scr == SCR_SONG && !ui.master, "... left past T1: stays on T1 (never MASTER)");
+        turn(EN_K3, 1);
+        check(song.sel == 2u, "PATTERNS row: KNOB 3 selects T3 (the keys then launch its patterns)");
+        turn(EN_K1, 1);
+        check(song.sel == 0u, "... KNOB 1 selects T1");
+        press(B_SEQ);
+        press(B_SAVE);
+        key(WK(3));
+        release(B_SAVE);
+        release(B_SEQ);
+        frames(2);
+        check((project_used(3) || op_armed()) && ui.scr == SCR_SONG, "PATTERNS row: SEQ + SAVE + key 4: the four patterns stored as scene D (asked when used)");
+        if (op_armed())
+            tap(B_HOME);
+        press(B_SEQ);
+        key(WK(3));
+        release(B_SEQ);
+        frames(2);
+        check(op_armed() || project_used(3), "PATTERNS row: SEQ + key 4 alone: stored as scene D (asked over a used one)");
+        if (op_armed())
+            tap(B_HOME);
+        press(B_SEQ);
+        press(B_HOME);
+        key(WK(3));
+        release(B_HOME);
+        release(B_SEQ);
+        check(op_armed() && !strcmp(ui.arm_q, "CLEAR SCENE D?") && ui.scr == SCR_SONG, "PATTERNS row: SEQ + HOME + key 4: clear scene D, asked");
+        tap(B_HOME);
+        frames(2);
         t->step[3].time = ST_NOTE, t->step[3].n = 1, t->step[3].note[0] = 67;   /* (C's T1 is none: a note) */
         press(B_SAVE);
         key(WK(5));
         release(B_SAVE);
         check(pat_has(0, 5), "SAVE held + key 6: the working copy into slot 6");
+        ui.force = 1;
+        frames(2);
+        check(key_led(white_key(5)) >= 1u && key_led(white_key(7)) == 0u, "PATTERNS row: a stored pattern's key is lit, an empty slot's dark");
+        press(B_SEQ);
+        frames(HOLD_FRAMES);                            /* (held past HOLD: no view cycle on its release) */
+        check(key_led(white_key(2)) >= 1u || !project_used(2), "SEQ held (scenes): a filled scene's key is lit");
+        check(key_led(white_key(14)) == 0u, "... an empty scene's key is dark");
+        release(B_SEQ);
+        frames(2);
         key(WK(5));
         check(pat_cur[0] == 5 && !strcmp(ui.msg, "LOADED T1 6"), "key 6: T1's pattern 6 (stopped: loaded)");
+        frames(2);
+        check(key_led(white_key(5)) == 2u, "... the playing pattern's key is full");
         ui.force = 1;
         frame();
         ppm("opt-song-patterns");
-        press(B_OCTDN);
+        fm1_in.notes |= 1u << WK(5);
+        frames(HOLD_FRAMES);
+        check(op_armed() && !strcmp(ui.arm_q, "CLEAR T1 6?") && ui.scr == SCR_SONG, "PATTERNS row: a pattern key held: clear that slot, asked");
+        tap(B_HOME);
+        fm1_in.notes &= ~(1u << WK(5));
+        frames(2);
+        press(B_HOME);
         key(WK(5));
-        release(B_OCTDN);
-        check(op_armed() && !strcmp(ui.arm_q, "CLEAR T1 6?") && ui.scr == SCR_SONG, "SHIFT held + key 6: clear slot 6, asked");
+        release(B_HOME);
+        check(op_armed() && !strcmp(ui.arm_q, "CLEAR T1 6?") && ui.scr == SCR_SONG, "HOME held + key 6: clear slot 6, asked");
         tap(B_SAVE);
         check(!pat_has(0, 5), "... YES: cleared");
+        {   /* clearing while playing: it reads as none at once, the tombstone is written when quiet */
+            uint8_t sv = t->step[0].time;
+            t->step[0].time = ST_NOTE, t->step[0].n = 1, t->step[0].note[0] = 60;
+            check(!pat_store_slot(0, 7) && pat_has(0, 7), "(a pattern stored in slot 8, stopped: in the log)");
+            song.playing = 1;
+            check(!pat_write(0, 7, 0) && !pat_has(0, 7) && slg_tombs_any(), "PATTERNS, playing: a clear works (no STOP FIRST), pending in RAM");
+            song.playing = 0;
+            sections_write();
+            check(!slg_tombs_any() && !pat_has(0, 7), "... quiet: the tombstone is written, the slot stays empty");
+            t->step[0].time = sv;
+            scene_store_now(9);
+            check(project_used(9), "(scene J stored, stopped)");
+            song.playing = 1;
+            check(!sec_scene_clear(9) && !project_used(9) && slg_tombs_any(), "SONG, playing: a scene clear works (no STOP FIRST), pending in RAM");
+            song.playing = 0;
+            sections_write();
+            check(!slg_tombs_any() && !project_used(9), "... quiet: its tombstones are written, the scene stays empty");
+        }
         tap(B_REC);
         check(strncmp(ui.msg, "DUPLICATE T1", 12), "PATTERNS row, REC: no duplicate any more (2026-10-16: the LFO layer's keys)");
         key(key_of_lane(8));                            /* (black 9: DUPLICATE, as in the LFO layer) */
         check(!strncmp(ui.msg, "DUPLICATE T1", 12), "PATTERNS row, black 9: the working copy into the first free slot");
         ui.row[SCR_SONG] = (uint8_t)song_row_of(SG_SCENE, 2);
         frame();
+        {
+        int8_t ls0 = live_sec;
+        song.playing = 1;                               /* a scene key playing: the next bar; with SHIFT2: as soon as possible */
+        live_req = -1;
+        live_sec = -1;
+        key(WK(2));
+        frames(2);
+        check(live_req == 2 && live_now == 0 && live_sec != 2, "SONG, playing: a scene key: queued for the next bar");
+        live_req = -1;
+        live_now = 0;
+        live_sec = 1;                                   /* the scene playing is B with BARS 4: a launch waits for the end of a pass of 4 bars */
+        scene_bars[1] = 4;
+        key(WK(2));
+        frames(2);
+        check(live_len == 4u && live_req == 2, "SONG, playing scene B (BARS 4): a scene key queued, waiting for 4 bars");
+        scene_bars[1] = 0;
+        live_req = -1;
+        live_now = 0;
+        press(B_OCTUP);
+        key(WK(2));
+        release(B_OCTUP);
+        frames(2);
+        check(live_sec == 2 && live_req == -1 && live_now == 0 && !strcmp(ui.msg, "NOW: C"),
+              "SONG, playing: SHIFT2 + a scene key: applied as soon as possible (\"NOW: C\"), not waiting for the bar");
+        live_req = -1;
+        live_now = 0;
+        song.playing = 0;
+        live_sec = ls0;
+        }
         press(B_OCTDN);
         press(B_REC);
         release(B_REC);
@@ -2200,31 +2605,98 @@ static void song_tests(void)
         check(arrangement_enabled != m, "MODE: YES toggles LOOP / SONG");
         arrangement_enabled = 0;
     }
+    ui.row[SCR_SONG] = (uint8_t)song_row_of(SG_SCENE, 2);
+    frame();
+    {   /* the SCENES table (op_songtbl.c): KNOB 1 the cursor, ALGORITHM and KNOB 3 the lane, KNOB 4 the value; BARS is the 5th lane */
+        scene_bars[2] = 0;
+        ui.row[SCR_SONG] = (uint8_t)song_row_of(SG_SCENE, 2);
+        frame();
+        check(song_tbl_on(), "SONG, a scene row: the SCENES table");
+        turn(EN_ALGO, 9);
+        check(stb_lane == 4u, "SCENES: ALGORITHM down the lanes to BARS (the last)");
+        turn(EN_K4, 3);
+        check(scene_bars[2] == 3u && !strcmp(ui.msg, "SCENE C: 3 BARS") && sg.dirty, "... KNOB 4: the scene's BARS 3, said, the song to be saved");
+        turn(EN_K4, -9);
+        check(scene_bars[2] == 0u && !strcmp(ui.msg, "SCENE C: AUTO"), "... down: AUTO again, no lower");
+        turn(EN_K4, 99);
+        check(scene_bars[2] == 64u, "... up: 64 at most");
+        {
+            cell_t sc5;
+            song_cell(song_row_of(SG_SCENE, 2), 4, &sc5);
+            check(!strcmp(sc5.label, "BARS") && !strcmp(sc5.val, "64") && sc5.col == 0xB31Fu && sc5.kind == CK_RO, "SCENE C: its BARS cell, purple, the value 64");
+            scene_bars[2] = 0;
+            song_cell(song_row_of(SG_SCENE, 2), 4, &sc5);
+            check(!strcmp(sc5.val, "AUTO"), "... AUTO when 0");
+            song_cell(song_row_of(SG_PART, 0), 4, &sc5);
+            check(sc5.label == 0, "... no 5th cell on the other rows");
+        }
+        turn(EN_K1, 1);
+        check(ui.row[SCR_SONG] == song_row_of(SG_SCENE, 3) && stb_lane == 4u, "SCENES: KNOB 1 the cursor to the next scene, the lane kept");
+        turn(EN_K1, -1);
+        turn(EN_K3, -9);
+        check(stb_lane == 0u, "... KNOB 3 up the lanes");
+        turn(EN_K2, 1);
+        check(!strcmp(ui.msg, "SCENES STAY PUT"), "... KNOB 2 on the scenes: they stay put");
+        ui.force = 1;
+        frames(2);
+        ppm("opt-song-scenes-table");
+        scene_bars[2] = 0;
+    }
     ui.row[SCR_SONG] = (uint8_t)song_row_of(SG_PART, 0);
     frame();
-    {
-        uint32_t cnt = arrangement.count, bars = arrangement.entry[0].bars;
-        turn(EN_K2, 2);
-        check(arrangement.entry[0].bars == bars + 2u, "PART 1: KNOB 2 its bars");
-        turn(EN_K3, 1);
-        tap(B_SAVE);
-        check(op_armed() && arrangement.count == cnt && !strcmp(ui.arm_q, "INSERT PART 1?") && !ui.arm_danger,
-              "INSERT: asks first (\"INSERT PART 1?\"), nothing inserted");
-        tap(B_HOME);
-        check(!op_armed() && arrangement.count == cnt, "INSERT: HOME cancels, nothing changed");
-        tap(B_SAVE);
-        tap(B_SAVE);
-        check(arrangement.count == cnt + 1u && ui.row[SCR_SONG] == song_row_of(SG_PART, 1), "INSERT: a copy after it");
+    {   /* the PARTS timeline: two lanes (the scene, the bars: S the scene's, A the longest pattern, a number) */
+        uint32_t bars = arrangement.entry[0].bars, cnt = arrangement.count;
+        cell_t bc;
+        stb_lane = 0;
+        arrangement.entry[0].bars = 0;
+        song_cell(song_row_of(SG_PART, 0), 1, &bc);
+        check(song_tbl_on() && !strcmp(bc.val, "SCENE"), "PARTS table: BARS 0 is S (it follows its scene's BARS)");
+        turn(EN_ALGO, 1);
+        check(stb_lane == 1u, "PARTS: ALGORITHM down to the bars lane");
+        turn(EN_ALGO, 9);
+        check(stb_lane == 1u, "... two lanes only");
+        turn(EN_K4, 2);
+        check(arrangement.entry[0].bars == 2u, "PARTS: KNOB 4 the bars (from S up: 1, 2)");
+        turn(EN_K4, -5);
+        check(arrangement.entry[0].bars == 0u, "... down: S again, no lower");
+        turn(EN_K4, 99);
+        check(arrangement.entry[0].bars == ARR_BARS_A, "... up through 64 to A (the longest pattern)");
+        song_cell(song_row_of(SG_PART, 0), 1, &bc);
+        check(!strcmp(bc.val, "AUTO"), "... A reads AUTO in the cell");
+        turn(EN_K4, -1);
+        check(arrangement.entry[0].bars == 64u, "... A down: 64");
+        arrangement.entry[0].bars = 0;
+        turn(EN_K3, -9);
+        check(stb_lane == 0u, "PARTS: KNOB 3 up to the scene lane");
+        turn(EN_K1, 1);
+        check(ui.row[SCR_SONG] == song_row_of(SG_PART, 1) || arrangement.count < 2u, "PARTS: KNOB 1 the cursor to the next part");
+        turn(EN_K1, -9);
+        check(ui.row[SCR_SONG] == song_row_of(SG_PART, 0), "... and back to the first");
+        if (arrangement.count >= 2u) {
+            uint8_t s0 = arrangement.entry[0].scene, s1 = arrangement.entry[1].scene;
+            turn(EN_K2, 1);
+            check(arrangement.entry[1].scene == s0 && arrangement.entry[0].scene == s1 && ui.row[SCR_SONG] == song_row_of(SG_PART, 1),
+                  "PARTS: KNOB 2 moves the part itself right (it swaps with its neighbour, the cursor goes with it)");
+            turn(EN_K2, -1);
+            check(arrangement.entry[0].scene == s0 && ui.row[SCR_SONG] == song_row_of(SG_PART, 0), "... and left again");
+        }
+        {
+            uint32_t n0 = arrangement.count;
+            tap(B_SAVE);
+            check(op_armed() && arrangement.count == n0 && !strcmp(ui.arm_q, "INSERT PART 1?"), "PARTS: SAVE asks \"INSERT PART 1?\", nothing inserted");
+            tap(B_HOME);
+            check(!op_armed() && arrangement.count == n0, "INSERT: HOME cancels, nothing changed");
+            tap(B_SAVE);
+            tap(B_SAVE);
+            check(arrangement.count == n0 + 1u && ui.row[SCR_SONG] == song_row_of(SG_PART, 1), "INSERT: a copy after it");
+            arrangement.count = (uint8_t)n0;
+            ui.row[SCR_SONG] = (uint8_t)song_row_of(SG_PART, 0);
+        }
         ui.force = 1;
-        frame();
-        ppm("opt-song-chain");
-        turn(EN_K4, 1);
-        tap(B_SAVE);
-        check(op_armed() && arrangement.count == cnt + 1u && strstr(ui.arm_q, "PART 2"),
-              "DELETE: asked first (\"DELETE PART 2?\": no undo for the song's order)");
-        tap(B_SAVE);
-        check(arrangement.count == cnt, "DELETE: YES, the part goes");
+        frames(2);
+        ppm("opt-song-parts-table");
         arrangement.entry[0].bars = (uint8_t)bars;
+        (void)cnt;
     }
     tap(B_HOME);
     frames(2);

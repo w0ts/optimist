@@ -90,13 +90,12 @@ static void len_tests(void)
         pat_store_slot(0, 1);
         pat_store_slot(0, 2);
         press(B_LFO);
-        frames(HOLD_FRAMES);
-        check(lay.shown == LY_PAT && ly_lock == LY_PLAY, "LFO held: the patterns' map");
         rq = pat_req[0];
-        len_set_turn(16, EN_K1, 1);
+        len_set_turn(16, EN_K1, 1);                     /* (at once, before the hold: SHIFT, the screen under stays) */
         frame();
-        check(pat_req[0] == rq && t->p[P_SLEN] == 17 && lay.shown == LY_PLAY,
-              "LFO held + KNOB 1: SHIFT (LEN by one), no pattern cued, the screen under shown");
+        frames(HOLD_FRAMES);
+        check(!lpk.on && ly_lock == LY_PLAY && pat_req[0] == rq && t->p[P_SLEN] == 17 && ui.scr == SCR_STEP,
+              "LFO held + KNOB 1 at once: SHIFT (LEN by one), no pattern cued, the screen under stays (no patterns screen)");
         key(WK(1));
         check(pat_req[0] == 1 || pat_cur[0] == 1, "... and LFO still held + white 2: T1's pattern 2 launches");
         release(B_LFO);

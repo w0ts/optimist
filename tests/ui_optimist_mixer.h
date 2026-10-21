@@ -629,14 +629,14 @@ static void header_track_tests(void)
     check(!head_badge_drawn(), "MASTER (SOUND on the master FX): no track badge");
     ui.master = 0;
     for (l = LY_FX; l < LY_COUNT; l++) {
-        static const uint8_t LY_WANT[LY_COUNT] = {[LY_ERASE] = 1, [LY_STEP] = 1, [LY_SCALE] = 1, [LY_OPS] = 1};
+        static const uint8_t LY_WANT[LY_COUNT] = {[LY_ERASE] = 1, [LY_STEP] = 1, [LY_SCALE] = 1, [LY_OPS] = 1 FIF(FELUCCA_PATTERNS)(, [LY_PAT] = 1)};
         lay.shown = (uint8_t)l;
         if (head_badge_drawn() != LY_WANT[l]) {
             printf("  layer %u: badge %d, wanted %d\n", l, !LY_WANT[l], LY_WANT[l]);
             bad++;
         }
     }
-    check(!bad, "layers: ERASE, STEP keys, KEY, FM6 OPS show the track; FX, REPEAT, MIX, SCENES, PATTERNS do not");
+    check(!bad, "layers: ERASE, STEP keys, KEY, FM6 OPS show the track; PATTERNS (the track its keys launch) show the track; FX, REPEAT, MIX, SCENES do not");
     lay.shown = LY_PLAY;
     ui.scr = SCR_HOME;
     ui.sig[0] = 0;

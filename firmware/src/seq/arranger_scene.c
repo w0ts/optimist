@@ -10,8 +10,8 @@ static uint32_t arrangement_ready(void)
 }
 
 
-#if FELUCCA_QCHAIN
-/* the bars a section's loop takes: its longest pattern, ceil(LEN x step / bar), 1..64 (SLOOP 2.4 section_bars) */
+/* the bars a section's loop takes: its longest pattern, ceil(LEN x step / bar), 1..64 (SLOOP 2.4 section_bars); a part
+ * whose BARS says AUTO lasts this long, the shorter patterns looping until the scene's end */
 static uint32_t project_bars(const project_t *p)
 {
     uint32_t k, bars = 1;
@@ -24,7 +24,6 @@ static uint32_t project_bars(const project_t *p)
     return bars > 64u ? 64u : bars;
 }
 static uint32_t section_bars(uint32_t s) { return proj_ok(&proj_slot[s % ARR_SCENES]) ? project_bars(&proj_slot[s % ARR_SCENES]) : 1u; }
-#endif
 
 /* Called only at an audio-block boundary, after validation of all slots at
  * start. The song keeps one tempo and global FX across every section (only the drum
@@ -39,6 +38,8 @@ static void arrangement_apply(uint32_t scene)
         t->nheld = t->arp_phys = t->arp_note = t->rh_n = t->rskip_n = 0;
         t->rskip_lanes = 0;
     }
+    arrangement_clock.pat_bars = (uint8_t)project_bars(&proj_slot[scene]);   /* (a part that says A: the scene's longest pattern) */
+    arrangement_clock.auto_bars = scene_bars[scene % 16u] ? scene_bars[scene % 16u] : arrangement_clock.pat_bars;   /* (a part that says S: the scene's BARS, AUTO its longest pattern) */
     proj_apply(&proj_slot[scene], &proj_dl[scene], 0);
     sync_reload = 1;
     ui.force = 1;

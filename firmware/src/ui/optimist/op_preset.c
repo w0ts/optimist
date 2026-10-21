@@ -4,7 +4,9 @@
  *   the SOUND row     its picture over the rows (op_draw.c draw_list): the preset before, the one playing and the
  *                     one after, each with its engine's name and colour chip (a user preset: its record's engine)
  *   the mixer         PRESETS on the SOUND row: a toast "Super saw (ANALOG)" framed in the engine's colour; the
- *                     strips' names in their engine's colour (op_draw.c draw_strip) */
+ *                     strips' names in their engine's colour (op_draw.c draw_strip)
+ *   PRESETS, SHIFT2 + PRESETS (the engine step): a popup list of the sounds over the panel, the one playing lit in the middle,
+ *                     scrolling as you turn, ~1.5 s after the last turn (draw_pop; the drum track: its factory kits) */
 static uint32_t up_engine_slot(uint32_t k);             /* storage/upreset.c (FELUCCA_UI == 1) */
 #if FELUCCA_NB_LIST
 static uint32_t nb_kind(const track_t *t);              /* storage/nbank.c */
@@ -50,6 +52,8 @@ static void pre_toast_drum(void)
     ui_message(m);
     ui.toast_next = 0;
     ui.toast_col = on ? op_lane_col(l) : kit_col();
+    if (!on && !dl.ukit && drum_kit_built(drum_kit()))
+        pop_kind = 2;                                   /* (a factory kit: the popup list of the kits, over the toast) */
 }
 static void pre_toast(void)
 {
@@ -79,6 +83,7 @@ static void pre_toast(void)
     ui_message(m);
     ui.toast_next = 0;
     ui.toast_col = e < NENGINES ? ENG_COL[e] : C_HI;
+    pop_kind = 1;                                       /* (the popup list of the sounds, the toast's place: draw_pop) */
 }
 #if FELUCCA_FAVORITES
 /* a toast over the sound playing: "FAV + NAME" marked, "FAV - NAME" unmarked; the list kept: "FAVORITES ONLY" / "ALL SOUNDS" */
@@ -107,6 +112,77 @@ static uint32_t pre_sig(void)
            (fav_count() * 131u + fav.user * 2654435761u + (uint32_t)fav_list * 40503u + (uint32_t)op_fav_here() * 7u) +
 #endif
            (is_drum(TSEL) ? drum_kit_pos() * 977u + (uint32_t)lane_picked() * 7u + lane_sel * 131u + (lane_snd() ? dl.src[lane_selected()] : 0u) : 0u);
+}
+/* PRESETS and the engine step: a popup list of the sounds over the panel, the one playing in the middle (framed and lit in
+ * its engine's colour), the others scrolling past it as you turn; gone with the toast, ~1.5 s after the last turn (the user,
+ * 2026-10-21: "when changing preset, engine, a popup with the scrolling list"). The drum track: its factory kits */
+static void pop_drum_kits(uint32_t *list, uint32_t *n, uint32_t *at)   /* the kits of this build, the one playing's place */
+{
+    uint32_t i;
+    *n = 0, *at = 0;
+    for (i = 0; i < DRUM_KITS && *n < 32u; i++)
+        if (drum_kit_built(i)) {
+            if (i == drum_kit())
+                *at = *n;
+            list[(*n)++] = i;
+        }
+}
+static void draw_pop(void)
+{
+    uint32_t kits[32], total, cur, half, row, i;
+    int32_t off, h, y0, ry;
+    uint16_t fr = ui.toast_col ? ui.toast_col : C_HI;
+    char t[12];
+    if (pop_kind == 2u)
+        pop_drum_kits(kits, &total, &cur);
+    else
+        cur = preset_pos(&total);
+    if (!total || cur >= total)
+        return;
+    half = (total - 1u) / 2u < 3u ? (total - 1u) / 2u : 3u;
+    while (half > 0u && (int32_t)(half * 2u + 1u) * 14 + 24 > (int32_t)MODAL_H)
+        half--;
+    h = (int32_t)(half * 2u + 1u) * 14 + 24;
+    y0 = (int32_t)OP_PY + ((int32_t)OP_PH - h) / 2;
+    cv_begin(240, (uint32_t)h, C_BLACK);
+    cv_rect(8, 0, 224, h, fr);                          /* the frame, the engine's colour */
+    cv_rect(10, 2, 220, h - 4, OP_SURF);
+    str_cpy(t, pop_kind == 2u ? "KIT" : "SOUND", sizeof t);
+    cv_text(16, 6, &FONT_S, t, C_GRAY);
+    fmt_int(t, (int32_t)cur + 1);
+    str_app(t, "/", sizeof t);
+    fmt_app(t, (int32_t)total);
+    cv_text(224 - text_w(&FONT_S, t), 6, &FONT_S, t, C_GRAY);
+    for (row = 0, off = -(int32_t)half; row < half * 2u + 1u; row++, off++) {
+        uint32_t idx = (uint32_t)(((int32_t)cur + off + (int32_t)total * 2) % (int32_t)total), eng;
+        char nm[16], en[12];
+        uint16_t ec;
+        ry = 20 + (int32_t)row * 14;
+        if (pop_kind == 2u) {
+            str_cpy(nm, DRUM_KIT_NAMES[kits[idx]], sizeof nm);
+            str_cpy(en, DRUM_KIT_STYLES[kits[idx]], sizeof en);
+            ec = fr;
+        } else {
+            uint32_t k, e = preset_at(idx, &k);
+            eng = pre_entry_of(e, k, nm);
+            pre_engine(eng, en);
+            ec = eng < NENGINES ? ENG_COL[eng] : C_GRAY;
+        }
+        if (off == 0)
+            cv_rect(12, ry - 2, 216, 14, C_LINE);       /* (the one playing: a lit band) */
+        cv_rect(16, ry + 2, 6, 6, ec);                  /* the engine's chip */
+        cv_text(28, ry, &FONT_S, nm, off == 0 ? C_WHITE : C_DIM);
+#if FELUCCA_FAVORITES
+        if (pop_kind == 1u) {
+            uint32_t fk, fe = preset_at(idx, &fk);
+            if (fav_entry(fe, fk))
+                cv_text(28 + text_w(&FONT_S, nm) + 4, ry, &FONT_S, "*", off == 0 ? C_WHITE : C_DIM);
+        }
+#endif
+        cv_text(224 - text_w(&FONT_S, en), ry, &FONT_S, en, off == 0 ? ec : col_shade(ec, 3u));
+    }
+    (void)i;
+    cv_blit(0, (uint32_t)y0);
 }
 /* the SOUND row's picture (GRAPH_H rows): the preset before, the one playing (white, its engine big in colour), the
  * one after; a favorite has a star after its name; LIST FAV with the sound playing not in the list: it stays in the middle,
