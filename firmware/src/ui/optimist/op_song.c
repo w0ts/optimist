@@ -563,26 +563,6 @@ static void song_scene_bars_turn(uint32_t sc, int32_t s)
         str_app(m, " BARS", sizeof m);
     ui_message(m);
 }
-static void song_part_move(uint32_t a, int32_t d)       /* part a one place left (d < 0) or right, with its neighbour (the table's KNOB 2) */
-{
-    uint32_t b = (uint32_t)((int32_t)a + d);
-    arr_entry_t t;
-    if (a >= arrangement.count || b >= arrangement.count)
-        return;
-    fm1_irq_off();                                      /* (playing too: the clock reads the chain in the audio ISR) */
-    t = arrangement.entry[a];
-    arrangement.entry[a] = arrangement.entry[b];
-    arrangement.entry[b] = t;
-    if (arrangement_clock.running) {
-        if (arrangement_clock.index == a)
-            arrangement_clock.index = (uint8_t)b;       /* (the part playing moved: the clock follows it) */
-        else if (arrangement_clock.index == b)
-            arrangement_clock.index = (uint8_t)a;
-    }
-    fm1_irq_on();
-    sg.dirty = 1;
-    op_row_pick(song_row_of_part(b));                   /* (the cursor goes with it) */
-}
 static void song_part_cut(uint32_t a)                   /* part a and every part after it gone (a confirmed question) */
 {
     if (a == 0u || a >= arrangement.count)

@@ -2382,29 +2382,29 @@ static void song_tests(void)
         tap(B_HOME);
         ui.hot = 0;
         for (r = 0; r < 20u; r++)
-            turn(EN_K4, -1);                            /* (down to "--": none; KNOB 4 the table's value, lane T1) */
+            turn(EN_K1, -1);                            /* (down to "--": none; KNOB 1 = T1) */
         {
             cell_t cc;
             song_cell(c, 0, &cc);
-            check(sg.ed_s == 2 && cc.col == C_WARN, "KNOB 4 on its T1 cell: the reference edited (amber until written)");
+            check(sg.ed_s == 2 && cc.col == C_WARN, "KNOB 1 on its T1 cell: the reference edited (amber until written)");
         }
         frames(60);
         check(sg.ed_s == 0xFF && pat_scene_refs(2, refs) && refs[0] == PAT_NONE, "... written once it rests: T1 none");
-        turn(EN_K4, 1);
+        turn(EN_K1, 1);
         turn(EN_ALGO, 1);                               /* (another lane, a cell before the first rested: the first stays) */
-        turn(EN_K4, 1);
+        turn(EN_K2, 1);
         turn(EN_ALGO, -1);
         frames(60);
         check(pat_scene_refs(2, refs) && refs[0] == PAT_KEEP && refs[1] < PAT_N && refs[2] == PAT_NONE && refs[3] == PAT_NONE,
-              "SONG scene C: KNOB 4 on T1 then on T2 at once: both references kept (one edit never undoes the other)");
+              "SONG scene C: KNOB 1 on T1 then KNOB 2 on T2 at once: both references kept (one edit never undoes the other)");
         {   /* playing: a scene's reference and the chain edit too (the arena, the RAM chain), saved when quiet */
             uint32_t was = refs[0], cnt0 = arrangement.count;
             song.playing = 1;
             ui.row[SCR_SONG] = (uint8_t)c;
-            turn(EN_K4, 1);
+            turn(EN_K1, 1);
             frames(60);
             check(sg.ed_s == 0xFF && pat_scene_refs(2, refs) && refs[0] != was && sec_pend_has(2),
-                  "SONG, playing: KNOB 4 on a scene's T1 reference changes it (the pending arena, no STOP FIRST)");
+                  "SONG, playing: KNOB 1 on a scene's T1 reference changes it (the pending arena, no STOP FIRST)");
             ui.row[SCR_SONG] = (uint8_t)song_row_of_part(0);
             frame();
             turn(EN_K2, 1);
@@ -2439,6 +2439,15 @@ static void song_tests(void)
         check(op_armed() && !strcmp(ui.arm_q, "CLEAR SCENE C?"), "SONG: a scene key held: clear that scene, asked");
         tap(B_HOME);
         fm1_in.notes &= ~(1u << WK(2));
+        frames(2);
+        check(project_used(2), "... NO: the scene is kept");
+        ui.row[SCR_SONG] = (uint8_t)c;
+        press(B_SAVE);
+        frames(HOLD_FRAMES);
+        release(B_SAVE);
+        frames(2);
+        check(op_armed() && !strcmp(ui.arm_q, "CLEAR SCENE C?") && ui.scr == SCR_SONG, "SONG: SAVE held on a scene row: clear that scene, asked (not PROJECT)");
+        tap(B_HOME);
         frames(2);
         check(project_used(2), "... NO: the scene is kept");
         ui.row[SCR_SONG] = 0;
@@ -2607,18 +2616,18 @@ static void song_tests(void)
     }
     ui.row[SCR_SONG] = (uint8_t)song_row_of(SG_SCENE, 2);
     frame();
-    {   /* the SCENES table (op_songtbl.c): KNOB 1 the cursor, ALGORITHM and KNOB 3 the lane, KNOB 4 the value; BARS is the 5th lane */
+    {   /* the SCENES table (op_songtbl.c): KNOB 1..4 the values of T1..DR, PRESETS the BARS, SELECT the cursor, ALGORITHM the lane */
         scene_bars[2] = 0;
         ui.row[SCR_SONG] = (uint8_t)song_row_of(SG_SCENE, 2);
         frame();
         check(song_tbl_on(), "SONG, a scene row: the SCENES table");
         turn(EN_ALGO, 9);
         check(stb_lane == 4u, "SCENES: ALGORITHM down the lanes to BARS (the last)");
-        turn(EN_K4, 3);
-        check(scene_bars[2] == 3u && !strcmp(ui.msg, "SCENE C: 3 BARS") && sg.dirty, "... KNOB 4: the scene's BARS 3, said, the song to be saved");
-        turn(EN_K4, -9);
+        turn(EN_PRESET, 3);
+        check(scene_bars[2] == 3u && !strcmp(ui.msg, "SCENE C: 3 BARS") && sg.dirty, "... PRESETS: the scene's BARS 3, said, the song to be saved");
+        turn(EN_PRESET, -9);
         check(scene_bars[2] == 0u && !strcmp(ui.msg, "SCENE C: AUTO"), "... down: AUTO again, no lower");
-        turn(EN_K4, 99);
+        turn(EN_PRESET, 99);
         check(scene_bars[2] == 64u, "... up: 64 at most");
         {
             cell_t sc5;
@@ -2630,13 +2639,13 @@ static void song_tests(void)
             song_cell(song_row_of(SG_PART, 0), 4, &sc5);
             check(sc5.label == 0, "... no 5th cell on the other rows");
         }
-        turn(EN_K1, 1);
-        check(ui.row[SCR_SONG] == song_row_of(SG_SCENE, 3) && stb_lane == 4u, "SCENES: KNOB 1 the cursor to the next scene, the lane kept");
-        turn(EN_K1, -1);
-        turn(EN_K3, -9);
-        check(stb_lane == 0u, "... KNOB 3 up the lanes");
+        turn(EN_SELECT, 1);
+        check(ui.row[SCR_SONG] == song_row_of(SG_SCENE, 3) && stb_lane == 4u, "SCENES: SELECT the cursor to the next scene, the lane kept");
+        turn(EN_SELECT, -1);
+        turn(EN_ALGO, -9);
+        check(stb_lane == 0u, "... ALGORITHM up the lanes");
         turn(EN_K2, 1);
-        check(!strcmp(ui.msg, "SCENES STAY PUT"), "... KNOB 2 on the scenes: they stay put");
+        check(stb_lane == 1u, "... KNOB 2 is T2's value (the lane follows the knob)");
         ui.force = 1;
         frames(2);
         ppm("opt-song-scenes-table");
@@ -2655,30 +2664,30 @@ static void song_tests(void)
         check(stb_lane == 1u, "PARTS: ALGORITHM down to the bars lane");
         turn(EN_ALGO, 9);
         check(stb_lane == 1u, "... two lanes only");
-        turn(EN_K4, 2);
-        check(arrangement.entry[0].bars == 2u, "PARTS: KNOB 4 the bars (from S up: 1, 2)");
-        turn(EN_K4, -5);
+        turn(EN_PRESET, 2);
+        check(arrangement.entry[0].bars == 2u, "PARTS: PRESETS the bars (from S up: 1, 2)");
+        turn(EN_PRESET, -5);
         check(arrangement.entry[0].bars == 0u, "... down: S again, no lower");
-        turn(EN_K4, 99);
+        turn(EN_PRESET, 99);
         check(arrangement.entry[0].bars == ARR_BARS_A, "... up through 64 to A (the longest pattern)");
         song_cell(song_row_of(SG_PART, 0), 1, &bc);
         check(!strcmp(bc.val, "AUTO"), "... A reads AUTO in the cell");
-        turn(EN_K4, -1);
+        turn(EN_PRESET, -1);
         check(arrangement.entry[0].bars == 64u, "... A down: 64");
         arrangement.entry[0].bars = 0;
-        turn(EN_K3, -9);
-        check(stb_lane == 0u, "PARTS: KNOB 3 up to the scene lane");
-        turn(EN_K1, 1);
-        check(ui.row[SCR_SONG] == song_row_of(SG_PART, 1) || arrangement.count < 2u, "PARTS: KNOB 1 the cursor to the next part");
-        turn(EN_K1, -9);
+        turn(EN_ALGO, -9);
+        check(stb_lane == 0u, "PARTS: ALGORITHM up to the scene lane");
+        turn(EN_SELECT, 1);
+        check(ui.row[SCR_SONG] == song_row_of(SG_PART, 1) || arrangement.count < 2u, "PARTS: SELECT the cursor to the next part");
+        turn(EN_SELECT, -9);
         check(ui.row[SCR_SONG] == song_row_of(SG_PART, 0), "... and back to the first");
         if (arrangement.count >= 2u) {
             uint8_t s0 = arrangement.entry[0].scene, s1 = arrangement.entry[1].scene;
+            turn(EN_K1, 1);
+            check(arrangement.entry[0].scene != s0 && arrangement.entry[1].scene == s1, "PARTS: KNOB 1 the scene of the part under the cursor");
             turn(EN_K2, 1);
-            check(arrangement.entry[1].scene == s0 && arrangement.entry[0].scene == s1 && ui.row[SCR_SONG] == song_row_of(SG_PART, 1),
-                  "PARTS: KNOB 2 moves the part itself right (it swaps with its neighbour, the cursor goes with it)");
-            turn(EN_K2, -1);
-            check(arrangement.entry[0].scene == s0 && ui.row[SCR_SONG] == song_row_of(SG_PART, 0), "... and left again");
+            check(arrangement.entry[1].scene != s1 && ui.row[SCR_SONG] == song_row_of(SG_PART, 0), "... KNOB 2 the next part's scene (the cursor stays)");
+            arrangement.entry[0].scene = s0, arrangement.entry[1].scene = s1;
         }
         {
             uint32_t n0 = arrangement.count;
@@ -2780,6 +2789,7 @@ static void shortcut_tests(void)
     release(B_SAVE);
     frames(2);
     check(ui.scr == SCR_SONG && !armed && !op_armed(), "SAVE held on PROJECT: the SONG screen (no operation run, nothing asked)");
+    ui.row[SCR_SONG] = (uint8_t)song_row_of_part(0);        /* (a scene row: SAVE held clears the scene instead) */
     press(B_SAVE);
     frames(HOLD_FRAMES);
     release(B_SAVE);
