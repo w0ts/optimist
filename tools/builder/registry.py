@@ -875,6 +875,14 @@ _add("BT_AUDIO", "FELUCCA_BT_AUDIO", "Bluetooth Classic Audio (A2DP Source, SBC)
           "int SBC encoder. Host-tested; on the FM-1 the scan has heard no device yet, so no audio has been str"
           "eamed.",
      symbols=("ba_sbc", "bt_sbc_encode"))
+_add("BT_DIAG", "FELUCCA_BT_DIAG", "Bluetooth audio diagnostics: the console's btrx / bttrace, counters and logs", M,
+     363, default=0, parent="BT_AUDIO", target_only=True,
+     desc="For finding Bluetooth audio faults on a console build (USB_CONSOLE): the btrx and bttrace logs, the "
+          "status histograms and the per-second counters (receive status bits, signal level, gain), and the live "
+          "btpage pll= / agc= / follow= commands, and every line the Bluetooth stack writes to the console (btinq, "
+          "btpage). About 14 KB of flash and 6.4 KB of RAM with the console. Leave it off for normal use: the audio "
+          "works the same without it.",
+     symbols=("con_btrx",))
 
 for _it in _ITEMS:
     if _it.group == "FX":

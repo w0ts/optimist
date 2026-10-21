@@ -87,6 +87,9 @@ PAIRS = [{"MOTION": 1, "SECTIONS": 4},
          # the estimate said 611,664; with them both off the delta is 28.8 KB, with BT_AUDIO already built 17.8 KB)
          {"BLE": 1, "BT_AUDIO": 1}, {"BLE": 1, "BLE_CENTRAL": 1, "BT_AUDIO": 1},
          {"BLE": 1, "BLE_BOND": 1, "BLE_CENTRAL": 1, "BT_AUDIO": 1},
+         # Bluetooth audio's diagnostics are built with BT_AUDIO only, and their log lines with the CDC console (the
+         # console otherwise leaves the stack silent: 14 KB of flash, mots 2026-10-21)
+         {"BT_AUDIO": 1, "BT_DIAG": 1}, {"BT_AUDIO": 1, "USB_CONSOLE": 1}, {"BT_AUDIO": 1, "BT_DIAG": 1, "USB_CONSOLE": 1},
          # SLOOP 2.4's guard and import: core.h SL24_AUTO (PROJECT > A24) and project.c's shared reader are built
          # with both / either, so the two off together save 3.9 KB less than their deltas
          {"SL24_SAFE": 0, "SL24_IMPORT": 0},
