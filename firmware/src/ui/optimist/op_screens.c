@@ -131,9 +131,9 @@ static void op_preset_shown(uint32_t was)               /* was: ui.force before 
     op_repaint();
 }
 /* list index n of the preset list (model.c BANK, the user presets) into the selected track */
-static void op_preset_go(uint32_t n)
+static void op_preset_load(uint32_t e, uint32_t k)      /* list entry (e, k) of the whole list into the selected track */
 {
-    uint32_t k, e = preset_at(n, &k), was = ui.force;
+    uint32_t was = ui.force;
     if (is_drum(TSEL))
         return;
     if (e == NENGINES)
@@ -148,6 +148,12 @@ static void op_preset_go(uint32_t n)
         apply_preset(k);
     }
     op_preset_shown(was);
+}
+/* list index n of the preset list as browsed (the track's engine's sounds, or the marked ones) */
+static void op_preset_go(uint32_t n)
+{
+    uint32_t k, e = preset_at(n, &k);
+    op_preset_load(e, k);
 }
 #if FELUCCA_FAVORITES
 /* FAVORITES (docs/UI-OPTIMIST-DESIGN.md 13 Favorites): the selected track's sound is a favorite. The mark is a settings change: written once the
@@ -211,7 +217,7 @@ static void op_preset_step(int32_t s)                   /* the next / previous s
 static uint32_t list_eng(uint32_t n)
 {
     uint32_t k;
-    return preset_at(n, &k);
+    return fav_list ? preset_at(n, &k) : preset_all_at(n, &k);   /* (LIST FAV: the marked sounds of every engine; else the whole list) */
 }
 static void op_engine_step(int32_t s)
 {
@@ -222,7 +228,7 @@ static void op_engine_step(int32_t s)
         op_preset_step(s);
         return;
     }
-    i = preset_pos(&total);
+    i = fav_list ? preset_pos(&total) : preset_all_pos(&total);   /* (the whole list: browsing keeps to one engine, this step is what leaves it) */
     n = fav_list ? total : NLIST;
     if (n == 0u) {
         op_preset_step(s);
@@ -236,7 +242,12 @@ static void op_engine_step(int32_t s)
     et = list_eng(i);
     for (j = 0; j < n && list_eng((i + n - 1u) % n) == et && (i + n - 1u) % n != i; j++)
         i = (i + n - 1u) % n;                           /* (back to that group's first sound) */
-    op_preset_go(i);
+    if (fav_list) {
+        op_preset_go(i);
+    } else {
+        uint32_t k, e = preset_all_at(i, &k);
+        op_preset_load(e, k);
+    }
     ed_done();
 }
 /* a value of descriptor d at vp: a knob (accelerated), PRESETS (fine), or OP_RESET */

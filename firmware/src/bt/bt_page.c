@@ -39,6 +39,9 @@ static struct {
     uint32_t mq_hi, mq_busy;                       /* the queue's deepest this second; audio waiting with both TX
                                                     * buffers still held by the engine (its retransmissions) */
     uint8_t name_done;                             /* the device's name read whole (or refused): the pairing may start */
+    uint16_t st_v[6];                              /* this second's rxstat values (TYPE masked off) and their counts: */
+    uint32_t st_n[6], st_more, flow0;              /* which of the unknown bits (§5.4, U6) move while the stream backs
+                                                    * up (the XM4 crackles, 2026-10-21); flow0: ACL payloads FLOW 0 */
 } bp;
 /* the audio packets (bt_acl.c ba_media_send, from the audio interrupt): whole L2CAP frames, each one DH5 (or DH3 / DH1
  * when shorter), never cut; the main loop's bp_tx_service sends them after the LMP and L2CAP signalling */
@@ -233,6 +236,23 @@ static void bp_page_rx(void)                       /* BR §8.3 "On IRQ 40 RX" (t
 }
 
 static void bp_tx_media(struct fm1_br_frame *f);
+static void bp_stat_note(uint32_t stat)            /* IRQ 40: one rxstat into this second's table (bp_status) */
+{
+    uint32_t v = stat & 0xFFF0u, k;
+    for (k = 0; k < 6u; k++) {
+        if (bp.st_n[k] && bp.st_v[k] == v) {
+            bp.st_n[k]++;
+            return;
+        }
+        if (!bp.st_n[k]) {
+            bp.st_v[k] = (uint16_t)v;
+            bp.st_n[k] = 1;
+            return;
+        }
+    }
+    bp.st_more++;
+}
+
 static void bp_conn_rx(void)                       /* a packet in the connection: both buffers, the filled first */
 {
     struct fm1_br_frame *f = fm1_br_frame(bti_tab, 0);
@@ -248,6 +268,9 @@ static void bp_conn_rx(void)                       /* a packet in the connection
         bp_noise = bp_noise * 0x9E3779B1u + (stat ^ (uint32_t)f->rx_clkn_lo << 8 ^ f->rxbit);   /* (the randomness: bp_rng) */
 #endif
         bti_rxlog(i, stat);
+        bp_stat_note(stat);
+        if (llid && !(hdr & 4u))
+            bp.flow0++;
         bp.type_n[type]++;
         if ((stat >> 8) == 0x8Fu) {
             bp.good++;
@@ -268,6 +291,7 @@ static void bp_conn_rx(void)                       /* a packet in the connection
     if (!any) {                                    /* (a NULL / POLL may fill no buffer: its status still counts) */
         uint32_t stat = f->rxstat[(f->rxtog & 1u) ^ 1u];
         bp.nobuf++;
+        bp_stat_note(stat);
         bp.type_n[stat & 15u]++;
         if ((stat >> 8) == 0x8Fu) {
             bp.good++;
@@ -567,6 +591,28 @@ static void bp_print_sec(void)
             bti_kv(" mq_busy=", bp.mq_busy);
             bp.mq_hi = 0;
         }
+        bti_kv(" flow0=", bp.flow0);
+        {
+            uint16_t sv[6];
+            uint32_t sn[6], more;
+            fm1_br_irqs_hold(1);                   /* (a copy, then cleared: IRQ 40 is held only for that) */
+            for (i = 0; i < 6u; i++) {
+                sv[i] = bp.st_v[i], sn[i] = bp.st_n[i];
+                bp.st_n[i] = 0;
+            }
+            more = bp.st_more;
+            bp.st_more = 0;
+            fm1_br_irqs_hold(0);
+            con_puts(" st{");                      /* (this second: rxstat & 0xFFF0 : count) */
+            for (i = 0; i < 6u && sn[i]; i++) {
+                con_hex(sv[i], 4);
+                bti_kv(":", sn[i]);
+                con_putc(' ');
+            }
+            if (more)
+                bti_kv("more:", more);
+            con_puts("}");
+        }
         con_puts(" types{");
         for (i = 0; i < 16u; i++)
             if (bp.type_n[i]) {
@@ -657,7 +703,7 @@ static int bp_start(const uint8_t addr[6], uint32_t slots)
     bp.setup_out = bp.setup_in = bp.stopping = 0;
     bp.slots5 = 0;
     bp.name_done = 0;
-    bp.mq_drop = bp.mq_sent = bp.mq_hi = bp.mq_busy = 0;
+    bp.mq_drop = bp.mq_sent = bp.mq_hi = bp.mq_busy = bp.flow0 = 0;
     bp_mq.r = bp_mq.w;                             /* (a new link: no audio queued) */
     ba_reset();
     bp.txw = bp.txr = 0;

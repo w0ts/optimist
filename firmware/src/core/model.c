@@ -363,16 +363,36 @@ static int fav_entry(uint32_t e, uint32_t k)
         return fav_user_has(k);
     return e < NENGINES && fav_has(eng_uid(e), preset_name(e, k));
 }
+#else
+#define fav_list 0u
+#endif
+static uint32_t up_engine_slot(uint32_t k);                 /* storage/upreset.c: a user preset's engine slot */
+/* the browsing view of the whole list (the user, 2026-10-21: "when I browse by preset I would expect to see all the
+ * presets of the current engine, and not be able to switch engine"): the selected track's engine's sounds only (its
+ * factory ones, INIT, its user presets, its own collection); with LIST FAV the marked sounds of every engine. The
+ * engine step (SHIFT2 + PRESETS, the ENGINE card) walks the whole list: preset_all_* */
+static int pl_keep(uint32_t e, uint32_t k)
+{
+#if FELUCCA_FAVORITES
+    if (fav_list)
+        return fav_entry(e, k);
+#endif
+    if (is_drum(TSEL))
+        return 1;
+    if (e == NENGINES)
+        e = up_engine_slot(k);
+#if FELUCCA_NB_LIST
+    else if (e == NB_LIST)
+        e = TSEL->eng_req % NENGINES;
+#endif
+    return e == TSEL->eng_req % NENGINES;
+}
 static uint32_t preset_pos(uint32_t *total)          /* list index of the selected track's preset; >= *total: not in the list */
 {
     uint32_t all, cur = preset_all_pos(&all), i, n = 0, pos = 0xFFFFFFFFu;
-    if (!fav_list) {
-        *total = all;
-        return cur;
-    }
     for (i = 0; i < all; i++) {
         uint32_t k, e = preset_all_at(i, &k);
-        if (!fav_entry(e, k))
+        if (!pl_keep(e, k))
             continue;
         if (i == cur)
             pos = n;
@@ -384,17 +404,16 @@ static uint32_t preset_pos(uint32_t *total)          /* list index of the select
 static uint32_t preset_src(uint32_t n)               /* list index n -> the whole list's (its length: no such entry) */
 {
     uint32_t all, i;
-    if (!fav_list)
-        return n;
     preset_all_pos(&all);
     for (i = 0; i < all; i++) {
         uint32_t k, e = preset_all_at(i, &k);
-        if (fav_entry(e, k) && !n--)
+        if (pl_keep(e, k) && !n--)
             return i;
     }
     return all;
 }
 static uint32_t preset_at(uint32_t n, uint32_t *k) { return preset_all_at(preset_src(n), k); }
+#if FELUCCA_FAVORITES
 /* the selected track's sound as a list entry (e = engine slot, or NENGINES: user preset k): 0 if it has none to mark
  * (the drum track, the engines' own collections, a factory sound the list does not hold) */
 static int fav_cur(uint32_t *e, uint32_t *k)
@@ -423,9 +442,4 @@ static int fav_cur(uint32_t *e, uint32_t *k)
     }
     return 0;
 }
-#else
-#define preset_pos preset_all_pos
-#define preset_at preset_all_at
-#define preset_src(n) (n)
-#define fav_list 0u
 #endif
