@@ -193,7 +193,7 @@ export function gaugeModel(region, used, cap, over) {
 
 /** the notices policy: what the page shows of a view (docs/WEB.md "What it does", Messages).
     -> {errors: [{kind, head, text, sub: [lines], keys}], experimental: [{key, label, text}], notes: [{text, labels}]}
-    errors: what stops a build or what the user must change (a parse error, an overflow as ONE line, the undo ring, an
+    errors: what stops a build or what the user must change (a parse error, an overflow as ONE line, an
     unmet rule); experimental: one line per EXPERIMENTAL item that is on; notes: everything else (the NOTICE texts:
     provenance, "tested in the emulator only", credits; the hints; what is not measured), identical texts once. */
 export function messagesOf(view, reg) {
@@ -205,8 +205,6 @@ export function messagesOf(view, reg) {
     errors.push({ kind: "over", head: "Over budget", text: ov.map((o) => `${o.region.toUpperCase()} +${fmtK(o.over)}`).join(", "),
       sub: [...ov.map((o) => o.biggest), "Red sizes in the list hold the overflow; ◀ off = fits marks an item whose removal alone fits."], keys: [] });
   }
-  const u = view.undo;
-  if (u && u.short) errors.push({ kind: "undo", head: "Undo", text: `ring ${fmt(u.ring)} B is ${fmt(u.short)} B below the ${fmt(u.keep)} B kept: a build is refused (switch features off, or lower the reserve).`, sub: [], keys: ["RESERVE_UNDO_KB"] });
   for (const e of ev.errors || []) errors.push({ kind: "rule", head: "Error", text: e.text, sub: [], keys: e.keys || [] });
   const seen = new Set();
   const addExp = (key, text) => {
@@ -241,7 +239,6 @@ export const hasInfo = (it) => !!(it.experimental || it.notice || it.provenance_
 /** a proposal's change as a short line (docs/WEB.md "What it does", Make it fit): "FM6 off", "Delay length: 64K -> 32K", "keep 200 KB flash free -> 0 KB" */
 export function changeText(c, byKey) {
   const it = byKey[c.key], name = (v) => (it && it.choices.length ? (it.choices.find((x) => x[0] === v) || [v, String(v)])[1] : v ? "on" : "off");
-  if (c.reserve) return `${c.label}: ${c.from} -> ${c.to} KB`;
   if (c.to === 0) return `${c.label} off`;
   return `${c.label}: ${name(c.from)} -> ${name(c.to)}`;
 }

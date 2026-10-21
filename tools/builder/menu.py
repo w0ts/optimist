@@ -307,10 +307,7 @@ class Builder(App):
             lines.append(bar(r, used, cap, over))
             lines.append("\n")
         if C.built(self.cfg, "UNDO_HISTORY"):               # (what RAM and pool leave: the undo history's ring)
-            ring, short = C.undo_ring(b["total"]), C.undo_short(self.cfg, b["total"])
-            keep = C.reserve_undo(self.cfg)
-            lines.append(Text(f"{'UNDO':8s} ring {ring:,} B" + (f"  (keep at least {keep:,})" if keep else ""),
-                              style="bold red" if short else ""))
+            lines.append(Text(f"{'UNDO':8s} ring {C.undo_ring(b['total']):,} B"))
             lines.append("\n")
         w.update(lines)
 
@@ -328,10 +325,6 @@ class Builder(App):
                     best = sorted(((s[r], k) for k, s in sav.items() if s[r] > 0), reverse=True)[:6]
                     t.append("Biggest " + r + " items: " + ", ".join(f"{R.ITEMS[k].label} {n:,}" for n, k in best)
                              + "\n", style="red")
-            short = C.undo_short(self.cfg, b["total"]) if C.built(self.cfg, "UNDO_HISTORY") else 0
-            if short:
-                t.append(f"UNDO ring {C.undo_ring(b['total']):,} B is {short:,} B below the {C.reserve_undo(self.cfg):,} B "
-                         f"kept: a build is refused (switch features off, or lower the reserve).\n", style="bold red")
             if b["unmeasured"]:
                 t.append(f"not measured: {', '.join(b['unmeasured'])}\n", style="yellow")
         if self.room.note:                               # BLE replaced samples: what went, and what else could

@@ -258,9 +258,9 @@ function renderBars() {
   const overNow = Object.keys(v.over).length > 0;
   $("fit").hidden = !overNow;                 // (only when the configuration does not fit: nothing in its place otherwise)
   const u = v.undo, ud = $("undo");
-  ud.className = "o-chip" + (u && u.short ? " short" : "");
+  ud.className = "o-chip";
   ud.textContent = u ? `undo ${fmtKB(u.ring)}` : "";
-  ud.title = u ? `UNDO ring ${fmt(u.ring)} B` + (u.keep ? ` (keep at least ${fmt(u.keep)} B)` : "") : "";
+  ud.title = u ? `UNDO ring ${fmt(u.ring)} B` : "";
   const key = ev.key || ev.cfg_hash || "";
   $("keychip").textContent = key ? `${ev.key ? "key" : "hash"} ${key.slice(0, 10)}` : "key -";
   $("keychip").dataset.tip = ev.key ? `Cloud key ${key} (click: copy)` : key ? `Configuration hash ${key} (the cloud key is computed at build time; click: copy)` : "No key yet";

@@ -71,7 +71,6 @@ OPTIMIST_VERSION = (Path(__file__).resolve().parent.parent / "VERSION").read_tex
 MEASURE = False                     # --measure: link past the slot and the pool (sizes only, never a package)
 CFG_FLAGS = set()                   # the switches build/gen/felucca_config.h sets (the env loop below skips them)
 CFG_VALUES = {}                     # ... and their values
-RESERVE = {}                        # the configuration (RESERVE_FLASH_KB, RESERVE_UNDO_KB: configure.reserve_*)
 # the budgets (bytes): the app slot, main RAM .data+.bss, the pool (and the spare build.py keeps), RAM code, noinit
 LIMITS = {"flash": 0x8DFBC, "ram": 96 * 1024, "pool": 0x54000, "pool_spare": 8192, "ramtext": 0x7F00,
           "noinit": 0x3D50}
@@ -604,12 +603,6 @@ def boot_order(dis):
     return errors
 
 
-def reserve_check(img_len, ring):
-    """-> [message]: the build leaves less app flash free, or a smaller undo ring, than the configuration keeps
-    (the builder's Reserve items, RESERVE); ring None: no undo history in this build, nothing to keep"""
-    return configure.reserve_errors(RESERVE, APP_SLOT - img_len, ring)
-
-
 def check(img, syms, dis, rt):
     errors, notes = [], []
     rewake = idle_rewake(dis)
@@ -688,11 +681,6 @@ def check(img, syms, dis, rt):
                          f"boot test passes (pool {upool} B + {ucache} B); the checks here count the fallback")
         if ring < 1408:
             over.append(f"undo history ring {ring} B < 1408 B (FELUCCA_UNDO_HISTORY=0: the single level)")
-        undo_ring = ring
-    else:
-        undo_ring = None
-    if not MEASURE:                 # the reserve the user asked for (a measurement build never ships: it keeps none)
-        errors += reserve_check(len(img), undo_ring)
     return errors, notes
 
 
@@ -756,7 +744,6 @@ def setup_config(path):
     configure.write_header(cfg, name, GEN / "felucca_config.h")
     CFG_FLAGS = set(flags)
     CFG_VALUES.update(flags)
-    RESERVE.update({k: cfg[k] for k in ("RESERVE_FLASH_KB", "RESERVE_UNDO_KB")})
     os.environ.update(env)          # gen_samples.py: the sets, PERC, SLICE's BREAK
     print(f"config   {name}: hash {configure.cfg_hash(cfg):08x}")
     return cfg, name

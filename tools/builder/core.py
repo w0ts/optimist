@@ -13,7 +13,7 @@ items from tools/backports.json.
 
 The key (docs: optimist-work cloudbuild DESIGN.md, "Cache key and normalization"):
 sha256("optimist-cloud/1\\n" + commit + "\\n" + canonical), canonical the sorted KEY=value lines of what the image
-is built with (an option of an item left out at its default, the reserve items dropped, the retired items at the
+is built with (an option of an item left out at its default, the retired items at the
 value the image is still built as)."""
 import functools
 import hashlib
@@ -193,9 +193,6 @@ def validate(cfg):
                 warn.append(Issue(f"{it.label}: EXPERIMENTAL ({it.tested})", [k]))
             if it.notice:
                 note.append(Issue(f"{it.label}: {it.notice}", [k]))
-    if reserve_undo(cfg) and not cfg.get("UNDO_HISTORY"):
-        err.append(Issue("keeping undo history needs the undo / redo history (UNDO_HISTORY): without it there is a "
-                         "single level", ["RESERVE_UNDO_KB", "UNDO_HISTORY"]))
     if cfg["USB_CONSOLE"] and cfg["USB_AUDIO"]:
         err.append(Issue("the serial console or USB audio, not both: the USB port has three data endpoints, USB MIDI "
                          "takes one and USB audio the other two", ["USB_CONSOLE", "USB_AUDIO"]))
@@ -248,7 +245,7 @@ def fnv32(text):
 
 
 def cfg_hash(cfg):
-    """of what the image holds: the reserve items (R.Item.no_image) change nothing in it, so not in the hash; a
+    """of what the image holds: the items that change nothing in it (R.Item.no_image) are not in the hash; a
     retired item the image is still built as (R.HASH_AS) counts at that value, so the hash of a configuration
     does not move when it is retired (the same image: its check builds in costs.json stay valid)"""
     full = dict(R.HASH_AS, **cfg)
@@ -592,44 +589,16 @@ def budget(cfg, costs, anchor=True, exclude=(), exact=None, extra_anchors=()):
             "anchor": ref[0] if ref else None, "distance": ref[3] if ref else None}
 
 
-# ---- the reserve (R "Reserve" items: kept headroom, in KB in the .config; tools/build.py refuses a build below it)
-def reserve_flash(cfg):
-    """bytes of app flash the configuration keeps free"""
-    return (cfg or {}).get("RESERVE_FLASH_KB", 0) * 1024
-
-
-def reserve_undo(cfg):
-    """bytes of undo history the configuration keeps (0: no minimum)"""
-    return (cfg or {}).get("RESERVE_UNDO_KB", 0) * 1024
-
-
+# ---- the undo history's ring (information: what RAM and the pool leave)
 def undo_ring(total):
     """the undo history's ring a build leaves (app.ld _undo_*): the free main RAM plus the pool beyond its 8 KiB spare
     (docs/MEMORY-MAP.md 2.1); never below 0"""
     return max(0, LIMITS["ram"] - total["ram"]) + max(0, LIMITS["pool"] - SPARE["pool"] - total["pool"])
 
 
-def undo_short(cfg, total):
-    """bytes the ring falls short of the configuration's undo reserve (0: it keeps it, or there is no minimum)"""
-    return max(0, reserve_undo(cfg) - undo_ring(total))
-
-
-def reserve_errors(cfg, flash_free, ring):
-    """-> [message] what a build leaves below the reserve (tools/build.py refuses it): flash_free is the app slot's
-    free bytes, ring the undo history's bytes (None: this build has no history to keep)"""
-    out = []
-    if flash_free < reserve_flash(cfg):
-        out.append(f"app flash free {flash_free} B < the reserve of {reserve_flash(cfg)} B (RESERVE_FLASH_KB)")
-    if ring is not None and ring < reserve_undo(cfg):
-        out.append(f"undo history ring {ring} B < the reserve of {reserve_undo(cfg)} B (RESERVE_UNDO_KB)")
-    return out
-
-
 def fits(total, cfg=None):
-    """-> {region: (used, capacity, over)}: over > 0 overflows (the pool keeps its 8 KiB spare; the flash keeps the
-    configuration's reserve)"""
+    """-> {region: (used, capacity, over)}: over > 0 overflows (the pool keeps its 8 KiB spare)"""
     cap = {r: LIMITS[r] - SPARE[r] for r in REGIONS}
-    cap["flash"] -= reserve_flash(cfg)
     return {r: (total[r], cap[r], total[r] - cap[r]) for r in REGIONS}
 
 
@@ -758,7 +727,7 @@ def _changes(before, after):
             if it.parent and not built(after, it.parent) and before[it.parent] != after[it.parent]:
                 continue
             out.append({"key": k, "label": it.label, "from": before[k], "to": after[k],
-                        "desc": it.off_warning or it.desc, "reserve": it.no_image})
+                        "desc": it.off_warning or it.desc})
     return out
 
 
@@ -785,7 +754,7 @@ def _greedy(cfg, costs, keep, budget_fn):
         best = None
         for k in sorted(sav):
             it = R.ITEMS[k]
-            if k in keep or it.group == "Reserve" or it.no_image or not built(cfg, k):
+            if k in keep or it.no_image or not built(cfg, k):
                 continue
             gain = sum(min(sav[k][r], over[r]) for r in over)
             if gain > 0 and (best is None or gain > best[0]):
@@ -806,7 +775,7 @@ def proposals(cfg, costs, budget_fn=budget, limit=PROPOSAL_MAX):
     desc}, desc: what the user loses); after: {region: {used, capacity, over}}; fits: no gauge is over its limit.
     When nothing fits, the ones that come closest are still returned (fits False).
     The ways: "least" (fit(): the fixed order of least loss), "single" (the one item whose removal alone fits, the
-    cheapest two), "reserves" (the reserves lowered to 0 first, then the least loss), "engines" / "fx" (keep every
+    cheapest two), "engines" / "fx" (keep every
     synth engine / every FX, drop from the others)"""
     _ANCHOR_MEMO[id(costs)] = None
     try:
@@ -844,20 +813,13 @@ def _proposals(cfg, costs, budget_fn, limit):
     singles = []
     for k in sorted(sav):                                   # (only items that save about what is over: then check it)
         it = R.ITEMS[k]
-        if it.group == "Reserve" or it.no_image or any(sav[k][r] < over0[r] * 0.5 for r in over0):
+        if it.no_image or any(sav[k][r] < over0[r] * 0.5 for r in over0):
             continue
         t = _drop(cfg, k, _off_value(cfg, k))
         if t is not None and not over_any(t, costs, budget_fn=budget_fn):
             singles.append((sum(sav[k].values()), k, t))
     for i, (_, k, t) in enumerate(sorted(singles)[:2]):
         add(f"single-{k}", f"Drop only {R.ITEMS[k].label}", "One item alone makes it fit; nothing else changes.", t)
-    res = dict(cfg)
-    for k in ("RESERVE_FLASH_KB", "RESERVE_UNDO_KB"):
-        if k in res and res[k]:
-            res[k] = 0
-    if res != cfg:
-        add("reserves", "Free the reserves first", "Lower the kept headroom to 0, then the order of least loss.",
-            _fit_run(res, costs, (), FIT_ORDER, budget_fn)[0])
     engines = {k for k, it in R.ITEMS.items() if it.group == "Synth engines"}
     fx = {k for k, it in R.ITEMS.items() if it.group.startswith("FX")}
     for pid, title, keep in (("engines", "Keep my synth engines, drop the extras", engines), ("fx", "Keep my effects, drop the rest", fx)):
@@ -874,7 +836,7 @@ def _proposals(cfg, costs, budget_fn, limit):
 # ---- the canonical form and the cache key (cloud builds)
 def canonical(cfg):
     """-> the sorted KEY=value lines of what the image is built with (effective: the defaults filled in, an option
-    of an item left out at its default, the reserve items dropped) plus the retired items at the value every image
+    of an item left out at its default) plus the retired items at the value every image
     is still built as (R.HASH_AS, as cfg_hash counts them): two configurations that build the same image read alike"""
     full = dict(R.HASH_AS, **effective(cfg))
     return "".join(f"{k}={full[k]}\n" for k in sorted(full))

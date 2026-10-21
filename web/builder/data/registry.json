@@ -15,94 +15,6 @@
   ],
   "items": [
    {
-    "key": "RESERVE_UNDO_KB",
-    "flag": "",
-    "label": "keep at least this much undo history",
-    "group": "Reserve",
-    "bit": 59,
-    "default": 0,
-    "parent": null,
-    "desc": "Keeps headroom for the undo history instead of filling RAM and pool to the last byte: the history's ring is what they leave free ((98,304 - RAM) + (344,064 - 8,192 - pool), docs/MEMORY-MAP.md). The estimate shows the ring and warns below this figure; a build whose real ring is smaller is refused. Nothing in the firmware changes (it needs the undo / redo history item).",
-    "experimental": false,
-    "notice": "",
-    "off_warning": "",
-    "env": "",
-    "target_only": false,
-    "symbols": [],
-    "no_image": true,
-    "fixed": false,
-    "choices": [
-     [
-      0,
-      "no minimum"
-     ],
-     [
-      4,
-      "4 KB"
-     ],
-     [
-      8,
-      "8 KB"
-     ],
-     [
-      16,
-      "16 KB"
-     ],
-     [
-      32,
-      "32 KB"
-     ]
-    ],
-    "provenance": null,
-    "children": [],
-    "tested": "emulator-tested only",
-    "provenance_line": ""
-   },
-   {
-    "key": "RESERVE_FLASH_KB",
-    "flag": "",
-    "label": "keep at least this much app flash free",
-    "group": "Reserve",
-    "bit": 60,
-    "default": 0,
-    "parent": null,
-    "desc": "Keeps room in the app slot for later (a feature, an update) instead of filling it to the last byte: the budget subtracts it from the slot and a build that leaves less free is refused. Nothing in the firmware changes.",
-    "experimental": false,
-    "notice": "",
-    "off_warning": "",
-    "env": "",
-    "target_only": false,
-    "symbols": [],
-    "no_image": true,
-    "fixed": false,
-    "choices": [
-     [
-      0,
-      "no minimum"
-     ],
-     [
-      8,
-      "8 KB"
-     ],
-     [
-      16,
-      "16 KB"
-     ],
-     [
-      32,
-      "32 KB"
-     ],
-     [
-      64,
-      "64 KB"
-     ]
-    ],
-    "provenance": null,
-    "children": [],
-    "tested": "emulator-tested only",
-    "provenance_line": ""
-   },
-   {
     "key": "ENG_ANALOG",
     "flag": "FELUCCA_ENG_ANALOG",
     "label": "ANALOG 2 (analog-style synth, swarm, 2 filters)",
@@ -2761,7 +2673,7 @@
     "bit": 138,
     "default": 0,
     "parent": null,
-    "desc": "the screen's last line names what a knob changes in plain words, e.g. 'Filter cutoff', 'Reverb send', while a value turns and ~2 s after, and always on GLOBAL, SYSTEM and PROJECT (the cursor line, the hot action, '(asks)' where it asks first); only the lines of the features built (tools/param_help.json, also the web editor's tooltips). About 7.7 KB of flash (the texts packed), no RAM code",
+    "desc": "the screen's last line names what a knob changes in plain words, e.g. 'Filter cutoff', 'Reverb send', while a value turns and ~2 s after, and always on GLOBAL, SYSTEM and PROJECT (the cursor line, the hot action, ' -> SAVE' after an action that asks first: the button that runs it); only the lines of the features built (tools/param_help.json, also the web editor's tooltips). About 7.7 KB of flash (the texts packed), no RAM code",
     "experimental": false,
     "notice": "",
     "off_warning": "",
@@ -2771,29 +2683,6 @@
      "ph_find",
      "PH_BLOB"
     ],
-    "no_image": false,
-    "fixed": false,
-    "choices": [],
-    "provenance": null,
-    "children": [],
-    "tested": "emulator-tested only",
-    "provenance_line": ""
-   },
-   {
-    "key": "PAGE_LINES",
-    "flag": "FELUCCA_PAGE_LINES",
-    "label": "pages as lines (GLOBAL's look), not 2x2 cards + list",
-    "group": "UI",
-    "bit": 342,
-    "default": 1,
-    "parent": null,
-    "desc": "A screen of rows with no picture (EDIT, VOICE, PROJECT, SONG, the master FX, SOUND's pages without a graph) shows its cursor row as four lines, as GLOBAL and SYSTEM do: the value's name, the value large on the right, its bar across the screen; KNOB k is line k, SELECT the next row (the header names it and its n/N). Screens with a picture (ENV, LFO, ARP, the FX needles, TEMPO, SCOPE) keep the 2x2 cards over it, the mixer its 1x4 cards. Off: the 2x2 cards with the row list under them, as before. No data change.",
-    "experimental": false,
-    "notice": "",
-    "off_warning": "",
-    "env": "",
-    "target_only": false,
-    "symbols": [],
     "no_image": false,
     "fixed": false,
     "choices": [],
@@ -4358,10 +4247,7 @@
   ]
  ],
  "top": {
-  "Reserve": [
-   "RESERVE_UNDO_KB",
-   "RESERVE_FLASH_KB"
-  ],
+  "Reserve": [],
   "Synth engines": [
    "ENG_ANALOG",
    "ENG_DIGITAL",
@@ -4470,7 +4356,6 @@
    "MISSING_WARN",
    "FAVORITES",
    "PARAM_HELP",
-   "PAGE_LINES",
    "SYS_DEBUG",
    "KNOB_ACCEL",
    "LCD_BAUD",

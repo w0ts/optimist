@@ -98,8 +98,8 @@ ok(!bad.length, `${views.length} configurations: evaluate, budget, fits, key, sa
 ok(views.some((q, i) => web.views[i].eval.errors.length) && views.some((q, i) => Object.keys(web.views[i].over).length) && views.some((q, i) => web.views[i].eval.key),
   "the cases include errors, an overflow and a cloud key");
 bad = toggles.map((q, i) => (same(web.toggles[i].values, cli.toggles[i].values) && same(web.toggles[i].room, cli.toggles[i].room) ? null : `${q.key}=${q.value}`)).filter(Boolean);
-ok(!bad.length, `${toggles.length} toggles (BLE making room included) = room.after_toggle's${bad.length ? ": " + bad.join(", ") : ""}`);
-ok(toggles.some((q, i) => q.key === "BLE" && web.toggles[i].room.dropped.length), "BLE removed an item to make room in at least one profile");
+ok(!bad.length, `${toggles.length} toggles (BLE included: nothing removed) = room.after_toggle's${bad.length ? ": " + bad.join(", ") : ""}`);
+ok(toggles.some((q, i) => q.key === "BLE") && toggles.every((q, i) => q.key !== "BLE" || !web.toggles[i].room.dropped.length), "BLE ticked removes nothing in any profile (like any other tick)");
 
 /* ---- logic.js against the menu's rules */
 const unit = (o) => { let u = 1024; while (o > u * 20) u *= 2; return u; };
@@ -150,9 +150,8 @@ ok(gf.state === "ok" && gf.text === "62.2 / 96.0K" && gf.overText === "" && gf.c
 /* ways to fit: a change as one line, what is lost as one sentence */
 const regW = { A: { choices: [], label: "alpha" }, D: { choices: [[0, "off"], [16384, "16K"], [32768, "32K"]], label: "delay length" } };
 ok(L.changeText({ key: "A", label: "alpha", from: 1, to: 0, reserve: false }, regW) === "alpha off"
-  && L.changeText({ key: "D", label: "Delay length", from: 32768, to: 16384, reserve: false }, regW) === "Delay length: 32K -> 16K"
-  && L.changeText({ key: "R", label: "Keep flash free", from: 200, to: 0, reserve: true }, regW) === "Keep flash free: 200 -> 0 KB",
-  "proposals: a change reads as one line (off, a choice lowered, a reserve lowered)");
+  && L.changeText({ key: "D", label: "Delay length", from: 32768, to: 16384, reserve: false }, regW) === "Delay length: 32K -> 16K",
+  "proposals: a change reads as one line (off, a choice lowered)");
 ok(L.oneLine("First sentence. Second one.") === "First sentence." && L.oneLine("x".repeat(300)).length === 110 && L.oneLine("") === "", "proposals: what is lost is one sentence, cut at 110 characters");
 /* the notices policy: errors and the experimental items that are on stay on the page; the NOTICE texts go to the notes */
 const reg1 = { byKey: { A: { key: "A", label: "alpha", experimental: true, tested: "emulator-tested only" }, B: { key: "B", label: "beta" }, C: { key: "C", label: "gamma" },
