@@ -288,6 +288,20 @@ static int op_rec(void)                                 /* one record arm, on th
         rec_wait = 1;                                   /* stopped: the first note starts it */
     return 1;
 }
+/* SHIFT2 + REC held while playing (op_combos.c shift2_combo): every note the sequencer enters on the selected track is erased,
+ * undone in one step; let go of either, or stopped: it ends */
+static void wipe_frame(uint32_t held)
+{
+    int on = wipe_req && (held & (1u << panel.btn[B_REC])) && (held & (1u << panel.btn[B_OCTUP])) && song.playing;
+    static uint8_t was;
+    if (!on)
+        wipe_req = 0;
+    if (seq_wipe(on) && !was)
+        ui_say("WIPING ", trk_tag(song.sel));
+    if (!on && was)
+        ui_message("WIPE DONE (UNDO: SAVE + HOME)");
+    was = (uint8_t)on;
+}
 static void rh_ring_go(void)                            /* the ring starts: on this track, a picked lane's steps only */
 {
     rh.ring = 1;
@@ -904,6 +918,7 @@ static void ui_input(void)
         mx_s2_done = 0;                                 /* (SHIFT + the volume card's knob: one mute toggle a hold) */
     lay_frame(held);                                    /* the layer held, shown (op_layers.c) */
     tempo_frame(held);                                  /* PLAY held: the TEMPO page, the nudge (op_tempo.c) */
+    wipe_frame(held);                                   /* SHIFT2 + REC: the wipe */
     rec_held(held);                                     /* REC held: the ring, the track cleared */
     op_drain(held | pressed);                           /* STEP's and the layers' keys (seq.c lk_q) */
     keys = lay_now() != LY_PLAY || (held & BIT(B_PLAY)) || song_on_pat_row();   /* (the keys are a layer's) */

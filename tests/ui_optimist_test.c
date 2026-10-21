@@ -2354,6 +2354,50 @@ static uint32_t song_row_of(uint32_t kind, uint32_t a)  /* SONG's row of that ki
             return r;
     return 0;
 }
+static void wipe_tests(void)
+{   /* SHIFT2 + REC held while playing: the notes the sequencer enters are erased, one undo for the hold */
+    track_t *t = &trk[0];
+    uint32_t k, left;
+    reset_ui();
+    song.sel = 0;
+    for (k = 0; k < 16u; k++)
+        t->step[k].time = ST_NOTE, t->step[k].n = 1, t->step[k].note[0] = (uint8_t)(48 + k);
+    song.playing = 1;
+    t->seq_abs = 0;
+    t->seq_idx = 4;
+    press(B_OCTUP);
+    press(B_REC);
+    frames(2);
+    check(!strncmp(ui.msg, "WIPING", 6) && t->step[4].time == ST_REST, "SHIFT2 + REC held, playing: the step under the playhead is wiped, said");
+    check(t->step[3].time == ST_NOTE && t->step[5].time == ST_NOTE, "... the others stay until the playhead enters them");
+    t->seq_idx = 5;
+    erase_step(t, 5);                                   /* (the sequencer entering the next step: seq.c) */
+    check(t->step[5].time == ST_REST, "... a step the sequencer enters while held: gone as it passes");
+    release(B_REC);
+    release(B_OCTUP);
+    frames(2);
+    t->seq_idx = 6;
+    erase_step(t, 6);
+    check(t->step[6].time == ST_NOTE && !strncmp(ui.msg, "WIPE DONE", 9), "released: the wipe ends, the next step is left alone");
+    press(B_SAVE);                                      /* the undo chord: SAVE, then HOME */
+    press(B_HOME);
+    release(B_HOME);
+    release(B_SAVE);
+    frames(2);
+    for (k = 0, left = 0; k < 16u; k++)
+        left += t->step[k].time == ST_NOTE;
+    check(left == 16u, "SAVE + HOME: one undo brings every wiped step back");
+    song.playing = 0;
+    t->seq_abs = SEQ_NONE;
+    song.playing = 0;
+    press(B_OCTUP);
+    press(B_REC);
+    frames(2);
+    check(t->step[0].time == ST_NOTE && !strncmp(ui.msg, "PLAY FIRST", 10), "stopped: nothing is wiped (it would clear the whole pattern), said");
+    release(B_REC);
+    release(B_OCTUP);
+    reset_ui();
+}
 static void song_tests(void)
 {
     uint32_t r, n;
@@ -3652,6 +3696,7 @@ int main(int argc, char **argv)
     save_layer_tests();
     tempo_tests();
     combo_tests();
+    wipe_tests();
     song_tests();
     shortcut_tests();
     undo_extras_tests();
