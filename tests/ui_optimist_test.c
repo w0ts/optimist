@@ -1729,6 +1729,27 @@ static void layer_tests(void)
         turn(EN_PRESET, 1);
         frames(3);
         check(op_overlay() == 5u && pop_kind == 1u, "PRESETS turned: the popup list of the sounds");
+        {   /* PRESETS browse the engine's own sounds and never leave it; the engine step (SHIFT2) is what changes it */
+            uint32_t e0 = tsel()->eng_req, r, left = 0, total, all;
+            for (r = 0; r < 150u; r++) {
+                turn(EN_PRESET, 1);
+                frame();
+                left |= tsel()->eng_req != e0;
+            }
+            check(!left, "PRESETS: 150 detents on, the engine never changes (only its own sounds)");
+            (void)preset_pos(&total);
+            (void)preset_all_pos(&all);
+            check(total > 0u && total < all, "... the browsing list is the engine's part of the whole list");
+            press(B_OCTUP);
+            turn(EN_PRESET, 1);
+            release(B_OCTUP);
+            frames(2);
+            check(tsel()->eng_req != e0, "SHIFT2 + PRESETS: the engine step still changes the engine");
+            op_enter(SCR_SOUND);
+            ui.row[SCR_SOUND] = 0;
+            ui.force = 1;
+            frames(2);
+        }
         ppm("opt-preset-popup");
         frames(200);                                    /* (the toast, and the popup with it, gone) */
         check(op_overlay() != 5u, "... the popup is gone with its toast");
