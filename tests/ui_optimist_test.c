@@ -2429,11 +2429,11 @@ static void song_tests(void)
         check(sg.ed_s == 0xFF && pat_scene_refs(2, refs) && refs[0] == PAT_NONE, "... written once it rests: T1 none");
         turn(EN_K1, 1);
         turn(EN_ALGO, 1);                               /* (another lane, a cell before the first rested: the first stays) */
-        turn(EN_K2, 1);
+        turn(EN_K1, 1);
         turn(EN_ALGO, -1);
         frames(60);
         check(pat_scene_refs(2, refs) && refs[0] == PAT_KEEP && refs[1] < PAT_N && refs[2] == PAT_NONE && refs[3] == PAT_NONE,
-              "SONG scene C: KNOB 1 on T1 then KNOB 2 on T2 at once: both references kept (one edit never undoes the other)");
+              "SONG scene C: KNOB 1 on T1 then on T2 (the lane by ALGORITHM) at once: both references kept (one edit never undoes the other)");
         {   /* playing: a scene's reference and the chain edit too (the arena, the RAM chain), saved when quiet */
             uint32_t was = refs[0], cnt0 = arrangement.count;
             song.playing = 1;
@@ -2682,7 +2682,15 @@ static void song_tests(void)
         turn(EN_ALGO, -9);
         check(stb_lane == 0u, "... ALGORITHM up the lanes");
         turn(EN_K2, 1);
-        check(stb_lane == 1u, "... KNOB 2 is T2's value (the lane follows the knob)");
+        check(stb_lane == 0u, "... KNOB 2 edits the next scene's value in that lane (the lane stays)");
+        {   /* KNOB 2: the scene after the cursor's, the same lane: its BARS lane too */
+            uint32_t b3 = scene_bars[3];
+            turn(EN_ALGO, 9);
+            turn(EN_K2, 2);
+            check(scene_bars[3] == b3 + 2u && scene_bars[2] == 0u, "... on the BARS lane KNOB 2 sets the next scene's BARS (the current stays)");
+            scene_bars[3] = b3;
+            turn(EN_ALGO, -9);
+        }
         ui.force = 1;
         frames(2);
         ppm("opt-song-scenes-table");
@@ -2698,9 +2706,7 @@ static void song_tests(void)
         song_cell(song_row_of(SG_PART, 0), 1, &bc);
         check(song_tbl_on() && !strcmp(bc.val, "SCENE"), "PARTS table: BARS 0 is S (it follows its scene's BARS)");
         turn(EN_ALGO, 1);
-        check(stb_lane == 1u, "PARTS: ALGORITHM down to the bars lane");
-        turn(EN_ALGO, 9);
-        check(stb_lane == 1u, "... two lanes only");
+        check(stb_lane == 0u, "PARTS: ALGORITHM does nothing (the scene lane only)");
         turn(EN_PRESET, 2);
         check(arrangement.entry[0].bars == 2u, "PARTS: PRESETS the bars (from S up: 1, 2)");
         turn(EN_PRESET, -5);
@@ -2712,8 +2718,6 @@ static void song_tests(void)
         turn(EN_PRESET, -1);
         check(arrangement.entry[0].bars == 64u, "... A down: 64");
         arrangement.entry[0].bars = 0;
-        turn(EN_ALGO, -9);
-        check(stb_lane == 0u, "PARTS: ALGORITHM up to the scene lane");
         turn(EN_SELECT, 1);
         check(ui.row[SCR_SONG] == song_row_of(SG_PART, 1) || arrangement.count < 2u, "PARTS: SELECT the cursor to the next part");
         turn(EN_SELECT, -9);
