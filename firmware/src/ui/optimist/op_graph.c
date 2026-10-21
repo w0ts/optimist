@@ -247,7 +247,7 @@ static void graph_scale(uint16_t c)
  *   the marks   a step of RATE, GATE long, every other step SWG late, up / down / up-down / random by MODE, a step PROB
  *               would skip dim; MODE OFF: the pattern UP would play, in the shade
  * It fills GRAPH_H: the pitches spread over the height, the marks as tall as they fit */
-static uint32_t arp_ref(const track_t *t, uint8_t *nt)  /* the notes the picture plays (16 at most), how many */
+static uint32_t arp_ref(const track_t *t, uint8_t *nt, uint32_t played)  /* the notes the picture plays (16 at most), how many (played: as they went down, BASS) */
 {
     static const uint8_t SORTED[3] = {60, 64, 67}, PLAYED[3] = {64, 60, 67};
     uint32_t n = 0, i, j, h = (uint32_t)t->nheld;
@@ -261,7 +261,7 @@ static uint32_t arp_ref(const track_t *t, uint8_t *nt)  /* the notes the picture
         memcpy(nt, t->p[P_AORDER] ? PLAYED : SORTED, 3);
         n = 3u;
     }
-    if (!t->p[P_AORDER])                                /* (NOTE: low to high; PLAY: as they went down) */
+    if (!t->p[P_AORDER] && !played)                     /* (NOTE: low to high; PLAY: as they went down) */
         for (i = 1; i < n; i++)
             for (j = i; j > 0u && nt[j - 1u] > nt[j]; j--) {
                 uint8_t x = nt[j];
@@ -274,7 +274,7 @@ static void graph_arp(uint16_t c)
 {
     const track_t *t = TSEL;
     uint8_t nt[16];
-    uint32_t cnt = arp_ref(t, nt), mode = (uint32_t)t->p[P_AMODE] % 6u, oct = (uint32_t)ui_clamp(t->p[P_AOCT], 1, 4);
+    uint32_t mode = (uint32_t)t->p[P_AMODE] % 7u, cnt = arp_ref(t, nt, mode == 6u), oct = (uint32_t)ui_clamp(t->p[P_AOCT], 1, 4);
     uint32_t len = cnt * oct, steps = 4u * DIV_DEN[(uint32_t)t->p[P_ARATE] % 6u], i, b, lo = 127, hi = 0;
     int32_t top = GR_TOP + 2, bot = GR_BOT, span, sw = 236 / (int32_t)steps, mh;
     int32_t gate = sw * t->p[P_AGATE] / 128, late = (int32_t)ui_clamp(t->p[P_ASWING], 0, 100) * sw / 200;
@@ -298,6 +298,21 @@ static void graph_arp(uint16_t c)
         int32_t x = 2 + (int32_t)i * 236 / (int32_t)steps + ((i & 1u) ? late : 0);
         j = mode == 2u ? len - 1u - k % len : mode == 3u ? (k % cyc < len ? k % cyc : cyc - k % cyc) :
             mode == 4u ? (h >> 16) % len : k % len;
+        if (mode == 6u) {                               /* BASS: the lowest, then the others in turn (as arp_next) */
+            uint32_t low = 0, no, q = i, m, x = 0;
+            for (m = 1; m < cnt; m++)
+                low = nt[m] < nt[low] ? m : low;
+            no = (cnt - 1u) * oct;
+            if ((q & 1u) && no) {
+                uint32_t r = (q >> 1) % no, o = r / (cnt - 1u), w = r % (cnt - 1u);
+                for (m = 0, x = 0; m < cnt; m++)
+                    if (m != low && x++ == w)
+                        break;
+                j = o * cnt + m;
+            } else {
+                j = low;
+            }
+        }
         cv_rect(x, ARPY(nt[j % cnt] + 12u * (j / cnt)) - mh / 2, gate > 1 ? gate : 1, mh,
                 (int32_t)((h >> 8) % 127u) >= t->p[P_APROB] ? C_DIM : mc);
     }

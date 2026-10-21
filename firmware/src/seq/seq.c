@@ -481,8 +481,9 @@ static uint32_t rec_target(const track_t *t, uint32_t *later)
 /* note into synth step idx (overdub: a step that holds notes gets this one added, a chord of up to 4;
  * when full, the last note is replaced; MONO / LEGATO / UNISON parts keep one note per step) */
 /* a step takes several notes: POLY, or the arp on (the user, 2026-10-21: a chord played into a MONO part with the arp on is the arp's
- * to walk, not one note a step); MONO / LEGATO / UNISON without the arp: one note a step */
-#define rec_poly(t) ((t)->p[P_VOICE] == V_POLY || ((t)->p[P_AMODE] && !is_drum(t)))
+ * to walk, not one note a step); MONO / LEGATO / UNISON without the arp: one note a step, unless REC_PLAIN (every note is kept,
+ * an engine that is mono by nature, ACID, excepted) */
+#define rec_poly(t) ((t)->p[P_VOICE] == V_POLY || ((t)->p[P_AMODE] && !is_drum(t)) || (FELUCCA_REC_PLAIN && !ENGINES[(t)->engine]->legato))
 static void step_add(track_t *t, uint32_t idx, uint32_t note, uint32_t vel, uint32_t lvl, uint32_t rat)
 {
     step_t *s = &t->step[idx];
@@ -1635,7 +1636,7 @@ static uint32_t seq_arp(const track_t *t) { return t->p[P_AMODE] && !is_drum(t);
 /* the next note of the arp: the held notes (sorted or as played) over OCT octaves, by MODE */
 static uint32_t arp_next(track_t *t)
 {
-    uint32_t cnt = 0, list[64], len = 0, i, j, o, ti = trk_index(t) % NTRK;
+    uint32_t cnt = 0, list[64], play[64], len = 0, i, j, o, ti = trk_index(t) % NTRK;
     for (i = 0; i < t->nheld; i++) {               /* the notes as they play now (#191), each once */
         uint32_t x = t->held[i], s = held_key[ti][i];
         if (s) {                                    /* a key: through the scale as it is now */
@@ -1651,6 +1652,7 @@ static uint32_t arp_next(track_t *t)
     }
     if (!cnt)
         return KB_SILENT;                           /* (every key silent now) */
+    memcpy(play, list, cnt * sizeof play[0]);       /* (as played: BASS's others) */
     if (!t->p[P_AORDER])
         for (i = 1; i < cnt; i++)
             for (j = i; j > 0 && list[j - 1] > list[j]; j--) {
@@ -1662,6 +1664,18 @@ static uint32_t arp_next(track_t *t)
         for (i = 0; i < cnt && len < 64u; i++)
             list[len++] = (uint32_t)clamp((int32_t)list[i] + 12 * (int32_t)o, 0, 127);
     t->arp_idx++;
+    if (t->p[P_AMODE] == 6) {                       /* BASS (the user, 2026-10-21): every first note the lowest, every second the others in turn, in the order
+                                                     * played (OCT stacks the others' octaves; one note held: that note) */
+        uint32_t low = play[0], oth[64], no = 0, q = t->arp_idx, x;
+        for (i = 1; i < cnt; i++)
+            low = play[i] < low ? play[i] : low;
+        for (o = 0; o < (uint32_t)t->p[P_AOCT]; o++)
+            for (i = 0; i < cnt && no < 64u; i++)
+                if (play[i] != low)
+                    oth[no++] = (uint32_t)clamp((int32_t)play[i] + 12 * (int32_t)o, 0, 127);
+        x = (q & 1u) && no ? oth[(q >> 1) % no] : low;
+        return x;
+    }
     switch (t->p[P_AMODE]) {
     case 2:
         j = len - 1u - t->arp_idx % len;
@@ -2026,6 +2040,11 @@ static void chord_revoice(uint32_t sel)
 }
 #endif
 
+/* the drum keys that only pick a lane (the UI sets it every frame: STEP on the drum track, the transport playing, the drum track
+ * not recording, OCT+ not held): they sound nothing then, so a pick never plays over the pattern (the user, 2026-10-21); stopped
+ * or recording they sound as ever, SHIFT2 + the key sounds the lane (the UI's audition) */
+static volatile uint8_t pick_quiet;
+static void seq_pick_quiet(uint32_t on) { pick_quiet = (uint8_t)(on != 0u); }
 static void key_down(uint32_t k)
 {
     uint32_t layer = layer_now(), sel = song.sel % NTRK, i, mc;
@@ -2127,6 +2146,8 @@ static void key_down(uint32_t k)
             roll_start(k, t, lane, lvl);
             return;
         }
+        if (pick_quiet && lane != DRUM_ACC && layer == LY_PLAY)
+            return;                                   /* (a pick while playing: select only; kb_kind stays NONE) */
         kb_kind[k] = KS_DRUM;
         drum_input(lane, lvl, 0, 1);
         mc = trk_midi_ch(sel);

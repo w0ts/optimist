@@ -11,7 +11,7 @@ static const char *const N_LT[LT_N] = {"OFF", "PIT", "FLT", "SHP", "AMP", "RES",
                                        "E1", "E2", "E3", "E4", "E5", "E6", "E7", "E8", "CHO", "DLY", "REV", "INS1",
                                        "INS2", "L1 RT", "L1 AMT", "SUS", "REL", "ATK2", "DEC2", "SUS2", "REL2", "E1 AMT",
                                        "E2 AMT", "OSC2", "SDTN", "L2 RT", "L2 AMT"};
-static const char *const N_AMODE[] = {"OFF", "UP", "DN", "UPDN", "RND", "ORD"};
+static const char *const N_AMODE[] = {"OFF", "UP", "DN", "UPDN", "RND", "ORD", "BASS"};   /* (BASS appended: the lowest, then the others in turn) */
 static const char *const N_DIV[] = {"1/4", "1/8", "1/16", "1/32", "8T", "16T"};
 #if FELUCCA_DIV_LONG                 /* SLOOP 2.4 (8d3823f): appended, so the old values keep their index (core.h div_units) */
 static const char *const N_SDIV[] = {"1/4", "1/8", "1/16", "1/32", "8T", "16T", "1/2", "1BAR", "2BAR"};
@@ -483,6 +483,11 @@ static int32_t enum_rank(const param_desc_t *d, int32_t v)   /* v's place in the
             break;
     return o ? r + d->min : v;
 }
+static int32_t enum_at(const param_desc_t *d, int32_t p)     /* the value shown at place p (+ min): the popup list, as the knob walks */
+{
+    const uint8_t *o = enum_order(d);
+    return o ? o[clamp(p - d->min, 0, d->max - d->min)] + d->min : p;
+}
 static int32_t param_step(const param_desc_t *d, int32_t v, int32_t steps)   /* (a division: over the order) */
 {
     const uint8_t *o = enum_order(d);
@@ -492,6 +497,7 @@ static int32_t param_step(const param_desc_t *d, int32_t v, int32_t steps)   /* 
 }
 #else
 #define enum_rank(d, v) (v)
+#define enum_at(d, p) (p)
 #define param_step(d, v, steps) (is_lrate(d) ? lrate_step(d, v, steps) : param_step0(d, v, steps))
 #endif
 

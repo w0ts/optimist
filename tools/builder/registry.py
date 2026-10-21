@@ -621,6 +621,13 @@ _add("ENERGY", "FELUCCA_ENERGY", "ENERGY bands thin / thicken the drums", Q, 121
           "eighths, no ghosts, as written, harder hits, hat ratchets and a snare fill every second pass. About "
           "0.6 KB of flash.", symbols=("EN_EDGE",))
 
+_add("REC_PLAIN", "FELUCCA_REC_PLAIN", "REC plain: every note played is recorded, the voice mode never cuts it", Q, 364, default=0,
+     desc="Experimental (2026-10-21, off for now). Recording keeps every note you play: a chord stays a chord, an overdub only "
+          "touches a note you play again, and a long note you play into keeps going. The voice mode (MONO, LEGATO, UNISON) "
+          "decides only what the voice plays, as it does for the keys, instead of cutting a recorded step to one note and "
+          "joining the notes held over each other. A part on an engine that is mono by nature (ACID) records as before; an "
+          "arp part always records plain. About 0.1 KB of flash less or more.")
+
 # ---- USB & BT & MIDI (the user, 2026-10-20). USB MIDI (notes, clock, the editor and updates) is in every build. The USB
 # port's two extras, each a checkbox, not both: the controller has three data endpoints (hal/fm1_usb.h EP1..3), USB MIDI
 # takes EP1, USB audio EP2 both ways and EP3 IN, the console EP2 and EP3 (io/usb/usb.c). (bit 47, USB_MODE, the one

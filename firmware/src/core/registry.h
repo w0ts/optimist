@@ -379,6 +379,10 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
                                             * timed as the audio leaves; io/midi/clock_out.c). Not a builder item of its own:
                                             * the one item MIDI_CLOCK is clock in + out; tests may still set it alone */
 #endif
+#ifndef FELUCCA_REC_PLAIN
+#define FELUCCA_REC_PLAIN 0                /* seq.c rec_poly: recording keeps every note played whatever the voice mode (MONO, LEGATO,
+                                            * UNISON no longer cut a step to one note); an ACID part records as before (0: as before) */
+#endif
 #ifndef FELUCCA_MIDI_EXPR
 #define FELUCCA_MIDI_EXPR 1                /* MIDI bend, mod wheel, breath, foot, aftertouch, sustain, RPN 0
                                             * (0: notes and the panics CC 120..123 only) */

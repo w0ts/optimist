@@ -944,6 +944,8 @@ static void ui_input(void)
         mx_s2_done = 0;                                 /* (SHIFT + the volume card's knob: one mute toggle a hold) */
     lay_frame(held);                                    /* the layer held, shown (op_layers.c) */
     tempo_frame(held);                                  /* PLAY held: the TEMPO page, the nudge (op_tempo.c) */
+    seq_pick_quiet(is_drum(TSEL) && ui.scr == SCR_STEP && song.playing && !((song.rec >> TRK_DRUM) & 1u) &&
+                   !(held & (1u << panel.btn[B_OCTUP])));   /* (the drum keys on STEP only pick the lane while it plays) */
     save_clear_tick(held);                              /* SAVE held on a scene row: its clear, the ring */
     arm_ring_tick();                                    /* a delete asked from a held key: the ring */
     wipe_frame(held);                                   /* SHIFT2 + REC: the wipe */

@@ -20,6 +20,11 @@ static void pre_toast(void);                            /* op_preset.c: a preset
 static void pre_toast_edit(void);                       /* op_preset.c: the same for EDIT's PRESET card (the engine's own sounds) */
 static void pre_toast_engine(void);                     /* op_preset.c: the engine step's popup list of the engines */
 
+static int fxr_decode(const uint8_t *a, uint32_t n, int all);   /* fx/fx_rec.c */
+#if FELUCCA_AUTO
+static void auto_init(void);                            /* storage/auto_proj.c */
+#endif
+
 /* ---- shared actions */
 /* a new project: every track empty, the default sounds (as SLOOP's ui_input.c project_new, TOOLS > NEW) */
 static void op_project_new(void)
@@ -43,6 +48,18 @@ static void op_project_new(void)
     for (i = 0; i < G_COUNT; i++)
         if (i != G_SLOT && i != G_DRCH && i != G_VIEW && i != G_SYNC)
             song.g[i] = GP[i].def;
+    fm1_irq_off();                                      /* (blank, as a project with nothing stored loads: the mixing, the sends, the inserts) */
+#if FELUCCA_ANALOG2
+    dlrec_apply(0, DRREV_MOVED);                        /* the drum lanes (levels, pan, tune...) and their sends */
+    dl_e0 = TDRUM->p[P_E0];
+#endif
+    (void)fxr_decode(0, 0, 1);                          /* the FX slots, the tracks' and the drum sounds' inserts, the returns at unity, the lanes at the
+                                                         * centre, no sequencer mute, the voice counts (fx_rec.c: what a load with no record does) */
+    (void)dlfo_decode(0, 0);                            /* the drum lanes' LFOs and envelopes at their defaults */
+    fm1_irq_on();
+#if FELUCCA_AUTO
+    auto_init();                                        /* the locks and the motion: none (auto_proj.c) */
+#endif
     song.solo = 0;
     dlm_solo_clear();                                   /* (the lanes' solo too: drums/drum_mix.c) */
     song.octave = 0;

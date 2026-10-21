@@ -191,21 +191,28 @@ static void pre_toast_engine(void)
     ui.toast_col = ENG_COL[e];
     pop_kind = 4;
 }
-static void pop_drum_kits(uint32_t *list, uint32_t *n, uint32_t *at)   /* the kits of this build, the one playing's place */
+static void pop_drum_kits(uint32_t *list, uint32_t *n, uint32_t *at)   /* the kits as PRESETS steps them: this build's, then the user kits */
 {
-    uint32_t i;
+    uint32_t i, pos = drum_kit_pos();                   /* (an entry: a factory kit's index, or DRUM_KITS + a user kit's place) */
     *n = 0, *at = 0;
-    for (i = 0; i < DRUM_KITS && *n < 32u; i++)
+    for (i = 0; i < DRUM_KITS && *n < 64u; i++)
         if (drum_kit_built(i)) {
-            if (i == drum_kit())
+            if (i == pos)
                 *at = *n;
             list[(*n)++] = i;
         }
+#if FELUCCA_DRUM_KITS
+    for (i = 0; i < ukit_count() && *n < 64u; i++) {
+        if (DRUM_KITS + i == pos)
+            *at = *n;
+        list[(*n)++] = DRUM_KITS + i;
+    }
+#endif
 }
 static void cv_tall(uint32_t y, uint32_t h, uint16_t bg, void (*fn)(void));   /* op_draw.c */
 #define POP_RH 28                                       /* a popup row: the large face (the user, 2026-10-21: "bigger font to be more readable") */
 static struct {
-    uint32_t kits[32], total, cur, half;
+    uint32_t kits[64], total, cur, half;
     int32_t h;
     uint16_t fr;
 } pop;                                                  /* what pop_paint draws (draw_pop) */
@@ -234,12 +241,20 @@ static void pop_paint(void)                             /* the box in its own co
             en[0] = 0;
             ec = ENG_COL[pop.kits[idx]];
         } else if (pop_kind == 3u) {
-            pen_name(pen.d->min + (int32_t)idx, nm);
+            pen_name(enum_at(pen.d, pen.d->min + (int32_t)idx), nm);
             en[0] = 0;
             ec = pop.fr;
         } else if (pop_kind == 2u) {
-            str_cpy(nm, DRUM_KIT_NAMES[pop.kits[idx]], sizeof nm);
-            str_cpy(en, DRUM_KIT_STYLES[pop.kits[idx]], sizeof en);
+#if FELUCCA_DRUM_KITS
+            if (pop.kits[idx] >= DRUM_KITS) {           /* a user kit: its name, "USER KIT" */
+                str_cpy(nm, UK_NAME[ukit_nth(pop.kits[idx] - DRUM_KITS) % 16u], sizeof nm);
+                str_cpy(en, "USER KIT", sizeof en);
+            } else
+#endif
+            {
+                str_cpy(nm, DRUM_KIT_NAMES[pop.kits[idx]], sizeof nm);
+                str_cpy(en, DRUM_KIT_STYLES[pop.kits[idx]], sizeof en);
+            }
             ec = pop.fr;
         } else {
             uint32_t k, e = preset_at(idx, &k);
@@ -288,7 +303,7 @@ static void draw_pop(void)
         pop_engines(pop.kits, &pop.total, &pop.cur);
     } else if (pop_kind == 3u) {
         pop.total = (uint32_t)(pen.d->max - pen.d->min + 1);
-        pop.cur = (uint32_t)ui_clamp((int32_t)*pen.vp - pen.d->min, 0, (int32_t)pop.total - 1);
+        pop.cur = (uint32_t)ui_clamp(enum_rank(pen.d, *pen.vp) - pen.d->min, 0, (int32_t)pop.total - 1);   /* (the place the knob walks: a division by length) */
     } else {
         pop.cur = preset_pos(&pop.total);
     }

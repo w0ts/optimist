@@ -2433,6 +2433,29 @@
     "provenance_line": "Flowstate (zakariachowdhury/flowstate-fm1) @ 3962560 by Zakaria Chowdhury (GPL-3.0-only)"
    },
    {
+    "key": "REC_PLAIN",
+    "flag": "FELUCCA_REC_PLAIN",
+    "label": "REC plain: every note played is recorded, the voice mode never cuts it",
+    "group": "Sequencer",
+    "bit": 364,
+    "default": 0,
+    "parent": null,
+    "desc": "Experimental (2026-10-21, off for now). Recording keeps every note you play: a chord stays a chord, an overdub only touches a note you play again, and a long note you play into keeps going. The voice mode (MONO, LEGATO, UNISON) decides only what the voice plays, as it does for the keys, instead of cutting a recorded step to one note and joining the notes held over each other. A part on an engine that is mono by nature (ACID) records as before; an arp part always records plain. About 0.1 KB of flash less or more.",
+    "experimental": false,
+    "notice": "",
+    "off_warning": "",
+    "env": "",
+    "target_only": false,
+    "symbols": [],
+    "no_image": false,
+    "fixed": false,
+    "choices": [],
+    "provenance": null,
+    "children": [],
+    "tested": "emulator-tested only",
+    "provenance_line": ""
+   },
+   {
     "key": "USB_MIDI",
     "flag": "",
     "label": "USB MIDI (always: notes, clock, the editor, updates)",
@@ -3298,8 +3321,35 @@
     "fixed": false,
     "choices": [],
     "provenance": null,
-    "children": [],
+    "children": [
+     "BT_DIAG"
+    ],
     "tested": "host-tested (SSP, SAFER+, SBC encoder, AVDTP, L2CAP) and unit-tested",
+    "provenance_line": ""
+   },
+   {
+    "key": "BT_DIAG",
+    "flag": "FELUCCA_BT_DIAG",
+    "label": "Bluetooth audio diagnostics: the console's btrx / bttrace, counters and logs",
+    "group": "USB & BT & MIDI",
+    "bit": 363,
+    "default": 0,
+    "parent": "BT_AUDIO",
+    "desc": "For finding Bluetooth audio faults on a console build (USB_CONSOLE): the btrx and bttrace logs, the status histograms and the per-second counters (receive status bits, signal level, gain), and the live btpage pll= / agc= / follow= commands, and every line the Bluetooth stack writes to the console (btinq, btpage). About 14 KB of flash and 6.4 KB of RAM with the console. Leave it off for normal use: the audio works the same without it.",
+    "experimental": false,
+    "notice": "",
+    "off_warning": "",
+    "env": "",
+    "target_only": true,
+    "symbols": [
+     "con_btrx"
+    ],
+    "no_image": false,
+    "fixed": false,
+    "choices": [],
+    "provenance": null,
+    "children": [],
+    "tested": "emulator-tested only",
     "provenance_line": ""
    },
    {
@@ -4328,6 +4378,7 @@
    "PATTERNS",
    "UNDO_HISTORY",
    "MACROS",
+   "REC_PLAIN",
    "CHANCE",
    "QNT_SEQ",
    "MOTION",
