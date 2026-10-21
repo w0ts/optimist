@@ -87,7 +87,7 @@ Every tool works on steps 1 to LEN. The events of a step (locks, motion, chance,
 
 ARP held is a layer: hold a key for note repeat, locked to the tempo and swing, with KNOB RATE. ARP tapped opens its pages. With ARP on, the track's own steps go through the arp too. While recording, only what the keys play through the arp is recorded. The drum track has no arp. Two pages of the track:
 
-- **ARP:** MODE (OFF, UP, DN, UPDN, RND, ORD), RATE (1/4, 1/8, 1/16, 1/32, 8T, 16T; default 1/16), OCT (1 to 4), GATE.
+- **ARP:** MODE (OFF, UP, DN, UPDN, RND, ORD, BASS: every first note the lowest held, every second one of the others in turn, in the order played), RATE (1/4, 1/8, 1/16, 1/32, 8T, 16T; default 1/16), OCT (1 to 4), GATE.
 - **ARP 2:** SWG (swing), PROB (probability of a note), HOLD (on / off: keep the notes after the keys are let go) and ORD (NOTE or PLAY order).
 
 The ARP values are p-locks and motion, like the sound values. A recorded roll is written as ratchets.

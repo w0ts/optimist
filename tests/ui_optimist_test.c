@@ -177,6 +177,12 @@ static uint32_t nb_list_of(uint32_t kind, uint32_t *rank, uint32_t n, uint32_t *
 static uint32_t nb_kind_at(uint32_t i) { return i + 1u; }
 static uint32_t nb_engine_slot(uint32_t kind) { return kind == 1u ? 0u : 1u; }
 #endif
+#if !FELUCCA_PATTERNS                                    /* (project.c is in the TU with the section log only: NEW PROJECT's blank load of the FX and the automation) */
+static int fxr_decode(const uint8_t *a, uint32_t n, int all) { (void)a; (void)n; (void)all; return 0; }
+#if FELUCCA_AUTO
+static void auto_init(void) {}
+#endif
+#endif
 #include "snap_ui_stub.h"
 #if FELUCCA_DRUM_KITS
 #if !FELUCCA_PATTERNS                                   /* (with the section log: its NOR image holds the bank too) */
@@ -1872,6 +1878,15 @@ static void layer_tests(void)
                     }
             }
             (void)n3;
+#if FELUCCA_DIV_ORDER
+            {   /* a division list shows in the order the knob walks (by length), not the stored index order */
+                const param_desc_t *dd = &TP[P_SDIV];
+                int32_t p, ok = 1;
+                for (p = dd->min; p < dd->max; p++)
+                    ok &= param_step(dd, enum_at(dd, p), 1) == enum_at(dd, p + 1) && enum_rank(dd, enum_at(dd, p)) == p;
+                check(ok, "the popup lists a division card's values in the order the knob steps through them (DIV_ORDER)");
+            }
+#endif
             check(hit, "a card with a list value (not a sound): KNOB turned: the popup list of its values (pop_kind 3)");
             if (hit) {   /* at the list's end: nothing drawn below it (the first items were shown there) */
                 for (r = 0; r < 70u; r++)
@@ -2354,6 +2369,55 @@ static uint32_t song_row_of(uint32_t kind, uint32_t a)  /* SONG's row of that ki
         if (song_kind(r, &x) == kind && (kind == SG_PAT || kind == SG_MODE || x == a))
             return r;
     return 0;
+}
+static void drumkit_popup_tests(void)
+{   /* the kit popup lists what PRESETS steps through (factory kits as built, then the user kits), in that order, the playing one lit */
+    uint32_t i, last, visited = 1, kits[64], tot, cur, ok = 1;
+    reset_ui();
+    song.sel = TRK_DRUM;
+    op_enter(SCR_SOUND);
+    ui.row[SCR_SOUND] = 0;
+    frames(2);
+    for (i = 0; i < 200u; i++) {                        /* (down to the first kit) */
+        last = drum_kit_pos();
+        op_preset_step(-1);
+        if (drum_kit_pos() == last)
+            break;
+    }
+    for (i = 0; i < 200u; i++) {                        /* (up to the last: every position, the popup's list in step) */
+        pop_drum_kits(kits, &tot, &cur);
+        ok &= cur < tot && kits[cur] == drum_kit_pos();
+        last = drum_kit_pos();
+        op_preset_step(1);
+        if (drum_kit_pos() == last)
+            break;
+        visited++;
+    }
+    pop_drum_kits(kits, &tot, &cur);
+    ok &= tot == visited && kits[tot - 1u] == drum_kit_pos();
+    check(ok, "the drum kit popup: its list is every kit PRESETS steps through, the playing one at its place each step, user kits last");
+    reset_ui();
+}
+static void newproj_tests(void)
+{   /* NEW PROJECT: blank like a project with nothing stored: the mix, the sends, the inserts, the drum lanes, the automation */
+    reset_ui();
+    song.sel = 0;
+    trk[0].p[P_LEVEL] = 11;
+    trk[0].step[0].time = ST_NOTE, trk[0].step[0].n = 1, trk[0].step[0].note[0] = 60;
+    ins_slot[0][0] = 2;
+    fxs_slot[0] = 2;
+    dl.ofs[0][0] = 5;
+    dl.src[0] = 1;
+    dsend[0] = 9;
+    song.g[G_SWING] = 20;
+    op_global_go(G_NEWPRJ);
+    check(trk[0].p[P_LEVEL] == TP[P_LEVEL].def && trk[0].step[0].time == ST_REST && song.g[G_SWING] == GP[G_SWING].def,
+          "NEW PROJECT: the track's level, its steps and the globals at their defaults");
+#if FELUCCA_PATTERNS
+    check(ins_slot[0][0] != 2 && fxs_slot[0] != 2, "... the inserts and the FX slots empty again");
+#endif
+    check(dl.ofs[0][0] == 0 && dl.src[0] == 0 && dsend[0] == 0, "... the drum lanes' tuning and sound, their sends: blank");
+    reset_ui();
 }
 static void wipe_tests(void)
 {   /* SHIFT2 + REC held while playing: the notes the sequencer enters are erased, one undo for the hold */
@@ -3710,6 +3774,7 @@ int main(int argc, char **argv)
     save_layer_tests();
     tempo_tests();
     combo_tests();
+    drumkit_popup_tests();
     wipe_tests();
     song_tests();
     shortcut_tests();
@@ -3736,6 +3801,7 @@ int main(int argc, char **argv)
     knobcol_tests();
     clkout_tests();
     uasel_tests();
+    newproj_tests();
 #if FELUCCA_SYS_DEBUG
     core_row_tests();                                   /* (INFO's every line, INTERNALS, USB STATS: the debug pages) */
     overload_tests();

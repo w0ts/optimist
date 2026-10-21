@@ -272,9 +272,68 @@ int main(void)
                 first = k;
                 break;
             }
+#if FELUCCA_REC_PLAIN
+        check(first != 99u && t->step[first].n == 2u, "... ARP off, MONO, REC_PLAIN: the chord is kept too (the voice picks the note)");
+#else
         check(first != 99u && t->step[first].n == 1u, "... ARP off, MONO: one note a step, as ever");
+#endif
     }
     song.rec = 0;
+
+    /* ARP BASS: every first note the lowest held, every second one of the others in turn, in the order played */
+    {
+        uint32_t seqn[10], g;
+        static const uint32_t want[10] = {60, 64, 60, 67, 60, 72, 60, 64, 60, 67};
+        reset(0);
+        for (i = 0; i < 16u; i++)
+            put_step(t, i, 0, 0, ST_REST, 0);
+        t->p[P_AMODE] = 6;
+        t->p[P_AORDER] = 0;                               /* (sorted: BASS's others are still in the order played) */
+        t->nheld = 0;
+        arp_add(t, 64);
+        arp_add(t, 60);
+        arp_add(t, 67);
+        arp_add(t, 72);
+        t->arp_idx = 0xFFFFFFFFu;
+        for (g = 0; g < 10u; g++)
+            seqn[g] = arp_next(t);
+        for (g = 0, i = 1; g < 10u; g++)
+            i &= seqn[g] == want[g];
+        check(i, "ARP BASS, keys 64 60 67 72: 60 64 60 67 60 72 60 64 ... (the lowest, then the others in the order played)");
+        t->p[P_AOCT] = 2;
+        t->arp_idx = 0xFFFFFFFFu;
+        for (g = 0; g < 10u; g++)
+            seqn[g] = arp_next(t);
+        check(seqn[0] == 60 && seqn[2] == 60 && seqn[1] == 64 && seqn[3] == 67 && seqn[5] == 72 && seqn[7] == 76 && seqn[9] == 79,
+              "... OCT 2: the lowest stays, the others go on through the octave above");
+        t->nheld = 0;
+        arp_add(t, 62);
+        t->arp_idx = 0xFFFFFFFFu;
+        check(arp_next(t) == 62 && arp_next(t) == 62, "... one key held: that note");
+        t->nheld = 0;
+        t->p[P_AMODE] = 0;
+        t->p[P_AOCT] = 1;
+    }
+
+    /* the drum keys that only pick a lane (STEP, playing, not recording) sound nothing; otherwise as ever */
+    {
+        uint32_t k, kk = 99;
+        reset(0);
+        song.sel = TRK_DRUM;
+        song.playing = 1;
+        for (k = 0; k < 27u && kk == 99u; k++)
+            if (kb_drum_lane(k) != DLANE_NONE && kb_drum_lane(k) != DRUM_ACC && punch_key(k) < 0)
+                kk = k;
+        seq_pick_quiet(1);
+        key_down(kk);
+        check(kk != 99u && kb_kind[kk] == KS_NONE, "a drum pick key (STEP, playing, not recording): it sounds nothing");
+        key_up(kk);
+        seq_pick_quiet(0);
+        key_down(kk);
+        check(kb_kind[kk] == KS_DRUM, "... stopped or recording (the UI lets it sound): the lane plays as ever");
+        key_up(kk);
+        song.sel = 0;
+    }
 
     printf("arp seq: %d failed\n", fails);
     return fails;
