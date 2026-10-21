@@ -584,7 +584,9 @@ static void bp_poll(void)                          /* the main loop, page / conn
     bp_tx_service();
     ba_poll();
     if (bti.mode == BTI_M_CONN && bti_st.phase == BTI_INQ_RUN) {
-        if (fm1_ms - bp.last_good_ms > BP_SUPERVISION_MS) {
+        if ((int32_t)(fm1_ms - bp.last_good_ms) > (int32_t)BP_SUPERVISION_MS) {   /* signed: IRQ 40 can store a
+            * last_good_ms newer than the fm1_ms read here (unsigned, that was 0xFFFFFFFF: a healthy link cut, the user
+            * 2026-10-21 "sometimes the BT disconnects", logs/drop-2026-10-21.log: lost at 150 s, last_good_ms=1) */
             con_puts("btpage: no good packet for 4 s: the link is lost\r\n");
             fm1_br_irqs_hold(1);
             bti_run_stop();
