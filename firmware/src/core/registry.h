@@ -201,6 +201,12 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #ifndef FELUCCA_DRUM_X909
 #define FELUCCA_DRUM_X909 0                /* X0X's TR-909 (9W9 / ER-99 models, sampled hats and cymbals) */
 #endif
+#ifndef FELUCCA_X909_HAT
+#define FELUCCA_X909_HAT 1                 /* the 909's hi-hat samples: 1 8-bit, 2 6-bit (x0x/drum909.c) */
+#endif
+#ifndef FELUCCA_X0X_TANH
+#define FELUCCA_X0X_TANH 1                 /* the 909's tanh table: 1 1024 points, 2 256 points (x0x/drum909_dsp.h) */
+#endif
 #ifndef FELUCCA_X909_CYM
 #define FELUCCA_X909_CYM 1                 /* ... with its ride and crash samples: 1 8-bit, 2 6-bit, 0 none (the stand-in's) */
 #endif

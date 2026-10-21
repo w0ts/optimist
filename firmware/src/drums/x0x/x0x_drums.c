@@ -28,6 +28,14 @@
 #define FELUCCA_X909_CYM 1
 #endif
 #define X0X_909_CYM FELUCCA_X909_CYM
+#ifndef FELUCCA_X909_HAT
+#define FELUCCA_X909_HAT 1             /* the 909's hi-hat samples: 1 8-bit block floating point, 2 6-bit (Optimist) */
+#endif
+#define X0X_909_HAT FELUCCA_X909_HAT
+#ifndef FELUCCA_X0X_TANH
+#define FELUCCA_X0X_TANH 1             /* the saturators' tanh: 1 a 1024-point table, 2 a 256-point one (Optimist) */
+#endif
+#define X0X_TANH FELUCCA_X0X_TANH
 #if FELUCCA_DRUM_X909
 #include "drum909.c"
 #endif

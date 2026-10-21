@@ -232,7 +232,7 @@ ACID_CFLAGS = ["-O2", "-ffunction-sections", "-fno-builtin", "-Wall", "-Wno-unus
 # the backported features' switches (firmware/src/core/backports.h; provenance and costs: tools/backports.json)
 BACKPORT_FLAGS = ("FELUCCA_CHANCE", "FELUCCA_KEYLIT", "FELUCCA_QNT_SEQ", "FELUCCA_SPRING", "FELUCCA_BASSPLUS",
                   "FELUCCA_BRIGHT", "FELUCCA_MOTION", "FELUCCA_ENG_PHYS", "FELUCCA_ENG_ACID", "FELUCCA_ENG_CZ", "FELUCCA_ENG_JUNO",
-                  "FELUCCA_DRUM_X909", "FELUCCA_DRUM_X808", "FELUCCA_X909_CYM")
+                  "FELUCCA_DRUM_X909", "FELUCCA_DRUM_X808", "FELUCCA_X909_CYM", "FELUCCA_X909_HAT", "FELUCCA_X0X_TANH")
 BACKPORT_FLAGS += ("FELUCCA_ENG_NOISE",)       # (the NOISE engine, engine 15: its own line, beside JUNO's 14)
 
 def build_app():
@@ -340,7 +340,8 @@ def build_app():
         objs.append(OUT / "acid.o")
     (OUT / "x0x.o").unlink(missing_ok=True)
     x0x = {f: CFG_VALUES.get(f, int(os.environ.get(f, d))) for f, d in
-           (("FELUCCA_DRUM_X909", "0"), ("FELUCCA_DRUM_X808", "0"), ("FELUCCA_X909_CYM", "1"))}
+           (("FELUCCA_DRUM_X909", "0"), ("FELUCCA_DRUM_X808", "0"), ("FELUCCA_X909_CYM", "1"), ("FELUCCA_X909_HAT", "1"),
+            ("FELUCCA_X0X_TANH", "1"))}
     if x0x["FELUCCA_DRUM_X909"] == 1 or x0x["FELUCCA_DRUM_X808"] == 1:
         # the X0X drum kits' float models (firmware/src/drums/x0x/, from X0X): their own unit with X0X's FPU flags, as
         # ACID's; the data headers from tools/gen_x0x_drums.py
