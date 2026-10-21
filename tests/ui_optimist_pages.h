@@ -591,12 +591,13 @@ static void pages_keys_tests(void)
     keys_are(0, 0, "D10: ARP layer (REPEAT): a play surface, dark");
     let_go(B_ARP);
 #if FELUCCA_PATTERNS
+    song.sel = 0;                                       /* (ALGORITHM no longer walks the track on the patterns screen) */
     hold_layer(B_LFO);
     {
         uint32_t blk = 0, kk;
         for (kk = 0; kk < 27u; kk++)
             blk |= (uint32_t)(pat_black(kk) >= 1u && pat_black(kk) <= 10u) << kk;
-        check(key_led(1) == 2u && key_led(3) == 1u && key_led(0) <= 1u && key_led(25) == 0u && (blk & 1u << 22),
+        check(key_led(1) == 2u && key_led(3) == 1u && key_led(25) == 0u && (blk & 1u << 22),
               "D10: LFO layer: the black keys dim, the selected track's key full, the stored patterns lit (the white keys off or dim)");
     }
     let_go(B_LFO);

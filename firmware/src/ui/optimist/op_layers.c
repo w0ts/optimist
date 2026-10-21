@@ -774,10 +774,8 @@ static int lay_knobs(void)
     }
 #if FELUCCA_PATTERNS
     if (lay_now() == LY_PAT) {
-        if ((s = panel_enc(EN_ALGO)) != 0 && !ft_on) {
-            algo_walk_trk(s);                           /* (the keys launch the selected track's patterns: ALGORITHM picks it) */
-            return 2;
-        }
+        if (panel_enc(EN_ALGO) != 0 && !ft_on)
+            return 2;                                   /* (ALGORITHM does nothing here: a global screen, the user, 2026-10-21; the hold counts as used) */
         return 0;                                       /* LFO held = SHIFT: the knobs are the screen's (op_knobs) */
     }
 #endif
