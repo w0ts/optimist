@@ -38,7 +38,8 @@ static uint32_t up_count(void) { return 0; }
 static uint32_t up_nth(uint32_t n) { return n; }
 static uint32_t up_rank(uint32_t s) { return s; }
 static void up_name(uint32_t k, char *b) { (void)k; b[0] = 0; }
-static void up_slot_label(char *b, uint32_t k) { fmt_int(b, (int32_t)k + 1); }   /* (nbank.c names the user slots) */
+static void up_slot_label(char *b, uint32_t k) { fmt_int(b, (int32_t)k + 1); }
+static uint32_t up_engine_slot(uint32_t k) { (void)k; return NENGINES; }   /* (no user presets here: the browsing filter, model.c pl_keep) */   /* (nbank.c names the user slots) */
 #include "../firmware/src/core/model.c"          /* the model: apply_preset_to, BANK, the preset list (preset_pos / at) */
 #include "../firmware/src/drums/dsnd_desc.c"      /* the drum lanes' SOUND values and the kit list */
 #if FELUCCA_NB_LIST
@@ -132,6 +133,7 @@ static void source(const char *name, int built, uint32_t have, uint32_t reach, u
 
 int main(void)
 {
+    pl_whole = 1;                                       /* (the PRESETS knob's list: every engine's sounds in a row; EDIT's card keeps to one engine) */
     uint32_t e, k, init;
     host_tracks_init();
     song.sel = 0;
