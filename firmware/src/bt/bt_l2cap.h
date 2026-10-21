@@ -20,6 +20,7 @@ uint32_t bl_conf_req(uint8_t *out, uint32_t id, uint32_t dcid, uint32_t mtu);
 uint32_t bl_conf_rsp(uint8_t *out, uint32_t id, uint32_t scid, uint32_t result);
 uint32_t bl_disc_req(uint8_t *out, uint32_t id, uint32_t dcid, uint32_t scid);
 uint32_t bl_disc_rsp(uint8_t *out, uint32_t id, uint32_t dcid, uint32_t scid);
+uint32_t bl_info_req(uint8_t *out, uint32_t id, uint32_t type);
 uint32_t bl_info_rsp(uint8_t *out, uint32_t id, uint32_t type);
 uint32_t bl_cmd_reject(uint8_t *out, uint32_t id);
 

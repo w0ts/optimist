@@ -24,14 +24,21 @@ uint32_t btl_opcode(const uint8_t *p, uint32_t len, uint32_t *tid)
     return op;
 }
 
+/* our features, page 0 (Core Vol 2 Part C 3.3). Before: 0x08 / 0x21 in bytes 0 / 2, read as encryption and SSP, are
+ * slot offset, CVSD and a flow-lag bit: no encryption, no SSP, no multi-slot said. The AirPods refused 3 and 5 slots
+ * (0x1F) and stopped pairing after our public key (the user, 2026-10-20) */
+static const uint8_t BTL_FEAT0[8] = {
+    0x07u,                                         /* byte 0: 3-slot, 5-slot packets (bits 0, 1), encryption (bit 2) */
+    0, 0, 0, 0, 0,
+    0x18u,                                         /* byte 6: Secure Simple Pairing (bit 51), encapsulated PDU (bit 52) */
+    0x80u,                                         /* byte 7: extended features (bit 63): page 1 below */
+};
+#define BTL_FEAT1_SSP_HOST 0x01u                   /* page 1 bit 0: Secure Simple Pairing (Host Support) */
 static uint32_t btl_features(uint8_t *out, uint32_t op, uint32_t tid)
 {
     uint32_t n = btl_pdu(out, op, tid);
-    out[n++] = 0x08u;                              /* byte 0: bit 3 = Encryption */
-    out[n++] = 0x00u;                              /* byte 1 */
-    out[n++] = 0x21u;                              /* byte 2: bit 0 = SSP (Controller), bit 5 = SSP (Host) */
-    for (uint32_t i = 3; i < 8u; i++)
-        out[n++] = 0;
+    for (uint32_t i = 0; i < 8u; i++)
+        out[n++] = BTL_FEAT0[i];
     return n;
 }
 
@@ -124,14 +131,16 @@ uint32_t btl_answer(const uint8_t *p, uint32_t len, const char *name, uint8_t *o
     case BTL_SWITCH_REQ:
         return btl_reply(out, BTL_NOT_ACCEPTED, tid, op, BTL_ERR_ROLE_SWITCH_NOT_ALLOWED);
     /* (pairing and encryption, SSP Just Works: bt_ssp.c answers them before this: bt_page.c bp_lmp_in) */
-    case BTL_ESCAPE << 8 | BTL_X_FEATURES_REQ:      /* a page of extended features: none */
+    case BTL_ESCAPE << 8 | BTL_X_FEATURES_REQ: {    /* a page of features: 0, 1 (SSP host support), else none */
+        uint32_t pg = len > 2u ? p[2] : 0;
         n = btl_pdu(out, BTL_ESCAPE, tid);
         out[n++] = BTL_X_FEATURES_RES;
-        out[n++] = len > 2u ? p[2] : 0;            /* the page asked */
-        out[n++] = 0;                              /* our maximum page */
+        out[n++] = (uint8_t)pg;                    /* the page asked */
+        out[n++] = 1;                              /* our maximum page */
         for (op = 0; op < 8u; op++)
-            out[n++] = 0;
+            out[n++] = pg == 0u ? BTL_FEAT0[op] : pg == 1u && op == 0u ? BTL_FEAT1_SSP_HOST : 0u;
         return n;
+    }
     case BTL_ACCEPTED:
     case BTL_NOT_ACCEPTED:
     case BTL_FEATURES_RES:

@@ -17,6 +17,10 @@
 #define BP_OFF_RX1 (1088u + 680u)
 #define BP_LT_ADDR 1u
 #define BP_TXQ 32u
+#define BP_COD 0x28041Cu                           /* our class of device (the FHS): services Capturing (bit 19, an audio
+                                                    * source, as BlueZ sets it) and Audio (21); major Audio/Video, minor
+                                                    * Portable Audio. Before: 0x240404, Rendering + a wearable headset:
+                                                    * the FM-1 told the AirPods it was a headset (2026-10-20) */
 #define BP_SUPERVISION_MS 4000u                    /* no good packet for this long: the link is called lost */
 
 static struct {
@@ -30,6 +34,7 @@ static struct {
     uint8_t slots5;                                /* the multi-slot request: 0 not asked, 1 asked for 5, 2 granted 5, 3
                                                     * asked for 3 (5 refused), 4 granted 3, 5 refused both */
     uint32_t mq_drop, mq_sent;                     /* audio packets dropped (the queue full), sent */
+    uint8_t name_done;                             /* the device's name read whole (or refused): the pairing may start */
 } bp;
 /* the audio packets (bt_acl.c ba_media_send, from the audio interrupt): whole L2CAP frames, each one DH5 (or DH3 / DH1
  * when shorter), never cut; the main loop's bp_tx_service sends them after the LMP and L2CAP signalling */
@@ -245,7 +250,8 @@ static void bp_conn_rx(void)                       /* a packet in the connection
                 bp_event(BTI_K_LMP, i, stat, bti_tab + (i ? BP_OFF_RX1 : BP_OFF_RX0), len);
             else if (len && llid) {
                 bp.acl++;
-                bp_event(BTI_K_ACL, llid, stat, bti_tab + (i ? BP_OFF_RX1 : BP_OFF_RX0), len > 240u ? 240u : len);
+                bp_event(BTI_K_ACL, llid, stat, bti_tab + (i ? BP_OFF_RX1 : BP_OFF_RX0),
+                         len > sizeof bti_ring[0].data ? (uint32_t)sizeof bti_ring[0].data : len);
             }
         } else {
             bp.bad++;
@@ -417,6 +423,8 @@ static void bp_lmp_in(const struct bti_rx *r)
         con_puts(" reason 0x");
         con_hex(r->data[2], 2);
         con_puts("\r\n");
+        if (r->data[1] == BTL_NAME_REQ)
+            bp.name_done = 1;                      /* (its name refused: as good as read, the pairing may start) */
         if (r->data[1] == BTL_MAX_SLOT_REQ && bp.slots5 == 1u) {   /* (5 refused: 3; a Raspberry Pi refused 5 with 0x34,
                                                     * Reserved Slot Violation, 2026-10-20) */
             out[0] = (uint8_t)(BTL_MAX_SLOT_REQ << 1 | 0u);
@@ -431,6 +439,14 @@ static void bp_lmp_in(const struct bti_rx *r)
         bp.slots5 = bp.slots5 == 1u ? 2u : 4u;
         con_puts(bp.slots5 == 2u ? "btpage: 5-slot packets granted: the audio in DH5, two SBC frames each\r\n"
                                  : "btpage: 3-slot packets granted: the audio in DH3, one SBC frame each\r\n");
+    } else if (op == BTL_NAME_RES && r->len >= 3u) {   /* a fragment of its name (offset, whole length, 14 bytes) */
+        uint32_t off = r->data[1], whole = r->data[2];
+        if (off + 14u < whole && off + 14u < 248u) {
+            uint8_t nr[2] = {(uint8_t)(BTL_NAME_REQ << 1 | 0u), (uint8_t)(off + 14u)};
+            bp_queue(nr, 2, "the rest of its name");
+        } else {
+            bp.name_done = 1;
+        }
     } else if (op == BTL_SETUP_COMPLETE) {
         bp.setup_in = 1;
         con_puts("btpage: the device sent setup_complete");
@@ -462,6 +478,14 @@ static void bp_lmp_in(const struct bti_rx *r)
         out[1] = 5;
         bp.slots5 = 1;
         bp_queue(out, 2, "5-slot packets for the audio");
+        /* then, as BlueZ and Bluedroid do before they pair: its extended features (page 1) and its name, whole
+         * (bt_acl.c waits for the name before the pairing; the AirPods had only ever met stacks that ask) */
+        out[0] = (uint8_t)(BTL_ESCAPE << 1 | 0u), out[1] = BTL_X_FEATURES_REQ, out[2] = 1, out[3] = 1;
+        for (n = 0; n < 8u; n++)
+            out[4 + n] = (uint8_t)(n == 0u ? BTL_FEAT1_SSP_HOST : 0u);
+        bp_queue(out, 12, "its extended features, page 1");
+        out[0] = (uint8_t)(BTL_NAME_REQ << 1 | 0u), out[1] = 0;
+        bp_queue(out, 2, "its name");
     }
 }
 
@@ -526,6 +550,7 @@ static void bp_print_sec(void)
         bti_kv(" lmp in=", bp.lmp_in);
         bti_kv(" out=", bp.lmp_out);
         bti_kv(" q=", bp.txw - bp.txr);
+        bti_kv(" ring_drop=", bti_st.dropped);     /* (received, acknowledged, lost before the main loop read them) */
         bti_kv(" last_good_ms=", fm1_ms - bp.last_good_ms);
         if (bp.mq_sent || bp.mq_drop) {
             bti_kv(" audio_sent=", bp.mq_sent);                /* (DH5 packets of the stream; dropped whole: the queue full) */
@@ -609,7 +634,7 @@ static int bp_start(const uint8_t addr[6], uint32_t slots)
     bp.est = bp.have_est ? est + 1 + bti.o_padj : bti.o_padj;                /* the exact estimate; the exchange entries follow its parity (bp_xchg) */
     for (i = 0; i < 6u; i++)
         fh.addr[i] = bti.own[i];
-    fh.eir = 0, fh.sr = 1, fh.cod = 0x240404u, fh.lt_addr = BP_LT_ADDR, fh.clk = 0, fh.psm = 0;
+    fh.eir = 0, fh.sr = 1, fh.cod = BP_COD, fh.lt_addr = BP_LT_ADDR, fh.clk = 0, fh.psm = 0;
     bti_fhs_build(&fh, bti_tab + BP_OFF_FHS);
     f->lmprxptr[0] = FM1_BR_OFF_FHS;
     f->lmprxptr[1] = FM1_BR_OFF_FHS;
@@ -618,6 +643,7 @@ static int bp_start(const uint8_t addr[6], uint32_t slots)
     bp.page_ids = bp.fhs_acked = bp.good = bp.bad = bp.nobuf = bp.acl = bp.lmp_in = bp.lmp_out = 0;
     bp.setup_out = bp.setup_in = bp.stopping = 0;
     bp.slots5 = 0;
+    bp.name_done = 0;
     bp.mq_drop = bp.mq_sent = 0;
     bp_mq.r = bp_mq.w;                             /* (a new link: no audio queued) */
     ba_reset();

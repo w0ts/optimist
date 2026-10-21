@@ -1068,6 +1068,10 @@ job; ( jobin
 job; ( jobin
     $CC -Wextra $BLE_SAN -o "$OUT/bt_l2cap_test" tests/bt_l2cap_test.c
     run "BT Classic probe L2CAP / SDP: signalling frames, the search-attribute request, an A2DP sink record read" "$OUT/bt_l2cap_test"
+    $CC -Wextra $BLE_SAN -o "$OUT/bt_sdps_test" tests/bt_sdps_test.c
+    run "BT audio SDP server: our A2DP source record, the three requests answered, read back by the client's parser" "$OUT/bt_sdps_test"
+    $CC -Wextra $BLE_SAN -o "$OUT/bt_avrcp_test" tests/bt_avrcp_test.c
+    run "BT audio AVRCP: SetAbsoluteVolume byte for byte, the sink's questions answered, a key accepted" "$OUT/bt_avrcp_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -Wextra $BLE_SAN -o "$OUT/bt_avdtp_test" tests/bt_avdtp_test.c

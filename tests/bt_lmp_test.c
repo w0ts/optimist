@@ -20,8 +20,8 @@ int main(void)
     static const uint8_t ver[6] = {37 << 1, 0x06, 0xFF, 0xFF, 0x01, 0x00};
 
     n = btl_features_req(o);
-    check("features_req: opcode 39, TID 0, the features: encryption (byte 0 bit 3), SSP controller and host (byte 2 bits 0, 5), the rest 0",
-          n == 9 && o[0] == 78 && o[1] == 0x08 && !o[2] && o[3] == 0x21 && !o[4] && !o[5] && !o[6] && !o[7] && !o[8]);   /* (3242a360) */
+    check("features_req: opcode 39, TID 0: 3- and 5-slot, encryption (byte 0 bits 0-2), SSP and encapsulated PDU (byte 6 bits 3, 4), extended features (byte 7 bit 7), the rest 0",
+          n == 9 && o[0] == 78 && o[1] == 0x07 && !o[2] && !o[3] && !o[4] && !o[5] && !o[6] && o[7] == 0x18 && o[8] == 0x80);   /* (Core Vol 2 Part C 3.3; before: 0x08 slot offset, 0x21 CVSD + flow lag, the AirPods stopped at the public key, 2026-10-20) */
     n = btl_version_req(o);
     check("version_req: VersNr 6, CompId FFFF, SubVersNr 1", n == 6 && !memcmp(o, ver, 6));
     check("host_connection_req: one byte, opcode 51", btl_host_conn_req(o) == 1 && o[0] == 102);
@@ -54,8 +54,16 @@ int main(void)
     check("timing_accuracy_req -> res 250 ppm, 10 us", n == 3 && o[0] == (48 << 1 | 1) && o[1] == 250);
     in[0] = 127 << 1 | 1, in[1] = 3, in[2] = 1;
     n = btl_answer(in, 3, "X", o);
-    check("features_req_ext page 1 -> features_res_ext page 1, max page 0, no features",
-          n == 12 && o[0] == (127 << 1 | 1) && o[1] == 4 && o[2] == 1 && o[3] == 0 && !o[11]);
+    check("features_req_ext page 1 -> features_res_ext page 1, max page 1, SSP host support (bit 0) only",
+          n == 12 && o[0] == (127 << 1 | 1) && o[1] == 4 && o[2] == 1 && o[3] == 1 && o[4] == 0x01 && !o[5] && !o[11]);
+    in[2] = 0;
+    n = btl_answer(in, 3, "X", o);
+    check("features_req_ext page 0 -> page 0's features, max page 1",
+          n == 12 && o[1] == 4 && o[2] == 0 && o[3] == 1 && o[4] == 0x07 && o[10] == 0x18 && o[11] == 0x80);
+    in[2] = 2;
+    n = btl_answer(in, 3, "X", o);
+    check("features_req_ext page 2 -> page 2, no features (no Secure Connections)", n == 12 && o[2] == 2 && !o[4] && !o[11]);
+    in[2] = 1;
     in[1] = 23;
     n = btl_answer(in, 2, "X", o);
     check("an unknown extended PDU -> not_accepted_ext(127, ext, 0x19)",

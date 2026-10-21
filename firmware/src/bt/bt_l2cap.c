@@ -68,14 +68,22 @@ uint32_t bl_disc_rsp(uint8_t *out, uint32_t id, uint32_t dcid, uint32_t scid)
     return bl_sig(out, BL_DISC_RSP, id, 4);
 }
 
+uint32_t bl_info_req(uint8_t *out, uint32_t id, uint32_t type)   /* we ask: 2 extended features, 3 fixed channels */
+{
+    bl_le16(out + 8, type);
+    return bl_sig(out, BL_INFO_REQ, id, 2);
+}
+
 uint32_t bl_info_rsp(uint8_t *out, uint32_t id, uint32_t type)
 {
     uint32_t i, n = 4;
     bl_le16(out + 8, type);
-    if (type == 2u) {                              /* extended features: none */
+    if (type == 2u) {                              /* extended features: Fixed Channels (bit 7) only. "None" left the
+                                                    * AirPods without the fixed-channel question BlueZ is asked
+                                                    * (0x2B8), 2026-10-20: we claim no mode we do not run */
         bl_le16(out + 10, 0);
         for (i = 0; i < 4u; i++)
-            out[12 + i] = 0;
+            out[12 + i] = (uint8_t)(i == 0 ? 0x80u : 0);
         n = 8;
     } else if (type == 3u) {                       /* fixed channels: signalling only */
         bl_le16(out + 10, 0);

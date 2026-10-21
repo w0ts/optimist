@@ -65,6 +65,7 @@ static int bta_page(const uint8_t a[6])
     if (bti_busy())
         bti_run_stop();
     bta.tried = 1;
+    bti_defaults();                                     /* (the console's options: TX power, gain, priority, the sweep) */
     return bp_start(a, BTA_PAGE_SLOTS);
 }
 static void bta_start(uint32_t m)
@@ -82,6 +83,7 @@ static void bta_scan(int on)                            /* the devices list open
         if (bti_busy())
             bti_run_stop();
         bta.n = 0, bta.cur = 0;
+        bti_defaults();
         (void)bti_run_start(BTI_M_INQ, BTA_SCAN_S * 1600u);
     } else if (bti.mode == BTI_M_INQ && bti_busy())
         bti_run_stop();
@@ -123,6 +125,16 @@ static uint32_t bta_state(void)
 }
 /* the output: Bluetooth (the stream) or the FM-1's own (the stream suspended, the link kept: back at once) */
 static int bta_out_bt(void) { return !ba.paused; }
+static int bta_gave_up(void) { return ba.gave_up; }   /* (the set-up timed out: no refusal from the device) */
+static int bta_rejoin(void)                             /* let go after a pairing (bt_acl.c ba.rejoin), the link now
+                                                         * closed: paged again with the key -> 1 */
+{
+    if (!ba.rejoin || bti_busy() || !bta.have_last)
+        return 0;
+    ba.rejoin = 0;
+    (void)bta_page(bta.last);
+    return 1;
+}
 static void bta_output(int bt)
 {
     uint8_t par[1];
@@ -141,6 +153,10 @@ static const char *bta_lost(void)                       /* the link ended by its
     static const char *const W[] = {0, "LOST AFTER CONNECTING", "LOST WHILE PAIRING", "LOST AT ENCRYPTION",
                                     "LOST IN AUDIO SETUP", "LOST WHILE STREAMING", "REFUSED"};
     uint32_t w = bta_seen;
+    if (ba.rejoin) {                                    /* (let go on purpose after the pairing: connecting again) */
+        bta_seen = BTA_W_NONE;
+        return 0;
+    }
     if (!w || (bta_state() >= BTA_S_PAGING && bta_state() <= BTA_S_STREAMING))
         return 0;                                       /* (nothing seen, or still up) */
     bta_seen = BTA_W_NONE;
