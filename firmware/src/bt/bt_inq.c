@@ -69,12 +69,14 @@ struct bti_stat {
 static struct bti_stat bti_st = {BTI_MAGIC};
 
 /* the interrupts' ring: one FHS, EIR or ID each */
-#define BTI_RING 8u
+#define BTI_RING 32u                               /* (8 overflowed: the AirPods' SDP burst while the console
+                                                    * printed; a packet acknowledged on air and dropped here is lost for
+                                                    * good, bti_st.dropped, 2026-10-20) */
 enum { BTI_K_FHS = 1, BTI_K_EIR = 2, BTI_K_ID = 3, BTI_K_PSTEP = 4, BTI_K_LMP = 5, BTI_K_CONN = 6, BTI_K_ACL = 7 };
 struct bti_rx {
     uint8_t kind, type, idx, rxfreq;
     uint32_t clkn, stat, agc, len, rssi1;
-    uint8_t data[240];
+    uint8_t data[340];                             /* (a DH5's 339 B whole: our features say 5-slot, bt_lmp.c) */
 };
 static struct bti_rx bti_ring[BTI_RING] IN_POOL;
 static volatile uint32_t bti_rw, bti_rr;
@@ -113,6 +115,14 @@ static struct {
     int16_t o_pll, pll_now;
     uint16_t o_win;
 } bti;
+/* the run's options as the console has them by default (bt_inq_con.c bti_opts starts from these). The screen's scan and
+ * connect (bt_audio.c) set them too: before, they ran on the zeroed struct, TX power 0, the gain fixed at 0, the
+ * interrupt at priority 0 under the audio's (the user, 2026-10-20: the AirPods answered the page, never our FHS) */
+static void bti_defaults(void)
+{
+    bti.o_pat = 0, bti.o_agc = 0xFFu, bti.o_win = 0, bti.o_frq = 0, bti.o_pll = 0, bti.o_sweep = 1, bti.o_pwr = 11u;
+    bti.o_ble = 1, bti.o_prio = BTI_RUN_PRIO, bti.o_noclk = 0, bti.o_pcon = 0, bti.o_pclk = 0, bti.o_ppar = 0xFFu, bti.o_padj = 0;
+}
 static const int8_t bti_sweep_tb[9] = {-120, -80, -40, -20, 0, 20, 40, 80, -120};   /* BR §7.1 (the library's steps) */
 
 static uint32_t bti_clkn(void)

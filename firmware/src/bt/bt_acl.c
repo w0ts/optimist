@@ -2,15 +2,22 @@
 /* EXPERIMENTAL Bluetooth Classic probe, stages 3 and 4 (BT_AUDIO): L2CAP over the link btpage set up; once LMP is
  * set up, an SDP client looks for an A2DP sink (class 0x110B: its AVDTP PSM), then AVDTP as the initiator: the
  * signalling channel, DISCOVER, GET_CAPABILITIES, SET_CONFIGURATION (SBC), OPEN, the media channel (bt_l2cap.c,
- * bt_avdtp.c). It answers the device's information requests, refuses its connections and its AVDTP commands. Every
+ * bt_avdtp.c). It answers the device's information requests and its SDP channel (bt_sdps.c: our A2DP source record),
+ * refuses its other connections and its AVDTP commands. Every
  * step is a `btpage: L2CAP` / `SDP` / `AVDTP` line. Included by bt_page.c. No vendor code. */
 #include "bt_l2cap.c"
+#include "bt_sdps.c"                               /* our SDP server: the device reads our record (the AirPods do) */
+#include "bt_avrcp.c"                              /* the least AVRCP: the device's control channel, its volume set */
 #include "bt_avdtp.c"
 
 #define BA_RXMAX 700u                              /* one L2CAP frame (the default MTU 672 + headers) */
 #define BA_SDPMAX 1024u                            /* the attribute lists, all continuations together */
-enum { BA_CH_SDP, BA_CH_SIG, BA_CH_MEDIA, BA_NCH };
-static const uint16_t ba_cid[BA_NCH] = {0x0040u, 0x0041u, 0x0042u};   /* our channel ids */
+enum { BA_CH_SDP, BA_CH_SIG, BA_CH_MEDIA, BA_CH_SDPS, BA_CH_AVC, BA_NCH };   /* SDPS: the device's SDP channel to our
+                                                    * server; AVC: its AVRCP control channel (AVCTP, PSM 0x0017) */
+static const uint16_t ba_cid[BA_NCH] = {0x0040u, 0x0041u, 0x0042u, 0x0043u, 0x0044u};   /* our channel ids */
+#define BL_PSM_AVCTP 0x0017u
+#define BA_VOLUME 90u                              /* the sink's absolute volume we set (0..127): the AirPods play at
+                                                    * 0/127 until the source sets it (a Raspberry Pi's capture, 2026-10-21) */
 
 struct ba_ch {
     uint16_t psm, dcid;
@@ -23,6 +30,14 @@ static struct {
     struct ba_ch ch[BA_NCH];
     uint8_t stage, id, label, cont[17], contn, acp, conf[4];
     uint32_t t0;                                   /* fm1_ms: the set-up's start (BA_SETUP_MS: given up) */
+    uint32_t sdps_ms;                              /* fm1_ms: the device's last SDP request to us */
+    uint32_t auth_ms;                              /* fm1_ms: our authentication done, the device's awaited (BA_AUTH_WAIT_MS) */
+    uint8_t avc_label;                             /* our AVCTP transaction label (4 bits) */
+    uint8_t fresh;                                 /* this link paired afresh: our search, then let go and connect again
+                                                    * with the key (dedicated bonding, as BlueZ) */
+    uint8_t rejoin;                                /* let go on purpose to connect again: no "lost" (bt_audio.c) */
+    uint8_t gave_up;                               /* BA_FAILED by BA_SETUP_MS, not by the device: the screen says TIMED
+                                                    * OUT, not REFUSED (bt_audio.c bta_gave_up) */
     uint8_t paused;                                /* the stream suspended: the FM-1's own output plays (SHIFT + the
                                                     * volume knob, bt_audio.c bta_output) */
     uint16_t tid, avdtp_psm;
@@ -43,6 +58,11 @@ static void ba_reset(void)
     ba.sdpn = 0;
     ba.contn = 0;
     ba.paused = 0;
+    ba.gave_up = 0;
+    ba.sdps_ms = 0;
+    ba.fresh = 0;
+    ba.rejoin = 0;
+    ba.auth_ms = 0;
     for (i = 0; i < BA_NCH; i++)
         ba.ch[i].state = 0;
 }
@@ -96,6 +116,8 @@ static int ba_chan(uint32_t ours)                  /* our CID -> the channel, -1
 }
 
 static void ba_chan_data(uint32_t c, const uint8_t *p, uint32_t n);
+static void ba_avc_volume(uint32_t v);
+static void ba_avc_in(const uint8_t *p, uint32_t n);
 
 /* ---- SDP (stage 3) */
 static void ba_sdp_ask(void)
@@ -138,6 +160,14 @@ static void ba_sdp_report(void)
             ba.avdtp_psm = in.psm;
     }
     ba.stage = BA_SDP_DONE;
+    {                                              /* our search over: the channel closed, as BlueZ does. The AirPods
+                                                    * opened theirs to us 1.8 s after a Raspberry Pi closed its own
+                                                    * (2026-10-20); the response comes for no channel of ours */
+        uint8_t f[16];
+        ba_send(f, bl_disc_req(f, ++ba.id, ba.ch[BA_CH_SDP].dcid, ba_cid[BA_CH_SDP]));
+        ba.ch[BA_CH_SDP].state = 0;
+        con_puts("btpage: SDP search over: our channel closed\r\n");
+    }
 }
 
 static void ba_sdp_in(const uint8_t *p, uint32_t n)   /* an SDP PDU on our channel (big-endian) */
@@ -246,7 +276,12 @@ static void ba_chan_open(uint32_t c)               /* both configurations done *
 {
     ba.ch[c].state = 3;
     ba_line("L2CAP channel open (PSM, the device's CID)", ba.ch[c].psm, ba.ch[c].dcid);
-    if (c == BA_CH_SDP) {
+    if (c == BA_CH_SDPS) {
+        return;                                    /* (the device's: its requests come, bsd_answer answers) */
+    } else if (c == BA_CH_AVC) {
+        ba_avc_volume(BA_VOLUME);                  /* (its control channel up: its volume, else 0 on the AirPods) */
+        return;
+    } else if (c == BA_CH_SDP) {
         ba.stage = BA_SDP;
         ba_sdp_ask();
     } else if (c == BA_CH_SIG) {
@@ -344,14 +379,80 @@ int bt_audio_feed(const int32_t *q15_pcm, uint32_t n)   /* 1: it streams (audio.
 }
 #endif
 
+static void ba_sdps_in(const uint8_t *p, uint32_t n)   /* an SDP request from the device: our answer */
+{
+    uint8_t f[4 + BSD_OUT];
+    uint32_t len = bsd_answer(p, n, f + 4);
+    ba.sdps_ms = fm1_ms;
+    ba_line("SDP request from the device (PDU, our answer's bytes)", n ? p[0] : 0, len);
+    {                                              /* (its bytes: the UUIDs it searches, the attributes it wants) */
+        uint32_t k;
+        con_puts("btpage: SDP request bytes");
+        for (k = 0; k < n && k < 40u; k++) {
+            con_puts(" ");
+            con_hex(p[k], 2);
+        }
+        con_puts("\r\n");
+    }
+    if (!len)
+        return;
+    f[0] = (uint8_t)len, f[1] = (uint8_t)(len >> 8);
+    f[2] = (uint8_t)ba.ch[BA_CH_SDPS].dcid, f[3] = (uint8_t)(ba.ch[BA_CH_SDPS].dcid >> 8);
+    ba_send(f, 4u + len);
+}
+
 static void ba_chan_data(uint32_t c, const uint8_t *p, uint32_t n)
 {
-    if (c == BA_CH_SDP)
+    if (c == BA_CH_SDPS)
+        ba_sdps_in(p, n);
+    else if (c == BA_CH_AVC)
+        ba_avc_in(p, n);
+    else if (c == BA_CH_SDP)
         ba_sdp_in(p, n);
     else if (c == BA_CH_SIG)
         ba_av_in(p, n);
     else
         ba_line("media channel data (bytes, 0)", n, 0);
+}
+
+static void ba_accept(uint32_t c, uint32_t id, const uint8_t *d, uint8_t *f, const char *what)   /* its connection
+                                                    * request (PSM, its CID at d) for our channel c: taken, configured */
+{
+    ba_line("L2CAP connection request from the device (PSM, its CID): ", ba_le16(d), ba_le16(d + 2));
+    con_puts("btpage: ... ");
+    con_puts(what);
+    con_puts("\r\n");
+    ba.ch[c].psm = (uint16_t)ba_le16(d);
+    ba.ch[c].dcid = (uint16_t)ba_le16(d + 2);
+    ba.ch[c].state = 2;
+    ba.ch[c].cfg_in = ba.ch[c].cfg_out = 0;
+    ba_send(f, bl_conn_rsp(f, id, ba_cid[c], ba.ch[c].dcid, 0));
+    ba_send(f, bl_conf_req(f, ++ba.id, ba.ch[c].dcid, 672u));
+}
+
+static void ba_avc_volume(uint32_t v)              /* the sink's absolute volume, on its control channel when open */
+{
+    uint8_t f[4 + BAVR_MAX];
+    uint32_t len;
+    if (ba.ch[BA_CH_AVC].state != 3u)
+        return;
+    len = bavr_set_volume(f + 4, ba.avc_label = (uint8_t)((ba.avc_label + 1u) & 15u), v);
+    f[0] = (uint8_t)len, f[1] = 0;
+    f[2] = (uint8_t)ba.ch[BA_CH_AVC].dcid, f[3] = (uint8_t)(ba.ch[BA_CH_AVC].dcid >> 8);
+    ba_send(f, 4u + len);
+    ba_line("AVRCP SetAbsoluteVolume (volume of 127, label)", v, ba.avc_label);
+}
+
+static void ba_avc_in(const uint8_t *p, uint32_t n)   /* a frame on its control channel: answered (bt_avrcp.c) */
+{
+    uint8_t f[4 + BAVR_MAX];
+    uint32_t len = bavr_in(p, n, f + 4);
+    ba_line("AVRCP from the device (its first bytes, our answer's bytes)", n > 5u ? (uint32_t)p[3] << 8 | p[5] : 0, len);
+    if (!len)
+        return;
+    f[0] = (uint8_t)len, f[1] = 0;
+    f[2] = (uint8_t)ba.ch[BA_CH_AVC].dcid, f[3] = (uint8_t)(ba.ch[BA_CH_AVC].dcid >> 8);
+    ba_send(f, 4u + len);
 }
 
 static void ba_sig_in(const uint8_t *p, uint32_t n)   /* one or more signalling commands */
@@ -367,6 +468,10 @@ static void ba_sig_in(const uint8_t *p, uint32_t n)   /* one or more signalling 
         if (code == BL_INFO_REQ && len >= 2u) {
             ba_line("L2CAP information request (type), answered", ba_le16(d), id);
             ba_send(f, bl_info_rsp(f, id, ba_le16(d)));
+        } else if (code == BL_CONN_REQ && len >= 4u && ba_le16(d) == BL_PSM_SDP && !ba.ch[BA_CH_SDPS].state) {
+            ba_accept(BA_CH_SDPS, id, d, f, "accepted, our SDP server");
+        } else if (code == BL_CONN_REQ && len >= 4u && ba_le16(d) == BL_PSM_AVCTP && !ba.ch[BA_CH_AVC].state) {
+            ba_accept(BA_CH_AVC, id, d, f, "accepted, AVRCP (its control channel: our volume goes there)");
         } else if (code == BL_CONN_REQ && len >= 4u) {
             ba_line("L2CAP connection request from the device (PSM, its CID): refused", ba_le16(d), ba_le16(d + 2));
             ba_send(f, bl_conn_rsp(f, id, 0, ba_le16(d + 2), 2u));
@@ -377,6 +482,9 @@ static void ba_sig_in(const uint8_t *p, uint32_t n)   /* one or more signalling 
                 ba.ch[c].dcid = (uint16_t)ba_le16(d);
                 ba.ch[c].state = 2;
                 ba_send(f, bl_conf_req(f, ++ba.id, ba.ch[c].dcid, 672u));
+            } else if (res == 4u && c == BA_CH_SIG) {
+                /* (no resources: the AirPods 4 say it, then pending, then success to the same request, reported by
+                 * Google to Apple: developer.apple.com/forums/thread/816622. Kept waiting) */
             } else if (res != 1u) {
                 ba.ch[c].state = 0;
                 ba.stage = BA_FAILED;
@@ -441,6 +549,9 @@ static void ba_in(const struct bti_rx *r)          /* an ACL fragment: LLID 2 st
     }
 }
 
+#define BA_NAME_WAIT_MS 1500u                      /* the device's name read before the pairing, or this long after the link */
+#define BA_AUTH_WAIT_MS 1000u                      /* the device's authentication of us awaited this long before the
+                                                    * encryption (bt_ssp.c: the AirPods do one, not every device may) */
 #define BA_SETUP_MS 20000u                         /* the link up to the stream started: else given up, said */
 /* the main loop: SDP once LMP is set up; then the pairing and the encryption, ours to start unless the device started
  * them (the FM-1, 2026-10-20: the WH-1000XM4 answered the AVDTP channel "pending: authentication", then "security
@@ -449,20 +560,30 @@ static void ba_poll(void)
 {
     if (bti.mode != BTI_M_CONN)
         return;
+    if (bp_ssp.init && bp_ssp.st == BTP_AUTHED) {   /* ours done, its authentication of us awaited (bt_ssp.c) */
+        if (!ba.auth_ms)
+            ba.auth_ms = fm1_ms | 1u;
+        else if (fm1_ms - ba.auth_ms >= BA_AUTH_WAIT_MS) {
+            con_puts("btpage: the device did not authenticate us: the encryption anyway\r\n");
+            btp_i_encrypt(&bp_ssp);
+        }
+    }
     if (ba.stage < BA_AV_READY && ba.stage != BA_FAILED && fm1_ms - bp.conn_ms >= BA_SETUP_MS) {   /* (first, from the link
                                                     * up, whatever the step: a pairing that never ends returns below each
                                                     * pass. 2026-10-20: SETTING UP for minutes; the device a Mac, "L..O",
                                                     * whose user was asked to confirm the pairing) */
         ba_line("set-up given up (stage, pairing state)", ba.stage, bp_ssp.st);
         ba.stage = BA_FAILED;
+        ba.gave_up = 1;
         bp_leave();                                /* (and the link let go: the device free for the next try) */
         return;
     }
     if (ba.stage == BA_IDLE && bp.setup_in && bp.setup_out) {
-        ba.stage = BA_SDP;
-        ba.t0 = fm1_ms;
-        ba_open(BA_CH_SDP, BL_PSM_SDP);
-    } else if (ba.stage == BA_SDP_DONE && ba.avdtp_psm) {
+        if (!bp.name_done && fm1_ms - bp.conn_ms < BA_NAME_WAIT_MS)
+            return;                                /* (its name first, as BlueZ: bt_page.c) */
+        /* the order a Raspberry Pi (BlueZ) took with the AirPods, 2026-10-20: pairing and encryption, our SDP search,
+         * our channel closed; then the device's SDP questions to us; then the AVDTP channel. Searched before the
+         * pairing, the AirPods were left with an idle encrypted link and hung up (0x13) */
         if (bp_ssp.st == BTP_IDLE) {
             con_puts("btpage: pairing: we start it (Secure Simple Pairing, Just Works), then the encryption\r\n");
             btp_start(&bp_ssp);
@@ -493,9 +614,31 @@ static void ba_poll(void)
                 bta.lk[k] = bp_ssp.lk[k];
             bta.bonded = 1;
             bta.key_new = 1;
+            ba.fresh = 1;
             con_puts("btpage: bonded: the link key kept for the next connection\r\n");
         }
-        con_puts("btpage: paired and encrypted: opening the audio channel\r\n");
+        con_puts("btpage: paired and encrypted: L2CAP information asked, our SDP search for the audio sink\r\n");
+        {                                          /* (as BlueZ, before anything: its extended features, its fixed
+                                                    * channels; the answers come as "for no channel of ours") */
+            uint8_t f[16];
+            ba_send(f, bl_info_req(f, ++ba.id, 2));
+            ba_send(f, bl_info_req(f, ++ba.id, 3));
+        }
+        ba.stage = BA_SDP;
+        ba.t0 = fm1_ms;
+        ba_open(BA_CH_SDP, BL_PSM_SDP);
+    } else if (ba.stage == BA_SDP_DONE && ba.avdtp_psm && ba.fresh) {
+        /* paired on this link: let go and connect again with the key, as a Raspberry Pi did (BlueZ "pair", then
+         * "connect"): the AirPods gave it the audio channel on the second link; on the first, ours stayed "pending" */
+        con_puts("btpage: paired: letting go, connecting again with the key (as BlueZ)\r\n");
+        ba.fresh = 0;
+        ba.rejoin = 1;                             /* (nothing more on this link; the screen pages again: op_bt.c) */
+        bp_leave();
+    } else if (ba.stage == BA_SDP_DONE && ba.avdtp_psm && !ba.rejoin) {
+        /* at once, as an Android phone does (developer.apple.com/forums/thread/816622): the AirPods ask their SDP
+         * questions after our request, then answer it. Waiting for them instead, they hung up the idle link after
+         * ~3 s (0x13, twice, 2026-10-20) */
+        con_puts("btpage: opening the audio channel\r\n");
         ba.stage = BA_AV_SIG;
         ba_open(BA_CH_SIG, ba.avdtp_psm);
     }

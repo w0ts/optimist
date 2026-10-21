@@ -237,6 +237,16 @@ static void pump(void)                                  /* both queues delivered
         }
     }
 }
+static uint8_t dev_aco[12];                             /* the device's ACO from its own authentication: the COF after it */
+static void device_authenticates(const uint8_t own[6], uint8_t sres[4])   /* its au_rand into A: A's SRES expected */
+{
+    uint8_t pdu[17];
+    pdu[0] = (uint8_t)(BTL_AU_RAND << 1 | 1u);
+    rng(pdu + 1, 16);
+    bts_e1(ia.lk, pdu + 1, own, sres, dev_aco);
+    (void)btp_in(&ia, pdu, 17);
+    pump();
+}
 static void slave_accepts(uint32_t of)
 {
     uint8_t b[2] = {(uint8_t)(BTL_ACCEPTED << 1 | 0u), (uint8_t)of};   /* (in our transaction: TID 0) */
@@ -255,13 +265,21 @@ static void run_initiator(void)
     pump();
     check("initiator: keys, commitment, nonces and DHKey checks with a responder: both paired, the same link key",
           rb.st >= BTP_PAIRED && rb.st != BTP_FAILED && !memcmp(ia.lk, rb.lk, 16) && !memcmp(ia.dhkey, rb.dhkey, 24));
-    check("initiator: then we authenticate it (our au_rand, its SRES checked): the encryption asked for",
-          ia.st == BTP_MODEREQ && last_a_op == BTL_ENCRYPTION_MODE_REQ && !memcmp(ia.aco, rb.aco, 12));
+    check("initiator: then we authenticate it (our au_rand, its SRES checked); its authentication of us awaited, no encryption yet",
+          ia.st == BTP_AUTHED && last_a_op == BTL_AU_RAND && !memcmp(ia.aco, rb.aco, 12));
+    {   /* (Part C 4.2.5.1: the encryption not before the mutual authentication is done. Asked while the AirPods' au_rand
+         * was on its way, they never kept the bond, 2026-10-21) */
+        uint8_t sres[4];
+        device_authenticates(own, sres);
+        check("initiator: its au_rand answered (SRES = E1(LK, AU_RAND, our address)), then the encryption asked for",
+              ia.st == BTP_MODEREQ && last_a_op == BTL_ENCRYPTION_MODE_REQ && !memcmp(qa[na_ - 2u] + 1, sres, 4));
+    }
     slave_accepts(BTL_ENCRYPTION_MODE_REQ);
     check("initiator: its accept of the mode: our key size request (16)", ia.st == BTP_KEYSIZE &&
           btl_opcode(qa[na_ - 1u], qal[na_ - 1u], &(uint32_t){0}) == BTL_ENCRYPTION_KEY_SIZE_REQ && qa[na_ - 1u][1] == 16u);
     slave_accepts(BTL_ENCRYPTION_KEY_SIZE_REQ);
-    bts_e3(rb.lk, qa[na_ - 1u] + 1, rb.aco, kc);       /* (the slave's Kc from our EN_RAND and its own ACO) */
+    bts_e3(rb.lk, qa[na_ - 1u] + 1, dev_aco, kc);      /* (the slave's Kc from our EN_RAND and the ACO of the latest
+                                                         * authentication, its own: the COF, Part H 4.2.4) */
     check("initiator: then start_encryption_req; Kc = E3(LK, EN_RAND, ACO) the same both sides",
           ia.st == BTP_STARTING && !memcmp(kc, ia.kc, 16));
     slave_accepts(BTL_START_ENCRYPTION_REQ);
@@ -297,8 +315,14 @@ static void run_bonded(int wrong_key)
     if (wrong_key)
         check("bonded, the device with another key: its SRES refused, failed", ia.st == BTP_FAILED);
     else
-        check("bonded: no pairing, our au_rand, its SRES with the kept key checked: the encryption asked for",
-              ia.st == BTP_MODEREQ && last_a_op == BTL_ENCRYPTION_MODE_REQ && !memcmp(ia.aco, rb.aco, 12));
+    {
+        uint8_t sres[4];
+        check("bonded: no pairing, our au_rand, its SRES with the kept key checked; its authentication of us awaited",
+              ia.st == BTP_AUTHED && last_a_op == BTL_AU_RAND && !memcmp(ia.aco, rb.aco, 12));
+        device_authenticates(own, sres);
+        check("bonded: its au_rand answered with the kept key, then the encryption asked for",
+              ia.st == BTP_MODEREQ && last_a_op == BTL_ENCRYPTION_MODE_REQ && !memcmp(qa[na_ - 2u] + 1, sres, 4));
+    }
 }
 
 int main(void)

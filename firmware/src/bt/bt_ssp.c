@@ -24,10 +24,14 @@ enum { BTP_IDLE, BTP_IOCAP, BTP_PK_RX, BTP_PK_TX, BTP_CONFIRM, BTP_NUMBER, BTP_D
                                                          * initiator's: our au_rand out, our encryption mode request out) */
 #define BTP_IOCAP_NOIO 3u                               /* NoInputNoOutput: Just Works (Part C 4.2.7.1) */
 #define BTP_AUTH_GENERAL_BONDING 4u                     /* MITM not required, general bonding (we keep the key while on) */
+#define BTP_AUTH_DEDICATED_BONDING 2u                   /* MITM not required, dedicated bonding: our pairing, as BlueZ's
+                                                         * "pair" (the AirPods took the audio channel from a Raspberry Pi
+                                                         * on the link after it, 2026-10-20; bt_acl.c ba.fresh) */
 struct btp {
     uint8_t st, tid, pk_rx, pk_tx, reason;
     uint8_t init;                                       /* 1: we started it (btp_start): A is us, B the device */
     uint8_t bonded;                                     /* 1: the link key is a bond's, kept from an earlier pairing */
+    uint8_t dev_authed;                                 /* 1: the device authenticated us (its au_rand answered) */
     uint8_t own_addr[6], peer_addr[6];                  /* air order */
     uint8_t priv[24], pub[48], peer_pub[48], dhkey[24]; /* spec order */
     uint8_t na[16], nb[16];                             /* the initiator's and the responder's nonce, spec order */
@@ -251,7 +255,7 @@ static void btp_start(struct btp *p)                    /* we start the pairing 
         return;
     p->init = 1;
     p->tid = 0;
-    p->iocap_a[0] = BTP_IOCAP_NOIO, p->iocap_a[1] = 0, p->iocap_a[2] = BTP_AUTH_GENERAL_BONDING;
+    p->iocap_a[0] = BTP_IOCAP_NOIO, p->iocap_a[1] = 0, p->iocap_a[2] = BTP_AUTH_DEDICATED_BONDING;
     btp_new_key(p);
     p->pk_rx = p->pk_tx = 0;
     btp_put(p, BTL_ESCAPE << 8 | BTL_X_IO_CAPABILITY_REQ, p->iocap_a, 3);
@@ -309,7 +313,12 @@ static int btp_in(struct btp *p, const uint8_t *pdu, uint32_t len)
             }
         }
         p->st = BTP_AUTHED;
-        btp_i_encrypt(p);
+        if (p->dev_authed)                              /* the encryption only once it has authenticated us too (Part C
+                                                         * 4.2.5.1: not before the authentication is done; asked while
+                                                         * its au_rand was on its way, the AirPods never kept the bond
+                                                         * and left every channel "authentication pending", 2026-10-21;
+                                                         * a device that never asks: bt_acl.c BA_AUTH_WAIT_MS) */
+            btp_i_encrypt(p);
         return 1;
     case BTL_ENCAPSULATED_HEADER:                       /* its public key's header: P-192 only */
         if (p->st != BTP_PK_RX)
@@ -391,8 +400,11 @@ static int btp_in(struct btp *p, const uint8_t *pdu, uint32_t len)
             p->tid = (uint8_t)tid;
             btp_put(p, BTL_SRES, sres, 4);
         }
+        p->dev_authed = 1;
         if (p->st == BTP_PAIRED)
             p->st = BTP_AUTHED;
+        else if (p->init && p->st == BTP_AUTHED)
+            btp_i_encrypt(p);                           /* (ours was done first: now the encryption) */
         return 1;
     case BTL_ENCRYPTION_MODE_REQ:                       /* the device asks for encryption: yes, and we start it (the master's) */
         if (p->st < BTP_AUTHED || p->st == BTP_FAILED)

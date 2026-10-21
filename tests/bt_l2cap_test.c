@@ -40,7 +40,11 @@ int main(void)
     n = bl_info_rsp(o, 2, 3);
     check("information response, fixed channels: signalling only", n == 20 && o[4] == 11 && o[8] == 3 && o[12] == 2);
     n = bl_info_rsp(o, 2, 2);
-    check("information response, extended features: none", n == 16 && o[10] == 0 && !o[12] && !o[15]);
+    check("information response, extended features: Fixed Channels (bit 7) only", n == 16 && o[10] == 0 && o[12] == 0x80 &&
+              !o[13] && !o[14] && !o[15]);
+    n = bl_info_req(o, 6, 2);
+    check("information request: extended features, identifier 6", n == 10 && o[0] == 6 && o[2] == 1 && o[4] == 10 &&
+              o[5] == 6 && o[6] == 2 && o[8] == 2 && o[9] == 0);
     n = bl_info_rsp(o, 2, 9);
     check("information response, another type: not supported", n == 12 && o[10] == 1);
     check("command reject: not understood", bl_cmd_reject(o, 5) == 10 && o[4] == 1 && o[5] == 5 && o[8] == 0);

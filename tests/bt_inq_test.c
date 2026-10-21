@@ -70,7 +70,7 @@ int main(void)
           f.addr[0] == 0x4C && f.addr[1] == 0x99 && f.addr[2] == 0x1D && f.addr[3] == 0xF4 && f.addr[4] == 0x06 &&
               f.addr[5] == 0xD9);
     check("FHS: its parity = the parity of its LAP", f.parity_lo == 0x5239D908u && f.parity_hi == 2);
-    check("FHS: class 0x240404, EIR 1, SR R1, reserved 10b, LT_ADDR 0, clock field 0, page scan mode 0",
+    check("FHS: class 0x240404 (stock V15's: a headset), EIR 1, SR R1, reserved 10b, LT_ADDR 0, clock field 0, page scan mode 0",
           f.cod == 0x240404u && f.eir == 1 && f.sr == 1 && f.reserved == 2 && f.lt_addr == 0 && f.clk == 0 &&
               f.psm == 0);
     {

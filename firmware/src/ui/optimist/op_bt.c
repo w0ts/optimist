@@ -278,6 +278,10 @@ static void bt_poll(void)
         sys_dirty = 1;
         settings_later = 1;
     }
+    if (bt_audio() && bta_rejoin()) {                   /* (paired, let go, connecting again with the key: bt_acl.c) */
+        bt.want = 1;
+        bt.t0 = fm1_ms;
+    }
     if (bt_audio()) {                                   /* (the link ended by itself: where it had got to) */
         const char *w = bta_lost();
         if (w) {
@@ -318,7 +322,7 @@ static void bt_poll(void)
             char nm[BLE_NAME_MAX + 1u];
             bt_last_name(nm);
             bt_stop();
-            ui_say("REFUSED ", nm);
+            ui_say(bta_gave_up() ? "TIMED OUT " : "REFUSED ", nm);   /* (the 20 s limit is ours: bt_acl.c) */
         } else if (bta_state() != BTA_S_PAGING && bta.have_last)
             (void)bta_page(bta.last);                   /* (a page is ~5 s: again until BT_TRY_MS) */
         return;
