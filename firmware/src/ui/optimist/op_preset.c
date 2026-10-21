@@ -22,9 +22,9 @@ static uint32_t pre_entry_of(uint32_t e, uint32_t k, char *nm)
         return up_engine_slot(k);
     }
 #if FELUCCA_NB_LIST
-    if (e == NB_LIST) {                                 /* (the engine's own collection: the track's engine) */
-        nb_name(nb_kind(tsel()), k, nm);
-        return tsel()->eng_req % NENGINES;
+    if (e == NB_LIST) {                                 /* (an engine's own collection, k: its kind and the slot) */
+        nb_name(k >> 8, k & 255u, nm);
+        return nb_engine_slot(k >> 8);
     }
 #endif
     str_cpy(nm, preset_name(e, k), 14);
@@ -276,7 +276,7 @@ static void pop_paint(void)                             /* the box in its own co
                 cv_rect(16, ry + POP_RH / 2 - 4, 6, 8, ec);     /* the engine's chip */
             }
             cv_text(28, ry + (POP_RH - (int32_t)f->h) / 2, f, nm, off == 0 ? C_WHITE : C_GRAY);
-            cv_text(224 - text_w(&FONT_S, en), ry + (POP_RH - (int32_t)FONT_S.h) / 2, &FONT_S, en, off == 0 ? ec : col_shade(ec, 3u));
+            cv_text(224 - text_w(&FONT_S, en), ry + (POP_RH - (int32_t)FONT_S.h) / 2, &FONT_S, en, ec);                /* (the engine's name in its colour on every row: not dimmed) */
         }
     }
 }

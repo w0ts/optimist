@@ -163,8 +163,19 @@ static int up_store(uint32_t k, const char *name) { up_store_slot = k; str_cpy(u
 #if FELUCCA_NB_LIST                                /* the FM6 / CZ collections in PRESETS (storage/nbank.c): no flash here, none stored */
 static uint32_t nb_kind(const track_t *t) { (void)t; return 0; }
 static uint32_t nb_list(uint32_t *rank, uint32_t n, uint32_t *at) { (void)rank; (void)n; (void)at; return 0; }
-static void nb_name(uint32_t kind, uint32_t k, char *nm) { (void)kind; (void)k; nm[0] = 0; }
-static void nb_load(uint32_t k) { (void)k; }
+static uint32_t nb_loaded_kind, nb_loaded_slot;           /* (the last nb_load: the slot, and the track's engine then) */
+static void nb_name(uint32_t kind, uint32_t k, char *nm) { nm[0] = 'N'; nm[1] = (char)('0' + kind); nm[2] = (char)('0' + k); nm[3] = 0; }
+static void nb_load(uint32_t k) { nb_loaded_slot = k; nb_loaded_kind = TSEL->eng_req; }
+static uint32_t nb_list_of(uint32_t kind, uint32_t *rank, uint32_t n, uint32_t *at)   /* two collections: kind 1 of 3 slots (engine 0's), kind 2 of 2 (engine 1's) */
+{
+    uint32_t c = kind == 1u ? 3u : 2u;
+    *rank = c;
+    if (n < c)
+        *at = n;
+    return c;
+}
+static uint32_t nb_kind_at(uint32_t i) { return i + 1u; }
+static uint32_t nb_engine_slot(uint32_t kind) { return kind == 1u ? 0u : 1u; }
 #endif
 #include "snap_ui_stub.h"
 #if FELUCCA_DRUM_KITS
@@ -1732,6 +1743,38 @@ static void layer_tests(void)
         turn(EN_PRESET, 1);
         frames(3);
         check(op_overlay() == 5u && pop_kind == 1u, "PRESETS turned: the popup list of the sounds");
+        {   /* the engines' own collections are in the whole list from any track (the user, 2026-10-21: FM6's packs "sometimes" missing) */
+            uint32_t all0, all1, i, k, e, f1 = 0, f2 = 0, own = 0;
+            set_engine_of(TSEL, 0u);
+            snd_mark(song.sel);
+            (void)preset_all_pos(&all0);
+            set_engine_of(TSEL, 1u);
+            snd_mark(song.sel);
+            (void)preset_all_pos(&all1);
+            for (i = 0; i < all1; i++) {
+                e = preset_all_at(i, &k);
+                f1 += e == NB_LIST && (k >> 8) == 1u;
+                f2 += e == NB_LIST && (k >> 8) == 2u;
+            }
+            check(all0 == all1 && f1 == 3u && f2 == 2u, "the whole list holds both collections (3 + 2 entries) whichever engine the track is on");
+            pl_whole = 0;
+            (void)preset_pos(&own);
+            for (i = 0, f1 = 0, f2 = 0; i < own; i++) {
+                e = preset_at(i, &k);
+                f1 += e == NB_LIST && (k >> 8) == 1u;
+                f2 += e == NB_LIST && (k >> 8) == 2u;
+            }
+            check(f1 == 0u && f2 == 2u, "... EDIT's PRESET card's list: only the track's engine's own collection");
+            pl_whole = 1;
+            for (i = 0; i < all1; i++)
+                if (preset_all_at(i, &k) == NB_LIST && (k >> 8) == 1u && (k & 255u) == 2u)
+                    break;
+            op_preset_go(i);
+            check(TSEL->eng_req == 0u && nb_loaded_slot == 2u, "picking another engine's collection entry: the track takes that engine, the slot loaded");
+            set_engine_of(TSEL, 1u);
+            snd_mark(song.sel);
+            pl_whole = 1;
+        }
         {   /* PRESETS: one big list of every engine's sounds (it crosses engines); EDIT's PRESET card keeps to the engine's own */
             uint32_t e0 = tsel()->eng_req, r, left = 0, total, all;
             for (r = 0; r < 150u; r++) {
@@ -1745,6 +1788,7 @@ static void layer_tests(void)
             check(total == all, "... the browsing list is the whole list");
             set_engine_of(TSEL, e0);
             snd_mark(song.sel);
+            pl_whole = 0;                               /* (EDIT's card: the engine's own list) */
             op_preset_go(0);
             left = 0;
             for (r = 0; r < 150u; r++) {

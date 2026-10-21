@@ -32,6 +32,10 @@ static void up_ui(uint32_t op, uint32_t k);
 #if FELUCCA_NB_LIST                     /* the engine's own collection after the user presets: nbank.c */
 #define NB_LIST (NENGINES + 1u)               /* preset_at: an entry of it */
 static uint32_t nb_list(uint32_t *rank, uint32_t n, uint32_t *at);
+static uint32_t nb_list_of(uint32_t kind, uint32_t *rank, uint32_t n, uint32_t *at);
+static uint32_t nb_kind_at(uint32_t i);
+static uint32_t nb_engine_slot(uint32_t kind);
+#define NB_NK 2u
 static void nb_row(uint32_t k, char *tag, char *nm);
 static void nb_load(uint32_t k);
 #endif
@@ -300,7 +304,7 @@ static void bank_resolve(void)
 #define NLIST (NBANK + bank_ni)                      /* and the INIT ones: then the user presets */
 static uint32_t preset_all_pos(uint32_t *total)      /* list index of the selected track's preset, in the whole list */
 {
-    uint32_t i, cur = 0;
+    uint32_t i, j, cur = 0;
     if (!bank_ready)
         bank_resolve();
     for (i = 0; i < NBANK; i++)
@@ -313,8 +317,8 @@ static uint32_t preset_all_pos(uint32_t *total)      /* list index of the select
         cur = NLIST + up_rank(user_of(TSEL));
     *total = NLIST + up_count();
 #if FELUCCA_NB_LIST
-    {
-        uint32_t at, n = nb_list(&i, ~0u, &at);           /* (the engine's own collection: nbank.c) */
+    for (j = 0; j < NB_NK; j++) {                        /* (every engine's own collection: nbank.c) */
+        uint32_t at, n = nb_list_of(nb_kind_at(j), &i, ~0u, &at);
         if (i < n)
             cur = *total + i;
         *total += n;
@@ -330,8 +334,18 @@ static uint32_t preset_all_at(uint32_t n, uint32_t *k)
         bank_resolve();
 #if FELUCCA_NB_LIST
     if (n >= NLIST + up_count()) {
-        uint32_t r;
-        nb_list(&r, n - NLIST - up_count(), k);
+        uint32_t r, j, c, at = 0;
+        n -= NLIST + up_count();
+        for (j = 0; j < NB_NK; j++) {
+            c = nb_list_of(nb_kind_at(j), &r, ~0u, &at);
+            if (n < c) {
+                nb_list_of(nb_kind_at(j), &r, n, &at);
+                *k = (nb_kind_at(j) << 8) | at;           /* (the collection, the slot) */
+                return NB_LIST;
+            }
+            n -= c;
+        }
+        *k = 0;
         return NB_LIST;
     }
 #endif
@@ -385,7 +399,7 @@ static int pl_keep(uint32_t e, uint32_t k)
         e = up_engine_slot(k);
 #if FELUCCA_NB_LIST
     else if (e == NB_LIST)
-        e = TSEL->eng_req % NENGINES;
+        e = nb_engine_slot(k >> 8);                     /* (a collection's entry: its engine) */
 #endif
     return e == TSEL->eng_req % NENGINES;
 }

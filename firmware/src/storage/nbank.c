@@ -88,15 +88,17 @@ static void nb_name(uint32_t kind, uint32_t k, char *nm)  /* 12 characters at mo
     nm[n] = 0;
 }
 
-/* the selected track's collection as the PRESETS list shows it, its used slots in order: their count; *rank the
- * place of the one the track plays (VOICE / TONE), else the count. n < count: *at the n-th one's slot */
-static uint32_t nb_list(uint32_t *rank, uint32_t n, uint32_t *at)
+/* a collection as the PRESETS list shows it, its used slots in order: their count; *rank the place of the one the
+ * selected track plays when it is on this collection's engine (VOICE / TONE), else the count. n < count: *at the n-th
+ * one's slot */
+static uint32_t nb_list_of(uint32_t kind, uint32_t *rank, uint32_t n, uint32_t *at)
 {
-    uint32_t kind = nb_kind(TSEL), v = (uint32_t)TSEL->p[P_E0] - nb_base(kind), k, c = 0;
+    uint32_t v = (uint32_t)TSEL->p[P_E0] - nb_base(kind), k, c = 0;
+    int own = nb_kind(TSEL) == kind;
     *rank = ~0u;
     for (k = 0; k < nb_slots(kind); k++)
         if (nb_used(kind, k)) {
-            if (k == v)
+            if (own && k == v)
                 *rank = c;
             if (c++ == n)
                 *at = k;
@@ -104,6 +106,25 @@ static uint32_t nb_list(uint32_t *rank, uint32_t n, uint32_t *at)
     if (*rank > c)
         *rank = c;
     return c;
+}
+static uint32_t nb_list(uint32_t *rank, uint32_t n, uint32_t *at)   /* the selected track's engine's own collection */
+{
+    return nb_list_of(nb_kind(TSEL), rank, n, at);
+}
+/* the collections this build has, in the whole list's order (the user, 2026-10-21: "always in the big list": every engine's
+ * own after the user presets, whichever track is selected); the entry's k is (kind << 8) | slot */
+static uint32_t nb_kind_at(uint32_t i) { return i == 0u ? NB_FM6 : NB_CZ; }
+static uint32_t nb_engine_slot(uint32_t kind)             /* the engine slot a collection belongs to */
+{
+    uint32_t e;
+    for (e = 0; e < NENGINES; e++)
+        if ((kind == NB_FM6 && FELUCCA_FM6_LIST && ENG_IS(ENGINES[e], FM6))
+#if CZ_NUSER
+            || (kind == NB_CZ && ENGINES[e] == &ENG_CZ)
+#endif
+            )
+            return e;
+    return NENGINES;
 }
 static void nb_row(uint32_t k, char *tag, char *nm)       /* "K07" / "R07" (FM6), "Z07" (CZ, Melodee's letter), its name */
 {

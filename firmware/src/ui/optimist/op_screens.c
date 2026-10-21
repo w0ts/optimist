@@ -141,8 +141,12 @@ static void op_preset_load(uint32_t e, uint32_t k)      /* list entry (e, k) of 
     if (e == NENGINES)
         up_load(k);                                     /* (the stores ask for ui.force: the screen stays, repainted below) */
 #if FELUCCA_NB_LIST
-    else if (e == NB_LIST)
-        nb_load(k);
+    else if (e == NB_LIST) {
+        uint32_t es = nb_engine_slot(k >> 8);           /* (a collection of another engine: the track takes that engine first) */
+        if (es < NENGINES && es != TSEL->eng_req)
+            set_engine(es);
+        nb_load(k & 255u);
+    }
 #endif
     else {
         if (e != TSEL->eng_req)
