@@ -191,6 +191,8 @@ static void pop_paint(void)                             /* the box in its own co
         char nm[16], en[12];
         uint16_t ec;
         ry = 20 + (int32_t)row * POP_RH;
+        if (pop_kind == 3u && ((int32_t)pop.cur + off < 0 || (int32_t)pop.cur + off >= (int32_t)pop.total))
+            continue;                                   /* (a card's list stops at its ends: nothing past them, not the other end's items) */
         if (pop_kind == 3u) {
             pen_name(pen.d->min + (int32_t)idx, nm);
             en[0] = 0;
