@@ -1729,6 +1729,11 @@ static void layer_tests(void)
         frames(3);
         check(op_overlay() == 5u && pop_kind == 1u, "PRESETS turned: the popup list of the sounds");
         ppm("opt-preset-popup");
+        frames(200);                                    /* (the toast, and the popup with it, gone) */
+        check(op_overlay() != 5u, "... the popup is gone with its toast");
+        turn(EN_K1, 1);                                 /* EDIT page 1: KNOB 1 the sound (the user, 2026-10-21: "see the popup") */
+        frames(3);
+        check(op_overlay() == 5u && pop_kind == 1u, "EDIT's SOUND row, KNOB 1: the popup list of the sounds too");
         {   /* scrolling with the popup up: its box is drawn once a detent, the panel under it not at all (it flashed) */
             uint32_t d, worst = 0;
             for (d = 0; d < 8u; d++) {

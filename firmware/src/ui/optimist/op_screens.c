@@ -410,6 +410,8 @@ static void snd_step(int engine, int32_t s)             /* ENGINE: the next / pr
         op_engine_step(s);
     else
         op_preset_step(s);
+    if (!op_armed())
+        pre_toast();                                    /* (EDIT's SOUND row too: the popup list, as PRESETS shows it; asked "Discard edits?": none) */
 }
 static void snd_cell(uint32_t r, uint32_t k, cell_t *c)
 {

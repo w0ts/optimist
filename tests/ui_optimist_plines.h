@@ -33,7 +33,7 @@ static void plines_tests(void)
     if (c.label && c.kind != CK_RO && c.kind != CK_ACT) {
         turn(EN_K1, 1);
         frames(2);
-        check(ui.hot == 0u && ui.hot_lit && px_in(6, y1, 120, pitch, knob_col(0, trk_col(song.sel))),
+        check(ui.hot == 0u && ui.hot_lit && (op_overlay() == 5u || px_in(6, y1, 120, pitch, knob_col(0, trk_col(song.sel)))),   /* (a sound's turn: the popup list covers the lines) */
               "... KNOB 1 turned: line 1 the cursor, in the line's colour, as GLOBAL's");
         turn(EN_K1, -1);
     }
@@ -52,6 +52,7 @@ static void plines_tests(void)
         }
         check(found && ok, "... a synth track's FX pages (INSERTS, SENDS): lines, no needles under 2x2 cards (2026-10-18)");
     }
+    frames(200);                                        /* (the sound popup of the KNOB 1 turn gone) */
     tap(B_ENV);
     frames(2);
     check(row_pic(ui.row[ui.scr]) && !pl_on() && cards_band_is(BAND_2X2), "... ENV (a picture) keeps the 2x2 cards over it");

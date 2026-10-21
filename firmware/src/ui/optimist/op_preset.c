@@ -127,41 +127,34 @@ static void pop_drum_kits(uint32_t *list, uint32_t *n, uint32_t *at)   /* the ki
             list[(*n)++] = i;
         }
 }
-static void draw_pop(void)
+static void cv_tall(uint32_t y, uint32_t h, uint16_t bg, void (*fn)(void));   /* op_draw.c */
+static struct {
+    uint32_t kits[32], total, cur, half;
+    int32_t h;
+    uint16_t fr;
+} pop;                                                  /* what pop_paint draws (draw_pop) */
+static void pop_paint(void)                             /* the box in its own coordinates (cv_tall: taller than a canvas) */
 {
-    uint32_t kits[32], total, cur, half, row, i;
-    int32_t off, h, y0, ry;
-    uint16_t fr = ui.toast_col ? ui.toast_col : C_HI;
+    uint32_t row;
+    int32_t off, ry;
     char t[12];
-    if (pop_kind == 2u)
-        pop_drum_kits(kits, &total, &cur);
-    else
-        cur = preset_pos(&total);
-    if (!total || cur >= total)
-        return;
-    half = (total - 1u) / 2u < 3u ? (total - 1u) / 2u : 3u;
-    while (half > 0u && (int32_t)(half * 2u + 1u) * 14 + 24 > (int32_t)MODAL_H)
-        half--;
-    h = (int32_t)(half * 2u + 1u) * 14 + 24;
-    y0 = (int32_t)OP_PY + ((int32_t)OP_PH - h) / 2;
-    cv_begin(240, (uint32_t)h, C_BLACK);
-    cv_rect(8, 0, 224, h, fr);                          /* the frame, the engine's colour */
-    cv_rect(10, 2, 220, h - 4, OP_SURF);
+    cv_rect(8, 0, 224, pop.h, pop.fr);                  /* the frame, the engine's colour */
+    cv_rect(10, 2, 220, pop.h - 4, OP_SURF);
     str_cpy(t, pop_kind == 2u ? "KIT" : "SOUND", sizeof t);
     cv_text(16, 6, &FONT_S, t, C_GRAY);
-    fmt_int(t, (int32_t)cur + 1);
+    fmt_int(t, (int32_t)pop.cur + 1);
     str_app(t, "/", sizeof t);
-    fmt_app(t, (int32_t)total);
+    fmt_app(t, (int32_t)pop.total);
     cv_text(224 - text_w(&FONT_S, t), 6, &FONT_S, t, C_GRAY);
-    for (row = 0, off = -(int32_t)half; row < half * 2u + 1u; row++, off++) {
-        uint32_t idx = (uint32_t)(((int32_t)cur + off + (int32_t)total * 2) % (int32_t)total), eng;
+    for (row = 0, off = -(int32_t)pop.half; row < pop.half * 2u + 1u; row++, off++) {
+        uint32_t idx = (uint32_t)(((int32_t)pop.cur + off + (int32_t)pop.total * 2) % (int32_t)pop.total), eng;
         char nm[16], en[12];
         uint16_t ec;
         ry = 20 + (int32_t)row * 14;
         if (pop_kind == 2u) {
-            str_cpy(nm, DRUM_KIT_NAMES[kits[idx]], sizeof nm);
-            str_cpy(en, DRUM_KIT_STYLES[kits[idx]], sizeof en);
-            ec = fr;
+            str_cpy(nm, DRUM_KIT_NAMES[pop.kits[idx]], sizeof nm);
+            str_cpy(en, DRUM_KIT_STYLES[pop.kits[idx]], sizeof en);
+            ec = pop.fr;
         } else {
             uint32_t k, e = preset_at(idx, &k);
             eng = pre_entry_of(e, k, nm);
@@ -181,8 +174,21 @@ static void draw_pop(void)
 #endif
         cv_text(224 - text_w(&FONT_S, en), ry, &FONT_S, en, off == 0 ? ec : col_shade(ec, 3u));
     }
-    (void)i;
-    cv_blit(0, (uint32_t)y0);
+}
+static void draw_pop(void)
+{
+    if (pop_kind == 2u)
+        pop_drum_kits(pop.kits, &pop.total, &pop.cur);
+    else
+        pop.cur = preset_pos(&pop.total);
+    if (!pop.total || pop.cur >= pop.total)
+        return;
+    pop.fr = ui.toast_col ? ui.toast_col : C_HI;
+    pop.half = (pop.total - 1u) / 2u < 9u ? (pop.total - 1u) / 2u : 9u;   /* (most of the screen, under the header: 200 rows of 240: the user, 2026-10-21) */
+    while (pop.half > 0u && (int32_t)(pop.half * 2u + 1u) * 14 + 24 > 200)
+        pop.half--;
+    pop.h = (int32_t)(pop.half * 2u + 1u) * 14 + 24;
+    cv_tall((uint32_t)((240 - pop.h) / 2), (uint32_t)pop.h, C_BLACK, pop_paint);
 }
 /* the SOUND row's picture (GRAPH_H rows): the preset before, the one playing (white, its engine big in colour), the
  * one after; a favorite has a star after its name; LIST FAV with the sound playing not in the list: it stays in the middle,
