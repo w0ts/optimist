@@ -1723,10 +1723,7 @@ static void arp_tick(track_t *t, uint32_t adv)
         t->arp_off = slen * (uint32_t)t->p[P_AGATE] / 128u;
         trk_note_on(t, n, 100);
         seq_out_on(t, n, 100);
-        if (((song.rec >> trk_index(t)) & 1u) && song.playing && (held_kb[trk_index(t) % NTRK] & ((1u << t->nheld) - 1u)))
-            rec_note(t, n, 100, 0, 0);              /* (a key held: what you play; the steps' own arp is not recorded
-                                                     * back into them) */
-    }
+    }                                               /* (the arped notes are not recorded: the keys are, input_on) */
 }
 
 /* ------------------------------------------------------- note input --- */
@@ -1777,12 +1774,12 @@ static void input_on(track_t *t, uint32_t note, uint32_t vel)
     arm_start(t);
     if (ft_on && t == &trk[ft_trk % NTRK])
         ft_note_on(note, vel);
+    if (((song.rec >> trk_index(t)) & 1u) && song.playing)
+        rec_note(t, note, vel, 0, 1);              /* (what you play, arp on or off; the arp plays it back as it plays any step: the user, 2026-10-21) */
     if (t->p[P_AMODE]) {
-        arp_add(t, note);                         /* (the arp records the notes it plays) */
+        arp_add(t, note);
         return;
     }
-    if (((song.rec >> trk_index(t)) & 1u) && song.playing)
-        rec_note(t, note, vel, 0, 1);
 #if FELUCCA_CHORDPLUS
     if (in_chord) {                               /* a chord from the keys: maybe strummed (voice.c) */
         trk_note_chord(t, in_chord, in_chord_n, in_chord_i, vel);
