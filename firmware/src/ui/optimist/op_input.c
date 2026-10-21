@@ -789,13 +789,13 @@ static void op_knobs(uint32_t shift)
     }
     if ((s = panel_enc(EN_ALGO)) != 0 && !ft_on) {      /* the walk: MASTER T1..DR the lanes, the page's part (op_walk.c;
                                                          * not in a free take) */
-        if (ui.scr == SCR_SONG && song_on_pat_row() && lay_now() == LY_PLAY && !name_on() && !op_armed())
-        {
-            uint32_t was = song.sel;
-            algo_walk_trk(s);                           /* (SONG's PATTERNS row: the track the keys launch for, T1..DR; the user, 2026-10-20) */
-            if (song.sel != was)
-                ui_say("PATTERNS ", trk_tag(song.sel)); /* (no badge here: the header's title has no room for it) */
-        }
+        if (ui.scr == SCR_SONG
+#if FELUCCA_PATTERNS
+            || lay_now() == LY_PAT
+#endif
+            )
+            ;                                           /* (SONG and the patterns screen are global: ALGORITHM does nothing, the user, 2026-10-21; the scenes table's lanes
+                                                         * are read in op_songtbl.c) */
         else if (glo_cycle() && lay_now() == LY_PLAY && !name_on())
             glo_walk(s);                                /* (GLOBAL, SYSTEM: the cursor a line a detent, no track here; a layer over them keeps the walk's rules) */
         else

@@ -1662,11 +1662,12 @@ static void layer_tests(void)
     {
         uint32_t sel0 = song.sel;
         turn(EN_ALGO, 1);
-        check(song.sel == (sel0 + 1u < 4u ? sel0 + 1u : sel0) && lpk.on && !ui.master,
-              "LFO held (PATTERNS): ALGORITHM walks the track, never MASTER");
+        check(song.sel == sel0 && lpk.on && !ui.master && ui.scr == SCR_SONG,
+              "LFO held (PATTERNS): ALGORITHM does nothing (a global screen)");
         turn(EN_ALGO, -8);
-        check(song.sel == 0u && lpk.on && !ui.master && ui.scr != SCR_FX,
-              "... left past T1: stays on T1 (no MASTER, the screen kept)");
+        check(song.sel == sel0 && lpk.on && !ui.master && ui.scr != SCR_FX,
+              "... left or right: the same (no MASTER, the screen kept)");
+        song.sel = 0;
     }
     for (k = 0; k < 8u; k++)
         t->step[k].time = ST_NOTE, t->step[k].n = 1, t->step[k].note[0] = (uint8_t)(48 + k);
@@ -2552,9 +2553,7 @@ static void song_tests(void)
         check(ly_lock == LY_PAT && song_on_pat_row(), "PATTERNS row: the keys launch the selected track's patterns");
         song.sel = 0;
         turn(EN_ALGO, 2);
-        check(song.sel == 2u && ui.scr == SCR_SONG && !ui.master && !strcmp(ui.msg, "PATTERNS T3"), "PATTERNS row: ALGORITHM walks the track (T3), a message names it");
-        turn(EN_ALGO, -9);
-        check(song.sel == 0u && ui.scr == SCR_SONG && !ui.master, "... left past T1: stays on T1 (never MASTER)");
+        check(song.sel == 0u && ui.scr == SCR_SONG && !ui.master, "PATTERNS row: ALGORITHM does nothing (a global screen)");
         turn(EN_K3, 1);
         check(song.sel == 2u, "PATTERNS row: KNOB 3 selects T3 (the keys then launch its patterns)");
         turn(EN_K1, 1);

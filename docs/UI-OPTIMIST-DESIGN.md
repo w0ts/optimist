@@ -139,7 +139,7 @@ SAVE then HOME is undo, HOME then SAVE is redo; both act when one of the two is 
 
 GLOBAL, SYSTEM (the BLE devices list too), PROJECT, the master FX, SCOPE, SONG, and the mixer's MASTER and USB rows play no sound, send no MIDI note, light no key, pick no lane and record nothing: the ISR's `ly_lock` is LY_STEP there and `op_drain` drops the presses (`keys_none`). Exceptions: PROJECT's slot rows (a white key picks and runs the slot), SONG's PATTERNS row (the LFO layer's keys), TEMPO (PLAY held: a white key taps the tempo), NAME (types), a held layer (its keys are its own), and MASTER entered by both OCT (the track's keys stay live, `mk_live`).
 
-ALGORITHM follows the same rule (`algo_has_track`, using the header's classification): it walks on the mixer, SOUND, STEP, SCOPE and the layers EDIT, SCL, STEP and FM6's ENV. It does nothing on PROJECT, SONG, TEMPO, NAME, the BLE list, a question, the master FX opened by FX, and the layers FX, ARP, GLO, LFO. On GLOBAL and SYSTEM it scrolls the cursor one line a detent. The master FX reached by walking left of T1 keeps the walk, so that right leaves it (`fx_by_walk`).
+ALGORITHM follows the same rule (`algo_has_track`, using the header's classification): it walks on the mixer, SOUND, STEP, SCOPE and the layers EDIT, SCL, STEP and FM6's ENV. It does nothing on PROJECT, SONG (its patterns row and the LFO-held patterns screen included, 2026-10-21; only the scenes table reads it, as its lane), TEMPO, NAME, the BLE list, a question, the master FX opened by FX, and the layers FX, ARP, GLO, LFO. On GLOBAL and SYSTEM it scrolls the cursor one line a detent. The master FX reached by walking left of T1 keeps the walk, so that right leaves it (`fx_by_walk`).
 
 ## 3. The look
 
