@@ -145,8 +145,8 @@ static int roll_rv(int32_t nt) { return nt >= 0 && nt <= 127 && rg.row[nt & 127]
 #define FOLD_MAX 51                     /* (4 px a row at least, as the unfolded roll's 51 semitones) */
 static int roll_scale_has(int32_t n)    /* the song's scale (trk[0]'s, op_layers.c) holds note n */
 {
-    uint32_t root = (uint32_t)clamp(trk[0].p[P_ROOT], 0, 11);
-    return (SCALE_MASK[clamp(trk[0].p[P_SCALE], 0, NSCALES - 1)] >> (((uint32_t)n + 12u - root) % 12u)) & 1u;
+    uint32_t root = (uint32_t)ui_clamp(trk[0].p[P_ROOT], 0, 11);
+    return (SCALE_MASK[ui_clamp(trk[0].p[P_SCALE], 0, NSCALES - 1)] >> (((uint32_t)n + 12u - root) % 12u)) & 1u;
 }
 /* FOLD's rows: every note the pattern plays (all its steps), with a scale set the scale's notes from the pattern's
  * lowest to its highest (an octave at least) too, and the edited note; an empty pattern the pick's; at most FOLD_MAX,

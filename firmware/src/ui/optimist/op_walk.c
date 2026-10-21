@@ -130,7 +130,7 @@ static void algo_walk(int32_t s, int lay)
     if (!algo_has_track())
         return;                                         /* (a page with no track: nothing, op_input.c) */
     p = walk_pos(lay);
-    n = (uint32_t)clamp((int32_t)p + s, MXR_MASTER, (int32_t)(ui.scr == SCR_HOME ? MXR_N : MXR_LN) - 1);   /* (the USB
+    n = (uint32_t)ui_clamp((int32_t)p + s, MXR_MASTER, (int32_t)(ui.scr == SCR_HOME ? MXR_N : MXR_LN) - 1);   /* (the USB
                                                          * input's row: the mixer's only, it has no pages of a track) */
     if (n != p)
         walk_to(n, lay);
@@ -138,7 +138,7 @@ static void algo_walk(int32_t s, int lay)
 /* ALGORITHM on the PATTERNS layer (LFO held; the user, 2026-10-20): T1 .. DR only, the track the keys launch patterns for */
 static void algo_walk_trk(int32_t s)
 {
-    uint32_t p = walk_pos(0), n = (uint32_t)clamp((int32_t)p + s, MXR_T1, MXR_DR);
+    uint32_t p = walk_pos(0), n = (uint32_t)ui_clamp((int32_t)p + s, MXR_T1, MXR_DR);
     if (n != p)
         walk_to(n, 0);
 }

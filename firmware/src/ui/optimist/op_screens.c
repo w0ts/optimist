@@ -216,7 +216,7 @@ static void op_preset_step(int32_t s)                   /* the next / previous s
     } else if (cur >= total) {                          /* (LIST FAV, a sound not marked: the first / last marked) */
         op_preset_go(s > 0 ? (uint32_t)((s - 1) % t) : (uint32_t)(t - 1 - (-s - 1) % t));
     } else {
-        int32_t to = clamp((int32_t)cur + s, 0, t - 1);   /* (a list stops at its ends: no wrap round) */
+        int32_t to = ui_clamp((int32_t)cur + s, 0, t - 1);   /* (a list stops at its ends: no wrap round) */
         if ((uint32_t)to != cur)
             op_preset_go((uint32_t)to);
     }
@@ -416,7 +416,7 @@ static void snd_synth_cell(uint32_t k, cell_t *c)
     if (k == 0u) {
         c->label = "ENGINE";
         c->kind = CK_VAL;
-        str_cpy(c->val, ENGINES[e]->name, sizeof c->val);
+        cell_val(c, ENGINES[e]->name);
         c->col = ENG_COL[e];
         cell_gauge(c, 1, 0, NENGINES - 1, (int32_t)e);
     } else if (k == 1u) {
@@ -432,7 +432,7 @@ static void snd_kit_cell(cell_t *c)                     /* the drum SOUND row's 
 #if DL_ANY
     c->label = "KIT";
     c->kind = CK_VAL;
-    str_cpy(c->val, drum_kit_name(), sizeof c->val);
+    cell_val(c, drum_kit_name());
     c->col = kit_col();
     c->dr = (uint8_t)lane_picked();                     /* (the kit is the track's) */
     cell_gauge(c, 1, 0, (int32_t)drum_kit_total() - 1, (int32_t)drum_kit_pos());

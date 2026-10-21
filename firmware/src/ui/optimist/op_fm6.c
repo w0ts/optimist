@@ -125,7 +125,7 @@ static void f6_format(uint32_t r, const fm6k_pd_t *d, int32_t v, char *b)
     switch (d->kind) {
     case FK_ENUM:
     case FK_ON:
-        str_cpy(b, d->names[clamp(v, 0, d->max)], 8);
+        str_cpy(b, d->names[ui_clamp(v, 0, d->max)], 8);
         break;
     case FK_BREAK:                                      /* 0 = A-1 .. 99 = C8 (Yamaha) */
         note_name(b, (uint32_t)(v + 21));
@@ -181,7 +181,7 @@ static void fm6_turn(uint32_t r, uint32_t k, int32_t s, int fine)
     f6_row_set(r);
     if (!r) {
         if (k == 0u)
-            f6.target = (uint8_t)clamp((int32_t)f6.target + (s > 0 ? 1 : -1), 0, 5);
+            f6.target = (uint8_t)ui_clamp((int32_t)f6.target + (s > 0 ? 1 : -1), 0, 5);
         else if (k == 3u)
             val_turn(&TP[P_VOICE], &tsel()->p[P_VOICE], k, s, fine);
         else
@@ -191,7 +191,7 @@ static void fm6_turn(uint32_t r, uint32_t k, int32_t s, int fine)
     d = &f6_page(r)->p[k & 3u];
     if (d->kind == FK_NONE)
         return;
-    fm6_set(f6_ed(), f6_off(r, d), clamp(f6_value(r, d) + (fine ? s : accel(EN_K1 + k, s, d->kind == FK_ENUM ? 0 : d->max)),
+    fm6_set(f6_ed(), f6_off(r, d), ui_clamp(f6_value(r, d) + (fine ? s : accel(EN_K1 + k, s, d->kind == FK_ENUM ? 0 : d->max)),
                                          0, d->max));
 }
 /* YES: a toggle (two-value lists) */
@@ -242,7 +242,7 @@ static void fm6_lay_select(int32_t d)                   /* SELECT with ENV held:
 {
     static const uint8_t A[3] = {F6_OP0, F6_PIT0, F6_GLO0}, N[3] = {6, 2, 5};
     uint32_t kd = f6_kind(f6.row);
-    f6_row_set((uint32_t)clamp((int32_t)f6.row + d, A[kd], A[kd] + N[kd] - 1));
+    f6_row_set((uint32_t)ui_clamp((int32_t)f6.row + d, A[kd], A[kd] + N[kd] - 1));
     f6.picked = 1;
 }
 static void fm6_lay_cell(uint32_t k, cell_t *c) { fm6_cell(f6.row, k, c); }   /* the layer's cards: its page */

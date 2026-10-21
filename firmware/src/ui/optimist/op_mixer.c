@@ -67,7 +67,7 @@ static struct {
 static void cell_list(cell_t *c, const char *label, const char *text, int32_t max, int32_t v)
 {
     c->label = label;
-    str_cpy(c->val, text, sizeof c->val);
+    cell_val(c, text);
     cell_gauge(c, 1, 0, max, v);
 }
 static uint32_t mx_row(void) { return ui.row[SCR_HOME] % MXR_N; }
@@ -678,7 +678,7 @@ static void mx_page(int32_t d)                         /* SELECT: the knob sets,
                                                          * GLOBAL since 2026-10-12: op_global.c) */
 {
     uint32_t n = mx_sets(mx_row()), s = mx_set(mx_row());
-    s = (uint32_t)clamp((int32_t)s + d, 0, (int32_t)n - 1);
+    s = (uint32_t)step_in(s, d, n);
     mx.set = (uint8_t)s;
     ui.hot = 0;
     ui.hot_lit = 0;

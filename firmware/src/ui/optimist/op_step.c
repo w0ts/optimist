@@ -102,7 +102,7 @@ static void step_tick(void)                             /* once a frame: FOLLOW,
 }
 static void step_scroll(int32_t d)                      /* SHIFT + OCT- / OCT+ */
 {
-    st.page = (uint8_t)clamp((int32_t)st.page + d, 0, (int32_t)step_pages(tsel()) - 1);
+    st.page = (uint8_t)ui_clamp((int32_t)st.page + d, 0, (int32_t)step_pages(tsel()) - 1);
     st.follow = 0;
     ui.cards_t = 0;                                     /* (the grid is what is looked at: the cards go, the header names the window) */
 }
@@ -122,12 +122,12 @@ static void step_reset(void)                            /* STEP entered or left:
 static uint32_t pick_note(uint32_t i)                   /* the pick's note i (0..3) */
 {
     int32_t n = pen_n ? pen_note[i & 3u] : last_note;
-    return (uint32_t)clamp(n + 12 * ((int32_t)song.octave - pen_oct), 0, 127);
+    return (uint32_t)ui_clamp(n + 12 * ((int32_t)song.octave - pen_oct), 0, 127);
 }
 static uint32_t pick_base(void)                         /* the pick's note 0 with no octave applied (the roll's view adds song.octave itself) */
 {
     int32_t n = pen_n ? pen_note[0] : last_note;
-    return (uint32_t)clamp(n + 12 * (0 - pen_oct), 0, 127);
+    return (uint32_t)ui_clamp(n + 12 * (0 - pen_oct), 0, 127);
 }
 static void note_name(char *b, uint32_t n)              /* "C#4" (b holds 5) */
 {
@@ -344,7 +344,7 @@ static void olp_resize(track_t *t, uint32_t a, int32_t d, uint32_t ext, uint32_t
             st.snapl = 0;
         }
     }
-    why = olp_len(t, a, (uint32_t)clamp(L, 1, (int32_t)(trk_len(t) - a)));
+    why = olp_len(t, a, (uint32_t)ui_clamp(L, 1, (int32_t)(trk_len(t) - a)));
     if (why)
         ui_message(why);
 }
@@ -365,7 +365,7 @@ static void step_note_resize(track_t *t, uint32_t start, int32_t d)
         olp_resize(t, start, d, ext, limit);
         return;
     }
-    n = (uint32_t)clamp((int32_t)old + d, 1, (int32_t)limit);
+    n = (uint32_t)ui_clamp((int32_t)old + d, 1, (int32_t)limit);
     for (i = n; i < old; i++)
         step_clear(&t->step[(start + i) % len]);
     for (i = old; i < n; i++) {
@@ -642,8 +642,8 @@ static void held_clear(void)                            /* a step held, HOME tap
 static uint32_t lr_turn(int lvl, uint32_t v, int32_t s)
 {
     if (lvl)
-        return s == OP_RESET ? LV_NORM : LV_UP[clamp((int32_t)lvl_rank(v) + s, 0, 3)];
-    return s == OP_RESET ? 0u : (uint32_t)clamp((int32_t)v + s, 0, 3);
+        return s == OP_RESET ? LV_NORM : LV_UP[ui_clamp((int32_t)lvl_rank(v) + s, 0, 3)];
+    return s == OP_RESET ? 0u : (uint32_t)ui_clamp((int32_t)v + s, 0, 3);
 }
 static void edit_drum(track_t *t, uint32_t idx, int32_t s)
 {
@@ -673,7 +673,7 @@ static void edit_synth(track_t *t, uint32_t idx, int32_t s)
         uint32_t sh = 2u * i, lv = (st_->lvl >> sh) & 3u, rt = (st_->rat >> sh) & 3u;
         if (k == 0u) {
             if (s != OP_RESET)
-                st_->note[i] = (uint8_t)clamp(st_->note[i] + s, 0, 127);
+                st_->note[i] = (uint8_t)ui_clamp(st_->note[i] + s, 0, 127);
             continue;
         }
         if (k == 1u)
@@ -687,7 +687,7 @@ static void edit_synth(track_t *t, uint32_t idx, int32_t s)
 static void held_edit(uint32_t k, int32_t s)
 {
     if (s != OP_RESET)
-        s = clamp(s, -16, 16);
+        s = ui_clamp(s, -16, 16);
     held_each(is_drum(TSEL) ? edit_drum : edit_synth, (int32_t)(k << 16) | (uint16_t)(int16_t)s);
 }
 /* the notes of the steps held edited by f (s), the cards to the step's page, NOTE lit */
@@ -739,7 +739,7 @@ static void held_pitch_one(track_t *t, uint32_t idx, int32_t s)
     k = nsel_of(x);
     {
         uint32_t was = x->note[k], ext = (note_span(t, idx, k) + 127u) / 128u, j, c;
-        x->note[k] = (uint8_t)clamp(roll_fold_step(t, x->note[k], s), 0, 127);   /* (folded: row to row) */
+        x->note[k] = (uint8_t)ui_clamp(roll_fold_step(t, x->note[k], s), 0, 127);   /* (folded: row to row) */
         for (j = idx + 1u; j < idx + ext && j < trk_len(t); j++) {   /* (over another note: the carry steps that name it
                                                          * go with it, so it still sounds on through them) */
             step_t *q = &t->step[j];
@@ -1066,7 +1066,7 @@ static void held_algo(int32_t s)                        /* ALGORITHM with a step
 {
     int32_t d = s > 0 ? 1 : -1, n = s > 0 ? s : -s;
     if (!is_drum(TSEL)) {
-        held_pitch(clamp(s, -12, 12));
+        held_pitch(ui_clamp(s, -12, 12));
         return;
     }
     while (n-- > 0 && held_lane(d))
@@ -1093,7 +1093,7 @@ static uint32_t step_chance_of(const track_t *t, uint32_t idx)
 static void edit_chance(track_t *t, uint32_t idx, int32_t s)
 {
     if (step_has(t, idx) || (is_drum(t) && dstep_lanes(&t->dstep[idx % NSTEP])))
-        (void)step_chance_set(t, idx, s == OP_RESET ? 100u : (uint32_t)clamp((int32_t)step_chance_of(t, idx) + s * (int32_t)CH_STEP, 0, 100));
+        (void)step_chance_set(t, idx, s == OP_RESET ? 100u : (uint32_t)ui_clamp((int32_t)step_chance_of(t, idx) + s * (int32_t)CH_STEP, 0, 100));
 }
 #endif
 #if FELUCCA_COND
@@ -1209,7 +1209,7 @@ static void pk_knob(uint32_t k, int32_t s, int shift)   /* a knob turned on STEP
     pk_hold(sv);
     if (k == 1u && shift) {
 #if FELUCCA_MICRO
-        held_each(edit_nudge, clamp(s, -16, 16));       /* (SHIFT: the nudge, finer than a step) */
+        held_each(edit_nudge, ui_clamp(s, -16, 16));       /* (SHIFT: the nudge, finer than a step) */
 #else
         ui_message("NO NUDGE IN THIS BUILD");
 #endif
@@ -1220,7 +1220,7 @@ static void pk_knob(uint32_t k, int32_t s, int shift)   /* a knob turned on STEP
         while (n-- > 0 && held_lane(-d))                /* (right: the lane under it, as drawn) */
             ;
     } else if (k == 2u) {
-        held_each(held_pitch_one, clamp(s, -12, 12));
+        held_each(held_pitch_one, ui_clamp(s, -12, 12));
     } else {
         held_edit(is_drum(TSEL) ? 0u : 3u, s);          /* (drums: LEVEL; synths: LENGTH) */
     }
@@ -1404,7 +1404,7 @@ static void lock_cell_id(int32_t id, const param_desc_t *d, cell_t *c)
         return;
     c->label = d->label;
     if (id < 0 || i < 0) {
-        str_cpy(c->val, "-", sizeof c->val);            /* (not a lockable value: the mixer's, a GO button) */
+        cell_val(c, "-");            /* (not a lockable value: the mixer's, a GO button) */
         return;
     }
     q = lock_kind((uint32_t)id, i, &v);
@@ -1457,7 +1457,7 @@ static void lock_step_put(track_t *t, uint32_t idx, uint32_t id, const param_des
             return;
         }
         if (!lane_lock_get(t, idx, l, dv, &v) && lane_hold_get(t, idx, l, dv, &v)) {
-            (void)auto_put(AL(t), idx % NSTEP, AUTO_LANE(l, dv), clamp(param_step(d, v, step), DE_MIN[dv], DE_MAX[dv]));
+            (void)auto_put(AL(t), idx % NSTEP, AUTO_LANE(l, dv), ui_clamp(param_step(d, v, step), DE_MIN[dv], DE_MAX[dv]));
             *r |= 4u;                                   /* (the hold event's value) */
             return;
         }
@@ -1480,13 +1480,13 @@ static void lock_step_put(track_t *t, uint32_t idx, uint32_t id, const param_des
         if (!p)
             return;
         if (!sa_lock_get(t, idx, b, &v) && sa_hold_get(t, idx, b, &v)) {
-            (void)sa_put(t, idx % NSTEP, b, clamp(param_step(d, v, step), d->min, d->max));
+            (void)sa_put(t, idx % NSTEP, b, ui_clamp(param_step(d, v, step), d->min, d->max));
             *r |= 4u;                                   /* (the hold event's value) */
             return;
         }
         if (!sa_lock_get(t, idx, b, &v))
             v = *p;
-        *r |= sa_lock_set(t, idx, b, clamp(param_step(d, v, step), d->min, d->max)) ? 4u : 1u;
+        *r |= sa_lock_set(t, idx, b, ui_clamp(param_step(d, v, step), d->min, d->max)) ? 4u : 1u;
         return;
     }
 #endif
@@ -1761,11 +1761,11 @@ static void extra_turn(uint32_t k, int32_t s)
 #endif
 #if FELUCCA_FILLS
     if (kd == 2)
-        held_each(edit_fill, s == OP_RESET ? 0 : (int32_t)clamp((int32_t)step_fill(tsel(), (uint32_t)i) + (s > 0 ? 1 : -1), 0, 2));
+        held_each(edit_fill, s == OP_RESET ? 0 : (int32_t)ui_clamp((int32_t)step_fill(tsel(), (uint32_t)i) + (s > 0 ? 1 : -1), 0, 2));
 #endif
 #if FELUCCA_COND
     if (kd == 3)                                        /* (- 1:2 .. 4:4, stopping at both ends; SHIFT + the knob: -) */
-        held_each(edit_cond, s == OP_RESET ? 0 : clamp((int32_t)step_cond(tsel(), (uint32_t)i) + s, 0, (int32_t)AUTO_NCOND));
+        held_each(edit_cond, s == OP_RESET ? 0 : ui_clamp((int32_t)step_cond(tsel(), (uint32_t)i) + s, 0, (int32_t)AUTO_NCOND));
 #endif
 }
 
@@ -1814,7 +1814,7 @@ static void held_cell(uint32_t k, cell_t *c)            /* the first step held: 
         int32_t id = held_lane_param(k, &d);
         if (id >= 0 && lane_acc() && !dstep_has(&t->dstep[i], DRUM_ACC)) {
             c->label = d ? d->label : 0;                /* (the ACCENT amount's lock needs the accent hit on the step: */
-            str_cpy(c->val, "-", sizeof c->val);        /* its card says "-") */
+            cell_val(c, "-");        /* its card says "-") */
         }
         else if (id >= 0)
             lock_cell_id(id, d, c);
@@ -1839,7 +1839,7 @@ static void held_cell(uint32_t k, cell_t *c)            /* the first step held: 
         if (k == 0u || k == 3u) {                       /* (an empty step: NOTE and LENGTH say "-", no value: audit #7) */
             c->label = k ? "LENGTH" : "NOTE";
             if (c->kind == CK_NONE) {
-                str_cpy(c->val, "-", sizeof c->val);
+                cell_val(c, "-");
                 return;
             }
         }
@@ -1868,10 +1868,10 @@ static void held_cell(uint32_t k, cell_t *c)            /* the first step held: 
     }
     c->label = k ? "RATCHET" : "LEVEL";
     if (c->kind == CK_NONE) {                           /* (an empty step: its LEVEL and RATCHET say "-", not a blank card) */
-        str_cpy(c->val, "-", sizeof c->val);
+        cell_val(c, "-");
         return;
     }
-    str_cpy(c->val, k ? RT_NAME[rt] : LV_NAME[lvl_rank(lv)], sizeof c->val);
+    cell_val(c, k ? RT_NAME[rt] : LV_NAME[lvl_rank(lv)]);
     cell_gauge(c, 1, 0, 3, (int32_t)(k ? rt : lvl_rank(lv)));
 }
 static void step_cell(uint32_t r, uint32_t k, cell_t *c)
@@ -1949,12 +1949,12 @@ static int step_knobs(void)                             /* a step held: SELECT i
         int32_t n = held_note_sel((uint32_t)held_first()) >= 0 ? (int32_t)tsel()->step[held_first()].n : 0;
         int32_t v = (int32_t)(st.nsel < n ? st.nsel : n - 1) + s;
         if (n && st.hp == 0u && v < n) {                /* a step of several notes: SELECT picks the note ALGORITHM moves; past */
-            st.nsel = (uint8_t)clamp(v, 0, n - 1);      /* the last one it pages the cards, back from them the last note again */
+            st.nsel = (uint8_t)ui_clamp(v, 0, n - 1);      /* the last one it pages the cards, back from them the last note again */
             st.pend &= (uint16_t)~st.held;
             step_cards_show();
             ui.force = 1;
         } else {                                        /* SELECT pages the held step's cards */
-            hp_set((uint32_t)clamp((int32_t)st.hp + s, 0, (int32_t)hp_count() - 1));
+            hp_set((uint32_t)step_in(st.hp, s, hp_count()));
         }
     }
     if ((s = panel_enc(EN_ALGO)) != 0) {                /* (no other track while a step is held: it moves the held step up / down) */

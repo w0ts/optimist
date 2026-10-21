@@ -148,7 +148,7 @@ static void f6_eg_draw(int32_t y0, int32_t h)
                 cv_rect(cx, y0, 34, 16, C_WHITE);
             else
                 cv_frame(cx, y0, 34, 16, on ? C_GRAY : C_LINE);
-            cv_texts(cx + 17 - text_w(&FONT_S, b) / 2, y0 + 1, b, edit ? C_BLACK : on ? C_HI : C_DIM);
+            cv_texts(cx + 17 - text_ws(b) / 2, y0 + 1, b, edit ? C_BLACK : on ? C_HI : C_DIM);
         }
     cv_rect(20, bot, 201, 1, C_LINE);                   /* the baseline, the pitch EG's zero line over it */
     if (pit)
@@ -243,8 +243,8 @@ static void f6_alg_draw(int32_t y0, int32_t h, int big)
     if (big) {                                          /* (one line: "Car" in the carriers' colour, the feedback) */
         str_cpy(b, "Fb ", sizeof b);
         fmt_int(b + 3, v[FV_FB]);
-        cv_texts(236 - text_w(&FONT_S, b) - 8 - text_w(&FONT_S, "Car"), y0 + 1, "Car", ec);
-        cv_texts(236 - text_w(&FONT_S, b), y0 + 1, b, v[FV_FB] ? C_GRAY : C_DIM);
+        cv_texts(236 - text_ws(b) - 8 - text_ws("Car"), y0 + 1, "Car", ec);
+        cv_texts(236 - text_ws(b), y0 + 1, b, v[FV_FB] ? C_GRAY : C_DIM);
     }
 }
 
@@ -277,7 +277,7 @@ static void fm6_lay_paint(void)                         /* (cv_tall: the panel t
     fm6_row_name(f6.row, pg);
     cv_texts(4, 0, nm, C_WHITE);                /* the voice (its name as stored), the page (the names table's) */
     nm_title(pg, c, sizeof c);
-    cv_texts(236 - text_w(&FONT_S, c), 0, c, C_GRAY);
+    cv_texts(236 - text_ws(c), 0, c, C_GRAY);
     f6_alg_draw(F6_ALG_Y, F6_KEY_Y - F6_ALG_Y, 1);
     for (i = 0; i < 10u; i++) {
         uint32_t on = (KT[i] < 6u && kd == 0u && KT[i] == f6.target) || (KT[i] == FMT_PIT && kd == 1u) ||
@@ -285,7 +285,7 @@ static void fm6_lay_paint(void)                         /* (cv_tall: the panel t
                       (KT[i] == FMT_POLY && voice == V_POLY);
         int32_t x = 6 + (int32_t)i * 21 + (int32_t)GROUP[i] * 6;
         cv_box(x, F6_KEY_Y, 19, F6_KEY_H, on ? C_WHITE : C_BLACK);
-        cv_texts(x + 10 - text_w(&FONT_S, KEYS[i]) / 2, F6_KEY_Y + (F6_KEY_H - F6_INK) / 2 - 2, KEYS[i], on ? C_BLACK : ec);
+        cv_texts(x + 10 - text_ws(KEYS[i]) / 2, F6_KEY_Y + (F6_KEY_H - F6_INK) / 2 - 2, KEYS[i], on ? C_BLACK : ec);
     }
 }
 static void fm6_lay_draw(void)

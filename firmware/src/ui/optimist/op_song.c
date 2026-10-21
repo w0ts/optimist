@@ -125,7 +125,7 @@ static uint32_t song_ref_step(uint32_t k, uint32_t v, int32_t s)
     for (i = 0; i < n; i++)
         if (L[i] == v)
             at = i;
-    return L[clamp((int32_t)at + (s > 0 ? 1 : -1), 0, (int32_t)n - 1)];
+    return L[step_in(at, (s > 0 ? 1 : -1), n)];
 #else
     (void)k, (void)s;
     return v;
@@ -206,7 +206,7 @@ static void song_slot_cell(cell_t *c, uint32_t v)       /* a pattern reference a
         fmt_int(c->val, (int32_t)v + 1);
         cell_gauge(c, 1, 0, 15, (int32_t)v);
     } else {
-        str_cpy(c->val, v == PAT_KEEP ? "KEEP" : v == SG_SEC ? "SEC" : "-", sizeof c->val);   /* (none: "-", audit #7) */
+        cell_val(c, v == PAT_KEEP ? "KEEP" : v == SG_SEC ? "SEC" : "-");   /* (none: "-", audit #7) */
     }
 }
 #if FELUCCA_PATTERNS
@@ -239,7 +239,7 @@ static void song_cell(uint32_t r, uint32_t k, cell_t *c)
         c->label = "BARS";
         c->kind = CK_RO;
         c->col = 0xB31Fu;
-        str_cpy(c->val, b, sizeof c->val);
+        cell_val(c, b);
         cell_gauge(c, 0, 0, 64, scene_bars[a % 16u]);
         return;
     }
@@ -255,7 +255,7 @@ static void song_cell(uint32_t r, uint32_t k, cell_t *c)
             return;
         c->label = "SCENE";
         c->kind = CK_RO;
-        str_cpy(c->val, (sg.used >> a) & 1u ? "STORED" : "EMPTY", sizeof c->val);
+        cell_val(c, (sg.used >> a) & 1u ? "STORED" : "EMPTY");
         c->dim = (uint8_t)!((sg.used >> a) & 1u);      /* (an empty scene: EMPTY, dim, audit #7) */
         cell_gauge(c, 1, 0, 1, (int32_t)((sg.used >> a) & 1u));
 #endif
@@ -269,7 +269,7 @@ static void song_cell(uint32_t r, uint32_t k, cell_t *c)
         if (k == 0u) {
             c->label = "MODE";
             c->kind = CK_VAL;
-            str_cpy(c->val, arrangement_enabled ? "SONG" : "LOOP", sizeof c->val);
+            cell_val(c, arrangement_enabled ? "SONG" : "LOOP");
             cell_gauge(c, 1, 0, 1, arrangement_enabled);
         } else if (k == 1u) {
             cell_act(c, "SONG", "REC", 0, 0);           /* an action card: a turn only picks it, YES arms (asks over
@@ -300,11 +300,11 @@ static void song_cell(uint32_t r, uint32_t k, cell_t *c)
             c->label = "BARS";
             c->kind = CK_VAL;
             if (e->bars == ARR_BARS_A)
-                str_cpy(c->val, "AUTO", sizeof c->val);   /* (A: the scene's longest pattern, whatever its own BARS says) */
+                cell_val(c, "AUTO");   /* (A: the scene's longest pattern, whatever its own BARS says) */
             else if (e->bars)
                 fmt_int(c->val, e->bars);
             else
-                str_cpy(c->val, "SCENE", sizeof c->val);  /* (S: follows its scene's BARS: AUTO, its longest pattern, or the number set on the scene) */
+                cell_val(c, "SCENE");  /* (S: follows its scene's BARS: AUTO, its longest pattern, or the number set on the scene) */
             cell_gauge(c, 0, 0, 65, e->bars == ARR_BARS_A ? 65 : e->bars);
         } else if (k == 2u) {
             cell_act(c, "PART", "INSERT", 0, 0);        /* (DELETE is the part key held, or SHIFT + it: with what follows) */
@@ -346,9 +346,9 @@ static void song_turn(uint32_t r, uint32_t k, int32_t s, int fine)
         if (k > 1u)
             return;
         if (k == 0u)                                    /* (playing too: the chain is RAM, read by the clock at each bar; saved once stopped) */
-            e->scene = (uint8_t)clamp(e->scene + (s > 0 ? 1 : -1), 0, (int32_t)ARR_SCENES - 1);
+            e->scene = (uint8_t)ui_clamp(e->scene + (s > 0 ? 1 : -1), 0, (int32_t)ARR_SCENES - 1);
         else {
-            int32_t at = clamp((e->bars == ARR_BARS_A ? 65 : (int32_t)e->bars) + s, 0, 65);   /* S, 1..64, A in turn */
+            int32_t at = ui_clamp((e->bars == ARR_BARS_A ? 65 : (int32_t)e->bars) + s, 0, 65);   /* S, 1..64, A in turn */
             e->bars = at == 65 ? (uint8_t)ARR_BARS_A : (uint8_t)at;
         }
         sg.dirty = 1;
@@ -554,7 +554,7 @@ static void song_scene_bars_turn(uint32_t sc, int32_t s)
 {
     char b[8], m[24];
     sc %= 16u;
-    scene_bars[sc] = (uint8_t)clamp((int32_t)scene_bars[sc] + s, 0, 64);
+    scene_bars[sc] = (uint8_t)ui_clamp((int32_t)scene_bars[sc] + s, 0, 64);
     sg.dirty = 1;
     song_scene_bars_text(sc, b);
     scene_tag(m, sc);                                   /* ("SCENE C") */
@@ -755,7 +755,7 @@ static int song_rec(uint32_t home)
 static void song_shortcut(int32_t s)
 {
     if (ui.scr == SCR_SONG) {
-        op_row_pick((uint32_t)clamp((int32_t)ui.row[SCR_SONG] + s, 0, (int32_t)song_rows() - 1));
+        op_row_pick((uint32_t)step_in(ui.row[SCR_SONG], s, song_rows()));
         return;
     }
     op_enter(SCR_SONG);

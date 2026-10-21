@@ -90,7 +90,7 @@ static const char *cut(char *b, const char *s, uint32_t n)
 /* the loop position of track t: "bar.beat" in its pattern */
 static void loop_pos(const track_t *t, char *b)
 {
-    uint32_t len = (uint32_t)clamp(t->p[P_SLEN], 1, NSTEP), s = t->seq_idx % len, k;
+    uint32_t len = (uint32_t)ui_clamp(t->p[P_SLEN], 1, NSTEP), s = t->seq_idx % len, k;
     fmt_int(b, (int32_t)(s / 16u + 1u));
     k = str_len(b);
     b[k] = '.';
@@ -273,7 +273,7 @@ static void draw_head_flash(uint16_t tc)                /* the header while tf.t
     const char *eng = ENGINES[TSEL->eng_req % NENGINES]->name;
     str_cpy(b, "TRACK ", sizeof b);
     fmt_int(b + 6, (int32_t)song.sel + 1);
-    bw = text_w(&FONT_S, b) + 8;
+    bw = text_ws(b) + 8;
     cv_texts(6, 4, b, tc);                              /* (the badge's look: head_badge_draw) */
     cv_rect(2, BADGE_UL_Y, bw, 1, tc);
     x = cv_texts(bw + 8, 4, eng, tc);
@@ -288,7 +288,7 @@ static void draw_head_flash(uint16_t tc)                /* the header while tf.t
 #define HEAD_END 1                      /* the title's end to the REC mark (the title's room: op_names.c's titles fit it) */
 static int32_t head_room(int32_t lead, const char *bpm, const char *r)
 {
-    return 236 - text_w(&FONT_S, bpm) - 16 - HEAD_END - (r[0] ? text_w(&FONT_S, r) : 0) - lead;
+    return 236 - text_ws(bpm) - 16 - HEAD_END - (r[0] ? text_ws(r) : 0) - lead;
 }
 /* ... and per layer (HEAD_TRK_SCR above) */
 static const uint8_t HEAD_TRK_LY[LY_COUNT] = {
@@ -419,7 +419,7 @@ static void head_make(head_t *h)
     else
         h->eng = "";
     head_preset(h->pr, trkb);
-    h->bw = text_w(&FONT_S, h->eng) + HEAD_PAD * 2;
+    h->bw = text_ws(h->eng) + HEAD_PAD * 2;
     if (ui.msg_t) {
         h->mc = ui.msg_st ? C_STATUS[ui.msg_st & 3u] : C_HI;
     } else if (done) {
@@ -469,7 +469,7 @@ static __attribute__((noinline)) void draw_head(void)
     drop = ovl_recent(fm1_ms, OVL_MARK_MS) ? 2u : xr && fm1_ms - ovl.xrun_ms < OVL_MARK_MS ? 1u : 0u;
     mk = drop == 2u ? C_ERR : C_WARN;                   /* (the mark: red a drop-out, amber another underrun) */
     head_make(&h);
-    bx = 236 - text_w(&FONT_S, h.bpm) - (h.batt ? HEAD_BATT_W : 0);
+    bx = 236 - text_ws(h.bpm) - (h.batt ? HEAD_BATT_W : 0);
     sig = hs(hs(hs(hs(hu(hu(hu(1u, h.tc), h.mc), rec * 2u + song.playing), ui.msg_t ? ui.msg : h.t), h.r), h.bpm), h.eng);
     sig = hs(sig, h.pr);
     sig = hu(hu(sig, h.muted), h.batt);
@@ -496,12 +496,12 @@ static __attribute__((noinline)) void draw_head(void)
                                                          * often impossible to read on the FM-1) */
         }
         tw = head_draw_title(&h, c);
-        if (h.pr[0] && tw + 8 + text_w(&FONT_S, h.pr) <= h.tx + h.room)   /* (the preset, if it fits whole) */
+        if (h.pr[0] && tw + 8 + text_ws(h.pr) <= h.tx + h.room)   /* (the preset, if it fits whole) */
             cv_texts(tw + 8, 4, h.pr, h.tc);
         cv_texts(bx, 4, h.bpm, C_HI);
         if (h.batt)
             head_batt_draw(238 - 13, h.batt);
-        bx -= 8 + text_w(&FONT_S, h.r);                 /* (the loop position's x, "" none) */
+        bx -= 8 + text_ws(h.r);                 /* (the loop position's x, "" none) */
         cv_texts(bx, 4, h.r, song.playing ? C_OK : C_DIM);
         if (rec)
             cv_rect(bx - 8, 9, 6, 6, rec_col(song.rec || ft_on, rec_wait));   /* recording: green; armed: amber */
@@ -566,8 +566,8 @@ static int32_t card_rw(const cell_t *c) { return (c->dr ? DR_W + 4 : 0) + (c->ma
 static const char *card_label_n(const cell_t *c, const char *u, char *b, uint32_t n, char *nb)
 {
     const char *lab = card_label(c, b, n);
-    int32_t uw = u[0] ? text_w(&FONT_S, u) : 0;
-    if (uw && 3 + text_w(&FONT_S, lab) + 4 > CARD_UX(0, uw, card_rw(c)))
+    int32_t uw = u[0] ? text_ws(u) : 0;
+    if (uw && 3 + text_ws(lab) + 4 > CARD_UX(0, uw, card_rw(c)))
         lab = nm_narrow(lab, nb, 12);
     return lab;
 }
@@ -614,10 +614,10 @@ static void draw_card(uint32_t k, int32_t x, int32_t w, const cell_t *c, uint32_
         cv_texts(x + w - 3 - DR_W, 3, "DR", C_GRAY);
     {
         const char *lab = card_label_n(c, u, b, sizeof b, nb);   /* (the names table's: in capitals, 6 at most) */
-        text_st(x + (text_w(&FONT_S, lab) > w - 4 ? 0 : 3), 3, &FONT_S, lab, knob_col(k, C_GRAY), c->strike);
+        text_st(x + (text_ws(lab) > w - 4 ? 0 : 3), 3, &FONT_S, lab, knob_col(k, C_GRAY), c->strike);
     }
     if (u[0])                                           /* the unit: the label row, right-aligned (never after the value) */
-        cv_texts(CARD_UX(x + w - CARD_W, text_w(&FONT_S, u), card_rw(c)), 3, u, C_DIM);
+        cv_texts(CARD_UX(x + w - CARD_W, text_ws(u), card_rw(c)), 3, u, C_DIM);
     if (c->kind == CK_ACT) {
         cv_texts(x + 3, 20, cut(b, act_verb(c), (uint32_t)(w - 6) / 8u), act_col(c, hot));
         return;
@@ -644,7 +644,7 @@ static void draw_big(uint32_t k, const cell_t *c, uint32_t hot)
 {
     char b[16], v[16];
     const char *u = card_unit(c, v, sizeof v);          /* ("10ms": 10, its unit in the label row) */
-    int32_t x = k & 1u ? 121 : 3, y = k & 2u ? BIG_H + 1 : 0, uw = u[0] ? text_w(&FONT_S, u) + 4 : 0;
+    int32_t x = k & 1u ? 121 : 3, y = k & 2u ? BIG_H + 1 : 0, uw = u[0] ? text_ws(u) + 4 : 0;
     int32_t dw = c->dr ? DR_W + 4 : 0;                  /* (the DR tag's room, top right) */
     uint16_t vc = card_vc(k, c, hot);
     card_ground(x, y, BIG_W, BIG_H, c, hot, 1);
@@ -660,7 +660,7 @@ static void draw_big(uint32_t k, const cell_t *c, uint32_t hot)
         text_st(x + 5, y + 2, &FONT_S, cut(b, card_label(c, l, sizeof l), (uint32_t)(BIG_W - 10 - uw) / 8u), knob_col(k, C_GRAY), c->strike);
     }
     if (u[0])
-        cv_texts(x + BIG_W - 3 - text_w(&FONT_S, u) - (c->mark ? 10 : 0) - dw, y + 2, u, C_DIM);
+        cv_texts(x + BIG_W - 3 - text_ws(u) - (c->mark ? 10 : 0) - dw, y + 2, u, C_DIM);
     if (c->kind == CK_ACT) {
         const char *vb = act_verb(c);
         if (text_w(font_big(), vb) <= BIG_W - 10)
@@ -921,9 +921,7 @@ static void list_paint(void)
     for (i = lst.first; i < lst.n && i < lst.first + lst.shown; i++)
         draw_row(i, lst.top + (int32_t)(i - lst.first) * lst.rh, i == lst.cur, lst.bar, lst.n > lst.shown ? 236 : 240, lst.rh);
     if (lst.shown && lst.n > lst.shown && !(ui.scr == SCR_SONG && lst.pic == 2u)) {   /* where the window is in the list */
-        int32_t h = (LIST_H - lst.top) * (int32_t)lst.shown / (int32_t)lst.n;
-        cv_rect(238, lst.top, 1, LIST_H - lst.top, C_LINE);
-        cv_rect(237, lst.top + (LIST_H - lst.top) * (int32_t)lst.first / (int32_t)lst.n, 3, h, C_GRAY);
+        scroll_bar(lst.top, LIST_H - lst.top, (int32_t)lst.first, (int32_t)lst.shown, (int32_t)lst.n);
     }
 }
 /* PAGE_LINES: a SOUND page's graph is worth the 2x2 cards over it (the user, 2026-10-18: "use the 2*2 card layout only
@@ -1044,7 +1042,7 @@ static uint32_t meter_h(int32_t pk)                     /* a peak (32767 = 0 dBF
     uint32_t lg = 0, a = pk > 0 ? (uint32_t)pk : 0u;
     while (a >>= 1)
         lg++;
-    return lg < 5u ? 0u : (uint32_t)clamp(((int32_t)(lg - 5u) * 4 + 4) * METER_H / 44, 0, METER_H);
+    return lg < 5u ? 0u : (uint32_t)ui_clamp(((int32_t)(lg - 5u) * 4 + 4) * METER_H / 44, 0, METER_H);
 }
 /* ---- no footer (the user, 2026-10-08: "no footer anywhere"): every screen draws to the screen's foot. Under a
  * question the modal covers the panel's first MODAL_H rows; the rows below it are an empty band */
@@ -1077,8 +1075,8 @@ static void draw_ring_of(uint32_t el, uint16_t tc, const char *label)
             if (a <= end || rr == RING_R - 3)           /* (the part to come: a thin line on black) */
                 cv_pset(120 + ((si * rr) >> 15), cy + ((co * rr) >> 15), c);
     }
-    cv_texts(120 - text_w(&FONT_S, label) / 2, cy + RING_R + 4, label, tc);
-    cv_texts(120 - text_w(&FONT_S, "Keep holding") / 2, cy + RING_R + 20, "Keep holding", C_GRAY);
+    cv_text_mid(cy + RING_R + 4, &FONT_S, label, tc);
+    cv_text_mid(cy + RING_R + 20, &FONT_S, "Keep holding", C_GRAY);
     cv_blit(0, OP_PY);
 }
 static void draw_ring(void)                             /* the REC hold */

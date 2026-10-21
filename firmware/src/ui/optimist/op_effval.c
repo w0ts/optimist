@@ -167,11 +167,11 @@ static void effv_at(uint32_t k, int32_t dest, int32_t mod, int32_t *val, int32_t
     const param_desc_t *d = dest >= 0 ? track_desc(&trk[k % NTRK], (uint32_t)dest) : 0;
     if (!d) {
         *mn = -64, *mx = 63;
-        *val = clamp(mod >> 8, -64, 63);
+        *val = ui_clamp(mod >> 8, -64, 63);
         return;
     }
     *mn = d->min, *mx = d->max;
-    *val = clamp(effv_p(k, (uint32_t)dest) + (mod >> 8), d->min, d->max);
+    *val = ui_clamp(effv_p(k, (uint32_t)dest) + (mod >> 8), d->min, d->max);
 }
 #define EFFV_NLFO (k < NPART ? 2u : 1u)
 #define EFFV_FIRST(j) ((j) ? P_L2DA : P_L1DA)
@@ -223,7 +223,7 @@ static uint32_t effv_synth(uint32_t k, uint32_t id, int32_t *val, int32_t *mn, i
             return effv_over(k, d, val, mn, mx);        /* (a value moved for the block: voice.c lfo_over) */
         if (d == LT_PIT) {
             *mn = -192, *mx = 192;                      /* (1/16 semitone: +-12) */
-            *val = clamp(m.pit >> 8, -192, 192);
+            *val = ui_clamp(m.pit >> 8, -192, 192);
         } else if (d == LT_AMP) {
             *mn = 0, *mx = 127;
             *val = v ? v->env_out >> 8 : 0;             /* (the voice's level now: envelope, velocity, the LFO's dip) */
@@ -237,7 +237,7 @@ static uint32_t effv_synth(uint32_t k, uint32_t id, int32_t *val, int32_t *mn, i
         if (!effv_p(k, id))
             return 0;
         *mn = -192, *mx = 192;                          /* (1/16 semitone: +-12) */
-        *val = clamp(m.pit >> 8, -192, 192);
+        *val = ui_clamp(m.pit >> 8, -192, 192);
         return 2;
     default:
         break;
@@ -290,7 +290,7 @@ static uint32_t effv_cell(cell_t *c)
         return 0;
     c->amin = (int16_t)mn;
     c->amax = (int16_t)mx;
-    c->av = (int16_t)clamp(val, mn, mx);
+    c->av = (int16_t)ui_clamp(val, mn, mx);
     c->ak = mn < 0 && mx > 0 ? GK_BIP : GK_BAR;
     return r;
 }

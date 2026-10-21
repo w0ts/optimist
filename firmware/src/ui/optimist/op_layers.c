@@ -207,7 +207,7 @@ static void pattern_transpose(track_t *t, int32_t d)    /* every note a semitone
     fm1_irq_off();
     for (i = 0; i < NSTEP; i++)
         for (j = 0; j < t->step[i].n && j < 4u; j++)
-            t->step[i].note[j] = (uint8_t)clamp(t->step[i].note[j] + (d > 0 ? 1 : -1), 0, 127);
+            t->step[i].note[j] = (uint8_t)ui_clamp(t->step[i].note[j] + (d > 0 ? 1 : -1), 0, 127);
     fm1_irq_on();
     sync_reload = 1;
 }
@@ -226,7 +226,7 @@ static void tap_tempo(void)
     for (i = 0; i < n; i++)
         sum += lay.tap_ms[(lay.tap_n - 1u - i) & 3u] - lay.tap_ms[(lay.tap_n - 2u - i) & 3u];
     if (sum)
-        song.g[G_BPM] = (int16_t)clamp((int32_t)((60000u * n + sum / 2u) / sum), GP[G_BPM].min, GP[G_BPM].max);
+        song.g[G_BPM] = (int16_t)ui_clamp((int32_t)((60000u * n + sum / 2u) / sum), GP[G_BPM].min, GP[G_BPM].max);
 }
 static void fx_bypass_toggle(uint32_t i)
 {

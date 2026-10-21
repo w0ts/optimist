@@ -213,7 +213,7 @@ static void nm_knob(uint32_t k, int32_t s)             /* KNOB 1 the cursor, KNO
     int32_t i, n = (int32_t)sizeof NM_SET - 1;
     nm_commit();
     if (k == 0u) {
-        nm.cur = (uint8_t)clamp((int32_t)nm.cur + s, 0, nm.len);
+        nm.cur = (uint8_t)ui_clamp((int32_t)nm.cur + s, 0, nm.len);
         return;
     }
     if (nm.cur == nm.len && !nm_insert(' '))           /* at the end: a new character (from SPACE) */
@@ -386,7 +386,7 @@ static void name_draw_field(void)
         char n[8];
         fmt_int(n, nm.len);
         str_app(n, "/12", sizeof n);
-        cv_text(231 - text_w(&FONT_S, n), 1, &FONT_S, n, nm.len >= NM_LEN ? C_WARN : C_DIM);
+        cv_texts(231 - text_ws(n), 1, n, nm.len >= NM_LEN ? C_WARN : C_DIM);
     }
     for (i = 0; i < NM_LEN; i++) {
         int32_t x = NM_CX(i);
@@ -404,7 +404,7 @@ static void name_draw_field(void)
         else if (c[0] == ' ')
             cv_rect(x + 7, 29, 2, 2, fg == C_BLACK ? C_BLACK : C_DIM);   /* a space */
         else
-            cv_text(x + 4, 22, &FONT_S, c, fg);
+            cv_texts(x + 4, 22, c, fg);
     }
     if (nm.cur >= NM_LEN)                              /* full, the cursor past the end: a bar */
         cv_rect(NM_CX(NM_LEN) - 1, 19, 2, 22, C_WHITE);
@@ -425,26 +425,26 @@ static void name_draw_keys(void)
             int32_t x = 6 + 22 * (int32_t)i;
             c[0] = g[i];
             cv_box(x, 1, 20, 20, i == nm.tap ? tc : OP_SURF);
-            cv_text(x + 6, 3, &FONT_S, c, i == nm.tap ? C_BLACK : C_HI);
+            cv_texts(x + 6, 3, c, i == nm.tap ? C_BLACK : C_HI);
         }
-        cv_text(12 + 22 * (int32_t)n, 3, &FONT_S, "Tap again: next", C_GRAY);
+        cv_texts(12 + 22 * (int32_t)n, 3, "Tap again: next", C_GRAY);
     } else {
-        cv_text(6, 3, &FONT_S, nm.num ? "One tap, one character" : "Tap again: next letter", C_GRAY);
+        cv_texts(6, 3, nm.num ? "One tap, one character" : "Tap again: next letter", C_GRAY);
     }
-    cv_text(234 - text_w(&FONT_S, nm.num ? "123" : "ABC"), 3, &FONT_S, nm.num ? "123" : "ABC", tc);
+    cv_texts(234 - text_ws(nm.num ? "123" : "ABC"), 3, nm.num ? "123" : "ABC", tc);
     for (i = 0; i < 16u; i++) {                        /* the white keys: the left octave, then the right one */
         int32_t x = 6 + 29 * (int32_t)(i % 8u), y = i < 8u ? 25 : 48;
         uint32_t act = nm.key == i + 1u;
         const char *g = nm_group(i);
         cv_box(x, y, 27, 20, act ? tc : OP_SURF);
-        cv_text(x + 14 - text_w(&FONT_S, g) / 2, y + 2, &FONT_S, g, act ? C_BLACK : C_HI);
+        cv_texts(x + 14 - text_ws(g) / 2, y + 2, g, act ? C_BLACK : C_HI);
     }
     for (i = 0; i < 5u; i++) {                         /* the black keys, by name */
         int32_t x = 6 + 46 * (int32_t)i, y = 74;
         const char *d = i == NMK_MODE ? (nm.num ? "ABC" : "123") : DO[i];
         cv_box(x, y, 44, 44, C_BLACK);
-        cv_text(x + 22 - text_w(&FONT_S, FN[i]) / 2, y + 3, &FONT_S, FN[i], C_GRAY);
-        cv_text(x + 22 - text_w(&FONT_S, d) / 2, y + 23, &FONT_S, d, C_WHITE);
+        cv_texts(x + 22 - text_ws(FN[i]) / 2, y + 3, FN[i], C_GRAY);
+        cv_texts(x + 22 - text_ws(d) / 2, y + 23, d, C_WHITE);
     }
     cv_blit(0, OY_PANEL);
 }
@@ -455,7 +455,7 @@ static void name_draw_foot(void)
 {
     cv_begin(240, 18, C_BLACK);
     cv_rect(0, 0, 240, 1, C_LINE);
-    cv_text(4, 2, &FONT_S, nm.cur ? "Save  Home del  hold cancel" : "Save done  Home cancel", C_AMB);
+    cv_texts(4, 2, nm.cur ? "Save  Home del  hold cancel" : "Save done  Home cancel", C_AMB);
     cv_blit(0, NM_FOOT_Y);
 }
 static void name_draw(void)                             /* the cards' band, the panel, the hints (op_draw.c op_frame_draw) */

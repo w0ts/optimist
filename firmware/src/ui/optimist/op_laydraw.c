@@ -64,7 +64,7 @@ static void lay_cell(uint32_t k, cell_t *c)
         if (k == 0u || (k == 2u && !is_drum(t))) {      /* SHIFT, TRANSPOSE: a turn moves them; no value */
             c->label = k ? "TRANSP" : "SHIFT";
             c->kind = CK_RO;
-            str_cpy(c->val, k ? "- +" : "< >", sizeof c->val);
+            cell_val(c, k ? "- +" : "< >");
         } else if (k == 1u) {
             c->label = "LENGTH";
             c->kind = CK_VAL;
@@ -83,10 +83,10 @@ static void lay_cell(uint32_t k, cell_t *c)
         c->kind = CK_RO;
         c->label = k == 3u ? "REC" : k == 2u ? "MODE" : "";
         if (k == 2u) {
-            str_cpy(c->val, arrangement_enabled ? "SONG" : "LOOP", sizeof c->val);
+            cell_val(c, arrangement_enabled ? "SONG" : "LOOP");
             cell_gauge(c, 1, 0, 1, arrangement_enabled);
         } else if (k == 3u) {
-            str_cpy(c->val, srec == 2u ? "REC" : srec ? "ARMED" : "OFF", sizeof c->val);
+            cell_val(c, srec == 2u ? "REC" : srec ? "ARMED" : "OFF");
             c->col = srec_col();
             cell_gauge(c, 1, 0, 2, srec);
         }
@@ -170,7 +170,7 @@ static void tiles_fill(tile_t *tl, char *sub, uint32_t n)
         str_cpy(sub, l == LY_ROLL ? "Hold + key repeats" : song.playing ? "Erase as it plays" : "Erase every step", n);
         break;
     case LY_SCALE: {
-        uint32_t root = (uint32_t)trk[0].p[P_ROOT] % 12u, mask = SCALE_MASK[clamp(trk[0].p[P_SCALE], 0, NSCALES - 1)];
+        uint32_t root = (uint32_t)trk[0].p[P_ROOT] % 12u, mask = SCALE_MASK[ui_clamp(trk[0].p[P_SCALE], 0, NSCALES - 1)];
         for (i = 0; i < 16u; i++) {
             uint32_t pc = (53u + white_key(i)) % 12u, in = (mask >> ((pc + 12u - root) % 12u)) & 1u;
             tile_set(&tl[i], N_NOTE[pc], pc == root ? trk_col(sel) : OP_SURF, pc == root ? C_BLACK : in ? C_WHITE : C_DIM, 0);
@@ -178,7 +178,7 @@ static void tiles_fill(tile_t *tl, char *sub, uint32_t n)
         str_cpy(sub, "KEY ", n);
         str_cpy(sub + 4, N_NOTE[root], n - 4u);
         str_app(sub, " ", n);
-        str_app(sub, N_SCALE[clamp(trk[0].p[P_SCALE], 0, NSCALES - 1)], n);
+        str_app(sub, N_SCALE[ui_clamp(trk[0].p[P_SCALE], 0, NSCALES - 1)], n);
         break;
     }
     case LY_MIX:
@@ -221,7 +221,7 @@ static void lay_paint(void)
         if (t->top)
             cv_rect(x, y, CARD_W, 3, t->top);
         op_case(b, t->lab, sizeof b);
-        cv_texts(x + (CARD_W - text_w(&FONT_S, b)) / 2, y + (TILE_H - 16) / 2, b, t->fg);
+        cv_texts(x + (CARD_W - text_ws(b)) / 2, y + (TILE_H - 16) / 2, b, t->fg);
     }
     cv_texts(4, LAY_SUB_Y, op_case(b, lay_sub, sizeof b), C_GRAY);   /* (the key and scale, the chain...) */
 }

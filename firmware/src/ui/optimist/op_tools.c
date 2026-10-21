@@ -272,11 +272,11 @@ static int32_t tl_neigh(const track_t *t, int32_t n, int32_t d)   /* the next sc
     do
         n += d;
     while (g-- && !tl_in(t, n));
-    return clamp(n, 0, 127);
+    return ui_clamp(n, 0, 127);
 }
 static int32_t tl_snap(const track_t *t, int32_t x)    /* down into the scale */
 {
-    x = clamp(x, 1, 127);
+    x = ui_clamp(x, 1, 127);
     while (!tl_in(t, x) && x > 1)
         x--;
     return x;
@@ -311,7 +311,7 @@ static void tl_random_notes(track_t *t, uint32_t len)
         }
         memset(cont, 0, sizeof cont);
     }
-    for (lo = clamp(c - 9, 12, 100), x = lo; x <= lo + 18 && nd < sizeof deg; x++)
+    for (lo = ui_clamp(c - 9, 12, 100), x = lo; x <= lo + 18 && nd < sizeof deg; x++)
         if (tl_in(t, x))
             deg[nd++] = (uint8_t)x;
     if (!nd)
@@ -562,18 +562,18 @@ static void ng_turn(uint32_t pg, uint32_t k, int32_t s)
     fm1_irq_off();
     g = *ng_cur();
     if (pg == 1u && !k) {
-        uint32_t ty0 = s == OP_RESET ? GT_EUCLID : (uint32_t)clamp((int32_t)g.type + s, 0, GT_N - 1);
+        uint32_t ty0 = s == OP_RESET ? GT_EUCLID : (uint32_t)ui_clamp((int32_t)g.type + s, 0, GT_N - 1);
         if (ty0 != g.type)
             gen_defaults(&g, ty0);                      /* (another generator: its values at their defaults) */
     } else if (pg == 1u) {
         const gen_par_t *d = &GEN_TYPES[g.type % GT_N].par[(k - 1u) % GEN_NP];
         uint32_t j = k - 1u;
         GEN_TYPES[g.type % GT_N].fit(&g, len);
-        g.p[j] = (uint8_t)(s == OP_RESET ? d->def : clamp((int32_t)g.p[j] + s, d->min, ng_max(d, len)));
+        g.p[j] = (uint8_t)(s == OP_RESET ? d->def : ui_clamp((int32_t)g.p[j] + s, d->min, ng_max(d, len)));
     } else if (k == 0u) {
         g.on = (uint8_t)(s == OP_RESET ? 0 : s > 0);
     } else {
-        g.mode = (uint8_t)(s == OP_RESET ? GM_REPLACE : clamp((int32_t)g.mode + s, 0, GM_N - 1));
+        g.mode = (uint8_t)(s == OP_RESET ? GM_REPLACE : ui_clamp((int32_t)g.mode + s, 0, GM_N - 1));
     }
     ty = &GEN_TYPES[g.type % GT_N];
     ty->fit(&g, len);
@@ -645,7 +645,7 @@ static uint32_t tl_quantize(track_t *t, uint32_t len, uint32_t div)
         if (!v)
             continue;
         m = (v + q / 2 >= 0 ? (v + q / 2) / q : -((q - 1 - (v + q / 2)) / q)) * q;   /* (floor((v + q / 2) / q) q) */
-        m = clamp(m, MICRO_MIN, MICRO_MAX);
+        m = ui_clamp(m, MICRO_MIN, MICRO_MAX);
         if (m != v) {
             (void)step_micro_set(t, i, m);              /* (never more events: one changed or gone) */
             n++;

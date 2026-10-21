@@ -353,7 +353,7 @@ static void glo_walk(int32_t s)
 {
     uint32_t sc = ui.scr == SCR_SYSTEM, n = gl_n(sc);
     if (n)
-        gl_at((uint32_t)clamp((int32_t)ui.row[ui.scr] + s, 0, (int32_t)n - 1));
+        gl_at((uint32_t)step_in(ui.row[ui.scr], s, n));
 }
 static int gl_on_tempo(void)                            /* GLOBAL's page shows Tempo's lines: OCT nudges (op_tempo.c) */
 {                                                       /* (Tempo is GLOBAL's first section: its lines are on page 0) */
