@@ -22,8 +22,10 @@ FM-1 is in the update mode of another firmware (only the Felucca-family loader,
 Optimist's ota-FM-1_7XX or SLOOP / Felucca's ota-FM-1_9XX, is resumed).
 """
 import argparse
+import contextlib
 import queue
 import re
+import signal
 import sys
 import time
 
@@ -463,6 +465,29 @@ class Progress:
             self.line = False
 
 
+@contextlib.contextmanager
+def no_interrupt(out=None):
+    """Ctrl+C is refused while the FM-1 is written: a cut-off write leaves it in update mode (the user, 2026-10-21: "refuse to
+    quit with ctrl+c ... so that one cannot by mistake break flash"). SIGINT, and SIGHUP (the terminal closed), are said
+    and ignored; the handlers come back afterwards. Only the main thread can set them: elsewhere nothing changes"""
+    old = {}
+    def refuse(signum, frame):
+        print("\nflashing: Ctrl+C is ignored until the write is done (do not unplug the FM-1)", file=out or sys.stderr)
+    try:
+        for sig in (signal.SIGINT, signal.SIGHUP):
+            old[sig] = signal.signal(sig, refuse)
+    except (ValueError, OSError, AttributeError):
+        pass
+    try:
+        yield
+    finally:
+        for sig, h in old.items():
+            try:
+                signal.signal(sig, h)
+            except (ValueError, OSError):
+                pass
+
+
 def run(a, backend, out, ask):
     up = Updater(backend, a.port)
     if a.info:
@@ -486,7 +511,8 @@ def run(a, backend, out, ask):
         return 1
     prog = Progress(out)
     try:
-        up.install(dev, image, product, prog)
+        with no_interrupt():
+            up.install(dev, image, product, prog)
     finally:
         prog.end()
     return 0

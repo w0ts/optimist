@@ -367,17 +367,19 @@ static int fav_entry(uint32_t e, uint32_t k)
 #define fav_list 0u
 #endif
 static uint32_t up_engine_slot(uint32_t k);                 /* storage/upreset.c: a user preset's engine slot */
-/* the browsing view of the whole list (the user, 2026-10-21: "when I browse by preset I would expect to see all the
- * presets of the current engine, and not be able to switch engine"): the selected track's engine's sounds only (its
- * factory ones, INIT, its user presets, its own collection); with LIST FAV the marked sounds of every engine. The
- * engine step (SHIFT2 + PRESETS, the ENGINE card) walks the whole list: preset_all_* */
+/* the browsing view of the whole list: EDIT's PRESET card (the user, 2026-10-21: "I would expect to see all the presets
+ * of the current engine, and not be able to switch engine") the selected track's engine's sounds only (its factory ones,
+ * INIT, its user presets, its own collection); the PRESETS knob ("one big list of everything", pl_whole) every engine's;
+ * with LIST FAV the marked sounds of every engine. The engine step (SHIFT2 + PRESETS, the ENGINE card) walks the whole
+ * list: preset_all_* */
+static uint8_t pl_whole;                             /* the browsing list: 1 every engine's sounds in a row (the PRESETS knob), 0 the track's engine's (EDIT's PRESET card): set by whoever last browsed */
 static int pl_keep(uint32_t e, uint32_t k)
 {
 #if FELUCCA_FAVORITES
     if (fav_list)
         return fav_entry(e, k);
 #endif
-    if (is_drum(TSEL))
+    if (is_drum(TSEL) || pl_whole)
         return 1;
     if (e == NENGINES)
         e = up_engine_slot(k);

@@ -665,8 +665,10 @@ static int op_presets_turn(void)
     } else if (!op_armed() && !rh.ring && !name_on() && ui.scr != SCR_FX && !ui.master && !mx_on_master()) {   /* (MASTER, the mixer's too: nothing) */
         if (lane_presets())
             lane_sound_step(s);                         /* a lane off KIT: its own sound, the kit and the other lanes stay */
-        else
+        else {
+            pl_whole = 1;                               /* (PRESETS: one big list, every engine's sounds in a row, the user, 2026-10-21) */
             op_preset_step(s);                          /* (DR, a lane on KIT: the kit) */
+        }
         if (!op_armed())
             pre_toast();                                /* (asked "Discard edits?": no toast) */
     }

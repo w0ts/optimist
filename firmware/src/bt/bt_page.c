@@ -592,6 +592,8 @@ static void bp_print_sec(void)
             bp.mq_hi = 0;
         }
         bti_kv(" flow0=", bp.flow0);
+        con_puts(" pll=");
+        con_dec(bti.pll_now);
         {
             uint16_t sv[6];
             uint32_t sn[6], more;
@@ -740,12 +742,23 @@ static void con_btpage(const char *p)
 {
     uint8_t a[6];
     uint32_t s = 10u;
+    int32_t v;
     if (con_word(&p, "stop")) {
         bp_leave();
         return;
     }
+    if (bti_opt_num(&p, "pll", &v)) {             /* the carrier offset now, in a running link (the sweep's pick stays
+                                                    * for the whole link, bti_page_rx: does it drift? the XM4, 2026-10-21) */
+        con_puts("btpage: pll ");
+        con_dec(bti.pll_now);
+        bti_pll(v < -1000 ? -1000 : v > 1000 ? 1000 : v);
+        con_puts(" -> ");
+        con_dec(bti.pll_now);
+        con_puts("\r\n");
+        return;
+    }
     if (!bp_parse_addr(&p, a)) {
-        con_puts("btpage AA:BB:CC:DD:EE:FF [SECONDS] [OPTIONS] | stop\r\n");
+        con_puts("btpage AA:BB:CC:DD:EE:FF [SECONDS] [OPTIONS] | pll=N | stop\r\n");
         return;
     }
     bti_opts(p, &s);

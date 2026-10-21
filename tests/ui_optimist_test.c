@@ -1732,17 +1732,29 @@ static void layer_tests(void)
         turn(EN_PRESET, 1);
         frames(3);
         check(op_overlay() == 5u && pop_kind == 1u, "PRESETS turned: the popup list of the sounds");
-        {   /* PRESETS browse the engine's own sounds and never leave it; the engine step (SHIFT2) is what changes it */
+        {   /* PRESETS: one big list of every engine's sounds (it crosses engines); EDIT's PRESET card keeps to the engine's own */
             uint32_t e0 = tsel()->eng_req, r, left = 0, total, all;
             for (r = 0; r < 150u; r++) {
                 turn(EN_PRESET, 1);
                 frame();
                 left |= tsel()->eng_req != e0;
             }
-            check(!left, "PRESETS: 150 detents on, the engine never changes (only its own sounds)");
+            check(left, "PRESETS: 150 detents on cross into other engines (one big list of everything)");
             (void)preset_pos(&total);
             (void)preset_all_pos(&all);
-            check(total > 0u && total < all, "... the browsing list is the engine's part of the whole list");
+            check(total == all, "... the browsing list is the whole list");
+            set_engine_of(TSEL, e0);
+            snd_mark(song.sel);
+            op_preset_go(0);
+            left = 0;
+            for (r = 0; r < 150u; r++) {
+                turn(EN_K2, 1);                         /* (EDIT's PRESET card) */
+                frame();
+                left |= tsel()->eng_req != e0;
+            }
+            check(!left, "EDIT's PRESET card: 150 detents on, the engine never changes");
+            (void)preset_pos(&total);
+            check(total > 0u && total < all, "... its list is the engine's part of the whole list");
             press(B_OCTUP);
             turn(EN_PRESET, 1);
             release(B_OCTUP);
@@ -1788,7 +1800,7 @@ static void layer_tests(void)
         frames(200);
         turn(EN_K2, 1);                                 /* KNOB 2: the PRESET, the engine's own sounds */
         frames(3);
-        check(op_overlay() == 5u && pop_kind == 1u, "EDIT's SOUND row, KNOB 2 (PRESET): the popup list of the sounds");
+        check(op_overlay() == 5u && pop_kind == 5u, "EDIT's SOUND row, KNOB 2 (PRESET): the popup list of the engine's own sounds");
         frames(200);
         ppm("opt-edit-after-popup");
         {   /* any card with a list value (an insert's type, a scale, a mode): the same popup, its names, the value in the middle */

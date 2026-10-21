@@ -8,7 +8,7 @@ Keys: space / enter toggle (a choice: next value) | / search | p profiles | s sa
       | f flash a build of the configuration shown to an FM-1 over USB-MIDI: builds it first when this menu has no
         current one (a progress bar for the build and for the flash); refused only when the builder's own code
         changed since it started; shows both identities and the commit, asks first
-      | q or ctrl+c quit
+      | q or ctrl+c quit (refused while a flash is writing)
       x expand all | c collapse all | left / right (also page up / down) page the list
 Everything it does goes through configure.py (the plain module the tests use)."""
 import subprocess
@@ -154,6 +154,7 @@ class Builder(App):
         self.built = None                                # ST.Stamp of the last successful build (f flashes only it)
         self.flash_after_build = False                   # f found no current build: build, then go on to the flash
         self.flash_track = PG.FlashTracker()
+        self.flashing = False                            # the FM-1 is being written: q and ctrl+c are refused (action_quit)
         self.code0 = ST.code_fingerprint()               # the builder's code as it started (changed: f refuses)
         self.source = ST.source_line(C.ROOT)             # the checkout and commit a build compiles
         self.over, self.savings = {}, {}
@@ -678,6 +679,14 @@ class Builder(App):
         if go and self.built:
             self.action_flash()                          # the build is current now: the usual preflight and question
 
+    async def action_quit(self):
+        """q, ctrl+c: quit; refused while the FM-1 is being written (a cut-off write leaves it in update mode)"""
+        if self.flashing:
+            self.notify("flashing: not quitting until the write is done (do not unplug the FM-1)", title="quit refused",
+                        severity="warning", timeout=6)
+            return
+        self.exit()
+
     def action_flash(self):
         """F: Flash to FM-1. Only the package this menu's last successful build made, of the configuration shown now,
         by the builder code running now (stamp.refusal; never an older build/optimist-*.fwsc); the FM-1's running
@@ -726,6 +735,7 @@ class Builder(App):
         if not yes:
             self.flash_done("flash cancelled; nothing was written", False)
             return
+        self.flashing = True
         self.build_out = "flashing... do not unplug the FM-1 (about a minute)"
         self.refresh_msgs()
         self.flash_track = PG.FlashTracker()
@@ -747,6 +757,7 @@ class Builder(App):
         self.call_from_thread(self.flash_done, text, rc != 0)
 
     def flash_done(self, text, failed):
+        self.flashing = False
         self.progress_hide()
         self.build_out = text
         self.refresh_msgs()

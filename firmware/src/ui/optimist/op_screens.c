@@ -17,6 +17,7 @@ typedef struct {
 static void op_enter(uint32_t scr);                     /* op_input.c */
 static void name_user_free(void);                       /* op_name.c: NAME for the first free user preset slot */
 static void pre_toast(void);                            /* op_preset.c: a preset's name and engine, a toast */
+static void pre_toast_edit(void);                       /* op_preset.c: the same for EDIT's PRESET card (the engine's own sounds) */
 static void pre_toast_engine(void);                     /* op_preset.c: the engine step's popup list of the engines */
 
 /* ---- shared actions */
@@ -437,12 +438,13 @@ static void snd_kit_cell(cell_t *c)                     /* the drum SOUND row's 
 }
 static void snd_step(int engine, int32_t s)             /* ENGINE: the next / previous engine's first sound; else the next sound or kit */
 {
+    pl_whole = 0;                                       /* (EDIT's cards: the engine's own sounds; the PRESETS knob browses them all) */
     if (engine)
         op_engine_step(s);
     else
         op_preset_step(s);
     if (!op_armed())
-        engine ? pre_toast_engine() : pre_toast();                                    /* (EDIT's SOUND row too: the popup list, as PRESETS shows it; asked "Discard edits?": none) */
+        engine ? pre_toast_engine() : pre_toast_edit();                                    /* (EDIT's SOUND row too: the popup list, as PRESETS shows it; asked "Discard edits?": none) */
 }
 static void snd_cell(uint32_t r, uint32_t k, cell_t *c)
 {
