@@ -290,6 +290,16 @@ static int op_rec(void)                                 /* one record arm, on th
 }
 /* SHIFT2 + REC held while playing (op_combos.c shift2_combo): every note the sequencer enters on the selected track is erased,
  * undone in one step; let go of either, or stopped: it ends */
+/* a delete asked from a held key or button (op_arm_hold): held RH_CLEAR_MS it is done, let go before it is cancelled */
+static void arm_ring_tick(void)
+{
+    if (!ui.arm_ring || ui.arm_scr == ARM_NONE)
+        return;
+    if (!fm1_in.notes && !fm1_in.buttons)
+        op_disarm();                                    /* (let go: no) */
+    else if (fm1_ms - ui.arm_ms >= RH_CLEAR_MS)
+        op_yes();                                       /* (held to the end: yes) */
+}
 static void wipe_frame(uint32_t held)
 {
     int on = wipe_req && (held & (1u << panel.btn[B_REC])) && (held & (1u << panel.btn[B_OCTUP])) && song.playing;
@@ -573,13 +583,10 @@ static void op_press(uint32_t b, uint32_t held)
  * FX on and MUTE are knobs, the SOUND row is EDIT's first). SHIFT held alone there does nothing (D1: SYSTEM is in GLO's cycle) */
 static int mx_quiet(void) { return ui.scr == SCR_HOME && !op_armed(); }
 /* SAVE held alone past the hold time, let go with nothing else used (the user, 2026-10-16): PROJECT <-> SONG (SAVE tapped
- * runs PROJECT's operation, launches SONG's scene); on a SONG scene row it clears the scene instead */
+ * runs PROJECT's operation, launches SONG's scene); on a SONG scene row the hold is the scene's clear instead (save_clear_tick) */
 static void save_hold(void)
 {
-    uint32_t a;
-    if (ui.scr == SCR_SONG && song_rows() > ui.row[SCR_SONG] && song_kind(ui.row[SCR_SONG], &a) == SG_SCENE)
-        scene_clear_ask(a);                             /* SAVE held on a scene: clear it (asked; the user, 2026-10-21) */
-    else if (ui.scr == SCR_SONG)
+    if (ui.scr == SCR_SONG)
         op_enter(SCR_PROJECT);
     else
         song_shortcut(0);
@@ -888,6 +895,23 @@ static void op_drain(uint32_t held)
     }
 }
 
+/* SAVE held alone on a SONG scene row past the hold time: that scene's clear is asked, the ring fills (the user, 2026-10-21) */
+static void save_clear_tick(uint32_t held)
+{
+    static uint8_t done;
+    uint32_t a, sb = 1u << panel.btn[B_SAVE];
+    if (!(held & sb)) {
+        done = 0;
+        return;
+    }
+    if (done || held != sb || ui.scr != SCR_SONG || op_armed() || name_on() || song_rows() <= ui.row[SCR_SONG] ||
+        song_kind(ui.row[SCR_SONG], &a) != SG_SCENE || fm1_ms - op_t0[panel.btn[B_SAVE] % 14u] < op_hold_ms())
+        return;
+    done = 1;
+    op_clean &= ~BIT(B_SAVE);                           /* (the release is no tap: no PROJECT, no YES) */
+    scene_clear_ask(a);
+    op_arm_hold();                                      /* (SAVE is held: the ring) */
+}
 static void ui_input(void)
 {
     uint32_t pressed = fm1_input_edges(0), notes = fm1_input_note_edges(), held = fm1_in.buttons, id, taps, keys;
@@ -918,6 +942,8 @@ static void ui_input(void)
         mx_s2_done = 0;                                 /* (SHIFT + the volume card's knob: one mute toggle a hold) */
     lay_frame(held);                                    /* the layer held, shown (op_layers.c) */
     tempo_frame(held);                                  /* PLAY held: the TEMPO page, the nudge (op_tempo.c) */
+    save_clear_tick(held);                              /* SAVE held on a scene row: its clear, the ring */
+    arm_ring_tick();                                    /* a delete asked from a held key: the ring */
     wipe_frame(held);                                   /* SHIFT2 + REC: the wipe */
     rec_held(held);                                     /* REC held: the ring, the track cleared */
     op_drain(held | pressed);                           /* STEP's and the layers' keys (seq.c lk_q) */

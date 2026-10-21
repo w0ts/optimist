@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* SHIFT + the volume knob, the output switch (firmware/src/ui/optimist/op_volgest.h): 15 % of the travel switches once
- * a press, the volume holds while SHIFT is down and after it until the knob comes back (no jump).
+ * a press, the volume holds while SHIFT is down and, after a switch, until the knob comes back (no jump).
  *   cc -o build/host/vol_gesture_test tests/vol_gesture_test.c && build/host/vol_gesture_test */
 #include <stdio.h>
 #include "../firmware/src/ui/optimist/op_volgest.h"
@@ -52,6 +52,11 @@ int main(void)
     vgest_step(&g, 1, k0, &t);
     held = vgest_step(&g, 0, k0, &t);
     check("SHIFT pressed and let go, the knob not moved: the volume follows at once", !held);
+    g = (struct vgest){0};
+    vgest_step(&g, 1, k0, &t);
+    vgest_step(&g, 1, k0 + VG_NEAR * 4, &t);
+    held = vgest_step(&g, 0, k0 + VG_NEAR * 4, &t);
+    check("SHIFT pressed (an octave), the knob 4 % off but no switch: it follows at once (the user, 2026-10-21)", !held);
     printf("vol_gesture: %d failed\n", fails);
     return fails != 0;
 }

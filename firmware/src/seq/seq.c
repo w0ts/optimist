@@ -480,11 +480,14 @@ static uint32_t rec_target(const track_t *t, uint32_t *later)
 
 /* note into synth step idx (overdub: a step that holds notes gets this one added, a chord of up to 4;
  * when full, the last note is replaced; MONO / LEGATO / UNISON parts keep one note per step) */
+/* a step takes several notes: POLY, or the arp on (the user, 2026-10-21: a chord played into a MONO part with the arp on is the arp's
+ * to walk, not one note a step); MONO / LEGATO / UNISON without the arp: one note a step */
+#define rec_poly(t) ((t)->p[P_VOICE] == V_POLY || ((t)->p[P_AMODE] && !is_drum(t)))
 static void step_add(track_t *t, uint32_t idx, uint32_t note, uint32_t vel, uint32_t lvl, uint32_t rat)
 {
     step_t *s = &t->step[idx];
     uint32_t k;
-    if (s->time != ST_NOTE || !s->n || t->p[P_VOICE] != V_POLY) {
+    if (s->time != ST_NOTE || !s->n || !rec_poly(t)) {
         s->n = 0;                                   /* a fresh step */
         s->flags = 0;
         s->vel = 0;
@@ -593,7 +596,6 @@ static void rec_len_end(track_t *t, int32_t r, uint32_t slen, int cut)
  * it, not struck again (seq_step). A held note up while others started in another step are still down ends at the
  * nearest step start: from there a carry step of the rest (rec_drop). MONO / LEGATO / UNISON (one note a step): the
  * held note ends where the next one starts, joined to it, as heard live. */
-#define rec_poly(t) ((t)->p[P_VOICE] == V_POLY)
 /* step abs of the grid must not strike note: it sounds already (from its key) */
 static void rec_skip(track_t *t, uint32_t abs, uint32_t note)
 {

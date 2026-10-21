@@ -311,6 +311,10 @@ static uint8_t ba_sbc_init_done;
                                                     * at bitpool 53 (2 x 119 B), a third of the air time left for the
                                                     * retransmissions (2026-10-21) */
 #define BA_BITPOOL 46u                             /* the most that fits BA_MFRAMES frames in a DH5 */
+#define BA_FEC_BITPOOL 28u                         /* the device asking for FEC (bp.fec): 3 x 69 B + 17 B = 224 B, a DM5's
+                                                    * most, so the packet rate stays (35 would fit 2 frames: 172 a
+                                                    * second, half again the air time) */
+static uint8_t ba_bp_hi;                           /* the bitpool without FEC (the agreed range's, up to BA_BITPOOL) */
 static uint8_t ba_mbuf[BA_MFRAMES * 128u];
 static uint32_t ba_mlen, ba_mn;
 static void ba_media_send(const uint8_t *sbc_frame, uint32_t sbc_len, uint32_t frames)   /* one L2CAP frame, whole */
@@ -356,8 +360,15 @@ int bt_audio_feed(const int32_t *q15_pcm, uint32_t n)   /* 1: it streams (audio.
     }
     if (!ba_sbc_init_done) {
         uint8_t bp_max = ba.conf[3] < BA_BITPOOL ? ba.conf[3] : (uint8_t)BA_BITPOOL;   /* (the agreed range) */
-        bt_sbc_init(&ba_sbc, 44100, bp_max < ba.conf[2] ? ba.conf[2] : bp_max, 1);
+        ba_bp_hi = bp_max < ba.conf[2] ? ba.conf[2] : bp_max;
+        bt_sbc_init(&ba_sbc, 44100, ba_bp_hi, 1);
         ba_sbc_init_done = 1;
+    }
+    if (!ba_mn) {                                  /* (between packets: every frame of one packet the same size) */
+        uint8_t want = bp.fec && ba_bp_hi > BA_FEC_BITPOOL ? (uint8_t)BA_FEC_BITPOOL : ba_bp_hi;
+        if (want < ba.conf[2])
+            want = ba.conf[2];
+        ba_sbc.p.s16BitPool = want;                /* (each frame's header carries it: the sink follows) */
     }
     for (i = 0; i < n; i++) {
         int32_t l = q15_pcm[2u * i];

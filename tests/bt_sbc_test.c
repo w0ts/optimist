@@ -30,8 +30,10 @@ static double tone(const int16_t *x, uint32_t n, uint32_t stride, double f)   /*
     return 2 * hypot(c, s) / n;
 }
 
-/* encode the tones as (bitpool, joint stereo), decode every frame -> 1 all right; *hdr the first frame's 4 bytes */
-static int round_trip(uint8_t bitpool, uint8_t js, uint8_t hdr[4], uint32_t *flen, double amp[4], uint32_t *bad)
+/* encode the tones as (bitpool, joint stereo; from the middle on bp2 if not 0, as bt_acl.c's FEC fallback switches it
+ * between packets), decode every frame -> 1 all right; *hdr the first frame's 4 bytes, *flen the last frame's */
+static int round_trip(uint8_t bitpool, uint8_t js, uint8_t bp2, uint8_t hdr[4], uint32_t *flen, double amp[4],
+                      uint32_t *bad)
 {
     static struct bt_sbc_ctx c;
     static uint8_t stream[NFR * 128u];
@@ -42,6 +44,8 @@ static int round_trip(uint8_t bitpool, uint8_t js, uint8_t hdr[4], uint32_t *fle
     uint32_t left;
     bt_sbc_init(&c, 44100, bitpool, js);
     for (fr = 0; fr < NFR; fr++) {
+        if (bp2 && fr == NFR / 2u)
+            c.p.s16BitPool = bp2;
         len = bt_sbc_encode(&c, pcm_in + fr * 256u, stream + at);
         if (fr == 0)
             memcpy(hdr, stream, 4);
@@ -81,7 +85,7 @@ int main(void)
         pcm_in[2u * i + 1u] = (int16_t)(12000.0 * sin(2 * M_PI * 440.0 * i / 44100.0));
     }
     for (i = 0; i < sizeof SETS / sizeof SETS[0]; i++) {
-        int ok = round_trip(SETS[i].bitpool, SETS[i].js, hdr, &flen, a, &bad);
+        int ok = round_trip(SETS[i].bitpool, SETS[i].js, 0, hdr, &flen, a, &bad);
         uint8_t want1 = (uint8_t)(0x80u | 0x30u | (SETS[i].js ? 0x0Cu : 0x08u) | 0x01u);   /* 44.1k, 16 blocks, JS / stereo, loudness, 8 */
         snprintf(what, sizeof what, "bitpool %u %s: header %02X %02X %02X (want 9C %02X %02X), frame %u B (bt_sbc_frame_len %u)",
                  SETS[i].bitpool, SETS[i].js ? "joint stereo" : "stereo", hdr[0], hdr[1], hdr[2], want1, SETS[i].bitpool, flen,
@@ -91,6 +95,14 @@ int main(void)
         check(what, ok);
         snprintf(what, sizeof what, "... the tones back: L 1 kHz %.0f, R 440 Hz %.0f of 12000; crosstalk %.0f / %.0f", a[0], a[2], a[1], a[3]);
         check(what, fabs(a[0] - 12000) < 120 && fabs(a[2] - 12000) < 120 && a[1] < 120 && a[3] < 120);
+    }
+    {
+        int ok = round_trip(46, 1, 28, hdr, &flen, a, &bad);
+        snprintf(what, sizeof what, "bitpool 46 -> 28 mid-stream (the FEC fallback): frames %u B then (want %u, 3 in a DM5's 224 B)",
+                 flen, bt_sbc_frame_len(28, 1));
+        check(what, flen == bt_sbc_frame_len(28, 1) && 3u * flen + 17u <= 224u);
+        snprintf(what, sizeof what, "... AOSP's decoder takes all %u frames across the change (%u refused)", NFR, bad);
+        check(what, ok);
     }
     printf("bt_sbc: %d failed\n", fails);
     return fails != 0;

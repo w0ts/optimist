@@ -88,7 +88,9 @@ struct bti_tr {
     uint16_t rxstat[2], rxphdr[2], linkcntl[2], rssi[4], rx_clkn_lo, rxbit;
     uint8_t rxtog, txtog, txfreq, rxfreq, txbufcntl[2], rxbufcntl[2];
 };
+#if FELUCCA_BT_DIAG
 static struct bti_tr bti_trace[BTI_TRACE] IN_POOL;
+#endif
 static volatile uint32_t bti_tn;
 
 enum { BTI_M_INQ, BTI_M_SCAN, BTI_M_PAGE, BTI_M_CONN };
@@ -101,7 +103,9 @@ struct bti_rxl {
     int16_t pll;
     uint8_t mode, sub, idx, rxfreq;
 };
+#if FELUCCA_BT_DIAG
 static struct bti_rxl bti_rxlog_buf[BTI_RXLOG] IN_POOL;
+#endif
 static volatile uint32_t bti_rxn;
 static struct {
     uint32_t end_clkn, next_slot0, train_clkn, last_rx_clkn, inq_slots, sec_ms, sec_clk, alarm_at, sweep_clkn;
@@ -141,9 +145,11 @@ static void bti_alarm_arm(uint32_t slots)          /* BR §6.4 (its slot kept: n
     fm1_br_alarm_at(bti.alarm_at);
 }
 
-static void bti_count(uint32_t *key, uint32_t *n, uint32_t *other, uint32_t v)
+static void bti_count(uint32_t *key, uint32_t *n, uint32_t *other, uint32_t v)   /* (BT_DIAG: the status histograms) */
 {
     uint32_t i;
+    if (!FELUCCA_BT_DIAG)
+        return;
     for (i = 0; i < BTI_NH; i++) {
         if (n[i] && key[i] == v) {
             n[i]++;
@@ -222,6 +228,7 @@ static void bti_frq_table(void)                    /* frq_table[0] (BR §7.1), m
 /* ---- interrupts */
 static void bti_trace_add(uint32_t pend)
 {
+#if FELUCCA_BT_DIAG
     struct fm1_br_frame *f = fm1_br_frame(bti_tab, 0);
     struct bti_tr *t;
     uint32_t i;
@@ -246,6 +253,9 @@ static void bti_trace_add(uint32_t pend)
     t->txfreq = f->txfreq;
     t->rxfreq = f->rxfreq;
     bti_tn++;
+#else
+    (void)pend;
+#endif
 }
 
 static void bti_push(uint32_t kind, uint32_t idx, uint32_t stat, uint32_t clkn, const uint8_t *src, uint32_t len)
@@ -290,8 +300,9 @@ static void bti_agc_follow(struct fm1_br_frame *f)   /* BR §4 RSSI1: step up be
     f->rxgain0 = bti.agc;
 }
 
-static void bti_rxlog(uint32_t idx, uint32_t stat)   /* one reception into btrx's log */
+static void bti_rxlog(uint32_t idx, uint32_t stat)   /* one reception into btrx's log (BT_DIAG) */
 {
+#if FELUCCA_BT_DIAG
     struct fm1_br_frame *f = fm1_br_frame(bti_tab, 0);
     struct bti_rxl *l;
     if (bti_rxn >= BTI_RXLOG)
@@ -307,6 +318,9 @@ static void bti_rxlog(uint32_t idx, uint32_t stat)   /* one reception into btrx'
     l->sub = 0;
     l->idx = (uint8_t)idx;
     l->rxfreq = f->rxfreq;
+#else
+    (void)idx, (void)stat;
+#endif
 }
 
 static void bp_rx(void);

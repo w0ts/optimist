@@ -55,6 +55,7 @@ static struct {
     char arm_verb[12], arm_arg[17];   /* the modal's two lines: "CLEAR?" and its target, "T2" (BLE_NAME_MAX + 1) */
     uint8_t arm_raw;                  /* the target is a name as it was given (a BLE device): never recased */
     uint8_t arm_danger;               /* it destroys something: a red frame (else amber) */
+    uint8_t arm_ring;                 /* a delete asked while its key or button is held: the ring fills (the hold confirms, letting go cancels), not the modal */
     uint8_t toast_t;                  /* frames the toast stays: the result of an action just confirmed */
     uint8_t cards_t;                  /* STEP: frames the four cards stay over the grid (a page change, a value edited) */
     uint16_t toast_col;               /* its frame's colour (0: its words' status colour; a preset: its engine's) */
@@ -281,6 +282,7 @@ static const char *trk_tag(uint32_t i)
 static void op_disarm(void)
 {
     ui.arm_scr = ARM_NONE;
+    ui.arm_ring = 0;
 }
 /* arm what YES will do: the modal asks q + "?" in big type and names arg, its target ("CLEAR?", "T2"); the
  * question as one line is q, arg and "?" ("CLEAR T2?"; no arg: "NEW?"). danger: it destroys or replaces the work */
@@ -291,6 +293,7 @@ static void op_arm(uint32_t scr, uint32_t row, uint32_t k, const char *q, const 
     str_app(ui.arm_verb, "?", sizeof ui.arm_verb);
     str_cpy(ui.arm_arg, arg, sizeof ui.arm_arg);
     ui.arm_danger = (uint8_t)(danger != 0u);
+    ui.arm_ring = 0;
     ui.arm_raw = 0;
     ui.toast_t = 0;
     ui.arm_scr = (uint8_t)scr;
@@ -304,6 +307,12 @@ static void op_arm(uint32_t scr, uint32_t row, uint32_t k, const char *q, const 
     str_cpy(ui.arm_q + n, arg, sizeof ui.arm_q - n);
     n = str_len(ui.arm_q);
     str_cpy(ui.arm_q + n, "?", sizeof ui.arm_q - n);
+}
+/* a delete just asked (op_arm) from a key or button still held: the ring (op_draw.c draw_ring) fills as the hold goes on and
+ * confirms it, letting go cancels it (the user, 2026-10-21: "all the deletes use the same circle as the REC button's") */
+static void op_arm_hold(void)
+{
+    ui.arm_ring = (uint8_t)(fm1_in.notes != 0u || fm1_in.buttons != 0u);
 }
 static int op_armed(void)
 {

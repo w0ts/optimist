@@ -1065,12 +1065,10 @@ static uint32_t op_overlay(void) { return op_code_on() ? 4u : rh.ring ? 3u : op_
  * top), in the track's instrument colour, its name, "Keep holding"; no question: the ring is the confirmation */
 #define RING_R (MODAL_H >= 117 ? 36 : 28)               /* the ring's outer radius: smaller over the help band's shorter panel */
 #define RING_CY ((MODAL_H - (2 * RING_R + 36)) / 2 + RING_R)   /* its centre: the ring and its two lines in the panel's middle */
-static void draw_ring(void)
+/* the ring: el ms into its RH_CLEAR_MS, in colour tc, the label under it (the REC hold's, and every delete asked from a held key) */
+static void draw_ring_of(uint32_t el, uint16_t tc, const char *label)
 {
-    uint32_t el = fm1_ms - rh.t1;
     int32_t a, rr, end = el >= RH_CLEAR_MS ? 1024 : (int32_t)(el * 1024u / RH_CLEAR_MS), cy = RING_CY;
-    uint16_t tc = rh.lane >= 0 ? op_lane_col((uint32_t)rh.lane) : trk_col(rh.trk);
-    char b[24];
     cv_begin(240, MODAL_H, C_BLACK);
     for (a = 0; a < 1024; a += 2) {
         int32_t co = SINE[((uint32_t)a + 768u) & 1023u], si = SINE[(uint32_t)a & 1023u];   /* from 12 o'clock */
@@ -1079,19 +1077,31 @@ static void draw_ring(void)
             if (a <= end || rr == RING_R - 3)           /* (the part to come: a thin line on black) */
                 cv_pset(120 + ((si * rr) >> 15), cy + ((co * rr) >> 15), c);
     }
+    cv_texts(120 - text_w(&FONT_S, label) / 2, cy + RING_R + 4, label, tc);
+    cv_texts(120 - text_w(&FONT_S, "Keep holding") / 2, cy + RING_R + 20, "Keep holding", C_GRAY);
+    cv_blit(0, OP_PY);
+}
+static void draw_ring(void)                             /* the REC hold */
+{
+    char b[24];
     str_cpy(b, "Clear ", sizeof b);
     str_cpy(b + 6, rh.lane >= 0 ? lane_name((uint32_t)rh.lane) : trk_tag(rh.trk), sizeof b - 6u);   /* (a lane: "Clear SNARE") */
     if (rh.motion)
         str_app(b, " locks", sizeof b);   /* (SHIFT + REC: "Clear T1 locks", the notes stay) */
-    cv_texts(120 - text_w(&FONT_S, b) / 2, cy + RING_R + 4, b, tc);
-    cv_texts(120 - text_w(&FONT_S, "Keep holding") / 2, cy + RING_R + 20, "Keep holding", C_GRAY);
-    cv_blit(0, OP_PY);
+    draw_ring_of(fm1_ms - rh.t1, rh.lane >= 0 ? op_lane_col((uint32_t)rh.lane) : trk_col(rh.trk), b);
+}
+static void draw_arm_ring(void)                         /* a delete asked from a held key: its question as the label */
+{
+    char b[26];
+    str_cpy(b, ui.arm_q, sizeof b);
+    b[str_len(b) - 1u] = 0;                             /* ("CLEAR SCENE C?" -> "CLEAR SCENE C") */
+    draw_ring_of(fm1_ms - ui.arm_ms, C_ERR, b);
 }
 static void draw_overlay(uint32_t ov)
 {
     uint32_t sig = ov == 4u ? hu(hu(5u, ble_code_sig()), settings.palette)
                  : ov == 3u ? hu(hu(hu(0x71u, (fm1_ms - rh.t1) * 64u / RH_CLEAR_MS), (rh.trk * 16u + settings.palette) * 32u + (uint32_t)(rh.lane + 1)), rh.motion)
-                 : ov == 1u ? hs(hs(hu(hu(3u, ui.arm_danger), settings.palette), ui.arm_verb), ui.arm_arg)
+                 : ov == 1u ? hs(hs(hu(hu(3u, ui.arm_danger), settings.palette + (ui.arm_ring ? (fm1_ms - ui.arm_ms) * 64u / RH_CLEAR_MS * 256u : 0u)), ui.arm_verb), ui.arm_arg)
                  : ov == 5u ? hu(hu(0x505u, pre_sig()), pop_kind)
                            : hs(hu(4u, ui.msg_st), ui.msg);
     if (sig == ui.sig[4])
@@ -1101,6 +1111,8 @@ static void draw_overlay(uint32_t ov)
         draw_code();
     else if (ov == 3u)
         draw_ring();
+    else if (ov == 1u && ui.arm_ring)
+        draw_arm_ring();
     else if (ov == 1u)
         draw_modal();
     else if (ov == 5u)

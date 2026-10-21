@@ -537,6 +537,7 @@ static void song_pat_hold(void)
             scene_clear_ask(w);
         else if (lay.pmod != 10u && w < PAT_N)
             pat_clear_ask(song.sel % NTRK, w);
+        op_arm_hold();                                  /* (asked from a held key: the ring, the hold confirms) */
     }
 #endif
 }
@@ -607,6 +608,7 @@ static void song_key_hold(void)
             if (a < arrangement.count)
                 song_part_cut_ask(a);
         }
+        op_arm_hold();                                  /* (asked from a held key: the ring, the hold confirms) */
     }
 }
 static void song_key(uint32_t k)                        /* a key pressed: the cursor, a combination's job; a lone tap fires on its release */
