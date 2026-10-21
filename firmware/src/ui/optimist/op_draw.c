@@ -920,7 +920,7 @@ static void list_paint(void)
         cv_hline(GRAPH_H + 1, C_LINE);   /* (the rule over the rows; the picture alone: none) */
     for (i = lst.first; i < lst.n && i < lst.first + lst.shown; i++)
         draw_row(i, lst.top + (int32_t)(i - lst.first) * lst.rh, i == lst.cur, lst.bar, lst.n > lst.shown ? 236 : 240, lst.rh);
-    if (lst.shown && lst.n > lst.shown) {               /* where the window is in the list */
+    if (lst.shown && lst.n > lst.shown && !(ui.scr == SCR_SONG && lst.pic == 2u)) {   /* where the window is in the list */
         int32_t h = (LIST_H - lst.top) * (int32_t)lst.shown / (int32_t)lst.n;
         cv_rect(238, lst.top, 1, LIST_H - lst.top, C_LINE);
         cv_rect(237, lst.top + (LIST_H - lst.top) * (int32_t)lst.first / (int32_t)lst.n, 3, h, C_GRAY);
@@ -986,6 +986,8 @@ static void draw_list(void)
     } else if (pic) {                                   /* the picture takes the height the rows leave: they sit at the foot */
         uint32_t fit = (uint32_t)(LIST_H - GRAPH_MIN - 3) / ROW_H;
         shown = n < fit ? n : fit;
+        if (ui.scr == SCR_SONG && pic == 2u)
+            shown = 1;                                  /* (the PATTERNS row alone: no scene or mode row beside it, the grid taller; the user, 2026-10-21) */
         top = LIST_H - (int32_t)shown * ROW_H;
         gr_h = top - 3;
     } else if (n && n <= shown) {                       /* no picture (EDIT, VOICE, PROJECT, SYSTEM, GLOBAL, the master FX: the
@@ -1118,6 +1120,11 @@ static void op_frame_draw(void)
         memset(ui.sig, 0, sizeof ui.sig);
     }
     if (ov != ui.overlay || ui.force) {                 /* the panel under the overlay: again when it goes */
+        if (ui.overlay == 5u) {                         /* (the popup list covers the cards too: the panel cleared, every band again; the mixer
+                                                         * draws its rows in place, over what was there) */
+            lcd_fill(0, OH_HEAD, 240, 240 - OH_HEAD, C_BLACK);
+            memset(ui.sig, 0, sizeof ui.sig);
+        }
         ui.overlay = (uint8_t)ov;
         ui.sig[2] = ui.sig[4] = 0;
         ui.sig[3] = 0;                                  /* (the band under a question) */

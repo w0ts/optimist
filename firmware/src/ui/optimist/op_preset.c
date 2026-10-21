@@ -167,6 +167,7 @@ static void pop_drum_kits(uint32_t *list, uint32_t *n, uint32_t *at)   /* the ki
         }
 }
 static void cv_tall(uint32_t y, uint32_t h, uint16_t bg, void (*fn)(void));   /* op_draw.c */
+#define POP_RH 28                                       /* a popup row: the large face (the user, 2026-10-21: "bigger font to be more readable") */
 static struct {
     uint32_t kits[32], total, cur, half;
     int32_t h;
@@ -189,7 +190,7 @@ static void pop_paint(void)                             /* the box in its own co
         uint32_t idx = (uint32_t)(((int32_t)pop.cur + off + (int32_t)pop.total * 2) % (int32_t)pop.total), eng;
         char nm[16], en[12];
         uint16_t ec;
-        ry = 20 + (int32_t)row * 14;
+        ry = 20 + (int32_t)row * POP_RH;
         if (pop_kind == 3u) {
             pen_name(pen.d->min + (int32_t)idx, nm);
             en[0] = 0;
@@ -204,18 +205,25 @@ static void pop_paint(void)                             /* the box in its own co
             pre_engine(eng, en);
             ec = eng < NENGINES ? ENG_COL[eng] : C_GRAY;
         }
-        if (off == 0)
-            cv_rect(12, ry - 2, 216, 14, C_LINE);       /* (the one playing: a lit band) */
-        cv_rect(16, ry + 2, 6, 6, ec);                  /* the engine's chip */
-        cv_text(28, ry, &FONT_S, nm, off == 0 ? C_WHITE : C_DIM);
+        {
+            const felucca_font_t *f = text_w(&FONT_L, nm) <= 190 ? &FONT_L : &FONT_S;   /* (the large face where the name fits) */
+            if (off == 0 && en[0])                              /* (the one playing: its tag in the header, always) */
+                cv_text(16 + text_w(&FONT_S, pop_kind == 2u ? "KIT" : "SOUND") + 12, 6, &FONT_S, en, ec);
+            if (text_w(f, nm) + text_w(&FONT_S, en) + 24 > 224)
+                en[0] = 0;                                      /* (the tag only where it fits beside the name) */
+            if (off == 0)
+                cv_rect(12, ry - 1, 216, POP_RH - 2, C_LINE);   /* (the one playing: a lit band) */
+            cv_rect(16, ry + POP_RH / 2 - 4, 6, 8, ec);         /* the engine's chip */
+            cv_text(28, ry + (POP_RH - (int32_t)f->h) / 2, f, nm, off == 0 ? C_WHITE : C_GRAY);
 #if FELUCCA_FAVORITES
-        if (pop_kind == 1u) {
-            uint32_t fk, fe = preset_at(idx, &fk);
-            if (fav_entry(fe, fk))
-                cv_text(28 + text_w(&FONT_S, nm) + 4, ry, &FONT_S, "*", off == 0 ? C_WHITE : C_DIM);
-        }
+            if (pop_kind == 1u) {
+                uint32_t fk, fe = preset_at(idx, &fk);
+                if (fav_entry(fe, fk))
+                    cv_text(28 + text_w(f, nm) + 4, ry + (POP_RH - (int32_t)f->h) / 2, f, "*", off == 0 ? C_WHITE : C_GRAY);
+            }
 #endif
-        cv_text(224 - text_w(&FONT_S, en), ry, &FONT_S, en, off == 0 ? ec : col_shade(ec, 3u));
+            cv_text(224 - text_w(&FONT_S, en), ry + (POP_RH - (int32_t)FONT_S.h) / 2, &FONT_S, en, off == 0 ? ec : col_shade(ec, 3u));
+        }
     }
 }
 static void draw_pop(void)
@@ -232,9 +240,9 @@ static void draw_pop(void)
         return;
     pop.fr = ui.toast_col ? ui.toast_col : C_HI;
     pop.half = (pop.total - 1u) / 2u < 9u ? (pop.total - 1u) / 2u : 9u;   /* (most of the screen, under the header: 200 rows of 240: the user, 2026-10-21) */
-    while (pop.half > 0u && (int32_t)(pop.half * 2u + 1u) * 14 + 24 > 200)
+    while (pop.half > 0u && (int32_t)(pop.half * 2u + 1u) * POP_RH + 24 > 200)
         pop.half--;
-    pop.h = (int32_t)(pop.half * 2u + 1u) * 14 + 24;
+    pop.h = (int32_t)(pop.half * 2u + 1u) * POP_RH + 24;
     cv_tall((uint32_t)((240 - pop.h) / 2), (uint32_t)pop.h, C_BLACK, pop_paint);
 }
 /* the SOUND row's picture (GRAPH_H rows): the preset before, the one playing (white, its engine big in colour), the

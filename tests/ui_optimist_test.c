@@ -1731,6 +1731,31 @@ static void layer_tests(void)
         ppm("opt-preset-popup");
         frames(200);                                    /* (the toast, and the popup with it, gone) */
         check(op_overlay() != 5u, "... the popup is gone with its toast");
+        {   /* the popup covers the top cards too: they are drawn again when it goes (the mixer showed it left on them) */
+            uint32_t i, before = 0, after = 0;
+            reset_ui();
+            song.sel = 0;
+            op_enter(SCR_HOME);
+            ui.force = 1;
+            frames(5);
+            for (i = 24u * 240u; i < 130u * 240u; i++)
+                before = before * 31u + screen[i];
+            turn(EN_PRESET, 1);
+            frames(3);
+            check(op_overlay() == 5u, "the mixer, PRESETS turned: the popup list");
+            frames(200);
+            turn(EN_PRESET, -1);
+            frames(200);
+            for (i = 24u * 240u; i < 130u * 240u; i++)
+                after = after * 31u + screen[i];
+            check(op_overlay() != 5u && before == after, "... gone with its toast: the cards and rows under it drawn again, as before");
+            reset_ui();
+            song.sel = 0;
+            op_enter(SCR_SOUND);
+            ui.row[SCR_SOUND] = 0;
+            ui.force = 1;
+            frames(2);
+        }
         turn(EN_K1, 1);                                 /* EDIT page 1: KNOB 1 the sound (the user, 2026-10-21: "see the popup") */
         frames(3);
         check(op_overlay() == 5u && pop_kind == 1u, "EDIT's SOUND row, KNOB 1: the popup list of the sounds too");
