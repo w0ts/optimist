@@ -50,7 +50,9 @@ static volatile struct {
     int8_t enc_dir[FM1_NENC];
     uint32_t enc_dfr[FM1_NENC];
     uint32_t frames;
+    uint32_t ui_gap_max;         /* the longest gap between two main-loop passes (ms, main.c; console `keys`) */
 } fm1_in;
+static volatile uint32_t fm1_btn_t[2][14];      /* each button's last press [0] / release [1] (fm1_ticks), as the HAL's */
 static uint8_t fm1_led[FM1_NCOL];
 #ifndef FM1_LED_DIM_MASK
 #define FM1_LED_DIM_MASK 7u
@@ -92,6 +94,7 @@ static void fm1__key(uint32_t id, uint32_t down)
             fm1_in.notes_pressed |= bit;
         fm1_in.notes ^= bit;
     } else {
+        fm1_btn_t[on][id] = fm1_ticks();
         fm1_in.buttons ^= bit;
         if (down)
             fm1_in.pressed |= bit;

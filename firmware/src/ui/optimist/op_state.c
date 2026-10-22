@@ -190,6 +190,20 @@ static const uint8_t OP_HOLD_POS[HOLD_N] = {1, 0, 2}, OP_HOLD_SEL[HOLD_N] = {1, 
 #define OP_TAP_GAP 150u
 static uint32_t op_hold_ms(void) { return HOLD_MS; }
 static uint32_t lk_ev_ms;                               /* fm1_ms of the key event being handled (op_drain: its queued time, seq.c lk_t) */
+/* the buttons' own times (the user, 2026-10-22: a slow frame turned taps into holds): the HAL stamps each press and release as
+ * the scan makes it (hal/fm1_input.h fm1_btn_t, timer ticks); op_btn_ms gives it in fm1_ms. Read for this pass's edges only: an
+ * edge is never before the last pass (op_pass.gap), so a stamp older than that (a button set by hand, a test) reads as then */
+static struct { uint32_t ms, t, gap; } op_pass;         /* this pass's fm1_ms and timer, the time since the last (op_input.c ui_input) */
+static __attribute__((noinline)) uint32_t op_btn_ms(uint32_t id, uint32_t up)   /* button id (panel id 0..13) went up (1) / down (0): fm1_ms */
+{
+    uint32_t d = op_pass.t - fm1_btn_t[up & 1u][id % 14u], ago = (int32_t)d < 0 ? 0u : d / (FM1_TICKS_PER_US * 1000u);
+    return op_pass.ms - (ago < op_pass.gap ? ago : op_pass.gap);
+}
+static __attribute__((noinline)) uint32_t op_btn_span(uint32_t id, uint32_t t0)  /* button id let go this pass, pressed at t0: how long it was down (ms) */
+{
+    uint32_t d = op_btn_ms(id, 1) - t0;
+    return (int32_t)d > 0 ? d : 0u;
+}
 
 static const page_t *cur_page(void) { return &PAGES[ui.page % NPAGES]; }   /* (miss.c: TOOLS > MISS) */
 

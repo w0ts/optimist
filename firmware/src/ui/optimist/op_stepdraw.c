@@ -464,8 +464,9 @@ static void sg_marks(const track_t *t)
         const auto_ev_t *e = &l->ev[i];
         uint32_t s = e->place & AUTO_STEP, nx = len, a, b;
         uint16_t c = AUTO_IS_LANE(e->param) ? lane_col(AUTO_LANE_L(e->param)) : c0;   /* (a lane's event: its colour, D9) */
-        if (s >= len)
-            continue;
+        if (s >= len || s >= hi)
+            continue;                                   /* (past the window: neither its dot nor its tail is in it; no search for
+                                                         * its next event, a pass over every event) */
         if (!(e->place & AUTO_ONLY)) {
             for (j = 0; j < l->n; j++) {
                 uint32_t s2 = l->ev[j].place & AUTO_STEP;
@@ -483,10 +484,17 @@ static void sg_marks(const track_t *t)
     }
 }
 #endif
-static uint32_t step_sig(void)                          /* all the panel shows but the playhead */
+/* all the panel shows but the playhead and the steps held's white frames: what the held steps change besides (the roll's
+ * selected note, its rows, the picked step's frame) is in; their frames alone are a column each (draw_step_panel) */
+static uint32_t step_sig(void)
 {
     const track_t *t = TSEL;
-    uint32_t h = hu(hu(hu(hu(hu(13u, trk_len(t)), st.page), st.held), lane_sel * 2u + is_drum(t) + (uint32_t)st.nsel * 64u), trk_col(song.sel)), i;
+    uint32_t h = hu(hu(hu(hu(hu(13u, trk_len(t)), st.page), (uint32_t)(!st.held && pk_ok())), lane_sel * 2u + is_drum(t) + (uint32_t)st.nsel * 64u), trk_col(song.sel)), i;
+    if (!is_drum(t)) {                                  /* (the roll: the held step its selected note when it has one, roll_sel;
+                                                         * the rows around the edited note, roll_range) */
+        int32_t f = held_first();
+        h = hu(hu(h, f >= 0 && step_on(&t->step[f]) ? (uint32_t)f + 1u : 0u), (uint32_t)(held_note() + 1));
+    }
     h = hbytes(h, is_drum(t) ? (const void *)t->dstep : (const void *)t->step, NSTEP * sizeof(step_t));
 #if FELUCCA_AUTO
     h = hbytes(h, AL(t), 1u + 3u * AL(t)->n);           /* (the events' marks) */
@@ -535,22 +543,54 @@ static void step_strip(uint32_t key)                    /* the playhead's strip,
         cv_rect(1 + (int32_t)(i * sw), 1, (int32_t)sw - 1, 2, i == st.page ? C_HI : C_LINE);
     cv_blit(0, SP_Y + SG_PH_Y);
 }
-static void draw_step_panel(void)
+/* only the columns w0..w1 of the grid sent (its rows; the marks and the playhead strip under it stay): the whole grid painted as
+ * ever, a pass at a time, each pass's columns packed to the canvas's front. A step key pressed or let go with nothing else
+ * changed: its white frame, not the whole panel (the user, 2026-10-22: the frame after a press was the slow one) */
+static __attribute__((noinline)) void sg_cols(uint32_t w0, uint32_t w1)
 {
+    uint32_t r0, n, r, i, h = SG_TOP + SG_H + 1u, x0 = SG_X + w0 * SG_CW - 1u, w = (w1 - w0 + 1u) * SG_CW;
+    for (r0 = 0; r0 < h; r0 += n) {
+        n = h - r0 < 120u ? h - r0 : 120u;
+        cv_begin(240, n, C_BLACK);
+        cv_oy = -(int32_t)r0;
+        sg_paint();
+        cv_oy = 0;
+        for (r = 0; r < n; r++)                         /* (to the front: never over a pixel still to move) */
+            for (i = 0; i < w; i++)
+                cv_px[r * w + i] = cv_px[r * 240u + x0 + i];
+        cv_w = w;                                       /* (the canvas those columns now; the next cv_begin sets it again) */
+        cv_blit(x0, SP_Y + r0);
+    }
+}
+static int draw_step_panel(void)                       /* 1: the whole grid painted (what lies over it goes again) */
+{
+    static uint16_t held_drawn;                         /* (the steps framed white on the screen) */
     const track_t *t = TSEL;
-    uint32_t sig, len = trk_len(t), at = t->seq_idx % len, key;
+    uint32_t sig, len = trk_len(t), at = t->seq_idx % len, key, d = st.held ^ held_drawn, w0, w1;
     int32_t col;
+    int full = 0;
     key = !song.playing ? 0xFEu : at / 16u == st.page ? at % 16u : at / 16u < st.page ? 16u : 17u;
     col = key < 16u ? (int32_t)key : -1;
     sig = step_sig();
-    if (sig != ui.sig[2]) {
+    if (sig != ui.sig[2] || (d && (ui.cards_t || ui.overlay))) {
+        if (sig == ui.sig[2])
+            ui.sig[4] = 0;                              /* (the grid again for a step held under the cards or a toast: the toast
+                                                         * again over it, as a changed grid brings it, op_draw.c) */
         ui.sig[2] = sig;
         sg_ph = col;                                    /* (the roll's playing column, white) */
         cv_tall(SP_Y, SP_H, C_BLACK, sg_paint);  /* (the grid, its playhead strip, the held step's line) */
         st.ph_drawn = 0xFF;
+        full = 1;
+    } else if (d) {                                     /* only steps held or let go, the cards down: their columns */
+        for (w0 = 0; !((d >> w0) & 1u); w0++)
+            ;
+        for (w1 = 15u; !((d >> w1) & 1u); w1--)
+            ;
+        sg_cols(w0, w1);
     }
+    held_drawn = st.held;
     if (key == st.ph_drawn || ui.overlay == 2u)         /* (still under a toast) */
-        return;
+        return full;
     st.ph_drawn = (uint8_t)key;
     step_strip(key);
     if (!is_drum(t) && col != sg_ph && !ui.cards_t) {   /* the roll: the columns the playhead left and reached */
@@ -561,6 +601,7 @@ static void draw_step_panel(void)
         if (col >= 0)
             roll_col(col);
     }
+    return full;
 }
 /* STEP's frame: the grid on the whole panel, the four cards over its top and a held step's two lines over its foot
  * while ui.cards_t runs (a page change, a value edited, a step held: step_cards_show); when they go the grid is drawn
@@ -601,7 +642,8 @@ static __attribute__((noinline)) void step_frame(void)
     static uint8_t on, info, was_held;
     static uint32_t isig;
     static char snap[2][32];
-    uint32_t want = ui.cards_t != 0u, under, inf;
+    uint32_t want = ui.cards_t != 0u, inf;
+    int full;
     if (was_held && !st.held && want)
         cards_snap_use = 1;
     else if (!want)
@@ -616,14 +658,13 @@ static __attribute__((noinline)) void step_frame(void)
     sg_dy = sg_shift(want, inf);                        /* (in step_sig: the grid again when it changes) */
     if ((!want && on) || (!inf && info))
         ui.sig[2] = 0;
-    under = ui.sig[2];
-    draw_step_panel();
-    if (want && (!on || ui.sig[2] != under)) {
+    full = draw_step_panel();
+    if (want && (!on || full)) {
         ui.sig[1] = 0;
         cv_begin(240, OY_CARD - SP_Y, C_BLACK);         /* the rows between the header and the cards: no grid fragments */
         cv_blit(0, SP_Y);                               /* behind the overlay (the audit's #16) */
     }
-    if (ui.sig[2] != under || !inf)
+    if (full || !inf)
         isig = 0;
     on = (uint8_t)want;
     info = (uint8_t)inf;

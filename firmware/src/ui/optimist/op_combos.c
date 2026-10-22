@@ -239,8 +239,9 @@ static void op_released(uint32_t rel)
         song_rec_toggle();
     }
     if (rel & op_combo_bit(B_PLAY)) {
-        if (tp.pend)
-            op_play();                                  /* a tap: start / stop */
+        if (tp.pend && op_btn_span(panel.btn[B_PLAY], tp.t0) < TEMPO_HOLD_MS)
+            op_play();                                  /* a tap: start / stop (held as long as the TEMPO page wants, a slow
+                                                         * frame between: the hold, nothing) */
         tp.pend = 0;
         tempo_close();
     }

@@ -18,7 +18,7 @@
 #define OH_BODY OP_PH                 /* the panel to the help band (or the screen's foot): no footer (the user, 2026-10-08) */
 #define ROWS_SHOWN ((uint32_t)OH_BODY / ROW_H)   /* 5 rows under the 2x2 cards (draw_list) */
 #define METER_H 90                      /* meter_h's scale (op_mixdraw.c scales it to a row's meter) */
-static void draw_step_panel(void);                     /* op_stepdraw.c: STEP's grid / roll */
+static int draw_step_panel(void);                      /* op_stepdraw.c: STEP's grid / roll */
 static void step_frame(void);
 static void lay_title(char *t, uint32_t n);             /* op_laydraw.c: a performance layer's map */
 static const char *lay_badge(void);

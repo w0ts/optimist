@@ -215,7 +215,8 @@ static void pattern_transpose(track_t *t, int32_t d)    /* every note a semitone
 /* ---- GLO: tap tempo (also the TEMPO page's white keys), the FX bypass */
 static void tap_tempo(void)
 {
-    uint32_t now = fm1_ms, i, sum = 0, n;
+    uint32_t now = lk_ev_ms, i, sum = 0, n;             /* (the key's own time, seq.c lk_t: two taps one slow frame handles are
+                                                         * still their real interval apart, not 0 ms: BPM at its maximum) */
     if (lay.tap_n && now - lay.tap_ms[(lay.tap_n - 1u) & 3u] > 2000u)
         lay.tap_n = 0;                                  /* a pause: a new count */
     lay.tap_ms[lay.tap_n & 3u] = now;

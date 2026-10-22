@@ -691,6 +691,8 @@ static void song_keys(uint32_t notes)                   /* the keys newly down, 
                 sg_know &= ~(1u << k);
             song_key(k);
         }
+    sg_kprev |= notes;                                  /* (a key pressed and let go within one frame, a slow one: up now, so also
+                                                         * released, song_keys_released: its launch is not lost) */
 }
 static void song_page_tap(int up)                       /* OCT+ / OCT- on SONG: the parts window by eight */
 {
