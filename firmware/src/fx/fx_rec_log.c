@@ -12,7 +12,8 @@
  * FXSL) carry these records too. */
 #define FXR_ID0 105u                                   /* (the patterns 24..87, the step extras 88..104) */
 #define FXR_ID_AUTO (FXR_ID0 + 16u)
-_Static_assert(FXR_ID_AUTO < SLG_IDS && SEC_IDS <= 16u, "the FX records' log ids");
+#define FXR_ID_STATE 140u                              /* the project's state's (sections.c SEC_ID_STATE; format 2) */
+_Static_assert(FXR_ID_STATE < SLG_IDS && SEC_IDS <= 16u, "the FX records' log ids");
 static uint8_t fxr_rbuf[4u + FXR_MAX] __attribute__((section(".pool"), aligned(4)));
 _Static_assert(sizeof fxr_rbuf <= SEC_REC_MAX, "an FX record is never longer than a section record");
 

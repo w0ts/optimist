@@ -4,6 +4,10 @@ How patterns and scenes work today. Builder item `PATTERNS` (Sequencer, bit 250,
 fm-va-studio, drum-machine, x0x-drums and synth; an error with `SECTIONS 4`). The history of the design is in git
 (`git log -- docs/PATTERNS-DESIGN.md`).
 
+**Since 2026-10-22 everything below is per project** (`docs/PROJECTS-DESIGN.md`): the 16 pattern slots a track, the
+scenes A..P and the song belong to the open project, whose state is its own record; the log is format 2 at 0xA0000.
+"The device" in this document reads "the open project".
+
 ## 1. The model
 
 - Each of the 4 tracks has **16 pattern slots**. A pattern is the notes of one track: the steps up to LEN, and LEN, DIV,

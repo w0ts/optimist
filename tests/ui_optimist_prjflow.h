@@ -192,11 +192,11 @@ static void prjflow_tests(void)
     check(!strcmp(pdp.name, "MY LEAD") && !strcmp(pdp.d1, "ENGINE") && pdp.d2[0], "info, a used user preset: its name and engine");
     prj_info(PR_USER, 7);
     check(!strcmp(pdp.name, "EMPTY") && !strcmp(pdp.d1, "FREE SLOT") && !pdp.d2[0], "info, a free user preset: Empty, free slot");
-    if (project_used(0)) {
+    if (prj_slot_used(PR_PROJECT, 0)) {                 /* (FELUCCA_PATTERNS: the projects, not the scenes) */
         prj_info(PR_PROJECT, 0);
         check(pdp.name[0] && !strcmp(pdp.d1, "STORED"), "info, a used project: a name, stored");
     }
-    if (!project_used(3)) {
+    if (!prj_slot_used(PR_PROJECT, 3)) {
         prj_info(PR_PROJECT, 3);
         check(!strcmp(pdp.name, "EMPTY") && !strcmp(pdp.d1, "FREE SLOT"), "info, a free project");
     }

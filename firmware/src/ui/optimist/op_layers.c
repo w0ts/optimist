@@ -390,8 +390,10 @@ static void scene_store_now(uint32_t s)
         if (project_used(s))
             ui_say("STORED ", b + 6);
     } else {
-        project_save(s);
+        project_save(s);                                /* (the scene stored; FELUCCA_PATTERNS: the open project's) */
+#if !FELUCCA_PATTERNS
         prj_cur = (int8_t)s;
+#endif
         work_mark();
     }
     ui.force = 1;

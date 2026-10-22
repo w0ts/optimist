@@ -186,6 +186,7 @@ typedef struct {
     uint8_t ua_dst[PERSIST_UA_SRC];
     uint32_t ua_mark3;
     uint8_t bt_rec[32], bt_key[32];
+    uint8_t open_proj, rsv_pj[3];                  /* 2026-10-22: the open project (PATTERNS: sections.c); a record from before: 0 */
 #if FELUCCA_DUAL && FELUCCA_DUALCFG
     dualcfg_t dualcfg;                             /* (the second-core test image only: after everything) */
 #endif
@@ -195,6 +196,7 @@ typedef struct {
 #else
 #define PERSIST4_LEN ((int)sizeof(persist_t))
 #endif
+#define PERSIST4_LEN0 ((int)__builtin_offsetof(persist_t, open_proj))   /* a record from before open_proj: whole without it (the rest 0) */
 #if FELUCCA_BLE
 #define PERSIST_BLE(f) ((int)__builtin_offsetof(persist_t, f))
 #define PERSIST_BLE_END (PERSIST_BLE(ble_dev) + (int)sizeof(((persist_t *)0)->ble_dev))

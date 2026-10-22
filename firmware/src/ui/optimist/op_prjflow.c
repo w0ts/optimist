@@ -32,7 +32,10 @@ static const uint8_t PRJ[] = {PR_PROJECT,
 };
 #define NPRJ (sizeof PRJ / sizeof PRJ[0])
 static const char *const PRJ_NAME[] = {"PROJECT", "SNAPSHOT", "USER", "TOOLS", "SLOOP", "MEMORY"};
-enum { PO_LOAD, PO_SAVE, PO_DELETE };                    /* the operations, in the knob's order */
+enum { PO_LOAD, PO_SAVE, PO_DELETE,                      /* the operations, in the knob's order */
+       PO_SAVE_LOAD };                                  /* (FELUCCA_PATTERNS: a LOAD while the work changed asks "SAVE <the open project>?":
+                                                         * YES saves it then loads, HOME cancels as every question (the user, 2026-10-22);
+                                                         * never a card's op) */
 static const char *const PO_NAME[3] = {"LOAD", "SAVE", "DELETE"};
 static const char *const PRJ_WHAT[3] = {"PROJECT ", "SNAPSHOT ", "USER "};   /* a slot row's target, by its kind */
 static const uint8_t PO_CODE[3] = {0, 2, 1};            /* up_ui, sn_ui: 0 load, 1 clear / erase, 2 save */
@@ -98,7 +101,11 @@ static uint32_t prj_slot_used(uint32_t kind, uint32_t s)
     if (kind == PR_SNAP)
         return sn_ui_row(s, nm, &bytes) != 0u;
 #endif
+#if FELUCCA_PATTERNS
+    return kind == PR_PROJECT ? (uint32_t)project_slot_used(s) : (uint32_t)up_used(s);   /* (a project: sections.c) */
+#else
     return kind == PR_PROJECT ? (uint32_t)project_used(s) : (uint32_t)up_used(s);
+#endif
 }
 static void prj_slot_label(uint32_t kind, uint32_t s, char *l)    /* "3", "U03", "B" (l holds 4) */
 {
@@ -255,6 +262,16 @@ static void prj_ask(uint32_t r, uint32_t kind, uint32_t op, uint32_t s)
     str_app(t, l, sizeof t);
     prj_arm_op = (uint8_t)op;
     prj_arm_slot = (uint8_t)s;
+#if FELUCCA_PATTERNS
+    if (kind == PR_PROJECT && op == PO_LOAD && work_changed() && !song.playing && !transport_req) {
+        fmt_int(l, (int32_t)project_cur() + 1);         /* the open project, whose work changed: "SAVE PROJECT 2?" first */
+        str_cpy(t, PRJ_WHAT[kind], sizeof t);
+        str_app(t, l, sizeof t);
+        prj_arm_op = PO_SAVE_LOAD;
+        op_arm(SCR_PROJECT, r, 0, "SAVE", t, 1);
+        return;
+    }
+#endif
     op_arm(SCR_PROJECT, r, 0, PO_NAME[op], t, prj_danger(kind, op, s));
 }
 static void prj_do(uint32_t kind, uint32_t op, uint32_t s)
@@ -262,7 +279,16 @@ static void prj_do(uint32_t kind, uint32_t op, uint32_t s)
     if (kind == PR_PROJECT) {
 #if SEC_LOGGED
         if (op == PO_DELETE) {
+#if FELUCCA_PATTERNS
+            if (song.playing || transport_req)
+                ui_message("STOP FIRST");
+            else if (project_clear(s))                  /* the whole project: its state, scenes, patterns, song (sections.c) */
+                ui_message("NOT ALL CLEARED");
+            else
+                ui_message("DELETED");
+#else
             (void)sec_scene_clear(s);                   /* (the section log's tombstones: its record, FX, extras and LFO records) */
+#endif
             prj_op_reset();
             ui.force = 1;
             return;
@@ -271,9 +297,12 @@ static void prj_do(uint32_t kind, uint32_t op, uint32_t s)
         if (op == PO_LOAD && (song.playing || transport_req)) {
             pj_defer(1, s);                             /* (stopped, loaded, played again: pj_tick) */
         } else if (op == PO_LOAD) {
-            project_load(s);
-            prj_cur = (int8_t)s;
-            work_mark();                                /* (the work as loaded) */
+            prj_load_go(s);                             /* (op_edits.c: loaded, the work as loaded) */
+#if FELUCCA_PATTERNS
+        } else if (op == PO_SAVE_LOAD) {                /* YES to "SAVE <open>?": saved, then loaded (a save refused: nothing loaded) */
+            if (!prj_save_go(project_cur()))
+                prj_load_go(s);
+#endif
         } else {
             name_project(s);                            /* (NAME first, with the section log: op_name.c) */
         }

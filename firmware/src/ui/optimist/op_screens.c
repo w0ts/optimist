@@ -130,10 +130,20 @@ static int op_global_go(uint32_t id)
         ui.force = 1;
         return 1;
     case G_NEWPRJ:
+#if FELUCCA_PATTERNS
+        if (song.playing || transport_req) {            /* (the open project's scenes, patterns and song go with it: stopped) */
+            ui_message("STOP FIRST");
+            return 1;
+        }
+        op_project_new();
+        ui_message(project_clear(project_cur()) ? "NOT ALL CLEARED" : "NEW PROJECT");
+        prj_cur = (int8_t)project_cur();                /* (the open project, blank now) */
+#else
         op_project_new();
         prj_cur = -1;                                   /* (a new project: no slot yet) */
-        work_mark();                                    /* (the work as made: nothing to ask about) */
         ui_message("NEW PROJECT");
+#endif
+        work_mark();                                    /* (the work as made: nothing to ask about) */
         return 1;
     default:
         return 0;

@@ -266,10 +266,7 @@ static void name_ok(void)
             ui_say("SAVED ", l);
     } else {
 #if SEC_LOGGED
-        project_save(nm.slot);
-        prj_cur = (int8_t)nm.slot;
-        work_mark();
-        if (project_used(nm.slot) && sec_name_set(nm.slot, b))
+        if (!prj_save_go(nm.slot) && prj_slot_used(PR_PROJECT, nm.slot) && sec_name_set(nm.slot, b))   /* (op_edits.c; the name: op_prjflow.c) */
             ui_message("NAME NOT SAVED");
 #endif
     }

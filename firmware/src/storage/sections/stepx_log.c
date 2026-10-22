@@ -17,7 +17,8 @@
  * playing keeps its extras in the pending arena beside it (id SEC_IDS + section), written with it. */
 #define SX_ID0 88u                                     /* sec_log.c SLG_IDS: 105 with the extras */
 #define SX_ID_AUTO (SX_ID0 + 16u)
-_Static_assert(SX_ID_AUTO < SLG_IDS && SEC_IDS <= 16u, "the extras' log ids");
+#define SX_ID_STATE 139u                               /* the project's state's (sections.c SEC_ID_STATE; format 2) */
+_Static_assert(SX_ID_STATE < SLG_IDS && SEC_IDS <= 16u, "the extras' log ids");
 static uint8_t sx_rbuf[4u + AX_ENC_MAX] __attribute__((section(".pool"), aligned(4)));
 _Static_assert(sizeof sx_rbuf <= SEC_REC_MAX, "an extras record is never longer than a section record");
 

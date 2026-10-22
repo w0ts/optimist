@@ -1207,6 +1207,8 @@ for x in 0 1; do   # per-track patterns and scenes (FELUCCA_PATTERNS): unit; the
         $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SL24_XSTEP=$x -o "$OUT/patterns_test$x" tests/patterns_test.c -lm
         $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SL24_XSTEP=$x -DFELUCCA_PATTERNS=0 -o "$OUT/patterns_test${x}n" tests/patterns_test.c -lm
         run "patterns and scenes (XSTEP=$x): store, share, copy-on-write, NO FREE PATTERN, old sections converted (cut anywhere), arena, stage, a scene's FX record (an older build's misfiled one moved), MEM FULL" "$OUT/patterns_test$x"
+        [ "$x" = 1 ] && $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SL24_XSTEP=$x -o "$OUT/project_scope_test" tests/project_scope_test.c -lm && \
+            run "projects own their scenes, patterns and song: another project sees none of them, nothing done there touches the first, the arena across a switch, the chain and BARS, a restart, DELETE, MEM FULL across projects" "$OUT/project_scope_test"
         run "patterns (XSTEP=$x) across builds: scenes flattened without PATTERNS, a section stored there converted back" sh -c "$OUT/patterns_test$x $OUT/pat$x.img 1 && $OUT/patterns_test${x}n $OUT/pat$x.img 2 && $OUT/patterns_test$x $OUT/pat$x.img 3"
     ) >"$U.out" 2>&1 & jobbg
 done
@@ -1291,6 +1293,8 @@ done
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/sec_log_test" tests/sec_log_test.c -lm
     run "song sections: the log (restarts, compaction, writes and erases cut, MEM FULL and its reserve; the patterns' ids 24..87 kept, 16 busy codec B sections)" "$OUT/sec_log_test"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DSLG_V2=1 -DSEC_LOG_SECTORS=8u -o "$OUT/sec_log_v2_test" tests/sec_log_test.c -lm
+    run "the log, format 2 (PATTERNS: every record tagged with its project; 8 sectors here, 32 / 20 at 0xA0000 in a build): the same, then two projects apart, a device-wide id, cuts in either, dead marks, MEM FULL across projects" "$OUT/sec_log_v2_test"
 ) >"$U.out" 2>&1 & jobbg
 for s in 6 8 12; do                                  # (SNAPSHOTS 2 / 4 / 8)
     job; ( jobin
@@ -1316,6 +1320,7 @@ for x in 0 1; do                                     # (PATTERNS: the tracks' pa
     job; ( jobin
         $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SECTIONS=16 -DFELUCCA_MOTION=1 -DFELUCCA_PATTERNS=1 -DFELUCCA_SL24_XSTEP=$x -o "$OUT/snapshots_test_pat$x" tests/snapshots_test.c -lm
         run "snapshots with patterns (XSTEP=$x): the tracks' pattern sources saved with the work (before the first autosave, changed since the last), loaded back" "$OUT/snapshots_test_pat$x" pstate
+        run "backup with projects (XSTEP=$x): PJ01.. each project's records as one stream and PNAM backed up, wiped, written back byte for byte; the objects of before restore-only; a cut restore" "$OUT/snapshots_test_pat$x" projects
     ) >"$U.out" 2>&1 & jobbg
 done
 job; ( jobin

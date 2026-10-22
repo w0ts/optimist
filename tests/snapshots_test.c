@@ -114,6 +114,8 @@ static void project_apply(const project_t *p, const dlrec_t *d)
     song.sel = (uint8_t)(p->sel < NTRK ? p->sel : 0u);
 }
 #if SEC_LOGGED
+static void sections_write(void);
+static void persist_flush_now(void) { sections_write(); }   /* (project.c's, not linked here: the arena written before a project opens) */
 #include "../firmware/src/storage/sections/sections.c"
 #else
 static uint32_t arrangement_ready(void) { return 15u; }
@@ -436,8 +438,14 @@ static void power_cycle(void)
     song_tag = (uint16_t)arr_tag_of(&saved_rec);
     sec_pend_clear();
     sec_boot();
+#if FELUCCA_PATTERNS
+    if (slg.up)
+        (void)slg_open_proj(open_proj);               /* (persist_boot: the open project's scope, its chain) */
+    proj_scope_read();
+#else
     if (song_tag && !sec_song_get(&arrangement, song_tag))
         song_tag = 0;
+#endif
 #else
     for (i = 0; i < 4u; i++) {
         proj_slot[i].magic = 0;
@@ -598,6 +606,80 @@ static uint32_t bk_put(int idx, const uint8_t *d, uint32_t n)   /* COMMIT's rc; 
     ed_backup(ED_BK_COMMIT, a, 1);
     return ed_out[1];
 }
+#if SEC_LOGGED && FELUCCA_PATTERNS
+/* "projects" (FELUCCA_PATTERNS, docs/PROJECTS-DESIGN.md): PJ01.. (kind 7: a project's records as one stream) and PNAM (the names)
+ * backed up, the log wiped, written back: each project's stream byte for byte as it was, each project whole; the objects of
+ * before (S01.., PTN1..) listed without data; a restore cut after a chunk leaves the open project's index */
+static void projects_backup_test(void)
+{
+    static uint8_t p1[16384], p2[16384], nm[256], q[16384];
+    uint32_t l1, l2, l3, ln, k, ok, rc;
+    int i1, i2, i3;
+    uint8_t z[1] = {0}, a[320];
+    char b[16];
+    fresh_flash();
+    ok = project_scope_set(0) == 0;
+    for (k = 0; k < 3u; k++) {
+        make(20u + k);
+        project_save(k);                               /* scenes A B C of project 1 */
+    }
+    make(23);
+    ok &= state_save() == 0;
+    arrangement.count = 2, arrangement.entry[0].scene = 0, arrangement.entry[1].scene = 2;
+    ok &= sec_song_put_all(&arrangement) == 0 && sec_name_set(0, "ONE") == 0;
+    ok &= project_scope_set(1) == 0;
+    make(24);
+    project_save(5);                                   /* scene F of project 2 */
+    ok &= sec_name_set(1, "TWO") == 0 && project_scope_set(0) == 0;
+    i1 = bk_find("PJ01"), i2 = bk_find("PJ02"), i3 = bk_find("PNAM");
+    l1 = i1 >= 0 ? bk_get(i1, p1) : 0u;
+    l2 = i2 >= 0 ? bk_get(i2, p2) : 0u;
+    l3 = i3 >= 0 ? bk_get(i3, nm) : 0u;
+    ok &= l1 > 0u && l2 > 0u && l2 < l1 && l3 == 3u + 16u * SEC_NAME_LEN && slg.proj == open_proj;
+    k = (uint32_t)bk_find("S01 ");
+    ok &= (int)k >= 0 && bk_get((int)k, q) == 0u && (int)bk_find("PTN1") >= 0 && bk_get(bk_find("PTN1"), q) == 0u;
+    printf("  projects: PJ01 %u B, PJ02 %u B, PNAM %u B\n", l1, l2, l3);
+    check("backup: PJ01 and PJ02 (each project's stream) and PNAM listed with data; S01 and PTN1 (the objects of before) without", ok);
+    fresh_flash();
+    rc = bk_put(i1, p1, l1) | bk_put(i2, p2, l2) | bk_put(i3, nm, l3);
+    z[0] = 1;
+    ed_n = 0;
+    ed_backup(ED_BK_END, z, 1);
+    check("... written back into a wiped device: every object accepted, the open project's index back", rc == 0u && slg.proj == open_proj);
+    power_cycle();
+    ln = bk_get(bk_find("PJ01"), q);
+    ok = ln == l1 && !memcmp(q, p1, l1);
+    ln = bk_get(bk_find("PJ02"), q);
+    ok &= ln == l2 && !memcmp(q, p2, l2);
+    ln = bk_get(bk_find("PNAM"), q);
+    ok &= ln == l3 && !memcmp(q, nm, l3);
+    check("... after a restart: each project's stream and the names byte for byte as backed up", ok);
+    sec_name(1, b);
+    ok = !strcmp(b, "TWO");
+    ok &= project_scope_set(1) == 0 && project_used(5) && !project_used(0) && !slg_has(SEC_ID_STATE);
+    ok &= project_scope_set(0) == 0 && project_used(0) && project_used(2) && !project_used(5) && arrangement.count == 2u &&
+          arrangement.entry[1].scene == 2u && state_load() == 1;
+    check("... project 2 has scene F alone, project 1 its scenes A B C, its chain and its state; the names", ok);
+    fresh_flash();                                     /* a restore cut after its first chunk: the open project's index again (bk_close) */
+    a[0] = (uint8_t)i2;
+    put7(a + 1, l2, 3);
+    put7(a + 4, st_crc32(p2, l2), 5);
+    ed_n = 0;
+    ed_backup(ED_BK_BEGIN, a, 9);
+    ok = !ed_out[1] && slg.proj == 1u;
+    k = l2 > 256u ? 256u : l2;
+    a[0] = (uint8_t)i2;
+    put7(a + 1, 0, 3);
+    put7(a + 4, st_crc32(p2, k), 5);
+    ed_n = 0;
+    ed_backup(ED_BK_DATA, a, 9u + pack7(p2, k, a + 9));
+    ok &= !ed_out[4];
+    z[0] = 0;
+    ed_n = 0;
+    ed_backup(ED_BK_END, z, 1);
+    check("... a project stream's restore cut after a chunk (BK_END abort): the open project's index back", ok && slg.proj == open_proj);
+}
+#endif
 #endif
 
 static void cross_write(const char *file)
@@ -669,6 +751,13 @@ int main(int argc, char **argv)
         printf("snapshots (pattern sources) %s\n", bad ? "FAILED" : "passed");
         return bad != 0;
     }
+#if SEC_LOGGED
+    if (argc == 2 && !strcmp(argv[1], "projects")) {
+        projects_backup_test();
+        printf("backup (projects) %s\n", bad ? "FAILED" : "passed");
+        return bad != 0;
+    }
+#endif
 #endif
     if (argc == 3 && !strcmp(argv[1], "read")) {
         cross_read(argv[2]);

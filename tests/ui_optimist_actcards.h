@@ -108,7 +108,7 @@ static void ac_key_tests(void)
     kup(k);
     op_disarm();                                        /* (a key now asks or toasts: the question goes) */
     for (w = 0; w < FELUCCA_SECTIONS && w < 16u; w++)
-        used |= (uint32_t)(project_used(w) != 0) << w;
+        used |= (uint32_t)(prj_slot_used(PR_PROJECT, w) != 0) << w;   /* (FELUCCA_PATTERNS: the projects) */
     keys_lit(&f, &d, &h);
     {
         uint32_t ok = 1;

@@ -1961,7 +1961,7 @@ const BK = { VERSION: 4, ST: 0, USR: 1, FM6: 2, CHUNK: 256, FILE_MAGIC: [0x4F, 0
   ENG: ["ANALOG", "DIGITAL", "PHASE", "LOFI", "SAMPLE", "VOICE", "TRIO", "WHEEL", "GRAIN", "FM6", "SLICE", "PHYS", "ACID", "CZ", "JUNO", "NOISE", "DRONE", "PLAITS"],
   ENG_FB: [0, 0, 0, 0, 0, 0, 0, 0, 4, 1, 4, 0, 0, 2, 0, 0, 0, 0],
   SETS: ["PIANO", "BASS", "VIBES", "HORNS", "STRGS", "FLUTE", "SCRCH", "PERC", "USR1", "USR2", "USR3"],
-  KIND: ["st", "usr", "fm6", "sec", "prj", "log", "snp"], BIT_MOTION: 76,   /* (tools/builder/backports.py BITS: FELUCCA_MOTION) */
+  KIND: ["st", "usr", "fm6", "sec", "prj", "log", "snp", "pjs"], BIT_MOTION: 76,   /* (tools/builder/backports.py BITS: FELUCCA_MOTION; pjs: a project's records as one stream, PJ01..PJ16) */
   MSG: { bkUnknown: "not a kind this firmware has", bkNotInBuild: "not in this build (not written)",
     bkTooBig: "larger than this build's slot (not written)", bkOlder: "an older format (converted as it loads)" } };
 const wr7 = (v, k) => Array.from({ length: k }, (_, i) => Math.floor(v / 2 ** (7 * i)) & 0x7F);
@@ -2029,7 +2029,7 @@ function readBackupFile(b) {
     if (base + o.at + o.len > end) throw new Error("the backup file is cut short");
     const data = b.slice(base + o.at, base + o.at + o.len);
     if (crc32(data) !== o.crc) throw new Error(`object ${o.tag}: CRC`);
-    return { tag: String(o.tag), kind: ["usr", "fm6", "sec", "prj", "log", "snp"].includes(o.kind) ? o.kind : "st", fm6: !!o.fm6, data };
+    return { tag: String(o.tag), kind: ["usr", "fm6", "sec", "prj", "log", "snp", "pjs"].includes(o.kind) ? o.kind : "st", fm6: !!o.fm6, data };
   });
   return { device: hdr.device || {}, created: hdr.created, objects };
 }

@@ -707,13 +707,13 @@ _add("SNAPSHOTS", "FELUCCA_SNAPSHOTS", "snapshots (whole-state slots)", Q, 137, 
           "before is kept in BEFORE LOAD); export / import in the web editor. The flash comes from the end of USR3 "
           "(slots + 4 sectors of 4 KiB): the user sample slot USR3 holds that much less (docs/SNAPSHOTS.md)",
      symbols=("sn_scan", "sn_load", "ed_snap"))
-_add("PATTERNS", "FELUCCA_PATTERNS", "per-track patterns and scenes", Q, 250, default=0,
-     desc="16 patterns a track, stored in the section log; a section becomes a scene that names a pattern a track, "
-          "so scenes share patterns and an unchanged track costs nothing. The old sections become scenes at the first "
-          "start. LFO held: the PATTERN layer (launch at the end, the next bar or now; store, copy, clear); the web editor "
-          "shows the slots in the mixer. About 6.1 KB of flash and 0.1 KB of RAM. Off: sections as before (a scene stored "
-          "with patterns plays as the section it would be).",
-     symbols=("pat_scene_put", "pat_migrate"))
+_add("PATTERNS", "FELUCCA_PATTERNS", "per-project patterns and scenes", Q, 250, default=0,
+     desc="Each of the 16 projects owns its state, 16 patterns a track, its scenes A..P and its song (docs/PROJECTS-DESIGN.md): "
+          "nothing done in one project touches another. The log moves to 0xA0000 and grows to 128 KB (80 KB with "
+          "SAMPLE or DRUM_USR built: user sample slot 1, which the samples lose). The old log at 0x97000 is not read. "
+          "LFO held: the PATTERN layer (launch at the end, the next bar or now; store, copy, clear); the web editor shows "
+          "the slots in the mixer. Off: a project is a plain section with its steps in it, in the old log.",
+     symbols=("pat_scene_put", "project_open"))
 _add("UNDO_HISTORY", "FELUCCA_UNDO_HISTORY", "undo / redo history (many levels)", Q, 69,
      desc="Undo and redo of pattern edits (EDIT + OCT- / OCT+) over many levels; the history lives in the pool and "
           "RAM this build leaves free (at least 1 KiB). About 2.2 KB of flash; off: a single undo level.")
