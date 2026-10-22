@@ -1206,10 +1206,10 @@ job; ( jobin
 # every write, a stalled host, the keep-alive; then the Optimist UI's whole run through the encoder, the decoded screen its own
 job; ( jobin
     $CC -O2 -w -o "$OUT/mirror_test" tests/mirror_test.c
-    run "the screen mirrored: 3000 random writes decoded to the same panel through the USB packets, long runs, a stalled host ends it, 3 s keep-alive, USB reset, the meters not sent" "$OUT/mirror_test"
+    run "the screen mirrored, USB and Bluetooth: 3000 random writes decoded to the same panel, long runs, a stalled host falls behind and catches up, the Bluetooth request, a slow radio, the ring overflowing, the keep-alive, the meters not sent" "$OUT/mirror_test"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -DMIRROR_CHECK -o "$OUT/ui_optimist_mirror_test" tests/ui_optimist_test.c -lm
     mkdir -p "$OUT/optimist_mirror"
-    run "the screen mirrored: the Optimist UI's whole run (every test, 20000 random frames) encoded and decoded, the same pixels" "$OUT/ui_optimist_mirror_test" "$OUT/optimist_mirror"
+    run "the screen mirrored: the Optimist UI's whole run (every test, 20000 random frames) encoded and decoded, the same pixels; every catch-up the panel" "$OUT/ui_optimist_mirror_test" "$OUT/optimist_mirror"
 ) >"$U.out" 2>&1 & jobbg
 for x in 0 1; do   # per-track patterns and scenes (FELUCCA_PATTERNS): unit; then a PATTERNS -> no PATTERNS -> PATTERNS round trip
     job; ( jobin

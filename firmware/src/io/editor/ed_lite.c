@@ -133,6 +133,7 @@ static void ed_service(void)
 {
     const uint8_t *p;
     uint32_t n;
+    mir_poll();                                            /* the screen mirrored: a Bluetooth request, a catch-up (ed_mirror.c) */
     if (!ota_frame_get(&p, &n) || n < 4u || p[0] != ED_HDR0 || p[1] != ED_HDR1 || p[2] != ED_HDR2)
         return;
     MIR_SEEN();                                            /* (any request keeps the mirror on: ed_mirror.c) */

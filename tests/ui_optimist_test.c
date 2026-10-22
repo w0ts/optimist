@@ -3095,6 +3095,37 @@ static void song_tests(void)
     reset_ui();
 }
 
+#ifdef MIRROR_CHECK
+/* the mirror catching up (ed_mirror.c, a link that fell behind): black to the client only, every band drawn again in place
+ * (op_repaint: the panel is not cleared, no flash), two frames; the client's screen is the panel's again. Never under PRESETS'
+ * popup list (overlay 5: the panel under it is not drawn again, ed_mirror.c waits for it to close). Its cost in bytes */
+static uint32_t mc_resyncs, mc_resync_bad, mc_resync_max, mc_resync_sum;
+static void mc_resync(void)
+{
+    uint32_t i, b0 = mc_bytes, n, diff = 0;
+    mir_enc_fill(0, 0, 240, 240, C_BLACK);
+    op_repaint();
+    frame();
+    frame();                                            /* (SCOPE draws its trace every other frame) */
+    n = mc_bytes - b0;
+    for (i = 0; i < 240u * 240u; i++)
+        diff += md_fb[i] != swap16(screen[i]);
+    mc_resyncs++, mc_resync_sum += n, mc_resync_bad += diff != 0u;
+    if (diff && getenv("MIRROR_WHERE")) {
+        uint32_t x0 = 240, y0 = 240, x1 = 0, y1 = 0;
+        for (i = 0; i < 240u * 240u; i++)
+            if (md_fb[i] != swap16(screen[i])) {
+                uint32_t x = i % 240u, y = i / 240u;
+                x0 = x < x0 ? x : x0, y0 = y < y0 ? y : y0, x1 = x > x1 ? x : x1, y1 = y > y1 ? y : y1;
+            }
+        printf("  catch-up off: %u px in x %u..%u y %u..%u; scr %u layer %u overlay %u panel had %04X, client %04X\n", diff, x0, x1, y0, y1,
+               ui.scr, lay.shown, ui.overlay, swap16(screen[y0 * 240u + x0]), md_fb[y0 * 240u + x0]);
+    }
+    mc_resync_max = n > mc_resync_max ? n : mc_resync_max;
+    for (i = 0; diff && i < 240u * 240u; i++)
+        md_fb[i] = swap16(screen[i]);              /* (in step again for the next one) */
+}
+#endif
 static void fuzz(uint32_t nf, uint32_t seed)            /* random use: every draw stays on the screen */
 {
     uint32_t f, held = 0;
@@ -3115,6 +3146,10 @@ static void fuzz(uint32_t nf, uint32_t seed)            /* random use: every dra
             { uint32_t e = R(7); encs[e] += (int32_t)R(5) - 2; }
         fm1_in.notes = R(10) == 0 ? (1u << R(27)) : (R(3) ? fm1_in.notes : 0);
         frame();
+#ifdef MIRROR_CHECK
+        if (f % 50u == 49u && ui.overlay != 5u)
+            mc_resync();
+#endif
     }
     fm1_in.buttons = 0;
     fm1_in.notes = 0;
@@ -3983,7 +4018,10 @@ int main(int argc, char **argv)
         for (i = 0; i < 240u * 240u; i++)
             diff += md_fb[i] != swap16(screen[i]);
         printf("  mirror: %u frames, %u bytes, the screen drawn %u px; %u bad frames, %u px differ\n", mc_frames, mc_bytes, blit_px, mc_bad, diff);
+        printf("  mirror catch-up (black to the client, op_repaint): %u, %u not the panel after; %u bytes each on average, %u at most\n",
+               mc_resyncs, mc_resync_bad, mc_resyncs ? mc_resync_sum / mc_resyncs : 0u, mc_resync_max);
         check(!mc_bad && !diff, "the screen mirrored: every write decoded, the same pixels");
+        check(mc_resyncs > 100u && !mc_resync_bad, "the screen mirrored: every catch-up (black to the client, every band again in place) is the panel");
     }
 #endif
     printf(fails ? "optimist ui test FAILED (%d)\n" : "optimist ui test passed\n", fails);

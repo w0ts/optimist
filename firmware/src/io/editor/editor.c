@@ -84,6 +84,7 @@ static uint32_t ed_unpack7(const uint8_t *a, uint32_t na, uint8_t *out, uint32_t
 #else
 static void ed_mirror_info(void) {}
 #define MIR_SEEN() ((void)0)
+#define mir_poll() ((void)0)
 #endif
 #if !FELUCCA_ED_LIVE
 #include "ed_lite.c"           /* ED_LIVE=0: backup and restore only (the frames, INFO, BUILD, PING, 11..15, 43..48, 54..57);
@@ -584,6 +585,7 @@ static void ed_service(void)
     const uint8_t *p;
     uint32_t n;
     ed_note_tick();                                        /* v14: the editor's notes due, the quiet host's end (ed_note.c) */
+    mir_poll();                                            /* the screen mirrored: a Bluetooth request, a catch-up (ed_mirror.c) */
     ed_sync();                                             /* the pushes (while watched) */
     if (!ota_frame_get(&p, &n) || n < 4u || p[0] != ED_HDR0 || p[1] != ED_HDR1 || p[2] != ED_HDR2)
         return;

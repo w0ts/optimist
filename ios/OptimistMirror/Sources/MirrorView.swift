@@ -23,6 +23,7 @@ struct MirrorView: View {
     @ObservedObject var link: MirrorLink
     @State private var image: CGImage?
     @State private var seen = 0
+    @State private var picking = false
 
     var body: some View {
         ZStack {
@@ -38,6 +39,11 @@ struct MirrorView: View {
                 VStack(spacing: 8) {
                     Text(title).font(.headline)
                     Text(detail).font(.footnote).multilineTextAlignment(.center)
+                    if link.state == .searching || link.bluetooth {
+                        Button("Bluetooth…") { picking = true }
+                            .buttonStyle(.bordered)
+                            .tint(.white)
+                    }
                 }
                 .foregroundStyle(.white)
                 .padding()
@@ -45,6 +51,17 @@ struct MirrorView: View {
                 .padding()
             }
         }
+        .overlay(alignment: .bottomTrailing) {
+            if link.state == .mirroring {
+                Button { picking = true } label: {   // (the link in use; a tap: the Bluetooth sheet)
+                    Image(systemName: link.bluetooth ? "dot.radiowaves.left.and.right" : "cable.connector")
+                        .font(.footnote)
+                        .foregroundStyle(.white.opacity(0.35))
+                        .padding(12)
+                }
+            }
+        }
+        .sheet(isPresented: $picking) { BluetoothPicker() }
         .statusBarHidden()
         .persistentSystemOverlays(.hidden)
         .task { await draw() }
@@ -61,8 +78,8 @@ struct MirrorView: View {
 
     private var detail: String {
         switch link.state {
-        case .searching: "A USB cable from the iPhone to the FM-1 (USB-C, or Lightning with the camera adapter)."
-        case .asking: "Waiting for the FM-1 to answer."
+        case .searching: "A USB cable from the iPhone to the FM-1 (USB-C, or Lightning with the camera adapter), or Bluetooth: SYSTEM > Bluetooth on the FM-1, then connect it here."
+        case .asking: link.bluetooth ? "Waiting for the FM-1 to answer over Bluetooth." : "Waiting for the FM-1 to answer."
         case .noMirror: "Build the firmware with the builder item ED_MIRROR (under the web editor) and install it."
         case .mirroring: ""
         }

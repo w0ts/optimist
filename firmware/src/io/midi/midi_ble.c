@@ -30,13 +30,25 @@ static uint8_t ble_on;                         /* SYSTEM > Bluetooth: the radio 
 static uint8_t ble_held[16][16];               /* the notes a central has on (bit per note, per channel), TIMER5's */
 static volatile uint8_t ble_release;           /* the link is gone / off: end those notes (ble_midi_poll) */
 static uint8_t ble_was_conn;
+#if MIR_BLE                                    /* the screen mirrored (io/editor/ed_mirror.c): its frames go out between the channel messages */
+static int mir_ble_peek(uint32_t *pkt);
+static void mir_ble_pop(void);
+static int mir_ble_mid(void);
+static void mir_ble_flush(void);
+static void mir_ble_rx(uint32_t pkt);
+static uint8_t bmo_mir;                         /* the packet peeked is the mirror's */
+#endif
 
 BLE_API void ble_app_state(void)               /* the BLE interrupts, or boot / the menu with them held */
 {
     uint8_t c = (uint8_t)ble_connected();
     ble_out_on = (uint8_t)ble_midi_ready();
-    if (!ble_out_on)
+    if (!ble_out_on) {
         bmo_r = bmo_w;                          /* nothing waits for a central that does not listen */
+#if MIR_BLE
+        mir_ble_flush();
+#endif
+    }
     if (ble_was_conn && !c)
         ble_release = 1;                        /* its notes are not ended by a note-off that will never come */
     ble_was_conn = c;
@@ -44,6 +56,13 @@ BLE_API void ble_app_state(void)               /* the BLE interrupts, or boot / 
 
 BLE_API int ble_app_midi_peek(uint32_t *pkt, uint32_t *t_ms)
 {
+#if MIR_BLE
+    bmo_mir = (uint8_t)((mir_ble_mid() || bmo_r == bmo_w) && mir_ble_peek(pkt));   /* (a frame begun first: a channel message would end it) */
+    if (bmo_mir) {
+        *t_ms = fm1_ms;
+        return 1;
+    }
+#endif
     if (bmo_r == bmo_w)
         return 0;
     RING_PUBLISH();                             /* the slot read after the index (the audio ISR fills it) */
@@ -54,6 +73,13 @@ BLE_API int ble_app_midi_peek(uint32_t *pkt, uint32_t *t_ms)
 
 BLE_API void ble_app_midi_pop(void)
 {
+#if MIR_BLE
+    if (bmo_mir) {
+        bmo_mir = 0;
+        mir_ble_pop();
+        return;
+    }
+#endif
     RING_PUBLISH();
     bmo_r++;
 }
@@ -73,6 +99,12 @@ static struct {
 BLE_API void ble_app_midi_in(uint32_t pkt, uint16_t ts, uint16_t last_ts)
 {
     uint32_t cin = pkt & 15u;
+#if MIR_BLE
+    if (ble_on && cin >= 4u && cin <= 7u) {
+        mir_ble_rx(pkt);                        /* (SysEx: only the mirror's request is taken) */
+        return;
+    }
+#endif
     if (!ble_on || !(ble_midi_route & BLE_ROUTE_IN)) {
         BLE_DG(ble_mdg.off++);
         return;
