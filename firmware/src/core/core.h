@@ -307,9 +307,23 @@ enum { LT_OFF, LT_PIT, LT_FLT, LT_SHP, LT_AMP, LT_RES, LT_PAN, LT_LVL, LT_ATK, L
 /* RATE below 0 (voice.c lfo_inc): one cycle per note value of the tempo, longest first, as SLOOP 2.6's LFO 2 SYNC
  * (after Felucca 1.4 by Leo Kuroshita): its P_LSYNC n (0 OFF, 1..10) is our RATE -n; with SYNC on its RATE is not
  * heard. LRATE_OF_SLOOP: its SYNC and RATE -> our RATE; SLOOP_LSYNC_OF: our RATE -> its SYNC (its RATE: ours, 0..127) */
-#define LSYNC_N 10
-#define LRATE_OF_SLOOP(lsync, rate) ((lsync) > 0 && (lsync) <= LSYNC_N ? -(int32_t)(lsync) : (int32_t)(rate))
-#define SLOOP_LSYNC_OF(rate) ((rate) < 0 ? -(int32_t)(rate) : 0)
+#define DUR_N 22                /* the note values of the tempo (DUR_48 below): RATE -1 .. -22 */
+#define LSYNC_N DUR_N
+/* (2026-10-22: RATE -n is DUR index n - 1, not SLOOP's n: SLOOP 2.6's 10 values are DUR indices SLOOP_LSYNC_DUR[n - 1]) */
+static const uint8_t SLOOP_LSYNC_DUR[10] = {0, 2, 4, 7, 10, 13, 15, 16, 18, 19};   /* 4BAR 2BAR 1BAR 1/2 1/4 1/8 8T 1/16 16T 1/32 */
+#define LRATE_OF_SLOOP(lsync, rate) ((lsync) > 0 && (lsync) <= 10 ? -(int32_t)SLOOP_LSYNC_DUR[(lsync) - 1] - 1 : (int32_t)(rate))
+static int32_t sloop_lsync_of(int32_t rate)    /* our RATE -> SLOOP's SYNC 0..10: a value it has not, the nearest it has */
+{
+    int32_t d = -rate - 1, i, best = 1;
+    if (rate >= 0)
+        return 0;
+    for (i = 2; i <= 10; i++)
+        if ((SLOOP_LSYNC_DUR[i - 1] > d ? SLOOP_LSYNC_DUR[i - 1] - d : d - SLOOP_LSYNC_DUR[i - 1]) <
+            (SLOOP_LSYNC_DUR[best - 1] > d ? SLOOP_LSYNC_DUR[best - 1] - d : d - SLOOP_LSYNC_DUR[best - 1]))
+            best = i;
+    return best;
+}
+#define SLOOP_LSYNC_OF(rate) sloop_lsync_of(rate)
 #define P_TAIL 1                /* a track has values after P_E7 (P_ENG_END .. P_COUNT - 1): none stored with it, none part
                                  * of a sound but the envelopes' slots (param_kept) */
 
@@ -663,35 +677,48 @@ static volatile uint32_t clk_beat, clk_pos;
 /* the units the clock moves in the block being rendered (events_block: n x BPM, nudged, or what an external clock
  * moved while playing; stopped: n x BPM): a synced LFO's step (voice.c lfo_inc) */
 static uint32_t clk_blk;
-static const uint8_t DIV_DEN[6] = {1, 2, 4, 8, 3, 6};    /* N_DIV: beats = 1 / DEN */
-#define NDIV_SHORT 6u            /* the divisions inside a beat (N_DIV: the arp's RATE, the delay's TIME) */
-#if FELUCCA_DIV_LONG
-/* SLOOP 2.4 (isod89/sloop-fm1 8d3823f): SEQ DIV (N_SDIV) + 1/2 note, a bar, two bars (whole beats: DIV_BEATS) */
-#define NDIV_STEP 9u
-static const uint8_t DIV_BEATS[3] = {2, 4, 8};
+/* DURATIONS (2026-10-22, the user: "why not 4 dot, 2 dot ?, actually why not all integers ?"): one table of every note value of
+ * the tempo, longest first, shared by the arp's RATE, SEQ DIV, the delay's TIME, a synced LFO's RATE (-(i + 1): LSYNC_N), the
+ * slicer's and the gater's step and ROLL: a value is an index (params.c N_DUR). Its length in 48ths of a beat (a beat is a
+ * quarter note: BEAT_U / 48 is whole at 44.1 and 48 kHz, so is every dotted and triplet value): 1/64 3, 1/32 6, 1/16 12, 1/8 24, 1/4 48,
+ * 1/2 96, 1BAR 192; a triplet is 2/3 of the value, a dotted one 3/2 of it; then 2, 3 and 4 bars */
+#define DUR_LIST(X) X(768) X(576) X(384) X(288) X(192) X(144) X(128) X(96) X(72) X(64) X(48) X(36) X(32) X(24) X(18) X(16) X(12) X(9) \
+                    X(8) X(6) X(4) X(3)
+#define DUR_ENTRY(d) d,
+static const uint16_t DUR_48[DUR_N] = {DUR_LIST(DUR_ENTRY)};
+#define DUR_U48 (BEAT_U / 48u)
+#define DUR_SWING 0x292400u      /* the straight values of a beat or less (1/4 1/8 1/16 1/32 1/64: indices 10 13 16 19 21): they swing */
+#define NDIV_STEP DUR_N
+#define DUR_DEF_16 16u           /* 1/16 */
+#define DUR_DEF_8 13u            /* 1/8 */
 AINL uint32_t div_units(uint32_t div)   /* (inlined: the ISR, in RAM code, calls it) */
 {
-    return div < NDIV_SHORT ? BEAT_U / DIV_DEN[div] : BEAT_U * DIV_BEATS[(div - NDIV_SHORT) % 3u];
+    return DUR_U48 * DUR_48[div % DUR_N];
 }
-#else
-#define NDIV_STEP 6u
-static uint32_t div_units(uint32_t div) { return BEAT_U / DIV_DEN[div % 6u]; }
-#endif
-/* length of one division (N_DIV / N_SDIV order) in samples at the song tempo (rounded down) */
+/* length of one division (N_DUR order) in samples at the song tempo (rounded down) */
 static uint32_t div_samples(uint32_t div)
 {
     return div_units(div) / (uint32_t)song.g[G_BPM];
 }
-#if FELUCCA_DLY_DOT
-/* SLOOP 2.4: the delay's TIME (N_DLY) in clock units: the N_DIV values, then 1/8 dotted, 1/16 dotted */
-AINL uint32_t dly_units(uint32_t d)
-{
-    return d < NDIV_SHORT ? BEAT_U / DIV_DEN[d] : d == NDIV_SHORT ? BEAT_U * 3u / 4u : BEAT_U * 3u / 8u;
-}
+#define dly_units(d) div_units(d)
 AINL uint32_t dly_samples(uint32_t d) { return dly_units(d) / (uint32_t)song.g[G_BPM]; }
-#else
-#define dly_samples(d) div_samples(d)
-#endif
+/* SLOOP 2.4 / 2.7's note-value indices (its arp RATE 0..5: 1/4 1/8 1/16 1/32 8T 16T, SEQ DIV 0..8: + 1/2 1BAR 2BAR, the delay's TIME
+ * 0..7: + 1/8D 1/16D, ROLL 0..4: 1/8 1/16 1/32 32T 1/64) -> DUR indices on import, and back on export (a value it has not: the
+ * nearest it has, by length) */
+static const uint8_t SLOOP_DIV_DUR[9] = {10, 13, 16, 19, 15, 18, 7, 4, 2};
+static const uint8_t SLOOP_DLY_DUR[8] = {10, 13, 16, 19, 15, 18, 11, 14};
+static const uint8_t SLOOP_ROLL_DUR[5] = {13, 16, 19, 20, 21};
+static int32_t sloop_dur_in(const uint8_t *tab, uint32_t n, int32_t v) { return tab[(uint32_t)v < n ? (uint32_t)v : 0u]; }
+static int32_t sloop_dur_out(const uint8_t *tab, uint32_t n, int32_t dur)
+{
+    uint32_t i, best = 0, d = DUR_48[(uint32_t)dur % DUR_N], e, be = 0xFFFFu;
+    for (i = 0; i < n; i++) {
+        e = DUR_48[tab[i]] > d ? DUR_48[tab[i]] - d : d - DUR_48[tab[i]];
+        if (e < be)
+            be = e, best = i;
+    }
+    return (int32_t)best;
+}
 /* the sample of the block a sequenced note starts at (clock_sync.c, following an external clock): the
  * clock is at the block's end, ev_map maps positions back into it. ev_at(ago): an event due ago units before
  * the clock -> ev_ofs, read by voice_start / drum_on (the voice renders from that sample). 0 otherwise. */

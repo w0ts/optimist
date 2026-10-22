@@ -817,7 +817,7 @@ static struct {
 static const param_desc_t UT_DESC[UTV_N] = {
     PD("VOLUME", F_DB, 0, 127, UT_LVL_DEF), PD("PAN", F_BIPCT, -64, 63, 0), PE("MUTE", N_ONOFF, 0), PE("FX ON", N_ONOFF, 1),
     PD("REV", F_PCT, 0, 127, 0), PD("DLY", F_PCT, 0, 127, 0), PD("CHO", F_PCT, 0, 127, 0),
-    PE("PAT", N_TGPAT, 8), PE("RATE", N_SLDIV, 1), PD("SHAPE", F_PCT, 0, 127, 0),   /* (as a track's GATER: params.c TP) */
+    PE("PAT", N_TGPAT, 8), PE("RATE", N_SLDIV, DUR_DEF_16), PD("SHAPE", F_PCT, 0, 127, 0),   /* (as a track's GATER: params.c TP) */
     PE("MODE", N_TJMODE, 0)};                           /* (as a track's JUNO CHORUS) */
 #define ut_vd(i) (&UT_DESC[(i) % UTV_N])                /* value i's descriptor */
 static void ut_defaults(void)

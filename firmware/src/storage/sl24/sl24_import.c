@@ -380,6 +380,8 @@ static int proj_from_sl24(project_t *q, const void *b, int n, stepx_t *x)
     q->magic = PROJ_MAGIC;
     q->size = sizeof *q;
     memcpy(q->g, c + 8, sizeof q->g);
+    q->g[G_DTIME] = (int16_t)sloop_dur_in(SLOOP_DLY_DUR, 8, q->g[G_DTIME]);    /* (its note values: ours, core.h DUR_48) */
+    q->g[G_ROLL] = (int16_t)sloop_dur_in(SLOOP_ROLL_DUR, 5, q->g[G_ROLL]);
     q->g[G_VIEW] = GP[G_VIEW].def;                      /* (their G_ROUTE) */
     q->g[G_INFO] = 0;                                   /* (ours: REC QUANTIZE ON, project.c RECQ_PACK; 2.4's: unknown) */
     q->sel = c[8u + sizeof q->g];
@@ -390,6 +392,8 @@ static int proj_from_sl24(project_t *q, const void *b, int n, stepx_t *x)
         memcpy(e, s, sizeof e);
         for (k = 0; k < P_COUNT; k++)
             v[k] = k < SL24_COMMON ? e[k] : k >= P_E0 && k < P_ENG_END ? e[SL24_E0 + k - P_E0] : TP[k].def;
+        v[P_ARATE] = (int16_t)sloop_dur_in(SLOOP_DIV_DUR, 6, v[P_ARATE]);       /* (its note values: ours, core.h DUR_48) */
+        v[P_SDIV] = (int16_t)sloop_dur_in(SLOOP_DIV_DUR, 9, v[P_SDIV]);
 #if SL24_TP
 #if TFLT_ON
         px[i][0] = (int16_t)clamp(e[SL24_TFLT], TP[P_TFLT].min, TP[P_TFLT].max);

@@ -3,7 +3,7 @@
  * instance a track (the parts, the drum bus: one gain on its L and R), a few bytes each: any number at once.
  *   DEPTH   P_TGATE, the slot's amount (0 off): how far a closed step closes, 127 silent
  *   PATTERN P_TGPAT, one of IGT_NPAT built-in patterns of 16 steps (IGT_PAT; names: params.c N_TGPAT)
- *   RATE    P_TGRATE, a step: 1/8 1/16 1/32 8T 16T 32T (params.c N_SLDIV, the SLICER's)
+ *   RATE    P_TGRATE, a step: any note value of the tempo (core.h DUR_48, params.c N_DUR, the SLICER's)
  *   SHAPE   P_TGSHP, 0 hard .. 127 smooth: the gain's ramps, ~1.1 ms (the shortest, no click) up to half a step
  * A step 'x' is a pulse: open from its start to its end, or to its middle when the next step is an 'x' too (a gap
  * between two pulses: xxxx at 1/16 chops in sixteenths); '.' closed. The gain follows the open / closed target at
@@ -35,12 +35,17 @@ static const uint16_t IGT_PAT[IGT_NPAT] = {
     0x1449,   /* 14 CLAVE x..x..x...x.x...  son clave 3-2 */
     0x4949,   /* 15 TRESL x..x..x.x..x..x.  tresillo, twice */
 };
-/* RATE: steps a beat; the phase is Q32 over the 16 steps (2^28 a step): a beat moves it DEN 2^28, a clock unit
- * (BEAT_U a beat) DEN 2^28 / BEAT_U = (IGT_K >> 21) */
-static const uint8_t IGT_DEN[6] = {2, 4, 8, 3, 6, 12};
-#define IGT_K(d) ((uint32_t)(((uint64_t)(d) << 49) / BEAT_U))   /* (constants: d 2^49 / BEAT_U < 2^32) */
-static const uint32_t IGT_KC[6] = {IGT_K(2), IGT_K(4), IGT_K(8), IGT_K(3), IGT_K(6), IGT_K(12)};
-_Static_assert(BEAT_U < (1u << 22) && IGT_K(12) > IGT_K(8), "clk_pos IGT_KC < 2^54, IGT_K(12) < 2^32");
+/* RATE: a DUR index (core.h: the step is DUR_48 48ths of a beat); the phase is Q32 over the 16 steps (2^28 a step): a clock unit moves it
+ * 2^28 / (the step's units) = (IGT_KC >> 21); igt_phase counts the 48ths exactly, so a dotted step keeps its place from beat to beat */
+#define IGT_KE(d) (uint32_t)((1ull << 49) / ((uint64_t)DUR_U48 * (d))),   /* (constants: 2^49 / the step's units < 2^32) */
+static const uint32_t IGT_KC[DUR_N] = {DUR_LIST(IGT_KE)};
+_Static_assert(BEAT_U < (1u << 22) && (1ull << 49) / ((uint64_t)DUR_U48 * 3u) < (1ull << 32), "clk_pos IGT_KC < 2^54, the shortest < 2^32");
+AINL uint32_t igt_phase(uint32_t r, uint32_t beat, uint32_t pos)   /* the Q32 phase at beat and pos units into it */
+{
+    uint32_t d = DUR_48[r % DUR_N];
+    uint64_t tot = (uint64_t)beat * 48u + pos / DUR_U48;
+    return (uint32_t)((tot << 28) / d) + (uint32_t)(((uint64_t)(pos % DUR_U48) * IGT_KC[r % DUR_N]) >> 21);
+}
 #define IGT_STEP (1u << 28)
 #define IGT_PAIR (2u * IGT_STEP)
 #define IGT_SMAX (32768 / 48)                           /* the steepest slope: 48 samples (1.1 ms) from open to closed */
@@ -76,14 +81,14 @@ typedef struct {
 /* the even step's length in a pair (Q32 phase): a step, the swing's units more on track t's own straight grid */
 AINL uint32_t igt_swing(const track_t *t, uint32_t r)
 {
-    uint32_t d = (uint32_t)t->p[P_SDIV];
-    if (r >= 3u || d >= 4u || DIV_DEN[d] != IGT_DEN[r])
+    uint32_t d = (uint32_t)t->p[P_SDIV] % DUR_N;
+    if (d != r || !((DUR_SWING >> d) & 1u))
         return IGT_STEP;
     return IGT_STEP + (uint32_t)clamp(t->p[P_SSWING] + song.g[G_SWING], 0, 100) * (IGT_STEP / 200u);
 }
 AINL void igt_par_trk(const track_t *t, igt_par_t *p)   /* track t's GATER values */
 {
-    p->rt = (uint32_t)t->p[P_TGRATE] % 6u;
+    p->rt = (uint32_t)t->p[P_TGRATE] % DUR_N;
     p->pat = (uint32_t)t->p[P_TGPAT] % IGT_NPAT;
     p->shp = (uint32_t)t->p[P_TGSHP];
     p->b1 = igt_swing(t, p->rt);
@@ -91,10 +96,10 @@ AINL void igt_par_trk(const track_t *t, igt_par_t *p)   /* track t's GATER value
 #if FELUCCA_USB_AUDIO
 AINL void igt_par_ut(igt_par_t *p)                     /* the USB input's: its own values; the global SWING on RATE 1/16 */
 {
-    p->rt = (uint32_t)ut.v[UTV_GRATE] % 6u;
+    p->rt = (uint32_t)ut.v[UTV_GRATE] % DUR_N;
     p->pat = (uint32_t)ut.v[UTV_GPAT] % IGT_NPAT;
     p->shp = (uint32_t)ut.v[UTV_GSHP];
-    p->b1 = IGT_DEN[p->rt] != 4u ? IGT_STEP : IGT_STEP + (uint32_t)clamp(song.g[G_SWING], 0, 100) * (IGT_STEP / 200u);
+    p->b1 = p->rt != DUR_DEF_16 ? IGT_STEP : IGT_STEP + (uint32_t)clamp(song.g[G_SWING], 0, 100) * (IGT_STEP / 200u);
 }
 #endif
 /* the block's phase at its first sample, a sample's step, the slope of SHAPE shp (flash, FAR: its 64-bit products stay
@@ -104,7 +109,7 @@ static __attribute__((noinline)) void igt_block(ifx_gt_t *s, uint32_t shp, uint3
     uint32_t kc = IGT_KC[r], d = (uint32_t)(((uint64_t)clk_blk * kc) >> 21), p0;
     if (song.playing) {
         uint32_t beat = clk_beat, pos = clk_pos;        /* (at the block's end: events_block ran) */
-        p0 = beat * ((uint32_t)IGT_DEN[r] << 28) + (uint32_t)(((uint64_t)pos * kc) >> 21) - d;
+        p0 = igt_phase(r, beat, pos) - d;
     } else {
         p0 = s->ph;
     }
@@ -171,9 +176,9 @@ static void igt_profile(const track_t *t, uint8_t *g)
  * gate is not run, still shows it); stopped: its phase at the end of the last block, which runs on */
 static uint32_t igt_step(uint32_t k)
 {
-    uint32_t r = (uint32_t)trk[k % NTRK].p[P_TGRATE] % 6u, ph;
+    uint32_t r = (uint32_t)trk[k % NTRK].p[P_TGRATE] % DUR_N, ph;
     if (song.playing)
-        ph = clk_beat * ((uint32_t)IGT_DEN[r] << 28) + (uint32_t)(((uint64_t)clk_pos * IGT_KC[r]) >> 21);
+        ph = igt_phase(r, clk_beat, clk_pos);
     else
         ph = ifx_gate[k % NTRK].ph;
     return (ph >> 28) & 15u;

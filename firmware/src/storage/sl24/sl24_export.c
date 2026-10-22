@@ -119,13 +119,12 @@ static uint32_t sl24_fm6_ptch(const project_t *q, uint32_t k, uint32_t *lost)
  * nearest it at bpm, on a log scale (above the geometric mean of two neighbours: the upper one); a free one as it is */
 static int32_t sl24_rate_out(int32_t r, int32_t bpm)
 {
-    static const uint16_t LSYNC_P[LSYNC_N] = {384, 192, 96, 48, 24, 12, 8, 6, 4, 3};   /* (voice.c LSYNC_KT's) */
     uint64_t p, t;
     int32_t i;
     if (r >= 0)
         return r;
-    p = LSYNC_P[(uint32_t)(-r - 1) < LSYNC_N ? (uint32_t)(-r - 1) : 0u];
-    t = (uint64_t)(bpm > 0 ? bpm : 1) * 40u;           /* the note value's Hz x 100, times p */
+    p = DUR_48[(uint32_t)(-r - 1) < LSYNC_N ? (uint32_t)(-r - 1) : 0u];   /* (a cycle in 48ths of a beat, core.h) */
+    t = (uint64_t)(bpm > 0 ? bpm : 1) * 20u;           /* the note value's Hz x 100, times p */
     for (i = 1; i < 128 && LFO_HZ_X100[i] * p < t; i++)
         ;
     if (i == 128)
@@ -195,6 +194,10 @@ static int32_t sl24_g_out(const project_t *q, uint32_t i)
         return 0;
     if (i == G_DCOLOR)
         return dly_color_out(v);                        /* (our FREQ: 2.4's COLOR, project.c) */
+    if (i == G_DTIME)
+        return sloop_dur_out(SLOOP_DLY_DUR, 8, v);      /* (our note values: its, core.h DUR_48) */
+    if (i == G_ROLL)
+        return sloop_dur_out(SLOOP_ROLL_DUR, 5, v);
     return i == G_DRREV && v < 0 ? 16 : v;
 }
 
@@ -209,6 +212,8 @@ static uint32_t sl24_trk_out(const project_t *q, uint32_t k, const int16_t *px, 
     for (i = 0; i < SL24_COMMON; i++)
         sl24_w16(o + 2u * i, v[i]);
     sl24_w16(o + 2u * P_LRATE, sl24_rate_out(v[P_LRATE], q->g[G_BPM]));
+    sl24_w16(o + 2u * P_ARATE, sloop_dur_out(SLOOP_DIV_DUR, 6, v[P_ARATE]));   /* (our note values: its, core.h DUR_48) */
+    sl24_w16(o + 2u * P_SDIV, sloop_dur_out(SLOOP_DIV_DUR, 9, v[P_SDIV]));
     lost |= v[P_LRATE] < 0 ? SX24_LSYNC : 0u;
     if (k < NPART) {                                    /* LFO DEST's slots as 2.4's depths (SX24_LFODEST: not all); the
                                                          * slots: the project's modulation record, else its words */
