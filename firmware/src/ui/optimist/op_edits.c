@@ -96,6 +96,34 @@ static void work_mark(void)                             /* the work is as stored
     edt.work_ok = 1;
     snd_mark_all();
 }
+/* a project load / save asked while playing (the user, 2026-10-21: "just stop the transport and start it again"): the
+ * transport stops, the operation runs once it has stopped (a flash write stops the audio), then PLAY again */
+static int8_t prj_cur = -1;                             /* the project slot loaded or saved last (-1: none, NEW or power-on): the PROJECT page
+                                                         * opens on it, so that a SAVE asks for that slot (the user, 2026-10-21) */
+static uint8_t pj_op, pj_slot;                          /* 1 load, 2 save (the slot); 0 none */
+static void pj_defer(uint32_t op, uint32_t slot)
+{
+    pj_op = (uint8_t)op;
+    pj_slot = (uint8_t)slot;
+    transport_req = 2;
+}
+static void pj_tick(void)                               /* once a frame (lay_frame) */
+{
+    uint32_t op = pj_op;
+    if (!op || song.playing || transport_req)
+        return;
+    pj_op = 0;
+    if (op == 1u) {
+        project_load(pj_slot);
+        prj_cur = (int8_t)pj_slot;
+        work_mark();
+    } else {
+        project_save(pj_slot);
+        prj_cur = (int8_t)pj_slot;
+        work_mark();
+    }
+    transport_req = 1;
+}
 static int work_changed(void) { return edt.work_ok && edt.work != work_sig(); }
 static void ed_tick(void)                               /* once a frame: another sound is a fresh one (no hash) */
 {

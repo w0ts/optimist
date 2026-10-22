@@ -163,7 +163,7 @@ static void mixer_sets_tests(void)
         check(!TFLT_ON || c.d == &TP[FXT_AMT[FXT_FILT]], "... S2's amount the track's FILTER");
         mx.set = 2;
         mix_cell(MXR_T1, 0, &c);
-        check(!FELUCCA_FX_REVERB || c.d == &TP[P_REV], "the third set, the sends: REV first (in a slot), then DLY CHO");
+        check(!FELUCCA_FX_CHORUS || c.d == &TP[P_CHOR], "the third set, the sends: CHO first (in a slot), then DLY REV");
 #if FELUCCA_MASTER_COMP
         ui.row[SCR_HOME] = MXR_T1;
         mx.set = 1;
@@ -214,33 +214,33 @@ static void mixer_sets_tests(void)
         mx.set = 0;
     }
     check(mx_labels(MXR_DR, 0, "VOLUME", 0, 0, 0) && mx_labels(MXR_DR, 1, "S1", 0, "S2", 0) &&
-              (!FELUCCA_FX_REVERB || mx_labels(MXR_DR, 2, "REV", 0, 0, 0)),
-          "DR: VOLUME, its insert slots, its send levels (REV DLY CHO); no MUTE, no FX ON, no KIT card");
+              (!FELUCCA_FX_CHORUS || mx_labels(MXR_DR, 2, "CHO", 0, 0, 0)),
+          "DR: VOLUME, its insert slots, its send levels (CHO DLY REV); no MUTE, no FX ON, no KIT card");
     {   /* the drum track's send levels (2026-10-12, "it should be like any other track"): 100 % by default */
         cell_t c;
         int16_t v0 = dsend_kit[0];
         mx.set = 2;
         mix_cell(MXR_DR, 0, &c);
-        check(!FELUCCA_FX_REVERB || (c.vp == &dsend_kit[0] && !strcmp(c.val, "100") && c.d->fmt == F_PCT),
-              "... DR's REV: the drum track's REV level, a level (100 %), not ON / OFF");
+        check(!FELUCCA_FX_CHORUS || (c.vp == &dsend_kit[2] && !strcmp(c.val, "100") && c.d->fmt == F_PCT),
+              "... DR's CHO: the drum track's CHO level, a level (100 %), not ON / OFF");
         dsend_kit[0] = v0;
         mx.set = 0;
     }
     check(mx_labels(MXR_LANE0 + 2u, 0, "LEVEL", "CUT", "DRIVE", 0) &&
               (!FELUCCA_FX_DIST || mx_labels(MXR_LANE0 + 2u, 1, "S1", "DST", "S2", FELUCCA_MASTER_COMP ? "DYN" : 0)),
           "a lane: LEVEL CUT DRIVE (no MUTE card), then its two insert slots S1 DST, S2 DYN (fx-rework: always heard)");
-    check(!FELUCCA_FX_DIST || mx_labels(MXR_LANE0 + 2u, 2, "REV", "DLY", "CHO", 0),
-          "... then REV DLY CHO (no SOUND card)");
+    check(!FELUCCA_FX_DIST || mx_labels(MXR_LANE0 + 2u, 2, "CHO", "DLY", "REV", 0),
+          "... then CHO DLY REV (no SOUND card)");
     mst_defaults();
     check(mx_labels(MXR_MASTER, 0, "S1", 0, "S2", 0) &&
               (!FELUCCA_MASTER_COMP || mx_labels(MXR_MASTER, 1, "THRS", "RATIO", "GAIN", "CEIL")) &&
-              mx_labels(MXR_MASTER, FELUCCA_MASTER_COMP ? 2 : 1, "REV RET", "DLY RET", "CHO RET", 0) &&
-              mx_labels(MXR_MASTER, FELUCCA_MASTER_COMP ? 3 : 2, 0, "DLY", "CHO", 0) &&
-              mx_labels(MXR_MASTER, FELUCCA_MASTER_COMP ? 4 : 3, FELUCCA_RET_FB ? "REV" : 0, 0, "CHO", 0) &&
-              (!FELUCCA_RET_FB || mx_labels(MXR_MASTER, FELUCCA_MASTER_COMP ? 5 : 4, "REV", "DLY", 0, 0)) &&
+              mx_labels(MXR_MASTER, FELUCCA_MASTER_COMP ? 2 : 1, "CHO RET", "DLY RET", "REV RET", 0) &&
+              mx_labels(MXR_MASTER, FELUCCA_MASTER_COMP ? 3 : 2, 0, "DLY", "REV", 0) &&
+              mx_labels(MXR_MASTER, FELUCCA_MASTER_COMP ? 4 : 3, FELUCCA_RET_FB ? "CHO" : 0, 0, "REV", 0) &&
+              (!FELUCCA_RET_FB || mx_labels(MXR_MASTER, FELUCCA_MASTER_COMP ? 5 : 4, "CHO", "DLY", 0, 0)) &&
               mx_labels(MXR_MASTER, (FELUCCA_MASTER_COMP ? 5 : 4) + FELUCCA_RET_FB, "DUCK", 0, 0, 0),
           "MASTER: its insert slots (S1 FILT, S2 DYN), DYN's THRS RATIO GAIN CEIL, the returns (a card a send a slot holds: "
-          "REV DLY CHO RET, the one order), A's sends (B DLY, C CHO), B's (C CHO; RET_FB: A REV too), RET_FB: C's (A REV, B DLY), "
+          "CHO DLY REV RET, the one order), A's sends (B DLY, C REV), B's (C REV; RET_FB: A CHO too), RET_FB: C's (A CHO, B DLY), "
           "DUCK (fx-rework)");
     {   /* the sends between the returns (2026-10-16, fx_slots.c rs_amt): a set a return that sends, a track's sends grammar
          * (card k is return k's, blank where none: the return itself, one to its left; card 4 no PAN) */
@@ -281,7 +281,7 @@ static void mixer_sets_tests(void)
         n = mx_items(MXR_MASTER, it);
         for (i = 0, ok = 1; i < n; i++)
             ok &= it[i].grp != MG_RSB;
-        check(ok && mx_labels(MXR_MASTER, sa, 0, 0, "CHO", 0), "B empty: A SENDS has only C's card, no B SENDS set");
+        check(ok && mx_labels(MXR_MASTER, sa, 0, 0, "REV", 0), "B empty: A SENDS has only C's card, no B SENDS set");
         fxs_load(1, FXT_NONE);
         n = mx_items(MXR_MASTER, it);
         for (i = 0, ok = 1; i < n; i++)
@@ -323,21 +323,21 @@ static void mixer_sets_tests(void)
         head_title(SCR_HOME, MXR_MASTER, h, sizeof h);
         check(!strcmp(h, "Returns"), "MASTER's last set: the header names it (Returns, under the MASTER badge)");
         mix_cell(MXR_MASTER, 0, &c);
-        check(c.d == &GP[G_RRET] && !strcmp(c.val, "100") && c.d->def == 127, "... KNOB 1 REV RET, at unity (100 %) by default");
+        check(c.d == &GP[G_CRET] && !strcmp(c.val, "100") && c.d->def == 127, "... KNOB 1 CHO RET, at unity (100 %) by default");
         mix_cell(MXR_MASTER, 3, &c);
         check(!c.d && !c.label && !c.val[0], "... KNOB 4: no send left, the knob's frame alone (no \"-\": the audit's #7)");
         turn(EN_K1, -5);
-        check(song.g[G_RRET] < r0 && song.g[G_CRET] == c0 && song.g[G_DRET] == d0, "... KNOB 1 turned: REV RET down (song.g), the others kept");
+        check(song.g[G_CRET] < c0 && song.g[G_RRET] == r0 && song.g[G_DRET] == d0, "... KNOB 1 turned: CHO RET down (song.g), the others kept");
         turn(EN_K4, -5);
-        check(song.g[G_CRET] == c0 && song.g[G_DRET] == d0, "... KNOB 4 on the empty card: nothing");
+        check(song.g[G_RRET] == r0 && song.g[G_DRET] == d0, "... KNOB 4 on the empty card: nothing");
         turn(EN_K3, -3);
-        check(song.g[G_CRET] < c0, "... KNOB 3 (CHO RET): CHO RET down");
-        fxs_load(1, FXT_NONE);                          /* REV in no slot: no card for its return, DLY and CHO move up */
+        check(song.g[G_RRET] < r0, "... KNOB 3 (REV RET): REV RET down");
+        fxs_load(1, FXT_NONE);                          /* CHO in no slot: no card for its return, DLY and REV move up */
         for (k = 0; k < 4u; k++) {
             mix_cell(MXR_MASTER, k, &c);
-            any |= c.d == &GP[G_RRET];
+            any |= c.d == &GP[G_CRET];
         }
-        check(!any && mx_labels(MXR_MASTER, rs, "DLY RET", "CHO RET", 0, 0), "... REV in no slot: no card for its return");
+        check(!any && mx_labels(MXR_MASTER, rs, "DLY RET", "REV RET", 0, 0), "... CHO in no slot: no card for its return");
         fxs_set(FXS_DEF);
         song.g[G_RRET] = r0, song.g[G_CRET] = c0, song.g[G_DRET] = d0;
         ui.row[SCR_HOME] = (uint8_t)row0;

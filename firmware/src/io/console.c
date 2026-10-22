@@ -561,6 +561,49 @@ static void con_status(void)
 #endif
 }
 
+/* `keys`: how often the keys are read, since the last `keys` (the maxima cleared): scan ticks and frames a second (10 kHz and 909 expected),
+ * the longest gap between two ticks, the debounce blips, the longest main-loop gap. Run it in the modes where the 16 keys feel dead */
+static void con_keys(void)
+{
+    static uint32_t last_ms, last_ticks, last_frames;
+    uint32_t ms = fm1_ms, dt = ms - last_ms, t = fm1_in.ticks, f = fm1_in.frames, g;
+    if (!dt)
+        dt = 1;
+    fm1_irq_off();
+    g = fm1_in.gap_max;
+    fm1_in.gap_max = 0;
+    fm1_irq_on();
+    con_kv("keys_ticks_per_s", (int32_t)((t - last_ticks) * 1000u / dt));
+    con_kv("keys_frames_per_s", (int32_t)((f - last_frames) * 1000u / dt));
+    con_kv("keys_tick_gap_max_us", (int32_t)(g / FM1_TICKS_PER_US));
+    con_kv("keys_ui_gap_max_ms", (int32_t)fm1_in.ui_gap_max);
+    con_kv("keys_press_blips", (int32_t)fm1_in.press_blips);
+    con_kv("keys_release_blips", (int32_t)fm1_in.release_blips);
+    {   /* the knobs' detents counted since power-on: tap step keys with no hand on any knob; a count that moves is a phantom turn
+         * (a knob turned while a step key is down cancels its tap: op_input.c) */
+        uint32_t e;
+        for (e = 0; e < FM1_NENC; e++) {
+            static const char *const N[FM1_NENC] = {"keys_knob0", "keys_knob1", "keys_knob2", "keys_knob3", "keys_knob4", "keys_knob5", "keys_knob6"};
+            con_kv(N[e], (int32_t)fm1_in.enc_count[e]);
+        }
+    }
+    fm1_in.ui_gap_max = 0;
+    last_ms = ms, last_ticks = t, last_frames = f;
+}
+
+/* `keylog`: the last 32 key / button edges, oldest first: id (0..13 buttons, 14..40 note keys = note + 14), P down / R up, the time
+ * since the one before in microseconds. Tap ONE step key once, then run it: a second P a few hundred us after the first is the scan */
+static void con_keylog(void)
+{
+    uint32_t n = fm1_klog_n, i, from = n > FM1_KLOG_N ? n - FM1_KLOG_N : 0u, prev = 0;
+    for (i = from; i < n; i++) {
+        uint32_t k = i % FM1_KLOG_N, id = fm1_klog_id[k] & 0x7Fu;
+        con_kv(fm1_klog_id[k] & 0x80u ? "R" : "P", (int32_t)id);
+        con_kv("  dt_us", i == from ? 0 : (int32_t)((fm1_klog_t[k] - prev) / FM1_TICKS_PER_US));
+        prev = fm1_klog_t[k];
+    }
+}
+
 static void con_dbg(void)
 {
     const uint32_t *w = (const uint32_t *)&felucca_dbg;
@@ -1030,11 +1073,15 @@ static void con_exec(const char *p)
                  "  cpu1park"
 #endif
 #endif
-                 "  uboot yes\r\n");
+                 "  keys  keylog  uboot yes\r\n");
     else if (con_word(&p, "status"))
         con_status();
     else if (con_word(&p, "dbg"))
         con_dbg();
+    else if (con_word(&p, "keys"))
+        con_keys();
+    else if (con_word(&p, "keylog"))
+        con_keylog();
     else if (con_word(&p, "crash"))
         con_crash();
     else if (con_word(&p, "boot"))

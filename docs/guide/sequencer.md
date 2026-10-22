@@ -122,7 +122,7 @@ Every step key pressed, every tool, every recording pass, erase, clear and held-
 
 ## Mute
 
-There is one mute, the sequencer's, and no solo. A muted track or lane plays no more steps, for the internal sound and for MIDI out; notes already sounding end by their gates, a muted track's locks do not apply, and keys played live still sound. Toggle it with SHIFT + a key (the first four white keys are T1 T2 T3 DR; the black keys F#3 to D#5 the 10 lanes; F#5 the ACCENT lane), SHIFT + the volume knob on the mixer, or the GLO layer's keys 1-4. The mixer strikes a muted track through. It is saved with the project.
+There is one mute, the sequencer's, and no solo. A muted track or lane plays no more steps, for the internal sound and for MIDI out; notes already sounding end by their gates, a muted track's locks do not apply, and keys played live still sound. Toggle it with SHIFT + a key (the first four white keys are T1 T2 T3 DR; the black keys F#3 to D#5 the 10 lanes; F#5 the ACCENT lane), SHIFT + the volume knob on the mixer, or the GLO layer's keys 1-4. The mixer strikes a muted track through. It is saved with the project. It never touches a track's volume or its sound mute. While SHIFT is held the keys of the tracks and lanes light when a note is playing on them. The last three white keys (E F G, not on STEP, where they are steps) mute the INPUT of returns A B C: no send reaches the return, its bus and tail run on; the RET cards' SHIFT mutes a return's output. These are saved with the project too.
 
 ## Performance macros: COLOR, MOTION, SPACE, ENERGY
 

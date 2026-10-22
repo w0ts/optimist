@@ -295,15 +295,15 @@ static int gls_info_page(void)
     int32_t ph = (GL_END - gl_y0()) / (int32_t)INFO_N < GL_INFO_PH ? (GL_END - gl_y0()) / (int32_t)INFO_N : GL_INFO_PH;
     ok &= sys_item(gl_ent(1, 0) >> 2, gl_ent(1, 0) & 3u) == SI_INFO && gl_end(1, 0) == 1u;   /* (page 1 is INFO, alone) */
     ok &= ph >= (int32_t)FONT_S.h + 6;                  /* (every read-out fits the page) */
-    song.batt_raw = 0;                                  /* the battery line: no reading says so, a reading n/3 and the raw count (no invented percentage) */
+    song.batt_raw = 0;                                  /* the battery line: no reading says so, a reading the estimated volts and percentage */
     sys_info_cell(INFO_BASE - 1u, &c);
     ok &= c.kind == CK_RO && !strcmp(c.label, "BATTERY") && !strcmp(c.val, "NO READING");
     song.batt_raw = 612;
     sys_info_cell(INFO_BASE - 1u, &c);
-    ok &= !strcmp(c.val, "3/3 612") && 1;
+    ok &= !strcmp(c.val, "~3.94V 81%");
     song.batt_raw = 540;
     sys_info_cell(INFO_BASE - 1u, &c);
-    ok &= !strcmp(c.val, "1/3 540") ;
+    ok &= !strcmp(c.val, "~3.48V 7%");
     info_mode = OVL_NOW;                                /* (the CPU line's measure: NOW; a fuzz run's KNOB 2 may have left another) */
     {   /* the CPU0 load number's colour: green under 60 %, amber 60..85, red over 85 (the guard's ceiling), text only */
         static const int32_t pc[7] = {0, 59, 60, 85, 86, 100, 150};

@@ -533,7 +533,7 @@ static void step_key(uint32_t k, uint32_t down, uint32_t held)
         if (!(st.held & bit))
             return;
         st.held &= (uint16_t)~bit;
-        if ((st.pend & bit) && fm1_ms - st.t_key[w] < op_hold_ms() && idx < trk_len(t)) {   /* tapped: toggled */
+        if ((st.pend & bit) && lk_ev_ms - st.t_key[w] < op_hold_ms() && idx < trk_len(t)) {   /* tapped: toggled */
             dstep_t *d = &t->dstep[idx];
             uint32_t l = lane_selected(), lv = dstep_lvl(d, l);
             undo_mark(t, st.sess);
@@ -578,7 +578,7 @@ static void step_key(uint32_t k, uint32_t down, uint32_t held)
         return;
     }
     if (!st.held) {
-        st.t_down = fm1_ms;                             /* (the press that may become a hold) */
+        st.t_down = lk_ev_ms;                           /* (the press that may become a hold) */
         st.nsel = 0;
         hp_reopen();                                    /* (its cards open on the page last used on this track) */
     }
@@ -586,7 +586,7 @@ static void step_key(uint32_t k, uint32_t down, uint32_t held)
     st.fdown |= (uint16_t)bit;
     st.fabs[w] = (uint8_t)idx;
     st.snap = st.snapl = 0;                             /* (a new hold: no snap pending) */
-    st.t_key[w] = fm1_ms;
+    st.t_key[w] = lk_ev_ms;                             /* (when the key went down, not when this frame got to it) */
     st.pend |= (uint16_t)bit;                           /* toggled when let go, if a tap (nothing changes on the press) */
 }
 static int32_t held_at(uint32_t w)                      /* the step white key w holds, within LEN; -1 none */

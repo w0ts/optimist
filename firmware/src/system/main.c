@@ -510,6 +510,13 @@ static BOOT_ORDER void fm1_main(void)
         }
 #endif
         felucca_dbg.ui_frames++;
+        {   /* the main loop's pass gap (console `keys`): a key waits in the queue for the next pass */
+            static uint32_t last_pass;
+            uint32_t g = fm1_ms - last_pass;
+            if (last_pass && g > fm1_in.ui_gap_max)
+                fm1_in.ui_gap_max = g;
+            last_pass = fm1_ms;
+        }
         felucca_dbg.page = ui.page;
         felucca_dbg.home = 0;                       /* (SLOOP's HOME screen is gone; the field keeps the layout) */
         felucca_dbg.stage = 1;

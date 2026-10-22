@@ -191,8 +191,8 @@ int main(void)
         printf("fx_rsend: FILT DIST DYN not all built: the order checks skipped\n");
     } else {
         la = fxs_line[1];
-        check("FILT DIST DYN into A B C: on lines 2 1 0 (REV's, DLY's, CHO's: A renders last in the buses' own order)",
-              fxs_line[1] == 2u && fxs_line[2] == 1u && fxs_line[3] == 0u);
+        check("FILT DIST DYN into A B C: on lines 0 1 2 (CHO's, DLY's, REV's: the chain runs A B C whatever the buses' own order)",
+              fxs_line[1] == 0u && fxs_line[2] == 1u && fxs_line[3] == 2u);
         sends(0, 0, 0);
         a1 = run(la);
         check("A alone: its send through (100 % wet, unity)", near(a1, 8000));

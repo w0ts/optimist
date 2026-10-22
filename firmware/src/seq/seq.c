@@ -100,11 +100,14 @@ static uint32_t layer_now(void)
 /* the keys of the layers the UI handles (steps, key, mix): key k down / up, in order */
 #define LKQ 16u
 static volatile uint16_t lk_q[LKQ];
+static volatile uint32_t lk_t[LKQ];                /* fm1_ms when each event was queued: a tap is judged by when the key went down and
+                                                    * up, not by when a slow UI frame got to the events (op_step.c step_key) */
 static volatile uint32_t lk_w, lk_r;
 static void lk_push(uint32_t layer, uint32_t k, uint32_t down)
 {
     if (lk_w - lk_r < LKQ) {
         lk_q[lk_w % LKQ] = (uint16_t)(layer << 8 | down << 7 | k);
+        lk_t[lk_w % LKQ] = fm1_ms;
         RING_PUBLISH();
         lk_w++;
     }

@@ -108,17 +108,39 @@ static int keys_shifted(uint32_t held)
     uint32_t b = mute_mod(held) ? B_OCTDN : sel_mod(held) ? B_OCTUP : NB;
     return b != NB && fm1_ms - op_t0[panel.btn[b] % 14u] >= op_hold_ms();
 }
+/* a note sounding on what a smute_key value names (the user, 2026-10-21: "if there is a note playing on, if not, off"): a track's
+ * sequencer notes held (seq_n), DR any lane's hit still lit, a lane its own hit (mx.lit, op_mixer.c mx_tick) */
+static uint32_t mute_playing(int32_t id)
+{
+    uint32_t l, any = 0;
+    if (id == SMUTE_T0 + TRK_DRUM) {
+        for (l = 0; l < DRUM_LANES; l++)
+            any |= mx.lit[l];
+        return any != 0u;
+    }
+    if (id == SMUTE_ACC)
+        return 0u;                                      /* (no sound of its own: it raises hits) */
+    if (id >= SMUTE_T0)
+        return trk[id - SMUTE_T0].seq_n != 0u;
+    return mx.lit[id] != 0u;
+}
 static void keys_shift_lit(uint32_t *f, uint32_t *d)
 {
     uint32_t k, mute = (uint32_t)mute_mod(fm1_in.buttons);
     for (k = 0; k < 27u; k++) {
         int32_t id = smute_key(k);
         uint32_t on;
+        if (mute && ret_in_key(k) >= 0 && !shift_step_key(k)) {   /* the returns' inputs: full while muted, else dim */
+            uint32_t ln = ret_in_line((uint32_t)ret_in_key(k));
+            *d |= 1u << k;
+            *f |= (ln < 3u && (fx_imute >> ln & 1u) ? 1u : 0u) << k;
+            continue;
+        }
         if (id < 0 || shift_step_key(k))
             continue;
         *d |= 1u << k;
         if (mute)
-            on = mx_muted(mx_row_of_smute(id));
+            on = mute_playing(id);                      /* (mute mode: a key is lit while its track or lane has a note playing: what is being muted) */
         else if (id == SMUTE_ACC || id < SMUTE_T0)      /* (a lane: the drum track's, picked) */
             on = is_drum(TSEL) && ui.lane && lane_selected() == (id == SMUTE_ACC ? DRUM_ACC : (uint32_t)id);
         else

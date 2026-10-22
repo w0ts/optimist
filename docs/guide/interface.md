@@ -58,7 +58,7 @@ A muted track or lane is **struck through**: a line through its mixer row name, 
 
 PLAY held past the hold time opens the tempo page; let go and the screen before returns. A short tap of PLAY stays start / stop. The page has TEMPO (BPM, NUDGE, SWING, SYNC), REC (MODE, LENGTH, START, CLICK) and REC 2 (QUANT).
 
-- **BPM** 40 to 240, default 90. **SWING** 0 to 100.
+- **BPM** 40 to 240, default 120. **SWING** 0 to 100.
 - **NUDGE:** OCT- or OCT+ held makes the clock about 3.9 % slower or faster while held. The BPM value never changes, and nothing happens while an external clock is followed.
 - **Tap tempo:** with PLAY held, tap a white key; two taps or more set the tempo.
 - **SYNC** (the MIDI clock to follow): INT, USB, TRS or AUTO (AUTO shows the clock it follows: A:INT, A:USB, A:TRS). On GLOBAL it is CLK IN.
@@ -110,7 +110,7 @@ INFO is a text page, no knob edits it except KNOB 1. What a musician reads:
 | CPU0 (CPU LOAD without a second core) | The audio render load in percent; with a second core it includes CPU0's wait for CPU1. KNOB 1 chooses what it shows: NOW, the maximum of the last 5 seconds, or the maximum since boot. Over 100 means a late audio half (a gap in the sound) |
 | CPU1 | The share of each audio half the second core takes. Instead: 2ND CORE OFF and the reason (NO START, TIMEOUT, FAULT, FLASH, MISREAD, CANARY, AFTER CRASH, SETTING, PARKED, BLUETOOTH, OVERLOAD, SUPPLY). BLUETOOTH is the usual one: in a Bluetooth build the second core runs only while BLUETOOTH is OFF ([midi-usb.md](midi-usb.md#bluetooth-midi)) |
 | UNDERRUNS | Losses: late audio halves, USB audio's and MIDI in's, and where |
-| BATTERY | Bars out of 3 and the raw ADC count, as `n/3` and the count; "USB" while powered by USB; NO READING before the first sample. No volts and no percentage: the battery has no calibration |
+| BATTERY | The cell's volts and charge as `~3.87V 72%`, with the 3 bars in the gauge; "USB" while powered by USB; NO READING before the first sample. Both numbers are estimates: the divider and the ADC reference are not measured (assumed 1:2 divider, 3.3 V reference, the usual Li-ion curve), so check them against a meter at the cell |
 
 SHIFT + SAVE on this page clears the counters. Builds made with the builder item `SYS_DEBUG` add INTERNALS (the last reset, flash interrupt time, the second core's internals), USB STATS (USB audio counters), DROPS, GUARD and CLOCK lines. They are for finding a fault, not for playing, and no ready-made build has them.
 

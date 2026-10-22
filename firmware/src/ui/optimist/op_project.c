@@ -506,12 +506,30 @@ static int32_t sys_step(int32_t v, int32_t s, int32_t max)   /* a knob stops at 
 #ifndef FELUCCA_COMMIT
 #define FELUCCA_COMMIT ""
 #endif
-/* the battery, from the ADC (main.c reads ch3, the divider on PB1, smoothed into song.batt_raw, 0 = not read yet). Only the raw 10 bit count
- * is known: no volts, no percentage (the divider's ratio and the cell's curve are not measured), so none is shown. The 3 bars are
- * SLOOP's own thresholds (ui/sloop/ui_draw.c batt_level: 531 / 561 / 591); with a USB host present the line says USB (whether that shifts the reading is not measured) */
+/* the battery, from the ADC (main.c reads ch3, the divider on PB1, smoothed into song.batt_raw, 0 = not read yet). The 3 bars are
+ * SLOOP's own thresholds (ui/sloop/ui_draw.c batt_level: 531 / 561 / 591); with a USB host present the line says USB (whether that
+ * shifts the reading is not measured).
+ * The volts and the percentage are an ESTIMATE (the user, 2026-10-21: "convert the 600 ish value in volts"): the divider's ratio
+ * and the ADC's reference are not documented here. Assumed: a 1 : 2 divider and a 3.3 V reference, 6.452 mV a count (600 = 3.87 V,
+ * and SLOOP's bar thresholds then fall at 3.43 / 3.62 / 3.81 V, a Li-ion cell's own steps), the percentage the usual Li-ion curve.
+ * Measure the cell at the pads against the count to correct BATT_UV_PER_COUNT. */
+#define BATT_UV_PER_COUNT 6452
 static uint32_t sys_batt_bars(void)
 {
     return song.batt_raw >= 591 ? 3u : song.batt_raw >= 561 ? 2u : song.batt_raw >= 531 ? 1u : 0u;
+}
+static uint32_t sys_batt_mv(void) { return (uint32_t)song.batt_raw * BATT_UV_PER_COUNT / 1000u; }
+static uint32_t sys_batt_pct(void)                      /* the cell's charge from its millivolts: the Li-ion curve, straight between its knots */
+{
+    static const uint16_t MV[7] = {3300, 3500, 3700, 3800, 3900, 4000, 4150};
+    static const uint8_t PC[7] = {0, 8, 40, 60, 75, 88, 100};
+    uint32_t mv = sys_batt_mv(), i;
+    if (mv <= MV[0])
+        return 0u;
+    for (i = 1; i < 7u; i++)
+        if (mv < MV[i])
+            return PC[i - 1u] + (mv - MV[i - 1u]) * (uint32_t)(PC[i] - PC[i - 1u]) / (uint32_t)(MV[i] - MV[i - 1u]);
+    return 100u;
 }
 static void sys_ro(cell_t *c, const char *label)    /* a read-out line */
 {
@@ -717,7 +735,7 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
     case SI_CREDITS:                                    /* the credits page's one line (op_gldraw.c gl_cred_draw draws the page) */
         sys_ro(c, "CREDITS");
         break;
-    case SI_BATT: {                                     /* BATTERY: the bars out of 3 and the raw ADC count, no invented percentage */
+    case SI_BATT: {                                     /* BATTERY: the volts and the percentage (estimated), the bars out of 3 in the gauge */
         uint32_t bars = sys_batt_bars();
         sys_ro(c, "BATTERY");
         c->unit = "";
@@ -727,9 +745,17 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
             cell_gauge(c, 0, 0, 3, 0);
             break;
         }
-        fmt_int(c->val, (int32_t)bars);
-        str_app(c->val, "/3 ", sizeof c->val);
-        fmt_app(c->val, song.batt_raw);
+        {   /* "~3.87V 72%" (an estimate: see sys_batt_mv) */
+            uint32_t mv = sys_batt_mv();
+            str_cpy(c->val, "~", sizeof c->val);
+            fmt_app(c->val, (int32_t)(mv / 1000u));
+            str_app(c->val, ".", sizeof c->val);
+            fmt_app(c->val, (int32_t)(mv / 100u % 10u));
+            fmt_app(c->val, (int32_t)(mv / 10u % 10u));
+            str_app(c->val, "V ", sizeof c->val);
+            fmt_app(c->val, (int32_t)sys_batt_pct());
+            str_app(c->val, "%", sizeof c->val);
+        }
         c->unit = usb.config && !usb.suspended ? "USB" : "";
         c->col = bars == 0u ? C_WARN : 0;
         cell_gauge(c, 0, 0, 3, (int32_t)bars);

@@ -100,6 +100,8 @@ static void op_enter(uint32_t scr)
                                                          * them: ui.scr is SCR_TEMPO) */
     if (tp.on)                                          /* (a screen entered from the TEMPO page: it is closed) */
         tp.on = 0, clk_nudge = 0;
+    if (scr == SCR_PROJECT && ui.scr != SCR_PROJECT && prj_cur >= 0)
+        song.g[G_SLOT] = (int16_t)(prj_cur + 1);        /* (PROJECT opens on the slot loaded or saved last) */
     ui.scr = (uint8_t)(scr % SCR_N);
     if (scr == SCR_SCOPE)
         ui.master = from_master;
@@ -408,6 +410,14 @@ static int shift_step_key(uint32_t k)                   /* STEP's white keys: st
 {
     return ui.scr == SCR_STEP && step_keys(fm1_in.buttons) && punch_key(k) >= 0 && punch_key(k) < 16;
 }
+static int32_t ret_in_key(uint32_t k)                   /* the mute mode's return keys: the last three white keys -> A B C (0..2), else -1 */
+{
+    uint32_t w;
+    for (w = 0; w < 3u; w++)
+        if (k == white_key(13u + w))
+            return (int32_t)w;
+    return -1;
+}
 static int pick_silent(uint32_t held) { return mute_mod(held) || sel_mod(held) || (song.playing && pick_mod(held)); }
 static void shift_keys(uint32_t notes, int mute)
 {
@@ -416,6 +426,10 @@ static void shift_keys(uint32_t notes, int mute)
         int32_t m;
         if (((notes >> id) & 1u) && fm6_shift_key(id, mute))   /* (SOUND's FM6 rows: the operator, PIT, GLO, the mode; op_fm6draw.c) */
             continue;
+        if (mute && ((notes >> id) & 1u) && ret_in_key(id) >= 0 && !shift_step_key(id)) {   /* (the last three white keys: a return's input) */
+            mx_ret_in_toggle((uint32_t)ret_in_key(id));
+            continue;
+        }
         if (!((notes >> id) & 1u) || shift_step_key(id) || (m = smute_key(id)) < 0)
             continue;
         r = mx_row_of_smute(m);
@@ -878,8 +892,10 @@ knobs_done:
 /* lk_q (seq.c): STEP's keys and the layers' keys, in order */
 static void op_drain(uint32_t held)
 {
+    lk_ev_ms = fm1_ms;
     while (lk_r != lk_w) {
         uint32_t e = lk_q[lk_r % LKQ];
+        lk_ev_ms = lk_t[lk_r % LKQ];                    /* (when this key event happened: step_key's tap time) */
         lk_r++;
         if ((e >> 8) == LY_STEP && keys_none() && ((e >> 7) & 1u)) {
             if (ui.scr == SCR_PROJECT && !op_shift(held))

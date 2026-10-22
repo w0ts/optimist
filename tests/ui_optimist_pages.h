@@ -207,11 +207,11 @@ static void pages_master_order_tests(void)
         {"MACRO", "MACRO", SC_MACRO},
 #endif
     };
-    static const uint8_t RET[3] = {G_RRET, G_DRET, G_CRET}, LIM[4] = {G_CGAIN, G_CCEIL, G_CGR, 0};
+    static const uint8_t RET[3] = {G_CRET, G_DRET, G_RRET}, LIM[4] = {G_CGAIN, G_CCEIL, G_CGR, 0};
     uint32_t r, n, i = 0, k, ok = 1, order = 1, cards = 1, grp = 0, last_grp = 0;
     char nm[12];
     mst_defaults();                                     /* (FILT DYN: earlier tests turn the master's TYPE cards) */
-    fxs_set(FXS_DEF);                                   /* (the returns REV DLY CHO: the default) */
+    fxs_set(FXS_DEF);                                   /* (the returns CHO DLY REV: the default) */
     reset_ui();
     turn(EN_ALGO, -1);
     tap(B_FX);
@@ -253,7 +253,7 @@ static void pages_master_order_tests(void)
     }
     ok = order && r == n;
     check(ok, "MASTER's pages come in the order inserts (INSERTS, INS DYN 1 2, DUCK), returns (RETURNS, RET REV, RET DELAY, RET DLY F), SLOTS, MACRO");
-    check(cards, "... each moved page's four cards are the ones PAGES gives it; INS DYN 2 GAIN CEIL (GR a read-out), RETURNS has REV DLY CHO RET (the one order)");
+    check(cards, "... each moved page's four cards are the ones PAGES gives it; INS DYN 2 GAIN CEIL (GR a read-out), RETURNS has CHO DLY REV RET (the one order)");
     reset_ui();
 }
 static void pages_master_tests(void)
@@ -268,7 +268,7 @@ static void pages_master_tests(void)
     cell_t c;
     int16_t tune = song.g[G_TUNE];
     mst_defaults();                                     /* (FILT DYN: earlier tests turn the master's TYPE cards) */
-    fxs_set(FXS_DEF);                                   /* (the returns REV DLY CHO: the default) */
+    fxs_set(FXS_DEF);                                   /* (the returns CHO DLY REV: the default) */
     reset_ui();
     turn(EN_ALGO, -1);
     tap(B_FX);
@@ -490,7 +490,9 @@ static void pages_keys_tests(void)
     lanes_lit("D10: the mixer, the drum track: the lanes' black keys lit, the selected one full (the white keys its steps)");
     press(B_OCTDN);
     frames(HOLD_FRAMES);
-    keys_are(0, kws(0, 3) | (lane_keys_mask() | (ACC_UI ? 1u << DACC_KEY : 0u)),
+    memset(mx.lit, 0, sizeof mx.lit);                   /* (no note playing: none full) */
+    trk[0].seq_n = trk[1].seq_n = trk[2].seq_n = trk[3].seq_n = 0;
+    keys_are(0, kws(0, 3) | ((1u << white_key(13)) | (1u << white_key(14)) | (1u << white_key(15))) | (lane_keys_mask() | (ACC_UI ? 1u << DACC_KEY : 0u)),
              "D10: the mixer, SHIFT held: the sequencer mutes, the lanes' keys, the 4 track keys and the last upper key (ACCENT) dim, none muted");
     release(B_OCTDN);
     tap(B_EDIT);

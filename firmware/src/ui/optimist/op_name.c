@@ -37,6 +37,7 @@ static struct {
     uint8_t key;                                       /* the white key (place + 1) of the letter being cycled, 0 none */
     uint8_t tap;                                       /* .. that letter's index in its group */
     uint8_t rep;                                       /* the key (+ 1) of a held arrow / DELETE, 0 none */
+    uint8_t later;                                     /* SAVE asked while playing: done once stopped, then PLAY again */
     uint8_t home, home_used;                           /* HOME down; a knob turned meanwhile (no delete) */
     uint32_t t, rep_t, home_t;                         /* fm1_ms of the last tap; of the next repeat; HOME's press */
     char s[NM_LEN + 1u];
@@ -53,6 +54,7 @@ static int name_on(void) { return nm.kind != NK_NONE; }
 static void name_close(void)
 {
     nm.kind = NK_NONE;
+    nm.later = 0;
     ui.force = 1;
 }
 
@@ -108,7 +110,12 @@ static void name_project(uint32_t k)
 #if SEC_LOGGED
     name_open(NK_PROJ, k);
 #else
+    if (song.playing || transport_req) {
+        pj_defer(2, k);                                 /* (stopped, saved, played again: op_edits.c pj_tick) */
+        return;
+    }
     project_save(k);
+    prj_cur = (int8_t)k;
     work_mark();                                        /* (the work as stored: op_edits.c) */
 #endif
 }
@@ -224,8 +231,8 @@ static void nm_knob(uint32_t k, int32_t s)             /* KNOB 1 the cursor, KNO
     nm.s[nm.cur] = NM_SET[((i + s) % n + n) % n];
 }
 
-/* SAVE: the name (spaces at its ends dropped) is written with what it names; the screen stays while that is
- * refused (playing). An empty name: a user preset the automatic one, a project none */
+/* SAVE: the name (spaces at its ends dropped) is written with what it names; playing, the transport stops first,
+ * the save follows and PLAY again (nm.later). An empty name: a user preset the automatic one, a project none */
 static void name_ok(void)
 {
     char b[NM_LEN + 1u], l[4];
@@ -238,8 +245,9 @@ static void name_ok(void)
         a++;
     for (z -= a, b[z] = 0; z--;)
         b[z] = nm.s[a + z];
-    if (song.playing || transport_req) {               /* (a flash erase stops the audio) */
-        ui_message("STOP BEFORE SAVE");
+    if (song.playing || transport_req) {               /* (a flash erase stops the audio: stopped first, saved, played again) */
+        nm.later = 1;
+        transport_req = 2;
         return;
     }
     kind = nm.kind;
@@ -258,6 +266,7 @@ static void name_ok(void)
     } else {
 #if SEC_LOGGED
         project_save(nm.slot);
+        prj_cur = (int8_t)nm.slot;
         work_mark();
         if (project_used(nm.slot) && sec_name_set(nm.slot, b))
             ui_message("NAME NOT SAVED");
@@ -271,6 +280,12 @@ static void name_frame(uint32_t pressed, uint32_t held)
 {
     uint32_t k, hb = (1u << panel.btn[B_HOME]);
     int32_t s;
+    if (nm.later && !song.playing && !transport_req) { /* (the save asked while playing, now stopped) */
+        nm.later = 0;
+        name_ok();
+        transport_req = 1;
+        return;
+    }
     if (nm.key && fm1_ms - nm.t >= NM_TAP_MS)          /* 0.8 s without a tap: the letter is kept */
         nm_commit();
     while (lk_r != lk_w) {
