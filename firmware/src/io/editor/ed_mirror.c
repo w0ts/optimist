@@ -1,29 +1,126 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Editor protocol: the screen mirrored (builder item ED_MIRROR; included by editor.c; web/EDITOR_PROTOCOL.md "The screen mirrored";
- * the encoder ed_mirror_enc.h; the client ios/OptimistMirror). While a client asks, every write to the panel also goes out over USB,
- * so a phone shows the panel as it is drawn. No frame buffer: the bytes go into the SysEx ring three at a time as they are encoded
- * (a USB-MIDI packet each), and the main loop waits on the ring only while the host reads; a host that stops reading for
- * MIR_STALL_MS ends the mirror (the client asks again: the panel is drawn whole again). The meters are not sent (mir_mute, display/lcd.c,
- * set around the mixer's VU canvases: the user, 2026-10-22, "we don't need vu meters"), nor anything while no client asks.
+ * the encoder ed_mirror_enc.h; the client ios/OptimistMirror). While a client asks, every write to the panel also goes out, so a phone
+ * shows the panel as it is drawn. No frame buffer on the device. Two links, the one the last request came on:
+ *   USB        the bytes go into usb.c's SysEx ring three at a time as they are encoded (a USB-MIDI packet each); the main loop waits
+ *              on the ring only while the host reads (at most MIR_STALL_MS without progress)
+ *   Bluetooth  (with BLE) whole frames into a ring of their own in the pool (MIR_BLE_RING), which the radio drains between
+ *              the channel messages (io/midi/midi_ble.c ble_app_midi_peek); the main loop never waits for it
+ * A link that falls behind (the host stops reading, the ring is full) drops what is drawn and catches up once the link is clear
+ * again: black to the client, then every band drawn again in place (op_repaint: the panel itself is not cleared, no flash; the
+ * host test's catch-ups give the panel's pixels every time). Never under PRESETS' popup list (the panel under it is not drawn
+ * again): it waits for the list to close. A first on catches up the same way. So a slow link shows small changes as they come and
+ * whole screens at the rate it carries. The meters are not sent (mir_mute, display/lcd.c, set around the mixer's VU canvases: the
+ * user, 2026-10-22, "we don't need vu meters"), nor anything while no client asks.
  *   106 MIRROR  bits -> on, version, w (2 x 7 bit), h (2 x 7 bit)
- *       bits  bit 0 on (0: off), bit 1 the whole panel again (ui.force); a first on draws it whole anyway
- * Mirroring ends 3 s after the last request of any kind (ask again or PING about every 1 s), on a USB reset and with 106 0.
- * INFO tag 0x65: 1 byte, the version (0x63 was REC's: retired, not reused). */
+ *       bits  bit 0 on (0: off), bit 1 the whole panel again
+ * Mirroring ends 3 s after the last request of any kind (ask again or PING about every 1 s), with 106 0, and when its link goes
+ * (a USB reset; no Bluetooth central listening). Over Bluetooth only 106 is answered (mir_ble_rx). INFO tag 0x65: 1 byte, the version
+ * (0x63 was REC's: retired, not reused). */
 #include "ed_mirror_enc.h"
-enum { MIR_STALL_MS = 30, MIR_ALIVE_MS = 3000 };
+enum { MIR_STALL_MS = 30, MIR_ALIVE_MS = 3000, MIR_USB = 0, MIR_BT = 1,
+       MIR_CATCH_MS = 250 };               /* catch-ups at most this often: the panel repainted for the mirror 4 times a second at most,
+                                            * and a screen whose catch-up is more than the Bluetooth ring retries at that pace */
 static struct {
-    uint8_t on;
-    uint8_t k, acc[3];                 /* the bytes of the next USB-MIDI packet */
+    uint8_t on, behind, link;           /* behind: what is drawn is dropped until the catch-up (mir_poll) */
+    uint8_t k, acc[3];                  /* USB: the bytes of the next USB-MIDI packet */
     uint32_t resets, last_ms;           /* usb.resets when asked; fm1_ms of the last request of any kind */
+    uint32_t catch_ms;                  /* fm1_ms of the last catch-up */
 } mir;
 #define MIR_SEEN() (mir.last_ms = fm1_ms)   /* (editor.c, ed_lite.c: each request that comes in) */
+static void op_repaint(void);
+
+#if MIR_BLE
+/* ---- Bluetooth: a byte ring in the pool, frames made visible whole (mbr.w only at F7), drained by the radio's interrupts */
+#define MIR_BLE_RING 8192u              /* a catch-up is 4.7 KB on average, 8.2 KB at most (tests/ui_optimist_test.c MIRROR_CHECK) */
+static uint8_t mbr_q[MIR_BLE_RING] IN_POOL;
+static struct {
+    volatile uint32_t w, r;             /* w: the frames written whole; r: the radio's read position */
+    uint32_t fw;                        /* the frame being written */
+    uint8_t pk, mid;                    /* the radio's side: bytes in the packet peeked; inside a frame (a channel message would end it) */
+    volatile uint8_t req;               /* 0x80 | bits: a request came in (mir_ble_rx), for the main loop */
+    uint8_t rx_n, rx[7];                /* the request being received */
+} mbr;
+static int mbr_put(uint32_t b)
+{
+    if (b == 0xF0u)
+        mbr.fw = mbr.w;
+    if (mbr.fw - mbr.r >= MIR_BLE_RING)
+        return 0;                       /* (full: this frame is dropped, mbr.w never saw it) */
+    mbr_q[mbr.fw++ % MIR_BLE_RING] = (uint8_t)b;
+    return 1;
+}
+static void mbr_end(void)
+{
+    RING_PUBLISH();
+    mbr.w = mbr.fw;
+}
+/* midi_ble.c: the next USB-MIDI packet of a frame (cin 4, or 5..7 with the F7); 0: none written whole */
+static int mir_ble_peek(uint32_t *pkt)
+{
+    uint32_t i, b[3] = {0, 0, 0}, n = 0;
+    if (mbr.r == mbr.w)
+        return 0;
+    RING_PUBLISH();
+    for (i = 0; i < 3u && mbr.r + i != mbr.w; i++) {
+        b[i] = mbr_q[(mbr.r + i) % MIR_BLE_RING];
+        n = i + 1u;
+        if (b[i] == 0xF7u)
+            break;
+    }
+    mbr.pk = (uint8_t)n;
+    *pkt = (b[n - 1u] == 0xF7u ? 4u + n : 4u) | b[0] << 8 | b[1] << 16 | b[2] << 24;
+    return 1;
+}
+static void mir_ble_pop(void)
+{
+    mbr.mid = mbr_q[(mbr.r + mbr.pk - 1u) % MIR_BLE_RING] != 0xF7u;
+    RING_PUBLISH();
+    mbr.r += mbr.pk;
+    mbr.pk = 0;
+}
+static int mir_ble_mid(void) { return mbr.mid && mbr.r != mbr.w; }   /* (a frame begun goes on before any channel message) */
+static void mir_ble_flush(void) { mbr.r = mbr.w, mbr.mid = 0, mbr.pk = 0; }   /* (no central listening) */
+/* the radio's interrupts: a SysEx packet that came in; only F0 7D 46 4C 6A bits F7 is taken (the main loop answers it) */
+static void mir_ble_rx(uint32_t pkt)
+{
+    static const uint8_t HDR[5] = {0xF0, 0x7D, 0x46, 0x4C, ED_MIRROR};
+    uint32_t cin = pkt & 15u, n = cin == 4u || cin == 7u ? 3u : cin == 6u ? 2u : 1u, i;
+    for (i = 0; i < n; i++) {
+        uint32_t b = (pkt >> (8u + 8u * i)) & 0xFFu;
+        if (b == 0xF0u)
+            mbr.rx_n = 0;
+        if (b == 0xF7u) {
+            if (mbr.rx_n == 6u)
+                mbr.req = (uint8_t)(0x80u | mbr.rx[5]);
+            mbr.rx_n = 7;               /* (nothing until the next F0) */
+        } else if (mbr.rx_n < 6u && (mbr.rx_n == 5u ? b < 0x80u : b == HDR[mbr.rx_n])) {
+            mbr.rx[mbr.rx_n++] = (uint8_t)b;
+        } else {
+            mbr.rx_n = 7;
+        }
+    }
+}
+static int mir_bt_up(void) { return ble_out_on; }
+static int mir_bt_clear(void) { return mbr.r == mbr.w; }
+#else
+static int mbr_put(uint32_t b) { (void)b; return 0; }
+static void mbr_end(void) {}
+static int mir_bt_up(void) { return 0; }
+static int mir_bt_clear(void) { return 1; }
+#endif
+
+static int mir_link_up(void)
+{
+    return mir.link == MIR_BT ? mir_bt_up() : usb.config && mir.resets == usb.resets;
+}
 static int mir_live(void)
 {
-    if (mir.on && (!usb.config || mir.resets != usb.resets || fm1_ms - mir.last_ms > MIR_ALIVE_MS))
+    if (mir.on && (!mir_link_up() || fm1_ms - mir.last_ms > MIR_ALIVE_MS))
         mir.on = 0;
-    return mir.on && !mir_mute;
+    return mir.on && !mir.behind && !mir_mute;
 }
-/* one USB-MIDI SysEx packet (cin 4: three bytes go on; 5..7: one to three, the last F7) into the ring, waiting while the host reads */
+/* USB: one USB-MIDI SysEx packet (cin 4: three bytes go on; 5..7: one to three, the last F7) into the ring, waiting while the host reads */
 static int mir_pkt(uint32_t cin)
 {
     uint32_t t0 = fm1_ms, r = so_r;
@@ -31,7 +128,7 @@ static int mir_pkt(uint32_t cin)
         if (so_r != r)
             t0 = fm1_ms, r = so_r;
         if (!usb.config || fm1_ms - t0 > MIR_STALL_MS) {
-            mir.on = 0, sx_busy = 0;
+            sx_busy = 0;
             return 0;
         }
         ota_idle();
@@ -44,19 +141,32 @@ static int mir_pkt(uint32_t cin)
 }
 static int mir_wire(uint32_t b)
 {
+    if (mir.link == MIR_BT) {
+        if (mbr_put(b))
+            return 1;
+        mir.behind = 1;
+        return 0;
+    }
     if (b == 0xF0u)
         sx_busy = 1, mir.k = 0;         /* (no other MIDI out inside the frame: usb.c ep1_tx) */
-    if (mir.k == 3u && !mir_pkt(4))     /* (a full packet goes when the next byte comes: the last one carries F7) */
+    if (mir.k == 3u && !mir_pkt(4)) {   /* (a full packet goes when the next byte comes: the last one carries F7) */
+        mir.behind = 1;                 /* (the host's next F0 drops the frame cut here) */
         return 0;
+    }
     mir.acc[mir.k++] = (uint8_t)b;
     return 1;
 }
 static void mir_wire_end(void)
 {
     uint32_t k = mir.k;
+    if (mir.link == MIR_BT) {
+        mbr_end();
+        return;
+    }
     mir.acc[1] = k > 1u ? mir.acc[1] : 0u;
     mir.acc[2] = k > 2u ? mir.acc[2] : 0u;
-    mir_pkt(4u + k);
+    if (!mir_pkt(4u + k))
+        mir.behind = 1;
     sx_busy = 0;
 }
 /* display/lcd.c: what it drew (the colour as given, the pixels as the panel takes them) */
@@ -70,17 +180,48 @@ static void mir_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint1
     if (mir_live())
         mir_enc_blit(x, y, w, h, px);
 }
-static void ed_mirror(const uint8_t *a, uint32_t na)
+/* a request on link l: on / off, the whole panel again (bit 1); a first on catches up */
+static void mir_ask(uint32_t bits, uint32_t l)
 {
-    uint32_t bits = na ? a[0] : 0u;
     MIR_SEEN();
     mir_live();                         /* (a mirror that ended: this is a first on again) */
-    if ((bits & 1u) && (!mir.on || (bits & 2u)))
-        ui.force = 1;                   /* (the whole panel, from black) */
+    if ((bits & 1u) && (!mir.on || mir.link != l || (bits & 2u)))
+        mir.behind = 1, mir.catch_ms = fm1_ms - MIR_CATCH_MS;   /* (asked: at once) */
     mir.on = (uint8_t)(bits & 1u);
+    mir.link = (uint8_t)l;
     mir.resets = usb.resets;
+}
+static void ed_mirror(const uint8_t *a, uint32_t na)
+{
+    mir_ask(na ? a[0] : 0u, MIR_USB);
     ed_b(mir.on);
     ed_b(1);
     ed_b4(240u & 127u, 240u >> 7, 240u & 127u, 240u >> 7);
+}
+/* ed_service, every main-loop pass: a request over Bluetooth answered; a link that fell behind caught up once it is clear */
+static void mir_poll(void)
+{
+#if MIR_BLE
+    uint32_t q = mbr.req;
+    if (q && mir_bt_up()) {
+        static const uint8_t R[6] = {1, 1, 240u & 127u, 240u >> 7, 240u & 127u, 240u >> 7};
+        uint32_t i;
+        mbr.req = 0;
+        mir_ask(q & 0x7Fu, MIR_BT);
+        me.ok = 1;                      /* (the reply: F0 7D 46 4C 6A on 1 w w h h F7, as USB's) */
+        me_open(mir.on);
+        for (i = 1; i < 6u; i++)
+            me_b(R[i]);
+        me_close();
+    }
+#endif
+    mir_live();                         /* (the link gone, the keep-alive out: off) */
+    if (!mir.on || !mir.behind || ui.overlay == 5u || (mir.link == MIR_BT ? !mir_bt_clear() : so_w != so_r) ||
+        fm1_ms - mir.catch_ms < MIR_CATCH_MS)
+        return;
+    mir.behind = 0;
+    mir.catch_ms = fm1_ms;
+    mir_enc_fill(0, 0, 240, 240, 0);    /* (black to the client only: the panel is not cleared) */
+    op_repaint();
 }
 static void ed_mirror_info(void) { ed_b3(0x65, 1, 1); }

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// The FM-1 over CoreMIDI (its USB port: "Felucca" / "Optimist", never its Bluetooth one, which does not answer the editor
-// protocol): asks for the mirror (cmd 106) every second, takes the panel writes it pushes into a MirrorDecoder.
+// The FM-1 over CoreMIDI: its USB port ("Felucca" / "Optimist") when it is plugged in, else its Bluetooth MIDI port (connected with
+// iOS's pairing sheet, BluetoothPicker.swift; the FM-1 answers only the mirror's request there). Asks for the mirror (cmd 106)
+// every second, takes the panel writes it pushes into a MirrorDecoder.
 import CoreMIDI
 import Foundation
 import os
@@ -15,6 +16,7 @@ final class MirrorLink: ObservableObject {
 
     @Published private(set) var state: State = .searching
     @Published private(set) var portName = ""
+    @Published private(set) var bluetooth = false   // the port in use is the Bluetooth one
 
     private let lock = OSAllocatedUnfairLock(initialState: Shared())
     private struct Shared {
@@ -77,11 +79,24 @@ final class MirrorLink: ObservableObject {
 
     private static func isFM1(_ e: MIDIEndpointRef) -> Bool {
         let n = name(e).lowercased()
-        return (n.contains("felucca") || n.contains("optimist")) && !n.contains("bluetooth")
+        return n.contains("felucca") || n.contains("optimist")
     }
 
+    /// A Bluetooth MIDI port: its device's driver is Apple's Bluetooth MIDI driver, or its name says so (as on a Mac).
+    private static func isBluetooth(_ e: MIDIEndpointRef) -> Bool {
+        var entity = MIDIEntityRef(), device = MIDIDeviceRef()
+        var owner: Unmanaged<CFString>?
+        if MIDIEndpointGetEntity(e, &entity) == noErr, MIDIEntityGetDevice(entity, &device) == noErr {
+            MIDIObjectGetStringProperty(device, kMIDIPropertyDriverOwner, &owner)
+        }
+        let driver = (owner?.takeRetainedValue() as String?) ?? ""
+        return driver.lowercased().contains("bluetooth") || name(e).lowercased().contains("bluetooth")
+    }
+
+    /// The FM-1's port: USB first, Bluetooth else.
     private static func find(_ count: Int, _ get: (Int) -> MIDIEndpointRef) -> MIDIEndpointRef? {
-        (0..<count).map(get).first(where: isFM1)
+        let fm1 = (0..<count).map(get).filter(isFM1)
+        return fm1.first { !isBluetooth($0) } ?? fm1.first
     }
 
     private func connect() {
@@ -99,6 +114,7 @@ final class MirrorLink: ObservableObject {
         }
         MIDIPortConnectSource(inPort, src, nil)
         portName = Self.name(src)
+        bluetooth = Self.isBluetooth(src)
         state = .asking
         asked = 0
         wantWhole = true
