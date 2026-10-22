@@ -18,8 +18,8 @@
  *   SONG's PATTERNS row   as the LFO layer
  *   NAME                  every key with a job dim, the key cycling its letters full
  *   SHIFT / SHIFT2 held   the lanes' black keys, the first 4 white keys and the last upper key dim (lanes, T1 T2 T3 DR,
- *                         ACCENT: op_input.c shift_keys); SHIFT: the muted dark, the heard 2/3, full ~50 ms on each
- *                         note, the returns' inputs (E F G) full open, dark muted; SHIFT2: the selected full; every page
+ *                         ACCENT: op_input.c shift_keys); SHIFT: the muted dim (not dark: a key with no job is), the heard
+ *                         2/3, full ~50 ms on each note, the returns' inputs (E F G) full open, dim muted; SHIFT2: the selected full; every page
  *                         but a layer's (STEP: its white keys stay its steps)
  *   the drum track        the lanes' black keys and the last upper key (ACCENT) dim, the selected one full, a lane hit
  *                         (or muted, would be) full ~50 ms (every page)
@@ -144,20 +144,22 @@ static void keys_shift_lit(uint32_t *f, uint32_t *d, uint32_t *h)
         int32_t id = smute_key(k);
         uint32_t on;
         if (mute && ret_in_key(k) >= 0 && !shift_step_key(k)) {   /* the returns' inputs (the user, 2026-10-22): full while
-                                                                     * open, dark while muted */
+                                                                     * open, dim while muted */
             uint32_t ln = ret_in_line((uint32_t)ret_in_key(k));
-            *f |= (ln < 3u && !(fx_imute >> ln & 1u) ? 1u : 0u) << k;
+            if (ln < 3u)
+                *(!(fx_imute >> ln & 1u) ? f : d) |= 1u << k;
             continue;
         }
         if (id < 0 || shift_step_key(k))
             continue;
-        if (mute) {                                     /* mute mode: muted dark, heard 2/3, a note starting full for a moment
-                                                         * (muted or not) */
+        if (mute) {                                     /* mute mode: muted dim, heard 2/3, a note starting full for a moment
+                                                         * (muted or not); dark is a key with no job (the user, 2026-10-22: "a
+                                                         * track muted led should not be off, but dimmed") */
             uint32_t b = 1u << k;
             if (mute_playing(id))
                 *f |= b;
-            else if (!mx_muted(mx_row_of_smute(id)))
-                *h |= b;
+            else
+                *(mx_muted(mx_row_of_smute(id)) ? d : h) |= b;
             continue;
         }
         *d |= 1u << k;
