@@ -1922,6 +1922,12 @@ static HOT2 __attribute__((noinline)) void dust_run(dust_t *s, int32_t d, int32_
 
 #include "insfx/insfx.c"            /* the further insert types FOLD FUZZ PHSR FLNG FRMT WIDE CHRS ECHO (ins_one, dbus_ins) */
 #include "insfx/fxi.c"              /* the limited types' instances (CHRS ECHO): the main loop hands them out, fxi_poll */
+/* the second-core test image can switch the inserts off (outside the DINS block: the track strips use it too) */
+#if defined(FELUCCA_DUALCFG) && FELUCCA_DUALCFG && FELUCCA_DUAL
+#define FX_INS_BYPASS fm1_ins_bypass                    /* (the second-core test image: dualcfg ins off, hal/fm1_dual.h) */
+#else
+#define FX_INS_BYPASS 0
+#endif
 #if DINS
 /* ---- each drum sound's two insert slots (fx-rework 2026-10-14; FX slots phase 5 had DIST and COMP fixed): per drum
  * voice (NDRUM states a slot, not per lane: two hits of a sound may overlap), the types and amounts of the voice's lane
@@ -2021,11 +2027,6 @@ AINL int dins_busy(uint32_t k, uint32_t s)
     (void)st;
 }
 /* voice k playing note: do its inserts run this block? (on: the drums' FX) */
-#if defined(FELUCCA_DUALCFG) && FELUCCA_DUALCFG && FELUCCA_DUAL
-#define FX_INS_BYPASS fm1_ins_bypass                    /* (the second-core test image: dualcfg ins off, hal/fm1_dual.h) */
-#else
-#define FX_INS_BYPASS 0
-#endif
 static HOT2 __attribute__((noinline)) uint32_t dins_of(uint32_t k, uint32_t note, int32_t on)
 {
     on = on && !FX_INS_BYPASS;                          /* (dualcfg ins off: the lanes' inserts fade to rest) */
