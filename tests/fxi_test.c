@@ -455,6 +455,84 @@ static void t_flng(void)
 }
 #endif
 
+#if FELUCCA_INS_XDLY
+/* ---- The delay arena (fxi.c, fxi_kern.c FXA_*, 2026-10-22): built (run_tests.sh) with the delay send's line of 32768
+ * samples (8 units of 4096) and DLY_ARENA 72 KB (9 units): ECHO's one own line beside the send's, and XDLY (2 x 16384
+ * samples, 8 units) with no room of its own: it lives in the send's line while the send is in no master slot */
+static uint32_t xd_lent(uint32_t k)                     /* track k's XDLY on the send's line, the gate set */
+{
+    uint32_t i = ifx_lim_at(FXT_XDLY, k);
+    return i != FXI_NONE && ifx_xdly[i].line == dly_buf && (fxl_lent & 2u) && fxl_st[1] == FXL_LENT;
+}
+static void dly_out(void)                               /* DLY out of the master slots, its bus idle */
+{
+    fxs_load(2, FXT_NONE);
+    fx.dly_q = FX_Q_MAX, memset(fx.dly_f, 0, sizeof fx.dly_f);
+}
+static void t_arena(void)
+{
+    uint32_t k = 1, e = 2, i, n, ok;
+    check("the arena: the send's 8 units, 1 of the inserts' own; XDLY 8 units an instance, 1 counted and 1 more on the "
+          "send's line", FXA_S == 8u && FXA_N == 9u && FXA_SZ(4u) == 8u && FXI_CAP[4] == 1u && FXI_LND[4] == 1u);
+    reset();
+    host_preset(&trk[k], 0, 0);
+    trk[k].p[P_SUS] = 127, trk[k].p[P_LEVEL] = 100, trk[k].p[P_TXDLY] = 100;
+    trk_note_on(&trk[k], 57, 100);
+    slots(k, FXT_XDLY, FXT_NONE);
+    blocks(2);
+    check("XDLY picked, DLY in a master slot: no room for it (FULL), nothing lent, the send's line untouched",
+          fxi_state(k, 0) == FXI_FULL && ifx_lim_at(FXT_XDLY, k) == FXI_NONE && !fxl_lent && fxi_cap(FXT_XDLY) == 1u &&
+          fxi_free(FXT_XDLY) == 0u && !fxi_can(k, FXT_XDLY));
+    dly_out();
+    memset(dly_buf, 0x5A, sizeof dly_buf);              /* (an old line: not heard, not left behind) */
+    fxi_poll();
+    i = ifx_lim_at(FXT_XDLY, k);
+    check("DLY out of the slots, its bus idle: lent, XDLY on the send's whole line (OK), zeroed when handed out",
+          xd_lent(k) && fxi_state(k, 0) == FXI_OK && zeros16(dly_buf, DLY_LEN) && !ifx_xdly[i].on && !ifx_xdly[i].w &&
+          fxi_lent(FXT_XDLY) == 1u);
+    slots(e, FXT_ECHO, FXT_NONE), slots(TRK_DRUM, FXT_ECHO, FXT_NONE);
+    fxi_poll();
+    n = ifx_lim_at(FXT_ECHO, e);
+    check("... ECHO beside it: T3 its own line (the arena's own unit), the drum track none: the send's line is XDLY's (FULL)",
+          n != FXI_NONE && ifx_echo[n].line == fxa_ins && fxi_state(TRK_DRUM, 0) == FXI_FULL && xd_lent(k));
+    blocks(64);
+    check("... XDLY heard: it writes the send's line", !zeros16(dly_buf, DLY_LEN));
+    fxs_load(2, FXT_DLY);
+    fxi_poll();
+    check("DLY back in a slot: XDLY evicted (fading out), the gate still set", fxl_st[1] == FXL_BACK &&
+          ifx_lim_at(FXT_XDLY, k) == i && ifx_xdly[i].evict && (fxl_lent & 2u));
+    blocks(16);
+    check("... faded: the line back to the bus, all zeros, the gate cleared; XDLY FULL again, the drum track's ECHO FULL",
+          fxl_st[1] == FXL_SEND && !fxl_lent && zeros16(dly_buf, DLY_LEN) && fx.dly_q >= DLY_LEN &&
+          ifx_lim_at(FXT_XDLY, k) == FXI_NONE && fxi_state(k, 0) == FXI_FULL && fxi_state(TRK_DRUM, 0) == FXI_FULL);
+    /* DLY out again, both waiting: the types in order (ECHO first) */
+    dly_out();
+    fxi_poll();
+    n = ifx_lim_at(FXT_ECHO, TRK_DRUM);
+    check("DLY out again, ECHO and XDLY both waiting: ECHO takes a slice (type order), XDLY finds 8 units no more: "
+          "FULL (never both on one line)", n != FXI_NONE && ifx_echo[n].line == dly_buf && (fxl_lent & 2u) &&
+          fxi_state(k, 0) == FXI_FULL && ifx_lim_at(FXT_XDLY, k) == FXI_NONE && fxi_free(FXT_XDLY) == 0u);
+    blocks(8);
+    check("... XDLY stays bypassed meanwhile", ifx_lim_at(FXT_XDLY, k) == FXI_NONE && fxi_state(k, 0) == FXI_FULL);
+    slots(TRK_DRUM, FXT_NONE, FXT_NONE);
+    for (n = 0; n < 64u && ifx_lim_at(FXT_XDLY, k) == FXI_NONE; n++)
+        blocks(1);                                      /* (to the pass that hands it out, no block after it) */
+    i = ifx_lim_at(FXT_XDLY, k);
+    ok = i != FXI_NONE && ifx_lim_at(FXT_ECHO, TRK_DRUM) == FXI_NONE;
+    check("the drum track drops ECHO: its slice given back after the fade, XDLY takes the line, clean (no old echo: "
+          "line and state zero)", ok && xd_lent(k) && zeros16(dly_buf, DLY_LEN) && !ifx_xdly[i].on && !ifx_xdly[i].w);
+    blocks(16);
+    check("... heard again", !zeros16(dly_buf, DLY_LEN) && fxi_state(k, 0) == FXI_OK);
+    slots(k, FXT_NONE, FXT_NONE);
+    trk_note_off(&trk[k], 57);
+    blocks(32);
+    check("T2 drops XDLY: faded, given back, the line the bus's again (zeros, the gate cleared)",
+          ifx_lim_at(FXT_XDLY, k) == FXI_NONE && fxl_st[1] == FXL_SEND && !fxl_lent && zeros16(dly_buf, DLY_LEN));
+    reset();
+    check("reset: every unit free, the line the send's", !fxl_lent && fxl_st[1] == FXL_SEND && fxi_free(FXT_ECHO) == 1u);
+}
+#endif
+
 int main(void)
 {
     host_tracks_init();
@@ -469,6 +547,9 @@ int main(void)
 #endif
 #if FELUCCA_INS_FLANGER
     t_flng();
+#endif
+#if FELUCCA_INS_XDLY
+    t_arena();
 #endif
     printf("fxi: %s\n", fails ? "FAILED" : "all ok");
     return fails != 0;

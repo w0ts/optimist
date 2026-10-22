@@ -11,7 +11,8 @@
  *                   delay); a fixed one-pole (~7 kHz) in each loop darkens them a little at every pass
  *   MIX             the slot's amount (P_TXDLY, the master's mst_amt): 0 off .. all wet; faded over 2.9 ms
  * A part (mono) is fed its block, gets the lines' mean; a stereo owner (the drum bus, the master) feeds their mid, line 1 to
- * L, line 2 to R. The settings are the owner's (fx_slots.c xdl_v). Two lines of FELUCCA_XDLY_LEN samples an instance (pool).
+ * L, line 2 to R. The settings are the owner's (fx_slots.c xdl_v). Two lines of FELUCCA_XDLY_LEN samples an instance (the delay
+ * arena's units, fxi_kern.c: its own room, or the delay send's line while the send is in no master slot).
  * From rest nothing the lines held is read (fill, as ECHO's); once both hold only zeros and the input is silent the block
  * is skipped. No divide, no packed SIMD */
 #if FELUCCA_INS_XDLY
@@ -28,10 +29,12 @@ typedef struct {
     int32_t fa, fb;                                     /* the loops' one-poles */
     uint16_t wp, fill, q;                               /* the write place, samples written since the start (<= XD_LEN),
                                                          * zeros written in a row on both (<= XD_LEN) */
-    uint8_t on, evict;                                  /* running (0: at rest); evict: unused (no lent line), kept 0 */
+    uint8_t on, evict;                                  /* running (0: at rest); evict: its line goes back to the delay
+                                                         * send (fxi.c): fading out, at 0 */
+    int16_t *line;                                      /* its two lines, one after the other: units of the delay arena
+                                                         * (fxi_kern.c FXA_*), fxi.c sets it before it hands it out */
 } ifx_xd_t;
-static int16_t ifx_xdly_ln[FELUCCA_INS_XDLY][2][XD_LEN] __attribute__((section(".pool")));
-static ifx_xd_t ifx_xdly[FELUCCA_INS_XDLY] __attribute__((section(".pool")));
+static ifx_xd_t ifx_xdly[FELUCCA_INS_XDLY + FXL_N4] __attribute__((section(".pool")));
 /* line ln's sample d (Q8) back from wp (the one just written: 0), linear between two; 0 past what was written (fill:
  * the samples written, wp's among them) */
 AINL int32_t xd_tap(const int16_t *ln, uint32_t wp, uint32_t fill, int32_t d)
@@ -56,9 +59,10 @@ AINL int32_t xd_in(int32_t x, int32_t *f, int32_t y, int32_t g)
     return clamp(soft_knee(x + mul_tz(*f, g), 20000), -32767, 32767);
 }
 /* instance s of owner k (the audio's index) at MIX a: a part's b (r 0), a stereo owner's l and r; sh: the headroom */
-static HOT2 __attribute__((noinline)) void ifx_xdly_run(ifx_xd_t *s, int16_t (*ln)[XD_LEN], uint32_t k, int32_t a,
-                                                        int32_t *l, int32_t *r, uint32_t n, uint32_t sh)
+static HOT2 __attribute__((noinline)) void ifx_xdly_run(ifx_xd_t *s, uint32_t k, int32_t a, int32_t *l, int32_t *r,
+                                                        uint32_t n, uint32_t sh)
 {
+    int16_t *const ln[2] = {s->line, s->line + XD_LEN};
     static const int16_t D[XDV_N] = XD_V_DEF;
     uint32_t o = ifx_owner(k), i, wp, fill, q;
     const int16_t *v = o < XD_NO ? XDL_V(o) : D;

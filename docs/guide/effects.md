@@ -86,6 +86,8 @@ These keep a line of memory each, so the builder gives them a count of instances
 
 A mono track hears the mean of the two lines; the drum bus and the master get line 1 on the left and line 2 on the right. A track keeps playing its repeats after its notes end, until the lines are silent (with FDBK high that is never: turn the MIX down to stop it).
 
+XDLY and ECHO take their lines from the delay memory (builder item `DLY_ARENA`), which also holds the delay's own line. While the delay (DLY) is in none of the master's slots, its line is free and holds XDLY or ECHO instances beyond the build's own; put DLY back in a slot and they fade out and give it back. A slot whose effect finds no room shows FULL and stays dry until room is given back.
+
 ### EQ3: a three-band DJ equaliser
 
 EQ3 splits the sound at two crossover frequencies and sets the gain of each band. It can sit in any insert slot: a track's, the drum bus', a drum lane's, the master's, the USB input's, or a return's.

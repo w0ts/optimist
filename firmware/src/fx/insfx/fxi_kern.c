@@ -13,8 +13,9 @@
  * count of the samples written since (fill) masks the rest, so a restart needs no clear in the ISR; fxi.c zeroes an
  * instance before it hands it out. Once the line holds only zeros and the input is silent the block is skipped (the
  * output is the input, bit for bit). No divide, no packed 16-bit SIMD.
- * An instance's line is a pointer (fxi.c sets it before it hands the instance out): its own pool line, or a slice of
- * its send's line lent while the send is in no master slot (fxi.c "Lending"; FXI_LND below). Its evict flag (fxi.c,
+ * An instance's line is a pointer (fxi.c sets it before it hands the instance out): its own pool line (CHRS), units of
+ * the delay arena (ECHO, XDLY: FXA_* below), or a slice of its send's line lent while the send is in no master slot (fxi.c
+ * "Lending"; FXI_LND below). Its evict flag (fxi.c,
  * the line going back to the send) fades it out as at amount 0. */
 #if INS_LIM
 /* The limited types by index j (FXI_J): 0 CHRS, 1 ECHO, 2 JUNO CHORUS (2026-10-14), 3 FLNG (2026-10-15, fx-pool: its 2 x 256
@@ -37,13 +38,47 @@ _Static_assert(FELUCCA_INS_CHORUS >= 0 && FELUCCA_INS_CHORUS <= NTRK && FELUCCA_
 static const uint8_t FXI_CAP[FXI_NL] = {FELUCCA_INS_CHORUS, FELUCCA_INS_DELAY, FELUCCA_INS_JCHORUS, FELUCCA_INS_FLANGER,
                                         FELUCCA_INS_XDLY};   /* (by j) */
 /* the instances a send's line can lend (fxi.c, "Lending"): CHRS in the chorus send's 2048 samples (2 lines of 1024),
- * ECHO in the delay send's (its lines of 4096: up to 4 here). Instance i of a type: its own pool line below FXI_CAP, then
- * the send's line's slices FXI_CAP .. FXI_CAP + FXI_LND - 1 */
+ * ECHO and XDLY in the delay send's (lines of 4096, XDLY's 2 x FELUCCA_XDLY_LEN: up to 4 here). Instance i of CHRS: its own
+ * pool line below FXI_CAP, then the send's line's slices FXI_CAP .. FXI_CAP + FXI_LND - 1; of ECHO and XDLY: wherever the
+ * delay arena placed it (below), FXI_CAP + FXI_LND at most */
 #define FXL_MIN(a, b) ((a) < (b) ? (a) : (b))
 #define FXL_N0 (FELUCCA_INS_CHORUS && FELUCCA_FX_CHORUS ? FXL_MIN(CHO_LEN / 1024u, NTRK - FELUCCA_INS_CHORUS) : 0u)
 #define FXL_N1 (FELUCCA_INS_DELAY && FELUCCA_FX_DELAY ? FXL_MIN(DLY_LEN / 4096u, NTRK - FELUCCA_INS_DELAY) : 0u)
-static const uint8_t FXI_LND[FXI_NL] = {FXL_N0, FXL_N1, 0, 0, 0};   /* (JUNO CHORUS, FLNG, XDLY: their own lines only) */
+#define FXL_N4 (FELUCCA_INS_XDLY && FELUCCA_FX_DELAY ? FXL_MIN(DLY_LEN / (2u * FELUCCA_XDLY_LEN), NTRK - FELUCCA_INS_XDLY) : 0u)
+static const uint8_t FXI_LND[FXI_NL] = {FXL_N0, FXL_N1, 0, 0, FXL_N4};   /* (JUNO CHORUS, FLNG: their own lines only) */
 #define FXI_TOT(j) ((uint32_t)FXI_CAP[j] + FXI_LND[j])
+/* The delay arena (2026-10-22, the user: "a delay line is just a delay line"): one delay memory for every delay line, in
+ * units of FXA_U samples (8 KB): the delay send's line (fx.c dly_buf: units 0 .. FXA_S - 1, the send's while its return is
+ * in a master slot, lent while not: fxi.c "Lending") and the inserts' own (fxa_ins: units FXA_S .. FXA_N - 1). An ECHO
+ * instance takes a unit, an XDLY instance its two lines' (FXA_SZ). fxi.c places an instance when an owner takes the type
+ * and frees its units when it is given back: up to the builder's count of a type in the inserts' own units first (an XDLY
+ * from the bottom, an ECHO from the top: they do not cut each other's room), else on the send's lent line, which also
+ * holds those past the count (FXI_LND). Never both the bus and an insert on a unit, nor two inserts. The size: the
+ * builder's DLY_ARENA (KB, the send's line included); 0 (auto) the send's line and room for every instance of the counts,
+ * each as before the arena (its own line). No arena without ECHO or XDLY: the send's line only */
+#define FXA_U 4096u
+#define FXA_S (FELUCCA_FX_DELAY ? FELUCCA_DLY_LEN / FXA_U : 0u)   /* (preprocessor arithmetic: FELUCCA_DLY_LEN, not DLY_LEN) */
+#define FXA_XD (2u * FELUCCA_XDLY_LEN / FXA_U)
+#define FXA_I (!(FELUCCA_INS_DELAY || FELUCCA_INS_XDLY) ? 0u : FELUCCA_DLY_ARENA ? FELUCCA_DLY_ARENA / 8u - FXA_S \
+               : FELUCCA_INS_DELAY + FELUCCA_INS_XDLY * FXA_XD)
+#define FXA_N (FXA_S + FXA_I)
+#define FXA_IS(j) ((j) == 1u || (j) == 4u)              /* (the types in the arena: ECHO, XDLY) */
+#define FXA_SZ(j) ((j) == 1u ? 1u : FXA_XD)             /* (an instance's units) */
+_Static_assert(FELUCCA_DLY_ARENA % 8 == 0 && FXA_N <= 64u && (!FELUCCA_DLY_ARENA || FELUCCA_DLY_ARENA / 8u >= FXA_S ||
+                                                               !(FELUCCA_INS_DELAY || FELUCCA_INS_XDLY)),
+               "FELUCCA_DLY_ARENA: KB, a multiple of 8, at least the delay send's line; 64 units at most (fxi.c fxa_u)");
+#if FXA_I
+static int16_t fxa_ins[FXA_I * FXA_U] __attribute__((section(".pool")));
+#endif
+/* unit u's samples (fxi.c: an instance's line) */
+AINL int16_t *fxa_line(uint32_t u)
+{
+#if FXA_I
+    if (u >= FXA_S)
+        return fxa_ins + (u - FXA_S) * FXA_U;
+#endif
+    return dly_buf + u * FXA_U;
+}
 #define FXI_IMAX (2u * NTRK)                            /* (the most instances of a type: its count and its lent lines) */
 /* the instance each owner's type plays on (the audio reads it once a block; fxi.c writes it with the interrupts off),
  * FXI_NONE: none (the type bypassed there); fxi_init sets every entry FXI_NONE before the audio starts */
@@ -139,9 +174,9 @@ typedef struct {
     int32_t w;                                          /* the echo's level (Q15) */
     uint16_t wp, fill, q;                               /* (as CHRS's: fill and q <= IFX_EC_LEN) */
     uint8_t a, on, evict;                               /* (as CHRS's) */
-    int16_t *line;                                      /* IFX_EC_LEN samples: its own pool line, or a lent slice */
+    int16_t *line;                                      /* IFX_EC_LEN samples: a unit of the delay arena (above) */
 } ifx_ec_t;
-static int16_t ifx_echo_ln[FELUCCA_INS_DELAY][IFX_EC_LEN] __attribute__((section(".pool")));
+_Static_assert(IFX_EC_LEN == FXA_U, "ECHO: a unit of the delay arena a line");
 static ifx_ec_t ifx_echo[FELUCCA_INS_DELAY + FXL_N1] __attribute__((section(".pool")));
 static HOT2 __attribute__((noinline)) void ifx_echo_run(ifx_ec_t *s, int32_t a, int32_t *l, int32_t *r, uint32_t n, uint32_t sh)
 {
@@ -233,7 +268,7 @@ AINL int ifx_ringing(uint32_t k)
 {
 #if FELUCCA_INS_XDLY
     uint32_t i = fxi_at[k % NPART][FXI_J(FXT_XDLY)];
-    return i < FELUCCA_INS_XDLY && ifx_xdly[i].on && ifx_xdly[i].w && ifx_xdly[i].q < XD_LEN;
+    return i < FELUCCA_INS_XDLY + FXL_N4 && ifx_xdly[i].on && ifx_xdly[i].w && ifx_xdly[i].q < XD_LEN;
 #else
     (void)k;
     return 0;
@@ -284,7 +319,11 @@ AINL int ifx_lim_ev(uint32_t ty, uint32_t k)
     if (ty == FXT_ECHO)
         return ifx_echo[i].evict;
 #endif
-    return 0;                                           /* (JUNO CHORUS: never on a lent line) */
+#if FELUCCA_INS_XDLY
+    if (ty == FXT_XDLY)
+        return ifx_xdly[i].evict;
+#endif
+    return 0;                                           /* (JUNO CHORUS, FLNG: never on a lent line) */
 }
 /* to rest at once (a part not heard: insfx.c ifx_quiet_part); it starts again from a clean line */
 AINL void ifx_lim_rest(uint32_t ty, uint32_t k)
@@ -340,8 +379,8 @@ static HOT2 __attribute__((noinline)) void ifx_lim_run(uint32_t ty, uint32_t k, 
         ifx_flanger(&ifx_flng[i], a, l, r, n, sh);
 #endif
 #if FELUCCA_INS_XDLY
-    if (ty == FXT_XDLY && i < FELUCCA_INS_XDLY)
-        ifx_xdly_run(&ifx_xdly[i], ifx_xdly_ln[i], k, a, l, r, n, sh);
+    if (ty == FXT_XDLY && i < FELUCCA_INS_XDLY + FXL_N4)
+        ifx_xdly_run(&ifx_xdly[i], k, a, l, r, n, sh);
 #endif
     (void)a, (void)l, (void)r, (void)n, (void)sh;
 }

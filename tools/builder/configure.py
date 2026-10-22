@@ -32,7 +32,8 @@ import core as K
 from core import (
     ANCHOR_MARGIN as ANCHOR_MARGIN, AUTO_AUX as AUTO_AUX, AUTO_ENC_MAX as AUTO_ENC_MAX, AUTO_ITEMS as AUTO_ITEMS,
     AUTO_LIST as AUTO_LIST, AUTO_MAX as AUTO_MAX, AUTO_NTRK as AUTO_NTRK, AUTO_STORE as AUTO_STORE,
-    FIT_MARGIN as FIT_MARGIN, FIT_ORDER as FIT_ORDER, GRAIN_SETS as GRAIN_SETS, LIMITS as LIMITS, NEEDS as NEEDS,
+    FIT_MARGIN as FIT_MARGIN, FIT_ORDER as FIT_ORDER, FXA_UNIT as FXA_UNIT, XD_STATE as XD_STATE,
+    GRAIN_SETS as GRAIN_SETS, LIMITS as LIMITS, NEEDS as NEEDS, dly_arena as dly_arena, dly_send_kb as dly_send_kb,
     PART_MEM as PART_MEM, PART_MEM_NONE as PART_MEM_NONE, REGIONS as REGIONS, REV_ROOM_LEN as REV_ROOM_LEN,
     SL24_XS as SL24_XS, SPARE as SPARE, ConfigError as ConfigError, Issue as Issue, additive as additive,
     anchor_cfg as anchor_cfg, anchor_record as anchor_record, auto_built as auto_built, auto_store as auto_store,

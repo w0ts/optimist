@@ -190,6 +190,10 @@ def validate(cfg):
                           "melodic set built (none: INIT, its defaults)", ["ENG_GRAIN"] + list(GRAIN_SETS)))
     if built(cfg, "FX_DUCK") and not any(built(cfg, k) for k in DRUM_SYNTHS + ("DRUM_SAMPLED",)):
         warn.append(Issue("DUCK follows the kick", ("FX_DUCK", "DRUM_SYNTH", "DRUM_SAMPLED")))
+    arena, send_kb = cfg.get("DLY_ARENA", 0), dly_send_kb(cfg)
+    if arena and (built(cfg, "INS_DELAY") or built(cfg, "INS_XDLY")) and arena < send_kb:
+        err.append(Issue(f"the delay memory holds the delay's line: at least {send_kb} KB (or auto, or a shorter delay)",
+                         ["DLY_ARENA", "DLY_LEN"]))
     for k, it in R.ITEMS.items():
         if it.off_warning and not cfg[k] and (not it.parent or built(cfg, it.parent)):
             warn.append(Issue(f"{it.label} off: {it.off_warning}", [k]))
@@ -446,12 +450,46 @@ def part_mem(cfg):
     return {"pool": max(sizes) if sizes else PART_MEM_NONE}
 
 
+FXA_UNIT = 8192        # fx/insfx/fxi_kern.c FXA_U: a unit of the delay arena (4096 samples), bytes
+XD_STATE = 40          # fx/insfx/xdly.c ifx_xd_t on the target, bytes (measure_costs.py holds it against ifx_xdly's size)
+NTRK = 4
+
+
+def dly_send_kb(cfg, f=None):
+    """the delay send's line in KB (fx.c dly_buf), 0 without the delay; f: the configuration's flags, when at hand"""
+    f = f if f is not None else flags(cfg)[0]
+    return int(f.get("FELUCCA_DLY_LEN", 0) or 0) * 2 // 1024 if f.get("FELUCCA_FX_DELAY") else 0
+
+
+def dly_arena(cfg):
+    """-> {"units", "xdly": XDLY instances (ifx_xdly), "pool": bytes} of the delay arena (fx/insfx/fxi_kern.c FXA_*,
+    fxi.c): the inserts' own units (fxa_ins: DLY_ARENA less the delay send's line, which stays dly_buf, FX_DELAY's own
+    delta; auto: an ECHO line a unit and XDLY's two lines an instance, as each had its own) and the XDLY states the send's
+    line holds past the count (FXL_N4: min(DLY_LEN / (2 XDLY_LEN), 4 - INS_XDLY)). Set by INS_DELAY, INS_XDLY, XDLY_LEN,
+    DLY_LEN, FX_DELAY and DLY_ARENA together: no per-item delta adds up to it, so the estimate computes it (model_terms)
+    and the measured deltas leave it out (measure_costs.py)"""
+    f, _ = flags(cfg)
+
+    def on(key):
+        return int(f.get(R.ITEMS[key].flag, 0) or 0)
+    ne, nx, send = on("INS_DELAY"), on("INS_XDLY"), dly_send_kb(cfg, f) // 8
+    if not (ne or nx):
+        units = 0
+    elif on("DLY_ARENA"):
+        units = max(0, on("DLY_ARENA") // 8 - send)
+    else:
+        units = ne + nx * (2 * on("XDLY_LEN") // 4096)
+    lent = min(on("DLY_LEN") // (2 * on("XDLY_LEN")), NTRK - nx) if nx and on("FX_DELAY") else 0
+    return {"units": units, "xdly": nx + lent, "pool": units * FXA_UNIT + lent * XD_STATE}
+
+
 def model_terms(cfg):
     """-> {region: bytes} the computed part of the estimate, against the default build: what is not a sum of
     per-item deltas (the reverb's line buffer, rev_lines; the automation store, auto_store; the engines' part
-    states, part_mem)"""
+    states, part_mem; the delay arena, dly_arena)"""
     d = defaults()
-    terms = [(rev_lines(cfg), rev_lines(d)), (auto_store(cfg), auto_store(d)), (part_mem(cfg), part_mem(d))]
+    arena = ({"pool": dly_arena(cfg)["pool"]}, {"pool": dly_arena(d)["pool"]})
+    terms = [(rev_lines(cfg), rev_lines(d)), (auto_store(cfg), auto_store(d)), (part_mem(cfg), part_mem(d)), arena]
     return {r: sum(a.get(r, 0) - b.get(r, 0) for a, b in terms) for r in REGIONS}
 
 

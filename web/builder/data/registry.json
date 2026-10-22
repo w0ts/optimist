@@ -2528,6 +2528,66 @@
     "provenance_line": ""
    },
    {
+    "key": "DLY_ARENA",
+    "flag": "FELUCCA_DLY_ARENA",
+    "label": "delay memory (shared by the delay, ECHO and XDLY)",
+    "group": "FX: limited instances (once, or a set count)",
+    "bit": 378,
+    "default": 0,
+    "parent": null,
+    "desc": "One pool memory for every delay line: the delay send's line (its length above) and the lines of the ECHO and XDLY inserts (8 KB an ECHO, 2 lines of XDLY's length an XDLY). An insert takes its room when a slot picks it and gives it back when the slot lets go; with no room left the slot shows FULL and stays dry. The delay keeps its own line while it is in a master slot; out of the slots its line holds inserts too (as many as fit; taken back, faded out, when the delay is put back). Auto: the delay's line plus room for every ECHO and XDLY of the counts at once, as if each had its own. Smaller: the inserts share what is left, e.g. the delay's line alone (64 KB with the 0.74 s delay) holds one XDLY while the delay is not used, at no pool cost. At least the delay's line; nothing without ECHO or XDLY.",
+    "experimental": false,
+    "notice": "",
+    "off_warning": "",
+    "env": "",
+    "target_only": false,
+    "symbols": [],
+    "no_image": false,
+    "fixed": false,
+    "choices": [
+     [
+      0,
+      "auto: room for every ECHO and XDLY"
+     ],
+     [
+      32,
+      "32 KB"
+     ],
+     [
+      64,
+      "64 KB"
+     ],
+     [
+      96,
+      "96 KB"
+     ],
+     [
+      128,
+      "128 KB"
+     ],
+     [
+      160,
+      "160 KB"
+     ],
+     [
+      192,
+      "192 KB"
+     ],
+     [
+      256,
+      "256 KB"
+     ],
+     [
+      320,
+      "320 KB"
+     ]
+    ],
+    "provenance": null,
+    "children": [],
+    "tested": "emulator-tested only",
+    "provenance_line": ""
+   },
+   {
     "key": "INS_GATER",
     "flag": "FELUCCA_INS_GATER",
     "label": "GATER insert (tempo-synced trance gate)",
@@ -4829,6 +4889,7 @@
    "INS_JCHORUS",
    "INS_FLANGER",
    "INS_XDLY",
+   "DLY_ARENA",
    "BASSPLUS"
   ],
   "Sequencer": [
