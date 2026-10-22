@@ -8,6 +8,9 @@
  *   strum      STRUM 20: the chord's notes 20 ms apart, low to high; -20 high to low; a chord step too; a key let
  *              go before its turn: the note never starts
  *   vlead      VLEAD ON: C then F voiced nearest (C E G -> C F A, not F A C)
+ *   latch      a black key tapped twice within CM_DTAP_MS stays on for its track (also under a held chord); tapped once
+ *              more it is released when let go (held: still on); two taps further apart latch nothing; another track
+ *              keeps its own
  * Exit status: the failed checks. */
 #define main hostsim_main
 #include "hostsim.c"
@@ -46,6 +49,8 @@ static void reset(void)
     fm1_in.notes = fm1_in.buttons = 0;
     kb_prev = 0;
     memset(vl_n, 0, sizeof vl_n);
+    memset(cm_lock, 0, sizeof cm_lock);
+    cm_tap_key = 0;
     memset(stq, 0, sizeof stq);
     block();
 }
@@ -218,6 +223,52 @@ static void t_vlead(void)
     check(k == 3u && c[0] == 65, "VLEAD off: F A C");
 }
 
+static void tap(uint32_t k, uint32_t ms)                /* key k pressed and let go at fm1_ms = ms */
+{
+    fm1_ms = ms;
+    keys(1u << k);
+    keys(0);
+}
+static void t_latch(void)
+{
+    uint32_t kc, kgs = key_of(68);
+    reset();
+    for (kc = 0; kc < 27u && kb_map(&trk[0], kc) != 60u; kc++)
+        ;
+    tap(kgs, 1000);
+    tap(kgs, 1200);
+    check(chord_locked(0) == CM_SEVEN, "G# tapped twice within 400 ms: the 7th latched on the track");
+    keys(1u << kc);
+    check(!strcmp(sounding(), "60 64 67 71"), "latched: the key plays the 7th chord with no black key held");
+    keys(0);
+    song.sel = 1;
+    check(chord_locked(1) == 0, "another track: nothing latched there");
+    song.sel = 0;
+    fm1_ms = 2000;
+    keys(1u << kgs);
+    check(chord_locked(0) == CM_SEVEN, "a latched key pressed: still latched while held");
+    keys(0);
+    check(chord_locked(0) == 0, "and released when it is let go (one tap)");
+    keys(1u << kc);
+    check(!strcmp(sounding(), "60 64 67"), "released: the plain triad");
+    keys(0);
+    tap(kgs, 3000);
+    tap(kgs, 3600);
+    check(chord_locked(0) == 0, "two taps 600 ms apart: no latch");
+    tap(kgs, 4000);
+    fm1_ms = 4100;
+    keys(1u << kc);
+    keys(1u << kc | 1u << kgs);
+    check(chord_locked(0) == CM_SEVEN && !strcmp(sounding(), "60 64 67 71"), "second tap while a chord is held: latched under the finger");
+    keys(1u << kc);
+    check(!strcmp(sounding(), "60 64 67 71"), "and it stays when the black key is let go");
+    keys(1u << kc | 1u << kgs);
+    check(!strcmp(sounding(), "60 64 67 71"), "a tap on it under the chord: the 7th kept while the key is down");
+    keys(1u << kc);
+    check(chord_locked(0) == 0 && !strcmp(sounding(), "60 64 67"), "let go: released under the finger (the triad)");
+    keys(0);
+}
+
 int main(void)
 {
     t_chords();
@@ -225,6 +276,7 @@ int main(void)
     t_record();
     t_strum();
     t_vlead();
+    t_latch();
     printf("chordplus: %d failed\n", fails);
     return fails != 0;
 }
