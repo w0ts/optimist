@@ -475,6 +475,22 @@ if um:
 import measure_costs as MC  # noqa: E402
 check("costs.json: every pair measure_costs.py defines is measured (run measure_costs.py --missing)",
       not MC.missing_pairs(costs))
+# a value whose lines no pool holds (INS_XDLY 3, 4: the link says "region POOL overflowed by N" even in the measurement link) is
+# its pool exactly and the rest of the value before it (the lines are the pool: the same code), not a stop of the whole run
+_like = {"flash": 100, "ram": 20, "pool": 300, "ramtext": 5}
+_run_build, MC.run_build = MC.run_build, lambda cfg, name, log: (False, None, "ld: region `POOL' overflowed by 45588 bytes\n")
+try:
+    _got = MC.measure({}, "m-fake-3", Path("/nonexistent.log"), like=_like)
+    check("measure_costs: a value no pool holds is its pool (the measurement link's region + the overflow), the rest as the value before",
+          _got["pool"] == MC.MEASURE_POOL + 45588 and all(_got[r] == _like[r] for r in ("flash", "ram", "ramtext")))
+    _stop = False
+    try:
+        MC.measure({}, "m-fake-1", Path("/nonexistent.log"))               # (nothing before it to copy: still a failure)
+    except SystemExit:
+        _stop = True
+    check("measure_costs: ... but the first value of an item that does not build still stops the run", _stop)
+finally:
+    MC.run_build = _run_build
 _old = {"flash": 1000, "ram": 200, "pool": 50, "ramtext": 400}
 with redirect_stdout(io.StringIO()):
     _moved = MC.refreshed_base(_old, dict(_old, ramtext=488))       # (88 B: under the 256 B fit margin, was kept)
