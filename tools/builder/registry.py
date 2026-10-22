@@ -872,6 +872,18 @@ _add("ED_SCREENS", "FELUCCA_ED_SCREENS", "web editor: the device's screens (card
 _add("TAB_IN_POOL", "FELUCCA_TAB_IN_POOL", "sound tables and FM6 buffers in the pool, not main RAM", Y, 300, default=0,
      experimental=True, tested="emulator-tested only (no memory timing there)",
      desc="Moves what the sound loops read from main RAM to the pool: the sine, soft-clip and GRAIN window tables (about 2.5 KB, copied there from flash at start-up) and FM6's sine table, operator buses and voices (about 5.9 KB), so builder items get that much more main RAM. Unverified on hardware: both are the same SRAM as far as is known and the emulator cannot tell a speed difference, so on the FM-1 it may be slower; compare the console's TABBENCH figures and the CPU meter with it off and on. The sound is the same.")
+_add("LIVE_SAVE", "FELUCCA_LIVE_SAVE", "save while playing (flash writes in short windows)", Y, 380, default=0,
+     experimental=True, tested="built and host-tested only, not on a device",
+     desc="Saving no longer stops or waits for the transport: SAVE on a user preset, a kit, a project, a name or the song "
+          "writes as the music plays (no STOP BEFORE SAVE, the naming page no longer stops and restarts the transport), "
+          "and what waited for the stop (live sections and patterns, the song, the settings) goes to flash while "
+          "playing, one record at a time, 250 ms apart, once the panel has rested 1.5 s. The audio keeps playing "
+          "because every sector erase is already cut into 1 ms windows with the erase suspended between them "
+          "(hal/fm1_flash_slice.h); the main loop (the screen, the panel) still pauses for one record's write, tens of "
+          "ms. If the flash part ever holds an erase in one window (no suspend: the audio silenced in it), saves wait "
+          "for the stop again until the next start. Snapshots, backup restores, sample uploads, the web editor's writes "
+          "and the working project's autosave still wait for the stop. About 240 B of flash, 1 byte of RAM.",
+     off_warning="saves refused (STOP BEFORE SAVE) or held until the transport stops, as before")
 _add("CPU_GUARD", "FELUCCA_CPU_GUARD", "predictive CPU guard (ease back before shedding)", Y, 61, default=0,
      provenance=FLOWSTATE_GUARD,
      desc="Avoids audio dropouts under heavy load by easing quality back step by step before cutting notes. Under "

@@ -208,7 +208,7 @@ static void ukit_ui(uint32_t op, uint32_t u)
 {
     char l[12];
     int rc;
-    if (song.playing || transport_req) {                     /* a flash erase stops the audio ~50 ms */
+    if (SAVE_WAITS_PLAY()) {                                 /* a flash erase stops the audio ~50 ms (seq.c: LIVE_SAVE) */
         ui_message("STOP BEFORE SAVE");
         return;
     }

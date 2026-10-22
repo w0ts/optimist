@@ -340,7 +340,7 @@ static void project_save(uint32_t slot)
 {
     uint32_t s = slot % SEC_IDS, n, key;
     int rc;
-    if (song.playing || transport_req) { ui_message("STOP BEFORE SAVE"); return; }
+    if (SAVE_WAITS_PLAY()) { ui_message("STOP BEFORE SAVE"); return; }
     n = sec_capture();
     key = proj_hash(sec_rbuf, n);                      /* (the record's: its extras', FX and LFO records' key) */
 #if FELUCCA_PATTERNS
@@ -540,13 +540,23 @@ static int sec_pend_log(uint32_t id, uint32_t i)
 static void sections_write(void)                       /* the pending sections and the song into flash */
 {
     uint32_t i;
+#if FELUCCA_LIVE_SAVE
+    uint32_t one = 0;                                  /* (playing: one pattern or section a call, LIVE_ONE) */
+#define LIVE_DONE() (one && LIVE_ONE())
+#else
+#define LIVE_DONE() 0
+#endif
 #if FELUCCA_PATTERNS
-    for (i = SEC_PEND_PAT; flash_ok && i < SEC_PEND_FX; i++)  /* the patterns first: a scene names them (the FX */
-        if (sec_pend_has(i) && !sec_pend_log(SEC_ID_PAT0 + i - SEC_PEND_PAT, i))
-            sec_pend_del(i);                           /*  records past them go with their sections, below) */
+    for (i = SEC_PEND_PAT; flash_ok && i < SEC_PEND_FX && !LIVE_DONE(); i++)  /* the patterns first: a scene names them */
+        if (sec_pend_has(i) && !sec_pend_log(SEC_ID_PAT0 + i - SEC_PEND_PAT, i)) {
+            sec_pend_del(i);                           /* (the FX records past them go with their sections, below) */
+#if FELUCCA_LIVE_SAVE
+            one = 1;
+#endif
+        }
 #endif
     if (flash_ok)
-        for (i = 0; i < SEC_IDS; i++)
+        for (i = 0; i < SEC_IDS && !LIVE_DONE(); i++)
             if (sec_pend_has(i)) {
                 int rc = sec_pend_log(i, i);
 #if FELUCCA_AUTO
@@ -559,14 +569,17 @@ static void sections_write(void)                       /* the pending sections a
                     rc = sec_pend_log(FXR_ID0 + i, SEC_PEND_FX + i);
                 if (!rc)                               /* (its LFO record: the same) */
                     rc = sec_pend_log(DLR_ID0 + i, SEC_PEND_DL + i);
-                if (!rc)
+                if (!rc) {
                     sec_pend_drop(i);
-                else if (rc == 1) {                    /* (the log filled meanwhile: kept in RAM, said once) */
+#if FELUCCA_LIVE_SAVE
+                    one = 1;                           /* (a failed one keeps none of the others waiting) */
+#endif
+                } else if (rc == 1) {                  /* (the log filled meanwhile: kept in RAM, said once) */
                     ui_message("MEM FULL");
                     continue;
                 }
             }
-    if (flash_ok && slg_tombs_write())
+    if (flash_ok && !LIVE_DONE() && slg_tombs_write())
         ui_message("SAVE ERROR");                      /* (kept pending: tried again) */
     sec_dirty = 0;
     for (i = 0; i < SEC_IDS; i++)
@@ -578,10 +591,11 @@ static void sections_write(void)                       /* the pending sections a
         if (sec_pend_has(i))
             sec_dirty |= 0x8000u;                      /* (a pattern still waits: written with the sections) */
 #endif
-    if (song_dirty) {
+    if (song_dirty && !LIVE_DONE()) {
         song_dirty = 0;
         settings_save();
     }
+#undef LIVE_DONE
 }
 
 /* ---- the audio ISR's side (arranger_scene.c) */
