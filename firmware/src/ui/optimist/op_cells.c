@@ -494,8 +494,9 @@ static void op_dsnd_tick(void)
 }
 
 /* ---- rows made of PAGES */
-#define CMP_PAGE(pg) ((pg)->scope == SC_FXSLOT && (pg)->id[0] >= FX_NSLOT && (pg)->id[0] < FXS_ID_INS)   /* FX > DYN, DYN 2:
-                                                        * the track DYN's settings */
+#define CMP_PAGE(pg) ((pg)->scope == SC_FXSLOT && (((pg)->id[0] >= FX_NSLOT && (pg)->id[0] < FXS_ID_INS) || \
+                                                  ((pg)->id[0] >= FXS_ID_TXD && (pg)->id[0] < FXS_ID_MXD)))   /* FX > DYN, DYN 2:
+                                                        * the track DYN's settings; XDLY: the track's (the master's is fx_page's) */
 static int sound_page(const page_t *pg)              /* a row of the SOUND screen: the track's sound and pattern */
 {
     if (pg->scope == SC_DSND && is_drum(TSEL) && lane_acc())
