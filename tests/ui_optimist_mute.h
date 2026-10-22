@@ -82,7 +82,8 @@ static void mute_tests(void)
     frames(2);
     tap(B_SAVE);
     check(ui.scr == SCR_PROJECT, "SAVE tapped on the master FX page: PROJECT (SAVE works on every page but SEQ)");
-    /* a muted row's VOLUME / LEVEL turned: unmuted (the user, 2026-10-15); a cursor move or the SHIFT toggle itself: not */
+    /* the sequencer mute is not the volume's (the user, 2026-10-22: "MUTE THE SEQUENCER INPUT OF THE TRACK, and NOT put its
+     * volume to zero/mute"): a muted row's VOLUME / LEVEL turned moves the volume and leaves the mute; the card is not struck */
     reset_ui();
     song.sel = 1;
     frames(2);
@@ -94,9 +95,13 @@ static void mute_tests(void)
     ui.row[SCR_HOME] = MXR_T1 + 1u;
     frames(2);
     check(smute_trk_on(1), "a muted track: a cursor move does not unmute it");
+    {
+        cell_t c;
+        mix_cell(MXR_T1 + 1u, 0, &c);
+        check(!c.strike, "a track's sequencer muted: its VOLUME card is not struck (the volume is untouched)");
+    }
     turn(EN_K1, 1);
-    check(!smute_trk_on(1) && trk[1].p[P_LEVEL] != lv, "a muted track: its VOLUME turned unmutes it");
-    smute_set_trk(1, 1);
+    check(smute_trk_on(1) && trk[1].p[P_LEVEL] != lv && trk[1].p[P_MUTE] == 0, "a muted track: its VOLUME turned moves the volume, the sequencer stays muted");
     press(B_OCTDN);
     turn(EN_K1, 1);
     release(B_OCTDN);
@@ -111,7 +116,7 @@ static void mute_tests(void)
     dl.ofs[2][DE_LEVEL] = 0;
     smute_set_lane(2, 1);
     turn(EN_K1, -1);
-    check(!smute_lane_on(2), "a muted lane: its LEVEL turned unmutes it");
+    check(smute_lane_on(2) && !dlm_muted(2), "a muted lane: its LEVEL turned leaves its sequencer muted");
     smute_lane = 0;
     reset_ui();
     song.sel = 0;
