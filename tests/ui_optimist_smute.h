@@ -153,6 +153,30 @@ static void smute_tests(void)
     check(!f && !d, "SHIFT let go: the keys dark again");
     smute_clear();
 
+    /* the master channel too (the user, 2026-10-22): the mixer's MASTER row and the master FX page, the keys silent */
+    smute_clear();
+    reset_ui();
+    go_home();
+    ui.row[SCR_HOME] = MXR_MASTER;
+    frames(2);
+    check(mx_on_master() && keys_none(), "(the mixer's MASTER row: a page with no track)");
+    press(B_OCTDN);
+    key(smute_black(1));
+    check(smute_trk == 2u && smute_lane == 0u, "the MASTER row, SHIFT + the second white key: T2's sequencer muted");
+    key(key_of_lane(2));
+    check(smute_lane_on(2), "... a drum key: its lane");
+    release(B_OCTDN);
+    check(song.octave == 0, "... OCT- let go after keys: no octave");
+    smute_clear();
+    reset_ui();
+    op_enter(SCR_FX);
+    frames(2);
+    press(B_OCTDN);
+    key(smute_black(1));
+    release(B_OCTDN);
+    check(ui.scr == SCR_FX && smute_trk == 2u, "the master FX page, SHIFT + the second white key: T2's sequencer muted");
+    smute_clear();
+
     /* every page with keys: the same; STEP's white keys stay steps, its black keys mute */
     reset_ui();
     song.sel = TRK_DRUM;
