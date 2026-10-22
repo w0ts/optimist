@@ -392,6 +392,11 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #ifndef FELUCCA_XDLY_LEN
 #define FELUCCA_XDLY_LEN 16384             /* XDLY's line, samples (a power of two): 16384 0.37 s (64 KB an instance), 8192 */
 #endif
+#ifndef FELUCCA_DLY_ARENA
+#define FELUCCA_DLY_ARENA 0                /* the delay arena (fxi_kern.c FXA_*): KB of pool for every delay line, the delay
+                                            * send's included, a multiple of 8; 0: the send's line and room for every ECHO
+                                            * and XDLY instance of the counts (each its own, as before the arena) */
+#endif
 #ifndef FELUCCA_RET_FB
 #define FELUCCA_RET_FB 1                   /* the returns' feedback sends B -> A, C -> A, C -> B (fx_slots.c rs_amt, fx.c rs_fbv) */
 #endif

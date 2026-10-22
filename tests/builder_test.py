@@ -509,6 +509,17 @@ try:
     check("measure_costs: ... but the first value of an item that does not build still stops the run", _stop)
 finally:
     MC.run_build = _run_build
+# the delay arena (fx/insfx/fxi_kern.c FXA_*): a computed term (configure.py dly_arena), exact for every count, line length
+# and size; measure_costs.py holds it against the real fxa_ins and ifx_xdly of every build it makes
+def _da(**kv):
+    return C.dly_arena(dict(C.defaults(), **kv))
+check("the delay arena: auto is room for every ECHO and XDLY (a unit an ECHO, two lines an XDLY); DLY_ARENA is the "
+      "delay's line plus what it names; nothing without ECHO or XDLY; never under the delay's line",
+      _da(INS_DELAY=2)["units"] == 2 and _da(INS_XDLY=3)["units"] == 24 and _da(INS_XDLY=2, XDLY_LEN=8192)["units"] == 8
+      and _da(INS_XDLY=1, DLY_LEN=32768, DLY_ARENA=64)["pool"] == C.XD_STATE and _da(DLY_ARENA=96)["pool"] == 0
+      and _da(INS_DELAY=1, INS_XDLY=1, DLY_LEN=32768, DLY_ARENA=128)["units"] == 8
+      and bool(C.validate(dict(C.defaults(), INS_XDLY=1, DLY_ARENA=64))[0])
+      and not C.validate(dict(C.defaults(), INS_XDLY=1, DLY_LEN=32768, DLY_ARENA=64))[0])
 _old = {"flash": 1000, "ram": 200, "pool": 50, "ramtext": 400}
 with redirect_stdout(io.StringIO()):
     _moved = MC.refreshed_base(_old, dict(_old, ramtext=488))       # (88 B: under the 256 B fit margin, was kept)

@@ -420,7 +420,8 @@ def section_sizes(hdr):
 
 # objects whose size the builder's estimate computes rather than adds up (tools/builder/configure.py model_terms):
 # their real size goes into sizes.json "symbols" for tools/builder/measure_costs.py
-SIZED_SYMBOLS = ("part_mem",)       # (engines.c: the synth parts' engine state, a union of the engines built)
+SIZED_SYMBOLS = ("part_mem",        # (engines.c: the synth parts' engine state, a union of the engines built)
+                 "fxa_ins", "ifx_xdly")   # (fxi_kern.c, xdly.c: the delay arena's own units, the XDLY states)
 
 
 def sizes(img, syms, hdr):

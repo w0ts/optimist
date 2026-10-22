@@ -179,7 +179,7 @@ class Item:
 FX_ANY = "FX: any number (each track its own)"
 FX_ONCE = "FX: limited instances (once, or a set count)"
 FX_ONCE_KEYS = {"FX_CHORUS", "FX_DELAY", "FX_REVERB", "FX_PUNCH", "FX_DUCK", "BASSPLUS",
-                "INS_CHORUS", "INS_DELAY", "INS_JCHORUS", "INS_FLANGER", "INS_XDLY"}
+                "INS_CHORUS", "INS_DELAY", "INS_JCHORUS", "INS_FLANGER", "INS_XDLY", "DLY_ARENA"}
 
 
 def fx_group(key, parent=None):
@@ -665,6 +665,19 @@ _add("XDLY_LEN", "FELUCCA_XDLY_LEN", "XDLY line length (its longest TIME)", F, 3
      choices=((16384, "0.37 s (64 KB pool an instance)"), (8192, "0.19 s (32 KB)")),
      desc="How long each of XDLY's two lines is: TIME's top end. The shorter line halves every TIME and saves 32 KB of "
           "pool an instance.")
+# the delay arena (fx/insfx/fxi_kern.c FXA_*, 2026-10-22, the user: "a delay line is just a delay line"): one pool memory
+# for the delay send's line and every ECHO / XDLY line; its size computed by the estimate (configure.py dly_arena)
+_add("DLY_ARENA", "FELUCCA_DLY_ARENA", "delay memory (shared by the delay, ECHO and XDLY)", F, 378, default=0,
+     choices=((0, "auto: room for every ECHO and XDLY"), (32, "32 KB"), (64, "64 KB"), (96, "96 KB"), (128, "128 KB"),
+              (160, "160 KB"), (192, "192 KB"), (256, "256 KB"), (320, "320 KB")),
+     desc="One pool memory for every delay line: the delay send's line (its length above) and the lines of the ECHO "
+          "and XDLY inserts (8 KB an ECHO, 2 lines of XDLY's length an XDLY). An insert takes its room when a slot "
+          "picks it and gives it back when the slot lets go; with no room left the slot shows FULL and stays dry. The "
+          "delay keeps its own line while it is in a master slot; out of the slots its line holds inserts too (as many "
+          "as fit; taken back, faded out, when the delay is put back). Auto: the delay's line plus room for every ECHO "
+          "and XDLY of the counts at once, as if each had its own. Smaller: the inserts share what is left, e.g. the "
+          "delay's line alone (64 KB with the 0.74 s delay) holds one XDLY while the delay is not used, at no pool "
+          "cost. At least the delay's line; nothing without ECHO or XDLY.")
 # GATER (fx/insfx/gater.c, 2026-10-14): a further insert type, any number (a few bytes a track)
 _add("INS_GATER", "FELUCCA_INS_GATER", "GATER insert (tempo-synced trance gate)", F, 330, default=0,
      desc="A rhythmic volume gate type for the tracks' insert slots (INSERTS > S1 / S2: GATER), locked to the tempo "
