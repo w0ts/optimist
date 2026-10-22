@@ -326,6 +326,11 @@ static void rh_ring_go(void)                            /* the ring starts: on t
 static void rec_held(uint32_t held)
 {
     if (!(held & (1u << panel.btn[B_REC]))) {
+        if (rh.on && !rh.ring && !rh.knob && op_btn_span(panel.btn[B_REC], rh.t0) >= RH_ARM_MS) {
+            song.rec = rh.prev_rec;                     /* (held past the ring's start, a slow frame between: a hold, the */
+            rec_wait = rh.prev_wait;                    /* press undone as the ring would have, let go before its end) */
+            ui.msg_t = 0;
+        }
         if (rh.ring)
             ui.force = 1;                               /* (let go before the end: the ring goes, nothing done) */
         rh.on = rh.ring = rh.knob = rh.kdone = rh.motion = 0;
@@ -530,7 +535,8 @@ static const uint8_t JUMP_FAM[NB] = {[B_FX] = FAM_FX, [B_SCL] = FAM_SCL, [B_ENV]
                                      [B_OCTDN] = 0xFF, [B_OCTUP] = 0xFF};
 #define BIT(b) (1u << panel.btn[b])
 
-static void op_press(uint32_t b, uint32_t held)
+/* (noinline: inlined into op_drain's merged loop it was there twice, ~450 B more in everything-that-fits) */
+static __attribute__((noinline)) void op_press(uint32_t b, uint32_t held)
 {
     if (b != B_OCTDN && b != B_OCTUP)
         oct_both = 0;                                   /* (another button: the OCT pair is a SHIFT combo, not the toggle) */
@@ -553,13 +559,13 @@ static void op_press(uint32_t b, uint32_t held)
             op_clean &= ~BIT(B_PLAY);
         } else {
             tp.pend = 1;                                /* a tap starts / stops when let go; held: TEMPO */
-            tp.t0 = fm1_ms;
+            tp.t0 = op_t0[panel.btn[B_PLAY] % 14u];     /* (its press: the button's own time, ui_input) */
         }
         break;
     case B_REC:
         rh.prev_rec = song.rec;                         /* (a hold undoes the press: rec_held) */
         rh.prev_wait = rec_wait;
-        rh.t0 = fm1_ms;
+        rh.t0 = op_t0[panel.btn[B_REC] % 14u];
         rh.ring = rh.motion = 0;
         rh.on = (uint8_t)op_rec();
         break;
@@ -571,7 +577,7 @@ static void op_press(uint32_t b, uint32_t held)
             op_clean &= ~BIT(b);
         } else if ((held & (BIT(B_OCTDN) | BIT(B_OCTUP))) == (BIT(B_OCTDN) | BIT(B_OCTUP))) {   /* both OCT: the track <-> MASTER toggle when let go */
             oct_both = (uint8_t)(oct_fold_here() || oct_master_ok());
-            oct_both_t = fm1_ms;
+            oct_both_t = op_t0[panel.btn[b] % 14u];
             op_clean &= ~(BIT(B_OCTDN) | BIT(B_OCTUP));
         } else if (lay_is(LY_OPS)) {                    /* ENV held on FM6: the page back / on (op_fm6.c) */
             fm6_lay_page(b == B_OCTDN ? -1 : 1);
@@ -607,7 +613,8 @@ static void save_hold(void)
 }
 static void op_tap(uint32_t b, uint32_t id)
 {
-    const uint32_t held = fm1_ms - op_t0[id % 14u];       /* (how long it was down: read once) */
+    const uint32_t held = op_btn_span(id, op_t0[id % 14u]);   /* (how long it was down, by the button's own times: a slow frame
+                                                         * between its press and release no longer makes a tap a hold) */
     const int hold = held >= op_hold_ms();
     if (lay_btn_layer(b) != LY_PLAY && held > LAY_TAP_MS && !(b == B_SAVE && op_armed()))
         return;                                         /* (held: the layer was looked at, no tap) */
@@ -889,28 +896,57 @@ knobs_done:
         tp.pend = 0;
     }
 }
-/* lk_q (seq.c): STEP's keys and the layers' keys, in order */
-static void op_drain(uint32_t held)
+/* the buttons down at time t (fm1_ms) of this pass: down now and pressed by then, or let go this pass after it. A slow frame's
+ * key events and presses see the buttons as they were then (SHIFT at the key's time), not as the frame's end finds them */
+static __attribute__((noinline)) uint32_t btn_at(uint32_t t, uint32_t held, uint32_t pressed)
 {
+    uint32_t id, b, m = 0;
+    for (id = 0; id < 14u; id++) {
+        b = 1u << id;
+        if (!((held | pressed | op_held) & b) || ((pressed & b) && (int32_t)(t - op_btn_ms(id, 0)) < 0))
+            continue;                                   /* (up all along, or pressed after t) */
+        if (!(held & b) && (int32_t)(t - op_btn_ms(id, 1)) >= 0)
+            continue;                                   /* (let go by t) */
+        m |= b;
+    }
+    return m;
+}
+/* this pass's events in the order they came: lk_q (seq.c: STEP's keys and the layers' keys, with their times) merged with the
+ * presses (ord: n button ids by their times, op_t0), each seen with the buttons down then (a step tapped, then a page button:
+ * no lock; SHIFT pressed after a key: not SHIFT + it). The queue found full: an event may have been dropped (seq.c lk_push drops
+ * when full, and only this empties it), the held steps mended from the keys down after them */
+static void op_drain(uint32_t held, uint32_t pressed, const uint8_t *ord, uint32_t n)
+{
+    uint32_t lost = lk_w - lk_r >= LKQ, i = 0;
     lk_ev_ms = fm1_ms;
-    while (lk_r != lk_w) {
-        uint32_t e = lk_q[lk_r % LKQ];
+    while (lk_r != lk_w || i < n) {
+        uint32_t e, h;
+        if (i < n && (lk_r == lk_w || (int32_t)(lk_t[lk_r % LKQ] - op_t0[ord[i]]) >= 0)) {
+            op_press(panel_btn_of(ord[i]), btn_at(op_t0[ord[i]], held, pressed) | (1u << ord[i]));   /* (a press, before
+                                                         * the key events at its time or later) */
+            i++;
+            continue;
+        }
+        e = lk_q[lk_r % LKQ];
         lk_ev_ms = lk_t[lk_r % LKQ];                    /* (when this key event happened: step_key's tap time) */
+        h = btn_at(lk_ev_ms, held, pressed);            /* (the buttons down then) */
         lk_r++;
         if ((e >> 8) == LY_STEP && keys_none() && ((e >> 7) & 1u)) {
-            if (ui.scr == SCR_PROJECT && !op_shift(held))
+            if (ui.scr == SCR_PROJECT && !op_shift(h))
                 prj_key(e & 0x7Fu, 1);                  /* (PROJECT: the key picks the slot; no track, no other job) */
             continue;                                   /* (a press; its release goes on: a step held before the page changed) */
         }
-        if ((e >> 8) == LY_STEP && ((e >> 7) & 1u) && (pick_mod(held) || mute_mod(held) || sel_mod(held)) &&
+        if ((e >> 8) == LY_STEP && ((e >> 7) & 1u) && (pick_mod(h) || mute_mod(h) || sel_mod(h)) &&
             !shift_step_key(e & 0x7Fu))
             continue;                                   /* (a shifted key: no step, ui_input's; its release goes on, as a held step's must;
                                                          * STEP's white keys stay steps) */
         if ((e >> 8) == LY_STEP)
-            step_key(e & 0x7Fu, (e >> 7) & 1u, held);
+            step_key(e & 0x7Fu, (e >> 7) & 1u, h);
         else
             lay_key(e >> 8, e & 0x7Fu, (e >> 7) & 1u);
     }
+    if (lost)
+        step_keys_mend();                               /* (lk_q was full: a lost release must not leave a step held, op_step.c) */
 }
 
 /* SAVE held alone on a SONG scene row past the hold time: that scene's clear is asked, the ring fills (the user, 2026-10-21) */
@@ -932,7 +968,11 @@ static void save_clear_tick(uint32_t held)
 }
 static void ui_input(void)
 {
-    uint32_t pressed = fm1_input_edges(0), notes = fm1_input_note_edges(), held = fm1_in.buttons, id, taps, keys;
+    uint32_t pressed = fm1_input_edges(0), notes = fm1_input_note_edges(), held = fm1_in.buttons, id, taps, keys, n;
+    uint8_t ord[14];
+    op_pass.gap = fm1_ms - op_pass.ms;                  /* (this pass's edges came since the last: op_btn_ms) */
+    op_pass.ms = fm1_ms;
+    op_pass.t = fm1_ticks();
 #if FELUCCA_BT_UI
     bt_poll();                                          /* SYSTEM > Bluetooth: AUTO at boot, a connect given up (op_bt.c) */
 #endif
@@ -951,11 +991,17 @@ static void ui_input(void)
     if (pressed)
         op_clean &= ~op_held;                           /* a press: what was already down is no tap now */
     op_clean |= pressed;
-    for (id = 0; id < 14u; id++)
-        if ((pressed >> id) & 1u) {
-            op_t0[id] = fm1_ms;
-            op_press(panel_btn_of(id), held | pressed);
+    for (n = 0, id = 0; id < 14u; id++)                 /* this pass's presses in the order they came (SAVE then HOME: undo), when */
+        if ((pressed >> id) & 1u) {                     /* they came (a tap is timed by the button, not by the frame). A known
+                                                         * limit: a button tapped twice within one pass is one press (the edges
+                                                         * are a bit a button; a frame that long is the slowness to fix) */
+            uint32_t t = op_btn_ms(id, 0), i = n++;
+            for (; i && (int32_t)(t - op_t0[ord[i - 1u]]) < 0; i--)
+                ord[i] = ord[i - 1u];
+            ord[i] = (uint8_t)id;
+            op_t0[id] = t;
         }
+    op_drain(held, pressed, ord, n);                    /* the presses and STEP's and the layers' keys (seq.c lk_q), in order */
     if (!op_shift(held))
         mx_s2_done = 0;                                 /* (SHIFT + the volume card's knob: one mute toggle a hold) */
     lay_frame(held);                                    /* the layer held, shown (op_layers.c) */
@@ -966,7 +1012,6 @@ static void ui_input(void)
     arm_ring_tick();                                    /* a delete asked from a held key: the ring */
     wipe_frame(held);                                   /* SHIFT2 + REC: the wipe */
     rec_held(held);                                     /* REC held: the ring, the track cleared */
-    op_drain(held | pressed);                           /* STEP's and the layers' keys (seq.c lk_q) */
     keys = lay_now() != LY_PLAY || (held & BIT(B_PLAY)) || song_on_pat_row();   /* (the keys are a layer's) */
     if (notes) {
         lay.chord = 0;
@@ -1002,7 +1047,8 @@ static void ui_input(void)
     if (oct_both && !(held & (BIT(B_OCTDN) | BIT(B_OCTUP)))) {   /* both OCT let go, nothing else used: track <-> MASTER */
         oct_both = 0;
         if (oct_fold_here()) {                          /* (a synth track's STEP: FOLD, a quick tap only; the user, 2026-10-16) */
-            if (fm1_ms - oct_both_t < FOLD_TAP_MS) {
+            uint32_t a = op_btn_span(panel.btn[B_OCTDN], oct_both_t), c = op_btn_span(panel.btn[B_OCTUP], oct_both_t);
+            if ((a > c ? a : c) < FOLD_TAP_MS) {        /* (to the last let go: the buttons' own times) */
                 roll_fold ^= 1u;
                 ui_message(!roll_fold ? "FOLD OFF" : trk[0].p[P_SCALE] ? "FOLD: SCALE" : "FOLD: NOTES");
                 ui.force = 1;

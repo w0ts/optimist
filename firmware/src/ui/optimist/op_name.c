@@ -163,10 +163,10 @@ static void nm_white(uint32_t p)
 {
     const char *g = nm_group(p);
     uint32_t n = str_len(g);
-    if (nm.key == p + 1u && fm1_ms - nm.t < NM_TAP_MS) {   /* the same key again: its next character */
+    if (nm.key == p + 1u && lk_ev_ms - nm.t < NM_TAP_MS) {   /* the same key again: its next character (the keys' own times) */
         nm.tap = (uint8_t)((nm.tap + 1u) % n);
         nm.s[nm.cur] = g[nm.tap];
-        nm.t = fm1_ms;
+        nm.t = lk_ev_ms;
         return;
     }
     nm_commit();
@@ -175,7 +175,7 @@ static void nm_white(uint32_t p)
     if (n > 1u) {
         nm.key = (uint8_t)(p + 1u);
         nm.tap = 0;
-        nm.t = fm1_ms;
+        nm.t = lk_ev_ms;
     } else {
         nm.cur++;
     }
@@ -286,10 +286,9 @@ static void name_frame(uint32_t pressed, uint32_t held)
         transport_req = 1;
         return;
     }
-    if (nm.key && fm1_ms - nm.t >= NM_TAP_MS)          /* 0.8 s without a tap: the letter is kept */
-        nm_commit();
     while (lk_r != lk_w) {
         uint32_t e = lk_q[lk_r % LKQ], kk = e & 0x7Fu;
+        lk_ev_ms = lk_t[lk_r % LKQ];                    /* (the key's own time: a slow frame keeps a quick second tap a tap) */
         lk_r++;
         if (!((e >> 7) & 1u) || (e >> 8) != LY_STEP)
             continue;                                   /* (a key let go, or another layer's) */
@@ -303,6 +302,9 @@ static void name_frame(uint32_t pressed, uint32_t held)
             nm.rep_t = fm1_ms + NM_REP_MS;
         }
     }
+    if (nm.key && fm1_ms - nm.t >= NM_TAP_MS)          /* 0.8 s without a tap: the letter is kept (after the keys: their
+                                                         * own times say whether a tap came in time) */
+        nm_commit();
     if (nm.rep && !((fm1_in.notes >> (nm.rep - 1u)) & 1u))
         nm.rep = 0;
     else if (nm.rep && (int32_t)(fm1_ms - nm.rep_t) >= 0) {
@@ -325,9 +327,9 @@ static void name_frame(uint32_t pressed, uint32_t held)
     if (pressed & hb) {
         nm.home = 1;
         nm.home_used = 0;
-        nm.home_t = fm1_ms;
+        nm.home_t = op_btn_ms(panel.btn[B_HOME], 0);    /* (the button's own time, op_state.c) */
     }
-    if (nm.home && (held & hb) && !nm.home_used && fm1_ms - nm.home_t >= NM_HOLD_MS) {
+    if (nm.home && !nm.home_used && ((held & hb) ? fm1_ms - nm.home_t : op_btn_span(panel.btn[B_HOME], nm.home_t)) >= NM_HOLD_MS) {
         nm.home = 0;                                    /* HOME held: cancel at once, nothing written (its release: nothing) */
         name_close();
         ui_message("NOT SAVED");

@@ -115,6 +115,26 @@ static void step_reset(void)                            /* STEP entered or left:
     st.lock_pg = LOCK_NONE, st.hp = 0;
     st.pk = PK_NONE, st.latch = 0;                      /* (the picker starts with nothing picked) */
 }
+/* seq.c's key queue found full (lk_q, lk_push drops then): a step key's release may be lost. Each finger the UI holds whose key is up now is let go,
+ * no tap (the cards would stay up, the page buttons lock pages); a lost press is only lost (op_input.c op_drain) */
+static void step_keys_mend(void)
+{
+    uint32_t k, w, idx, gone = 0;
+    for (k = 0; k < 27u; k++) {
+        w = (uint32_t)punch_key(k);
+        if (w >= 16u || !((st.fdown >> w) & 1u) || ((fm1_in.notes >> k) & 1u))
+            continue;
+        idx = st.fabs[w];
+        st.fdown &= (uint16_t)~(1u << w);
+        if (idx / 16u == st.page)
+            st.held &= (uint16_t)~(1u << (idx % 16u)), st.pend &= (uint16_t)~(1u << (idx % 16u));
+        gone = 1;
+    }
+    if (gone && !st.held) {
+        hp_save();                                      /* (as the last step let go: step_key) */
+        st.lock_pg = LOCK_NONE, st.hp = 0;
+    }
+}
 
 /* ---- the pick: what a tapped step takes (drums the selected lane, synths the core's pen: the notes played last),
  * moved by the octaves OCT- / OCT+ turned since it was played (the user, 2026-10-11: step entry follows the keyboard

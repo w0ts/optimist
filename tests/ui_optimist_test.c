@@ -33,9 +33,11 @@ static void lcd_sync(void) {}
 static uint32_t band_y = 240u, band_hits;               /* the help band's first row (op_graph.c OP_FOOT_Y, set in main), and
                                                          * the blits that reached it besides the line's own (ui_optimist_geometry.h) */
 static uint32_t probe_hits;                             /* the blits that cover the probe pixel (120, 180): inside PRESETS' popup, a flash when more than one a frame */
+static uint32_t blit_px;                                /* the pixels sent (ui_optimist_slowframe.h: a step press sends its column) */
 static void lcd_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *p)
 {
     uint32_t i, j;
+    blit_px += w * h;
     if (x <= 120u && 120u < x + w && y <= 180u && 180u < y + h)
         probe_hits++;
     assert(x + w <= 240 && y + h <= 240);
@@ -69,8 +71,10 @@ static uint16_t fm1_led_bg_ns;
 static int8_t FM1_KEYMAP[5][16];                      /* (filled in main: every button and key one LED place) */
 static void fm1_led_key(uint32_t id, int on) { (void)id; (void)on; }
 static uint32_t edges_btn, notes_seen;
+static uint32_t fm1_btn_t[2][14];                      /* each button's last press / release (timer ticks), as hal/fm1_input.h stamps them */
 static uint32_t fm1_input_edges(int x) { uint32_t e = edges_btn; (void)x; edges_btn = 0; return e; }
-static uint32_t fm1_input_note_edges(void) { uint32_t e = fm1_in.notes & ~notes_seen; notes_seen = fm1_in.notes; return e; }
+static uint32_t notes_tap;                              /* keys pressed and let go between two frames (the ISR's edge, no key down now) */
+static uint32_t fm1_input_note_edges(void) { uint32_t e = (fm1_in.notes & ~notes_seen) | notes_tap; notes_seen = fm1_in.notes; notes_tap = 0; return e; }
 static void fm1_wdt_feed(void) { fm1_ms++; }              /* (time passes while the firmware waits: SYSTEM > CALIBRATE's idle timeout, met by fuzz) */
 static int32_t fm1_adc_read(int c) { (void)c; return -1; }
 #include "../firmware/src/ui/panel.c"
@@ -263,8 +267,8 @@ static void frame(void)                                 /* one UI frame (~16 ms)
 static void frames(uint32_t n) { while (n--) frame(); }
 #define HOLD_FRAMES (op_hold_ms() / 16u + 3u)            /* a button held past SYSTEM HOLD: its layer shows */
 static uint32_t BT(uint32_t b) { return 1u << panel.btn[b]; }
-static void press(uint32_t b) { edges_btn |= BT(b); fm1_in.buttons |= BT(b); frame(); }
-static void release(uint32_t b) { fm1_in.buttons &= ~BT(b); frame(); }
+static void press(uint32_t b) { fm1_btn_t[0][panel.btn[b]] = fm1_ticks(); edges_btn |= BT(b); fm1_in.buttons |= BT(b); frame(); }
+static void release(uint32_t b) { fm1_btn_t[1][panel.btn[b]] = fm1_ticks(); fm1_in.buttons &= ~BT(b); frame(); }
 static void tap(uint32_t b) { press(b); release(b); }
 /* a turn of s detents: slow (80 ms a detent) when the knobs accelerate (FELUCCA_KNOB_ACCEL, a build such as the user's):
  * the tests count detents, the acceleration has its own (knob_accel_test.c). The time since the knob's last detent is set,
@@ -2602,6 +2606,11 @@ static void song_tests(void)
         release(B_OCTUP);
         check(arrangement_clock.jump == 5u && arrangement_clock.jump_now == 1u, "SONG: SHIFT2 + black key 5: the jump at once (as soon as possible)");
         arrangement_clock.jump = arrangement_clock.jump_now = 0;
+        notes_tap = 1u << BK(4);                        /* (pressed and let go before the next frame: a slow one) */
+        fm1_ms += 400;
+        frames(2);
+        check(arrangement_clock.jump == 5u, "SONG: black key 5 pressed and let go within one slow frame: still the jump (not lost)");
+        arrangement_clock.jump = arrangement_clock.jump_now = 0;
         arrangement_clock.running = 0;
         tap(B_OCTUP);
         frames(2);
@@ -3585,6 +3594,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_cardspic.h"                  /* under the cards: the picture alone, else the rows */
 #include "ui_optimist_stepcards.h"                /* STEP: the cards as an overlay */
 #include "ui_optimist_taplate.h"                  /* STEP: a tap judged by the key's own times */
+#include "ui_optimist_slowframe.h"                /* a slow frame: the buttons' and keys' own times, the presses in order */
 #include "ui_optimist_picker.h"                   /* STEP: the note picker (the cards down) */
 #include "ui_optimist_master.h"                    /* PRESETS = the sound only; ALGORITHM to MASTER */
 #include "ui_optimist_knobcol.h"                   /* SYSTEM > SCREEN > KNOB COLORS */
@@ -3780,6 +3790,7 @@ int main(int argc, char **argv)
     cards_pic_tests();
     step_cards_tests();
     taplate_tests();
+    slowframe_tests();
     picker_tests();
     overlap_tests();
     step_cards_leak_tests();

@@ -94,6 +94,14 @@ static volatile struct {
     uint32_t ticks, t_last, gap_max, press_blips, release_blips, ui_gap_max;
     uint32_t enc_count[FM1_NENC];     /* detents each knob counted since power-on (a knob that counts with no hand on it: a phantom turn, which cancels a step tap) */
 } fm1_in;
+/* each button's last press [0] and release [1] (FM1_SCAN_NOW() ticks), by id: when it went down / up, not when a slow UI frame got
+ * to the edge (the Optimist UI's op_btn_ms: tap or hold, the presses' order). In the pool (app.ld, zeroed): in main RAM's .bss
+ * these 112 B moved the globals after them and the code reaching them grew (~1.3 KB, everything-that-fits, 2026-10-22) */
+#ifdef __PI32V2__
+static volatile uint32_t fm1_btn_t[2][14] __attribute__((section(".pool")));
+#else
+static volatile uint32_t fm1_btn_t[2][14];
+#endif
 static uint8_t fm1_led[FM1_NCOL];
 /* THE dim level of every LED (the buttons' half light and the keys' landmarks share this one layer, fm1_led_dim): lit one
  * scan frame in (mask + 1). Optimist UI (2026-10-13, "a default dim level for all the buttons"): 7 = 1/8 of the
@@ -285,6 +293,7 @@ static void fm1__key(uint32_t id, uint32_t closed)
             fm1_in.notes_pressed |= bit;
         fm1_in.notes ^= bit;
     } else {
+        fm1_btn_t[on][id] = FM1_SCAN_NOW();    /* (before the edge: the UI reads the time with it) */
         fm1_in.buttons ^= bit;
         if (!on)
             fm1_in.pressed |= bit;

@@ -1304,6 +1304,7 @@ static void project_load(uint32_t slot)
 #define AUTOSAVE_SETTLE 10000u                 /* ms the work stays the same before it is saved */
 #define AUTOSAVE_MAX_WAIT 120000u              /* ms the work may stay unsaved while it keeps changing */
 #define AUTOSAVE_MIN_GAP 60000u                /* ms between two saves at least (the first after power-on: none) */
+#define AUTOSAVE_HANDS_MS 400u                 /* ms after the last press or knob turn (and nothing down) before a check */
 #ifdef SEC_RB_WORK
 #define autosave_buf SEC_RB_WORK               /* (sections.c sec_rb: shared with the section records' buffer) */
 #else
@@ -1369,6 +1370,9 @@ static void autosave_tick(void)                /* main loop */
     int settled, overdue;
     if (!flash_ok || song.playing || transport_req || rec_wait || ft_on || ui.menu || now - autosave_checked < 1000u)
         return;
+    if (fm1_in.notes || fm1_in.buttons || now - ui_input_ms < AUTOSAVE_HANDS_MS)
+        return;                                         /* (hands on the panel: the capture and its hash, a few ms, wait for them to
+                                                         * rest, never between a press and its release; checked again next pass) */
     autosave_checked = now;
     proj_capture(&autosave_buf, &autosave_dl);
     h = autosave_hash_of(&autosave_buf);
