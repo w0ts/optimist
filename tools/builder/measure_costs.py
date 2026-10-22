@@ -20,6 +20,7 @@ import io
 import json
 import os
 import queue
+import re
 import subprocess
 import sys
 import time
@@ -248,8 +249,29 @@ def build_all(plan, jobs):
                   f"{dt:.0f} s  |  {clock(el)} so far, ~{clock(el / done * (len(todo) - done))} left", flush=True)
 
 
-def measure(cfg, name, log):
+MEASURE_POOL = 0x80000          # the pool region of a measurement link (tools/build.py MEASURE: "LENGTH = 0x54000" -> 0x80000)
+
+
+def pool_overflow(out):
+    """-> how many bytes the link says the pool is over even the measurement link's (an item with a count of big lines:
+    XDLY 3 and 4 hold 65 KB a line), None when it failed for another reason"""
+    m = re.search(r"region `POOL' overflowed by (\d+) bytes", out or "")
+    return int(m.group(1)) if m else None
+
+
+def measure(cfg, name, log, like=None):
+    """the sizes of a measurement build; like: the sizes of the same item's previous value. A value whose lines no
+    pool holds, even the measurement link's (the link is the one thing that fails: "region POOL overflowed by N"),
+    is its pool exactly (the region and N) and everything else as `like`'s (the lines are the pool: the code is the
+    same for 3 lines as for 2), so the estimate knows what a configuration of the item costs, built or not"""
     ok, sizes, out = run_build(cfg, name, log)
+    over = None if ok and sizes else pool_overflow(out)
+    if over is None and (not ok or not sizes):
+        over = pool_overflow(Path(log).read_text(errors="replace") if log and Path(log).exists() else "")
+    if over is not None and like is not None:
+        print(f"  {name}: no pool holds it (over by {over} B even in the measurement link): pool counted, the rest as the value before", flush=True)
+        sizes = dict(like, pool=MEASURE_POOL + over)
+        ok = True
     if not ok or not sizes:
         raise SystemExit(f"measure_costs: {name} failed (log {log})\n{out[-1500:]}")
     check_terms(cfg, sizes, name)
@@ -475,6 +497,7 @@ def run(a, old, logd, new_pairs, write):
             continue
         values = [c[0] for c in it.choices] if it.is_choice else [0, 1]
         out["deltas"][k] = {}
+        prev_sizes = None                               # (the value before, for one the pool cannot hold: measure)
         for v in values:
             if v == it.default:
                 continue
@@ -490,7 +513,8 @@ def run(a, old, logd, new_pairs, write):
             if err:                                     # (e.g. the last FM6 mode: measured with another off)
                 print(f"  {k}={v}: skipped ({'; '.join(err)})")
                 continue
-            s = measure(cfg, f"m-{k}-{v}"[:16], logd / f"{k}-{v}.log")
+            s = measure(cfg, f"m-{k}-{v}"[:16], logd / f"{k}-{v}.log", like=prev_sizes)
+            prev_sizes = s
             par = {}                                    # (an option of a parent off by default: its own bytes only)
             if it.parent and cfg[it.parent] != R.ITEMS[it.parent].default:
                 par = out["deltas"].get(it.parent, {}).get(str(cfg[it.parent]), {})
