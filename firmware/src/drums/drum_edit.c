@@ -20,6 +20,16 @@ enum { DE_TUNE, DE_DECAY, DE_SNAP, DE_CLICK, DE_BEND, DE_CUT, DE_DRIVE, DE_LEVEL
                                   * CH OH CY); a build without the machine plays the synthesised 909 / 808 for it */
 #define DL_X909_N 11u
 #define DL_X808_N 16u
+#define DL_XKIT0 96u             /* src 96 + k: kit UID 47 + k's sound (the kits after the X0X ones: 64.. was taken) */
+/* a source's kit UID (DL_KIT0 + k, DL_XKIT0 + k), DRUM_KITS: none (not a kit's sound); a kit UID's source */
+static uint32_t dl_src_kit(uint32_t s)
+{
+    if (s >= DL_KIT0 && s < DL_KIT0 + DRUM_UID_XKIT && s < DL_X909)
+        return s - DL_KIT0;
+    return s >= DL_XKIT0 && s < DL_XKIT0 + DRUM_KITS - DRUM_UID_XKIT ? DRUM_UID_XKIT + s - DL_XKIT0 : DRUM_KITS;
+}
+AINL uint32_t dl_kit_src(uint32_t k) { return k < DRUM_UID_XKIT ? DL_KIT0 + k : DL_XKIT0 + k - DRUM_UID_XKIT; }
+_Static_assert(DL_KIT0 + DRUM_UID_XKIT <= DL_X909 && DL_X808 + DL_X808_N <= DL_XKIT0, "lane sources: kits 0..46, X0X voices, kits 47..");
 #define DL_ANY 1                 /* the lanes' pages: every build has SOUND 3 at least (their sends, drum_sends.c) */
 typedef struct {                 /* a project's drum lanes (204 bytes; user kits keep the same per lane) */
     int8_t ofs[DRUM_LANES][DE_N];          /* offsets from the kit's sound (DE_*), 0 = as the kit */
@@ -91,8 +101,8 @@ static void dl_set_ref(uint8_t *r, uint32_t z, uint32_t st, uint32_t len)
 static uint32_t dl_kit_of(uint32_t l, uint32_t kit)
 {
 #if FELUCCA_DRUM_KITS
-    if (l < DRUM_LANES && dl.src[l] >= DL_KIT0 && dl.src[l] - DL_KIT0 < DRUM_KITS)
-        return drum_kit_of((int32_t)(dl.src[l] - DL_KIT0));   /* (a kit not built: registry.h) */
+    if (l < DRUM_LANES && dl_src_kit(dl.src[l]) < DRUM_KITS)
+        return drum_kit_of((int32_t)dl_src_kit(dl.src[l]));   /* (a kit not built: registry.h) */
     if (l < DRUM_LANES && dl.src[l] >= DL_X909 && dl.src[l] < DL_X808 + DL_X808_N)   /* an X0X voice: its machine */
         return drum_kit_of(dl.src[l] < DL_X909 + DL_X909_N ? (int32_t)DRUM_UID_X909
                            : dl.src[l] >= DL_X808 ? (int32_t)DRUM_UID_X808 : (int32_t)kit);
@@ -216,6 +226,17 @@ static void de_synth(dsnd_t *o, const dsnd_t *d, const int8_t *x)
     o->pitch = (uint8_t)clamp(d->pitch + t, 0, 127);           /* TUNE: the body (and the metal, the chip) */
     if (d->chip)
         o->chip = (uint8_t)clamp(d->chip + t, 1, 127);
+#if FELUCCA_DS_NTUNE
+    if (!d->wave && t) {                                       /* (SLOOP 2.8 drum_synth.c ds_on, GPL-3.0-only; builder item
+                                                                * DS_NTUNE) a tone-less sound (closed hat, shaker, clap):
+                                                                * TUNE moves its filter and its noise high-pass too, as a
+                                                                * resampled sample would: ~1.17 CUTOFF_HZ steps a semitone */
+        int32_t co = t * 1197 / 1024;
+        o->fcut = (uint8_t)clamp(d->fcut + co, 0, 127);
+        if (d->hpf)
+            o->hpf = (uint8_t)clamp(d->hpf + co, 1, 127);
+    }
+#endif
     o->decay = (uint8_t)clamp(d->decay + dc, 0, 127);          /* DECAY: tone and noise, 5.4 % a step */
     o->ndec = (uint8_t)clamp(d->ndec + dc, 0, 127);
     if (dc < 0) {                                              /* (shorter: the holds too) */

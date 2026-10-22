@@ -236,3 +236,10 @@ src/fx/insfx/tapespit.c:__attribute__:(uint32_t)(s->env>256?s->env:256) | ifx_ts
 src/ui/optimist/op_tools.c:tl_quantize:(int32_t)(div==2u||div==4u?div:1u) | 2, 4, or 1 by the ternary on the same line
 src/ui/optimist/op_tools.c:tl_quantize:q | q = 64 / (1, 2 or 4): 64, 32 or 16
 src/bt/sbc/sbc_encoder.c:SBC_Encoder_Init:pstrEncParams->s16NumOfChannels | 2 always: bt_sbc_init sets BT_SBC_CHANNELS (AOSP code; the branch is mono / dual channel, never taken: joint stereo or stereo)
+# 2026-10-21: the scene backports (PHASE FOLD, the PLAITS kit)
+src/engines/phase/eng_phase.c:pd_fold_gain:(inc>>12) | only when inc > PD_FOLD_REF (440 Hz, ~4.3e7): inc >> 12 >= 10462
+src/engines/phase/eng_phase.c:__attribute__:(int32_t)n | phase_xfade: inside "for (i = 0; i < n; i++)": never run with n 0
+src/drums/synth/drum_plaits.c:qdiv:b | every caller's divisor is >= 0.5 (Q24): QONE + |x|, 2 QONE + |s|, QONE + g (g a tan >= 0), 0.5 + 2 sn (sn >= 0), QONE - t^2 (t <= tan(pi / 8)), x > QONE (qatan), t > 0 (qtan48 above pi / 4)
+src/drums/synth/drum_plaits.c:kpunc_start:(int32_t)(((int64_t)23121101*(QONE+4*fed))>>24) | fed >= 0 (a qmax and its square): >= 23121101
+src/drums/synth/drum_plaits.c:qsvf_set:(int32_t)d | d = QONE + r g + g^2 with r, g >= 0 (a damping, a tan): >= QONE
+src/drums/synth/drum_plaits.c:qsvf_set:(int32_t)(d>>4) | the same d (>= QONE), only when d > INT32_MAX: >= 2^27

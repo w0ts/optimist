@@ -206,6 +206,23 @@ int main(int argc, char **argv)
     dl.ofs[1][DE_DRIVE] = 63;
     hit(DRUM_SAMPLED, 38, 100, rb);
     check("808 snare DRIVE +63: another sound, bounded", !same(ra, rb) && bounded(rb));
+    {   /* (SLOOP 2.8, DS_NTUNE) a tone-less sound, the 808 clap: TUNE moves its filter (brighter up, darker down) */
+        int32_t semi;
+        uint32_t cl = ds_lane(39, &semi);
+        lanes_zero();
+        hit(DRUM_SAMPLED, 39, 100, ra);
+        dl.ofs[cl][DE_TUNE] = 12;
+        hit(DRUM_SAMPLED, 39, 100, rb);
+#if FELUCCA_DS_NTUNE
+        check("808 clap TUNE +12: brighter (its filter an octave's worth up)", hf(rb, FS / 5u) > hf(ra, FS / 5u) * 1.3 && bounded(rb));
+        dl.ofs[cl][DE_TUNE] = -12;
+        hit(DRUM_SAMPLED, 39, 100, rb);
+        check("808 clap TUNE -12: darker", hf(rb, FS / 5u) < hf(ra, FS / 5u) * 0.77 && bounded(rb));
+#else
+        check("808 clap TUNE +12 (DS_NTUNE off): the kit's clap", same(ra, rb));
+#endif
+        dl.ofs[cl][DE_TUNE] = 0;
+    }
     {   /* every kit x lane at the extremes: bounded, and every voice ends */
         int ok = 1;
         uint32_t kk, e;

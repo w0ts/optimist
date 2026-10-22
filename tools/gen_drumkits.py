@@ -19,7 +19,9 @@ from pathlib import Path
 
 LANES = ["KICK", "SNARE", "CLAP", "CHH", "OHH", "TOMLO", "TOMHI", "CRASH", "RIDE", "SHAKER",
          "CONGA", "RIM", "COWBELL", "CLAVE", "KICK2", "SNARE2"]
-WAVE = {None: 0, "sine": 1, "tri": 2, "square": 3, "fm": 4, "bell": 5}
+WAVE = {None: 0, "sine": 1, "tri": 2, "square": 3, "fm": 4, "bell": 5, "pkick": 6, "psnare": 7}
+T2MODE = {None: 0, "mix": 0, "ring": 1, "fm": 2}         # (KAWA: the second partial mixed, ringing the tone, or its FM)
+CTL_MS = 32 * 1000 / 44100                               # a control block (the re-strikes' gap)
 SRC = {None: 0, "white": 1, "metal": 2, "cym": 3, "chip": 4, "clap": 0x11}
 FMODE = {None: 0, "lp": 1, "bp": 2, "hp": 3}
 LEVELS_FILE = Path(__file__).with_name("drumkit_levels.json")
@@ -49,15 +51,21 @@ STEPS_PER_OCT = 127 / math.log2(16000 / 30)
 
 
 def S(wave=None, hz=100, bend=0, bt=20, hold=0, decay=100, tlev=110, t2=0.0, t2lev=0, click=0,
-      src=None, nlev=0, nhold=0, ndec=50, filt=None, fenv=0.0, hpf=None, chip=None, drive=0, level=0.0):
+      src=None, nlev=0, nhold=0, ndec=50, filt=None, fenv=0.0, hpf=None, chip=None, drive=0, level=0.0,
+      metal=0, t2mode=None, hits=0, hgap=0, htone=False, rise=0, knobs=None):
     """wave/hz: the tone; bend semitones falling over bt ms; hold ms at full, then decay;
     t2: the second partial's ratio (0 = none) and level; click: the attack burst 0..127;
     src: the noise, its level, hold and decay; filt: (mode, Hz, resonance 0..1[, "all"]) on the
     noise (or everything); fenv: octaves the cutoff starts above it, falling with the pitch;
-    hpf: Hz of the noise high-pass; chip: Hz of the CHIP noise clock; drive 0..127; level dB"""
+    hpf: Hz of the noise high-pass; chip: Hz of the CHIP noise clock; drive 0..127; level dB.
+    KAWA (DS_KAWA, the KAWA kit only): metal 0..3 (METAL / CYM's tuning: 808, wide, cluster, ride bell);
+    t2mode "ring" / "fm" (the partial rings or modulates the tone); hits more strikes hgap ms apart (the
+    click and the noise; htone: the tone too); rise ms (the tone and the noise swell in).
+    PLAITS (DS_PLAITS): wave "pkick" / "psnare" with knobs=(DECAY, TONE / FM, FM / SNAP) 0..127"""
     return dict(wave=wave, hz=hz, bend=bend, bt=bt, hold=hold, decay=decay, tlev=tlev, t2=t2,
                 t2lev=t2lev, click=click, src=src, nlev=nlev, nhold=nhold, ndec=ndec, filt=filt,
-                fenv=fenv, hpf=hpf, chip=chip, drive=drive, level=level)
+                fenv=fenv, hpf=hpf, chip=chip, drive=drive, level=level, metal=metal, t2mode=t2mode,
+                hits=hits, hgap=hgap, htone=htone, rise=rise, knobs=knobs)
 
 
 def enc(s, trim=0.0):
@@ -68,6 +76,16 @@ def enc(s, trim=0.0):
         flt = FMODE[mode] | (4 if "all" in s["filt"][3:] else 0) | (int(round(res * 31)) << 3)
         fcut = cut(hz)
     lev = int(round(128 + 4 * (s["level"] + trim)))
+    if s.get("knobs"):                                   # a Plaits model: DECAY -> decay, TONE / FM -> fcut, then
+        kd, kt, kc = s["knobs"]                          # KPUNC's FM -> click, SCRAK's SNAP -> nlev (drum_plaits.c)
+        snap = s["wave"] == "psnare"
+        v = [WAVE[s["wave"]], 0, p, f, 0, 0, 0, int(kd), int(s["tlev"]), 0, 0, 0 if snap else int(kc),
+             int(kc) if snap else 0, 0, 0, FMODE["lp"], int(kt), 0, 0, 0, int(s["drive"]), max(0, min(255, lev))]
+        return v + [0, 0, 0]
+    kx = (s.get("metal", 0) & 3) | T2MODE[s.get("t2mode")] << 2 | (s.get("hits", 0) & 7) << 4 | \
+        (0x80 if s.get("htone") else 0)
+    kgap = max(1, min(255, int(round(s.get("hgap", 0) / CTL_MS)))) if s.get("hits") else 0
+    krise = max(1, dec(3 * s["rise"])) if s.get("rise") else 0   # (rise ms: the swell at 90 %, -20 dB left; -60 dB at 3x)
     v = [WAVE[s["wave"]], SRC[s["src"]], p, f, int(s["bend"]), dec(s["bt"]),
          min(255, int(round(s["hold"] / 2))), dec(s["decay"]), int(s["tlev"]) if s["wave"] else 0,
          int(round(s["t2"] * 32)) if s["t2"] else 0, int(s["t2lev"]), int(s["click"]),
@@ -75,7 +93,7 @@ def enc(s, trim=0.0):
          flt, fcut, int(round(s["fenv"] * STEPS_PER_OCT)),
          0 if s["hpf"] is None else cut(s["hpf"]), note(s["chip"]) if s["chip"] else 0,
          int(s["drive"]), max(0, min(255, lev))]
-    return v
+    return v + [kx, kgap, krise]
 
 
 def kit(base, **mods):
@@ -366,6 +384,38 @@ KITS = [
         TOMHI=S("sine", 160, 3, 30, 6, 340, 104, 1.5, 40, 20, "white", 16, 0, 40, ("lp", 2500, .1)))),
 ]
 
+# ---- kits after the X0X ones (kit UIDs 47..: registry.h DRUM_UID_XKIT), each in a builder item of its own: (name, style,
+# crush, sounds, the switch that builds it, the kit its UID plays when not built). Append only: a UID is for good.
+KKAWA = kit(K808,                                               # Kawa Tracker's kit engine (DS_KAWA)
+    KICK=S("sine", 52, 14, 30, 8, 520, 124, 2.0, 70, 30, drive=24, t2mode="fm"),     # a beater's FM on the body
+    KICK2=S("sine", 44, 6, 40, 30, 1100, 124, click=10, drive=44, rise=30),         # a rumble that swells in
+    SNARE=S("tri", 200, 5, 12, 0, 100, 88, 1.6, 50, 30, "white", 112, 0, 180, ("hp", 1300, .15),
+            hits=1, hgap=16, htone=True),                                          # a flam
+    SNARE2=S(None, src="white", nlev=100, nhold=30, ndec=260, filt=("bp", 3600, .2), rise=60),   # a brush swell
+    CLAP=S(None, src="white", nlev=124, ndec=210, filt=("bp", 1250, .4), hpf=700, click=40, hits=3, hgap=9),
+    CHH=S(None, 330, src="metal", nlev=114, ndec=34, filt=("bp", 9600, .4), hpf=7000, click=8, metal=2),
+    OHH=S(None, 330, src="metal", nlev=110, nhold=14, ndec=300, filt=("bp", 9200, .4), hpf=6800, metal=2),
+    TOMLO=S("sine", 100, 6, 50, 8, 380, 118, 1.6, 50, 14, t2mode="ring"),
+    TOMHI=S("sine", 150, 6, 50, 8, 320, 116, 1.6, 50, 14, t2mode="ring"),
+    CRASH=S(None, 240, src="cym", nlev=110, nhold=10, ndec=1900, filt=("hp", 4500, .22), metal=1),
+    RIDE=S(None, 330, src="metal", nlev=104, ndec=1500, filt=("bp", 5600, .5), hpf=3200, click=16, metal=3),
+    SHAKER=S(None, src="white", nlev=98, nhold=10, ndec=70, filt=("bp", 7200, .3), rise=25),
+    CONGA=S("sine", 320, 3, 25, 4, 220, 116, 1.5, 40, 22, t2mode="fm"),
+    RIM=S("tri", 1700, 0, 5, 0, 24, 92, 1.47, 90, 40, t2mode="ring"),
+    COWBELL=S("square", 560, 0, 5, 4, 260, 100, 1.5, 100, filt=("bp", 2600, .5, "all"), t2mode="ring"),
+    CLAVE=S(None, src="white", nlev=104, ndec=14, filt=("bp", 3400, .55), click=30, hits=6, hgap=14),   # a guiro
+)
+KPLAITS = kit(K909,                                             # Plaits' synthetic kick and snare (DS_PLAITS)
+    KICK=S("pkick", 49, knobs=(64, 64, 64), tlev=110),
+    KICK2=S("pkick", 41, knobs=(100, 40, 96), tlev=110),
+    SNARE=S("psnare", 196, knobs=(64, 64, 64), tlev=110),
+    SNARE2=S("psnare", 233, knobs=(40, 28, 104), tlev=110),
+)
+XKITS = [
+    ("KAWA", "TRACKER", 0, KKAWA, "FELUCCA_DS_KAWA", "808"),
+    ("PLAITS", "PLAITS", 0, KPLAITS, "FELUCCA_DS_PLAITS", "909"),
+]
+
 
 def main(path):
     levels = json.loads(LEVELS_FILE.read_text()) if LEVELS_FILE.exists() else {}
@@ -376,6 +426,8 @@ def main(path):
         si = []
         for lane in LANES:
             v = tuple(enc(k[lane], levels.get(name, {}).get(lane, 0.0)))
+            assert v[22:] == (0, 0, 0), (name, lane, "the KAWA options are for the KAWA kit")
+            v = v[:22]
             assert len(v) == 22 and all(0 <= x <= 255 for x in v), (name, lane, v)
             assert -128 <= v[17] <= 127, (name, lane)
             if v not in where:
@@ -396,8 +448,47 @@ def main(path):
     L.append("};")
     L.append("#define DS_KIT_NAME_LIST " + ", ".join(f'"{k[0]}"' for k in KITS))
     L.append("#define DS_KIT_STYLE_LIST " + ", ".join(f'"{k[1]}"' for k in KITS))
+    # the extra kits: a lane the same as a sound above takes it; the others its kit's own table (DS_XSI | kit << 8 | j),
+    # built with its switch only (a kit not built plays its stand-in: drums.c)
+    names = [k[0] for k in KITS]
+    L.append(f"#define DS_NXKITS {len(XKITS)}u")
+    xsi = []
+    for x, (name, style, crush, k, flag, standin) in enumerate(XKITS):
+        assert len(name) <= 8 and len(style) <= 12 and standin in names, name
+        own, si = [], []
+        base = dict((kk[0], kk[3]) for kk in KITS)[standin]
+        for lane in LANES:
+            if k[lane] == base[lane]:                    # (the stand-in's own sound, unchanged: its level and its entry)
+                si.append(where[tuple(enc(base[lane], levels.get(standin, {}).get(lane, 0.0))[:22])])
+                continue
+            v = tuple(enc(k[lane], levels.get(name, {}).get(lane, 0.0)))
+            assert all(0 <= y <= 255 for y in v) and -128 <= v[17] <= 127, (name, lane, v)
+            if v[22:] == (0, 0, 0) and v[:22] in where:
+                si.append(where[v[:22]])
+            else:
+                si.append(0x8000 | x << 8 | len(own))
+                own.append((v if v[22:] != (0, 0, 0) else v[:22], f"{name} {lane}"))
+        L.append(f"#if {flag}")
+        L.append(f"static const dsnd_t DS_XSNDS_{x}[{len(own)}] = {{")
+        for v, what in own:
+            L.append("    {" + ", ".join(str(y) for y in v) + f"}},   /* {what} */")
+        L.append("};")
+        L.append("#endif")
+        xsi.append((name, style, crush, si, flag))
+    L.append("#if DS_NXKITS")
+    L.append("static const dsnd_t *const DS_XSNDS[DS_NXKITS] = {" +
+             ", ".join(f"FIF({f})(DS_XSNDS_{x}) FIF(FNOT({f}))(0)" for x, (_, _, _, _, f) in enumerate(xsi)) + "};")
+    L.append("static const dkit_t DS_XKITS[DS_NXKITS] = {")
+    for name, style, crush, si, flag in xsi:
+        L.append(f'    {{"{name}", "{style}", 0x{crush:02X}, {{' + ", ".join(str(i) for i in si) + "}},")
+    L.append("};")
+    L.append("#endif")
+    L.append("#define DS_XKIT_BUILT_LIST " + ", ".join(f"FELUCCA_DRUM_SYNTH && {k[4]}" for k in XKITS))
+    L.append("#define DS_XKIT_STANDIN_LIST " + ", ".join(str(names.index(k[5])) for k in XKITS))
+    L.append("#define DS_XKIT_NAME_LIST " + ", ".join(f'"{k[0]}"' for k in XKITS))
+    L.append("#define DS_XKIT_STYLE_LIST " + ", ".join(f'"{k[1]}"' for k in XKITS))
     Path(path).write_text("\n".join(L) + "\n")
-    print(f"drum kits: {len(KITS)} synthesised, {len(snds)} distinct sounds -> {path}")
+    print(f"drum kits: {len(KITS)} synthesised, {len(snds)} distinct sounds; {len(XKITS)} after the X0X kits -> {path}")
 
 
 if __name__ == "__main__":

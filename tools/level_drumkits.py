@@ -7,6 +7,7 @@ so a kit's kick, snare and hats land at the same place in every kit; no sound pe
   cc -O2 -Ibuild/gen -Ifirmware/src -Ifirmware/hal tests/drum_level.c -lm -o build/host/drum_level
   build/host/drum_level build/host/hits.raw && tools/level_drumkits.py build/host/hits.raw
   (then rebuild: the header is generated from the new trims; run it twice after big changes)
+  ... --only KAWA,PLAITS: those kits levelled, the others keep theirs (a new kit, the old ones untouched)
 Needs numpy and scipy."""
 import json
 import re
@@ -37,7 +38,7 @@ def loudness(x):
     return 10 * np.log10(((c[w:] - c[:-w]) / w).max() + 1e-12) - 0.691
 
 
-def main(raw):
+def main(raw, only=()):
     names = re.findall(r'\("([^"]+)", "[^"]*", 0x?[0-9A-F]*,', (HERE / "gen_drumkits.py").read_text())
     d = np.fromfile(raw, np.int32).astype(float) / 32768.0
     assert len(d) == len(names) * 16 * N, "the hits do not match gen_drumkits.py (rebuild first)"
@@ -50,6 +51,9 @@ def main(raw):
             x = d[(ki * 16 + li) * N:(ki * 16 + li + 1) * N]
             want = KICK + REL[lane] + KIT.get(n, 0.0)
             adj = min(want - loudness(x), PEAK - 20 * np.log10(np.abs(x).max() + 1e-9))
+            if only and n not in only:                       # (--only: the other kits keep their levels)
+                out[n][lane] = old.get(n, {}).get(lane, 0.0)
+                continue
             t = old.get(n, {}).get(lane, 0.0) + adj
             out[n][lane] = round(max(-31.75, min(31.75, t)) * 4) / 4
     path.write_text(json.dumps(out, indent=1) + "\n")
@@ -57,4 +61,4 @@ def main(raw):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1])
+    main(sys.argv[1], sys.argv[3].split(",") if len(sys.argv) > 3 and sys.argv[2] == "--only" else ())

@@ -112,7 +112,7 @@ static uint32_t dsnd_src_idx(uint32_t src)              /* src (DL_*) <-> its pl
         return x + src - DL_X909;
     if (src >= DL_X808 && src < DL_X808 + DRUM_SRC_X808N)
         return x + DRUM_SRC_X909N + src - DL_X808;
-    return src >= DL_KIT0 && src < DL_KIT0 + DRUM_KITS ? 4u + src - DL_KIT0 : src < DL_USR + SMP_USER_SLOTS ? src : 0u;
+    return dl_src_kit(src) < DRUM_KITS ? 4u + dl_src_kit(src) : src < DL_USR + SMP_USER_SLOTS ? src : 0u;
 }
 static uint32_t dsnd_idx_src(uint32_t i)
 {
@@ -121,7 +121,7 @@ static uint32_t dsnd_idx_src(uint32_t i)
         return DL_X808 + i - x - DRUM_SRC_X909N;
     if (i >= x)
         return DL_X909 + i - x;
-    return i >= 4u ? DL_KIT0 + i - 4u : i;
+    return i >= 4u ? dl_kit_src(i - 4u) : i;
 }
 static int dsnd_sampled(uint32_t l) { return dl_usr_of(l) || dl_kit_of(l, drum_kit()) < DRUM_SAMPLED; }
 

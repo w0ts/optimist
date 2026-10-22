@@ -18,14 +18,14 @@ enum { ED_DRUM_SRCS = 50, ED_DRUM_SHOW };
 #if DL_ANY
 static uint32_t ed_src_kind(uint32_t src)
 {
-    uint32_t k = src - DL_KIT0;
+    uint32_t k = dl_src_kit(src);
     if (src == DL_KIT)
         return 0;
     if (src < DL_KIT0)
         return 1;
     if (k >= DRUM_KITS)
         return 4;                                         /* (past the kits: the X0X voices) */
-    return (k < DRUM_SAMPLED ? 2u : k < DRUM_SYNTH_END ? 3u : 4u) + (drum_kit_built(k) ? 0u : 8u);
+    return (k < DRUM_SAMPLED ? 2u : DRUM_IS_SYNTH(k) ? 3u : 4u) + (drum_kit_built(k) ? 0u : 8u);
 }
 
 static int ed_dsrc(uint32_t cmd, const uint8_t *a, uint32_t na)

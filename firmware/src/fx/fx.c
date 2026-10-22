@@ -1726,8 +1726,17 @@ static HOT void tflt_clear(tflt_t *f)
         f->z[i][0] = f->z[i][1] = 0;
 }
 
-/* the knob v -> this block's coefficients in *c; 0 = bypassed (nothing to do) */
-static HOT int tflt_block(tflt_t *f, int32_t v, tsvf_t *c)
+/* FILTER RESO (SLOOP 2.8 fx.c tflt_reso, GPL-3.0-only; builder item TFLT_RESO): the SVF resonance of the tracks', the drum
+ * track's and the drum lanes' FILTER, 40 (clean, as it always was) + 7 a step up to 110 (Q ~2.5: no self-oscillation). The
+ * master's DJ filter and the stereo slots' FILTER (the returns', the USB input's: sto_ins) keep 40 */
+#define TFLT_RESO0 40
+#if FELUCCA_TFLT_RESO
+AINL int32_t tflt_reso(void) { return TFLT_RESO0 + clamp(song.g[G_TFRES], 0, 10) * 7; }
+#else
+#define tflt_reso() TFLT_RESO0
+#endif
+/* the knob v -> this block's coefficients in *c at resonance reso (tsvf_coef's); 0 = bypassed (nothing to do) */
+static HOT int tflt_block(tflt_t *f, int32_t v, tsvf_t *c, int32_t reso)
 {
     int32_t to;
     if (v < 0 && f->mode >= 0) {                        /* (switching side: from open) */
@@ -1750,7 +1759,7 @@ static HOT int tflt_block(tflt_t *f, int32_t v, tsvf_t *c)
         f->mode = 0;                                    /* fully open again: off */
         return 0;
     }
-    tsvf_coef(c, f->cut, 40);
+    tsvf_coef(c, f->cut, reso);
     return 1;
 }
 /* n samples of b through state ch, at 2^sh below their level (the SVF's range: +-140000) */
@@ -1775,7 +1784,7 @@ static HOT2 __attribute__((noinline)) void tflt_part(const track_t *t, int32_t v
 {
     tflt_t *f = &tflt[(uint32_t)(t - trk) % NTRK];
     tsvf_t c;
-    if (tflt_block(f, v, &c))
+    if (tflt_block(f, v, &c, tflt_reso()))
         tflt_run(f, &c, b, n, 0, 3);
 }
 #endif
@@ -2052,7 +2061,7 @@ static HOT2 __attribute__((noinline)) void dins_one(uint32_t k, uint32_t s, uint
 #if TFLT_ON
     case FXT_FILT: {
         tsvf_t c;
-        if (tflt_block(&st->f, a, &c))
+        if (tflt_block(&st->f, a, &c, tflt_reso()))
             tflt_run(&st->f, &c, b, n, 0, 2);
         break;
     }
@@ -2240,7 +2249,7 @@ static HOT2 __attribute__((noinline)) void dbus_ins(uint32_t t, int32_t live, ui
         tflt_t *f = &tflt[TRK_DRUM];
         tsvf_t c;
         uint32_t ch;
-        if (tflt_block(f, live ? p[P_TFLT] : 0, &c))
+        if (tflt_block(f, live ? p[P_TFLT] : 0, &c, tflt_reso()))
             for (ch = 0; ch < nc; ch++)
                 tflt_run(f, &c, DBUS_CH[ch], n, ch, 2);
     }
@@ -2450,7 +2459,7 @@ static HOT2 __attribute__((noinline)) void mst_ins(uint32_t t, int32_t live, int
     if (t == FXT_FILT) {
         tflt_t *f = &tflt[NTRK];
         tsvf_t c;
-        if (tflt_block(f, live ? song.g[G_FILT] : 0, &c)) {
+        if (tflt_block(f, live ? song.g[G_FILT] : 0, &c, TFLT_RESO0)) {
             tflt_run(f, &c, l, n, 0, 0);
             tflt_run(f, &c, r, n, 1, 0);
         }
@@ -2519,7 +2528,7 @@ static HOT2 __attribute__((noinline)) void sto_ins(sto_t *o, uint32_t i0, uint32
 #if TFLT_ON
     if (t == FXT_FILT) {
         tsvf_t c;
-        if (tflt_block(&o->f, a, &c)) {
+        if (tflt_block(&o->f, a, &c, TFLT_RESO0)) {
             tflt_run(&o->f, &c, l, n, 0, 0);
             tflt_run(&o->f, &c, r, n, 1, 0);
         }

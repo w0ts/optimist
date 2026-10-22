@@ -13,8 +13,13 @@
  *          12 dB/oct high-pass (HPF) on the noise before it
  *   out    drive (tanh), the kit's crush (bit depth, sample-and-hold), the sound's level
  * The envelopes, the pitch and the filter run at the control rate (CTL samples) and are ramped
- * per sample. Cost: ~50-60 integer ops per voice and sample (METAL: +6 adds). */
-enum { DW_NONE, DW_SINE, DW_TRI, DW_SQUARE, DW_FM, DW_BELL };
+ * per sample. Cost: ~50-60 integer ops per voice and sample (METAL: +6 adds).
+ * KAWA extras (builder item DS_KAWA; after Kawa Tracker's kit engine, Guizmoh/Kawa-Tracker-Fm1 kawa_drums.c, GPL-3.0):
+ * four METAL tunings (the 808's, a wide cymbal, a tight cluster, a ride's bell), the second partial mixed, ring-
+ * modulating the tone or modulating its phase (FM), re-strikes (a flam, a clap's hands, a guiro's ridges: HITS more
+ * hits GAP apart, the click and the noise struck again, the tone too if asked) and a RISE (the tone and the noise
+ * swell in: shakers, brushes, a rumble). PLAITS (builder item DS_PLAITS, drum_plaits.c): two Plaits models as waves. */
+enum { DW_NONE, DW_SINE, DW_TRI, DW_SQUARE, DW_FM, DW_BELL, DW_PKICK, DW_PSNARE };
 enum { DN_NONE, DN_WHITE, DN_METAL, DN_CYM, DN_CHIP, DN_CLAP = 0x10 };
 enum { DF_OFF, DF_LP, DF_BP, DF_HP, DF_ALL = 4 };   /* flt: mode | DF_ALL (the tone too) | res << 3 */
 typedef struct {
@@ -30,7 +35,20 @@ typedef struct {
     uint8_t hpf;                 /* CUTOFF_HZ index of the noise high-pass, 0 = off */
     uint8_t chip;                /* CHIP noise: clock note */
     uint8_t drive, level;        /* drive 0..127; level: 128 + 4 x dB (-32 .. +31.75 dB) */
+#if FELUCCA_DS_KAWA
+    uint8_t kx;                  /* KAWA: METAL tuning (bits 0..1), the partial's mode 0 MIX 1 RING 2 FM (2..3), re-strikes
+                                  * (4..6), the tone struck again too (7) */
+    uint8_t kgap, krise;         /* the re-strikes' gap (blocks of CTL samples, +0 / +1 at random); RISE: DECAY_K index, 0 none */
+#endif
 } dsnd_t;
+#define DK_MSET(d) ((d)->kx & 3u)
+#define DK_T2MODE(d) (((d)->kx >> 2) & 3u)
+#define DK_HITS(d) (((d)->kx >> 4) & 7u)
+#define DK_HTONE 0x80u
+enum { DK_MIX, DK_RING, DK_FM };
+#if FELUCCA_DS_PLAITS
+#include "drum_plaits.c"         /* KPUNC, SCRAK (DW_PKICK, DW_PSNARE) */
+#endif
 #define DS_LANES 16              /* kick snare clap hat open-hat tom-lo tom-hi crash ride shaker conga
                                   * rim cowbell clave kick-2 snare-2 */
 typedef struct {
@@ -38,8 +56,16 @@ typedef struct {
     uint8_t crush;               /* low nibble: bits dropped, high nibble: sample-and-hold - 1 */
     uint16_t si[DS_LANES];       /* each lane's sound: DS_SNDS index (a sound several kits share is kept once) */
 } dkit_t;
-#include "felucca_drumkits.h"    /* DS_SNDS[], DS_KITS[], DS_NKITS (tools/gen_drumkits.py) */
-#define DS_SND(k, lane) (&DS_SNDS[(k)->si[lane]])   /* kit k's lane: its sound */
+#include "felucca_drumkits.h"    /* DS_SNDS[], DS_KITS[], DS_NKITS; DS_XKITS[], DS_XSNDS[], DS_NXKITS (tools/gen_drumkits.py) */
+/* a lane's sound by its index: DS_SNDS', or (DS_XSI: bit 15) its own in an extra kit's table (kit UIDs 47..: DS_XKITS, each
+ * in a builder item of its own; a table not built is never read: its kit plays a stand-in, drums.c drum_kit_of) */
+#define DS_XSI 0x8000u
+#if DS_NXKITS
+AINL const dsnd_t *ds_snd(uint32_t si) { return si & DS_XSI ? &DS_XSNDS[(si >> 8) & 127u][si & 255u] : &DS_SNDS[si]; }
+#else
+#define ds_snd(si) (&DS_SNDS[si])
+#endif
+#define DS_SND(k, lane) ds_snd((k)->si[lane])   /* kit k's lane: its sound */
 
 /* GM note -> synth lane and a pitch offset in semitones */
 static const struct { uint8_t lane; int8_t semi; } DS_MAP[128 - 35] = {
@@ -83,6 +109,15 @@ typedef struct {
     int32_t gain, lg;            /* velocity Q15, the sound's level Q10 */
     int32_t held, holdn;         /* crush: sample-and-hold */
     uint8_t crush, bursts, fmode;
+#if FELUCCA_DS_KAWA
+    uint8_t hits, gap;           /* re-strikes left, blocks to the next */
+    int32_t rr, rr_to;           /* RISE: the envelopes' share, Q15 (0 at the hit, up to 32767) */
+    uint32_t kr;                 /* RISE: its per-block factor */
+#endif
+#if FELUCCA_DS_PLAITS
+    dplaits_t pl;                /* a Plaits model's state (DW_PKICK, DW_PSNARE) */
+    uint8_t quiet;               /* its quiet blocks in a row */
+#endif
 } dsv_t;
 
 /* per-sample DECAY_K (Q16) -> per-block (CTL = 32 samples) by squaring five times */
@@ -122,8 +157,15 @@ AINL void ds_filter(dsv_t *s)
     s->c.a3 = (s->c.a2 * g) >> 12;
 }
 
-/* the 808 cymbal oscillators (205.3 304.4 369.6 522.7 540 800 Hz) as 1/16 semitones above the first */
+/* the 808 cymbal oscillators (205.3 304.4 369.6 522.7 540 800 Hz) as 1/16 semitones above the first; KAWA: three more
+ * tunings (kawa_drums.c METAL_R): a wider cymbal, a tight cluster (jingles, bright hats), wide apart (a ride's ping, bells) */
+#if FELUCCA_DS_KAWA
+static const int16_t DS_METALS[4][6] = {{0, 109, 163, 259, 268, 377}, {0, 96, 130, 169, 212, 265},
+                                        {0, 7, 18, 46, 108, 167}, {0, 304, 404, 462, 509, 654}};
+#define DS_METAL DS_METALS[DK_MSET(d)]
+#else
 static const int16_t DS_METAL[6] = {0, 109, 163, 259, 268, 377};
+#endif
 
 /* sound d (crush: its kit's) hit at note (semi: the note's offset from the sound, ds_lane) */
 static void ds_on_snd(dsv_t *s, const dsnd_t *d, uint32_t crush, int32_t semi, uint32_t note, uint32_t vel)
@@ -167,6 +209,24 @@ static void ds_on_snd(dsv_t *s, const dsnd_t *d, uint32_t crush, int32_t semi, u
     }
     for (i = 0; i < 6u; i++)
         s->minc[i] = ds_inc(s->base16 + DS_METAL[i]);
+#if FELUCCA_DS_KAWA
+    if (DK_HITS(d)) {                                   /* re-strikes: short bursts first, the noise's own decay on the
+                                                         * last (as CLAP's: the hands, then the room) */
+        s->kn = ds_k32(12);
+        s->nhold = 0;
+    }
+    s->hits = (uint8_t)DK_HITS(d);
+    s->gap = (uint8_t)(d->kgap ? d->kgap : 1u);
+    s->rr = s->rr_to = d->krise ? 0 : 32767;
+    s->kr = d->krise ? ds_k32(d->krise) : 0u;
+#endif
+#if FELUCCA_DS_PLAITS
+    if (d->wave >= DW_PKICK) {
+        dp_on(&s->pl, d, s->base16, vel, (uint32_t)s->rnd);
+        s->fmode = 0;                                   /* (its fcut is its TONE: no filter of the layers; the velocity both
+                                                         * the model's accent, its timbre, and the level as every sound's) */
+    }
+#endif
 }
 static void ds_on(dsv_t *s, const dkit_t *kit, uint32_t note, uint32_t vel)
 {
@@ -194,6 +254,27 @@ static HOT void ds_control(dsv_t *s)
             s->nhold = ds_blocks(d->nhold);
         }
     }
+#if FELUCCA_DS_KAWA
+    if (s->hits && !--s->gap) {                         /* a re-strike: a flam, a clap's next hand, a guiro's next ridge */
+        s->hits--;
+        s->gap = (uint8_t)((d->kgap ? d->kgap : 1u) + ((uint32_t)noise32(&s->rnd) >> 31));
+        if (!s->hits) {                                 /* the last: the noise's own hold and decay */
+            s->kn = ds_k32(d->ndec);
+            s->nhold = ds_blocks(d->nhold);
+        }
+        s->ck = (int32_t)d->click * 258;
+        if (d->src & 15u)
+            s->nz = (int32_t)d->nlev * 258;
+        if (d->kx & DK_HTONE) {
+            s->amp = d->wave ? (int32_t)d->tlev * 258 : 0;
+            s->pe = d->bend || d->fenv ? 32767 : 0;
+            s->hold = ds_blocks(d->hold);
+        }
+    }
+    s->rr = s->rr_to;
+    if (s->kr)                                          /* RISE: what is left of it falls; the envelopes' share rises */
+        s->rr_to = 32767 - decay_q16(32767 - s->rr, s->kr);
+#endif
     if (s->nhold)
         s->nhold--;
     else
@@ -207,6 +288,10 @@ static HOT void ds_control(dsv_t *s)
 
 AINL int ds_alive(const dsv_t *s)
 {
+#if FELUCCA_DS_KAWA
+    if (s->hits)
+        return 1;                                       /* re-strikes still to come */
+#endif
     if ((s->d->src & DN_CLAP) && s->bursts < 4u)
         return 1;                                       /* bursts still to come */
     return s->hold || s->amp > CG_DTAIL || s->amp_to > CG_DTAIL || s->nz > CG_DTAIL || s->nz_to > CG_DTAIL ||
@@ -229,29 +314,57 @@ static HOT int ds_render(dsv_t *s, int32_t *out, uint32_t n)
     int32_t a = s->amp, z = s->nz, c = s->ck, inc = (int32_t)s->inc;
     int32_t drive = 16 + d->drive, bits = s->crush & 15, hold = (s->crush >> 4) + 1;
     int32_t t2l = (int32_t)d->t2lev * 258;
+#if FELUCCA_DS_KAWA
+    uint32_t t2m = d->t2 ? DK_T2MODE(d) : DK_MIX;       /* the partial: MIX (as before), RING, FM */
+    int32_t rise = s->kr != 0u, rr = s->rr, sr = s->rr << CTL_LOG2, dr = s->rr_to - s->rr;
+    if (rise)
+        a = mulq15(a, rr), z = mulq15(z, rr);
+#else
+#define t2m DK_MIX
+#endif
+#if FELUCCA_DS_PLAITS
+    int32_t px[CTL];
+    if (wave >= DW_PKICK) {                             /* a Plaits model: its samples instead of the layers */
+        int32_t pk = dp_render(&s->pl, wave, px, n);
+        s->quiet = (uint8_t)(pk < DP_QUIET ? (s->quiet < 255u ? s->quiet + 1u : 255u) : 0u);
+        wave = 0, src = 0, c = 0;                       /* (no tone, noise or click layer: its samples are the tone) */
+    }
+#endif
     for (i = 0; i < n; i++) {
         int32_t tone = 0, nz = 0, x;
         if (wave) {
+            uint32_t ph = s->ph;
+            if (t2m == DK_FM && d->t2) {                /* (KAWA) the partial modulates the tone's phase: its level the index */
+                s->ph3 += ((uint32_t)inc >> 5) * d->t2;
+                ph += (uint32_t)mulq15(sine_i(s->ph3), mulq15(mulq15(a, a), t2l)) << 17;
+            }
             switch (wave) {
-            case DW_SINE: tone = sine_i(s->ph); break;
-            case DW_TRI: tone = osc_tri(s->ph); break;
-            case DW_SQUARE: tone = (int32_t)s->ph < 0 ? -24000 : 24000; break;
+            case DW_SINE: tone = sine_i(ph); break;
+            case DW_TRI: tone = osc_tri(ph); break;
+            case DW_SQUARE: tone = (int32_t)ph < 0 ? -24000 : 24000; break;
             case DW_FM:                                 /* ratio 1.41: metallic, index follows the tone */
-                tone = sine_i(s->ph + ((uint32_t)(sine_i(s->ph2) * a) << 1));
+                tone = sine_i(ph + ((uint32_t)(sine_i(s->ph2) * a) << 1));
                 s->ph2 += (uint32_t)inc + ((uint32_t)inc >> 2) + ((uint32_t)inc >> 3) + ((uint32_t)inc >> 5);
                 break;
             default:                                    /* BELL: two squares */
-                tone = ((int32_t)s->ph < 0 ? -12000 : 12000) + ((int32_t)s->ph2 < 0 ? -12000 : 12000);
+                tone = ((int32_t)ph < 0 ? -12000 : 12000) + ((int32_t)s->ph2 < 0 ? -12000 : 12000);
                 s->ph2 += (uint32_t)inc + ((uint32_t)inc >> 1) - ((uint32_t)inc >> 6);
                 break;
             }
             s->ph += (uint32_t)inc;
             tone = mulq15(tone, a);
-            if (d->t2) {                                /* the second mode: a sine, decaying twice as fast */
+            if (d->t2 && t2m == DK_MIX) {               /* the second mode: a sine, decaying twice as fast */
                 s->ph3 += ((uint32_t)inc >> 5) * d->t2;
                 tone += mulq15(mulq15(sine_i(s->ph3), mulq15(a, a)), t2l);
+            } else if (d->t2 && t2m == DK_RING) {       /* (KAWA) the partial rings the tone: its level the depth */
+                s->ph3 += ((uint32_t)inc >> 5) * d->t2;
+                tone += mulq15(mulq15(tone, sine_i(s->ph3)) - tone, t2l);
             }
         }
+#if FELUCCA_DS_PLAITS
+        else if (d->wave >= DW_PKICK)
+            tone = px[i];
+#endif
         if (src) {
             if (src == DN_WHITE) {
                 nz = (int32_t)noise32(&s->rnd) >> 17;
@@ -309,8 +422,21 @@ static HOT int ds_render(dsv_t *s, int32_t *out, uint32_t n)
         z = (sz += rn) >> CTL_LOG2;
         c = (sc += rc) >> CTL_LOG2;
         inc += di;
+#if FELUCCA_DS_KAWA
+        if (rise) {                                     /* RISE: the tone and the noise swell in */
+            rr = (sr += dr) >> CTL_LOG2;
+            a = mulq15(a, rr), z = mulq15(z, rr);
+        }
+#endif
     }
+#ifdef t2m
+#undef t2m
+#endif
     s->t += n;
     ds_control(s);
+#if FELUCCA_DS_PLAITS
+    if (d->wave >= DW_PKICK)                            /* a Plaits model: quiet for 46 ms (after 50 ms), or 6 s */
+        return !(s->t >= DP_LIFE || (s->t > FS / 20u && s->quiet >= DP_QBLOCKS));
+#endif
     return ds_alive(s);
 }

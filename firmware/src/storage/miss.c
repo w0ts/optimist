@@ -115,11 +115,11 @@ static void miss_drums(void)
                 MFX(MF_LSMP, D);
             else if (!usr_nz[s - DL_USR])
                 miss_add(MS_ITEM(MS_USR, D, s - DL_USR));
-        } else if (s >= DL_KIT0 && s - DL_KIT0 < DRUM_KITS && s - DL_KIT0 != kit) {   /* (the track's kit: as is) */
+        } else if (dl_src_kit(s) < DRUM_KITS && dl_src_kit(s) != kit) {   /* (the track's kit: as is) */
             if (!FELUCCA_DRUM_KITS)
                 MFX(MF_LKIT, D);
-            else if (!drum_kit_built(s - DL_KIT0))
-                miss_add(MS_ITEM(MS_KIT, D, s - DL_KIT0));
+            else if (!drum_kit_built(dl_src_kit(s)))
+                miss_add(MS_ITEM(MS_KIT, D, dl_src_kit(s)));
         } else if (s >= DL_X909 && s < DL_X808 + DL_X808_N && (s < DL_X909 + DL_X909_N || s >= DL_X808)) {
             uint32_t m = s < DL_X808 ? DRUM_UID_X909 : DRUM_UID_X808;   /* an X0X voice: its machine (KIT X0X 808) */
             if (!FELUCCA_DRUM_KITS)

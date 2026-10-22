@@ -21,7 +21,7 @@
 #define FXR_GEN_N 0u
 #endif
 #define FXR_HEAD (2u + FX_NSLOT)
-#define FXR_MAX (397u + FXR_GEN_N)                     /* the stored form at its longest (FXR_HEAD + the TLVs; 120 -> 156
+#define FXR_MAX (398u + FXR_GEN_N)                     /* the stored form at its longest (FXR_HEAD + the TLVs; 120 -> 156
                                                         * 2026-10-13: + the further inserts' TLVs, 6 x (2 + 4), fx_slots.c
                                                         * fxs_tlv, in every build: a record from any build reads whole;
                                                         * 156 -> 168 2026-10-13: CHRS ECHO, 2 x (2 + 4); 168 -> 186
@@ -34,7 +34,7 @@
                                                         * RET_TLV 2 + 9, EQ3's TLV 2 + 50, ~28 spare; + the note generators'
                                                         * GEN_TLV 2026-10-15, seq/gen.c: 2 + 4 a slot, 20 slots; 352 -> 378 2026-10-18: the shapers' TLVs 7 x (2 + 4), MST_TLV + 7;
                                                         * 378 -> 383: the delay filter's DLYF_TLV 2 + 3; 383 -> 397 2026-10-19:
-                                                        * TAPE SPIT, their TLVs 2 x (2 + 4) and the type list's 2 x 2, MST_TLV + 2) */
+                                                        * TAPE SPIT, their TLVs 2 x (2 + 4) and the type list's 2 x 2, MST_TLV + 2; 397 -> 398 2026-10-21: DLYF_TLV + FILTER RESO) */
 /* The track insert slots (2026-10-12, fx_slots.c ins_slot): the header's slot[4] holds the master SENDS, its insert
  * places filled, as far as they go, with the inserts the tracks' slots hold (an older build then hears them on the
  * tracks with an amount: best effort); flags bit 0 (FXR_F_INS) says the record is of this model (the drum sounds' DST CMP
@@ -86,8 +86,8 @@ AINL uint32_t mst_tlv_t(uint32_t i) { return i ? (uint32_t)IFX_FTY(i - 1u) : (ui
 /* TLV DLYF_TLV (0x45, 2026-10-18): the delay filter's TYPE SLOPE RES (core.h G_DFTYPE G_DFSLOPE G_DFRES, a byte each), only
  * when not LP, 12 dB, 0; none: those, as every project from before (its FREQ is G_DCOLOR, in project_t). A load's (`all`) */
 #define DLYF_TLV 0x45u
-#define DLYF_N 3u
-_Static_assert(G_DFSLOPE == G_DFTYPE + 1 && G_DFRES == G_DFTYPE + 2, "the delay filter's TLV: TYPE SLOPE RES in a row");
+#define DLYF_N 4u                                      /* (+ FILTER RESO, core.h G_TFRES, 2026-10-21: a reader of before takes 3) */
+_Static_assert(G_DFSLOPE == G_DFTYPE + 1 && G_DFRES == G_DFTYPE + 2 && G_TFRES == G_DFTYPE + 3, "the delay filter's TLV: TYPE SLOPE RES, FILTER RESO in a row");
 static uint32_t dlyf_tlv(uint8_t *o)                   /* -> o, its length; 0: the defaults (nothing to keep) */
 {
     uint32_t k, any = 0;

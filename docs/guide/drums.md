@@ -8,7 +8,7 @@ Every hit has one of four levels, **GHOST**, **SOFT**, **NORM** and **HARD**, an
 
 ## The kits
 
-Up to 37 kits (the builder can leave kits out), picked with **PRESETS** on DR (or in the web editor). They set what the lanes play. 1 to 5 are a sampled acoustic kit (CC0 studio recordings) and four treatments of it; they share one sample set, so they are one builder choice (`DRUM_SAMPLED`). 6 to 37 are synthesised and cost almost no memory: each sound is a tuned body with a pitch drop, a second partial, a click, filtered noise and drive, and every kit is level-matched.
+Up to 37 kits, then the X0X kits and KAWA and PLAITS below (the builder can leave kits out), picked with **PRESETS** on DR (or in the web editor). They set what the lanes play. 1 to 5 are a sampled acoustic kit (CC0 studio recordings) and four treatments of it; they share one sample set, so they are one builder choice (`DRUM_SAMPLED`). 6 to 37 are synthesised and cost almost no memory: each sound is a tuned body with a pitch drop, a second partial, a click, filtered noise and drive, and every kit is level-matched.
 
 | # | Kit | # | Kit | # | Kit | # | Kit |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -35,6 +35,15 @@ Two circuit-modelled kits from X0X by Charles Vestal, builder items `DRUM_X0X909
 
 A build without them plays the synthesised 909 / 808 instead and says MISSING; the project keeps the kit.
 
+### KAWA and PLAITS
+
+Two more synthesised kits after the X0X ones, each a builder item of its own:
+
+- **KAWA** (`DS_KAWA`), after Kawa Tracker's kit engine: a kick with an FM beater, a rumble that swells in, a flammed snare, a brush, a clap with its hands, tight-cluster hats, a wide crash, a ride's bell, ring-modulated toms, rim and cowbell, a shaker that swells in, and a guiro on the CLAVE lane.
+- **PLAITS** (`DS_PLAITS`): two kicks and two snares from Mutable Instruments Plaits' synthetic bass drum and snare drum; the other lanes are the 909's. EDIT moves them as the other sounds: TUNE, DECAY, CUT + (the kick's TONE, the snare's FM), CLICK (the kick's FM), SNAP (the snare's snap).
+
+Any lane of another kit can play their sounds (SRC lists them after the X0X styles). A build without one plays the 808 (KAWA) or the 909 (PLAITS) for it and says MISSING; the project keeps the kit.
+
 ## Edit a lane's sound
 
 Select a lane (its black key, or ALGORITHM), then tap EDIT. Each lane has its own values, as **offsets from the kit** (0 is the kit as it is, so another kit stays musical). They apply from the next hit.
@@ -51,7 +60,7 @@ Select a lane (its black key, or ALGORITHM), then tap EDIT. Each lane has its ow
 | **ENV, LFO, LFO 2, ENV2** | the lane's envelope (CLICK, DECAY, BEND, LEVEL) and its LFOs and second envelope, per hit |
 | **INSERTS** (FX) | the lane's two insert slots ([effects](effects.md)) |
 
-A sampled sound has TUNE, DECAY, CUT and LEVEL only. The edits, sends, sources and samples are saved with the project and its sections. On DR itself the SENDS page ("Kit sends") scales every lane's own sends; the drum bus has none of its own.
+On a synthesised sound with no tone (closed hat, shaker, clap), TUNE moves its filter and its noise high-pass, as a resampled sample would sound (`DS_NTUNE`). A sampled sound has TUNE, DECAY, CUT and LEVEL only. The edits, sends, sources and samples are saved with the project and its sections. On DR itself the SENDS page ("Kit sends") scales every lane's own sends; the drum bus has none of its own.
 
 ## Your samples
 

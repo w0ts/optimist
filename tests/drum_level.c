@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* Every synthesised kit x every sound: one hit at velocity 110, 2 s each, mono int32 into argv[1]
+/* Every synthesised kit (5..36, then 47..: gen_drumkits.py KITS, XKITS) x every sound: one hit at velocity 110, 2 s each, mono int32 into argv[1]
  * (kit-major, the 16 lanes in gen_drumkits.py order). tools/level_drumkits.py measures them and
  * writes tools/drumkit_levels.json.
  *   cc -O2 -Ibuild/gen-host -Ifirmware/src -Ifirmware/hal tests/drum_level.c -lm -o build/host/drum_level */
@@ -16,7 +16,7 @@ int main(int argc, char **argv)
         return 1;
     host_tracks_init();
     song.g[G_DRLVL] = 100;
-    for (kit = DRUM_SAMPLED; kit < DRUM_SYNTH_END; kit++)
+    for (kit = DRUM_SAMPLED; kit < DRUM_KITS; kit = kit + 1u == DRUM_SYNTH_END ? DRUM_UID_XKIT : kit + 1u)   /* (then 47..) */
         for (ln = 0; ln < 16u; ln++) {
             memset(&drums, 0, sizeof drums);
             drums_set = -2;
@@ -32,6 +32,6 @@ int main(int argc, char **argv)
             }
         }
     fclose(f);
-    printf("%u kits x 16 sounds -> %s\n", DRUM_SYNTH_END - DRUM_SAMPLED, argv[1]);
+    printf("%u kits x 16 sounds -> %s\n", DRUM_SYNTH_END - DRUM_SAMPLED + DRUM_KITS - DRUM_UID_XKIT, argv[1]);
     return 0;
 }

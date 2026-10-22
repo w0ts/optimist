@@ -221,7 +221,18 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #define DRUM_UID_X808 38u
 #define DRUM_UID_XSTYLE 39u                /* 39..42: X9 TECH, X9 HOUSE, X9 UKG, X9 ACID; 43..46: X8 TRAP, X8 BOOM, */
 #define DRUM_NXSTYLE 8u                    /* X8 ELEC, X8 MIAMI */
-#define DRUM_UID_XMACH(k) ((k) < DRUM_UID_XSTYLE ? (k) : (k) < DRUM_UID_XSTYLE + 4u ? DRUM_UID_X909 : DRUM_UID_X808)
+/* Kit UIDs 47..: synthesised kits added after the X0X ones (tools/gen_drumkits.py XKITS: 47 KAWA, 48 PLAITS), each a builder
+ * item of its own; a build without one plays its stand-in (the 808 for KAWA, the 909 for PLAITS: gen_drumkits.py) */
+#define DRUM_UID_XKIT 47u
+#ifndef FELUCCA_DS_KAWA
+#define FELUCCA_DS_KAWA 1                  /* kit KAWA (UID 47) and the drum synth's KAWA options (drum_synth.c; Kawa Tracker) */
+#endif
+#ifndef FELUCCA_DS_PLAITS
+#define FELUCCA_DS_PLAITS 1                /* kit PLAITS (UID 48): Plaits' synthetic kick and snare (drum_plaits.c; Hortator) */
+#endif
+#define DRUM_UID_XMACH(k) ((k) < DRUM_UID_XSTYLE ? (k) : (k) < DRUM_UID_XSTYLE + 4u ? DRUM_UID_X909 : \
+                           (k) < DRUM_UID_XKIT ? DRUM_UID_X808 : (k))   /* (47..: no machine's) */
+#define DRUM_IS_X0X(k) ((k) >= DRUM_UID_X909 && (k) < DRUM_UID_XKIT)
 
 /* --------------------------------------------------------- build report --- */
 /* tools/configure.py defines these in build/gen/felucca_config.h (editor.c BUILD, 43): the profile, the .config's
@@ -384,6 +395,21 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #define FELUCCA_MIDI_CLKOUT FELUCCA_MIDI_CLOCK  /* send MIDI clock (HOME menu CLOCK OUT: F8 24 PPQN, FA / FB + F2 / FC, on USB,
                                             * timed as the audio leaves; io/midi/clock_out.c). Not a builder item of its own:
                                             * the one item MIDI_CLOCK is clock in + out; tests may still set it alone */
+#endif
+#ifndef FELUCCA_TFLT_RESO
+#define FELUCCA_TFLT_RESO 1                /* HOME > AUDIO > FILT RESO (SLOOP 2.8): the track FILTER's resonance, 0 clean .. 10 (fx.c
+                                            * tflt_reso; core.h G_TFRES). Only with the track FILTER (TRK_FILT) */
+#endif
+#ifndef FELUCCA_DS_NTUNE
+#define FELUCCA_DS_NTUNE 1                 /* a synthesised drum with no tone (hats, shaker, clap): its TUNE (drum EDIT) moves its
+                                            * filter and noise high-pass too (SLOOP 2.8; drums/drum_edit.c de_synth) */
+#endif
+#ifndef FELUCCA_PHASE_FOLD
+#define FELUCCA_PHASE_FOLD 1               /* PHASE's E7 FOLD: a sine wavefolder (Felucca-Engines 04ffe90, MIT; engines/phase/eng_phase.c) */
+#endif
+#ifndef FELUCCA_VOICE_OWN
+#define FELUCCA_VOICE_OWN 1                /* voices: at the shared budget, a part restarts its own released voice before
+                                            * fading another part's (JIANT 0.9.9 cpu3; core/voice.c voice_alloc) */
 #endif
 #ifndef FELUCCA_REC_PLAIN
 #define FELUCCA_REC_PLAIN 0                /* seq.c rec_poly: recording keeps every note played whatever the voice mode (MONO, LEGATO,

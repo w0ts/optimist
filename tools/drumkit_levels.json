@@ -574,5 +574,41 @@
   "CLAVE": 0.25,
   "KICK2": 4.0,
   "SNARE2": 5.75
+ },
+ "KAWA": {
+  "KICK": -1.0,
+  "SNARE": 1.25,
+  "CLAP": 15.5,
+  "CHH": 20.5,
+  "OHH": 16.5,
+  "TOMLO": 2.25,
+  "TOMHI": 2.5,
+  "CRASH": -0.25,
+  "RIDE": 0.75,
+  "SHAKER": 7.5,
+  "CONGA": 0.0,
+  "RIM": 4.0,
+  "COWBELL": 6.0,
+  "CLAVE": 13.5,
+  "KICK2": -0.5,
+  "SNARE2": 17.75
+ },
+ "PLAITS": {
+  "KICK": 2.0,
+  "SNARE": 1.5,
+  "CLAP": -1.5,
+  "CHH": 0.0,
+  "OHH": 0.0,
+  "TOMLO": 0.0,
+  "TOMHI": 0.0,
+  "CRASH": 1.5,
+  "RIDE": 1.5,
+  "SHAKER": 3.0,
+  "CONGA": 0.0,
+  "RIM": 6.0,
+  "COWBELL": 0.0,
+  "CLAVE": 0.0,
+  "KICK2": 2.25,
+  "SNARE2": 1.0
  }
 }

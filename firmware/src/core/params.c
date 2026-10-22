@@ -392,6 +392,7 @@ static const param_desc_t GP[G_COUNT] = {
     [G_DFTYPE] = PE("TYPE", N_DLYF, DLYF_LP),         /* the delay filter (core.h, fx.c dly_step) */
     [G_DFSLOPE] = PE("SLOPE", N_SLOPE, 0),
     [G_DFRES] = PD("RES", F_PCT, 0, 127, 0),
+    [G_TFRES] = PD("FILT RESO", F_INT, 0, 10, 0),   /* (core.h G_TFRES; fx.c tflt_reso) */
 };
 
 static const param_desc_t DRUM_KIT_DESC = {"KIT", F_ENUM, 0, (int16_t)(DRUM_KITS - 1u), 0, DRUM_KIT_NAMES, 0};   /* (drums.c) */

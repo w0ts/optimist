@@ -230,7 +230,7 @@ static __attribute__((noinline)) const param_desc_t *dsend_desc(uint32_t l, uint
     if (id >= DSEND_NID)
         return 0;
 #if DRUM_X0X && !DINS_X0X
-    if (id >= 3u && dl_kit_of(l % DRUM_LANES, drum_kit()) >= DRUM_UID_X909 && !dl_usr_of(l % DRUM_LANES))
+    if (id >= 3u && DRUM_IS_X0X(dl_kit_of(l % DRUM_LANES, drum_kit())) && !dl_usr_of(l % DRUM_LANES))
         return 0;                                      /* (no insert runs on an X0X channel in this build) */
 #endif
     if (id >= 3u)
