@@ -137,9 +137,8 @@ static int preset_playable(const engine_t *e, uint32_t pi)
 }
 
 /* every factory sound as loud as the others: a level trim per preset, 1/2 dB, measured on a phrase
- * that fits the sound (tools/level_presets.py writes preset_trim.h); a track keeps it in P_ED_FX.
- * (ANALOG 2: row 9 is SUPER's, no engine now; FM6, engine 9, has no trims, as before. ANALOG's presets
- * past the table bring their trim in A2_PX) */
+ * that fits the sound (tools/level_presets.py writes preset_trim.h, a row per engine UID, every engine);
+ * a track keeps it in P_ED_FX */
 #include "preset_trim.h"
 static int16_t preset_trim(uint32_t uid, uint32_t pi)    /* by engine UID */
 {
@@ -147,11 +146,7 @@ static int16_t preset_trim(uint32_t uid, uint32_t pi)    /* by engine UID */
     if (uid == 4u)                                       /* (tools/gen_samples.py SMP_TRIM_IX) */
         pi = pi < sizeof SMP_TRIM_IX ? SMP_TRIM_IX[pi] : 255u;
 #endif
-#if FELUCCA_ANALOG2
-    return uid < ENG_UID_FM6 && pi < PT_MAX ? PRESET_TRIM[uid][pi] : 0;
-#else
     return uid < PT_ENGINES && pi < PT_MAX ? PRESET_TRIM[uid][pi] : 0;
-#endif
 }
 
 /* part k switched to engine slot e (voice.c engine_block, every voice of the part over): the part's engine memory

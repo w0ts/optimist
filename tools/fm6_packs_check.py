@@ -5,7 +5,7 @@ host engine (the code the firmware runs, bit for bit with Dexed's MSFA) and read
 
   tools/fm6_packs_check.py            the table of every voice and its flags; exit 1 when a voice FAILs
   tools/fm6_packs_check.py --apply    also set tools/fm6_packs/levels.json so that each voice's phrase comes out at the
-                                      loudness of the factory presets (-15 LUFS, tools/level_presets.py), then write the
+                                      loudness of the factory presets (-17.5 LUFS, tools/level_presets.py), then write the
                                       packs' headers again (tools/gen_fm6_packs.py) and measure once more
   options: --root DIR (a source tree with build/gen-host: the repository by default), --wav FILE (the C4 notes, to listen),
            --sync CMD (a shell command run before each build)
@@ -28,7 +28,7 @@ sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE / "fm6_packs"))
 import gen_fm6_packs as G  # noqa: E402
 
-AIM = -15.0                                                 # LUFS: tools/level_presets.py
+AIM = -17.5                                                 # LUFS: tools/level_presets.py
 ROLE_AIM = {"bass": 0.0, "held": -1.0, "comp": 0.0, "melody": 0.0}
 ROLE_COL = {"bass": 0, "held": 1, "comp": 2, "melody": 3}
 STEP_DB = 0.75                                             # an output level step above 20

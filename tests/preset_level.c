@@ -1,12 +1,15 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Every factory preset plays a phrase that fits it (a bass line, held chords, comping or a melody),
- * 4.75 s each, through the whole mix (sends, master), for tools/level_presets.py.
- *   argv[1]: a WAV of them all, argv[2]: the list (engine preset role name), argv[3]: mono int32 raw
+ * 4.75 s each, through the whole mix (sends, master), for tools/level_presets.py. MASTER at -30 dB and the
+ * output x32 back: the master's limiter never reached (at full MASTER a preset 20 dB too hot measured a few
+ * dB over, its peaks held at -3 dBFS: the trims went up to +11.5 dB on sounds already too loud).
+ *   argv[1]: a WAV of them all, argv[2]: the list (engine UID, preset, role, trim, name), argv[3]: mono int32 raw
  *   cc -O2 -Ibuild/gen-host -Ifirmware/src -Ifirmware/hal tests/preset_level.c -lm -o build/host/preset_level */
 #define main hostsim_main
 #include "hostsim.c"
 #undef main
 
+#define MASTER_Q12 128                              /* -30 dB (4096: 0 dB) */
 enum { R_BASS, R_HELD, R_COMP, R_MELODY, R_ONE };
 static int has(const char *n, const char *w) { return strstr(n, w) != 0; }
 static int role_of(const char *n)
@@ -58,10 +61,11 @@ int main(int argc, char **argv)
             song.g[G_BPM] = 100;
             host_preset(&trk[0], e, pi);
             song.sel = 0;
+            song.master_q12 = MASTER_Q12;
             memset(held, 0, sizeof held);
             for (b = 0; b < FS / CTL; b++)                    /* the last one's sends die out (not kept) */
                 mix_block(o, CTL);
-            fprintf(rep, "%u %u %d %s\n", e, pi, role, name);
+            fprintf(rep, "%u %u %d %d %s\n", eng_uid(e), pi, role, trk[0].p[P_ED_FX], name);   /* (by UID: preset_trim.h's rows; the trim it played with) */
             for (b = 0; b < nb + tail; b++) {
                 uint32_t s0 = b * CTL, s1 = s0 + CTL, st;
                 for (n = 0; n < 128u; n++)
@@ -92,8 +96,8 @@ int main(int argc, char **argv)
                 }
                 mix_block(o, CTL);
                 for (i = 0; i < CTL; i++) {
-                    int32_t m = (o[2 * i] + o[2 * i + 1]) / 2;
-                    wav_put(w, o[2 * i], o[2 * i + 1]);
+                    int32_t m = (o[2 * i] + o[2 * i + 1]) / 2 * (4096 / MASTER_Q12);
+                    wav_put(w, o[2 * i] * (4096 / MASTER_Q12), o[2 * i + 1] * (4096 / MASTER_Q12));
                     fwrite(&m, 4, 1, raw);
                     frames++;
                 }

@@ -92,11 +92,11 @@ static void cell_gauge_d(cell_t *c, const param_desc_t *d, int32_t v)
         cell_gauge(c, 0, 0, d->max, v);
 }
 
-/* the drum track's level (G_DRLVL, linear: drums.c drums_mix, a gain of v * 200 / 32768) in dB as a synth track's LEVEL
+/* the drum track's level (G_DRLVL: drums.c drlvl_q15, linear to 100, on to +6 dB at 127) in dB as a synth track's LEVEL
  * reads (params.c F_DB): the nearest of LEVEL_Q12's half-dB steps (gen_tables.py), "OFF" at 0. val holds 14 */
 static void drlvl_db(int32_t v, char *val, const char **unit)
 {
-    int32_t g = v * 25, i, best = 1;                    /* (Q15 v * 200 is Q12 v * 25) */
+    int32_t g = drlvl_q15(v) >> 3, i, best = 1;         /* (Q15 -> Q12) */
     if (v <= 0) {
         str_cpy(val, "OFF", 14);
         *unit = "";

@@ -47,6 +47,8 @@ static juno_res_t jt_render_e(uint32_t eng, uint32_t pi, uint32_t k, int32_t v, 
     reset();
     host_preset(&trk[0], eng, pi);
     trk[0].p[P_DIST] = trk[0].p[P_CHOR] = trk[0].p[P_DLY] = trk[0].p[P_REV] = 0;   /* dry: the engine's sound */
+    song.master_q12 = 1024;                     /* -12 dB: below the master's limiter (at 0 dB it held JUNO 24 dB too hot
+                                                 * to ANALOG's peaks, and the level check below passed) */
     if (k < 8u)
         trk[0].p[P_E0 + k] = (int16_t)v;
     for (i = 0; i < 4u; i++)

@@ -1396,7 +1396,7 @@ job; ( jobin
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     run "FM6 voice packs: the headers are what tools/fm6_packs/pk_*.py and levels.json make" python3 tools/gen_fm6_packs.py --check
-    run "FM6 voice packs, 80 voices, listened to by numbers (tools/fm6_packs_check.py): level -15 LUFS as the factory presets, no note over +6 dBFS, none silent, DC, pitch" \
+    run "FM6 voice packs, 80 voices, listened to by numbers (tools/fm6_packs_check.py): level -17.5 LUFS as the factory presets, no note over +6 dBFS, none silent, DC, pitch" \
         python3 tools/fm6_packs_check.py --root .
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin

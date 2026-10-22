@@ -489,12 +489,25 @@ static __attribute__((noinline)) int dgl_block(int32_t lvl, int32_t gl, int32_t 
     return any != 0;
 }
 
+/* the drum track's LEVEL (G_DRLVL 0..127) -> its gain, Q15 (up to 2.0 at 127). 0..100 linear as ever (v * 200: 100 =
+ * -4.3 dB, a saved project's level unchanged); above 100 on to +6 dB at 127, LEVEL_Q12's half-dB steps
+ * interpolated (index 103.4 + 0.76 a step): it was -2.2 dB at the top, synth tracks reach +7.5 dB (op_cells.c too) */
+AINL int32_t drlvl_q15(int32_t v)
+{
+    int32_t x, i, f;
+    if (v <= 100)
+        return v * 200;
+    x = 103 * 256 + 102 + (v - 100) * 195;          /* the index, Q8 (127: 123.97 = +6.0 dB) */
+    i = x >> 8, f = x & 255;
+    return (int32_t)LEVEL_Q12[i] * 8 + (((int32_t)(LEVEL_Q12[i + 1] - LEVEL_Q12[i]) * 8 * f) >> 8);
+}
+
 /* adds the drums into the dry mix and the reverb send; mono != 0: into mono instead, before the
  * pan and the send (the SLICER, slicer.c slicer_drums, does those after it) */
 static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t *mono, uint32_t n)
 {
     uint32_t k, i;
-    int32_t on = fx_on(TDRUM), lvl = song.g[G_DRLVL] * 200, pk = drums.peak;
+    int32_t on = fx_on(TDRUM), lvl = drlvl_q15(song.g[G_DRLVL]), pk = drums.peak;   /* (core.h: up to 2.0) */
     FAR(dsend_table)(on);                           /* the lanes' send levels this block (drum_sends.c) */
     int32_t pre = mono && FAR(dsend_one)(on) < 0;   /* the SLICER on, the lanes not alike: sends before it */
     int32_t gl, gr;
@@ -546,7 +559,7 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
         if (!ds_render(&drums.ds[k], ds_buf + o, m - o))
             v->active = 0;
         for (i = o; i < m; i++) {
-            int32_t s = mulq15(ds_buf[i], ga + (((gb - ga) * (int32_t)i) >> CTL_LOG2));
+            int32_t s = (int32_t)(((int64_t)ds_buf[i] * (ga + (((gb - ga) * (int32_t)i) >> CTL_LOG2))) >> 15);   /* (64 bits: LEVEL > 1.0) */
 #if FELUCCA_DRUM_EDIT
             if (dv.on[k])                              /* the lane's CUT - */
                 s = dl_smp_apply(k, s, v);
@@ -611,11 +624,10 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
         }
         int32_t g1, dg, pl0 = gl, pld = 0, pr0 = gr, prd = 0;
         dsend_of(DLANE_NOTE(drums.lane[k]), &r, &d, &c);
-        g = mulq15(dgl.lv0, v->vel * 258);
+        g = mulq15(mulq15(dgl.lv0, v->vel * 258), 32767 - drums.a0);   /* x mute, over the block (before the x1.75: */
+        g1 = mulq15(mulq15(dgl.lv, v->vel * 258), 32767 - drums.a1);   /* LEVEL up to 2.0, no 32-bit overflow) */
         g += g * 3 >> 2;                           /* x1.75 (+5 dB): as loud as the synthesised kits */
-        g1 = mulq15(dgl.lv, v->vel * 258);
         g1 += g1 * 3 >> 2;
-        g = mulq15(g, 32767 - drums.a0), g1 = mulq15(g1, 32767 - drums.a1);   /* x mute, over the block */
         dg = g1 - g;
         dlm_gains(ln, &pl0, &pld, &pr0, &prd);
 #if DINS
@@ -641,7 +653,7 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
             if (!v->active)
                 break;
             s = lerp16(v->s[2], v->s[3], frac);         /* (dsp.c) */
-            s = mulq15(s, g + ((dg * (int32_t)i) >> CTL_LOG2));
+            s = (int32_t)(((int64_t)s * (g + ((dg * (int32_t)i) >> CTL_LOG2))) >> 15);   /* (64 bits: g up to ~3.5) */
             if (drums.kit[k] == 1u || drums.kit[k] == 4u) {
                 drums.filter[k] += (s - drums.filter[k]) >> (drums.kit[k] == 1u ? 2 : 1);
                 s = drums.filter[k];

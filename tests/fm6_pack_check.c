@@ -12,7 +12,7 @@
  *     window), hi (dB of the energy above 10 kHz under the total: how much there is to alias), wob (the biggest rise in dB
  *     of the 100 ms level after a lower one, 0.3 s .. 1.4 s: the beating of partners tuned apart)
  *   the phrase of each role (bass, held chords, comping, melody: tests/preset_level.c's) through the whole mix as a
- *     factory preset plays it, ITU-R BS.1770 integrated loudness in LUFS (tools/level_presets.py aims at -15) and the
+ *     factory preset plays it, ITU-R BS.1770 integrated loudness in LUFS (tools/level_presets.py aims at -17.5) and the
  *     loudest sample of the stereo mix in dBFS, a pair a role
  * WAV (optional): the C4 notes of all the voices one after the other, 16-bit stereo, to listen to. */
 #define main hostsim_main
@@ -49,6 +49,7 @@ static void fresh(uint32_t voice)
         return;
     }
     host_preset(&trk[0], ENG_IX_FM6, 0);                 /* FM6's first sound: the ADSR open, the sends at their defaults */
+    trk[0].p[P_ED_FX] = 0;                               /* (not INIT VOICE's level trim, preset_trim.h: a pack voice has none) */
     trk[0].p[P_E0] = (int16_t)voice;                     /* VOICE: what nb_load / the knob do */
     fm6_cur[0] = 0;
     song.sel = 0;

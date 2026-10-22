@@ -83,6 +83,16 @@ static int bounded(const int32_t *a)
             return 0;
     return 1;
 }
+/* (the extremes below: every EDIT offset at its maximum, velocity 127: the true product, 64 bits in drums.c, reaches 2.8 x
+ * full scale, where the 32-bit one wrapped to 65502; the master's limiter takes it. Over 4 x is a runaway) */
+static int bounded4(const int32_t *a)
+{
+    uint32_t i;
+    for (i = 0; i < RN; i++)
+        if (a[i] <= -524288 || a[i] >= 524288)
+            return 0;
+    return 1;
+}
 /* zero crossings between two times: twice the frequency x the time */
 static uint32_t crossings(const int32_t *a, uint32_t from, uint32_t to)
 {
@@ -235,7 +245,7 @@ int main(int argc, char **argv)
                         dl.ofs[l][i] = e ? DE_MAX[i] : DE_MIN[i];
                 for (l = 0; l < DRUM_LANES && ok; l += 3u) {
                     nb = hit(kk, LANE_NOTE_OF(l), 127, rb);
-                    ok &= bounded(rb) && nb < RN;
+                    ok &= bounded4(rb) && nb < RN;
                 }
             }
         wav = keep;
