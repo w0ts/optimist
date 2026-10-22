@@ -247,7 +247,7 @@ static int32_t black_index(uint32_t k)                  /* black keys 1..4 (F#, 
 static void glo_key(uint32_t k, int32_t w)
 {
     if (w >= 0 && w < 4) {                              /* T1..DR: the sequencer mute, the one mute (2026-10-16; no solo) */
-        ui_say(trk_tag((uint32_t)w), mx_mute_flip(MXR_T1 + (uint32_t)w) ? " MUTE" : " ON");
+        ui_say(trk_tag((uint32_t)w), mx_mute_flip(MXR_T1 + (uint32_t)w) ? " SEQ MUTE" : " SEQ ON");
 #if FELUCCA_FILLS
     } else if (w == 8) {
         fill_held = 1;                                  /* a fill while held (SLOOP 2.4) */

@@ -440,7 +440,7 @@ static void shift_keys(uint32_t notes, int mute)
             continue;
         r = mx_row_of_smute(m);
         if (mute) {
-            mx_say(r, mx_mute_flip(r) ? " MUTE" : " ON");
+            mx_say(r, mx_mute_flip(r) ? " SEQ MUTE" : " SEQ ON");
             continue;
         }
         if (m == SMUTE_ACC || m < SMUTE_T0) {           /* a lane: the drum track, that lane */

@@ -111,6 +111,19 @@ static uint32_t mx_muted(uint32_t r)
         return (uint32_t)(smute_lane_on(r - MXR_LANE0) || (!mx_is_acc(r) && dlm_muted(r - MXR_LANE0)));
     return (uint32_t)(smute_trk_on(mx_trk_of(r)) || trk[mx_trk_of(r)].p[P_MUTE] != 0);
 }
+/* a row's sound mute (P_MUTE, a lane's drum_mix.c dlm_mute: an older project, the editor), never the sequencer mute: only
+ * this one is the volume's (struck volume card, a volume turn clears it; the user, 2026-10-22: the mute mode "should MUTE THE
+ * SEQUENCER INPUT OF THE TRACK, and NOT put its volume to zero/mute") */
+static uint32_t mx_snd_muted(uint32_t r)
+{
+    if (r == MXR_MASTER)
+        return 0u;
+    if (mx_is_usb(r))
+        return mx_muted(r);                             /* (the USB input: no sequencer, its mute is its sound's) */
+    if (mx_is_lane(r))
+        return (uint32_t)(!mx_is_acc(r) && dlm_muted(r - MXR_LANE0));
+    return (uint32_t)(trk[mx_trk_of(r)].p[P_MUTE] != 0);
+}
 /* row r's mute set (on) or cleared: the sequencer mute; a sound mute is cleared either way */
 static void mx_mute_set(uint32_t r, int on)
 {
@@ -509,7 +522,7 @@ static void mix_cell(uint32_t r, uint32_t k, cell_t *c)
     }
     if (m.label)
         c->label = m.label;
-    c->strike |= (uint8_t)(mx_is_vol(&m) && mx_muted(r));   /* (the volume cards of a muted row) */
+    c->strike |= (uint8_t)(mx_is_vol(&m) && mx_snd_muted(r));   /* (a sound mute only: the sequencer mute leaves the volume alone) */
     c->strike |= (uint8_t)(m.kind == MI_RET && (fx_rmute >> (m.id - G_CRET) & 1u));   /* (a muted return's card) */
     if (m.kind == MI_ACC)
         c->hlp = "ACCENT LEVEL";
@@ -540,13 +553,19 @@ static void mx_say(uint32_t r, const char *what)        /* the toast: the row's 
 {
     ui_say(mx_is_usb(r) ? "USB" : mx_code(r), what);
 }
-/* a muted row whose volume card was turned (a value change, or HOME / OCT- + the knob's reset that moved it) is unmuted */
+/* a row whose volume card was turned (a value change, or HOME / OCT- + the knob's reset that moved it): its sound mute
+ * cleared; the sequencer mute stays (SHIFT + the key) */
 static void mx_unmute(uint32_t r, const mitem_t *m)
 {
-    if (!mx_muted(r))
-        return;
     (void)m;
-    mx_mute_set(r, 0);
+    if (!mx_snd_muted(r))
+        return;
+    if (mx_is_usb(r))
+        mx_mute_set(r, 0);
+    else if (mx_is_lane(r))
+        dlm_set_mute(r - MXR_LANE0, 0);
+    else
+        trk[mx_trk_of(r)].p[P_MUTE] = 0;
     mx_say(r, " ON");
 }
 /* a return's mute (MASTER's RET cards, fx.c fx_rmute: its output into the master is silent, its bus runs on): SHIFT on the card toggles it, once per hold */
@@ -583,7 +602,7 @@ static int mx_mute_toggle(uint32_t r, const mitem_t *m)
     if (mx_s2_done)
         return 1;
     mx_s2_done = 1;
-    mx_say(r, mx_mute_flip(r) ? " MUTE" : " ON");
+    mx_say(r, mx_mute_flip(r) ? " SEQ MUTE" : " SEQ ON");
     return 1;
 }
 static void mix_turn(uint32_t r, uint32_t k, int32_t s, int fine)
