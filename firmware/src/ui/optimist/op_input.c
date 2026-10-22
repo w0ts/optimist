@@ -290,7 +290,7 @@ static int op_rec(void)                                 /* one record arm, on th
         rec_wait = 1;                                   /* stopped: the first note starts it */
     return 1;
 }
-/* SHIFT2 + REC held while playing (op_combos.c shift2_combo): every note the sequencer enters on the selected track is erased,
+/* SHIFT2 + REC held while playing (op_combos.c shift2_combo): every note the sequencer enters on the selected track (a picked drum lane: that lane) is erased,
  * undone in one step; let go of either, or stopped: it ends */
 /* a delete asked from a held key or button (op_arm_hold): held RH_CLEAR_MS it is done, let go before it is cancelled */
 static void arm_ring_tick(void)
@@ -308,8 +308,9 @@ static void wipe_frame(uint32_t held)
     static uint8_t was;
     if (!on)
         wipe_req = 0;
-    if (seq_wipe(on) && !was)
-        ui_say("WIPING ", trk_tag(song.sel));
+    int lane = is_drum(TSEL) && lane_picked();          /* (a drum lane picked: that lane's notes alone, as the REC ring) */
+    if (seq_wipe(on, lane ? 1u << lane_selected() : ~0u) && !was)
+        ui_say("WIPING ", lane ? lane_name(lane_selected()) : trk_tag(song.sel));
     if (!on && was)
         ui_message("WIPE DONE (UNDO: SAVE + HOME)");
     was = (uint8_t)on;
