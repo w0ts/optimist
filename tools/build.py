@@ -398,14 +398,23 @@ def build_app():
     def symv(name):
         return int(re.search(r"^([0-9a-f]+) .*\s" + name + r"$", syms, re.M).group(1), 16)
     img = bytearray((OUT / "text.bin").read_bytes())
-    # .ram_text, .ram_hot, .ram_hot2, .data and .pool_init follow .text at their load addresses; main.c copies them
-    # by words
+    # .ram_text, .ram_hot, .ram_hot2, .pool_init and .data follow .text at their load addresses (app.ld's order);
+    # main.c copies them by words, .data run-length coded (sparse_data, the last blob: it takes less than its load
+    # address assumed, which moves nothing else)
+    blobs = []
     for sect, lname in (("ramtext.bin", "_rt_load"), ("ramhot.bin", "_rh_load"), ("ramhot2.bin", "_rh2_load"),
-                        ("data.bin", "_data_load"), ("poolinit.bin", "_pi_load")):
+                        ("poolinit.bin", "_pi_load"), ("data.bin", "_data_load")):
         load = symv(lname)
         if load % 4:
             raise SystemExit(f"{lname} {load:#x} is not word aligned")
         blob = (OUT / sect).read_bytes() if (OUT / sect).exists() else b""
+        if sect == "data.bin" and blob:
+            raw, blob = blob, sparse_data(blob)
+            if sparse_undo(blob, len(raw)) != raw:
+                raise SystemExit("build: sparse_data does not round-trip")
+            print(f"data: {len(raw):,} B of initial values, {len(blob):,} B in flash (run-length coded)")
+        blobs.append((load, lname, blob))
+    for load, lname, blob in sorted(blobs):
         if blob:
             if load - APP_XIP < len(img):
                 raise SystemExit(f"{lname} overlaps the image")
@@ -414,6 +423,45 @@ def build_app():
     img += b"\xff" * (-len(img) % 4)
     (OUT / "felucca.bin").write_bytes(img)
     return bytes(img), syms, dis, rt, hdr
+
+
+def sparse_data(blob):
+    """the .data image run-length coded for main.c data_expand: a byte n, then n + 1 literal bytes when n < 0x80, else
+    n - 0x7F zero bytes (1..128 either way). A run of 3 or more zeros is coded (one byte; 2 zeros as a run would
+    cost a byte and split the literal run for another), shorter ones stay literal. On synth 2,640 B -> 864 B
+    (2026-10-22: a global with a few non-zero fields costs its whole size in flash otherwise)."""
+    out, i, n = bytearray(), 0, len(blob)
+    while i < n:
+        j = i
+        while j < n and blob[j] == 0:
+            j += 1
+        if j - i >= 3:
+            while i < j:
+                k = min(128, j - i)
+                out.append(0x7F + k)
+                i += k
+            continue
+        j = i + 1
+        while j < n and j - i < 128 and blob[j:j + 3] != b"\0\0\0":
+            j += 1
+        out.append(j - i - 1)
+        out += blob[i:j]
+        i = j
+    return bytes(out)
+
+
+def sparse_undo(coded, size):
+    """sparse_data's inverse, as main.c data_expand reads it (the round-trip check)"""
+    out, s = bytearray(), 0
+    while len(out) < size:
+        n = coded[s]
+        s += 1
+        if n < 0x80:
+            out += coded[s:s + n + 1]
+            s += n + 1
+        else:
+            out += b"\0" * (n - 0x7F)
+    return bytes(out)
 
 
 def section_sizes(hdr):

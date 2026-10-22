@@ -219,7 +219,7 @@ static const uint8_t X8_LANE[D8S_NUM] = {L_BD, L_SD, L_T0, L_T1, L_T2, L_T0, L_T
 
 static void x8_pot(int s, int slot, int delta)
 {
-    int v = x0x_clamp(k_spec[s][slot].def + delta, 0, 127);
+    int v = x0x_clamp(K_SPEC(s, slot)->def + delta, 0, 127);
     if (x808.pot[s][slot] != v)
         set_pot(&x808, s, slot, v);
 }

@@ -20,10 +20,12 @@ int main(void)
         const char *ctx = p + 1;
         uint32_t kind = (uint8_t)*p;
         for (p = ph_next(ctx); *p; ) {
-            const char *label = p;
-            const uint8_t *t = (const uint8_t *)ph_next(label), *q;
+            const char *label = ph_lab(p);              /* (a shared label: its string) */
+            const uint8_t *t = (const uint8_t *)ph_next(p), *q;
             uint32_t off = (uint32_t)((const char *)t - PH_BLOB);
-            for (q = t; *q; q++)
+            const char *e = ph_next((const char *)t);   /* (a shared text: 2 bytes; else the packed text, its NUL) */
+            const uint8_t *s = *t == PH_REF ? PH_SHT + PH_SHT_OFF[t[1] - 1u] : t;
+            for (q = s; *q; q++)
                 if ((*q < 0x20u || *q >= 0x80u) && (*q >= 0x80u ? *q - 0x80u : *q + 0x7Fu) >= npair)
                     bad++, printf("FAIL: %s / %s: code %u past the %u pairs\n", ctx, label, *q, npair);
             memset(buf, 0x55, sizeof buf);
@@ -37,9 +39,9 @@ int main(void)
             if (!ph_find(kind, ctx, label))
                 bad++, printf("FAIL: %s / %s: not found\n", ctx, label);
             plain += (uint32_t)strlen(buf) + 1;
-            packed += (uint32_t)(q - t) + 1;
+            packed += (uint32_t)(e - (const char *)t);
             n++;
-            p = ph_next((const char *)t);
+            p = e;
         }
         p++;
     }

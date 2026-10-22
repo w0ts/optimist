@@ -3,15 +3,16 @@
 # Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
 # Copyright (C) 2026 Zakaria Chowdhury (Flowstate, flowstate-fm1 6a8ef32: FONT_L as FONT_S at scale 2)
 """Render the bitmap fonts to a C header (assets/fonts/):
-  S  labels / units / status   Latin-1 32..255
+  S  labels / units / status   ASCII 32..126 (no text of the firmware has a byte past 126: those draw as '?',
+                               gfx.c glyph; the Latin-1 half was 2,580 B of flash, 2026-10-22)
   L  large values / titles     32..95 (digits, signs, capitals): S's glyphs drawn at 2x. No bitmap of its
                                own (after Flowstate 6a8ef32, 24.8 KB of flash): a descriptor over S's arrays with
                                scale 2, which gfx.c cv_text draws as 2x2 blocks (nearest neighbour)
 Terminus 8x16 (BDF, SIL OFL 1.1). TTF fonts also work through render()
 (anti-aliased, tabular figures via the OpenType `tnum` feature).
 
-Glyph format: per glyph an advance width, a bitmap width and an offset; the
-bitmap starts FONT_PAD pixels left of the pen position (room for side
+Glyph format: the font's advance width, bitmap width and bytes a glyph takes (monospace: the bitmaps one after
+the other, glyph i at i x stride); the bitmap starts FONT_PAD pixels left of the pen position (room for side
 bearings); rows top to bottom, 2 pixels per byte (high nibble first),
 alpha 0..15 (FONT_BITS 4). A pixel font (every pixel 0 or 15, the PAD
 columns empty: Terminus) is FONT_BITS 1: each row only the pixels after
@@ -27,7 +28,7 @@ from PIL import Image, ImageDraw, ImageFont
 FONTS = Path(__file__).resolve().parents[1] / "assets" / "fonts"
 # (name, file, px, pixel, first, last): pixel fonts are rendered without
 # anti-aliasing at their design size
-SIZES = [("S", "ter-u16n.bdf", 16, True, 32, 255)]   # Latin-1 (Hügelton needs the umlaut)
+SIZES = [("S", "ter-u16n.bdf", 16, True, 32, 126)]   # ASCII (the splash is a picture: no umlaut drawn as text)
 # (name, base, scale, first, last): the base font's glyphs drawn scale x scale
 SCALED = [("L", "S", 2, 32, 95)]                      # values / titles: digits, signs, capitals
 PAD = 2
@@ -66,17 +67,6 @@ def render_bdf(path, first, last):
             glyphs[code] = (dw, cell)
             i = k + bh
         i += 1
-    if 0xDC not in glyphs and ord("U") in glyphs:      # Ü for "HÜGELTON": U with dots on its top row
-        dw, cell = glyphs[ord("U")]
-        cell = cell[:]
-        lit = [x for y in range(ch) for x in range(cw) if cell[y * cw + x]]
-        if lit:
-            top = min(y for y in range(ch) for x in range(cw) if cell[y * cw + x])
-            for x in range(cw):
-                cell[top * cw + x] = 15 if x in (min(lit), max(lit)) else 0
-            for x in range(cw):
-                cell[(top + 1) * cw + x] = 0
-            glyphs[0xDC] = (dw, cell)
     missing = [chr(c) for c in range(first, min(last, 126) + 1) if c not in glyphs]
     if missing:
         print(f"font {path.name}: no glyph for {''.join(missing)!r} (drawn as '?')")
@@ -153,25 +143,27 @@ def main(out, bits=0):
                   "4: alpha 0..15, 2 pixels a byte */", ""]
         data, offs = pack(h, glyphs, bits)
         assert len(data) < 65536
+        # a monospace font (Terminus: every glyph the same advance and width, the bitmaps one after the other): the
+        # descriptor carries the advance, the width and the bytes a glyph takes, no per-glyph tables (gfx.c; 380 B
+        # less than the three tables, 2026-10-22). A proportional font would need them back (and gfx.c's reader).
+        adv, bw = glyphs[0][0], glyphs[0][1]
+        stride = len(data) // len(glyphs)
+        if any(a != adv or b != bw for a, b, _ in glyphs) or offs != [i * stride for i in range(len(glyphs))]:
+            raise SystemExit(f"gen_font: {ttf} is not monospace: gfx.c draws monospace fonts (per-glyph tables)")
         lines.append(f"static const uint8_t FONT_{name}_DATA[{len(data)}] = {{")
         for i in range(0, len(data), 24):
             lines.append("    " + ", ".join(f"0x{b:02x}" for b in data[i:i + 24]) + ",")
         lines.append("};")
-        lines.append(f"static const uint16_t FONT_{name}_OFF[{len(offs)}] = {{" + ", ".join(map(str, offs)) + "};")
-        lines.append(f"static const uint8_t FONT_{name}_ADV[{len(glyphs)}] = {{" +
-                     ", ".join(str(a) for a, _, _ in glyphs) + "};")
-        lines.append(f"static const uint8_t FONT_{name}_BW[{len(glyphs)}] = {{" +
-                     ", ".join(str(b) for _, b, _ in glyphs) + "};")
         lines.append(f"static const felucca_font_t FONT_{name} = {{ {h}, {PAD}, {first}, {last}, 1, "
-                     f"FONT_{name}_ADV, FONT_{name}_BW, FONT_{name}_OFF, FONT_{name}_DATA }};")
+                     f"{adv}, {bw}, {stride}, FONT_{name}_DATA }};")
         lines.append("")
-        made[name] = (h, first, last, glyphs)
+        made[name] = (h, first, last, glyphs, adv, bw, stride)
         print(f"font {name}: {ttf} {px}px h {h}, digit adv {glyphs[ord('0') - first][0]}, {len(data)} B")
-    for name, base, k, first, last in SCALED:          # no data: the base's arrays, drawn k x k
-        h, bfirst, blast, glyphs = made[base]
+    for name, base, k, first, last in SCALED:          # no data: the base's bitmaps, drawn k x k
+        h, bfirst, blast, glyphs, adv, bw, stride = made[base]
         assert first == bfirst and last <= blast       # (the same glyph indices)
         lines.append(f"static const felucca_font_t FONT_{name} = {{ {h * k}, {PAD * k}, {first}, {last}, {k}, "
-                     f"FONT_{base}_ADV, FONT_{base}_BW, FONT_{base}_OFF, FONT_{base}_DATA }};   /* FONT_{base} x {k} */")
+                     f"{adv}, {bw}, {stride}, FONT_{base}_DATA }};   /* FONT_{base} x {k} */")
         lines.append("")
         print(f"font {name}: FONT_{base} x {k}, h {h * k}, digit adv {glyphs[ord('0') - first][0] * k}, 0 B")
     Path(out).write_text("\n".join(lines))
