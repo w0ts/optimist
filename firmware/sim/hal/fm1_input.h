@@ -3,7 +3,7 @@
  * calls, fed by the page instead of the matrix. sim_key / sim_button queue a press or release (sim.c sim_in_push);
  * the TIMER5 tick takes them a frame (FM1_NCOL ticks, ~1.1 ms) at a time, at most one change per key a frame, so a
  * press and its release sent together are both seen (no debounce: the page's events are clean). sim_enc adds detent
- * steps at once. The LEDs: fm1_led / fm1_led_dim as the UI sets them (sim.c sim_leds reads them). */
+ * steps at once. The LEDs: fm1_led / fm1_led_half / fm1_led_dim as the UI sets them (sim.c sim_leds reads them). */
 #pragma once
 #include <stdint.h>
 #include "fm1_time.h"
@@ -58,6 +58,7 @@ static uint8_t fm1_led[FM1_NCOL];
 #define FM1_LED_DIM_MASK 7u
 #endif
 static uint8_t fm1_led_dim[FM1_NCOL];
+static uint8_t fm1_led_half[FM1_NCOL];          /* the half level (the HAL's: lit 1 frame in 4) */
 #ifndef FELUCCA_LIGHTS
 #define FELUCCA_LIGHTS 0
 #endif

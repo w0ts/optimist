@@ -783,6 +783,9 @@ static int drone_unlatch(track_t *t, uint32_t note)
     return hit;
 }
 #endif
+/* a bit per synth track that started a note since the UI last looked (the mute mode's keys flash short and full on
+ * each: op_mixer.c mx_tick; the drum track's lanes: drums.hits). Set here (mostly the audio ISR), taken with the IRQ off */
+static volatile uint8_t trk_hits;
 static void trk_note_on(track_t *t, uint32_t note, uint32_t vel)
 {
     uint32_t any = 0, i, mode = (uint32_t)t->p[P_VOICE];
@@ -792,6 +795,7 @@ static void trk_note_on(track_t *t, uint32_t note, uint32_t vel)
         drum_on(note, vel);
         return;
     }
+    trk_hits |= (uint8_t)(1u << (uint32_t)(t - trk));
 #if FELUCCA_LIGHTS && FELUCCA_KEYLIT
     if ((uint32_t)(t - trk) < NPART && note < 128u)
         note_hits[t - trk][note >> 5] |= 1u << (note & 31u);

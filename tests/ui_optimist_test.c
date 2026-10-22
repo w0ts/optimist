@@ -62,7 +62,7 @@ static int32_t encs[7];
 static uint32_t fm1_ticks(void) { return fm1_ms * 1000u * 24u; }
 #define FM1_TICKS_PER_US 24u
 static int32_t fm1_enc_take(uint32_t e) { int32_t s = encs[e]; encs[e] = 0; return s; }
-static uint8_t fm1_led[16], fm1_led_dim[16];
+static uint8_t fm1_led[16], fm1_led_dim[16], fm1_led_half[16];
 #if FELUCCA_LIGHTS
 static uint8_t fm1_led_bg[16];
 static uint16_t fm1_led_bg_ns;

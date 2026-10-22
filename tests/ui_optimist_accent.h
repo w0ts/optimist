@@ -132,15 +132,15 @@ static void acc_layers_tests(void)                      /* an upper key's meanin
     check(smute_lane_on(DRUM_ACC) && smute_trk == 0u && !smute_lane_on(2) && lane_selected() == 2u && drums.hits == 0u,
           "the mixer, SHIFT held + the last upper key: the ACCENT lane's sequencer mute on (nothing else, no lane picked)");
     {
-        uint32_t f = 0, d = 0;
-        keys_lit(&f, &d);
+        uint32_t f = 0, d = 0, h = 0;
+        keys_lit(&f, &d, &h);
         check(!(f >> DACC_KEY & 1u) && (d >> DACC_KEY & 1u), "... its LED dim (the ACCENT lane makes no sound of its own), in the dim set");
     }
     kdown(DACC_KEY);
     kup(DACC_KEY);
     {
-        uint32_t f = 0, d = 0;
-        keys_lit(&f, &d);
+        uint32_t f = 0, d = 0, h = 0;
+        keys_lit(&f, &d, &h);
         check(!smute_lane_on(DRUM_ACC) && !(f >> DACC_KEY & 1u) && (d >> DACC_KEY & 1u), "... the key again: off, its LED dim");
     }
     release(B_OCTDN);

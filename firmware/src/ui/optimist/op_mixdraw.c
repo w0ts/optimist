@@ -283,7 +283,7 @@ static uint32_t mx_level(uint32_t r, const uint32_t *trk_lv)   /* row r's level 
     }
 #endif
     if (r >= MXR_LANE0)
-        return MX_LV * mx.lit[r - MXR_LANE0] / 12u;
+        return MX_LV * mx.lit[r - MXR_LANE0] / MX_LIT;
     return trk_lv[mx_trk_of(r)];
 }
 static uint32_t mx_gr_px(uint32_t r, int32_t w)         /* row r's reduction as a width, within w */

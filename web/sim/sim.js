@@ -504,8 +504,8 @@ export function mountSim(container, opts = {}) {
   }
   function leds(l) {
     if (!l) return;
-    /* (sim.c: the 14 buttons in label order, then the 27 keys; 0 off, 1 dim, 2 lit) */
-    root.querySelectorAll("[data-led]").forEach((n) => { const v = l[Number(n.dataset.led)]; n.dataset.on = v === 2 ? "2" : v === 1 ? "1" : ""; });
+    /* (sim.c: the 14 buttons in label order, then the 27 keys; 0 off, 1 dim, 2 lit, 3 half) */
+    root.querySelectorAll("[data-led]").forEach((n) => { const v = l[Number(n.dataset.led)]; n.dataset.on = v >= 1 && v <= 3 ? String(v) : ""; });
   }
 
   /* ---- the device: reproduced from the chip emulator's panel (fm1-emulator rust-emulator/src/ui.rs), its own
