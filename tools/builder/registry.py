@@ -291,6 +291,19 @@ _add("ENG_DRONE", "FELUCCA_ENG_DRONE", "DRONE (drones, ambient, binaural beats)"
           "Hz apart (headphones; the network runs twice). HOLD latches the keys. 9 presets (theta, alpha, delta and "
           "gamma beats among them); one voice a part, about half an 8-note ANALOG part's CPU (host-measured).",
      provenance=CARAVEL)
+MI_PLAITS = Provenance("Mutable Instruments Plaits (pichenettes/eurorack)", "Emilie Gillet", "MIT", "f4cfa76",
+                       "https://github.com/pichenettes/eurorack")
+_add("ENG_PLAITS", "FELUCCA_ENG_PLAITS", "PLAITS (Plaits' waveshaping, additive, granular formant, particles)", E, 379,
+     default=0, provenance=MI_PLAITS,
+     desc="Four of Mutable Instruments Plaits' synthesis models as one engine (engine 17), with Plaits' own "
+          "controls: MODEL, HARMONICS, TIMBRE, MORPH. WAVSH: a slope through five waveshapers and a wavefolder; "
+          "ADDTV: 24 harmonics under a moving bump spectrum (AUX: an 8-drawbar organ); GRFMT: two synced formant "
+          "grainlets (AUX: the Z oscillator); PRTCL: random pings of six resonant filters (rain, droplets, dust). AUX "
+          "fades to each model's second output, TONE and LPG are a low-pass gate, VEL lets the velocity open TIMBRE. "
+          "12 presets; 4 voices a part, about twice an ANALOG voice's CPU (host-measured; PRTCL the heaviest). Integer "
+          "code, no float. About 11 KB of flash (its tables 3.6 KB), no RAM of its own: its state lives in the part memory the other engines share.",
+     notice="Plaits' models by Emilie Gillet (pichenettes/eurorack f4cfa76, MIT), ported to integers. Tested in the "
+            "host tests only, not on a device.")
 # (bit 91, LFO2, retired 2026-10-16: LFO 2, a second LFO on each synth track, is always built; never reuse the bit)
 
 # ---- drums: first the drum synths, the kits made by synthesis (any of them is a drum source on its own; the drum
@@ -1062,7 +1075,7 @@ _SYMS = {
     "ENG_GRAIN": ("ENG_GRAIN", "grain_block"), "ENG_FM6": ("ENG_FM6", "fm6_pt", "FM6_INIT", "fm6k_knob"),
     "FM6_KEYS": ("fm6k_knob",), "FM6_PK_KEYS": ("FM6_PK_KEYS",), "FM6_PK_BASS": ("FM6_PK_BASS",),
     "FM6_PK_BELLS": ("FM6_PK_BELLS",), "FM6_PK_PADS": ("FM6_PK_PADS",), "FM6_PK_80S": ("FM6_PK_80S",),
-    "ENG_SLICE": ("ENG_SLICE",), "ENG_DRONE": ("ENG_DRONE", "drone_render"),
+    "ENG_SLICE": ("ENG_SLICE",), "ENG_DRONE": ("ENG_DRONE", "drone_render"), "ENG_PLAITS": ("ENG_PLAITS", "plaits_render"),
     "DRUM_SYNTH": ("DS_KITS",), "DRUM_EDIT": ("de_synth",), "DS_KAWA": ("DS_XSNDS_0",), "DS_PLAITS": ("kpunc_tick", "scrak_tick"), "FX_CHORUS": ("cho_buf",),
     "FX_DELAY": ("dly_buf",), "FX_REVERB": ("rev_line", "rev_ap"), "FX_SLICER": ("sl_buf",),
     "FX_PUNCH": ("punch_ring",), "EDITOR": ("ed_handle",),

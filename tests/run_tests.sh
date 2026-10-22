@@ -42,7 +42,7 @@ INSFX_ON="-DFELUCCA_INS_FOLD=1 -DFELUCCA_INS_FUZZ=1 -DFELUCCA_INS_PHASER=1 -DFEL
 # NOISE (FELUCCA_ENG_NOISE) joins the backports test; its own line, not BACKPORTS_ON (engine number 15, beside JUNO's 14)
 BACKPORTS_ON="$BACKPORTS_ON -DFELUCCA_ENG_NOISE=1"
 # ENV 1 MOD's test (tests/env1_test.c): every engine built, so every engine's cards are rendered
-ENV1_ENG="-DFELUCCA_ENG_SLICE=1 -DFELUCCA_ENG_PHYS=1 -DFELUCCA_ENG_ACID=1 -DFELUCCA_ENG_CZ=1 -DFELUCCA_ENG_JUNO=1 -DFELUCCA_ENG_NOISE=1 -DFELUCCA_ENG_DRONE=1"
+ENV1_ENG="-DFELUCCA_ENG_SLICE=1 -DFELUCCA_ENG_PHYS=1 -DFELUCCA_ENG_ACID=1 -DFELUCCA_ENG_CZ=1 -DFELUCCA_ENG_JUNO=1 -DFELUCCA_ENG_NOISE=1 -DFELUCCA_ENG_DRONE=1 -DFELUCCA_ENG_PLAITS=1"
 # FM6's voice packs, every one (tools/fm6_packs, firmware/src/engines/fm6/eng_fm6_pk_*.h)
 FM6_PACKS_ON="-DFELUCCA_FM6_PK_KEYS=1 -DFELUCCA_FM6_PK_BASS=1 -DFELUCCA_FM6_PK_BELLS=1 -DFELUCCA_FM6_PK_PADS=1 -DFELUCCA_FM6_PK_80S=1"
 run() { echo "== $1"; d=$1; shift; "$@" || { fail=1; echo "!! FAILED: $d"; : > "$U.fail"; }; }
@@ -271,6 +271,10 @@ job; ( jobin
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_ENG_DRONE=1 -o "$OUT/drone_test" tests/drone_test.c -lm
     run "DRONE engine (FELUCCA_ENG_DRONE=1): UID 16, every preset audible / bounded / voices free, tests/golden_drone.txt, level, EDIT values, BEAT's two ears, HOLD, no stale side or latch, 4 voices" "$OUT/drone_test" tests/golden_drone.txt
+) >"$U.out" 2>&1 & jobbg
+job; ( jobin
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_ENG_PLAITS=1 -o "$OUT/plaits_test" tests/plaits_test.c -lm
+    run "PLAITS engine (FELUCCA_ENG_PLAITS=1): UID 17, every preset audible / bounded / voices free, tests/golden_plaits.txt, level, each model's EDIT values, corners, deterministic, pitch, MODEL switch, 4 voices" "$OUT/plaits_test" tests/golden_plaits.txt
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_PHASE_FOLD=1 -o "$OUT/phase_fold_test" tests/phase_fold_test.c -lm
@@ -1424,6 +1428,10 @@ job; ( jobin
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_ENG_DRONE=1 -o "$OUT/regress_drone" tests/regress.c -lm
     run "regression with the DRONE engine built (FELUCCA_ENG_DRONE): the same golden renders, DRONE's health, voices and CPU (its renders: tests/golden_drone.txt)" "$OUT/regress_drone" tests/golden.txt tests/cpu_baseline.txt
+) >"$U.out" 2>&1 & jobbg
+job; ( jobin
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_ENG_PLAITS=1 -o "$OUT/regress_plaits" tests/regress.c -lm
+    run "regression with the PLAITS engine built (FELUCCA_ENG_PLAITS): the same golden renders, PLAITS's health, voices and CPU (its renders: tests/golden_plaits.txt)" "$OUT/regress_plaits" tests/golden.txt tests/cpu_baseline.txt
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_ENG_CZ=1 -o "$OUT/regress_cz" tests/regress.c -lm

@@ -591,6 +591,38 @@
     "provenance_line": "Caravel 0.3.3 (bonszaimusic/caravel, a Felucca fork) @ c6c61c7 by bonszaimusic (GPL-3.0-only)"
    },
    {
+    "key": "ENG_PLAITS",
+    "flag": "FELUCCA_ENG_PLAITS",
+    "label": "PLAITS (Plaits' waveshaping, additive, granular formant, particles)",
+    "group": "Synth engines",
+    "bit": 379,
+    "default": 0,
+    "parent": null,
+    "desc": "Four of Mutable Instruments Plaits' synthesis models as one engine (engine 17), with Plaits' own controls: MODEL, HARMONICS, TIMBRE, MORPH. WAVSH: a slope through five waveshapers and a wavefolder; ADDTV: 24 harmonics under a moving bump spectrum (AUX: an 8-drawbar organ); GRFMT: two synced formant grainlets (AUX: the Z oscillator); PRTCL: random pings of six resonant filters (rain, droplets, dust). AUX fades to each model's second output, TONE and LPG are a low-pass gate, VEL lets the velocity open TIMBRE. 12 presets; 4 voices a part, about twice an ANALOG voice's CPU (host-measured; PRTCL the heaviest). Integer code, no float. About 11 KB of flash (its tables 3.6 KB), no RAM of its own: its state lives in the part memory the other engines share.",
+    "experimental": false,
+    "notice": "Plaits' models by Emilie Gillet (pichenettes/eurorack f4cfa76, MIT), ported to integers. Tested in the host tests only, not on a device.",
+    "off_warning": "",
+    "env": "",
+    "target_only": false,
+    "symbols": [
+     "ENG_PLAITS",
+     "plaits_render"
+    ],
+    "no_image": false,
+    "fixed": false,
+    "choices": [],
+    "provenance": {
+     "project": "Mutable Instruments Plaits (pichenettes/eurorack)",
+     "author": "Emilie Gillet",
+     "licence": "MIT",
+     "commit": "f4cfa76",
+     "url": "https://github.com/pichenettes/eurorack"
+    },
+    "children": [],
+    "tested": "emulator-tested only",
+    "provenance_line": "Mutable Instruments Plaits (pichenettes/eurorack) @ f4cfa76 by Emilie Gillet (MIT)"
+   },
+   {
     "key": "DRUM_SYNTH",
     "flag": "FELUCCA_DRUM_SYNTH",
     "label": "drum synth: the 32 synthesised kits",
@@ -4736,6 +4768,7 @@
    "NATIVE_BANKS",
    "ENG_SLICE",
    "ENG_DRONE",
+   "ENG_PLAITS",
    "ENG_PHYS",
    "ENG_ACID",
    "ENG_NOISE",

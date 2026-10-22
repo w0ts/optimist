@@ -32,6 +32,7 @@ static struct {
         const void *d;
         const char *hlp;
         uint32_t at;                    /* screen, row, cell, engine, track, lane */
+        int16_t v;                      /* the value (an engine's choice has a line each: hl_find) */
     } key;
 } hl;
 
@@ -61,6 +62,10 @@ static uint32_t hl_find(uint32_t scr, uint32_t row, const cell_t *c)
     uint32_t o;
     if (!c->label || !c->label[0])
         return 0;
+    if (c->d && c->d->fmt == F_ENUM && c->d->names && c->vp >= tsel()->p + P_E0 && c->vp < tsel()->p + P_E0 + 8 &&
+        *c->vp >= c->d->min && *c->vp <= c->d->max &&
+        (o = ph_find(PH_ENG, ENGINES[TSEL->eng_req % NENGINES]->name, c->d->names[*c->vp])) != 0u)
+        return o;                                       /* (an engine's choice, PLAITS's MODEL: the line of the one it holds) */
     if (c->hlp && (o = ph_find(PH_OP, "INSERTS", c->hlp)) != 0u)
         return o;                                       /* (a limited insert type's own line, FULL's) */
     SCREENS[scr % SCR_N].name(row, nm);
@@ -105,8 +110,10 @@ static uint32_t hl_text(void)
     else
         SCREENS[scr % SCR_N].cell(row, k, &c);
     at = scr << 26 | (row & 0xFFu) << 18 | (k & 3u) << 16 | (uint32_t)TSEL->eng_req << 8 | song.sel << 5 | (lane_selected() & 31u);
-    if (at != hl.key.at || c.label != hl.key.label || (const void *)c.d != hl.key.d || c.hlp != hl.key.hlp) {
+    if (at != hl.key.at || c.label != hl.key.label || (const void *)c.d != hl.key.d || c.hlp != hl.key.hlp ||
+        (c.vp && *c.vp != hl.key.v)) {
         hl.key.at = at;
+        hl.key.v = c.vp ? *c.vp : 0;
         hl.key.label = c.label;
         hl.key.d = c.d;
         hl.key.hlp = c.hlp;

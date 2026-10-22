@@ -151,7 +151,8 @@ static const uint8_t EFFV_DEST[ENG_UID_N] = {0xF4, 0xFF, 0xF2, 0xF7, 0xF4, 0x4F,
                                              0x14,                                       /* JUNO CUT / PW (UID 14, as
                                                                                          * feat/engine-juno) */
                                              0x12,                                       /* NOISE FREQ / COLR */
-                                             0x15};                                      /* DRONE TONE / COUPLE */
+                                             0x15,                                       /* DRONE TONE / COUPLE */
+                                             0x25};                                      /* PLAITS TONE / TIMB */
 #else
 static const uint8_t EFFV_DEST[ENG_UID_N] = {0xF4, 0xFF, 0xF2, 0xF7, 0xF4, 0x4F, 0x75, 0xFF, 0x17, 0xF5, 0x1F, 0xF7};
 #endif                                                  /* (SUPER CUT at 9) */

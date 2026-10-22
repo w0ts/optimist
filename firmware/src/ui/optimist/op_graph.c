@@ -499,11 +499,22 @@ static void denv_synth(uint32_t l, uint32_t kit, const int8_t *o, int32_t y0, in
         cv_rect(4, bot - (int32_t)d->click * h / 127, 2, (int32_t)d->click * h / 127, C_WHITE);
     denv_time(per * DENV_W * CTL * 1000u / FS);
 }
+#if FELUCCA_DS_PLAITS
+/* a synthesised lane's tag: the Plaits model its sound plays (kit PLAITS: drum_plaits.c KPUNC, SCRAK), else SYN */
+static const char *denv_syn_tag(uint32_t l, uint32_t kit)
+{
+    int32_t semi;
+    uint32_t w = DS_SND(ds_kit(kit), ds_lane(LANE_NOTE_OF(l), &semi))->wave;
+    return w == DW_PKICK ? "KPUNC" : w == DW_PSNARE ? "SCRAK" : "SYN";
+}
+#else
+#define denv_syn_tag(l, kit) "SYN"
+#endif
 static void graph_denv(void)
 {
     uint32_t l = lane_selected(), usr = dl_usr_of(l), kit = dl_kit_of(l, drum_kit());
     const int8_t *o = dl_ofs(l);
-    const char *tg = usr ? "SMP" : kit < DRUM_SAMPLED ? "SMP" : DRUM_IS_SYNTH(kit) ? "SYN" : "X0X";
+    const char *tg = usr ? "SMP" : kit < DRUM_SAMPLED ? "SMP" : DRUM_IS_SYNTH(kit) ? denv_syn_tag(l, kit) : "X0X";
     int32_t y0 = GR_TOP + 16, h = GR_BOT - y0;
     uint16_t c = lane_col(l);
     cv_hline(GR_BOT + 1, C_LINE);

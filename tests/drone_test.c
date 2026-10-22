@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The DRONE engine (FELUCCA_ENG_DRONE, engines/drone/eng_drone.c: the coupled network after Caravel's; tests/run_tests.sh
  * builds this with the switch on):
- *   - engine UID 16 is DRONE, its fallback ANALOG (registry.h), 17 engine UIDs;
+ *   - engine UID 16 is DRONE, its fallback ANALOG (registry.h), 18 engine UIDs;
  *   - every preset: a 4-note chord held 2 s (then the keys up and HOLD OFF), 6 s more: audible, bounded, no DC,
  *     every voice free at the end, its render's FNV-1a 64 the one in tests/golden_drone.txt (GOLDEN_UPDATE=1
  *     rewrites it); the level within 9 dB of ANALOG's presets;
@@ -400,8 +400,8 @@ int main(int argc, char **argv)
 {
     host_tracks_init();
     check(ENG_IX_DRONE < NENGINES && !strcmp(ENGINES[ENG_IX_DRONE]->name, "DRONE") && eng_uid(ENG_IX_DRONE) == ENG_UID_DRONE &&
-              ENG_UID_DRONE == 16u && ENG_UID_N == 17u && ENG_FALLBACK[ENG_UID_DRONE] == 0u,
-          "engine UID 16 is DRONE, its fallback ANALOG, 17 engine UIDs");
+              ENG_UID_DRONE == 16u && ENG_UID_N == 18u && ENG_FALLBACK[ENG_UID_DRONE] == 0u,
+          "engine UID 16 is DRONE, its fallback ANALOG, 18 engine UIDs");
     t_level();
     t_presets(argc > 1 ? argv[1] : "tests/golden_drone.txt");
     t_edits();

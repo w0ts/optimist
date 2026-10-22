@@ -66,6 +66,8 @@ enum { E1L_FLT = 8, E1L_PIT, E1L_SHP };
     E1K_SHP, P_ED_SHP, 1, E1K_MV(3), P_E1X + 0, 3, LT_FLT)
 #define E1C_DRONE E1C(E1K_FLT, P_ED_FLT, 5, E1K_PIT, P_E1PIT, E1L_PIT, \
     E1K_SHP, P_ED_SHP, 1, E1K_MV(3), P_E1X + 0, 3, LT_FLT)   /* (FLT: TONE, SHP: COUPLE, the move: CHAR) */
+#define E1C_PLAITS E1C(E1K_FLT, P_ED_FLT, 5, E1K_PIT, P_E1PIT, E1L_PIT, \
+    E1K_SHP, P_ED_SHP, 2, E1K_MV(3), P_E1X + 0, 3, LT_FLT)   /* (FLT: TONE, SHP: TIMB, the move: MORPH) */
 typedef struct {
     uint8_t c[4];                                     /* the cards: E1K_* */
     uint8_t id[4];                                    /* the value each keeps (an alias: its EDIT value) */
