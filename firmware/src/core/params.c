@@ -195,6 +195,7 @@ static const param_desc_t TP[P_COUNT] = {
     [P_TSLEW] = PD("SLEW", F_PCT, 0, 127, 0),      /* the slew limit: light .. heavy */
     [P_TTAPE] = PD("TAPE", F_PCT, 0, 127, 0),      /* the tape's character: how far its tone wanders, how dark */
     [P_TSPIT] = PD("SPIT", F_PCT, 0, 127, 0),      /* the band's sharpness and the drive into the clip */
+    [P_TXDLY] = PD("XDLY", F_PCT, 0, 127, 0),      /* the cross-modulated dual delay (xdly.c): its MIX, dry to all wet */
 #endif
 #if FELUCCA_FX_DUST
     [P_TDUST] = PD("DUST", F_PCT, 0, 127, 0),      /* the DUST insert (fx.c dust_run): a track's lo-fi / vinyl */
@@ -759,6 +760,11 @@ static const page_t PAGES[] = {
      * its slots, or a lane's of the drum track, holds it) */
     {"EQ3", FAM_FX, SC_FXSLOT, GR_NONE, {FXS_ID_TEQ, FXS_ID_TEQ + 1, FXS_ID_TEQ + 2, FXS_ID_TEQ + 3}},
     {"EQ3 FREQ", FAM_FX, SC_FXSLOT, GR_NONE, {FXS_ID_TEQ + 4, FXS_ID_TEQ + 5, 0xFF, 0xFF}},
+#if FELUCCA_INS_XDLY
+    /* XDLY (fx/insfx/xdly.c): the track's TIME 1 TIME 2 MOD FDBK (fx_slots.c xdl_v; its MIX: INSERTS' amount); page_shown:
+     * while one of its slots holds it */
+    {"XDLY", FAM_FX, SC_FXSLOT, GR_NONE, {FXS_ID_TXD, FXS_ID_TXD + 1, FXS_ID_TXD + 2, FXS_ID_TXD + 3}},
+#endif
     {"SENDS", FAM_FX, SC_TRACK, GR_FX, {P_REV, P_DLY, P_CHOR, 0xFF}},   /* the sends (page_id: A B C's); DR: its levels */
 #if FELUCCA_TRK_FILT
     {"FILTER", FAM_FX, SC_TRACK, GR_NONE, {P_TFLT, 0xFF, 0xFF, 0xFF}},   /* the track's filter, the drum track's too (2.4) */
@@ -808,6 +814,9 @@ static const page_t PAGES[] = {
 #endif
     {"MST EQ3", FAM_GLO, SC_FXSLOT, GR_NONE, {FXS_ID_MEQ, FXS_ID_MEQ + 1, FXS_ID_MEQ + 2, FXS_ID_MEQ + 3}},   /* the master's EQ3 */
     {"MST EQ3 F", FAM_GLO, SC_FXSLOT, GR_NONE, {FXS_ID_MEQ + 4, FXS_ID_MEQ + 5, 0xFF, 0xFF}},
+#if FELUCCA_INS_XDLY
+    {"MST XDLY", FAM_GLO, SC_FXSLOT, GR_NONE, {FXS_ID_MXD, FXS_ID_MXD + 1, FXS_ID_MXD + 2, FXS_ID_MXD + 3}},   /* the master's */
+#endif
     {"RET EQ3", FAM_FX, SC_FXSLOT, GR_NONE, {FXS_ID_REQ, FXS_ID_REQ + 1, FXS_ID_REQ + 2, FXS_ID_REQ + 3}},   /* a return's */
     {"RET EQ3 F", FAM_FX, SC_FXSLOT, GR_NONE, {FXS_ID_REQ + 4, FXS_ID_REQ + 5, 0xFF, 0xFF}},
     {"MASTER", FAM_GLO, SC_GLOBAL, GR_NONE, {G_DUST, G_DUCK, G_FILT, G_ROLL}},
@@ -968,6 +977,8 @@ static int page_shown(const page_t *pg)
         return MST_ON(FXT_EQ3);
     if (pg->scope == SC_FXSLOT && pg->id[0] >= FXS_ID_REQ && pg->id[0] < FXS_ID_REQ + 6u)
         return rt_eq3() < 3;
+    if (pg->scope == SC_FXSLOT && FXS_IS_XD(pg->id[0]))
+        return pg->id[0] >= FXS_ID_MXD ? MST_ON(FXT_XDLY) : INS_ON(song.sel, FXT_XDLY);   /* XDLY, MST XDLY: while a slot holds it */
     if (pg->scope == SC_FXSLOT && pg->id[0] >= FXS_ID_MST)
         return MST_OK != 0u;                          /* MST INS: the master's insert slots */
     if (pg->scope == SC_FXSLOT && pg->id[0] >= FX_NSLOT)

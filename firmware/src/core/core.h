@@ -149,7 +149,7 @@ typedef struct {
 /* slot-relative automation (seq/auto_slot.c; a builder item until 2026-10-18) */
 #define SLOT_AUTO (FELUCCA_AUTO && (FELUCCA_MOTION || FELUCCA_PLOCK))
 /* the insert types with a limited number of instances (fx/insfx/fxi.c: CHRS ECHO JUNO FLNG, a builder count each) */
-#define INS_LIM (FELUCCA_INS_CHORUS || FELUCCA_INS_DELAY || FELUCCA_INS_JCHORUS || FELUCCA_INS_FLANGER)
+#define INS_LIM (FELUCCA_INS_CHORUS || FELUCCA_INS_DELAY || FELUCCA_INS_JCHORUS || FELUCCA_INS_FLANGER || FELUCCA_INS_XDLY)
 enum {                          /* per-track parameters */
     P_LEVEL,
     P_ATK, P_DEC, P_SUS, P_REL,
@@ -234,6 +234,8 @@ enum {                          /* per-track parameters */
      * when any further type is built. Not part of a sound nor of a user preset; the FX record keeps them (a TLV a type) */
     P_TSFLD, P_TRECT, P_THARM, P_TRING, P_TSUBO, P_TSLEW,
     P_TTAPE, P_TSPIT,                            /* (TAPE SPIT, 2026-10-19: fx/insfx/tapespit.c, after the shapers' range) */
+    P_TXDLY,                                     /* (XDLY, 2026-10-22: fx/insfx/xdly.c, a limited type: its MIX; its TIME 1 TIME 2
+                                                  * MOD FDBK the owner's, fx_slots.c xdl_v) */
 #endif
     /* LFO 2 (voice.c lfo2_tick): a second LFO a part, after every other value so that no id before
      * moves. RATE as LFO's (0..127 free, -1..-10 synced: LSYNC_N), WAVE as LFO's, TRIG (NOTE: a fresh phrase restarts

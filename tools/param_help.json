@@ -53,6 +53,7 @@
       "SLEW": {"text": "Slew limit: rounded crunch", "if": "FELUCCA_INS_SLEW"},
       "TAPE": {"text": "Tape tone: dark, wandering", "if": "FELUCCA_INS_TAPE"},
       "SPIT": {"text": "Spit: random band, driven", "if": "FELUCCA_INS_SPIT"},
+      "XDLY": {"text": "Lyra dual delay: its mix", "if": "FELUCCA_INS_XDLY"},
       "WIDE": {"text": "Stereo width insert", "if": "FELUCCA_INS_WIDTH"},
       "CHRS": {"text": "Chorus: mix, then depth", "if": "FELUCCA_INS_CHORUS"},
       "ECHO": {"text": "Slapback: level, then repeats", "if": "FELUCCA_INS_DELAY"},
@@ -79,6 +80,7 @@
       "SLEW": {"text": "Slew limit: rounded crunch", "if": "FELUCCA_INS_SLEW"},
       "TAPE": {"text": "Tape tone: dark, wandering", "if": "FELUCCA_INS_TAPE"},
       "SPIT": {"text": "Spit: random band, driven", "if": "FELUCCA_INS_SPIT"},
+      "XDLY": {"text": "Lyra dual delay: its mix", "if": "FELUCCA_INS_XDLY"},
       "WIDE": {"text": "Stereo width insert", "if": "FELUCCA_INS_WIDTH"},
       "CHRS": {"text": "Chorus: mix, then depth", "if": "FELUCCA_INS_CHORUS"},
       "ECHO": {"text": "Slapback: level, then repeats", "if": "FELUCCA_INS_DELAY"},
@@ -136,6 +138,7 @@
       "SLEW": {"text": "Slew limit: rounded crunch", "if": "FELUCCA_INS_SLEW"},
       "TAPE": {"text": "Tape tone: dark, wandering", "if": "FELUCCA_INS_TAPE"},
       "SPIT": {"text": "Spit: random band, driven", "if": "FELUCCA_INS_SPIT"},
+      "XDLY": {"text": "Lyra dual delay: its mix", "if": "FELUCCA_INS_XDLY"},
       "WIDE": {"text": "Stereo width insert", "if": "FELUCCA_INS_WIDTH"},
       "CHRS": {"text": "Chorus: mix, then depth", "if": "FELUCCA_INS_CHORUS"},
       "ECHO": {"text": "Slapback: level, then repeats", "if": "FELUCCA_INS_DELAY"},
@@ -151,6 +154,12 @@
       "EQ3": "Master EQ on or off"}},
     {"kind": "page", "ctx": "MST EQ3 F", "params": {
       "FREQ L": "Master low / mid crossover", "FREQ H": "Master mid / high crossover"}},
+    {"kind": "page", "ctx": "XDLY", "if": "FELUCCA_INS_XDLY", "params": {
+      "TIME 1": "Line 1 time (bends repeats)", "TIME 2": "Line 2 time (bends repeats)",
+      "MOD": "Each line moves the other", "FDBK": "Repeats; high: it sustains"}},
+    {"kind": "page", "ctx": "MST XDLY", "if": "FELUCCA_INS_XDLY", "params": {
+      "TIME 1": "Master delay line 1 time", "TIME 2": "Master delay line 2 time",
+      "MOD": "Each line moves the other", "FDBK": "Repeats; high: it sustains"}},
     {"kind": "page", "ctx": "RET EQ3", "params": {
       "LO": "Return low band: KILL .. +6", "MID": "Return mid band: KILL .. +6", "HI": "Return high band: KILL .. +6",
       "EQ3": "Return EQ on or off"}},
@@ -359,7 +368,9 @@
       "porta": "Portamento mode", "time": "Portamento time", "gliss": "Glissando", "dxvel": "DX7 velocity range"}},
 
 
-    {"kind": "op", "ctx": "INSERTS", "if": "FELUCCA_INS_CHORUS || FELUCCA_INS_DELAY || FELUCCA_INS_JCHORUS || FELUCCA_INS_FLANGER", "params": {
+    {"kind": "op", "ctx": "INSERTS", "if": "FELUCCA_INS_CHORUS || FELUCCA_INS_DELAY || FELUCCA_INS_JCHORUS || FELUCCA_INS_FLANGER || FELUCCA_INS_XDLY", "params": {
+      "XDLY": {"text": "Dual delay shared: free/avail", "if": "FELUCCA_INS_XDLY"},
+      "FULL XDLY": {"text": "No free dual delay: bypassed", "if": "FELUCCA_INS_XDLY"},
       "FLNG": {"text": "Flanger, shared: free/avail", "if": "FELUCCA_INS_FLANGER"},
       "FULL FLNG": {"text": "No free flanger: bypassed", "if": "FELUCCA_INS_FLANGER"},
       "JUNO": {"text": "Juno chorus: free/avail", "if": "FELUCCA_INS_JCHORUS"},
@@ -534,6 +545,7 @@
       "SLEW": {"text": "Slew limit: rounded crunch", "if": "FELUCCA_INS_SLEW"},
       "TAPE": {"text": "Tape tone: dark, wandering", "if": "FELUCCA_INS_TAPE"},
       "SPIT": {"text": "Spit: random band, driven", "if": "FELUCCA_INS_SPIT"},
+      "XDLY": {"text": "Lyra dual delay: its mix", "if": "FELUCCA_INS_XDLY"},
       "WIDE": {"text": "Stereo width insert", "if": "FELUCCA_INS_WIDTH"},
       "CHRS": {"text": "Chorus: mix, then depth", "if": "FELUCCA_INS_CHORUS"},
       "ECHO": {"text": "Slapback: level, then repeats", "if": "FELUCCA_INS_DELAY"},

@@ -179,7 +179,7 @@ class Item:
 FX_ANY = "FX: any number (each track its own)"
 FX_ONCE = "FX: limited instances (once, or a set count)"
 FX_ONCE_KEYS = {"FX_CHORUS", "FX_DELAY", "FX_REVERB", "FX_PUNCH", "FX_DUCK", "BASSPLUS",
-                "INS_CHORUS", "INS_DELAY", "INS_JCHORUS", "INS_FLANGER"}
+                "INS_CHORUS", "INS_DELAY", "INS_JCHORUS", "INS_FLANGER", "INS_XDLY"}
 
 
 def fx_group(key, parent=None):
@@ -626,6 +626,22 @@ _add("INS_FLANGER", "FELUCCA_INS_FLANGER", "FLNG insert (flanger)", F, 259, defa
           "delay swept 0.25 .. 5 ms (~0.25 Hz); FLNG up to the middle mixes it in, past the middle adds feedback. 0 is "
           "off." + _INS_LIM, symbols=("ifx_flng",),
      notice="From Felucca 1.5.6's track INSERT FLANG by Leo Kuroshita (GPL-3.0)." + _INS_NOTE)
+# XDLY (fx/insfx/xdly.c, 2026-10-22): the LYRA-8 style cross-modulated dual delay, a count of instances as the copies above
+_add("INS_XDLY", "FELUCCA_INS_XDLY", "XDLY insert (LYRA-8 style cross-modulated dual delay)", F, 376, default=0,
+     choices=((0, "off"), (1, "1 slot (2 lines)"), (2, "2 slots"), (3, "3 slots"), (4, "4 slots")),
+     desc="Two delay lines whose outputs move each other's time at the audio rate, as the SOMA LYRA-8's modulated delay "
+          "does (its idea, no code): an insert type for the tracks' slots and the master's (XDLY). Its page has TIME 1 "
+          "and TIME 2 (each line, 1 ms up to the line's length; turning one bends the repeats), MOD (how far each "
+          "line's output moves the other's time: a slow chorus to metallic FM grit) and FDBK (the repeats; past ~95 % "
+          "they grow into a soft clip and sustain, the LYRA's self-oscillation). XDLY, the amount, is the MIX, 0 off. "
+          "A mono track gets the two lines' mean, the drum bus and the master line 1 on L and line 2 on R. A track's "
+          "repeats go on after its notes end. About 190 host instructions a sample an instance. Each instance is "
+          "two lines of the length below in the pool; a slot picking it when every instance is in use stays dry.",
+     symbols=("ifx_xdly",), notice="Tested in the host tests only, not on a device.")
+_add("XDLY_LEN", "FELUCCA_XDLY_LEN", "XDLY line length (its longest TIME)", F, 377, default=16384, parent="INS_XDLY",
+     choices=((16384, "0.37 s (64 KB pool an instance)"), (8192, "0.19 s (32 KB)")),
+     desc="How long each of XDLY's two lines is: TIME's top end. The shorter line halves every TIME and saves 32 KB of "
+          "pool an instance.")
 # GATER (fx/insfx/gater.c, 2026-10-14): a further insert type, any number (a few bytes a track)
 _add("INS_GATER", "FELUCCA_INS_GATER", "GATER insert (tempo-synced trance gate)", F, 330, default=0,
      desc="A rhythmic volume gate type for the tracks' insert slots (INSERTS > S1 / S2: GATER), locked to the tempo "

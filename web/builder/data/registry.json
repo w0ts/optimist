@@ -2419,6 +2419,86 @@
     "provenance_line": "Felucca 1.5.6 (hugelton/Felucca) @ 9f6a885 by Leo Kuroshita (Hügelton) (GPL-3.0-only)"
    },
    {
+    "key": "INS_XDLY",
+    "flag": "FELUCCA_INS_XDLY",
+    "label": "XDLY insert (LYRA-8 style cross-modulated dual delay)",
+    "group": "FX: limited instances (once, or a set count)",
+    "bit": 376,
+    "default": 0,
+    "parent": null,
+    "desc": "Two delay lines whose outputs move each other's time at the audio rate, as the SOMA LYRA-8's modulated delay does (its idea, no code): an insert type for the tracks' slots and the master's (XDLY). Its page has TIME 1 and TIME 2 (each line, 1 ms up to the line's length; turning one bends the repeats), MOD (how far each line's output moves the other's time: a slow chorus to metallic FM grit) and FDBK (the repeats; past ~95 % they grow into a soft clip and sustain, the LYRA's self-oscillation). XDLY, the amount, is the MIX, 0 off. A mono track gets the two lines' mean, the drum bus and the master line 1 on L and line 2 on R. A track's repeats go on after its notes end. About 190 host instructions a sample an instance. Each instance is two lines of the length below in the pool; a slot picking it when every instance is in use stays dry.",
+    "experimental": false,
+    "notice": "Tested in the host tests only, not on a device.",
+    "off_warning": "",
+    "env": "",
+    "target_only": false,
+    "symbols": [
+     "ifx_xdly"
+    ],
+    "no_image": false,
+    "fixed": false,
+    "choices": [
+     [
+      0,
+      "off"
+     ],
+     [
+      1,
+      "1 slot (2 lines)"
+     ],
+     [
+      2,
+      "2 slots"
+     ],
+     [
+      3,
+      "3 slots"
+     ],
+     [
+      4,
+      "4 slots"
+     ]
+    ],
+    "provenance": null,
+    "children": [
+     "XDLY_LEN"
+    ],
+    "tested": "emulator-tested only",
+    "provenance_line": ""
+   },
+   {
+    "key": "XDLY_LEN",
+    "flag": "FELUCCA_XDLY_LEN",
+    "label": "XDLY line length (its longest TIME)",
+    "group": "FX: limited instances (once, or a set count)",
+    "bit": 377,
+    "default": 16384,
+    "parent": "INS_XDLY",
+    "desc": "How long each of XDLY's two lines is: TIME's top end. The shorter line halves every TIME and saves 32 KB of pool an instance.",
+    "experimental": false,
+    "notice": "",
+    "off_warning": "",
+    "env": "",
+    "target_only": false,
+    "symbols": [],
+    "no_image": false,
+    "fixed": false,
+    "choices": [
+     [
+      16384,
+      "0.37 s (64 KB pool an instance)"
+     ],
+     [
+      8192,
+      "0.19 s (32 KB)"
+     ]
+    ],
+    "provenance": null,
+    "children": [],
+    "tested": "emulator-tested only",
+    "provenance_line": ""
+   },
+   {
     "key": "INS_GATER",
     "flag": "FELUCCA_INS_GATER",
     "label": "GATER insert (tempo-synced trance gate)",
@@ -4693,6 +4773,7 @@
    "INS_DELAY",
    "INS_JCHORUS",
    "INS_FLANGER",
+   "INS_XDLY",
    "BASSPLUS"
   ],
   "Sequencer": [

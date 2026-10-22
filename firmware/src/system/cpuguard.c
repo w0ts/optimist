@@ -108,6 +108,10 @@ static uint32_t cg_ins_part(uint32_t p)
 #endif
     if (ifx_w(FXT_EQ3, p) || (on && INS_ON(p, FXT_EQ3) && trk[p].p[P_TEQ] && !eq3_flat(EQ3_V(p))))
         n += CG_COST_EQ3M;                            /* (engaged only: flat is bypassed, eq3.c) */
+#if FELUCCA_INS_XDLY
+    if ((on && INS_ON(p, FXT_XDLY) && trk[p].p[P_TXDLY] && ifx_has(FXT_XDLY, p)) || ifx_w(FXT_XDLY, p))
+        n += CG_COST_XDLY;                            /* (set, fading or ringing on: xdly.c) */
+#endif
     return n;
 }
 static uint32_t cg_bus_w(void)                        /* the drum bus's DIST and FILTER on all 5 channels */
@@ -146,6 +150,10 @@ static uint32_t cg_ins_bus(void)
 #endif
     if (ifx_w(FXT_EQ3, IFX_BUS) || (fx_on(TDRUM) && INS_ON(TRK_DRUM, FXT_EQ3) && TDRUM->p[P_TEQ] && !eq3_flat(EQ3_V(TRK_DRUM))))
         n += CG_COST_EQ3S;
+#if FELUCCA_INS_XDLY
+    if ((fx_on(TDRUM) && INS_ON(TRK_DRUM, FXT_XDLY) && TDRUM->p[P_TXDLY] && ifx_has(FXT_XDLY, TRK_DRUM)) || ifx_w(FXT_XDLY, TRK_DRUM))
+        n += CG_COST_XDLY;                            /* (its one instance on the bus's mid) */
+#endif
     return n;
 }
 
@@ -201,6 +209,10 @@ static uint32_t cg_ins_mst(void)
 #endif
         if (t == FXT_EQ3 && (ifx_w(FXT_EQ3, IFX_MST) || (mst_amt[FXT_EQ3] && !eq3_flat(EQ3_V(NTRK)))))
             n += CG_COST_EQ3S;
+#if FELUCCA_INS_XDLY
+        if (t == FXT_XDLY && (mst_amt[FXT_XDLY] || ifx_w(FXT_XDLY, IFX_MST)))
+            n += CG_COST_XDLY;
+#endif
     }
     return n;
 }

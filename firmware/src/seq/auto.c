@@ -110,12 +110,17 @@ static const uint8_t MOT_TAIL[MOT_NTAIL] = {
 #endif
 };
 /* the stored tail's second range (2026-10-18: the first was full at AUTO_MUTE0), auto.h AUTO_TAIL2 .. (0xCC ..): the
- * track's DYN settings RATIO ATK REL GAIN CEIL (fx_slots.c: track values since) */
+ * track's DYN settings RATIO ATK REL GAIN CEIL (fx_slots.c: track values since), XDLY's MIX (2026-10-22: +5) */
 static const uint8_t MOT_TAIL2[] = {
 #if FELUCCA_MASTER_COMP
     P_TDRAT, P_TDATK, P_TDREL, P_TDGAIN, P_TDCEIL,
 #else
     P_COUNT, P_COUNT, P_COUNT, P_COUNT, P_COUNT,
+#endif
+#if INS_FX
+    P_TXDLY,
+#else
+    P_COUNT,
 #endif
 };
 #define MOT_NTAIL2 ((uint32_t)sizeof MOT_TAIL2)

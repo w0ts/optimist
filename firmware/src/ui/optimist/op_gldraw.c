@@ -132,6 +132,9 @@ static const char *const CRED[][2] = {
     {"X0X", "Charles Vestal"},
     {"FLOWSTATE", "Z. Chowdhury"},
     {"JANGADA", "zednaked"},
+#if FELUCCA_ENG_DRONE
+    {"CARAVEL", "bonszaimusic"},                        /* (DRONE's network, eng_drone.c) */
+#endif
     {"JUNO", "fm-106, KR-106"},                         /* (PatttF; Kayrock Screenprinting) */
     {"ACID", "Open303, TB-3PO"},                        /* (Robin Schmidt, Logarhythm: MIT) */
     {"SAMPLES", "VSCO, VCSL, Sonic Pi"},

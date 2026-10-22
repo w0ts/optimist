@@ -23,6 +23,8 @@ enum { FXT_NONE, FXT_DIST, FXT_CHO, FXT_DLY, FXT_REV, FXT_COMP, FXT_FILT,
                                                                                 * item each; WRAP dropped the same day: its
                                                                                 * id and LIN_T index reserved, never built) */
        FXT_TAPE, FXT_SPIT,   /* (2026-10-19: fx/insfx/tapespit.c, after Melodee 1.3.0's; the shapers' range, own state) */
+       FXT_XDLY,             /* (2026-10-22: fx/insfx/xdly.c, the LYRA-8 style cross-modulated dual delay; a builder count,
+                              * fxi.c, as ECHO; the tracks' and the master's slots only) */
        FXT_N };
 /* fx-rework (2026-10-14): COMP is DYN, the compressor, its make-up and the brickwall limiter as one effect (the
  * master's COMP + LIMIT: master_comp.c), on any insert slot; FILT is the track FILTER and the master DJ filter in one
@@ -41,14 +43,16 @@ enum { FXT_NONE, FXT_DIST, FXT_CHO, FXT_DLY, FXT_REV, FXT_COMP, FXT_FILT,
 #define FXT_LIM0 FXT_CHRS                              /* the limited ones FXT_LIM0 .. FXT_LIMN - 1 (fxi.c: an instance each) */
 #define FXT_LIMN (FXT_ECHO + 1)                        /* (GATER after them: on every track, not limited) */
 #define FXT_IS_LIM(t) ((uint32_t)(t) - FXT_LIM0 < (uint32_t)(FXT_LIMN - FXT_LIM0) || (FELUCCA_INS_JCHORUS && (t) == FXT_JUNO) || \
-                       (FELUCCA_INS_FLANGER && (t) == FXT_FLNG))   /* (FLNG since fx-pool 2026-10-15) */
+                       (FELUCCA_INS_FLANGER && (t) == FXT_FLNG) || (FELUCCA_INS_XDLY && (t) == FXT_XDLY))   /* (FLNG since
+                                                        * fx-pool 2026-10-15; XDLY 2026-10-22) */
 #define FX_NSLOT 4u
 #define FXT_BIT(x) (1u << (x))
 #define FXT_INSERT (FXT_BIT(FXT_DIST) | FXT_BIT(FXT_COMP) | FXT_BIT(FXT_FILT) | FXT_BIT(FXT_FOLD) | FXT_BIT(FXT_FUZZ) | \
                     FXT_BIT(FXT_PHSR) | FXT_BIT(FXT_FLNG) | FXT_BIT(FXT_FRMT) | FXT_BIT(FXT_WIDE) | FXT_BIT(FXT_CHRS) | \
                     FXT_BIT(FXT_ECHO) | FXT_BIT(FXT_GATE) | FXT_BIT(FXT_DUST) | FXT_BIT(FXT_JUNO) | \
                     FXT_BIT(FXT_EQ3) | FXT_BIT(FXT_SFLD) | FXT_BIT(FXT_WRAP) | FXT_BIT(FXT_RECT) | FXT_BIT(FXT_HARM) | \
-                    FXT_BIT(FXT_RING) | FXT_BIT(FXT_SUBO) | FXT_BIT(FXT_SLEW) | FXT_BIT(FXT_TAPE) | FXT_BIT(FXT_SPIT))   /* the
+                    FXT_BIT(FXT_RING) | FXT_BIT(FXT_SUBO) | FXT_BIT(FXT_SLEW) | FXT_BIT(FXT_TAPE) | FXT_BIT(FXT_SPIT) | \
+                    FXT_BIT(FXT_XDLY))   /* the
                                                         * others: sends */
 #define FXT_BUILT ((FELUCCA_FX_DIST ? FXT_BIT(FXT_DIST) : 0u) | (FELUCCA_FX_CHORUS ? FXT_BIT(FXT_CHO) : 0u) | \
                    (FELUCCA_FX_DELAY ? FXT_BIT(FXT_DLY) : 0u) | (FELUCCA_FX_REVERB ? FXT_BIT(FXT_REV) : 0u) |  \
@@ -63,9 +67,9 @@ enum { FXT_NONE, FXT_DIST, FXT_CHO, FXT_DLY, FXT_REV, FXT_COMP, FXT_FILT,
                    (FELUCCA_INS_RECT ? FXT_BIT(FXT_RECT) : 0u) | (FELUCCA_INS_HARM ? FXT_BIT(FXT_HARM) : 0u) |      \
                    (FELUCCA_INS_RING ? FXT_BIT(FXT_RING) : 0u) | (FELUCCA_INS_SUBOCT ? FXT_BIT(FXT_SUBO) : 0u) |    \
                    (FELUCCA_INS_SLEW ? FXT_BIT(FXT_SLEW) : 0u) | (FELUCCA_INS_TAPE ? FXT_BIT(FXT_TAPE) : 0u) |      \
-                   (FELUCCA_INS_SPIT ? FXT_BIT(FXT_SPIT) : 0u))
-/* a type insfx.c runs (ifx_part, ifx_bus, ifx_st): the further ones (the shapers too), JUNO CHORUS, EQ3 */
-#define IFX_TYPE(t) (IFX_FUR(t) || (FELUCCA_INS_JCHORUS && (t) == FXT_JUNO) || (t) == FXT_EQ3)
+                   (FELUCCA_INS_SPIT ? FXT_BIT(FXT_SPIT) : 0u) | (FELUCCA_INS_XDLY > 0 ? FXT_BIT(FXT_XDLY) : 0u))
+/* a type insfx.c runs (ifx_part, ifx_bus, ifx_st): the further ones (the shapers too), JUNO CHORUS, EQ3, XDLY */
+#define IFX_TYPE(t) (IFX_FUR(t) || (FELUCCA_INS_JCHORUS && (t) == FXT_JUNO) || (t) == FXT_EQ3 || (FELUCCA_INS_XDLY && (t) == FXT_XDLY))
 _Static_assert(FXT_N <= 32, "the type masks (ins_live): 32 bits");
 #define FXT_SEND_OK(t) ((t) < FXT_N && !(FXT_INSERT >> (t) & 1u) && (t) != FXT_NONE)
 /* each type's per-track amount (a P_* id; its label names the slot), 0xFF: none in this build */
@@ -74,7 +78,7 @@ _Static_assert(FXT_N <= 32, "the type masks (ins_live): 32 bits");
  * type but FXT_NONE and the reserved WRAP, once (tests/ui_optimist_fxi.h holds the names to it) */
 static const uint8_t FXT_ALPHA[] = {FXT_CHO,  FXT_CHRS, FXT_DLY,  FXT_DIST, FXT_DUST, FXT_COMP, FXT_ECHO, FXT_EQ3,  FXT_FILT,
                                     FXT_FLNG, FXT_FOLD, FXT_FRMT, FXT_FUZZ, FXT_GATE, FXT_HARM, FXT_JUNO, FXT_PHSR, FXT_RECT,
-                                    FXT_REV,  FXT_RING, FXT_SFLD, FXT_SLEW, FXT_SPIT, FXT_SUBO, FXT_TAPE, FXT_WIDE};
+                                    FXT_REV,  FXT_RING, FXT_SFLD, FXT_SLEW, FXT_SPIT, FXT_SUBO, FXT_TAPE, FXT_WIDE, FXT_XDLY};
 #define FXT_NALPHA (sizeof FXT_ALPHA / sizeof FXT_ALPHA[0])
 _Static_assert(FXT_NALPHA == FXT_N - 2u, "FXT_ALPHA: a new type goes in, in its name's place");
 #define FXT_LISTED(i) ((i) ? (uint32_t)FXT_ALPHA[(i) - 1u] : (uint32_t)FXT_NONE)   /* entry i of a TYPE list: ----, A..Z */
@@ -114,8 +118,9 @@ static const uint8_t FXT_AMT[FXT_N] = {
     FXT_AMT_NEW(FELUCCA_INS_SFOLD, P_TSFLD), 0xFF, FXT_AMT_NEW(FELUCCA_INS_RECT, P_TRECT),
     FXT_AMT_NEW(FELUCCA_INS_HARM, P_THARM), FXT_AMT_NEW(FELUCCA_INS_RING, P_TRING), FXT_AMT_NEW(FELUCCA_INS_SUBOCT, P_TSUBO),
     FXT_AMT_NEW(FELUCCA_INS_SLEW, P_TSLEW), FXT_AMT_NEW(FELUCCA_INS_TAPE, P_TTAPE), FXT_AMT_NEW(FELUCCA_INS_SPIT, P_TSPIT),
+    FXT_AMT_NEW(FELUCCA_INS_XDLY > 0, P_TXDLY),
 #else
-    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
 #endif
 };
 /* THE send order (2026-10-15, the user: "match the order between master return and the send"; turned round 2026-10-21, the
@@ -139,7 +144,8 @@ static uint8_t fxs_slot[FX_NSLOT] = {FXT_NONE, FXS_ORDER};   /* (an id this buil
  * wet: the return outputs only the processed send (never a track's dry), times the line's return level (G_CRET + line: CHO
  * RET, DLY RET, REV RET are each line's), its amount the slot's own (fxs_ramt, RT_DEF when loaded). That line's send bus
  * (the chorus, the delay, the reverb) then hears silence */
-#define RT_OK (FXT_BUILT & FXT_INSERT & ~FXT_BIT(FXT_GATE))
+#define RT_OK (FXT_BUILT & FXT_INSERT & ~FXT_BIT(FXT_GATE) & ~FXT_BIT(FXT_XDLY))   /* (XDLY: its TIMEs are a track's or the
+                                                        * master's, xdl_v: not a return's) */
 /* the audio's owner indexes (fx.c, insfx.c: a state a part, then the stereo owners' L, R): the parts 0 .. NPART - 1, the
  * drum bus, the master, the USB input, the returns A B C */
 #define IFX_BUS NPART
@@ -349,7 +355,7 @@ AINL int32_t rt_amt(uint32_t j) { return fxs_ramt[fxs_rsl[j % 3u] % FX_NSLOT]; }
 static uint32_t fxs_lane_id(uint32_t k)
 {
     static const uint8_t LID[FXT_N] = {0xFF, 19, 18, 17, 16, 20, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-                                       0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};   /* (by type: NONE DIST
+                                       0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};   /* (by type: NONE DIST
                                                         * CHO DLY REV COMP FILT, the further inserts, EQ3 too: none) */
     _Static_assert(sizeof LID == FXT_N, "LID: one entry per FX type (a new type needs its entry, 0xFF: none)");
     uint32_t i, n = 0;
@@ -554,9 +560,66 @@ static void eq3_defaults(void)
 static const param_desc_t EQ_D[EQV_N] = {
     {"LO", F_INT, EQ_KILL, 6, 0, 0, EQ_TAG_DB}, {"MID", F_INT, EQ_KILL, 6, 0, 0, EQ_TAG_DB}, {"HI", F_INT, EQ_KILL, 6, 0, 0, EQ_TAG_DB},
     {"FREQ L", F_INT, 0, EQ_FMAX, EQ_FL_DEF, 0, EQ_TAG_FL}, {"FREQ H", F_INT, 0, EQ_FMAX, EQ_FH_DEF, 0, EQ_TAG_FH}};
+/* ---- XDLY's settings (fx/insfx/xdly.c: the kernel): TIME 1 TIME 2 (each line's time, 1 ms .. its line, exponential:
+ * XD_D), MOD (how far each line's output moves the other's time), FDBK (each line's repeats, past 100 % into the soft
+ * clip: the LYRA-8's self-oscillation); the owners T1 T2 T3 DR and the master (fx_slots.c MST_OK; not a return nor the
+ * USB input: RT_OK UT_OK), the amount (P_TXDLY, the master's mst_amt) its MIX. Kept in XDLY's TLV */
+#define XD_NO (NTRK + 1u)
+enum { XDV_T1, XDV_T2, XDV_MOD, XDV_FB, XDV_N };
+#define XD_V_DEF {70, 90, 24, 64}
+#if FELUCCA_INS_XDLY
+static int16_t xdl_v[XD_NO][XDV_N] = {XD_V_DEF, XD_V_DEF, XD_V_DEF, XD_V_DEF, XD_V_DEF};
+_Static_assert(XD_NO == 5u, "xdl_v: T1 T2 T3 DR, the master");
+#define XDL_V(o) xdl_v[(uint32_t)(o) % XD_NO]
+/* TIME's samples at a line of 16384 (a shorter line: >> its log2 ratio): 44 x (16380 / 44)^(v / 127), 1 ms .. 371 ms */
+static const uint16_t XD_D[128] = {
+    44, 46, 48, 51, 53, 56, 58, 61, 64, 67, 70, 73, 77, 81, 84, 89,
+    93, 97, 102, 107, 112, 117, 123, 129, 135, 141, 148, 155, 162, 170, 178, 187,
+    196, 205, 215, 225, 236, 247, 259, 271, 284, 297, 312, 327, 342, 358, 376, 393,
+    412, 432, 452, 474, 497, 520, 545, 571, 598, 627, 657, 688, 721, 756, 792, 829,
+    869, 910, 954, 999, 1047, 1097, 1149, 1204, 1262, 1322, 1385, 1451, 1520, 1593, 1669, 1748,
+    1832, 1919, 2011, 2107, 2207, 2313, 2423, 2539, 2660, 2787, 2920, 3059, 3205, 3358, 3518, 3686,
+    3862, 4046, 4239, 4441, 4653, 4875, 5108, 5352, 5607, 5874, 6155, 6448, 6756, 7078, 7416, 7770,
+    8141, 8529, 8936, 9363, 9809, 10277, 10768, 11282, 11820, 12384, 12975, 13594, 14242, 14922, 15634, 16380,
+};
+_Static_assert(FS == 44100 && (FELUCCA_XDLY_LEN == 16384 || FELUCCA_XDLY_LEN == 8192), "XD_D: 44.1 kHz, a line of 16384 or 8192");
+#define XD_SH (FELUCCA_XDLY_LEN == 16384 ? 0u : 1u)    /* (a shorter line: half the times) */
+AINL uint32_t xd_samples(int32_t v) { return (uint32_t)XD_D[clamp(v, 0, 127)] >> XD_SH; }
+static const char XD_TAG_MS[] = "ms";
+static const param_desc_t XD_DESC[XDV_N] = {
+    {"TIME 1", F_INT, 0, 127, 70, 0, XD_TAG_MS}, {"TIME 2", F_INT, 0, 127, 90, 0, XD_TAG_MS},
+    {"MOD", F_PCT, 0, 127, 24, 0, 0}, {"FDBK", F_PCT, 0, 127, 64, 0, 0}};
+static int xdl_dflt(void)                              /* every owner's settings the defaults */
+{
+    uint32_t o, i;
+    for (o = 0; o < XD_NO; o++)
+        for (i = 0; i < XDV_N; i++)
+            if (XDL_V(o)[i] != XD_DESC[i].def)
+                return 0;
+    return 1;
+}
+static void xdl_defaults(void)
+{
+    uint32_t o, i;
+    for (o = 0; o < XD_NO; o++)
+        for (i = 0; i < XDV_N; i++)
+            XDL_V(o)[i] = XD_DESC[i].def;
+}
+#endif
 static int fxs_fmt(const param_desc_t *d, int32_t v, char *val, const char **unit)
 {
     uint32_t hz;
+#if FELUCCA_INS_XDLY
+    if (d->unit == XD_TAG_MS) {                        /* XDLY's TIMEs: ms, a tenth below 100 */
+        uint32_t t = (xd_samples(v) * 100u + 220u) / 441u;   /* (tenths of a ms) */
+        if (t < 1000u)
+            fmt_fix(val, (int32_t)t, 1);
+        else
+            fmt_int(val, (int32_t)((t + 5u) / 10u));
+        *unit = "ms";
+        return 1;
+    }
+#endif
     if (d->unit != EQ_TAG_DB && d->unit != EQ_TAG_FL && d->unit != EQ_TAG_FH)
         return 0;                                      /* (by its tag) */
     if (d->unit == EQ_TAG_DB) {
@@ -737,7 +800,7 @@ static void mst_defaults(void)
  * EQ3 its own bands (eq3_v's USB owner), JUNO CHORUS its own MODE, GATER its own PATTERN RATE SHAPE (the input has no
  * track values: these three are the input's, the phase the transport's clock at the song tempo, as a track's; the swing
  * the global SWING on RATE 1/16, the song's step) */
-#define UT_OK (FXT_BUILT & FXT_INSERT)
+#define UT_OK (FXT_BUILT & FXT_INSERT & ~FXT_BIT(FXT_XDLY))   /* (XDLY: the tracks' and the master's, xdl_v) */
 #define UT_LVL_DEF 112                                  /* (LEVEL_Q12[112] = 4096: unity) */
 enum { UTV_LVL, UTV_PAN, UTV_MUTE, UTV_FXON, UTV_REV, UTV_DLY, UTV_CHO,
        UTV_GPAT, UTV_GRATE, UTV_GSHP,                   /* GATER's PATTERN RATE SHAPE (its DEPTH: the slot's amount) */
@@ -992,7 +1055,7 @@ static const uint8_t FXT_BUS[FXT_N] = {0xFF, P_DIST, P_CHOR, P_DLY, P_REV,
                                        0xFF,
 #endif
                                        0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-                                       0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};   /* (FILT; the further inserts, DUST, JUNO, the shapers: their
+                                       0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};   /* (FILT; the further inserts, DUST, JUNO, the shapers, XDLY: their
                                                         * own TLV, every track's amount: fxs_tlv) */
 /* JUNO CHORUS's TLV (2026-10-14): T1 T2 T3 DR's MIX, their MODE, the master's MIX and MODE (mst_amt, mst_jmode), when any
  * is set; a shorter one: the rest 0 */
@@ -1016,7 +1079,8 @@ static void fxs_gx_def(uint32_t k)                     /* track k's GATER values
  * drum bus, 3 parts, 3 settings, 16 drum sounds; DIST: the bus, 16 sounds; CHO DLY REV: the bus). The drum sounds'
  * amounts (phase 5: drum_sends.c dins_amt) come last and only when one is set: a reader of before takes the rest */
 #define FXT_TLV_EQ3 (NTRK + 1u + 5u * (NTRK + 5u))     /* EQ3's: the tracks' ON, the master's, every owner's 5 settings */
-#define FXT_TLV_SUM (23u + 17u + 3u + (IFX_NFUR + 1u) * NTRK +FXT_TLV_GX + FXT_TLV_JUNO + FXT_TLV_EQ3)   /* (+ the further inserts' and
+#define FXT_TLV_XDLY (NTRK + 1u + XDV_N * XD_NO)       /* XDLY's: the tracks' MIX, the master's, every owner's 4 settings */
+#define FXT_TLV_SUM (23u + 17u + 3u + (IFX_NFUR + 1u) * NTRK +FXT_TLV_GX + FXT_TLV_JUNO + FXT_TLV_EQ3 + FXT_TLV_XDLY)   /* (+ the further inserts' and
                                                         * DUST's: 4 each) */
 #define FXT_TLV_COMP (NTRK + 3u)                       /* (COMP's TLV before the drum sounds' amounts) */
 static uint32_t fxs_lanes(const uint8_t *a, uint8_t *o)   /* the 16 drum sounds' amounts -> o; any set */
@@ -1038,6 +1102,17 @@ static uint32_t fxs_tlv(uint32_t t, uint8_t *o)
             o[NTRK + 1u + k] = (uint8_t)EQ3_V(k / EQV_N)[k % EQV_N];
         return any || !eq3_dflt() ? FXT_TLV_EQ3 : 0u;
     }
+#if FELUCCA_INS_XDLY
+    if (t == FXT_XDLY) {                               /* XDLY (2026-10-22): T1 T2 T3 DR's MIX, the master's, then every owner's
+                                                        * TIME 1 TIME 2 MOD FDBK (xdl_v), when any is off its default */
+        for (k = 0; k < NTRK; k++)
+            any |= (o[k] = (uint8_t)trk[k].p[P_TXDLY]);
+        any |= (o[NTRK] = (uint8_t)mst_amt[FXT_XDLY]);
+        for (k = 0; k < XD_NO * XDV_N; k++)
+            o[NTRK + 1u + k] = (uint8_t)XDL_V(k / XDV_N)[k % XDV_N];
+        return any || !xdl_dflt() ? FXT_TLV_XDLY : 0u;
+    }
+#endif
 #if FELUCCA_FX_DUST
     if (t == FXT_DUST) {                               /* DUST (2026-10-14): T1 T2 T3 DR's amounts, any set */
         for (k = 0; k < NTRK; k++)
@@ -1120,6 +1195,12 @@ static void fxs_untlv_none(int all)
         trk[k].p[P_TEQ] = 1;                           /* (ON: a band moved is heard) */
     mst_amt[FXT_EQ3] = 1;
     eq3_defaults();
+    for (k = 0; k < NTRK; k++)
+        trk[k].p[P_TXDLY] = 0;                         /* (XDLY's MIX: built or not) */
+#if FELUCCA_INS_XDLY
+    mst_amt[FXT_XDLY] = 0;
+    xdl_defaults();
+#endif
 #if FELUCCA_MASTER_COMP
     for (k = 0; k < NTRK; k++)
         trk[k].p[P_TCOMP] = 0;
@@ -1164,6 +1245,15 @@ static void fxs_untlv(uint32_t t, const uint8_t *a, uint32_t n, int all)
         for (k = 0; k < EQ_NO * EQV_N && NTRK + 1u + k < n; k++)
             EQ3_V(k / EQV_N)[k % EQV_N] = (int16_t)clamp((int8_t)a[NTRK + 1u + k], EQ_D[k % EQV_N].min, EQ_D[k % EQV_N].max);
     }
+#if FELUCCA_INS_XDLY
+    if (t == FXT_XDLY) {                               /* (a shorter one: the rest the defaults, as none) */
+        for (k = 0; k < NTRK; k++)
+            trk[k].p[P_TXDLY] = (int16_t)(k < n ? (a[k] > 127u ? 127u : a[k]) : 0u);
+        mst_amt[FXT_XDLY] = (int16_t)(NTRK < n ? (a[NTRK] > 127u ? 127u : a[NTRK]) : 0u);
+        for (k = 0; k < XD_NO * XDV_N && NTRK + 1u + k < n; k++)
+            XDL_V(k / XDV_N)[k % XDV_N] = (int16_t)(a[NTRK + 1u + k] > 127u ? 127u : a[NTRK + 1u + k]);
+    }
+#endif
     if (t < FXT_N && FXT_BUS[t] != 0xFFu && n >= 1u)
         TDRUM->p[FXT_BUS[t]] = (int16_t)(a[0] > 127u ? 127u : a[0]);
     if (t == FXT_DIST && n >= 1u + DRUM_LANES)
@@ -1200,7 +1290,7 @@ static int rt_any(void)                                /* a return holds a type 
                    FELUCCA_INS_PHASER + (FELUCCA_INS_FLANGER > 0) + FELUCCA_INS_FORMANT + FELUCCA_INS_WIDTH + \
                    (FELUCCA_INS_CHORUS > 0) + (FELUCCA_INS_DELAY > 0) + FELUCCA_INS_GATER + (FELUCCA_INS_JCHORUS > 0) + \
                    1 + FELUCCA_INS_SFOLD + FELUCCA_INS_RECT + FELUCCA_INS_HARM +   \
-                   FELUCCA_INS_RING + FELUCCA_INS_SUBOCT + FELUCCA_INS_SLEW + FELUCCA_INS_TAPE + FELUCCA_INS_SPIT)
+                   FELUCCA_INS_RING + FELUCCA_INS_SUBOCT + FELUCCA_INS_SLEW + FELUCCA_INS_TAPE + FELUCCA_INS_SPIT + (FELUCCA_INS_XDLY > 0))
 static const char *ins_names[INS_NLIST];
 static uint8_t ins_list[INS_NLIST];
 static int16_t ins_v[INS_N];
@@ -1217,6 +1307,9 @@ static const param_desc_t INS_DESC[INS_N] = {{"S1", F_ENUM, 0, INS_NLIST - 1, 0,
 #define FXS_ID_REQ 40u                                 /* 40..45: the EQ3 of the return holding it: LO MID HI, ON, FREQ L, FREQ H */
 #define FXS_ID_UEQ 48u                                 /* 48..53: the USB input's EQ3: LO MID HI, ON, FREQ L, FREQ H (the mixer's
                                                         * USB row: USB EQ3, USB EQ3 F) */
+#define FXS_ID_TXD 56u                                 /* 56..59: the selected track's XDLY: TIME 1, TIME 2, MOD, FDBK */
+#define FXS_ID_MXD 60u                                 /* 60..63: the master's XDLY */
+#define FXS_IS_XD(k) ((k) >= FXS_ID_TXD && (k) < FXS_ID_MXD + XDV_N)
 #define FXS_IS_EQ3(k) (((k) >= FXS_ID_TEQ && (k) < FXS_ID_TEQ + 6u) || ((k) >= FXS_ID_MEQ && (k) < FXS_ID_MEQ + 6u) || \
                        ((k) >= FXS_ID_REQ && (k) < FXS_ID_REQ + 6u) || ((k) >= FXS_ID_UEQ && (k) < FXS_ID_UEQ + 6u))
 static int rt_eq3(void)                                /* the line whose return holds EQ3, 3: none */
@@ -1303,6 +1396,15 @@ static const param_desc_t *fxs_desc(uint32_t k, int16_t **vp)
     uint32_t t, n = 0, i;
     if (FXS_IS_EQ3(k))
         return eq3_desc(k, vp);
+    if (FXS_IS_XD(k)) {                                /* XDLY's TIME 1 TIME 2 MOD FDBK: the selected track's, the master's */
+#if FELUCCA_INS_XDLY
+        *vp = &XDL_V(k >= FXS_ID_MXD ? NTRK : song.sel % NTRK)[(k - FXS_ID_TXD) % XDV_N];
+        return &XD_DESC[(k - FXS_ID_TXD) % XDV_N];
+#else
+        *vp = 0;
+        return 0;
+#endif
+    }
     if (k >= FXS_ID_RAMT && k < FXS_ID_RAMT + 3u) {    /* a return's amount: its other type's (a send's: none) */
         uint32_t s = k - FXS_ID_RAMT + 1u;
         t = fxs_slot[s];

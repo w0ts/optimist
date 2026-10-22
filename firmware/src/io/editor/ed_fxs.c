@@ -68,7 +68,7 @@ static uint32_t ed_fx_sig(void)
 }
 
 static const uint8_t ED_FX_LID[FXT_N] = {127, 19, 18, 17, 16, 20, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127,
-                                             127, 127, 127, 127, 127, 127, 127, 127, 127};   /* (+ the shapers, TAPE SPIT) */   /* (fx_slots.c
+                                             127, 127, 127, 127, 127, 127, 127, 127, 127, 127};   /* (+ the shapers, TAPE SPIT, XDLY) */   /* (fx_slots.c
                                                         * fxs_lane_id's table) */
 /* one entry per FX type: a new type (the fx-pool branch adds 18, EQ3) trips this until its entry is added here and in
  * fx_slots.c fxs_lane_id (127: no SOUND 3 value) */
