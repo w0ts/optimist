@@ -2044,9 +2044,9 @@ static void chord_revoice(uint32_t sel)
 }
 #endif
 
-/* the drum keys that only pick a lane (the UI sets it every frame: STEP on the drum track, the transport playing, the drum track
- * not recording, OCT+ not held): they sound nothing then, so a pick never plays over the pattern (the user, 2026-10-21); stopped
- * or recording they sound as ever, SHIFT2 + the key sounds the lane (the UI's audition) */
+/* the drum keys that only pick a lane (the UI sets it every frame: the drum track, the transport playing, the drum track not
+ * recording, OCT+ not held; every page since 2026-10-22, STEP only before): they sound nothing then, so a pick never plays over
+ * the pattern (the user, 2026-10-21); stopped or recording they sound as ever, SHIFT2 + the key sounds the lane (the UI's audition) */
 static volatile uint8_t pick_quiet;
 static void seq_pick_quiet(uint32_t on) { pick_quiet = (uint8_t)(on != 0u); }
 static void key_down(uint32_t k)

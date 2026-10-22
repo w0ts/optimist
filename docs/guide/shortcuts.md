@@ -63,7 +63,7 @@ Every button, knob and key gesture, grouped by what you want to do, then the one
 | Gesture | Where | Does |
 |---|---|---|
 | OCT- / OCT+ tapped | a synth track | the octave, -3 to +3 |
-| a lane key | the drum track | off STEP it plays and picks the lane; on STEP it picks it (heard when stopped, silent while playing) |
+| a lane key | the drum track | picks the lane and plays it when stopped or recording; silent while playing |
 | a white key | the drum track, any page | a step of the selected lane (the 16 steps of the window), as on STEP |
 | the keys | MASTER, SCOPE, GLOBAL, SYSTEM, PROJECT, SONG, the USB IN row | silent, and the shifts do nothing with them (MASTER keeps the track's keys when you came with both OCT) |
 

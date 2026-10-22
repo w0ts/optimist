@@ -2415,6 +2415,31 @@ static void newproj_tests(void)
     check(dl.ofs[0][0] == 0 && dl.src[0] == 0 && dsend[0] == 0, "... the drum lanes' tuning and sound, their sends: blank");
     reset_ui();
 }
+static void pick_quiet_tests(void)
+{   /* the drum track's lane keys while playing: they pick the lane and sound nothing, on every page; stopped or
+     * recording they sound (the user, 2026-10-22) */
+    uint32_t k = key_of_lane(2);
+    reset_ui();
+    song.sel = TRK_DRUM;
+    ui.scr = SCR_HOME;
+    song.playing = 1;
+    frame();
+    kdown(k);
+    check(kb_kind[k] != KS_DRUM, "drum lane key, playing, off STEP: silent");
+    kup(k);
+    song.rec |= 1u << TRK_DRUM;
+    frame();
+    kdown(k);
+    check(kb_kind[k] == KS_DRUM, "... recording the drum track: it sounds");
+    kup(k);
+    song.rec &= ~(1u << TRK_DRUM);
+    song.playing = 0;
+    frame();
+    kdown(k);
+    check(kb_kind[k] == KS_DRUM, "... stopped: it sounds");
+    kup(k);
+    reset_ui();
+}
 static void wipe_tests(void)
 {   /* SHIFT2 + REC held while playing: the notes the sequencer enters are erased, one undo for the hold */
     track_t *t = &trk[0];
@@ -3777,6 +3802,7 @@ int main(int argc, char **argv)
     combo_tests();
     drumkit_popup_tests();
     wipe_tests();
+    pick_quiet_tests();
     song_tests();
     shortcut_tests();
     undo_extras_tests();
