@@ -134,14 +134,14 @@ static void acc_layers_tests(void)                      /* an upper key's meanin
     {
         uint32_t f = 0, d = 0, h = 0;
         keys_lit(&f, &d, &h);
-        check(!(f >> DACC_KEY & 1u) && (d >> DACC_KEY & 1u), "... its LED dim (the ACCENT lane makes no sound of its own), in the dim set");
+        check(!((f | h | d) >> DACC_KEY & 1u), "... muted: its LED dark (mute mode: muted dark, heard half; the ACCENT lane makes no sound of its own, so never full)");
     }
     kdown(DACC_KEY);
     kup(DACC_KEY);
     {
         uint32_t f = 0, d = 0, h = 0;
         keys_lit(&f, &d, &h);
-        check(!smute_lane_on(DRUM_ACC) && !(f >> DACC_KEY & 1u) && (d >> DACC_KEY & 1u), "... the key again: off, its LED dim");
+        check(!smute_lane_on(DRUM_ACC) && !(f >> DACC_KEY & 1u) && (h >> DACC_KEY & 1u), "... the key again: off, its LED half (heard)");
     }
     release(B_OCTDN);
     smute_lane = 0;
