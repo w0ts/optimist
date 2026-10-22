@@ -526,6 +526,37 @@ static uint32_t step_unlock(track_t *t, uint32_t idx)
  * page (the user, 2026-10-16: "while in drum mode they are always the step seq"; seq.c sends them here); the drum
  * track's black keys on STEP select their lane (stopped: it is heard; seq.c plays them off STEP) */
 static void lane_pick_from(uint32_t l, int key);        /* op_input.c: the lane selected (its preview) */
+static int32_t lane_held(uint32_t k)                    /* a lane's black key down besides key k: its lane, -1 none */
+{
+    uint32_t j;
+    for (j = 0; j < 27u; j++)
+        if (j != k && ((fm1_in.notes >> j) & 1u) && lane_key(j))
+            return (int32_t)lane_of(j);
+    return -1;
+}
+/* a lane's black key held + a step pressed: that lane's hit there NORM -> HARD -> GHOST -> NORM (an empty step: NORM; SOFT: NORM),
+ * the level said (the user, 2026-10-22: "hold instrument key plus step to cycle, and notif popup"); the ACCENT lane, no level: on /
+ * off. The step's LEVEL card is the same value (held step, step_cell) */
+static void step_lvl_cycle(track_t *t, uint32_t idx, uint32_t l)
+{
+    static const char *const LV_SAY[4] = {" NORM", " GHOST", " SOFT", " HARD"};   /* (LV_NORM, LV_GHOST, LV_SOFT, LV_HARD) */
+    dstep_t *d = &t->dstep[idx];
+    uint32_t has = dstep_has(d, l), lv = dstep_lvl(d, l), nv;
+    undo_mark(t, st.sess);
+    fm1_irq_off();
+    if (l == DRUM_ACC && has) {
+        step_wipe(t, idx, 0);
+    } else {
+        nv = l == DRUM_ACC || !has ? LV_NORM : lv == LV_NORM ? LV_HARD : lv == LV_HARD ? LV_GHOST : LV_NORM;
+        dstep_set(d, l, nv, has ? dstep_rat(d, l) : 0u);
+        t->seq_active = 1;
+    }
+    fm1_irq_on();
+    sync_reload = 1;
+    ui.toast_next = 1;                                  /* (a toast in the middle, on every page: the mixer and the lanes' pages show no level) */
+    ui_say(lane_short(l), l == DRUM_ACC ? (has ? " OFF" : " ON") : LV_SAY[dstep_lvl(d, l) & 3u]);
+    ui.toast_next = 0;
+}
 static void step_key(uint32_t k, uint32_t down, uint32_t held)
 {
     track_t *t = tsel();
@@ -554,14 +585,10 @@ static void step_key(uint32_t k, uint32_t down, uint32_t held)
             return;
         st.held &= (uint16_t)~bit;
         if ((st.pend & bit) && lk_ev_ms - st.t_key[w] < op_hold_ms() && idx < trk_len(t)) {   /* tapped: toggled */
-            dstep_t *d = &t->dstep[idx];
-            uint32_t l = lane_selected(), lv = dstep_lvl(d, l);
             undo_mark(t, st.sess);
             fm1_irq_off();
-            if (is_drum(t) && l != DRUM_ACC && dstep_has(d, l) && (lv == LV_NORM || lv == LV_HARD))   /* a drum hit tapped: normal
-                                                         * -> hard -> ghost -> off (the user, 2026-10-14) */
-                dstep_set(d, l, lv == LV_NORM ? LV_HARD : LV_GHOST, dstep_rat(d, l));
-            else if (step_has(t, idx))
+            if (step_has(t, idx))                       /* (a drum hit tapped: off; its level is the combos' at the press, SHIFT
+                                                         * ghost / SHIFT2 hard, step_set; the user, 2026-10-22: no level cycle) */
                 is_drum(t) ? step_wipe(t, idx, 0) : step_off_keep(t, idx);
             else if (step_kept(t, idx))
                 step_back(t, idx);                      /* (the pitch it had) */
@@ -586,6 +613,10 @@ static void step_key(uint32_t k, uint32_t down, uint32_t held)
     if (st.latch)
         pk_unlatch();                                   /* (a step key: the picked note's cards let go, the fingers' own) */
     st.sess = (undo_sess += 4u) | 3u;                   /* every step key: an undo level */
+    if (is_drum(t) && lane_held(k) >= 0) {              /* a black key held + the step: its lane's level, at the press (no hold, */
+        step_lvl_cycle(t, idx, (uint32_t)lane_held(k)); /* no tap when let go: the finger is not st.fdown's) */
+        return;
+    }
     if (op_shift(held) && !(is_drum(t) && !step_has(t, idx))) {   /* SHIFT + a step: its p-locks cleared, the step stays (a drum
                                                          * step not hit yet: OCT- is its ghost hit, seq.c) */
         uint32_t n;

@@ -25,8 +25,6 @@ static void step_hold_tests(void)
         check(!sh_on(0), d ? "step hold, drums: an empty step pressed: nothing yet (set when let go)" : "step hold, synth: an empty step pressed: nothing yet (set when let go)");
         kup(WK(0));
         check(sh_on(0), d ? "step hold, drums: ... let go (a tap): set" : "step hold, synth: ... let go (a tap): set");
-        if (d)
-            key(WK(0)), key(WK(0));                     /* (drums: a tap cycles normal -> hard -> ghost -> off) */
         key(WK(0));
         check(!sh_on(0), d ? "step hold, drums: a set step tapped: cleared" : "step hold, synth: a set step tapped: cleared");
         /* a long press: the cards, no toggle */
