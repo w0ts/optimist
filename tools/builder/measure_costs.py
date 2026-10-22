@@ -58,6 +58,9 @@ PAIRS = [{"MOTION": 1, "SECTIONS": 4},
          # the five sampled kits share the PERC samples: each kit's own delta is ~0, all five off together drop them
          {f"KIT_{k}": 0 for k in ("ACOUSTIC", "DEEP", "TIGHT", "BRIGHT", "DUST")},
          {"DRUM_X0X909": 1, "DRUM_X0X808": 1},   # (the X0X drum voice code and its state, once for both kits)
+         # the three drum synths (the 32 kits, KAWA, PLAITS: each its own item, on by default) share the synth's voice and
+         # its sound table (registry.h DRUM_DS): each one's delta is its own part, all three off together drop the shared one
+         {"DRUM_SYNTH": 0, "DS_KAWA": 0, "DS_PLAITS": 0},
          # every sample set off: the set tables' code goes; with the sampled drums off too, the sample voice's
          {f"SET_{k}": 0 for k in SETS}, dict({"DRUM_SAMPLED": 0}, **{f"SET_{k}": 0 for k in SETS}),
          # SLOOP 2.4's step features share their step-extras code (measured with SL24_XSTEP, their storage)

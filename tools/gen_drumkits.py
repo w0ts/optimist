@@ -483,7 +483,11 @@ def main(path):
         L.append(f'    {{"{name}", "{style}", 0x{crush:02X}, {{' + ", ".join(str(i) for i in si) + "}},")
     L.append("};")
     L.append("#endif")
-    L.append("#define DS_XKIT_BUILT_LIST " + ", ".join(f"FELUCCA_DRUM_SYNTH && {k[4]}" for k in XKITS))
+    # each its own switch, without the 32 kits too (registry.h: three drum synths, independent of each other)
+    L.append("#define DS_XKIT_BUILT_LIST " + ", ".join(f"{k[4]}" for k in XKITS))
+    L.append("#define DS_XKIT_ANY (" + " || ".join(k[4] for k in XKITS) + ")" if XKITS else "#define DS_XKIT_ANY 0")
+    L.append("#define DS_XKIT_FIRST (" + "".join(f"{k[4]} ? {i}u : " for i, k in enumerate(XKITS)) + "0u)"
+             + "   /* the first built (drums.c: the kit of a build with no other) */")
     L.append("#define DS_XKIT_STANDIN_LIST " + ", ".join(str(names.index(k[5])) for k in XKITS))
     L.append("#define DS_XKIT_NAME_LIST " + ", ".join(f'"{k[0]}"' for k in XKITS))
     L.append("#define DS_XKIT_STYLE_LIST " + ", ".join(f'"{k[1]}"' for k in XKITS))

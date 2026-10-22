@@ -126,6 +126,11 @@ def built(cfg, key):
     return cfg[key] != 0
 
 
+# the drum synths, each a drum source on its own (no parent: the user, 2026-10-22, "3 drum synths, independent of each
+# other"): the 32 synthesised kits, KAWA, PLAITS (their shared voice built with any of them: registry.h DRUM_DS), the X0X kits
+DRUM_SYNTHS = ("DRUM_SYNTH", "DS_KAWA", "DS_PLAITS", "DRUM_X0X909", "DRUM_X0X808")
+
+
 class Issue(str):
     """a validate() message that names the registry items it concerns (.keys): the menu marks their lines. It is
     a str, so printing, joining and `in` work as on a plain message"""
@@ -168,10 +173,10 @@ def validate(cfg):
                          "(or the reverb bus off)",
                          ["FX_REVERB"] + revs))
     kits = [k for k in R.ITEMS if k.startswith("KIT_")]
-    synths = ["DRUM_SYNTH", "DRUM_X0X909", "DRUM_X0X808"]   # (the drum synths, first in Drums: each a drum source on its own)
+    synths = list(DRUM_SYNTHS)   # (the drum synths, first in Drums: each a drum source on its own)
     if not any(built(cfg, k) for k in synths + kits):
-        err.append(Issue("the drum track needs a drum source: a drum synth (the synthesised kits, X0X 909, X0X 808) "
-                         "or a sampled kit", synths + ["DRUM_SAMPLED"] + kits))
+        err.append(Issue("the drum track needs a drum source: a drum synth (the 32 synthesised kits, KAWA, PLAITS, "
+                         "X0X 909, X0X 808) or a sampled kit", synths + ["DRUM_SAMPLED"] + kits))
     sets = [k for k in R.ITEMS if k.startswith("SET_")]
     if any(cfg[k] for k in sets) and not built(cfg, "ENG_SAMPLE") and not built(cfg, "ENG_GRAIN"):
         warn.append(Issue("sample sets without SAMPLE or GRAIN: nothing plays them (only the drums use PERC)",
@@ -183,7 +188,7 @@ def validate(cfg):
     elif built(cfg, "ENG_GRAIN") and not any(cfg[k] for k in GRAIN_SETS):
         warn.append(Issue("GRAIN's presets play PIANO, VIBES or FLUTE: without them it has GRAIN PAD on the first "
                           "melodic set built (none: INIT, its defaults)", ["ENG_GRAIN"] + list(GRAIN_SETS)))
-    if built(cfg, "FX_DUCK") and not any(built(cfg, k) for k in ("DRUM_SYNTH", "DRUM_X0X909", "DRUM_X0X808", "DRUM_SAMPLED")):
+    if built(cfg, "FX_DUCK") and not any(built(cfg, k) for k in DRUM_SYNTHS + ("DRUM_SAMPLED",)):
         warn.append(Issue("DUCK follows the kick", ("FX_DUCK", "DRUM_SYNTH", "DRUM_SAMPLED")))
     for k, it in R.ITEMS.items():
         if it.off_warning and not cfg[k] and (not it.parent or built(cfg, it.parent)):

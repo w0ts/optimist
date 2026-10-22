@@ -37,12 +37,12 @@ A build without them plays the synthesised 909 / 808 instead and says MISSING; t
 
 ### KAWA and PLAITS
 
-Two more synthesised kits after the X0X ones, each a builder item of its own:
+Two more synthesised kits after the X0X ones, each a builder item of its own: three drum synths in all (the 32 kits, KAWA, PLAITS), independent of each other, so a build can have KAWA or PLAITS without the 32 kits:
 
 - **KAWA** (`DS_KAWA`), after Kawa Tracker's kit engine: a kick with an FM beater, a rumble that swells in, a flammed snare, a brush, a clap with its hands, tight-cluster hats, a wide crash, a ride's bell, ring-modulated toms, rim and cowbell, a shaker that swells in, and a guiro on the CLAVE lane.
 - **PLAITS** (`DS_PLAITS`): two kicks and two snares from Mutable Instruments Plaits' synthetic bass drum and snare drum; the other lanes are the 909's. EDIT moves them as the other sounds: TUNE, DECAY, CUT + (the kick's TONE, the snare's FM), CLICK (the kick's FM), SNAP (the snare's snap).
 
-Any lane of another kit can play their sounds (SRC lists them after the X0X styles). A build without one plays the 808 (KAWA) or the 909 (PLAITS) for it and says MISSING; the project keeps the kit.
+Any lane of another kit can play their sounds (SRC lists them after the X0X styles). A build without one plays the 808 (KAWA) or the 909 (PLAITS) for it and says MISSING; the project keeps the kit. A build without the 32 kits lists only the kits it has, starts on the first of them, and plays that kit (a sampled one first, else an X0X kit, else KAWA or PLAITS) for any kit it lacks.
 
 ## Edit a lane's sound
 

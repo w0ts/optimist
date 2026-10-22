@@ -211,7 +211,21 @@ check("the FM6 voice packs: five items (bits 93..97), off by default, each a fla
       [items[k].bit for k in ("FM6_PK_KEYS", "FM6_PK_BASS", "FM6_PK_BELLS", "FM6_PK_PADS", "FM6_PK_80S")] == [93, 94, 95, 96, 97] and
       not any(C.defaults()[k] for k in ("FM6_PK_KEYS", "FM6_PK_BASS", "FM6_PK_BELLS", "FM6_PK_PADS", "FM6_PK_80S")) and
       all(items[k].flag == "FELUCCA_" + k for k in ("FM6_PK_KEYS", "FM6_PK_BASS", "FM6_PK_BELLS", "FM6_PK_PADS", "FM6_PK_80S")))
-bad = dict(C.defaults(), DRUM_SYNTH=0, DRUM_SAMPLED=0)
+NO_DS = dict(DRUM_SYNTH=0, DS_KAWA=0, DS_PLAITS=0)   # (the three drum synths, each a drum source on its own)
+bad = dict(C.defaults(), DRUM_SAMPLED=0, **NO_DS)
+# the three drum synths independent (the user, 2026-10-22, "3 drum synths, independent of each other"): the 32 kits,
+# KAWA, PLAITS; the code they share (drum_synth.c, the kit tables) is built with any of them
+check("the drum synths: DRUM_SYNTH, DS_KAWA, DS_PLAITS each an item of its own (no parent), on by default",
+      all(not items[k].parent and C.defaults()[k] == 1 for k in NO_DS))
+for _k in NO_DS:
+    _one = dict(C.defaults(), DRUM_SAMPLED=0, **dict(NO_DS, **{_k: 1}))
+    _f, _ = C.flags(_one)
+    check(f"{_k} alone (no other drum synth, no sampled kit): a drum source, valid, built with only its own switch",
+          not C.validate(_one)[0] and C.built(_one, _k) and
+          all(_f[items[k].flag] == (k == _k) for k in NO_DS))
+check("KAWA on does not need or switch on the 32 kits (and the other way)",
+      not C.built(dict(C.defaults(), DRUM_SYNTH=0), "DRUM_SYNTH") and C.built(dict(C.defaults(), DRUM_SYNTH=0), "DS_KAWA")
+      and C.built(dict(C.defaults(), DS_KAWA=0), "DRUM_SYNTH"))
 check("no drum source: an error", any("drum source" in e for e in C.validate(bad)[0]))
 w = dict(C.defaults(), FM6_KEYS=0, FM6_SYSEX=0)
 check("FM6 without editor and SysEx: a warning (no voice editing)", any("no voice editing" in x for x in C.validate(w)[1]))
@@ -232,7 +246,7 @@ if "MOTION" in items:
 # each error names the items it concerns (the menu marks their lines in red as soon as it holds)
 eng = [k for k in items if items[k].group == "Synth engines" and not items[k].parent]
 cases = [("no synth engine", {k: 0 for k in eng}, set(eng)),
-         ("no drum source", dict(DRUM_SYNTH=0, DRUM_SAMPLED=0), {"DRUM_SYNTH", "DRUM_SAMPLED"}),
+         ("no drum source", dict(DRUM_SAMPLED=0, **NO_DS), {"DRUM_SYNTH", "DS_KAWA", "DS_PLAITS", "DRUM_SAMPLED"}),
          ("a value out of range", dict(SECTIONS=5), {"SECTIONS"})]
 ok = True
 for what, ch, want in cases:
@@ -241,11 +255,11 @@ for what, ch, want in cases:
     ok &= all(k in C.conflicts(dict(C.defaults(), **ch)) for k in want)
 check("every error names its items (" + ", ".join(c[0] for c in cases) + ")", ok)
 kit = next(k for k in items if k.startswith("KIT_"))
-cf = C.conflicts(dict(C.defaults(), DRUM_SYNTH=0, DRUM_SAMPLED=0))
+cf = C.conflicts(dict(C.defaults(), DRUM_SAMPLED=0, **NO_DS))
 check("... an option named by an error marks its parent too (it may be folded away)",
       kit in cf and items[kit].parent in cf and not C.conflicts(C.defaults()))
 check("... an error is still a plain message (str: printed, joined, searched)",
-      all(isinstance(e, str) for e in C.validate(dict(C.defaults(), DRUM_SYNTH=0, DRUM_SAMPLED=0))[0]))
+      all(isinstance(e, str) for e in C.validate(dict(C.defaults(), DRUM_SAMPLED=0, **NO_DS))[0]))
 costs = C.load_costs()
 if costs and "MOTION" in items:
     m16 = C.budget(dict(C.defaults(), MOTION=1), costs, anchor=False)["total"]
@@ -287,8 +301,12 @@ cover_cases = [(p, C.load_profile(p)[0]) for p in C.profile_names()] + [
     ("no set of GRAIN's presets", dict(C.defaults(), SET_PIANO=0, SET_VIBES=0, SET_FLUTE=0)),
     ("only PERC (the sampled kits)", dict(C.defaults(), **{k: 0 for k in sets})),
     ("SLICE, PHYS, CZ, FM6 without a voice pack", dict(C.defaults(), ENG_SLICE=1, ENG_PHYS=1, ENG_CZ=1, FM6_PK_KEYS=0, FM6_PK_80S=0)),
-    ("one sampled kit, no drum synth", dict(C.defaults(), DRUM_SYNTH=0, KIT_ACOUSTIC=0, KIT_DEEP=0, KIT_TIGHT=0,
+    ("one sampled kit, no drum synth", dict(C.defaults(), **NO_DS, KIT_ACOUSTIC=0, KIT_DEEP=0, KIT_TIGHT=0,
                                            KIT_BRIGHT=0)),
+    ("KAWA alone (no 32 kits, no sampled kit)", dict(C.defaults(), DRUM_SAMPLED=0, **dict(NO_DS, DS_KAWA=1))),
+    ("PLAITS alone", dict(C.defaults(), DRUM_SAMPLED=0, **dict(NO_DS, DS_PLAITS=1))),
+    ("KAWA and PLAITS, sampled kits, no 32 kits", dict(C.defaults(), DRUM_SYNTH=0)),
+    ("PLAITS with the X0X kits", dict(C.defaults(), DRUM_SAMPLED=0, DRUM_X0X909=1, DRUM_X0X808=1, **dict(NO_DS, DS_PLAITS=1))),
     ("the X0X kits", dict(C.defaults(), DRUM_X0X909=1, DRUM_X0X808=1)),
     ("ACID with the X0X kits", dict(C.defaults(), ENG_ACID=1, DRUM_X0X909=1, DRUM_X0X808=1))]
 rng = random.Random(int(os.environ.get("PRESET_COVER_SEED", "1")))

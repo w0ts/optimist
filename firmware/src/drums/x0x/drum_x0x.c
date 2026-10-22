@@ -110,14 +110,14 @@ static uint32_t x0x_code(uint32_t k, uint32_t l, uint32_t note)
     (void)l;
     return x0x_note(k, note);
 }
-/* the kit that plays the notes an X0X kit lacks: the synthesised 909 / 808, else the first sampled kit, else none
- * (DRUM_KITS: an X0X-only build, those notes silent) */
+/* the kit that plays the notes an X0X kit lacks: the synthesised 909 / 808, else the first sampled kit, else KAWA or
+ * PLAITS (the first built), else none (DRUM_KITS: an X0X-only build, those notes silent) */
 static uint32_t x0x_standin(uint32_t k)
 {
     k = DRUM_UID_XMACH(k);
     if (FELUCCA_DRUM_SYNTH)
         return k == DRUM_UID_X909 ? DRUM_SAMPLED + 1u : DRUM_SAMPLED;
-    return DRUM_SMASK ? DRUM_SFIRST : DRUM_KITS;
+    return DRUM_SMASK ? DRUM_SFIRST : DS_XKIT_ANY ? DRUM_XKFIRST : DRUM_KITS;
 }
 /* what lane l shows on the SOUND pages when it plays X0X kit k (XS_*), 0 = not an X0X sound */
 static uint32_t x0x_show(uint32_t k, uint32_t l)

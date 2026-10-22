@@ -524,7 +524,7 @@ static void graph_denv(void)
     if (!usr && kit >= DRUM_KITS)
         return;                                         /* (none: an X0X-only build, the note silent) */
 #endif
-    if (usr || kit < DRUM_SAMPLED || !FELUCCA_DRUM_SYNTH)
+    if (usr || kit < DRUM_SAMPLED || !DRUM_DS)
         denv_sample(l, usr, o, y0, h, c);
     else
         denv_synth(l, kit, o, y0, h, c);
