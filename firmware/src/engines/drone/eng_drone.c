@@ -33,8 +33,10 @@
  *
  * State: the part's (drone_pt; one voice), kept across notes; a note on a silent voice starts it afresh (drone_note_on). */
 static const char *const N_DRONE_TOPO[] = {"PAIRS", "CHAIN", "RING"};
-static const char *const N_DRONE_OFF[] = {"OFF"};
-static const param_desc_t DRONE_BEAT_OFF = {"BEAT", F_ENUM, 0, 127, 0, N_DRONE_OFF, 0};   /* = edit[6] at 0 */
+/* = edit[6] at 0: an F_INT with a 0-terminated name list reads OFF on any value of its range (params.c param_format; an
+ * F_ENUM would read names 1..127 that are not there: a lock's value on STEP, the editor's DESC, the list tests) */
+static const char *const N_DRONE_OFF[] = {"OFF", 0};
+static const param_desc_t DRONE_BEAT_OFF = {"BEAT", F_INT, 0, 127, 0, N_DRONE_OFF, 0};
 
 /* BEAT's increment: LFO_HZ_X100 (Hz x 100) x 2^32 / (100 FS), rounded */
 #define DRONE_BEAT_K ((uint32_t)((4294967296ull + 50ull * FS) / (100ull * FS)))

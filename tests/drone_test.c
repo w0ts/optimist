@@ -396,6 +396,30 @@ static void t_poly(void)
     check(active(&trk[0]) == 1u && pk <= 32767u, "8 keys: 1 voice (the cap: one network a part), bounded");
 }
 
+/* BEAT at 0 (drone_desc's OFF descriptor): every value of its range reads OFF, no name past its list (params.c
+ * param_format: a lock's value on STEP, every value of a list; the editor's DESC sends an F_ENUM's names min..max) */
+static void t_beat_off(void)
+{
+    const param_desc_t *d;
+    int32_t v, n = 0, ok = 1;
+    char val[16];
+    const char *u;
+    reset();
+    host_preset(&trk[0], ENG_IX_DRONE, 0);
+    trk[0].p[P_E6] = 0;
+    d = track_desc(&trk[0], P_E6);
+    while (d->names && d->names[n])
+        n++;
+    for (v = d->min; v <= d->max; v++) {
+        param_format(d, v, val, &u);
+        ok &= !strcmp(val, "OFF");
+    }
+    check(d->max == 127 && ok && (d->fmt != F_ENUM || n > d->max - d->min),
+          "BEAT 0: OFF for every value of its range, never a name past its list");
+    trk[0].p[P_E6] = 40;
+    check(track_desc(&trk[0], P_E6)->fmt == F_LFOHZ, "BEAT 40: its rate in Hz");
+}
+
 int main(int argc, char **argv)
 {
     host_tracks_init();
@@ -407,6 +431,7 @@ int main(int argc, char **argv)
     t_edits();
     t_topo();
     t_beat();
+    t_beat_off();
     t_hold();
     t_switch();
     t_poly();
