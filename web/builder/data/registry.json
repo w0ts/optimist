@@ -2724,12 +2724,12 @@
    {
     "key": "PATTERNS",
     "flag": "FELUCCA_PATTERNS",
-    "label": "per-track patterns and scenes",
+    "label": "per-project patterns and scenes",
     "group": "Sequencer",
     "bit": 250,
     "default": 0,
     "parent": null,
-    "desc": "16 patterns a track, stored in the section log; a section becomes a scene that names a pattern a track, so scenes share patterns and an unchanged track costs nothing. The old sections become scenes at the first start. LFO held: the PATTERN layer (launch at the end, the next bar or now; store, copy, clear); the web editor shows the slots in the mixer. About 6.1 KB of flash and 0.1 KB of RAM. Off: sections as before (a scene stored with patterns plays as the section it would be).",
+    "desc": "Each of the 16 projects owns its state, 16 patterns a track, its scenes A..P and its song (docs/PROJECTS-DESIGN.md): nothing done in one project touches another. The log moves to 0xA0000 and grows to 128 KB (80 KB with SAMPLE or DRUM_USR built: user sample slot 1, which the samples lose). The old log at 0x97000 is not read. LFO held: the PATTERN layer (launch at the end, the next bar or now; store, copy, clear); the web editor shows the slots in the mixer. Off: a project is a plain section with its steps in it, in the old log.",
     "experimental": false,
     "notice": "",
     "off_warning": "",
@@ -2737,7 +2737,7 @@
     "target_only": false,
     "symbols": [
      "pat_scene_put",
-     "pat_migrate"
+     "project_open"
     ],
     "no_image": false,
     "fixed": false,
@@ -3299,7 +3299,8 @@
      "ED_LIVE",
      "ED_MIX",
      "ED_SEQ",
-     "ED_SCREENS"
+     "ED_SCREENS",
+     "ED_MIRROR"
     ],
     "tested": "emulator-tested only",
     "provenance_line": ""
@@ -3440,6 +3441,29 @@
     "provenance": null,
     "children": [],
     "tested": "emulator-tested only",
+    "provenance_line": ""
+   },
+   {
+    "key": "ED_MIRROR",
+    "flag": "FELUCCA_ED_MIRROR",
+    "label": "web editor: the screen mirrored on a phone (the iPhone app, USB)",
+    "group": "System",
+    "bit": 381,
+    "default": 0,
+    "parent": "EDITOR",
+    "desc": "The FM-1's screen on an iPhone (the FM-1 Mirror app, ios/OptimistMirror) over a USB cable: while the app asks (cmd 106), every write to the panel also goes out, run-length coded, as it is drawn, so the phone shows the very pixels: the mixer, the step grid, the layers, the dialogs. No frame buffer on the device (a few bytes of RAM); nothing is sent while no app asks; the mixer's VU meters are not sent. A host that stops reading for 30 ms ends it (the app asks again and the panel is drawn whole). With live editing (ED_LIVE) or without.",
+    "experimental": true,
+    "notice": "",
+    "off_warning": "",
+    "env": "",
+    "target_only": false,
+    "symbols": [],
+    "no_image": false,
+    "fixed": false,
+    "choices": [],
+    "provenance": null,
+    "children": [],
+    "tested": "host-tested only (the stream decoded back to every screen drawn), not on a device",
     "provenance_line": ""
    },
    {

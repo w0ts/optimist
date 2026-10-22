@@ -59,6 +59,7 @@ answer its commands; the page hides what needs them and keeps the rest (its mock
 | `ED_MIX` (needs ED_LIVE) | 86 FX, 87 FX_PUSH, 94 FXP, 95 DLAN, 104 SOLO | 56, 57, 58, 61 |
 | `ED_SEQ` (needs ED_LIVE) | 97 SONGC (arranger), 98 TOOLS (`SEQTOOLS` or `NOTEGEN`), 105 STEPLANE (automation store) | 5A, 5B, 62 |
 | `ED_SCREENS` (needs ED_LIVE) | 96 SCRN, 99 SCRS, 101 SCOPE | 59, 5C, 5E |
+| `ED_MIRROR` (live editing or not; default off) | 106 MIRROR and its pushes | 65 |
 
 Other switches: 36..42 need the drum lanes (kits: `DRUM_KITS`), 65 `MACROS`, 66 the CZ collection, 78 / 90 `SL24_EXPORT` / `SL24_EDIMPORT`
 (default off), 92 / 93 the automation store, 100 `FAVORITES`, 79..84 `PATTERNS`, 54..57 `SNAPSHOTS`.
@@ -75,7 +76,7 @@ The web editor used none of these and no build answers them (the page still carr
 `STATUS` 53 and its stream `STREAM` 58 (transport, playing steps, meters; `WATCH` bit 3 is never granted), `REC` 107 and its tag 63,
 SLOOP 2.4's step extras 72..77 (`LOCK_*`, `MICRO_*`, `FILL_*`: the automation store 92 / 93 has them), the pushes `CHANGED` 23,
 `STEP_CHANGED` 26 and `TRACK_CHANGED` 32 (and `WATCH` bits 1 and 3), the 2.4 settings and FM6 bank parts of 78 (parts 1..3, rc 1) and
-`SL24_BANK` 91, FM6's user-bank commands. Numbers 34, 35, 85, 88, 89 and 106 are unused (reserved).
+`SL24_BANK` 91, FM6's user-bank commands. Numbers 34, 35, 85, 88 and 89 are unused (reserved).
 
 ## INFO (1) and BUILD (49)
 
@@ -490,6 +491,25 @@ instead). **UNLOCK** drops both kinds. **KIND** turns a lock into a hold event o
 
 `ed_scope.c` (`ED_SCREENS`). Request: src (0 MASTER, 1..4 T1 T2 T3 DR). Reply: src, shift (the right shift that fits the peak; never amplified), peak v14 (the ring's largest sample >> 2, at most 8191), n (2 x 7 bits), n heights (0..127, 64 the zero line). The trace is trigger-stable.
 Asking sets the ring's source for the next 2 s: ask again about every 80 ms to watch. A bad src: no reply.
+
+## The screen mirrored (106 MIRROR; INFO tag 65)
+
+`ed_mirror.c`, `ed_mirror_enc.h` (`ED_MIRROR`, with live editing or without; the client is the iPhone app `ios/OptimistMirror`). While a client asks, every write to the panel
+(`display/lcd.c` `lcd_fill`, `lcd_blit`) also goes out as it is drawn; a client applying them in order holds the panel's pixels. The device keeps no frame buffer and sends nothing while no client asks; the mixer's VU meters are not sent.
+
+Request: bits (bit 0 on, bit 1 the whole panel again). Reply: on, version 1, width (2 x 7 bit), height (2 x 7 bit). A first on (and bit 1) draws the whole panel from black.
+Mirroring ends 3 s after the last request of any kind (ask again or `PING` about every 1 s), on a USB reset, with `106 0`, and when the host reads nothing for 30 ms (ask again: the panel comes whole).
+
+Pushes, cmd 106, by op:
+
+| op | Bytes |
+| --- | --- |
+| 0 FILL | x, y, w, h (2 x 7 bit each), colour (RGB565, 3 x 7 bit) |
+| 1 BLIT | x, y, w, h, then runs: the rectangle's pixels row by row |
+| 2 MORE | runs: the BLIT before goes on (a BLIT is cut into frames of about 250 bytes) |
+
+A run: a token `t = n << 3 | s`. `n` 0..14: n + 1 pixels; `n` 15: 16 + (2 x 7 bit after it) pixels. `s` 0..6: the colour in that slot; `s` 7: a colour follows (3 x 7 bit) and
+takes slot k, k going 1, 2 .. 6, 1 ... The slots are reset at each BLIT: all black, slot 0 stays black. Reference decoder: `tests/mirror_dec.h`; the UI's whole host run is checked through it (`MIRROR_CHECK`).
 
 ## Undo (102 UNDO; INFO tag 5F)
 

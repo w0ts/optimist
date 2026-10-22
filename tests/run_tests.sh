@@ -1202,6 +1202,15 @@ job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_LIVE_SAVE=1 -o "$OUT/sections_live_test" tests/sections_test.c -lm
     run "song sections with LIVE_SAVE: saved while playing, the waiting ones one a call, back to waiting after a held erase" "$OUT/sections_live_test"
 ) >"$U.out" 2>&1 & jobbg
+# the screen mirrored (ED_MIRROR, io/editor/ed_mirror.c): the stream through a stand-in USB ring decoded back to the panel after
+# every write, a stalled host, the keep-alive; then the Optimist UI's whole run through the encoder, the decoded screen its own
+job; ( jobin
+    $CC -O2 -w -o "$OUT/mirror_test" tests/mirror_test.c
+    run "the screen mirrored: 3000 random writes decoded to the same panel through the USB packets, long runs, a stalled host ends it, 3 s keep-alive, USB reset, the meters not sent" "$OUT/mirror_test"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -DMIRROR_CHECK -o "$OUT/ui_optimist_mirror_test" tests/ui_optimist_test.c -lm
+    mkdir -p "$OUT/optimist_mirror"
+    run "the screen mirrored: the Optimist UI's whole run (every test, 20000 random frames) encoded and decoded, the same pixels" "$OUT/ui_optimist_mirror_test" "$OUT/optimist_mirror"
+) >"$U.out" 2>&1 & jobbg
 for x in 0 1; do   # per-track patterns and scenes (FELUCCA_PATTERNS): unit; then a PATTERNS -> no PATTERNS -> PATTERNS round trip
     job; ( jobin
         $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SL24_XSTEP=$x -o "$OUT/patterns_test$x" tests/patterns_test.c -lm

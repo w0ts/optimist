@@ -893,6 +893,14 @@ _add("ED_SCREENS", "FELUCCA_ED_SCREENS", "web editor: the device's screens (card
           "rows of cards (cmd 99), GLOBAL and SYSTEM as the device's lines with their help (cmd 96) and the "
           "oscilloscope (cmd 101). Off: no Device tab; "
           "the editor keeps its own Sound / Mixer / Sequence tabs.")
+_add("ED_MIRROR", "FELUCCA_ED_MIRROR", "web editor: the screen mirrored on a phone (the iPhone app, USB)", Y, 381,
+     parent="EDITOR", default=0, experimental=True, tested="host-tested only (the stream decoded back to every screen drawn), "
+     "not on a device",
+     desc="The FM-1's screen on an iPhone (the FM-1 Mirror app, ios/OptimistMirror) over a USB cable: while the app asks "
+          "(cmd 106), every write to the panel also goes out, run-length coded, as it is drawn, so the phone shows the very "
+          "pixels: the mixer, the step grid, the layers, the dialogs. No frame buffer on the device (a few bytes of RAM); "
+          "nothing is sent while no app asks; the mixer's VU meters are not sent. A host that stops reading for 30 ms ends "
+          "it (the app asks again and the panel is drawn whole). With live editing (ED_LIVE) or without.")
 # (bit 70, SIZE, retired 2026-10: the UI, storage and editor code is always built minsize, tools/size_fns.py keeps the
 #  audio path out of it; never reuse the bit)
 _add("TAB_IN_POOL", "FELUCCA_TAB_IN_POOL", "sound tables and FM6 buffers in the pool, not main RAM", Y, 300, default=0,
