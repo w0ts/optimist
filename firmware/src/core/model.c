@@ -72,6 +72,21 @@ static int seq_is_empty(const track_t *t) { return track_empty(t); }
 
 static void track_defaults_steps(track_t *t) { steps_clear(t); }
 
+/* the drum track of a default project (power-on with nothing stored, TOOLS > NEW): no hit, its ACCENT lane four on
+ * the floor, a NORM accent on every beat (every 4th step at the default DIV 1/16, through the whole pattern; the user,
+ * 2026-10-22). Nothing sounds: the project is still empty for the first take and the click (seq.c track_empty) */
+static void drum_defaults_steps(track_t *t)
+{
+    track_defaults_steps(t);
+#if FELUCCA_DRUM_ACCENT
+    {
+        uint32_t k;
+        for (k = 0; k < NSTEP; k += 4u)
+            dstep_set(&t->dstep[k], DRUM_ACC, LV_NORM, 0);
+    }
+#endif
+}
+
 /* what loading a sound (factory or user preset) leaves alone: the mix (LEVEL, PAN, MUTE, the FX bypass:
  * the TRACKS faders, GLO + key), the pattern parameters (LEN, DIV, SWING, GATE) and the key the part plays
  * in (ROOT, SCALE, QNT, CHORD: the song's; SCL + key sets the root of every part). The SLICER is
@@ -189,7 +204,10 @@ static void track_defaults(track_t *t)
     for (i = 0; is_drum(t) && i < GR_KIT_N; i++)
         if (DRUM_GR_OF(P_GRX + i))
             t->p[P_GRX + i] = DRUM_GR_OF(P_GRX + i)->def;   /* (the kit's GRIDS: params.c) */
-    track_defaults_steps(t);
+    if (is_drum(t))
+        drum_defaults_steps(t);                      /* (no hit; the ACCENT lane four on the floor) */
+    else
+        track_defaults_steps(t);
 }
 
 /* the factory presets as one list by kind (basses, keys, organs, pads, leads, plucks and bells, stabs,

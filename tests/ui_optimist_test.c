@@ -2433,6 +2433,19 @@ static void newproj_tests(void)
     check(ins_slot[0][0] != 2 && fxs_slot[0] != 2, "... the inserts and the FX slots empty again");
 #endif
     check(dl.ofs[0][0] == 0 && dl.src[0] == 0 && dsend[0] == 0, "... the drum lanes' tuning and sound, their sends: blank");
+#if FELUCCA_DRUM_ACCENT
+    {   /* the drum track: no hit, its ACCENT lane four on the floor (the user, 2026-10-22); the project still counts as empty */
+        uint32_t k, ok = 1;
+        for (k = 0; k < NSTEP; k++) {
+            const dstep_t *s = &TDRUM->dstep[k];
+            ok &= (uint32_t)(dstep_mask(s) == 0u && dstep_has(s, DRUM_ACC) == (int)(k % 4u == 0u));
+            if (k % 4u == 0u)
+                ok &= (uint32_t)(dstep_lvl(s, DRUM_ACC) == LV_NORM && dstep_rat(s, DRUM_ACC) == 0u);
+        }
+        check(ok, "... the drum track: no hit, the ACCENT lane on every 4th step (NORM, no ratchet), nowhere else");
+        check(project_empty(), "... the project still empty (the first take sets the tempo, the click plays): the accents do not count");
+    }
+#endif
     reset_ui();
 }
 static void pick_quiet_tests(void)
