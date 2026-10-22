@@ -512,6 +512,10 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #ifndef FELUCCA_ED_SCREENS
 #define FELUCCA_ED_SCREENS 1                 /* web editor: the Optimist UI's screens, GLOBAL and SYSTEM, the scope (the Optimist UI) */
 #endif
+#ifndef FELUCCA_ED_MIRROR
+#define FELUCCA_ED_MIRROR 0                  /* web editor: the panel mirrored over USB as it is drawn (cmd 106, tag 0x65; the iPhone
+                                              * app ios/OptimistMirror; io/editor/ed_mirror.c) */
+#endif
 #ifndef FELUCCA_ED_FXS
 #define FELUCCA_ED_FXS FELUCCA_ED_MIX        /* web editor protocol v10: the FX slots (cmds 86, 87, tag 0x56) (io/editor/ed_fxs.c) */
 #endif

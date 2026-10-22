@@ -284,6 +284,10 @@ static void ota_commit(const uint8_t *parm)
 #if FELUCCA_OTA && FELUCCA_EDITOR
 #include "io/editor/editor.c"          /* web editor SysEx (needs the OTA SysEx plumbing) */
 #endif
+#if FELUCCA_ED_MIRROR && !(FELUCCA_OTA && FELUCCA_EDITOR)   /* (no editor: display/lcd.c's calls to the mirror go nowhere) */
+static void mir_fill(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t c) { (void)x, (void)y, (void)w, (void)h, (void)c; }
+static void mir_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *px) { (void)x, (void)y, (void)w, (void)h, (void)px; }
+#endif
 #if FELUCCA_CDC
 #include "io/console.c"
 #elif FELUCCA_BT_AUDIO

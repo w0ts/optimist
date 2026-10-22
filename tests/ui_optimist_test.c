@@ -34,9 +34,32 @@ static uint32_t band_y = 240u, band_hits;               /* the help band's first
                                                          * the blits that reached it besides the line's own (ui_optimist_geometry.h) */
 static uint32_t probe_hits;                             /* the blits that cover the probe pixel (120, 180): inside PRESETS' popup, a flash when more than one a frame */
 static uint32_t blit_px;                                /* the pixels sent (ui_optimist_slowframe.h: a step press sends its column) */
+#ifdef MIRROR_CHECK
+/* MIRROR_CHECK: every write also through the mirror's encoder (io/editor/ed_mirror_enc.h) and the client's decoder (mirror_dec.h):
+ * at the end the decoded screen is this one (tests/run_tests.sh, ED_MIRROR) */
+#include "mirror_dec.h"
+static uint8_t mc_f[512];
+static uint32_t mc_n, mc_frames, mc_bytes, mc_bad;
+static int mir_wire(uint32_t b)
+{
+    if (mc_n < sizeof mc_f)
+        mc_f[mc_n++] = (uint8_t)b;
+    return 1;
+}
+static void mir_wire_end(void)
+{
+    mc_bad += !md_frame(mc_f, mc_n);
+    mc_frames++, mc_bytes += mc_n;
+    mc_n = 0;
+}
+#include "../firmware/src/io/editor/ed_mirror_enc.h"
+#endif
 static void lcd_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *p)
 {
     uint32_t i, j;
+#ifdef MIRROR_CHECK
+    mir_enc_blit(x, y, w, h, p);
+#endif
     blit_px += w * h;
     if (x <= 120u && 120u < x + w && y <= 180u && 180u < y + h)
         probe_hits++;
@@ -53,6 +76,9 @@ static void lcd_fill(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t c)
 {
     uint32_t i, j;
     assert(x + w <= 240 && y + h <= 240);
+#ifdef MIRROR_CHECK
+    mir_enc_fill(x, y, w, h, c);
+#endif
     full_fills += w == 240u && h == 240u;
     for (j = 0; j < h; j++)
         for (i = 0; i < w; i++)
@@ -3951,6 +3977,15 @@ int main(int argc, char **argv)
     if (band_hits)
         printf("  geometry: %u blits reached the help band\n", band_hits);
     check(!band_hits, "#6 the whole run (every test, the random frames): no blit in the help band but the help line's");
+#ifdef MIRROR_CHECK
+    {
+        uint32_t i, diff = 0;
+        for (i = 0; i < 240u * 240u; i++)
+            diff += md_fb[i] != swap16(screen[i]);
+        printf("  mirror: %u frames, %u bytes, the screen drawn %u px; %u bad frames, %u px differ\n", mc_frames, mc_bytes, blit_px, mc_bad, diff);
+        check(!mc_bad && !diff, "the screen mirrored: every write decoded, the same pixels");
+    }
+#endif
     printf(fails ? "optimist ui test FAILED (%d)\n" : "optimist ui test passed\n", fails);
     return fails != 0;
 }

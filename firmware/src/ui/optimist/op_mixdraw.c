@@ -314,7 +314,13 @@ static void mx_vu_at(uint32_t r, int32_t x, int32_t y, int32_t w, int32_t h, uin
     mxd.gr[r] = (uint8_t)gr;
     cv_begin((uint32_t)w, (uint32_t)h, C_BLACK);
     mx_vu_paint(r, 0, 0, w, h, pk, gr);
+#if FELUCCA_ED_MIRROR
+    mir_mute = 1;                                       /* (the meters are not mirrored: io/editor/ed_mirror.c) */
+#endif
     cv_blit((uint32_t)x, (uint32_t)(OP_PY + y));
+#if FELUCCA_ED_MIRROR
+    mir_mute = 0;
+#endif
 }
 /* MASTER alone: its reduction bar and the dB ("off" while THRS and CEIL are 0), a canvas of their own */
 static void mx_master_gr(void)

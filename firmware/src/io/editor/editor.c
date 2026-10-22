@@ -79,6 +79,12 @@ static uint32_t ed_unpack7(const uint8_t *a, uint32_t na, uint8_t *out, uint32_t
     }
     return n;
 }
+#if FELUCCA_ED_MIRROR
+#include "ed_mirror.c"         /* cmd 106 the screen mirrored (the iPhone app), INFO tag 0x65; with live editing or without */
+#else
+static void ed_mirror_info(void) {}
+#define MIR_SEEN() ((void)0)
+#endif
 #if !FELUCCA_ED_LIVE
 #include "ed_lite.c"           /* ED_LIVE=0: backup and restore only (the frames, INFO, BUILD, PING, 11..15, 43..48, 54..57);
                                 * the rest of this file is the live editor */
@@ -337,6 +343,7 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         ed_songc_info();                /* tag 0x5A: the song chain (v13, ed_song.c) */
         ed_scrn_info();                 /* tag 0x59: GLOBAL and SYSTEM as lines (v13, ed_scrn.c; the Optimist UI) */
         ed_dlan_info();                 /* tag 0x58: the lanes' mix, LFOs and mutes (v13, ed_dlan.c) */
+        ed_mirror_info();               /* tag 0x65: the screen mirrored (ed_mirror.c) */
         break;
     case ED_BUILD:                                        /* v6: what this build contains (tools/builder) */
         ed_str(FELUCCA_CFG_NAME, 16);
@@ -457,6 +464,11 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
     case ED_PING:
         ed_b(0);
         break;
+#if FELUCCA_ED_MIRROR
+    case ED_MIRROR:                                        /* the screen mirrored: on / off (ed_mirror.c) */
+        ed_mirror(a, na);
+        break;
+#endif
     case ED_TRACK:                                         /* [track] -> selected, NTRK, per track: engine, preset, level, mute, armed */
         if (na >= 1u && a[0] < NTRK && a[0] != song.sel) {
             track_select(a[0]);
@@ -576,6 +588,7 @@ static void ed_service(void)
     if (!ota_frame_get(&p, &n) || n < 4u || p[0] != ED_HDR0 || p[1] != ED_HDR1 || p[2] != ED_HDR2)
         return;
     ed_w.last_ms = fm1_ms;                                 /* any request keeps WATCH alive */
+    MIR_SEEN();                                            /* (and the mirror: ed_mirror.c) */
     if (p[3] >= ED_SMP_BEGIN) {                            /* large frames: handled in place, then freed */
         ed_handle(p, n);
         ota_frame_done();

@@ -76,6 +76,7 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         ed_b(6);                                          /* v5: the protocol version (tags follow from v6) */
 #endif
         ed_b3(ED_TAG_LITE, 1, 1u | ED_LITE_LIB);
+        ed_mirror_info();                                 /* tag 0x65: the screen mirrored (ed_mirror.c) */
         break;
 #if FELUCCA_LIBRARIAN
     case ED_PROJECT:                                      /* 0 = load, 1 = save, 2 = query (as editor.c) */
@@ -112,6 +113,11 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
     case ED_PING:
         ed_b(0);
         break;
+#if FELUCCA_ED_MIRROR
+    case ED_MIRROR:                                       /* the screen mirrored: on / off (ed_mirror.c) */
+        ed_mirror(a, na);
+        break;
+#endif
     default:
         for (i = 0; ED_CMDS[i]; i++)
             if (ED_CMDS[i](cmd, a, na))
@@ -129,6 +135,7 @@ static void ed_service(void)
     uint32_t n;
     if (!ota_frame_get(&p, &n) || n < 4u || p[0] != ED_HDR0 || p[1] != ED_HDR1 || p[2] != ED_HDR2)
         return;
+    MIR_SEEN();                                            /* (any request keeps the mirror on: ed_mirror.c) */
     if (p[3] >= ED_SMP_BEGIN) {                            /* large frames: handled in place, then freed */
         ed_handle(p, n);
         ota_frame_done();

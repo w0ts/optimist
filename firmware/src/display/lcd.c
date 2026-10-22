@@ -71,6 +71,11 @@ static void lcd_window(uint32_t x0, uint32_t y0, uint32_t x1, uint32_t y1)
 }
 
 static uint16_t lcd_fillbuf[240];
+#if FELUCCA_ED_MIRROR
+static uint8_t mir_mute;                /* 1: what is drawn now is not mirrored (the mixer's meters) */
+static void mir_fill(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t c);   /* io/editor/ed_mirror.c: the screen mirrored */
+static void mir_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *px);
+#endif
 
 static void lcd_fill(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t c)
 {
@@ -91,6 +96,9 @@ static void lcd_fill(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t c)
             k = n;
         lcd_data(lcd_fillbuf, k * 2u);
     }
+#if FELUCCA_ED_MIRROR
+    mir_fill(x, y, w, h, c);
+#endif
 }
 
 static void lcd_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *px)
@@ -99,6 +107,9 @@ static void lcd_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint1
         return;
     lcd_window(x, y, x + w - 1u, y + h - 1u);
     lcd_data(px, w * h * 2u);
+#if FELUCCA_ED_MIRROR
+    mir_blit(x, y, w, h, px);           /* (while the DMA sends it: both only read px) */
+#endif
 }
 
 /* ST7789V init: reset, then 16-bit colour, scan direction, the panel's porch, voltages, frame rate and gamma as
