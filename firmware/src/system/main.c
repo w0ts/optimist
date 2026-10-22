@@ -6,6 +6,24 @@ extern uint32_t _data_start[], _data_end[], _data_load[], _bss_start[], _bss_end
 extern uint32_t _pool_start[], _pool_end[], _rt_start[], _rt_end[], _rt_load[], _rh_start[], _rh_end[], _rh_load[];
 extern uint32_t _rh2_start[], _rh2_end[], _rh2_load[], _pi_start[], _pi_end[], _pi_load[], _pz_start[];
 
+/* .data's initial values from their flash copy, run-length coded by tools/build.py sparse_data: a byte n, then n + 1
+ * literal bytes when n < 0x80, else n - 0x7F zeros (a global with a few non-zero fields was its whole size in flash:
+ * 2,640 B -> 864 B on synth, 2026-10-22). Never past _data_end whatever the stream says (the simulator's link-time
+ * names are a word each: firmware/sim/sim.c; it copies nothing, as the word loop it replaces copied one word of
+ * nothing). Before the first global is read: the main loop's and the interrupts' state lives here. */
+static void data_expand(void)
+{
+#if !FELUCCA_SIM
+    const uint8_t *s = (const uint8_t *)_data_load;
+    uint8_t *d = (uint8_t *)_data_start, *e = (uint8_t *)_data_end;
+    while (d < e) {
+        uint32_t n = *s++, lit = n < 0x80u;
+        for (n = lit ? n + 1u : n - 0x7Fu; n && d < e; n--)
+            *d++ = lit ? *s++ : (uint8_t)0;
+    }
+#endif
+}
+
 
 #if defined(FELUCCA_DUAL) && FELUCCA_DUAL && !defined(FM1_DUAL_SNAP_BLE)
 static void fm1_dual_snap_ble(fm1_c1_snap_t *s) { (void)s; }   /* (no BLE in this build: hal/fm1_dual.h) */
@@ -596,8 +614,7 @@ void fm1_cstart(void)
         *d = 0;
     for (d = _pz_start; d < _pool_end; d++)
         *d = 0;
-    for (s = _data_load, d = _data_start; d < _data_end; s++, d++)
-        *d = *s;
+    data_expand();                              /* .data's initial values (run-length coded in flash) */
     for (s = _pi_load, d = _pi_start; d < _pi_end; s++, d++)
         *d = *s;                                /* the pool's tables (core.h TAB_RAM) */
     boot_cal_req = (uint8_t)(hold == HOLD_CAL);

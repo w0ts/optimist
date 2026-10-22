@@ -75,7 +75,10 @@ OS_FILES = ["felucca.c", "system/main.c", "system/supply.c", "system/recovery.c"
             "ble/ble_smp_init.c", "io/midi/ble_connect.c",
             # EXPERIMENTAL: the Bluetooth Classic stack (BT_AUDIO): its interrupts and the main loop's side
             "bt/bt_inq.c", "bt/bt_inq_core.c", "bt/bt_inq_con.c", "bt/bt_page.c", "bt/bt_lmp.c", "bt/bt_acl.c", "bt/bt_l2cap.c", "bt/bt_sdps.c", "bt/bt_avrcp.c", "bt/bt_avdtp.c",
-            "bt/bt_safer.c", "bt/bt_sha256.c", "bt/uECC.c", "bt/bt_ssp.c", "bt/bt_audio.c"]
+            "bt/bt_audio.c"]
+# the pairing's arithmetic (P-192, SAFER+, SHA-256: bt_ssp.c, once per pairing, milliseconds either way): minsize
+# (2026-10-22, measured on synth: see the flash-gains report)
+SIZE_FILES += ["bt/bt_safer.c", "bt/bt_sha256.c", "bt/uECC.c", "bt/bt_ssp.c"]
 # the sound side: what the audio ISR, the second core and the voices run (never minsize)
 AUDIO_FILES = [  # (the A2DP stream's SBC encoder runs in the audio interrupt: bt_audio_feed, bt/bt_sbc.c and AOSP's bt/sbc/)
                "bt/bt_sbc.c", "bt/sbc/sbc_analysis.c", "bt/sbc/sbc_dct.c", "bt/sbc/sbc_dct_coeffs.c",

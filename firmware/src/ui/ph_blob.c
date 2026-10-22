@@ -2,16 +2,24 @@
 /* The help lines' table (FELUCCA_PARAM_HELP; tools/gen_param_help.py -> build/gen/felucca_param_help.h): the lookup
  * and the unpacking both UIs share (SLOOP's ui/sloop/param_help.c, the Optimist UI's ui/optimist/op_help.c include
  * it). PH_BLOB holds the groups as (kind, context, label -> text); the labels and contexts plain, the texts packed
- * with a byte pair code: a byte 0x80..0xFF, 0x01..0x1F, 0x7F or of PH_XC (printable characters no text uses) stands for
- * a pair of PH_PAIR (each a character or an earlier code), any other printable ASCII for itself. A line is unpacked
- * into the caller's buffer of PH_LINE bytes when it is drawn: main loop only, nothing in RAM. */
+ * with a byte pair code: a byte 0x80..0xFF, 0x01..0x1F or of PH_XC (printable characters no text uses) stands for a
+ * pair of PH_PAIR (each a character or an earlier code), any other printable ASCII for itself. A label or a text the
+ * table has more than once is in PH_SHL / PH_SHT once and stands in PH_BLOB as PH_REF then its index + 1 (two bytes,
+ * no NUL). A line is unpacked into the caller's buffer of PH_LINE bytes when it is drawn: main loop only, nothing in
+ * RAM. */
 #include "felucca_param_help.h"
 
-static const char *ph_next(const char *s)              /* past the string at s and its NUL */
+static const char *ph_next(const char *s)              /* past the string at s and its NUL (a reference: its 2 bytes) */
 {
+    if ((uint8_t)*s == PH_REF)
+        return s + 2;
     while (*s)
         s++;
     return s + 1;
+}
+static const char *ph_lab(const char *s)               /* the label at s as it reads (a shared one: its string) */
+{
+    return (uint8_t)*s == PH_REF ? (const char *)PH_SHL + PH_SHL_OFF[(uint8_t)s[1] - 1u] : s;
 }
 /* label's line in context ctx of kind (PH_*), as its offset in PH_BLOB; 0 = none */
 static __attribute__((noinline)) uint32_t ph_find(uint32_t kind, const char *ctx, const char *label)
@@ -20,7 +28,7 @@ static __attribute__((noinline)) uint32_t ph_find(uint32_t kind, const char *ctx
     while (*p) {
         int here = (uint8_t)*p == kind && str_eq(p + 1, ctx);
         for (p = ph_next(p + 1); *p; p = ph_next(ph_next(p)))
-            if (here && str_eq(p, label))
+            if (here && str_eq(ph_lab(p), label))
                 return (uint32_t)(ph_next(p) - PH_BLOB);
         p++;                                            /* (the group's empty label) */
     }
@@ -37,9 +45,9 @@ static char *ph_put(char *o, uint32_t c)
             *o = (char)c;
             return o + 1;
         }
-        c = 160u + (uint32_t)(x - PH_XC);               /* (a printable code: PH_XC's order) */
+        c = 159u + (uint32_t)(x - PH_XC);               /* (a printable code: PH_XC's order) */
     } else
-        c = c >= 0x80u ? c - 0x80u : c == 0x7Fu ? 159u : c + 0x7Fu;   /* (the pair's index: 0x80.. 0, 0x01.. 128) */
+        c = c >= 0x80u ? c - 0x80u : c + 0x7Fu;         /* (the pair's index: 0x80.. 0, 0x01.. 128) */
     return ph_put(ph_put(o, PH_PAIR[c][0]), PH_PAIR[c][1]);
 }
 /* the text of the line at offset off of PH_BLOB (ph_find), unpacked into buf (PH_LINE bytes) -> buf */
@@ -47,6 +55,8 @@ static const char *ph_text(uint32_t off, char *buf)
 {
     const uint8_t *p = (const uint8_t *)PH_BLOB + off;
     char *o = buf;
+    if (*p == PH_REF)
+        p = PH_SHT + PH_SHT_OFF[p[1] - 1u];
     while (*p)
         o = ph_put(o, *p++);
     *o = 0;

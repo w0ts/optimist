@@ -31,14 +31,16 @@ SECTIONS
     _rh_load = LOADADDR(.ram_hot);
     .ram_hot2 : { _rh2_start = .; KEEP(*(.ram_hot2*)) . = ALIGN(4); _rh2_end = .; } > RAM AT > XIP
     _rh2_load = LOADADDR(.ram_hot2);
-    .data : { . = ALIGN(4); _data_start = .; *(.data*) *(.sdata*) . = ALIGN(4); _data_end = .; } > RAM AT > XIP
-    _data_load = LOADADDR(.data);
-    .bss (NOLOAD) : { _bss_start = .; *(.bss*) *(.sbss*) *(COMMON) . = ALIGN(4); _bss_end = .; } > RAM
     /* the pool: first what main.c copies from flash at boot (.pool_init: the TAB_RAM tables), then the zeroed
-     * buffers (.pool); both count as the pool (build.py: _pool_start.._pool_end) */
+     * buffers (.pool); both count as the pool (build.py: _pool_start.._pool_end). Its flash copy before .data's: .data
+     * is the last thing in the image, stored run-length coded (build.py sparse_data, main.c data_expand), so its
+     * load address is the only one the coding moves (2026-10-22) */
     .pool_init : { _pool_start = .; _pi_start = .; KEEP(*(.pool_init*)) . = ALIGN(4); _pi_end = .; } > POOL AT > XIP
     _pi_load = LOADADDR(.pool_init);
     .pool (NOLOAD) : { _pz_start = .; *(.pool*) . = ALIGN(4); _pool_end = .; } > POOL
+    .data : { . = ALIGN(4); _data_start = .; *(.data*) *(.sdata*) . = ALIGN(4); _data_end = .; } > RAM AT > XIP
+    _data_load = LOADADDR(.data);           /* (the coded stream's start, not the section's size) */
+    .bss (NOLOAD) : { _bss_start = .; *(.bss*) *(.sbss*) *(COMMON) . = ALIGN(4); _bss_end = .; } > RAM
     .noinit (NOLOAD) : { *(.noinit) *(.noinit.*) } > NOINIT     /* (.noinit.* last: a new one moves nothing) */
     /* cache RAM (EXPERIMENTAL, hal/fm1_cache.h): zeroed by its boot test, not by main.c. Only for an object whose
      * every user checks fm1_cache_ram_ok() first (without it, or when the test fails, it is not RAM); empty today:
