@@ -109,7 +109,7 @@ static const param_desc_t TP[P_COUNT] = {
     [P_AMODE] = PE("MODE", N_AMODE, 0),
     [P_ARATE] = PE("RATE", N_DIV, 2),
     [P_AOCT] = PD("OCT", F_INT, 1, 4, 1),
-    [P_AGATE] = PD("GATE", F_PCT, 1, 127, 64),
+    [P_AGATE] = PD("GATE", F_GATE, 1, 127, 32),
     [P_ASWING] = PD("SWG", F_SWING, 0, 100, 0),
     [P_APROB] = PD("PROB", F_PCT, 0, 127, 127),
     [P_AHOLD] = PE("HOLD", N_ONOFF, 0),
@@ -557,6 +557,10 @@ static void param_format(const param_desc_t *d, int32_t v, char *val, const char
     switch (d->fmt) {
     case F_PCT:                                       /* of the range: 0 .. 100 % */
         fmt_int(val, d->max > 0 ? (v * 100 + d->max / 2) / d->max : v);
+        *unit = "%";
+        break;
+    case F_GATE:                                      /* 1/64 of the step: 64 is 100 %, 127 about 200 % */
+        fmt_int(val, (v * 100 + 32) / 64);
         *unit = "%";
         break;
     case F_SWING:                                     /* MPC style: the share of a step pair the first one gets */

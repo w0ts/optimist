@@ -127,7 +127,8 @@ enum {
     F_INT, F_PCT, F_BIPCT, F_TIME, F_LFOHZ, F_CUTOFF, F_DB, F_SEMI, F_ENUM, F_BPM, F_NOTE,
     F_ONOFF, F_OCT, F_STEPS,
     F_SWING,                    /* 0..100: MPC swing, 50 % (straight) .. 75 % */
-    F_FILT                      /* -64..63: the DJ filter, LP <- OFF -> HP */
+    F_FILT,                     /* -64..63: the DJ filter, LP <- OFF -> HP */
+    F_GATE                      /* 1..127: a note's length in 1/64 of its step, 2 % .. 198 % (past 100 % it overlaps the next) */
 };
 
 typedef struct {
@@ -564,6 +565,8 @@ typedef struct track {
     uint8_t arp_new;             /* a chord just started: its first note now */
     uint8_t arp_den;             /* the RATE it last played on (a RATE change waits for the next step) */
     uint32_t arp_off;            /* units to its note-off */
+    uint32_t arp_poff;           /* GATE past 100 %: units to the note-off of the note before (arp_prev), still sounding */
+    uint8_t arp_prev;            /* that note, 0 = none */
     /* sequencer: synth parts step[], the drum track dstep[] (16 lanes) */
     union {
         step_t step[NSTEP];

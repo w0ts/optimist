@@ -1714,9 +1714,23 @@ static uint32_t arp_next(track_t *t)
 /* the arp, once per block: on the transport's grid of RATE (with its SWING) while playing, from the
  * first key while stopped. A new chord starts at once unless the grid is just ahead. While recording,
  * each note it plays is recorded (what you hear) */
+static void arp_prev_off(track_t *t)           /* the note GATE past 100 % kept sounding ends */
+{
+    if (t->arp_prev) {
+        trk_note_off(t, t->arp_prev);
+        seq_out_off(t, t->arp_prev);
+    }
+    t->arp_prev = 0;
+}
 static void arp_tick(track_t *t, uint32_t adv)
 {
     uint32_t div = (uint32_t)t->p[P_ARATE] % 6u, den = DIV_DEN[div], u = BEAT_U / den, into, slen, abs = 0, fire = 0;
+    if (t->arp_prev) {
+        if (t->arp_poff <= adv)
+            arp_prev_off(t);
+        else
+            t->arp_poff -= adv;
+    }
     if (t->arp_note) {
         if (t->arp_off <= adv) {
             trk_note_off(t, t->arp_note);
@@ -1727,6 +1741,7 @@ static void arp_tick(track_t *t, uint32_t adv)
         }
     }
     if (!t->p[P_AMODE] || !t->nheld) {
+        arp_prev_off(t);
         if (!t->nheld && t->arp_note) {
             trk_note_off(t, t->arp_note);
             seq_out_off(t, t->arp_note);
@@ -1762,7 +1777,11 @@ static void arp_tick(track_t *t, uint32_t adv)
     }
     if (!fire)
         return;
-    if (t->arp_note) {
+    arp_prev_off(t);
+    if (t->arp_note && t->p[P_AGATE] > 64 && t->arp_off) {   /* GATE past 100 %: it goes on under the next note */
+        t->arp_prev = t->arp_note;
+        t->arp_poff = t->arp_off;
+    } else if (t->arp_note) {
         trk_note_off(t, t->arp_note);
         seq_out_off(t, t->arp_note);
     }
@@ -1771,9 +1790,11 @@ static void arp_tick(track_t *t, uint32_t adv)
         uint32_t n = arp_next(t);
         if (n == KB_SILENT)
             return;
+        if (t->arp_prev == n)                       /* (the same pitch again: it ends, so the new one sounds) */
+            arp_prev_off(t);
         ev_at(song.playing ? into : 0u);
         t->arp_note = (uint8_t)n;
-        t->arp_off = slen * (uint32_t)t->p[P_AGATE] / 128u;
+        t->arp_off = slen * (uint32_t)t->p[P_AGATE] / 64u;
         trk_note_on(t, n, 100);
         seq_out_on(t, n, 100);
     }                                               /* (the arped notes are not recorded: the keys are, input_on) */
@@ -3279,6 +3300,7 @@ static void events_block(uint32_t n)
             t->nheld = 0;
             t->arp_phys = 0;
             t->arp_note = 0;
+            t->arp_prev = 0;                          /* (trk_all_off ended it) */
         }
         if (i < NPART)
             engine_block(t);                          /* engine switch: fade, then switch (voice.c) */

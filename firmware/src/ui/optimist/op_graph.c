@@ -277,7 +277,7 @@ static void graph_arp(uint16_t c)
     uint32_t mode = (uint32_t)t->p[P_AMODE] % 7u, cnt = arp_ref(t, nt, mode == 6u), oct = (uint32_t)ui_clamp(t->p[P_AOCT], 1, 4);
     uint32_t len = cnt * oct, steps = 4u * DIV_DEN[(uint32_t)t->p[P_ARATE] % 6u], i, b, lo = 127, hi = 0;
     int32_t top = GR_TOP + 2, bot = GR_BOT, span, sw = 236 / (int32_t)steps, mh;
-    int32_t gate = sw * t->p[P_AGATE] / 128, late = (int32_t)ui_clamp(t->p[P_ASWING], 0, 100) * sw / 200;
+    int32_t gate = sw * t->p[P_AGATE] / 64, late = (int32_t)ui_clamp(t->p[P_ASWING], 0, 100) * sw / 200;
     uint16_t mc = mode ? c : col_shade(c, 3u);          /* (OFF: the pattern UP would play, shaded) */
     for (i = 0; i < cnt; i++) {
         lo = nt[i] < lo ? nt[i] : lo;
