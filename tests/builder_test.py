@@ -143,6 +143,10 @@ check("... an old .config's OTA=0 loads as EDITOR=0 (the editor out, updates kep
 check("... every web editor feature costs nothing without live editing (NEEDS); the device screens counted in every "
       "build (the Optimist UI, the only one)", all(C.NEEDS[k].get("ED_LIVE") == 1 for k in ED) and
       "UI" not in C.NEEDS.get("ED_SCREENS", {}) and C.counted(dict(C.defaults(), ED_LIVE=1), "ED_SCREENS"))
+check("... but the screen mirrored (ED_MIRROR) costs its flash with live editing off too: ed_lite.c answers it, lcd.c calls it "
+      "(the user's mots.config, ED_LIVE=0 ED_MIRROR=1, showed no change, 2026-10-22)",
+      "ED_LIVE" not in C.NEEDS.get("ED_MIRROR", {}) and C.counted(dict(C.defaults(), ED_LIVE=0, ED_MIRROR=1), "ED_MIRROR")
+      and C.counted(dict(C.defaults(), ED_LIVE=1, ED_MIRROR=1), "ED_MIRROR"))
 # UI (bit 251) is retired with SLOOP's UI (2026-10-19), and the items only it used: an old .config naming them loads,
 # warns "dropped", builds the Optimist UI; a cost measured "with UI=1" (costs.json) applies to every build
 _w = io.StringIO()
