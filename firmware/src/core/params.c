@@ -398,11 +398,22 @@ static const param_desc_t GP[G_COUNT] = {
 static const param_desc_t DRUM_KIT_DESC = {"KIT", F_ENUM, 0, (int16_t)(DRUM_KITS - 1u), 0, DRUM_KIT_NAMES, 0};   /* (drums.c) */
 /* the drum track's ACCENT amount (core.h P_DACC: its P_E1), velocity added to an accented hit (drums.c dacc_vel) */
 static const param_desc_t DRUM_ACC_DESC = {"ACCENT", F_INT, 0, DACC_MAX, DACC_DEF, 0, 0};
+#if FELUCCA_GEN_GRIDS
+/* the kit's GRIDS (core.h P_GRX ..: the drum track's P_E2 .. P_E7; seq/gen.c gr_kit_hit) */
+static const param_desc_t DRUM_GR_DESC[GR_KIT_N] = {
+    {"X", F_INT, 0, 127, 64, 0, 0}, {"Y", F_INT, 0, 127, 64, 0, 0}, {"CHAOS", F_INT, 0, 127, 0, 0, 0},
+    {"BD", F_INT, 0, 127, 64, 0, 0}, {"SD", F_INT, 0, 127, 64, 0, 0}, {"HH", F_INT, 0, 127, 64, 0, 0}};
+#define DRUM_GR_OF(id) ((uint32_t)(id) - P_GRX < GR_KIT_N ? &DRUM_GR_DESC[(uint32_t)(id) - P_GRX] : (const param_desc_t *)0)
+#else
+#define DRUM_GR_OF(id) ((const param_desc_t *)0)
+#endif
 static const param_desc_t *track_desc(const track_t *t, uint32_t id)
 {
     if(is_drum(t) && id==P_E0) return &DRUM_KIT_DESC;
     if (is_drum(t) && id == P_DACC)
         return &DRUM_ACC_DESC;
+    if (is_drum(t) && DRUM_GR_OF(id))
+        return DRUM_GR_OF(id);
     if (id == P_VOICES) {                             /* 1 .. the engine's voices (the engine asked for), never 0 shown */
         static const param_desc_t VC[NPOLY] = {
             PD("VOICES", F_INT, 1, 1, 1), PD("VOICES", F_INT, 1, 2, 2), PD("VOICES", F_INT, 1, 3, 3), PD("VOICES", F_INT, 1, 4, 4),

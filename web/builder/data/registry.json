@@ -4476,9 +4476,40 @@
      "commit": "9f6a885 (Felucca 1.5.6)",
      "url": "https://github.com/hugelton/Felucca"
     },
-    "children": [],
+    "children": [
+     "GEN_GRIDS"
+    ],
     "tested": "emulator-tested only",
     "provenance_line": "hugelton/Felucca @ 9f6a885 (Felucca 1.5.6) by Leo Kuroshita (@kurogedelic), Hügelton Instruments (GPL-3.0-only)"
+   },
+   {
+    "key": "GEN_GRIDS",
+    "flag": "FELUCCA_GEN_GRIDS",
+    "label": "note generator GRIDS (Mutable Instruments Grids)",
+    "group": "Sequencer",
+    "bit": 370,
+    "default": 0,
+    "parent": "SEQTOOLS",
+    "desc": "Mutable Instruments Grids (Emilie Gillet) as a drum note generator: 25 drum patterns on a 5 x 5 map, read between them at X and Y. On DR itself (no lane picked) STEP has GRIDS (X, Y, CHAOS) and DENSITY (BD, SD, HH) in GEN's place: one GRIDS for the kit, playing the first KICK lane, the first SNARE lane and the CLOSED HAT lane, and the ACCENT lane where a part plays HARD; GEN OUT turns it on and WRITEs it. Its six values are the drum track's own, saved with the project and recorded as motion. CHAOS is Grids' random push, new each bar. On a picked lane (or T1 T2 T3) GRIDS is also a GEN TYPE (X, Y, DENSITY) playing the part of the lane's sound. One bar of 16ths, repeated through LEN. Needs the STEP tools. About 2.6 KB of flash (1.2 KB of it the map; measured on the synth profile).",
+    "experimental": false,
+    "notice": "",
+    "off_warning": "",
+    "env": "",
+    "target_only": false,
+    "symbols": [],
+    "no_image": false,
+    "fixed": false,
+    "choices": [],
+    "provenance": {
+     "project": "pichenettes/eurorack",
+     "author": "Emilie Gillet (Mutable Instruments)",
+     "licence": "GPL-3.0-or-later",
+     "commit": "master (grids/, 2011-2013)",
+     "url": "https://github.com/pichenettes/eurorack"
+    },
+    "children": [],
+    "tested": "emulator-tested only",
+    "provenance_line": "pichenettes/eurorack @ master (grids/, 2011-2013) by Emilie Gillet (Mutable Instruments) (GPL-3.0-or-later)"
    }
   ],
   "forbidden": {

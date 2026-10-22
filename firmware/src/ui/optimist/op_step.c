@@ -1791,12 +1791,26 @@ static uint32_t step_rows0(void) { return 1u; }   /* the pages before TOOLS, GEN
 #else
 #define STP_TL 0u
 #endif
-static uint32_t step_rows(void) { return step_rows0() + STP_TL; }
-static int stp_tl(uint32_t r) { return STP_TL && r >= step_rows0() ? (int)(r - step_rows0()) : -1; }   /* 0 TOOLS, 1 GEN, 2 GEN OUT */
+/* DR itself with the kit's GRIDS built (op_tools.c ng_kit): GEN's place is GRIDS and DENSITY, one page more */
+#if FELUCCA_SEQTOOLS
+#define STP_KIT() ng_kit()
+#else
+#define STP_KIT() 0
+#endif
+static uint32_t step_rows(void) { return step_rows0() + (STP_TL ? STP_TL + (uint32_t)STP_KIT() : 0u); }
+static int stp_tl(uint32_t r)                           /* 0 TOOLS, 1 GEN, 2 GEN OUT, 3 GRIDS, 4 DENSITY (op_tools.c tl_cell) */
+{
+    static const uint8_t KIT[4] = {0, 3, 4, 2};
+    if (!STP_TL || r < step_rows0())
+        return -1;
+    r -= step_rows0();
+    return STP_KIT() ? KIT[r % 4u] : (int)r;
+}
 static void step_name(uint32_t r, char *b)
 {
+    static const char *const TL_NAME[5] = {"TOOLS", "GEN", "GEN OUT", "GRIDS", "DENSITY"};
     if (stp_tl(r) >= 0)
-        str_cpy(b, stp_tl(r) == 2 ? "GEN OUT" : stp_tl(r) ? "GEN" : "TOOLS", 12);
+        str_cpy(b, TL_NAME[stp_tl(r) % 5], 12);
     else
         str_cpy(b, PAGES[stp_pattern()].title, 12);
 }

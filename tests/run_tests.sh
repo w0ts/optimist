@@ -735,6 +735,8 @@ job; ( jobin
     run "Optimist UI with the sequence tools (TOOLS: REVERSE RANDOM COOK LENGTH, exact note lengths kept, events moved; GEN / GEN OUT: the generators live, MODE, WRITE asks, one undo; the drum kit and a lane; EDIT SHIFT's events; the COND card)" "$OUT/ui_optimist_tools_test" "$OUT/optimist"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_COND=1 -DFELUCCA_SEQTOOLS=1 $SEC4 -o "$OUT/ui_optimist_tools1_test" tests/ui_optimist_test.c -lm
     run "Optimist UI with the sequence tools and the conditions, no other step extra (COND the one EXTRA card)" "$OUT/ui_optimist_tools1_test" "$OUT/optimist"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_MICRO=1 -DFELUCCA_FILLS=1 -DFELUCCA_PLOCK=1 -DFELUCCA_CHANCE=1 -DFELUCCA_MOTION=1 -DFELUCCA_COND=1 -DFELUCCA_SEQTOOLS=1 -DFELUCCA_GEN_GRIDS=1 -DFELUCCA_PARAM_HELP=1 $SEC4 -o "$OUT/ui_optimist_grids_test" tests/ui_optimist_test.c -lm
+    run "Optimist UI with the sequence tools and GRIDS (GEN_GRIDS): the kit's GRIDS DENSITY GEN OUT pages on DR, WRITE, undo; every value's help line" "$OUT/ui_optimist_grids_test" "$OUT/optimist"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_SECTIONS=16 -DFELUCCA_PATTERNS=1 -DFELUCCA_MICRO=1 -DFELUCCA_FILLS=1 -DFELUCCA_PLOCK=1 -DFELUCCA_REC_MODES=1 -o "$OUT/ui_optimist_song_test" tests/ui_optimist_test.c -lm

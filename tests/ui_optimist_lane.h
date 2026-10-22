@@ -124,7 +124,7 @@ static void step_pages_tests(void)
     ui.row[SCR_STEP] = 5;
     tap(B_HOME);
     tap(B_SEQ);
-    check(ui.row[SCR_STEP] == SCR->rows() - 1u && SCR->rows() == STP_PAT + 1u + STP_TL,
+    check(ui.row[SCR_STEP] == SCR->rows() - 1u && SCR->rows() == STP_PAT + 1u + STP_DR_TL,
           "the drum track's STEP keeps the page it was left on (2026-10-13), a row it lacks: the nearest, the last");
     ui.row[SCR_STEP] = 0;
     step_cell(0, 0, &c);
@@ -143,7 +143,7 @@ static void step_pages_tests(void)
         turn(EN_SELECT, 5);
         turn(EN_SELECT, -9);
         turn(EN_SELECT, 9);
-        turn(EN_SELECT, -(int32_t)STP_TL);             /* (past LANE: TOOLS, EUCLID, op_tools.c) */
+        turn(EN_SELECT, -(int32_t)STP_DR_TL);             /* (past LANE: TOOLS, EUCLID, op_tools.c) */
         check(lane_selected() == 0u && ui.lane == l0 && ui.row[SCR_STEP] == STP_PAT,
               "SELECT on the drum STEP: only its pages (PATTERN), never the lane (the user, 2026-10-12)");
     }

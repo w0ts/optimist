@@ -17,6 +17,7 @@
 #endif
 #define FELUCCA_ARRANGER 1
 #define STP_PAT 0u                      /* STEP's first row, PATTERN (no LANE page after it since 2026-10-14) */
+#define STP_DR_TL (STP_TL + (STP_TL && FELUCCA_GEN_GRIDS ? 1u : 0u))   /* DR itself (no lane picked): GRIDS and DENSITY in GEN's place */
 #if FELUCCA_PATTERNS
 #define FELUCCA_FLASH 1                 /* (the section log: phase 4's switch set) */
 #endif

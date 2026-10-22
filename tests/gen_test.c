@@ -9,6 +9,8 @@
  *   5. a step's chance event holds for a generated note (0 %: never), its condition too
  *   6. zero cost off: no generator, the effective step is the pattern's own (the pointer)
  *   7. the stored form: GEN_TLV through the FX record (fxr_encode / fxr_decode), none: every slot off
+ *   8. GRIDS (Mutable Instruments Grids' drum map): node 10's levels at X 0 Y 0 read by hand, the part each lane reads,
+ *      the ACCENT lane, DENSITY 0 and more DENSITY across the map, a bar of 16ths repeated through LEN
  * Exit status: the number of failed checks. */
 #define FELUCCA_MOTION 1
 #define FELUCCA_PLOCK 1
@@ -17,6 +19,7 @@
 #define FELUCCA_CHANCE 1
 #define FELUCCA_COND 1
 #define FELUCCA_SEQTOOLS 1
+#define FELUCCA_GEN_GRIDS 1
 #define GEN_BUILT 1                     /* (the generators without the Optimist UI around them) */
 #define FELUCCA_MIDI_OUT 1
 #define FELUCCA_ARRANGER 1
@@ -299,16 +302,16 @@ static void heard_setup(void)
 }
 static void heard_tests(void)
 {
-    static const uint8_t TY[3] = {GT_EUCLID, GT_RANDOM, GT_PULSE};
+    static const uint8_t TY[4] = {GT_EUCLID, GT_RANDOM, GT_PULSE, GT_GRIDS};
     uint32_t m, ty, ok = 1, more = 1;
-    for (ty = 0; ty < 3u; ty++)
+    for (ty = 0; ty < 4u; ty++)
         for (m = 0; m < GM_N; m++) {
             heard_setup();
             gen_defaults(&gen[0], TY[ty]);
             gen_defaults(&gen[NPART + 4], TY[ty]);
             gen[0].on = gen[NPART + 4].on = 1;
             gen[0].mode = gen[NPART + 4].mode = (uint8_t)m;
-            gen[0].p[0] = (uint8_t)(TY[ty] == GT_EUCLID ? 5u : TY[ty] == GT_RANDOM ? 60u : 3u);
+            gen[0].p[0] = (uint8_t)(TY[ty] == GT_EUCLID ? 5u : TY[ty] == GT_RANDOM ? 60u : TY[ty] == GT_GRIDS ? 30u : 3u);
             gen_sync();
             play_capture(0, 16);                        /* 4 passes */
             (void)gen_write(&trk[0], 0);
@@ -327,7 +330,21 @@ static void heard_tests(void)
             more &= nev[0] > 16u;
         }
     check("WRITE = heard: the MIDI out (every note on / off, its block) with the generator ON = after WRITE, OFF "
-          "(EUCLID RANDOM PULSE x REPLACE ADD MASK; T1 and a drum lane; chance, condition, nudge, lock on the steps)", ok && more);
+          "(EUCLID RANDOM PULSE GRIDS x REPLACE ADD MASK; T1 and a drum lane; chance, condition, nudge, lock on the steps)", ok && more);
+    for (m = 0, ok = 1; m < GM_N; m++) {                /* the kit's GRIDS (CHAOS 0), BD SD HH and ACCENT at once */
+        heard_setup();
+        TDRUM->p[P_GRX] = 40, TDRUM->p[P_GRY] = 90, TDRUM->p[P_GRCH] = 0;
+        TDRUM->p[P_GRBD] = TDRUM->p[P_GRBD + 1] = TDRUM->p[P_GRBD + 2] = 80;
+        gen[GEN_KIT].on = 1, gen[GEN_KIT].mode = (uint8_t)m;
+        gen_sync();
+        play_capture(0, 16);
+        (void)gen_write(TDRUM, GEN_KIT);
+        gen[GEN_KIT].on = 0;
+        gen_sync();
+        play_capture(1, 16);
+        ok &= same_stream() && nev[0] > 16u;
+    }
+    check("... the kit's GRIDS too (REPLACE ADD MASK; its lanes and the ACCENT lane)", ok);
 }
 
 /* ---- 4. determinism, 5. chance and conditions, 6. off */
@@ -440,6 +457,141 @@ static void tlv_tests(void)
     check("... a project without one: every slot off at its defaults", !gen_trk && gen_is_default(&gen[7]));
 }
 
+/* GRIDS: the hits and HARD hits of slot s over steps 0..15 (bit i), LEN 32 */
+static uint32_t grids_mask(uint32_t s, uint32_t x, uint32_t y, uint32_t d, uint32_t *hard)
+{
+    uint32_t i, m = 0;
+    gen_ev_t e;
+    gen_defaults(&gen[s], GT_GRIDS);
+    gen[s].p[0] = (uint8_t)x, gen[s].p[1] = (uint8_t)y, gen[s].p[2] = (uint8_t)d;
+    *hard = 0;
+    for (i = 0; i < 16u; i++)
+        if (gen_hit(s, i, 32, &e)) {
+            m |= 1u << i;
+            *hard |= (uint32_t)(e.lvl == LV_HARD) << i;
+        }
+    return m;
+}
+#define B(i) (1u << (i))
+/* hand-read from grids/resources.cc: X 0 Y 0 is node 10 alone, its BD / SD / HH even 32nds; U8Mix(a, b, 0) = a*255 >> 8;
+ * DENSITY 64 = 129: a hit over 126, HARD over 192 */
+static void grids_tests(void)
+{
+    uint32_t h, h2, d, x, ok = 1, i;
+    gen_ev_t e, e2;
+    gen_reset_all();
+    check("GRIDS, kick lane, X 0 Y 0 DENSITY 127: node 10's BD wherever it is not 0, HARD at 255 and 218",
+          grids_mask(NPART + 0, 0, 0, 127, &h) == (B(0) | B(3) | B(6) | B(7) | B(8) | B(9) | B(12) | B(14)) && h == (B(6) | B(9)));
+    check("... DENSITY 64: the BD levels over 126 (145 255 218 182)",
+          grids_mask(NPART + 0, 0, 0, 64, &h) == (B(0) | B(6) | B(9) | B(14)) && h == (B(6) | B(9)));
+    check("... the snare lane reads SD (159 159 191 223 255)",
+          grids_mask(NPART + 1, 0, 0, 64, &h) == (B(2) | B(4) | B(5) | B(6) | B(8)) && h == (B(6) | B(8)));
+    check("... the closed hat lane reads HH (255 145 182 218 182 182)",
+          grids_mask(NPART + 3, 0, 0, 64, &h) == (B(0) | B(2) | B(4) | B(8) | B(12) | B(14)) && h == (B(0) | B(8)));
+    check("... the ACCENT lane: where any part hits HARD", grids_mask(NPART + DRUM_ACC, 0, 0, 64, &h) == (B(0) | B(6) | B(8) | B(9)));
+    check("... synth tracks: T1 BD, T2 SD", grids_mask(0, 0, 0, 64, &h) == (B(0) | B(6) | B(9) | B(14)) &&
+                                           grids_mask(1, 0, 0, 64, &h) == (B(2) | B(4) | B(5) | B(6) | B(8)));
+    for (x = 0; x <= 127u; x += 9u)                    /* (every corner of the map: X 127 Y 127 reads nodes [3..4][3..4]) */
+        for (d = 0; d < 127u; d += 9u) {
+            uint32_t a = grids_mask(NPART + 0, x, 127u - x, d, &h), b = grids_mask(NPART + 0, x, 127u - x, d + 9u > 127u ? 127u : d + 9u, &h2);
+            ok &= (a & ~b) == 0u && (!d ? a == 0u : 1) && (h & ~a) == 0u;
+        }
+    check("... DENSITY 0: no hit; more DENSITY only adds hits; a HARD hit is a hit (X 0..126, Y 127..1)", ok);
+    ok = 1;
+    gen_defaults(&gen[NPART], GT_GRIDS);
+    for (i = 0; i < 16u; i++)
+        ok &= gen_hit(NPART, i, 64, &e) == gen_hit(NPART, i + 16u, 64, &e2) && e.lvl == e2.lvl;
+    check("... one bar of 16ths, again through LEN", ok);
+    gen_reset_all();
+}
+
+/* the kit's GRIDS: lane l's hits (bit i) and HARD hits of steps 0..15 as the drum track plays them */
+static uint32_t kit_mask(uint32_t l, uint32_t *hard)
+{
+    uint32_t i, m = 0;
+    *hard = 0;
+    for (i = 0; i < 16u; i++) {
+        dstep_t x;
+        const dstep_t *d = gen_deff(TDRUM, i, &x);
+        if (dstep_has(d, l)) {
+            m |= 1u << i;
+            *hard |= (uint32_t)(dstep_lvl(d, l) == LV_HARD) << i;
+        }
+    }
+    return m;
+}
+static void kit_setup(uint32_t chaos)
+{
+    uint32_t i;
+    gen_reset_all();
+    memset(TDRUM->dstep, 0, sizeof TDRUM->dstep);
+    TDRUM->p[P_SLEN] = 32;
+    TDRUM->p[P_GRX] = 0, TDRUM->p[P_GRY] = 0, TDRUM->p[P_GRCH] = (int16_t)chaos;
+    for (i = 0; i < 3u; i++)
+        TDRUM->p[P_GRBD + i] = 64;
+    dstep_set(&TDRUM->dstep[1], 2, LV_SOFT, 0);         /* (a CLAP hit: the kit leaves that lane alone) */
+    gen[GEN_KIT].on = 1, gen[GEN_KIT].mode = GM_REPLACE;
+    gen_sync();
+}
+static void kit_tests(void)
+{
+    uint32_t h, ok = 1, i, p, a[2][4];
+    static step_t w[NSTEP];
+    static project_t pj;
+    static dlrec_t dr;
+    kit_setup(0);
+    check("kit GRIDS (X 0 Y 0, BD SD HH 64): BD on the KICK lane, as the lane's own GRIDS (node 10)",
+          kit_mask(0, &h) == (B(0) | B(6) | B(9) | B(14)) && h == (B(6) | B(9)));
+    check("... SD on the SNARE lane, HH on the CLOSED HAT lane",
+          kit_mask(1, &h) == (B(2) | B(4) | B(5) | B(6) | B(8)) && h == (B(6) | B(8)) &&
+          kit_mask(3, &h) == (B(0) | B(2) | B(4) | B(8) | B(12) | B(14)) && h == (B(0) | B(8)));
+    check("... the ACCENT lane where a part hits HARD; the CLAP lane as stored (one SOFT hit)",
+          kit_mask(DRUM_ACC, &h) == (B(0) | B(6) | B(8) | B(9)) && kit_mask(2, &h) == B(1));
+    TDRUM->p[P_GRBD] = 0;
+    check("... BD 0: no kick; SD as before", kit_mask(0, &h) == 0u && kit_mask(1, &h) == (B(2) | B(4) | B(5) | B(6) | B(8)));
+    TDRUM->p[P_GRBD] = 64;
+    gen_defaults(&gen[NPART + 1], GT_PULSE), gen[NPART + 1].on = 1, gen[NPART + 1].p[0] = 8, gen[NPART + 1].p[1] = 0;
+    gen_sync();
+    check("... a lane with its own generator keeps it (SNARE: PULSE every 8)", kit_mask(1, &h) == (B(0) | B(8)));
+    gen[NPART + 1].on = 0;
+    gen_sync();
+    gen_render(TDRUM, w, ~0u);
+    (void)gen_write(TDRUM, GEN_KIT);
+    for (i = 0; i < 32u; i++)
+        ok &= !memcmp(&TDRUM->dstep[i], &((const dstep_t *)(const void *)w)[i], sizeof(dstep_t));
+    check("... WRITE: the pattern as it played (32 steps; the UI turns the kit OFF after it)", ok);
+    kit_setup(0);
+    TDRUM->pass = 0, a[0][0] = kit_mask(0, &h), TDRUM->pass = 5, a[1][0] = kit_mask(0, &h);
+    check("... CHAOS 0: every pass the same", a[0][0] == a[1][0]);
+    kit_setup(127);
+    ok = 1;
+    for (p = 0; p < 2u; p++) {
+        TDRUM->pass = p * 3u + 1u;
+        for (i = 0; i < 4u; i++)
+            a[p][i] = kit_mask(i == 3u ? DRUM_ACC : i == 2u ? 3u : i, &h);
+    }
+    kit_setup(0);
+    for (p = 0; p < 2u; p++)
+        ok &= (kit_mask(0, &h) & ~a[p][0]) == 0u && (kit_mask(1, &h) & ~a[p][1]) == 0u;
+    check("... CHAOS 127: only more hits than at 0, another draw another pass",
+          ok && memcmp(a[0], a[1], sizeof a[0]) != 0);
+    kit_setup(0);
+    TDRUM->p[P_GRX] = 10, TDRUM->p[P_GRY] = 120, TDRUM->p[P_GRCH] = 33, TDRUM->p[P_GRBD + 2] = 5;
+    proj_capture(&pj, &dr);
+    ok = pj.t[TRK_DRUM].p[PJ_E0 + (P_GRX - P_E0)] == 10 - 64 && pj.t[TRK_DRUM].p[PJ_E0 + (P_GRCH - P_E0)] == 33;
+    TDRUM->p[P_GRX] = TDRUM->p[P_GRY] = TDRUM->p[P_GRCH] = TDRUM->p[P_GRBD + 2] = 0;
+    proj_apply(&pj, &dr, 1);
+    ok &= TDRUM->p[P_GRX] == 10 && TDRUM->p[P_GRY] == 120 && TDRUM->p[P_GRCH] == 33 && TDRUM->p[P_GRBD + 2] == 5 &&
+          TDRUM->p[P_GRBD] == 64;
+    for (i = 0; i < GR_KIT_N; i++)
+        pj.t[TRK_DRUM].p[PJ_E0 + (P_GRX - P_E0) + i] = 0;   /* (a project of before: 0 there) */
+    proj_apply(&pj, &dr, 1);
+    check("... the project keeps X Y CHAOS BD SD HH (stored from their defaults: 0 loads X 64 Y 64 CHAOS 0, 64 each)",
+          ok && TDRUM->p[P_GRX] == 64 && TDRUM->p[P_GRY] == 64 && TDRUM->p[P_GRCH] == 0 && TDRUM->p[P_GRBD + 2] == 64);
+    gen_reset_all();
+}
+#undef B
+
 /* WRITE in two halves (gen_write_prep with the interrupts on, gen_write_commit with them off): the same pattern as
  * gen_write; a render for the drum track never lands on a synth track; the slot off: nothing prepared */
 static void write_split_tests(void)
@@ -474,6 +626,8 @@ int main(void)
     mode_tests();
     heard_tests();
     det_tests();
+    grids_tests();
+    kit_tests();
     tlv_tests();
     write_split_tests();
     printf(bad ? "gen test FAILED (%d)\n" : "gen test passed\n", bad);

@@ -1333,8 +1333,8 @@ async function editorFxp() {
     "tools v2: op 9 RANDOM ON (the EUCLID flag stays 0; a tool: rc 2), OFF");
   tl = TL(await rq(E.req.toolsGenType(0)));
   ok(tl.gen.type === 0 && tl.hits === 4, "tools v2: back to EUCLID at its defaults");
-  ok(/GEN_TYPES\[GT_N\] = \{\s*\{"EUCLID", \{\{"HITS", 0, 64, 4[^]*"RANDOM", \{\{"DENSITY", 0, 100, 50[^]*"PULSE", \{\{"EVERY", 1, 16, 4/.test(readFileSync(join(HERE, "../firmware/src/seq/gen.c"), "utf8"))
-    && E.GEN_TYPES && E.GEN_TYPES.map((g) => g.name).join() === "EUCLID,RANDOM,PULSE", "tools v2: the editor's GEN_TYPES == gen.c's");
+  ok(/GEN_TYPES\[GT_N\] = \{\s*\{"EUCLID", \{\{"HITS", 0, 64, 4[^]*"RANDOM", \{\{"DENSITY", 0, 100, 50[^]*"PULSE", \{\{"EVERY", 1, 16, 4[^]*"GRIDS", \{\{"X", 0, 127, 64/.test(readFileSync(join(HERE, "../firmware/src/seq/gen.c"), "utf8"))
+    && E.GEN_TYPES && E.GEN_TYPES.map((g) => g.name).join() === "EUCLID,RANDOM,PULSE,GRIDS", "tools v2: the editor's GEN_TYPES == gen.c's");
   ok(/function dynTools\(/.test(html) && /toolsEuOn\(lane\(\)\)/.test(html), "tools: the Tools popup (verbs, scope on the drum track, EUCLID)");
   /* a device-side change: the editor is told (FX_PUSH, v9) */
   await E.startWatch(rq);
