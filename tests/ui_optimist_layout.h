@@ -262,12 +262,13 @@ static void bd_layout_tests(void)
         page_rows(sound_page, snd_ix);
         for (i = 0; i < OP_NPG; i++) {
             const page_t *pg = op_pg(i);
-            flt2 |= sound_page(pg) && pg->id[0] == P_A2FTYP;
+            flt2 |= sound_page(pg) && pg->id[0] == P_A2FTYP && (!FELUCCA_A2_MODELS || pg->id[1] != PID_A2MDL);
             filt |= sound_page(pg) && pg->scope == SC_TRACK && str_eq(pg->title, "FILTER");
-            ftyp |= pg->id[3] == P_A2FTYP;
+            ftyp |= FELUCCA_A2_MODELS ? sound_page(pg) && pg->id[0] == P_A2FTYP && pg->id[1] == PID_A2MDL : pg->id[3] == P_A2FTYP;
         }
         check(!flt2 && !filt && (!FELUCCA_ANALOG2 || ftyp),
-              "#21: FLT 2's FTYP on OSC 2's fourth card, no FLT 2 row; no FILTER row (INSERTS' amount card is that value)");
+              "#21: FLT 2's FTYP on OSC 2's fourth card, no FLT 2 row (with MODEL built: FLT 2 a row, FTYP and MODEL); no "
+              "FILTER row (INSERTS' amount card is that value)");
     }
     memcpy(ui.row, rows, sizeof rows);
     reset_ui();

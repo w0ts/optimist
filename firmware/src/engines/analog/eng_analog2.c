@@ -11,7 +11,8 @@
  *          its presets are ANALOG's now). DRFT: SUPER's slow random wander of the pitch, osc 2 against
  *          osc 1; DRFT > 0 also leaves the phases free (no restart at a note: pads, strings), DRFT 0
  *          restarts them (an 808 starts the same every time).
- *   FLT 2  FTYP LP12 (ANALOG's), LP24 (a second stage, unresonant), BP, HP.
+ *   FLT 2  FTYP LP12 (ANALOG's), LP24 (a second stage, unresonant), BP, HP; NOTCH and MODEL (FELUCCA_A2_MODELS, one stored
+ *          value with FTYP: a2_models.c, float, its own unit) SVF (this filter), LADR, OTA, DIOD, MS20.
  *   ENV2   (since 2026-10-14 every engine's: voice.c env2_tick, its two slots ENV2 DEST) reaches this engine through
  *          m: the cutoff, the pitch (both oscillators and the swarm), the shape (PW, the sync sweep), and its own two
  *          destinations OSC2 (m->os2: osc 2's pitch alone, 1/16 semitones) and SDTN (m->sdt: the swarm's spread).
@@ -60,10 +61,13 @@
  *   a2_out(out, b, amp0, amp1, n)  out[i] += the soft knee of b[i] (16000), x 2 x the amplitude ramp
  *        amp0 -> amp1 (Q15) x VOICE_FS.
  * Voice state: ph[0] / ph[1] the oscillators, ph[2] the swarm's spread phase; s[0..1] the filter, s[4..5]
- * its second stage, s[2] the noise generator (and the drift's), s[3] the drift, s[6] the last block's
- * cutoff (A2_NOCUT: a fresh note). voice.c
+ * its second stage (a model's: its four floats), s[2] the noise generator (and the drift's), s[3] the drift, s[6]
+ * the last block's cutoff (A2_NOCUT: a fresh note), s[7] the model whose states these are (0: the SVF's). voice.c
  * voice_start keeps s[0..1], s[4..6] on a retrigger. */
 #include "../../../hal/fm1_dsp_asm.h"                    /* FELUCCA_ASM: kernels in pi32v2 asm */
+#if FELUCCA_A2_MODELS && !defined(__PI32V2__)
+#include "a2_models.c"                                /* (the host tests: one unit; the target builds it alone, with the FPU) */
+#endif
 #define A2_NOCUT INT32_MIN
 #define A2_SWARM_GC (80 * 258)                        /* the copies' level against osc 1: SUPER's MIX 80 */
 
@@ -341,6 +345,12 @@ static HOT __attribute__((noinline)) int32_t a2_knee(int32_t x, int32_t k, uint3
 A2_FLT_KERNEL_X(A2_REF(a2_lp), b[i], v2)             /* (the input: |b| < 65536, the osc contract) */
 A2_FLT_KERNEL(a2_bp, b[i], v1)
 A2_FLT_KERNEL(a2_hp, b[i], x - ((kd * v1) >> 12) - v2)     /* HP = in - k bp - lp */
+#if FELUCCA_A2_MODELS                                 /* (NOTCH comes with the models: no RAM code otherwise) */
+A2_FLT_KERNEL(a2_nt, b[i], x - ((kd * v1) >> 12))          /* NOTCH = in - k bp (lp + hp) */
+#else
+#define a2_nt a2_hp                                   /* (FTYP stops at HP: never picked) */
+#define a2_nt_i a2_hp_i
+#endif
 A2_FLT_KERNEL_X(A2_REF(a2_lp2), clamp(b[i], -65536, 65536), v2)   /* LP24's second stage: its input (the
                                                                  * first stage's low-pass, up to 128736) clamped */
 #if FELUCCA_ASM
@@ -367,8 +377,8 @@ A2_LP_ASM(a2_lp2, 1)
 #endif
 typedef void (*a2_flt_fn)(int32_t *b, int32_t *st, const tsvf_t *c, int32_t kd, uint32_t n);
 typedef void (*a2_flt_i_fn)(int32_t *b, int32_t *st, const tsvf_t *c, const tsvf_t *d, int32_t kd, uint32_t n);
-static const a2_flt_fn A2_FLT[5] = {a2_lp, a2_lp, a2_bp, a2_hp, a2_lp2};   /* LP12 LP24 BP HP, LP24's 2nd */
-static const a2_flt_i_fn A2_FLT_I[5] = {a2_lp_i, a2_lp_i, a2_bp_i, a2_hp_i, a2_lp2_i};
+static const a2_flt_fn A2_FLT[A2M_MODES + 1u] = {a2_lp, a2_lp, a2_bp, a2_hp, a2_nt, a2_lp2};   /* FTYP's modes, LP24's 2nd */
+static const a2_flt_i_fn A2_FLT_I[A2M_MODES + 1u] = {a2_lp_i, a2_lp_i, a2_bp_i, a2_hp_i, a2_nt_i, a2_lp2_i};
 
 /* the filter over a block (CTL samples), the cutoff going from c0 (the last block's) to cut: still, one
  * set of coefficients; moving, they are worked out at c0, halfway and cut and stepped linearly per sample
@@ -381,7 +391,7 @@ static HOT void a2_filter(int32_t *b, int32_t *s, int32_t c0, int32_t cut, uint3
 {
     uint32_t st, j;
     for (st = 0; st <= (ftyp == 1u); st++) {
-        uint32_t m = st ? 4u : ftyp;
+        uint32_t m = st ? A2M_MODES : ftyp;
         int32_t k = st ? 5793 : kd;
         tsvf_t c, e, d;
         a2_coef(&c, c0, k);
@@ -540,7 +550,7 @@ static HOT void analog_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, 
     static const int8_t COPY_AT[6] = {1, -1, 2, -2, 3, -3};   /* spread steps of copy k */
     const int16_t *p = t->p;
     uint32_t w1 = (uint32_t)p[P_E0] % 5u, w2 = p[P_A2WAVE] ? (uint32_t)(p[P_A2WAVE] - 1) % 5u : w1;
-    uint32_t ftyp = (uint32_t)p[P_A2FTYP] & 3u, ncopy = super_copies((uint32_t)p[P_A2SWRM]), j, k;
+    uint32_t fmdl = (uint32_t)p[P_A2FTYP] / A2M_MODES, ftyp = (uint32_t)p[P_A2FTYP] % A2M_MODES, ncopy = super_copies((uint32_t)p[P_A2SWRM]), j, k;
     int32_t det = p[P_E1], m2 = p[P_E2] * 258, nz = p[P_E3] * 100, drv = p[P_E6], kd = a2_k(p[P_E5]);
     int32_t shape = m->shape, sdtn = p[P_A2SDTN], cut, c0;
     int32_t b[CTL];
@@ -609,6 +619,17 @@ static HOT void analog_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, 
     cut = clamp(cut, 0, 127 << 8);
     c0 = v->s[6] == A2_NOCUT ? cut : v->s[6];
     v->s[6] = cut;
-    a2_filter(b, v->s, c0, cut, ftyp, kd);
+#if FELUCCA_A2_MODELS
+    if (fmdl - 1u < A2M_N - 1u && (A2M_BUILT >> fmdl & 1u))   /* (a model not built: the SVF) */
+        FAR(a2m_block)(b, v->s, c0, cut, fmdl, ftyp, p[P_E5], n);   /* (a2_models.c: flash, its own unit) */
+    else
+#endif
+    {
+        if (v->s[7]) {                                /* (a model's floats there: the SVF from 0) */
+            v->s[0] = v->s[1] = v->s[4] = v->s[5] = 0;
+            v->s[7] = 0;
+        }
+        a2_filter(b, v->s, c0, cut, ftyp, kd);
+    }
     a2_out(out, b, m->amp0, m->amp1, n);
 }

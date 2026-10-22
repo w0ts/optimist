@@ -338,6 +338,14 @@ def build_app():
         units.append(("cc", *ACID_CFLAGS, *(["-DFELUCCA_CPU_GUARD=1"] if CFG_VALUES.get("FELUCCA_CPU_GUARD") == 1 else []),
                       "-c", FW / "src" / "engines" / "acid" / "acid_dsp.c", "-o", OUT / "acid.o"))
         objs.append(OUT / "acid.o")
+    (OUT / "a2m.o").unlink(missing_ok=True)
+    a2m = {f: CFG_VALUES.get(f, int(os.environ.get(f, "0"))) for f in
+           ("FELUCCA_A2_LADR", "FELUCCA_A2_OTA", "FELUCCA_A2_DIOD", "FELUCCA_A2_MS20")}
+    if any(v == 1 for v in a2m.values()):
+        # ANALOG 2's filter models (firmware/src/engines/analog/a2_models.c): float, their own unit with the FPU flags, as ACID's
+        units.append(("cc", *ACID_CFLAGS, *(f"-D{k}={v}" for k, v in a2m.items()), "-c",
+                      FW / "src" / "engines" / "analog" / "a2_models.c", "-o", OUT / "a2m.o"))
+        objs.append(OUT / "a2m.o")
     (OUT / "x0x.o").unlink(missing_ok=True)
     x0x = {f: CFG_VALUES.get(f, int(os.environ.get(f, d))) for f, d in
            (("FELUCCA_DRUM_X909", "0"), ("FELUCCA_DRUM_X808", "0"), ("FELUCCA_X909_CYM", "1"), ("FELUCCA_X909_HAT", "1"),

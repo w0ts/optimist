@@ -316,7 +316,11 @@ static uint32_t src_page_ix(void)                       /* PAGES' SOURCE (the br
  *   FLT 2 (ANALOG's FTYP alone) on OSC 2's free card: OSC 2 is OP_OSC2 here, FLT 2 no row (merged_away)
  *   FILTER (the track filter's amount alone) no row: INSERTS shows the same value, the amount card of the slot holding it */
 #if FELUCCA_ANALOG2
+#if FELUCCA_A2_MODELS
+static const page_t OP_OSC2 = {"OSC 2", FAM_EDIT, SC_TRACK, GR_NONE, {P_A2WAVE, P_A2SEMI, P_A2SYNC, 0xFF}};   /* (FTYP: FLT 2, with MODEL) */
+#else
 static const page_t OP_OSC2 = {"OSC 2", FAM_EDIT, SC_TRACK, GR_NONE, {P_A2WAVE, P_A2SEMI, P_A2SYNC, P_A2FTYP}};
+#endif
 #define OSC2_PAGE(pg) ((pg)->scope == SC_TRACK && (pg)->id[0] == P_A2WAVE)
 #else
 #define OSC2_PAGE(pg) 0
@@ -327,7 +331,7 @@ static int merged_away(const page_t *pg)
         return 0;
 #if FELUCCA_ANALOG2
     if (pg->id[0] == P_A2FTYP)
-        return 1;
+        return !FELUCCA_A2_MODELS;                      /* (with MODEL: FLT 2 a row of its own) */
 #endif
 #if FELUCCA_TRK_FILT
     if (pg->id[0] == P_TFLT)
@@ -644,7 +648,15 @@ static int32_t ins_skip(uint32_t k, uint32_t s, int32_t old, int32_t v)
 static void page_set(const page_t *pg, uint32_t k, int16_t *vp, int32_t v, int32_t steps)
 {
     uint32_t id = page_id(pg, k);
-    int32_t was = *vp;
+    int32_t was;
+#if FELUCCA_A2_MODELS
+    if (pg->scope == SC_TRACK && (id == P_A2FTYP || id == PID_A2MDL)) {   /* FLT 2's FTYP, MODEL: the stored value whole */
+        *vp = (int16_t)v;
+        v = a2f_word(id, v);
+        vp = &TSEL->p[P_A2FTYP];
+    }
+#endif
+    was = *vp;
     *vp = (int16_t)v;
     if (id >= PID_INST && id < PID_INST + INS_N) {      /* INSERTS: S1 / S2 TYPE (skips the other slot's type and the unavailable) */
         v = ins_skip(song.sel, id - PID_INST, was, v);
