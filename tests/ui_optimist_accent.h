@@ -134,7 +134,7 @@ static void acc_layers_tests(void)                      /* an upper key's meanin
     {
         uint32_t f = 0, d = 0, h = 0;
         keys_lit(&f, &d, &h);
-        check(!((f | h | d) >> DACC_KEY & 1u), "... muted: its LED dark (mute mode: muted dark, heard half; the ACCENT lane makes no sound of its own, so never full)");
+        check((d >> DACC_KEY & 1u) && !((f | h) >> DACC_KEY & 1u), "... muted: its LED dim (mute mode: muted dim, heard 2/3; the ACCENT lane makes no sound of its own, so never full)");
     }
     kdown(DACC_KEY);
     kup(DACC_KEY);

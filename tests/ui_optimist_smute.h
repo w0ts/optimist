@@ -109,8 +109,8 @@ static void smute_tests(void)
         trk_hits = smute_thits = 0;
         smute_lhits = 0;
         keys_lit(&f, &d, &h);
-        check(f == rets && d == 0u && h == (all & ~muted),
-              "SHIFT held, no note starting: the muted (T1, lane 2) dark, the heard 2/3, the returns' inputs (open) full (2026-10-22)");
+        check(f == rets && d == muted && h == (all & ~muted),
+              "SHIFT held, no note starting: the muted (T1, lane 2) dim, the heard 2/3, the returns' inputs (open) full (2026-10-22)");
         trk_hits = 1u << 1;                             /* (T2 starts a note) */
         drums.hits = 1u << 4;                           /* (lane 4 hit) */
         frames(1);
@@ -128,10 +128,10 @@ static void smute_tests(void)
               "... a muted track's and a muted lane's notes: their keys flash full too (something to unmute), DR with the lane");
         frames(MX_FLASH);
         keys_lit(&f, &d, &h);
-        check(f == rets && !(h & muted) && !(d & muted), "... then dark again (muted)");
+        check(f == rets && !(h & muted) && (d & muted) == muted, "... then dim again (muted)");
         memset(mx.llit, 0, sizeof mx.llit);
         memset(mx.lit, 0, sizeof mx.lit);
-        {   /* the last three white keys: a return's input (A B C), full while open, dark while muted, no sound mute of the output */
+        {   /* the last three white keys: a return's input (A B C), full while open, dim while muted, no sound mute of the output */
             uint8_t rm = fx_rmute;
             uint32_t ln = fxs_line[2] < 3u ? fxs_line[2] : 0u;
             fx_imute = 0;
@@ -139,8 +139,8 @@ static void smute_tests(void)
             check(fxs_lm[0] == 31u && fxs_lm[1] == 31u && fxs_lm[2] == 31u, "the returns' inputs open: the drum lanes' send masks full");
             key(white_key(14));                             /* (F: return B) */
             keys_lit(&f, &d, &h);
-            check((fx_imute >> ln & 1u) == 1u && fx_imute == (1u << ln) && fx_rmute == rm && !((f | d | h) >> white_key(14) & 1u) && (f >> white_key(13) & 1u),
-                  "SHIFT + the second of the last three white keys: return B's input muted (its output's mute untouched), its key dark, A's full");
+            check((fx_imute >> ln & 1u) == 1u && fx_imute == (1u << ln) && fx_rmute == rm && (d >> white_key(14) & 1u) && !((f | h) >> white_key(14) & 1u) && (f >> white_key(13) & 1u),
+                  "SHIFT + the second of the last three white keys: return B's input muted (its output's mute untouched), its key dim, A's full");
             check(fxs_lm[2u - ln] == 0u && !FXS_IN(FXT_CHO) == (ln == 0u) && !FXS_IN(FXT_DLY) == (ln == 1u) && !FXS_IN(FXT_REV) == (ln == 2u),
                   "... no send reaches that line (the lanes' masks, the tracks' and the USB input's send gains), the others open");
             key(white_key(14));
