@@ -141,22 +141,25 @@ final class MirrorLink: ObservableObject {
                 let type = words[k] >> 28
                 let size = [1, 1, 1, 2, 2, 4, 1, 1, 2, 2, 2, 3, 3, 4, 4, 4][Int(type)]
                 if type == 3, k + 1 < count {
-                    if let f = lock.withLock({ $0.assembler.take(words[k], words[k + 1]) }) { frames.append(f) }
+                    let w0 = words[k], w1 = words[k + 1]
+                    if let f = lock.withLock({ $0.assembler.take(w0, w1) }) { frames.append(f) }
                 }
                 k += size
             }
         }
         guard !frames.isEmpty else { return }
-        var replied = false
-        lock.withLock { s in
-            for f in frames {
+        let got = frames
+        let replied = lock.withLock { s in
+            var on = false
+            for f in got {
                 if let r = MirrorDecoder.reply(f) {
-                    replied = replied || r.on
+                    on = on || r.on
                     s.replies += 1
                 } else if s.decoder.apply(f) {
                     s.generation += 1
                 }
             }
+            return on
         }
         if replied {
             DispatchQueue.main.async {

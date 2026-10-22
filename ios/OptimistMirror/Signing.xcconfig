@@ -1,0 +1,2 @@
+// Signing: Local.xcconfig (git-ignored) holds DEVELOPMENT_TEAM = <your team ID>; nothing personal here.
+#include? "Local.xcconfig"

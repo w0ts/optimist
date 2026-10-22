@@ -1,0 +1,451 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		33E398F6F55855061D7B3F5B /* screen.sysex in Resources */ = {isa = PBXBuildFile; fileRef = DA90A8827B974067474F2B5C /* screen.sysex */; };
+		3AA30F2A997715C708ED3D3C /* MirrorDecoderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 966AB47DC696C8582C328253 /* MirrorDecoderTests.swift */; };
+		4649E2AFEED3A97BD4EEB635 /* MirrorDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6F31FA3CF326B87F5453721 /* MirrorDecoder.swift */; };
+		4A96C6E20FB1558DCED4A41D /* MirrorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D8D6024DF9B95CFFEEF0783 /* MirrorView.swift */; };
+		BA6834D7B3A00D8A4007F620 /* MirrorLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = B44F5DDB3FA5A048A53E14BC /* MirrorLink.swift */; };
+		E006485466AA9D4C7AEAFD0E /* screen.rgb565 in Resources */ = {isa = PBXBuildFile; fileRef = 0EFED5448060093A17041C1E /* screen.rgb565 */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		CB9E0E2A899AAD5FB4761B76 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AB9A7DC2B70A57CF9607CA2F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = DFC56ADAD398B150DF390FC0;
+			remoteInfo = OptimistMirror;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		0EFED5448060093A17041C1E /* screen.rgb565 */ = {isa = PBXFileReference; path = screen.rgb565; sourceTree = "<group>"; };
+		5D8D6024DF9B95CFFEEF0783 /* MirrorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MirrorView.swift; sourceTree = "<group>"; };
+		6754F3F289DC97CFA49C1379 /* OptimistMirrorTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = OptimistMirrorTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		966AB47DC696C8582C328253 /* MirrorDecoderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MirrorDecoderTests.swift; sourceTree = "<group>"; };
+		9F628B61E08FF839EDA71AB3 /* OptimistMirror.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = OptimistMirror.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		AC68F48F900D43C5CCDBEDD1 /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
+		B44F5DDB3FA5A048A53E14BC /* MirrorLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MirrorLink.swift; sourceTree = "<group>"; };
+		D6F31FA3CF326B87F5453721 /* MirrorDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MirrorDecoder.swift; sourceTree = "<group>"; };
+		DA90A8827B974067474F2B5C /* screen.sysex */ = {isa = PBXFileReference; path = screen.sysex; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		28CC8CC2993A5100466EE2B0 /* OptimistMirror */ = {
+			isa = PBXGroup;
+			children = (
+				AC68F48F900D43C5CCDBEDD1 /* Signing.xcconfig */,
+			);
+			name = OptimistMirror;
+			path = .;
+			sourceTree = "<group>";
+		};
+		6B0BD11686668E01A58833DF /* Fixtures */ = {
+			isa = PBXGroup;
+			children = (
+				0EFED5448060093A17041C1E /* screen.rgb565 */,
+				DA90A8827B974067474F2B5C /* screen.sysex */,
+			);
+			path = Fixtures;
+			sourceTree = "<group>";
+		};
+		88A4522074B8B92514C2A712 = {
+			isa = PBXGroup;
+			children = (
+				28CC8CC2993A5100466EE2B0 /* OptimistMirror */,
+				DCFB41DEA3B2BA3B45DA6505 /* Sources */,
+				C82CDE272F83AD514720E664 /* Tests */,
+				F21B6F0BA5B5031641946E7A /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		C82CDE272F83AD514720E664 /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				966AB47DC696C8582C328253 /* MirrorDecoderTests.swift */,
+				6B0BD11686668E01A58833DF /* Fixtures */,
+			);
+			path = Tests;
+			sourceTree = "<group>";
+		};
+		DCFB41DEA3B2BA3B45DA6505 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				D6F31FA3CF326B87F5453721 /* MirrorDecoder.swift */,
+				B44F5DDB3FA5A048A53E14BC /* MirrorLink.swift */,
+				5D8D6024DF9B95CFFEEF0783 /* MirrorView.swift */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		F21B6F0BA5B5031641946E7A /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				9F628B61E08FF839EDA71AB3 /* OptimistMirror.app */,
+				6754F3F289DC97CFA49C1379 /* OptimistMirrorTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		AB426DA74E9457494D2FED00 /* OptimistMirrorTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F310046D67FAE93685E6937A /* Build configuration list for PBXNativeTarget "OptimistMirrorTests" */;
+			buildPhases = (
+				D340A751B69A02A4EF6C2891 /* Sources */,
+				08BDFF052D513BD4211B2A23 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				FCBDB304409EBC3056F7D996 /* PBXTargetDependency */,
+			);
+			name = OptimistMirrorTests;
+			packageProductDependencies = (
+			);
+			productName = OptimistMirrorTests;
+			productReference = 6754F3F289DC97CFA49C1379 /* OptimistMirrorTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		DFC56ADAD398B150DF390FC0 /* OptimistMirror */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 32B9C3862D62550073532DF4 /* Build configuration list for PBXNativeTarget "OptimistMirror" */;
+			buildPhases = (
+				8EEB54093BE4F79FF889CC98 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = OptimistMirror;
+			packageProductDependencies = (
+			);
+			productName = OptimistMirror;
+			productReference = 9F628B61E08FF839EDA71AB3 /* OptimistMirror.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		AB9A7DC2B70A57CF9607CA2F /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					AB426DA74E9457494D2FED00 = {
+						ProvisioningStyle = Automatic;
+					};
+					DFC56ADAD398B150DF390FC0 = {
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = D2A0DC9179A62EEF5A09AC85 /* Build configuration list for PBXProject "OptimistMirror" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 88A4522074B8B92514C2A712;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = F21B6F0BA5B5031641946E7A /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				DFC56ADAD398B150DF390FC0 /* OptimistMirror */,
+				AB426DA74E9457494D2FED00 /* OptimistMirrorTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		08BDFF052D513BD4211B2A23 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E006485466AA9D4C7AEAFD0E /* screen.rgb565 in Resources */,
+				33E398F6F55855061D7B3F5B /* screen.sysex in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		8EEB54093BE4F79FF889CC98 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4649E2AFEED3A97BD4EEB635 /* MirrorDecoder.swift in Sources */,
+				BA6834D7B3A00D8A4007F620 /* MirrorLink.swift in Sources */,
+				4A96C6E20FB1558DCED4A41D /* MirrorView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D340A751B69A02A4EF6C2891 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3AA30F2A997715C708ED3D3C /* MirrorDecoderTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		FCBDB304409EBC3056F7D996 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = DFC56ADAD398B150DF390FC0 /* OptimistMirror */;
+			targetProxy = CB9E0E2A899AAD5FB4761B76 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		18AD0EAE3A58D50290A51ECA /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.w0ts.optimist.mirror.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/OptimistMirror.app/OptimistMirror";
+			};
+			name = Release;
+		};
+		2E758DDE5FC43DD682CDBEE2 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = AC68F48F900D43C5CCDBEDD1 /* Signing.xcconfig */;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		388F444C0FDDBA0399DAADC3 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = AC68F48F900D43C5CCDBEDD1 /* Signing.xcconfig */;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		581AE8BAC787AE92D8684611 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "FM-1 Mirror";
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIStatusBarHidden = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.w0ts.optimist.mirror;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		B011D567A1F77F2E5B5BBC3D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "FM-1 Mirror";
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIStatusBarHidden = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.w0ts.optimist.mirror;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		D7A89E2D49B8276F273F14AA /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.w0ts.optimist.mirror.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/OptimistMirror.app/OptimistMirror";
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		32B9C3862D62550073532DF4 /* Build configuration list for PBXNativeTarget "OptimistMirror" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				581AE8BAC787AE92D8684611 /* Debug */,
+				B011D567A1F77F2E5B5BBC3D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		D2A0DC9179A62EEF5A09AC85 /* Build configuration list for PBXProject "OptimistMirror" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				388F444C0FDDBA0399DAADC3 /* Debug */,
+				2E758DDE5FC43DD682CDBEE2 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		F310046D67FAE93685E6937A /* Build configuration list for PBXNativeTarget "OptimistMirrorTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D7A89E2D49B8276F273F14AA /* Debug */,
+				18AD0EAE3A58D50290A51ECA /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = AB9A7DC2B70A57CF9607CA2F /* Project object */;
+}
