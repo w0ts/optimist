@@ -2839,6 +2839,7 @@ static void drum_step(track_t *t, const dstep_t *s, uint32_t skip)
 {
     uint32_t l, m = dstep_mask(s) & ~skip & ~roll_lanes(t) & ~(uint32_t)smute_lane & ~STEP_MUTED_LANES(t);   /* (a muted lane, a muted
                                                      * hit: no hit, no MIDI) */
+    smute_lhits |= dstep_mask(s) & ~skip & (uint32_t)smute_lane;   /* (a muted lane's key flashes: something to unmute) */
     seq_out_track_off(t);                           /* the last step's hits end here */
     for (l = 0; m; l++, m >>= 1)
         if (m & 1u) {
@@ -2924,9 +2925,12 @@ static void smute_step(track_t *t, uint32_t idx, uint32_t len, uint32_t abs)
     t->rskip_lanes = 0;
     t->rskip_n = 0;
     if (is_drum(t)) {
+        smute_lhits |= dstep_mask(&t->dstep[idx]);  /* (its keys flash: something to unmute) */
         seq_out_track_off(t);
         return;
     }
+    if (t->step[idx].time == ST_NOTE && t->step[idx].n)
+        smute_thits |= (uint8_t)(1u << trk_index(t));
     rec_hold(t, idx, len, abs);
     t->seq_hold = 0;
 }

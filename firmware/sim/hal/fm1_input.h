@@ -58,7 +58,7 @@ static uint8_t fm1_led[FM1_NCOL];
 #define FM1_LED_DIM_MASK 7u
 #endif
 static uint8_t fm1_led_dim[FM1_NCOL];
-static uint8_t fm1_led_half[FM1_NCOL];          /* the half level (the HAL's: lit 1 frame in 4) */
+static uint8_t fm1_led_half[FM1_NCOL];          /* the half level (the HAL's: lit 2 frames in 3) */
 #ifndef FELUCCA_LIGHTS
 #define FELUCCA_LIGHTS 0
 #endif
