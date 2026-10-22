@@ -406,12 +406,15 @@ static int pick_mod(uint32_t held)
  * stay steps (SHIFT / SHIFT2 + a step: its ghost / hard hit, op_step.c), its black keys follow the rule. Not in a layer
  * (its keys are its own), on SONG's PATTERNS row (the patterns' grammar), on NAME, or on the pages with no track (keys_none:
  * "global pages dont play tracks. period.") */
-static int shift_alone(uint32_t held, uint32_t b)
+static int shift_alone(uint32_t held, uint32_t b, int master)
 {
-    return (held & 0x3FFFu) == (1u << panel.btn[b]) && !name_on() && lay_now() == LY_PLAY && !song_on_pat_row() && !keys_none();
+    return (held & 0x3FFFu) == (1u << panel.btn[b]) && !name_on() && lay_now() == LY_PLAY && !song_on_pat_row() &&
+           (!keys_none() || (master && (ui.scr == SCR_FX || mx_on_master() || mx_on_usb())));
 }
-static int mute_mod(uint32_t held) { return shift_alone(held, B_OCTDN); }
-static int sel_mod(uint32_t held) { return shift_alone(held, B_OCTUP); }
+/* the mute mode works on the master channel too (the user, 2026-10-22: "left shift mute should work when on master channel
+ * too"): the mixer's MASTER row (and USB IN), the master FX page; the keys still play nothing there */
+static int mute_mod(uint32_t held) { return shift_alone(held, B_OCTDN, 1); }
+static int sel_mod(uint32_t held) { return shift_alone(held, B_OCTUP, 0); }
 static int shift_step_key(uint32_t k)                   /* STEP's white keys: steps, under the shifts too */
 {
     return ui.scr == SCR_STEP && step_keys(fm1_in.buttons) && punch_key(k) >= 0 && punch_key(k) < 16;
