@@ -13,7 +13,7 @@ Each of the four tracks (T1 T2 T3 synths, DR the drum track) has a pattern of up
 | Value | What it does | Default |
 | --- | --- | --- |
 | LEN | steps in the loop, 1 to 64. Each track loops on its own length, so polymeters stay in phase | 16 |
-| DIV | step size: 1/4, 1/8, 1/16, 1/32, triplets 8T and 16T, and (builder item `DIV_LONG`) 1/2, 1BAR, 2BAR | 1/16 |
+| DIV | step size, any note value of the tempo (see Note values below) | 1/16 |
 | SWING | MPC swing of the track, shown as 50 to 75 %. It adds to the global swing. Not on the triplets | 0 |
 | GATE | how long each note sounds inside its step | 64 (of 1 to 127) |
 
@@ -88,7 +88,7 @@ Every tool works on steps 1 to LEN. The events of a step (locks, motion, chance,
 
 ARP held is a layer: hold a key for note repeat, locked to the tempo and swing, with KNOB RATE. ARP tapped opens its pages. With ARP on, the track's own steps go through the arp too. While recording, only what the keys play through the arp is recorded. The drum track has no arp. Two pages of the track:
 
-- **ARP:** MODE (OFF, UP, DN, UPDN, RND, ORD, BASS: every first note the lowest held, every second one of the others in turn, in the order played), RATE (1/4, 1/8, 1/16, 1/32, 8T, 16T; default 1/16), OCT (1 to 4), GATE.
+- **ARP:** MODE (OFF, UP, DN, UPDN, RND, ORD, BASS: every first note the lowest held, every second one of the others in turn, in the order played), RATE (any note value of the tempo; default 1/16), OCT (1 to 4), GATE (1 to 198 % of the step; past 100 % the note goes on under the next one).
 - **ARP 2:** SWG (swing), PROB (probability of a note), HOLD (on / off: keep the notes after the keys are let go) and ORD (NOTE or PLAY order).
 
 The ARP values are p-locks and motion, like the sound values. A recorded roll is written as ratchets.
@@ -138,3 +138,13 @@ They sit on top of your own values: every page still shows your values and a mac
 ## The drum ACCENT lane
 
 An extra step lane on the drum track, 909-style, always there in a firmware with the automation store (motion, locks, chance or conditions: the lane is stored as their events). It has no sound; its steps raise every hit of that step by the drum track's ACCENT amount (default 27, 0 to 127). It behaves like any lane: steps, levels, ratchets, chance and conditions, TOOLS and GEN, patterns, sections and snapshots. The last upper key (F#5) picks it; STEP shows an "AC" row; the amount is card 2 of the drum track's SOUND row ("Lane"), locks on a step with an accent hit there and records as motion; ALGORITHM walks on past the last lane to the ACCENT row of the mixer. Mute it with SHIFT + its key. A default project (power-on with nothing stored, TOOLS > NEW) starts with the lane four on the floor: a NORM accent on every beat, through the whole pattern, and no hit anywhere; the project still counts as empty, so the first take sets the tempo and the click plays as before. Off in the build: the lane is kept and edited but not heard.
+
+## Note values
+
+Every duration that follows the tempo draws from one list, longest first: 4BAR, 3BAR, 2BAR, 1BARD, 1BAR, 1/2D, 1T, 1/2, 1/4D, 2T, 1/4,
+1/8D, 4T, 1/8, 1/16D, 8T, 1/16, 1/32D, 16T, 1/32, 32T, 1/64. T is a triplet (two thirds of the value), D dotted (one and a half
+times it): 8T is a triplet eighth, 1/8D a dotted eighth, 1BARD a bar and a half. It is the list of the ARP's RATE, the track's DIV,
+the delay's TIME, a synced LFO's RATE (turned below its slowest free value), the SLICER's and the GATER's RATE and ROLL. Only the
+straight values of a beat or less swing. A delay longer than its line plays at half, or a quarter, of the value, still on the beat.
+Projects, presets and backups saved before 2026-10-22 keep their stored numbers, which now name other values: set the values again.
+SLOOP projects and the web editor's SLOOP import are converted.

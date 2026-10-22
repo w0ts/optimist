@@ -388,10 +388,12 @@ static uint32_t swing_units(int32_t pct, uint32_t u)
 {
     return (uint32_t)clamp(pct, 0, 100) * u / 200u;
 }
-/* the clock on a grid of den steps a beat, odd steps sw late: the step, units into it, its length */
-static uint32_t grid_at(uint32_t den, uint32_t sw, uint32_t *into, uint32_t *len)
+/* the clock on the grid of DUR index div (core.h DUR_48: a step is that many 48ths of a beat, counted from the first beat, so a
+ * dotted one keeps its place from one beat to the next), odd steps sw late: the step, units into it, its length */
+static uint32_t grid_at(uint32_t div, uint32_t sw, uint32_t *into, uint32_t *len)
 {
-    uint32_t u = BEAT_U / den, abs = clk_beat * den + clk_pos / u, frac = clk_pos % u;
+    uint32_t d = DUR_48[div % DUR_N], tot = clk_beat * 48u + clk_pos / DUR_U48, abs = tot / d;
+    uint32_t u = DUR_U48 * d, frac = (tot % d) * DUR_U48 + clk_pos % DUR_U48;
     if (abs & 1u) {                                      /* an odd step: sw late */
         if (frac < sw) {
             abs--;
@@ -407,31 +409,15 @@ static uint32_t grid_at(uint32_t den, uint32_t sw, uint32_t *into, uint32_t *len
     *into = frac;
     return abs;
 }
-/* swing is for the straight grids (N_DIV 0..3): off on the triplet grids 8T / 16T, where the odd steps would
- * change from one beat to the next (SLOOP 2.4) */
-static uint32_t swings(uint32_t div) { return div % 6u < 4u; }
-#if FELUCCA_DIV_LONG
+/* swing is for the straight values of a beat or less (core.h DUR_SWING): off on the triplets and the dotted ones, where the odd steps
+ * would change from one beat to the next, and on the long ones */
+static uint32_t swings(uint32_t div) { return (DUR_SWING >> (div % DUR_N)) & 1u; }
 static uint32_t trk_div(const track_t *t) { return (uint32_t)t->p[P_SDIV] % NDIV_STEP; }
-/* SLOOP 2.4 (isod89/sloop-fm1 8d3823f, seq.c grid_at): a step of 2, 4 or 8 whole beats counts from the beat
- * number, unswung (swing is for the grids inside a beat) */
 static uint32_t trk_grid(const track_t *t, uint32_t *into, uint32_t *len)
 {
-    uint32_t div = trk_div(t), m;
-    if (div < NDIV_SHORT)
-        return grid_at(DIV_DEN[div], swings(div) ? swing_units(t->p[P_SSWING] + song.g[G_SWING], BEAT_U / DIV_DEN[div]) : 0u,
-                       into, len);
-    m = DIV_BEATS[(div - NDIV_SHORT) % 3u];
-    *len = BEAT_U * m;
-    *into = (clk_beat % m) * BEAT_U + clk_pos;
-    return clk_beat / m;
+    uint32_t div = trk_div(t);
+    return grid_at(div, swings(div) ? swing_units(t->p[P_SSWING] + song.g[G_SWING], div_units(div)) : 0u, into, len);
 }
-#else
-static uint32_t trk_grid(const track_t *t, uint32_t *into, uint32_t *len)
-{
-    uint32_t div = (uint32_t)t->p[P_SDIV] % 6u, den = DIV_DEN[div];
-    return grid_at(den, swings(div) ? swing_units(t->p[P_SSWING] + song.g[G_SWING], BEAT_U / den) : 0u, into, len);
-}
-#endif
 static uint32_t trk_len(const track_t *t) { return t->p[P_SLEN] > 0 ? (uint32_t)t->p[P_SLEN] : 1u; }
 /* the per-track patterns (storage/sections/pat.c: every build with the log reads them) */
 #define PAT_N 16u                                  /* slots a track */
@@ -1371,7 +1357,7 @@ static void ft_close(void)
     steps_clear(t);                                   /* (no tie left over from an old pattern) */
     for (i = 0; i < NTRK; i++) {                      /* the project is empty: one loop length */
         trk[i].p[P_SLEN] = (int16_t)len;
-        trk[i].p[P_SDIV] = 2;                         /* 1/16 */
+        trk[i].p[P_SDIV] = DUR_DEF_16;                /* 1/16 */
     }
     for (i = 0; i < ft_n; i++) {                      /* the notes, to the nearest step */
         uint32_t idx = (ft_ev[i].t * len * 2u + T) / (2u * T) % len;
@@ -1724,7 +1710,7 @@ static void arp_prev_off(track_t *t)           /* the note GATE past 100 % kept 
 }
 static void arp_tick(track_t *t, uint32_t adv)
 {
-    uint32_t div = (uint32_t)t->p[P_ARATE] % 6u, den = DIV_DEN[div], u = BEAT_U / den, into, slen, abs = 0, fire = 0;
+    uint32_t div = (uint32_t)t->p[P_ARATE] % DUR_N, u = div_units(div), into, slen, abs = 0, fire = 0;
     if (t->arp_prev) {
         if (t->arp_poff <= adv)
             arp_prev_off(t);
@@ -1751,7 +1737,7 @@ static void arp_tick(track_t *t, uint32_t adv)
         return;
     }
     if (song.playing) {
-        abs = grid_at(den, swings(div) ? swing_units(t->p[P_ASWING], u) : 0u, &into, &slen);
+        abs = grid_at(div, swings(div) ? swing_units(t->p[P_ASWING], u) : 0u, &into, &slen);
         if (t->arp_new) {
             t->arp_new = 0;
             t->arp_abs = into * 4u >= slen * 3u ? abs : abs - 1u;   /* the last quarter: the grid plays it */
@@ -1895,10 +1881,9 @@ static void drum_input(uint32_t lane, uint32_t lvl, uint32_t rat, int rec)
 }
 
 /* -------------------------------------------------------------- roll --- */
-/* ARP + key: note repeat. The key plays at G_ROLL (1/8, 1/16, 1/32, 32T, 1/64) on the transport's grid
+/* ARP + key: note repeat. The key plays at G_ROLL (a DUR index: any note value of the tempo) on the transport's grid
  * (stopped: from the press) until it or ARP is up. Recorded, a roll faster than the track's steps
  * becomes ratchets (1/32 on 1/16 steps: x2, 32T: x3, 1/64: x4). */
-static const uint8_t ROLL_DEN[5] = {2, 4, 8, 12, 16};
 #define NROLL 4u
 static struct {
     uint8_t on, key, trk, note, lvl;    /* note: the synth note, or the lane */
@@ -1906,7 +1891,7 @@ static struct {
     uint32_t off;                       /* synth: units to its note-off, 0 = not sounding */
     uint32_t rec_abs;                   /* the step its last recorded hit went into */
 } roll[NROLL];
-static uint32_t roll_den(void) { return ROLL_DEN[(uint32_t)clamp(song.g[G_ROLL], 0, 4)]; }
+static uint32_t roll_div(void) { return (uint32_t)clamp(song.g[G_ROLL], 0, (int32_t)DUR_N - 1); }
 /* the lanes / notes a roll plays live on track t: the pattern does not play them meanwhile (no flam
  * with what was recorded, nor with what this roll is recording) */
 static uint32_t roll_lanes(const track_t *t)
@@ -1929,7 +1914,7 @@ static int roll_has(const track_t *t, uint32_t note)
 static void roll_hit(uint32_t r)
 {
     track_t *t = &trk[roll[r].trk % NTRK];
-    uint32_t u = BEAT_U / roll_den(), su = div_units((uint32_t)t->p[P_SDIV]);
+    uint32_t u = div_units(roll_div()), su = div_units((uint32_t)t->p[P_SDIV]);
     uint32_t hits = su / u, rat = hits > 4u ? 3u : hits > 1u ? hits - 1u : 0u;
     uint32_t armed = ((song.rec >> trk_index(t)) & 1u) && song.playing, later, abs = 0, rec = 0;
     if (armed) {                                     /* one recorded hit a step: the ratchet does the rest */
@@ -1957,7 +1942,7 @@ static void roll_hit(uint32_t r)
 
 static void roll_start(uint32_t k, track_t *t, uint32_t note, uint32_t lvl)
 {
-    uint32_t r, den = roll_den(), into, slen, abs;
+    uint32_t r, den = roll_div(), into, slen, abs;
     for (r = 0; r < NROLL && roll[r].on; r++)
         ;
     if (r == NROLL)
@@ -1993,7 +1978,7 @@ static void roll_end(uint32_t r)
 
 static void roll_block(uint32_t adv)
 {
-    uint32_t r, den = roll_den(), u = BEAT_U / den, into, slen;
+    uint32_t r, den = roll_div(), u = div_units(den), into, slen;
     for (r = 0; r < NROLL; r++) {
         if (!roll[r].on)
             continue;
@@ -3109,7 +3094,7 @@ static void seq_tick(track_t *t, uint32_t adv)
         return;
     abs = trk_grid(t, &into, &slen);
     {
-        uint32_t div = (uint32_t)t->p[P_SDIV] % 6u;
+        uint32_t div = (uint32_t)t->p[P_SDIV] % NDIV_STEP;
         if (t->seq_abs != SEQ_NONE && div != t->seq_den)
             t->seq_abs = abs;                        /* DIV changed: the next step of the new grid plays */
         t->seq_den = (uint8_t)div;

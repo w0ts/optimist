@@ -2296,7 +2296,7 @@ function sl26ToFun5(d) {
     const a = H + T6 * k, b = H + T5 * k;
     o.set(d.subarray(a, a + 122), b);
     const ls = d[a + 122 + 7];   /* (x[7], 2.6's P_LSYNC: n 1..10 is our RATE -n, params.c LRATE_OF_SLOOP; off: its free RATE) */
-    if (ls >= 1 && ls <= 10) w.setInt16(b + 2 * 9, -ls, true);   /* (P_LRATE is value 9) */
+    if (ls >= 1 && ls <= 10) w.setInt16(b + 2 * 9, -(SLOOP_LSYNC_DUR[ls - 1] + 1), true);   /* (P_LRATE is value 9) */
     o[b + 122] = d[a + 132], o[b + 123] = d[a + 133];
     o.set(d.subarray(a + 134, a + 774), b + 124);
     for (let i = 0; i < 64; i++) {
@@ -3284,7 +3284,8 @@ function parseNotes(s) {
 }
 
 /* close to the device's param_format (params.c), tables from tools/gen_tables.py */
-const LSYNC_NAMES = ["4BAR", "2BAR", "1BAR", "1/2", "1/4", "1/8", "8T", "1/16", "16T", "1/32"];   /* params.c N_LSYNC: RATE -1 .. -10 */
+const LSYNC_NAMES = ["4BAR", "3BAR", "2BAR", "1BARD", "1BAR", "1/2D", "1T", "1/2", "1/4D", "2T", "1/4", "1/8D", "4T", "1/8", "1/16D", "8T", "1/16", "1/32D", "16T", "1/32", "32T", "1/64"];   /* params.c N_DUR: RATE -1 .. -22 */
+const SLOOP_LSYNC_DUR = [0, 2, 4, 7, 10, 13, 15, 16, 18, 19];   /* 2.6's SYNC 1..10 as a DUR index (core.h SLOOP_LSYNC_DUR) */
 function fmtValue(d, v) {
   const sign = (x) => (x > 0 ? "+" + x : String(x));
   switch (d.fmt) {

@@ -41,19 +41,15 @@ AINL int32_t lfo_wave(track_t *t, uint32_t ph)
 static uint32_t dual_lfo_rnd[NPART];
 #endif
 /* RATE below 0: one cycle per note value of the tempo, SLOOP 2.6's LFO 2 SYNC (after Felucca 1.4 by Leo Kuroshita;
- * its P_LSYNC n is our RATE -n, params.c N_LSYNC / LSYNC_N: -1 4BAR .. -10 1/32). Its cycle in 24ths of a beat as SLOOP's
- * LSYNC_PULSES; the phase moves by what the transport clock moves (clk_blk: the tempo, the nudge, an external
+ * RATE -n is DUR index n - 1, core.h DUR_48 / params.c N_DUR: -1 4BAR .. -22 1/64, dotted and triplet values between). Its cycle in 48ths
+ * of a beat; the phase moves by what the transport clock moves (clk_blk: the tempo, the nudge, an external
  * clock), so it stays with the steps; LSYNC_KT: 2^48 / the cycle in clock units (a beat is BEAT_U = FS x 60), the
  * step (clk_blk x K) >> 16, no divide in the ISR. A fresh phrase restarts it at PHS as before (SLOOP's TRIG NOTE) */
 #define LSYNC_U (FS * 5u / 2u)                         /* a 24th of a beat, in clock units */
 #define LSYNC_ONE 281474976710656ull                    /* 2^48 */
 _Static_assert(BEAT_U == LSYNC_U * 24u, "a cycle of P 24ths of a beat is LSYNC_U x P units");
-static const uint32_t LSYNC_KT[LSYNC_N] = {           /* 4BAR 2BAR 1BAR 1/2 1/4 1/8 8T 1/16 16T 1/32: P 384 .. 3 */
-    (uint32_t)((LSYNC_ONE + LSYNC_U * 192u) / (LSYNC_U * 384u)), (uint32_t)((LSYNC_ONE + LSYNC_U * 96u) / (LSYNC_U * 192u)),
-    (uint32_t)((LSYNC_ONE + LSYNC_U * 48u) / (LSYNC_U * 96u)), (uint32_t)((LSYNC_ONE + LSYNC_U * 24u) / (LSYNC_U * 48u)),
-    (uint32_t)((LSYNC_ONE + LSYNC_U * 12u) / (LSYNC_U * 24u)), (uint32_t)((LSYNC_ONE + LSYNC_U * 6u) / (LSYNC_U * 12u)),
-    (uint32_t)((LSYNC_ONE + LSYNC_U * 4u) / (LSYNC_U * 8u)), (uint32_t)((LSYNC_ONE + LSYNC_U * 3u) / (LSYNC_U * 6u)),
-    (uint32_t)((LSYNC_ONE + LSYNC_U * 2u) / (LSYNC_U * 4u)), (uint32_t)((LSYNC_ONE + LSYNC_U * 3u / 2u) / (LSYNC_U * 3u))};
+#define LSYNC_KE(d) (uint32_t)((LSYNC_ONE + DUR_U48 * (d) / 2u) / (DUR_U48 * (d))),   /* a cycle of d 48ths of a beat (core.h DUR_LIST) */
+static const uint32_t LSYNC_KT[LSYNC_N] = {DUR_LIST(LSYNC_KE)};   /* RATE -(i + 1): DUR index i, 4BAR .. 1/64 */
 /* the phase step this block of an LFO at RATE r (LFO's and LFO 2's) */
 AINL uint32_t lfo_inc_of(int32_t r)
 {

@@ -5,7 +5,7 @@
  * the chopped sound; on the drum track before its pan and the lanes' reverb send when all alike (slicer_drums).
  *   P_SLCR    OFF / GATE / STUT
  *   P_SLPAT   one of SL_NPAT patterns of 16 steps ('x' live / open, '.' gated / repeated)
- *   P_SLRATE  the step: 1/8, 1/16, 1/32, 8T, 16T, 32T
+ *   P_SLRATE  the step: any note value of the tempo (core.h DUR_48, params.c N_DUR)
  *   P_SLDEPTH GATE: how far a '.' step closes (100 % = silent); STUT: the level of the repeat
  * GATE: the gain moves at most 1 / SL_RAMP per sample (2.9 ms from open to closed): a closing
  *   ramp ends on the step boundary, an opening one starts on it.
@@ -48,7 +48,6 @@ static const uint16_t SL_PAT[SL_NPAT] = {
     0xBB5D,   /* 15 x.xxx.x.xx.xxx.x */
     0x7597,   /* 16 xxx.x..xx.x.xxx. */
 };
-static const uint8_t SL_DEN[6] = {2, 4, 8, 3, 6, 12};   /* P_SLRATE (N_SLDIV): a step = 1 / DEN beats */
 
 static int16_t sl_buf[FELUCCA_FX_SLICER ? NTRK : 1][SL_LEN] __attribute__((section(".pool")));
 typedef struct {
@@ -87,7 +86,7 @@ static HOT void sl_enter(const track_t *t, sl_t *s)
     uint32_t mode = sl_mode(t), sw;
     s->pos = s->pos >= s->len ? s->pos - s->len : 0;   /* (the overshoot: no drift) */
     s->idx = (uint8_t)((s->idx + 1u) & 15u);
-    s->base = BEAT_U / SL_DEN[(uint32_t)t->p[P_SLRATE] % 6u];
+    s->base = div_units((uint32_t)t->p[P_SLRATE]);   /* (a DUR index, core.h) */
     sw = (uint32_t)clamp(t->p[P_SSWING] + song.g[G_SWING], 0, 100) * s->base / 200u;   /* as seq.c trk_grid */
     s->len = (s->idx & 1u) ? s->base - sw : s->base + sw;
     s->bit = (uint8_t)((sl_pattern(t) >> s->idx) & 1u);

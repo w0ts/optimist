@@ -2,8 +2,16 @@
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
 /* Parameter descriptors, formatting and the page table. */
 static const char *const N_LWAVE[] = {"SIN", "TRI", "SAW", "SQR", "S&H"};
-/* RATE below 0 (voice.c lfo_inc): one cycle per note value of the tempo, longest first (core.h LSYNC_N, LRATE_OF_SLOOP) */
-static const char *const N_LSYNC[LSYNC_N] = {"4BAR", "2BAR", "1BAR", "1/2", "1/4", "1/8", "8T", "1/16", "16T", "1/32"};
+/* the note values of the tempo (core.h DUR_48), longest first: every duration there is is an index into this list (the arp's RATE,
+ * SEQ DIV, the delay's TIME, an LFO's synced RATE -(i + 1), the slicer's and the gater's step, ROLL). T a triplet, D dotted */
+static const char *const N_DUR[DUR_N] = {"4BAR", "3BAR", "2BAR", "1BARD", "1BAR", "1/2D", "1T", "1/2", "1/4D", "2T", "1/4",
+                                         "1/8D", "4T", "1/8", "1/16D", "8T", "1/16", "1/32D", "16T", "1/32", "32T", "1/64"};
+#define N_LSYNC N_DUR
+#define N_DIV N_DUR
+#define N_SDIV N_DUR
+#define N_DLY N_DUR
+#define N_SLDIV N_DUR
+#define N_ROLL N_DUR
 static const char *const N_L2TRIG[] = {"NOTE", "FREE"};   /* LFO 2 (SLOOP 2.6's LFO 2 TRIG, POL) */
 static const char *const N_L2POL[] = {"BI", "UNI"};
 /* a modulation slot's DEST (core.h LT_*: LFO's, LFO 2's, ENV's, ENV2's) */
@@ -12,17 +20,6 @@ static const char *const N_LT[LT_N] = {"OFF", "PIT", "FLT", "SHP", "AMP", "RES",
                                        "INS2", "L1 RT", "L1 AMT", "SUS", "REL", "ATK2", "DEC2", "SUS2", "REL2", "E1 AMT",
                                        "E2 AMT", "OSC2", "SDTN", "L2 RT", "L2 AMT"};
 static const char *const N_AMODE[] = {"OFF", "UP", "DN", "UPDN", "RND", "ORD", "BASS"};   /* (BASS appended: the lowest, then the others in turn) */
-static const char *const N_DIV[] = {"1/4", "1/8", "1/16", "1/32", "8T", "16T"};
-#if FELUCCA_DIV_LONG                 /* SLOOP 2.4 (8d3823f): appended, so the old values keep their index (core.h div_units) */
-static const char *const N_SDIV[] = {"1/4", "1/8", "1/16", "1/32", "8T", "16T", "1/2", "1BAR", "2BAR"};
-#else
-#define N_SDIV N_DIV
-#endif
-#if FELUCCA_DLY_DOT                  /* SLOOP 2.4: 1/8 and 1/16 dotted, appended (core.h dly_units) */
-static const char *const N_DLY[] = {"1/4", "1/8", "1/16", "1/32", "8T", "16T", "1/8D", "1/16D"};
-#else
-#define N_DLY N_DIV
-#endif
 static const char *const N_SCALE[] = {"CHR", "MAJ", "MIN", "DOR", "MIX", "PEN", "MPEN", "HARM",
                                     "PHRY", "LYD", "LOC", "MEL", "BLUES", "WHOLE", "DIMHW", "DIMWH"};
 static const char *const N_ONOFF[] = {"OFF", "ON"};
@@ -47,7 +44,6 @@ static const char *const N_SYNC[] = {"INT", "USB", "TRS", "AUTO"};   /* SYNC_* (
 static const char *const N_CLKSRC[] = {"INT", "USB", "TRS"};         /* G_MIDI: the clock followed (MSRC_*) */
 static const char *const N_GO[] = {"--", "GO"};
 static const char *const N_SLCR[] = {"OFF", "GATE", "STUT"};             /* SL_OFF .. SL_STUT (slicer.c) */
-static const char *const N_SLDIV[] = {"1/8", "1/16", "1/32", "8T", "16T", "32T"};   /* SL_DEN */
 #if INS_FX || FELUCCA_USB_AUDIO                      /* (fx_slots.c UT_DESC, the USB input slots, names them too) */
 static const char *const N_TJMODE[] = {"I", "II", "I+II"};   /* JUNO CHORUS's MODE (juno_cho.h) */
 static const char *const N_TGPAT[] = {"16TH", "8TH", "4TH", "HALF", "OFF8", "OFF16", "DOT8", "DOT4",   /* GATER's */
@@ -56,7 +52,6 @@ static const char *const N_TGPAT[] = {"16TH", "8TH", "4TH", "HALF", "OFF8", "OFF
 static const char *const N_CHORD[] = {"OFF", "TRIAD", "7TH", "9TH", "SUS4", "POWER"};   /* seq.c CHORD_DEG */
 static const char *const N_FXOFF[] = {"ON", "OFF"};                  /* P_FXOFF: 0 = the effects heard */
 static const char *const N_VIEW[] = {"PAGE", "ALL"};                  /* G_VIEW */
-static const char *const N_ROLL[] = {"1/8", "1/16", "1/32", "32T", "1/64"};   /* seq.c ROLL_DEN */
 /* the master COMP / LIMIT (master_comp.c MC_RATIO, MC_ATK, MC_REL, MC_CEIL: the same order) */
 static const char *const N_CRAT[] = {"1.5:1", "2:1", "3:1", "4:1", "6:1", "8:1", "20:1", "INF"};
 static const char *const N_CATK[] = {"0.1ms", "0.3ms", "1ms", "3ms", "10ms", "30ms"};
@@ -107,7 +102,7 @@ static const param_desc_t TP[P_COUNT] = {
     [P_L1DB] = {"DST B", F_ENUM, 0, LT_NB - 1, 0, N_LT, 0},
     [P_L1AB] = PD("AMT B", F_BIPCT, LFO_AMT_LO, LFO_AMT_HI, 0),
     [P_AMODE] = PE("MODE", N_AMODE, 0),
-    [P_ARATE] = PE("RATE", N_DIV, 2),
+    [P_ARATE] = PE("RATE", N_DIV, DUR_DEF_16),
     [P_AOCT] = PD("OCT", F_INT, 1, 4, 1),
     [P_AGATE] = PD("GATE", F_GATE, 1, 127, 32),
     [P_ASWING] = PD("SWG", F_SWING, 0, 100, 0),
@@ -119,7 +114,7 @@ static const param_desc_t TP[P_COUNT] = {
     [P_QUANT] = PE("QNT", N_QUANT, 0),
     [P_TRANS] = PD("TRN", F_SEMI, -24, 24, 0),
     [P_SLEN] = PD("LEN", F_STEPS, 1, NSTEP, 16),
-    [P_SDIV] = PE("DIV", N_SDIV, 2),
+    [P_SDIV] = PE("DIV", N_SDIV, DUR_DEF_16),
     [P_SSWING] = PD("SWG", F_SWING, 0, 100, 0),
     [P_SGATE] = PD("GATE", F_PCT, 1, 127, 64),
     [P_DIST] = PD("DST", F_PCT, 0, 127, 0),
@@ -136,7 +131,7 @@ static const param_desc_t TP[P_COUNT] = {
     [P_MUTE] = PE("MUTE", N_ONOFF, 0),
     [P_SLCR] = PE("SLCR", N_SLCR, 0),
     [P_SLPAT] = PD("PAT", F_INT, 1, 16, 1),        /* SL_PAT[] */
-    [P_SLRATE] = PE("RATE", N_SLDIV, 1),
+    [P_SLRATE] = PE("RATE", N_SLDIV, DUR_DEF_16),
     [P_SLDEPTH] = PD("DEPTH", F_PCT, 0, 127, 127),
     [P_CHORD] = PE("CHORD", N_CHORD, 0),
     [P_FXOFF] = PE("FX", N_FXOFF, 0),
@@ -184,7 +179,7 @@ static const param_desc_t TP[P_COUNT] = {
     [P_TECHO] = PD("ECHO", F_PCT, 0, 127, 0),      /* the slapback insert (fxi.c): its level to 64, then its feedback */
     [P_TGATE] = PD("GATER", F_PCT, 0, 127, 0),     /* GATER (insfx/gater.c): its DEPTH, 127 a closed step silent */
     [P_TGPAT] = PE("PAT", N_TGPAT, 8),             /*   its pattern (gater.c IGT_PAT), TRNC1 */
-    [P_TGRATE] = PE("RATE", N_SLDIV, 1),           /*   a step: 1/16 */
+    [P_TGRATE] = PE("RATE", N_SLDIV, DUR_DEF_16),           /*   a step: 1/16 */
     [P_TGSHP] = PD("SHAPE", F_PCT, 0, 127, 0),     /*   hard .. smooth */
     /* the shapers (2026-10-18, insfx.c ifx_drive ifx_mod) */
     [P_TSFLD] = PD("SFLD", F_PCT, 0, 127, 0),      /* the drive into the sine folder */
@@ -346,7 +341,7 @@ static const param_desc_t GP[G_COUNT] = {
     [G_SWING] = PD("SWING", F_SWING, 0, 100, 0),
     [G_CLOCK] = PE("CLICK", N_CLICK, 0),            /* (the old CLK slot: projects keep their format) */
     [G_TUNE] = PD("TUNE", F_INT, -50, 50, 0),
-    [G_DTIME] = PE("TIME", N_DLY, 1),
+    [G_DTIME] = PE("TIME", N_DLY, DUR_DEF_8),
     [G_DFDBK] = PD("FDBK", F_PCT, 0, 120, 60),
     [G_DCOLOR] = PD("FREQ", F_CUTOFF, 0, 127, 107),   /* the delay filter's cutoff (was COLOR; 107: about 6 kHz, COLOR 70's) */
     [G_DMIX] = PD("MIX", F_PCT, 0, 127, 90),
@@ -374,7 +369,7 @@ static const param_desc_t GP[G_COUNT] = {
     [G_DUST] = PD("DUST", F_PCT, 0, 127, 0),
     [G_DUCK] = PD("DUCK", F_PCT, 0, 127, 0),
     [G_FILT] = PD("FILT", F_FILT, -64, 63, 0),
-    [G_ROLL] = PE("ROLL", N_ROLL, 1),
+    [G_ROLL] = PE("ROLL", N_ROLL, DUR_DEF_16),
     [G_NEWPRJ] = PE("NEW", N_GO, 0),
     [G_CTHR] = {"THRS", F_INT, -30, 0, 0, 0, "dB"},   /* 0: OFF (param_format); the master bus' dB re full scale */
     [G_CRAT] = PE("RATIO", N_CRAT, 1),
@@ -464,28 +459,12 @@ static int32_t lrate_step(const param_desc_t *d, int32_t v, int32_t steps)
 
 #if FELUCCA_DIV_ORDER
 /* #48 (after Felucca 1.0.2, hugelton/Felucca db70550, params.c DIV_ORDER / enum_rank / param_turn, by Leo
- * Kuroshita, GPL-3.0-only): the note divisions in the order of their length, longest first (the triplets between
- * their neighbours), on the knobs and the gauges; the stored values (N_DIV, N_SLDIV indices: projects, presets,
- * the editor protocol) stay. N_ROLL is in that order already. Index: the place shown, entry: the value */
-static const uint8_t DIV_ORDER[6] = {0, 1, 4, 2, 5, 3};     /* 1/4 1/8 8T 1/16 16T 1/32 */
-static const uint8_t SLDIV_ORDER[6] = {0, 3, 1, 4, 2, 5};   /* 1/8 8T 1/16 16T 1/32 32T */
-#if FELUCCA_DIV_LONG
-static const uint8_t SDIV_ORDER[9] = {8, 7, 6, 0, 1, 4, 2, 5, 3};   /* 2BAR 1BAR 1/2 1/4 1/8 8T 1/16 16T 1/32 */
-#endif
-#if FELUCCA_DLY_DOT
-static const uint8_t DLY_ORDER[8] = {0, 6, 1, 7, 4, 2, 5, 3};       /* 1/4 1/8D 1/8 1/16D 8T 1/16 16T 1/32 */
-#endif
+ * Kuroshita, GPL-3.0-only): the note divisions in the order of their length on the knobs and the gauges. Since 2026-10-22 N_DUR is in
+ * that order already (core.h DUR_48), so there is no order table: the value is the place */
 static const uint8_t *enum_order(const param_desc_t *d)
 {
-#if FELUCCA_DIV_LONG
-    if (d->names == N_SDIV)
-        return SDIV_ORDER;
-#endif
-#if FELUCCA_DLY_DOT
-    if (d->names == N_DLY)
-        return DLY_ORDER;
-#endif
-    return d->names == N_DIV ? DIV_ORDER : d->names == N_SLDIV ? SLDIV_ORDER : 0;
+    (void)d;
+    return 0;
 }
 static int32_t enum_rank(const param_desc_t *d, int32_t v)   /* v's place in the order shown (+ min): the gauges */
 {
