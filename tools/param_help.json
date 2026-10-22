@@ -487,12 +487,18 @@
       "COOK": "Turn, then SAVE: vary it", "LENGTH": "Turn, then SAVE: x2 or 1/2",
       "TOOL": "Pick a tool, then SAVE", "ON": "What the tool works on"}},
     {"kind": "op", "ctx": "GEN", "if": "FELUCCA_SEQTOOLS", "params": {
-      "TYPE": "Euclid, Random or Pulse",
+      "TYPE": "Euclid, Random, Pulse, Grids",
       "HITS": "Euclid: hits spread evenly", "STEPS": "Euclid: over how many steps",
-      "ROT": "Euclid: rotate the hits", "DENSITY": "Random: how many hits",
+      "ROT": "Euclid: rotate the hits", "DENSITY": "How many hits",
       "SEED": "Random: another draw", "ACCENT": "Random: how many hard hits",
       "EVERY": "Pulse: a hit every n steps", "OFFSET": "Pulse: from which step",
-      "RATCHET": "Pulse: hits in each step"}},
+      "RATCHET": "Pulse: hits in each step",
+      "X": {"text": "Grids: across the drum map", "if": "FELUCCA_GEN_GRIDS"},
+      "Y": {"text": "Grids: down the drum map", "if": "FELUCCA_GEN_GRIDS"}}},
+    {"kind": "op", "ctx": "GRIDS", "if": "FELUCCA_GEN_GRIDS", "params": {
+      "X": "Across the drum map", "Y": "Down the drum map", "CHAOS": "Random push, new each bar"}},
+    {"kind": "op", "ctx": "DENSITY", "if": "FELUCCA_GEN_GRIDS", "params": {
+      "BD": "Kick hits: how many", "SD": "Snare hits: how many", "HH": "Hat hits: how many"}},
     {"kind": "op", "ctx": "GEN OUT", "if": "FELUCCA_SEQTOOLS", "params": {
       "GEN": "ON plays it over the pattern", "MODE": "Replace, add to or mask it",
       "WRITE": "SAVE: what plays, into it"}},

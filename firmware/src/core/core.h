@@ -499,6 +499,14 @@ typedef struct {
 #define P_DACC P_E1
 #define DACC_MAX 127
 #define DACC_DEF 27              /* a NORM hit (velocity 100) accented plays 127: the X0X kits' own accent */
+/* GRIDS over the whole kit (seq/gen.c, FELUCCA_GEN_GRIDS): the drum track's P_E2 .. P_E7 (free after ACCENT's), so locks,
+ * motion and the stored track take them as ACCENT's: X, Y on the drum map, CHAOS, then the three parts' densities BD SD HH
+ * (P_GRBD + part). Stored from their defaults (params.c DRUM_GR_DESC; 0 in a project of before) */
+#define P_GRX P_E2
+#define P_GRY P_E3
+#define P_GRCH P_E4
+#define P_GRBD P_E5
+#define GR_KIT_N 6u              /* P_GRX .. P_GRX + 5 (P_E7) */
 #if FELUCCA_DRUM_ACCENT && !FELUCCA_AUTO
 #undef FELUCCA_DRUM_ACCENT
 #define FELUCCA_DRUM_ACCENT 0    /* (the lane is stored as events of the automation store: without it, none) */

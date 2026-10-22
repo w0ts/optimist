@@ -928,7 +928,7 @@ static void pat_mark(const project_t *p, int apply);   /* pat.c */
 static void proj_capture(project_t *p, dlrec_t *d)   /* what is playing now, as a project */
 {
     int16_t v[P_COUNT];
-    uint32_t i;
+    uint32_t i, j;
 #if SL24_TP
     int16_t px[NTRK][3];                                /* (SLOOP 2.4's track values: px_pack) */
 #endif
@@ -959,6 +959,9 @@ static void proj_capture(project_t *p, dlrec_t *d)   /* what is playing now, as 
         pj_from_p(p->t[i].p, v);
         if (i == TRK_DRUM)                              /* (the ACCENT amount stored from its default: 0 in a project of before) */
             p->t[i].p[PJ_E0 + (P_DACC - P_E0)] = (int16_t)(v[P_DACC] - DACC_DEF);
+        for (j = 0; i == TRK_DRUM && j < GR_KIT_N; j++)   /* (the kit's GRIDS, core.h P_GRX ..: from their defaults too) */
+            if (DRUM_GR_OF(P_GRX + j))
+                p->t[i].p[PJ_E0 + (P_GRX - P_E0) + j] = (int16_t)(v[P_GRX + j] - DRUM_GR_OF(P_GRX + j)->def);
 #if SL24_TP
         memcpy(px[i], &v[P_TFLT], sizeof px[i]);
 #endif
@@ -1055,6 +1058,9 @@ static void proj_apply(const project_t *p, const dlrec_t *d, int all)
         pj_to_p(v, s->p);
         if (k == TRK_DRUM)                              /* (the ACCENT amount: stored from its default) */
             v[P_DACC] = (int16_t)(v[P_DACC] + DACC_DEF);
+        for (i = 0; k == TRK_DRUM && i < GR_KIT_N; i++)   /* (the kit's GRIDS: from their defaults) */
+            if (DRUM_GR_OF(P_GRX + i))
+                v[P_GRX + i] = (int16_t)(v[P_GRX + i] + DRUM_GR_OF(P_GRX + i)->def);
 #if FELUCCA_ANALOG2
         if (k == TRK_DRUM)                              /* (its ANALOG 2 slots hold the parts' ENV2 values) */
             for (i = P_A2WAVE; i < P_E0; i++)
@@ -1087,6 +1093,7 @@ static void proj_apply(const project_t *p, const dlrec_t *d, int all)
         for (i = 0; i < P_COUNT; i++) {                 /* every value back inside its range */
             const param_desc_t *d = k == TRK_DRUM && i == P_E0 ? &DRUM_KIT_DESC :   /* the drum kit */
                                     k == TRK_DRUM && i == P_DACC ? &DRUM_ACC_DESC :   /* its ACCENT amount */
+                                    k == TRK_DRUM && DRUM_GR_OF(i) ? DRUM_GR_OF(i) :   /* the kit's GRIDS */
                                     i >= P_E0 && i <= P_E7 ? &ENGINES[e]->edit[i - P_E0] : &TP[i];
             t->p[i] = (int16_t)clamp(v[i], d->min, d->max);
         }

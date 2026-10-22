@@ -956,6 +956,28 @@
       "limits": "the Optimist UI only (UI=1): with SLOOP's UI it builds nothing",
       "notice": "Sequence tools from Felucca 1.5.6 by Leo Kuroshita (GPL-3.0).",
       "warning": false
+    },
+    {
+      "switch": "FELUCCA_GEN_GRIDS",
+      "title": "GRIDS note generator (Mutable Instruments Grids drum map)",
+      "default": 0,
+      "group": "sequencer",
+      "source": {
+        "repo": "https://github.com/pichenettes/eurorack",
+        "commit": "master (grids/, 2011-2013)",
+        "author": "Emilie Gillet (Mutable Instruments)",
+        "licence": "GPL-3.0-or-later",
+        "files": "grids/resources.cc node_0 .. node_24, grids/pattern_generator.cc drum_map, ReadDrumMap, EvaluateDrums"
+      },
+      "files": [
+        "firmware/src/seq/gen.c GT_GRIDS",
+        "firmware/src/seq/grids_map.h (tools/gen_grids_map.py)",
+        "web/editor.html GEN_TYPES"
+      ],
+      "storage": "the GEN_TLV slot (type 3)",
+      "limits": "needs SEQTOOLS; three values a slot (X Y DENSITY): no CHAOS; 16ths only (the odd 32nds dropped)",
+      "notice": "Drum map from Mutable Instruments Grids by Emilie Gillet (GPL-3.0-or-later).",
+      "warning": false
     }
   ],
   "later_asm_notes": [

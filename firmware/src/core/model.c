@@ -186,6 +186,9 @@ static void track_defaults(track_t *t)
         t->p[i] = TP[i].def;
     if (is_drum(t))
         t->p[P_DACC] = DACC_DEF;                     /* (the ACCENT amount: core.h; the kit is the caller's) */
+    for (i = 0; is_drum(t) && i < GR_KIT_N; i++)
+        if (DRUM_GR_OF(P_GRX + i))
+            t->p[P_GRX + i] = DRUM_GR_OF(P_GRX + i)->def;   /* (the kit's GRIDS: params.c) */
     track_defaults_steps(t);
 }
 

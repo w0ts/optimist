@@ -436,6 +436,57 @@ static void seqtools_tests(void)
     }
     gen_reset_all();
     memset(t->dstep, 0, sizeof t->dstep);
+#if FELUCCA_GEN_GRIDS
+    /* the kit's GRIDS: DR itself (no lane picked) has TOOLS GRIDS DENSITY GEN OUT; a lane picked, GEN again */
+    stt_open(TRK_DRUM, 1);
+    gen_reset_all();
+    {
+        char nm[12], nm2[12], nm3[12];
+        cell_t c;
+        step_t w[NSTEP];
+        const dstep_t *d = (const dstep_t *)(const void *)w;
+        uint32_t x0 = (uint32_t)TDRUM->p[P_GRX], bd0 = (uint32_t)TDRUM->p[P_GRBD], m;
+        step_name(ui.row[SCR_STEP], nm);
+        step_name(step_rows0() + 2u, nm2);
+        step_name(step_rows0() + 3u, nm3);
+        SCREENS[SCR_STEP].cell(ui.row[SCR_STEP], 0, &c);
+        check(step_rows() == step_rows0() + 4u && !strcmp(nm, "GRIDS") && !strcmp(nm2, "DENSITY") && !strcmp(nm3, "GEN OUT") &&
+              c.label && !strcmp(c.label, "X"), "kit GRIDS: DR's STEP pages TOOLS GRIDS DENSITY GEN OUT, GRIDS' first card X");
+        kturn(EN_K1, -3);
+        ui.row[SCR_STEP] = (uint8_t)(step_rows0() + 2u);
+        frame();
+        kturn(EN_K1, 2);
+        check(TDRUM->p[P_GRX] < (int16_t)x0 && TDRUM->p[P_GRBD] > (int16_t)bd0 && !gen[GEN_KIT].on,
+              "... X turned down, DENSITY's BD up: the drum track's values (off: nothing plays yet)");
+        ui.row[SCR_STEP] = (uint8_t)(step_rows0() + 3u);
+        frame();
+        kturn(EN_K1, 1);
+        gen_render(t, w, ~0u);
+        for (i = 0, n = 0, m = 0; i < 16u; i++)
+            n += (uint32_t)dstep_has(&d[i], 0), m |= dstep_mask(&d[i]);
+        check(gen[GEN_KIT].on && (gen_lanes >> DRUM_SLANES & 1u) && n > 0u && !(m & ~(1u << 0 | 1u << 1 | 1u << 3 | 1u << DRUM_ACC)),
+              "... GEN OUT ON: the kit plays KICK SNARE CLOSED HAT (and ACCENT), no other lane");
+        frame();
+        ppm("opt-gen-grids-kit");
+        kturn(EN_K3, 1);
+        stt_yes();                                      /* WRITE, YES */
+        for (i = 0, n = 0; i < 16u; i++)
+            n += (uint32_t)dstep_has(&t->dstep[i], 0);
+        check(n > 0u && !gen[GEN_KIT].on && !(gen_lanes >> DRUM_SLANES & 1u) && strstr(ui.msg, "DR"),
+              "... WRITE: the kick's hits stored, the kit's GRIDS OFF");
+        stt_undo();
+        for (i = 0, n = 0; i < 16u; i++)
+            n += (uint32_t)dstep_has(&t->dstep[i], 0);
+        check(n == 0u && gen[GEN_KIT].on, "... one undo: the pattern as it was, the kit ON again");
+        ui.lane = 1;
+        lane_select(0);
+        frame();
+        step_name(step_rows0() + 1u, nm);
+        check(step_rows() == step_rows0() + 3u && !strcmp(nm, "GEN"), "... a lane picked: TOOLS GEN GEN OUT, that lane's");
+    }
+    gen_reset_all();
+    memset(t->dstep, 0, sizeof t->dstep);
+#endif
     /* the EDIT layer's SHIFT: the steps' events with them */
     reset_ui();
     song.sel = 0;

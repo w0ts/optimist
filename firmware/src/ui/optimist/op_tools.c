@@ -11,7 +11,7 @@
  *           a nudge is the step's, so on DR it is the whole kit's even with a lane picked. Half a step late is not a
  *           nudge (MICRO_MAX 31/64): a start that rounds there stays at 31/64
  *   GEN     TYPE · its three values (EUCLID: HITS STEPS ROT; RANDOM: DENSITY SEED ACCENT; PULSE: EVERY OFFSET
- *           RATCHET): the note generator of the track (a drum track: of its selected lane), seq/gen.c, a layer played
+ *           RATCHET; GRIDS: X Y DENSITY): the note generator of the track (a drum track: of its selected lane), seq/gen.c, a layer played
  *           over the pattern, never written into it; a turn is heard at the next step. HOME + a knob: its default.
  *   GEN OUT GEN (ON / OFF: the pattern untouched either way) · MODE (REPLACE ADD MASK) · WRITE (over T1 or the lane's
  *           code; asks: what plays, into the pattern as ordinary steps, and the slot OFF; one undo level brings back
@@ -495,15 +495,45 @@ static void tl_cook_drum(track_t *t, uint32_t len, uint32_t hits, uint32_t lm)
 }
 
 /* ---- the note generators (seq/gen.c): GEN (TYPE and its three values) and GEN OUT (ON, MODE, WRITE, the slot's read-out)
- * set the slot of the selected track (a drum track: its selected lane). A turn is heard at the next step; nothing is
- * written into the pattern but by WRITE (it asks; one undo level). ON / OFF never touch the pattern */
+ * set the slot of the selected track (a drum track: its picked lane). A turn is heard at the next step; nothing is
+ * written into the pattern but by WRITE (it asks; one undo level). ON / OFF never touch the pattern.
+ * DR itself (no lane picked, FELUCCA_GEN_GRIDS): the kit's GRIDS, GEN's place taken by GRIDS (X Y CHAOS) and DENSITY
+ * (BD SD HH: the drum track's values, core.h P_GRX ..), GEN OUT the kit's slot (GEN_KIT) */
 static void tl_say(const char *a, const char *b);       /* (below) */
-static uint32_t ng_slot(void) { return gen_slot(song.sel % NTRK, lane_selected()); }
-static gen_t *ng_cur(void) { return &gen[ng_slot() % GEN_NSLOT]; }
-static const char *ng_who(void)                         /* the slot's name: "T1", a lane's */
+#if FELUCCA_GEN_GRIDS
+static int ng_kit(void) { return is_drum(TSEL) && !lane_picked(); }
+#else
+static int ng_kit(void) { return 0; }
+#endif
+static uint32_t ng_slot(void)
 {
-    return is_drum(TSEL) ? lane_name(lane_selected()) : trk_tag(song.sel);
+#if FELUCCA_GEN_GRIDS
+    if (ng_kit())
+        return GEN_KIT;
+#endif
+    return gen_slot(song.sel % NTRK, lane_selected());
 }
+static gen_t *ng_cur(void) { return &gen[ng_slot() % GEN_NSLOT]; }
+static const char *ng_who(void)                         /* the slot's name: "T1", a lane's, "DR" (the kit's) */
+{
+    return is_drum(TSEL) && !ng_kit() ? lane_name(lane_selected()) : trk_tag(song.sel);
+}
+#if FELUCCA_GEN_GRIDS
+/* GRIDS (pg 3: X Y CHAOS) and DENSITY (pg 4: BD SD HH): knob k's value, the drum track's id */
+static uint32_t gr_kid(uint32_t pg, uint32_t k) { return k < 3u ? P_GRX + (pg - 3u) * 3u + k : P_COUNT; }
+static void gr_kcell(uint32_t pg, uint32_t k, cell_t *c)
+{
+    uint32_t id = gr_kid(pg, k);
+    if (DRUM_GR_OF(id))
+        cell_param(c, DRUM_GR_OF(id), &TDRUM->p[id]);
+}
+static void gr_kturn(uint32_t pg, uint32_t k, int32_t s)
+{
+    uint32_t id = gr_kid(pg, k);
+    if (DRUM_GR_OF(id))
+        dval_turn(id, DRUM_GR_OF(id), k, s, 0);         /* (recorded as motion as ACCENT's: op_cells.c) */
+}
+#endif
 static int32_t ng_max(const gen_par_t *d, uint32_t len) { return d->max ? d->max : (int32_t)len; }
 static void ng_put(const gen_t *g)                      /* the slot's settings now (the IRQ off: the ISR reads them) */
 {
@@ -545,7 +575,7 @@ static void ng_cell(uint32_t pg, uint32_t k, cell_t *c)   /* pg 1 GEN, 2 GEN OUT
         cell_list(c, "MODE", GEN_MODE[g.mode % GM_N], GM_N - 1, g.mode);
     } else if (k == 2u && g.on) {                       /* (the verb over its object: what plays, into the pattern; asks.
                                                          * OFF: nothing to write, no card) */
-        cell_act(c, is_drum(TSEL) ? lane_code(lane_selected()) : trk_tag(song.sel), "WRITE", 0, 0);
+        cell_act(c, is_drum(TSEL) && !ng_kit() ? lane_code(lane_selected()) : trk_tag(song.sel), "WRITE", 0, 0);
     } else {
         c->kind = CK_NONE;
     }
@@ -664,9 +694,15 @@ static int tl_has_nudge(const track_t *t, uint32_t len)
 #endif
 
 /* ---- the pages */
-static void tl_cell(uint32_t pg, uint32_t k, cell_t *c)   /* pg 0 TOOLS, 1 GEN, 2 GEN OUT */
+static void tl_cell(uint32_t pg, uint32_t k, cell_t *c)   /* pg 0 TOOLS, 1 GEN, 2 GEN OUT, 3 GRIDS, 4 DENSITY (the kit's) */
 {
     cell_clear(c);
+#if FELUCCA_GEN_GRIDS
+    if (pg >= 3u) {
+        gr_kcell(pg, k, c);
+        return;
+    }
+#endif
     if (!pg) {
         if (k == 0u) {                                       /* (one card: its knob picks the tool, YES does it) */
             c->kind = CK_VAL;                                /* (a value cell: the turn reaches tl_turn, an action cell's would only pick it) */
@@ -682,6 +718,12 @@ static void tl_cell(uint32_t pg, uint32_t k, cell_t *c)   /* pg 0 TOOLS, 1 GEN, 
 }
 static void tl_turn(uint32_t pg, uint32_t k, int32_t s)
 {
+#if FELUCCA_GEN_GRIDS
+    if (pg >= 3u) {
+        gr_kturn(pg, k, s);
+        return;
+    }
+#endif
     if (pg) {
         ng_turn(pg, k, s);
         return;

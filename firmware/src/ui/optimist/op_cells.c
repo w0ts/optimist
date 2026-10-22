@@ -734,21 +734,22 @@ static void page_turn(const page_t *pg, uint32_t k, int32_t s, int fine)
 /* the ACCENT amount (core.h P_DACC), the drum track's own value (not a lane's: the SOUND row's fourth card on every
  * lane, the mixer's ACCENT row): its card and its turn, which records as motion as the track's values do */
 static void acc_cell(cell_t *c) { cell_param(c, &DRUM_ACC_DESC, &TDRUM->p[P_DACC]); }
-static void acc_turn(uint32_t k, int32_t s, int fine)
+/* a value of the drum track's own (described by d: the ACCENT amount, the kit's GRIDS) turned on knob k */
+static void dval_turn(uint32_t id, const param_desc_t *d, uint32_t k, int32_t s, int fine)
 {
-    const param_desc_t *d = &DRUM_ACC_DESC;
-    int32_t v = s == OP_RESET ? d->def : param_step(d, TDRUM->p[P_DACC], fine ? s : k_accel(k, s, d));
-    TDRUM->p[P_DACC] = (int16_t)v;
+    int32_t v = s == OP_RESET ? d->def : param_step(d, TDRUM->p[id], fine ? s : k_accel(k, s, d));
+    TDRUM->p[id] = (int16_t)v;
 #if FELUCCA_MOTION
-    motion_knob(TDRUM, P_DACC, v);
+    motion_knob(TDRUM, id, v);
     if (motion_full) {
         motion_full = 0;
         ui_message("MOTION FULL");
     }
 #elif FELUCCA_PLOCK
-    auto_knob_base(TDRUM, P_DACC, v);
+    auto_knob_base(TDRUM, id, v);
 #endif
 }
+static void acc_turn(uint32_t k, int32_t s, int fine) { dval_turn(P_DACC, &DRUM_ACC_DESC, k, s, fine); }
 
 /* YES on page pg's value k: toggle an on / off value, do a GO button (ok: confirmed; the destructive ones ask
  * first). Returns 1 when it did or asked something */

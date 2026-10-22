@@ -216,6 +216,8 @@ static const param_desc_t *ed_tdesc(const track_t *t, uint32_t id)   /* the stat
     if(is_drum(t) && id==P_E0) return &DRUM_KIT_DESC;
     if (is_drum(t) && id == P_DACC)
         return &DRUM_ACC_DESC;                                        /* (the ACCENT amount) */
+    if (is_drum(t) && DRUM_GR_OF(id))
+        return DRUM_GR_OF(id);                                        /* (the kit's GRIDS: params.c) */
     if (id >= P_E0 && id <= P_E7) {
         const engine_t *e = ENGINES[t->eng_req % NENGINES];
         return &e->edit[id - P_E0];

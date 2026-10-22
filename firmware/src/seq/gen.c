@@ -4,7 +4,8 @@
 /* The note generators (FELUCCA_SEQTOOLS with the Optimist UI; its STEP pages GEN and GEN OUT, ui/optimist/op_tools.c): a
  * layer the sequencer plays OVER the pattern, never written into it. Included by seq.c after chance.c.
  *
- *   gen[]         a slot each synth track (T1..T3: slot k) and each drum step lane (16 sounds + ACCENT: NPART + lane):
+ *   gen[]         a slot each synth track (T1..T3: slot k), each drum step lane (its sounds + ACCENT: NPART + lane) and,
+ *                 with GRIDS built, the kit's (GEN_KIT, after the lanes: gr_kit_merge):
  *                 type, mode, on, three values. GEN_TLV in the FX record keeps them with the project (fx/fx_rec.c)
  *   gen_eff       the step the sequencer plays at step i (seq_tick, seq_step's next step, the ratchets): the
  *                 pattern's step, or, with a generator on, the pattern's merged with the generator's output there.
@@ -22,15 +23,24 @@
  *
  * A generator is an entry of GEN_TYPES: its name, three values (label, range, default, how shown), a fit (dependent
  * ranges: EUCLID's HITS <= STEPS <= LEN), its step function (values, step, LEN, the slot's seed -> a hit and its level /
- * ratchet) and the state it needs (bytes; the three here need none: each is a pure function of its values, the step
- * and the slot, so a pass plays as the one before, PLAY, a loop start or a launched pattern start it in step, and WRITE
+ * ratchet) and the state it needs (bytes; the four here need none: each is a pure function of its values, the step
+ * and the slot (GRIDS: and the lane's sound), so a pass plays as the one before, PLAY, a loop start or a launched pattern start it in step, and WRITE
  * writes what was heard). RANDOM draws its own hash, never rng(): the chance rolls stay as they were. Off: one byte
  * tested a step (gen_trk), nothing else. */
 #if GEN_BUILT                                            /* (seq.c, before undo.c) */
 #define GEN_ON 1
 #define GEN_NP 3u                                        /* values a generator */
+#if FELUCCA_GEN_GRIDS
+#define GEN_KIT (NPART + DRUM_SLANES)                    /* the kit's GRIDS: one slot over the drum track (gr_kit_merge) */
+#define GEN_NSLOT (NPART + DRUM_SLANES + 1u)
+#else
 #define GEN_NSLOT (NPART + DRUM_SLANES)
-enum { GT_EUCLID, GT_RANDOM, GT_PULSE, GT_N };
+#endif
+enum { GT_EUCLID, GT_RANDOM, GT_PULSE,
+#if FELUCCA_GEN_GRIDS
+       GT_GRIDS,                                         /* (a project's GRIDS slot on a build without: off, at the defaults) */
+#endif
+       GT_N };
 enum { GM_REPLACE, GM_ADD, GM_MASK, GM_N };
 enum { GD_INT, GD_PCT, GD_X };                           /* how a value is shown: 5, 50 %, x2 */
 typedef struct {
@@ -54,8 +64,10 @@ typedef struct {
 } gen_type_t;
 static gen_t gen[GEN_NSLOT] = {[0 ... GEN_NSLOT - 1u] = {GT_EUCLID, GM_REPLACE, 0, {4, 16, 0}}};   /* (EUCLID's defaults, off) */
 static volatile uint8_t gen_trk;                         /* bit k: track k has a generator on (the ISR's test) */
-static volatile uint32_t gen_lanes;                      /* the drum lanes with one on */
-_Static_assert(NPART == TRK_DRUM && DRUM_SLANES <= 32u, "the slots: the synth tracks, then the drum lanes");
+static volatile uint32_t gen_lanes;                      /* the drum lanes with one on; bit DRUM_SLANES: the kit's GRIDS */
+#define GEN_LANES_M ((1u << DRUM_SLANES) - 1u)           /* (gen_lanes: the lanes' own) */
+#define GEN_DSLOTS (GEN_NSLOT - NPART)                   /* the drum track's slots: its lanes, then the kit's */
+_Static_assert(NPART == TRK_DRUM && DRUM_SLANES < 31u, "the slots: the synth tracks, then the drum lanes (and the kit)");
 
 static uint32_t gen_slot(uint32_t k, uint32_t lane) { return k < NPART ? k : NPART + lane % DRUM_SLANES; }
 static uint32_t gen_mix(uint32_t h)                      /* (murmur3's finaliser) */
@@ -112,10 +124,111 @@ static int pu_gstep(const gen_t *g, uint32_t i, uint32_t len, uint32_t seed, gen
     e->rat = (uint8_t)(g->p[2] > 1u ? (g->p[2] - 1u) & 3u : 0u);
     return 1;
 }
+/* ---- GRIDS: Mutable Instruments Grids' drum mode (Emilie Gillet, pichenettes/eurorack grids/pattern_generator.cc
+ * ReadDrumMap, EvaluateDrums; GPL-3.0-or-later): a 5 x 5 map of drum patterns, read at (X, Y) between its four
+ * nearest nodes. A hit where the level beats 255 - DENSITY, HARD where it is over 192. The part read is the lane's
+ * sound's family: kicks BD, snares / claps / rims SD, the others HH; the ACCENT lane hits where any of the three hits
+ * HARD; a synth track: T1 BD, T2 SD, T3 HH. One bar of 16ths (Grids' even 32nds, grids_map.h), repeated through
+ * LEN. Every value 0..127 (Grids' knobs 0..255: gr_u7). Grids' CHAOS is the kit's only (gr_kit_merge, below): a lane's
+ * plays as the pass before. FELUCCA_GEN_GRIDS */
+#if FELUCCA_GEN_GRIDS
+#include "grids_map.h"
+enum { GR_BD, GR_SD, GR_HH, GR_PARTS };
+static uint32_t gr_u7(int32_t v) { return v <= 0 ? 0u : v >= 127 ? 255u : (uint32_t)v * 2u + ((uint32_t)v >> 6); }   /* 0..127 -> Grids' 0..255 */
+static uint32_t gr_mix(uint32_t a, uint32_t b, uint32_t w) { return (a * (255u - w) + b * w) >> 8; }   /* (avrlib U8Mix) */
+static uint32_t gr_level(uint32_t part, uint32_t i, uint32_t x, uint32_t y)
+{
+    uint32_t c = x >> 6, r = y >> 6, fx = (x << 2) & 255u, fy = (y << 2) & 255u, s = i % 16u;
+    return gr_mix(gr_mix(GRIDS_MAP[c][r][part][s], GRIDS_MAP[c + 1u][r][part][s], fx),
+                  gr_mix(GRIDS_MAP[c][r + 1u][part][s], GRIDS_MAP[c + 1u][r + 1u][part][s], fx), fy);
+}
+static void gr_gfit(gen_t *g, uint32_t len) { (void)g, (void)len; }
+static int gr_gstep(const gen_t *g, uint32_t i, uint32_t len, uint32_t seed, gen_ev_t *e)
+{
+    uint32_t slot = (uint32_t)(g - gen), x = gr_u7(g->p[0]), y = gr_u7(g->p[1]), th = 255u - gr_u7(g->p[2]), p, lv;
+    (void)len, (void)seed;                               /* (gen_hit's g is gen[slot]) */
+    if (slot < NPART) {
+        p = slot % GR_PARTS;
+    } else if (slot - NPART == DRUM_ACC) {
+        for (p = 0; p < GR_PARTS; p++)
+            if ((lv = gr_level(p, i, x, y)) > th && lv > 192u)
+                return 1;
+        return 0;
+    } else {
+        uint32_t f = INST_FAM[lane_inst(slot - NPART)];
+        p = f < GR_HH ? f : GR_HH;
+    }
+    lv = gr_level(p, i, x, y);
+    if (lv <= th)
+        return 0;
+    if (lv > 192u)
+        e->lvl = LV_HARD;
+    return 1;
+}
+_Static_assert(GR_BD == 0 && GR_SD == 1 && GR_HH == 2, "drums.c INST_FAM: 0 the kicks, 1 the snares, 2 the hats");
+
+/* ---- the kit's GRIDS (slot GEN_KIT, gen_lanes bit DRUM_SLANES; STEP's GRIDS and DENSITY pages on DR): Grids' three
+ * outputs on three lanes, the drum track's values (core.h P_GRX ..: locks and motion move them). BD plays the first KICK
+ * lane, SD the first SNARE lane, else the first of the snares' family, HH the first CLOSED HAT lane, else the first of the
+ * hats'; the ACCENT lane where any of the three hits HARD (Grids' accent output). A lane with a generator of its own
+ * keeps it; the other lanes are left alone. CHAOS: Grids' perturbation, a random push of each part's levels a bar (16
+ * steps), up to 63 at 127, drawn from the drum track's pass and the bar (WRITE: the pass now's) */
+static uint32_t gr_kit_lane(uint32_t part)              /* -> DRUM_LANES: none of that family */
+{
+    static const uint8_t PREF[GR_PARTS] = {INST_KICK, INST_SNARE, INST_CH};
+    uint32_t l, f = DRUM_LANES;
+    for (l = 0; l < DRUM_LANES; l++) {
+        uint32_t in = lane_inst(l);
+        if (in == PREF[part])
+            return l;
+        if (f == DRUM_LANES && INST_FAM[in] == part)
+            f = l;
+    }
+    return f;
+}
+static uint32_t gr_kit_level(uint32_t part, uint32_t i, uint32_t len, uint32_t pass)
+{
+    const int16_t *v = TDRUM->p;
+    uint32_t lv = gr_level(part, i, gr_u7(v[P_GRX]), gr_u7(v[P_GRY])), ch = gr_u7(v[P_GRCH]) >> 2;
+    if (ch) {
+        uint32_t bar = pass * ((len + 15u) / 16u) + i / 16u;
+        lv += ((gen_mix(bar * 0x9E3779B1u + part + 1u) & 255u) * ch) >> 8;
+    }
+    return lv > 255u ? 255u : lv;
+}
+/* the kit's hits merged into o (s: the stored step i) */
+static void gr_kit_merge(const track_t *t, uint32_t i, uint32_t len, const dstep_t *s, dstep_t *o)
+{
+    uint32_t p, mode = gen[GEN_KIT].mode, acc = 0, own = gen_lanes & GEN_LANES_M;
+    for (p = 0; p <= GR_PARTS; p++) {                   /* (p GR_PARTS: the ACCENT lane) */
+        uint32_t l = p < GR_PARTS ? gr_kit_lane(p) : DRUM_ACC, hit = acc, hard = 0, has;
+        if (p < GR_PARTS) {
+            uint32_t lv = gr_kit_level(p, i, len, t->pass);
+            hit = lv > 255u - gr_u7(t->p[P_GRBD + p]);
+            hard = hit && lv > 192u;
+            acc |= hard;
+        }
+        if (l >= DRUM_SLANES || ((own >> l) & 1u))
+            continue;
+        has = (uint32_t)dstep_has(s, l);
+        if (!hit) {
+            if (mode != GM_ADD)
+                dstep_clr(o, l);
+            continue;
+        }
+        if (!has && mode == GM_MASK)
+            continue;
+        dstep_set(o, l, hard ? LV_HARD : has ? dstep_lvl(s, l) : LV_NORM, has ? dstep_rat(s, l) : 0u);
+    }
+}
+#endif
 static const gen_type_t GEN_TYPES[GT_N] = {
     {"EUCLID", {{"HITS", 0, 64, 4, GD_INT}, {"STEPS", 1, 0, 16, GD_INT}, {"ROT", 0, 63, 0, GD_INT}}, eu_gfit, eu_gstep, 0},
     {"RANDOM", {{"DENSITY", 0, 100, 50, GD_PCT}, {"SEED", 0, 99, 1, GD_INT}, {"ACCENT", 0, 100, 0, GD_PCT}}, rn_gfit, rn_gstep, 0},
     {"PULSE", {{"EVERY", 1, 16, 4, GD_INT}, {"OFFSET", 0, 15, 0, GD_INT}, {"RATCHET", 1, 4, 2, GD_X}}, pu_gfit, pu_gstep, 0},
+#if FELUCCA_GEN_GRIDS
+    {"GRIDS", {{"X", 0, 127, 64, GD_INT}, {"Y", 0, 127, 64, GD_INT}, {"DENSITY", 0, 127, 64, GD_INT}}, gr_gfit, gr_gstep, 0},
+#endif
 };
 static const char *const GEN_MODE[GM_N] = {"REPLACE", "ADD", "MASK"};
 
@@ -137,18 +250,19 @@ static void gen_sync(void)                               /* gen_trk, gen_lanes f
     uint32_t k, l, m = 0, lm = 0;
     for (k = 0; k < NPART; k++)
         m |= (uint32_t)(gen[k].on != 0) << k;
-    for (l = 0; l < DRUM_SLANES; l++)
+    for (l = 0; l < GEN_DSLOTS; l++)
         lm |= (uint32_t)(gen[NPART + l].on != 0) << l;
     gen_lanes = lm;
     gen_trk = (uint8_t)(m | (lm ? 1u << TRK_DRUM : 0u));
 }
-/* track k's slots ON, a bit each (a synth track: bit 0; the drum track: a bit a lane); undo.c keeps it with the pattern */
+/* track k's slots ON, a bit each (a synth track: bit 0; the drum track: a bit a lane, then the kit's); undo.c keeps it
+ * with the pattern */
 static uint32_t gen_on_mask(uint32_t k)
 {
     uint32_t l, m = 0;
     if (k < NPART)
         return gen[k].on != 0;
-    for (l = 0; l < DRUM_SLANES; l++)
+    for (l = 0; l < GEN_DSLOTS; l++)
         m |= (uint32_t)(gen[NPART + l].on != 0) << l;
     return m;
 }
@@ -158,7 +272,7 @@ static void gen_on_put(uint32_t k, uint32_t m)          /* (undo, redo: the IRQ 
     if (k < NPART)
         gen[k].on = (uint8_t)(m & 1u);
     else
-        for (l = 0; l < DRUM_SLANES; l++)
+        for (l = 0; l < GEN_DSLOTS; l++)
             gen[NPART + l].on = (uint8_t)((m >> l) & 1u);
     gen_sync();
 }
@@ -255,7 +369,8 @@ static const step_t *gen_eff(const track_t *t, uint32_t i, step_t *o)
     o->time = ST_REST;
     return o;
 }
-/* step i of the drum track as it plays: each lane with a generator on merged (of the lanes in `lanes`) */
+/* step i of the drum track as it plays: each lane with a generator on merged (of the lanes in `lanes`; bit DRUM_SLANES:
+ * the kit's GRIDS, after them, on the lanes without one) */
 static const dstep_t *gen_deff_of(const track_t *t, uint32_t i, dstep_t *o, uint32_t lanes)
 {
     uint32_t m = gen_lanes & lanes, l, len;
@@ -266,11 +381,11 @@ static const dstep_t *gen_deff_of(const track_t *t, uint32_t i, dstep_t *o, uint
     if (i >= len)
         return s;
     *o = *s;
-    for (l = 0; m; l++, m >>= 1) {
+    for (l = 0; l < DRUM_SLANES && (m >> l); l++) {
         gen_ev_t e;
         uint32_t mode = gen[NPART + l].mode, has = (uint32_t)dstep_has(s, l);
         int h;
-        if (!(m & 1u))
+        if (!((m >> l) & 1u))
             continue;
         h = gen_hit(NPART + l, i, len, &e);
         if (!h) {
@@ -282,6 +397,10 @@ static const dstep_t *gen_deff_of(const track_t *t, uint32_t i, dstep_t *o, uint
             continue;
         dstep_set(o, l, e.lvl ? e.lvl : has ? dstep_lvl(s, l) : LV_NORM, e.rat ? e.rat : has ? dstep_rat(s, l) : 0u);
     }
+#if FELUCCA_GEN_GRIDS
+    if ((m >> DRUM_SLANES) & 1u)
+        gr_kit_merge(t, i, len, s, o);
+#endif
     return o;
 }
 static const dstep_t *gen_deff(const track_t *t, uint32_t i, dstep_t *o) { return gen_deff_of(t, i, o, ~0u); }

@@ -10,7 +10,10 @@
  *                     page, COND (KNOB 4); SLOOP's UI plays them only. Builds the automation store
  *   FELUCCA_SEQTOOLS  the Optimist UI's STEP pages TOOLS (REVERSE RANDOM COOK LENGTH x2 / half) and EUCLID (HITS
  *                     STEPS ROT, live), Felucca 1.2 .. 1.5.5 ui_tools.c; the EDIT layer's SHIFT and LENGTH move
- *                     the steps' events with them. UI=1 only (SLOOP's UI has none of it) */
+ *                     the steps' events with them. UI=1 only (SLOOP's UI has none of it)
+ *   FELUCCA_GEN_GRIDS Mutable Instruments Grids' drum map (Emilie Gillet, pichenettes/eurorack, GPL-3.0-or-later;
+ *                     seq/gen.c, seq/grids_map.h: 1.2 KB of table): a GEN TYPE beside EUCLID RANDOM PULSE, and the kit's
+ *                     GRIDS on DR (STEP's GRIDS and DENSITY pages, the drum track's P_E2 .. P_E7). Needs FELUCCA_SEQTOOLS */
 #ifndef FELUCCA_BACKPORTS15_H
 #define FELUCCA_BACKPORTS15_H
 
@@ -19,6 +22,9 @@
 #endif
 #ifndef FELUCCA_SEQTOOLS
 #define FELUCCA_SEQTOOLS 0       /* ui/optimist/op_tools.c (only the Optimist UI includes it: UI=0 builds the same) */
+#endif
+#ifndef FELUCCA_GEN_GRIDS
+#define FELUCCA_GEN_GRIDS 0      /* seq/gen.c GT_GRIDS */
 #endif
 #define SEQ_SKIP (FELUCCA_FILLS || FELUCCA_COND)   /* seq.c: a step that fails its FILL or its condition is a REST */
 
