@@ -69,7 +69,7 @@ CONCEPTS = [
     ("engines", "TRIO", [r"\bTRIO\b"]), ("engines", "WHEEL", [r"\bWHEEL\b"]), ("engines", "GRAIN", [r"\bGRAIN\b"]),
     ("engines", "FM6", [r"\bFM6\b"]), ("engines", "SLICE", [r"\bSLICE\b"]), ("engines", "PHYS", [r"\bPHYS\b"]),
     ("engines", "ACID", [r"\bACID\b"]), ("engines", "CZ", [r"\bCZ\b"]), ("engines", "JUNO", [r"\bJUNO\b"]),
-    ("engines", "NOISE", [r"\bNOISE\b"]), ("engines", "DRONE", [r"\bDRONE\b"]),
+    ("engines", "NOISE", [r"\bNOISE\b"]), ("engines", "DRONE", [r"\bDRONE\b"]), ("engines", "PLAITS", [r"\bPLAITS\b"]),
     # interface and project
     ("interface", "SHIFT = OCT- held, SHIFT2 = OCT+ held", [r"\bSHIFT2\b", r"OCT-"]),
     ("interface", "both OCT buttons together", [r"(?i)both OCT|OCT- and OCT\+ together|OCT- \+ OCT\+"]),

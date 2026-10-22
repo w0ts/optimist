@@ -27,6 +27,7 @@ A synth track plays one engine at a time. PRESETS on a synth track loads a sound
 | JUNO | `ENG_JUNO` | The Juno-106 voice: DCO with saw, pulse, sub and noise, a 4-pole ladder filter, a 4-position high-pass | EDIT 1: WAVE PW SUB NOIS; EDIT 2: CUT RES KEY HPF |
 | NOISE | `ENG_NOISE` | White, pink and brown noise, crackle, a shift register and metal tones through a resonant filter | EDIT 1: MODE COLR FREQ RES; EDIT 2: TRK DENS DRFT CRSH |
 | DRONE | `ENG_DRONE` | A coupled network of four sines for drones and ambient (after Caravel's, LYRA-8 inspired), with binaural beats | NETWORK: SPREAD COUPLE TOPO CHAR; MOVE: DRIFT TONE BEAT HOLD |
+| PLAITS | `ENG_PLAITS` | Four of Mutable Instruments Plaits' models: waveshaping, additive, granular formant, particles | MODEL: MODEL HARM TIMB MORPH; OUT: AUX TONE LPG VEL |
 
 ### Engine notes
 
@@ -47,6 +48,17 @@ A synth track plays one engine at a time. PRESETS on a synth track loads a sound
   With BEAT on the network runs once an ear (twice the CPU). **HOLD ON:** a key latches its note
   and the same key again lets it go; HOLD OFF lets the latched notes go. The sequencer's notes toggle the same way, so
   a sequenced drone keeps HOLD OFF and holds its note with TIEs. One voice: a note transposes the whole network.
+- **PLAITS:** four of Mutable Instruments Plaits' synthesis models (Emilie Gillet, MIT), with Plaits' own knobs:
+  **HARM** (HARMONICS), **TIMB** (TIMBRE; the track's SHP and ENV 1's TIMB card move it) and **MORPH**. **MODEL WAVSH**:
+  a triangle-to-saw slope (MORPH) through five waveshapers (HARM) into a wavefolder (TIMB). **ADDTV**: 24 harmonics
+  under a bump spectrum: TIMB moves the brightest harmonic, HARM adds bumps, MORPH goes from a flat, wide spectrum to a
+  single peak. **GRFMT**: two formants synced to the note (TIMB the formant, HARM the second one's interval, -2 to +2
+  octaves, below the middle the plain carrier bleeds in; MORPH the window's shape). **PRTCL**: random pings of six
+  resonant filters, each at a random pitch around the note (TIMB the density, HARM how far the pitches spread, MORPH the
+  resonance); a note strikes all six. **AUX** fades to the model's second output, as Plaits' AUX jack: the Serge-like
+  folder on a sine (WAVSH), an 8-drawbar organ (ADDTV), the Z oscillator (GRFMT), the raw clicks (PRTCL). **TONE** is a
+  low-pass (the track's FLT moves it), **LPG** closes it as the envelope falls (Plaits' low-pass gate), **VEL** lets
+  the velocity open TIMB. Four voices a track; PRTCL and ADDTV are the heaviest on the CPU.
 - **SAMPLE:** SET plays a built-in set (PIANO, BASS, VIBES, HORNS, STRGS, FLUTE, SCRCH, PERC; the builder chooses which) or your USR1 to USR3 slots ([drums and samples](drums.md#your-samples)).
 
 ## Voices
@@ -100,6 +112,7 @@ The **VOICE** page has four cards: the mode, GLD (glide time), GLMOD and PRIO.
 | JUNO | FLT (the VCF ENV depth) | PIT | PW | RES |
 | NOISE | FREQ | PIT | COLR | RES |
 | DRONE | TONE | PIT | COUPLE | CHAR |
+| PLAITS | TONE | PIT | TIMB | MORPH |
 
 WHEEL's DRV, CLICK and TOP are the organ's, so ENV moves them from the track's newest voice. Every card can be locked on a step and recorded as motion.
 

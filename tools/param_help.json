@@ -335,6 +335,12 @@
       "SPREAD": "Unison to 1 : 5/4 : 3/2 : 2", "COUPLE": "Generators modulate others", "TOPO": "Pairs, chain or ring",
       "CHAR": "Sine to soft cubic", "DRIFT": "Slow wander of each pitch", "TONE": "Dark to open",
       "BEAT": "Binaural beat (phones)", "HOLD": "Keys latch their notes"}},
+    {"kind": "eng", "ctx": "PLAITS", "if": "FELUCCA_ENG_PLAITS", "params": {
+      "MODEL": "Plaits synthesis model", "HARM": "Plaits HARMONICS", "TIMB": "Plaits TIMBRE", "MORPH": "Plaits MORPH",
+      "AUX": "Out to the model's aux", "TONE": "Low-pass, dark to open", "LPG": "Envelope closes TONE",
+      "VEL": "Velocity opens TIMBRE",
+      "WAVSH": "Waveshaper: slope + wavefold", "ADDTV": "Additive: 24 harmonics, bumps",
+      "GRFMT": "Granular formant: grainlets", "PRTCL": "Particles: pinged resonators"}},
     {"kind": "eng", "ctx": "CZ", "if": "FELUCCA_ENG_CZ", "params": {
       "TONE": "CZ tone", "DCW": "Wave bend depth (DCW)", "W.TIM": "DCW envelope times", "DTN": "Line 2 detune (cents)",
       "A.TIM": "Level envelope times", "LINE": "Line select", "MOD": "Ring or noise mod", "VIB": "Vibrato depth"}},

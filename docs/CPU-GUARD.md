@@ -48,7 +48,7 @@ level, `MAX n` while capped, the voices shed; SHIFT + YES clears). The CDC conso
 
 Target instructions a sample, in `cpuguard_costs.h`: `CG_COST_BASE` 153 (idle mix), `CG_COST_DRUMS` 525 (the groove),
 `CG_VCOST[uid]` per sounding voice (ANALOG 166, DIGITAL 134, PHASE 146, LOFI 93, SAMPLE 75, VOICE 241, TRIO 162, WHEEL 121,
-GRAIN 115, FM6 196, SLICE / PHYS / CZ 751, ACID 490, JUNO 204, NOISE 136, DRONE 751), `CG_X0X[24]` per sounding X0X channel (909's 11
+GRAIN 115, FM6 196, SLICE / PHYS / CZ 751, ACID 490, JUNO 204, NOISE 136, DRONE 751, PLAITS 332), `CG_X0X[24]` per sounding X0X channel (909's 11
 voices, 808's 13 lanes) and `CG_X0X_SHARED` 216 once while any sounds. Inserts count while their amount is set or they fade out:
 
 | Term | Cost |

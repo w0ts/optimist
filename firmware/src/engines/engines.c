@@ -46,6 +46,12 @@
 #if FELUCCA_ENG_DRONE
 #include "drone/eng_drone.c"                  /* DRONE (drones, ambient, binaural beats): engine 16 */
 #endif
+#if FELUCCA_ENG_PLAITS && !FELUCCA_ANALOG2
+#error "the PLAITS engine takes its engine number (17) from the ANALOG 2 build"
+#endif
+#if FELUCCA_ENG_PLAITS
+#include "plaits/eng_plaits.c"                /* PLAITS (Mutable Instruments Plaits' models, MIT; this file MIT-headed): engine 17 */
+#endif
 
 /* The part's engine memory: the running state an engine keeps per part beyond its voices (FM6's voices and MONO
  * keys, PHYS's model slots, GRAIN's grains and seek index, ACID's 303). A part plays one engine at a time, so one
@@ -70,9 +76,12 @@ typedef union {
 #if FELUCCA_ENG_ACID
     uint32_t acid[ACID_MEM_BYTES / 4u];
 #endif
+#if FELUCCA_ENG_PLAITS
+    pl_voice_t plaits[PL_POLY];
+#endif
     uint32_t none;
 } part_mem_t;
-#define PART_MEM_ANY (FELUCCA_ENG_FM6 || FELUCCA_ENG_PHYS || FELUCCA_ENG_GRAIN || FELUCCA_ENG_ACID)
+#define PART_MEM_ANY (FELUCCA_ENG_FM6 || FELUCCA_ENG_PHYS || FELUCCA_ENG_GRAIN || FELUCCA_ENG_ACID || FELUCCA_ENG_PLAITS)
 static part_mem_t part_mem[PART_MEM_ANY ? NPART : 1] __attribute__((section(".pool"), aligned(8)));
 static uint8_t part_mem_owner[NPART];                    /* the engine slot + 1 whose state it holds, 0 = none */
 AINL fm6_mem_t *fm6_mem(uint32_t p)
@@ -99,6 +108,9 @@ AINL phys_slot_t *phys_mem(uint32_t p) { return part_mem[p].phys; }
 #if FELUCCA_ENG_ACID
 void *acid_mem(int k) { return part_mem[(uint32_t)k % NPART].acid; }
 #endif
+#if FELUCCA_ENG_PLAITS
+AINL pl_voice_t *pl_mem(uint32_t p) { return part_mem[p].plaits; }
+#endif
 
 /* the engines built, in UID order (registry.h ENGINE_LIST): the slots */
 #define ENG_PTR_(u, N, fb, s) FIF(FELUCCA_ENG_##N)(&ENG_##N,)
@@ -106,6 +118,7 @@ void *acid_mem(int k) { return part_mem[(uint32_t)k % NPART].acid; }
 static const engine_t *const ENGINES[NENGINES] = {ENGINE_LIST(ENG_PTR_)};
 #define ENG_IX_NOISE ((uint32_t)ENG_SLOT_NOISE)
 #define ENG_IX_DRONE ((uint32_t)ENG_SLOT_DRONE)
+#define ENG_IX_PLAITS ((uint32_t)ENG_SLOT_PLAITS)
 #define ENG_IX_PHYS ((uint32_t)ENG_SLOT_PHYS)  /* (the tests) */
 #define ENG_IX_ACID ((uint32_t)ENG_SLOT_ACID)
 #define ENG_IX_CZ ((uint32_t)ENG_SLOT_CZ)
@@ -158,6 +171,9 @@ static void part_mem_claim(uint32_t k, uint32_t e)
 #endif
 #if FELUCCA_ENG_ACID
     uses |= e == (uint32_t)ENG_SLOT_ACID;
+#endif
+#if FELUCCA_ENG_PLAITS
+    uses |= e == (uint32_t)ENG_SLOT_PLAITS;
 #endif
     if (!uses || k >= NPART || part_mem_owner[k] == e + 1u)
         return;

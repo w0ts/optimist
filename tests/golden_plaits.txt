@@ -1,0 +1,14 @@
+# PLAITS engine golden renders (tests/plaits_test.c): preset, FNV-1a 64 of the output (4-note chord,
+# 2 s held, the keys up, 6 s more, dry). Rewritten by GOLDEN_UPDATE=1 -- only for an intended change.
+00_FOLD_BASS 9e09d931d8024313
+01_TIDES_LEAD 99f4149e3f29bd79
+02_SERGE_BELL 86de9678f4cc0da9
+03_ADD_ORGAN d0f386786cd500a1
+04_SPECTRA 57b7dfdcfe0a42db
+05_HARM_BELL ce5dc44891adc2c1
+06_VOSIM_VOX a58986692411859d
+07_FORMANT_SWP 15b3790d3a88507f
+08_Z_RESO dfe45a5f3b454e37
+09_DROPLETS 2ad803a5618d577b
+10_RAIN_GLASS 28b32055628b35a7
+11_GRIT_DUST cc0335f1a3968e2f
