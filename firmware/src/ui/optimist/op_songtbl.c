@@ -16,7 +16,7 @@
 static uint8_t stb_lane;                /* the cursor's lane: SCENES 0..4 (T1 T2 T3 DR BARS), PARTS 0..1 (the scene, the bars) */
 static struct {
     uint32_t kind, col, n, lane;        /* what stb_paint draws: the table, the cursor's column and lane, the columns there are */
-    char t[5][STB_COLS][4];             /* the cells' texts, a lane a row */
+    char t[5][STB_COLS][5];             /* the cells' texts, a lane a row */
     uint8_t live[STB_COLS];             /* the column's state: 1 playing, 2 queued, 3 empty scene */
 } stb;
 
@@ -42,9 +42,7 @@ static void stb_text(uint32_t kind, uint32_t col, uint32_t lane, char *o)
         v = "K";
     else if (str_eq(v, "SEC") || str_eq(v, "SCENE"))
         v = "S";
-    else if (str_eq(v, "AUTO"))
-        v = "A";
-    str_cpy(o, v, 4);
+    str_cpy(o, v, 5);                                   /* (AUTO: whole; stb_paint shortens it to A where the face does not fit) */
 }
 /* the large face (FONT_S at 2x) where the text fits its box, the small one where it does not (two-digit numbers in a column of 23 px) */
 static const felucca_font_t *stb_font(const char *t, int32_t maxw)
@@ -82,6 +80,8 @@ static void stb_paint(void)
         }
         for (lane = 0; lane < nl; lane++) {
             const char *v = stb.t[lane][i];
+            if (str_eq(v, "AUTO") && text_w(&FONT_S, v) > STB_CW - 4)
+                v = "A";
             uint16_t col = lane == nl - 1u ? STB_PURPLE : stb.kind == SG_SCENE ? (kp && lane == stb.lane && lane < 4u ? knob_col(rel, trk_col(lane)) : kp && lane == stb.lane ? knob_col(rel, STB_PURPLE) : trk_col(lane)) : kp ? knob_col(rel, C_HI) : C_HI;
             y = 22 + (int32_t)lane * ph;
             if ((v[0] == '-' || v[0] == 0 || (stb.live[i] == 3u && lane != nl - 1u)) && !(kp && lane == stb.lane))
