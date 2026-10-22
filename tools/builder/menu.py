@@ -9,7 +9,7 @@ Keys: space / enter toggle (a choice: next value) | / search | p profiles | s sa
         current one (a progress bar for the build and for the flash); refused only when the builder's own code
         changed since it started; shows both identities and the commit, asks first
       | q or ctrl+c quit (refused while a flash is writing)
-      x expand all | c collapse all | left / right (also page up / down) page the list
+      x expand all | c collapse all | left / right the previous / next section, page up / down page the list
 Everything it does goes through configure.py (the plain module the tests use)."""
 import subprocess
 import sys
@@ -106,10 +106,30 @@ class Ask(ModalScreen):
 
 
 class PagedTree(Tree):
-    """The item list: left / right page it like page up / page down (a plain Tree scrolls sideways on them, which
-    the list never needs: its rows are not wider than the pane). The search box keeps its own cursor keys."""
-    BINDINGS = [Binding("left", "page_up", "page up", key_display="←"),
-                Binding("right", "page_down", "page down", key_display="→")]
+    """The item list: left / right go to the previous / next section (a plain Tree scrolls sideways on them, which
+    the list never needs: its rows are not wider than the pane); left inside a section goes to its title first.
+    The search box keeps its own cursor keys."""
+    BINDINGS = [Binding("left", "prev_group", "previous section", key_display="←"),
+                Binding("right", "next_group", "next section", key_display="→")]
+
+    def group_index(self):
+        node, groups = self.cursor_node, list(self.root.children)
+        while node is not None and node.parent is not self.root:
+            node = node.parent
+        return (groups.index(node), node is self.cursor_node) if node in groups else (-1, False)
+
+    def go_group(self, i):
+        groups = list(self.root.children)
+        if 0 <= i < len(groups):
+            self.move_cursor(groups[i], animate=False)
+            self.scroll_to(y=groups[i].line, animate=False)      # (the section's title at the top of the pane)
+
+    def action_next_group(self):
+        self.go_group(self.group_index()[0] + 1)
+
+    def action_prev_group(self):
+        i, on_title = self.group_index()
+        self.go_group(i - 1 if on_title else i)
 
 
 class Builder(App):
@@ -136,7 +156,7 @@ class Builder(App):
         Binding("l", "load", "load"),
         Binding("b", "build", "build"), Binding("e", "build_emu", "build + emu"),
         Binding("f", "flash", "flash to FM-1"),
-        Binding("left", "page_up", "page up", key_display="←", show=False), Binding("right", "page_down", "page down", key_display="→", show=False),
+        Binding("left", "prev_group", "previous section", key_display="←", show=False), Binding("right", "next_group", "next section", key_display="→", show=False),
         Binding("o", "sort", "sort by size"), Binding("x", "expand", "expand all"), Binding("c", "collapse", "collapse"),
         Binding("escape", "clear_search", "clear search", show=False), Binding("q", "quit", "quit"),
         Binding("ctrl+c", "quit", "quit", show=False, priority=True),
