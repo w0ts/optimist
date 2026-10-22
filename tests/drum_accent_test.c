@@ -135,6 +135,16 @@ static void t_lane(void)
     check("lane 0 cleared: lane 16 kept", dstep_has(&s, DRUM_ACC) && !dstep_mask(&s) && dstep_lanes(&s) == 1u << DRUM_ACC);
     check("a stored drum step: 10 bytes (the accent not in it), a RAM one 11", sizeof(dstep_sn_t) == 10u && sizeof(dstep_t) == 11u &&
           NSTEP * sizeof(dstep_t) <= sizeof trk[0].step);
+    {   /* an accent alone sounds nothing: the track, so the project, is still empty (seq.c track_empty): a default project's
+         * ACCENT lane four on the floor (model.c drum_defaults_steps) leaves the first take and the click as they are */
+        track_t *t = TDRUM;
+        steps_clear(t);
+        dstep_set(&t->dstep[0], DRUM_ACC, LV_NORM, 0);
+        check("a drum track with an accent and no hit: empty", track_empty(t) && project_empty() && dstep_has(&t->dstep[0], DRUM_ACC));
+        dstep_set(&t->dstep[0], 3, LV_NORM, 0);
+        check("... a hit on the step: not empty", !track_empty(t) && !project_empty());
+        steps_clear(t);
+    }
 }
 static void t_velocity(void)
 {

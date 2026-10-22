@@ -70,7 +70,7 @@ SEQ tapped opens STEP, one screen for synth tracks and the drum track. The 16 wh
 
 ## PROJECT
 
-PROJECT is where storage lives. A storage row (PROJECT, SNAPSHOT, USER) has up to four cards: **BANK** (only for a store of more than 16 slots), the operation (**LOAD**, the default, **SAVE** or **DELETE**), **ITEM** (the slot; the knob walks all of them and the bank follows) and, on PROJECT, **NEW** (a blank project, touching no slot). A build whose project slots are kept in RAM has no DELETE.
+PROJECT is where storage lives. A storage row (PROJECT, SNAPSHOT, USER) has up to four cards: **BANK** (only for a store of more than 16 slots), the operation (**LOAD**, the default, **SAVE** or **DELETE**), **ITEM** (the slot; the knob walks all of them and the bank follows) and, on PROJECT, **NEW** (a blank project but for the drum ACCENT lane's four on the floor, touching no slot). A build whose project slots are kept in RAM has no DELETE.
 
 - The 16 white keys are the 16 slots of the current bank: key n selects item n and runs the operation on it, through a confirmation. YES runs it on the item the knob is on. A free slot has nothing to load or clear: a toast, no question. The operation returns to LOAD after each action, when the row changes or the screen is left, so a stray key never saves.
 - **OCT- or OCT+ tapped** on a row with slots: the previous or next **bank**, with the toast "BANK n/N".

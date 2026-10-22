@@ -1122,8 +1122,9 @@ static int track_empty(const track_t *t)
 {
     uint32_t k;
     for (k = 0; k < NSTEP; k++)
-        if (is_drum(t) ? dstep_lanes(&t->dstep[k]) != 0u : t->step[k].time == ST_NOTE && t->step[k].n)
-            return 0;
+        if (is_drum(t) ? dstep_mask(&t->dstep[k]) != 0u : t->step[k].time == ST_NOTE && t->step[k].n)
+            return 0;                             /* (the drum track's ACCENT lane sounds nothing: not counted; a default
+                                                   * project has it four on the floor, model.c drum_defaults_steps) */
     return 1;
 }
 static int project_empty(void)

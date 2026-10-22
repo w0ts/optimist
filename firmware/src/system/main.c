@@ -148,13 +148,13 @@ static void felucca_init(void)
         song.g[i] = GP[i].def;
     for (i = 0; i < NTRK; i++) {
         track_t *t = &trk[i];
-        track_defaults(t);
+        track_defaults(t);                    /* (its sequencer empty, the drum track's ACCENT lane four on the floor: model.c;
+                                               * a sound never writes the sequencer) */
         if (i < NPART) {
             set_engine_of(t, trk_def_engine(i));
             apply_preset_to(t, trk_def_preset(i));   /* with its sends */
             t->engine = t->eng_req;
         }
-        track_defaults_steps(t);              /* the sequencers start empty */
     }
     TDRUM->p[P_E0] = DRUM_DEFAULT_KIT;        /* the 808 kit */
     song.sel = 0;
