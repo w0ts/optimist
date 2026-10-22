@@ -26,7 +26,7 @@ A synth track plays one engine at a time. PRESETS on a synth track loads a sound
 | CZ | `ENG_CZ` | Casio CZ-1 style tones: two lines with 8-step envelopes | EDIT 1: TONE DCW W.TIM DTN; EDIT 2: A.TIM LINE MOD VIB |
 | JUNO | `ENG_JUNO` | The Juno-106 voice: DCO with saw, pulse, sub and noise, a 4-pole ladder filter, a 4-position high-pass | EDIT 1: WAVE PW SUB NOIS; EDIT 2: CUT RES KEY HPF |
 | NOISE | `ENG_NOISE` | White, pink and brown noise, crackle, a shift register and metal tones through a resonant filter | EDIT 1: MODE COLR FREQ RES; EDIT 2: TRK DENS DRFT CRSH |
-| DRONE | `ENG_DRONE` | Continuous tones for drones and ambient, with binaural beats | TONE: WAVE STAK DTUN BEAT; MOVE: CUT DRFT AIR HOLD |
+| DRONE | `ENG_DRONE` | A coupled network of four sines for drones and ambient (after Caravel's, LYRA-8 inspired), with binaural beats | NETWORK: SPREAD COUPLE TOPO CHAR; MOVE: DRIFT TONE BEAT HOLD |
 
 ### Engine notes
 
@@ -36,13 +36,17 @@ A synth track plays one engine at a time. PRESETS on a synth track loads a sound
 - **JUNO:** the Juno-106 voice, six voices. The track's ENV is the Juno's envelope (ENV > FLT is the VCF ENV amount), its LFO the Juno's LFO (SHP moves the pulse width). The Juno-106 chorus is an insert type ([effects](effects.md)), on any track.
 - **CZ:** ATK DEC SUS REL do not shape a CZ voice (its envelopes are the tone's).
 - **NOISE:** MODE ANLG, DUST, LFSR (clocked by the key) or META; COLR tilts white to brown; FREQ and RES a filter.
-- **DRONE:** STAK plays one oscillator (SOLO), three detuned copies (UNI), or the key with two intervals (OCT, 5TH, SUB,
-  4TH, MIN, MAJ); WAVE morphs sine, triangle, saw; DTUN detunes the stack. **BEAT** plays a binaural beat: the left ear
+- **DRONE:** a note plays four sines that modulate each other's phase, after Caravel's DRONE (bonszaimusic), itself
+  inspired by the LYRA-8. **COUPLE** sets how much (the track's SHP moves it), **TOPO** who modulates whom: PAIRS (1 and
+  2, 3 and 4), a CHAIN (1 to 2 to 3 to 4) or a RING; a change of TOPO crossfades. **SPREAD** opens the four from unison
+  to 1 : 5/4 : 3/2 : 2, **CHAR** bends each sine toward a soft cubic (more harmonics in the coupling), **DRIFT** wanders
+  each pitch slowly (deeper and a little faster as it rises), **TONE** is a dark-to-open low-pass (the track's FLT moves
+  it). The track's **DTUNE** (VOICE 2) detunes the four generators. **BEAT** plays a binaural beat: the left ear
   BEAT / 2 below the note and the right ear BEAT / 2 above it, 0.05 to 40 Hz (THETA 6 Hz, ALPHA 10 Hz, DELTA 2 Hz, GAMMA
   40 Hz). It works on headphones only, and only the mid of the two ears goes through the track's inserts and sends.
-  DRFT is a slow random drift of the whole track, AIR soft noise under the tone. **HOLD ON:** a key latches its note
+  With BEAT on the network runs once an ear (twice the CPU). **HOLD ON:** a key latches its note
   and the same key again lets it go; HOLD OFF lets the latched notes go. The sequencer's notes toggle the same way, so
-  a sequenced drone keeps HOLD OFF and holds its note with TIEs. Four voices.
+  a sequenced drone keeps HOLD OFF and holds its note with TIEs. One voice: a note transposes the whole network.
 - **SAMPLE:** SET plays a built-in set (PIANO, BASS, VIBES, HORNS, STRGS, FLUTE, SCRCH, PERC; the builder chooses which) or your USR1 to USR3 slots ([drums and samples](drums.md#your-samples)).
 
 ## Voices
@@ -95,7 +99,7 @@ The **VOICE** page has four cards: the mode, GLD (glide time), GLMOD and PRIO.
 | CZ | DCW | W.TIM | A.TIM (its EDIT values) | PIT |
 | JUNO | FLT (the VCF ENV depth) | PIT | PW | RES |
 | NOISE | FREQ | PIT | COLR | RES |
-| DRONE | CUT | PIT | WAVE | AIR |
+| DRONE | TONE | PIT | COUPLE | CHAR |
 
 WHEEL's DRV, CLICK and TOP are the organ's, so ENV moves them from the track's newest voice. Every card can be locked on a step and recorded as motion.
 

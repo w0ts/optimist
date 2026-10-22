@@ -3,7 +3,7 @@
 
 Inputs:
   tests/cpu_baseline.txt   the host CPU baseline tests/regress.c writes (BUDGET_UPDATE=1): instructions per sample
-                           of each engine x preset with 8 notes held (VOICE 4, ACID 1, JUNO 6, DRONE 4: its voices), of the idle mix
+                           of each engine x preset with 8 notes held (VOICE 4, ACID 1, JUNO 6, DRONE 1: its voices), of the idle mix
                            and of the idle mix with the drum groove
   tools/builder/costs.json "cpu": the target's instructions per host instruction, per engine where measured
                            ("scale_pct", "engine_pct"), fitted in the emulator (docs/CPU-GUARD.md, "The cost model")
@@ -56,7 +56,7 @@ BASELINE = ROOT / "tests" / "cpu_baseline.txt"
 COSTS = ROOT / "tools" / "builder" / "costs.json"
 REGISTRY_H = ROOT / "firmware" / "src" / "core" / "registry.h"
 HEADER = ROOT / "firmware" / "src" / "system" / "cpuguard_costs.h"
-NOTES = {"VOICE": 4, "ACID": 1, "JUNO": 6, "DRONE": 4}   # (JUNO: six voices, eng_juno.c JUNO_POLY; DRONE: four, eng_drone.c .poly)
+NOTES = {"VOICE": 4, "ACID": 1, "JUNO": 6, "DRONE": 1}   # (JUNO: six voices, eng_juno.c JUNO_POLY; DRONE: one, eng_drone.c .poly)
 INS_NEW = ("fold", "fuzz", "phsr", "flng", "frmt", "wide", "chrs", "echo", "gate",   # the further inserts, fx_slots.c FXT_FOLD .. FXT_GATE,
            "sfld", "wrap", "rect", "harm", "ring", "subo", "slew",       # then the shapers FXT_SFLD .. FXT_SLEW (fx_slots.c IFX_FIX),
            "tape", "spit")                                               # TAPE SPIT (2026-10-19)

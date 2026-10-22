@@ -376,6 +376,13 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #ifndef FELUCCA_INS_JCHORUS
 #define FELUCCA_INS_JCHORUS 0              /* JUNO CHORUS: the Juno-106's chorus (fx/junocho), 2 KB of pool an instance */
 #endif
+#ifndef FELUCCA_INS_XDLY
+#define FELUCCA_INS_XDLY 0                 /* XDLY: two delay lines modulating each other's time (after the LYRA-8's), 2 lines of
+                                            * FELUCCA_XDLY_LEN samples of pool an instance (fx/insfx/xdly.c) */
+#endif
+#ifndef FELUCCA_XDLY_LEN
+#define FELUCCA_XDLY_LEN 16384             /* XDLY's line, samples (a power of two): 16384 0.37 s (64 KB an instance), 8192 */
+#endif
 #ifndef FELUCCA_RET_FB
 #define FELUCCA_RET_FB 1                   /* the returns' feedback sends B -> A, C -> A, C -> B (fx_slots.c rs_amt, fx.c rs_fbv) */
 #endif

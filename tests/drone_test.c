@@ -1,14 +1,16 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The DRONE engine (FELUCCA_ENG_DRONE, engines/drone/eng_drone.c; tests/run_tests.sh builds this with the switch on):
+/* The DRONE engine (FELUCCA_ENG_DRONE, engines/drone/eng_drone.c: the coupled network after Caravel's; tests/run_tests.sh
+ * builds this with the switch on):
  *   - engine UID 16 is DRONE, its fallback ANALOG (registry.h), 17 engine UIDs;
  *   - every preset: a 4-note chord held 2 s (then the keys up and HOLD OFF), 6 s more: audible, bounded, no DC,
  *     every voice free at the end, its render's FNV-1a 64 the one in tests/golden_drone.txt (GOLDEN_UPDATE=1
  *     rewrites it); the level within 9 dB of ANALOG's presets;
- *   - the EDIT values WAVE STAK DTUN BEAT CUT DRFT AIR each change the render;
+ *   - the EDIT values SPREAD COUPLE TOPO CHAR DRIFT TONE BEAT and the track's DTUNE each change the render; each
+ *     TOPO (PAIRS CHAIN RING) its own sound with COUPLE up, none with COUPLE 0;
  *   - BEAT: each ear its own pitch, BEAT apart (10.2 Hz measured from the zero crossings), the ears as loud as
  *     each other and as the mono tone; BEAT OFF: the ears the same sample for sample;
- *   - HOLD: the key's release keeps the note, the key again lets it go; HOLD OFF lets every latched note go;
- *   - a part switched from DRONE to another engine mixes no stale side; 8 keys: 4 voices (the cap), bounded.
+ *   - HOLD: the key's release keeps the note, the key again lets it go; HOLD OFF lets a latched note go;
+ *   - a part switched from DRONE to another engine mixes no stale side; 8 keys: 1 voice (the cap), bounded.
  * env: DRONE_WAV=DIR writes each preset's render to DIR/drone-NN-NAME.wav.
  *   build/host/drone_test [GOLDEN_FILE]
  * Exit status: the number of failed checks. */
@@ -75,6 +77,8 @@ static dr_res_t dr_render_e(uint32_t eng, uint32_t pi, uint32_t k, int32_t v, FI
     dry();                                            /* dry: the engine's sound */
     if (k < 8u)
         trk[0].p[P_E0 + k] = (int16_t)v;
+    else if (k == 9u)
+        trk[0].p[P_DETUNE] = (int16_t)v;              /* (9: the track's DTUNE, the generators' detune) */
     for (i = 0; i < 4u; i++)
         trk_note_on(&trk[0], CHORD[i], 100);
     if (wav)
@@ -182,32 +186,61 @@ static void t_presets(const char *gpath)
     }
 }
 
-/* each EDIT value changes the render of a preset in which it acts (HOLD: t_hold) */
+/* each EDIT value changes the render of a preset in which it acts (HOLD: t_hold; 9: the track's DTUNE) */
 static void t_edits(void)
 {
     static const struct { uint8_t pi, k; int8_t v; const char *what; } E[] = {
-        {0, 0, 100, "WAVE"}, {0, 1, 1, "STAK"}, {0, 2, 0, "DTUN"}, {0, 3, 60, "BEAT"},
-        {0, 4, 30, "CUT"}, {0, 5, 0, "DRFT"}, {0, 6, 80, "AIR"}};
+        {0, 0, 100, "SPREAD"}, {0, 1, 90, "COUPLE"}, {0, 2, 2, "TOPO"}, {0, 3, 100, "CHAR"},
+        {0, 4, 0, "DRIFT"}, {0, 5, 30, "TONE"}, {0, 6, 60, "BEAT"}, {0, 9, 100, "DTUNE"}};
     uint32_t i, ok = 1;
     for (i = 0; i < sizeof E / sizeof E[0]; i++) {
         dr_res_t a = dr_render(E[i].pi, 8, 0, 0), b = dr_render(E[i].pi, E[i].k, E[i].v, 0);
         if (a.hash == b.hash || b.peak > 32767 || b.busy)
             printf("drone: EDIT %s does not act (or unbounded)\n", E[i].what), ok = 0;
     }
-    check(ok, "the EDIT values WAVE STAK DTUN BEAT CUT DRFT AIR change the sound, bounded");
+    check(ok, "the EDIT values SPREAD COUPLE TOPO CHAR DRIFT TONE BEAT and the track's DTUNE change the sound, bounded");
 }
 
-/* one sine (SOLO, WAVE 0, no drift, no AIR, CUT open) on key 57 at BEAT beat: 1 s of each ear after 0.5 s */
+/* the topologies: with COUPLE up PAIRS CHAIN RING sound apart; with COUPLE 0 (and the track's SHP centred) no
+ * generator hears another, so TOPO changes nothing: the network's state after 1 s the same (its phases, outputs,
+ * filters; the mix after it has a dither of its own, so the state, not the output) */
+static void t_topo(void)
+{
+    dr_res_t r[3];
+    int32_t st[3][14];
+    uint32_t i;
+    for (i = 0; i < 3u; i++) {
+        reset();
+        r[i] = dr_render(2, 2, (int32_t)i, 0);          /* (SLOW CHAIN, COUPLE 54) */
+    }
+    check(r[0].hash != r[1].hash && r[1].hash != r[2].hash && r[0].hash != r[2].hash, "COUPLE up: PAIRS CHAIN RING sound apart");
+    for (i = 0; i < 3u; i++) {
+        const drone_pt_t *d = &drone_pt[0];
+        reset();
+        host_preset(&trk[0], ENG_IX_DRONE, 2);
+        dry();
+        trk[0].p[P_E1] = 0, trk[0].p[P_E2] = (int16_t)i;
+        trk_note_on(&trk[0], 48, 100);
+        blocks(FS / CTL);
+        memcpy(st[i], d->ph[0], 16), memcpy(st[i] + 4, d->prev[0], 16), memcpy(st[i] + 8, d->inc, 16);
+        st[i][12] = d->low[0], st[i][13] = d->dco[0];
+    }
+    check(!memcmp(st[0], st[1], sizeof st[0]) && !memcmp(st[1], st[2], sizeof st[0]),
+          "COUPLE 0: TOPO changes nothing (no generator hears another)");
+}
+
+/* one sine (SPREAD 0, no COUPLE, CHAR, DRIFT, DTUNE: four generators in unison; TONE open) on key 57 at BEAT beat: 1 s of
+ * each ear after 0.5 s */
 #define DR_N ((uint32_t)FS)
 static void dr_ears(int32_t beat, int32_t *l, int32_t *r)
 {
     int32_t out[CTL * 2];
     uint32_t b, i, got = 0;
     reset();
-    host_preset(&trk[0], ENG_IX_DRONE, 1);            /* THETA: one sine */
+    host_preset(&trk[0], ENG_IX_DRONE, 5);            /* THETA: one sine */
     dry();
-    trk[0].p[P_E0] = 0, trk[0].p[P_E1] = 0, trk[0].p[P_E3] = (int16_t)beat;
-    trk[0].p[P_E4] = 127, trk[0].p[P_E5] = 0, trk[0].p[P_E6] = 0;
+    trk[0].p[P_E0] = 0, trk[0].p[P_E1] = 0, trk[0].p[P_E3] = 0, trk[0].p[P_E4] = 0;
+    trk[0].p[P_E5] = 127, trk[0].p[P_E6] = (int16_t)beat, trk[0].p[P_DETUNE] = 0;
     trk[0].p[P_ATK] = 0;
     trk_note_on(&trk[0], 57, 100);
     for (b = 0; got < DR_N + FS / 2u; b++) {
@@ -265,10 +298,13 @@ static void t_beat(void)
 
 static void t_hold(void)
 {
+    uint32_t i, off = 1;
     reset();
     host_preset(&trk[0], ENG_IX_DRONE, 0);
     dry();
-    check(trk[0].p[P_E7] == 0, "the preset DRONE does not latch (HOLD OFF in every preset)");
+    for (i = 0; i < ENGINES[ENG_IX_DRONE]->npresets; i++)
+        off &= ENGINES[ENG_IX_DRONE]->presets[i].e[7] == 0;
+    check(off && trk[0].p[P_E7] == 0, "no preset latches (HOLD OFF in every preset)");
     trk[0].p[P_E7] = 1;
     trk_note_on(&trk[0], 60, 100);
     blocks(FS / CTL);
@@ -280,16 +316,20 @@ static void t_hold(void)
     blocks(10u * FS / CTL);
     check(active(&trk[0]) == 0u, "HOLD: its voice free after the release");
     trk_note_on(&trk[0], 60, 100);
-    trk_note_on(&trk[0], 67, 100);
     trk_note_off(&trk[0], 60);
-    trk_note_off(&trk[0], 67);
     blocks(4);
-    check(gated(&trk[0]) == 2u, "HOLD: two notes latched");
-    trk_note_on(&trk[0], 72, 100);                    /* (a key still down when HOLD goes OFF) */
+    check(gated(&trk[0]) == 1u, "HOLD: a note latched again");
     trk[0].p[P_E7] = 0;
     blocks(1);
-    check(gated(&trk[0]) == 1u && trk[0].v[0].gate + trk[0].v[1].gate + trk[0].v[2].gate == 1u,
-          "HOLD OFF: the latched notes let go, a key still down plays on");
+    check(gated(&trk[0]) == 0u, "HOLD OFF: the latched note let go");
+    blocks(10u * FS / CTL);
+    trk[0].p[P_E7] = 1;
+    trk_note_on(&trk[0], 60, 100);
+    trk_note_off(&trk[0], 60);                        /* (latched) */
+    trk_note_on(&trk[0], 72, 100);                    /* (the one voice to a key still down when HOLD goes OFF) */
+    trk[0].p[P_E7] = 0;
+    blocks(1);
+    check(gated(&trk[0]) == 1u, "HOLD OFF: a key still down plays on");
     trk_note_off(&trk[0], 72);
     check(gated(&trk[0]) == 0u, "HOLD OFF: that one ends with its key");
     trk_note_on(&trk[0], 60, 100);
@@ -306,7 +346,7 @@ static void t_switch(void)
     uint32_t b, i, same = 1;
     double a = 0;
     reset();
-    host_preset(&trk[0], ENG_IX_DRONE, 1);            /* THETA: BEAT */
+    host_preset(&trk[0], ENG_IX_DRONE, 5);            /* THETA: BEAT */
     dry();
     trk_note_on(&trk[0], 57, 100);
     blocks(FS / CTL);
@@ -330,7 +370,7 @@ static void t_switch(void)
     host_preset(&trk[0], ENG_SLOT_ANALOG, 0);
     memset(trk[0].v, 0, sizeof trk[0].v);
     blocks(4);
-    host_preset(&trk[0], ENG_IX_DRONE, 5);            /* CHOIR: HOLD OFF */
+    host_preset(&trk[0], ENG_IX_DRONE, 1);            /* OPEN FIFTH: HOLD OFF */
     trk_note_on(&trk[0], 60, 100);
     blocks(8);
     check(gated(&trk[0]) == 1u, "back on DRONE with HOLD OFF: a new note plays on (no stale latch)");
@@ -341,9 +381,9 @@ static void t_poly(void)
     uint32_t i, pk = 0;
     int32_t out[CTL * 2];
     reset();
-    host_preset(&trk[0], ENG_IX_DRONE, 5);            /* CHOIR: HOLD OFF */
+    host_preset(&trk[0], ENG_IX_DRONE, 3);            /* DARK RING: HOLD OFF */
     dry();
-    trk[0].p[P_E3] = 127;                             /* (BEAT: the right ear too) */
+    trk[0].p[P_E6] = 127;                             /* (BEAT: the right ear too) */
     for (i = 0; i < 8u; i++)
         trk_note_on(&trk[0], 48 + 3u * i, 127);
     for (i = 0; i < 2u * FS / CTL; i++) {
@@ -353,7 +393,7 @@ static void t_poly(void)
             pk = (uint32_t)abs(out[j]) > pk ? (uint32_t)abs(out[j]) : pk;
     }
     printf("drone: 8 keys, BEAT 40 Hz: %u voices, peak %u\n", active(&trk[0]), pk);
-    check(active(&trk[0]) == 4u && pk <= 32767u, "8 keys: 4 voices (the cap), bounded");
+    check(active(&trk[0]) == 1u && pk <= 32767u, "8 keys: 1 voice (the cap: one network a part), bounded");
 }
 
 int main(int argc, char **argv)
@@ -365,6 +405,7 @@ int main(int argc, char **argv)
     t_level();
     t_presets(argc > 1 ? argv[1] : "tests/golden_drone.txt");
     t_edits();
+    t_topo();
     t_beat();
     t_hold();
     t_switch();

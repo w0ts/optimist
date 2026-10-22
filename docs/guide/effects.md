@@ -46,6 +46,7 @@ The amount is one value per type, kept for the track whatever the slot, so prese
 | SLEW | a slew limiter: edges rounded into ramps, a dull crunch | light .. heavy | none |
 | TAPE | a worn tape's tone: the highs rolled off (6.5 kHz down to 1.7 kHz along the amount), the mids wandering at random every couple of seconds | how far it wanders, how dark | none |
 | SPIT | a resonant band jumping at random (180 Hz .. 5.9 kHz, about 2.6 times a second), driven into a soft clip at the sound's own level | the band's sharpness and the drive | none |
+| XDLY | two delay lines modulating each other's time, after the LYRA-8's delay (below) | MIX, 0 dry .. 127 all wet | `XDLY` |
 
 A drum lane can hold DIST, DYN (its compressor, with the drum track's RATIO ATK REL and no CEIL), FILT, DUST, FOLD, FUZZ, PHSR, FRMT, EQ3 and the shapers SFLD, RECT, HARM, RING and SLEW. Its amount belongs to the slot, not to the type: changing the type resets the amount to 0.
 
@@ -75,6 +76,15 @@ GATER chops the track's volume in time with the tempo. Page `GATER`: DEPTH (the 
 These keep a line of memory each, so the builder gives them a count of instances (0 off, 1 to 4: CHRS and ECHO per track, JUNO per slot). A track that picks one when every instance is in use stays dry on that slot until one is free; the INSERTS list shows how many are left.
 
 **JUNO** is the Juno-106's chorus (from fm-106, the MN3009 model): page `JUNO CHO` with MIX (127 = fully on) and MODE (I, II, I+II). A mono track comes out in stereo. On the master it is the page `MST JUNO`, shown as `INS JUNO`.
+
+**XDLY** is a dual delay in the manner of the SOMA LYRA-8's (its idea, not its circuit): two lines, each one's output moving the other one's time at the audio rate. Builder item `INS_XDLY` (a count of instances, off by default) and `XDLY_LEN` (each line 0.37 s, or 0.19 s to save pool). On a track's slots and the master's; not on a return, the USB input nor a drum lane. Page `XDLY` (on the master `MST XDLY`, shown as `INS XDLY`):
+
+- **TIME 1, TIME 2**: each line's time, 1 ms up to the line's length (shown in ms). Turning one glides the time over about 23 ms, so the repeats bend in pitch.
+- **MOD**: how far each line's output moves the other line's time, up to half of it either way: a slow chorus at low settings, metallic FM grit as the repeats build up.
+- **FDBK**: each line's repeats, through a soft clip and a gentle low-pass. Past about 95 % they grow and sustain, as the LYRA's delay self-oscillates.
+- **The amount** is the MIX, from dry (0, off) to all wet (127).
+
+A mono track hears the mean of the two lines; the drum bus and the master get line 1 on the left and line 2 on the right. A track keeps playing its repeats after its notes end, until the lines are silent (with FDBK high that is never: turn the MIX down to stop it).
 
 ### EQ3: a three-band DJ equaliser
 
@@ -132,7 +142,7 @@ A synth track's sends are on `SENDS`: REV, DLY, CHO (blank where no return carri
 
 ## What is not there
 
-- CHRS, ECHO and GATER cannot go in a master slot.
-- FLNG, WIDE, CHRS, ECHO, GATER, JUNO, SUB, TAPE and SPIT cannot go in a drum lane's slots; they run on the track or the drum bus.
+- CHRS, ECHO and GATER cannot go in a master slot. XDLY cannot go in a return or the USB input's slots.
+- FLNG, WIDE, CHRS, ECHO, GATER, JUNO, SUB, TAPE, SPIT and XDLY cannot go in a drum lane's slots; they run on the track or the drum bus.
 - There are three returns and no fourth send bus.
 - No effect has a tap tempo or its own clock: GATER follows the transport, the delay time is a note value.

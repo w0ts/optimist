@@ -2352,6 +2352,11 @@ static __attribute__((noinline)) void gl_part(track_t *t, int32_t *g)
     t->gl_on = 1;
 }
 
+#if FELUCCA_INS_XDLY
+#define IFX_RINGING(t) ifx_ringing((uint32_t)((t) - trk))   /* (XDLY's repeats outlast the voices: fxi_kern.c) */
+#else
+#define IFX_RINGING(t) 0
+#endif
 /* one synth part into the dry mix and the sends; a part with no voice sounding costs
  * the LFO tick and a cleared buffer only (after the DIST tail has run out) */
 static HOT void mix_part(track_t *t, uint32_t n MIXACC_PARAM)
@@ -2363,7 +2368,7 @@ static HOT void mix_part(track_t *t, uint32_t n MIXACC_PARAM)
     BENCH_SIG((uint32_t)(t - trk), b, n);
     if (nr)
         t->tail = 16;                                   /* blocks of DIST state to run out after the last voice */
-    else if ((!t->tail || !t->p[P_DIST] || !fx_on(t) || !--t->tail) && !slicer_busy(t))
+    else if ((!t->tail || !t->p[P_DIST] || !fx_on(t) || !--t->tail) && !slicer_busy(t) && !IFX_RINGING(t))
         g0 = g1 = 0;                                    /* silent: nothing to mix, as a muted part */
     if (!g0 && !g1) {                                   /* silent, or MUTE / SOLO (the voices run, nothing is heard) */
         slicer_track(t, 0, n);                          /* (the SLICER's step clock runs on) */

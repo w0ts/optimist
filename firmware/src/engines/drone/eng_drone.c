@@ -1,74 +1,76 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* DRONE: continuous tones for drones and ambient, with binaural beats (engine 16, FELUCCA_ENG_DRONE, off by default).
+/* DRONE: a coupled network of four generators for drones and ambient, with binaural beats (engine 16,
+ * FELUCCA_ENG_DRONE, off by default).
  *
- * TONE page:
- *   WAVE  morphs sine (0) -> triangle (64) -> saw (127); the track's SHP moves it
- *   STAK  the oscillators of a note: SOLO one; UNI three, detuned; OCT, 5TH, SUB, 4TH, MIN, MAJ the key and two
- *         intervals above or below it (DRONE_STAK)
- *   DTUN  the two stacked oscillators' detune, up and down: 0 .. 30 cents (squared: fine at the bottom), slow beating
- *   BEAT  binaural beat: OFF, else the left ear BEAT / 2 below each oscillator and the right ear BEAT / 2 above it,
- *         0.05 .. 40 Hz (the LFO RATE's curve, F_LFOHZ). Heard on headphones only; on speakers the ears mix (a slow
- *         beating in the room)
+ * The network after Caravel 0.3.3's DRONE (bonszaimusic, GPL-3.0-only, github.com/bonszaimusic/caravel
+ * firmware/src/eng_drone.c, its TOPO 0..2; docs/drone-engine.md there): "original DSP inspired by the idea of a coupled,
+ * slowly moving drone instrument" (the LYRA-8's cross-modulated generators), not a clone nor a circuit model. Rewritten
+ * here without its divides, with our BEAT (two ears) and HOLD; its cell modes (TOPO 3..5) not ported.
+ *
+ * A note plays four sines; each one's phase is modulated (bounded: under a quarter turn, never its accumulated phase)
+ * by another's previous sample, through a soft odd cubic (CHAR); the four are averaged at equal weight, a DC block,
+ * a one-pole low-pass (TONE), a soft knee. One voice a part (.poly 1): a note transposes the whole network.
+ *
+ * NETWORK page:
+ *   SPREAD the generators' ratios 1 : 1 + s/4 : 1 + s/2 : 1 + s, s 0..1: unison (0) opens to 1 : 5/4 : 3/2 : 2
+ *   COUPLE how far each generator's phase moves with its source (0 .. a quarter turn); the track's SHP moves it
+ *   TOPO   who modulates whom: PAIRS 0<->1 2<->3, CHAIN 0->1->2->3, RING 3->0->1->2->3; a change crossfades the
+ *          sources (PAIRS to RING passes CHAIN)
+ *   CHAR   sine -> the soft cubic 1.5 x - 0.5 x^3 (more harmonics into the coupling)
  * MOVE page:
- *   CUT   a low-pass (the trapezoidal SVF, a little resonance) on each ear; the track's FLT moves it
- *   DRFT  a slow random wander of the part (all its voices together): pitch up to +-20 cents, level down to -4 dB,
- *         CUT up to about an octave; a new target every 0.7 .. 3 s, followed with a 0.7 s lag
- *   AIR   soft noise (white through a one-pole at ~900 Hz) under the tone, before CUT: breath, wind
- *   HOLD  ON: a key latches its note, the same key again lets it go (the release); HOLD OFF lets the latched notes go
- *         (a key still down plays on until it is let go).
- *         The sequencer's notes toggle the same way: a sequenced drone keeps HOLD OFF and holds with TIEs
+ *   DRIFT  each generator's slow triangle wander, up to +-6.8 cents, its own phase and rate (0.015 .. 0.11 Hz,
+ *          faster as DRIFT rises: Caravel's RATE folded in)
+ *   TONE   dark -> open, the one-pole; the track's FLT moves it
+ *   BEAT   binaural beat: OFF, else the left ear's generators BEAT / 2 below their pitch and the right ear's BEAT / 2
+ *          above, 0.05 .. 40 Hz (the LFO RATE's curve, F_LFOHZ). Headphones; on speakers the ears mix (slow beating)
+ *   HOLD   ON: a key latches its note, the same key again lets it go; HOLD OFF lets the latched notes go (voice.c)
+ * The generators' detune is the track's DTUNE (VOICE 2; unused by a one-voice engine otherwise): {-3 -1 1 3} x up to
+ * ~6.7 cents.
  *
- * Stereo: a part is mono up to its pan (fx.c mix_part), so with BEAT the voices write the mid (L + R) / 2 to the
- * block and the side (L - R) / 2 to drone_side, which mix_part adds after the level as WIDE's side (insfx.c
- * ifx_side_mix: + to the left, - to the right). The part's inserts, sends, meters and USB stem get the mid only.
- * BEAT OFF: no side, the right ear not computed.
+ * Stereo: a part is mono up to its pan (fx.c mix_part), so with BEAT the network runs twice (an ear each: twice the
+ * cost) and writes the mid (L + R) / 2 to the block and the side (L - R) / 2 to drone_side, which mix_part adds after
+ * the level as WIDE's side (insfx.c ifx_side_mix). BEAT OFF: one network, the right ear's state kept on the left's.
  *
- * State: ph[0..2] the left oscillators' phases, s[0..2] the right's, s[3] s[4] the left filter, s[5] s[6] the right,
- * s[7] AIR's pole. A note on a sounding voice (retrigger, steal) keeps all of it: no click (drone_note_on). */
-static const char *const N_DRONE_STAK[] = {"SOLO", "UNI", "OCT", "5TH", "SUB", "4TH", "MIN", "MAJ"};
+ * State: the part's (drone_pt; one voice), kept across notes; a note on a silent voice starts it afresh (drone_note_on). */
+static const char *const N_DRONE_TOPO[] = {"PAIRS", "CHAIN", "RING"};
 static const char *const N_DRONE_OFF[] = {"OFF"};
-static const param_desc_t DRONE_BEAT_OFF = {"BEAT", F_ENUM, 0, 127, 0, N_DRONE_OFF, 0};   /* = edit[3] at 0 */
-
-/* the second and third oscillators: semitones from the key, levels (Q15; 0 = not played); the gain of the stack, Q15:
- * 1 / (1 + the levels), peaks at the level of one oscillator */
-static const struct { int8_t iv[2]; int16_t lv[2]; int16_t g; } DRONE_STAK[8] = {
-    {{0, 0}, {0, 0}, 32767},              /* SOLO: one sine is a clean binaural tone */
-    {{0, 0}, {26214, 26214}, 12603},      /* UNI: three copies, 0.8 each */
-    {{12, 0}, {16384, 19661}, 15603},     /* OCT: the octave 0.5, a copy 0.6 */
-    {{7, 12}, {19661, 11469}, 16804},     /* 5TH: the fifth 0.6, the octave 0.35 */
-    {{-12, 7}, {22938, 13107}, 15603},    /* SUB: the octave below 0.7, the fifth 0.4 */
-    {{5, 12}, {19661, 11469}, 16804},     /* 4TH */
-    {{3, 7}, {18022, 18022}, 15603},      /* MIN: the minor third and the fifth, 0.55 */
-    {{4, 7}, {18022, 18022}, 15603},      /* MAJ */
-};
+static const param_desc_t DRONE_BEAT_OFF = {"BEAT", F_ENUM, 0, 127, 0, N_DRONE_OFF, 0};   /* = edit[6] at 0 */
 
 /* BEAT's increment: LFO_HZ_X100 (Hz x 100) x 2^32 / (100 FS), rounded */
 #define DRONE_BEAT_K ((uint32_t)((4294967296ull + 50ull * FS) / (100ull * FS)))
+#define DRONE_MAXINC 0x60000000                 /* (a generator's increment at most: 0.375 of FS) */
+enum { DR_CPL, DR_TOPO, DR_CHR, DR_DRF, DR_TONE, DR_NC };
 
-/* each part's drift (drone_block), its random generator (AIR, the drift's targets), its latched voices */
+/* each part's network: the ears' phases and last outputs, their DC blocks and low-passes; the shared drift phases,
+ * smoothed increments and controls; its latched voices (HOLD) */
 typedef struct {
-    int32_t dr, tg, cnt, rng;
-    int32_t cents, lvl, cut;              /* the drift now: pitch (cents), level (Q15), CUT (SVF units) */
+    uint32_t ph[2][4];
+    int32_t prev[2][4];
+    int32_t low[2], dci[2], dco[2];
+    uint32_t dph[4];
+    int32_t inc[4], ctl[DR_NC];
+    uint32_t ready;                       /* 0: the next render installs the pitch and the controls (no glide in) */
     uint32_t latched;                     /* HOLD: the voices whose key went up (voice.c drone_latch_off), bit i voice i */
+    uint8_t lnote[NVOICE];                /* (and the note each latched: MONO may move the voice to another key since) */
 } drone_pt_t;
 static drone_pt_t drone_pt[NPART];
-/* a part's side this block (BEAT: (L - R) / 2 of its voices), mixed by fx.c mix_part; set: written this block
- * (drone_block clears it, the first voice zeroes the block) */
+/* a part's side this block (BEAT: (L - R) / 2), mixed by fx.c mix_part; set: written this block (drone_block clears
+ * it, the voice zeroes the block) */
 static int32_t drone_side[NPART][CTL];
 static uint8_t drone_sd[NPART];
 
 static const param_desc_t *drone_desc(const track_t *t, uint32_t k)
 {
-    return k == 3u && t->p[P_E3] == 0 ? &DRONE_BEAT_OFF : 0;
+    return k == 6u && t->p[P_E6] == 0 ? &DRONE_BEAT_OFF : 0;
 }
 
-/* once a block, before the voices: HOLD OFF lets the latched voices go (only those: a key still down, or a note
- * started since, plays on), the drift, the side cleared */
+/* once a block, before the voices: HOLD OFF lets the latched notes go (only those: a key still down, or a note
+ * started since, plays on; a latched note out of the MONO stack, so a key let go later does not return to it), the
+ * side cleared */
 static void drone_block(track_t *t)
 {
     uint32_t k, i;
     drone_pt_t *d;
-    int32_t drft;
     if (t >= &trk[NPART])
         return;
     k = (uint32_t)(t - trk);
@@ -76,164 +78,181 @@ static void drone_block(track_t *t)
     drone_sd[k] = 0;
     if (d->latched && !t->p[P_E7]) {                    /* HOLD OFF: the latched notes into their release */
         for (i = 0; i < NVOICE; i++)
-            if ((d->latched >> i) & 1u && t->v[i].gate) {
-                if (t->mono_note == t->v[i].note)
-                    t->nmono = 0, t->mono_note = 0;
-                t->v[i].gate = 0;
-                t->v[i].stage = 3;
+            if ((d->latched >> i) & 1u) {
+                uint32_t nt = d->lnote[i], j, n = 0;
+                for (j = 0; j < t->nmono; j++)
+                    if (t->mono_stack[j] != nt)
+                        t->mono_stack[n++] = t->mono_stack[j];
+                t->nmono = (uint8_t)n;
+                if (t->v[i].gate && t->v[i].note == nt) {
+                    if (t->mono_note == nt)
+                        t->mono_note = 0;
+                    t->v[i].gate = 0;
+                    t->v[i].stage = 3;
+                }
             }
         d->latched = 0;
-    }
-    if (!d->rng)
-        d->rng = (int32_t)(0x2545F491u + k * 0x9E3779B9u);
-    drft = t->p[P_E5];
-    if (--d->cnt <= 0) {                                /* a new target every 1024 .. 4095 blocks: 0.7 .. 3 s */
-        uint32_t r = noise32(&d->rng);
-        d->tg = (int32_t)(r >> 16) - 32768;
-        d->cnt = 1024 + (int32_t)(r & 3071u);
-    }
-    d->dr += (d->tg - d->dr) >> 10;                     /* a 0.7 s lag */
-    {
-        int32_t dr8 = d->dr >> 8, dg = (32767 - d->dr) >> 1;   /* (-128..127; 0..32767: how far down) */
-        d->cents = (dr8 * drft * drft * 21) >> 21;      /* +-20 cents at 127 */
-        d->lvl = 32767 - ((((dg >> 7) * drft * 95) >> 8)); /* down to 0.63 (-4 dB) */
-        d->cut = (d->dr * drft) >> 10;                  /* +-4064: +-16 SVF indices */
     }
 }
 
 static void drone_note_on(track_t *t, voice_t *v)
 {
-    uint32_t i;
-    if (t < &trk[NPART])                                /* a new note on this voice: not latched (yet) */
-        drone_pt[t - trk].latched &= ~(1u << ((uint32_t)(v - t->v) % NVOICE));
-    if (v->env)                                         /* sounding (retrigger, steal): its phases and filters on */
+    drone_pt_t *d;
+    if (t >= &trk[NPART])
         return;
-    for (i = 0; i < 3u; i++)
-        v->ph[i] = (uint32_t)i * 0x55555555u;           /* (the stack apart: no stacked peak at the start) */
-    for (i = 0; i < 3u; i++)
-        v->s[i] = (int32_t)v->ph[i];
-    for (i = 3; i < 8u; i++)
-        v->s[i] = 0;
+    d = &drone_pt[t - trk];
+    d->latched &= ~(1u << ((uint32_t)(v - t->v) % NVOICE));   /* a new note on this voice: not latched (yet) */
+    if (!v->env)                                        /* silent: afresh (sounding: retrigger, steal, the network on) */
+        d->ready = 0;
 }
 
-/* WAVE: sine -> triangle (w 0 .. 64 << 8), triangle -> saw (.. 127 << 8); f the crossfade, Q15 */
-AINL int32_t drone_wave(uint32_t ph, uint32_t inc, uint32_t seg, int32_t f)
+/* the controls' targets (Q15; TOPO 0 .. 2 x 32768) */
+static void drone_targets(const int16_t *p, const vmod_t *m, int32_t *c)
 {
-    int32_t a, b;
-    if (seg == 0u)
-        return osc_sine(ph);
-    if (seg == 1u) {
-        a = osc_sine(ph), b = osc_tri(ph);
-    } else {
-        a = osc_tri(ph), b = osc_saw(ph, inc);
-    }
-    return a + mulq15(b - a, f);
+    c[DR_CPL] = clamp((p[P_E1] << 8) + m->shape - (64 << 8), 0, 32512);
+    c[DR_TOPO] = clamp(p[P_E2], 0, 2) << 15;
+    c[DR_CHR] = clamp(p[P_E3], 0, 127) * 258;
+    c[DR_DRF] = clamp(p[P_E4], 0, 127) * 258;
+    c[DR_TONE] = clamp((p[P_E5] << 8) + m->cutoff, 0, 32512);
 }
 
-/* the stack of one ear, one sample: the oscillators at ph[] (np of them), stepped by inc[], times the stack's gain */
-AINL int32_t drone_stack(uint32_t *ph, const uint32_t *inc, uint32_t np, uint32_t seg, int32_t f, int32_t lv1,
-                         int32_t lv2, int32_t g)
+/* a ~23 ms follower (2^10 samples), at least a step a sample: it ends on the target */
+AINL int32_t drone_follow(int32_t a, int32_t b)
 {
-    int32_t x = drone_wave(ph[0], inc[0], seg, f);
-    ph[0] += inc[0];
-    if (np > 1u) {
-        x += mulq15(drone_wave(ph[1], inc[1], seg, f), lv1) + mulq15(drone_wave(ph[2], inc[2], seg, f), lv2);
-        ph[1] += inc[1];
-        ph[2] += inc[2];
+    int32_t d = b - a, s = d >> 10;
+    return a + (s ? s : (d > 0) - (d < 0));
+}
+
+/* generator g's source, from the previous sample's x[]: PAIRS -> CHAIN (topo 0 .. 32768) -> RING (.. 65536) */
+AINL int32_t drone_src(const int32_t *x, uint32_t g, int32_t topo)
+{
+    static const uint8_t PAIRS[4] = {1, 0, 3, 2}, RING[4] = {3, 0, 1, 2};
+    int32_t a = x[PAIRS[g]], b = g ? x[g - 1u] : 0, c = x[RING[g]];
+    return topo <= 32768 ? a + mulq15(b - a, topo) : b + mulq15(c - b, topo - 32768);
+}
+
+/* one ear's network, one sample: the four generators at ph[] (each stepped by st[] + off), their outputs into
+ * prev[], the averaged, DC-blocked, low-passed, soft-kneed result */
+AINL int32_t drone_ear(drone_pt_t *d, uint32_t e, const uint32_t *st, uint32_t off, int32_t g1)
+{
+    int32_t nx[4], sum = 0, x, hp;
+    uint32_t g;
+    for (g = 0; g < 4u; g++) {
+        int32_t pm = mulq15(drone_src(d->prev[e], g, d->ctl[DR_TOPO]), d->ctl[DR_CPL]);
+        int32_t y = sine_i(d->ph[e][g] + (uint32_t)pm * 32768u);   /* (|pm| < 2^15: under a quarter turn) */
+        int32_t cube = mulq15(mulq15(y, y), y);
+        nx[g] = y + mulq15((y - cube) >> 1, d->ctl[DR_CHR]);
+        sum += nx[g];
+        d->ph[e][g] += st[g] + off;
     }
-    return mulq15(x, g);
+    for (g = 0; g < 4u; g++)
+        d->prev[e][g] = nx[g];
+    x = sum >> 2;
+    hp = x - d->dci[e] + d->dco[e] - (d->dco[e] >> 9);   /* the DC block, ~14 Hz */
+    d->dci[e] = x;
+    d->dco[e] = hp;
+    d->low[e] += (int32_t)(((int64_t)(hp - d->low[e]) * g1) >> 15);
+    return soft_knee(d->low[e], 16000);
 }
 
 static void drone_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
+    static const uint32_t IV[4] = {0, 16384, 32768, 65536};   /* SPREAD's ratios - 1 at 127, Q16 */
+    static const int8_t DT[4] = {-3, -1, 1, 3};
     const int16_t *p = t->p;
-    uint32_t k = (uint32_t)(t - trk) % NPART, st = (uint32_t)p[P_E1] & 7u, i, j, np, seg;
-    const drone_pt_t *d = &drone_pt[k];
-    int32_t wave = clamp((p[P_E0] << 8) + m->shape - (64 << 8), 0, 127 << 8), f, det, air, g, lv1, lv2;
-    uint32_t bi = p[P_E3] > 0 ? LFO_HZ_X100[p[P_E3] & 127] * DRONE_BEAT_K : 0u, incl[3], incr[3], phl[3], phr[3];
-    int32_t l1 = v->s[3], l2 = v->s[4], r1 = v->s[5], r2 = v->s[6], ap = v->s[7], rng = d->rng;
-    int32_t *sd;
-    tsvf_t c;
+    uint32_t k = (uint32_t)(t - trk) % NPART, i, g, e;
+    drone_pt_t *d = &drone_pt[k];
+    uint32_t bi = p[P_E6] > 0 ? LFO_HZ_X100[p[P_E6] & 127] * DRONE_BEAT_K : 0u, st[4];
+    uint32_t spr = (uint32_t)clamp(p[P_E0], 0, 127), det = (uint32_t)clamp(p[P_DETUNE], 0, 127);
+    int32_t tg[DR_NC], fq[4], *sd;
+    (void)v;
     if (n > CTL)
         n = CTL;
-    sd = drone_side[k] + (CTL - n);                     /* (a voice from inside the block: out is the block + CTL - n) */
-    seg = wave == 0 ? 0u : wave <= (64 << 8) ? 1u : 2u;
-    f = seg == 1u ? clamp(wave << 1, 0, 32767) : clamp(((wave - (64 << 8)) * 520) >> 8, 0, 32767);
-    det = p[P_E2] * p[P_E2] * 30 / 16129;
-    np = DRONE_STAK[st].lv[0] ? 3u : 1u;
-    lv1 = DRONE_STAK[st].lv[0], lv2 = DRONE_STAK[st].lv[1];
-    g = mulq15(DRONE_STAK[st].g, d->lvl);
-    incl[0] = det_inc(m->pitch16, d->cents, m->fine_all);
-    incl[1] = det_inc(m->pitch16 + DRONE_STAK[st].iv[0] * 16, d->cents + det, m->fine_all);
-    incl[2] = det_inc(m->pitch16 + DRONE_STAK[st].iv[1] * 16, d->cents - det, m->fine_all);
-    for (j = 0; j < 3u; j++) {
-        incr[j] = incl[j] + (bi >> 1);
-        incl[j] -= bi >> 1;
-        phl[j] = v->ph[j];
-        phr[j] = (uint32_t)v->s[j];
+    drone_targets(p, m, tg);
+    for (g = 0; g < 4u; g++) {                          /* the generators' pitches: the key x SPREAD's ratio x DTUNE */
+        uint64_t hz = ((uint64_t)m->inc * (65536u + IV[g] * spr / 127u)) >> 16;
+        hz = (hz * (uint32_t)(65536 + DT[g] * (int32_t)det * 252 / 127)) >> 16;
+        fq[g] = (int32_t)(hz > DRONE_MAXINC ? DRONE_MAXINC : hz);
     }
-    tsvf_coef(&c, (p[P_E4] << 8) + m->cutoff + d->cut, 20);
-    air = (int32_t)p[P_E6] * p[P_E6] * 2;               /* Q15, squared: 0 .. 0.98 */
-    if (bi && !drone_sd[k]) {                           /* the part's first voice with a side this block */
+    if (!d->ready) {                                    /* afresh: the pitch and the controls installed, apart phases */
+        memset(d, 0, (uint32_t)((char *)&d->latched - (char *)d));   /* (the network; HOLD's latched notes kept) */
+        for (g = 0; g < 4u; g++) {
+            d->ph[0][g] = d->ph[1][g] = g * 0x19234567u;
+            d->dph[g] = g * 0x39123457u;
+            d->inc[g] = fq[g];
+        }
+        for (i = 0; i < DR_NC; i++)
+            d->ctl[i] = tg[i];
+        d->ready = 1;
+    }
+    sd = drone_side[k] + (CTL - n);                     /* (a voice from inside the block: out is the block + CTL - n) */
+    if (bi && !drone_sd[k]) {                           /* the part's side, zeroed once this block */
         for (i = 0; i < CTL; i++)
             drone_side[k][i] = 0;
         drone_sd[k] = 1;
     }
     for (i = 0; i < n; i++) {
-        int32_t a = mulq15(amp_at(m, i), VOICE_FS), nz = 0, xl, xr;
-        if (air) {                                      /* AIR: white noise through a one-pole, ~900 Hz */
-            ap += (((int32_t)(noise32(&rng) >> 17) - 16384) - ap) >> 3;
-            nz = mulq15(ap << 1, air);
+        int32_t a = mulq15(amp_at(m, i), VOICE_FS), g1, yl;
+        uint32_t rate;
+        for (e = 0; e < DR_NC; e++)
+            d->ctl[e] = drone_follow(d->ctl[e], tg[e]);
+        rate = 1461u + (((uint32_t)d->ctl[DR_DRF] * 9u) >> 5);   /* (Caravel's RATE at DRIFT / 2: 0.015 .. 0.11 Hz) */
+        for (g = 0; g < 4u; g++) {                      /* the drifts: distinct triangles, no accumulated detune */
+            uint32_t q = d->dph[g] >> 16;
+            int32_t tri = q < 32768u ? (int32_t)q * 2 - 32768 : 98303 - (int32_t)q * 2;
+            int32_t s;
+            d->inc[g] = drone_follow(d->inc[g], fq[g]);
+            s = d->inc[g] + (((d->inc[g] >> 16) * mulq15(tri, d->ctl[DR_DRF])) >> 7);
+            st[g] = (uint32_t)clamp(s, 0, DRONE_MAXINC);
+            d->dph[g] += (rate * (8u + g)) >> 3;
         }
-        xl = tsvf_lp(&c, drone_stack(phl, incl, np, seg, f, lv1, lv2, g) + nz, &l1, &l2);
-        if (bi) {                                       /* BEAT: the right ear, the mid to the block, the side aside */
-            xr = tsvf_lp(&c, drone_stack(phr, incr, np, seg, f, lv1, lv2, g) + nz, &r1, &r2);
-            sd[i] += mulq15((xl - xr) >> 1, a);
-            xl = (xl + xr) >> 1;
+        g1 = 128 + ((d->ctl[DR_TONE] * 30236) >> 15);  /* TONE's one-pole, Q15: 128 .. ~30128 */
+        if (bi) {                                       /* BEAT: two ears, the mid to the block, the side aside */
+            int32_t yr;
+            yl = drone_ear(d, 0, st, 0u - (bi >> 1), g1);
+            yr = drone_ear(d, 1, st, bi >> 1, g1);
+            sd[i] += mulq15(yl - yr, a);
+            out[i] += mulq15(yl + yr, a);
+        } else {
+            yl = drone_ear(d, 0, st, 0u, g1);
+            out[i] += mulq15(yl * 2, a);
         }
-        out[i] += mulq15(xl, a);
     }
-    if (!bi) {                                          /* BEAT OFF: the right with the left (in phase when it starts) */
-        for (j = 0; j < 3u; j++)
-            phr[j] = phl[j];
-        r1 = l1, r2 = l2;
+    if (!bi) {                                          /* BEAT OFF: the right ear with the left (in phase when it starts) */
+        memcpy(d->ph[1], d->ph[0], sizeof d->ph[0]);
+        memcpy(d->prev[1], d->prev[0], sizeof d->prev[0]);
+        d->low[1] = d->low[0], d->dci[1] = d->dci[0], d->dco[1] = d->dco[0];
     }
-    for (j = 0; j < 3u; j++) {
-        v->ph[j] = phl[j];
-        v->s[j] = (int32_t)phr[j];
-    }
-    v->s[3] = l1;
-    v->s[4] = l2;
-    v->s[5] = r1;
-    v->s[6] = r2;
-    v->s[7] = ap;
-    drone_pt[k].rng = rng;
 }
 
-/* {WAVE, STAK, DTUN, BEAT, CUT, DRFT, AIR, HOLD}; BEAT: the LFO RATE's steps (57 1 Hz, 70 2 Hz, 91 6 Hz, 101 10 Hz,
- * 127 40 Hz). HOLD OFF in every preset: a sound loaded never latches what is played (the user turns HOLD on) */
+/* {SPREAD, COUPLE, TOPO, CHAR, DRIFT, TONE, BEAT, HOLD}, the track's DTUNE (XP); BEAT: the LFO RATE's steps (57 1 Hz,
+ * 70 2 Hz, 91 6 Hz, 101 10 Hz, 127 40 Hz). The first five after Caravel's (its DETUNE in DTUNE, its RATE gone).
+ * HOLD OFF in every preset: a sound loaded never latches what is played (the user turns HOLD on) */
+#define DRONE_DT(x) XP(P_DETUNE + 1, (x))
 static const preset_t DRONE_PRESETS[] = {
-    {"DRONE", {40, 3, 40, 0, 70, 60, 20, 0}, {90, 60, 127, 100}, 0, 0, FX(0, 30, 20, 90)},
-    {"THETA", {0, 0, 0, 91, 127, 0, 0, 0}, {80, 60, 127, 90}, 0, 0, FX(0, 0, 0, 30)},       /* 6 Hz, one sine */
-    {"ALPHA", {0, 2, 20, 101, 110, 20, 0, 0}, {80, 60, 127, 90}, 0, 0, FX(0, 0, 0, 40)},    /* 10 Hz, the octave */
-    {"DELTA", {0, 4, 15, 70, 100, 20, 10, 0}, {90, 60, 127, 100}, 0, 0, FX(0, 0, 0, 40)},   /* 2 Hz, the octave below */
-    {"GAMMA", {20, 0, 0, 127, 110, 0, 0, 0}, {60, 60, 127, 80}, 0, 0, FX(0, 0, 0, 20)},      /* 40 Hz */
-    {"CHOIR", {90, 7, 60, 0, 55, 80, 30, 0}, {85, 60, 127, 95}, 0, 0, FX(0, 40, 25, 100)},
-    {"BREATH", {127, 1, 90, 0, 40, 100, 90, 0}, {95, 60, 127, 105}, 0, 0, FX(0, 20, 30, 100)},
+    {"STILL AIR", {0, 12, 0, 18, 32, 76, 0, 0}, {82, 90, 112, 96}, 0, 1, FX(0, 0, 20, 60), DRONE_DT(24)},
+    {"OPEN FIFTH", {127, 28, 0, 28, 24, 88, 0, 0}, {76, 88, 116, 94}, 0, 1, FX(0, 0, 20, 60), DRONE_DT(18)},
+    {"SLOW CHAIN", {72, 54, 1, 48, 64, 62, 0, 0}, {90, 96, 120, 104}, 0, 1, FX(0, 20, 0, 70), DRONE_DT(38)},
+    {"DARK RING", {108, 78, 2, 74, 48, 42, 0, 0}, {72, 92, 110, 100}, 0, 1, FX(0, 0, 30, 80), DRONE_DT(28)},
+    {"SWARM", {8, 42, 0, 40, 90, 80, 0, 0}, {84, 94, 118, 108}, 0, 1, FX(0, 30, 0, 60), DRONE_DT(90)},
+    {"THETA", {0, 0, 0, 0, 0, 100, 91, 0}, {80, 60, 127, 90}, 0, 1, FX(0, 0, 0, 30), DRONE_DT(0)},     /* 6 Hz */
+    {"ALPHA", {0, 20, 2, 0, 10, 90, 101, 0}, {80, 60, 127, 90}, 0, 1, FX(0, 0, 0, 40), DRONE_DT(10)},  /* 10 Hz */
+    {"DELTA", {64, 10, 1, 10, 10, 70, 70, 0}, {90, 60, 127, 100}, 0, 1, FX(0, 0, 0, 40), DRONE_DT(6)}, /* 2 Hz */
+    {"GAMMA", {0, 0, 0, 20, 0, 110, 127, 0}, {60, 60, 127, 80}, 0, 1, FX(0, 0, 0, 20), DRONE_DT(0)},   /* 40 Hz */
 };
 
 static const engine_t ENG_DRONE = {
     .name = "DRONE",
-    .page_title = {"TONE", "MOVE"},
+    .page_title = {"NETWORK", "MOVE"},
     .edit = {
-        {"WAVE", F_PCT, 0, 127, 0, 0, 0},
-        {"STAK", F_ENUM, 0, 7, 3, N_DRONE_STAK, 0},
-        {"DTUN", F_PCT, 0, 127, 30, 0, 0},
+        {"SPREAD", F_PCT, 0, 127, 0, 0, 0},
+        {"COUPLE", F_PCT, 0, 127, 12, 0, 0},
+        {"TOPO", F_ENUM, 0, 2, 0, N_DRONE_TOPO, 0},
+        {"CHAR", F_PCT, 0, 127, 18, 0, 0},
+        {"DRIFT", F_PCT, 0, 127, 32, 0, 0},
+        {"TONE", F_PCT, 0, 127, 76, 0, 0},
         {"BEAT", F_LFOHZ, 0, 127, 0, 0, 0},           /* 0: OFF (drone_desc) */
-        {"CUT", F_CUTOFF, 0, 127, 90, 0, 0},
-        {"DRFT", F_PCT, 0, 127, 40, 0, 0},
-        {"AIR", F_PCT, 0, 127, 0, 0, 0},
-        {"HOLD", F_ONOFF, 0, 1, 0, 0, 0},
+        {"HOLD", F_ONOFF, 0, 1, 0, 0, 0},             /* (P_E7: voice.c drone_latch) */
     },
     .presets = DRONE_PRESETS,
     .npresets = sizeof(DRONE_PRESETS) / sizeof(DRONE_PRESETS[0]),
@@ -241,8 +260,8 @@ static const engine_t ENG_DRONE = {
     .render = drone_render,
     .fil_page = 1,
     .color = 0xB4BB,                             /* #b394d9 (tools/colors.json) */
-    .macro = {P_E4, P_E5, P_E6, P_REL},
-    .poly = 4,                                   /* (two ears of three oscillators a voice) */
+    .macro = {P_E1, P_E3, P_E4, P_E5},           /* COUPLE CHAR DRIFT TONE (Caravel's performance knobs) */
+    .poly = 1,                                   /* (one network a part; with BEAT two ears of four generators) */
     .desc = drone_desc,
     .block = drone_block,
 };

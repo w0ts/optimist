@@ -119,6 +119,12 @@ static void fxi_clear(uint32_t j, uint32_t i)           /* instance i zeroed: it
     if (j == 3u)
         memset(&ifx_flng[i], 0, sizeof ifx_flng[i]);
 #endif
+#if FELUCCA_INS_XDLY
+    if (j == 4u) {
+        memset(&ifx_xdly[i], 0, sizeof ifx_xdly[i]);
+        memset(ifx_xdly_ln[i], 0, sizeof ifx_xdly_ln[i]);
+    }
+#endif
     (void)i;
 }
 /* a free instance of type FXI_TY(j): the builder's own first, then the send's line while lent; FXI_NONE: none */

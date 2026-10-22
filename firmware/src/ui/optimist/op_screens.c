@@ -560,8 +560,8 @@ static int snd_init_yes(uint32_t scr, uint32_t r, uint32_t k, uint32_t ok)
 static const char *const FX_ALIAS[][2] = {{"DLY", "RET DELAY"}, {"DLY F", "RET DLY F"}, {"REV/CHO", "RET REV"}, {"REVERB", "RET TYPE"},
                                           {"MST INS", "INSERTS"}, {"COMP", "INS DYN 1"}, {"LIMIT", "INS DYN 2"},
                                           {"MASTER", "DUCK"}, {"MST JUNO", "INS JUNO"},
-                                          {"MST EQ3", "INS EQ3"}, {"MST EQ3 F", "INS EQ3 F"}};
-static const char *const FX_ORDER[] = {"MST INS", "COMP", "LIMIT", "MST JUNO", "MST EQ3", "MST EQ3 F", "MASTER", "RETURNS", "REV/CHO",
+                                          {"MST EQ3", "INS EQ3"}, {"MST EQ3 F", "INS EQ3 F"}, {"MST XDLY", "INS XDLY"}};
+static const char *const FX_ORDER[] = {"MST INS", "COMP", "LIMIT", "MST JUNO", "MST EQ3", "MST EQ3 F", "MST XDLY", "MASTER", "RETURNS", "REV/CHO",
                                        "REVERB", "DLY", "DLY F", "SLOTS", "RET AMT", "RET EQ3", "RET EQ3 F", "MACRO"};
 static const page_t FX_LIMIT = {"LIMIT", FAM_GLO, SC_GLOBAL, GR_NONE, {G_CGAIN, G_CCEIL, G_CGR, 0xFF}};
 /* RETURNS: A B C's return levels (the one order, fx_slots.c fxs_card: fx_ret_sync writes the ids; an empty return:
