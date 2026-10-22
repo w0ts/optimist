@@ -124,16 +124,16 @@ async def main():
         check("left / right change no item", app.cfg == before)
         tree.cursor_line = 0
         await pilot.pause()
-        await toggle(app, pilot, "DRUM_SYNTH")
-        await toggle(app, pilot, "DRUM_SAMPLED")
+        for k in ("DRUM_SYNTH", "DS_KAWA", "DS_PLAITS", "DRUM_SAMPLED"):   # (the three drum synths: each a drum source)
+            await toggle(app, pilot, k)
         marked = [k for k in app.nodes if "✗" in label(app, k)]
-        check("drum synth and sampled kits off: both lines marked at once, before any b",
-              "DRUM_SYNTH" in marked and "DRUM_SAMPLED" in marked and "drum source" in label(app, "DRUM_SYNTH") and
-              not app.build_out)
+        check("drum synths and sampled kits off: their lines marked at once, before any b",
+              "DRUM_SYNTH" in marked and "DS_KAWA" in marked and "DRUM_SAMPLED" in marked and
+              "drum source" in label(app, "DRUM_SYNTH") and not app.build_out)
         styles = [s.style for s in app.nodes["DRUM_SYNTH"].label.spans if "✗" in app.nodes["DRUM_SYNTH"].label.plain[s.start:s.end]]
         check("... in red", any("red" in str(s) for s in styles))
-        check("... only the items the error names", all(k in ("DRUM_SYNTH", "DRUM_SAMPLED", "DRUM_X0X909", "DRUM_X0X808") or k.startswith("KIT_")
-                                                        for k in marked))
+        check("... only the items the error names", all(k in ("DRUM_SYNTH", "DS_KAWA", "DS_PLAITS", "DRUM_SAMPLED", "DRUM_X0X909",
+                                                              "DRUM_X0X808") or k.startswith("KIT_") for k in marked))
         check("... the message panel lists the error", "ERROR" in panel(app) and "drum source" in panel(app))
         await pilot.press("b")
         await pilot.pause()

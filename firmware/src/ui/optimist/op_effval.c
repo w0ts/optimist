@@ -19,7 +19,7 @@
  * take no IRQ off: aligned words, a frame may mix two blocks. A held step's cards describe the step: no live bar. */
 
 /* ---- drums */
-#if FELUCCA_DRUM_EDIT && FELUCCA_DRUM_SYNTH
+#if FELUCCA_DRUM_EDIT && DRUM_DS
 /* lane l's synthesised sound (the kit's dsnd_t, as drum_on takes it), 0 a sampled, user or X0X sound */
 static const dsnd_t *effv_dsnd(uint32_t l)
 {
@@ -49,7 +49,7 @@ static uint32_t effv_lane(uint32_t l, uint32_t v, int32_t *val, int32_t *mn, int
     int8_t o[DE_N];
     v %= DE_N;
     effv_lane_ofs(l, o);
-#if FELUCCA_DRUM_EDIT && FELUCCA_DRUM_SYNTH
+#if FELUCCA_DRUM_EDIT && DRUM_DS
     if (v == DE_DECAY || v == DE_CLICK || v == DE_BEND || v == DE_DRIVE) {
         const dsnd_t *d = effv_dsnd(l);
         dsnd_t s;

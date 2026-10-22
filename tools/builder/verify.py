@@ -50,7 +50,7 @@ def symbol_check(cfg, syms):
 
 
 SOURCES = [k for k, it in R.ITEMS.items() if (it.group == "Synth engines" and not it.parent) or
-           k in ("DRUM_SYNTH", "DRUM_SAMPLED") or k.startswith(("KIT_", "SET_"))]
+           k in ("DRUM_SYNTH", "DS_KAWA", "DS_PLAITS", "DRUM_SAMPLED") or k.startswith(("KIT_", "SET_"))]
 
 
 def regress_bin(cfg, tag):
@@ -101,7 +101,7 @@ def goldens(cfg):
 
 
 COVER_SOURCES = [k for k, it in R.ITEMS.items() if (it.group == "Synth engines" and not it.parent) or
-                 k in ("FM6_PK_KEYS", "DRUM_SYNTH", "DRUM_SAMPLED") or k.startswith(("KIT_", "SET_", "DRUM_X0X"))]
+                 k in ("FM6_PK_KEYS", "DRUM_SYNTH", "DS_KAWA", "DS_PLAITS", "DRUM_SAMPLED") or k.startswith(("KIT_", "SET_", "DRUM_X0X"))]
 
 
 def preset_cover(cfg, tag="cover"):

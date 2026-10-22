@@ -286,9 +286,12 @@ job; ( jobin
     run "VOICE_OWN off: the global victim as before" "$OUT/voice_own_test_off"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
-    for kp in 11 10 01 00; do
-        $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_DS_KAWA=${kp%?} -DFELUCCA_DS_PLAITS=${kp#?} -o "$OUT/ds_xkits_$kp" tests/ds_xkits_test.c -lm
-        run "kits 47.. (KAWA ${kp%?}, PLAITS ${kp#?}): UIDs, stand-ins, lane sources, re-strikes, RISE, METAL, RING / FM, KPUNC, SCRAK" "$OUT/ds_xkits_$kp"
+    # the three drum synths, each a switch (S the 32 kits, K KAWA, P PLAITS), M the sampled kits, X the X0X kits
+    for t in 11110 11010 10110 10010 01110 01010 00110 01000 00100 01100 00101; do
+        s=$(echo $t | cut -c1) k=$(echo $t | cut -c2) p=$(echo $t | cut -c3) m=$(echo $t | cut -c4) x=$(echo $t | cut -c5)
+        $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_DRUM_SYNTH=$s -DFELUCCA_DS_KAWA=$k -DFELUCCA_DS_PLAITS=$p -DFELUCCA_DRUM_SAMPLED=$m \
+            -DFELUCCA_DRUM_X909=$x -DFELUCCA_DRUM_X808=$x -o "$OUT/ds_xkits_$t" tests/ds_xkits_test.c -lm
+        run "kits 47.. (32 kits $s, KAWA $k, PLAITS $p, sampled $m, X0X $x): UIDs, stand-ins, lane sources, re-strikes, RISE, METAL, RING / FM, KPUNC, SCRAK" "$OUT/ds_xkits_$t"
     done
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
@@ -545,9 +548,9 @@ job; ( jobin
     run "every built drum kit makes sound, the X0X kits built (drums_mix's glides count the X0X channels)" "$OUT/kits_sound_x0x"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src $X0X_ON -DFELUCCA_DRUM_SYNTH=0 -DFELUCCA_DRUM_SAMPLED=0 -o "$OUT/kits_sound_x0xonly" tests/kits_sound_test.c -lm
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src $X0X_ON -DFELUCCA_DRUM_SYNTH=0 -DFELUCCA_DS_KAWA=0 -DFELUCCA_DS_PLAITS=0 -DFELUCCA_DRUM_SAMPLED=0 -o "$OUT/kits_sound_x0xonly" tests/kits_sound_test.c -lm
     run "the X0X kits as the only drum source: every sound they have heard, the ones they lack silent (no stand-in)" "$OUT/kits_sound_x0xonly"
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_DRUM_X909=1 -DFELUCCA_DRUM_SYNTH=0 -DFELUCCA_DRUM_SAMPLED=0 -o "$OUT/kits_sound_x909only" tests/kits_sound_test.c -lm
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_DRUM_X909=1 -DFELUCCA_DRUM_SYNTH=0 -DFELUCCA_DS_KAWA=0 -DFELUCCA_DS_PLAITS=0 -DFELUCCA_DRUM_SAMPLED=0 -o "$OUT/kits_sound_x909only" tests/kits_sound_test.c -lm
     run "the X0X 909 alone: the 808 plays the 909 (its stand-in), every sound the 909 has heard" "$OUT/kits_sound_x909only"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
@@ -1161,7 +1164,7 @@ job; ( jobin
 job; ( jobin
     mkdir -p "$OUT/gen_red" "$OUT/miss"
     FELUCCA_SAMPLES_SKIP=PIANO,SCRCH python3 tools/gen_samples.py "$OUT/gen_red/felucca_samples.h" >/dev/null
-    MISS_RED="-DFELUCCA_ENG_FM6=0 -DFELUCCA_DRUM_SYNTH=0 -DFELUCCA_FX_DELAY=0 -DFELUCCA_FX_DUST=0 -DFELUCCA_FX_SLICER=0 -DFELUCCA_DRUM_EDIT=0"
+    MISS_RED="-DFELUCCA_ENG_FM6=0 -DFELUCCA_DRUM_SYNTH=0 -DFELUCCA_DS_KAWA=0 -DFELUCCA_DS_PLAITS=0 -DFELUCCA_FX_DELAY=0 -DFELUCCA_FX_DUST=0 -DFELUCCA_FX_SLICER=0 -DFELUCCA_DRUM_EDIT=0"
     $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -DFELUCCA_CHANCE=1 -DFELUCCA_ENG_PHYS=1 -o "$OUT/miss_full" tests/missing_test.c -lm
     $CC -w -I"$OUT/gen_red" -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $MISS_RED -o "$OUT/miss_red" tests/missing_test.c -lm
     run "missing on this build: full -> reduced project, song section, user kit; the message once per item, TOOLS > MISS" sh -c \
@@ -1172,11 +1175,11 @@ job; ( jobin
 mkdir -p "$OUT/gen_noset" "$OUT/gen_nogr"
 FELUCCA_SAMPLES_SKIP=PIANO,BASS,VIBES,HORNS,STRGS,FLUTE,SCRCH,PERC python3 tools/gen_samples.py "$OUT/gen_noset/felucca_samples.h" >/dev/null
 FELUCCA_SAMPLES_SKIP=PIANO,VIBES,FLUTE python3 tools/gen_samples.py "$OUT/gen_nogr/felucca_samples.h" >/dev/null
-KITS1="-DFELUCCA_DRUM_SYNTH=0 -DFELUCCA_KIT_ACOUSTIC=0 -DFELUCCA_KIT_DEEP=0 -DFELUCCA_KIT_TIGHT=0 -DFELUCCA_KIT_BRIGHT=0"
+KITS1="-DFELUCCA_DRUM_SYNTH=0 -DFELUCCA_DS_KAWA=0 -DFELUCCA_DS_PLAITS=0 -DFELUCCA_KIT_ACOUSTIC=0 -DFELUCCA_KIT_DEEP=0 -DFELUCCA_KIT_TIGHT=0 -DFELUCCA_KIT_BRIGHT=0"
 # (every sample set: COVER_STRICT, a factory preset per engine; sets left out: INIT where none is left)
 S1="-DCOVER_STRICT=1"
 for c in "$HGEN|$S1" "$HGEN|$S1 -DFELUCCA_ENG_SLICE=1 -DFELUCCA_ENG_PHYS=1 -DFELUCCA_ENG_ACID=1 -DFELUCCA_ENG_CZ=1 $FM6_PACKS_ON" \
-         "$HGEN|$S1 $X0X_ON -DFELUCCA_ENG_ACID=1" "$HGEN|$S1 $KITS1" "$HGEN|$S1 $X0X_ON -DFELUCCA_DRUM_SYNTH=0 -DFELUCCA_DRUM_SAMPLED=0" "$OUT/gen_noset|-DFELUCCA_DRUM_SAMPLED=0" \
+         "$HGEN|$S1 $X0X_ON -DFELUCCA_ENG_ACID=1" "$HGEN|$S1 $KITS1" "$HGEN|$S1 $X0X_ON -DFELUCCA_DRUM_SYNTH=0 -DFELUCCA_DS_KAWA=0 -DFELUCCA_DS_PLAITS=0 -DFELUCCA_DRUM_SAMPLED=0" "$OUT/gen_noset|-DFELUCCA_DRUM_SAMPLED=0" \
          "$OUT/gen_nogr|-DFELUCCA_ENG_SLICE=1"; do
     job; ( jobin
         $CC -w -I"${c%%|*}" -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 ${c#*|} -o "$OUT/preset_cover_test$nu" tests/preset_cover_test.c -lm

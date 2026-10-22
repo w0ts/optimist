@@ -21,12 +21,13 @@ _Static_assert(DRUM_UID_XSTYLE + DRUM_NXSTYLE == DRUM_UID_XKIT, "kit UIDs: the e
 static const uint8_t DS_XKIT_BUILT[DS_NXKITS] = {DS_XKIT_BUILT_LIST};      /* (registry.h: each its builder item) */
 static const uint8_t DS_XKIT_STANDIN[DS_NXKITS] = {DS_XKIT_STANDIN_LIST};  /* the DS_KITS kit it plays when not built */
 #endif
-/* a synthesised kit's table by its UID (DRUM_IS_SYNTH) */
+/* a synthesised kit's table by its UID (DRUM_IS_SYNTH; built: drum_kit_of). Without the 32 kits only 47.. are built:
+ * their table alone, so DS_KITS is left out of the image (KAWA or PLAITS alone) */
 static const dkit_t *ds_kit(uint32_t k)
 {
 #if DS_NXKITS
-    if (k >= DRUM_UID_XKIT)
-        return &DS_XKITS[k - DRUM_UID_XKIT];             /* (DRUM_IS_SYNTH: k < DRUM_KITS) */
+    if (!FELUCCA_DRUM_SYNTH || k >= DRUM_UID_XKIT)
+        return &DS_XKITS[k >= DRUM_UID_XKIT ? k - DRUM_UID_XKIT : 0u];   /* (DRUM_IS_SYNTH: k < DRUM_KITS) */
 #endif
     return &DS_KITS[k - DRUM_SAMPLED];
 }
@@ -69,10 +70,12 @@ _Static_assert(sizeof DRUM_SRC_NAMES / sizeof DRUM_SRC_NAMES[0] ==
                DRUM_SRC_HEAD + DRUM_KITS + DRUM_SRC_X909N + DRUM_SRC_X808N, "a name per kit UID, then the X0X voices");
 /* the kits of this build (registry.h): a kit UID not built plays a stand-in (the parameter keeps the UID: a project
  * goes back to a full build as it was). Sampled <-> synthesised: the other source's first kit; X0X 909 / 808: the
- * synthesised 909 / 808, else the first sampled kit */
+ * synthesised 909 / 808, else the first sampled kit. The 32 kits, KAWA and PLAITS are drum synths of their own (registry.h
+ * DRUM_DS): without the 32 kits, KAWA and PLAITS play the first kit built */
 #define DRUM_SFIRST (DRUM_SMASK & 1 ? 0u : DRUM_SMASK & 2 ? 1u : DRUM_SMASK & 4 ? 2u : DRUM_SMASK & 8 ? 3u : 4u)
 #define DRUM_XFIRST (FELUCCA_DRUM_X909 ? DRUM_UID_X909 : DRUM_UID_X808)   /* (an X0X-only build's kit) */
-#define DRUM_OTHER (DRUM_SMASK ? DRUM_SFIRST : FELUCCA_DRUM_SYNTH ? DRUM_SAMPLED : DRUM_XFIRST)   /* a kit not built: this */
+#define DRUM_XKFIRST (DRUM_UID_XKIT + DS_XKIT_FIRST)   /* (the first of 47.. built: a KAWA- or PLAITS-only build's kit) */
+#define DRUM_OTHER (DRUM_SMASK ? DRUM_SFIRST : FELUCCA_DRUM_SYNTH ? DRUM_SAMPLED : DRUM_X0X ? DRUM_XFIRST : DRUM_XKFIRST)   /* a kit not built: this */
 static int drum_kit_built(uint32_t k)
 {
     if (k < DRUM_SAMPLED)
@@ -101,7 +104,8 @@ static __attribute__((noinline)) uint32_t drum_kit_of(int32_t v)   /* (one copy:
     return k < DRUM_SAMPLED && FELUCCA_DRUM_SYNTH ? DRUM_SAMPLED : DRUM_OTHER;
 }
 static uint32_t drum_kit(void) { return drum_kit_of(TDRUM->p[P_E0]); }
-#define DRUM_DEFAULT_KIT (FELUCCA_DRUM_SYNTH ? DRUM_SAMPLED : DRUM_SMASK ? DRUM_SFIRST : DRUM_XFIRST)   /* power-on: 808 */
+#define DRUM_DEFAULT_KIT (FELUCCA_DRUM_SYNTH ? DRUM_SAMPLED : DRUM_SMASK ? DRUM_SFIRST : DRUM_X0X ? DRUM_XFIRST : \
+                          DRUM_XKFIRST)   /* power-on: 808; without the 32 kits, the first kit built */
 
 static struct {
     voice_t v[NDRUM];
@@ -421,7 +425,7 @@ static void drum_on(uint32_t note, uint32_t vel)
             return;                                 /* (nothing else built: silent) */
     }
 #endif
-    if (FELUCCA_DRUM_SYNTH && kit >= DRUM_SAMPLED) {   /* synthesised kit */
+    if (DRUM_DS && kit >= DRUM_SAMPLED) {           /* synthesised kit (the 32, KAWA, PLAITS) */
         v = drum_voice(note, vel, lane);
         vi = (uint32_t)(v - drums.v);
 #if DINS

@@ -161,9 +161,10 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 
 /* ------------------------------------------------------------- drum kits --- */
 /* The drum track's kit UID is its number (drums.c): 0..4 the sampled kits (the PERC sample set: ACOUSTIC and its
- * four treatments), 5.. the synthesised kits in tools/gen_drumkits.py order (append only). Two sources, each a
- * switch: the drum synth (every synthesised kit together, drum_synth.c) and the sampled kits (one switch per
- * kit; with none, the PERC set is left out of the build). A kit not built plays the other source's first kit.
+ * four treatments), 5.. the synthesised kits in tools/gen_drumkits.py order (append only). The sources, each a
+ * switch: the drum synth's 32 kits (5..36 together, drum_synth.c), its KAWA and PLAITS kits (47, 48: below, each
+ * on its own) and the sampled kits (one switch per kit; with none, the PERC set is left out of the build). A kit
+ * not built plays the other source's first kit (drums.c DRUM_OTHER).
  * 37 and 38: the X0X kits (below). */
 #ifndef FELUCCA_DRUM_SYNTH
 #define FELUCCA_DRUM_SYNTH 1               /* the synthesised kits (808, 909, ... 32 of them) */
@@ -214,22 +215,26 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #define FELUCCA_DRUM_X808 0                /* X0X's TR-808 (8W8 models, 16 sounds) */
 #endif
 #define DRUM_X0X (FELUCCA_DRUM_X909 || FELUCCA_DRUM_X808)
-#if !FELUCCA_DRUM_SYNTH && !DRUM_SMASK && !DRUM_X0X
-#error "the drum track needs a drum source: a drum synth (the synthesised kits, X0X 909, X0X 808) or a sampled kit"
-#endif
-#define DRUM_UID_X909 37u
-#define DRUM_UID_X808 38u
-#define DRUM_UID_XSTYLE 39u                /* 39..42: X9 TECH, X9 HOUSE, X9 UKG, X9 ACID; 43..46: X8 TRAP, X8 BOOM, */
-#define DRUM_NXSTYLE 8u                    /* X8 ELEC, X8 MIAMI */
-/* Kit UIDs 47..: synthesised kits added after the X0X ones (tools/gen_drumkits.py XKITS: 47 KAWA, 48 PLAITS), each a builder
- * item of its own; a build without one plays its stand-in (the 808 for KAWA, the 909 for PLAITS: gen_drumkits.py) */
-#define DRUM_UID_XKIT 47u
 #ifndef FELUCCA_DS_KAWA
 #define FELUCCA_DS_KAWA 1                  /* kit KAWA (UID 47) and the drum synth's KAWA options (drum_synth.c; Kawa Tracker) */
 #endif
 #ifndef FELUCCA_DS_PLAITS
 #define FELUCCA_DS_PLAITS 1                /* kit PLAITS (UID 48): Plaits' synthetic kick and snare (drum_plaits.c; Hortator) */
 #endif
+/* Three drum synths, each a switch of its own (the user, 2026-10-22): the 32 kits (FELUCCA_DRUM_SYNTH), KAWA, PLAITS.
+ * The synth's voice they share (drum_synth.c, the sound table DS_SNDS) is built with any of them */
+#define DRUM_DS (FELUCCA_DRUM_SYNTH || FELUCCA_DS_KAWA || FELUCCA_DS_PLAITS)
+#if !DRUM_DS && !DRUM_SMASK && !DRUM_X0X
+#error "the drum track needs a drum source: a drum synth (the 32 synthesised kits, KAWA, PLAITS, X0X 909, X0X 808) or a sampled kit"
+#endif
+#define DRUM_UID_X909 37u
+#define DRUM_UID_X808 38u
+#define DRUM_UID_XSTYLE 39u                /* 39..42: X9 TECH, X9 HOUSE, X9 UKG, X9 ACID; 43..46: X8 TRAP, X8 BOOM, */
+#define DRUM_NXSTYLE 8u                    /* X8 ELEC, X8 MIAMI */
+/* Kit UIDs 47..: synthesised kits added after the X0X ones (tools/gen_drumkits.py XKITS: 47 KAWA, 48 PLAITS), each a builder
+ * item of its own (FELUCCA_DS_KAWA, FELUCCA_DS_PLAITS above: drum synths, independent of the 32 kits); a build without
+ * one plays its stand-in (the 808 for KAWA, the 909 for PLAITS: gen_drumkits.py; without the 32 kits, the first kit built) */
+#define DRUM_UID_XKIT 47u
 #define DRUM_UID_XMACH(k) ((k) < DRUM_UID_XSTYLE ? (k) : (k) < DRUM_UID_XSTYLE + 4u ? DRUM_UID_X909 : \
                            (k) < DRUM_UID_XKIT ? DRUM_UID_X808 : (k))   /* (47..: no machine's) */
 #define DRUM_IS_X0X(k) ((k) >= DRUM_UID_X909 && (k) < DRUM_UID_XKIT)

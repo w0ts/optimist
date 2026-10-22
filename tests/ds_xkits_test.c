@@ -1,6 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The synthesised kits after the X0X ones (kit UIDs 47..: tools/gen_drumkits.py XKITS) and what they play:
- *   uids      KAWA 47, PLAITS 48, their names; a build without one plays its stand-in (the 808, the 909)
+ *   uids      KAWA 47, PLAITS 48, their names; a build without one plays its stand-in (the 808, the 909; without the 32
+ *             kits, the first kit built); the 32 kits, KAWA, PLAITS each a switch of its own (FELUCCA_DRUM_SYNTH 0 with
+ *             KAWA or PLAITS: every kit UID plays a built kit, the power-on kit is built)
  *   lanes     a lane source names them past the X0X voices (DL_XKIT0 96 + k), both ways; a lane of the 808 kit
  *             borrowing PLAITS' kick plays PLAITS' kick
  *   kawa      (DS_KAWA) the re-strikes: the guiro's ridges (onsets), the clap's hands; RISE: the shaker's peak comes
@@ -90,8 +92,32 @@ int main(void)
     /* ---- uids, names, stand-ins */
     check(DRUM_KITS == DRUM_UID_XKIT + 2u && !strcmp(DRUM_KIT_NAMES[47], "KAWA") && !strcmp(DRUM_KIT_NAMES[48], "PLAITS"),
           "kit UIDs 47 KAWA, 48 PLAITS (after the X0X kits)");
-    check(drum_kit_of(47) == (FELUCCA_DS_KAWA ? 47u : DRUM_SAMPLED), "KAWA: built, or the 808 plays for it");
-    check(drum_kit_of(48) == (FELUCCA_DS_PLAITS ? 48u : DRUM_SAMPLED + 1u), "PLAITS: built, or the 909 plays for it");
+    check(drum_kit_of(47) == (FELUCCA_DS_KAWA ? 47u : FELUCCA_DRUM_SYNTH ? DRUM_SAMPLED : DRUM_OTHER),
+          "KAWA: built, or the 808 plays for it (without the 32 kits: the first kit built)");
+    check(drum_kit_of(48) == (FELUCCA_DS_PLAITS ? 48u : FELUCCA_DRUM_SYNTH ? DRUM_SAMPLED + 1u : DRUM_OTHER),
+          "PLAITS: built, or the 909 plays for it (without the 32 kits: the first kit built)");
+    {   /* the three drum synths independent (the 32 kits, KAWA, PLAITS): every kit UID plays a kit of this build */
+        uint32_t k, ok = 1, first = DRUM_KITS;
+        for (k = 0; k < DRUM_KITS; k++) {
+            ok &= drum_kit_built(drum_kit_of((int32_t)k));
+            if (first == DRUM_KITS && drum_kit_built(k))
+                first = k;
+        }
+        printf("ds_xkits: the 32 kits %d, KAWA %d, PLAITS %d, sampled 0x%02x: the first kit built %u, power-on %u, "
+               "the stand-in of a kit not built %u\n", FELUCCA_DRUM_SYNTH, FELUCCA_DS_KAWA, FELUCCA_DS_PLAITS, DRUM_SMASK,
+               first, DRUM_DEFAULT_KIT, DRUM_OTHER);
+        check(ok, "every kit UID (a project's, a lane's) plays a kit this build has");
+        check(drum_kit_built(DRUM_DEFAULT_KIT) && drum_kit_built(DRUM_OTHER), "the power-on kit and the stand-in: built");
+        check(drum_kit_built(DRUM_SAMPLED) == FELUCCA_DRUM_SYNTH && drum_kit_built(DRUM_SYNTH_END - 1u) == FELUCCA_DRUM_SYNTH &&
+              drum_kit_built(47) == FELUCCA_DS_KAWA && drum_kit_built(48) == FELUCCA_DS_PLAITS,
+              "the 32 kits, KAWA, PLAITS: each its own switch");
+        check(FELUCCA_DRUM_SYNTH || DRUM_SMASK || DRUM_DEFAULT_KIT == first,
+              "without the 32 kits and the sampled ones: the power-on kit is the first kit built");
+#if DRUM_X0X
+        check(x0x_standin(DRUM_UID_X909) == DRUM_KITS || drum_kit_built(x0x_standin(DRUM_UID_X909)),
+              "an X0X kit's missing sounds: a built kit's, or silent");
+#endif
+    }
     check(DRUM_IS_SYNTH(47) && DRUM_IS_SYNTH(48) && !DRUM_IS_X0X(47) && DRUM_IS_X0X(46) && DRUM_UID_XMACH(47) == 47u,
           "47.. are synthesised kits, not X0X ones");
     /* ---- lane sources */
@@ -112,8 +138,9 @@ int main(void)
         {
             uint32_t v, hit = 0;
             for (v = 0; v < NDRUM; v++)
-                hit |= drums.v[v].active && drums.synth[v] && drums.ds[v].d == DS_SND(ds_kit(drum_kit_of(48)), 0);
-            check(hit, "... the voice plays PLAITS' kick sound (DS_XKITS), not the 808's");
+                hit |= drums.v[v].active && (!DRUM_IS_SYNTH(drum_kit_of(48)) ||
+                                             (drums.synth[v] && drums.ds[v].d == DS_SND(ds_kit(drum_kit_of(48)), 0)));
+            check(hit, "... the voice plays PLAITS' kick sound (DS_XKITS), not the 808's (or its stand-in's)");
         }
         for (int k = 0; k < 2; k++) {
             memset(&drums, 0, sizeof drums);
@@ -130,7 +157,8 @@ int main(void)
                     *(k ? &hb : &ha) = (*(k ? &hb : &ha) ^ (uint32_t)l[i]) * 1099511628211ull;
             }
         }
-        check(ha != 1469598103934665603ull && hb != ha, "... both heard (the noise seeds differ hit to hit)");
+        check(ha != 1469598103934665603ull && (hb != ha || !DRUM_IS_SYNTH(drum_kit_of(48))),
+              "... both heard (the noise seeds differ hit to hit; a sampled stand-in plays the same twice)");
         memset(&dl, 0, sizeof dl);
     }
 #if FELUCCA_DS_KAWA
