@@ -1503,12 +1503,13 @@ static void erase_now(track_t *t)             /* a key just went down */
     }
 }
 static int erasing(const track_t *t) { return trk_index(t) == er_trk && (er_lanes || er_notes[0] || er_notes[1] || er_notes[2] || er_notes[3]); }
-/* the wipe (the user, 2026-10-21): SHIFT2 + REC held while playing, every note (every lane) of the selected track the
- * sequencer enters is erased, as EDIT + every key at once would: the erase masks all on, one undo level for the whole
- * hold (undo_erase_sess), the step playing now goes too. A key's erase held meanwhile is given back at the end. 1: on */
+/* the wipe (the user, 2026-10-21): SHIFT2 + REC held while playing, every note of the selected track the sequencer
+ * enters is erased, as EDIT + every key at once would: the erase masks on, one undo level for the whole hold
+ * (undo_erase_sess), the step playing now goes too. lanes: a drum track's lanes wiped (a picked lane's alone, the user
+ * 2026-10-22; read as it starts). A key's erase held meanwhile is given back at the end. 1: on */
 static uint8_t wipe_on, wipe_sel;
 static uint32_t wipe_lanes, wipe_notes[4];                /* (the key erase's masks while it wipes) */
-static int seq_wipe(int on)
+static int seq_wipe(int on, uint32_t lanes)
 {
     track_t *t = &trk[song.sel % NTRK];
     if (wipe_on && (!on || wipe_sel != song.sel)) {         /* the end (or another track picked: this one's wipe ends, below a new one begins) */
@@ -1527,7 +1528,7 @@ static int seq_wipe(int on)
         else
             memset(wipe_notes, 0, sizeof wipe_notes);
         er_trk = (uint8_t)song.sel;
-        er_lanes = ~0u;
+        er_lanes = lanes;
         memset(er_notes, 0xFF, sizeof er_notes);
         wipe_sel = (uint8_t)song.sel;
         wipe_on = 1;
