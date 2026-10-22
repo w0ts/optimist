@@ -12,7 +12,7 @@ A synth track plays one engine at a time. PRESETS on a synth track loads a sound
 |---|---|---|---|
 | ANALOG 2 | `ENG_ANALOG` | Two band-limited oscillators with hard sync, a swarm of up to 6 detuned copies, two filters | OSC: WAVE DTN MIX NOIS; FLT: CUT RES DRV KTR. Extra pages OSC 2, SWARM, FLT 2, and ENV2 (below) |
 | DIGITAL | `ENG_DIGITAL` | Four-operator FM, 8 algorithms, feedback on operator 4, one modulation INDEX with its own envelope | OPS: ALG R2 R3 R4; MOD: IDX MDEC FB |
-| PHASE | `ENG_PHASE` | Phase distortion: a cosine with a bent phase, a second line to mix or ring-modulate | PHS: WAVE WAVE2 DCW ENV; LINE: DTN LINE SUB |
+| PHASE | `ENG_PHASE` | Phase distortion: a cosine with a bent phase, a second line to mix or ring-modulate; FOLD a sine wavefolder (`PHASE_FOLD`) | PHS: WAVE WAVE2 DCW ENV; LINE: DTN LINE SUB FOLD |
 | LOFI | `ENG_LOFI` | Chip voice: pulse, triangle, saw, noise, a 4-bit wavetable, bit crush, a pitch sweep | CHIP: CHIP WAVE DUTY CRSH; MOTN: SWP VIB ARP TONE |
 | SAMPLE | `ENG_SAMPLE` | Built-in sample sets and your own USR1 to USR3 samples across the keys, with loops | SET: SET TUNE BITS LOOP; TONE: CUT DRV |
 | VOICE | `ENG_FORMANT` | A formant synth that sings vowels | VOWL: VOWL VOWL2 TALK SHIFT; TONE: BUZZ BRTH Q RAND |

@@ -273,6 +273,25 @@ job; ( jobin
     run "DRONE engine (FELUCCA_ENG_DRONE=1): UID 16, every preset audible / bounded / voices free, tests/golden_drone.txt, level, EDIT values, BEAT's two ears, HOLD, no stale side or latch, 4 voices" "$OUT/drone_test" tests/golden_drone.txt
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_PHASE_FOLD=1 -o "$OUT/phase_fold_test" tests/phase_fold_test.c -lm
+    run "PHASE FOLD (Felucca-Engines, PHASE_FOLD): E7 FOLD brightens, bounded, no DC, folds less above A4, no click on or off" "$OUT/phase_fold_test"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_PHASE_FOLD=0 -o "$OUT/phase_fold_test_off" tests/phase_fold_test.c -lm
+    run "PHASE FOLD off: E7 empty as before" "$OUT/phase_fold_test_off"
+    run "PHASE FOLD 0: the render sample for sample the build without it" sh -c "[ \"\$('$OUT/phase_fold_test' hash)\" = \"\$('$OUT/phase_fold_test_off' hash)\" ]"
+) >"$U.out" 2>&1 & jobbg
+job; ( jobin
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_VOICE_OWN=1 -o "$OUT/voice_own_test" tests/voice_own_test.c -lm
+    run "VOICE_OWN (JIANT): at the budget a part restarts its own tail, the others' tails ring on" "$OUT/voice_own_test"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_VOICE_OWN=0 -o "$OUT/voice_own_test_off" tests/voice_own_test.c -lm
+    run "VOICE_OWN off: the global victim as before" "$OUT/voice_own_test_off"
+) >"$U.out" 2>&1 & jobbg
+job; ( jobin
+    for kp in 11 10 01 00; do
+        $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_DS_KAWA=${kp%?} -DFELUCCA_DS_PLAITS=${kp#?} -o "$OUT/ds_xkits_$kp" tests/ds_xkits_test.c -lm
+        run "kits 47.. (KAWA ${kp%?}, PLAITS ${kp#?}): UIDs, stand-ins, lane sources, re-strikes, RISE, METAL, RING / FM, KPUNC, SCRAK" "$OUT/ds_xkits_$kp"
+    done
+) >"$U.out" 2>&1 & jobbg
+job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_ENG_CZ=1 -o "$OUT/cz_test" tests/cz_test.c -lm
     run "CZ engine (FELUCCA_ENG_CZ=1): UID 13, every preset audible / bounded / voices free, tests/golden_cz.txt, EDIT values, retrigger" "$OUT/cz_test" tests/golden_cz.txt
 ) >"$U.out" 2>&1 & jobbg

@@ -524,7 +524,18 @@ static voice_t *voice_alloc(track_t *t, uint32_t note)
     }
     if (nfree && voices_busy() >= CG_VBUDGET) {
         track_t *vp = 0;
-        uint32_t k = voice_victim(t, 0, &vp);
+        uint32_t k;
+#if FELUCCA_VOICE_OWN
+        /* (JIANT 0.9.9 cpu3 da61bc62, GPL-3.0; builder item VOICE_OWN) the budget is full and this part has a released
+         * voice of its own: restart its oldest in place, not another part's tail faded out (that fade rendered
+         * beside the new note, a voice over the budget, and cut a tail the other part still had) */
+        for (i = 0, k = np; i < np; i++)
+            if (t->v[i].active && !t->v[i].gate && t->v[i].stage != 4u && (k == np || t->v[i].age < t->v[k].age))
+                k = i;
+        if (k < np)
+            return &t->v[k];
+#endif
+        k = voice_victim(t, 0, &vp);
         if (k < np && vp == t)
             return &t->v[k];                            /* our own: restart it in place (no click) */
         if (k < NVOICE)
@@ -665,6 +676,10 @@ static void voice_start(track_t *t, voice_t *v, uint32_t note, uint32_t vel, int
         } else if (ENG_IS(e, PHASE)) {
             v->s[0] = s0;                               /* the WAVE / WAVE2 toggles go with the phases kept */
             v->s[1] = s1;
+#if FELUCCA_PHASE_FOLD
+            v->s[4] = s4;                               /* FOLD's DC blocker (eng_phase.c; Felucca-Engines' .keep 0x30) */
+            v->s[5] = s5;
+#endif
         }
     }
 }

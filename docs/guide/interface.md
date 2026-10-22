@@ -92,7 +92,7 @@ GLOBAL and SYSTEM are settings lists: one setting on a line, the name left and t
 **SYSTEM**
 - **INFO:** the read-out below. Always the first page.
 - **SCREEN:** BRIGHT (the screen backlight, in builds with it), KNOB COLORS (ON / OFF).
-- **AUDIO:** LOWCUT (OFF, LOWCUT, or BASS+ in builds with it).
+- **AUDIO:** LOWCUT (OFF, LOWCUT, or BASS+ in builds with it); FILT RESO, the resonance of every track's FILTER, 0 (clean) to 10, saved with the project (`TFLT_RESO`).
 - **KEYS:** BUTTONS (OFF, LOW, MID, HIGH) and KEYS (OFF, C, WHITE, ALL), the backlight of the buttons and keys, in builds with LIGHTS.
 - **USB:** SERIAL, ON or OFF; amber until a restart applies it (builds with the USB console).
 - **Bluetooth:** BLUETOOTH ON / OFF (NO CAL: the radio has no stored trims and never starts); STATE (OFF, STARTING, ADVERTISING, SCANNING, CONNECTING, SEARCHING, PAIRING, CONNECTED, FAILED); DEVICE (who the link is with: the device's name, HOST for a computer or phone that connected to the FM-1, NONE); MIDI (IN / OUT lit while messages pass).

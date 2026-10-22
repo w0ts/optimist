@@ -158,7 +158,7 @@ static uint32_t ls_kind(uint32_t i)                     /* SOURCE entry i's kind
     if (i < 4u)
         return LK_USR;
     i -= 4u;                                            /* (a kit UID, then the X0X voices) */
-    return i < DRUM_SAMPLED ? LK_SAMPLED : i < DRUM_SYNTH_END ? LK_SYNTH : LK_X0X;
+    return i < DRUM_SAMPLED ? LK_SAMPLED : DRUM_IS_SYNTH(i) ? LK_SYNTH : LK_X0X;
 }
 static int ls_ok(uint32_t i)                            /* entry i plays in this build (KIT: not a lane's own sound) */
 {

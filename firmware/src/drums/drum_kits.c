@@ -188,7 +188,7 @@ static int ukit_store(uint32_t u)
     k.used = UK_USED;
     k.base = (uint8_t)drum_kit();
     for (l = 0; l < DRUM_LANES; l++)                         /* KIT: the kit it plays now */
-        k.src[l] = dl.src[l] == DL_KIT ? (uint8_t)(DL_KIT0 + dl_kit_of(l, k.base)) : dl.src[l];
+        k.src[l] = dl.src[l] == DL_KIT ? (uint8_t)dl_kit_src(dl_kit_of(l, k.base)) : dl.src[l];
     memcpy(k.ref, dl.ref, sizeof k.ref);
     memcpy(k.ofs, dl.ofs, sizeof k.ofs);
     memcpy(k.ins, dl.ins, sizeof k.ins);

@@ -138,6 +138,7 @@ FELUCCA = Provenance("Felucca (hugelton/Felucca)", "Leo Kuroshita (Hügelton)", 
 PR45 = Provenance("SLOOP 8-track PR (isod89/sloop-fm1 #45)", "Erick Buendia Barrientos (Erbubar23)", "GPL-3.0-only",
                   "8d9623f", "https://github.com/isod89/sloop-fm1/pull/45")
 SLOOP_24 = Provenance("SLOOP 2.4 (isod89/sloop-fm1)", "isod89", "GPL-3.0-only", "v2.4 8d3823f", "https://github.com/isod89/sloop-fm1")
+SLOOP_28 = Provenance("SLOOP 2.8 (isod89/sloop-fm1)", "isod89", "GPL-3.0-only", "b77bf55", "https://github.com/isod89/sloop-fm1")
 FLOWSTATE_GUARD = Provenance("Flowstate (zakariachowdhury/flowstate-fm1)", "Zakaria Chowdhury", "GPL-3.0-only", "e62e186",
                              "https://github.com/zakariachowdhury/flowstate-fm1")   # (guard.c's last change)
 
@@ -211,6 +212,14 @@ _add("ENG_DIGITAL", "FELUCCA_ENG_DIGITAL", "DIGITAL (4-operator FM)", E, 1,
 _add("ENG_PHASE", "FELUCCA_ENG_PHASE", "PHASE (phase distortion)", E, 2,
      desc="Phase-distortion synth: bends the phase of a cosine wave to get saw, square, pulse and resonant shapes "
           "with a second line to mix or ring-modulate. About 1.4 KB of flash; the stand-in for CZ.")
+FE_FOLD = Provenance("Felucca-Engines (hugelton/Felucca-Engines)", "Leo Kuroshita (Hügelton)", "MIT", "04ffe90",
+                     "https://github.com/hugelton/Felucca-Engines")
+_add("PHASE_FOLD", "FELUCCA_PHASE_FOLD", "PHASE: FOLD (a sine wavefolder on E7)", E, 371, parent="ENG_PHASE", provenance=FE_FOLD,
+     desc="PHASE's last EDIT knob (E7, empty until now) becomes FOLD: a sine wavefolder on the voice, after the two lines "
+          "and before SUB. 0 is off (the sound as before); up from 0 a soft saturation, then up to four folds. Above A4 it "
+          "folds less, so the top notes alias less. Turning it on or off mid-note crossfades, no click. About 0.8 KB.",
+     notice="From Felucca-Engines' PHASE FOLD by Leo Kuroshita (hugelton/Felucca-Engines 04ffe90, MIT). Tested in the "
+            "host tests only, not on a device.")
 _add("ENG_LOFI", "FELUCCA_ENG_LOFI", "LOFI (chip sounds, wavetable)", E, 3,
      desc="Chip voice: pulse, triangle, saw, noise and a 4-bit wavetable, with a few-bit amplitude, a held (low) "
           "sample rate and a pitch sweep. About 2 KB of flash.")
@@ -292,6 +301,29 @@ _add("DRUM_SYNTH", "FELUCCA_DRUM_SYNTH", "synthesised kits (32: 808, 909 and oth
 X0X_DRUMS_NOTICE = ("Ported from X0X by Charles Vestal (GPL-3.0), itself from 9W9 / 8W8 by athousanddetails and ER-99 by "
                     "Matthew Cieplak (GPL-3.0); the 808's rim shot after sc808 (Yoshinosuke Horiuchi / Sam Aaron, MIT). "
                     "Float DSP.")
+KAWA_TRK = Provenance("Kawa Tracker (Guizmoh/Kawa-Tracker-Fm1)", "Guizmoh", "GPL-3.0-only", "kawa-0.5",
+                      "https://github.com/Guizmoh/Kawa-Tracker-Fm1")
+HORTATOR = Provenance("Hortator (DeadActive/hortator), after Mutable Instruments Plaits (Emilie Gillet, MIT)",
+                      "Leo Kuroshita (Hügelton), DEADACTIVE; Emilie Gillet", "GPL-3.0-only (Plaits' algorithms MIT)",
+                      "7e34159", "https://github.com/DeadActive/hortator")
+_add("DS_KAWA", "FELUCCA_DS_KAWA", "KAWA kit (kit 47) and the drum synth's KAWA options", D, 372, parent="DRUM_SYNTH",
+     provenance=KAWA_TRK,
+     desc="A new synthesised kit, KAWA, after Kawa Tracker's kit engine: a guiro, a clap with its hands, a flammed snare, "
+          "a brush and a shaker that swell in, tight-cluster hats, a ride's bell, ring-modulated toms and cowbell, a kick "
+          "with an FM beater. Any lane of another kit can borrow its sounds. It adds four cymbal tunings, the second "
+          "partial ringing or modulating the tone, re-strikes and a rise to the drum synth, used by this kit only (the "
+          "other kits sound as before). About 1 KB. A build without it plays the 808 kit for KAWA.",
+     notice="From Kawa Tracker's kit engine by Guizmoh (Guizmoh/Kawa-Tracker-Fm1 kawa_drums.c, GPL-3.0). Tested in the "
+            "host tests only, not on a device.")
+_add("DS_PLAITS", "FELUCCA_DS_PLAITS", "PLAITS kit (kit 48): Plaits' synthetic kick and snare", D, 373, parent="DRUM_SYNTH",
+     provenance=HORTATOR,
+     desc="A new synthesised kit, PLAITS: two kicks and two snares from Mutable Instruments Plaits' synthetic bass drum "
+          "and snare drum models (a distorted sine with FM and a click; two FM sines with filtered noise), the other "
+          "lanes the 909's. Any lane of another kit can borrow them. The drum EDIT moves them: TUNE, DECAY, CUT + (their "
+          "TONE / FM), CLICK (the kick's FM), SNAP (the snare's snap). Integer code with 64-bit products, heavier on the "
+          "CPU than the other drum sounds. About 3 KB. A build without it plays the 909 kit for PLAITS.",
+     notice="Plaits' drum models by Emilie Gillet (MIT), in the integer port of Hortator by Leo Kuroshita and DEADACTIVE "
+            "(DeadActive/hortator 7e34159, GPL-3.0). Tested in the host tests only, not on a device.")
 _add("DRUM_X0X909", "FELUCCA_DRUM_X909", "X0X 909 kit (circuit-modelled TR-909)", D, 86, default=0,
      provenance=x0x("80b7d40"), notice=X0X_DRUMS_NOTICE,
      desc="X0X's TR-909 drum kit (kit UID 37; the drum models are circuit-modelled, hi-hats, ride and crash are "
@@ -336,6 +368,13 @@ _add("DRUM_EDIT", "FELUCCA_DRUM_EDIT", "drum sound editor (EDIT on the drum trac
      desc="Per-lane sound tweaks over the kit (TUNE, DECAY, SNAP, CLICK, BEND, CUT, DRIVE, LEVEL on synthesised "
           "kits; TUNE, DECAY, CUT, LEVEL on sampled ones). About 1.2 KB of flash; off: kits play as they are and "
           "saved tweaks are kept but not applied.")
+_add("DS_NTUNE", "FELUCCA_DS_NTUNE", "drum EDIT: TUNE on the noise sounds (hats, shaker, clap)", D, 368, parent="DRUM_EDIT",
+     provenance=SLOOP_28,
+     desc="On a synthesised kit, a sound with no tone (closed hat, shaker, clap) had nothing for TUNE to move. With this, "
+          "TUNE moves its filter and its noise high-pass, about a semitone's worth a step, as a resampled sample would "
+          "sound. A few dozen bytes.",
+     notice="From SLOOP 2.8's drum TUNE by isod89 (isod89/sloop-fm1 b77bf55, GPL-3.0). Tested in the host tests only, "
+            "not on a device.")
 _add("DRUM_USR", "FELUCCA_DRUM_USR", "user samples on drum lanes", D, 26,
      desc="A drum lane can play one of your own samples (a hit of a USR slot, with start and length) instead of the "
           "kit's sound. About 1.2 KB of flash; off: such lanes play the kit sound.")
@@ -469,6 +508,13 @@ FELUCCA_156 = Provenance("Felucca 1.5.6 (hugelton/Felucca)", "Leo Kuroshita (Hü
                          FELUCCA_URL)
 MELODEE_131 = Provenance("Melodee 1.3.1 (keremimo/melodee)", "Kerem Kilic", "GPL-3.0-only", "next 757b65b", MELODEE_URL)
 _INS_NOTE = " Tested in the host tests and the emulator only, not on a device."
+_add("TFLT_RESO", "FELUCCA_TFLT_RESO", "track FILTER: resonance setting (HOME > AUDIO > FILT RESO)", F, 367, parent="TRK_FILT",
+     provenance=SLOOP_28,
+     desc="One setting for every track's FILTER (and the drum track's and the drum lanes'): HOME > AUDIO > FILT RESO, 0 (clean, "
+          "as before) to 10 (a resonant peak at the cutoff, never self-oscillating). Saved with the project. A few hundred "
+          "bytes. The master's DJ filter stays clean.",
+     notice="From SLOOP 2.8's FILTER RESO by isod89 (isod89/sloop-fm1 b77bf55, GPL-3.0). Tested in the host tests only, "
+            "not on a device.")
 _add("INS_FOLD", "FELUCCA_INS_FOLD", "FOLD insert (wavefolder)", F, 256, default=0, provenance=FELUCCA_156,
      desc="A wavefolder type for the tracks' insert slots (INSERTS > S1 / S2: FOLD): the sound driven past full scale "
           "folds back, more folds and harmonics as FOLD rises; the drive follows the track's level as DIST's does, the "
@@ -795,6 +841,16 @@ _add("CPU_GUARD", "FELUCCA_CPU_GUARD", "predictive CPU guard (ease back before s
           "voices, then voices shed, never the bass or the lead (MONO / LEGATO / UNISON parts) nor the drums; back "
           "after 2 s under 80 % counting what each step saved; SYSTEM > INFO's GUARD line (SYS_DEBUG) shows the step. Weights: "
           "tools/builder/cpu_costs.py from tests/cpu_baseline.txt (docs/CPU-GUARD.md)")
+JIANT_CPU3 = Provenance("JIANT 0.9.9 cpu3 (juanjiant-bit/JIANT)", "juanjiant-bit", "GPL-3.0-only", "da61bc62",
+                        "https://github.com/juanjiant-bit/JIANT")
+_add("VOICE_OWN", "FELUCCA_VOICE_OWN", "voices: reuse a track's own released voice before taking another's", Y, 369,
+     provenance=JIANT_CPU3,
+     desc="When every voice is in use and a track plays a new note, it first restarts one of its own voices that is "
+          "already releasing, instead of fading out another track's tail. The other tracks keep their tails, and no "
+          "extra fading voice runs for a moment over the budget. When the track has no releasing voice, the voice is "
+          "taken from another track as before. A few dozen bytes.",
+     notice="From JIANT 0.9.9 cpu3 by juanjiant-bit (juanjiant-bit/JIANT da61bc62, GPL-3.0). Tested in the host tests "
+            "only, not on a device.")
 _add("CACHE_RAM", "FELUCCA_CACHE_RAM", "more memory from the data cache (for the undo history)", Y, 92, default=0,
      choices=((0, "off"), (2, "8 KB (6 cache ways kept)"), (4, "16 KB (4 kept)"), (7, "28 KB (1 kept, as V15)")),
      experimental=True, target_only=True,
@@ -956,7 +1012,7 @@ _SYMS = {
     "FM6_KEYS": ("fm6k_knob",), "FM6_PK_KEYS": ("FM6_PK_KEYS",), "FM6_PK_BASS": ("FM6_PK_BASS",),
     "FM6_PK_BELLS": ("FM6_PK_BELLS",), "FM6_PK_PADS": ("FM6_PK_PADS",), "FM6_PK_80S": ("FM6_PK_80S",),
     "ENG_SLICE": ("ENG_SLICE",), "ENG_DRONE": ("ENG_DRONE", "drone_render"),
-    "DRUM_SYNTH": ("DS_KITS",), "DRUM_EDIT": ("de_synth",), "FX_CHORUS": ("cho_buf",),
+    "DRUM_SYNTH": ("DS_KITS",), "DRUM_EDIT": ("de_synth",), "DS_KAWA": ("DS_XSNDS_0",), "DS_PLAITS": ("kpunc_tick", "scrak_tick"), "FX_CHORUS": ("cho_buf",),
     "FX_DELAY": ("dly_buf",), "FX_REVERB": ("rev_line", "rev_ap"), "FX_SLICER": ("sl_buf",),
     "FX_PUNCH": ("punch_ring",), "EDITOR": ("ed_handle",),
     "DRUM_X0X909": ("drum909_trigger", "x0x_smp_hh_m"),

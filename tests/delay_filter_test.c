@@ -197,9 +197,9 @@ static void t_record(void)
     check("at the defaults: nothing to keep (no record)", fxr_encode(b) == 0u);
     dlyf(DLYF_HP, 1, 90);
     n = fxr_encode(b);
-    check("HP 24 dB RES 90: a record with its TLV (0x45, TYPE SLOPE RES)",
-          n == FXR_HEAD + 5u && b[FXR_HEAD] == 0x45 && b[FXR_HEAD + 1] == 3 && b[FXR_HEAD + 2] == DLYF_HP &&
-              b[FXR_HEAD + 3] == 1 && b[FXR_HEAD + 4] == 90);
+    check("HP 24 dB RES 90: a record with its TLV (0x45, TYPE SLOPE RES, then FILTER RESO 0)",
+          n == FXR_HEAD + 6u && b[FXR_HEAD] == 0x45 && b[FXR_HEAD + 1] == 4 && b[FXR_HEAD + 2] == DLYF_HP &&
+              b[FXR_HEAD + 3] == 1 && b[FXR_HEAD + 4] == 90 && b[FXR_HEAD + 5] == 0);
     dlyf(0, 0, 0);
     check("... decoded back (a load)", fxr_decode(b, n, 1) && dlyf_is(DLYF_HP, 1, 90));
     dlyf(DLYF_BP, 0, 5);
@@ -207,6 +207,20 @@ static void t_record(void)
     check("no record (a project from before): LP 12 dB RES 0", !fxr_decode(0, 0, 1) && dlyf_is(DLYF_LP, 0, 0));
     b[FXR_HEAD + 2] = 9;
     check("a TYPE out of range: clamped (PEAK)", fxr_decode(b, n, 1) && song.g[G_DFTYPE] == DLYF_PEAK);
+    dlyf(0, 0, 0);
+    song.g[G_TFRES] = 7;                               /* FILTER RESO (core.h G_TFRES, SLOOP 2.8): the TLV's 4th byte */
+    n = fxr_encode(b);
+    check("FILTER RESO 7 alone: the TLV, its 4th byte",
+          n == FXR_HEAD + 6u && b[FXR_HEAD] == 0x45 && b[FXR_HEAD + 1] == 4 && b[FXR_HEAD + 5] == 7);
+    song.g[G_TFRES] = 0;
+    check("... decoded back (a load)", fxr_decode(b, n, 1) && song.g[G_TFRES] == 7 && dlyf_is(DLYF_LP, 0, 0));
+    b[FXR_HEAD + 5] = 99;
+    check("... out of range: clamped (10)", fxr_decode(b, n, 1) && song.g[G_TFRES] == 10);
+    b[FXR_HEAD + 1] = 3;                               /* the TLV of before 2026-10-21: TYPE SLOPE RES only */
+    b[FXR_HEAD + 2] = DLYF_HP;
+    check("a 3-byte TLV (a project of 2026-10-18..20): the delay filter, FILTER RESO 0",
+          fxr_decode(b, FXR_HEAD + 5u, 1) && song.g[G_TFRES] == 0 && song.g[G_DFTYPE] == DLYF_HP);
+    check("no record: FILTER RESO 0", !fxr_decode(0, 0, 1) && song.g[G_TFRES] == 0);
     dlyf(0, 0, 0);
 }
 

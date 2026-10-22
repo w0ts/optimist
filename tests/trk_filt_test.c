@@ -134,6 +134,34 @@ static void t_part(void)
     trk[2].p[P_FXOFF] = 0;
 }
 
+/* FILTER RESO (SLOOP 2.8, core.h G_TFRES, fx.c tflt_reso): 0 the filter as it always was (resonance 40), 10 a peak at the
+ * cutoff: the same low-pass brighter (the band at the cutoff boosted; the level below it the same, the RMS about the same) */
+static void t_reso(void)
+{
+    double b0, b10, r0, r10;
+    tsvf_t c, c40;
+    tflt_t f;
+    busy_song(5u, 0);
+    trk[0].p[P_TFLT] = trk[2].p[P_TFLT] = -30;
+    b0 = run(3, &r0, 0);
+    busy_song(5u, 0);
+    trk[0].p[P_TFLT] = trk[2].p[P_TFLT] = -30;
+    song.g[G_TFRES] = 10;
+    b10 = run(3, &r10, 0);
+    printf("trk_filt: LP -30, FILTER RESO 0 / 10: brightness %.3f %.3f, RMS %.0f %.0f\n", b0, b10, r0, r10);
+#if FELUCCA_TFLT_RESO
+    check(b10 > b0 * 1.4, "FILTER RESO 10: the low-pass resonates (the band at its cutoff boosted: brighter than RESO 0)");
+#else
+    check(b10 < b0 * 1.1 && b10 > b0 * 0.9, "FILTER RESO off (builder): the setting does nothing (two runs of the busy mix: within 10 %)");
+#endif
+    memset(&f, 0, sizeof f);
+    song.g[G_TFRES] = 0;
+    (void)tflt_block(&f, -30, &c, tflt_reso());
+    memset(&f, 0, sizeof f);
+    (void)tflt_block(&f, -30, &c40, 40);
+    check(c.a1 == c40.a1 && c.a2 == c40.a2 && c.a3 == c40.a3, "FILTER RESO 0: the coefficients of before (resonance 40)");
+    trk[0].p[P_TFLT] = trk[2].p[P_TFLT] = 0;
+}
 static void t_drums(void)
 {
     double b0, blp, s0, slp;
@@ -191,7 +219,7 @@ static double start_jump(uint32_t which)
         tflt_t t;
         tsvf_t c;
         memset(&t, 0, sizeof t);
-        if (!tflt_block(&t, -1, &c))
+        if (!tflt_block(&t, -1, &c, tflt_reso()))
             return 99;
         for (ch = 0; ch < nch; ch++) {
             memcpy(y, x, sizeof y);
@@ -336,6 +364,7 @@ int main(int argc, char **argv)
 #if FELUCCA_TRK_FILT
     ins_defaults();                                     /* (the FILTER is heard in a track's insert slot: S2, the default) */
     t_part();
+    t_reso();
     t_drums();
     t_project();
     t_cost();

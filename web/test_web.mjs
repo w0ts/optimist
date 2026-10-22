@@ -892,10 +892,13 @@ async function editorV5() {
   /* drums.c DRUM_SRC_NAMES: KIT, USR1..3 (a build with the lanes' pages), then the kits (DRUM_KIT_NAMES, its tail) */
   const dk = ((/DRUM_SRC_NAMES\[\] = \{([^}]*)\}/.exec(dc) || [])[1] || "").split("\n")
     .filter((l) => !l.trim().startsWith("#")).join("\n").replace(/^\s*"KIT", "USR1", "USR2", "USR3",/, "")
-    .replace(/("X8 MIAMI")[\s\S]*/, "$1");         /* (after the kits: the X0X voices a lane can play) */
+    .replace(/(DS_XKIT_NAME_LIST)[\s\S]*/, "$1");  /* (after the kits: the X0X voices a lane can play) */
   const gen = join(HERE, "../build/gen/felucca_drumkits.h");
-  const dsList = existsSync(gen) ? ((/#define DS_KIT_NAME_LIST (.*)/.exec(readFileSync(gen, "utf8")) || [])[1] || "") : null;
-  const fwKits = dsList == null ? null : dk.replace("DS_KIT_NAME_LIST", dsList).split(",").map((x) => x.trim().replace(/"/g, ""));
+  const genText = existsSync(gen) ? readFileSync(gen, "utf8") : null;
+  const dsList = genText == null ? null : ((/#define DS_KIT_NAME_LIST (.*)/.exec(genText) || [])[1] || "");
+  const dxList = genText == null ? null : ((/#define DS_XKIT_NAME_LIST (.*)/.exec(genText) || [])[1] || "");
+  const fwKits = dsList == null ? null : dk.replace("DS_KIT_NAME_LIST", dsList).replace("DS_XKIT_NAME_LIST", dxList)
+    .replace(/\/\*[\s\S]*?\*\//g, "").split(",").map((x) => x.trim().replace(/"/g, "")).filter((x) => x);
   ok(kit.label === "KIT" && kit.names[5] === "808" && kit.names.length === kit.max + 1 && (!fwKits || fwKits.join() === kit.names.join()),
     `v5: the drum track's KIT (${kit.names.length} kits${fwKits ? ", == drums.c" : ""})`);
   /* TRACK ends with the solo mask */
@@ -1790,9 +1793,10 @@ async function editorDrums() {
   ok(E.req.drumLanes(null, true)[1].length === 1 && E.req.drumLanes({ ...blk, lanes: lanes2 }, true)[1].length === 289 &&
     E.req.drumLanes({ ...blk, lanes: lanes2 })[1].length === 234 && E.req.drumLane(3, null, true)[1][0] === 0x43 && E.req.ukitGet(4, true)[1][0] === 0x44,
     "drums v2: requests (36: 2 / 2 + 288 bytes; 37 / 39 / 40: 0x40 + lane / slot)");
-  ok(E.DRUM_KIT_NAMES.length === 47 && E.DRUM_KIT_NAMES[5] === "808" && E.DRUM_KIT_NAMES[37] === "X0X 909" && E.DRUM_KIT_NAMES[38] === "X0X 808"
-    && E.DRUM_KIT_NAMES[39] === "X9 TECH" && E.DRUM_KIT_NAMES[46] === "X8 MIAMI",
-    "drums: the kit names (the SRC list; 37 / 38 the X0X kits, 39..46 their styles)");
+  ok(E.DRUM_KIT_NAMES.length === 49 && E.DRUM_KIT_NAMES[5] === "808" && E.DRUM_KIT_NAMES[37] === "X0X 909" && E.DRUM_KIT_NAMES[38] === "X0X 808"
+    && E.DRUM_KIT_NAMES[39] === "X9 TECH" && E.DRUM_KIT_NAMES[46] === "X8 MIAMI" && E.DRUM_KIT_NAMES[47] === "KAWA"
+    && E.DRUM_KIT_NAMES[48] === "PLAITS",
+    "drums: the kit names (the SRC list; 37 / 38 the X0X kits, 39..46 their styles, 47.. synthesised again)");
   ok(E.X0X_VOICES.length === 27 && E.X0X_VOICES[0][0] === "909 BD" && E.X0X_VOICES[0][1] === 64 && E.X0X_VOICES[10][1] === 74 &&
      E.X0X_VOICES[11][0] === "808 BD" && E.X0X_VOICES[11][1] === 80 && E.X0X_VOICES[26][0] === "808 CY" && E.X0X_VOICES[26][1] === 95,
     "drums: the X0X voices after the kits in SRC (src 64..74, 80..95)");

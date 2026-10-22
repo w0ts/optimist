@@ -20,7 +20,7 @@ static uint16_t col_shade(uint32_t c, uint32_t n)
 /* factory kit k's kind colour (the kit UIDs: sampled, synthesised, then the X0X machines and their voices) */
 static uint16_t kind_col(uint32_t k)
 {
-    return k < DRUM_SAMPLED ? COL_KIND_SAMPLED : k < DRUM_SYNTH_END ? COL_KIND_SYNTH : COL_KIND_X0X;
+    return k < DRUM_SAMPLED ? COL_KIND_SAMPLED : DRUM_IS_SYNTH(k) ? COL_KIND_SYNTH : COL_KIND_X0X;
 }
 /* the drum track's kit: its kind's colour (the editor's KIND_ATTR: a user kit, sampled, synthesised, X0X) */
 static uint16_t kit_col(void)
@@ -38,7 +38,7 @@ static uint16_t lane_col(uint32_t l)
         return kit_col();
     if (s < DL_KIT0)
         return COL_KIND_USR;
-    return kind_col(s - DL_KIT0);
+    return kind_col(dl_src_kit(s) < DRUM_KITS ? dl_src_kit(s) : DRUM_UID_X909);   /* (an X0X voice: X0X's colour) */
 }
 #endif
 

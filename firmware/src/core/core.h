@@ -342,6 +342,10 @@ enum {                          /* global parameters */
      * TYPE LP HP BP PEAK, SLOPE 12 / 24 dB, RES. Its FREQ is G_DCOLOR (COLOR's slot, the synths' cutoff curve: a project
      * stores it + DLY_FREQ_MARK, an older one COLOR: project.c). In the FX record (fx_rec.c DLYF_TLV: none = LP, 12, 0) */
     G_DFTYPE, G_DFSLOPE, G_DFRES,
+    /* FILTER RESO (SLOOP 2.8 fx.c tflt_reso, GPL-3.0-only; builder item TFLT_RESO): the resonance of every track's FILTER
+     * (and the drum track's), 0 (clean, as before) .. 10. The HOME menu's AUDIO line; kept in the delay filter's TLV, its 4th
+     * byte (fx_rec.c DLYF_TLV: none, or 3 bytes = 0) */
+    G_TFRES,
     G_COUNT
 };
 enum { DLYF_LP, DLYF_HP, DLYF_BP, DLYF_PEAK };

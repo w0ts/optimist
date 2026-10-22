@@ -360,7 +360,7 @@ static int ble_forget_yes(uint32_t r, uint32_t k, uint32_t ok)   /* FORGET LAST:
 enum { SI_NONE, SI_BRIGHT, SI_LIGHTS, SI_KEYS, SI_LOWCUT, SI_OUT, SI_SYNC, SI_CH1, SI_CH2,
        SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_HOLD, SI_BLE, SI_KCOL, SI_CLKOUT, SI_CPU1, SI_INFO, SI_BATT, SI_BUILD, SI_REPO,
        SI_DROPS, SI_GUARD, SI_UAINFO, SI_XRUN, SI_DIAG, SI_CREDITS, SI_BLEST, SI_BLEPEER, SI_BLEMIDI, SI_BLELIST, SI_BLEAUTO,
-       SI_BLEFGT,
+       SI_BLEFGT, SI_FRESO,
        SI_UAS0 };                                       /* SI_UAS0 + s: USB AUDIO's line of source s (ua_tap.h UAS_*), last */
 /* a core's load number (% of the audio budget) in its colour: green under 60, amber 60..85, red over 85 (the predictive guard's
  * ceiling, system/cpuguard.c CG_CEIL = 85 %: above it the guard sheds quality / voices). Text only (INFO draws no bars). */
@@ -433,7 +433,7 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
 #endif
     {"SCREEN", {SI_IF(FELUCCA_BRIGHT, SI_BRIGHT), SI_NONE, SI_NONE, SI_KCOL}},   /* (SI_KCOL: KNOB COLORS; KNOB 3 was CARDS, gone
                                                          * 2026-10-12; COLOR gone 2026-10-18: the palette is MONO, panel.c) */
-    {"AUDIO", {SI_LOWCUT, SI_NONE, SI_NONE, SI_NONE}},
+    {"AUDIO", {SI_LOWCUT, SI_IF(FELUCCA_TFLT_RESO && FELUCCA_TRK_FILT, SI_FRESO), SI_NONE, SI_NONE}},   /* (FILT RESO: SLOOP 2.8's FILTER RESO, a project's: core.h G_TFRES) */
 #if FELUCCA_LIGHTS
     {"KEYS", {SI_LIGHTS, SI_KEYS, SI_NONE, SI_NONE}},
 #endif
@@ -491,9 +491,9 @@ static const param_desc_t *sys_desc(uint32_t it, int16_t **vp)
 {
     static const uint8_t BPS[] = {BPS_MOUT, 0, BPS_CH0, BPS_CH1, BPS_CH2, BPS_CHD};
     *vp = 0;
-    if (it == SI_SYNC) {
-        *vp = &song.g[G_SYNC];
-        return &GP[G_SYNC];
+    if (it == SI_SYNC || it == SI_FRESO) {
+        *vp = &song.g[it == SI_SYNC ? G_SYNC : G_TFRES];
+        return &GP[it == SI_SYNC ? G_SYNC : G_TFRES];
     }
     if (it >= SI_OUT && it <= SI_CHD)
         return bps_desc(BPS[it - SI_OUT], vp);

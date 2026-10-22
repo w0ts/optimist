@@ -88,9 +88,40 @@
     "fixed": false,
     "choices": [],
     "provenance": null,
-    "children": [],
+    "children": [
+     "PHASE_FOLD"
+    ],
     "tested": "emulator-tested only",
     "provenance_line": ""
+   },
+   {
+    "key": "PHASE_FOLD",
+    "flag": "FELUCCA_PHASE_FOLD",
+    "label": "PHASE: FOLD (a sine wavefolder on E7)",
+    "group": "Synth engines",
+    "bit": 371,
+    "default": 1,
+    "parent": "ENG_PHASE",
+    "desc": "PHASE's last EDIT knob (E7, empty until now) becomes FOLD: a sine wavefolder on the voice, after the two lines and before SUB. 0 is off (the sound as before); up from 0 a soft saturation, then up to four folds. Above A4 it folds less, so the top notes alias less. Turning it on or off mid-note crossfades, no click. About 0.8 KB.",
+    "experimental": false,
+    "notice": "From Felucca-Engines' PHASE FOLD by Leo Kuroshita (hugelton/Felucca-Engines 04ffe90, MIT). Tested in the host tests only, not on a device.",
+    "off_warning": "",
+    "env": "",
+    "target_only": false,
+    "symbols": [],
+    "no_image": false,
+    "fixed": false,
+    "choices": [],
+    "provenance": {
+     "project": "Felucca-Engines (hugelton/Felucca-Engines)",
+     "author": "Leo Kuroshita (Hügelton)",
+     "licence": "MIT",
+     "commit": "04ffe90",
+     "url": "https://github.com/hugelton/Felucca-Engines"
+    },
+    "children": [],
+    "tested": "emulator-tested only",
+    "provenance_line": "Felucca-Engines (hugelton/Felucca-Engines) @ 04ffe90 by Leo Kuroshita (Hügelton) (MIT)"
    },
    {
     "key": "ENG_LOFI",
@@ -574,9 +605,75 @@
     "fixed": false,
     "choices": [],
     "provenance": null,
-    "children": [],
+    "children": [
+     "DS_KAWA",
+     "DS_PLAITS"
+    ],
     "tested": "emulator-tested only",
     "provenance_line": ""
+   },
+   {
+    "key": "DS_KAWA",
+    "flag": "FELUCCA_DS_KAWA",
+    "label": "KAWA kit (kit 47) and the drum synth's KAWA options",
+    "group": "Drums",
+    "bit": 372,
+    "default": 1,
+    "parent": "DRUM_SYNTH",
+    "desc": "A new synthesised kit, KAWA, after Kawa Tracker's kit engine: a guiro, a clap with its hands, a flammed snare, a brush and a shaker that swell in, tight-cluster hats, a ride's bell, ring-modulated toms and cowbell, a kick with an FM beater. Any lane of another kit can borrow its sounds. It adds four cymbal tunings, the second partial ringing or modulating the tone, re-strikes and a rise to the drum synth, used by this kit only (the other kits sound as before). About 1 KB. A build without it plays the 808 kit for KAWA.",
+    "experimental": false,
+    "notice": "From Kawa Tracker's kit engine by Guizmoh (Guizmoh/Kawa-Tracker-Fm1 kawa_drums.c, GPL-3.0). Tested in the host tests only, not on a device.",
+    "off_warning": "",
+    "env": "",
+    "target_only": false,
+    "symbols": [
+     "DS_XSNDS_0"
+    ],
+    "no_image": false,
+    "fixed": false,
+    "choices": [],
+    "provenance": {
+     "project": "Kawa Tracker (Guizmoh/Kawa-Tracker-Fm1)",
+     "author": "Guizmoh",
+     "licence": "GPL-3.0-only",
+     "commit": "kawa-0.5",
+     "url": "https://github.com/Guizmoh/Kawa-Tracker-Fm1"
+    },
+    "children": [],
+    "tested": "emulator-tested only",
+    "provenance_line": "Kawa Tracker (Guizmoh/Kawa-Tracker-Fm1) @ kawa-0.5 by Guizmoh (GPL-3.0-only)"
+   },
+   {
+    "key": "DS_PLAITS",
+    "flag": "FELUCCA_DS_PLAITS",
+    "label": "PLAITS kit (kit 48): Plaits' synthetic kick and snare",
+    "group": "Drums",
+    "bit": 373,
+    "default": 1,
+    "parent": "DRUM_SYNTH",
+    "desc": "A new synthesised kit, PLAITS: two kicks and two snares from Mutable Instruments Plaits' synthetic bass drum and snare drum models (a distorted sine with FM and a click; two FM sines with filtered noise), the other lanes the 909's. Any lane of another kit can borrow them. The drum EDIT moves them: TUNE, DECAY, CUT + (their TONE / FM), CLICK (the kick's FM), SNAP (the snare's snap). Integer code with 64-bit products, heavier on the CPU than the other drum sounds. About 3 KB. A build without it plays the 909 kit for PLAITS.",
+    "experimental": false,
+    "notice": "Plaits' drum models by Emilie Gillet (MIT), in the integer port of Hortator by Leo Kuroshita and DEADACTIVE (DeadActive/hortator 7e34159, GPL-3.0). Tested in the host tests only, not on a device.",
+    "off_warning": "",
+    "env": "",
+    "target_only": false,
+    "symbols": [
+     "kpunc_tick",
+     "scrak_tick"
+    ],
+    "no_image": false,
+    "fixed": false,
+    "choices": [],
+    "provenance": {
+     "project": "Hortator (DeadActive/hortator), after Mutable Instruments Plaits (Emilie Gillet, MIT)",
+     "author": "Leo Kuroshita (Hügelton), DEADACTIVE; Emilie Gillet",
+     "licence": "GPL-3.0-only (Plaits' algorithms MIT)",
+     "commit": "7e34159",
+     "url": "https://github.com/DeadActive/hortator"
+    },
+    "children": [],
+    "tested": "emulator-tested only",
+    "provenance_line": "Hortator (DeadActive/hortator), after Mutable Instruments Plaits (Emilie Gillet, MIT) @ 7e34159 by Leo Kuroshita (Hügelton), DEADACTIVE; Emilie Gillet (GPL-3.0-only (Plaits' algorithms MIT))"
    },
    {
     "key": "DRUM_X0X909",
@@ -917,9 +1014,40 @@
     "fixed": false,
     "choices": [],
     "provenance": null,
-    "children": [],
+    "children": [
+     "DS_NTUNE"
+    ],
     "tested": "emulator-tested only",
     "provenance_line": ""
+   },
+   {
+    "key": "DS_NTUNE",
+    "flag": "FELUCCA_DS_NTUNE",
+    "label": "drum EDIT: TUNE on the noise sounds (hats, shaker, clap)",
+    "group": "Drums",
+    "bit": 368,
+    "default": 1,
+    "parent": "DRUM_EDIT",
+    "desc": "On a synthesised kit, a sound with no tone (closed hat, shaker, clap) had nothing for TUNE to move. With this, TUNE moves its filter and its noise high-pass, about a semitone's worth a step, as a resampled sample would sound. A few dozen bytes.",
+    "experimental": false,
+    "notice": "From SLOOP 2.8's drum TUNE by isod89 (isod89/sloop-fm1 b77bf55, GPL-3.0). Tested in the host tests only, not on a device.",
+    "off_warning": "",
+    "env": "",
+    "target_only": false,
+    "symbols": [],
+    "no_image": false,
+    "fixed": false,
+    "choices": [],
+    "provenance": {
+     "project": "SLOOP 2.8 (isod89/sloop-fm1)",
+     "author": "isod89",
+     "licence": "GPL-3.0-only",
+     "commit": "b77bf55",
+     "url": "https://github.com/isod89/sloop-fm1"
+    },
+    "children": [],
+    "tested": "emulator-tested only",
+    "provenance_line": "SLOOP 2.8 (isod89/sloop-fm1) @ b77bf55 by isod89 (GPL-3.0-only)"
    },
    {
     "key": "DRUM_USR",
@@ -1661,9 +1789,40 @@
      "commit": "v2.4 8d3823f",
      "url": "https://github.com/isod89/sloop-fm1"
     },
-    "children": [],
+    "children": [
+     "TFLT_RESO"
+    ],
     "tested": "emulator-tested only",
     "provenance_line": "SLOOP 2.4 (isod89/sloop-fm1) @ v2.4 8d3823f by isod89 (GPL-3.0-only)"
+   },
+   {
+    "key": "TFLT_RESO",
+    "flag": "FELUCCA_TFLT_RESO",
+    "label": "track FILTER: resonance setting (HOME > AUDIO > FILT RESO)",
+    "group": "FX: any number (each track its own)",
+    "bit": 367,
+    "default": 1,
+    "parent": "TRK_FILT",
+    "desc": "One setting for every track's FILTER (and the drum track's and the drum lanes'): HOME > AUDIO > FILT RESO, 0 (clean, as before) to 10 (a resonant peak at the cutoff, never self-oscillating). Saved with the project. A few hundred bytes. The master's DJ filter stays clean.",
+    "experimental": false,
+    "notice": "From SLOOP 2.8's FILTER RESO by isod89 (isod89/sloop-fm1 b77bf55, GPL-3.0). Tested in the host tests only, not on a device.",
+    "off_warning": "",
+    "env": "",
+    "target_only": false,
+    "symbols": [],
+    "no_image": false,
+    "fixed": false,
+    "choices": [],
+    "provenance": {
+     "project": "SLOOP 2.8 (isod89/sloop-fm1)",
+     "author": "isod89",
+     "licence": "GPL-3.0-only",
+     "commit": "b77bf55",
+     "url": "https://github.com/isod89/sloop-fm1"
+    },
+    "children": [],
+    "tested": "emulator-tested only",
+    "provenance_line": "SLOOP 2.8 (isod89/sloop-fm1) @ b77bf55 by isod89 (GPL-3.0-only)"
    },
    {
     "key": "INS_FOLD",
@@ -3134,6 +3293,35 @@
     "provenance_line": "Flowstate (zakariachowdhury/flowstate-fm1) @ e62e186 by Zakaria Chowdhury (GPL-3.0-only)"
    },
    {
+    "key": "VOICE_OWN",
+    "flag": "FELUCCA_VOICE_OWN",
+    "label": "voices: reuse a track's own released voice before taking another's",
+    "group": "System",
+    "bit": 369,
+    "default": 1,
+    "parent": null,
+    "desc": "When every voice is in use and a track plays a new note, it first restarts one of its own voices that is already releasing, instead of fading out another track's tail. The other tracks keep their tails, and no extra fading voice runs for a moment over the budget. When the track has no releasing voice, the voice is taken from another track as before. A few dozen bytes.",
+    "experimental": false,
+    "notice": "From JIANT 0.9.9 cpu3 by juanjiant-bit (juanjiant-bit/JIANT da61bc62, GPL-3.0). Tested in the host tests only, not on a device.",
+    "off_warning": "",
+    "env": "",
+    "target_only": false,
+    "symbols": [],
+    "no_image": false,
+    "fixed": false,
+    "choices": [],
+    "provenance": {
+     "project": "JIANT 0.9.9 cpu3 (juanjiant-bit/JIANT)",
+     "author": "juanjiant-bit",
+     "licence": "GPL-3.0-only",
+     "commit": "da61bc62",
+     "url": "https://github.com/juanjiant-bit/JIANT"
+    },
+    "children": [],
+    "tested": "emulator-tested only",
+    "provenance_line": "JIANT 0.9.9 cpu3 (juanjiant-bit/JIANT) @ da61bc62 by juanjiant-bit (GPL-3.0-only)"
+   },
+   {
     "key": "CACHE_RAM",
     "flag": "FELUCCA_CACHE_RAM",
     "label": "more memory from the data cache (for the undo history)",
@@ -4490,6 +4678,7 @@
    "EDITOR",
    "TAB_IN_POOL",
    "CPU_GUARD",
+   "VOICE_OWN",
    "CACHE_RAM",
    "ASM",
    "DUAL",

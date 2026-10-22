@@ -458,7 +458,7 @@ static void denv_sample(uint32_t l, uint32_t usr, const int8_t *o, int32_t y0, i
 static void denv_synth(uint32_t l, uint32_t kit, const int8_t *o, int32_t y0, int32_t h, uint16_t c)
 {
     int32_t semi;
-    const dsnd_t *d = DS_SND(&DS_KITS[kit - DRUM_SAMPLED], ds_lane(LANE_NOTE_OF(l), &semi));
+    const dsnd_t *d = DS_SND(ds_kit(kit), ds_lane(LANE_NOTE_OF(l), &semi));
     uint32_t ka, kn, kp, j, blocks, per, hold, nhold, bend, x;
     int32_t a0, n0, pk, a, n, pe = 32767, px = 4, py = y0 + h, bot = y0 + h;
 #if FELUCCA_DRUM_EDIT
@@ -503,7 +503,7 @@ static void graph_denv(void)
 {
     uint32_t l = lane_selected(), usr = dl_usr_of(l), kit = dl_kit_of(l, drum_kit());
     const int8_t *o = dl_ofs(l);
-    const char *tg = usr ? "SMP" : kit < DRUM_SAMPLED ? "SMP" : kit < DRUM_SYNTH_END ? "SYN" : "X0X";
+    const char *tg = usr ? "SMP" : kit < DRUM_SAMPLED ? "SMP" : DRUM_IS_SYNTH(kit) ? "SYN" : "X0X";
     int32_t y0 = GR_TOP + 16, h = GR_BOT - y0;
     uint16_t c = lane_col(l);
     cv_hline(GR_BOT + 1, C_LINE);
@@ -519,7 +519,7 @@ static void graph_denv(void)
         denv_x0x(l, kit, o, y0, h, c);
         return;
     }
-    if (!usr && kit >= DRUM_UID_X909)
+    if (!usr && DRUM_IS_X0X(kit))
         kit = x0x_standin(kit);                         /* (a note the machine lacks: the stand-in's sound) */
     if (!usr && kit >= DRUM_KITS)
         return;                                         /* (none: an X0X-only build, the note silent) */

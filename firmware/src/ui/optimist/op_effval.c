@@ -25,9 +25,9 @@ static const dsnd_t *effv_dsnd(uint32_t l)
 {
     uint32_t kit = dl_kit_of(l, drum_kit());
     int32_t semi;
-    if (dl_usr_of(l) || kit < DRUM_SAMPLED || kit >= DRUM_SYNTH_END)
+    if (dl_usr_of(l) || !DRUM_IS_SYNTH(kit))
         return 0;
-    return DS_SND(&DS_KITS[kit - DRUM_SAMPLED], ds_lane(LANE_NOTE_OF(l % DRUM_LANES), &semi));
+    return DS_SND(ds_kit(kit), ds_lane(LANE_NOTE_OF(l % DRUM_LANES), &semi));
 }
 #endif
 /* lane l's offsets a hit now plays into o (the patch when nothing acts on it) */
