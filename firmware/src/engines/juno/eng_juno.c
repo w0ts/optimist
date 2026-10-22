@@ -51,7 +51,8 @@ static int32_t juno_amp(track_t *t, voice_t *v, int32_t adsr)
     return a + (((JUNO_DNEXT(VCA_HW, a, i) - a) * (int32_t)f) >> 7);
 }
 
-/* the level: y * amp >> 12, ANALOG's (juno_test) */
+/* the level: y * amp >> 15 (y < 2^18): ANALOG's, measured below the master's limiter (juno_test; >> 12 was 18-27 dB
+ * over, the presets' trims: tools/level_presets.py) */
 static void juno_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
     const int16_t *p = t->p;
@@ -86,7 +87,7 @@ static void juno_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
     {   /* the VCA: the core's amplitude ramp (amp_at, a step a sample), 32-bit products (y < 2^18) */
         int32_t acc = m->amp0 * (int32_t)CTL, step = m->amp1 - m->amp0;
         for (i = 0; i < n; i++, acc += step)
-            out[i] += ((y[i] >> 3) * (acc >> CTL_LOG2)) >> 9;
+            out[i] += ((y[i] >> 3) * (acc >> CTL_LOG2)) >> 12;
     }
 }
 

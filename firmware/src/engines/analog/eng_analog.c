@@ -142,20 +142,18 @@ static const preset_t ANALOG_PRESETS[] = {
 };
 
 #if FELUCCA_ANALOG2
-/* ANALOG 2's values of a preset beyond preset_t: {preset, track parameter (< P_E0), value}; the level trims
- * (P_ED_FX, 1/2 dB) of the presets past preset_trim.h's table, and of SUPERSAW (now one voice), measured
- * against the old renders (tests/analog2_test.c wav). params.c analog2_extras, after the extras */
+/* ANALOG 2's values of a preset beyond preset_t: {preset, track parameter (< P_E0), value} (the level trims:
+ * preset_trim.h, every preset). params.c analog2_extras, after the extras */
 static const int8_t A2_PX[][3] = {
-    {12, P_A2SWRM, 6}, {12, P_A2SDTN, 34}, {12, P_ED_FX, -5},   /* (one voice: 6.4 dB up) */
+    {12, P_A2SWRM, 6}, {12, P_A2SDTN, 34},
     {13, P_A2DRFT, 16}, {14, P_A2DRFT, 16}, {15, P_A2DRFT, 16},   /* the pads: drifting, free phases */
-    {16, P_A2SWRM, 6}, {16, P_A2SDTN, 40}, {16, P_A2DRFT, 12}, {16, P_ED_FX, -1},
-    {17, P_A2SWRM, 6}, {17, P_A2SDTN, 56}, {17, P_A2DRFT, 30}, {17, P_A2FTYP, 1}, {17, P_ED_FX, -9},
-    {18, P_A2SWRM, 6}, {18, P_A2SDTN, 44}, {18, P_A2DRFT, 8}, {18, P_ED_FX, 19},
-    {19, P_A2SWRM, 4}, {19, P_A2SDTN, 29}, {19, P_ED_FX, 19},
+    {16, P_A2SWRM, 6}, {16, P_A2SDTN, 40}, {16, P_A2DRFT, 12},
+    {17, P_A2SWRM, 6}, {17, P_A2SDTN, 56}, {17, P_A2DRFT, 30}, {17, P_A2FTYP, 1},
+    {18, P_A2SWRM, 6}, {18, P_A2SDTN, 44}, {18, P_A2DRFT, 8},
+    {19, P_A2SWRM, 4}, {19, P_A2SDTN, 29},
     {20, P_A2SWRM, 6}, {20, P_A2SDTN, 102}, {20, P_A2DRFT, 20}, {20, P_A2WAVE, 2}, {20, P_A2SEMI, -12},
-    {20, P_ED_FX, 4},
     {21, P_A2SYNC, 1}, {21, P_A2SEMI, 7},
-    {22, P_A2WAVE, 2}, {22, P_A2SEMI, -12}, {22, P_A2FTYP, 1}, {22, P_A2FDEC, 52}, {22, P_A2FENV, 44}, {22, P_ED_FX, 14},
+    {22, P_A2WAVE, 2}, {22, P_A2SEMI, -12}, {22, P_A2FTYP, 1}, {22, P_A2FDEC, 52}, {22, P_A2FENV, 44},
     {23, P_A2SEMI, 7}, {23, P_A2DRFT, 6},
 };
 #endif
