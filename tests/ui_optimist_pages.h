@@ -306,18 +306,19 @@ static void pages_master_tests(void)
 }
 
 /* D10: the keys full / dim / dark in every mode, as the FM6 layer's test (ui_optimist_test.c fm6_tests) */
-static uint32_t key_led(uint32_t k)                     /* 2 full, 1 dim, 0 dark: key k's LED */
+static uint32_t key_led(uint32_t k)                     /* 2 full, 3 half, 1 dim, 0 dark: key k's LED */
 {
     uint8_t q = led_pos[14u + k];
     if (q == 0xFF)
         return 9;
-    return (fm1_led[q >> 3] >> (q & 7u)) & 1u ? 2u : (fm1_led_dim[q >> 3] >> (q & 7u)) & 1u ? 1u : 0u;
+    return (fm1_led[q >> 3] >> (q & 7u)) & 1u ? 2u : (fm1_led_half[q >> 3] >> (q & 7u)) & 1u ? 3u
+         : (fm1_led_dim[q >> 3] >> (q & 7u)) & 1u ? 1u : 0u;
 }
-static int keys_are(uint32_t full, uint32_t dim, const char *what)   /* every key: full, dim or dark as asked */
+static int keys_are3(uint32_t full, uint32_t half, uint32_t dim, const char *what)   /* every key: full, half, dim or dark as asked */
 {
     uint32_t k, ok = 1;
     for (k = 0; k < 27u; k++) {
-        uint32_t want = (full >> k) & 1u ? 2u : (dim >> k) & 1u ? 1u : 0u, lv = key_led(k);
+        uint32_t want = (full >> k) & 1u ? 2u : (half >> k) & 1u ? 3u : (dim >> k) & 1u ? 1u : 0u, lv = key_led(k);
         if (lv != want) {
             printf("  %s: key %u is %u, wants %u\n", what, k, lv, want);
             ok = 0;
@@ -326,6 +327,7 @@ static int keys_are(uint32_t full, uint32_t dim, const char *what)   /* every ke
     check(ok, what);
     return (int)ok;
 }
+static int keys_are(uint32_t full, uint32_t dim, const char *what) { return keys_are3(full, 0, dim, what); }
 static uint32_t kw(uint32_t i) { return 1u << white_key(i); }   /* white key i (0..15) */
 static uint32_t kws(uint32_t a, uint32_t b)             /* white keys a..b */
 {
@@ -473,8 +475,8 @@ static uint32_t lane_keys_mask(void)                    /* the lanes' black keys
 }
 static void lanes_lit(const char *what)                 /* the drum track: the lanes' keys lit, the selected one full */
 {
-    uint32_t f = 0, d = 0, lk = (lane_keys_mask() | (ACC_UI ? 1u << DACC_KEY : 0u));
-    keys_lit(&f, &d);
+    uint32_t f = 0, d = 0, h = 0, lk = (lane_keys_mask() | (ACC_UI ? 1u << DACC_KEY : 0u));
+    keys_lit(&f, &d, &h);
     check(((f | d) & lk) == lk && ((f >> key_of_lane(lane_selected())) & 1u), what);
 }
 static void pages_keys_tests(void)
@@ -492,8 +494,9 @@ static void pages_keys_tests(void)
     frames(HOLD_FRAMES);
     memset(mx.lit, 0, sizeof mx.lit);                   /* (no note playing: none full) */
     trk[0].seq_n = trk[1].seq_n = trk[2].seq_n = trk[3].seq_n = 0;
-    keys_are(0, kws(0, 3) | ((1u << white_key(13)) | (1u << white_key(14)) | (1u << white_key(15))) | (lane_keys_mask() | (ACC_UI ? 1u << DACC_KEY : 0u)),
-             "D10: the mixer, SHIFT held: the sequencer mutes, the lanes' keys, the 4 track keys and the last upper key (ACCENT) dim, none muted");
+    memset(mx.tlit, 0, sizeof mx.tlit);
+    keys_are3(0, kws(0, 3) | lane_keys_mask() | (ACC_UI ? 1u << DACC_KEY : 0u), (1u << white_key(13)) | (1u << white_key(14)) | (1u << white_key(15)),
+              "D10: the mixer, SHIFT held: the sequencer mutes, none muted: the lanes' keys, the 4 track keys and ACCENT half, the returns' keys dim");
     release(B_OCTDN);
     tap(B_EDIT);
     frames(2);
@@ -512,8 +515,8 @@ static void pages_keys_tests(void)
     press(B_SEQ);
     frames(HOLD_FRAMES);
     {
-        uint32_t f = 0, d = 0, len = trk_len(TDRUM), w, edim = 0;
-        keys_lit(&f, &d);
+        uint32_t f = 0, d = 0, h = 0, len = trk_len(TDRUM), w, edim = 0;
+        keys_lit(&f, &d, &h);
         for (w = 0; w < 16u && w < len; w++)
             edim |= (w == 2u || w == 3u) ? 0u : kw(w);
         check((f & kws(0, 15)) == (kw(2) | kw(3)) && (d & kws(0, 15)) == edim, "STEP, the drum track, SEQ held: the steps with any lane set full (the selected lane's or not), the empty ones dim");
@@ -576,9 +579,9 @@ static void pages_keys_tests(void)
     hold_layer(B_LFO);
     key(key_of_lane(9));                                /* (black 10: the scenes) */
     {
-        uint32_t f, d;
+        uint32_t f, d, h;
         frames(2);
-        keys_lit(&f, &d);
+        keys_lit(&f, &d, &h);
         check((f & kws(0, 15)) == (arrangement_clock.running ? 0u : kw(0)) && (((f | d) & kws(0, 15)) & ~kws(0, LAY_NSCN - 1u)) == 0u,
               "D10: LFO layer, black 10: the filled scenes lit (an empty one dark), the playing one full");
     }

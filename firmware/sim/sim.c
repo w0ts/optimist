@@ -429,7 +429,7 @@ static void sim_in_push(uint32_t id, uint32_t down)
 
 static uint8_t sim_led_v[FM1_NKEY];
 
-static uint32_t sim_led_of(uint32_t id)           /* 0 off, 1 dim, 2 lit */
+static uint32_t sim_led_of(uint32_t id)           /* 0 off, 1 dim, 2 lit, 3 half */
 {
     uint32_t p, r;
     for (p = 0; p < FM1_NCOL; p++)
@@ -439,7 +439,7 @@ static uint32_t sim_led_of(uint32_t id)           /* 0 off, 1 dim, 2 lit */
 #if FELUCCA_LIGHTS
                 dim |= fm1_led_bg[p];
 #endif
-                return (fm1_led[p] & bit) ? 2u : (dim & bit) ? 1u : 0u;
+                return (fm1_led[p] & bit) ? 2u : (fm1_led_half[p] & bit) ? 3u : (dim & bit) ? 1u : 0u;
             }
     return 0;
 }

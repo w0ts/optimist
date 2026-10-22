@@ -80,7 +80,7 @@ static int ac_band_has(uint16_t col)                    /* the cards' band holds
 }
 static void ac_key_tests(void)
 {
-    uint32_t r, k, f, d, used = 0, w;
+    uint32_t r, k, f, d, h, used = 0, w;
     reset_ui();
     song.sel = 0;
     op_enter(SCR_PROJECT);
@@ -109,7 +109,7 @@ static void ac_key_tests(void)
     op_disarm();                                        /* (a key now asks or toasts: the question goes) */
     for (w = 0; w < FELUCCA_SECTIONS && w < 16u; w++)
         used |= (uint32_t)(project_used(w) != 0) << w;
-    keys_lit(&f, &d);
+    keys_lit(&f, &d, &h);
     {
         uint32_t ok = 1;
         for (w = 0; w < 16u; w++) {
@@ -125,7 +125,7 @@ static void ac_key_tests(void)
         uint32_t bit = 1u << white_key(2), seen_on = 0, seen_off = 0, i;
         for (i = 0; i < 40u; i++) {
             frames(1);
-            keys_lit(&f, &d);
+            keys_lit(&f, &d, &h);
             if ((f | d) & bit)
                 seen_on = 1;
             else
@@ -169,7 +169,7 @@ static void ac_key_tests(void)
     check(ly_lock == LY_STEP && kb_kind[k] == KS_UI, "PROJECT's TOOLS row: the keys play nothing either");
     kup(k);
     op_disarm();                                        /* (a key now asks or toasts: the question goes) */
-    keys_lit(&f, &d);
+    keys_lit(&f, &d, &h);
     check(!(f | d), "... and light nothing");
     op_enter(SCR_HOME);
     frames(2);

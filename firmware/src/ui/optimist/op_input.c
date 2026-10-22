@@ -1274,11 +1274,11 @@ static uint32_t op_btn_avail(void)                      /* a bit per panel butto
         m |= 1u << B_FX;                                /* (MASTER: FX the master FX) */
     return m;
 }
-static void keys_lit(uint32_t *f, uint32_t *d);         /* op_keys.c: the keys' lights */
+static void keys_lit(uint32_t *f, uint32_t *d, uint32_t *h);   /* op_keys.c: the keys' lights */
 static void ui_leds(void)
 {
-    uint8_t nl[FM1_NCOL] = {0}, dl[FM1_NCOL] = {0};
-    uint32_t c, blink = (fm1_ms / 125u) & 1u, armed = op_armed(), avail = op_btn_avail(), kf, kd;
+    uint8_t nl[FM1_NCOL] = {0}, dl[FM1_NCOL] = {0}, hl[FM1_NCOL] = {0};
+    uint32_t c, blink = (fm1_ms / 125u) & 1u, armed = op_armed(), avail = op_btn_avail(), kf, kd, kh;
     static uint8_t ready;
     if (!ready) {
         uint32_t id, p, r;
@@ -1315,13 +1315,14 @@ static void ui_leds(void)
         nl[OP_LAMP_COL] |= (uint8_t)(1u << OP_LAMP_ROW);   /* PLAY's green LED: full */
     else if (lamp_dim())
         dl[OP_LAMP_COL] |= (uint8_t)(1u << OP_LAMP_ROW);   /* ... dim (the HAL's glow layer, as an available button's) */
-    keys_lit(&kf, &kd);                                 /* the keys: full, dim, dark in every mode (op_keys.c, D10) */
+    keys_lit(&kf, &kd, &kh);                            /* the keys: full, half, dim, dark in every mode (op_keys.c, D10) */
     led_keys(nl, kf);
+    led_keys(hl, kh);
     led_keys(dl, kd);
 #if FELUCCA_LIGHTS
     {   /* menu LIGHTS / KEYS: the backlight layer under what is lit; off while a mode lights its keys (D10) */
         uint8_t bl[FM1_NCOL] = {0};
-        uint32_t back = kf | kd ? 0u : lights_keys_mask(), k;
+        uint32_t back = kf | kd | kh ? 0u : lights_keys_mask(), k;
         led_keys(bl, back);
         if (lights_lvl)
             for (k = 0; k < NB; k++)
@@ -1334,6 +1335,8 @@ static void ui_leds(void)
     for (c = 0; c < FM1_NCOL; c++) {                    /* (written on a change only) */
         if (fm1_led[c] != nl[c])
             fm1_led[c] = nl[c];
+        if (fm1_led_half[c] != hl[c])
+            fm1_led_half[c] = hl[c];
         if (fm1_led_dim[c] != dl[c])
             fm1_led_dim[c] = dl[c];
     }

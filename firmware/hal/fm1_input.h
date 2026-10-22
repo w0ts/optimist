@@ -111,6 +111,14 @@ static uint8_t fm1_led[FM1_NCOL];
 #define FM1_LED_DIM_MASK 7u
 #endif
 static uint8_t fm1_led_dim[FM1_NCOL];   /* same layout as fm1_led: half-light marks */
+/* the half level (the user, 2026-10-22: the mute mode's keys "a muted should be dimmed, a on track should be half or 2/3
+ * on, a playing track blink short and full on"): lit as fm1_led one scan frame in (mask + 1), 1/4 of the time (~225 Hz,
+ * no flicker; the eye's log reads it about half), between the dim layer and full. Frame-gated in both scan paths (with
+ * menu LIGHTS too: no timed pulse, so no wait in the tick). An LED in several layers takes the brightest. */
+#ifndef FM1_LED_HALF_MASK
+#define FM1_LED_HALF_MASK 3u
+#endif
+static uint8_t fm1_led_half[FM1_NCOL];  /* same layout as fm1_led: the half level */
 #ifndef FELUCCA_LIGHTS
 #define FELUCCA_LIGHTS 0
 #endif
@@ -139,6 +147,10 @@ static void fm1__led_lines(uint32_t rowmask)
         else
             FM1_PR(FM1_LED_PORT[r], FM1_OUT) &= ~(1u << FM1_LED_BIT[r]);
     }
+}
+static uint32_t fm1__lit(uint32_t p)               /* column p lit full this frame: fm1_led, the half level on its frames */
+{
+    return fm1_led[p] | ((fm1_in.frames & FM1_LED_HALF_MASK) ? 0u : fm1_led_half[p]);
 }
 
 #if FELUCCA_LIGHTS
@@ -320,7 +332,7 @@ static void fm1_input_scan(void)
         fm1__wait(FM1_SETTLE_US);
         fm1_in.raw[p] = (uint8_t)fm1__rows();
         fm1__keys(p);
-        fm1__led_lines(fm1_led[p] | ((fm1_in.frames & FM1_LED_DIM_MASK) ? 0u : fm1_led_dim[p]));
+        fm1__led_lines(fm1__lit(p) | ((fm1_in.frames & FM1_LED_DIM_MASK) ? 0u : fm1_led_dim[p]));
         fm1__wait(FM1_LED_US);
     }
     fm1__led_lines(0);
@@ -404,7 +416,7 @@ static void fm1_input_tick(void)
     uint32_t p = fm1__tick_col, n = p + 1u == FM1_NCOL ? 0u : p + 1u, i;
     fm1__stamp();
     uint32_t w = 0xFFFFu ^ (1u << n) ^ (n < 2u ? 1u << (11u + n) : 0u);
-    uint32_t lit = fm1_led[p], a = fm1_led_dim[p] & ~lit, b = fm1_led_bg[p] & ~lit & ~a;
+    uint32_t lit = fm1__lit(p), a = fm1_led_dim[p] & ~lit, b = fm1_led_bg[p] & ~lit & ~a;
     uint32_t ta = a ? FM1__NS_T(FM1_GLOW_NS) : 0u, tb = b ? FM1__NS_T(fm1_led_bg_ns) : 0u;
     uint32_t tmax = ta > tb ? ta : tb;
     fm1__led_lines(0);
@@ -426,7 +438,7 @@ static void fm1_input_tick(void)
     } else {
         fm1__sr_word(w);
     }
-    fm1__led_lines(fm1_led[n]);
+    fm1__led_lines(fm1__lit(n));
     fm1__tick_col = (uint8_t)n;
     fm1__keys(p);                                  /* its keys now: no wait for the frame's end */
     if (n == 0u)
@@ -440,7 +452,7 @@ static void fm1_input_tick(void)
     fm1__led_lines(0);
     fm1_in.raw[p] = (uint8_t)fm1__rows();          /* column p has been latched one tick */
     fm1__sr_word(0xFFFFu ^ (1u << n) ^ (n < 2u ? 1u << (11u + n) : 0u));
-    fm1__led_lines(fm1_led[n] | ((fm1_in.frames & FM1_LED_DIM_MASK) ? 0u : fm1_led_dim[n]));
+    fm1__led_lines(fm1__lit(n) | ((fm1_in.frames & FM1_LED_DIM_MASK) ? 0u : fm1_led_dim[n]));
     fm1__tick_col = (uint8_t)n;
     fm1__keys(p);                                  /* its keys now: no wait for the frame's end */
     if (n == 0u)

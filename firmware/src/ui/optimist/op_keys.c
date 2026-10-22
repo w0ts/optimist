@@ -18,7 +18,8 @@
  *   SONG's PATTERNS row   as the LFO layer
  *   NAME                  every key with a job dim, the key cycling its letters full
  *   SHIFT / SHIFT2 held   the lanes' black keys, the first 4 white keys and the last upper key dim (lanes, T1 T2 T3 DR,
- *                         ACCENT: op_input.c shift_keys), the muted (SHIFT) or the selected (SHIFT2) full; every page
+ *                         ACCENT: op_input.c shift_keys); SHIFT: the muted dim, the heard half, full ~50 ms on each
+ *                         note; SHIFT2: the selected full; every page
  *                         but a layer's (STEP: its white keys stay its steps)
  *   the drum track        the lanes' black keys and the last upper key (ACCENT) dim, the selected one full (every page)
  *   chord mode (CHORD+)   a synth track with SCL > CHORD on: the 5 modifier black keys dim, the latched ones full
@@ -109,23 +110,24 @@ static int keys_shifted(uint32_t held)
     uint32_t b = mute_mod(held) ? B_OCTDN : sel_mod(held) ? B_OCTUP : NB;
     return b != NB && fm1_ms - op_t0[panel.btn[b] % 14u] >= op_hold_ms();
 }
-/* a note sounding on what a smute_key value names (the user, 2026-10-21: "if there is a note playing on, if not, off"): a track's
- * sequencer notes held (seq_n), DR any lane's hit still lit, a lane its own hit (mx.lit, op_mixer.c mx_tick) */
+/* a note starting on what a smute_key value names (the user, 2026-10-22: "playing track blink should be short and full on"):
+ * MX_FLASH frames from each note-on (op_mixer.c mx_tick): a track's (trk_hits), DR any lane's hit, a lane its own (mx.lit) */
+static uint32_t lane_flash(uint32_t l) { return mx.lit[l] + MX_FLASH > MX_LIT; }
 static uint32_t mute_playing(int32_t id)
 {
     uint32_t l, any = 0;
     if (id == SMUTE_T0 + TRK_DRUM) {
         for (l = 0; l < DRUM_LANES; l++)
-            any |= mx.lit[l];
-        return any != 0u;
+            any |= lane_flash(l);
+        return any;
     }
     if (id == SMUTE_ACC)
         return 0u;                                      /* (no sound of its own: it raises hits) */
     if (id >= SMUTE_T0)
-        return trk[id - SMUTE_T0].seq_n != 0u;
-    return mx.lit[id] != 0u;
+        return mx.tlit[id - SMUTE_T0] != 0u;
+    return lane_flash((uint32_t)id);
 }
-static void keys_shift_lit(uint32_t *f, uint32_t *d)
+static void keys_shift_lit(uint32_t *f, uint32_t *d, uint32_t *h)
 {
     uint32_t k, mute = (uint32_t)mute_mod(fm1_in.buttons);
     for (k = 0; k < 27u; k++) {
@@ -139,21 +141,29 @@ static void keys_shift_lit(uint32_t *f, uint32_t *d)
         }
         if (id < 0 || shift_step_key(k))
             continue;
+        if (mute) {                                     /* mute mode: muted dim, heard half, a note starting full for a moment */
+            uint32_t b = 1u << k;
+            if (mute_playing(id))
+                *f |= b;
+            else if (mx_muted(mx_row_of_smute(id)))
+                *d |= b;
+            else
+                *h |= b;
+            continue;
+        }
         *d |= 1u << k;
-        if (mute)
-            on = mute_playing(id);                      /* (mute mode: a key is lit while its track or lane has a note playing: what is being muted) */
-        else if (id == SMUTE_ACC || id < SMUTE_T0)      /* (a lane: the drum track's, picked) */
+        if (id == SMUTE_ACC || id < SMUTE_T0)           /* (a lane: the drum track's, picked) */
             on = is_drum(TSEL) && ui.lane && lane_selected() == (id == SMUTE_ACC ? DRUM_ACC : (uint32_t)id);
         else
             on = song.sel == (uint32_t)(id - SMUTE_T0);
         *f |= on << k;
     }
 }
-/* the keys' full (*f) and dim (*d) lights now: a bit per key, 0 = F3 .. 26 = G5 */
-static void keys_lit(uint32_t *f, uint32_t *d)
+/* the keys' full (*f), half (*h: the mute mode's heard tracks) and dim (*d) lights now: a bit per key, 0 = F3 .. 26 = G5 */
+static void keys_lit(uint32_t *f, uint32_t *d, uint32_t *h)
 {
     uint32_t blink = (fm1_ms / 250u) & 1u, k;
-    *f = *d = 0;
+    *f = *d = *h = 0;
     if (name_on()) {
         *f = name_leds(d);
         return;
@@ -201,7 +211,7 @@ static void keys_lit(uint32_t *f, uint32_t *d)
             *f = step_leds(blink) & keys_white(16);     /* (STEP: its white keys stay its steps) */
             *d = step_dim();
         }
-        keys_shift_lit(f, d);
+        keys_shift_lit(f, d, h);
         return;
     }
     if (ui.scr == SCR_PROJECT) {
