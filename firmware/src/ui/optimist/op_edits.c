@@ -107,21 +107,62 @@ static void pj_defer(uint32_t op, uint32_t slot)
     pj_slot = (uint8_t)slot;
     transport_req = 2;
 }
+static void op_project_new(void);                       /* op_screens.c */
+#if FELUCCA_PATTERNS
+static int project_open(uint32_t p);                    /* storage/sections/sections.c: the projects (docs/PROJECTS-DESIGN.md) */
+static int project_scope_set(uint32_t p);
+static int state_save(void);
+static int project_clear(uint32_t p);
+static int project_slot_used(uint32_t p);
+static uint32_t project_cur(void);
+#endif
+/* PROJECT page LOAD of slot s, stopped: FELUCCA_PATTERNS, the project opened and its state into the work (none yet: a
+ * blank work in that project); else the section loaded. The slot remembered, the work as loaded */
+static void prj_load_go(uint32_t s)
+{
+#if FELUCCA_PATTERNS
+    int rc = project_open(s);                           /* sections.c */
+    if (rc < 0) {
+        ui_message("LOAD ERROR");
+        return;
+    }
+    if (!rc)
+        op_project_new();
+    ui_message(rc ? "LOADED" : "NEW PROJECT");
+#else
+    project_load(s);
+#endif
+    prj_cur = (int8_t)s;
+    work_mark();
+}
+/* PROJECT page SAVE into slot s, stopped: FELUCCA_PATTERNS, the work as that project's state (another slot than the open
+ * one: that project is the open one from now on, the work as it is); else the section stored. -> 0 saved */
+static int prj_save_go(uint32_t s)
+{
+#if FELUCCA_PATTERNS
+    int rc = s != project_cur() ? project_scope_set(s) : 0;
+    if (!rc)
+        rc = state_save();
+    ui_message(rc == 1 ? "MEM FULL" : rc ? "SAVE ERROR" : "SAVED");
+    if (rc)
+        return rc;
+#else
+    project_save(s);
+#endif
+    prj_cur = (int8_t)s;
+    work_mark();
+    return 0;
+}
 static void pj_tick(void)                               /* once a frame (lay_frame) */
 {
     uint32_t op = pj_op;
     if (!op || song.playing || transport_req)
         return;
     pj_op = 0;
-    if (op == 1u) {
-        project_load(pj_slot);
-        prj_cur = (int8_t)pj_slot;
-        work_mark();
-    } else {
-        project_save(pj_slot);
-        prj_cur = (int8_t)pj_slot;
-        work_mark();
-    }
+    if (op == 1u)
+        prj_load_go(pj_slot);
+    else
+        (void)prj_save_go(pj_slot);
     transport_req = 1;
 }
 static int work_changed(void) { return edt.work_ok && edt.work != work_sig(); }

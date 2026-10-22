@@ -258,6 +258,8 @@ static void risk_tests(void)
 #if FELUCCA_ARRANGER
     {                                                   /* SONG REC over a stored song of parts */
         uint32_t h0;
+        arrangement.count = 2;                          /* (a song of A and B: the chain is the open project's, FELUCCA_PATTERNS: a */
+        arrangement.entry[0].scene = 0, arrangement.entry[1].scene = 1;   /* project switch above reloaded it) */
         op_enter(SCR_HOME);
         frame();
         h0 = rk_state();

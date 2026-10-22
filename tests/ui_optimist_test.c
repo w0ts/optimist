@@ -126,6 +126,8 @@ static void project_apply(const project_t *p, const dlrec_t *d) { proj_apply(p, 
 #if FELUCCA_MOTION
 static void motion_flash_read(uint32_t obj, const project_t *p) { (void)obj; (void)p; }   /* (sections.c's migration reads the motion store; the real one is project.c's, not linked here) */
 #endif
+static void sections_write(void);
+static void persist_flush_now(void) { sections_write(); }   /* (project.c's, not linked here: the arena written before a project opens) */
 #include "../firmware/src/storage/sections/sections.c"
 static uint32_t arr_saves;
 static void arrangement_save(void) { arr_saves++; ui_message("SONG SAVED"); }
@@ -953,14 +955,14 @@ static void confirm_tests(void)
           "PROJECT SAVE into an empty slot: asks first too (amber), nothing written");
 #if FELUCCA_PATTERNS
     tap(B_SAVE);
-    check(name_on() && nm.kind == NK_PROJ && !project_used(3), "PROJECT SAVE with the log: NAME first, nothing written");
+    check(name_on() && nm.kind == NK_PROJ && !prj_slot_used(PR_PROJECT, 3), "PROJECT SAVE with the log: NAME first, nothing written");
     song.playing = 1;                                   /* (an external MIDI clock playing: no STOP here) */
     tap(B_SAVE);                                        /* (the transport stops, NAME's save follows, PLAY again) */
-    check(!name_on() && project_used(3) && !song.playing && transport_req == 1,
+    check(!name_on() && prj_slot_used(PR_PROJECT, 3) && !song.playing && transport_req == 1,
           "NAME while playing: SAVE stops the transport, writes, starts it again");
     transport_req = 0;
-    saves = project_used(3);                            /* (the real log: slot 4 stored) */
-    project_save(0);                                    /* (slot 1 used, for the question below) */
+    saves = prj_slot_used(PR_PROJECT, 3);               /* (the real log: slot 4 stored) */
+    (void)prj_save_go(0);                               /* (slot 1 used, for the question below; FELUCCA_PATTERNS: project 1's state) */
 #else
     tap(B_SAVE);
 #endif
@@ -3379,7 +3381,7 @@ static void name_tests(void)
         name_type(1, 2);                                /* D */
         tap(B_SAVE);
         sec_name(8, b);
-        check(!name_on() && project_used(8) && !strcmp(b, "CD"), "... SAVE: the project saved, its name in the log");
+        check(!name_on() && prj_slot_used(PR_PROJECT, 8) && !strcmp(b, "CD"), "... SAVE: the project saved, its name in the log");
         turn(EN_K2, 1);
         tap(B_SAVE);
         tap(B_SAVE);                                    /* (over a used slot: asked, then NAME) */

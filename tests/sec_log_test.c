@@ -97,7 +97,7 @@ static void put_foreign(uint32_t id, uint32_t seq, const uint8_t *b, uint32_t n)
     sec_rhead_t h;
     uint32_t off = slg_off(slg.head) + slg.fill;
     uint8_t done = 0;
-    h.magic = SEC_RMAGIC, h.id = (uint8_t)id, h.state = 0xFFu, h.seq = seq, h.len = (uint16_t)n, h.rsv = 0xFFFFu;
+    h.magic = SEC_RMAGIC, h.id = (uint8_t)id, h.state = 0xFFu, h.seq = seq, h.len = (uint16_t)n, h.proj = 0xFFu, h.dead = 0xFFu;
     h.crc = slg_rcrc(&h, b);
     st_prog(off, &h, sizeof h);
     st_prog(off + SEC_HEAD, b, n);
@@ -227,6 +227,182 @@ static void busy_sections(void)
     check("... after each restart all 16 sections decode to their projects, the spare kept", decodes);
 }
 
+#if SLG_V2
+/* ---- format 2 (docs/PROJECTS-DESIGN.md): every record tagged with its project, the index holding the open one */
+static const uint32_t PJ[2] = {3u, 5u};
+static uint8_t pmodel[2][SLG_IDS][SEC_REC_MAX];   /* what each id holds in project PJ[j] (a device-wide id: in both) */
+static uint32_t pmlen[2][SLG_IDS];
+static int pput(uint32_t j, uint32_t id, uint32_t n, int playing)   /* project PJ[j] open: id := data */
+{
+    int rc;
+    if (slg.proj != PJ[j])
+        slg_open_proj(PJ[j]);
+    rc = slg_put(id, data, n, playing);
+    if (!rc) {
+        uint32_t t;
+        for (t = 0; t < 2u; t++)
+            if (t == j || SLG_GLOBAL(id)) {
+                memcpy(pmodel[t][id], data, n);
+                pmlen[t][id] = n;
+            }
+    }
+    return rc;
+}
+static int psame(uint32_t j)                          /* project PJ[j] opened: every id as its model */
+{
+    uint32_t i;
+    if (slg_open_proj(PJ[j]))
+        return 0;
+    for (i = 0; i < SLG_IDS; i++) {
+        int n = slg_get(i, got);
+        if (n != (int)pmlen[j][i] || (n > 0 && memcmp(got, pmodel[j][i], (uint32_t)n)))
+            return 0;
+    }
+    return 1;
+}
+/* valid records of (proj, id) in the whole area: how many (a cut dead mark leaves two until a compaction) */
+static uint32_t pcount(uint32_t proj, uint32_t id)
+{
+    uint32_t s, p, n = 0;
+    for (s = 0; s < SEC_LOG_SECTORS; s++) {
+        sec_shead_t sh;
+        memcpy(&sh, nor + slg_off(s), sizeof sh);
+        if (sh.magic != SEC_MAGIC)
+            continue;
+        for (p = SEC_HEAD; p + SEC_HEAD <= SEC_SECT;) {
+            sec_rhead_t h;
+            memcpy(&h, nor + slg_off(s) + p, sizeof h);
+            if (h.magic != SEC_RMAGIC || h.len > SEC_REC_MAX)
+                break;
+            n += h.state == 0x00u && h.dead == 0xFFu && h.proj == proj && h.id == id;
+            p += SEC_ALIGN(SEC_HEAD + h.len);
+        }
+    }
+    return n;
+}
+static void scoped_log(void)
+{
+    uint32_t i, k, n, ok = 1, cuts = 0, spare = 1, before;
+    int rc;
+    memset(nor, 0xFF, sizeof nor);
+    memset(pmlen, 0, sizeof pmlen);
+    slg_boot();
+    ok = slg.up && slg.proj == 0u;
+    make(500, 9000);
+    ok &= pput(0, 0, 500, 0) == 0;
+    make(300, 9001);
+    ok &= pput(0, 30, 300, 0) == 0;
+    ok &= slg_open_proj(PJ[1]) == 0 && !slg_has(0) && !slg_has(30) && slg_get(0, got) == 0;
+    make(200, 9002);
+    ok &= pput(1, 0, 200, 0) == 0;
+    ok &= psame(0) && psame(1);
+    slg_boot();
+    check("two projects: one's records are not seen by the other; back and forth and after a restart, each as written",
+          ok && slg.proj == 0u && psame(1) && psame(0));
+    make(192, 9004);
+    ok = pput(1, 21, 192, 0) == 0 && slg_has(21) && slg_open_proj(PJ[0]) == 0 && slg_has(21) && psame(0) && psame(1);
+    make(192, 9005);
+    ok &= pput(0, 21, 192, 0) == 0 && psame(1) && psame(0);
+    check("a device-wide id (21 the project names) written in one project is seen in every project", ok);
+    for (k = 0, ok = 1; k < 400u; k++) {              /* random writes in both, compactions, restarts */
+        uint32_t j = rnd(2), id = rnd(SLG_IDS);
+        n = rnd(4) ? 100u + rnd(900) : 0u;
+        make(n, 9100 + k);
+        rc = pput(j, id, n, 0);
+        if (rc == 1)
+            pput(j, id, 0, 0);
+        ok &= rc != -1;
+        if (k % 17u == 0u)
+            slg_boot();
+        if (k % 5u == 0u)
+            ok &= psame(rnd(2));
+    }
+    check("400 random writes in two projects (switches, compactions, restarts): no flash error, each project's records as last written on the way", ok);
+    ok = psame(0);
+    k = psame(1);
+    before = slg_live_bytes();
+    ok &= slg_open_proj(PJ[0]) == 0;
+    n = slg_live_bytes();
+    check("... at the end each project's records as last written", ok && k);
+    if (n != before)
+        printf("gauge: %u B seen from project %u, %u B from project %u\n", before, PJ[1], n, PJ[0]);
+    check("... the gauge the same from either project", n == before);
+    for (k = 0, ok = 1; k < 300u; k++) {              /* writes cut at a random program, in either project */
+        uint32_t j = rnd(2), id = rnd(SLG_IDS), p0;
+        n = 300u + rnd(1200);
+        make(n, 9600 + k);
+        if (k % 5u == 0u)
+            pput(j, rnd(SEC_IDS), 0, 0);
+        if (slg.proj != PJ[j])
+            slg_open_proj(PJ[j]);
+        p0 = progs;
+        fail_after = rnd(3) ? (int)rnd(5) : (int)rnd(30);
+        rc = slg_put(id, data, n, 1);
+        fail_after = -1;
+        slg_boot();
+        if (rc == 0) {
+            uint32_t t;
+            for (t = 0; t < 2u; t++)
+                if (t == j || SLG_GLOBAL(id)) {
+                    memcpy(pmodel[t][id], data, n);
+                    pmlen[t][id] = n;
+                }
+        }
+        cuts += rc != 0 && progs > p0;
+        ok &= psame(j) && psame(1u - j);
+        spare &= slg_erased() < SEC_LOG_SECTORS;
+    }
+    check("writes cut at a random program in either project (compactions in them): nothing of either lost, a spare after every start",
+          ok && cuts > 30u && spare);
+    {   /* the dead mark: a superseded record's byte is programmed by the write; a mark cut (two live records of one key)
+         * is resolved by the compaction of their sector: the newer stays, the older never comes back in that project */
+        uint32_t s, two;
+        memset(nor, 0xFF, sizeof nor);
+        memset(pmlen, 0, sizeof pmlen);
+        slg_boot();
+        make(400, 9900);
+        ok = pput(0, 5, 400, 0) == 0;
+        make(400, 9901);
+        ok &= pput(0, 5, 400, 0) == 0 && pcount(PJ[0], 5) == 1u;   /* (the first marked dead by the second) */
+        make(400, 9902);
+        fail_after = 3;                                /* (head, bytes, state byte: then the mark of the old one fails) */
+        rc = slg_put(5, data, 400, 0);
+        fail_after = -1;
+        if (!rc)
+            memcpy(pmodel[0][5], data, 400), pmlen[0][5] = 400;
+        two = pcount(PJ[0], 5);
+        ok &= rc == 0 && two == 2u;
+        for (k = 0; k < 200u && ok; k++) {             /* the other project fills the log: the sector holding both compacts */
+            make(1000, 9910 + k);
+            rc = pput(1, (k % 14u) + 1u, 1000, 0);
+            if (rc == 1)
+                pput(1, (k % 14u) + 1u, 0, 0);
+            ok &= rc != -1;
+        }
+        for (s = 0; s < SEC_LOG_SECTORS; s++)
+            ok &= slg.sorder[s] == 0u || slg.sorder[s] > 1u;   /* (the first sector was compacted and erased) */
+        check("a superseded record is marked dead by the write; a mark cut short leaves two until their sector compacts: the newer wins",
+              ok && psame(0) && pcount(PJ[0], 5) == 1u && psame(1));
+    }
+    {   /* MEM FULL counts every project: one fills the log, the other is refused, but its playing section's store takes the reserve */
+        memset(nor, 0xFF, sizeof nor);
+        memset(pmlen, 0, sizeof pmlen);
+        slg_boot();
+        make(SEC_REC_MAX, 9950);
+        for (i = 0, rc = 0; i < SLG_IDS && rc == 0; i++)
+            rc = pput(0, i, SEC_REC_MAX, 0);
+        ok = rc == 1 && slg_open_proj(PJ[1]) == 0 && slg_used_pct() >= 60u && slg_more(SEC_REC_MAX) == 0u;
+        make(SEC_REC_MAX, 9951);
+        ok &= pput(1, 0, SEC_REC_MAX, 0) == 1 && pput(1, 0, SEC_REC_MAX, 1) == 0 && psame(1) && psame(0);
+        check("MEM FULL counts every project: the full one refuses the other, whose playing section still saves (the reserve)", ok);
+        for (i = 0; i < SLG_IDS; i++)
+            pput(0, i, 0, 0), pput(1, i, 0, 0);
+        check("... both cleared: room again", slg_used_pct() == 0u && slg_more(500) >= 30u);
+    }
+    printf("format 2: %u sectors at 0x%X, room %u B; 500-byte records: %u fit\n", SEC_LOG_SECTORS, SEC_LOG_BASE, SEC_ROOM, slg_more(500));
+}
+#endif
+
 int main(void)
 {
     uint32_t i, k, n, cut_ok = 1, cuts = 0, comp0, spare = 1;
@@ -338,10 +514,31 @@ int main(void)
     for (i = 0; i < SEC_IDS; i++)
         put(i, 0, 0);
     check("... cleared: room again", slg_used_pct() == 0u && slg_more(500) >= 30u);
+    {   /* dense distinct ids until refused, then a new id's playing store takes the reserve: a clear must still go in
+         * (else nothing can ever be deleted to make room: the log is stuck at MEM FULL) */
+        memset(nor, 0xFF, sizeof nor);
+        memset(mlen, 0, sizeof mlen);
+        slg_boot();
+        make(SEC_REC_MAX, 9);
+        for (i = 0, rc = 0; i < SEC_IDS && rc == 0; i++)
+            rc = put(i, SEC_REC_MAX, 0);
+        ok = rc == 1;
+        make(SEC_REC_MAX, 10);
+        ok &= put(SEC_ID_PAT0, SEC_REC_MAX, 1) == 0;
+        rc = put(0, 0, 0);
+        ok &= rc == 0 && !slg_has(0) && same_as_model();
+        rc = put(1, 0, 0);
+        make(500, 11);
+        check("a dense log whose reserve a playing store took: a clear still goes in; two clears, and a store goes in again",
+              ok && rc == 0 && put(2, 500, 0) == 0 && same_as_model());
+    }
     printf("log: %u sectors of 4 KiB, room %u B (a raw section %u B kept in reserve); 500-byte sections: %u fit\n",
            SEC_LOG_SECTORS, SEC_ROOM, SEC_REC_MAX, slg_more(500));
     foreign_ids();
     busy_sections();
+#if SLG_V2
+    scoped_log();
+#endif
     printf("sec log test %s\n", bad ? "FAILED" : "passed");
     return bad != 0;
 }

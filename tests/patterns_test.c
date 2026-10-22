@@ -25,6 +25,7 @@
 #ifndef FELUCCA_MOTION
 #define FELUCCA_MOTION 1
 #endif
+#define SEC_LOG_SECTORS 8u                             /* (the log as the counts here assume: 8 sectors; a PATTERNS build has 32 / 20) */
 #define main hostsim_main
 #include "hostsim.c"
 #undef main

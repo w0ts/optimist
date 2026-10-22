@@ -1370,6 +1370,10 @@ static void autosave_tick(void)                /* main loop */
     int settled, overdue;
     if (!flash_ok || song.playing || transport_req || rec_wait || ft_on || ui.menu || now - autosave_checked < 1000u)
         return;
+#if FELUCCA_PATTERNS
+    if (slg.proj != open_proj)
+        return;                                         /* (the log's index lent to another project: a backup, ed_backup.c) */
+#endif
     if (fm1_in.notes || fm1_in.buttons || now - ui_input_ms < AUTOSAVE_HANDS_MS)
         return;                                         /* (hands on the panel: the capture and its hash, a few ms, wait for them to
                                                          * rest, never between a press and its release; checked again next pass) */
@@ -1547,9 +1551,9 @@ static void persist_boot(void)                    /* before settings_init / pane
         sl25_set_scan();                           /* (SLOOP 2.5 / 2.6's record: never read as ours, never erased) */
 #endif
         int n = st_load(OBJ_SETTINGS, &p, sizeof p), ok = 0, song = 1;   /* (song: the record has a song order) */
-        if (n >= PERSIST4_LEN && p.magic == PERSIST_MAGIC4) {   /* PER4: the one layout of every build */
+        if (n >= PERSIST4_LEN0 && p.magic == PERSIST_MAGIC4) {   /* PER4: the one layout of every build */
             if (n < (int)sizeof p)
-                memset((uint8_t *)&p + n, 0, sizeof p - (uint32_t)n);   /* (a normal build's record in the DUALCFG image) */
+                memset((uint8_t *)&p + n, 0, sizeof p - (uint32_t)n);   /* (a record from before open_proj; a normal build's in the DUALCFG image) */
             ok = 1;
         } else {                                   /* an older one: as it was read before PER4, then turned into PER4 */
             n = st_load(OBJ_SETTINGS, &p3, sizeof p3);
@@ -1614,6 +1618,9 @@ static void persist_boot(void)                    /* before settings_init / pane
 #if FELUCCA_BLE
             persist_ble(&p, 0);                    /* (the BLE address, trims, bond, devices) */
 #endif
+#if FELUCCA_PATTERNS
+            open_proj = (uint8_t)(p.open_proj < 16u ? p.open_proj : 0u);   /* (the open project: sections.c) */
+#endif
             persist_saved = p;
         } else if (n == (int)(8u + sizeof(panel_t)) && p3.magic == 0x50455231u) {   /* "PER1": palette, panel */
             const uint32_t *w = (const uint32_t *)&p3;
@@ -1633,7 +1640,11 @@ static void persist_boot(void)                    /* before settings_init / pane
 #endif
 #if SEC_LOGGED
     sec_boot();                                    /* sections.c: the log (old project slots migrated first) */
-#if FELUCCA_ARRANGER
+#if FELUCCA_PATTERNS
+    if (slg.up)
+        (void)slg_open_proj(open_proj);            /* the open project's records (format 2), its chain, BARS, sources */
+    proj_scope_read();
+#elif FELUCCA_ARRANGER
     if (song_tag && !sec_song_get(&arrangement, song_tag))
         song_tag = 0;                              /* (not the log's chain: the record's 16 parts) */
     sec_sbars_get();                               /* (the scenes' BARS: their record, none: AUTO) */
@@ -1694,6 +1705,9 @@ static void settings_save(void)
 #if FELUCCA_ARRANGER
     arr_to_rec(&p.arrangement, &arrangement, song_tag);
 #endif
+#if FELUCCA_PATTERNS
+    p.open_proj = open_proj;                       /* (the open project: sections.c; the chain above is a copy, the log's is read) */
+#endif
 #if FELUCCA_FAVORITES
     persist_fav_save(&p);
 #endif
@@ -1732,7 +1746,11 @@ static void arrangement_save(void)
     if (SAVE_WAITS_PLAY()) { ui_message("STOP BEFORE SAVE"); return; }
 #if FELUCCA_FLASH && SEC_LOGGED
     if (flash_ok) {                                /* the whole chain in the log first, then its tag (sections.c) */
+#if FELUCCA_PATTERNS
+        int rc = sec_song_put_all(&arrangement);   /* (format 2: the project's chain, whole, no tag) */
+#else
         int rc = sec_song_put(&arrangement, &song_tag);
+#endif
         if (rc) {
             ui_message(rc == 1 ? "MEM FULL" : "SAVE ERROR");
             return;
@@ -1746,9 +1764,13 @@ static void arrangement_save(void)
     settings_save();
 #if FELUCCA_FLASH
     if (flash_ok) {
+#if FELUCCA_PATTERNS
+        ui_message("SONG SAVED");                  /* (the log's write above succeeded) */
+#else
         arr_rec_t r;
         arr_to_rec(&r, &arrangement, song_tag);
         ui_message(memcmp(&persist_saved.arrangement, &r, sizeof r) ? "SAVE ERROR" : "SONG SAVED");
+#endif
         return;
     }
 #endif
@@ -1836,6 +1858,10 @@ static void proj_slots_drop(void)
 static void sections_flush(void)                        /* main loop */
 {
     static uint32_t tried;
+#if FELUCCA_PATTERNS
+    if (slg.proj != open_proj)
+        return;                                         /* (the log's index lent to another project: a backup, ed_backup.c) */
+#endif
     if (srec_done) {
         song_dirty = srec_done != 0xFFu;
         if (song_dirty) {

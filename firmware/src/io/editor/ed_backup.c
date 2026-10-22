@@ -77,6 +77,10 @@ enum { BK_ST, BK_USR, BK_FM6, BK_SEC, BK_PRJ, BK_LOG, BK_SNP };   /* BK_SEC: a s
 #define BK_DLID1 0xEAu                        /* BK_LOG ids of DLF1, DLF2: the same records in two packs, u16 lengths (the
                                                * lanes' LFO 2 and ENV2 took a record past 255 bytes) */
 #define BK_DLID2 0xE9u
+#if FELUCCA_PATTERNS
+#define BK_PJS 7u                             /* kind: a project's records as one stream, PJ01..PJ16 (docs/PROJECTS-DESIGN.md) */
+#define BK_NMID 0xE6u                         /* BK_LOG id of PNAM: the project names (u8 id 21, u16 length, the record) */
+#endif
 typedef struct {
     char tag[4];
     uint8_t kind, id, on;                     /* id: storage.c OBJ_* / USR slot; on: the build has it */
@@ -87,6 +91,12 @@ static const bk_obj_t BK_OBJS[] = {
 #if SEC_LOGGED
 #define BK_S(n) {{'S', (char)('0' + (n) / 10), (char)('0' + (n) % 10), ' '}, BK_SEC, (n) - 1, (n) <= FELUCCA_SECTIONS}
 #define BK_P(n) {{'P', 'T', 'N', (char)('0' + (n))}, BK_LOG, BK_PID + (n) - 1, 1}
+#if FELUCCA_PATTERNS
+#define BK_PJ(n) {{'P', 'J', (char)('0' + (n) / 10), (char)('0' + (n) % 10)}, BK_PJS, (n) - 1, 1}
+    BK_PJ(1), BK_PJ(2), BK_PJ(3), BK_PJ(4), BK_PJ(5), BK_PJ(6), BK_PJ(7), BK_PJ(8),   /* each project whole (its state, scenes, */
+    BK_PJ(9), BK_PJ(10), BK_PJ(11), BK_PJ(12), BK_PJ(13), BK_PJ(14), BK_PJ(15), BK_PJ(16),   /* patterns, song, records) */
+    {{'P', 'N', 'A', 'M'}, BK_LOG, BK_NMID, 1},           /* the project names (device-wide) */
+#endif                                                    /* (then the objects of before: restored into the open project, never written) */
     BK_P(1), BK_P(2), BK_P(3), BK_P(4), BK_P(5), BK_P(6),   /* (the patterns, before the scenes S01.. name them) */
     BK_S(1), BK_S(2), BK_S(3), BK_S(4), BK_S(5), BK_S(6), BK_S(7), BK_S(8),
     BK_S(9), BK_S(10), BK_S(11), BK_S(12), BK_S(13), BK_S(14), BK_S(15), BK_S(16),
@@ -159,7 +169,8 @@ static struct {
     int8_t obj;                               /* its index, -1 none */
     uint8_t reboot;                           /* BK_END done: main.c restarts 150 ms later (the reply out first) */
     uint32_t reboot_ms;
-} bk = {0, 0, 0, -1, 0, 0};
+    uint32_t scrc;                            /* a project stream's CRC so far (st_crc_upd; it is not kept in RAM) */
+} bk = {0, 0, 0, -1, 0, 0, 0};
 #define BK_BUF ((uint8_t *)(void *)&proj_tmp)
 
 /* the build switches the backup file records (the editor warns about objects a build does not have): bit 0
@@ -411,12 +422,147 @@ static uint32_t bk_fx_commit(const uint8_t *b, uint32_t n, uint32_t lo, uint32_t
 #endif
 
 /* object i's length and CRC-32 (0 / 0: nothing stored); a storage object's payload is left in st_buf */
+#if SEC_LOGGED && FELUCCA_PATTERNS
+/* ---- PJ01..PJ16: project p's records as one stream, in id order: u8 id, u16 length, the record as the log holds it, for
+ * every id of the project's (never a device-wide one). Read: the index switched to p for the command (sec_log.c
+ * slg_open_proj) and back to the open project after it (bk_scope_back: the main loop's writers never meet another
+ * project's index; project.c autosave_tick and sections_flush hold off while it is lent anyway); the length and CRC of
+ * the project last asked are kept (BK_READ asks each chunk). Restore: the index p's from BK_BEGIN to BK_COMMIT, each
+ * record written once whole (checked as a load checks it; one the firmware would not load is skipped, the rest goes on) */
+static struct { uint8_t p, ok; uint32_t len, crc; } bk_pj;      /* (the cache: project p's stream length and CRC) */
+static struct { uint8_t hn, h[3]; uint32_t got, len; } bk_ps;    /* a restore's stream: the header so far, the record's bytes so far */
+static int bk_scope(uint32_t p) { return slg.proj == p ? 0 : slg_open_proj(p); }   /* the index: project p's (0 ok) */
+static void bk_scope_back(void) { (void)bk_scope(open_proj); }
+/* the stream of the project the index holds: its length; with buf, its bytes from off (up to n: those copied); with crc, its CRC */
+static uint32_t bk_pj_walk(uint32_t off, uint8_t *buf, uint32_t n, uint32_t *crc)
+{
+    uint32_t id, pos = 0, got = 0, c = 0xFFFFFFFFu;
+    for (id = 0; id < SLG_IDS; id++) {
+        uint8_t h[3];
+        uint32_t k;
+        int rl;
+        if (SLG_GLOBAL(id) || !slg_has(id) || (rl = slg_get(id, sec_rbuf)) <= 0)
+            continue;
+        h[0] = (uint8_t)id, h[1] = (uint8_t)rl, h[2] = (uint8_t)((uint32_t)rl >> 8);
+        for (k = 0; k < 2u; k++) {                         /* the header, then the record */
+            const uint8_t *src = k ? sec_rbuf : h;
+            uint32_t len = k ? (uint32_t)rl : 3u;
+            if (crc)
+                c = st_crc_upd(c, src, len);
+            if (buf && pos + len > off && got < n) {
+                uint32_t s = off > pos ? off - pos : 0u, t = len - s;
+                if (t > n - got)
+                    t = n - got;
+                memcpy(buf + got, src + s, t);
+                got += t;
+            }
+            pos += len;
+        }
+    }
+    if (crc)
+        *crc = ~c;
+    return buf ? got : pos;
+}
+static uint32_t bk_pj_info(uint32_t p, uint32_t *crc)   /* project p's stream: its length (0 none), its CRC */
+{
+    if (!bk_pj.ok || bk_pj.p != p) {
+        if (bk_scope(p)) {
+            *crc = 0;
+            return 0;
+        }
+        bk_pj.len = bk_pj_walk(0, 0, 0, &bk_pj.crc);
+        bk_pj.p = (uint8_t)p;
+        bk_pj.ok = 1;
+        bk_scope_back();
+    }
+    *crc = bk_pj.crc;
+    return bk_pj.len;
+}
+static const uint8_t *bk_pj_chunk(uint32_t p, uint32_t off, uint32_t n)   /* n bytes of project p's stream from off -> st_buf */
+{
+    if (!bk_scope(p)) {
+        (void)bk_pj_walk(off, st_buf, n, 0);
+        bk_scope_back();
+    }
+    return st_buf;
+}
+/* a record of a restore's stream (id, n bytes in BK_BUF) into the project the index holds: 0 written, 2 not one the firmware
+ * would load (skipped), 7 not written (MEM FULL, flash) */
+static uint32_t bk_pj_record(uint32_t id, uint32_t n)
+{
+    int ok = 0;
+    if (n > SEC_REC_MAX || SLG_GLOBAL(id))
+        return 2;
+    if (id < SEC_IDS || id == SEC_ID_STATE)
+        ok = sec_decode(BK_BUF, n, &sec_stage_p, &sec_stage_d) != 0;
+    else if (id >= SEC_ID_PAT0 && id < SEC_ID_PAT0 + NTRK * PAT_N)
+        ok = pat_decode(BK_BUF, n, (id - SEC_ID_PAT0) / PAT_N, &sec_stage_p.t[0], 0, 0) != 0;
+#if FELUCCA_ARRANGER
+    else if (id == SEC_ID_SONG)
+        ok = n >= 4u && n == 4u + 2u * BK_BUF[0] && BK_BUF[0] <= ARR_STEPS;
+    else if (id == SEC_ID_SBARS)
+        ok = n == 16u;
+#endif
+    else if (id == SEC_ID_PSTATE)
+        ok = n == NTRK;
+#if FELUCCA_AUTO
+    else if ((id >= SX_ID0 && id <= SX_ID_AUTO) || id == SX_ID_STATE)
+        ok = n > 4u && n <= sizeof sx_rbuf;
+#endif
+    else if ((id >= FXR_ID0 && id <= FXR_ID_AUTO) || id == FXR_ID_STATE)
+        ok = n > 4u && n <= sizeof fxr_rbuf;
+    else if ((id >= DLR_ID0 && id <= DLR_ID_AUTO) || id == DLR_ID_STATE)
+        ok = n > 4u && n <= sizeof dlr_rbuf;
+    sec_stage_id = -1;                                 /* (the stage was the check's scratch) */
+    if (!ok)
+        return 2;
+    return slg_put(id, BK_BUF, n, 1) ? 7u : 0u;
+}
+/* a chunk (b, n bytes) of a restore's stream: the records written as they complete; 0 ok, 2 not a stream, 7 not written */
+static uint32_t bk_pj_feed(const uint8_t *b, uint32_t n)
+{
+    while (n) {
+        if (bk_ps.hn < 3u) {
+            bk_ps.h[bk_ps.hn++] = *b++, n--;
+            if (bk_ps.hn == 3u) {
+                bk_ps.len = (uint32_t)bk_ps.h[1] | (uint32_t)bk_ps.h[2] << 8;
+                bk_ps.got = 0;
+                if (!bk_ps.len || bk_ps.len > SEC_REC_MAX)
+                    return 2;
+            }
+            continue;
+        }
+        {
+            uint32_t t = bk_ps.len - bk_ps.got;
+            if (t > n)
+                t = n;
+            memcpy(BK_BUF + bk_ps.got, b, t);
+            bk_ps.got += t, b += t, n -= t;
+            if (bk_ps.got == bk_ps.len) {
+                if (bk_pj_record(bk_ps.h[0], bk_ps.len) == 7u)
+                    return 7;
+                bk_ps.hn = 0;
+            }
+        }
+    }
+    return 0;
+}
+#define BK_PJ_BUF(i, off, n) BK_OBJS[i].kind == BK_PJS ? bk_pj_chunk(BK_OBJS[i].id, off, n) :
+#else
+#define BK_PJ_BUF(i, off, n)
+#endif
 static uint32_t bk_info(uint32_t i, uint32_t *crc)
 {
     const bk_obj_t *o = &BK_OBJS[i];
     *crc = 0;
     if (!flash_ok)
         return 0;
+#if SEC_LOGGED && FELUCCA_PATTERNS
+    if (o->kind == BK_PJS)
+        return bk_pj_info(o->id, crc);
+    if (o->kind == BK_SEC || (o->kind == BK_LOG && o->id != BK_NMID))
+        return 0;                                     /* (the objects of before: restored into the open project, never written) */
+#endif
 #if BK_SNAP_ON
     if (o->kind == BK_SNP)
         return bk_snp_info(crc);
@@ -446,6 +592,13 @@ static uint32_t bk_info(uint32_t i, uint32_t *crc)
             n = 0;                                     /* (DLFO: restored only, never written) */
         else if (o->kind == BK_LOG && o->id >= BK_PID && o->id < BK_XID)
             n = (int)bk_pt_pack(o->id - BK_PID, sec_rbuf);
+#if FELUCCA_PATTERNS
+        else if (o->kind == BK_LOG && o->id == BK_NMID) {   /* PNAM: u8 id, u16 length, the names' record */
+            n = slg_has(SEC_ID_NAMES) ? slg_get(SEC_ID_NAMES, sec_rbuf + 3) : 0;
+            if (n > 0)
+                sec_rbuf[0] = SEC_ID_NAMES, sec_rbuf[1] = (uint8_t)n, sec_rbuf[2] = (uint8_t)((uint32_t)n >> 8), n += 3;
+        }
+#endif
         else if (o->kind == BK_LOG)
             n = slg_get(o->id, sec_rbuf);
         else if (o->on && project_used(o->id)) {      /* (BK_SEC: pending in RAM, else the log's) */
@@ -548,6 +701,14 @@ static __attribute__((noinline)) uint32_t bk_commit_sec(uint32_t i)
         return bk_dl_commit(BK_BUF, n, BK_FX_SPLIT, 16, 3);
     if (BK_OBJS[i].kind == BK_LOG && id >= BK_PID && id < BK_XID)
         return bk_pt_commit(BK_BUF, n);
+#if FELUCCA_PATTERNS
+    if (BK_OBJS[i].kind == BK_LOG && id == BK_NMID) {  /* PNAM: the names' record, whole */
+        if (n != 3u + 16u * SEC_NAME_LEN || BK_BUF[0] != SEC_ID_NAMES || ((uint32_t)BK_BUF[1] | (uint32_t)BK_BUF[2] << 8) != n - 3u)
+            return 2;
+        sec_nm.seq = 0;                                /* (read again) */
+        return slg_put(SEC_ID_NAMES, BK_BUF + 3, n - 3u, 1) ? 7u : 0u;
+    }
+#endif
 #if FELUCCA_ARRANGER
     if (BK_OBJS[i].kind == BK_LOG)                     /* the song chain: count, loop, 2 spare, the parts */
         return n < 4u || n != 4u + 2u * BK_BUF[0] || BK_BUF[0] > ARR_STEPS ? 2u : slg_put(id, BK_BUF, n, 1) ? 7u : 0u;
@@ -660,6 +821,10 @@ static void bk_close(void)
 {
     bk.obj = -1;
     proj_tmp_lent = 0;
+#if SEC_LOGGED && FELUCCA_PATTERNS
+    bk_scope_back();                                   /* (a project stream's restore cut: the open project's index again) */
+    bk_pj.ok = 0;
+#endif
 }
 
 /* a backup / restore command; 0 = not one of them: no reply */
@@ -712,7 +877,7 @@ static int ed_backup(uint32_t cmd, const uint8_t *a, uint32_t na)
         n = bk_info(i, &crc);
         n = off < n ? (n - off > BK_CHUNK ? BK_CHUNK : n - off) : 0u;
         {
-            const uint8_t *p = BK_OBJS[i].kind == BK_ST ? st_buf + off : BK_SEC_BUF(i, off) BK_SNP_BUF(i, off, n)
+            const uint8_t *p = BK_OBJS[i].kind == BK_ST ? st_buf + off : BK_PJ_BUF(i, off, n) BK_SEC_BUF(i, off) BK_SNP_BUF(i, off, n)
                                BK_OBJS[i].kind == BK_FM6 ? fm6_bank_xip + off : smp_user_xip(BK_OBJS[i].id) + off;
             ed_b(i);
             ed_b32(off, 3);
@@ -732,7 +897,11 @@ static int ed_backup(uint32_t cmd, const uint8_t *a, uint32_t na)
             rc = 1;
         else if (!BK_OBJS[i].on)
             rc = 5;
-        else if (n > (BK_OBJS[i].kind == BK_FM6 ? BK_FM6_N : BK_OBJS[i].kind >= BK_SEC ? (uint32_t)sizeof proj_tmp : ST_PAYLOAD_MAX) ||
+        else if (n > (BK_OBJS[i].kind == BK_FM6 ? BK_FM6_N :
+#if SEC_LOGGED && FELUCCA_PATTERNS
+                      BK_OBJS[i].kind == BK_PJS ? SEC_LOG_SECTORS * SEC_SECT :   /* (a project stream: up to the whole log) */
+#endif
+                      BK_OBJS[i].kind >= BK_SEC ? (uint32_t)sizeof proj_tmp : ST_PAYLOAD_MAX) ||
                  (BK_OBJS[i].kind == BK_FM6 && n != BK_FM6_N))
             rc = 6;
         else if (song.playing || transport_req)
@@ -747,6 +916,15 @@ static int ed_backup(uint32_t cmd, const uint8_t *a, uint32_t na)
             bk.len = n;
             bk.crc = ed_r32(a + 4, 5);
             bk.got = 0;
+#if SEC_LOGGED && FELUCCA_PATTERNS
+            if (BK_OBJS[i].kind == BK_PJS) {                   /* the stream's records go into that project as they come */
+                bk_ps.hn = 0;
+                bk.scrc = 0xFFFFFFFFu;
+                bk_pj.ok = 0;
+                if (bk_scope(BK_OBJS[i].id))
+                    rc = 7, bk.obj = -1;
+            }
+#endif
         }
         break;                                                 /* (-> i, rc) */
     case ED_BK_DATA:
@@ -756,6 +934,20 @@ static int ed_backup(uint32_t cmd, const uint8_t *a, uint32_t na)
         off = ed_r32(a + 1, 3);
         if (!proj_tmp_lent || bk.obj != (int8_t)i || off != bk.got)
             rc = 1;
+#if SEC_LOGGED && FELUCCA_PATTERNS
+        else if (BK_OBJS[i].kind == BK_PJS) {                  /* a project stream: the chunk into st_buf, its records written */
+            n = ed_unpack7(a + 9, na - 9u, st_buf, bk.len - off < BK_CHUNK ? bk.len - off : BK_CHUNK);
+            if (!n)
+                rc = 1;
+            else if (st_crc32(st_buf, n) != ed_r32(a + 4, 5))
+                rc = 2;                                        /* (the editor sends it again) */
+            else {
+                bk.scrc = st_crc_upd(bk.scrc, st_buf, n);
+                bk.got += n;
+                rc = bk_pj_feed(st_buf, n);                    /* (7: not written; a record skipped is no error) */
+            }
+        }
+#endif
         else {
             n = ed_unpack7(a + 9, na - 9u, BK_BUF + off, bk.len - off < BK_CHUNK ? bk.len - off : BK_CHUNK);
             if (!n)
@@ -778,6 +970,13 @@ static int ed_backup(uint32_t cmd, const uint8_t *a, uint32_t na)
             rc = 1;
         else if (song.playing || transport_req)
             rc = 3;
+#if SEC_LOGGED && FELUCCA_PATTERNS
+        else if (BK_OBJS[i].kind == BK_PJS) {                  /* a project stream: written as it came; whole, its CRC */
+            rc = bk.got != bk.len || ~bk.scrc != bk.crc || bk_ps.hn ? 2u : 0u;
+            bk_scope_back();
+            bk_pj.ok = 0;
+        }
+#endif
         else if (bk.got != bk.len || st_crc32(BK_BUF, bk.len) != bk.crc)
             rc = 2;
         else if (!BK_ST_OK(i))

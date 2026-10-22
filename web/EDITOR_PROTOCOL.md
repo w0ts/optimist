@@ -258,12 +258,14 @@ A restore writes in the list's order (the drum records before the projects, the 
 
 | Tag | What | Kind |
 | --- | --- | --- |
-| SETT | settings, the learned panel, the song's first 16 parts | 0 |
+| SETT | settings, the learned panel, the song's first 16 parts (PATTERNS: the open project too) | 0 |
 | DLNS | the projects' drum records | 0 |
-| PTN1..PTN6 | the per-track patterns and their state (u8 log id, u16 length, the record; as many as fit each) | 5 |
-| S01..S16 | song sections A-P (`FELUCCA_SECTIONS` 8 or 16; S09..S16 listed as not in a build with 8) | 3 |
+| PJ01..PJ16 | PATTERNS (docs/PROJECTS-DESIGN.md): each project's records as one stream, in id order: u8 log id, u16 length, the record as the log holds it (its state, scenes, patterns, song chain, BARS, sources, extras / FX / LFO records; never a device-wide id). Read in chunks (the log's index lent to that project for the command, the open project's back after it); restored record by record as the chunks arrive, each checked as a load checks it (one the firmware would not load is skipped). Up to the whole log (128 KB) | 7 |
+| PNAM | PATTERNS: the project names (u8 id 21, u16 length, the 16 x 12 bytes) | 5 |
+| PTN1..PTN6 | the per-track patterns and their state (u8 log id, u16 length, the record; as many as fit each). PATTERNS: listed without data, restored into the open project (an older backup's) | 5 |
+| S01..S16 | song sections A-P (`FELUCCA_SECTIONS` 8 or 16; S09..S16 listed as not in a build with 8). PATTERNS: without data, restored into the open project | 3 |
 | PRJ1..PRJ4 | an older backup's project slots, written into A-D, never read | 4 (0 with 4 sections) |
-| SNG1 | the whole song chain, up to 64 parts (count, loop, 2 spare, then section and bars of each part) | 5 |
+| SNG1 | the whole song chain, up to 64 parts (count, loop, 2 spare, then section and bars of each part). PATTERNS: without data (in PJnn), restored into the open project | 5 |
 | XSTP | SLOOP 2.4's step extras of the sections and the autosave, one raw object (automation store builds) | 5 |
 | FXSL, FXR1, FXR2 | older backups' FX slot records: restored, never read now | 5 |
 | FX31..FX33 | the FX slot records (`fx_rec.c`) in three packs, sections A..F, G..L, M..P and the autosave: per record u8 id, u16 length, the log record; each written back whole at the commit, paired by its key with S01.. and AUTO | 5 |

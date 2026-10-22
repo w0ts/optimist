@@ -243,6 +243,36 @@ static int sec_song_get(arr_config_t *c, uint16_t tag)
     *c = t;
     return 1;
 }
+#if FELUCCA_PATTERNS
+/* format 2 (docs/PROJECTS-DESIGN.md): the open project's whole chain is its record (id SEC_ID_SONG: count, loop, 2 spare
+ * bytes, the parts; none: no record), no tag, nothing of it in the settings record. 0 ok, 1 MEM FULL, -1 flash */
+static int sec_song_put_all(const arr_config_t *c)
+{
+    uint8_t b[4u + 2u * ARR_STEPS];
+    uint32_t n = sec_song_bytes(c, b);
+    if (!c->count)
+        return slg_put(SEC_ID_SONG, b, 0, 0) < 0 ? -1 : 0;
+    return slg_put(SEC_ID_SONG, b, n, 0);
+}
+static int sec_song_get_all(arr_config_t *c)           /* -> c (none, or not ours: no song, count 0); 1 read */
+{
+    arr_config_t t;
+    uint32_t i;
+    int n = slg_has(SEC_ID_SONG) ? slg_get(SEC_ID_SONG, sec_rbuf) : 0;
+    arr_defaults(c);
+    c->count = 0;                                      /* (as a device without a settings record starts: no song yet) */
+    if (n < 4 || (uint32_t)n != 4u + 2u * sec_rbuf[0] || sec_rbuf[0] > ARR_STEPS)
+        return 0;
+    arr_defaults(&t);
+    t.count = sec_rbuf[0], t.loop = sec_rbuf[1];
+    for (i = 0; i < t.count; i++)
+        t.entry[i].scene = sec_rbuf[4u + 2u * i], t.entry[i].bars = sec_rbuf[5u + 2u * i];
+    if (!arr_stored_ok(&t))
+        return 0;
+    *c = t;
+    return 1;
+}
+#endif
 /* the scenes' BARS (the user, 2026-10-21): one record of the log, id 18 (a song id every build keeps through a compaction),
  * 16 bytes, scene s's at s: 0 AUTO, 1..64. A record of another length is not ours: every scene AUTO. All AUTO: no record */
 #define SEC_ID_SBARS 18u
@@ -463,7 +493,7 @@ static int sec_scene_clear(uint32_t s)
  * since the log's phase 0 reads and keeps through a compaction (sec_log.c), so a firmware without names keeps them;
  * the snapshots carry it with the patterns' ids (snapshots.c SN_LOG0..). A record of another length is not ours: no
  * names. Read once and again when the log's record changed (its sequence number) */
-#define SEC_ID_NAMES 23u
+#define SEC_ID_NAMES (FELUCCA_PATTERNS ? 21u : 23u)   /* (format 2: a device-wide id, sec_log.c SEC_ID_PNAMES: the projects' names) */
 #define SEC_NAME_LEN 12u
 _Static_assert(SEC_ID_NAMES > SEC_ID_PSTATE && SEC_ID_NAMES < SEC_ID_PAT0, "the names: a song id of the log");
 static struct {
@@ -593,6 +623,10 @@ static void sections_write(void)                       /* the pending sections a
 #endif
     if (song_dirty && !LIVE_DONE()) {
         song_dirty = 0;
+#if FELUCCA_PATTERNS && FELUCCA_ARRANGER
+        (void)sec_song_put_all(&arrangement);          /* (format 2: the project's chain and BARS are the log's) */
+        (void)sec_sbars_put();
+#endif
         settings_save();
     }
 #undef LIVE_DONE
@@ -774,6 +808,124 @@ static void sec_boot(void)                             /* persist_boot */
         if (sec_pend_has(s))
             sec_dirty |= (uint16_t)(1u << s);
 }
+#if FELUCCA_PATTERNS
+/* ---- projects (docs/PROJECTS-DESIGN.md): the log's records are the open project's (sec_log.c format 2, slg_open_proj).
+ * A project holds its state (SEC_ID_STATE: a plain section record, the steps in it; its extras, FX and LFO records at
+ * SX_ID_STATE / FXR_ID_STATE / DLR_ID_STATE), its scenes A..P, its patterns, its song chain (SEC_ID_SONG, whole), the
+ * scenes' BARS and the tracks' sources (SEC_ID_PSTATE). The project names are device-wide (SEC_ID_NAMES 21). Which
+ * project is open is the settings record's (project.c persist_t open_proj), never the log's: opening one needs no room */
+#define SEC_ID_STATE 19u
+_Static_assert(SEC_ID_STATE > SEC_ID_SONG && SEC_ID_STATE < SEC_ID_NAMES && SEC_ID_STATE != SEC_ID_PSTATE, "the state: a song id of the log");
+static uint8_t open_proj;                              /* the open project, 0..15 */
+static void persist_flush_now(void);                   /* project.c */
+/* what the open project keeps beside its scenes and patterns, read for the scope just opened (the stage and the live
+ * section forgotten: they were another project's) */
+static void proj_scope_read(void)
+{
+    sec_gen++;
+    sec_stage_id = -1;
+    live_sec = -1;
+    memset(pat_cur, PAT_NONE, NTRK);
+    pat_state_load();
+#if FELUCCA_ARRANGER
+    (void)sec_song_get_all(&arrangement);
+    sec_sbars_get();
+#endif
+}
+/* project p opened for the log (stopped): what waits in the arena is written first (the song and the autosave with it),
+ * then the index is p's. The work stays as it is (project_open loads p's state into it; at boot the autosave is the
+ * work). 0 ok, -1 flash */
+static int project_scope_set(uint32_t p)
+{
+    if (p >= 16u || !flash_ok)
+        return -1;
+    persist_flush_now();
+    sec_pend_clear();
+    sec_dirty = 0;
+    if (slg_open_proj(p))
+        return -1;
+    open_proj = (uint8_t)p;
+    proj_scope_read();
+    return 0;
+}
+/* the work as the open project's state (PROJECT page SAVE; stopped): 0 ok, 1 MEM FULL, -1 flash */
+static int state_save(void)
+{
+    uint32_t n, key;
+    int rc;
+    if (!flash_ok)
+        return -1;
+    n = sec_capture();
+    key = proj_hash(sec_rbuf, n);
+    rc = slg_put(SEC_ID_STATE, sec_rbuf, n, 0);
+#if FELUCCA_AUTO
+    if (!rc)
+        rc = sx_log_put(SX_ID_STATE, key, &proj_tmp.cur, 0);
+#endif
+    if (!rc)
+        rc = fxr_log_put(FXR_ID_STATE, key, &proj_tmp.cur, 0);
+    if (!rc)
+        rc = dlr_log_put(DLR_ID_STATE, key, &proj_tmp.cur, 0);
+    if (!rc) {
+        pat_state_save();                              /* (the tracks' sources, as the autosave keeps them) */
+        sec_gen++;
+    }
+    return rc;
+}
+/* the open project's state into the work: 1 loaded, 0 none (the work left as it is) */
+static int state_load(void)
+{
+    int n = flash_ok ? slg_get(SEC_ID_STATE, sec_rbuf) : 0;
+    uint32_t key;
+    if (n <= 0 || !sec_decode(sec_rbuf, (uint32_t)n, &proj_tmp.cur, &sec_tmp_dl))
+        return 0;
+    key = proj_hash(sec_rbuf, (uint32_t)n);
+#if FELUCCA_AUTO
+    sx_log_get(SX_ID_STATE, key, &proj_tmp.cur);
+#endif
+    fxr_log_get(FXR_ID_STATE, key, &proj_tmp.cur);
+    dlr_log_get(DLR_ID_STATE, key, &proj_tmp.cur);
+    memset(pat_bref[0], PAT_NONE, NTRK);               /* (the record names no pattern: the sources are the project's) */
+    project_apply(&proj_tmp.cur, &sec_tmp_dl);
+    pat_state_load();
+    return 1;
+}
+/* PROJECT page LOAD: project p opened, its state into the work: 1 loaded, 0 opened with no state (the caller blanks the
+ * work), -1 flash */
+static int project_open(uint32_t p)
+{
+    if (project_scope_set(p))
+        return -1;
+    return state_load();
+}
+/* PROJECT page DELETE (any project) and NEW (the open one): every record of project p gone (its state, scenes, patterns,
+ * song, sources); stopped. The open project stays open. 0 ok, -1 a record not cleared (the next clear tries again) */
+static int project_clear(uint32_t p)
+{
+    uint32_t i, was = open_proj;
+    int rc = 0;
+    if (p >= 16u || !flash_ok)
+        return -1;
+    persist_flush_now();
+    sec_pend_clear();
+    sec_dirty = 0;
+    if (slg_open_proj(p))
+        return -1;
+    for (i = 0; i < SLG_IDS; i++)
+        if (!SLG_GLOBAL(i) && slg_has(i) && slg_put(i, sec_rbuf, 0, 0))
+            rc = -1;
+    if (!rc)
+        slg.pused &= (uint16_t)~(1u << p);
+    if (slg_open_proj(was))
+        return -1;
+    if (p == was)
+        proj_scope_read();
+    return rc;
+}
+/* project p holds something (a live record of its: a state, a scene, a pattern, a chain): the PROJECT page's strip */
+static int project_slot_used(uint32_t p) { return p < 16u && ((slg.pused >> p) & 1u); }
+static uint32_t project_cur(void) { return open_proj; }   /* the open project (the UI) */
+#endif
 static void proj_slots_drop(void)                      /* a restore done: nothing in RAM goes back to flash */
 {
     sec_pend_clear();
