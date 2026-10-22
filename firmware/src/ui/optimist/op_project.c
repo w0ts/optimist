@@ -1301,7 +1301,7 @@ static void sys_leave(void)                             /* SYSTEM left: the sett
     if (!sys_dirty)
         return;
     sys_dirty = 0;
-    if (song.playing || transport_req)
+    if (SAVE_WAITS_PLAY())
         settings_later = 1;                             /* (a flash write stops the audio: once stopped) */
     else
         settings_save();

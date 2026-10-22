@@ -743,7 +743,7 @@ static void up_ui(uint32_t op, uint32_t k)     /* 0 load, 1 erase, 2 save */
             ui_say("LOADED ", l);
         return;
     }
-    if (song.playing || transport_req) {               /* a flash erase stops the audio ~50 ms */
+    if (SAVE_WAITS_PLAY()) {                           /* a flash erase stops the audio ~50 ms (seq.c: LIVE_SAVE) */
         ui_message("STOP BEFORE SAVE");
         return;
     }

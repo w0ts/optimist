@@ -1193,6 +1193,8 @@ job; ( jobin
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/sections_test" tests/sections_test.c -lm
     run "song sections A..P: old slots migrate (cut anywhere), save / load, pending while playing, stage, MEM FULL" "$OUT/sections_test"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_LIVE_SAVE=1 -o "$OUT/sections_live_test" tests/sections_test.c -lm
+    run "song sections with LIVE_SAVE: saved while playing, the waiting ones one a call, back to waiting after a held erase" "$OUT/sections_live_test"
 ) >"$U.out" 2>&1 & jobbg
 for x in 0 1; do   # per-track patterns and scenes (FELUCCA_PATTERNS): unit; then a PATTERNS -> no PATTERNS -> PATTERNS round trip
     job; ( jobin

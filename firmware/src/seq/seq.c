@@ -55,6 +55,17 @@ static uint8_t pen_n = 1, pen_note[4] = {60};   /* the last chord / note played:
 static int8_t pen_oct;                          /* song.octave when the pen was written (STEP entry follows OCT) */
 static uint8_t pen_lane;                       /* the last drum lane played: the SEQ layer's lane */
 static volatile uint8_t transport_req;   /* 1 start, 2 stop (from the UI) */
+/* a save, or a write waiting for flash, held while the transport runs (STOP BEFORE SAVE, or written once stopped). With
+ * LIVE_SAVE never, the erases going in short windows (hal/fm1_flash_slice.h) the audio keeps playing; unless the flash
+ * part held one in a single window (no erase suspend: the audio silenced in it), then until the next start */
+#if FELUCCA_LIVE_SAVE
+#define SAVE_WAITS_PLAY() (live_save_off && (song.playing || transport_req))
+/* the waiting writes (project.c sections_flush) while playing: one object a pass, the main loop between them */
+#define LIVE_ONE() (song.playing || transport_req)
+#define LIVE_SAVE_GAP_MS 250u
+#else
+#define SAVE_WAITS_PLAY() (song.playing || transport_req)
+#endif
 /* the TEMPO page's nudge (both UIs: ui/optimist/op_tempo.c, ui/sloop/ui_tempo.c): OCT- / OCT+ held nudge the clock a
  * few percent slower / faster (in 1/256: 10 = 3.9 %), back to 0 when let go; G_BPM never changes. Applied in
  * events_block to the internal clock only */

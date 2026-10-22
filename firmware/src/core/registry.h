@@ -555,6 +555,12 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #define FELUCCA_FAVORITES 1                /* mark sounds as favorites and browse only them: SAVE > PRESETS KNOB 3 FAV, KNOB 4
                                             * LIST ALL / FAV (core/favorites.c, model.c; Felucca 1.6; SLOOP's UI) */
 #endif
+#ifndef FELUCCA_LIVE_SAVE
+#define FELUCCA_LIVE_SAVE 0                /* saves while playing: no STOP BEFORE SAVE, the waiting writes (sections, song,
+                                            * settings, the working project) go to flash with the transport running, one
+                                            * at a time; off again until the next start if the flash part ever holds an
+                                            * erase in one window (seq.c SAVE_WAITS_PLAY, felucca.c FL_ERASE_HELD) */
+#endif
 #ifndef FELUCCA_PARAM_HELP
 #define FELUCCA_PARAM_HELP 0               /* the knob's value in plain words on the top bar ("Filter cutoff"), from
                                             * tools/param_help.json (param_help.c) */

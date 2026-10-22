@@ -299,7 +299,7 @@ HOME tapped on the mixer (again: back). One row, one page of cards: the source's
 
 ### 4.11 NAME
 
-A user preset or a project is named before it is written: SAVE + a sound button, the SOUND row's SAVE AS, PROJECT's SAVE (prefilled with the slot's name) and USER's SAVE. The white keys type like a phone (the same key within 0.8 s cycles), the black keys: F# left, G# space, A# right, C# delete, D# letters / digits. KNOB 1 the cursor, KNOB 2 and PRESETS the character, SHIFT + a knob clears. SAVE done; HOME tapped deletes a character (at the start: cancel); HOME held 0.6 s cancels. 12 characters, stored as typed, drawn in sentence case. The keys type and never sound. SAVE while playing is refused (*STOP BEFORE SAVE*, a flash erase stops audio). An empty user-preset name gets the automatic one.
+A user preset or a project is named before it is written: SAVE + a sound button, the SOUND row's SAVE AS, PROJECT's SAVE (prefilled with the slot's name) and USER's SAVE. The white keys type like a phone (the same key within 0.8 s cycles), the black keys: F# left, G# space, A# right, C# delete, D# letters / digits. KNOB 1 the cursor, KNOB 2 and PRESETS the character, SHIFT + a knob clears. SAVE done; HOME tapped deletes a character (at the start: cancel); HOME held 0.6 s cancels. 12 characters, stored as typed, drawn in sentence case. The keys type and never sound. SAVE while playing is refused (*STOP BEFORE SAVE*, a flash erase stops audio); a build with LIVE_SAVE (docs/BUILDER.md) saves as it plays. An empty user-preset name gets the automatic one.
 
 ### 4.12 The FM6 editor
 

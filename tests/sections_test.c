@@ -6,6 +6,10 @@
  * MEM FULL. Run by tests/run_tests.sh. */
 #define FELUCCA_ARRANGER 1                        /* (the song: arranger.c, seq.c's live sections) */
 #define FELUCCA_FLASH 1
+#if FELUCCA_LIVE_SAVE                             /* (run_tests.sh builds it a second time with LIVE_SAVE) */
+#include <stdint.h>
+static uint8_t live_save_off;                     /* (felucca.c's: an erase held the audio) */
+#endif
 #define main hostsim_main
 #include "hostsim.c"
 #undef main
@@ -234,6 +238,37 @@ int main(void)
         printf("sections: MEM %u %%, %u more; the log %u B, a raw section %u B kept in reserve\n", pct, more, SEC_ROOM,
                SEC_REC_MAX);
     }
+#if FELUCCA_LIVE_SAVE
+    {   /* LIVE_SAVE: PROJECT SAVE while playing writes at once; the waiting sections go one a call while playing, all
+         * at once when a reset is coming (persist_flush_now's loop); a part that held an erase: back to waiting */
+        uint32_t was, calls;
+        memset(nor, 0xFF, sizeof nor);            /* (an empty log: the checks above as they were) */
+        sec_pend_clear();
+        sec_boot();
+        sec_dirty = 0, song_dirty = 0;
+        make(3);
+        song.playing = 1;
+        project_save(10);
+        check("LIVE_SAVE: PROJECT SAVE while playing writes K at once", !strcmp(last_msg, "SAVED") && slg_has(10));
+        for (s = 13; s < 16u; s++) {
+            make(s);
+            section_store(s);
+        }
+        sections_write();
+        ok = (slg_has(13) + slg_has(14) + slg_has(15)) == 1 && (sec_dirty & 0xE000u) && song_dirty == 0;
+        check("... three sections stored while playing: one written a call", ok);
+        song_dirty = 1, was = settings_saved;
+        for (calls = 1; calls < 8u && (sec_dirty || song_dirty); calls++)
+            sections_write();
+        check("... the rest one a call, the song last (four calls in all)",
+              calls == 4u && slg_has(13) && slg_has(14) && slg_has(15) && !sec_dirty && settings_saved == was + 1u);
+        live_save_off = 1;
+        project_save(11);
+        check("... the flash part held an erase: STOP BEFORE SAVE again", !strcmp(last_msg, "STOP BEFORE SAVE") && !slg_has(11));
+        live_save_off = 0, song.playing = 0;
+        make(0);
+    }
+#endif
     printf("sections test %s\n", bad ? "FAILED" : "passed");
     return bad != 0;
 }

@@ -245,7 +245,8 @@ static void name_ok(void)
         a++;
     for (z -= a, b[z] = 0; z--;)
         b[z] = nm.s[a + z];
-    if (song.playing || transport_req) {               /* (a flash erase stops the audio: stopped first, saved, played again) */
+    if (SAVE_WAITS_PLAY()) {                           /* (a flash erase stops the audio: stopped first, saved, played again;
+                                                         * LIVE_SAVE: saved as it plays) */
         nm.later = 1;
         transport_req = 2;
         return;

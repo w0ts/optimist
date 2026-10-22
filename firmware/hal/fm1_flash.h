@@ -319,6 +319,9 @@ static uint8_t fl_erase_held, fl_erase_nosus, fl_erase_redo;   /* (saturating) *
 #else
 #define FL_ESTAT(x) ((void)0)                     /* (a product build: no RAM for them) */
 #endif
+#ifndef FL_ERASE_HELD                             /* an erase that held the audio in one window (no suspend, or a redo) */
+#define FL_ERASE_HELD() ((void)0)                 /* (felucca.c with LIVE_SAVE: saves while playing stop) */
+#endif
 static int fl_erase4k_sliced(uint32_t off, uint32_t *took_us, int32_t *audio, uint32_t quiet_n)
 {
     volatile int32_t *quiet = audio;              /* (the DMA reads it: stores never dropped or merged) */
@@ -331,9 +334,12 @@ static int fl_erase4k_sliced(uint32_t off, uint32_t *took_us, int32_t *audio, ui
                                                                                              : fl_erase_windows_max);
     FL_ESTAT(fl_erase_held += fl_erase_held < 0xFFu && j.held);
     FL_ESTAT(fl_erase_nosus += fl_erase_nosus < 0xFFu && j.nosus);
+    if (j.held)
+        FL_ERASE_HELD();
     if (!rc && j.windows > 1u && !((SFCENC_CON & 2u) && off >= 0x93000u && fl_blank_xip(off))) {
         fls_job_t k = { 0, quiet, quiet_n, 0, 0, 0, 0 };
         FL_ESTAT(fl_erase_redo += fl_erase_redo < 0xFFu);
+        FL_ERASE_HELD();
         rc = fl_erase_window(off, FLS_RESUME, &k);   /* (an erase still suspended: ended first; a part idle ignores it) */
         if (rc >= 0)
             rc = fls_erase(off, &k);              /* (then once more in one window, as before) */

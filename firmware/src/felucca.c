@@ -15,6 +15,10 @@ static void dual_flash_leave(void);
 #define FM1_FLASH_ENTER() dual_flash_enter()
 #define FM1_FLASH_LEAVE() dual_flash_leave()
 #endif
+#if FELUCCA_LIVE_SAVE
+static uint8_t live_save_off;            /* an erase held the audio (no suspend): saves wait for the stop (seq.c) */
+#define FL_ERASE_HELD() (live_save_off = 1)   /* (hal/fm1_flash.h fl_erase4k_sliced) */
+#endif
 #include "fm1_time.h"
 #include "fm1_clock.h"
 #include "fm1_sys.h"
@@ -145,6 +149,9 @@ static void dual_flash_leave(void);
 #endif
 #if FELUCCA_OTA && !FELUCCA_FLASH
 #error "FELUCCA_OTA needs FELUCCA_FLASH"
+#endif
+#if FELUCCA_LIVE_SAVE && !FELUCCA_FLASH
+#error "FELUCCA_LIVE_SAVE writes the flash (FELUCCA_FLASH)"
 #endif
 #if FELUCCA_FLASH
 #include "fm1_flash.h"

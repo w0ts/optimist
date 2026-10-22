@@ -1451,7 +1451,7 @@ static void settings_poll(void)                    /* main loop */
     if (w == seen)
         return;
     seen = w;
-    if (song.playing || transport_req)
+    if (SAVE_WAITS_PLAY())
         settings_later = 1;
     else
         settings_save();
@@ -1729,7 +1729,7 @@ _Static_assert(sizeof(persist_t) < SL25_PERSIST + SL25_DSU_LEN, "SLOOP 2.5 / 2.6
 #if FELUCCA_ARRANGER
 static void arrangement_save(void)
 {
-    if (song.playing || transport_req) { ui_message("STOP BEFORE SAVE"); return; }
+    if (SAVE_WAITS_PLAY()) { ui_message("STOP BEFORE SAVE"); return; }
 #if FELUCCA_FLASH && SEC_LOGGED
     if (flash_ok) {                                /* the whole chain in the log first, then its tag (sections.c) */
         int rc = sec_song_put(&arrangement, &song_tag);
@@ -1783,6 +1783,10 @@ static void sections_write(void)                        /* the dirty sections an
             if (((sec_dirty >> i) & 1u) && proj_put(OBJ_PROJECT0 + i, &proj_slot[i], &proj_dl[i]) == 0) {
                 MOTION_SAVED(OBJ_PROJECT0 + i, &proj_slot[i]);
                 sec_dirty &= (uint16_t)~(1u << i);      /* (a failed write stays dirty: tried again later) */
+#if FELUCCA_LIVE_SAVE
+                if (LIVE_ONE())
+                    return;                             /* (playing: one a call, sections_flush) */
+#endif
             }
     if (!flash_ok)
 #endif
@@ -1798,7 +1802,15 @@ static void sections_write(void)                        /* the dirty sections an
  * whatever is only in RAM goes to flash now: the live sections, the song, the working project */
 static void persist_flush_now(void)
 {
+#if FELUCCA_LIVE_SAVE
+    uint32_t was;
+    do {                                                /* (playing: sections_write writes one a call) */
+        was = sec_dirty | (uint32_t)song_dirty << 16;
+        sections_write();
+    } while ((sec_dirty || song_dirty) && (sec_dirty | (uint32_t)song_dirty << 16) != was);
+#else
     sections_write();
+#endif
 #if FELUCCA_FLASH
     if (flash_ok && !arrangement_clock.running) {     /* (a song playing: the tracks hold a section) */
         uint32_t h;
@@ -1839,11 +1851,27 @@ static void sections_flush(void)                        /* main loop */
         settings_later = 0;
         song_dirty = 1;                                 /* (settings_save when quiet, with the song) */
     }
+#if FELUCCA_LIVE_SAVE
+    if ((!sec_dirty && !song_dirty) || SAVE_WAITS_PLAY() || (live_save_off && !audio_quiet()) ||
+        fm1_ms - ui_input_ms < 1500u || fm1_ms - tried < 5000u)
+        return;
+    {
+        uint32_t was = sec_dirty | (uint32_t)song_dirty << 16;
+        tried = fm1_ms;
+        sections_write();                               /* (playing: one object, LIVE_ONE) */
+        if ((song.playing || transport_req) && (sec_dirty || song_dirty)) {
+            if ((sec_dirty | (uint32_t)song_dirty << 16) != was)
+                tried = fm1_ms - 5000u + LIVE_SAVE_GAP_MS;   /* (one written: the next a moment later) */
+            return;
+        }
+    }
+#else
     if ((!sec_dirty && !song_dirty) || song.playing || transport_req || !audio_quiet() || fm1_ms - ui_input_ms < 1500u ||
         fm1_ms - tried < 5000u)
         return;
     tried = fm1_ms;                                     /* (a failed write: again in 5 s, not every frame) */
     sections_write();
+#endif
     if (sec_dirty)
         ui_message("SAVE ERROR: RETRYING");
 }
