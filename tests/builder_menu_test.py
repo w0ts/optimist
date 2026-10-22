@@ -100,8 +100,37 @@ async def sort_test():
     check("sort: per session, a new builder starts in the default order", M.Builder(C.defaults(), "default").sort_by is None)
 
 
+async def estimate_over_build_fits_test():
+    """b where the estimate overflows but the measurement build fits (the estimate KBs off): the menu builds again for
+    real (a package to flash), never says "does not fit", and the bars and overflow lines take the build's sizes"""
+    app = M.Builder(C.defaults(), "default")
+    async with app.run_test(size=(200, 60)) as pilot:
+        await pilot.pause()
+        cap = {r: C.LIMITS[r] - C.SPARE[r] for r in C.REGIONS}
+        est = C.budget(app.cfg, app.costs)
+        app.budget = lambda cfg=None: dict(est, total=dict(cap, flash=cap["flash"] + 19046), exact=False)
+        real = dict(cap, flash=cap["flash"] - 14072)
+        calls, saved = [], C.build
+        C.build = lambda cfg, name, measure=False, on_line=None: (calls.append(measure) or (True, real, ""))
+        try:
+            app.run_build(dict(app.cfg), "default")
+            for _ in range(60):
+                await pilot.pause(0.05)
+                if app.build_out.startswith("BUILD"):
+                    break
+        finally:
+            C.build = saved
+        check("estimate over, measurement fits: built again for real", calls == [True, False])
+        check("... and the panel never says does not fit", "does not fit" not in app.build_out
+              and app.build_out.startswith("BUILD OK"))
+        del app.budget                                   # (the menu's own: the last build's sizes for this selection)
+        app.update_budget()
+        check("... the overflow lines take the build's sizes: none left", not app.over and app.budget()["exact"])
+
+
 async def main():
     await sort_test()
+    await estimate_over_build_fits_test()
     app = M.Builder(C.defaults(), "default")
     async with app.run_test(size=(200, 60)) as pilot:
         await pilot.pause()

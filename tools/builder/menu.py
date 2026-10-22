@@ -178,6 +178,7 @@ class Builder(App):
         self.code0 = ST.code_fingerprint()               # the builder's code as it started (changed: f refuses)
         self.source = ST.source_line(C.ROOT)             # the checkout and commit a build compiles
         self.over, self.savings = {}, {}
+        self.exact = None                                # (cfg_hash, sizes) of the last build, measurement builds too
         self.conflicts = {}
         self.room = RM.NONE                              # what BLE removed to make room (room.py)
         self.sort_by = None                              # o cycles: None (registry order), flash, ram, pool, ramtext (per session)
@@ -250,11 +251,22 @@ class Builder(App):
         return [(r, s[r]) for r in C.REGIONS
                 if abs(s[r]) >= 64 or (self.over.get(r, 0) > 0 and s[r] > 0)]
 
+    def budget(self, cfg=None):
+        """the estimate, or the last build's exact sizes when that build was of this very selection (a measurement
+        build's too: the estimate can be KBs off, the build is not)"""
+        cfg = self.cfg if cfg is None else cfg
+        if not self.costs:
+            return None
+        b = C.budget(cfg, self.costs)
+        if b and self.exact and self.exact[0] == C.cfg_hash(cfg):
+            b = dict(b, total=dict(self.exact[1]), exact=True)
+        return b
+
     def update_budget(self):
         """the estimate, the overflow per region, every item's savings and the items validate() errors name, once
         per change"""
         self.conflicts = C.conflicts(self.cfg)
-        b = C.budget(self.cfg, self.costs) if self.costs else None
+        b = self.budget()
         self.over = {r: o for r, (_, _, o) in C.fits(b["total"], self.cfg).items() if o > 0} if b else {}
         self.savings = C.savings_of(self.cfg, self.costs) if self.costs else {}
 
@@ -315,7 +327,7 @@ class Builder(App):
 
     def refresh_bars(self):
         w = self.query_one("#bars")
-        b = C.budget(self.cfg, self.costs) if self.costs else None
+        b = self.budget()
         if not b:
             w.update(Text("no tools/builder/costs.json: run tools/builder/measure_costs.py (or b: a real build)",
                           style="yellow"))
@@ -335,7 +347,7 @@ class Builder(App):
     def refresh_msgs(self):
         err, warn, note = C.validate(self.cfg)
         t = Text()
-        b = C.budget(self.cfg, self.costs) if self.costs else None
+        b = self.budget()
         if b:
             over, sav = self.over, self.savings
             if over:
@@ -639,12 +651,18 @@ class Builder(App):
 
     @work(thread=True, exclusive=True)
     def run_build(self, cfg, name, then_emu=False):
-        b = C.budget(cfg, self.costs) if self.costs else None
+        b = self.budget(cfg)
         fit = b and all(o <= 0 for _, _, o in C.fits(b["total"], cfg).values())
         started = time.time()
         ok, sizes, out = C.build(cfg, name, measure=not fit, on_line=self.build_line)
         if not ok and fit:                               # (the estimate fitted, the exact build did not)
             ok, sizes, out = C.build(cfg, name, measure=True, on_line=self.build_line)
+            fit = False
+        elif ok and not fit and sizes and self.sizes_fit(sizes, cfg):   # (the estimate overflowed, the build fits)
+            ok, sizes, out = C.build(cfg, name, measure=False, on_line=self.build_line)
+            fit = ok
+            if not ok:                                   # (the real link refused what the measurement fitted)
+                ok, sizes, out = C.build(cfg, name, measure=True, on_line=self.build_line)
         lines = []
         if sizes:
             for r, (used, cap, over) in C.fits({k: sizes[k] for k in C.REGIONS}, cfg).items():
@@ -670,7 +688,7 @@ class Builder(App):
         stale = ST.changed_code(self.code0)
         if stale:
             text += f"\n  WARNING: the builder's own code changed since it started ({', '.join(stale)}): {ST.RESTART}"
-        self.call_from_thread(self.show_build, text, sizes, built)
+        self.call_from_thread(self.show_build, text, sizes, built, C.cfg_hash(cfg))
 
     def launch_emu(self):
         """the newest named package of this build in the emulator, in the background -> one line for the panel"""
@@ -686,8 +704,17 @@ class Builder(App):
             return "  emulator FAILED: " + (lines[-1] if lines else f"exit {r.returncode}")
         return "  emulator: " + (lines[-1] if lines else f"started with {fw.name}")
 
-    def show_build(self, text, sizes, built=None):
+    @staticmethod
+    def sizes_fit(sizes, cfg):
+        return all(o <= 0 for _, _, o in C.fits({k: sizes[k] for k in C.REGIONS}, cfg).values())
+
+    def show_build(self, text, sizes, built=None, cfg_hash=None):
         self.progress_hide()
+        if sizes and cfg_hash is not None:               # the panel's bars and overflow lines: this build's sizes now
+            self.exact = (cfg_hash, {k: sizes[k] for k in C.REGIONS})
+            self.update_budget()
+            self.relabel()
+            self.refresh_bars()
         self.built = built if text.startswith("BUILD OK") else None
         go, self.flash_after_build = self.flash_after_build, False
         if go and not self.built:
