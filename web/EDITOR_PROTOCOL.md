@@ -57,7 +57,7 @@ answer its commands; the page hides what needs them and keeps the rest (its mock
 | `LIBRARIAN` | 16..21 user presets, 38..41 user kits (`DRUM_KITS`); with live editing off also 9 PROJECT, 42 SMP_READ, 79..84 patterns | 55 (patterns), 64 bit 1 |
 | `ED_LIVE` | everything else: 2..15, 22..24, 27..33, 36, 37, 42, 50..52, 54..57, 59..66, 78..84, 90, 92, 93, 100, 102, 103 | 52..55, 5D, 5F, 60 |
 | `ED_MIX` (needs ED_LIVE) | 86 FX, 87 FX_PUSH, 94 FXP, 95 DLAN, 104 SOLO | 56, 57, 58, 61 |
-| `ED_SEQ` (needs ED_LIVE) | 97 SONGC (arranger), 98 TOOLS (`SEQTOOLS`), 105 STEPLANE (automation store) | 5A, 5B, 62 |
+| `ED_SEQ` (needs ED_LIVE) | 97 SONGC (arranger), 98 TOOLS (`SEQTOOLS` or `NOTEGEN`), 105 STEPLANE (automation store) | 5A, 5B, 62 |
 | `ED_SCREENS` (needs ED_LIVE) | 96 SCRN, 99 SCRS, 101 SCOPE | 59, 5C, 5E |
 
 Other switches: 36..42 need the drum lanes (kits: `DRUM_KITS`), 65 `MACROS`, 66 the CZ collection, 78 / 90 `SL24_EXPORT` / `SL24_EDIMPORT`
@@ -93,7 +93,7 @@ strings, NTRK, the protocol byte (6), each engine slot's UID, then tagged blocks
 | 58 | `02 01 groups` | DLAN: groups (3) |
 | 59 | `02 01 screens` | SCRN |
 | 5A | `01 01` | SONGC |
-| 5B | `01 02` | TOOLS, version 2 (ops 6..9) |
+| 5B | `03 03 p t` | TOOLS, version 3: `p` bit 0 the tools (op 1, `SEQTOOLS`), bit 1 the generators (ops 4..9, `NOTEGEN` or `GEN_GRIDS`), bit 2 EUCLID's own ops 2, 3 (`NOTEGEN`); `t` the generator types built, a bit each (bit 0 EUCLID, 1 RANDOM, 2 PULSE, 3 GRIDS). Version 2 (`01 02`) had all of them but GRIDS |
 | 5C | `03 01 mask(2 x 7)` | SCRS: bit n = the screen with the device's number n built |
 | 5D | `02 01 FAV_N` | FAVS |
 | 5E | `03 01 n(2 x 7)` | SCOPE: n points (236) |
@@ -433,7 +433,7 @@ Ops: 0 get; 1 part, scene, bars (1..64); 2 part (INSERT); 3 part (DELETE); 4 mod
 
 ## Sequence tools (98 TOOLS; INFO tag 5B)
 
-`ed_tools.c` (`ED_SEQ`, `SEQTOOLS`). STEP's TOOLS, GEN and GEN OUT pages on the selected track (`TRACK` 27 selects it); a drum track's: the whole kit, or one lane. They run through the device's own `tl_run`, one undo level each, and the editor gets a `RELOAD`.
+`ed_tools.c` (`ED_SEQ`, with `SEQTOOLS`, `NOTEGEN` or `GEN_GRIDS`: tag 5B says which; an op of a part not built, or a type not built, has no reply, and without the generators the state's generator fields are all 0). STEP's TOOLS, GEN and GEN OUT pages on the selected track (`TRACK` 27 selects it); a drum track's: the whole kit, or one lane. They run through the device's own `tl_run`, one undo level each, and the editor gets a `RELOAD`.
 Every reply: `op, rc (0 done, 1 another generator is on, 2 the generator is on: keep or restore first), track, lane, len, hits, steps, rot, on`, two strings (what the device says, e.g. `T1 REVERSED`), then (version 2) the slot's generator type, mode, on.
 
 | op | Request args |
@@ -444,7 +444,7 @@ Every reply: `op, rc (0 done, 1 another generator is on, 2 the generator is on: 
 | 3 | lane (127: as it is): EUCLID ON, the generator writes the pattern |
 | 4 | EUCLID OFF, the generated steps kept |
 | 5 | EUCLID OFF, the pattern as it was given back |
-| 6 | type (0 EUCLID, 1 RANDOM, 2 PULSE): the slot's generator; another type has its values at their defaults |
+| 6 | type (0 EUCLID, 1 RANDOM, 2 PULSE, 3 GRIDS; one the build has not: no reply): the slot's generator; another type has its values at their defaults |
 | 7 | k (0..2), value: the generator's value k (EUCLID HITS STEPS ROT, RANDOM DENSITY SEED ACCENT, PULSE EVERY OFFSET RATCHET), fitted to its range |
 | 8 | mode (0 REPLACE, 1 ADD, 2 MASK) |
 | 9 | on (0/1), lane (127: as it is): the generator ON / OFF, the pattern untouched (OFF with what plays written: op 4) |

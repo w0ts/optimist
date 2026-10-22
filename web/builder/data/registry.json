@@ -566,7 +566,7 @@
     "bit": 358,
     "default": 0,
     "parent": null,
-    "desc": "Continuous tones for drones and ambient (engine 16): a stack of up to three oscillators a note (one, a detuned unison, or the key with an octave, fifth, fourth or third), sine to triangle to saw, a soft low-pass, a slow random drift of the whole part and soft noise (AIR). BEAT plays binaural beats: each ear its own pitch, 0.05 to 40 Hz apart (headphones). HOLD latches the keys. 7 presets (theta, alpha, delta and gamma beats among them); 4 voices a part, each about twice an ANALOG voice's CPU (host-measured). About 4.8 KB of flash and 0.6 KB of RAM.",
+    "desc": "A coupled network for drones and ambient (engine 16), after Caravel's DRONE (bonszaimusic), itself inspired by the LYRA-8: four sines a note, each phase-modulating another (COUPLE) as PAIRS, a CHAIN or a RING (TOPO), SPREAD from unison to 1 : 5/4 : 3/2 : 2, a soft cubic CHAR, a slow DRIFT and a one-pole TONE; the track's DTUNE detunes the four. BEAT plays binaural beats: each ear its own pitch, 0.05 to 40 Hz apart (headphones; the network runs twice). HOLD latches the keys. 9 presets (theta, alpha, delta and gamma beats among them); one voice a part, about half an 8-note ANALOG part's CPU (host-measured).",
     "experimental": false,
     "notice": "",
     "off_warning": "",
@@ -579,10 +579,16 @@
     "no_image": false,
     "fixed": false,
     "choices": [],
-    "provenance": null,
+    "provenance": {
+     "project": "Caravel 0.3.3 (bonszaimusic/caravel, a Felucca fork)",
+     "author": "bonszaimusic",
+     "licence": "GPL-3.0-only",
+     "commit": "c6c61c7",
+     "url": "https://github.com/bonszaimusic/caravel"
+    },
     "children": [],
     "tested": "emulator-tested only",
-    "provenance_line": ""
+    "provenance_line": "Caravel 0.3.3 (bonszaimusic/caravel, a Felucca fork) @ c6c61c7 by bonszaimusic (GPL-3.0-only)"
    },
    {
     "key": "DRUM_SYNTH",
@@ -2685,6 +2691,37 @@
     "provenance_line": ""
    },
    {
+    "key": "NOTEGEN",
+    "flag": "FELUCCA_NOTEGEN",
+    "label": "note generators (STEP's GEN and GEN OUT)",
+    "group": "Sequencer",
+    "bit": 374,
+    "default": 0,
+    "parent": null,
+    "desc": "A note generator on every synth track and every drum lane, played live over the pattern and never written into it but by WRITE, which asks: EUCLID (HITS spread over STEPS, turned by ROT), RANDOM (DENSITY, SEED, ACCENT) and PULSE (EVERY, OFFSET, RATCHET), each REPLACING, ADDING to or MASKING the pattern. STEP's last pages GEN and GEN OUT; saved with the project, one undo level a WRITE. On a drum lane picked with ALGORITHM, that lane only. Apart from the STEP tools (SEQTOOLS) and from GRIDS (GEN_GRIDS) since 2026-10-22: each builds without the others. EUCLID after Felucca 1.5.6's. About 6.8 KB of flash and 2 KB of RAM: 6.1 KB of it the generators' framework, shared with GRIDS, EUCLID RANDOM PULSE themselves 0.7 KB (the builder's measure, 2026-10-22).",
+    "experimental": false,
+    "notice": "",
+    "off_warning": "",
+    "env": "",
+    "target_only": false,
+    "symbols": [
+     "gen_sync"
+    ],
+    "no_image": false,
+    "fixed": false,
+    "choices": [],
+    "provenance": {
+     "project": "Felucca (hugelton/Felucca)",
+     "author": "Leo Kuroshita (Hügelton)",
+     "licence": "GPL-3.0-only",
+     "commit": "",
+     "url": "https://github.com/hugelton/Felucca"
+    },
+    "children": [],
+    "tested": "emulator-tested only",
+    "provenance_line": "Felucca (hugelton/Felucca) by Leo Kuroshita (Hügelton) (GPL-3.0-only)"
+   },
+   {
     "key": "USB_MIDI",
     "flag": "",
     "label": "USB MIDI (always: notes, clock, the editor, updates)",
@@ -3198,7 +3235,7 @@
     "bit": 354,
     "default": 1,
     "parent": "EDITOR",
-    "desc": "The web editor's sequencer tools beyond the steps themselves: a step held in a drum lane's context with the device's own list of lockable values (cmd 105; with the automation store), the pattern tools REVERSE, RANDOM, COOK, LENGTH and EUCLID run by the device (cmd 98; the Optimist UI and SEQTOOLS), the song chain (cmd 97; the arranger). Off: the editor lists raw parameter ids, has no tools buttons and no song chain.",
+    "desc": "The web editor's sequencer tools beyond the steps themselves: a step held in a drum lane's context with the device's own list of lockable values (cmd 105; with the automation store), the pattern tools REVERSE, RANDOM, COOK, LENGTH and the note generators run by the device (cmd 98; SEQTOOLS, NOTEGEN), the song chain (cmd 97; the arranger). Off: the editor lists raw parameter ids, has no tools buttons and no song chain.",
     "experimental": false,
     "notice": "",
     "off_warning": "",
@@ -4454,12 +4491,12 @@
    {
     "key": "SEQTOOLS",
     "flag": "FELUCCA_SEQTOOLS",
-    "label": "STEP tools and note generators (Felucca 1.5.6)",
+    "label": "STEP tools (Felucca 1.5.6)",
     "group": "Sequencer",
     "bit": 241,
     "default": 0,
     "parent": null,
-    "desc": "The sequence tools of Felucca 1.5.6 on STEP's last three pages: TOOLS (REVERSE, RANDOM: new notes in the scale or a new beat, COOK: a few small changes, LENGTH x2 / half), each one asking first, and the note generators GEN / GEN OUT (EUCLID, RANDOM, PULSE; REPLACE, ADD or MASK the pattern): played live over the pattern, never written into it but by WRITE, which asks. On a drum lane picked with ALGORITHM, that lane only. Notes keep their exact lengths; locks, chance and conditions move with their steps (the EDIT layer's SHIFT and LENGTH too). About 5.3 KB of flash.",
+    "desc": "The sequence tools of Felucca 1.5.6 on STEP's TOOLS page: REVERSE, RANDOM (new notes in the scale or a new beat), COOK (a few small changes), LENGTH x2 / half and QUANTIZE (the nudged starts), each one asking first and one undo level. On a drum lane picked with ALGORITHM, that lane only. Notes keep their exact lengths; locks, chance and conditions move with their steps (the EDIT layer's SHIFT and LENGTH too). The note generators are their own item since 2026-10-22 (NOTEGEN). About 4.5 KB of flash (the builder's measure, 2026-10-22).",
     "experimental": false,
     "notice": "",
     "off_warning": "",
@@ -4476,9 +4513,7 @@
      "commit": "9f6a885 (Felucca 1.5.6)",
      "url": "https://github.com/hugelton/Felucca"
     },
-    "children": [
-     "GEN_GRIDS"
-    ],
+    "children": [],
     "tested": "emulator-tested only",
     "provenance_line": "hugelton/Felucca @ 9f6a885 (Felucca 1.5.6) by Leo Kuroshita (@kurogedelic), Hügelton Instruments (GPL-3.0-only)"
    },
@@ -4489,8 +4524,8 @@
     "group": "Sequencer",
     "bit": 370,
     "default": 0,
-    "parent": "SEQTOOLS",
-    "desc": "Mutable Instruments Grids (Emilie Gillet) as a drum note generator: 25 drum patterns on a 5 x 5 map, read between them at X and Y. On DR itself (no lane picked) STEP has GRIDS (X, Y, CHAOS) and DENSITY (BD, SD, HH) in GEN's place: one GRIDS for the kit, playing the first KICK lane, the first SNARE lane and the CLOSED HAT lane, and the ACCENT lane where a part plays HARD; GEN OUT turns it on and WRITEs it. Its six values are the drum track's own, saved with the project and recorded as motion. CHAOS is Grids' random push, new each bar. On a picked lane (or T1 T2 T3) GRIDS is also a GEN TYPE (X, Y, DENSITY) playing the part of the lane's sound. One bar of 16ths, repeated through LEN. Needs the STEP tools. About 2.6 KB of flash (1.2 KB of it the map; measured on the synth profile).",
+    "parent": null,
+    "desc": "Mutable Instruments Grids (Emilie Gillet) as a drum note generator: 25 drum patterns on a 5 x 5 map, read between them at X and Y. On DR itself (no lane picked) STEP has GRIDS (X, Y, CHAOS) and DENSITY (BD, SD, HH) in GEN's place: one GRIDS for the kit, playing the first KICK lane, the first SNARE lane and the CLOSED HAT lane, and the ACCENT lane where a part plays HARD; GEN OUT turns it on and WRITEs it. Its six values are the drum track's own, saved with the project and recorded as motion. CHAOS is Grids' random push, new each bar. On a picked lane (or T1 T2 T3) GRIDS is a GEN TYPE (X, Y, DENS) playing the part of the lane's sound. One bar of 16ths, repeated through LEN. Builds STEP's GEN and GEN OUT pages itself, with or without the other generators (NOTEGEN: EUCLID, RANDOM, PULSE); alone, GRIDS is the one TYPE. About 8.7 KB of flash and 2 KB of RAM alone: 6.1 KB of it the generators' framework, shared with NOTEGEN, and 1.2 KB the map; 2.5 KB more next to NOTEGEN (the builder's measure, 2026-10-22).",
     "experimental": false,
     "notice": "",
     "off_warning": "",
@@ -4668,6 +4703,7 @@
    "UNDO_HISTORY",
    "MACROS",
    "REC_PLAIN",
+   "NOTEGEN",
    "CHANCE",
    "QNT_SEQ",
    "MOTION",
@@ -4679,7 +4715,8 @@
    "PLOCK",
    "QCHAIN",
    "COND",
-   "SEQTOOLS"
+   "SEQTOOLS",
+   "GEN_GRIDS"
   ],
   "USB & BT & MIDI": [
    "USB_MIDI",

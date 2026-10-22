@@ -323,9 +323,9 @@
       "TRK": "Frequency key tracking", "DENS": "Crackle density", "DRFT": "Slow random drift",
       "CRSH": "Bit crush", "LEN": "Register or sequence length", "CLK": "Clock pitch above the key"}},
     {"kind": "eng", "ctx": "DRONE", "if": "FELUCCA_ENG_DRONE", "params": {
-      "WAVE": "Sine to triangle to saw", "STAK": "One, unison or intervals", "DTUN": "Stack detune",
-      "BEAT": "Binaural beat (phones)", "CUT": "Low-pass cutoff", "DRFT": "Slow random drift",
-      "AIR": "Soft noise under the tone", "HOLD": "Keys latch their notes"}},
+      "SPREAD": "Unison to 1 : 5/4 : 3/2 : 2", "COUPLE": "Generators modulate others", "TOPO": "Pairs, chain or ring",
+      "CHAR": "Sine to soft cubic", "DRIFT": "Slow wander of each pitch", "TONE": "Dark to open",
+      "BEAT": "Binaural beat (phones)", "HOLD": "Keys latch their notes"}},
     {"kind": "eng", "ctx": "CZ", "if": "FELUCCA_ENG_CZ", "params": {
       "TONE": "CZ tone", "DCW": "Wave bend depth (DCW)", "W.TIM": "DCW envelope times", "DTN": "Line 2 detune (cents)",
       "A.TIM": "Level envelope times", "LINE": "Line select", "MOD": "Ring or noise mod", "VIB": "Vibrato depth"}},
@@ -486,20 +486,25 @@
       "REVERSE": "Turn, then SAVE: steps back", "RANDOM": "Turn, then SAVE: new notes",
       "COOK": "Turn, then SAVE: vary it", "LENGTH": "Turn, then SAVE: x2 or 1/2",
       "TOOL": "Pick a tool, then SAVE", "ON": "What the tool works on"}},
-    {"kind": "op", "ctx": "GEN", "if": "FELUCCA_SEQTOOLS", "params": {
-      "TYPE": "Euclid, Random, Pulse, Grids",
-      "HITS": "Euclid: hits spread evenly", "STEPS": "Euclid: over how many steps",
-      "ROT": "Euclid: rotate the hits", "DENSITY": "How many hits",
-      "SEED": "Random: another draw", "ACCENT": "Random: how many hard hits",
-      "EVERY": "Pulse: a hit every n steps", "OFFSET": "Pulse: from which step",
-      "RATCHET": "Pulse: hits in each step",
+    {"kind": "op", "ctx": "GEN", "if": "FELUCCA_NOTEGEN || FELUCCA_GEN_GRIDS", "params": {
+      "TYPE": {"text": "Which generator plays", "if": "FELUCCA_NOTEGEN"},
+      "HITS": {"text": "Euclid: hits spread evenly", "if": "FELUCCA_NOTEGEN"},
+      "STEPS": {"text": "Euclid: over how many steps", "if": "FELUCCA_NOTEGEN"},
+      "ROT": {"text": "Euclid: rotate the hits", "if": "FELUCCA_NOTEGEN"},
+      "DENSITY": {"text": "Random: how many hits", "if": "FELUCCA_NOTEGEN"},
+      "SEED": {"text": "Random: another draw", "if": "FELUCCA_NOTEGEN"},
+      "ACCENT": {"text": "Random: how many hard hits", "if": "FELUCCA_NOTEGEN"},
+      "EVERY": {"text": "Pulse: a hit every n steps", "if": "FELUCCA_NOTEGEN"},
+      "OFFSET": {"text": "Pulse: from which step", "if": "FELUCCA_NOTEGEN"},
+      "RATCHET": {"text": "Pulse: hits in each step", "if": "FELUCCA_NOTEGEN"},
       "X": {"text": "Grids: across the drum map", "if": "FELUCCA_GEN_GRIDS"},
-      "Y": {"text": "Grids: down the drum map", "if": "FELUCCA_GEN_GRIDS"}}},
+      "Y": {"text": "Grids: down the drum map", "if": "FELUCCA_GEN_GRIDS"},
+      "DENS": {"text": "Grids: how many hits", "if": "FELUCCA_GEN_GRIDS"}}},
     {"kind": "op", "ctx": "GRIDS", "if": "FELUCCA_GEN_GRIDS", "params": {
       "X": "Across the drum map", "Y": "Down the drum map", "CHAOS": "Random push, new each bar"}},
     {"kind": "op", "ctx": "DENSITY", "if": "FELUCCA_GEN_GRIDS", "params": {
       "BD": "Kick hits: how many", "SD": "Snare hits: how many", "HH": "Hat hits: how many"}},
-    {"kind": "op", "ctx": "GEN OUT", "if": "FELUCCA_SEQTOOLS", "params": {
+    {"kind": "op", "ctx": "GEN OUT", "if": "FELUCCA_NOTEGEN || FELUCCA_GEN_GRIDS", "params": {
       "GEN": "ON plays it over the pattern", "MODE": "Replace, add to or mask it",
       "WRITE": "SAVE: what plays, into it"}},
     {"kind": "op", "ctx": "SENDS", "params": {

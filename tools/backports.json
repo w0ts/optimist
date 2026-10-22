@@ -929,7 +929,7 @@
     },
     {
       "switch": "FELUCCA_SEQTOOLS",
-      "title": "Sequence tools: REVERSE RANDOM COOK EUCLID DOUBLE HALF (STEP's TOOLS and EUCLID pages)",
+      "title": "Sequence tools: REVERSE RANDOM COOK DOUBLE HALF (STEP's TOOLS page; EUCLID is the note generators' NOTEGEN)",
       "default": 0,
       "group": "sequencer",
       "source": {
@@ -975,7 +975,7 @@
         "web/editor.html GEN_TYPES"
       ],
       "storage": "the GEN_TLV slot (type 3)",
-      "limits": "needs SEQTOOLS; three values a slot (X Y DENSITY): no CHAOS; 16ths only (the odd 32nds dropped)",
+      "limits": "a lane's or a track's GRIDS: three values (X Y DENS), no CHAOS (the kit's has it); 16ths only (the odd 32nds dropped)",
       "notice": "Drum map from Mutable Instruments Grids by Emilie Gillet (GPL-3.0-or-later).",
       "warning": false
     }

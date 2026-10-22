@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # The drum map of Mutable Instruments Grids by Emilie Gillet (pichenettes/eurorack, grids/resources.cc node_0 ..
 # node_24 and grids/pattern_generator.cc drum_map; GPL-3.0-or-later).
-"""The Grids drum map for the GRIDS note generator (firmware/src/seq/gen.c; FELUCCA_SEQTOOLS).
+"""The Grids drum map for the GRIDS note generator (firmware/src/seq/gen.c; FELUCCA_NOTEGEN).
 
 Grids keeps 25 nodes on a 5 x 5 map, each three parts (BD, SD, HH) of 32 levels (0..255): one bar of 32nd notes.
 The sequencer's steps are 16ths, so only the even 32nds are kept (the odd ones are 0 in all but 49 of the 2400

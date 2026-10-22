@@ -456,7 +456,7 @@ static uint32_t (*pat_switch)(track_t *t, uint32_t abs, uint32_t len);
 /* the patterns' undo / redo: one level, or a history of many (FELUCCA_UNDO_HISTORY): undo.c. The note generators'
  * ON states (gen.c, below) go with a track's pattern: WRITE turns its slot OFF, one undo brings both back */
 #ifndef GEN_BUILT
-#define GEN_BUILT FELUCCA_SEQTOOLS              /* (the Optimist UI's pages set them) */
+#define GEN_BUILT FELUCCA_GENS                  /* (the Optimist UI's pages set them) */
 #endif
 #if GEN_BUILT
 static uint32_t gen_on_mask(uint32_t k);
