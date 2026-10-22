@@ -18,10 +18,11 @@
  *   SONG's PATTERNS row   as the LFO layer
  *   NAME                  every key with a job dim, the key cycling its letters full
  *   SHIFT / SHIFT2 held   the lanes' black keys, the first 4 white keys and the last upper key dim (lanes, T1 T2 T3 DR,
- *                         ACCENT: op_input.c shift_keys); SHIFT: the muted dim, the heard half, full ~50 ms on each
- *                         note; SHIFT2: the selected full; every page
+ *                         ACCENT: op_input.c shift_keys); SHIFT: the muted dark, the heard 2/3, full ~50 ms on each
+ *                         note, the returns' inputs (E F G) full open, dark muted; SHIFT2: the selected full; every page
  *                         but a layer's (STEP: its white keys stay its steps)
- *   the drum track        the lanes' black keys and the last upper key (ACCENT) dim, the selected one full (every page)
+ *   the drum track        the lanes' black keys and the last upper key (ACCENT) dim, the selected one full, a lane hit
+ *                         (or muted, would be) full ~50 ms (every page)
  *   chord mode (CHORD+)   a synth track with SCL > CHORD on: the 5 modifier black keys dim, the latched ones full
  *   STEP, SEQ held        the drum track: the steps with any lane set full, the empty ones inside LEN dim (SEQ + a step clears it)
  * Main loop only (ui_leds); nothing here runs in the audio interrupt. After op_input.c (op_t0, pick_mod). */
@@ -110,9 +111,18 @@ static int keys_shifted(uint32_t held)
     uint32_t b = mute_mod(held) ? B_OCTDN : sel_mod(held) ? B_OCTUP : NB;
     return b != NB && fm1_ms - op_t0[panel.btn[b] % 14u] >= op_hold_ms();
 }
-/* a note starting on what a smute_key value names (the user, 2026-10-22: "playing track blink should be short and full on"):
- * MX_FLASH frames from each note-on (op_mixer.c mx_tick): a track's (trk_hits), DR any lane's hit, a lane its own (mx.lit) */
-static uint32_t lane_flash(uint32_t l) { return mx.lit[l] + MX_FLASH > MX_LIT; }
+/* a note starting on what a smute_key value names (the user, 2026-10-22: "playing track blink should be short and full on",
+ * a muted one too: something to unmute): MX_FLASH frames from each note-on or muted note (op_mixer.c mx_tick): a track's
+ * (mx.tlit), DR any lane's, a lane its own (mx.llit) */
+static uint32_t lane_flash(uint32_t l) { return l < DRUM_LANES && mx.llit[l] != 0u; }
+static uint32_t lanes_flashing(void)                    /* the drum lanes' black keys flashing (the user, 2026-10-22: "also in
+                                                         * drum mode for the black keys"), muted lanes included */
+{
+    uint32_t k, m = 0;
+    for (k = 0; k < 27u; k++)
+        m |= lane_key(k) && lane_flash(lane_of(k)) ? 1u << k : 0u;
+    return m;
+}
 static uint32_t mute_playing(int32_t id)
 {
     uint32_t l, any = 0;
@@ -133,21 +143,20 @@ static void keys_shift_lit(uint32_t *f, uint32_t *d, uint32_t *h)
     for (k = 0; k < 27u; k++) {
         int32_t id = smute_key(k);
         uint32_t on;
-        if (mute && ret_in_key(k) >= 0 && !shift_step_key(k)) {   /* the returns' inputs: full while muted, else dim */
+        if (mute && ret_in_key(k) >= 0 && !shift_step_key(k)) {   /* the returns' inputs (the user, 2026-10-22): full while
+                                                                     * open, dark while muted */
             uint32_t ln = ret_in_line((uint32_t)ret_in_key(k));
-            *d |= 1u << k;
-            *f |= (ln < 3u && (fx_imute >> ln & 1u) ? 1u : 0u) << k;
+            *f |= (ln < 3u && !(fx_imute >> ln & 1u) ? 1u : 0u) << k;
             continue;
         }
         if (id < 0 || shift_step_key(k))
             continue;
-        if (mute) {                                     /* mute mode: muted dim, heard half, a note starting full for a moment */
+        if (mute) {                                     /* mute mode: muted dark, heard 2/3, a note starting full for a moment
+                                                         * (muted or not) */
             uint32_t b = 1u << k;
             if (mute_playing(id))
                 *f |= b;
-            else if (mx_muted(mx_row_of_smute(id)))
-                *d |= b;
-            else
+            else if (!mx_muted(mx_row_of_smute(id)))
                 *h |= b;
             continue;
         }
@@ -224,6 +233,8 @@ static void keys_lit(uint32_t *f, uint32_t *d, uint32_t *h)
         if (is_drum(TSEL))
             for (k = 0; k < 27u; k++)                   /* (the lanes' black keys: dim, the selected one full) */
                 *d |= lane_key(k) ? 1u << k : 0u, *f |= lane_key(k) && lane_of(k) == lane_selected() ? 1u << k : 0u;
+        if (is_drum(TSEL))
+            *f |= lanes_flashing();                     /* (a hit: its key full a moment) */
         return;
     }
 #if FELUCCA_PATTERNS
@@ -242,7 +253,7 @@ static void keys_lit(uint32_t *f, uint32_t *d, uint32_t *h)
         uint32_t in, on = step_win(blink, &in);         /* the white keys its steps, as on STEP (they are steps on every page) */
         for (k = 0; k < 27u; k++)
             *d |= lane_key(k) ? 1u << k : 0u;
-        *f |= 1u << key_of_lane(lane_selected()) | keys_of(on);
+        *f |= 1u << key_of_lane(lane_selected()) | keys_of(on) | lanes_flashing();   /* (a hit: its key full a moment) */
         *d |= keys_of(in & ~on);
     }
 #if FELUCCA_CHORDPLUS

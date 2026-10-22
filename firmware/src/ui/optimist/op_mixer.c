@@ -63,7 +63,8 @@ typedef struct {
 static struct {
     uint8_t set;                                        /* the knob set shown (SELECT) */
     uint8_t lit[DRUM_LANES];                            /* frames a lane's hit stays lit (falling) */
-    uint8_t tlit[NTRK];                                 /* frames a synth track's note-on key flash stays (MX_FLASH) */
+    uint8_t tlit[NTRK];                                 /* frames a track's key flash stays (MX_FLASH): a note on, or one muted */
+    uint8_t llit[DRUM_LANES];                           /* the same, a lane's: a hit, or one muted */
 } mx;
 
 /* a list value's cell: its label, its text, the dots of 0..max at v (here: the first of the files that show one) */
@@ -704,17 +705,21 @@ static void mx_page(int32_t d)                         /* SELECT: the knob sets,
  * lane picked (HOME + a key); the lanes' hits (drums.c drums.hits, as SLOOP's kit pads take them) */
 static void mx_tick(void)
 {
-    uint32_t i, hits, th, r = mx_row();
+    uint32_t i, hits, th, lh, r = mx_row();
     fm1_irq_off();
     hits = drums.hits;
     drums.hits = 0;
-    th = trk_hits;
-    trk_hits = 0;
+    th = trk_hits | smute_thits;                        /* (the muted: what they would have played) */
+    trk_hits = smute_thits = 0;
+    lh = hits | smute_lhits;
+    smute_lhits = 0;
     fm1_irq_on();
     for (i = 0; i < DRUM_LANES; i++)
         mx.lit[i] = (uint8_t)((hits >> i) & 1u ? MX_LIT : mx.lit[i] ? mx.lit[i] - 1u : 0u);
     for (i = 0; i < NTRK; i++)
         mx.tlit[i] = (uint8_t)((th >> i) & 1u ? MX_FLASH : mx.tlit[i] ? mx.tlit[i] - 1u : 0u);
+    for (i = 0; i < DRUM_LANES; i++)
+        mx.llit[i] = (uint8_t)((lh >> i) & 1u ? MX_FLASH : mx.llit[i] ? mx.llit[i] - 1u : 0u);
     if (r == MXR_MASTER || (ui.scr == SCR_HOME && mx_is_usb(r)))
         return;
     if (ui.scr != SCR_HOME || mx_trk_of(r) != song.sel)

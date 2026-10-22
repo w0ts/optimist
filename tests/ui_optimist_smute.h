@@ -104,22 +104,34 @@ static void smute_tests(void)
         uint32_t all = lk | keys_white(4) | (ACC_UI ? 1u << DACC_KEY : 0u), rets = (1u << white_key(13)) | (1u << white_key(14)) | (1u << white_key(15));
         uint32_t muted = (1u << key_of_lane(2)) | (1u << smute_black(0));
         memset(mx.lit, 0, sizeof mx.lit);
+        memset(mx.llit, 0, sizeof mx.llit);
         memset(mx.tlit, 0, sizeof mx.tlit);
-        trk_hits = 0;
+        trk_hits = smute_thits = 0;
+        smute_lhits = 0;
         keys_lit(&f, &d, &h);
-        check(f == 0u && d == (muted | rets) && h == (all & ~muted),
-              "SHIFT held, no note starting: the muted (T1, lane 2) dim, the heard half, the returns' keys dim, none full (2026-10-22)");
+        check(f == rets && d == 0u && h == (all & ~muted),
+              "SHIFT held, no note starting: the muted (T1, lane 2) dark, the heard 2/3, the returns' inputs (open) full (2026-10-22)");
         trk_hits = 1u << 1;                             /* (T2 starts a note) */
         drums.hits = 1u << 4;                           /* (lane 4 hit) */
         frames(1);
         keys_lit(&f, &d, &h);
-        check(f == ((1u << smute_black(1)) | (1u << key_of_lane(4)) | (1u << smute_black(3))) && !(h & f) && !(d & f),
+        check(f == ((1u << smute_black(1)) | (1u << key_of_lane(4)) | (1u << smute_black(3)) | rets) && !(h & f) && !(d & f),
               "... a note starting on T2 and a lane hit (DR with it): their keys full, not half");
         frames(MX_FLASH);
         keys_lit(&f, &d, &h);
-        check(f == 0u && h == (all & ~muted), "... MX_FLASH frames later: back to half (a short flash, not the note's length)");
+        check(f == rets && h == (all & ~muted), "... MX_FLASH frames later: back to 2/3 (a short flash, not the note's length)");
+        smute_thits = 1u << 0;                          /* (muted T1 would play a note, muted lane 2 a hit) */
+        smute_lhits = 1u << 2;
+        frames(1);
+        keys_lit(&f, &d, &h);
+        check(f == (muted | (1u << smute_black(3)) | rets) && h == (all & ~muted & ~(1u << smute_black(3))),
+              "... a muted track's and a muted lane's notes: their keys flash full too (something to unmute), DR with the lane");
+        frames(MX_FLASH);
+        keys_lit(&f, &d, &h);
+        check(f == rets && !(h & muted) && !(d & muted), "... then dark again (muted)");
+        memset(mx.llit, 0, sizeof mx.llit);
         memset(mx.lit, 0, sizeof mx.lit);
-        {   /* the last three white keys: a return's input (A B C), full while muted, no sound mute of the output */
+        {   /* the last three white keys: a return's input (A B C), full while open, dark while muted, no sound mute of the output */
             uint8_t rm = fx_rmute;
             uint32_t ln = fxs_line[2] < 3u ? fxs_line[2] : 0u;
             fx_imute = 0;
@@ -127,8 +139,8 @@ static void smute_tests(void)
             check(fxs_lm[0] == 31u && fxs_lm[1] == 31u && fxs_lm[2] == 31u, "the returns' inputs open: the drum lanes' send masks full");
             key(white_key(14));                             /* (F: return B) */
             keys_lit(&f, &d, &h);
-            check((fx_imute >> ln & 1u) == 1u && fx_imute == (1u << ln) && fx_rmute == rm && (f >> white_key(14) & 1u) && !(f >> white_key(13) & 1u),
-                  "SHIFT + the second of the last three white keys: return B's input muted (its output's mute untouched), its key full");
+            check((fx_imute >> ln & 1u) == 1u && fx_imute == (1u << ln) && fx_rmute == rm && !((f | d | h) >> white_key(14) & 1u) && (f >> white_key(13) & 1u),
+                  "SHIFT + the second of the last three white keys: return B's input muted (its output's mute untouched), its key dark, A's full");
             check(fxs_lm[2u - ln] == 0u && !FXS_IN(FXT_CHO) == (ln == 0u) && !FXS_IN(FXT_DLY) == (ln == 1u) && !FXS_IN(FXT_REV) == (ln == 2u),
                   "... no send reaches that line (the lanes' masks, the tracks' and the USB input's send gains), the others open");
             key(white_key(14));

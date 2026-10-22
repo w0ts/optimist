@@ -55,10 +55,10 @@
 .os-black { background: linear-gradient(#3a3a3a, #0c0c0c 72%); color: #e8e8e8; z-index: 2; box-shadow: 0 4px 6px rgba(0,0,0,.6); }
 .os-white:active, .os-white[data-on="2"] { background: linear-gradient(var(--os-key-edge), var(--os-pressed)); }
 .os-black:active, .os-black[data-on="2"] { background: linear-gradient(#333, var(--os-pressed) 85%); color: #1a1a1a; }
-/* the half level (the mute mode's tracks heard) and the dim one (muted): weaker tints of the lit key */
+/* the 2/3 level (the mute mode's heard tracks) and the dim one: weaker tints of the lit key */
 .os-btn[data-on="3"] { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--os-pressed) 75%, transparent), 0 0 6px color-mix(in srgb, var(--os-pressed) 30%, transparent); }
-.os-white[data-on="3"] { background: linear-gradient(var(--os-key-edge), color-mix(in srgb, var(--os-pressed) 55%, var(--os-key))); }
-.os-black[data-on="3"] { background: linear-gradient(#333, color-mix(in srgb, var(--os-pressed) 55%, #0c0c0c) 85%); }
+.os-white[data-on="3"] { background: linear-gradient(var(--os-key-edge), color-mix(in srgb, var(--os-pressed) 70%, var(--os-key))); }
+.os-black[data-on="3"] { background: linear-gradient(#333, color-mix(in srgb, var(--os-pressed) 70%, #0c0c0c) 85%); }
 .os-white[data-on="1"] { background: linear-gradient(var(--os-key-edge), color-mix(in srgb, var(--os-pressed) 20%, var(--os-key))); }
 .os-black[data-on="1"] { background: linear-gradient(#333, color-mix(in srgb, var(--os-pressed) 20%, #0c0c0c) 85%); }
 .os-kleg { font-size: 11px; letter-spacing: .02em; }

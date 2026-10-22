@@ -111,12 +111,12 @@ static uint8_t fm1_led[FM1_NCOL];
 #define FM1_LED_DIM_MASK 7u
 #endif
 static uint8_t fm1_led_dim[FM1_NCOL];   /* same layout as fm1_led: half-light marks */
-/* the half level (the user, 2026-10-22: the mute mode's keys "a muted should be dimmed, a on track should be half or 2/3
- * on, a playing track blink short and full on"): lit as fm1_led one scan frame in (mask + 1), 1/4 of the time (~225 Hz,
- * no flicker; the eye's log reads it about half), between the dim layer and full. Frame-gated in both scan paths (with
- * menu LIGHTS too: no timed pulse, so no wait in the tick). An LED in several layers takes the brightest. */
-#ifndef FM1_LED_HALF_MASK
-#define FM1_LED_HALF_MASK 3u
+/* the half level (the user, 2026-10-22: the mute mode's keys, "on track 2/3 on", a playing track short and full on; 1/4
+ * of the time read as off): lit as fm1_led all but one scan frame in FM1_LED_HALF_OF, 2/3 of the time, under full.
+ * Frame-gated in both scan paths (with menu LIGHTS too: no timed pulse, so no wait in the tick). An LED in several layers
+ * takes the brightest. */
+#ifndef FM1_LED_HALF_OF
+#define FM1_LED_HALF_OF 3u
 #endif
 static uint8_t fm1_led_half[FM1_NCOL];  /* same layout as fm1_led: the half level */
 #ifndef FELUCCA_LIGHTS
@@ -150,7 +150,7 @@ static void fm1__led_lines(uint32_t rowmask)
 }
 static uint32_t fm1__lit(uint32_t p)               /* column p lit full this frame: fm1_led, the half level on its frames */
 {
-    return fm1_led[p] | ((fm1_in.frames & FM1_LED_HALF_MASK) ? 0u : fm1_led_half[p]);
+    return fm1_led[p] | (fm1_in.frames % FM1_LED_HALF_OF ? fm1_led_half[p] : 0u);
 }
 
 #if FELUCCA_LIGHTS

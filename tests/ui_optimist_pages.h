@@ -490,13 +490,33 @@ static void pages_keys_tests(void)
     song.sel = TRK_DRUM;
     frames(2);
     lanes_lit("D10: the mixer, the drum track: the lanes' black keys lit, the selected one full (the white keys its steps)");
+    {   /* a lane hit: its black key full a moment (2026-10-22: "also in drum mode for the black keys") */
+        uint32_t l = lane_selected() == 5u ? 6u : 5u, f, d, h, kl = 1u << key_of_lane(l);
+        drums.hits = (uint16_t)(1u << l);
+        frames(1);
+        keys_lit(&f, &d, &h);
+        check((f & kl) != 0u, "the drum track, a lane hit: its black key full");
+        frames(MX_FLASH);
+        keys_lit(&f, &d, &h);
+        check(!(f & kl) && (d & kl), "... MX_FLASH frames later: dim again");
+        song.sel = TRK_DRUM;
+        op_enter(SCR_STEP);
+        smute_lhits = 1u << l;                          /* (STEP, the lane muted: would hit) */
+        frames(1);
+        keys_lit(&f, &d, &h);
+        check((f & kl) != 0u, "STEP, the drum track: a muted lane's would-be hit flashes its black key too");
+        frames(MX_FLASH);
+        reset_ui();
+        song.sel = TRK_DRUM;
+        frames(2);
+    }
     press(B_OCTDN);
     frames(HOLD_FRAMES);
     memset(mx.lit, 0, sizeof mx.lit);                   /* (no note playing: none full) */
     trk[0].seq_n = trk[1].seq_n = trk[2].seq_n = trk[3].seq_n = 0;
     memset(mx.tlit, 0, sizeof mx.tlit);
-    keys_are3(0, kws(0, 3) | lane_keys_mask() | (ACC_UI ? 1u << DACC_KEY : 0u), (1u << white_key(13)) | (1u << white_key(14)) | (1u << white_key(15)),
-              "D10: the mixer, SHIFT held: the sequencer mutes, none muted: the lanes' keys, the 4 track keys and ACCENT half, the returns' keys dim");
+    keys_are3((1u << white_key(13)) | (1u << white_key(14)) | (1u << white_key(15)), kws(0, 3) | lane_keys_mask() | (ACC_UI ? 1u << DACC_KEY : 0u), 0,
+              "D10: the mixer, SHIFT held: the sequencer mutes, none muted: the lanes' keys, the 4 track keys and ACCENT 2/3, the returns' inputs (open) full");
     release(B_OCTDN);
     tap(B_EDIT);
     frames(2);

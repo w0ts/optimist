@@ -37,6 +37,11 @@ static int32_t smute_key(uint32_t k)
 static int smute_trk_on(uint32_t k) { return (smute_trk >> (k & 3u)) & 1u; }
 static uint32_t smute_lbit(uint32_t l) { return l <= DRUM_ACC ? 1u << l : 0u; }   /* (lane DRUM_ACC: ACCENT) */
 static int smute_lane_on(uint32_t l) { return (smute_lane & smute_lbit(l)) != 0u; }
+/* what the muted would have played since the UI last looked (the user, 2026-10-22: "muted track should also flash when there
+ * are notes played, to indicate me there is something to unmute"): a bit per track, per lane; the mute mode's keys flash on
+ * them as on a note heard (op_mixer.c mx_tick). Set by the sequencer (mostly the audio ISR), taken with the IRQ off */
+static volatile uint8_t smute_thits;
+static volatile uint32_t smute_lhits;
 static void smute_set_trk(uint32_t k, int on)
 {
     smute_trk = (uint8_t)(on ? smute_trk | 1u << (k & 3u) : smute_trk & ~(1u << (k & 3u)));
