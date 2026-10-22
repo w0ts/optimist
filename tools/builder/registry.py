@@ -206,6 +206,27 @@ _add("ENG_ANALOG", "FELUCCA_ENG_ANALOG", "ANALOG 2 (analog-style synth, swarm, 2
      desc="The main subtractive synth: two oscillators with hard sync, a swarm of up to 6 detuned copies (supersaw), "
           "two filters. About 6 KB of flash and 4.7 KB of fast RAM code; it is also the stand-in that most other "
           "engines fall back to, so keep it unless you need the space.")
+# ANALOG 2's filter models (engines/analog/a2_models.h, 2026-10-22): FLT 2 > MODEL, a builder item each (one stored value with
+# FTYP: a sound asking for a model not built plays the SVF in the same mode)
+_A2M_DESC = (" FLT 2 gets a MODEL card next to FTYP (LP12 LP24 BP HP NOTCH), on an ANALOG track only. A sound that asks for "
+             "a model this build leaves out plays ANALOG 2's own filter in the same mode. Floating point (the FPU), about "
+             "3x the CPU of ANALOG 2's own filter on the host per voice, not measured on the FM-1 yet.")
+_add("A2_LADR", "FELUCCA_A2_LADR", "ANALOG 2 filter: LADR (transistor ladder, Moog-style)", E, 382, parent="ENG_ANALOG", default=0,
+     experimental=True, tested="host-tested only (responses, self-oscillation, stability), not on a device",
+     desc="A 4-pole transistor ladder: a tanh at its input (drive grits it), the bass thinning as RES rises, ringing "
+          "in tune at the top of RES. FTYP as the Oberheim Xpander's mixes of its four stages." + _A2M_DESC)
+_add("A2_OTA", "FELUCCA_A2_OTA", "ANALOG 2 filter: OTA (IR3109 4-pole, Juno-style)", E, 383, parent="ENG_ANALOG", default=0,
+     experimental=True, tested="host-tested only (responses, self-oscillation, stability), not on a device",
+     desc="A 4-pole OTA ladder: the input stays clean and the passband is made up as RES rises, the resonance "
+          "saturates on its own path: creamy, its self-oscillation round. FTYP as the Xpander's mixes." + _A2M_DESC)
+_add("A2_DIOD", "FELUCCA_A2_DIOD", "ANALOG 2 filter: DIOD (diode ladder, 303-style)", E, 384, parent="ENG_ANALOG", default=0,
+     experimental=True, tested="host-tested only (responses, self-oscillation, stability), not on a device",
+     desc="A diode ladder: four coupled stages, each loading the one before, solved exactly every 16 samples, a "
+          "tanh at its input: squelchy, a thin vocal resonance that rings at the cutoff." + _A2M_DESC)
+_add("A2_MS20", "FELUCCA_A2_MS20", "ANALOG 2 filter: MS20 (Sallen-Key, MS-20-style)", E, 385, parent="ENG_ANALOG", default=0,
+     experimental=True, tested="host-tested only (responses, self-oscillation, stability), not on a device",
+     desc="A Sallen-Key 2-pole with its band fed back through a tanh: it screams at high RES and rings loud. LP, BP, "
+          "HP and NOTCH its own, LP24 a further pole (18 dB)." + _A2M_DESC)
 _add("ENG_DIGITAL", "FELUCCA_ENG_DIGITAL", "DIGITAL (4-operator FM)", E, 1,
      desc="Four-operator FM synth: 8 classic algorithms, feedback on operator 4 and one modulation INDEX with its "
           "own envelope. About 2 KB of flash; the stand-in for FM6 when FM6 is left out.")

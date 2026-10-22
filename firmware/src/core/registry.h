@@ -73,6 +73,7 @@
 #ifndef FELUCCA_ENG_DRONE
 #define FELUCCA_ENG_DRONE 0                /* DRONE (drones, ambient, binaural beats: engines/drone/eng_drone.c) */
 #endif
+#include "../engines/analog/a2_models.h"   /* ANALOG 2's filter models: FELUCCA_A2_LADR OTA DIOD MS20, a builder item each */
 #ifndef FELUCCA_ENG_PLAITS
 #define FELUCCA_ENG_PLAITS 0               /* PLAITS (Mutable Instruments Plaits' models, MIT: engines/plaits/eng_plaits.c) */
 #endif

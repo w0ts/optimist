@@ -68,7 +68,20 @@ static const char EQ_TAG_DB[] = "dB", EQ_TAG_FL[] = "Hz", EQ_TAG_FH[] = "Hz";
 static const char *const N_CCEIL[] = {"OFF", "-0.1", "-0.3", "-0.5", "-1.0", "-2.0", "-3.0", "-6.0"};
 #if FELUCCA_ANALOG2
 static const char *const N_A2WAVE[] = {"=1", "SAW", "SQR", "TRI", "SIN", "PWM"};   /* eng_analog2.c: =1 osc 1's */
-static const char *const N_A2FTYP[] = {"LP12", "LP24", "BP", "HP"};
+#if FELUCCA_A2_MODELS
+static const char *const N_A2FTYP[] = {"LP12", "LP24", "BP", "HP", "NOTCH"};   /* FTYP's modes (A2M_MODES) */
+#else
+static const char *const N_A2FTYP[] = {"LP12", "LP24", "BP", "HP"};   /* (NOTCH: with the models, a2_models.h) */
+#endif
+#if FELUCCA_A2_MODELS
+static const char *const N_A2FMDL[] = {"SVF", "LADR", "OTA", "DIOD", "MS20"};      /* FLT 2 > MODEL (a2_models.h) */
+/* the stored value, MODEL and FTYP in one (P_A2FTYP: model * A2M_MODES + mode): its names where the value is shown
+ * whole (the editor, a lock, a motion event); FLT 2's two cards show its parts (a2f_view) */
+static const char *const N_A2FCOMB[] = {"LP12", "LP24", "BP", "HP", "NOTCH", "LDR12", "LDR24", "LDRBP", "LDRHP", "LDRNT",
+                                        "OTA12", "OTA24", "OTABP", "OTAHP", "OTANT", "DIO12", "DIO24", "DIOBP", "DIOHP",
+                                        "DIONT", "MS12", "MS24", "MSBP", "MSHP", "MSNT"};
+_Static_assert(sizeof N_A2FCOMB / sizeof N_A2FCOMB[0] == sizeof N_A2FMDL / sizeof N_A2FMDL[0] * A2M_MODES, "MODEL x FTYP");
+#endif
 static const char *const N_A2EREL[] = {"=DEC"};   /* REL2 0: the release takes DEC2's time (param_format) */
 #endif
 static const char *const N_ENGNAME[] = {"ANALOG", "DIGITAL", "PHASE", "LOFI", "SAMPLE", "VOICE", "TRIO", "WHEEL", "GRAIN",
@@ -140,7 +153,11 @@ static const param_desc_t TP[P_COUNT] = {
     [P_A2SEMI] = PD("SEMI", F_SEMI, -24, 24, 0),
     [P_A2SYNC] = PE("SYNC", N_ONOFF, 0),
     [P_A2DRFT] = PD("DRFT", F_PCT, 0, 127, 0),
+#if FELUCCA_A2_MODELS
+    [P_A2FTYP] = PE("FTYP", N_A2FCOMB, 0),          /* MODEL and FTYP (a2f_view) */
+#else
     [P_A2FTYP] = PE("FTYP", N_A2FTYP, 0),
+#endif
     [P_A2FATK] = PD("ATK2", F_TIME, 0, 127, 0),     /* ENV2 (was the filter envelope's FATK FDEC FENV) */
     [P_A2FDEC] = PD("DEC2", F_TIME, 0, 127, 64),
     [P_A2FENV] = PD("FLT", F_BIPCT, -64, 63, 0),     /* ENV2 DEST: its amount on the cutoff (was AMT2) */
@@ -690,6 +707,7 @@ static const uint8_t MAC_ID[4] = {P_ED_FLT, P_ED_PIT, P_ED_SHP, P_LEG_FLT};   /*
  * drum track's send levels REV DLY CHO on SENDS (drum_sends.c dsend_kit) */
 #define PID_INST 0xF0u
 #define PID_DKS 0xF4u
+#define PID_A2MDL 0xF8u          /* FLT 2 > MODEL: the model part of P_A2FTYP (a2f_view) */
 _Static_assert(P_COUNT < PID_INST, "the page ids past the track values");
 #define STEP_ID_CHANCE 4u        /* SC_STEP columns: 0 STEP, 1 NOTE, 2 TIME, 3 FLAG; 4 CHANCE (FELUCCA_CHANCE) */
 enum { GR_NONE, GR_ADSR, GR_LFO, GR_STEPS, GR_ARP, GR_SCALE, GR_FX, GR_ROLL, GR_BROWSE, GR_SLOTS, GR_USER, GR_TRK,
@@ -776,7 +794,11 @@ static const page_t PAGES[] = {
 #if FELUCCA_ANALOG2
     {"OSC 2", FAM_EDIT, SC_TRACK, GR_NONE, {P_A2WAVE, P_A2SEMI, P_A2SYNC, 0xFF}},   /* ANALOG only: page_shown */
     {"SWARM", FAM_EDIT, SC_TRACK, GR_NONE, {P_A2SWRM, P_A2SDTN, P_A2DRFT, 0xFF}},   /* (ENV2 on the spread: its DEST SDTN) */
+#if FELUCCA_A2_MODELS
+    {"FLT 2", FAM_EDIT, SC_TRACK, GR_NONE, {P_A2FTYP, PID_A2MDL, 0xFF, 0xFF}},   /* FTYP, MODEL: one stored value (a2f_view) */
+#else
     {"FLT 2", FAM_EDIT, SC_TRACK, GR_NONE, {P_A2FTYP, 0xFF, 0xFF, 0xFF}},
+#endif
 #endif
     {"VOICE", FAM_EDIT, SC_TRACK, GR_NONE, {P_VOICE, P_GLIDE, P_GLMODE, P_PRIO}},
     {"VOICE 2", FAM_EDIT, SC_TRACK, GR_NONE, {P_ALLOC, P_DETUNE, P_VOICES, P_ED_PIT}},   /* (the Optimist UI: PAN and MUTE are the mixer's, the user 2026-10-14; DROP on card 4: the pitch drop, ENV DEST PIT before 2026-10-14; card 3: feat/voice-count's VOICES) */
@@ -1030,6 +1052,32 @@ static int cell_built(const page_t *pg, uint32_t id)
 #if FELUCCA_MISSING_WARN
 static int16_t miss_n;                                /* TOOLS > MISS: what the project uses and this build lacks */
 #endif
+#if FELUCCA_A2_MODELS
+/* FLT 2's two cards on the one stored value P_A2FTYP (model * A2M_MODES + mode): FTYP (id P_A2FTYP) its mode, MODEL
+ * (PID_A2MDL) its model, each a copy of its part (a2f_v); a card set writes the whole value back (a2f_word, the
+ * Optimist UI's page_set) */
+static int16_t a2f_v[2];
+static const param_desc_t *a2f_view(uint32_t id, int16_t **valp)
+{
+    static const param_desc_t D[2] = {PE("FTYP", N_A2FTYP, 0), PE("MODEL", N_A2FMDL, 0)};
+    uint32_t w = (uint32_t)clamp(TSEL->p[P_A2FTYP], 0, TP[P_A2FTYP].max), m = id == PID_A2MDL;
+    a2f_v[m] = (int16_t)(m ? w / A2M_MODES : w % A2M_MODES);
+    *valp = &a2f_v[m];
+    return &D[m];
+}
+/* the stored value after FLT 2's card id (P_A2FTYP, PID_A2MDL) was set to v: a MODEL not built is stepped over in the
+ * turn's direction (none left that way: the model it was) */
+static int16_t a2f_word(uint32_t id, int32_t v)
+{
+    int32_t w = clamp(TSEL->p[P_A2FTYP], 0, TP[P_A2FTYP].max), m = w / (int32_t)A2M_MODES, dir = v > m ? 1 : -1, i;
+    if (id != PID_A2MDL)
+        return (int16_t)(w - w % (int32_t)A2M_MODES + v);
+    for (i = v; i >= 0 && i < (int32_t)(sizeof N_A2FMDL / sizeof N_A2FMDL[0]) && !(A2M_BUILT >> i & 1u); i += dir)
+        ;
+    return (int16_t)((i >= 0 && i < (int32_t)(sizeof N_A2FMDL / sizeof N_A2FMDL[0]) ? i : m) * (int32_t)A2M_MODES +
+                     w % (int32_t)A2M_MODES);
+}
+#endif
 static const param_desc_t *page_desc(const page_t *pg, uint32_t slot, int16_t **valp)
 {
     uint32_t id = page_id(pg, slot);
@@ -1102,6 +1150,10 @@ static const param_desc_t *page_desc(const page_t *pg, uint32_t slot, int16_t **
         *valp = &song.g[id];
         return &GP[id];
     }
+#if FELUCCA_A2_MODELS
+    if (id == P_A2FTYP || id == PID_A2MDL)              /* FLT 2: FTYP and MODEL, the parts of one value */
+        return a2f_view(id, valp);
+#endif
 #if FELUCCA_INS_GATER
     if (pg->graph == GR_GATE && id == P_TGATE) {      /* GATER's amount, DEPTH on its own page (INSERTS: GATER, by type) */
         static const param_desc_t GT_DEPTH = PD("DEPTH", F_PCT, 0, 127, 0);

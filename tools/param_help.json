@@ -208,7 +208,8 @@
     {"kind": "page", "ctx": "SWARM", "if": "FELUCCA_ANALOG2 && FELUCCA_ENG_ANALOG", "params": {
       "SWARM": "Copies of osc 1", "SDTN": "Swarm spread", "DRFT": "Pitch drift"}},
     {"kind": "page", "ctx": "FLT 2", "if": "FELUCCA_ANALOG2 && FELUCCA_ENG_ANALOG", "params": {
-      "FTYP": "Filter type"}},
+      "FTYP": "Filter type",
+      "MODEL": {"text": "Filter circuit model", "if": "FELUCCA_A2_MODELS"}}},
     {"kind": "page", "ctx": "VOICE", "params": {
       "VCE": "Voice mode", "GLD": "Glide time", "GLMOD": "Glide: rate or time", "PRIO": "Mono note priority"}},
     {"kind": "page", "ctx": "VOICE 2", "params": {

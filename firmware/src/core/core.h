@@ -182,7 +182,7 @@ enum {                          /* per-track parameters */
      * SUPER's superwave: 0 = none) and its spread. Their defaults leave the sound as before. SUS2 .. the
      * SDTN amount (A2X_N, from P_A2ESUS) are kept outside a track's stored values (project.c pj_x, upreset.c:
      * a2x_pack, a byte each). Until project format 11 one destination DST2 (A2E_*) took the one amount FENV */
-    P_A2WAVE, P_A2SEMI, P_A2SYNC, P_A2DRFT,
+    P_A2WAVE, P_A2SEMI, P_A2SYNC, P_A2DRFT,       /* (P_A2FTYP: FLT 2's MODEL and FTYP in one, model * A2M_MODES + mode) */
     P_A2FTYP, P_A2FATK, P_A2FDEC, P_A2FENV,
     P_A2SWRM, P_A2SDTN,
     P_A2ESUS, P_A2EREL, P_A2EPIT, P_A2ESHP, P_A2EOS2, P_A2ESDT,
