@@ -1999,10 +1999,33 @@ static uint32_t key_lvl(void)
 }
 
 #if FELUCCA_CHORDPLUS
-/* CHORD+: the modifiers held (the black keys down in chord mode) */
-static uint32_t chord_mods(void)
+/* CHORD+ latch (the user, 2026-10-22): a black modifier key tapped twice within CM_DTAP_MS stays on for its track, as
+ * if held; tapped once more it is released when the key is let go (RAM only: not saved, a power cycle drops it) */
+#define CM_DTAP_MS 400u
+static uint8_t cm_lock[NTRK];                          /* the modifiers latched, per track */
+static uint32_t cm_tap_ms;                             /* fm1_ms of the last modifier press, and its key + 1 */
+static uint8_t cm_tap_key;
+static uint32_t chord_locked(uint32_t sel) { return cm_lock[sel % NTRK]; }
+static void chord_tap(uint32_t k, uint32_t sel)        /* a modifier key went down: a second tap latches it */
 {
-    uint32_t k, m = 0;
+    kb_nt[k][0] = 0;                                    /* (1: its release unlatches it, key_up) */
+    if (cm_lock[sel % NTRK] & chord_mod_of_key(k)) {
+        kb_nt[k][0] = 1;
+        cm_tap_key = 0;
+        return;
+    }
+    if (cm_tap_key == k + 1u && fm1_ms - cm_tap_ms < CM_DTAP_MS) {
+        cm_lock[sel % NTRK] |= (uint8_t)chord_mod_of_key(k);
+        cm_tap_key = 0;                                 /* (a third tap starts a new pair) */
+        return;
+    }
+    cm_tap_key = (uint8_t)(k + 1u);
+    cm_tap_ms = fm1_ms;
+}
+/* CHORD+: the modifiers held (the black keys down in chord mode), and the ones latched on track sel */
+static uint32_t chord_mods(uint32_t sel)
+{
+    uint32_t k, m = chord_locked(sel);
     for (k = 0; k < 27u; k++)
         if (kb_kind[k] == KS_MOD)
             m |= chord_mod_of_key(k);
@@ -2012,7 +2035,7 @@ static uint32_t chord_mods(void)
  * the ones it gains start; the ones it keeps ring on) */
 static void chord_revoice(uint32_t sel)
 {
-    uint32_t k, i, j, mods = chord_mods(), mc = trk_midi_ch(sel);
+    uint32_t k, i, j, mods = chord_mods(sel), mc = trk_midi_ch(sel);
     track_t *t = &trk[sel % NTRK];
     for (k = 0; k < 27u; k++) {
         uint8_t nw[4];
@@ -2165,6 +2188,7 @@ static void key_down(uint32_t k)
 #if FELUCCA_CHORDPLUS
             if (t->p[P_CHORD] && layer == LY_PLAY && chord_mod_of_key(k)) {   /* CHORD+: a modifier key */
                 kb_kind[k] = KS_MOD;
+                chord_tap(k, sel);
                 chord_revoice(sel);
             }
 #endif
@@ -2182,7 +2206,7 @@ static void key_down(uint32_t k)
         kb_oct[k] = (int8_t)song.octave;
 #if FELUCCA_CHORDPLUS
         if (t->p[P_CHORD]) {
-            kb_n[k] = (uint8_t)chord_play_notes(t, n, chord_mods(), kb_nt[k]);   /* (the modifiers held, voiced) */
+            kb_n[k] = (uint8_t)chord_play_notes(t, n, chord_mods(sel), kb_nt[k]);   /* (the modifiers held or latched, voiced) */
 #else
         if (t->p[P_CHORD]) {
             kb_n[k] = (uint8_t)chord_notes(t, n, kb_nt[k]);
@@ -2232,6 +2256,8 @@ static void key_up(uint32_t k)
         return;
 #if FELUCCA_CHORDPLUS
     case KS_MOD:                                    /* a CHORD+ modifier let go: the chords held change back */
+        if (kb_nt[k][0])                            /* (pressed while latched: released now) */
+            cm_lock[kb_trk[k] % NTRK] &= (uint8_t)~chord_mod_of_key(k);
         chord_revoice(kb_trk[k]);
         return;
 #endif

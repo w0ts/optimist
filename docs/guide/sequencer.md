@@ -95,7 +95,7 @@ The ARP values are p-locks and motion, like the sound values. A recorded roll is
 
 ## Scale and chords
 
-The SCL page (and the layer: hold SCL, press a key to set the key of the song) holds ROOT, SCALE (16 scales: CHR MAJ MIN DOR MIX PEN MPEN HARM PHRY LYD LOC MEL BLUES WHOLE DIMHW DIMWH), QNT (OFF, SNAP, WHITE, ALL, and SEQ when `QNT_SEQ` is built: sequenced notes follow the scale) and CHORD (OFF, TRIAD, 7TH, 9TH, SUS4, POWER). **SCL 2** has TRN (transpose, -24 to +24 semitones), and with `CHORDPLUS` STRUM (-60 to +60 ms a note) and VLEAD (each chord voiced nearest the last). With a chord on, the white keys walk the scale and one finger plays the chord, recorded as a chord. These values are p-locks and motion too.
+The SCL page (and the layer: hold SCL, press a key to set the key of the song) holds ROOT, SCALE (16 scales: CHR MAJ MIN DOR MIX PEN MPEN HARM PHRY LYD LOC MEL BLUES WHOLE DIMHW DIMWH), QNT (OFF, SNAP, WHITE, ALL, and SEQ when `QNT_SEQ` is built: sequenced notes follow the scale) and CHORD (OFF, TRIAD, 7TH, 9TH, SUS4, POWER). **SCL 2** has TRN (transpose, -24 to +24 semitones), and with `CHORDPLUS` STRUM (-60 to +60 ms a note) and VLEAD (each chord voiced nearest the last). With a chord on, the white keys walk the scale and one finger plays the chord, recorded as a chord. These values are p-locks and motion too. With `CHORDPLUS` the black keys change the chord while held: F# major <-> minor, G# the 7th, A# sus4, C# the 9th, D# an inversion; tapped twice quickly one stays on for the track (lit full); tapped once more it goes off when the key is let go.
 
 ## Patterns and scenes
 

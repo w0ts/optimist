@@ -21,6 +21,7 @@
  *                         ACCENT: op_input.c shift_keys), the muted (SHIFT) or the selected (SHIFT2) full; every page
  *                         but a layer's (STEP: its white keys stay its steps)
  *   the drum track        the lanes' black keys and the last upper key (ACCENT) dim, the selected one full (every page)
+ *   chord mode (CHORD+)   a synth track with SCL > CHORD on: the 5 modifier black keys dim, the latched ones full
  *   STEP, SEQ held        the drum track: the steps with any lane set full, the empty ones inside LEN dim (SEQ + a step clears it)
  * Main loop only (ui_leds); nothing here runs in the audio interrupt. After op_input.c (op_t0, pick_mod). */
 static uint32_t keys_white(uint32_t n) { return keys_of(n < 16u ? (1u << n) - 1u : 0xFFFFu); }   /* the first n white keys (the tiles, the steps) */
@@ -234,4 +235,13 @@ static void keys_lit(uint32_t *f, uint32_t *d)
         *f |= 1u << key_of_lane(lane_selected()) | keys_of(on);
         *d |= keys_of(in & ~on);
     }
+#if FELUCCA_CHORDPLUS
+    else if (!master_sel() && TSEL->p[P_CHORD]) {       /* chord mode: the CHORD+ black keys dim, the latched ones full */
+        for (k = 0; k < 27u; k++)
+            if (chord_mod_of_key(k)) {
+                *d |= 1u << k;
+                *f |= chord_mod_of_key(k) & chord_locked(song.sel) ? 1u << k : 0u;
+            }
+    }
+#endif
 }
