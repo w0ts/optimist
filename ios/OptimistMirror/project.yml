@@ -1,10 +1,14 @@
-# XcodeGen spec (brew install xcodegen; `xcodegen` in this folder writes OptimistMirror.xcodeproj, which is not committed).
-# Signed automatically with your own team (pick it in Xcode's Signing tab).
+# XcodeGen spec (brew install xcodegen): after a change here run `xcodegen` in this folder and commit OptimistMirror.xcodeproj with it.
+# Signing: automatic, with the team in Local.xcconfig (git-ignored: DEVELOPMENT_TEAM = <your team ID>), which Signing.xcconfig
+# includes when it is there; without it Xcode asks for a team. No personal id is committed.
 name: OptimistMirror
 options:
   bundleIdPrefix: com.w0ts.optimist
   deploymentTarget:
     iOS: "17.0"
+configFiles:
+  Debug: Signing.xcconfig
+  Release: Signing.xcconfig
 settings:
   base:
     CODE_SIGN_STYLE: Automatic

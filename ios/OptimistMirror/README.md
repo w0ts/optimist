@@ -10,11 +10,11 @@ editing and adds about 300 B of flash. The protocol is cmd 106 in `web/EDITOR_PR
 ## Install on the phone
 
 ```
-brew install xcodegen          # once
-cd ios/OptimistMirror && xcodegen && open OptimistMirror.xcodeproj
+cd ios/OptimistMirror && open OptimistMirror.xcodeproj    # (after a change of project.yml: xcodegen)
 ```
 
-Run the `OptimistMirror` scheme on the iPhone. Signing is automatic: pick your team in Xcode's Signing tab. The tests (`⌘U`, or `xcodebuild test` on a simulator) decode frames the firmware's own encoder
+Run the `OptimistMirror` scheme on the iPhone. Signing is automatic; put your team in `Local.xcconfig` next to this file
+(git-ignored), one line `DEVELOPMENT_TEAM = <your team ID>`, or pick the team in Xcode's Signing tab. The tests (`⌘U`, or `xcodebuild test` on a simulator) decode frames the firmware's own encoder
 wrote (`Tests/Fixtures`, from `MIRROR_FIXTURE=… build/host/mirror_test`).
 
 ## Use
