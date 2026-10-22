@@ -1148,11 +1148,32 @@ static void step_keys_tests(void)
     frame();
     ppm("opt-step-drums");
     key(WK(0));
-    check(dstep_has(&t->dstep[0], 2) && dstep_lvl(&t->dstep[0], 2) == LV_HARD, "drums: a set step tapped: hard");
-    key(WK(0));
-    check(dstep_has(&t->dstep[0], 2) && dstep_lvl(&t->dstep[0], 2) == LV_GHOST, "drums: ... tapped again: ghost");
-    key(WK(0));
-    check(!dstep_mask(&t->dstep[0]), "drums: ... tapped again: off (normal -> hard -> ghost -> off)");
+    check(!dstep_mask(&t->dstep[0]), "drums: a set step tapped: off (no level cycle; ghost / hard are SHIFT / SHIFT2 + a tap)");
+    fm1_in.notes |= 1u << BK(3);                        /* lane 3's black key held + a step: that lane's level cycles, said */
+    frame();
+    key(WK(3));
+    check(lane_selected() == 3 && dstep_has(&t->dstep[3], 3) && dstep_lvl(&t->dstep[3], 3) == LV_NORM && strstr(ui.msg, " NORM"),
+          "drums: a black key held + an empty step: its lane's hit, NORM said");
+    key(WK(3));
+    check(dstep_lvl(&t->dstep[3], 3) == LV_HARD && strstr(ui.msg, " HARD"), "... the step again: HARD said");
+    key(WK(3));
+    check(dstep_lvl(&t->dstep[3], 3) == LV_GHOST && strstr(ui.msg, " GHOST"), "... again: GHOST said");
+    key(WK(3));
+    check(dstep_has(&t->dstep[3], 3) && dstep_lvl(&t->dstep[3], 3) == LV_NORM && !st.held && ui.toast_t > 0u,
+          "... again: NORM (never off; no step held), in a toast");
+    ui.scr = SCR_HOME;                                  /* (the mixer: no grid, the toast is the only sign) */
+    ui.toast_t = 0;
+    key(WK(3));
+    check(ui.scr == SCR_HOME && dstep_lvl(&t->dstep[3], 3) == LV_HARD && ui.toast_t > 0u && strstr(ui.msg, " HARD"),
+          "drums, the mixer: a black key held + a step: HARD in a toast");
+    ui.scr = SCR_STEP;
+    fm1_in.notes &= ~(1u << BK(3));
+    frame();
+    key(WK(3));                                         /* (HARD -> off: a plain tap) */
+    key(WK(3));                                         /* (back on, NORM: the next check clears it again) */
+    key(WK(3));
+    check(!dstep_has(&t->dstep[3], 3), "drums: the black key let go, the step tapped: off");
+    lane_select(2);
     press(B_OCTUP);
     key(WK(1));
     release(B_OCTUP);
@@ -1211,8 +1232,7 @@ static void step_keys_tests(void)
     fm1_in.buttons &= ~BT(B_OCTDN);
     kup(WK(4));
     frame();
-    check(dstep_has(&t->dstep[4], 5) && dstep_lvl(&t->dstep[4], 5) == LV_GHOST && ui.scr == SCR_STEP,
-          "a step held (a hard hit), let go as a tap: the cycle's next, ghost, STEP stays");
+    check(!dstep_has(&t->dstep[4], 5) && ui.scr == SCR_STEP, "a step held (a hard hit), let go as a tap: off, STEP stays");
     key(WK(4));
     kdown(WK(4));
     tap(B_HOME);

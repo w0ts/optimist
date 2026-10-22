@@ -88,7 +88,8 @@ On STEP the white keys stay steps under the shifts: SHIFT and SHIFT2 with a step
 
 | Gesture | Where | Does |
 |---|---|---|
-| a white key tapped | STEP | the step set with the pick, or cleared (a cleared synth step remembers its note); drums: NORMAL, HARD, GHOST, off |
+| a white key tapped | STEP | the step set with the pick, or cleared (a cleared synth step remembers its note); drums: a hit tapped goes off |
+| a black key held + a white key | STEP (drums, every page) | that lane's hit on the step: NORM, HARD, GHOST, NORM, the level in a popup |
 | SHIFT + an empty drum step | STEP, drums | a ghost hit |
 | SHIFT2 + an empty drum step | STEP, drums | a hard hit |
 | PRESETS | no step held | scroll the 16-step window (stops following) |
