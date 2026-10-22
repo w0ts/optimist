@@ -325,6 +325,7 @@ AINL int32_t dly_fb(int32_t v)
  * when it is unmuted (a level of 0 stops the bus and clears its line) */
 static volatile uint8_t fx_rmute;
 #define RET_LV(j) ((fx_rmute >> (j) & 1u) ? 0 : song.g[G_CRET + (j)])
+#define FXS_IN(x) (FXS_ON(x) && !(fx_imute >> FXS_LN(x) & 1u))   /* (a send heard: a return takes it, its input not muted) */
 #define FX_ZCHUNK 512u          /* a return at 0: its bus' line cleared this many samples a block (fx_zclear) */
 static struct {
     uint32_t cclr, dclr;         /* the chorus' and the delay's line cleared up to here (0: not clearing) */
@@ -2380,8 +2381,8 @@ static HOT void mix_part(track_t *t, uint32_t n MIXACC_PARAM)
         int32_t gl, gr;
         int32_t on = fx_on(t), pk = t->peak;          /* FX bypass: no sends (the buses' tails ring out) */
         pan_gains(pan, &gl, &gr);                     /* (dsp.c) */
-        int32_t c = on && FXS_ON(FXT_CHO) ? t->p[P_CHOR] * 258 : 0, d = on && FXS_ON(FXT_DLY) ? t->p[P_DLY] * 258 : 0;   /* (a send in no FX slot: */
-        int32_t r = on && FXS_ON(FXT_REV) ? t->p[P_REV] * 258 : 0;                                  /* none, fx_slots.c) */
+        int32_t c = on && FXS_IN(FXT_CHO) ? t->p[P_CHOR] * 258 : 0, d = on && FXS_IN(FXT_DLY) ? t->p[P_DLY] * 258 : 0;   /* (a send in no FX slot: */
+        int32_t r = on && FXS_IN(FXT_REV) ? t->p[P_REV] * 258 : 0;                                  /* none, fx_slots.c) */
         int32_t ga = mulq15(g0, duck.g0), gb = mulq15(g1, duck.g1);   /* mute x duck, ramped over the block */
         slicer_track(t, b, n);                          /* slicer.c: first (D2), before the inserts, level, pan, sends */
         if ((FELUCCA_FX_DIST || TFLT_ON || FELUCCA_MASTER_COMP || INS_FX || FELUCCA_FX_DUST) && !FX_INS_BYPASS)
@@ -2648,9 +2649,9 @@ static HOT2 __attribute__((noinline)) void ut_mix(uint32_t n)
         if (m & 1u)
             ut_ins(t, 0, ut_l, ut_r, n);
     pan_gains(ut.v[UTV_PAN], &gl, &gr);
-    to[0] = on && FXS_ON(FXT_CHO) ? ut.v[UTV_CHO] * 258 : 0;
-    to[1] = on && FXS_ON(FXT_DLY) ? ut.v[UTV_DLY] * 258 : 0;
-    to[2] = on && FXS_ON(FXT_REV) ? ut.v[UTV_REV] * 258 : 0;
+    to[0] = on && FXS_IN(FXT_CHO) ? ut.v[UTV_CHO] * 258 : 0;
+    to[1] = on && FXS_IN(FXT_DLY) ? ut.v[UTV_DLY] * 258 : 0;
+    to[2] = on && FXS_IN(FXT_REV) ? ut.v[UTV_REV] * 258 : 0;
     for (i = 0; i < 3u; i++)
         mx = to[i] > mx ? to[i] : mx, mx = ut_snd[i] > mx ? ut_snd[i] : mx;
     xmax = 0x7FFFFFFF / (mx | 1);

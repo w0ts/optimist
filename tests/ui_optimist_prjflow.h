@@ -166,6 +166,21 @@ static void prjflow_tests(void)
 #else
         check(loads == 1u, "... YES: project 2 loaded");
 #endif
+        loads = 0;
+        song.playing = 1;                               /* (playing: the transport stops, the load follows, PLAY again) */
+        pf_key(1);
+        tap(B_SAVE);
+        frames(3);
+#if SEC_LOGGED
+        check(song.playing && !transport_req && !pj_op, "LOAD while playing: stopped, loaded, PLAY again");
+#else
+        check(loads == 1u && song.playing && !transport_req && !pj_op, "LOAD while playing: stopped, loaded, PLAY again");
+#endif
+        song.playing = 0;                               /* (it started again: the sequencer of the harness) */
+        song.g[G_SLOT] = 4;                             /* (the cursor moved away, the page left and entered again: on the loaded slot) */
+        op_enter(SCR_HOME);
+        op_enter(SCR_PROJECT);
+        check(prj_cur == 1 && song.g[G_SLOT] == 2, "PROJECT opens on the slot loaded last (a SAVE asks for that one)");
     }
     ui.toast_t = 0;
     pf_key(3);

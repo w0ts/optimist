@@ -118,10 +118,11 @@ static const uint8_t FXT_AMT[FXT_N] = {
     0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
 #endif
 };
-/* THE send order (2026-10-15, the user: "match the order between master return and the send"): REV DLY CHO. The
- * returns A B C hold them by default, FX > SLOTS lists them so, and every screen shows the sends and the returns in the
- * returns' order (fxs_card: card k is return R(k+1), whatever it holds), so a send's card sits on its return's knob */
-#define FXS_ORDER FXT_REV, FXT_DLY, FXT_CHO
+/* THE send order (2026-10-15, the user: "match the order between master return and the send"; turned round 2026-10-21, the
+ * user: "the default project have sends as chorus, delay, reverb"): CHO DLY REV. The returns A B C hold them by default,
+ * FX > SLOTS lists them so, and every screen shows the sends and the returns in the returns' order (fxs_card: card k is
+ * return R(k+1), whatever it holds), so a send's card sits on its return's knob */
+#define FXS_ORDER FXT_CHO, FXT_DLY, FXT_REV
 static const uint8_t FXS_ORD[3] = {FXS_ORDER};
 /* the header of the default layout, and the layout of a project with no FX record: DIST, then the sends (fx_rec.c ins_map
  * reads a layout's inserts; a record's header is written in it as far as it can: fx_rec.c fxr_head) */
@@ -159,14 +160,26 @@ static const uint8_t FXS_LT[3] = {FXT_CHO, FXT_DLY, FXT_REV};   /* line j's send
  * slot holding it (fxs_rsl), and the drum lanes' send level masks REV DLY CHO (drum_sends.c: 31, or 0 while the line has no
  * return: level 0 sends nothing) */
 #define FXS_LIVE_DEF (FXT_BUILT & (FXT_BIT(FXT_CHO) | FXT_BIT(FXT_DLY) | FXT_BIT(FXT_REV)))
+static void fxs_lm_apply(void);
 static uint32_t fxs_live = FXS_LIVE_DEF;
 static uint8_t fxs_lnl = (uint8_t)((FELUCCA_FX_CHORUS ? 1u : 0u) | (FELUCCA_FX_DELAY ? 2u : 0u) | (FELUCCA_FX_REVERB ? 4u : 0u));
-static uint8_t fxs_line[FX_NSLOT] = {0xFF, FXS_LN(FXT_REV), FXS_LN(FXT_DLY), FXS_LN(FXT_CHO)};   /* slot k's line (0xFF:
+static uint8_t fxs_line[FX_NSLOT] = {0xFF, FXS_LN(FXT_CHO), FXS_LN(FXT_DLY), FXS_LN(FXT_REV)};   /* slot k's line (0xFF:
                                                         * none; FXS_DEF's) */
 static int16_t fxs_ramt[FX_NSLOT];                     /* a return's amount (a type not a send) */
 static volatile uint8_t fxs_rty[3] = {FXT_NONE, FXT_NONE, FXT_NONE};
-static volatile uint8_t fxs_rsl[3] = {3, 2, 1};       /* (line j's slot: FXS_DEF's, CHO in C, DLY B, REV A) */
+static volatile uint8_t fxs_rsl[3] = {1, 2, 3};       /* (line j's slot: FXS_DEF's, CHO in A, DLY B, REV C) */
 static uint8_t fxs_lm[3] = {31, 31, 31};
+/* a return's INPUT mute (the user, 2026-10-21: "mute the INPUT of return tracks, not their output"): bit j = line j (CHO DLY REV, as
+ * fx_rmute, its output's): no send of any source reaches the line while it is set (tracks, the USB input: fx.c FXS_IN; the drum
+ * lanes: fxs_lm), the bus runs on and its tail rings. Kept with the returns (fx_rec.c FXRET_TLV's 4th byte, bits 3..5) */
+static volatile uint8_t fx_imute;
+static void fxs_lm_apply(void)                          /* the drum lanes' send masks (REV DLY CHO: lines 2 1 0): the lines with a return, input not muted */
+{
+    uint32_t l = (uint32_t)fxs_lnl & ~(uint32_t)fx_imute;
+    fxs_lm[0] = l >> 2 & 1u ? 31u : 0u;
+    fxs_lm[1] = l >> 1 & 1u ? 31u : 0u;
+    fxs_lm[2] = l & 1u ? 31u : 0u;
+}
 #define FXS_HAS(x) (fxs_live >> (x) & 1u)
 #define FXS_ON(x) (fxs_lnl >> FXS_LN(x) & 1u)
 #define FXI_RT_HOLDS(j, t) (fxs_rty[(j) % 3u] == (t) && FXS_GEN(t))   /* (fxi.c: a return owning a limited type) */
@@ -227,10 +240,8 @@ static void fxs_fix(void)
     fxs_live = live, fxs_lnl = (uint8_t)lnl;
     for (k = 0; k < 3u; k++)
         fxs_rty[k] = rty[k], fxs_rsl[k] = rsl[k];
-    fxs_lm[0] = lnl >> 2 & 1u ? 31u : 0u;              /* (REV DLY CHO: lines 2 1 0) */
-    fxs_lm[1] = lnl >> 1 & 1u ? 31u : 0u;
-    fxs_lm[2] = lnl & 1u ? 31u : 0u;
     IRQ_RESTORE(ie);
+    fxs_lm_apply();
     FXI_ASK(1u);                                       /* (a send back in a slot: its line, if lent, back; a return's
                                                         * limited type: its instance, fxi.c) */
 }
@@ -1332,10 +1343,11 @@ static const param_desc_t *fxs_desc(uint32_t k, int16_t **vp)
     }
 #endif
     fxs_v[k & 3u] = 0;                                 /* (a type this build lacks: shown empty, kept) */
-    for (i = 0; i < 4u + FXT_N; i++) {                /* (the list from the table: each type's amount names it): ----
-                                                        * and the sends first, in FXS_ORD, then the others */
-        t = i == 0 ? FXT_NONE : i < 4u ? FXS_ORD[i - 1u] : i - 4u;
-        if (i < 4u ? t == FXT_NONE || (FXT_BUILT >> t & 1u) : FXS_GEN(t)) {
+    for (i = 0; i <= FXT_NALPHA; i++) {               /* (the list from the table: each type's amount names it): ---- first,
+                                                        * then by name, A to Z (the user, 2026-10-21: "the fx name in the
+                                                        * inserts slots"), the sends among them */
+        t = FXT_LISTED(i);
+        if (t == FXT_NONE || (FXT_SEND_OK(t) ? FXT_BUILT >> t & 1u : FXS_GEN(t))) {
             fxs_names[n] = t == FXT_NONE ? "----" : t == FXT_DYN ? "DYN" : TP[FXT_AMT[t]].label;
             if (fxs_slot[k & 3u] == t)
                 fxs_v[k & 3u] = (int16_t)n;

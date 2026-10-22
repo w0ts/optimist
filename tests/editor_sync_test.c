@@ -286,10 +286,10 @@ int main(void)
     /* v10 FX_PUSH (ed_fxs.c): the slots, the COMP settings or a drum sound's insert changed on the device: one frame, the
      * FX (86) reply's bytes with op 0; the editor's own FX writes are known (no push) */
     n0 = nf;
-    fxs_load(1, FXT_CHO);                              /* (FX > SLOTS: CHO into A swaps with REV) */
+    fxs_load(1, FXT_REV);                              /* (FX > SLOTS: REV into A swaps with CHO) */
     run_ms(ED9_WIN);
     check(count(ED_FX_PUSH, n0) == 1 && frn[nf - 1] == 7u + ED_FX_N && fr[nf - 1][5] == 0u && fr[nf - 1][6] == FXT_NONE &&
-          fr[nf - 1][7] == FXT_CHO && fr[nf - 1][8] == FXT_DLY && fr[nf - 1][9] == FXT_REV,
+          fr[nf - 1][7] == FXT_REV && fr[nf - 1][8] == FXT_DLY && fr[nf - 1][9] == FXT_CHO,
           "v10 FX_PUSH: a slot loaded on the device (a swap): one frame, op 0, the four slots");
     n0 = nf;
     dins_amt[1][2] = 90;
@@ -431,7 +431,7 @@ int main(void)
             ed_begin(ED_FXP); r = ed_fxp(ED_FXP, q, 6);
             check(r && rs_amt[RS_AC] == 127 && rs_amt[RS_AB] == 0, "v13 FXP op 4: A -> C set (clamped to 127), A -> B kept");
             ed_begin(ED_FXP); r = ed_fxp(ED_FXP, TA, sizeof TA);
-            check(r && fxs_slot[1] == FXT_REV, "v13 FXP op 1 on a return's slot 1: no type loads (its sends)");
+            check(r && fxs_slot[1] == FXT_CHO, "v13 FXP op 1 on a return's slot 1: no type loads (its sends)");
             ed9_known_fx();
             n0 = nf;
             rs_amt[RS_BC] = 40;

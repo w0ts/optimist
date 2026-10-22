@@ -7,6 +7,7 @@
  * then a one-sample glitch (no press), bounce on the way down (one press), chatter on release (one release). */
 #include <stdio.h>
 #include <string.h>
+#define FM1_SCAN_NOW() 0u                           /* (the timer register is hardware: the scan's time stamps are not under test here) */
 #include "../firmware/hal/fm1_input.h"
 
 static int fails;

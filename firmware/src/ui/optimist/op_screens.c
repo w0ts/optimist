@@ -131,6 +131,7 @@ static int op_global_go(uint32_t id)
         return 1;
     case G_NEWPRJ:
         op_project_new();
+        prj_cur = -1;                                   /* (a new project: no slot yet) */
         work_mark();                                    /* (the work as made: nothing to ask about) */
         ui_message("NEW PROJECT");
         return 1;

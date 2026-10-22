@@ -308,8 +308,17 @@ static void t_record(void)
     check("... decoded back (a load): lines CHO and REV muted", fxr_decode(b, n, 1) && fx_rmute == 5 && rets_are(127, 127, 127));
     fx_rmute = 2;
     check("... a song section (all 0): the mute playing kept", fxr_decode(b, n, 0) && fx_rmute == 2);
+    fx_rmute = 2;
+    fx_imute = 5;
+    n = fxr_encode(b);
+    check("the returns' INPUT mutes ride in the same byte (bits 3..5, the outputs' bits 0..2 beside them)", n == FXR_HEAD + 6u && b[FXR_HEAD + 5u] == (2u | 5u << 3));
+    fx_rmute = 0;
+    fx_imute = 0;
+    check("... decoded back (a load): both kept, the drum lanes' send masks follow", fxr_decode(b, n, 1) && fx_rmute == 2 && fx_imute == 5 && fxs_lm[0] == 0u && fxs_lm[1] == 31u && fxs_lm[2] == 0u);
+    fx_imute = 0;
+    fxs_lm_apply();
     fx_rmute = 7;
-    check("no record: every return unmuted", !fxr_decode(0, 0, 1) && fx_rmute == 0);
+    check("no record: every return unmuted", !fxr_decode(0, 0, 1) && fx_rmute == 0 && fx_imute == 0);
     rets(10, 64, 0);
     n = fxr_encode(b);
     b[FXR_HEAD + 1u] = 3u;

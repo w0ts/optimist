@@ -189,6 +189,7 @@ static uint32_t op_step_auto(const track_t *t, uint32_t step, uint32_t lane)
 static const uint8_t OP_HOLD_POS[HOLD_N] = {1, 0, 2}, OP_HOLD_SEL[HOLD_N] = {1, 0, 2};   /* (the knob's order 250 350 500) */
 #define OP_TAP_GAP 150u
 static uint32_t op_hold_ms(void) { return HOLD_MS; }
+static uint32_t lk_ev_ms;                               /* fm1_ms of the key event being handled (op_drain: its queued time, seq.c lk_t) */
 
 static const page_t *cur_page(void) { return &PAGES[ui.page % NPAGES]; }   /* (miss.c: TOOLS > MISS) */
 

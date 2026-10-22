@@ -951,19 +951,10 @@ static void confirm_tests(void)
     tap(B_SAVE);
     check(name_on() && nm.kind == NK_PROJ && !project_used(3), "PROJECT SAVE with the log: NAME first, nothing written");
     song.playing = 1;                                   /* (an external MIDI clock playing: no STOP here) */
-    tap(B_SAVE);
-    check(name_on() && !project_used(3), "NAME while playing: SAVE refused (STOP BEFORE SAVE), the screen stays");
-    press(B_HOME);
-    fm1_ms += NM_HOLD_MS + 10u;
-    frame();
-    check(!name_on() && !project_used(3), "... HOME held: NAME cancelled, nothing written (the user, 2026-10-17)");
-    release(B_HOME);
-    check(!name_on() && !project_used(3), "... and its release does nothing more");
-    song.playing = 0;
-    name_open(NK_PROJ, 3);                              /* (as the question would: the operation is LOAD again after the
-                                                         * cancel, the project slot 4 still empty) */
-    check(name_on() && nm.kind == NK_PROJ && !project_used(3), "... NAME open again for slot 4, nothing written yet");
-    tap(B_SAVE);                                        /* (NAME's SAVE: the name kept, the project written) */
+    tap(B_SAVE);                                        /* (the transport stops, NAME's save follows, PLAY again) */
+    check(!name_on() && project_used(3) && !song.playing && transport_req == 1,
+          "NAME while playing: SAVE stops the transport, writes, starts it again");
+    transport_req = 0;
     saves = project_used(3);                            /* (the real log: slot 4 stored) */
     project_save(0);                                    /* (slot 1 used, for the question below) */
 #else
@@ -3279,11 +3270,9 @@ static void name_tests(void)
     ppm("opt-name");
     song.playing = 1;
     tap(B_SAVE);
-    check(name_on() && up_stores == n0, "playing: SAVE refused, NAME stays (stop before save)");
-    song.playing = 0;
-    tap(B_SAVE);
-    check(!name_on() && up_stores == n0 + 1u && !strcmp(up_stored, nm.s) && ui.toast_t,
-          "SAVE: written under the typed name, a toast");
+    check(!name_on() && up_stores == n0 + 1u && !strcmp(up_stored, nm.s) && ui.toast_t && !song.playing && transport_req == 1,
+          "playing: SAVE stops the transport, writes under the typed name, PLAY again");
+    transport_req = 0;
     ui.user_slot = 3;
     turn(EN_K2, 1);                                     /* (SAVE AS again: asks, then NAME) */
     tap(B_SAVE);
@@ -3595,6 +3584,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_cards.h"                     /* the cards 2x2 but on the mixer, no CARDS setting */
 #include "ui_optimist_cardspic.h"                  /* under the cards: the picture alone, else the rows */
 #include "ui_optimist_stepcards.h"                /* STEP: the cards as an overlay */
+#include "ui_optimist_taplate.h"                  /* STEP: a tap judged by the key's own times */
 #include "ui_optimist_picker.h"                   /* STEP: the note picker (the cards down) */
 #include "ui_optimist_master.h"                    /* PRESETS = the sound only; ALGORITHM to MASTER */
 #include "ui_optimist_knobcol.h"                   /* SYSTEM > SCREEN > KNOB COLORS */
@@ -3789,6 +3779,7 @@ int main(int argc, char **argv)
     cards_tests();
     cards_pic_tests();
     step_cards_tests();
+    taplate_tests();
     picker_tests();
     overlap_tests();
     step_cards_leak_tests();

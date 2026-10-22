@@ -556,6 +556,20 @@ static int mx_ret_mute(const mitem_t *m)
     ui_say(fxs_ret_label(ln), (fx_rmute >> ln & 1u) ? " MUTE" : " ON");
     return 1;
 }
+/* the mute mode's last three white keys (E F G): the INPUT of return A B C muted (fx.c fx_imute: no send reaches it, its bus and
+ * tail run on; the output's mute is the RET cards'). w 0..2 = A B C; the line the slot holds (none: a toast) */
+static uint32_t ret_in_line(uint32_t w) { return fxs_line[1u + w % 3u] < 3u ? fxs_line[1u + w % 3u] : 3u; }
+static void mx_ret_in_toggle(uint32_t w)
+{
+    uint32_t ln = ret_in_line(w);
+    if (ln >= 3u) {
+        ui_message("NO RETURN");
+        return;
+    }
+    fx_imute = (uint8_t)(fx_imute ^ (1u << ln));
+    fxs_lm_apply();
+    ui_say(fxs_ret_label(ln), (fx_imute >> ln & 1u) ? " IN MUTE" : " IN ON");
+}
 static int mx_mute_toggle(uint32_t r, const mitem_t *m)
 {
     if (m->kind == MI_RET)

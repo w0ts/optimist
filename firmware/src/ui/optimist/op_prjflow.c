@@ -268,8 +268,11 @@ static void prj_do(uint32_t kind, uint32_t op, uint32_t s)
             return;
         }
 #endif
-        if (op == PO_LOAD) {
+        if (op == PO_LOAD && (song.playing || transport_req)) {
+            pj_defer(1, s);                             /* (stopped, loaded, played again: pj_tick) */
+        } else if (op == PO_LOAD) {
             project_load(s);
+            prj_cur = (int8_t)s;
             work_mark();                                /* (the work as loaded) */
         } else {
             name_project(s);                            /* (NAME first, with the section log: op_name.c) */

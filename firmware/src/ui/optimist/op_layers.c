@@ -279,6 +279,7 @@ static void scene_load_now(uint32_t s)                  /* stopped: scene s is t
 {
     char b[2] = {(char)('A' + s % 16u), 0};
     section_load(s);
+    prj_cur = (int8_t)s;
     work_mark();                                        /* (the work as stored: op_edits.c) */
     ui_say("LOADED ", b);
 }
@@ -389,6 +390,7 @@ static void scene_store_now(uint32_t s)
             ui_say("STORED ", b + 6);
     } else {
         project_save(s);
+        prj_cur = (int8_t)s;
         work_mark();
     }
     ui.force = 1;
@@ -872,6 +874,7 @@ static void lay_frame(uint32_t held)
         ui.force = 1;
     }
     ui.layer = lay.shown;
+    pj_tick();
     if (lay.song_go && !song.playing && !transport_req) {
         lay.song_go = 0;
         transport_req = 1;                              /* (SEQ + PLAY while playing: the song from its start) */

@@ -18,8 +18,8 @@ static void c2_master_tests(void)
     ui.force = 1;
     frame();
     n = mx_rets(ret);
-    check(mxd.first == MXR_MASTER && n == 3u && ret[0] == 2u && ret[1] == 1u && ret[2] == 0u,
-          "MASTER page: three return lines, A B C = REV DLY CHO (the default; every FX built here)");
+    check(mxd.first == MXR_MASTER && n == 3u && ret[0] == 0u && ret[1] == 1u && ret[2] == 2u,
+          "MASTER page: three return lines, A B C = CHO DLY REV (the default; every FX built here)");
     for (i = 0; i < n; i++) {                           /* the names in C_HI where T1 .. DR were */
         y = (uint32_t)(OP_PY + MXM_CY + (int32_t)i * MXM_CP);
         ok &= (uint32_t)px_in(MXM_X, y, 24, 14, C_HI);
@@ -28,7 +28,7 @@ static void c2_master_tests(void)
         ok &= (uint32_t)!px_in(0, (uint32_t)(OP_PY + MXM_CY), 240, (uint32_t)(OP_PH - MXM_CY), trk_col(i));
     y = (uint32_t)(OP_PY + MXM_CY + 3 * MXM_CP);        /* (where DR's line was: nothing) */
     ok &= (uint32_t)!px_in(MXM_X, y, 240u - MXM_X, 240u - y, C_HI);   /* (the MASTER chip at x 2 runs down: not counted) */
-    check(ok, "MASTER page: the REV DLY CHO names, no track's colour under GR, nothing in DR's old place");
+    check(ok, "MASTER page: the CHO DLY REV names, no track's colour under GR, nothing in DR's old place");
     check(px_in(MXM_GX, (uint32_t)(OP_PY + MXM_GY), MXM_GW, MXM_GH, C_LINE), "MASTER page: the GR line kept");
     ppm("opt-cards2-master");
     mt.ret[2] = 12000;                                  /* REV loud, DLY and CHO silent (meter_tap's side: set here) */
@@ -36,9 +36,9 @@ static void c2_master_tests(void)
     memset(fx_ret_pk, 0, sizeof fx_ret_pk);
     ui_draw();
     y = (uint32_t)(OP_PY + MXM_CY + MXM_CV);
-    check(px_in(MXM_GX, y, 40, MXM_CH, C_OK) && !px_in(MXM_GX, y + MXM_CP, 40, MXM_CH - 1u, C_OK) &&
-          !px_in(MXM_GX, y + 2u * MXM_CP, 40, MXM_CH - 1u, C_OK),
-          "MASTER page: the REV return's meter fills, DLY's and CHO's stay empty");
+    check(px_in(MXM_GX, y + 2u * MXM_CP, 40, MXM_CH, C_OK) && !px_in(MXM_GX, y + MXM_CP, 40, MXM_CH - 1u, C_OK) &&
+          !px_in(MXM_GX, y, 40, MXM_CH - 1u, C_OK),
+          "MASTER page: the REV return's meter (C) fills, CHO's and DLY's stay empty");
     ppm("opt-cards2-master-rev");
     /* the tap: each bus's return seen apart (fx_buses, one block at a time, the sends set by hand) */
     for (i = 0; i < 6000u; i++)                         /* (the buses drained first: an earlier test's tails, the sequencer mute

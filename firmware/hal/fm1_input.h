@@ -47,6 +47,9 @@
 #define FM1_SETTLE_US 10u
 #define FM1_REST_FRAMES 900u      /* ~1 s still off the detent state: that is the detent (power-on) */
 #define FM1_ENC_GO 20u            /* a 2-state jump from the detent goes on the way of a click this recent (~22 ms) */
+#ifndef FM1_SCAN_NOW
+#define FM1_SCAN_NOW() fm1_ticks()   /* (the time stamped on the scan's events and ticks; a host test sets its own) */
+#endif
 #define FM1_NCOL 11u
 #define FM1_NKEY 41u              /* ids: 0..13 buttons, 14..40 note keys */
 #define FM1_NENC 7u
@@ -85,6 +88,11 @@ static volatile struct {
     int8_t enc_dir[FM1_NENC];    /* the last click's direction, and its frame */
     uint32_t enc_dfr[FM1_NENC];
     uint32_t frames;
+    /* how often the keys are read (console `keys`, 2026-10-21: "monitor how frequently we read stuff"): ticks taken, the longest gap
+     * between two ticks (timer ticks, since the last report), debounce blips (a closed sample that never made a press / an open one
+     * that never made a release: contact or scan trouble), the longest gap between two main-loop passes (ms, main.c) */
+    uint32_t ticks, t_last, gap_max, press_blips, release_blips, ui_gap_max;
+    uint32_t enc_count[FM1_NENC];     /* detents each knob counted since power-on (a knob that counts with no hand on it: a phantom turn, which cancels a step tap) */
 } fm1_in;
 static uint8_t fm1_led[FM1_NCOL];
 /* THE dim level of every LED (the buttons' half light and the keys' landmarks share this one layer, fm1_led_dim): lit one
@@ -242,18 +250,36 @@ static void fm1_input_init(void)
  * integrating debounce at the frame's end it replaced (3 frames closed) */
 #define FM1_DEB_PRESS 2u
 #define FM1_DEB_RELEASE 8u
+/* the last key / button edges as the debounce made them (console `keylog`): id, bit 7 set = released, and the time (timer ticks);
+ * one tap of one key must be one pair. A neighbour's press a few ticks after it is the scan, a later one the finger */
+#define FM1_KLOG_N 32u
+static uint8_t fm1_klog_id[FM1_KLOG_N];
+static uint32_t fm1_klog_t[FM1_KLOG_N], fm1_klog_n;
+static void fm1__klog(uint32_t id, uint32_t released)
+{
+    uint32_t i = fm1_klog_n++ % FM1_KLOG_N;
+    fm1_klog_id[i] = (uint8_t)(id | (released ? 0x80u : 0u));
+    fm1_klog_t[i] = FM1_SCAN_NOW();
+}
 static void fm1__key(uint32_t id, uint32_t closed)
 {
     volatile uint8_t *c = &fm1_in.cnt[id];
     uint32_t note = id >= 14u, bit = note ? 1u << (id - 14u) : 1u << id;
     uint32_t on = ((note ? fm1_in.notes : fm1_in.buttons) & bit) != 0u;
     if (closed == on) {                            /* agrees with the state: start over */
+        if (*c) {                                  /* (a press or a release that did not hold: counted) */
+            if (on)
+                fm1_in.release_blips++;
+            else
+                fm1_in.press_blips++;
+        }
         *c = 0;
         return;
     }
     if (++*c < (on ? FM1_DEB_RELEASE : FM1_DEB_PRESS))
         return;
     *c = 0;
+    fm1__klog(id, on);
     if (note) {
         if (!on)
             fm1_in.notes_pressed |= bit;
@@ -341,6 +367,7 @@ static void fm1__frame(void)
             n = n >= 2 ? (n + 2) / 4 : 0;
             fm1_in.enc_steps[e] = (int16_t)(fm1_in.enc_steps[e] + (*sub < 0 ? -n : n));
             if (n) {
+                fm1_in.enc_count[e] += (uint32_t)n;
                 fm1_in.enc_dir[e] = (int8_t)(*sub < 0 ? -1 : 1);
                 fm1_in.enc_dfr[e] = fm1_in.frames;
             }
@@ -352,12 +379,21 @@ static void fm1__frame(void)
 
 /* one column per call, from a timer ISR (see top) */
 static uint8_t fm1__tick_col;
+static inline __attribute__((always_inline)) void fm1__stamp(void)                 /* the tick's time: the longest gap between two */
+{
+    uint32_t now = FM1_SCAN_NOW();
+    if (fm1_in.t_last && now - fm1_in.t_last > fm1_in.gap_max)
+        fm1_in.gap_max = now - fm1_in.t_last;
+    fm1_in.t_last = now;
+    fm1_in.ticks++;
+}
 #if FELUCCA_LIGHTS
 /* the dim pulses of column p ride on the shift of column n: the lines go lit | glow | backlight of p, each layer
  * ends when its time is up (TIMER4, checked after every bit), and the latch comes with the lines dark */
 static void fm1_input_tick(void)
 {
     uint32_t p = fm1__tick_col, n = p + 1u == FM1_NCOL ? 0u : p + 1u, i;
+    fm1__stamp();
     uint32_t w = 0xFFFFu ^ (1u << n) ^ (n < 2u ? 1u << (11u + n) : 0u);
     uint32_t lit = fm1_led[p], a = fm1_led_dim[p] & ~lit, b = fm1_led_bg[p] & ~lit & ~a;
     uint32_t ta = a ? FM1__NS_T(FM1_GLOW_NS) : 0u, tb = b ? FM1__NS_T(fm1_led_bg_ns) : 0u;
@@ -391,6 +427,7 @@ static void fm1_input_tick(void)
 static void fm1_input_tick(void)
 {
     uint32_t p = fm1__tick_col, n = p + 1u == FM1_NCOL ? 0u : p + 1u;
+    fm1__stamp();
     fm1__led_lines(0);
     fm1_in.raw[p] = (uint8_t)fm1__rows();          /* column p has been latched one tick */
     fm1__sr_word(0xFFFFu ^ (1u << n) ^ (n < 2u ? 1u << (11u + n) : 0u));

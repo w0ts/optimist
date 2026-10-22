@@ -117,7 +117,7 @@ static uint32_t fxret_tlv(uint8_t *o)                  /* -> o, its length; 0: e
     uint32_t k, any = 0;
     for (k = 0; k < FXRET_N; k++)
         any |= (uint32_t)((o[k] = (uint8_t)song.g[G_CRET + k]) != 127u);
-    o[FXRET_N] = (uint8_t)(fx_rmute & 7u);
+    o[FXRET_N] = (uint8_t)((fx_rmute & 7u) | (fx_imute & 7u) << 3);   /* (bits 0..2 the outputs' mutes, 3..5 the inputs') */
     return any || o[FXRET_N] ? FXRET_TLV_N : 0u;
 }
 static __attribute__((noinline)) void fxret_untlv(const uint8_t *a, uint32_t n)  /* (n 0: none, every return at unity; a shorter one: as none) */
@@ -126,6 +126,8 @@ static __attribute__((noinline)) void fxret_untlv(const uint8_t *a, uint32_t n) 
     for (k = 0; k < FXRET_N; k++)
         song.g[G_CRET + k] = (int16_t)(n >= FXRET_N && a[k] < 127u ? a[k] : 127u);
     fx_rmute = (uint8_t)(n >= FXRET_TLV_N ? a[FXRET_N] & 7u : 0u);
+    fx_imute = (uint8_t)(n >= FXRET_TLV_N ? a[FXRET_N] >> 3 & 7u : 0u);
+    fxs_lm_apply();
 }
 /* TLV VCNT_TLV (0x47, 2026-10-14): the parts' VOICES (core.h P_VOICES, 0..8, 0 = the engine's max), a byte a part, only when
  * one is not 0; none: every part at the engine's max, as every project from before. A load's (`all`): a song section

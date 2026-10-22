@@ -37,6 +37,19 @@ static void smute_tests(void)
     key(key_of_lane(9));
     key(smute_black(1));
     check(smute_lane == 0x200u && smute_trk == 2u, "the 10th lane's key: lane 10; the second white key (G): T2");
+    {   /* the mute is the sequencer's alone: no track's volume, pan, sound mute or send moved (the user, 2026-10-21: "it should not touch the volume") */
+        int16_t lv[NTRK][4];
+        uint32_t t;
+        for (t = 0; t < NTRK; t++)
+            lv[t][0] = trk[t].p[P_LEVEL], lv[t][1] = trk[t].p[P_PAN], lv[t][2] = trk[t].p[P_MUTE], lv[t][3] = trk[t].p[P_REV];
+        key(smute_black(0));
+        key(smute_black(0));
+        key(smute_black(2));
+        for (t = 0; t < NTRK; t++)
+            check(lv[t][0] == trk[t].p[P_LEVEL] && lv[t][1] == trk[t].p[P_PAN] && lv[t][2] == trk[t].p[P_MUTE] && lv[t][3] == trk[t].p[P_REV],
+                  "SHIFT + a track key: the track's volume, pan, sound mute and send untouched (the sequencer mute alone)");
+        key(smute_black(2));
+    }
     key(smute_black(3));
     check(smute_trk == 10u, "the fourth white key (B): DR");
     key(white_key(5));                                  /* (a white key past the four: nothing) */
@@ -88,8 +101,33 @@ static void smute_tests(void)
         uint32_t lk = 0;
         for (i = 0; i < DRUM_LANES; i++)
             lk |= 1u << key_of_lane(i);
-        check(f == ((1u << key_of_lane(2)) | (1u << smute_black(0))) && (d | f) == (lk | keys_white(4) | (ACC_UI ? 1u << DACC_KEY : 0u)),
-              "SHIFT held: the lanes' black keys, the 4 track keys and the last upper key lit, the muted lane and T1 full, the rest dim");
+        memset(mx.lit, 0, sizeof mx.lit);
+        trk[0].seq_n = 0;
+        keys_lit(&f, &d);
+        check(f == 0u && (d | f) == (lk | keys_white(4) | ((1u << white_key(13)) | (1u << white_key(14)) | (1u << white_key(15))) | (ACC_UI ? 1u << DACC_KEY : 0u)),
+              "SHIFT held: the lanes' black keys, the 4 track keys and the last upper key lit dim, none full while no note plays (muted or not)");
+        trk[0].seq_n = 1;
+        mx.lit[2] = 5;
+        keys_lit(&f, &d);
+        check(f == ((1u << key_of_lane(2)) | (1u << smute_black(0)) | (1u << smute_black(3))),
+              "... a note playing on T1 and a lane hit (DR with it): their keys full (what is being muted), in mute mode");
+        trk[0].seq_n = 0;
+        memset(mx.lit, 0, sizeof mx.lit);
+        {   /* the last three white keys: a return's input (A B C), full while muted, no sound mute of the output */
+            uint8_t rm = fx_rmute;
+            uint32_t ln = fxs_line[2] < 3u ? fxs_line[2] : 0u;
+            fx_imute = 0;
+            fxs_lm_apply();
+            check(fxs_lm[0] == 31u && fxs_lm[1] == 31u && fxs_lm[2] == 31u, "the returns' inputs open: the drum lanes' send masks full");
+            key(white_key(14));                             /* (F: return B) */
+            keys_lit(&f, &d);
+            check((fx_imute >> ln & 1u) == 1u && fx_imute == (1u << ln) && fx_rmute == rm && (f >> white_key(14) & 1u) && !(f >> white_key(13) & 1u),
+                  "SHIFT + the second of the last three white keys: return B's input muted (its output's mute untouched), its key full");
+            check(fxs_lm[2u - ln] == 0u && !FXS_IN(FXT_CHO) == (ln == 0u) && !FXS_IN(FXT_DLY) == (ln == 1u) && !FXS_IN(FXT_REV) == (ln == 2u),
+                  "... no send reaches that line (the lanes' masks, the tracks' and the USB input's send gains), the others open");
+            key(white_key(14));
+            check(fx_imute == 0u && fxs_lm[0] == 31u && fxs_lm[1] == 31u && fxs_lm[2] == 31u, "... the key again: open");
+        }
     }
     release(B_OCTDN);
     frames(2);
