@@ -107,14 +107,20 @@ static void scl_json(FILE *f, uint32_t s, uint32_t i, const scl_t *c0, int first
     }
     fprintf(f, "}");
 }
-#if FELUCCA_SEQTOOLS && FELUCCA_ED_TOOLS
-/* TOOLS (ed_tools.c): the tools and EUCLID through the device's own functions */
+#if (FELUCCA_SEQTOOLS || FELUCCA_GENS) && FELUCCA_ED_TOOLS
+/* TOOLS (ed_tools.c): the tools and EUCLID through the device's own functions; a part not built answers nothing */
 static void edtools_tests(void)
 {
     uint32_t i;
     uint8_t q[8];
     int ok = 1, r;
     track_t *t;
+    ed_begin(1);
+    ed_tools_info();
+    check(ed_n == 10u && ed_out[5] == 0x5Bu && ed_out[6] == 3u && ed_out[7] == 3u
+          && ed_out[8] == ((FELUCCA_SEQTOOLS ? 1u : 0u) | (FELUCCA_GENS ? 2u : 0u) | (FELUCCA_NOTEGEN ? 4u : 0u))
+          && ed_out[9] == ((FELUCCA_NOTEGEN ? 7u : 0u) | (FELUCCA_GEN_GRIDS ? 8u : 0u)),
+          "TOOLS INFO 0x5B: version 3, what is built (the tools, the generators, EUCLID's ops), then the types built");
     reset_ui();
     song.sel = 0;
     t = &trk[0];
@@ -126,6 +132,11 @@ static void edtools_tests(void)
     for (i = 0; i < 4u; i++) {                         /* notes 60 61 62 63 on steps 1..4 (NOTE steps, 100) */
         t->step[i].time = ST_NOTE, t->step[i].n = 1, t->step[i].note[0] = (uint8_t)(60 + i), t->step[i].vel = 100;
     }
+#if !FELUCCA_SEQTOOLS
+    q[0] = 1, q[1] = 0, q[2] = 127, q[3] = 0;
+    ed_begin(ED_TOOLS);
+    check(!ed_tools(ED_TOOLS, q, 4), "TOOLS op 1 without SEQTOOLS: no reply");
+#else
     q[0] = 1, q[1] = 0, q[2] = 127, q[3] = 0;           /* REVERSE the whole pattern (a synth track) */
     ed_begin(ED_TOOLS);
     r = ed_tools(ED_TOOLS, q, 4);
@@ -141,6 +152,30 @@ static void edtools_tests(void)
     ed_begin(ED_TOOLS);
     r = ed_tools(ED_TOOLS, q, 4);
     check(r && trk_len(t) == 8u, "TOOLS op 1: LENGTH 1/2: back to 8");
+#endif
+#if !FELUCCA_NOTEGEN
+    for (q[0] = 2, ok = 1; q[0] <= (FELUCCA_GENS ? 3u : 9u); q[0]++) {
+        q[1] = 0, q[2] = 0;
+        ed_begin(ED_TOOLS);
+        ok &= !ed_tools(ED_TOOLS, q, 3);
+    }
+#if FELUCCA_GENS
+    q[0] = 6, q[1] = GT_EUCLID;                         /* (a type the build has not) */
+    ed_begin(ED_TOOLS);
+    ok &= !ed_tools(ED_TOOLS, q, 2);
+    q[0] = 6, q[1] = GT_GRIDS;
+    ed_begin(ED_TOOLS);
+    r = ed_tools(ED_TOOLS, q, 2);
+    check(ok && r && ed_out[16] == GT_GRIDS && ed_out[10] == 64u,
+          "TOOLS without NOTEGEN: EUCLID's ops 2, 3 and the type EUCLID no reply; GRIDS (op 6) at its defaults");
+#else
+    q[0] = 0;
+    ed_begin(ED_TOOLS);
+    r = ed_tools(ED_TOOLS, q, 1);
+    check(ok && r && ed_out[16] == 0u && ed_out[17] == 0u && ed_out[18] == 0u,
+          "TOOLS ops 2..9 without the generators: no reply; the state's generator all 0");
+#endif
+#else
     {   /* EUCLID, the generator layer: ON leaves the pattern alone, HITS turns it, OFF (4) writes what plays, OFF (5) leaves the pattern as it was */
         uint8_t was[8];
         uint32_t hits = 0;
@@ -213,6 +248,7 @@ static void edtools_tests(void)
         gen_sync();
         check(ok, "TOOLS v2 op 6..9: PULSE at its defaults, OFFSET fitted, MODE ADD, ON / OFF (the pattern untouched), a bad type no reply");
     }
+#endif
     q[0] = 10;
     ed_begin(ED_TOOLS);
     check(!ed_tools(ED_TOOLS, q, 1), "TOOLS: an unknown op: no reply");
@@ -346,11 +382,11 @@ static void edscrn_tests(void)
     check(ed_n == 5u, "ED_SCRN off: INFO has no tag 0x59");
 #endif
     reset_ui();
-#if FELUCCA_SEQTOOLS && FELUCCA_ED_TOOLS
+#if (FELUCCA_SEQTOOLS || FELUCCA_GENS) && FELUCCA_ED_TOOLS
     edtools_tests();
     ed_begin(1); ed_tools_info();
     check(ed_n > 5u && ed_out[5] == 0x5Bu, "ED_TOOLS on: INFO carries tag 0x5B");
-#elif FELUCCA_SEQTOOLS
+#elif FELUCCA_SEQTOOLS || FELUCCA_GENS
     q[0] = 0, q[1] = 0, q[2] = 0, q[3] = 0;
     ed_begin(ED_TOOLS);
     check(!ed_tools(ED_TOOLS, q, 4) && ed_n == 5u, "ED_TOOLS off: cmd 98 is not handled (no reply)");

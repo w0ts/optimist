@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The note generators (seq/gen.c, FELUCCA_SEQTOOLS): a layer the sequencer plays over the pattern.
+/* The note generators (seq/gen.c, FELUCCA_NOTEGEN): a layer the sequencer plays over the pattern.
  *   1. EUCLID in REPLACE = the old EUCLID writer (op_tools.c eu_fn before feat/note-generators, copied below) for the
  *      same values, on random synth patterns (NOTEs, TIEs, carry steps, RESTs) and drum lanes
  *   2. the modes on a drum lane: ADD the union, MASK the pattern's hits where it hits
@@ -18,7 +18,7 @@
 #define FELUCCA_FILLS 1
 #define FELUCCA_CHANCE 1
 #define FELUCCA_COND 1
-#define FELUCCA_SEQTOOLS 1
+#define FELUCCA_NOTEGEN 1
 #define FELUCCA_GEN_GRIDS 1
 #define GEN_BUILT 1                     /* (the generators without the Optimist UI around them) */
 #define FELUCCA_MIDI_OUT 1

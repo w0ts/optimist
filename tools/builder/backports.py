@@ -36,7 +36,7 @@ LABEL = {  # short menu labels (the title stays in the details)
     "FELUCCA_SL24_EXPORT": "export a project for SLOOP 2.7 (web editor)",
     "FELUCCA_SL24_EDIMPORT": "import a SLOOP 2.7 song or backup (web editor)",
     "FELUCCA_COND": "step conditions 1:2 .. 4:4 (Felucca 1.5.6)",
-    "FELUCCA_SEQTOOLS": "STEP tools and note generators (Felucca 1.5.6)",
+    "FELUCCA_SEQTOOLS": "STEP tools (Felucca 1.5.6)",
     "FELUCCA_GEN_GRIDS": "note generator GRIDS (Mutable Instruments Grids)",
 }
 DESC = {  # what each switch does for the user (plain words; sizes from tools/builder/costs.json, details in backports.json)
@@ -167,21 +167,23 @@ DESC["FELUCCA_COND"] = (
     "A step-only event of the automation store (it builds the store); an older build plays such a step always. About "
     "1.4 KB of flash beside the store's other items (11 KB when it builds the store alone).")
 DESC["FELUCCA_SEQTOOLS"] = (
-    "The sequence tools of Felucca 1.5.6 on STEP's last three pages: TOOLS (REVERSE, RANDOM: new notes "
-    "in the scale or a new beat, COOK: a few small changes, LENGTH x2 / half), each one asking first, and the note generators "
-    "GEN / GEN OUT (EUCLID, RANDOM, PULSE; REPLACE, ADD or MASK the pattern): played live over the pattern, never written "
-    "into it but by WRITE, which asks. On a drum lane picked with ALGORITHM, that lane only. Notes keep their exact lengths; locks, chance "
-    "and conditions move with their steps (the EDIT layer's SHIFT and LENGTH too). About 5.3 KB of flash.")
+    "The sequence tools of Felucca 1.5.6 on STEP's TOOLS page: REVERSE, RANDOM (new notes in the scale or a new "
+    "beat), COOK (a few small changes), LENGTH x2 / half and QUANTIZE (the nudged starts), each one asking first and "
+    "one undo level. On a drum lane picked with ALGORITHM, that lane only. Notes keep their exact lengths; locks, chance "
+    "and conditions move with their steps (the EDIT layer's SHIFT and LENGTH too). The note generators are their own "
+    "item since 2026-10-22 (NOTEGEN). About 4.5 KB of flash (the builder's measure, 2026-10-22).")
 DESC["FELUCCA_GEN_GRIDS"] = (
     "Mutable Instruments Grids (Emilie Gillet) as a drum note generator: 25 drum patterns on a 5 x 5 map, read "
     "between them at X and Y. On DR itself (no lane picked) STEP has GRIDS (X, Y, CHAOS) and DENSITY (BD, SD, HH) in "
     "GEN's place: one GRIDS for the kit, playing the first KICK lane, the first SNARE lane and the CLOSED HAT lane, "
     "and the ACCENT lane where a part plays HARD; GEN OUT turns it on and WRITEs it. Its six values are the drum "
     "track's own, saved with the project and recorded as motion. CHAOS is Grids' random push, new each bar. On a "
-    "picked lane (or T1 T2 T3) GRIDS is also a GEN TYPE (X, Y, DENSITY) playing the part of the lane's sound. One "
-    "bar of 16ths, repeated through LEN. Needs the STEP tools. About 2.6 KB of flash (1.2 KB of it the map; measured on the synth profile).")
+    "picked lane (or T1 T2 T3) GRIDS is a GEN TYPE (X, Y, DENS) playing the part of the lane's sound. One "
+    "bar of 16ths, repeated through LEN. Builds STEP's GEN and GEN OUT pages itself, with or without the other "
+    "generators (NOTEGEN: EUCLID, RANDOM, PULSE); alone, GRIDS is the one TYPE. About 8.7 KB of flash and 2 KB of RAM alone: 6.1 KB of it the generators' "
+    "framework, shared with NOTEGEN, and 1.2 KB the map; 2.5 KB more next to NOTEGEN (the builder's measure, 2026-10-22).")
 PARENT = {"FELUCCA_SPRING": "FX_REVERB", "FELUCCA_DLY_DOT": "FX_DELAY", "FELUCCA_PUNCH_LATCH": "FX_PUNCH",
-          "FELUCCA_UP_FM6": "ENG_FM6", "FELUCCA_GEN_GRIDS": "SEQTOOLS"}   # options of a registry item
+          "FELUCCA_UP_FM6": "ENG_FM6"}   # options of a registry item
 AFTER = {"FELUCCA_SPRING": "REV_FDN8"}   # an option's place among its parent's (SPRING beside the other reverb algorithms)
 BITS = {  # switch -> stable BUILD bit (append only)
     "FELUCCA_CHANCE": 64, "FELUCCA_KEYLIT": 65, "FELUCCA_QNT_SEQ": 66, "FELUCCA_KNOB_ACCEL": 67,
@@ -216,7 +218,7 @@ BITS = {  # switch -> stable BUILD bit (append only)
     "FELUCCA_SL24_EDIMPORT": 181,                       # (SLOOP 2.4 leftovers: the editor import of a 2.4 backup file)
     "FELUCCA_COND": 240,                                # (Felucca 1.5.6: 240..244)
     "FELUCCA_SEQTOOLS": 241,
-    "FELUCCA_GEN_GRIDS": 370,                          # (the GRIDS note generator, a SEQTOOLS option)
+    "FELUCCA_GEN_GRIDS": 370,                          # (the GRIDS note generator; its own item since 2026-10-22)
 }
 NEXT_FREE = 80                                          # (switches not in BITS yet: from here, by name)
 

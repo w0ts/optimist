@@ -33,7 +33,7 @@ Every button, knob and key gesture, grouped by what you want to do, then the one
 | ENV, LFO, EDIT, FX, SCL, ARP tapped | a track | SOUND, that family's rows; again: its next row |
 | FX tapped | the mixer's MASTER row | the master FX page; again: its next page |
 | FX tapped | the mixer's USB IN row | its insert slots |
-| SEQ tapped | anywhere | STEP; on STEP: its next page (PATTERN, TOOLS, GEN, GEN OUT) |
+| SEQ tapped | anywhere | STEP; on STEP: its next page (PATTERN, TOOLS [SEQTOOLS], GEN, GEN OUT [NOTEGEN or GEN_GRIDS]) |
 | GLO tapped | anywhere | GLOBAL; on GLOBAL: SYSTEM; on SYSTEM: GLOBAL |
 | HOME tapped | a page | back to the mixer, on its row |
 | HOME tapped | the mixer | SCOPE; HOME again: the mixer |

@@ -1786,25 +1786,22 @@ static uint32_t stp_pattern(void)                       /* the PATTERN page (FAM
     return 0;
 }
 static uint32_t step_rows0(void) { return 1u; }   /* the pages before TOOLS, GEN, GEN OUT: PATTERN */
-#if FELUCCA_SEQTOOLS
-#define STP_TL 3u                                       /* the last three pages: TOOLS, GEN, GEN OUT (op_tools.c) */
-#else
-#define STP_TL 0u
-#endif
+#define STP_T1 (FELUCCA_SEQTOOLS ? 1u : 0u)             /* TOOLS (op_tools.c, SEQTOOLS) */
+#define STP_TL (STP_T1 + (FELUCCA_GENS ? 2u : 0u))      /* the last pages: TOOLS, then GEN and GEN OUT (NOTEGEN, GRIDS) */
 /* DR itself with the kit's GRIDS built (op_tools.c ng_kit): GEN's place is GRIDS and DENSITY, one page more */
-#if FELUCCA_SEQTOOLS
+#if FELUCCA_GENS
 #define STP_KIT() ng_kit()
 #else
 #define STP_KIT() 0
 #endif
-static uint32_t step_rows(void) { return step_rows0() + (STP_TL ? STP_TL + (uint32_t)STP_KIT() : 0u); }
+static uint32_t step_rows(void) { return step_rows0() + STP_TL + (uint32_t)STP_KIT(); }
 static int stp_tl(uint32_t r)                           /* 0 TOOLS, 1 GEN, 2 GEN OUT, 3 GRIDS, 4 DENSITY (op_tools.c tl_cell) */
 {
-    static const uint8_t KIT[4] = {0, 3, 4, 2};
-    if (!STP_TL || r < step_rows0())
+    static const uint8_t GEN_PG[2][3] = {{1, 2, 2}, {3, 4, 2}};   /* (a track or a lane; the kit's GRIDS) */
+    if (r < step_rows0() || r >= step_rows())
         return -1;
     r -= step_rows0();
-    return STP_KIT() ? KIT[r % 4u] : (int)r;
+    return r < STP_T1 ? 0 : GEN_PG[STP_KIT() != 0][(r - STP_T1) % 3u];
 }
 static void step_name(uint32_t r, char *b)
 {
@@ -1904,7 +1901,7 @@ static void step_cell(uint32_t r, uint32_t k, cell_t *c)
         held_cell(k, c);
         return;
     }
-#if FELUCCA_SEQTOOLS
+#if FELUCCA_SEQTOOLS || FELUCCA_GENS
     if (stp_tl(r) >= 0) {
         tl_cell((uint32_t)stp_tl(r), k, c);
         return;
@@ -1935,7 +1932,7 @@ static void step_turn(uint32_t r, uint32_t k, int32_t s, int fine)
         }
         return;
     }
-#if FELUCCA_SEQTOOLS
+#if FELUCCA_SEQTOOLS || FELUCCA_GENS
     if (stp_tl(r) >= 0) {
         tl_turn((uint32_t)stp_tl(r), k, s);
         return;
@@ -1945,7 +1942,7 @@ static void step_turn(uint32_t r, uint32_t k, int32_t s, int fine)
 }
 static int step_yes(uint32_t r, uint32_t k, uint32_t ok)
 {
-#if FELUCCA_SEQTOOLS
+#if FELUCCA_SEQTOOLS || FELUCCA_GENS
     if (stp_tl(r) >= 0)
         return tl_yes((uint32_t)stp_tl(r), k, ok);   /* (asks first, as every action card; one undo) */
 #endif

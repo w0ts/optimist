@@ -290,9 +290,16 @@ def pair_name(pair):
     return ",".join(f"{k}={v}" for k, v in pair.items())
 
 
-# the sequencer's TOOLS command is built only with SEQTOOLS too (1.8 KB with it, 2026-10-17; ED_TOOLS then, ED_SEQ since
-# 2026-10-19). (Until 2026-10-19 every item was measured again with UI=1, the Optimist UI, beside SLOOP's: one UI now)
+# the sequencer's TOOLS command is built only with SEQTOOLS or NOTEGEN too (1.8 KB with it, 2026-10-17; ED_TOOLS then, ED_SEQ
+# since 2026-10-19; its two halves apart since 2026-10-22). (Until 2026-10-19 every item was measured again with UI=1, the
+# Optimist UI, beside SLOOP's: one UI now)
 PAIRS.append({"SEQTOOLS": 1, "ED_SEQ": 0})
+PAIRS.append({"NOTEGEN": 1, "ED_SEQ": 0})
+PAIRS.append({"SEQTOOLS": 1, "NOTEGEN": 1})   # (what the two share: the toast, the undo mark, the TOOLS command's frame)
+# GRIDS builds the generators' framework itself (seq/gen.c, GEN and GEN OUT): with NOTEGEN it is there once
+PAIRS.append({"NOTEGEN": 1, "GEN_GRIDS": 1})
+PAIRS.append({"SEQTOOLS": 1, "GEN_GRIDS": 1})
+PAIRS.append({"GEN_GRIDS": 1, "ED_SEQ": 0})
 
 
 def beyond(sizes, cfg, costs, name):

@@ -1185,9 +1185,9 @@ static int step_yes_any(void)                           /* STEP: would YES do so
     const param_desc_t *d;
     if (st.held || op_armed() || (!ui.cards_t && pk_ok()))
         return 1;                                       /* (the cards down, a note picked: SAVE its cards) */
-#if FELUCCA_SEQTOOLS
+#if FELUCCA_SEQTOOLS || FELUCCA_GENS
     if (stp_tl(ui.row[SCR_STEP]) >= 0)
-        return stp_tl(ui.row[SCR_STEP]) == 0 || (stp_tl(ui.row[SCR_STEP]) == 2 && (ui.hot == 0u || (ui.hot == 2u && ng_cur()->on)));
+        return stp_tl(ui.row[SCR_STEP]) == 0 || (stp_tl(ui.row[SCR_STEP]) == 2 && (ui.hot == 0u || (ui.hot == 2u && ng_on())));
                                                         /* (TOOLS: always; GEN OUT: ON, and WRITE while ON) */
 #endif
     d = page_desc(&PAGES[stp_pattern()], ui.hot, &vp);

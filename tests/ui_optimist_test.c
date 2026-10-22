@@ -3862,7 +3862,7 @@ int main(int argc, char **argv)
 #if FELUCCA_PLOCK
     plock_audit_tests();
 #endif
-#if FELUCCA_SEQTOOLS
+#if FELUCCA_SEQTOOLS || FELUCCA_GENS
     seqtools_tests();
 #endif
 #if FELUCCA_COND

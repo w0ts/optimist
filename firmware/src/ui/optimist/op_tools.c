@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments (Felucca 1.2 .. 1.5.6 SEQ TOOLS,
  * hugelton/Felucca 9f6a885, firmware/src/ui_tools.c: REVERSE, RANDOM, COOK, EUCLID, DOUBLE, HALF) */
-/* STEP's TOOLS, GEN and GEN OUT pages (FELUCCA_SEQTOOLS, backports15.h; docs/UI-OPTIMIST-DESIGN.md 8 Sequencer features). Included by
+/* STEP's TOOLS page (FELUCCA_SEQTOOLS) and GEN, GEN OUT pages (FELUCCA_GENS: NOTEGEN or GEN_GRIDS; backports15.h, docs/UI-OPTIMIST-DESIGN.md 8 Sequencer features). Included by
  * optimist.c before op_step.c, which shows them as STEP's last three pages (SELECT, SEQ tapped again).
  *
  *   TOOLS   REVERSE · RANDOM · COOK · LENGTH · QUANTIZE. A turn arms the card (the hot one; LENGTH's turn says x2 or
@@ -29,6 +29,26 @@
  * OPEN HAT 5; RANDOM on DR draws lanes 1..8 only), COOK's accent is the note's level NORM <-> HARD, RANDOM on a CHR track
  * walks the minor pentatonic of its ROOT, HALF keeps the steps past the new LEN, DOUBLE refuses when the copies of
  * the events do not fit the track's 128 (PATTERN FULL). */
+#if FELUCCA_SEQTOOLS || FELUCCA_GENS
+/* ---- what TOOLS and the note generators share: the undo mark, the toast */
+static struct {
+    uint8_t half;                       /* LENGTH armed: 0 x2 (DOUBLE), 1 1/2 (HALF) */
+    uint8_t sel;                        /* the tool the one TOOLS card has picked: TS_* below */
+    uint32_t sess;                      /* the undo session of the last tool */
+} tl = {0, 0, 0};
+static void tl_mark(track_t *t)                         /* a new undo level: the steps, LEN, the events as they are */
+{
+    tl.sess = (undo_sess += 4u) | 3u;
+    undo_mark(t, tl.sess);
+}
+static void tl_say(const char *a, const char *b)       /* what was done: a toast */
+{
+    ui.toast_next = 1;
+    ui_say(a, b);
+    ui.toast_next = 0;
+}
+#endif
+
 #if FELUCCA_SEQTOOLS
 enum { TL_REV, TL_RND, TL_COOK, TL_LEN, TL_QNT };
 #define TL_KICK 0u                      /* drums.c LANE_NAME: KICK, SNARE, CLOSED HAT, OPEN HAT */
@@ -36,11 +56,6 @@ enum { TL_REV, TL_RND, TL_COOK, TL_LEN, TL_QNT };
 #define TL_HATC 4u
 #define TL_HATO 5u
 #define TL_ALL ((1u << DRUM_SLANES) - 1u)      /* every step lane: the 16 sounds and the ACCENT lane (core.h DRUM_ACC) */
-static struct {
-    uint8_t half;                       /* LENGTH armed: 0 x2 (DOUBLE), 1 1/2 (HALF) */
-    uint8_t sel;                        /* the tool the one TOOLS card has picked: TS_* below */
-    uint32_t sess;                      /* the undo session of the last tool */
-} tl = {0, 0, 0};
 enum { TS_REV, TS_RND, TS_COOK, TS_DBL, TS_HALF,
 #if FELUCCA_AUTO                                        /* (QUANTIZE moves nudges: they live in the automation store) */
        TS_Q1, TS_Q2, TS_Q4,
@@ -70,11 +85,6 @@ static uint32_t ts_arg(uint32_t sel)                    /* tl_run's arg: LENGTH'
 
 static uint32_t tl_rnd(uint32_t n) { return n ? rng() % n : 0u; }
 static int32_t tl_lane(void) { return is_drum(TSEL) && lane_picked() ? (int32_t)lane_selected() : -1; }
-static void tl_mark(track_t *t)                         /* a new undo level: the steps, LEN, the events as they are */
-{
-    tl.sess = (undo_sess += 4u) | 3u;
-    undo_mark(t, tl.sess);
-}
 static void tl_clr(step_t *s)
 {
     memset(s, 0, sizeof *s);
@@ -493,13 +503,14 @@ static void tl_cook_drum(track_t *t, uint32_t len, uint32_t hits, uint32_t lm)
             break;
     }
 }
+#endif
 
+#if FELUCCA_GENS
 /* ---- the note generators (seq/gen.c): GEN (TYPE and its three values) and GEN OUT (ON, MODE, WRITE, the slot's read-out)
  * set the slot of the selected track (a drum track: its picked lane). A turn is heard at the next step; nothing is
  * written into the pattern but by WRITE (it asks; one undo level). ON / OFF never touch the pattern.
  * DR itself (no lane picked, FELUCCA_GEN_GRIDS): the kit's GRIDS, GEN's place taken by GRIDS (X Y CHAOS) and DENSITY
  * (BD SD HH: the drum track's values, core.h P_GRX ..), GEN OUT the kit's slot (GEN_KIT) */
-static void tl_say(const char *a, const char *b);       /* (below) */
 #if FELUCCA_GEN_GRIDS
 static int ng_kit(void) { return is_drum(TSEL) && !lane_picked(); }
 #else
@@ -558,7 +569,10 @@ static void ng_cell(uint32_t pg, uint32_t k, cell_t *c)   /* pg 1 GEN, 2 GEN OUT
     c->kind = CK_VAL;
     if (pg == 1u) {
         if (!k) {
-            cell_list(c, "TYPE", ty->name, GT_N - 1, g.type);
+            if (gen_ntypes() > 1u)                      /* (the types built; one alone: nothing to pick, no card) */
+                cell_list(c, "TYPE", ty->name, (int32_t)gen_ntypes() - 1, (int32_t)gen_type_ix(g.type));
+            else
+                c->kind = CK_NONE;
             return;
         }
         {
@@ -592,7 +606,7 @@ static void ng_turn(uint32_t pg, uint32_t k, int32_t s)
     fm1_irq_off();
     g = *ng_cur();
     if (pg == 1u && !k) {
-        uint32_t ty0 = s == OP_RESET ? GT_EUCLID : (uint32_t)ui_clamp((int32_t)g.type + s, 0, GT_N - 1);
+        uint32_t ty0 = s == OP_RESET ? GEN_FIRST : gen_type_add(g.type, s);
         if (ty0 != g.type)
             gen_defaults(&g, ty0);                      /* (another generator: its values at their defaults) */
     } else if (pg == 1u) {
@@ -650,7 +664,10 @@ static int ng_yes(uint32_t k, uint32_t ok)              /* GEN OUT's ON and WRIT
     tl_say(ng_who(), " WRITTEN, GEN OFF");
     return 1;
 }
+static int ng_on(void) { return ng_cur()->on != 0u; }   /* (op_input.c step_yes_any) */
+#endif
 
+#if FELUCCA_SEQTOOLS
 /* ---- DOUBLE, HALF (and the EDIT layer's LENGTH, op_layers.c) */
 static uint32_t tl_dbl_len(uint32_t len) { return 2u * len < NSTEP ? 2u * len : NSTEP; }
 /* steps 1..len after themselves, LEN x2 (64 at most), their events copied (the IRQ off; tl_ev_double(.., 1) said yes) */
@@ -692,8 +709,13 @@ static int tl_has_nudge(const track_t *t, uint32_t len)
     return 0;
 }
 #endif
+#endif
 
-/* ---- the pages */
+#if FELUCCA_SEQTOOLS || FELUCCA_GENS
+#if !FELUCCA_GENS
+static int ng_on(void) { return 0; }
+#endif
+/* ---- the pages (op_step.c stp_tl: TOOLS with SEQTOOLS, the others with the generators, FELUCCA_GENS) */
 static void tl_cell(uint32_t pg, uint32_t k, cell_t *c)   /* pg 0 TOOLS, 1 GEN, 2 GEN OUT, 3 GRIDS, 4 DENSITY (the kit's) */
 {
     cell_clear(c);
@@ -703,6 +725,7 @@ static void tl_cell(uint32_t pg, uint32_t k, cell_t *c)   /* pg 0 TOOLS, 1 GEN, 
         return;
     }
 #endif
+#if FELUCCA_SEQTOOLS
     if (!pg) {
         if (k == 0u) {                                       /* (one card: its knob picks the tool, YES does it) */
             c->kind = CK_VAL;                                /* (a value cell: the turn reaches tl_turn, an action cell's would only pick it) */
@@ -714,7 +737,11 @@ static void tl_cell(uint32_t pg, uint32_t k, cell_t *c)   /* pg 0 TOOLS, 1 GEN, 
         }
         return;
     }
-    ng_cell(pg, k, c);
+#endif
+#if FELUCCA_GENS
+    if (pg)
+        ng_cell(pg, k, c);
+#endif
 }
 static void tl_turn(uint32_t pg, uint32_t k, int32_t s)
 {
@@ -724,23 +751,22 @@ static void tl_turn(uint32_t pg, uint32_t k, int32_t s)
         return;
     }
 #endif
+#if FELUCCA_GENS
     if (pg) {
         ng_turn(pg, k, s);
         return;
     }
-    if (k == 0u) {                                      /* the one TOOLS card: a turn picks the tool */
+#endif
+#if FELUCCA_SEQTOOLS
+    if (!pg && k == 0u) {                               /* the one TOOLS card: a turn picks the tool */
         int32_t v = s == OP_RESET ? 0 : (int32_t)tl.sel + s;
         v %= (int32_t)TS_N;
         tl.sel = (uint8_t)(v < 0 ? v + (int32_t)TS_N : v);
         tl.half = tl.sel == TS_HALF;
     }
+#endif
 }
-static void tl_say(const char *a, const char *b)       /* what was done: a toast */
-{
-    ui.toast_next = 1;
-    ui_say(a, b);
-    ui.toast_next = 0;
-}
+#if FELUCCA_SEQTOOLS
 /* tool k (TL_REV .. TL_QNT; arg: LENGTH 1 is 1/2, else x2; QUANTIZE the grid, 1 2 4 a step) on track t, drum lane `lane` (-1: the
  * whole kit or a synth track): what it says is
  * a toast as two strings (*sa, *sb; buf holds one of them). One undo level when it changes the pattern. The Optimist UI's YES and the
@@ -828,15 +854,23 @@ static int tl_run(track_t *t, uint32_t k, int32_t lane, uint32_t arg, const char
     *sb = what;
     return 1;
 }
-/* YES on TOOLS' card k: do it on the selected track (or lane); 1 done */
+#endif
+/* YES on page pg's card k: TOOLS' does it on the selected track (or lane); GEN OUT's ON and WRITE; 1 done */
 static int tl_yes(uint32_t pg, uint32_t k, uint32_t ok)
 {
+#if FELUCCA_SEQTOOLS
     track_t *t = tsel();
     int32_t lane = tl_lane();
     char b[24];
     const char *who = lane >= 0 ? lane_name((uint32_t)lane) : trk_tag(song.sel), *sa, *sb;
+#endif
     if (pg)                                             /* GEN OUT's ON (at once) and WRITE (asks) */
+#if FELUCCA_GENS
         return pg == 2u ? ng_yes(k, ok) : 0;
+#else
+        return 0;
+#endif
+#if FELUCCA_SEQTOOLS
     if (k != 0u)                                        /* TOOLS has one card: the others do nothing */
         return 0;
     if (!ok) {                                          /* (every tool asks: "Reverse T1?") */
@@ -852,5 +886,9 @@ static int tl_yes(uint32_t pg, uint32_t k, uint32_t ok)
     (void)tl_run(t, ts_tool(tl.sel), lane, ts_arg(tl.sel), &sa, &sb, b);
     tl_say(sa, sb);
     return 1;
+#else
+    (void)k, (void)ok;
+    return 0;
+#endif
 }
 #endif

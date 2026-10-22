@@ -17,7 +17,7 @@ Each of the four tracks (T1 T2 T3 synths, DR the drum track) has a pattern of up
 | SWING | MPC swing of the track, shown as 50 to 75 %. It adds to the global swing. Not on the triplets | 0 |
 | GATE | how long each note sounds inside its step | 64 (of 1 to 127) |
 
-STEP has more pages after PATTERN: TOOLS, GEN and GEN OUT. SELECT or SEQ tapped moves on.
+STEP has more pages after PATTERN: TOOLS (builder item `SEQTOOLS`), GEN and GEN OUT (`NOTEGEN` or `GEN_GRIDS`), each only in a firmware built with it. SELECT or SEQ tapped moves on.
 
 **Entering steps.**
 
@@ -61,9 +61,9 @@ A **p-lock** gives one step its own value of a sound parameter. The value holds 
 
 ## The note generator: GEN
 
-STEP's pages GEN and GEN OUT (builder item `SEQTOOLS`) hold a note generator for the selected track (a drum track: the picked lane). It plays over the pattern and writes nothing into it until you say so.
+STEP's pages GEN and GEN OUT (builder items `NOTEGEN`: EUCLID, RANDOM, PULSE, and `GEN_GRIDS`: GRIDS, either one alone; apart from the TOOLS page's `SEQTOOLS`) hold a note generator for the selected track (a drum track: the picked lane). It plays over the pattern and writes nothing into it until you say so.
 
-- **GEN** has TYPE and three values. EUCLID spreads HITS as evenly as possible over STEPS, turned by ROT (defaults 4, 16, 0; STEPS at most LEN). RANDOM has DENSITY, SEED and ACCENT. PULSE has EVERY, OFFSET and RATCHET. GRIDS (builder item `GEN_GRIDS`) is the drum map of Mutable Instruments Grids: X and Y (0..127) move over a map of 25 drum patterns and DENSITY sets how many steps play; the strongest play HARD. On a lane it plays the Grids part of the lane's sound (kicks BD, snares, claps and rims SD, the rest HH; the ACCENT lane where any part is HARD); T1 T2 T3 play BD SD HH. Another TYPE starts at its default values; SHIFT + a knob gives a value its default. A turn is heard at the next step.
+- **GEN** has TYPE (only with more than one type built) and three values. EUCLID spreads HITS as evenly as possible over STEPS, turned by ROT (defaults 4, 16, 0; STEPS at most LEN). RANDOM has DENSITY, SEED and ACCENT. PULSE has EVERY, OFFSET and RATCHET. GRIDS (builder item `GEN_GRIDS`) is the drum map of Mutable Instruments Grids: X and Y (0..127) move over a map of 25 drum patterns and DENS sets how many steps play; the strongest play HARD. On a lane it plays the Grids part of the lane's sound (kicks BD, snares, claps and rims SD, the rest HH; the ACCENT lane where any part is HARD); T1 T2 T3 play BD SD HH. Another TYPE starts at its default values; SHIFT + a knob gives a value its default. A turn is heard at the next step.
 - **GRIDS on the whole kit** (`GEN_GRIDS`): on DR itself (ALGORITHM on DR, no lane picked) the GEN page becomes two pages, **GRIDS** (X, Y, CHAOS) and **DENSITY** (BD, SD, HH), and GEN OUT turns the kit's GRIDS on. It plays Grids' three parts on three lanes: BD on the first KICK lane, SD on the first SNARE lane (else the first snare, clap or rim), HH on the CLOSED HAT lane (else the first hat), and the ACCENT lane where a part plays HARD. The other lanes are left alone, and a lane with its own generator keeps it. CHAOS is Grids' random push, a new draw each bar (16 steps), so WRITE keeps the bar playing then. The six values belong to the drum track: they are saved with the project, and turning them while recording records them as motion (a held step's locks do not reach them yet). One bar of 16ths, repeated through LEN.
 - **GEN OUT** has GEN (ON / OFF, heard at once), MODE and WRITE. MODE: REPLACE (the generator's hits are the steps), ADD (the pattern's steps and the hits) or MASK (the pattern's steps only where the generator hits). A generated hit on a synth track plays the pattern's note there, else the track's ROOT; on a drum lane the pattern's level and ratchet, else NORM.
 - **Off:** GEN OFF and the pattern is exactly as you left it; there is nothing to keep or restore.

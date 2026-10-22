@@ -281,13 +281,16 @@ _add("ENG_SLICE", "FELUCCA_ENG_SLICE", "SLICE (break slicer + its BREAK sample)"
      desc="Break slicer: cuts a loop (the built-in BREAK, 22 KB of samples, or a USR slot) into 4 / 8 / 16 / 32 "
           "slices or one per hit and plays them from the keys or the sequencer. About 27 KB of flash and 6 KB of "
           "RAM; off by default.", provenance=FELUCCA)
+CARAVEL = Provenance("Caravel 0.3.3 (bonszaimusic/caravel, a Felucca fork)", "bonszaimusic", "GPL-3.0-only", "c6c61c7",
+                     "https://github.com/bonszaimusic/caravel")
 _add("ENG_DRONE", "FELUCCA_ENG_DRONE", "DRONE (drones, ambient, binaural beats)", E, 358, default=0,
-     desc="Continuous tones for drones and ambient (engine 16): a stack of up to three oscillators a note (one, a "
-          "detuned unison, or the key with an octave, fifth, fourth or third), sine to triangle to saw, a soft "
-          "low-pass, a slow random drift of the whole part and soft noise (AIR). BEAT plays binaural beats: each "
-          "ear its own pitch, 0.05 to 40 Hz apart (headphones). HOLD latches the keys. 7 presets (theta, alpha, "
-          "delta and gamma beats among them); 4 voices a part, each about twice an ANALOG voice's CPU "
-          "(host-measured). About 4.8 KB of flash and 0.6 KB of RAM.")
+     desc="A coupled network for drones and ambient (engine 16), after Caravel's DRONE (bonszaimusic), itself "
+          "inspired by the LYRA-8: four sines a note, each phase-modulating another (COUPLE) as PAIRS, a CHAIN or a "
+          "RING (TOPO), SPREAD from unison to 1 : 5/4 : 3/2 : 2, a soft cubic CHAR, a slow DRIFT and a one-pole "
+          "TONE; the track's DTUNE detunes the four. BEAT plays binaural beats: each ear its own pitch, 0.05 to 40 "
+          "Hz apart (headphones; the network runs twice). HOLD latches the keys. 9 presets (theta, alpha, delta and "
+          "gamma beats among them); one voice a part, about half an 8-note ANALOG part's CPU (host-measured).",
+     provenance=CARAVEL)
 # (bit 91, LFO2, retired 2026-10-16: LFO 2, a second LFO on each synth track, is always built; never reuse the bit)
 
 # ---- drums: first the drum synths, the kits made by synthesis (any of them is a drum source on its own; the drum
@@ -682,6 +685,16 @@ _add("REC_PLAIN", "FELUCCA_REC_PLAIN", "REC plain: every note played is recorded
           "decides only what the voice plays, as it does for the keys, instead of cutting a recorded step to one note and "
           "joining the notes held over each other. A part on an engine that is mono by nature (ACID) records as before; an "
           "arp part always records plain. About 0.1 KB of flash less or more.")
+_add("NOTEGEN", "FELUCCA_NOTEGEN", "note generators (STEP's GEN and GEN OUT)", Q, 374, default=0, provenance=FELUCCA,
+     desc="A note generator on every synth track and every drum lane, played live over the pattern and never written into "
+          "it but by WRITE, which asks: EUCLID (HITS spread over STEPS, turned by ROT), RANDOM (DENSITY, SEED, ACCENT) and "
+          "PULSE (EVERY, OFFSET, RATCHET), each REPLACING, ADDING to or MASKING the pattern. STEP's last pages GEN and GEN "
+          "OUT; saved with the project, one undo level a WRITE. On a drum lane picked with ALGORITHM, that lane only. Apart "
+          "from the STEP tools (SEQTOOLS) and from GRIDS (GEN_GRIDS) since 2026-10-22: each builds without the others. "
+          "EUCLID after Felucca 1.5.6's. "
+          "About 6.8 KB of flash and 2 KB of RAM: 6.1 KB of it the generators' framework, shared with GRIDS, EUCLID RANDOM "
+          "PULSE themselves 0.7 KB (the builder's measure, 2026-10-22).",
+     symbols=("gen_sync",))
 
 # ---- USB & BT & MIDI (the user, 2026-10-20). USB MIDI (notes, clock, the editor and updates) is in every build. The USB
 # port's two extras, each a checkbox, not both: the controller has three data endpoints (hal/fm1_usb.h EP1..3), USB MIDI
@@ -820,7 +833,7 @@ _add("ED_MIX", "FELUCCA_ED_MIX", "web editor: the mixer (effect slots, drum lane
 _add("ED_SEQ", "FELUCCA_ED_SEQ", "web editor: the sequencer (lane steps, pattern tools, song chain)", Y, 354, parent="EDITOR",
      desc="The web editor's sequencer tools beyond the steps themselves: a step held in a drum lane's context with the "
           "device's own list of lockable values (cmd 105; with the automation store), the pattern tools REVERSE, "
-          "RANDOM, COOK, LENGTH and EUCLID run by the device (cmd 98; the Optimist UI and SEQTOOLS), the song chain "
+          "RANDOM, COOK, LENGTH and the note generators run by the device (cmd 98; SEQTOOLS, NOTEGEN), the song chain "
           "(cmd 97; the arranger). Off: the editor lists raw parameter ids, has no tools buttons and no song chain.")
 _add("ED_SCREENS", "FELUCCA_ED_SCREENS", "web editor: the device's screens (cards, GLOBAL / SYSTEM, scope)", Y, 355,
      parent="EDITOR",

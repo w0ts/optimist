@@ -8,12 +8,17 @@
  *                     (seq/auto.h AUTO_COND), on synth and drum steps (a drum step: every lane), beside FILL and
  *                     the chance: condition, then FILL, then the chance roll. The Optimist UI: the held step's EXTRA
  *                     page, COND (KNOB 4); SLOOP's UI plays them only. Builds the automation store
- *   FELUCCA_SEQTOOLS  the Optimist UI's STEP pages TOOLS (REVERSE RANDOM COOK LENGTH x2 / half) and EUCLID (HITS
- *                     STEPS ROT, live), Felucca 1.2 .. 1.5.5 ui_tools.c; the EDIT layer's SHIFT and LENGTH move
- *                     the steps' events with them. UI=1 only (SLOOP's UI has none of it)
+ *   FELUCCA_SEQTOOLS  the Optimist UI's STEP page TOOLS (REVERSE RANDOM COOK LENGTH x2 / half, QUANTIZE), Felucca
+ *                     1.2 .. 1.5.5 ui_tools.c; the EDIT layer's SHIFT and LENGTH move the steps' events with them. UI=1
+ *                     only (SLOOP's UI has none of it)
+ *   FELUCCA_NOTEGEN   the note generators EUCLID (after Felucca's), RANDOM, PULSE (seq/gen.c), a layer played over the
+ *                     pattern, on STEP's GEN and GEN OUT pages (ui/optimist/op_tools.c). Apart from SEQTOOLS since
+ *                     2026-10-22 (the tools and the generators share nothing but the toast and the undo mark)
+ *   FELUCCA_GENS      the generators' framework (the slots, the merge into what plays, GEN_TLV, WRITE, GEN and GEN OUT):
+ *                     built with NOTEGEN or GEN_GRIDS, either one alone
  *   FELUCCA_GEN_GRIDS Mutable Instruments Grids' drum map (Emilie Gillet, pichenettes/eurorack, GPL-3.0-or-later;
  *                     seq/gen.c, seq/grids_map.h: 1.2 KB of table): a GEN TYPE beside EUCLID RANDOM PULSE, and the kit's
- *                     GRIDS on DR (STEP's GRIDS and DENSITY pages, the drum track's P_E2 .. P_E7). Needs FELUCCA_SEQTOOLS */
+ *                     GRIDS on DR (STEP's GRIDS and DENSITY pages, the drum track's P_E2 .. P_E7). With or without NOTEGEN */
 #ifndef FELUCCA_BACKPORTS15_H
 #define FELUCCA_BACKPORTS15_H
 
@@ -23,9 +28,13 @@
 #ifndef FELUCCA_SEQTOOLS
 #define FELUCCA_SEQTOOLS 0       /* ui/optimist/op_tools.c (only the Optimist UI includes it: UI=0 builds the same) */
 #endif
+#ifndef FELUCCA_NOTEGEN
+#define FELUCCA_NOTEGEN 0        /* seq/gen.c (seq.c GEN_BUILT), ui/optimist/op_tools.c GEN and GEN OUT */
+#endif
 #ifndef FELUCCA_GEN_GRIDS
 #define FELUCCA_GEN_GRIDS 0      /* seq/gen.c GT_GRIDS */
 #endif
+#define FELUCCA_GENS (FELUCCA_NOTEGEN || FELUCCA_GEN_GRIDS)   /* the generators' framework (seq.c GEN_BUILT) */
 #define SEQ_SKIP (FELUCCA_FILLS || FELUCCA_COND)   /* seq.c: a step that fails its FILL or its condition is a REST */
 
 #endif

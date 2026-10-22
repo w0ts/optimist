@@ -1,7 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments (EUCLID's formula: Felucca 1.5.6 SEQ TOOLS,
  * hugelton/Felucca 9f6a885, firmware/src/ui_tools.c 338-469) */
-/* The note generators (FELUCCA_SEQTOOLS with the Optimist UI; its STEP pages GEN and GEN OUT, ui/optimist/op_tools.c): a
+/* The note generators (FELUCCA_GENS: FELUCCA_NOTEGEN builds EUCLID RANDOM PULSE, FELUCCA_GEN_GRIDS GRIDS, either the rest;
+ * the Optimist UI's STEP pages GEN and GEN OUT, ui/optimist/op_tools.c): a
  * layer the sequencer plays OVER the pattern, never written into it. Included by seq.c after chance.c.
  *
  *   gen[]         a slot each synth track (T1..T3: slot k), each drum step lane (its sounds + ACCENT: NPART + lane) and,
@@ -36,11 +37,16 @@
 #else
 #define GEN_NSLOT (NPART + DRUM_SLANES)
 #endif
-enum { GT_EUCLID, GT_RANDOM, GT_PULSE,
-#if FELUCCA_GEN_GRIDS
-       GT_GRIDS,                                         /* (a project's GRIDS slot on a build without: off, at the defaults) */
+/* the types by their stored number (GEN_TLV), the same in every build; one the build leaves out has no step in GEN_TYPES
+ * (gen_has): a project's slot of that type loads off, at the defaults (gen_untlv) */
+enum { GT_EUCLID, GT_RANDOM, GT_PULSE, GT_GRIDS, GT_N };
+#if FELUCCA_NOTEGEN
+#define GEN_FIRST GT_EUCLID                              /* a slot's type at power-on and after a reset */
+#define GEN_FIRST_P {4, 16, 0}
+#else
+#define GEN_FIRST GT_GRIDS
+#define GEN_FIRST_P {64, 64, 64}
 #endif
-       GT_N };
 enum { GM_REPLACE, GM_ADD, GM_MASK, GM_N };
 enum { GD_INT, GD_PCT, GD_X };                           /* how a value is shown: 5, 50 %, x2 */
 typedef struct {
@@ -62,7 +68,7 @@ typedef struct {
     int (*step)(const gen_t *g, uint32_t i, uint32_t len, uint32_t seed, gen_ev_t *e);   /* 1: a hit on step i */
     uint8_t state;                                       /* bytes of state a slot (0: a pure function) */
 } gen_type_t;
-static gen_t gen[GEN_NSLOT] = {[0 ... GEN_NSLOT - 1u] = {GT_EUCLID, GM_REPLACE, 0, {4, 16, 0}}};   /* (EUCLID's defaults, off) */
+static gen_t gen[GEN_NSLOT] = {[0 ... GEN_NSLOT - 1u] = {GEN_FIRST, GM_REPLACE, 0, GEN_FIRST_P}};   /* (its defaults, off) */
 static volatile uint8_t gen_trk;                         /* bit k: track k has a generator on (the ISR's test) */
 static volatile uint32_t gen_lanes;                      /* the drum lanes with one on; bit DRUM_SLANES: the kit's GRIDS */
 #define GEN_LANES_M ((1u << DRUM_SLANES) - 1u)           /* (gen_lanes: the lanes' own) */
@@ -79,6 +85,7 @@ static uint32_t gen_mix(uint32_t h)                      /* (murmur3's finaliser
     return h ^ (h >> 16);
 }
 
+#if FELUCCA_NOTEGEN
 /* ---- EUCLID: HITS spread as evenly as they go over a cycle of STEPS, turned by ROT, repeated through LEN */
 static uint32_t eu_cyc(const gen_t *g, uint32_t len) { uint32_t n = g->p[1] ? g->p[1] : 16u; return n > len ? len : n ? n : 1u; }
 static void eu_gfit(gen_t *g, uint32_t len)
@@ -124,6 +131,8 @@ static int pu_gstep(const gen_t *g, uint32_t i, uint32_t len, uint32_t seed, gen
     e->rat = (uint8_t)(g->p[2] > 1u ? (g->p[2] - 1u) & 3u : 0u);
     return 1;
 }
+#endif
+
 /* ---- GRIDS: Mutable Instruments Grids' drum mode (Emilie Gillet, pichenettes/eurorack grids/pattern_generator.cc
  * ReadDrumMap, EvaluateDrums; GPL-3.0-or-later): a 5 x 5 map of drum patterns, read at (X, Y) between its four
  * nearest nodes. A hit where the level beats 255 - DENSITY, HARD where it is over 192. The part read is the lane's
@@ -223,26 +232,60 @@ static void gr_kit_merge(const track_t *t, uint32_t i, uint32_t len, const dstep
 }
 #endif
 static const gen_type_t GEN_TYPES[GT_N] = {
-    {"EUCLID", {{"HITS", 0, 64, 4, GD_INT}, {"STEPS", 1, 0, 16, GD_INT}, {"ROT", 0, 63, 0, GD_INT}}, eu_gfit, eu_gstep, 0},
-    {"RANDOM", {{"DENSITY", 0, 100, 50, GD_PCT}, {"SEED", 0, 99, 1, GD_INT}, {"ACCENT", 0, 100, 0, GD_PCT}}, rn_gfit, rn_gstep, 0},
-    {"PULSE", {{"EVERY", 1, 16, 4, GD_INT}, {"OFFSET", 0, 15, 0, GD_INT}, {"RATCHET", 1, 4, 2, GD_X}}, pu_gfit, pu_gstep, 0},
+#if FELUCCA_NOTEGEN
+    [GT_EUCLID] = {"EUCLID", {{"HITS", 0, 64, 4, GD_INT}, {"STEPS", 1, 0, 16, GD_INT}, {"ROT", 0, 63, 0, GD_INT}}, eu_gfit, eu_gstep, 0},
+    [GT_RANDOM] = {"RANDOM", {{"DENSITY", 0, 100, 50, GD_PCT}, {"SEED", 0, 99, 1, GD_INT}, {"ACCENT", 0, 100, 0, GD_PCT}}, rn_gfit, rn_gstep, 0},
+    [GT_PULSE] = {"PULSE", {{"EVERY", 1, 16, 4, GD_INT}, {"OFFSET", 0, 15, 0, GD_INT}, {"RATCHET", 1, 4, 2, GD_X}}, pu_gfit, pu_gstep, 0},
+#endif
 #if FELUCCA_GEN_GRIDS
-    {"GRIDS", {{"X", 0, 127, 64, GD_INT}, {"Y", 0, 127, 64, GD_INT}, {"DENSITY", 0, 127, 64, GD_INT}}, gr_gfit, gr_gstep, 0},
+    [GT_GRIDS] = {"GRIDS", {{"X", 0, 127, 64, GD_INT}, {"Y", 0, 127, 64, GD_INT}, {"DENS", 0, 127, 64, GD_INT}}, gr_gfit, gr_gstep, 0},
 #endif
 };
 static const char *const GEN_MODE[GM_N] = {"REPLACE", "ADD", "MASK"};
+static int gen_has(uint32_t ty) { return ty < GT_N && GEN_TYPES[ty].step; }   /* the build has type ty */
+/* the types the build has, in order: how many, ty's place among them, and the one s places on from ty (clamped at the
+ * ends: the TYPE card) */
+static uint32_t gen_ntypes(void) { return (FELUCCA_NOTEGEN ? 3u : 0u) + (FELUCCA_GEN_GRIDS ? 1u : 0u); }
+static uint32_t gen_type_ix(uint32_t ty)
+{
+    uint32_t t, n = 0;
+    for (t = 0; t < ty && t < GT_N; t++)
+        n += (uint32_t)gen_has(t);
+    return n;
+}
+static uint32_t gen_type_add(uint32_t ty, int32_t s)
+{
+    uint32_t t = gen_has(ty) ? ty : GEN_FIRST;
+    for (; s > 0; s--) {
+        uint32_t u = t + 1u;
+        while (u < GT_N && !gen_has(u))
+            u++;
+        if (u >= GT_N)
+            break;
+        t = u;
+    }
+    for (; s < 0; s++) {
+        int32_t u = (int32_t)t - 1;
+        while (u >= 0 && !gen_has((uint32_t)u))
+            u--;
+        if (u < 0)
+            break;
+        t = (uint32_t)u;
+    }
+    return t;
+}
 
 static void gen_defaults(gen_t *g, uint32_t type)        /* type's values at their defaults (off, REPLACE) */
 {
     uint32_t i;
-    g->type = (uint8_t)(type % GT_N);
+    g->type = (uint8_t)(gen_has(type) ? type : GEN_FIRST);   /* (a type the build has not: the first it has) */
     for (i = 0; i < GEN_NP; i++)
         g->p[i] = GEN_TYPES[g->type].par[i].def;
 }
 static int gen_is_default(const gen_t *g)
 {
     gen_t d = {0, 0, 0, {0, 0, 0}};
-    gen_defaults(&d, GT_EUCLID);
+    gen_defaults(&d, GEN_FIRST);
     return !g->on && g->mode == d.mode && g->type == d.type && g->p[0] == d.p[0] && g->p[1] == d.p[1] && g->p[2] == d.p[2];
 }
 static void gen_sync(void)                               /* gen_trk, gen_lanes from gen[] (after every change) */
@@ -276,12 +319,12 @@ static void gen_on_put(uint32_t k, uint32_t m)          /* (undo, redo: the IRQ 
             gen[NPART + l].on = (uint8_t)((m >> l) & 1u);
     gen_sync();
 }
-static void gen_reset_all(void)                          /* every slot off, EUCLID at its defaults (power-on, a load without any) */
+static void gen_reset_all(void)                          /* every slot off, GEN_FIRST at its defaults (power-on, a load without any) */
 {
     uint32_t s;
     for (s = 0; s < GEN_NSLOT; s++) {
         gen[s].on = 0, gen[s].mode = GM_REPLACE;
-        gen_defaults(&gen[s], GT_EUCLID);
+        gen_defaults(&gen[s], GEN_FIRST);
     }
     gen_sync();
 }
@@ -521,7 +564,7 @@ static void gen_untlv(const uint8_t *a, uint32_t n)      /* (n 0: none; an entry
         uint32_t w = a[i] | (uint32_t)a[i + 1u] << 8 | (uint32_t)a[i + 2u] << 16 | (uint32_t)a[i + 3u] << 24;
         uint32_t s = w & 31u, md = (w >> 6) & 3u, ty = (w >> 8) & 7u;
         gen_t g;
-        if (s >= GEN_NSLOT || ty >= GT_N || md >= GM_N)
+        if (s >= GEN_NSLOT || !gen_has(ty) || md >= GM_N)
             continue;
         g.on = (uint8_t)((w >> 5) & 1u), g.type = (uint8_t)ty, g.mode = (uint8_t)md;
         for (j = 0; j < GEN_NP; j++) {

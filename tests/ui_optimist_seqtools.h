@@ -1,10 +1,10 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* tests/ui_optimist_test.c, FELUCCA_SEQTOOLS and FELUCCA_COND (Felucca 1.5.6, ui/optimist/op_tools.c): STEP's TOOLS
+/* tests/ui_optimist_test.c, FELUCCA_SEQTOOLS, FELUCCA_NOTEGEN and FELUCCA_COND (Felucca 1.5.6, ui/optimist/op_tools.c): STEP's TOOLS
  * page (REVERSE RANDOM COOK LENGTH: a turn arms, YES does it, one undo each) and EUCLID page (live, one undo a run), on
  * a synth track whose notes have exact lengths (a NOTE and its TIEs; a note ending in its own step, ngate; a note
  * going on into a carry step, SF_CARRY) and on the drum track (DR: the kit; a lane picked: that lane); the steps'
  * events move with them; the EDIT layer's SHIFT and LENGTH move and copy them; the held step's COND card. */
-#if FELUCCA_SEQTOOLS
+#if FELUCCA_SEQTOOLS || FELUCCA_GENS || FELUCCA_COND   /* (the helpers: COND's card test too) */
 static void stt_undo(void)                              /* SAVE then HOME (op_combos.c) */
 {
     press(B_SAVE);
@@ -18,13 +18,13 @@ static void kturn(uint32_t role, int32_t s)             /* a knob turned with ST
         cards_up();
     turn(role, s);
 }
-static void stt_open(uint32_t k, uint32_t page)         /* track k on STEP, page 0 TOOLS / 1 EUCLID */
+static void stt_open(uint32_t k, uint32_t page)         /* track k on STEP, page 0 TOOLS / 1 GEN / 2 GEN OUT (op_step.c stp_tl) */
 {
     reset_ui();
     song.sel = (uint8_t)k;
     ui.lane = 0;
     tap(B_SEQ);
-    ui.row[SCR_STEP] = (uint8_t)(step_rows0() + page);
+    ui.row[SCR_STEP] = (uint8_t)(step_rows0() + page - (page && !FELUCCA_SEQTOOLS ? 1u : 0u));   /* (no TOOLS: GEN first) */
     frame();
 }
 static void stt_yes(void)                               /* SAVE, and SAVE again at the question */
@@ -33,6 +33,7 @@ static void stt_yes(void)                               /* SAVE, and SAVE again 
     if (op_armed())
         tap(B_SAVE);
 }
+#if FELUCCA_SEQTOOLS
 static void stt_do(uint32_t card)                       /* TOOLS' one card: its knob picks the tool (TL_LEN: DOUBLE), YES does it */
 {
     uint32_t n = ((card == TL_LEN ? TS_DBL : card) + TS_N - tl.sel) % TS_N;
@@ -52,11 +53,16 @@ static void stt_pick(uint32_t sel)                      /* TOOLS' card on choice
     while (n--)
         kturn(EN_K1, 1);
 }
+#endif
+#if !FELUCCA_SEQTOOLS
+static int tl_gate(const step_t *s) { return s->time == ST_NOTE && s->n; }   /* (op_tools.c's, built with TOOLS) */
+#endif
 static void stt_note(step_t *s, uint32_t note, uint32_t flags, uint32_t g)
 {
     memset(s, 0, sizeof *s);
     s->time = ST_NOTE, s->n = 1, s->note[0] = (uint8_t)note, s->vel = 100, s->flags = (uint8_t)flags, s->ngate[0] = (uint8_t)g;
 }
+#if FELUCCA_SEQTOOLS
 /* 8 steps: 0 N60 T T (3 steps), 4 N64 ending half way (ngate 64), 5 N67 going on into the carry step 6 (ends at 50) */
 static void stt_chains(track_t *t)
 {
@@ -142,10 +148,14 @@ static void accent_tools_tests(void)
     memset(t->dstep, 0, sizeof t->dstep);
     t->p[P_SLEN] = 16;
 }
+#endif
+#if FELUCCA_SEQTOOLS || FELUCCA_GENS
 static void seqtools_tests(void)
 {
     track_t *t = &trk[0];
     uint32_t sp[NSTEP], sp2[NSTEP], n, n2, i, ok;
+    (void)sp, (void)sp2, (void)n2;
+#if FELUCCA_SEQTOOLS
     /* REVERSE: the units mirrored, each note whole */
     stt_open(0, 0);
     stt_chains(t);
@@ -257,6 +267,8 @@ static void seqtools_tests(void)
         check(strstr(ui.msg, "ON THE GRID") != 0, "QNT with nothing nudged: ON THE GRID ALREADY, nothing done");
     }
 #endif
+#endif
+#if FELUCCA_NOTEGEN
     /* GEN on a synth track (seq/gen.c): a layer over the pattern, never written but by WRITE */
     {
     uint32_t m;
@@ -264,6 +276,7 @@ static void seqtools_tests(void)
     for (i = 0; i < NSTEP; i++)
         memset(&t->step[i], 0, sizeof t->step[i]), t->step[i].time = ST_REST;
     t->p[P_SLEN] = 16;
+    t->p[P_ROOT] = 0;                                   /* (C: the generator plays the root's note, 60) */
     stt_note(&t->step[3], 62, 0, 0);
     gen_reset_all();
     kturn(EN_K2, 1);                                     /* (OFF: a value only) */
@@ -370,6 +383,8 @@ static void seqtools_tests(void)
         gen_reset_all();
     }
     }
+#endif
+#if FELUCCA_SEQTOOLS
     /* TOOLS ask first: a turn picks the card, SAVE asks, SAVE again does it */
     stt_open(0, 0);
     t = &trk[0];
@@ -405,7 +420,15 @@ static void seqtools_tests(void)
             ok &= ((hat >> i) & 1u) == ((hat2 >> (15u - i)) & 1u);
         check(ok && n == kick && strstr(ui.msg, "CLOSED HAT"), "a lane picked (CLOSED HAT): REVERSE that lane only, the kick as it was");
     }
+#endif
+#if FELUCCA_NOTEGEN
     stt_open(TRK_DRUM, 2);
+    t = TDRUM;
+#if !FELUCCA_SEQTOOLS
+    t->p[P_SLEN] = 16;                                  /* (the kick DR RANDOM gave above) */
+    memset(t->dstep, 0, sizeof t->dstep);
+    dstep_set(&t->dstep[0], 0, 2, 0);
+#endif
     ui.lane = 1;
     lane_select(9);
     gen_reset_all();
@@ -436,9 +459,13 @@ static void seqtools_tests(void)
     }
     gen_reset_all();
     memset(t->dstep, 0, sizeof t->dstep);
+#endif
 #if FELUCCA_GEN_GRIDS
     /* the kit's GRIDS: DR itself (no lane picked) has TOOLS GRIDS DENSITY GEN OUT; a lane picked, GEN again */
     stt_open(TRK_DRUM, 1);
+    t = TDRUM;
+    t->p[P_SLEN] = 16;
+    memset(t->dstep, 0, sizeof t->dstep);
     gen_reset_all();
     {
         char nm[12], nm2[12], nm3[12];
@@ -447,18 +474,18 @@ static void seqtools_tests(void)
         const dstep_t *d = (const dstep_t *)(const void *)w;
         uint32_t x0 = (uint32_t)TDRUM->p[P_GRX], bd0 = (uint32_t)TDRUM->p[P_GRBD], m;
         step_name(ui.row[SCR_STEP], nm);
-        step_name(step_rows0() + 2u, nm2);
-        step_name(step_rows0() + 3u, nm3);
+        step_name(step_rows0() + STP_T1 + 1u, nm2);
+        step_name(step_rows0() + STP_T1 + 2u, nm3);
         SCREENS[SCR_STEP].cell(ui.row[SCR_STEP], 0, &c);
-        check(step_rows() == step_rows0() + 4u && !strcmp(nm, "GRIDS") && !strcmp(nm2, "DENSITY") && !strcmp(nm3, "GEN OUT") &&
+        check(step_rows() == step_rows0() + STP_TL + 1u && !strcmp(nm, "GRIDS") && !strcmp(nm2, "DENSITY") && !strcmp(nm3, "GEN OUT") &&
               c.label && !strcmp(c.label, "X"), "kit GRIDS: DR's STEP pages TOOLS GRIDS DENSITY GEN OUT, GRIDS' first card X");
         kturn(EN_K1, -3);
-        ui.row[SCR_STEP] = (uint8_t)(step_rows0() + 2u);
+        ui.row[SCR_STEP] = (uint8_t)(step_rows0() + STP_T1 + 1u);
         frame();
         kturn(EN_K1, 2);
         check(TDRUM->p[P_GRX] < (int16_t)x0 && TDRUM->p[P_GRBD] > (int16_t)bd0 && !gen[GEN_KIT].on,
               "... X turned down, DENSITY's BD up: the drum track's values (off: nothing plays yet)");
-        ui.row[SCR_STEP] = (uint8_t)(step_rows0() + 3u);
+        ui.row[SCR_STEP] = (uint8_t)(step_rows0() + STP_T1 + 2u);
         frame();
         kturn(EN_K1, 1);
         gen_render(t, w, ~0u);
@@ -481,12 +508,23 @@ static void seqtools_tests(void)
         ui.lane = 1;
         lane_select(0);
         frame();
-        step_name(step_rows0() + 1u, nm);
-        check(step_rows() == step_rows0() + 3u && !strcmp(nm, "GEN"), "... a lane picked: TOOLS GEN GEN OUT, that lane's");
+        step_name(step_rows0() + STP_T1, nm);
+        check(step_rows() == step_rows0() + STP_TL && !strcmp(nm, "GEN"), "... a lane picked: TOOLS GEN GEN OUT, that lane's");
+        ui.row[SCR_STEP] = (uint8_t)(step_rows0() + STP_T1);
+        frame();
+        SCREENS[SCR_STEP].cell(ui.row[SCR_STEP], 0, &c);
+        kturn(EN_K1, -9);                               /* (the TYPE card to its first type, then past the last) */
+        n = gen[ng_slot() % GEN_NSLOT].type;
+        kturn(EN_K1, 9);
+        check((FELUCCA_NOTEGEN ? c.kind == CK_VAL && !strcmp(c.val, "EUCLID") : c.kind == CK_NONE)
+              && n == (FELUCCA_NOTEGEN ? GT_EUCLID : GT_GRIDS) && gen[ng_slot() % GEN_NSLOT].type == GT_GRIDS
+              && gen_ntypes() == (FELUCCA_NOTEGEN ? 4u : 1u),
+              "... the lane's TYPE walks the types built, GRIDS the last; GRIDS alone (no NOTEGEN): no TYPE card, GRIDS it is");
     }
     gen_reset_all();
     memset(t->dstep, 0, sizeof t->dstep);
 #endif
+#if FELUCCA_SEQTOOLS
     /* the EDIT layer's SHIFT: the steps' events with them */
     reset_ui();
     song.sel = 0;
@@ -510,7 +548,9 @@ static void seqtools_tests(void)
 #endif
     track_defaults_steps(t);
     accent_tools_tests();
+#endif
 }
+#endif
 #endif
 #if FELUCCA_COND
 static void cond_card_tests(void)

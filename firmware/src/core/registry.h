@@ -507,7 +507,7 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #define FELUCCA_ED_STEPLANE FELUCCA_ED_SEQ   /* web editor protocol v14: a step in a drum lane's context, its lockable values (cmd 105, tag 0x62; the automation store) (io/editor/ed_*.c) */
 #endif
 #ifndef FELUCCA_ED_TOOLS
-#define FELUCCA_ED_TOOLS FELUCCA_ED_SEQ      /* web editor protocol v13: the STEP TOOLS and EUCLID (cmd 98, tag 0x5B; the Optimist UI and SEQTOOLS) (io/editor/ed_*.c) */
+#define FELUCCA_ED_TOOLS FELUCCA_ED_SEQ      /* web editor protocol v13: the STEP TOOLS and the note generators (cmd 98, tag 0x5B; SEQTOOLS or NOTEGEN) (io/editor/ed_*.c) */
 #endif
 #ifndef FELUCCA_ED_SONG
 #define FELUCCA_ED_SONG FELUCCA_ED_SEQ       /* web editor protocol v13: the song chain (cmd 97, tag 0x5A; the arranger) (io/editor/ed_*.c) */
