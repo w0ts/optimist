@@ -336,7 +336,6 @@
   .scbar { display: flex; flex-wrap: wrap; gap: 8px 14px; margin: 8px 0; }
   #scscope { width: 100%; max-width: 944px; height: 180px; border: 1px solid var(--line); margin: 4px 0 8px; display: block; }
   #mirror { width: min(100%, 480px); aspect-ratio: 1; image-rendering: pixelated; background: #000; display: block; margin: 8px auto; }
-  #mirror-note { text-align: center; }
   .scrows { display: flex; flex-direction: column; gap: 6px; }
   .scrow { border: 1px solid var(--line); padding: 4px 8px 6px; }
   .scrow[data-asking="1"] { outline: 2px solid var(--warn, #e7c15b); }
@@ -829,7 +828,6 @@
   .scbar { display: flex; flex-wrap: wrap; gap: 8px 14px; margin: 8px 0; }
   #scscope { width: 100%; max-width: 944px; height: 180px; border: 1px solid var(--line); margin: 4px 0 8px; display: block; }
   #mirror { width: min(100%, 480px); aspect-ratio: 1; image-rendering: pixelated; background: #000; display: block; margin: 8px auto; }
-  #mirror-note { text-align: center; }
   .scrows { display: flex; flex-direction: column; gap: 6px; }
   .scrow { border: 1px solid var(--line); padding: 4px 8px 6px; }
   .scrow[data-asking="1"] { outline: 2px solid var(--warn, #e7c15b); }
@@ -1653,7 +1651,7 @@
     <div class="scrows" id="scrows"></div>
   </section>
 
-  <section class="panel" id="p-screen" data-tab="screen" data-dev hidden><canvas id="mirror" width="240" height="240"></canvas><p class="dim" id="mirror-note" data-t="mirrorHelp"></p></section>
+  <section class="panel" id="p-screen" data-tab="screen" data-dev hidden><canvas id="mirror" width="240" height="240"></canvas></section>
   <section class="panel" id="p-settings" data-tab="settings" data-dev hidden>
     <div class="groups" id="setgroups"></div>
     <div class="groups" id="devscr" hidden></div>
@@ -6506,7 +6504,6 @@ const TEXT = {
   tabDrums: "Drum sounds", drumSounds: "The 16 drum sounds", drumHelp: "Each of the drum track's 16 sounds: its source (the kit, a sample of USR1–USR3, another kit's sound for it, any voice of X0X's 909 or 808), the sample's hit (zone), start and length (1/1024 of the hit), and the sound editor's 8 offsets (0 = as the kit). On the device: EDIT on the drum track.",
   userKits: "User kits", ukitHelp: "16 kits, KIT 1 to KIT 16 (every lane's source and offsets). Loading one puts it into the project's drums. Export writes the kit and the samples of the USR slots it plays into one file.",
   tabInstall: "Install", tabBuild: "Build", tabSim: "Simulator", tabScreen: "Screen",
-  mirrorHelp: "The FM-1's screen as it is drawn, over the USB cable. The mixer's meters are not sent.",
   mirrorNone: "This firmware does not send its screen: build it with ED_MIRROR (under the web editor in Build).", appSimMissing: "The simulator module is not available here.",
   devSource: "Device", devUsb: "FM-1 (USB)", devSim: "Simulator", simoff: "The simulator is not running: start it in the Simulator tab (it connects by itself).", appLoading: "Loading…", appNoSite: "This copy has no packages next to it (installer/site.json): choose a .fwsc file of your own.", appInstallMissing: "The installer module is not available here.", appBuildMissing: "The builder module is not available here yet.", appBusy: "Installing: stay on this page until it is done.",
   tabMixer: "Editor", help: "Help", bpm: "BPM", close: "Close", section: "Section", meter: "Meter", syncTip: "MIDI clock (Settings)", syncLocked: "an external clock is followed", syncWaiting: "waiting for that clock", choose: "Choose", number: "Number", value: "Value",
