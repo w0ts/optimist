@@ -1764,6 +1764,18 @@ static void layer_tests(void)
     check(lpk.on, "LFO held + SAVE: the patterns screen stays");
     release(B_SAVE);
     check(pat_has(0, 1), "LFO held + SAVE + key 2: the working copy stored into T1 2");
+    {   /* a brisk strum on the device: the key's press and SAVE's release land in one (slow) UI frame (the user, 2026-10-23:
+         * SAVE + key opened PROJECT): still the chord, stored, no tap */
+        uint32_t scr = ui.scr;
+        press(B_SAVE);
+        fm1_in.notes |= 1u << WK(2);
+        fm1_btn_t[1][panel.btn[B_SAVE]] = fm1_ticks();
+        fm1_in.buttons &= ~BT(B_SAVE);
+        frame();
+        fm1_in.notes &= ~(1u << WK(2));
+        frame();
+        check(pat_has(0, 2) && ui.scr == scr && !op_armed(), "LFO held, SAVE + key 3 with SAVE let go in the key's frame: stored, the screen stays (no SAVE tap)");
+    }
     press(B_HOME);                                       /* LFO held, then HOME + n: clear slot n (asked) */
     key(WK(1));
     check(op_armed() && !strcmp(ui.arm_q, "CLEAR T1 2?") && lay.lock == LY_PLAY, "LFO held + HOME + key 2: clear slot 2, asked");

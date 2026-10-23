@@ -992,6 +992,7 @@ static void ui_input(void)
         return;
     }
     op_rows_fix();
+    op_frame_up = (op_held | pressed) & ~held;          /* let go this frame: held for this frame's keys (btn_held, op_state.c) */
     if (pressed)
         op_clean &= ~op_held;                           /* a press: what was already down is no tap now */
     op_clean |= pressed;
@@ -1026,10 +1027,10 @@ static void ui_input(void)
         song_pat_arm(notes);                            /* (the patterns' keys: a hold clears the pattern) */
     if (notes && keys) {
         lay.used = 1;
-        op_clean &= ~held;
+        op_clean &= ~(held | op_frame_up);              /* (a button let go in this frame: the key was its chord, no tap) */
     } else if (notes && ui.scr == SCR_SONG && !name_on()) {   /* SONG: scenes, parts, PATTERNS / MODE (op_song.c): a key loads / launches, SHIFT2 + it selects */
         song_keys(notes);
-        op_clean &= ~held;
+        op_clean &= ~(held | op_frame_up);
     } else if (notes && (mute_mod(held) || sel_mod(held))) {   /* SHIFT + a key: its mute; SHIFT2 + a key: selected */
         shift_keys(notes, mute_mod(held));
         op_clean &= ~(BIT(B_OCTDN) | BIT(B_OCTUP));     /* (the shift let go: no octave) */
@@ -1039,11 +1040,12 @@ static void ui_input(void)
         op_clean &= ~held;
     } else if (notes && ui.scr == SCR_STEP && !op_shift(held)) {   /* SEQ held (the pick) or the keys play */
         step_played(notes);
-        op_clean &= ~held;
+        op_clean &= ~(held | op_frame_up);
     } else if (notes) {
-        op_clean &= ~held;
+        op_clean &= ~(held | op_frame_up);
         drum_hit_pick(notes);                           /* the drum track: the key's lane selected (the keys play) */
     }
+    op_frame_up = 0;                                    /* (the keys are done: the knobs, SHIFT, the taps and the lights see what is down now) */
     op_knobs(op_shift(held));
     taps = op_clean & ~held & (op_held | pressed);      /* let go with nothing else done meanwhile: a tap */
     op_clean &= held;
