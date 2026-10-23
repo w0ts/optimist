@@ -328,8 +328,9 @@ static void bt_tests(void)
     printf("a catch-up over Bluetooth: %u bytes\n", k);
     /* a slow radio: a few hundred bytes a write; the ring overflows, the mirror falls behind and catches up */
     for (k = 0; k < 4000u; k++) {
-        uint32_t was = mir.behind;
+        uint32_t was = mir.behind, w0 = mbr.w, lag = mbr.w - mbr.r > MIR_BLE_LAG && fm1_ms - mir.catch_ms >= MIR_CATCH_MS;
         random_write();
+        check(!lag || mbr.w == w0, "a frame past MIR_BLE_LAG waiting, outside a catch-up");
         lost += !was && mir.behind;
         sent += radio(150u + rnd(300));
         fm1_ms += 16u;                  /* (60 frames a second) */
