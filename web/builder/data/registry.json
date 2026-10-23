@@ -4122,9 +4122,35 @@
     "choices": [],
     "provenance": null,
     "children": [
+     "BT_AFH",
      "BT_DIAG"
     ],
     "tested": "host-tested (SSP, SAFER+, SBC encoder, AVDTP, L2CAP) and unit-tested",
+    "provenance_line": ""
+   },
+   {
+    "key": "BT_AFH",
+    "flag": "FELUCCA_BT_AFH",
+    "label": "Bluetooth audio: adaptive frequency hopping (the channels the headset fails on skipped)",
+    "group": "USB & BT & MIDI",
+    "bit": 395,
+    "default": 1,
+    "parent": "BT_AUDIO",
+    "desc": "What every phone's Bluetooth controller does: the FM-1 counts the headset's answers per radio channel (79 of them) every 30 s and takes the channels it fails on out of the hopping (LMP_set_AFH; at least 20 stay), so a few bad channels no longer stall the stream. Measured need: a WH-1000XM4 lost 4 fixed channels as the radio warmed and crackled on them (2026-10-23). Hardware-untested: the engine's AFH table layout is inferred from the LE block's; a console build (BT_DIAG) can switch it live (btpage afh=0 / 1 / 2).",
+    "experimental": false,
+    "notice": "",
+    "off_warning": "",
+    "env": "",
+    "target_only": true,
+    "symbols": [
+     "bt_afh_classify"
+    ],
+    "no_image": false,
+    "fixed": false,
+    "choices": [],
+    "provenance": null,
+    "children": [],
+    "tested": "emulator-tested only",
     "provenance_line": ""
    },
    {
@@ -5059,7 +5085,7 @@
     "flag": "FELUCCA_GRIDS_EUCLID",
     "label": "GRIDS: Euclidean mode (OUT EUCL)",
     "group": "Sequencer",
-    "bit": 395,
+    "bit": 397,
     "default": 0,
     "parent": "GEN_GRIDS",
     "desc": "Grids' second output mode for the kit's GRIDS: EUCLIDEAN. GRIDS gets an OUT card (DRUMS / EUCL); in EUCL the three parts play Euclidean rhythms instead of the drum map, as Grids does: X, Y and CHAOS set the kick's, the snare's and the hat's lengths (1 to 32 steps), DENSITY's BD, SD and HH how many of their steps hit, spread as evenly as they go (Grids' own table, worked out the same way). Each part runs on its own length through the passes, against the pattern's LEN. No accent in this mode, as on Grids. OUT is saved with the project; a build without this item plays DRUMS. About 1 KB of flash.",

@@ -236,7 +236,7 @@ BITS = {  # switch -> stable BUILD bit (append only)
     "FELUCCA_COND": 240,                                # (Felucca 1.5.6: 240..244)
     "FELUCCA_SEQTOOLS": 241,
     "FELUCCA_GEN_GRIDS": 370,                          # (the GRIDS note generator; its own item since 2026-10-22)
-    "FELUCCA_GRIDS_EUCLID": 395,                       # (the kit's GRIDS in Grids' Euclidean mode, 2026-10-23)
+    "FELUCCA_GRIDS_EUCLID": 397,                       # (the kit's GRIDS in Grids' Euclidean mode, 2026-10-23; 395 went to BT_AFH)
     "FELUCCA_GRIDS_LFO": 396,                            # (DR's two LFOs on the kit GRIDS, 2026-10-23)
 }
 NEXT_FREE = 80                                          # (switches not in BITS yet: from here, by name)
