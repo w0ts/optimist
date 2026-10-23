@@ -32,3 +32,49 @@ What App Review will look at, and what is done. The app is free.
 - Release builds are signed with the team in `Local.xcconfig` (git-ignored; never commit a team ID).
 - Archive: Xcode > Product > Archive (an iOS device or "Any iOS Device" selected), then Distribute App > App Store Connect.
   The Mac version is the same app record ("Mac Catalyst" on the target), uploaded from an archive made with "My Mac" selected.
+
+## Store text (paste into App Store Connect)
+
+**Name:** Optimist Mirror
+**Subtitle** (30 max): FM-1 screen, presets, backups
+**Category:** Music (secondary: Utilities) · **Price:** Free · **Age rating:** 4+ (every question "None" / "No")
+**Support URL:** https://github.com/w0ts/optimist · **Privacy Policy URL:** https://motscousus.com/optimist/privacy.html
+**Copyright:** 2026 Henri David
+
+**Promotional text** (170 max):
+See your FM-1's screen big on your iPhone, iPad or Mac, play it from the keyboard, and keep your projects, presets and backups safe.
+
+**Description:**
+Optimist Mirror is a companion for the M-VAVE FM-1 running the free Optimist firmware.
+
+- See the FM-1's screen, pixel for pixel, as large as your device allows, over USB or Bluetooth. Tap to hide everything but the screen.
+- Play the FM-1 from your Mac's keyboard (USB): the buttons, the keys and the knobs.
+- Projects: load, save, export and import song sections and patterns.
+- Presets: the FM-1's 32 user presets, and your own collection on your device, with search and tags.
+- Backup: a full backup of everything stored on the FM-1, and restore.
+Files are the same as the Optimist web editor's.
+
+Requires an FM-1 running the Optimist firmware (https://github.com/w0ts/optimist). The FM-1's stock firmware is not supported. Projects, Presets and Backup need the USB cable; the screen also works over Bluetooth.
+
+Optimist Mirror is an independent project, not affiliated with M-VAVE.
+
+**Keywords** (100 max): synth,synthesizer,FM-1,MIDI,mirror,backup,presets,editor,remote,screen,sequencer,optimist
+
+## App Privacy (App Store Connect > App Privacy)
+
+"Data Not Collected". No tracking.
+
+## App Review Information > Notes
+
+This app needs an M-VAVE FM-1 synthesizer running the Optimist firmware (open source: https://github.com/w0ts/optimist).
+Without one the app shows its connection screen. A video of the app in use with the device: <LINK TO THE VIDEO>.
+- Screen: the FM-1's display, over the USB cable or Bluetooth MIDI ("Connect with Bluetooth" opens iOS's Bluetooth MIDI sheet).
+- Projects, Presets and Backup talk to the FM-1 over the USB cable only; over Bluetooth those tabs say so.
+- On the Mac, the keyboard presses the FM-1's buttons (USB).
+No account, no data collected, no network use.
+
+## Screenshots
+
+iPhone 6.9" (1320 x 2868 or 2868 x 1320), iPad 13" (2064 x 2752), Mac (2880 x 1800 or 1440 x 900): the Screen tab mirroring a busy
+page (the mixer playing), the Presets tab, the Backup tab, the welcome screen. On a device: side button + volume up; on the Mac:
+shift-cmd-4, space, click the window.
