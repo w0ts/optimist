@@ -3727,8 +3727,8 @@ static void preset_engine_tests(void)
         song.sel = 0;
         frame();
         e0 = TSEL->eng_req;
-        for (i = 0; i < NENGINES; i++)
-            if (eng_built(i))
+        for (i = 0; i < NBANK; i++)                     /* (the instruments in the list: eng_built takes a UID, not the slot i) */
+            if (!i || preset_at(i, &k) != preset_at(i - 1u, &k))
                 ne++;
         press(B_OCTUP);
         turn(EN_PRESET, 1);
