@@ -44,8 +44,6 @@ Optimist 0.2 brings the FM-1 to the browser and the phone, plays over Bluetooth,
 - **Mute mode** (SHIFT + a key) with three key lights; the master channel too; the track LEDs follow the notes.
 - **CHORD+ latch:** a black modifier key tapped twice stays on.
 - **Live save** (builder item): save while playing.
-- Load and save stop the transport and restart it. HOME taps the tempo while PLAY is held. Default tempo 120.
-- A new project starts clean: no reverb send, the ACCENT lane four on the floor.
 
 ## Mixer and screen
 
