@@ -239,7 +239,7 @@ static void job_drums(const job_t *j)           /* every GM note through the dru
  * pattern 6, 1/16), 1 STUT (DIGITAL PAD, pattern 7, 1/32, DEPTH 100 %) */
 static void job_slicer(const job_t *j)
 {
-    static const int16_t S[2][4] = {{SL_GATE, 6, 1, 120}, {SL_STUT, 7, 2, 127}};
+    static const int16_t S[2][4] = {{SL_GATE, 6, DUR_DEF_16, 120}, {SL_STUT, 7, 19, 127}};
     track_t *t = &trk[0];
     uint32_t i;
     host_tracks_init();
@@ -292,8 +292,8 @@ static void job_song(const job_t *j)
         put_step(td, i, k, n, k ? ST_NOTE : ST_REST, i % 4u == 0u ? SF_ACCENT : 0u);
     }
     if (j->arg) {
-        static const int16_t S[4][4] = {{SL_STUT, 9, 1, 127}, {SL_GATE, 1, 1, 127}, {0, 1, 1, 127},
-                                        {SL_STUT, 12, 2, 110}};
+        static const int16_t S[4][4] = {{SL_STUT, 9, 16, 127}, {SL_GATE, 1, 16, 127}, {0, 1, 16, 127},
+                                        {SL_STUT, 12, 19, 110}};
         for (i = 0; i < NTRK; i++) {
             uint32_t k;
             for (k = 0; k < 4u; k++)
@@ -498,7 +498,7 @@ static void job_cpu(const job_t *j)
 #if FELUCCA_INS_GATER
         if (ty == FXT_GATE)                             /* (its dearest: OFF16 at 1/32, SHAPE 127, the gain moving every
                                                          * sample from the first; a short run never leaves an open step) */
-            trk[k].p[P_TGPAT] = 5, trk[k].p[P_TGRATE] = 2, trk[k].p[P_TGSHP] = 127;
+            trk[k].p[P_TGPAT] = 5, trk[k].p[P_TGRATE] = 19, trk[k].p[P_TGSHP] = 127;
 #endif
     }
 #endif

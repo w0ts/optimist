@@ -109,7 +109,7 @@ static void run(const plan_t *p)
         int16_t *g = &song.g[p->bus == BC ? G_CRET : p->bus == BD ? G_DRET : G_RRET];
         host_tracks_init();
         fx_rmute = 0;
-        song.g[G_DFDBK] = 100, song.g[G_DTIME] = 3;     /* (a long delay tail, 1/32: echoes before the sends end) */
+        song.g[G_DFDBK] = 100, song.g[G_DTIME] = 19;     /* (a long delay tail, 1/32: echoes before the sends end) */
         *g = (int16_t)p->ret;
         for (b = 0; b < NB; b++) {
             if (p->zero_at && b == p->zero_at)

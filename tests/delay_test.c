@@ -63,7 +63,7 @@ static void set_dly(int32_t fdbk, int32_t color)
     song.g[G_DFDBK] = (int16_t)fdbk;
     song.g[G_DCOLOR] = (int16_t)color;
     song.g[G_DMIX] = 127;
-    song.g[G_DTIME] = 2;                         /* 1/16 at 120 BPM: 5512 samples */
+    song.g[G_DTIME] = DUR_DEF_16;                        /* 1/16 at 120 BPM: 5512 samples */
     dly_clear();
 }
 
@@ -277,7 +277,7 @@ static void renders(const char *dir, const char *tag)
         char path[512];
         FILE *w;
         set_dly(FD[f], 107);
-        song.g[G_DTIME] = 1;                     /* 1/8 at 120 BPM */
+        song.g[G_DTIME] = DUR_DEF_8;                    /* 1/8 at 120 BPM */
         bus(in, out, n, 0);
         snprintf(path, sizeof path, "%s/dly-%s-fdbk%d.wav", dir, tag, FD[f]);
         w = fopen(path, "wb");

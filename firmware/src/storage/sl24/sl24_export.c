@@ -124,7 +124,7 @@ static int32_t sl24_rate_out(int32_t r, int32_t bpm)
     if (r >= 0)
         return r;
     p = DUR_48[(uint32_t)(-r - 1) < LSYNC_N ? (uint32_t)(-r - 1) : 0u];   /* (a cycle in 48ths of a beat, core.h) */
-    t = (uint64_t)(bpm > 0 ? bpm : 1) * 20u;           /* the note value's Hz x 100, times p */
+    t = (uint64_t)(bpm > 0 ? bpm : 1) * 80u;           /* the note value's Hz x 100, times p (p 48ths of a beat: bpm x 80 / p) */
     for (i = 1; i < 128 && LFO_HZ_X100[i] * p < t; i++)
         ;
     if (i == 128)

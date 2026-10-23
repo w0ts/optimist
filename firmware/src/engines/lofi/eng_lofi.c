@@ -206,7 +206,7 @@ static HOT void lofi_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, co
 static const preset_t LOFI_PRESETS[] = {
     {"GAME LEAD", {0, 0, 32, 0, 0, 20, 0, 127}, {0, 60, 90, 30}, 0, 1, FX(0, 0, 36, 18)},
     {"GB BASS", {1, 1, 0, 0, 0, 0, 0, 90}, {0, 50, 70, 20}, 0, 1, FX(0, 0, 6, 0), XP(P_TRANS + 1, -12)},
-    {"8BIT ARP", {2, 0, 96, 0, 0, 0, 2, 110}, {0, 60, 80, 40}, 0, 0, FX(0, 0, 30, 20), ARP(1, 2, 2, 40)},
+    {"8BIT ARP", {2, 0, 96, 0, 0, 0, 2, 110}, {0, 60, 80, 40}, 0, 0, FX(0, 0, 30, 20), ARP(1, DUR_DEF_16, 2, 20)},   /* (RATE 1/16, GATE 31 %: core.h DUR_48, GATE in 1/64 of a step) */
 };
 
 static const engine_t ENG_LOFI = {

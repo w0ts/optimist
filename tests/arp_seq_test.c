@@ -35,7 +35,7 @@ static void reset(uint32_t amode)
     song.g[G_BPM] = 120;
     t->p[P_VOICE] = V_POLY;
     t->p[P_AMODE] = (int16_t)amode;                      /* 1 UP */
-    t->p[P_ARATE] = 3;                                   /* 1/32: two arp notes a step */
+    t->p[P_ARATE] = 19;                                  /* 1/32: two arp notes a step */
     t->p[P_AOCT] = 1;
     t->p[P_AORDER] = 0;
     t->p[P_AHOLD] = 0;

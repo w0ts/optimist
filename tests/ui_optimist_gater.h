@@ -79,15 +79,15 @@ static void gtu_page_tests(void)
     turn(EN_K2, 1);
     SCR->cell(r, 1, &c);
     check(trk[0].p[P_TGPAT] == 9 && !strcmp(c.val, "TRNC2"), "... KNOB 2 turned: TRNC2");
-    trk[0].p[P_TGRATE] = 1;
+    trk[0].p[P_TGRATE] = DUR_DEF_16;
     SCR->cell(r, 2, &c);
-    check(!strcmp(c.val, "1/16") && c.gk == GK_DOTS && c.gv == 1 && c.gmax == 5, "RATE: a division, 1/16, the list form (one of six lit)");
+    check(!strcmp(c.val, "1/16") && c.gk == GK_POS && c.gv == DUR_DEF_16 && c.gmax == DUR_N - 1, "RATE: a division, 1/16, the long list form (a tick at its place of 22)");
     turn(EN_K3, 1);
     SCR->cell(r, 2, &c);
-    {                                                   /* one step in the order shown: 1/32 (stored 2), with DIV_ORDER (the user's) 16T (stored 4) */
-        int32_t nx = FELUCCA_DIV_ORDER ? 4 : 2;
-        check(nx == param_step(&TP[P_TGRATE], 1, 1) && trk[0].p[P_TGRATE] == nx && !strcmp(c.val, TP[P_TGRATE].names[nx]) && c.gv == nx,
-              "... KNOB 3 turned: the next division (1/32; 16T with DIV_ORDER)");
+    {                                                   /* one step: 1/32D (stored 17; the list is in the order of length with or without DIV_ORDER) */
+        int32_t nx = DUR_DEF_16 + 1;
+        check(nx == param_step(&TP[P_TGRATE], DUR_DEF_16, 1) && trk[0].p[P_TGRATE] == nx && !strcmp(c.val, TP[P_TGRATE].names[nx]) && c.gv == nx,
+              "... KNOB 3 turned: the next division (1/32D)");
     }
     turn(EN_K1, 40);
     check(trk[0].p[P_TGATE] == 40, "KNOB 1 turned: DEPTH 40");
@@ -209,7 +209,7 @@ static void gtu_pic_tests(void)
     }
     {   /* playing: from the transport's clock, the gate's own phase (a silent track's, not run) left alone */
         uint32_t kb = clk_beat, kp = clk_pos;
-        trk[0].p[P_TGRATE] = 1;                         /* 1/16: 4 steps a beat */
+        trk[0].p[P_TGRATE] = DUR_DEF_16;              /* 1/16: 4 steps a beat */
         song.playing = 1;
         clk_beat = 2, clk_pos = 0;
         ifx_gate[0].ph = 0;

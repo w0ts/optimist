@@ -148,6 +148,9 @@ static int steps_as(const uint8_t *a, const uint8_t *g, uint32_t k, uint32_t *ke
     return ok;
 }
 
+/* a 2.4 value of a note-value list of n: in range as it is, out of range 0 (the first, as the import reads it) */
+static int16_t in_range(int32_t v, int32_t n) { return (int16_t)(v >= 0 && v < n ? v : 0); }
+
 /* 1. the golden 2.4 project, in and out again */
 static void golden(void)
 {
@@ -175,11 +178,14 @@ static void golden(void)
     check("... it reports the FM6 part (its voice: the closest factory patch) and nothing else (FILT and the four FX kept)",
           lost == SX24_FM6);
     (void)gone;
-    ok = !memcmp(out, gold, 8u) && !memcmp(out + 8u, gold + 8u, 2u * G_MIDI) && r16(out, 8u + 2u * G_MIDI) == 0 &&
+    ok = !memcmp(out, gold, 8u) && !memcmp(out + 8u, gold + 8u, 2u * G_DTIME) &&
+         !memcmp(out + 8u + 2u * (G_DTIME + 1u), gold + 8u + 2u * (G_DTIME + 1u), 2u * (G_MIDI - G_DTIME - 1u)) &&
+         r16(out, 8u + 2u * G_DTIME) == in_range(r16(gold, 8u + 2u * G_DTIME), 8) && r16(out, 8u + 2u * G_MIDI) == 0 &&
          r16(out, 8u + 2u * G_SYNC) == 0 && r16(out, 8u + 2u * G_VIEW) == 0 && r16(out, 8u + 2u * G_INFO) == 0 &&
          (uint16_t)r16(out, 8u + 2u * G_SAVE) == 0x545Au;   /* (2.7's drum TUNE / DECAY mark: none tuned) */
     for (i = G_INFO + 1u; i < PJ_NG; i++)
-        ok &= i == G_SAVE || r16(out, 8u + 2u * i) == r16(gold, 8u + 2u * i);
+        ok &= i == G_SAVE || (i == G_ROLL ? r16(out, 8u + 2u * i) == in_range(r16(gold, 8u + 2u * i), 5)
+                                           : r16(out, 8u + 2u * i) == r16(gold, 8u + 2u * i));
     ok &= !memcmp(out + 8u + 2u * PJ_NG, gold + 8u + 2u * PJ_NG, 4u);
     check("globals as 2.4 wrote them but MIDI (13 -> 0), SYNC (14, past TRS -> INT), ROUTE (1 -> 0), slot 15 (-> 0); "
           "G_SAVE 2.7's drum mark", ok);
@@ -192,6 +198,8 @@ static void golden(void)
                       ? p24(out, k, i) == TP[i].def     /* (the import packs TFLT STRUM there: px_pack; the drum's own lost) */
                       : i == gone ? p24(out, k, i) == 0 && p24(gold, k, i) != 0   /* (P7-4: not heard here) */
                       : i == P_AMODE && k < NPART ? p24(out, k, i) == sl27_amode_in(p24(gold, k, i), &cut)   /* (ours: 6) */
+                      : i == P_ARATE ? p24(out, k, i) == in_range(p24(gold, k, i), 6)   /* (note values: out of its list: the first) */
+                      : i == P_SDIV ? p24(out, k, i) == in_range(p24(gold, k, i), 9)
                       : p24(out, k, i) == p24(gold, k, i);
         ok &= p24(out, k, 50) == (FILT_IN ? p24(gold, k, 50) : 0);                 /* FILT (heard: in a slot) */
         ok &= p24(out, k, 51) == (CHORD_IN && k < NPART ? p24(gold, k, 51) : 0);   /* STRUM, VLEAD: the parts' */
@@ -225,7 +233,17 @@ static void golden(void)
 }
 
 /* 2. ours, with what 2.4 has not; track k's value i 0..49 (the arp MODE one of ours: 0..5) */
-static int16_t ours_v(uint32_t k, uint32_t i) { return i == P_AMODE ? (int16_t)(k % 6u) : (int16_t)((int16_t)(k * 11u + i * 3u) - 20); }
+/* (the arp RATE and SEQ DIV are note values of ours, core.h DUR_48: ones SLOOP 2.4 has, so they go there and back whole) */
+static int16_t ours_v(uint32_t k, uint32_t i)
+{
+    return i == P_AMODE ? (int16_t)(k % 6u) : i == P_ARATE ? (int16_t)SLOOP_DIV_DUR[k % 6u]
+           : i == P_SDIV ? (int16_t)SLOOP_DIV_DUR[(k + 3u) % 9u] : (int16_t)((int16_t)(k * 11u + i * 3u) - 20);
+}
+/* the same as 2.4 writes it: those two as 2.4's own indices */
+static int16_t out_v(uint32_t k, uint32_t i)
+{
+    return i == P_ARATE ? (int16_t)(k % 6u) : i == P_SDIV ? (int16_t)((k + 3u) % 9u) : ours_v(k, i);
+}
 static void ours(project_t *q, stepx_t *x)
 {
     int16_t v[P_COUNT];
@@ -314,7 +332,7 @@ static void native(const char *dir)
             d[i] = (int16_t)((int16_t)(k * 11u + (P_LEG_PIT + i) * 3u) - 20);
         for (i = 0; i < SL24_COMMON; i++)
             ok &= p24(out, k, i) == (k < NPART && i >= P_LEG_PIT && i <= P_LEG_AMP ? leg_canon(d, i - P_LEG_PIT)
-                                                                                  : ours_v(k, i));
+                                                                                  : out_v(k, i));
         ok &= p24(out, k, 50) == 0 && p24(out, k, 51) == 0 && p24(out, k, 52) == 0;
         ok &= !memcmp(T24(out, k) + 124, k == TRK_DRUM ? want : (const uint8_t *)q.t[k].step, 640u) &&
               (int8_t)T24(out, k)[SL24_TAIL + 5u] == -7 - (int)k;
@@ -555,9 +573,9 @@ static void lsync24(void)
     ours(&q, x);
     base = proj_to_sl24(&q, xp, out);
     check("LFO sync: a free RATE everywhere: LSYNC not lost", !(base & SX24_LSYNC));
-    pj_to_p(v, q.t[0].p), v[P_LRATE] = -5, pj_from_p(q.t[0].p, v);      /* 1/4 at 123 BPM: 2.05 Hz */
+    pj_to_p(v, q.t[0].p), v[P_LRATE] = -11, pj_from_p(q.t[0].p, v);     /* 1/4 at 123 BPM: 2.05 Hz */
     pj_to_p(v, q.t[2].p), v[P_LRATE] = -1, pj_from_p(q.t[2].p, v);      /* 4BAR: 0.128 Hz */
-    stepx_lock_set(&x[1], 7, P_LRATE, -10);             /* 1/32: 16.4 Hz */
+    stepx_lock_set(&x[1], 7, P_LRATE, -20);             /* 1/32: 16.4 Hz */
     stepx_lock_set(&x[1], 8, P_LRATE, 33);
     q.sum = proj_sum(&q);
     lost = proj_to_sl24(&q, xp, out);

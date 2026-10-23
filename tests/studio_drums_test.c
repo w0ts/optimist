@@ -142,7 +142,7 @@ int main(int argc,char **argv)
             }
             assert(!ft_on && song.playing && !song.rec);
             assert(ft_bars==(uint8_t)T[ti].want_bars && song.g[G_BPM]==T[ti].want_bpm);
-            for(c=0;c<NTRK;c++)assert(trk[c].p[P_SLEN]==(int16_t)len && trk[c].p[P_SDIV]==2);
+            for(c=0;c<NTRK;c++)assert(trk[c].p[P_SLEN]==(int16_t)len && trk[c].p[P_SDIV]==DUR_DEF_16);
             for(j=0;j<len;j++){
                 const step_t *st=&trk[0].step[j];
                 if(j%4u==0){

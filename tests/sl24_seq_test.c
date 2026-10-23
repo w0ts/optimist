@@ -76,7 +76,7 @@ static void run_beats(uint32_t beats)
 /* ---- DIV 1/2, 1BAR, 2BAR */
 static void t_div_long(void)
 {
-    static const uint8_t DV[3] = {6, 7, 8}, BEATS[3] = {2, 4, 8};
+    static const uint8_t DV[3] = {7, 4, 2}, BEATS[3] = {2, 4, 8};
     uint32_t d, ok = 1;
     for (d = 0; d < 3u; d++) {
         uint32_t i, prev = 0, n = 0;
@@ -113,17 +113,17 @@ static void t_div_change(void)
 {
     uint32_t i, n0;
     reset(120);
-    TDRUM->p[P_SDIV] = 8;                              /* 2BAR */
+    TDRUM->p[P_SDIV] = 2;                              /* 2BAR */
     for (i = 0; i < 16u; i++)
         dstep_set(&TDRUM->dstep[i], 4, LV_NORM, 0);
     transport_req = 1;
     run_beats(3);
     n0 = nhits;
-    TDRUM->p[P_SDIV] = 3;                              /* 2BAR -> 1/32 in the middle of a step */
+    TDRUM->p[P_SDIV] = 19;                             /* 2BAR -> 1/32 in the middle of a step */
     run_block();
-    check(nhits - n0 <= 1u && TDRUM->p[P_SDIV] == 3, "DIV 2BAR -> 1/32 mid-step: one step a block, no burst");
-    check(TP[P_SDIV].max == 8 && !strcmp(TP[P_SDIV].names[8], "2BAR") && !strcmp(TP[P_SDIV].names[2], "1/16"),
-          "DIV's names: the six as before, then 1/2 1BAR 2BAR (appended)");
+    check(nhits - n0 <= 1u && TDRUM->p[P_SDIV] == 19, "DIV 2BAR -> 1/32 mid-step: one step a block, no burst");
+    check(TP[P_SDIV].max == DUR_N - 1 && !strcmp(TP[P_SDIV].names[2], "2BAR") && !strcmp(TP[P_SDIV].names[16], "1/16") && !strcmp(TP[P_SDIV].names[7], "1/2") && !strcmp(TP[P_SDIV].names[4], "1BAR"),
+          "DIV's names: the one list of note values (4BAR .. 1/64)");
 }
 
 /* ---- delay TIME 1/8D, 1/16D */
@@ -131,21 +131,21 @@ static void t_dly_dot(void)
 {
     uint32_t e8, e16, s8, s16, s8slow;
     song.g[G_BPM] = 120;
-    song.g[G_DTIME] = 6;
+    song.g[G_DTIME] = 11;
     s8 = delay_samples();
-    song.g[G_DTIME] = 7;
+    song.g[G_DTIME] = 14;
     s16 = delay_samples();
     e8 = BEAT_U * 3u / 4u / 120u;
     e16 = BEAT_U * 3u / 8u / 120u;
     check(s8 == e8 && s16 == e16, "TIME 1/8D, 1/16D at 120 BPM: 3/4 and 3/8 of a beat");
     song.g[G_BPM] = 40;                                /* 1/8D at 40 BPM: 49612 samples */
-    song.g[G_DTIME] = 6;
+    song.g[G_DTIME] = 11;
     s8slow = delay_samples();
     check(s8slow < DLY_LEN && (DLY_LEN > BEAT_U * 3u / 4u / 40u ? s8slow == BEAT_U * 3u / 4u / 40u
                                                                : s8slow == BEAT_U * 3u / 8u / 40u),
           "TIME 1/8D at 40 BPM: fits, or halves to 1/16D when the line is shorter (halved, X0X 892a3b5)");
-    check(GP[G_DTIME].max == 7 && !strcmp(GP[G_DTIME].names[6], "1/8D") && !strcmp(GP[G_DTIME].names[7], "1/16D"),
-          "TIME's names: the six as before, then 1/8D 1/16D (appended)");
+    check(GP[G_DTIME].max == DUR_N - 1 && !strcmp(GP[G_DTIME].names[11], "1/8D") && !strcmp(GP[G_DTIME].names[14], "1/16D"),
+          "TIME's names: the one list of note values (1/8D at 11, 1/16D at 14)");
     song.g[G_BPM] = 120;
 }
 

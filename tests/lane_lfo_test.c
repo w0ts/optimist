@@ -237,7 +237,7 @@ static void t_sync(void)
         song.g[G_BPM] = (int16_t)BPM[b];
         TDRUM->p[P_SLEN] = 16;
         dstep_set(&TDRUM->dstep[0], L, LV_NORM, 0);
-        set_lfo(L, -3, 2, 0, 0, DE_DECAY + 1u, 63, 0, 0);            /* (1BAR, SAW from PHS 0) */
+        set_lfo(L, -5, 2, 0, 0, DE_DECAY + 1u, 63, 0, 0);            /* (1BAR: DUR index 4, RATE -5; SAW from PHS 0) */
         nh = 0;
         transport_req = 1;
         while (clk_beat < 32u)
@@ -296,7 +296,7 @@ static void t_record(void)
     uint32_t n, l, k;
     reset();
     check("every lane at the defaults: no record (as a project from before)", dlfo_encode(a) == 0u);
-    set_lfo(0, -10, 4, 127, 127, DE_LEVEL + 1u, -64, DE_TUNE + 1u, 63);
+    set_lfo(0, -20, 4, 127, 127, DE_LEVEL + 1u, -64, DE_TUNE + 1u, 63);   /* (-20: 1/32) */
     set_lfo(7, 127, 1, 5, 0, DE_CUT + 1u, 1, 0, 0);
     set_lfo(9, 60, 0, 0, 0, 0, 0, DE_DRIVE + 1u, -1);
     memcpy(want, dlfo, sizeof want);
@@ -334,7 +334,7 @@ static void t_record(void)
     check("a length that is not 4 + lanes x entry: refused, every LFO off", !dlfo_decode(a, n - 1u) && !dlfo_any_live());
     memcpy(b2, a, n);
     b2[4] = 0x80, b2[5] = 9, b2[8] = 12, b2[6] = 200;  /* (rate -128, wave 9, dest 12, phase 200) */
-    check("values out of range brought back (RATE -10, WAVE SIN, PHS 72, DEST OFF)", dlfo_decode(b2, n) && dlfo[0].rate == -10 &&
+    check("values out of range brought back (RATE -22, WAVE SIN, PHS 72, DEST OFF)", dlfo_decode(b2, n) && dlfo[0].rate == -(int32_t)LSYNC_N &&
           !dlfo[0].wave && dlfo[0].phase == (200u & 127u) && !dlfo[0].s[0].dest);
     /* through a project buffer, a section, the autosave */
     {
