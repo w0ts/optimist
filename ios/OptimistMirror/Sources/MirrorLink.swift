@@ -28,6 +28,8 @@ final class MirrorLink: ObservableObject, Transport {
         var replies = 0
         var bytes = 0             // SysEx bytes received since the last tick (the link's rate, logged)
         var known = false         // the last reply's version is the decoder's (another firmware's pushes: not drawn)
+        var held: Date?           // a catch-up began (the whole panel filled): the picture shown stays until it is in
+        var lastFrame = Date()
         var pending: Pending?     // the editor request waiting for its reply
         var token = 0
     }
@@ -77,7 +79,21 @@ final class MirrorLink: ObservableObject, Transport {
 
     /// The decoded panel when it changed since `seen`.
     func snapshot(after seen: Int) -> (pixels: [UInt16], generation: Int)? {
-        lock.withLock { s in s.generation == seen ? nil : (s.decoder.pixels, s.generation) }
+        lock.withLock { s in
+            if let h = s.held {
+                let now = Date()
+                if now.timeIntervalSince(s.lastFrame) < Self.catchQuiet && now.timeIntervalSince(h) < Self.catchMax { return nil }
+                s.held = nil
+            }
+            return s.generation == seen ? nil : (s.decoder.pixels, s.generation)
+        }
+    }
+    /// A catch-up (the FM-1 fills the whole panel black, then draws it all again: ed_mirror.c mir_poll) is shown when it is
+    /// in, not as it comes: in once the pushes pause this long, or after catchMax at most.
+    private static let catchQuiet: TimeInterval = 0.12
+    private static let catchMax: TimeInterval = 1.5
+    private static func wholeFill(_ f: [UInt8]) -> Bool {
+        f.count == 18 && f[5] == 0 && Array(f[6..<14]) == [0, 0, 0, 0, 112, 1, 112, 1]
     }
 
     /// Ask for the whole panel again (the app came back to the front).
@@ -260,6 +276,8 @@ final class MirrorLink: ObservableObject, Transport {
                     on = on || (r.on && s.known)
                     s.replies += 1
                 } else if s.known, s.decoder.apply(f) {
+                    if Self.wholeFill(f) { s.held = Date() }
+                    s.lastFrame = Date()
                     s.generation += 1
                 }
             }
