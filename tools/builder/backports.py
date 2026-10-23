@@ -156,7 +156,7 @@ DESC["FELUCCA_SL24_EXPORT"] = (
     "sending apart, the reverb type, COMP / LIMIT, the steps' chance, motion, locks on those; sections and samples "
     "stay behind. About 1.5 KB of flash (unmeasured since 2026-10-19).")
 DESC["FELUCCA_SL24_EDIMPORT"] = (
-    "Adds Import a SLOOP 2.7 song or backup to the web editor's Projects screen: a project of a SLOOP song file or "
+    "Adds Import a SLOOP 2.7 song or backup to the web editor's Backup screen: a project of a SLOOP song file or "
     "backup file (its loop, or A..D of a backup) becomes the working project, as LOAD twice does with one left in "
     "flash; SAVE then keeps it in a section. Nothing else is written. Needs SL24_IMPORT. About 1.2 KB of flash and 0.4 "
     "KB of pool.")
