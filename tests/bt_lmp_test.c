@@ -20,8 +20,16 @@ int main(void)
     static const uint8_t ver[6] = {37 << 1, 0x06, 0xFF, 0xFF, 0x01, 0x00};
 
     n = btl_features_req(o);
-    check("features_req: opcode 39, TID 0: 3- and 5-slot, encryption (byte 0 bits 0-2), SSP and encapsulated PDU (byte 6 bits 3, 4), extended features (byte 7 bit 7), the rest 0",
-          n == 9 && o[0] == 78 && o[1] == 0x07 && !o[2] && !o[3] && !o[4] && !o[5] && !o[6] && o[7] == 0x18 && o[8] == 0x80);   /* (Core Vol 2 Part C 3.3; before: 0x08 slot offset, 0x21 CVSD + flow lag, the AirPods stopped at the public key, 2026-10-20) */
+    check("features_req: opcode 39, TID 0: 3- and 5-slot, encryption (byte 0 bits 0-2), AFH capable master (byte 5 bit 3), SSP and encapsulated PDU (byte 6 bits 3, 4), extended features (byte 7 bit 7), the rest 0",
+          n == 9 && o[0] == 78 && o[1] == 0x07 && !o[2] && !o[3] && !o[4] && !o[5] && o[6] == 0x08 && o[7] == 0x18 && o[8] == 0x80);   /* (Core Vol 2 Part C 3.3; before: 0x08 slot offset, 0x21 CVSD + flow lag, the AirPods stopped at the public key, 2026-10-20) */
+    {
+        static const uint8_t map[10] = {0xEF, 0xFB, 0xFD, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F};
+        n = btl_set_afh(o, 0x1234560u, 1, map);
+        check("set_afh: opcode 60, TID 0, the instant little-endian, mode 1, the 10-byte map: 16 bytes",
+              n == 16 && o[0] == 120 && o[1] == 0x60 && o[2] == 0x45 && o[3] == 0x23 && o[4] == 0x01 && o[5] == 1 && !memcmp(o + 6, map, 10));
+        check("set_afh is a master's PDU: a slave's copy is not accepted (unknown PDU) as any other",
+              btl_answer(o, n, "x", in) == 3 && in[0] == 8 && in[1] == 60 && in[2] == 0x19);
+    }
     n = btl_version_req(o);
     check("version_req: VersNr 6, CompId FFFF, SubVersNr 1", n == 6 && !memcmp(o, ver, 6));
     check("host_connection_req: one byte, opcode 51", btl_host_conn_req(o) == 1 && o[0] == 102);

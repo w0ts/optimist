@@ -29,7 +29,8 @@ uint32_t btl_opcode(const uint8_t *p, uint32_t len, uint32_t *tid)
  * (0x1F) and stopped pairing after our public key (the user, 2026-10-20) */
 static const uint8_t BTL_FEAT0[8] = {
     0x07u,                                         /* byte 0: 3-slot, 5-slot packets (bits 0, 1), encryption (bit 2) */
-    0, 0, 0, 0, 0,
+    0, 0, 0, 0,
+    0x08u,                                         /* byte 5: AFH capable master (bit 43; bt_afh.c, LMP_set_AFH) */
     0x18u,                                         /* byte 6: Secure Simple Pairing (bit 51), encapsulated PDU (bit 52) */
     0x80u,                                         /* byte 7: extended features (bit 63): page 1 below */
 };
@@ -58,6 +59,17 @@ uint32_t btl_version_req(uint8_t *out) { return btl_version(out, BTL_VERSION_REQ
 uint32_t btl_host_conn_req(uint8_t *out) { return btl_pdu(out, BTL_HOST_CONN_REQ, 0); }
 uint32_t btl_setup_complete(uint8_t *out) { return btl_pdu(out, BTL_SETUP_COMPLETE, 0); }
 
+uint32_t btl_set_afh(uint8_t *out, uint32_t instant, uint32_t mode, const uint8_t map[10])   /* LMP_set_AFH (Part C 5.2):
+                                                    * the master's CLK of the switch (bit 0 zero), 0 off / 1 on, the 79-bit map */
+{
+    uint32_t n = btl_pdu(out, BTL_SET_AFH, 0), i;
+    for (i = 0; i < 4u; i++)
+        out[n++] = (uint8_t)(instant >> 8u * i);
+    out[n++] = (uint8_t)mode;
+    for (i = 0; i < 10u; i++)
+        out[n++] = map[i];
+    return n;
+}
 uint32_t btl_detach(uint8_t *out, uint32_t reason)
 {
     uint32_t n = btl_pdu(out, BTL_DETACH, 0);
@@ -197,6 +209,7 @@ const char *btl_name(uint32_t op)
     case BTL_SETUP_COMPLETE: return "setup_complete";
     case BTL_HOST_CONN_REQ: return "host_connection_req";
     case BTL_SUPERVISION_TO: return "supervision_timeout";
+    case BTL_SET_AFH: return "set_afh";
     case BTL_AU_RAND: return "au_rand";
     case BTL_SRES: return "sres";
     case BTL_ESCAPE << 8 | BTL_X_IO_CAPABILITY_REQ: return "io_capability_req";

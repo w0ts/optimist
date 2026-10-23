@@ -87,7 +87,8 @@ static struct {
     uint8_t arm_danger;               /* it destroys something: a red frame (else amber) */
     uint8_t arm_ring;                 /* a delete asked while its key or button is held: the ring fills (the hold confirms, letting go cancels), not the modal */
     uint8_t toast_t;                  /* frames the toast stays: the result of an action just confirmed */
-    uint8_t cards_t;                  /* STEP: frames the four cards stay over the grid (a page change, a value edited) */
+    uint16_t cards_t;                 /* STEP: frames the four cards stay over the grid (a page change, a value edited: ~1.5 s,
+                                       * ~30 s after SHIFT2 + SELECT until STEP is left; a held step let go: ~1.5 s) */
     uint16_t toast_col;               /* its frame's colour (0: its words' status colour; a preset: its engine's) */
     uint8_t toast_next;               /* (a confirmed action runs: what it says is a toast, not the header) */
     uint8_t overlay;                  /* what covers the panel now: 0 nothing, 1 the modal, 2 the toast */
@@ -242,8 +243,12 @@ static uint32_t msg_status(const char *a)
  * of an action the user just confirmed (op_input.c op_yes sets toast_next around it) */
 #define OP_TOAST_FRAMES 90u           /* ~1.5 s */
 #define OP_CARDS_FRAMES 90u           /* STEP's card overlay: the same ~1.5 s, restarted by every page change or edit */
+#define OP_CARDS_LONG 1800u           /* ~30 s instead, for the page's own cards (no step held) once SHIFT2 + SELECT was
+                                       * turned on STEP, until STEP is left (the user, 2026-10-23: GRIDS' X / Y turned
+                                       * while listening; "long if right shift + select turn", "not the plock") */
 static uint8_t cards_snap_use;                          /* STEP: the cards show what was held (op_stepdraw.c step_frame) */
-static void step_cards_show(void) { if (ui.scr == SCR_STEP) ui.cards_t = OP_CARDS_FRAMES, cards_snap_use = 0; }
+static uint8_t cards_long;                              /* STEP: the long time is on (op_enter clears it) */
+static void step_cards_show(void);                      /* (op_step.c: which of the two times is the step state's) */
 /* another track (ALGORITHM, the mixer's walk): every band drawn again over itself, in place. Not ui.force: that
  * clears the whole LCD to black first and the bands follow one blit at a time, a black flash on every detent (the
  * user, 2026-10-10: "while scrolling algo knob, the screen flash in a not nice way"). The layout is the screen's,

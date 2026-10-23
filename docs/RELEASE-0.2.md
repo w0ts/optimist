@@ -2,24 +2,6 @@
 
 _Working draft 2026-10-23. Items marked **[check]** are to confirm on hardware or in a store; **[decide]** is the user's call before release._
 
-## Headline
-
-Optimist 0.2 brings the FM-1 to the browser and the phone, plays over Bluetooth, and gives every project its own patterns and scenes. More synths, more drums, more fits in the flash.
-
-## Web: everything on one site
-
-- **Web editor.** Every sound, drum, effect and setting as knobs; the drum grid; the samples (with CHOP); the preset library; projects. Backup of the whole FM-1 in one file, now its own Backup tab. Works over USB in Chrome or Edge (Web MIDI).
-- **Screen tab.** The FM-1's screen, live in the browser as it is drawn, with the mixer's meters ten times a second; a tap fills the display. Over USB. **[check: Bluetooth mirroring was tried and set aside as too slow]**
-- **Builder.** Choose engines, kits, effects and features with a live flash / RAM budget; _Build in the cloud_ returns your firmware in minutes. The builder now knows what each choice really costs (measured on the farm), shares one effects memory between every insert with a delay line, and tells you how many of each fit.
-- **Installer.** Install a release flavour, your cloud build or a file; a backup first; stock firmware back any time.
-- **Simulator.** The firmware running in the browser with the FM-1's panel and keys: try a build before installing it.
-- The pages link the GitHub repository.
-
-## iPhone app: Optimist Mirror (upcoming)
-
-- The FM-1's screen on an iPhone or iPad over a USB cable, pixel for pixel, with the mixer's meters; the picture turns with the phone.
-- Projects, Library and Backup screens, the web editor's tabs, in the app. **[check: App Store / TestFlight status]**
-
 ## Bluetooth
 
 - **Bluetooth audio.** The FM-1 plays through AirPods and other Bluetooth headphones and speakers (A2DP, our own stack): pairing, bonding, reconnect without pairing; SHIFT + volume switches between Bluetooth and the FM-1's own output, or reconnects the last device. **[check: XM4 crackles were open]**
@@ -28,7 +10,33 @@ Optimist 0.2 brings the FM-1 to the browser and the phone, plays over Bluetooth,
 
 ## Sound
 
-- **Ten new engines.** DRONE (Caravel's coupled network, LYRA-8 inspired, with BEAT and HOLD; Caravel 0.3.3 by bonszaimusic) and PLAITS (four of Mutable Instruments Plaits' models: waveshaping, additive, granular formant, particles; Plaits by Emilie Gillet). Eight from the scene, each a builder item, off by default: STRINGS (a 1970s string machine), VPS (vector phaseshaping), TERRAIN (wave terrain), WSEQ (Wavestation-style wave sequencing), VECTOR (Prophet VS-style vector synthesis) and WAVE (wavetables, 8 of Clipper's 16 tables, one table shared by every WAVE track; +70 KB of flash and +73 KB of pool, so a build with it needs a shorter delay line), all from Clipper 1.1 by 3dSam; SID (the C64's MOS 6581 / 8580) from Mini-Tone by Stephane Schmitz, after reSID 0.16 by Dag Lem; PROPHET (a Prophet-5 style voice from Melodee by Kerem Kilic, with our controls and presets, no Sequential programs). **[check: the eight scene engines are host-tested only, never on an FM-1]**
+- **26 synth engines, ten of them new.** Every one a builder item; the new ones are off by default. **[check: the eight scene engines are host-tested only, never on an FM-1]**
+  - **DRONE** (new): Caravel's coupled drone network, LYRA-8 inspired, with binaural BEAT and HOLD (Caravel 0.3.3 by bonszaimusic).
+  - **PLAITS** (new): four of Mutable Instruments Plaits' models, waveshaping, additive, granular formant and particles (Plaits by Émilie Gillet).
+  - **STRINGS** (new): a 1970s string machine (Clipper 1.1 by 3dSam).
+  - **VPS** (new): vector phaseshaping, a sine read through a bent phase (Clipper).
+  - **TERRAIN** (new): wave terrain synthesis (Clipper).
+  - **WSEQ** (new): Wavestation-style wave sequencing (Clipper).
+  - **VECTOR** (new): Prophet VS-style vector synthesis (Clipper).
+  - **WAVE** (new): Clipper's wavetables, 8 of its 16 tables, one table shared by every WAVE track; +70 KB of flash and +73 KB of pool, so a build with it needs a shorter delay line.
+  - **SID** (new): the Commodore 64's MOS 6581 / 8580, one voice of reSID 0.16 in integer code, three a part (Mini-Tone by Stephane Schmitz, after reSID by Dag Lem).
+  - **PROPHET** (new): a Prophet-5 style voice with our controls and presets, no Sequential programs (from Melodee by Kerem Kilic).
+  - **ANALOG 2**: the analog-style synth, swarm, two filters, now with four filter models (below).
+  - **FM6**: the DX7, bit-exact with Dexed; SysEx voices and banks in; voice packs (from Melodee).
+  - **JUNO**: the Juno-106 voice, DCO, OTA ladder filter and HPF (fm-106 / KR-106).
+  - **ACID**: the TB-303 bass voice with the TB-3PO line generator (X0X, Open303).
+  - **CZ**: Casio CZ-1 style tones, two lines with 8-step envelopes, the CZ-1 tone collection (from Melodee).
+  - **PHYS**: physical models, modal, string, membrane and sympathetic strings.
+  - **DIGITAL**: 4-operator FM.
+  - **PHASE**: phase distortion, with FOLD, a sine wavefolder (Felucca-Engines).
+  - **LOFI**: chip sounds and wavetables.
+  - **SAMPLE**: the sample sets and your own USR slots.
+  - **VOICE**: formant synthesis, sung vowels.
+  - **TRIO**: three oscillators.
+  - **WHEEL**: a drawbar organ.
+  - **GRAIN**: granular synthesis on the sample sets.
+  - **SLICE**: a break slicer with its BREAK sample.
+  - **NOISE**: colours, crackle and shift-register noise (Felucca-Engines).
 - **ANALOG 2 filter models:** LADR (Moog-style ladder), OTA (Juno-style 4-pole), DIOD (303-style diode ladder), MS20 (Sallen-Key); each a builder choice.
 - **Three independent drum synths:** the 32 classic kits, KAWA (kit 47, from Kawa Tracker by Guizmoh) and PLAITS (kit 48, Plaits' kick and snare, from Hortator by Leo Kuroshita after Plaits).
 - **Inserts:** XDLY, a LYRA-8 style cross-modulated dual delay; GATER; TAPE and SPIT (from Melodee 1.4.4 by Kerem Kilic); the insert slots show how many instances are free (2/4 CHRS).
@@ -45,6 +53,16 @@ Optimist 0.2 brings the FM-1 to the browser and the phone, plays over Bluetooth,
 - **CHORD+ latch:** a black modifier key tapped twice stays on.
 - **Live save** (builder item): save while playing.
 
+## Web: everything on one site
+
+- **Web editor.** Every sound, drum, effect and setting as knobs; the drum grid; the samples (with CHOP); the preset library; projects. Backup of the whole FM-1 in one file, now its own Backup tab. Works over USB in Chrome or Edge (Web MIDI).
+- **Screen tab.** The FM-1's screen, live in the browser as it is drawn, with the mixer's meters ten times a second; a tap fills the display. Over USB. **[check: Bluetooth mirroring was tried and set aside as too slow]**
+- **Builder.** Choose engines, kits, effects and features with a live flash / RAM budget; _Build in the cloud_ returns your firmware in minutes. The builder now knows what each choice really costs (measured on the farm), shares one effects memory between every insert with a delay line, and tells you how many of each fit.
+- **Installer.** Install a release flavour, your cloud build or a file; a backup first; stock firmware back any time.
+- **Simulator.** The firmware running in the browser with the FM-1's panel and keys: try a build before installing it.
+
 ## Thanks
 
 Optimist stands on SLOOP (isod89), Felucca and Felucca-Engines (Leo Kuroshita, Hügelton Instruments), Melodee (Kerem Kilic: FM6, CZ, the PROPHET voice, USB audio, TAPE and SPIT), X0X (Charles Vestal: the 909 and 808 kits, ACID with Open303 and TB-3PO), fm-106 (PatttF, after KR-106 by Kayrock Screenprinting: JUNO), Caravel (bonszaimusic: DRONE), Mutable Instruments (Emilie Gillet: Plaits, Grids), Hortator (Leo Kuroshita: the PLAITS kit), Kawa Tracker (Guizmoh: the KAWA kit), JIANT (juanjiant-bit), SLOOP 2.8 (isod89: the backports), Clipper (3dSam: STRINGS, VPS, TERRAIN, WSEQ, VECTOR, WAVE; GPL-3.0-only), Mini-Tone (Stephane Schmitz: SID, after reSID 0.16 by Dag Lem; GPL-2.0-or-later). Licences in LICENSING.md.
+
+**A word for Émilie Gillet.** PLAITS and GRIDS are hers, from Mutable Instruments, which she closed in 2022, leaving every line of her code open for the rest of us. She asked for nothing and walked away quietly. Her ideas live on in thousands of instruments, and now in this one. We miss her. Thank you, Émilie.

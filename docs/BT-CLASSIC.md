@@ -135,6 +135,19 @@ odd 1..77. The A/B train is flipped by software via `format` bit7: inquiry every
 crystal-error sweep exists in the vendor library (9 steps of `PLL_COMP`: -120, -80, -40, -20, 0, +20, +40, +80, -120);
 the probe uses it. AFH: three tables and register triples; set `miscntl` [7:6] = t+1 and `format` bit6.
 
+**AFH as the audio link's master (BT_AFH, `bt_afh.c`, `bt_page.c` bp_sec_tick / bp_afh_send / bp_alarm):** the link
+counts the device's good answers per RF channel (`rxfreq` is the hop index: 0-39 the even channels, 40-78 the odd
+[M: the inquiry's answers sit on 18 consecutive indexes, the kernel's consecutive bank entries]); every 30 s the
+channels under half the used channels' mean leave the map, the worst first, never back within the link, at least 20
+stay (Part B 2.6.4.2). The map goes to `frq_table[1]` as the used channels packed in the basic order and to the map
+registers `0x20090` and `0x2009C` (bits 0-78, the count in word 2 [31:24]) [I: the LE block's packed table and count,
+`ble_hw_wl82.c` cb_channels, taken as the model; `btpage afh=2` lays the table out in full instead, every kernel output
+mapped itself, should the engine index it that way]; `LMP_set_AFH` (the instant an even slot 320 slots ahead, mode 1,
+the map) is queued and the 18-slot alarm is re-armed onto the instant, where `miscntl` [7:6] = 1 and `format` bit6 are
+set. Why (2026-10-23, logs/xm4-2026-10-23.log): a WH-1000XM4's answers on RF channels 4, 10 and 17 fell from ~80 to
+9-29 per 30 s as the radio warmed while the other 76 stayed flat, the stream stalled on them and crackled; every phone's
+controller skips such channels. Hardware-untested at the time of writing.
+
 ### 8. Inquiry, page, scan as the probe drives them
 
 **8.1 Inquiry:** frame with GIAC address and parity, `format` 8, `wincntl` 70, ID (`linkcntl` `0x4000`), EIR RX armed

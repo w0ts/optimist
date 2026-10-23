@@ -1127,6 +1127,8 @@ job; ( jobin
 job; ( jobin
     $CC -Wextra $BLE_SAN -o "$OUT/bt_lmp_test" tests/bt_lmp_test.c
     run "BT Classic probe LMP: the master's link set-up PDUs and the answers to a slave's requests (Core spec Vol 2 Part C)" "$OUT/bt_lmp_test"
+    $CC -Wextra $BLE_SAN -o "$OUT/bt_afh_test" tests/bt_afh_test.c
+    run "BT Classic audio AFH (bt_afh.c): the channels a headset fails on leave the map (half the mean, 20 stay), the engine's table and map words" "$OUT/bt_afh_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -Wextra $BLE_SAN -o "$OUT/bt_l2cap_test" tests/bt_l2cap_test.c
