@@ -60,7 +60,10 @@ uint32_t btl_host_conn_req(uint8_t *out) { return btl_pdu(out, BTL_HOST_CONN_REQ
 uint32_t btl_setup_complete(uint8_t *out) { return btl_pdu(out, BTL_SETUP_COMPLETE, 0); }
 
 uint32_t btl_set_afh(uint8_t *out, uint32_t instant, uint32_t mode, const uint8_t map[10])   /* LMP_set_AFH (Part C 5.2):
-                                                    * the master's CLK of the switch (bit 0 zero), 0 off / 1 on, the 79-bit map */
+                                                    * the slot of the switch (the master's CLK[27:1]: the vendor controller
+                                                    * compares the field with its slot clock as it is, btctrler.a
+                                                    * connection_rx_handler; doubled, the XM4 switched 26 s after us,
+                                                    * 2026-10-23), 0 off / 1 on, the 79-bit map */
 {
     uint32_t n = btl_pdu(out, BTL_SET_AFH, 0), i;
     for (i = 0; i < 4u; i++)
