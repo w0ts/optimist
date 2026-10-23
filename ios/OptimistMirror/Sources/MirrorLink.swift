@@ -21,8 +21,18 @@ final class MirrorLink: ObservableObject, Transport {
     @Published private(set) var bluetooth = false   // the port in use is the Bluetooth one
     @Published private(set) var ports: [String] = []   // every MIDI port with both directions, by name (the picker)
     /// The port picked by hand ("": the FM-1's, found by its name); kept across launches
+    /// Disconnect: no port taken until a port is chosen or Connect is pressed (the welcome screen)
+    @Published private(set) var paused = false
+    func disconnect() { paused = true; reconnect() }
+    func resume() { paused = false; reconnect() }
+    private func reconnect() {
+        if source != 0 { MIDIPortDisconnectSource(inPort, source) }
+        source = 0; destination = 0
+        connect()
+    }
     @Published var chosen = UserDefaults.standard.string(forKey: "port") ?? "" {
         didSet {
+            paused = false
             UserDefaults.standard.set(chosen, forKey: "port")
             if source != 0 { MIDIPortDisconnectSource(inPort, source) }
             source = 0; destination = 0
@@ -148,8 +158,8 @@ final class MirrorLink: ObservableObject, Transport {
     private func connect() {
         let outs = Set((0..<MIDIGetNumberOfDestinations()).map { Self.name(MIDIGetDestination($0)) })
         ports = (0..<MIDIGetNumberOfSources()).map { Self.name(MIDIGetSource($0)) }.filter { outs.contains($0) }
-        let src = Self.find(MIDIGetNumberOfSources(), MIDIGetSource, chosen: chosen)
-        let dst = Self.find(MIDIGetNumberOfDestinations(), MIDIGetDestination, chosen: chosen)
+        let src = paused ? nil : Self.find(MIDIGetNumberOfSources(), MIDIGetSource, chosen: chosen)
+        let dst = paused ? nil : Self.find(MIDIGetNumberOfDestinations(), MIDIGetDestination, chosen: chosen)
         guard src != source || dst != destination else { return }
         if source != 0 { MIDIPortDisconnectSource(inPort, source) }
         source = src ?? 0
