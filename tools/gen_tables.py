@@ -30,6 +30,165 @@ def f32(x):
     return struct.unpack("f", struct.pack("f", x))[0]
 
 
+# ---- the smooth tables delta-coded (TAB_CODED): on the target each lives in RAM (the pool, or main RAM: TAB_POOL), filled at boot by
+# tab_expand (emitted below, called from main.c) from a flash stream of the differences between consecutive entries
+# (order 1) or of the differences of those (order 2), zigzag LEB128 (1 byte for -64..63); SINE as its first quarter
+# (257 entries) and its symmetries. Every other build (the host tests, the simulator) keeps the plain arrays.
+CODED = []              # (group, name, ctype, n, flags, stream, values)
+# the groups and the C condition each is built under: "core" SINE and TANH, in the pool at HEAD already (TAB_RAM), so
+# coded at no cost in RAM; "flash" and "fm6" the tables that were in flash: coded only with FELUCCA_TAB_CODED_ALL (each
+# then takes its size in the pool, which the undo history ring would have had; measured 2026-10-22 on the five profiles:
+# flash -5.0 KB (synth, with FM6) / -3.5 KB (drum-machine), pool +7.3 KB: the synth and fm-va-studio profiles' pool
+# headroom is below the 8 KiB spare then, so it is off by default)
+GROUPS = {"core": None, "flash": "FELUCCA_TAB_CODED_ALL", "fm6": "FELUCCA_ENG_FM6 && FELUCCA_TAB_CODED_ALL"}
+CODED_W = {"int16_t": 2, "uint16_t": 2, "int32_t": 4, "uint32_t": 4, "int64_t": 8}
+F_ORDER2 = 2
+F_SINE = 4
+
+
+def zigzag_leb(vals, order):
+    """the stream of vals: each value's difference from the prediction (the last value, or twice the last less the
+    one before), zigzag, 7 bits a byte, low first, the high bit on every byte but the last"""
+    out = bytearray()
+    p1 = p2 = 0
+    for v in vals:
+        d = v - (2 * p1 - p2 if order == 2 else p1)
+        assert -(1 << 63) <= d < (1 << 63), (d, order)
+        z = (d << 1) ^ (-1 if d < 0 else 0)
+        while True:
+            b, z = z & 0x7F, z >> 7
+            out.append(b | (0x80 if z else 0))
+            if not z:
+                break
+        p2, p1 = p1, v
+    return bytes(out)
+
+
+def unzigzag_leb(stream, n, order):
+    """-> (the n values the C decoder recovers, the bytes used): the check that the stream round-trips"""
+    out, i, p1, p2 = [], 0, 0, 0
+    for _ in range(n):
+        z, sh = 0, 0
+        while True:
+            b = stream[i]
+            i += 1
+            z |= (b & 0x7F) << sh
+            sh += 7
+            if not b & 0x80:
+                break
+        d = (z >> 1) ^ -(z & 1)
+        v = d + (2 * p1 - p2 if order == 2 else p1)
+        out.append(v)
+        p2, p1 = p1, v
+    return out, i
+
+
+def carr(name, ctype, vals, per=12, ram=False, group="core", sine=False):
+    """arr, with the table delta-coded on the target (TAB_CODED; sine: the first quarter coded, the rest its
+    mirror). The coded tables' order within a group is the stream's."""
+    store = vals[:257] if sine else vals
+    if sine:
+        assert len(vals) == 1024 and all(vals[512 - i] == vals[i] for i in range(1, 256)) \
+            and all(vals[512 + i] == -vals[i] for i in range(512)), name
+    order, stream = min(((o, zigzag_leb(store, o)) for o in (1, 2)), key=lambda t: len(t[1]))
+    got, used = unzigzag_leb(stream, len(store), order)
+    assert got == list(store) and used == len(stream), name
+    lo, hi = {"int16_t": (-32768, 32767), "uint16_t": (0, 65535), "int32_t": (-(1 << 31), (1 << 31) - 1),
+              "uint32_t": (0, (1 << 32) - 1), "int64_t": (-(1 << 63), (1 << 63) - 1)}[ctype]
+    assert all(lo <= v <= hi for v in vals), name
+    CODED.append((group, name, ctype, len(vals), (F_ORDER2 if order == 2 else 0) | (F_SINE if sine else 0), stream,
+                  list(vals)))
+    cond = GROUPS[group]
+    return [f"#if TAB_CODED{' && ' + cond if cond else ''}", f"static {ctype} {name}[{len(vals)}] TAB_POOL;", "#else",
+            *arr(name, ctype, vals, per, ram), "#endif"]
+
+
+def coded_tables():
+    """the streams, the descriptors and the decoder, for main.c (GROUPS: each under its condition)"""
+    groups = list(GROUPS.items())
+    L = ["", "/* TAB_CODED (tools/gen_tables.py carr): the tables above that TAB_POOL marks, delta-coded in flash and",
+         " * expanded into RAM at boot (tab_expand, from main.c before any interrupt; the pool or main RAM: TAB_POOL) */",
+         "#if TAB_CODED",
+         "typedef struct { void *dst; uint16_t n; uint8_t w; uint8_t f; } tab_desc_t;   /* w 2 4 8; f: 2 order 2, 4 SINE's quarter */"]
+    # the decoder's arithmetic: 64-bit only when a built group has a 64-bit table (TAB_WIDE), else 32-bit (smaller)
+    wide = [cond for g, cond in groups if any(c[0] == g and CODED_W[c[2]] == 8 for c in CODED)]
+    if wide:
+        L += [f"#if {' || '.join(f'({c})' for c in wide) if all(wide) else '1'}", "#define TAB_WIDE 1",
+              "typedef int64_t tab_v_t;", "typedef uint64_t tab_z_t;", "#else", "#define TAB_WIDE 0",
+              "typedef int32_t tab_v_t;", "typedef uint32_t tab_z_t;", "#endif"]
+    else:
+        L += ["#define TAB_WIDE 0", "typedef int32_t tab_v_t;", "typedef uint32_t tab_z_t;"]
+    for g, cond in groups:
+        rows = [c for c in CODED if c[0] == g]
+        if not rows:
+            continue
+        stream = b"".join(c[5] for c in rows)
+        if cond:
+            L.append(f"#if {cond}")
+        L += [f"static const uint8_t TAB_BLOB_{g}[{len(stream)}] = {{"]
+        for i in range(0, len(stream), 24):
+            L.append("    " + ", ".join(str(b) for b in stream[i:i + 24]) + ",")
+        L += ["};", f"static const tab_desc_t TAB_DESC_{g}[{len(rows)}] = {{"]
+        L += [f"    {{{c[1]}, {c[3]}, {CODED_W[c[2]]}, {c[4]}}}," for c in rows]
+        L += ["};"]
+        if cond:
+            L.append("#endif")
+    L += ["static void tab_expand_group(const tab_desc_t *t, uint32_t cnt, const uint8_t *s)",
+          "{",
+          "    for (; cnt; cnt--, t++) {",
+          "        tab_v_t v, p1 = 0, p2 = 0;",
+          "        uint32_t i, n = t->f & 4u ? 257u : t->n;",
+          "        for (i = 0; i < n; i++) {",
+          "            tab_z_t z = 0;",
+          "            uint32_t sh = 0, b;",
+          "            do {",
+          "                b = *s++;",
+          "                z |= (tab_z_t)(b & 0x7Fu) << sh;",
+          "                sh += 7u;",
+          "            } while (b & 0x80u);",
+          "            v = (tab_v_t)(z >> 1) ^ -(tab_v_t)(z & 1u);",
+          "            v += t->f & 2u ? 2 * p1 - p2 : p1;",
+          "            p2 = p1;",
+          "            p1 = v;",
+          "            if (t->w == 2u)",
+          "                ((int16_t *)t->dst)[i] = (int16_t)v;",
+          "#if TAB_WIDE",
+          "            else if (t->w == 8u)",
+          "                ((int64_t *)t->dst)[i] = v;",
+          "#endif",
+          "            else",
+          "                ((int32_t *)t->dst)[i] = (int32_t)v;",
+          "        }",
+          "        if (t->f & 4u) {                         /* SINE: a quarter decoded, the rest its mirror */",
+          "            int16_t *q = (int16_t *)t->dst;",
+          "            for (i = 1; i < 256u; i++)",
+          "                q[512u - i] = q[i];",
+          "            for (i = 0; i < 512u; i++)",
+          "                q[512u + i] = (int16_t)-q[i];",
+          "        }",
+          "    }",
+          "}",
+          "static void tab_expand(void)",
+          "{"]
+    for g, cond in groups:
+        rows = [c for c in CODED if c[0] == g]
+        if rows:
+            L += ([f"#if {cond}"] if cond else []) + [f"    tab_expand_group(TAB_DESC_{g}, {len(rows)}u, TAB_BLOB_{g});"] \
+                + (["#endif"] if cond else [])
+    L += ["}", "#ifdef TAB_CODED_CHECK                    /* (tests/tab_coded_test.c: the plain arrays beside the coded) */"]
+    for g, cond in groups:
+        rows = [c for c in CODED if c[0] == g]
+        if not rows:
+            continue
+        L += [f"#if {cond}"] if cond else []
+        for c in rows:
+            L += arr(c[1] + "_RAW", c[2], c[6], 12)
+        L += [f"#define TAB_CHECK_{g}(X) " + " ".join(f"X({c[1]})" for c in rows)]
+        L += ["#else", f"#define TAB_CHECK_{g}(X)", "#endif"] if cond else []
+    L += ["#endif", "#endif"]
+    return L
+
+
 def fm6_tables():
     """FM6 (eng_fm6.c): Dexed's lookup tables, computed as Dexed computes them at 44.1 kHz with its
     64-sample blocks (MSFA sin.cc, exp2.cc, freqlut.cc, lfo.cc, pitchenv.cc, porta.cpp, dx7note.cc,
@@ -74,7 +233,7 @@ def fm6_tables():
     ref += arr("FM6_FREQ_REF", "int32_t", fl, 8)
     # frequency: coarse ratios, fine (dx7note.cc osc_freq), detune per note x (DET - 7) in Q24 fractions
     L += arr("FM6_COARSE", "int32_t", [-(1 << 24)] + [int(round((1 << 24) * math.log2(k))) for k in range(1, 32)], 8)
-    L += arr("FM6_FINE", "int32_t", [math.floor(24204406.323123 * math.log(1 + 0.01 * f) + 0.5) for f in range(128)], 8)
+    L += carr("FM6_FINE", "int32_t", [math.floor(24204406.323123 * math.log(1 + 0.01 * f) + 0.5) for f in range(128)], 8, group="fm6")
     det = []
     for n in range(128):
         lf = 50857777 + ((1 << 24) // 12) * n                       # Dexed's standard tuning
@@ -83,7 +242,7 @@ def fm6_tables():
         for d in range(16):                                          # the table gives Dexed's result
             want = int(lf + r * lf * (d - 7)) - lf
             assert lf + ((det[-1] * (d - 7)) >> 24) - lf == want, (n, d)
-    L += arr("FM6_DETUNE", "int64_t", det, 6)
+    L += carr("FM6_DETUNE", "int64_t", det, 6, group="fm6")
     # LFO speeds (lfo.cc): Hz measured on a DX7 (MSFA, Copyright 2012 Google Inc.), as Dexed's phase
     # increments per 64-sample block
     hz = [0.062541, 0.125031, 0.312393, 0.437120, 0.624610, 0.750694, 0.936330, 1.125302, 1.249609, 1.436782,
@@ -99,14 +258,14 @@ def fm6_tables():
           44.883303, 46.772685, 48.590865, 49.261084]
     assert len(hz) == 100
     ratio = int(4437500000.0 * N / FS)
-    L += arr("FM6_LFO_INC", "uint32_t", [int(h * ratio) for h in hz], 8)
+    L += carr("FM6_LFO_INC", "uint32_t", [int(h * ratio) for h in hz], 8, group="fm6")
     L += [f"#define FM6_LFO_UNIT {int(N * 25190424 / FS + 0.5)}",
           f"#define FM6_PEG_UNIT {int(N * (1 << 24) / (21.3 * FS) + 0.5)}"]
     # portamento (porta.cpp): pitch steps per block, plain and glissando, for CC 5 = 0..127
     def porta(sps):
         return [int(0.5 + ((1 << 24) // 12) * (sps * math.pow(2.0, -0.062 * i) / FS * N)) for i in range(128)]
-    L += arr("FM6_PORTA", "int32_t", porta(2100.0), 8)
-    L += arr("FM6_GLISS", "int32_t", porta(1300.0), 8)
+    L += carr("FM6_PORTA", "int32_t", porta(2100.0), 8, group="fm6")
+    L += carr("FM6_GLISS", "int32_t", porta(1300.0), 8, group="fm6")
     return L + ["#ifdef FM6_REF_TABLES"] + ref + ["#endif"]
 
 
@@ -119,8 +278,19 @@ def main(path):
          "#if defined(__PI32V2__) && defined(FELUCCA_TAB_IN_POOL) && FELUCCA_TAB_IN_POOL",
          '#define TAB_RAM __attribute__((section(".pool_init.tab_ram")))',
          "#elif defined(__PI32V2__)", '#define TAB_RAM __attribute__((section(".data.tab_ram")))',
-         "#else", "#define TAB_RAM", "#endif", ""]
-    L += arr("SINE", "int16_t", [int(round(32767 * math.sin(2 * math.pi * i / 1024))) for i in range(1024)], ram=True)
+         "#else", "#define TAB_RAM", "#endif",
+         "/* TAB_CODED: the smooth tables (carr below) delta-coded in flash and expanded into the pool at boot (tab_expand",
+         " * at the end of this file, main.c); the target only (TAB_CODED_FORCE: a host test of the decoder) */",
+         "#if defined(__PI32V2__) || defined(TAB_CODED_FORCE)", "#define TAB_CODED 1", "#else", "#define TAB_CODED 0", "#endif",
+         "/* FELUCCA_TAB_CODED_ALL: the tables that are in flash at HEAD coded too (each then lives in the pool: flash -5.0 KB on",
+         " * synth, pool +7.3 KB, 2026-10-22; off: SINE and TANH_Q15 only, which the pool holds either way) */",
+         "#ifndef FELUCCA_TAB_CODED_ALL", "#define FELUCCA_TAB_CODED_ALL 0", "#endif",
+         "/* where a coded table is expanded: the pool with FELUCCA_TAB_IN_POOL (as TAB_RAM), else main RAM (.bss; TAB_RAM's",
+         " * .data copies were there: the same RAM, the pool untouched) */",
+         "#if defined(__PI32V2__) && defined(FELUCCA_TAB_IN_POOL) && FELUCCA_TAB_IN_POOL",
+         '#define TAB_POOL __attribute__((section(".pool.tab")))', "#else", "#define TAB_POOL", "#endif", ""]
+    L += carr("SINE", "int16_t", [int(round(32767 * math.sin(2 * math.pi * i / 1024))) for i in range(1024)], ram=True,
+              sine=True)
     # phase increment for pitch in 1/16 semitone, MIDI 0..127: the top octave (MIDI 116..127.94) and a shift per octave
     # below (pitch_inc). The increments are truncated, so a shift gives each lower one exactly (checked here against
     # the 2,048-entry table this replaced: 8 KB less flash)
@@ -131,7 +301,7 @@ def main(path):
     for p in range(128 * 16):
         q = p + 64
         assert top[q % 192] >> (10 - q // 192) == inc_of(p), p
-    L += arr("PITCH_INC_OCT", "uint32_t", top, 8)
+    L += carr("PITCH_INC_OCT", "uint32_t", top, 8, group="flash")
     L += ["/* the increment of pitch p (1/16 semitones, 0..2047): the octave's entry shifted down; q / 192 as",
           " * (q / 64) * 171 / 512 (exact for q < 2112; no divide) */",
           "#if defined(__GNUC__) || defined(__clang__)",
@@ -144,32 +314,33 @@ def main(path):
           "}"]
     # times 1 ms .. 10 s (exponential), env in Q24 (1.0 = 1<<24)
     ms = [1.0 * (10000 ** (v / 127)) for v in range(128)]
-    L += arr("TIME_MS_X10", "uint32_t", [int(round(m * 10)) for m in ms], 10)
-    L += arr("ENV_LIN", "uint32_t", [max(1, int((1 << 24) * CTL / (m * FS / 1000))) for m in ms], 8)
+    L += carr("TIME_MS_X10", "uint32_t", [int(round(m * 10)) for m in ms], 10, group="flash")
+    L += carr("ENV_LIN", "uint32_t", [max(1, int((1 << 24) * CTL / (m * FS / 1000))) for m in ms], 8, group="flash")
     exp_k = []
     for m in ms:
         tau = m / 1000 / 4.6                       # ~99 % of the way after "m" ms
         exp_k.append(max(1, min(65535, int(65536 * (1 - math.exp(-CTL / (tau * FS)))))))
-    L += arr("ENV_EXP", "uint16_t", exp_k)
+    L += carr("ENV_EXP", "uint16_t", exp_k, group="flash")
     # LFO 0.05 .. 40 Hz, phase increment per control tick
     hz = [0.05 * (800 ** (v / 127)) for v in range(128)]
-    L += arr("LFO_HZ_X100", "uint32_t", [int(round(h * 100)) for h in hz], 10)
-    L += arr("LFO_INC", "uint32_t", [int(h * CTL / FS * 2 ** 32) for h in hz], 8)
+    L += carr("LFO_HZ_X100", "uint32_t", [int(round(h * 100)) for h in hz], 10, group="flash")
+    L += carr("LFO_INC", "uint32_t", [int(h * CTL / FS * 2 ** 32) for h in hz], 8, group="flash")
     # filter cutoff 30 Hz .. 16 kHz
     fc = [30.0 * ((16000 / 30) ** (v / 127)) for v in range(128)]
-    L += arr("CUTOFF_HZ", "uint16_t", [int(round(f)) for f in fc])
+    L += carr("CUTOFF_HZ", "uint16_t", [int(round(f)) for f in fc], group="flash")
     # trapezoidal (Simper) SVF: g = tan(pi fc / FS), Q12; stable at any cutoff/resonance
-    L += arr("SVF_G", "uint16_t", [int(4096 * math.tan(math.pi * min(f, 0.45 * FS) / FS)) for f in fc])
+    L += carr("SVF_G", "uint16_t", [int(4096 * math.tan(math.pi * min(f, 0.45 * FS) / FS)) for f in fc], group="flash")
     # level: 0 = off, else dB = (v - 112) / 2  (112 = 0 dB, 127 = +7.5 dB)
     db = [None] + [(v - 112) / 2 for v in range(1, 128)]
-    L += arr("LEVEL_Q12", "uint16_t", [0] + [int(round(4096 * 10 ** (d / 20))) for d in db[1:]])
-    L += arr("LEVEL_DB_X10", "int16_t", [-999] + [int(round(d * 10)) for d in db[1:]])
+    L += carr("LEVEL_Q12", "uint16_t", [0] + [int(round(4096 * 10 ** (d / 20))) for d in db[1:]], group="flash")
+    L += carr("LEVEL_DB_X10", "int16_t", [-999] + [int(round(d * 10)) for d in db[1:]], group="flash")
     # per-sample exponential decay for drum voices: 5 ms .. 4 s to -60 dB, Q16
     dms = [5.0 * (800 ** (v / 127)) for v in range(128)]
-    L += arr("DECAY_K", "uint16_t", [min(65535, int(65536 * math.exp(-6.9 / (m / 1000 * FS)))) for m in dms])
+    L += carr("DECAY_K", "uint16_t", [min(65535, int(65536 * math.exp(-6.9 / (m / 1000 * FS)))) for m in dms], group="flash")
     # soft clip curve for |x| in 0..2 (Q12 in, Q15 out): tanh
-    L += arr("TANH_Q15", "int16_t", [int(32767 * math.tanh(i / 256 * 2)) for i in range(257)], ram=True)
+    L += carr("TANH_Q15", "int16_t", [int(32767 * math.tanh(i / 256 * 2)) for i in range(257)], ram=True)
     L += fm6_tables()
+    L += coded_tables()
     Path(path).write_text("\n".join(L) + "\n")
     print(f"tables: {path}")
 

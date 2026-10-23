@@ -695,7 +695,7 @@ FIT_ORDER = [  # (key, value): least loss first (docs/MEMORY-MAP.md section 3); 
     ("SET_SCRCH", 0), ("SET_STRGS", 0), ("SET_HORNS", 0),
     ("LCD_DIRTY", 0),   # (after the samples: for main RAM, 656 B, the graph strip redrawn whole; the defaults were 52 B over 2026-10-13)
 ]
-FIT_MARGIN = {"flash": 1024, "ram": 512, "pool": 0, "ramtext": 256}   # the estimate's error (~0.5 %)
+FIT_MARGIN = {"flash": 1024, "ram": 448, "pool": 0, "ramtext": 256}   # the estimate's error (~0.5 %; RAM 448: the user, 2026-10-23)
 
 
 def over_any(cfg, costs, margin=FIT_MARGIN, budget_fn=budget):

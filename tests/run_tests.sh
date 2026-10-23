@@ -235,6 +235,10 @@ job; ( jobin
     $CC -I"$OUT/font4" -I"$HGEN" -Ifirmware/src -o "$OUT/font_test4" tests/font_test.c
     run "font: the 1-bit pixel font draws what the alpha font drew (every glyph, S and L, clipped)" sh -c "\"$OUT/font_test1\" \"$OUT/font1.bin\" && \"$OUT/font_test4\" \"$OUT/font4.bin\" && cmp \"$OUT/font1.bin\" \"$OUT/font4.bin\""
 ) >"$U.out" 2>&1 & jobbg
+job; ( jobin
+    $CC -I"$HGEN" -Ifirmware/src -o "$OUT/tab_coded_test" tests/tab_coded_test.c
+    run "tables: the delta-coded lookup tables (felucca_tables.h TAB_CODED) decode to the plain arrays, bit for bit" "$OUT/tab_coded_test"
+) >"$U.out" 2>&1 & jobbg
 
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/studio_drums_test" tests/studio_drums_test.c -lm

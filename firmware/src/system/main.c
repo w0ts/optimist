@@ -617,6 +617,9 @@ void fm1_cstart(void)
     data_expand();                              /* .data's initial values (run-length coded in flash) */
     for (s = _pi_load, d = _pi_start; d < _pi_end; s++, d++)
         *d = *s;                                /* the pool's tables (core.h TAB_RAM) */
+#if TAB_CODED
+    tab_expand();                               /* the smooth tables, delta-coded in flash, into the pool (felucca_tables.h) */
+#endif
     boot_cal_req = (uint8_t)(hold == HOLD_CAL);
     for (s = _rt_load, d = _rt_start; d < _rt_end; s++, d++)
         *d = *s;                                /* flash driver code that must run from RAM */

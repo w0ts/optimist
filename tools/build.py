@@ -57,7 +57,13 @@ APP_SLOT = fm1pkg_make.APP_SLOT
 LOADER_LOAD = 0x01C0A800
 LOADER_NAME = b"usb_hid_ota.bin"    # the file name the SPL looks for
 CFLAGS = ["-Os", "-ffunction-sections", "-fno-builtin", "-Wall", "-Wno-unused-function"]
-LINE = re.compile(r"^\s*([0-9a-f]+):\s+((?:[0-9a-f]{2} )+)\s*\t(.*)$")
+# the IR -> object step of the unity build (felucca_size.ll): the backend's global merge pass (on for pi32v2) lets more
+# globals share one address load (a 6-byte instruction): the globals used once too (-global-merge-ignore-single-use,
+# default true) and blocks of at most 63 bytes (-pi32v2-merge-max-offset, default 127; 15..95 measured within 300 B of
+# each other, 111 and up 2-3 KB worse). Measured 2026-10-22: synth 563,608 -> 558,888 B of flash (RAM +112 B),
+# drum-machine 573,832 -> 569,944 (RAM -64 B); the same code, the globals laid out in blocks
+IR_FLAGS = ["-mllvm", "-global-merge-ignore-single-use=false", "-mllvm", "-pi32v2-merge-max-offset=63"]
+LINE =re.compile(r"^\s*([0-9a-f]+):\s+((?:[0-9a-f]{2} )+)\s*\t(.*)$")
 
 SDK_SHA256 = TC.SDK_SHA256          # SDK files of AC79NN_SDK_V1.2.1_2023-12-13 (the tested version)
 BACKEND = None                      # how the toolchain runs (tools/toolchain.py; main() resolves it)
@@ -364,7 +370,7 @@ def build_app():
     ir = [f for f in flags if not f.startswith(("-I", "-D", "-W"))]
     if "-include" in ir:                # (the IR is preprocessed already: no header to include)
         del ir[ir.index("-include"):ir.index("-include") + 2]
-    tc("cc", *ir, "-c",
+    tc("cc", *ir, *IR_FLAGS, "-c",
        OUT / "felucca_size.ll", "-o", OUT / "felucca.o")
     elf = OUT / "felucca.elf"
     ld = FW / "app.ld"

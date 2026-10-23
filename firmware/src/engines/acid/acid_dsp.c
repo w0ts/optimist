@@ -38,7 +38,7 @@ static bass303_t *acid_part(int k)
     return (bass303_t *)acid_mem(k);
 }
 
-void acid_pots(int k, const int16_t *e)
+FM_SETUP void acid_pots(int k, const int16_t *e)
 {
     bass303_t *b = acid_part(k);
     int i;
@@ -55,7 +55,7 @@ void acid_pots(int k, const int16_t *e)
         bass303_set(b, BASS303_DRVTYPE, drv);
 }
 
-void acid_note(int k, int note, int accent, int slide)
+FM_SETUP void acid_note(int k, int note, int accent, int slide)
 {
     bass303_t *b = acid_part(k);
     if (!b)
@@ -73,7 +73,7 @@ void acid_lite(int k, int on)                      /* the CPU guard: 1 = no over
 }
 #endif
 
-void acid_off(int k)
+FM_SETUP void acid_off(int k)
 {
     bass303_t *b = acid_part(k);
     if (b && acid_gate[k]) {

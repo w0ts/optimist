@@ -5084,7 +5084,7 @@
  ],
  "fit_margin": {
   "flash": 1024,
-  "ram": 512,
+  "ram": 448,
   "pool": 0,
   "ramtext": 256
  }

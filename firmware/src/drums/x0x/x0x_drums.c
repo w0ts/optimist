@@ -92,7 +92,7 @@ static drum909_t x909 __attribute__((section(".pool")));
 static drum808_t x808 __attribute__((section(".pool")));
 #endif
 
-static void x0x_ready(void)
+static FM_SETUP void x0x_ready(void)
 {
     if (xd.ready)
         return;
@@ -125,7 +125,7 @@ static const int16_t X9_POT[DR_NUM][6] = {
     /* RD */ {0, 42, 2, -1, -1, 3},
 };
 
-static void x9_pot(int voice, int i, int delta)
+static FM_SETUP void x9_pot(int voice, int i, int delta)
 {
     int v;
     if (i < 0)
@@ -135,7 +135,7 @@ static void x9_pot(int voice, int i, int delta)
         drum909_set(&x909, voice, i, v);
 }
 
-static void x9_trigger(const x0x_pend_t *p)
+static FM_SETUP void x9_trigger(const x0x_pend_t *p)
 {
     const int16_t *k = X9_POT[p->snd];
     x9_pot(p->snd, k[0], (p->ofs[0] * k[1] + (p->ofs[0] < 0 ? -8 : 8)) / 16);
@@ -217,14 +217,14 @@ static const uint8_t X8_TRACK[D8S_NUM][2] = {
 static const uint8_t X8_LANE[D8S_NUM] = {L_BD, L_SD, L_T0, L_T1, L_T2, L_T0, L_T1, L_T2,
                                          L_RS, L_CL, L_MA, L_CP, L_CB, L_CH, L_OH, L_CY};
 
-static void x8_pot(int s, int slot, int delta)
+static FM_SETUP void x8_pot(int s, int slot, int delta)
 {
     int v = x0x_clamp(K_SPEC(s, slot)->def + delta, 0, 127);
     if (x808.pot[s][slot] != v)
         set_pot(&x808, s, slot, v);
 }
 
-static void x8_trigger(const x0x_pend_t *p)
+static FM_SETUP void x8_trigger(const x0x_pend_t *p)
 {
     const uint8_t *k = X8_POT[p->snd];
     int s = p->snd;
@@ -274,7 +274,7 @@ static int x8_metal(int l) { return l == L_CB || l == L_CH || l == L_OH || l == 
 
 /* a hit of sound snd (0..10: the 909's DR_*; 16..31: the 808's D8S_* + 16) at velocity vel (1..127), with the
  * lane's offsets ofs (DE_*, 0 = none), at sample `at` of the next block -> its channel (0xFF: not built) */
-uint32_t x0x_hit(uint32_t snd, uint32_t vel, const int8_t *ofs, uint32_t at)
+FM_SETUP uint32_t x0x_hit(uint32_t snd, uint32_t vel, const int8_t *ofs, uint32_t at)
 {
     uint32_t ch = 0xFFu, i;
     x0x_pend_t *p;
@@ -299,7 +299,7 @@ uint32_t x0x_hit(uint32_t snd, uint32_t vel, const int8_t *ofs, uint32_t at)
     return ch;
 }
 
-static void x0x_trigger(uint32_t ch)
+static FM_SETUP void x0x_trigger(uint32_t ch)
 {
     x0x_pend_t *p = &xd.pend[ch];
     p->on = 0;
@@ -388,7 +388,7 @@ void x0x_tails(uint32_t shorter) { d8_tail_k = shorter ? 1.0e-2f : D8_TAIL_K; }
 #endif
 
 /* every voice stops now (MIDI All Sound Off; the integer side fades what they played) */
-void x0x_off(void)
+FM_SETUP void x0x_off(void)
 {
     uint32_t c;
     if (!xd.ready)
