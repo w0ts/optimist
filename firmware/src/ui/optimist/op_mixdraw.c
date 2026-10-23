@@ -136,6 +136,7 @@ static void mx_names(uint32_t r, char *eng, char *pre)
     }
 }
 static void mx_vu_paint(uint32_t r, int32_t x, int32_t y, int32_t w, int32_t h, uint32_t pk, uint32_t gr);
+static void mx_vu_band(uint32_t r, int32_t x, int32_t y, int32_t w, int32_t h, uint32_t pk, uint32_t gr);
 static void mx_steps_paint(uint32_t r, int32_t x, int32_t y);
 static uint32_t mx_gr_px(uint32_t r, int32_t w);
 /* the selected row: framed in its colour on black, no fill (the user, 2026-10-18: the tinted ground made it hard to read);
@@ -179,9 +180,9 @@ static void mx_paint_master(void)
     n = mx_rets(ret);
     for (i = 0; i < n; i++)                             /* (the type each return holds: a send's, or the other one's) */
         cv_texts(MXM_X, MXM_CY + (int32_t)i * MXM_CP, fxs_line_name(ret[i]), C_HI);
-    mx_vu_paint(MXR_MASTER, MXM_X, MXM_VY, MXM_W, MXM_VH, mxd.pk[MXR_MASTER], 0);
+    mx_vu_band(MXR_MASTER, MXM_X, MXM_VY, MXM_W, MXM_VH, mxd.pk[MXR_MASTER], 0);
     for (i = 0; i < n; i++)                             /* (a return's meter state: the row T1 + its line's, unseen here) */
-        mx_vu_paint(MXR_T1 + i, MXM_GX, MXM_CY + (int32_t)i * MXM_CP + MXM_CV, MXM_GW, MXM_CH, mxd.pk[MXR_T1 + i], 0);
+        mx_vu_band(MXR_T1 + i, MXM_GX, MXM_CY + (int32_t)i * MXM_CP + MXM_CV, MXM_GW, MXM_CH, mxd.pk[MXR_T1 + i], 0);
 }
 static void mx_paint_row(uint32_t i)                    /* a channel's or a lane's row */
 {
@@ -209,7 +210,7 @@ static void mx_paint_row(uint32_t i)                    /* a channel's or a lane
     }
     mx_steps_paint(i, q.x + q.sx, q.y + q.sy);          /* the live parts too, as they stand: never a row without them */
     if (q.vw)
-        mx_vu_paint(i, q.x + q.vx, q.y + q.vy, q.vw, q.vh, mxd.pk[i], mx_gr_px(i, q.vw));
+        mx_vu_band(i, q.x + q.vx, q.y + q.vy, q.vw, q.vh, mxd.pk[i], mx_gr_px(i, q.vw));
 }
 static void mx_paint(void)                              /* the group in view (cv_tall) */
 {
@@ -308,6 +309,16 @@ static void mx_vu_paint(uint32_t r, int32_t x, int32_t y, int32_t w, int32_t h, 
     if (gr)
         cv_rect(x + w - (int32_t)gr, y, (int32_t)gr, h, C_WARN);   /* the reduction, from the right */
 }
+/* a meter in a row drawn whole (mx_paint): empty while the mirror is over Bluetooth, which takes no meters (the user,
+ * 2026-10-23: "we definitly dont want the vu meters over BT"); the panel's own follows this frame (mx_vu_at) */
+static void mx_vu_band(uint32_t r, int32_t x, int32_t y, int32_t w, int32_t h, uint32_t pk, uint32_t gr)
+{
+#if FELUCCA_ED_MIRROR
+    if (mir_meters_off())
+        pk = 0, gr = 0, mxd.vu[r] = 0xFF;
+#endif
+    mx_vu_paint(r, x, y, w, h, pk, gr);
+}
 /* a meter: drawn when it changed; to the mirror's client at most every MIR_METER_MS (io/editor/ed_mirror.c), what changed since it
  * last had it, even when the panel's did not (the user, 2026-10-23: "send the meter ... 5 or 10 times per sec") */
 static void mx_vu_at(uint32_t r, int32_t x, int32_t y, int32_t w, int32_t h, uint32_t lv, uint32_t gr)
@@ -364,7 +375,13 @@ static void mx_master_gr(void)
     } else if (FELUCCA_MASTER_COMP) {
         cv_texts(0, 0, "off", C_DIM);
     }
+#if FELUCCA_ED_MIRROR
+    mir_mute = (uint8_t)mir_meters_off();               /* (a meter too: none over Bluetooth) */
+#endif
     cv_blit(MXM_GX, (uint32_t)(OP_PY + MXM_GY - 5));
+#if FELUCCA_ED_MIRROR
+    mir_mute = 0;
+#endif
 }
 static uint32_t mx_on(uint32_t r, uint32_t i)           /* step i is set on row r */
 {

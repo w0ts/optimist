@@ -289,6 +289,7 @@ static void ota_commit(const uint8_t *parm)
 static void mir_fill(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t c) { (void)x, (void)y, (void)w, (void)h, (void)c; }
 static void mir_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *px) { (void)x, (void)y, (void)w, (void)h, (void)px; }
 static uint32_t mir_meters_due(void) { return 0; }
+static uint32_t mir_meters_off(void) { return 0; }
 #endif
 #if FELUCCA_CDC
 #include "io/console.c"

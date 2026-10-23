@@ -215,7 +215,7 @@ static void usb_tests(void)
     mir_poll();
     check(repaints == 2u && same(), "bit 1: the whole panel again");
     fm1_ms += MIR_METER_MS;
-    check(mir_meters_due() && !mir_meters_due(), "the meters over USB: due, then not before MIR_METER_MS");
+    check(mir_meters_due() && !mir_meters_due() && !mir_meters_off(), "the meters over USB: due, then not before MIR_METER_MS");
     for (k = 0; k < 3000u; k++) {
         random_write();
         if (!same()) {
@@ -313,7 +313,7 @@ static void bt_tests(void)
     check(mir.on && mir.link == MIR_BT && mir.behind, "on over Bluetooth, a catch-up due");
     fm1_ms += MIR_METER_MS;
     k = mir.behind, mir.behind = 0;
-    check(!mir_meters_due(), "no meters over Bluetooth");
+    check(!mir_meters_due() && mir_meters_off(), "no meters over Bluetooth, not even in a page drawn whole");
     mir.behind = (uint8_t)k;
     check(mbr.w != mbr.r, "the reply in the ring");
     mir_poll();
