@@ -2486,6 +2486,7 @@ const parse = {
       if (id === 0x5C && n >= 3 && a[r.i] >= 1) o.scrs = { mask: a[r.i + 1] | (a[r.i + 2] << 7) };   /* 5C: version, the screens built (2 x 7 bits) */
       if (id === 0x59 && n >= 2 && a[r.i] >= 1) o.scrn = { screens: a[r.i + 1] };   /* 59: version, screens (GLOBAL, SYSTEM) */
       if (id === 0x65 && n >= 1 && a[r.i] >= 1) o.mirror = { v: a[r.i] };   /* 65: the screen mirrored (ED_MIRROR), version */
+      if (id === 0x66) o.opti = optiParse(a.slice(r.i, r.i + n));   /* 66: the features by name and version (ed_opti.h) */
       if (id === 0x64 && n >= 1) { o.lite = !!(a[r.i] & 1); o.lib = !!(a[r.i] & 2); }   /* 64: backup and restore only (loadLite), bit 1 the librarian */
       if (id === 0x58 && n >= 2 && a[r.i] >= 1) o.dlan = { groups: a[r.i + 1] };   /* 58: version, groups */
       if (id === 0x5F && n >= 2 && a[r.i] >= 1) o.undo = { many: !!(a[r.i + 1] & 1) };   /* 5F: version, flags (bit 0 a history of many levels) */
@@ -6912,6 +6913,15 @@ $("about").addEventListener("mousedown", (e) => { if (e.target === $("about")) $
 $("popx").addEventListener("click", () => closePop());
 $("pop").addEventListener("cancel", (e) => { e.preventDefault(); closePop(); });   /* Escape */
 $("pop").addEventListener("mousedown", (e) => { if (e.target === $("pop")) closePop(); });   /* a click outside (the backdrop) */
+/* INFO's tag 66 (firmware/src/io/editor/ed_opti.h): "opti_backup_4 opti_mirror_2 ...". Every Felucca-family firmware answers
+   INFO but numbers its other commands its own way: Screen, Backup, Projects and Library only when their name and version are listed */
+function optiParse(b) {
+  const o = {};
+  for (const w of String.fromCharCode(...b).split(" ")) { const u = w.lastIndexOf("_"); if (u > 0 && /^\d+$/.test(w.slice(u + 1))) o[w.slice(0, u)] = +w.slice(u + 1); }
+  return o;
+}
+const OPTI = { backup: 4, mirror: 2, library: 1, projects: 1 };   /* (the versions this page reads) */
+const opti = (f) => !!dev && !!dev.info && !!dev.info.opti && dev.info.opti["opti_" + f] === OPTI[f];
 const hasKitPage = () => !!dev && !!dev.dl && !!dev.smp;   /* the build has drum lanes (36..) and sample slots */
 const hasSnaps = () => !!dev && !!dev.sn;            /* the firmware has snapshots (protocol v8, commands 54..57) */
 function renderPanels() {
@@ -6921,7 +6931,9 @@ function renderPanels() {
     if (b.dataset.tab === "drumkit") b.hidden = !hasKitPage();   /* (the Drum kit page: drum lanes and sample slots) */
     if (b.dataset.tab === "snapshots") b.hidden = !hasSnaps();   /* (the Snapshots screen: only with snapshots) */
     if (b.dataset.tab === "device") b.hidden = !scrsOn();   /* (the device's screens: the Optimist UI's, v13) */
-    if (b.dataset.tab === "screen") b.hidden = !mirrorOn();   /* (the device's own screen: ED_MIRROR) */
+    if (b.dataset.tab === "screen") b.hidden = !mirrorOn() || !opti("mirror");   /* (the device's own screen: ED_MIRROR) */
+    if (b.dataset.tab === "backup" || b.dataset.tab === "projects" || b.dataset.tab === "library")
+      b.hidden = !!dev && !!dev.info && !opti(b.dataset.tab);   /* (another firmware's numbering: not offered; ed_opti.h) */
     const on = b.dataset.tab === want;
     b.setAttribute("aria-selected", on ? "true" : "false");
     b.tabIndex = on ? 0 : -1;

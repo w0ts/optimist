@@ -34,6 +34,8 @@ final class FakeFM1: Transport {
         self.objs = objs
         info = Array("OPTIMIST 0.9".utf8) + [0, 2, 4, 0, 16, 3] + Array("ANALOG".utf8) + [0] + Array("DIGITAL".utf8) + [0, 4, 6, 0, 1,
                                                                                     0x55, 2, 16, 16, 0x64, 1, 3]
+        let opti = Array("opti_backup_4 opti_library_1 opti_projects_1 opti_patterns_1 ".utf8)   // (INFO's tag 66, ed_opti.h)
+        info += [0x66, UInt8(opti.count)] + opti
     }
 
     static func ascii(_ s: String) -> [UInt8] { Array(s.utf8) }

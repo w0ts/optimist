@@ -50,7 +50,7 @@ struct LibraryView: View {
                 Button("Cancel", role: .cancel) { prompt = nil }
             }
         }
-        .task(id: s.ready) { if s.ready && s.bank == nil { s.loadBank() } }
+        .task(id: s.ready(.library)) { if s.ready(.library) && s.bank == nil { s.loadBank() } }
     }
 
     private func askText(_ title: String, _ initial: String, _ done: @escaping (String) -> Void) {
@@ -61,8 +61,8 @@ struct LibraryView: View {
     // MARK: the device's bank
 
     @ViewBuilder private var device: some View {
-        Section { LinkStatus(s) }.listRowBackground(Color.clear)
-        if s.ready, let b = s.bank {
+        Section { LinkStatus(s, .library) }.listRowBackground(Color.clear)
+        if s.ready(.library), let b = s.bank {
             Section("\(b.slots.filter(\.used).count) / \(b.total) used") {
                 ForEach(b.slots, id: \.slot) { x in
                     HStack {
@@ -143,7 +143,7 @@ struct LibraryView: View {
                 }
                 Button("Duplicate") { s.duplicatePatch(id) }
                 Button("Export…") { s.exportPatch(id) }
-                if let k = s.bankSel, s.ready, let b = s.bank, k < b.slots.count {
+                if let k = s.bankSel, s.ready(.library), let b = s.bank, k < b.slots.count {
                     Button("Write to \(Names.slotName(k))") {
                         let go = { s.putPatch(id, slot: k) }
                         if b.slots[k].used { ask = Confirmation(title: "Overwrite slot \(Names.slotName(k)) (\(b.slots[k].name))?", action: go) } else { go() }

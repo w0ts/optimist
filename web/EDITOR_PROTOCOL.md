@@ -103,6 +103,7 @@ strings, NTRK, the protocol byte (6), each engine slot's UID, then tagged blocks
 | 61 | `02 04 flags` | SOLO, version 4: bit 0 the USB input is built, bit 1 the returns' mute (op 7) |
 | 62 | `03 01 a b` | STEPLANE (below) |
 | 64 | `01 flags` | lite build: bit 0 backup only, bit 1 the librarian |
+| 66 | `n` ASCII | the features by name and version, space-separated (`ed_opti.h`): `opti_backup_4` (43..48, `BK_VERSION`), `opti_mirror_2` (106, `MIR_VERSION`), `opti_library_1` (16..21), `opti_projects_1` (9), `opti_patterns_1` (79..84). Every Felucca-family firmware answers `INFO` with the same header but numbers its other commands its own way (SLOOP's backup is 34..36; 78 is Melodee's CZ), so a client sends nothing else until it has read this tag, and offers a feature only when its name and a version it reads are listed. A number goes up only when an older client would misread the new form. Over Bluetooth (only 106 answered) the firmware is known by its advertised name, "Optimist ..." |
 
 `BUILD` (no args): the build's name string (16), its config hash (5 x 7 bit), the item bytes count and bytes (bit n = registry item n
 built, 7 a byte). The backup file records it.

@@ -80,6 +80,8 @@ final class EditorSession: ObservableObject {
 
     /// The USB link is there and the FM-1 answered INFO.
     var ready: Bool { link.editorPossible && info != nil }
+    /// Ready, and the firmware offers f (INFO's tag 66)
+    func ready(_ f: Feature) -> Bool { ready && info?.has(f) == true }
     var idle: Bool { ready && !busy }
 
     // MARK: running an operation

@@ -145,6 +145,16 @@ struct Reader {
 
 // MARK: - the replies
 
+/// The features the app uses, by the names and versions INFO's tag 66 lists.
+struct Feature: Equatable {
+    let name: String, version: Int
+    static let backup = Feature(name: "opti_backup", version: 4)
+    static let mirror = Feature(name: "opti_mirror", version: 2)
+    static let library = Feature(name: "opti_library", version: 1)
+    static let projects = Feature(name: "opti_projects", version: 1)
+    static let patterns = Feature(name: "opti_patterns", version: 1)
+}
+
 struct DeviceInfo: Equatable {
     var version = ""
     var nengines = 0, pcount = 0, gcount = 0, nstep = 0, pe0 = 0
@@ -153,7 +163,21 @@ struct DeviceInfo: Equatable {
     var lite = false          // tag 64: a backup-only firmware
     var lib = false           // tag 64 bit 1: and the librarian
     var patSlots = 0, patScenes = 0   // tag 55: the per-track patterns (0: none)
-    var hasPatterns: Bool { patSlots > 0 }
+    var hasPatterns: Bool { patSlots > 0 && has(.patterns) }
+    var features: [String: Int] = [:]   // tag 66: "opti_backup_4 opti_mirror_2 ...", name -> version (none: not optimist's way)
+
+    /// The firmware offers f in the version this app reads (firmware/src/io/editor/ed_opti.h): every Felucca-family
+    /// firmware answers INFO, but numbers its other commands its own way.
+    func has(_ f: Feature) -> Bool { features[f.name] == f.version }
+
+    static func features(_ bytes: ArraySlice<UInt8>) -> [String: Int] {
+        var out: [String: Int] = [:]
+        for w in String(decoding: bytes, as: UTF8.self).split(separator: " ") {
+            guard let u = w.lastIndex(of: "_"), let v = Int(w[w.index(after: u)...]) else { continue }
+            out[String(w[..<u])] = v
+        }
+        return out
+    }
 
     static func parse(_ a: [UInt8]) throws -> DeviceInfo {
         var r = Reader(a)
@@ -170,6 +194,7 @@ struct DeviceInfo: Equatable {
             if r.i + n > a.count { break }
             if id == 0x55 && n >= 2 { o.patSlots = Int(a[r.i]); o.patScenes = Int(a[r.i + 1]) }
             if id == 0x64 && n >= 1 { o.lite = a[r.i] & 1 != 0; o.lib = a[r.i] & 2 != 0 }
+            if id == 0x66 { o.features = features(a[r.i..<r.i + n]) }
             r.i += n
         }
         return o

@@ -32,10 +32,12 @@ struct EditorView: View {
 struct LinkStatus: View {
     @ObservedObject var s: EditorSession
     @ObservedObject var link: MirrorLink
+    let feature: Feature
 
-    init(_ s: EditorSession) {
+    init(_ s: EditorSession, _ feature: Feature) {
         self.s = s
         self.link = s.link
+        self.feature = feature
     }
 
     var body: some View {
@@ -45,6 +47,8 @@ struct LinkStatus: View {
             Label("Connect the FM-1 with a USB cable.", systemImage: "cable.connector")
         } else if s.info == nil, s.note?.error != true {
             HStack { ProgressView(); Text("Asking \(link.portName)…").padding(.leading, 8) }
+        } else if let i = s.info, !i.has(feature) {
+            Label("This firmware does not offer it.", systemImage: "xmark.octagon")
         }
     }
 }
