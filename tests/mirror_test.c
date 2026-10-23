@@ -55,7 +55,7 @@ static void host_byte(uint8_t b)
     if (b == 0xF7u) {
         frames++, bytes += hn;
         max_frame = hn > max_frame ? hn : max_frame;
-        if (hn == 12u && hf[5] <= 1u && hf[6] == 1u)
+        if (hn == 12u && hf[5] <= 1u && hf[6] >= 1u)
             replies++, last_reply_on = hf[5];
         else if (hn == 21u && hf[5] == 3u) {             /* (op 3 LINK, after a Bluetooth reply) */
             uint32_t i;
@@ -202,7 +202,7 @@ static void usb_tests(void)
     /* on: the reply; the panel comes whole by the catch-up (black to the client, the bands again in place) */
     MIR_SEEN();
     ask(1);
-    check(nrep == 6u && rep[0] == 1u && rep[1] == 1u && (rep[2] | rep[3] << 7) == 240u && (rep[4] | rep[5] << 7) == 240u, "the reply");
+    check(nrep == 6u && rep[0] == 1u && rep[1] == MIR_VERSION && (rep[2] | rep[3] << 7) == 240u && (rep[4] | rep[5] << 7) == 240u, "the reply");
     check(mir.behind == 1u, "a first on catches up");
     host_drain();
     mir_poll();
@@ -224,7 +224,7 @@ static void usb_tests(void)
         }
     }
     check(bad == 0u, "%u frames not decoded", bad);
-    check(max_frame <= MIR_CUT + 16u, "a frame of %u bytes", max_frame);
+    check(max_frame <= MIR_CUT + 24u, "a frame of %u bytes", max_frame);
     /* one run longer than the long token (16 + 16383) */
     for (k = 0; k < 240u * 124u; k++)
         cv[k] = sw16(0xBEEFu);

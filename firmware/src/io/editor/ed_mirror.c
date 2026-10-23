@@ -36,7 +36,7 @@ static void op_repaint(void);
 
 #if MIR_BLE
 /* ---- Bluetooth: a byte ring in the pool, frames made visible whole (mbr.w only at F7), drained by the radio's interrupts */
-#define MIR_BLE_RING 8192u              /* a catch-up is 4.7 KB on average, 8.2 KB at most (tests/ui_optimist_test.c MIRROR_CHECK) */
+#define MIR_BLE_RING 8192u              /* a catch-up is 1.65 KB on average, 6.3 KB at most (version 2; tests/ui_optimist_test.c MIRROR_CHECK) */
 static uint8_t mbr_q[MIR_BLE_RING] IN_POOL;
 static struct {
     volatile uint32_t w, r;             /* w: the frames written whole; r: the radio's read position */
@@ -207,7 +207,7 @@ static void ed_mirror(const uint8_t *a, uint32_t na)
 {
     mir_ask(na ? a[0] : 0u, MIR_USB);
     ed_b(mir.on);
-    ed_b(1);
+    ed_b(MIR_VERSION);
     ed_b4(240u & 127u, 240u >> 7, 240u & 127u, 240u >> 7);
 }
 /* ed_service, every main-loop pass: a request over Bluetooth answered; a link that fell behind caught up once it is clear */
@@ -216,7 +216,7 @@ static void mir_poll(void)
 #if MIR_BLE
     uint32_t q = mbr.req;
     if (q && mir_bt_up()) {
-        static const uint8_t R[6] = {1, 1, 240u & 127u, 240u >> 7, 240u & 127u, 240u >> 7};
+        static const uint8_t R[6] = {1, MIR_VERSION, 240u & 127u, 240u >> 7, 240u & 127u, 240u >> 7};
         uint32_t i;
         mbr.req = 0;
         mir_ask(q & 0x7Fu, MIR_BT);
@@ -245,4 +245,4 @@ static void mir_poll(void)
     mir_enc_fill(0, 0, 240, 240, 0);    /* (black to the client only: the panel is not cleared) */
     op_repaint();
 }
-static void ed_mirror_info(void) { ed_b3(0x65, 1, 1); }
+static void ed_mirror_info(void) { ed_b3(0x65, 1, MIR_VERSION); }

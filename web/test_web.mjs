@@ -3360,8 +3360,8 @@ async function editorMirror() {
   }
   ok(frames > 50 && !bad && !diff, `mirror: ${frames} frames decoded to the fixture's screen (${bad} bad, ${diff} pixels off)`);
   ok(!mirrorFrame([3, 0, 0]) && !mirrorFrame([1, 0, 0]), "mirror: an unknown op or a short BLIT refused");
-  ok(/f\.cmd === CMD\.MIRROR && !\(f\.a\.length === 6 && f\.a\[0\] <= 1 && f\.a\[1\] === 1\)\) \{ this\.onMirror\(f\.a\)/.test(html) && /onMirror: \(a\) => mirrorFrame\(a\),/.test(html)
-    && /MIRROR: 106/.test(html) && /id === 0x65 && n >= 1 && a\[r\.i\] >= 1\) o\.mirror/.test(html)
+  ok(/f\.cmd === CMD\.MIRROR && !\(f\.a\.length === 6 && f\.a\[0\] <= 1 && f\.a\[1\] >= 1\)\) \{ this\.onMirror\(f\.a\)/.test(html) && /onMirror: \(a\) => mirrorFrame\(a\),/.test(html)
+    && /MIRROR: 106/.test(html) && /id === 0x65 && n >= 1 && a\[r\.i\] >= 1\) o\.mirror/.test(html) && /dev\.info\.mirror\.v === MIRROR_V/.test(html)
     && /<button role="tab" data-tab="screen"[^>]* hidden>/.test(html) && /b\.hidden = !mirrorOn\(\)/.test(html)
     && /:not\(\[data-tab=screen\]\)/.test(html),
     "mirror: pushes routed apart from the reply, INFO tag 65, the tab (hidden unless built; offered on a backup-only firmware)");

@@ -25,6 +25,7 @@ final class MirrorLink: ObservableObject {
         var generation = 0        // panel writes applied so far
         var replies = 0
         var bytes = 0             // SysEx bytes received since the last tick (the link's rate, logged)
+        var known = false         // the last reply's version is the decoder's (another firmware's pushes: not drawn)
     }
     /// The rate the link carries, once a second in the system log (Xcode's console, Console.app: subsystem
     /// com.w0ts.optimist.mirror), to measure the Bluetooth link on a real phone.
@@ -182,9 +183,10 @@ final class MirrorLink: ObservableObject {
                     Self.log.info("bluetooth link: \(l.octets) octets a packet, MTU \(l.mtu), interval \(Double(l.interval) * 1.25) ms, central rx/tx \(l.central)")
                     print("bluetooth link: \(l.octets) octets a packet, MTU \(l.mtu), interval \(Double(l.interval) * 1.25) ms, central rx/tx \(l.central)")   // (devicectl --console)
                 } else if let r = MirrorDecoder.reply(f) {
-                    on = on || r.on
+                    s.known = r.version == MirrorDecoder.version
+                    on = on || (r.on && s.known)
                     s.replies += 1
-                } else if s.decoder.apply(f) {
+                } else if s.known, s.decoder.apply(f) {
                     s.generation += 1
                 }
             }

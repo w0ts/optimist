@@ -5,6 +5,7 @@
 struct MirrorDecoder {
     static let side = 240
     static let cmd: UInt8 = 106
+    static let version = 2        // the token codes below (ed_mirror_enc.h MIR_VERSION); a firmware with another is refused
 
     private(set) var pixels = [UInt16](repeating: 0, count: side * side)
     private var rect = (x: 0, y: 0, w: 0, h: 0)
@@ -59,14 +60,20 @@ struct MirrorDecoder {
             return false
         }
         while i < n {
-            let t = Int(f[i])
+            let t = Int(f[i]), code = t >> 3
             i += 1
-            var len = (t >> 3) + 1
+            var len = code + 1
             var s = t & 7
-            if t >> 3 == 15 {
-                guard i + 2 <= n else { return false }
-                len = 16 + two(i)
-                i += 2
+            if code == 13 || (code == 15 && s == 7) {   // a length: 1 byte below 64, else (L & 63) | 64, L >> 6
+                guard i < n, f[i] & 64 == 0 || i + 1 < n else { return false }
+                let l = f[i] & 64 == 0 ? Int(f[i]) : Int(f[i] & 63) | Int(f[i + 1]) << 6
+                len = (code == 13 ? 14 : 8) + l
+                i += f[i] & 64 == 0 ? 1 : 2
+            }
+            if code == 15 {                             // the pixels one row up
+                guard at >= rect.w else { return false }
+                up(s < 7 ? s + 1 : len)
+                continue
             }
             if s == 7 {
                 guard i + 3 <= n else { return false }
@@ -75,9 +82,31 @@ struct MirrorDecoder {
                 next = next < 6 ? next + 1 : 1
                 i += 3
             }
+            if code == 14 {                             // a bitmap: g << 3 | the 0s' slot, g + 1 bytes of 7 pixels, bit 6 first
+                guard i < n, f[i] & 7 != 7 else { return false }
+                let g = Int(f[i] >> 3) + 1, bg = slots[Int(f[i] & 7)], fg = slots[s]
+                guard i + 1 + g <= n else { return false }
+                for k in 0..<g {
+                    for j in 0..<7 { fill((f[i + 1 + k] >> (6 - j)) & 1 == 1 ? fg : bg, 1) }
+                }
+                i += 1 + g
+                continue
+            }
             fill(slots[s], len)
         }
         return true
+    }
+
+    /// count pixels each as the one a row up (inside the rectangle: its second row on)
+    private mutating func up(_ count: Int) {
+        let end = min(at + count, rect.w * rect.h)
+        pixels.withUnsafeMutableBufferPointer { fb in
+            while at < end {
+                let x = rect.x + at % rect.w, y = rect.y + at / rect.w
+                if x < Self.side, y < Self.side, y >= 1 { fb[y * Self.side + x] = fb[(y - 1) * Self.side + x] }
+                at += 1
+            }
+        }
     }
 
     private mutating func fill(_ c: UInt16, _ count: Int) {

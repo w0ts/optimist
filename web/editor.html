@@ -3249,7 +3249,7 @@ class Link {
     if (this.cur && this.cur.yam && data[0] === 0xF0 && data[1] === 0x43) return;   /* (a Yamaha frame: the device sends none) */
     const f = unframe(data);
     if (!f) return;                                  /* not ours (notes, clock, other SysEx) */
-    if (f.cmd === CMD.MIRROR && !(f.a.length === 6 && f.a[0] <= 1 && f.a[1] === 1)) { this.onMirror(f.a); return; }   /* (the screen's
+    if (f.cmd === CMD.MIRROR && !(f.a.length === 6 && f.a[0] <= 1 && f.a[1] >= 1)) { this.onMirror(f.a); return; }   /* (the screen's
                                                        pushes, also without a dump (a backup-only firmware); the reply: on, 1, w, h) */
     if (PUSH.has(f.cmd)) { this.onPush(f); return; }
     const c = this.cur;
@@ -10994,7 +10994,8 @@ async function renderDevice() {
    while the Screen tab shows (the device stops 3 s after the last request, or at 106 0), every write to its panel pushed as it is
    drawn (FILL, BLIT, MORE: Link.receive -> mirrorFrame); the decoder is tests/mirror_dec.h's, drawn once a frame */
 const mir = { on: false, img: null, x: 0, y: 0, w: 0, h: 0, at: 0, slot: new Uint16Array(7), rr: 1, dirty: false };
-const mirrorOn = () => !!dev && !!dev.info && !!dev.info.mirror;
+const MIRROR_V = 2;                                /* (the token codes below: ed_mirror_enc.h MIR_VERSION; another: no tab) */
+const mirrorOn = () => !!dev && !!dev.info && !!dev.info.mirror && dev.info.mirror.v === MIRROR_V;
 function mirPx(c, n) {
   const px = mir.img.data, r = ((c >> 11) & 31) * 255 / 31, g = ((c >> 5) & 63) * 255 / 63, b = (c & 31) * 255 / 31;
   for (; n > 0 && mir.at < mir.w * mir.h; n--, mir.at++) {
@@ -11002,6 +11003,15 @@ function mirPx(c, n) {
     if (x >= 240 || y >= 240) continue;
     const i = (y * 240 + x) * 4;
     px[i] = r; px[i + 1] = g; px[i + 2] = b; px[i + 3] = 255;
+  }
+}
+function mirUp(n) {                                /* n pixels each as the one a row up (the rectangle's second row on) */
+  const px = mir.img.data;
+  for (; n > 0 && mir.at < mir.w * mir.h; n--, mir.at++) {
+    const x = mir.x + mir.at % mir.w, y = mir.y + Math.floor(mir.at / mir.w);
+    if (x >= 240 || y >= 240 || y < 1) continue;
+    const i = (y * 240 + x) * 4, u = i - 240 * 4;
+    px[i] = px[u]; px[i + 1] = px[u + 1]; px[i + 2] = px[u + 2]; px[i + 3] = 255;
   }
 }
 /* one push (the bytes after the command): 0 FILL x y w h colour, 1 BLIT x y w h runs, 2 MORE runs; false: a bad one */
@@ -11021,12 +11031,29 @@ function mirrorFrame(a) {
   } else if (op === 1 || op === 2) {
     if (op === 1) { mir.slot.fill(0); mir.rr = 1; }
     while (i < n) {
-      const t = a[i++];
-      let len = (t >> 3) + 1, s = t & 7;
-      if ((t >> 3) === 15) { if (i + 2 > n) return false; len = 16 + v2(i); i += 2; }
+      const t = a[i++], code = t >> 3;
+      let len = code + 1, s = t & 7;
+      if (code === 13 || (code === 15 && s === 7)) {   /* a length: 1 byte below 64, else (L & 63) | 64, L >> 6 */
+        if (i >= n || ((a[i] & 64) && i + 1 >= n)) return false;
+        len = (code === 13 ? 14 : 8) + ((a[i] & 64) ? (a[i] & 63) | (a[i + 1] << 6) : a[i]);
+        i += (a[i] & 64) ? 2 : 1;
+      }
+      if (code === 15) {                               /* the pixels one row up */
+        if (mir.at < mir.w) return false;
+        mirUp(s < 7 ? s + 1 : len);
+        continue;
+      }
       if (s === 7) {
         if (i + 3 > n) return false;
         mir.slot[mir.rr] = c3(i); s = mir.rr; mir.rr = mir.rr < 6 ? mir.rr + 1 : 1; i += 3;
+      }
+      if (code === 14) {                               /* a bitmap: g << 3 | the 0s' slot, g + 1 bytes of 7 pixels, bit 6 first */
+        if (i >= n || (a[i] & 7) === 7) return false;
+        const g = (a[i] >> 3) + 1, bg = mir.slot[a[i] & 7], fg = mir.slot[s];
+        if (i + 1 + g > n) return false;
+        for (let k = 0; k < g; k++) for (let j = 0; j < 7; j++) mirPx((a[i + 1 + k] >> (6 - j)) & 1 ? fg : bg, 1);
+        i += 1 + g;
+        continue;
       }
       mirPx(mir.slot[s], len);
     }

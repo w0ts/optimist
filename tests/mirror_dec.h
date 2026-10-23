@@ -49,12 +49,25 @@ static int md_frame(const uint8_t *f, uint32_t n)
         return 0;
     }
     while (i < n) {
-        uint32_t t = f[i++], len = (t >> 3) + 1u, s = t & 7u;
-        if ((t >> 3) == 15u) {
-            if (i + 2u > n)
+        uint32_t t = f[i++], c = t >> 3, len = c + 1u, s = t & 7u, g, k, j, bg;
+        if (c == 13u || (c == 15u && s == 7u)) {   /* a length: 1 byte below 64, else (L & 63) | 64, L >> 6 */
+            if (i + 1u > n || ((f[i] & 64u) && i + 2u > n))
                 return 0;
-            len = 16u + md_2(f + i);
-            i += 2u;
+            len = (c == 13u ? 14u : 8u) + ((f[i] & 64u) ? (f[i] & 63u) | (uint32_t)f[i + 1u] << 6 : f[i]);
+            i += (f[i] & 64u) ? 2u : 1u;
+        }
+        if (c == 15u) {                 /* the pixels one row up */
+            if (s < 7u)
+                len = s + 1u;
+            if (md.at < md.w)
+                return 0;
+            for (k = 0; k < len && md.at < md.w * md.h; k++) {
+                uint32_t x = md.x + md.at % md.w, y = md.y + md.at / md.w;
+                if (x < 240u && y < 240u && y >= 1u)
+                    md_fb[y * 240u + x] = md_fb[(y - 1u) * 240u + x];
+                md.at++;
+            }
+            continue;
         }
         if (s == 7u) {
             if (i + 3u > n)
@@ -63,6 +76,18 @@ static int md_frame(const uint8_t *f, uint32_t n)
             s = md.rr;
             md.rr = md.rr < 6u ? md.rr + 1u : 1u;
             i += 3u;
+        }
+        if (c == 14u) {                 /* a bitmap: g << 3 | the 0s' slot, then g + 1 bytes of 7 pixels, bit 6 first */
+            if (i + 1u > n || (f[i] & 7u) == 7u)
+                return 0;
+            g = (f[i] >> 3) + 1u, bg = md.slot[f[i] & 7u];
+            if (i + 1u + g > n)
+                return 0;
+            for (k = 0; k < g; k++)
+                for (j = 0; j < 7u; j++)
+                    md_px((f[i + 1u + k] >> (6u - j)) & 1u ? md.slot[s] : bg, 1);
+            i += 1u + g;
+            continue;
         }
         md_px(md.slot[s], len);
     }

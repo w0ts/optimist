@@ -924,7 +924,8 @@ _add("ED_MIRROR", "FELUCCA_ED_MIRROR", "web editor: the screen mirrored (the Scr
           "never over Bluetooth. A link that falls behind (USB: the host stops reading; Bluetooth: its 8 KB send ring is full) "
           "drops what is drawn and catches up once it is clear again, at most 4 times a second: the panel's bands drawn again "
           "in place, no flash on the device. Over Bluetooth whole screens come at the rate the radio carries (slow on the "
-          "first try, 2026-10-23, not measured). On mots.config (with BLE): 2.0 KB of flash, 0.2 KB of RAM, 8 KB of pool. With "
+          "first try 2026-10-23: about 6 KB/s, a whole screen 1.65 KB on average with the version 2 coding: runs, two-colour "
+          "bitmaps, the row above). On mots.config (with BLE): 2.8 KB of flash, 0.2 KB of RAM, 8 KB of pool. With "
           "live editing (ED_LIVE) or without.")
 # (bit 70, SIZE, retired 2026-10: the UI, storage and editor code is always built minsize, tools/size_fns.py keeps the
 #  audio path out of it; never reuse the bit)
