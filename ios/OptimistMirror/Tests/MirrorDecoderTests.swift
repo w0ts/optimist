@@ -69,6 +69,9 @@ final class MirrorDecoderTests: XCTestCase {
         XCTAssertEqual(l?.octets, 251)
         XCTAssertEqual(l?.mtu, 185)
         XCTAssertEqual(l?.interval, 9)
+        XCTAssertEqual(l?.central, [])
+        let g: [UInt8] = [0xF0, 0x7D, 0x46, 0x4C, 106, 3, 50, 0, 119, 1, 6, 0, 123, 1, 72, 16, 50, 0, 0, 4, 0xF7]
+        XCTAssertEqual(MirrorDecoder.link(g)?.central, [251, 2120, 50, 512])
         XCTAssertNil(MirrorDecoder.reply(f))
         var dec = MirrorDecoder()
         XCTAssertFalse(dec.apply(f))
