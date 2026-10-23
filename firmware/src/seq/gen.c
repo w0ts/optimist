@@ -205,13 +205,73 @@ static uint32_t gr_kit_level(uint32_t part, uint32_t i, uint32_t len, uint32_t p
     }
     return lv > 255u ? 255u : lv;
 }
+#if FELUCCA_GRIDS_EUCLID
+/* ---- the kit's GRIDS in Grids' EUCLIDEAN output mode (pattern_generator.cc EvaluateEuclidean; its table
+ * lut_res_euclidean, grids/resources/lookup_tables.py, worked out here as that script does: gr_eu_mask). OUT EUCL on
+ * GRIDS: X Y CHAOS are the three parts' lengths, 1..32 steps (Grids: the knob >> 3, + 1), DENSITY their fills, 0..31
+ * (>> 3), hits round(fill / 31 x length). Each part runs on through the passes on its own length against LEN (a
+ * polymeter), counted from the pass's start (PLAY). No accent, as Grids has none in this mode: the ACCENT lane gets no
+ * hit. FELUCCA_GRIDS_EUCLID */
+enum { GRO_DRUMS, GRO_EUCLID, GRO_N };
+static uint8_t gr_out;                                   /* the kit's output mode (kit-wide; GEN_TLV's pseudo-slot GR_OUT_SLOT) */
+#define GR_OUT_SLOT 31u                                  /* (a slot number no build has: a build without the mode skips it) */
+static const char *const GR_OUT_NAME[GRO_N] = {"DRUMS", "EUCL"};
+/* Grids' EuclidianPattern(k, n), flattened: step j -> bit j. Groups of steps (bits, LSB first; their lengths), merged
+ * pairwise until one kind runs out (Bjorklund) */
+static uint32_t gr_eu_mask(uint32_t k, uint32_t n)
+{
+    uint32_t bits[32], nb[32], g, i, m, pos = 0, mask = 0;
+    uint8_t lens[32], nl[32];
+    n = n > 32u ? 32u : n;
+    g = n;
+    k = k > n ? n : k;
+    for (i = 0; i < n; i++)
+        bits[i] = i < k, lens[i] = 1;
+    while (k) {
+        uint32_t cut = k < g - k ? k : g - k;
+        for (m = 0, i = 0; i < cut; i++, m++)            /* pattern[i] + pattern[k + i] */
+            nb[m] = bits[i] | bits[k + i] << lens[i], nl[m] = (uint8_t)(lens[i] + lens[k + i]);
+        for (i = cut; i < k; i++, m++)                   /* + pattern[cut:k] */
+            nb[m] = bits[i], nl[m] = lens[i];
+        for (i = k + cut; i < g; i++, m++)               /* + pattern[k + cut:] */
+            nb[m] = bits[i], nl[m] = lens[i];
+        for (i = 0; i < m; i++)
+            bits[i] = nb[i], lens[i] = nl[i];
+        g = m, k = cut;
+    }
+    for (i = 0; i < g; i++)
+        mask |= bits[i] << pos, pos += lens[i];
+    return mask;
+}
+/* part p's length (1..32) and hits from the drum track's values */
+static uint32_t gr_eu_len(const int16_t *v, uint32_t p) { return (gr_u7(v[P_GRX + p]) >> 3) + 1u; }
+static uint32_t gr_eu_hits(const int16_t *v, uint32_t p)
+{
+    return (2u * (gr_u7(v[P_GRBD + p]) >> 3) * gr_eu_len(v, p) + 31u) / 62u;   /* (Python 2's round: halves up) */
+}
+/* part p hits on step i of a pass of len (the pass's number: pass) */
+static int gr_eu_hit(const int16_t *v, uint32_t p, uint32_t i, uint32_t len, uint32_t pass)
+{
+    static struct { uint8_t n, k; uint32_t mask; } cache[GR_PARTS];   /* (the last pattern of each part) */
+    uint32_t n = gr_eu_len(v, p), k = gr_eu_hits(v, p);
+    if (cache[p].n != n || cache[p].k != k)
+        cache[p].n = (uint8_t)n, cache[p].k = (uint8_t)k, cache[p].mask = gr_eu_mask(k, n);
+    return (int)((cache[p].mask >> ((pass * len + i) % n)) & 1u);
+}
+#else
+#define gr_out 0
+#define GRO_EUCLID 1
+#define gr_eu_hit(v, p, i, len, pass) 0
+#endif
 /* the kit's hits merged into o (s: the stored step i) */
 static void gr_kit_merge(const track_t *t, uint32_t i, uint32_t len, const dstep_t *s, dstep_t *o)
 {
     uint32_t p, mode = gen[GEN_KIT].mode, acc = 0, own = gen_lanes & GEN_LANES_M;
     for (p = 0; p <= GR_PARTS; p++) {                   /* (p GR_PARTS: the ACCENT lane) */
         uint32_t l = p < GR_PARTS ? gr_kit_lane(p) : DRUM_ACC, hit = acc, hard = 0, has;
-        if (p < GR_PARTS) {
+        if (p < GR_PARTS && gr_out == GRO_EUCLID) {
+            hit = (uint32_t)gr_eu_hit(t->p, p, i, len, t->pass);
+        } else if (p < GR_PARTS) {
             uint32_t lv = gr_kit_level(p, i, len, t->pass);
             hit = lv > 255u - gr_u7(t->p[P_GRBD + p]);
             hard = hit && lv > 192u;
@@ -326,6 +386,9 @@ static void gen_reset_all(void)                          /* every slot off, GEN_
         gen[s].on = 0, gen[s].mode = GM_REPLACE;
         gen_defaults(&gen[s], GEN_FIRST);
     }
+#if FELUCCA_GRIDS_EUCLID
+    gr_out = GRO_DRUMS;
+#endif
     gen_sync();
 }
 static int gen_hit(uint32_t slot, uint32_t i, uint32_t len, gen_ev_t *e)
@@ -554,6 +617,13 @@ static uint32_t gen_tlv(uint8_t *o)
         o[n] = (uint8_t)w, o[n + 1u] = (uint8_t)(w >> 8), o[n + 2u] = (uint8_t)(w >> 16), o[n + 3u] = (uint8_t)(w >> 24);
         n += 4u;
     }
+#if FELUCCA_GRIDS_EUCLID
+    if (gr_out) {                                        /* the kit's output mode: a pseudo-slot (bit 11 on: EUCL) */
+        uint32_t w = GR_OUT_SLOT | (uint32_t)(gr_out & 1u) << 11;
+        o[n] = (uint8_t)w, o[n + 1u] = (uint8_t)(w >> 8), o[n + 2u] = (uint8_t)(w >> 16), o[n + 3u] = (uint8_t)(w >> 24);
+        n += 4u;
+    }
+#endif
     return n;
 }
 static void gen_untlv(const uint8_t *a, uint32_t n)      /* (n 0: none; an entry this build cannot hold: skipped) */
@@ -564,6 +634,12 @@ static void gen_untlv(const uint8_t *a, uint32_t n)      /* (n 0: none; an entry
         uint32_t w = a[i] | (uint32_t)a[i + 1u] << 8 | (uint32_t)a[i + 2u] << 16 | (uint32_t)a[i + 3u] << 24;
         uint32_t s = w & 31u, md = (w >> 6) & 3u, ty = (w >> 8) & 7u;
         gen_t g;
+#if FELUCCA_GRIDS_EUCLID
+        if (s == GR_OUT_SLOT) {
+            gr_out = (uint8_t)((w >> 11) & 1u);
+            continue;
+        }
+#endif
         if (s >= GEN_NSLOT || !gen_has(ty) || md >= GM_N)
             continue;
         g.on = (uint8_t)((w >> 5) & 1u), g.type = (uint8_t)ty, g.mode = (uint8_t)md;

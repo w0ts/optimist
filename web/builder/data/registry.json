@@ -5047,6 +5047,37 @@
      "commit": "master (grids/, 2011-2013)",
      "url": "https://github.com/pichenettes/eurorack"
     },
+    "children": [
+     "GRIDS_EUCLID"
+    ],
+    "tested": "emulator-tested only",
+    "provenance_line": "pichenettes/eurorack @ master (grids/, 2011-2013) by Emilie Gillet (Mutable Instruments) (GPL-3.0-or-later)"
+   },
+   {
+    "key": "GRIDS_EUCLID",
+    "flag": "FELUCCA_GRIDS_EUCLID",
+    "label": "GRIDS: Euclidean mode (OUT EUCL)",
+    "group": "Sequencer",
+    "bit": 395,
+    "default": 0,
+    "parent": "GEN_GRIDS",
+    "desc": "Grids' second output mode for the kit's GRIDS: EUCLIDEAN. GRIDS gets an OUT card (DRUMS / EUCL); in EUCL the three parts play Euclidean rhythms instead of the drum map, as Grids does: X, Y and CHAOS set the kick's, the snare's and the hat's lengths (1 to 32 steps), DENSITY's BD, SD and HH how many of their steps hit, spread as evenly as they go (Grids' own table, worked out the same way). Each part runs on its own length through the passes, against the pattern's LEN. No accent in this mode, as on Grids. OUT is saved with the project; a build without this item plays DRUMS. About 1 KB of flash.",
+    "experimental": false,
+    "notice": "",
+    "off_warning": "",
+    "env": "",
+    "target_only": false,
+    "symbols": [],
+    "no_image": false,
+    "fixed": false,
+    "choices": [],
+    "provenance": {
+     "project": "pichenettes/eurorack",
+     "author": "Emilie Gillet (Mutable Instruments)",
+     "licence": "GPL-3.0-or-later",
+     "commit": "master (grids/, 2011-2013)",
+     "url": "https://github.com/pichenettes/eurorack"
+    },
     "children": [],
     "tested": "emulator-tested only",
     "provenance_line": "pichenettes/eurorack @ master (grids/, 2011-2013) by Emilie Gillet (Mutable Instruments) (GPL-3.0-or-later)"

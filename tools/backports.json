@@ -978,6 +978,27 @@
       "limits": "a lane's or a track's GRIDS: three values (X Y DENS), no CHAOS (the kit's has it); 16ths only (the odd 32nds dropped)",
       "notice": "Drum map from Mutable Instruments Grids by Emilie Gillet (GPL-3.0-or-later).",
       "warning": false
+    },
+    {
+      "switch": "FELUCCA_GRIDS_EUCLID",
+      "title": "GRIDS: Grids' Euclidean output mode",
+      "default": 0,
+      "group": "sequencer",
+      "source": {
+        "repo": "https://github.com/pichenettes/eurorack",
+        "commit": "master (grids/, 2011-2013)",
+        "author": "Emilie Gillet (Mutable Instruments)",
+        "licence": "GPL-3.0-or-later",
+        "files": "grids/pattern_generator.cc EvaluateEuclidean, grids/resources/lookup_tables.py EuclidianPattern (lut_res_euclidean)"
+      },
+      "files": [
+        "firmware/src/seq/gen.c gr_eu_mask gr_eu_hit, the kit's GEN_TLV pseudo-slot 31",
+        "firmware/src/ui/optimist/op_tools.c the OUT card"
+      ],
+      "storage": "the GEN_TLV pseudo-slot 31 (bit 11: EUCL); a build without it skips the entry and plays DRUMS",
+      "limits": "the kit's GRIDS only (a lane's GEN has EUCLID with NOTEGEN); no accent in this mode, as Grids",
+      "notice": "Euclidean mode from Mutable Instruments Grids by Emilie Gillet (GPL-3.0-or-later).",
+      "warning": false
     }
   ],
   "later_asm_notes": [

@@ -18,7 +18,9 @@
  *                     built with NOTEGEN or GEN_GRIDS, either one alone
  *   FELUCCA_GEN_GRIDS Mutable Instruments Grids' drum map (Emilie Gillet, pichenettes/eurorack, GPL-3.0-or-later;
  *                     seq/gen.c, seq/grids_map.h: 1.2 KB of table): a GEN TYPE beside EUCLID RANDOM PULSE, and the kit's
- *                     GRIDS on DR (STEP's GRIDS and DENSITY pages, the drum track's P_E2 .. P_E7). With or without NOTEGEN */
+ *                     GRIDS on DR (STEP's GRIDS and DENSITY pages, the drum track's P_E2 .. P_E7). With or without NOTEGEN
+ *   FELUCCA_GRIDS_EUCLID the kit's GRIDS in Grids' EUCLIDEAN output mode too (GRIDS > OUT: DRUMS / EUCL; seq/gen.c
+ *                     gr_eu_hit): needs GEN_GRIDS */
 #ifndef FELUCCA_BACKPORTS15_H
 #define FELUCCA_BACKPORTS15_H
 
@@ -33,6 +35,12 @@
 #endif
 #ifndef FELUCCA_GEN_GRIDS
 #define FELUCCA_GEN_GRIDS 0      /* seq/gen.c GT_GRIDS */
+#endif
+#ifndef FELUCCA_GRIDS_EUCLID
+#define FELUCCA_GRIDS_EUCLID 0   /* seq/gen.c gr_eu_hit, ui/optimist/op_tools.c the OUT card */
+#endif
+#if FELUCCA_GRIDS_EUCLID && !FELUCCA_GEN_GRIDS
+#error "GRIDS_EUCLID is a mode of the kit's GRIDS: it needs GEN_GRIDS"
 #endif
 #define FELUCCA_GENS (FELUCCA_NOTEGEN || FELUCCA_GEN_GRIDS)   /* the generators' framework (seq.c GEN_BUILT) */
 #define SEQ_SKIP (FELUCCA_FILLS || FELUCCA_COND)   /* seq.c: a step that fails its FILL or its condition is a REST */

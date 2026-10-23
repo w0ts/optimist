@@ -555,7 +555,11 @@
       "Y": {"text": "Grids: down the drum map", "if": "FELUCCA_GEN_GRIDS"},
       "DENS": {"text": "Grids: how many hits", "if": "FELUCCA_GEN_GRIDS"}}},
     {"kind": "op", "ctx": "GRIDS", "if": "FELUCCA_GEN_GRIDS", "params": {
-      "X": "Across the drum map", "Y": "Down the drum map", "CHAOS": "Random push, new each bar"}},
+      "X": "Across the drum map", "Y": "Down the drum map", "CHAOS": "Random push, new each bar",
+      "OUT": {"text": "Drum map or Euclidean", "if": "FELUCCA_GRIDS_EUCLID"},
+      "BD LEN": {"text": "Kick: steps in its cycle", "if": "FELUCCA_GRIDS_EUCLID"},
+      "SD LEN": {"text": "Snare: steps in its cycle", "if": "FELUCCA_GRIDS_EUCLID"},
+      "HH LEN": {"text": "Hat: steps in its cycle", "if": "FELUCCA_GRIDS_EUCLID"}}},
     {"kind": "op", "ctx": "DENSITY", "if": "FELUCCA_GEN_GRIDS", "params": {
       "BD": "Kick hits: how many", "SD": "Snare hits: how many", "HH": "Hat hits: how many"}},
     {"kind": "op", "ctx": "GEN OUT", "if": "FELUCCA_NOTEGEN || FELUCCA_GEN_GRIDS", "params": {

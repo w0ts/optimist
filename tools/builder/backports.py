@@ -182,8 +182,16 @@ DESC["FELUCCA_GEN_GRIDS"] = (
     "bar of 16ths, repeated through LEN. Builds STEP's GEN and GEN OUT pages itself, with or without the other "
     "generators (NOTEGEN: EUCLID, RANDOM, PULSE); alone, GRIDS is the one TYPE. About 8.7 KB of flash and 2 KB of RAM alone: 6.1 KB of it the generators' "
     "framework, shared with NOTEGEN, and 1.2 KB the map; 2.5 KB more next to NOTEGEN (the builder's measure, 2026-10-22).")
+DESC["FELUCCA_GRIDS_EUCLID"] = (
+    "Grids' second output mode for the kit's GRIDS: EUCLIDEAN. GRIDS gets an OUT card (DRUMS / EUCL); in EUCL the "
+    "three parts play Euclidean rhythms instead of the drum map, as Grids does: X, Y and CHAOS set the kick's, the "
+    "snare's and the hat's lengths (1 to 32 steps), DENSITY's BD, SD and HH how many of their steps hit, spread as "
+    "evenly as they go (Grids' own table, worked out the same way). Each part runs on its own length through the "
+    "passes, against the pattern's LEN. No accent in this mode, as on Grids. OUT is saved with the project; a build "
+    "without this item plays DRUMS. About 1 KB of flash.")
+LABEL["FELUCCA_GRIDS_EUCLID"] = "GRIDS: Euclidean mode (OUT EUCL)"
 PARENT = {"FELUCCA_SPRING": "FX_REVERB", "FELUCCA_DLY_DOT": "FX_DELAY", "FELUCCA_PUNCH_LATCH": "FX_PUNCH",
-          "FELUCCA_UP_FM6": "ENG_FM6"}   # options of a registry item
+          "FELUCCA_UP_FM6": "ENG_FM6", "FELUCCA_GRIDS_EUCLID": "GEN_GRIDS"}   # options of a registry item
 AFTER = {"FELUCCA_SPRING": "REV_FDN8"}   # an option's place among its parent's (SPRING beside the other reverb algorithms)
 BITS = {  # switch -> stable BUILD bit (append only)
     "FELUCCA_CHANCE": 64, "FELUCCA_KEYLIT": 65, "FELUCCA_QNT_SEQ": 66, "FELUCCA_KNOB_ACCEL": 67,
@@ -219,6 +227,7 @@ BITS = {  # switch -> stable BUILD bit (append only)
     "FELUCCA_COND": 240,                                # (Felucca 1.5.6: 240..244)
     "FELUCCA_SEQTOOLS": 241,
     "FELUCCA_GEN_GRIDS": 370,                          # (the GRIDS note generator; its own item since 2026-10-22)
+    "FELUCCA_GRIDS_EUCLID": 395,                       # (the kit's GRIDS in Grids' Euclidean mode, 2026-10-23)
 }
 NEXT_FREE = 80                                          # (switches not in BITS yet: from here, by name)
 
