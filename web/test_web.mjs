@@ -1635,7 +1635,7 @@ async function editorDaw() {
   }
   const openers = ids.every((id) => html.includes(`popBtn("${id}"`) || html.includes(`"data-pop": "${id}"`) || html.includes(`data-pop="${id}"`) || html.includes(`g("${id}", `) || (E.MASTER_FX.some((f) => f.id === id) && /"data-pop": f\.id/.test(html)) || (id === "fxslot" && /dataset\.pop = bus1 \|\| "fxslot"/.test(html)));
   ok(flat && openers && ids.length === 16 && !("project" in E.NAV) && E.navScreen({ screen: "mixer", pop: { id: "sound" } }, "library").pop === null
-    && E.navKey({ screen: "mixer", pop: null }, "Escape").screen === "mixer" && js(E.SCREENS) === js(["mixer", "library", "samples", "drumkit", "projects", "snapshots", "device", "settings"]),
+    && E.navKey({ screen: "mixer", pop: null }, "Escape").screen === "mixer" && js(E.SCREENS) === js(["mixer", "library", "samples", "drumkit", "projects", "snapshots", "device", "screen", "settings"]),
     "daw: every popup is one click from a strip of the mixer, Escape returns to it, one popup at a time, a screen closes it");
   ok(html.includes('$("pop").addEventListener("cancel"') && html.includes('e.target === $("pop")') && html.includes('$("popx").addEventListener("click"'),
     "daw: the popup closes by Escape (cancel), a click outside (the backdrop) and its x");
@@ -3338,7 +3338,37 @@ async function installerModule() {
     "installer module: mountInstaller(container, opts); no innerHTML (the manifest's words stay text), a real dialog, not confirm()");
 }
 
+/* the Screen tab (106 MIRROR, ED_MIRROR): the editor's decoder (mirrorFrame) gives the fixture's pixels from its frames (the iOS app's
+   fixture, tests/mirror_test.c MIRROR_FIXTURE; the reference decoder tests/mirror_dec.h); the reply told from the pushes; the tab */
+async function editorMirror() {
+  const m = /const mir = \{[\s\S]*?\n\}\nfunction mirrorStart/.exec(html);
+  ok(!!m, "mirror: the decoder in the page");
+  if (!m) return;
+  const src = m[0].replace(/\nfunction mirrorStart$/, "").replace("const mirrorOn", "var mirrorOn");
+  const { mir, mirrorFrame } = new Function("requestAnimationFrame", "$", "dev", src + "\nreturn { mir, mirrorFrame };")(() => 0, () => null, null);
+  mir.img = { data: new Uint8ClampedArray(240 * 240 * 4) };
+  const fx = new URL("../ios/OptimistMirror/Tests/Fixtures/", import.meta.url);
+  const sx = readFileSync(new URL("screen.sysex", fx)), px = readFileSync(new URL("screen.rgb565", fx));
+  let start = -1, frames = 0, bad = 0, diff = 0;
+  for (let i = 0; i < sx.length; i++) {
+    if (sx[i] === 0xF0) start = i;
+    if (sx[i] === 0xF7 && start >= 0) { frames++; if (!mirrorFrame(Array.from(sx.subarray(start + 5, i)))) bad++; start = -1; }
+  }
+  for (let k = 0; k < 240 * 240; k++) {
+    const c = px[2 * k] | (px[2 * k + 1] << 8), d = mir.img.data;
+    diff += d[4 * k] !== Math.round(((c >> 11) & 31) * 255 / 31) || d[4 * k + 1] !== Math.round(((c >> 5) & 63) * 255 / 63) || d[4 * k + 2] !== Math.round((c & 31) * 255 / 31);
+  }
+  ok(frames > 50 && !bad && !diff, `mirror: ${frames} frames decoded to the fixture's screen (${bad} bad, ${diff} pixels off)`);
+  ok(!mirrorFrame([3, 0, 0]) && !mirrorFrame([1, 0, 0]), "mirror: an unknown op or a short BLIT refused");
+  ok(/f\.cmd === CMD\.MIRROR && !\(f\.a\.length === 6 && f\.a\[0\] <= 1 && f\.a\[1\] === 1\)\) \{ mirrorFrame\(f\.a\)/.test(html)
+    && /MIRROR: 106/.test(html) && /id === 0x65 && n >= 1 && a\[r\.i\] >= 1\) o\.mirror/.test(html)
+    && /<button role="tab" data-tab="screen"[^>]* hidden>/.test(html) && /b\.hidden = !mirrorOn\(\)/.test(html)
+    && /:not\(\[data-tab=screen\]\)/.test(html),
+    "mirror: pushes routed apart from the reply, INFO tag 65, the tab (hidden unless built; offered on a backup-only firmware)");
+}
+
 await editorMock();
+await editorMirror();
 await editorLibrarian();
 await editorFM6Engine();
 await editorDX7();
