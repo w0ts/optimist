@@ -491,6 +491,13 @@ static uint32_t step_sig(void)
 #endif
 #if GEN_ON
     h = hbytes(h, gen, sizeof gen);                     /* (the generators: what plays) */
+    if ((gen_trk >> trk_index(t)) & 1u) {               /* a generator on: what it plays now, as the grid draws it (sg_prep).
+                                                         * Not only its settings: the kit GRIDS' values are the drum track's,
+                                                         * its OUT, CHAOS's pass, the kit's LFOs move them (the user, 2026-10-23:
+                                                         * "when i move the knobs of grids ... and when lfo moves them too") */
+        gen_render(t, sg_gst, ~0u);
+        h = hbytes(h, sg_gst, sizeof sg_gst);
+    }
 #endif
     if (is_drum(t))
         for (i = 0; i < DRUM_UILANES; i++)
