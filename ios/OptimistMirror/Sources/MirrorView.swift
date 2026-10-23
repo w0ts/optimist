@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// The FM-1's panel, pixel for pixel, as large as the phone allows; a line of status while there is nothing to show.
+// The FM-1's panel, pixel for pixel, as large as the phone allows; a line of status while there is nothing to show. It turns
+// with the phone even with Rotation Lock on: the interface stays portrait (project.yml) and the picture is turned in quarter
+// turns from gravity (Tilt).
+import CoreMotion
 import SwiftUI
 import UIKit
 
@@ -19,14 +22,50 @@ struct OptimistMirrorApp: App {
     }
 }
 
+/// The quarter turns (0...3, counter-clockwise) that keep the picture upright, from the accelerometer's gravity: a new one
+/// only well inside its quarter (35° of margin), none while the phone lies flat.
+@MainActor
+final class Tilt: ObservableObject {
+    @Published private(set) var quarter = 0
+    private let motion = CMMotionManager()
+
+    func start() {
+        guard motion.isDeviceMotionAvailable, !motion.isDeviceMotionActive else { return }
+        motion.deviceMotionUpdateInterval = 0.1
+        motion.startDeviceMotionUpdates(to: .main) { [weak self] m, _ in
+            guard let self, let g = m?.gravity, abs(g.z) < 0.8 else { return }
+            let deg = atan2(g.x, -g.y) * 180 / .pi            // 0 upright, 90 turned clockwise, ±180 upside down
+            let q = (Int((deg / 90).rounded()) % 4 + 4) % 4
+            let off = abs(deg - Double(q) * 90).truncatingRemainder(dividingBy: 360)
+            if q != self.quarter, min(off, 360 - off) < 45 - 35 / 2 { self.quarter = q }
+        }
+    }
+
+    func stop() { motion.stopDeviceMotionUpdates() }
+}
+
 struct MirrorView: View {
     @ObservedObject var link: MirrorLink
+    @StateObject private var tilt = Tilt()
     @State private var image: CGImage?
     @State private var seen = 0
 
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
+            content
+                .rotationEffect(.degrees(-90 * Double(tilt.quarter)))
+                .animation(.easeInOut(duration: 0.25), value: tilt.quarter)
+        }
+        .statusBarHidden()
+        .persistentSystemOverlays(.hidden)
+        .task { await draw() }
+        .onAppear { tilt.start() }
+        .onDisappear { tilt.stop() }
+    }
+
+    @ViewBuilder private var content: some View {
+        ZStack {
             if let image {
                 Image(decorative: image, scale: 1)
                     .resizable()
@@ -45,9 +84,6 @@ struct MirrorView: View {
                 .padding()
             }
         }
-        .statusBarHidden()
-        .persistentSystemOverlays(.hidden)
-        .task { await draw() }
     }
 
     private var title: String {
