@@ -72,7 +72,8 @@ static const uint8_t MAC_BRIGHT[ENG_UID_N] = {
     0x33, 0x07, 0xFF, 0x07, 0x02, 0x00, 0x00, 0x04,    /* WHEEL TOP (-8..8), GRAIN TONE, FM6 none (no MOD since 2026-10-18), SLICE TONE, PHYS
                                                         * BRIT, ACID CUT, CZ (0x00 as before), JUNO CUT (UID 14, 0x04
                                                         * as feat/engine-juno) */
-    0x02, 0x05, 0x02};                                 /* NOISE FREQ, DRONE TONE, PLAITS TIMB */
+    0x02, 0x05, 0x02,                                  /* NOISE FREQ, DRONE TONE, PLAITS TIMB */
+    0x04, 0x04, 0x06, 0x06, 0x07, 0x05, 0x04, 0x04};   /* STRINGS CUT, VPS CUT, TERRAIN CUT, WSEQ CUT, VECTOR CUT, SID CUT, PROPHET CUT, WAVE CUT */
 #else
 static const uint8_t MAC_BRIGHT[ENG_UID_N] = {0x04, 0x04, 0x02, 0x07, 0x04, 0x04, 0x05, 0x33, 0x07, 0x05, 0xFF, 0x07};
 #endif                                                 /* (SUPER CUT at 9) */

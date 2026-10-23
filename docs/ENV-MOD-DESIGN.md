@@ -37,6 +37,14 @@ DEST B + AMT B, the shared `LT_*` list in `core/core.h`). Code: `firmware/src/co
 | NOISE | FREQ (FLT), PIT, COLR (SHP), RES | FLT |
 | DRONE | TONE (FLT), PIT, COUPLE (SHP), CHAR | FLT |
 | PLAITS | TONE (FLT), PIT, TIMB (SHP), MORPH | FLT |
+| STRINGS | CUT (FLT), PIT, ENS, SHP | FLT |
+| VPS | CUT (FLT), PIT, D (SHP), V | FLT |
+| TERRAIN | CUT (FLT), PIT, RAD (SHP), ORB | FLT |
+| WSEQ | CUT (FLT), PIT, XFADE, PITCH | FLT |
+| VECTOR | CUT (FLT), PIT, X (SHP), Y | FLT |
+| WAVE | CUT (FLT), PIT, POS (SHP), DRV | FLT |
+| SID | CUT (FLT), PIT, PW (SHP), RES | FLT |
+| PROPHET | CUT (FLT), PIT, PW (SHP), PMOD | FLT |
 
 Drum lanes have their own ENV page (CLICK DECAY BEND LEVEL). SLICE's fourth card is PTCH, not START (START is read once at
 the note-on, so ENV 1 did nothing there).

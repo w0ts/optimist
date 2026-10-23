@@ -253,3 +253,16 @@ src/drums/synth/drum_plaits.c:qdiv:b | every caller's divisor is >= 0.5 (Q24): Q
 src/drums/synth/drum_plaits.c:kpunc_start:(int32_t)(((int64_t)23121101*(QONE+4*fed))>>24) | fed >= 0 (a qmax and its square): >= 23121101
 src/drums/synth/drum_plaits.c:qsvf_set:(int32_t)d | d = QONE + r g + g^2 with r, g >= 0 (a damping, a tan): >= QONE
 src/drums/synth/drum_plaits.c:qsvf_set:(int32_t)(d>>4) | the same d (>= QONE), only when d > INT32_MAX: >= 2^27
+src/engines/clipper/eng_vector.c:vector_render:(int32_t)n | guarded: the render returns when n is 0 (or past CTL)
+src/engines/clipper/eng_vps.c:vps_seg:d16 | its callers pass d16 or 65536 - d16, d16 clamped to 1310..64226: >= 1310
+src/engines/clipper/eng_vps.c:vps_seg:(65536-d16) | the same: d16 <= 64226, so 65536 - d16 >= 1310
+src/engines/clipper/eng_wseq.c:wseq_render:(uint32_t)(song.g[G_BPM]>0?song.g[G_BPM]:120) | guarded: 120 when the tempo is not positive
+src/engines/clipper/eng_wseq.c:wseq_render:xf | guarded: if (xf)
+src/engines/sid/eng_sid.c:sid_render:((inc2>>16)|1u) | an or with 1: >= 1
+src/engines/prophet/p5_dsp.c:p5_blep:(float) | guarded: returns 0 when inc is 0 (float: no trap either way)
+src/engines/prophet/p5_dsp.c:p5_filter:(1.0f+k*g4) | k >= 0 and g4 >= 0: >= 1
+src/engines/prophet/p5_dsp.c:p5_render:(float) | n: guarded (rn = 0 when n is 0); ib: inside if (ib)
+src/engines/clipper/eng_wave.c:-:WT_NFACTORY | a constant: 8 (tools/gen_wavetables.py OPTIMIST)
+src/engines/clipper/eng_wave.c:wt_build_frame:(H+1u-h0) | H = 128 >> l >= 2, h0 = 3 H / 5 < H: >= 2
+src/engines/clipper/eng_wave.c:wt_ifft:len | starts at 2 and doubles: >= 2
+src/engines/clipper/eng_wave.c:wt_level:inc | guarded: inc ? .. : 1000

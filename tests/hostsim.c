@@ -178,10 +178,20 @@ static void host_preset_req(track_t *t, uint32_t e, uint32_t pi)
     (void)env_load(t->p);
     env2_dest_def(t->p, e);
 }
+/* the main loop's work a sound waits for, done at once (the harness has no main loop): WAVE's table (eng_wave.c) */
+static void host_main_services(void)
+{
+#if FELUCCA_ENG_WAVE
+    uint32_t k;
+    for (k = 0; k < 64u && wt_wanted() >= 0 && wt_have != wt_wanted(); k++)
+        wt_service();
+#endif
+}
 static void host_preset(track_t *t, uint32_t e, uint32_t pi)
 {
     host_preset_req(t, e, pi);
     t->engine = (uint8_t)e;
+    host_main_services();
 }
 
 /* the sequencer clock as the harness sees it: the step of t at the clock (as the next block plays it),

@@ -556,6 +556,9 @@ static BOOT_ORDER void fm1_main(void)
         sec_service();                                  /* the next section staged for the audio ISR (sections.c) */
 #endif
 #endif
+#if FELUCCA_ENG_WAVE
+        wt_service();                                   /* WAVE's table into the pool, four frames a call (eng_wave.c) */
+#endif
         felucca_dbg.stage = 9;
 #if FELUCCA_BENCH
         bench_frame();

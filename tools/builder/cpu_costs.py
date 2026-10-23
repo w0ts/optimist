@@ -56,7 +56,7 @@ BASELINE = ROOT / "tests" / "cpu_baseline.txt"
 COSTS = ROOT / "tools" / "builder" / "costs.json"
 REGISTRY_H = ROOT / "firmware" / "src" / "core" / "registry.h"
 HEADER = ROOT / "firmware" / "src" / "system" / "cpuguard_costs.h"
-NOTES = {"VOICE": 4, "ACID": 1, "JUNO": 6, "DRONE": 1, "PLAITS": 4}   # (JUNO: six voices, eng_juno.c JUNO_POLY; DRONE: one, eng_drone.c .poly; PLAITS: four, PL_POLY)
+NOTES = {"VOICE": 4, "ACID": 1, "JUNO": 6, "DRONE": 1, "PLAITS": 4, "SID": 3, "PROPHET": 5}   # (PROPHET: five, P5_POLY; JUNO: six voices, eng_juno.c JUNO_POLY; DRONE: one, eng_drone.c .poly; PLAITS: four, PL_POLY; SID: three, SID_POLY)
 INS_NEW = ("fold", "fuzz", "phsr", "flng", "frmt", "wide", "chrs", "echo", "gate",   # the further inserts, fx_slots.c FXT_FOLD .. FXT_GATE,
            "sfld", "wrap", "rect", "harm", "ring", "subo", "slew",       # then the shapers FXT_SFLD .. FXT_SLEW (fx_slots.c IFX_FIX),
            "tape", "spit")                                               # TAPE SPIT (2026-10-19)

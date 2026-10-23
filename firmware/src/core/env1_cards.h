@@ -68,6 +68,23 @@ enum { E1L_FLT = 8, E1L_PIT, E1L_SHP };
     E1K_SHP, P_ED_SHP, 1, E1K_MV(3), P_E1X + 0, 3, LT_FLT)   /* (FLT: TONE, SHP: COUPLE, the move: CHAR) */
 #define E1C_PLAITS E1C(E1K_FLT, P_ED_FLT, 5, E1K_PIT, P_E1PIT, E1L_PIT, \
     E1K_SHP, P_ED_SHP, 2, E1K_MV(3), P_E1X + 0, 3, LT_FLT)   /* (FLT: TONE, SHP: TIMB, the move: MORPH) */
+/* Clipper's five (their render reads every EDIT value each block: any can be a move) */
+#define E1C_STRINGS E1C(E1K_FLT, P_ED_FLT, 4, E1K_PIT, P_E1PIT, E1L_PIT, \
+    E1K_MV(3), P_E1X + 0, 3, E1K_MV(6), P_E1X + 1, 6, LT_FLT)   /* (no shape: the moves ENS and SHP) */
+#define E1C_VPS E1C(E1K_FLT, P_ED_FLT, 4, E1K_PIT, P_E1PIT, E1L_PIT, \
+    E1K_SHP, P_ED_SHP, 0, E1K_MV(1), P_E1X + 0, 1, LT_FLT)   /* (SHP: D, the move: V) */
+#define E1C_TERRAIN E1C(E1K_FLT, P_ED_FLT, 6, E1K_PIT, P_E1PIT, E1L_PIT, \
+    E1K_SHP, P_ED_SHP, 1, E1K_MV(4), P_E1X + 0, 4, LT_FLT)   /* (SHP: RAD, the move: ORB) */
+#define E1C_WSEQ E1C(E1K_FLT, P_ED_FLT, 6, E1K_PIT, P_E1PIT, E1L_PIT, \
+    E1K_MV(2), P_E1X + 0, 2, E1K_MV(5), P_E1X + 1, 5, LT_FLT)   /* (no shape: the moves XFADE and PITCH) */
+#define E1C_VECTOR E1C(E1K_FLT, P_ED_FLT, 7, E1K_PIT, P_E1PIT, E1L_PIT, \
+    E1K_SHP, P_ED_SHP, 4, E1K_MV(5), P_E1X + 0, 5, LT_FLT)   /* (SHP: X, the move: Y) */
+#define E1C_SID E1C(E1K_FLT, P_ED_FLT, 5, E1K_PIT, P_E1PIT, E1L_PIT, \
+    E1K_SHP, P_ED_SHP, 1, E1K_MV(6), P_E1X + 0, 6, LT_FLT)   /* (SHP: PW, the move: RES) */
+#define E1C_PROPHET E1C(E1K_FLT, P_ED_FLT, 4, E1K_PIT, P_E1PIT, E1L_PIT, \
+    E1K_SHP, P_ED_SHP, 7, E1K_MV(6), P_E1X + 0, 6, LT_FLT)   /* (SHP: PW, the move: PMOD) */
+#define E1C_WAVE E1C(E1K_FLT, P_ED_FLT, 4, E1K_PIT, P_E1PIT, E1L_PIT, \
+    E1K_SHP, P_ED_SHP, 1, E1K_MV(6), P_E1X + 0, 6, LT_FLT)   /* (SHP: POS, the move: DRV) */
 typedef struct {
     uint8_t c[4];                                     /* the cards: E1K_* */
     uint8_t id[4];                                    /* the value each keeps (an alias: its EDIT value) */

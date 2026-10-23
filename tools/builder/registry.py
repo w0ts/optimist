@@ -329,6 +329,71 @@ _add("ENG_PLAITS", "FELUCCA_ENG_PLAITS", "PLAITS (Plaits' waveshaping, additive,
           "code, no float. About 11 KB of flash (its tables 3.6 KB), no RAM of its own: its state lives in the part memory the other engines share.",
      notice="Plaits' models by Emilie Gillet (pichenettes/eurorack f4cfa76, MIT), ported to integers. Tested in the "
             "host tests only, not on a device.")
+CLIPPER = Provenance("Clipper (isod89/clipper-fm1, Clipper 1.1)", "3dSam", "GPL-3.0-only", "e690672",
+                     "https://github.com/isod89/clipper-fm1")
+_CLIPPER_NOTE = "From Clipper by 3dSam (isod89/clipper-fm1, GPL-3.0-only). Tested in the host tests only, not on a device."
+_add("ENG_STRINGS", "FELUCCA_ENG_STRINGS", "STRINGS (a 1970s string machine)", E, 387, default=0, provenance=CLIPPER,
+     desc="Clipper's string machine (engine 18), after the Solina, ARP and Elka ensembles: 16', 8' and 4' registers "
+          "divided down from one phase, so they stay locked; a three-line ensemble whose taps two LFOs move 120 degrees "
+          "apart (ENS, RATE); SHP turns the saws toward squares; a 12 dB low-pass (CUT, RES). 16 presets. Integer code, "
+          "about 2.5 KB of flash.",
+     notice=_CLIPPER_NOTE)
+_add("ENG_VPS", "FELUCCA_ENG_VPS", "VPS (vector phaseshaping)", E, 388, default=0, provenance=CLIPPER,
+     desc="Clipper's vector phaseshaping (engine 19, after Kleimola et al., DAFx 2011): a sine read through a bent "
+          "phase. D moves the bend along the period, V sets its height: below 1 a phase-distorted, CZ-like wave, above "
+          "1 a formant at V times the note (VENV sweeps it with each note). OSC2 a second one, mirrored and detuned "
+          "(DTN), SUB a sine an octave down, then a 12 dB low-pass. 10 presets. Integer code, no table: about 2 KB of "
+          "flash.",
+     notice=_CLIPPER_NOTE)
+_add("ENG_TERRAIN", "FELUCCA_ENG_TERRAIN", "TERRAIN (wave terrain)", E, 389, default=0, provenance=CLIPPER,
+     desc="Clipper's wave terrain synthesis (engine 20): an orbit circles over one of 8 surfaces (TERR) once a period "
+          "of the note, the surface's height under it is the sound. RAD, X and Y place the orbit, ORB squeezes it to a "
+          "line or turns it into a figure eight, DRIFT moves its centre slowly, each note its own way. Then a 12 dB "
+          "low-pass. 10 presets. Integer code; about 18 KB of flash, the surfaces 16 KB of it.",
+     notice=_CLIPPER_NOTE)
+_add("ENG_WSEQ", "FELUCCA_ENG_WSEQ", "WSEQ (wave sequencing)", E, 390, default=0, provenance=CLIPPER,
+     desc="Clipper's wave sequencing (engine 21), after the Korg Wavestation: each note plays one of 16 sequences "
+          "(SEQ) of up to 16 steps, each its own wave, pitch and level, at the song's tempo (RATE 1/32 to a bar). XFADE "
+          "fades each step into the next, LOOP plays forward, back, ping-pong or once, START picks the first step, "
+          "PITCH scales the steps' intervals. Then a 12 dB low-pass. 16 presets. Integer code, the waves computed: "
+          "about 5 KB of flash.",
+     notice=_CLIPPER_NOTE)
+_add("ENG_VECTOR", "FELUCCA_ENG_VECTOR", "VECTOR (Prophet VS-style vector synthesis)", E, 391, default=0,
+     provenance=CLIPPER,
+     desc="Clipper's vector synthesis (engine 22), after the Prophet VS and the Wavestation's joystick: four of 16 "
+          "single-cycle waves at the corners of a square (A B C D), a point in it (X, Y) mixing them; MOVE sends the "
+          "point round a circle, a figure eight, the square's edge, a sweep from A or a random walk, slow or fast. "
+          "Then a 12 dB low-pass. 16 presets. Integer code; about 24 KB of flash, the waves 21 KB of it.",
+     notice=_CLIPPER_NOTE)
+_add("ENG_WAVE", "FELUCCA_ENG_WAVE", "WAVE (Clipper's wavetables)", E, 394, default=0, provenance=CLIPPER,
+     desc="Clipper's wavetable engine (engine 25): 8 of its tables (TABL) of 16 single-cycle frames, POS sweeping "
+          "through them crossfaded (PPG / Serum style; the track's SHP moves POS), a second oscillator DTN cents up, a "
+          "SUB sine, then a 12 dB low-pass with drive (CUT RES DRV KTR). Without aliasing: the tables are spectra, the "
+          "main loop builds one table's band-limited copies in the pool, and every WAVE track plays that one table "
+          "(the first WAVE track's TABL). 13 presets. Integer code; about 70 KB of flash (the spectra 64 KB) and 72 KB "
+          "of the pool: a build with it needs a shorter delay line.",
+     notice=_CLIPPER_NOTE)
+MINITONE_SID = Provenance("Mini-Tone 1.0.1 (eldontyrellcorp/Mini-Tone), after reSID 0.16 by Dag Lem", "Stephane Schmitz",
+                          "GPL-3.0-only (the reSID data GPL-2.0-or-later)", "6a82562",
+                          "https://github.com/eldontyrellcorp/Mini-Tone")
+_add("ENG_SID", "FELUCCA_ENG_SID", "SID (the Commodore 64's MOS 6581 / 8580)", E, 392, default=0, provenance=MINITONE_SID,
+     desc="Mini-Tone's SID engine (engine 23): one voice of reSID 0.16 in integer code, three a part as the chip has. "
+          "TRI SAW PULSE NOISE and the combined waveforms sampled from real chips (WAVE), PW, SYNC and RING against a "
+          "second oscillator RATIO semitones away (MOD), the chip's multimode filter (MODE: LP BP HP and their mixes, "
+          "CUT on the FC register's curve, RES in its 16 steps) and the 6581 or 8580 (MODEL). 26 presets. Integer code; "
+          "about 44 KB of flash, reSID's tables 40 KB of it.",
+     notice="SID by Stephane Schmitz (Mini-Tone, GPL-3.0-only) after reSID 0.16 by Dag Lem (GPL-2.0-or-later). Tested in "
+            "the host tests only, not on a device.")
+MELODEE_P5 = Provenance("Melodee (keremimo/melodee): its PROPHET engine's oscillators, Poly-Mod and Curtis filter",
+                        "Kerem Kilic", "GPL-3.0-only", "398ada1", "https://github.com/keremimo/melodee")
+_add("ENG_PROPHET", "FELUCCA_ENG_PROPHET", "PROPHET (a Prophet-5 style voice)", E, 393, default=0, provenance=MELODEE_P5,
+     desc="A Prophet-5 Rev 4 style voice (engine 24) from Melodee's PROPHET: two oscillators (A: saw, pulse or both, "
+          "hard-synced to B or not; B: saw, triangle, pulse and their mixes, B FRQ semitones away), the MIX between "
+          "them, Poly-Mod from B (PMOD: on A's pitch, or on the cutoff) and the Curtis 4-pole (CUT, RES), PW for both "
+          "pulses. The track's ENV and LFO drive it; 12 presets of our own, no Sequential programs. Five voices. "
+          "Floating point (the FPU), its own unit; about 11 KB of flash.",
+     notice="The voice is Melodee's (Kerem Kilic, GPL-3.0-only), with our controls. Tested in the host tests only, not "
+            "on a device. Not affiliated with Sequential.")
 # (bit 91, LFO2, retired 2026-10-16: LFO 2, a second LFO on each synth track, is always built; never reuse the bit)
 
 # ---- drums: first the drum synths, the kits made by synthesis (any of them is a drum source on its own; the drum
@@ -1132,6 +1197,10 @@ _SYMS = {
     "FM6_KEYS": ("fm6k_knob",), "FM6_PK_KEYS": ("FM6_PK_KEYS",), "FM6_PK_BASS": ("FM6_PK_BASS",),
     "FM6_PK_BELLS": ("FM6_PK_BELLS",), "FM6_PK_PADS": ("FM6_PK_PADS",), "FM6_PK_80S": ("FM6_PK_80S",),
     "ENG_SLICE": ("ENG_SLICE",), "ENG_DRONE": ("ENG_DRONE", "drone_render"), "ENG_PLAITS": ("ENG_PLAITS", "plaits_render"),
+    "ENG_STRINGS": ("ENG_STRINGS", "strings_render"), "ENG_VPS": ("ENG_VPS", "vps_render"),
+    "ENG_TERRAIN": ("ENG_TERRAIN", "terrain_render"), "ENG_WSEQ": ("ENG_WSEQ", "wseq_render"),
+    "ENG_VECTOR": ("ENG_VECTOR", "vector_render"), "ENG_SID": ("ENG_SID", "sid_render"),
+    "ENG_PROPHET": ("ENG_PROPHET", "prophet_render"), "ENG_WAVE": ("ENG_WAVE", "wave_render", "wt_mip"),
     "DRUM_SYNTH": ("DS_KITS",), "DRUM_EDIT": ("de_synth",), "DS_KAWA": ("DS_XSNDS_0",), "DS_PLAITS": ("kpunc_tick", "scrak_tick"), "FX_CHORUS": ("cho_buf",),
     "FX_DELAY": ("dly_buf",), "FX_REVERB": ("rev_line", "rev_ap"), "FX_SLICER": ("sl_buf",),
     "FX_PUNCH": ("punch_ring",), "EDITOR": ("ed_handle",),

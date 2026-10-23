@@ -157,6 +157,7 @@ def generate(gen=GEN, env=None):
             [tools / "gen_drumkits.py", gen / "felucca_drumkits.h"],
             [tools / "gen_x0x_drums.py", gen / "x0x_drum_samples.h"],
             [tools / "gen_param_help.py", gen / "felucca_param_help.h"],   # (+ web/editor.html's copy)
+            [tools / "gen_wavetables.py", gen / "felucca_wavetables.h"],   # (the WAVE engine: Clipper's, 8 tables)
             [tools / "lzb.py", gen / "lzb_vectors.h"]]                     # (tests/lzb_test.c: the boot stream's decoder)
     penv = {**os.environ, **(env or {})}
     py = generator_python()
@@ -354,6 +355,11 @@ def build_app():
         units.append(("cc", *ACID_CFLAGS, *(f"-D{k}={v}" for k, v in a2m.items()), "-c",
                       FW / "src" / "engines" / "analog" / "a2_models.c", "-o", OUT / "a2m.o"))
         objs.append(OUT / "a2m.o")
+    (OUT / "p5.o").unlink(missing_ok=True)
+    if CFG_VALUES.get("FELUCCA_ENG_PROPHET", 0) == 1 or os.environ.get("FELUCCA_ENG_PROPHET") == "1":
+        # the PROPHET engine's voice (firmware/src/engines/prophet/p5_dsp.c, Melodee's): float, its own unit with the FPU flags
+        units.append(("cc", *ACID_CFLAGS, "-c", FW / "src" / "engines" / "prophet" / "p5_dsp.c", "-o", OUT / "p5.o"))
+        objs.append(OUT / "p5.o")
     (OUT / "x0x.o").unlink(missing_ok=True)
     x0x = {f: CFG_VALUES.get(f, int(os.environ.get(f, d))) for f, d in
            (("FELUCCA_DRUM_X909", "0"), ("FELUCCA_DRUM_X808", "0"), ("FELUCCA_X909_CYM", "1"), ("FELUCCA_X909_HAT", "1"),
