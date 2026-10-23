@@ -50,7 +50,6 @@ Optimist 0.2 brings the FM-1 to the browser and the phone, plays over Bluetooth,
 - **~38 KB of flash back** on the synth flavour (571 → 533 KB) without losing a feature or a pixel: packed tables and records, a compressed boot image, size-optimised code off the audio path. More fits in every build. **[check: the compressed boot image has not booted on hardware yet]**
 - Every delay line in one effects memory; a 48 KB option; the builder's estimate holds the real costs.
 - Builder: USB MIDI always on; items for 6-bit 909 hats and a smaller tanh table; BT_DIAG keeps the console quiet.
-- Recovery: a bricked FM-1 can be brought back through the chip's own update mode (notes in the repo). **[decide: mention?]**
 
 ## Flavours
 
