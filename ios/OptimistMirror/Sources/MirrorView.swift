@@ -117,6 +117,36 @@ struct RootView: View {
                 .tabItem { Label("Presets", systemImage: "slider.horizontal.3") }
             BackupView(s: session)
                 .tabItem { Label("Backup", systemImage: "externaldrive") }
+            ConnectionView(link: link)
+                .tabItem { Label("Connection", systemImage: "cable.connector") }
+        }
+    }
+}
+
+/// The port in use, another one, Bluetooth, Disconnect (back to the welcome screen).
+struct ConnectionView: View {
+    @ObservedObject var link: MirrorLink
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Connected To") {
+                    Label(link.portName, systemImage: link.bluetooth ? "dot.radiowaves.left.and.right" : "cable.connector")
+                }
+                Section {
+                    Picker("MIDI Port", selection: $link.chosen) {
+                        Text("Automatic").tag("")
+                        ForEach(link.ports, id: \.self) { Text($0).tag($0) }
+                    }
+                } footer: {
+                    Text("Automatic uses the USB cable when it is plugged in, Bluetooth otherwise.")
+                }
+                Section {
+                    Button("Connect with Bluetooth…") { BluetoothPicker.present() }
+                    Button("Disconnect", role: .destructive) { link.disconnect() }
+                }
+            }
+            .navigationTitle("Connection")
         }
     }
 }
@@ -124,6 +154,13 @@ struct RootView: View {
 /// No FM-1 port: the app's icon, then the ways to connect (no tabs: there is nothing to show yet).
 struct ConnectView: View {
     @ObservedObject var link: MirrorLink
+
+    private var bluetooth: some View {
+        Button { link.resume(); BluetoothPicker.present() } label: {
+            Label("Connect with Bluetooth", systemImage: "dot.radiowaves.left.and.right")
+                .frame(maxWidth: .infinity)
+        }
+    }
 
     var body: some View {
         VStack(spacing: 20) {
@@ -138,12 +175,18 @@ struct ConnectView: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-            Button { BluetoothPicker.present() } label: {
-                Label("Connect with Bluetooth", systemImage: "dot.radiowaves.left.and.right")
-                    .frame(maxWidth: .infinity)
+            if link.paused {
+                Button { link.resume() } label: {
+                    Label("Connect", systemImage: "cable.connector").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
+            if link.paused {
+                bluetooth.buttonStyle(.bordered).controlSize(.large)
+            } else {
+                bluetooth.buttonStyle(.borderedProminent).controlSize(.large)
+            }
             if !link.ports.isEmpty || !link.chosen.isEmpty {
                 Menu {
                     Picker("MIDI Port", selection: $link.chosen) {
