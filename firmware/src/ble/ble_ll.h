@@ -47,6 +47,7 @@ BLE_API uint32_t ble_ll_tx_room(void);
 BLE_API void ble_ll_disconnect(uint8_t reason);
 BLE_API uint16_t ble_ll_interval(void);                   /* connInterval in use (x 1.25 ms), 0 when not connected */
 BLE_API uint8_t ble_ll_peer_features(void);               /* the central's FeatureSet octet 0 (0 until exchanged) */
+BLE_API uint8_t ble_ll_tx_octets(void);                   /* the data length we send (27 .. 251), 0 when not connected */
 /* our address and the central's (its CONNECT_IND's InitA), least significant octet first; bit 0: ours is random,
  * bit 1: the central's is random (TxAdd) */
 BLE_API uint8_t ble_ll_addrs(uint8_t own[6], uint8_t peer[6]);

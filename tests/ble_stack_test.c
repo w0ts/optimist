@@ -826,11 +826,12 @@ static void test_endings(void)
     c_ctrl(d, 12);
     c_event();
     check("CONNECTION_UPDATE_IND with an instant in the past: lost (Instant Passed)", !hw.conn_on && hw.adv_on);
-    /* our own feature exchange, and its 40 s timeout */
+    /* our own procedures (long packets, then the features), and their 40 s timeout */
     check("reconnect", connect(24, 300));
     c_events(8);
-    check("a silent central: we send PERIPHERAL_FEATURE_REQ after 6 events",
-          c_ctrl_count(LL_PERIPHERAL_FEATURE_REQ) == 1 && bll.lproc == P_FEAT);
+    check("a silent central: after 6 events we ask for long packets first (LL_LENGTH_REQ), without them the features",
+          BLE_LL_MAX_OCTETS > 27u ? c_ctrl_count(LL_LENGTH_REQ) == 1 && bll.lproc == P_LEN && !c_ctrl_count(LL_PERIPHERAL_FEATURE_REQ)
+                                  : c_ctrl_count(LL_PERIPHERAL_FEATURE_REQ) == 1 && bll.lproc == P_FEAT);
     c_events(40000000 / (24 * 1250) - 4);
     check("no answer for < 40 s: still connected", hw.conn_on);
     c_events(16);

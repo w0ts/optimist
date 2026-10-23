@@ -225,6 +225,13 @@ static void mir_poll(void)
         for (i = 1; i < 6u; i++)
             me_b(R[i]);
         me_close();
+        {   /* then op 3 LINK: what the radio agreed, data length, ATT MTU, interval (x 1.25 ms), 2 x 7 bit each (the app logs it) */
+            uint32_t v[3] = {ble_ll_tx_octets(), ble_att_mtu(), ble_ll_interval()};
+            me_open(3);
+            for (i = 0; i < 3u; i++)
+                me_b2(v[i]);
+            me_close();
+        }
     }
 #endif
     mir_live();                         /* (the link gone, the keep-alive out: off) */

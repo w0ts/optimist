@@ -512,6 +512,7 @@ Pushes, cmd 106, by op:
 | 0 FILL | x, y, w, h (2 x 7 bit each), colour (RGB565, 3 x 7 bit) |
 | 1 BLIT | x, y, w, h, then runs: the rectangle's pixels row by row |
 | 2 MORE | runs: the BLIT before goes on (a BLIT is cut into frames of about 250 bytes) |
+| 3 LINK | Bluetooth only, after the reply: the radio's data length (octets a packet), ATT MTU, interval (x 1.25 ms), 2 x 7 bit each |
 
 A run: a token `t = n << 3 | s`. `n` 0..14: n + 1 pixels; `n` 15: 16 + (2 x 7 bit after it) pixels. `s` 0..6: the colour in that slot; `s` 7: a colour follows (3 x 7 bit) and
 takes slot k, k going 1, 2 .. 6, 1 ... The slots are reset at each BLIT: all black, slot 0 stays black. Reference decoder: `tests/mirror_dec.h`; the UI's whole host run is checked through it (`MIRROR_CHECK`).

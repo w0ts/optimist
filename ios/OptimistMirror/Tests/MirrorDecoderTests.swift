@@ -62,4 +62,15 @@ final class MirrorDecoderTests: XCTestCase {
         XCTAssertEqual(dec.pixels[238 * 240], 0)
         XCTAssertEqual(dec.pixels[240 * 240 - 1], 0)
     }
+
+    func testLinkFrame() {
+        let f: [UInt8] = [0xF0, 0x7D, 0x46, 0x4C, 106, 3, 251 & 127, 251 >> 7, 185 & 127, 185 >> 7, 9, 0, 0xF7]
+        let l = MirrorDecoder.link(f)
+        XCTAssertEqual(l?.octets, 251)
+        XCTAssertEqual(l?.mtu, 185)
+        XCTAssertEqual(l?.interval, 9)
+        XCTAssertNil(MirrorDecoder.reply(f))
+        var dec = MirrorDecoder()
+        XCTAssertFalse(dec.apply(f))
+    }
 }
