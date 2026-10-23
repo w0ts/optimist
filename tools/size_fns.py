@@ -74,9 +74,7 @@ OS_FILES = ["system/main.c", "system/supply.c", "io/usb/usb.c", "io/usb/usb_audi
             "ble/ble_ll_central.c", "ble/ble_hw_wl82_central.c", "ble/ble_gattc.c", "ble/ble_central.c",
             "ble/ble_smp_init.c", "io/midi/ble_connect.c",
             # EXPERIMENTAL: the Bluetooth Classic stack (BT_AUDIO): its interrupts and the main loop's side
-            "bt/bt_inq_con.c", "bt/bt_avrcp.c",
-            # AFH's decisions (BT_AFH, included by bt_page.c): at -Os as they were built since fb79db39 (minsize not measured)
-            "bt/bt_afh.c"]
+            "bt/bt_inq_con.c", "bt/bt_avrcp.c"]        # (bt/bt_afh.c: SIZE_FILES since round 6, measured)
 # the pairing's arithmetic (P-192, SAFER+, SHA-256: bt_ssp.c, once per pairing, milliseconds either way): minsize
 # (2026-10-22, measured on synth: see the flash-gains report)
 SIZE_FILES += ["bt/bt_safer.c", "bt/bt_sha256.c", "bt/uECC.c", "bt/bt_ssp.c"]
