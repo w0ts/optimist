@@ -1,8 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* Bluetooth audio as the screen drives it (builder item BT_AUDIO; SYSTEM > Bluetooth's AUDIO MAN / AUDIO AUTO, op_project.c).
+/* Bluetooth audio as the screen drives it (builder item BT_AUDIO; SYSTEM > BT AUDIO's MODE MAN / AUTO, op_bt.c).
  * Included by bt_inq.c after bt_page.c (it calls the inquiry, the page and the ACL stage of the Classic stack). Not the
  * console's: nothing here prints.
- *   bta_start(m)  an AUDIO mode on: BLE MIDI off (one engine on the radio at a time, docs/BT-CLASSIC.md); what connects
+ *   bta_start(m)  an AUDIO mode on (BLE MIDI goes on beside it, its own page: docs/BT-CLASSIC.md §9.1); what connects
  *                 is the screen's (ui/optimist/op_bt.c: SAVE, AUTO at boot)
  *   bta_scan(on)  the devices list: an inquiry (BTA_SCAN_S), what answers listed
  *   bta_page(a)   page device a (the last one)
@@ -11,7 +11,7 @@
  *   bta_state()   what the link does, for the STATE line (BTA_S_*)
  * The devices come from the inquiry's FHS and EIR (bt_inq_con.c bti_print_rx calls bta_saw / bta_named). The last
  * device is kept in the settings record (op_bt.c bt_rec_out). Hardware-untested:
- * the radio handed from BLE to BR/EDR and back is not measured, and the security step (SSP, E0) is not written, so a
+ * BLE and BR/EDR side by side on the one radio are not measured (docs/BT-CLASSIC.md §9.1), and the security step (SSP, E0) is not written, so a
  * real sink refuses the audio channel (BTA_S_REFUSED) */
 /* (the states, the device list and the calls are in bt_audio.h: the screen, included before this, reads them) */
 static int bta_find(const uint8_t a[6])                 /* its index in the list, -1 */
@@ -68,11 +68,8 @@ static int bta_page(const uint8_t a[6])
     bti_defaults();                                     /* (the console's options: TX power, gain, priority, the sweep) */
     return bp_start(a, BTA_PAGE_SLOTS);
 }
-static void bta_start(uint32_t m)
+static void bta_start(uint32_t m)                       /* (BLE MIDI left as it is: both run on the one radio, rf_share.h) */
 {
-#if FELUCCA_BLE
-    ble_midi_set(0);                                    /* (the radio is BR/EDR's while an AUDIO mode runs) */
-#endif
     bta_stop();
     bta.mode = (uint8_t)m;
     bta.tried = 0;

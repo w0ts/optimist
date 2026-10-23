@@ -2,8 +2,8 @@
 /* A build with Bluetooth Classic audio and no BLE MIDI (BT_AUDIO without BLE, the user 2026-10-20: the Bluetooth page
  * "should adapt and show only what is baked in the firmware"): SYSTEM > Bluetooth (ui/optimist/op_bt.c, op_project.c)
  * is built with either, and its MIDI side reads these instead of midi_ble.c and io/midi/ble_devices.c: the radio
- * never on for MIDI, no device, no list. The page offers no MIDI mode in such a build (op_project.c BT_MODES), so
- * none of this is reached but the read-outs. Included by felucca.c in place of midi_ble.c. */
+ * never on for MIDI, no device, no list. Such a build has no BT MIDI page (op_project.c SYS), so none of this is
+ * reached but the read-outs. Included by felucca.c in place of midi_ble.c. */
 #include "../../ble/ble_util.h"                         /* (ble_eq, ble_cpy: the page and bt_audio.c compare addresses) */
 #define BLE_CENTRAL 0                                   /* (no scanner, no LAST: midi_ble.c defines it from the build) */
 #define BLE_SCAN_N 8u                                   /* (ble/ble_scan.h's sizes: the page's buffers) */

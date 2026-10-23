@@ -64,7 +64,7 @@ static void glo_list_tests(void)
 #if FELUCCA_USB_AUDIO
                                      "USB STATS",         /* (the USB audio counters) */
 #endif
-                                     "SCREEN", "AUDIO", "KEYS", "USB", "BLUETOOTH", "DEVICES", "USB AUDIO", "CALIBRATE", "ABOUT", "CREDITS"};
+                                     "SCREEN", "AUDIO", "KEYS", "USB", "BT MIDI", "BT AUDIO", "DEVICES", "USB AUDIO", "CALIBRATE", "ABOUT", "CREDITS"};
     cell_t want[GL_MAXL], c;
     char sec[GL_MAXL][12], nm[12];
     uint32_t s, i, n, ok = 1;
@@ -261,7 +261,7 @@ static void glo_tests(void)
 #if FELUCCA_BLE
         bt.boot = 1;
         ble_store_reset(&ble_store);
-        bt_enter(1);                                    /* (MIDI, nothing remembered: SAVE opens the devices list) */
+        bt_enter(BT_MIDI, 1);                                    /* (MIDI, nothing remembered: SAVE opens the devices list) */
         w = line_named(SCR_SYSTEM, "MODE");
         frame();
         tap(B_SAVE);
@@ -272,7 +272,7 @@ static void glo_tests(void)
         tap(B_HOME);
         check(ok && !dev_listing() && ui.scr == SCR_SYSTEM && ui.row[SCR_SYSTEM] == w,
               "Bluetooth: SAVE on the page, nothing remembered, opens the list, SELECT moves its cursor (no track), HOME back to the MODE line");
-        bt_enter(0);
+        bt_enter(BT_MIDI, 0);
 #endif
     }
     reset_ui();

@@ -2,7 +2,8 @@
 /* EXPERIMENTAL Bluetooth Classic (BR/EDR) inquiry (builder item BT_AUDIO, FELUCCA_BT_AUDIO): stage 1 of our own
  * Classic stack, docs/BT-CLASSIC.md §14. Written only from that fact sheet (cited as "BR §n") and
  * the Core specification; no vendor code. Included by io/console.c with the CDC console (USB_CONSOLE), else by
- * felucca.c; the radio carries BLE or BR/EDR, one at a time (bt_audio.c hands it over). The registers are hal/fm1_bredr.h's.
+ * felucca.c; the radio carries BLE and BR/EDR at the same time (one start-up, ble/rf_share.h; the arbitration: §9.1 and
+ * BTI_ACL_PRIO below). The registers are hal/fm1_bredr.h's.
  *
  *   1a  the BR/EDR block's clock and interrupts, by `btclk run` (the console): the radio's start-up
  *       with the stored trims (hal/fm1_ble.h, the VM only), the BR/EDR init (BR §10.2), then 3 s of the slot clock
@@ -25,6 +26,7 @@
  * writes flash. */
 #include "fm1_ble.h"                               /* the radio's start-up (fm1_ble_rf_init), the LE block's init */
 #include "fm1_bredr.h"                             /* the BR/EDR block */
+#include "../ble/rf_share.h"                       /* the radio started once, shared with BLE (ble/ble_hw_wl82.c) */
 #if !FELUCCA_BLE
 #include "../ble/ble_vm.c"                         /* the stored trims in stock V15's VM (read only) */
 #endif
@@ -44,6 +46,15 @@ void ble_wl82_rx_irq(void) {}
 #define BTI_RUN_PRIO 5u                            /* during a run (prio=N): above the audio (3) and TIMER5 (4), so a
                                                     * page answer is reprogrammed within the slot (BR §6.5) */
 #define BTI_CLK FM1_BR_CLK_MASK
+/* the radio's arbitration between BLE and BR/EDR (docs/BT-CLASSIC.md §9.1): each engine asks for the radio with a priority
+ * word, the higher one wins a slot both want [I: stock V15's values, never measured against each other]. Stock's order is
+ * kept, so the two stacks run side by side as stock's would: eSCO 29 > a BLE connection event 28 (30 around an instant)
+ * > BLE advertising 26 > BR/EDR ACL (A2DP) 20 > BLE advertising in sniff 19 > BLE scanning 17 (ble_hw_wl82.c cb_rfprio).
+ * A BLE connection event is short (a packet or two each 7.5-30 ms) and has no second chance before the next interval;
+ * an ACL packet lost to it is sent again by the baseband's ARQ and the SBC ring has room, so BLE MIDI goes first. The
+ * scan for MIDI devices (17) gives way to the audio. */
+#define BTI_ACL_PRIO 20u                           /* (a byte each for the two buffers: 0x1414) */
+#define BTI_ESCO_PRIO 29u                          /* (unused: no SCO / eSCO link) */
 
 /* the table (BR §3), then our own TX buffers inside the engine's 32 KB window */
 #define BTI_OFF_FHS_TX 4200u                       /* the inquiry scan's FHS payload (18 B) */
@@ -177,6 +188,11 @@ static int bti_radio_up(void)                      /* the radio's start-up, once
     struct ble_rf_trims t;
     if (bti_st.rf_up)
         return 1;
+    if (rfs_is_up()) {                             /* (BLE started it, with the same stored trims: not started again
+                                                    * under BLE's link; rf_share.h) */
+        bti_st.rf_up = 1;
+        return 1;
+    }
     if (!ble_vm_scan(bti_vm_rd, 0, &info, &t, 0, 0)) {
         bti_st.phase = BTI_NO_TRIMS;
         return 0;
@@ -185,7 +201,7 @@ static int bti_radio_up(void)                      /* the radio's start-up, once
     dual_radio_hold();                             /* (CPU1 not running while the radio's start-up program runs, as BLE's:
                                                     * system/dual.c; unheld, CPU1 did not come back, 2026-10-20) */
 #endif
-    fm1_ble_rf_init(t.x106, t.x107, t.x108, t.x187);
+    (void)rfs_rf_up(t.x106, t.x107, t.x108, t.x187);
 #if FELUCCA_DUAL >= 2
     dual_radio_release();
 #endif
@@ -205,14 +221,15 @@ static void bti_bredr_up(void)
     bti.bredr_up = 1;
 }
 
-static void bti_le_up(void)                        /* the LE block enabled as stock V15 does after BR/EDR (BLE-HW-FACTS §5.5), no link */
+static void bti_le_up(void)                        /* the LE block enabled as stock V15 does after BR/EDR (BLE-HW-FACTS §5.5), no link;
+                                                    * with BLE up it is BLE's (enabled, its window, its interrupts): left as it is */
 {
     uint32_t i;
     if (bti.le_up)
         return;
     for (i = 0; i < sizeof bti_le_bb; i++)
         bti_le_bb[i] = 0;
-    fm1_ble_bb_init((uint32_t)(uintptr_t)bti_le_bb, sizeof bti_le_bb);
+    (void)rfs_le_br((uint32_t)(uintptr_t)bti_le_bb, sizeof bti_le_bb);
     bti.le_up = 1;
 }
 
@@ -527,8 +544,8 @@ static void bti_frame_defaults(struct fm1_br_frame *f)   /* BR §4 "allocator de
     f->rxmaxbuf = 0x300u;
     f->txphdr[0] = 0x6007u;
     f->txphdr[1] = 0x6007u;
-    f->aclprio = 0x1414u;
-    f->escoprio = 0x1D1Du;
+    f->aclprio = (uint16_t)(BTI_ACL_PRIO * 0x101u);  /* 0x1414 */
+    f->escoprio = (uint16_t)(BTI_ESCO_PRIO * 0x101u);   /* 0x1D1D */
     f->bufcntl = 0x202Cu;
     bti.agc = bti.o_agc == 0xFFu ? 8u : bti.o_agc;   /* (the library's first step: 8) */
     f->rxgain0 = bti.agc;

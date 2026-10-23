@@ -417,10 +417,12 @@
       "BUTTONS": "Buttons glow in the dark", "KEYS": "Which keys glow"}},
     {"kind": "op", "ctx": "AUDIO", "params": {"LOWCUT": "Output low cut or bass boost", "FILT RESO": "Track filter resonance"}},
     {"kind": "op", "ctx": "USB", "if": "FELUCCA_CDC", "params": {"SERIAL": "USB serial console (restart)"}},
-    {"kind": "op", "ctx": "BLUETOOTH", "if": "FELUCCA_BLE", "params": {
+    {"kind": "op", "ctx": "BT MIDI", "if": "FELUCCA_BLE", "params": {
       "MODE": "AUTO: last device at start", "DEVICE": "SAVE connects / lets go",
-      "STATE": "Hold SAVE: forget the device", "ACTIVITY": "Bluetooth MIDI in / out now",
-      "FORMAT": "The sound sent: SBC 44.1 kHz"}},
+      "STATE": "Hold SAVE: forget the device", "ACTIVITY": "Bluetooth MIDI in / out now"}},
+    {"kind": "op", "ctx": "BT AUDIO", "if": "FELUCCA_BT_AUDIO", "params": {
+      "MODE": "AUTO: last device at start", "DEVICE": "SAVE connects / lets go",
+      "STATE": "Hold SAVE: forget the device", "FORMAT": "The sound sent: SBC 44.1 kHz"}},
     {"kind": "op", "ctx": "USB AUDIO", "if": "FELUCCA_USB_AUDIO", "params": {
       "MASTER": "Master to USB inputs", "T1": "Track 1 to USB inputs", "T2": "Track 2 to USB inputs",
       "T3": "Track 3 to USB inputs", "DRUMS": "Drums to USB inputs", "DRUM BUS": "Drum bus to USB inputs",

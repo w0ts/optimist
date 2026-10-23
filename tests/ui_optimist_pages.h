@@ -45,7 +45,7 @@ static void pages_nav_tests(void)
 #if FELUCCA_BLE
         bt.boot = 1;
         ble_store_reset(&ble_store);
-        bt_enter(1);                                    /* (MIDI, nothing remembered: SAVE opens the devices list) */
+        bt_enter(BT_MIDI, 1);                                    /* (MIDI, nothing remembered: SAVE opens the devices list) */
         op_enter(SCR_SYSTEM);
         line_named(SCR_SYSTEM, "MODE");
         frame();
@@ -53,7 +53,7 @@ static void pages_nav_tests(void)
         i = (uint32_t)dev_listing();
         tap(B_GLO);
         check(i && !dev_listing() && ui.scr == SCR_GLOBAL, "D1: GLO on the BLE devices list (SYSTEM): GLOBAL, the list closed");
-        bt_enter(0);
+        bt_enter(BT_MIDI, 0);
         tap(B_HOME);
 #endif
     }

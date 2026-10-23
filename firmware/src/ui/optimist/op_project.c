@@ -43,19 +43,20 @@ static uint32_t hu(uint32_t h, uint32_t v);
 static const char *cut(char *b, const char *s, uint32_t n);
 static const felucca_font_t *font_big(void);            /* op_graph.c */
 
-static void bt_scan(int on);                            /* op_bt.c */
-static uint32_t bt_rows(void);
-static void bt_row(uint32_t i, char nm[BLE_NAME_MAX + 1u], const char **tag, int32_t *bars);
-static void bt_pick(uint32_t i);
-static int bt_audio(void);
-static uint32_t bt_list_line(char *b, uint32_t room);
-static uint32_t bt_list_line_name_at(void);
-static uint32_t bt_list_sig(void);
+enum { BT_MIDI, BT_AUD };                               /* the two Bluetooth pages' sides (op_bt.c): BT MIDI, BT AUDIO */
+static void bt_scan(uint32_t a, int on);                /* op_bt.c */
+static uint32_t bt_rows(uint32_t a);
+static void bt_row(uint32_t a, uint32_t i, char nm[BLE_NAME_MAX + 1u], const char **tag, int32_t *bars);
+static void bt_pick(uint32_t a, uint32_t i);
+static uint32_t bt_list_line(uint32_t a, char *b, uint32_t room);
+static uint32_t bt_list_line_name_at(uint32_t a);
+static uint32_t bt_list_sig(uint32_t a);
 static int dev_listing(void) { return bdv.open != 0u && ui.scr == SCR_SYSTEM; }
-static uint32_t dev_rows(void) { return bt_rows(); }
-static void dev_open(void)
+static uint32_t dev_side(void) { return bdv.open == 2u ? BT_AUD : BT_MIDI; }   /* (the list open is that page's) */
+static uint32_t dev_rows(void) { return bt_rows(dev_side()); }
+static void dev_open(uint32_t a)                        /* side a's devices list (bdv.open: 1 MIDI, 2 AUDIO) */
 {
-    bdv.open = 1;
+    bdv.open = (uint8_t)(a + 1u);
     bdv.first = 0;
     bdv.key_ok = 0;
     bdv.sys_row = ui.row[SCR_SYSTEM];
@@ -63,15 +64,15 @@ static void dev_open(void)
     ui.hot = 0;
     ui.hot_lit = 0;
     op_disarm();
-    bt_scan(1);                                         /* (the scan starts) */
+    bt_scan(a, 1);                                      /* (the scan starts) */
     ui.force = 1;
 }
 static void dev_close(void)
 {
     if (!bdv.open)
         return;
+    bt_scan(dev_side(), 0);                             /* (the scan stops, advertising goes on) */
     bdv.open = 0;
-    bt_scan(0);                                         /* (the scan stops, advertising goes on) */
     bdp.act.i = bmi_w, bdp.act.o = bmo_w;               /* (the MIDI line's counters take the status line's place: dark) */
     bdp.act.ti = bdp.act.to = fm1_ms - BLE_ACT_MS;
     ui.row[SCR_SYSTEM] = bdv.sys_row;
@@ -84,7 +85,7 @@ static void dev_cell(uint32_t r, uint32_t k, cell_t *c) { (void)r, (void)k, cell
 static int dev_yes(uint32_t r, uint32_t ok)             /* SAVE on a row: connect to it, back to the page */
 {
     (void)ok;
-    bt_pick(r);
+    bt_pick(dev_side(), r);
     dev_close();
     return 1;
 }
@@ -117,7 +118,7 @@ static void dev_paint(void)                             /* the panel's band in i
         int32_t y = (int32_t)(i - bdp.first) * DEV_ROW_H, right = wide - 4, room, bars;
         int on = i == bdp.cur;
         const char *tag;
-        bt_row(i, nm, &tag, &bars);
+        bt_row(dev_side(), i, nm, &tag, &bars);
         if (on)
             cv_rect(0, y, wide, DEV_ROW_H - 1, cur_bg(bdp.bar));   /* the cursor row: the track's colour, its ink */
         if (bars >= 0 && (!tag[0] || str_len(tag) <= 4u)) {   /* (CONNECTED / CONNECTING / PAIRING take the bars' place) */
@@ -158,7 +159,7 @@ static void dev_draw(uint32_t y, uint32_t h)
 {
     uint32_t sig;
     char b[sizeof bdp.st];
-    bdp.n = bt_rows();
+    bdp.n = dev_rows();
     if (ui.row[SCR_SYSTEM] >= bdp.n && bdp.n)
         ui.row[SCR_SYSTEM] = (uint8_t)(bdp.n - 1u);     /* (the list shrank) */
     bdp.cur = ui.row[SCR_SYSTEM];
@@ -172,7 +173,7 @@ static void dev_draw(uint32_t y, uint32_t h)
         bdp.first = bdp.n > bdp.shown ? bdp.n - bdp.shown : 0u;
     bdv.first = (uint8_t)bdp.first;
     bdv.key_ok = 0;
-    if (!bt_audio() && bdp.cur < bdp.n) {               /* (MIDI: what is highlighted, SAVE picks it by what it is) */
+    if (dev_side() == BT_MIDI && bdp.cur < bdp.n) {               /* (MIDI: what is highlighted, SAVE picks it by what it is) */
         ble_dev_key_of(bdp.cur + 1u, &bdv.key);
         bdv.key_row = (uint8_t)bdp.cur;
         bdv.key_ok = 1;
@@ -182,9 +183,9 @@ static void dev_draw(uint32_t y, uint32_t h)
 #if BLE_CENTRAL
     bdp.key = ble_connect_passkey();
 #endif
-    bdp.tone = bt_list_line(b, sizeof b);
-    dev_line_text(bdp.st, sizeof bdp.st, b, bt_list_line_name_at());
-    sig = hu(hs(hu(hu(hu(bt_list_sig(), bdp.cur), bdp.first), bdp.bar), bdp.st), h) | 1u;
+    bdp.tone = bt_list_line(dev_side(), b, sizeof b);
+    dev_line_text(bdp.st, sizeof bdp.st, b, bt_list_line_name_at(dev_side()));
+    sig = hu(hs(hu(hu(hu(bt_list_sig(dev_side()) + bdv.open, bdp.cur), bdp.first), bdp.bar), bdp.st), h) | 1u;
     if (sig == ui.sig[2])
         return;
     ui.sig[2] = sig;
@@ -195,77 +196,50 @@ static void dev_draw(uint32_t y, uint32_t h)
  * but the activity's two counters */
 static int32_t sys_step(int32_t v, int32_t s, int32_t max);
 #define bact bdp.act                                    /* (in the list's drawing state: the list and this line are never both shown) */
-static const char *const BLE_MODES[5] = {"OFF", "MIDI MAN", "MIDI AUTO", "AUDIO MAN", "AUDIO AUTO"};
-static uint8_t ble_ui_mode;
+#include "op_bt.c"                                      /* the one pattern for both pages: SAVE, AUTO, the lists' rows */
 
-static void ble_mode_sync(void)                         /* the radio switched elsewhere (a pick with it off, NO CAL): MODE
-                                                         * follows; else MODE is the choice (op_bt.c, kept in the record) */
+static void ble_mode_sync(void)                         /* the radio switched elsewhere (a pick with it off, NO CAL): BT MIDI's
+                                                         * MODE follows; else MODE is the choice (op_bt.c, kept in the record) */
 {
-    if (ble_ui_mode && ble_ui_mode < 3u && !ble_on)
-        ble_ui_mode = 0;
-    else if (!ble_ui_mode && ble_on)
-        ble_ui_mode = 1;
+    if (bt_mode(BT_MIDI) && !ble_on)
+        bt_mode_put(BT_MIDI, BT_OFF);
+    else if (!bt_mode(BT_MIDI) && ble_on)
+        bt_mode_put(BT_MIDI, BT_MAN);
 }
-#include "op_bt.c"                                      /* the one pattern for MIDI and AUDIO: SAVE, AUTO, the list's rows */
-
-static void ble_mode_cell(cell_t *c)
+/* MODE on side a's page: OFF, MAN, AUTO (NO CAL: the radio's stored trims missing) */
+static void bt_mode_cell(uint32_t a, cell_t *c)
 {
-    ble_mode_sync();
+    static const char *const M[3] = {"OFF", "MAN", "AUTO"};
+    uint32_t m;
+    if (a == BT_MIDI)
+        ble_mode_sync();
+    m = bt_mode(a);
     c->kind = CK_VAL;
     c->label = "MODE";
     c->big = 1;
-    cell_val(c, !ble_radio_ok() && ble_ui_mode ? "NO CAL" : BLE_MODES[ble_ui_mode % 5u]);
-    c->col = ble_ui_mode && !ble_radio_ok() ? C_WARN : 0;
+    cell_val(c, !ble_radio_ok() && m ? "NO CAL" : M[m % 3u]);
+    c->col = m && !ble_radio_ok() ? C_WARN : 0;
 }
-
-/* the modes this build has (the user, 2026-10-20: "the page should adapt and show only what is baked in the
- * firmware"): MIDI's with BLE, AUDIO's with BT_AUDIO */
-static const uint8_t BT_MODES[] = {0u,
-#if FELUCCA_BLE
-                                   1u, 2u,
-#endif
-#if FELUCCA_BT_AUDIO
-                                   3u, 4u,
-#endif
-};
-static void ble_mode_set(int32_t s)
+static void bt_mode_set(uint32_t a, int32_t s)          /* a detent a mode, stopping at the ends; YES round */
 {
-    uint32_t i = 0, n = sizeof BT_MODES;
-    ble_mode_sync();
-    while (i + 1u < n && BT_MODES[i] != ble_ui_mode)
-        i++;
-    bt_enter(BT_MODES[sys_step((int32_t)i, s, (int32_t)n - 1)]);
+    if (a == BT_MIDI)
+        ble_mode_sync();
+    bt_enter(a, (uint32_t)sys_step((int32_t)bt_mode(a), s, BT_AUTO));
 }
 
 static const char *const BLE_ST[9] = {"OFF", "ADVERTISING", "CONNECTED", "NO CAL", "SCANNING", "CONNECTING", "SEARCHING",
                                       "PAIRING", "FAILED"};   /* (ble_dev_status's codes) */
-#if FELUCCA_BT_AUDIO
-static const char *const BTA_ST[12] = {"OFF", "SCANNING", "NOT CONNECTED", "NOT CONNECTED", "CONNECTING", "SETTING UP",
-                                       "SETTING UP", "CONNECTED", "REFUSED", "NOT CONNECTED", "NOT CONNECTED", "NOT CONNECTED"};
-                                                        /* (bt_audio.c BTA_S_*, said as MIDI says them) */
-#endif
-static void ble_state_cell(cell_t *c)
+static void ble_state_cell(cell_t *c)                   /* BT MIDI's STATE */
 {
     uint32_t s = ble_dev_status();
-#if FELUCCA_BT_AUDIO
-    if (ble_ui_mode >= 3u) {                            /* an AUDIO mode: the Classic link's state */
-        uint32_t a = bta_state();
-        c->kind = CK_RO;
-        c->label = "STATE";
-        c->big = 1;
-        cell_val(c, bt.want ? "CONNECTING" : a == BTA_S_STREAMING && !bta_out_bt() ? "INTERNAL OUT" : BTA_ST[a % 12u]);
-        c->col = a == BTA_S_STREAMING ? C_OK : a == BTA_S_REFUSED ? C_ERR : 0;
-        return;
-    }
-#endif
     c->kind = CK_RO;
     c->label = "STATE";
     c->big = 1;
     cell_val(c, ble_on && !ble_up && s == 0u ? "STARTING" : BLE_ST[s % 9u]);
     c->col = s == 2u ? C_OK : s == 3u ? C_WARN : s == 8u ? C_ERR : 0;
 }
-/* the device the link is with (or being made with, or searched for): its name as advertised; HOST, a computer or phone that
- * connected to the FM-1 (its name is not known); NONE */
+/* BT MIDI's DEVICE: the device the link is with (or being made with, or searched for), its name as advertised; HOST, a
+ * computer or phone that connected to the FM-1 (its name is not known); NONE */
 static void ble_peer_cell(cell_t *c)
 {
     char nm[40];
@@ -273,28 +247,25 @@ static void ble_peer_cell(cell_t *c)
     c->kind = CK_RO;
     c->label = "DEVICE";
 #if BLE_CENTRAL
-    if (!bt_audio() && ble_on && ble_up && ble_connect_status(nm, sizeof nm) != RCS_NONE && rc_nm_at < str_len(nm))
+    if (ble_on && ble_up && ble_connect_status(nm, sizeof nm) != RCS_NONE && rc_nm_at < str_len(nm))
         v = nm + rc_nm_at;                              /* (connecting / pairing / connected to a pick) */
     else
 #endif
-    if (bt_has_last())
-        bt_last_name(nm), v = nm;
-    else if (!bt_audio() && ble_on && ble_connected())
+    if (bt_has_last(BT_MIDI))
+        bt_last_name(BT_MIDI, nm), v = nm;
+    else if (ble_on && ble_connected())
         v = "HOST";
     cell_val(c, v);
     c->big = str_len(c->val) <= 9u;                     /* (a longer name in the small face; 13 characters of it shown) */
-    c->col = bt_linked() ? C_OK : 0;
+    c->col = bt_linked(BT_MIDI) ? C_OK : 0;
 }
-static void ble_midi_cell(cell_t *c)
+static void ble_midi_cell(cell_t *c)                    /* BT MIDI's ACTIVITY: IN, OUT, lit a moment after a message */
 {
     ble_mode_sync();
     c->kind = CK_RO;
     c->big = 1;
-    if (ble_ui_mode >= 3u || !FELUCCA_BLE) {           /* (no BLE: the audio's line, whatever the mode) */
-        c->label = "FORMAT";
-        cell_val(c, "SBC 44.1k");
-        c->col = C_OK;
-    } else if (ble_on) {
+    c->label = "ACTIVITY";
+    if (ble_on) {
         uint32_t in, out;
         if (bmi_w != bact.i)
             bact.i = bmi_w, bact.ti = fm1_ms;
@@ -302,15 +273,45 @@ static void ble_midi_cell(cell_t *c)
             bact.o = bmo_w, bact.to = fm1_ms;
         in = fm1_ms - bact.ti < BLE_ACT_MS;
         out = fm1_ms - bact.to < BLE_ACT_MS;
-        c->label = "ACTIVITY";
         cell_val(c, in && out ? "IN OUT" : in ? "IN" : out ? "OUT" : "--");
         c->col = in || out ? C_OK : 0;
     } else {
-        c->label = "ACTIVITY";
         cell_val(c, "--");
         c->col = 0;
     }
 }
+#if FELUCCA_BT_AUDIO
+static const char *const BTA_ST[12] = {"OFF", "SCANNING", "NOT CONNECTED", "NOT CONNECTED", "CONNECTING", "SETTING UP",
+                                       "SETTING UP", "CONNECTED", "REFUSED", "NOT CONNECTED", "NOT CONNECTED", "NOT CONNECTED"};
+                                                        /* (bt_audio.c BTA_S_*, said as MIDI says them) */
+static void bta_state_cell(cell_t *c)                   /* BT AUDIO's STATE: the Classic link's */
+{
+    uint32_t s = bta_state();
+    c->kind = CK_RO;
+    c->label = "STATE";
+    c->big = 1;
+    cell_val(c, bt_wants(BT_AUD) ? "CONNECTING" : s == BTA_S_STREAMING && !bta_out_bt() ? "INTERNAL OUT" : BTA_ST[s % 12u]);
+    c->col = s == BTA_S_STREAMING ? C_OK : s == BTA_S_REFUSED ? C_ERR : 0;
+}
+static void bta_peer_cell(cell_t *c)                    /* BT AUDIO's DEVICE: the last device (the one connected or paged), NONE */
+{
+    char nm[BLE_NAME_MAX + 1u];
+    c->kind = CK_RO;
+    c->label = "DEVICE";
+    bt_last_name(BT_AUD, nm);
+    cell_val(c, nm[0] ? nm : "NONE");
+    c->big = str_len(c->val) <= 9u;
+    c->col = bt_linked(BT_AUD) ? C_OK : 0;
+}
+static void bta_fmt_cell(cell_t *c)                     /* BT AUDIO's FORMAT */
+{
+    c->kind = CK_RO;
+    c->big = 1;
+    c->label = "FORMAT";
+    cell_val(c, "SBC 44.1k");
+    c->col = C_OK;
+}
+#endif
 #if BLE_CENTRAL
 static void ble_auto_cell(cell_t *c)                    /* RECONNECT: LAST's name when it is the choice, else OFF (NONE); a
                                                          * read-out while there is no LAST (nothing to choose) */
@@ -360,7 +361,7 @@ static int ble_forget_yes(uint32_t r, uint32_t k, uint32_t ok)   /* FORGET LAST:
 enum { SI_NONE, SI_BRIGHT, SI_LIGHTS, SI_KEYS, SI_LOWCUT, SI_OUT, SI_SYNC, SI_CH1, SI_CH2,
        SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_HOLD, SI_BLE, SI_KCOL, SI_CLKOUT, SI_CPU1, SI_INFO, SI_BATT, SI_BUILD, SI_REPO,
        SI_DROPS, SI_GUARD, SI_UAINFO, SI_XRUN, SI_DIAG, SI_CREDITS, SI_BLEST, SI_BLEPEER, SI_BLEMIDI, SI_BLELIST, SI_BLEAUTO,
-       SI_BLEFGT, SI_FRESO,
+       SI_BLEFGT, SI_FRESO, SI_BTA, SI_BTAPEER, SI_BTAFMT, SI_BTAST,
        SI_UAS0 };                                       /* SI_UAS0 + s: USB AUDIO's line of source s (ua_tap.h UAS_*), last */
 /* a core's load number (% of the audio budget) in its colour: green under 60, amber 60..85, red over 85 (the predictive guard's
  * ceiling, system/cpuguard.c CG_CEIL = 85 %: above it the guard sheds quality / voices). Text only (INFO draws no bars). */
@@ -440,8 +441,11 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
 #if FELUCCA_CDC
     {"USB", {SI_USB, SI_NONE, SI_NONE, SI_NONE}},
 #endif
-#if FELUCCA_BT_UI
-    {"BLUETOOTH", {SI_BLE, SI_BLEPEER, SI_BLEMIDI, SI_BLEST}},   /* 1 screen: MODE, DEVICE, ACTIVITY/FORMAT, STATE */
+#if FELUCCA_BLE                                         /* (Bluetooth, a page a side, each with its item: op_bt.c) */
+    {"BT MIDI", {SI_BLE, SI_BLEPEER, SI_BLEMIDI, SI_BLEST}},   /* MODE, DEVICE, ACTIVITY, STATE */
+#endif
+#if FELUCCA_BT_AUDIO
+    {"BT AUDIO", {SI_BTA, SI_BTAPEER, SI_BTAFMT, SI_BTAST}},   /* MODE, DEVICE, FORMAT, STATE */
 #endif
 #if FELUCCA_USB_AUDIO
     /* where each source goes (the user, 2026-10-17: "each track, including master, can be assigned to none, 1, 2, 1+2, 3, 4,
@@ -592,8 +596,22 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
 #endif
 #if FELUCCA_BT_UI
     case SI_BLE:
-        ble_mode_cell(c);
+        bt_mode_cell(BT_MIDI, c);
         break;
+#if FELUCCA_BT_AUDIO
+    case SI_BTA:
+        bt_mode_cell(BT_AUD, c);
+        break;
+    case SI_BTAST:
+        bta_state_cell(c);
+        break;
+    case SI_BTAPEER:
+        bta_peer_cell(c);
+        break;
+    case SI_BTAFMT:
+        bta_fmt_cell(c);
+        break;
+#endif
     case SI_BLEST:
         ble_state_cell(c);
         break;
@@ -1150,9 +1168,12 @@ static void sys_set(uint32_t it, int32_t s)
         break;
 #endif
 #if FELUCCA_BT_UI
-    case SI_BLE:                                        /* MODE: OFF, MIDI MAN, MIDI AUTO, AUDIO MAN, AUDIO AUTO, a detent a
-                                                         * mode (YES: round; OFF: a connected central is let go) */
-        ble_mode_set(s);
+    case SI_BLE:                                        /* BT MIDI's MODE: OFF, MAN, AUTO, a detent a mode (YES: round; OFF:
+                                                         * a connected central is let go) */
+        bt_mode_set(BT_MIDI, s);
+        break;
+    case SI_BTA:                                        /* BT AUDIO's MODE: the same, BT MIDI left as it is */
+        bt_mode_set(BT_AUD, s);
         break;
 #if BLE_CENTRAL
     case SI_BLEAUTO:                                    /* (kept in the device store, saved with the settings: ble_devices.c) */
@@ -1254,12 +1275,16 @@ static int sys_yes(uint32_t r, uint32_t k, uint32_t ok)
 #if FELUCCA_BT_UI
     if (bdv.open)
         return dev_yes(r, ok);
-    if (it == SI_BLE || it == SI_BLEPEER || it == SI_BLEST || it == SI_BLEMIDI) {   /* the Bluetooth page, any line */
-        bt_save();
+    if (it == SI_BLE || it == SI_BLEPEER || it == SI_BLEST || it == SI_BLEMIDI) {   /* the BT MIDI page, any line */
+        bt_save(BT_MIDI);
+        return 1;
+    }
+    if (it == SI_BTA || it == SI_BTAPEER || it == SI_BTAST || it == SI_BTAFMT) {   /* the BT AUDIO page, any line */
+        bt_save(BT_AUD);
         return 1;
     }
     if (it == SI_BLELIST) {                             /* DEVICES: the devices nearby */
-        dev_open();
+        dev_open(BT_MIDI);
         return 1;
     }
 #if BLE_CENTRAL

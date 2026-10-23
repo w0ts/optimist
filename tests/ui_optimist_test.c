@@ -128,6 +128,7 @@ static int32_t abuf[2u * HALF_WORDS];
 static uint32_t fm1_audio_free_half(void) { return 0; }
 #include "../firmware/src/ui/meters.c"
 #include "ble_ui_stubs.h"                      /* the radio: midi_ble.c state, ble_devices.c over a stand-in link layer */
+#include "bta_ui_stubs.h"                      /* with FELUCCA_BT_AUDIO: Bluetooth audio's state and calls, recorded */
 #if DUAL_LOAD && !FELUCCA_DUAL                 /* (the readout without the second core: system/dual.c's state the UI reads) */
 #include "../firmware/src/system/dual_mode.h"
 static uint8_t dual_mode;                      /* the 2ND CORE setting */
@@ -408,7 +409,8 @@ static void forms_of(uint32_t scr)
                                                                  !strcmp(c.label, " "))) ||   /* (text: no range) */
                    (scr == SCR_SYSTEM && c.kind == CK_VAL && sys_item_of(r, k) >= SI_UAS0) ||   /* (USB AUDIO's channels: a list of
                                                          * names, text only) */
-                   (scr == SCR_SYSTEM && sys_item_of(r, k) == SI_BLE) ||   /* (Bluetooth's MODE: OFF, MIDI MAN ... words) */
+                   (scr == SCR_SYSTEM && (sys_item_of(r, k) == SI_BLE || sys_item_of(r, k) == SI_BTA)) ||   /* (BT MIDI's and BT
+                                                         * AUDIO's MODE: OFF, MAN, AUTO, words) */
                    (scr == SCR_SONG && !(c.val[0] >= '0' && c.val[0] <= '9'));   /* (SONG: "KEEP", "--", "SEC") */
             if ((c.kind == CK_VAL || c.kind == CK_RO) && !name && c.gk == GK_NONE) {
                 printf("  no form: screen %u row %u cell %u '%s'\n", scr, r, k, c.label ? c.label : "");
