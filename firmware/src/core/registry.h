@@ -77,17 +77,46 @@
 #ifndef FELUCCA_ENG_PLAITS
 #define FELUCCA_ENG_PLAITS 0               /* PLAITS (Mutable Instruments Plaits' models, MIT: engines/plaits/eng_plaits.c) */
 #endif
+/* Clipper's engines (isod89/clipper-fm1, GPL-3.0-only: engines/clipper/), one builder item each */
+#ifndef FELUCCA_ENG_STRINGS
+#define FELUCCA_ENG_STRINGS 0              /* STRINGS (a 1970s string machine: engines/clipper/eng_strings.c) */
+#endif
+#ifndef FELUCCA_ENG_VPS
+#define FELUCCA_ENG_VPS 0                  /* VPS (vector phaseshaping: engines/clipper/eng_vps.c) */
+#endif
+#ifndef FELUCCA_ENG_TERRAIN
+#define FELUCCA_ENG_TERRAIN 0              /* TERRAIN (wave terrain: engines/clipper/eng_terrain.c) */
+#endif
+#ifndef FELUCCA_ENG_WSEQ
+#define FELUCCA_ENG_WSEQ 0                 /* WSEQ (Wavestation-style wave sequencing: engines/clipper/eng_wseq.c) */
+#endif
+#ifndef FELUCCA_ENG_VECTOR
+#define FELUCCA_ENG_VECTOR 0               /* VECTOR (Prophet VS-style vector synthesis: engines/clipper/eng_vector.c) */
+#endif
+#ifndef FELUCCA_ENG_SID
+#define FELUCCA_ENG_SID 0                  /* SID (reSID 0.16 via Mini-Tone, GPL-2.0-or-later data: engines/sid/eng_sid.c) */
+#endif
+#ifndef FELUCCA_ENG_PROPHET
+#define FELUCCA_ENG_PROPHET 0              /* PROPHET (a Prophet-5 style voice, Melodee's DSP: engines/prophet/) */
+#endif
+#ifndef FELUCCA_ENG_WAVE
+#define FELUCCA_ENG_WAVE 0                 /* WAVE (Clipper's wavetables, one table for every WAVE track: engines/clipper/eng_wave.c) */
+#endif
 
 /* X(uid, NAME, fallback uid, the ENG list name): the UID is the engine's number in FUN7 projects and UPB2 user
- * presets. Fallbacks: FM6 -> DIGITAL -> ANALOG, GRAIN -> SAMPLE -> ANALOG, SLICE -> SAMPLE, CZ -> PHASE, the rest (JUNO, NOISE, DRONE, PLAITS too) -> ANALOG;
+ * presets. Fallbacks: FM6 -> DIGITAL -> ANALOG, GRAIN -> SAMPLE -> ANALOG, SLICE -> SAMPLE, CZ -> PHASE, VPS -> PHASE, SID -> LOFI, the rest
+ * (JUNO, NOISE, DRONE, PLAITS, STRINGS, TERRAIN, WSEQ, VECTOR, PROPHET, WAVE too) -> ANALOG;
  * with ANALOG absent too, the first engine built. Order = ENGINES[] order (the slots). */
 #if FELUCCA_ANALOG2
 #define ENGINE_LIST(X) X(0, ANALOG, 0, "ANALOG") X(1, DIGITAL, 0, "DIGITAL") X(2, PHASE, 0, "PHASE") \
     X(3, LOFI, 0, "LOFI") X(4, SAMPLE, 0, "SAMPLE") X(5, FORMANT, 0, "VOICE") X(6, TRIO, 0, "TRIO")      \
     X(7, DRAWBAR, 0, "WHEEL") X(8, GRAIN, 4, "GRAIN") X(9, FM6, 1, "FM6") X(10, SLICE, 4, "SLICE")    \
     X(11, PHYS, 0, "PHYS") X(12, ACID, 0, "ACID") X(13, CZ, 2, "CZ") X(14, JUNO, 0, "JUNO") \
-    X(15, NOISE, 0, "NOISE") X(16, DRONE, 0, "DRONE") X(17, PLAITS, 0, "PLAITS")
-#define ENG_UID_N 18u
+    X(15, NOISE, 0, "NOISE") X(16, DRONE, 0, "DRONE") X(17, PLAITS, 0, "PLAITS") X(18, STRINGS, 0, "STRINGS") \
+    X(19, VPS, 2, "VPS") X(20, TERRAIN, 0, "TERRAIN") X(21, WSEQ, 0, "WSEQ") X(22, VECTOR, 0, "VECTOR") \
+    X(23, SID, 3, "SID") X(24, PROPHET, 0, "PROPHET") \
+    X(25, WAVE, 0, "WAVE")
+#define ENG_UID_N 26u
 #define ENG_UID_PHYS 11u
 #define ENG_UID_ACID 12u
 #define ENG_UID_CZ 13u                     /* (fallback: PHASE) */
@@ -95,6 +124,14 @@
 #define ENG_UID_NOISE 15u                  /* (fallback: ANALOG) */
 #define ENG_UID_DRONE 16u                  /* (fallback: ANALOG) */
 #define ENG_UID_PLAITS 17u                 /* (fallback: ANALOG) */
+#define ENG_UID_STRINGS 18u                /* (fallback: ANALOG) */
+#define ENG_UID_VPS 19u                    /* (fallback: PHASE) */
+#define ENG_UID_TERRAIN 20u                /* (fallback: ANALOG) */
+#define ENG_UID_WSEQ 21u                   /* (fallback: ANALOG) */
+#define ENG_UID_VECTOR 22u                 /* (fallback: ANALOG) */
+#define ENG_UID_SID 23u                    /* (fallback: LOFI) */
+#define ENG_UID_PROPHET 24u                /* (fallback: ANALOG) */
+#define ENG_UID_WAVE 25u                   /* (fallback: ANALOG) */
 #define ENG_UID_FM6 9u                     /* (the importers: DX7 and FM6 parts of older projects play FM6) */
 #define ENG_UID_SLICE 10u
 #define ENG_UID_SUPER 0u                   /* SUPER's presets and parts: ANALOG's swarm */
@@ -127,9 +164,12 @@ enum { ENGINE_LIST(ENG_GONEE_) ENG_GONE_END_ };
 /* the engines built are UIDs 0..NENGINES-1 (those left out come last: slot = UID) */
 #define ENG_DENSEE_(u, N, fb, s) &&(ENG_SLOT_##N == (FELUCCA_ENG_##N ? (u) : 0xFF))
 #define ENG_DENSE (1 ENGINE_LIST(ENG_DENSEE_))
-/* every engine of the default build with a factory preset in ui.c BANK is built (SLICE, ACID, CZ, JUNO, NOISE, DRONE, PLAITS: optional) */
+/* every engine of the default build with a factory preset in ui.c BANK is built (SLICE, ACID, CZ, JUNO, NOISE, DRONE, PLAITS,
+ * Clipper's six, SID, PROPHET: optional) */
 #define ENG_BANK_ALL (NENGINES - FELUCCA_ENG_SLICE - FELUCCA_ENG_ACID - FELUCCA_ENG_CZ - FELUCCA_ENG_JUNO - FELUCCA_ENG_NOISE - \
-                      FELUCCA_ENG_DRONE - FELUCCA_ENG_PLAITS == (int)ENG_UID_N - 7)
+                      FELUCCA_ENG_DRONE - FELUCCA_ENG_PLAITS - FELUCCA_ENG_STRINGS - FELUCCA_ENG_VPS - FELUCCA_ENG_TERRAIN - \
+                      FELUCCA_ENG_WSEQ - FELUCCA_ENG_VECTOR - FELUCCA_ENG_SID - FELUCCA_ENG_PROPHET - \
+                      FELUCCA_ENG_WAVE == (int)ENG_UID_N - 15)
 
 /* UID <-> slot (the tables fold away with every engine built) */
 #define ENG_UIDV_(u, N, fb, s) FIF(FELUCCA_ENG_##N)(u,)

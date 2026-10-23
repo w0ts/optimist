@@ -52,6 +52,42 @@
 #if FELUCCA_ENG_PLAITS
 #include "plaits/eng_plaits.c"                /* PLAITS (Mutable Instruments Plaits' models, MIT; this file MIT-headed): engine 17 */
 #endif
+#if (FELUCCA_ENG_STRINGS || FELUCCA_ENG_VPS || FELUCCA_ENG_TERRAIN || FELUCCA_ENG_WSEQ || FELUCCA_ENG_VECTOR) && !FELUCCA_ANALOG2
+#error "Clipper's engines take their engine numbers (18..22) from the ANALOG 2 build"
+#endif
+#if FELUCCA_ENG_STRINGS
+#include "clipper/eng_strings.c"              /* STRINGS (Clipper's string machine): engine 18 */
+#endif
+#if FELUCCA_ENG_VPS
+#include "clipper/eng_vps.c"                  /* VPS (Clipper's vector phaseshaping): engine 19 */
+#endif
+#if FELUCCA_ENG_TERRAIN
+#include "clipper/eng_terrain.c"              /* TERRAIN (Clipper's wave terrain): engine 20 */
+#endif
+#if FELUCCA_ENG_WSEQ
+#include "clipper/eng_wseq.c"                 /* WSEQ (Clipper's wave sequencing): engine 21 */
+#endif
+#if FELUCCA_ENG_VECTOR
+#include "clipper/eng_vector.c"               /* VECTOR (Clipper's vector synthesis): engine 22 */
+#endif
+#if FELUCCA_ENG_SID && !FELUCCA_ANALOG2
+#error "the SID engine takes its engine number (23) from the ANALOG 2 build"
+#endif
+#if FELUCCA_ENG_SID
+#include "sid/eng_sid.c"                      /* SID (reSID 0.16 via Mini-Tone): engine 23 */
+#endif
+#if FELUCCA_ENG_PROPHET && !FELUCCA_ANALOG2
+#error "the PROPHET engine takes its engine number (24) from the ANALOG 2 build"
+#endif
+#if FELUCCA_ENG_PROPHET
+#include "prophet/eng_prophet.c"              /* PROPHET (a Prophet-5 style voice, Melodee's DSP): engine 24 */
+#endif
+#if FELUCCA_ENG_WAVE && !FELUCCA_ANALOG2
+#error "the WAVE engine takes its engine number (25) from the ANALOG 2 build"
+#endif
+#if FELUCCA_ENG_WAVE
+#include "clipper/eng_wave.c"                 /* WAVE (Clipper's wavetables): engine 25 */
+#endif
 
 /* The part's engine memory: the running state an engine keeps per part beyond its voices (FM6's voices and MONO
  * keys, PHYS's model slots, GRAIN's grains and seek index, ACID's 303). A part plays one engine at a time, so one

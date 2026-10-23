@@ -661,6 +661,13 @@ static void voice_start(track_t *t, voice_t *v, uint32_t note, uint32_t vel, int
             v->s[6] = s6;
             v->s[7] = s7;
 #endif
+#if FELUCCA_ENG_SID
+        } else if (ENG_IS(e, SID)) {
+            v->s[0] = s0;                               /* the filter's Vbp Vlp Vhp and the external high-pass (Mini-Tone's */
+            v->s[1] = s1;                               /* keep 0x33); the noise register s[2] and the DC level s[6] as */
+            v->s[4] = s4;                               /* note_on left them */
+            v->s[5] = s5;
+#endif
 #if !FELUCCA_ANALOG2
         } else if (ENG_IS(e, SUPER)) {
             v->s[0] = s0;                               /* filter, its second stage, the sub phase */

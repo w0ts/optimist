@@ -28,6 +28,14 @@ A synth track plays one engine at a time. PRESETS on a synth track loads a sound
 | NOISE | `ENG_NOISE` | White, pink and brown noise, crackle, a shift register and metal tones through a resonant filter | EDIT 1: MODE COLR FREQ RES; EDIT 2: TRK DENS DRFT CRSH |
 | DRONE | `ENG_DRONE` | A coupled network of four sines for drones and ambient (after Caravel's, LYRA-8 inspired), with binaural beats | NETWORK: SPREAD COUPLE TOPO CHAR; MOVE: DRIFT TONE BEAT HOLD |
 | PLAITS | `ENG_PLAITS` | Four of Mutable Instruments Plaits' models: waveshaping, additive, granular formant, particles | MODEL: MODEL HARM TIMB MORPH; OUT: AUX TONE LPG VEL |
+| STRINGS | `ENG_STRINGS` | Clipper's 1970s string machine: three registers divided down from one phase, a three-line ensemble | REG: 16' 8' 4' ENS; TONE: CUT RATE SHP RES |
+| VPS | `ENG_VPS` | Clipper's vector phaseshaping: a sine through a bent phase, from CZ-like waves to moving formants | VECTOR: D V VENV OSC2; TONE: CUT RES DTN SUB |
+| TERRAIN | `ENG_TERRAIN` | Clipper's wave terrain: an orbit over one of 8 surfaces, the height under it the sound | ORBIT: TERR RAD X Y; MOTION: ORB DRIFT CUT RES |
+| WSEQ | `ENG_WSEQ` | Clipper's wave sequencing (Wavestation style): each note steps through waves, pitches and levels at the tempo | SEQUENCE: SEQ RATE XFADE LOOP; TONE: START PITCH CUT RES |
+| VECTOR | `ENG_VECTOR` | Clipper's vector synthesis (Prophet VS style): four waves at a square's corners, mixed by a moving point | WAVES: A B C D; JOYSTICK: X Y MOVE CUT |
+| WAVE | `ENG_WAVE` | Clipper's wavetables: 8 tables of 16 frames, POS sweeps through them, band-limited; every WAVE track plays one table | WAVE: TABL POS DTN SUB; FLT: CUT RES DRV KTR |
+| SID | `ENG_SID` | The Commodore 64's MOS 6581 / 8580 (reSID, via Mini-Tone): the chip's waveforms, sync, ring and its multimode filter | OSC: WAVE PW MOD RATIO; FILTER: MODE CUT RES MODEL |
+| PROPHET | `ENG_PROPHET` | A Prophet-5 Rev 4 style voice (Melodee's): two oscillators, sync, Poly-Mod, the Curtis 4-pole | OSC: A B B-FRQ MIX; VCF: CUT RES PMOD PW |
 
 ### Engine notes
 
@@ -59,6 +67,41 @@ A synth track plays one engine at a time. PRESETS on a synth track loads a sound
   folder on a sine (WAVSH), an 8-drawbar organ (ADDTV), the Z oscillator (GRFMT), the raw clicks (PRTCL). **TONE** is a
   low-pass (the track's FLT moves it), **LPG** closes it as the envelope falls (Plaits' low-pass gate), **VEL** lets
   the velocity open TIMB. Four voices a track; PRTCL and ADDTV are the heaviest on the CPU.
+- **STRINGS, VPS, TERRAIN, WSEQ, VECTOR, WAVE** are Clipper's engines (3dSam's Clipper, GPL-3.0), each its own builder
+  item. Each ends in a 12 dB low-pass (CUT, RES) that the track's FLT moves.
+  **STRINGS:** the 16', 8' and 4' registers come from one phase, so they stay locked as on a Solina; **ENS** and
+  **RATE** set the three-line ensemble's depth and speed, **SHP** turns the saws toward squares.
+  **VPS:** a sine read through a bent phase. **D** moves the bend along the period (the track's SHP moves it), **V**
+  sets its height: below 1 a CZ-like wave, above 1 a formant at V times the note; **VENV** lets the envelope sweep V.
+  **OSC2** adds a mirrored second oscillator (**DTN** detunes it), **SUB** a sine an octave down.
+  **TERRAIN:** an orbit circles over a surface (**TERR**, 8 of them) once a period of the note. **RAD** (moved by the
+  track's SHP), **X** and **Y** place it; **ORB** squeezes it to a line or turns it into a figure eight; **DRIFT** moves
+  its centre slowly, each note its own way. At the surface's centre some orbits sound an octave up.
+  **WSEQ:** each note plays a sequence (**SEQ**, 16) of up to 16 steps, each its own wave, pitch and level, at the
+  song's tempo (**RATE** 1/32 to a bar). **XFADE** fades a step into the next, **LOOP** plays forward, back, bouncing or
+  once, **START** picks the first step, **PITCH** scales the steps' intervals (64 as written, 0 every step at the key).
+  **VECTOR:** four single-cycle waves (**A B C D**, 16 to choose from) at the corners of a square; **X** and **Y** place
+  the point that mixes them (the track's SHP moves X), **MOVE** sends it round a circle, a figure eight, the square's
+  edge, a sweep from A or a random walk, each slow or fast (+).
+  **WAVE:** a wavetable (**TABL**, 8 of Clipper's) of 16 frames that **POS** sweeps through, crossfaded (the track's SHP
+  moves POS); **DTN** adds a second oscillator detuned up, **SUB** a sine an octave down; **DRV** drives the filter,
+  **KTR** sets how far the cutoff follows the key. The tables are built without aliasing in the pool, one at a time:
+  every WAVE track plays the first WAVE track's table, and a track turned to a new table is silent for a few
+  milliseconds while it is built.
+- **SID:** Mini-Tone's port of reSID 0.16 (Stephane Schmitz; reSID by Dag Lem): the Commodore 64's sound chip, three
+  voices a track as the chip has. **WAVE** is TRI, SAW, PULSE, NOISE or a combined waveform (TRI+SAW, TRI+PUL, SAW+PUL,
+  T+S+P), which plays what real chips measured, not the waves added. **PW** is the pulse width (the track's SHP moves
+  it: PWM). **MOD** syncs or ring-modulates the voice against a second oscillator **RATIO** semitones away. **MODE** is
+  the chip's filter (LP, BP, HP and their mixes, OFF bypasses it), **CUT** follows the chip's FC register (the 6581's
+  curve is uneven, the 8580's linear), **RES** has the chip's 16 steps, **MODEL** picks the 6581 or the 8580. The
+  waveforms alias as the chip's do. The amplitude is the track's ADSR, not the chip's envelope.
+- **PROPHET:** a Prophet-5 Rev 4 style voice: Melodee's oscillators, Poly-Mod and Curtis filter (Kerem Kilic), with our
+  controls. **A** is oscillator A's wave (SAW, PULSE, BOTH; the .S ones hard-synced to B), **B** oscillator B's (saw,
+  triangle, pulse and their mixes), **B FRQ** B's interval in semitones, **MIX** the mixer (-64 A alone, 0 both, 63 B
+  alone). **CUT** and **RES** are the Curtis 4-pole, with half keyboard tracking. **PMOD** is the Poly-Mod from B: up
+  from 0 it bends A's pitch with B (bells, growls, with sync the classic sweeps), down from 0 it moves the cutoff with B.
+  **PW** narrows both pulses (the track's SHP moves it). The track's ENV is the amplitude and, through ENV 1's FLT
+  card, the filter envelope. Five voices. Our own presets; it plays no Sequential programs.
 - **SAMPLE:** SET plays a built-in set (PIANO, BASS, VIBES, HORNS, STRGS, FLUTE, SCRCH, PERC; the builder chooses which) or your USR1 to USR3 slots ([drums and samples](drums.md#your-samples)).
 
 ## Voices
@@ -113,6 +156,14 @@ The **VOICE** page has four cards: the mode, GLD (glide time), GLMOD and PRIO.
 | NOISE | FREQ | PIT | COLR | RES |
 | DRONE | TONE | PIT | COUPLE | CHAR |
 | PLAITS | TONE | PIT | TIMB | MORPH |
+| STRINGS | CUT | PIT | ENS | SHP |
+| VPS | CUT | PIT | D | V |
+| TERRAIN | CUT | PIT | RAD | ORB |
+| WSEQ | CUT | PIT | XFADE | PITCH |
+| VECTOR | CUT | PIT | X | Y |
+| WAVE | CUT | PIT | POS | DRV |
+| SID | CUT | PIT | PW | RES |
+| PROPHET | CUT | PIT | PW | PMOD |
 
 WHEEL's DRV, CLICK and TOP are the organ's, so ENV moves them from the track's newest voice. Every card can be locked on a step and recorded as motion.
 
