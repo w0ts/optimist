@@ -28,11 +28,12 @@ Optimist 0.2 brings the FM-1 to the browser and the phone, plays over Bluetooth,
 
 ## Sound
 
-- **New engines:** DRONE (Caravel's coupled network, LYRA-8 inspired, with BEAT and HOLD), PLAITS (four of Mutable Instruments Plaits' models: waveshaping, additive, granular formant, particles). **[scene: anything else?]**
+- **New engines:** DRONE (Caravel's coupled network, LYRA-8 inspired, with BEAT and HOLD; Caravel 0.3.3 by bonszaimusic), PLAITS (four of Mutable Instruments Plaits' models: waveshaping, additive, granular formant, particles; Plaits by Emilie Gillet).
+- **Six more engines, ported, not yet merged** (branch `feat/scene-engines`; in 0.2 only if merged in time — **[decide]**): STRINGS (a 1970s string machine), VPS (vector phaseshaping), TERRAIN (wave terrain), WSEQ (Wavestation-style wave sequencing), VECTOR (Prophet VS-style vector synthesis), all from Clipper 1.1 by 3dSam; SID (the C64's MOS 6581 / 8580) from Mini-Tone by Stephane Schmitz, after reSID by Dag Lem. Builder items, off by default, host-tested only.
 - **ANALOG 2 filter models:** LADR (Moog-style ladder), OTA (Juno-style 4-pole), DIOD (303-style diode ladder), MS20 (Sallen-Key); each a builder choice.
-- **Three independent drum synths:** the 32 classic kits, KAWA (kit 47) and PLAITS (kit 48, Plaits' kick and snare). **[scene: provenance lines]**
-- **Inserts:** XDLY, a LYRA-8 style cross-modulated dual delay; GATER; TAPE, SPIT; the insert slots show how many instances are free (2/4 CHRS).
-- **Scene backports** as builder items: FILT RESO, drum TUNE on the noise sounds, own-voice reuse, PHASE FOLD, … **[scene: the list and credits]**
+- **Three independent drum synths:** the 32 classic kits, KAWA (kit 47, from Kawa Tracker by Guizmoh) and PLAITS (kit 48, Plaits' kick and snare, from Hortator by Leo Kuroshita after Plaits).
+- **Inserts:** XDLY, a LYRA-8 style cross-modulated dual delay; GATER; TAPE and SPIT (from Melodee 1.4.4 by Kerem Kilic); the insert slots show how many instances are free (2/4 CHRS).
+- **Scene backports**, builder items on by default: track FILTER resonance and drum TUNE on the noise sounds (SLOOP 2.8 by isod89), a track reuses its own released voice first (JIANT 0.9.9 by juanjiant-bit), PHASE's sine wavefolder (Felucca-Engines by Leo Kuroshita). The note generators (NOTEGEN, from Felucca) and USB audio (from Melodee).
 - **Levels aligned:** drums and synths at one level; every preset trimmed to the same loudness; drum VOLUME up to +6 dB.
 - One list of note values everywhere (4BAR … 1/64, straight, dotted, triplet) for the arp, SEQ DIV, delay TIME, synced LFOs, slicer, gater, ROLL. Arp GATE up to 198 %.
 
@@ -66,4 +67,4 @@ Synth, drum machine, FM + VA studio, everything fits — each refitted for 0.2. 
 
 ## Thanks
 
-SLOOP (isod89), Felucca and Melodee (Leo Kuroshita, Kerem Kilic), X0X (Charles Vestal), Caravel, Mutable Instruments (Plaits, Grids), JIANT, … **[scene: the full credit lines; LICENSING.md]**
+Optimist stands on SLOOP (isod89), Felucca and Felucca-Engines (Leo Kuroshita, Hügelton Instruments), Melodee (Kerem Kilic: FM6, CZ, USB audio, TAPE and SPIT), X0X (Charles Vestal: the 909 and 808 kits, ACID with Open303 and TB-3PO), fm-106 (PatttF, after KR-106 by Kayrock Screenprinting: JUNO), Caravel (bonszaimusic: DRONE), Mutable Instruments (Emilie Gillet: Plaits, Grids), Hortator (Leo Kuroshita: the PLAITS kit), Kawa Tracker (Guizmoh: the KAWA kit), JIANT (juanjiant-bit), SLOOP 2.8 (isod89: the backports). If the six engines merge: Clipper (3dSam: STRINGS, VPS, TERRAIN, WSEQ, VECTOR) and Mini-Tone (Stephane Schmitz: SID, after reSID by Dag Lem). Licences in LICENSING.md.
