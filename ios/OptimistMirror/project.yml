@@ -19,10 +19,11 @@ targets:
   OptimistMirror:
     type: application
     platform: iOS
-    sources: [Sources]
+    sources: [Sources, Resources]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.w0ts.optimist.mirror
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         TARGETED_DEVICE_FAMILY: "1,2"
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: FM-1 Mirror
