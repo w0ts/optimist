@@ -39,7 +39,7 @@ What App Review will look at, and what is done. The app is free.
 **Subtitle** (30 max): FM-1 screen, presets, backups
 **Category:** Music (secondary: Utilities) · **Price:** Free · **Age rating:** 4+ (every question "None" / "No")
 **Support URL:** https://github.com/w0ts/optimist · **Privacy Policy URL:** https://motscousus.com/optimist/privacy.html
-**Copyright:** 2026 Henri David
+**Copyright:** 2026 <YOUR NAME, as on the developer account>
 
 **Promotional text** (170 max):
 See your FM-1's screen big on your iPhone, iPad or Mac, play it from the keyboard, and keep your projects, presets and backups safe.
