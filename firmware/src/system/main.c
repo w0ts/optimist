@@ -8,8 +8,8 @@ extern uint32_t _rh2_start[], _rh2_end[], _rh2_load[], _pi_start[], _pi_end[], _
 
 /* What the boot copies into RAM (.data's initial values, the pool's tables, the RAM code) is one LZB stream in flash
  * from _lz_load, a block each in the order fm1_cstart decodes them (tools/build.py, tools/lzb.py; the linker's own
- * LOADADDRs are the plain layout, unused): 52 KB of RAM code and tables take 44 KB of flash (2026-10-23; .data alone
- * was run-length coded before). Before the first global is read: the main loop's and the interrupts' state lives in
+ * LOADADDRs are the plain layout, unused): 55.8 KB of RAM code and tables take 38.9 KB of flash (2026-10-23; .data alone
+ * was run-length coded before, the parse's bytes stored plain 44.9 KB). Before the first global is read: the main loop's and the interrupts' state lives in
  * .data. (The simulator's link-time names are a word each, firmware/sim/sim.c: nothing to decode there.) */
 #if !FELUCCA_SIM
 extern uint32_t _lz_load[];
@@ -590,7 +590,7 @@ void fm1_cstart(void)
 {
     uint32_t *d, p3, src, wdt, boot_mode, hold;
 #if !FELUCCA_SIM
-    const uint8_t *lz;
+    lzb_t lz;                                   /* the boot stream's decoder (lzb.h): 4.6 KB of this stack, once */
 #endif
     fm1_time_init();
     fm1_reset_reason();
@@ -613,17 +613,18 @@ void fm1_cstart(void)
     for (d = _pz_start; d < _pool_end; d++)
         *d = 0;
 #if !FELUCCA_SIM
-    lz = lzb_expand((const uint8_t *)_lz_load, (uint8_t *)_data_start, (uint8_t *)_data_end);   /* .data's initial values */
-    lz = lzb_expand(lz, (uint8_t *)_pi_start, (uint8_t *)_pi_end);   /* the pool's tables (core.h TAB_RAM) */
+    lzb_init(&lz, (const uint8_t *)_lz_load);
+    lzb_expand(&lz, (uint8_t *)_data_start, (uint8_t *)_data_end);   /* .data's initial values */
+    lzb_expand(&lz, (uint8_t *)_pi_start, (uint8_t *)_pi_end);   /* the pool's tables (core.h TAB_RAM) */
 #endif
 #if TAB_CODED
     tab_expand();                               /* the smooth tables, delta-coded in flash, into the pool (felucca_tables.h) */
 #endif
     boot_cal_req = (uint8_t)(hold == HOLD_CAL);
 #if !FELUCCA_SIM
-    lz = lzb_expand(lz, (uint8_t *)_rt_start, (uint8_t *)_rt_end);   /* flash driver code that must run from RAM */
-    lz = lzb_expand(lz, (uint8_t *)_rh_start, (uint8_t *)_rh_end);   /* the audio path (core.h HOT), before any IRQ */
-    (void)lzb_expand(lz, (uint8_t *)_rh2_start, (uint8_t *)_rh2_end);   /* its overflow into RAM (core.h HOT2) */
+    lzb_expand(&lz, (uint8_t *)_rt_start, (uint8_t *)_rt_end);   /* flash driver code that must run from RAM */
+    lzb_expand(&lz, (uint8_t *)_rh_start, (uint8_t *)_rh_end);   /* the audio path (core.h HOT), before any IRQ */
+    lzb_expand(&lz, (uint8_t *)_rh2_start, (uint8_t *)_rh2_end);   /* its overflow into RAM (core.h HOT2) */
 #endif
     fm1_cache_ram_init();                       /* EXPERIMENTAL cache RAM (hal/fm1_cache.h): needs .ram_text, before the
                                                  * guards, CPU1 and any interrupt; nothing without FELUCCA_CACHE_RAM */
