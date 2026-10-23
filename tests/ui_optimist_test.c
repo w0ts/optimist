@@ -1793,9 +1793,24 @@ static void layer_tests(void)
     hold2(B_OCTUP, B_LFO);                              /* SHIFT2 held, then LFO: locked (LFO's OCT+ is launch now, so SHIFT2 first) */
     frames(2);
     check(lay.lock == LY_PAT, "SHIFT2 held + LFO: the patterns layer locked open");
+    press(B_SAVE);                                      /* the pattern page locked: SAVE + key stores, the lock and the page stay (the user, */
+    key(WK(1));                                         /* 2026-10-23: SAVE there left the page for the one under it) */
+    release(B_SAVE);
+    check(lay.lock == LY_PAT && pat_has(0, 1) && ui.scr == SCR_SONG, "... locked: SAVE + key 2 stores into T1 2, the page stays");
+    press(B_HOME);
+    key(WK(1));
+    check(op_armed() && !strcmp(ui.arm_q, "CLEAR T1 2?") && lay.lock == LY_PAT, "... locked: HOME + key 2 asks to clear");
+    release(B_HOME);
+    tap(B_HOME);
+    check(!op_armed() && lay.lock == LY_PAT && pat_has(0, 1), "... HOME: no, still locked");
+    tap(B_HOME);
+    frames(2);
+    check(lay.lock == LY_PLAY && ui.scr != SCR_SONG, "... HOME alone: the page let go, back to the screen under it");
+    hold2(B_OCTUP, B_LFO);
+    frames(2);
     tap(B_ENV);
     frames(2);
-    check(lay.lock == LY_PLAY, "... any button lets it go");
+    check(lay.lock == LY_PLAY, "... any other button lets it go");
     press(B_LFO);
     frames(HOLD_FRAMES);
     ui.force = 1;

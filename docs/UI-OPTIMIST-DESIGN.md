@@ -108,7 +108,7 @@ SHIFT is OCT- held, SHIFT2 is OCT+ held. They read one language, as the buttons 
 | SHIFT2 | a key | that track or lane selected |
 | SHIFT | ENV | INIT the sound (asked over edits) |
 | SHIFT | PLAY | stop, every voice off |
-| SHIFT2 | a layer's button | the layer locked open (either order) |
+| SHIFT2 | a layer's button | the layer locked open (either order); any other button lets it go — except on the pattern page (LFO), where SAVE + key stores and HOME + key clears as when held, and HOME alone leaves it (the user, 2026-10-23) |
 
 Keys under the shifts: black key n is drum lane n, the last upper key the ACCENT lane, white keys 1..4 are T1 T2 T3 DR. On STEP the white keys stay steps (SHIFT / SHIFT2 + a step key: a ghost / hard hit). On a lane key the roles invert on STEP (the key alone selects there, plays elsewhere). Pages with no track take no shifted key (section 2.7). `shift_keys` in `op_input.c`.
 

@@ -190,8 +190,12 @@ static int op_combo(uint32_t b, uint32_t held)
     uint32_t others = held & ~op_combo_bit(b), l;
     if (b != B_SAVE && b != B_HOME)
         lay.chord = 0;                                  /* (another button: no undo / redo) */
-    if (lay.lock != LY_PLAY && b != B_PLAY && b != B_REC && b != B_OCTDN && b != B_OCTUP) {
-        lay_unlock();                                   /* locked: any other button lets it go, and does only that */
+    if (lay.lock != LY_PLAY && b != B_PLAY && b != B_REC && b != B_OCTDN && b != B_OCTUP
+        FIF(FELUCCA_PATTERNS)(&& !(lay.lock == LY_PAT && (b == B_SAVE || b == B_HOME)))) {
+        lay_unlock();                                   /* locked: any other button lets it go, and does only that (the pattern page
+                                                         * locked open keeps SAVE + key, the store, and HOME + key, the clear; HOME
+                                                         * alone leaves it: op_input.c op_tap. The user, 2026-10-23: SAVE there
+                                                         * left the page instead of storing) */
         op_eat(op_combo_bit(b));
         return 1;
     }
