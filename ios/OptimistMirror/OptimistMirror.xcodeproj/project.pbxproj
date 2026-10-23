@@ -13,6 +13,7 @@
 		386A854128A10BF09661B03D /* Wire.swift in Sources */ = {isa = PBXBuildFile; fileRef = 275CAE91D846510B1BFCCF01 /* Wire.swift */; };
 		38AA9DD0B60C4B0CB50AA01B /* EditorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6F6C66EBA275D0EEB5E7566 /* EditorTests.swift */; };
 		3AA30F2A997715C708ED3D3C /* MirrorDecoderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 966AB47DC696C8582C328253 /* MirrorDecoderTests.swift */; };
+		3DB131CE850B256A920A65DA /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 608EF0F93F4F2156E142B5B5 /* PrivacyInfo.xcprivacy */; };
 		42C13562B0663688F4A9F917 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5633A1973EDA1E9E3E1ECC04 /* Assets.xcassets */; };
 		43684D2B1E539B2E4C878E3B /* web_patch_file.json in Resources */ = {isa = PBXBuildFile; fileRef = D7B57B7B25C4E51D2AE46946 /* web_patch_file.json */; };
 		4649E2AFEED3A97BD4EEB635 /* MirrorDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6F31FA3CF326B87F5453721 /* MirrorDecoder.swift */; };
@@ -61,6 +62,7 @@
 		4F9FA8878BB640A9C6EF190C /* web_library.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = web_library.json; sourceTree = "<group>"; };
 		5633A1973EDA1E9E3E1ECC04 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		5D8D6024DF9B95CFFEEF0783 /* MirrorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MirrorView.swift; sourceTree = "<group>"; };
+		608EF0F93F4F2156E142B5B5 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		6736D3DEE9260E0180D15469 /* BackupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupView.swift; sourceTree = "<group>"; };
 		6754F3F289DC97CFA49C1379 /* OptimistMirrorTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = OptimistMirrorTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		69FC05011ED5286C56AEC8F9 /* EditorSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorSession.swift; sourceTree = "<group>"; };
@@ -86,6 +88,7 @@
 			isa = PBXGroup;
 			children = (
 				5633A1973EDA1E9E3E1ECC04 /* Assets.xcassets */,
+				608EF0F93F4F2156E142B5B5 /* PrivacyInfo.xcprivacy */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -273,6 +276,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				42C13562B0663688F4A9F917 /* Assets.xcassets in Resources */,
+				3DB131CE850B256A920A65DA /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -472,9 +476,13 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = OptimistMirror.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Optimist Mirror";
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Connects to the FM-1 over Bluetooth MIDI to show its screen.";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UIRequiresFullScreen = YES;
@@ -496,9 +504,13 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = OptimistMirror.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Optimist Mirror";
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Connects to the FM-1 over Bluetooth MIDI to show its screen.";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UIRequiresFullScreen = YES;

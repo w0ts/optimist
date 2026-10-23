@@ -26,6 +26,10 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         TARGETED_DEVICE_FAMILY: "1,2,6"
         SUPPORTS_MACCATALYST: YES
+        DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER: NO   # (one bundle id: iPhone, iPad and Mac are one App Store app)
+        CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: OptimistMirror.entitlements   # (the Mac App Store's sandbox: Bluetooth, USB MIDI, files picked)
+        INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.music
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: Optimist Mirror
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
