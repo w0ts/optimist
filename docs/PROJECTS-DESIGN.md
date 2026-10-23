@@ -88,7 +88,18 @@ the oldest sector, tombstones). Format 2 ("SLG2" sector magic) changes the recor
   (open / save / new / delete, the arena across a switch, a project's load after another's every operation),
   `tests/ui_optimist_test.c` (PROJECT, SONG), the backup tests.
 
-## 4. Numbers that matter
+## 4. Decided: slots stay the identity (2026-10-23)
+
+Inside a project the model is already "items added as needed and referenced": a scene stores no steps, it names one
+pattern record a track; a pattern is written only when a track changed (copy-on-write), unchanged tracks are shared
+between scenes, an unused slot or scene costs nothing. What is fixed is the addressing: 16 pattern slots a track and
+16 scenes, because the 16 white keys reach them (key 5 = pattern 5 / scene E) and the editor's grid is the same 16.
+A fully dynamic store (items with their own ids, as many as fit, garbage-collected) would remove `NO FREE PATTERN`
+and the 16-a-track limit, at the price of the keys no longer naming patterns, a wider id space (a format 3 of the
+log), the backup and the tests again. Not done: if `NO FREE PATTERN` is hit in use, a second bank (32 slots a track:
+a key-range extension, no model change) is the cheaper step.
+
+## 5. Numbers that matter
 
 - Usable room: 32 sectors ≈ 108 KiB, 20 ≈ 66 KiB (today 8 ≈ 24 KiB). A busy project (state, 8 scenes, 24 patterns)
   is about 6..8 KiB.
