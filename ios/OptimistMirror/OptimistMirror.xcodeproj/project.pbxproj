@@ -28,6 +28,7 @@
 		A4AA5B98C94579EA4B836A53 /* LibraryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 427F479D77D594F69B2686BD /* LibraryStore.swift */; };
 		AD46B38D1534BD51B9093140 /* web_library.json in Resources */ = {isa = PBXBuildFile; fileRef = 4F9FA8878BB640A9C6EF190C /* web_library.json */; };
 		BA6834D7B3A00D8A4007F620 /* MirrorLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = B44F5DDB3FA5A048A53E14BC /* MirrorLink.swift */; };
+		BF19193839D22CA41D55DCA2 /* PanelKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 066FF4357CB7BD08B7F4C23A /* PanelKeys.swift */; };
 		D49D71173482047512F84808 /* PatternFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = F35BAB0C19445FAE914889A1 /* PatternFile.swift */; };
 		D53FDA0428DCB2AA7D257362 /* EditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE24BDBA9F4261637806D42E /* EditorView.swift */; };
 		DB5365102B4235E1D0BBD403 /* EditorSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69FC05011ED5286C56AEC8F9 /* EditorSession.swift */; };
@@ -47,6 +48,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		066FF4357CB7BD08B7F4C23A /* PanelKeys.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelKeys.swift; sourceTree = "<group>"; };
 		08CDB3647FD4A337F9737AE8 /* BluetoothPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BluetoothPicker.swift; sourceTree = "<group>"; };
 		0AE84B2EF5EC5BA03F190291 /* Ops.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Ops.swift; sourceTree = "<group>"; };
 		0EFED5448060093A17041C1E /* screen.rgb565 */ = {isa = PBXFileReference; path = screen.rgb565; sourceTree = "<group>"; };
@@ -140,6 +142,7 @@
 				D6F31FA3CF326B87F5453721 /* MirrorDecoder.swift */,
 				B44F5DDB3FA5A048A53E14BC /* MirrorLink.swift */,
 				5D8D6024DF9B95CFFEEF0783 /* MirrorView.swift */,
+				066FF4357CB7BD08B7F4C23A /* PanelKeys.swift */,
 				FB64732FC016E8AFD3E8B510 /* Editor */,
 			);
 			path = Sources;
@@ -293,6 +296,7 @@
 				BA6834D7B3A00D8A4007F620 /* MirrorLink.swift in Sources */,
 				4A96C6E20FB1558DCED4A41D /* MirrorView.swift in Sources */,
 				82B767B76579F258BBF4BD4E /* Ops.swift in Sources */,
+				BF19193839D22CA41D55DCA2 /* PanelKeys.swift in Sources */,
 				D49D71173482047512F84808 /* PatternFile.swift in Sources */,
 				E5AA9C28DDBCD932D70D5713 /* ProjectsView.swift in Sources */,
 				386A854128A10BF09661B03D /* Wire.swift in Sources */,
