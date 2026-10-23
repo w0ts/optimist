@@ -59,9 +59,8 @@ static struct {
                                                     * console's channel line */
     uint8_t feat[8];                               /* the device's features (its LMP_features_res, page 0; byte 4 bit 0:
                                                     * AFH capable slave) */
-    uint8_t afh_map[10], afh_on, afh_pending, afh_full;   /* the hop set (79 bits, all at a new link), AFH wanted,
-                                                    * a switch announced (LMP_set_AFH) and due at afh_at (CLKN slots,
-                                                    * bp_alarm), the engine's table laid out in full (btpage afh=2) */
+    uint8_t afh_map[10], afh_on, afh_pending;      /* the hop set (79 bits, all at a new link), AFH wanted, a switch
+                                                    * announced (LMP_set_AFH) and due at afh_at (CLKN slots, bp_alarm) */
     uint32_t afh_at, afh_switches;
 } bp;
 #define BP_CH_SEC 30u                              /* the channel assessment's window, s (~2 answers a channel a second) */
@@ -775,15 +774,14 @@ static void bp_afh_send(uint32_t on)               /* the hop set to the engine'
         all[9] = 0x7Fu;
         map = all;
     }
-    n = bt_afh_table(map, bti_tab + FM1_BR_OFF_FRQ + 80u, words, bp.afh_full);   /* frq_table[1] (BR §3) */
-    fm1_br_afh_map(0, words);                      /* [I: which map register hop table 1 reads: both written] */
-    fm1_br_afh_map(1, words);
+    n = bt_afh_table(map, bti_tab + FM1_BR_OFF_FRQ + 80u, words);   /* frq_table[1] (BR §3) */
+    fm1_br_afh_map(0, words);                      /* (map 0 goes with hop table 1: btctrler.a bdhw_set_afh) */
     (void)n;
     at = (bti_clkn() + BP_AFH_AHEAD) & BTI_CLK & ~1u;   /* an even slot: a master-to-slave one (CLK[1] = 0) */
     bp.afh_at = at;
     bp.afh_on = (uint8_t)on;
     bp.afh_pending = 1;
-    bp_queue(out, btl_set_afh(out, at << 1, on, map), on ? "the channels it fails on out of the hopping" : "AFH off");
+    bp_queue(out, btl_set_afh(out, at, on, map), on ? "the channels it fails on out of the hopping" : "AFH off");
 }
 static void bp_afh_assess(const uint16_t ch[80])  /* every BP_CH_SEC s of the link (bp_sec_tick): the channels the device
                                                     * failed on leave the hop set (bt_afh.c), the device told */
@@ -919,7 +917,7 @@ static int bp_start(const uint8_t addr[6], uint32_t slots)
         bp.afh_map[i] = 0xFFu;                     /* (a new link hops over all 79: the device's holes measured again) */
     bp.afh_map[9] = 0x7Fu;
     bp.afh_on = FELUCCA_BT_AFH && !FELUCCA_BT_DIAG;   /* (a diagnostics build switches only when told: btpage afh=) */
-    bp.afh_pending = bp.afh_full = 0;
+    bp.afh_pending = 0;
     bp.afh_switches = 0;
     bp_mq.r = bp_mq.w;                            /* (a new link: no audio queued) */
     ba_reset();
@@ -994,12 +992,10 @@ static void con_btpage(const char *p)
     }
 #if FELUCCA_BT_AFH
     if (bti_opt_num(&p, "afh", &v)) {             /* AFH in the running link (a diagnostics build switches only when
-                                                    * told, bp_start): 0 off (all 79 again), 1 on (the engine's table
-                                                    * packed, the map as assessed), 2 on with the table laid out in full,
-                                                    * 3 the map reset to all 79 then on packed (the mechanics alone: the
-                                                    * table's content is the basic one), 5 the map registers written
-                                                    * alone (all 79), 6 hop table 1 selected alone (the basic content, no
-                                                    * LMP) -- the hardware's AFH is inferred (BR §7): these tell */
+                                                    * told, bp_start): 0 off (all 79 again), 1 on (the map as assessed,
+                                                    * the switch at once), 3 the map reset to all 79 then on (the
+                                                    * mechanics alone: the hopping stays the basic one), 6 hop table 1
+                                                    * selected alone with all 79 (no LMP: the same test without the device) */
         if (bti.mode != BTI_M_CONN || bp.afh_pending) {
             con_puts("btpage: afh: no link, or a switch under way\r\n");
             return;
@@ -1009,27 +1005,22 @@ static void con_btpage(const char *p)
                 bp.afh_map[i] = 0xFFu;
             bp.afh_map[9] = 0x7Fu;
         }
-        bp.afh_full = v == 2;
-        if (v == 5 || v == 6) {
+        if (v == 6) {
             uint8_t all[10];
             uint32_t words[3];
             struct fm1_br_frame *fr = fm1_br_frame(bti_tab, 0);
             for (i = 0; i < 9u; i++)
                 all[i] = 0xFFu;
             all[9] = 0x7Fu;
-            (void)bt_afh_table(all, bti_tab + FM1_BR_OFF_FRQ + 80u, words, 0);
-            if (v == 5) {
-                fm1_br_afh_map(0, words);
-                fm1_br_afh_map(1, words);
-            } else {
-                fr->miscntl = (uint8_t)((fr->miscntl & 0x3Fu) | 1u << 6);
-                fr->format = (uint8_t)(fr->format | 0x40u);
-            }
+            (void)bt_afh_table(all, bti_tab + FM1_BR_OFF_FRQ + 80u, words);
+            fm1_br_afh_map(0, words);
+            fr->miscntl = (uint8_t)((fr->miscntl & 0x3Fu) | 1u << 6);
+            fr->format = (uint8_t)(fr->format | 0x40u);
         } else if (v == 0)
             bp_afh_send(0);
         else {
             bp.afh_on = 1;
-            bp_afh_send(1);                        /* (the switch at once) */
+            bp_afh_send(1);
         }
         bti_kv("btpage: afh ", (uint32_t)v);
         bti_kv(" at slot ", bp.afh_at);

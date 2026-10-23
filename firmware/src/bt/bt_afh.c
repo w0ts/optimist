@@ -42,28 +42,22 @@ static uint32_t bt_afh_classify(const uint16_t good[BT_AFH_CH], uint8_t map[10])
     return dropped;
 }
 
-/* the engine's AFH hop table and map words from the map (BR §3, §7): the used channels packed in the basic table's
- * order (even channels ascending, then odd: the spec's AFH mapping k mod N onto them, Part B 2.6.4.2) [I: as the LE
- * block's packed used-channel table (ble_hw_wl82.c cb_channels), the count to the map register's [31:24]]; `full`
- * instead maps every one of the 79 kernel outputs itself (a used channel stays, an unused one becomes the used
- * channel k mod N), should the engine index the table by the kernel's output (the console's btpage afh=2)
+/* the engine's AFH hop table and map words from the map (BR §3, §7), as the vendor controller programs them
+ * (btctrler.a bdhw_set_frq_table / bdhw_set_afh, read from its bitcode 2026-10-23 after our first guess, the RF
+ * channel numbers, killed three links): the table holds the used channels' INDEXES in the basic table (0-39 the even
+ * channels, 40-78 the odd, frq_table[0]'s order), packed, the rest 0 (the spec's AFH mapping k mod N onto them,
+ * Part B 2.6.4.2); the three map words are the LMP map's bytes 0-3, 4-7, 8-9 with the used count in word 2 [31:24]
  * -> the used channels' count */
-static uint32_t bt_afh_table(const uint8_t map[10], uint8_t table[80], uint32_t words[3], int full)
+static uint32_t bt_afh_table(const uint8_t map[10], uint8_t table[80], uint32_t words[3])
 {
-    uint8_t packed[BT_AFH_CH];
     uint32_t n = 0, i, ch;
     for (i = 0; i < BT_AFH_CH; i++) {
         ch = i < 40u ? 2u * i : 2u * (i - 40u) + 1u;
         if (bt_afh_used(map, ch))
-            packed[n++] = (uint8_t)ch;
+            table[n++] = (uint8_t)i;
     }
-    for (i = 0; i < 80u; i++) {
-        ch = i < 40u ? 2u * i : 2u * (i - 40u) + 1u;
-        if (!full)
-            table[i] = i < n ? packed[i] : 0u;
-        else
-            table[i] = i >= BT_AFH_CH ? 0u : bt_afh_used(map, ch) ? (uint8_t)ch : n ? packed[i % n] : 0u;
-    }
+    for (i = n; i < 80u; i++)
+        table[i] = 0;
     words[0] = (uint32_t)map[0] | (uint32_t)map[1] << 8 | (uint32_t)map[2] << 16 | (uint32_t)map[3] << 24;
     words[1] = (uint32_t)map[4] | (uint32_t)map[5] << 8 | (uint32_t)map[6] << 16 | (uint32_t)map[7] << 24;
     words[2] = (uint32_t)map[8] | (uint32_t)(map[9] & 0x7Fu) << 8 | n << 24;

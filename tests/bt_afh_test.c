@@ -63,21 +63,18 @@ int main(void)
     check("too little heard (under 10 a channel): no decision", bt_afh_classify(good, map) == 0 && used_count(map) == 79u);
 
     full_map(map);
-    n = bt_afh_table(map, table, words, 0);
-    check("the full map's table: 79 used, the basic order (0 2 4 .. 78 1 3 .. 77), the rest 0",
-          n == 79u && table[0] == 0 && table[1] == 2 && table[39] == 78 && table[40] == 1 && table[78] == 77 && table[79] == 0
+    n = bt_afh_table(map, table, words);
+    check("the full map's table: 79 used, the basic table's indexes 0 .. 78 in order, [79] = 0; the map words, 79 in word 2 [31:24]",
+          n == 79u && table[0] == 0 && table[1] == 1 && table[39] == 39 && table[40] == 40 && table[78] == 78 && table[79] == 0
           && words[0] == 0xFFFFFFFFu && words[1] == 0xFFFFFFFFu && words[2] == (79u << 24 | 0x7FFFu));
 
     full_map(map);
-    map[0] &= (uint8_t)~0x10u;                     /* channel 4 out */
-    map[2] &= (uint8_t)~0x02u;                     /* channel 17 out */
-    n = bt_afh_table(map, table, words, 0);
-    check("4 and 17 out, packed: 77 used, 0 2 6 8 .. 78 1 3 .. 15 19 .. 77, [77] = 0; the count in word 2 [31:24]",
-          n == 77u && table[2] == 6 && table[38] == 78 && table[39] == 1 && table[46] == 15 && table[47] == 19 && table[76] == 77 && table[77] == 0
-          && words[0] == 0xFFFDFFEFu && words[2] == (77u << 24 | 0x7FFFu));
-    n = bt_afh_table(map, table, words, 1);
-    check("the same, full: a used output stays itself, output 2 (channel 4) -> packed[2 mod 77] = 6, output 48 (17) -> packed[48] = 21",
-          n == 77u && table[0] == 0 && table[1] == 2 && table[2] == 6 && table[39] == 78 && table[40] == 1 && table[48] == 21 && table[78] == 77);
+    map[0] &= (uint8_t)~0x10u;                     /* channel 4 out: basic index 2 */
+    map[2] &= (uint8_t)~0x02u;                     /* channel 17 out: basic index 40 + 8 = 48 */
+    n = bt_afh_table(map, table, words);
+    check("4 and 17 out: 77 used, the indexes 0 1 3 4 .. 47 49 .. 78 (2 and 48 missing), [77] = 0; the LMP map's bytes in the words, 77 in word 2",
+          n == 77u && table[1] == 1 && table[2] == 3 && table[46] == 47 && table[47] == 49 && table[76] == 78 && table[77] == 0
+          && words[0] == 0xFFFDFFEFu && words[1] == 0xFFFFFFFFu && words[2] == (77u << 24 | 0x7FFFu));
 
     printf("%s\n", fails ? "FAILED" : "all ok");
     return fails != 0;
