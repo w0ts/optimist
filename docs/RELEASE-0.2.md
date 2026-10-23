@@ -1,5 +1,7 @@
 # Optimist 0.2
 
+There is more in 0.2 than one firmware can hold: 26 synth engines, 37 kits, the inserts, Bluetooth, the web screen. No single build has it all, and the release flavours are only our picks. Make your own in the web builder: tick what you want, watch the flash and RAM budget, and build it in the cloud in a few minutes.
+
 ## Bluetooth
 
 - **Bluetooth audio.** The FM-1 plays through AirPods and other Bluetooth headphones and speakers (A2DP, our own stack): pairing, bonding, reconnect without pairing; SHIFT + volume switches between Bluetooth and the FM-1's own output, or reconnects the last device. Adaptive frequency hopping: the link counts the headset's answers per radio channel and drops the bad channels from the hop set every 30 s, as every phone does. **[check: XM4 crackles were open; AFH is hardware-untested]**
