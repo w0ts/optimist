@@ -200,6 +200,44 @@ void bts_e3(const uint8_t key[16], const uint8_t rand[16], const uint8_t cof[12]
     bts_hash(key, rand, cof, 12, out);
 }
 
+/* the encryption key size reduction (Core Vol 2 Part H 4.5): Kc'(x) = g2(x) (Kc(x) mod g1(x)), g1 = x^8L + BTS_G1,
+ * g2 BTS_G2's 16 - L octets (top first), for L = 7..15 (7 the spec's least since the KNOB erratum). Kc[0] is the
+ * polynomial's lowest octet, as the vendor controller has it (btctrler.a authentication.c Entrypt_Key_Length_Change:
+ * the key turned round, then read top octet first); the Part G vectors (francozappa/knob), top octet first, turned round in
+ * tests/bt_crypto_test.c. The Bose SoundLink Mini offers 7 octets at most (2026-10-23) */
+static const uint16_t BTS_G1[9] = {0x95, 0x1b, 0x609, 0x215, 0x13b, 0xdd, 0x49d, 0x14f, 0xe7};
+static const uint8_t BTS_G2[45] = {
+    0xb3, 0xf7, 0xff, 0xfc, 0xe2, 0x79, 0xf3, 0xa0, 0x73, 0xa1, 0xab, 0x81, 0x5b, 0xc7, 0xec, 0x80, 0x25,
+    0x02, 0xc9, 0x80, 0x11, 0xd8, 0xb0, 0x4d, 0x05, 0x8e, 0x24, 0xf9, 0xa4, 0xbb, 0x0c, 0xa7, 0x60, 0x24, 0xd7,
+    0x1c, 0x9c, 0x26, 0xb9, 0x26, 0xd9, 0xe3, 0x43, 0x77, 0x89};
+static uint32_t bts_bit(const uint8_t *v, uint32_t n, uint32_t i) { return (uint32_t)v[n - 1u - (i >> 3)] >> (i & 7u) & 1u; }
+static uint32_t bts_kbit(const uint8_t *k, uint32_t i) { return (uint32_t)k[i >> 3] >> (i & 7u) & 1u; }   /* (a key: octet 0 the lowest) */
+static void bts_kflip(uint8_t *k, uint32_t i) { k[i >> 3] ^= (uint8_t)(1u << (i & 7u)); }
+void bts_kc_reduce(const uint8_t kc[16], uint32_t l, uint8_t out[16])
+{
+    uint8_t r[16];
+    const uint8_t *g2 = BTS_G2;
+    uint32_t d = 8u * l, n2 = 16u - l, i, j;
+    for (i = 0; i < 16u; i++)
+        r[i] = kc[i], out[i] = l < 7u || l > 15u ? kc[i] : 0;
+    if (l < 7u || l > 15u)
+        return;                                         /* (16: Kc' = Kc) */
+    for (i = 7; i < l; i++)
+        g2 += 16u - i;
+    for (i = 127; i >= d; i--)                          /* Kc mod g1 */
+        if (bts_kbit(r, i)) {
+            bts_kflip(r, i);
+            for (j = 0; j < 13u; j++)
+                if (BTS_G1[l - 7u] >> j & 1u)
+                    bts_kflip(r, i - d + j);
+        }
+    for (i = 0; i < d; i++)                             /* times g2 */
+        if (bts_kbit(r, i))
+            for (j = 0; j < 8u * n2 && i + j < 128u; j++)
+                if (bts_bit(g2, n2, j))
+                    bts_kflip(out, i + j);
+}
+
 /* SSP (Core Vol 2 Part H 7.7, P-192), every value in the spec's order (most significant octet first, as Part G 7's sample
  * data): the LMP layer turns the air order (least significant first) round. Checked against Part G 7.7.1-7.7.4 through
  * these very functions (tests/bt_crypto_test.c) */

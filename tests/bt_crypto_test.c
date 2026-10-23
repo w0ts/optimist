@@ -66,6 +66,19 @@ int main(void)
     }
     check("E3 encryption key function (Part G §10.5): 4 test sets", !set_fail);
 
+    /* 4b. the key size reduction, L = 7..16 (the Part G sample data, as francozappa/knob es_tests.py has it) */
+    set_fail = 0;
+    for (int i = 0; i < (int)(sizeof(kcr_sets) / sizeof(kcr_sets[0])); i++) {
+        const struct kcr_set *s = &kcr_sets[i];
+        uint8_t kc[16], kp[16], want[16];
+        for (int k = 0; k < 16; k++)                    /* (printed top octet first; a key's octet 0 is its lowest) */
+            kc[k] = s->kc[15 - k], want[k] = s->kcp[15 - k];
+        bts_kc_reduce(kc, s->l, kp);
+        if (memcmp(kp, want, 16))
+            set_fail++, printf("  key size reduction L=%u wrong\n", (unsigned)s->l);
+    }
+    check("Kc' key size reduction (Part H 4.5): L = 7..16", !set_fail);
+
     /* 5. P-192 ECDH key agreement */
     set_fail = 0;
     uECC_Curve curve = uECC_secp192r1();

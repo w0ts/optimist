@@ -40,6 +40,8 @@ struct btp {
     uint8_t iocap_a[3], iocap_b[3];                     /* the IO capability, OOB, auth requirements of each side */
     uint8_t lk[16];                                     /* the link key, air order (E1 / E3 take it so: bt_safer.h) */
     uint8_t aco[12], en_rand[16], kc[16];               /* air order */
+    uint8_t ksz;                                        /* the encryption key's octets: 16 asked, the device's offer
+                                                         * taken down to 7 (the Bose SoundLink Mini's, 2026-10-23) */
     int (*rng)(uint8_t *dest, unsigned size);
     void (*send)(void *ctx, const uint8_t *pdu, uint32_t len);
     void *ctx;
@@ -219,6 +221,21 @@ static void btp_i_encrypt(struct btp *p)                /* authenticated: we ask
     p->tid = 0;
     btp_put(p, BTL_ENCRYPTION_MODE_REQ, &on, 1);
     p->st = BTP_MODEREQ;
+}
+static void btp_keysize(struct btp *p)                  /* encryption on: our key size, 16 octets (the device may offer less) */
+{
+    p->ksz = 16;
+    p->st = BTP_KEYSIZE;
+    btp_put(p, BTL_ENCRYPTION_KEY_SIZE_REQ, &p->ksz, 1);
+}
+static void btp_en_start(struct btp *p)                 /* the key size agreed: EN_RAND out, Kc' the key to load */
+{
+    uint8_t kc[16];
+    (void)p->rng(p->en_rand, 16);                       /* Kc = E3(LK, EN_RAND, COF = the ACO of the authentication) */
+    bts_e3(p->lk, p->en_rand, p->aco, kc);
+    bts_kc_reduce(kc, p->ksz, p->kc);                   /* (16 octets: Kc itself) */
+    btp_put(p, BTL_START_ENCRYPTION_REQ, p->en_rand, 16);
+    p->st = BTP_STARTING;
 }
 
 static void btp_begin(struct btp *p, const uint8_t own[6], const uint8_t peer[6], int (*rng)(uint8_t *, unsigned),
@@ -411,11 +428,8 @@ static int btp_in(struct btp *p, const uint8_t *pdu, uint32_t len)
             return 0;
         p->tid = (uint8_t)tid;
         btp_accept(p, op);
-        if (n && par[0]) {                              /* (on: the key size, 16 octets, then EN_RAND once it is taken) */
-            uint8_t ks = 16;
-            p->st = BTP_KEYSIZE;
-            btp_put(p, BTL_ENCRYPTION_KEY_SIZE_REQ, &ks, 1);
-        }
+        if (n && par[0])                                /* (on: the key size, 16 octets, then EN_RAND once it is taken) */
+            btp_keysize(p);
         return 1;
     case BTL_ACCEPTED:                                  /* the device took what we sent: our next step */
         if (n < 1u)
@@ -430,21 +444,13 @@ static int btp_in(struct btp *p, const uint8_t *pdu, uint32_t len)
             return 1;
         }
         if (par[0] == BTL_ENCRYPTION_MODE_REQ && p->st == BTP_MODEREQ) {   /* (the initiator: on, the key size next) */
-            uint8_t ks = 16;
-            p->st = BTP_KEYSIZE;
-            btp_put(p, BTL_ENCRYPTION_KEY_SIZE_REQ, &ks, 1);
+            btp_keysize(p);
             return 1;
         }
         if (par[0] == BTL_SIMPLE_PAIRING_NUMBER || par[0] == BTL_DHKEY_CHECK || par[0] == BTL_SIMPLE_PAIRING_CONFIRM)
             return 1;                                   /* (its acknowledgements of ours: nothing more to send) */
         if (par[0] == BTL_ENCRYPTION_KEY_SIZE_REQ && p->st == BTP_KEYSIZE) {
-            uint8_t r[16];
-            (void)p->rng(r, 16);                        /* EN_RAND; Kc = E3(LK, EN_RAND, COF = the ACO of the authentication) */
-            for (i = 0; i < 16u; i++)
-                p->en_rand[i] = r[i];
-            bts_e3(p->lk, p->en_rand, p->aco, p->kc);
-            btp_put(p, BTL_START_ENCRYPTION_REQ, p->en_rand, 16);
-            p->st = BTP_STARTING;
+            btp_en_start(p);
             return 1;
         }
         if (par[0] == BTL_START_ENCRYPTION_REQ && p->st == BTP_STARTING) {
@@ -452,6 +458,19 @@ static int btp_in(struct btp *p, const uint8_t *pdu, uint32_t len)
             return 1;
         }
         return 0;
+    case BTL_ENCRYPTION_KEY_SIZE_REQ:                   /* the device's smaller key size for ours: taken from 7 octets
+                                                         * (Part C 4.2.5.2: the master accepts it or refuses) */
+        if (p->st != BTP_KEYSIZE || n < 1u)
+            return 0;
+        p->tid = (uint8_t)tid;
+        if (par[0] < 7u || par[0] > p->ksz) {
+            btp_fail(p, op, BTL_ERR_UNSUPPORTED_PARAM);
+            return 1;
+        }
+        p->ksz = par[0];
+        btp_accept(p, op);
+        btp_en_start(p);
+        return 1;
     case BTL_NOT_ACCEPTED:
         if (p->st == BTP_IDLE || p->st == BTP_ENCRYPTED)
             return 0;

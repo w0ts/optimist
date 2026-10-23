@@ -252,7 +252,9 @@ static void slave_accepts(uint32_t of)
     uint8_t b[2] = {(uint8_t)(BTL_ACCEPTED << 1 | 0u), (uint8_t)of};   /* (in our transaction: TID 0) */
     (void)btp_in(&ia, b, 2);
 }
-static void run_initiator(void)
+/* offer: 0 the slave takes our 16 octets; else it offers that key size instead (the Bose SoundLink Mini: 7, 2026-10-23),
+ * taken from 7 with Kc' the reduced key, refused below */
+static void run_initiator(uint32_t offer)
 {
     const uint8_t own[6] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66}, peer[6] = {0x24, 0xed, 0x1f, 0x0a, 0x80, 0xac};
     uint8_t kc[16];
@@ -277,11 +279,28 @@ static void run_initiator(void)
     slave_accepts(BTL_ENCRYPTION_MODE_REQ);
     check("initiator: its accept of the mode: our key size request (16)", ia.st == BTP_KEYSIZE &&
           btl_opcode(qa[na_ - 1u], qal[na_ - 1u], &(uint32_t){0}) == BTL_ENCRYPTION_KEY_SIZE_REQ && qa[na_ - 1u][1] == 16u);
-    slave_accepts(BTL_ENCRYPTION_KEY_SIZE_REQ);
-    bts_e3(rb.lk, qa[na_ - 1u] + 1, dev_aco, kc);      /* (the slave's Kc from our EN_RAND and the ACO of the latest
+    if (offer) {
+        uint8_t b[2] = {(uint8_t)(BTL_ENCRYPTION_KEY_SIZE_REQ << 1 | 0u), (uint8_t)offer}, kc16[16];
+        uint32_t at = na_;
+        (void)btp_in(&ia, b, 2);
+        if (offer < 7u) {
+            check("initiator: a key size under 7 offered: refused, failed", ia.st == BTP_FAILED && na_ == at + 1u &&
+                  btl_opcode(qa[at], qal[at], &(uint32_t){0}) == BTL_NOT_ACCEPTED);
+            return;
+        }
+        check("initiator: its key size of 7 offered: accepted, then start_encryption_req", na_ == at + 2u &&
+              btl_opcode(qa[at], qal[at], &(uint32_t){0}) == BTL_ACCEPTED && qa[at][1] == BTL_ENCRYPTION_KEY_SIZE_REQ);
+        bts_e3(rb.lk, qa[na_ - 1u] + 1, dev_aco, kc16);
+        bts_kc_reduce(kc16, offer, kc);
+        check("initiator: Kc' = Kc reduced to 7 octets (bts_kc_reduce), not Kc",
+              ia.st == BTP_STARTING && !memcmp(kc, ia.kc, 16) && memcmp(kc16, ia.kc, 16));
+    } else {
+        slave_accepts(BTL_ENCRYPTION_KEY_SIZE_REQ);
+        bts_e3(rb.lk, qa[na_ - 1u] + 1, dev_aco, kc);  /* (the slave's Kc from our EN_RAND and the ACO of the latest
                                                          * authentication, its own: the COF, Part H 4.2.4) */
-    check("initiator: then start_encryption_req; Kc = E3(LK, EN_RAND, ACO) the same both sides",
-          ia.st == BTP_STARTING && !memcmp(kc, ia.kc, 16));
+        check("initiator: then start_encryption_req; Kc = E3(LK, EN_RAND, ACO) the same both sides",
+              ia.st == BTP_STARTING && !memcmp(kc, ia.kc, 16));
+    }
     slave_accepts(BTL_START_ENCRYPTION_REQ);
     check("initiator: its accept: encrypted", ia.st == BTP_ENCRYPTED);
     {   /* a wrong SRES: the pairing fails (no encryption on a link we could not authenticate) */
@@ -329,7 +348,9 @@ int main(void)
 {
     run(0);
     run(1);
-    run_initiator();
+    run_initiator(0);
+    run_initiator(7);
+    run_initiator(5);
     run_bonded(0);
     run_bonded(1);
     printf("bt_ssp: %d failed\n", fails);
