@@ -464,7 +464,9 @@ static void mixer_rows_tests(void)
     ui.force = 1;
     frame();
     y = mx_row_y(MXR_DR);
-    check(px_in(MXL_VX, y + MXL_SY, 11, MXL_SH, trk_col(TRK_DRUM)), "DR's sequence: every lane merged (the snare's step 1)");
+    check(px_in(MXL_VX, y + MXL_SY, 11, MXL_SH, lvl_col(trk_col(TRK_DRUM), 2u)), "DR's sequence: every lane merged (the snare's step 1, SOFT)");
+    check(px_in(MXL_VX + 2 * MXL_SP, y + MXL_SY, 11, MXL_SH, lvl_col(trk_col(TRK_DRUM), LV_GHOST)) &&
+          px_in(MXL_VX + 3 * MXL_SP, y + MXL_SY, 11, MXL_SH, lvl_col(trk_col(TRK_DRUM), LV_HARD)), "DR's sequence: shaded by its strongest hit");
     check(!px_in(MXL_VX + MXL_SP, y + MXL_SY, 11, MXL_SH, trk_col(TRK_DRUM)), "DR's sequence: an accent alone is no hit");
     turn(EN_ALGO, 3);
     frame();
