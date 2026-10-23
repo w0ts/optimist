@@ -224,14 +224,20 @@ static void snd_name(uint32_t c, char *b)
 }
 
 /* ---- the drum lanes' values: the selected lane (SLOOP's ui_drums.c edits the lane played last) */
-/* the drum track recording (playing, its REC bit): a lane value's card shows the hold in force (the knob's motion, seq/
- * auto_lane.c lane_knob: heard through the overlay, the patch dl.ofs not written), so the next detent goes on from it,
- * as a synth card does from t->p (motion_knob); else the patch, as stored. dsv[id] already holds the patch */
+/* playing: a lane value's card shows the value heard (seq/auto_lane.c lane_heard: a lock of the step playing, else the
+ * hold in force of the knob's motion; the overlay, the patch dl.ofs not written), so the next detent goes on from it,
+ * as a synth card does from t->p, which the motion writes (motion.c). Was while recording only (the user, 2026-10-23:
+ * "automation is ONLY visible when REC is on"). Stopped, or nothing in force: the patch, as stored (dsv[id] holds it) */
 static void dsv_rec(uint32_t l, uint32_t id)
 {
-#if DLA_ON && FELUCCA_MOTION
-    if (id < DE_N && song.playing && ((song.rec >> TRK_DRUM) & 1u) && ((dla.hm[l % DRUM_LANES] >> id) & 1u))
-        dsv[id] = dla.hv[l % DRUM_LANES][id];
+#if DLA_ON
+    uint32_t m = l % DRUM_LANES;
+    if (id >= DE_N || !song.playing)
+        return;
+    if ((dla.lm[m] >> id) & 1u)
+        dsv[id] = dla.lv[m][id];
+    else if ((dla.hm[m] >> id) & 1u)
+        dsv[id] = dla.hv[m][id];
 #else
     (void)l, (void)id;
 #endif

@@ -68,6 +68,19 @@ static void lane_rec_tests(void)
         a->n = (uint8_t)n0;
     }
     song.rec = 0;
+    {   /* not recording, still playing: the card shows the value heard (the hold in force), as a synth card shows t->p;
+         * a turn goes on from it and the hold lets go (the user, 2026-10-23: "automation is ONLY visible when REC is on") */
+        cell_t c;
+        int32_t hv = dla.hv[4][DE_DECAY];
+        page_cell(snd_page(ui.row[SCR_SOUND]), 1, &c);
+        check(((dla.hm[4] >> DE_DECAY) & 1u) && c.gv == hv, "not recording, playing: the card shows the value heard (the motion's hold), not the patch");
+        turn(EN_K2, 1);
+        check(dl.ofs[4][DE_DECAY] == hv + 1 && !((dla.hm[4] >> DE_DECAY) & 1u), "... a turn goes on from the value heard: the hold let go, the patch written from it");
+        song.playing = 0;
+        page_cell(snd_page(ui.row[SCR_SOUND]), 1, &c);
+        check(c.gv == hv + 1, "... stopped: the patch");
+        song.playing = 1;
+    }
     mx_lane_set(6, DE_DRIVE, 3);
     check(dl.ofs[6][DE_DRIVE] == 3 && !((dla.hm[6] >> DE_DRIVE) & 1u), "not recording: the patch, the hold in force let go (heard)");
     song.playing = 0;
