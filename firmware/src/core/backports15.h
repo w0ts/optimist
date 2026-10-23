@@ -45,6 +45,12 @@
 #if FELUCCA_GRIDS_LFO && !FELUCCA_GEN_GRIDS
 #error "GRIDS_LFO moves the kit GRIDS' values: it needs GEN_GRIDS"
 #endif
+#ifndef FELUCCA_GRIDS_VEL
+#define FELUCCA_GRIDS_VEL 0      /* seq/gen.c gr_lv_vel (a GRIDS hit's velocity from its level), op_tools.c the VEL card */
+#endif
+#if FELUCCA_GRIDS_VEL && !FELUCCA_GEN_GRIDS
+#error "GRIDS_VEL is the kit GRIDS' velocity: it needs GEN_GRIDS"
+#endif
 #if FELUCCA_GRIDS_EUCLID && !FELUCCA_GEN_GRIDS
 #error "GRIDS_EUCLID is a mode of the kit's GRIDS: it needs GEN_GRIDS"
 #endif

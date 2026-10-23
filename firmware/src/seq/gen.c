@@ -216,6 +216,10 @@ static uint32_t gr_kit_level(uint32_t part, uint32_t i, uint32_t len, uint32_t p
     }
     return lv > 255u ? 255u : lv;
 }
+/* the kit GRIDS' own settings (OUT: GRIDS_EUCLID, VEL: GRIDS_VEL), kit-wide: GEN_TLV's pseudo-slot GR_OUT_SLOT, bit 11 OUT EUCL,
+ * bit 12 VEL OFF (a slot number no build has: a build without them skips it) */
+#define GR_OPTS (FELUCCA_GRIDS_EUCLID || FELUCCA_GRIDS_VEL)
+#define GR_OUT_SLOT 31u
 #if FELUCCA_GRIDS_EUCLID
 /* ---- the kit's GRIDS in Grids' EUCLIDEAN output mode (pattern_generator.cc EvaluateEuclidean; its table
  * lut_res_euclidean, grids/resources/lookup_tables.py, worked out here as that script does: gr_eu_mask). OUT EUCL on
@@ -225,7 +229,6 @@ static uint32_t gr_kit_level(uint32_t part, uint32_t i, uint32_t len, uint32_t p
  * hit. FELUCCA_GRIDS_EUCLID */
 enum { GRO_DRUMS, GRO_EUCLID, GRO_N };
 static uint8_t gr_out;                                   /* the kit's output mode (kit-wide; GEN_TLV's pseudo-slot GR_OUT_SLOT) */
-#define GR_OUT_SLOT 31u                                  /* (a slot number no build has: a build without the mode skips it) */
 static const char *const GR_OUT_NAME[GRO_N] = {"DRUMS", "EUCL"};
 /* Grids' EuclidianPattern(k, n), flattened: step j -> bit j. Groups of steps (bits, LSB first; their lengths), merged
  * pairwise until one kind runs out (Bjorklund) */
@@ -274,6 +277,20 @@ static int gr_eu_hit(const int16_t *v, uint32_t p, uint32_t i, uint32_t len, uin
 #define GRO_EUCLID 1
 #define gr_eu_hit(v, p, i, len, pass) 0
 #endif
+#if FELUCCA_GRIDS_VEL
+/* GRIDS_VEL (the user, 2026-10-23: "grids output velocity! send it to the drums"): in DRUMS a part's hit plays at the
+ * dynamic of its level on the map: Grids' 0..255 as a velocity (gr_lv_vel, 1..127), that velocity as the drum steps keep
+ * it (drums.c vel_lvl: GHOST under 56, SOFT under 88, NORM under 116, else HARD; played 42 72 100 127), so the busiest
+ * steps play loud and the in-between ones soft, into the drum sound and MIDI out, drawn on STEP as such and WRITE keeps
+ * them (a drum step holds 2 bits of level a lane: four dynamics, never 127 velocities). VEL on DENSITY turns it off: the
+ * levels as before (HARD over 192, else the pattern's or NORM). Kit-wide, with OUT in GEN_TLV's pseudo-slot (bit 12: VEL
+ * OFF) */
+static uint8_t gr_vel_off;
+static uint32_t gr_lv_vel(uint32_t lv) { return 1u + lv * 126u / 255u; }
+#else
+#define gr_vel_off 1
+#define gr_lv_vel(lv) 0u
+#endif
 /* the kit's hits merged into o (s: the stored step i) */
 static void gr_kit_merge(const track_t *t, uint32_t i, uint32_t len, const dstep_t *s, dstep_t *o)
 {
@@ -281,7 +298,7 @@ static void gr_kit_merge(const track_t *t, uint32_t i, uint32_t len, const dstep
     int16_t g[GR_KIT_N];
     gr_kit_vals(t->p, g);
     for (p = 0; p <= GR_PARTS; p++) {                   /* (p GR_PARTS: the ACCENT lane) */
-        uint32_t l = p < GR_PARTS ? gr_kit_lane(p) : DRUM_ACC, hit = acc, hard = 0, has;
+        uint32_t l = p < GR_PARTS ? gr_kit_lane(p) : DRUM_ACC, hit = acc, hard = 0, has, lvl = 4u;
         if (p < GR_PARTS && gr_out == GRO_EUCLID) {
             hit = (uint32_t)gr_eu_hit(g, p, i, len, t->pass);
         } else if (p < GR_PARTS) {
@@ -289,6 +306,8 @@ static void gr_kit_merge(const track_t *t, uint32_t i, uint32_t len, const dstep
             hit = lv > 255u - gr_u7(g[3u + p]);
             hard = hit && lv > 192u;
             acc |= hard;
+            if (!gr_vel_off)
+                lvl = vel_lvl(gr_lv_vel(lv));            /* (GRIDS_VEL: the level's dynamic, 4: none) */
         }
         if (l >= DRUM_SLANES || ((own >> l) & 1u))
             continue;
@@ -300,7 +319,7 @@ static void gr_kit_merge(const track_t *t, uint32_t i, uint32_t len, const dstep
         }
         if (!has && mode == GM_MASK)
             continue;
-        dstep_set(o, l, hard ? LV_HARD : has ? dstep_lvl(s, l) : LV_NORM, has ? dstep_rat(s, l) : 0u);
+        dstep_set(o, l, lvl < 4u ? lvl : hard ? LV_HARD : has ? dstep_lvl(s, l) : LV_NORM, has ? dstep_rat(s, l) : 0u);
     }
 }
 #endif
@@ -401,6 +420,9 @@ static void gen_reset_all(void)                          /* every slot off, GEN_
     }
 #if FELUCCA_GRIDS_EUCLID
     gr_out = GRO_DRUMS;
+#endif
+#if FELUCCA_GRIDS_VEL
+    gr_vel_off = 0;
 #endif
     gen_sync();
 }
@@ -630,9 +652,9 @@ static uint32_t gen_tlv(uint8_t *o)
         o[n] = (uint8_t)w, o[n + 1u] = (uint8_t)(w >> 8), o[n + 2u] = (uint8_t)(w >> 16), o[n + 3u] = (uint8_t)(w >> 24);
         n += 4u;
     }
-#if FELUCCA_GRIDS_EUCLID
-    if (gr_out) {                                        /* the kit's output mode: a pseudo-slot (bit 11 on: EUCL) */
-        uint32_t w = GR_OUT_SLOT | (uint32_t)(gr_out & 1u) << 11;
+#if GR_OPTS
+    if (gr_out || (FELUCCA_GRIDS_VEL && gr_vel_off)) {   /* the kit GRIDS' settings: a pseudo-slot (bit 11 EUCL, bit 12 VEL OFF) */
+        uint32_t w = GR_OUT_SLOT | (uint32_t)(gr_out & 1u) << 11 | (uint32_t)(FELUCCA_GRIDS_VEL && gr_vel_off) << 12;
         o[n] = (uint8_t)w, o[n + 1u] = (uint8_t)(w >> 8), o[n + 2u] = (uint8_t)(w >> 16), o[n + 3u] = (uint8_t)(w >> 24);
         n += 4u;
     }
@@ -647,9 +669,14 @@ static void gen_untlv(const uint8_t *a, uint32_t n)      /* (n 0: none; an entry
         uint32_t w = a[i] | (uint32_t)a[i + 1u] << 8 | (uint32_t)a[i + 2u] << 16 | (uint32_t)a[i + 3u] << 24;
         uint32_t s = w & 31u, md = (w >> 6) & 3u, ty = (w >> 8) & 7u;
         gen_t g;
-#if FELUCCA_GRIDS_EUCLID
+#if GR_OPTS
         if (s == GR_OUT_SLOT) {
+#if FELUCCA_GRIDS_EUCLID
             gr_out = (uint8_t)((w >> 11) & 1u);
+#endif
+#if FELUCCA_GRIDS_VEL
+            gr_vel_off = (uint8_t)((w >> 12) & 1u);
+#endif
             continue;
         }
 #endif
