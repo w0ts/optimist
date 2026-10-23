@@ -29,8 +29,10 @@ static void mixer_walk_tests(void)
     ui.force = 1;
     frame();
     check(mx_row() == MXR_T1 && mxd.first == MXR_T1 && px_in(6, mx_row_y(MXR_T1) + 3u, 16, 14, C_WHITE) && MXL_H == (OP_FOOT ? 36 : 41) &&
-              px_in(0, mx_row_y(MXR_DR) + 2u, 4, 30, trk_col(TRK_DRUM)) && !px_in(0, mx_row_y(MXR_DR) + (uint32_t)MXL_H + 2u, 4, 1, lane_col(0)),
-          "the mixer opens on T1 T2 T3 DR, four rows of 41 px (36 over the help band; MASTER above, out of view)");
+              px_in(0, mx_row_y(MXR_T1) + 2u, 4, 30, trk_col(0)) && px_in(0, mx_row_y(MXR_DR) + 2u, 4, 30, C_GRAY) &&
+              !px_in(0, mx_row_y(MXR_DR) + 2u, 4, 30, trk_col(TRK_DRUM)) && !px_in(0, mx_row_y(MXR_DR) + (uint32_t)MXL_H + 2u, 4, 1, lane_col(0)),
+          "the mixer opens on T1 T2 T3 DR, four rows of 41 px (36 over the help band; MASTER above, out of view); the selected "
+          "row's chip in its colour, the others grey");
     for (i = 1; i < MXR_LN - MXR_T1; i++) {             /* ALGORITHM down: T2 T3 DR, then the 16 lanes */
         turn(EN_ALGO, 1);
         ok &= mx_row() == MXR_T1 + i;
@@ -450,21 +452,32 @@ static void mixer_rows_tests(void)
     uint32_t y;
     reset_ui();
     memset(&dr->dstep[0], 0, sizeof dr->dstep[0]);
-    dstep_set(&dr->dstep[0], 2u, 2u, 0);                    /* lane 2 (snare) on step 1 */
+    memset(&dr->dstep[1], 0, sizeof dr->dstep[1]);
+    memset(&dr->dstep[2], 0, sizeof dr->dstep[2]);
+    memset(&dr->dstep[3], 0, sizeof dr->dstep[3]);
+    dstep_set(&dr->dstep[0], 2u, 2u, 0);                    /* lane 2 (snare) on step 1, SOFT */
+    dstep_set(&dr->dstep[1], DRUM_ACC, LV_NORM, 0);         /* an accent alone on step 2 */
+    dstep_set(&dr->dstep[2], 2u, LV_GHOST, 0);              /* the snare GHOST on step 3, HARD on step 4 */
+    dstep_set(&dr->dstep[3], 2u, LV_HARD, 0);
     while (mx_row() < MXR_DR)
         turn(EN_ALGO, 1);
     ui.force = 1;
     frame();
     y = mx_row_y(MXR_DR);
     check(px_in(MXL_VX, y + MXL_SY, 11, MXL_SH, trk_col(TRK_DRUM)), "DR's sequence: every lane merged (the snare's step 1)");
+    check(!px_in(MXL_VX + MXL_SP, y + MXL_SY, 11, MXL_SH, trk_col(TRK_DRUM)), "DR's sequence: an accent alone is no hit");
     turn(EN_ALGO, 3);
     frame();
     y = mx_row_y(MXR_LANE0 + 2u);
-    check(mx_row() == MXR_LANE0 + 2u && px_in(MXL_VX, y + MXS_SY, 5, 4, lane_col(2)), "the snare lane's cell: its own hit");
+    check(mx_row() == MXR_LANE0 + 2u && px_in(MXL_VX, y + MXS_SY, 5, 4, lvl_col(lane_col(2), 2u)),
+          "the snare lane's cell: its own hit, shaded by its level as on STEP");
+    check(px_in(MXL_VX + 2 * MXL_SP, y + MXS_SY, 5, 4, lvl_col(lane_col(2), LV_GHOST)) &&
+          px_in(MXL_VX + 3 * MXL_SP, y + MXS_SY, 5, 4, lvl_col(lane_col(2), LV_HARD)) &&
+          lvl_col(lane_col(2), LV_GHOST) != lvl_col(lane_col(2), LV_HARD), "the snare lane: GHOST dim, HARD full");
     y = mx_row_y(MXR_LANE0 + 3u);
     check(y + MXS_SY + 4 <= 240u && !px_in(MXL_VX, y + MXS_SY, 5, 4, lane_col(3)), "the clap lane's cell: none");
     ppm("opt-mixer-sounds");
-    memset(&dr->dstep[0], 0, sizeof dr->dstep[0]);
+    memset(&dr->dstep[0], 0, 4 * sizeof dr->dstep[0]);
     song.sel = 0;
     reset_ui();
     {   /* a track's VU while it plays */
