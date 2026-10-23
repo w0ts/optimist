@@ -1813,7 +1813,7 @@ const PARAMS_GLOBAL = 127;                         /* a PARAMS entry's "where" f
 /* user preset bank: name 1..12 printable ASCII, a 16-step pattern of (note, flags 1 acc 2 slide 4 tie) */
 const UP = { NAME_MAX: 12, PAT: 16, LIST_MAX: 16 };
 const F = { INT: 0, PCT: 1, BIPCT: 2, TIME: 3, LFOHZ: 4, CUTOFF: 5, DB: 6, SEMI: 7, ENUM: 8, BPM: 9, NOTE: 10, ONOFF: 11, OCT: 12, STEPS: 13,
-  SWING: 14, FILT: 15 };
+  SWING: 14, FILT: 15, GATE: 16 };
 /* the drum track's 10 lanes (2026-10-16; firmware drums.c LANE_DEF_INST, INST_NOTE / INST_NAME): a fresh project's
    instruments, each lane's GM note and name; the device names a lane after the instrument it plays (DRUM_SHOW). The
    messages keep the 16 lanes' width (lanes 11..16 zero) and lane 16 the ACCENT lane (drums.c EDW_ACC). A hit has a level
@@ -3309,6 +3309,7 @@ function fmtValue(d, v) {
   switch (d.fmt) {
     case F.PCT: return [String(d.max > 0 ? Math.trunc((v * 100 + Math.trunc(d.max / 2)) / d.max) : v), "%"];
     case F.SWING: return [String(50 + Math.trunc((Math.max(0, Math.min(100, v)) + 2) / 4)), "%"];   /* MPC: 50 % straight .. 75 % */
+    case F.GATE: return [String(Math.trunc((v * 100 + 32) / 64)), "%"];   /* 1/64 of the step: 64 is 100 % (params.c F_GATE, c71ce50d) */
     case F.FILT: return !v ? ["OFF", ""] : v < 0 ? ["LP" + Math.trunc((-v * 100 + 32) / 64), "%"] : ["HP" + Math.trunc((v * 100 + 31) / 63), "%"];
     case F.BIPCT: return [sign(Math.trunc(v * 100 / (d.max > 63 ? 128 : 64))), "%"];   /* (an LFO slot's AMT: -128..127) */
     case F.TIME: {
@@ -4729,23 +4730,23 @@ function makeMockDevice(opt = {}) {
      the generator types built (bit 0 EUCLID .. bit 3 GRIDS; 15 by default) */
   const has = (k, grp) => (opt[k] === undefined ? !!opt[grp] : !!opt[k]);
   const m13 = { fxp: has("fxp", "fxp"), dlan: has("dlan", "fxp"), scrn: has("scrn", "scrn"), songc: has("songc", "scrn"), tools: has("tools", "scrn"), scrs: has("scrs", "scrn"), fav: has("fav", "scrn"), scope: has("scope", "scrn"), usb: has("usb", "fxp"), accent: has("accent", "fxp") };
-  const NONOFF = ["OFF", "ON"], NDIV = ["1/4", "1/8", "1/16", "1/32", "8T", "16T"], NSDIV = [...NDIV, "1/2", "1BAR", "2BAR"], NDLY = [...NDIV, "1/8D", "1/16D"], NGO = ["--", "GO"], NDASH = ["--"];
+  const NONOFF = ["OFF", "ON"], NDUR = LSYNC_NAMES /* (params.c N_DUR: every note value, 03b676ad) */, NGO = ["--", "GO"], NDASH = ["--"];
   const D = (label, fmt, min, max, def, names = null, unit = "") => ({ label, fmt, min, max, def, names, unit });
   const E = (label, names, def) => D(label, F.ENUM, 0, names.length - 1, def, names);
   const TP = [
     D("LVL", F.DB, 0, 127, 104),
     D("ATK", F.TIME, 0, 127, 10), D("DEC", F.TIME, 0, 127, 70), D("SUS", F.PCT, 0, 127, 90), D("REL", F.TIME, 0, 127, 60),
     D("FLT", F.BIPCT, -64, 63, 0), D("PIT", F.BIPCT, -64, 63, 0), D("SHP", F.BIPCT, -64, 63, 0), D("TRIM", F.INT, -64, 63, 0),
-    D("RATE", F.LFOHZ, -10, 127, 60), E("WAVE", ["SIN", "TRI", "SAW", "SQR", "S&H"], 0), D("PHS", F.INT, 0, 127, 0), D("FADE", F.TIME, 0, 127, 0),
+    D("RATE", F.LFOHZ, -22, 127, 60), E("WAVE", ["SIN", "TRI", "SAW", "SQR", "S&H"], 0), D("PHS", F.INT, 0, 127, 0), D("FADE", F.TIME, 0, 127, 0),
     E("DST A", LT_NAMES, 0), D("AMT A", F.BIPCT, -128, 127, 0), E("DST B", LT_NAMES, 0), D("AMT B", F.BIPCT, -128, 127, 0),
-    E("MODE", ["OFF", "UP", "DN", "UPDN", "RND", "ORD", "BASS"], 0), E("RATE", NDIV, 2), D("OCT", F.INT, 1, 4, 1), D("GATE", F.PCT, 1, 127, 64),
+    E("MODE", ["OFF", "UP", "DN", "UPDN", "RND", "ORD", "BASS"], 0), E("RATE", NDUR, 16), D("OCT", F.INT, 1, 4, 1), D("GATE", F.GATE, 1, 127, 32),
     D("SWG", F.SWING, 0, 100, 0), D("PROB", F.PCT, 0, 127, 127), E("HOLD", NONOFF, 0), E("ORD", ["NOTE", "PLAY"], 0),
     D("ROOT", F.NOTE, 0, 11, 0), E("SCL", ["CHR", "MAJ", "MIN", "DOR", "MIX", "PEN", "MPEN", "HARM", "PHRY", "LYD", "LOC", "MEL", "BLUES", "WHOLE", "DIMHW", "DIMWH"], 0), E("QNT", ["OFF", "SNAP", "WHITE", "ALL"], 0), D("TRN", F.SEMI, -24, 24, 0),
-    D("LEN", F.STEPS, 1, 64, 16), E("DIV", NSDIV, 2), D("SWG", F.SWING, 0, 100, 0), D("GATE", F.PCT, 1, 127, 64),
+    D("LEN", F.STEPS, 1, 64, 16), E("DIV", NDUR, 16), D("SWG", F.SWING, 0, 100, 0), D("GATE", F.PCT, 1, 127, 64),
     D("DST", F.PCT, 0, 127, 0), D("CHO", F.PCT, 0, 127, 0), D("DLY", F.PCT, 0, 127, 0), D("REV", F.PCT, 0, 127, 0),
     E("VCE", ["POLY", "MONO", "LEG", "UNI"], 0), D("GLD", F.TIME, 0, 127, 0), D("PAN", F.BIPCT, -64, 63, 0), E("MUTE", NONOFF, 0),
     E("GLMOD", ["RATE", "TIME"], 0), E("PRIO", ["LAST", "LOW", "HIGH"], 0), E("ALLOC", ["ROT", "REUSE"], 0), D("DTUNE", F.INT, 0, 127, 40),
-    E("SLCR", ["OFF", "GATE", "STUT"], 0), D("PAT", F.INT, 1, 16, 1), E("RATE", ["1/8", "1/16", "1/32", "8T", "16T", "32T"], 1), D("DEPTH", F.PCT, 0, 127, 127),
+    E("SLCR", ["OFF", "GATE", "STUT"], 0), D("PAT", F.INT, 1, 16, 1), E("RATE", NDUR, 16), D("DEPTH", F.PCT, 0, 127, 127),
     E("CHORD", ["OFF", "TRIAD", "7TH", "9TH", "SUS4", "POWER"], 0),
     E("FX", ["ON", "OFF"], 0),                    /* P_FXOFF: the FX bypass (SLOOP 2.3) */
     /* ANALOG 2 (FELUCCA_ANALOG2): OSC 2, SWARM, FLT 2, ENV 2 (ENV2, ENV2 DEST), shown on an ANALOG track */
@@ -4758,7 +4759,7 @@ function makeMockDevice(opt = {}) {
   ];
   const GP = [
     D("BPM", F.BPM, 40, 240, 90), D("SWING", F.SWING, 0, 100, 0), E("CLICK", ["OFF", "REC", "ON"], 0), D("TUNE", F.INT, -50, 50, 0),
-    E("TIME", NDLY, 1), D("FDBK", F.PCT, 0, 120, 60), D("FREQ", F.CUTOFF, 0, 127, 107), D("MIX", F.PCT, 0, 127, 90),
+    E("TIME", NDUR, 13), D("FDBK", F.PCT, 0, 120, 60), D("FREQ", F.CUTOFF, 0, 127, 107), D("MIX", F.PCT, 0, 127, 90),
     D("SIZE", F.PCT, 0, 127, 90), D("DAMP", F.PCT, 0, 127, 60), D("CRT", F.LFOHZ, 0, 127, 40), D("CDP", F.PCT, 0, 127, 60),
     E("CLK", ["INT", "USB", "TRS"], 0), E("SYNC", ["INT", "USB", "TRS", "AUTO"], 3), E("VIEW", ["PAGE", "ALL"], 1), D("CPU", F.INT, 0, 0, 0),
     D("SLOT", F.INT, 1, 4, 1), E("NAME", NDASH, 0), E("LOAD", NGO, 0), E("SAVE", NGO, 0),
@@ -4767,7 +4768,7 @@ function makeMockDevice(opt = {}) {
     E("CLRSQ", NGO, 0), E("INIT", NGO, 0),
     D("CH", F.INT, 0, 16, 10), D("LVL", F.INT, 0, 127, 100), D("REV", F.INT, 0, 127, 16),
     D("DUST", F.PCT, 0, 127, 0), D("DUCK", F.PCT, 0, 127, 0), D("FILT", F.FILT, -64, 63, 0),
-    E("ROLL", ["1/8", "1/16", "1/32", "32T", "1/64"], 1), E("NEW", NGO, 0),
+    E("ROLL", NDUR, 16), E("NEW", NGO, 0),
     /* COMP, LIMIT (G_CTHR..G_CCEIL) */
     D("THRS", F.INT, -30, 0, 0, null, "dB"), E("RATIO", ["1.5:1", "2:1", "3:1", "4:1", "6:1", "8:1", "20:1", "INF"], 1),
     E("ATK", ["0.1ms", "0.3ms", "1ms", "3ms", "10ms", "30ms"], 4), E("REL", ["50ms", "100ms", "200ms", "300ms", "600ms", "1.2s", "AUTO"], 6),
