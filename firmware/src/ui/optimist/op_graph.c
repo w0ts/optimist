@@ -518,7 +518,10 @@ static void denv_synth(uint32_t l, uint32_t kit, const int8_t *o, int32_t y0, in
 static const char *denv_syn_tag(uint32_t l, uint32_t kit)
 {
     int32_t semi;
-    uint32_t w = DS_SND(ds_kit(kit), ds_lane(LANE_NOTE_OF(l), &semi))->wave;
+    dsnd_t snd;
+    uint32_t w;
+    ds_unpack(&snd, DS_SND(ds_kit(kit), ds_lane(LANE_NOTE_OF(l), &semi)));   /* (the sound is packed: drum_synth.c) */
+    w = snd.wave;
     return w == DW_PKICK ? "KPUNC" : w == DW_PSNARE ? "SCRAK" : "SYN";
 }
 #else

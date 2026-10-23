@@ -55,13 +55,22 @@ typedef struct {                 /* (its name and style: drums.c DRUM_KIT_NAMES 
     uint8_t crush;               /* low nibble: bits dropped, high nibble: sample-and-hold - 1 */
     uint16_t si[DS_LANES];       /* each lane's sound: DS_SNDS index (a sound several kits share is kept once) */
 } dkit_t;
-/* a sound as the kit tables keep it (tools/gen_drumkits.py, 17 B; the whole dsnd_t until 2026-10-23: 2.3 KB more of
- * flash): the 16 fields most sounds set, and the index of a row of DS_RARE holding the rest (t2, t2lev, fenv, hpf, chip,
- * drive, the KAWA extras), which most sounds leave at 0; row 0 is all zeros. ds_unpack makes the dsnd_t a voice plays
- * (its own copy, dsv_t snd; the UI's pictures and values make one on the stack) */
+/* a sound as the kit tables keep it (tools/gen_drumkits.py, DSC_NP + 1 = 12 B; 17 B until 2026-10-23, the whole dsnd_t,
+ * 25 B, before: 1.3 KB more of flash): the 16 fields most sounds set, packed as bit fields low bit first (DSC_W the width
+ * of each, in this order: wave src pitch fine bend btime hold decay tlev click nlev nhold ndec flt fcut level; a column
+ * with few distinct values holds an index into its sorted values, DSC_MV from DSC_MO[i], 255 = the value itself), then
+ * the index of a row of DS_RARE holding the rest (t2, t2lev, fenv, hpf, chip, drive, the KAWA extras), which most
+ * sounds leave at 0; row 0 is all zeros. ds_unpack makes the dsnd_t a voice plays (its own copy, dsv_t snd, at a
+ * note-on; the UI's pictures and values make one on the stack) */
+#define DSC_NP 11
 typedef struct {
-    uint8_t wave, src, pitch, fine, bend, btime, hold, decay, tlev, click, nlev, nhold, ndec, flt, fcut, level, rare;
+    uint8_t p[DSC_NP], rare;
 } dsndc_t;
+static const uint8_t DSC_OFS[16] = {   /* where each packed field goes in a dsnd_t */
+    __builtin_offsetof(dsnd_t, wave), __builtin_offsetof(dsnd_t, src), __builtin_offsetof(dsnd_t, pitch), __builtin_offsetof(dsnd_t, fine),
+    __builtin_offsetof(dsnd_t, bend), __builtin_offsetof(dsnd_t, btime), __builtin_offsetof(dsnd_t, hold), __builtin_offsetof(dsnd_t, decay),
+    __builtin_offsetof(dsnd_t, tlev), __builtin_offsetof(dsnd_t, click), __builtin_offsetof(dsnd_t, nlev), __builtin_offsetof(dsnd_t, nhold),
+    __builtin_offsetof(dsnd_t, ndec), __builtin_offsetof(dsnd_t, flt), __builtin_offsetof(dsnd_t, fcut), __builtin_offsetof(dsnd_t, level)};
 typedef struct {
     uint8_t t2, t2lev;
     int8_t fenv;
@@ -79,9 +88,19 @@ typedef struct {
 static void ds_unpack(dsnd_t *o, const dsndc_t *c)
 {
     const dsrare_t *r = &DS_RARE[c->rare];
-    o->wave = c->wave, o->src = c->src, o->pitch = c->pitch, o->fine = c->fine, o->bend = c->bend, o->btime = c->btime;
-    o->hold = c->hold, o->decay = c->decay, o->tlev = c->tlev, o->click = c->click, o->nlev = c->nlev;
-    o->nhold = c->nhold, o->ndec = c->ndec, o->flt = c->flt, o->fcut = c->fcut, o->level = c->level;
+    const uint8_t *s = c->p;
+    uint32_t acc = 0, n = 0, i;
+    for (i = 0; i < 16u; i++) {                 /* the packed fields, low bit first, DSC_W[i] bits each */
+        uint32_t w = DSC_W[i], v;
+        while (n < w) {
+            acc |= (uint32_t)*s++ << n;
+            n += 8;
+        }
+        v = acc & ((1u << w) - 1u);
+        acc >>= w;
+        n -= w;
+        ((uint8_t *)o)[DSC_OFS[i]] = DSC_MO[i] == 255u ? (uint8_t)v : DSC_MV[DSC_MO[i] + v];
+    }
     o->t2 = r->t2, o->t2lev = r->t2lev, o->fenv = r->fenv, o->hpf = r->hpf, o->chip = r->chip, o->drive = r->drive;
 #if FELUCCA_DS_KAWA
     o->kx = r->kx, o->kgap = r->kgap, o->krise = r->krise;

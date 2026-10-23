@@ -3,13 +3,22 @@
  * and the unpacking both UIs share (SLOOP's ui/sloop/param_help.c, the Optimist UI's ui/optimist/op_help.c include
  * it). PH_BLOB holds the groups as (kind, context, label -> text); the labels and contexts plain, the texts packed
  * with a byte pair code: a byte 0x80..0xFF, 0x01..0x1F or of PH_XC (printable characters no text uses) stands for a
- * pair of PH_PAIR (each a character or an earlier code), any other printable ASCII for itself. A label or a text the
- * table has more than once is in PH_SHL / PH_SHT once and stands in PH_BLOB as PH_REF then its index + 1 (two bytes,
- * no NUL). A line is unpacked into the caller's buffer of PH_LINE bytes when it is drawn: main loop only, nothing in
- * RAM. */
+ * pair of PH_PAIR (each a character or an earlier code), any other printable ASCII for itself. A label the table has
+ * more than once is in PH_SHL once and stands in PH_BLOB as one byte, 0x80 + its index (a label is plain ASCII: no
+ * NUL); a text so shared is in PH_SHT and stands as PH_REF then its index + 1 (two bytes, no NUL; a text's first byte
+ * may be a pair code). A line is unpacked into the caller's buffer of PH_LINE bytes when it is drawn: main loop only,
+ * nothing in RAM. */
 #include "felucca_param_help.h"
 
-static const char *ph_next(const char *s)              /* past the string at s and its NUL (a reference: its 2 bytes) */
+static const char *ph_lab_next(const char *s)          /* past the label (or context) at s and its NUL (a shared one: its byte) */
+{
+    if ((uint8_t)*s >= 0x80u)
+        return s + 1;
+    while (*s)
+        s++;
+    return s + 1;
+}
+static const char *ph_txt_next(const char *s)          /* past the text at s and its NUL (a shared one: its 2 bytes) */
 {
     if ((uint8_t)*s == PH_REF)
         return s + 2;
@@ -19,7 +28,7 @@ static const char *ph_next(const char *s)              /* past the string at s a
 }
 static const char *ph_lab(const char *s)               /* the label at s as it reads (a shared one: its string) */
 {
-    return (uint8_t)*s == PH_REF ? (const char *)PH_SHL + PH_SHL_OFF[(uint8_t)s[1] - 1u] : s;
+    return (uint8_t)*s >= 0x80u ? (const char *)PH_SHL + PH_SHL_OFF[(uint8_t)*s - 0x80u] : s;
 }
 /* label's line in context ctx of kind (PH_*), as its offset in PH_BLOB; 0 = none */
 static __attribute__((noinline)) uint32_t ph_find(uint32_t kind, const char *ctx, const char *label)
@@ -27,9 +36,9 @@ static __attribute__((noinline)) uint32_t ph_find(uint32_t kind, const char *ctx
     const char *p = PH_BLOB;
     while (*p) {
         int here = (uint8_t)*p == kind && str_eq(p + 1, ctx);
-        for (p = ph_next(p + 1); *p; p = ph_next(ph_next(p)))
+        for (p = ph_lab_next(p + 1); *p; p = ph_txt_next(ph_lab_next(p)))
             if (here && str_eq(ph_lab(p), label))
-                return (uint32_t)(ph_next(p) - PH_BLOB);
+                return (uint32_t)(ph_lab_next(p) - PH_BLOB);
         p++;                                            /* (the group's empty label) */
     }
     return 0;
