@@ -15,9 +15,11 @@
 #define BP_OFF_TXB0 4480u                          /* the two DH5 TX payloads (339 B each, after the table: BTI_TAB_ALLOC) */
 #define BP_OFF_TXB1 (4480u + 344u)
 #define BP_TXB 339u                                /* a DH5 payload (BR §5.5) */
-#define BP_MQ 16u                                  /* the audio packets queued (~140 ms of the stream at 3 SBC frames a
+#define BP_MQ 40u                                  /* the audio packets queued (~350 ms of the stream at 3 SBC frames a
                                                     * packet; 4 = 23 ms overflowed on every radio hiccup: audio_drop
-                                                    * 11 %, heard as crackles, 2026-10-21) */
+                                                    * 11 %, heard as crackles, 2026-10-21; 16 = 140 ms overflowed on the
+                                                    * XM4's 100-150 ms refusals of our DH5s while it kept answering,
+                                                    * 2026-10-23: a phone's sink buffer rides those out, so does this) */
 #define BP_OFF_RX0 1088u                           /* the connection's two RX buffers: the table's link_rx_bulk (BR §3) */
 #define BP_OFF_RX1 (1088u + 680u)
 #define BP_LT_ADDR 1u
