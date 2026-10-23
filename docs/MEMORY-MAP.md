@@ -91,7 +91,7 @@ EXPERIMENTAL `TAB_IN_POOL` moves them, and the console's `tabbench` times SINE i
 |---|---|---|
 | RAMTEXT 0x01C00000 | 32,512 B | the audio path copied from flash at boot: `.ram_text` (flash driver, CPU1 spin loop) and `.ram_hot` (`HOT`: the mix, drums, most engines) |
 | RAM 0x01C08000 | 96 KiB | `.ram_hot2` (`HOT2`: code that no longer fits RAMTEXT, mostly FX), `.data`, `.bss` |
-| POOL 0x01C20000 | 336 KiB (344,064 B) | `.pool_init` (with `TAB_IN_POOL`: the TAB_RAM tables, copied at boot), then `.pool`: delay line, reverbs, engine memory shared per part, USB audio rings, slicer and punch buffers, the screen canvas, the main loop's `IN_POOL` buffers |
+| POOL 0x01C20000 | 336 KiB (344,064 B) | `.pool_init` (with `TAB_IN_POOL`: the TAB_RAM tables, copied at boot), then `.pool`: the effects memory (the delay line and the inserts' lines, `fx/insfx/fxi_mem.h`), reverbs, engine memory shared per part, USB audio rings, slicer and punch buffers, the screen canvas, the main loop's `IN_POOL` buffers |
 | stacks 0x01C74000 | 32 KiB | user 0x01C74100-0x01C7A000 and system 0x01C7A100-0x01C7C000, each after a guard band; CPU1's stack is in the pool |
 | NOINIT 0x01C7C000 | 15,696 B | survives a reset: the pending arena (sections saved while playing, written when the transport stops), panel table and settings, boot guard, crash record, with SECTIONS=4 the project slots |
 

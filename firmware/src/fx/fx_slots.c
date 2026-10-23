@@ -198,8 +198,8 @@ AINL int16_t rt_def(uint32_t t) { return t == FXT_JUNO ? 127 : t == FXT_FILT ? 0
  * in the ISR), read and cleared by fxi_poll only */
 static volatile uint8_t fxi_dirty;
 #define FXI_ASK(v) (fxi_dirty |= (uint8_t)(v))
-/* the send lines lent to the limited inserts (fxi.c, "Lending"): bit 0 the chorus send's (cho_buf: CHRS), bit 1 the
- * delay send's (dly_buf: ECHO). Set, its bus does not run nor clear its line (fx.c fx_ret_block): the line is the
+/* the send lines lent to the limited inserts (fxi.c, "Lending"): bit 0 the chorus send's (cho_buf), bit 1 the delay
+ * send's (dly_buf): the effects memory's units (fxi_mem.h). Set, its bus does not run nor clear its line (fx.c fx_ret_block): the line is the
  * inserts'. Written by fxi_poll only, with the interrupts off; the audio reads it once a block */
 static volatile uint8_t fxl_lent;
 #else

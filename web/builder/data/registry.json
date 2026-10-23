@@ -2331,7 +2331,7 @@
     "bit": 270,
     "default": 0,
     "parent": null,
-    "desc": "A chorus type for the tracks' insert slots (INSERTS > S1 / S2: CHRS), beside the chorus send: two taps around 7 ms swept apart at ~0.8 Hz; CHRS up to the middle mixes it in, past the middle widens the sweep. On the drum track it turns the drums' mid into a stereo chorus. 0 is off. Each instance is a line in the pool; a track that picks it when every instance is in use stays dry until one is free (the INSERTS list shows how many are left). A saved project keeps the type, not the instance: on load the tracks get them in order T1 T2 T3 DR.",
+    "desc": "A chorus type for the tracks' insert slots (INSERTS > S1 / S2: CHRS), beside the chorus send: two taps around 7 ms swept apart at ~0.8 Hz; CHRS up to the middle mixes it in, past the middle widens the sweep. On the drum track it turns the drums' mid into a stereo chorus. 2 KB of the effects memory an instance. Its line is in the effects memory (below): as many play at once as it holds; a slot that picks it when there is no room left stays dry until some is free (the INSERTS list shows how many more fit). A saved project keeps the type, not the room: on load the slots get it in order T1 T2 T3 DR, the master, the USB input, the returns.",
     "experimental": false,
     "notice": "Tested in the host tests only, not on a device.",
     "off_warning": "",
@@ -2342,28 +2342,7 @@
     ],
     "no_image": false,
     "fixed": false,
-    "choices": [
-     [
-      0,
-      "off"
-     ],
-     [
-      1,
-      "1 track (2 KB pool)"
-     ],
-     [
-      2,
-      "2 tracks (4 KB)"
-     ],
-     [
-      3,
-      "3 tracks (6 KB)"
-     ],
-     [
-      4,
-      "every track (8 KB)"
-     ]
-    ],
+    "choices": [],
     "provenance": null,
     "children": [],
     "tested": "emulator-tested only",
@@ -2377,7 +2356,7 @@
     "bit": 271,
     "default": 0,
     "parent": null,
-    "desc": "A slapback type for the tracks' insert slots (INSERTS > S1 / S2: ECHO), beside the delay send: one repeat 75 ms after the sound; ECHO up to the middle sets its level, past the middle adds repeats (feedback up to 60 %). Up to 93 ms of line an instance (the long, tempo-synced delay stays the send's). 0 is off. Each instance is a line in the pool; a track that picks it when every instance is in use stays dry until one is free (the INSERTS list shows how many are left). A saved project keeps the type, not the instance: on load the tracks get them in order T1 T2 T3 DR.",
+    "desc": "A slapback type for the tracks' insert slots (INSERTS > S1 / S2: ECHO), beside the delay send: one repeat 75 ms after the sound; ECHO up to the middle sets its level, past the middle adds repeats (feedback up to 60 %). Up to 93 ms of line an instance (the long, tempo-synced delay stays the send's): 8 KB of the effects memory. Its line is in the effects memory (below): as many play at once as it holds; a slot that picks it when there is no room left stays dry until some is free (the INSERTS list shows how many more fit). A saved project keeps the type, not the room: on load the slots get it in order T1 T2 T3 DR, the master, the USB input, the returns.",
     "experimental": false,
     "notice": "Tested in the host tests only, not on a device.",
     "off_warning": "",
@@ -2388,28 +2367,7 @@
     ],
     "no_image": false,
     "fixed": false,
-    "choices": [
-     [
-      0,
-      "off"
-     ],
-     [
-      1,
-      "1 track (8 KB pool)"
-     ],
-     [
-      2,
-      "2 tracks (16 KB)"
-     ],
-     [
-      3,
-      "3 tracks (24 KB)"
-     ],
-     [
-      4,
-      "every track (32 KB)"
-     ]
-    ],
+    "choices": [],
     "provenance": null,
     "children": [],
     "tested": "emulator-tested only",
@@ -2423,7 +2381,7 @@
     "bit": 142,
     "default": 0,
     "parent": null,
-    "desc": "The Juno-106's chorus as an insert type (INSERTS > S1 / S2, and the master's insert slots: JUNO): the MN3009 BBD model of fm-106, MODE I, II or I+II, JUNO its mix (127: the Juno's chorus on). A mono track comes out stereo. About 130 host instructions a sample an instance. 0 is off. Each instance is a line in the pool; a track that picks it when every instance is in use stays dry until one is free (the INSERTS list shows how many are left). A saved project keeps the type, not the instance: on load the tracks get them in order T1 T2 T3 DR.",
+    "desc": "The Juno-106's chorus as an insert type (INSERTS > S1 / S2, and the master's insert slots: JUNO): the MN3009 BBD model of fm-106, MODE I, II or I+II, JUNO its mix (127: the Juno's chorus on). A mono track comes out stereo. About 130 host instructions a sample an instance; 2 KB of the effects memory. Its line is in the effects memory (below): as many play at once as it holds; a slot that picks it when there is no room left stays dry until some is free (the INSERTS list shows how many more fit). A saved project keeps the type, not the room: on load the slots get it in order T1 T2 T3 DR, the master, the USB input, the returns.",
     "experimental": false,
     "notice": "From fm-106 by PatttF (GPL-3.0), after Ultramaster KR-106 (GPL-3.0). Tested in the host tests only, not on a device.",
     "off_warning": "",
@@ -2434,28 +2392,7 @@
     ],
     "no_image": false,
     "fixed": false,
-    "choices": [
-     [
-      0,
-      "off"
-     ],
-     [
-      1,
-      "1 slot (2 KB pool)"
-     ],
-     [
-      2,
-      "2 slots (4 KB)"
-     ],
-     [
-      3,
-      "3 slots (6 KB)"
-     ],
-     [
-      4,
-      "4 slots (8 KB)"
-     ]
-    ],
+    "choices": [],
     "provenance": {
      "project": "fm-106 (PatttF/fm-106)",
      "author": "PatttF",
@@ -2500,7 +2437,7 @@
     "bit": 259,
     "default": 0,
     "parent": null,
-    "desc": "A flanger type for any insert slot (a track's, the master's, the USB input's) and the returns (FLNG): a short delay swept 0.25 .. 5 ms (~0.25 Hz); FLNG up to the middle mixes it in, past the middle adds feedback. 0 is off. Each instance is a line in the pool; a track that picks it when every instance is in use stays dry until one is free (the INSERTS list shows how many are left). A saved project keeps the type, not the instance: on load the tracks get them in order T1 T2 T3 DR.",
+    "desc": "A flanger type for any insert slot (a track's, the master's, the USB input's) and the returns (FLNG): a short delay swept 0.25 .. 5 ms (~0.25 Hz); FLNG up to the middle mixes it in, past the middle adds feedback. 1 KB of the effects memory an instance. Its line is in the effects memory (below): as many play at once as it holds; a slot that picks it when there is no room left stays dry until some is free (the INSERTS list shows how many more fit). A saved project keeps the type, not the room: on load the slots get it in order T1 T2 T3 DR, the master, the USB input, the returns.",
     "experimental": false,
     "notice": "From Felucca 1.5.6's track INSERT FLANG by Leo Kuroshita (GPL-3.0). Tested in the host tests and the emulator only, not on a device.",
     "off_warning": "",
@@ -2511,28 +2448,7 @@
     ],
     "no_image": false,
     "fixed": false,
-    "choices": [
-     [
-      0,
-      "off"
-     ],
-     [
-      1,
-      "1 slot (1 KB pool)"
-     ],
-     [
-      2,
-      "2 slots (2 KB)"
-     ],
-     [
-      3,
-      "3 slots (3 KB)"
-     ],
-     [
-      4,
-      "4 slots (4 KB)"
-     ]
-    ],
+    "choices": [],
     "provenance": {
      "project": "Felucca 1.5.6 (hugelton/Felucca)",
      "author": "Leo Kuroshita (Hügelton)",
@@ -2552,7 +2468,7 @@
     "bit": 376,
     "default": 0,
     "parent": null,
-    "desc": "Two delay lines whose outputs move each other's time at the audio rate, as the SOMA LYRA-8's modulated delay does (its idea, no code): an insert type for the tracks' slots and the master's (XDLY). Its page has TIME 1 and TIME 2 (each line, 1 ms up to the line's length; turning one bends the repeats), MOD (how far each line's output moves the other's time: a slow chorus to metallic FM grit) and FDBK (the repeats; past ~95 % they grow into a soft clip and sustain, the LYRA's self-oscillation). XDLY, the amount, is the MIX, 0 off. A mono track gets the two lines' mean, the drum bus and the master line 1 on L and line 2 on R. A track's repeats go on after its notes end. About 190 host instructions a sample an instance. Each instance is two lines of the length below in the pool; a slot picking it when every instance is in use stays dry.",
+    "desc": "Two delay lines whose outputs move each other's time at the audio rate, as the SOMA LYRA-8's modulated delay does (its idea, no code): an insert type for the tracks' slots and the master's (XDLY). Its page has TIME 1 and TIME 2 (each line, 1 ms up to the line's length; turning one bends the repeats), MOD (how far each line's output moves the other's time: a slow chorus to metallic FM grit) and FDBK (the repeats; past ~95 % they grow into a soft clip and sustain, the LYRA's self-oscillation). XDLY, the amount, is the MIX, 0 off. A mono track gets the two lines' mean, the drum bus and the master line 1 on L and line 2 on R. A track's repeats go on after its notes end. About 190 host instructions a sample an instance. Each instance is two lines of the length below in the effects memory (64 KB, or 32 KB); as many play at once as it holds, a slot picking it when there is no room left stays dry.",
     "experimental": false,
     "notice": "Tested in the host tests only, not on a device.",
     "off_warning": "",
@@ -2563,28 +2479,7 @@
     ],
     "no_image": false,
     "fixed": false,
-    "choices": [
-     [
-      0,
-      "off"
-     ],
-     [
-      1,
-      "1 slot (2 lines)"
-     ],
-     [
-      2,
-      "2 slots"
-     ],
-     [
-      3,
-      "3 slots"
-     ],
-     [
-      4,
-      "4 slots"
-     ]
-    ],
+    "choices": [],
     "provenance": null,
     "children": [
      "XDLY_LEN"
@@ -2600,7 +2495,7 @@
     "bit": 377,
     "default": 16384,
     "parent": "INS_XDLY",
-    "desc": "How long each of XDLY's two lines is: TIME's top end. The shorter line halves every TIME and saves 32 KB of pool an instance.",
+    "desc": "How long each of XDLY's two lines is: TIME's top end. The shorter line halves every TIME and takes 32 KB less of the effects memory an instance.",
     "experimental": false,
     "notice": "",
     "off_warning": "",
@@ -2627,12 +2522,12 @@
    {
     "key": "DLY_ARENA",
     "flag": "FELUCCA_DLY_ARENA",
-    "label": "delay memory (shared by the delay, ECHO and XDLY)",
+    "label": "effects memory (shared by the delay and every insert with a line)",
     "group": "FX: limited instances (once, or a set count)",
     "bit": 378,
     "default": 0,
     "parent": null,
-    "desc": "One pool memory for every delay line: the delay send's line (its length above) and the lines of the ECHO and XDLY inserts (8 KB an ECHO, 2 lines of XDLY's length an XDLY). An insert takes its room when a slot picks it and gives it back when the slot lets go; with no room left the slot shows FULL and stays dry. The delay keeps its own line while it is in a master slot; out of the slots its line holds inserts too (as many as fit; taken back, faded out, when the delay is put back). Auto: the delay's line plus room for every ECHO and XDLY of the counts at once, as if each had its own. Smaller: the inserts share what is left, e.g. the delay's line alone (64 KB with the 0.74 s delay) holds one XDLY while the delay is not used, at no pool cost. At least the delay's line; nothing without ECHO or XDLY.",
+    "desc": "One pool memory, in 1 KB units, for the delay send's line (its length above) and the line of every insert that has one: CHRS 2 KB, ECHO 8 KB, JUNO CHORUS 2 KB, FLNG 1 KB, XDLY 2 lines of its length. An insert takes its room when a slot picks it and gives it back when the slot lets go; with no room left the slot shows FULL and stays dry. How many of each play at once is what this memory holds: the builder's notice says, for each type built, up to how many at once (alone) in the size chosen, and how many more while the delay or the chorus is in no master slot: a send in none lends its line to the inserts (as many as fit; taken back, faded out, when the send is put back). Auto: the delay's line plus one line of each insert built, so every insert built can play at least once at the same time. Larger: more at once. At least the delay's line, and room for one line of each insert built (an error names the one that does not fit).",
     "experimental": false,
     "notice": "",
     "off_warning": "",
@@ -2644,7 +2539,7 @@
     "choices": [
      [
       0,
-      "auto: room for every ECHO and XDLY"
+      "auto: the delay's line and one line of each insert"
      ],
      [
       32,

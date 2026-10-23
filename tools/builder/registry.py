@@ -103,6 +103,10 @@ RETIRED = {
 # Retired items every image is still built as (their firmware default): the configuration hash counts them at that
 # value (configure.py cfg_hash), so retiring one changes no image's hash. SIMD was default 0 in every profile; LFO2 is
 # counted ON (the image every build is now; a build that had it off is a different image).
+# items that were a count before the effects memory (2026-10-23) and are built or not since: a .config's count reads as
+# built (core.py parse: any non-zero is 1)
+WAS_COUNT = frozenset({"INS_CHORUS", "INS_DELAY", "INS_JCHORUS", "INS_FLANGER", "INS_XDLY"})
+
 HASH_AS = {"SIMD": 0, "KNOB_ONEREST": 1, "MONO_RELEASE": 1, "ST_STRICT": 1, "USB_FLOW": 1, "SHED_FADE": 1, "KEYS_FAST": 1, "TRS_NOISE": 1, "BK_CHECK": 1, "LAYER_QUIET": 1, "DLY_HALVE": 1, "LFO2": 1, "GLIDE": 1, "UI": 1, "ICONS": 0, "OVERVIEW": 0, "OV_ARP": 1, "DRUM_STEP": 1, "CHORD_NAMES": 1, "BPM_LOCK": 0, "MOTION_MARK": 1, "SEL_PAGES": 0, "BIGVALS": 0, "DRUM_ACCENT": 1, "PAGE_LINES": 1}   # (each was its default in every profile)
 
 # Never offered: used by X0X only by permission of its author, no licence
@@ -626,32 +630,29 @@ _add("INS_SPIT", "FELUCCA_INS_SPIT", "SPIT insert (random resonant band, driven)
           "the drive. 0 is off.", symbols=("ifx_spit",),
      notice="From Melodee 1.3.0's SPIT insert by Kerem Kilic (GPL-3.0); fixed point here, the clip follows the "
             "input's level (Melodee's has a fixed ceiling)." + _TS_NOTE)
-# the insert copies of the "once" effects (fx/insfx/fxi_kern.c, fxi.c, 2026-10-13): a count of instances each, how many
-# tracks may hold the type at once; a track picking it with none left is bypassed (the INSERTS list says FULL)
-_INS_LIM = (" Each instance is a line in the pool; a track that picks it when every instance is in use stays dry "
-            "until one is free (the INSERTS list shows how many are left). A saved project keeps the type, not the "
-            "instance: on load the tracks get them in order T1 T2 T3 DR.")
+# the insert copies of the "once" effects (fx/insfx/fxi_kern.c, fxi.c, 2026-10-13): built or not; how many play at once
+# is what the effects memory holds (DLY_ARENA, fxi_mem.h, 2026-10-23: they were a count each until then, WAS_COUNT); a
+# slot picking one with no room left is bypassed (the INSERTS list says FULL)
+_INS_LIM = (" Its line is in the effects memory (below): as many play at once as it holds; a slot that picks it when "
+            "there is no room left stays dry until some is free (the INSERTS list shows how many more fit). A saved "
+            "project keeps the type, not the room: on load the slots get it in order T1 T2 T3 DR, the master, the USB "
+            "input, the returns.")
 _add("INS_CHORUS", "FELUCCA_INS_CHORUS", "CHRS insert (chorus copies for the tracks)", F, 270, default=0,
-     choices=((0, "off"), (1, "1 track (2 KB pool)"), (2, "2 tracks (4 KB)"), (3, "3 tracks (6 KB)"),
-              (4, "every track (8 KB)")),
      desc="A chorus type for the tracks' insert slots (INSERTS > S1 / S2: CHRS), beside the chorus send: two taps "
           "around 7 ms swept apart at ~0.8 Hz; CHRS up to the middle mixes it in, past the middle widens the sweep. "
-          "On the drum track it turns the drums' mid into a stereo chorus. 0 is off." + _INS_LIM,
+          "On the drum track it turns the drums' mid into a stereo chorus. 2 KB of the effects memory an instance."
+          + _INS_LIM,
      symbols=("ifx_chrs",), notice="Tested in the host tests only, not on a device.")
 _add("INS_DELAY", "FELUCCA_INS_DELAY", "ECHO insert (short delay copies for the tracks)", F, 271, default=0,
-     choices=((0, "off"), (1, "1 track (8 KB pool)"), (2, "2 tracks (16 KB)"), (3, "3 tracks (24 KB)"),
-              (4, "every track (32 KB)")),
      desc="A slapback type for the tracks' insert slots (INSERTS > S1 / S2: ECHO), beside the delay send: one repeat "
           "75 ms after the sound; ECHO up to the middle sets its level, past the middle adds repeats (feedback up to "
-          "60 %). Up to 93 ms of line an instance (the long, tempo-synced delay stays the send's). 0 is off."
-          + _INS_LIM, symbols=("ifx_echo",), notice="Tested in the host tests only, not on a device.")
+          "60 %). Up to 93 ms of line an instance (the long, tempo-synced delay stays the send's): 8 KB of the effects "
+          "memory." + _INS_LIM, symbols=("ifx_echo",), notice="Tested in the host tests only, not on a device.")
 FM106 = Provenance("fm-106 (PatttF/fm-106)", "PatttF", "GPL-3.0-only", "be74757", "https://github.com/PatttF/fm-106")
 _add("INS_JCHORUS", "FELUCCA_INS_JCHORUS", "JUNO CHORUS insert (the Juno-106 chorus)", F, 142, default=0, provenance=FM106,
-     choices=((0, "off"), (1, "1 slot (2 KB pool)"), (2, "2 slots (4 KB)"), (3, "3 slots (6 KB)"),
-              (4, "4 slots (8 KB)")),
      desc="The Juno-106's chorus as an insert type (INSERTS > S1 / S2, and the master's insert slots: JUNO): the "
           "MN3009 BBD model of fm-106, MODE I, II or I+II, JUNO its mix (127: the Juno's chorus on). A mono track "
-          "comes out stereo. About 130 host instructions a sample an instance. 0 is off." + _INS_LIM,
+          "comes out stereo. About 130 host instructions a sample an instance; 2 KB of the effects memory." + _INS_LIM,
      symbols=("ifx_jcho",), notice="From fm-106 by PatttF (GPL-3.0), after Ultramaster KR-106 (GPL-3.0). Tested in the "
                                    "host tests only, not on a device.")
 # the returns' feedback sends (2026-10-16): B -> A, C -> A, C -> B, a block late (fx.c rs_fbv). Bit 167 (reserved 2026-10-16: the next free one after the web editor v14's 158, 159, 165, 166)
@@ -663,16 +664,16 @@ _add("RET_FB", "FELUCCA_RET_FB", "return feedback sends (B to A, C to A, C to B)
           "Without it a return sends only to its right (A to B and C, B to C). About 1.2 KB of RAM; nothing runs "
           "while every such send is 0.",
      symbols=("rs_fbv",), notice="Tested in the host tests only, not on a device.")
-# FLNG (2026-10-15, fx-pool): a count of instances as the copies above (was one line a track, 5.3 KB in every build of it)
+# FLNG (2026-10-15, fx-pool): its lines in the effects memory as the copies above (was one line a track, 5.3 KB in every
+# build of it)
 _add("INS_FLANGER", "FELUCCA_INS_FLANGER", "FLNG insert (flanger)", F, 259, default=0, provenance=FELUCCA_156,
-     choices=((0, "off"), (1, "1 slot (1 KB pool)"), (2, "2 slots (2 KB)"), (3, "3 slots (3 KB)"), (4, "4 slots (4 KB)")),
      desc="A flanger type for any insert slot (a track's, the master's, the USB input's) and the returns (FLNG): a short "
-          "delay swept 0.25 .. 5 ms (~0.25 Hz); FLNG up to the middle mixes it in, past the middle adds feedback. 0 is "
-          "off." + _INS_LIM, symbols=("ifx_flng",),
+          "delay swept 0.25 .. 5 ms (~0.25 Hz); FLNG up to the middle mixes it in, past the middle adds feedback. 1 KB "
+          "of the effects memory an instance." + _INS_LIM, symbols=("ifx_flng",),
      notice="From Felucca 1.5.6's track INSERT FLANG by Leo Kuroshita (GPL-3.0)." + _INS_NOTE)
-# XDLY (fx/insfx/xdly.c, 2026-10-22): the LYRA-8 style cross-modulated dual delay, a count of instances as the copies above
+# XDLY (fx/insfx/xdly.c, 2026-10-22): the LYRA-8 style cross-modulated dual delay, its lines in the effects memory as the
+# copies above
 _add("INS_XDLY", "FELUCCA_INS_XDLY", "XDLY insert (LYRA-8 style cross-modulated dual delay)", F, 376, default=0,
-     choices=((0, "off"), (1, "1 slot (2 lines)"), (2, "2 slots"), (3, "3 slots"), (4, "4 slots")),
      desc="Two delay lines whose outputs move each other's time at the audio rate, as the SOMA LYRA-8's modulated delay "
           "does (its idea, no code): an insert type for the tracks' slots and the master's (XDLY). Its page has TIME 1 "
           "and TIME 2 (each line, 1 ms up to the line's length; turning one bends the repeats), MOD (how far each "
@@ -680,25 +681,29 @@ _add("INS_XDLY", "FELUCCA_INS_XDLY", "XDLY insert (LYRA-8 style cross-modulated 
           "they grow into a soft clip and sustain, the LYRA's self-oscillation). XDLY, the amount, is the MIX, 0 off. "
           "A mono track gets the two lines' mean, the drum bus and the master line 1 on L and line 2 on R. A track's "
           "repeats go on after its notes end. About 190 host instructions a sample an instance. Each instance is "
-          "two lines of the length below in the pool; a slot picking it when every instance is in use stays dry.",
+          "two lines of the length below in the effects memory (64 KB, or 32 KB); as many play at once as it holds, a "
+          "slot picking it when there is no room left stays dry.",
      symbols=("ifx_xdly",), notice="Tested in the host tests only, not on a device.")
 _add("XDLY_LEN", "FELUCCA_XDLY_LEN", "XDLY line length (its longest TIME)", F, 377, default=16384, parent="INS_XDLY",
      choices=((16384, "0.37 s (64 KB pool an instance)"), (8192, "0.19 s (32 KB)")),
-     desc="How long each of XDLY's two lines is: TIME's top end. The shorter line halves every TIME and saves 32 KB of "
-          "pool an instance.")
-# the delay arena (fx/insfx/fxi_kern.c FXA_*, 2026-10-22, the user: "a delay line is just a delay line"): one pool memory
-# for the delay send's line and every ECHO / XDLY line; its size computed by the estimate (configure.py dly_arena)
-_add("DLY_ARENA", "FELUCCA_DLY_ARENA", "delay memory (shared by the delay, ECHO and XDLY)", F, 378, default=0,
-     choices=((0, "auto: room for every ECHO and XDLY"), (32, "32 KB"), (48, "48 KB"), (64, "64 KB"), (96, "96 KB"),
-              (128, "128 KB"), (160, "160 KB"), (192, "192 KB"), (256, "256 KB"), (320, "320 KB")),
-     desc="One pool memory for every delay line: the delay send's line (its length above) and the lines of the ECHO "
-          "and XDLY inserts (8 KB an ECHO, 2 lines of XDLY's length an XDLY). An insert takes its room when a slot "
-          "picks it and gives it back when the slot lets go; with no room left the slot shows FULL and stays dry. The "
-          "delay keeps its own line while it is in a master slot; out of the slots its line holds inserts too (as many "
-          "as fit; taken back, faded out, when the delay is put back). Auto: the delay's line plus room for every ECHO "
-          "and XDLY of the counts at once, as if each had its own. Smaller: the inserts share what is left, e.g. the "
-          "delay's line alone (64 KB with the 0.74 s delay) holds one XDLY while the delay is not used, at no pool "
-          "cost. At least the delay's line; nothing without ECHO or XDLY.")
+     desc="How long each of XDLY's two lines is: TIME's top end. The shorter line halves every TIME and takes 32 KB "
+          "less of the effects memory an instance.")
+# the effects memory (fx/insfx/fxi_mem.h, fxi.c; the delay arena of 2026-10-22, the user: "a delay line is just a delay
+# line"; every line-owning insert since 2026-10-23): one pool memory for the delay send's line and every insert line; its
+# size computed by the estimate (configure.py dly_arena), how many of each type it holds by configure.py fx_memory
+_add("DLY_ARENA", "FELUCCA_DLY_ARENA", "effects memory (shared by the delay and every insert with a line)", F, 378,
+     default=0,
+     choices=((0, "auto: the delay's line and one line of each insert"), (32, "32 KB"), (48, "48 KB"), (64, "64 KB"),
+              (96, "96 KB"), (128, "128 KB"), (160, "160 KB"), (192, "192 KB"), (256, "256 KB"), (320, "320 KB")),
+     desc="One pool memory, in 1 KB units, for the delay send's line (its length above) and the line of every insert "
+          "that has one: CHRS 2 KB, ECHO 8 KB, JUNO CHORUS 2 KB, FLNG 1 KB, XDLY 2 lines of its length. An insert takes "
+          "its room when a slot picks it and gives it back when the slot lets go; with no room left the slot shows FULL "
+          "and stays dry. How many of each play at once is what this memory holds: the builder's notice says, for each "
+          "type built, up to how many at once (alone) in the size chosen, and how many more while the delay or the "
+          "chorus is in no master slot: a send in none lends its line to the inserts (as many as fit; taken back, "
+          "faded out, when the send is put back). Auto: the delay's line plus one line of each insert built, so every "
+          "insert built can play at least once at the same time. Larger: more at once. At least the delay's line, and "
+          "room for one line of each insert built (an error names the one that does not fit).")
 # GATER (fx/insfx/gater.c, 2026-10-14): a further insert type, any number (a few bytes a track)
 _add("INS_GATER", "FELUCCA_INS_GATER", "GATER insert (tempo-synced trance gate)", F, 330, default=0,
      desc="A rhythmic volume gate type for the tracks' insert slots (INSERTS > S1 / S2: GATER), locked to the tempo "

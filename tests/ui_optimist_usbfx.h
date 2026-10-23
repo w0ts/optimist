@@ -92,9 +92,10 @@ static void usbfx_tests(void)
     check(s >= 0 && mx_labels(MXR_USB, (uint32_t)s, "MODE", 0, 0, 0) && ut_set_of("USB GATER") < 0,
           "... JUNO CHORUS on S2 (GATER out): the set USB JUNO (MODE), no USB GATER");
 #endif
-    {   /* the pool: CHRS on every instance's track, then on the input's S1: FULL (dim), as a track's card */
+    {   /* the pool: CHRS on every track (the effects memory's own 8 KB hold 4 lines: run_tests.sh INSFX_ON), then on the
+         * input's S1: FULL (dim), as a track's card */
         static const uint8_t C2[2] = {FXT_CHRS, FXT_NONE};
-        for (k = 0; k < FELUCCA_INS_CHORUS; k++)
+        for (k = 0; k < NTRK; k++)
             ins_put(k, C2);
         fxi_poll(), frame();                            /* (the main loop's pass: fxi.c) */
         ut_load(0, FXT_CHRS);

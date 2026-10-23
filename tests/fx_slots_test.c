@@ -1384,11 +1384,12 @@ static void t_usb_types(void)
               ut.slot[0] == (FELUCCA_FX_DIST ? FXT_DIST : FXT_NONE) && ut.v[UTV_GPAT] == TP[P_TGPAT].def && ut.v[UTV_JMODE] == 0);
     }
 #if FELUCCA_INS_CHORUS
-    {   /* the pool: CHRS on every instance's track, then on the input: FULL (dry) until a track gives its own back */
+    {   /* the pool: CHRS on every track (the effects memory's own 8 KB hold 4 lines: run_tests.sh INSFX_ON), then on the
+         * input: FULL (dry) until a track gives its own back */
         uint32_t same = 1;
         static const uint8_t C2[2] = {FXT_CHRS, FXT_NONE};
         ut_defaults();
-        for (k = 0; k < FELUCCA_INS_CHORUS; k++)
+        for (k = 0; k < NTRK; k++)
             ins_put(k, C2);
         ut_poll();
         ut_load(0, FXT_CHRS);

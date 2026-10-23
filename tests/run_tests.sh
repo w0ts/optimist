@@ -36,9 +36,9 @@ SEC4="-DFELUCCA_SECTIONS=4"   # (the tests of the four project slots in RAM; the
 fail=0
 # the backported features' test (tests/backports_test.c) builds with every switch on (firmware/src/core/backports.h)
 BACKPORTS_ON="-DFELUCCA_CHANCE=1 -DFELUCCA_KEYLIT=1 -DFELUCCA_QNT_SEQ=1 -DFELUCCA_SPRING=1 -DFELUCCA_BASSPLUS=1 -DFELUCCA_BRIGHT=1 -DFELUCCA_MOTION=1 -DFELUCCA_ENG_PHYS=1 -DFELUCCA_ENG_ACID=1 -DFELUCCA_ENG_CZ=1 -DFELUCCA_ENG_JUNO=1"
-# the further insert types (fx/insfx/insfx.c), every one of them (GATER: gater.c); the limited ones CHRS ECHO with 2 and 1
-# instances (fxi.c)
-INSFX_ON="-DFELUCCA_INS_FOLD=1 -DFELUCCA_INS_FUZZ=1 -DFELUCCA_INS_PHASER=1 -DFELUCCA_INS_FLANGER=1 -DFELUCCA_INS_FORMANT=1 -DFELUCCA_INS_WIDTH=1 -DFELUCCA_INS_CHORUS=2 -DFELUCCA_INS_DELAY=1 -DFELUCCA_INS_GATER=1 -DFELUCCA_INS_SFOLD=1 -DFELUCCA_INS_RECT=1 -DFELUCCA_INS_HARM=1 -DFELUCCA_INS_RING=1 -DFELUCCA_INS_SUBOCT=1 -DFELUCCA_INS_SLEW=1 -DFELUCCA_INS_TAPE=1 -DFELUCCA_INS_SPIT=1"
+# the further insert types (fx/insfx/insfx.c), every one of them (GATER: gater.c); the limited ones CHRS ECHO FLNG in an
+# effects memory of 8 KB beside the delay send's 128 KB (fxi_mem.h: 4 CHRS, or 1 ECHO, or 8 FLNG at once)
+INSFX_ON="-DFELUCCA_INS_FOLD=1 -DFELUCCA_INS_FUZZ=1 -DFELUCCA_INS_PHASER=1 -DFELUCCA_INS_FLANGER=1 -DFELUCCA_INS_FORMANT=1 -DFELUCCA_INS_WIDTH=1 -DFELUCCA_INS_CHORUS=1 -DFELUCCA_INS_DELAY=1 -DFELUCCA_DLY_ARENA=136 -DFELUCCA_INS_GATER=1 -DFELUCCA_INS_SFOLD=1 -DFELUCCA_INS_RECT=1 -DFELUCCA_INS_HARM=1 -DFELUCCA_INS_RING=1 -DFELUCCA_INS_SUBOCT=1 -DFELUCCA_INS_SLEW=1 -DFELUCCA_INS_TAPE=1 -DFELUCCA_INS_SPIT=1"
 # NOISE (FELUCCA_ENG_NOISE) joins the backports test; its own line, not BACKPORTS_ON (engine number 15, beside JUNO's 14)
 BACKPORTS_ON="$BACKPORTS_ON -DFELUCCA_ENG_NOISE=1"
 # ENV 1 MOD's test (tests/env1_test.c): every engine built, so every engine's cards are rendered
@@ -344,12 +344,12 @@ job; ( jobin
     run "GATER (gater.c, built alone): bypassed bit for bit, silence in silence out; every pattern and RATE in phase with the transport from PLAY, the swing, PLAY again; no click (a bounded step) through depth, pattern, rate and a jump; SHAPE's ramps; the drum bus's L = R; stopped it runs on; its TLV, motion id" "$OUT/gater_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_INS_CHORUS=2 -DFELUCCA_INS_DELAY=1 -o "$OUT/fxi_test" tests/fxi_test.c -lm
-    run "the limited inserts' instances (fxi.c, CHRS 2 ECHO 1): handed out in the main loop, zeroed; a swap keeps one; none left: FULL and bypassed; given back after the fade-out; a load in track order, the same every time" "$OUT/fxi_test"
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_INS_CHORUS=2 -DFELUCCA_INS_DELAY=1 -DFELUCCA_INS_JCHORUS=2 -DFELUCCA_INS_FLANGER=1 -o "$OUT/fxi_jc_test" tests/fxi_test.c -lm
-    run "limited inserts with JUNO CHORUS (2 instances): a track and the master each, FULL, given back after the fade, the side, its TLV" "$OUT/fxi_jc_test"
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_INS_CHORUS=2 -DFELUCCA_INS_DELAY=1 -DFELUCCA_INS_XDLY=1 -DFELUCCA_DLY_LEN=32768u -DFELUCCA_DLY_ARENA=72 -o "$OUT/fxi_xd_test" tests/fxi_test.c -lm
-    run "the delay arena (fxi.c, DLY_ARENA 72 KB: the send's line and one ECHO line): XDLY only on the send's line while it is free, FULL while it is in a slot or holds an ECHO slice, never both; taken back after the fade, zeroed; clean when it comes back" "$OUT/fxi_xd_test"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_INS_CHORUS=1 -DFELUCCA_INS_DELAY=1 -o "$OUT/fxi_test" tests/fxi_test.c -lm
+    run "the effects memory (fxi.c, fxi_mem.h: CHRS ECHO, auto 10 KB): placed in the main loop, zeroed; a swap keeps one; no room: FULL and bypassed; FULL while the free units are in no one run; given back after the fade-out; a load in owner order, the same every time; never two lines on a unit; the send lines lent" "$OUT/fxi_test"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_INS_CHORUS=1 -DFELUCCA_INS_DELAY=1 -DFELUCCA_INS_JCHORUS=1 -DFELUCCA_INS_FLANGER=1 -o "$OUT/fxi_jc_test" tests/fxi_test.c -lm
+    run "the effects memory with JUNO CHORUS and FLNG: a track and the master each, FULL, given back after the fade, the side, its TLV; both on the chorus send's lent line, evicted with a fade" "$OUT/fxi_jc_test"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_INS_CHORUS=1 -DFELUCCA_INS_DELAY=1 -DFELUCCA_INS_XDLY=1 -DFELUCCA_DLY_LEN=32768u -DFELUCCA_DLY_ARENA=72 -o "$OUT/fxi_xd_test" tests/fxi_test.c -lm
+    run "the effects memory, DLY_ARENA 72 KB (the delay send's 64 KB line and one ECHO line): XDLY only on the send's line while it is free, FULL while it is in a slot or holds an ECHO, never both; taken back after the fade, zeroed; clean when it comes back" "$OUT/fxi_xd_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src $BACKPORTS_ON $SEC4 -DFELUCCA_REV_HALF=1 -o "$OUT/backports_rh_test" tests/backports_test.c -lm
@@ -818,9 +818,10 @@ job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_PARAM_HELP=1 -DFELUCCA_USB_AUDIO=1 -DFELUCCA_SYS_DEBUG=0 -DDUAL_LOAD=1 $SEC4 -o "$OUT/ui_optimist_nodbg_dual_test" tests/ui_optimist_test.c -lm
     run "Optimist UI without the SYSTEM debug pages, DUAL (SYS_DEBUG=0, DUAL_LOAD): INFO = CPU0, CPU1, UNDERRUNS, BATTERY; KNOB 1 the measure of both" "$OUT/ui_optimist_nodbg_dual_test" "$OUT/optimist-nodbg-dual"
 ) >"$U.out" 2>&1 & jobbg
-# the limited insert types on the Optimist UI (tests/ui_optimist_fxi.h): the free count, WAIT, IN USE, FULL (dim), hidden at
-# 0 instances, the help lines; CHRS ECHO built with 0 / 4, 1 / 0 and 4 / 1 instances (the last two with the help line)
-for m in "-DFELUCCA_INS_CHORUS=0 -DFELUCCA_INS_DELAY=4" "-DFELUCCA_INS_CHORUS=1 -DFELUCCA_INS_DELAY=0 -DFELUCCA_PARAM_HELP=1" "-DFELUCCA_INS_CHORUS=4 -DFELUCCA_INS_DELAY=1 -DFELUCCA_PARAM_HELP=1"; do
+# the limited insert types on the Optimist UI (tests/ui_optimist_fxi.h): the free count, WAIT, IN USE, FULL (dim), hidden
+# when not built, the help lines; CHRS ECHO in effects memories (DLY_ARENA, beside the delay send's 128 KB) that hold 0 / 4
+# (32 KB), 1 / 0 (2 KB) and 4 / 1 (8 KB) of them (the last two with the help line)
+for m in "-DFELUCCA_INS_CHORUS=0 -DFELUCCA_INS_DELAY=1 -DFELUCCA_DLY_ARENA=160" "-DFELUCCA_INS_CHORUS=1 -DFELUCCA_INS_DELAY=0 -DFELUCCA_DLY_ARENA=130 -DFELUCCA_PARAM_HELP=1" "-DFELUCCA_INS_CHORUS=1 -DFELUCCA_INS_DELAY=1 -DFELUCCA_DLY_ARENA=136 -DFELUCCA_PARAM_HELP=1"; do
     job; ( jobin
         mkdir -p "$OUT/optimist-fxi$nu"
         $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $m -o "$OUT/ui_optimist_fxi_test$nu" tests/ui_optimist_test.c -lm

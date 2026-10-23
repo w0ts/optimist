@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* XDLY (2026-10-22; the user: "a cross audio rate modulated dual delay like in lyra8 as an FX"): two delay lines whose
  * outputs move each other's time at the audio rate, after the SOMA LYRA-8's modulated delay (its idea only: no circuit,
- * no code). A limited insert type (fxi.c, a builder count FELUCCA_INS_XDLY), on the tracks' slots and the master's.
+ * no code). A limited insert type (fxi.c, built with FELUCCA_INS_XDLY), on the tracks' slots and the master's.
  * Included by fxi_kern.c.
  *   TIME 1, TIME 2  each line's time, 1 ms .. its line (exponential, fx_slots.c XD_D), followed over ~23 ms: turning one
  *                   bends the repeats' pitch, as a tape's
@@ -11,8 +11,8 @@
  *                   delay); a fixed one-pole (~7 kHz) in each loop darkens them a little at every pass
  *   MIX             the slot's amount (P_TXDLY, the master's mst_amt): 0 off .. all wet; faded over 2.9 ms
  * A part (mono) is fed its block, gets the lines' mean; a stereo owner (the drum bus, the master) feeds their mid, line 1 to
- * L, line 2 to R. The settings are the owner's (fx_slots.c xdl_v). Two lines of FELUCCA_XDLY_LEN samples an instance (the delay
- * arena's units, fxi_kern.c: its own room, or the delay send's line while the send is in no master slot).
+ * L, line 2 to R. The settings are the owner's (fx_slots.c xdl_v). Two lines of FELUCCA_XDLY_LEN samples an instance (units
+ * of the effects memory, fxi_mem.h: its own room, or a send's line while the send is in no master slot).
  * From rest nothing the lines held is read (fill, as ECHO's); once both hold only zeros and the input is silent the block
  * is skipped. No divide, no packed SIMD */
 #if FELUCCA_INS_XDLY
@@ -31,10 +31,11 @@ typedef struct {
                                                          * zeros written in a row on both (<= XD_LEN) */
     uint8_t on, evict;                                  /* running (0: at rest); evict: its line goes back to the delay
                                                          * send (fxi.c): fading out, at 0 */
-    int16_t *line;                                      /* its two lines, one after the other: units of the delay arena
-                                                         * (fxi_kern.c FXA_*), fxi.c sets it before it hands it out */
+    int16_t *line;                                      /* its two lines, one after the other: units of the effects
+                                                         * memory (fxi_mem.h), fxi.c sets it before it hands it out */
 } ifx_xd_t;
-static ifx_xd_t ifx_xdly[FELUCCA_INS_XDLY + FXL_N4] __attribute__((section(".pool")));
+_Static_assert(2u * XD_LEN == FXA_Z4 * FXA_U, "XDLY: its lines in units of the effects memory");
+static ifx_xd_t ifx_xdly[FXI_TN4] __attribute__((section(".pool")));
 /* line ln's sample d (Q8) back from wp (the one just written: 0), linear between two; 0 past what was written (fill:
  * the samples written, wp's among them) */
 AINL int32_t xd_tap(const int16_t *ln, uint32_t wp, uint32_t fill, int32_t d)

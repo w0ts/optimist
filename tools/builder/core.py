@@ -92,6 +92,8 @@ def parse(text, base=None, strict=True, warn=None, reject_unknown=False):
             if strict:
                 say(f"line {n}: {k} is not an item of this builder and the setting is ignored")
             continue
+        if k in R.WAS_COUNT and v:                      # (a count of instances before the effects memory: built)
+            v = 1
         cfg[k] = v
         named.add(k)
     for k, it in R.ITEMS.items():                      # (a fixed item: what every build has, whatever the text says)
@@ -190,10 +192,18 @@ def validate(cfg):
                           "melodic set built (none: INIT, its defaults)", ["ENG_GRAIN"] + list(GRAIN_SETS)))
     if built(cfg, "FX_DUCK") and not any(built(cfg, k) for k in DRUM_SYNTHS + ("DRUM_SAMPLED",)):
         warn.append(Issue("DUCK follows the kick", ("FX_DUCK", "DRUM_SYNTH", "DRUM_SAMPLED")))
-    arena, send_kb = cfg.get("DLY_ARENA", 0), dly_send_kb(cfg)
-    if arena and (built(cfg, "INS_DELAY") or built(cfg, "INS_XDLY")) and arena < send_kb:
-        err.append(Issue(f"the delay memory holds the delay's line: at least {send_kb} KB (or auto, or a shorter delay)",
-                         ["DLY_ARENA", "DLY_LEN"]))
+    mem = fx_memory(cfg)
+    if mem["types"] and cfg.get("DLY_ARENA", 0) and cfg["DLY_ARENA"] < mem["send"]:
+        err.append(Issue(f"the effects memory holds the delay's line: at least {mem['send']} KB (or auto, or a shorter "
+                         "delay)", ["DLY_ARENA", "DLY_LEN"]))
+    else:
+        for k, t in mem["types"].items():
+            if not t["max"]:
+                err.append(Issue(f"the effects memory has no room for one {FXM_NAMES[k]} line ({t['kb']} KB): a larger "
+                                 "DLY_ARENA, auto, or the delay in no master slot with a longer delay line",
+                                 ["DLY_ARENA", k]))
+        if mem["types"]:
+            note.append(Issue(f"{R.ITEMS['DLY_ARENA'].label}: {fx_memory_text(mem)}", ["DLY_ARENA"]))
     for k, it in R.ITEMS.items():
         if it.off_warning and not cfg[k] and (not it.parent or built(cfg, it.parent)):
             warn.append(Issue(f"{it.label} off: {it.off_warning}", [k]))
@@ -452,9 +462,20 @@ def part_mem(cfg):
     return {"pool": max(sizes) if sizes else PART_MEM_NONE}
 
 
-FXA_UNIT = 8192        # fx/insfx/fxi_kern.c FXA_U: a unit of the delay arena (4096 samples), bytes
-XD_STATE = 40          # fx/insfx/xdly.c ifx_xd_t on the target, bytes (measure_costs.py holds it against ifx_xdly's size)
 NTRK = 4
+# the effects memory (fx/insfx/fxi_mem.h, fxi.c, 2026-10-23): one pool memory in 1 KB units for the delay send's line and
+# every line of the limited inserts; the line of each (KB, by item; XDLY's: two lines of XDLY_LEN samples) and its
+# instance's state on the target (bytes: measure_costs.py holds the tables against the firmware's symbols)
+FXM_UNIT = 1024        # fxi_mem.h FXA_U: 512 samples, bytes
+FXM_OWNERS = 9         # fxi_mem.h FXI_NK: T1 T2 T3 DR, the master, the USB input, the returns A B C
+FXM_TYPES = ("INS_CHORUS", "INS_DELAY", "INS_JCHORUS", "INS_FLANGER", "INS_XDLY")   # (fxi_kern.c's order, j)
+FXM_NAMES = {"INS_CHORUS": "CHRS", "INS_DELAY": "ECHO", "INS_JCHORUS": "JUNO CHORUS", "INS_FLANGER": "FLNG",
+             "INS_XDLY": "XDLY"}
+FXM_STATE = {"INS_CHORUS": ("ifx_chrs", 24), "INS_DELAY": ("ifx_echo", 20), "INS_JCHORUS": ("ifx_jcho", 36),
+             "INS_FLANGER": ("ifx_flng", 24), "INS_XDLY": ("ifx_xdly", 40)}
+FXM_SYMBOLS = ("fxa_ins", "fxa_bm") + tuple(v[0] for v in FXM_STATE.values())   # (tools/build.py SIZED_SYMBOLS)
+FXM_CHO_KB = 4         # fx.c CHO_LEN: the chorus send's line, 2048 samples
+XD_STATE = FXM_STATE["INS_XDLY"][1]
 
 
 def dly_send_kb(cfg, f=None):
@@ -463,26 +484,52 @@ def dly_send_kb(cfg, f=None):
     return int(f.get("FELUCCA_DLY_LEN", 0) or 0) * 2 // 1024 if f.get("FELUCCA_FX_DELAY") else 0
 
 
-def dly_arena(cfg):
-    """-> {"units", "xdly": XDLY instances (ifx_xdly), "pool": bytes} of the delay arena (fx/insfx/fxi_kern.c FXA_*,
-    fxi.c): the inserts' own units (fxa_ins: DLY_ARENA less the delay send's line, which stays dly_buf, FX_DELAY's own
-    delta; auto: an ECHO line a unit and XDLY's two lines an instance, as each had its own) and the XDLY states the send's
-    line holds past the count (FXL_N4: min(DLY_LEN / (2 XDLY_LEN), 4 - INS_XDLY)). Set by INS_DELAY, INS_XDLY, XDLY_LEN,
-    DLY_LEN, FX_DELAY and DLY_ARENA together: no per-item delta adds up to it, so the estimate computes it (model_terms)
-    and the measured deltas leave it out (measure_costs.py)"""
+def fx_memory(cfg):
+    """-> the effects memory (fx/insfx/fxi_mem.h) of this configuration: {"send", "cho": the send lines' KB, "own": the
+    inserts' own KB (DLY_ARENA less the delay's line; auto: one line of each type built), "types": {item: {"kb": its
+    line, "max": the most at once (an owner each at most, fxi_mem.h FXI_TN), "own": in the own room alone, "dly", "cho":
+    what each send's line adds while it is in no master slot}}} (types: the ones built)"""
     f, _ = flags(cfg)
 
     def on(key):
         return int(f.get(R.ITEMS[key].flag, 0) or 0)
-    ne, nx, send = on("INS_DELAY"), on("INS_XDLY"), dly_send_kb(cfg, f) // 8
-    if not (ne or nx):
-        units = 0
-    elif on("DLY_ARENA"):
-        units = max(0, on("DLY_ARENA") // 8 - send)
-    else:
-        units = ne + nx * (2 * on("XDLY_LEN") // 4096)
-    lent = min(on("DLY_LEN") // (2 * on("XDLY_LEN")), NTRK - nx) if nx and on("FX_DELAY") else 0
-    return {"units": units, "xdly": nx + lent, "pool": units * FXA_UNIT + lent * XD_STATE}
+    send, cho = dly_send_kb(cfg, f), FXM_CHO_KB if on("FX_CHORUS") else 0
+    kb = {"INS_CHORUS": 2, "INS_DELAY": 8, "INS_JCHORUS": 2, "INS_FLANGER": 1, "INS_XDLY": on("XDLY_LEN") // 256}
+    types = [k for k in FXM_TYPES if on(k)]
+    own = (max(0, on("DLY_ARENA") - send) if on("DLY_ARENA") else sum(kb[k] for k in types)) if types else 0
+    out = {}
+    for k in types:
+        z = kb[k]
+        out[k] = {"kb": z, "max": min(FXM_OWNERS, own // z + send // z + cho // z),
+                  "own": min(FXM_OWNERS, own // z), "dly": send // z, "cho": cho // z}
+    return {"send": send, "cho": cho, "own": own, "types": out}
+
+
+def fx_memory_text(mem):
+    """the "up to N at once" line of the effects memory (validate's notice on DLY_ARENA, the menu's info)"""
+    parts = []
+    for k, t in mem["types"].items():
+        more = [f"+{min(t['dly'], FXM_OWNERS - t['own'])} while the delay is in no master slot" if t["dly"] and
+                t["own"] < FXM_OWNERS else "",
+                f"+{min(t['cho'], FXM_OWNERS - t['own'])} while the chorus is in none" if t["cho"] and
+                t["own"] < FXM_OWNERS else ""]
+        more = ", ".join(m for m in more if m)
+        parts.append(f"{FXM_NAMES[k]} up to {t['own']}" + (f" ({more})" if more else ""))
+    return (f"{mem['own']} KB of its own beside the delay's {mem['send']} KB line: at once (each type alone) "
+            + "; ".join(parts))
+
+
+def dly_arena(cfg):
+    """-> {"units": the own room's KB (fxa_ins), "pool": bytes} of the effects memory (fx/insfx/fxi_mem.h, fxi.c): the
+    own room, the instance tables (ifx_chrs .. ifx_xdly: an owner each at most, no more than the memory holds) and the
+    units' bitmap (fxi.c fxa_bm). Set by the five types, XDLY_LEN, DLY_LEN, FX_DELAY, FX_CHORUS and DLY_ARENA together:
+    no per-item delta adds up to it, so the estimate computes it (model_terms) and the measured deltas leave it out
+    (measure_costs.py)"""
+    mem = fx_memory(cfg)
+    tables = {FXM_STATE[k][0]: t["max"] * FXM_STATE[k][1] for k, t in mem["types"].items()}
+    bm = 4 * ((mem["send"] + mem["own"] + mem["cho"] + 31) // 32) if mem["types"] else 0
+    return {"units": mem["own"], "tables": tables, "bitmap": bm,
+            "pool": mem["own"] * FXM_UNIT + sum(tables.values()) + bm}
 
 
 def model_terms(cfg):

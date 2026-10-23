@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The further INSERT types of the tracks' insert slots (fx_slots.c S1 S2, 2026-10-13): FOLD FUZZ PHSR FLNG FRMT WIDE,
- * and CHRS ECHO (a count of instances: fxi_kern.c, fxi.c), GATER (2026-10-14: gater.c), a builder item each (registry.h FELUCCA_INS_*). Included by fx.c; fx.c ins_one (a part) and dbus_ins (the drum bus)
+ * and CHRS ECHO (their lines in the effects memory: fxi_mem.h, fxi_kern.c, fxi.c), GATER (2026-10-14: gater.c), a builder item each (registry.h FELUCCA_INS_*). Included by fx.c; fx.c ins_one (a part) and dbus_ins (the drum bus)
  * call them.
  *   FOLD FUZZ PHSR FLNG  after Felucca 1.5.6's track INSERT (hugelton/Felucca 9f6a885, firmware/src/fx.c ins_shape,
  *                        ins_drive, ins_swept; perform.c PH_A, pf_tri), Copyright (C) 2026 Leo Kuroshita
@@ -356,19 +356,24 @@ static HOT2 __attribute__((noinline)) void ifx_phaser(ifx_ph_t *s, int32_t a, in
 }
 #endif
 
-/* ---- FLNG: Felucca's flanger line. A limited type since fx-pool (2026-10-15): a builder count of instances (fxi.c), each
- * with a line a side (a part: the first only); the sides share the sweep and the wet share (a stereo owner's two copies of
- * before, bit for bit: they always moved together) */
+#if INS_LIM
+#include "fxi_mem.h"                                    /* the effects memory: every limited type's lines (fxi.c) */
+#endif
+/* ---- FLNG: Felucca's flanger line. A limited type since fx-pool (2026-10-15): its instances' lines in the effects
+ * memory (fxi_mem.h, 2026-10-23: a unit an instance), a line a side (a part: the first only); the sides share the sweep
+ * and the wet share (a stereo owner's two copies of before, bit for bit: they always moved together) */
 #if FELUCCA_INS_FLANGER
 #define IFX_FL_LEN 256u                                 /* 5.8 ms (a power of 2: masked) */
 typedef struct {
     int32_t w, dc[2];
     uint32_t ph;
     uint16_t wp;
-    uint8_t a;
-    int16_t line[2][IFX_FL_LEN];
+    uint8_t a, evict;                                   /* evict: its line goes back to a send (fxi.c): fading out, at 0 */
+    int16_t *line;                                      /* 2 x IFX_FL_LEN samples, L then R: a unit of the effects memory
+                                                         * (fxi.c sets it before it hands the instance out) */
 } ifx_fl_t;
-static ifx_fl_t ifx_flng[FELUCCA_INS_FLANGER] __attribute__((section(".pool"), aligned(4)));
+_Static_assert(2u * IFX_FL_LEN == FXA_Z3 * FXA_U, "FLNG: its two lines a unit of the effects memory");
+static ifx_fl_t ifx_flng[FXI_TN3] __attribute__((section(".pool"), aligned(4)));
 #define IFX_FL_RATE 31                                  /* ~0.25 Hz */
 /* one side c of the block: from the block's first sweep, share and write place (*ph, *w, *wp: its last, out) */
 static HOT2 __attribute__((noinline)) void ifx_fl_side(ifx_fl_t *s, uint32_t c, int32_t *b, uint32_t n, uint32_t sh, int32_t to,
@@ -376,7 +381,7 @@ static HOT2 __attribute__((noinline)) void ifx_fl_side(ifx_fl_t *s, uint32_t c, 
 {
     uint32_t i, inc = IFX_INC(IFX_FL_RATE), wp = *wpp, ph = *php;
     int32_t w = *wq, dc = s->dc[c];
-    int16_t *ln = s->line[c];
+    int16_t *ln = s->line + c * IFX_FL_LEN;
     for (i = 0; i < n; i++, ph += inc) {
         int32_t x = b[i], r0, r1, v, fr;
         uint32_t tr = ifx_tri(ph), sw = (tr * tr) >> 16;   /* longer near the short end */
@@ -400,10 +405,14 @@ static HOT2 __attribute__((noinline)) void ifx_flanger(ifx_fl_t *s, int32_t a, i
 {
     uint32_t ph, wp;
     int32_t fbk, to, w = s->w;
+    if (s->evict)
+        a = 0;                                          /* (its line goes back to a send: out, then at rest) */
     if (!a && !w)
         return;
-    if (!w)
-        ifx_zero(s, sizeof *s);                        /* starting: no stale line */
+    if (!w) {                                           /* starting: no stale line */
+        s->dc[0] = s->dc[1] = 0, s->ph = 0, s->wp = 0, s->a = 0;
+        ifx_zero(s->line, 2u * IFX_FL_LEN * sizeof *s->line);
+    }
     if (a)
         s->a = (uint8_t)a;
     to = a ? (a > 64 ? 64 : a) * 512 : 0;

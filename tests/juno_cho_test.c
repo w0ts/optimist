@@ -26,6 +26,8 @@ static void check(const char *what, int ok)
 #define N (32u * 2756u)                                 /* 2 s of 32-sample blocks */
 static int32_t in[N], l[N], r[N], l2[N], r2[N];
 static juno_cho_t c;
+static int16_t c_ln[JUNO_CHO_LEN];
+#define JC_RESET() (memset(&c, 0, sizeof c), memset(c_ln, 0, sizeof c_ln), c.ln = c_ln)   /* (the line: the caller's) */
 static void source(int32_t scale)                       /* two saws and some noise, peaks ~10000 */
 {
     uint32_t i, s = 5;
@@ -37,7 +39,7 @@ static void source(int32_t scale)                       /* two saws and some noi
 static void run(uint32_t mode, uint32_t mix, int32_t *L, int32_t *R, uint32_t sh)
 {
     uint32_t i;
-    memset(&c, 0, sizeof c);
+    JC_RESET();
     for (i = 0; i < N; i += 32u)
         juno_cho_run(&c, mode, mix, in + i, L + i, R + i, 32, sh);
 }
@@ -83,7 +85,7 @@ int main(void)
         check("each mode renders as before (the hashes in this file)", h[0] == GOLD[0] && h[1] == GOLD[1] && h[2] == GOLD[2]);
     run(1, 127, l, r, 0);
     memcpy(l2, in, sizeof in);
-    memset(&c, 0, sizeof c);
+    JC_RESET();
     for (i = 0; i < N; i += 32u)
         juno_cho_ms(&c, 1, 127, l2 + i, r2 + i, 32, 0);
     for (i = 0; i < N; i++)
@@ -100,7 +102,7 @@ int main(void)
         uint32_t same = 1, dry = 1;
         run(1, 100, l, r, 0);
         memcpy(l2, in, sizeof in), memcpy(r2, in, sizeof in);
-        memset(&c, 0, sizeof c);
+        JC_RESET();
         for (i = 0; i < N; i += 32u)
             juno_cho_st(&c, 1, 100, l2 + i, r2 + i, 32, 0);
         for (i = 0; i < N; i++)
@@ -108,7 +110,7 @@ int main(void)
         check("stereo form, L = R = in: the mono form's render (within 1)", same);
         for (i = 0; i < N; i++)
             l2[i] = in[i], r2[i] = 0;
-        memset(&c, 0, sizeof c);
+        JC_RESET();
         for (i = 0; i < N; i += 32u)
             juno_cho_st(&c, 1, 0, l2 + i, r2 + i, 32, 0);
         for (i = 0; i < N; i++)

@@ -1,15 +1,23 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The limited insert types on the Optimist UI (2026-10-13, feat/fx-instances-ui; fxi.c: CHRS ECHO, a builder count of
- * instances each): on SOUND's INSERTS row and the mixer's insert set, a slot's TYPE cell shows
+/* The limited insert types on the Optimist UI (2026-10-13, feat/fx-instances-ui; fxi.c: CHRS ECHO, as many at once as the
+ * effects memory holds, 2026-10-23): on SOUND's INSERTS row and the mixer's insert set, a slot's TYPE cell shows
  *   the free count   "CHRS" with 2/4 beside it (free of available), a type on every track nothing
  *   WAIT             the type picked, the main loop has not handed an instance out yet (fxi_poll)
  *   IN USE           the same pass with none free (fxi_can 0): the name struck through, dim
  *   FULL             none free after the pass: bypassed, the name struck through, dim, "S1 CHRS" as the label
- *   hidden           a type with no instance built (count 0) is not in the list
- * and, with the help line, a line of its own (kind op, INSERTS). Built with the counts 0, 1 and 4 (run_tests.sh).
+ *   hidden           a type not built is not in the list
+ * and, with the help line, a line of its own (kind op, INSERTS). Built with memories that hold 0, 1 and 4 of each
+ * (run_tests.sh: FXU_NC FXU_NE).
  * Included by ui_optimist_test.c. */
-#define FXU_NC FELUCCA_INS_CHORUS
-#define FXU_NE FELUCCA_INS_DELAY
+/* how many CHRS, ECHO the effects memory's own room holds alone, the sends in their master slots (fxi_mem.h; run_tests.sh
+ * sets it with DLY_ARENA); 0: not built */
+#if INS_LIM
+#define FXU_NC (FXI_B0 ? FXL_MIN(FXI_NK, FXA_I / FXA_Z0) : 0u)
+#define FXU_NE (FXI_B1 ? FXL_MIN(FXI_NK, FXA_I / FXA_Z1) : 0u)
+#else
+#define FXU_NC 0u
+#define FXU_NE 0u
+#endif
 static uint32_t fxu_listed(uint32_t t)                  /* the picker's list holds type t */
 {
     int16_t *v;
