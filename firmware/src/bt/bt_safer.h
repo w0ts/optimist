@@ -19,6 +19,8 @@ void bts_e21(const uint8_t rand[16], const uint8_t addr[6], uint8_t out[16]);
 void bts_e22(const uint8_t rand[16], const uint8_t *pin, uint32_t plen, uint8_t out[16]);
 /* E3: Kc from the link key, EN_RAND and COF (the ACO of the last authentication for a combination key) */
 void bts_e3(const uint8_t key[16], const uint8_t rand[16], const uint8_t cof[12], uint8_t out[16]);
+/* Kc' from Kc for a key of l octets (7..16; 16 and out of range: Kc itself), E3's order */
+void bts_kc_reduce(const uint8_t kc[16], uint32_t l, uint8_t out[16]);
 
 /* SSP (Core Vol 2 Part H 7.7, P-192): every value in the spec's order, most significant octet first (Part G 7's sample
  * data); LMP's air order is the reverse. u, v: the two public keys' x (24); nonces 16; addresses 6; w the DHKey (24) */

@@ -498,7 +498,7 @@ static void bp_tx_service(void)                    /* the main loop: a PDU into 
 }
 
 #if FELUCCA_BT_AUDIO
-/* E0 in the engine (docs/BT-CLASSIC.md 9, [I]: not yet seen working): step 1 Kc' (= Kc: key size 16) into cryptk, RX
+/* E0 in the engine (docs/BT-CLASSIC.md 9, [I]: not yet seen working): step 1 Kc' (bt_ssp.c: reduced below 16 octets) into cryptk, RX
  * decryption (linkcntl bit 15) on both buffers; step 2 TX encryption (bit 7) too. The key's octet order in cryptk is the
  * air order, low octet first in each half-word: a guess the hardware test settles */
 static void bp_e0(uint32_t step)

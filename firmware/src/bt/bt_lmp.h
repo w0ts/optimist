@@ -29,6 +29,7 @@ enum {
 #define BTL_ERR_PIN_OR_KEY_MISSING 0x06u
 #define BTL_ERR_PAIRING_NOT_ALLOWED 0x18u
 #define BTL_ERR_ENCRYPTION_MODE 0x25u
+#define BTL_ERR_UNSUPPORTED_PARAM 0x20u
 #define BTL_ERR_UNKNOWN_PDU 0x19u
 #define BTL_ERR_ROLE_SWITCH_NOT_ALLOWED 0x21u
 #define BTL_MAX 17u                               /* a DM1 payload */
