@@ -94,6 +94,7 @@ static void ota_idle(void)
         host_drain();
 }
 static void op_repaint(void);
+#define MIR_BLE_LAG 1536u               /* (smaller than the firmware's: the random screens here catch up in less than its 4 KB) */
 #include "../firmware/src/io/editor/ed_mirror.c"
 
 /* the radio: at most n bytes of whole-frame packets (all: n = ~0) */

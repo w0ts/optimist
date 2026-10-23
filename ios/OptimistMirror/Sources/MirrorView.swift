@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// The FM-1's panel, pixel for pixel, as large as the phone allows; a line of status while there is nothing to show. It turns
-// with the phone even with Rotation Lock on: the interface stays portrait (Turn) and the picture is turned in quarter turns
-// from gravity (Tilt); only iOS's Bluetooth sheet, which the app cannot turn, gets the interface turned to the tilt instead.
+// The app: the FM-1's panel, pixel for pixel, as large as the device allows (a line of status while there is nothing to show),
+// and the web editor's Projects, Library and Backup, as tabs. The whole interface turns with the device even with Rotation
+// Lock on (Tilt: gravity; Turn: the interface asked to that orientation); a tap on the screen hides the tab bar.
 import CoreMotion
 import SwiftUI
 import UIKit
@@ -14,7 +14,7 @@ struct OptimistMirrorApp: App {
 
     var body: some Scene {
         WindowGroup {
-            MirrorView(link: link)
+            RootView(link: link)
                 .onChange(of: phase) { _, now in
                     UIApplication.shared.isIdleTimerDisabled = now == .active
                     if now == .active { link.refresh() }
@@ -45,7 +45,7 @@ final class Tilt: ObservableObject {
     func stop() { motion.stopDeviceMotionUpdates() }
 }
 
-/// The interface's orientations: portrait, or one quarter of the tilt while the Bluetooth sheet is up.
+/// The interface's orientation: the tilt's.
 final class Turn: NSObject, UIApplicationDelegate {
     @MainActor static var allowed: UIInterfaceOrientationMask = .portrait
 
@@ -53,12 +53,15 @@ final class Turn: NSObject, UIApplicationDelegate {
         MainActor.assumeIsolated { Self.allowed }
     }
 
-    /// The quarter the interface takes for a tilt (none upside down on an iPhone, where iOS refuses it).
-    @MainActor static func quarter(_ tilt: Int, sheet: Bool) -> Int {
-        sheet && (tilt != 2 || UIDevice.current.userInterfaceIdiom == .pad) ? tilt : 0
+    /// The quarter the interface takes for a tilt (not upside down on an iPhone, where iOS refuses it: the picture turns instead).
+    @MainActor static func quarter(_ tilt: Int) -> Int {
+        tilt != 2 || UIDevice.current.userInterfaceIdiom == .pad ? tilt : 0
     }
 
     @MainActor static func to(_ quarter: Int) {
+#if targetEnvironment(macCatalyst)
+        return                          // (a Mac window: no orientation; the Mac has no gravity either)
+#endif
         let mask: UIInterfaceOrientationMask = [.portrait, .landscapeLeft, .portraitUpsideDown, .landscapeRight][quarter]
         guard mask != allowed else { return }
         allowed = mask
@@ -73,48 +76,114 @@ final class Turn: NSObject, UIApplicationDelegate {
     }
 }
 
+struct RootView: View {
+    @ObservedObject var link: MirrorLink
+    @StateObject private var session: EditorSession
+    @StateObject private var tilt = Tilt()
+    @State private var bars = true
+
+    init(link: MirrorLink) {
+        self.link = link
+        _session = StateObject(wrappedValue: EditorSession(link: link))
+    }
+
+    var body: some View {
+        Group {
+            if link.state == .searching {
+                ConnectView(link: link)
+            } else {
+                tabs
+            }
+        }
+        .task(id: "\(link.portName)|\(link.bluetooth)") { await session.connect() }
+        .sheet(item: $session.export) { ActivityView(url: $0.url) }
+        .onAppear {
+            tilt.start()
+            Turn.to(Turn.quarter(tilt.quarter))
+        }
+        .onDisappear { tilt.stop() }
+        .onChange(of: tilt.quarter) { _, q in Turn.to(Turn.quarter(q)) }
+        .preferredColorScheme(.dark)
+    }
+
+    private var tabs: some View {
+        TabView {
+            MirrorView(link: link, upright: tilt.quarter - Turn.quarter(tilt.quarter), bars: $bars)
+                .toolbar(bars ? .visible : .hidden, for: .tabBar)
+                .tabItem { Label("Screen", systemImage: "display") }
+            ProjectsView(s: session)
+                .tabItem { Label("Projects", systemImage: "folder") }
+            LibraryView(s: session)
+                .tabItem { Label("Presets", systemImage: "slider.horizontal.3") }
+            BackupView(s: session)
+                .tabItem { Label("Backup", systemImage: "externaldrive") }
+        }
+    }
+}
+
+/// No FM-1 port: the app's icon, then the ways to connect (no tabs: there is nothing to show yet).
+struct ConnectView: View {
+    @ObservedObject var link: MirrorLink
+
+    var body: some View {
+        VStack(spacing: 20) {
+            Image("Logo")
+                .resizable()
+                .frame(width: 160, height: 160)
+                .clipShape(RoundedRectangle(cornerRadius: 36, style: .continuous))
+                .accessibilityHidden(true)
+            Text("Connect Your FM-1")
+                .font(.title2.bold())
+            Text("Plug it in with a USB cable, or turn on Bluetooth in the FM-1's SYSTEM page.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            Button { BluetoothPicker.present() } label: {
+                Label("Connect with Bluetooth", systemImage: "dot.radiowaves.left.and.right")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            if !link.ports.isEmpty || !link.chosen.isEmpty {
+                Menu {
+                    Picker("MIDI Port", selection: $link.chosen) {
+                        Text("Automatic").tag("")
+                        ForEach(link.ports, id: \.self) { Text($0).tag($0) }
+                    }
+                } label: {
+                    Label(link.chosen.isEmpty ? "Choose MIDI Port" : link.chosen, systemImage: "cable.connector")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+            }
+        }
+        .padding(32)
+        .frame(maxWidth: 420)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.black.ignoresSafeArea())
+        .statusBarHidden()              // (shown, iOS's Bluetooth MIDI sheet crashes: MirrorView)
+    }
+}
+
 struct MirrorView: View {
     @ObservedObject var link: MirrorLink
-    @StateObject private var tilt = Tilt()
+    let upright: Int                    // quarter turns the picture still needs (an iPhone upside down: 2)
+    @Binding var bars: Bool
     @State private var image: CGImage?
     @State private var seen = 0
-    @State private var picking = false
-    @State private var editing = false
 
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
             content
-                .rotationEffect(.degrees(-90 * Double(tilt.quarter - Turn.quarter(tilt.quarter, sheet: picking))))
-                .animation(.easeInOut(duration: 0.25), value: tilt.quarter)
+                .rotationEffect(.degrees(-90 * Double(upright)))
         }
-        .overlay(alignment: .bottomTrailing) {
-            if link.state == .mirroring {
-                Button { picking = true } label: {   // (the link in use; a tap: the Bluetooth sheet)
-                    Image(systemName: link.bluetooth ? "dot.radiowaves.left.and.right" : "cable.connector")
-                        .font(.footnote)
-                        .foregroundStyle(.white.opacity(0.35))
-                        .padding(12)
-                }
-            }
-        }
-        .overlay(alignment: .topLeading) {
-            Button { editing = true } label: {   // (Projects, Library, Backup)
-                Image(systemName: "square.stack.3d.up")
-                    .font(.footnote)
-                    .foregroundStyle(.white.opacity(0.35))
-                    .padding(12)
-            }
-        }
-        .sheet(isPresented: $picking) { BluetoothPicker() }
-        .sheet(isPresented: $editing) { EditorView(link: link) }
-        .statusBarHidden()
-        .persistentSystemOverlays(.hidden)
+        .contentShape(Rectangle())
+        .onTapGesture { withAnimation { bars.toggle() } }
+        .statusBarHidden()              // (shown, iOS's Bluetooth MIDI sheet laid its table out NaN high: a crash, 2026-10-23)
+        .persistentSystemOverlays(bars ? .automatic : .hidden)
         .task { await draw() }
-        .onAppear { tilt.start() }
-        .onDisappear { tilt.stop() }
-        .onChange(of: picking) { _, now in Turn.to(Turn.quarter(tilt.quarter, sheet: now)) }
-        .onChange(of: tilt.quarter) { _, now in Turn.to(Turn.quarter(now, sheet: picking)) }
     }
 
     @ViewBuilder private var content: some View {
@@ -131,7 +200,7 @@ struct MirrorView: View {
                     Text(title).font(.headline)
                     Text(detail).font(.footnote).multilineTextAlignment(.center)
                     if link.state == .searching || link.bluetooth {
-                        Button("Bluetooth…") { picking = true }
+                        Button("Bluetooth…") { BluetoothPicker.present() }
                             .buttonStyle(.bordered)
                             .tint(.white)
                     }
@@ -155,9 +224,9 @@ struct MirrorView: View {
 
     private var detail: String {
         switch link.state {
-        case .searching: "A USB cable from the iPhone to the FM-1 (USB-C, or Lightning with the camera adapter), or Bluetooth: SYSTEM > Bluetooth on the FM-1, then connect it here."
+        case .searching: "A USB cable from this \(UIDevice.current.model) to the FM-1 (USB-C, or Lightning with the camera adapter), or Bluetooth: SYSTEM > Bluetooth on the FM-1, then connect it here."
         case .asking: link.bluetooth ? "Waiting for the FM-1 to answer over Bluetooth." : "Waiting for the FM-1 to answer."
-        case .noMirror: "Build the firmware with the builder item ED_MIRROR (under the web editor), from this app's version, and install it."
+        case .noMirror: "This firmware does not offer the screen mirror."
         case .mirroring: ""
         }
     }

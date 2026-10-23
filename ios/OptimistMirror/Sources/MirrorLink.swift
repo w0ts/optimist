@@ -19,6 +19,16 @@ final class MirrorLink: ObservableObject, Transport {
     @Published private(set) var state: State = .searching
     @Published private(set) var portName = ""
     @Published private(set) var bluetooth = false   // the port in use is the Bluetooth one
+    @Published private(set) var ports: [String] = []   // every MIDI port with both directions, by name (the picker)
+    /// The port picked by hand ("": the FM-1's, found by its name); kept across launches
+    @Published var chosen = UserDefaults.standard.string(forKey: "port") ?? "" {
+        didSet {
+            UserDefaults.standard.set(chosen, forKey: "port")
+            if source != 0 { MIDIPortDisconnectSource(inPort, source) }
+            source = 0; destination = 0
+            connect()
+        }
+    }
 
     private let lock = OSAllocatedUnfairLock(initialState: Shared())
     private struct Shared {
@@ -28,6 +38,7 @@ final class MirrorLink: ObservableObject, Transport {
         var replies = 0
         var bytes = 0             // SysEx bytes received since the last tick (the link's rate, logged)
         var known = false         // the last reply's version is the decoder's (another firmware's pushes: not drawn)
+        var features: [String: Int]?   // INFO's tag 66 over USB (nil: not asked yet); nothing but INFO is sent before it
         var held: Date?           // a catch-up began (the whole panel filled): the picture shown stays until it is in
         var lastFrame = Date()
         var pending: Pending?     // the editor request waiting for its reply
@@ -126,20 +137,29 @@ final class MirrorLink: ObservableObject, Transport {
         return driver.lowercased().contains("bluetooth") || name(e).lowercased().contains("bluetooth")
     }
 
-    /// The FM-1's port: USB first, Bluetooth else.
-    private static func find(_ count: Int, _ get: (Int) -> MIDIEndpointRef) -> MIDIEndpointRef? {
-        let fm1 = (0..<count).map(get).filter(isFM1)
+    /// The port picked by hand when it is there, else the FM-1's: USB first, Bluetooth else.
+    private static func find(_ count: Int, _ get: (Int) -> MIDIEndpointRef, chosen: String) -> MIDIEndpointRef? {
+        let all = (0..<count).map(get)
+        if !chosen.isEmpty, let e = all.first(where: { name($0) == chosen }) { return e }
+        let fm1 = all.filter(isFM1)
         return fm1.first { !isBluetooth($0) } ?? fm1.first
     }
 
     private func connect() {
-        let src = Self.find(MIDIGetNumberOfSources(), MIDIGetSource)
-        let dst = Self.find(MIDIGetNumberOfDestinations(), MIDIGetDestination)
+        let outs = Set((0..<MIDIGetNumberOfDestinations()).map { Self.name(MIDIGetDestination($0)) })
+        ports = (0..<MIDIGetNumberOfSources()).map { Self.name(MIDIGetSource($0)) }.filter { outs.contains($0) }
+        let src = Self.find(MIDIGetNumberOfSources(), MIDIGetSource, chosen: chosen)
+        let dst = Self.find(MIDIGetNumberOfDestinations(), MIDIGetDestination, chosen: chosen)
         guard src != source || dst != destination else { return }
         if source != 0 { MIDIPortDisconnectSource(inPort, source) }
         source = src ?? 0
         destination = dst ?? 0
-        lock.withLock { $0.assembler = SysExAssembler() }
+        let bt = src.map(Self.isBluetooth) ?? false
+        let named = src.map { !chosen.isEmpty || Self.name($0).lowercased().contains("optimist") } ?? false   // (picked by hand: trusted)
+        lock.withLock {                 // (over Bluetooth only 106 is answered: our firmware is known by its name, "Optimist ...")
+            $0.assembler = SysExAssembler()
+            $0.features = bt ? (named ? [Feature.mirror.name: Feature.mirror.version] : [:]) : nil
+        }
         guard let src, dst != nil else {
             portName = ""
             state = .searching
@@ -165,6 +185,16 @@ final class MirrorLink: ObservableObject, Transport {
             print("\(bluetooth ? "bluetooth" : "usb") \(bytes) bytes/s")
         }
         if asked >= Self.unanswered, state != .mirroring { state = .noMirror }
+        let f = lock.withLock { $0.features }
+        if f == nil {                   // INFO first: another firmware may give 106 another meaning (ed_opti.h)
+            send([1])
+            asked += 1
+            return
+        }
+        guard f?[Feature.mirror.name] == Feature.mirror.version else {
+            state = .noMirror
+            return
+        }
         send([MirrorDecoder.cmd, wantWhole ? 3 : 1])
         wantWhole = false
         asked += 1
@@ -258,12 +288,14 @@ final class MirrorLink: ObservableObject, Transport {
         }
         guard !frames.isEmpty else { return }
         let got = frames
-        let (replied, answers) = lock.withLock { s -> (Bool, [(CheckedContinuation<[UInt8], Error>, [UInt8])]) in
+        let (replied, identified, answers) = lock.withLock { s -> (Bool, Bool, [(CheckedContinuation<[UInt8], Error>, [UInt8])]) in
+            var identified = false
             var on = false
             var answers: [(CheckedContinuation<[UInt8], Error>, [UInt8])] = []
             for f in got {
                 s.bytes += f.count
                 if !MirrorDecoder.isMirror(f), let u = Wire.unframe(f) {         // an editor reply
+                    if u.cmd == 1, s.features == nil, let i = try? DeviceInfo.parse(u.args) { s.features = i.features; identified = true }
                     if let p = s.pending, p.cmd == u.cmd, Wire.replyMatches(p.cmd, p.args, u.args) {
                         s.pending = nil
                         answers.append((p.continuation, u.args))
@@ -281,7 +313,7 @@ final class MirrorLink: ObservableObject, Transport {
                     s.generation += 1
                 }
             }
-            return (on, answers)
+            return (on, identified, answers)
         }
         for (c, a) in answers { c.resume(returning: a) }
         if replied {
@@ -289,6 +321,8 @@ final class MirrorLink: ObservableObject, Transport {
                 self.asked = 0
                 self.state = .mirroring
             }
+        } else if identified {          // (INFO in: the mirror's own requests start counting now)
+            DispatchQueue.main.async { self.asked = 0; self.tick() }
         }
     }
 }

@@ -80,6 +80,8 @@ final class EditorSession: ObservableObject {
 
     /// The USB link is there and the FM-1 answered INFO.
     var ready: Bool { link.editorPossible && info != nil }
+    /// Ready, and the firmware offers f (INFO's tag 66)
+    func ready(_ f: Feature) -> Bool { ready && info?.has(f) == true }
     var idle: Bool { ready && !busy }
 
     // MARK: running an operation
@@ -266,7 +268,7 @@ final class EditorSession: ObservableObject {
                                     bk: r.list.version, caps: r.list.caps)
             let file = BackupFile.encode(device: stamp, objects: r.objects)
             export = ExportItem(url: try FileIO.temp("optimist-\(FileIO.today()).optimist-backup", Data(file)))
-            say("Backup saved: \(r.objects.count) / \(file.count / 1024) KiB")
+            say("Backup saved: \(r.objects.count) items, \(file.count / 1024) KB")
         }
     }
 
