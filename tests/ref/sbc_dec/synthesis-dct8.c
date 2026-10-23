@@ -249,8 +249,8 @@ PRIVATE void float_dct2_8(float* RESTRICT out, int32_t const* RESTRICT in) {
 PRIVATE void dct2_8(SBC_BUFFER_T* RESTRICT out, int32_t const* RESTRICT in) {
 #define BUTTERFLY(x, y) \
   x += (y);             \
-  (y) = (x) - ((y) << 1);
-#define FIX_MULT_DCT(K, x) (MUL_32S_32S_HI(K, x) << 2)
+  (y) = (x) - ((y) * 2); /* (Optimist: was << 1, undefined for a negative y) */
+#define FIX_MULT_DCT(K, x) (MUL_32S_32S_HI(K, x) * 4) /* (Optimist: was << 2, undefined for a negative product) */
 
   int32_t L00, L01, L02, L03, L04, L05, L06, L07;
   int32_t L25;
