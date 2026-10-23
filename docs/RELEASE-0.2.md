@@ -45,11 +45,6 @@ Optimist 0.2 brings the FM-1 to the browser and the phone, plays over Bluetooth,
 - **CHORD+ latch:** a black modifier key tapped twice stays on.
 - **Live save** (builder item): save while playing.
 
-## Under the hood
-
-- **~38 KB of flash back** on the synth flavour (571 → 533 KB) without losing a feature or a pixel: packed tables and records, a compressed boot image, size-optimised code off the audio path. More fits in every build. **[check: the compressed boot image has not booted on hardware yet]**
-- Builder: USB MIDI always on; items for 6-bit 909 hats and a smaller tanh table; BT_DIAG keeps the console quiet.
-
 ## Thanks
 
 Optimist stands on SLOOP (isod89), Felucca and Felucca-Engines (Leo Kuroshita, Hügelton Instruments), Melodee (Kerem Kilic: FM6, CZ, the PROPHET voice, USB audio, TAPE and SPIT), X0X (Charles Vestal: the 909 and 808 kits, ACID with Open303 and TB-3PO), fm-106 (PatttF, after KR-106 by Kayrock Screenprinting: JUNO), Caravel (bonszaimusic: DRONE), Mutable Instruments (Emilie Gillet: Plaits, Grids), Hortator (Leo Kuroshita: the PLAITS kit), Kawa Tracker (Guizmoh: the KAWA kit), JIANT (juanjiant-bit), SLOOP 2.8 (isod89: the backports), Clipper (3dSam: STRINGS, VPS, TERRAIN, WSEQ, VECTOR, WAVE; GPL-3.0-only), Mini-Tone (Stephane Schmitz: SID, after reSID 0.16 by Dag Lem; GPL-2.0-or-later). Licences in LICENSING.md.
