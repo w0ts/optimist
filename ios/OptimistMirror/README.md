@@ -1,4 +1,4 @@
-# FM-1 Mirror (iPhone)
+# Optimist Mirror (iPhone)
 
 Shows the FM-1's screen on an iPhone, pixel for pixel, over a USB cable or Bluetooth MIDI.
 

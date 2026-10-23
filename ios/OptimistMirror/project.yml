@@ -24,9 +24,10 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.w0ts.optimist.mirror
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        TARGETED_DEVICE_FAMILY: "1,2"
+        TARGETED_DEVICE_FAMILY: "1,2,6"
+        SUPPORTS_MACCATALYST: YES
         GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_CFBundleDisplayName: FM-1 Mirror
+        INFOPLIST_KEY_CFBundleDisplayName: Optimist Mirror
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription: "Connects to the FM-1 over Bluetooth MIDI to show its screen."
         INFOPLIST_KEY_UIStatusBarHidden: YES

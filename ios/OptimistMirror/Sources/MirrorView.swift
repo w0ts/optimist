@@ -59,6 +59,9 @@ final class Turn: NSObject, UIApplicationDelegate {
     }
 
     @MainActor static func to(_ quarter: Int) {
+#if targetEnvironment(macCatalyst)
+        return                          // (a Mac window: no orientation; the Mac has no gravity either)
+#endif
         let mask: UIInterfaceOrientationMask = [.portrait, .landscapeLeft, .portraitUpsideDown, .landscapeRight][quarter]
         guard mask != allowed else { return }
         allowed = mask

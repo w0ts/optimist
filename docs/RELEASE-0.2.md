@@ -15,7 +15,7 @@ Optimist 0.2 brings the FM-1 to the browser and the phone, plays over Bluetooth,
 - **Simulator.** The firmware running in the browser with the FM-1's panel and keys: try a build before installing it.
 - The pages link the GitHub repository.
 
-## iPhone app: FM-1 Mirror (upcoming)
+## iPhone app: Optimist Mirror (upcoming)
 
 - The FM-1's screen on an iPhone or iPad over a USB cable, pixel for pixel, with the mixer's meters; the picture turns with the phone.
 - Projects, Library and Backup screens, the web editor's tabs, in the app. **[check: App Store / TestFlight status]**

@@ -288,8 +288,8 @@ final class MirrorLink: ObservableObject, Transport {
         }
         guard !frames.isEmpty else { return }
         let got = frames
-        var identified = false
-        let (replied, answers) = lock.withLock { s -> (Bool, [(CheckedContinuation<[UInt8], Error>, [UInt8])]) in
+        let (replied, identified, answers) = lock.withLock { s -> (Bool, Bool, [(CheckedContinuation<[UInt8], Error>, [UInt8])]) in
+            var identified = false
             var on = false
             var answers: [(CheckedContinuation<[UInt8], Error>, [UInt8])] = []
             for f in got {
@@ -313,7 +313,7 @@ final class MirrorLink: ObservableObject, Transport {
                     s.generation += 1
                 }
             }
-            return (on, answers)
+            return (on, identified, answers)
         }
         for (c, a) in answers { c.resume(returning: a) }
         if replied {
