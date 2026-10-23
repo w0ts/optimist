@@ -1803,6 +1803,13 @@ static void layer_tests(void)
     release(B_HOME);
     tap(B_HOME);
     check(!op_armed() && lay.lock == LY_PAT && pat_has(0, 1), "... HOME: no, still locked");
+    press(B_LFO);                                       /* the page locked: LFO is the store's button too (the user, 2026-10-23) */
+    key(WK(3));                                         /* (slot 4: free; slot 3 holds the brisk strum's store above) */
+    release(B_LFO);
+    check(lay.lock == LY_PAT && pat_has(0, 3) && ui.scr == SCR_SONG && !op_armed(), "... locked: LFO + key 4 stores into T1 4, the page stays");
+    tap(B_LFO);
+    frames(2);
+    check(lay.lock == LY_PAT && ui.scr == SCR_SONG && !op_armed(), "... locked: LFO alone does nothing (no LFO pages)");
     tap(B_HOME);
     frames(2);
     check(lay.lock == LY_PLAY && ui.scr != SCR_SONG, "... HOME alone: the page let go, back to the screen under it");

@@ -499,6 +499,9 @@ static void pat_name(char *b, uint32_t k, uint32_t s)   /* "T2 5", "DR 16" */
     b[2] = ' ';
     fmt_int(b + 3, (int32_t)s + 1);
 }
+/* the store's button on the pattern page: SAVE; the page locked open (SHIFT2 + LFO), LFO as well (the user, 2026-10-23: "it
+ * should behave like the save button on this page: hold + white key to save a pattern, nothing otherwise") */
+static int pat_save_held(void) { return btn_held(B_SAVE) || (lay.lock == LY_PAT && btn_held(B_LFO)); }
 static void pat_store_ask(uint32_t t, uint32_t s)       /* the working copy into slot s: asked over a used one */
 {
     char nm[8];
@@ -568,13 +571,13 @@ static void pat_layer_key(uint32_t k, int32_t w)
                                                          * patterns as scene n (SAVE + n too), HOME + n clears, n alone (black 10's view) launches */
         if (w >= LAY_NSCN)
             return;
-        if (btn_held(B_SAVE) || (btn_held(B_SEQ) && !btn_held(B_HOME)))
+        if (pat_save_held() || (btn_held(B_SEQ) && !btn_held(B_HOME)))
             scene_store((uint32_t)w);
         else if (btn_held(B_HOME))
             scene_clear_ask((uint32_t)w);
         else
             scene_launch_at((uint32_t)w, btn_held(B_OCTUP));   /* (SHIFT2 + n: as soon as possible) */
-    } else if (btn_held(B_SAVE)) {   /* SAVE + n: the working pattern into slot n (asked) */
+    } else if (pat_save_held()) {    /* SAVE + n (the page locked open: LFO + n too): the working pattern into slot n (asked) */
         pat_store_ask(t, (uint32_t)w);
     } else if (btn_held(B_HOME)) {               /* HOME + n: clear slot n (asked; the user, 2026-10-20: HOME clears, as elsewhere) */
         pat_clear_ask(t, (uint32_t)w);
