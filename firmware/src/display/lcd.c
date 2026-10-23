@@ -72,7 +72,8 @@ static void lcd_window(uint32_t x0, uint32_t y0, uint32_t x1, uint32_t y1)
 
 static uint16_t lcd_fillbuf[240];
 #if FELUCCA_ED_MIRROR
-static uint8_t mir_mute;                /* 1: what is drawn now is not mirrored (the mixer's meters) */
+static uint8_t mir_mute;                /* 1: what is drawn now is not mirrored (a mixer meter not due: op_mixdraw.c mx_vu_at) */
+static uint32_t mir_meters_due(void);   /* io/editor/ed_mirror.c: the meters may go to the client this mixer frame */
 static void mir_fill(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t c);   /* io/editor/ed_mirror.c: the screen mirrored */
 static void mir_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *px);
 #endif

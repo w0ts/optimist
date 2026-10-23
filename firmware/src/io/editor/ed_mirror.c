@@ -8,20 +8,23 @@
  * A host that falls behind (stops reading) drops what is drawn and catches up once the ring is empty again: black to the
  * client, then every band drawn again in place (op_repaint: the panel itself is not cleared, no flash; the host test's
  * catch-ups give the panel's pixels every time). Never under PRESETS' popup list (the panel under it is not drawn again): it
- * waits for the list to close. A first on catches up the same way. The meters are not sent (mir_mute, display/lcd.c, set around
- * the mixer's VU canvases: the user, 2026-10-22, "we don't need vu meters"), nor anything while no client asks.
+ * waits for the list to close. A first on catches up the same way. The mixer's meters go at most every MIR_METER_MS, all of them in
+ * one frame, those that changed since the client last had them (op_mixdraw.c mx_vu_at, mir_mute between; the user, 2026-10-23:
+ * "given it is super responsive, we could send the meter ... 5 or 10 times per sec"). Nothing while no client asks.
  *   106 MIRROR  bits -> on, version, w (2 x 7 bit), h (2 x 7 bit)
  *       bits  bit 0 on (0: off), bit 1 the whole panel again
  * Mirroring ends 3 s after the last request of any kind (ask again or PING about every 1 s), with 106 0, and on a USB reset.
  * INFO tag 0x65: 1 byte, the version (0x63 was REC's: retired, not reused). */
 #include "ed_mirror_enc.h"
 enum { MIR_STALL_MS = 30, MIR_ALIVE_MS = 3000,
-       MIR_CATCH_MS = 250 };               /* catch-ups at most this often: the panel repainted for the mirror 4 times a second at most */
+       MIR_CATCH_MS = 250,                 /* catch-ups at most this often: the panel repainted for the mirror 4 times a second at most */
+       MIR_METER_MS = 100 };               /* the meters to the client: 10 times a second */
 static struct {
     uint8_t on, behind;                 /* behind: what is drawn is dropped until the catch-up (mir_poll) */
     uint8_t k, acc[3];                  /* the bytes of the next USB-MIDI packet */
     uint32_t resets, last_ms;           /* usb.resets when asked; fm1_ms of the last request of any kind */
     uint32_t catch_ms;                  /* fm1_ms of the last catch-up */
+    uint32_t meter_ms;                  /* fm1_ms of the last meters sent */
 } mir;
 #define MIR_SEEN() (mir.last_ms = fm1_ms)   /* (editor.c, ed_lite.c: each request that comes in) */
 static void op_repaint(void);
@@ -81,6 +84,13 @@ static void mir_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint1
 {
     if (mir_live())
         mir_enc_blit(x, y, w, h, px);
+}
+static uint32_t mir_meters_due(void)
+{
+    if (!mir_live() || fm1_ms - mir.meter_ms < MIR_METER_MS)
+        return 0;
+    mir.meter_ms = fm1_ms;
+    return 1;
 }
 /* a request: on / off, the whole panel again (bit 1); a first on catches up */
 static void mir_ask(uint32_t bits)

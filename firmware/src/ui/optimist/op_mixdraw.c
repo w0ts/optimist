@@ -65,6 +65,10 @@ static struct {
     uint8_t pk[MXR_N];                  /* the meters' peaks (0 .. MX_LV), falling */
     uint8_t mgr;                        /* MASTER alone: its reduction as drawn, dB x 4 (0xFF: again) */
     uint8_t pk_first;                   /* the group the peaks are of (mx_draw) */
+#if FELUCCA_ED_MIRROR
+    uint8_t mvu[MXR_N], mgv[MXR_N];     /* the meters as the mirror's client has them (0xFF: again) */
+    uint8_t mir;                        /* this frame the meters may go to it (io/editor/ed_mirror.c mir_meters_due) */
+#endif
 } mxd = {.first = MXR_T1, .last = MXR_LANE0, .pk_first = MXR_T1};
 typedef struct {
     int32_t x, y, w, h;                 /* a row's place in the panel */
@@ -303,19 +307,37 @@ static void mx_vu_paint(uint32_t r, int32_t x, int32_t y, int32_t w, int32_t h, 
     if (gr)
         cv_rect(x + w - (int32_t)gr, y, (int32_t)gr, h, C_WARN);   /* the reduction, from the right */
 }
+/* a meter: drawn when it changed; to the mirror's client at most every MIR_METER_MS (io/editor/ed_mirror.c), what changed since it
+ * last had it, even when the panel's did not (the user, 2026-10-23: "send the meter ... 5 or 10 times per sec") */
 static void mx_vu_at(uint32_t r, int32_t x, int32_t y, int32_t w, int32_t h, uint32_t lv, uint32_t gr)
 {
-    uint32_t pk = mxd.pk[r];
+    uint32_t pk = mxd.pk[r], panel;
+#if FELUCCA_ED_MIRROR
+    uint32_t mir;
+#endif
     pk = lv > pk ? lv : pk > 5u ? pk - 5u : 0u;         /* (falls ~4 px a frame on a channel's row) */
     mxd.pk[r] = (uint8_t)pk;
-    if (pk == mxd.vu[r] && gr == mxd.gr[r])
+    panel = pk != mxd.vu[r] || gr != mxd.gr[r];
+#if FELUCCA_ED_MIRROR
+    mir = mxd.mir && (pk != mxd.mvu[r] || gr != mxd.mgv[r]);
+    if (!panel && !mir)
         return;
+#else
+    if (!panel)
+        return;
+#endif
     mxd.vu[r] = (uint8_t)pk;
     mxd.gr[r] = (uint8_t)gr;
     cv_begin((uint32_t)w, (uint32_t)h, C_BLACK);
     mx_vu_paint(r, 0, 0, w, h, pk, gr);
 #if FELUCCA_ED_MIRROR
-    mir_mute = 1;                                       /* (the meters are not mirrored: io/editor/ed_mirror.c) */
+    if (mir)
+        mxd.mvu[r] = (uint8_t)pk, mxd.mgv[r] = (uint8_t)gr;
+    if (!panel) {
+        cv_mirror((uint32_t)x, (uint32_t)(OP_PY + y));  /* (the client's alone: the panel shows it already) */
+        return;
+    }
+    mir_mute = (uint8_t)!mir;                           /* (not due: the client keeps its last until the next window) */
 #endif
     cv_blit((uint32_t)x, (uint32_t)(OP_PY + y));
 #if FELUCCA_ED_MIRROR
@@ -424,6 +446,9 @@ static __attribute__((noinline)) void mx_draw(void)
     }
     if (ui.overlay == 2u)
         return;                                         /* (under a toast: the rows wait) */
+#if FELUCCA_ED_MIRROR
+    mxd.mir = (uint8_t)mir_meters_due();
+#endif
     if (mxd.first == MXR_MASTER) {                      /* MASTER alone: its meter, its reduction, the returns' meters */
         mx_vu_at(MXR_MASTER, MXM_X, MXM_VY, MXM_W, MXM_VH, mx_level(MXR_MASTER, trk_lv), 0);
         mx_master_gr();
@@ -443,6 +468,10 @@ static void mx_redraw(void)                             /* the live parts again 
 {
     memset(mxd.vu, 0xFF, sizeof mxd.vu);
     memset(mxd.gr, 0xFF, sizeof mxd.gr);
+#if FELUCCA_ED_MIRROR
+    memset(mxd.mvu, 0xFF, sizeof mxd.mvu);              /* (a catch-up: the client's meters again too) */
+    memset(mxd.mgv, 0xFF, sizeof mxd.mgv);
+#endif
     memset(mxd.stp, 0, sizeof mxd.stp);
     mxd.mgr = 0xFF;
 }

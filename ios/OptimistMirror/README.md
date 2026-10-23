@@ -21,4 +21,4 @@ wrote (`Tests/Fixtures`, from `MIRROR_FIXTURE=… build/host/mirror_test`).
 
 Plug the FM-1 into the iPhone: straight into USB-C, or through the Lightning camera adapter. Open the app. It finds the FM-1's
 USB MIDI port ("Felucca" / "Optimist", never the Bluetooth one), asks for the mirror every second and draws what comes. The
-mixer's VU meters are not sent. The screen stays on while the app is in front.
+mixer's meters come 10 times a second. The screen stays on while the app is in front.
