@@ -1092,6 +1092,12 @@
   },
   "TAB_CODED_ALL": {
    "1": {
+    "flash": -2244,
+    "ram": 0,
+    "pool": 4352,
+    "ramtext": 124
+   },
+   "2": {
     "flash": -3064,
     "ram": 0,
     "pool": 7312,

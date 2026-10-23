@@ -37,10 +37,10 @@ def f32(x):
 CODED = []              # (group, name, ctype, n, flags, stream, values)
 # the groups and the C condition each is built under: "core" SINE and TANH, in the pool at HEAD already (TAB_RAM), so
 # coded at no cost in RAM; "flash" and "fm6" the tables that were in flash: coded only with FELUCCA_TAB_CODED_ALL (the
-# builder's TAB_CODED_ALL, off by default; each then takes its size in the pool, TAB_CPOOL whether or not TAB_IN_POOL,
+# builder's TAB_CODED_ALL: 1 the "flash" group, 2 the "fm6" group too, off by default; each then takes its size in the pool, TAB_CPOOL whether or not TAB_IN_POOL,
 # which the undo history ring would have had: pool +7.3 KB; measured 2026-10-23 on mots.config: flash -3,2xx B, see
 # tools/builder/costs.json)
-GROUPS = {"core": None, "flash": "FELUCCA_TAB_CODED_ALL", "fm6": "FELUCCA_ENG_FM6 && FELUCCA_TAB_CODED_ALL"}
+GROUPS = {"core": None, "flash": "FELUCCA_TAB_CODED_ALL", "fm6": "FELUCCA_ENG_FM6 && FELUCCA_TAB_CODED_ALL >= 2"}   # (1: the small tables; 2: FM6's too)
 CODED_W = {"int16_t": 2, "uint16_t": 2, "int32_t": 4, "uint32_t": 4, "int64_t": 8}
 F_ORDER2 = 2
 F_SINE = 4
