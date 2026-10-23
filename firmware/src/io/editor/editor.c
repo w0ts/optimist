@@ -585,7 +585,7 @@ static void ed_service(void)
     const uint8_t *p;
     uint32_t n;
     ed_note_tick();                                        /* v14: the editor's notes due, the quiet host's end (ed_note.c) */
-    mir_poll();                                            /* the screen mirrored: a Bluetooth request, a catch-up (ed_mirror.c) */
+    mir_poll();                                            /* the screen mirrored: a catch-up (ed_mirror.c) */
     ed_sync();                                             /* the pushes (while watched) */
     if (!ota_frame_get(&p, &n) || n < 4u || p[0] != ED_HDR0 || p[1] != ED_HDR1 || p[2] != ED_HDR2)
         return;
