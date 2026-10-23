@@ -1133,7 +1133,7 @@ _add("BT_AUDIO", "FELUCCA_BT_AUDIO", "Bluetooth Classic Audio (A2DP Source, SBC)
           "d; on the FM-1 the scan has heard no device yet, so no audio has been streamed.",
      symbols=("ba_sbc", "bt_sbc_encode"))
 _add("BT_AFH", "FELUCCA_BT_AFH", "Bluetooth audio: adaptive frequency hopping (the channels the headset fails on skipped)", M,
-     395, default=1, parent="BT_AUDIO", target_only=True,
+     395, default=0, parent="BT_AUDIO", target_only=True,
      desc="What every phone's Bluetooth controller does: the FM-1 counts the headset's answers per radio channel "
           "(79 of them) every 30 s and takes the channels it fails on out of the hopping (LMP_set_AFH; at least 20 "
           "stay), so a few bad channels no longer stall the stream. Measured need: a WH-1000XM4 lost 4 fixed channels "
