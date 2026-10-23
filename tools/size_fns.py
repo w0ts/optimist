@@ -56,7 +56,7 @@ SIZE_FILES = ["ui/colors.c", "ui/splash.c", "storage/storage.c", "storage/uprese
 # optional engines and effects (a new main-loop-only file goes in SIZE_FILES: --check, docs SLIM-CODE.md)
 # (boot and the main loop stay at -Os: at minsize the main loop got slower and the emulator boot check saw a late
 # half, the BLE start-up a link stop over its bound, perf/flash-survey 2026-10-15)
-OS_FILES = ["felucca.c", "system/main.c", "system/supply.c", "io/usb/usb.c", "io/usb/usb_audio_route.c",
+OS_FILES = ["system/main.c", "system/supply.c", "io/usb/usb.c", "io/usb/usb_audio_route.c",
             "io/usb/usb_audio.c", "storage/motion_flash.c", "display/lcd.c", "display/lcd_dirty.c",
             "display/gfx.c", "system/libc.c", "system/bench.c", "system/simd_probe.c", "system/cpuguard.c",
             "ui/bright.c", "ui/meters.c", "seq/motion.c", "core/macro.c", "fx/master_comp/master_comp.c",
@@ -65,23 +65,30 @@ OS_FILES = ["felucca.c", "system/main.c", "system/supply.c", "io/usb/usb.c", "io
             "engines/cz/eng_cz.c", "engines/cz/cz_native.c", "engines/phys/eng_phys.c", "engines/phys/phys_dsp.c",
             "engines/phys/phys_symp.c", "fx/reverb/rev_math.c", "fx/reverb/reverb_airwin.c",
             # BLE (FELUCCA_BLE): runs in the BLE interrupts, at -Os
-            "ble/ble_prim.c", "ble/ble_aes.c", "ble/ble_ll.c", "ble/ble_host.c", "ble/ble_att.c", "ble/ble_midi.c",
-            "ble/ble_stack.c", "ble/ble_hw_stub.c", "ble/ble_hw_wl82.c", "ble/ble_vm.c", "ble/ble_diag.c", "ble/ble_smp.c", "io/midi/midi_ble.c",
+            "ble/ble_prim.c", "ble/ble_aes.c", "ble/ble_ll.c",
+            "ble/ble_stack.c", "ble/ble_hw_stub.c", "ble/ble_diag.c", "ble/ble_smp.c",
             # the DEVICES list (FELUCCA_BLE): the main loop's (the scan table, the one-device store, the menu's glue)
-            "ble/ble_scan.c", "ble/ble_store.c", "io/midi/ble_devices.c", "io/midi/ble_none.c",
+            "ble/ble_scan.c", "ble/ble_store.c", "io/midi/ble_none.c",
             # connecting out (BLE_CENTRAL): the BLE interrupts' (the central LL, driver, GATT client, SMP initiator) and the
             # main loop's (a pick, LAST and its search), at -Os as the rest of BLE
             "ble/ble_ll_central.c", "ble/ble_hw_wl82_central.c", "ble/ble_gattc.c", "ble/ble_central.c",
             "ble/ble_smp_init.c", "io/midi/ble_connect.c",
             # EXPERIMENTAL: the Bluetooth Classic stack (BT_AUDIO): its interrupts and the main loop's side
-            "bt/bt_inq.c", "bt/bt_inq_core.c", "bt/bt_inq_con.c", "bt/bt_page.c", "bt/bt_lmp.c", "bt/bt_acl.c", "bt/bt_l2cap.c", "bt/bt_sdps.c", "bt/bt_avrcp.c", "bt/bt_avdtp.c",
-            "bt/bt_audio.c"]
+            "bt/bt_inq_con.c", "bt/bt_avrcp.c"]
 # the pairing's arithmetic (P-192, SAFER+, SHA-256: bt_ssp.c, once per pairing, milliseconds either way): minsize
 # (2026-10-22, measured on synth: see the flash-gains report)
 SIZE_FILES += ["bt/bt_safer.c", "bt/bt_sha256.c", "bt/uECC.c", "bt/bt_ssp.c"]
 # the firmware update session and the USB rescue (ota.c, recovery.c): a transfer's bytes and the rescue's loop, never the
 # sound or the boot's timing (2026-10-23, -272 B on mots.config; usb.c measured too: -48 B, left at -Os)
 SIZE_FILES += ["system/ota.c", "system/recovery.c"]   # (cpuguard.c measured too: 0 B, the sound side reaches all of it)
+# the main-loop side of the BLE and Bluetooth Classic files (the DEVICES list, the scan, bond and connect glue, the
+# radio's start-up, the A2DP stream's main-loop half: bti_poll, bp_print_rx, ble_midi_init, mir_blit ...): minsize;
+# what their interrupts reach (the *_irq roots: the LL, the LMP, the baseband drivers) stays at -Os by the guard below
+# (2026-10-23, -668 B on mots.config; ble_ll.c, ble_hw_wl82_central.c, ble_scan.c, ble_store.c and the rest stay listed above)
+SIZE_FILES += ["ble/ble_hw_wl82.c", "bt/bt_inq.c", "io/midi/midi_ble.c", "ble/ble_vm.c", "felucca.c",
+               "bt/bt_acl.c", "bt/bt_l2cap.c", "bt/bt_audio.c", "bt/bt_page.c",
+               "bt/bt_inq_core.c", "bt/bt_lmp.c", "bt/bt_sdps.c", "ble/ble_att.c", "ble/ble_host.c", "bt/bt_avdtp.c",
+               "ble/ble_midi.c", "io/midi/ble_devices.c"]
 # the sound side: what the audio ISR, the second core and the voices run (never minsize)
 AUDIO_FILES = [  # (the A2DP stream's SBC encoder runs in the audio interrupt: bt_audio_feed, bt/bt_sbc.c and AOSP's bt/sbc/)
                "bt/bt_sbc.c", "bt/sbc/sbc_analysis.c", "bt/sbc/sbc_dct.c", "bt/sbc/sbc_dct_coeffs.c",

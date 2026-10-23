@@ -19,11 +19,11 @@ int main(void)
     while (*p) {
         const char *ctx = p + 1;
         uint32_t kind = (uint8_t)*p;
-        for (p = ph_next(ctx); *p; ) {
-            const char *label = ph_lab(p);              /* (a shared label: its string) */
-            const uint8_t *t = (const uint8_t *)ph_next(p), *q;
+        for (p = ph_lab_next(ctx); *p; ) {
+            const char *label = ph_lab(p);              /* (a shared label: its string, one byte here) */
+            const uint8_t *t = (const uint8_t *)ph_lab_next(p), *q;
             uint32_t off = (uint32_t)((const char *)t - PH_BLOB);
-            const char *e = ph_next((const char *)t);   /* (a shared text: 2 bytes; else the packed text, its NUL) */
+            const char *e = ph_txt_next((const char *)t);   /* (a shared text: 2 bytes; else the packed text, its NUL) */
             const uint8_t *s = *t == PH_REF ? PH_SHT + PH_SHT_OFF[t[1] - 1u] : t;
             for (q = s; *q; q++)
                 if ((*q < 0x20u || *q >= 0x80u) && (*q >= 0x80u ? *q - 0x80u : *q + 0x7Fu) >= npair)
