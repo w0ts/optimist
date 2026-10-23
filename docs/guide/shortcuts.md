@@ -56,6 +56,7 @@ Every button, knob and key gesture, grouped by what you want to do, then the one
 | SHIFT2 + PRESETS | a lane on its own source | the next / previous kind (user, sampled, synth, X0X) |
 | SAVE + PRESETS | a synth track | the sound a favorite (right) or not (left) [FAVORITES] |
 | SHIFT2 + SELECT | a synth track | browse the favorites only (right) or every sound (left) [FAVORITES] |
+| SHIFT2 + SELECT | STEP, no step held | the page's cards stay about 30 s after each turn instead of 1.5 s, until STEP is left (a generator tuned while it plays) |
 | SHIFT + ENV | a synth track | INIT the sound (asked over edits) |
 
 ## Playing

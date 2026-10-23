@@ -15,7 +15,7 @@ enum {
     BTL_AUTO_RATE = 35, BTL_PREFERRED_RATE = 36, BTL_VERSION_REQ = 37, BTL_VERSION_RES = 38, BTL_FEATURES_REQ = 39,
     BTL_FEATURES_RES = 40, BTL_QOS = 41, BTL_QOS_REQ = 42, BTL_MAX_SLOT = 45, BTL_MAX_SLOT_REQ = 46,
     BTL_TIMING_ACC_REQ = 47, BTL_TIMING_ACC_RES = 48, BTL_SETUP_COMPLETE = 49, BTL_HOST_CONN_REQ = 51,
-    BTL_SLOT_OFFSET = 52, BTL_SUPERVISION_TO = 55,
+    BTL_SLOT_OFFSET = 52, BTL_SUPERVISION_TO = 55, BTL_SET_AFH = 60,
     /* pairing and encryption (Part C 5.2; checked against Wireshark's packet-btlmp.c table, 2026-10-19: the values
      * this file had before for these were not the spec's) */
     BTL_IN_RAND = 8, BTL_COMB_KEY = 9, BTL_AU_RAND = 11, BTL_SRES = 12, BTL_ENCRYPTION_MODE_REQ = 15,
