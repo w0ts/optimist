@@ -497,13 +497,13 @@ Asking sets the ring's source for the next 2 s: ask again about every 80 ms to w
 `ed_mirror.c`, `ed_mirror_enc.h` (`ED_MIRROR`, with live editing or without; the client is the iPhone app `ios/OptimistMirror`). While a client asks, every write to the panel
 (`display/lcd.c` `lcd_fill`, `lcd_blit`) also goes out as it is drawn; a client applying them in order holds the panel's pixels. The device keeps no frame buffer and sends nothing while no client asks; the mixer's VU meters are not sent.
 
-Request: bits (bit 0 on, bit 1 the whole panel again). Reply: on, version 1, width (2 x 7 bit), height (2 x 7 bit). The pushes go on the link the last request came on:
-USB, or Bluetooth MIDI (with `BLE`; there the FM-1 answers this request only, every other SysEx is ignored).
-Mirroring ends 3 s after the last request of any kind (ask again or `PING` about every 1 s), with `106 0`, and when its link goes (a USB reset; no Bluetooth central listening).
+Request: bits (bit 0 on, bit 1 the whole panel again). Reply: on, version 1, width (2 x 7 bit), height (2 x 7 bit). USB only: over Bluetooth MIDI the link carried too
+little and the catch-ups slowed the FM-1's tempo (tried 2026-10-23), so it was taken out.
+Mirroring ends 3 s after the last request of any kind (ask again or `PING` about every 1 s), with `106 0`, and on a USB reset.
 
-**Catching up.** A first on, bit 1, and a link that fell behind (USB: the host read nothing for 30 ms; Bluetooth: the 8 KB send ring was full, the frame dropped) all end the same way once
-the link is clear: a `FILL` of the whole panel in black, then every band of the panel drawn again (the device's own panel is not cleared). Until then nothing is sent. At most one catch-up every 250 ms,
-and none while PRESETS' popup list is up (the panel under it is not drawn again). A catch-up is 4.7 KB on average, 8.2 KB at most (the UI's host run). Over Bluetooth only whole frames are sent.
+**Catching up.** A first on, bit 1, and a host that fell behind (it read nothing for 30 ms) all end the same way once
+the host has read everything: a `FILL` of the whole panel in black, then every band of the panel drawn again (the device's own panel is not cleared). Until then nothing is sent. At most one catch-up every 250 ms,
+and none while PRESETS' popup list is up (the panel under it is not drawn again). A catch-up is 4.7 KB on average, 8.2 KB at most (the UI's host run).
 
 Pushes, cmd 106, by op:
 
