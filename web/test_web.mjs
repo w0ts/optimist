@@ -1635,7 +1635,7 @@ async function editorDaw() {
   }
   const openers = ids.every((id) => html.includes(`popBtn("${id}"`) || html.includes(`"data-pop": "${id}"`) || html.includes(`data-pop="${id}"`) || html.includes(`g("${id}", `) || (E.MASTER_FX.some((f) => f.id === id) && /"data-pop": f\.id/.test(html)) || (id === "fxslot" && /dataset\.pop = bus1 \|\| "fxslot"/.test(html)));
   ok(flat && openers && ids.length === 16 && !("project" in E.NAV) && E.navScreen({ screen: "mixer", pop: { id: "sound" } }, "library").pop === null
-    && E.navKey({ screen: "mixer", pop: null }, "Escape").screen === "mixer" && js(E.SCREENS) === js(["mixer", "library", "samples", "drumkit", "projects", "snapshots", "device", "screen", "settings"]),
+    && E.navKey({ screen: "mixer", pop: null }, "Escape").screen === "mixer" && js(E.SCREENS) === js(["mixer", "library", "samples", "drumkit", "projects", "backup", "snapshots", "device", "screen", "settings"]),
     "daw: every popup is one click from a strip of the mixer, Escape returns to it, one popup at a time, a screen closes it");
   ok(html.includes('$("pop").addEventListener("cancel"') && html.includes('e.target === $("pop")') && html.includes('$("popx").addEventListener("click"'),
     "daw: the popup closes by Escape (cancel), a click outside (the backdrop) and its x");
@@ -2470,7 +2470,7 @@ async function editorBackup() {
   ok(!ev.unknown.length && !ev.timeouts, "backup: no unmatched replies, no timeouts");
   /* the UI and the installer */
   ok(/id="backup"/.test(html) && /id="bkprog"/.test(html) && /function bkRestore\(/.test(html) && /function backupDo\(/.test(html) &&
-    /if \(h === "backup"\) return "projects"/.test(html), "editor: Backup section (projects tab, #backup), progress, restore");
+    /<section class="panel" id="p-backup" data-tab="backup"/.test(html), "editor: Backup section (its own backup tab, #backup), progress, restore");
   const inst = readFileSync(join(HERE, "installer", "installer.js"), "utf8");
   ok(/const answer = await ask\(pkg\.stock\)/.test(inst) && INST.TEXT.askTitle === "Back up first?" && /backup: "\.\.\/editor\/#backup"/.test(inst)
     && /opts\.onNavigate\("backup"\)/.test(inst), "installer: asks to back up first, opens the editor's Backup (or the host's tab)");
@@ -2704,8 +2704,17 @@ function editorTabs() {
   const tabs = [...html.matchAll(/<button role="tab" data-tab="(\w+)"/g)].map((x) => x[1]);
   const panels = [...html.matchAll(/<section class="panel" id="p-(\w+)" data-tab="(\w+)"/g)].map((x) => [x[1], x[2]]);
   const TABS = JSON.parse((/const SCREENS = (\[[^\]]*\]);/.exec(html) || [])[1] || "[]");
-  ok(tabs.length === 11 && js(tabs.slice(0, 3)) === js(["build", "install", "sim"]) && js(tabs.slice(3)) === js(TABS) && js(panels.map((x) => x[1])) === js(TABS) && panels.every(([a, b]) => a === b) && TABS[0] === "mixer",
+  ok(tabs.length === 13 && js(tabs.slice(0, 3)) === js(["build", "install", "sim"]) && js(tabs.slice(3)) === js(TABS) && js(panels.map((x) => x[1])) === js(TABS) && panels.every(([a, b]) => a === b) && TABS[0] === "mixer",
     `editor: ${tabs.length} screens, one panel each, the mixer first (${tabs.join(" ")})`);
+  {   /* the full backup is its own screen, after Projects: not inside the Projects panel; lite firmware shows it, the not-connected state hides it */
+    const sec = (id) => (new RegExp(`<section class="panel" id="p-${id}"[\\s\\S]*?</section>`).exec(html) || [""])[0];
+    const css = html.slice(0, html.indexOf("</style>"));
+    ok(tabs.indexOf("backup") === tabs.indexOf("projects") + 1 && TABS.includes("backup") && /<div id="backup"><\/div>/.test(sec("backup")) && /id="bkprog"/.test(sec("backup"))
+      && !/id="backup"|id="bkprog"/.test(sec("projects")) && /id="slots"/.test(sec("projects")) && /id="libr"/.test(sec("projects"))
+      && /:not\(\[data-tab=backup\]\)/.test(css) && /\[data-lib\]\) #tabs > button\[data-tab=projects\]/.test(css)
+      && /tab = d\.info\.lib \? "projects" : "backup"/.test(html) && /backup: "backup" \}\[where\]/.test(html),
+      "editor: Backup is its own tab after Projects (not in the Projects panel); a backup-only FM-1 lands on it; Projects only with the librarian");
+  }
   const pops = [...html.matchAll(/<section class="panel pp" id="p-(\w+)" data-pop="(\w+)"/g)].map((x) => x[2]);
   ok(js(pops) === js(["sound", "sequence", "lane", "kitstore", "dyn"]) && html.includes('<dialog id="pop"') && html.includes('id="popx"'),
     "editor: the popup panels (Sound, Sequence, a drum sound, the kit store, built ones) and the one dialog with its close button");
