@@ -1133,12 +1133,13 @@ _add("BT_AUDIO", "FELUCCA_BT_AUDIO", "Bluetooth Classic Audio (A2DP Source, SBC)
           "d; on the FM-1 the scan has heard no device yet, so no audio has been streamed.",
      symbols=("ba_sbc", "bt_sbc_encode"))
 _add("BT_AFH", "FELUCCA_BT_AFH", "Bluetooth audio: adaptive frequency hopping (the channels the headset fails on skipped)", M,
-     395, default=0, parent="BT_AUDIO", target_only=True,
+     395, default=1, parent="BT_AUDIO", target_only=True,
      desc="What every phone's Bluetooth controller does: the FM-1 counts the headset's answers per radio channel "
           "(79 of them) every 30 s and takes the channels it fails on out of the hopping (LMP_set_AFH; at least 20 "
-          "stay), so a few bad channels no longer stall the stream. Measured need: a WH-1000XM4 lost 4 fixed channels "
-          "as the radio warmed and crackled on them (2026-10-23). Hardware-untested: the engine's AFH table layout is "
-          "inferred from the LE block's; a console build (BT_DIAG) can switch it live (btpage afh=0 / 1 / 2).",
+          "stay), so a few bad channels no longer stall the stream. Measured need and result (2026-10-23, a "
+          "WH-1000XM4): as the FM-1 warmed, channels 7 MHz apart went deaf (a clock harmonic's comb) and the stream "
+          "stalled and crackled on them; with this on, 6 channels dropped over 6 minutes, every switch held and not "
+          "one audio packet was lost. A console build (BT_DIAG) switches only when told (btpage afh=0 / 1 / 3).",
      symbols=("bt_afh_classify",))
 _add("BT_DIAG", "FELUCCA_BT_DIAG", "Bluetooth audio diagnostics: the console's btrx / bttrace, counters and logs", M,
      363, default=0, parent="BT_AUDIO", target_only=True,
