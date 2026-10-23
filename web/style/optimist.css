@@ -84,6 +84,7 @@
 .o-nav a:hover { color: var(--fg); background: var(--s1); }
 .o-nav .o-ic { margin-right: 6px; flex: none; }
 .o-nav a[aria-current="page"] { color: var(--fg); background: var(--s2); }
+.o-nav a.o-gh { margin-left: auto; }   /* (the repository, at the bar's end) */
 .o-nav .o-sep { width: 1px; height: 20px; margin: 0 10px; background: var(--line); flex: none; }
 .o-nav .o-sep:first-child { display: none; }
 @media (max-width: 860px) {
