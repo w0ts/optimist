@@ -64,7 +64,7 @@ static void dly_reset(int type, int slope, int freq, int res, int fdbk)
     memset(fx.dly_f, 0, sizeof fx.dly_f);
     fx.dly_q = FX_Q_MAX;
     song.g[G_BPM] = 120;
-    song.g[G_DTIME] = 2;                                 /* 1/16 at 120 BPM: 5512 samples */
+    song.g[G_DTIME] = DUR_DEF_16;                                /* 1/16 at 120 BPM: 5512 samples */
     song.g[G_DMIX] = 127;
     song.g[G_DRET] = 127;
     song.g[G_DFDBK] = (int16_t)fdbk;

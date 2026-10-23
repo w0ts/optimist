@@ -1330,7 +1330,7 @@ static void t_usb_types(void)
             okt &= ut.slot[s] == t && ut.slot[s ^ 1u] == FXT_NONE && ut_has(t) == s + 1u;
             ut.amt[s] = ut_on_amt(t);
             EQ3_V(NTRK + 1u)[EQV_LO] = -20, EQ3_V(NTRK + 1u)[EQV_HI] = 6;   /* (the input's own bands) */
-            ut.v[UTV_GPAT] = 1, ut.v[UTV_GRATE] = 2;     /* (GATER: 8TH at 1/32, closes within a few blocks) */
+            ut.v[UTV_GPAT] = 1, ut.v[UTV_GRATE] = 19;    /* (GATER: 8TH at 1/32, closes within a few blocks) */
             for (k = 0; k < 400u; k++) {
                 ut_xblock(k);
                 for (i = 0; i < CTL; i++)
@@ -1354,7 +1354,7 @@ static void t_usb_types(void)
                 snprintf(why, sizeof why, "type %u slot %u: not dry at its neutral amount", t, s), printf("  (%s)\n", why);
             /* the record: the type, its amount, the input's own GATER / JUNO values, its EQ3 bands */
             ut.amt[s] = ut_on_amt(t) - 3;
-            ut.v[UTV_GPAT] = 12, ut.v[UTV_GRATE] = 4, ut.v[UTV_GSHP] = 77, ut.v[UTV_JMODE] = 2;
+            ut.v[UTV_GPAT] = 12, ut.v[UTV_GRATE] = 18, ut.v[UTV_GSHP] = 77, ut.v[UTV_JMODE] = 2;
             if (t == FXT_EQ3)
                 ut.amt[s] = 1;
             EQ3_V(NTRK + 1u)[EQV_MID] = -31, EQ3_V(NTRK + 1u)[EQV_FH] = 40;
@@ -1362,7 +1362,7 @@ static void t_usb_types(void)
             ut_defaults();
             eq3_defaults();
             k = fxr_decode(b, n, 1) && ut.slot[s] == t && ut.slot[s ^ 1u] == FXT_NONE &&
-                ut.amt[s] == (t == FXT_EQ3 ? 1 : ut_on_amt(t) - 3) && ut.v[UTV_GPAT] == 12 && ut.v[UTV_GRATE] == 4 &&
+                ut.amt[s] == (t == FXT_EQ3 ? 1 : ut_on_amt(t) - 3) && ut.v[UTV_GPAT] == 12 && ut.v[UTV_GRATE] == 18 &&
                 ut.v[UTV_GSHP] == 77 && ut.v[UTV_JMODE] == 2;
             k = k && EQ3_V(NTRK + 1u)[EQV_MID] == -31 && EQ3_V(NTRK + 1u)[EQV_FH] == 40;
             oke &= k != 0u;

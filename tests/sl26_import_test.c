@@ -130,6 +130,8 @@ static void sl26_convert(void)
         for (i = 0; i < 50u; i++)
             ok &= i == P_LRATE || (SL24_TP && k == TRK_DRUM && (i == P_GLMODE || i == P_PRIO || i == P_ALLOC || i == P_DETUNE)) ||
                   (i == P_AMODE && k < NPART && v[i] == sl27_amode_in((int32_t)(k * 7u + i % 40u), &cut)) ||   /* (ours: 6) */
+                  (i == P_ARATE && v[i] == sloop_dur_in(SLOOP_DIV_DUR, 6, (int32_t)(k * 7u + i % 40u))) ||   /* (its note values: ours) */
+                  (i == P_SDIV && v[i] == sloop_dur_in(SLOOP_DIV_DUR, 9, (int32_t)(k * 7u + i % 40u))) ||
                   v[i] == (int16_t)(k * 7u + i % 40u);
         if (k < NPART)
             for (i = 0; i < 8u; i++)
@@ -152,7 +154,11 @@ static void sl26_convert(void)
     check("... nudges (6 bits, signed), fills (3: none), locks (P_E0.. back to its id; INSERT, LFO 2: dropped)", ok);
 }
 
-/* 2.6's LFO 2 SYNC (x[7], P_LSYNC n: 0 OFF, 1 4BAR .. 10 1/32) -> our RATE -n (params.c LRATE_OF_SLOOP); off: its free RATE */
+/* our RATE for 2.6's LFO 2 SYNC n (1 4BAR .. 10 1/32): -(DUR index + 1), the index of the same note value in our 22 (core.h
+ * SLOOP_LSYNC_DUR: 4BAR 0, 2BAR 2, 1BAR 4, 1/2 7, 1/4 10, 1/8 13, 8T 15, 1/16 16, 16T 18, 1/32 19) */
+static const int8_t RATE_OF_SYNC[11] = {0, -1, -3, -5, -8, -11, -14, -16, -17, -19, -20};
+
+/* 2.6's LFO 2 SYNC (x[7], P_LSYNC n: 0 OFF, 1 4BAR .. 10 1/32) -> our RATE RATE_OF_SYNC[n] (params.c LRATE_OF_SLOOP); off: its free RATE */
 static void sl26_lsync(void)
 {
     static const uint8_t L[6] = {0, 1, 7, 10, 11, 255};
@@ -170,20 +176,20 @@ static void sl26_lsync(void)
         (void)sl26_to_sl24(b);
         for (k = 0; k < NTRK; k++) {
             const uint8_t *d = b + 76u + k * 940u + 2u * P_LRATE;
-            int16_t r = (int16_t)(k * 7u + P_LRATE % 40u), e = L[n] >= 1 && L[n] <= 10 ? (int16_t)-L[n] : r;
+            int16_t r = (int16_t)(k * 7u + P_LRATE % 40u), e = L[n] >= 1 && L[n] <= 10 ? (int16_t)RATE_OF_SYNC[L[n]] : r;
             ok1 &= (int16_t)(d[0] | d[1] << 8) == e;
         }
         memcpy(b, c, sizeof c);
         ok2 &= sl24_import_buf(b, sizeof c) != 0;
         for (k = 0; k < NTRK; k++) {
-            int16_t r = (int16_t)(k * 7u + P_LRATE % 40u), e = L[n] >= 1 && L[n] <= 10 ? (int16_t)-L[n] : r;
+            int16_t r = (int16_t)(k * 7u + P_LRATE % 40u), e = L[n] >= 1 && L[n] <= 10 ? (int16_t)RATE_OF_SYNC[L[n]] : r;
             pj_to_p(v, proj_tmp.cur.t[k].p);
             ok2 &= v[P_LRATE] == e || (k == TRK_DRUM && l2_tagged(&proj_tmp.cur));   /* (LFO 2 in its slot: l2_pack) */
         }
         (void)q, (void)x;
     }
-    check("2.6 LFO 2 SYNC (x[7] 0, 1, 7, 10; 11, 255 not a division) -> FUN5 RATE: -n, the free RATE when 0", ok1);
-    check("... imported: every part's P_LRATE is -n (0: its free rate kept; 11+: the free rate)", ok2);
+    check("2.6 LFO 2 SYNC (x[7] 0, 1, 7, 10; 11, 255 not a division) -> FUN5 RATE: its note value's -(index + 1), the free RATE when 0", ok1);
+    check("... imported: every part's P_LRATE is its note value's (0: its free rate kept; 11+: the free rate)", ok2);
 }
 #endif
 
@@ -329,12 +335,12 @@ static void sl26_lfo2(void)
     ok = l2_import(0, 0) && (!strcmp(last_msg, "SLOOP IMPORTED, LFO CUT") || !strcmp(last_msg, "SLOOP IMPORTED, DRUMS CUT") ||
                               !strcmp(last_msg, "SLOOP IMPORTED, NO LOCKS"));   /* (without XSTEP the golden's step locks are lost first) */
     for (k = 0; k < NPART; k++)                         /* (golden: TRIG 9.., POL 10..: FREE, UNI; depths k 7 + 13 ..) */
-        ok &= l2_is(k, -8 - (int32_t)k, 4, 1, 1, LT_FLT, 28 + 14 * (int32_t)k, LT_SHP, 30 + 14 * (int32_t)k) && l1_is(k, 0, 0, 0, 0);
+        ok &= l2_is(k, RATE_OF_SYNC[8 + k], 4, 1, 1, LT_FLT, 28 + 14 * (int32_t)k, LT_SHP, 30 + 14 * (int32_t)k) && l1_is(k, 0, 0, 0, 0);
     check("2.6 LFO TRIG FREE, POL UNI -> LFO 2: its two depths of the most weight (FLT SHP), RATE (SYNC), WAVE; LFO off; PIT AMP "
           "cut (said so)", ok);
     ok = l2_import(DEP, TP2);
-    ok &= l2_is(0, -8, 4, 0, 1, LT_PIT, -80, 0, 0) && l1_is(0, 0, 0, 0, 0);
-    ok &= l2_is(1, -9, 4, 1, 0, LT_AMP, 127, 0, 0) && l1_is(1, 0, 0, 0, 0);
+    ok &= l2_is(0, RATE_OF_SYNC[8], 4, 0, 1, LT_PIT, -80, 0, 0) && l1_is(0, 0, 0, 0, 0);
+    ok &= l2_is(1, RATE_OF_SYNC[9], 4, 1, 0, LT_AMP, 127, 0, 0) && l1_is(1, 0, 0, 0, 0);
     ok &= l2_is(2, 60, 0, 0, 0, 0, 0, 0, 0) && l1_is(2, LT_FLT, 12, LT_SHP, 14);
     check("... POL UNI on PIT -40: LFO 2 PIT -80 (AMT 2 x); TRIG FREE on AMP 127: AMP 127; NOTE BI: LFO's two slots, LFO 2 off", ok);
     proj_capture(&q, &tdl);

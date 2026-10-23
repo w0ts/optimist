@@ -27,6 +27,8 @@ static int check(const char *what, int ok)
     return ok ? 0 : 1;
 }
 
+static const uint8_t RATES[6] = {13, 16, 19, 15, 18, 20};   /* 1/8 1/16 1/32 8T 16T 32T (old order) */
+
 static void set_slicer(track_t *t, int mode, int pat, int rate, int depth)
 {
     t->p[P_SLCR] = (int16_t)mode;
@@ -50,7 +52,7 @@ static int32_t sine_run(double secs, int turn, int32_t *in_step, int64_t *closed
         int32_t b[CTL];
         if (turn && f % 3008u == 0u) {          /* modes, patterns, depths, rates while it runs */
             uint32_t k = f / 3008u;
-            set_slicer(t, (int)(k % 3u), (int)(1u + k * 7u % 16u), (int)(k % 6u), (int)(40u + k * 37u % 88u));
+            set_slicer(t, (int)(k % 3u), (int)(1u + k * 7u % 16u), (int)RATES[k % 6u], (int)(40u + k * 37u % 88u));
         }
         for (i = 0; i < CTL; i++) {
             b[i] = (int32_t)lrint(20000.0 * sin(ph));
@@ -79,14 +81,14 @@ static int32_t sine_run(double secs, int turn, int32_t *in_step, int64_t *closed
 static int test_clicks(void)
 {
     static const struct { const char *name; int mode, pat, rate, depth, bpm, swing; double secs; } C[] = {
-        {"GATE pattern 1, 1/16, 120 BPM, 100 %", SL_GATE, 1, 1, 127, 120, 0, 4},
-        {"GATE pattern 12, 1/32, 240 BPM, 100 %", SL_GATE, 12, 2, 127, 240, 0, 3},
-        {"GATE pattern 2, 32T, 240 BPM, swing 50 %", SL_GATE, 2, 5, 127, 240, 50, 3},
-        {"GATE pattern 5, 8T, 90 BPM, 60 %", SL_GATE, 5, 3, 76, 90, 10, 4},
-        {"STUT pattern 7, 1/16, 120 BPM, 100 %", SL_STUT, 7, 1, 127, 120, 0, 4},
-        {"STUT pattern 3, 32T, 200 BPM, 70 %, swing 30 %", SL_STUT, 3, 5, 90, 200, 30, 3},
-        {"STUT pattern 9, 1/8, 40 BPM (loop shorter than the step)", SL_STUT, 9, 0, 127, 40, 0, 8},
-        {"STUT pattern 13, 16T, 133 BPM", SL_STUT, 13, 4, 127, 133, 0, 4},
+        {"GATE pattern 1, 1/16, 120 BPM, 100 %", SL_GATE, 1, 16, 127, 120, 0, 4},
+        {"GATE pattern 12, 1/32, 240 BPM, 100 %", SL_GATE, 12, 19, 127, 240, 0, 3},
+        {"GATE pattern 2, 32T, 240 BPM, swing 50 %", SL_GATE, 2, 20, 127, 240, 50, 3},
+        {"GATE pattern 5, 8T, 90 BPM, 60 %", SL_GATE, 5, 15, 76, 90, 10, 4},
+        {"STUT pattern 7, 1/16, 120 BPM, 100 %", SL_STUT, 7, 16, 127, 120, 0, 4},
+        {"STUT pattern 3, 32T, 200 BPM, 70 %, swing 30 %", SL_STUT, 3, 20, 90, 200, 30, 3},
+        {"STUT pattern 9, 1/8, 40 BPM (loop shorter than the step)", SL_STUT, 9, 13, 127, 40, 0, 8},
+        {"STUT pattern 13, 16T, 133 BPM", SL_STUT, 13, 18, 127, 133, 0, 4},
     };
     uint32_t c;
     int bad = 0;
@@ -135,7 +137,7 @@ static int test_timing(void)
     song.g[G_BPM] = 97;
     song.g[G_SWING] = 10;
     t->p[P_SSWING] = 20;
-    set_slicer(t, SL_GATE, (int)pat, 1, 127);
+    set_slicer(t, SL_GATE, (int)pat, DUR_DEF_16, 127);
     slicer_start(0);
     while (f + CTL <= sizeof out / sizeof out[0]) {
         uint32_t i;
@@ -222,7 +224,7 @@ static int test_sync(void)
     for (k = 0; k < NTRK; k++) {
         trk[k].p[P_SSWING] = (int16_t)(10 * k);
         trk[k].p[P_SLEN] = 16;                    /* 16 steps of 1/16: the SLICER's bar */
-        set_slicer(&trk[k], k & 1u ? SL_STUT : SL_GATE, (int)(3u + k), 1, 127);
+        set_slicer(&trk[k], k & 1u ? SL_STUT : SL_GATE, (int)(3u + k), DUR_DEF_16, 127);
     }
     song.g[G_BPM] = 131;
     transport_req = 1;
@@ -259,7 +261,7 @@ static int test_off_stut(void)
     bad += check("OFF: the signal is not touched", same);
     /* STUT, pattern 7 (x...), 1/16 at 120 BPM, 100 %: the repeat steps play the live step again */
     song.g[G_BPM] = 120;
-    set_slicer(t, SL_STUT, 7, 1, 127);
+    set_slicer(t, SL_STUT, 7, DUR_DEF_16, 127);
     slicer_start(0);
     {
         static int32_t in[4u * 44100u], out[4u * 44100u];
@@ -301,7 +303,7 @@ static double cost_run(int on)
     int32_t o[2 * CTL];
     song_setup();
     for (k = 0; k < NTRK; k++)
-        set_slicer(&trk[k], on ? (k & 1u ? SL_GATE : SL_STUT) : 0, 4, 1, 100);
+        set_slicer(&trk[k], on ? (k & 1u ? SL_GATE : SL_STUT) : 0, 4, DUR_DEF_16, 100);
     transport_req = 1;
     for (f = 0; f < FS; f += CTL)
         mix_block(o, CTL);
@@ -359,14 +361,14 @@ static void demo_song(const char *dir, const char *name, const int16_t (*s)[4], 
 
 static void demos(const char *dir)
 {
-    static const int16_t DRY[4][4] = {{0, 1, 1, 127}, {0, 1, 1, 127}, {0, 1, 1, 127}, {0, 1, 1, 127}};
-    static const int16_t PAD_GATE[4][4] = {{0, 1, 1, 127}, {SL_GATE, 1, 1, 127}, {0, 1, 1, 127}, {0, 1, 1, 127}};
-    static const int16_t PAD_GATE2[4][4] = {{0, 1, 1, 127}, {SL_GATE, 15, 2, 110}, {0, 1, 1, 127}, {0, 1, 1, 127}};
-    static const int16_t ACID_STUT[4][4] = {{SL_STUT, 7, 1, 127}, {0, 1, 1, 127}, {0, 1, 1, 127}, {0, 1, 1, 127}};
-    static const int16_t DRUM_STUT[4][4] = {{0, 1, 1, 127}, {0, 1, 1, 127}, {0, 1, 1, 127}, {SL_STUT, 12, 2, 127}};
-    static const int16_t DRUM_GATE[4][4] = {{0, 1, 1, 127}, {0, 1, 1, 127}, {0, 1, 1, 127}, {SL_GATE, 3, 1, 127}};
-    static const int16_t ALL[4][4] = {{SL_STUT, 9, 1, 127}, {SL_GATE, 1, 1, 127}, {SL_GATE, 14, 2, 90},
-                                      {SL_STUT, 12, 2, 110}};
+    static const int16_t DRY[4][4] = {{0, 1, 16, 127}, {0, 1, 16, 127}, {0, 1, 16, 127}, {0, 1, 16, 127}};
+    static const int16_t PAD_GATE[4][4] = {{0, 1, 16, 127}, {SL_GATE, 1, 16, 127}, {0, 1, 16, 127}, {0, 1, 16, 127}};
+    static const int16_t PAD_GATE2[4][4] = {{0, 1, 16, 127}, {SL_GATE, 15, 19, 110}, {0, 1, 16, 127}, {0, 1, 16, 127}};
+    static const int16_t ACID_STUT[4][4] = {{SL_STUT, 7, 16, 127}, {0, 1, 16, 127}, {0, 1, 16, 127}, {0, 1, 16, 127}};
+    static const int16_t DRUM_STUT[4][4] = {{0, 1, 16, 127}, {0, 1, 16, 127}, {0, 1, 16, 127}, {SL_STUT, 12, 19, 127}};
+    static const int16_t DRUM_GATE[4][4] = {{0, 1, 16, 127}, {0, 1, 16, 127}, {0, 1, 16, 127}, {SL_GATE, 3, 16, 127}};
+    static const int16_t ALL[4][4] = {{SL_STUT, 9, 16, 127}, {SL_GATE, 1, 16, 127}, {SL_GATE, 14, 19, 90},
+                                      {SL_STUT, 12, 19, 110}};
     demo_song(dir, "song_dry.wav", DRY, 0);
     demo_song(dir, "song_slicers.wav", ALL, 0);
     demo_song(dir, "pad_dry.wav", DRY, 2);

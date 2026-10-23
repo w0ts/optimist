@@ -89,17 +89,17 @@ static void lfo2ui_tests(void)
     check(c.gk == GK_BAR && c.gv == 64 && c.gmax == 127, "LFO 2 RATE 64: the free bar at 64 of 0 .. 127");
     TSEL->p[P_L2RATE] = -1;
     lfo2ui_cell(r, 0, &c);
-    check(c.gk == GK_DOTS && c.gmax == LSYNC_N - 1 && c.gv == 0 && !strcmp(c.val, "4BAR"), "LFO 2 RATE -1: ten cells, the first lit, 4BAR");
+    check(c.gk == GK_POS && c.gmax == LSYNC_N - 1 && c.gv == 0 && !strcmp(c.val, "4BAR"), "LFO 2 RATE -1: 22 places, the tick at the first, 4BAR");
     TSEL->p[P_L2RATE] = -LSYNC_N;
     lfo2ui_cell(r, 0, &c);
-    check(c.gk == GK_DOTS && c.gv == LSYNC_N - 1 && !strcmp(c.val, "1/32"), "LFO 2 RATE -10: the tenth lit, 1/32");
+    check(c.gk == GK_POS && c.gv == LSYNC_N - 1 && !strcmp(c.val, "1/64"), "LFO 2 RATE -22: the tick at the last place, 1/64");
     ok = 1;
     for (k = 1; k <= (uint32_t)LSYNC_N; k++) {
         TSEL->p[P_L2RATE] = (int16_t)-(int32_t)k;
         lfo2ui_cell(r, 0, &c);
-        ok &= c.gk == GK_DOTS && c.gv == (int16_t)(k - 1u);
+        ok &= c.gk == GK_POS && c.gv == (int16_t)(k - 1u);
     }
-    check(ok, "LFO 2 RATE -1 .. -10: the lit cell walks 0 .. 9");
+    check(ok, "LFO 2 RATE -1 .. -22: the tick walks 0 .. 21");
     ui.force = 1;
     frame();
     ppm("opt-lfo2-sync");

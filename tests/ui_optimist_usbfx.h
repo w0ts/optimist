@@ -53,8 +53,8 @@ static void usbfx_tests(void)
     ui.force = 1, frame(), ppm("opt-usbfx-eq3");
     mx.set = (uint8_t)(s < 0 ? 0 : s + 2);
     mix_turn(MXR_USB, 0, 2, 1);
-    mix_turn(MXR_USB, 1, 1, 1);
-    check(ut.v[UTV_GPAT] == 10 && ut.v[UTV_GRATE] == 2 && trk[0].p[P_TGPAT] == TP[P_TGPAT].def,
+    mix_turn(MXR_USB, 1, 3, 1);
+    check(ut.v[UTV_GPAT] == 10 && ut.v[UTV_GRATE] == DUR_DEF_16 + 3 && trk[0].p[P_TGPAT] == TP[P_TGPAT].def,
           "... USB GATER's PAT and RATE: the input's own (TRNC1 + 2, 1/32), T1's untouched");
     ui.force = 1, frame(), ppm("opt-usbfx-gater");
 #if FELUCCA_PARAM_HELP

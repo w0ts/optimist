@@ -104,13 +104,13 @@ static void t_burst(void)
     uint32_t i, n0;
     int ok1, ok2;
     reset(90);
-    TDRUM->p[P_SDIV] = 0;                            /* 1/4 */
+    TDRUM->p[P_SDIV] = 10;                            /* 1/4 */
     for (i = 0; i < 16u; i++)
         dstep_set(&TDRUM->dstep[i], 4, LV_NORM, 0);
     transport_req = 1;
     while (clk_beat < 2u || clk_pos < BEAT_U * 85u / 100u)
         run_block();
-    TDRUM->p[P_SDIV] = 3;                            /* DIV 1/4 -> 1/32 at 85 % of a step */
+    TDRUM->p[P_SDIV] = 19;                            /* DIV 1/4 -> 1/32 at 85 % of a step */
     n0 = nhits;
     run_block();
     ok1 = nhits - n0 <= 1u;
@@ -177,13 +177,13 @@ static void t_ratchet(void)
     dstep_set(&TDRUM->dstep[0], 3, LV_NORM, 3);      /* a hat x4 on step 0 (lane 4, C.HAT) */
     dstep_set(&TDRUM->dstep[1], 0, LV_NORM, 0);      /* a kick on step 1 */
     transport_req = 1;
-    while (blk < div_samples(2) * 2u / CTL + 2u)
+    while (blk < div_samples(DUR_DEF_16) * 2u / CTL + 2u)
         run_block();
     for (i = 0; i < nhits; i++)
         if (hits[i].note == 42 && n < 8u)
             b[n++] = hits[i].blk;
     for (i = 1; i < n; i++) {
-        int32_t g = (int32_t)(b[i] - b[i - 1]), want = (int32_t)(div_samples(2) / 4u / CTL);
+        int32_t g = (int32_t)(b[i] - b[i - 1]), want = (int32_t)(div_samples(DUR_DEF_16) / 4u / CTL);
         gaps_ok &= g >= want - 1 && g <= want + 1;
     }
     check(n == 4u && gaps_ok && count_note(36, 0, blk) == 1u, "drums: a hat x4 plays 4 even hits in its step, the next step plays");
@@ -194,7 +194,7 @@ static void t_ratchet(void)
     transport_req = 1;
     {
         uint32_t starts = 0, last = vage;
-        while (blk < div_samples(2) / CTL) {
+        while (blk < div_samples(DUR_DEF_16) / CTL) {
             run_block();
             if (vage != last)
                 starts += vage - last;
@@ -208,14 +208,14 @@ static void t_roll(void)
 {
     uint32_t i, k = 8, n;                           /* key 8 = C#4 -> lane 3 (the black keys: drums.c lane_of_key) */
     reset(120);
-    song.g[G_ROLL] = 2;                              /* 1/32 */
+    song.g[G_ROLL] = 19;                              /* 1/32 */
     song.sel = TRK_DRUM;
     song.rec = 1u << TRK_DRUM;
     transport_req = 1;
     run_block();
     fm1_in.buttons = ly_bit[LY_ROLL];                /* ARP held */
     fm1_in.notes = 1u << k;
-    for (i = 0; i < div_samples(2) * 8u / CTL; i++)  /* 8 steps */
+    for (i = 0; i < div_samples(DUR_DEF_16) * 8u / CTL; i++)  /* 8 steps */
         run_block();
     fm1_in.notes = 0;
     fm1_in.buttons = 0;
@@ -400,7 +400,7 @@ static void t_swing_triplets(void)
     uint64_t d[24];
     reset(120);
     song.g[G_SWING] = 80;
-    TDRUM->p[P_SDIV] = 4;                             /* 8T: 3 a beat */
+    TDRUM->p[P_SDIV] = 15;                             /* 8T: 3 a beat */
     TDRUM->p[P_SLEN] = 12;
     for (i = 0; i < 12u; i++)
         dstep_set(&TDRUM->dstep[i], 4, LV_NORM, 0);
@@ -414,7 +414,7 @@ static void t_swing_triplets(void)
     check(n >= 20u && ok, "SWING on the 8T grid does nothing (triplets stay even)");
     reset(120);
     song.g[G_SWING] = 80;
-    TDRUM->p[P_SDIV] = 5;                             /* 16T: 6 a beat */
+    TDRUM->p[P_SDIV] = 18;                             /* 16T: 6 a beat */
     TDRUM->p[P_SLEN] = 12;
     for (i = 0; i < 12u; i++)
         dstep_set(&TDRUM->dstep[i], 4, LV_NORM, 0);
@@ -435,14 +435,14 @@ static void t_div_after_play(void)
     uint32_t i, k, n0, a0;
     track_t *t = &trk[0];
     reset(120);
-    TDRUM->p[P_SDIV] = 1;                             /* 1/8 */
+    TDRUM->p[P_SDIV] = 13;                             /* 1/8 */
     TDRUM->p[P_SLEN] = 16;
     for (i = 0; i < 16u; i++)
         dstep_set(&TDRUM->dstep[i], 4, LV_NORM, 0);
     transport_req = 1;
     run_block();
     while (clk_beat < 1u && clk_pos < BEAT_U * 6u / 10u) run_block();   /* 60 % into beat 1: step 1 of 1/8 */
-    TDRUM->p[P_SDIV] = 0;                             /* 1/4 */
+    TDRUM->p[P_SDIV] = 10;                             /* 1/4 */
     n0 = nhits;
     while (clk_beat < 1u) run_block();                /* to the start of beat 2 */
     for (k = 0; k < 3u; k++) run_block();
@@ -451,13 +451,13 @@ static void t_div_after_play(void)
 
     reset(120);
     t->p[P_AMODE] = 1;
-    t->p[P_ARATE] = 1;                                /* 1/8 */
+    t->p[P_ARATE] = 13;                                /* 1/8 */
     t->p[P_APROB] = 127;
     input_on(t, 60, 100);
     transport_req = 1;
     run_block();
     while (clk_beat < 1u && clk_pos < BEAT_U * 6u / 10u) run_block();
-    t->p[P_ARATE] = 0;                                /* 1/4 */
+    t->p[P_ARATE] = 10;                                /* 1/4 */
     a0 = t->arp_idx;
     while (clk_beat < 1u) run_block();
     for (k = 0; k < 3u; k++) run_block();

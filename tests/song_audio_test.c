@@ -43,7 +43,7 @@ int main(int argc, char **argv)
     host_preset(&trk[2], 3, 0);        /* melody */
     for (i = 0; i < NTRK; i++) {
         trk[i].p[P_SLEN] = 16;
-        trk[i].p[P_SDIV] = 2;
+        trk[i].p[P_SDIV] = DUR_DEF_16;
         trk[i].p[P_AMODE] = 0;
         trk[i].p[P_LEVEL] = 90;
     }

@@ -1,8 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The LFO's RATE below 0: one cycle per note value of the tempo (voice.c lfo_inc, params.c N_LSYNC), SLOOP 2.6's LFO 2
- * SYNC (its P_LSYNC n = our RATE -n: -1 4BAR .. -10 1/32). Run by tests/run_tests.sh (with and without the macros).
- *   range     RATE -10..127, default 60; 0..127 the free rates of LFO_INC as before (old projects: the same sound)
- *   format    -1..-10 "4BAR" .. "1/32" (SLOOP's names), 0..127 Hz as before
+ * SYNC (its P_LSYNC n = our RATE -(SLOOP_LSYNC_DUR[n - 1] + 1): the 10 of its 22 note values). Run by tests/run_tests.sh (with and without the macros).
+ *   range     RATE -22..127, default 60; 0..127 the free rates of LFO_INC as before (old projects: the same sound)
+ *   format    -1..-22 "4BAR" .. "1/64" (params.c N_DUR), 0..127 Hz as before
  *   sloop     SLOOP 2.6's increment (its voice.c lfo_sync_inc at 120 BPM) and ours agree; the mapping both ways
  *   clock     playing: the phase follows the transport clock's units (tempo change, nudge) to a few LSB a block;
  *             stopped: the tempo shown (n x BPM a block)
@@ -30,30 +30,35 @@ static uint32_t sloop_inc(uint32_t lsync, uint32_t bpm)
     r = 0xFFFFFFFFu % cyc;
     return q * CTL + (r * CTL + CTL) / cyc;
 }
-static const double BEATS[11] = {0, 16, 8, 4, 2, 1, 0.5, 1.0 / 3, 0.25, 1.0 / 6, 0.125};   /* a cycle, in beats */
+static const double BEATS[11] = {0, 16, 8, 4, 2, 1, 0.5, 1.0 / 3, 0.25, 1.0 / 6, 0.125};   /* SLOOP 2.6 SYNC n: a cycle, in beats */
+/* our RATE for SLOOP 2.6's SYNC n (the DUR index SLOOP_LSYNC_DUR[n - 1], RATE = -(index + 1)) */
+#define RATE_OF_SYNC(n) (-(int32_t)SLOOP_LSYNC_DUR[(n) - 1] - 1)
+/* a cycle of the note value RATE -(i + 1), in beats */
+#define BEATS_OF_DUR(i) ((double)DUR_48[i] / 48.0)
 
 static void t_range_format(void)
 {
-    static const char *const W[10] = {"4BAR", "2BAR", "1BAR", "1/2", "1/4", "1/8", "8T", "1/16", "16T", "1/32"};
+    static const char *const W[22] = {"4BAR", "3BAR", "2BAR", "1BARD", "1BAR", "1/2D", "1T", "1/2", "1/4D", "2T", "1/4",
+                                      "1/8D", "4T", "1/8", "1/16D", "8T", "1/16", "1/32D", "16T", "1/32", "32T", "1/64"};
     const param_desc_t *d = &TP[P_LRATE];
     char v[8];
     const char *u;
     int ok = 1;
     int32_t i;
     track_t *t = &trk[0];
-    check(d->min == -10 && d->max == 127 && d->def == 60, "range: RATE -10..127, default 60");
+    check(d->min == -22 && d->max == 127 && d->def == 60, "range: RATE -22..127, default 60");
     for (i = 0; i < 128; i++) {
         t->p[P_LRATE] = (int16_t)i;
         ok &= lfo_inc(t) == LFO_INC[i];
     }
     check(ok, "free: 0..127 step LFO_INC as before (no sound change for old projects)");
-    for (i = 1, ok = 1; i <= 10; i++) {
+    for (i = 1, ok = 1; i <= 22; i++) {
         param_format(d, -i, v, &u);
         ok &= !strcmp(v, W[i - 1]) && !strcmp(u, "");
     }
-    check(ok, "format: -1..-10 = 4BAR 2BAR 1BAR 1/2 1/4 1/8 8T 1/16 16T 1/32 (SLOOP 2.6's names)");
+    check(ok, "format: -1..-22 = the 22 note values 4BAR .. 1/64 (params.c N_DUR)");
     ok = param_step(d, 60, -8) == 52 && param_step(d, 5, -8) == 0 && param_step(d, 0, -8) == -1 && param_step(d, -1, -8) == -2
-         && param_step(d, -10, -3) == -10 && param_step(d, -1, 5) == 0 && param_step(d, -4, 2) == -3 && param_step(d, 0, 5) == 5
+         && param_step(d, -22, -3) == -22 && param_step(d, -1, 5) == 0 && param_step(d, -4, 2) == -3 && param_step(d, 0, 5) == 5
          && param_step(d, -3, 0) == -3 && param_step(d, 120, 30) == 127;
     check(ok, "knob: a fast turn down stops at 0 first; below 0 one note value a detent; above 0 as before");
     param_format(d, 60, v, &u);
@@ -71,7 +76,7 @@ static void t_sloop(void)
                                                         * BPM is 5512 for 5512.5, 1e-4 fast; ours is exact) */
         int64_t a, b;
         double x = 4294967296.0 * CTL * 120.0 / ((double)BEAT_U * BEATS[n]);
-        t->p[P_LRATE] = (int16_t)-(int32_t)n;
+        t->p[P_LRATE] = (int16_t)RATE_OF_SYNC(n);
         a = lfo_inc(t), b = sloop_inc(n, 120u);
         ok &= fabs((double)a - x) <= 2.0 && fabs((double)(a - b)) <= (double)b / 5000.0;
         if (fabs((double)a - x) > 2.0 || fabs((double)(a - b)) > (double)b / 5000.0)
@@ -79,15 +84,16 @@ static void t_sloop(void)
     }
     check(ok, "sloop: each SYNC value's step exact (+-2 of 2^32 a block) and as SLOOP 2.6's at 120 BPM (2e-4)");
     for (n = 0, ok = 1; n <= 10u; n++)
-        ok &= LRATE_OF_SLOOP(n, 77) == (n ? -(int32_t)n : 77) && SLOOP_LSYNC_OF(LRATE_OF_SLOOP(n, 77)) == (int32_t)n;
+        ok &= LRATE_OF_SLOOP(n, 77) == (n ? RATE_OF_SYNC(n) : 77) && SLOOP_LSYNC_OF(LRATE_OF_SLOOP(n, 77)) == (int32_t)n;
     ok &= SLOOP_LSYNC_OF(0) == 0 && SLOOP_LSYNC_OF(127) == 0 && LRATE_OF_SLOOP(11, 50) == 50;
-    check(ok, "sloop: 2.6's SYNC n (RATE r) -> our RATE -n (OFF: r), and back; out of range: OFF");
+    ok &= SLOOP_LSYNC_OF(-2) == 1 && SLOOP_LSYNC_OF(-9) == 4 && SLOOP_LSYNC_OF(-22) == 10;   /* (3BAR -> 4BAR or 2BAR; a value SLOOP has not: the nearest) */
+    check(ok, "sloop: 2.6's SYNC n (RATE r) -> our RATE -(SLOOP_LSYNC_DUR[n-1] + 1) (OFF: r), and back; out of range: OFF");
 }
 
 static int32_t o_[2 * CTL];
 static double units_now(void) { return (double)clk_beat * BEAT_U + clk_pos; }
 /* n blocks; returns how far the phase of track 0 moved against what the clock units say (in LSB of 2^32, signed) */
-static double run_blocks(uint32_t n, uint32_t div, int playing_ref)
+static double run_blocks(uint32_t n, uint32_t dur, int playing_ref)
 {
     track_t *t = &trk[0];
     double u0 = units_now(), want, got, d;
@@ -95,7 +101,7 @@ static double run_blocks(uint32_t n, uint32_t div, int playing_ref)
     for (i = 0; i < n; i++)
         mix_block(o_, CTL);
     want = playing_ref ? units_now() - u0 : (double)n * CTL * bpm;
-    want = fmod(want / ((double)BEAT_U * BEATS[div]), 1.0) * 4294967296.0;
+    want = fmod(want / ((double)BEAT_U * BEATS_OF_DUR(dur)), 1.0) * 4294967296.0;
     got = (double)(uint32_t)(t->lfo_ph - ph0);
     d = got - want;
     if (d > 2147483648.0)
@@ -112,8 +118,8 @@ static void t_clock(void)
     double d;
     host_tracks_init();
     song.playing = 0;
-    for (div = 1; div <= 10u; div++) {
-        t->p[P_LRATE] = (int16_t)-(int32_t)div;
+    for (div = 0; div < DUR_N; div++) {                 /* (every note value: RATE -(div + 1)) */
+        t->p[P_LRATE] = (int16_t)-(int32_t)(div + 1u);
         d = run_blocks(3000, div, 0);
         ok &= fabs(d) <= 3000.0;
         if (fabs(d) > 3000.0)
@@ -123,22 +129,22 @@ static void t_clock(void)
     transport_req = 1;
     mix_block(o_, CTL);
     check(song.playing, "PLAY");
-    for (div = 1, ok = 1; div <= 10u; div++) {
-        t->p[P_LRATE] = (int16_t)-(int32_t)div;
+    for (div = 0, ok = 1; div < DUR_N; div++) {
+        t->p[P_LRATE] = (int16_t)-(int32_t)(div + 1u);
         d = run_blocks(2000, div, 1);
         ok &= fabs(d) <= 2000.0;
         if (fabs(d) > 2000.0)
             printf("  playing div %u: %.0f LSB off\n", div, d);
     }
     check(ok, "playing at 120 BPM: the phase moves as the transport clock, every note value");
-    t->p[P_LRATE] = -8;                                 /* 1/16 */
+    t->p[P_LRATE] = -(int16_t)(DUR_DEF_16 + 1u);        /* 1/16 */
     song.g[G_BPM] = 97;
-    d = run_blocks(2000, 8, 1);
+    d = run_blocks(2000, DUR_DEF_16, 1);
     check(fabs(d) <= 2000.0, "playing, the tempo changed to 97: still with the clock");
     clk_nudge = 10;
-    d = run_blocks(500, 8, 1);
+    d = run_blocks(500, DUR_DEF_16, 1);
     clk_nudge = -10;
-    ok = fabs(d) <= 500.0 && fabs(run_blocks(500, 8, 1)) <= 500.0;
+    ok = fabs(d) <= 500.0 && fabs(run_blocks(500, DUR_DEF_16, 1)) <= 500.0;
     clk_nudge = 0;
     check(ok, "playing, nudged faster then slower (TEMPO page): still with the clock");
     t->p[P_LRATE] = 60;
@@ -159,7 +165,7 @@ static void t_retrig(void)
     uint32_t i;
     host_tracks_init();
     host_preset(t, 0, 0);
-    t->p[P_LRATE] = -5;                                 /* 1/4 */
+    t->p[P_LRATE] = -11;                                /* 1/4 (index 10) */
     t->p[P_LPHASE] = 32;
     for (i = 0; i < 50u; i++)
         mix_block(o_, CTL);
@@ -180,13 +186,13 @@ static void t_macros(void)
     host_tracks_init();
     TDRUM->p[MAC_ID[1]] = -64;                          /* MOTION all the way down: RATE -20 */
     check(mac_effective(0, P_LRATE, 5) == 0, "macros: MOTION down takes a free RATE 5 to 0, not into the synced values");
-    check(mac_effective(0, P_LRATE, -3) == -3, "macros: MOTION down leaves a synced RATE (1BAR) as it is");
+    check(mac_effective(0, P_LRATE, -5) == -5, "macros: MOTION down leaves a synced RATE (1BAR) as it is");
     TDRUM->p[MAC_ID[1]] = 63;
-    check(mac_effective(0, P_LRATE, -3) == -3, "macros: MOTION up leaves a synced RATE as it is");
+    check(mac_effective(0, P_LRATE, -5) == -5, "macros: MOTION up leaves a synced RATE as it is");
     check(mac_effective(0, P_LRATE, 30) == 50, "macros: MOTION up moves a free RATE as before (+20)");
-    t->p[P_LRATE] = -3;
+    t->p[P_LRATE] = -5;
     mac_pre();
-    check(t->p[P_LRATE] == -3, "macros: the audio ISR's mac_pre leaves a synced RATE as it is");
+    check(t->p[P_LRATE] == -5, "macros: the audio ISR's mac_pre leaves a synced RATE as it is");
     mac_post();
     t->p[P_LRATE] = 4;
     TDRUM->p[MAC_ID[1]] = -64;

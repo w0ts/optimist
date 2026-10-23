@@ -112,7 +112,7 @@ static void t_chance(void)
         put_step(&trk[0], i, 1, (const uint8_t[]){60}, ST_NOTE, 0);
     trk[0].p[P_SLEN] = 16;
     transport_req = 1;
-    n = starts_over((uint64_t)div_samples(2) * 16u * 4u / CTL);
+    n = starts_over((uint64_t)div_samples(DUR_DEF_16) * 16u * 4u / CTL);
     check(n >= 63u && n <= 65u, "chance: 100 % everywhere: every step plays");
     r0 = rng_state;
     i = (uint32_t)chance_drop(&trk[0], &trk[0].step[0]);
@@ -126,7 +126,7 @@ static void t_chance(void)
     }
     trk[0].p[P_SLEN] = 16;
     transport_req = 1;
-    n = starts_over((uint64_t)div_samples(2) * 16u * 32u / CTL);
+    n = starts_over((uint64_t)div_samples(DUR_DEF_16) * 16u * 32u / CTL);
     printf("backports: chance 50 %%: %u of 512 steps played\n", n);
     check(n > 200u && n < 312u, "chance: 50 % on 512 steps: 200..312 play");
 
@@ -139,7 +139,7 @@ static void t_chance(void)
     trk[0].step[3].rat = 2;                          /* x3: its hits silent too */
     trk[0].p[P_SLEN] = 16;
     transport_req = 1;
-    n = starts_over((uint64_t)div_samples(2) * 16u * 4u / CTL);
+    n = starts_over((uint64_t)div_samples(DUR_DEF_16) * 16u * 4u / CTL);
     check(n == 0u, "chance: 0 %: nothing plays, a x3 ratchet on a dropped step neither");
 
     reset(120);                                      /* a NOTE (always) then TIEs at 0 %: the tie holds */
@@ -151,7 +151,7 @@ static void t_chance(void)
     }
     trk[0].p[P_SLEN] = 4;
     transport_req = 1;
-    starts_over((uint64_t)div_samples(2) * 3u / CTL);
+    starts_over((uint64_t)div_samples(DUR_DEF_16) * 3u / CTL);
     {
         uint32_t held = 0;
         for (i = 0; i < NVOICE; i++)
@@ -198,38 +198,38 @@ static void t_qnt_seq(void)
     put_step(&trk[0], 0, 1, (const uint8_t[]){61}, ST_NOTE, 0);
     put_step(&trk[0], 1, 1, (const uint8_t[]){66}, ST_NOTE, 0);
     transport_req = 1;
-    n = notes_over((uint64_t)div_samples(2) * 2u / CTL, got, 64);
+    n = notes_over((uint64_t)div_samples(DUR_DEF_16) * 2u / CTL, got, 64);
     check(n == 2u && got[0] == 60 && got[1] == 65, "QNT SEQ: steps C#4, F#4 play C4, F4 in C major");
     check(trk[0].step[0].note[0] == 61 && trk[0].step[1].note[0] == 66, "QNT SEQ: the steps keep their notes");
 
     qseq_setup(Q_SNAP, 0);
     put_step(&trk[0], 0, 1, (const uint8_t[]){61}, ST_NOTE, 0);
     transport_req = 1;
-    n = notes_over((uint64_t)div_samples(2) / CTL, got, 64);
+    n = notes_over((uint64_t)div_samples(DUR_DEF_16) / CTL, got, 64);
     check(n == 1u && got[0] == 61, "QNT SNAP: a sequenced C#4 plays as written");
 
     qseq_setup(Q_SEQ, 2);                            /* D major: C# is in it */
     put_step(&trk[0], 0, 1, (const uint8_t[]){61}, ST_NOTE, 0);
     put_step(&trk[0], 1, 1, (const uint8_t[]){60}, ST_NOTE, 0);
     transport_req = 1;
-    n = notes_over((uint64_t)div_samples(2) * 2u / CTL, got, 64);
+    n = notes_over((uint64_t)div_samples(DUR_DEF_16) * 2u / CTL, got, 64);
     check(n == 2u && got[0] == 61 && got[1] == 59, "QNT SEQ: ROOT D: C#4 stays, C4 snaps down to B3");
 
     qseq_setup(Q_SEQ, 0);                            /* a chord C4 + C#4: both C4, once */
     put_step(&trk[0], 0, 2, (const uint8_t[]){60, 61}, ST_NOTE, 0);
     transport_req = 1;
-    n = notes_over((uint64_t)div_samples(2) / CTL, got, 64);
+    n = notes_over((uint64_t)div_samples(DUR_DEF_16) / CTL, got, 64);
     check(n == 1u && got[0] == 60, "QNT SEQ: two chord notes snapping together start once");
 
     qseq_setup(Q_SEQ, 0);                            /* x3 ratchet on C#4: three C4 */
     put_step(&trk[0], 0, 1, (const uint8_t[]){61}, ST_NOTE, 0);
     trk[0].step[0].rat = 2;
     transport_req = 1;
-    n = notes_over((uint64_t)div_samples(2) / CTL, got, 64);
+    n = notes_over((uint64_t)div_samples(DUR_DEF_16) / CTL, got, 64);
     check(n == 3u && got[0] == 60 && got[1] == 60 && got[2] == 60, "QNT SEQ: a x3 ratchet plays the snapped note 3 times");
     {
         uint32_t i, hang = 0;
-        notes_over((uint64_t)div_samples(2) * 3u / CTL, got, 64);
+        notes_over((uint64_t)div_samples(DUR_DEF_16) * 3u / CTL, got, 64);
         for (i = 0; i < NVOICE; i++)
             hang |= trk[0].v[i].active && trk[0].v[i].gate;
         check(!hang, "QNT SEQ: no note left hanging after the snapped ratchets");
@@ -441,13 +441,13 @@ static void t_bassplus(void)
 static void t_dly_halve(void)
 {
     reset(120);
-    song.g[G_DTIME] = 0;                             /* 1/4 */
+    song.g[G_DTIME] = 10;                             /* 1/4 */
     song.g[G_BPM] = 40;                              /* 66150 samples: longer than the line */
-    printf("backports: delay 1/4 at 40 BPM: line %u, delay %u (1/8: %u)\n", DLY_LEN, delay_samples(), div_samples(1));
-    check(div_samples(0) < DLY_LEN || delay_samples() == div_samples(1) || delay_samples() == div_samples(0) / 4u,
+    printf("backports: delay 1/4 at 40 BPM: line %u, delay %u (1/8: %u)\n", DLY_LEN, delay_samples(), div_samples(DUR_DEF_8));
+    check(div_samples(10) < DLY_LEN || delay_samples() == div_samples(DUR_DEF_8) || delay_samples() == div_samples(10) / 4u,
           "delay halve: a 1/4 longer than the line plays 1/8 (on the beat), not cut");
     song.g[G_BPM] = 120;
-    check(delay_samples() == div_samples(0), "delay halve: a 1/4 that fits plays as before");
+    check(delay_samples() == div_samples(10), "delay halve: a 1/4 that fits plays as before");
 }
 
 #if FELUCCA_MOTION
@@ -473,11 +473,11 @@ static void t_motion(void)
     {
         uint32_t idx[4], v[4], k;
         for (k = 0; k < 4u; k++) {                                 /* the middle of steps 1..4 */
-            starts_over(k ? (uint64_t)div_samples(2) / CTL : (uint64_t)div_samples(2) / CTL / 2u);
+            starts_over(k ? (uint64_t)div_samples(DUR_DEF_16) / CTL : (uint64_t)div_samples(DUR_DEF_16) / CTL / 2u);
             idx[k] = t->seq_idx;
             v[k] = (uint32_t)t->p[P_CHOR];
         }
-        starts_over((uint64_t)div_samples(2) / CTL);              /* step 1 of the next pass */
+        starts_over((uint64_t)div_samples(DUR_DEF_16) / CTL);              /* step 1 of the next pass */
         printf("backports: motion: CHORUS %d, an event 77 on step 3: steps %u..%u: %u %u %u %u, next pass %d\n", base,
                idx[0], idx[3], v[0], v[1], v[2], v[3], t->p[P_CHOR]);
         ok = v[0] == (uint32_t)base && v[1] == (uint32_t)base && v[2] == 77u && v[3] == 77u && t->p[P_CHOR] == base;
@@ -486,7 +486,7 @@ static void t_motion(void)
     proj_capture(&proj_slot[0], &proj_dl[0]);
     check(proj_slot[0].t[0].p[P_CHOR] == base && auto_slot[0].psum == proj_slot[0].sum && auto_count(&auto_slot[0].l[0], AUTO_HOLDS) == 1u,
           "motion: a project saved while it plays holds the patch, its store the motion");
-    starts_over((uint64_t)div_samples(2) * 2u / CTL);              /* step 3 again */
+    starts_over((uint64_t)div_samples(DUR_DEF_16) * 2u / CTL);              /* step 3 again */
     seq_stop();
     check(t->p[P_CHOR] == base, "motion: STOP puts the patch back");
     {   /* recording: a knob on step 2 (REC armed, playing) */
@@ -496,7 +496,7 @@ static void t_motion(void)
         t->p[P_SLEN] = 4;
         motion_reset();
         transport_req = 1;
-        starts_over((uint64_t)div_samples(2) / CTL + div_samples(2) / CTL / 4u);   /* a quarter into step 2 */
+        starts_over((uint64_t)div_samples(DUR_DEF_16) / CTL + div_samples(DUR_DEF_16) / CTL / 4u);   /* a quarter into step 2 */
         song.rec = 1;
         trk_grid(t, &into, &slen);
         motion_knob(t, P_CHOR, 77);
@@ -648,7 +648,7 @@ static void t_acid(void)
     printf("backports: acid: TB-3PO line: %u notes, %u accents, %u slides of 16\n", n_notes, n_acc, n_sld);
     check(ok && n_notes >= 6u, "acid: TB-3PO: notes in A minor, no slide into a rest");
     transport_req = 1;
-    for (i = 0; i < 4u * div_samples(2) * 16u / CTL; i++) {
+    for (i = 0; i < 4u * div_samples(DUR_DEF_16) * 16u / CTL; i++) {
         uint32_t k;
         mix_block(out, CTL);
         for (k = 0; k < 2u * CTL; k++) {
@@ -658,7 +658,7 @@ static void t_acid(void)
                 pk = a;
         }
     }
-    printf("backports: acid: 4 bars of the line: rms %.0f peak %d\n", sqrt(acc / (4.0 * div_samples(2) * 16 * 2)), pk);
+    printf("backports: acid: 4 bars of the line: rms %.0f peak %d\n", sqrt(acc / (4.0 * div_samples(DUR_DEF_16) * 16 * 2)), pk);
     check(acc > 0 && pk < 32768, "acid: the line plays, bounded");
     seq_stop();
 }

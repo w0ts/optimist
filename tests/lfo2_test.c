@@ -60,7 +60,7 @@ static void t_params(void)
         ok &= TP[P_L2DA + 2u * k].max == LT_N - 1 && TP[P_L2AA + 2u * k].min == -128 && TP[P_L2AA + 2u * k].max == 127 &&
               !TP[P_L2DA + 2u * k].def && !TP[P_L2AA + 2u * k].def;
     ok &= !TP[P_L2WAVE].def && !TP[P_L2TRIG].def && !TP[P_L2POL].def;
-    check(ok, "params: RATE -10..127 (60), WAVE 5, TRIG NOTE/FREE, POL BI/UNI, two slots (DEST LT_N, AMT -128..127); all off");
+    check(ok, "params: RATE -22..127 (60), WAVE 5, TRIG NOTE/FREE, POL BI/UNI, two slots (DEST LT_N, AMT -128..127); all off");
     for (i = 0, ok = 1; i < 5u; i++) {
         param_format(&TP[P_L2DA], (int32_t)i, v, &u);
         ok &= !strcmp(v, D[i]);
@@ -79,14 +79,14 @@ static void t_params(void)
     ok &= !strcmp(v, "FREE");
     param_format(&TP[P_L2POL], 1, v, &u);
     ok &= !strcmp(v, "UNI");
-    param_format(r, -5, v, &u);
+    param_format(r, -11, v, &u);
     ok &= !strcmp(v, "1/4");
     param_format(&TP[P_L2AA], -128, v, &u);
     ok &= !strcmp(v, "-100");
     param_format(&TP[P_L2AA], 64, v, &u);
     ok &= !strcmp(v, "+50");
-    check(ok, "names: DEST OFF PIT FLT SHP AMP .. L1 RT / L1 AMT on LFO 2 (L2 RT on LFO), TRIG FREE, POL UNI, RATE -5 = 1/4, AMT -128 = -100 %, 64 = +50 %");
-    ok = param_step(r, 60, -8) == 52 && param_step(r, 5, -8) == 0 && param_step(r, 0, -8) == -1 && param_step(r, -10, -3) == -10;
+    check(ok, "names: DEST OFF PIT FLT SHP AMP .. L1 RT / L1 AMT on LFO 2 (L2 RT on LFO), TRIG FREE, POL UNI, RATE -11 = 1/4, AMT -128 = -100 %, 64 = +50 %");
+    ok = param_step(r, 60, -8) == 52 && param_step(r, 5, -8) == 0 && param_step(r, 0, -8) == -1 && param_step(r, -22, -3) == -22;
     check(ok, "knob: RATE turns as LFO's (stops at 0 first, then a note value a detent)");
     check(P_L2RATE > P_E7 && P_E1PIT == P_L2AB + 1 && P_VOICES > P_E1PIT && P_COUNT == P_VOICES + 1 && P_COUNT < 128, "ids: after P_E7, before ENV 1 MOD's values, ENV2's slots and VOICES (no id before moves)");
 }
@@ -138,7 +138,7 @@ static void t_off_rate(void)
         lfo2_tick(t, &o);
         ok &= lfo2[0].ph - ph == lfo_inc(t) && lfo_inc(t) != 0u;
     }
-    check(ok, "rate: synced -1..-10 step as LFO's at the same RATE (the transport clock)");
+    check(ok, "rate: synced -1..-22 step as LFO's at the same RATE (the transport clock)");
 }
 
 static void t_maths(void)

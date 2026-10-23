@@ -40,7 +40,7 @@ static void section(uint32_t slot, uint32_t lane, uint32_t div, uint32_t len)
     for (i = 0; i < NTRK; i++) {
         steps_clear(&trk[i]);
         trk[i].p[P_SLEN] = 16;
-        trk[i].p[P_SDIV] = 2;
+        trk[i].p[P_SDIV] = DUR_DEF_16;
     }
     TDRUM->p[P_SDIV] = (int16_t)div;
     TDRUM->p[P_SLEN] = (int16_t)len;
@@ -56,9 +56,9 @@ int main(void)
     int32_t out[CTL * 2];
     host_tracks_init();
     song.g[G_BPM] = 120;
-    section(0, 0, 2, 16);                                    /* A: a kick, 1 bar */
-    section(1, 1, 2, 32);                                    /* B: a snare (lane 2), 2 bars */
-    section(2, 3, 7, 1);                                     /* C: a hat (lane 4), one step of a bar */
+    section(0, 0, DUR_DEF_16, 16);                                    /* A: a kick, 1 bar */
+    section(1, 1, DUR_DEF_16, 32);                                    /* B: a snare (lane 2), 2 bars */
+    section(2, 3, 4, 1);                                     /* C: a hat (lane 4), one step of a bar */
     check(section_bars(0) == 1 && section_bars(1) == 2 && section_bars(2) == 1 && section_bars(3) == 1,
           "the bars of each section: its longest pattern (A 1, B 2, C 1BAR x 1: 1; empty: 1)");
     proj_apply(&proj_slot[0], &proj_dl[0], 1);

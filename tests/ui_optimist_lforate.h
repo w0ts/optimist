@@ -38,23 +38,25 @@ static void lforate_tests(void)
     lr_cell(64, &c);
     check(c.gk == GK_BAR && c.gv == 64 && c.gmin == 0 && c.gmax == 127, "LFO RATE 64: the bar at 64 of 0 .. 127, not shifted by the divisions");
     lr_cell(-1, &c);
-    check(c.gk == GK_DOTS && c.gmin == 0 && c.gmax == LSYNC_N - 1 && c.gv == 0 && !strcmp(c.val, "4BAR"),
-          "LFO RATE 4BAR (-1): ten cells, the first lit, the division as text");
-    lr_cell(-10, &c);
-    check(c.gk == GK_DOTS && c.gv == LSYNC_N - 1 && !strcmp(c.val, "1/32"), "LFO RATE 1/32 (-10): the tenth lit");
+    check(c.gk == GK_POS && c.gmin == 0 && c.gmax == LSYNC_N - 1 && LSYNC_N == 22 && c.gv == 0 && !strcmp(c.val, "4BAR"),
+          "LFO RATE 4BAR (-1): 22 places, the tick at the first, the division as text");
+    lr_cell(-22, &c);
+    check(c.gk == GK_POS && c.gv == LSYNC_N - 1 && !strcmp(c.val, "1/64"), "LFO RATE 1/64 (-22): the tick at the last place");
+    lr_cell(-11, &c);
+    check(c.gk == GK_POS && c.gv == 10 && !strcmp(c.val, "1/4"), "LFO RATE 1/4 (-11): the tick at place 10");
     ui.force = 1;
     frame();
     ppm("opt-lforate-sync");
     for (r = 1; r <= (uint32_t)LSYNC_N; r++) {         /* every division: its own cell, the graph drawn */
         lr_cell(-(int32_t)r, &c);
-        ok &= c.gk == GK_DOTS && c.gv == (int16_t)(r - 1u);
+        ok &= c.gk == GK_POS && c.gv == (int16_t)(r - 1u);
     }
-    check(ok, "LFO RATE -1 .. -10: the lit cell walks 0 .. 9");
+    check(ok, "LFO RATE -1 .. -22: the tick walks 0 .. 21");
     lr_cell(60, &c);
     ui.force = 1;
     frame();
     ppm("opt-lforate-free");
-    check(1, "LFO RATE -1 .. -10 and free: the LFO page and its graph drawn (the graph reads no rate)");
+    check(1, "LFO RATE -1 .. -22 and free: the LFO page and its graph drawn (the graph reads no rate)");
     TSEL->p[P_LRATE] = keep;
     reset_ui();
 }

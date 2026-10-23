@@ -123,7 +123,7 @@ static HOT2 __attribute__((noinline)) void ifx_gater(ifx_gt_t *s, const igt_par_
                                                      uint32_t n)
 {
     igt_blk_t bk;
-    uint32_t i, rt = p->rt % 6u, pat, nx, b1, h0, h1, ph;
+    uint32_t i, rt = p->rt % DUR_N, pat, nx, b1, h0, h1, ph;
     int32_t c = s->c, cd = a >= 127 ? 32768 : a * 258, sl;
     if (!a && !c)
         return;                                         /* (off and open: the block as it is) */

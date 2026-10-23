@@ -37,7 +37,8 @@ static const char *const PAT[16] = {
     "xxxxxxxxxxxxxxxx", "x.x.x.x.x.x.x.x.", "x...x...x...x...", "x.......x.......", "..x...x...x...x.", ".x.x.x.x.x.x.x.x",
     "x..x..x..x..x..x", "x.....x.....x...", "x.xx.xx.x.xx.xx.", "xx.xx.xx.xx.xx.x", "xxx.xxx.xxx.xx.x", "x.x.xx.x.x.xx.xx",
     "x.xxx.xxx.xxx.xx", "xx.xxx.xxx.xxx.x", "x..x..x...x.x...", "x..x..x.x..x..x."};
-static const double DEN[6] = {2, 4, 8, 3, 6, 12};      /* RATE: steps a beat (1/8 1/16 1/32 8T 16T 32T) */
+#define DEN(r) (48.0 / DUR_48[r])                      /* RATE r (a DUR index): steps a beat */
+static const uint8_t RATES[6] = {13, 16, 19, 15, 18, 20};   /* 1/8 1/16 1/32 8T 16T 32T */
 
 static void reset(void)
 {
@@ -49,7 +50,7 @@ static void reset(void)
         trk[k].p[P_TGATE] = 0;
         fxs_gx_def(k);
         trk[k].p[P_SSWING] = 0;
-        trk[k].p[P_SDIV] = 2;                           /* (1/16, the default) */
+        trk[k].p[P_SDIV] = DUR_DEF_16;                  /* (1/16, the default) */
     }
     song.g[G_SWING] = 0;
     song.g[G_BPM] = 120;
@@ -135,7 +136,7 @@ static int expect(const char *p, uint32_t k, double f)
  * the mismatches; *n: the samples checked */
 static uint32_t verify(const char *p, uint32_t r, double sw, uint32_t to, uint32_t *n)
 {
-    double step = FS * 60.0 / song.g[G_BPM] / DEN[r];
+    double step = FS * 60.0 / song.g[G_BPM] / DEN(r);
     uint32_t i, bad = 0;
     *n = 0;
     for (i = 0; i < to; i += 7u) {
@@ -186,7 +187,7 @@ static void t_bypass(void)
     play();
     run_part(0, N, 0);
     {
-        uint32_t n, bad = verify(PAT[0], 1, 0, N, &n);
+        uint32_t n, bad = verify(PAT[0], DUR_DEF_16, 0, N, &n);
         check("on, in an open step: the sample as it is (bit for bit)", !bad && n > 1000u);
     }
 }
@@ -217,7 +218,7 @@ static void t_phase(void)
         trk[0].p[P_TGATE] = 127, trk[0].p[P_TGPAT] = (int16_t)p;
         play();
         run_part(0, N, 0);
-        bad = verify(PAT[p], 1, 0, N, &n);
+        bad = verify(PAT[p], DUR_DEF_16, 0, N, &n);
         tot += n, all += bad;
         if (bad) {
             snprintf(w, sizeof w, "pattern %u (%s) at 1/16, 120 BPM: %u of %u samples off", p, PAT[p], bad, n);
@@ -229,11 +230,11 @@ static void t_phase(void)
     for (r = 0, all = 0, tot = 0; r < 6u; r++) {
         reset();
         fill(DC);
-        trk[0].p[P_TGATE] = 127, trk[0].p[P_TGPAT] = 8, trk[0].p[P_TGRATE] = (int16_t)r;
+        trk[0].p[P_TGATE] = 127, trk[0].p[P_TGPAT] = 8, trk[0].p[P_TGRATE] = RATES[r];
         song.g[G_BPM] = r == 4u ? 97 : 120;            /* (16T at another tempo) */
         play();
         run_part(0, N, 0);
-        all += verify(PAT[8], r, 0, N, &n), tot += n;
+        all += verify(PAT[8], RATES[r], 0, N, &n), tot += n;
     }
     snprintf(w, sizeof w, "TRNC1 at every RATE (1/8 1/16 1/32 8T 16T 32T; 16T at 97 BPM): in phase (%u samples)", tot);
     check(w, !all && tot > 100000u);
@@ -242,14 +243,14 @@ static void t_phase(void)
     trk[0].p[P_TGATE] = 127, trk[0].p[P_TGPAT] = 1, trk[0].p[P_SSWING] = 50;   /* (8TH: swing 50 -> 62.5 %) */
     play();
     run_part(0, N, 0);
-    bad = verify(PAT[1], 1, 0.25, N, &n);
+    bad = verify(PAT[1], DUR_DEF_16, 0.25, N, &n);
     snprintf(w, sizeof w, "swing 50 on the track's 1/16 grid: the odd steps a quarter step late (%u of %u off)", bad, n);
     check(w, !bad && n > 10000u);
-    trk[0].p[P_SDIV] = 1;                               /* (the track on 1/8: GATER's 1/16 straight) */
+    trk[0].p[P_SDIV] = DUR_DEF_8;                      /* (the track on 1/8: GATER's 1/16 straight) */
     memset(ifx_gate, 0, sizeof ifx_gate);
     play();
     run_part(0, N, 0);
-    bad = verify(PAT[1], 1, 0, N, &n);
+    bad = verify(PAT[1], DUR_DEF_16, 0, N, &n);
     check("the track's grid 1/8, GATER at 1/16: straight (swing only on the track's own grid)", !bad);
     reset();
     fill(DC);
@@ -263,7 +264,7 @@ static void t_phase(void)
         for (i = 0; i0 + i < N; i++)                    /* (verify from the restart: shift) */
             z[i] = y[i0 + i];
         memcpy(y, z, (N - i0) * sizeof y[0]);
-        bad = verify(PAT[8], 1, 0, N - i0 - CTL, &n);
+        bad = verify(PAT[8], DUR_DEF_16, 0, N - i0 - CTL, &n);
         check("PLAY again mid-pattern: step 0 from there (TRNC1 in phase after the restart)", bad <= 2u && n > 10000u);
     }
 }
@@ -279,7 +280,7 @@ static void t_ramps(void)
     run_part(0, N / 4u, 0);                             /* (at 0: nothing) */
     trk[0].p[P_TGATE] = 127;
     run_part(N / 4u, N / 2u, 0);                        /* (DEPTH 0 -> 127 mid-play) */
-    trk[0].p[P_TGPAT] = 5, trk[0].p[P_TGRATE] = 4;      /* (a pattern and a rate change) */
+    trk[0].p[P_TGPAT] = 5, trk[0].p[P_TGRATE] = 18;     /* (16T: a pattern and a rate change) */
     run_part(N / 2u, 3u * N / 4u, 0);
     clk_beat += 7, clk_pos = BEAT_U / 3u;               /* (the transport jumps: a song position) */
     run_part(3u * N / 4u, N, 0);
@@ -307,7 +308,7 @@ static uint32_t set_at;
 static void set_mid(uint32_t i)                         /* TRNC1 1/16 -> 8TH 1/32 at sample set_at */
 {
     if (i == set_at)
-        trk[0].p[P_TGPAT] = 1, trk[0].p[P_TGRATE] = 2;
+        trk[0].p[P_TGPAT] = 1, trk[0].p[P_TGRATE] = 19;
 }
 static void t_change(void)
 {
@@ -319,13 +320,13 @@ static void t_change(void)
     set_at = 70016u;                                    /* (a block start, mid-step) */
     play();
     run_part(0, N, set_mid);
-    bad = verify(PAT[8], 1, 0, set_at, &n);
+    bad = verify(PAT[8], DUR_DEF_16, 0, set_at, &n);
     i0 = 75000u;                                        /* (from the next 1/32 step on: 8TH at 1/32, the same clock) */
     for (i = 0; i < N; i++)
         z[i] = i < i0 ? x[i] : y[i];
     memcpy(y, z, sizeof y);
     {
-        uint32_t n2, b2 = verify(PAT[1], 2, 0, N, &n2);   /* (y before i0 is x: every 'x' check passes, a '.' fails) */
+        uint32_t n2, b2 = verify(PAT[1], 19, 0, N, &n2);   /* (y before i0 is x: every 'x' check passes, a '.' fails) */
         uint32_t i2, bb = 0, nn = 0;
         double step = FS * 60.0 / 120.0 / 8.0;
         for (i2 = i0; i2 < N; i2 += 7u) {               /* (only after i0) */
@@ -385,13 +386,13 @@ static void t_store(void)
         reset();
         for (k = 0; k < NTRK; k++)
             ins_put(k, s), trk[k].p[P_TGATE] = (int16_t)(20 + k), trk[k].p[P_TGPAT] = (int16_t)(15 - k),
-                trk[k].p[P_TGRATE] = (int16_t)(5 - k), trk[k].p[P_TGSHP] = (int16_t)(127 - k);
+                trk[k].p[P_TGRATE] = (int16_t)(20 - k), trk[k].p[P_TGSHP] = (int16_t)(127 - k);
         n = fxr_encode(rec);
         reset();
         ok = n > 0u && n <= FXR_MAX && fxr_decode(rec, n, 1) >= 0;
         for (k = 0; k < NTRK; k++)
             ok &= ins_slot[k][0] == FXT_GATE && trk[k].p[P_TGATE] == (int16_t)(20 + k) && trk[k].p[P_TGPAT] == (int16_t)(15 - k) &&
-                  trk[k].p[P_TGRATE] == (int16_t)(5 - k) && trk[k].p[P_TGSHP] == (int16_t)(127 - k);
+                  trk[k].p[P_TGRATE] == (int16_t)(20 - k) && trk[k].p[P_TGSHP] == (int16_t)(127 - k);
         check("the FX record: GATER in every track's S1, its DEPTH PATTERN RATE SHAPE back after a load", ok);
         reset();
     }

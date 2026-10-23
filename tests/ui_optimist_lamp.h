@@ -61,7 +61,7 @@ static void lamp_step_tests(void)
     sd = t->p[P_SDIV], ss = t->p[P_SSWING];
     tap(B_SEQ);
     song.playing = 1;
-    t->p[P_SDIV] = 2, t->p[P_SSWING] = 0, song.g[G_SWING] = 0;   /* (1/16: four steps a beat, straight) */
+    t->p[P_SDIV] = DUR_DEF_16, t->p[P_SSWING] = 0, song.g[G_SWING] = 0;   /* (1/16: four steps a beat, straight) */
     a = lamp_flashes();
     t->p[P_SSWING] = 60;                                /* (swung: the even step longer, the odd one late and shorter) */
     b = lamp_flashes();

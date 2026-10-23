@@ -44,7 +44,7 @@ int main(int argc, char **argv)
             switch (rnd(22)) {
             case 16: layer_btn = rnd(3) ? 0u : ly_bit[1u + rnd(LY_COUNT - 1u)] | (rnd(4) ? 0u : dyn_bit[rnd(2)]); break;   /* a layer held */
             case 17: song.g[G_DUST] = (int16_t)rnd(128); song.g[G_DUCK] = (int16_t)rnd(128); break;
-            case 18: song.g[G_FILT] = (int16_t)((int)rnd(128) - 64); song.g[G_ROLL] = (int16_t)rnd(5); break;
+            case 18: song.g[G_FILT] = (int16_t)((int)rnd(128) - 64); song.g[G_ROLL] = (int16_t)rnd(DUR_N); break;
             case 19: trk[rnd(NTRK)].p[P_MUTE] = (int16_t)(rnd(4) == 0); song.solo = (uint8_t)(rnd(5) ? 0u : 1u << rnd(NTRK)); break;
             case 20: {                                                             /* levels, ratchets on steps */
                 uint32_t t = rnd(NTRK), i2 = rnd(NSTEP);
@@ -63,7 +63,7 @@ int main(int argc, char **argv)
             case 7: { uint32_t t = rnd(NPART), e = rnd(NENGINES);                 /* engine / preset */
                       host_preset_req(&trk[t], e, rnd(ENGINES[e]->npresets)); panic_req |= (uint8_t)(1u << t); break; }
             case 8: trk[rnd(NTRK)].p[P_SLEN] = (int16_t)(1 + rnd(64)); break;
-            case 9: trk[rnd(NTRK)].p[P_SDIV] = (int16_t)rnd(6); break;
+            case 9: trk[rnd(NTRK)].p[P_SDIV] = (int16_t)rnd(DUR_N); break;
             case 10: song.g[G_CLOCK] = (int16_t)rnd(3); break;
             case 11: midi_in(0x90u | rnd(16), 24 + rnd(80), 1 + rnd(127)); break;
             case 12: midi_in(0x80u | rnd(16), 24 + rnd(80), 0); break;
