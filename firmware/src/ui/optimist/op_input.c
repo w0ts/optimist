@@ -606,13 +606,13 @@ static __attribute__((noinline)) void op_press(uint32_t b, uint32_t held)
 /* the mixer with nothing asked: SAVE tapped there opens PROJECT, always (the user, 2026-10-12, D6: the mixer has no YES;
  * FX on and MUTE are knobs, the SOUND row is EDIT's first). SHIFT held alone there does nothing (D1: SYSTEM is in GLO's cycle) */
 static int mx_quiet(void) { return ui.scr == SCR_HOME && !op_armed(); }
-/* SAVE held alone past the hold time, let go with nothing else used (the user, 2026-10-16): PROJECT <-> SONG (SAVE tapped
- * runs PROJECT's operation, launches SONG's scene); on a SONG scene row the hold is the scene's clear instead (save_clear_tick) */
+/* SAVE held alone past the hold time, let go with nothing else used (the user, 2026-10-16): on PROJECT, SONG (SAVE tapped
+ * runs PROJECT's operation, launches SONG's scene). On SONG it does nothing (the user, 2026-10-23: a store gesture held
+ * long must not leave the screen; back is a SAVE tap, or SEQ held); on a SONG scene row the hold is the scene's clear
+ * instead (save_clear_tick) */
 static void save_hold(void)
 {
-    if (ui.scr == SCR_SONG)
-        op_enter(SCR_PROJECT);
-    else
+    if (ui.scr != SCR_SONG)
         song_shortcut(0);
 }
 static void op_tap(uint32_t b, uint32_t id)

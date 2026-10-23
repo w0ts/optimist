@@ -3220,7 +3220,9 @@ static void shortcut_tests(void)
     frames(HOLD_FRAMES);
     release(B_SAVE);
     frames(2);
-    check(ui.scr == SCR_PROJECT && !op_armed(), "... SAVE held on SONG: PROJECT again");
+    check(ui.scr == SCR_SONG && !op_armed(), "... SAVE held on SONG: nothing (a store gesture held long must not leave the screen; the user, 2026-10-23)");
+    op_enter(SCR_PROJECT);
+    frame();
     tap(B_SAVE);
     check(ui.scr == SCR_PROJECT && op_armed(), "... SAVE tapped on PROJECT: its operation, asked (as before)");
     tap(B_HOME);
