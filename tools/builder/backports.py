@@ -197,10 +197,17 @@ DESC["FELUCCA_GRIDS_LFO"] = (
     "the values you set stay as they are. Each LFO restarts at PLAY, as a lane's does. Saved with the project; a "
     "build without this item plays the values as set. Needs the drum editor (DRUM_EDIT: the lanes' LFOs). About 0.7 KB "
     "of flash.")
+DESC["FELUCCA_GRIDS_VEL"] = (
+    "The kit GRIDS' hits play at their own dynamic: Grids' drum map gives every step a level, and the level picks the "
+    "hit's velocity, so the main beats play loud and the in-between ones soft or as ghosts, into the drum sounds and "
+    "MIDI out. As the drum steps keep it: four dynamics (GHOST, SOFT, NORM, HARD), so STEP draws them and WRITE keeps "
+    "them. A VEL card on DENSITY turns it ON / OFF (OFF: as before, HARD where Grids' accent would be); saved with the "
+    "project. DRUMS mode only (EUCL has no levels). About 0.2 KB of flash.")
+LABEL["FELUCCA_GRIDS_VEL"] = "GRIDS: velocity (VEL on DENSITY)"
 LABEL["FELUCCA_GRIDS_LFO"] = "GRIDS: two LFOs on DR (the kit GRIDS)"
 PARENT = {"FELUCCA_SPRING": "FX_REVERB", "FELUCCA_DLY_DOT": "FX_DELAY", "FELUCCA_PUNCH_LATCH": "FX_PUNCH",
           "FELUCCA_UP_FM6": "ENG_FM6", "FELUCCA_GRIDS_EUCLID": "GEN_GRIDS",
-          "FELUCCA_GRIDS_LFO": "GEN_GRIDS"}   # options of a registry item
+          "FELUCCA_GRIDS_LFO": "GEN_GRIDS", "FELUCCA_GRIDS_VEL": "GEN_GRIDS"}   # options of a registry item
 AFTER = {"FELUCCA_SPRING": "REV_FDN8"}   # an option's place among its parent's (SPRING beside the other reverb algorithms)
 BITS = {  # switch -> stable BUILD bit (append only)
     "FELUCCA_CHANCE": 64, "FELUCCA_KEYLIT": 65, "FELUCCA_QNT_SEQ": 66, "FELUCCA_KNOB_ACCEL": 67,
@@ -238,6 +245,7 @@ BITS = {  # switch -> stable BUILD bit (append only)
     "FELUCCA_GEN_GRIDS": 370,                          # (the GRIDS note generator; its own item since 2026-10-22)
     "FELUCCA_GRIDS_EUCLID": 397,                       # (the kit's GRIDS in Grids' Euclidean mode, 2026-10-23; 395 went to BT_AFH)
     "FELUCCA_GRIDS_LFO": 396,                            # (DR's two LFOs on the kit GRIDS, 2026-10-23)
+    "FELUCCA_GRIDS_VEL": 398,                          # (the kit GRIDS' hits at their level's dynamic, 2026-10-23)
 }
 NEXT_FREE = 80                                          # (switches not in BITS yet: from here, by name)
 

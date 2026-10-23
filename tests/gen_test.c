@@ -27,6 +27,7 @@
 #define FELUCCA_GEN_GRIDS 1
 #define FELUCCA_GRIDS_EUCLID 1
 #define FELUCCA_GRIDS_LFO 1
+#define FELUCCA_GRIDS_VEL 1
 #define FELUCCA_DRUM_EDIT 1             /* (the kit's LFOs are the lanes' kind: lane_play.c DLFO_ON) */
 #define GEN_BUILT 1                     /* (the generators without the Optimist UI around them) */
 #define FELUCCA_MIDI_OUT 1
@@ -532,6 +533,9 @@ static void kit_setup(uint32_t chaos)
 {
     uint32_t i;
     gen_reset_all();
+#if FELUCCA_GRIDS_VEL
+    gr_vel_off = 1;                                     /* (these checks: the levels of before, HARD over 192; GRIDS_VEL's own: grids_vel_tests) */
+#endif
     memset(TDRUM->dstep, 0, sizeof TDRUM->dstep);
     TDRUM->p[P_SLEN] = 32;
     TDRUM->p[P_GRX] = 0, TDRUM->p[P_GRY] = 0, TDRUM->p[P_GRCH] = (int16_t)chaos;
@@ -671,6 +675,69 @@ static void euclid_tests(void)
     gen_reset_all();
 }
 
+/* GRIDS_VEL: the kit's hits at their level's velocity, heard on MIDI out (the drum track's note ons of the kick lane) */
+static uint32_t kick_vels(uint32_t which, uint8_t *v, uint32_t max)
+{
+    uint32_t i, n = 0, lane = gr_kit_lane(GR_BD);
+    for (i = 0; i < nev[which] && n < max; i++) {
+        uint32_t p = evs[which][i].pkt;
+        if ((p & 0xF0FFu) == 0x9009u && (p & 0x0F00u) != 0u && ((p >> 16) & 0x7Fu) == LANE_NOTE_OF(lane) && (p >> 24))
+            v[n++] = (uint8_t)(p >> 24);
+    }
+    return n;
+}
+static void grids_vel_tests(void)
+{
+    uint8_t a[64], b[64], want[64];
+    uint32_t na, nb, nw = 0, i, ok, kinds = 0;
+    heard_setup();
+    for (i = 0; i < 16u; i++)
+        dstep_clr(&TDRUM->dstep[i], 0);                 /* (the kick lane: only what GRIDS plays) */
+    TDRUM->p[P_DACC] = 0;                               /* (no accent raise: the velocities as GRIDS gives them) */
+    TDRUM->p[P_GRX] = 30, TDRUM->p[P_GRY] = 90, TDRUM->p[P_GRBD] = 110;
+    gen[GEN_KIT].on = 1, gen[GEN_KIT].mode = GM_REPLACE;
+    gen_sync();
+    for (i = 0; i < 16u; i++) {                         /* the kick's hits over a bar, their velocities from the map */
+        int16_t g[GR_KIT_N];
+        uint32_t lv;
+        gr_kit_vals(TDRUM->p, g);
+        lv = gr_kit_level(GR_BD, i, 16, 0, g);
+        if (lv > 255u - gr_u7(g[3]))
+            want[nw++] = (uint8_t)lvl_vel(vel_lvl(gr_lv_vel(lv)), 100);   /* (its dynamic: GHOST SOFT NORM HARD) */
+    }
+    play_capture(0, 4);
+    na = kick_vels(0, a, 64);
+    for (ok = na == nw, i = 0; ok && i < nw; i++)
+        ok &= a[i] == want[i], kinds |= 1u << (a[i] >> 4);
+    if (!ok)
+        printf("gen: GRIDS_VEL heard %u, expected %u\n", na, nw);
+    check("GRIDS_VEL: the kick's hits on MIDI out at their level's dynamic (GHOST SOFT NORM HARD from 1 + level x 126 / 255), several",
+          ok && nw > 2u && (kinds & (kinds - 1u)));
+    gr_vel_off = 1;
+    play_capture(1, 4);
+    nb = kick_vels(1, b, 64);
+    for (ok = nb == nw, i = 0; ok && i < nb; i++)
+        ok &= b[i] == 100u || b[i] == 127u;
+    check("... VEL OFF: the levels as before (NORM 100, HARD 127)", ok);
+    gen_reset_all();
+    check("... a reset: VEL ON", !gr_vel_off);
+    {
+        static uint8_t rec[FXR_MAX];
+        uint32_t n;
+        heard_setup();
+        AUTO_L(0)->n = 0, AUTO_L(TRK_DRUM)->n = 0;
+        gr_vel_off = 1;
+        n = fxr_encode(rec);
+        gen_reset_all();
+        ok = n > 0u && fxr_decode(rec, n, 1) && gr_vel_off == 1u;
+        gr_vel_off = 0;
+        n = fxr_encode(rec);
+        ok &= (n == 0u || !memchr(rec + FXR_HEAD, GEN_TLV, 1)) && gen_tlv(rec) == 0u;
+        check("... VEL OFF saved (GEN_TLV pseudo-slot, bit 12) and back; ON (the default): nothing stored", ok);
+    }
+    gen_reset_all();
+}
+
 /* GRIDS_LFO: the kit's two LFOs on GRIDS' values (lane_play.c klfo_apply), their effect on what plays, their stored form */
 static void kit_lfo_tests(void)
 {
@@ -773,6 +840,7 @@ int main(void)
     kit_tests();
     euclid_tests();
     kit_lfo_tests();
+    grids_vel_tests();
     tlv_tests();
     write_split_tests();
     printf(bad ? "gen test FAILED (%d)\n" : "gen test passed\n", bad);

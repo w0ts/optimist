@@ -1022,6 +1022,27 @@
       "limits": "needs the drum editor (DRUM_EDIT: the lanes' LFOs); the web editor does not show them yet",
       "notice": "",
       "warning": false
+    },
+    {
+      "switch": "FELUCCA_GRIDS_VEL",
+      "title": "GRIDS: velocity (each hit at its level's dynamic)",
+      "default": 0,
+      "group": "sequencer",
+      "source": {
+        "repo": "https://github.com/w0ts/optimist",
+        "commit": "fix/grids-step-redraw (2026-10-23)",
+        "author": "Optimist",
+        "licence": "GPL-3.0-only",
+        "files": "the level Grids' drum map gives each hit (pattern_generator.cc ReadDrumMap) as the hit's dynamic"
+      },
+      "files": [
+        "firmware/src/seq/gen.c gr_lv_vel, gr_kit_merge",
+        "firmware/src/ui/optimist/op_tools.c the VEL card"
+      ],
+      "storage": "the GEN_TLV pseudo-slot 31, bit 12 (VEL OFF); ON (the default) stores nothing",
+      "limits": "four dynamics (GHOST SOFT NORM HARD): a drum step keeps 2 bits of level a lane; DRUMS mode only (EUCL has no levels)",
+      "notice": "",
+      "warning": false
     }
   ],
   "later_asm_notes": [

@@ -560,6 +560,13 @@ static int gr_eu_cell(uint32_t pg, uint32_t k, cell_t *c)
 static void gr_kcell(uint32_t pg, uint32_t k, cell_t *c)
 {
     uint32_t id = gr_kid(pg, k);
+#if FELUCCA_GRIDS_VEL
+    if (pg == 4u && k == 3u) {                           /* VEL: the hits at their level's velocity (seq/gen.c gr_lv_vel) */
+        c->kind = CK_VAL;
+        cell_list(c, "VEL", gr_vel_off ? "OFF" : "ON", 1, !gr_vel_off);
+        return;
+    }
+#endif
     if (gr_eu_cell(pg, k, c))
         return;
     if (DRUM_GR_OF(id))
@@ -571,6 +578,12 @@ static void gr_kturn(uint32_t pg, uint32_t k, int32_t s)
 #if FELUCCA_GRIDS_EUCLID
     if (pg == 3u && k == 3u) {                           /* OUT: DRUMS <-> EUCL (a byte the ISR reads) */
         gr_out = s > 0 ? GRO_EUCLID : GRO_DRUMS;
+        return;
+    }
+#endif
+#if FELUCCA_GRIDS_VEL
+    if (pg == 4u && k == 3u) {                           /* VEL: ON <-> OFF (a byte the ISR reads) */
+        gr_vel_off = s < 0;
         return;
     }
 #endif

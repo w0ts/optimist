@@ -1563,9 +1563,17 @@
     "pool": 0,
     "ramtext": 0
    }
+  },
+  "GRIDS_VEL": {
+   "1": {
+    "flash": 384,
+    "ram": 16,
+    "pool": 0,
+    "ramtext": 0
+   }
   }
  },
- "measured": "2026-10-23 19:02",
+ "measured": "2026-10-23 19:21",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
@@ -1587,7 +1595,7 @@
  },
  "checks": {
   "drum-machine": {
-   "hash": "776e2157",
+   "hash": "0860d2e1",
    "cfg": {
     "ENG_DIGITAL": 0,
     "ENG_PHASE": 0,
@@ -1630,7 +1638,7 @@
     "SL24_IMPORT": 0,
     "COND": 1
    },
-   "built_hash": "00085b05",
+   "built_hash": "22aa4c3f",
    "sizes": {
     "flash": 552064,
     "ram": 93504,
@@ -1639,7 +1647,7 @@
    }
   },
   "everything-that-fits": {
-   "hash": "2ba9fdc6",
+   "hash": "6a21f990",
    "cfg": {
     "ENG_PHASE": 0,
     "ENG_TRIO": 0,
@@ -1665,7 +1673,7 @@
     "ENG_CZ": 1,
     "COND": 1
    },
-   "built_hash": "30fd8053",
+   "built_hash": "34048a05",
    "sizes": {
     "flash": 551252,
     "ram": 84132,
@@ -1674,7 +1682,7 @@
    }
   },
   "fm-va-studio": {
-   "hash": "7f4ed5fa",
+   "hash": "2ae91e0c",
    "cfg": {
     "ENG_PHASE": 0,
     "ENG_LOFI": 0,
@@ -1696,7 +1704,7 @@
     "ED_SCREENS": 0,
     "BT_AUDIO": 1
    },
-   "built_hash": "7f4ed5fa",
+   "built_hash": "2ae91e0c",
    "sizes": {
     "flash": 550620,
     "ram": 93128,
@@ -1705,7 +1713,7 @@
    }
   },
   "synth": {
-   "hash": "21eedbd1",
+   "hash": "0773d62b",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -1797,16 +1805,16 @@
     "COND": 1,
     "SEQTOOLS": 1
    },
-   "built_hash": "6116517f",
+   "built_hash": "29cec019",
    "sizes": {
-    "flash": 535040,
-    "ram": 97820,
+    "flash": 535184,
+    "ram": 97804,
     "pool": 327924,
     "ramtext": 25336
    }
   },
   "x0x-drums": {
-   "hash": "58d0c995",
+   "hash": "48edfae7",
    "cfg": {
     "ENG_DIGITAL": 0,
     "ENG_PHASE": 0,
@@ -1837,7 +1845,7 @@
     "ENG_ACID": 1,
     "COND": 1
    },
-   "built_hash": "58d0c995",
+   "built_hash": "48edfae7",
    "sizes": {
     "flash": 546128,
     "ram": 76312,
@@ -1846,7 +1854,7 @@
    }
   },
   "mots": {
-   "hash": "495311b2",
+   "hash": "2cab254c",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -1946,16 +1954,16 @@
     "SEQTOOLS": 1,
     "GEN_GRIDS": 1
    },
-   "built_hash": "5f9d5195",
+   "built_hash": "7bc039af",
    "sizes": {
-    "flash": 581756,
+    "flash": 581888,
     "ram": 95196,
     "pool": 333436,
     "ramtext": 28452
    }
   },
   "synth+ble-test": {
-   "hash": "28600cbe",
+   "hash": "2df4d848",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -2039,7 +2047,7 @@
     "SL24_SAFE": 0,
     "SL24_IMPORT": 0
    },
-   "built_hash": "5da0ada3",
+   "built_hash": "686b2cad",
    "sizes": {
     "flash": 482100,
     "ram": 91312,
@@ -2048,7 +2056,7 @@
    }
   },
   "synth+ble-full": {
-   "hash": "6a2f94c1",
+   "hash": "79b02deb",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -2132,7 +2140,7 @@
     "SL24_SAFE": 0,
     "SL24_IMPORT": 0
    },
-   "built_hash": "1b963d34",
+   "built_hash": "4debc6e6",
    "sizes": {
     "flash": 477572,
     "ram": 86576,
@@ -2141,7 +2149,7 @@
    }
   },
   "drum-machine~": {
-   "hash": "194729d7",
+   "hash": "38549969",
    "cfg": {
     "ENG_DIGITAL": 0,
     "ENG_PHASE": 0,
@@ -2188,7 +2196,7 @@
     "SL24_IMPORT": 0,
     "COND": 1
    },
-   "built_hash": "752a7cb5",
+   "built_hash": "67b294e7",
    "sizes": {
     "flash": 554940,
     "ram": 96544,
@@ -2197,7 +2205,7 @@
    }
   },
   "everything-that-fits~": {
-   "hash": "6071c376",
+   "hash": "5f4d46d8",
    "cfg": {
     "ENG_PHASE": 0,
     "ENG_TRIO": 0,
@@ -2226,7 +2234,7 @@
     "DIV_LONG": 0,
     "COND": 1
    },
-   "built_hash": "09002a18",
+   "built_hash": "64473fca",
    "sizes": {
     "flash": 552072,
     "ram": 85076,
@@ -2235,7 +2243,7 @@
    }
   },
   "fm-va-studio~": {
-   "hash": "4c23672a",
+   "hash": "68d96d7c",
    "cfg": {
     "ENG_PHASE": 0,
     "ENG_LOFI": 0,
@@ -2257,7 +2265,7 @@
     "ED_SCREENS": 0,
     "BT_AUDIO": 1
    },
-   "built_hash": "4c23672a",
+   "built_hash": "68d96d7c",
    "sizes": {
     "flash": 602760,
     "ram": 93128,
@@ -2266,7 +2274,7 @@
    }
   },
   "synth~": {
-   "hash": "66e2cedb",
+   "hash": "3f5048a5",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -2356,16 +2364,16 @@
     "PLOCK": 1,
     "SEQTOOLS": 1
    },
-   "built_hash": "7ee28aa5",
+   "built_hash": "5ec9860f",
    "sizes": {
-    "flash": 535732,
-    "ram": 97532,
+    "flash": 535884,
+    "ram": 97516,
     "pool": 327924,
     "ramtext": 25336
    }
   },
   "x0x-drums~": {
-   "hash": "79b766e1",
+   "hash": "3084d5ab",
    "cfg": {
     "A2_MS20": 1,
     "ENG_DIGITAL": 0,
@@ -2400,7 +2408,7 @@
     "SL24_EDIMPORT": 1,
     "COND": 1
    },
-   "built_hash": "79b766e1",
+   "built_hash": "3084d5ab",
    "sizes": {
     "flash": 552508,
     "ram": 76312,
@@ -2409,7 +2417,7 @@
    }
   },
   "mots~": {
-   "hash": "022b856c",
+   "hash": "4e704a26",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -2509,16 +2517,16 @@
     "SEQTOOLS": 1,
     "GEN_GRIDS": 1
    },
-   "built_hash": "34be6bcf",
+   "built_hash": "18db5d41",
    "sizes": {
-    "flash": 604160,
-    "ram": 94620,
+    "flash": 604296,
+    "ram": 94636,
     "pool": 333436,
     "ramtext": 27140
    }
   },
   "synth+ble-test~": {
-   "hash": "1f79a0a8",
+   "hash": "366bb1da",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -2606,7 +2614,7 @@
     "SL24_SAFE": 0,
     "SL24_IMPORT": 0
    },
-   "built_hash": "3632c873",
+   "built_hash": "252f1a4d",
    "sizes": {
     "flash": 484824,
     "ram": 92504,
@@ -2615,7 +2623,7 @@
    }
   },
   "synth+ble-full~": {
-   "hash": "5e28c64b",
+   "hash": "5b665765",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -2699,7 +2707,7 @@
     "SL24_SAFE": 0,
     "SL24_IMPORT": 0
    },
-   "built_hash": "269cd7c6",
+   "built_hash": "777fb5f8",
    "sizes": {
     "flash": 479836,
     "ram": 86064,
