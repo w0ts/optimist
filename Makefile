@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # Shortcuts for tools/optimist.py (which works without make: BUILDING.md). `make help` lists them.
 .DEFAULT_GOAL := help
-.PHONY: help setup sdk builder build package flash profiles publish unpublish share delete web emu emu-list emu-update test costs costs-all gate emu-check
+.PHONY: help setup sdk builder build package flash profiles publish unpublish share delete web emu emu-list emu-update test costs costs-all gate emu-check mirror
 
 PY ?= python3
 PROFILE ?= synth
@@ -34,6 +34,8 @@ help:
 	@echo "make gate  [CONFIG=f] [SET=\"K=V ..\"] [EMU=1]  the integrator's gate: costs, every published profile, the host"
 	@echo "                              tests, a final synth build (EMU=1: then emu-check)"
 	@echo "make emu-check [PKG=file.fwsc] [ONLY=boot,..]  the emulator smoke checks on the last build (needs Rust; BUILDING.md)"
+	@echo "make mirror                    build the Optimist Mirror app for this Mac and start it (again: the running one quits;"
+	@echo "                              Xcode, the team in ios/OptimistMirror/Local.xcconfig)"
 	@echo "The same without make: $(PY) tools/optimist.py --help"
 	@echo "Put downloaded firmware (.fwsc) in $(IMAGES)/; it is git-ignored."
 
@@ -103,3 +105,10 @@ gate: sdk
 # (opt-in: Rust and the emulator; tests/emu/run.py --help. PKG: a package with its ELF beside it)
 emu-check:
 	$(PY) tests/emu/run.py $(PKG) $(if $(ONLY),--only $(ONLY))
+
+MIRROR_APP = build/mirror/Build/Products/Debug-maccatalyst/OptimistMirror.app
+mirror:
+	xcodebuild -project ios/OptimistMirror/OptimistMirror.xcodeproj -scheme OptimistMirror -configuration Debug \
+		-destination 'platform=macOS,variant=Mac Catalyst' -derivedDataPath build/mirror -allowProvisioningUpdates -quiet build
+	@pkill -f "$(MIRROR_APP)/Contents/MacOS/OptimistMirror" || true
+	open "$(MIRROR_APP)"
