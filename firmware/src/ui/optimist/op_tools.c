@@ -538,7 +538,7 @@ static uint32_t gr_kid(uint32_t pg, uint32_t k) { return k < 3u ? P_GRX + (pg - 
 static const char *const GR_EU_LBL[2][3] = {{"BD LEN", "SD LEN", "HH LEN"}, {"BD", "SD", "HH"}};
 static int gr_eu_cell(uint32_t pg, uint32_t k, cell_t *c)
 {
-    const int16_t *v = TDRUM->p;
+    const int16_t *v = &TDRUM->p[P_GRX];                /* (the values as set: the knobs, not the LFOs' moves) */
     uint32_t p = k % 3u, n = gr_eu_len(v, p), x;
     if (pg == 3u && k == 3u) {                           /* OUT: Grids' output mode */
         c->kind = CK_VAL;

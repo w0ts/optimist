@@ -145,7 +145,11 @@ static void pages_nav_tests(void)
     {
         uint32_t lfo = led_lvl(B_LFO);
         tap(B_LFO);
+#if KLFO_ON
+        check(lfo == 1u && ui.scr == SCR_SOUND && snd_fam == FAM_LFO, "P25: the drum track's LFO (GRIDS_LFO, half lit): tapped, the kit's LFO");
+#else
         check(lfo == 0u && ui.scr == SCR_HOME, "P25: the drum track's LFO (dark): tapped, nothing");
+#endif
     }
     song.sel = 0;
     reset_ui();

@@ -412,7 +412,7 @@ SL24_XS = 4 * 176          # storage/project.c sl24_xs: NTRK stepx_t (seq/stepx.
 
 # items only another item's code includes (the build is the same without it): counted only with that one. Found
 # 2026-10-14 (SEQTOOLS and ED_SCREENS needed UI=1, the Optimist UI: always built since SLOOP's UI went, 2026-10-19)
-NEEDS = {}
+NEEDS = {"GRIDS_LFO": {"DRUM_EDIT": 1}}   # (GRIDS_LFO: the lanes' LFOs, drums/lane_play.c DLFO_ON)
 # (the web editor's ED_* commands: only editor.c's live dispatch calls them; ED_LIVE off builds ed_lite.c, none of them.
 #  ED_MIRROR is the exception: ed_lite.c answers it too and display/lcd.c calls it in every build, 2026-10-22)
 ED_ANY_EDITOR = ("ED_LIVE", "ED_MIRROR")

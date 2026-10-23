@@ -263,18 +263,31 @@ static int lane_value_rec(uint32_t l, uint32_t id, int32_t v)
 #define DL_LFO0 24u
 #if LANE_LFO_UI
 /* + LFO 2 and ENV2 (2026-10-18, lane_play.c: per hit), ids DL_LFO0 + DLF2_0 .., DL_LFO0 + DLE_0 .. */
-static const page_t LANE_LFO_PG[6] = {{"LFO", FAM_LFO, SC_DSND, GR_LFO, {24, 25, 26, 27}},
+/* + the kit's LFO and LFO 2 on DR itself (GRIDS_LFO, lane_play.c klfo: on the kit GRIDS' values), ids KL0 + 8 j + DLF_* */
+#define KL0 0x58u
+#define KLFO_PGN (KLFO_ON ? 4u : 0u)
+static const page_t LANE_LFO_PG[6u + KLFO_PGN] = {{"LFO", FAM_LFO, SC_DSND, GR_LFO, {24, 25, 26, 27}},
                                       {"LFO DEST", FAM_LFO, SC_DSND, GR_NONE, {28, 29, 30, 31}},
                                       {"LFO 2", FAM_LFO, SC_DSND, GR_NONE, {32, 33, 34, 35}},
                                       {"LFO2 DEST", FAM_LFO, SC_DSND, GR_NONE, {36, 37, 38, 39}},
                                       {"ENV2", FAM_ENV, SC_DSND, GR_ENV2, {40, 41, 42, 43}},
-                                      {"ENV2 DEST", FAM_ENV, SC_DSND, GR_NONE, {44, 45, 46, 47}}};
+                                      {"ENV2 DEST", FAM_ENV, SC_DSND, GR_NONE, {44, 45, 46, 47}},
+#if KLFO_ON
+                                      {"LFO", FAM_LFO, SC_DSND, GR_NONE, {KL0, KL0 + 1, KL0 + 2, KL0 + 3}},
+                                      {"LFO DEST", FAM_LFO, SC_DSND, GR_NONE, {KL0 + 4, KL0 + 5, KL0 + 6, KL0 + 7}},
+                                      {"LFO 2", FAM_LFO, SC_DSND, GR_NONE, {KL0 + 8, KL0 + 9, KL0 + 10, KL0 + 11}},
+                                      {"LFO2 DEST", FAM_LFO, SC_DSND, GR_NONE, {KL0 + 12, KL0 + 13, KL0 + 14, KL0 + 15}},
+#endif
+};
 _Static_assert(DL_LFO0 + DLF_ALL == 48u, "the lane's LFO, LFO 2, ENV2 ids: 24 .. 47");
 static int16_t dlfv[DLF_ALL];                           /* the cells' values (dlfo_field: the lane's LFO, LFO 2, ENV2) */
-static int lane_lfo_pg(const page_t *pg) { return pg >= &LANE_LFO_PG[0] && pg < &LANE_LFO_PG[6]; }
-#define LFO_PGN 6u
+/* this UI's LFO pages: a lane's six, then the kit's four (kit_lfo_pg: on DR itself) */
+static int lane_lfo_pg(const page_t *pg) { return pg >= &LANE_LFO_PG[0] && pg < &LANE_LFO_PG[6u + KLFO_PGN]; }
+static int kit_lfo_pg(const page_t *pg) { return pg >= &LANE_LFO_PG[6] && pg < &LANE_LFO_PG[6u + KLFO_PGN]; }
+#define LFO_PGN (6u + KLFO_PGN)
 #else
 #define lane_lfo_pg(pg) 0
+#define kit_lfo_pg(pg) 0
 #define LFO_PGN 0u
 #endif
 /* a picked lane's FX family (the user, 2026-10-14: "on a lane i want to see the lane"): its INSERTS (the sound's two
@@ -397,6 +410,14 @@ static const param_desc_t *lane_pan_desc(uint32_t l, int16_t **vp)
 static const param_desc_t *op_dsnd_desc(uint32_t id, int16_t **vp)
 {
     const param_desc_t *d;
+#if KLFO_ON && LANE_LFO_UI
+    if (id >= KL0 && id < KL0 + KLFO_N * DLF_N) {      /* the kit's LFO j (DR itself): field (id - KL0) % 8 */
+        static int16_t klv[KLFO_N * DLF_N];
+        klv[id - KL0] = (int16_t)klfo_field((id - KL0) / DLF_N, (id - KL0) % DLF_N);
+        *vp = &klv[id - KL0];
+        return klfo_desc((id - KL0) % DLF_N);
+    }
+#endif
 #if LANE_LFO_UI
     if (id >= DL_LFO0 && id < DL_LFO0 + DLF_ALL) {
         dlfv[id - DL_LFO0] = (int16_t)dlfo_field(lane_selected(), id - DL_LFO0);
@@ -434,6 +455,12 @@ static void op_dsnd_set(uint32_t id, int32_t v, int32_t steps)   /* as ui_drums.
 {
     uint32_t l = lane_selected();
     uint8_t *r = dl.ref[l % DRUM_LANES];
+#if KLFO_ON && LANE_LFO_UI
+    if (id >= KL0 && id < KL0 + KLFO_N * DLF_N) {      /* the kit's LFO (DR itself) */
+        klfo_field_set((id - KL0) / DLF_N, (id - KL0) % DLF_N, v);
+        return;
+    }
+#endif
     if (!lane_snd())
         return;                                         /* (the ACCENT lane: no sound to set) */
     if (id == LPAN_ID) {
@@ -503,6 +530,8 @@ static void op_dsnd_tick(void)
                                                         * the track DYN's settings; XDLY: the track's (the master's is fx_page's) */
 static int sound_page(const page_t *pg)              /* a row of the SOUND screen: the track's sound and pattern */
 {
+    if (kit_lfo_pg(pg))                                 /* (the kit's LFOs: DR itself, no lane picked) */
+        return is_drum(TSEL) && !lane_picked();
     if (pg->scope == SC_DSND && is_drum(TSEL) && lane_acc())
         return 0;                                       /* (the ACCENT lane has no sound: no SOUND, SOURCE, KIT, ENV or LFO pages) */
     if (merged_away(pg))

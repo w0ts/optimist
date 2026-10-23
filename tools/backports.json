@@ -999,6 +999,29 @@
       "limits": "the kit's GRIDS only (a lane's GEN has EUCLID with NOTEGEN); no accent in this mode, as Grids",
       "notice": "Euclidean mode from Mutable Instruments Grids by Emilie Gillet (GPL-3.0-or-later).",
       "warning": false
+    },
+    {
+      "switch": "FELUCCA_GRIDS_LFO",
+      "title": "GRIDS: two LFOs on DR moving the kit GRIDS",
+      "default": 0,
+      "group": "sequencer",
+      "source": {
+        "repo": "https://github.com/w0ts/optimist",
+        "commit": "feat/grids-euclid (2026-10-23)",
+        "author": "Optimist",
+        "licence": "GPL-3.0-only",
+        "files": "the drum lanes' LFOs (drums/lane_play.c dlfo) on the kit GRIDS' six values"
+      },
+      "files": [
+        "firmware/src/drums/lane_play.c klfo, klfo_apply",
+        "firmware/src/seq/gen.c gr_kit_vals",
+        "firmware/src/storage/dlfo_rec.c KREC_TAG",
+        "firmware/src/ui/optimist/op_cells.c the kit's LFO pages"
+      ],
+      "storage": "the modulation record after the parts' block (KREC_TAG 0xD4, 2 x 8 bytes); a reader of before stops before it",
+      "limits": "needs the drum editor (DRUM_EDIT: the lanes' LFOs); the web editor does not show them yet",
+      "notice": "",
+      "warning": false
     }
   ],
   "later_asm_notes": [

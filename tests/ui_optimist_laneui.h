@@ -181,9 +181,20 @@ static void lane_lfo_tests(void)
     op_enter(SCR_SOUND);
     ui.lane = 0;                                        /* DR itself */
     frame();
+#if KLFO_ON
+    check(((op_btn_avail() >> B_LFO) & 1u) != 0u, "DR itself: the LFO button lit (the kit's LFOs, GRIDS_LFO)");
+    tap(B_LFO);
+    frame();
+    check(snd_fam == FAM_LFO && kit_lfo_pg(snd_page(ui.row[SCR_SOUND])), "... tapped: the kit's LFO");
+    ppm("opt-kit-lfo");
+    op_enter(SCR_SOUND);
+    ui.lane = 0;
+    frame();
+#else
     check(!((op_btn_avail() >> B_LFO) & 1u), "DR itself: the LFO button dark");
     tap(B_LFO);
     check(snd_fam != FAM_LFO, "... tapped: nothing");
+#endif
     lane_select(3);
     ui.lane = 1;
     frame();
@@ -209,7 +220,12 @@ static void lane_lfo_tests(void)
     ui.lane = 0;                                        /* back to DR */
     op_rows_fix();
     frame();
+#if KLFO_ON
+    check(!lane_lfo_pg(snd_page(ui.row[SCR_SOUND])) || kit_lfo_pg(snd_page(ui.row[SCR_SOUND])),
+          "back on DR: no lane LFO rows (the kit's LFO button lit, GRIDS_LFO)");
+#else
     check(snd_fam != FAM_LFO && !((op_btn_avail() >> B_LFO) & 1u), "back on DR: no LFO rows, the LFO button dark");
+#endif
     dlfo_set(3, &DLFO_DEF);
     lane_select(0);
     reset_ui();

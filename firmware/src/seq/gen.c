@@ -195,10 +195,21 @@ static uint32_t gr_kit_lane(uint32_t part)              /* -> DRUM_LANES: none o
     }
     return f;
 }
-static uint32_t gr_kit_level(uint32_t part, uint32_t i, uint32_t len, uint32_t pass)
+/* the six values GRIDS plays at this step, g[0..5]: X Y CHAOS BD SD HH, the drum track's (core.h P_GRX ..) with the kit's
+ * LFOs on them (lane_play.c klfo_apply, GRIDS_LFO) */
+#if KLFO_ON
+#define gr_kit_vals(p, g) klfo_apply(p, g)
+#else
+static void gr_kit_vals(const int16_t *p, int16_t *g)
 {
-    const int16_t *v = TDRUM->p;
-    uint32_t lv = gr_level(part, i, gr_u7(v[P_GRX]), gr_u7(v[P_GRY])), ch = gr_u7(v[P_GRCH]) >> 2;
+    uint32_t k;
+    for (k = 0; k < GR_KIT_N; k++)
+        g[k] = p[P_GRX + k];
+}
+#endif
+static uint32_t gr_kit_level(uint32_t part, uint32_t i, uint32_t len, uint32_t pass, const int16_t *g)
+{
+    uint32_t lv = gr_level(part, i, gr_u7(g[0]), gr_u7(g[1])), ch = gr_u7(g[2]) >> 2;
     if (ch) {
         uint32_t bar = pass * ((len + 15u) / 16u) + i / 16u;
         lv += ((gen_mix(bar * 0x9E3779B1u + part + 1u) & 255u) * ch) >> 8;
@@ -243,11 +254,11 @@ static uint32_t gr_eu_mask(uint32_t k, uint32_t n)
         mask |= bits[i] << pos, pos += lens[i];
     return mask;
 }
-/* part p's length (1..32) and hits from the drum track's values */
-static uint32_t gr_eu_len(const int16_t *v, uint32_t p) { return (gr_u7(v[P_GRX + p]) >> 3) + 1u; }
-static uint32_t gr_eu_hits(const int16_t *v, uint32_t p)
+/* part p's length (1..32) and hits from GRIDS' six values g (gr_kit_vals: X Y CHAOS the lengths, BD SD HH the fills) */
+static uint32_t gr_eu_len(const int16_t *g, uint32_t p) { return (gr_u7(g[p]) >> 3) + 1u; }
+static uint32_t gr_eu_hits(const int16_t *g, uint32_t p)
 {
-    return (2u * (gr_u7(v[P_GRBD + p]) >> 3) * gr_eu_len(v, p) + 31u) / 62u;   /* (Python 2's round: halves up) */
+    return (2u * (gr_u7(g[3u + p]) >> 3) * gr_eu_len(g, p) + 31u) / 62u;   /* (Python 2's round: halves up) */
 }
 /* part p hits on step i of a pass of len (the pass's number: pass) */
 static int gr_eu_hit(const int16_t *v, uint32_t p, uint32_t i, uint32_t len, uint32_t pass)
@@ -267,13 +278,15 @@ static int gr_eu_hit(const int16_t *v, uint32_t p, uint32_t i, uint32_t len, uin
 static void gr_kit_merge(const track_t *t, uint32_t i, uint32_t len, const dstep_t *s, dstep_t *o)
 {
     uint32_t p, mode = gen[GEN_KIT].mode, acc = 0, own = gen_lanes & GEN_LANES_M;
+    int16_t g[GR_KIT_N];
+    gr_kit_vals(t->p, g);
     for (p = 0; p <= GR_PARTS; p++) {                   /* (p GR_PARTS: the ACCENT lane) */
         uint32_t l = p < GR_PARTS ? gr_kit_lane(p) : DRUM_ACC, hit = acc, hard = 0, has;
         if (p < GR_PARTS && gr_out == GRO_EUCLID) {
-            hit = (uint32_t)gr_eu_hit(t->p, p, i, len, t->pass);
+            hit = (uint32_t)gr_eu_hit(g, p, i, len, t->pass);
         } else if (p < GR_PARTS) {
-            uint32_t lv = gr_kit_level(p, i, len, t->pass);
-            hit = lv > 255u - gr_u7(t->p[P_GRBD + p]);
+            uint32_t lv = gr_kit_level(p, i, len, t->pass, g);
+            hit = lv > 255u - gr_u7(g[3u + p]);
             hard = hit && lv > 192u;
             acc |= hard;
         }

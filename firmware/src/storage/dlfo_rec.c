@@ -25,7 +25,10 @@
 #define MREC_TAG_D2 0xD2u
 #define MREC_TAG_OK(x) ((x) == MREC_TAG || (x) == MREC_TAG_D2)
 #define MREC_PART 20u
-#define DLR_MAX (2u + DLFO_ENC_MAX + NPART * MREC_PART)
+/* then (GRIDS_LFO, 2026-10-23) KREC_TAG and the kit's two LFOs (lane_play.c klfo_encode, KLFO_ENC bytes), when they are not at
+ * their defaults; a reader of before stops after the parts' block (mrec_decode reads no further) */
+#define KREC_TAG 0xD4u
+#define DLR_MAX (2u + DLFO_ENC_MAX + NPART * MREC_PART + 1u + KLFO_ENC)
 static void proj_patch(int16_t *v, uint32_t k);        /* (project.c: a track's values as stored, under the motion) */
 /* the first id of field group g (0 LFO, 1 LFO 2, 2 ENV, 3 ENV2) and its size; P_COUNT: not in this build */
 static uint32_t mrec_grp(uint32_t g, uint32_t *n)
@@ -86,11 +89,17 @@ static void mrec_parts_get(const uint8_t *a, uint32_t tag)
  * read as a project of before, whose words at 0 give those very defaults) */
 static uint32_t mrec_encode(uint8_t *o)
 {
-    uint32_t n = dlfo_encode(o + 2);
+    uint32_t n = dlfo_encode(o + 2), parts;
     o[0] = MREC_TAG, o[1] = (uint8_t)n;
-    if (!mrec_parts_put(o + 2 + n) && !n)
+    parts = mrec_parts_put(o + 2 + n);
+    if (!parts && !n && klfo_is_def())
         return 0;
-    return 2u + n + NPART * MREC_PART;
+    n += 2u + NPART * MREC_PART;
+    if (klfo_is_def())
+        return n;
+    o[n] = KREC_TAG;                                   /* (the kit's LFOs: GRIDS_LFO) */
+    klfo_encode(o + n + 1u);
+    return n + 1u + KLFO_ENC;
 }
 /* a stored form (0 / 0: none) onto the lanes (refused: every LFO off) and the parts (when it has them) -> the record's
  * tag when the parts' block was there (MREC_TAG, MREC_TAG_D2), else 0 */
@@ -98,6 +107,7 @@ static uint32_t mrec_decode(const uint8_t *a, uint32_t n)
 {
     uint32_t l;
     if (!a || n < 2u || !MREC_TAG_OK(a[0])) {           /* (none, or a record of before: the lanes' alone) */
+        klfo_decode(0, 0);
         if (!a || !dlfo_decode(a, n))
             (void)dlfo_decode(0, 0);
         return 0;
@@ -105,9 +115,13 @@ static uint32_t mrec_decode(const uint8_t *a, uint32_t n)
     l = a[1];
     if (2u + l > n || (l ? !dlfo_decode(a + 2, l) : !dlfo_decode(0, 0)))
         (void)dlfo_decode(0, 0);
-    if (n < 2u + l + NPART * MREC_PART)
+    if (n < 2u + l + NPART * MREC_PART) {
+        klfo_decode(0, 0);
         return 0;
+    }
     mrec_parts_get(a + 2 + l, a[0]);
+    l += 2u + NPART * MREC_PART;                       /* (the kit's LFOs after the parts: GRIDS_LFO; else their defaults) */
+    klfo_decode(n > l && a[l] == KREC_TAG ? a + l + 1u : 0, n > l + 1u ? n - l - 1u : 0u);
     return a[0];
 }
 #define DLR_AUX 4u
