@@ -285,7 +285,8 @@ job; ( jobin
     run "PLAITS engine (FELUCCA_ENG_PLAITS=1): UID 17, every preset audible / bounded / voices free, tests/golden_plaits.txt, level, each model's EDIT values, corners, deterministic, pitch, MODEL switch, 4 voices" "$OUT/plaits_test" tests/golden_plaits.txt
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src $SCENE_ON -o "$OUT/scene_engines_test" tests/scene_engines_test.c -lm
+    # (-ffp-contract=off: PROPHET's float voice as the FM-1's FPU unit computes it, no fused multiply-add: an arm64 host fused them, x86 did not)
+    $CC -O2 -w -ffp-contract=off -I"$HGEN" -Ifirmware/src $SCENE_ON -o "$OUT/scene_engines_test" tests/scene_engines_test.c -lm
     run "the scene's engines (Clipper's STRINGS VPS TERRAIN WSEQ VECTOR WAVE, SID, PROPHET; UIDs 18..25): every preset audible / bounded / silent after, tests/golden_scene_engines.txt, level, each EDIT value acts, corners, deterministic, pitch" "$OUT/scene_engines_test" tests/golden_scene_engines.txt
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
