@@ -62,7 +62,8 @@ enum { MV_MASTER, MV_CH, MV_SOUNDS, MV_USB };   /* (MV_USB: the USB input's row 
 static struct {
     uint8_t first, last;                /* the rows in view: first .. last - 1 (the cursor's group) */
     uint8_t vu[MXR_N], gr[MXR_N];       /* the meters as drawn (0xFF: again) */
-    uint32_t stp[MXR_N];                /* the steps as drawn (a signature) */
+    uint32_t stp[MXR_N];                /* the steps as drawn (a signature, the playhead left out) */
+    uint8_t sta[MXR_N];                 /* the playhead as drawn (0xFF: none) */
     uint8_t pk[MXR_N];                  /* the meters' peaks (0 .. MX_LV), falling */
     uint8_t mgr;                        /* MASTER alone: its reduction as drawn, dB x 4 (0xFF: again) */
     uint8_t pk_first;                   /* the group the peaks are of (mx_draw) */
@@ -416,6 +417,19 @@ static uint32_t mx_lvl(uint32_t r, uint32_t i)
 }
 /* row r's steps at x, y of the canvas (on the row's ground): the page playing, the playhead white, the pages' bars (a
  * channel's row) */
+/* step s's cell of row r at x, y (at: the playhead; c: the row's colour, grey muted) */
+static void mx_step_cell(uint32_t r, const track_t *t, uint32_t s, uint32_t at, uint16_t c, int32_t x, int32_t y, const mrect_t *q)
+{
+    uint16_t sc = song.playing && s == at && !mx_smuted(r) ? C_WHITE
+                : !mx_on(r, s) ? C_BLACK : mx_smuted(r) ? c   /* (muted: flat dark grey, no levels) */
+                : r != mx_row() ? col_shade(C_WHITE, 3u + lvl_rank(mx_lvl(r, s)))   /* (not selected: grey 3/8 .. 6/8, */
+                : op_step_auto(t, s, r >= MXR_LANE0 ? r - MXR_LANE0 : 0xFFu) ? lvl_acol(mx_lvl(r, s))   /* under the */
+                : lvl_col(c, mx_lvl(r, s));                 /* playhead's white; the user, 2026-10-23) */
+    if (r >= MXR_LANE0 && sc == C_BLACK)                /* (a lane's empty step: a foot line, no box: 16 small boxes a */
+        cv_rect(x, y + q->sh - 1, q->sp - 1, 1, C_LINE);   /* lane read as noise) */
+    else
+        cv_box(x, y, q->sp - 2 + (r >= MXR_LANE0), q->sh, sc);
+}
 static void mx_steps_paint(uint32_t r, int32_t x, int32_t y)
 {
     if (mx_is_usb(r))
@@ -427,20 +441,9 @@ static void mx_steps_paint(uint32_t r, int32_t x, int32_t y)
     if (r == MXR_MASTER)
         return;
     mx_rect(r, &q);
-    for (i = 0; i < 16u; i++) {
-        uint32_t s = page + i;
-        if (s >= len)
-            continue;
-        uint16_t sc = song.playing && s == at && !mx_smuted(r) ? C_WHITE
-                    : !mx_on(r, s) ? C_BLACK : mx_smuted(r) ? c   /* (muted: flat dark grey, no levels) */
-                    : r != mx_row() ? col_shade(C_WHITE, 3u + lvl_rank(mx_lvl(r, s)))   /* (not selected: grey 3/8 .. 6/8, */
-                    : op_step_auto(t, s, r >= MXR_LANE0 ? r - MXR_LANE0 : 0xFFu) ? lvl_acol(mx_lvl(r, s))   /* under the */
-                    : lvl_col(c, mx_lvl(r, s));                 /* playhead's white; the user, 2026-10-23) */
-        if (r >= MXR_LANE0 && sc == C_BLACK)            /* (a lane's empty step: a foot line, no box: 16 small boxes a */
-            cv_rect(x + (int32_t)i * q.sp, y + q.sh - 1, q.sp - 1, 1, C_LINE);   /* lane read as noise) */
-        else
-            cv_box(x + (int32_t)i * q.sp, y, q.sp - 2 + (r >= MXR_LANE0), q.sh, sc);
-    }
+    for (i = 0; i < 16u; i++)
+        if (page + i < len)
+            mx_step_cell(r, t, page + i, at, c, x + (int32_t)i * q.sp, y, &q);
     np = (len + 15u) / 16u;
     if (np > 1u && r < MXR_LANE0)                       /* the pattern's pages: a thin bar each, the one playing lit */
         for (i = 0; i < np; i++)
@@ -458,13 +461,27 @@ static void mx_steps(uint32_t r)
     if (r == MXR_MASTER)
         return;
     mx_rect(r, &q);
-    sig = hu(hu(hu(hu(hu(0x57u, song.playing ? at : 64u + page), len), bg), mx_smuted(r)), r == mx_row());
+    sig = hu(hu(hu(hu(hu(hu(0x57u, song.playing), page), len), bg), mx_smuted(r)), r == mx_row());
     for (i = 0; i < 16u; i++)
         sig = sig * 5u + mx_on(r, page + i) * 2u + (mx_on(r, page + i) && op_step_auto(t, page + i, r >= MXR_LANE0 ? r - MXR_LANE0 : 0xFFu))
             + (mx_on(r, page + i) ? lvl_rank(mx_lvl(r, page + i)) * 7u : 0u);   /* (a level turned: drawn again) */
-    if (sig == mxd.stp[r])
+    if (sig == mxd.stp[r]) {            /* the playhead alone moved on the page: its two cells (the screen mirror over Bluetooth, */
+        uint32_t k, s[2] = {mxd.sta[r], at};   /* 2026-10-23: every row's whole strip a step was most of a playing mixer's bytes) */
+        uint16_t c = mx_smuted(r) ? C_DIM : mx_col(r);
+        if (!song.playing || at == mxd.sta[r])
+            return;
+        mxd.sta[r] = (uint8_t)at;
+        for (k = 0; k < 2u; k++) {
+            if (s[k] < page || s[k] >= page + 16u)
+                continue;
+            cv_begin((uint32_t)q.sp, (uint32_t)q.sh, bg);
+            mx_step_cell(r, t, s[k], at, c, 0, 0, &q);
+            cv_blit((uint32_t)(q.x + q.sx + (int32_t)(s[k] - page) * q.sp), (uint32_t)(OP_PY + q.y + q.sy));
+        }
         return;
+    }
     mxd.stp[r] = sig;
+    mxd.sta[r] = (uint8_t)at;
     cv_begin((uint32_t)(16 * q.sp), (uint32_t)(q.sh + (r < MXR_LANE0 ? 4 : 0)), bg);
     mx_steps_paint(r, 0, 0);
     cv_blit((uint32_t)(q.x + q.sx), (uint32_t)(OP_PY + q.y + q.sy));
