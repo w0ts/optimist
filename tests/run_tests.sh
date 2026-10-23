@@ -238,6 +238,8 @@ job; ( jobin
 job; ( jobin
     $CC -I"$HGEN" -Ifirmware/src -o "$OUT/tab_coded_test" tests/tab_coded_test.c
     run "tables: the delta-coded lookup tables (felucca_tables.h TAB_CODED) decode to the plain arrays, bit for bit" "$OUT/tab_coded_test"
+    $CC -I"$HGEN" -Ifirmware/src -o "$OUT/lzb_test" tests/lzb_test.c
+    run "boot stream: the LZB decoder (main.c lzb_expand) decodes tools/lzb.py's vectors byte for byte" "$OUT/lzb_test"
 ) >"$U.out" 2>&1 & jobbg
 
 job; ( jobin

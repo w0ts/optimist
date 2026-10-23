@@ -27,19 +27,21 @@ SECTIONS
     .text : { KEEP(*(.text.crt0)) *(.text*) *(.rodata*) . = ALIGN(4); _etext = .; } > XIP
     .ram_text : { _rt_start = .; KEEP(*(.ram_text*)) . = ALIGN(4); _rt_end = .; } > RAMTEXT AT > XIP
     _rt_load = LOADADDR(.ram_text);
+    _lz_load = LOADADDR(.ram_text);         /* the LZB stream of every copy (below): right after .text */
     .ram_hot : { _rh_start = .; KEEP(*(.ram_hot .ram_hot.*)) . = ALIGN(4); _rh_end = .; } > RAMTEXT AT > XIP
     _rh_load = LOADADDR(.ram_hot);
     .ram_hot2 : { _rh2_start = .; KEEP(*(.ram_hot2*)) . = ALIGN(4); _rh2_end = .; } > RAM AT > XIP
     _rh2_load = LOADADDR(.ram_hot2);
     /* the pool: first what main.c copies from flash at boot (.pool_init: the TAB_RAM tables), then the zeroed
-     * buffers (.pool); both count as the pool (build.py: _pool_start.._pool_end). Its flash copy before .data's: .data
-     * is the last thing in the image, stored run-length coded (build.py sparse_data, main.c data_expand), so its
-     * load address is the only one the coding moves (2026-10-22) */
+     * buffers (.pool); both count as the pool (build.py: _pool_start.._pool_end). The LOADADDRs below are the
+     * linker's plain layout; the image holds instead one LZB stream from _lz_load (build.py, tools/lzb.py: .data, then
+     * .pool_init, .ram_text, .ram_hot, .ram_hot2, each a block), decoded in that order by main.c lzb_expand at boot:
+     * 52 KB of RAM code and tables take 44 KB of flash (2026-10-23; .data alone was run-length coded, 2026-10-22) */
     .pool_init : { _pool_start = .; _pi_start = .; KEEP(*(.pool_init*)) . = ALIGN(4); _pi_end = .; } > POOL AT > XIP
     _pi_load = LOADADDR(.pool_init);
     .pool (NOLOAD) : { _pz_start = .; *(.pool*) . = ALIGN(4); _pool_end = .; } > POOL
     .data : { . = ALIGN(4); _data_start = .; *(.data*) *(.sdata*) . = ALIGN(4); _data_end = .; } > RAM AT > XIP
-    _data_load = LOADADDR(.data);           /* (the coded stream's start, not the section's size) */
+    _data_load = LOADADDR(.data);           /* (the plain layout's; the image: _lz_load's stream) */
     .bss (NOLOAD) : { _bss_start = .; *(.bss*) *(.sbss*) *(COMMON) . = ALIGN(4); _bss_end = .; } > RAM
     .noinit (NOLOAD) : { *(.noinit) *(.noinit.*) } > NOINIT     /* (.noinit.* last: a new one moves nothing) */
     /* cache RAM (EXPERIMENTAL, hal/fm1_cache.h): zeroed by its boot test, not by main.c. Only for an object whose

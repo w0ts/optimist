@@ -6,23 +6,15 @@ extern uint32_t _data_start[], _data_end[], _data_load[], _bss_start[], _bss_end
 extern uint32_t _pool_start[], _pool_end[], _rt_start[], _rt_end[], _rt_load[], _rh_start[], _rh_end[], _rh_load[];
 extern uint32_t _rh2_start[], _rh2_end[], _rh2_load[], _pi_start[], _pi_end[], _pi_load[], _pz_start[];
 
-/* .data's initial values from their flash copy, run-length coded by tools/build.py sparse_data: a byte n, then n + 1
- * literal bytes when n < 0x80, else n - 0x7F zeros (a global with a few non-zero fields was its whole size in flash:
- * 2,640 B -> 864 B on synth, 2026-10-22). Never past _data_end whatever the stream says (the simulator's link-time
- * names are a word each: firmware/sim/sim.c; it copies nothing, as the word loop it replaces copied one word of
- * nothing). Before the first global is read: the main loop's and the interrupts' state lives here. */
-static void data_expand(void)
-{
+/* What the boot copies into RAM (.data's initial values, the pool's tables, the RAM code) is one LZB stream in flash
+ * from _lz_load, a block each in the order fm1_cstart decodes them (tools/build.py, tools/lzb.py; the linker's own
+ * LOADADDRs are the plain layout, unused): 52 KB of RAM code and tables take 44 KB of flash (2026-10-23; .data alone
+ * was run-length coded before). Before the first global is read: the main loop's and the interrupts' state lives in
+ * .data. (The simulator's link-time names are a word each, firmware/sim/sim.c: nothing to decode there.) */
 #if !FELUCCA_SIM
-    const uint8_t *s = (const uint8_t *)_data_load;
-    uint8_t *d = (uint8_t *)_data_start, *e = (uint8_t *)_data_end;
-    while (d < e) {
-        uint32_t n = *s++, lit = n < 0x80u;
-        for (n = lit ? n + 1u : n - 0x7Fu; n && d < e; n--)
-            *d++ = lit ? *s++ : (uint8_t)0;
-    }
+extern uint32_t _lz_load[];
+#include "lzb.h"
 #endif
-}
 
 
 #if defined(FELUCCA_DUAL) && FELUCCA_DUAL && !defined(FM1_DUAL_SNAP_BLE)
@@ -596,7 +588,10 @@ static BOOT_ORDER void fm1_main(void)
 
 void fm1_cstart(void)
 {
-    uint32_t *s, *d, p3, src, wdt, boot_mode, hold;
+    uint32_t *d, p3, src, wdt, boot_mode, hold;
+#if !FELUCCA_SIM
+    const uint8_t *lz;
+#endif
     fm1_time_init();
     fm1_reset_reason();
     p3 = fm1_boot.p3_rst;
@@ -617,19 +612,19 @@ void fm1_cstart(void)
         *d = 0;
     for (d = _pz_start; d < _pool_end; d++)
         *d = 0;
-    data_expand();                              /* .data's initial values (run-length coded in flash) */
-    for (s = _pi_load, d = _pi_start; d < _pi_end; s++, d++)
-        *d = *s;                                /* the pool's tables (core.h TAB_RAM) */
+#if !FELUCCA_SIM
+    lz = lzb_expand((const uint8_t *)_lz_load, (uint8_t *)_data_start, (uint8_t *)_data_end);   /* .data's initial values */
+    lz = lzb_expand(lz, (uint8_t *)_pi_start, (uint8_t *)_pi_end);   /* the pool's tables (core.h TAB_RAM) */
+#endif
 #if TAB_CODED
     tab_expand();                               /* the smooth tables, delta-coded in flash, into the pool (felucca_tables.h) */
 #endif
     boot_cal_req = (uint8_t)(hold == HOLD_CAL);
-    for (s = _rt_load, d = _rt_start; d < _rt_end; s++, d++)
-        *d = *s;                                /* flash driver code that must run from RAM */
-    for (s = _rh_load, d = _rh_start; d < _rh_end; s++, d++)
-        *d = *s;                                /* the audio path (core.h HOT), before any IRQ */
-    for (s = _rh2_load, d = _rh2_start; d < _rh2_end; s++, d++)
-        *d = *s;                                /* its overflow into RAM (core.h HOT2) */
+#if !FELUCCA_SIM
+    lz = lzb_expand(lz, (uint8_t *)_rt_start, (uint8_t *)_rt_end);   /* flash driver code that must run from RAM */
+    lz = lzb_expand(lz, (uint8_t *)_rh_start, (uint8_t *)_rh_end);   /* the audio path (core.h HOT), before any IRQ */
+    (void)lzb_expand(lz, (uint8_t *)_rh2_start, (uint8_t *)_rh2_end);   /* its overflow into RAM (core.h HOT2) */
+#endif
     fm1_cache_ram_init();                       /* EXPERIMENTAL cache RAM (hal/fm1_cache.h): needs .ram_text, before the
                                                  * guards, CPU1 and any interrupt; nothing without FELUCCA_CACHE_RAM */
     fm1_mailbox_clear();
