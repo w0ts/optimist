@@ -39,6 +39,12 @@
 #ifndef FELUCCA_GRIDS_EUCLID
 #define FELUCCA_GRIDS_EUCLID 0   /* seq/gen.c gr_eu_hit, ui/optimist/op_tools.c the OUT card */
 #endif
+#ifndef FELUCCA_GRIDS_LFO
+#define FELUCCA_GRIDS_LFO 0        /* drums/lane_play.c klfo (DR's LFO and LFO 2 on the kit GRIDS' values; with the drum editor) */
+#endif
+#if FELUCCA_GRIDS_LFO && !FELUCCA_GEN_GRIDS
+#error "GRIDS_LFO moves the kit GRIDS' values: it needs GEN_GRIDS"
+#endif
 #if FELUCCA_GRIDS_EUCLID && !FELUCCA_GEN_GRIDS
 #error "GRIDS_EUCLID is a mode of the kit's GRIDS: it needs GEN_GRIDS"
 #endif

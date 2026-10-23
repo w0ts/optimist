@@ -190,8 +190,17 @@ DESC["FELUCCA_GRIDS_EUCLID"] = (
     "passes, against the pattern's LEN. No accent in this mode, as on Grids. OUT is saved with the project; a build "
     "without this item plays DRUMS. About 1 KB of flash.")
 LABEL["FELUCCA_GRIDS_EUCLID"] = "GRIDS: Euclidean mode (OUT EUCL)"
+DESC["FELUCCA_GRIDS_LFO"] = (
+    "Two LFOs on the drum track itself that move the kit's GRIDS: on DR (no lane picked) the LFO button opens LFO and "
+    "LFO 2, each with RATE (free or synced to the tempo), WAVE, PHS, FADE and two destinations among X, Y, CHAOS, BD, "
+    "SD and HH (in EUCL: the lengths and the fills), with their amounts. GRIDS plays the values moved, step by step; "
+    "the values you set stay as they are. Each LFO restarts at PLAY, as a lane's does. Saved with the project; a "
+    "build without this item plays the values as set. Needs the drum editor (DRUM_EDIT: the lanes' LFOs). About 0.7 KB "
+    "of flash.")
+LABEL["FELUCCA_GRIDS_LFO"] = "GRIDS: two LFOs on DR (the kit GRIDS)"
 PARENT = {"FELUCCA_SPRING": "FX_REVERB", "FELUCCA_DLY_DOT": "FX_DELAY", "FELUCCA_PUNCH_LATCH": "FX_PUNCH",
-          "FELUCCA_UP_FM6": "ENG_FM6", "FELUCCA_GRIDS_EUCLID": "GEN_GRIDS"}   # options of a registry item
+          "FELUCCA_UP_FM6": "ENG_FM6", "FELUCCA_GRIDS_EUCLID": "GEN_GRIDS",
+          "FELUCCA_GRIDS_LFO": "GEN_GRIDS"}   # options of a registry item
 AFTER = {"FELUCCA_SPRING": "REV_FDN8"}   # an option's place among its parent's (SPRING beside the other reverb algorithms)
 BITS = {  # switch -> stable BUILD bit (append only)
     "FELUCCA_CHANCE": 64, "FELUCCA_KEYLIT": 65, "FELUCCA_QNT_SEQ": 66, "FELUCCA_KNOB_ACCEL": 67,
@@ -228,6 +237,7 @@ BITS = {  # switch -> stable BUILD bit (append only)
     "FELUCCA_SEQTOOLS": 241,
     "FELUCCA_GEN_GRIDS": 370,                          # (the GRIDS note generator; its own item since 2026-10-22)
     "FELUCCA_GRIDS_EUCLID": 395,                       # (the kit's GRIDS in Grids' Euclidean mode, 2026-10-23)
+    "FELUCCA_GRIDS_LFO": 396,                            # (DR's two LFOs on the kit GRIDS, 2026-10-23)
 }
 NEXT_FREE = 80                                          # (switches not in BITS yet: from here, by name)
 

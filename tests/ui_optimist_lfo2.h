@@ -151,7 +151,15 @@ static void lfo2ui_tests(void)
           "the graph: LFO2 DEST shows LFO 2's wave, LFO DEST still LFO's");
     /* the drum track has no LFO 2 */
     song.sel = TRK_DRUM;
+#if KLFO_ON
+    {
+        uint32_t a = ins_row("LFO 2"), b = ins_row("LFO2 DEST");
+        check((a >= SCR->rows() || kit_lfo_pg(snd_page(a))) && (b >= SCR->rows() || kit_lfo_pg(snd_page(b))),
+              "the drum track: no synth LFO 2 rows (LFO 2 there is the kit's, GRIDS_LFO)");
+    }
+#else
     check(ins_row("LFO 2") >= SCR->rows() && ins_row("LFO2 DEST") >= SCR->rows(), "the drum track: no LFO 2 rows");
+#endif
     song.sel = 0;
     /* the AMT card's second bar */
     trk[0] = keep;

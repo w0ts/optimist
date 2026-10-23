@@ -524,6 +524,9 @@
     {"kind": "op", "ctx": "LFO2 DEST", "if": "DL_ANY", "params": {
       "DEST": "What lane LFO 2 moves", "AMT": "How much it moves it",
       "DEST2": "Its second destination", "AMT2": "How much it moves that"}},
+    {"kind": "op", "ctx": "LFO DEST", "if": "FELUCCA_GRIDS_LFO", "params": {
+      "DEST": "What the kit LFO moves", "AMT": "How much it moves it",
+      "DEST2": "Its second destination", "AMT2": "How much it moves that"}},
     {"kind": "op", "ctx": "ENV2", "if": "DL_ANY", "params": {
       "ATK": "Rise, in 16th steps", "DEC": "Fall to SUS, in 16th steps",
       "SUS": "Level it stays at", "RTRG": "Restart: PLAY or every N bars"}},

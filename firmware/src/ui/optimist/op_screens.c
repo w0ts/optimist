@@ -59,6 +59,7 @@ static void op_project_new(void)
     (void)fxr_decode(0, 0, 1);                          /* the FX slots, the tracks' and the drum sounds' inserts, the returns at unity, the lanes at the
                                                          * centre, no sequencer mute, the voice counts (fx_rec.c: what a load with no record does) */
     (void)dlfo_decode(0, 0);                            /* the drum lanes' LFOs and envelopes at their defaults */
+    klfo_decode(0, 0);                                  /* the kit's LFOs too (GRIDS_LFO, lane_play.c) */
     fm1_irq_on();
 #if FELUCCA_AUTO
     auto_init();                                        /* the locks and the motion: none (auto_proj.c) */

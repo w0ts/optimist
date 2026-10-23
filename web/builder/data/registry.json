@@ -5048,7 +5048,8 @@
      "url": "https://github.com/pichenettes/eurorack"
     },
     "children": [
-     "GRIDS_EUCLID"
+     "GRIDS_EUCLID",
+     "GRIDS_LFO"
     ],
     "tested": "emulator-tested only",
     "provenance_line": "pichenettes/eurorack @ master (grids/, 2011-2013) by Emilie Gillet (Mutable Instruments) (GPL-3.0-or-later)"
@@ -5081,6 +5082,35 @@
     "children": [],
     "tested": "emulator-tested only",
     "provenance_line": "pichenettes/eurorack @ master (grids/, 2011-2013) by Emilie Gillet (Mutable Instruments) (GPL-3.0-or-later)"
+   },
+   {
+    "key": "GRIDS_LFO",
+    "flag": "FELUCCA_GRIDS_LFO",
+    "label": "GRIDS: two LFOs on DR (the kit GRIDS)",
+    "group": "Sequencer",
+    "bit": 396,
+    "default": 0,
+    "parent": "GEN_GRIDS",
+    "desc": "Two LFOs on the drum track itself that move the kit's GRIDS: on DR (no lane picked) the LFO button opens LFO and LFO 2, each with RATE (free or synced to the tempo), WAVE, PHS, FADE and two destinations among X, Y, CHAOS, BD, SD and HH (in EUCL: the lengths and the fills), with their amounts. GRIDS plays the values moved, step by step; the values you set stay as they are. Each LFO restarts at PLAY, as a lane's does. Saved with the project; a build without this item plays the values as set. Needs the drum editor (DRUM_EDIT: the lanes' LFOs). About 0.7 KB of flash.",
+    "experimental": false,
+    "notice": "",
+    "off_warning": "",
+    "env": "",
+    "target_only": false,
+    "symbols": [],
+    "no_image": false,
+    "fixed": false,
+    "choices": [],
+    "provenance": {
+     "project": "w0ts/optimist",
+     "author": "Optimist",
+     "licence": "GPL-3.0-only",
+     "commit": "feat/grids-euclid (2026-10-23)",
+     "url": "https://github.com/w0ts/optimist"
+    },
+    "children": [],
+    "tested": "emulator-tested only",
+    "provenance_line": "w0ts/optimist @ feat/grids-euclid (2026-10-23) by Optimist (GPL-3.0-only)"
    }
   ],
   "forbidden": {

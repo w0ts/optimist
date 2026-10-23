@@ -331,6 +331,93 @@ _Static_assert(BEAT_U <= 0xFFFFFFFFu / 1024u, "clk_pos x 1024 fits 32 bits");
 #define DLFO_BLOCK() ((void)0)
 #endif
 
+/* ---- the kit's two LFOs (the user, 2026-10-23: "we need 2 lfo on the drum main track to modulate grids"): on DR itself,
+ * LFO and LFO 2, each a lane LFO (dlfo_t: RATE WAVE PHS FADE, two slots), their destinations the kit GRIDS' six values
+ * (core.h P_GRX ..: X Y CHAOS BD SD HH). Figured as a lane's, from the transport (dlfo_now), when GRIDS reads its values at
+ * a step (seq/gen.c gr_kit_vals): the stored values stay as they are. Stored in the modulation record after the parts'
+ * block (storage/dlfo_rec.c KREC_TAG: a reader of before stops before it). FELUCCA_GRIDS_LFO, with GEN_GRIDS and the drum
+ * editor (DLFO_ON) */
+#define KLFO_ON (FELUCCA_GRIDS_LFO && FELUCCA_GEN_GRIDS && DLFO_ON)
+#if KLFO_ON
+#define KLFO_N 2u
+static const char *const N_KLDEST[GR_KIT_N + 1u] = {"OFF", "X", "Y", "CHAOS", "BD", "SD", "HH"};
+static const param_desc_t KLFO_DESC[DLF_N] = {
+    PD("RATE", F_LFOHZ, -LSYNC_N, 127, DLFO_RATE_DEF), PE("WAVE", N_LWAVE, 0), PD("PHS", F_INT, 0, 127, 0),
+    PD("FADE", F_TIME, 0, 127, 0), PE("DEST", N_KLDEST, 0), PD("AMT", F_BIPCT, LFO_AMT_MIN, LFO_AMT_MAX, 0),
+    PE("DEST2", N_KLDEST, 0), PD("AMT2", F_BIPCT, LFO_AMT_MIN, LFO_AMT_MAX, 0)};
+static dlfo_t klfo[KLFO_N] = {DLFO_DEF_INIT, DLFO_DEF_INIT};   /* the working project's */
+static volatile uint8_t klfo_on;                         /* bit j: the kit's LFO j has a live slot (the ISR's test) */
+static void klfo_fix(dlfo_t *c)
+{
+    uint32_t i;
+    dlfo_fix(c);                                         /* (its slots then on the lanes' range: again on the kit's) */
+    for (i = 0; i < LFO_NSLOT; i++)
+        c->s[i] = lfo_slot_fix(c->s[i].dest, c->s[i].amt, GR_KIT_N);
+}
+static void klfo_touch(void) { klfo_on = (uint8_t)(lfo_slots_on(klfo[0].s) | lfo_slots_on(klfo[1].s) << 1); }
+static int klfo_is_def(void) { return dlfo_is_def(&klfo[0]) && dlfo_is_def(&klfo[1]); }
+/* the UIs' calls (the main loop): field f (DLF_*) of LFO j (0, 1) */
+static const param_desc_t *klfo_desc(uint32_t f) { return &KLFO_DESC[f % DLF_N]; }
+static int32_t klfo_field(uint32_t j, uint32_t f)
+{
+    const dlfo_t *c = &klfo[j % KLFO_N];
+    switch (f % DLF_N) {
+    case DLF_RATE: return c->rate;
+    case DLF_WAVE: return c->wave;
+    case DLF_PHASE: return c->phase;
+    case DLF_FADE: return c->fade;
+    case DLF_DEST1: case DLF_DEST2: return c->s[(f % DLF_N - DLF_DEST1) / 2u].dest;
+    default: return c->s[(f % DLF_N - DLF_AMT1) / 2u].amt;
+    }
+}
+static void klfo_field_set(uint32_t j, uint32_t f, int32_t v)
+{
+    dlfo_t c = klfo[j % KLFO_N];
+    dlfo_put(&c, f % DLF_N, clamp(v, klfo_desc(f)->min, klfo_desc(f)->max));
+    klfo_fix(&c);
+    fm1_irq_off();
+    klfo[j % KLFO_N] = c;
+    klfo_touch();
+    fm1_irq_on();
+}
+/* the stored form: the two LFOs' 8 bytes each (dlfo_out); a load: n 0 none (the defaults) */
+#define KLFO_ENC (KLFO_N * 8u)
+static void klfo_encode(uint8_t *o) { (void)dlfo_out(&klfo[1], dlfo_out(&klfo[0], o)); }
+static void klfo_decode(const uint8_t *a, uint32_t n)
+{
+    uint32_t j;
+    for (j = 0; j < KLFO_N; j++) {
+        klfo[j] = DLFO_DEF;
+        if (a && n >= KLFO_ENC)
+            dlfo_in(&klfo[j], a + 8u * j), klfo_fix(&klfo[j]);
+    }
+    klfo_touch();
+}
+/* the kit GRIDS' six values at this step (the ISR: seq/gen.c): the drum track's, the live LFOs added, each in 0..127 */
+static void klfo_apply(const int16_t *p, int16_t *g)
+{
+    uint32_t j, k;
+    for (k = 0; k < GR_KIT_N; k++)
+        g[k] = p[P_GRX + k];
+    for (j = 0; j < KLFO_N; j++) {
+        int32_t lv;
+        if (!((klfo_on >> j) & 1u))
+            continue;
+        lv = dlfo_now(&klfo[j], DRUM_LANES + j);         /* (S&H's draw: an id no lane has) */
+        for (k = 0; k < LFO_NSLOT; k++)
+            if (lfo_slot_live(&klfo[j].s[k]) && klfo[j].s[k].dest <= GR_KIT_N)
+                g[klfo[j].s[k].dest - 1u] = (int16_t)(g[klfo[j].s[k].dest - 1u] + lfo_slot_mod(lv, klfo[j].s[k].amt, 127));
+    }
+    for (k = 0; k < GR_KIT_N; k++)
+        g[k] = (int16_t)clamp(g[k], 0, 127);
+}
+#else
+#define KLFO_ENC 0u
+#define klfo_is_def() 1
+#define klfo_encode(o) ((void)(o))
+#define klfo_decode(a, n) ((void)(a), (void)(n))
+#endif
+
 #if DLA_ON || DLFO_ON
 static union {
     int8_t o[DE_N];                        /* the offsets of the hit dl_play_hit computed (dlp_p) */

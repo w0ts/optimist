@@ -177,7 +177,8 @@ static void btnled_tests(void)
     }
     check(n > 150u, "button LEDs: every screen x track kind x button was walked");
     bk_set(BK_DR, SCR_HOME);
-    check(led_lvl(B_LFO) == 0 && led_lvl(B_ENV) == 0 && led_lvl(B_EDIT) == 1, "button LEDs, the mixer on DR (no lane): LFO and ENV dark, EDIT half");
+    check(led_lvl(B_LFO) == (KLFO_ON ? 1 : 0) && led_lvl(B_ENV) == 0 && led_lvl(B_EDIT) == 1,
+          "button LEDs, the mixer on DR (no lane): ENV dark, EDIT half, LFO dark (half with the kit's LFOs)");
     bk_set(BK_LANE, SCR_HOME);
     check(led_lvl(B_LFO) == 1 && led_lvl(B_ENV) == (DSND_ENV ? 1u : 0u), "button LEDs, the mixer on a lane: LFO and ENV half");
     bk_set(BK_MASTER, SCR_HOME);

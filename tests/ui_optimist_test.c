@@ -3839,7 +3839,8 @@ static void led_tests(void)
           "LEDs: HOME (the screen) full, SAVE REC half lit, PLAY's red off (stopped: its green is dim, ui_optimist_lamp.h)");
     song.sel = TRK_DRUM;
     frames(2);
-    check(led_lvl(B_LFO) == 0 && led_lvl(B_ENV) == 0, "LEDs, the drum track, no lane picked: no LFO, no ENV (a lane's pages)");
+    check(led_lvl(B_LFO) == (KLFO_ON ? 1 : 0) && led_lvl(B_ENV) == 0,
+          "LEDs, the drum track, no lane picked: no ENV (a lane's pages), LFO only with the kit's (GRIDS_LFO, half)");
     check(led_lvl(B_EDIT) == 1 && led_lvl(B_FX) == 1 && led_lvl(B_GLO) == 1 && led_lvl(B_SEQ) == 1,
           "LEDs, the drum track: EDIT FX GLO SEQ half lit");
     for (b = 0; b < NB; b++)
@@ -3848,7 +3849,8 @@ static void led_tests(void)
     check(b == NB, "LEDs: every button has an LED place in the test");
     tap(B_SEQ);
     frames(2);
-    check(ui.scr == SCR_STEP && led_lvl(B_SEQ) == 2 && led_lvl(B_LFO) == 0, "LEDs: on STEP the SEQ button is full, LFO stays dark");
+    check(ui.scr == SCR_STEP && led_lvl(B_SEQ) == 2 && led_lvl(B_LFO) == (KLFO_ON ? 1 : 0),
+          "LEDs: on STEP the SEQ button is full, LFO as before (dark, half with the kit's LFOs)");
     song.sel = 0;
     tap(B_LFO);
     frames(2);
