@@ -8,6 +8,10 @@ struct MirrorDecoder {
     static let version = 2        // the token codes below (ed_mirror_enc.h MIR_VERSION); a firmware with another is refused
 
     private(set) var pixels = [UInt16](repeating: 0, count: side * side)
+#if DEBUG
+    /// The store screenshots (DEBUG builds only): a panel as given
+    mutating func show(_ px: [UInt16]) { if px.count == pixels.count { pixels = px } }
+#endif
     private var rect = (x: 0, y: 0, w: 0, h: 0)
     private var at = 0
     private var slots = [UInt16](repeating: 0, count: 7)
