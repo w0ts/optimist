@@ -19,8 +19,8 @@ struct ProjectsView: View {
     var body: some View {
         NavigationStack {
             List {
-                Section { LinkStatus(s) }.listRowBackground(Color.clear)
-                if s.ready {
+                Section { LinkStatus(s, .projects) }.listRowBackground(Color.clear)
+                if s.ready(.projects) {
                     Section("Sections") {
                         ForEach(0..<s.sectionUsed.count, id: \.self) { k in sectionRow(k) }
                     }
@@ -48,7 +48,7 @@ struct ProjectsView: View {
                 }
             }
         }
-        .task(id: s.ready) { if s.ready && s.sectionUsed.isEmpty { s.loadProjects() } }
+        .task(id: s.ready(.projects)) { if s.ready(.projects) && s.sectionUsed.isEmpty { s.loadProjects() } }
     }
 
     private func sectionRow(_ k: Int) -> some View {

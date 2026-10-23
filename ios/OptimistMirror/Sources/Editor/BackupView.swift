@@ -13,8 +13,8 @@ struct BackupView: View {
     var body: some View {
         NavigationStack {
             List {
-                Section { LinkStatus(s) }.listRowBackground(Color.clear)
-                if s.ready, let l = s.bkList {
+                Section { LinkStatus(s, .backup) }.listRowBackground(Color.clear)
+                if s.ready(.backup), let l = s.bkList {
                     let usr = l.objs.filter { $0.kind == "usr" && $0.hasData && !$0.fm6 }.reduce(0) { $0 + $1.len }
                     let all = l.objs.filter { $0.hasData && ($0.kind != "usr" || $0.fm6) }.reduce(0) { $0 + $1.len }
                     Section {
@@ -27,7 +27,7 @@ struct BackupView: View {
                     }
                     .disabled(!s.idle)
                     if let f = s.restoreFile { restoreSection(f) }
-                } else if s.ready {
+                } else if s.ready(.backup) {
                     Section { Button("Read the object list") { s.loadBackupList() } }.disabled(!s.idle)
                 }
                 Section { NoteView(s: s) }
@@ -39,7 +39,7 @@ struct BackupView: View {
                 if case .success(let url) = r { s.openBackup(url) }
             }
         }
-        .task(id: s.ready) { if s.ready && s.bkList == nil { s.loadBackupList() } }
+        .task(id: s.ready(.backup)) { if s.ready(.backup) && s.bkList == nil { s.loadBackupList() } }
         .onChange(of: s.bkList) { _, _ in
             if let f = s.restoreFile, s.restoreSel.isEmpty, let l = s.bkList {
                 s.restoreSel = Set(Restore.plan(f.objects, l).filter { $0.why == nil }.map { $0.object.tag })

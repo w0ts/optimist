@@ -77,6 +77,7 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
 #endif
         ed_b3(ED_TAG_LITE, 1, 1u | ED_LITE_LIB);
         ed_mirror_info();                                 /* tag 0x65: the screen mirrored (ed_mirror.c) */
+        ed_opti_info();                                   /* tag 0x66: the features by name and version (ed_opti.h) */
         break;
 #if FELUCCA_LIBRARIAN
     case ED_PROJECT:                                      /* 0 = load, 1 = save, 2 = query (as editor.c) */
