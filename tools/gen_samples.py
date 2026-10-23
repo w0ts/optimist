@@ -386,7 +386,7 @@ class Builder:
             e[0], e[3] = i, 0 if k == "kit" else 1
             x = ", ".join(f"{more[j]} + 1, {more[j + 1]}" for j in range(0, len(more), 2))
             return (f'    {{"{pname}", {{{", ".join(map(str, e))}}}, {{{", ".join(map(str, env))}}}, 0, {mono}, '
-                    f'FX({", ".join(map(str, fx))}){", .x = {" + x + "}" if x else ""}}},')
+                    f'FX({", ".join(map(str, fx))}){", XP(" + x + ")" if x else ""}}},')   # (core.h XP: the pairs' array)
         full = []                                   # each preset's index in the full build (preset_trim.h)
         for i, (name, _, nz) in enumerate(named):
             k = self.kinds.get(name, "wave")
