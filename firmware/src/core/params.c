@@ -300,12 +300,13 @@ static void preset_extras(int16_t *p, const preset_t *pr)
 {
     int16_t d[4] = {0, 0, 0, 0};
     uint32_t i, leg = 0;
-    for (i = 0; i + 1u < 8u; i += 2u) {
-        int32_t id = pr->x[i] - 1;
+    const int8_t *x = pr->x;
+    for (i = 0; x && i + 1u < 8u; i += 2u) {       /* (x: none in most presets) */
+        int32_t id = x[i] - 1;
         if (id >= P_LEG_PIT && id <= P_LEG_AMP)
-            d[id - P_LEG_PIT] = pr->x[i + 1u], leg = 1;
+            d[id - P_LEG_PIT] = x[i + 1u], leg = 1;
         else if (id >= 0 && id < P_E0)
-            p[id] = (int16_t)clamp(pr->x[i + 1u], TP[id].min, TP[id].max);
+            p[id] = (int16_t)clamp(x[i + 1u], TP[id].min, TP[id].max);
     }
     if (leg)
         (void)lfo_from_depths(d, &p[P_L1DA]);

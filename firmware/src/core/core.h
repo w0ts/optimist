@@ -448,17 +448,18 @@ typedef struct {
     uint8_t env[4];              /* ATK DEC SUS REL */
     int8_t fenv;                 /* ENV -> FILTER amount (-64..63) */
     uint8_t mono;                /* 1 = MONO (bass / lead), 0 = POLY */
-    /* the rest of the patch; each value is stored + 1, 0 = the default */
-    uint8_t fx[4];               /* DIST, CHORUS, DELAY, REVERB sends */
-    uint8_t arp[4];              /* MODE, RATE, OCT, GATE */
-    uint8_t pat;                 /* sequence pattern (PATTERNS[pat - 1]), loaded only into an empty sequencer */
-    int8_t x[8];                 /* more of the patch: up to 4 (track parameter id + 1, value) pairs, 0 = none
-                                  * (glide, pitch / LFO modulation, voice mode...: preset_extras) */
+    uint8_t fx[4];               /* DIST, CHORUS, DELAY, REVERB sends; each stored + 1, 0 = the default */
+    /* more of the patch: up to 4 (track parameter id + 1, value) pairs, then 0; 0 = none (glide, pitch / LFO
+     * modulation, voice mode, the arpeggiator: preset_extras). A pointer, not 8 bytes in every entry: most
+     * presets have none (28 B an entry, 36 before, 2026-10-23); ARP's four values are pairs here too */
+    const int8_t *x;
 } preset_t;
 #define FX(d, c, dl, r) .fx = {(d) + 1, (c) + 1, (dl) + 1, (r) + 1}
-#define ARP(m, rt, o, g) .arp = {(m) + 1, (rt) + 1, (o) + 1, (g) + 1}
-#define PAT(n) .pat = (n)
-#define XP(...) .x = {__VA_ARGS__}  /* XP(P_GLIDE + 1, 30, P_ED_PIT + 1, 8): parameter id + 1, value */
+#define XP(...) .x = (const int8_t[8]){__VA_ARGS__}  /* XP(P_GLIDE + 1, 30, P_ED_PIT + 1, 8): parameter id + 1, value
+                                                      * (a ninth value does not compile: the four pairs are the room) */
+#define ARP(m, rt, o, g) XP(P_AMODE + 1, m, P_ARATE + 1, rt, P_AOCT + 1, o, P_AGATE + 1, g)   /* MODE, RATE, OCT, GATE */
+#define PAT(n)                   /* a sequence pattern the preset suggested (PATTERNS[n - 1]): nothing loads one (LIVE), kept
+                                  * in the tables as a note of the sound's feel; no byte in the entry */
 
 struct track;
 typedef struct {

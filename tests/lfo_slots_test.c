@@ -135,7 +135,7 @@ static void t_sound(void)
         for (pi = 0; pi < e->npresets && !found; pi++) {
             const preset_t *pr = &e->presets[pi];
             uint32_t i;
-            for (i = 0; i + 1u < 8u; i += 2u)
+            for (i = 0; pr->x && i + 1u < 8u; i += 2u)
                 if (pr->x[i] - 1 == P_LEG_FLT) {
                     host_preset(t, 0, pi);
                     found = t->p[P_L1DA] == LT_FLT && t->p[P_L1AA] == 2 * pr->x[i + 1u] && !t->p[P_L1DB];

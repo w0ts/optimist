@@ -161,7 +161,9 @@ def ir_globals(ir):
 # measured on mots.config 2026-10-23 (see the flash-gains report). A per-sample path must never be cut.
 MAIN_CUT = {"arrangement_apply", "song_backup", "undo_mark", "pat_switch_isr", "bt_sha256_add", "bt_sha256_done",
             "bt_sha256_init", "fxs_desc", "op_dsnd_desc", "lin_desc", "fxs_send_d", "ui_say", "ins_amt", "fxs_card",
-            "bps_desc"}
+            "bps_desc",
+            "song_restore"}   # (STOP in song mode: the loop you were making back, proj_apply and the stores' decoders with it:
+                              #  -480 B on mots.config 2026-10-23; song_backup's mirror)
 
 
 def audio_reach(funcs, audio_names, globs=None):
