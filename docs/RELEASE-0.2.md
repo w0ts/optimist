@@ -48,3 +48,5 @@ Optimist 0.2 brings the FM-1 to the browser and the phone, plays over Bluetooth,
 ## Thanks
 
 Optimist stands on SLOOP (isod89), Felucca and Felucca-Engines (Leo Kuroshita, Hügelton Instruments), Melodee (Kerem Kilic: FM6, CZ, the PROPHET voice, USB audio, TAPE and SPIT), X0X (Charles Vestal: the 909 and 808 kits, ACID with Open303 and TB-3PO), fm-106 (PatttF, after KR-106 by Kayrock Screenprinting: JUNO), Caravel (bonszaimusic: DRONE), Mutable Instruments (Emilie Gillet: Plaits, Grids), Hortator (Leo Kuroshita: the PLAITS kit), Kawa Tracker (Guizmoh: the KAWA kit), JIANT (juanjiant-bit), SLOOP 2.8 (isod89: the backports), Clipper (3dSam: STRINGS, VPS, TERRAIN, WSEQ, VECTOR, WAVE; GPL-3.0-only), Mini-Tone (Stephane Schmitz: SID, after reSID 0.16 by Dag Lem; GPL-2.0-or-later). Licences in LICENSING.md.
+
+**A word for Émilie Gillet.** PLAITS and GRIDS are hers, from Mutable Instruments, which she closed in 2022, leaving every line of her code open for the rest of us. She asked for nothing and walked away quietly. Her ideas live on in thousands of instruments, and now in this one. We miss her. Thank you, Émilie.
