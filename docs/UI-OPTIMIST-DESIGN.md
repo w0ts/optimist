@@ -271,7 +271,7 @@ A page is one section; sections are never combined to fill a page except two joi
 
 ### 4.8 TEMPO
 
-PLAY held (past the hold time; a tap stays start / stop, acting when let go; a key while PLAY is down opens it at once). Rows: TEMPO (BPM NUDGE SWING SYNC), REC (MODE LENGTH START CLICK), REC 2 (QUANT); without REC MODES, QUANT is REC's first card. OCT- / OCT+ held nudge the clock 3.9 % slower / faster (10/256, `seq.c clk_nudge`; BPM never changes; nothing on an external clock); white keys tap the tempo (two taps or more). The panel: the tempo large (amber while nudged), the four beats, the clock followed (*Auto: Int / USB / TRS*) and its RX light. GLOBAL repeats these rows; TEMPO stays because it opens over any screen. The clock counts whole BPM; a 0.1 BPM FINE was not built.
+PLAY held (past the hold time; a tap stays start / stop, acting when let go; a key while PLAY is down opens it at once). Rows: TEMPO (BPM NUDGE SWING SYNC), REC (MODE LENGTH START CLICK), REC 2 (QUANT); without REC MODES, QUANT is REC's first card. OCT- / OCT+ held nudge the clock 3.9 % slower / faster (10/256, `seq.c clk_nudge`; BPM never changes; nothing on an external clock); white keys tap the tempo (two taps or more), and HOME while PLAY is held (HOME is then no back, PLAY no start / stop when let go). The panel: the tempo large (amber while nudged), the four beats, the clock followed (*Auto: Int / USB / TRS*) and its RX light. GLOBAL repeats these rows; TEMPO stays because it opens over any screen. The clock counts whole BPM; a 0.1 BPM FINE was not built.
 
 ### 4.9 The performance layers
 

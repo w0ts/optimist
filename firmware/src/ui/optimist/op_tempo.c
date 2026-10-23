@@ -9,11 +9,11 @@
  *              SELECT walks them (the screen's pages); BPM and NUDGE stay together on the first (the user)
  *   OCT- / +   held: the nudge, the clock a few percent slower / faster while held (seq.c clk_nudge, the BPM value
  *              never changes; nothing while an external clock is followed)
- *   white key  tap tempo (two taps or more)
+ *   white key  tap tempo (two taps or more); HOME too (op_combos.c: PLAY held, HOME pressed)
  * The panel: the tempo big, the beat, the nudge, the clock followed (A:USB ...) and its RX light. */
 #define TEMPO_HOLD_MS op_hold_ms()      /* PLAY held this long: the page (shorter: a tap, start / stop; SYSTEM HOLD) */
 #define TEMPO_NUDGE 10                  /* the nudge, in 1/256 of the tempo: 3.9 % */
-static void tap_tempo(void);                           /* op_layers.c */
+static void tap_tempo(void);                           /* op_layers.c (tap_tempo_at: HOME's, op_combos.c) */
 static struct {
     uint8_t on;                         /* the page is up */
     uint8_t prev;                       /* the screen under it */

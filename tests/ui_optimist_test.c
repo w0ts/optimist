@@ -2232,6 +2232,13 @@ static void tempo_tests(void)
     frames(29);
     key(WK(0));
     check(song.g[G_BPM] >= 115 && song.g[G_BPM] <= 125 && ui.scr == SCR_TEMPO, "TEMPO: a white key taps the tempo");
+    frames(130);                                        /* (over 2 s: a new count) */
+    song.g[G_BPM] = 60;
+    tap(B_HOME);
+    frames(29);
+    tap(B_HOME);
+    check(song.g[G_BPM] >= 115 && song.g[G_BPM] <= 125 && ui.scr == SCR_TEMPO,
+          "TEMPO: HOME taps the tempo too (PLAY held; HOME let go is no back)");
     release(B_PLAY);
     frames(2);
     check(ui.scr == SCR_HOME && !song.playing && !transport_req, "PLAY let go: the screen before, no start");
