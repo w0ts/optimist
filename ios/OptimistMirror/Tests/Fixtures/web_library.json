@@ -1,0 +1,121 @@
+{
+ "format": "felucca-library",
+ "version": 1,
+ "kind": "library",
+ "firmware": "OPTIMIST 0.9",
+ "pCount": 4,
+ "pE0": 3,
+ "paramLabels": [
+  "LEVEL",
+  "CUT",
+  "RES",
+  "E0"
+ ],
+ "engines": [
+  "ANALOG",
+  "DIGITAL",
+  "FM6"
+ ],
+ "exported": "2026-01-02T03:04:05.678Z",
+ "patches": [
+  {
+   "name": "BASS ONE",
+   "engine": 0,
+   "engineName": "ANALOG",
+   "params": [
+    10,
+    null,
+    -3,
+    127
+   ],
+   "pattern": [
+    [
+     60,
+     1
+    ],
+    [
+     0,
+     0
+    ],
+    [
+     0,
+     4
+    ],
+    [
+     64,
+     0
+    ],
+    [
+     0,
+     0
+    ],
+    [
+     0,
+     0
+    ],
+    [
+     0,
+     0
+    ],
+    [
+     0,
+     0
+    ],
+    [
+     0,
+     0
+    ],
+    [
+     0,
+     0
+    ],
+    [
+     0,
+     0
+    ],
+    [
+     0,
+     0
+    ],
+    [
+     0,
+     0
+    ],
+    [
+     0,
+     0
+    ],
+    [
+     0,
+     0
+    ],
+    [
+     0,
+     0
+    ]
+   ],
+   "tags": [
+    "bass",
+    "device"
+   ],
+   "created": "2026-01-02T03:04:05.678Z",
+   "modified": "2026-01-02T03:04:05.678Z",
+   "slot": 3
+  },
+  {
+   "name": "PAD",
+   "engine": 1,
+   "engineName": "DIGITAL",
+   "params": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "pattern": null,
+   "tags": [],
+   "created": "2026-01-02T03:04:05.678Z",
+   "modified": "2026-01-02T03:04:05.678Z"
+  }
+ ]
+}
