@@ -132,6 +132,7 @@ final class MirrorLink: ObservableObject {
         let bytes = lock.withLock { s in defer { s.bytes = 0 }; return s.bytes }
         if state == .mirroring {
             Self.log.info("\(self.bluetooth ? "bluetooth" : "usb", privacy: .public) \(bytes) bytes/s")
+            print("\(bluetooth ? "bluetooth" : "usb") \(bytes) bytes/s")
         }
         if asked >= Self.unanswered, state != .mirroring { state = .noMirror }
         send([MirrorDecoder.cmd, wantWhole ? 3 : 1])
@@ -178,7 +179,8 @@ final class MirrorLink: ObservableObject {
             for f in got {
                 s.bytes += f.count
                 if let l = MirrorDecoder.link(f) {
-                    Self.log.info("bluetooth link: \(l.octets) octets a packet, MTU \(l.mtu), interval \(Double(l.interval) * 1.25) ms")
+                    Self.log.info("bluetooth link: \(l.octets) octets a packet, MTU \(l.mtu), interval \(Double(l.interval) * 1.25) ms, central rx/tx \(l.central)")
+                    print("bluetooth link: \(l.octets) octets a packet, MTU \(l.mtu), interval \(Double(l.interval) * 1.25) ms, central rx/tx \(l.central)")   // (devicectl --console)
                 } else if let r = MirrorDecoder.reply(f) {
                     on = on || r.on
                     s.replies += 1

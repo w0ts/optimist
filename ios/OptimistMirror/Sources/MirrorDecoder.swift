@@ -18,11 +18,12 @@ struct MirrorDecoder {
         return (f[5] == 1, Int(f[6]))
     }
 
-    /// Op 3 LINK, after a Bluetooth reply: the radio's data length (octets), ATT MTU and interval (x 1.25 ms).
-    static func link(_ f: [UInt8]) -> (octets: Int, mtu: Int, interval: Int)? {
-        guard f.count == 13, isMirror(f), f[5] == 3 else { return nil }
+    /// Op 3 LINK, after a Bluetooth reply: the radio's data length (octets), ATT MTU, interval (x 1.25 ms), then the
+    /// central's LL_LENGTH values (MaxRxOctets, MaxRxTime, MaxTxOctets, MaxTxTime; empty from a firmware before them).
+    static func link(_ f: [UInt8]) -> (octets: Int, mtu: Int, interval: Int, central: [Int])? {
+        guard f.count == 13 || f.count == 21, isMirror(f), f[5] == 3 else { return nil }
         let v = { (i: Int) in Int(f[i]) | Int(f[i + 1]) << 7 }
-        return (v(6), v(8), v(10))
+        return (v(6), v(8), v(10), f.count == 21 ? [v(12), v(14), v(16), v(18)] : [])
     }
 
     static func isMirror(_ f: [UInt8]) -> Bool {

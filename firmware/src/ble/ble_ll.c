@@ -38,6 +38,7 @@ static struct {
     uint16_t win_offset;
     uint32_t t_start, t_rx;
     uint8_t max_tx, max_rx;                        /* the data length in use (octets) */
+    uint16_t peer_len[4];                          /* the central's last MaxRxOctets, MaxRxTime, MaxTxOctets, MaxTxTime */
     uint8_t peer_feat, feat_known, ver_sent, len_done;
     uint8_t peer[6], peer_rand;                    /* the peer's address and type: a central's InitA / TxAdd from its
                                                     * CONNECT_IND; as master, the AdvA we connected to */
@@ -108,6 +109,7 @@ BLE_API int ble_ll_connected(void) { return bll.state == LL_CONN; }
 BLE_API uint16_t ble_ll_interval(void) { return bll.state == LL_CONN ? bll.interval : 0; }
 BLE_API uint8_t ble_ll_peer_features(void) { return bll.feat_known ? bll.peer_feat : 0; }
 BLE_API uint8_t ble_ll_tx_octets(void) { return bll.state == LL_CONN ? bll.max_tx : 0; }
+BLE_API uint16_t ble_ll_peer_len(uint32_t i) { return bll.state == LL_CONN ? bll.peer_len[i & 3u] : 0; }
 
 BLE_API uint8_t ble_ll_addrs(uint8_t own[6], uint8_t peer[6])
 {
@@ -293,6 +295,7 @@ static void ll_conn_begin(const struct ble_hw_conn *c, const uint8_t peer[6], ui
     bll.win_offset = c->win_offset;
     bll.last_evt = 0xFFFFu;                         /* the first event is counter 0 */
     bll.max_tx = bll.max_rx = 27u;
+    ble_zero(bll.peer_len, sizeof bll.peer_len);
     bll.state = LL_CONN;
     bll.t_start = bll.t_rx = ble_hw_time_us();
 }
@@ -489,7 +492,9 @@ BLE_API void ble_ll_disconnect(uint8_t reason)
 
 static void ll_lengths(const uint8_t *d)          /* the central's MaxRxOctets, MaxRxTime, MaxTxOctets, MaxTxTime */
 {
-    uint32_t rx_o = ble_rd16(d), rx_t = ble_rd16(d + 2), tx_o = ble_rd16(d + 4), tx_t = ble_rd16(d + 6);
+    uint32_t rx_o = ble_rd16(d), rx_t = ble_rd16(d + 2), tx_o = ble_rd16(d + 4), tx_t = ble_rd16(d + 6), i;
+    for (i = 0; i < 4u; i++)
+        bll.peer_len[i] = ble_rd16(d + 2u * i);    /* (as received: the screen mirror's LINK report) */
     uint32_t rx_by_t = rx_t >= 328u ? rx_t / 8u - 14u : 27u, tx_by_t = tx_t >= 328u ? tx_t / 8u - 14u : 27u;
     rx_o = ble_min(ble_min(rx_o < 27u ? 27u : rx_o, rx_by_t), BLE_LL_MAX_OCTETS);
     tx_o = ble_min(ble_min(tx_o < 27u ? 27u : tx_o, tx_by_t), BLE_LL_MAX_OCTETS);
