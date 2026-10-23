@@ -120,7 +120,7 @@ static uint8_t live_save_off;            /* an erase held the audio (no suspend)
                                   * btpage pll= / agc= / follow= (bt/bt_inq.c, bt_page.c): a console debug build's */
 #endif
 #ifndef FELUCCA_BT_AFH
-#define FELUCCA_BT_AFH 0         /* with BT_AUDIO: adaptive frequency hopping, the channels the headset fails on dropped
+#define FELUCCA_BT_AFH 1         /* with BT_AUDIO: adaptive frequency hopping, the channels the headset fails on dropped
                                   * from the hop set (bt/bt_afh.c, bt_page.c; the XM4's fixed holes, 2026-10-23) */
 #endif
 #define FELUCCA_BT_UI (FELUCCA_BLE || FELUCCA_BT_AUDIO)   /* SYSTEM > Bluetooth: with either; it shows what is built (op_bt.c) */
