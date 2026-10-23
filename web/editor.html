@@ -11085,14 +11085,14 @@ function mirRows() {
   for (let r = mir.y; r < Math.min(240, mir.y + mir.h); r++) if (!mir.rows[r]) { mir.rows[r] = 1; mir.left--; }
 }
 /* drawn once a frame; a catch-up or a page drawn whole (the whole panel filled, then drawn again: ed_mirror.c mir_poll, op_draw.c
-   ui.force) once it is in: every row drawn again, else the pushes paused 120 ms (a part left black), or 1.5 s at most */
+   ui.force) once it is in: every row drawn again, else the pushes paused 120 ms (a part left black), or 250 ms at most */
 function mirrorShow() {
   if (mir.dirty) return;
   mir.dirty = true;
   requestAnimationFrame(() => {
     mir.dirty = false;
     const now = performance.now();
-    if (mir.held && mir.left && now - mir.last < 120 && now - mir.held < 1500) { setTimeout(mirrorShow, 60); return; }
+    if (mir.held && mir.left > 12 && now - mir.last < 120 && now - mir.held < 250) { setTimeout(mirrorShow, 60); return; }   /* (USB: a page is in within a few frames) */
     mir.held = 0;
     const c = $("mirror"); if (c && mir.img) c.getContext("2d").putImageData(mir.img, 0, 0);
   });
