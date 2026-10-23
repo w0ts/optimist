@@ -105,7 +105,8 @@ final class MirrorLink: ObservableObject, Transport {
         lock.withLock { s in
             if let h = s.held {
                 let now = Date()
-                if s.rowsLeft > 0 && now.timeIntervalSince(s.lastFrame) < Self.catchQuiet && now.timeIntervalSince(h) < Self.catchMax { return nil }
+                let most = bluetooth ? Self.catchMax : Self.catchMaxUSB
+                if s.rowsLeft > Self.rowsSpare && now.timeIntervalSince(s.lastFrame) < Self.catchQuiet && now.timeIntervalSince(h) < most { return nil }
                 s.held = nil
             }
             return s.generation == seen ? nil : (s.decoder.pixels, s.generation)
@@ -116,7 +117,10 @@ final class MirrorLink: ObservableObject, Transport {
     /// this long (a part left black), or after catchMax at most. (Without the rows: a playing mixer's meters never paused and a
     /// page change over USB froze 1.5 s.)
     private static let catchQuiet: TimeInterval = 0.12
-    private static let catchMax: TimeInterval = 1.5
+    private static let rowsSpare = 12                   // (rows a page may leave black: the mixer's 6 between its groups)
+    private static let catchMax: TimeInterval = 1.0      // (Bluetooth: a whole screen takes ~0.3 s at 6 KB/s)
+    private static let catchMaxUSB: TimeInterval = 0.25  // (USB: a page is in within a few frames; the mixer leaves rows black, so
+                                                         //  "every row drawn" never came and its meters never paused: 1.5 s, then 2 s seen)
     private static func wholeFill(_ f: [UInt8]) -> Bool {
         f.count == 18 && f[5] == 0 && Array(f[6..<14]) == [0, 0, 0, 0, 112, 1, 112, 1]
     }
