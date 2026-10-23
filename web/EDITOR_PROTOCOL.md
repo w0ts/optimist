@@ -103,7 +103,7 @@ strings, NTRK, the protocol byte (6), each engine slot's UID, then tagged blocks
 | 61 | `02 04 flags` | SOLO, version 4: bit 0 the USB input is built, bit 1 the returns' mute (op 7) |
 | 62 | `03 01 a b` | STEPLANE (below) |
 | 64 | `01 flags` | lite build: bit 0 backup only, bit 1 the librarian |
-| 66 | `n` ASCII | the features by name and version, space-separated (`ed_opti.h`): `opti_backup_4` (43..48, `BK_VERSION`), `opti_mirror_2` (106, `MIR_VERSION`), `opti_library_1` (16..21), `opti_projects_1` (9), `opti_patterns_1` (79..84). Every Felucca-family firmware answers `INFO` with the same header but numbers its other commands its own way (SLOOP's backup is 34..36; 78 is Melodee's CZ), so a client sends nothing else until it has read this tag, and offers a feature only when its name and a version it reads are listed. A number goes up only when an older client would misread the new form. Over Bluetooth (only 106 answered) the firmware is known by its advertised name, "Optimist ..." |
+| 66 | `n` ASCII | the features by name and version, space-separated (`ed_opti.h`): `opti_backup_4` (43..48, `BK_VERSION`), `opti_mirror_2` (106, `MIR_VERSION`), `opti_panel_1` (108), `opti_library_1` (16..21), `opti_projects_1` (9), `opti_patterns_1` (79..84). Every Felucca-family firmware answers `INFO` with the same header but numbers its other commands its own way (SLOOP's backup is 34..36; 78 is Melodee's CZ), so a client sends nothing else until it has read this tag, and offers a feature only when its name and a version it reads are listed. A number goes up only when an older client would misread the new form. Over Bluetooth (only 106 answered) the firmware is known by its advertised name, "Optimist ..." |
 
 `BUILD` (no args): the build's name string (16), its config hash (5 x 7 bit), the item bytes count and bytes (bit n = registry item n
 built, 7 a byte). The backup file records it.
@@ -527,6 +527,10 @@ takes slot k, k going 1, 2 .. 6, 1 ... The slots are reset at each BLIT: all bla
 
 The encoder takes a bitmap or the row above only where it is the shorter. Measured on the UI's whole host run, a catch-up is
 1.65 KB on average (4.8 KB in version 1, runs alone), 6.3 KB at most. Reference decoder: `tests/mirror_dec.h`; the UI's whole host run is checked through it (`MIRROR_CHECK`).
+
+## The panel pressed (108 PANEL; INFO tag 66 `opti_panel_1`)
+
+`ed_mirror.c` (`ED_MIRROR`). The mirror's client presses the panel as a finger would (the app's keyboard: the FM-1 Emulator's keys); only while it mirrors, and every key it holds comes up when the mirror ends (`106 0`, or 3 s without a request). The keys go through the panel's own debounce (`hal/fm1_input.h` `fm1_remote_key`), so taps, holds and chords behave as on the panel. Request: kind, id, value. Kind 0 a button by its label (0 FX, 1 SEL, 2 ENV, 3 LFO, 4 EDIT, 5 GLO, 6 HOME, 7 SAVE, 8 ARP, 9 SEQ, 10 PLAY, 11 REC, 12 OCT-, 13 OCT+; a calibrated panel's too), kind 1 a note key (0 = F3 .. 26 = G5), value 1 down / 0 up; kind 2 a knob by its role (0 SELECT, 1 ALGORITHM, 2 PRESETS, 3..6 KNOB 1..4), value its detents + 64 (above: clockwise). Reply: kind, 0 done / 1 refused. Over USB only (Bluetooth answers 106 alone).
 
 ## Undo (102 UNDO; INFO tag 5F)
 

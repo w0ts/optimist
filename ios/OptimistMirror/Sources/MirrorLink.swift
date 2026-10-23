@@ -239,6 +239,27 @@ final class MirrorLink: ObservableObject, Transport {
         if holds == 0 { wantWhole = true }
     }
 
+    /// The keyboard can press the panel: the firmware has PANEL, over USB (over Bluetooth only the mirror's request is answered)
+    var canPress: Bool {
+        state == .mirroring && !bluetooth && lock.withLock { $0.features?[Feature.panel.name] == Feature.panel.version }
+    }
+    private var presses: [[UInt8]] = []
+    private var pressing = false
+    /// A PANEL request (cmd 108), in order, one at a time with the others
+    @MainActor
+    func press(_ args: [UInt8]) {
+        presses.append(args)
+        guard !pressing else { return }
+        pressing = true
+        Task { @MainActor in
+            while !presses.isEmpty {
+                let a = presses.removeFirst()
+                _ = try? await exchange(.panel, a, timeout: 0.3, retries: 0)
+            }
+            pressing = false
+        }
+    }
+
     /// True when the port in use can carry the editor's requests: the USB one (over Bluetooth the FM-1 answers the mirror only).
     var editorPossible: Bool { state != .searching && !bluetooth }
 

@@ -118,6 +118,9 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
     case ED_MIRROR:                                       /* the screen mirrored: on / off (ed_mirror.c) */
         ed_mirror(a, na);
         break;
+    case ED_PANEL:                                         /* the panel pressed by the mirror's client (ed_mirror.c) */
+        ed_panel(a, na);
+        break;
 #endif
     default:
         for (i = 0; ED_CMDS[i]; i++)

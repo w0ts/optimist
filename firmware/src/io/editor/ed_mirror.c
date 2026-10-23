@@ -133,7 +133,7 @@ static int mir_link_up(void)
 static int mir_live(void)
 {
     if (mir.on && (!mir_link_up() || fm1_ms - mir.last_ms > MIR_ALIVE_MS))
-        mir.on = 0;
+        mir.on = 0, fm1_remote_clear();   /* (its keys up: none stays held once the client is gone) */
     return mir.on && !mir.behind && !mir_mute;
 }
 /* USB: one USB-MIDI SysEx packet (cin 4: three bytes go on; 5..7: one to three, the last F7) into the ring, waiting while the host reads */
@@ -217,6 +217,8 @@ static void mir_ask(uint32_t bits, uint32_t l)
     if ((bits & 1u) && (!mir.on || mir.link != l || (bits & 2u)))
         mir.behind = 1, mir.catch_ms = fm1_ms - MIR_CATCH_MS;   /* (asked: at once) */
     mir.on = (uint8_t)(bits & 1u);
+    if (!mir.on)
+        fm1_remote_clear();
     mir.link = (uint8_t)l;
     mir.resets = usb.resets;
 }
@@ -226,6 +228,24 @@ static void ed_mirror(const uint8_t *a, uint32_t na)
     ed_b(mir.on);
     ed_b(MIR_VERSION);
     ed_b4(240u & 127u, 240u >> 7, 240u & 127u, 240u >> 7);
+}
+/* 108 PANEL: the client presses the panel as a finger would (the app's keyboard: the FM-1 Emulator's keys), while it mirrors
+ * (its keys come up when the mirror ends, mir_live): kind 0 a button by its label (panel.c B_*: FX .. REC, OCT-, OCT+; a
+ * calibrated panel too) and 1 a note key (0 = F3 .. 26 = G5), then 1 down / 0 up; kind 2 a knob by its role (EN_*: SELECT,
+ * ALGORITHM, PRESETS, KNOB 1..4), then its detents + 64 (+ clockwise). Reply: kind, 0 done / 1 refused */
+static void ed_panel(const uint8_t *a, uint32_t na)
+{
+    uint32_t ok = mir.on && na >= 3u;
+    if (ok && a[0] == 0u && a[1] < NB)
+        fm1_remote_key(panel.btn[a[1]], a[2] & 1u);
+    else if (ok && a[0] == 1u && a[1] < 27u)
+        fm1_remote_key(14u + a[1], a[2] & 1u);
+    else if (ok && a[0] == 2u && a[1] < NE)
+        fm1_remote_enc(panel.enc[a[1]], ((int32_t)a[2] - 64) * panel.dir[a[1]]);
+    else
+        ok = 0;
+    ed_b(na ? a[0] : 0u);
+    ed_b(!ok);
 }
 /* ed_service, every main-loop pass: a request over Bluetooth answered; a link that fell behind caught up once it is clear */
 static void mir_poll(void)

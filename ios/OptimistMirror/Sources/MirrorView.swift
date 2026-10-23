@@ -218,6 +218,8 @@ struct MirrorView: View {
     let upright: Int                    // quarter turns the picture still needs (an iPhone upside down: 2)
     @Binding var bars: Bool
     @State private var image: CGImage?
+    @FocusState private var keyboard: Bool
+    @State private var held: [String: [UInt8]] = [:]   // the keys down, what each pressed
     @State private var seen = 0
 
     var body: some View {
@@ -228,9 +230,36 @@ struct MirrorView: View {
         }
         .contentShape(Rectangle())
         .onTapGesture { withAnimation { bars.toggle() } }
+        .focusable()
+        .focusEffectDisabled()
+        .focused($keyboard)
+        .onAppear { keyboard = true }
+        .onKeyPress(phases: [.down, .repeat, .up]) { k in key(k) }
         .statusBarHidden()              // (shown, iOS's Bluetooth MIDI sheet laid its table out NaN high: a crash, 2026-10-23)
         .persistentSystemOverlays(bars ? .automatic : .hidden)
         .task { await draw() }
+    }
+
+    /// A key of the computer's keyboard: a button or note key held while it is, a knob turned a detent a press (PanelKeys)
+    private func key(_ k: KeyPress) -> KeyPress.Result {
+        guard link.canPress, !k.modifiers.contains(.command) else { return .ignored }
+        let name = PanelKeys.name(k)
+        if let t = PanelKeys.knobs[name] {
+            if k.phase != .up { link.press([2, t.role, UInt8(64 + t.step)]) }
+            return .handled
+        }
+        switch k.phase {
+        case .down:
+            guard held[name] == nil, let a = PanelKeys.held(name, shift: k.modifiers.contains(.shift)) else { return held[name] == nil ? .ignored : .handled }
+            held[name] = a
+            link.press(a + [1])
+        case .up:
+            guard let a = held.removeValue(forKey: name) else { return .ignored }
+            link.press(a + [0])
+        default:
+            return held[name] == nil ? .ignored : .handled
+        }
+        return .handled
     }
 
     @ViewBuilder private var content: some View {
