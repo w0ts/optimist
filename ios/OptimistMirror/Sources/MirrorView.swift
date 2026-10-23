@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // The FM-1's panel, pixel for pixel, as large as the phone allows; a line of status while there is nothing to show. It turns
-// with the phone even with Rotation Lock on: the interface stays portrait (project.yml) and the picture is turned in quarter
-// turns from gravity (Tilt).
+// with the phone even with Rotation Lock on: the interface stays portrait (Turn) and the picture is turned in quarter turns
+// from gravity (Tilt); only iOS's Bluetooth sheet, which the app cannot turn, gets the interface turned to the tilt instead.
 import CoreMotion
 import SwiftUI
 import UIKit
 
 @main
 struct OptimistMirrorApp: App {
+    @UIApplicationDelegateAdaptor(Turn.self) private var turn
     @StateObject private var link = MirrorLink()
     @Environment(\.scenePhase) private var phase
 
@@ -44,6 +45,34 @@ final class Tilt: ObservableObject {
     func stop() { motion.stopDeviceMotionUpdates() }
 }
 
+/// The interface's orientations: portrait, or one quarter of the tilt while the Bluetooth sheet is up.
+final class Turn: NSObject, UIApplicationDelegate {
+    @MainActor static var allowed: UIInterfaceOrientationMask = .portrait
+
+    func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
+        MainActor.assumeIsolated { Self.allowed }
+    }
+
+    /// The quarter the interface takes for a tilt (none upside down on an iPhone, where iOS refuses it).
+    @MainActor static func quarter(_ tilt: Int, sheet: Bool) -> Int {
+        sheet && (tilt != 2 || UIDevice.current.userInterfaceIdiom == .pad) ? tilt : 0
+    }
+
+    @MainActor static func to(_ quarter: Int) {
+        let mask: UIInterfaceOrientationMask = [.portrait, .landscapeLeft, .portraitUpsideDown, .landscapeRight][quarter]
+        guard mask != allowed else { return }
+        allowed = mask
+        for case let scene as UIWindowScene in UIApplication.shared.connectedScenes {
+            var vc = scene.keyWindow?.rootViewController
+            while let c = vc {
+                c.setNeedsUpdateOfSupportedInterfaceOrientations()
+                vc = c.presentedViewController
+            }
+            scene.requestGeometryUpdate(.iOS(interfaceOrientations: mask))
+        }
+    }
+}
+
 struct MirrorView: View {
     @ObservedObject var link: MirrorLink
     @StateObject private var tilt = Tilt()
@@ -55,7 +84,7 @@ struct MirrorView: View {
         ZStack {
             Color.black.ignoresSafeArea()
             content
-                .rotationEffect(.degrees(-90 * Double(tilt.quarter)))
+                .rotationEffect(.degrees(-90 * Double(tilt.quarter - Turn.quarter(tilt.quarter, sheet: picking))))
                 .animation(.easeInOut(duration: 0.25), value: tilt.quarter)
         }
         .overlay(alignment: .bottomTrailing) {
@@ -74,6 +103,8 @@ struct MirrorView: View {
         .task { await draw() }
         .onAppear { tilt.start() }
         .onDisappear { tilt.stop() }
+        .onChange(of: picking) { _, now in Turn.to(Turn.quarter(tilt.quarter, sheet: now)) }
+        .onChange(of: tilt.quarter) { _, now in Turn.to(Turn.quarter(now, sheet: picking)) }
     }
 
     @ViewBuilder private var content: some View {
