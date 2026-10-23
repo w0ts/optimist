@@ -767,11 +767,15 @@ job; ( jobin
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_BLE=1 $SEC4 -o "$OUT/ui_optimist_ble_test" tests/ui_optimist_test.c -lm
-    run "Optimist UI with BLE built in: SYSTEM > BLUETOOTH (ON / OFF, the radio told once), the settings word bits HOLD 21..22, CARDS 23, BLUETOOTH 24, KNOB COLORS 25 do not collide; YES on the BLE row opens the devices list: NONE / LAST pinned, nearby with bars, no wrap, SAVE picks / connects, HOME back, SHIFT + a button FORGET LAST (the modal), Connecting / Pairing / the code / Connected / Failed" "$OUT/ui_optimist_ble_test" "$OUT/optimist"
+    run "Optimist UI with BLE built in: SYSTEM > BT MIDI (OFF / MAN / AUTO, the radio told once; no BT AUDIO page), the settings word bits HOLD 21..22, CARDS 23, BLUETOOTH 24, KNOB COLORS 25 do not collide; YES on the BLE row opens the devices list: NONE / LAST pinned, nearby with bars, no wrap, SAVE picks / connects, HOME back, SHIFT + a button FORGET LAST (the modal), Connecting / Pairing / the code / Connected / Failed" "$OUT/ui_optimist_ble_test" "$OUT/optimist"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_BLE=1 -DBLE_CENTRAL=0 $SEC4 -o "$OUT/ui_optimist_blenc_test" tests/ui_optimist_test.c -lm
     run "Optimist UI with BLE and no scanner built in: the devices list is NONE alone" "$OUT/ui_optimist_blenc_test" "$OUT/optimist"
+) >"$U.out" 2>&1 & jobbg
+job; ( jobin
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_BLE=1 -DFELUCCA_BT_AUDIO=1 $SEC4 -o "$OUT/ui_optimist_btboth_test" tests/ui_optimist_test.c -lm
+    run "Optimist UI with BLE and BT_AUDIO built in: SYSTEM > BT MIDI and BT AUDIO, both on at once, each its MODE, connect, timer and devices list, SAVE / SAVE held per page; the settings record keeps both modes and reads an old single MODE" "$OUT/ui_optimist_btboth_test" "$OUT/optimist"
 ) >"$U.out" 2>&1 & jobbg
 # PAGE_LINES (the builder's default): the rows with no picture as GLOBAL's lines (tests/ui_optimist_plines.h), with and
 # without the help line
@@ -1092,6 +1096,10 @@ job; ( jobin
 job; ( jobin
     $CC -Wextra $BLE_SAN -o "$OUT/ble_vm_test" tests/ble_vm_test.c
     run "BLE RF trims: stock V15's VM read in place (§14: check byte, id / length, last wins, live area, 187's CRC), the copy, VM -> copy -> none" "$OUT/ble_vm_test"
+) >"$U.out" 2>&1 & jobbg
+job; ( jobin
+    $CC -Wextra $BLE_SAN -o "$OUT/bt_coex_test" tests/bt_coex_test.c
+    run "BLE MIDI and Bluetooth audio on one radio (ble/rf_share.h): either alone as before; BLE then BR/EDR or BR/EDR then BLE: one radio start-up, no LE init over BLE's window" "$OUT/bt_coex_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -Wextra $BLE_SAN -o "$OUT/bt_inq_test" tests/bt_inq_test.c

@@ -38,6 +38,7 @@
 #include "ble_vm.h"                     /* the stored trims rf_init takes (ble_vm.c) */
 #include "ble_diag.h"                   /* console blell: counters only, no behaviour */
 #include "fm1_ble.h"
+#include "rf_share.h"                   /* the radio started once, shared with Bluetooth audio (bt/bt_inq.c) */
 
 #ifndef BLE_HW_IRQ_PRIO
 #define BLE_HW_IRQ_PRIO 2u              /* below the audio (3) and TIMER5 (4): stock's (HW §10) */
@@ -1206,12 +1207,13 @@ static void ble_hw_wl82_start(const struct ble_rf_trims *t)
     hwd.base = fm1_ticks();                                /* (blell's clock: 0 at the first BLUETOOTH ON) */
     hwd.us = 0;
     fm1_ble_step(FM1_BLE_STEP_RF_INIT);
-    fm1_ble_rf_init(t->x106, t->x107, t->x108, t->x187);
+    (void)rfs_rf_up(t->x106, t->x107, t->x108, t->x187);   /* (Bluetooth audio started the radio first: up already,
+                                                         * not started again under its link; rf_share.h) */
     fm1_ble_step(FM1_BLE_STEP_BB_INIT);
     for (i = 0; i < sizeof bb.inst / 2u; i++)
         bb.inst[i] = 0;
     for (i = 0; i < sizeof bb - sizeof bb.inst; i++)
         p[i] = 0;
-    fm1_ble_bb_init((uint32_t)(uintptr_t)&bb, sizeof bb);
+    rfs_le_ble((uint32_t)(uintptr_t)&bb, sizeof bb);   /* (BR/EDR's stand-in window, if any, replaced: no link in it) */
     drv.state = HW_OFF;
 }

@@ -1051,11 +1051,11 @@ _add("BT_AUDIO", "FELUCCA_BT_AUDIO", "Bluetooth Classic Audio (A2DP Source, SBC)
      default=0, experimental=True, target_only=True,
      tested="host-tested (SSP, SAFER+, SBC encoder, AVDTP, L2CAP) and unit-tested",
      notice="experimental: Bluetooth Classic A2DP audio source",
-     desc="Bluetooth Classic audio out (A2DP source, SBC 44.1 kHz) to headphones and speakers: SYSTEM > Bluetoo"
-          "th's AUDIO MAN and AUDIO AUTO modes, the radio carrying BLE MIDI or audio, one at a time. Our own st"
-          "ack: inquiry, paging, Secure Simple Pairing (Just Works), E0 encryption, L2CAP, AVDTP and a fixed-po"
-          "int SBC encoder. Host-tested; on the FM-1 the scan has heard no device yet, so no audio has been str"
-          "eamed.",
+     desc="Bluetooth Classic audio out (A2DP source, SBC 44.1 kHz) to headphones and speakers: its own page, S"
+          "YSTEM > BT AUDIO (MODE OFF, MAN, AUTO), beside BT MIDI: with BLE built, MIDI and audio can be on at "
+          "the same time on the one radio (untested together on an FM-1). Our own stack: inquiry, paging, Secur"
+          "e Simple Pairing (Just Works), E0 encryption, L2CAP, AVDTP and a fixed-point SBC encoder. Host-teste"
+          "d; on the FM-1 the scan has heard no device yet, so no audio has been streamed.",
      symbols=("ba_sbc", "bt_sbc_encode"))
 _add("BT_DIAG", "FELUCCA_BT_DIAG", "Bluetooth audio diagnostics: the console's btrx / bttrace, counters and logs", M,
      363, default=0, parent="BT_AUDIO", target_only=True,

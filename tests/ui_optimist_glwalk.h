@@ -40,6 +40,9 @@ static uint32_t glw_state(void)                        /* every setting a GLOBAL
 #if FELUCCA_BLE
     h = glw_mix(h, &ble_on, 1);
 #endif
+#if FELUCCA_BT_AUDIO
+    h = glw_mix(h, &bt.mode, 1);                        /* (BT AUDIO's MODE: op_bt.c) */
+#endif
 #if FELUCCA_MIDI_CLKOUT
     h = glw_mix(h, &clko_on, 1);
 #endif
@@ -163,14 +166,28 @@ static void glw_factory_tests(void)
 #if FELUCCA_BLE
             if (scr == SCR_SYSTEM && i < gl_n(1) && sys_item(gl_ent(1, i) >> 2, gl_ent(1, i) & 3u) == SI_BLE) {   /* Bluetooth's
                                                          * MODE: never reset (a live connection stays) */
-                uint8_t was = ble_ui_mode;
+                uint32_t was = bt_mode(BT_MIDI);
                 bt.boot = 1;
-                bt_enter(1);
+                bt_enter(BT_MIDI, 1);
                 press(B_OCTDN);
                 turn(LINE_KNOB(i), 1);
                 release(B_OCTDN);
-                ble_ok &= ble_on == 1u && ble_ui_mode == 1u;
-                bt_enter(was);
+                ble_ok &= ble_on == 1u && bt_mode(BT_MIDI) == 1u;
+                bt_enter(BT_MIDI, was);
+                continue;
+            }
+#endif
+#if FELUCCA_BT_AUDIO
+            if (scr == SCR_SYSTEM && i < gl_n(1) && sys_item(gl_ent(1, i) >> 2, gl_ent(1, i) & 3u) == SI_BTA) {   /* BT AUDIO's
+                                                         * MODE: never reset either */
+                uint32_t was = bt_mode(BT_AUD);
+                bt.boot = 1;
+                bt_enter(BT_AUD, 1);
+                press(B_OCTDN);
+                turn(LINE_KNOB(i), 1);
+                release(B_OCTDN);
+                ble_ok &= bt_mode(BT_AUD) == 1u;
+                bt_enter(BT_AUD, was);
                 continue;
             }
 #endif

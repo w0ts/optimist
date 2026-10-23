@@ -205,7 +205,7 @@ static uint32_t gls_lines(const char *row)              /* the lines of SYSTEM's
 }
 static int gls_joined(void)
 {
-    static const struct { const char *a, *b, *title; } J[2] = {{"SCREEN", "AUDIO", "Screen & audio"}, {"USB", "BLUETOOTH", "Connections"}};
+    static const struct { const char *a, *b, *title; } J[2] = {{"SCREEN", "AUDIO", "Screen & audio"}, {"USB", "BT MIDI", "Connections"}};
     uint32_t j, ok = 1;
     for (j = 0; j < 2u; j++) {
         uint32_t na = gls_lines(J[j].a), nb = gls_lines(J[j].b), a, b;
@@ -233,7 +233,7 @@ static int gls_ble_enter(void)                          /* SAVE on the Bluetooth
     uint32_t i, ok;
     bt.boot = 1;
     ble_store_reset(&ble_store);
-    bt_enter(1);
+    bt_enter(BT_MIDI, 1);
     i = line_named(SCR_SYSTEM, "MODE");
     line_at(SCR_SYSTEM, i);
     frame();
@@ -241,7 +241,7 @@ static int gls_ble_enter(void)                          /* SAVE on the Bluetooth
     ok = bdv.open != 0u;
     tap(B_HOME);                                        /* (back to the list) */
     ok &= bdv.open == 0u;
-    bt_enter(0);
+    bt_enter(BT_MIDI, 0);
     return (int)ok;
 }
 #endif

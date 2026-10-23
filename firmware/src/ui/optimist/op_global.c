@@ -137,7 +137,7 @@ static uint32_t gl_sid(uint32_t s, uint32_t e)          /* entry e's section: on
  * neighbouring sections of SYSTEM that fit one page together (4 lines at most) share it, the page titled by GL_JOIN's
  * name (written as drawn); when they do not fit (a build with more lines) each keeps its own pages. One table: a pair is one entry */
 static const struct { const char *a, *b, *title; } GL_JOIN[] = {
-    {"SCREEN", "AUDIO", "Screen & audio"}, {"USB", "BLUETOOTH", "Connections"}};
+    {"SCREEN", "AUDIO", "Screen & audio"}, {"USB", "BT MIDI", "Connections"}};
 #define GL_NJOIN (sizeof GL_JOIN / sizeof GL_JOIN[0])
 static const char *gl_rowname(uint32_t s, uint32_t e) { return SYS[(s ? e >> 2 : glo_sys(e >> 2)) % NSYS].name; }
 static uint32_t gl_grp(uint32_t s, uint32_t e)          /* entry e's page group: its section, or its joined pair's */
@@ -365,26 +365,29 @@ static void glo_tap(void) { op_enter(ui.scr == SCR_GLOBAL ? SCR_SYSTEM : SCR_GLO
 /* SYSTEM's Bluetooth page, whatever line the cursor is on, and its devices list (the user, 2026-10-19): SAVE tapped
  * connects / lets go (op_bt.c bt_save; on the list, the row: sys_yes), SAVE held forgets the last device. HOME is HOME's,
  * as anywhere. 1: taken (op_input.c) */
-static int bt_page(void)
+static uint32_t bt_page(void)                           /* 0: not a Bluetooth page; 1 + its side (BT_MIDI, BT_AUD) */
 {
     uint32_t e;
+    const char *nm;
     if (dev_listing())
-        return 1;
+        return 1u + dev_side();                         /* (the list: its page's side) */
     if (ui.scr != SCR_SYSTEM || GL_DEV || ui.row[SCR_SYSTEM] >= gl_n(1))
         return 0;
     e = gl_ent(1, ui.row[SCR_SYSTEM]);
-    return str_eq(SYS[(e >> 2) % NSYS].name, "BLUETOOTH");
+    nm = SYS[(e >> 2) % NSYS].name;
+    return str_eq(nm, "BT MIDI") ? 1u + BT_MIDI : str_eq(nm, "BT AUDIO") ? 1u + BT_AUD : 0u;
 }
 static int bt_key(uint32_t b, int held)
 {
-    if (b != B_SAVE || !bt_page() || op_armed())
+    uint32_t p = bt_page();
+    if (b != B_SAVE || !p || op_armed())
         return 0;
     if (held)
-        bt_forget();
+        bt_forget(p - 1u);
     else if (dev_listing())
         return 0;                                       /* (the list: SAVE on the row, sys_yes) */
     else
-        bt_save();
+        bt_save(p - 1u);
     return 1;
 }
 #else

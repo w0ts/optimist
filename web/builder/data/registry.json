@@ -3915,7 +3915,7 @@
     "bit": 281,
     "default": 0,
     "parent": null,
-    "desc": "Bluetooth Classic audio out (A2DP source, SBC 44.1 kHz) to headphones and speakers: SYSTEM > Bluetooth's AUDIO MAN and AUDIO AUTO modes, the radio carrying BLE MIDI or audio, one at a time. Our own stack: inquiry, paging, Secure Simple Pairing (Just Works), E0 encryption, L2CAP, AVDTP and a fixed-point SBC encoder. Host-tested; on the FM-1 the scan has heard no device yet, so no audio has been streamed.",
+    "desc": "Bluetooth Classic audio out (A2DP source, SBC 44.1 kHz) to headphones and speakers: its own page, SYSTEM > BT AUDIO (MODE OFF, MAN, AUTO), beside BT MIDI: with BLE built, MIDI and audio can be on at the same time on the one radio (untested together on an FM-1). Our own stack: inquiry, paging, Secure Simple Pairing (Just Works), E0 encryption, L2CAP, AVDTP and a fixed-point SBC encoder. Host-tested; on the FM-1 the scan has heard no device yet, so no audio has been streamed.",
     "experimental": true,
     "notice": "experimental: Bluetooth Classic A2DP audio source",
     "off_warning": "",

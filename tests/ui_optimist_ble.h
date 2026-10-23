@@ -128,33 +128,38 @@ static void bt_fresh(uint32_t mode)                     /* nothing remembered, n
 #endif
     ble_store_reset(&ble_store);
     ble_dev_msg = 0;
-    bt_enter(mode);
+#if FELUCCA_BT_AUDIO
+    bt_enter(BT_AUD, 0);                                /* (BT AUDIO off, nothing remembered) */
+    memset(&bta, 0, sizeof bta);
+    btafk.st = BTA_S_NONE, btafk.lost = 0, btafk.out_bt = 1;
+#endif
+    bt_enter(BT_MIDI, mode);
     frames(2);
 }
 static void ble_mode_tests(void)
 {
     uint32_t k;
-    static const char *const M[3] = {"OFF", "MIDI MAN", "MIDI AUTO"};
+    static const char *const M[3] = {"OFF", "MAN", "AUTO"};
     bt_fresh(0);
     check(!ble_on && !strcmp(bt_val("MODE"), "OFF") && !strcmp(bt_val("STATE"), "OFF") && !strcmp(bt_val("DEVICE"), "NONE"),
           "Bluetooth OFF: MODE OFF, STATE OFF, DEVICE NONE");
     blp_shot_t("opt-ble-page-off");
     k = bt_line("MODE");
     turn(k, 1);
-    check(ble_on && ble_ui_mode == 1u && !strcmp(bt_val("MODE"), M[1]), "MODE right: MIDI MAN, the radio on");
+    check(ble_on && bt_mode(BT_MIDI) == 1u && !strcmp(bt_val("MODE"), M[1]), "MODE right: MIDI MAN, the radio on");
     check(!strcmp(bt_val("STATE"), "ADVERTISING"), "... nothing connected: STATE ADVERTISING (MIDI is visible)");
     blp_shot_t("opt-ble-page-on");
     k = bt_line("MODE");
     turn(k, 1);
-    check(ble_on && ble_ui_mode == 2u && !strcmp(bt_val("MODE"), M[2]), "... right again: MIDI AUTO");
+    check(ble_on && bt_mode(BT_MIDI) == 2u && !strcmp(bt_val("MODE"), M[2]), "... right again: MIDI AUTO");
     k = bt_line("MODE");
     turn(k, 1);
-    check(ble_ui_mode == (BT_AUDIO_BUILT ? 3u : 2u), "... right again: AUDIO MAN with BT_AUDIO, else MIDI AUTO stays (no AUDIO modes)");
+    check(bt_mode(BT_MIDI) == 2u && bt_mode(BT_AUD) == 0u, "... right again: MIDI AUTO stays (the end), BT AUDIO not touched");
     for (k = 0; k < 5u; k++)
         turn(bt_line("MODE"), -1);                      /* (a detent a mode) */
-    check(!ble_on && ble_ui_mode == 0u, "... left to the end: OFF, the radio off");
+    check(!ble_on && bt_mode(BT_MIDI) == 0u, "... left to the end: OFF, the radio off");
     ble_link = 1;
-    bt_enter(1);
+    bt_enter(BT_MIDI, 1);
     check(!strcmp(bt_val("STATE"), "CONNECTED") && !strcmp(bt_val("DEVICE"), "HOST"),
           "a computer connected to the FM-1: STATE CONNECTED, DEVICE HOST");
     bmi_w++;
@@ -169,13 +174,13 @@ static void ble_mode_tests(void)
     bt_fresh(0);
 }
 #if BLE_CENTRAL
-static uint32_t dev_row_n(void) { return bt_rows(); }
+static uint32_t dev_row_n(void) { return bt_rows(BT_MIDI); }
 static const char *dev_row_tag(uint32_t r)
 {
     const char *tag;
     int32_t bars;
     char nm[BLE_NAME_MAX + 1u];
-    bt_row(r, nm, &tag, &bars);
+    bt_row(BT_MIDI, r, nm, &tag, &bars);
     return tag;
 }
 static const char *bt_val_row(uint32_t r)              /* the list's row r: its name */
@@ -183,7 +188,7 @@ static const char *bt_val_row(uint32_t r)              /* the list's row r: its 
     static char nm[BLE_NAME_MAX + 1u];
     const char *tag;
     int32_t bars;
-    bt_row(r, nm, &tag, &bars);
+    bt_row(BT_MIDI, r, nm, &tag, &bars);
     return nm;
 }
 static void dev_select(int32_t s) { turn(EN_SELECT, s); frames(2); }
@@ -242,7 +247,7 @@ static void ble_save_tests(void)
     check(!strcmp(bt_val("DEVICE"), "KeyStep 37") && !strcmp(bt_val("STATE"), "CONNECTING"),
           "... the page: DEVICE KeyStep 37, STATE CONNECTING");
     cen_up();
-    check(ble_store_has_last(&ble_store) && !strcmp(bt_val("STATE"), "CONNECTED") && !strcmp(bt_val("DEVICE"), "KeyStep 37") && !bt.want,
+    check(ble_store_has_last(&ble_store) && !strcmp(bt_val("STATE"), "CONNECTED") && !strcmp(bt_val("DEVICE"), "KeyStep 37") && !bt_wants(BT_MIDI),
           "... up: it is the last device, STATE CONNECTED");
     blp_shot_t("opt-ble-page-connected");
     check(ble_store.sel == BLE_SEL_NONE, "MAN: once up, no search for it is armed (a link lost stays lost)");
@@ -259,24 +264,24 @@ static void ble_save_tests(void)
         ble_devices_poll();
         frames(1);
     }
-    check(ble_seeking() == 0 && cenfk.connects == (int)c0 && !bt.want, "... and it is not searched for again by itself");
+    check(ble_seeking() == 0 && cenfk.connects == (int)c0 && !bt_wants(BT_MIDI), "... and it is not searched for again by itself");
     /* a last device, not connected: SAVE connects to it; again (connecting): lets go */
     c0 = (uint32_t)cenfk.connects;
     bt_line("DEVICE");
     tap(B_SAVE);
-    check(bt.want && ble_store.sel == BLE_SEL_LAST && said("CONNECTING KeyStep 37"), "the last device, not connected: SAVE connects to it");
+    check(bt_wants(BT_MIDI) && ble_store.sel == BLE_SEL_LAST && said("CONNECTING KeyStep 37"), "the last device, not connected: SAVE connects to it");
     for (i = 0; i < 3u && ble_seeking() != 2; i++) {
         fm1_ms += 1000u;
         ble_devices_poll();
     }
     check(ble_seeking() != 0 && !strcmp(bt_val("STATE"), "SEARCHING"), "... STATE SEARCHING");
     tap(B_SAVE);
-    check(!bt.want && ble_store.sel == BLE_SEL_NONE && said("DISCONNECTED KeyStep 37"), "... SAVE while it connects: let go");
+    check(!bt_wants(BT_MIDI) && ble_store.sel == BLE_SEL_NONE && said("DISCONNECTED KeyStep 37"), "... SAVE while it connects: let go");
     /* not found in BT_TRY_MS: given up, said */
     tap(B_SAVE);
     fm1_ms += BT_TRY_MS + 16u;
     frames(1);
-    check(!bt.want && ble_store.sel == BLE_SEL_NONE && said("NO ANSWER KeyStep 37"), "a connect not up in 30 s: NO ANSWER KeyStep 37, given up");
+    check(!bt_wants(BT_MIDI) && ble_store.sel == BLE_SEL_NONE && said("NO ANSWER KeyStep 37"), "a connect not up in 30 s: NO ANSWER KeyStep 37, given up");
     /* SAVE held: forget, on any line; HOME: home */
     bt_line("MODE");
     save_held();
@@ -297,40 +302,40 @@ static void ble_auto_tests(void)
     uint32_t c0;
     bt_fresh(1);
     ble_store_set_last(&ble_store, (const uint8_t[6]){1, 2, 3, 4, 5, 6}, 1, "KeyStep 37", BLE_KIND_MIDI);
-    bt_enter(1);
+    bt_enter(BT_MIDI, 1);
     frames(2);
-    check(!bt.want && ble_store.sel == BLE_SEL_NONE, "MIDI MAN with a last device: nothing connects by itself");
-    bt_enter(2);
-    check(bt.want && ble_store.sel == BLE_SEL_LAST, "MIDI AUTO chosen: the last device is connected to");
+    check(!bt_wants(BT_MIDI) && ble_store.sel == BLE_SEL_NONE, "MIDI MAN with a last device: nothing connects by itself");
+    bt_enter(BT_MIDI, 2);
+    check(bt_wants(BT_MIDI) && ble_store.sel == BLE_SEL_LAST, "MIDI AUTO chosen: the last device is connected to");
     c0 = (uint32_t)cenfk.connects;
     fm1_ms += 1000u;
     ble_devices_poll();
     ble_devices_poll();                                 /* (the search armed, then its first try) */
     check(cenfk.connects == (int)c0 + 1, "... the stack initiates to it");
     cen_up();
-    check(!bt.want && !strcmp(bt_val("STATE"), "CONNECTED"), "... up: CONNECTED");
+    check(!bt_wants(BT_MIDI) && !strcmp(bt_val("STATE"), "CONNECTED"), "... up: CONNECTED");
     cen_gone(BLE_CF_LOST);
     ble_devices_poll();
     frames(2);
     fm1_ms += 3000u;
     ble_devices_poll();
     frames(2);
-    check(ble_seeking() == 0 && !bt.want, "AUTO: a link lost is not made again by itself");
+    check(ble_seeking() == 0 && !bt_wants(BT_MIDI), "AUTO: a link lost is not made again by itself");
     /* the record: the mode back at boot, AUTO connects */
     bt_rec_out(rec);
-    bt_enter(1);
-    bt.rec_mode = 0xFFu;
+    bt_enter(BT_MIDI, 1);
+    bt.rec = 0;
     bt_rec_in(rec);
-    check(bt.rec_mode == 2u, "the record: MODE kept (MIDI AUTO)");
+    check(bt.rec == (BT_REC_OK | 2u), "the record: MODE kept (MIDI AUTO, AUDIO OFF)");
     bt.boot = 0;
-    ble_ui_mode = 1;
+    bt_mode_put(BT_MIDI, 1);
     fm1_ms += 2000u;
     frames(1);
-    check(bt.boot && ble_ui_mode == 2u && bt.want && ble_store.sel == BLE_SEL_LAST, "boot: MIDI AUTO from the record, the last device connected to");
+    check(bt.boot && bt_mode(BT_MIDI) == 2u && bt_wants(BT_MIDI) && ble_store.sel == BLE_SEL_LAST, "boot: MIDI AUTO from the record, the last device connected to");
     rec[0] ^= 0xFFu;
-    bt.rec_mode = 0xFFu;
+    bt.rec = 0;
     bt_rec_in(rec);
-    check(bt.rec_mode == 0xFFu, "the record without its mark: not read");
+    check(bt.rec == 0u, "the record without its mark: not read");
     bt_fresh(0);
 }
 /* the list's rows follow the device, not the place; a device gone is said */
@@ -424,7 +429,7 @@ static void ble_bg_passkey_tests(void)
     ble_store_set_last(&ble_store, MAC, 0, "MacBook", BLE_KIND_MIDI);
     ble_store_set_bond(&ble_store, LTK, RND, 0x3334, 1);
     ble_store_set_mitm(&ble_store);
-    bt_enter(2);
+    bt_enter(BT_MIDI, 2);
     go_home();
     ui.force = 1;
     frames(2);
@@ -452,6 +457,206 @@ static void ble_bg_passkey_tests(void)
     bt_fresh(0);
 }
 #endif
+/* the settings record across the two pages (op_bt.c bt_rec_out / bt_rec_in): both modes kept; a record from before the
+ * split (one MODE in r[4]: OFF, MIDI MAN, MIDI AUTO, AUDIO MAN, AUDIO AUTO) read as that side's mode, the other side OFF;
+ * r[4] still written, as an older firmware reads it */
+static void bt_rec_tests(void)
+{
+    static const uint8_t OLD_M[5] = {0, 1, 2, 0, 0}, OLD_A[5] = {0, 0, 0, 1, 2};
+    uint8_t rec[BT_REC_SIZE];
+    uint32_t x, mk = BT_REC_MARK, want;
+    char what[160];
+    bt_fresh(0);
+    for (x = 0; x < 5u; x++) {
+        memset(rec, 0, sizeof rec);
+        memcpy(rec, &mk, 4);
+        rec[4] = (uint8_t)x;
+        bt.rec = 0;
+        bt_rec_in(rec);
+        want = x >= 3u && !BT_AUDIO_BUILT ? 0u : BT_REC_OK | OLD_M[x] | (uint32_t)OLD_A[x] << 2;
+        snprintf(what, sizeof what, "the record from before the two pages, MODE %u: read as MIDI %u, AUDIO %u%s", x,
+                 OLD_M[x], OLD_A[x], want ? "" : " (no BT_AUDIO built: as no record)");
+        check(bt.rec == want, what);
+    }
+    rec[4] = 7u;
+    bt.rec = 0;
+    bt_rec_in(rec);
+    check(bt.rec == 0u, "the record from before the two pages with a MODE past AUDIO AUTO: not read");
+    bt_mode_put(BT_MIDI, BT_MAN);
+    bt_mode_put(BT_AUD, BT_AUDIO_BUILT ? BT_AUTO : BT_OFF);
+    bt_rec_out(rec);
+    check(rec[4] == (BT_AUDIO_BUILT ? 4u : 1u) && rec[BT_REC_MODES] == (BT_REC_OK | bt.mode),
+          "the record written: both modes (byte 29), and byte 4 as an older firmware reads it (AUDIO's when AUDIO is on)");
+    bt.rec = 0;
+    bt_rec_in(rec);
+    check(bt.rec == (BT_REC_OK | BT_MAN | (BT_AUDIO_BUILT ? BT_AUTO : 0u) << 2), "... read back: both modes");
+    bt.mode = 0;
+    ble_on = 1;                                         /* (the settings word: BLUETOOTH on) */
+    bt.boot = 0;
+    fm1_ms += 2000u;
+    frames(1);
+    check(bt.boot && bt_mode(BT_MIDI) == BT_MAN && bt_mode(BT_AUD) == (BT_AUDIO_BUILT ? BT_AUTO : BT_OFF) && ble_on,
+          "boot: both modes from the record, each side on (MIDI MAN, AUDIO AUTO)");
+    memset(rec, 0, sizeof rec);
+    memcpy(rec, &mk, 4);
+    rec[4] = 3u;                                        /* (an old AUDIO MAN record: MIDI was switched off by it) */
+    bt.rec = 0;
+    bt_rec_in(rec);
+    bt.mode = 0;
+    ble_on = 0;
+    bt.boot = 0;
+    fm1_ms += 2000u;
+    frames(1);
+    check(bt.boot && bt_mode(BT_MIDI) == BT_OFF && bt_mode(BT_AUD) == (BT_AUDIO_BUILT ? BT_MAN : BT_OFF) && !ble_on,
+          "boot from an old AUDIO MAN record: AUDIO MAN, MIDI OFF (as before the split)");
+    bt_fresh(0);
+}
+#if FELUCCA_BT_AUDIO
+/* ---- the two pages at once (the user, 2026-10-23): BT MIDI and BT AUDIO, each its MODE, its connect, its list */
+static int bta_find_line(const char *lab, cell_t *c)    /* BT AUDIO's line lab (its index; -1: none) */
+{
+    uint32_t i;
+    if (ui.scr != SCR_SYSTEM)
+        op_enter(SCR_SYSTEM);
+    for (i = 0; i < gl_n(1); i++) {
+        if (strcmp(SYS[(gl_ent(1, i) >> 2) % NSYS].name, "BT AUDIO"))
+            continue;
+        gl_cell(1, i, c);
+        if (c->label && !strcmp(c->label, lab))
+            return (int)i;
+    }
+    return -1;
+}
+static uint32_t bta_line(const char *lab)               /* the cursor on BT AUDIO's line lab; its knob */
+{
+    cell_t c;
+    int i = bta_find_line(lab, &c);
+    if (i < 0)
+        return EN_K1;
+    line_at(SCR_SYSTEM, (uint32_t)i);
+    ui.force = 1;
+    frame();
+    return LINE_KNOB((uint32_t)i);
+}
+static const char *bta_val(const char *lab)
+{
+    static cell_t c;
+    return bta_find_line(lab, &c) >= 0 ? c.val : "?";
+}
+static void bt_two_pages_tests(void)
+{
+    uint32_t u, midi = 0, aud = 0, s0, p0, h0;
+    for (u = 0; u < NSYS_SETUP; u++) {
+        midi += !strcmp(SYS[u].name, "BT MIDI");
+        aud += !strcmp(SYS[u].name, "BT AUDIO");
+    }
+    check(midi == 1u && aud == 1u, "Bluetooth: two SYSTEM pages, BT MIDI and BT AUDIO (BLE and BT_AUDIO built)");
+    bt_fresh(1);
+    check(bta_find_line("MODE", &(cell_t){0}) >= 0 && !strcmp(bta_val("MODE"), "OFF") && !strcmp(bta_val("FORMAT"), "SBC 44.1k") &&
+              !strcmp(bta_val("DEVICE"), "NONE") && !strcmp(bta_val("STATE"), "OFF"),
+          "BT AUDIO: MODE OFF, DEVICE NONE, FORMAT SBC 44.1k, STATE OFF");
+    s0 = btafk.starts;
+    turn(bta_line("MODE"), 1);
+    check(bt_mode(BT_AUD) == BT_MAN && btafk.starts == s0 + 1u && !strcmp(bta_val("MODE"), "MAN"), "BT AUDIO MODE right: MAN, the audio side started");
+    check(ble_on && bt_mode(BT_MIDI) == BT_MAN && !strcmp(bt_val("MODE"), "MAN") && !strcmp(bt_val("STATE"), "ADVERTISING"),
+          "... BT MIDI stays on beside it (MAN, ADVERTISING): both at once");
+    s0 = btafk.stops;
+    turn(bt_line("MODE"), -1);
+    check(!ble_on && bt_mode(BT_MIDI) == BT_OFF && bt_mode(BT_AUD) == BT_MAN && bta.mode != BTA_OFF && btafk.stops == s0,
+          "BT MIDI MODE left: MIDI OFF, the radio's MIDI off; BT AUDIO left as it was (MAN, not stopped)");
+    turn(bt_line("MODE"), 1);
+    check(ble_on && bt_mode(BT_MIDI) == BT_MAN && bt_mode(BT_AUD) == BT_MAN, "BT MIDI back to MAN: AUDIO still MAN");
+    /* SAVE on BT AUDIO, nothing remembered: AUDIO's list (the inquiry), not MIDI's */
+    bta_line("FORMAT");
+    tap(B_SAVE);
+    frames(2);
+    check(dev_listing() && dev_side() == BT_AUD && btafk.scan_on && !blefk.want,
+          "BT AUDIO: SAVE, no last device: AUDIO's devices list, the inquiry on (BLE's scan not started)");
+    bta_fake_dev(0, 0x11, "AirPods");
+    bta_fake_dev(1, 0x22, "Speaker");
+    frames(2);
+    if (strcmp(bdp.st, "Save connects, hold forgets"))
+        printf("  the AUDIO list's status line: \"%s\"\n", bdp.st);
+    {
+        char nm[BLE_NAME_MAX + 1u];
+        const char *tag;
+        int32_t bars;
+        bt_row(dev_side(), 1, nm, &tag, &bars);
+        check(!strcmp(nm, "Speaker") && !tag[0] && bars < 0, "... row 2: Speaker, no tag, no bars (the inquiry gives none)");
+    }
+    check(dev_rows() == 2u && !strcmp(bdp.st, "Save connects, hold forgets"),
+          "... the devices the inquiry heard are its rows (the AUDIO list's line under them)");
+    dev_screen("opt-bta-devices");
+    p0 = btafk.pages;
+    tap(B_SAVE);
+    frames(2);
+    check(btafk.picks == 1u && btafk.pages == p0 + 1u && !dev_listing() && !btafk.scan_on && said("CONNECTING AirPods") &&
+              bt_wants(BT_AUD) && !bt_wants(BT_MIDI), "... SAVE on AirPods: paged, the list closed, AUDIO connecting, MIDI not");
+    check(!strcmp(bta_val("STATE"), "CONNECTING") && !strcmp(bta_val("DEVICE"), "AirPods") && !strcmp(bt_val("STATE"), "ADVERTISING"),
+          "... BT AUDIO: STATE CONNECTING, DEVICE AirPods; BT MIDI's STATE its own (ADVERTISING)");
+    /* MIDI's SAVE meanwhile: MIDI's list, AUDIO's connect left */
+    bt_line("MODE");
+    tap(B_SAVE);
+    frames(2);
+    check(dev_listing() && dev_side() == BT_MIDI && blefk.want && bt_wants(BT_AUD),
+          "BT MIDI: SAVE while AUDIO connects: MIDI's own list (BLE's scan), AUDIO's connect kept");
+    tap(B_HOME);
+    check(!dev_listing() && !blefk.want && bt_wants(BT_AUD), "... HOME: MIDI's scan stops, AUDIO's connect kept");
+    /* each side's own timer: AUDIO given up after 30 s, a MIDI connect started later goes on */
+    fm1_ms += 20000u;
+    bt_want(BT_MIDI, 1);
+    fm1_ms += BT_TRY_MS - 20000u + 32u;
+    frames(1);
+    check(!bt_wants(BT_AUD) && bt_wants(BT_MIDI) && said("NO ANSWER AirPods"),
+          "the timers are a side's own: AUDIO's connect given up at 30 s (NO ANSWER AirPods), MIDI's started 20 s later goes on");
+    bt_stop(BT_MIDI);
+    /* the link up: CONNECTED; SAVE lets go of AUDIO's only (a host on MIDI stays) */
+    ble_link = 1;
+    bta_line("STATE");
+    tap(B_SAVE);                                        /* (the last device: connected to) */
+    btafk.st = BTA_S_STREAMING;
+    frames(2);
+    check(!bt_wants(BT_AUD) && !strcmp(bta_val("STATE"), "CONNECTED") && !strcmp(bt_val("STATE"), "CONNECTED") &&
+              !strcmp(bt_val("DEVICE"), "HOST"), "AirPods streaming and a host on BLE MIDI: both pages CONNECTED");
+    bta_line("MODE");
+    ui.force = 1;
+    frames(3);
+    while (tf.t)
+        frame();
+    ppm("opt-bta-page");
+    s0 = ble_sets, h0 = btafk.hangups;
+    bta_line("DEVICE");
+    tap(B_SAVE);
+    check(btafk.hangups == h0 + 1u && ble_sets == s0 && ble_link && said("DISCONNECTED AirPods"),
+          "BT AUDIO: SAVE while streaming: AUDIO let go (DISCONNECTED AirPods), the MIDI host not touched");
+    btafk.st = BTA_S_FAILED;
+    /* SAVE held: forgets that page's last device only */
+    bta_line("MODE");
+    save_held();
+    check(!bta.have_last && said("FORGOTTEN AirPods") && ui.scr == SCR_SYSTEM && !dev_listing(),
+          "BT AUDIO: SAVE held forgets AirPods (that page's last device)");
+#if BLE_CENTRAL
+    ble_store_set_last(&ble_store, (const uint8_t[6]){1, 2, 3, 4, 5, 6}, 1, "KeyStep 37", BLE_KIND_MIDI);
+    bta_fake_dev(0, 0x11, "AirPods");
+    bta_pick(0);
+    bta_line("MODE");
+    save_held();
+    check(!bta.have_last && ble_store_has_last(&ble_store), "... with a MIDI last device too: MIDI's kept");
+    bt_line("MODE");
+    save_held();
+    check(!ble_store_has_last(&ble_store) && said("FORGOTTEN KeyStep 37"), "BT MIDI: SAVE held forgets MIDI's (KeyStep 37)");
+#endif
+    ble_link = 0;
+    s0 = btafk.stops;
+    turn(bta_line("MODE"), -1);
+    check(bt_mode(BT_AUD) == BT_OFF && btafk.stops == s0 + 1u && ble_on && bt_mode(BT_MIDI) == BT_MAN,
+          "BT AUDIO MODE left: OFF, the audio side stopped; BT MIDI still on");
+    bta_line("MODE");
+    tap(B_SAVE);
+    check(said("BT AUDIO OFF") && !dev_listing(), "BT AUDIO OFF: SAVE says so");
+    bt_fresh(0);
+}
+#endif
 static void ble_tests(void)
 {
     ble_sys_walk("off");
@@ -462,6 +667,10 @@ static void ble_tests(void)
     ble_auto_tests();
     ble_list_tests();
     ble_bg_passkey_tests();
+#endif
+    bt_rec_tests();
+#if FELUCCA_BT_AUDIO
+    bt_two_pages_tests();
 #endif
     ble_on = 0, ble_link = 0, ble_up = 1;
     bmi_w = bmo_w = 0;

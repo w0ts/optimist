@@ -157,6 +157,45 @@ the same. Both radios (BLE `0x28000`, BR/EDR `0x20000`) have a priority word and
 the AGC; no software scheduler arbitrates them for us (not tested, U12). Fixed-frequency test mode: `format` 2/3,
 `miscntl` 7, `linkcntl` bit5, `txfreq` = `rxfreq`, `0x20000` bits 15, 16, 19.
 
+#### 9.1 BLE MIDI and Bluetooth audio at the same time (2026-10-23)
+
+Before: one at a time. Choosing an AUDIO mode switched BLE MIDI off (`bta_start` called `ble_midi_set(0)`), and the
+BR/EDR bring-up ran the radio's start-up again (`fm1_ble_rf_init`, guarded only by its own flag) and, with `o_ble`
+on (the default), `fm1_ble_bb_init` with a 64-byte dummy window, which moves `0x2FC84` off BLE's control blocks and
+clears BLE's interrupt enables (`0x28028`, `0x2804C`). So MIDI after AUDIO in the same boot was probably broken too
+[I].
+
+Now (`firmware/src/ble/rf_share.h`, one byte of RAM):
+
+- **One start-up per boot**, by whichever side needs the radio first (`rfs_rf_up`): BLE's `ble_hw_wl82_start` and
+  BR/EDR's `bti_radio_up` both go through it; the second finds it up and starts nothing (no retune under the other's
+  link). The trims are the same VM set either way (BLE may use Optimist's copy of it).
+- **The LE block is BLE's.** BR/EDR's "LE enable beside BR/EDR" (`bti_le_up`, BR §14) runs only while BLE has not set
+  its own window (`rfs_le_br`); over a live BLE it is skipped (the block is enabled already). BLE after BR/EDR always
+  runs its `fm1_ble_bb_init` (`rfs_le_ble`): its window replaces the dummy one, which never held a link.
+- **The BR/EDR init after BLE** (`fm1_br_init`) still writes its own registers, among them `0x2FC48` = `0xAD` (BLE's
+  start-up wrote `0xB9`): stock V15 runs BLE with `0xAD` after its BR/EDR init, so this is stock's dual-mode state
+  [I], but our BLE has not been measured with it.
+- **The screen:** two pages, BT MIDI and BT AUDIO, each its own MODE, connect and timer (`ui/optimist/op_bt.c`);
+  `bta_start` leaves BLE MIDI alone.
+- **Air-time arbitration** (the priority words, `bt_inq.c` `BTI_ACL_PRIO`): stock's values kept, so the order is
+  stock's: eSCO 29 > BLE connection event 28 (30 around an instant) > BLE advertising 26 > BR/EDR ACL 20 > BLE
+  scanning 17. BLE MIDI wins a slot both want: a connection event is a packet or two per 7.5-30 ms and has no second
+  chance before the next interval, while an A2DP packet lost to it is resent by the baseband's ARQ and the SBC ring has
+  room. Which number wins (higher or lower) is inferred from stock's use, not measured.
+- **Interrupts:** BLE's two at priority 2 (its engine is hardware-timed), BR/EDR's 40/41 at 5 during a run (a page
+  answer must be reprogrammed within the slot): a BR/EDR interrupt may pre-empt BLE's handler, never the reverse.
+- **Longer BLE packets:** the screen mirror's peripheral now asks for data length extension (LL_LENGTH_REQ, up to 251
+  bytes, about 2.1 ms a packet at 1M) after 6 events (`ble_ll.c`, a separate change). A long BLE packet takes more
+  air per connection event while A2DP streams: more ACL slots lost to BLE, more ARQ resends of SBC.
+
+Untested on an FM-1 (U12 stays open): both links up at once (AirPods playing + a phone or a Mac on BLE MIDI); whether
+the engines' arbitration actually follows the priority words; crackles or SBC ring underruns from ACL slots lost to
+BLE; BLE supervision timeouts while a BR/EDR inquiry (10 s, the AUDIO devices list) or a page runs; the `0x2FC48`
+value under BLE; BLE first then audio, and audio first then BLE, each in one boot. Host-tested only:
+`tests/bt_coex_test.c` (the bring-up order) and the two pages (`tests/ui_optimist_ble.h`, build with BLE and
+BT_AUDIO).
+
 ### 10. RF
 
 RF start-up, calibration and the per-frame radio words are the BLE driver's (`firmware/hal/fm1_ble.h`). `0x2FD8C` gives
@@ -182,7 +221,7 @@ unit). A second FM-1 on stock V15 is therefore a possible inquiry target (unveri
 | U8 | `PLL_COMP` on a real unit (RX quality is the weak point, §14) |
 | U9 | whether stock V15 on hardware is discoverable as "FM-1" |
 | U10 | whether AirPods accept P-192 legacy SSP + E0 (the whole A2DP plan hangs on it) |
-| U11, U12 | IRQ 40 cost during a connection; coexistence with our BLE link |
+| U11, U12 | IRQ 40 cost during a connection; coexistence with our BLE link (built 2026-10-23, §9.1; not run on an FM-1) |
 
 ## Where the code is
 
@@ -190,6 +229,7 @@ unit). A second FM-1 on stock V15 is therefore a possible inquiry target (unveri
 |---|---|
 | `firmware/hal/fm1_bredr.h` | registers, frame struct, init list, clock, alarm, slot timers, IRQ 40/41 entries |
 | `firmware/src/bt/bt_inq.c`, `bt_inq_con.c` | stage 1: radio and clock check (`btclk`), inquiry (`btinq`), inquiry scan (`btscan`), `bttrace`, `btrx`; the console half is `bt_inq_con.c` |
+| `firmware/src/ble/rf_share.h` | the radio shared with BLE: one start-up, the LE block BLE's (§9.1; host test `tests/bt_coex_test.c`) |
 | `firmware/src/bt/bt_inq_core.c` | portable: sync-word parity, FHS parse/build, EIR name (host test `tests/bt_inq_test.c`) |
 | `firmware/src/bt/bt_page.c`, `bt_lmp.c` | stage 2: `btpage ADDR` pages as master, minimal LMP (host test `tests/bt_lmp_test.c`) |
 | `firmware/src/bt/bt_acl.c`, `bt_l2cap.c`, `bt_avdtp.c` | stages 3-4: L2CAP over DM1 fragments, an SDP client, an AVDTP initiator (host tests `bt_l2cap_test`, `bt_avdtp_test`) |
