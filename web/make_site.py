@@ -110,6 +110,7 @@ def logo_svg():
 
 STYLE_MARK = "/*OPTIMIST-CSS*/"                    # where a page takes web/style/optimist.css (docs/WEB-STYLE.md)
 HEADER_MARK = "<!--OPTIMIST-HEADER-->"             # where a page takes the shared header
+REPO = os.environ.get("GITHUB_REPOSITORY") or "w0ts/optimist"   # (the header's GitHub link; a fork's cloud build: its own)
 APPS = (("builder", "Builder"), ("installer", "Installer"), ("editor", "Editor"))
 EDITOR_ICON = ('<svg class="o-ic" width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true">'
                '<rect x="2" y="1" width="1.5" height="12"/><rect x="6.2" y="1" width="1.5" height="12"/><rect x="10.5" y="1" width="1.5" height="12"/>'
@@ -132,7 +133,8 @@ def shared_header(app):
         f'<a href="{href}"' + (' aria-current="page"' if a == app else "") + f">{(EDITOR_ICON + ' ' if a == 'editor' else '')}{t}</a>"
         for href, a, t in items)
     return (f'<header class="o-head"><a class="o-brand" href="../../" title="Optimist">{logo_svg()}<b>Optimist</b></a>'
-            f'<nav class="o-nav" aria-label="Optimist apps"><span class="o-sep" role="separator" aria-orientation="vertical"></span>{links}</nav></header>')
+            f'<nav class="o-nav" aria-label="Optimist apps"><span class="o-sep" role="separator" aria-orientation="vertical"></span>{links}'
+            f'<a class="o-gh" href="https://github.com/{REPO}" target="_blank" rel="noopener" title="Optimist on GitHub">github</a></nav></header>')
 
 
 def styled(html, app, page):
