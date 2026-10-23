@@ -81,6 +81,18 @@ final class MirrorLink: ObservableObject, Transport {
     private static let unanswered = 3   // requests without a reply: no mirror in this build
 
     init() {
+#if DEBUG
+        // the store screenshots on a simulator (no MIDI there): MIRROR_DEMO = a 240 x 240 RGB565 file (little-endian), shown as
+        // if an FM-1 mirrored it; a DEBUG build only, never the store's
+        if let path = ProcessInfo.processInfo.environment["MIRROR_DEMO"], let d = FileManager.default.contents(atPath: path),
+           d.count == MirrorDecoder.side * MirrorDecoder.side * 2 {
+            let px = stride(from: 0, to: d.count, by: 2).map { UInt16(d[$0]) | UInt16(d[$0 + 1]) << 8 }
+            lock.withLock { $0.decoder.show(px); $0.generation = 1 }
+            portName = "Optimist"
+            state = .mirroring
+            return
+        }
+#endif
         MIDIClientCreateWithBlock("Optimist Mirror" as CFString, &client) { [weak self] note in
             if note.pointee.messageID == .msgSetupChanged {
                 DispatchQueue.main.async { self?.connect() }
