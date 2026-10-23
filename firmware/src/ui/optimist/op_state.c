@@ -103,7 +103,11 @@ static struct {
  * octave when let go, and only if nothing else was used while they were down (op_input.c op_tap). `held` = fm1_in.buttons */
 static int op_shift(uint32_t held) { return (int)((held >> panel.btn[B_OCTDN]) & 1u); }
 static int op_shift2(uint32_t held) { return (int)((held >> panel.btn[B_OCTUP]) & 1u); }
-static int btn_held(uint32_t b) { return (int)((fm1_in.buttons >> panel.btn[b]) & 1u); }   /* button b down now */
+/* the buttons let go during this UI frame (op_input.c ui_input): still held for the frame's keys, so a chord whose key
+ * press and button release land in one frame (a brisk SAVE + key on the device, its frames slower than the test's) is
+ * the chord, not a tap (the user, 2026-10-23: SAVE + key in the pattern layer opened PROJECT) */
+static uint32_t op_frame_up;
+static int btn_held(uint32_t b) { return (int)(((fm1_in.buttons | op_frame_up) >> panel.btn[b]) & 1u); }   /* button b down now (or let go this frame) */
 static __attribute__((noinline)) track_t *tsel(void) { return TSEL; }   /* the selected track (a call: TSEL inlined is a multiply each time) */
 
 /* REC held: clear the selected track (the user, 2026-10-08: "I really like the long press of SLOOP to delete a
