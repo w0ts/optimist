@@ -213,10 +213,11 @@ static void pattern_transpose(track_t *t, int32_t d)    /* every note a semitone
 }
 
 /* ---- GLO: tap tempo (also the TEMPO page's white keys), the FX bypass */
-static void tap_tempo(void)
+static void tap_tempo_at(uint32_t now)                   /* a tap at its own time: a key's (lk_ev_ms, seq.c lk_t) or HOME's press
+                                                         * (op_t0): two taps one slow frame handles are still their real interval
+                                                         * apart, not 0 ms (BPM at its maximum) */
 {
-    uint32_t now = lk_ev_ms, i, sum = 0, n;             /* (the key's own time, seq.c lk_t: two taps one slow frame handles are
-                                                         * still their real interval apart, not 0 ms: BPM at its maximum) */
+    uint32_t i, sum = 0, n;
     if (lay.tap_n && now - lay.tap_ms[(lay.tap_n - 1u) & 3u] > 2000u)
         lay.tap_n = 0;                                  /* a pause: a new count */
     lay.tap_ms[lay.tap_n & 3u] = now;
@@ -229,6 +230,7 @@ static void tap_tempo(void)
     if (sum)
         song.g[G_BPM] = (int16_t)ui_clamp((int32_t)((60000u * n + sum / 2u) / sum), GP[G_BPM].min, GP[G_BPM].max);
 }
+static void tap_tempo(void) { tap_tempo_at(lk_ev_ms); }   /* a white key on the TEMPO page or GLO's layer */
 static void fx_bypass_toggle(uint32_t i)
 {
     track_t *t = &trk[i % NTRK];

@@ -532,7 +532,6 @@ static void oct_tap(uint32_t b)                         /* the keyboard octave, 
 
 /* ---- the input, every main-loop pass */
 static uint32_t op_held;                                /* the buttons down (op_clean: op_combos.c) */
-static uint32_t op_t0[14];                              /* each button's press (fm1_ms), by panel id */
 static const uint8_t JUMP_FAM[NB] = {[B_FX] = FAM_FX, [B_SCL] = FAM_SCL, [B_ENV] = FAM_ENV, [B_LFO] = FAM_LFO,
                                      [B_EDIT] = FAM_EDIT, [B_GLO] = FAM_GLO, [B_ARP] = FAM_ARP, [B_SEQ] = 0xFF,
                                      [B_HOME] = 0xFF, [B_SAVE] = 0xFF, [B_PLAY] = 0xFF, [B_REC] = 0xFF,
