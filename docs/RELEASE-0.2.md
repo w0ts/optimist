@@ -46,9 +46,9 @@ _Working draft 2026-10-23. Items marked **[check]** are to confirm on hardware o
 
 ## Sequencer and projects
 
+- **GRIDS note generator** (Mutable Instruments Grids' drum map) and the note generators, apart from the STEP tools. Two builder sub-items, off by default: Grids' Euclidean output mode (OUT DRUMS / EUCL: X, Y and CHAOS the three parts' lengths 1..32, BD SD HH their fills, bit for bit Grids' own table) and two LFOs on the drum track moving the kit's six GRIDS values. **[check: host-tested only]**
 - **Projects own their scenes, patterns and song.** A project is one record; PROJECT LOAD opens it (asks to SAVE first), SAVE saves everything, DELETE / NEW clear it; backup objects PJ01..PJ16.
 - **SONG tables:** scenes and parts as tables; SELECT / ALGORITHM navigate, the knobs edit; BARS; edits and clears while playing.
-- **GRIDS note generator** (Mutable Instruments Grids' drum map) and the note generators, apart from the STEP tools. Two builder sub-items, off by default: Grids' Euclidean output mode (OUT DRUMS / EUCL: X, Y and CHAOS the three parts' lengths 1..32, BD SD HH their fills, bit for bit Grids' own table) and two LFOs on the drum track moving the kit's six GRIDS values. **[check: host-tested only]**
 - **Mute mode** (SHIFT + a key) with three key lights; the master channel too; the track LEDs follow the notes.
 - **CHORD+ latch:** a black modifier key tapped twice stays on.
 - **Live save** (builder item): save while playing.
