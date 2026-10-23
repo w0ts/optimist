@@ -87,7 +87,7 @@ SIZE_FILES += ["system/ota.c", "system/recovery.c"]   # (cpuguard.c measured too
 # radio's start-up, the A2DP stream's main-loop half: bti_poll, bp_print_rx, ble_midi_init, mir_blit ...): minsize;
 # what their interrupts reach (the *_irq roots: the LL, the LMP, the baseband drivers) stays at -Os by the guard below
 # (2026-10-23, -668 B on mots.config; ble_ll.c, ble_hw_wl82_central.c, ble_scan.c, ble_store.c and the rest stay listed above)
-SIZE_FILES += ["ble/ble_hw_wl82.c", "bt/bt_inq.c", "io/midi/midi_ble.c", "ble/ble_vm.c", "felucca.c",
+SIZE_FILES += ["bt/bt_afh.c", "ble/ble_hw_wl82.c", "bt/bt_inq.c", "io/midi/midi_ble.c", "ble/ble_vm.c", "felucca.c",
                "bt/bt_acl.c", "bt/bt_l2cap.c", "bt/bt_audio.c", "bt/bt_page.c",
                "bt/bt_inq_core.c", "bt/bt_lmp.c", "bt/bt_sdps.c", "ble/ble_att.c", "ble/ble_host.c", "bt/bt_avdtp.c",
                "ble/ble_midi.c", "io/midi/ble_devices.c"]
@@ -195,6 +195,28 @@ def audio_reach(funcs, audio_names, globs=None):
     return seen
 
 
+# the sound side's files hold main-loop code too: params.c's page descriptors and value formatting, seq.c's step edits,
+# auto.c's clears, the drums' and engines' UI helpers. A function of theirs that no interrupt root (the *_irq bodies, the
+# RAM code: the ISRs, the second core) reaches through the static graph above runs in the main loop only: built for size
+# as if it were in SIZE_FILES, and it is no root of the reach (what only it reaches follows). The files whose speed
+# matters whole stay out: boot and the main loop, flash, USB, MIDI, the display, the stores, the radios
+SIDE_OUT = ("system/", "io/usb/", "io/midi/", "storage/", "display/", "ble/", "bt/")
+
+
+def main_loop_side(funcs, globs):
+    """the functions of AUDIO_FILES / OS_FILES (but SIDE_OUT's) that no interrupt / RAM root reaches"""
+    roots = {n for n, (head, _) in funcs.items() if n.endswith("_irq") or re.search(r'section "\.ram', head)}
+    seen, todo = set(roots), list(roots)
+    while todo:
+        n = todo.pop()
+        for ref in IR_REF.findall(funcs[n][1] if n in funcs else globs[n]):
+            if (ref in funcs or ref in globs) and ref not in seen:
+                seen.add(ref)
+                todo.append(ref)
+    names = names_in([f for f in AUDIO_FILES + OS_FILES if not f.startswith(SIDE_OUT)])
+    return {n for n in names if n in funcs and n not in seen}
+
+
 def check():
     """every firmware/src/*.c in exactly one list: a new main-loop file left out costs flash unseen"""
     lists = SIZE_FILES + AUDIO_FILES + OS_FILES
@@ -218,8 +240,10 @@ def main(argv):
         print("size: IR round trip only (no function marked)")
         return 0
     funcs = ir_functions(ir)
-    want = names_in(SIZE_FILES)
-    keep = audio_reach(funcs, names_in(AUDIO_FILES), ir_globals(ir))
+    globs = ir_globals(ir)
+    side = main_loop_side(funcs, globs)
+    want = names_in(SIZE_FILES) | side
+    keep = audio_reach(funcs, names_in(AUDIO_FILES) - side, globs)
     held = sorted(n for n in want if n in keep and n in funcs)
     hit = set()
 
@@ -240,7 +264,7 @@ def main(argv):
     Path(dst).write_text(IR_DEF.sub(mark, ir))
     print(f"size: {len(hit)} main-loop functions built for size "
           f"({len(held)} kept at -Os: the sound side reaches them; {len(want - set(funcs))} not in this build; "
-          f"{len(bound & hit)} noinline: -Os code calls them)")
+          f"{len(bound & hit)} noinline: -Os code calls them; {len(side & hit)} the sound side's files' main-loop functions)")
     if held:
         print("size: kept at -Os: " + " ".join(held))
     return 0

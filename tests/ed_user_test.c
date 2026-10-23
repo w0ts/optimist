@@ -21,6 +21,7 @@ static int st_prog(uint32_t off, const void *src, uint32_t n)
         nor[off + i] &= ((const uint8_t *)src)[i];
     return 0;
 }
+#define ST_XIP_PTR(off) (nor + (off))             /* the banks read where they are (upreset.c UP_XIP), as the target does */
 #include "../firmware/src/storage/storage.c"
 static uint8_t flash_ok = 1;
 static struct { int force; } ui;
