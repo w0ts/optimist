@@ -331,6 +331,16 @@ def build_app():
         pass
     if VERSION:
         flags.append(f'-DFELUCCA_VERSION="{VERSION}"')
+    # the delta-coded tables' blobs (gen_tables.py TAB_STREAM): the groups this configuration builds, in gen_tables.py's
+    # GROUPS order, as one block of the boot stream (below), decoded onto fm1_cstart's stack and expanded from there
+    # (main.c tab_expand); the header's _Static_assert holds the length against its own #if set (2026-10-23: -7xx B of
+    # flash on mots against the blobs as arrays: the range coder squeezes the LEB128 bytes)
+    tca = int(CFG_VALUES.get("FELUCCA_TAB_CODED_ALL", os.environ.get("FELUCCA_TAB_CODED_ALL", "0")))
+    fm6 = int(CFG_VALUES.get("FELUCCA_ENG_FM6", os.environ.get("FELUCCA_ENG_FM6", "1")))
+    tab_blob = b"".join((GEN / f"tab_blob_{g}.bin").read_bytes()
+                        for g, on in (("core", True), ("flash", tca >= 1), ("fm6", fm6 == 1 and tca >= 2)) if on)
+    (OUT / "tabblob.bin").write_bytes(tab_blob)
+    flags.append(f"-DTAB_STREAM_LEN={len(tab_blob)}u")
     # Felucca 1.0.1 (20c275e): felucca.c goes to LLVM IR without the optimizer, the main-loop functions
     # (UI, stores, editor) are marked minsize (tools/size_fns.py), then the IR is compiled at -Os.
     # (always: the SIZE builder choice, bit 70, is retired; tools/size_fns.py never marks the audio path)
@@ -420,7 +430,8 @@ def build_app():
         raise SystemExit(f"_lz_load {load:#x}: not word aligned, or inside .text")
     try:
         stream, raw_total = lzb.stream([(OUT / s).read_bytes() if (OUT / s).exists() else b""
-                                        for s in ("data.bin", "poolinit.bin", "ramtext.bin", "ramhot.bin", "ramhot2.bin")])
+                                        for s in ("data.bin", "poolinit.bin", "tabblob.bin", "ramtext.bin", "ramhot.bin",
+                                                  "ramhot2.bin")])   # (tabblob: main.c decodes it after .pool_init, tab_expand)
     except ValueError as e:
         raise SystemExit(f"build: {e}")
     print(f"lzb: {raw_total:,} B copied into RAM at boot (.data, the pool's tables, the RAM code), {len(stream):,} B in flash")
