@@ -79,6 +79,7 @@ struct MirrorView: View {
     @State private var image: CGImage?
     @State private var seen = 0
     @State private var picking = false
+    @State private var editing = false
 
     var body: some View {
         ZStack {
@@ -97,7 +98,16 @@ struct MirrorView: View {
                 }
             }
         }
+        .overlay(alignment: .topLeading) {
+            Button { editing = true } label: {   // (Projects, Library, Backup)
+                Image(systemName: "square.stack.3d.up")
+                    .font(.footnote)
+                    .foregroundStyle(.white.opacity(0.35))
+                    .padding(12)
+            }
+        }
         .sheet(isPresented: $picking) { BluetoothPicker() }
+        .sheet(isPresented: $editing) { EditorView(link: link) }
         .statusBarHidden()
         .persistentSystemOverlays(.hidden)
         .task { await draw() }

@@ -28,3 +28,24 @@ front.
 Over Bluetooth the link is slower: small changes come as they happen; when the screen changes faster than the link carries, the
 FM-1 drops what it draws and sends the whole screen again once the link is clear (at most 4 times a second, no flash on the
 device). How fast that is on the real link has not been measured yet.
+
+## Projects, Library, Backup
+
+The button in the top-left corner of the mirror opens the web editor's Projects, Library and Backup tabs as a sheet. They send the
+editor's SysEx commands (`web/EDITOR_PROTOCOL.md`) over the same CoreMIDI ports, one request at a time; the mirror's request pauses
+while one of them works. Files are the web editor's: a `.optimist-backup` (full backup, or one section), `felucca-library` /
+`felucca-patch` JSON (the library, the bank, one patch) and `optimist-pattern` JSON open in the web editor and the other way round.
+Export goes through iOS's share sheet (Save to Files, AirDrop ...), import through the Files picker.
+
+- **Projects**: the sections A.. (PROJECT 9: load, save; a section as a file through BK_*), the per-track patterns (PAT_* 79..84) when
+  the firmware has them.
+- **Library**: the 32 user presets (UP_* 16..21: load on the track, store the current sound, erase, copy to the library, write
+  from it, export the bank) and the app's library of patches (a `felucca-library` file in the app's folder).
+- **Backup**: every stored object (BK_* 43..48, the sample slots through SMP_* 11..13) into one file; restore with the objects ticked.
+  The snapshots area is restored in the web editor only; DX7 `.syx` and the user drum kits (UKIT) are not in the app.
+
+These need the USB cable: over Bluetooth the firmware answers the mirror's request only (`ed_mirror.c` `mir_ble_rx`), the app says so.
+
+`Tests/Fixtures/make_fixtures.mjs` regenerates the web-written files the tests read (`web_*`) and checks the other direction: the tests
+write the app's files into `$FM1_EXPORT_DIR` (`TEST_RUNNER_FM1_EXPORT_DIR=<folder> xcodebuild test ...`), and
+`node ios/OptimistMirror/Tests/Fixtures/make_fixtures.mjs read <folder>` opens them with the web editor's functions.
