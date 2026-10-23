@@ -532,15 +532,48 @@ static const char *ng_who(void)                         /* the slot's name: "T1"
 #if FELUCCA_GEN_GRIDS
 /* GRIDS (pg 3: X Y CHAOS) and DENSITY (pg 4: BD SD HH): knob k's value, the drum track's id */
 static uint32_t gr_kid(uint32_t pg, uint32_t k) { return k < 3u ? P_GRX + (pg - 3u) * 3u + k : P_COUNT; }
+#if FELUCCA_GRIDS_EUCLID
+/* OUT EUCL (seq/gen.c gr_eu_hit): GRIDS's X Y CHAOS are the parts' lengths, DENSITY's BD SD HH their hits; the values
+ * stay the drum track's 0..127 (locks and motion as before), the cards show the steps and the hits they make */
+static const char *const GR_EU_LBL[2][3] = {{"BD LEN", "SD LEN", "HH LEN"}, {"BD", "SD", "HH"}};
+static int gr_eu_cell(uint32_t pg, uint32_t k, cell_t *c)
+{
+    const int16_t *v = TDRUM->p;
+    uint32_t p = k % 3u, n = gr_eu_len(v, p), x;
+    if (pg == 3u && k == 3u) {                           /* OUT: Grids' output mode */
+        c->kind = CK_VAL;
+        cell_list(c, "OUT", GR_OUT_NAME[gr_out % GRO_N], GRO_N - 1, gr_out);
+        return 1;
+    }
+    if (gr_out != GRO_EUCLID || k > 2u)
+        return 0;
+    x = pg == 3u ? n : gr_eu_hits(v, p);
+    c->kind = CK_VAL;
+    c->label = GR_EU_LBL[pg - 3u][p];
+    fmt_int(c->val, (int32_t)x);
+    cell_gauge(c, 0, pg == 3u ? 1 : 0, pg == 3u ? 32 : (int32_t)n, (int32_t)x);
+    return 1;
+}
+#else
+#define gr_eu_cell(pg, k, c) 0
+#endif
 static void gr_kcell(uint32_t pg, uint32_t k, cell_t *c)
 {
     uint32_t id = gr_kid(pg, k);
+    if (gr_eu_cell(pg, k, c))
+        return;
     if (DRUM_GR_OF(id))
         cell_param(c, DRUM_GR_OF(id), &TDRUM->p[id]);
 }
 static void gr_kturn(uint32_t pg, uint32_t k, int32_t s)
 {
     uint32_t id = gr_kid(pg, k);
+#if FELUCCA_GRIDS_EUCLID
+    if (pg == 3u && k == 3u) {                           /* OUT: DRUMS <-> EUCL (a byte the ISR reads) */
+        gr_out = s > 0 ? GRO_EUCLID : GRO_DRUMS;
+        return;
+    }
+#endif
     if (DRUM_GR_OF(id))
         dval_turn(id, DRUM_GR_OF(id), k, s, 0);         /* (recorded as motion as ACCENT's: op_cells.c) */
 }

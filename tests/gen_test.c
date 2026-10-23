@@ -11,6 +11,9 @@
  *   7. the stored form: GEN_TLV through the FX record (fxr_encode / fxr_decode), none: every slot off
  *   8. GRIDS (Mutable Instruments Grids' drum map): node 10's levels at X 0 Y 0 read by hand, the part each lane reads,
  *      the ACCENT lane, DENSITY 0 and more DENSITY across the map, a bar of 16ths repeated through LEN
+ *   9. GRIDS_EUCLID: gr_eu_mask = Grids' own table (tests/grids_euclid_ref.txt, tests/gen_grids_euclid_ref.py) for every
+ *      length and fill; the knobs' lengths and hits; OUT EUCL on the kit: each part its own length through the passes,
+ *      no accent, the other lanes alone, WRITE as heard; OUT saved in GEN_TLV (pseudo-slot 31), none at DRUMS
  * Exit status: the number of failed checks. */
 #define FELUCCA_MOTION 1
 #define FELUCCA_PLOCK 1
@@ -20,6 +23,7 @@
 #define FELUCCA_COND 1
 #define FELUCCA_NOTEGEN 1
 #define FELUCCA_GEN_GRIDS 1
+#define FELUCCA_GRIDS_EUCLID 1
 #define GEN_BUILT 1                     /* (the generators without the Optimist UI around them) */
 #define FELUCCA_MIDI_OUT 1
 #define FELUCCA_ARRANGER 1
@@ -590,6 +594,78 @@ static void kit_tests(void)
           ok && TDRUM->p[P_GRX] == 64 && TDRUM->p[P_GRY] == 64 && TDRUM->p[P_GRCH] == 0 && TDRUM->p[P_GRBD + 2] == 64);
     gen_reset_all();
 }
+
+/* GRIDS_EUCLID: Grids' table, the knobs, the kit in OUT EUCL, the stored OUT */
+static void euclid_tests(void)
+{
+    static uint8_t rec[FXR_MAX];
+    uint32_t n, f, ok = 1, rows = 0, lane, h, hard = 0, i, pass, x, m;
+    char line[512];
+    FILE *fp = fopen("tests/grids_euclid_ref.txt", "r");
+    while (fp && fgets(line, sizeof line, fp)) {        /* a line a length, 32 masks: the fills */
+        char *q = line;
+        if (line[0] == '#')
+            continue;
+        n = ++rows;
+        for (f = 0; f < 32u; f++) {
+            unsigned long ref = strtoul(q, &q, 16);
+            ok &= gr_eu_mask((2u * f * n + 31u) / 62u, n) == (uint32_t)ref;
+        }
+    }
+    if (fp)
+        fclose(fp);
+    check("GRIDS_EUCLID: gr_eu_mask = Grids' table (lut_res_euclidean) for every length 1..32 and fill 0..31", ok && rows == 32u);
+    kit_setup(0);
+    TDRUM->p[P_GRX] = 0, TDRUM->p[P_GRBD] = 127;
+    ok = gr_eu_len(TDRUM->p, 0) == 1u && gr_eu_hits(TDRUM->p, 0) == 1u;
+    TDRUM->p[P_GRX] = 127, TDRUM->p[P_GRBD] = 0;
+    ok &= gr_eu_len(TDRUM->p, 0) == 32u && gr_eu_hits(TDRUM->p, 0) == 0u;
+    TDRUM->p[P_GRX] = 60, TDRUM->p[P_GRBD] = 127;     /* (60 -> Grids' 120 -> 120 >> 3 + 1 = 16 steps, every one) */
+    ok &= gr_eu_len(TDRUM->p, 0) == 16u && gr_eu_hits(TDRUM->p, 0) == 16u;
+    check("... the knobs as Grids': X 0 one step, 127 32 steps; BD 0 no hit, 127 every step", ok);
+    kit_setup(0);
+    gr_out = GRO_EUCLID;
+    TDRUM->p[P_GRX] = 18, TDRUM->p[P_GRBD] = 40;      /* BD: 5 steps (36 >> 3 + 1), 2 hits (80 >> 3 = 10: 10 / 31 x 5) */
+    TDRUM->p[P_GRY] = 28, TDRUM->p[P_GRBD + 1] = 64;  /* SD: 8 steps (56 >> 3 + 1), 4 hits (129 >> 3 = 16: 16 / 31 x 8) */
+    TDRUM->p[P_GRCH] = 0, TDRUM->p[P_GRBD + 2] = 127; /* HH: 1 step, hit every step */
+    ok = gr_eu_len(TDRUM->p, 0) == 5u && gr_eu_hits(TDRUM->p, 0) == 2u && gr_eu_len(TDRUM->p, 1) == 8u &&
+         gr_eu_hits(TDRUM->p, 1) == 4u;
+    for (pass = 0; pass < 3u; pass++) {               /* each part on its own length, on through the passes (LEN 32) */
+        TDRUM->pass = pass;
+        for (lane = 0; lane < 2u; lane++) {
+            uint32_t want = 0, k = gr_eu_mask(gr_eu_hits(TDRUM->p, lane), gr_eu_len(TDRUM->p, lane));
+            for (i = 0; i < 16u; i++)
+                want |= ((k >> ((pass * 32u + i) % gr_eu_len(TDRUM->p, lane))) & 1u) << i;
+            m = kit_mask(lane, &h);
+            ok &= m == want, hard |= h;
+        }
+        ok &= kit_mask(3, &h) == 0xFFFFu;
+    }
+    check("... OUT EUCL: KICK 2 in 5, SNARE 4 in 8, HAT every step, each running on through the passes (LEN 32)", ok && !hard);
+    check("... no accent in this mode; the CLAP lane as stored", kit_mask(DRUM_ACC, &h) == 0u && kit_mask(2, &h) == B(1));
+    {
+        static step_t w[NSTEP];
+        TDRUM->pass = 0;
+        gen_render(TDRUM, w, ~0u);
+        (void)gen_write(TDRUM, GEN_KIT);
+        for (ok = 1, i = 0; i < 32u; i++)
+            ok &= !memcmp(&TDRUM->dstep[i], &((const dstep_t *)(const void *)w)[i], sizeof(dstep_t));
+        check("... WRITE: the pattern as it played", ok);
+    }
+    heard_setup();
+    AUTO_L(0)->n = 0, AUTO_L(TRK_DRUM)->n = 0;
+    gr_out = GRO_EUCLID;
+    n = fxr_encode(rec);
+    gen_reset_all();
+    x = gr_out;
+    ok = n > 0u && fxr_decode(rec, n, 1) && gr_out == GRO_EUCLID && x == GRO_DRUMS;
+    gr_out = GRO_DRUMS;
+    n = fxr_encode(rec);
+    ok &= (n == 0u || !memchr(rec + FXR_HEAD, GEN_TLV, 1)) && gen_tlv(rec) == 0u;
+    (void)fxr_decode(0, 0, 0);
+    check("... OUT is saved (GEN_TLV pseudo-slot 31) and back; DRUMS: nothing stored; a project without: DRUMS", ok && !gr_out);
+    gen_reset_all();
+}
 #undef B
 
 /* WRITE in two halves (gen_write_prep with the interrupts on, gen_write_commit with them off): the same pattern as
@@ -628,6 +704,7 @@ int main(void)
     det_tests();
     grids_tests();
     kit_tests();
+    euclid_tests();
     tlv_tests();
     write_split_tests();
     printf(bad ? "gen test FAILED (%d)\n" : "gen test passed\n", bad);
