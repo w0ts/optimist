@@ -13,6 +13,7 @@
 		386A854128A10BF09661B03D /* Wire.swift in Sources */ = {isa = PBXBuildFile; fileRef = 275CAE91D846510B1BFCCF01 /* Wire.swift */; };
 		38AA9DD0B60C4B0CB50AA01B /* EditorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6F6C66EBA275D0EEB5E7566 /* EditorTests.swift */; };
 		3AA30F2A997715C708ED3D3C /* MirrorDecoderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 966AB47DC696C8582C328253 /* MirrorDecoderTests.swift */; };
+		42C13562B0663688F4A9F917 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5633A1973EDA1E9E3E1ECC04 /* Assets.xcassets */; };
 		43684D2B1E539B2E4C878E3B /* web_patch_file.json in Resources */ = {isa = PBXBuildFile; fileRef = D7B57B7B25C4E51D2AE46946 /* web_patch_file.json */; };
 		4649E2AFEED3A97BD4EEB635 /* MirrorDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6F31FA3CF326B87F5453721 /* MirrorDecoder.swift */; };
 		4A39CECF46CAAFC6056EDDDD /* EditorSession+Library.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EB0E61259FE4F0AAF558D5C /* EditorSession+Library.swift */; };
@@ -56,6 +57,7 @@
 		4DD5DDFFD7CFEC7920FB8F45 /* LibraryFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryFile.swift; sourceTree = "<group>"; };
 		4EC7D08FB654B9DFAB6A218E /* FakeFM1.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FakeFM1.swift; sourceTree = "<group>"; };
 		4F9FA8878BB640A9C6EF190C /* web_library.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = web_library.json; sourceTree = "<group>"; };
+		5633A1973EDA1E9E3E1ECC04 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		5D8D6024DF9B95CFFEEF0783 /* MirrorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MirrorView.swift; sourceTree = "<group>"; };
 		6736D3DEE9260E0180D15469 /* BackupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupView.swift; sourceTree = "<group>"; };
 		6754F3F289DC97CFA49C1379 /* OptimistMirrorTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = OptimistMirrorTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -78,6 +80,14 @@
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
+		034CB5854610C517C7FC4522 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				5633A1973EDA1E9E3E1ECC04 /* Assets.xcassets */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
 		28CC8CC2993A5100466EE2B0 /* OptimistMirror */ = {
 			isa = PBXGroup;
 			children = (
@@ -105,6 +115,7 @@
 			isa = PBXGroup;
 			children = (
 				28CC8CC2993A5100466EE2B0 /* OptimistMirror */,
+				034CB5854610C517C7FC4522 /* Resources */,
 				DCFB41DEA3B2BA3B45DA6505 /* Sources */,
 				C82CDE272F83AD514720E664 /* Tests */,
 				F21B6F0BA5B5031641946E7A /* Products */,
@@ -189,6 +200,7 @@
 			buildConfigurationList = 32B9C3862D62550073532DF4 /* Build configuration list for PBXNativeTarget "OptimistMirror" */;
 			buildPhases = (
 				8EEB54093BE4F79FF889CC98 /* Sources */,
+				2FAFC281BA477EDA93B79492 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -250,6 +262,14 @@
 				AD46B38D1534BD51B9093140 /* web_library.json in Resources */,
 				43684D2B1E539B2E4C878E3B /* web_patch_file.json in Resources */,
 				04911E8303FC273E81596618 /* web_pattern.json in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		2FAFC281BA477EDA93B79492 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				42C13562B0663688F4A9F917 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
