@@ -43,7 +43,7 @@ A screen is five functions (rows, a row's name, a cell, a turn, a YES). A cell i
 | The master FX | FX tapped on the mixer's MASTER row; ALGORITHM left of T1 |
 | GLOBAL, SYSTEM | GLO tapped (again: the other) |
 | PROJECT | SAVE tapped where YES has nothing to do |
-| SONG | SAVE held on PROJECT (on SONG: back) |
+| SONG | SAVE held on PROJECT (on SONG a long SAVE does nothing: the user, 2026-10-23 — a store gesture held long must not leave the screen; back is SEQ held, or a SAVE tap) |
 | TEMPO | PLAY held |
 | SCOPE | HOME tapped on the mixer |
 | NAME | a save that names (section 4.11) |
