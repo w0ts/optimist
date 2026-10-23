@@ -674,6 +674,15 @@ static uint32_t held_each(void (*f)(track_t *t, uint32_t idx, int32_t s), int32_
  * by themselves; a quick tap toggles the step and shows none (the user, 2026-10-10: "in seq, we should show the plock
  * overlay only after some time"). An edit or a page change while it is held shows them at once (step_cards_show) */
 static int step_held_long(void) { return st.held && fm1_ms - st.t_down >= op_hold_ms(); }
+/* the cards up (a page change, a value edited, a step held): ~1.5 s after the last one (OP_CARDS_FRAMES); the page's
+ * own cards ~30 s once SHIFT2 + SELECT was turned, until STEP is left (cards_long, OP_CARDS_LONG: GRIDS' X / Y turned
+ * while listening, the user 2026-10-23: "long if right shift + select turn", "not the plock"); a held step's always
+ * the short time once it is let go (re-armed every frame while it is held) */
+static void step_cards_show(void)
+{
+    if (ui.scr == SCR_STEP)
+        ui.cards_t = cards_long && !st.held ? OP_CARDS_LONG : OP_CARDS_FRAMES, cards_snap_use = 0;
+}
 static int32_t held_first(void)                         /* the first step held (its values on the cards), -1 none */
 {
     uint32_t w;
