@@ -85,6 +85,25 @@ struct RootView: View {
     }
 
     var body: some View {
+        Group {
+            if link.state == .searching {
+                ConnectView(link: link)
+            } else {
+                tabs
+            }
+        }
+        .task(id: "\(link.portName)|\(link.bluetooth)") { await session.connect() }
+        .sheet(item: $session.export) { ActivityView(url: $0.url) }
+        .onAppear {
+            tilt.start()
+            Turn.to(Turn.quarter(tilt.quarter))
+        }
+        .onDisappear { tilt.stop() }
+        .onChange(of: tilt.quarter) { _, q in Turn.to(Turn.quarter(q)) }
+        .preferredColorScheme(.dark)
+    }
+
+    private var tabs: some View {
         TabView {
             MirrorView(link: link, upright: tilt.quarter - Turn.quarter(tilt.quarter), bars: $bars)
                 .toolbar(bars ? .visible : .hidden, for: .tabBar)
@@ -96,15 +115,51 @@ struct RootView: View {
             BackupView(s: session)
                 .tabItem { Label("Backup", systemImage: "externaldrive") }
         }
-        .task(id: "\(link.portName)|\(link.bluetooth)") { await session.connect() }
-        .sheet(item: $session.export) { ActivityView(url: $0.url) }
-        .onAppear {
-            tilt.start()
-            Turn.to(Turn.quarter(tilt.quarter))
+    }
+}
+
+/// No FM-1 port: the app's icon, then the ways to connect (no tabs: there is nothing to show yet).
+struct ConnectView: View {
+    @ObservedObject var link: MirrorLink
+
+    var body: some View {
+        VStack(spacing: 20) {
+            Image("Logo")
+                .resizable()
+                .frame(width: 160, height: 160)
+                .clipShape(RoundedRectangle(cornerRadius: 36, style: .continuous))
+                .accessibilityHidden(true)
+            Text("Connect Your FM-1")
+                .font(.title2.bold())
+            Text("Plug it in with a USB cable, or turn on Bluetooth in the FM-1's SYSTEM page.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            Button { BluetoothPicker.present() } label: {
+                Label("Connect with Bluetooth", systemImage: "dot.radiowaves.left.and.right")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            if !link.ports.isEmpty || !link.chosen.isEmpty {
+                Menu {
+                    Picker("MIDI Port", selection: $link.chosen) {
+                        Text("Automatic").tag("")
+                        ForEach(link.ports, id: \.self) { Text($0).tag($0) }
+                    }
+                } label: {
+                    Label(link.chosen.isEmpty ? "Choose MIDI Port" : link.chosen, systemImage: "cable.connector")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+            }
         }
-        .onDisappear { tilt.stop() }
-        .onChange(of: tilt.quarter) { _, q in Turn.to(Turn.quarter(q)) }
-        .preferredColorScheme(.dark)
+        .padding(32)
+        .frame(maxWidth: 420)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.black.ignoresSafeArea())
+        .statusBarHidden()              // (shown, iOS's Bluetooth MIDI sheet crashes: MirrorView)
     }
 }
 
@@ -123,27 +178,6 @@ struct MirrorView: View {
         }
         .contentShape(Rectangle())
         .onTapGesture { withAnimation { bars.toggle() } }
-        .overlay(alignment: .topTrailing) {
-            if bars {
-                Menu {
-                    Button("Bluetooth…", systemImage: "dot.radiowaves.left.and.right") { BluetoothPicker.present() }
-                    Picker("MIDI Port", selection: $link.chosen) {
-                        Text("Automatic").tag("")
-                        ForEach(link.ports, id: \.self) { Text($0).tag($0) }
-                    }
-                    .pickerStyle(.inline)
-                } label: {
-                    Image(systemName: link.bluetooth ? "dot.radiowaves.left.and.right" : "cable.connector")
-                        .font(.title3)
-                        .frame(width: 44, height: 44)
-                }
-                .buttonStyle(.bordered)
-                .buttonBorderShape(.circle)
-                .tint(.white)
-                .accessibilityLabel("Connection")
-                .padding()
-            }
-        }
         .statusBarHidden()              // (shown, iOS's Bluetooth MIDI sheet laid its table out NaN high: a crash, 2026-10-23)
         .persistentSystemOverlays(bars ? .automatic : .hidden)
         .task { await draw() }
