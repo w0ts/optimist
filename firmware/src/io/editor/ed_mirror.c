@@ -43,6 +43,7 @@ static uint8_t mbr_q[MIR_BLE_RING] IN_POOL;
 static struct {
     volatile uint32_t w, r;             /* w: the frames written whole; r: the radio's read position */
     uint32_t fw;                        /* the frame being written */
+    uint32_t base;                      /* the end of the last catch-up's frames: MIR_BLE_LAG counts what came after */
     uint8_t pk, mid;                    /* the radio's side: bytes in the packet peeked; inside a frame (a channel message would end it) */
     volatile uint8_t req;               /* 0x80 | bits: a request came in (mir_ble_rx), for the main loop */
     uint8_t rx_n, rx[7];                /* the request being received */
@@ -51,7 +52,7 @@ static int mbr_put(uint32_t b)
 {
     if (b == 0xF0u) {
         mbr.fw = mbr.w;
-        if (mbr.w - mbr.r > MIR_BLE_LAG && fm1_ms - mir.catch_ms >= MIR_CATCH_MS)
+        if (fm1_ms - mir.catch_ms >= MIR_CATCH_MS && mbr.w - ((int32_t)(mbr.base - mbr.r) > 0 ? mbr.base : mbr.r) > MIR_BLE_LAG)
             return 0;                   /* (behind: the catch-up sends the screen as it is then) */
     }
     if (mbr.fw - mbr.r >= MIR_BLE_RING)
@@ -61,6 +62,8 @@ static int mbr_put(uint32_t b)
 }
 static void mbr_end(void)
 {
+    if (fm1_ms - mir.catch_ms < MIR_CATCH_MS)
+        mbr.base = mbr.fw;              /* (a catch-up: its own bytes never count, or a slow link would catch up again and again) */
     RING_PUBLISH();
     mbr.w = mbr.fw;
 }

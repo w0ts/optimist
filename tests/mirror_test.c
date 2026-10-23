@@ -328,7 +328,7 @@ static void bt_tests(void)
     printf("a catch-up over Bluetooth: %u bytes\n", k);
     /* a slow radio: a few hundred bytes a write; the ring overflows, the mirror falls behind and catches up */
     for (k = 0; k < 4000u; k++) {
-        uint32_t was = mir.behind, w0 = mbr.w, lag = mbr.w - mbr.r > MIR_BLE_LAG && fm1_ms - mir.catch_ms >= MIR_CATCH_MS;
+        uint32_t was = mir.behind, w0 = mbr.w, lag = mbr.w - ((int32_t)(mbr.base - mbr.r) > 0 ? mbr.base : mbr.r) > MIR_BLE_LAG && fm1_ms - mir.catch_ms >= MIR_CATCH_MS;
         random_write();
         check(!lag || mbr.w == w0, "a frame past MIR_BLE_LAG waiting, outside a catch-up");
         lost += !was && mir.behind;
@@ -351,6 +351,25 @@ static void bt_tests(void)
     check(k < 100u, "never caught up");
     check(lost > 10u && same(), "a slow radio: behind %u times, caught up, the panel (%u bytes sent)", lost, sent);
     check(bad == 0u, "%u frames not decoded", bad);
+    /* a link slower than a catch-up (the iPad scanning in its Bluetooth sheet) with small writes going on: one catch-up, not one
+     * after the other (its own bytes are not the lag) */
+    for (k = 0; k < 60u; k++)
+        random_write();
+    radio(~0u);
+    mir.behind = 1, mir.catch_ms = fm1_ms - MIR_CATCH_MS;
+    MIR_SEEN();
+    mir_poll();
+    r0 = repaints;
+    check(mbr.w - mbr.r > MIR_BLE_LAG, "a catch-up longer than MIR_BLE_LAG: %u bytes", mbr.w - mbr.r);
+    for (k = 0; k < 300u; k++) {
+        lcd_fill(rnd(230), rnd(230), 4, 4, rnd(65536));
+        radio(60u);
+        fm1_ms += 16u;
+        MIR_SEEN();
+        mir_poll();
+    }
+    radio(~0u);
+    check(repaints == r0 && !mir.behind && same(), "a slow link: %u catch-ups more while small writes went on", repaints - r0);
     /* the central goes: off, the ring emptied (midi_ble.c ble_app_state) */
     ble_out_on = 0;
     mir_ble_flush();
