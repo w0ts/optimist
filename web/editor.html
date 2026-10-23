@@ -335,7 +335,8 @@
   /* v13: the device's screens (SCRS): a row of four cards under its name, the pages of SOUND under their family */
   .scbar { display: flex; flex-wrap: wrap; gap: 8px 14px; margin: 8px 0; }
   #scscope { width: 100%; max-width: 944px; height: 180px; border: 1px solid var(--line); margin: 4px 0 8px; display: block; }
-  #mirror { width: min(100%, 480px); aspect-ratio: 1; image-rendering: pixelated; background: #000; display: block; margin: 8px auto; }
+  #mirror { width: min(100%, 480px); aspect-ratio: 1; image-rendering: pixelated; background: #000; display: block; margin: 8px auto; cursor: zoom-in; }
+  #mirror:fullscreen { background: #000; cursor: zoom-out; }
   .scrows { display: flex; flex-direction: column; gap: 6px; }
   .scrow { border: 1px solid var(--line); padding: 4px 8px 6px; }
   .scrow[data-asking="1"] { outline: 2px solid var(--warn, #e7c15b); }
@@ -827,7 +828,8 @@
   /* v13: the device's screens (SCRS): a row of four cards under its name, the pages of SOUND under their family */
   .scbar { display: flex; flex-wrap: wrap; gap: 8px 14px; margin: 8px 0; }
   #scscope { width: 100%; max-width: 944px; height: 180px; border: 1px solid var(--line); margin: 4px 0 8px; display: block; }
-  #mirror { width: min(100%, 480px); aspect-ratio: 1; image-rendering: pixelated; background: #000; display: block; margin: 8px auto; }
+  #mirror { width: min(100%, 480px); aspect-ratio: 1; image-rendering: pixelated; background: #000; display: block; margin: 8px auto; cursor: zoom-in; }
+  #mirror:fullscreen { background: #000; cursor: zoom-out; }
   .scrows { display: flex; flex-direction: column; gap: 6px; }
   .scrow { border: 1px solid var(--line); padding: 4px 8px 6px; }
   .scrow[data-asking="1"] { outline: 2px solid var(--warn, #e7c15b); }
@@ -11035,6 +11037,7 @@ function mirrorFrame(a) {
 function mirrorStart() {
   const c = $("mirror");
   if (!c || !mirrorOn() || mir.on) return;
+  c.onclick = mirrorFull;
   mir.on = true;
   if (!mir.img) { mir.img = c.getContext("2d").createImageData(240, 240); for (let i = 3; i < mir.img.data.length; i += 4) mir.img.data[i] = 255; }
   const d = dev;
@@ -11051,6 +11054,19 @@ function mirrorStart() {
     if (dev === d) rq([CMD.MIRROR, [0]], { key: "mirror", timeout: 600, retries: 0, quiet: true }).catch(() => {});   /* (off: nothing more pushed) */
   })();
 }
+/* a tap on the screen: full screen (the browser letterboxes it on black, square), again or Esc: back; the phone kept awake meanwhile */
+function mirrorFull() {
+  const c = $("mirror"), fs = document.fullscreenElement || document.webkitFullscreenElement;
+  try {
+    if (fs) Promise.resolve((document.exitFullscreen || document.webkitExitFullscreen).call(document)).catch(() => {});
+    else if (c) Promise.resolve((c.requestFullscreen || c.webkitRequestFullscreen).call(c)).catch(() => {});
+  } catch (e) { /* no full screen here */ }
+}
+document.addEventListener("fullscreenchange", async () => {
+  if (document.fullscreenElement && document.fullscreenElement.id === "mirror") {
+    try { mir.wake = await navigator.wakeLock.request("screen"); } catch (e) { /* no wake lock */ }
+  } else if (mir.wake) { mir.wake.release().catch(() => {}); mir.wake = null; }
+});
 /* the oscilloscope: the device's own trace (SCOPE, cmd 101) about 12 times a second while the page shows it */
 let scopeOn = false;
 function scopeStart() {
