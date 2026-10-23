@@ -1,6 +1,4 @@
-# Optimist 0.2 — release notes (draft, updated as we go)
-
-_Working draft 2026-10-23. Items marked **[check]** are to confirm on hardware or in a store; **[decide]** is the user's call before release._
+# Optimist 0.2
 
 ## Bluetooth
 
