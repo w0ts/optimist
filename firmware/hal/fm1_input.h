@@ -313,12 +313,20 @@ static void fm1__key(uint32_t id, uint32_t closed)
             fm1_in.released |= bit;
     }
 }
+#if FELUCCA_ED_MIRROR
+/* a remote client's keys (the screen mirror's app, editor cmd 108 PANEL, io/editor/ed_mirror.c): held as if their contacts were
+ * closed, so they take the same debounce, edges and times as a finger (bit n: button n 0..13; note key n: id 14 + n) */
+static volatile uint32_t fm1_rem_btn, fm1_rem_note;
+#define FM1_REM(id) ((id) >= 14u ? fm1_rem_note >> ((id) - 14u) & 1u : fm1_rem_btn >> (id) & 1u)
+#else
+#define FM1_REM(id) 0u
+#endif
 static void fm1__keys(uint32_t p)                  /* the keys of column p, just read */
 {
     uint32_t r, raw = fm1_in.raw[p];
     for (r = 1; r < 5u; r++)
         if (FM1_KEYMAP[r][p] >= 0)
-            fm1__key((uint32_t)FM1_KEYMAP[r][p], (raw >> r) & 1u);
+            fm1__key((uint32_t)FM1_KEYMAP[r][p], ((raw >> r) & 1u) | FM1_REM((uint32_t)FM1_KEYMAP[r][p]));
 }
 
 static void fm1__frame(void);
@@ -473,6 +481,23 @@ static inline void fm1__unlock(uint32_t v)
     __asm__ volatile("csync\n\tsti" ::: "memory");
 }
 
+#if FELUCCA_ED_MIRROR
+/* the remote client's key id (0..40) down or up; its knob e turned s detents; all of its keys up (it went away) */
+static void fm1_remote_key(uint32_t id, uint32_t down)
+{
+    uint32_t k = fm1__lock(), bit = id >= 14u ? 1u << (id - 14u) : 1u << id;
+    volatile uint32_t *m = id >= 14u ? &fm1_rem_note : &fm1_rem_btn;
+    *m = down ? *m | bit : *m & ~bit;
+    fm1__unlock(k);
+}
+static void fm1_remote_enc(uint32_t e, int32_t s)
+{
+    uint32_t k = fm1__lock();
+    fm1_in.enc_steps[e] = (int16_t)(fm1_in.enc_steps[e] + s);
+    fm1__unlock(k);
+}
+static void fm1_remote_clear(void) { fm1_rem_btn = fm1_rem_note = 0; }
+#endif
 /* detent steps turned since the last call, + = clockwise */
 static int32_t fm1_enc_take(uint32_t e)
 {

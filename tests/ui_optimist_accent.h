@@ -220,6 +220,21 @@ static void acc_sound_tests(void)
         op_enter(SCR_SOUND);
         frames(2);
     }
+    {   /* the drum track's FX pages (DR INSERT, DR SENDS, SLICER, GATER, COMP) are not the ACCENT lane's either: a sound
+         * lane hides them for its own INSERTS / SENDS, ACCENT has none of its own and showed the track's (the user,
+         * 2026-10-23: "accent cannot have any fx send or insert") */
+        uint32_t r, n = 0;
+        lane_select(DRUM_ACC);
+        ui.lane = 1;
+        op_enter(SCR_SOUND);
+        snd_family(SND_ALL);
+        frames(2);
+        ok = snd_rows() >= 1u && lane_selected() == DRUM_ACC;
+        for (r = 0; r < snd_rows(); r++)
+            if (snd_page(r) && snd_page(r)->fam == FAM_FX)
+                n++;
+        check(ok && n == 0u, "the ACCENT lane: no FX row on SOUND (no insert, no send, neither its own nor the kit's)");
+    }
     turn(EN_PRESET, 1);
     frames(2);
     check(lane_selected() == DRUM_ACC, "PRESETS on the ACCENT lane: the kit as on DR, the lane stays");

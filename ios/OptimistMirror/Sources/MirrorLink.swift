@@ -50,6 +50,8 @@ final class MirrorLink: ObservableObject, Transport {
         var known = false         // the last reply's version is the decoder's (another firmware's pushes: not drawn)
         var features: [String: Int]?   // INFO's tag 66 over USB (nil: not asked yet); nothing but INFO is sent before it
         var held: Date?           // a catch-up began (the whole panel filled): the picture shown stays until it is in
+        var rows = [Bool](repeating: true, count: 240)   // since that fill, the rows drawn again
+        var rowsLeft = 0
         var lastFrame = Date()
         var pending: Pending?     // the editor request waiting for its reply
         var token = 0
@@ -103,16 +105,22 @@ final class MirrorLink: ObservableObject, Transport {
         lock.withLock { s in
             if let h = s.held {
                 let now = Date()
-                if now.timeIntervalSince(s.lastFrame) < Self.catchQuiet && now.timeIntervalSince(h) < Self.catchMax { return nil }
+                let most = bluetooth ? Self.catchMax : Self.catchMaxUSB
+                if s.rowsLeft > Self.rowsSpare && now.timeIntervalSince(s.lastFrame) < Self.catchQuiet && now.timeIntervalSince(h) < most { return nil }
                 s.held = nil
             }
             return s.generation == seen ? nil : (s.decoder.pixels, s.generation)
         }
     }
-    /// A catch-up (the FM-1 fills the whole panel black, then draws it all again: ed_mirror.c mir_poll) is shown when it is
-    /// in, not as it comes: in once the pushes pause this long, or after catchMax at most.
+    /// A catch-up or a page drawn whole (the FM-1 fills the whole panel black, then draws it all again: ed_mirror.c mir_poll,
+    /// op_draw.c ui.force) is shown when it is in, not as it comes: once every row is drawn again, else once the pushes pause
+    /// this long (a part left black), or after catchMax at most. (Without the rows: a playing mixer's meters never paused and a
+    /// page change over USB froze 1.5 s.)
     private static let catchQuiet: TimeInterval = 0.12
-    private static let catchMax: TimeInterval = 1.5
+    private static let rowsSpare = 12                   // (rows a page may leave black: the mixer's 6 between its groups)
+    private static let catchMax: TimeInterval = 1.0      // (Bluetooth: a whole screen takes ~0.3 s at 6 KB/s)
+    private static let catchMaxUSB: TimeInterval = 0.25  // (USB: a page is in within a few frames; the mixer leaves rows black, so
+                                                         //  "every row drawn" never came and its meters never paused: 1.5 s, then 2 s seen)
     private static func wholeFill(_ f: [UInt8]) -> Bool {
         f.count == 18 && f[5] == 0 && Array(f[6..<14]) == [0, 0, 0, 0, 112, 1, 112, 1]
     }
@@ -235,6 +243,27 @@ final class MirrorLink: ObservableObject, Transport {
         if holds == 0 { wantWhole = true }
     }
 
+    /// The keyboard can press the panel: the firmware has PANEL, over USB (over Bluetooth only the mirror's request is answered)
+    var canPress: Bool {
+        state == .mirroring && !bluetooth && lock.withLock { $0.features?[Feature.panel.name] == Feature.panel.version }
+    }
+    private var presses: [[UInt8]] = []
+    private var pressing = false
+    /// A PANEL request (cmd 108), in order, one at a time with the others
+    @MainActor
+    func press(_ args: [UInt8]) {
+        presses.append(args)
+        guard !pressing else { return }
+        pressing = true
+        Task { @MainActor in
+            while !presses.isEmpty {
+                let a = presses.removeFirst()
+                _ = try? await exchange(.panel, a, timeout: 0.3, retries: 0)
+            }
+            pressing = false
+        }
+    }
+
     /// True when the port in use can carry the editor's requests: the USB one (over Bluetooth the FM-1 answers the mirror only).
     var editorPossible: Bool { state != .searching && !bluetooth }
 
@@ -318,7 +347,14 @@ final class MirrorLink: ObservableObject, Transport {
                     on = on || (r.on && s.known)
                     s.replies += 1
                 } else if s.known, s.decoder.apply(f) {
-                    if Self.wholeFill(f) { s.held = Date() }
+                    if Self.wholeFill(f) {
+                        s.held = Date()
+                        s.rows = [Bool](repeating: false, count: 240)
+                        s.rowsLeft = 240
+                    } else if s.rowsLeft > 0, f.count >= 14, f[5] <= 1 {   // (FILL, BLIT: their rows; MORE goes on in them)
+                        let y = Int(f[8]) | Int(f[9]) << 7, h = Int(f[12]) | Int(f[13]) << 7
+                        for r in max(0, y)..<min(240, y + h) where !s.rows[r] { s.rows[r] = true; s.rowsLeft -= 1 }
+                    }
                     s.lastFrame = Date()
                     s.generation += 1
                 }

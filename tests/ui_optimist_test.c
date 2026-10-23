@@ -3925,6 +3925,32 @@ int main(int argc, char **argv)
     layers_init();
     go_home();
     frames(3);
+#if FELUCCA_GRIDS_EUCLID
+    {   /* OUT EUCL: one click, one step of a length or one hit (op_tools.c gr_eu_turn), both ways, the ends held */
+        uint32_t p, ok = 1, n0, h0;
+        int16_t keep[GR_KIT_N];
+        memcpy(keep, &TDRUM->p[P_GRX], sizeof keep);
+        gr_out = GRO_EUCLID;
+        for (p = 0; p < 3u; p++) {
+            n0 = gr_eu_len(&TDRUM->p[P_GRX], p);
+            gr_kturn(3, p, 1);
+            ok &= gr_eu_len(&TDRUM->p[P_GRX], p) == (n0 < 32u ? n0 + 1u : 32u);
+            gr_kturn(3, p, -1);
+            ok &= gr_eu_len(&TDRUM->p[P_GRX], p) == n0;
+            h0 = gr_eu_hits(&TDRUM->p[P_GRX], p);
+            gr_kturn(4, p, 1);
+            ok &= gr_eu_hits(&TDRUM->p[P_GRX], p) == (h0 < n0 ? h0 + 1u : n0);
+            gr_kturn(4, p, -1);
+            ok &= gr_eu_hits(&TDRUM->p[P_GRX], p) == h0;
+            TDRUM->p[P_GRX + p] = 0;
+            gr_kturn(3, p, -1);
+            ok &= gr_eu_len(&TDRUM->p[P_GRX], p) == 1u;
+        }
+        check(ok, "GRIDS OUT EUCL: one click is one step of a part's length or one of its hits, both ways; the lengths stop at 1");
+        memcpy(&TDRUM->p[P_GRX], keep, sizeof keep);
+        gr_out = GRO_DRUMS;
+    }
+#endif
 #if FELUCCA_PAGE_LINES
     plines_tests();                                     /* (the lines build: the rest of the suite assumes the 2x2 cards) */
     fuzz(5000, 4242);

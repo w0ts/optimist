@@ -9,6 +9,7 @@ enum Cmd: UInt8 {
     case upList = 16, upGet = 17, upPut = 18, upStore = 19, upLoad = 20, upErase = 21
     case bkList = 43, bkRead = 44, bkBegin = 45, bkData = 46, bkCommit = 47, bkEnd = 48
     case patList = 79, patOp = 82, patRead = 83, patWrite = 84
+    case panel = 108
 }
 
 struct WireError: Error, LocalizedError, Equatable {
@@ -153,6 +154,7 @@ struct Feature: Equatable {
     static let library = Feature(name: "opti_library", version: 1)
     static let projects = Feature(name: "opti_projects", version: 1)
     static let patterns = Feature(name: "opti_patterns", version: 1)
+    static let panel = Feature(name: "opti_panel", version: 1)
 }
 
 struct DeviceInfo: Equatable {

@@ -43,6 +43,7 @@ final class FakeFM1: Transport {
     func exchange(_ cmd: Cmd, _ a: [UInt8], timeout: TimeInterval, retries: Int) async throws -> [UInt8] {
         switch cmd {
         case .info: return info
+        case .panel: return [a.first ?? 0, 0]
         case .project:
             let k = Int(a[1])
             if a[0] == 1 { sections[k] = 1; log.append("SAVE \(k)") }

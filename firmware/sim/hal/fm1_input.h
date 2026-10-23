@@ -136,6 +136,12 @@ static void fm1_input_scan(void) { fm1__frame(); }
 static inline uint32_t fm1__lock(void) { uint32_t ie = sim_ie; fm1_irq_off(); return ie; }
 static inline void fm1__unlock(uint32_t v) { if (v) fm1_irq_on(); }
 
+#if FELUCCA_ED_MIRROR
+/* a remote client's keys and knobs (firmware/hal/fm1_input.h's): here through the page's own queue */
+static void fm1_remote_key(uint32_t id, uint32_t down) { sim_inq[sim_inq_w++ % SIM_INQ] = (uint8_t)(id | (down ? 0x80u : 0u)); }
+static void fm1_remote_enc(uint32_t e, int32_t s) { fm1_in.enc_steps[e] = (int16_t)(fm1_in.enc_steps[e] + s); }
+static void fm1_remote_clear(void) {}
+#endif
 static int32_t fm1_enc_take(uint32_t e)
 {
     uint32_t k = fm1__lock();

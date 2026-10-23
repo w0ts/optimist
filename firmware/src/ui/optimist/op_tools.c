@@ -554,8 +554,30 @@ static int gr_eu_cell(uint32_t pg, uint32_t k, cell_t *c)
     cell_gauge(c, 0, pg == 3u ? 1 : 0, pg == 3u ? 32 : (int32_t)n, (int32_t)x);
     return 1;
 }
+/* OUT EUCL: a click is one step of the length or one hit (the user, 2026-10-23: "in euclidian mode the knobs for grids react
+ * strange, one click is not +/- 1"): the value 0..127 the card's number moves to, the lowest that gives it; -1: not EUCL */
+static int32_t gr_eu_turn(uint32_t pg, uint32_t k, int32_t s)
+{
+    int16_t v[GR_KIT_N];
+    uint32_t p = k, j = pg == 3u ? p : 3u + p, len, cur, lo, hi, want;
+    int32_t r;
+    if (gr_out != GRO_EUCLID || k > 2u || s == OP_RESET)
+        return -1;
+    memcpy(v, &TDRUM->p[P_GRX], sizeof v);
+    len = gr_eu_len(v, p);
+    cur = pg == 3u ? len : gr_eu_hits(v, p);
+    lo = pg == 3u ? 1u : 0u, hi = pg == 3u ? 32u : len;
+    want = (uint32_t)ui_clamp((int32_t)cur + s, (int32_t)lo, (int32_t)hi);
+    for (r = 0; r < 128; r++) {
+        v[j] = (int16_t)r;
+        if ((pg == 3u ? gr_eu_len(v, p) : gr_eu_hits(v, p)) == want)
+            return r;
+    }
+    return -1;
+}
 #else
 #define gr_eu_cell(pg, k, c) 0
+#define gr_eu_turn(pg, k, s) (-1)
 #endif
 static void gr_kcell(uint32_t pg, uint32_t k, cell_t *c)
 {
@@ -587,8 +609,13 @@ static void gr_kturn(uint32_t pg, uint32_t k, int32_t s)
         return;
     }
 #endif
-    if (DRUM_GR_OF(id))
-        dval_turn(id, DRUM_GR_OF(id), k, s, 0);         /* (recorded as motion as ACCENT's: op_cells.c) */
+    if (DRUM_GR_OF(id)) {
+        int32_t r = gr_eu_turn(pg, k, s);
+        if (r >= 0)                                      /* (EUCL: the value its next step or hit needs, no acceleration) */
+            dval_turn(id, DRUM_GR_OF(id), k, r - TDRUM->p[id], 1);
+        else
+            dval_turn(id, DRUM_GR_OF(id), k, s, 0);     /* (recorded as motion as ACCENT's: op_cells.c) */
+    }
 }
 #endif
 static int32_t ng_max(const gen_par_t *d, uint32_t len) { return d->max ? d->max : (int32_t)len; }

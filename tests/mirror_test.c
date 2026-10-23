@@ -94,8 +94,23 @@ static void ota_idle(void)
         host_drain();
 }
 static void op_repaint(void);
+/* the panel's table (ui/panel.c, its default) and the input layer's remote keys (hal/fm1_input.h): 108 PANEL */
+enum { NB = 14, NE = 7 };
+static const struct { uint8_t btn[NB], enc[NE]; int8_t dir[NE]; } panel_tab = {
+    {2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 0, 1}, {0, 1, 6, 2, 3, 4, 5}, {1, 1, -1, 1, 1, 1, 1}};
+static uint32_t rem_btn, rem_note;
+static int32_t rem_enc[7];
+static void fm1_remote_key(uint32_t id, uint32_t down)
+{
+    uint32_t *m = id >= 14u ? &rem_note : &rem_btn, bit = id >= 14u ? 1u << (id - 14u) : 1u << id;
+    *m = down ? *m | bit : *m & ~bit;
+}
+static void fm1_remote_enc(uint32_t e, int32_t s) { rem_enc[e] += s; }
+static void fm1_remote_clear(void) { rem_btn = rem_note = 0; }
+#define panel panel_tab
 #define MIR_BLE_LAG 1536u               /* (smaller than the firmware's: the random screens here catch up in less than its 4 KB) */
 #include "../firmware/src/io/editor/ed_mirror.c"
+#undef panel
 
 /* the radio: at most n bytes of whole-frame packets (all: n = ~0) */
 static uint32_t radio(uint32_t n)
@@ -290,6 +305,24 @@ static void usb_tests(void)
     check(rep[0] == 0u && !mir.on, "106 0: off");
 }
 
+/* 108 PANEL: the client's keys held as the panel's, by label and role; refused while it does not mirror; up when it ends */
+static void panel_tests(void)
+{
+    static const uint8_t FX_DOWN[3] = {0, 0, 1}, FX_UP[3] = {0, 0, 0}, NOTE5[3] = {1, 5, 1}, K1[3] = {2, 3, 64 + 2}, PRE[3] = {2, 2, 64 - 1};
+    ask(1);
+    nrep = 0, ed_panel(FX_DOWN, 3);
+    check(rem_btn == 1u << 2 && nrep == 2 && rep[1] == 0, "PANEL: FX down holds matrix button 2 (its label's)");
+    ed_panel(NOTE5, 3);
+    check(rem_note == 1u << 5, "PANEL: note key 5 down");
+    ed_panel(K1, 3), ed_panel(PRE, 3);
+    check(rem_enc[2] == 2 && rem_enc[6] == 1, "PANEL: KNOB 1 two detents on encoder 2, PRESETS one back on encoder 6 (its direction -1)");
+    ed_panel(FX_UP, 3);
+    check(rem_btn == 0u && rem_note == 1u << 5, "PANEL: FX up, the note still held");
+    ask(0);
+    check(rem_btn == 0u && rem_note == 0u, "PANEL: the mirror off: every remote key up");
+    nrep = 0, ed_panel(FX_DOWN, 3);
+    check(rem_btn == 0u && nrep == 2 && rep[1] == 1, "PANEL: refused while not mirroring");
+}
 static void bt_tests(void)
 {
     static const uint8_t ON[] = {0xF0, 0x7D, 0x46, 0x4C, 106, 1, 0xF7}, BAD[] = {0xF0, 0x7D, 0x46, 0x4C, 105, 1, 0xF7},
@@ -390,6 +423,7 @@ int main(void)
 {
     uint32_t k;
     usb_tests();
+    panel_tests();
     bt_tests();
     /* the fixture for the app's tests: a panel drawn whole, then its frames and its pixels */
     if (getenv("MIRROR_FIXTURE")) {
