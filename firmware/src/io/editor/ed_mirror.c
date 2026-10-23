@@ -6,7 +6,7 @@
  *              on the ring only while the host reads (at most MIR_STALL_MS without progress)
  *   Bluetooth  (with BLE) whole frames into a ring of their own in the pool (MIR_BLE_RING), which the radio drains between
  *              the channel messages (io/midi/midi_ble.c ble_app_midi_peek); the main loop never waits for it
- * A link that falls behind (the host stops reading, the ring is full) drops what is drawn and catches up once the link is clear
+ * A link that falls behind (the host stops reading; the ring is full, or over Bluetooth holds MIR_BLE_LAG) drops what is drawn and catches up once the link is clear
  * again: black to the client, then every band drawn again in place (op_repaint: the panel itself is not cleared, no flash; the
  * host test's catch-ups give the panel's pixels every time). Never under PRESETS' popup list (the panel under it is not drawn
  * again): it waits for the list to close. A first on catches up the same way. So a slow link shows small changes as they come and
@@ -37,6 +37,8 @@ static void op_repaint(void);
 #if MIR_BLE
 /* ---- Bluetooth: a byte ring in the pool, frames made visible whole (mbr.w only at F7), drained by the radio's interrupts */
 #define MIR_BLE_RING 8192u              /* a catch-up is 1.65 KB on average, 6.3 KB at most (version 2; tests/ui_optimist_test.c MIRROR_CHECK) */
+#define MIR_BLE_LAG 1536u               /* outside a catch-up no frame starts past this much waiting: 0.25 s at the 6.2 KB/s an iPad's
+                                         * 50-octet packets carry (2026-10-23); more is the screen as it was, sooner sent whole again */
 static uint8_t mbr_q[MIR_BLE_RING] IN_POOL;
 static struct {
     volatile uint32_t w, r;             /* w: the frames written whole; r: the radio's read position */
@@ -47,8 +49,11 @@ static struct {
 } mbr;
 static int mbr_put(uint32_t b)
 {
-    if (b == 0xF0u)
+    if (b == 0xF0u) {
         mbr.fw = mbr.w;
+        if (mbr.w - mbr.r > MIR_BLE_LAG && fm1_ms - mir.catch_ms >= MIR_CATCH_MS)
+            return 0;                   /* (behind: the catch-up sends the screen as it is then) */
+    }
     if (mbr.fw - mbr.r >= MIR_BLE_RING)
         return 0;                       /* (full: this frame is dropped, mbr.w never saw it) */
     mbr_q[mbr.fw++ % MIR_BLE_RING] = (uint8_t)b;
