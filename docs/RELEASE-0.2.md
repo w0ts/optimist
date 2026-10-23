@@ -2,24 +2,6 @@
 
 _Working draft 2026-10-23. Items marked **[check]** are to confirm on hardware or in a store; **[decide]** is the user's call before release._
 
-## Headline
-
-Optimist 0.2 brings the FM-1 to the browser and the phone, plays over Bluetooth, and gives every project its own patterns and scenes. More synths, more drums, more fits in the flash.
-
-## Web: everything on one site
-
-- **Web editor.** Every sound, drum, effect and setting as knobs; the drum grid; the samples (with CHOP); the preset library; projects. Backup of the whole FM-1 in one file, now its own Backup tab. Works over USB in Chrome or Edge (Web MIDI).
-- **Screen tab.** The FM-1's screen, live in the browser as it is drawn, with the mixer's meters ten times a second; a tap fills the display. Over USB. **[check: Bluetooth mirroring was tried and set aside as too slow]**
-- **Builder.** Choose engines, kits, effects and features with a live flash / RAM budget; _Build in the cloud_ returns your firmware in minutes. The builder now knows what each choice really costs (measured on the farm), shares one effects memory between every insert with a delay line, and tells you how many of each fit.
-- **Installer.** Install a release flavour, your cloud build or a file; a backup first; stock firmware back any time.
-- **Simulator.** The firmware running in the browser with the FM-1's panel and keys: try a build before installing it.
-- The pages link the GitHub repository.
-
-## iPhone app: Optimist Mirror (upcoming)
-
-- The FM-1's screen on an iPhone or iPad over a USB cable, pixel for pixel, with the mixer's meters; the picture turns with the phone.
-- Projects, Library and Backup screens, the web editor's tabs, in the app. **[check: App Store / TestFlight status]**
-
 ## Bluetooth
 
 - **Bluetooth audio.** The FM-1 plays through AirPods and other Bluetooth headphones and speakers (A2DP, our own stack): pairing, bonding, reconnect without pairing; SHIFT + volume switches between Bluetooth and the FM-1's own output, or reconnects the last device. **[check: XM4 crackles were open]**
@@ -44,6 +26,20 @@ Optimist 0.2 brings the FM-1 to the browser and the phone, plays over Bluetooth,
 - **Mute mode** (SHIFT + a key) with three key lights; the master channel too; the track LEDs follow the notes.
 - **CHORD+ latch:** a black modifier key tapped twice stays on.
 - **Live save** (builder item): save while playing.
+
+## Web: everything on one site
+
+- **Web editor.** Every sound, drum, effect and setting as knobs; the drum grid; the samples (with CHOP); the preset library; projects. Backup of the whole FM-1 in one file, now its own Backup tab. Works over USB in Chrome or Edge (Web MIDI).
+- **Screen tab.** The FM-1's screen, live in the browser as it is drawn, with the mixer's meters ten times a second; a tap fills the display. Over USB. **[check: Bluetooth mirroring was tried and set aside as too slow]**
+- **Builder.** Choose engines, kits, effects and features with a live flash / RAM budget; _Build in the cloud_ returns your firmware in minutes. The builder now knows what each choice really costs (measured on the farm), shares one effects memory between every insert with a delay line, and tells you how many of each fit.
+- **Installer.** Install a release flavour, your cloud build or a file; a backup first; stock firmware back any time.
+- **Simulator.** The firmware running in the browser with the FM-1's panel and keys: try a build before installing it.
+- The pages link the GitHub repository.
+
+## iPhone app: Optimist Mirror (upcoming)
+
+- The FM-1's screen on an iPhone or iPad over a USB cable, pixel for pixel, with the mixer's meters; the picture turns with the phone.
+- Projects, Library and Backup screens, the web editor's tabs, in the app. **[check: App Store / TestFlight status]**
 
 ## Thanks
 
