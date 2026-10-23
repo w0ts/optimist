@@ -186,7 +186,7 @@ static void usb_tests(void)
     lcd_blit(0, 25, 240, 124, cv);
     check(same(), "a band");
     printf("a 240x124 band, 4 colours: %u bytes in %u frames (raw %u)\n", bytes - b0, frames - f0, 240u * 124u * 2u);
-    /* the meters: not sent (the client keeps its last) */
+    /* a muted write (a mixer meter outside its window, op_mixdraw.c): not sent, the client keeps its last */
     f0 = frames;
     mir_mute = 1;
     lcd_fill(10, 10, 20, 3, 0xFFFFu);

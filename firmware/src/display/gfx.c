@@ -91,6 +91,9 @@ static void cv_begin(uint32_t w, uint32_t h, uint16_t bg)
 
 /* (the Optimist UI's help line has a band of its own, op_graph.c OP_FOOT: no clip) */
 static void cv_blit(uint32_t x, uint32_t y) { lcd_blit(x, y, cv_w, cv_h, cv_px); }
+#if FELUCCA_ED_MIRROR
+static void cv_mirror(uint32_t x, uint32_t y) { mir_blit(x, y, cv_w, cv_h, cv_px); }   /* (to the mirror's client alone: ed_mirror.c) */
+#endif
 
 /* canvas rows r0 .. cv_h-1 only, to screen row y + r0 */
 static void cv_blit_from(uint32_t x, uint32_t y, uint32_t r0)

@@ -16,6 +16,9 @@
 #define FELUCCA_PAGE_LINES 0            /* (the firmware always builds the lines, registry.h; these tests keep the 2x2 cards they were written for, the lines builds pass 1) */
 #endif
 #define FELUCCA_ARRANGER 1
+#ifdef MIRROR_CHECK
+#define FELUCCA_ED_MIRROR 1             /* (the mixer's meters to the client at most every 100 ms: op_mixdraw.c mx_vu_at) */
+#endif
 #define STP_PAT 0u                      /* STEP's first row, PATTERN (no LANE page after it since 2026-10-14) */
 #define STP_DR_TL (STP_TL + (STP_TL && FELUCCA_GEN_GRIDS ? 1u : 0u))   /* DR itself (no lane picked): GRIDS and DENSITY in GEN's place */
 #if FELUCCA_PATTERNS
@@ -53,12 +56,24 @@ static void mir_wire_end(void)
     mc_n = 0;
 }
 #include "../firmware/src/io/editor/ed_mirror_enc.h"
+static uint8_t mir_mute;                                /* (display/lcd.c's: a meter not due) */
+static uint32_t mc_meter_ms, mc_meter_sends, mc_meter_now;
+static uint32_t mir_meters_due(void)                    /* (ed_mirror.c's, the client always there; mc_meter_now: a window now) */
+{
+    if (fm1_ms - mc_meter_ms < 100u && !mc_meter_now)
+        return 0;
+    mc_meter_ms = fm1_ms;
+    mc_meter_sends++;
+    return 1;
+}
+static void mir_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *p) { mir_enc_blit(x, y, w, h, p); }   /* (gfx.c cv_mirror) */
 #endif
 static void lcd_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *p)
 {
     uint32_t i, j;
 #ifdef MIRROR_CHECK
-    mir_enc_blit(x, y, w, h, p);
+    if (!mir_mute)
+        mir_enc_blit(x, y, w, h, p);
 #endif
     blit_px += w * h;
     if (x <= 120u && 120u < x + w && y <= 180u && 180u < y + h)
@@ -3106,8 +3121,10 @@ static void mc_resync(void)
     uint32_t i, b0 = mc_bytes, n, diff = 0;
     mir_enc_fill(0, 0, 240, 240, C_BLACK);
     op_repaint();
-    frame();
-    frame();                                            /* (SCOPE draws its trace every other frame) */
+    frames(7);                                          /* (SCOPE draws its trace every other frame) */
+    mc_meter_now = 1;                                   /* (the meters lag the panel by up to 100 ms: compared in a window, nothing */
+    frame();                                            /* left stale) */
+    mc_meter_now = 0;
     n = mc_bytes - b0;
     for (i = 0; i < 240u * 240u; i++)
         diff += md_fb[i] != swap16(screen[i]);
@@ -4016,12 +4033,17 @@ int main(int argc, char **argv)
 #ifdef MIRROR_CHECK
     {
         uint32_t i, diff = 0;
+        mc_meter_now = 1;                               /* (the meters' last change: a window) */
+        frame();
+        mc_meter_now = 0;
         for (i = 0; i < 240u * 240u; i++)
             diff += md_fb[i] != swap16(screen[i]);
         printf("  mirror: %u frames, %u bytes, the screen drawn %u px; %u bad frames, %u px differ\n", mc_frames, mc_bytes, blit_px, mc_bad, diff);
         printf("  mirror catch-up (black to the client, op_repaint): %u, %u not the panel after; %u bytes each on average, %u at most\n",
                mc_resyncs, mc_resync_bad, mc_resyncs ? mc_resync_sum / mc_resyncs : 0u, mc_resync_max);
         check(!mc_bad && !diff, "the screen mirrored: every write decoded, the same pixels");
+        printf("  mirror meters: %u windows of 100 ms\n", mc_meter_sends);
+        check(mc_meter_sends > 100u, "the screen mirrored: the mixer's meters sent in their windows");
         check(mc_resyncs > 100u && !mc_resync_bad, "the screen mirrored: every catch-up (black to the client, every band again in place) is the panel");
     }
 #endif
