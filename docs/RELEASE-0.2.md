@@ -10,7 +10,7 @@ _Working draft 2026-10-23. Items marked **[check]** are to confirm on hardware o
 
 ## Sound
 
-- **26 synth engines, ten of them new.** Every one a builder item; the new ones are off by default. **[check: the eight scene engines are host-tested only, never on an FM-1]**
+- **26 synth engines, ten of them new.** Every one a builder item; the new ones are off by default.
   - **DRONE** (new): Caravel's coupled drone network, LYRA-8 inspired, with binaural BEAT and HOLD (Caravel 0.3.3 by bonszaimusic).
   - **PLAITS** (new): four of Mutable Instruments Plaits' models, waveshaping, additive, granular formant and particles (Plaits by Émilie Gillet).
   - **STRINGS** (new): a 1970s string machine (Clipper 1.1 by 3dSam).
