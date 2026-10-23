@@ -689,8 +689,8 @@ _add("XDLY_LEN", "FELUCCA_XDLY_LEN", "XDLY line length (its longest TIME)", F, 3
 # the delay arena (fx/insfx/fxi_kern.c FXA_*, 2026-10-22, the user: "a delay line is just a delay line"): one pool memory
 # for the delay send's line and every ECHO / XDLY line; its size computed by the estimate (configure.py dly_arena)
 _add("DLY_ARENA", "FELUCCA_DLY_ARENA", "delay memory (shared by the delay, ECHO and XDLY)", F, 378, default=0,
-     choices=((0, "auto: room for every ECHO and XDLY"), (32, "32 KB"), (64, "64 KB"), (96, "96 KB"), (128, "128 KB"),
-              (160, "160 KB"), (192, "192 KB"), (256, "256 KB"), (320, "320 KB")),
+     choices=((0, "auto: room for every ECHO and XDLY"), (32, "32 KB"), (48, "48 KB"), (64, "64 KB"), (96, "96 KB"),
+              (128, "128 KB"), (160, "160 KB"), (192, "192 KB"), (256, "256 KB"), (320, "320 KB")),
      desc="One pool memory for every delay line: the delay send's line (its length above) and the lines of the ECHO "
           "and XDLY inserts (8 KB an ECHO, 2 lines of XDLY's length an XDLY). An insert takes its room when a slot "
           "picks it and gives it back when the slot lets go; with no room left the slot shows FULL and stays dry. The "

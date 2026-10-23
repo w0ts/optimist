@@ -843,6 +843,12 @@
     "pool": 0,
     "ramtext": 0
    },
+   "48": {
+    "flash": 4,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
+   },
    "64": {
     "flash": 4,
     "ram": 0,
