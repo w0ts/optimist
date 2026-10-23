@@ -15,7 +15,10 @@
 #define BP_OFF_TXB0 4480u                          /* the two DH5 TX payloads (339 B each, after the table: BTI_TAB_ALLOC) */
 #define BP_OFF_TXB1 (4480u + 344u)
 #define BP_TXB 339u                                /* a DH5 payload (BR §5.5) */
-#define BP_MQ 40u                                  /* the audio packets queued (~350 ms of the stream at 3 SBC frames a
+#define BP_MQB 332u                                /* the longest audio packet queued: 17 B of L2CAP and media headers and
+                                                    * BA_MFRAMES SBC frames at BA_BITPOOL (bt_acl.c asserts the sum; a
+                                                    * lower agreed bitpool makes shorter ones); 7 B a slot less than a DH5 */
+#define BP_MQ 40u                                 /* the audio packets queued (~350 ms of the stream at 3 SBC frames a
                                                     * packet; 4 = 23 ms overflowed on every radio hiccup: audio_drop
                                                     * 11 %, heard as crackles, 2026-10-21; 16 = 140 ms overflowed on the
                                                     * XM4's 100-150 ms refusals of our DH5s while it kept answering,
@@ -70,14 +73,14 @@ static struct {
 /* the audio packets (bt_acl.c ba_media_send, from the audio interrupt): whole L2CAP frames, each one DH5 (or DH3 / DH1
  * when shorter), never cut; the main loop's bp_tx_service sends them after the LMP and L2CAP signalling */
 static struct {
-    uint8_t d[BP_MQ][BP_TXB];
+    uint8_t d[BP_MQ][BP_MQB];
     uint16_t n[BP_MQ];
     volatile uint32_t w, r;
 } bp_mq IN_POOL;
 static int bp_media_queue(const uint8_t *frame, uint32_t len)   /* 1 queued; 0 dropped whole (full, too long, no 5 slots) */
 {
     uint32_t i, k;
-    if ((bp.slots5 != 2u && bp.slots5 != 4u) || len > (bp.slots5 == 2u ? BP_TXB : 183u) || bp_mq.w - bp_mq.r >= BP_MQ) {
+    if ((bp.slots5 != 2u && bp.slots5 != 4u) || len > (bp.slots5 == 2u ? BP_MQB : 183u) || bp_mq.w - bp_mq.r >= BP_MQ) {
         bp.mq_drop++;
         return 0;
     }

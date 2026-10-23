@@ -311,6 +311,10 @@ static uint8_t ba_sbc_init_done;
                                                     * at bitpool 53 (2 x 119 B), a third of the air time left for the
                                                     * retransmissions (2026-10-21) */
 #define BA_BITPOOL 46u                             /* the most that fits BA_MFRAMES frames in a DH5 */
+/* the queue's slot (bt_page.c BP_MQB) holds the longest packet: the headers and BA_MFRAMES joint-stereo frames at
+ * BA_BITPOOL (bt_sbc_frame_len: 4 + 8 + ceil((8 + 16 x bitpool) / 8)); a lower agreed bitpool, or plain stereo, is shorter */
+_Static_assert(4u + 12u + 1u + BA_MFRAMES * (12u + (8u + 16u * BA_BITPOOL + 7u) / 8u) == BP_MQB && BP_MQB <= BP_TXB,
+               "bt_page.c BP_MQB: the longest audio packet");
 static uint8_t ba_mbuf[BA_MFRAMES * 128u];
 static uint32_t ba_mlen, ba_mn;
 static void ba_media_send(const uint8_t *sbc_frame, uint32_t sbc_len, uint32_t frames)   /* one L2CAP frame, whole */
