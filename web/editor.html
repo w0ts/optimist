@@ -169,11 +169,11 @@
   html[data-conn=off] .panel, html[data-conn=off] .tbar > :not(#mock), html[data-conn=off] #status,
   html[data-conn=off] #hint { display: none !important; }
   html:not([data-conn=off]) #connectcard { display: none; }
-  /* a backup-only firmware (data-conn=lite, loadLite): the Backup on the Projects tab, Install, Build, the Simulator; with the
-     librarian (data-lib) the Library tab too and the librarian above the Backup, the Library's buttons that play or read the
+  /* a backup-only firmware (data-conn=lite, loadLite): the Backup tab, Install, Build, the Simulator; with the librarian
+     (data-lib) the Library tab and the Projects tab (the librarian) too, the Library's buttons that play or read the
      sound left out (no live editing) */
-  html[data-conn=lite] #tabs > button[data-tab]:not([data-tab=projects]):not([data-tab=library]):not([data-tab=install]):not([data-tab=build]):not([data-tab=sim]):not([data-tab=screen]),
-  html[data-conn=lite]:not([data-lib]) #tabs > button[data-tab=library], html:not([data-conn=lite]) #libr, html[data-conn=lite]:not([data-lib]) #libr,
+  html[data-conn=lite] #tabs > button[data-tab]:not([data-tab=projects]):not([data-tab=backup]):not([data-tab=library]):not([data-tab=install]):not([data-tab=build]):not([data-tab=sim]):not([data-tab=screen]),
+  html[data-conn=lite]:not([data-lib]) #tabs > button[data-tab=library], html[data-conn=lite]:not([data-lib]) #tabs > button[data-tab=projects], html:not([data-conn=lite]) #libr, html[data-conn=lite]:not([data-lib]) #libr,
   html[data-conn=lite] #libaud, html[data-conn=lite] #libsave, html[data-conn=lite] #czbox,
   html[data-conn=lite] #slots, html[data-conn=lite] #p-projects > .pghelp, html[data-conn=lite] .tbar > :not(#mock) { display: none !important; }
   #libr .lbr { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0 8px; }
@@ -1457,6 +1457,7 @@
     <button role="tab" data-tab="samples" data-t="samples" data-ic="symbol_waves"></button>
     <button role="tab" data-tab="drumkit" data-t="kitPage" data-ic="symbol_audio" hidden></button>
     <button role="tab" data-tab="projects" data-t="projects" data-ic="symbol_folder"></button>
+    <button role="tab" data-tab="backup" data-t="bkTitle" data-ic="port_disk"></button>
     <button role="tab" data-tab="snapshots" data-t="snTitle" data-si="snapshot" hidden></button>
     <span class="navh" role="separator" aria-orientation="vertical"></span>
     <button role="tab" data-tab="device" data-t="tabDevice" data-ic="ui_knob" hidden></button>
@@ -1636,8 +1637,11 @@
     <details class="pghelp"><summary title="About this page" aria-label="About this page">i</summary><p class="dim" data-t="projHelp"></p></details>
     <div class="slots" id="slots"></div>
     <div id="libr"></div>
-    <h2 id="backup-head" data-t="bkTitle" data-ic="port_disk"></h2>
-    <p class="dim" data-t="bkHelp"></p>
+  </section>
+
+  <!-- the whole backup / restore of the FM-1 (BK_*), its own screen -->
+  <section class="panel" id="p-backup" data-tab="backup" data-dev hidden>
+    <details class="pghelp"><summary title="About this page" aria-label="About this page">i</summary><p class="dim" data-t="bkHelp"></p></details>
     <div id="backup"></div>
     <progress id="bkprog" max="1" value="0" hidden></progress>
   </section>
@@ -4578,7 +4582,7 @@ const textOn = (bg) => (contrast(bg, "#000000") >= contrast(bg, "#ffffff") ? "#0
    the transport bar; every track editor is a popup one click from a strip, closed by its x, Escape or a click outside,
    back to the mixer as it was. NAV lists every popup with the strip button that opens it (opener: CSS selector inside
    the strip of track `strip` (0..3, "master")). The tests walk it: depth 1, Esc back to the mixer */
-const SCREENS = ["mixer", "library", "samples", "drumkit", "projects", "snapshots", "device", "screen", "settings"];
+const SCREENS = ["mixer", "library", "samples", "drumkit", "projects", "backup", "snapshots", "device", "screen", "settings"];
 const NAV = {
   sound: { strip: "synth", opener: "[data-pop=sound]" },
   sequence: { strip: "any", opener: "[data-pop=sequence]" },
@@ -6731,7 +6735,6 @@ const OLD_TABS = { sound: "sound", sequencer: "sequence", drums: "lane", tracks:
 let pendingPop = null;                           /* an old #tab: its popup, once connected */
 let tab = (() => {
   const h = location.hash.slice(1);
-  if (h === "backup") return "projects";            /* (the installer's "back up first?") */
   if (h in OLD_TABS) { pendingPop = OLD_TABS[h]; return "mixer"; }
   if (TABS.includes(h)) return h;
   try { const v = localStorage.getItem(TAB_KEY); if (TABS.includes(v)) return v; } catch (e) { /* no storage */ }
@@ -6769,7 +6772,7 @@ async function appMount(name, a) {
       a.handle = mod.mountInstaller(host, { ...(site || { packages: [], version: "", source: "" }),
         onNavigate: (where, detail) => (where === "about" ? $("about").showModal() : where === "sim" ? openSimBuild(detail && detail.build)
           : where === "build" && detail ? openBuildConfig(detail)
-          : showTab({ build: "build", editor: "mixer", backup: "projects" }[where] || "mixer")) });
+          : showTab({ build: "build", editor: "mixer", backup: "backup" }[where] || "mixer")) });
       note.textContent = site ? "" : t("appNoSite");
     } else if (name === "sim") {
       const [mod, site] = await Promise.all([import("./sim/sim.js"), fetch("installer/site.json", { cache: "no-cache" }).then((r) => (r.ok ? r.json() : null)).catch(() => null)]);
@@ -7258,7 +7261,7 @@ async function loadLite(d) {
   catch (e) { if (e.message === "closed") throw e; d.bk = null; }
   d.s24 = d.s24in = false;
   if (d.info.lib) await libLiteRead(d);
-  tab = "projects";
+  tab = d.info.lib ? "projects" : "backup";
   renderPanels();
   renderBackup();
   if (d.info.lib) { renderLibr(); renderLib(); renderBank(); }
