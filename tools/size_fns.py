@@ -74,7 +74,9 @@ OS_FILES = ["system/main.c", "system/supply.c", "io/usb/usb.c", "io/usb/usb_audi
             "ble/ble_ll_central.c", "ble/ble_hw_wl82_central.c", "ble/ble_gattc.c", "ble/ble_central.c",
             "ble/ble_smp_init.c", "io/midi/ble_connect.c",
             # EXPERIMENTAL: the Bluetooth Classic stack (BT_AUDIO): its interrupts and the main loop's side
-            "bt/bt_inq_con.c", "bt/bt_avrcp.c"]
+            "bt/bt_inq_con.c", "bt/bt_avrcp.c",
+            # AFH's decisions (BT_AFH, included by bt_page.c): at -Os as they were built since fb79db39 (minsize not measured)
+            "bt/bt_afh.c"]
 # the pairing's arithmetic (P-192, SAFER+, SHA-256: bt_ssp.c, once per pairing, milliseconds either way): minsize
 # (2026-10-22, measured on synth: see the flash-gains report)
 SIZE_FILES += ["bt/bt_safer.c", "bt/bt_sha256.c", "bt/uECC.c", "bt/bt_ssp.c"]
@@ -108,7 +110,9 @@ AUDIO_FILES = [  # (the A2DP stream's SBC encoder runs in the audio interrupt: b
                "seq/gen.c"]
 # X0X's float units: units of their own (tools/build.py), outside the unity build and these lists
 FLOAT_UNITS = ("drums/x0x/drum808.c", "drums/x0x/drum909.c", "drums/x0x/x0x_drums.c", "engines/acid/acid_dsp.c",
-               "engines/acid/bass303.c")
+               "engines/acid/bass303.c",
+               # ANALOG 2's filter models and PROPHET's voice: float units of their own too (tools/build.py a2m.o, p5.o)
+               "engines/analog/a2_models.c", "engines/prophet/p5_dsp.c")
 SKIP = {"if", "for", "while", "switch", "return", "sizeof", "typedef", "else", "do", "case"}
 DEF = re.compile(r"^(?!#)[A-Za-z_][\w \t*]*?\b([A-Za-z_]\w*)\s*\(", re.M)
 IR_DEF = re.compile(r"^(define [^\n]*?@\"?([\w.]+)\"?\([^\n]*\)(?: unnamed_addr| local_unnamed_addr)?)( #\d+[^\n]*\{)$",
