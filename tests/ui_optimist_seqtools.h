@@ -494,6 +494,30 @@ static void seqtools_tests(void)
         check(gen[GEN_KIT].on && (gen_lanes >> DRUM_SLANES & 1u) && n > 0u && !(m & ~(1u << 0 | 1u << 1 | 1u << 3 | 1u << DRUM_ACC)),
               "... GEN OUT ON: the kit plays KICK SNARE CLOSED HAT (and ACCENT), no other lane");
         frame();
+        {                                               /* the grid follows the kit GRIDS' values (step_sig: what plays) */
+            uint32_t s0 = ui.sig[2];
+            int16_t xk = TDRUM->p[P_GRX];
+            TDRUM->p[P_GRX] = (int16_t)(xk < 64 ? 127 : 0);
+            frame();
+            check(ui.sig[2] != s0, "... X turned (the drum track's value): the grid drawn again, as GRIDS now plays");
+            TDRUM->p[P_GRX] = xk;
+            frame();
+#if KLFO_ON
+            klfo_field_set(0, DLF_WAVE, 3);             /* an LFO on X (SQR, full): the grid follows it as the transport moves */
+            klfo_field_set(0, DLF_DEST1, 1);
+            klfo_field_set(0, DLF_AMT1, 63);
+            song.playing = 1;
+            for (i = 0, n = 0, s0 = ui.sig[2]; i < 64u; i++) {
+                song.tick = i * 97u;
+                frame();
+                n += ui.sig[2] != s0, s0 = ui.sig[2];
+            }
+            song.playing = 0;
+            klfo_decode(0, 0);
+            frame();
+            check(n > 0u, "... the kit's LFO on X: the grid drawn again as the LFO moves it");
+#endif
+        }
         ppm("opt-gen-grids-kit");
         kturn(EN_K3, 1);
         stt_yes();                                      /* WRITE, YES */
