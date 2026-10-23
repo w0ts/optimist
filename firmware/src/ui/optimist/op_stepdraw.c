@@ -47,16 +47,6 @@ static void sg_prep(const track_t *t)
 #define SGS(t) ((t)->step)
 #define SGD(t) ((t)->dstep)
 #endif
-static uint16_t lvl_col(uint16_t c, uint32_t lv)        /* a hit's colour by its level: ghost 3/8 .. hard full */
-{
-    static const uint8_t SH[4] = {3, 5, 7, 8};
-    return col_shade(c, SH[lvl_rank(lv)]);
-}
-static uint16_t lvl_acol(uint32_t lv)                   /* ... a step with automation: the automation colour, its level 5/8 .. full */
-{
-    static const uint8_t SH[4] = {5, 6, 7, 8};
-    return col_shade(C_AUTO, SH[lvl_rank(lv)]);
-}
 static void sg_notches(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t rat)   /* ratchet x2..x4: 1..3 cuts in the cell */
 {
     uint32_t i;

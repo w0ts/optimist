@@ -14,7 +14,8 @@
  *                x 28..237  three lines. The text line (y +1): the engine's name in the row's colour (ANALOG, TRIO,
  *                           DRUMS), then the preset (the kit for DR, a user preset's name), cut to the room left; under
  *                           it (y +20, 6 px) the row's sequence, as SLOOP's TRACKS screen: the 16 steps of the page
- *                           playing (13 px a step: the steps set in the row's colour, past LEN empty, the playhead
+ *                           playing (13 px a step: the steps set shaded by level as on STEP, in the row's colour on the selected row and grey on
+ *                           the others (its colour chip too), flat dark grey when muted, past LEN empty, the playhead
  *                           white), and under the steps a thin bar a page when LEN > 16 (the one playing lit); DR all
  *                           the lanes merged; at the foot (y +34) the VU meter, a 3 px bar: the level filling from the
  *                           left, its peak falling; the compressor's gain reduction pushing in from the right in amber,
@@ -194,7 +195,7 @@ static void mx_paint_row(uint32_t i)                    /* a channel's or a lane
     mx_rect(i, &q);
     cy += q.y;
     mx_paint_ground(i, &q, c);
-    cv_rect(q.x + 2, q.y + 3, 3, q.h - 7, c);           /* the colour chip */
+    cv_rect(q.x + 2, q.y + 3, 3, q.h - 7, i == mx_row() ? c : C_GRAY);   /* the colour chip: grey off the selected row */
     text_st(q.x + 6, cy, &FONT_S, mx_code(i), cc, mu);  /* (a muted row: its name struck through, the user, 2026-10-15) */
     if (mx_is_usb(i) || i < MXR_LANE0) {                /* the USB input: its name and whether it streams; a channel: its engine
                                                          * and preset; their M badge */
@@ -370,7 +371,26 @@ static uint32_t mx_on(uint32_t r, uint32_t i)           /* step i is set on row 
     const track_t *t = &trk[mx_trk_of(r)];
     if (r >= MXR_LANE0)
         return dstep_has(&t->dstep[i % NSTEP], r - MXR_LANE0);
+    if (is_drum(t))                                     /* (DR: the sounds' hits only; the ACCENT lane's own row shows */
+        return dstep_mask(&t->dstep[i % NSTEP]) != 0u;  /* the accents, the user 2026-10-23) */
     return trk_on_step(mx_trk_of(r), i);
+}
+/* the level step i of row r is shaded by, as STEP shades it (lvl_col): a lane's hit's own, a channel's strongest note;
+ * DR's merged hits none (LV_HARD: the row's colour full, as before) */
+static uint32_t mx_lvl(uint32_t r, uint32_t i)
+{
+    const track_t *t = &trk[mx_trk_of(r)];
+    const step_t *s;
+    uint32_t n, lv = LV_GHOST;
+    if (r >= MXR_LANE0)
+        return dstep_lvl(&t->dstep[i % NSTEP], r - MXR_LANE0);
+    if (is_drum(t))
+        return LV_HARD;
+    s = &t->step[i % NSTEP];
+    for (n = 0; n < s->n && n < 4u; n++)
+        if (lvl_rank((s->lvl >> (2u * n)) & 3u) > lvl_rank(lv))
+            lv = (s->lvl >> (2u * n)) & 3u;
+    return lv;
 }
 /* row r's steps at x, y of the canvas (on the row's ground): the page playing, the playhead white, the pages' bars (a
  * channel's row) */
@@ -390,7 +410,10 @@ static void mx_steps_paint(uint32_t r, int32_t x, int32_t y)
         if (s >= len)
             continue;
         uint16_t sc = song.playing && s == at && !mx_smuted(r) ? C_WHITE
-                    : mx_on(r, s) ? (!mx_smuted(r) && op_step_auto(t, s, r >= MXR_LANE0 ? r - MXR_LANE0 : 0xFFu) ? C_AUTO : c) : C_BLACK;
+                    : !mx_on(r, s) ? C_BLACK : mx_smuted(r) ? c   /* (muted: flat dark grey, no levels) */
+                    : r != mx_row() ? col_shade(C_WHITE, 3u + lvl_rank(mx_lvl(r, s)))   /* (not selected: grey 3/8 .. 6/8, */
+                    : op_step_auto(t, s, r >= MXR_LANE0 ? r - MXR_LANE0 : 0xFFu) ? lvl_acol(mx_lvl(r, s))   /* under the */
+                    : lvl_col(c, mx_lvl(r, s));                 /* playhead's white; the user, 2026-10-23) */
         if (r >= MXR_LANE0 && sc == C_BLACK)            /* (a lane's empty step: a foot line, no box: 16 small boxes a */
             cv_rect(x + (int32_t)i * q.sp, y + q.sh - 1, q.sp - 1, 1, C_LINE);   /* lane read as noise) */
         else
@@ -413,9 +436,10 @@ static void mx_steps(uint32_t r)
     if (r == MXR_MASTER)
         return;
     mx_rect(r, &q);
-    sig = hu(hu(hu(hu(0x57u, song.playing ? at : 64u + page), len), bg), mx_smuted(r));
+    sig = hu(hu(hu(hu(hu(0x57u, song.playing ? at : 64u + page), len), bg), mx_smuted(r)), r == mx_row());
     for (i = 0; i < 16u; i++)
-        sig = sig * 5u + mx_on(r, page + i) * 2u + (mx_on(r, page + i) && op_step_auto(t, page + i, r >= MXR_LANE0 ? r - MXR_LANE0 : 0xFFu));
+        sig = sig * 5u + mx_on(r, page + i) * 2u + (mx_on(r, page + i) && op_step_auto(t, page + i, r >= MXR_LANE0 ? r - MXR_LANE0 : 0xFFu))
+            + (mx_on(r, page + i) ? lvl_rank(mx_lvl(r, page + i)) * 7u : 0u);   /* (a level turned: drawn again) */
     if (sig == mxd.stp[r])
         return;
     mxd.stp[r] = sig;

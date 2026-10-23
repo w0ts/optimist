@@ -40,6 +40,16 @@ static uint32_t trk_on_step(uint32_t c, uint32_t i)    /* step i of track c has 
     const track_t *t = &trk[c % NTRK];
     return is_drum(t) ? dstep_lanes(&t->dstep[i % NSTEP]) != 0u : t->step[i % NSTEP].time == ST_NOTE && t->step[i % NSTEP].n;   /* (the ACCENT lane's steps too) */
 }
+static uint16_t lvl_col(uint16_t c, uint32_t lv)        /* a hit's colour by its level: ghost 3/8 .. hard full (STEP, the mixer) */
+{
+    static const uint8_t SH[4] = {3, 5, 7, 8};
+    return col_shade(c, SH[lvl_rank(lv)]);
+}
+static uint16_t lvl_acol(uint32_t lv)                   /* ... a step with automation: the automation colour, its level 5/8 .. full */
+{
+    static const uint8_t SH[4] = {5, 6, 7, 8};
+    return col_shade(C_AUTO, SH[lvl_rank(lv)]);
+}
 
 /* the value of cell c as a form in x, y, w, h: on its colour; the empty part (off) a 1 px line along the foot, the
  * trough as a line on black, never a grey fill */
