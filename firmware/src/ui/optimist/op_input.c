@@ -622,6 +622,10 @@ static void op_tap(uint32_t b, uint32_t id)
     const int hold = held >= op_hold_ms();
     if (lay_btn_layer(b) != LY_PLAY && held > LAY_TAP_MS && !(b == B_SAVE && op_armed()))
         return;                                         /* (held: the layer was looked at, no tap) */
+#if FELUCCA_PATTERNS
+    if (b == B_LFO && lay.lock == LY_PAT)
+        return;                                         /* the pattern page locked open: LFO alone does nothing (LFO + key stores, as SAVE) */
+#endif
     if (b < NB && mx_master_dead(b))
         return;                                         /* (the mixer's MASTER: a track button does nothing) */
     if (b == B_FX && mx_on_master())
