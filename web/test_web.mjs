@@ -3365,6 +3365,8 @@ async function editorMirror() {
     && /<button role="tab" data-tab="screen"[^>]* hidden>/.test(html) && /b\.hidden = !mirrorOn\(\)/.test(html)
     && /:not\(\[data-tab=screen\]\)/.test(html),
     "mirror: pushes routed apart from the reply, INFO tag 65, the tab (hidden unless built; offered on a backup-only firmware)");
+  ok(/c\.onclick = mirrorFull;/.test(html) && /function mirrorFull\(\)/.test(html) && /#mirror:fullscreen \{/.test(html) && /wakeLock\.request\("screen"\)/.test(html),
+    "mirror: a tap on the screen: full screen and back, the phone kept awake meanwhile");
 }
 
 await editorMock();
