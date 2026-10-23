@@ -71,13 +71,13 @@ On the master DYN is the master compressor and the brickwall limiter: THRS (-30.
 
 GATER chops the track's volume in time with the tempo. Page `GATER`: DEPTH (the slot's amount), PAT, RATE and SHAPE. PAT is one of 16 patterns: 16TH, 8TH, 4TH, HALF, OFF8, OFF16, DOT8, DOT4, TRNC1 to TRNC4, GALOP, RVGAL, CLAVE, TRESL (default TRNC1). RATE is the length of a step: 1/8, 1/16, 1/32, 8T, 16T, 32T (default 1/16). SHAPE goes from hard to smooth. The phase follows the transport clock, so the gate starts on step 0 with PLAY at any tempo, nudge or external clock. On the drum track it gates the drum bus. GATER is off by default (`INS_GATER`) and not available on the master.
 
-### CHRS, ECHO and JUNO: types with a count of instances
+### CHRS, ECHO, JUNO, FLNG and XDLY: types that share the effects memory
 
-These keep a line of memory each, so the builder gives them a count of instances (0 off, 1 to 4: CHRS and ECHO per track, JUNO per slot). A track that picks one when every instance is in use stays dry on that slot until one is free; the INSERTS list shows how many are left.
+These keep a line of memory each (CHRS 2 KB, ECHO 8 KB, JUNO 2 KB, FLNG 1 KB, XDLY 64 or 32 KB), taken from one effects memory (builder item `DLY_ARENA`) that also holds the delay's own line. The builder builds each type or not; how many play at once is what the memory holds (the builder says, for the size chosen, up to how many of each). A slot that picks one when there is no room left stays dry until some is given back; the INSERTS list shows how many more fit.
 
 **JUNO** is the Juno-106's chorus (from fm-106, the MN3009 model): page `JUNO CHO` with MIX (127 = fully on) and MODE (I, II, I+II). A mono track comes out in stereo. On the master it is the page `MST JUNO`, shown as `INS JUNO`.
 
-**XDLY** is a dual delay in the manner of the SOMA LYRA-8's (its idea, not its circuit): two lines, each one's output moving the other one's time at the audio rate. Builder item `INS_XDLY` (a count of instances, off by default) and `XDLY_LEN` (each line 0.37 s, or 0.19 s to save pool). On a track's slots and the master's; not on a return, the USB input nor a drum lane. Page `XDLY` (on the master `MST XDLY`, shown as `INS XDLY`):
+**XDLY** is a dual delay in the manner of the SOMA LYRA-8's (its idea, not its circuit): two lines, each one's output moving the other one's time at the audio rate. Builder item `INS_XDLY` (off by default) and `XDLY_LEN` (each line 0.37 s, or 0.19 s to save pool). On a track's slots and the master's; not on a return, the USB input nor a drum lane. Page `XDLY` (on the master `MST XDLY`, shown as `INS XDLY`):
 
 - **TIME 1, TIME 2**: each line's time, 1 ms up to the line's length (shown in ms). Turning one glides the time over about 23 ms, so the repeats bend in pitch.
 - **MOD**: how far each line's output moves the other line's time, up to half of it either way: a slow chorus at low settings, metallic FM grit as the repeats build up.
@@ -86,7 +86,7 @@ These keep a line of memory each, so the builder gives them a count of instances
 
 A mono track hears the mean of the two lines; the drum bus and the master get line 1 on the left and line 2 on the right. A track keeps playing its repeats after its notes end, until the lines are silent (with FDBK high that is never: turn the MIX down to stop it).
 
-XDLY and ECHO take their lines from the delay memory (builder item `DLY_ARENA`), which also holds the delay's own line. While the delay (DLY) is in none of the master's slots, its line is free and holds XDLY or ECHO instances beyond the build's own; put DLY back in a slot and they fade out and give it back. A slot whose effect finds no room shows FULL and stays dry until room is given back.
+While the delay (DLY) is in none of the master's slots, its line is free and holds inserts beyond the memory's own room (any of the five), and the chorus's line likewise while CHO is in none (CHRS, JUNO, FLNG); put the send back in a slot and they fade out and give it back. A slot whose effect finds no room shows FULL and stays dry until room is given back.
 
 ### EQ3: a three-band DJ equaliser
 

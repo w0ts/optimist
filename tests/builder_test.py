@@ -513,17 +513,46 @@ try:
     check("measure_costs: ... but the first value of an item that does not build still stops the run", _stop)
 finally:
     MC.run_build = _run_build
-# the delay arena (fx/insfx/fxi_kern.c FXA_*): a computed term (configure.py dly_arena), exact for every count, line length
-# and size; measure_costs.py holds it against the real fxa_ins and ifx_xdly of every build it makes
+# the effects memory (fx/insfx/fxi_mem.h, fxi.c, 2026-10-23): a computed term (configure.py dly_arena: the own room, the
+# instance tables, the units' bitmap), exact for every type, line length and size; measure_costs.py holds it against the
+# real fxa_ins, fxa_bm and ifx_chrs .. ifx_xdly of every build it makes
 def _da(**kv):
     return C.dly_arena(dict(C.defaults(), **kv))
-check("the delay arena: auto is room for every ECHO and XDLY (a unit an ECHO, two lines an XDLY); DLY_ARENA is the "
-      "delay's line plus what it names; nothing without ECHO or XDLY; never under the delay's line",
-      _da(INS_DELAY=2)["units"] == 2 and _da(INS_XDLY=3)["units"] == 24 and _da(INS_XDLY=2, XDLY_LEN=8192)["units"] == 8
-      and _da(INS_XDLY=1, DLY_LEN=32768, DLY_ARENA=64)["pool"] == C.XD_STATE and _da(DLY_ARENA=96)["pool"] == 0
-      and _da(INS_DELAY=1, INS_XDLY=1, DLY_LEN=32768, DLY_ARENA=128)["units"] == 8
-      and bool(C.validate(dict(C.defaults(), INS_XDLY=1, DLY_ARENA=64))[0])
+def _fm(**kv):
+    return C.fx_memory(dict(C.defaults(), **kv))
+_four = dict(INS_CHORUS=1, INS_DELAY=1, INS_JCHORUS=1, INS_FLANGER=1, DLY_LEN=32768)
+check("the effects memory: auto is the delay's line and one line of each insert built (CHRS 2, ECHO 8, JUNO 2, FLNG 1, "
+      "XDLY 2 lines: 64 or 32 KB); DLY_ARENA is the delay's line plus what it names; nothing without an insert built",
+      _da(INS_DELAY=1)["units"] == 8 and _da(**_four)["units"] == 13 and _da(INS_XDLY=1)["units"] == 64
+      and _da(INS_XDLY=1, XDLY_LEN=8192)["units"] == 32 and _da(INS_DELAY=1, DLY_LEN=32768, DLY_ARENA=96)["units"] == 32
+      and _da(DLY_ARENA=96)["pool"] == 0 and _da(INS_CHORUS=1, DLY_ARENA=160)["units"] == 32)
+check("... its pool: the own room, the instance tables (an owner each at most, no more than the memory holds) and the "
+      "bitmap: one XDLY on the delay's 64 KB line alone is its state and 12 B of bitmap",
+      _da(INS_XDLY=1, DLY_LEN=32768, DLY_ARENA=64)["pool"] == C.XD_STATE + 12
+      and _da(INS_XDLY=1, DLY_LEN=32768, DLY_ARENA=64)["tables"] == {"ifx_xdly": C.XD_STATE}
+      and _da(**_four)["tables"]["ifx_chrs"] == 9 * C.FXM_STATE["INS_CHORUS"][1]
+      and _da(**_four)["pool"] == 13 * 1024 + sum(9 * C.FXM_STATE[k][1] for k in _four if k in C.FXM_STATE)
+      + 4 * ((64 + 13 + 4 + 31) // 32))
+_m = _fm(**_four)
+check("... up to N at once in the memory chosen (each type alone, the sends in their master slots: the own room), plus "
+      "what the delay's and the chorus's lines lend while out of the slots, capped at the 9 owners",
+      _m["types"]["INS_CHORUS"] == {"kb": 2, "max": 9, "own": 6, "dly": 32, "cho": 2}
+      and _m["types"]["INS_DELAY"]["own"] == 1 and _m["types"]["INS_DELAY"]["dly"] == 8
+      and _m["types"]["INS_FLANGER"]["own"] == 9 and "CHRS up to 6 (+3 while the delay" in C.fx_memory_text(_m)
+      and "ECHO up to 1 (+8 while the delay is in no master slot)" in C.fx_memory_text(_m))
+_e, _w, _n = C.validate(dict(C.defaults(), **_four))
+check("... the builder says so: a notice on the effects memory (DLY_ARENA), no error",
+      not _e and any("DLY_ARENA" in n.keys and "up to" in n for n in _n))
+_e = C.validate(dict(C.defaults(), INS_XDLY=1, FX_DELAY=0, DLY_ARENA=32))[0]
+check("... an effects memory too small for one line of a type built: an error naming the type (XDLY's 64 KB in 32 KB "
+      "with no delay line to lend)", any("XDLY" in e and "INS_XDLY" in e.keys for e in _e))
+check("... under the delay's line: an error; the delay's line alone holds one XDLY (lent): fine",
+      bool(C.validate(dict(C.defaults(), INS_XDLY=1, DLY_ARENA=64))[0])
       and not C.validate(dict(C.defaults(), INS_XDLY=1, DLY_LEN=32768, DLY_ARENA=64))[0])
+_cfg, _ = C.parse("INS_CHORUS=2\nINS_DELAY=4\nINS_JCHORUS=3\nINS_FLANGER=1\nINS_XDLY=2\n", warn=lambda m: None)
+check("an old .config's instance counts (INS_CHORUS=2 ...) load as built: no setting lost, no error",
+      all(_cfg[k] == 1 for k in C.FXM_TYPES) and not [e for e in C.validate(_cfg)[0] if set(e.keys) & set(C.FXM_TYPES)]
+      and all(not R.ITEMS[k].is_choice for k in C.FXM_TYPES))
 _old = {"flash": 1000, "ram": 200, "pool": 50, "ramtext": 400}
 with redirect_stdout(io.StringIO()):
     _moved = MC.refreshed_base(_old, dict(_old, ramtext=488))       # (88 B: under the 256 B fit margin, was kept)

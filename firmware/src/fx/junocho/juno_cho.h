@@ -24,7 +24,8 @@
 #define JUNO_CHO_INL static inline __attribute__((always_inline))
 
 typedef struct {
-    int16_t ln[JUNO_CHO_LEN];    /* the line */
+    int16_t *ln;                 /* the line: JUNO_CHO_LEN samples, the caller's (Optimist: a slice of the effects
+                                  * memory, fx/insfx/fxi_mem.h) */
     uint32_t wr;                 /* the next write place */
     uint32_t ph;                 /* the triangle's phase */
     int32_t f[2][2];             /* the low-passes' states, L and R */
@@ -69,16 +70,17 @@ JUNO_CHO_INL void juno_cho_core(juno_cho_t *c, uint32_t mode, uint32_t mix, cons
     int32_t gd = 32768 - (int32_t)(((32768 - 21209) * mix) / 127u), gw = (int32_t)((30892u * mix) / 127u);
     int32_t dep = DEPTH[mode % 3u];
     uint32_t inc = INC[mode % 3u], i, w = c->wr, ph = c->ph;
+    int16_t *const ln = c->ln;
     for (i = 0; i < n; i++) {
         int32_t x = in[i] >> sh, xl = dl[i], xr = dr[i], t, d, wl, wrt;
         x = x < -32768 ? -32768 : x > 32767 ? 32767 : x;
-        c->ln[w] = (int16_t)x;
+        ln[w] = (int16_t)x;
         ph += inc;
         t = (int32_t)(ph >> 16) - 32768;
         t = ((t < 0 ? -t : t) - 16384) << 1;           /* the triangle, -32768..32766 */
         d = t * dep;
-        wl = juno_cho_lp(c->f[0], juno_cho_tap(c->ln, w, (154 << 16) + d));
-        wrt = juno_cho_lp(c->f[1], juno_cho_tap(c->ln, w, (154 << 16) - d));
+        wl = juno_cho_lp(c->f[0], juno_cho_tap(ln, w, (154 << 16) + d));
+        wrt = juno_cho_lp(c->f[1], juno_cho_tap(ln, w, (154 << 16) - d));
         w = (w + 1u) & (JUNO_CHO_LEN - 1u);
         if (!sh) {                                      /* (fm-106's own arithmetic: the line's scale is the dry's) */
             l[i] = (int32_t)(((int64_t)xl * gd + (int64_t)wl * gw) >> 15);

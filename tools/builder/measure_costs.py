@@ -309,14 +309,15 @@ def check_terms(cfg, sizes, name):
         raise SystemExit(f"measure_costs: {name}: engines.c part_mem is {real} B, configure.py part_mem says "
                          f"{C.part_mem(cfg)['pool']} B (built: {', '.join(alone) or 'none'}): update configure.py "
                          "PART_MEM (python3 tools/builder/measure_costs.py --part-mem measures each member alone)")
-    syms = sizes.get("symbols") or {}                   # (the delay arena: fxi_kern.c fxa_ins, xdly.c ifx_xdly)
-    if "fxa_ins" not in syms:
+    syms = sizes.get("symbols") or {}                   # (the effects memory: fxi_mem.h fxa_ins, the instance tables,
+    if not any(k in syms for k in C.FXM_SYMBOLS):       # fxi.c fxa_bm)
         return
     arena = C.dly_arena(cfg)
-    for sym, want in (("fxa_ins", arena["units"] * C.FXA_UNIT), ("ifx_xdly", arena["xdly"] * C.XD_STATE)):
-        if sym in syms and syms[sym] != want:
-            raise SystemExit(f"measure_costs: {name}: {sym} is {syms[sym]} B, configure.py dly_arena says {want} B: "
-                             "update dly_arena (FXA_UNIT, XD_STATE) to the firmware")
+    want = dict(arena["tables"], fxa_ins=arena["units"] * C.FXM_UNIT, fxa_bm=arena["bitmap"])
+    for sym, n in want.items():
+        if sym in syms and n and syms[sym] != n:
+            raise SystemExit(f"measure_costs: {name}: {sym} is {syms[sym]} B, configure.py dly_arena says {n} B: "
+                             "update dly_arena (FXM_UNIT, FXM_STATE) to the firmware")
 
 
 def pair_name(pair):

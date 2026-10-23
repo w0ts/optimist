@@ -390,6 +390,10 @@ class Builder(App):
             t.append(f"option of {R.ITEMS[it.parent].label}\n", style="dim")
         if it.desc:
             t.append(it.desc + "\n")
+        if key == "DLY_ARENA":                           # (the effects memory: up to how many of each insert at once)
+            mem = C.fx_memory(self.cfg)
+            if mem["types"]:
+                t.append(C.fx_memory_text(mem) + "\n", style="cyan")
         for e in self.conflicts.get(key, []):
             t.append(f"ERROR  {e}\n", style="bold red")
         if self.costs:

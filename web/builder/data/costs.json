@@ -692,79 +692,25 @@
   },
   "INS_CHORUS": {
    "1": {
-    "flash": 4696,
-    "ram": 1408,
-    "pool": 2120,
-    "ramtext": 0
-   },
-   "2": {
-    "flash": 4664,
-    "ram": 1408,
-    "pool": 4192,
-    "ramtext": 0
-   },
-   "3": {
-    "flash": 4712,
-    "ram": 1408,
-    "pool": 6240,
-    "ramtext": 0
-   },
-   "4": {
-    "flash": 3384,
-    "ram": 1424,
-    "pool": 8288,
+    "flash": 4632,
+    "ram": 1312,
+    "pool": 140,
     "ramtext": 0
    }
   },
   "INS_DELAY": {
    "1": {
-    "flash": 4492,
-    "ram": 976,
-    "pool": 80,
-    "ramtext": 0
-   },
-   "2": {
-    "flash": 4428,
-    "ram": 976,
-    "pool": 80,
-    "ramtext": 0
-   },
-   "3": {
-    "flash": 4492,
-    "ram": 976,
-    "pool": 80,
-    "ramtext": 0
-   },
-   "4": {
-    "flash": 4460,
-    "ram": 976,
-    "pool": 80,
+    "flash": 4252,
+    "ram": 864,
+    "pool": 140,
     "ramtext": 0
    }
   },
   "INS_JCHORUS": {
    "1": {
-    "flash": 4928,
-    "ram": 1136,
-    "pool": 2096,
-    "ramtext": 128
-   },
-   "2": {
-    "flash": 4976,
-    "ram": 1136,
-    "pool": 4176,
-    "ramtext": 128
-   },
-   "3": {
-    "flash": 4976,
-    "ram": 1136,
-    "pool": 6256,
-    "ramtext": 128
-   },
-   "4": {
-    "flash": 4976,
-    "ram": 1136,
-    "pool": 8336,
+    "flash": 6344,
+    "ram": 1024,
+    "pool": 156,
     "ramtext": 128
    }
   },
@@ -778,53 +724,17 @@
   },
   "INS_FLANGER": {
    "1": {
-    "flash": 3088,
-    "ram": 1168,
-    "pool": 1044,
-    "ramtext": 0
-   },
-   "2": {
-    "flash": 3136,
-    "ram": 1168,
-    "pool": 2088,
-    "ramtext": 0
-   },
-   "3": {
-    "flash": 3136,
-    "ram": 1168,
-    "pool": 3132,
-    "ramtext": 0
-   },
-   "4": {
-    "flash": 3136,
-    "ram": 1168,
-    "pool": 4176,
+    "flash": 4608,
+    "ram": 1120,
+    "pool": 140,
     "ramtext": 0
    }
   },
   "INS_XDLY": {
    "1": {
-    "flash": 6448,
-    "ram": 1872,
-    "pool": 40,
-    "ramtext": 48
-   },
-   "2": {
-    "flash": 6352,
-    "ram": 1872,
-    "pool": 80,
-    "ramtext": 48
-   },
-   "3": {
-    "flash": 6352,
-    "ram": 1872,
-    "pool": 120,
-    "ramtext": 48
-   },
-   "4": {
-    "flash": 6352,
-    "ram": 1872,
-    "pool": 160,
+    "flash": 6048,
+    "ram": 1760,
+    "pool": 140,
     "ramtext": 48
    }
   },
@@ -1166,8 +1076,8 @@
   },
   "ED_MIRROR": {
    "1": {
-    "flash": 1380,
-    "ram": 64,
+    "flash": 2116,
+    "ram": 48,
     "pool": 0,
     "ramtext": 0
    }
@@ -1553,7 +1463,7 @@
    }
   }
  },
- "measured": "2026-10-23 12:00",
+ "measured": "2026-10-23 13:21",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
@@ -1693,7 +1603,7 @@
    }
   },
   "synth": {
-   "hash": "57a6585b",
+   "hash": "305541ac",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -1744,7 +1654,7 @@
     "INS_SPIT": 1,
     "INS_CHORUS": 1,
     "INS_DELAY": 1,
-    "INS_JCHORUS": 2,
+    "INS_JCHORUS": 1,
     "INS_FLANGER": 1,
     "INS_GATER": 1,
     "CHORDPLUS": 1,
@@ -1785,11 +1695,11 @@
     "COND": 1,
     "SEQTOOLS": 1
    },
-   "built_hash": "20e9b4d1",
+   "built_hash": "7af2b352",
    "sizes": {
-    "flash": 555484,
-    "ram": 97852,
-    "pool": 329132,
+    "flash": 555252,
+    "ram": 97804,
+    "pool": 327940,
     "ramtext": 25284
    }
   },
@@ -1891,7 +1801,7 @@
    }
   },
   "synth+ble-test": {
-   "hash": "4a26d576",
+   "hash": "0e2f3911",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -1942,7 +1852,7 @@
     "INS_SPIT": 1,
     "INS_CHORUS": 1,
     "INS_DELAY": 1,
-    "INS_JCHORUS": 2,
+    "INS_JCHORUS": 1,
     "INS_FLANGER": 1,
     "INS_GATER": 1,
     "CHORDPLUS": 1,
@@ -1975,16 +1885,16 @@
     "SL24_SAFE": 0,
     "SL24_IMPORT": 0
    },
-   "built_hash": "6aaf302b",
+   "built_hash": "54fa8d30",
    "sizes": {
-    "flash": 502844,
-    "ram": 91576,
-    "pool": 295356,
+    "flash": 502620,
+    "ram": 91544,
+    "pool": 294164,
     "ramtext": 23968
    }
   },
   "synth+ble-full": {
-   "hash": "16c76c99",
+   "hash": "192b579e",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -2035,7 +1945,7 @@
     "INS_SPIT": 1,
     "INS_CHORUS": 1,
     "INS_DELAY": 1,
-    "INS_JCHORUS": 2,
+    "INS_JCHORUS": 1,
     "INS_FLANGER": 1,
     "INS_GATER": 1,
     "CHORDPLUS": 1,
@@ -2068,11 +1978,11 @@
     "SL24_SAFE": 0,
     "SL24_IMPORT": 0
    },
-   "built_hash": "329cfb7c",
+   "built_hash": "0bef7e0f",
    "sizes": {
-    "flash": 496176,
-    "ram": 86792,
-    "pool": 276316,
+    "flash": 495948,
+    "ram": 86776,
+    "pool": 275120,
     "ramtext": 21432
    }
   },
@@ -2202,7 +2112,7 @@
    }
   },
   "synth~": {
-   "hash": "5e71a579",
+   "hash": "0b4c3576",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -2252,7 +2162,7 @@
     "INS_SPIT": 1,
     "INS_CHORUS": 1,
     "INS_DELAY": 1,
-    "INS_JCHORUS": 2,
+    "INS_JCHORUS": 1,
     "INS_FLANGER": 1,
     "INS_GATER": 1,
     "CHORDPLUS": 1,
@@ -2292,11 +2202,11 @@
     "PLOCK": 1,
     "SEQTOOLS": 1
    },
-   "built_hash": "4b26019b",
+   "built_hash": "4a7ba9c0",
    "sizes": {
-    "flash": 556108,
-    "ram": 97580,
-    "pool": 329132,
+    "flash": 555888,
+    "ram": 97532,
+    "pool": 327940,
     "ramtext": 25284
    }
   },
@@ -2402,7 +2312,7 @@
    }
   },
   "synth+ble-test~": {
-   "hash": "284be090",
+   "hash": "7b4732af",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -2457,7 +2367,7 @@
     "INS_SPIT": 1,
     "INS_CHORUS": 1,
     "INS_DELAY": 1,
-    "INS_JCHORUS": 2,
+    "INS_JCHORUS": 1,
     "INS_FLANGER": 1,
     "INS_GATER": 1,
     "CHORDPLUS": 1,
@@ -2490,16 +2400,16 @@
     "SL24_SAFE": 0,
     "SL24_IMPORT": 0
    },
-   "built_hash": "537492cf",
+   "built_hash": "6e6b42b4",
    "sizes": {
-    "flash": 505092,
-    "ram": 92720,
-    "pool": 229900,
+    "flash": 505252,
+    "ram": 92704,
+    "pool": 228540,
     "ramtext": 23760
    }
   },
   "synth+ble-full~": {
-   "hash": "242099fd",
+   "hash": "27ab9412",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -2550,7 +2460,7 @@
     "INS_SPIT": 1,
     "INS_CHORUS": 1,
     "INS_DELAY": 1,
-    "INS_JCHORUS": 2,
+    "INS_JCHORUS": 1,
     "INS_FLANGER": 1,
     "INS_GATER": 1,
     "CHORDPLUS": 1,
@@ -2581,11 +2491,11 @@
     "SL24_SAFE": 0,
     "SL24_IMPORT": 0
    },
-   "built_hash": "40d27090",
+   "built_hash": "3a3aeac3",
    "sizes": {
-    "flash": 495844,
-    "ram": 86248,
-    "pool": 276316,
+    "flash": 495604,
+    "ram": 86216,
+    "pool": 275120,
     "ramtext": 21432
    }
   }
