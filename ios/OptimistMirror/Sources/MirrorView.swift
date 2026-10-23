@@ -131,7 +131,11 @@ struct ConnectionView: View {
         NavigationStack {
             Form {
                 Section("Connected To") {
-                    Label(link.portName, systemImage: link.bluetooth ? "dot.radiowaves.left.and.right" : "cable.connector")
+                    LabeledContent("Link") {
+                        Label(link.bluetooth ? "Bluetooth" : "USB Cable",
+                              systemImage: link.bluetooth ? "dot.radiowaves.left.and.right" : "cable.connector")
+                    }
+                    LabeledContent("Port", value: link.portName)
                 }
                 Section {
                     Picker("MIDI Port", selection: $link.chosen) {
