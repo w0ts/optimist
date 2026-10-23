@@ -35,6 +35,12 @@ struct LibraryView: View {
                             Button("Import…") { importing = true }
                             Button("Export Library…") { s.exportLibrary() }.disabled(s.library.isEmpty)
                         } label: { Image(systemName: "ellipsis.circle") }
+                    } else if s.ready(.library), let b = s.bank {
+                        Menu {
+                            Button("Refresh", systemImage: "arrow.clockwise") { s.loadBank() }
+                            Button("Export All…", systemImage: "square.and.arrow.up") { s.exportBank() }.disabled(b.slots.allSatisfy { !$0.used })
+                        } label: { Image(systemName: "ellipsis.circle") }
+                        .disabled(!s.idle)
                     }
                 }
             }
@@ -63,40 +69,37 @@ struct LibraryView: View {
         if s.ready(.library), let b = s.bank {
             Section("\(b.slots.filter(\.used).count) / \(b.total) used") {
                 ForEach(b.slots, id: \.slot) { x in
-                    HStack {
-                        Text(Names.slotName(x.slot)).font(.body.monospaced()).frame(width: 44, alignment: .leading)
-                        Text(x.used ? x.name : "empty").foregroundStyle(x.used ? Color.primary : Color.secondary)
-                        Spacer()
-                        Text(x.used ? engine(x.engine) : "").font(.footnote).foregroundStyle(.secondary)
-                    }
-                    .contentShape(Rectangle())
-                    .listRowBackground(s.bankSel == x.slot ? Color.accentColor.opacity(0.25) : nil)
-                    .onTapGesture { s.bankSel = x.slot }
-                }
-            }
-            if let k = s.bankSel, k < b.slots.count {
-                let slot = b.slots[k]
-                Section(Names.slotName(k)) {
-                    Button("Load") { s.bankLoad(k) }.disabled(!slot.used)
-                    Button("Save Current Sound…") {
-                        askText("Name", slot.used ? slot.name : "") { name in
-                            if slot.used { self.ask = Confirmation(title: "Overwrite slot \(Names.slotName(k)) (\(slot.name))?") { s.bankStore(k, name: name) } }
-                            else { s.bankStore(k, name: name) }
+                    Menu {                       // (a tap: the slot's actions, where it was tapped)
+                        slotActions(x.slot, b.slots[x.slot])
+                    } label: {
+                        HStack {
+                            Text(Names.slotName(x.slot)).font(.body.monospaced()).frame(width: 44, alignment: .leading)
+                            Text(x.used ? x.name : "Empty").foregroundStyle(x.used ? Color.primary : Color.secondary)
+                            Spacer()
+                            Text(x.used ? engine(x.engine) : "").font(.footnote).foregroundStyle(.secondary)
+                            Image(systemName: "ellipsis.circle").foregroundStyle(.secondary)
                         }
+                        .contentShape(Rectangle())
                     }
-                    Button("Add to Library") { s.bankToLibrary(k); page = 1 }.disabled(!slot.used)
-                    Button("Erase", role: .destructive) {
-                        ask = Confirmation(title: "Erase slot \(Names.slotName(k)) (\(slot.name))?") { s.bankErase(k) }
-                    }.disabled(!slot.used)
+                    .buttonStyle(.plain)
+                    .disabled(!s.idle)
                 }
-                .disabled(!s.idle)
             }
-            Section {
-                Button("Refresh") { s.loadBank() }
-                Button("Export All…") { s.exportBank() }.disabled(b.slots.allSatisfy { !$0.used })
-            }
-            .disabled(!s.idle)
         }
+    }
+
+    @ViewBuilder private func slotActions(_ k: Int, _ slot: UpSlot) -> some View {
+        Button("Load", systemImage: "arrow.down.circle") { s.bankLoad(k) }.disabled(!slot.used)
+        Button(slot.used ? "Replace with Current Sound…" : "Save Current Sound…", systemImage: "square.and.arrow.down") {
+            askText("Name", slot.used ? slot.name : "") { name in
+                if slot.used { self.ask = Confirmation(title: "Replace \(Names.slotName(k)) (\(slot.name))?") { s.bankStore(k, name: name) } }
+                else { s.bankStore(k, name: name) }
+            }
+        }
+        Button("Add to My Presets", systemImage: "plus.square.on.square") { s.bankToLibrary(k); page = 1 }.disabled(!slot.used)
+        Button("Erase", systemImage: "trash", role: .destructive) {
+            ask = Confirmation(title: "Erase \(Names.slotName(k)) (\(slot.name))?") { s.bankErase(k) }
+        }.disabled(!slot.used)
     }
 
     private func engine(_ i: Int) -> String { s.info.map { i >= 0 && i < $0.engines.count ? $0.engines[i] : String(i) } ?? String(i) }
@@ -115,40 +118,53 @@ struct LibraryView: View {
         }
         Section("\(shown.count) / \(s.library.count)") {
             ForEach(shown) { p in
-                HStack {
-                    VStack(alignment: .leading) {
-                        Text(p.name)
-                        Text(([p.engineName] + p.tags).filter { !$0.isEmpty }.joined(separator: " · ")).font(.footnote).foregroundStyle(.secondary)
+                Menu {                           // (a tap: the preset's actions)
+                    patchActions(p)
+                } label: {
+                    HStack {
+                        VStack(alignment: .leading) {
+                            Text(p.name)
+                            Text(([p.engineName] + p.tags).filter { !$0.isEmpty }.joined(separator: " · ")).font(.footnote).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        if p.pattern != nil { Image(systemName: "music.note") }
+                        Image(systemName: "ellipsis.circle").foregroundStyle(.secondary)
                     }
-                    Spacer()
-                    if p.pattern != nil { Image(systemName: "music.note") }
+                    .contentShape(Rectangle())
                 }
-                .contentShape(Rectangle())
-                .listRowBackground(s.libSel == p.id ? Color.accentColor.opacity(0.25) : nil)
-                .onTapGesture { s.libSel = p.id }
+                .buttonStyle(.plain)
                 .swipeActions {
-                    Button("Delete", role: .destructive) { ask = Confirmation(title: "Delete \(p.name) from the library?") { s.deletePatch(p.id) } }
+                    Button("Delete", role: .destructive) { ask = Confirmation(title: "Delete \(p.name) from My Presets?") { s.deletePatch(p.id) } }
                 }
             }
         }
-        if let id = s.libSel, let p = s.library.first(where: { $0.id == id }) {
-            Section(p.name) {
-                Button("Rename…") { askText("Name", p.name) { v in if !v.trimmingCharacters(in: .whitespaces).isEmpty { s.updatePatch(id) { $0.name = String(v.trimmingCharacters(in: .whitespaces).prefix(32)) } } } }
-                Button("Tags…") {
-                    askText("Tags, separated by commas", p.tags.joined(separator: ", ")) { v in
-                        s.updatePatch(id) { $0.tags = Array(NSOrderedSet(array: v.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty })) as? [String] ?? [] }
+    }
+
+    @ViewBuilder private func patchActions(_ p: Patch) -> some View {
+        let id = p.id
+        if s.ready(.library), let b = s.bank {
+            Menu("Send to FM-1", systemImage: "square.and.arrow.up.on.square") {
+                ForEach(b.slots, id: \.slot) { x in
+                    Button("\(Names.slotName(x.slot))  \(x.used ? x.name : "Empty")") {
+                        let go = { s.putPatch(id, slot: x.slot) }
+                        if x.used { ask = Confirmation(title: "Replace \(Names.slotName(x.slot)) (\(x.name))?", action: go) } else { go() }
                     }
-                }
-                Button("Duplicate") { s.duplicatePatch(id) }
-                Button("Export…") { s.exportPatch(id) }
-                if let k = s.bankSel, s.ready(.library), let b = s.bank, k < b.slots.count {
-                    Button("Save to \(Names.slotName(k))") {
-                        let go = { s.putPatch(id, slot: k) }
-                        if b.slots[k].used { ask = Confirmation(title: "Overwrite slot \(Names.slotName(k)) (\(b.slots[k].name))?", action: go) } else { go() }
-                    }
-                    .disabled(!s.idle)
                 }
             }
+            .disabled(!s.idle)
+        }
+        Button("Rename…", systemImage: "pencil") {
+            askText("Name", p.name) { v in if !v.trimmingCharacters(in: .whitespaces).isEmpty { s.updatePatch(id) { $0.name = String(v.trimmingCharacters(in: .whitespaces).prefix(32)) } } }
+        }
+        Button("Tags…", systemImage: "tag") {
+            askText("Tags, separated by commas", p.tags.joined(separator: ", ")) { v in
+                s.updatePatch(id) { $0.tags = Array(NSOrderedSet(array: v.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty })) as? [String] ?? [] }
+            }
+        }
+        Button("Duplicate", systemImage: "plus.square.on.square") { s.duplicatePatch(id) }
+        Button("Export…", systemImage: "square.and.arrow.up") { s.exportPatch(id) }
+        Button("Delete", systemImage: "trash", role: .destructive) {
+            ask = Confirmation(title: "Delete \(p.name) from My Presets?") { s.deletePatch(id) }
         }
     }
 }
