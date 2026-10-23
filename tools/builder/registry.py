@@ -914,16 +914,18 @@ _add("ED_SCREENS", "FELUCCA_ED_SCREENS", "web editor: the device's screens (card
           "rows of cards (cmd 99), GLOBAL and SYSTEM as the device's lines with their help (cmd 96) and the "
           "oscilloscope (cmd 101). Off: no Device tab; "
           "the editor keeps its own Sound / Mixer / Sequence tabs.")
-_add("ED_MIRROR", "FELUCCA_ED_MIRROR", "web editor: the screen mirrored (the Screen tab, the iPhone app; USB)", Y, 381,
+_add("ED_MIRROR", "FELUCCA_ED_MIRROR", "web editor: the screen mirrored (the Screen tab, the iPhone app; USB or Bluetooth)", Y, 381,
      parent="EDITOR", default=0, experimental=True, tested="host-tested only (the stream decoded back to every screen drawn, "
      "every catch-up the panel), not on a device",
      desc="The FM-1's screen in the web editor's Screen tab or on an iPhone (the FM-1 Mirror app, ios/OptimistMirror), over "
-          "a USB cable: while one asks (cmd 106), every write to the panel also goes out, run-length coded, as it is drawn, "
-          "so it shows the very pixels: the mixer, the step grid, the layers, the dialogs. No frame buffer on the device; "
-          "nothing is sent while none asks; the mixer's meters go 10 times a second. A host that stops reading drops what is drawn and catches up once it "
-          "reads again, at most 4 times a second: the panel's bands drawn again in place, no flash on the device. USB only: "
-          "over Bluetooth MIDI it was too slow. About 0.3 KB of flash and 0.1 KB of RAM. With live "
-          "editing (ED_LIVE) or without.")
+          "a USB cable or Bluetooth MIDI (with BLE): while one asks (cmd 106), every write to the panel also goes out, "
+          "run-length coded, as it is drawn, so it shows the very pixels: the mixer, the step grid, the layers, the dialogs. "
+          "No frame buffer on the device; nothing is sent while none asks; the mixer's meters go 10 times a second over USB, "
+          "never over Bluetooth. A link that falls behind (USB: the host stops reading; Bluetooth: its 8 KB send ring is full) "
+          "drops what is drawn and catches up once it is clear again, at most 4 times a second: the panel's bands drawn again "
+          "in place, no flash on the device. Over Bluetooth whole screens come at the rate the radio carries (slow on the "
+          "first try, 2026-10-23, not measured). On mots.config (with BLE): 2.0 KB of flash, 0.2 KB of RAM, 8 KB of pool. With "
+          "live editing (ED_LIVE) or without.")
 # (bit 70, SIZE, retired 2026-10: the UI, storage and editor code is always built minsize, tools/size_fns.py keeps the
 #  audio path out of it; never reuse the bit)
 _add("TAB_IN_POOL", "FELUCCA_TAB_IN_POOL", "sound tables and FM6 buffers in the pool, not main RAM", Y, 300, default=0,

@@ -11,6 +11,7 @@
 		3AA30F2A997715C708ED3D3C /* MirrorDecoderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 966AB47DC696C8582C328253 /* MirrorDecoderTests.swift */; };
 		4649E2AFEED3A97BD4EEB635 /* MirrorDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6F31FA3CF326B87F5453721 /* MirrorDecoder.swift */; };
 		4A96C6E20FB1558DCED4A41D /* MirrorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D8D6024DF9B95CFFEEF0783 /* MirrorView.swift */; };
+		9A27CB820A2691AF488B847C /* BluetoothPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08CDB3647FD4A337F9737AE8 /* BluetoothPicker.swift */; };
 		BA6834D7B3A00D8A4007F620 /* MirrorLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = B44F5DDB3FA5A048A53E14BC /* MirrorLink.swift */; };
 		E006485466AA9D4C7AEAFD0E /* screen.rgb565 in Resources */ = {isa = PBXBuildFile; fileRef = 0EFED5448060093A17041C1E /* screen.rgb565 */; };
 /* End PBXBuildFile section */
@@ -26,6 +27,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		08CDB3647FD4A337F9737AE8 /* BluetoothPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BluetoothPicker.swift; sourceTree = "<group>"; };
 		0EFED5448060093A17041C1E /* screen.rgb565 */ = {isa = PBXFileReference; path = screen.rgb565; sourceTree = "<group>"; };
 		5D8D6024DF9B95CFFEEF0783 /* MirrorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MirrorView.swift; sourceTree = "<group>"; };
 		6754F3F289DC97CFA49C1379 /* OptimistMirrorTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = OptimistMirrorTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -78,6 +80,7 @@
 		DCFB41DEA3B2BA3B45DA6505 /* Sources */ = {
 			isa = PBXGroup;
 			children = (
+				08CDB3647FD4A337F9737AE8 /* BluetoothPicker.swift */,
 				D6F31FA3CF326B87F5453721 /* MirrorDecoder.swift */,
 				B44F5DDB3FA5A048A53E14BC /* MirrorLink.swift */,
 				5D8D6024DF9B95CFFEEF0783 /* MirrorView.swift */,
@@ -187,6 +190,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9A27CB820A2691AF488B847C /* BluetoothPicker.swift in Sources */,
 				4649E2AFEED3A97BD4EEB635 /* MirrorDecoder.swift in Sources */,
 				BA6834D7B3A00D8A4007F620 /* MirrorLink.swift in Sources */,
 				4A96C6E20FB1558DCED4A41D /* MirrorView.swift in Sources */,
@@ -363,6 +367,7 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "FM-1 Mirror";
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Connects to the FM-1 over Bluetooth MIDI to show its screen.";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UIRequiresFullScreen = YES;
 				INFOPLIST_KEY_UIStatusBarHidden = YES;
@@ -385,6 +390,7 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "FM-1 Mirror";
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Connects to the FM-1 over Bluetooth MIDI to show its screen.";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UIRequiresFullScreen = YES;
 				INFOPLIST_KEY_UIStatusBarHidden = YES;
