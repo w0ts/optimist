@@ -1,8 +1,9 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* tests/ui_optimist_test.c, STEP's cards as an overlay (the user, 2026-10-10: "we should show the 4 cards in step seq
  * only on page change and when modifying the values, like layover"): the grid takes the panel from y 25; the four
- * cards are drawn over its top on a page change or an edit, for OP_CARDS_FRAMES, and the grid is drawn whole again
- * when they go. Included by ui_optimist_test.c after ui_optimist_cards.h. */
+ * cards are drawn over its top on a page change or an edit, for OP_CARDS_FRAMES (~1.5 s; OP_CARDS_LONG, ~30 s, once
+ * SHIFT2 + SELECT was turned, until STEP is left: the user 2026-10-23), and the grid is drawn whole again when they
+ * go. Included by ui_optimist_test.c after ui_optimist_cards.h. */
 
 /* two probes that tell the grid from the cards: lane row 2's white strip at x 2 (the cards' band is black there), and
  * the first card's outline (ui_optimist_cards.h card0_up; the grid has no such edge there) */
@@ -154,6 +155,47 @@ static void step_cards_tests(void)
         check(ui.cards_t > 0u && card0_up(), "STEP overlay: a synth track, SEQ then a knob turned: the cards");
         frames(OP_CARDS_FRAMES + 5u);
         check(ui.cards_t == 0u && !card0_up(), "STEP overlay: a synth track, gone: the roll whole");
+        /* SHIFT2 + SELECT turned: the page's cards for the long time, until STEP is left (the user, 2026-10-23: "long if
+         * right shift + select turn", "not the plock", "long timer remain until i leave the SEQ page") */
+        sc_open_drums();
+        {
+            uint32_t rw = ui.row[SCR_STEP], oc = (uint32_t)song.octave;
+            press(B_OCTUP);
+            turn(EN_SELECT, 1);
+            check(ui.cards_t > OP_CARDS_FRAMES && ui.row[SCR_STEP] == rw && sc_cards_up(), "STEP overlay: SHIFT2 + SELECT turned, the cards down: up for the long time, the page kept");
+            release(B_OCTUP);
+            frames(2);
+            check((uint32_t)song.octave == oc, "... OCT+ let go: no octave change");
+            frames(OP_CARDS_FRAMES + 5u);
+            check(ui.cards_t > 0u && sc_cards_up(), "... still up 1.5 s on");
+            turn(EN_K1, 1);
+            check(ui.cards_t > OP_CARDS_FRAMES, "... an edit under them: the long time again");
+            frames(OP_CARDS_LONG + 5u);
+            check(ui.cards_t == 0u && sc_grid_up(), "... gone about 30 s after the last edit");
+            tap(B_SEQ);
+            check(ui.cards_t > OP_CARDS_FRAMES && ui.row[SCR_STEP] == rw, "... SEQ tapped: back for the long time (the mode stays until STEP is left)");
+            press(B_OCTUP);
+            turn(EN_SELECT, 1);
+            release(B_OCTUP);
+            frames(2);
+            check(ui.cards_t > OP_CARDS_FRAMES && ui.row[SCR_STEP] == rw, "... SHIFT2 + SELECT with the cards up: no paging");
+            kdown(WK(3));
+            frames(HOLD_FRAMES + 2u);
+            check(ui.cards_t > 0u && ui.cards_t <= OP_CARDS_FRAMES && sc_cards_up(), "... a step held: its cards the short time (not the p-locks)");
+            kup(WK(3));
+            frames(OP_CARDS_FRAMES + 5u);
+            check(ui.cards_t == 0u, "... gone about 1.5 s after its release");
+            turn(EN_SELECT, 1);
+            check(ui.cards_t > OP_CARDS_FRAMES, "... SELECT turned alone after that: the page's cards, the long time still");
+            op_enter(SCR_SOUND);
+            frames(2);
+            check(ui.cards_t == 0u, "... STEP left: the timer dropped");
+            tap(B_SEQ);
+            frames(2);
+            check(ui.scr == SCR_STEP && ui.cards_t <= OP_CARDS_FRAMES, "... STEP opened again: the short time again");
+            turn(EN_SELECT, 1);
+            check(ui.cards_t > 0u && ui.cards_t <= OP_CARDS_FRAMES, "... SELECT turned: the cards for the short time");
+        }
     }
     reset_ui();
 }

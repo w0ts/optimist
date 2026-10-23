@@ -114,6 +114,7 @@ static void op_enter(uint32_t scr)
     prj_op_reset();                                     /* (PROJECT's operation is LOAD again: op_prjflow.c) */
     ui.cards_t = 0;
     cards_snap_use = 0;                                 /* (STEP's held-step snapshot goes with its cards) */
+    cards_long = 0;                                     /* (the long time lasts until STEP is left) */
     ui.hot = 0;
     ui.hot_lit = 0;
     op_disarm();
@@ -839,6 +840,9 @@ static void op_knobs(uint32_t shift)
     if (!favsel && (s = panel_enc(EN_SELECT)) != 0) {   /* the cursor: a row a detent, stopping at the ends */
         if (glo_cycle())
             glo_step(s);                                /* (GLOBAL, SYSTEM: their pages of 4 lines, op_global.c) */
+        else if (ui.scr == SCR_STEP && !st.held && btn_held(B_OCTUP))
+            cards_long = 1, step_cards_show();          /* SHIFT2 + SELECT: the page's cards for the long time until STEP is
+                                                         * left, the page kept (the user, 2026-10-23; op_step.c step_cards_show) */
         else if (step_cards_down())
             step_cards_show();                          /* (STEP, the cards down: they come back, the page kept) */
         else
