@@ -4134,7 +4134,7 @@
     "label": "Bluetooth audio: adaptive frequency hopping (the channels the headset fails on skipped)",
     "group": "USB & BT & MIDI",
     "bit": 395,
-    "default": 1,
+    "default": 0,
     "parent": "BT_AUDIO",
     "desc": "What every phone's Bluetooth controller does: the FM-1 counts the headset's answers per radio channel (79 of them) every 30 s and takes the channels it fails on out of the hopping (LMP_set_AFH; at least 20 stay), so a few bad channels no longer stall the stream. Measured need: a WH-1000XM4 lost 4 fixed channels as the radio warmed and crackled on them (2026-10-23). Hardware-untested: the engine's AFH table layout is inferred from the LE block's; a console build (BT_DIAG) can switch it live (btpage afh=0 / 1 / 2).",
     "experimental": false,
