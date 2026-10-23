@@ -375,8 +375,8 @@ static uint32_t mx_on(uint32_t r, uint32_t i)           /* step i is set on row 
         return dstep_mask(&t->dstep[i % NSTEP]) != 0u;  /* the accents, the user 2026-10-23) */
     return trk_on_step(mx_trk_of(r), i);
 }
-/* the level step i of row r is shaded by, as STEP shades it (lvl_col): a lane's hit's own, a channel's strongest note;
- * DR's merged hits none (LV_HARD: the row's colour full, as before) */
+/* the level step i of row r is shaded by, as STEP shades it (lvl_col): a lane's hit's own, a channel's strongest note,
+ * DR's strongest hit of the sounds (the accents not counted) */
 static uint32_t mx_lvl(uint32_t r, uint32_t i)
 {
     const track_t *t = &trk[mx_trk_of(r)];
@@ -384,8 +384,13 @@ static uint32_t mx_lvl(uint32_t r, uint32_t i)
     uint32_t n, lv = LV_GHOST;
     if (r >= MXR_LANE0)
         return dstep_lvl(&t->dstep[i % NSTEP], r - MXR_LANE0);
-    if (is_drum(t))
-        return LV_HARD;
+    if (is_drum(t)) {
+        const dstep_t *d = &t->dstep[i % NSTEP];
+        for (n = 0; n < DRUM_LANES; n++)
+            if (dstep_has(d, n) && lvl_rank(dstep_lvl(d, n)) > lvl_rank(lv))
+                lv = dstep_lvl(d, n);
+        return lv;
+    }
     s = &t->step[i % NSTEP];
     for (n = 0; n < s->n && n < 4u; n++)
         if (lvl_rank((s->lvl >> (2u * n)) & 3u) > lvl_rank(lv))
