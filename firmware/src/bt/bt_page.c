@@ -720,7 +720,8 @@ static void bp_print_sec(void)
     con_puts("\r\n");
 #if FELUCCA_BT_DIAG
     if (bti.mode != BTI_M_PAGE && ++bp.ch_sec >= BP_CH_SEC) {   /* the answers per RF channel 0..78 (hop index 0-39 =
-        uint16_t ch[80];                                          * even channels, 40-78 = odd, BR §7), then the out-of-range */
+                                                                  * even channels, 40-78 = odd, BR §7), then the out-of-range */
+        uint16_t ch[80];
         bp.ch_sec = 0;
         fm1_br_irqs_hold(1);
         for (i = 0; i < 80u; i++) {
