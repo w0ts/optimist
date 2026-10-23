@@ -86,6 +86,7 @@ static void ed_mirror_info(void) {}
 #define MIR_SEEN() ((void)0)
 #define mir_poll() ((void)0)
 #endif
+#include "ed_opti.h"           /* INFO tag 0x66: what this build answers, by name and version */
 #if !FELUCCA_ED_LIVE
 #include "ed_lite.c"           /* ED_LIVE=0: backup and restore only (the frames, INFO, BUILD, PING, 11..15, 43..48, 54..57);
                                 * the rest of this file is the live editor */
@@ -345,6 +346,7 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         ed_scrn_info();                 /* tag 0x59: GLOBAL and SYSTEM as lines (v13, ed_scrn.c; the Optimist UI) */
         ed_dlan_info();                 /* tag 0x58: the lanes' mix, LFOs and mutes (v13, ed_dlan.c) */
         ed_mirror_info();               /* tag 0x65: the screen mirrored (ed_mirror.c) */
+        ed_opti_info();                 /* tag 0x66: the features by name and version (ed_opti.h) */
         break;
     case ED_BUILD:                                        /* v6: what this build contains (tools/builder) */
         ed_str(FELUCCA_CFG_NAME, 16);

@@ -52,6 +52,7 @@ enum { BK_ST, BK_USR, BK_FM6, BK_SEC, BK_PRJ, BK_LOG, BK_SNP };   /* BK_SEC: a s
 #endif
 #define BK_VERSION 4u                         /* 2: BK_LIST ends with what the build holds (bk_caps); 3: paged;
                                                * 4: BK_COMMIT's second byte 1 = check only (the editor checks every object first) */
+_Static_assert(BK_VERSION == 4u, "ed_opti.h: opti_backup_ names BK_VERSION");
 #define BK_CHUNK 256u
 /* the FM6 user bank (0xD8000 / 0xD9000) was dropped 2026-10-18: its object stays in the list so that an older backup
  * (and an older editor's list) reads the same, but it is never in this build (rc 5: not written), nothing reads it */

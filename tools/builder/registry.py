@@ -987,7 +987,7 @@ _add("ED_SCREENS", "FELUCCA_ED_SCREENS", "web editor: the device's screens (card
 _add("ED_MIRROR", "FELUCCA_ED_MIRROR", "web editor: the screen mirrored (the Screen tab, the iPhone app; USB or Bluetooth)", Y, 381,
      parent="EDITOR", default=0, experimental=True, tested="host-tested only (the stream decoded back to every screen drawn, "
      "every catch-up the panel), not on a device",
-     desc="The FM-1's screen in the web editor's Screen tab or on an iPhone (the FM-1 Mirror app, ios/OptimistMirror), over "
+     desc="The FM-1's screen in the web editor's Screen tab or on an iPhone (the Optimist Mirror app, ios/OptimistMirror), over "
           "a USB cable or Bluetooth MIDI (with BLE): while one asks (cmd 106), every write to the panel also goes out, "
           "run-length coded, as it is drawn, so it shows the very pixels: the mixer, the step grid, the layers, the dialogs. "
           "No frame buffer on the device; nothing is sent while none asks; the mixer's meters go 10 times a second over USB, "

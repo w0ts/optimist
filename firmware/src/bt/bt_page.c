@@ -47,7 +47,14 @@ static struct {
     uint8_t agc_follow;                            /* `btpage follow=1`: bti_agc_follow at each reception of the link */
     uint32_t rb_sum, rb_n, rb_min, rb_max;         /* this second's rxbit (BR §4) of the good receptions: where in our
                                                     * window the device's answers land (timing drift? the XM4, 2026-10-21) */
+    uint32_t g10, g50, g200, gmax;                 /* this second's gaps between good receptions over 10 / 50 / 200 ms and
+                                                    * the longest, ms: the XM4 silent in bursts, or losing packets at
+                                                    * random? (logs/drop-2026-10-21.log: last_good_ms 50-250 while bad) */
+    uint16_t ch_good[80], ch_sec;                  /* good receptions per hop index (rxfreq & 0x7F; [79] out of range)
+                                                    * since the last channel line (every BP_CH_SEC s): channels the
+                                                    * device fails on, Wi-Fi's? (AFH would skip them, BR §7) */
 } bp;
+#define BP_CH_SEC 30u
 /* the audio packets (bt_acl.c ba_media_send, from the audio interrupt): whole L2CAP frames, each one DH5 (or DH3 / DH1
  * when shorter), never cut; the main loop's bp_tx_service sends them after the LMP and L2CAP signalling */
 static struct {
@@ -262,6 +269,22 @@ static void bp_stat_note(uint32_t stat)            /* IRQ 40: one rxstat into th
     bp.st_more++;
 }
 
+static void bp_good_note(const struct fm1_br_frame *f)   /* IRQ 40, BT_DIAG: a good reception's gap and hop index */
+{
+    uint32_t d = fm1_ms - bp.last_good_ms, c = f->rxfreq & 0x7Fu;
+    if (d > 10u)
+        bp.g10++;
+    if (d > 50u)
+        bp.g50++;
+    if (d > 200u)
+        bp.g200++;
+    if (d > bp.gmax)
+        bp.gmax = d;
+    if (c > 78u)
+        c = 79u;
+    if (bp.ch_good[c] < 0xFFFFu)
+        bp.ch_good[c]++;
+}
 static void bp_conn_rx(void)                       /* a packet in the connection: both buffers, the filled first */
 {
     struct fm1_br_frame *f = fm1_br_frame(bti_tab, 0);
@@ -283,6 +306,8 @@ static void bp_conn_rx(void)                       /* a packet in the connection
         bp.type_n[type]++;
         if ((stat >> 8) == 0x8Fu) {
             bp.good++;
+            if (FELUCCA_BT_DIAG)
+                bp_good_note(f);
             bp.last_good_ms = fm1_ms;
             if (FELUCCA_BT_DIAG) {
                 uint32_t b = f->rxbit & 0x3FFu;
@@ -313,6 +338,8 @@ static void bp_conn_rx(void)                       /* a packet in the connection
         bp.type_n[stat & 15u]++;
         if ((stat >> 8) == 0x8Fu) {
             bp.good++;
+            if (FELUCCA_BT_DIAG)
+                bp_good_note(f);
             bp.last_good_ms = fm1_ms;
         }
     }
@@ -650,6 +677,14 @@ static void bp_print_sec(void)
                 bti_kv(".", (sum * 10u / n) % 10u);
                 bti_kv("/", hi);
             }
+            fm1_br_irqs_hold(1);
+            sum = bp.g10, n = bp.g50, lo = bp.g200, hi = bp.gmax;
+            bp.g10 = bp.g50 = bp.g200 = bp.gmax = 0;
+            fm1_br_irqs_hold(0);
+            bti_kv(" gaps>10/50/200=", sum);   /* (this second's gaps between good receptions; gmax the longest, ms) */
+            bti_kv("/", n);
+            bti_kv("/", lo);
+            bti_kv(" gmax=", hi);
         }
         {
             uint16_t sv[6];
@@ -683,6 +718,25 @@ static void bp_print_sec(void)
         con_puts("}");
     }
     con_puts("\r\n");
+#if FELUCCA_BT_DIAG
+    if (bti.mode != BTI_M_PAGE && ++bp.ch_sec >= BP_CH_SEC) {   /* the answers per RF channel 0..78 (hop index 0-39 =
+        uint16_t ch[80];                                          * even channels, 40-78 = odd, BR §7), then the out-of-range */
+        bp.ch_sec = 0;
+        fm1_br_irqs_hold(1);
+        for (i = 0; i < 80u; i++) {
+            ch[i] = bp.ch_good[i];
+            bp.ch_good[i] = 0;
+        }
+        fm1_br_irqs_hold(0);
+        con_puts("btpage: ch{");
+        for (i = 0; i < 79u; i++) {
+            con_dec(ch[i & 1u ? 40u + (i >> 1) : i >> 1]);
+            con_putc(' ');
+        }
+        bti_kv("| ", ch[79]);
+        con_puts("}\r\n");
+    }
+#endif
 }
 
 #endif
@@ -770,6 +824,10 @@ static int bp_start(const uint8_t addr[6], uint32_t slots)
     bp.rs_min = 0xFFFFFFFFu;
     bp.rb_sum = bp.rb_n = bp.rb_max = 0;
     bp.rb_min = 0xFFFFFFFFu;
+    bp.g10 = bp.g50 = bp.g200 = bp.gmax = 0;
+    bp.ch_sec = 0;
+    for (i = 0; i < 80u; i++)
+        bp.ch_good[i] = 0;
     bp_mq.r = bp_mq.w;                            /* (a new link: no audio queued) */
     ba_reset();
     bp.txw = bp.txr = 0;

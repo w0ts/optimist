@@ -1,27 +1,21 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // iOS's Bluetooth MIDI sheet (CoreAudioKit): lists the MIDI peripherals advertising nearby (the FM-1 with SYSTEM > Bluetooth on)
-// and connects one; its port then appears in CoreMIDI and MirrorLink takes it when no USB cable is plugged in.
+// and connects one; its port then appears in CoreMIDI and MirrorLink takes it when no USB cable is plugged in. Presented by UIKit
+// over whatever is on top.
 import CoreAudioKit
-import SwiftUI
+import UIKit
 
-struct BluetoothPicker: UIViewControllerRepresentable {
-    @Environment(\.dismiss) private var dismiss
-
-    func makeUIViewController(context: Context) -> UINavigationController {
+enum BluetoothPicker {
+    @MainActor static func present() {
+        guard let scene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first,
+              var top = scene.keyWindow?.rootViewController else { return }
+        while let p = top.presentedViewController { top = p }
         let central = CABTMIDICentralViewController()
-        central.navigationItem.rightBarButtonItem = UIBarButtonItem(systemItem: .done, primaryAction: UIAction { _ in
-            context.coordinator.done()
+        let nav = UINavigationController(rootViewController: central)
+        central.navigationItem.rightBarButtonItem = UIBarButtonItem(systemItem: .done, primaryAction: UIAction { [weak nav] _ in
+            nav?.dismiss(animated: true)
         })
-        return UINavigationController(rootViewController: central)
-    }
-
-    func updateUIViewController(_ controller: UINavigationController, context: Context) {}
-
-    func makeCoordinator() -> Coordinator { Coordinator(dismiss: dismiss) }
-
-    final class Coordinator {
-        private let dismiss: DismissAction
-        init(dismiss: DismissAction) { self.dismiss = dismiss }
-        func done() { dismiss() }
+        nav.modalPresentationStyle = .formSheet
+        top.present(nav, animated: true)
     }
 }

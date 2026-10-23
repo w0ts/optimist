@@ -6,7 +6,6 @@ import UniformTypeIdentifiers
 
 struct LibraryView: View {
     @ObservedObject var s: EditorSession
-    @Environment(\.dismiss) private var dismiss
     @State private var page = 0
     @State private var query = ""
     @State private var ask: Confirmation?
@@ -24,18 +23,17 @@ struct LibraryView: View {
     var body: some View {
         NavigationStack {
             List {
-                Section { Picker("", selection: $page) { Text("Device").tag(0); Text("Library").tag(1) }.pickerStyle(.segmented) }
+                Section { Picker("", selection: $page) { Text("On FM-1").tag(0); Text("My Presets").tag(1) }.pickerStyle(.segmented) }
                 if page == 0 { device } else { library }
                 Section { NoteView(s: s) }
             }
-            .navigationTitle("Library")
+            .navigationTitle("Presets")
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) { Button("Close") { dismiss() } }
                 ToolbarItem(placement: .topBarTrailing) {
                     if page == 1 {
                         Menu {
                             Button("Import…") { importing = true }
-                            Button("Export the library…") { s.exportLibrary() }.disabled(s.library.isEmpty)
+                            Button("Export Library…") { s.exportLibrary() }.disabled(s.library.isEmpty)
                         } label: { Image(systemName: "ellipsis.circle") }
                     }
                 }
@@ -50,7 +48,7 @@ struct LibraryView: View {
                 Button("Cancel", role: .cancel) { prompt = nil }
             }
         }
-        .task(id: s.ready) { if s.ready && s.bank == nil { s.loadBank() } }
+        .task(id: s.ready(.library)) { if s.ready(.library) && s.bank == nil { s.loadBank() } }
     }
 
     private func askText(_ title: String, _ initial: String, _ done: @escaping (String) -> Void) {
@@ -61,8 +59,8 @@ struct LibraryView: View {
     // MARK: the device's bank
 
     @ViewBuilder private var device: some View {
-        Section { LinkStatus(s) }.listRowBackground(Color.clear)
-        if s.ready, let b = s.bank {
+        Section { LinkStatus(s, .library) }.listRowBackground(Color.clear)
+        if s.ready(.library), let b = s.bank {
             Section("\(b.slots.filter(\.used).count) / \(b.total) used") {
                 ForEach(b.slots, id: \.slot) { x in
                     HStack {
@@ -79,14 +77,14 @@ struct LibraryView: View {
             if let k = s.bankSel, k < b.slots.count {
                 let slot = b.slots[k]
                 Section(Names.slotName(k)) {
-                    Button("Load on the track") { s.bankLoad(k) }.disabled(!slot.used)
-                    Button("Store the current sound…") {
-                        askText("Name (12 ASCII characters; empty: the device names it)", slot.used ? slot.name : "") { name in
+                    Button("Load") { s.bankLoad(k) }.disabled(!slot.used)
+                    Button("Save Current Sound…") {
+                        askText("Name", slot.used ? slot.name : "") { name in
                             if slot.used { self.ask = Confirmation(title: "Overwrite slot \(Names.slotName(k)) (\(slot.name))?") { s.bankStore(k, name: name) } }
                             else { s.bankStore(k, name: name) }
                         }
                     }
-                    Button("Copy to the library") { s.bankToLibrary(k); page = 1 }.disabled(!slot.used)
+                    Button("Add to Library") { s.bankToLibrary(k); page = 1 }.disabled(!slot.used)
                     Button("Erase", role: .destructive) {
                         ask = Confirmation(title: "Erase slot \(Names.slotName(k)) (\(slot.name))?") { s.bankErase(k) }
                     }.disabled(!slot.used)
@@ -94,8 +92,8 @@ struct LibraryView: View {
                 .disabled(!s.idle)
             }
             Section {
-                Button("Read again") { s.loadBank() }
-                Button("Export the bank…") { s.exportBank() }.disabled(b.slots.allSatisfy { !$0.used })
+                Button("Refresh") { s.loadBank() }
+                Button("Export All…") { s.exportBank() }.disabled(b.slots.allSatisfy { !$0.used })
             }
             .disabled(!s.idle)
         }
@@ -143,8 +141,8 @@ struct LibraryView: View {
                 }
                 Button("Duplicate") { s.duplicatePatch(id) }
                 Button("Export…") { s.exportPatch(id) }
-                if let k = s.bankSel, s.ready, let b = s.bank, k < b.slots.count {
-                    Button("Write to \(Names.slotName(k))") {
+                if let k = s.bankSel, s.ready(.library), let b = s.bank, k < b.slots.count {
+                    Button("Save to \(Names.slotName(k))") {
                         let go = { s.putPatch(id, slot: k) }
                         if b.slots[k].used { ask = Confirmation(title: "Overwrite slot \(Names.slotName(k)) (\(b.slots[k].name))?", action: go) } else { go() }
                     }
