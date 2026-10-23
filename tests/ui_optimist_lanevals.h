@@ -223,14 +223,11 @@ static void lv_step_tests(void)                         /* from STEP: the lane p
 static void lv_acc_tests(void)
 {
 #if ACC_UI
-    uint32_t r;
     lv_set();
     lane_select(DRUM_ACC);
     lv_fx_family();
-    check(lv_row_named("SENDS") >= SCR->rows() && lv_row_named("DR SENDS") < SCR->rows(),
-          "the ACCENT lane (no sound): no lane SENDS of its own, the drum track's are \"DR SENDS\"");
-    r = lv_row_named("DR INSERT");
-    check(r < SCR->rows() && lv_row_dr(r), "... and its INSERTS the drum bus's, tagged DR");
+    check(lv_row_named("SENDS") >= SCR->rows() && lv_row_named("DR SENDS") >= SCR->rows() && lv_row_named("DR INSERT") >= SCR->rows(),
+          "the ACCENT lane (no sound): no SENDS of its own, and the drum track's \"DR SENDS\" / \"DR INSERT\" not shown on it either (the user, 2026-10-23: no fx send or insert at all)");
 #endif
 }
 static void lanevals_tests(void)
