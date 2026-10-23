@@ -5,6 +5,9 @@
  * features, version and host connection requests, the answers to what the device asks, setup complete. Every step is
  * printed as a `btpage:` line. Included by bt_inq.c (its frame, rings, options and printing). No vendor code. */
 #include "bt_lmp.c"
+#if FELUCCA_BT_AFH
+#include "bt_afh.c"                                /* the channels the device fails on out of the hopping (LMP_set_AFH) */
+#endif
 
 #define BP_OFF_FHS 4252u                           /* our FHS for the page (18 B) */
 #define BP_OFF_TX0 4272u                           /* the two LMP TX payloads (17 B each) */
@@ -50,11 +53,19 @@ static struct {
     uint32_t g10, g50, g200, gmax;                 /* this second's gaps between good receptions over 10 / 50 / 200 ms and
                                                     * the longest, ms: the XM4 silent in bursts, or losing packets at
                                                     * random? (logs/drop-2026-10-21.log: last_good_ms 50-250 while bad) */
-    uint16_t ch_good[80], ch_sec;                  /* good receptions per hop index (rxfreq & 0x7F; [79] out of range)
-                                                    * since the last channel line (every BP_CH_SEC s): channels the
-                                                    * device fails on, Wi-Fi's? (AFH would skip them, BR §7) */
+    uint16_t ch_good[80], ch_sec;                  /* good receptions per RF channel (rxfreq & 0x7F; [79] out of range)
+                                                    * since the last assessment (every BP_CH_SEC s, bp_sec_tick): the
+                                                    * channels the device fails on leave the hopping (bt_afh.c); the
+                                                    * console's channel line */
+    uint8_t feat[8];                               /* the device's features (its LMP_features_res, page 0; byte 4 bit 0:
+                                                    * AFH capable slave) */
+    uint8_t afh_map[10], afh_on, afh_pending, afh_full;   /* the hop set (79 bits, all at a new link), AFH wanted,
+                                                    * a switch announced (LMP_set_AFH) and due at afh_at (CLKN slots,
+                                                    * bp_alarm), the engine's table laid out in full (btpage afh=2) */
+    uint32_t afh_at, afh_switches;
 } bp;
-#define BP_CH_SEC 30u
+#define BP_CH_SEC 30u                              /* the channel assessment's window, s (~2 answers a channel a second) */
+#define BP_AFH_AHEAD 320u                          /* the switch this many slots (200 ms) after its announcement */
 /* the audio packets (bt_acl.c ba_media_send, from the audio interrupt): whole L2CAP frames, each one DH5 (or DH3 / DH1
  * when shorter), never cut; the main loop's bp_tx_service sends them after the LMP and L2CAP signalling */
 static struct {
@@ -236,7 +247,7 @@ static void bp_page_rx(void)                       /* BR §8.3 "On IRQ 40 RX" (t
         pt = 1u, ff = 2u;
     }
     bp.sub++;
-    f->miscntl = (uint8_t)((f->miscntl & ~7u) | BP_LT_ADDR);
+    f->miscntl = (uint8_t)((f->miscntl & 0x38u) | BP_LT_ADDR);   /* (hop table 0, the basic one: AFH comes later, bp_alarm) */
     f->format = (uint8_t)(bti.train << 7 | ff);
     f->linkcntl[tx] = (uint16_t)(pt | 0x4010u);
     f->linkcntl[tx ^ 1u] = (uint16_t)(pt | 0x4000u);
@@ -269,21 +280,24 @@ static void bp_stat_note(uint32_t stat)            /* IRQ 40: one rxstat into th
     bp.st_more++;
 }
 
-static void bp_good_note(const struct fm1_br_frame *f)   /* IRQ 40, BT_DIAG: a good reception's gap and hop index */
+static void bp_good_note(const struct fm1_br_frame *f)   /* IRQ 40: a good reception's RF channel (and, BT_DIAG, its gap) */
 {
-    uint32_t d = fm1_ms - bp.last_good_ms, c = f->rxfreq & 0x7Fu;
-    if (d > 10u)
-        bp.g10++;
-    if (d > 50u)
-        bp.g50++;
-    if (d > 200u)
-        bp.g200++;
-    if (d > bp.gmax)
-        bp.gmax = d;
+    uint32_t c = f->rxfreq & 0x7Fu;
     if (c > 78u)
         c = 79u;
     if (bp.ch_good[c] < 0xFFFFu)
         bp.ch_good[c]++;
+    if (FELUCCA_BT_DIAG) {
+        uint32_t d = fm1_ms - bp.last_good_ms;
+        if (d > 10u)
+            bp.g10++;
+        if (d > 50u)
+            bp.g50++;
+        if (d > 200u)
+            bp.g200++;
+        if (d > bp.gmax)
+            bp.gmax = d;
+    }
 }
 static void bp_conn_rx(void)                       /* a packet in the connection: both buffers, the filled first */
 {
@@ -306,8 +320,7 @@ static void bp_conn_rx(void)                       /* a packet in the connection
         bp.type_n[type]++;
         if ((stat >> 8) == 0x8Fu) {
             bp.good++;
-            if (FELUCCA_BT_DIAG)
-                bp_good_note(f);
+            bp_good_note(f);
             bp.last_good_ms = fm1_ms;
             if (FELUCCA_BT_DIAG) {
                 uint32_t b = f->rxbit & 0x3FFu;
@@ -338,8 +351,7 @@ static void bp_conn_rx(void)                       /* a packet in the connection
         bp.type_n[stat & 15u]++;
         if ((stat >> 8) == 0x8Fu) {
             bp.good++;
-            if (FELUCCA_BT_DIAG)
-                bp_good_note(f);
+            bp_good_note(f);
             bp.last_good_ms = fm1_ms;
         }
     }
@@ -379,6 +391,22 @@ static int bp_alarm(uint32_t now)                  /* the alarm in the page / co
         bti_run_stop();
         return 1;
     }
+#if FELUCCA_BT_AFH
+    if (bp.afh_pending) {                          /* the hop set announced (LMP_set_AFH) switches at its instant: the
+                                                    * alarm lands on it (Part C 4.1.4: the slave switches there too) */
+        uint32_t left = (bp.afh_at - now) & BTI_CLK;
+        if (left == 0 || left > (BTI_CLK >> 1)) {
+            struct fm1_br_frame *f = fm1_br_frame(bti_tab, 0);
+            f->miscntl = (uint8_t)((f->miscntl & 0x3Fu) | (bp.afh_on ? 1u << 6 : 0u));   /* hop table 1 / basic (BR §4) */
+            f->format = (uint8_t)((f->format & 0xBFu) | (bp.afh_on ? 0x40u : 0u));
+            bp.afh_pending = 0;
+            bp.afh_switches++;
+        } else if (left < 18u) {
+            bti_alarm_arm(left);
+            return 1;
+        }
+    }
+#endif
     bti_alarm_arm(18u);
     return 1;
 }
@@ -501,6 +529,9 @@ static void bp_lmp_in(const struct bti_rx *r)
         con_putc(i + 1u < r->len ? ' ' : ']');
     }
     con_puts("\r\n");
+    if (op == BTL_FEATURES_RES && r->len >= 9u)
+        for (i = 0; i < 8u; i++)
+            bp.feat[i] = r->data[1u + i];          /* (kept: AFH only to an AFH capable slave, bp_afh_assess) */
     if (op == BTL_ACCEPTED && r->len > 1u && r->data[1] == BTL_HOST_CONN_REQ && !bp.setup_out) {
         bp.setup_out = 1;
         n = btl_setup_complete(out);
@@ -650,6 +681,16 @@ static void bp_print_sec(void)
         }
 #if FELUCCA_BT_DIAG
         bti_kv(" flow0=", bp.flow0);
+#if FELUCCA_BT_AFH
+        {
+            uint32_t used = 0;
+            for (i = 0; i < 79u; i++)
+                used += bt_afh_used(bp.afh_map, i);
+            bti_kv(" afh=", used);                 /* (the hop set's channels of 79; switches so far; a switch due) */
+            bti_kv("/", bp.afh_switches);
+            con_puts(bp.afh_pending ? "p" : "");
+        }
+#endif
         con_puts(" pll=");
         con_dec(bti.pll_now);
         {
@@ -718,29 +759,72 @@ static void bp_print_sec(void)
         con_puts("}");
     }
     con_puts("\r\n");
-#if FELUCCA_BT_DIAG
-    if (bti.mode != BTI_M_PAGE && ++bp.ch_sec >= BP_CH_SEC) {   /* the answers per RF channel 0..78 (hop index 0-39 =
-                                                                  * even channels, 40-78 = odd, BR §7), then the out-of-range */
-        uint16_t ch[80];
-        bp.ch_sec = 0;
-        fm1_br_irqs_hold(1);
-        for (i = 0; i < 80u; i++) {
-            ch[i] = bp.ch_good[i];
-            bp.ch_good[i] = 0;
-        }
-        fm1_br_irqs_hold(0);
-        con_puts("btpage: ch{");
-        for (i = 0; i < 79u; i++) {
-            con_dec(ch[i & 1u ? 40u + (i >> 1) : i >> 1]);
-            con_putc(' ');
-        }
-        bti_kv("| ", ch[79]);
-        con_puts("}\r\n");
-    }
-#endif
 }
 
 #endif
+#if FELUCCA_BT_AFH
+static void bp_afh_send(uint32_t on)               /* the hop set to the engine's AFH table and map, LMP_set_AFH to the
+                                                    * device with the switch's instant (bp_alarm switches there) */
+{
+    uint8_t out[BTL_MAX + 8], all[10];
+    uint32_t words[3], i, n, at;
+    const uint8_t *map = bp.afh_map;
+    if (!on) {
+        for (i = 0; i < 9u; i++)
+            all[i] = 0xFFu;
+        all[9] = 0x7Fu;
+        map = all;
+    }
+    n = bt_afh_table(map, bti_tab + FM1_BR_OFF_FRQ + 80u, words, bp.afh_full);   /* frq_table[1] (BR §3) */
+    fm1_br_afh_map(0, words);                      /* [I: which map register hop table 1 reads: both written] */
+    fm1_br_afh_map(1, words);
+    (void)n;
+    at = (bti_clkn() + BP_AFH_AHEAD) & BTI_CLK & ~1u;   /* an even slot: a master-to-slave one (CLK[1] = 0) */
+    bp.afh_at = at;
+    bp.afh_on = (uint8_t)on;
+    bp.afh_pending = 1;
+    bp_queue(out, btl_set_afh(out, at << 1, on, map), on ? "the channels it fails on out of the hopping" : "AFH off");
+}
+static void bp_afh_assess(const uint16_t ch[80])  /* every BP_CH_SEC s of the link (bp_sec_tick): the channels the device
+                                                    * failed on leave the hop set (bt_afh.c), the device told */
+{
+    if (!bp.afh_on || bp.afh_pending || !(bp.feat[4] & 1u) || !bp.setup_in || !bp.setup_out)
+        return;                                    /* (AFH only once set up, to an AFH capable slave, one switch at a time) */
+    if (bt_afh_classify(ch, bp.afh_map))
+        bp_afh_send(1);
+}
+#endif
+static void bp_sec_tick(void)                      /* the main loop, once a second in the page / connection modes */
+{
+    uint16_t ch[80];
+    uint32_t i;
+    if (bti.mode != BTI_M_CONN || ++bp.ch_sec < BP_CH_SEC)
+        return;
+    bp.ch_sec = 0;
+    fm1_br_irqs_hold(1);
+    for (i = 0; i < 79u; i++) {                    /* by RF channel: rxfreq is the hop index (0-39 the even channels,
+                                                    * 40-78 the odd; frq_table[0], BR §7) */
+        ch[i < 40u ? 2u * i : 2u * (i - 40u) + 1u] = bp.ch_good[i];
+        bp.ch_good[i] = 0;
+    }
+    ch[79] = bp.ch_good[79];
+    bp.ch_good[79] = 0;
+    fm1_br_irqs_hold(0);
+#if FELUCCA_CDC && FELUCCA_BT_DIAG
+    con_puts("btpage: ch{");                       /* the answers per RF channel 0..78, then the out-of-range */
+    for (i = 0; i < 79u; i++) {
+        con_dec(ch[i]);
+        con_putc(' ');
+    }
+    bti_kv("| ", ch[79]);
+    con_puts("}\r\n");
+#endif
+#if FELUCCA_BT_AFH
+    bp_afh_assess(ch);
+#else
+    (void)ch;
+#endif
+}
 static void bp_poll(void)                          /* the main loop, page / connection modes */
 {
     bp_tx_service();
@@ -829,6 +913,14 @@ static int bp_start(const uint8_t addr[6], uint32_t slots)
     bp.ch_sec = 0;
     for (i = 0; i < 80u; i++)
         bp.ch_good[i] = 0;
+    for (i = 0; i < 8u; i++)
+        bp.feat[i] = 0;
+    for (i = 0; i < 9u; i++)
+        bp.afh_map[i] = 0xFFu;                     /* (a new link hops over all 79: the device's holes measured again) */
+    bp.afh_map[9] = 0x7Fu;
+    bp.afh_on = FELUCCA_BT_AFH ? 1u : 0u;
+    bp.afh_pending = bp.afh_full = 0;
+    bp.afh_switches = 0;
     bp_mq.r = bp_mq.w;                            /* (a new link: no audio queued) */
     ba_reset();
     bp.txw = bp.txr = 0;
@@ -899,6 +991,26 @@ static void con_btpage(const char *p)
         con_puts(bp.agc_follow ? "btpage: agc follows\r\n" : "btpage: agc fixed\r\n");
         return;
     }
+#if FELUCCA_BT_AFH
+    if (bti_opt_num(&p, "afh", &v)) {             /* AFH in the running link: 0 off (all 79 again), 1 on (the engine's
+                                                    * table packed), 2 on with the table laid out in full (bt_afh.c) */
+        if (bti.mode != BTI_M_CONN || bp.afh_pending) {
+            con_puts("btpage: afh: no link, or a switch under way\r\n");
+            return;
+        }
+        bp.afh_full = v == 2;
+        if (v == 0)
+            bp_afh_send(0);
+        else {
+            bp.afh_on = 1;
+            bp_afh_send(1);                        /* (the map as assessed so far, the switch at once) */
+        }
+        bti_kv("btpage: afh ", (uint32_t)v);
+        bti_kv(" at slot ", bp.afh_at);
+        con_puts("\r\n");
+        return;
+    }
+#endif
 #endif
     if (!bp_parse_addr(&p, a)) {
         con_puts("btpage AA:BB:CC:DD:EE:FF [SECONDS] [OPTIONS] | stop\r\n");

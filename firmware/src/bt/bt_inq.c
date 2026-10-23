@@ -722,16 +722,20 @@ static void bti_poll(void)                         /* the main loop */
     }
     if (bti.mode >= BTI_M_PAGE)
         bp_poll();
+    if (bti_st.phase == BTI_INQ_RUN && fm1_ms - bti.sec_ms >= 1000u) {   /* once a second */
+        bti.sec_ms += 1000u;
 #if FELUCCA_CDC && FELUCCA_BT_DIAG               /* (the console's lines: with no console they print nothing) */
+        if (bti.mode >= BTI_M_PAGE)
+            bp_print_sec();
+        else
+            bti_print_sec();
+#endif
+        if (bti.mode >= BTI_M_PAGE)
+            bp_sec_tick();                         /* (the link's channel assessment, bt_afh.c; its channel line) */
+    }
+#if FELUCCA_CDC && FELUCCA_BT_DIAG
     if (bti_st.phase == BTI_INQ_RUN) {
         done_printed = 0;
-        if (fm1_ms - bti.sec_ms >= 1000u) {
-            bti.sec_ms += 1000u;
-            if (bti.mode >= BTI_M_PAGE)
-                bp_print_sec();
-            else
-                bti_print_sec();
-        }
     } else if (bti_st.phase == BTI_INQ_DONE && !done_printed) {
         done_printed = 1;
         if (bti.mode >= BTI_M_PAGE) {

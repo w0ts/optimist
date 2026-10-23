@@ -31,6 +31,13 @@
 #define FM1_BR_STIM_AT(k) FM1_BR_REG(0x2FD44u + 4u * (k))
 #define FM1_BR_AGC3    FM1_BR_REG(0x2FD8Cu)   /* the real-time RSSI readback (BR §10.3) */
 #define FM1_BR_CLK_MASK 0x07FFFFFFu           /* 27 bits of slots */
+static inline void fm1_br_afh_map(uint32_t t, const uint32_t words[3])   /* AFH channel map t (BR §2: 0x20090 + 12t, three
+                                                                          * words; word 2 [31:24] the channels used) */
+{
+    uint32_t i;
+    for (i = 0; i < 3u; i++)
+        FM1_BR_REG(0x20090u + 12u * t + 4u * i) = words[i];
+}
 enum { FM1_IRQ_BREDR = 40, FM1_IRQ_BT_SLOT = 41 };   /* BR §9.3 */
 #define FM1_BR_IPND_KNOWN 0x0E07u            /* pending bits 0, 1, 2, 9, 10, 11 (BR §6.2) */
 

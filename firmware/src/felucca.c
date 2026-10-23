@@ -119,6 +119,10 @@ static uint8_t live_save_off;            /* an erase held the audio (no suspend)
 #define FELUCCA_BT_DIAG 0        /* with BT_AUDIO: the Classic stack's counters, trace and logs, btrx / bttrace, the live
                                   * btpage pll= / agc= / follow= (bt/bt_inq.c, bt_page.c): a console debug build's */
 #endif
+#ifndef FELUCCA_BT_AFH
+#define FELUCCA_BT_AFH 1         /* with BT_AUDIO: adaptive frequency hopping, the channels the headset fails on dropped
+                                  * from the hop set (bt/bt_afh.c, bt_page.c; the XM4's fixed holes, 2026-10-23) */
+#endif
 #define FELUCCA_BT_UI (FELUCCA_BLE || FELUCCA_BT_AUDIO)   /* SYSTEM > Bluetooth: with either; it shows what is built (op_bt.c) */
 #define MIR_BLE (FELUCCA_ED_MIRROR && FELUCCA_BLE && FELUCCA_OTA && FELUCCA_EDITOR)   /* the screen mirrored over Bluetooth too (io/editor/ed_mirror.c) */
 #if FELUCCA_BLE
