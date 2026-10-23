@@ -101,9 +101,47 @@ static void up_rec_to2(up_rec2_t *o, const up_rec_t *r)
 }
 _Static_assert(UP_NS(P_ENG_END) <= UP_PMAX && P_COUNT < 128, "user preset record: P_COUNT");   /* (SLOOP 2.4's track
                                                  * values after P_E7, core.h P_TFLT ..: not a sound's, not kept here) */
+#if FELUCCA_ANALOG2 && (!defined(UP_HOST) || defined(UP_WITH_ENGINES))
+#define UP_FROM_V1 1                             /* a UPB1 bank (SLOOP plus's engine numbers) reads: up_rec_v1 */
+static void up_rec_v1(up_rec_t *r);
+#else
+#define UP_FROM_V1 0
+#endif
+#if ST_XIP
+/* the banks are read where they are in flash (storage.c st_xip: the current copy's payload through the XIP window, cached
+ * as the code is), not mirrored in RAM: 6,928 B of the pool back (2026-10-23). up_xip[b]: a UPB3 bank as it is; up_xip2[b]:
+ * a UPB2 / UPB1 bank (records of 192 bytes), converted a record at a time into up_cv as it is read (up_rec: the record
+ * holds until another slot's is read; every reader takes one slot at a time; FELUCCA_SL24_SAFE's SLOOP records as
+ * up_bank_from_v1 read them); neither: no valid copy, or another shape: empty (zeros). A save builds the bank in st_buf
+ * (st_save takes a source there; with FELUCCA_SL24_SAFE a UPB1 bank is kept SLOOP's, up_put_v1, there too) and reads the
+ * copy written; without a flash that reads (flash_ok 0) there is no bank at all: a save fails, nothing is kept for the
+ * session. The host keeps the RAM mirror unless a test maps the flash image (storage.c ST_XIP_PTR) */
+#define UP_XIP 1
+static const up_bank_t *up_xip[UP_SLOTS / UP_PER_BANK];
+static const up_bank2_t *up_xip2[UP_SLOTS / UP_PER_BANK];
+static up_rec_t up_cv;                           /* the record read from a UPB2 / UPB1 bank, or an empty bank's (zeros) */
+static const up_rec_t *up_rec(uint32_t k)
+{
+    uint32_t b = k / UP_PER_BANK, i = k % UP_PER_BANK;
+    if (up_xip[b])
+        return &up_xip[b]->r[i];
+    if (!up_xip2[b]) {
+        memset(&up_cv, 0, sizeof up_cv);
+        return &up_cv;
+    }
+    up_rec_from2(&up_cv, &up_xip2[b]->r[i]);
+#if UP_FROM_V1
+    if (up_xip2[b]->magic == UP_BANK_MAGIC_V1)
+        up_rec_v1(&up_cv);
+#endif
+    return &up_cv;
+}
+#else
+#define UP_XIP 0
 static up_bank_t up_bank[UP_SLOTS / UP_PER_BANK] IN_POOL;
 
 static up_rec_t *up_rec(uint32_t k) { return &up_bank[k / UP_PER_BANK].r[k % UP_PER_BANK]; }
+#endif
 
 static int up_valid(const up_rec_t *r)
 {
@@ -161,46 +199,49 @@ static void up_vals_put(up_rec_t *r, const int16_t *v0)
  * wrote UPB1 with DX7 at 9: such a record now reads as SUPER; none of them shipped) */
 static void up_params(const up_rec_t *r, int16_t *out, const int16_t *def);
 static void up_params_st(const up_rec_t *r, int16_t *out, const int16_t *def);
+static void up_rec_v1(up_rec_t *r)                      /* one record of a UPB1 bank, in today's struct -> today's engine */
+{
+    uint32_t k;
+    if (r->used != UP_USED || r->ver != 1u || r->np < 8u || r->np > UP_PMAX)
+        return;                                         /* (UPB1: UP_VER 1 records only) */
+#if FELUCCA_SL24_SAFE
+    if (UP_IS_SL(r)) {                                  /* (SLOOP 2.4 .. 2.6's: 0..9 our engine numbers, FM6 9; 2.5's */
+        if (r->engine == 10u)                           /* PHYS 10 -> ours, its NOISE 11 -> ANALOG at its EDIT */
+            r->engine = ENG_UID_PHYS;                   /* defaults: sl24_import.c sl24_eng_in; 2.6's filter TYPE */
+        else if (r->engine > ENG_UID_FM6) {             /* was not its: LP) */
+            r->engine = 0;
+            for (k = 0; k < 8u; k++)
+                r->p[r->np - 8u + k] = eng_built(0) ? ENGINES[eng_slot_built(0)]->edit[k].def : 0;
+            if (r->np == UP_NP_SL26)
+                r->p[UP_SL26_FTYPE] = 0;
+        }
+        return;
+    }
+#endif
+    if (r->engine == 10u || r->engine == 11u)
+        r->engine--;
+    else if (r->engine == 9u) {
+        int16_t v[P_COUNT], def[P_COUNT];
+        for (k = 0; k < P_COUNT; k++)
+            def[k] = TP[k].def;
+        up_params(r, v, def);
+        analog2_from_super(v, 0);
+        r->engine = 0;
+        up_vals_put(r, v);
+    }
+}
+#if !UP_XIP
 static void up_bank_from_v1(up_bank_t *bk)
 {
-    uint32_t i, k;
-    for (i = 0; i < UP_PER_BANK; i++) {
-        up_rec_t *r = &bk->r[i];
-        if (r->used != UP_USED || r->ver != 1u || r->np < 8u || r->np > UP_PMAX)
-            continue;                                   /* (UPB1: UP_VER 1 records only) */
-#if FELUCCA_SL24_SAFE
-        if (UP_IS_SL(r)) {                              /* (SLOOP 2.4 .. 2.6's: 0..9 our engine numbers, FM6 9; 2.5's */
-            if (r->engine == 10u)                       /* PHYS 10 -> ours, its NOISE 11 -> ANALOG at its EDIT */
-                r->engine = ENG_UID_PHYS;               /* defaults: sl24_import.c sl24_eng_in; 2.6's filter TYPE */
-            else if (r->engine > ENG_UID_FM6) {         /* was not its: LP) */
-                r->engine = 0;
-                for (k = 0; k < 8u; k++)
-                    r->p[r->np - 8u + k] = eng_built(0) ? ENGINES[eng_slot_built(0)]->edit[k].def : 0;
-                if (r->np == UP_NP_SL26)
-                    r->p[UP_SL26_FTYPE] = 0;
-            }
-            continue;
-        }
-#endif
-        if (r->engine == 10u || r->engine == 11u)
-            r->engine--;
-        else if (r->engine == 9u) {
-            int16_t v[P_COUNT], def[P_COUNT];
-            for (k = 0; k < P_COUNT; k++)
-                def[k] = TP[k].def;
-            up_params(r, v, def);
-            analog2_from_super(v, 0);
-            r->engine = 0;
-            up_vals_put(r, v);
-        }
-    }
+    uint32_t i;
+    for (i = 0; i < UP_PER_BANK; i++)
+        up_rec_v1(&bk->r[i]);
     bk->magic = UP_BANK_MAGIC;
 }
-#define UP_FROM_V1 1
-#else
-#define UP_FROM_V1 0
+#endif
 #endif
 
+#if !UP_XIP
 /* bank b from len bytes at src (st_buf; -1 = none): UPB3 as it is; UPB2 / UPB1 (records of 192 bytes) into today's
  * struct, a record each (UPB1: SLOOP plus's engine numbers then, up_bank_from_v1); any other shape: empty */
 static void up_bank_check(uint32_t b, const void *src, int len)
@@ -233,6 +274,7 @@ static void up_bank_check(uint32_t b, const void *src, int len)
     }
     memset(bk, 0, sizeof *bk);
 }
+#endif
 
 /* a record's p[] by count -> out: values 0 .. n0 - 1 from p (those from nc on: def's), P_E0 .. P_E7 from p[e0] .. */
 static void up_by_count(int16_t *out, const int16_t *p, uint32_t nc, uint32_t n0, const int16_t *def, uint32_t e0)
@@ -500,12 +542,40 @@ static int upf_get(uint32_t k, int16_t *ed)      /* slot k's voice -> ed: 1, or 
 #define UPF_BOOT() ((void)0)
 #endif
 
+#if UP_XIP
+/* bank b's current copy in flash, its shape known: UPB3 as it is (up_xip), UPB2 / UPB1 converted as read (up_xip2), else
+ * none (st_xip read the payload once through the driver, for its CRC) */
+static void up_bank_find(uint32_t b)
+{
+    uint32_t len = 0;
+    const up_bank_t *p = flash_ok ? (const up_bank_t *)st_xip(OBJ_UPRESET0 + b, &len) : 0;
+    const up_bank2_t *o = (const up_bank2_t *)p;
+    up_xip[b] = 0;
+    up_xip2[b] = 0;
+    if (!p)
+        return;
+    if (len == sizeof *p && p->magic == UP_BANK_MAGIC && p->rsize == sizeof(up_rec_t) && p->nslot == UP_PER_BANK)
+        up_xip[b] = p;
+    else if (len == sizeof *o && o->rsize == sizeof(up_rec2_t) && o->nslot == UP_PER_BANK &&
+             (o->magic == UP_BANK_MAGIC_V2
+#if UP_FROM_V1
+              || o->magic == UP_BANK_MAGIC_V1
+#endif
+              ))
+        up_xip2[b] = o;
+}
+#endif
+
 static void up_boot(void)                      /* persist_boot: the banks from flash */
 {
 #if FELUCCA_FLASH
     uint32_t b;
     for (b = 0; b < UP_SLOTS / UP_PER_BANK; b++)
+#if UP_XIP
+        up_bank_find(b);
+#else
         up_bank_check(b, st_buf, flash_ok ? st_load(OBJ_UPRESET0 + b, st_buf, sizeof up_bank[b]) : -1);
+#endif
     UPF_BOOT();
 #endif
 #if FELUCCA_FAVORITES
@@ -572,9 +642,13 @@ static void up_vals_put2(up_rec2_t *o, const int16_t *v0)
 #define UP_KEEP_V1 0
 #endif
 
-/* record k = *r (0: erase), then the bank to flash: 0 ok, 2 flash error, 3 no flash (kept in RAM) */
+/* record k = *r (0: erase), then the bank to flash: 0 ok, 2 flash error, 3 no flash (kept in RAM; UP_XIP: 2, nothing kept) */
 static int up_put(uint32_t k, const up_rec_t *r)
 {
+#if UP_XIP
+    uint32_t b = k / UP_PER_BANK, i;
+    up_bank_t *bk = (up_bank_t *)(void *)st_buf;        /* (built here after upf_set, which reads its object into st_buf) */
+#else
     up_bank_t *bk = &up_bank[k / UP_PER_BANK];
     bk->magic = UP_BANK_MAGIC;
     bk->rsize = sizeof(up_rec_t);
@@ -583,6 +657,7 @@ static int up_put(uint32_t k, const up_rec_t *r)
         *up_rec(k) = *r;
     else
         memset(up_rec(k), 0, sizeof(up_rec_t));
+#endif
     if (!r) {
         uint32_t i;
         for (i = 0; i < NTRK; i++)
@@ -594,7 +669,35 @@ static int up_put(uint32_t k, const up_rec_t *r)
     }
     up_gen++;
     upf_set(k, 0);                                      /* (UP_FM6: a voice kept for the old record goes) */
-#if FELUCCA_FLASH
+#if UP_XIP
+    if (!flash_ok)
+        return 2;
+#if UP_KEEP_V1
+    {
+        int rc;
+        if (up_put_v1(k, r, &rc)) {                     /* (SLOOP's bank: kept UPB1, its records untouched; in st_buf) */
+            up_bank_find(b);
+            return rc;
+        }
+    }
+#endif
+    if (up_xip[b])                                      /* the bank as it is in flash, in st_buf, the record changed */
+        memcpy(bk, up_xip[b], sizeof *bk);
+    else
+        for (i = 0; i < UP_PER_BANK; i++)               /* (UPB2 / UPB1: every record as read, up_rec; none: zeros) */
+            bk->r[i] = *up_rec(b * UP_PER_BANK + i);
+    bk->magic = UP_BANK_MAGIC;
+    bk->rsize = sizeof(up_rec_t);
+    bk->nslot = UP_PER_BANK;
+    if (r)
+        bk->r[k % UP_PER_BANK] = *r;
+    else
+        memset(&bk->r[k % UP_PER_BANK], 0, sizeof(up_rec_t));
+    if (st_save(OBJ_UPRESET0 + b, st_buf, sizeof *bk))  /* (storage.c: a source in st_buf, ST_SRC_BUF) */
+        return 2;
+    up_bank_find(b);                                    /* (the copy written: UPB3) */
+    return up_xip[b] ? 0 : 2;
+#elif FELUCCA_FLASH
     if (flash_ok) {
 #if UP_KEEP_V1
         int rc;

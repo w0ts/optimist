@@ -36,6 +36,7 @@
 #define FELUCCA_X0X_TANH 1             /* the saturators' tanh: 1 a 1024-point table, 2 a 256-point one (Optimist) */
 #endif
 #define X0X_TANH FELUCCA_X0X_TANH
+#define DR_NZ_BLOCK 32                 /* drum909.h DR_NZ_BUF: the noise history and one block of X0X_BLK (below), not 256 */
 #if FELUCCA_DRUM_X909
 #include "drum909.c"
 #endif
@@ -60,7 +61,7 @@
 #define X0X_CH808 11u              /* the 808's first channel */
 #define X0X_BLK 32                 /* the most samples a block has (CTL) */
 #if FELUCCA_DRUM_X909                  /* (DR_NZ_BUF is drum909.h's: a 808-only build has none) */
-_Static_assert(X0X_BLK <= DR_NZ_BUF - DR_NZ_HIST, "drum909.h DR_NZ_BUF: the history and one block");
+_Static_assert(X0X_BLK <= DR_NZ_BLOCK && DR_NZ_BUF == DR_NZ_HIST + DR_NZ_BLOCK, "drum909.h DR_NZ_BUF: the history and one block");
 #endif
 /* 1.0 of a voice -> the drum track's integer scale: each machine's kick at a step's velocity peaks as the
  * synthesised 909 / 808 kit's kick does (tests/x0x_drums_test.c measures it); the 808 at its kit level 127, as X0X
