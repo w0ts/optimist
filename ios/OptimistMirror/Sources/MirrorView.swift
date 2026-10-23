@@ -114,7 +114,6 @@ struct MirrorView: View {
     @Binding var bars: Bool
     @State private var image: CGImage?
     @State private var seen = 0
-    @State private var picking = false
 
     var body: some View {
         ZStack {
@@ -125,8 +124,15 @@ struct MirrorView: View {
         .contentShape(Rectangle())
         .onTapGesture { withAnimation { bars.toggle() } }
         .overlay(alignment: .topTrailing) {
-            if bars && link.state == .mirroring {
-                Button { picking = true } label: {
+            if bars {
+                Menu {
+                    Button("Bluetooth…", systemImage: "dot.radiowaves.left.and.right") { BluetoothPicker.present() }
+                    Picker("MIDI Port", selection: $link.chosen) {
+                        Text("Automatic").tag("")
+                        ForEach(link.ports, id: \.self) { Text($0).tag($0) }
+                    }
+                    .pickerStyle(.inline)
+                } label: {
                     Image(systemName: link.bluetooth ? "dot.radiowaves.left.and.right" : "cable.connector")
                         .font(.title3)
                         .frame(width: 44, height: 44)
@@ -138,8 +144,7 @@ struct MirrorView: View {
                 .padding()
             }
         }
-        .sheet(isPresented: $picking) { BluetoothPicker() }
-        .statusBarHidden(!bars)
+        .statusBarHidden()              // (shown, iOS's Bluetooth MIDI sheet laid its table out NaN high: a crash, 2026-10-23)
         .persistentSystemOverlays(bars ? .automatic : .hidden)
         .task { await draw() }
     }
@@ -158,7 +163,7 @@ struct MirrorView: View {
                     Text(title).font(.headline)
                     Text(detail).font(.footnote).multilineTextAlignment(.center)
                     if link.state == .searching || link.bluetooth {
-                        Button("Bluetooth…") { picking = true }
+                        Button("Bluetooth…") { BluetoothPicker.present() }
                             .buttonStyle(.bordered)
                             .tint(.white)
                     }

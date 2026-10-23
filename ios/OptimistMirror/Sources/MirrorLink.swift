@@ -19,6 +19,16 @@ final class MirrorLink: ObservableObject, Transport {
     @Published private(set) var state: State = .searching
     @Published private(set) var portName = ""
     @Published private(set) var bluetooth = false   // the port in use is the Bluetooth one
+    @Published private(set) var ports: [String] = []   // every MIDI port with both directions, by name (the picker)
+    /// The port picked by hand ("": the FM-1's, found by its name); kept across launches
+    @Published var chosen = UserDefaults.standard.string(forKey: "port") ?? "" {
+        didSet {
+            UserDefaults.standard.set(chosen, forKey: "port")
+            if source != 0 { MIDIPortDisconnectSource(inPort, source) }
+            source = 0; destination = 0
+            connect()
+        }
+    }
 
     private let lock = OSAllocatedUnfairLock(initialState: Shared())
     private struct Shared {
@@ -127,21 +137,25 @@ final class MirrorLink: ObservableObject, Transport {
         return driver.lowercased().contains("bluetooth") || name(e).lowercased().contains("bluetooth")
     }
 
-    /// The FM-1's port: USB first, Bluetooth else.
-    private static func find(_ count: Int, _ get: (Int) -> MIDIEndpointRef) -> MIDIEndpointRef? {
-        let fm1 = (0..<count).map(get).filter(isFM1)
+    /// The port picked by hand when it is there, else the FM-1's: USB first, Bluetooth else.
+    private static func find(_ count: Int, _ get: (Int) -> MIDIEndpointRef, chosen: String) -> MIDIEndpointRef? {
+        let all = (0..<count).map(get)
+        if !chosen.isEmpty, let e = all.first(where: { name($0) == chosen }) { return e }
+        let fm1 = all.filter(isFM1)
         return fm1.first { !isBluetooth($0) } ?? fm1.first
     }
 
     private func connect() {
-        let src = Self.find(MIDIGetNumberOfSources(), MIDIGetSource)
-        let dst = Self.find(MIDIGetNumberOfDestinations(), MIDIGetDestination)
+        let outs = Set((0..<MIDIGetNumberOfDestinations()).map { Self.name(MIDIGetDestination($0)) })
+        ports = (0..<MIDIGetNumberOfSources()).map { Self.name(MIDIGetSource($0)) }.filter { outs.contains($0) }
+        let src = Self.find(MIDIGetNumberOfSources(), MIDIGetSource, chosen: chosen)
+        let dst = Self.find(MIDIGetNumberOfDestinations(), MIDIGetDestination, chosen: chosen)
         guard src != source || dst != destination else { return }
         if source != 0 { MIDIPortDisconnectSource(inPort, source) }
         source = src ?? 0
         destination = dst ?? 0
         let bt = src.map(Self.isBluetooth) ?? false
-        let named = src.map { Self.name($0).lowercased().contains("optimist") } ?? false
+        let named = src.map { !chosen.isEmpty || Self.name($0).lowercased().contains("optimist") } ?? false   // (picked by hand: trusted)
         lock.withLock {                 // (over Bluetooth only 106 is answered: our firmware is known by its name, "Optimist ...")
             $0.assembler = SysExAssembler()
             $0.features = bt ? (named ? [Feature.mirror.name: Feature.mirror.version] : [:]) : nil
