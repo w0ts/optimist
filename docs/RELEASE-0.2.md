@@ -45,12 +45,6 @@ Optimist 0.2 brings the FM-1 to the browser and the phone, plays over Bluetooth,
 - **CHORD+ latch:** a black modifier key tapped twice stays on.
 - **Live save** (builder item): save while playing.
 
-## Mixer and screen
-
-- The mixer shows each step's level as STEP does (ghost … hard), the selected row in colour, the others grey; the merged drum row without the accents.
-- Lists don't wrap; the popup list in the large face; PRESETS browses the current engine's sounds, the whole list from any track; user presets and favorites marked.
-- A slow UI frame no longer eats a tap.
-
 ## Under the hood
 
 - **~38 KB of flash back** on the synth flavour (571 → 533 KB) without losing a feature or a pixel: packed tables and records, a compressed boot image, size-optimised code off the audio path. More fits in every build. **[check: the compressed boot image has not booted on hardware yet]**
