@@ -3169,6 +3169,7 @@ class Link {
     this.onUnknown = opts.onUnknown || (() => {});
     this.onTimeout = opts.onTimeout || (() => {});
     this.onPush = opts.onPush || (() => {});
+    this.onMirror = opts.onMirror || (() => {});   /* (a: the bytes after the command) the screen's pushes, 106 MIRROR */
     this.onGap = opts.onGap || (() => {});         /* (ms) nothing was sent for that long (WATCH may have ended) */
   }
   get idle() { return !this.cur && !this.q.length; }
@@ -3245,7 +3246,7 @@ class Link {
     if (this.cur && this.cur.yam && data[0] === 0xF0 && data[1] === 0x43) return;   /* (a Yamaha frame: the device sends none) */
     const f = unframe(data);
     if (!f) return;                                  /* not ours (notes, clock, other SysEx) */
-    if (f.cmd === CMD.MIRROR && !(f.a.length === 6 && f.a[0] <= 1 && f.a[1] === 1)) { mirrorFrame(f.a); return; }   /* (the screen's
+    if (f.cmd === CMD.MIRROR && !(f.a.length === 6 && f.a[0] <= 1 && f.a[1] === 1)) { this.onMirror(f.a); return; }   /* (the screen's
                                                        pushes, also without a dump (a backup-only firmware); the reply: on, 1, w, h) */
     if (PUSH.has(f.cmd)) { this.onPush(f); return; }
     const c = this.cur;
@@ -7100,6 +7101,7 @@ async function connect() {
       onUnknown: (f) => console.debug("ignored reply", f),
       onTimeout: () => sayK("noreply"),
       onPush: (f) => onPush(f),
+      onMirror: (a) => mirrorFrame(a),
       onGap: () => { rewatch = true; },
     });
     input.onmidimessage = (e) => link.receive(e.data);
