@@ -84,8 +84,8 @@ PRIVATE void OI_BITSTREAM_Write2xUINT4Aligned(OI_BITSTREAM* bs, uint8_t datum1, 
       (bitPtr) -= 8;                                            \
     }                                                           \
                                                                 \
-    (result) = (value) << (bitPtr);                             \
-    (result) >>= 32 - (bits);                                   \
+    (result) = (bits) ? (value) << (bitPtr) : 0; /* (Optimist: with 0 bits bitPtr may be 32, a shift by 32 is undefined) */ \
+    (result) = (bits) ? (result) >> (32 - (bits)) : 0;          \
                                                                 \
     (bitPtr) += (bits);                                         \
     OI_ASSERT(((bits) == 0) || ((result) < (1u << (bits))));    \
