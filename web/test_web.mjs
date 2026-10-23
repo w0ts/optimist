@@ -70,10 +70,10 @@ async function editorMock() {
     const sd = [];
     for (let i = 45; i < 49; i++) sd.push(E.parse[E.CMD.DESC](await rq(E.req.desc(0, i))));
     ok(sd.map((d) => d.label).join() === "SLCR,PAT,RATE,DEPTH" && sd[0].names.join() === "OFF,GATE,STUT"
-      && sd[2].names.join() === "1/8,1/16,1/32,8T,16T,32T" && sd[2].def === 1 && sd[1].min === 1 && sd[1].max === 16 && sd[3].def === 127
+      && sd[2].names.join() === (pc.match(/N_DUR\[DUR_N\] = \{([^}]*)\}/) || ["", ""])[1].replace(/[\s"]/g, "") && sd[2].def === 16 && sd[1].min === 1 && sd[1].max === 16 && sd[3].def === 127
       && /\[P_SLCR\] = PE\("SLCR", N_SLCR, 0\)/.test(pc) && /\[P_SLPAT\] = PD\("PAT", F_INT, 1, 16, 1\)/.test(pc)
-      && /\[P_SLRATE\] = PE\("RATE", N_SLDIV, 1\)/.test(pc) && /\[P_SLDEPTH\] = PD\("DEPTH", F_PCT, 0, 127, 127\)/.test(pc)
-      && /N_SLDIV\[\] = \{"1\/8", "1\/16", "1\/32", "8T", "16T", "32T"\}/.test(pc),
+      && /\[P_SLRATE\] = PE\("RATE", N_SLDIV, DUR_DEF_16\)/.test(pc) && /\[P_SLDEPTH\] = PD\("DEPTH", F_PCT, 0, 127, 127\)/.test(pc)
+      && /#define N_SLDIV N_DUR/.test(pc),   /* (the note values, 03b676ad) */
       "editor: SLICER parameters 45..48 (mock == params.c)");
     await rq(E.req.set(0, 45, 2));
     await rq(E.req.set(0, 46, 7));
@@ -838,9 +838,9 @@ async function editorV5() {
   const gd = [];
   for (let i = 27; i < 32; i++) gd.push(E.parse[C.DESC](await rq(E.req.desc(1, i))));
   ok(chord.label === "CHORD" && chord.names.join() === enumNames("N_CHORD").join() && /\[P_CHORD\] = PE\("CHORD", N_CHORD, 0\)/.test(pc)
-    && gd.map((d) => d.label).join() === "DUST,DUCK,FILT,ROLL,NEW" && gd[3].names.join() === enumNames("N_ROLL").join() && gd[3].def === 1
+    && gd.map((d) => d.label).join() === "DUST,DUCK,FILT,ROLL,NEW" && gd[3].names.join() === (/N_DUR\[DUR_N\] = \{([^}]*)\}/.exec(pc) || ["", ""])[1].replace(/[\s"]/g, "") && gd[3].def === 16 && /#define N_ROLL N_DUR/.test(pc)
     && /\[G_DUST\] = PD\("DUST", F_PCT, 0, 127, 0\)/.test(pc) && /\[G_FILT\] = PD\("FILT", F_FILT, -64, 63, 0\)/.test(pc)
-    && /\[G_ROLL\] = PE\("ROLL", N_ROLL, 1\)/.test(pc) && /\[G_NEWPRJ\] = PE\("NEW", N_GO, 0\)/.test(pc),
+    && /\[G_ROLL\] = PE\("ROLL", N_ROLL, DUR_DEF_16\)/.test(pc) && /\[G_NEWPRJ\] = PE\("NEW", N_GO, 0\)/.test(pc),
     "v5: CHORD, DUST, DUCK, FILT, ROLL, NEW (mock == params.c)");
   /* the value formats (params.c fmt_value) */
   const fv = (fmt, v, max = 127, min = 0) => E.fmtValue({ fmt, min, max, names: [] }, v).join("");
@@ -848,10 +848,11 @@ async function editorV5() {
     && fv(E.F.FILT, 0, 63, -64) === "OFF" && fv(E.F.FILT, -64, 63, -64) === "LP100%" && fv(E.F.FILT, -32, 63, -64) === "LP50%" && fv(E.F.FILT, 63, 63, -64) === "HP100%"
     && fv(E.F.PCT, 127) === "100%" && fv(E.F.PCT, 64) === "50%" && fv(E.F.PCT, 60, 120) === "50%", "v5: SWING 50..75 %, FILT LP / OFF / HP, PCT of the range");
   /* the LFO's RATE below 0: a note value of the tempo (params.c N_LSYNC, SLOOP 2.6's SYNC), the mock's range as params.c's */
-  ok(fv(E.F.LFOHZ, -1, 127, -10) === "4BAR" && fv(E.F.LFOHZ, -7, 127, -10) === "8T" && fv(E.F.LFOHZ, -10, 127, -10) === "1/32"
-    && fv(E.F.LFOHZ, 0, 127, -10) === "0.05Hz" && fv(E.F.LFOHZ, 127, 127, -10) === "40.0Hz"
-    && /\[P_LRATE\] = PD\("RATE", F_LFOHZ, -LSYNC_N, 127, 60\)/.test(pc) && /#define LSYNC_N 10\n/.test(readFileSync(join(HERE, "../firmware/src/core/core.h"), "utf8"))
-    && html.includes('D("RATE", F.LFOHZ, -10, 127, 60)'), "LFO RATE: -1..-10 4BAR .. 1/32 (synced), 0..127 Hz; the mock's range -10..127 as params.c");
+  ok(fv(E.F.LFOHZ, -1, 127, -22) === "4BAR" && fv(E.F.LFOHZ, -16, 127, -22) === "8T" && fv(E.F.LFOHZ, -20, 127, -22) === "1/32" && fv(E.F.LFOHZ, -22, 127, -22) === "1/64"
+    && fv(E.F.LFOHZ, 0, 127, -22) === "0.05Hz" && fv(E.F.LFOHZ, 127, 127, -22) === "40.0Hz"
+    && /\[P_LRATE\] = PD\("RATE", F_LFOHZ, -LSYNC_N, 127, 60\)/.test(pc) && /#define LSYNC_N DUR_N\n/.test(readFileSync(join(HERE, "../firmware/src/core/core.h"), "utf8"))
+    && /#define DUR_N 22 /.test(readFileSync(join(HERE, "../firmware/src/core/core.h"), "utf8"))
+    && html.includes('D("RATE", F.LFOHZ, -22, 127, 60)'), "LFO RATE: -1..-22 4BAR .. 1/64 (synced, the DUR list: 03b676ad), 0..127 Hz; the mock's range -22..127 as params.c");
   /* a list value this build leaves out (FM6's ENGINE: DESC names it "", eng_fm6.c fm6_ed_desc): no option, and a
      part stored with it says so; a patch keeps a value the build does not show ("-" with a range) */
   const eng = { fmt: E.F.ENUM, min: 0, max: 2, names: ["", "MARK I", "OPL"] };
@@ -2152,6 +2153,7 @@ async function editorSl24In() {
       "sl24 in: a 2.6 backup's FUN6 -> 2.5's FUN5 (engines, nudges, fills, locks moved back, 2.6's own dropped, TEXTURE's globals)");
     {   /* LFO 2's SYNC (x[7]) n 1..10 -> RATE -n (P_LRATE, value 9), 0 or past 10: the free RATE (sl26_to_sl24 on the FM-1) */
       let good = true;
+      const LSD = (/SLOOP_LSYNC_DUR\[10\] = \{([^}]*)\}/.exec(readFileSync(join(HERE, "../firmware/src/core/core.h"), "utf8")) || ["", ""])[1].split(",").map(Number);
       for (const n of [0, 1, 7, 10, 11]) {
         const c = Uint8Array.from(f6);
         for (let k = 0; k < 4; k++) c[76 + 934 * k + 129] = n;
@@ -2161,7 +2163,7 @@ async function editorSl24In() {
         const q = E.sl26ToFun5(c);
         for (let k = 0; k < 4; k++) {
           const free = f6[76 + 934 * k + 18] | f6[76 + 934 * k + 19] << 8, got = (q[76 + 940 * k + 18] | q[76 + 940 * k + 19] << 8) << 16 >> 16;
-          good = good && got === (n >= 1 && n <= 10 ? -n : free << 16 >> 16);
+          good = good && got === (n >= 1 && n <= 10 ? -(LSD[n - 1] + 1) : free << 16 >> 16);   /* (SYNC n: DUR index LSD[n - 1], 03b676ad) */
         }
       }
       ok(good, "sl24 in: a 2.6 backup's LFO 2 SYNC n -> the part's RATE -n (0, 11: its free RATE)");

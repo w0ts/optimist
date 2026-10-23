@@ -44,7 +44,7 @@ preset/PHASE/03_RESO_PLUCK 73213bb2246ce91a
 preset/PHASE/04_CZ_BRASS 7f227bd26bda71a7
 preset/LOFI/00_GAME_LEAD f18fa142129dcdfc
 preset/LOFI/01_GB_BASS 87c66c6fcb9e54fc
-preset/LOFI/02_8BIT_ARP e29b53fac136cd76
+preset/LOFI/02_8BIT_ARP 4f786620f2b82e71
 preset/SAMPLE/00_GRAND_PNO 75871cd0e5e7b478
 preset/SAMPLE/01_UP_BASS 9c93ca10654f0a0c
 preset/SAMPLE/02_VIBES 7f36ed442eef9657
@@ -105,6 +105,6 @@ sends/DIGITAL/reverb 46fab727d579269c
 sends/DIGITAL/all 8574b3d420ceb36c
 sends/DIGITAL/dist b0df2c155232985c
 song/4track_mix 523e58200a84b93e
-slicer/gate/ANALOG_DARK_STR 3e20cefa87a94ac1
-slicer/stut/DIGITAL_RHODES 7c2c5e66582b23f1
-slicer/song_gate_stut 2d691a8020cafd57
+slicer/gate/ANALOG_DARK_STR 4f6ae029ce727bde
+slicer/stut/DIGITAL_RHODES 163c2a6925937e27
+slicer/song_gate_stut 70f49b81cec5b4e9

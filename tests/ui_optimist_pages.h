@@ -864,6 +864,14 @@ static void pages_select_tests(void)
 
 /* a drum key played selects its lane on every page where the keys play (the user, 2026-10-12: "when i play a note for
  * the drums on the keyboard it should switch to that instrument in all the relevant pages"); DR itself included */
+/* (the knobs' last detents are 32-bit ticks that wrap every 179 s: a knob turned some wraps ago can look 5 ms old, which made
+ * this test fail on the simulated clock's alignment alone, e.g. K3 165 ms "old" in the SCRN build; every knob last turned 10 s ago) */
+static void hit_knobs_aged(void)
+{
+    uint32_t k;
+    for (k = 0; k < NE; k++)
+        ui.enc_t[k] = fm1_ticks() - 10u * 1000u * 1000u * 24u;
+}
 static void pages_hit_tests(void)
 {
     uint32_t snare = 1u, kick = 0u;
@@ -872,6 +880,7 @@ static void pages_hit_tests(void)
     ui.lane = 0;
     lane_select(kick);
     frames(30);                                         /* (no knob in the last 300 ms) */
+    hit_knobs_aged();
     ui.row[SCR_HOME] = MXR_DR;
     frame();
     key(key_of_lane(snare));
@@ -884,12 +893,7 @@ static void pages_hit_tests(void)
     tap(B_FX);
     key(key_of_lane(snare));
     check(lane_selected() == snare, "drum key: on the drum FX page too");
-    {   /* (the knobs' last detents are 32-bit ticks that wrap every 179 s: a knob turned some wraps ago can look 5 ms old, which
-         * made this test fail on the simulated clock's alignment alone; every knob last turned 10 s ago) */
-        uint32_t k;
-        for (k = 0; k < NE; k++)
-            ui.enc_t[k] = fm1_ticks() - 10u * 1000u * 1000u * 24u;
-    }
+    hit_knobs_aged();
     ui.hot = 0;
     turn(EN_K1, 1);
     turn(EN_K1, -1);
