@@ -114,7 +114,7 @@ const x0x_param_t *drum909_param(int voice, int i)
     return &d9_specs[voice][i].ui;
 }
 
-int drum909_get(const drum909_t *d, int voice, int i)
+FM_SETUP int drum909_get(const drum909_t *d, int voice, int i)
 {
     if (voice < 0 || voice > DR_KIT || i < 0 || i >= d9_nspec[voice])
         return 0;
@@ -219,7 +219,7 @@ static void d9_apply(drum909_t *d, int voice, int field, float v)
     d9_shape_prep(&s->shape, s->drive, s->dist_type);
 }
 
-void drum909_set(drum909_t *d, int voice, int i, int value)
+FM_SETUP void drum909_set(drum909_t *d, int voice, int i, int value)
 {
     if (voice < 0 || voice > DR_KIT || i < 0 || i >= d9_nspec[voice])
         return;
@@ -248,7 +248,7 @@ static void d9_bt_init(d9_bt_t *v)
     d9_shape_prep(&v->shape, v->drive, v->dist_type);
 }
 
-void drum909_init(drum909_t *d)
+FM_SETUP void drum909_init(drum909_t *d)
 {
     uint8_t *p = (uint8_t *)d;
     for (unsigned i = 0; i < sizeof(*d); ++i)
@@ -434,7 +434,7 @@ static void d9_tom_trigger(d9_tom_t *t, const d9_bt_t *p, float accent)
     t->mute = d9_ceil((d1 + 60.0f) * D9_MS);
 }
 
-void drum909_trigger(drum909_t *d, int voice, float vel)
+FM_SETUP void drum909_trigger(drum909_t *d, int voice, float vel)
 {
     if (voice < 0 || voice >= DR_NUM)
         return;

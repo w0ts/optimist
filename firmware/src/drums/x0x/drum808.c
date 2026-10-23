@@ -36,7 +36,7 @@
 /* Optimist: the set-time maths (pitches, pot curves, filter coefficients) once, called: inlined, the float-float
  * exp2 alone was copied into every trigger (drum808_trigger was 8 KB) */
 #if defined(__GNUC__) || defined(__clang__)
-#define D8_COLD static __attribute__((noinline))
+#define D8_COLD static __attribute__((noinline)) FM_SETUP
 #else
 #define D8_COLD static
 #endif
@@ -1374,7 +1374,7 @@ static float pot_value(int s, int slot, int pot)
     return fm_lin_pot(p->min, p->max, pot);           /* (Optimist: dsp_float.h, the 909's too) */
 }
 
-static void set_pot(drum808_t *d, int s, int slot, int v)
+static FM_SETUP void set_pot(drum808_t *d, int s, int slot, int v)
 {
     d->pot[s][slot] = (uint8_t)v;
     d->potv[s][slot] = slot == D8P_DIST ? (float)v : pot_value(s, slot, v);
@@ -1470,7 +1470,7 @@ static void kit_apply(drum808_t *d)
     d->choke = d->kpot[2];
 }
 
-void drum808_set(drum808_t *d, int track, int i, int value)
+FM_SETUP void drum808_set(drum808_t *d, int track, int i, int value)
 {
     const d8_pmap_t *m;
     const x0x_param_t *p = drum808_param(track, i);
@@ -1487,7 +1487,7 @@ void drum808_set(drum808_t *d, int track, int i, int value)
     }
 }
 
-int drum808_get(const drum808_t *d, int track, int i)
+FM_SETUP int drum808_get(const drum808_t *d, int track, int i)
 {
     const d8_pmap_t *m;
     if (!drum808_param(track, i))
@@ -1507,7 +1507,7 @@ int drum808_get(const drum808_t *d, int track, int i)
 
 enum { L_BD, L_SD, L_T0, L_T1, L_T2, L_RS, L_CL, L_MA, L_CP, L_CB, L_CH, L_OH, L_CY, L_NUM };
 
-void drum808_init(drum808_t *d)
+FM_SETUP void drum808_init(drum808_t *d)
 {
     int s, k;
     {
@@ -1568,7 +1568,7 @@ static void choke_lane(d8_lane_t *l)
 
 static float lane_hz(int s, float tune) { return d8_midicps(k_base_note[s] + tune); }
 
-void drum808_trigger(drum808_t *d, int track, float vel)
+FM_SETUP void drum808_trigger(drum808_t *d, int track, float vel)
 {
     int s, lane;
     float vgain, volts, soft, tune, decay;

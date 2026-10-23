@@ -19,7 +19,10 @@
 /* The maths of the cold paths (pots, init, notes, idle) out of line: one copy of each function instead of one
  * per call site (the same code, so the same values: no fused multiply-add across a call either way). The
  * render keeps its inline calls. */
-#define BASS303_COLD __attribute__((noinline))
+#define BASS303_COLD __attribute__((noinline)) FM_SETUP
+/* the set-time entry points (init, pots, a note's state): built for size too; this unit is -O2 for its render, the
+ * cold paths run once a change or a note (the same operations in the same order, so the same values) */
+#define BASS303_SETUP FM_SETUP
 static BASS303_COLD float c_expf(float x) { return fm_expf(x); }
 static BASS303_COLD float c_exp2f(float x) { return fm_exp2f(x); }
 static BASS303_COLD float c_log2f(float x) { return fm_log2f(x); }
@@ -84,7 +87,7 @@ static void powers(float *pw, float c)
 
 /* the main envelope's multiplier changed: its powers, and the closed-form gains of the two RC
  * followers it drives, g[m] = (1-a) sum_{n=1..m} a^(m-n) c^n (so r_m = a^m r_0 + g[m] e_0) */
-static void env_tables(bass303_t *b)
+static BASS303_SETUP void env_tables(bass303_t *b)
 {
     int m;
     powers(b->env_pw, b->env_c);
@@ -96,7 +99,7 @@ static void env_tables(bass303_t *b)
 }
 
 /* Open303::calculateEnvModScalerAndOffset, the measured mapping */
-static void calc_envmod(bass303_t *b)
+static BASS303_SETUP void calc_envmod(bass303_t *b)
 {
     float e = (float)b->pot[BASS303_ENVMOD] * (1.0f / 127.0f);
     float c = c_log2f(b->cutoff * (1.0f / 313.8152786f)) * (1.0f / 2.931683907f); /* log2(c1/c0) */
@@ -107,7 +110,7 @@ static void calc_envmod(bass303_t *b)
 }
 
 /* drive.h set_lowpass / set_low_shelf (TDF-II coefficients, a0-normalised) */
-static void bq_lowpass(bass303_bq_t *q, float fc, float fs)
+static BASS303_SETUP void bq_lowpass(bass303_bq_t *q, float fc, float fs)
 {
     float w = FM_TWO_PI * fc / fs, cs = c_cosf(w), sn = c_sinf(w);
     float alpha = sn * 0.707106781f, a0 = 1.0f + alpha;     /* sn / (2 q), q = 1/sqrt2 */
@@ -118,7 +121,7 @@ static void bq_lowpass(bass303_bq_t *q, float fc, float fs)
     q->a2 = (1.0f - alpha) / a0;
 }
 
-static void bq_low_shelf(bass303_bq_t *q, float fc, float gain_db, float fs)
+static BASS303_SETUP void bq_low_shelf(bass303_bq_t *q, float fc, float gain_db, float fs)
 {
     float A = c_db2lin(0.5f * gain_db);                       /* 10^(g/40) */
     float w = FM_TWO_PI * fc / fs, cs = c_cosf(w), sn = c_sinf(w);
@@ -133,7 +136,7 @@ static void bq_low_shelf(bass303_bq_t *q, float fc, float gain_db, float fs)
 }
 
 /* RAT op-amp: drive.h rat::State::update_op_amp_coeffs + the correction one-pole cutoff */
-static void rat_coeffs(bass303_t *b)
+static BASS303_SETUP void rat_coeffs(bass303_t *b)
 {
     const float R1 = 100000.0f, C1 = 1e-10f, Z1_B0 = 2.72149e-7f, Z1_B1 = 0.0027354f;
     const float Z1_A0 = 6.27638e-9f, Z1_A1 = 0.0000069f;
@@ -163,7 +166,7 @@ static void rat_coeffs(bass303_t *b)
     b->r_corr_b1 = c_expf(-FM_TWO_PI / BASS303_SR * 1119360.558f / (dist * 2306.231003f + 1.0f));
 }
 
-void bass303_set(bass303_t *b, int i, int v)
+BASS303_SETUP void bass303_set(bass303_t *b, int i, int v)
 {
     float n;
     if (i < 0 || i >= BASS303_NPARAMS)
@@ -226,7 +229,7 @@ void bass303_set(bass303_t *b, int i, int v)
 }
 
 /* clear everything that only matters while sound is running (Open303::triggerNote after idle) */
-static void clear_audio_state(bass303_t *b)
+static BASS303_SETUP void clear_audio_state(bass303_t *b)
 {
     int i;
     b->dc.x1 = b->dc.x2 = b->dc.y1 = b->dc.y2 = 0.0f;
@@ -252,7 +255,7 @@ static void clear_audio_state(bass303_t *b)
 }
 
 /* the shared coefficients (Open303 constructor + setSampleRate) */
-static void fixed_init(void)
+static BASS303_SETUP void fixed_init(void)
 {
     float w, sn, cs, alpha, scale, x, F, O, ln_cosh_p, ln_cosh_m;
 
@@ -324,7 +327,7 @@ static void fixed_init(void)
     bass303_k.ready = 1;
 }
 
-void bass303_init(bass303_t *b)
+BASS303_SETUP void bass303_init(bass303_t *b)
 {
     uint8_t *p = (uint8_t *)b;
     unsigned k;
@@ -348,7 +351,7 @@ void bass303_init(bass303_t *b)
 
 /* ---- notes ----------------------------------------------------------------------------- */
 
-static void set_accent_state(bass303_t *b, int accent)
+static BASS303_SETUP void set_accent_state(bass303_t *b, int accent)
 {
     if (accent) {
         b->accent_gain = b->accent;
@@ -361,7 +364,7 @@ static void set_accent_state(bass303_t *b, int accent)
     env_tables(b);
 }
 
-void bass303_note_on(bass303_t *b, int note, int accent, int slide)
+BASS303_SETUP void bass303_note_on(bass303_t *b, int note, int accent, int slide)
 {
     float f;
     if (note < 0)
@@ -451,7 +454,7 @@ static inline float decim_hb2(bass303_ap_t *s, float x_old, float x_new)
 /* While idle, advance what Open303 keeps running so the next note starts where the
  * reference would: oscillator phase, slew, the main envelope and its RC followers
  * (closed forms of N steps of each recursion). */
-static void idle_advance(bass303_t *b, int n)
+static BASS303_SETUP void idle_advance(bass303_t *b, int n)
 {
     float N = (float)n, cn, an, ph;
     if (!b->started)

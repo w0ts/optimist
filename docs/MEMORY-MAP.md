@@ -118,7 +118,7 @@ through the data cache and only 4 KB is left; so it stays off. Not known: whethe
 
 **Limits** (`tools/builder/core.py` `LIMITS`, `tools/build.py`): app flash 581,564 B; main RAM 98,304 B; pool 344,064 B
 with 8,192 B always kept spare (`SPARE`; the reason is not documented); RAMTEXT 32,512 B. The builder's estimate adds a
-margin (`FIT_MARGIN`: flash 1,024 B, RAM 512 B, RAMTEXT 256 B).
+margin (`FIT_MARGIN`: flash 1,024 B, RAM 448 B, RAMTEXT 256 B).
 
 **What `tools/build.py` refuses:** an image over the app slot; main RAM over 96 KiB; less than 8,192 B of pool spare;
 RAMTEXT over 32,512 B; an undo ring under 1,408 B (then build `FELUCCA_UNDO_HISTORY=0`, the single level of SLOOP 2.x);

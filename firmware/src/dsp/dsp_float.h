@@ -33,6 +33,15 @@
 #define FM_TANH_SHORT 1      /* fm_tanhf's early stops (the same bits): on for the X0X kits, off in ACID's unit */
 #endif
 
+/* FM_SETUP: a float unit's set-time function (init, pots, a note's coefficients) built for size while the unit
+ * (-O2 for its render) keeps its flags: the same operations in the same order, so the same values; clang only
+ * (minsize; the host tests build these units with any compiler) */
+#if defined(__clang__)
+#define FM_SETUP __attribute__((minsize))
+#else
+#define FM_SETUP
+#endif
+
 #define FM_PI 3.14159265358979f
 #define FM_TWO_PI 6.28318530717959f
 #define FM_LN2 0.693147180559945f
