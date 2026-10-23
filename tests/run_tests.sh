@@ -1244,7 +1244,7 @@ for x in 0 1; do   # per-track patterns and scenes (FELUCCA_PATTERNS): unit; the
         run "patterns and scenes (XSTEP=$x): store, share, copy-on-write, NO FREE PATTERN, old sections converted (cut anywhere), arena, stage, a scene's FX record (an older build's misfiled one moved), MEM FULL" "$OUT/patterns_test$x"
         [ "$x" = 1 ] && $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SL24_XSTEP=$x -o "$OUT/project_scope_test" tests/project_scope_test.c -lm && \
             run "projects own their scenes, patterns and song: another project sees none of them, nothing done there touches the first, the arena across a switch, the chain and BARS, a restart, DELETE, MEM FULL across projects" "$OUT/project_scope_test"
-        run "patterns (XSTEP=$x) across builds: scenes flattened without PATTERNS, a section stored there converted back" sh -c "$OUT/patterns_test$x $OUT/pat$x.img 1 && $OUT/patterns_test${x}n $OUT/pat$x.img 2 && $OUT/patterns_test$x $OUT/pat$x.img 3"
+        run "patterns (XSTEP=$x) across builds: a build without PATTERNS sees none of its projects (log format 2 elsewhere) and leaves them as they were" sh -c "$OUT/patterns_test$x $OUT/pat$x.img 1 && $OUT/patterns_test${x}n $OUT/pat$x.img 2 && $OUT/patterns_test$x $OUT/pat$x.img 3"
     ) >"$U.out" 2>&1 & jobbg
 done
 job; ( jobin
