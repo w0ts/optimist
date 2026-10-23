@@ -144,6 +144,20 @@ static void pen_name(int32_t v, char *nm)                  /* the list entry v a
     cell_empty_slot(&c);
     str_cpy(nm, c.val, 16);
 }
+/* can the card's slot take list entry v now? A track's INSERTS TYPE (ins_names): not the other slot's type, and an
+ * instance free or held (fxi_can), as op_cells.c ins_skip skips them; every other list: yes. Drawn struck and dim, so
+ * a turn that jumps over one, or stops before the last, reads as what it is (the user, 2026-10-23: "cannot select the
+ * last FX, and it seems to move by 2": XDLY last in the list, no instance while the delay holds the effects memory) */
+static int32_t text_st(int32_t x, int32_t y, const felucca_font_t *f, const char *s, uint16_t col, uint32_t st);   /* (op_draw.c) */
+static int pen_avail(int32_t v)
+{
+    uint32_t k = song.sel % NTRK, s, t;
+    if (pd_names(pen.d) != ins_names || v < 0 || v >= (int32_t)INS_NLIST)
+        return 1;
+    s = pen.vp == &ins_v[1] ? 1u : 0u;
+    t = ins_list[v];
+    return t == FXT_NONE || (t != ins_slot[k][s ^ 1u] && fxi_can(k, t));
+}
 static void pop_enum_open(uint32_t row, uint32_t k)
 {
     cell_t c;
@@ -290,7 +304,10 @@ static void pop_paint(void)                             /* the box in its own co
             } else {
                 cv_rect(16, ry + POP_RH / 2 - 4, 6, 8, ec);     /* the engine's chip */
             }
-            cv_text(28, ry + (POP_RH - (int32_t)f->h) / 2, f, nm, off == 0 ? C_WHITE : C_GRAY);
+            if (pop_kind == 3u && !pen_avail(pen.d->min + (int32_t)idx))   /* (a type the slot cannot take now: struck, dim) */
+                text_st(28, ry + (POP_RH - (int32_t)f->h) / 2, f, nm, col_shade(C_GRAY, 3u), 1);
+            else
+                cv_text(28, ry + (POP_RH - (int32_t)f->h) / 2, f, nm, off == 0 ? C_WHITE : C_GRAY);
             cv_text(224 - text_ws(en), ry + (POP_RH - (int32_t)FONT_S.h) / 2, &FONT_S, en, ec);                /* (the engine's name in its colour on every row: not dimmed) */
         }
     }
