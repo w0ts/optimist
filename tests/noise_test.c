@@ -328,10 +328,10 @@ static void t_desc(void)
     t = &trk[0];
     ok = !e->desc(t, 5) && !e->desc(t, 7);
     t->p[P_E0] = NZ_LFSR;
-    ok &= e->desc(t, 5) && !strcmp(e->desc(t, 5)->label, "LEN") && !strcmp(e->desc(t, 5)->names[0], "L23") &&
+    ok &= e->desc(t, 5) && !strcmp(e->desc(t, 5)->label, "LEN") && !strcmp(pd_names(e->desc(t, 5))[0], "L23") &&
           e->desc(t, 7) && !strcmp(e->desc(t, 7)->label, "CLK") && !e->desc(t, 1);
     t->p[P_E0] = NZ_META;
-    ok &= e->desc(t, 5) && !strcmp(e->desc(t, 5)->names[0], "127");
+    ok &= e->desc(t, 5) && !strcmp(pd_names(e->desc(t, 5))[0], "127");
     check(ok, "ANLG: DENS / CRSH as edit[]; LFSR: LEN (L23..) and CLK; META: LEN (127..)");
 }
 

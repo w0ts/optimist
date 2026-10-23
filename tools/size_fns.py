@@ -56,7 +56,7 @@ SIZE_FILES = ["ui/colors.c", "ui/splash.c", "storage/storage.c", "storage/uprese
 # optional engines and effects (a new main-loop-only file goes in SIZE_FILES: --check, docs SLIM-CODE.md)
 # (boot and the main loop stay at -Os: at minsize the main loop got slower and the emulator boot check saw a late
 # half, the BLE start-up a link stop over its bound, perf/flash-survey 2026-10-15)
-OS_FILES = ["felucca.c", "system/main.c", "system/supply.c", "system/recovery.c", "system/ota.c", "io/usb/usb.c", "io/usb/usb_audio_route.c",
+OS_FILES = ["felucca.c", "system/main.c", "system/supply.c", "io/usb/usb.c", "io/usb/usb_audio_route.c",
             "io/usb/usb_audio.c", "storage/motion_flash.c", "display/lcd.c", "display/lcd_dirty.c",
             "display/gfx.c", "system/libc.c", "system/bench.c", "system/simd_probe.c", "system/cpuguard.c",
             "ui/bright.c", "ui/meters.c", "seq/motion.c", "core/macro.c", "fx/master_comp/master_comp.c",
@@ -79,6 +79,9 @@ OS_FILES = ["felucca.c", "system/main.c", "system/supply.c", "system/recovery.c"
 # the pairing's arithmetic (P-192, SAFER+, SHA-256: bt_ssp.c, once per pairing, milliseconds either way): minsize
 # (2026-10-22, measured on synth: see the flash-gains report)
 SIZE_FILES += ["bt/bt_safer.c", "bt/bt_sha256.c", "bt/uECC.c", "bt/bt_ssp.c"]
+# the firmware update session and the USB rescue (ota.c, recovery.c): a transfer's bytes and the rescue's loop, never the
+# sound or the boot's timing (2026-10-23, -272 B on mots.config; usb.c measured too: -48 B, left at -Os)
+SIZE_FILES += ["system/ota.c", "system/recovery.c"]   # (cpuguard.c measured too: 0 B, the sound side reaches all of it)
 # the sound side: what the audio ISR, the second core and the voices run (never minsize)
 AUDIO_FILES = [  # (the A2DP stream's SBC encoder runs in the audio interrupt: bt_audio_feed, bt/bt_sbc.c and AOSP's bt/sbc/)
                "bt/bt_sbc.c", "bt/sbc/sbc_analysis.c", "bt/sbc/sbc_dct.c", "bt/sbc/sbc_dct_coeffs.c",
@@ -150,9 +153,21 @@ def ir_globals(ir):
     return {m.group(1): m.group(0).split("=", 1)[1] for m in IR_GLOBAL.finditer(ir)}
 
 
+# main-loop code the sound side reaches only at a transport event or from a UI helper that lives in an audio file
+# (2026-10-23): a song step (arrangement_apply: the project's FX and automation stores decoded), PLAY (song_backup:
+# the project captured), a note recorded (undo_mark), a pattern switch (pat_switch_isr), the pairing's hashes in the
+# BT RX interrupt (the user chose minsize for bt_ssp.c), and the descriptor helpers page_desc / dsnd_desc_fn (params.c,
+# drums) call. None runs per sample: they and what only they reach are built for size (the reach stops here);
+# measured on mots.config 2026-10-23 (see the flash-gains report). A per-sample path must never be cut.
+MAIN_CUT = {"arrangement_apply", "song_backup", "undo_mark", "pat_switch_isr", "bt_sha256_add", "bt_sha256_done",
+            "bt_sha256_init", "fxs_desc", "op_dsnd_desc", "lin_desc", "fxs_send_d", "ui_say", "ins_amt", "fxs_card",
+            "bps_desc"}
+
+
 def audio_reach(funcs, audio_names, globs=None):
     """every IR function the sound side can reach: direct calls, address references, and the functions a
-    reached global's initializer holds (an engine's table of render / note functions, a dispatch table)"""
+    reached global's initializer holds (an engine's table of render / note functions, a dispatch table); the
+    reach stops at MAIN_CUT (those are not reached)"""
     globs = globs or {}
     roots = {n for n, (head, _) in funcs.items()
              if n.endswith("_irq") or n in audio_names or re.search(r'section "\.ram', head)}
@@ -160,7 +175,7 @@ def audio_reach(funcs, audio_names, globs=None):
     while todo:
         n = todo.pop()
         for ref in IR_REF.findall(funcs[n][1] if n in funcs else globs[n]):
-            if (ref in funcs or ref in globs) and ref not in seen:
+            if (ref in funcs or ref in globs) and ref not in seen and ref not in MAIN_CUT:
                 seen.add(ref)
                 todo.append(ref)
     return seen

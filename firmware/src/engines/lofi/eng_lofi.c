@@ -44,8 +44,8 @@ static const uint8_t WRAM[16][16] = {
 static const char *const N_DCY[] = {"CONST", "D0", "D1", "D2", "D3", "D4", "D5", "D6", "D7", "D8", "D9", "D10",
                                     "D11", "D12", "D13", "D14", "D15", "L1", "L2", "L3", "L4", "L5", "L6", "L7",
                                     "L8", "L9", "L10", "L11", "L12", "L13", "L14", "L15", 0};
-static const param_desc_t LOFI_WAVNUM = {"WAV#", F_INT, 0, 127, 64, N_WRAM, 0};   /* = edit[2] but the names */
-static const param_desc_t LOFI_DCY = {"DCY", F_INT, 0, 127, 0, N_DCY, 0};        /* = edit[3] but the names */
+static const param_desc_t LOFI_WAVNUM = PN("WAV#", F_INT, 0, 127, 64, N_WRAM);   /* = edit[2] but the names */
+static const param_desc_t LOFI_DCY = PN("DCY", F_INT, 0, 127, 0, N_DCY);        /* = edit[3] but the names */
 
 static const param_desc_t *lofi_desc(const track_t *t, uint32_t k)
 {
@@ -212,14 +212,14 @@ static const preset_t LOFI_PRESETS[] = {
 static const engine_t ENG_LOFI = {
     "LOFI", {"CHIP", "MOTN"},
     {
-        {"CHIP", F_ENUM, 0, 4, 0, N_CHIP, 0},
-        {"WAVE", F_ENUM, 0, 4, 0, N_RWAVE, 0},
-        {"DUTY", F_INT, 0, 127, 64, 0, 0},              /* WRAM: the table, DUTY / 8 (lofi_desc) */
-        {"CRSH", F_PCT, 0, 127, 0, 0, 0},               /* STEP: the envelope (lofi_desc) */
-        {"SWP", F_PCT, 0, 127, 0, 0, 0},
-        {"VIB", F_PCT, 0, 127, 0, 0, 0},
-        {"ARP", F_ENUM, 0, 3, 0, N_RARP, 0},
-        {"TONE", F_PCT, 0, 127, 127, 0, 0},
+        PN("CHIP", F_ENUM, 0, 4, 0, N_CHIP),
+        PN("WAVE", F_ENUM, 0, 4, 0, N_RWAVE),
+        PU("DUTY", F_INT, 0, 127, 64, 0),              /* WRAM: the table, DUTY / 8 (lofi_desc) */
+        PU("CRSH", F_PCT, 0, 127, 0, 0),               /* STEP: the envelope (lofi_desc) */
+        PU("SWP", F_PCT, 0, 127, 0, 0),
+        PU("VIB", F_PCT, 0, 127, 0, 0),
+        PN("ARP", F_ENUM, 0, 3, 0, N_RARP),
+        PU("TONE", F_PCT, 0, 127, 127, 0),
     },
     LOFI_PRESETS, sizeof(LOFI_PRESETS) / sizeof(LOFI_PRESETS[0]), 1, lofi_note_on, lofi_render,
     0x3F2C, {P_E1, P_E2, P_E3, P_REL}, 0, lofi_amp, lofi_desc,

@@ -91,8 +91,8 @@ static void all_mapping_test(void)
     t->p[P_QUANT] = Q_ALL;
     t->p[P_CHORD] = 0;
     assert(TP[P_QUANT].max == Q_ALL);
-    assert(!strcmp(TP[P_QUANT].names[Q_SNAP], "SNAP") && !strcmp(TP[P_QUANT].names[Q_WHITE], "WHITE"));
-    assert(!strcmp(TP[P_QUANT].names[Q_ALL], "ALL"));
+    assert(!strcmp(pd_names(&TP[P_QUANT])[Q_SNAP], "SNAP") && !strcmp(pd_names(&TP[P_QUANT])[Q_WHITE], "WHITE"));
+    assert(!strcmp(pd_names(&TP[P_QUANT])[Q_ALL], "ALL"));
     for (s = 0; s < sizeof EXPECTED / sizeof EXPECTED[0]; s++) {
         t->p[P_SCALE] = (int16_t)s;
         for (root = 0; root < 12; root++)

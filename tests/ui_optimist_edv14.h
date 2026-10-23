@@ -60,11 +60,11 @@ static uint32_t edstl_check_list(uint32_t track, uint32_t lane)
 static void edstl_json_desc(FILE *f, const param_desc_t *d)
 {
     uint32_t i;
-    fprintf(f, "{\"label\":\"%s\",\"fmt\":%u,\"min\":%d,\"max\":%d,\"def\":%d,\"unit\":\"%s\"", d->label, (unsigned)d->fmt, d->min, d->max, d->def, d->unit ? d->unit : "");
-    if (d->fmt == F_ENUM && d->names) {
+    fprintf(f, "{\"label\":\"%s\",\"fmt\":%u,\"min\":%d,\"max\":%d,\"def\":%d,\"unit\":\"%s\"", d->label, (unsigned)d->fmt, d->min, d->max, d->def, pd_unit(d) ? pd_unit(d) : "");
+    if (d->fmt == F_ENUM && pd_names(d)) {
         fprintf(f, ",\"names\":[");
         for (i = 0; i <= (uint32_t)(d->max - d->min) && i < 64u; i++)
-            fprintf(f, "%s\"%s\"", i ? "," : "", d->names[i]);
+            fprintf(f, "%s\"%s\"", i ? "," : "", pd_names(d)[i]);
         fprintf(f, "]");
     }
     fprintf(f, "}");

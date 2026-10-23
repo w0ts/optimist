@@ -51,17 +51,47 @@ enum { DK_MIX, DK_RING, DK_FM };
 #endif
 #define DS_LANES 16              /* kick snare clap hat open-hat tom-lo tom-hi crash ride shaker conga
                                   * rim cowbell clave kick-2 snare-2 */
-typedef struct {
-    const char *name, *style;
+typedef struct {                 /* (its name and style: drums.c DRUM_KIT_NAMES / DRUM_KIT_STYLES, DS_KIT_NAME_LIST) */
     uint8_t crush;               /* low nibble: bits dropped, high nibble: sample-and-hold - 1 */
     uint16_t si[DS_LANES];       /* each lane's sound: DS_SNDS index (a sound several kits share is kept once) */
 } dkit_t;
-#include "felucca_drumkits.h"    /* DS_SNDS[], DS_KITS[], DS_NKITS; DS_XKITS[], DS_XSNDS[], DS_NXKITS (tools/gen_drumkits.py) */
+/* a sound as the kit tables keep it (tools/gen_drumkits.py, 17 B; the whole dsnd_t until 2026-10-23: 2.3 KB more of
+ * flash): the 16 fields most sounds set, and the index of a row of DS_RARE holding the rest (t2, t2lev, fenv, hpf, chip,
+ * drive, the KAWA extras), which most sounds leave at 0; row 0 is all zeros. ds_unpack makes the dsnd_t a voice plays
+ * (its own copy, dsv_t snd; the UI's pictures and values make one on the stack) */
+typedef struct {
+    uint8_t wave, src, pitch, fine, bend, btime, hold, decay, tlev, click, nlev, nhold, ndec, flt, fcut, level, rare;
+} dsndc_t;
+typedef struct {
+    uint8_t t2, t2lev;
+    int8_t fenv;
+    uint8_t hpf, chip, drive;
+#if FELUCCA_DS_KAWA
+    uint8_t kx, kgap, krise;
+#endif
+} dsrare_t;
+#if FELUCCA_DS_KAWA
+#define DS_KX(a, b, c) , a, b, c
+#else
+#define DS_KX(a, b, c)
+#endif
+#include "felucca_drumkits.h"    /* DS_SNDS[], DS_RARE[], DS_KITS[], DS_NKITS; DS_XKITS[], DS_XSNDS[], DS_NXKITS (tools/gen_drumkits.py) */
+static void ds_unpack(dsnd_t *o, const dsndc_t *c)
+{
+    const dsrare_t *r = &DS_RARE[c->rare];
+    o->wave = c->wave, o->src = c->src, o->pitch = c->pitch, o->fine = c->fine, o->bend = c->bend, o->btime = c->btime;
+    o->hold = c->hold, o->decay = c->decay, o->tlev = c->tlev, o->click = c->click, o->nlev = c->nlev;
+    o->nhold = c->nhold, o->ndec = c->ndec, o->flt = c->flt, o->fcut = c->fcut, o->level = c->level;
+    o->t2 = r->t2, o->t2lev = r->t2lev, o->fenv = r->fenv, o->hpf = r->hpf, o->chip = r->chip, o->drive = r->drive;
+#if FELUCCA_DS_KAWA
+    o->kx = r->kx, o->kgap = r->kgap, o->krise = r->krise;
+#endif
+}
 /* a lane's sound by its index: DS_SNDS', or (DS_XSI: bit 15) its own in an extra kit's table (kit UIDs 47..: DS_XKITS, each
  * in a builder item of its own; a table not built is never read: its kit plays a stand-in, drums.c drum_kit_of) */
 #define DS_XSI 0x8000u
 #if DS_NXKITS
-AINL const dsnd_t *ds_snd(uint32_t si) { return si & DS_XSI ? &DS_XSNDS[(si >> 8) & 127u][si & 255u] : &DS_SNDS[si]; }
+AINL const dsndc_t *ds_snd(uint32_t si) { return si & DS_XSI ? &DS_XSNDS[(si >> 8) & 127u][si & 255u] : &DS_SNDS[si]; }
 #else
 #define ds_snd(si) (&DS_SNDS[si])
 #endif
@@ -88,7 +118,8 @@ static uint32_t ds_lane(uint32_t note, int32_t *semi)
 }
 
 typedef struct {
-    const dsnd_t *d;
+    const dsnd_t *d;             /* the sound it plays: its own copy below (ds_on_snd) */
+    dsnd_t snd;
     uint32_t ph, inc, inc_to;    /* tone phase; increment now and at the end of the block */
     uint32_t ph2, ph3, mph[6];   /* BELL / FM second oscillator, the second partial, the metal squares */
     uint32_t minc[6];
@@ -172,7 +203,8 @@ static void ds_on_snd(dsv_t *s, const dsnd_t *d, uint32_t crush, int32_t semi, u
 {
     uint32_t i;
     memset(s, 0, sizeof *s);
-    s->d = d;
+    s->snd = *d;                                        /* (d may be a caller's temporary: ds_unpack, de_synth) */
+    d = s->d = &s->snd;
     s->crush = (uint8_t)crush;
     s->gain = (int32_t)vel * 258;
     {   /* level: quarter dB from 128; 24 quarters = 6 dB = x2 (0.02 dB off per 6 dB) */
@@ -232,7 +264,9 @@ static void ds_on(dsv_t *s, const dkit_t *kit, uint32_t note, uint32_t vel)
 {
     int32_t semi;
     uint32_t lane = ds_lane(note, &semi);
-    ds_on_snd(s, DS_SND(kit, lane), kit->crush, semi, note, vel);
+    dsnd_t d;
+    ds_unpack(&d, DS_SND(kit, lane));
+    ds_on_snd(s, &d, kit->crush, semi, note, vel);
 }
 
 /* one CTL block of control: the envelopes' targets at its end */

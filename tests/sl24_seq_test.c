@@ -122,7 +122,7 @@ static void t_div_change(void)
     TDRUM->p[P_SDIV] = 19;                             /* 2BAR -> 1/32 in the middle of a step */
     run_block();
     check(nhits - n0 <= 1u && TDRUM->p[P_SDIV] == 19, "DIV 2BAR -> 1/32 mid-step: one step a block, no burst");
-    check(TP[P_SDIV].max == DUR_N - 1 && !strcmp(TP[P_SDIV].names[2], "2BAR") && !strcmp(TP[P_SDIV].names[16], "1/16") && !strcmp(TP[P_SDIV].names[7], "1/2") && !strcmp(TP[P_SDIV].names[4], "1BAR"),
+    check(TP[P_SDIV].max == DUR_N - 1 && !strcmp(pd_names(&TP[P_SDIV])[2], "2BAR") && !strcmp(pd_names(&TP[P_SDIV])[16], "1/16") && !strcmp(pd_names(&TP[P_SDIV])[7], "1/2") && !strcmp(pd_names(&TP[P_SDIV])[4], "1BAR"),
           "DIV's names: the one list of note values (4BAR .. 1/64)");
 }
 
@@ -144,7 +144,7 @@ static void t_dly_dot(void)
     check(s8slow < DLY_LEN && (DLY_LEN > BEAT_U * 3u / 4u / 40u ? s8slow == BEAT_U * 3u / 4u / 40u
                                                                : s8slow == BEAT_U * 3u / 8u / 40u),
           "TIME 1/8D at 40 BPM: fits, or halves to 1/16D when the line is shorter (halved, X0X 892a3b5)");
-    check(GP[G_DTIME].max == DUR_N - 1 && !strcmp(GP[G_DTIME].names[11], "1/8D") && !strcmp(GP[G_DTIME].names[14], "1/16D"),
+    check(GP[G_DTIME].max == DUR_N - 1 && !strcmp(pd_names(&GP[G_DTIME])[11], "1/8D") && !strcmp(pd_names(&GP[G_DTIME])[14], "1/16D"),
           "TIME's names: the one list of note values (1/8D at 11, 1/16D at 14)");
     song.g[G_BPM] = 120;
 }

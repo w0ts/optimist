@@ -1601,14 +1601,14 @@ static const preset_t FM6_PRESETS[] = {
 static const engine_t ENG_FM6 = {
     "FM6", {"PATCH", "FILT"},                            /* (EDIT 2: the filter after the part, fm6_flt) */
     {
-        {"VOICE", F_ENUM, 0, FM6_NVOICE - 1, 0, N_FM6V, 0},
-        {"-", F_INT, 0, 0, 0, 0, 0},                     /* (EDIT 2..5: empty, an old project's MOD .. ENGINE baked) */
-        {"-", F_INT, 0, 0, 0, 0, 0},
-        {"-", F_INT, 0, 0, 0, 0, 0},
-        {"-", F_INT, 0, 0, 0, 0, 0},
-        {"LPF", F_PCT, 0, 127, 0, 0, 0},                 /* (fm6_flt: 0 open) */
-        {"RES", F_PCT, 0, 127, 0, 0, 0},
-        {"HPF", F_PCT, 0, 127, 0, 0, 0},                 /* (0 off) */
+        PN("VOICE", F_ENUM, 0, FM6_NVOICE - 1, 0, N_FM6V),
+        PU("-", F_INT, 0, 0, 0, 0),                     /* (EDIT 2..5: empty, an old project's MOD .. ENGINE baked) */
+        PU("-", F_INT, 0, 0, 0, 0),
+        PU("-", F_INT, 0, 0, 0, 0),
+        PU("-", F_INT, 0, 0, 0, 0),
+        PU("LPF", F_PCT, 0, 127, 0, 0),                 /* (fm6_flt: 0 open) */
+        PU("RES", F_PCT, 0, 127, 0, 0),
+        PU("HPF", F_PCT, 0, 127, 0, 0),                 /* (0 off) */
     },
     FM6_PRESETS, sizeof(FM6_PRESETS) / sizeof(FM6_PRESETS[0]), -1, fm6_note_on, fm6_render,
     0x5D7F, {P_E0, P_E5, P_E6, P_E7}, NVOICE,             /* (MAIN: VOICE LPF RES HPF) */ fm6_amp, 0, fm6_block, 1, fm6_alloc, fm6_legato, fm6_key,

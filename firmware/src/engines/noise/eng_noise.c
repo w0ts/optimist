@@ -27,9 +27,9 @@ static const char *const N_NOISE_MODE[] = {"ANLG", "DUST", "LFSR", "META"};
 enum { NZ_ANLG, NZ_DUST, NZ_LFSR, NZ_META };
 static const char *const N_NOISE_LONG[] = {"L23", "L20", "L17", "L15", "L13", "L11", "L9", "L7", 0};
 static const char *const N_NOISE_META[] = {"127", "127B", "93", "63", "63B", "31", "15", "7", 0};
-static const param_desc_t NOISE_LONG = {"LEN", F_INT, 0, 127, 0, N_NOISE_LONG, 0};   /* = edit[5] but the names */
-static const param_desc_t NOISE_META = {"LEN", F_INT, 0, 127, 0, N_NOISE_META, 0};
-static const param_desc_t NOISE_CLK = {"CLK", F_INT, 0, 127, 0, 0, "st"};           /* = edit[7]: above the key */
+static const param_desc_t NOISE_LONG = PN("LEN", F_INT, 0, 127, 0, N_NOISE_LONG);   /* = edit[5] but the names */
+static const param_desc_t NOISE_META = PN("LEN", F_INT, 0, 127, 0, N_NOISE_META);
+static const param_desc_t NOISE_CLK = PU("CLK", F_INT, 0, 127, 0, "st");           /* = edit[7]: above the key */
 
 /* Galois taps of the long registers (maximal length: 2^n - 1 clocks) */
 static const uint32_t NOISE_TAPS[8] = {0x420000u, 0x90000u, 1u << 16 | 1u << 13, 0x6000u, 0x100Du, 0x500u, 0x110u, 0x60u};
@@ -258,14 +258,14 @@ static const engine_t ENG_NOISE = {
     .name = "NOISE",
     .page_title = {"SRC", "MOVE"},
     .edit = {
-        {"MODE", F_ENUM, 0, 3, 0, N_NOISE_MODE, 0},
-        {"COLR", F_PCT, 0, 127, 64, 0, 0},
-        {"FREQ", F_CUTOFF, 0, 127, 80, 0, 0},
-        {"RES", F_PCT, 0, 127, 30, 0, 0},
-        {"TRK", F_PCT, 0, 127, 64, 0, 0},
-        {"DENS", F_PCT, 0, 127, 0, 0, 0},           /* LFSR, META: the register (noise_desc) */
-        {"DRFT", F_PCT, 0, 127, 0, 0, 0},
-        {"CRSH", F_PCT, 0, 127, 0, 0, 0},           /* LFSR, META: the clock above the key */
+        PN("MODE", F_ENUM, 0, 3, 0, N_NOISE_MODE),
+        PU("COLR", F_PCT, 0, 127, 64, 0),
+        PU("FREQ", F_CUTOFF, 0, 127, 80, 0),
+        PU("RES", F_PCT, 0, 127, 30, 0),
+        PU("TRK", F_PCT, 0, 127, 64, 0),
+        PU("DENS", F_PCT, 0, 127, 0, 0),           /* LFSR, META: the register (noise_desc) */
+        PU("DRFT", F_PCT, 0, 127, 0, 0),
+        PU("CRSH", F_PCT, 0, 127, 0, 0),           /* LFSR, META: the clock above the key */
     },
     .presets = NOISE_PRESETS,
     .npresets = sizeof(NOISE_PRESETS) / sizeof(NOISE_PRESETS[0]),

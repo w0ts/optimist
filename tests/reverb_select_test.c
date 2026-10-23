@@ -110,7 +110,7 @@ static void t_list(void)
             found = 1;
             ok = d && vp == &bp_set[BPS_RTYPE] && d->fmt == F_ENUM && d->min == 0 && d->max == (int16_t)REV_NLIST - 1;
             for (i = 0; ok && i < REV_NLIST; i++)
-                ok = !strcmp(d->names[i], REV_ALGO[i] == RT_SPRING ? "SPRNG" : LONG[REV_ALGO[i]]);
+                ok = !strcmp(pd_names(d)[i], REV_ALGO[i] == RT_SPRING ? "SPRNG" : LONG[REV_ALGO[i]]);
             check(ok && PAGES[p].scope == SC_BPSET && PAGES[p].id[0] == BPS_RTYPE,
                   "TYPE's cell: an enum of the algorithms built, by name");
 #else

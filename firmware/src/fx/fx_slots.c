@@ -558,8 +558,8 @@ static void eq3_defaults(void)
 /* EQ3's descriptors: the gains (KILL, -30 .. +6 dB), FREQ LO, FREQ HI (an index into EQ_FL_HZ / EQ_FH_HZ); fxs_fmt shows
  * them (params.c param_format) */
 static const param_desc_t EQ_D[EQV_N] = {
-    {"LO", F_INT, EQ_KILL, 6, 0, 0, EQ_TAG_DB}, {"MID", F_INT, EQ_KILL, 6, 0, 0, EQ_TAG_DB}, {"HI", F_INT, EQ_KILL, 6, 0, 0, EQ_TAG_DB},
-    {"FREQ L", F_INT, 0, EQ_FMAX, EQ_FL_DEF, 0, EQ_TAG_FL}, {"FREQ H", F_INT, 0, EQ_FMAX, EQ_FH_DEF, 0, EQ_TAG_FH}};
+    PU("LO", F_INT, EQ_KILL, 6, 0, EQ_TAG_DB), PU("MID", F_INT, EQ_KILL, 6, 0, EQ_TAG_DB), PU("HI", F_INT, EQ_KILL, 6, 0, EQ_TAG_DB),
+    PU("FREQ L", F_INT, 0, EQ_FMAX, EQ_FL_DEF, EQ_TAG_FL), PU("FREQ H", F_INT, 0, EQ_FMAX, EQ_FH_DEF, EQ_TAG_FH)};
 /* ---- XDLY's settings (fx/insfx/xdly.c: the kernel): TIME 1 TIME 2 (each line's time, 1 ms .. its line, exponential:
  * XD_D), MOD (how far each line's output moves the other's time), FDBK (each line's repeats, past 100 % into the soft
  * clip: the LYRA-8's self-oscillation); the owners T1 T2 T3 DR and the master (fx_slots.c MST_OK; not a return nor the
@@ -587,8 +587,8 @@ _Static_assert(FS == 44100 && (FELUCCA_XDLY_LEN == 16384 || FELUCCA_XDLY_LEN == 
 AINL uint32_t xd_samples(int32_t v) { return (uint32_t)XD_D[clamp(v, 0, 127)] >> XD_SH; }
 static const char XD_TAG_MS[] = "ms";
 static const param_desc_t XD_DESC[XDV_N] = {
-    {"TIME 1", F_INT, 0, 127, 70, 0, XD_TAG_MS}, {"TIME 2", F_INT, 0, 127, 90, 0, XD_TAG_MS},
-    {"MOD", F_PCT, 0, 127, 24, 0, 0}, {"FDBK", F_PCT, 0, 127, 64, 0, 0}};
+    PU("TIME 1", F_INT, 0, 127, 70, XD_TAG_MS), PU("TIME 2", F_INT, 0, 127, 90, XD_TAG_MS),
+    PU("MOD", F_PCT, 0, 127, 24, 0), PU("FDBK", F_PCT, 0, 127, 64, 0)};
 static int xdl_dflt(void)                              /* every owner's settings the defaults */
 {
     uint32_t o, i;
@@ -610,7 +610,7 @@ static int fxs_fmt(const param_desc_t *d, int32_t v, char *val, const char **uni
 {
     uint32_t hz;
 #if FELUCCA_INS_XDLY
-    if (d->unit == XD_TAG_MS) {                        /* XDLY's TIMEs: ms, a tenth below 100 */
+    if (pd_unit(d) == XD_TAG_MS) {                        /* XDLY's TIMEs: ms, a tenth below 100 */
         uint32_t t = (xd_samples(v) * 100u + 220u) / 441u;   /* (tenths of a ms) */
         if (t < 1000u)
             fmt_fix(val, (int32_t)t, 1);
@@ -620,9 +620,9 @@ static int fxs_fmt(const param_desc_t *d, int32_t v, char *val, const char **uni
         return 1;
     }
 #endif
-    if (d->unit != EQ_TAG_DB && d->unit != EQ_TAG_FL && d->unit != EQ_TAG_FH)
+    if (pd_unit(d) != EQ_TAG_DB && pd_unit(d) != EQ_TAG_FL && pd_unit(d) != EQ_TAG_FH)
         return 0;                                      /* (by its tag) */
-    if (d->unit == EQ_TAG_DB) {
+    if (pd_unit(d) == EQ_TAG_DB) {
         if (v <= EQ_KILL) {
             str_cpy(val, "KILL", 6);
             *unit = "";
@@ -635,7 +635,7 @@ static int fxs_fmt(const param_desc_t *d, int32_t v, char *val, const char **uni
         }
         return 1;
     }
-    hz = (d->unit == EQ_TAG_FL ? EQ_FL_HZ : EQ_FH_HZ)[clamp(v, 0, EQ_FMAX)];
+    hz = (pd_unit(d) == EQ_TAG_FL ? EQ_FL_HZ : EQ_FH_HZ)[clamp(v, 0, EQ_FMAX)];
     if (hz < 1000u) {
         fmt_int(val, (int32_t)hz);
         *unit = "Hz";
@@ -840,7 +840,7 @@ static int ut_dflt(void)
 static const char *ut_names[FXT_N];
 static uint8_t ut_list[FXT_N];
 static int16_t ut_tv[INS_N];
-static param_desc_t ut_td[INS_N] = {{"S1", F_ENUM, 0, 0, 0, ut_names, 0}, {"S2", F_ENUM, 0, 0, 0, ut_names, 0}};
+static param_desc_t ut_td[INS_N] = {PN("S1", F_ENUM, 0, 0, 0, ut_names), PN("S2", F_ENUM, 0, 0, 0, ut_names)};
 static const param_desc_t *ut_desc(uint32_t id, int16_t **vp)   /* (ids: UT_ID_TY above) */
 {
     uint32_t t, n = 0, s = id & 1u, i;
@@ -964,7 +964,7 @@ AINL int32_t lin_amt(uint32_t l, uint32_t s)
 static int16_t lin_v[4];
 static const char *lin_names[LIN_NT];
 static uint8_t lin_list[LIN_NT];
-static param_desc_t lin_td[INS_N] = {{"S1", F_ENUM, 0, 0, 0, lin_names, 0}, {"S2", F_ENUM, 0, 0, 0, lin_names, 0}};
+static param_desc_t lin_td[INS_N] = {PN("S1", F_ENUM, 0, 0, 0, lin_names), PN("S2", F_ENUM, 0, 0, 0, lin_names)};
 /* lane l's value id: 0, 1 slot S1's / S2's amount (its type's track amount descriptor; empty: none), 2, 3 their TYPE */
 static const param_desc_t *lin_desc(uint32_t l, uint32_t id, int16_t **vp)
 {
@@ -1278,8 +1278,8 @@ static const char *fxs_names[FXS_NLIST];
 static uint8_t fxs_list[FXS_NLIST];
 static int16_t fxs_v[FX_NSLOT];
 static param_desc_t FXS_DESC[FX_NSLOT] = {   /* (slot 0: no return since fx-rework; A B C the master's returns) */
-    {"S1", F_ENUM, 0, 0, 0, fxs_names, 0}, {"A", F_ENUM, 0, 0, 0, fxs_names, 0},
-    {"B", F_ENUM, 0, 0, 0, fxs_names, 0}, {"C", F_ENUM, 0, 0, 0, fxs_names, 0}};
+    PN("S1", F_ENUM, 0, 0, 0, fxs_names), PN("A", F_ENUM, 0, 0, 0, fxs_names),
+    PN("B", F_ENUM, 0, 0, 0, fxs_names), PN("C", F_ENUM, 0, 0, 0, fxs_names)};
 #define FXS_ID_RAMT 24u                                /* 24, 25, 26: A B C's amount (a return holding another type) */
 static int rt_any(void)                                /* a return holds a type that is not a send */
 {
@@ -1294,8 +1294,8 @@ static int rt_any(void)                                /* a return holds a type 
 static const char *ins_names[INS_NLIST];
 static uint8_t ins_list[INS_NLIST];
 static int16_t ins_v[INS_N];
-static const param_desc_t INS_DESC[INS_N] = {{"S1", F_ENUM, 0, INS_NLIST - 1, 0, ins_names, 0},
-                                             {"S2", F_ENUM, 0, INS_NLIST - 1, 0, ins_names, 0}};
+static const param_desc_t INS_DESC[INS_N] = {PN("S1", F_ENUM, 0, INS_NLIST - 1, 0, ins_names),
+                                             PN("S2", F_ENUM, 0, INS_NLIST - 1, 0, ins_names)};
 #define FXS_ID_CMP FX_NSLOT                            /* fxs_desc ids: 0..3 the master slots, 4..8 DYN RATIO ATK REL GAIN CEIL */
 #define FXS_ID_TAMT 9u                                 /* 9: the selected track's DYN amount (P_TCOMP), on DYN's page */
 #define FXS_ID_INS 16u                                 /* 16, 17: the selected track's S1, S2 TYPE (INSERTS, the mixer) */
@@ -1360,7 +1360,7 @@ static const param_desc_t *eq3_desc(uint32_t k, int16_t **vp)
 static const char *mst_names[MST_NLIST];
 static uint8_t mst_list[MST_NLIST];
 static int16_t mst_v[INS_N];
-static param_desc_t mst_d[INS_N] = {{"S1", F_ENUM, 0, 0, 0, mst_names, 0}, {"S2", F_ENUM, 0, 0, 0, mst_names, 0}};
+static param_desc_t mst_d[INS_N] = {PN("S1", F_ENUM, 0, 0, 0, mst_names), PN("S2", F_ENUM, 0, 0, 0, mst_names)};
 static const param_desc_t *mst_desc(uint32_t s, int16_t **vp)
 {
     uint32_t t, n = 0, i;

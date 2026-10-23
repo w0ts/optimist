@@ -135,7 +135,7 @@ static void pen_name(int32_t v, char *nm)                  /* the list entry v a
     const char *unit;
     cell_t c;
     param_format(pen.d, v, nm, &unit);
-    if (pen.d->names == ins_names || pen.d->names == fxs_names) {
+    if (pd_names(pen.d) == ins_names || pd_names(pen.d) == fxs_names) {
         char b[16];
         str_cpy(nm, nm_card(nm, 0, b, sizeof b), 16);
     }

@@ -86,7 +86,7 @@ static void gtu_page_tests(void)
     SCR->cell(r, 2, &c);
     {                                                   /* one step: 1/32D (stored 17; the list is in the order of length with or without DIV_ORDER) */
         int32_t nx = DUR_DEF_16 + 1;
-        check(nx == param_step(&TP[P_TGRATE], DUR_DEF_16, 1) && trk[0].p[P_TGRATE] == nx && !strcmp(c.val, TP[P_TGRATE].names[nx]) && c.gv == nx,
+        check(nx == param_step(&TP[P_TGRATE], DUR_DEF_16, 1) && trk[0].p[P_TGRATE] == nx && !strcmp(c.val, pd_names(&TP[P_TGRATE])[nx]) && c.gv == nx,
               "... KNOB 3 turned: the next division (1/32D)");
     }
     turn(EN_K1, 40);

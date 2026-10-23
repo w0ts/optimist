@@ -38,8 +38,9 @@ static void drum_env_tests(void)
     check(dl.ofs[2][DE_CLICK] > 0, "drum ENV: KNOB 1 CLICK up on the snare");
     {   /* the sound the next hit plays (drum_edit.c de_synth): shorter, more click */
         int32_t semi;
-        const dsnd_t *d = DS_SND(&DS_KITS[0], ds_lane(LANE_NOTE_OF(2), &semi));
-        dsnd_t o;
+        dsnd_t dd, o;
+        const dsnd_t *d = &dd;
+        ds_unpack(&dd, DS_SND(&DS_KITS[0], ds_lane(LANE_NOTE_OF(2), &semi)));
         de_synth(&o, d, dl_ofs(2));
         check(o.decay < d->decay && o.click > d->click, "drum ENV: the snare's sound changed (decay shorter, click up)");
     }

@@ -97,10 +97,10 @@ static const char *dsnd_slot_names[16];
 static const param_desc_t DSD[16] = {
     PD("TUNE", F_SEMI, -24, 24, 0), PD("DECAY", F_BIPCT, -64, 63, 0), PD("SNAP", F_BIPCT, -64, 63, 0),
     PD("CLICK", F_BIPCT, -64, 63, 0), PD("BEND", F_SEMI, -24, 24, 0), PD("CUT", F_BIPCT, -64, 63, 0),
-    PD("DRIVE", F_BIPCT, -64, 63, 0), {"LEVEL", F_INT, -24, 6, 0, 0, "dB"},
-    {"SRC", F_ENUM, 0, (int16_t)(FELUCCA_DRUM_KITS ? 3u + DRUM_KITS + DS_SRC_XN : 3u), 0, DS_SRC_NAMES, 0},
+    PD("DRIVE", F_BIPCT, -64, 63, 0), PU("LEVEL", F_INT, -24, 6, 0, "dB"),
+    PN("SRC", F_ENUM, 0, (int16_t)(FELUCCA_DRUM_KITS ? 3u + DRUM_KITS + DS_SRC_XN : 3u), 0, DS_SRC_NAMES),
     PD("HIT", F_INT, 1, 16, 1), PD("START", F_PCT, 0, 127, 0), PD("LEN", F_PCT, 0, 127, 127),
-    {"SLOT", F_ENUM, 0, 15, 0, dsnd_slot_names, 0}, PE("SAVE", N_GO, 0), PE("ERASE", N_GO, 0), PE("RESET", N_GO, 0),
+    PN("SLOT", F_ENUM, 0, 15, 0, dsnd_slot_names), PE("SAVE", N_GO, 0), PE("ERASE", N_GO, 0), PE("RESET", N_GO, 0),
 };
 #if DRUM_X0X
 static const param_desc_t XSD_TUNE = PD("TUNE", F_INT, -24, 24, 0);   /* an X0X sound's TUNE in steps */
