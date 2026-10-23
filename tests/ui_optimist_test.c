@@ -2460,7 +2460,8 @@ static void newproj_tests(void)
 #if FELUCCA_PATTERNS
     check(ins_slot[0][0] != 2 && fxs_slot[0] != 2, "... the inserts and the FX slots empty again");
 #endif
-    check(dl.ofs[0][0] == 0 && dl.src[0] == 0 && dsend[0] == 0, "... the drum lanes' tuning and sound, their sends: blank");
+    check(dl.ofs[0][0] == 0 && dl.src[0] == 0 && dsend[0] == dsend_word(0, 0, 0), "... the drum lanes' tuning and sound, their sends: none, no reverb either");
+    check(song.g[G_RSIZE] == RSIZE_NEW && (NPART < 1u || trk[0].p[P_REV] == 0), "... the reverb SIZE 80 %, no reverb send on a part (the user, 2026-10-23)");
 #if FELUCCA_DRUM_ACCENT
     {   /* the drum track: no hit, its ACCENT lane four on the floor (the user, 2026-10-22); the project still counts as empty */
         uint32_t k, ok = 1;

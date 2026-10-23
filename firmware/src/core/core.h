@@ -327,6 +327,9 @@ static int32_t sloop_lsync_of(int32_t rate)    /* our RATE -> SLOOP's SYNC 0..10
 #define P_TAIL 1                /* a track has values after P_E7 (P_ENG_END .. P_COUNT - 1): none stored with it, none part
                                  * of a sound but the envelopes' slots (param_kept) */
 
+#define RSIZE_NEW 102           /* a new project's reverb SIZE (NEW, power-on with nothing stored): 80 %, above the ROOM's knee (fx.c
+                                 * RM_KNEE, ~2.5 x its tail; the user, 2026-10-23); G_RSIZE's default stays 90, what the rendered
+                                 * references use */
 enum {                          /* global parameters */
     G_BPM, G_SWING, G_CLOCK, G_TUNE,
     G_DTIME, G_DFDBK, G_DCOLOR, G_DMIX,

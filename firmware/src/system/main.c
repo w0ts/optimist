@@ -164,19 +164,22 @@ static void felucca_init(void)
     uint32_t i;
     for (i = 0; i < G_COUNT; i++)
         song.g[i] = GP[i].def;
+    song.g[G_RSIZE] = RSIZE_NEW;              /* (a new project's reverb: fx.c; a stored project brings its own) */
     for (i = 0; i < NTRK; i++) {
         track_t *t = &trk[i];
         track_defaults(t);                    /* (its sequencer empty, the drum track's ACCENT lane four on the floor: model.c;
                                                * a sound never writes the sequencer) */
         if (i < NPART) {
             set_engine_of(t, trk_def_engine(i));
-            apply_preset_to(t, trk_def_preset(i));   /* with its sends */
+            apply_preset_to(t, trk_def_preset(i));   /* with its sends, but no reverb (a new project: op_project_new) */
+            t->p[P_REV] = 0;
             t->engine = t->eng_req;
         }
     }
     TDRUM->p[P_E0] = DRUM_DEFAULT_KIT;        /* the 808 kit */
     song.sel = 0;
     song.master_q12 = 2048;
+    dsend_dry();                              /* (the lanes too; a stored project brings its own) */
     autosave_resume();                        /* the project as it was left (project.c) */
     song.g[G_VIEW] = (int16_t)settings.view;  /* (a setting, not the project's: ui_overview.c view_sync) */
     song.g[G_SYNC] = sync_boot;               /* (the same: the HOME menu's SYNC, project.c bp23_word) */

@@ -65,6 +65,14 @@ static uint16_t dsend_word(uint32_t rev, uint32_t dly, uint32_t cho)
     return (uint16_t)((rev != DSEND_DEF ? DSEND_OWN | rev : 0u) | (dly & 31u) << 5 | (cho & 31u) << 10);
 }
 static uint16_t dsend_canon(uint32_t w) { return dsend_word(dsend_rev(w), dsend_dly(w), dsend_cho(w)); }
+/* a new project's lanes (NEW, power-on with nothing stored): every send 0, no reverb either (the user, 2026-10-23: "the
+ * default reverb level not 13 % but zero for new project"); a lane left as it is in a stored project keeps REV 4 */
+static void dsend_dry(void)
+{
+    uint32_t l;
+    for (l = 0; l < DRUM_LANES; l++)
+        dsend[l] = dsend_word(0, 0, 0);
+}
 /* level 0..31 -> a send in a track's steps (0..127): 4v + v / 8 (31: 127) */
 AINL int32_t dsend_lvl(uint32_t v) { return (int32_t)(4u * v + (v >> 3)); }
 /* a track's send level 0..127 -> the nearest lane level (ties: the lower) */
