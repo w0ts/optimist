@@ -45,7 +45,8 @@ final class MirrorDecoderTests: XCTestCase {
     }
 
     func testReplyIsNotAWrite() {
-        let reply: [UInt8] = [0xF0, 0x7D, 0x46, 0x4C, 106, 1, 1, 112, 1, 112, 1, 0xF7]
+        let reply: [UInt8] = [0xF0, 0x7D, 0x46, 0x4C, 106, 1, 2, 112, 1, 112, 1, 0xF7]
+        XCTAssertEqual(MirrorDecoder.reply(reply)?.version, MirrorDecoder.version)
         XCTAssertEqual(MirrorDecoder.reply(reply)?.on, true)
         var dec = MirrorDecoder()
         XCTAssertFalse(dec.apply(reply))
@@ -56,11 +57,25 @@ final class MirrorDecoderTests: XCTestCase {
         // FILL 240 x 240 of 0xFFFF
         XCTAssertTrue(dec.apply([0xF0, 0x7D, 0x46, 0x4C, 106, 0, 0, 0, 0, 0, 112, 1, 112, 1, 127, 127, 3, 0xF7]))
         XCTAssertTrue(dec.pixels.allSatisfy { $0 == 0xFFFF })
-        // BLIT 240 x 2 at y 238: one long run of slot 0 (black), 480 = 16 + 464 (80 + 3 x 128)
-        XCTAssertTrue(dec.apply([0xF0, 0x7D, 0x46, 0x4C, 106, 1, 0, 0, 110, 1, 112, 1, 2, 0, 15 << 3, 80, 3, 0xF7]))
+        // BLIT 240 x 2 at y 238: one long run of slot 0 (black), 480 = 14 + 466 (466 & 63 = 18, | 64; 466 >> 6 = 7)
+        XCTAssertTrue(dec.apply([0xF0, 0x7D, 0x46, 0x4C, 106, 1, 0, 0, 110, 1, 112, 1, 2, 0, 13 << 3, 82, 7, 0xF7]))
         XCTAssertEqual(dec.pixels[237 * 240], 0xFFFF)
         XCTAssertEqual(dec.pixels[238 * 240], 0)
         XCTAssertEqual(dec.pixels[240 * 240 - 1], 0)
+    }
+
+    func testRowAboveAndBitmap() {
+        var dec = MirrorDecoder()
+        // BLIT 4 x 2 at 0, 0: 4 pixels of 0x1234 (a new colour: slot 1), then 4 pixels as the row above (15 << 3 | 3)
+        XCTAssertTrue(dec.apply([0xF0, 0x7D, 0x46, 0x4C, 106, 1, 0, 0, 0, 0, 4, 0, 2, 0, 3 << 3 | 7, 52, 36, 0, 15 << 3 | 3, 0xF7]))
+        XCTAssertEqual(dec.pixels[0], 0x1234)
+        XCTAssertEqual(dec.pixels[240], 0x1234)
+        XCTAssertEqual(dec.pixels[243], 0x1234)
+        XCTAssertEqual(dec.pixels[244], 0)
+        // BLIT 14 x 1 at 0, 10: a bitmap, 1s 0xFFFF (new), 0s slot 0, 2 bytes: 1010101 0000001
+        XCTAssertTrue(dec.apply([0xF0, 0x7D, 0x46, 0x4C, 106, 1, 0, 0, 10, 0, 14, 0, 1, 0, 14 << 3 | 7, 127, 127, 3, 1 << 3, 85, 1, 0xF7]))
+        let row = Array(dec.pixels[2400..<2414])
+        XCTAssertEqual(row, [0xFFFF, 0, 0xFFFF, 0, 0xFFFF, 0, 0xFFFF, 0, 0, 0, 0, 0, 0, 0xFFFF])
     }
 
     func testLinkFrame() {

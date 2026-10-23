@@ -116,7 +116,7 @@ struct MirrorView: View {
         switch link.state {
         case .searching: "A USB cable from the iPhone to the FM-1 (USB-C, or Lightning with the camera adapter), or Bluetooth: SYSTEM > Bluetooth on the FM-1, then connect it here."
         case .asking: link.bluetooth ? "Waiting for the FM-1 to answer over Bluetooth." : "Waiting for the FM-1 to answer."
-        case .noMirror: "Build the firmware with the builder item ED_MIRROR (under the web editor) and install it."
+        case .noMirror: "Build the firmware with the builder item ED_MIRROR (under the web editor), from this app's version, and install it."
         case .mirroring: ""
         }
     }

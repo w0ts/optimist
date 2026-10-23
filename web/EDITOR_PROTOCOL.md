@@ -497,13 +497,13 @@ Asking sets the ring's source for the next 2 s: ask again about every 80 ms to w
 `ed_mirror.c`, `ed_mirror_enc.h` (`ED_MIRROR`, with live editing or without; the clients are the iPhone app `ios/OptimistMirror` and the editor's Screen tab). While a client asks, every write to the panel
 (`display/lcd.c` `lcd_fill`, `lcd_blit`) also goes out as it is drawn; a client applying them in order holds the panel's pixels. The device keeps no frame buffer and sends nothing while no client asks; the mixer's meters go 10 times a second over USB, never over Bluetooth.
 
-Request: bits (bit 0 on, bit 1 the whole panel again). Reply: on, version 1, width (2 x 7 bit), height (2 x 7 bit). The pushes go on the link the last request came on:
+Request: bits (bit 0 on, bit 1 the whole panel again). Reply: on, version 2, width (2 x 7 bit), height (2 x 7 bit). The pushes go on the link the last request came on:
 USB, or Bluetooth MIDI (with `BLE`; there the FM-1 answers this request only, every other SysEx is ignored).
 Mirroring ends 3 s after the last request of any kind (ask again or `PING` about every 1 s), with `106 0`, and when its link goes (a USB reset; no Bluetooth central listening).
 
 **Catching up.** A first on, bit 1, and a link that fell behind (USB: the host read nothing for 30 ms; Bluetooth: the 8 KB send ring was full, the frame dropped) all end the same way once
 the link is clear: a `FILL` of the whole panel in black, then every band of the panel drawn again (the device's own panel is not cleared). Until then nothing is sent. At most one catch-up every 250 ms,
-and none while PRESETS' popup list is up (the panel under it is not drawn again). A catch-up is 4.7 KB on average, 8.2 KB at most (the UI's host run). Over Bluetooth only whole frames are sent.
+and none while PRESETS' popup list is up (the panel under it is not drawn again). A catch-up is 1.65 KB on average, 6.3 KB at most (the UI's host run, version 2). Over Bluetooth only whole frames are sent.
 
 Pushes, cmd 106, by op:
 
@@ -514,8 +514,18 @@ Pushes, cmd 106, by op:
 | 2 MORE | runs: the BLIT before goes on (a BLIT is cut into frames of about 250 bytes) |
 | 3 LINK | Bluetooth only, after the reply: the radio's data length (octets a packet), ATT MTU, interval (x 1.25 ms), the central's LL_LENGTH MaxRxOctets, MaxRxTime, MaxTxOctets, MaxTxTime (us), 2 x 7 bit each |
 
-A run: a token `t = n << 3 | s`. `n` 0..14: n + 1 pixels; `n` 15: 16 + (2 x 7 bit after it) pixels. `s` 0..6: the colour in that slot; `s` 7: a colour follows (3 x 7 bit) and
-takes slot k, k going 1, 2 .. 6, 1 ... The slots are reset at each BLIT: all black, slot 0 stays black. Reference decoder: `tests/mirror_dec.h`; the UI's whole host run is checked through it (`MIRROR_CHECK`).
+The rectangle's pixels as tokens (version 2), `t = n << 3 | s`. `s` 0..6: the colour in that slot; `s` 7: a colour follows (3 x 7 bit) and
+takes slot k, k going 1, 2 .. 6, 1 ... The slots are reset at each BLIT: all black, slot 0 stays black. A length L is 1 byte below 64, else 2: `(L & 63) | 64`, `L >> 6`.
+
+| n | Token |
+| --- | --- |
+| 0..12 | a run of n + 1 pixels of colour s |
+| 13 | a run of 14 + L pixels of colour s (L before a new colour) |
+| 14 | a bitmap: s the colour of the 1s (a new one follows), then `g << 3 \| b` (b the slot of the 0s), then g + 1 bytes of 7 pixels, the first in bit 6 |
+| 15 | the pixels one row up (in the rectangle, from its second row): s 0..6: s + 1 pixels, s 7: 8 + L pixels |
+
+The encoder takes a bitmap or the row above only where it is the shorter. Measured on the UI's whole host run, a catch-up is
+1.65 KB on average (4.8 KB in version 1, runs alone), 6.3 KB at most. Reference decoder: `tests/mirror_dec.h`; the UI's whole host run is checked through it (`MIRROR_CHECK`).
 
 ## Undo (102 UNDO; INFO tag 5F)
 
