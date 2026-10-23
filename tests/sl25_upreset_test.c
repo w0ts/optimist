@@ -30,6 +30,7 @@ static int st_prog(uint32_t off, const void *src, uint32_t n)
         nor[off + i] &= ((const uint8_t *)src)[i];
     return 0;
 }
+#define ST_XIP_PTR(off) (nor + (off))             /* the banks read where they are (upreset.c UP_XIP), as the target does */
 #include "../firmware/src/storage/storage.c"
 static uint8_t flash_ok = 1;
 static struct { int force; } ui;
@@ -101,9 +102,8 @@ static int load(const char *path, uint8_t *b, uint32_t n)
         fclose(f);
     return ok;
 }
-static void boot(void)                            /* Optimist starts: the banks from flash */
+static void boot(void)                            /* Optimist starts: the banks from flash (read where they are: UP_XIP) */
 {
-    memset(up_bank, 0, sizeof up_bank);
     up_boot();
 }
 static int16_t gold_v(uint32_t j, uint32_t i) { return (int16_t)((int32_t)((i * 5u + j) % 90u) - 30); }   /* (sl25_gen.c ubank) */

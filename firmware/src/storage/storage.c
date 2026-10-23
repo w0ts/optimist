@@ -113,9 +113,20 @@ static uint32_t st_sector(uint32_t obj, uint32_t copy)  /* flash offset of copy 
 #define IN_POOL                                         /* (core.h; a host test that includes this file alone) */
 #endif
 static uint8_t st_buf[ST_PAYLOAD_MAX] __attribute__((aligned(4))) IN_POOL;
+/* an object read where it is in flash (st_xip): on the target through the XIP window (fl_plain_window_init maps the
+ * data area past the app as plaintext; cached as the code is; the driver's erase and program drop the lines, fl_inval);
+ * a host test gives ST_XIP_PTR(off) a pointer into its flash image */
+#if FELUCCA_FLASH && (defined(__PI32V2__) || defined(ST_XIP_PTR))
+#define ST_XIP 1
+#ifndef ST_XIP_PTR
+#define ST_XIP_PTR(off) fm1_xip_ptr(off)
+#endif
+#else
+#define ST_XIP 0
+#endif
 /* st_save may be given st_buf itself (an object built or patched there: UP_FM6's, CZ's, upreset.c up_put_v1's SLOOP
- * bank) */
-#define ST_SRC_BUF (FELUCCA_UP_FM6 || CZ_NUSER || (FELUCCA_ANALOG2 && FELUCCA_SL24_SAFE))
+ * bank, up_put's bank with ST_XIP) */
+#define ST_SRC_BUF (FELUCCA_UP_FM6 || CZ_NUSER || (FELUCCA_ANALOG2 && FELUCCA_SL24_SAFE) || ST_XIP)
 #define ST_E_MAP (-8)                                  /* a sector outside the store's allow-list (st_save) */
 
 #if FELUCCA_SL24_SAFE
@@ -237,6 +248,21 @@ static int st_load(uint32_t obj, void *dst, uint32_t max)
         ((uint8_t *)dst)[i] = st_buf[i];
     return (int)h.len;
 }
+
+#if ST_XIP
+/* the current copy of obj where it is in flash: its payload (*len bytes; read once through the driver into st_buf, for
+ * its CRC), or 0 when no copy is valid */
+static const void *st_xip(uint32_t obj, uint32_t *len)
+{
+    st_hdr_t h;
+    int cur = st_current(obj, &h);
+    if (cur < 0)
+        return 0;
+    if (len)
+        *len = h.len;
+    return ST_XIP_PTR(st_sector(obj, (uint32_t)cur) + ST_PAYLOAD_OFF);
+}
+#endif
 
 #if FELUCCA_SL24_SAFE
 /* copy c of obj may not be erased: a kept sector, or a valid object of another type there (SLOOP 2.4's FM6 bank,
