@@ -192,6 +192,11 @@ static uint32_t mir_meters_due(void)
     mir.meter_ms = fm1_ms;
     return 1;
 }
+/* op_mixdraw.c: the client takes no meters at all, not even in a page drawn whole (Bluetooth) */
+static uint32_t mir_meters_off(void)
+{
+    return mir.on && mir.link == MIR_BT;
+}
 /* a request on link l: on / off, the whole panel again (bit 1); a first on catches up */
 static void mir_ask(uint32_t bits, uint32_t l)
 {

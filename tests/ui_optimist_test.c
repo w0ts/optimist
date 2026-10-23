@@ -66,6 +66,7 @@ static uint32_t mir_meters_due(void)                    /* (ed_mirror.c's, the c
     mc_meter_sends++;
     return 1;
 }
+static uint32_t mir_meters_off(void) { return 0; }    /* (USB here: Bluetooth's empty meters, mirror_test.c) */
 static void mir_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *p) { mir_enc_blit(x, y, w, h, p); }   /* (gfx.c cv_mirror) */
 #endif
 static void lcd_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *p)
