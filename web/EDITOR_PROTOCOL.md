@@ -498,7 +498,7 @@ Asking sets the ring's source for the next 2 s: ask again about every 80 ms to w
 (`display/lcd.c` `lcd_fill`, `lcd_blit`) also goes out as it is drawn; a client applying them in order holds the panel's pixels. The device keeps no frame buffer and sends nothing while no client asks; the mixer's VU meters are not sent.
 
 Request: bits (bit 0 on, bit 1 the whole panel again). Reply: on, version 1, width (2 x 7 bit), height (2 x 7 bit). USB only: over Bluetooth MIDI the link carried too
-little and the catch-ups slowed the FM-1's tempo (tried 2026-10-23), so it was taken out.
+little (tried 2026-10-23), so it was taken out.
 Mirroring ends 3 s after the last request of any kind (ask again or `PING` about every 1 s), with `106 0`, and on a USB reset.
 
 **Catching up.** A first on, bit 1, and a host that fell behind (it read nothing for 30 ms) all end the same way once

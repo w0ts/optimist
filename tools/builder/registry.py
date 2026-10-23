@@ -922,7 +922,7 @@ _add("ED_MIRROR", "FELUCCA_ED_MIRROR", "web editor: the screen mirrored on a pho
           "pixels: the mixer, the step grid, the layers, the dialogs. No frame buffer on the device; nothing is sent while no "
           "app asks; the mixer's VU meters are not sent. A host that stops reading drops what is drawn and catches up once it "
           "reads again, at most 4 times a second: the panel's bands drawn again in place, no flash on the device. USB only: "
-          "over Bluetooth MIDI it was too slow and slowed the tempo. About 0.3 KB of flash and 0.1 KB of RAM. With live "
+          "over Bluetooth MIDI it was too slow. About 0.3 KB of flash and 0.1 KB of RAM. With live "
           "editing (ED_LIVE) or without.")
 # (bit 70, SIZE, retired 2026-10: the UI, storage and editor code is always built minsize, tools/size_fns.py keeps the
 #  audio path out of it; never reuse the bit)

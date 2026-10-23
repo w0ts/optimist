@@ -3,8 +3,8 @@
  * the encoder ed_mirror_enc.h; the client ios/OptimistMirror). While a client asks, every write to the panel also goes out over
  * USB, so a phone shows the panel as it is drawn. No frame buffer on the device. The bytes go into usb.c's SysEx ring three at a
  * time as they are encoded (a USB-MIDI packet each); the main loop waits on the ring only while the host reads (at most
- * MIR_STALL_MS without progress). USB only: over Bluetooth MIDI the radio carried too little, the mirror stayed behind and its
- * catch-ups slowed the tempo on the FM-1 (the user, 2026-10-23: "BT is slow as hell, and the playback ... got super slowed down").
+ * MIR_STALL_MS without progress). USB only: over Bluetooth MIDI the radio carried too little (the user, 2026-10-23: "BT is slow as
+ * hell"; the slow playback seen then was a project's SEQ DIV read in the new note-value list, 03b676ad, not the mirror).
  * A host that falls behind (stops reading) drops what is drawn and catches up once the ring is empty again: black to the
  * client, then every band drawn again in place (op_repaint: the panel itself is not cleared, no flash; the host test's
  * catch-ups give the panel's pixels every time). Never under PRESETS' popup list (the panel under it is not drawn again): it
