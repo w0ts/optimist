@@ -88,6 +88,21 @@ static void fxu_count(uint32_t t, uint32_t n, const char *nm)
         }
         fxu_cell(0, 0, &c);
         check(fxi_state(0, 0) == FXI_OK && !c.dim && strstr(c.val, nm), "... the track holding one is untouched");
+        {   /* the TYPE popup on a track with none free: that entry is marked unavailable (struck, dim), ---- is not, so a
+             * turn that skips it reads as such (the user, 2026-10-23: "cannot select the last FX, and it seems to move by 2") */
+            int16_t *vp;
+            uint32_t i, at = 0;
+            song.sel = (uint8_t)n;
+            (void)ins_desc(n, 0, &vp);                  /* (S1 of track n: slot 0 is free of t, slot 1 holds it) */
+            for (i = 0; i < INS_NLIST; i++)
+                if (ins_list[i] == t)
+                    at = i;
+            pen.d = &INS_DESC[0], pen.vp = vp, pop_kind = 3;
+            check(at && !pen_avail((int32_t)at) && pen_avail(0), "the TYPE popup: the type with none free (and the other slot's) unavailable, struck and dim; ---- not");
+            check(ins_skip(n, 0, (int32_t)at - 1, (int32_t)at) != (int32_t)at, "... and a turn onto it skips it, as before");
+            pop_kind = 0;
+            song.sel = 0;
+        }
         {   /* the mixer's insert set shows it too */
             uint32_t r = MXR_T1 + n, sset, kk, seen = 0;
             mitem_t m;
