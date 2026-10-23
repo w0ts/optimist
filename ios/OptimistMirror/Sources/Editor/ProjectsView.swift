@@ -6,7 +6,6 @@ import UniformTypeIdentifiers
 
 struct ProjectsView: View {
     @ObservedObject var s: EditorSession
-    @Environment(\.dismiss) private var dismiss
     @State private var ask: Confirmation?
     @State private var importing = false
     @State private var target: Target?
@@ -32,7 +31,6 @@ struct ProjectsView: View {
             }
             .navigationTitle("Projects")
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) { Button("Close") { dismiss() } }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { s.loadProjects() } label: { Image(systemName: "arrow.clockwise") }.disabled(!s.idle)
                 }

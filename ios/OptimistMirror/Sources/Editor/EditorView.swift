@@ -1,32 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// The editor screens of the app: Projects, Library and Backup (the web editor's tabs of the same names), a sheet over the mirror.
+// The editor screens of the app: Projects, Library and Backup (the web editor's tabs of the same names), tabs beside the screen.
 // They talk to the FM-1 over the USB port only: over Bluetooth the firmware answers the screen mirror's request alone.
 import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
-
-struct EditorView: View {
-    @ObservedObject var link: MirrorLink
-    @StateObject private var session: EditorSession
-
-    init(link: MirrorLink) {
-        self.link = link
-        _session = StateObject(wrappedValue: EditorSession(link: link))
-    }
-
-    var body: some View {
-        TabView {
-            ProjectsView(s: session)
-                .tabItem { Label("Projects", systemImage: "folder") }
-            LibraryView(s: session)
-                .tabItem { Label("Library", systemImage: "books.vertical") }
-            BackupView(s: session)
-                .tabItem { Label("Backup", systemImage: "externaldrive") }
-        }
-        .task(id: "\(link.portName)|\(link.bluetooth)") { await session.connect() }
-        .sheet(item: $session.export) { ActivityView(url: $0.url) }
-    }
-}
 
 /// What the screens say when there is no USB link to the FM-1 (and the FM-1's own answer, once there is one).
 struct LinkStatus: View {

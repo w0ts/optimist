@@ -268,7 +268,7 @@ final class EditorSession: ObservableObject {
                                     bk: r.list.version, caps: r.list.caps)
             let file = BackupFile.encode(device: stamp, objects: r.objects)
             export = ExportItem(url: try FileIO.temp("optimist-\(FileIO.today()).optimist-backup", Data(file)))
-            say("Backup saved: \(r.objects.count) / \(file.count / 1024) KiB")
+            say("Backup saved: \(r.objects.count) items, \(file.count / 1024) KB")
         }
     }
 
