@@ -29,6 +29,9 @@ static volatile uint8_t sx_busy;
 static struct { uint8_t config; uint32_t resets; } usb = {1, 0};
 static volatile uint32_t fm1_ms;
 static volatile uint8_t ble_out_on;
+static uint8_t ble_ll_tx_octets(void) { return 251; }     /* (the radio's: ble/ble_ll.c, ble_att.c) */
+static uint16_t ble_att_mtu(void) { return 185; }
+static uint16_t ble_ll_interval(void) { return 9; }
 static struct { uint8_t overlay; } ui;
 static uint8_t mir_mute;
 static uint8_t rep[64];
@@ -39,7 +42,7 @@ static void ed_b(uint32_t v) { if (nrep < sizeof rep) rep[nrep++] = (uint8_t)(v 
 /* ---- the host: packets back into frames (as CoreMIDI does), each decoded */
 #include "mirror_dec.h"
 static uint8_t hf[4096];
-static uint32_t hn, frames, bytes, bad, max_frame, replies, last_reply_on;
+static uint32_t hn, frames, bytes, bad, max_frame, replies, last_reply_on, links, link[3];
 static int stalled;                     /* 1: the USB host reads nothing (the ring stays full) */
 static FILE *fix;
 static void host_byte(uint8_t b)
@@ -53,6 +56,8 @@ static void host_byte(uint8_t b)
         max_frame = hn > max_frame ? hn : max_frame;
         if (hn == 12u && hf[5] <= 1u && hf[6] == 1u)
             replies++, last_reply_on = hf[5];
+        else if (hn == 13u && hf[5] == 3u)               /* (op 3 LINK, after a Bluetooth reply) */
+            links++, link[0] = hf[6] | hf[7] << 7, link[1] = hf[8] | hf[9] << 7, link[2] = hf[10] | hf[11] << 7;
         else
             bad += !md_frame(hf, hn);
         if (fix)
@@ -310,6 +315,7 @@ static void bt_tests(void)
     check(mir.behind, "no catch-up while the reply waits");
     radio(~0u);
     check(replies == r0 + 1u && last_reply_on == 1u, "the reply came: on");
+    check(links == 1u && link[0] == 251u && link[1] == 185u && link[2] == 9u, "then the link: data length, MTU, interval");
     mir_poll();
     k = radio(~0u);
     check(!mir.behind && same(), "the first catch-up over Bluetooth: %u bytes, the panel", k);

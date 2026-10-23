@@ -107,6 +107,7 @@ BLE_API void ble_ll_set_adv_data(const uint8_t *ad, uint8_t ad_len, const uint8_
 BLE_API int ble_ll_connected(void) { return bll.state == LL_CONN; }
 BLE_API uint16_t ble_ll_interval(void) { return bll.state == LL_CONN ? bll.interval : 0; }
 BLE_API uint8_t ble_ll_peer_features(void) { return bll.feat_known ? bll.peer_feat : 0; }
+BLE_API uint8_t ble_ll_tx_octets(void) { return bll.state == LL_CONN ? bll.max_tx : 0; }
 
 BLE_API uint8_t ble_ll_addrs(uint8_t own[6], uint8_t peer[6])
 {
@@ -751,7 +752,16 @@ static void ll_start_procs(uint32_t now)
         return;
     }
 #endif
-    if (!bll.feat_known && BLE_LL_PERIPH_FEAT && (uint16_t)(bll.last_evt + 1u) >= 6u) {
+    if (BLE_LL_MAX_OCTETS > 27u && !bll.len_done && (!bll.feat_known || (bll.peer_feat & BLE_FEAT_DLE)) &&
+        (uint16_t)(bll.last_evt + 1u) >= 6u) {
+        ll_our_lengths(d);                         /* long packets asked for first, before the feature exchange (the screen
+                                                    * mirror over Bluetooth ran at 27 octets an event, 2026-10-23); a central
+                                                    * without them answers LL_UNKNOWN_RSP: len_done */
+        if (ll_ctrl(LL_LENGTH_REQ, d, 8)) {
+            bll.lproc = P_LEN;
+            bll.lproc_t = now;
+        }
+    } else if (!bll.feat_known && BLE_LL_PERIPH_FEAT && (uint16_t)(bll.last_evt + 1u) >= 6u) {
         ble_zero(d, 8);
         d[0] = (uint8_t)LL_OUR_FEAT;
         if (ll_ctrl(LL_PERIPHERAL_FEATURE_REQ, d, 8)) {

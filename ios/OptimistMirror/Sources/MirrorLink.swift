@@ -177,7 +177,9 @@ final class MirrorLink: ObservableObject {
             var on = false
             for f in got {
                 s.bytes += f.count
-                if let r = MirrorDecoder.reply(f) {
+                if let l = MirrorDecoder.link(f) {
+                    Self.log.info("bluetooth link: \(l.octets) octets a packet, MTU \(l.mtu), interval \(Double(l.interval) * 1.25) ms")
+                } else if let r = MirrorDecoder.reply(f) {
                     on = on || r.on
                     s.replies += 1
                 } else if s.decoder.apply(f) {
