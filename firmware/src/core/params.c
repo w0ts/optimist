@@ -93,9 +93,7 @@ static const char *const N_ENGNAME[] = {"ANALOG", "DIGITAL", "PHASE", "LOFI", "S
 #endif
 };
 
-#define PD(l, f, mn, mx, df) {l, f, mn, mx, df, 0, 0}
-#define PE(l, n, df) {l, F_ENUM, 0, (int16_t)(sizeof(n) / sizeof(n[0]) - 1), df, n, 0}
-
+/* (PD / PE / PN / PU: core.h, with param_desc_t) */
 static const param_desc_t TP[P_COUNT] = {
     [P_LEVEL] = PD("LVL", F_DB, 0, 127, 104),
     [P_ATK] = PD("ATK", F_TIME, 0, 127, 10),
@@ -110,9 +108,9 @@ static const param_desc_t TP[P_COUNT] = {
     [P_LWAVE] = PE("WAVE", N_LWAVE, 0),
     [P_LPHASE] = PD("PHS", F_INT, 0, 127, 0),
     [P_LFADE] = PD("FADE", F_TIME, 0, 127, 0),
-    [P_L1DA] = {"DST A", F_ENUM, 0, LT_NB - 1, 0, N_LT, 0},   /* LFO DEST: two slots (core.h LT_*) */
+    [P_L1DA] = PN("DST A", F_ENUM, 0, LT_NB - 1, 0, N_LT),   /* LFO DEST: two slots (core.h LT_*) */
     [P_L1AA] = PD("AMT A", F_BIPCT, LFO_AMT_LO, LFO_AMT_HI, 0),   /* (2 = a depth of 1 of before; AMP: 1) */
-    [P_L1DB] = {"DST B", F_ENUM, 0, LT_NB - 1, 0, N_LT, 0},
+    [P_L1DB] = PN("DST B", F_ENUM, 0, LT_NB - 1, 0, N_LT),
     [P_L1AB] = PD("AMT B", F_BIPCT, LFO_AMT_LO, LFO_AMT_HI, 0),
     [P_AMODE] = PE("MODE", N_AMODE, 0),
     [P_ARATE] = PE("RATE", N_DIV, DUR_DEF_16),
@@ -164,7 +162,7 @@ static const param_desc_t TP[P_COUNT] = {
     [P_A2SWRM] = PD("SWARM", F_INT, 0, 6, 0),       /* copies of osc 1 (eng_analog2.c a2_copies) */
     [P_A2SDTN] = PD("SDTN", F_PCT, 0, 127, 34),      /* their spread (SUPER's SDTN) */
     [P_A2ESUS] = PD("SUS2", F_PCT, 0, 127, 0),
-    [P_A2EREL] = {"REL2", F_TIME, 0, 127, 0, N_A2EREL, 0},
+    [P_A2EREL] = PN("REL2", F_TIME, 0, 127, 0, N_A2EREL),
     [P_A2EPIT] = PD("PIT", F_BIPCT, -64, 63, 0),     /* ENV2 DEST: both oscillators and the swarm, +-31.5 st */
     [P_A2ESHP] = PD("SHP", F_BIPCT, -64, 63, 0),     /*   PW, the sync sweep (as ENV DEST SHP) */
     [P_A2EOS2] = PD("OSC2", F_BIPCT, -64, 63, 0),    /*   osc 2's pitch alone, +-31.5 st */
@@ -173,7 +171,7 @@ static const param_desc_t TP[P_COUNT] = {
 #if SL24_TP
     /* SLOOP 2.4 (isod89/sloop-fm1 v2.4, 8d3823f), its ranges and defaults (params.c) */
     [P_TFLT] = PD("FILT", F_FILT, -64, 63, 0),     /* the track's filter: < 0 low-pass, > 0 high-pass (fx.c) */
-    [P_STRUM] = {"STRUM", F_INT, -60, 60, 0, 0, "ms"},   /* ms a note: > 0 low to high, < 0 high to low (voice.c) */
+    [P_STRUM] = PU("STRUM", F_INT, -60, 60, 0, "ms"),   /* ms a note: > 0 low to high, < 0 high to low (voice.c) */
     [P_VLEAD] = PE("VLEAD", N_ONOFF, 0),           /* each chord voiced nearest the last one (seq.c) */
 #endif
 #if FELUCCA_MASTER_COMP
@@ -221,18 +219,18 @@ static const param_desc_t TP[P_COUNT] = {
     [P_L2WAVE] = PE("WAVE", N_LWAVE, 0),
     [P_L2TRIG] = PE("TRIG", N_L2TRIG, 0),
     [P_L2POL] = PE("POL", N_L2POL, 0),
-    [P_L2DA] = {"DST A", F_ENUM, 0, LT_NB - 1, 0, N_LT, 0},   /* its two slots, as LFO's */
+    [P_L2DA] = PN("DST A", F_ENUM, 0, LT_NB - 1, 0, N_LT),   /* its two slots, as LFO's */
     [P_L2AA] = PD("AMT A", F_BIPCT, LFO_AMT_LO, LFO_AMT_HI, 0),
-    [P_L2DB] = {"DST B", F_ENUM, 0, LT_NB - 1, 0, N_LT, 0},
+    [P_L2DB] = PN("DST B", F_ENUM, 0, LT_NB - 1, 0, N_LT),
     [P_L2AB] = PD("AMT B", F_BIPCT, LFO_AMT_LO, LFO_AMT_HI, 0),
     [P_E1PIT] = PD("PIT", F_BIPCT, -64, 63, 0),     /* ENV 1 MOD (env1_cards.h): its PIT depth, +-31.5 st at full */
     [P_E1X] = PD("MOVE1", F_BIPCT, -64, 63, 0),     /*   its moves of an EDIT value (named per engine: E1_LBL) */
     [P_E1Y] = PD("MOVE2", F_BIPCT, -64, 63, 0),
     [P_E1Z] = PD("MOVE3", F_BIPCT, -64, 63, 0),
 #if FELUCCA_ANALOG2
-    [P_N2DA] = {"DST A", F_ENUM, 0, LT_NB - 1, 0, N_LT, 0},   /* ENV2 DEST: two slots (a new sound, INIT, a preset: A on the engine's FLT at 0, env2_dest_def) */
+    [P_N2DA] = PN("DST A", F_ENUM, 0, LT_NB - 1, 0, N_LT),   /* ENV2 DEST: two slots (a new sound, INIT, a preset: A on the engine's FLT at 0, env2_dest_def) */
     [P_N2AA] = PD("AMT A", F_BIPCT, LFO_AMT_LO, LFO_AMT_HI, 0),
-    [P_N2DB] = {"DST B", F_ENUM, 0, LT_NB - 1, 0, N_LT, 0},
+    [P_N2DB] = PN("DST B", F_ENUM, 0, LT_NB - 1, 0, N_LT),
     [P_N2AB] = PD("AMT B", F_BIPCT, LFO_AMT_LO, LFO_AMT_HI, 0),
 #endif
     [P_VOICES] = PD("VOICES", F_INT, 0, NPOLY, 0),         /* POLY / UNISON voice count (voice.c trk_nvoice); 0 = the engine's max (track_desc: 1..max shown) */
@@ -388,11 +386,11 @@ static const param_desc_t GP[G_COUNT] = {
     [G_FILT] = PD("FILT", F_FILT, -64, 63, 0),
     [G_ROLL] = PE("ROLL", N_ROLL, DUR_DEF_16),
     [G_NEWPRJ] = PE("NEW", N_GO, 0),
-    [G_CTHR] = {"THRS", F_INT, -30, 0, 0, 0, "dB"},   /* 0: OFF (param_format); the master bus' dB re full scale */
+    [G_CTHR] = PU("THRS", F_INT, -30, 0, 0, "dB"),   /* 0: OFF (param_format); the master bus' dB re full scale */
     [G_CRAT] = PE("RATIO", N_CRAT, 1),
     [G_CATK] = PE("ATK", N_CATK, 4),
     [G_CREL] = PE("REL", N_CREL, 6),
-    [G_CGAIN] = {"GAIN", F_INT, 0, 15, 0, 0, "dB"},  /* make-up, after the compressor */
+    [G_CGAIN] = PU("GAIN", F_INT, 0, 15, 0, "dB"),  /* make-up, after the compressor */
     [G_CCEIL] = PE("CEIL", N_CCEIL, FELUCCA_MASTER_COMP ? 6 : 0),   /* dB below the output's full scale; OFF: the old
                                                        * limiter. The default -3.0 dB (2026-10-11, the user's ruling: our
                                                        * CEIL as the default limiter; project.c mc_pack keeps OFF as its 0).
@@ -408,14 +406,14 @@ static const param_desc_t GP[G_COUNT] = {
     [G_TFRES] = PD("FILT RESO", F_INT, 0, 10, 0),   /* (core.h G_TFRES; fx.c tflt_reso) */
 };
 
-static const param_desc_t DRUM_KIT_DESC = {"KIT", F_ENUM, 0, (int16_t)(DRUM_KITS - 1u), 0, DRUM_KIT_NAMES, 0};   /* (drums.c) */
+static const param_desc_t DRUM_KIT_DESC = PN("KIT", F_ENUM, 0, (int16_t)(DRUM_KITS - 1u), 0, DRUM_KIT_NAMES);   /* (drums.c) */
 /* the drum track's ACCENT amount (core.h P_DACC: its P_E1), velocity added to an accented hit (drums.c dacc_vel) */
-static const param_desc_t DRUM_ACC_DESC = {"ACCENT", F_INT, 0, DACC_MAX, DACC_DEF, 0, 0};
+static const param_desc_t DRUM_ACC_DESC = PU("ACCENT", F_INT, 0, DACC_MAX, DACC_DEF, 0);
 #if FELUCCA_GEN_GRIDS
 /* the kit's GRIDS (core.h P_GRX ..: the drum track's P_E2 .. P_E7; seq/gen.c gr_kit_hit) */
 static const param_desc_t DRUM_GR_DESC[GR_KIT_N] = {
-    {"X", F_INT, 0, 127, 64, 0, 0}, {"Y", F_INT, 0, 127, 64, 0, 0}, {"CHAOS", F_INT, 0, 127, 0, 0, 0},
-    {"BD", F_INT, 0, 127, 64, 0, 0}, {"SD", F_INT, 0, 127, 64, 0, 0}, {"HH", F_INT, 0, 127, 64, 0, 0}};
+    PU("X", F_INT, 0, 127, 64, 0), PU("Y", F_INT, 0, 127, 64, 0), PU("CHAOS", F_INT, 0, 127, 0, 0),
+    PU("BD", F_INT, 0, 127, 64, 0), PU("SD", F_INT, 0, 127, 64, 0), PU("HH", F_INT, 0, 127, 64, 0)};
 #define DRUM_GR_OF(id) ((uint32_t)(id) - P_GRX < GR_KIT_N ? &DRUM_GR_DESC[(uint32_t)(id) - P_GRX] : (const param_desc_t *)0)
 #else
 #define DRUM_GR_OF(id) ((const param_desc_t *)0)
@@ -584,8 +582,8 @@ static void param_format(const param_desc_t *d, int32_t v, char *val, const char
         break;
     case F_TIME: {
         uint32_t ms10 = TIME_MS_X10[v & 127];
-        if (d->names && v == 0) {                     /* (REL2 0: "=DEC") */
-            str_cpy(val, d->names[0], 6);
+        if (pd_names(d) && v == 0) {                     /* (REL2 0: "=DEC") */
+            str_cpy(val, pd_names(d)[0], 6);
             break;
         }
         if (ms10 < 100u) {
@@ -648,13 +646,13 @@ static void param_format(const param_desc_t *d, int32_t v, char *val, const char
         *unit = "st";
         break;
     case F_ENUM:
-        if (d->names == N_LT && v >= LT_E1 && v < LT_NB) {
+        if (pd_names(d) == N_LT && v >= LT_E1 && v < LT_NB) {
             lt_text(d, v, val);
             break;
         }
-        str_cpy(val, d->names[v < d->min ? d->min : v > d->max ? d->max : v], 6);
-        if (d->unit)
-            *unit = d->unit;
+        str_cpy(val, pd_names(d)[v < d->min ? d->min : v > d->max ? d->max : v], 6);
+        if (pd_unit(d))
+            *unit = pd_unit(d);
         break;
     case F_BPM:
         fmt_int(val, v);
@@ -671,16 +669,16 @@ static void param_format(const param_desc_t *d, int32_t v, char *val, const char
         *unit = "STEP";
         break;
     default:
-        if (d->names) {                               /* F_INT with a 0-terminated name list: the range */
+        if (pd_names(d)) {                               /* F_INT with a 0-terminated name list: the range */
             uint32_t k = 0;                           /* split evenly over the names (engine desc hooks) */
-            while (d->names[k])
+            while (pd_names(d)[k])
                 k++;
-            str_cpy(val, d->names[(uint32_t)(clamp(v, d->min, d->max) - d->min) * k / (uint32_t)(d->max - d->min + 1)], 6);
+            str_cpy(val, pd_names(d)[(uint32_t)(clamp(v, d->min, d->max) - d->min) * k / (uint32_t)(d->max - d->min + 1)], 6);
         } else {
             fmt_int(val, v);
         }
-        if (d->unit)
-            *unit = d->unit;
+        if (pd_unit(d))
+            *unit = pd_unit(d);
         break;
     }
 }
@@ -1134,7 +1132,7 @@ static const param_desc_t *page_desc(const page_t *pg, uint32_t slot, int16_t **
 #endif
 #if FELUCCA_MASTER_COMP
         if (id == G_CGR) {                            /* LIMIT > GR: the gain reduction now, read only (master_comp.c) */
-            static const param_desc_t GR_DESC = {"GR", F_INT, 0, 0, 0, 0, "dB"};
+            static const param_desc_t GR_DESC = PU("GR", F_INT, 0, 0, 0, "dB");
             *valp = &mc_gr_view;
             return &GR_DESC;
         }

@@ -16,9 +16,9 @@ static void ed_desc_body(const param_desc_t *d)
     uint32_t i;
     ed_fmd(d);
     ed_str(d->label, 8);
-    ed_str(d->unit, 8);
-    if (d->fmt == F_ENUM && d->names)
+    ed_str(pd_unit(d), 8);
+    if (d->fmt == F_ENUM && pd_names(d))
         for (i = 0; i <= (uint32_t)(d->max - d->min) && i < 64u; i++)   /* (the 34 drum kits) */
-            ed_str(d->names[i], 8);
+            ed_str(pd_names(d)[i], 8);
 }
 #endif

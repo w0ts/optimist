@@ -468,11 +468,15 @@ static void denv_sample(uint32_t l, uint32_t usr, const int8_t *o, int32_t y0, i
 static void denv_synth(uint32_t l, uint32_t kit, const int8_t *o, int32_t y0, int32_t h, uint16_t c)
 {
     int32_t semi;
-    const dsnd_t *d = DS_SND(ds_kit(kit), ds_lane(LANE_NOTE_OF(l), &semi));
+    dsnd_t snd;                                         /* (on the stack: no RAM kept for a picture) */
+    const dsnd_t *d = &snd;
     uint32_t ka, kn, kp, j, blocks, per, hold, nhold, bend, x;
     int32_t a0, n0, pk, a, n, pe = 32767, px = 4, py = y0 + h, bot = y0 + h;
 #if FELUCCA_DRUM_EDIT
-    dsnd_t ed;                                          /* (on the stack: no RAM kept for a picture) */
+    dsnd_t ed;
+#endif
+    ds_unpack(&snd, DS_SND(ds_kit(kit), ds_lane(LANE_NOTE_OF(l), &semi)));
+#if FELUCCA_DRUM_EDIT
     if (o) {
         de_synth(&ed, d, o);
         d = &ed;

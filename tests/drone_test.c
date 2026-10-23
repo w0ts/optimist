@@ -408,7 +408,7 @@ static void t_beat_off(void)
     host_preset(&trk[0], ENG_IX_DRONE, 0);
     trk[0].p[P_E6] = 0;
     d = track_desc(&trk[0], P_E6);
-    while (d->names && d->names[n])
+    while (pd_names(d) && pd_names(d)[n])
         n++;
     for (v = d->min; v <= d->max; v++) {
         param_format(d, v, val, &u);

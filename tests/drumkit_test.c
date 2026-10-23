@@ -63,7 +63,9 @@ static void kick_edges(FILE *rep)
     for (kit = DRUM_SAMPLED; kit < DRUM_SYNTH_END; kit++) {
         const dkit_t *K = &DS_KITS[kit - DRUM_SAMPLED];
         int32_t semi, l[CTL], r[CTL], rv[CTL];
-        const dsnd_t *d = DS_SND(K, ds_lane(36, &semi));
+        dsnd_t dd;
+        const dsnd_t *d = &dd;
+        ds_unpack(&dd, DS_SND(K, ds_lane(36, &semi)));
         double edge = 0, in = 0, tn;
         uint32_t ne = 0, ni = 0;
         if (!d->wave || d->wave == DW_SQUARE || d->wave == DW_BELL || K->crush)

@@ -62,9 +62,9 @@ static uint32_t hl_find(uint32_t scr, uint32_t row, const cell_t *c)
     uint32_t o;
     if (!c->label || !c->label[0])
         return 0;
-    if (c->d && c->d->fmt == F_ENUM && c->d->names && c->vp >= tsel()->p + P_E0 && c->vp < tsel()->p + P_E0 + 8 &&
+    if (c->d && c->d->fmt == F_ENUM && pd_names(c->d) && c->vp >= tsel()->p + P_E0 && c->vp < tsel()->p + P_E0 + 8 &&
         *c->vp >= c->d->min && *c->vp <= c->d->max &&
-        (o = ph_find(PH_ENG, ENGINES[TSEL->eng_req % NENGINES]->name, c->d->names[*c->vp])) != 0u)
+        (o = ph_find(PH_ENG, ENGINES[TSEL->eng_req % NENGINES]->name, pd_names(c->d)[*c->vp])) != 0u)
         return o;                                       /* (an engine's choice, PLAITS's MODEL: the line of the one it holds) */
     if (c->hlp && (o = ph_find(PH_OP, "INSERTS", c->hlp)) != 0u)
         return o;                                       /* (a limited insert type's own line, FULL's) */
@@ -173,7 +173,7 @@ static const char *hl_dest_names(const cell_t *c, char *b, char *t)
     int32_t d = *c->vp, q = -1;
     uint32_t o, n;
 #if LANE_LFO_UI
-    if (c->d->names == N_DLDEST) {                      /* a drum lane's: its value on SOUND / SOUND 2 */
+    if (pd_names(c->d) == N_DLDEST) {                      /* a drum lane's: its value on SOUND / SOUND 2 */
         str_cpy(b, lane_name(lane_selected()), 64);
         hl_word(b, N_DLDEST[d % (DE_N + 1u)]);
         o = ph_find(PH_PAGE, d <= 4 ? "SOUND" : "SOUND 2", N_DLDEST[d % (DE_N + 1u)]);
@@ -218,9 +218,9 @@ static uint32_t hl_dest(char *b)
     if (!c.d || !c.vp || *c.vp <= 0)
         return 0;                                       /* (OFF: the table's line) */
 #if LANE_LFO_UI
-    if (!(c.d->names == N_LT && *c.vp < LT_N) && !(c.d->names == N_DLDEST && *c.vp <= (int16_t)DE_N))
+    if (!(pd_names(c.d) == N_LT && *c.vp < LT_N) && !(pd_names(c.d) == N_DLDEST && *c.vp <= (int16_t)DE_N))
 #else
-    if (c.d->names != N_LT || *c.vp >= LT_N)
+    if (pd_names(c.d) != N_LT || *c.vp >= LT_N)
 #endif
         return 0;
     b[0] = 0;

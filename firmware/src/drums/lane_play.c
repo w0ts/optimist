@@ -76,7 +76,7 @@ static const char *const N_DRTRG[4] = {"PLAY", "1BAR", "2BAR", "4BAR"};
 enum { DLF2_0 = DLF_N, DLE_0 = 2 * DLF_N, DLE_ATK = DLE_0, DLE_DEC, DLE_SUS, DLE_RTRG, DLE_DEST1, DLE_AMT1, DLE_DEST2,
        DLE_AMT2, DLF_ALL };
 static const param_desc_t DENV_DESC[8] = {
-    {"ATK", F_INT, 0, 64, 0, 0, "st"}, {"DEC", F_INT, 0, 64, 16, 0, "st"}, PD("SUS", F_PCT, 0, 127, 0),
+    PU("ATK", F_INT, 0, 64, 0, "st"), PU("DEC", F_INT, 0, 64, 16, "st"), PD("SUS", F_PCT, 0, 127, 0),
     PE("RTRG", N_DRTRG, 1), PE("DEST", N_DLDEST, 0), PD("AMT", F_BIPCT, LFO_AMT_MIN, LFO_AMT_MAX, 0),
     PE("DEST2", N_DLDEST, 0), PD("AMT2", F_BIPCT, LFO_AMT_MIN, LFO_AMT_MAX, 0)};
 static const param_desc_t *dlfo_desc(uint32_t f) { return f < DLE_0 ? &DLFO_DESC[f % DLF_N] : &DENV_DESC[(f - DLE_0) & 7u]; }

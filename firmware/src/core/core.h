@@ -131,13 +131,28 @@ enum {
     F_GATE                      /* 1..127: a note's length in 1/64 of its step, 2 % .. 198 % (past 100 % it overlaps the next) */
 };
 
+/* a parameter's descriptor, 12 bytes (was 20, 2026-10-23: ~330 of them in flash): the range and the default as bytes
+ * (min -128..127, max 0..255, def -128..127: PN / PU below refuse a value outside), one pointer for the names (nl 1:
+ * F_ENUM; F_TIME's "=DEC" at 0; F_INT with a 0-terminated list split over the range) or the unit (nl 0: F_INT / F_ENUM
+ * optional unit, 0 = none): pd_names, pd_unit. Always made with PN / PU (PD / PE): a positional initialiser does
+ * not compile */
 typedef struct {
     const char *label;
-    uint8_t fmt;
-    int16_t min, max, def;
-    const char *const *names;   /* F_ENUM */
-    const char *unit;           /* F_INT / F_ENUM optional unit */
+    const void *aux;            /* the names (nl) or the unit */
+    uint8_t fmt : 7, nl : 1;
+    int8_t min;
+    uint8_t max;
+    int8_t def;
 } param_desc_t;
+AINL const char *const *pd_names(const param_desc_t *d) { return d->nl ? (const char *const *)d->aux : 0; }
+AINL const char *pd_unit(const param_desc_t *d) { return d->nl ? 0 : (const char *)d->aux; }
+/* a descriptor's initialiser: PN with a name list, PU with a unit (or 0); the range checked at compile time */
+#define PD_I8(x) (sizeof(char[(long)(x) >= -128 && (long)(x) <= 127 ? 1 : -1]) ? (int8_t)(x) : 0)
+#define PD_U8(x) (sizeof(char[(long)(x) >= 0 && (long)(x) <= 255 ? 1 : -1]) ? (uint8_t)(x) : 0)
+#define PN(l, f, mn, mx, df, n) {l, (const void *)(n), f, 1, PD_I8(mn), PD_U8(mx), PD_I8(df)}
+#define PU(l, f, mn, mx, df, u) {l, (const void *)(u), f, 0, PD_I8(mn), PD_U8(mx), PD_I8(df)}
+#define PD(l, f, mn, mx, df) PU(l, f, mn, mx, df, 0)
+#define PE(l, n, df) PN(l, F_ENUM, 0, (int16_t)(sizeof(n) / sizeof(n[0]) - 1), df, n)
 
 /* the FILTER insert type (fx_slots.c FXT_FILT; fx.c tflt_*): SLOOP 2.4's track FILTER (TRK_FILT) and the master DJ
  * filter (FX_DJF) are one effect since 2026-10-14 (fx-rework: "convert the special insert (like dj filter etc) as normal

@@ -61,10 +61,10 @@ static uint16_t srec_col(void) { return rec_col(srec == 2u, srec == 1u); }
 static int is_go(const param_desc_t *d)             /* a GO button: YES does it, a turn does nothing */
 {
 #if BP_SET_ANY
-    if (d->names == N_BPGO)                             /* (ACID GEN > GEN) */
+    if (pd_names(d) == N_BPGO)                             /* (ACID GEN > GEN) */
         return 1;
 #endif
-    return d->fmt == F_ENUM && d->names == N_GO;
+    return d->fmt == F_ENUM && pd_names(d) == N_GO;
 }
 /* a GO button that destroys or replaces work is red, card and modal alike (style guide 7): every one but a SAVE (into a
  * free slot: neutral) and the ACID line's GEN (a new line, the undo keeps the old one) */
@@ -150,7 +150,7 @@ static void cell_param(cell_t *c, const param_desc_t *d, int16_t *vp)
             c->val[z] = '0';
         }
     }
-    if (d->names == ins_names || d->names == fxs_names) {   /* an insert's type, a slot's: its name as the cards name it */
+    if (pd_names(d) == ins_names || pd_names(d) == fxs_names) {   /* an insert's type, a slot's: its name as the cards name it */
         char b[16];                                     /* (DST -> DIST, FILT -> FILTER, CMP -> COMP: op_names.c) */
         cell_val(c, nm_card(c->val, 0, b, sizeof b));
     }
@@ -185,9 +185,9 @@ static int value_long(const param_desc_t *d, int32_t v, char *b)
         return 1;
     }
 #if BP_SET_ANY
-    if ((d->names == N_MOUT || d->names == N_MIN) && v >= 0 && v <= d->max) {   /* KEYS -> Keys */
+    if ((pd_names(d) == N_MOUT || pd_names(d) == N_MIN) && v >= 0 && v <= d->max) {   /* KEYS -> Keys */
         uint32_t i;
-        str_cpy(b, d->names[v], 14);
+        str_cpy(b, pd_names(d)[v], 14);
         for (i = 1; b[i]; i++)
             b[i] = (char)(b[i] >= 'A' && b[i] <= 'Z' ? b[i] + 32 : b[i]);
         return 1;

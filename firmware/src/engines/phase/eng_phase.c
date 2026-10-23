@@ -298,17 +298,17 @@ static const preset_t PHASE_PRESETS[] = {
 static const engine_t ENG_PHASE = {
     "PHASE", {"PHS", "LINE"},
     {
-        {"WAVE", F_ENUM, 0, 7, 0, N_PD_WAVE, 0},
-        {"WAVE2", F_ENUM, 0, 8, 0, N_PD_WAVE2, 0},
-        {"DCW", F_PCT, 0, 127, 60, 0, 0},
-        {"ENV", F_PCT, 0, 127, 64, 0, 0},
-        {"DTN", F_INT, 0, 127, 0, 0, "ct"},
-        {"LINE", F_ENUM, 0, 1, 0, N_PD_LINE, 0},
-        {"SUB", F_PCT, 0, 127, 0, 0, 0},
+        PN("WAVE", F_ENUM, 0, 7, 0, N_PD_WAVE),
+        PN("WAVE2", F_ENUM, 0, 8, 0, N_PD_WAVE2),
+        PU("DCW", F_PCT, 0, 127, 60, 0),
+        PU("ENV", F_PCT, 0, 127, 64, 0),
+        PU("DTN", F_INT, 0, 127, 0, "ct"),
+        PN("LINE", F_ENUM, 0, 1, 0, N_PD_LINE),
+        PU("SUB", F_PCT, 0, 127, 0, 0),
 #if FELUCCA_PHASE_FOLD
-        {"FOLD", F_PCT, 0, 127, 0, 0, 0},       /* 0 = off */
+        PU("FOLD", F_PCT, 0, 127, 0, 0),       /* 0 = off */
 #else
-        {"-", F_INT, 0, 0, 0, 0, 0},
+        PU("-", F_INT, 0, 0, 0, 0),
 #endif
     },
     PHASE_PRESETS, sizeof(PHASE_PRESETS) / sizeof(PHASE_PRESETS[0]), 0, phase_note_on, phase_render,

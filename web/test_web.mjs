@@ -284,7 +284,7 @@ async function editorFM6Engine() {
   const packs = [...(nv ? nv[1] : "").matchAll(/FIF\((\w+)\)\(FM6_PKN\((\w+)\),\)/g)].map((x) => x[1]);
   const fm6v = [initName ? initName[1] : "?"], fm6eng = null;
   const eb = src.slice(src.indexOf("static const engine_t ENG_FM6"), src.indexOf("};", src.indexOf("static const engine_t ENG_FM6")));
-  const edit = [...eb.matchAll(/\{"([^"]*)", F_(\w+), (-?\d+), ([^,]+), (-?\d+), (\w+), 0\}/g)].map((x) => ({ label: x[1], fmt: E.F[x[2]],
+  const edit = [...eb.matchAll(/P[NU]\("([^"]*)", F_(\w+), (-?\d+), ([^,]+), (-?\d+), (\w+)\)/g)].map((x) => ({ label: x[1], fmt: E.F[x[2]],
     min: +x[3], max: x[4].trim() === "FM6_NVOICE - 1" ? fm6v.length - 1 : +x[4], def: +x[5], names: x[6] === "N_FM6V" ? fm6v : null }));
   const titles = [...(/"FM6", \{([^}]*)\}/.exec(eb) || [])[1].matchAll(/"([^"]*)"/g)].map((x) => x[1]);
   const pb = src.slice(src.indexOf("FM6_PRESETS[] = {"), src.indexOf("};", src.indexOf("FM6_PRESETS[] = {")));

@@ -36,10 +36,10 @@ def f32(x):
 # (257 entries) and its symmetries. Every other build (the host tests, the simulator) keeps the plain arrays.
 CODED = []              # (group, name, ctype, n, flags, stream, values)
 # the groups and the C condition each is built under: "core" SINE and TANH, in the pool at HEAD already (TAB_RAM), so
-# coded at no cost in RAM; "flash" and "fm6" the tables that were in flash: coded only with FELUCCA_TAB_CODED_ALL (each
-# then takes its size in the pool, which the undo history ring would have had; measured 2026-10-22 on the five profiles:
-# flash -5.0 KB (synth, with FM6) / -3.5 KB (drum-machine), pool +7.3 KB: the synth and fm-va-studio profiles' pool
-# headroom is below the 8 KiB spare then, so it is off by default)
+# coded at no cost in RAM; "flash" and "fm6" the tables that were in flash: coded only with FELUCCA_TAB_CODED_ALL (the
+# builder's TAB_CODED_ALL, off by default; each then takes its size in the pool, TAB_CPOOL whether or not TAB_IN_POOL,
+# which the undo history ring would have had: pool +7.3 KB; measured 2026-10-23 on mots.config: flash -3,2xx B, see
+# tools/builder/costs.json)
 GROUPS = {"core": None, "flash": "FELUCCA_TAB_CODED_ALL", "fm6": "FELUCCA_ENG_FM6 && FELUCCA_TAB_CODED_ALL"}
 CODED_W = {"int16_t": 2, "uint16_t": 2, "int32_t": 4, "uint32_t": 4, "int64_t": 8}
 F_ORDER2 = 2
@@ -99,7 +99,8 @@ def carr(name, ctype, vals, per=12, ram=False, group="core", sine=False):
     CODED.append((group, name, ctype, len(vals), (F_ORDER2 if order == 2 else 0) | (F_SINE if sine else 0), stream,
                   list(vals)))
     cond = GROUPS[group]
-    return [f"#if TAB_CODED{' && ' + cond if cond else ''}", f"static {ctype} {name}[{len(vals)}] TAB_POOL;", "#else",
+    place = "TAB_POOL" if group == "core" else "TAB_CPOOL"
+    return [f"#if TAB_CODED{' && ' + cond if cond else ''}", f"static {ctype} {name}[{len(vals)}] {place};", "#else",
             *arr(name, ctype, vals, per, ram), "#endif"]
 
 
@@ -282,13 +283,16 @@ def main(path):
          "/* TAB_CODED: the smooth tables (carr below) delta-coded in flash and expanded into the pool at boot (tab_expand",
          " * at the end of this file, main.c); the target only (TAB_CODED_FORCE: a host test of the decoder) */",
          "#if defined(__PI32V2__) || defined(TAB_CODED_FORCE)", "#define TAB_CODED 1", "#else", "#define TAB_CODED 0", "#endif",
-         "/* FELUCCA_TAB_CODED_ALL: the tables that are in flash at HEAD coded too (each then lives in the pool: flash -5.0 KB on",
-         " * synth, pool +7.3 KB, 2026-10-22; off: SINE and TANH_Q15 only, which the pool holds either way) */",
+         "/* FELUCCA_TAB_CODED_ALL (the builder's TAB_CODED_ALL): the 16 tables that are in flash otherwise coded too, each",
+         " * expanded into the pool (TAB_CPOOL, whether or not TAB_IN_POOL: main RAM pays nothing, the undo ring is 7.3 KB",
+         " * shorter); off: SINE and TANH_Q15 only, which RAM holds either way */",
          "#ifndef FELUCCA_TAB_CODED_ALL", "#define FELUCCA_TAB_CODED_ALL 0", "#endif",
-         "/* where a coded table is expanded: the pool with FELUCCA_TAB_IN_POOL (as TAB_RAM), else main RAM (.bss; TAB_RAM's",
-         " * .data copies were there: the same RAM, the pool untouched) */",
+         "/* where a core coded table is expanded: the pool with FELUCCA_TAB_IN_POOL (as TAB_RAM), else main RAM (.bss; TAB_RAM's",
+         " * .data copies were there: the same RAM, the pool untouched); a TAB_CODED_ALL table always the pool */",
          "#if defined(__PI32V2__) && defined(FELUCCA_TAB_IN_POOL) && FELUCCA_TAB_IN_POOL",
-         '#define TAB_POOL __attribute__((section(".pool.tab")))', "#else", "#define TAB_POOL", "#endif", ""]
+         '#define TAB_POOL __attribute__((section(".pool.tab")))', "#else", "#define TAB_POOL", "#endif",
+         "#if defined(__PI32V2__)", '#define TAB_CPOOL __attribute__((section(".pool.tabc")))', "#else", "#define TAB_CPOOL",
+         "#endif", ""]
     L += carr("SINE", "int16_t", [int(round(32767 * math.sin(2 * math.pi * i / 1024))) for i in range(1024)], ram=True,
               sine=True)
     # phase increment for pitch in 1/16 semitone, MIDI 0..127: the top octave (MIDI 116..127.94) and a shift per octave

@@ -60,7 +60,7 @@ static void lane_set_inst(uint32_t l, uint32_t in)    /* (the UI, the editor: th
         dl.ins[l] = (uint8_t)(in == LANE_DEF_INST[l] ? 0u : in + 1u);
 }
 /* the lane's INSTRUMENT value (the SOUND row's, the editor's) */
-static const param_desc_t LANE_INST_DESC = {"INSTR", F_ENUM, 0, INST_N - 1, 0, INST_NAME, 0};
+static const param_desc_t LANE_INST_DESC = PN("INSTR", F_ENUM, 0, INST_N - 1, 0, INST_NAME);
 /* source src (an X0X voice, DL_X909 / DL_X808) -> the instrument it is (INST_N: another source, the lane keeps its own):
  * a lane set to a machine's voice is named after it */
 static uint32_t dl_src_inst(uint32_t src)
@@ -270,10 +270,7 @@ static void de_synth(dsnd_t *o, const dsnd_t *d, const int8_t *x)
 #endif
 
 /* ---- per drum voice: the edited synth sound; a sampled voice's DECAY, CUT, LEVEL */
-static struct {
-#if FELUCCA_DRUM_EDIT
-    dsnd_t d[NDRUM];
-#endif
+static struct {                  /* (the edited synth sound itself is the voice's own copy: drum_synth.c dsv_t snd) */
     uint32_t dec[NDRUM];         /* DECAY: per-sample factor Q16 of the envelope, 0 = none */
     int32_t cut[NDRUM];          /* CUT: one-pole low-pass coefficient Q15, 0 = none */
     int32_t lg[NDRUM];           /* LEVEL: gain Q12, 0 = none */
@@ -300,8 +297,10 @@ static void dl_ds_on(dsv_t *s, uint32_t vi, const dkit_t *k, uint32_t note, uint
     const int8_t *x = dl_ofs_play(l);
     if (x) {
         int32_t semi;
-        de_synth(&dv.d[vi], DS_SND(k, ds_lane(note, &semi)), x);
-        ds_on_snd(s, &dv.d[vi], k->crush, semi, note, vel);
+        dsnd_t d, e;
+        ds_unpack(&d, DS_SND(k, ds_lane(note, &semi)));
+        de_synth(&e, &d, x);
+        ds_on_snd(s, &e, k->crush, semi, note, vel);
         dl_smp_fx(vi, l);                                      /* (CUT -: a low-pass on its output) */
         dv.dec[vi] = 0;
         dv.lg[vi] = 0;

@@ -82,8 +82,12 @@ static uint32_t onsets(const int32_t *x, uint32_t n)
 }
 static const dsnd_t *snd(uint32_t kit, uint32_t note)
 {
+    static dsnd_t full[4];                              /* (the kit's compact form unpacked, as drum_on does; 4 held at once) */
+    static uint32_t k;
     int32_t semi;
-    return DS_SND(ds_kit(kit), ds_lane(note, &semi));
+    dsnd_t *d = &full[k++ & 3u];
+    ds_unpack(d, DS_SND(ds_kit(kit), ds_lane(note, &semi)));
+    return d;
 }
 
 int main(void)
@@ -139,7 +143,7 @@ int main(void)
             uint32_t v, hit = 0;
             for (v = 0; v < NDRUM; v++)
                 hit |= drums.v[v].active && (!DRUM_IS_SYNTH(drum_kit_of(48)) ||
-                                             (drums.synth[v] && drums.ds[v].d == DS_SND(ds_kit(drum_kit_of(48)), 0)));
+                                             (drums.synth[v] && !memcmp(drums.ds[v].d, snd(drum_kit_of(48), 36), sizeof(dsnd_t))));
             check(hit, "... the voice plays PLAITS' kick sound (DS_XKITS), not the 808's (or its stand-in's)");
         }
         for (int k = 0; k < 2; k++) {

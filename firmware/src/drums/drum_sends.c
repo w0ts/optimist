@@ -221,13 +221,13 @@ static uint32_t dlrec_hash(const dlrec_t *d)
  * the page shows them in the FX slots' order (fx_slots.c fxs_lane_id) */
 #define DSEND_NID 7u                           /* value ids: 0 REV, 1 DLY, 2 CHO, 3 S1's amount, 4 S2's, 5 S1 TYPE, 6 S2 TYPE */
 static const param_desc_t DSEND_DESC[DSEND_NID] = {
-    {"REV", F_INT, 0, (int16_t)DSEND_MAX, (int16_t)DSEND_DEF, 0, 0},
-    {"DLY", F_INT, 0, (int16_t)DSEND_MAX, 0, 0, 0},
-    {"CHO", F_INT, 0, (int16_t)DSEND_MAX, 0, 0, 0},
-    {"DST", F_PCT, 0, 127, 0, 0, 0},
-    {"CMP", F_PCT, 0, 127, 0, 0, 0},
-    {"S1", F_INT, 0, 0, 0, 0, 0},
-    {"S2", F_INT, 0, 0, 0, 0, 0},
+    PU("REV", F_INT, 0, (int16_t)DSEND_MAX, (int16_t)DSEND_DEF, 0),
+    PU("DLY", F_INT, 0, (int16_t)DSEND_MAX, 0, 0),
+    PU("CHO", F_INT, 0, (int16_t)DSEND_MAX, 0, 0),
+    PU("DST", F_PCT, 0, 127, 0, 0),
+    PU("CMP", F_PCT, 0, 127, 0, 0),
+    PU("S1", F_INT, 0, 0, 0, 0),
+    PU("S2", F_INT, 0, 0, 0, 0),
 };
 static int16_t dsend_v[DSEND_NID];
 /* value id of lane l: its descriptor, *vp its value (0: none in this build; an X0X kit's sounds have no insert: their

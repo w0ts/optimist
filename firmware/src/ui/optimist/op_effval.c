@@ -20,8 +20,8 @@
 
 /* ---- drums */
 #if FELUCCA_DRUM_EDIT && DRUM_DS
-/* lane l's synthesised sound (the kit's dsnd_t, as drum_on takes it), 0 a sampled, user or X0X sound */
-static const dsnd_t *effv_dsnd(uint32_t l)
+/* lane l's synthesised sound (the kit's, as drum_on takes it: ds_unpack), 0 a sampled, user or X0X sound */
+static const dsndc_t *effv_dsnd(uint32_t l)
 {
     uint32_t kit = dl_kit_of(l, drum_kit());
     int32_t semi;
@@ -51,10 +51,11 @@ static uint32_t effv_lane(uint32_t l, uint32_t v, int32_t *val, int32_t *mn, int
     effv_lane_ofs(l, o);
 #if FELUCCA_DRUM_EDIT && DRUM_DS
     if (v == DE_DECAY || v == DE_CLICK || v == DE_BEND || v == DE_DRIVE) {
-        const dsnd_t *d = effv_dsnd(l);
-        dsnd_t s;
-        if (d) {
-            de_synth(&s, d, o);
+        const dsndc_t *c = effv_dsnd(l);
+        dsnd_t d, s;
+        if (c) {
+            ds_unpack(&d, c);
+            de_synth(&s, &d, o);
             *val = v == DE_DECAY ? s.decay : v == DE_CLICK ? s.click : v == DE_BEND ? s.bend : s.drive;
             *mn = 0;
             *mx = v == DE_BEND ? 96 : 127;
