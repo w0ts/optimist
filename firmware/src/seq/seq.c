@@ -2496,7 +2496,8 @@ static void live_block(void)                       /* once a block while playing
         live_req = (int8_t)chain_sec[chain_i];
     }
 #endif
-    if (live_req >= 0 && (asap || live_len < 2u || live_nbar % live_len == 0u)) {   /* (the scene playing has not played its bars: the launch waits) */
+    uint32_t ll = live_len;                         /* (one read: the UI may set it between two reads of the volatile) */
+    if (live_req >= 0 && (asap || ll < 2u || live_nbar % ll == 0u)) {   /* (the scene playing has not played its bars: the launch waits) */
         uint32_t s = (uint32_t)live_req;
         live_req = -1;
         live_now = 0;

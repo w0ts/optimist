@@ -20,12 +20,9 @@
 
 hal/fm1_clock.h:fm1_cpu_khz:best | returns 0 before the divide when best is 0 (or never measured)
 src/io/midi/clock_sync.c:sy_tick:d | d = n(n+1) or n(n+1)(n+2) with n = sy.nm >= 2: sy_tick runs the filter only after sy_restart (nm = 2, have = 2); nm only grows, or halves from >= 8; the cubic form is guarded by nm >= 3
-src/core/core.h:div_units:DIV_DEN[div] | TABLE DIV_DEN {1,2,4,8,3,6}, div < NDIV_SHORT (6) on that branch (DIV_LONG)
 src/core/core.h:dly_samples:(uint32_t)song.g[G_BPM] | BPM (>= 40)
-src/core/core.h:dly_units:DIV_DEN[d] | TABLE DIV_DEN {1,2,4,8,3,6}, d < NDIV_SHORT (6) on that branch (DLY_DOT)
 src/system/cpuguard.c:cg_pre:cg.ips | returns before any divide while cg.ips is 0 (set once from cpu_khz; 0 until the clock is known)
 src/core/core.h:div_samples:(uint32_t)song.g[G_BPM] | BPM (>= 40)
-src/core/core.h:div_units:DIV_DEN[div%6u] | TABLE DIV_DEN {1,2,4,8,3,6}, index % 6
 src/core/core.h:ev_at:(uint32_t)ev_map.adv | returns early when ev_map.adv <= 0
 src/drums/synth/drum_synth.c:ds_filter:(uint32_t)den | den = 4096 + g(g + fk) >> 12 with g = SVF_G >= 0 and fk = 8192 - (flt >> 3) * 245 >= 597 (flt is 8 bits): den >= 4096
 src/drums/synth/drum_synth.c:ds_onepole:(4096u+g) | 4096 + g, g unsigned
@@ -81,7 +78,6 @@ src/fx/reverb/reverb_alt.c:rv_lpc:((r*r)>>15) | r = 32768 - c, c clamped to 1 ..
 src/fx/reverb/reverb_alt.c:rv_lpc:(p?p:1u) | "p ? p : 1u"
 src/seq/seq.c:arp_next:cyc | "len > 1 ? 2 len - 2 : 1"
 src/seq/seq.c:arp_next:len | len = held notes x OCT >= 1: arp_tick returns when nheld is 0 (the held list changes only in the audio context: keys and MIDI are queued into events_block), PARAM P_AOCT 1..4
-src/seq/seq.c:arp_tick:den | TABLE DIV_DEN, index % 6
 src/seq/seq.c:erase_now:len | TLEN
 src/seq/seq.c:ft_bpm10:den | guarded: "den ? ... : 0"
 src/seq/seq.c:ft_close:(2u*T) | T = ft_t >= FS / CTL / 2 (checked before ft_fit)
@@ -89,26 +85,19 @@ src/seq/seq.c:ft_close:len | len = 16 x bars, bars 1, 2 or 4 here (returns when 
 src/seq/seq.c:ft_poly:len | ft_close's len (16 x bars, bars 1, 2 or 4): ft_poly runs only from ft_close after ft_fit found bars
 src/seq/seq.c:ft_snd:len | ft_poly's len (ft_close: 16 x bars, bars 1, 2 or 4), passed down through ft_sounding
 src/seq/seq.c:ft_close:T | T = ft_t >= FS / CTL / 2 (checked before ft_fit): the PLOCK length lock (x = d x len x 128 / T)
-src/seq/seq.c:rec_gate:u | u = slen >> 7, guarded (u <= 0 returns): slen is a step of the grid (trk_grid), BEAT_U / DIV_DEN units, far above 128 at any DIV
+src/seq/seq.c:rec_gate:u | u = slen >> 7, guarded (u <= 0 returns): slen is a step of the grid (trk_grid -> grid_at: DUR_U48 x DUR_48[div] >= 3 x BEAT_U / 48 units, +- a swing of at most half of it), far above 128 at any DIV
 src/seq/seq.c:rec_nudge:u | u = slen >> 6, guarded (u <= 0 returns): slen a step of the grid (trk_grid), far above 64 units at any DIV
 src/seq/seq.c:ft_nudge:(2u*T) | T = ft_close's ft_t >= FS / CTL / 2 (checked before ft_fit; ft_nudge runs only after it)
 src/seq/seq.c:ft_fit:b | b >= 400 (skipped otherwise)
 src/seq/seq.c:ft_fit:cur | cur = BPM x 10 >= 400
-src/seq/seq.c:grid_at:den | callers pass TABLE DIV_DEN / ROLL_DEN entries (>= 1)
-src/seq/seq.c:grid_at:u | u = BEAT_U / den with den <= 16: >= BEAT_U / 16
-src/seq/seq.c:roll_block:den | roll_den(): TABLE ROLL_DEN {2,4,8,12,16}, index clamped 0..4
-src/seq/seq.c:roll_hit:roll_den() | TABLE ROLL_DEN
-src/seq/seq.c:roll_hit:u | u = BEAT_U / roll_den() >= BEAT_U / 16
+src/seq/seq.c:grid_at:d | d = DUR_48[div % DUR_N]: TABLE DUR_48 (core.h DUR_LIST: 768 576 384 288 192 144 128 96 72 64 48 36 32 24 18 16 12 9 8 6 4 3), so >= 3 (both sites)
+src/seq/seq.c:roll_hit:u | u = div_units(roll_div()) = DUR_U48 x DUR_48[i % DUR_N]: DUR_U48 = BEAT_U / 48 (a constant) and TABLE DUR_48 >= 3, so >= 3 x BEAT_U / 48
 src/seq/seq.c:scale_map:count | count = notes in the scale mask: every SCALE_MASK entry holds the root (bit 0)
 src/seq/seq.c:seq_ratchets:hits | hits = 1 + (2 bits) >= 1
 src/seq/seq.c:seq_ratchets:slen | slen = u +- sw from grid_at with sw = swing_units <= u / 2: >= u / 2 > 0
 src/seq/seq.c:seq_step:hits | hits starts at 1 and only grows
 src/seq/seq.c:seq_step:trk_len(t) | TLEN
-src/seq/seq.c:trk_grid:DIV_DEN[div] | TABLE DIV_DEN, div < NDIV_SHORT (6) on that branch (DIV_LONG)
-src/seq/seq.c:trk_grid:den | TABLE DIV_DEN, index % 6
-src/seq/seq.c:trk_grid:m | TABLE DIV_BEATS {2,4,8}, index % 3 (DIV_LONG)
 src/fx/slicer/slicer.c:sl_enter:(uint32_t)song.g[G_BPM] | BPM
-src/fx/slicer/slicer.c:sl_enter:SL_DEN[(uint32_t)t->p[P_SLRATE] | TABLE SL_DEN {2,4,8,3,6,12}, index % 6
 src/fx/slicer/slicer.c:slicer_track:bpm | bpm = song.g[G_BPM]: BPM
 src/core/model.c:apply_preset_to:e->npresets | npresets 0: eng_first_playable gives PRESET_INIT, INIT returns first
 src/core/model.c:preset_name:ENGINES[e]->npresets | guarded: "k == PRESET_INIT || !ENGINES[e]->npresets ? "INIT" : ..."
@@ -122,11 +111,15 @@ src/ui/optimist/op_mixdraw.c:mx_steps:len | TLEN: "clamp(t->p[P_SLEN], 1, NSTEP)
 src/ui/optimist/op_mixdraw.c:mx_steps_paint:len | TLEN: "clamp(t->p[P_SLEN], 1, NSTEP)"
 src/ui/optimist/op_mixdraw.c:mx_steps_paint:np | guarded "if (np > 1u)"
 src/ui/optimist/op_input.c:step_win:len | TLEN
-src/ui/optimist/op_input.c:step_win:slen | seq.c trk_grid: a step of BEAT_U / den (den <= 8) +- its swing, the swing at most half of it (swing_units: pct <= 100, / 200), or 2, 4, 8 beats: >= BEAT_U / 16; guarded "slen ?" too
+src/ui/optimist/op_input.c:step_win:slen | seq.c trk_grid -> grid_at: a step of DUR_U48 x DUR_48[div] (TABLE DUR_48 >= 3) +- its swing, the swing at most half of it (swing_units: pct <= 100, / 200): >= 3 x BEAT_U / 96; guarded "slen ?" too
 src/ui/optimist/op_step.c:olp_len:trk_len(t) | TLEN
-src/ui/optimist/op_layers.c:tap_tempo:sum | guarded "if (sum)"
+src/ui/optimist/op_layers.c:tap_tempo_at:sum | guarded "if (sum)"
 src/ui/optimist/op_draw.c:draw_list:(int32_t)n | inside "else if (n && n <= shown)": n >= 1
-src/ui/optimist/op_graph.c:graph_arp:(int32_t)steps | steps = 4 * DIV_DEN[rate % 6]: TABLE DIV_DEN {1,2,4,8,3,6}, so >= 4
+src/ui/optimist/op_graph.c:graph_arp:(int32_t)steps | only inside "for (i = 0; i < steps; i++)": never run with steps 0 (steps = 192 / DUR_48[rate] is 0 for the values longer than a bar: 768, 576, 384, 288 48ths)
+src/ui/optimist/op_graph.c:graph_arp:DUR_48[(uint32_t)t->p[P_ARATE] | TABLE DUR_48 (core.h DUR_LIST, 768 .. 3), index % DUR_N: >= 3
+src/ui/optimist/op_graph.c:graph_arp:(int32_t)(steps?steps:1u) | "steps ? steps : 1"
+src/ui/optimist/op_graph.c:graph_arp:no | BASS: inside "if ((q & 1u) && no)"
+src/ui/optimist/op_graph.c:graph_arp:(cnt-1u) | BASS: inside "if ((q & 1u) && no)" with no = (cnt - 1) x oct, so cnt - 1 != 0 there
 src/ui/optimist/op_graph.c:graph_arp:(span+1) | span = hi > lo ? hi - lo : 1, so span + 1 >= 2
 src/ui/optimist/op_graph.c:graph_arp:span | span = hi > lo ? hi - lo : 1: >= 1
 src/ui/optimist/op_graph.c:graph_arp:cnt | cnt = arp_ref(): the notes held, else the 3 of the reference chord: >= 1
@@ -146,7 +139,6 @@ src/ui/optimist/op_stepdraw.c:roll_org:len | TLEN
 src/ui/optimist/op_stepdraw.c:step_strip:n | step_pages: (trk_len + 15) / 16 and trk_len >= 1, so >= 1
 src/ui/optimist/op_draw.c:loop_pos:len | TLEN: "clamp(t->p[P_SLEN], 1, NSTEP)"
 src/ui/optimist/op_screens.c:op_preset_step:t | t = (int32_t)total, reached only when total != 0 (the "if (!total)" branch comes first)
-src/ui/optimist/op_screens.c:op_engine_step:n | guarded "if (n == 0u) return" before every % n (n is NLIST, the factory and INIT entries, or LIST FAV's count)
 src/ui/optimist/op_fm6draw.c:f6_alg_draw:cols | guarded "cols ? ... : cmax"
 src/ui/optimist/op_fm6draw.c:f6_alg_draw:rows | guarded "rows ? ... : rmax"
 src/ui/optimist/op_name.c:nm_knob:n | n = sizeof NM_SET - 1, a constant (43)
@@ -266,3 +258,31 @@ src/engines/clipper/eng_wave.c:-:WT_NFACTORY | a constant: 8 (tools/gen_wavetabl
 src/engines/clipper/eng_wave.c:wt_build_frame:(H+1u-h0) | H = 128 >> l >= 2, h0 = 3 H / 5 < H: >= 2
 src/engines/clipper/eng_wave.c:wt_ifft:len | starts at 2 and doubles: >= 2
 src/engines/clipper/eng_wave.c:wt_level:inc | guarded: inc ? .. : 1000
+# 2026-10-23: the durations table (DUR_48), the ANALOG 2 filter models, the effects memory, BT diagnostics
+src/bt/bt_page.c:bp_print_sec:n | guarded: each of the three divides is inside "if (n)" (the RSSI and the rxbit averages, n read with the IRQs held)
+src/core/voice.c:lfo_wave:(DUR_U48*(d)) | the LSYNC_KE macro (LSYNC_KT's const initializer; the scanner names the function after it): d is a DUR_LIST entry (768 .. 3) and DUR_U48 = BEAT_U / 48 a constant: a compile-time constant >= 3 x BEAT_U / 48
+src/drums/synth/drum_synth.c:ds_blocks:CTL | a compile-time constant: 32 (tools/gen_tables.py, the generated felucca_tables.h; dsp.c asserts CTL == 32)
+src/engines/analog/a2_models.c:__attribute__:(27.f+9.f*x2) | a2m_tanh (float): x2 = x * x >= 0, so >= 27
+src/engines/analog/a2_models.c:__attribute__:(1.f+g) | a2m_ladder (float): g = a2m_g() = tan(pi fc / FS) with fc = 30 x 2^(cut ...) > 0 and at most 0.45 FS (cut clamped 0 .. 127 << 8 by analog_render): g > 0, so > 1
+src/engines/analog/a2_models.c:__attribute__:(1.f+k*G4) | a2m_ladder (float): k = RES x 4.6 / 127 (LADR) or x 4.2 / 127 (OTA), RES = P_E5 0..127 (PARAM; LFO / ENV moves are clamped to the descriptor, voice.c lo_move), and G4 = (g / (1 + g))^4 >= 0: >= 1
+src/engines/analog/a2_models.c:a2m_diod:(1.f+k*q[3]) | float: k = RES x 22 / 127 >= 0 (PARAM 0..127); q = g P e1 with g > 0 and P the inverse of I - g A, a strictly diagonally dominant Z-matrix with a positive diagonal (an M-matrix), whose inverse has no negative entry: q[3] >= 0, so >= 1
+src/engines/analog/a2_models.c:a2m_diod_coef:M[i][i] | float: M = I - g A is tridiagonal, its diagonal 1 + 2 g (1 + g in the last row) exceeds its row's off-diagonal sum (g or 2 g) by at least 1 with g > 0: strictly diagonally dominant, so Gauss-Jordan without pivoting meets no zero pivot
+src/engines/analog/a2_models.c:a2m_ms20:(1.f+g) | float: g > 0 (a2m_g, as the ladder's): > 1
+src/engines/analog/a2_models.c:a2m_ms20:(1.f-k*G*(1.f-G)) | float: G = g / (1 + g) in (0, 1), so G (1 - G) <= 1/4, and k = RES x 2.3 / 127 <= 2.3 (PARAM 0..127): >= 1 - 0.575 = 0.425
+src/engines/cz/cz_native.c:__attribute__:(200u*CTL) | a compile-time constant: 200 x CTL (32) = 6400
+src/fx/fx.c:rev_bus:CTL | REV_GFADE = HALF_FRAMES / CTL: compile-time constants (256 / 32; asserted REV_GFADE * CTL == 256)
+src/fx/insfx/fxi_mem.h:-:(z) | FXI_MX(z), a compile-time constant expression: z is FXA_Z0..Z4 = 2, 8, 2, 1 and 2 x FELUCCA_XDLY_LEN / 512 (64 at the default 16384; fx_slots.c asserts 16384 or 8192 with XDLY built)
+src/fx/insfx/gater.c:-:((uint64_t)DUR_U48*(d)) | the IGT_KE macro (IGT_KC's const initializer): d a DUR_LIST entry (768 .. 3), DUR_U48 = BEAT_U / 48: a compile-time constant >= 3 x BEAT_U / 48
+src/fx/insfx/gater.c:igt_phase:d | d = DUR_48[r % DUR_N]: TABLE DUR_48 (768 .. 3), so >= 3
+src/io/console.c:con_keys:dt | "if (!dt) dt = 1" just before (both sites)
+src/seq/gen.c:gr_eu_hit:n | n = gr_eu_len() = (gr_u7(v) >> 3) + 1 with gr_u7 0..255: 1..32
+src/seq/seq.c:arp_next:no | BASS: guarded "(q & 1u) && no ?"
+src/seq/seq.c:ft_close:CTL | FS / CTL / 2: compile-time constants (CTL = 32, tools/gen_tables.py)
+src/seq/seq.c:kb_raw:SMP_NSETS | a compile-time constant: tools/gen_samples.py writes it as max(1, the sample sets), so >= 1
+src/seq/seq.c:live_block:ll | guarded: "ll < 2u || live_nbar % ll" (short-circuit); ll is one read of the volatile live_len (the UI, op_layers.c, may write it at any time: two reads of the volatile could have seen 2 then 0)
+src/seq/seq.c:rec_begin:CTL | FT_BLOCKS = 24 x FS / CTL (the macro after rec_begin): compile-time constants (CTL = 32)
+src/seq/seq.c:step_add:len | TLEN (len = trk_len(t))
+src/ui/optimist/op_graph.c:denv_synth:CTL | FS x 4 / CTL: compile-time constants (CTL = 32)
+src/ui/optimist/op_preset.c:pop_paint:(int32_t)pop.total | pop_paint runs only from draw_pop's cv_tall, after "if (!pop.total || pop.cur >= pop.total) return"
+src/ui/optimist/op_project.c:sys_batt_pct:(uint32_t)(MV[i]-MV[i-1u]) | TABLE MV {3300, 3500, 3700, 3800, 3900, 4000, 4150}, strictly rising: each difference >= 100
+src/ui/optimist/op_songtbl.c:stb_paint:(int32_t)nl | nl = 5 (SCENE) or 2
