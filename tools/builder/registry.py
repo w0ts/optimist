@@ -914,13 +914,13 @@ _add("ED_SCREENS", "FELUCCA_ED_SCREENS", "web editor: the device's screens (card
           "rows of cards (cmd 99), GLOBAL and SYSTEM as the device's lines with their help (cmd 96) and the "
           "oscilloscope (cmd 101). Off: no Device tab; "
           "the editor keeps its own Sound / Mixer / Sequence tabs.")
-_add("ED_MIRROR", "FELUCCA_ED_MIRROR", "web editor: the screen mirrored on a phone (the iPhone app, USB cable)", Y, 381,
+_add("ED_MIRROR", "FELUCCA_ED_MIRROR", "web editor: the screen mirrored (the Screen tab, the iPhone app; USB)", Y, 381,
      parent="EDITOR", default=0, experimental=True, tested="host-tested only (the stream decoded back to every screen drawn, "
      "every catch-up the panel), not on a device",
-     desc="The FM-1's screen on an iPhone (the FM-1 Mirror app, ios/OptimistMirror), over a USB cable: while the app asks "
-          "(cmd 106), every write to the panel also goes out, run-length coded, as it is drawn, so the phone shows the very "
-          "pixels: the mixer, the step grid, the layers, the dialogs. No frame buffer on the device; nothing is sent while no "
-          "app asks; the mixer's VU meters are not sent. A host that stops reading drops what is drawn and catches up once it "
+     desc="The FM-1's screen in the web editor's Screen tab or on an iPhone (the FM-1 Mirror app, ios/OptimistMirror), over "
+          "a USB cable: while one asks (cmd 106), every write to the panel also goes out, run-length coded, as it is drawn, "
+          "so it shows the very pixels: the mixer, the step grid, the layers, the dialogs. No frame buffer on the device; "
+          "nothing is sent while none asks; the mixer's VU meters are not sent. A host that stops reading drops what is drawn and catches up once it "
           "reads again, at most 4 times a second: the panel's bands drawn again in place, no flash on the device. USB only: "
           "over Bluetooth MIDI it was too slow. About 0.3 KB of flash and 0.1 KB of RAM. With live "
           "editing (ED_LIVE) or without.")

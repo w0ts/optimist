@@ -172,7 +172,7 @@
   /* a backup-only firmware (data-conn=lite, loadLite): the Backup on the Projects tab, Install, Build, the Simulator; with the
      librarian (data-lib) the Library tab too and the librarian above the Backup, the Library's buttons that play or read the
      sound left out (no live editing) */
-  html[data-conn=lite] #tabs > button[data-tab]:not([data-tab=projects]):not([data-tab=library]):not([data-tab=install]):not([data-tab=build]):not([data-tab=sim]),
+  html[data-conn=lite] #tabs > button[data-tab]:not([data-tab=projects]):not([data-tab=library]):not([data-tab=install]):not([data-tab=build]):not([data-tab=sim]):not([data-tab=screen]),
   html[data-conn=lite]:not([data-lib]) #tabs > button[data-tab=library], html:not([data-conn=lite]) #libr, html[data-conn=lite]:not([data-lib]) #libr,
   html[data-conn=lite] #libaud, html[data-conn=lite] #libsave, html[data-conn=lite] #czbox,
   html[data-conn=lite] #slots, html[data-conn=lite] #p-projects > .pghelp, html[data-conn=lite] .tbar > :not(#mock) { display: none !important; }
@@ -335,6 +335,8 @@
   /* v13: the device's screens (SCRS): a row of four cards under its name, the pages of SOUND under their family */
   .scbar { display: flex; flex-wrap: wrap; gap: 8px 14px; margin: 8px 0; }
   #scscope { width: 100%; max-width: 944px; height: 180px; border: 1px solid var(--line); margin: 4px 0 8px; display: block; }
+  #mirror { width: min(100%, 480px); aspect-ratio: 1; image-rendering: pixelated; background: #000; display: block; margin: 8px auto; }
+  #mirror-note { text-align: center; }
   .scrows { display: flex; flex-direction: column; gap: 6px; }
   .scrow { border: 1px solid var(--line); padding: 4px 8px 6px; }
   .scrow[data-asking="1"] { outline: 2px solid var(--warn, #e7c15b); }
@@ -826,6 +828,8 @@
   /* v13: the device's screens (SCRS): a row of four cards under its name, the pages of SOUND under their family */
   .scbar { display: flex; flex-wrap: wrap; gap: 8px 14px; margin: 8px 0; }
   #scscope { width: 100%; max-width: 944px; height: 180px; border: 1px solid var(--line); margin: 4px 0 8px; display: block; }
+  #mirror { width: min(100%, 480px); aspect-ratio: 1; image-rendering: pixelated; background: #000; display: block; margin: 8px auto; }
+  #mirror-note { text-align: center; }
   .scrows { display: flex; flex-direction: column; gap: 6px; }
   .scrow { border: 1px solid var(--line); padding: 4px 8px 6px; }
   .scrow[data-asking="1"] { outline: 2px solid var(--warn, #e7c15b); }
@@ -1454,6 +1458,7 @@
     <button role="tab" data-tab="snapshots" data-t="snTitle" data-si="snapshot" hidden></button>
     <span class="navh" role="separator" aria-orientation="vertical"></span>
     <button role="tab" data-tab="device" data-t="tabDevice" data-ic="ui_knob" hidden></button>
+    <button role="tab" data-tab="screen" data-t="tabScreen" data-ic="symbol_grid" hidden></button>
     <button role="tab" data-tab="settings" data-t="tabSettings" data-ic="symbol_cog"></button>
     <button type="button" id="helpbtn" data-pop="help" data-t="help"></button>
   </nav>
@@ -1648,6 +1653,7 @@
     <div class="scrows" id="scrows"></div>
   </section>
 
+  <section class="panel" id="p-screen" data-tab="screen" data-dev hidden><canvas id="mirror" width="240" height="240"></canvas><p class="dim" id="mirror-note" data-t="mirrorHelp"></p></section>
   <section class="panel" id="p-settings" data-tab="settings" data-dev hidden>
     <div class="groups" id="setgroups"></div>
     <div class="groups" id="devscr" hidden></div>
@@ -1700,7 +1706,7 @@ const CMD = { INFO: 1, GET: 2, SET: 3, DUMP: 4, DESC: 5, STEP_GET: 6, STEP_SET: 
   SL24_PUT: 90,   /* (a SLOOP 2.4 backup file's project in: ed_sl24.c; 91, SL24_BANK, is retired) */
   AUTO_GET: 92, AUTO_SET: 93,   /* (v11: the automation store, ed_stepx.c; a firmware before it does not answer) */
   FXP: 94, DLAN: 95, SCRN: 96, SONGC: 97, TOOLS: 98, SCRS: 99, FAVS: 100, SCOPE: 101,
-  UNDO: 102, NOTE: 103, SOLO: 104, STEPLANE: 105, REC: 107 };   /* (v14: undo / redo, notes, solo and mute, a step in the context of a drum lane; INFO tags 5F..62) */   /* (v13: every effect slot of every owner, ed_fxp.c; INFO tag 0x57) */
+  UNDO: 102, NOTE: 103, SOLO: 104, STEPLANE: 105, MIRROR: 106, REC: 107 };   /* (MIRROR: the screen, ED_MIRROR; INFO tag 65) */   /* (v14: undo / redo, notes, solo and mute, a step in the context of a drum lane; INFO tags 5F..62) */   /* (v13: every effect slot of every owner, ed_fxp.c; INFO tag 0x57) */
 /* the automation store (firmware seq/auto.h): an event's place (bits 0..5 the step, bit 6 STEP-ONLY: a lock; else a hold
    event, motion), its parameter (a stored P_* id, or a pseudo-parameter), its value (a signed byte) */
 const AUTO = { ONLY: 0x40, STEP: 0x3F, COND: 0xFC, NUDGE: 0xFD, FILL: 0xFE, CHANCE: 0xFF, MAX: 128, PAGE: 64,   /* (COND 1..9: 1:2 2:2 1:3 2:3 3:3 1:4 2:4 3:4 4:4, Felucca 1.5.6) */
@@ -2472,6 +2478,7 @@ const parse = {
       if (id === 0x5D && n >= 2 && a[r.i] >= 1) o.fav = { max: a[r.i + 1] };   /* 5D: version, FAV_N */
       if (id === 0x5C && n >= 3 && a[r.i] >= 1) o.scrs = { mask: a[r.i + 1] | (a[r.i + 2] << 7) };   /* 5C: version, the screens built (2 x 7 bits) */
       if (id === 0x59 && n >= 2 && a[r.i] >= 1) o.scrn = { screens: a[r.i + 1] };   /* 59: version, screens (GLOBAL, SYSTEM) */
+      if (id === 0x65 && n >= 1 && a[r.i] >= 1) o.mirror = { v: a[r.i] };   /* 65: the screen mirrored (ED_MIRROR), version */
       if (id === 0x64 && n >= 1) { o.lite = !!(a[r.i] & 1); o.lib = !!(a[r.i] & 2); }   /* 64: backup and restore only (loadLite), bit 1 the librarian */
       if (id === 0x58 && n >= 2 && a[r.i] >= 1) o.dlan = { groups: a[r.i + 1] };   /* 58: version, groups */
       if (id === 0x5F && n >= 2 && a[r.i] >= 1) o.undo = { many: !!(a[r.i + 1] & 1) };   /* 5F: version, flags (bit 0 a history of many levels) */
@@ -3238,6 +3245,8 @@ class Link {
     if (this.cur && this.cur.yam && data[0] === 0xF0 && data[1] === 0x43) return;   /* (a Yamaha frame: the device sends none) */
     const f = unframe(data);
     if (!f) return;                                  /* not ours (notes, clock, other SysEx) */
+    if (f.cmd === CMD.MIRROR && !(f.a.length === 6 && f.a[0] <= 1 && f.a[1] === 1)) { mirrorFrame(f.a); return; }   /* (the screen's
+                                                       pushes, also without a dump (a backup-only firmware); the reply: on, 1, w, h) */
     if (PUSH.has(f.cmd)) { this.onPush(f); return; }
     const c = this.cur;
     if (!c || f.cmd !== c.cmd || !replyMatches(c.cmd, c.args, f.a)) { this.onUnknown(f); return; }
@@ -4565,7 +4574,7 @@ const textOn = (bg) => (contrast(bg, "#000000") >= contrast(bg, "#ffffff") ? "#0
    the transport bar; every track editor is a popup one click from a strip, closed by its x, Escape or a click outside,
    back to the mixer as it was. NAV lists every popup with the strip button that opens it (opener: CSS selector inside
    the strip of track `strip` (0..3, "master")). The tests walk it: depth 1, Esc back to the mixer */
-const SCREENS = ["mixer", "library", "samples", "drumkit", "projects", "snapshots", "device", "settings"];
+const SCREENS = ["mixer", "library", "samples", "drumkit", "projects", "snapshots", "device", "screen", "settings"];
 const NAV = {
   sound: { strip: "synth", opener: "[data-pop=sound]" },
   sequence: { strip: "any", opener: "[data-pop=sequence]" },
@@ -6495,7 +6504,9 @@ const TEXT = {
   samples: "Samples", smpHelp: "Drop or choose WAV files. Up to 16 files per slot, stored as mono 22050 Hz ADPCM (about 7 s in all). Select USR1–USR3 with SET on the SAMPLE engine (or SRC on the SLICE engine).",
   tabDrums: "Drum sounds", drumSounds: "The 16 drum sounds", drumHelp: "Each of the drum track's 16 sounds: its source (the kit, a sample of USR1–USR3, another kit's sound for it, any voice of X0X's 909 or 808), the sample's hit (zone), start and length (1/1024 of the hit), and the sound editor's 8 offsets (0 = as the kit). On the device: EDIT on the drum track.",
   userKits: "User kits", ukitHelp: "16 kits, KIT 1 to KIT 16 (every lane's source and offsets). Loading one puts it into the project's drums. Export writes the kit and the samples of the USR slots it plays into one file.",
-  tabInstall: "Install", tabBuild: "Build", tabSim: "Simulator", appSimMissing: "The simulator module is not available here.",
+  tabInstall: "Install", tabBuild: "Build", tabSim: "Simulator", tabScreen: "Screen",
+  mirrorHelp: "The FM-1's screen as it is drawn, over the USB cable. The mixer's meters are not sent.",
+  mirrorNone: "This firmware does not send its screen: build it with ED_MIRROR (under the web editor in Build).", appSimMissing: "The simulator module is not available here.",
   devSource: "Device", devUsb: "FM-1 (USB)", devSim: "Simulator", simoff: "The simulator is not running: start it in the Simulator tab (it connects by itself).", appLoading: "Loading…", appNoSite: "This copy has no packages next to it (installer/site.json): choose a .fwsc file of your own.", appInstallMissing: "The installer module is not available here.", appBuildMissing: "The builder module is not available here yet.", appBusy: "Installing: stay on this page until it is done.",
   tabMixer: "Editor", help: "Help", bpm: "BPM", close: "Close", section: "Section", meter: "Meter", syncTip: "MIDI clock (Settings)", syncLocked: "an external clock is followed", syncWaiting: "waiting for that clock", choose: "Choose", number: "Number", value: "Value",
   keysTitle: "Keyboard shortcuts", keyTrack: "Select the previous / next track", keyClose: "Close the open editor (or press its key again)",
@@ -6904,6 +6915,7 @@ function renderPanels() {
     if (b.dataset.tab === "drumkit") b.hidden = !hasKitPage();   /* (the Drum kit page: drum lanes and sample slots) */
     if (b.dataset.tab === "snapshots") b.hidden = !hasSnaps();   /* (the Snapshots screen: only with snapshots) */
     if (b.dataset.tab === "device") b.hidden = !scrsOn();   /* (the device's screens: the Optimist UI's, v13) */
+    if (b.dataset.tab === "screen") b.hidden = !mirrorOn();   /* (the device's own screen: ED_MIRROR) */
     const on = b.dataset.tab === want;
     b.setAttribute("aria-selected", on ? "true" : "false");
     b.tabIndex = on ? 0 : -1;
@@ -6926,6 +6938,8 @@ function renderPanels() {
     if (show && want === "device" && !scrsOn()) { show = false; hint = "scsNone"; }
     if (show && want === "device") renderDevice().catch(report);
     if (show && want === "snapshots" && !hasSnaps()) { show = false; hint = "snNone"; }
+    if (show && want === "screen" && !mirrorOn()) { show = false; hint = "mirrorNone"; }
+    if (show && want === "screen") mirrorStart();
     p.hidden = !show;
   }
   $("hint").hidden = !hint;
@@ -10972,6 +10986,72 @@ async function renderDevice() {
   await scsReload(true);
   if (scs.scr === 8) scopeStart();
 }
+/* the device's own screen (MIRROR, cmd 106; ed_mirror.c, web/EDITOR_PROTOCOL.md "The screen mirrored"): asked about once a second
+   while the Screen tab shows (the device stops 3 s after the last request, or at 106 0), every write to its panel pushed as it is
+   drawn (FILL, BLIT, MORE: Link.receive -> mirrorFrame); the decoder is tests/mirror_dec.h's, drawn once a frame */
+const mir = { on: false, img: null, x: 0, y: 0, w: 0, h: 0, at: 0, slot: new Uint16Array(7), rr: 1, dirty: false };
+const mirrorOn = () => !!dev && !!dev.info && !!dev.info.mirror;
+function mirPx(c, n) {
+  const px = mir.img.data, r = ((c >> 11) & 31) * 255 / 31, g = ((c >> 5) & 63) * 255 / 63, b = (c & 31) * 255 / 31;
+  for (; n > 0 && mir.at < mir.w * mir.h; n--, mir.at++) {
+    const x = mir.x + mir.at % mir.w, y = mir.y + Math.floor(mir.at / mir.w);
+    if (x >= 240 || y >= 240) continue;
+    const i = (y * 240 + x) * 4;
+    px[i] = r; px[i + 1] = g; px[i + 2] = b; px[i + 3] = 255;
+  }
+}
+/* one push (the bytes after the command): 0 FILL x y w h colour, 1 BLIT x y w h runs, 2 MORE runs; false: a bad one */
+function mirrorFrame(a) {
+  if (!mir.img) return false;
+  const v2 = (i) => a[i] | (a[i + 1] << 7), c3 = (i) => v2(i) | (a[i + 2] << 14);
+  const op = a[0], n = a.length;
+  let i = 1;
+  if (op <= 1) {
+    if (i + 8 > n) return false;
+    mir.x = v2(i); mir.y = v2(i + 2); mir.w = v2(i + 4); mir.h = v2(i + 6); mir.at = 0;
+    i += 8;
+  }
+  if (op === 0) {
+    if (i + 3 > n) return false;
+    mirPx(c3(i), mir.w * mir.h);
+  } else if (op === 1 || op === 2) {
+    if (op === 1) { mir.slot.fill(0); mir.rr = 1; }
+    while (i < n) {
+      const t = a[i++];
+      let len = (t >> 3) + 1, s = t & 7;
+      if ((t >> 3) === 15) { if (i + 2 > n) return false; len = 16 + v2(i); i += 2; }
+      if (s === 7) {
+        if (i + 3 > n) return false;
+        mir.slot[mir.rr] = c3(i); s = mir.rr; mir.rr = mir.rr < 6 ? mir.rr + 1 : 1; i += 3;
+      }
+      mirPx(mir.slot[s], len);
+    }
+  } else return false;
+  if (!mir.dirty) {
+    mir.dirty = true;
+    requestAnimationFrame(() => { mir.dirty = false; const c = $("mirror"); if (c && mir.img) c.getContext("2d").putImageData(mir.img, 0, 0); });
+  }
+  return true;
+}
+function mirrorStart() {
+  const c = $("mirror");
+  if (!c || !mirrorOn() || mir.on) return;
+  mir.on = true;
+  if (!mir.img) { mir.img = c.getContext("2d").createImageData(240, 240); for (let i = 3; i < mir.img.data.length; i += 4) mir.img.data[i] = 255; }
+  const d = dev;
+  let bits = 3;                                    /* (the first ask: on and the whole panel again) */
+  (async function loop() {
+    while (dev === d && tab === "screen" && !document.hidden) {
+      try {
+        const r = await rq([CMD.MIRROR, [bits]], { key: "mirror", timeout: 600, retries: 0, quiet: true });
+        bits = r && r[0] === 1 ? 1 : 3;           /* (not on: ask for all of it again) */
+      } catch (e) { bits = 3; /* the link is busy: next time */ }
+      await new Promise((res) => setTimeout(res, 1000));
+    }
+    mir.on = false;
+    if (dev === d) rq([CMD.MIRROR, [0]], { key: "mirror", timeout: 600, retries: 0, quiet: true }).catch(() => {});   /* (off: nothing more pushed) */
+  })();
+}
 /* the oscilloscope: the device's own trace (SCOPE, cmd 101) about 12 times a second while the page shows it */
 let scopeOn = false;
 function scopeStart() {
@@ -12985,6 +13065,7 @@ async function keepAlive() {
 }
 setInterval(keepAlive, 1000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden && dev && dev.watch) { rewatch = true; keepAlive(); } });
+document.addEventListener("visibilitychange", () => { if (!document.hidden && tab === "screen") mirrorStart(); });   /* (the screen: its loop stops while the page is hidden) */
 
 let stepRR = 0;
 setInterval(async () => {
