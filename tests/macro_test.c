@@ -422,7 +422,7 @@ static void t_motion(void)
     scene();
     motion_reset();
     transport_req = 1;
-    for (b = 0; b < div_samples(2) / CTL + div_samples(2) / CTL / 4u; b++)   /* a quarter into step 2 */
+    for (b = 0; b < div_samples(DUR_DEF_16) / CTL + div_samples(DUR_DEF_16) / CTL / 4u; b++)   /* a quarter into step 2 */
         mix_block(out, CTL);
     song.rec = 1;                                    /* track 1 records */
     TDRUM->p[MAC_ID[0]] = 50;                        /* (as edit_param: the value, then the hook) */
@@ -432,7 +432,7 @@ static void t_motion(void)
     song.rec = 0;
     TDRUM->p[MAC_ID[0]] = 0;
     mac_motion(MAC_ID[0], 0);                        /* (not recording: the base) */
-    for (b = 0; b < div_samples(2) * 16u / CTL + 4u; b++) {   /* the next pass: step 2 again */
+    for (b = 0; b < div_samples(DUR_DEF_16) * 16u / CTL + 4u; b++) {   /* the next pass: step 2 again */
         mix_block(out, CTL);
         seen |= TDRUM->p[MAC_ID[0]] == 50;
     }
@@ -482,10 +482,22 @@ static void t_audible(void)
         }
     for (m = 0; m < 4u; m++) {
         char what[96];
+        if (m == 1u)
+            continue;                                /* (MOTION: on the synths alone, below) */
         snprintf(what, sizeof what, "audible: %s at -64 and +63 changes the mix by more than -20 dB", NAME[m]);
         check(d[m][0] > -20.0 && d[m][1] > -20.0, what);
     }
     no_drums = 1;                                    /* (COLOR: the synths alone, the hats would weigh in) */
+    {   /* MOTION moves the synth parts' LFOs, ANALOG 2's drift and the chorus depth (macro.c MAC_ROWS): the synths alone, as
+         * COLOR; in the mix the drums weigh in (15f2e23b levelled every preset to -17.5 LUFS: -64 went -18.3 -> -22.2 dB there) */
+        int32_t *s0 = render(0, 0, 0, 0), *sl = render(0, -64, 0, 0), *sh = render(0, 63, 0, 0);
+        double dl = diff_db(sl, s0), dh = diff_db(sh, s0);
+        printf("macros: synths alone, MOTION -64: difference %6.1f dB, +63: %6.1f dB\n", dl, dh);
+        check(dl > -20.0 && dh > -20.0, "audible: MOTION at -64 and +63 changes the synths alone by more than -20 dB");
+        munmap(s0, R_FRAMES * 2u * sizeof(int32_t));
+        munmap(sl, R_FRAMES * 2u * sizeof(int32_t));
+        munmap(sh, R_FRAMES * 2u * sizeof(int32_t));
+    }
     {
         int32_t *s0 = render(0, 0, 0, 0), *sl = render(-64, 0, 0, 0), *sh = render(63, 0, 0, 0);
         stats_t a0 = stats(s0), al = stats(sl), ah = stats(sh);

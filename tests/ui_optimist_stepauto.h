@@ -48,13 +48,11 @@ static void step_auto_tests(void)
     check(op_step_auto(t, 5, 7) && !op_step_auto(t, 5, 2) && !op_step_auto(t, 5, 16u), "step auto: a lane's event marks that lane's cell only");
     (void)auto_put(AL(t), 6 | 0, 0, 10);
     check(op_step_auto(t, 6, 2) && op_step_auto(t, 6, 9) && op_step_auto(t, 6, 16u), "step auto: a track's event (motion or lock) marks the step on every lane");
-    /* the drum grid: step 0 plain, step 1 locked, on lane 2, both hard */
+    /* the drum grid: step 0 plain, step 1 locked, on lane 2, both at the tap's level (a second tap would clear it, f976a955) */
     sa_open(1);
     t = TSEL;
     key(WK(0));
     key(WK(1));
-    key(WK(0));
-    key(WK(1));                                         /* (set, then hard: the tap cycle) */
     AL(t)->n = 0;
     (void)auto_put(AL(t), 1, 0, 10);
     auto_touch(trk_index(TSEL));

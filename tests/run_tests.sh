@@ -285,7 +285,8 @@ job; ( jobin
     run "PLAITS engine (FELUCCA_ENG_PLAITS=1): UID 17, every preset audible / bounded / voices free, tests/golden_plaits.txt, level, each model's EDIT values, corners, deterministic, pitch, MODEL switch, 4 voices" "$OUT/plaits_test" tests/golden_plaits.txt
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src $SCENE_ON -o "$OUT/scene_engines_test" tests/scene_engines_test.c -lm
+    # (-ffp-contract=off: PROPHET's float voice as the FM-1's FPU unit computes it, no fused multiply-add: an arm64 host fused them, x86 did not)
+    $CC -O2 -w -ffp-contract=off -I"$HGEN" -Ifirmware/src $SCENE_ON -o "$OUT/scene_engines_test" tests/scene_engines_test.c -lm
     run "the scene's engines (Clipper's STRINGS VPS TERRAIN WSEQ VECTOR WAVE, SID, PROPHET; UIDs 18..25): every preset audible / bounded / silent after, tests/golden_scene_engines.txt, level, each EDIT value acts, corners, deterministic, pitch" "$OUT/scene_engines_test" tests/golden_scene_engines.txt
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
@@ -1243,7 +1244,7 @@ for x in 0 1; do   # per-track patterns and scenes (FELUCCA_PATTERNS): unit; the
         run "patterns and scenes (XSTEP=$x): store, share, copy-on-write, NO FREE PATTERN, old sections converted (cut anywhere), arena, stage, a scene's FX record (an older build's misfiled one moved), MEM FULL" "$OUT/patterns_test$x"
         [ "$x" = 1 ] && $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SL24_XSTEP=$x -o "$OUT/project_scope_test" tests/project_scope_test.c -lm && \
             run "projects own their scenes, patterns and song: another project sees none of them, nothing done there touches the first, the arena across a switch, the chain and BARS, a restart, DELETE, MEM FULL across projects" "$OUT/project_scope_test"
-        run "patterns (XSTEP=$x) across builds: scenes flattened without PATTERNS, a section stored there converted back" sh -c "$OUT/patterns_test$x $OUT/pat$x.img 1 && $OUT/patterns_test${x}n $OUT/pat$x.img 2 && $OUT/patterns_test$x $OUT/pat$x.img 3"
+        run "patterns (XSTEP=$x) across builds: a build without PATTERNS sees none of its projects (log format 2 elsewhere) and leaves them as they were" sh -c "$OUT/patterns_test$x $OUT/pat$x.img 1 && $OUT/patterns_test${x}n $OUT/pat$x.img 2 && $OUT/patterns_test$x $OUT/pat$x.img 3"
     ) >"$U.out" 2>&1 & jobbg
 done
 job; ( jobin

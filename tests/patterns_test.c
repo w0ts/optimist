@@ -443,20 +443,21 @@ static void cross(const char *f, int step)
     }
     sec_pend_clear();
     sec_boot();
-    if (step == 2) {                                  /* not PATTERNS: flattened; C stored again as a section */
+    if (step == 2) {                                  /* not PATTERNS: since f6b622a1 a PATTERNS build keeps its projects in log
+                                                       * format 2 at another place (sec_log.c SLG_V2), "the old log unread": this
+                                                       * build sees none of them and stores into its own log, the other untouched */
         for (s = 0; s < 8u; s++)
-            ok &= is_scene(s) && same(s);
-        check("cross 2 (no PATTERNS): every scene plays flattened, as the project stored", ok);
+            ok &= !slg_has(s);
+        check("cross 2 (no PATTERNS): the PATTERNS build's projects are not seen (its format-2 log elsewhere)", ok);
         make(21);
-        take(2);
         project_save(2);
-        check("... C stored again: a plain section; the patterns kept in the log", !is_scene(2) && same(2) && npat() == 27u);
-        img_io(f, 1);
+        check("... C stored here: a plain section in this build's own log", slg_has(2) && !is_scene(2) && npat() == 0u);
+        img_io(f, 1);                                 /* (want[] as step 1 stored it: step 3 checks the PATTERNS build's own) */
         return;
     }
-    for (s = 0; s < 8u; s++)                          /* PATTERNS again: C converted, the rest as they were */
+    for (s = 0; s < 8u; s++)                          /* PATTERNS again: its projects as it left them */
         ok &= is_scene(s) && same(s);
-    check("cross 3 (PATTERNS again): C converted back into a scene, every scene as it was", ok);
+    check("cross 3 (PATTERNS again): every scene as it was (the other build wrote only its own log)", ok);
 }
 
 int main(int argc, char **argv)

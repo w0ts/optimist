@@ -295,7 +295,7 @@ static void ll_conn_begin(const struct ble_hw_conn *c, const uint8_t peer[6], ui
     bll.win_offset = c->win_offset;
     bll.last_evt = 0xFFFFu;                         /* the first event is counter 0 */
     bll.max_tx = bll.max_rx = 27u;
-    ble_zero(bll.peer_len, sizeof bll.peer_len);
+    ble_zero((uint8_t *)bll.peer_len, sizeof bll.peer_len);   /* (its bytes: ble_zero takes a byte pointer) */
     bll.state = LL_CONN;
     bll.t_start = bll.t_rx = ble_hw_time_us();
 }

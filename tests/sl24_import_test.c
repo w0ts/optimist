@@ -139,11 +139,17 @@ int main(void)
     /* values (the generator: track k, value i = k * 7 + i % 40; E i = 10 + i + k) */
     for (k = 0, ok = 1; k < NTRK; k++) {
         pj_to_p(v, q.t[k].p);
-        for (i = 0; i < 50u; i++)
+        for (i = 0; i < 50u; i++) {
+            int32_t raw = (int32_t)(k * 7u + i % 40u);
+            if (i == P_ARATE || i == P_SDIV) {           /* (its note values: ours, 03b676ad; as sl26_import_test) */
+                ok &= v[i] == (i == P_ARATE ? sloop_dur_in(SLOOP_DIV_DUR, 6, raw) : sloop_dur_in(SLOOP_DIV_DUR, 9, raw));
+                continue;
+            }
             ok &= (SL24_TP && k == TRK_DRUM && (i == P_GLMODE || i == P_PRIO || i == P_ALLOC || i == P_DETUNE)) ||
                   (i == P_AMODE && k != TRK_DRUM && v[i] == sl27_amode_in((int32_t)(k * 7u + i % 40u), &cut)) ||
                   v[i] == (int16_t)(k * 7u + i % 40u);   /* (the drum track's four hold TFLT .. : px_pack; a part's arp MODE:
                                                           * the nearest of ours, sl27_amode_in) */
+        }
         ok &= v[P_FXOFF] == TP[P_FXOFF].def && v[P_A2WAVE] == TP[P_A2WAVE].def;
         if (k == 0 || k == 2)
             for (i = 0; i < 8u; i++)
