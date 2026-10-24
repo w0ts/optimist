@@ -13,6 +13,9 @@
 static uint8_t ble_on;                          /* (firmware/src/io/midi/midi_ble.c: HOME > BLUETOOTH, the radio's address) */
 static uint8_t ble_addr_kept[8];
 static void ble_midi_out(uint32_t pkt) { (void)pkt; }
+static int ble_rt_on(void) { return 0; }         /* (midi_ble.c: CLOCK OUT to a central, clock_out.c; none listens here) */
+static void ble_rt_push(uint32_t due, uint32_t pkt) { (void)due, (void)pkt; }
+static void ble_rt_drop_after(uint32_t t, uint32_t pkt) { (void)t, (void)pkt; }
 #endif
 static uint32_t trk_def_engine(uint32_t i)
 {
