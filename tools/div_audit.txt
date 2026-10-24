@@ -278,3 +278,5 @@ src/seq/seq.c:step_add:len | TLEN (len = trk_len(t))
 src/ui/optimist/op_preset.c:pop_paint:(int32_t)pop.total | pop_paint runs only from draw_pop's cv_tall, after "if (!pop.total || pop.cur >= pop.total) return"
 src/ui/optimist/op_project.c:sys_batt_pct:(uint32_t)(MV[i]-MV[i-1u]) | TABLE MV {3300, 3500, 3700, 3800, 3900, 4000, 4150}, strictly rising: each difference >= 100
 src/ui/optimist/op_songtbl.c:stb_paint:(int32_t)nl | nl = 5 (SCENE) or 2
+# 2026-10-24: BT AUDIO remembers up to 4 devices
+src/bt/bta_mem.c:bta_next:bta.nmem | guarded: returns 0 first when nmem < 2, so the modulo sees 2 or more
