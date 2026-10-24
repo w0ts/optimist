@@ -572,6 +572,8 @@ static int16_t xdl_v[XD_NO][XDV_N] = {XD_V_DEF, XD_V_DEF, XD_V_DEF, XD_V_DEF, XD
 _Static_assert(XD_NO == 5u, "xdl_v: T1 T2 T3 DR, the master");
 #define XDL_V(o) xdl_v[(uint32_t)(o) % XD_NO]
 /* TIME's samples at a line of 16384 (a shorter line: >> its log2 ratio): 44 x (16380 / 44)^(v / 127), 1 ms .. 371 ms */
+#if !TAB_XD_D_CODED   /* (the target with TAB_CODED_ALL: delta-coded in the boot stream, expanded into the pool at boot,
+                       * felucca_tables.h gen_tables.py carr: the same values, read from the pool) */
 static const uint16_t XD_D[128] = {
     44, 46, 48, 51, 53, 56, 58, 61, 64, 67, 70, 73, 77, 81, 84, 89,
     93, 97, 102, 107, 112, 117, 123, 129, 135, 141, 148, 155, 162, 170, 178, 187,
@@ -582,6 +584,7 @@ static const uint16_t XD_D[128] = {
     3862, 4046, 4239, 4441, 4653, 4875, 5108, 5352, 5607, 5874, 6155, 6448, 6756, 7078, 7416, 7770,
     8141, 8529, 8936, 9363, 9809, 10277, 10768, 11282, 11820, 12384, 12975, 13594, 14242, 14922, 15634, 16380,
 };
+#endif
 _Static_assert(FS == 44100 && (FELUCCA_XDLY_LEN == 16384 || FELUCCA_XDLY_LEN == 8192), "XD_D: 44.1 kHz, a line of 16384 or 8192");
 #define XD_SH (FELUCCA_XDLY_LEN == 16384 ? 0u : 1u)    /* (a shorter line: half the times) */
 AINL uint32_t xd_samples(int32_t v) { return (uint32_t)XD_D[clamp(v, 0, 127)] >> XD_SH; }

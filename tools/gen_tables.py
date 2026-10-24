@@ -43,7 +43,9 @@ CODED = []              # (group, name, ctype, n, flags, stream, values)
 # tools/builder/costs.json)
 GROUPS = {"core": None, "flash": "FELUCCA_TAB_CODED_ALL", "fm6": "FELUCCA_ENG_FM6 && FELUCCA_TAB_CODED_ALL >= 2",
           "plaits": "FELUCCA_ENG_PLAITS && FELUCCA_TAB_CODED_ALL",   # (1: the small tables, PLAITS' waveshapers and JUNO's
-          "juno": "FELUCCA_ENG_JUNO && FELUCCA_TAB_CODED_ALL"}       #  cutoff steps when built; 2: FM6's too)
+          "juno": "FELUCCA_ENG_JUNO && FELUCCA_TAB_CODED_ALL",       #  tables when built, the master compressor's and XDLY's
+          "mcomp": "FELUCCA_MASTER_COMP && FELUCCA_TAB_CODED_ALL",   #  curves; 2: FM6's too; tools/build.py joins the built
+          "xdly": "FELUCCA_INS_XDLY && FELUCCA_TAB_CODED_ALL"}       #  groups' blobs in this order)
 CODED_W = {"uint8_t": 1, "int16_t": 2, "uint16_t": 2, "int32_t": 4, "uint32_t": 4, "int64_t": 8}
 F_ORDER2 = 2
 F_SINE = 4
@@ -84,6 +86,15 @@ def unzigzag_leb(stream, n, order):
         out.append(v)
         p2, p1 = p1, v
     return out, i
+
+
+def c_table(text, name):
+    """the values of the C array NAME[n] = {...}; in text (a table another file defines plain), checked against n"""
+    m = re.search(r"\b" + name + r"\[(\d+)\] = \{(.*?)\};", text, re.S)
+    assert m, name
+    vals = [int(x) for x in re.findall(r"-?\d+", m.group(2))]
+    assert len(vals) == int(m.group(1)), (name, len(vals), m.group(1))
+    return vals
 
 
 def carr(name, ctype, vals, per=12, ram=False, group="core", sine=False, dims=None, ext=False):
@@ -330,7 +341,13 @@ def main(path):
          "#if defined(__PI32V2__) && defined(FELUCCA_TAB_IN_POOL) && FELUCCA_TAB_IN_POOL",
          '#define TAB_POOL __attribute__((section(".pool.tab")))', "#else", "#define TAB_POOL", "#endif",
          "#if defined(__PI32V2__)", '#define TAB_CPOOL __attribute__((section(".pool.tabc")))', "#else", "#define TAB_CPOOL",
-         "#endif", ""]
+         "#endif",
+         "/* TAB_RAW_POOL: a const table that TAB_CODED_ALL moves from flash to the pool as it is (the small font's bitmaps,",
+         " * gen_font.py FONT_S_DATA: no smooth curve for the delta codes): its bytes travel in the boot stream (app.ld .pool_init,",
+         " * coded there as .data is: LZ and the range coder) and are copied into the pool at boot, the same values read from RAM;",
+         " * off, and on the host, the table stays where it was (round 9, 2026-10-24) */",
+         "#if defined(__PI32V2__) && FELUCCA_TAB_CODED_ALL", '#define TAB_RAW_POOL __attribute__((section(".pool_init.raw")))',
+         "#else", "#define TAB_RAW_POOL", "#endif", ""]
     L += carr("SINE", "int16_t", [int(round(32767 * math.sin(2 * math.pi * i / 1024))) for i in range(1024)], ram=True,
               sine=True)
     # phase increment for pitch in 1/16 semitone, MIDI 0..127: the top octave (MIDI 116..127.94) and a shift per octave
@@ -395,6 +412,20 @@ def main(path):
     juno_d = [int(x) for x in re.findall(r"\d+", re.search(r"JUNO_VCF_G1Q_D\[1025\] = \{(.*?)\};", juno_h, re.S).group(1))]
     assert len(juno_d) == 1025, len(juno_d)
     L += carr("JUNO_VCF_G1Q_D", "uint8_t", juno_d, 16, group="juno", ext=True)
+    # JUNO's small tables (the cutoff's and the VCA's every-16th values, the resonance and peak steps, the feedback
+    # scale, the OTA's saturation, the sub and noise levels: 1,538 B of flash), the master compressor's 2^x curve
+    # (master_comp.c MC_EXP2, 260 B) and XDLY's TIME curve (fx_slots.c XD_D, 256 B): the same way, each group built
+    # with its feature and TAB_CODED_ALL, the values read from the source as it is (round 9, 2026-10-24: measured on
+    # mots.config with the small font in the pool, see tools/builder/costs.json)
+    for name, ctype in (("JUNO_VCF_G1Q_A", "uint16_t"), ("JUNO_RES_K_A", "uint16_t"), ("JUNO_RES_K_D", "uint8_t"),
+                        ("JUNO_FB_SCALE_T", "uint16_t"), ("JUNO_PEAK_PULL_A", "uint16_t"), ("JUNO_PEAK_PULL_D", "uint8_t"),
+                        ("JUNO_OTA_SAT2", "int16_t"), ("JUNO_SUB_LEVEL_J106", "uint16_t"), ("JUNO_NOISE_LEVEL_J106", "uint16_t"),
+                        ("JUNO_VCA_HW_A", "uint16_t"), ("JUNO_VCA_HW_D", "uint8_t")):
+        L += carr(name, ctype, c_table(juno_h, name), 16, group="juno", ext=True)
+    src = Path(__file__).resolve().parents[1] / "firmware/src"
+    L += carr("MC_EXP2", "uint32_t", c_table((src / "fx/master_comp/master_comp.c").read_text(), "MC_EXP2"), 16, group="mcomp",
+              ext=True)
+    L += carr("XD_D", "uint16_t", c_table((src / "fx/fx_slots.c").read_text(), "XD_D"), 16, group="xdly", ext=True)
     L += fm6_tables()
     coded, blobs = coded_tables()
     L += coded

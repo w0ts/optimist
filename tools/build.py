@@ -339,9 +339,12 @@ def build_app():
     fm6 = int(CFG_VALUES.get("FELUCCA_ENG_FM6", os.environ.get("FELUCCA_ENG_FM6", "1")))
     plaits = int(CFG_VALUES.get("FELUCCA_ENG_PLAITS", os.environ.get("FELUCCA_ENG_PLAITS", "0")))
     juno = int(CFG_VALUES.get("FELUCCA_ENG_JUNO", os.environ.get("FELUCCA_ENG_JUNO", "0")))
+    mcomp = int(CFG_VALUES.get("FELUCCA_MASTER_COMP", os.environ.get("FELUCCA_MASTER_COMP", "1")))
+    xdly = int(CFG_VALUES.get("FELUCCA_INS_XDLY", os.environ.get("FELUCCA_INS_XDLY", "0")))
     tab_blob = b"".join((GEN / f"tab_blob_{g}.bin").read_bytes()
                         for g, on in (("core", True), ("flash", tca >= 1), ("fm6", fm6 == 1 and tca >= 2),
-                                      ("plaits", plaits == 1 and tca >= 1), ("juno", juno == 1 and tca >= 1)) if on)
+                                      ("plaits", plaits == 1 and tca >= 1), ("juno", juno == 1 and tca >= 1),
+                                      ("mcomp", mcomp == 1 and tca >= 1), ("xdly", xdly == 1 and tca >= 1)) if on)
     # (gen_tables.py GROUPS' order; a group whose condition disagrees with the header's does not compile: TAB_BLOB_TOTAL)
     (OUT / "tabblob.bin").write_bytes(tab_blob)
     flags.append(f"-DTAB_STREAM_LEN={len(tab_blob)}u")
