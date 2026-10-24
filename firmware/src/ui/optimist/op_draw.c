@@ -1044,6 +1044,44 @@ static uint32_t meter_h(int32_t pk)                     /* a peak (32767 = 0 dBF
         lg++;
     return lg < 5u ? 0u : (uint32_t)ui_clamp(((int32_t)(lg - 5u) * 4 + 4) * METER_H / 44, 0, METER_H);
 }
+/* ---- the note played on the keys, at the screen's bottom left (the user, 2026-10-24, after Melodee): its name (A#4; a
+ * chord's lowest) while a note key is down and NN_FRAMES after the last one is let go. A build with the help band: the
+ * help line shows it at its left end (op_help.c hl_pre / hl_post: the band is the line's alone); without the band, it is
+ * drawn last each frame over the panel's corner, and when it goes the screen is drawn again whole */
+#define NN_FRAMES 60u                   /* ~1 s at 60 frames a second */
+#define NN_W 38u
+#define NN_Y 224u                       /* the help band's text rows (op_help.c HL_Y + 2), the panel's last 16 without it */
+static uint8_t nn_vis, nn_gone;         /* the note shown + 1 (0: none); it went this frame */
+static void nn_tick(void)               /* each frame, first (the help line reads nn_vis) */
+{
+    static uint8_t t, seen;
+    uint32_t k, held = 0;
+    for (k = 0; k < 27u; k++)
+        held |= ((kb_prev >> k) & 1u) && kb_kind[k] == KS_NOTE;   /* (down now, playing a note) */
+    nn_gone = 0;
+    if (held || kb_shown_n != seen)
+        t = (uint8_t)NN_FRAMES, seen = kb_shown_n;
+    else if (t && !--t)
+        nn_gone = 1;
+    nn_vis = t ? (uint8_t)(kb_shown + 1u) : 0u;
+}
+static void nn_post(void)               /* last, after the frame's force is spent (its own asks the next frame) */
+{
+    char b[6];
+    if (OP_FOOT)
+        return;                                         /* (the help band: the help line draws it) */
+    if (nn_gone) {
+        ui.force = 1;                                   /* (gone: the corner drawn again by whatever is under it) */
+        return;
+    }
+    if (!nn_vis)
+        return;
+    note_name(b, nn_vis - 1u);
+    cv_begin(NN_W, 240u - NN_Y, C_BLACK);
+    cv_texts(4, 0, b, C_WHITE);
+    cv_blit(0, NN_Y);
+}
+
 /* ---- no footer (the user, 2026-10-08: "no footer anywhere"): every screen draws to the screen's foot. Under a
  * question the modal covers the panel's first MODAL_H rows; the rows below it are an empty band */
 static void draw_under(void)
@@ -1152,6 +1190,7 @@ static void op_frame_draw(void)
         }
         was_full = (uint8_t)full;
     }
+    nn_tick();                                          /* (the note played: before the help line, which shows it) */
     hl_pre(ov);                                         /* (the help line: its rows kept from the bands, op_help.c) */
     draw_head();
     if (name_on() && ov != 4u) {                        /* NAME: the field, the keyboard, the hints (op_name.c) */
@@ -1204,4 +1243,5 @@ static void op_frame_draw(void)
     draw_under();
     hl_post();
     ui.force = 0;
+    nn_post();
 }
