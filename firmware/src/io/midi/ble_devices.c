@@ -302,7 +302,10 @@ static void ble_dev_pick(uint32_t row)
 {
     int last;
     uint8_t near[16];
-    uint32_t n_near, n = ble_dev_rows(&last, near, &n_near), nk = BLE_NK(last);
+    uint32_t n_near, n = ble_dev_rows(&last, near, &n_near);
+#if BLE_CENTRAL
+    uint32_t nk = BLE_NK(last);                  /* (the remembered rows: only a central's list has them) */
+#endif
     if (row >= n) {
         ble_dev_say("DEVICE GONE", BDL_WARN);
         return;
