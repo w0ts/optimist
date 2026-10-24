@@ -61,12 +61,14 @@ out = {"registry": web_api.registry_view(), "texts": [web_api.parse_text(t) for 
 out["views"] = [dict(web_api.view(q["values"], q["name"], q["commit"]), fit=web_api.fit_view(q["values"])) for q in req["views"]]
 out["toggles"] = [web_api.toggle(q["values"], q["key"], q["value"], q["room"]) for q in req["toggles"]]
 out["repo"] = {"configure": getattr(sys.modules.get("configure"), "__file__", None), "shared": "shared" in sys.modules,
-               "path": [p for p in sys.path if p.startswith(sys.argv[1]) or "optimist" not in p] == sys.path}
+               "path": [p for p in sys.path if p.startswith(sys.argv[1]) or p.startswith((sys.prefix, sys.base_prefix)) or "optimist" not in p] == sys.path,
+               "seen": [p for p in sys.path if "optimist" in p and not p.startswith(sys.argv[1])]}
 json.dump(out, sys.stdout)`;
 const web0 = JSON.parse(run(["-I", "-c", WEB, FS, COSTS], JSON.stringify({ needs_auto: py.needs_auto, texts, views: [], toggles: [] })));
 ok(same(web0.registry, data("registry.json")), "exported Python alone: its registry is data/registry.json (backports included)");
 ok(web0.registry.registry.items.length === reg.items.length && reg.items.length > 100, `exported Python alone: ${reg.items.length} items`);
-ok(same(web0.repo, { configure: null, shared: false, path: true }), "exported Python alone: nothing of the repository (configure is the stand-in)");
+ok(same({ configure: web0.repo.configure, shared: web0.repo.shared, path: web0.repo.path }, { configure: null, shared: false, path: true }),
+   `exported Python alone: nothing of the repository (configure is the stand-in${web0.repo.path ? "" : `; on the path: ${web0.repo.seen.join(" ")}`})`);
 
 const views = [], toggles = [];
 for (const [i, p] of prof.profiles.entries()) {
