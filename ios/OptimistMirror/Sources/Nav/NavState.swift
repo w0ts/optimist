@@ -109,3 +109,22 @@ enum FavoriteStore {
         if let d = try? JSONEncoder().encode(f) { UserDefaults.standard.set(d, forKey: key) }
     }
 }
+
+/// "With the buttons" or "screen alone" (the mirrored screen fills the space the buttons took), kept in UserDefaults like the
+/// favourites: this device only, remembered across launches
+@MainActor
+final class NavLayoutStore: ObservableObject {
+    static let key = "screenAlone"
+    private let defaults: UserDefaults
+    @Published private(set) var screenAlone: Bool
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        screenAlone = defaults.bool(forKey: Self.key)
+    }
+
+    func toggle() {
+        screenAlone.toggle()
+        defaults.set(screenAlone, forKey: Self.key)
+    }
+}

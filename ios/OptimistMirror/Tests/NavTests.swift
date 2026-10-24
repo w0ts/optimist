@@ -33,4 +33,18 @@ final class NavTests: XCTestCase {
         let d = try JSONEncoder().encode([page, onLane])
         XCTAssertEqual(try JSONDecoder().decode([Favorite].self, from: d), [page, onLane])
     }
+
+    @MainActor func testScreenAloneModeDefaultsToButtonsAndIsRemembered() throws {
+        let suite = "mirror-alone-test"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let first = NavLayoutStore(defaults: defaults)
+        XCTAssertFalse(first.screenAlone)                       // (default: with the buttons)
+        first.toggle()
+        XCTAssertTrue(first.screenAlone)
+        XCTAssertTrue(NavLayoutStore(defaults: defaults).screenAlone)    // (a new instance: remembered)
+        first.toggle()
+        XCTAssertFalse(NavLayoutStore(defaults: defaults).screenAlone)
+    }
 }
