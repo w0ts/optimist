@@ -17,8 +17,10 @@
  *   106 MIRROR  bits -> on, version, w (2 x 7 bit), h (2 x 7 bit)
  *       bits  bit 0 on (0: off), bit 1 the whole panel again
  * Mirroring ends 3 s after the last request of any kind (ask again or PING about every 1 s), with 106 0, and when its link goes
- * (a USB reset; no Bluetooth central listening). Over Bluetooth only 106 is answered (mir_ble_rx). INFO tag 0x65: 1 byte, the version
- * (0x63 was REC's: retired, not reused). */
+ * (a USB reset; no Bluetooth central listening). Over Bluetooth 106 is answered, and INFO (1), 108 PANEL and 109 NAV (mir_ble_rx:
+ * 4 arguments at most, MBR_CQ waiting; the main loop runs them as USB's, the reply into the Bluetooth ring: ed_send, mir_bt_reply),
+ * nothing else. INFO tag 0x65: 1 byte, the version; 0x66's opti_mirbt_1: PANEL and NAV over Bluetooth too (0x63 was REC's: retired,
+ * not reused). */
 #include "ed_mirror_enc.h"
 enum { MIR_STALL_MS = 30, MIR_ALIVE_MS = 3000, MIR_USB = 0, MIR_BT = 1,
        MIR_CATCH_MS = 250,
@@ -35,6 +37,7 @@ static struct {
 static void op_repaint(void);
 
 #if MIR_BLE
+static void ed_handle(const uint8_t *f, uint32_t n);   /* (editor.c / ed_lite.c: a request from Bluetooth, mir_poll) */
 /* ---- Bluetooth: a byte ring in the pool, frames made visible whole (mbr.w only at F7), drained by the radio's interrupts */
 #define MIR_BLE_RING 8192u              /* a catch-up is 1.65 KB on average, 6.3 KB at most (version 2; tests/ui_optimist_test.c MIRROR_CHECK) */
 #ifndef MIR_BLE_LAG                     /* (tests/mirror_test.c: a smaller one) */
@@ -44,14 +47,18 @@ static void op_repaint(void);
                                          * went over it and came whole twice (the user: "switch ... back to mixer, there is a lag") */
 #endif
 static uint8_t mbr_q[MIR_BLE_RING] IN_POOL;
+#define MBR_RXN 8u                      /* a request's bytes between F0 and F7: 7D 46 4C cmd + 4 arguments at most */
+#define MBR_CQ 8u                       /* PANEL's down / up pairs and a knob's drag come quicker than a main-loop pass */
 static struct {
     volatile uint32_t w, r;             /* w: the frames written whole; r: the radio's read position */
     uint32_t fw;                        /* the frame being written */
     uint32_t base;                      /* the end of the last catch-up's frames: MIR_BLE_LAG counts what came after */
     uint8_t pk, mid;                    /* the radio's side: bytes in the packet peeked; inside a frame (a channel message would end it) */
     volatile uint8_t req;               /* 0x80 | bits: a request came in (mir_ble_rx), for the main loop */
-    uint8_t rx_n, rx[7];                /* the request being received */
+    uint8_t rx_n, rx[MBR_RXN];          /* the request being received: 7D 46 4C cmd, its arguments */
+    volatile uint8_t cw, cr;            /* the INFO / PANEL / NAV requests waiting (mbr_cq), for the main loop */
 } mbr;
+static uint8_t mbr_cq[MBR_CQ][MBR_RXN + 1u] IN_POOL;   /* each: its length, then 7D 46 4C cmd args (in the pool: RAM is full) */
 static int mbr_put(uint32_t b)
 {
     if (b == 0xF0u) {
@@ -97,25 +104,51 @@ static void mir_ble_pop(void)
 }
 static int mir_ble_mid(void) { return mbr.mid && mbr.r != mbr.w; }   /* (a frame begun goes on before any channel message) */
 static void mir_ble_flush(void) { mbr.r = mbr.w, mbr.mid = 0, mbr.pk = 0; }   /* (no central listening) */
-/* the radio's interrupts: a SysEx packet that came in; only F0 7D 46 4C 6A bits F7 is taken (the main loop answers it) */
+/* a whole request in rx (rx_n bytes): 106 for mir_poll's own answer; INFO, PANEL, NAV queued; anything else dropped */
+static void mbr_take(void)
+{
+    uint32_t cmd = mbr.rx[3], i;
+    if (mbr.rx_n < 4u || mbr.rx[0] != 0x7Du || mbr.rx[1] != 0x46u || mbr.rx[2] != 0x4Cu)
+        return;
+    if (cmd == ED_MIRROR) {
+        if (mbr.rx_n == 5u)
+            mbr.req = (uint8_t)(0x80u | mbr.rx[4]);
+        return;
+    }
+    if ((cmd != 1u && cmd != ED_PANEL && cmd != ED_NAV) || (uint8_t)(mbr.cw - mbr.cr) >= MBR_CQ)
+        return;                         /* (full: dropped; the client's request times out and is sent again) */
+    mbr_cq[mbr.cw % MBR_CQ][0] = mbr.rx_n;
+    for (i = 0; i < mbr.rx_n; i++)
+        mbr_cq[mbr.cw % MBR_CQ][1u + i] = mbr.rx[i];
+    RING_PUBLISH();
+    mbr.cw++;
+}
+/* the radio's interrupts: a SysEx packet that came in; F0 7D 46 4C cmd args F7 taken whole (mbr_take), the main loop answers it */
 static void mir_ble_rx(uint32_t pkt)
 {
-    static const uint8_t HDR[5] = {0xF0, 0x7D, 0x46, 0x4C, ED_MIRROR};
     uint32_t cin = pkt & 15u, n = cin == 4u || cin == 7u ? 3u : cin == 6u ? 2u : 1u, i;
     for (i = 0; i < n; i++) {
         uint32_t b = (pkt >> (8u + 8u * i)) & 0xFFu;
         if (b == 0xF0u)
             mbr.rx_n = 0;
-        if (b == 0xF7u) {
-            if (mbr.rx_n == 6u)
-                mbr.req = (uint8_t)(0x80u | mbr.rx[5]);
-            mbr.rx_n = 7;               /* (nothing until the next F0) */
-        } else if (mbr.rx_n < 6u && (mbr.rx_n == 5u ? b < 0x80u : b == HDR[mbr.rx_n])) {
+        else if (b == 0xF7u) {
+            if (mbr.rx_n <= MBR_RXN)
+                mbr_take();
+            mbr.rx_n = MBR_RXN + 1u;    /* (nothing until the next F0) */
+        } else if (mbr.rx_n < MBR_RXN && b < 0x80u)
             mbr.rx[mbr.rx_n++] = (uint8_t)b;
-        } else {
-            mbr.rx_n = 7;
-        }
+        else
+            mbr.rx_n = MBR_RXN + 1u;    /* (too long, or a status inside: not ours) */
     }
+}
+/* ed_send over Bluetooth (ed_bt): the reply F0 .. F7 into the ring as one frame */
+static void mir_bt_reply(const uint8_t *p, uint32_t n)
+{
+    uint32_t i;
+    for (i = 0; i < n && mbr_put(p[i]); i++)
+        ;
+    if (i == n)
+        mbr_end();
 }
 static int mir_bt_up(void) { return ble_out_on; }
 static int mir_bt_clear(void) { return mbr.r == mbr.w; }
@@ -312,6 +345,17 @@ static void mir_poll(void)
             me_close();
         }
     }
+    while (mbr.cr != mbr.cw && mir_bt_up()) {   /* INFO, PANEL, NAV from Bluetooth: run as USB's, answered there */
+        uint32_t k = mbr.cr % MBR_CQ;
+        RING_PUBLISH();
+        MIR_SEEN();
+        ed_bt = 1;
+        ed_handle(mbr_cq[k] + 1, mbr_cq[k][0]);
+        ed_bt = 0;
+        mbr.cr++;
+    }
+    if (!mir_bt_up())
+        mbr.cr = mbr.cw;                /* (no central: nothing to answer) */
 #endif
     mir_live();                         /* (the link gone, the keep-alive out: off) */
     if (!mir.on || !mir.behind || ui.overlay == 5u || (mir.link == MIR_BT ? !mir_bt_clear() : so_w != so_r) ||

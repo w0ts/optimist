@@ -70,7 +70,7 @@ static void ed_str(const char *s, uint32_t max)   /* (editor.c's: ASCII, 0-termi
 /* ---- the host: packets back into frames (as CoreMIDI does), each decoded */
 #include "mirror_dec.h"
 static uint8_t hf[4096];
-static uint32_t hn, frames, bytes, bad, max_frame, replies, last_reply_on, links, link[7];
+static uint32_t hn, frames, bytes, bad, max_frame, replies, last_reply_on, links, link[7], ed_replies, ed_last[3];
 static int stalled;                     /* 1: the USB host reads nothing (the ring stays full) */
 static FILE *fix;
 static void host_byte(uint8_t b)
@@ -82,7 +82,9 @@ static void host_byte(uint8_t b)
     if (b == 0xF7u) {
         frames++, bytes += hn;
         max_frame = hn > max_frame ? hn : max_frame;
-        if (hn == 12u && hf[5] <= 1u && hf[6] >= 1u)
+        if (hn >= 6u && hf[4] != 106u)
+            ed_replies++, ed_last[0] = hf[4], ed_last[1] = hn > 5u ? hf[5] : 0u, ed_last[2] = hn > 6u ? hf[6] : 0u;   /* (an editor reply: Bluetooth's PANEL, NAV, INFO) */
+        else if (hn == 12u && hf[5] <= 1u && hf[6] >= 1u)
             replies++, last_reply_on = hf[5];
         else if (hn == 21u && hf[5] == 3u) {             /* (op 3 LINK, after a Bluetooth reply) */
             uint32_t i;
@@ -134,10 +136,32 @@ static void fm1_remote_key(uint32_t id, uint32_t down)
 }
 static void fm1_remote_enc(uint32_t e, int32_t s) { rem_enc[e] += s; }
 static void fm1_remote_clear(void) { rem_btn = rem_note = 0; }
+static uint8_t ed_bt;                  /* (editor.c's: the request came over Bluetooth) */
 #define panel panel_tab
 #define MIR_BLE_LAG 1536u               /* (smaller than the firmware's: the random screens here catch up in less than its 4 KB) */
 #include "../firmware/src/io/editor/ed_mirror.c"
 #undef panel
+/* editor.c's ed_handle and ed_send, the commands Bluetooth takes: the reply framed, over Bluetooth into the ring */
+static uint32_t ed_handled[128];
+static void ed_handle(const uint8_t *f, uint32_t n)
+{
+    uint8_t o[96];
+    uint32_t cmd = f[3], i, k = 0;
+    ed_handled[cmd & 127u]++;
+    nrep = 0;
+    if (cmd == ED_PANEL)
+        ed_panel(f + 4, n - 4u);
+    else if (cmd == ED_NAV)
+        ed_nav(f + 4, n - 4u);
+    else
+        ed_b(0x66);                     /* (INFO: a stand-in) */
+    o[k++] = 0xF0, o[k++] = 0x7D, o[k++] = 0x46, o[k++] = 0x4C, o[k++] = (uint8_t)cmd;
+    for (i = 0; i < nrep && k < sizeof o - 1u; i++)
+        o[k++] = rep[i];
+    o[k++] = 0xF7;
+    if (ed_bt)
+        mir_bt_reply(o, k);
+}
 
 /* the radio: at most n bytes of whole-frame packets (all: n = ~0) */
 static uint32_t radio(uint32_t n)
@@ -444,6 +468,40 @@ static void bt_tests(void)
     mir_poll();
     check(!mir.on, "106 0 over Bluetooth: off");
     radio(~0u);
+    {   /* INFO, 108 PANEL and 109 NAV over Bluetooth too (opti_mirbt_1): run in the main loop, the replies in the ring */
+        static const uint8_t DOWN[] = {0xF0, 0x7D, 0x46, 0x4C, 108, 0, 3, 1, 0xF7}, UP[] = {0xF0, 0x7D, 0x46, 0x4C, 108, 0, 3, 0, 0xF7},
+                             NAV[] = {0xF0, 0x7D, 0x46, 0x4C, 109, 0, 0xF7}, INFO[] = {0xF0, 0x7D, 0x46, 0x4C, 1, 0xF7},
+                             SET[] = {0xF0, 0x7D, 0x46, 0x4C, 3, 1, 2, 3, 0xF7},
+                             TOOLONG[] = {0xF0, 0x7D, 0x46, 0x4C, 108, 0, 3, 1, 1, 1, 0xF7};
+        uint32_t e0, i, btn_seen = 0;
+        bt_send(ON, sizeof ON);
+        mir_poll();
+        radio(~0u);
+        e0 = ed_replies;
+        memset(ed_handled, 0, sizeof ed_handled);
+        bt_send(DOWN, sizeof DOWN);
+        bt_send(INFO, sizeof INFO);
+        bt_send(SET, sizeof SET);
+        bt_send(TOOLONG, sizeof TOOLONG);
+        check((uint8_t)(mbr.cw - mbr.cr) == 2u, "PANEL and INFO queued, SET (not Bluetooth's) and a frame too long not: %u", mbr.cw - mbr.cr);
+        mir_poll();
+        btn_seen = rem_btn != 0u;
+        bt_send(UP, sizeof UP);
+        bt_send(NAV, sizeof NAV);
+        mir_poll();
+        radio(~0u);
+        check(ed_handled[108] == 2u && ed_handled[109] == 1u && ed_handled[1] == 1u && ed_handled[3] == 0u && btn_seen && !rem_btn,
+              "Bluetooth PANEL down then up pressed and let go the button, NAV and INFO run, SET not");
+        check(ed_replies - e0 == 4u && ed_last[0] == 109u && ed_last[1] == 0u && ed_last[2] == 0u && !bad,
+              "their 4 replies came over Bluetooth, whole, the last NAV's (op 0, done)");
+        for (i = 0; i < MBR_CQ + 3u; i++)
+            bt_send(DOWN, sizeof DOWN);
+        check((uint8_t)(mbr.cw - mbr.cr) == MBR_CQ, "more than MBR_CQ waiting: the rest dropped (the client sends again)");
+        ble_out_on = 0;
+        mir_poll();
+        check(mbr.cw == mbr.cr, "no central: the requests waiting dropped");
+        fm1_remote_clear();
+    }
 }
 
 /* 109 NAV: the reply's shape, each op by the stood-in navigation */

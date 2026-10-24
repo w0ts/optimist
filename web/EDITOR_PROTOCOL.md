@@ -105,7 +105,7 @@ strings, NTRK, the protocol byte (7), each engine slot's UID, then tagged blocks
 | 62 | `03 01 a b` | STEPLANE (below) |
 | 64 | `01 flags` | lite build: bit 0 backup only, bit 1 the librarian |
 | 65 | `01 version` | MIRROR (below, "The screen mirrored"): `MIR_VERSION` (2) |
-| 66 | `n` ASCII | the features by name and version, space-separated (`ed_opti.h`): `opti_backup_4` (43..48, `BK_VERSION`), `opti_mirror_2` (106, `MIR_VERSION`), `opti_panel_1` (108), `opti_nav_1` (109), `opti_library_1` (16..21), `opti_projects_1` (9), `opti_patterns_1` (79..84), `opti_proj_1` (110). Every Felucca-family firmware answers `INFO` with the same header but numbers its other commands its own way (SLOOP's backup is 34..36; 78 is Melodee's CZ), so a client sends nothing else until it has read this tag, and offers a feature only when its name and a version it reads are listed. A number goes up only when an older client would misread the new form. Over Bluetooth (only 106 answered) the firmware is known by its advertised name, "Optimist ..." |
+| 66 | `n` ASCII | the features by name and version, space-separated (`ed_opti.h`): `opti_backup_4` (43..48, `BK_VERSION`), `opti_mirror_2` (106, `MIR_VERSION`), `opti_panel_1` (108), `opti_nav_1` (109), `opti_mirbt_1` (INFO, 108 and 109 over Bluetooth MIDI too, with `BLE`), `opti_library_1` (16..21), `opti_projects_1` (9), `opti_patterns_1` (79..84), `opti_proj_1` (110). Every Felucca-family firmware answers `INFO` with the same header but numbers its other commands its own way (SLOOP's backup is 34..36; 78 is Melodee's CZ), so a client sends nothing else until it has read this tag, and offers a feature only when its name and a version it reads are listed. A number goes up only when an older client would misread the new form. Over Bluetooth (only 106 answered) the firmware is known by its advertised name, "Optimist ..." |
 
 `BUILD` (no args): the build's name string (16), its config hash (5 x 7 bit), the item bytes count and bytes (bit n = registry item n
 built, 7 a byte). The backup file records it.
@@ -516,7 +516,7 @@ Asking sets the ring's source for the next 2 s: ask again about every 80 ms to w
 (`display/lcd.c` `lcd_fill`, `lcd_blit`) also goes out as it is drawn; a client applying them in order holds the panel's pixels. The device keeps no frame buffer and sends nothing while no client asks; the mixer's meters go 10 times a second over USB, never over Bluetooth.
 
 Request: bits (bit 0 on, bit 1 the whole panel again). Reply: on, version 2, width (2 x 7 bit), height (2 x 7 bit). The pushes go on the link the last request came on:
-USB, or Bluetooth MIDI (with `BLE`; there the FM-1 answers this request only, every other SysEx is ignored).
+USB, or Bluetooth MIDI (with `BLE`; there the FM-1 answers this request, `INFO`, `108 PANEL` and `109 NAV` (`opti_mirbt_1`; 4 arguments at most, 8 waiting, their replies in the mirror's send ring, behind the screen's frames), every other SysEx is ignored).
 Mirroring ends 3 s after the last request of any kind (ask again or `PING` about every 1 s), with `106 0`, and when its link goes (a USB reset; no Bluetooth central listening).
 
 **Catching up.** A first on, bit 1, and a link that fell behind (USB: the host read nothing for 30 ms; Bluetooth: the 8 KB send ring was full, the frame dropped) all end the same way once

@@ -49,6 +49,8 @@ final class MirrorLink: ObservableObject, Transport {
         var bytes = 0             // SysEx bytes received since the last tick (the link's rate, logged)
         var known = false         // the last reply's version is the decoder's (another firmware's pushes: not drawn)
         var features: [String: Int]?   // INFO's tag 66 over USB (nil: not asked yet); nothing but INFO is sent before it
+        var btInfo = 0            // Bluetooth, mirroring: INFOs sent to learn whether PANEL and NAV go there too (opti_mirbt)
+        var btKnown = false       // .. and its answer came (an older firmware answers none: the screen only)
         var held: Date?           // a catch-up began (the whole panel filled): the picture shown stays until it is in
         var rows = [Bool](repeating: true, count: 240)   // since that fill, the rows drawn again
         var rowsLeft = 0
@@ -82,6 +84,7 @@ final class MirrorLink: ObservableObject, Transport {
     private var demo: NavDemo?    // MIRROR_DEMO: 109 NAV answered here (NavDemo.swift)
 #endif
     private static let unanswered = 3   // requests without a reply: no mirror in this build
+    private static let btReplyWait: TimeInterval = 1.5   // (Bluetooth: a reply waits behind up to 0.65 s of screen, ed_mirror.c MIR_BLE_LAG)
 
     init() {
 #if DEBUG
@@ -193,6 +196,8 @@ final class MirrorLink: ObservableObject, Transport {
         lock.withLock {                 // (over Bluetooth only 106 is answered: our firmware is known by its name, "Optimist ...")
             $0.assembler = SysExAssembler()
             $0.features = bt ? (named ? [Feature.mirror.name: Feature.mirror.version] : [:]) : nil
+            $0.btInfo = 0
+            $0.btKnown = false
         }
         guard let src, dst != nil else {
             portName = ""
@@ -229,6 +234,15 @@ final class MirrorLink: ObservableObject, Transport {
             state = .noMirror
             return
         }
+        let askBT = state == .mirroring && bluetooth && lock.withLock { s -> Bool in
+            guard !s.btKnown, s.btInfo < Self.unanswered else { return false }
+            s.btInfo += 1
+            return true
+        }
+        if askBT {                      // (over Bluetooth: INFO once mirroring; a firmware with opti_mirbt answers it there)
+            send([1])
+            return
+        }
         send([MirrorDecoder.cmd, wantWhole ? 3 : 1])
         wantWhole = false
         asked += 1
@@ -259,18 +273,26 @@ final class MirrorLink: ObservableObject, Transport {
         if holds == 0 { wantWhole = true }
     }
 
-    /// The keyboard can press the panel: the firmware has PANEL, over USB (over Bluetooth only the mirror's request is answered)
+    /// The keyboard can press the panel: the firmware has PANEL, over USB, over Bluetooth when it lists opti_mirbt_1
     var canPress: Bool {
-        state == .mirroring && !bluetooth && lock.withLock { $0.features?[Feature.panel.name] == Feature.panel.version }
+        state == .mirroring && lock.withLock { linkCarries($0) && $0.features?[Feature.panel.name] == Feature.panel.version }
     }
-    /// The touch navigation (109 NAV) is there: the firmware lists opti_nav_1, over USB (as PANEL)
+    /// The touch navigation (109 NAV) is there: the firmware lists opti_nav_1 (over Bluetooth: and opti_mirbt_1, as PANEL)
     var canNavigate: Bool {
-        state == .mirroring && !bluetooth && lock.withLock { $0.features?[Feature.nav.name] == Feature.nav.version }
+        state == .mirroring && lock.withLock { linkCarries($0) && $0.features?[Feature.nav.name] == Feature.nav.version }
+    }
+    /// The link in use takes PANEL and NAV: USB always, Bluetooth when the firmware said so (INFO there: opti_mirbt)
+    private func linkCarries(_ s: Shared) -> Bool {
+        !bluetooth || s.features?[Feature.mirbt.name] == Feature.mirbt.version
     }
     /// Why the touch navigation is not there while the screen mirrors (nil: it is, or nothing mirrors)
     var navMissing: String? {
         guard state == .mirroring, !canNavigate else { return nil }
-        if bluetooth { return "The touch buttons need the USB cable: over Bluetooth the FM-1 sends its screen only." }
+        if bluetooth, !lock.withLock({ linkCarries($0) }) {
+            return lock.withLock({ $0.btKnown || $0.btInfo < Self.unanswered })
+                ? "Asking the FM-1 whether its buttons work over Bluetooth…"
+                : "Over Bluetooth this firmware sends its screen only: the touch buttons need the USB cable, or a build made after 2026-10-24."
+        }
         guard let f = lock.withLock({ $0.features }) else { return "Reading what this firmware offers…" }
         return f[Feature.nav.name] == nil
             ? "This firmware has no touch buttons (opti_nav_1): install a build made after 2026-10-24 with ED_MIRROR."
@@ -323,7 +345,7 @@ final class MirrorLink: ObservableObject, Transport {
         var left = retries
         while true {
             do {
-                return try await attempt(cmd.rawValue, args, body, timeout)
+                return try await attempt(cmd.rawValue, args, body, bluetooth ? max(timeout, Self.btReplyWait) : timeout)
             } catch let e as WireError where e.isTimeout && left > 0 {
                 left -= 1
             }
@@ -383,6 +405,10 @@ final class MirrorLink: ObservableObject, Transport {
                 s.bytes += f.count
                 if !MirrorDecoder.isMirror(f), let u = Wire.unframe(f) {         // an editor reply
                     if u.cmd == 1, s.features == nil, let i = try? DeviceInfo.parse(u.args) { s.features = i.features; identified = true }
+                    else if u.cmd == 1, s.btInfo > 0, !s.btKnown, let i = try? DeviceInfo.parse(u.args) {
+                        s.features = i.features   // (Bluetooth: the whole list now, opti_mirbt among it)
+                        s.btKnown = true
+                    }
                     if let p = s.pending, p.cmd == u.cmd, Wire.replyMatches(p.cmd, p.args, u.args) {
                         s.pending = nil
                         answers.append((p.continuation, u.args))

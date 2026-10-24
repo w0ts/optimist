@@ -164,6 +164,7 @@ struct Feature: Equatable {
     static let panel = Feature(name: "opti_panel", version: 1)
     static let nav = Feature(name: "opti_nav", version: 1)
     static let proj = Feature(name: "opti_proj", version: 1)
+    static let mirbt = Feature(name: "opti_mirbt", version: 1)   // INFO, PANEL and NAV over Bluetooth too (ed_mirror.c)
 }
 
 struct DeviceInfo: Equatable {

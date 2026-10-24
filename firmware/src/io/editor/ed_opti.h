@@ -13,7 +13,10 @@
 #else
 #define ED_OPTI_BK ""
 #endif
-#if FELUCCA_ED_MIRROR
+#if FELUCCA_ED_MIRROR && MIR_BLE
+#define ED_OPTI_MIR "opti_mirror_2 opti_panel_1 opti_nav_1 opti_mirbt_1 "   /* (opti_mirbt_1: INFO, PANEL and NAV over Bluetooth
+                                                                            * too, ed_mirror.c mir_ble_rx) */
+#elif FELUCCA_ED_MIRROR
 #define ED_OPTI_MIR "opti_mirror_2 opti_panel_1 opti_nav_1 "   /* (ed_mirror_enc.h MIR_VERSION; 108 PANEL, 109 NAV, ed_mirror.c) */
 #else
 #define ED_OPTI_MIR ""
