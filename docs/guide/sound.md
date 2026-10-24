@@ -187,7 +187,7 @@ An LFO moves the value for the block; an envelope moves it for each voice as tha
 
 **PRESETS** browses the sounds of the track's engine: its factory sounds, INIT, your presets of that engine and its own collections (the FM6 voice packs); SHIFT2 + PRESETS moves to the next engine's sounds. There are 32 user presets; PROJECT > USER lists them, with INIT to start from the engine's defaults. A user preset's LOAD over an edited sound is asked in red. SAVE + a page button (ENV, LFO, EDIT, FX, SCL, ARP) stores the current sound as a user preset (NAME first).
 
-About 90 factory starting points (more with the optional engines), each a full patch on one engine, level-matched. A new project starts at 120 BPM. The sampled sets are free recordings (CC0: Versilian Studios VSCO-2 CE and VCSL, Sonic Pi).
+About 90 factory starting points (more with the optional engines), each a full patch on one engine, level-matched. The sampled sets are free recordings (CC0: Versilian Studios VSCO-2 CE and VCSL, Sonic Pi).
 
 **Favorites** (builder item `FAVORITES`) narrow the list to the sounds you use:
 
