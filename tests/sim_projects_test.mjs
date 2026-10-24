@@ -6,7 +6,7 @@
 // the new stream lacks is gone), named and
 // reopened there; back with the work saved first; an empty project refused; the transport playing refused.
 // A build with PATTERNS (the synth profile; no live editing needed):
-//   python3 tools/sim.py build --wasm --config config/profiles/synth.config --out build/sim/sim-pj.wasm && node tests/sim_projects_test.mjs build/sim/sim-pj.wasm
+//   python3 tools/sim.py build --wasm --config config/profiles/synths_USBaudio_BTaudio_BTmidi.config --out build/sim/sim-pj.wasm && node tests/sim_projects_test.mjs build/sim/sim-pj.wasm
 import { readFileSync } from "node:fs";
 import * as BK from "../web/sim/bk.js";
 

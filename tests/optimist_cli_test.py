@@ -51,8 +51,8 @@ def raises(fn, *a):
 
 # the command line
 ap = optimist.parser()
-a = ap.parse_args(["build", "--profile", "drum-machine", "--set", "FX_PUNCH=0", "--release", "1.2"])
-check("build: profile, --set and --release parse", a.profile == "drum-machine" and a.set == ["FX_PUNCH=0"] and
+a = ap.parse_args(["build", "--profile", "drum-machines", "--set", "FX_PUNCH=0", "--release", "1.2"])
+check("build: profile, --set and --release parse", a.profile == "drum-machines" and a.set == ["FX_PUNCH=0"] and
       a.release == "1.2" and a.fn is optimist.cmd_build)
 a = ap.parse_args(["package", "--config", "x.config", "--out", "out", "--summary", "s.json", "--in-docker"])
 check("package: --config, --out, --summary, --in-docker", a.config == "x.config" and a.out == "out" and
@@ -74,11 +74,11 @@ check("emu, config and cpu: their arguments go to them untouched",
 rc, _ = quiet(ap.parse_args, ["build", "--profile", "a", "--config", "b"])
 check("build: --profile and --config together is a usage error", rc == 2)
 cfg, name = optimist.load_config(ap.parse_args(["build"]))
-check(f"build without a configuration builds {optimist.DEFAULT_PROFILE} (Synth), not the reference profile",
-      name and cfg and optimist.DEFAULT_PROFILE == "synth" and name == "Synth" and optimist.REFERENCE_PROFILE == "synth")
+check(f"build without a configuration builds {optimist.DEFAULT_PROFILE} (synths-USB-BTA-BTM), also the reference profile",
+      name and cfg and optimist.DEFAULT_PROFILE == "synths_USBaudio_BTaudio_BTmidi" and name == "synths-USB-BTA-BTM" and optimist.REFERENCE_PROFILE == "synths_USBaudio_BTaudio_BTmidi")
 rc, out = quiet(optimist.main, ["build", "--config", str(ROOT / "no-such.config")])
 check("a missing .config: exit 2 and its name", rc == 2 and "no-such.config" in out)
-rc, out = quiet(optimist.main, ["config", "--profile", "drum-machine", "--budget"])
+rc, out = quiet(optimist.main, ["config", "--profile", "drum-machines", "--budget"])
 check("config passes through to configure.py (--budget)",   # (exact: a real build of it from this source exists)
       rc == 0 and ("estimate (" in out or "exact (the last real build" in out))
 p = subprocess.run([sys.executable, str(ROOT / "tools" / "optimist.py"), "--help"], capture_output=True, text=True)
@@ -230,9 +230,9 @@ check("web: defaults (port 8766, the browser opens; no package: the local site b
       not hasattr(a, "package") and a.fn is optimist.cmd_web)
 a = ap.parse_args(["web", "--port", "9000", "--no-open", "--site", "s"])
 check("web: --port, --no-open, --site", a.port == 9000 and a.no_open and a.site == "s")
-fa, fb = optimist.sim_fingerprint(optimist.C.profile_path("synth")), optimist.sim_fingerprint(optimist.C.profile_path("drum-machine"))
+fa, fb = optimist.sim_fingerprint(optimist.C.profile_path("synths_USBaudio_BTaudio_BTmidi")), optimist.sim_fingerprint(optimist.C.profile_path("drum-machines"))
 check("web: the simulator's fingerprint: the same sources the same, another configuration another (outdated: asked again)",
-      fa == optimist.sim_fingerprint(optimist.C.profile_path("synth")) and fa != fb and len(fa) == 64)
+      fa == optimist.sim_fingerprint(optimist.C.profile_path("synths_USBaudio_BTaudio_BTmidi")) and fa != fb and len(fa) == 64)
 check("web: the installer and editor URLs", optimist.web_urls(9000) ==
       ("http://localhost:9000/webapp/installer/", "http://localhost:9000/webapp/editor/"))
 with tempfile.TemporaryDirectory() as wd:
@@ -419,18 +419,18 @@ with tempfile.TemporaryDirectory() as d:
         for tag, date in (("v0.1", "2026-10-01T00:00:00Z"), ("v0.2", "2026-10-15T00:00:00Z")):
             (rel / tag).mkdir(parents=True)
             (rel / tag / "release.json").write_text(json.dumps({"tag": tag, "date": date}))
-            for prof in ("synth", "x0x-drums"):
+            for prof in ("synths_USBaudio_BTaudio_BTmidi", "no-such-profile"):   # (a published profile; no profile at all)
                 shutil.copy(fwsc, rel / tag / f"optimist-{tag[1:]}-{prof}.fwsc")
         rs = ms.releases_of(rel, man)
         ms.main("9.9-test", Path(d) / "site3", ms.flavours_of(man), rs)
         sj = json.loads((Path(d) / "site3/webapp/installer/site.json").read_text(encoding="utf-8"))
         rels = [x["release"] for x in sj["packages"]]
-        check("releases: the published flavours of each release on the site (firmware/r/TAG/), not the shipped-only ones",
-              (Path(d) / "site3/firmware/r/v0.2/optimist-0.2-synth.fwsc").is_file()
-              and not (Path(d) / "site3/firmware/r/v0.2/optimist-0.2-x0x-drums.fwsc").exists()
+        check("releases: the published flavours of each release on the site (firmware/r/TAG/), a profile id with _ and capitals too; not a package of no published profile",
+              (Path(d) / "site3/firmware/r/v0.2/optimist-0.2-synths_USBaudio_BTaudio_BTmidi.fwsc").is_file()
+              and not (Path(d) / "site3/firmware/r/v0.2/optimist-0.2-no-such-profile.fwsc").exists()
               and [r["tag"] for r in rs] == ["v0.2", "v0.1"])
         check("releases: listed first, newest first, then this commit's development packages (release \"\")",
-              rels == ["v0.2", "v0.1", "", ""] and sj["packages"][0]["pkg"] == "../../firmware/r/v0.2/optimist-0.2-synth.fwsc"
+              rels == ["v0.2", "v0.1", "", ""] and sj["packages"][0]["pkg"] == "../../firmware/r/v0.2/optimist-0.2-synths_USBaudio_BTaudio_BTmidi.fwsc"
               and sj["packages"][0]["date"].startswith("2026-10-15"))
         check("the site carries every Simulator module next to the editor (bk.js missing broke the tab)",
               all((Path(d) / "site3/webapp/editor/sim" / f.name).is_file() for f in (ROOT / "web/sim").iterdir() if f.suffix in (".js", ".css")))
@@ -772,10 +772,10 @@ with tempfile.TemporaryDirectory() as td:
     check("flash: ... and the package that build made is the one written (not the older newest file), after asking",
           rc == 0 and t.wrote() == [[str(new), "--yes"]] and len(pr) == 1)
     t = FakeTool()
-    rc, out, pr = flash_run(["--profile", "drum-machine"], t, answer="y", packages=old, build=(True, new))
+    rc, out, pr = flash_run(["--profile", "drum-machines"], t, answer="y", packages=old, build=(True, new))
     check("flash: --profile names what is built (the configuration build would build for it)",
           len(BUILT) == 1 and rc == 0 and
-          BUILT[0][0] == optimist.load_config(ap.parse_args(["flash", "--profile", "drum-machine"]))[1])
+          BUILT[0][0] == optimist.load_config(ap.parse_args(["flash", "--profile", "drum-machines"]))[1])
     t = FakeTool()
     rc, out, pr = flash_run([], t, answer="y", packages=old, build=(False, None))
     check("flash: the build fails: exit 1, 'nothing was flashed', the device not read, nothing asked",

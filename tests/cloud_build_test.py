@@ -243,7 +243,7 @@ check("release orphans: an asset of no build on the branch goes; the branch's, o
       "and an unreadable date stay", orph == ["optimist-old-0123456789abcdef.fwsc"])
 
 # ---- the workflow's steps on a real profile, at this checkout's HEAD
-profile = (ROOT / "config" / "profiles" / "synth.config").read_text()
+profile = (ROOT / "config" / "profiles" / "synths_USBaudio_BTaudio_BTmidi.config").read_text()
 head = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
 with tempfile.TemporaryDirectory() as t:
     work = Path(t)
@@ -258,7 +258,7 @@ with tempfile.TemporaryDirectory() as t:
                        text=True, env=env_out)
     outs = dict(line.split("=", 1) for line in (work / "out.txt").read_text().splitlines()) if q.returncode == 0 else {}
     ref = json.loads(p.stdout)["key"] if p.stdout.strip() else None
-    check("the workflow's steps: synth.config -> a key and a stem", q.returncode == 0 and outs.get("key") == ref
+    check("the workflow's steps: synths_USBaudio_BTaudio_BTmidi.config -> a key and a stem", q.returncode == 0 and outs.get("key") == ref
           and outs.get("stem", "").endswith(ref[:16]))
     (work / "request.config").write_text(req["config"] + "NOT_AN_ITEM=1\n")
     p = subprocess.run([sys.executable, str(ROOT / "tools" / "optimist.py"), "cloud-key", str(work / "request.config"),

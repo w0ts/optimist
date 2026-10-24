@@ -45,6 +45,7 @@ static uint32_t up_engine_slot(uint32_t k) { (void)k; return NENGINES; }   /* (n
 #if FELUCCA_NB_LIST
 #include "../firmware/src/storage/nbank.c"       /* the FM6 / CZ collections in PRESETS */
 #endif
+#if FELUCCA_DRUM_KITS                             /* the user kit bank (felucca.c builds drum_kits.c only with it) */
 static uint8_t kit_nor[0x2000];
 static int st_read(uint32_t off, void *dst, uint32_t n)
 { if (off < 0xDA000u || off + n > 0xDC000u) return -1; memcpy(dst, kit_nor + off - 0xDA000u, n); return 0; }
@@ -56,6 +57,7 @@ static uint32_t kit_tmp[4096 / 4];
 #define UK_HOST 1
 #define UK_TMP ((ukit_bank_t *)(void *)kit_tmp)
 #include "../firmware/src/drums/drum_kits.c"
+#endif
 
 /* list index n into the selected track, as the Optimist UI's PRESETS (op_screens.c op_preset_go) */
 static void preset_go(uint32_t n)

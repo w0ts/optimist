@@ -84,11 +84,11 @@ check("SIMD=1 in a .config and as --set: loads, warns \"wrong on the real FM-1, 
       "SIMD" not in _cfg and "SIMD" not in _c3 and _cfg["MISSING_WARN"] == 0 and
       _w.getvalue().count("SIMD: wrong on the real FM-1, 2026-10-12") == 2 and "FELUCCA_SIMD" not in _h and
       "FELUCCA_SIMD " not in C.header(_cfg))
-check("no shipped profile or estimate configuration names SIMD",
-      not [p.name for d in (C.PROFILES, ROOT / "tools" / "builder" / "estimate") for p in d.glob("*.config")
+check("no shipped profile names SIMD",
+      not [p.name for d in (C.PROFILES,) for p in d.glob("*.config")
            if any(ln.startswith("SIMD=") for ln in p.read_text().splitlines())])
 # LFO2 (bit 91) retired 2026-10-16: LFO 2 is always built. An old .config or --set naming it (=0 or =1) loads, says "dropped",
-# and keeps its other keys; the header has no FELUCCA_LFO2 switch; no shipped profile or estimate configuration names it
+# and keeps its other keys; the header has no FELUCCA_LFO2 switch; no shipped profile or test configuration names it
 for _v in (0, 1):
     _w = io.StringIO()
     with contextlib.redirect_stderr(_w):
@@ -98,9 +98,9 @@ for _v in (0, 1):
     check(f"LFO2={_v} in an old .config and as --set: loads, warns \"dropped\" each time, keeps its other keys, ignored",
           "LFO2" not in _cfg and "LFO2" not in _c3 and _cfg["MISSING_WARN"] == 0 and _w.getvalue().count("LFO2 was dropped") == 2 and
           "FELUCCA_LFO2" not in C.header(_cfg))
-check("LFO2: no item, retired (its bit 91 not reused), counted ON in the configuration hash, no shipped profile or estimate names it",
+check("LFO2: no item, retired (its bit 91 not reused), counted ON in the configuration hash, no shipped profile or test configuration names it",
       "LFO2" not in R.ITEMS and "LFO2" in R.RETIRED and R.HASH_AS.get("LFO2") == 1 and all(it.bit != 91 for it in R.ITEMS.values()) and
-      not [p.name for d in (C.PROFILES, ROOT / "tools" / "builder" / "estimate", ROOT / "tests" / "profiles") for p in d.glob("*.config")
+      not [p.name for d in (C.PROFILES, ROOT / "tests" / "profiles") for p in d.glob("*.config")
            if any(ln.startswith("LFO2=") for ln in p.read_text().splitlines())])
 # BLE_CENTRAL became a choice of levels (2026-10-24; firmware/src/ble/ble_cfg.h): a .config from before says
 # BLE_CENTRAL=1 and loads as level 1 (FULL), unchanged, its header FELUCCA_BLE_CENTRAL 1 as before; 3 (MINIMAL) is taken; 2 (a Just Works
@@ -141,11 +141,12 @@ check("... the thirteen ED_* of before are gone: nine merged into their feature,
 check("... an older .config with a feature's parts all off loads it off, with one of them on it on (a survivor it does not name)",
       C.parse("ED_FXP=0\nED_DLAN=0\nED_SOLO=0\n")[0]["ED_MIX"] == 0 and C.parse("ED_FXP=0\nED_DLAN=1\n")[0]["ED_MIX"] == 1 and
       C.parse("ED_TOOLS=0\n")[0]["ED_SEQ"] == 0 and C.parse("ED_MIX=1\nED_FXP=0\n")[0]["ED_MIX"] == 1)
-check("... the shipped profiles set them only where the slot asks: synth and drum-machine (live editing off) all three off, fm-va-studio the mixer and the screens",
+_ED_OFF = ["ED_MIX=0", "ED_SCREENS=0", "ED_SEQ=0"]
+check("... the shipped profiles (2026-10-24: drum-machines, synths, synths-2, synths_USBaudio_BTaudio_BTmidi; live editing "
+      "off in each) set all three off",
       {p.stem: sorted(ln.strip() for ln in p.read_text().splitlines() if ln.split("=")[0] in ED) for p in C.PROFILES.glob("*.config")
        if any(ln.split("=")[0] in ED for ln in p.read_text().splitlines())} ==
-      {"synth": ["ED_MIX=0", "ED_SCREENS=0", "ED_SEQ=0"], "drum-machine": ["ED_MIX=0", "ED_SCREENS=0", "ED_SEQ=0"],
-       "fm-va-studio": ["ED_MIX=0", "ED_SCREENS=0"]})
+      {"drum-machines": _ED_OFF, "synths": _ED_OFF, "synths-2": _ED_OFF, "synths_USBaudio_BTaudio_BTmidi": _ED_OFF})
 _fl, _ = C.flags(dict(C.defaults()))
 check("... the default build has every feature on", all(_fl["FELUCCA_" + k] == 1 for k in ED))
 _fl, _ = C.flags(dict(C.defaults(), ED_MIX=0))
@@ -305,9 +306,9 @@ check("a .config round trip (only what differs is written)", back["MISSING_WARN"
       name == "x" and "ENG_ANALOG" not in text)
 costs = C.load_costs()
 if costs:
-    fitted, ch = C.fit(C.load_profile("synth")[0], costs)   # (not the raw defaults: nearly every item on, 97 KB over
-                                                                  # 2026-10-19, never meant to fit; the user: "fit user-default")
-    check("fit: user-default made to fit by the estimate", fitted is not None and
+    fitted, ch = C.fit(C.load_profile(C.REFERENCE_PROFILE)[0], costs)   # (not the raw defaults: nearly every item on, 97 KB over
+                                                                  # 2026-10-19, never meant to fit)
+    check("fit: the reference profile made to fit by the estimate", fitted is not None and
           all(o <= 0 for _, _, o in C.fits(C.budget(fitted, costs)["total"]).values()))
 
 # every engine built has a preset on the PRESETS list and every drum source built a kit, on any configuration
@@ -379,20 +380,21 @@ import tempfile  # noqa: E402
 from contextlib import redirect_stderr, redirect_stdout  # noqa: E402
 
 pub = C.published_profiles()
-check(f"published profiles ({', '.join(pub)}): shipped ones, synth among them (user-default: the tests' reference, unpublished, the user 2026-10-19)",
-      "synth" in pub and set(pub) <= set(C.profile_names()))
-# the default profile is Synth (the maintainer's own build); user-default stays the generic reference profile
+_REF = "synths_USBaudio_BTaudio_BTmidi"
+check(f"published profiles ({', '.join(pub)}): shipped ones, {_REF} (the default and reference) among them",
+      _REF in pub and set(pub) <= set(C.profile_names()))
+# the default profile is also the reference profile (the user, 2026-10-24: synths_USBaudio_BTaudio_BTmidi for both)
 _syn, _syn_name = C.load_profile(C.DEFAULT_PROFILE)
 _syn_errs, _, _ = C.validate(_syn)
-check("the default profile is synth (configure, optimist.py), user-default the reference profile (tests, gate)",
-      C.DEFAULT_PROFILE == "synth" and C.REFERENCE_PROFILE == "synth" and O.DEFAULT_PROFILE == "synth" and
-      O.REFERENCE_PROFILE == "synth" and _syn_name == "Synth")
+check(f"the default and the reference profile are {_REF} (configure, optimist.py: make, the tests, the gate)",
+      C.DEFAULT_PROFILE == _REF and C.REFERENCE_PROFILE == _REF and O.DEFAULT_PROFILE == _REF and
+      O.REFERENCE_PROFILE == _REF and _syn_name == "synths-USB-BTA-BTM")
 _ed_default = {k: v for k, v in C.defaults().items() if k.startswith("ED_")}
-check("the default profile validates: the maintainer's own configuration (2026-10-18), the web editor backup / restore only (ED_LIVE and every ED_* off), the help line on",
+check("the default profile validates: the web editor backup / restore only (ED_LIVE and every ED_* off), the help line on",
       not _syn_errs and _syn["PARAM_HELP"] == 1 and _syn["EDITOR"] == 1 and _syn["ED_LIVE"] == 0 and _ed_default and
       all(_syn[k] == 0 for k in _ed_default if k != "ED_LIVE"))
-_syn_bud = C.budget(_syn, use_exact=False)                        # (costs.json "synth": a real build of it, the anchor; or the last real build here)
-check("the default profile fits (the builder's budget from its real build: costs.json 'synth', the measurement build)",
+_syn_bud = C.budget(_syn, use_exact=False)                        # (costs.json's check of it: a real build, the anchor; or the last real build here)
+check("the default profile fits (the builder's budget from its real build: costs.json's check of it, the measurement build)",
       _syn_bud is not None and _syn_bud["distance"] == 0 and not any(over > 0 for _, _, over in C.K.fits(_syn_bud["total"], _syn).values()))
 out = io.StringIO()
 with redirect_stdout(out):
@@ -467,17 +469,17 @@ with tempfile.TemporaryDirectory() as tmp:
     check("delete_profile: one of mine, or a shipped one (git has it back)",
           p_mine == C.MY_PROFILES / "gone.config" and p_shipped == C.PROFILES / "a.config" and
           "gone" not in C.my_profile_names() and "a" not in C.profile_names())
-    (C.PROFILES / "user-default.config").write_text("MISSING_WARN=0\n")
     refused = []
-    (C.PROFILES / "synth.config").write_text("MISSING_WARN=0\n")
-    for n in ("synth", "synth", "nope"):
+    (C.PROFILES / f"{C.DEFAULT_PROFILE}.config").write_text("MISSING_WARN=0\n")
+    (C.PROFILES / f"{C.REFERENCE_PROFILE}.config").write_text("MISSING_WARN=0\n")
+    for n in (C.DEFAULT_PROFILE, C.REFERENCE_PROFILE, "nope"):
         try:
             C.delete_profile(n)
             refused.append(False)
         except C.ConfigError:
             refused.append(True)
-    check("... never synth (make's and the CLI's default) or user-default (the reference profile), nor a name with no profile",
-          all(refused) and {"synth", "synth"} <= set(C.profile_names()))
+    check(f"... never {C.DEFAULT_PROFILE} (make's and the CLI's default, also the reference profile), nor a name with no profile",
+          all(refused) and {C.DEFAULT_PROFILE, C.REFERENCE_PROFILE} <= set(C.profile_names()))
     with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
         rc_del, rc_bad = C.main(["--delete", "b"]), C.main(["--delete", "b"])
     check("config --delete NAME (2: no such profile)", rc_del == 0 and rc_bad == 2 and "b" not in C.profile_names())
@@ -628,8 +630,8 @@ if shared:
 # one item (make_room: the named one, or the smallest single item that frees enough); the checks below hold it to the
 # same figures as before. Nothing here is pinned: every figure comes from costs.json as it is (BLE's measured cost, with
 # and without BLE_DIAG), and the expected item is computed per profile from the budget alone, not from room.py.
-dflt_real, _ = C.load_profile("synth")
-check("BLE, measured cost (costs.json): user-default with BLE fits as it is",
+dflt_real, _ = C.load_profile(C.REFERENCE_PROFILE)
+check("BLE, measured cost (costs.json): the reference profile (synths_USBaudio_BTaudio_BTmidi, BLE on) with BLE fits as it is",
       not C.over_any(dict(dflt_real, BLE=1), costs))
 
 
@@ -651,7 +653,7 @@ def room_scenarios(prof, diag):
     tag = f"BLE room, {prof}{' + BLE_DIAG' if diag else ''}"
     base, _ = C.load_profile(prof)
     if base["BLE"]:                                     # (the rule is BLE ticked on a profile without it)
-        print(f"{tag}: the profile has BLE on already (user-default since 2026-10-17), not a case")
+        print(f"{tag}: the profile has BLE on already, not a case")
         return
     sets = ["BLE=1"] + (["BLE_DIAG=1"] if diag else [])
     withble = with_ble(base, diag)
@@ -704,7 +706,7 @@ def room_scenarios(prof, diag):
           all(refused(prof, sets, b) for b in bad))
 
 
-PROFILES_BLE = ("synth", "drum-machine", "everything-that-fits", "fm-va-studio", "x0x-drums")
+PROFILES_BLE = tuple(C.profile_names())     # (the ones with BLE on already are no case: synths and synths-2 are)
 for _prof in PROFILES_BLE:
     for _diag in (0, 1):
         room_scenarios(_prof, _diag)
@@ -714,7 +716,7 @@ check("BLE room: at least one profile has BLE overflow and a single item that fr
       + ", ".join(f"{p}{'+diag' if d else ''}" for p, d in _removing), bool(_removing))
 try:
     with contextlib.redirect_stdout(io.StringIO()):
-        C.resolve_cli(argparse.Namespace(config=None, profile="x0x-drums", set=[], name=None, ble_drop="FLUTE"))
+        C.resolve_cli(argparse.Namespace(config=None, profile="synths", set=[], name=None, ble_drop="FLUTE"))
     _off = False
 except C.ConfigError:
     _off = True
@@ -727,17 +729,17 @@ check("tools/optimist.py: build and package take --ble-drop, and the BLE test pa
 # the estimate against real builds (docs/BUILDER.md, Budget). configure.py budget: the real build of the nearest
 # configuration whose build is known (an anchor: the defaults, costs.json "checks", a real build from this source)
 # plus what the measured deltas say the items that differ change. costs.json "checks" holds measurement builds of
-# every profile, of the configurations in tools/builder/estimate/ (a user's own among them) and of each one's probe
+# every profile, of the BLE test builds (optimist.py ble_test_configs) and of each one's probe
 # (measure_costs.py probe: PROBE_ITEMS items changed), made in the same measure_costs.py run as the deltas.
 # 1. self: each of them estimated WITHOUT its own build (its probe, PROBE_ITEMS items away, is then its nearest
 #    anchor, or another check): within ESTIMATE_NEAR. What the menu meets: a few changes from a configuration
 #    built before. Measured 2026-10-14: 4-5 items from an anchor, flash -2.3 to +4.8 KB, RAM within 0.3 KB, pool
 #    within 0.7 KB (LTO shares and inlines code by what else is built: no sum of per-item figures does better).
 #    Then without its probe either (the nearest other check or the defaults, 20-30 items away): printed only,
-#    that is the sum model alone (-13 to +28 KB of flash for the two users' configurations); a configuration
+#    that is the sum model alone (-13 to +28 KB of flash for the two users' configurations, 2026-10-14); a configuration
 #    built once is exact from then on (build/exact-sizes.json is an anchor too)
 # 2. drift: costs.json against the real builds `optimist.py test` has just made from this very source
-#    (prepare_tests: every check configuration, user-default, its two BLE builds and the defaults; configure.build
+#    (prepare_tests: every check configuration, the reference profile, its two BLE builds and the defaults; configure.build
 #    remembers their sizes in build/exact-sizes.json, keyed by configuration and source). The firmware moves
 #    under costs.json at every merge; the self checks compare costs.json with itself (its own builds, as old as
 #    it is), so a stale base or delta passes them. Here each estimate must be within ESTIMATE_TOL of today's real
@@ -817,7 +819,7 @@ _MONO_ALLOW = {"DIV_ORDER": "flash", "FX_DJF": "flash"}
 _MONO_NOISE = {"flash": K.ALIGN_NOISE, "ram": 32, "pool": 0}
 _mono_bad = []
 if costs:
-    for _pn in ("synth", None):
+    for _pn in (C.REFERENCE_PROFILE, None):
         _mcfg = C.defaults() if _pn is None else C.load_profile(_pn)[0]
         _b0 = C.budget(_mcfg, costs, use_exact=False)["total"]
         for _k, _it in items.items():
@@ -835,7 +837,7 @@ if costs:
 for _line in _mono_bad:
     print(f"  not monotonic: {_line}")
 check("estimate is monotonic: switching an item off (with its dependants) never raises the flash, RAM or pool, "
-      "in synth and the defaults", not _mono_bad)
+      f"in {C.REFERENCE_PROFILE} and the defaults", not _mono_bad)
 # ---- the undo history's ring, shown as information (the builder's reserve entries were retired 2026-10-21)
 sys.path.insert(0, str(ROOT / "tools"))
 import build as BUILD  # noqa: E402  (its check() is the real build's refusal)
