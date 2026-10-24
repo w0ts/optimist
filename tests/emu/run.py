@@ -43,6 +43,17 @@ CHECKS = {
     "boot": ("check_boot", "a clean boot: no crash record, the boot guard clears, halves/s, late 0, a note"),
     "autosave": ("check_autosave", "stopped, an edit: autosaved once unchanged 10 s (at once after power-on, 60 s after a save, 2 min under changes); a power cycle keeps it"),
     "upfm6": ("check_upfm6", "UP_FM6 moved off the SDK VM; 0xE7000..0xE9FFF untouched"),
+    "mute": ("check_mute", "STEP entry, undo / redo; SHIFT + key mutes T1's sequencer only (VOLUME untouched, a turn never unmutes)"),
+    "inserts": ("check_inserts", "every insert type in T1's S1 changes the sound, ---- is dry again; the limited types on T1..T3"),
+    "stepcards": ("check_stepcards", "STEP's cards: the short time, SHIFT2 + SELECT's long time (KNOB 3 still edits), a held step short, left: cleared"),
+    "livesave": ("check_livesave", "LIVE_SAVE: a user preset and a project saved while playing (audio on), both loaded back"),
+    "kits": ("check_kits", "drum kits KAWA, PLAITS (and X0X 909 / 808): every lane sounds; PLAITS EDIT; KAWA kept by a project"),
+    "grids": ("check_grids", "GRIDS on DR: GEN ON plays, X / Y / CHAOS / DENSITY / VEL / EUCL change what it plays; kept by a project"),
+    "song": ("check_song", "patterns and scenes stored and loaded on SONG; a project keeps them across a power cycle"),
+    "missing": ("check_missing", "a project from EMU_OTHER's package (its engine and kit not built here): MISSING named, the stand-in plays"),
+    "chord": ("check_chord", "CHORD+ latch: a modifier tapped twice stays on (the chord changes), once more lets it go"),
+    "plock": ("check_plock", "a p-lock on one step changes that step only; LFO 2 to FLT moves a held note"),
+    "project": ("check_project", "a project saved through NAME, a power cycle, NEW, LOAD: tempo, T1's sound and the name back"),
     "timing": ("check_timing", "tests/emu_boot_check.py: no late half at 48, 96 and 192 MHz"),
 }
 

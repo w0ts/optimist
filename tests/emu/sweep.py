@@ -5,10 +5,12 @@
   python3 tests/emu/sweep.py BUILD_DIR OUT_DIR [--mhz 192] [--max 400] [--per-engine N] [--a2]
 
 BUILD_DIR holds felucca.fwsc, felucca.elf and gen/felucca_config.h. Track T1 (the mixer's first synth row after
-boot, ALGORITHM untouched) is walked with PRESETS one detent at a time until the first (engine, preset) comes back
-or the same one is read 4 times in a row (PRESETS stops at its list's end), at most --max detents. A preset read
-again (a bank whose voices share one trk.preset, FM6's packs, the list's end) is walked past, not played.
-For each preset: one note (white key 5, 0.7 s), then a chord (white 1, 3, 5; 1.4 s), each released and given 0.4 s
+boot, ALGORITHM untouched) is walked with PRESETS one detent at a time; PRESETS stays in the engine's own sounds
+(since 2026-10-21), so where the same one is read 4 times in a row (the engine's list's end) SHIFT2 + PRESETS steps
+to the next engine's first sound; the walk ends when the first (engine, preset) comes back, an engine already walked
+comes again, or at --max detents. A preset read again (a bank whose voices share one trk.preset, FM6's packs, the
+list's end) is walked past, not played. After a fault the session's gestures are replayed from a fresh boot.
+For each preset: one note (white key 5, 0.7 s), then a 4-note chord (white 1, 3, 5, 8; 1.4 s), each released and given 0.4 s
 of tail, recorded as one WAV. Per preset: the engine (trk[0].engine -> ENGINES[slot]->name), the preset's name
 (ENGINES[slot]->presets[preset].name), peak / RMS of the note and the chord, full-scale samples, the largest
 sample-to-sample step, the tail RMS, felucca_dbg's late halves, boots and the slowest half (max_us, reset per preset)
@@ -32,7 +34,7 @@ import session as S          # noqa: E402
 
 FS = 44100
 NOTE = [F.white(5)]
-CHORD = [F.white(1), F.white(3), F.white(5)]
+CHORD = [F.white(1), F.white(3), F.white(5), F.white(8)]     # (the checklist's 4-note chord)
 ENG_PRESETS_OFF, ENG_NPRESETS_OFF = 108, 112       # engine_t: name, page_title[2], edit[8] (12 B each), presets, npresets
 PRESET_SIZE = 28                                   # preset_t (core.h: "28 B an entry")
 DBG_MAX_US = "felucca_dbg+8"                       # (magic, halves, max_us, ...)
@@ -107,7 +109,9 @@ class Walker:
         self.eng_off = 2 * self.facts.P["P_COUNT"]
         self.e = None
 
-    def open(self, clicks=0):
+    def open(self, moves=()):
+        """a fresh session, then the walk's gestures so far replayed: "p" PRESETS +1, "e" SHIFT2 + PRESETS +1 (the next
+        engine's first sound: PRESETS alone stays in the engine's own sounds since 2026-10-21)"""
         if self.e:
             self.e.close()
         self.e = S.Emu(self.pkg, self.out / "run", fresh=True, mhz=self.a.mhz)
@@ -116,9 +120,20 @@ class Walker:
         self.stride = size // 4
         if not hasattr(self, "names"):
             self.names = Names(self.e)
-        for _ in range(clicks):
-            self.e.click("PRESETS", 1)
+        for m in moves:
+            self.move(m)
         self.e.run(0.4)
+
+    def move(self, m):
+        if m == "e":
+            self.e.hold(F.BTN["OCTUP"])
+            self.e.run(0.15)
+            self.e.click("PRESETS", 1)
+            self.e.release(F.BTN["OCTUP"])
+            self.e.run(1.0)                             # (OCT+ let go: no octave change, a knob was used meanwhile)
+        else:
+            self.e.click("PRESETS", 1)
+            self.e.run(0.4)
 
     def where(self):
         b = self.e.mem(f"{self.trk + self.eng_off:#x}", 4)
@@ -145,6 +160,7 @@ class Walker:
 
     def walk(self):
         res, seen, count, first, last, same = [], set(), {}, None, None, 0
+        moves, done = [], set()                         # (the gestures so far; the engines walked to their end)
         self.open()
         i = 0
         while i < self.a.max:
@@ -154,31 +170,39 @@ class Walker:
                 if first is None:
                     first = key
                 elif key == first and i > 1:
-                    break
+                    break                               # (SHIFT2 + PRESETS past the last engine: the first again)
+                if slot in done:
+                    break                               # (SHIFT2 + PRESETS moved to no engine not walked)
                 same = same + 1 if key == last else 0
                 last = key
-                if same >= 3:                           # (PRESETS stops at the list's end: no wrap)
-                    break
+                if same >= 3:                           # (PRESETS stops at the engine's last sound: the next engine)
+                    done.add(slot)
+                    moves.append("e")
+                    self.move("e")
+                    same, last = 0, None
+                    continue
                 if key in seen:
                     r = dict(i=i, slot=slot, engine=self.names.engine(slot), preset=pre, skip="seen")
                 elif count.get(slot, 0) >= self.a.per_engine:
                     r = dict(i=i, slot=slot, engine=self.names.engine(slot), preset=pre, skip="per-engine")
                 else:
                     r = self.one(i, slot, pre)
+                    r["moves"] = "".join(moves)
                     count[slot] = count.get(slot, 0) + 1
                 seen.add(key)
                 res.append(r)
                 self.line(r)
                 i += 1
-                self.e.click("PRESETS", 1)
-                self.e.run(0.4)
+                moves.append("p")
+                self.move("p")
             except S.EmuError as x:
                 r = dict(i=i, fault=str(x)[:600], err=self.e.err[-12:] if self.e else [])
                 res.append(r)
                 self.line(r)
                 i += 1
+                moves.append("p")
                 try:
-                    self.open(i)
+                    self.open(moves)
                 except S.EmuError as y:                 # (the replay to preset i faulted too: stop this walk)
                     r = dict(i=i, fault="reopen: " + str(y)[:600], err=self.e.err[-12:] if self.e else [])
                     res.append(r)
@@ -191,10 +215,10 @@ class Walker:
         out = []
         an = [r for r in res if r.get("engine") == "ANALOG" and "note" in r]
         if self.a.a2_at is not None:
-            an = [dict(i=self.a.a2_at)]
+            an = [dict(i=self.a.a2_at, moves="p" * self.a.a2_at)]
         if not an:
             return out
-        self.open(an[0]["i"])
+        self.open(an[0]["moves"])
         pid = self.facts.P["P_A2FTYP"]
         at = self.trk + 2 * pid
         e4 = self.trk + 2 * self.facts.P["P_E4"]
@@ -213,7 +237,7 @@ class Walker:
                     r.update(a2=f"{mname} {mo}", ftyp=got)
                 except S.EmuError as x:
                     r = dict(a2=f"{mname} {mo}", fault=str(x)[:600], err=self.e.err[-12:])
-                    self.open(an[0]["i"])
+                    self.open(an[0]["moves"])
                 out.append(r)
                 self.line(r)
         return out
