@@ -794,7 +794,7 @@ _add("SECTIONS", "FELUCCA_SECTIONS", "song sections", Q, 85, default=16,
 _add("SNAPSHOTS", "FELUCCA_SNAPSHOTS", "snapshots (whole-state slots)", Q, 137, default=4,
      choices=((4, "4 slots: 32 KiB, USR3 keeps 32 KiB"), (2, "2 slots: 24 KiB, USR3 keeps 40 KiB"),
               (8, "8 slots: 48 KiB, USR3 keeps 16 KiB"), (0, "off: USR3 64 KiB")),
-     desc="SAVE > SNAPSHOT: the working project, every section and the song in one slot, loaded back whole (the state "
+     desc="PROJECT > SNAPSHOT: the working project, every section and the song in one slot, loaded back whole (the state "
           "before is kept in BEFORE LOAD); export / import in the web editor. The flash comes from the end of USR3 "
           "(slots + 4 sectors of 4 KiB): the user sample slot USR3 holds that much less (docs/SNAPSHOTS.md)",
      symbols=("sn_scan", "sn_load", "ed_snap"))
@@ -1129,8 +1129,8 @@ _add("BT_AUDIO", "FELUCCA_BT_AUDIO", "Bluetooth Classic Audio (A2DP Source, SBC)
      desc="Bluetooth Classic audio out (A2DP source, SBC 44.1 kHz) to headphones and speakers: its own page, S"
           "YSTEM > BT AUDIO (MODE OFF, MAN, AUTO), beside BT MIDI: with BLE built, MIDI and audio can be on at "
           "the same time on the one radio (untested together on an FM-1). Our own stack: inquiry, paging, Secur"
-          "e Simple Pairing (Just Works), E0 encryption, L2CAP, AVDTP and a fixed-point SBC encoder. Host-teste"
-          "d; on the FM-1 the scan has heard no device yet, so no audio has been streamed.",
+          "e Simple Pairing (Just Works), E0 encryption, L2CAP, AVDTP and a fixed-point SBC encoder. Streams on "
+          "the FM-1 to AirPods, a Sony WH-1000XM4 and a Bose SoundLink Mini (2026-10-23).",
      symbols=("ba_sbc", "bt_sbc_encode"))
 _add("BT_AFH", "FELUCCA_BT_AFH", "Bluetooth audio: adaptive frequency hopping (the channels the headset fails on skipped)", M,
      395, default=1, parent="BT_AUDIO", target_only=True,

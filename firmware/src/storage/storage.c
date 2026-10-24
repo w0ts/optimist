@@ -19,8 +19,8 @@
 
 /* flash map (FL_DATA 0x97000..0xDFFFF, FL_GLOB 0xFC000..): settings 0xFC000 / 0xFD000, projects
  * 0x97000..0x9EFFF, user sample slots 0xA0000..0xD7FFF (eng_sample.c: USR3 64 KiB), the banks area
- * 0xD8000..0xDBFFF: the FM6 user bank 0xD8000 (header) / 0xD9000 (data) (fm6_store.c), the user drum kit
- * bank 0xDA000 / 0xDB000 (drum_kits.c); user preset banks 0xDC000..0xDFFFF
+ * 0xD8000..0xDBFFF: 0xD8000 / 0xD9000 free since the FM6 user bank went (2026-10-18; ed_backup.c keeps its
+ * object for older backups), the user drum kit bank 0xDA000 / 0xDB000 (drum_kits.c); user preset banks 0xDC000..0xDFFFF
  * (upreset.c); the working project (autosave, project.c): copy A 0x9F000, copy B 0xFE000 (the two sectors
  * left: A/B needs no two neighbours); the projects' drum records (drum_store.c) 0xE5000 / 0xE6000, in
  * FL_DLANE (hal/fm1_flash_map.h: after the update loader's staging 0xE0000..0xE4FFF); 0x95000 / 0x96000 (the two
