@@ -148,15 +148,14 @@ address just heard. NONE leaves our central link and stops the search; FORGET do
 One FM-1 is visible, the other picks `Optimist XXXX` from the devices list (KIND FM-1). MIDI flows both ways on the one link. Notes that came
 in from MIDI are not sent back out; one loop remains [I]: the arpeggiator plays held MIDI notes and its notes go out, so two FM-1s
 with the arp on and MIDI OUT = SEQ can ping-pong. If both pick each other at once, the first CONNECT_IND wins and the loser keeps the
-link as peripheral. Clock and transport are not passed over BLE. Tested with two whole stacks in one process
+link as peripheral. MIDI clock and transport go over the link as over USB (CLK OUT, CLK IN BLE: `clock_out.c`,
+`clock_sync.c`). Tested with two whole stacks in one process
 (`tests/ble_f2f_test.c`) and in the emulator; not on two FM-1s.
 
 ### 4.5 Two levels (the builder's `BLE_CENTRAL`, 2026-10-24)
-The user: "We could make 2 options, full and minimal for ble central". A Just Works only level between them was built
-(2026-10-24: 2.2 KB of flash less than FULL) and removed again: "I guess just works is not really worth separating". `ble/ble_cfg.h`
-derives `BLE_CEN_PAIR` (level 1) from it, and the builder refuses 2; `#if BLE_CENTRAL` still means any level. `BLE_BOND` (the
-peripheral's pairing as responder) is independent at every level. Flash and RAM on the user's config (`mots.config`, against
-`BLE_CENTRAL=0`):
+Off, 1 FULL or 3 MINIMAL. `ble/ble_cfg.h` derives `BLE_CEN_PAIR` (level 1) from it; `#if BLE_CENTRAL` means any level.
+`BLE_BOND` (the peripheral's pairing as responder) is independent at every level. Flash and RAM against `BLE_CENTRAL=0`
+(measured 2026-10-24):
 
 | Level | What it does | Fails cleanly with | Flash | RAM |
 |---|---|---|---|---|
@@ -173,8 +172,7 @@ record keeps its BLE fields (bonds, `ble_kept`) at every level: a level 1 bond r
 `ble/ble_store.c` (the store), `ble/ble_scan.c` (the AD parser: flags, 128-bit UUID lists, names; 8 entries, ageing 10 s, relative
 bars), `ui/optimist/op_project.c` (`dev_*`, `ble_*_cell`). Tests: `ble_store_test`, `ble_scan_test`, `ble_central_test`,
 `ble_f2f_test`, `tests/ui_optimist_ble.h` (inside `ui_optimist_test.c`: the lines, every state, MODE, FORGET, the passkey over a screen, the
-retries), `ble_emu_central_test.py`. `tests/run_tests.sh` builds `ble_central_test`, `ble_f2f_test` and the UI's BLE tests at levels 2
-and 3 too (§4.5).
+retries), `ble_emu_central_test.py`. `tests/run_tests.sh` builds `ble_central_test`, `ble_f2f_test` and the UI's BLE tests at level 3 too (§4.5).
 
 ## 6. Open
 
@@ -182,4 +180,4 @@ and 3 too (§4.5).
   the FM-1 reconnects); directed advertising was never built.
 - The FM-1 as central to an iPhone with the passkey, on hardware (BLE-STACK.md 12).
 - Real signal bars (the RSSI gain table); the arp ping-pong between two FM-1s; a second FM-1 to test with.
-- Not built: two simultaneous links, clock / transport over BLE.
+- Not built: two simultaneous links.
