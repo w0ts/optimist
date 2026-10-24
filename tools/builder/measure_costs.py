@@ -17,6 +17,7 @@ Not detected: an item whose code changed after it was measured (no item-to-sourc
 import argparse
 import contextlib
 import io
+import itertools
 import json
 import os
 import queue
@@ -95,6 +96,9 @@ PAIRS = [{"MOTION": 1, "SECTIONS": 4},
          # the estimate said 611,664; with them both off the delta is 28.8 KB, with BT_AUDIO already built 17.8 KB)
          {"BLE": 1, "BT_AUDIO": 1}, {"BLE": 1, "BLE_CENTRAL": 1, "BT_AUDIO": 1},
          {"BLE": 1, "BLE_BOND": 1, "BLE_CENTRAL": 1, "BT_AUDIO": 1},
+         # the same at the central's MINIMAL level (2026-10-24, synths_USBaudio_BTaudio_BTmidi: BLE_CENTRAL 3 -> 0 freed 10,648 B
+         # of flash, the estimate said 12,460)
+         {"BLE": 1, "BLE_CENTRAL": 3, "BT_AUDIO": 1},
          # Bluetooth audio's diagnostics are built with BT_AUDIO only, and their log lines with the CDC console (the
          # console otherwise leaves the stack silent: 14 KB of flash, mots 2026-10-21)
          {"BT_AUDIO": 1, "BT_DIAG": 1}, {"BT_AUDIO": 1, "USB_CONSOLE": 1}, {"BT_AUDIO": 1, "BT_DIAG": 1, "USB_CONSOLE": 1},
@@ -140,7 +144,12 @@ GROUPS = {"INS_FX": _any_of("core/core.h", "INS_FX"),   # (the insert slots)
           # the automation store's code (seq/auto.c, storage/auto_proj.c: ~7 KB of flash, a little RAM and pool):
           # as pairs (MOTION+CHANCE, ...) a change of one of four left out the combinations without MOTION (9 KB over
           # for CHANCE off in a user's configuration, 2026-10-14)
-          "AUTO": _any_of("core/backports24seq.h", "FELUCCA_AUTO")}
+          "AUTO": _any_of("core/backports24seq.h", "FELUCCA_AUTO"),
+          # the limited inserts (CHRS ECHO JUNO-CHORUS FLNG XDLY) share the effects memory's code (core.h INS_LIM: fxi.c,
+          # fxi_mem.h's allocator, the slots' limits): ~3.2 KB of flash, 0.4 KB of RAM. 2026-10-24: on
+          # synths_USBaudio_BTaudio_BTmidi (ECHO, JUNO CHORUS, FLNG, XDLY) FLNG off freed 856 B of flash, its delta said
+          # 4,288; every pair, triple, ... of the five measured -3.2 / +3.2 KB in turn, one part shared
+          "INS_LIM": _any_of("core/core.h", "INS_LIM")}
 # a pair whose values are not valid alone: measured with these set too (their cost is in the estimate it is
 # measured against)
 PAIR_WITH = {"REV_ROOM=0,REV_HALF=1": {"REV_PLATE": 1}, "MICRO=1,FILLS=1": {"SL24_XSTEP": 1},
@@ -338,6 +347,15 @@ PAIRS.append({"SEQTOOLS": 1, "NOTEGEN": 1})   # (what the two share: the toast, 
 PAIRS.append({"NOTEGEN": 1, "GEN_GRIDS": 1})
 PAIRS.append({"SEQTOOLS": 1, "GEN_GRIDS": 1})
 PAIRS.append({"GEN_GRIDS": 1, "ED_SEQ": 0})
+# ... and the three or four of them together (2026-10-24, synths_USBaudio_BTaudio_BTmidi has all four: NOTEGEN off freed
+# 700 B of flash, the pairs alone said it added 624)
+_GENS = ({"SEQTOOLS": 1}, {"NOTEGEN": 1}, {"GEN_GRIDS": 1}, {"ED_SEQ": 0})
+for _n in (3, 4):
+    PAIRS.extend({k: v for d in _c for k, v in d.items()} for _c in itertools.combinations(_GENS, _n))
+# FM6 off where its tables are in the pool (TAB_IN_POOL): its delta from the defaults frees them from main RAM
+# (2026-10-24, synths_USBaudio_BTaudio_BTmidi: FM6 off freed 16 B of RAM and 608 B of the pool, the estimate said
+# 4,896 B of RAM and 4,260 B more pool; with FM6_SYSEX off too the pair and the triple measured 0: not kept)
+PAIRS.append({"ENG_FM6": 0, "TAB_IN_POOL": 1})
 # with TAB_CODED_ALL, PLAITS' waveshapers (2,570 B) and JUNO's cutoff steps (1,025 B) leave flash for the pool too
 # (gen_tables.py's "plaits" and "juno" groups, 2026-10-24): the base has neither engine, so neither delta sees it
 for _tca in (1, 2):

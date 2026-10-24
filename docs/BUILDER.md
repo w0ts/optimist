@@ -441,7 +441,8 @@ What the sum model adds beyond per-item deltas:
   holds what the build has beyond the estimate without it (the sampled kits sharing PERC, the reverb algorithms, the X0X
   kits, all sample sets off, the web editor's three features, MICRO / FILLS / PLOCK, ...).
 - **Groups** (`GROUPS`, from the firmware's own `#define`s): code built with any of a set of items, counted once (the
-  insert slots `INS_FX`; the automation store's code `AUTO`).
+  insert slots `INS_FX`; the shaper inserts `INS_SHAPE`; the automation store's code `AUTO`; the limited inserts' effects
+  memory code `INS_LIM`).
 - **Computed terms** (`configure.py`): the reverb's shared line buffer (`rev_lines`: the largest algorithm built, halved
   by REV_HALF, moved to the pool by REV_POOL), the automation store's arrays (`auto_store`; the store is built with any
   of MOTION, CHANCE, SL24_XSTEP, MICRO, FILLS, PLOCK), `part_mem`, the synth parts' engine states (a union of FM6,
