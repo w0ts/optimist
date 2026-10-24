@@ -4,7 +4,7 @@ the slot, so the full configuration measures too). Writes tools/builder/costs.js
 and, per item and value, the bytes it adds to it (flash, RAM, pool, RAMTEXT); its "cpu" section (the emulator's
 scale, docs/CPU-GUARD.md) stays, and the CPU guard's model is generated again (cpu_costs.py). Options are measured with their
 parent on; PAIRS (an item whose cost depends on another's value) are measured together as well, and the check
-configurations (every profile, tools/builder/estimate/*.config) once each, for tests/builder_test.py to hold the
+configurations (every profile and the BLE test builds) once each, for tests/builder_test.py to hold the
 estimate against (docs/BUILDER.md, Budget); the menu's Build gives exact numbers.
 
   python3 tools/builder/measure_costs.py [--only KEY ...] [--missing [--check]] [--log DIR] [--jobs N]
@@ -367,10 +367,10 @@ def unmeasured(costs):
     return out
 
 
-# the estimate checked against real builds (tests/builder_test.py): every shipped profile and the configurations in
-# tools/builder/estimate/ (diverse ones: a user's, the reverb in the pool at half rate, the X0X kits, SLOOP 2.4's
-# step features...). Measured in every run that builds (the same source as the deltas): costs.json "checks"
-CHECK_DIRS = (C.PROFILES, HERE / "estimate")
+# the estimate checked against real builds (tests/builder_test.py): every shipped profile and the BLE test builds
+# (tools/builder/estimate/ and its "mots" check went 2026-10-24: synths_USBaudio_BTaudio_BTmidi, a stock profile,
+# replaces it). Measured in every run that builds (the same source as the deltas): costs.json "checks"
+CHECK_DIRS = (C.PROFILES,)
 
 
 def check_configs(probes=False):

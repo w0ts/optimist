@@ -4,8 +4,8 @@
 The plain (non-TUI) side of tools/menuconfig, usable from scripts and tests:
 
   python3 tools/builder/configure.py --list
-  python3 tools/builder/configure.py --profile drum-machine --budget
-  python3 tools/builder/configure.py --profile fm-va-studio --set FX_PUNCH=0 --write my.config
+  python3 tools/builder/configure.py --profile drum-machines --budget
+  python3 tools/builder/configure.py --profile synths --set FX_PUNCH=0 --write my.config
   python3 tools/builder/configure.py --config my.config --build      # real build, exact sizes, the package
 
 A .config is "KEY=value" lines (registry.py keys); missing keys take the registry default, so a profile lists
@@ -188,8 +188,8 @@ def share_profile(name):
     return dest
 
 
-DEFAULT_PROFILE = "synth"               # make's, tools/optimist.py's and the menu's default (Optimist Synth): never deleted
-REFERENCE_PROFILE = "synth"             # the profile the tests, the gate and the emulator checks build (user-default went 2026-10-21): never deleted
+DEFAULT_PROFILE = "synths_USBaudio_BTaudio_BTmidi"   # make's, tools/optimist.py's and the menu's default (synths-USB-BTA-BTM, 2026-10-24): never deleted
+REFERENCE_PROFILE = "synths_USBaudio_BTaudio_BTmidi" # the profile the tests, the gate and the emulator checks build (synth went 2026-10-24): never deleted
 
 
 def delete_profile(name):

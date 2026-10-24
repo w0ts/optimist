@@ -50,8 +50,8 @@ import configure as C
 import deps
 import toolchain as TC
 
-DEFAULT_PROFILE = C.DEFAULT_PROFILE            # Optimist Synth: what build, builder and make use without a profile
-REFERENCE_PROFILE = C.REFERENCE_PROFILE        # synth: the profile the host tests, the gate and the emulator checks build
+DEFAULT_PROFILE = C.DEFAULT_PROFILE            # synths-USB-BTA-BTM: what build, builder and make use without a profile
+REFERENCE_PROFILE = C.REFERENCE_PROFILE        # synths_USBaudio_BTaudio_BTmidi: the profile the host tests, the gate and the emulator checks build
 PY_TESTS = ("tests/builder_test.py", "tests/builder_core_test.py", "tests/builder_flash_guard_test.py",
             "tests/builder_progress_test.py", "tests/optimist_cli_test.py", "tests/install_test.py",
             "tests/rescue_test.py", "tests/rescue_any_test.py",
@@ -150,7 +150,7 @@ def named_package(since=0.0):
 
 def cmd_package(a):
     cfg, name = load_config(a)
-    # (a release package is named by its profile's id, optimist-0.1-everything-that-fits: the site matches releases' files
+    # (a release package is named by its profile's id, optimist-0.1-drum-machines: the site matches releases' files
     # to the published profiles by it, web/make_site.py releases_of; a development package by its name, as before)
     stem = f"optimist-{a.release}-{a.profile}" if a.release and a.profile else None
     return C.package(cfg, name, Path(a.out).expanduser(), stem=stem, echo=True, summary=a.summary, release=a.release)
@@ -496,7 +496,7 @@ def prepare_tests():
 
 
 def check_todo():
-    """the builder's check configurations (every profile, tools/builder/estimate/*.config) not built from this source
+    """the builder's check configurations (every profile, the BLE test builds) not built from this source
     yet: tests/builder_test.py holds the size estimate against them (its drift check), so a costs.json the firmware
     moved away from fails the normal test run (prepare_tests builds them, beside its own)"""
     import measure_costs as MC
@@ -620,7 +620,7 @@ def parser():
     p.add_argument("rest", nargs=argparse.REMAINDER)
     p.set_defaults(fn=cmd_cpu)
     for n, fn, h in (("gate", cmd_gate, "the integrator's gate: costs, the profiles, the host tests, a final "
-                      "synth build (gate --help)"),
+                      "build of the reference profile (gate --help)"),
                      ("emu-check", cmd_emu_check, "the emulator smoke checks on a build (emu-check --help)")):
         p = sub.add_parser(n, help=h, add_help=False)
         p.add_argument("rest", nargs=argparse.REMAINDER)
