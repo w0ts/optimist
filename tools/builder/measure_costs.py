@@ -334,6 +334,11 @@ PAIRS.append({"SEQTOOLS": 1, "NOTEGEN": 1})   # (what the two share: the toast, 
 PAIRS.append({"NOTEGEN": 1, "GEN_GRIDS": 1})
 PAIRS.append({"SEQTOOLS": 1, "GEN_GRIDS": 1})
 PAIRS.append({"GEN_GRIDS": 1, "ED_SEQ": 0})
+# with TAB_CODED_ALL, PLAITS' waveshapers (2,570 B) and JUNO's cutoff steps (1,025 B) leave flash for the pool too
+# (gen_tables.py's "plaits" and "juno" groups, 2026-10-24): the base has neither engine, so neither delta sees it
+for _tca in (1, 2):
+    PAIRS.append({"TAB_CODED_ALL": _tca, "ENG_PLAITS": 1})
+    PAIRS.append({"TAB_CODED_ALL": _tca, "ENG_JUNO": 1})
 
 
 def beyond(sizes, cfg, costs, name):
