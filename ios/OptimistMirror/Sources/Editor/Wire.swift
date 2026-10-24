@@ -9,7 +9,7 @@ enum Cmd: UInt8 {
     case upList = 16, upGet = 17, upPut = 18, upStore = 19, upLoad = 20, upErase = 21
     case bkList = 43, bkRead = 44, bkBegin = 45, bkData = 46, bkCommit = 47, bkEnd = 48
     case patList = 79, patOp = 82, patRead = 83, patWrite = 84
-    case panel = 108, nav = 109, pjOp = 110
+    case panel = 108, nav = 109, pjOp = 110, clip = 111
 }
 
 struct WireError: Error, LocalizedError, Equatable {
@@ -49,6 +49,8 @@ enum Wire {
         case .pjOp: return same(args.first == 0 ? 1 : 2)  // (op 0 info: 0, 0, ..)
         case .smpBegin, .smpEnd, .upList, .upGet, .upPut, .upStore, .upLoad, .upErase, .patList, .patOp, .nav: return same(1)
         case .smpWrite, .patRead, .patWrite: return same(4)
+        case .clip:                                      // (op 0: 0, 0, ..; 1, 2: op, rc, track, index)
+            return args.first == 0 ? same(1) : a.count >= 4 && args.count >= 3 && a[0] == args[0] && a[2] == args[1] && a[3] == args[2]
         default: return true
         }
     }
@@ -165,6 +167,7 @@ struct Feature: Equatable {
     static let nav = Feature(name: "opti_nav", version: 1)
     static let proj = Feature(name: "opti_proj", version: 1)
     static let mirbt = Feature(name: "opti_mirbt", version: 1)   // INFO, PANEL and NAV over Bluetooth too (ed_mirror.c)
+    static let clip = Feature(name: "opti_clip", version: 1)     // 111 CLIP, a synth track's steps (ed_clip.c; INFO tag 67)
 }
 
 struct DeviceInfo: Equatable {
@@ -176,7 +179,7 @@ struct DeviceInfo: Equatable {
     var lib = false           // tag 64 bit 1: and the librarian
     var patSlots = 0, patScenes = 0   // tag 55: the per-track patterns (0: none)
     var hasPatterns: Bool { patSlots > 0 && has(.patterns) }
-    var features: [String: Int] = [:]   // tag 66: "opti_backup_4 opti_mirror_2 ...", name -> version (none: not optimist's way)
+    var features: [String: Int] = [:]   // tags 66 and 67: "opti_backup_4 opti_mirror_2 ...", name -> version (none: not optimist's way)
 
     /// The firmware offers f in the version this app reads (firmware/src/io/editor/ed_opti.h): every Felucca-family
     /// firmware answers INFO, but numbers its other commands its own way.
@@ -206,7 +209,7 @@ struct DeviceInfo: Equatable {
             if r.i + n > a.count { break }
             if id == 0x55 && n >= 2 { o.patSlots = Int(a[r.i]); o.patScenes = Int(a[r.i + 1]) }
             if id == 0x64 && n >= 1 { o.lite = a[r.i] & 1 != 0; o.lib = a[r.i] & 2 != 0 }
-            if id == 0x66 { o.features = features(a[r.i..<r.i + n]) }
+            if id == 0x66 || id == 0x67 { o.features.merge(features(a[r.i..<r.i + n])) { $1 } }   // (67: more names, 66 full)
             r.i += n
         }
         return o

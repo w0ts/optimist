@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // MIRROR_DEMO (a DEBUG build on a simulator, MirrorLink.init): 109 NAV answered as an FM-1 would (ed_mirror.c ed_nav), so the
-// touch columns can be seen and tapped without one. The rows are a typical ANALOG track's; never in a store build.
+// touch columns can be seen and tapped without one; 111 CLIP too, a 32-step clip on T2 (the clip editor). The rows are a typical ANALOG track's; never in a store build.
 #if DEBUG
 import Foundation
 
@@ -33,6 +33,32 @@ final class NavDemo {
     init() {
         let v = (ProcessInfo.processInfo.environment["MIRROR_DEMO_NAV"] ?? "").split(separator: ",").compactMap { Int($0) }
         if v.count == 4 { (screen, mode, row, track) = (v[0], v[1], v[2], v[3]) }
+    }
+
+    private lazy var steps: [Clip.Step] = {
+        let notes = [Clip.Note(start: 0, pitch: 48, length: 512), Clip.Note(start: 0, pitch: 60, length: 128), Clip.Note(start: 0, pitch: 64, length: 256),
+                     Clip.Note(start: 4, pitch: 67, length: 64), Clip.Note(start: 6, pitch: 65, length: 192), Clip.Note(start: 8, pitch: 50, length: 384),
+                     Clip.Note(start: 10, pitch: 62, length: 128), Clip.Note(start: 12, pitch: 69, length: 96, flags: Clip.accent),
+                     Clip.Note(start: 14, pitch: 67, length: 128), Clip.Note(start: 16, pitch: 45, length: 768), Clip.Note(start: 18, pitch: 57, length: 256),
+                     Clip.Note(start: 24, pitch: 72, length: 128)]
+        return (try? Clip.steps(notes, len: 32, old: Array(repeating: Clip.Step(), count: 64))) ?? []
+    }()
+
+    /// 111 CLIP as ed_clip.c answers it: T2 (track 1) a synth of 32 steps, the drums track 3
+    func clip(_ a: [UInt8]) -> [UInt8] {
+        let t = Int(a.count > 1 ? a[1] : 0), i = Int(a.count > 2 ? a[2] : 0)
+        switch a.first ?? 127 {
+        case 0: return [0, 0, UInt8(max(0, min(2, track - 1))), 4, 32, 0, 32, 0, 32, 0, 16, 1]
+        case 1:
+            guard t < 3, i < 64, a.count >= 4 else { return [1, 1, UInt8(t), UInt8(i), 0] }
+            let n = min(16, Int(a[3]), 64 - i)
+            return [1, 0, UInt8(t), UInt8(i), UInt8(n)] + (i..<(i + n)).flatMap { steps[$0].bytes }
+        case 2:
+            guard t < 3, i < 64, a.count >= 18, let s = try? Clip.Step(Array(a[3..<18])) else { return [2, 1, UInt8(t), UInt8(i)] }
+            steps[i] = s
+            return [2, 0, UInt8(t), UInt8(i)] + s.bytes
+        default: return []
+        }
     }
 
     func reply(_ a: [UInt8]) -> [UInt8] {

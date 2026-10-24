@@ -48,6 +48,7 @@ final class FakeFM1: Transport {
         case .info: return info
         case .panel: return [a.first ?? 0, 0]
         case .nav: return FakeFM1.nav(a)
+        case .clip: return [a.first ?? 0, 1]          // (no clip here: ClipTests test the steps themselves)
         case .pjOp:
             if a[0] == 0 {
                 let used = projNames.indices.reduce(0) { projUsed[$1] ? $0 | 1 << $1 : $0 }
