@@ -107,6 +107,8 @@ static void stb_paint(void)
     if (stb.kind == SG_SCENE) {                         /* the foot: the window, and what the cursor is on */
         b[0] = (char)('A' + c0 % 16u), b[1] = '-', b[2] = (char)('A' + (c0 + STB_COLS - 1u) % 16u), b[3] = 0;
         cv_texts(3, GL_END - 14, b, C_GRAY);
+    } else if (!stb.n) {                                /* (no part yet: how to make one) */
+        cv_texts(3, GL_END - 14, "HOLD A BLACK KEY + A SCENE", C_GRAY);
     } else {
         fmt_int(b, (int32_t)c0 + 1);
         str_app(b, "-", sizeof b);

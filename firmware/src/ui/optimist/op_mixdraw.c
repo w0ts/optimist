@@ -425,8 +425,8 @@ static void mx_step_cell(uint32_t r, const track_t *t, uint32_t s, uint32_t at, 
                 : r != mx_row() ? col_shade(C_WHITE, 3u + lvl_rank(mx_lvl(r, s)))   /* (not selected: grey 3/8 .. 6/8, */
                 : op_step_auto(t, s, r >= MXR_LANE0 ? r - MXR_LANE0 : 0xFFu) ? lvl_acol(mx_lvl(r, s))   /* under the */
                 : lvl_col(c, mx_lvl(r, s));                 /* playhead's white; the user, 2026-10-23) */
-    if (r >= MXR_LANE0 && sc == C_BLACK)                /* (a lane's empty step: a foot line, no box: 16 small boxes a */
-        cv_rect(x, y + q->sh - 1, q->sp - 1, 1, C_LINE);   /* lane read as noise) */
+    if (sc == C_BLACK && (r >= MXR_LANE0 || is_drum(t)))   /* (a drum row's empty step: a small dot, a beat's bigger, as */
+        step_dot(x, y, q->sp - 2 + (r >= MXR_LANE0), q->sh, !(s & 3u));   /* STEP's; no box: 16 boxes read as noise) */
     else
         cv_box(x, y, q->sp - 2 + (r >= MXR_LANE0), q->sh, sc);
 }
