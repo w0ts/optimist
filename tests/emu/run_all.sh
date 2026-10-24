@@ -5,9 +5,9 @@
 cd "$(dirname "$0")/../.." || exit 2
 [ -n "$EMU_CHECK_DRIVER" ] || { echo "EMU_CHECK_DRIVER not set (docs/EMU-PASS.md)" >&2; exit 2; }
 mkdir -p build/emu-sweep/runs
-for b in synth a b c d e; do
+for b in ref a b c d e; do
     x=""
-    [ $b = synth ] && x=--a2
+    [ $b = ref ] && x=--a2
     python3 tests/emu/sweep.py build/emu-sweep/images/$b/build build/emu-sweep/runs/sweep-$b $x > build/emu-sweep/runs/sweep-$b.log 2>&1 &
 done
 wait
