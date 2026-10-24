@@ -1266,6 +1266,18 @@
     "ram": 2296,
     "pool": 0,
     "ramtext": 0
+   },
+   "2": {
+    "flash": 19644,
+    "ram": 2216,
+    "pool": 0,
+    "ramtext": 0
+   },
+   "3": {
+    "flash": 13348,
+    "ram": 1592,
+    "pool": 0,
+    "ramtext": 0
    }
   },
   "BT_AUDIO": {
@@ -1573,7 +1585,7 @@
    }
   }
  },
- "measured": "2026-10-24 10:56",
+ "measured": "2026-10-24 11:31",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
@@ -2922,6 +2934,42 @@
   "BLE=1,BLE_BOND=1,BLE_CENTRAL=1,BLE_DIAG=1,USB_CONSOLE=1": {
    "flash": 88,
    "ram": -8,
+   "pool": 0,
+   "ramtext": 0
+  },
+  "BLE=1,BLE_BOND=1,BLE_CENTRAL=2": {
+   "flash": -3908,
+   "ram": -464,
+   "pool": 0,
+   "ramtext": 0
+  },
+  "BLE=1,BLE_CENTRAL=2,BLE_DIAG=1": {
+   "flash": 1212,
+   "ram": 432,
+   "pool": 0,
+   "ramtext": 0
+  },
+  "BLE=1,BLE_BOND=1,BLE_CENTRAL=2,BLE_DIAG=1": {
+   "flash": 4,
+   "ram": 0,
+   "pool": 0,
+   "ramtext": 0
+  },
+  "BLE=1,BLE_BOND=1,BLE_CENTRAL=3": {
+   "flash": -228,
+   "ram": -32,
+   "pool": 0,
+   "ramtext": 0
+  },
+  "BLE=1,BLE_CENTRAL=3,BLE_DIAG=1": {
+   "flash": 1040,
+   "ram": 424,
+   "pool": 0,
+   "ramtext": 0
+  },
+  "BLE=1,BLE_BOND=1,BLE_CENTRAL=3,BLE_DIAG=1": {
+   "flash": -196,
+   "ram": 0,
    "pool": 0,
    "ramtext": 0
   },
