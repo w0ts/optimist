@@ -251,7 +251,7 @@ def releases_of(folder, manifest=HERE / "flavours.json"):
             raise SystemExit(f"{meta}: tag {tag!r} is not a release tag (v0.1, v0.2-rc1)")
         flavours = []
         for f in sorted(d.glob("optimist-*.fwsc")):
-            m = re.fullmatch(r"optimist-[0-9][0-9A-Za-z.]*-([a-z0-9-]+)", f.stem)
+            m = re.fullmatch(r"optimist-[0-9][0-9A-Za-z.]*-([A-Za-z0-9_-]+)", f.stem)   # (a profile id: synths_USBaudio_BTaudio_BTmidi)
             if not m or m.group(1) not in published:
                 continue                                 # (a shipped-only profile, or not a release package)
             t = titled.get(m.group(1), {})
