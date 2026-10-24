@@ -18,6 +18,8 @@ static const uint16_t JUNO_VCF_G1Q_A[65] = {
     14357, 16143, 18172, 20569, 23503, 26423, 26423, 26423, 26423, 26423, 26423, 26423, 26423, 26423, 26423, 26423,
     26423,
 };
+#if !TAB_JUNO_VCF_G1Q_D_CODED   /* (the target with TAB_CODED_ALL: delta-coded in the boot stream, expanded into the pool at
+                                 * boot, felucca_tables.h gen_tables.py carr: the same values, not this copy) */
 static const uint8_t JUNO_VCF_G1Q_D[1025] = {
     0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0,
     1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0,
@@ -85,6 +87,7 @@ static const uint8_t JUNO_VCF_G1Q_D[1025] = {
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0,
 };
+#endif
 #define JUNO_RES_K_B 20
 static const uint16_t JUNO_RES_K_A[8] = {
     0, 2602, 5383, 8025, 10297, 12052, 13396, 15272,

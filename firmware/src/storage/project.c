@@ -369,33 +369,50 @@ static void proj_trk_v2_to_v3(proj_trk_v3_t *d, const proj_trk_v2_t *s, int drum
     memcpy(d->step, s->step, sizeof d->step);
 }
 
-/* a format 3 project -> slot q as format 4 */
-static void proj_from_v3_ok(project_t *q, const project_v3_t *v3)
+/* the format 3 project in the first bytes of q -> q as today's format, in place (formats 1 and 2 are brought to
+ * format 3 there first: no buffer of their own; 2,584 B of the pool until 2026-10-24). A track at a time through a
+ * copy on this stack, the last first: today's tracks each start past where format 3's did (the asserts), so a track
+ * not read yet is never written over; the header last (its copy taken first), and the bytes format 3 did not cover
+ * zeroed as the whole was: the same project byte for byte */
+_Static_assert(__builtin_offsetof(project_t, t) >= __builtin_offsetof(project_v3_t, t) &&
+               sizeof(proj_trk_t) >= sizeof(proj_trk_v3_t) && sizeof(project_t) >= sizeof(project_v3_t),
+               "a format 3 project is converted in place: today's track i starts at or past format 3's");
+static void proj_from_v3_ok(project_t *q)
 {
+    project_v3_t *v3 = (project_v3_t *)(void *)q;
+    int16_t g[PROJ_NG_V3];
+    uint8_t sel = v3->sel;
     uint32_t i;
-    memset(q, 0, sizeof *q);
+    memcpy(g, v3->g, sizeof g);
+    for (i = NTRK; i-- > 0;) {
+        proj_trk_v3_t s;
+        memcpy(&s, &v3->t[i], sizeof s);
+        memset(&q->t[i], 0, sizeof q->t[i]);
+        proj_trk_from_v3(&q->t[i], &s, i == TRK_DRUM);
+    }
+    memset(q, 0, __builtin_offsetof(project_t, t));
+    memset(q->fm6, 0, sizeof *q - __builtin_offsetof(project_t, fm6));
     memset(q->fm6_fn, 0xFF, sizeof q->fm6_fn);         /* FM6 functions: the defaults */
     q->magic = PROJ_MAGIC;
     q->size = sizeof *q;
-    proj_g_from_old(q->g, v3->g);
-    q->sel = v3->sel;
-    for (i = 0; i < NTRK; i++)
-        proj_trk_from_v3(&q->t[i], &v3->t[i], i == TRK_DRUM);
+    proj_g_from_old(q->g, g);
+    q->sel = sel;
     q->sum = proj_sum(q);
 }
+/* a format 3 project (n bytes in *v3, never q itself) -> slot q as format 4 */
 static int proj_from_v3(project_t *q, const project_v3_t *v3, int n)
 {
     if (!proj_form_ok(v3, n, PROJ_MAGIC_V3, sizeof *v3))
         return 0;
-    proj_from_v3_ok(q, v3);
+    memcpy(q, v3, sizeof *v3);
+    proj_from_v3_ok(q);
     return 1;
 }
 
-static project_v3_t proj_v3_tmp IN_POOL;               /* (formats 1, 2: through format 3) */
-/* a format 2 project (n bytes in *v2) -> slot q as format 4 */
+/* a format 2 project (n bytes in *v2) -> slot q as format 4 (through format 3, built in q) */
 static int proj_from_v2(project_t *q, const project_v2_t *v2, int n)
 {
-    project_v3_t *v3 = &proj_v3_tmp;
+    project_v3_t *v3 = (project_v3_t *)(void *)q;
     uint32_t i;
     if (!proj_form_ok(v2, n, PROJ_MAGIC_V2, sizeof *v2))
         return 0;
@@ -404,7 +421,7 @@ static int proj_from_v2(project_t *q, const project_v2_t *v2, int n)
     v3->sel = v2->sel;
     for (i = 0; i < NTRK; i++)
         proj_trk_v2_to_v3(&v3->t[i], &v2->t[i], i == TRK_DRUM);
-    proj_from_v3_ok(q, v3);
+    proj_from_v3_ok(q);
     return 1;
 }
 
@@ -412,14 +429,14 @@ static int proj_from_v2(project_t *q, const project_v2_t *v2, int n)
  * tracks 2..4 start empty (their sounds as at power-on) */
 static int proj_from_v1(project_t *q, const project_v1_t *v1, int n)
 {
-    project_v3_t *v3 = &proj_v3_tmp;
+    project_v3_t *v3 = (project_v3_t *)(void *)q;
     uint32_t i;
     if (!proj_form_ok(v1, n, PROJ_MAGIC_V1, sizeof *v1))
         return 0;
     memset(v3, 0, sizeof *v3);
     memcpy(v3->g, v1->g, sizeof v3->g);
     proj_trk_v2_to_v3(&v3->t[0], &v1->t, 0);
-    proj_from_v3_ok(q, v3);
+    proj_from_v3_ok(q);
     for (i = 1; i < NTRK; i++) {               /* the other tracks: their defaults, no steps */
         const engine_t *e = ENGINES[trk_def_engine(i)];
         uint32_t k;

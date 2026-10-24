@@ -3750,7 +3750,7 @@
     "bit": 386,
     "default": 0,
     "parent": null,
-    "desc": "Trades flash for pool: smooth lookup tables the sound and the UI read are kept in flash as the differences between neighbours and unpacked at start-up into the pool, always the pool whether or not TAB_IN_POOL is on (main RAM pays nothing); the undo history ring, which takes what the pool has left, is that much shorter. The same values: the sound and the screens are unchanged; the tables read a little faster from RAM than from flash. The eleven small tables (pitch, envelope and LFO rates, cutoff, levels, decay): 4.3 KB of pool for about 2.2 KB of flash; every table adds FM6's five (fine, detune, LFO and portamento): 7.3 KB of pool for about 3.1 KB of flash (measured on the synth profile and the user's).",
+    "desc": "Trades flash for pool: smooth lookup tables the sound and the UI read are kept in flash as the differences between neighbours and unpacked at start-up into the pool, always the pool whether or not TAB_IN_POOL is on (main RAM pays nothing); the undo history ring, which takes what the pool has left, is that much shorter. The same values: the sound and the screens are unchanged; the tables read a little faster from RAM than from flash. The eleven small tables (pitch, envelope and LFO rates, cutoff, levels, decay): 4.3 KB of pool for about 2.2 KB of flash; every table adds FM6's five (fine, detune, LFO and portamento): 7.3 KB of pool for about 3.1 KB of flash (measured on the synth profile and the user's). With PLAITS built, either choice also unpacks its five waveshapers: 2.5 KB more of pool for about 1.9 KB more of flash.",
     "experimental": true,
     "notice": "",
     "off_warning": "",
@@ -3766,11 +3766,11 @@
      ],
      [
       1,
-      "the eleven small tables (4.3 KB of pool)"
+      "the small tables, PLAITS' waveshapers when built (4.3 KB of pool, 6.8 with PLAITS)"
      ],
      [
       2,
-      "every table, FM6's too (7.3 KB of pool)"
+      "every table, FM6's too (7.3 KB of pool, 9.9 with PLAITS)"
      ]
     ],
     "provenance": null,
