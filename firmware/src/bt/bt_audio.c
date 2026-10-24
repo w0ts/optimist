@@ -7,6 +7,8 @@
  *   bta_scan(on)  the devices list: an inquiry (BTA_SCAN_S), what answers listed
  *   bta_page(a)   page device a (the last one)
  *   bta_pick(i)   page found device i (it becomes the last one)
+ *   bta_pick_row(i)  the devices list's row i: a remembered device (1 + BTA_KEPT of them, their keys kept) or a found one
+ *   bta_next()    AUTO, no answer: the next remembered device becomes the one paged (bta_settle when the connect is over)
  *   bta_stop()    the run or the link ends (an AUDIO mode off)
  *   bta_state()   what the link does, for the STATE line (BTA_S_*)
  * The devices come from the inquiry's FHS and EIR (bt_inq_con.c bti_print_rx calls bta_saw / bta_named). The last
@@ -85,14 +87,22 @@ static void bta_scan(int on)                            /* the devices list open
     } else if (bti.mode == BTI_M_INQ && bti_busy())
         bti_run_stop();
 }
-static void bta_pick(uint32_t i)                        /* SAVE on the DEVICE line in AUDIO MAN */
+#include "bta_mem.c"                                   /* the remembered devices: the list, AUTO's round, the list's rows */
+static void bta_pick(uint32_t i)                        /* found device i paged: it becomes the last one */
 {
     if (i >= bta.n)
         return;
-    ble_cpy(bta.last, bta.d[i].addr, 6);
-    str_cpy(bta.last_name, bta.d[i].name[0] ? bta.d[i].name : "DEVICE", sizeof bta.last_name);
-    bta.have_last = 1;
+    bta_remember(bta.d[i].addr, bta.d[i].name);
     (void)bta_page(bta.d[i].addr);
+}
+static void bta_pick_row(uint32_t i)                    /* SAVE on the devices list's row i */
+{
+    int r = bta_row(i);
+    if (r >= 0) {
+        bta_front((uint32_t)r);                         /* (remembered: first, its key kept) */
+        (void)bta_page(bta.mem[0].addr);
+    } else if (r > -1 - (int)BTA_DEVS)
+        bta_pick((uint32_t)(-1 - r));
 }
 static uint32_t bta_state(void)
 {
@@ -115,7 +125,7 @@ static uint32_t bta_state(void)
     if (bti.mode == BTI_M_PAGE && bti_st.phase == BTI_INQ_RUN)
         return BTA_S_PAGING;
     if (bta.mode == BTA_AUTO)
-        return !bta.have_last ? BTA_S_NO_LAST : bta.tried ? BTA_S_FAILED : BTA_S_READY;
+        return !bta.nmem ? BTA_S_NO_LAST : bta.tried ? BTA_S_FAILED : BTA_S_READY;
     if (bta.tried)
         return BTA_S_FAILED;                            /* (paged, no answer; or the link closed) */
     return bta.n ? BTA_S_FOUND : BTA_S_NONE;
@@ -126,10 +136,10 @@ static int bta_gave_up(void) { return ba.gave_up; }   /* (the set-up timed out: 
 static int bta_rejoin(void)                             /* let go after a pairing (bt_acl.c ba.rejoin), the link now
                                                          * closed: paged again with the key -> 1 */
 {
-    if (!ba.rejoin || bti_busy() || !bta.have_last)
+    if (!ba.rejoin || bti_busy() || !bta.nmem)
         return 0;
     ba.rejoin = 0;
-    (void)bta_page(bta.last);
+    (void)bta_page(bta.mem[bta.page_i].addr);
     return 1;
 }
 static void bta_output(int bt)
