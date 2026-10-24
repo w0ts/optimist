@@ -64,7 +64,7 @@ On a synthesised sound with no tone (closed hat, shaker, clap), TUNE moves its f
 
 ## Your samples
 
-Three slots, **USR1**, **USR2** (about 7.4 s each) and **USR3** (about 5.9 s; less with snapshots, which take its end), load from the web editor's **Samples** tab:
+Three slots, **USR1**, **USR2** (about 7.4 s each) and **USR3** (about 5.9 s; less with snapshots, which take its end), load from the web editor's **Samples** tab (in a build with live editing, `ED_LIVE`; a backup restore also writes them):
 
 - **Files:** up to 16 WAV per slot; the note each plays at its own pitch is in its name (`KEYS_C4.wav`).
 - **CHOP:** cut one recording (WAV, MP3, AIFF...) into up to 16 chops, by tapping while it plays, by its hits, on a grid or in equal parts, then send them to a slot.

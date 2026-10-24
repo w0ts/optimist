@@ -32,7 +32,7 @@ What only the FM-1 can show (the user's list):
 4. By ear: each engine's character, ANALOG 2's models (ladder, OTA, diode, MS-20), KAWA / PLAITS sounds, chorus / flanger / TAPE / SPIT quality, DRONE's BEAT, XDLY's feedback clip, no crackle.
 5. CPU LOAD and UNDERRUNS on SYSTEM > INFO with PHYS (3 voices), WAVE + drums, the four filter models (the emulator's times are one instruction a cycle, not the chip's).
 6. The keys' feel, LEDs and key lights (mute mode's three lights), battery.
-7. New since 42a5aee9, never run anywhere: ANALOG 2 FLT B, the UPB4 preset bank, editor protocol 7, the default tempo 111.
+7. New since 42a5aee9, never run anywhere: ANALOG 2 FLT B, the UPB4 preset bank, editor protocol 7.
 
 ## The packages
 
@@ -337,8 +337,8 @@ Emulator (`stepcards`, A B C D, on T1's PATTERN page; ui.cards_t, cards_long rea
   - hardware only (USB host; editor protocol 7 is new since 42a5aee9).
 - [ ] Backup of the whole FM-1 to one file and restore. Pass: the file restores with a report of what it skipped.
   - hardware only (USB host).
-- [ ] New since 42a5aee9: ANALOG 2 FLT B, the UPB4 preset bank, the default tempo 111.
-  - hardware only for this pass (not in the 42a5aee9 packages the emulator ran; FLT B, UPB4 and tempo 111 can run in the emulator in a later pass).
+- [ ] New since 42a5aee9: ANALOG 2 FLT B, the UPB4 preset bank.
+  - hardware only for this pass (not in the 42a5aee9 packages the emulator ran; FLT B and UPB4 can run in the emulator in a later pass).
 
 ## Reporting
 
