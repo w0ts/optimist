@@ -97,15 +97,15 @@ final class FeatureTests: XCTestCase {
     /// INFO's tag 66 (ed_opti.h): what the build answers, by name and version; a feature only when its exact version is listed
     func testFeaturesFromInfo() throws {
         let list = Array("opti_backup_4 opti_mirror_2 opti_library_1 opti_projects_1 ".utf8)
-        var a: [UInt8] = Array("FELUCCA 0.1".utf8) + [0, 0, 0, 0, 64, 0, 0, 6]   // no engine, no track, protocol 6
+        var a: [UInt8] = Array("FELUCCA 0.1".utf8) + [0, 0, 0, 0, 0, 0, 64, 0, 0, 0, 7]   // no engine, no track, protocol 7 (counts 2 x 7 bit)
         a += [0x66, UInt8(list.count)] + list
         let i = try DeviceInfo.parse(a)
         XCTAssertTrue(i.has(.backup) && i.has(.mirror) && i.has(.library) && i.has(.projects))
         XCTAssertFalse(i.has(.patterns))
         XCTAssertEqual(i.features["opti_backup"], 4)
-        let other = try DeviceInfo.parse(Array("FELUCCA 1.0.3".utf8) + [0, 0, 0, 0, 64, 0, 0, 6])
+        let other = try DeviceInfo.parse(Array("FELUCCA 1.0.3".utf8) + [0, 0, 0, 0, 0, 0, 64, 0, 0, 0, 7])
         XCTAssertTrue(other.features.isEmpty)
         XCTAssertFalse(other.has(.backup))
-        XCTAssertFalse(try DeviceInfo.parse(Array("X".utf8) + [0, 0, 0, 0, 64, 0, 0, 6, 0x66, 13] + Array("opti_backup_9".utf8)).has(.backup))
+        XCTAssertFalse(try DeviceInfo.parse(Array("X".utf8) + [0, 0, 0, 0, 0, 0, 64, 0, 0, 0, 7, 0x66, 13] + Array("opti_backup_9".utf8)).has(.backup))
     }
 }
