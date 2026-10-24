@@ -7,8 +7,10 @@ Fresh boot, the mixer, T1 on PRESETS +3 (a sound with highs), SELECT +1 (T1's in
 amount). KNOB 1 to ---- (the list's first entry), a 3-note chord held 1.2 s and 0.6 s of tail recorded twice (dry, and
 dry again: the method's own spread). Then KNOB 1 one detent at a time through the list: for each type (ins_slot[0][0],
 named from ins_names), KNOB 2 +12 (its amount up), the chord recorded; changed when one of RMS, brightness (the first
-difference's RMS over the RMS), the stereo side (RMS of L-R over L+R), the level's movement (10 ms blocks) or the tail
-moves by more than CHANGE and by more than 3 x the dry spread. Last, KNOB 1 back to ----: within the dry spread.
+difference's RMS over the RMS), the stereo side (RMS of L-R over L+R), the level's movement (10 ms blocks), the tail
+or the waveform itself (RMS of the difference to the dry take over the dry's: the emulator replays an aligned take
+sample for sample) moves past its bar (CHANGE; the waveform WAVE_CHANGE) and past 3 x the dry spread. Last, KNOB 1
+back to ----: within the bar (the dry sound again).
 The limited types: on T1, T2, T3 in turn (ALGORITHM walks the mixer's rows), KNOB 1 stepped until S1 holds the type
 or the list ends: the count that landed (expected from the builder's notice, docs/RELEASE-0.2-TEST.md: A 0, B 9 at
 once, C CHRS / JUNO 2, FLNG 5) is printed; the check asserts that a refused type never lands in a slot and the
@@ -18,7 +20,8 @@ import opui
 import session as S
 
 CHORD = (F.white(1), F.white(3), F.white(5))
-CHANGE = 0.12
+CHANGE = 0.12                                           # (the bar of RMS, brightness, side, movement, tail)
+WAVE_CHANGE = 0.05                                      # (the waveform's: 5 % of the dry take's RMS)
 LIMITED = ("CHRS", "JUNO", "FLNG", "XDLY", "ECHO")
 NEUTRAL = ("EQ3",)                                      # (LO MID HI at 0 dB: no change until its page is set)
 
@@ -35,7 +38,7 @@ def metrics(left, right, n_tail):
     move = (sum((b - mean) ** 2 for b in blocks) / len(blocks)) ** 0.5 / (mean or 1e-9) if blocks else 0.0
     return dict(rms=r, bright=diff / r, side=S.rms(side) / r, move=move,
                 tail=S.rms(left[-n_tail:] + right[-n_tail:]) / r, peak=max(abs(v) for v in both),
-                full=sum(1 for v in both if abs(v) >= 0.999))
+                full=sum(1 for v in both if abs(v) >= 0.999), x=both)
 
 
 def play(u, path):
@@ -57,7 +60,11 @@ def distance(a, b):
         out[k] = abs(a[k] - b[k]) / max(abs(b[k]), 1e-9)
     for k in ("side", "move", "tail"):
         out[k] = abs(a[k] - b[k])
-    return max(out.values()), max(out, key=out.get)
+    n = min(len(a["x"]), len(b["x"]))                   # (the waveform itself: a replay after align() is sample-exact,
+    out["wave"] = S.rms([a["x"][i] - b["x"][i] for i in range(n)]) / (S.rms(b["x"][:n]) or 1e-9)   # dry vs dry: 0)
+    score = {k: v / (WAVE_CHANGE if k == "wave" else CHANGE) for k, v in out.items()}
+    k = max(score, key=score.get)
+    return score[k], k, out[k]                          # (score 1: the change at its metric's bar)
 
 
 def slot(e, k):
@@ -111,10 +118,10 @@ def run(ctx):
         to_none(u, 0)
         dry = play(u, ctx.wav("dry"))
         dry2 = play(u, ctx.wav("dry2"))
-        spread, _ = distance(dry2, dry)
+        spread, _, _ = distance(dry2, dry)
         ctx.info("dry", f"rms {dry['rms']:.4f} bright {dry['bright']:.3f} side {dry['side']:.3f} move {dry['move']:.3f} "
-                 f"tail {dry['tail']:.3f}; dry again: spread {spread:.3f}")
-        limit = max(CHANGE, 3 * spread)
+                 f"tail {dry['tail']:.3f}; dry again: spread {spread:.3f} of the bar")
+        limit = max(1.0, 3 * spread)
         seen = [0]
         for _ in range(len(ids)):
             e.click("KNOB1", 1)
@@ -125,20 +132,22 @@ def run(ctx):
             name = names[ids.index(t)] if t in ids else f"#{t}"
             u.turn("KNOB2", 12)
             m = play(u, ctx.wav(f"ins-{name}"))
-            d, why = distance(m, dry)
+            d, why, raw = distance(m, dry)
             u.shot(f"ins-{name}")
             if name in NEUTRAL:                         # (flat by default: its settings are on its own page)
-                ctx.info(f"S1 {name}", f"neutral at its defaults, as built: largest change {why} {d:.3f}, full-scale {m['full']}")
+                ctx.info(f"S1 {name}", f"neutral at its defaults, as built: largest change {why} {raw:.3f}, "
+                         f"full-scale {m['full']}")
                 continue
             ctx.check(f"S1 {name}: the sound changes", d > limit and m["full"] == 0,
-                      f"largest change {why} {d:.3f} (limit {limit:.3f}), rms {m['rms']:.4f}, peak {m['peak']:.3f}, "
-                      f"full-scale {m['full']}")
+                      f"largest change {why} {raw:.3f} ({d:.1f} x its bar, {limit:.1f} needed), rms {m['rms']:.4f}, "
+                      f"peak {m['peak']:.3f}, full-scale {m['full']}")
         skipped = [names[i] for i, t in enumerate(ids) if t not in seen]
         ctx.info("types KNOB 1 passed over (not available to S1 now: ins_skip)", " ".join(skipped) or "none")
         to_none(u, 0)
         off = play(u, ctx.wav("off"))
-        d, why = distance(off, dry)
-        ctx.check("S1 back to ----: the dry sound again", d <= limit, f"largest change {why} {d:.3f} (limit {limit:.3f})")
+        d, why, raw = distance(off, dry)
+        ctx.check("S1 back to ----: the dry sound again", d <= limit,
+                  f"largest change {why} {raw:.3f} ({d:.2f} x its bar)")
         limited(ctx, u, ids, names)
         late, boots, crash = u.health()
         ctx.check("no late half, one boot, no crash record", late == 0 and boots == 1 and crash == 0,

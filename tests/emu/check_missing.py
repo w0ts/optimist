@@ -7,7 +7,7 @@ itself is carried: the other package's flash state after the save becomes this p
 The other package, fresh boot: SHIFT2 + PRESETS steps T1's engine until one this package lacks; ALGORITHM to DR,
 PRESETS to a kit this package lacks (the first of X0X 909, X0X 808, KAWA, PLAITS it has and this one does not);
 the project saved as 11 (a plain project 12 saved before and loaded after it, so the work autosaved is plain).
-This package booted on that flash: no MISSING at boot; LOAD project 11 (asked): the
+This package booted on that flash (the boot's message reported); LOAD project 11 (asked): the
 message names what is missing (MISSING ...); T1 plays a note (the stand-in), nothing stalls (late 0, one boot, no
 crash record)."""
 import os
@@ -131,8 +131,9 @@ def run(ctx):
             msgs.append(u.msg())
         u.shot("loaded")
         miss = [m for m in msgs if "MISS" in m]
-        ctx.check(f"booted on the plain work, LOAD project {FROM} here: the header says MISSING and names what",
-                  asked and "MISS" not in boot_msg and miss and (eng in " ".join(miss) or (kit and kit in " ".join(miss))),
+        ctx.check(f"LOAD project {FROM} here: the header says MISSING and names what (the plain work at boot may "
+                  "miss an engine of the other package's defaults already: its own message)",
+                  asked and miss and (eng in " ".join(miss) or (kit and kit in " ".join(miss))),
                   f"at boot {boot_msg!r}; after LOAD {sorted(set(msgs))}; missing {eng} / {kit}")
         u.to_mixer()
         u.turn("ALGORITHM", -u.sel(), wait=0.5)        # (T1: the project was saved with DR selected)

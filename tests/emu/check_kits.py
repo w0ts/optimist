@@ -116,7 +116,7 @@ def run(ctx):
             to_kit(u, kits["KAWA"])
             m5 = save_slot(u, 5)
             u.turn("ALGORITHM", 3 - u.sel(), wait=0.4)
-            to_kit(u, kits["KAWA"] - 1)
+            to_kit(u, max(v for v in kits.values() if v != kits["KAWA"]))   # (another kit this build has)
             m6 = save_slot(u, 6)
             other = kit(u)
             u.tap("SAVE")
