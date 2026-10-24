@@ -106,6 +106,8 @@ src/ui/optimist/op_graph.c:draw_gauge:span | span = gmax - gmin > 0: cell_gauge 
 src/ui/optimist/op_graph.c:draw_gauge:n | GK_DOTS: n = span + 1 >= 2 (span > 0, as above)
 src/ui/optimist/op_graph.c:eg_seg:n | only in its loop (i = 1..n: never run for n = 0); its callers pass graph_adsr4's d = 6 + dec * 50 / 127 and r = 6 + rel * 60 / 127 (page_frac 0..127): >= 6
 src/ui/optimist/op_graph.c:page_frac:(c.gmax-c.gmin) | guarded "c.gmax <= c.gmin ? 0 :"
+src/ui/optimist/op_bt.c:bt_pg_paint:(int32_t)n | only under "if (n > BT_PG_ROWS)" (BT_PG_ROWS 4): n >= 5 (built where BLE_CENTRAL is, the reference profile since 2026-10-24)
+src/ui/optimist/op_bt.c:bt_pg_paint:(int32_t)(n-BT_PG_ROWS) | the same guard: n - BT_PG_ROWS >= 1
 src/ui/optimist/op_gldraw.c:gl_info_draw:(int32_t)n | n = info_lines(pg) >= 1: INFO_N >= 3 (6 with SYS_DEBUG), INFO_DIAG >= 1 (FLASH IRQS OFF in every build), INFO_UA 9; gl_info() != 0 on that path (gl_paint)
 src/ui/optimist/op_mixdraw.c:mx_steps:len | TLEN: "clamp(t->p[P_SLEN], 1, NSTEP)"
 src/ui/optimist/op_mixdraw.c:mx_steps_paint:len | TLEN: "clamp(t->p[P_SLEN], 1, NSTEP)"
