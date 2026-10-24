@@ -620,7 +620,14 @@ void fm1_cstart(void)
     lzb_expand(&lz, (uint8_t *)_data_start, (uint8_t *)_data_end);   /* .data's initial values */
     lzb_expand(&lz, (uint8_t *)_pi_start, (uint8_t *)_pi_end);   /* the pool's tables (core.h TAB_RAM) */
 #endif
-#if TAB_CODED
+#if TAB_CODED && TAB_STREAM
+    {   /* the smooth tables' delta codes (felucca_tables.h): a block of the boot stream decoded here, on this stack, and
+         * expanded from it into the pool (tab_expand); TAB_BLOB_TOTAL is the built groups' length (build.py's block) */
+        uint8_t tab_blob[TAB_BLOB_TOTAL];
+        lzb_expand(&lz, tab_blob, tab_blob + sizeof tab_blob);
+        tab_expand(tab_blob);
+    }
+#elif TAB_CODED
     tab_expand();                               /* the smooth tables, delta-coded in flash, into the pool (felucca_tables.h) */
 #endif
     boot_cal_req = (uint8_t)(hold == HOLD_CAL);

@@ -119,21 +119,34 @@ def coded_tables():
               "typedef int32_t tab_v_t;", "typedef uint32_t tab_z_t;", "#endif"]
     else:
         L += ["#define TAB_WIDE 0", "typedef int32_t tab_v_t;", "typedef uint32_t tab_z_t;"]
+    # the streams: on the target they travel in the boot stream (TAB_STREAM: build.py appends the built groups' blobs,
+    # in this order, as a block of the LZB stream; main.c decodes it onto the stack and calls tab_expand(s)); a host
+    # test of the decoder (TAB_CODED_FORCE) keeps them as arrays. TAB_BLOB_<g>_IN: the group's length when built, else 0
+    L += ["#if defined(__PI32V2__) && !defined(TAB_CODED_FORCE)",
+          "#define TAB_STREAM 1                            /* the blobs come decoded from the boot stream (build.py tab_blob.bin) */",
+          "#else", "#define TAB_STREAM 0", "#endif"]
+    blobs = {}
     for g, cond in groups:
         rows = [c for c in CODED if c[0] == g]
         if not rows:
             continue
         stream = b"".join(c[5] for c in rows)
+        blobs[g] = stream
         if cond:
             L.append(f"#if {cond}")
-        L += [f"static const uint8_t TAB_BLOB_{g}[{len(stream)}] = {{"]
+        L += [f"#define TAB_BLOB_{g}_LEN {len(stream)}u", "#if !TAB_STREAM",
+              f"static const uint8_t TAB_BLOB_{g}[{len(stream)}] = {{"]
         for i in range(0, len(stream), 24):
             L.append("    " + ", ".join(str(b) for b in stream[i:i + 24]) + ",")
-        L += ["};", f"static const tab_desc_t TAB_DESC_{g}[{len(rows)}] = {{"]
+        L += ["};", "#endif", f"static const tab_desc_t TAB_DESC_{g}[{len(rows)}] = {{"]
         L += [f"    {{{c[1]}, {c[3]}, {CODED_W[c[2]]}, {c[4]}}}," for c in rows]
-        L += ["};"]
+        L += ["};", f"#define TAB_BLOB_{g}_IN TAB_BLOB_{g}_LEN"]
         if cond:
-            L.append("#endif")
+            L += ["#else", f"#define TAB_BLOB_{g}_IN 0u", "#endif"]
+    L += ["#define TAB_BLOB_TOTAL (" + " + ".join(f"TAB_BLOB_{g}_IN" for g in blobs) + ")",
+          "#if TAB_STREAM && defined(TAB_STREAM_LEN)         /* (build.py: the block it put in the boot stream) */",
+          "_Static_assert(TAB_STREAM_LEN == TAB_BLOB_TOTAL, \"tools/build.py's tab blob is not this build's set of coded tables\");",
+          "#endif"]
     L += ["static void tab_expand_group(const tab_desc_t *t, uint32_t cnt, const uint8_t *s)",
           "{",
           "    for (; cnt; cnt--, t++) {",
@@ -169,14 +182,22 @@ def coded_tables():
           "        }",
           "    }",
           "}",
-          "static void tab_expand(void)",
+          "#if TAB_STREAM",
+          "static void tab_expand(const uint8_t *s)      /* s: the groups' blobs decoded from the boot stream, TAB_BLOB_TOTAL B */",
           "{"]
+    for g, cond in groups:
+        rows = [c for c in CODED if c[0] == g]
+        if rows:
+            L += ([f"#if {cond}"] if cond else []) + \
+                [f"    tab_expand_group(TAB_DESC_{g}, {len(rows)}u, s);", f"    s += TAB_BLOB_{g}_LEN;"] + \
+                (["#endif"] if cond else [])
+    L += ["    (void)s;", "}", "#else", "static void tab_expand(void)", "{"]
     for g, cond in groups:
         rows = [c for c in CODED if c[0] == g]
         if rows:
             L += ([f"#if {cond}"] if cond else []) + [f"    tab_expand_group(TAB_DESC_{g}, {len(rows)}u, TAB_BLOB_{g});"] \
                 + (["#endif"] if cond else [])
-    L += ["}", "#ifdef TAB_CODED_CHECK                    /* (tests/tab_coded_test.c: the plain arrays beside the coded) */"]
+    L += ["}", "#endif", "#ifdef TAB_CODED_CHECK                    /* (tests/tab_coded_test.c: the plain arrays beside the coded) */"]
     for g, cond in groups:
         rows = [c for c in CODED if c[0] == g]
         if not rows:
@@ -187,7 +208,7 @@ def coded_tables():
         L += [f"#define TAB_CHECK_{g}(X) " + " ".join(f"X({c[1]})" for c in rows)]
         L += ["#else", f"#define TAB_CHECK_{g}(X)", "#endif"] if cond else []
     L += ["#endif", "#endif"]
-    return L
+    return L, blobs
 
 
 def fm6_tables():
@@ -344,7 +365,10 @@ def main(path):
     # soft clip curve for |x| in 0..2 (Q12 in, Q15 out): tanh
     L += carr("TANH_Q15", "int16_t", [int(32767 * math.tanh(i / 256 * 2)) for i in range(257)], ram=True)
     L += fm6_tables()
-    L += coded_tables()
+    coded, blobs = coded_tables()
+    L += coded
+    for g, b in blobs.items():      # (build.py: the built groups' blobs, in GROUPS' order, as a block of the boot stream)
+        Path(path).with_name(f"tab_blob_{g}.bin").write_bytes(b)
     Path(path).write_text("\n".join(L) + "\n")
     print(f"tables: {path}")
 
