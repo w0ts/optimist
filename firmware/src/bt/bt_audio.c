@@ -76,12 +76,16 @@ static void bta_start(uint32_t m)                       /* (BLE MIDI left as it 
     bta.mode = (uint8_t)m;
     bta.tried = 0;
 }
-static void bta_scan(int on)                            /* the devices list open (an inquiry, BTA_SCAN_S) or closed */
+static void bta_scan(int on)                            /* the devices list open (an inquiry, BTA_SCAN_S) or closed; the page's
+                                                         * list (op_bt.c): 2 = the inquiry again, the list kept, only when idle */
 {
+    if (on == 2 && bti_busy())
+        return;
     if (on) {
         if (bti_busy())
             bti_run_stop();
-        bta.n = 0, bta.cur = 0;
+        if (on == 1)
+            bta.n = 0, bta.cur = 0;
         bti_defaults();
         (void)bti_run_start(BTI_M_INQ, BTA_SCAN_S * 1600u);
     } else if (bti.mode == BTI_M_INQ && bti_busy())

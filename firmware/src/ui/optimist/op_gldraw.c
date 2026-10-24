@@ -200,6 +200,18 @@ static void gl_paint(void)
         gl_cred_draw(y);
         return;
     }
+#if FELUCCA_BT_UI
+    if (gld.s && bt_pg_shown()) {                       /* a Bluetooth page with no link: MODE, then its devices over the two
+                                                         * middle lines' room, then STATE (op_bt.c bt_pg_paint) */
+        for (i = gld.first; i < gld.end; i++, y += gl_pitch())
+            if (i == gld.first || i == gld.first + 3u) {
+                gl_cell(gld.s, i, &c);
+                gl_line_draw(i - gld.first, y, &c, i == gld.cur);
+            }
+        bt_pg_paint(bt_pg_shown() - 1u, gl_y0() + gl_pitch(), gl_y0() + 3 * gl_pitch(), gld.bar);
+        return;
+    }
+#endif
     for (i = gld.first; i < gld.end; i++) {
         gl_cell(gld.s, i, &c);
         gl_line_draw(i - gld.first, y, &c, i == gld.cur);
@@ -223,6 +235,10 @@ static void gl_draw(void)
         gl_cell(gld.s, i, &c);
         sig = hc(hs(sig, nm), &c);
     }
+#if FELUCCA_BT_UI
+    if (gld.s && bt_pg_shown())
+        sig = hu(sig, bt_pg_sig(bt_pg_shown() - 1u));   /* (a Bluetooth page's devices) */
+#endif
     if (gl_info())
         for (i = 0; i < info_lines(gl_info() - 1u); i++) {   /* (the info pages: their read-outs) */
             info_cell(gl_info() - 1u, i, &c);
