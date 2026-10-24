@@ -45,11 +45,11 @@ static void pages_nav_tests(void)
 #if FELUCCA_BLE
         bt.boot = 1;
         ble_store_reset(&ble_store);
-        bt_enter(BT_MIDI, 1);                                    /* (MIDI, nothing remembered: SAVE opens the devices list) */
+        bt_enter(BT_MIDI, 1);                                    /* (the overlay devices list, dev_open) */
         op_enter(SCR_SYSTEM);
         line_named(SCR_SYSTEM, "MODE");
         frame();
-        tap(B_SAVE);
+        dev_open(BT_MIDI);
         i = (uint32_t)dev_listing();
         tap(B_GLO);
         check(i && !dev_listing() && ui.scr == SCR_GLOBAL, "D1: GLO on the BLE devices list (SYSTEM): GLOBAL, the list closed");

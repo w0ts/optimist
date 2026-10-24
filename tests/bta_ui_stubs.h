@@ -10,7 +10,7 @@
 static struct {
     uint8_t st;                                         /* BTA_S_* while a mode is on (OFF: BTA_S_OFF whatever this is) */
     uint8_t out_bt, lost, gave_up;
-    uint32_t starts, stops, hangups, pages, picks, scans, scan_on;
+    uint32_t starts, stops, hangups, pages, picks, scans, scan_on, rescans;
 } btafk = {.st = BTA_S_NONE, .out_bt = 1};
 static void bta_start(uint32_t m) { bta.mode = (uint8_t)m, bta.tried = 0, btafk.starts++; }
 static void bta_stop(void) { bta.mode = BTA_OFF, btafk.stops++; }
@@ -36,7 +36,11 @@ static void bta_pick_row(uint32_t i)                    /* (as bt_audio.c's) */
     } else if (r > -1 - (int)BTA_DEVS)
         bta_pick((uint32_t)(-1 - r));
 }
-static void bta_scan(int on) { btafk.scans += on != 0, btafk.scan_on = (uint32_t)(on != 0); }
+static void bta_scan(int on)                            /* (2: again, the list kept: bt_audio.c) */
+{
+    btafk.scans += on != 0, btafk.scan_on = (uint32_t)(on != 0);
+    btafk.rescans += on == 2;
+}
 static uint32_t bta_state(void) { return bta.mode == BTA_OFF ? BTA_S_OFF : btafk.st; }
 static const char *bta_dev_name(uint32_t i) { return i < bta.n ? bta.d[i].name : ""; }
 static const char *bta_lost(void)
