@@ -15,30 +15,38 @@
  *   byte 1      the lanes' stored form's length L (0: every lane at its defaults), then those L bytes (dlfo_encode)
  *   then        each part's MREC_PART bytes (int8): LFO DEST A AMT A DEST B AMT B (P_L1DA ..), LFO 2 RATE WAVE TRIG POL
  *               DEST A AMT A DEST B AMT B (P_L2RATE ..), ENV 1 MOD's PIT and three moves (P_E1PIT ..), ENV2 DEST's four
- *               (P_N2DA ..); a value this build lacks: its default written, read and dropped
+ *               (P_N2DA ..), FLT B's MODEL+TYPE FREQ RES (P_A2BTYP .., since MREC_TAG 0xD5); a value this build lacks:
+ *               its default written, read and dropped
  * A project saved since writes the words of the depths of before (LFO DEST's, ENV2's amounts, the drum track's LFO 2
  * slots) at 0, ENV 1's FLT SHP in their words, and this record whenever a value or a lane is not at its default; one
  * without the parts' block (of before, or every value at its default) reads those words as before (proj_apply): 0 gives
  * the defaults. MREC_TAG_D2 (2026-10-14 .. 16): ENV 1's four bytes were ENV DEST's slots, DEST A AMT A DEST B AMT B,
  * folded on reading (env_store.h env1_fold; ENV DEST FLT SHP's words were 0 then) */
-#define MREC_TAG 0xD3u
+/* MREC_TAG 0xD5 (2026-10-24): each part's block also holds ANALOG 2's FLT B (P_A2BTYP ..), 23 bytes; 0xD3 and 0xD2 (20
+ * bytes a part, no FLT B: OFF) are read */
+#define MREC_TAG 0xD5u
+#define MREC_TAG_D3 0xD3u
 #define MREC_TAG_D2 0xD2u
-#define MREC_TAG_OK(x) ((x) == MREC_TAG || (x) == MREC_TAG_D2)
-#define MREC_PART 20u
+#define MREC_TAG_OK(x) ((x) == MREC_TAG || (x) == MREC_TAG_D3 || (x) == MREC_TAG_D2)
+#define MREC_PART 23u
+#define MREC_PART_OF(tag) ((tag) == MREC_TAG ? MREC_PART : 20u)   /* a part's bytes in a record of tag */
+#define MREC_NGRP(tag) ((tag) == MREC_TAG ? 5u : 4u)              /* its field groups (mrec_grp) */
 /* then (GRIDS_LFO, 2026-10-23) KREC_TAG and the kit's two LFOs (lane_play.c klfo_encode, KLFO_ENC bytes), when they are not at
  * their defaults; a reader of before stops after the parts' block (mrec_decode reads no further) */
 #define KREC_TAG 0xD4u
 #define DLR_MAX (2u + DLFO_ENC_MAX + NPART * MREC_PART + 1u + KLFO_ENC)
 static void proj_patch(int16_t *v, uint32_t k);        /* (project.c: a track's values as stored, under the motion) */
-/* the first id of field group g (0 LFO, 1 LFO 2, 2 ENV, 3 ENV2) and its size; P_COUNT: not in this build */
+/* the first id of field group g (0 LFO, 1 LFO 2, 2 ENV, 3 ENV2, 4 FLT B) and its size; P_COUNT: not in this build */
 static uint32_t mrec_grp(uint32_t g, uint32_t *n)
 {
-    *n = g == 1u ? 8u : 4u;
+    *n = g == 1u ? 8u : g == 4u ? 3u : 4u;
     if (g == 1u)
         return P_L2RATE;
 #if FELUCCA_ANALOG2
     if (g == 3u)
         return P_N2DA;
+    if (g == 4u)
+        return P_A2BTYP;
 #endif
     return g == 0u ? P_L1DA : g == 2u ? P_E1PIT : P_COUNT;
 }
@@ -50,10 +58,11 @@ static uint32_t mrec_parts_put(uint8_t *o)
     uint32_t k, g, i, n, at = 0, nd = 0;
     for (k = 0; k < NPART; k++) {
         proj_patch(v, k);
-        for (g = 0; g < 4u; g++) {
+        for (g = 0; g < MREC_NGRP(MREC_TAG); g++) {
             uint32_t f = mrec_grp(g, &n);
             for (i = 0; i < n; i++, at++) {
-                o[at] = (uint8_t)(f < P_COUNT ? (int8_t)v[f + i] : g == 1u ? L2D[i] : g == 2u ? (int8_t)TP[P_E1PIT + i].def : 0);
+                o[at] = (uint8_t)(f < P_COUNT ? (int8_t)v[f + i] : g == 1u ? L2D[i] : g == 2u ? (int8_t)TP[P_E1PIT + i].def :
+                                  g == 4u && !i ? 3 : 0);   /* (FLT B: OFF HP) */
                 nd |= f < P_COUNT && v[f + i] != TP[f + i].def;
             }
         }
@@ -65,13 +74,13 @@ static uint32_t mrec_parts_put(uint8_t *o)
  * move to) -> the slots not kept */
 static __attribute__((noinline)) uint32_t mrec_part_vals(const uint8_t *a, uint32_t k, int16_t *v, uint32_t tag)
 {
-    uint32_t g, i, n, at = k * MREC_PART, d2 = tag == MREC_TAG_D2;
-    for (g = 0; g < 4u; g++) {
+    uint32_t g, i, n, at = k * MREC_PART_OF(tag), d2 = tag == MREC_TAG_D2;
+    for (g = 0; g < MREC_NGRP(tag); g++) {
         uint32_t f = mrec_grp(g, &n);
         for (i = 0; i < n; i++, at++)
             if (f < P_COUNT)                            /* (ENV DEST's slots of 0xD2 as they are: env1_fold) */
                 v[f + i] = (int16_t)(g == 2u && d2 ? (int8_t)a[at] : clamp((int8_t)a[at], TP[f + i].min, TP[f + i].max));
-        if (f < P_COUNT && g != 2u)                    /* (ENV 1 MOD: depths, no DEST) */
+        if (f < P_COUNT && g != 2u && g != 4u)         /* (ENV 1 MOD: depths, FLT B: no DEST) */
             for (i = g == 1u ? 4u : 0u; i < n; i += 2u)
                 if (v[f + i] >= LT_NB)
                     v[f + i] = LT_OFF, v[f + i + 1u] = 0;
@@ -115,12 +124,12 @@ static uint32_t mrec_decode(const uint8_t *a, uint32_t n)
     l = a[1];
     if (2u + l > n || (l ? !dlfo_decode(a + 2, l) : !dlfo_decode(0, 0)))
         (void)dlfo_decode(0, 0);
-    if (n < 2u + l + NPART * MREC_PART) {
+    if (n < 2u + l + NPART * MREC_PART_OF(a[0])) {
         klfo_decode(0, 0);
         return 0;
     }
     mrec_parts_get(a + 2 + l, a[0]);
-    l += 2u + NPART * MREC_PART;                       /* (the kit's LFOs after the parts: GRIDS_LFO; else their defaults) */
+    l += 2u + NPART * MREC_PART_OF(a[0]);              /* (the kit's LFOs after the parts: GRIDS_LFO; else their defaults) */
     klfo_decode(n > l && a[l] == KREC_TAG ? a + l + 1u : 0, n > l + 1u ? n - l - 1u : 0u);
     return a[0];
 }
@@ -158,7 +167,7 @@ static const dlr_store_t *dlr_of(const project_t *p)
 static const uint8_t *mrec_parts_of(const project_t *p, uint32_t *tag)
 {
     const dlr_store_t *m = dlr_of(p);
-    if (!m || m->n < 2u || !MREC_TAG_OK(m->b[0]) || 2u + m->b[1] + NPART * MREC_PART > m->n)
+    if (!m || m->n < 2u || !MREC_TAG_OK(m->b[0]) || 2u + m->b[1] + NPART * MREC_PART_OF(m->b[0]) > m->n)
         return 0;
     *tag = m->b[0];
     return m->b + 2 + m->b[1];

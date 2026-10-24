@@ -270,6 +270,10 @@ enum {                          /* per-track parameters */
     P_E1PIT, P_E1X, P_E1Y, P_E1Z,
 #if FELUCCA_ANALOG2
     P_N2DA, P_N2AA, P_N2DB, P_N2AB,              /* ENV2 (its ADSR: P_A2FATK P_A2FDEC P_A2ESUS P_A2EREL), every engine */
+    /* FLT B (2026-10-24, eng_analog2.c a2_fltb): ANALOG 2's second filter, before FLT (the MS-20's order: HP, then LP).
+     * P_A2BTYP its MODEL and TYPE in one, as P_A2FTYP (model * A2M_MODES + mode; model 0 OFF, 1 the SVF, 2.. LADR OTA
+     * DIOD MS20: A2M_* + 1), OFF HP by default; its cutoff and resonance. Part of a sound (model.c param_kept: P_SLAST) */
+    P_A2BTYP, P_A2BCUT, P_A2BRES,
 #endif
     /* VOICES (voice.c trk_nvoice): the part's voice count in POLY and UNISON, 0 = the engine's max (JUNO 6, ACID 1 ...; the card shows it as that number, params.c page_desc),
      * else 1..8 and at most the engine's (MONO stays a mode of P_VOICE). Every build. Not part of a sound nor of a user
@@ -279,8 +283,10 @@ enum {                          /* per-track parameters */
 };
 #if FELUCCA_ANALOG2
 #define P_NLAST P_N2AB          /* the envelopes' values: P_E1PIT .. P_NLAST */
+#define P_SLAST P_A2BRES        /* a sound's values after P_E7: P_E1PIT .. P_SLAST (the envelopes', FLT B's) */
 #else
 #define P_NLAST P_E1Z
+#define P_SLAST P_NLAST
 #endif
 /* The modulation destinations, one list for the four modulators (LFO DEST, LFO2 DEST, ENV DEST, ENV2 DEST; params.c
  * N_LT, voice.c LT_TAB says how each acts):
@@ -303,7 +309,7 @@ enum {                          /* per-track parameters */
 enum { LT_OFF, LT_PIT, LT_FLT, LT_SHP, LT_AMP, LT_RES, LT_PAN, LT_LVL, LT_ATK, LT_DEC,
        LT_E1, LT_E2, LT_E3, LT_E4, LT_E5, LT_E6, LT_E7, LT_E8, LT_CHO, LT_DLY, LT_REV, LT_INS1, LT_INS2,
        LT_L1RT, LT_L1AMT, LT_SUS, LT_REL, LT_ATK2, LT_DEC2, LT_SUS2, LT_REL2, LT_N1AMT, LT_N2AMT, LT_OSC2, LT_SDTN,
-       LT_L2RT, LT_L2AMT, LT_N };
+       LT_L2RT, LT_L2AMT, LT_FLTB, LT_N };   /* (FLTB: ANALOG 2's FLT B cutoff, P_A2BCUT) */
 #define LT_NB LT_N                             /* the destinations (every build: LFO 2 is always built) */
 /* ENV 1's AMT on FLT (2 x its FLT depth, P_ED_FLT): for an engine that models the envelope's cutoff depth itself
  * (eng_juno.c) */

@@ -95,7 +95,7 @@ static int param_kept(uint32_t i)
 {
     return i == P_LEVEL || i == P_PAN || i == P_MUTE || i == P_FXOFF || (i >= P_SLEN && i <= P_SGATE) ||
            (i >= P_ROOT && i <= P_QUANT) || i == P_CHORD
-           || (i >= P_ENG_END && (i < P_E1PIT || i > P_NLAST))   /* (SLOOP 2.4's FILT, STRUM, VLEAD: the track's, as
+           || (i >= P_ENG_END && (i < P_E1PIT || i > P_SLAST))   /* (SLOOP 2.4's FILT, STRUM, VLEAD: the track's, as
                                                       * 2.4 keeps them; the COMP insert's amount: the mix, D8; not ENV 1
                                                       * MOD's depths nor ENV2's slots: the sound's) */
         ;
@@ -134,7 +134,7 @@ static void apply_preset_to(track_t *t, uint32_t pi)
         t->preset = 0;                                /* INIT: the engine's values to their defaults too */
         for (i = 0; i < 8u; i++)
             t->p[P_E0 + i] = e->edit[i].def;
-        for (i = P_E1PIT; i <= P_NLAST; i++)          /* ENV 1 MOD's depths at 0, ENV2's slots: DEST A the filter */
+        for (i = P_E1PIT; i <= P_SLAST; i++)          /* ENV 1 MOD's depths at 0, ENV2's slots: DEST A the filter, FLT B */
             t->p[i] = TP[i].def;
         env2_dest_def(t->p, t->eng_req);
         return;
@@ -163,6 +163,8 @@ static void apply_preset_to(track_t *t, uint32_t pi)
         analog2_extras(t->p, e, pi);                 /* ANALOG 2's own values */
         for (i = P_E1PIT; i <= P_E1Z; i++)            /* ENV 1 MOD's PIT and moves (the tables have none) */
             t->p[i] = 0;
+        for (i = P_NLAST + 1u; i <= P_SLAST; i++)     /* FLT B (ANALOG 2; the tables have none): OFF */
+            t->p[i] = TP[i].def;
         (void)env_load(t->p);                        /* ENV2's depths of the tables -> its slots */
         env2_dest_def(t->p, t->eng_req);
     }

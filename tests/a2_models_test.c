@@ -275,6 +275,47 @@ static int cards_test(void)
     ok &= TP[P_A2FTYP].max == A2M_N * A2M_MODES - 1;
     if (!ok)
         printf("cards: FLT 2's MODEL / FTYP FAIL\n");
+    {   /* FLT B: MODEL OFF, then FLT 2's (+ 1); TYPE its mode; the whole value P_A2BTYP */
+        int okb = 1;
+        TSEL->p[P_A2BTYP] = 3;                          /* OFF HP (the default) */
+        (void)a2f_view(PID_A2BMDL, &vp);
+        okb &= *vp == 0;
+        (void)a2f_view(P_A2BTYP, &vp);
+        okb &= *vp == 3;
+        okb &= a2f_word(PID_A2BMDL, 1 + A2M_MS20) == (1 + A2M_MS20) * A2M_MODES + 3;   /* MS20 HP */
+        TSEL->p[P_A2BTYP] = (1 + A2M_MS20) * A2M_MODES + 3;
+        okb &= a2f_word(P_A2BTYP, 0) == (1 + A2M_MS20) * A2M_MODES;                 /* MS20 LP12 */
+        okb &= a2f_word(PID_A2BMDL, 0) == 3 && a2f_word(PID_A2BMDL, 99) == TSEL->p[P_A2BTYP];   /* OFF; past the end: kept */
+        okb &= TP[P_A2BTYP].max == A2M_N * A2M_MODES + A2M_MODES - 1;
+        if (!okb)
+            printf("cards: FLT B's MODEL / TYPE FAIL\n");
+        ok &= okb;
+    }
+    return ok;
+}
+
+/* FLT B through each model (a2_fltb on a voice of part 1): full-scale noise, HP and LP24 at RES 127, the cutoff jumping:
+ * bounded by the +-65535 FLT takes, the model switched under the note every 40 blocks */
+static int fltb_models_test(void)
+{
+    int32_t b[CTL];
+    uint32_t m, f, k, i, seed = 7;
+    int ok = 1;
+    host_tracks_init();
+    for (k = 0; k < 400u; k++) {
+        int32_t pk = 0;
+        m = 1u + (k / 40u) % A2M_N, f = k & 1u ? 3u : 1u;
+        trk[0].p[P_A2BTYP] = (int16_t)(m * A2M_MODES + f);
+        trk[0].p[P_A2BCUT] = (int16_t)(rnd(&seed) % 128u), trk[0].p[P_A2BRES] = 127;
+        for (i = 0; i < CTL; i++)
+            b[i] = (int32_t)(rnd(&seed) >> 16) - 32768;
+        a2_fltb(&trk[0], &trk[0].v[0], b, CTL);
+        for (i = 0; i < CTL; i++)
+            pk = abs(b[i]) > pk ? abs(b[i]) : pk;
+        ok &= pk <= 65535;
+    }
+    if (!ok)
+        printf("fltb: a model through FLT B out of bounds FAIL\n");
     return ok;
 }
 
@@ -312,6 +353,7 @@ int main(int argc, char **argv)
     ok &= abuse_test(1);
     ok &= switch_test();
     ok &= cards_test();
-    printf("a2_models: responses, self-oscillation, abuse, switch, cards %s\n", ok ? "PASS" : "FAIL");
+    ok &= fltb_models_test();
+    printf("a2_models: responses, self-oscillation, abuse, switch, cards, FLT B %s\n", ok ? "PASS" : "FAIL");
     return !ok;
 }

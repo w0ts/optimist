@@ -210,6 +210,8 @@
     {"kind": "page", "ctx": "FLT 2", "if": "FELUCCA_ANALOG2 && FELUCCA_ENG_ANALOG", "params": {
       "FTYP": "Filter type",
       "MODEL": {"text": "Filter circuit model", "if": "FELUCCA_A2_MODELS"}}},
+    {"kind": "page", "ctx": "FLT B", "if": "FELUCCA_ANALOG2 && FELUCCA_ENG_ANALOG", "params": {
+      "MODEL": "Filter B before the filter", "TYPE": "Filter B type", "FREQ": "Filter B cutoff", "RES": "Filter B resonance"}},
     {"kind": "page", "ctx": "VOICE", "params": {
       "VCE": "Voice mode", "GLD": "Glide time", "GLMOD": "Glide: rate or time", "PRIO": "Mono note priority"}},
     {"kind": "page", "ctx": "VOICE 2", "params": {

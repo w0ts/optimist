@@ -122,6 +122,11 @@ static const uint8_t MOT_TAIL2[] = {
 #else
     P_COUNT,
 #endif
+#if FELUCCA_ANALOG2
+    P_A2BTYP, P_A2BCUT, P_A2BRES,                            /* (ANALOG 2's FLT B, 2026-10-24: +3) */
+#else
+    P_COUNT, P_COUNT, P_COUNT,
+#endif
 };
 #define MOT_NTAIL2 ((uint32_t)sizeof MOT_TAIL2)
 _Static_assert(MOT_NTAIL2 <= 16u, "the second tail range's stored ids: before the slot-relative ones (auto.h AUTO_SLOTP0)");
