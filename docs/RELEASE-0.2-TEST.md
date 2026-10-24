@@ -1,8 +1,8 @@
 # Optimist 0.2: hardware pass on the FM-1
 
-Nothing here has been run on an FM-1. Every package below was built and size-checked on the build farm (the exact build, not the estimate). A boots in the FM-1 emulator (tests/emu's `boot` check, 10 of 10, 2026-10-24: no crash record, the boot guard clears, no late audio half, a note sounds); B, C and D have not been booted. User flashes, Claude never does. Back the FM-1 up first (README.md, "Getting back" is the way out: OCT- held alone while switching on = OPTIMIST USB RESCUE).
+Nothing here has been run on an FM-1. Every package below was built and size-checked on the build farm (the exact build, not the estimate). Each of the four boots in the FM-1 emulator (tests/emu's `boot` check, 10 of 10 each, 2026-10-24: no crash record, the boot guard clears, no late audio half, a note sounds). User flashes, Claude never does. Back the FM-1 up first (README.md, "Getting back" is the way out: OCT- held alone while switching on = OPTIMIST USB RESCUE).
 
-A was rebuilt from `42a5aee9` on `optimist` (round 6 merged: the XIP user-preset path, the 40-packet Bluetooth audio queue, the coded tables in the boot stream); its ELF is beside it (`A-mots.elf`, for the emulator). B and C were built from commit `c3275895` on `rel/hw-pass`, D from `bebd5736`: they predate round 6 and the user-facing fixes merged since (the ACCENT lane's FX rows, the drum cards' automation display, the insert TYPE popup). The configs are `config/release-pass/*.config`.
+All four were built from `42a5aee9` on `optimist` (round 6 merged: the XIP user-preset path, the 40-packet Bluetooth audio queue, the coded tables in the boot stream; the ACCENT lane's FX rows, the drum cards' automation display and the insert TYPE popup fixed). Each package's ELF is beside it (`*.elf`, for the emulator). The configs are `config/release-pass/*.config`.
 
 ## The packages
 
@@ -11,9 +11,9 @@ Packages are in `/Users/mots/GitHub/optimist/build/release-pass/` (git-ignored).
 | Package | File | Flash | RAM | Pool | RAM code | sha1 |
 |---|---|---|---|---|---|---|
 | A: mots | `A-mots.fwsc` | 580,456 | 94,040 | 333,436 | 28,452 | 1a7559fb7b259e4daa23d5fc68799162be92162a |
-| B: engines | `B-engines.fwsc` | 520,312 | 86,584 | 306,256 | 31,064 | 11ecd72c225f590bd11bf147a4710c99788fc64f |
-| C: wave | `C-wave.fwsc` | 508,364 | 75,416 | 307,428 | 29,912 | cd98a06d75928cfe70f5b2478f7ad8292515462e |
-| D: btdiag (optional) | `D-btdiag.fwsc` | 563,892 | 91,200 | 321,228 | 28,116 | 2169fd29ed540fa0d2c6df72fb435c73cc7c2244 |
+| B: engines | `B-engines.fwsc` | 517,500 | 86,852 | 299,324 | 31,056 | 0dc104a4752779f1ec941caa650c565e215aa213 |
+| C: wave | `C-wave.fwsc` | 505,688 | 75,700 | 300,496 | 30,004 | abc699821efc1e280422a674e9b95758c71c042a |
+| D: btdiag (optional) | `D-btdiag.fwsc` | 561,556 | 91,452 | 322,204 | 28,116 | 67a5b33bb2313221eefd7f37747b11ff4c3fcd83 |
 
 A has 1,108 B of flash to spare and 10,628 B of pool headroom (8,192 required). Flash, RAM and pool are the exact build's numbers; "RAM code" is the build's `.ram_text` + `.ram_hot` total, the figure the builder reports as ramtext.
 
