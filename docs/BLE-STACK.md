@@ -9,9 +9,8 @@ start-up and stored trims, the central role, the console tools. Registers and en
 
 - Builder items (MIDI & USB group): **`BLE`** (`FELUCCA_BLE`, off by default; off, the image is byte-identical but for the
   builder's configuration hash), **`BLE_DIAG`** (the `blell` diagnostics), **`BLE_BOND`** (pairing, an encrypted link),
-  **`BLE_CENTRAL`** (the devices list, connecting out, reconnecting LAST; it brings the bonding code with it). Costs measured
-  by the builder (`tools/builder/costs.json`): BLE +30.3 KB flash / +6.3 KB RAM, BLE_DIAG +3.9 / +2.4, BLE_BOND +3.9 / +0.5,
-  BLE_CENTRAL +20.8 / +2.1. No V15 file is needed: the radio's start-up tables are committed (section 8.3).
+  **`BLE_CENTRAL`** (the devices list, connecting out, reconnecting LAST; at level 1 it brings the bonding code with it). Their
+  costs: `tools/builder/costs.json` (docs/BUILDER.md). No V15 file is needed: the radio's start-up tables are committed (section 8.3).
 - **SYSTEM > BT MIDI > MODE is OFF by default** and then the radio does not even start; MAN or AUTO switch it on.
 - **Verified on an FM-1** (2026-10): a Mac (Audio MIDI Setup) connects to the FM-1 and MIDI goes both ways; the FM-1 as central
   picks a Mac from the devices list, pairs (a passkey on the FM-1's screen) and reconnects after a power cycle; an iPhone app
@@ -113,10 +112,10 @@ I/O `7772E5DB-3868-4112-A1A9-F2669D106BF3` (read: empty; write without response;
   Real 13-bit millisecond timestamps (stock sends `80 80`); running status inside a packet; SysEx over packets.
 - **In:** decoded to USB-MIDI event packets with timestamps: running status with or without a timestamp, low-part wrap, real
   time anywhere, SysEx over packets, system common. A message cut at a packet's end is dropped.
-- **Router:** channel messages only come in (clock and transport are not passed on); the BLE interrupt puts them in `ble_in_q`,
+- **Router:** channel messages, and the clock and transport for `clock_sync.c` (CLK IN BLE); the BLE interrupt puts them in `ble_in_q`,
   the TIMER5 tick moves them into `midi_in_q`, where they play as USB's, each timed by its arrival less its distance to the
-  packet's newest timestamp. MIDI IN must be NOTES for notes to play. `midi_out_event` (the audio ISR; the FM-1's own notes) also
-  queues into `ble_out_q` while a client listens. Nothing is bridged between USB / TRS and BLE. `ble_midi_route`: bit 0 in,
+  packet's newest timestamp. `midi_out_event` (the audio ISR; the FM-1's own notes) also
+  queues into `ble_out_q` while a client listens, and CLK OUT's clock goes out timed (`ble_rt_push`). Nothing is bridged between USB / TRS and BLE. `ble_midi_route`: bit 0 in,
   bit 1 out.
 - **No stuck notes:** notes a central had on (`ble_held`, 256 B) are ended with a note-off through the same ring when the link goes
   (any cause) and when BLUETOOTH goes OFF; notes sent after OFF are dropped; USB and TRS notes keep sounding.
@@ -318,4 +317,4 @@ does not come up, power on with OCT- and OCT+ held 3 s (UBOOT).
 - A boot that never came back (2026-10-10, BLE + CDC + BOND + CENTRAL + DIAG, BLUETOOTH saved ON, then a rescue screen with no
   trace): not reproduced in the emulator under many conditions. The link-stop waits are now bounded by a read count as well as
   TIMER4 and the start-up steps leave the breadcrumb on the rescue screen, so the next one will say where it stopped.
-- Not built: Secure Connections, signing, directed advertising, two links at once, clock / transport over BLE, the chip's AES block.
+- Not built: Secure Connections, signing, directed advertising, two links at once, the chip's AES block.

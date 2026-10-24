@@ -72,7 +72,7 @@ A profile is a saved configuration. Shipped ones are in `config/profiles` (`make
 The default is also the reference profile (the host tests, the gate, `emu-check` and CI's fixtures build it) and cannot be deleted. `--defaults` is every registry default (too big for the slot).
 
 A shipped profile with the line `# publish: yes` is built by CI (`.github/workflows/build.yml` takes the list from
-`config --published`); `# publish: no` or no line: not built. Today all four are published.
+`config --published`); `# publish: no` or no line: not built. The four above are published; `bt-debug` (a Bluetooth test build: the USB console and the BT diagnostics) is not, though a release (`release.yml`) builds every profile in the folder.
 
 ```sh
 make share PROFILE=my-groove      # move one of mine to config/profiles (config --share)

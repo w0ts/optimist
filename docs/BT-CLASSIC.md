@@ -210,10 +210,12 @@ Now (`firmware/src/ble/rf_share.h`, one byte of RAM):
   bytes, about 2.1 ms a packet at 1M) after 6 events (`ble_ll.c`, a separate change). A long BLE packet takes more
   air per connection event while A2DP streams: more ACL slots lost to BLE, more ARQ resends of SBC.
 
-Untested on an FM-1 (U12 stays open): both links up at once (AirPods playing + a phone or a Mac on BLE MIDI); whether
-the engines' arbitration actually follows the priority words; crackles or SBC ring underruns from ACL slots lost to
-BLE; BLE supervision timeouts while a BR/EDR inquiry (10 s, the AUDIO devices list) or a page runs; the `0x2FC48`
-value under BLE; BLE first then audio, and audio first then BLE, each in one boot. Host-tested only:
+**Measured on an FM-1** (2026-10-24/25, 96cabd7e): a WH-1000XM4 streaming, BLE MIDI to a Mac and the Mirror app at once
+ran clean, once the FM-1 refused the Mac's 7.5 ms connection interval while audio streams (`ble_ll.c`: a
+CONNECTION_PARAM_REQ under `BLE_CONN_AUDIO_MIN` is rejected; `ble_host.c` `ble_sig_audio` asks for 30-45 ms). At 7.5 ms
+the audio got one DH5 between two BLE events and about 1 packet in 10 was dropped. Not measured: whether the engines'
+arbitration follows the priority words; BLE supervision timeouts while a BR/EDR inquiry (10 s, the AUDIO devices list)
+or a page runs; the `0x2FC48` value under BLE. Host-tested only:
 `tests/bt_coex_test.c` (the bring-up order) and the two pages (`tests/ui_optimist_ble.h`, build with BLE and
 BT_AUDIO).
 
@@ -242,7 +244,7 @@ unit). A second FM-1 on stock V15 is therefore a possible inquiry target (unveri
 | U8 | `PLL_COMP` on a real unit (RX quality is the weak point, §14) |
 | U9 | whether stock V15 on hardware is discoverable as "FM-1" |
 | U10 | whether AirPods accept P-192 legacy SSP + E0 (a WH-1000XM4 streams: `BT_AFH`'s measurement, 2026-10-23) |
-| U11, U12 | IRQ 40 cost during a connection; coexistence with our BLE link (built 2026-10-23, §9.1; not run on an FM-1) |
+| U11, U12 | IRQ 40 cost during a connection; the arbitration under our BLE link (§9.1: both links ran clean together, the mechanism is not measured) |
 
 ## Where the code is
 
