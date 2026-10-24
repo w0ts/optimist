@@ -149,7 +149,11 @@ GROUPS = {"INS_FX": _any_of("core/core.h", "INS_FX"),   # (the insert slots)
           # fxi_mem.h's allocator, the slots' limits): ~3.2 KB of flash, 0.4 KB of RAM. 2026-10-24: on
           # synths_USBaudio_BTaudio_BTmidi (ECHO, JUNO CHORUS, FLNG, XDLY) FLNG off freed 856 B of flash, its delta said
           # 4,288; every pair, triple, ... of the five measured -3.2 / +3.2 KB in turn, one part shared
-          "INS_LIM": _any_of("core/core.h", "INS_LIM")}
+          "INS_LIM": _any_of("core/core.h", "INS_LIM"),
+          # FM6's voice packs (registry.h FM6_NPACKS: eng_fm6.c's pack dictionary and decoder, the list's pack slots):
+          # 2026-10-24 on synths_USBaudio_BTaudio_BTmidi (all five) PADS off freed 1,236 B of flash, its delta said
+          # 2,152, and FM6 off read 2,572 B too much
+          "FM6_PACKS": _any_of("core/registry.h", "FM6_NPACKS")}
 # a pair whose values are not valid alone: measured with these set too (their cost is in the estimate it is
 # measured against)
 PAIR_WITH = {"REV_ROOM=0,REV_HALF=1": {"REV_PLATE": 1}, "MICRO=1,FILLS=1": {"SL24_XSTEP": 1},
