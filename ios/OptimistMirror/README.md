@@ -5,7 +5,7 @@ Shows the FM-1's screen on an iPhone, pixel for pixel, over a USB cable or Bluet
 ## The firmware
 
 Build it with the builder item `ED_MIRROR` (System, under the web editor). It is off by default. It works with or without live
-editing and adds about 300 B of flash. The protocol is cmd 106 in `web/EDITOR_PROTOCOL.md` ("The screen mirrored").
+editing and adds about 2.5 KB of flash (`tools/builder/costs.json`). The protocol is cmd 106 in `web/EDITOR_PROTOCOL.md` ("The screen mirrored").
 
 ## Install on the phone
 
@@ -20,7 +20,7 @@ wrote (`Tests/Fixtures`, from `MIRROR_FIXTURE=… build/host/mirror_test`).
 ## Use
 
 Plug the FM-1 into the iPhone (straight into USB-C, or through the Lightning camera adapter) and open the app. Or, without a
-cable: turn on SYSTEM > Bluetooth on the FM-1, tap **Bluetooth…** in the app and connect the FM-1 in iOS's sheet. The app uses
+cable: set SYSTEM > BT MIDI > MODE to MAN or AUTO on the FM-1, tap **Bluetooth…** in the app and connect the FM-1 in iOS's sheet. The app uses
 the USB port when there is one, else the Bluetooth one; the small icon in the corner shows which (tap it for the sheet). It asks
 for the mirror every second and draws what comes. The mixer's meters come over USB 10 times a second (not over Bluetooth). The screen stays on while the app is in
 front.
