@@ -255,7 +255,7 @@ static void t_ua(void)
 
 /* PER4 (2026-10-20): one layout whatever the build's switches; this file is built plain, with USB audio and with BLE
  * (run_tests.sh), and each build checks the same numbers */
-#define PERSIST4_EXPECT (16u + sizeof(panel_t) + sizeof(arr_rec_t) + 12u + 8u + 100u + 28u + 70u + 136u + 4u + 2u + 4u + 24u + 4u + 64u + 4u)   /* (+ open_proj and its 3 spare, f6b622a1) */
+#define PERSIST4_EXPECT ((16u + sizeof(panel_t) + sizeof(arr_rec_t) + 12u + 8u + 100u + 28u + 70u + 136u + 4u + 2u + 4u + 24u + 4u + 64u + 4u + 4u + PERSIST4_BT_KEPT + PERSIST4_BLE_KEPT + 3u) & ~3u)   /* (+ open_proj and its 3 spare, f6b622a1; + clk_ofs 95609113; + the kept BT audio and BT MIDI devices 1f3bf139 / 7e89ec48, the whole rounded to 4) */
 static void t_layout(void)
 {
     char w[160];
@@ -271,7 +271,10 @@ static void t_layout(void)
           offsetof(persist_t, fav) == offsetof(persist_t, ble_addr) + 206u &&
           offsetof(persist_t, ua_src) == offsetof(persist_t, fav) + 136u &&
           offsetof(persist_t, bt_rec) == offsetof(persist_t, ua_mark3) + 4u && offsetof(persist_t, bt_key) + 32u == offsetof(persist_t, open_proj) &&
-          offsetof(persist_t, open_proj) + 4u == sizeof(persist_t) && PERSIST4_LEN0 == (int)offsetof(persist_t, open_proj));
+          offsetof(persist_t, open_proj) + 4u == offsetof(persist_t, clk_ofs) && offsetof(persist_t, clk_ofs) + 4u == offsetof(persist_t, bt_kept) &&
+          offsetof(persist_t, bt_kept) + PERSIST4_BT_KEPT == offsetof(persist_t, ble_kept) &&
+          offsetof(persist_t, ble_kept) + PERSIST4_BLE_KEPT <= sizeof(persist_t) && sizeof(persist_t) - offsetof(persist_t, ble_kept) - PERSIST4_BLE_KEPT < 4u &&
+          PERSIST4_LEN0 == (int)offsetof(persist_t, open_proj));
     check("... and it fits a sector and stays below SLOOP 2.5's", sizeof(persist_t) <= ST_PAYLOAD_MAX && sizeof(persist_t) < 88u + 1464u);
 }
 
