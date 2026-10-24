@@ -102,7 +102,8 @@ struct NavPages: View {
     }
 }
 
-/// Right: the favourites (hold one: move, remove), then every mode and screen
+/// Left: every mode and screen, then the favourites under them (hold one: move, remove) (the user, 2026-10-24:
+/// "favorites below")
 struct NavSide: View {
     @ObservedObject var nav: NavModel
     private let modes: [Nav.Mode] = [.env, .lfo, .fx, .scl, .edit, .arp]
@@ -112,24 +113,6 @@ struct NavSide: View {
     var body: some View {
         ScrollView {
             VStack(spacing: NavMetrics.gap) {
-                HStack {
-                    Heading(text: "FAVORITES")
-                    addMenu
-                }
-                if nav.favorites.isEmpty {
-                    Text("Hold a page on the left to add it.")
-                        .font(.footnote)
-                        .foregroundStyle(.white.opacity(0.5))
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                ForEach(nav.favorites) { f in
-                    NavButton(title: f.label, lit: nav.isHere(f), star: true) { nav.go(f) }
-                        .contextMenu {
-                            Button { nav.move(f, by: -1) } label: { Label("Move Up", systemImage: "arrow.up") }
-                            Button { nav.move(f, by: 1) } label: { Label("Move Down", systemImage: "arrow.down") }
-                            Button(role: .destructive) { nav.remove(f) } label: { Label("Remove", systemImage: "trash") }
-                        }
-                }
                 Heading(text: "MODES")
                 LazyVGrid(columns: grid, spacing: NavMetrics.gap) {
                     ForEach(modes, id: \.title) { m in
@@ -142,6 +125,24 @@ struct NavSide: View {
                             nav.open(s)
                         }
                     }
+                }
+                HStack {
+                    Heading(text: "FAVORITES")
+                    addMenu
+                }
+                if nav.favorites.isEmpty {
+                    Text("Hold a page on the right to add it.")
+                        .font(.footnote)
+                        .foregroundStyle(.white.opacity(0.5))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                ForEach(nav.favorites) { f in
+                    NavButton(title: f.label, lit: nav.isHere(f), star: true) { nav.go(f) }
+                        .contextMenu {
+                            Button { nav.move(f, by: -1) } label: { Label("Move Up", systemImage: "arrow.up") }
+                            Button { nav.move(f, by: 1) } label: { Label("Move Down", systemImage: "arrow.down") }
+                            Button(role: .destructive) { nav.remove(f) } label: { Label("Remove", systemImage: "trash") }
+                        }
                 }
             }
         }
