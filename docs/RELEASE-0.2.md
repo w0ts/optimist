@@ -4,7 +4,7 @@ There is more in 0.2 than one firmware can hold: 26 synth engines, 37 kits, the 
 
 ## Bluetooth
 
-- **Bluetooth audio.** The FM-1 plays through AirPods and other Bluetooth headphones and speakers (A2DP, our own stack): pairing, bonding, reconnect without pairing; SHIFT + volume switches between Bluetooth and the FM-1's own output, or reconnects the last device. Adaptive frequency hopping: the link counts the headset's answers per radio channel and drops the bad channels from the hop set every 30 s, as every phone does. **[check: XM4 crackles were open; AFH is hardware-untested]**
+- **Bluetooth audio.** The FM-1 plays through AirPods and other Bluetooth headphones and speakers (A2DP, our own stack): pairing, bonding, reconnect without pairing; SHIFT + volume switches between Bluetooth and the FM-1's own output, or reconnects the last device. Adaptive frequency hopping: the link counts the headset's answers per radio channel and drops the bad channels from the hop set every 30 s, as every phone does.
 - **Bluetooth MIDI.** BLE MIDI, our own stack: play the FM-1 from an iPhone or a Mac, or send notes out; long packets asked for.
 - **Both at once.** BT MIDI and BT AUDIO are two pages in SYSTEM, each with its own mode (OFF / MAN / AUTO), device and state. **[check: running both at once has not been tested on hardware yet]**
 

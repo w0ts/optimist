@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* ENV 1 is the engine's own envelope (the user, 2026-10-16; docs/ENV-MOD-DESIGN.md): the amplitude is always wired (no AMP
+/* ENV 1 is the engine's own envelope (the user's ruling, 2026-10-16; docs/guide/sound.md "ENV 1 MOD"): the amplitude is always wired (no AMP
  * knob), and its page ENV 1 MOD has four depth knobs made in advance for each engine, no DEST / AMT pickers. Included by
  * params.c (after engines.c: the engines built, registry.h ENGINE_LIST); voice.c env_plan, the pages and the storage
  * read it. A card is one of:
