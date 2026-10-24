@@ -6,7 +6,8 @@
  *   a synth track    a mini piano roll: the notes stacked (a chord: several in a column), the ties as lines after
  *                    their note, the level as the shade, the ratchet as notches; the Cs as faint lines
  * A step with automation (a lock or motion event, op_step_auto) is drawn in the automation colour (C_AUTO) instead of its lane's or the track's.
- * Both: black ground, the beats ruled by thin lines, the steps beyond LEN empty, the steps held framed white; under the
+ * Both: black ground, the beats ruled by thin lines, the steps beyond LEN empty, the steps held framed white; the drums'
+ * empty steps a small dot each, a beat's first a little bigger (op_graph.c step_dot, as Melodee); under the
  * grid the events of the automation store (seq/auto.h; FELUCCA_AUTO: a dot under each step with one, in the lane's or
  * the roll's colour, a hold event with a tail to the next hold event of its parameter, or to LEN), then the playhead
  * strip (a canvas of its own, so a playing grid is drawn again only when a step changes; when the playhead is outside
@@ -64,8 +65,7 @@ static void sg_ground(const track_t *t)                 /* the beats, the steps 
         if (st.page * 16u + w >= len)
             continue;
         if (!(w & 3u))                                  /* black ground, lines only: a beat's first column ruled at */
-            cv_rect(x - 1, SG_TOP, 1, SG_H, C_LINE);    /* its left, every step within LEN a foot line */
-        cv_rect(x, SG_TOP + SG_H - 1, SG_CW - 2, 1, C_LINE);
+            cv_rect(x - 1, SG_TOP, 1, SG_H, C_LINE);    /* its left (each empty step: a dot in its lanes, sg_drums) */
         if (((st.held >> w) & 1u) || (!st.held && pk_ok() && st.pk == st.page * 16u + w))   /* (a held step white, the
                                                          * note picker's in the pick's colour) */
             cv_frame(x - 1, SG_TOP - 1, SG_CW, SG_H + 2, st.held ? C_WHITE : C_NOTE);
@@ -95,6 +95,8 @@ static __attribute__((noinline)) void sg_drums(const track_t *t)
             if (!dstep_has(d, l)) {
                 if (own)                                /* (silenced by a generator: a dim stub) */
                     cv_rect(x, y + lh - 3, SG_CW - 2, 2, col_shade(c, 2u));
+                else                                    /* (empty: a small dot, a beat's bigger) */
+                    step_dot(x, y, SG_CW - 2, lh - 1, !(w & 3u));
                 continue;
             }
             if (!own) {                                 /* (a generator's hit: outlined) */

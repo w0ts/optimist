@@ -40,6 +40,13 @@ static uint32_t trk_on_step(uint32_t c, uint32_t i)    /* step i of track c has 
     const track_t *t = &trk[c % NTRK];
     return is_drum(t) ? dstep_lanes(&t->dstep[i % NSTEP]) != 0u : t->step[i % NSTEP].time == ST_NOTE && t->step[i % NSTEP].n;   /* (the ACCENT lane's steps too) */
 }
+/* an empty drum step in its cell at x, y, w x h: a very small dot at the centre, a beat's first step's a little bigger
+ * (1 x 1, 2 x 2; the user, 2026-10-24, after Melodee: STEP's drum grid and the mixer's drum rows) */
+static void step_dot(int32_t x, int32_t y, int32_t w, int32_t h, int beat)
+{
+    int32_t s = beat ? 2 : 1;
+    cv_rect(x + (w - s) / 2, y + (h - s) / 2, s, s, C_DIM);
+}
 static uint16_t lvl_col(uint16_t c, uint32_t lv)        /* a hit's colour by its level: ghost 3/8 .. hard full (STEP, the mixer) */
 {
     static const uint8_t SH[4] = {3, 5, 7, 8};

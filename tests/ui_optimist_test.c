@@ -3886,6 +3886,7 @@ static void led_tests(void)
 #include "ui_optimist_lfo2.h"                      /* LFO 2: the LFO 2 and LFO2 DEST rows, RATE, SHIFT + a knob, the AMT bar */
 #include "ui_optimist_plocks.h"
 #include "ui_optimist_seqtools.h"                   /* Felucca 1.5.6: STEP's TOOLS and EUCLID, the COND card */
+#include "ui_optimist_stepdots.h"                   /* the drum steps as dots (Melodee's): STEP and the mixer */
 #include "ui_optimist_accent.h"                     /* the drum track's ACCENT lane: key 1, STEP's 17th row, the amount, the walk */
 #include "ui_optimist_lanevals.h"                  /* a picked lane shows the lane's values; the drum track's own tagged DR */
 #include "ui_optimist_hdrnum.h"                     /* the track number in the header badge, the preset after the title */
@@ -3982,6 +3983,7 @@ int main(int argc, char **argv)
     bd_layout_tests();
     geometry_tests();
     mixer_tests();
+    stepdots_tests();
     scope_tests();
     step_keys_tests();
     step_synth_tests();
