@@ -32,7 +32,7 @@ final class FakeFM1: Transport {
 
     init(objs: [Obj]) {
         self.objs = objs
-        info = Array("OPTIMIST 0.9".utf8) + [0, 2, 4, 0, 16, 3] + Array("ANALOG".utf8) + [0] + Array("DIGITAL".utf8) + [0, 4, 6, 0, 1,
+        info = Array("OPTIMIST 0.9".utf8) + [0, 2, 4, 0, 0, 0, 16, 3, 0] + Array("ANALOG".utf8) + [0] + Array("DIGITAL".utf8) + [0, 4, 7, 0, 1,
                                                                                     0x55, 2, 16, 16, 0x64, 1, 3]
         let opti = Array("opti_backup_4 opti_library_1 opti_projects_1 opti_patterns_1 ".utf8)   // (INFO's tag 66, ed_opti.h)
         info += [0x66, UInt8(opti.count)] + opti
@@ -49,8 +49,8 @@ final class FakeFM1: Transport {
             if a[0] == 1 { sections[k] = 1; log.append("SAVE \(k)") }
             return [a[0], a[1], UInt8(k < sections.count ? sections[k] : 0), playing ? 1 : 0]
         case .desc:
-            let i = Int(a[1])
-            return [0, a[1], 0] + Wire.v14enc(0) + Wire.v14enc(127) + Wire.v14enc(i * 3) + Fake.cstr(["LEVEL", "CUT", "CUT", "E0"][i]) + [0]
+            let i = Int(a[1]) | Int(a[2]) << 7       // (scope, id 2 x 7 bit)
+            return [0, a[1], a[2], 0] + Wire.v14enc(0) + Wire.v14enc(127) + Wire.v14enc(i * 3) + Fake.cstr(["LEVEL", "CUT", "CUT", "E0"][i]) + [0]
         case .bkList: return bkList(first: Int(a[1]))
         case .bkRead: return bkRead(a)
         case .bkBegin:

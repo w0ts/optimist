@@ -305,11 +305,11 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
     switch (cmd) {
     case ED_INFO:
         ed_str("FELUCCA " FELUCCA_VERSION, 24);
-        ed_b4(NENGINES, P_COUNT, G_COUNT, NSTEP); ed_b(P_E0);
+        ed_b(NENGINES); ed_b32(P_COUNT, 2); ed_b32(G_COUNT, 2); ed_b(NSTEP); ed_b32(P_E0, 2);   /* (v7: 2 x 7 bit each) */
         for (i = 0; i < NENGINES; i++)
             ed_str(ENGINES[i]->name, 8);
         ed_b(NTRK);                                       /* v3 */
-        ed_b(6);                                          /* v5: the protocol version */
+        ed_b(7);                                          /* v5: the protocol version (7: every id 2 x 7 bit) */
         for (i = 0; i < NENGINES; i++)                    /* v6: each slot's engine UID (registry.h) */
             ed_b(eng_uid(i));
         ed_b3(0x53, 1, 3);              /* tag: live sync, bit 0 WATCH while on keeps the shadow, bit 1 no RELOAD
@@ -358,25 +358,27 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         }
         break;
     case ED_GET:
-    case ED_SET:
-        if (na < 2u || !(d = ed_desc(a[0], a[1], &vp)))
+    case ED_SET: {                                         /* scope, id (2 x 7 bit) [, v14] */
+        uint32_t id = na >= 3u ? ed_r32(a + 1, 2) : 0xFFFFu;
+        if (na < 3u || !(d = ed_desc(a[0], id, &vp)))
             return;
-        if (cmd == ED_SET && na >= 4u) {
-            if (a[0] == 1 && a[1] == G_ENGSEL) {          /* engine change: the safe path */
+        if (cmd == ED_SET && na >= 5u) {
+            if (a[0] == 1 && id == G_ENGSEL) {            /* engine change: the safe path */
                 ed_load_t lb;
                 ed_load_before(&lb);
-                set_engine((uint32_t)clamp(ed_rv(a + 2), 0, NENGINES - 1));
+                set_engine((uint32_t)clamp(ed_rv(a + 3), 0, NENGINES - 1));
                 ed_load_after(&lb);
             } else if (d->max > d->min) {
-                *vp = (int16_t)clamp(ed_rv(a + 2), d->min, d->max);
+                *vp = (int16_t)clamp(ed_rv(a + 3), d->min, d->max);
             }
             ui.force = 1;
             if (a[0] == 1u)                               /* the editor's own change: no push */
-                ed9_known_g(a[1]);
+                ed9_known_g(id);
             else if (a[0] == 0u)
-                ed9_known_p(song.sel, a[1]);                                             /* (REVERB > TYPE: not pushed, nothing to skip) */
+                ed9_known_p(song.sel, id);                /* (REVERB > TYPE: not pushed, nothing to skip) */
         }
-        ed_b2(a[0], a[1]);
+        ed_b(a[0]);
+        ed_b32(id, 2);
         ed_v(*vp);
         break;
     case ED_DUMP:
@@ -384,12 +386,14 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         memcpy(e9.g, song.g, sizeof e9.g);
         ed_b2(ed_eng(TSEL), TSEL->preset);
         ed_vs(TSEL->p, P_COUNT);
+    }
         ed_vs(song.g, G_COUNT);
         break;
-    case ED_DESC:
-        if (na < 2u || !(d = ed_desc(a[0], a[1], &vp)))
+    case ED_DESC:                                          /* scope, id (2 x 7 bit) */
+        if (na < 3u || !(d = ed_desc(a[0], ed_r32(a + 1, 2), &vp)))
             return;
-        ed_b2(a[0], a[1]);
+        ed_b(a[0]);
+        ed_bs(a + 1, 2);
         ed_desc_body(d);                                   /* (ed_desc.h) */
         break;
     case ED_STEP_GET:
@@ -539,20 +543,22 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         ed_dstep_out(d);
         break;
     }
-    case ED_TRACK_PARAM: {                                 /* track, id [, v14] -> track, id, v14 */
+    case ED_TRACK_PARAM: {                                 /* track, id (2 x 7 bit) [, v14] -> track, id, v14 */
         track_t *t;
-        if (na < 2u || a[0] >= NTRK || a[1] >= P_COUNT)
+        uint32_t id = na >= 3u ? ed_r32(a + 1, 2) : 0xFFFFu;
+        if (na < 3u || a[0] >= NTRK || id >= P_COUNT)
             return;
         t = &trk[a[0]];
-        d = ed_tdesc(t, a[1]);
-        if (na >= 4u) {
+        d = ed_tdesc(t, id);
+        if (na >= 5u) {
             if (d->max > d->min)                           /* as SET: clamped; a fixed value stays */
-                t->p[a[1]] = (int16_t)clamp(ed_rv(a + 2), d->min, d->max);
-            ed_known(a[0], a[1]);
+                t->p[id] = (int16_t)clamp(ed_rv(a + 3), d->min, d->max);
+            ed_known(a[0], id);
             ui.force = 1;
         }
-        ed_b2(a[0], a[1]);
-        ed_v(t->p[a[1]]);
+        ed_b(a[0]);
+        ed_b32(id, 2);
+        ed_v(t->p[id]);
         break;
     }
     case ED_SYNC_STATS:                                    /* v9: what the sync costs (a measurement aid) */

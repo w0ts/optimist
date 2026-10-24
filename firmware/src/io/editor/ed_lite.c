@@ -59,11 +59,11 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
     case ED_INFO:
         ed_str("FELUCCA " FELUCCA_VERSION, 24);
 #if FELUCCA_LIBRARIAN                                     /* (the presets' engines and values: a record's layout) */
-        ed_b4(NENGINES, P_COUNT, 0, NSTEP); ed_b(P_E0);
+        ed_b(NENGINES); ed_b32(P_COUNT, 2); ed_b32(0, 2); ed_b(NSTEP); ed_b32(P_E0, 2);   /* (v7: 2 x 7 bit each) */
         for (i = 0; i < NENGINES; i++)
             ed_str(ENGINES[i]->name, 8);
         ed_b(NTRK);                                       /* v3 */
-        ed_b(6);                                          /* v5: the protocol version */
+        ed_b(7);                                          /* v5: the protocol version (7: every id 2 x 7 bit) */
         for (i = 0; i < NENGINES; i++)                    /* v6: each slot's engine UID (registry.h) */
             ed_b(eng_uid(i));
 #if FELUCCA_PATTERNS
@@ -71,9 +71,9 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         ed_b2(PAT_N, SEC_IDS);
 #endif
 #else
-        ed_b4(0, 0, 0, NSTEP); ed_b(0);                   /* (no engine, no parameter: nothing to edit) */
+        ed_b(0); ed_b32(0, 2); ed_b32(0, 2); ed_b(NSTEP); ed_b32(0, 2);   /* (no engine, no parameter: nothing to edit) */
         ed_b(0);                                          /* v3: no track */
-        ed_b(6);                                          /* v5: the protocol version (tags follow from v6) */
+        ed_b(7);                                          /* v5: the protocol version (tags follow from v6; 7: ids 2 x 7 bit) */
 #endif
         ed_b3(ED_TAG_LITE, 1, 1u | ED_LITE_LIB);
         ed_mirror_info();                                 /* tag 0x65: the screen mirrored (ed_mirror.c) */

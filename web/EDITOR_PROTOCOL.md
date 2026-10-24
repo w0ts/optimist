@@ -31,6 +31,7 @@ Every request gets exactly one reply with the same header and `<cmd>`; a request
 | track | 0..2 the synth parts, 3 the drum track (NTRK = 4) |
 | engine byte | 0..NENGINES-1; NENGINES = the drum track (no engine, no presets) |
 | n x 7 bit | an unsigned number in n bytes, LSB first (offsets 3 x 7 bit, CRC-32 5 x 7 bit) |
+| id | a parameter id (`P_*`, `G_*`, a STEPLANE value's, a PAGES card's) and INFO's P_COUNT, G_COUNT, `P_E0`: 2 x 7 bit, LSB first (protocol 7, 2026-10-24: before, one byte) |
 | pack7 | groups of up to 7 bytes, each preceded by one byte holding their top bits (bit j = bit 7 of byte j) |
 
 `P_E0..P_E7` are the engine's eight parameters (`INFO` gives `P_E0`; their meaning and range follow the track's engine, so read
@@ -80,8 +81,8 @@ SLOOP 2.4's step extras 72..77 (`LOCK_*`, `MICRO_*`, `FILL_*`: the automation st
 
 ## INFO (1) and BUILD (49)
 
-`INFO` request: none. Reply: version string ("FELUCCA <version>"), NENGINES, P_COUNT, G_COUNT, NSTEP, `P_E0`, NENGINES engine-name
-strings, NTRK, the protocol byte (6), each engine slot's UID, then tagged blocks `id, length, bytes` (skip unknown ids). The tags:
+`INFO` request: none. Reply: version string ("FELUCCA <version>"), NENGINES, P_COUNT (id), G_COUNT (id), NSTEP, `P_E0` (id), NENGINES engine-name
+strings, NTRK, the protocol byte (7), each engine slot's UID, then tagged blocks `id, length, bytes` (skip unknown ids). The tags:
 
 | Tag | Bytes | Meaning |
 | --- | --- | --- |
@@ -246,7 +247,7 @@ and ADPCM data in base64 as `SMP_READ` gave them; an import writes them back int
 | --- | --- | --- |
 | 50 DRUM_SRCS | start | start, total, n, then n x (src, kind, name (12)): the SOURCE list from start (at most 24 a reply: ask again from start + n until total) |
 | 51 DRUM_SHOW | lane 0..9 | lane, mask (2 x 7 bit), flags, name string |
-| 52 PAGES | start | start, total, n, then n x (family, scope, shown, id0..id3, title (8)) (at most 24 a reply) |
+| 52 PAGES | start | start, total, n, then n x (family, scope, shown, id0..id3 (ids; 0x3FFF an empty card), title (8)) (at most 24 a reply) |
 
 - **src** is a lane's source byte (above); 127 = an entry this build steps over (leave it out). **kind**: 0 the project's kit, 1 a user sample slot, 2 a sampled kit, 3 a synthesised kit, 4 an X0X machine; + 8: not in this build (a stand-in plays).
 - **DRUM_SHOW:** mask bit i = offset i (TUNE .. LEVEL) applies to this lane's source; flags bit 0 TUNE counts the model's steps, not semitones; bit 1 a user sample (HIT START LEN apply); bit 2 the sound has no per-sound DIST / COMP (hide those knobs; `FX` op 3 ignores it). Ask again after a source or the kit changed.
@@ -274,7 +275,7 @@ A restore writes in the list's order (the drum records before the projects, the 
 | FX31..FX33 | the FX slot records (`fx_rec.c`) in three packs, sections A..F, G..L, M..P and the autosave: per record u8 id, u16 length, the log record; each written back whole at the commit, paired by its key with S01.. and AUTO | 5 |
 | DLFO, DLF1, DLF2 | the drum lanes' LFO records (`dlfo_rec.c`): DLFO an older backup's (restored only); DLF1 sections A..I, DLF2 J..P and the autosave, u8 id, u16 length, the log record. A firmware before them skips them and the sections load with every lane LFO off | 5 |
 | AUTO | the working project (autosave) | 0 |
-| UPR1, UPR2 | user presets 1-16, 17-32 ("UPB3"; "UPB2" / "UPB1" are converted on restore) | 0 |
+| UPR1, UPR2 | user presets 1-16, 17-32 ("UPB4": a byte a value; a bank of an older format is not restored) | 0 |
 | UKIT | the user drum kit bank ("DKB4"; `DRUM_KITS`) | 0 |
 | UPF6 | the FM6 voices of the user presets (`FELUCCA_UP_FM6`) | 0 |
 | FM6B | the FM6 user bank: the tag stays so an older backup reads the same; never in a build now, a `BK_BEGIN` of it says rc 5 | 2 |
@@ -574,7 +575,7 @@ The `TRACKS` push carries the track bits; a lane, USB or return change made on t
 ## Macros (65)
 
 `ed_macro.c` (`MACROS`). The editor reads and writes the authored values; a macro moves them inside the audio ISR only. `MACRO track` says what plays: reply `track, COLOR, MOTION, SPACE, ENERGY (4 x v14, each -64..63, 0 = home), n (7 bit), n entries`:
-kind 0 = `0, id, v14` the track's `P_id` plays as v14; kind 1 = `1, id, v14` the global `G_id` plays as v14; kind 2 = `2, 0, sc v14, add v14` every drum lane's REV send plays as clamp(send x sc / 64 + add, 0, 127). Only moved values are listed. Ask again for the selected track on a track change and about every 500 ms;
+kind 0 = `0, id, v14` the track's `P_id` plays as v14; kind 1 = `1, id, v14` the global `G_id` plays as v14; kind 2 = `2, 0 0, sc v14, add v14` every drum lane's REV send plays as clamp(send x sc / 64 + add, 0, 127). Only moved values are listed. Ask again for the selected track on a track change and about every 500 ms;
 the page shows the effective value with an M mark. `?mock=1&macros=1` turns the mock's answer on.
 
 ## CZ collection (66)

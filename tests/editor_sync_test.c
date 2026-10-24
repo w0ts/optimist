@@ -188,14 +188,14 @@ static void run_ms(uint32_t ms)                         /* the main loop for ms:
     }
 }
 static uint32_t count(uint32_t cmd, uint32_t from) { uint32_t i, n = 0; for (i = from; i < nf; i++) n += fr[i][4] == cmd; return n; }
-/* the PARAMS entries for (where, id) in frames from..nf: how many, the last value */
+/* the PARAMS entries for (where, id) in frames from..nf: how many, the last value (an entry: where, id 2 x 7 bit, v14) */
 static uint32_t entries(uint32_t from, uint32_t where, uint32_t id, int32_t *last)
 {
     uint32_t i, k, n = 0;
     for (i = from; i < nf; i++)
         if (fr[i][4] == ED_PARAMS)
-            for (k = 5; k + 4u <= frn[i] - 1u; k += 4)
-                if (fr[i][k] == where && fr[i][k + 1] == id) { n++; *last = (int32_t)(fr[i][k + 2] | fr[i][k + 3] << 7) - 8192; }
+            for (k = 5; k + 5u <= frn[i] - 1u; k += 5)
+                if (fr[i][k] == where && (fr[i][k + 1] | fr[i][k + 2] << 7) == id) { n++; *last = (int32_t)(fr[i][k + 3] | fr[i][k + 4] << 7) - 8192; }
     return n;
 }
 

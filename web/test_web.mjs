@@ -608,7 +608,7 @@ async function editorLive() {
   }
   /* tagged blocks after the UIDs: unknown ones skipped, a cut one ignored */
   {
-    const head = [88, 0, 1, 72, 32, 64, 64, 65, 0, 4, 6, 0];   /* "X", 1 engine "A", NTRK 4, proto 6, its UID */
+    const head = [88, 0, 1, 72, 0, 32, 0, 64, 64, 0, 65, 0, 4, 7, 0];   /* "X", 1 engine "A" (P_COUNT G_COUNT P_E0: 2 x 7 bit), NTRK 4, proto 7, its UID */
     const t1 = E.parse[C.INFO]([...head, 0x77, 2, 1, 2, 0x53, 1, 1]), t2 = E.parse[C.INFO]([...head, 0x53, 3, 1]);
     const t3 = E.parse[C.INFO]([...head]);
     ok(t1.syncCaps === 1 && t2.syncCaps === 0 && t3.syncCaps === 0 && t1.uids.length === 1,
@@ -826,13 +826,13 @@ async function editorV5() {
   const C = E.CMD;
   const { m, rq, ev, done } = attachMock({ watchMs: 1000 });
   const info = E.parse[C.INFO](await rq(E.req.info()));
-  ok(info.proto === 6 && info.uids.length === info.nengines && /OPTIMIST/.test(info.version) && info.pcount === 75 && info.gcount === 38 && info.pe0 === 67, "v5/v6: INFO ends with the protocol version (6) and the engine UIDs");
+  ok(info.proto === 7 && info.uids.length === info.nengines && /OPTIMIST/.test(info.version) && info.pcount === 75 && info.gcount === 38 && info.pe0 === 67, "v5/v6: INFO ends with the protocol version (7: ids 2 x 7 bit) and the engine UIDs");
   /* the firmware says the same: ED_DRUM_STEP is command 33, INFO sends 5, P_CHORD / the master globals as the mock has them */
   const ec = readFileSync(join(HERE, "../firmware/src/io/editor/editor.c"), "utf8"), pc = readFileSync(join(HERE, "../firmware/src/core/params.c"), "utf8");
   const en = (/enum \{ ED_INFO = 1,([^}]*)\}/.exec(ec) || [])[1] || "";
   const names = ["ED_INFO", ...en.replace(/\/\*[^*]*\*\//g, "").split(",").map((x) => x.trim()).filter(Boolean)];
   ok(names.indexOf("ED_DRUM_STEP") + 1 === C.DRUM_STEP && names.indexOf("ED_TRACK_CHANGED") + 1 === C.TRACK_CHANGED
-    && /ed_b\(6\);\s*\/\* v5: the protocol version/.test(ec) && /ED_BUILD = 49/.test(ec) && C.BUILD === 49, "v5: command numbers and INFO == editor.c");
+    && /ed_b\(7\);\s*\/\* v5: the protocol version/.test(ec) && /ED_BUILD = 49/.test(ec) && C.BUILD === 49, "v5: command numbers and INFO == editor.c");
   const enumNames = (id) => (new RegExp(`${id}\\[\\] = \\{([^}]*)\\}`).exec(pc) || [])[1].split(",").map((x) => x.trim().replace(/"/g, ""));
   const chord = E.parse[C.DESC](await rq(E.req.desc(0, 49)));
   const gd = [];
@@ -1733,7 +1733,7 @@ async function editorV9() {
   ok(ls.length === 1 && ls[0].lane === 4 && ls[0].src === 20 && !ev.pushes.some((f) => f.cmd === C.CHANGED || f.cmd === C.TRACK_CHANGED || f.cmd === C.STEP_CHANGED),
     "v9: LANE: a drum lane's sound (replaces kitPoll); no v2 / v4 pushes in v9");
   /* the frames as the firmware builds them */
-  const pf = E.parse[C.PARAMS]([0, 5, ...[0x0a, 0x40], 127, 26, 0x21, 0x40]);
+  const pf = E.parse[C.PARAMS]([0, 5, 0, ...[0x0a, 0x40], 127, 26, 0, 0x21, 0x40]);   /* (ids 2 x 7 bit) */
   const sf = E.parse[C.STEPS]([1, 7, 2, 1, 60, 0, 0, 0, 0, 1, 100, 0, 0, 0, 2, 62, 64, 0, 0, 0, 0, 90, 5, 2, 3], info);
   const df = E.parse[C.STEPS]([3, 0, 1, 5, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0], info);
   ok(js(pf) === js([{ track: 0, id: 5, value: 10 }, { track: -1, id: 26, value: 33 }]) && sf.steps.length === 2 && sf.steps[1].index === 8 && sf.steps[1].notes[1] === 64
@@ -2490,16 +2490,16 @@ async function editorUiPass() {
     "ui: not connected, only the connect card (Connect, status, hint, installer link)");
   {   /* a backup-only firmware (builder ED_LIVE off, ed_lite.c): INFO's tag 0x64; the page loads the backup alone */
     const enc = (s) => [...s].map((c) => c.charCodeAt(0)).concat(0);
-    const li = E.parse[E.CMD.INFO]([...enc("FELUCCA 0.1"), 0, 0, 0, 64, 0, 0, 6, 0x64, 1, 1]);
+    const li = E.parse[E.CMD.INFO]([...enc("FELUCCA 0.1"), 0, 0, 0, 0, 0, 64, 0, 0, 0, 7, 0x64, 1, 1]);
     const lite = readFileSync(new URL("../firmware/src/io/editor/ed_lite.c", import.meta.url), "utf8");
-    ok(li.lite && li.nengines === 0 && li.proto === 6 && /ED_TAG_LITE 0x64u/.test(lite) && /ed_b3\(ED_TAG_LITE, 1, 1u \| ED_LITE_LIB\)/.test(lite)
+    ok(li.lite && li.nengines === 0 && li.proto === 7 && /ED_TAG_LITE 0x64u/.test(lite) && /ed_b3\(ED_TAG_LITE, 1, 1u \| ED_LITE_LIB\)/.test(lite)
       && /if \(d\.info\.lite\) return await loadLite\(d\)/.test(html) && /html\[data-conn=lite\] #tabs/.test(css),
       "ui: a backup-only FM-1 (INFO tag 0x64 == ed_lite.c): read as lite, loadLite, only Backup / Install / Build / Simulator shown");
   }
   {   /* the librarian (builder LIBRARIAN, ed_lite.c): INFO as the live header with tag 0x64 = 3 and the patterns' 0x55; the page
          reads the sections, the user bank, the kits and the patterns, shows the Library tab and the librarian, nothing live */
     const enc = (s) => [...s].map((c) => c.charCodeAt(0)).concat(0);
-    const li = E.parse[E.CMD.INFO]([...enc("FELUCCA 0.1"), 2, 90, 0, 64, 50, ...enc("ANALOG"), ...enc("FM6"), 4, 6, 0, 9, 0x55, 2, 16, 16, 0x64, 1, 3]);
+    const li = E.parse[E.CMD.INFO]([...enc("FELUCCA 0.1"), 2, 90, 0, 0, 0, 64, 50, 0, ...enc("ANALOG"), ...enc("FM6"), 4, 7, 0, 9, 0x55, 2, 16, 16, 0x64, 1, 3]);
     const lite = readFileSync(new URL("../firmware/src/io/editor/ed_lite.c", import.meta.url), "utf8");
     const reg = readFileSync(new URL("../tools/builder/registry.py", import.meta.url), "utf8");
     ok(li.lite && li.lib && li.nengines === 2 && li.pcount === 90 && li.engines[1] === "FM6" && li.ntrk === 4 && li.pat && li.pat.slots === 16
@@ -2509,7 +2509,7 @@ async function editorUiPass() {
       && /if \(d\.info\.lib\) await libLiteRead\(d\)/.test(html) && /html\[data-conn=lite\]:not\(\[data-lib\]\) #tabs > button\[data-tab=library\]/.test(css)
       && /:not\(\[data-tab=library\]\)/.test(css) && /<div id="libr"><\/div>/.test(html) && /function renderLibr\(\)/.test(html),
       "ui: the librarian (INFO tag 0x64 bit 1 == ed_lite.c, builder LIBRARIAN bit 352): read as lite + lib, the Library tab and the librarian shown");
-    const lo = E.parse[E.CMD.INFO]([...enc("FELUCCA 0.1"), 0, 0, 0, 64, 0, 0, 6, 0x64, 1, 1]);
+    const lo = E.parse[E.CMD.INFO]([...enc("FELUCCA 0.1"), 0, 0, 0, 0, 0, 64, 0, 0, 0, 7, 0x64, 1, 1]);
     ok(lo.lite && !lo.lib, "ui: a backup-only FM-1 without the librarian: lite, no lib");
   }
   /* auto-connect: MIDI access asked without a click, the FM-1's ports found; refused / no Web MIDI / not plugged in */
