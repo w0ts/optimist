@@ -37,14 +37,14 @@ Four ready-made builds, in every release; the builder makes any other.
 
 | Flavour | What it is |
 | --- | --- |
-| **Synth** (the default) | FM6 with five voice packs, ANALOG 2, JUNO, ACID, PHYS, the X0X 909 / 808 drums, Bluetooth MIDI, USB audio, the second core. The web editor does backup and restore only. |
-| **drum machine** | Every kit, the drum editor, your samples and kits, SLICE, GRAIN, ANALOG 2 for bass. No web editor: back up with another flavour first. |
-| **FM + VA studio** | ANALOG 2, FM6, DIGITAL, SAMPLE, TRIO, every kit. |
-| **everything fits** | Every engine but TRIO, and almost every feature that fits. |
+| **Synth** (the default) | FM6 with five voice packs, ANALOG 2, DIGITAL, JUNO, ACID, PHYS, the synthesised kits and the X0X 808, Bluetooth MIDI, USB audio, the second core. The web editor does backup and restore only. |
+| **drum machine** | The synthesised and sampled kits, the X0X 909 and 808, the drum editor, your samples and kits, SAMPLE, SLICE, GRAIN, ANALOG 2 for bass. No web editor: back up with another flavour first. |
+| **FM + VA studio** | ANALOG 2, FM6, DIGITAL, SAMPLE; the synthesised kits with KAWA, the sampled kits. |
+| **everything fits** | ANALOG 2, DIGITAL, LOFI, SAMPLE, VOICE, WHEEL, GRAIN, FM6, CZ; the synthesised and sampled kits; the web editor with live editing. |
 
 ## Your first install
 
-1. **Back up.** Open the [Editor](https://w0ts.github.io/optimist/webapp/editor/#mixer), *Connect*, then Projects >
+1. **Back up.** Open the [Editor](https://w0ts.github.io/optimist/webapp/editor/#backup), *Connect*, then
    **Backup**: one `.optimist-backup` file with your projects, presets, kits and settings (tick *with the samples* for
    those too). Coming from another firmware, use its own backup as well.
 2. Open [Install](https://w0ts.github.io/optimist/webapp/editor/#install): **Connect** says what your FM-1 runs,
@@ -60,9 +60,9 @@ working project as a SLOOP 2.7 song file to go the other way.
 
 ## Getting back
 
-- **To the official firmware:** in [Install](https://w0ts.github.io/optimist/webapp/editor/#install), step 4, choose
-  M-VAVE's FM-1 V15 file (`FM-1.fwsc` from [m-vave.com](https://www.m-vave.com/download), unchanged) and install it. Or
-  use M-VAVE's own updater, M-UPGRADE. The official firmware does not read Optimist's data: back it up first.
+- **To the official firmware:** in [Install](https://w0ts.github.io/optimist/webapp/editor/#install), step 4, take
+  the copy of M-VAVE's FM-1 V15 the site keeps (or your own `FM-1.fwsc` from [m-vave.com](https://www.m-vave.com/download),
+  unchanged) and install it. Or use M-VAVE's own updater, M-UPGRADE. The official firmware does not read Optimist's data: back it up first.
 - **The FM-1 does not start Optimist:** hold **OCT−** alone while switching on (*OPTIMIST USB RESCUE*), then install again.
   After two start-ups that crash, the FM-1 goes there by itself.
 - **Nothing starts at all:** hold **OCT− + OCT+** while switching on and keep them held for **3 s**: the chip's own update mode
@@ -75,10 +75,10 @@ working project as a SLOOP 2.7 song file to go the other way.
 - **Four tracks:** three synth tracks and a drum track with 10 lanes on the black keys, ghost and hard hits, ratchets.
 - **Up to 26 synth engines:** ANALOG 2, FM6 (plays DX7 voices as Dexed does), JUNO, ACID, CZ, PHYS, DIGITAL, PHASE,
   LOFI, SAMPLE, VOICE, TRIO, WHEEL, GRAIN, SLICE, NOISE, DRONE (a LYRA-style coupled drone with binaural beats), PLAITS (four of Mutable Instruments Plaits' models), Clipper's STRINGS, VPS, TERRAIN, WSEQ, VECTOR and WAVE, SID (the C64's chip, after reSID) and PROPHET (a Prophet-5 style voice). Two LFOs and two envelopes per sound.
-- **Drums:** 37 kits (5 sampled, 32 synthesised), the X0X 909 and 808, every sound editable, your samples and kits.
+- **Drums:** 39 kits (5 sampled, 34 synthesised), the X0X 909 and 808, every sound editable, your samples and kits.
 - **Effects:** two insert slots on every track, drum sound and the master (DYN, EQ3, filters, drive, chorus, echo, the
   Juno chorus and more), reverb, delay and chorus sends with three returns, punch-in effects.
-- **Sequencer:** 64 steps a track, parameter locks, motion recording, chance and conditions, note generators (EUCLID, RANDOM, PULSE), pattern tools, fills, patterns and
+- **Sequencer:** 64 steps a track, parameter locks, motion recording, chance and conditions, note generators (EUCLID, RANDOM, PULSE, GRIDS), pattern tools, fills, patterns and
   scenes, sections A–P and a song chain, snapshots, undo.
 - **Connections:** USB and TRS MIDI in, MIDI out, MIDI clock in and out, Bluetooth MIDI, USB audio (experimental).
 - **One interface:** rows of values on the screen, SELECT / ALGORITHM / PRESETS, SAVE = yes, HOME = no, and held buttons

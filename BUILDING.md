@@ -156,9 +156,7 @@ py tools\optimist.py setup              # on Windows: the venv, the SDK files; f
 py tools\optimist.py builder            # each tool runs through wsl.exe
 ```
 
-(`BUILDER_VENV` keeps WSL's Linux venv out of the Windows one.) Or work inside WSL entirely: there it is Linux. Written
-for Windows and never run: `setup` (venv under `Scripts\`, the SDK download), the `image` and `docker` backends from a
-Windows path, the `wsl` backend, `--in-docker`, `builder` in Windows Terminal, `emu`, and CRLF checkouts.
+(`BUILDER_VENV` keeps WSL's Linux venv out of the Windows one.) Or work inside WSL entirely: there it is Linux.
 
 ## Emulator
 
@@ -249,8 +247,8 @@ not set; `tools/optimist.py build` strips `FELUCCA_*` from it, so these are for 
 | `FELUCCA_ASM_CHECK` | 0 | verification build: every asm loop also runs the C on a copy (not for release) |
 | `FELUCCA_UNDO_CAP` | 0 | the undo ring at most this many bytes (0 = all the memory left over) |
 | `FELUCCA_SAMPLES_SKIP` | empty | built-in sample sets left out, comma-separated (the builder's `SET_*` items set it); the sets after one move down a number |
-| `FELUCCA_DUAL_IDLE` | 1 | the second core sleeps between jobs, 0 spins in RAM (`OPTIMIST_DUAL_IDLE=0` through `optimist.py build`); `FELUCCA_BENCH` selects the emulator load scenarios (`docs/DUAL-CORE.md`) |
-| `FELUCCA_SIMD_*` | 0 | retired: SIMD is wrong on the real FM-1 |
+| `FELUCCA_DUAL_IDLE` | 0 | the second core spins in RAM between jobs, 1 sleeps (`OPTIMIST_DUAL_IDLE=1` through `optimist.py build`; the wake never reached CPU1 on the FM-1, 2026-10-15); `FELUCCA_BENCH` selects the emulator load scenarios (`docs/DUAL-CORE.md`) |
+| `FELUCCA_SIMD` | 0 | keep off: a SIMD build crackles on the real FM-1 (2026-10-12; `firmware/hal/fm1_simd.h`) |
 
 ### Package identity
 
@@ -288,7 +286,7 @@ python tools/optimist.py test --python    # the Python tests only (any host, no 
 ```
 
 `test` first makes the builds the tests read, all at once (`JOBS`, default sized to the CPUs and RAM; each in
-`build/slots/t-*`): user-default (the installer, update and rescue tests need a package that fits and its app), a
+`build/slots/t-*`): `synth` (the installer, update and rescue tests need a package that fits and its app), a
 measurement build of every item (it does not fit the slot; the target-cost check needs `felucca.dis`), two BLE builds
 for the emulator tests (`build/ble/`), and a measurement build of each of the builder's check configurations (the drift
 check). Then it runs `tests/run_tests.sh`: the C host tests (flash storage, presets, MIDI parser, update entry and
@@ -339,8 +337,8 @@ once in processes of their own (`--jobs N`), `timing` alone after them. Exit 1 o
 ### The gate
 
 `make gate` (`python tools/optimist.py gate`; `tools/gate.py --help`) runs before a push: the builder costs check
-(`--missing --check`), every published profile built (`--no-profiles`: user-default only), `CONFIG=file` and
-`SET="KEY=V ..."` builds if given, the host tests, then user-default built again last so `build/` holds its package and
+(`--missing --check`), every published profile built (`--no-profiles`: `synth` only), `CONFIG=file` and
+`SET="KEY=V ..."` builds if given, the host tests, then `synth` built again last so `build/` holds its package and
 ELF (`EMU=1`: then `make emu-check` on it). Each step logs to `build/gate/`; every step runs even after a failed one.
 
 ## Install
