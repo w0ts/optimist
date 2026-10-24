@@ -64,10 +64,10 @@ A profile is a saved configuration. Shipped ones are in `config/profiles` (`make
 
 | Profile (`# name:`) | What it builds (its values) |
 |---|---|
-| `synths_USBaudio_BTaudio_BTmidi` (synths-USB-BTA-BTM) | **the default**: `build`, `package`, `flash`, `config` and `make` use it without a profile, the menu opens with it the first time, and it is the Pages site's flavour (`web/flavours.json`). ANALOG 2 (with its four filter models), DIGITAL, FM6 (three voice packs), PHYS, ACID, JUNO; the drum synth with the PLAITS kit, the X0X 909 and 808, the user kits; USB audio, Bluetooth MIDI (BLE, BLE devices at MINIMAL), Bluetooth audio; the web editor's backup and restore |
-| `synths` | ANALOG 2 (with its four filter models), DIGITAL, PHASE, FM6 (five voice packs), PLAITS, STRINGS, PROPHET, PHYS, ACID, JUNO; the drum synth with the KAWA and PLAITS kits, the X0X 909 and 808, the user kits; Bluetooth audio; the web editor's backup and restore |
-| `synths-2` | LOFI, VOICE, WHEEL, DRONE, VPS, TERRAIN, WSEQ, VECTOR, WAVE, SID, PROPHET; the drum synth alone (no user kits); Bluetooth audio; the web editor's backup and restore |
-| `drum-machines` (drum machine) | SAMPLE, GRAIN; the drum synth with the KAWA and PLAITS kits, the X0X 909 and 808, the sampled kits, your samples and kits; USB audio, Bluetooth MIDI, Bluetooth audio; the web editor's backup and restore |
+| `synths_USBaudio_BTaudio_BTmidi` (synths-USB-BTA-BTM) | **the default**: `build`, `package`, `flash`, `config` and `make` use it without a profile, the menu opens with it the first time, and it is the Pages site's flavour (`web/flavours.json`). ANALOG 2 (with its four filter models), DIGITAL, FM6 (five voice packs), PLAITS, PHYS, ACID, JUNO; the drum synth with the PLAITS kit, the X0X 909 and 808, the user kits; USB audio, Bluetooth MIDI (BLE, BLE devices at MINIMAL), Bluetooth audio; the web editor for the screen mirror alone (no backup, no librarian); no help line |
+| `synths` | ANALOG 2 (with its four filter models), DIGITAL, PHASE, FM6 (five voice packs), PLAITS, STRINGS, PROPHET, PHYS, ACID, JUNO; the drum synth with the KAWA and PLAITS kits, the X0X 909 and 808, the user kits; Bluetooth audio; the web editor's backup, restore and screen mirror |
+| `synths-2` | LOFI, VOICE, WHEEL, DRONE, VPS, TERRAIN, WSEQ, VECTOR, WAVE, SID, PROPHET; the drum synth alone (no user kits); Bluetooth audio; the web editor's backup, restore and screen mirror |
+| `drum-machines` (drum machine) | SAMPLE, GRAIN; the drum synth with the KAWA and PLAITS kits, the X0X 909 and 808, the sampled kits, your samples and kits; USB audio, Bluetooth MIDI, Bluetooth audio; the web editor's backup, restore and screen mirror |
 
 The default is also the reference profile (the host tests, the gate, `emu-check` and CI's fixtures build it; `synth` until
 2026-10-24) and cannot be deleted. `--defaults` is every registry default (too big for the slot).

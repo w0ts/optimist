@@ -37,10 +37,10 @@ Four ready-made builds, in every release; the builder makes any other.
 
 | Flavour | What it is |
 | --- | --- |
-| **synths-USB-BTA-BTM** (the default) | ANALOG 2, DIGITAL, FM6 with three voice packs, JUNO, ACID, PHYS; the synthesised kits with PLAITS, the X0X 909 and 808, your kits; USB audio, Bluetooth MIDI, Bluetooth audio, the second core. The web editor does backup and restore only. |
-| **synths** | ANALOG 2, DIGITAL, PHASE, FM6 with five voice packs, PLAITS, STRINGS, PROPHET, JUNO, ACID, PHYS; the synthesised kits with KAWA and PLAITS, the X0X 909 and 808, your kits; Bluetooth audio. The web editor does backup and restore only. |
-| **synths-2** | LOFI, VOICE, WHEEL, DRONE, VPS, TERRAIN, WSEQ, VECTOR, WAVE, SID, PROPHET; the synthesised kits; Bluetooth audio. The web editor does backup and restore only. |
-| **drum machine** | The synthesised kits with KAWA and PLAITS, the sampled kits, the X0X 909 and 808, the drum editor, your samples and kits, SAMPLE, GRAIN; USB audio, Bluetooth MIDI, Bluetooth audio. The web editor does backup and restore only. |
+| **synths-USB-BTA-BTM** (the default) | ANALOG 2, DIGITAL, FM6 with five voice packs, PLAITS, JUNO, ACID, PHYS; the synthesised kits with PLAITS, the X0X 909 and 808, your kits; USB audio, Bluetooth MIDI, Bluetooth audio, the second core. The web editor mirrors the screen only (no backup). |
+| **synths** | ANALOG 2, DIGITAL, PHASE, FM6 with five voice packs, PLAITS, STRINGS, PROPHET, JUNO, ACID, PHYS; the synthesised kits with KAWA and PLAITS, the X0X 909 and 808, your kits; Bluetooth audio. The web editor does backup, restore and the screen mirror. |
+| **synths-2** | LOFI, VOICE, WHEEL, DRONE, VPS, TERRAIN, WSEQ, VECTOR, WAVE, SID, PROPHET; the synthesised kits; Bluetooth audio. The web editor does backup, restore and the screen mirror. |
+| **drum machine** | The synthesised kits with KAWA and PLAITS, the sampled kits, the X0X 909 and 808, the drum editor, your samples and kits, SAMPLE, GRAIN; USB audio, Bluetooth MIDI, Bluetooth audio. The web editor does backup, restore and the screen mirror. |
 
 ## Your first install
 
