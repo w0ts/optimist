@@ -117,6 +117,13 @@ static void bd_cind(ble_diag_put put, const struct ble_diag *d)
     bd_kv(put, "cind_interval", d->cind_interval);
     bd_kv(put, "cind_latency", d->cind_latency);
     bd_kv(put, "cind_timeout", d->cind_timeout);
+    bd_kv(put, "sa_calls", d->sa_calls);
+    bd_kv(put, "sa_on", d->sa_on);
+    bd_kv(put, "sa_sent", d->sa_sent);
+    bd_kv(put, "sa_full", d->sa_full);
+    bd_kv(put, "sa_iv", d->sa_iv);
+    bd_kv(put, "sa_fast", d->sa_fast);
+    bd_kv(put, "sa_slow", d->sa_slow);
     put("cind_chm ");
     bd_hex(put, d->cind_chm[4], 2);
     bd_hex(put, chm, 8);

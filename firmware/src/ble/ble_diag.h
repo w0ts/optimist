@@ -76,6 +76,11 @@ struct ble_diag {
     uint32_t cind_aa, cind_crc;
     uint16_t cind_win_off, cind_interval, cind_latency, cind_timeout;
     uint32_t cind_isr_us;                          /* RX IRQ entry -> state 7 written (us) */
+    /* ble_host.c ble_sig_audio (the audio's slower interval): its calls, those with the audio streaming, the requests
+     * sent and those the full link queue held back; what it last saw (the interval, our request's state, slow) */
+    uint32_t sa_calls, sa_on, sa_sent, sa_full;
+    uint16_t sa_iv;
+    uint8_t sa_fast, sa_slow;
     uint32_t first_rx_us;                          /* state 7 written -> the first data PDU's RX IRQ (us) */
     uint16_t first_rx_evt, first_evt;              /* their event counters (0xFFFF: none yet) */
     /* the connection (driver) */

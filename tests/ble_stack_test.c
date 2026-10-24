@@ -759,6 +759,57 @@ static void test_audio_interval(void)
     r = c_frame(5, &n);
     check("audio on while a request is under way: it waits", !r && !bhs.slow);
     bhs.fast = 3;
+    {                                          /* the link's queue full (MIDI clock, the mirror): kept for the next loop */
+        uint8_t fill[64] = {0};
+        while (ble_ll_send(4, fill, sizeof fill))
+            ;
+        while (ble_ll_send(4, fill, 1))
+            ;
+        ble_sig_audio(1);
+        check("audio on, the link's queue full: not sent, not marked as asked", !bhs.asked && bll.wr - bll.rd + 4u >= BLE_LL_TX_RING - 16u);
+        bll.rd = bll.wr;                       /* (the queue drained) */
+        ble_sig_audio(1);
+        r = c_frame(5, &n);
+        check("... the queue drained: asked then {24, 36, 0, 200}", r && r[0] == 0x12 && r[4] == 24 && bhs.asked);
+        ble_sig_audio(0);
+        (void)c_frame(5, &n);
+    }
+    {                                          /* a Mac: connected at 30 ms, then its own LL request for 7.5 ms */
+        uint8_t d[24];
+        uint32_t rej;
+        bll.interval = 24;
+        ble_sig_audio(1);
+        r = c_frame(5, &n);
+        check("audio on at 30 ms: nothing asked", !r && bhs.slow && !bhs.asked);
+        memset(d, 0, sizeof d);
+        d[0] = LL_CONNECTION_PARAM_REQ, d[1] = 6, d[3] = 6, d[7] = 200;   /* 7.5 ms, 2 s */
+        rej = c_ctrl_count(LL_REJECT_EXT_IND);
+        c_ctrl(d, 24);
+        c_event();
+        r = c_ctrl_last(LL_REJECT_EXT_IND);
+        check("... the central's CONNECTION_PARAM_REQ for 7.5 ms: REJECT_EXT_IND (0x0F, 0x3B), still 30 ms",
+              c_ctrl_count(LL_REJECT_EXT_IND) == rej + 1u && r && r[1] == 0x0F && r[2] == 0x3B && bll.rproc == P_NONE &&
+              bll.interval == 24);
+        bll.interval = 6;                      /* (moved anyway: an UPDATE_IND of the central's own) */
+        ble_sig_audio(1);
+        r = c_frame(5, &n);
+        check("... the link at 7.5 ms all the same: {24, 36, 0, 200} asked", r && r[0] == 0x12 && r[4] == 24 && bhs.asked);
+        ble_sig_audio(1);
+        check("... not again at once", !c_frame(5, &n));
+        now_us += BLE_SIG_AUDIO_RETRY_US;
+        ble_sig_audio(1);
+        r = c_frame(5, &n);
+        check("... still 7.5 ms 5 s later: asked again", r && r[0] == 0x12 && r[4] == 24);
+        ble_sig_audio(0);
+        r = c_frame(5, &n);
+        check("audio off at 7.5 ms: nothing to ask (the fast range already)", !r && !bhs.slow);
+        c_ctrl(d, 24);
+        c_event();
+        r = c_ctrl_last(LL_CONNECTION_PARAM_RSP);
+        check("... and the central's 7.5 ms request accepted again", r && r[1] == 6 && r[3] == 6);
+        bll.rproc = P_NONE;
+        bll.interval = 12;
+    }
 }
 
 static void test_l2cap(void)
