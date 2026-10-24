@@ -716,6 +716,27 @@ def is_last_kit(cfg, key):
     return key in kit_keys() and built(cfg, key) and not any(built(cfg, k) for k in kit_keys() if k != key)
 
 
+# the smallest setting of a choice with no "off" whose numbers do not say it (the smallest non-zero value is not the
+# smallest build): the 6-bit 909 hats and the 256-point X0X tanh table (costs.json: -4,928 / -3,092 B of flash
+# against 1, 2026-10-24)
+SMALLEST = {"X909_HAT": 2, "X0X_TANH": 2}
+
+
+def off_value(key):
+    """what switching the item off means: 0 for a switch; for a choice its "off" choice where it has one (BLE_CENTRAL,
+    X909_CYM, SNAPSHOTS, CACHE_RAM, DUAL, ...), else its smallest setting: SMALLEST, else the smallest non-zero value
+    (the sizes, DLY_LEN .. SECTIONS; a 0 that is no "off" is not taken: DLY_ARENA's auto, LCD_BAUD's 60 MHz).
+    Until 2026-10-24 every choice took the smallest non-zero value: BLE_CENTRAL MINIMAL (3) went to FULL (1), the
+    6-bit hats to the 8-bit ones, both bigger"""
+    it = R.ITEMS[key]
+    if not it.is_choice:
+        return 0
+    off = [v for v, label in it.choices if label == "off" or label.startswith("off:")]
+    if off:
+        return off[0]
+    return SMALLEST.get(key, min((c[0] for c in it.choices), key=lambda v: v if v else 1 << 30))
+
+
 def savings_of(cfg, costs):
     """what switching each built item off (or its smallest choice) would save, per region: the sum model with it and
     without it, so the options already off are not saved twice (a parent's delta is measured with its options at
@@ -725,7 +746,7 @@ def savings_of(cfg, costs):
     for k, it in R.ITEMS.items():
         if not built(cfg, k) or (it.parent and not built(cfg, it.parent)):
             continue
-        alt = 0 if not it.is_choice else min((c[0] for c in it.choices), key=lambda v: v if v else 1 << 30)
+        alt = off_value(k)
         if alt == cfg[k]:
             continue
         if any(v != it.default and item_delta(costs, k, v) is None for v in (cfg[k], alt)):
@@ -792,9 +813,9 @@ PROPOSAL_MAX = 4
 
 
 def _off_value(cfg, key):
-    """what switching the item off means (a choice: its smallest value that is not 0, else 0), None: nothing to drop"""
+    """off_value, or None when the item is there already: nothing to drop"""
     it = R.ITEMS[key]
-    alt = 0 if not it.is_choice else min((c[0] for c in it.choices), key=lambda v: v if v else 1 << 30)
+    alt = off_value(key)
     return None if alt == cfg[key] else alt
 
 
