@@ -472,7 +472,8 @@ static void bt_tests(void)
         static const uint8_t DOWN[] = {0xF0, 0x7D, 0x46, 0x4C, 108, 0, 3, 1, 0xF7}, UP[] = {0xF0, 0x7D, 0x46, 0x4C, 108, 0, 3, 0, 0xF7},
                              NAV[] = {0xF0, 0x7D, 0x46, 0x4C, 109, 0, 0xF7}, INFO[] = {0xF0, 0x7D, 0x46, 0x4C, 1, 0xF7},
                              SET[] = {0xF0, 0x7D, 0x46, 0x4C, 3, 1, 2, 3, 0xF7},
-                             TOOLONG[] = {0xF0, 0x7D, 0x46, 0x4C, 108, 0, 3, 1, 1, 1, 0xF7};
+                             TOOLONG[] = {0xF0, 0x7D, 0x46, 0x4C, 108, 0, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0xF7},
+                             CLIP[] = {0xF0, 0x7D, 0x46, 0x4C, 111, 2, 0, 5, 1, 60, 0, 0, 0, 0, 0, 100, 0, 0, 0, 0, 0, 0, 0, 0xF7};   /* (the longest: 18 arguments) */
         uint32_t e0, i, btn_seen = 0;
         bt_send(ON, sizeof ON);
         mir_poll();
@@ -483,20 +484,21 @@ static void bt_tests(void)
         bt_send(INFO, sizeof INFO);
         bt_send(SET, sizeof SET);
         bt_send(TOOLONG, sizeof TOOLONG);
-        check((uint8_t)(mbr.cw - mbr.cr) == 2u, "PANEL and INFO queued, SET (not Bluetooth's) and a frame too long not: %u", mbr.cw - mbr.cr);
+        bt_send(CLIP, sizeof CLIP);
+        check(mbr.cw - mbr.cr == (1u + 7u) + (1u + 4u) + (1u + 22u), "PANEL, INFO and a CLIP write (18 arguments) queued, SET (not Bluetooth's) and a frame too long (19) not: %u", mbr.cw - mbr.cr);
         mir_poll();
         btn_seen = rem_btn != 0u;
         bt_send(UP, sizeof UP);
         bt_send(NAV, sizeof NAV);
         mir_poll();
         radio(~0u);
-        check(ed_handled[108] == 2u && ed_handled[109] == 1u && ed_handled[1] == 1u && ed_handled[3] == 0u && btn_seen && !rem_btn,
-              "Bluetooth PANEL down then up pressed and let go the button, NAV and INFO run, SET not");
-        check(ed_replies - e0 == 4u && ed_last[0] == 109u && ed_last[1] == 0u && ed_last[2] == 0u && !bad,
-              "their 4 replies came over Bluetooth, whole, the last NAV's (op 0, done)");
-        for (i = 0; i < MBR_CQ + 3u; i++)
+        check(ed_handled[108] == 2u && ed_handled[109] == 1u && ed_handled[1] == 1u && ed_handled[111] == 1u && ed_handled[3] == 0u && btn_seen && !rem_btn,
+              "Bluetooth PANEL down then up pressed and let go the button, NAV, INFO and CLIP run, SET not");
+        check(ed_replies - e0 == 5u && ed_last[0] == 109u && ed_last[1] == 0u && ed_last[2] == 0u && !bad,
+              "their 5 replies came over Bluetooth, whole, the last NAV's (op 0, done)");
+        for (i = 0; i < MBR_CB / 8u + 3u; i++)
             bt_send(DOWN, sizeof DOWN);
-        check((uint8_t)(mbr.cw - mbr.cr) == MBR_CQ, "more than MBR_CQ waiting: the rest dropped (the client sends again)");
+        check(mbr.cw - mbr.cr == MBR_CB, "more than MBR_CB bytes waiting: the rest dropped (the client sends again)");
         ble_out_on = 0;
         mir_poll();
         check(mbr.cw == mbr.cr, "no central: the requests waiting dropped");

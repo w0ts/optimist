@@ -60,7 +60,7 @@ answer its commands; the page hides what needs them and keeps the rest (its mock
 | `ED_MIX` (needs ED_LIVE) | 86 FX, 87 FX_PUSH, 94 FXP, 95 DLAN, 104 SOLO | 56, 57, 58, 61 |
 | `ED_SEQ` (needs ED_LIVE) | 97 SONGC (arranger), 98 TOOLS (`SEQTOOLS` or `NOTEGEN`), 105 STEPLANE (automation store) | 5A, 5B, 62 |
 | `ED_SCREENS` (needs ED_LIVE) | 96 SCRN, 99 SCRS, 101 SCOPE | 59, 5C, 5E |
-| `ED_MIRROR` (live editing or not; default off) | 106 MIRROR and its pushes | 65 |
+| `ED_MIRROR` (live editing or not; default off) | 106 MIRROR and its pushes, 108 PANEL, 109 NAV, 111 CLIP | 65, 67 |
 
 Other switches: 36..42 need the drum lanes (kits: `DRUM_KITS`), 65 `MACROS`, 66 the CZ collection, 78 / 90 `SL24_EXPORT` / `SL24_EDIMPORT`
 (default off), 92 / 93 the automation store, 100 `FAVORITES`, 79..84 `PATTERNS`, 54..57 `SNAPSHOTS`.
@@ -106,6 +106,7 @@ strings, NTRK, the protocol byte (7), each engine slot's UID, then tagged blocks
 | 64 | `01 flags` | lite build: bit 0 backup only, bit 1 the librarian |
 | 65 | `01 version` | MIRROR (below, "The screen mirrored"): `MIR_VERSION` (2) |
 | 66 | `n` ASCII | the features by name and version, space-separated (`ed_opti.h`): `opti_backup_4` (43..48, `BK_VERSION`), `opti_mirror_2` (106, `MIR_VERSION`), `opti_panel_1` (108), `opti_nav_1` (109), `opti_mirbt_1` (INFO, 108 and 109 over Bluetooth MIDI too, with `BLE`), `opti_library_1` (16..21), `opti_projects_1` (9), `opti_patterns_1` (79..84), `opti_proj_1` (110). Every Felucca-family firmware answers `INFO` with the same header but numbers its other commands its own way (SLOOP's backup is 34..36; 78 is Melodee's CZ), so a client sends nothing else until it has read this tag, and offers a feature only when its name and a version it reads are listed. A number goes up only when an older client would misread the new form. Over Bluetooth (only 106 answered) the firmware is known by its advertised name, "Optimist ..." |
+| 67 | `n` ASCII | more feature names, the same form as 66 (66 is full: one 7-bit length): `opti_clip_1` (111, `ED_MIRROR`). A client reads both and merges them; one that knows only 66 skips 67 by its length |
 
 `BUILD` (no args): the build's name string (16), its config hash (5 x 7 bit), the item bytes count and bytes (bit n = registry item n
 built, 7 a byte). The backup file records it.
@@ -563,6 +564,23 @@ The encoder takes a bitmap or the row above only where it is the shorter. Measur
 
 Screens: 0 MIX, 1 SOUND, 2 MASTER (the master FX), 3 PROJECT, 4 SYSTEM, 5 STEPS, 6 SONG, 7 TEMPO (never opened: PLAY held), 8 SCOPE, 9 GLOBAL.
 Reply to 0..3: `op, 0 done / 1 refused, screen, button (127: every row, or not SOUND), cursor row, n, n row names (ASCII, 0-terminated, 11 at most), track, knobs [, top, pitch]`. `track` is the walk's mixer row, 127 where ALGORITHM walks nothing (PROJECT, SONG, GLOBAL, SYSTEM). The rows are what SELECT walks: on MIX the selected row's knob sets (MIX, INSERT, SENDS, SOUND; MASTER's RETURNS, A SENDS ...; the tracks themselves are TRACK's), on GLOBAL and SYSTEM their pages of 4 lines by title (20 characters at most; ROW puts the cursor on the page's first line). `knobs` says where KNOB 1..4's values are on the 240 x 240 panel, for a drag there to turn that knob (108 PANEL): 0 nowhere (a layer, STEP, SCOPE, a list, a popup), 1 the 1x4 cards (x 3 + 59 k, y 28, 57 x 45), 2 the 2x2 cards (x 3 or 121, y 28 or 75, 116 x 46), 3 four lines across the panel, the first from `top`, `pitch` apart. Reply to 4: `4, 0, n, n names` (the mixer rows: MASTER, T1, T2, T3, DR, the lanes by their names, ACCENT). A client asks STATE again when the screen changes.
+
+## The clip (111 CLIP; INFO tag 67 `opti_clip_1`)
+
+`ed_clip.c` (`ED_MIRROR`, live editing or not). A synth track's clip read and written step by step: the app's piano roll (add,
+remove, move and stretch notes). Over USB and Bluetooth (a request of 18 arguments at most there). The drum track is refused.
+
+| op | Request args | Reply |
+| --- | --- | --- |
+| 0 | | `0, 0, selected track, NTRK, then for each track: LEN, kind (0 a synth, 1 the drums)` |
+| 1 | track, first, count | `1, rc, track, first, count, count steps` (15 bytes each, as `TRACK_STEP` with the own ends; 16 at most, never past NSTEP) |
+| 2 | track, index, step (15 bytes) | `2, rc, track, index, the step as written` (no step when refused) |
+
+rc: 0 done, 1 refused (the drum track, an index past NSTEP, a step of fewer than 15 bytes). A write is an undo level of the device's
+own history, as a step key's (writes to one track within 800 ms are one level), and redraws the panel; it is not pushed back. A
+note longer than its step goes on through TIE steps (every note sounding at that step's start goes on) or a carry step naming it
+(`SF_CARRY`, hi bit 2: one note of a chord alone), its end inside a step that step's own end (`seq.c` `note_span`); a client
+writes them as the recorder does (`ios/OptimistMirror/Sources/Clip/Clip.swift`).
 
 ## Undo (102 UNDO; INFO tag 5F)
 

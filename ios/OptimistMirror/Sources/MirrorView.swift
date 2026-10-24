@@ -221,6 +221,12 @@ struct MirrorView: View {
     @Binding var bars: Bool
     @StateObject private var nav: NavModel
     @StateObject private var layout = NavLayoutStore()
+    @StateObject private var clip: ClipModel
+    /// the clip editor in place of the screen while the FM-1 shows STEPS (the button at the top left: the screen instead)
+    @AppStorage("clipRoll") private var rollChosen = true
+    /// the FM-1 shows STEPS and this firmware has the clip editor
+    private var onSteps: Bool { clip.on && nav.state?.screen == Nav.Screen.steps.rawValue }
+    private var roll: Bool { onSteps && rollChosen && !clip.drum }
     /// the touch buttons around the screen: there when the firmware has them and the mode is not "screen alone"
     private var buttons: Bool { nav.on && !layout.screenAlone }
 
@@ -229,6 +235,7 @@ struct MirrorView: View {
         self.upright = upright
         _bars = bars
         _nav = StateObject(wrappedValue: NavModel(link: link))
+        _clip = StateObject(wrappedValue: ClipModel(link: link))
     }
     @State private var image: CGImage?
     @FocusState private var keyboard: Bool
@@ -245,7 +252,7 @@ struct MirrorView: View {
             GeometryReader { g in laid(g.size) }
                 .rotationEffect(.degrees(-90 * Double(upright)))
         }
-        .overlay(alignment: .topTrailing) { layoutButton }
+        .overlay(alignment: .topTrailing) { HStack(spacing: 0) { rollButton; layoutButton } }
         .contentShape(Rectangle())
         .onTapGesture { withAnimation { bars.toggle() } }
         .focusable()
@@ -257,6 +264,8 @@ struct MirrorView: View {
         .persistentSystemOverlays(bars ? .automatic : .hidden)
         .task { await draw() }
         .task { await nav.run() }
+        .task { await clip.run() }
+        .onChange(of: onSteps && rollChosen) { _, w in clip.wanted = w }
     }
 
     /// The switch between the two layouts: a small round button at the screen's top right (shown while the firmware has the
@@ -274,6 +283,23 @@ struct MirrorView: View {
             .padding(8)
             .accessibilityLabel(layout.screenAlone ? "Show Buttons" : "Hide Buttons")
             .accessibilityHint(layout.screenAlone ? "Shows the touch buttons around the screen" : "Shows the screen alone, larger")
+        }
+    }
+
+    /// On STEPS: the clip editor or the screen (a synth track; the drum track shows the screen)
+    @ViewBuilder private var rollButton: some View {
+        if onSteps && !clip.drum {
+            Button { rollChosen.toggle() } label: {
+                Image(systemName: rollChosen ? "display" : "pianokeys")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 44, height: 44)
+                    .background(.black.opacity(0.6), in: Circle())
+            }
+            .buttonStyle(.plain)
+            .padding(8)
+            .accessibilityLabel(rollChosen ? "Show Screen" : "Edit Notes")
+            .accessibilityHint(rollChosen ? "Shows the FM-1's screen in place of the notes" : "Shows the clip's notes to edit by touch")
         }
     }
 
@@ -367,7 +393,9 @@ struct MirrorView: View {
 
     @ViewBuilder private var content: some View {
         ZStack {
-            if let image {
+            if roll {
+                ClipView(clip: clip)
+            } else if let image {
                 Image(decorative: image, scale: 1)
                     .resizable()
                     .interpolation(.none)

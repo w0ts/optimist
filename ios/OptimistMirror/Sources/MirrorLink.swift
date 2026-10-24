@@ -93,7 +93,7 @@ final class MirrorLink: ObservableObject, Transport {
         if let path = ProcessInfo.processInfo.environment["MIRROR_DEMO"], let d = FileManager.default.contents(atPath: path),
            d.count == MirrorDecoder.side * MirrorDecoder.side * 2 {
             let px = stride(from: 0, to: d.count, by: 2).map { UInt16(d[$0]) | UInt16(d[$0 + 1]) << 8 }
-            lock.withLock { $0.decoder.show(px); $0.generation = 1; $0.features = [Feature.nav.name: Feature.nav.version] }
+            lock.withLock { $0.decoder.show(px); $0.generation = 1; $0.features = [Feature.nav.name: Feature.nav.version, Feature.clip.name: Feature.clip.version] }
             demo = NavDemo()
             portName = "Optimist"
             state = .mirroring
@@ -281,6 +281,10 @@ final class MirrorLink: ObservableObject, Transport {
     var canNavigate: Bool {
         state == .mirroring && lock.withLock { linkCarries($0) && $0.features?[Feature.nav.name] == Feature.nav.version }
     }
+    /// The clip editor (111 CLIP) is there: the firmware lists opti_clip_1 (over Bluetooth: and opti_mirbt_1, as PANEL)
+    var canClip: Bool {
+        state == .mirroring && lock.withLock { linkCarries($0) && $0.features?[Feature.clip.name] == Feature.clip.version }
+    }
     /// The link in use takes PANEL and NAV: USB always, Bluetooth when the firmware said so (INFO there: opti_mirbt)
     private func linkCarries(_ s: Shared) -> Bool {
         !bluetooth || s.features?[Feature.mirbt.name] == Feature.mirbt.version
@@ -338,6 +342,7 @@ final class MirrorLink: ObservableObject, Transport {
     func exchange(_ cmd: Cmd, _ args: [UInt8], timeout: TimeInterval, retries: Int) async throws -> [UInt8] {
 #if DEBUG
         if let demo, cmd == .nav { return demo.reply(args) }
+        if let demo, cmd == .clip { return demo.clip(args) }
 #endif
         let body = try Wire.body(cmd.rawValue, args)
         await gate.acquire()

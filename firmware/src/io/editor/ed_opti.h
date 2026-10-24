@@ -36,6 +36,21 @@
 #else
 #define ED_OPTI_PJ ""
 #endif
+#if FELUCCA_ED_MIRROR
+#define ED_OPTI_MORE "opti_clip_1 "     /* (tag 0x67, 0x66 being full: 111 the clip, ed_clip.c) */
+#else
+#define ED_OPTI_MORE ""
+#endif
+static void ed_opti_list(uint32_t tag, const char *s, uint32_t n)   /* a tag of names (n: with the 0 at its end) */
+{
+    uint32_t i;
+    if (n < 2u)
+        return;
+    ed_b(tag);
+    ed_b(n - 1u);
+    for (i = 0; i + 1u < n; i++)
+        ed_b((uint8_t)s[i]);
+}
 static void ed_opti_info(void)
 {
     static const char S[] = ED_OPTI_BK ED_OPTI_MIR ED_OPTI_LIB ED_OPTI_PAT ED_OPTI_PJ;
@@ -44,9 +59,12 @@ static void ed_opti_info(void)
 #if FELUCCA_ED_MIRROR
     _Static_assert(MIR_VERSION == 2, "ed_opti.h: opti_mirror_ names MIR_VERSION");
 #endif
+    static const char M[] = ED_OPTI_MORE;
+    _Static_assert(sizeof M < 128u, "INFO tag 0x67: one 7-bit length");
     ed_b(0x66);
     ed_b(sizeof S - 1u);
     for (i = 0; i + 1u < sizeof S; i++)
         ed_b((uint8_t)S[i]);
+    ed_opti_list(0x67, M, sizeof M);   /* (tag 0x67: more names, the same form; a client that knows none skips it) */
 }
 #endif

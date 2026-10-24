@@ -161,6 +161,11 @@ static struct {
 } ed_w;
 
 #include "ed_steps.c"         /* a step on the wire: STEP_GET / TRACK_STEP bytes (out and in), DRUM_STEP bytes */
+#if FELUCCA_ED_MIRROR
+#include "ed_clip.c"          /* cmd 111: a synth track's clip read and written (the app's piano roll) */
+#else
+#define ED_CLIP_FN
+#endif
 static void ed_shadow(void)                              /* the editor is in sync */
 {
     ed_w.eng = (uint8_t)ed_eng(TSEL);
@@ -282,9 +287,9 @@ static const ed_cmd_t ED_FX_CMDS[] = {ED_FXS_FN ED_FXP_FN ED_DLAN_FN ED_SCRN_FN 
                                       ED_SCOPE_FN ED_UNDO_FN ED_NOTE_FN ED_SOLO_FN ED_STEPLANE_FN 0};   /* 86..105 */
 /* 65 the macros' effect on the values; 11..21: samples, user presets; 36..42: drum lanes, kits; 43..48: backup; 50, 51
  * drum sources; 52 pages; 54..57 snapshots; 66 the CZ collection; 78, 90, 91 SLOOP 2.4; 79..84 patterns; 92, 93: the
- * automation; 110 the projects */
+ * automation; 110 the projects; 111 the clip */
 static const ed_cmd_t ED_CMDS[] = {ED_MACRO_FN ED_USER_FN ED_DRUMS_FN ED_BACKUP_FN ED_DSRC_FN ED_PAGES_FN ED_SNAP_FN
-                                   ED_CZ_FN ED_SL24_FN ED_PAT_FN ED_STEPX_FN ED_PROJ_FN 0};
+                                   ED_CZ_FN ED_SL24_FN ED_PAT_FN ED_STEPX_FN ED_PROJ_FN ED_CLIP_FN 0};
 static int ed_cmds(const ed_cmd_t *t, uint32_t cmd, const uint8_t *a, uint32_t na)   /* 1: one of t answered */
 {
     for (; *t; t++)

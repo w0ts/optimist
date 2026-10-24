@@ -11,6 +11,8 @@
  *   43..48      backup and restore of every stored object (ed_backup.c)
  *   54..57      the snapshots (ed_snap.c, FELUCCA_SNAPSHOTS): a backup's SNAP area is restored through their import
  *   110         the projects (ed_proj.c, PATTERNS): open, save, clear, name (the simulator moves one project)
+ * With ED_MIRROR:
+ *   111         a synth track's clip read and written (ed_clip.c: the app's piano roll)
  * With the librarian (builder item LIBRARIAN, 2026-10-19: "one entry in builder that allows me to select this, and not the
  * rest"), every piece of user data one at a time, still nothing edited live:
  *   1 INFO      as the live editor's header (engines, P_COUNT, tracks, UIDs; no G_* values), tag 0x64 = 3, tag 0x55
@@ -51,9 +53,15 @@
 #define ED_DRUMS_FN
 #define ED_PAT_FN
 #endif
+#if FELUCCA_ED_MIRROR
+#include "ed_steps.c"          /* (a step on the wire, for the clip) */
+#include "ed_clip.c"           /* cmd 111: a synth track's clip read and written (the app's piano roll) */
+#else
+#define ED_CLIP_FN
+#endif
 typedef int (*ed_cmd_lite_t)(uint32_t cmd, const uint8_t *a, uint32_t na);
 #define ED_TAG_LITE 0x64u                               /* INFO's tag: this build answers backup and restore only */
-static const ed_cmd_lite_t ED_CMDS[] = {ED_USER_FN ED_DRUMS_FN ED_PAT_FN ED_BACKUP_FN ED_SNAP_FN ED_PROJ_FN 0};
+static const ed_cmd_lite_t ED_CMDS[] = {ED_USER_FN ED_DRUMS_FN ED_PAT_FN ED_BACKUP_FN ED_SNAP_FN ED_PROJ_FN ED_CLIP_FN 0};
 #define ED_LITE_LIB (FELUCCA_LIBRARIAN ? 2u : 0u)        /* (tag 0x64's bit 1: the librarian's commands answer) */
 static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0 and F7 */
 {
