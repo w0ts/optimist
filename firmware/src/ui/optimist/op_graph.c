@@ -713,7 +713,7 @@ static void draw_toast(void)                             /* the result of a conf
     cv_texts(12, 10, m, C_WHITE);
     cv_blit((uint32_t)(120 - w / 2), OP_PY + 44u);
 }
-#if FELUCCA_BLE && BLE_CEN_PASSKEY
+#if FELUCCA_BLE && BLE_CEN_PAIR
 /* a Bluetooth pairing waiting for the other device's user to type the code, the devices list not on screen (the search
  * for LAST runs while the list is closed: a Mac or phone that lost the bond is paired afresh then, with the code; the list
  * shows the code in its own panel): the code over the panel, whatever screen is up, until the pairing ends (op_overlay 4).

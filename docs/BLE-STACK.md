@@ -229,9 +229,8 @@ From the Core spec, the BLE-MIDI spec and HW §21. One link at a time, time-slic
 - **GATT client:** MTU 247, Find By Type Value for the BLE-MIDI service (else Read By Group Type), Read By Type 0x2803 for the MIDI
   I/O characteristic, Find Information for its CCCD, Write Request 0x0001: **ready**. Notifications are MIDI in (section 6.1);
   MIDI out is **Write Without Response** from the same encoder and ring. One request outstanding, 30 s timeout.
-- **Levels** (`BLE_CENTRAL` 1 / 2 / 3, `ble_cfg.h` `BLE_CEN_PAIR`, `BLE_CEN_PASSKEY`; BLE-DEVICES-DESIGN.md 4.5): what follows is
-  level 1. Level 2 keeps the bond and Just Works only (NoInputNoOutput, no MITM, no pause, no RPA resolution: `NEED_MITM` when the
-  peer wants more); level 3 has no SMP initiator and no LL encryption as master (a Security Request gets Pairing Not Supported, any
+- **Levels** (`BLE_CENTRAL` 1 / 3, `ble_cfg.h` `BLE_CEN_PAIR`; BLE-DEVICES-DESIGN.md 4.5): what follows is
+  level 1. Level 3 has no SMP initiator and no LL encryption as master (a Security Request gets Pairing Not Supported, any
   request for security `NEED_PAIR`).
 - **Security, only when the peer asks:** a bonded LAST is encrypted with its LTK right after the connection; an Insufficient
   Authentication / Encryption / Key Size error or the peripheral's Security Request encrypts with the bond, else **pairs as

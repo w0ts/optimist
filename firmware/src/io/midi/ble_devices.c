@@ -35,12 +35,12 @@ static uint32_t ble_kept_n(void)                 /* how many (they are packed fr
 }
 static int ble_is_dev(const struct ble_dev *d, const uint8_t a[6], uint8_t rnd)   /* this address is d's, or resolves */
 {
-#if BLE_CEN_PASSKEY
+#if BLE_CEN_PAIR
     return ble_kept_ok(d) && (((d->info & BLE_DEV_RANDOM ? 1u : 0u) == rnd && ble_eq(d->addr, a, 6)) ||
                               (rnd && (d->info & BLE_DEV_IRK) && ble_rpa_resolve(d->irk, a)));
 #else
-    return ble_kept_ok(d) && (d->info & BLE_DEV_RANDOM ? 1u : 0u) == rnd && ble_eq(d->addr, a, 6);   /* (BLE_CENTRAL 2 /
-                                                  * 3: by the stored address only, no private address resolved) */
+    return ble_kept_ok(d) && (d->info & BLE_DEV_RANDOM ? 1u : 0u) == rnd && ble_eq(d->addr, a, 6);   /* (BLE_CENTRAL 3:
+                                                  * by the stored address only, no private address resolved) */
 #endif
 }
 static int ble_kept_at(const uint8_t a[6], uint8_t rnd)   /* the remembered device (not LAST) at this address, -1 */
@@ -213,7 +213,7 @@ static void ble_devices_poll(void)
         return;
     for (k = 0; k < 16u && (n = ble_ll_scan_take(pdu, &rssi)) != 0; k++) {
         ble_scan_add(&ble_found, pdu, n, rssi, fm1_ms);
-#if BLE_CEN_PASSKEY
+#if BLE_CEN_PAIR
         rc_report(pdu, n);                       /* (the search for LAST behind a private address) */
 #endif
     }

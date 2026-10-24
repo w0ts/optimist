@@ -1117,21 +1117,19 @@ _add("BLE_BOND", "FELUCCA_BLE_BOND", "BLE bonding: pairing (Just Works) and an e
 _add("BLE_CENTRAL", "FELUCCA_BLE_CENTRAL", "BLE devices: connect to BLE-MIDI devices, reconnect the last one", M, 255,
      default=0, parent="BLE", target_only=True,
      choices=((0, "off"), (1, "full: Just Works and the passkey, devices with private addresses"),
-              (2, "Just Works only: no passkey"), (3, "minimal: no pairing (controllers, another FM-1)")),
+              (3, "minimal: no pairing (controllers, another FM-1)")),
      desc="SYSTEM > Devices lists the BLE-MIDI devices nearby (keyboards, controllers, "
           "a Mac or an iPhone app that advertises BLE MIDI, another FM-1) with their names and relative signal bars, "
           "scanning only while the list is open (the FM-1 stops advertising meanwhile). Picking one connects to it as "
           "a central, MIDI both ways; it becomes the last device, which the FM-1 reconnects to by itself while "
           "Bluetooth is on (with up to 3 others remembered). Without this item DEVICES shows NONE and the last device "
-          "only. Three levels, for the flash they take (measured on mots.config): FULL (1, as before) pairs when the "
+          "only. Two levels, for the flash they take (measured on mots.config): FULL (1, as before) pairs when the "
           "other side asks, with Just Works or, for an iPhone app that needs it, a 6-digit code shown on the FM-1, and "
           "finds the last device again when its address changes (Macs and iPhones use private addresses): everything "
-          "works, 21.9 KB of flash and 2.3 KB of RAM. JUST WORKS (2) pairs and bonds with Just Works only: controllers, another FM-1, Macs and "
-          "iPhone apps that ask to pair without a code work; an app that needs the code fails with FAILED: NEEDS "
-          "PASSKEY; a device whose address changes is not found by itself (pick it from the list again): 19.7 KB and 2.2 KB (2.2 KB of flash less than FULL). "
+          "works, 21.9 KB of flash and 2.3 KB of RAM. "
           "MINIMAL (3) never pairs: controllers and another FM-1 work; a device that asks to pair (a Mac or an iPhone "
-          "app advertising BLE MIDI, as Apple's do, some controllers) fails with FAILED: NEEDS PAIRING: 13.4 KB and 1.6 KB (8.5 KB of flash less than FULL). Levels 1 and 2 bring the bonding of BLE_BOND "
-          "with them; at level 3 BLE_BOND still lets a Mac pair with the FM-1 when the Mac connects to it.",
+          "app advertising BLE MIDI, as Apple's do, some controllers) fails with FAILED: NEEDS PAIRING: 13.4 KB and 1.6 KB (8.5 KB of flash less than FULL). Level 1 brings the bonding of BLE_BOND "
+          "with it; at level 3 BLE_BOND still lets a Mac pair with the FM-1 when the Mac connects to it.",
      symbols=("ble_found",), tested="on an FM-1: an iPhone app reconnected as the last device (2026-10-18)")
 _add("BT_AUDIO", "FELUCCA_BT_AUDIO", "Bluetooth Classic Audio (A2DP Source, SBC)", M, 281,
      default=0, experimental=True, target_only=True,

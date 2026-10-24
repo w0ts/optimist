@@ -17,11 +17,9 @@
  *   the end               a failure (no BLE-MIDI service, pairing failed, authentication refused, a GATT error or
  *                         timeout) leaves the link; ble_central_fail / _code say why until the next attempt.
  * RPA resolution (ah, Core Vol 3 Part H 2.2.2) for finding LAST behind a private address: ble_rpa_resolve.
- * The levels (ble_cfg.h): BLE_CENTRAL 1 all of the above; 2 (no BLE_CEN_PASSKEY) security with the bond or a Just Works
- * pairing only: refused again after it, or a pairing refused for its Authentication Requirements -> BLE_CF_NEED_MITM,
- * the link left (no passkey, no pairing again on the link, no new link for it); no RPA resolution; 3 (no BLE_CEN_PAIR)
- * no security at all: whatever asks for it (the Security Request, Insufficient Authentication / Encryption) leaves the
- * link with BLE_CF_NEED_PAIR (ble_central_no_pairing). */
+ * The levels (ble_cfg.h): BLE_CENTRAL 1 all of the above; 3 (no BLE_CEN_PAIR) no security at all: whatever asks for it
+ * (the Security Request, Insufficient Authentication / Encryption) leaves the link with BLE_CF_NEED_PAIR
+ * (ble_central_no_pairing). */
 #include "ble.h"
 #include "ble_host.h"
 #include "ble_ll.h"
@@ -33,20 +31,14 @@ static struct {
     uint8_t st, fail, code;                    /* BLE_CS_*; BLE_CF_* and its code (the last attempt) */
 #if BLE_CEN_PAIR
     uint8_t enc_tried, pairing, encrypted;     /* the bond's LTK tried; a pairing of ours runs; the link encrypted */
-#endif
-#if BLE_CEN_PASSKEY
     uint8_t mitm, auth;                        /* pair with a passkey (the peer needs it); the link's key is
                                                 * authenticated */
 #endif
     uint8_t leave;                             /* bcen_fail: leave once the TX queue is empty (or 1 s) */
-#if BLE_CEN_PASSKEY
-    uint8_t repair;                            /* 1: pairing again with MITM on this encrypted link, 2: done */
-#endif
 #if BLE_CEN_PAIR
+    uint8_t repair;                            /* 1: pairing again with MITM on this encrypted link, 2: done */
     uint8_t prompted;                          /* a pairing of ours started on the link (a prompt on a phone) */
     uint8_t gatt_after_keys;                   /* the GATT request goes again once our keys have gone */
-#endif
-#if BLE_CEN_PASSKEY
     uint8_t late_due;                          /* a Just Works pairing ended on the link: iOS may still send its
                                                 * Pairing Failed for it (blell-dev3 / dev4: 3 events after our keys) */
 #endif
@@ -100,13 +92,10 @@ BLE_API void ble_central_connected(void)
     if (!ble_ll_central())
         return;
     bcen.st = BLE_CS_SETUP;
-#if BLE_CEN_PASSKEY
+#if BLE_CEN_PAIR
     bcen.enc_tried = bcen.pairing = bcen.encrypted = bcen.leave = bcen.auth = 0;
     bcen.repair = bcen.prompted = bcen.gatt_after_keys = bcen.late_due = 0;
     bcen.mitm = (uint8_t)(bcen.peer.sec & BLE_PEER_MITM ? 1u : 0u);
-#elif BLE_CEN_PAIR
-    bcen.enc_tried = bcen.pairing = bcen.encrypted = bcen.leave = 0;
-    bcen.prompted = bcen.gatt_after_keys = 0;
 #else
     bcen.leave = 0;
 #endif
@@ -141,11 +130,7 @@ static void bcen_pair(void)
 {
     bcen.pairing = 1;
     bcen.prompted = 1;
-#if BLE_CEN_PASSKEY
     ble_smp_pair(bcen.mitm);
-#else
-    ble_smp_pair(0);                           /* (Just Works: NoInputNoOutput, no MITM) */
-#endif
 }
 #endif
 
@@ -161,7 +146,6 @@ static int bcen_secure(uint8_t code)
     if (bcen.pairing)
         return 1;
     if (bcen.encrypted) {
-#if BLE_CEN_PASSKEY
         if (code == 0x05u && !bcen.auth && !bcen.mitm && !bcen.repair) {
             BLE_DG(ble_dgc.cen_need_mitm++);
             BLE_DG(ble_dgc.si_repair++);
@@ -170,12 +154,6 @@ static int bcen_secure(uint8_t code)
             bcen_pair();
             return 1;
         }
-#else
-        if (code == 0x05u) {                   /* (BLE_CENTRAL 2: refused with Just Works' key: it needs a passkey) */
-            BLE_DG(ble_dgc.cen_need_mitm++);
-            bcen_fail(BLE_CF_NEED_MITM, code);
-        }
-#endif
         return 0;
     }
     if (bcen.peer.bonded) {
@@ -191,9 +169,7 @@ static int bcen_secure(uint8_t code)
 
 BLE_API int ble_central_pairing(void) { return bcen.pairing; }
 BLE_API int ble_central_prompted(void) { return bcen.prompted; }
-#if BLE_CEN_PASSKEY
 BLE_API int ble_central_mitm(void) { return bcen.mitm; }
-#endif
 #else
 /* BLE_CENTRAL 3: the peripheral wants security (0: its Security Request, answered Pairing Not Supported by ble_smp.c;
  * else the ATT error it refused a GATT request with): this level has none, the link is left (NEEDS PAIRING, held by
@@ -231,16 +207,11 @@ static int ble_central_gattc_auth(uint8_t code)
 }
 
 #if BLE_CEN_PAIR
-/* (ble_smp_init.c) a Security Request: its AuthReq's MITM bit asks for a passkey (BLE_CENTRAL 2: Just Works is tried
- * all the same; most peers that set it take it, iOS among them) */
+/* (ble_smp_init.c) a Security Request: its AuthReq's MITM bit asks for a passkey */
 static void ble_central_sec_req(uint8_t auth_req)
 {
-#if BLE_CEN_PASSKEY
     if (auth_req & 0x04u)
         bcen.mitm = 1;
-#else
-    (void)auth_req;
-#endif
     if (!bcen_secure(0))
         ble_gattc_retry();
 }
@@ -248,9 +219,7 @@ static void ble_central_sec_req(uint8_t auth_req)
 static void ble_central_encrypted(void)        /* encrypted with the bond's LTK */
 {
     bcen.encrypted = 1;
-#if BLE_CEN_PASSKEY
     bcen.auth = (uint8_t)(bcen.peer.sec & BLE_PEER_AUTH ? 1u : 0u);
-#endif
     if (!bcen.pairing)
         ble_gattc_retry();
 }
@@ -259,7 +228,6 @@ static void ble_central_encrypted(void)        /* encrypted with the bond's LTK 
 static void ble_central_paired(int ok, uint8_t reason, uint8_t auth)
 {
     bcen.pairing = 0;
-#if BLE_CEN_PASSKEY
     if (!ok) {                                 /* (Authentication Requirements, either way: AUTH) */
         if (bcen.repair == 1 && !auth && reason != 0x03u) {
             BLE_DG(ble_dgc.si_repair_fallback++);   /* (refused on this link before any passkey: a new link) */
@@ -274,14 +242,6 @@ static void ble_central_paired(int ok, uint8_t reason, uint8_t auth)
     bcen.late_due = (uint8_t)!auth;
     bcen.encrypted = 1;                        /* (with the STK, the keys exchanged) */
     bcen.auth = auth;
-#else
-    (void)auth;
-    if (!ok) {                                 /* (Authentication Requirements: Just Works will not do, a passkey would) */
-        bcen_fail(reason == 0x03u ? BLE_CF_NEED_MITM : BLE_CF_PAIRING, reason);
-        return;
-    }
-    bcen.encrypted = 1;                        /* (with the STK, the keys exchanged) */
-#endif
     bcen.gatt_after_keys = 1;                  /* (in a later event than our keys: ble_central_event) */
 }
 
@@ -291,17 +251,12 @@ static void ble_central_paired(int ok, uint8_t reason, uint8_t auth)
  * after our Pairing Request with MITM went (its Pairing Response is still awaited). 0: it ends the pairing that runs */
 static int ble_central_late_fail(uint8_t reason, int at)
 {
-#if BLE_CEN_PASSKEY
     int late = bcen.late_due && reason == 0x08u;
     if (at == 2)
         return 0;
     if (late)
         bcen.late_due = 0;
     return at == 0 || late;
-#else
-    (void)reason;                              /* (no pairing follows ours on the link: only one with none running) */
-    return at == 0;
-#endif
 }
 
 /* as master, our LL_ENC_REQ was refused: the peripheral lost the bond (Key Missing) -> pair afresh */
@@ -339,15 +294,11 @@ BLE_API void ble_central_event(void)
                                                 * GATT timeout check, whose `now` is older than this request) */
         ble_gattc_retry();
     }
-#if BLE_CEN_PASSKEY
     if (bcen.repair == 1 && smp_init_rsp_late(now)) {   /* no answer to the pairing on this link: a new link */
         bcen.pairing = 0;
         BLE_DG(ble_dgc.si_repair_fallback++);
         bcen_fail(BLE_CF_NEED_MITM, 0xFF);
     } else if (smp_init_timed_out(now)) {
-#else
-    if (smp_init_timed_out(now)) {
-#endif
         bcen.pairing = 0;
         bcen_fail(BLE_CF_PAIRING, 0xFF);
     }
@@ -370,7 +321,7 @@ BLE_API uint8_t ble_central_sig(const uint8_t *d, uint16_t n)
     return 0;
 }
 
-#if BLE_CEN_PASSKEY
+#if BLE_CEN_PAIR
 /* ah(k, r) = e(k, 0^104 || r) mod 2^24 against the hash in an RPA's low 24 bits (top two bits 01) */
 BLE_API int ble_rpa_resolve(const uint8_t irk[16], const uint8_t addr[6])
 {

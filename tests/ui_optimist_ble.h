@@ -526,7 +526,7 @@ static void ble_list_tests(void)
     }
     bt_fresh(0);
 }
-#if BLE_CEN_PASSKEY
+#if BLE_CEN_PAIR
 /* the search for the last device with the list closed (AUTO, the user on HOME): a passkey pairing it starts shows its code
  * over any screen (the user, 2026-10-18: the Mac asked for a PIN, nothing showed on the FM-1) */
 static void ble_bg_passkey_tests(void)
@@ -869,9 +869,9 @@ static void bta_kept_tests(void)
     bt_fresh(0);
 }
 #endif
-#if BLE_CENTRAL && !BLE_CEN_PASSKEY
-/* BLE_CENTRAL 2 / 3: a peer that needs what the level has not (2: a passkey, 3: any pairing): "FAILED: NEEDS PASSKEY" /
- * "FAILED: NEEDS PAIRING", held: no new attempt, nothing remembered, until the user acts */
+#if BLE_CENTRAL && !BLE_CEN_PAIR
+/* BLE_CENTRAL 3: a peer that needs what the level has not (any pairing): "FAILED: NEEDS PAIRING", held: no new
+ * attempt, nothing remembered, until the user acts */
 static void ble_level_tests(void)
 {
     uint32_t i;
@@ -887,17 +887,16 @@ static void ble_level_tests(void)
     frames(2);
     cenfk.initiating = 0, cenfk.central = 1, cenfk.st = BLE_CS_SETUP, ble_link = 1;
     ble_devices_poll();
-    cen_gone(BLE_CEN_PAIR ? BLE_CF_NEED_MITM : BLE_CF_NEED_PAIR);
+    cen_gone(BLE_CF_NEED_PAIR);
     c0 = cenfk.connects;
     for (i = 0; i < 5u; i++) {
         fm1_ms += 1000u;
         ble_devices_poll();
         frames(1);
     }
-    check(!strcmp(dev_status(), BLE_CEN_PAIR ? "FAILED: NEEDS PASSKEY" : "FAILED: NEEDS PAIRING") &&
+    check(!strcmp(dev_status(), "FAILED: NEEDS PAIRING") &&
               cenfk.connects == c0 && !ble_store_has_last(&ble_store) && op_overlay() != 4u,
-          BLE_CEN_PAIR ? "Just Works only: a peer that needs a passkey: FAILED: NEEDS PASSKEY, held, no code shown"
-                       : "no pairing: a peer that asks to pair: FAILED: NEEDS PAIRING, held, nothing remembered");
+          "no pairing: a peer that asks to pair: FAILED: NEEDS PAIRING, held, nothing remembered");
     bt_fresh(0);
 }
 #endif
@@ -912,7 +911,7 @@ static void ble_tests(void)
     ble_list_tests();
     ble_kept_tests();
 #endif
-#if BLE_CEN_PASSKEY
+#if BLE_CEN_PAIR
     ble_bg_passkey_tests();
 #elif BLE_CENTRAL
     ble_level_tests();

@@ -1267,12 +1267,6 @@
     "pool": 0,
     "ramtext": 0
    },
-   "2": {
-    "flash": 19644,
-    "ram": 2216,
-    "pool": 0,
-    "ramtext": 0
-   },
    "3": {
     "flash": 13348,
     "ram": 1592,
@@ -2934,24 +2928,6 @@
   "BLE=1,BLE_BOND=1,BLE_CENTRAL=1,BLE_DIAG=1,USB_CONSOLE=1": {
    "flash": 88,
    "ram": -8,
-   "pool": 0,
-   "ramtext": 0
-  },
-  "BLE=1,BLE_BOND=1,BLE_CENTRAL=2": {
-   "flash": -3908,
-   "ram": -464,
-   "pool": 0,
-   "ramtext": 0
-  },
-  "BLE=1,BLE_CENTRAL=2,BLE_DIAG=1": {
-   "flash": 1212,
-   "ram": 432,
-   "pool": 0,
-   "ramtext": 0
-  },
-  "BLE=1,BLE_BOND=1,BLE_CENTRAL=2,BLE_DIAG=1": {
-   "flash": 4,
-   "ram": 0,
    "pool": 0,
    "ramtext": 0
   },
