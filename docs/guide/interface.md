@@ -19,7 +19,7 @@ Every gesture in one list: [shortcuts.md](shortcuts.md). This page says what the
 | PLAY | Tapped: start / stop. Held: the tempo page |
 | REC | Record the selected track. Held: the ring that clears recorded material |
 | GLO | Tapped: GLOBAL; on GLOBAL, SYSTEM; on SYSTEM, GLOBAL. Each keeps its line |
-| SEQ | Tapped: STEP |
+| SEQ | Tapped: STEP. Held (not on STEP): SONG |
 
 SAVE then HOME is undo, HOME then SAVE is redo. SHIFT and SHIFT2 are not buttons of their own: [shortcuts.md](shortcuts.md) lists what each does with a key, a knob or a button.
 
@@ -95,8 +95,7 @@ GLOBAL and SYSTEM are settings lists: one setting on a line, the name left and t
 - **AUDIO:** LOWCUT (OFF, LOWCUT, or BASS+ in builds with it); FILT RESO, the resonance of every track's FILTER, 0 (clean) to 10, saved with the project (`TFLT_RESO`).
 - **KEYS:** BUTTONS (OFF, LOW, MID, HIGH) and KEYS (OFF, C, WHITE, ALL), the backlight of the buttons and keys, in builds with LIGHTS.
 - **USB:** SERIAL, ON or OFF; amber until a restart applies it (builds with the USB console).
-- **Bluetooth:** BLUETOOTH ON / OFF (NO CAL: the radio has no stored trims and never starts); STATE (OFF, STARTING, ADVERTISING, SCANNING, CONNECTING, SEARCHING, PAIRING, CONNECTED, FAILED); DEVICE (who the link is with: the device's name, HOST for a computer or phone that connected to the FM-1, NONE); MIDI (IN / OUT lit while messages pass).
-- **Devices:** DEVICES (SAVE: SCAN, then the list: NONE, LAST, the devices nearby with signal bars; SAVE connects, asked first; HOME back); RECONNECT (OFF, or the last device's name: reconnect to it by itself); LAST DEVICE FORGET (asked first).
+- **BT MIDI** (builds with `BLE`): MODE, DEVICE, ACTIVITY, STATE. **BT AUDIO** (builds with `BT_AUDIO`): MODE, DEVICE, FORMAT, STATE. Both can be on at once. MODE is OFF, MAN or AUTO (AUTO: the last device is connected to at boot and when AUTO is chosen; a lost link is not made again). SAVE on a line of the page lets a connected device go, else connects to the last one, else opens the page's devices list (MIDI: devices nearby with signal bars), where SAVE connects to the row. SAVE held forgets the page's last device. A connect not up in 30 s says NO ANSWER.
 - **CALIBRATE:** PANEL (teaches the panel's buttons and knobs, asked first) and HOLD (a button's hold time: 250, 350 or 500 ms).
 - **USB AUDIO:** (USB audio builds) one line a source: MASTER, T1 to T3, DRUMS, DRUM BUS, DR1 to DR10. Each goes to NONE, 1, 2, 1+2, 3, 4 or 3+4 of the four capture channels sent to the computer. See [midi-usb.md](midi-usb.md).
 - **ABOUT:** VERSION (and the commit it was built from), BUILD (date and time) and the repository address. **CREDITS** follows.
@@ -118,12 +117,6 @@ SHIFT + SAVE on this page clears the counters. Builds made with the builder item
 
 MIDI in and out, the clock, Bluetooth MIDI, USB audio and the web editor: [midi-usb.md](midi-usb.md).
 
-## The site on your computer: `make web`
+## The update loader
 
-`make web` (or `python3 tools/optimist.py web`) serves the same site as w0ts.github.io/optimist on 127.0.0.1:8766 (`make web PORT=9000` for another port) and opens the editor: the installer (a `.fwsc` of yours or a cloud build), the editor, the builder and a local simulator (it offers to build one). Chrome or Edge: Web MIDI is not in Safari or Firefox. Ctrl-C stops the server. Details: [BUILDING.md](../../BUILDING.md).
-
-## The update loader and package ids
-
-The update loader on the FM-1 draws one progress bar: the package check fills the first half, the write the second. The app's last step reads FLASHING. An update refuses another device's package before anything is erased.
-
-A package's identity is `FM-1_700` for development builds and `FM-1_7(X+2)Y` for `--release X.Y`: release 0.1 is `FM-1_721`, 1.0 is `FM-1_730`, up to 4.9, `FM-1_769`. Flashing takes only `FM-1_700` and `FM-1_720` to `FM-1_769`, so a package of another firmware that uses another 7XX number is not taken for Optimist. See [BUILDING.md](../../BUILDING.md), "Package identity".
+The update loader on the FM-1 draws one progress bar: the package check fills the first half, the write the second. The app's last step reads FLASHING. An update refuses another device's package before anything is erased. Optimist's packages are `FM-1_700` (development builds) and `FM-1_720` to `FM-1_769` (releases): [BUILDING.md](../../BUILDING.md), "Package identity".
