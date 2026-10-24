@@ -95,7 +95,8 @@ static int smp_zone_ok(const smp_zone_t *z, uint32_t data_len)
 static void smp_user_scan(uint32_t k)
 {
     const smp_user_hdr_t *h = (const smp_user_hdr_t *)smp_user_xip(k);
-    static smp_zone_t zs[16];
+    smp_zone_t zs[16];                              /* (448 B, this call's: the main loop (persist_boot, ed_user.c) only;
+                                                     * the ISR reads usr_zone, copied below with the interrupts off) */
     uint32_t i, base;
     smp_user_gen++;
     usr_nz[k] = 0;                                  /* (from here no new voice takes the slot) */

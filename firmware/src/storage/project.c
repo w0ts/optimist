@@ -1515,7 +1515,8 @@ _Static_assert(sizeof ble_addr_kept == 8u && sizeof ble_rf_kept == BLE_RF_COPY_S
                "the BLE copies: the record's fields' sizes");
 #endif
 #if FELUCCA_FLASH
-static persist_t persist_saved;
+static persist_t persist_saved IN_POOL;            /* the record as last read or written (persist_boot, settings_save: the
+                                                    * main loop only): in the pool, not main RAM (868 B, 2026-10-24) */
 #if FELUCCA_MIDI_CLOCK
 static void persist_ofs_load(const persist_t *p)  /* CLK OFS, BT OFS (clock_sync.c): out of range read as 0 */
 {
