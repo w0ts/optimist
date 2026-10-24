@@ -18,6 +18,7 @@ static struct {
     uint16_t have, need;                       /* octets in rx / of the frame (header included) */
     uint16_t skip;                             /* octets of a frame too big for rx still to come */
     uint8_t sig_id, fast;                      /* our last signalling identifier; 0 / 1 asked / 2 retried / 3 done */
+    uint8_t slow;                              /* the audio's slower interval asked for (ble_sig_audio) */
 } bhs;
 
 /* the advertised name and the GAP Device Name: BLE_DEVICE_NAME, then " XXXX" = the last four hex digits of the device
@@ -81,7 +82,7 @@ BLE_API int ble_connected(void) { return ble_ll_connected(); }
 BLE_API void ble_host_connected(void)
 {
     bhs.have = bhs.need = bhs.skip = 0;
-    bhs.fast = 0;
+    bhs.fast = bhs.slow = 0;
     ble_att_reset();
     ble_smp_connected();
 #if BLE_CENTRAL
@@ -114,13 +115,13 @@ static void sig_send(uint8_t code, uint8_t id, const uint8_t *d, uint16_t n)
     ble_ll_send(L2CAP_CID_SIG, p, (uint16_t)(4u + n));
 }
 
-static void sig_conn_params(uint16_t lo, uint16_t hi)
+static void sig_conn_params(uint16_t lo, uint16_t hi, uint16_t timeout)
 {
     uint8_t d[8];
     ble_wr16(d, lo);
     ble_wr16(d + 2, hi);
     ble_wr16(d + 4, BLE_CONN_LATENCY);
-    ble_wr16(d + 6, BLE_CONN_TIMEOUT);
+    ble_wr16(d + 6, timeout);
     if (!++bhs.sig_id)
         bhs.sig_id = 1;
     sig_send(0x12, bhs.sig_id, d, 8);           /* Connection Parameter Update Request */
@@ -138,8 +139,29 @@ BLE_API void ble_sig_want_fast(void)
     bhs.fast = 3;
     if (iv < BLE_CONN_MIN || iv > BLE_CONN_MAX) {
         bhs.fast = 1;
-        sig_conn_params(BLE_CONN_MIN, BLE_CONN_MAX);
+        sig_conn_params(BLE_CONN_MIN, BLE_CONN_MAX, BLE_CONN_TIMEOUT);
     }
+}
+
+/* Bluetooth audio streams or stops (op_bt.c bt_poll, every main loop): BLE_CONN_AUDIO_MIN..MAX asked for while it
+ * streams, BLE_CONN_MIN..MAX again after; once per change, not while a request of ours is under way (asked later).
+ * A rejection is left as it is (the link keeps its interval). As master the interval is ours: nothing */
+BLE_API void ble_sig_audio(int on)
+{
+    uint16_t iv = ble_ll_interval();
+    on = on != 0;
+#if BLE_CENTRAL
+    if (ble_ll_central())
+        return;
+#endif
+    if (!iv || on == bhs.slow || bhs.fast == 1u || bhs.fast == 2u)
+        return;
+    bhs.slow = (uint8_t)on;
+    bhs.fast = 3;                              /* (ble_sig_want_fast's request not made over it) */
+    if (on && iv < BLE_CONN_AUDIO_MIN)
+        sig_conn_params(BLE_CONN_AUDIO_MIN, BLE_CONN_AUDIO_MAX, BLE_CONN_AUDIO_TIMEOUT);
+    else if (!on && (iv < BLE_CONN_MIN || iv > BLE_CONN_MAX))
+        sig_conn_params(BLE_CONN_MIN, BLE_CONN_MAX, BLE_CONN_TIMEOUT);
 }
 
 static void sig_rx(const uint8_t *p, uint16_t n)
@@ -155,7 +177,7 @@ static void sig_rx(const uint8_t *p, uint16_t n)
             return;
         if (ble_rd16(p + 4) && bhs.fast == 1 && BLE_CONN_RETRY_MIN > 0u) {
             bhs.fast = 2;                       /* rejected: ask once more, slower */
-            sig_conn_params(BLE_CONN_RETRY_MIN, BLE_CONN_RETRY_MAX);
+            sig_conn_params(BLE_CONN_RETRY_MIN, BLE_CONN_RETRY_MAX, BLE_CONN_TIMEOUT);
         } else
             bhs.fast = 3;
         return;

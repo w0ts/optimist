@@ -53,6 +53,19 @@
 #ifndef BLE_CONN_RETRY_MAX
 #define BLE_CONN_RETRY_MAX 12u
 #endif
+/* while Bluetooth audio streams (ble_host.c ble_sig_audio): 30..45 ms, 2 s (Apple's rules: min >= 15 ms, max >= min +
+ * 15 ms, timeout 2..6 s). At 7.5..11.25 ms a connection event, which wins the radio over the audio's 3.75 ms packets
+ * (bt/bt_inq.c BTI_ACL_PRIO), leaves room for about one audio packet between two: the stream's 115 a second with no
+ * margin, crackles on the XM4 with the screen mirror on (2026-10-24) */
+#ifndef BLE_CONN_AUDIO_MIN
+#define BLE_CONN_AUDIO_MIN 24u
+#endif
+#ifndef BLE_CONN_AUDIO_MAX
+#define BLE_CONN_AUDIO_MAX 36u
+#endif
+#ifndef BLE_CONN_AUDIO_TIMEOUT
+#define BLE_CONN_AUDIO_TIMEOUT 200u
+#endif
 
 /* ---- link layer */
 #ifndef BLE_LL_MAX_OCTETS

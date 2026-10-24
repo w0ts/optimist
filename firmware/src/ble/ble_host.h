@@ -49,6 +49,8 @@ BLE_API void ble_central_no_pairing(uint8_t code);
 /* ble_host.c: ask the central for BLE_CONN_MIN..MAX (L2CAP Connection Parameter Update Request), once per
  * connection, unless the interval in use is in that range already */
 BLE_API void ble_sig_want_fast(void);
+/* ble_host.c: Bluetooth audio streams (1) or not (0): the slower interval BLE_CONN_AUDIO_MIN..MAX asked for meanwhile */
+BLE_API void ble_sig_audio(int on);
 #if BLE_LL_ENC
 /* the key the link layer may use (LTK least significant octet first, for Rand and EDIV) */
 BLE_API void ble_host_set_key(const uint8_t rand[8], uint16_t ediv, const uint8_t ltk[16]);

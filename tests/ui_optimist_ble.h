@@ -787,6 +787,7 @@ static void bt_two_pages_tests(void)
     frames(2);
     check(!bt_wants(BT_AUD) && !strcmp(bta_val("STATE"), "CONNECTED") && !strcmp(bt_val("STATE"), "CONNECTED") &&
               !strcmp(bt_val("DEVICE"), "HOST"), "AirPods streaming and a host on BLE MIDI: both pages CONNECTED");
+    check(ble_sig_audio_on == 1, "audio streaming: BLE told (ble_sig_audio 1: the slower interval asked for)");
     bta_line("MODE");
     ui.force = 1;
     frames(3);
@@ -799,6 +800,8 @@ static void bt_two_pages_tests(void)
     check(btafk.hangups == h0 + 1u && ble_sets == s0 && ble_link && said("DISCONNECTED AirPods"),
           "BT AUDIO: SAVE while streaming: AUDIO let go (DISCONNECTED AirPods), the MIDI host not touched");
     btafk.st = BTA_S_FAILED;
+    frames(1);
+    check(ble_sig_audio_on == 0, "audio stopped: BLE told (ble_sig_audio 0: the fast interval again)");
     /* SAVE held: forgets that page's last device only */
     bta_line("MODE");
     save_held();

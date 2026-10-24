@@ -616,6 +616,9 @@ static void bt_poll(void)
             bt_want(BT_AUD, 0);
         }
     }
+#if FELUCCA_BLE
+    ble_sig_audio(bta_state() == BTA_S_STREAMING);      /* (BLE's interval slower meanwhile: the audio's air, ble_host.c) */
+#endif
 #endif
     if (!bt.boot) {
         if (fm1_ms < 1500u)
