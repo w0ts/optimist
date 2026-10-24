@@ -277,21 +277,22 @@ struct MirrorView: View {
         }
     }
 
-    /// With the touch navigation (109 NAV, Nav/): wide, the pages left, the favourites and modes right, the tracks under
-    /// the screen; tall, the tracks then the pages and the modes under it; without it the screen alone
+    /// With the touch navigation (109 NAV, Nav/): wide, the modes and favourites left, the pages right (the user, 2026-10-24:
+    /// "invert left and right"), the tracks under the screen; tall, the tracks then the modes and the pages under it; without
+    /// it the screen alone
     @ViewBuilder private func laid(_ size: CGSize) -> some View {
         let strip = buttons ? NavTracks.height + NavMetrics.gap : 0
         if buttons && size.width - (size.height - strip) >= 2 * 150 {
             let side = min(size.height - strip, size.width - 2 * 150 - 4 * NavMetrics.gap)
             let col = (size.width - side) / 2 - 2 * NavMetrics.gap
             HStack(alignment: .top, spacing: NavMetrics.gap) {
-                NavPages(nav: nav).frame(width: col)
+                NavSide(nav: nav).frame(width: col)
                 VStack(spacing: NavMetrics.gap) {
                     content.frame(width: side, height: side)
                     NavTracks(nav: nav)
                 }
                 .frame(width: side)
-                NavSide(nav: nav).frame(width: col)
+                NavPages(nav: nav).frame(width: col)
             }
             .padding(.horizontal, NavMetrics.gap)
             .frame(width: size.width, height: size.height)
@@ -300,8 +301,8 @@ struct MirrorView: View {
                 content.frame(width: size.width, height: size.width)
                 NavTracks(nav: nav).padding(.horizontal, NavMetrics.gap)
                 HStack(alignment: .top, spacing: NavMetrics.gap) {
-                    NavPages(nav: nav)
                     NavSide(nav: nav)
+                    NavPages(nav: nav)
                 }
                 .padding(.horizontal, NavMetrics.gap)
             }
