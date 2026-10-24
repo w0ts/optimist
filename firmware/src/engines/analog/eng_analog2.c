@@ -70,18 +70,24 @@
 #endif
 #define A2_NOCUT INT32_MIN
 #define A2_SWARM_GC (80 * 258)                        /* the copies' level against osc 1: SUPER's MIX 80 */
-/* FLT B's states (a2_fltb), a synth part's voice each, laid out as FLT's in v->s (0..1, 4..5 the filter, 6 the last
- * block's cutoff, 7 the model): outside voice_t, so the drum track's voices carry none; in the pool (main RAM is the
- * scarcer: synth was 296 B over with them there, 2026-10-24; the filter reads them once a block, into locals) */
-static int32_t a2_fb[NPART][NVOICE][8] IN_POOL;
+/* FLT B's states (a2_fltb), a synth part's voice each: the six words FLT keeps in v->s (0..1, 4..5 the filter, 6 the
+ * last block's cutoff, 7 the model; 2..3 are the noise and the drift, not a filter's), packed as A2FB_*: outside
+ * voice_t, so the drum track's voices carry none; in the pool (main RAM is the scarcer: synth was 296 B over with
+ * them there, 2026-10-24; a2_fltb copies them into an 8-word local laid out as v->s for the kernels, once a block) */
+#define A2FB_N 6u
+static int32_t a2_fb[NPART][NVOICE][A2FB_N] IN_POOL;
+/* f[0..5] of a2_fb <-> s[0] s[1] s[4] s[5] s[6] s[7] of the filter's layout (no table: nothing read from flash here) */
+#define A2FB_MOVE(f, s, TO) TO(f[0], s[0]); TO(f[1], s[1]); TO(f[2], s[4]); TO(f[3], s[5]); TO(f[4], s[6]); TO(f[5], s[7])
+#define A2FB_LD(a, b) (b) = (a)
+#define A2FB_ST(a, b) (a) = (b)
 
 static void analog_note_on(track_t *t, voice_t *v)
 {
     uint32_t k = (uint32_t)(t - trk);
     if (!v->env && !v->env_out && k < NPART) {        /* a fresh note: FLT B from rest (a retrigger keeps it, as FLT) */
         int32_t *s = a2_fb[k][(uint32_t)(v - t->v) % NVOICE];
-        s[0] = s[1] = s[4] = s[5] = 0;
-        s[6] = A2_NOCUT;
+        s[0] = s[1] = s[2] = s[3] = 0;                /* (s[0..1], s[4..5] of the filter's layout) */
+        s[4] = A2_NOCUT;                              /* (s[6]: no last cutoff) */
     }
     if (!t->p[P_A2DRFT]) {                            /* DRFT 0: the phases restart */
         if (!v->env && !v->env_out)
@@ -431,10 +437,11 @@ static HOT __attribute__((noinline)) void a2_fltb(const track_t *t, const voice_
 {
     const int16_t *p = t->p;
     uint32_t k = (uint32_t)(t - trk), w = (uint32_t)p[P_A2BTYP], mdl = w / A2M_MODES - 1u, mode = w % A2M_MODES, i;
-    int32_t *s, cut = clamp(p[P_A2BCUT], 0, 127) << 8, c0;
+    int32_t *f, s[8], cut = clamp(p[P_A2BCUT], 0, 127) << 8, c0;
     if (k >= NPART)
         return;
-    s = a2_fb[k][(uint32_t)(v - t->v) % NVOICE];
+    f = a2_fb[k][(uint32_t)(v - t->v) % NVOICE];
+    A2FB_MOVE(f, s, A2FB_LD);                          /* the states in the filter's layout (v->s's), back at the end */
     c0 = s[6] == A2_NOCUT ? cut : s[6];
     s[6] = cut;
 #if FELUCCA_A2_MODELS
@@ -449,6 +456,7 @@ static HOT __attribute__((noinline)) void a2_fltb(const track_t *t, const voice_
         }
         a2_filter(b, s, c0, cut, mode, a2_k(p[P_A2BRES]));
     }
+    A2FB_MOVE(f, s, A2FB_ST);
     for (i = 0; i < n; i++)
         b[i] = clamp(b[i], -65535, 65535);
 }
