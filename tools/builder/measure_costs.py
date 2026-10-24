@@ -342,13 +342,11 @@ def beyond(sizes, cfg, costs, name):
     earlier = [pair_name(p) for p in PAIRS[:[pair_name(q) for q in PAIRS].index(name)]]
     known = dict(costs, pairs={n: d for n, d in costs.get("pairs", {}).items() if n in earlier})
     est = C.budget(cfg, known, use_exact=False, anchor=False)["total"]
-    return {r: sizes[r] - est[r] if r not in PAIR_NOT.get(name, ()) else 0 for r in REG}
-
-
-# a pair's region that does not carry over to other configurations, kept 0: REV_FDN8=1,DUAL=0's RAMTEXT (-1.2 KB) is
-# shared with USB_CONSOLE's and DUAL=0,USB_CONSOLE=1's (the RAM code placed again), so with them it counted it twice
-# (2026-10-19: user-default+ble-full 924 B of RAMTEXT under; its flash and RAM, the single flips' in ble-test, kept)
-PAIR_NOT = {"REV_FDN8=1,DUAL=0": ("ramtext",)}
+    return {r: sizes[r] - est[r] for r in REG}
+# (until 2026-10-24 REV_FDN8=1,DUAL=0's RAMTEXT was kept 0 (PAIR_NOT): on 2026-10-19 USB_CONSOLE's and
+# DUAL=0,USB_CONSOLE=1's RAMTEXT carried part of it. Both measure 0 B of RAMTEXT since round 6, so the zero dropped
+# the pair's -964 B altogether: synth+ble-full estimated from synth+ble-test 1,236 B of RAMTEXT over, and the reverse
+# under, past ESTIMATE_NEAR's 768; with it counted, +-272)
 
 
 def unmeasured(costs):

@@ -62,6 +62,21 @@ d = C.defaults()
 check("configure.budget without real builds = core.budget",
       C.budget(d, costs) == K.budget(d, costs) and C.budget(d, costs, anchor=False) == K.budget(d, costs, anchor=False))
 
+# ---- the fit margin (core.FIT_MARGIN) is the estimate's error: none for a configuration's own measured build (an anchor
+# at distance 0), the whole margin one item away with the very same figures (2026-10-24: synth, its own check build
+# 264 B under the RAM limit, was "over" by 184 B of the 448 B margin; fit() and the BLE check failed on it)
+_in = 184
+_base = {r: K.LIMITS[r] - K.SPARE[r] - (_in if r == "ram" else 4096) for r in K.REGIONS}   # (the others well inside)
+_one = dict(d, LCD_DIRTY=1 - d["LCD_DIRTY"])
+_tc = dict(costs, base=_base, checks={},
+           deltas=dict(costs["deltas"], LCD_DIRTY={str(_one["LCD_DIRTY"]): {r: 0 for r in K.REGIONS}}))
+_b0, _b1 = K.budget(d, _tc), K.budget(_one, _tc)
+check(f"fit margin: a configuration's own build (distance 0) {_in} B inside the RAM limit is not over",
+      _b0["distance"] == 0 and _b0["total"]["ram"] == _base["ram"] and not K.over_any(d, _tc))
+check("fit margin: ... one item away with the same figures it is (the estimate's error applies)",
+      _b1["distance"] == 1 and _b1["total"] == _b0["total"] and
+      K.over_any(_one, _tc) == {"ram": K.FIT_MARGIN["ram"] - _in})
+
 # ---- the key
 SHA, SHA2 = "0123456789abcdef" * 2 + "01234567", "f" * 40
 key = K.cloud_key(d, SHA)
