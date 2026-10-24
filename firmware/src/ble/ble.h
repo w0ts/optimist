@@ -59,10 +59,13 @@ struct ble_keys {
 };
 enum { BLE_CS_IDLE, BLE_CS_CONNECTING, BLE_CS_SETUP, BLE_CS_READY };   /* ble_central_state */
 enum { BLE_CF_NONE, BLE_CF_LOST, BLE_CF_NO_MIDI, BLE_CF_PAIRING, BLE_CF_AUTH, BLE_CF_GATT,
-       BLE_CF_NEED_MITM, BLE_CF_KEY };   /* ble_central_fail; NEED_MITM: it needs a passkey and refused the pairing
-                              * with MITM on the link (Just Works refused before): connect again with BLE_PEER_MITM,
-                              * without the unauthenticated bond; KEY: it left while our encryption with p's bond was
-                              * starting (MIC Failure 0x3D, Key Missing 0x06: the bond is no good to it) */
+       BLE_CF_NEED_MITM, BLE_CF_KEY, BLE_CF_NEED_PAIR };   /* ble_central_fail; NEED_MITM: it needs a passkey and
+                              * refused the pairing with MITM on the link (Just Works refused before): connect again
+                              * with BLE_PEER_MITM, without the unauthenticated bond (BLE_CENTRAL 2: it needs a passkey,
+                              * which this level has not); KEY: it left while our encryption with p's bond was starting
+                              * (MIC Failure 0x3D, Key Missing 0x06: the bond is no good to it); NEED_PAIR (BLE_CENTRAL
+                              * 3): it asked for security (a Security Request, Insufficient Authentication / Encryption),
+                              * and this level does not pair */
 /* initiate to p (advertising or scanning stop: one link) -> 1 started, 0 not now (off, or a link is up). From there:
  * connected as master, the BLE-MIDI characteristic found and subscribed (pairing or encrypting with p's bond when the
  * peripheral asks, or wants it), MIDI both ways: BLE_CS_READY. Called like ble_enable (the BLE interrupts held) */
@@ -71,19 +74,27 @@ BLE_API void ble_central_cancel(void);   /* stop initiating, or leave our centra
 BLE_API uint8_t ble_central_state(void);
 BLE_API uint8_t ble_central_fail(void);  /* why the last connection out ended before / after READY (BLE_CF_*) */
 BLE_API uint8_t ble_central_code(void);  /* ... its code: the LL reason, the ATT error or the SMP reason */
+#if BLE_CEN_PAIR
 BLE_API int ble_central_pairing(void);   /* 1: a pairing of ours runs on the link */
 BLE_API int ble_central_prompted(void);  /* 1: a pairing of ours started on the last attempt's link (a phone asked its
                                           * user): the firmware does not make that link again by itself */
+#endif
+#if BLE_CEN_PASSKEY
 BLE_API int ble_central_mitm(void);      /* 1: the last attempt's peer needs an authenticated link (a passkey) */
+#endif
 /* the passkey to show while a passkey pairing waits for the peer's user (Core Vol 3 Part H 2.3.5.3: we display, the
- * phone's user types it), 0..999999; BLE_NO_PASSKEY when there is none */
+ * phone's user types it), 0..999999; BLE_NO_PASSKEY when there is none (always, below BLE_CENTRAL 1) */
 #define BLE_NO_PASSKEY 0xFFFFFFFFu
+#if BLE_CEN_PASSKEY
 BLE_API uint32_t ble_central_passkey(void);
 /* 1: addr is a resolvable private address made from irk (ah, Core Vol 3 Part H 2.2.2; least significant first) */
 BLE_API int ble_rpa_resolve(const uint8_t irk[16], const uint8_t addr[6]);
+#endif
+#if BLE_CEN_PAIR
 /* the firmware implements: a pairing as initiator ended with these keys of the peripheral (BLE interrupts' context:
  * copy them) */
 BLE_API void ble_app_central_keys(const struct ble_keys *k);
+#endif
 #endif
 
 #endif

@@ -404,8 +404,8 @@ static void ble_kept_tests(void)
     tap(B_SAVE);
     frames(2);
     check(ble_order("22 24 23 21") && ble_store.sel == BLE_SEL_LAST && ble_store.dev.ltk[0] == 0x22u && cenfk.connects == (int)c0 + 1 &&
-              cenfk.p.bonded && cenfk.p.ltk[0] == 0x22u,
-          "SAVE on Dev C (KNOWN): LAST now, chosen, connected to with its own bond (heard nearby)");
+              (BLE_CEN_PAIR ? cenfk.p.bonded && cenfk.p.ltk[0] == 0x22u : !cenfk.p.bonded),
+          "SAVE on Dev C (KNOWN): LAST now, chosen, connected to with its own bond (heard nearby; BLE_CENTRAL 3: no bond)");
     cen_gone(BLE_CF_LOST);
     ble_devices_poll();
     bt_stop(BT_MIDI);
@@ -435,8 +435,9 @@ static void ble_kept_tests(void)
     ble_devices_poll();
     fm1_ms += RC_GAP_FAST_MS + 10u;
     ble_devices_poll();
-    check(cenfk.connects == (int)c0 + 2 && cenfk.p.addr[0] == 0x24u && cenfk.p.bonded && cenfk.p.ltk[0] == 0x24u,
-          "... no answer: the next try is Dev E, with its own bond");
+    check(cenfk.connects == (int)c0 + 2 && cenfk.p.addr[0] == 0x24u &&
+              (BLE_CEN_PAIR ? cenfk.p.bonded && cenfk.p.ltk[0] == 0x24u : !cenfk.p.bonded),
+          "... no answer: the next try is Dev E, with its own bond (BLE_CENTRAL 3: none)");
     cen_up();
     check(ble_order("24 22 23") && ble_store.dev.ltk[0] == 0x24u && !strcmp(bt_val("STATE"), "CONNECTED"),
           "... Dev E answers: LAST now (its bond kept), Dev C and Dev D after it");
@@ -525,6 +526,7 @@ static void ble_list_tests(void)
     }
     bt_fresh(0);
 }
+#if BLE_CEN_PASSKEY
 /* the search for the last device with the list closed (AUTO, the user on HOME): a passkey pairing it starts shows its code
  * over any screen (the user, 2026-10-18: the Mac asked for a PIN, nothing showed on the FM-1) */
 static void ble_bg_passkey_tests(void)
@@ -562,6 +564,7 @@ static void ble_bg_passkey_tests(void)
     cen_gone(BLE_CF_LOST);
     bt_fresh(0);
 }
+#endif
 #endif
 /* the settings record across the two pages (op_bt.c bt_rec_out / bt_rec_in): both modes kept; a record from before the
  * split (one MODE in r[4]: OFF, MIDI MAN, MIDI AUTO, AUDIO MAN, AUDIO AUTO) read as that side's mode, the other side OFF;
@@ -866,6 +869,38 @@ static void bta_kept_tests(void)
     bt_fresh(0);
 }
 #endif
+#if BLE_CENTRAL && !BLE_CEN_PASSKEY
+/* BLE_CENTRAL 2 / 3: a peer that needs what the level has not (2: a passkey, 3: any pairing): "FAILED: NEEDS PASSKEY" /
+ * "FAILED: NEEDS PAIRING", held: no new attempt, nothing remembered, until the user acts */
+static void ble_level_tests(void)
+{
+    uint32_t i;
+    int c0;
+    bt_fresh(1);
+    bt_line("MODE");
+    tap(B_SAVE);
+    frames(2);
+    dev_hear(0x05, "iPad");
+    ble_devices_poll();
+    frames(2);
+    tap(B_SAVE);
+    frames(2);
+    cenfk.initiating = 0, cenfk.central = 1, cenfk.st = BLE_CS_SETUP, ble_link = 1;
+    ble_devices_poll();
+    cen_gone(BLE_CEN_PAIR ? BLE_CF_NEED_MITM : BLE_CF_NEED_PAIR);
+    c0 = cenfk.connects;
+    for (i = 0; i < 5u; i++) {
+        fm1_ms += 1000u;
+        ble_devices_poll();
+        frames(1);
+    }
+    check(!strcmp(dev_status(), BLE_CEN_PAIR ? "FAILED: NEEDS PASSKEY" : "FAILED: NEEDS PAIRING") &&
+              cenfk.connects == c0 && !ble_store_has_last(&ble_store) && op_overlay() != 4u,
+          BLE_CEN_PAIR ? "Just Works only: a peer that needs a passkey: FAILED: NEEDS PASSKEY, held, no code shown"
+                       : "no pairing: a peer that asks to pair: FAILED: NEEDS PAIRING, held, nothing remembered");
+    bt_fresh(0);
+}
+#endif
 static void ble_tests(void)
 {
     ble_sys_walk("off");
@@ -876,7 +911,11 @@ static void ble_tests(void)
     ble_auto_tests();
     ble_list_tests();
     ble_kept_tests();
+#endif
+#if BLE_CEN_PASSKEY
     ble_bg_passkey_tests();
+#elif BLE_CENTRAL
+    ble_level_tests();
 #endif
     bt_rec_tests();
 #if FELUCCA_BT_AUDIO

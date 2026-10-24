@@ -71,7 +71,7 @@ BLE_API int ble_ll_central(void);                 /* connected, and we are the m
  * an instant (HW §21.4) -> 1 started now */
 BLE_API int ble_ll_conn_update(uint16_t imin, uint16_t imax, uint16_t timeout);
 BLE_API int ble_ll_chmap_update(const uint8_t chm[5]);
-#if BLE_LL_ENC
+#if BLE_CEN_PAIR
 /* as master: start the encryption with this key (EDIV / Rand: 0 for a pairing's STK) */
 BLE_API void ble_ll_start_enc(const uint8_t ltk[16], const uint8_t rand[8], uint16_t ediv);
 #endif
@@ -89,7 +89,7 @@ BLE_API void ble_host_event(void);
 BLE_API int ble_host_ltk(const uint8_t rand[8], uint16_t ediv, uint8_t ltk[16]);
 /* the encryption started (our LL_START_ENC_RSP queued: the link is encrypted both ways from here) */
 BLE_API void ble_host_encrypted(void);
-#if BLE_CENTRAL
+#if BLE_CEN_PAIR
 /* as master: the peripheral refused our LL_ENC_REQ (err: PIN or Key Missing 0x06 when it lost the bond) */
 BLE_API void ble_host_enc_failed(uint8_t err);
 #endif

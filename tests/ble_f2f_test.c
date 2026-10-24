@@ -5,7 +5,9 @@
  * BLE_MIDI_NEED_ENC=1 (its MIDI characteristic behind encryption: Insufficient Authentication until then).
  *   b   connect, discover, subscribe, MIDI both ways: no SMP at all, no encryption, no passkey (no dialog, no PIN);
  *   c   the same with a Just Works pairing on its Insufficient Authentication: silent (no passkey, no MITM asked),
- *       encrypted, ready, MIDI both ways. */
+ *       encrypted, ready, MIDI both ways; a built with BLE_CENTRAL 3 (F2F_A_LEVEL, no pairing): the link left, NEEDS
+ *       PAIRING, nothing of SMP on the air.
+ * Unit a is built at each level of BLE_CENTRAL (tests/run_tests.sh), b and c as they ship (level 1). */
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -14,6 +16,11 @@
 F2F_DECLARE(a)
 F2F_DECLARE(b)
 F2F_DECLARE(c)
+
+#ifndef F2F_A_LEVEL
+#define F2F_A_LEVEL 1                            /* unit a's BLE_CENTRAL */
+#endif
+#define F2F_CF_NEED_PAIR 8                       /* (ble.h BLE_CF_NEED_PAIR) */
 
 static int fails;
 static void check(const char *what, int ok)
@@ -114,6 +121,12 @@ static void test_need_enc(void)
     smp_pdus = enc_reqs = passkeys = 0;
     check("FM-1 c (BLE_MIDI_NEED_ENC=1) picked by a: connected", c_adv_on() && link_up(ADDR_C, c_take_cind));
     events(&C, a_encrypted, 120);
+#if F2F_A_LEVEL == 3
+    check("a (BLE_CENTRAL 3: no pairing) <- c: its Insufficient Authentication -> the link left, NEEDS PAIRING; no SMP "
+          "on the air, no LL_ENC_REQ, no passkey", !a_connected() && a_central_fail() == F2F_CF_NEED_PAIR &&
+              a_pairings() == 0 && smp_pdus == 0 && enc_reqs == 0 && passkeys == 0 && a_keys() == 0);
+    return;
+#endif
     check("a <- c: its Insufficient Authentication -> Just Works (no MITM asked), encrypted, ready",
           a_pairings() == 1 && a_mitm_pairings() == 0 && a_encrypted() && a_central_state() == 3 && a_midi_ready());
     check("a <- c: no passkey ever shown on a (silent: no dialog, no PIN), the bond's keys to a's firmware",
@@ -131,6 +144,6 @@ int main(void)
     test_plain();
     a_init(ADDR_A, 0x2468ACE1u);                  /* (a fresh a: the next link) */
     test_need_enc();
-    printf("%s\n", fails ? "BLE FM-1 to FM-1: FAILED" : "BLE FM-1 to FM-1: all passed");
+    printf("BLE FM-1 to FM-1 (a at level %d): %s\n", F2F_A_LEVEL, fails ? "FAILED" : "all passed");
     return fails != 0;
 }

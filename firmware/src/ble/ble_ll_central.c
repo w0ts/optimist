@@ -109,10 +109,12 @@ static struct {
     uint8_t peer[6], peer_rand;                    /* the target (its AdvA as heard: an RPA stays an RPA) */
     uint8_t upd_want;                              /* the peripheral asked for these: an update when we are free */
     uint16_t upd_interval, upd_timeout;
-#if BLE_LL_ENC
+#if BLE_CEN_PAIR
     uint8_t enc_want, ltk[16], rand[8], skdm[8], ivm[4];   /* ble_ll_start_enc: LL_ENC_REQ when we are free */
     uint16_t ediv;
+#if BLE_CEN_PASSKEY
     uint8_t pausing;                               /* our LL_PAUSE_ENC_REQ is out (a new key on an encrypted link) */
+#endif
     uint8_t held[27], held_n;                      /* the peripheral's control PDU held while our encryption starts */
 #endif
 } llc;
@@ -206,8 +208,12 @@ BLE_API void ble_ll_hw_master_start(void)
         return;
     ll_conn_begin(&llc.c, llc.peer, llc.peer_rand, 1);
     llc.upd_want = 0;
-#if BLE_LL_ENC
+#if BLE_CEN_PAIR
+#if BLE_CEN_PASSKEY
     llc.enc_want = llc.pausing = llc.held_n = 0;
+#else
+    llc.enc_want = llc.held_n = 0;
+#endif
 #endif
     ble_diag_ev(BDE_MASTER, llc.c.interval);
     ble_host_connected();
@@ -285,10 +291,11 @@ BLE_API int ble_ll_chmap_update(const uint8_t chm[5])
     return 1;
 }
 
-#if BLE_LL_ENC
+#if BLE_CEN_PAIR
 /* as master: encrypt the link with ltk (a bond's, EDIV / Rand as the peripheral handed them out; or a pairing's STK,
  * EDIV 0 / Rand 0), at the first moment no other procedure of ours runs. On a link encrypted already (a pairing
- * again, with MITM, on it) the encryption is paused first (5.1.3.2), then started with the new key. Done:
+ * again, with MITM, on it: BLE_CENTRAL 1 only) the encryption is paused first (5.1.3.2), then started with the new
+ * key. Done:
  * ble_host_encrypted(); refused: ble_host_enc_failed() */
 BLE_API void ble_ll_start_enc(const uint8_t ltk[16], const uint8_t rand[8], uint16_t ediv)
 {
@@ -320,6 +327,7 @@ static int llc_enc_req(uint32_t now)
     return 1;
 }
 
+#if BLE_CEN_PASSKEY
 /* the encryption pause (Core Vol 6 Part B 5.1.3.2), the master's side: our LL_PAUSE_ENC_REQ (encrypted), the
  * peripheral's LL_PAUSE_ENC_RSP (encrypted), then ours unencrypted and both directions plain; the encryption start
  * with the new key follows at once (LL_ENC_REQ). No data meanwhile */
@@ -347,6 +355,7 @@ static void llc_pause_rsp(void)
     if (!ll_ctrl(LL_PAUSE_ENC_RSP, d, 0) || !llc_enc_req(ble_hw_time_us()))
         llc_enc_failed(BLE_ERR_UNSPECIFIED);
 }
+#endif
 
 /* LL_ENC_RSP: SK = e(LTK, SKDs || SKDm), IV = IVm || IVs; directionBit 1 for what we send */
 static void llc_enc_rsp(const uint8_t *p)
@@ -373,9 +382,11 @@ static void llc_enc_failed(uint8_t err)
 {
     bll.lproc = P_NONE;
     bll.tx_paused = 0;
+#if BLE_CEN_PASSKEY
     if (llc.pausing)
         llc.pausing = 0;                           /* (the pause refused: still encrypted with the old key) */
     else
+#endif
         bll.enc_rx = bll.enc_tx = 0;
     BLE_DG(ble_dgc.m_enc_rej++);
     BLE_DG(ble_dgc.m_enc_rej_err = err);
@@ -388,7 +399,7 @@ static void llc_enc_failed(uint8_t err)
 static void llc_start_procs(uint32_t now)
 {
     uint8_t d[8];
-#if BLE_LL_ENC
+#if BLE_CEN_PAIR
     if (llc.held_n) {                              /* the peripheral's procedure held during our encryption start */
         d[0] = llc.held_n;
         llc.held_n = 0;
@@ -420,11 +431,13 @@ static void llc_start_procs(uint32_t now)
         }
         return;
     }
-#if BLE_LL_ENC
+#if BLE_CEN_PAIR
     if (llc.enc_want) {
+#if BLE_CEN_PASSKEY
         if (bll.enc_tx)
             llc_pause_req(now);                    /* a new key on an encrypted link: paused first */
         else
+#endif
             llc_enc_req(now);
         return;
     }
@@ -440,7 +453,7 @@ static void llc_start_procs(uint32_t now)
 static int llc_rx_ctrl(uint8_t op, const uint8_t *p, uint8_t n)
 {
     uint8_t d[8];
-#if BLE_LL_ENC
+#if BLE_CEN_PAIR
     if (bll.lproc == P_ENC && op != LL_ENC_RSP && op != LL_START_ENC_REQ && op != LL_START_ENC_RSP &&
         op != LL_PAUSE_ENC_RSP && op != LL_REJECT_IND && op != LL_REJECT_EXT_IND && op != LL_UNKNOWN_RSP &&
         op != LL_TERMINATE_IND && n <= sizeof llc.held) {
@@ -488,15 +501,17 @@ static int llc_rx_ctrl(uint8_t op, const uint8_t *p, uint8_t n)
         return 1;
     case LL_CONNECTION_PARAM_RSP:                  /* (we never ask) */
         return 1;
-#if BLE_LL_ENC
+#if BLE_CEN_PAIR
     case LL_ENC_RSP:
         if (bll.lproc == P_ENC)
             llc_enc_rsp(p);
         return 1;
+#if BLE_CEN_PASSKEY
     case LL_PAUSE_ENC_RSP:                         /* (encrypted): ours plain, then the start with the new key */
         if (bll.lproc == P_ENC && llc.pausing)
             llc_pause_rsp();
         return 1;
+#endif
     case LL_START_ENC_REQ:                         /* (sent plain; our answer and everything after: encrypted) */
         if (bll.lproc != P_ENC)
             return 1;
