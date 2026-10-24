@@ -338,6 +338,33 @@ final class OpsTests: XCTestCase {
         _ = try await Ops.project(d, op: 2, slot: 0)      // a query is not refused
     }
 
+    func testProjectListAndOps() async throws {
+        let d = fake()
+        let i = try await Ops.info(d)
+        XCTAssertTrue(i.has(.proj))
+        var l = try await Ops.projList(d)
+        XCTAssertEqual(l.open, 1)
+        XCTAssertEqual(Array(l.used.prefix(3)), [true, true, false])
+        XCTAssertEqual(Array(l.names.prefix(3)), ["SONG A", "LIVE", ""])
+        XCTAssertEqual(l.names.count, ProjList.count)
+        try await Ops.projOp(d, op: 1, 5)                      // the work saved as project 6: the open one now
+        try await Ops.projOp(d, op: 4, 5, name: "new jam!")   // (upper case, the NAME page's characters only)
+        l = try await Ops.projList(d)
+        XCTAssertEqual(l.open, 5)
+        XCTAssertTrue(l.used[5])
+        XCTAssertEqual(l.names[5], "NEW JAM")
+        try await Ops.projOp(d, op: 3, 0)
+        try await Ops.projOp(d, op: 2, 0)
+        l = try await Ops.projList(d)
+        XCTAssertFalse(l.used[0])
+        XCTAssertEqual(l.open, 0)
+        d.playing = true
+        do { try await Ops.projOp(d, op: 2, 1); XCTFail("expected busy") } catch { XCTAssertEqual((error as? WireError)?.message, Ops.stopFirst) }
+        XCTAssertEqual(Ops.projName("ab-c d/éxyz123456"), "AB-C D/XYZ12")
+        XCTAssertTrue(Wire.replyMatches(Cmd.pjOp.rawValue, [0], [0, 0, 0]))
+        XCTAssertFalse(Wire.replyMatches(Cmd.pjOp.rawValue, [2, 3], [2, 4, 0]))
+    }
+
     func testPatternsReadWriteCopyClear() async throws {
         let d = fake()
         let rec = (0..<250).map { UInt8(($0 * 3) & 255) }

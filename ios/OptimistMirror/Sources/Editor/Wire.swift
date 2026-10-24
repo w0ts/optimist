@@ -9,7 +9,7 @@ enum Cmd: UInt8 {
     case upList = 16, upGet = 17, upPut = 18, upStore = 19, upLoad = 20, upErase = 21
     case bkList = 43, bkRead = 44, bkBegin = 45, bkData = 46, bkCommit = 47, bkEnd = 48
     case patList = 79, patOp = 82, patRead = 83, patWrite = 84
-    case panel = 108, nav = 109
+    case panel = 108, nav = 109, pjOp = 110
 }
 
 struct WireError: Error, LocalizedError, Equatable {
@@ -46,6 +46,7 @@ enum Wire {
         switch Cmd(rawValue: cmd) {
         case .desc: return same(3)                       // (scope, id 2 x 7 bit)
         case .project: return same(2)
+        case .pjOp: return same(args.first == 0 ? 1 : 2)  // (op 0 info: 0, 0, ..)
         case .smpBegin, .smpEnd, .upList, .upGet, .upPut, .upStore, .upLoad, .upErase, .patList, .patOp, .nav: return same(1)
         case .smpWrite, .patRead, .patWrite: return same(4)
         default: return true
@@ -162,6 +163,7 @@ struct Feature: Equatable {
     static let patterns = Feature(name: "opti_patterns", version: 1)
     static let panel = Feature(name: "opti_panel", version: 1)
     static let nav = Feature(name: "opti_nav", version: 1)
+    static let proj = Feature(name: "opti_proj", version: 1)
 }
 
 struct DeviceInfo: Equatable {
@@ -215,6 +217,27 @@ struct ProjectReply: Equatable {
     static func parse(_ a: [UInt8]) throws -> ProjectReply {
         var r = Reader(a)
         return ProjectReply(op: Int(try r.b()), slot: Int(try r.b()), used: Int(try r.b()), busy: a.count > 3 && a[3] == 1)
+    }
+}
+
+/// PJ_OP 0 (ed_proj.c): the FM-1's 16 projects, the open one, which hold something, their names ("" none)
+struct ProjList: Equatable {
+    static let count = 16
+    var rc = 0, open = 0
+    var used: [Bool] = []
+    var names: [String] = []
+    static func parse(_ a: [UInt8]) throws -> ProjList {
+        var r = Reader(a)
+        guard try r.b() == 0 else { throw WireError("PJ_OP: not an info reply") }
+        _ = try r.b()
+        var o = ProjList()
+        o.rc = Int(try r.b()); o.open = Int(try r.b())
+        guard r.i + 3 <= a.count else { throw WireError("short reply") }
+        let bits = Wire.rd7(a, r.i, 3)
+        r.i += 3
+        o.used = (0..<count).map { bits >> $0 & 1 == 1 }
+        for _ in 0..<count { o.names.append(try r.s()) }
+        return o
     }
 }
 

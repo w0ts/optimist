@@ -43,6 +43,29 @@ enum Ops {
         return r
     }
 
+    // MARK: the projects themselves (PJ_OP, ed_proj.c)
+
+    static let pjRc = [1: "a character the FM-1's NAME page has not", 3: stopFirst, 4: "no flash", 7: "not written (MEM FULL or flash)",
+                       9: "a restore is running"]
+    /// the NAME page's characters (op_name.c NM_SET), 12 at most
+    static let pjNameChars = Set(" ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._/#+")
+
+    static func projName(_ s: String) -> String {
+        String(s.uppercased().filter { pjNameChars.contains($0) }.prefix(12))
+    }
+
+    static func projList(_ t: Transport) async throws -> ProjList {
+        try ProjList.parse(await t.ask(.pjOp, [0], timeout: 1.0, retries: 1))
+    }
+
+    /// op 1 save the work as project p, 2 open p, 3 clear p, 4 name p (stopped only; 1..3 write flash)
+    static func projOp(_ t: Transport, op: Int, _ p: Int, name: String = "") async throws {
+        let args = [UInt8(op), UInt8(p & 0x7F)] + (op == 4 ? Wire.strEnc(projName(name)) : [])
+        let r = try await t.ask(.pjOp, args, timeout: 10, retries: 0)
+        guard r.count >= 3 else { throw WireError("short reply") }
+        if r[2] != 0 { throw WireError(pjRc[Int(r[2])] ?? "rc \(r[2])") }
+    }
+
     // MARK: backup (BK_*)
 
     /// the device's whole object list, in pages
