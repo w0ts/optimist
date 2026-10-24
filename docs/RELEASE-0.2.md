@@ -46,7 +46,7 @@ There is more in 0.2 than one firmware can hold: 26 synth engines, 37 kits, the 
 
 ## Sequencer and projects
 
-- **GRIDS note generator** (Mutable Instruments Grids' drum map) and the note generators, apart from the STEP tools. Two builder sub-items, off by default: **[check: host-tested only]**
+- **GRIDS note generator** (Mutable Instruments Grids' drum map) and the note generators, apart from the STEP tools. Two builder sub-items, off by default:
   - **LFO modulation:** two LFOs on the drum track move the kit's six GRIDS values (X, Y, CHAOS, the three densities), so the pattern drifts on its own.
   - **Euclidean mode** (OUT DRUMS / EUCL): Grids' own Euclidean output, X, Y and CHAOS the three parts' lengths 1..32, BD SD HH their fills, bit for bit Grids' table.
 - **Projects own their scenes, patterns and song.** A project is one record; PROJECT LOAD opens it (asks to SAVE first), SAVE saves everything, DELETE / NEW clear it; backup objects PJ01..PJ16.
