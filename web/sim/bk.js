@@ -164,3 +164,61 @@ export async function transfer(src, dst, onProgress) {
   await end(dst, true);
   return { done, skipped };
 }
+
+/* ---- one project from a device to another (command 110 PJ_OP, firmware/src/io/editor/ed_proj.c; the stream is the
+   backup's PJ01..PJ16 object). A firmware offers it when its INFO lists "opti_proj_1" (tag 0x66, ed_opti.h) */
+const PJ_OP = 110;
+export const PJ_N = 16, PJ_NAME = 12;
+const PJ_RC = ["ok", "bad arguments", "", "the transport plays: stop it first", "no flash", "", "", "not written (memory full?)",
+  "", "a restore is running"];
+const pjErr = (rc) => new Error(PJ_RC[rc] || `code ${rc}`);
+const pjTag = (p) => `PJ${String(p + 1).padStart(2, "0")}`;
+/* a project name as the device's NAME page takes it: upper case, " A-Z 0-9 -._/#+", 12 at most */
+export const pjName = (s) => String(s || "").toUpperCase().replace(/[^ A-Z0-9\-._/#+]/g, "").slice(0, PJ_NAME).trimEnd();
+
+/* does this firmware move projects? (its INFO reply names opti_proj_1) */
+export async function hasProjects(c) {
+  const r = await c.request(1).catch(() => null);
+  return !!r && String.fromCharCode(...r).includes("opti_proj_1");
+}
+/* -> { open, used: [16 bool], names: [16 string] } */
+export async function projects(c) {
+  const r = await c.request(PJ_OP, [0]);
+  if (r[2]) throw pjErr(r[2]);
+  const used = fromU7(r.slice(4), 3), names = [];
+  for (let o = 7, k = 0; k < PJ_N; k++) { const z = r.indexOf(0, o); names.push(String.fromCharCode(...r.slice(o, z < 0 ? r.length : z))); o = z < 0 ? r.length : z + 1; }
+  return { open: r[3], used: Array.from({ length: PJ_N }, (_, k) => !!((used >> k) & 1)), names };
+}
+/* op 1 save the work as project p, 2 open p, 3 clear p, 4 name p. Throws on a refusal */
+export async function projectOp(c, op, p, name = "") {
+  const args = [op, p, ...(op === 4 ? Array.from(pjName(name), (ch) => ch.charCodeAt(0)) : [])];
+  const r = await c.request(PJ_OP, args, 10000);   /* (a save / clear writes flash) */
+  if (r[2]) throw pjErr(r[2]);
+}
+/* project p's stream (empty: the project holds nothing) */
+export async function readProject(c, p) {
+  const obj = (await listObjects(c)).find((o) => o.tag === pjTag(p));
+  if (!obj) throw new Error("this firmware has no projects to read");
+  return obj.len ? readObject(c, obj) : [];
+}
+/* project p of dst becomes the stream: cleared first (no record of what it held stays), written, named; opened when
+   asked, or when it is dst's open project (its work would be the old one's) */
+export async function writeProject(c, p, data, name, open) {
+  const obj = (await listObjects(c)).find((o) => o.tag === pjTag(p));
+  if (!obj) throw new Error("this firmware has no projects to write");
+  const was = await projects(c);
+  await projectOp(c, 3, p);
+  if (data.length) { await writeObject(c, obj, data); await end(c, false); }
+  await projectOp(c, 4, p, name);
+  if (open || was.open === p) await projectOp(c, 2, p);
+}
+/* src's project `from` into dst's project `to`: { save } saves src's work into `from` first (src's open project: its
+   current state), { name } names it on dst (default: its name on src), { open } opens it on dst */
+export async function moveProject(src, dst, from, to, { save = false, name = null, open = false } = {}) {
+  const s = await projects(src);
+  if (save) await projectOp(src, 1, from);
+  const data = await readProject(src, from);
+  if (!data.length) throw new Error(`project ${from + 1} is empty`);
+  await writeProject(dst, to, data, name === null ? s.names[from] : name, open);
+  return data.length;
+}

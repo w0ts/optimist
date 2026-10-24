@@ -19,7 +19,8 @@
 // 2026-10-18): a build that cannot read what another left handles it as the FM-1 would.
 import { cloudFileUrl, loadCloud, matchCloud } from "../installer/installer.js";
 import { findButton } from "./buttons.js";
-import { client as bkClient, transfer as bkTransfer, readToFile as bkReadToFile, writeFromFile as bkWriteFromFile, unpackFile as bkUnpackFile } from "./bk.js";
+import { client as bkClient, transfer as bkTransfer, readToFile as bkReadToFile, writeFromFile as bkWriteFromFile, unpackFile as bkUnpackFile,
+  hasProjects, projects as pjList, moveProject, pjName, PJ_N, PJ_NAME } from "./bk.js";
 
 const DB = "optimist-sim", STORE = "state", KEY = "flash";
 const STYLE_ID = "optimist-sim-style";
@@ -74,6 +75,17 @@ export const TEXT = {
   loadNoAnswer: "The FM-1 did not answer. Check it is the right device and runs Optimist (the web editor should connect to it too).",
   loadNoBackup: "This FM-1's firmware has no editor Backup, so its memory cannot be read. Flash a current build (with the editor) first.",
   loadFail: "Could not load from the FM-1: ",
+  pjGet: "Get a project from FM-1", pjSend: "Send this project to FM-1", pjGo: "Get it", pjGoSend: "Send it", pjCancel: "Cancel",
+  pjFrom: "FM-1 project", pjTo: "Into FM-1 project", pjNameLabel: "Name", pjEmpty: "(empty)", pjUnnamed: "(no name)",
+  pjNoSim: "This simulator build cannot move projects: pick a build with per-project patterns (PATTERNS) and the editor's backup.",
+  pjNoDev: "This FM-1's firmware cannot move projects yet: User flashes a current build (with the editor's backup and PATTERNS) first.",
+  pjNone: "The FM-1 has no saved project.",
+  pjGetAsk: (n, name) => `Replace project ${n}${name ? ` (${name})` : ""} in the simulator with the FM-1's?`,
+  pjSendAsk: (n, name) => `Replace project ${n}${name ? ` (${name})` : ""} on the FM-1? Its scenes, patterns and song go too.`,
+  pjGetting: "Reading the project from the FM-1…", pjSending: "Saving the simulator's project and writing it to the FM-1…",
+  pjGot: (n, name) => `Project ${n}${name ? ` ${name}` : ""} from the FM-1 is the simulator's project ${n} now (open).`,
+  pjSent: (from, n, name) => `The simulator's project ${from} is on the FM-1 as project ${n}${name ? ` ${name}` : ""}.`,
+  pjFail: "Could not move the project: ",
   nosim: "This build has no simulator (built before the simulator existed: ask for it again in the builder).",
   loadfail: "Could not load the simulator: ",
 };
@@ -186,6 +198,16 @@ export function mountSim(container, opts = {}) {
   el.config = h("button.o-btn.sm", { type: "button", title: TEXT.configTip, onclick: () => configThis() }, TEXT.config);
   el.load = h("button.o-btn.sm", { type: "button", onclick: () => loadFromDevice() }, TEXT.load);
   el.write = h("button.o-btn.sm", { type: "button", onclick: () => writeToDevice() }, TEXT.write);
+  el.pjGet = h("button.o-btn.sm", { type: "button", onclick: () => pjOpen("get") }, TEXT.pjGet);
+  el.pjSend = h("button.o-btn.sm", { type: "button", onclick: () => pjOpen("send") }, TEXT.pjSend);
+  el.pjPick = h("select.oi-csearch.os-pick", { onchange: () => pjPicked() });
+  el.pjPickLabel = h("span", {}, TEXT.pjFrom);
+  el.pjName = h("input.os-pjname", { type: "text", maxlength: String(PJ_NAME), spellcheck: "false", autocomplete: "off",
+    oninput: () => { el.pjName.value = el.pjName.value.toUpperCase().replace(/[^ A-Z0-9\-._/#+]/g, "").slice(0, PJ_NAME); } });
+  el.pjNameField = h("label.o-field", {}, h("span", {}, TEXT.pjNameLabel), el.pjName);
+  el.pjGo = h("button.o-btn.sm.primary", { type: "button", onclick: () => pjGo() }, TEXT.pjGo);
+  el.pj = h("div.os-bar.os-pj", { hidden: true }, h("label.o-field", {}, el.pjPickLabel, el.pjPick), el.pjNameField, el.pjGo,
+    h("button.o-btn.sm.quiet", { type: "button", onclick: () => pjClose() }, TEXT.pjCancel));
   el.save = h("button.o-btn.sm", { type: "button", onclick: () => saveToFile() }, TEXT.saveFile);
   el.loadf = h("button.o-btn.sm", { type: "button", onclick: () => el.file.click() }, TEXT.loadFile);
   el.file = h("input", { type: "file", accept: ".optimist-backup,application/octet-stream", style: "display:none",
@@ -202,7 +224,8 @@ export function mountSim(container, opts = {}) {
   const root = h("div.os", {},
     h("header", {}, h("h1.oi-title", {}, TEXT.title), TEXT.what ? h("p.oi-what", {}, TEXT.what) : null),
     h("div.os-bar", {}, h("label.o-field", {}, h("span", {}, TEXT.build), el.pick),
-      h("label.o-field", {}, h("span", {}, TEXT.themeLabel), el.theme), el.power, el.save, el.loadf, el.load, el.write, el.install, el.config, el.reset, el.file),
+      h("label.o-field", {}, h("span", {}, TEXT.themeLabel), el.theme), el.power, el.save, el.loadf, el.load, el.write, el.pjGet, el.pjSend, el.install, el.config, el.reset, el.file),
+    el.pj,
     el.status,
     el.stage,
     h("p.o-dim.os-help", {}, TEXT.keysHelp, " ", TEXT.shared));
@@ -441,7 +464,7 @@ export function mountSim(container, opts = {}) {
   }
   function deviceError(e) {
     const msg = e && e.message || String(e);
-    say(/command 43/.test(msg) ? TEXT.loadNoBackup : [TEXT.loadNoMidi, TEXT.loadNoDevice, TEXT.loadNoAnswer, TEXT.loadMidiDenied, TEXT.loadNoAllow].includes(msg)
+    say(/command 43/.test(msg) ? TEXT.loadNoBackup : [TEXT.loadNoMidi, TEXT.loadNoDevice, TEXT.loadNoAnswer, TEXT.loadMidiDenied, TEXT.loadNoAllow, TEXT.pjNoSim, TEXT.pjNoDev, TEXT.pjNone].includes(msg)
       ? msg : TEXT.loadFail + msg, "err");
   }
   /* "Load from FM-1": read the real device's whole user memory into the running simulator (the sim restarts on it). */
@@ -475,6 +498,68 @@ export function mountSim(container, opts = {}) {
     } catch (e) { deviceError(e); }
     if (dev) dev.close(); st.midiTap = null;
     el.write.disabled = false;
+  }
+  /* ---- one project between the FM-1 and the simulator (bk.js moveProject; editor command 110 + the PJnn stream).
+     "Get": an FM-1 project into the simulator's project of the same number, opened there. "Send": the simulator's open
+     project (its work saved into it first) into the FM-1 project picked, under the name typed */
+  const pjLabel = (k, used, name) => `${k + 1}  ${used ? name || TEXT.pjUnnamed : TEXT.pjEmpty}`;
+  function pjClose() {
+    if (st.pj && st.pj.dev) st.pj.dev.close();
+    st.pj = null; st.midiTap = null;
+    el.pj.hidden = true;
+    el.pjGet.disabled = el.pjSend.disabled = false;
+  }
+  function pjPicked() {                              /* (sending into a named project: its name offered) */
+    const p = st.pj, k = Number(el.pjPick.value);
+    if (p && p.mode === "send" && !p.typed && p.fm.used[k] && p.fm.names[k]) el.pjName.value = p.fm.names[k];
+  }
+  async function pjOpen(mode) {
+    if (!engine) { say(TEXT.loadNeedsRun, "err"); return; }
+    pjClose();
+    el.pjGet.disabled = el.pjSend.disabled = true;
+    say(TEXT.loadFinding);
+    try {
+      const sim = simBkClient();
+      if (!(await hasProjects(sim))) throw new Error(TEXT.pjNoSim);
+      const dev = await openDevice();
+      st.pj = { mode, dev, sim };
+      if (!(await hasProjects(dev.client))) throw new Error(TEXT.pjNoDev);
+      const fm = await pjList(dev.client), sm = await pjList(sim);
+      Object.assign(st.pj, { fm, sm, typed: false });
+      if (mode === "get" && !fm.used.some(Boolean)) throw new Error(TEXT.pjNone);
+      el.pjPick.replaceChildren(...Array.from({ length: PJ_N }, (_, k) =>
+        h("option", { value: String(k), disabled: mode === "get" && !fm.used[k] }, pjLabel(k, fm.used[k], fm.names[k]))));
+      el.pjPick.value = String(mode === "get" ? (fm.used[fm.open] ? fm.open : fm.used.indexOf(true)) : sm.open);
+      el.pjPickLabel.textContent = mode === "get" ? TEXT.pjFrom : TEXT.pjTo;
+      el.pjGo.textContent = mode === "get" ? TEXT.pjGo : TEXT.pjGoSend;
+      el.pjNameField.hidden = mode !== "send";
+      el.pjName.value = mode === "send" ? sm.names[sm.open] || "" : "";
+      el.pjName.onkeydown = () => { st.pj.typed = true; };
+      el.pj.hidden = false;
+      say("");
+      (mode === "send" ? el.pjName : el.pjPick).focus();
+    } catch (e) { pjClose(); deviceError(e); }
+  }
+  async function pjGo() {
+    const p = st.pj;
+    if (!p) return;
+    const k = Number(el.pjPick.value);
+    if (p.mode === "get" && p.sm.used[k] && typeof window !== "undefined" && !window.confirm(TEXT.pjGetAsk(k + 1, p.sm.names[k]))) return;
+    const name = pjName(el.pjName.value);
+    if (p.mode === "send" && p.fm.used[k] && typeof window !== "undefined" && !window.confirm(TEXT.pjSendAsk(k + 1, p.fm.names[k]))) return;
+    el.pjGo.disabled = true;
+    say(p.mode === "get" ? TEXT.pjGetting : TEXT.pjSending);
+    try {
+      if (p.mode === "get") {
+        await moveProject(p.dev.client, p.sim, k, k, { open: true });
+        say(TEXT.pjGot(k + 1, p.fm.names[k]), "ok");
+      } else {
+        await moveProject(p.sim, p.dev.client, p.sm.open, k, { save: true, name });
+        say(TEXT.pjSent(p.sm.open + 1, k + 1, name), "ok");
+      }
+      el.pjGo.disabled = false;
+      pjClose();
+    } catch (e) { el.pjGo.disabled = false; say(TEXT.pjFail + (e && e.message || e), "err"); }
   }
   /* the picked build's configuration in the builder, to look at it or change it and build again */
   function configThis() {

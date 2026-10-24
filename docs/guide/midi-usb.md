@@ -41,6 +41,6 @@ A flash write (saving a preset or a project) pauses the audio for a moment: avoi
 
 - **Library**, **Samples** (with CHOP), **Projects**, **Settings**: screens of their own (`LIBRARIAN`, `ED_LIVE`).
 - **Backup** (its own tab): everything the FM-1 keeps (projects and sections, the working project, user presets, your kits, the settings; tick *with the samples* for USR1 to USR3) in one `.optimist-backup` file. **Restore** lists what the file holds and writes what this firmware can read, then the FM-1 restarts on it. The installer offers a backup before it installs.
-- **Simulator** (a tab): the firmware running in the browser, with the same panel. **Load from FM-1** copies your FM-1's memory into it, **Write to FM-1** writes it back, and **Save to file / Load file** use the backup file format. The editor's device picker connects it to the simulator instead of an FM-1.
+- **Simulator** (a tab): the firmware running in the browser, with the same panel. **Load from FM-1** copies your FM-1's memory into it, **Write to FM-1** writes it back. **Get a project from FM-1** copies one FM-1 project into the simulator (same number, opened); **Send this project to FM-1** saves the simulator's open project and writes it into the FM-1 project you pick, under the name you type (the FM-1 and the simulator both need a build with per-project patterns). And **Save to file / Load file** use the backup file format. The editor's device picker connects it to the simulator instead of an FM-1.
 
 The protocol is [web/EDITOR_PROTOCOL.md](../../web/EDITOR_PROTOCOL.md).

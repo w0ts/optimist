@@ -28,9 +28,14 @@
 #else
 #define ED_OPTI_PAT ""
 #endif
+#if FELUCCA_FLASH && FELUCCA_BACKUP && SEC_LOGGED && FELUCCA_PATTERNS
+#define ED_OPTI_PJ "opti_proj_1 "       /* (110: the projects, ed_proj.c) */
+#else
+#define ED_OPTI_PJ ""
+#endif
 static void ed_opti_info(void)
 {
-    static const char S[] = ED_OPTI_BK ED_OPTI_MIR ED_OPTI_LIB ED_OPTI_PAT;
+    static const char S[] = ED_OPTI_BK ED_OPTI_MIR ED_OPTI_LIB ED_OPTI_PAT ED_OPTI_PJ;
     uint32_t i;
     _Static_assert(sizeof S < 128u, "INFO tag 0x66: one 7-bit length");
 #if FELUCCA_ED_MIRROR
