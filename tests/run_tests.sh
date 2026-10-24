@@ -150,7 +150,10 @@ t_sim() {
     local py; py="$(python3 -c 'import sys; sys.path.insert(0, "tools"); import deps; print(deps.venv_python())')" || return 1
     mkdir -p build/sim/test
     "$py" tools/sim.py build --wasm --out build/sim/test/sim.wasm >build/sim/test-build.log 2>&1 || { tail -20 build/sim/test-build.log; return 1; }
-    node tests/sim_test.mjs build/sim/test/sim.wasm
+    node tests/sim_test.mjs build/sim/test/sim.wasm || return 1
+    # (one project moved between two instances: a build with PATTERNS, live editing not needed)
+    "$py" tools/sim.py build --wasm --config config/profiles/synth.config --out build/sim/test/sim-pj.wasm >build/sim/test-build-pj.log 2>&1 || { tail -20 build/sim/test-build-pj.log; return 1; }
+    node tests/sim_projects_test.mjs build/sim/test/sim-pj.wasm
 }
 early t_ble_emu
 early t_ble_central

@@ -105,7 +105,7 @@ strings, NTRK, the protocol byte (7), each engine slot's UID, then tagged blocks
 | 62 | `03 01 a b` | STEPLANE (below) |
 | 64 | `01 flags` | lite build: bit 0 backup only, bit 1 the librarian |
 | 65 | `01 version` | MIRROR (below, "The screen mirrored"): `MIR_VERSION` (2) |
-| 66 | `n` ASCII | the features by name and version, space-separated (`ed_opti.h`): `opti_backup_4` (43..48, `BK_VERSION`), `opti_mirror_2` (106, `MIR_VERSION`), `opti_panel_1` (108), `opti_library_1` (16..21), `opti_projects_1` (9), `opti_patterns_1` (79..84). Every Felucca-family firmware answers `INFO` with the same header but numbers its other commands its own way (SLOOP's backup is 34..36; 78 is Melodee's CZ), so a client sends nothing else until it has read this tag, and offers a feature only when its name and a version it reads are listed. A number goes up only when an older client would misread the new form. Over Bluetooth (only 106 answered) the firmware is known by its advertised name, "Optimist ..." |
+| 66 | `n` ASCII | the features by name and version, space-separated (`ed_opti.h`): `opti_backup_4` (43..48, `BK_VERSION`), `opti_mirror_2` (106, `MIR_VERSION`), `opti_panel_1` (108), `opti_library_1` (16..21), `opti_projects_1` (9), `opti_patterns_1` (79..84), `opti_proj_1` (110). Every Felucca-family firmware answers `INFO` with the same header but numbers its other commands its own way (SLOOP's backup is 34..36; 78 is Melodee's CZ), so a client sends nothing else until it has read this tag, and offers a feature only when its name and a version it reads are listed. A number goes up only when an older client would misread the new form. Over Bluetooth (only 106 answered) the firmware is known by its advertised name, "Optimist ..." |
 
 `BUILD` (no args): the build's name string (16), its config hash (5 x 7 bit), the item bytes count and bytes (bit n = registry item n
 built, 7 a byte). The backup file records it.
@@ -303,6 +303,21 @@ rc: 0 ok, 1 arguments (unknown object, out of order), 2 CRC (a chunk: send it ag
 **The backup file** (`.optimist-backup`): `OPTBKUP` 0x01 (8 bytes), the header length (u32 LE), the header (JSON `{"format": "optimist-backup", "version": 1, "created", "device": {version, proto, switches, magic, bk}, "objects": [{tag, kind, fm6, len, crc, at}]}`),
 the objects' bytes (at `at` from the end of the header), then the CRC-32 of everything before it (u32 LE). Each object is the device's own bytes. The editor refuses a damaged file and leaves out objects the connected device does not have (shown, unticked).
 A section's file is a backup file holding its one `Snn ` object (written with `BK_BEGIN` / `DATA` / `COMMIT` and `BK_END 1`); its FX slots, lane LFOs and motion are other objects and do not come with it.
+
+## Projects (110 PJ_OP; INFO tag 66 `opti_proj_1`)
+
+`ed_proj.c` (`PATTERNS` with `BACKUP`; docs/PROJECTS-DESIGN.md). With the backup's `PJ01`..`PJ16` streams it moves one project from a device to another: the Simulator tab's **Get a project from FM-1** / **Send this project to FM-1** (`web/sim/bk.js` `moveProject`). Stopped only.
+
+| op | args | reply |
+|---|---|---|
+| 0 info | | 0, 0, rc, the open project (0..15), used (3 x 7 bit: bit p = project p holds something), then 16 names (ASCII, 0-terminated, 12 at most; "" none) |
+| 1 save | p | 1, p, rc: the work saved as project p's state (the PROJECT page's SAVE: another project than the open one is the open one from then on) |
+| 2 open | p | 2, p, rc: project p opened, its state into the work (none: a blank work) |
+| 3 clear | p | 3, p, rc: every record of project p cleared (DELETE) |
+| 4 name | p, name | 4, p, rc: project p's name, up to 12 of ` A-Z 0-9 -._/#+` (the NAME page's; trailing spaces dropped, "" none) |
+
+rc: 0 done, 1 arguments (a character the NAME page has not), 3 the transport plays (nothing done), 4 no flash, 7 not written (MEM FULL, flash), 9 a restore holds the log (between `BK_BEGIN` and `BK_COMMIT`).
+**Moving project a of src into project b of dst:** (send: op 1 a on src, its work saved), `BK_READ` src's `PJ(a+1)`; on dst op 3 b (a stream written over a project leaves the records it does not carry, so clear first), `BK_BEGIN` / `DATA` / `COMMIT` dst's `PJ(b+1)`, `BK_END 0` (no restart), op 4 b with the name, op 2 b when b is dst's open project (its work would be the old project's) or when asked. Records the target build would not load are skipped by its restore, as in a full one. The user sample slots a project plays are not part of it.
 
 ## Snapshots (54..57)
 
