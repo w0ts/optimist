@@ -204,7 +204,7 @@ to use the worktree's own `config/`. `build/builder.config` (the last build's co
 ## Reproducibility
 
 The build is reproducible across hosts: nothing in the `.fwsc` depends on the host, the date or the path. Checked
-2026-10-06 (commit c14c7ba, clean `build/` each time): user-default and drum-machine `--release 0.1` gave the same
+2026-10-06 (commit c14c7ba, clean `build/` each time): two profiles of that time built with `--release 0.1` gave the same
 SHA-256 of `build/felucca.fwsc` on macOS arm64 (the `image`, `docker` and `--in-docker` backends) and on Linux x86-64
 natively, with Pillow 10.4.0, 12.2.0 and 12.3.0. The package names differ only by `-modified` and the commit; the bytes
 do not. (Not repeated since; the firmware has changed a great deal.)

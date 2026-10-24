@@ -64,13 +64,12 @@ A profile is a saved configuration. Shipped ones are in `config/profiles` (`make
 
 | Profile (`# name:`) | What it builds (its values) |
 |---|---|
-| `synths_USBaudio_BTaudio_BTmidi` (synths-USB-BTA-BTM) | **the default**: `build`, `package`, `flash`, `config` and `make` use it without a profile, the menu opens with it the first time, and it is the Pages site's flavour (`web/flavours.json`). ANALOG 2 (with its four filter models), DIGITAL, FM6 (five voice packs), PLAITS, PHYS, ACID, JUNO; the drum synth with the PLAITS kit, the X0X 909 and 808, the user kits; USB audio, Bluetooth MIDI (BLE, BLE devices at MINIMAL), Bluetooth audio; the web editor for the screen mirror alone (no backup, no librarian); no help line |
+| `synths_USBaudio_BTaudio_BTmidi` (synths-USB-BTA-BTM) | **the default**: `build`, `package`, `flash`, `config` and `make` use it without a profile, the menu opens with it the first time, and it is the Pages site's flavour (`web/flavours.json`). ANALOG 2 (with its four filter models), DIGITAL, FM6 (five voice packs), PLAITS, PHYS, ACID, JUNO; the drum synth with the KAWA and PLAITS kits, the X0X 909 and 808, the user kits; USB audio, Bluetooth MIDI (BLE, BLE devices off), Bluetooth audio; the web editor's backup, librarian and screen mirror; no help line |
 | `synths` | ANALOG 2 (with its four filter models), DIGITAL, PHASE, FM6 (five voice packs), PLAITS, STRINGS, PROPHET, PHYS, ACID, JUNO; the drum synth with the KAWA and PLAITS kits, the X0X 909 and 808, the user kits; Bluetooth audio; the web editor's backup, restore and screen mirror |
 | `synths-2` | LOFI, VOICE, WHEEL, DRONE, VPS, TERRAIN, WSEQ, VECTOR, WAVE, SID, PROPHET; the drum synth alone (no user kits); Bluetooth audio; the web editor's backup, restore and screen mirror |
-| `drum-machines` (drum machine) | SAMPLE, GRAIN; the drum synth with the KAWA and PLAITS kits, the X0X 909 and 808, the sampled kits, your samples and kits; USB audio, Bluetooth MIDI, Bluetooth audio; the web editor's backup, restore and screen mirror |
+| `drum-machines` (drum machine) | SAMPLE, GRAIN; the drum synth with the KAWA and PLAITS kits, the X0X 909 and 808, the sampled kits, your samples and kits; USB audio, Bluetooth MIDI (BLE devices at FULL), Bluetooth audio; the web editor's backup, restore and screen mirror |
 
-The default is also the reference profile (the host tests, the gate, `emu-check` and CI's fixtures build it; `synth` until
-2026-10-24) and cannot be deleted. `--defaults` is every registry default (too big for the slot).
+The default is also the reference profile (the host tests, the gate, `emu-check` and CI's fixtures build it) and cannot be deleted. `--defaults` is every registry default (too big for the slot).
 
 A shipped profile with the line `# publish: yes` is built by CI (`.github/workflows/build.yml` takes the list from
 `config --published`); `# publish: no` or no line: not built. Today all four are published.
@@ -470,11 +469,10 @@ Ticking BLE in the menu (the CLI menu and the web builder) **removes nothing**: 
 the message says it does not fit (the user, 2026-10-21; an earlier rule unticked an item for you, which made BLE on show
 more free flash than BLE off). Remove what you want by hand, or let `--fit` choose.
 
-`BLE_CENTRAL` (connecting out to BLE-MIDI devices) is a choice of two levels, for the room they take (on `mots.config`,
-docs/BLE-DEVICES-DESIGN.md §4.5): **1 FULL** (+21.9 KB of flash, +2.3 KB of RAM: Just Works and the passkey, devices with private
-addresses found again) and **3 MINIMAL** (+13.4 KB, +1.6 KB: no pairing at all, controllers and another
-FM-1 only, `FAILED: NEEDS PAIRING` for a device that asks to pair). A `.config` from before says `BLE_CENTRAL=1` and builds FULL, as
-it always did (the same image); 2 (a Just Works only level that was built and removed) is refused.
+`BLE_CENTRAL` (connecting out to BLE-MIDI devices) is off or one of two levels (docs/BLE-DEVICES-DESIGN.md §4.5):
+**1 FULL** (about 21.9 KB of flash and 2.3 KB of RAM: Just Works or the passkey, devices with private addresses found
+again) and **3 MINIMAL** (about 13.4 KB and 1.6 KB: no pairing at all, controllers and another FM-1 only,
+`FAILED: NEEDS PAIRING` for a device that asks to pair).
 
 Headless: `--ble-drop ITEM` on `optimist.py build|package` and `configure.py` (with `--set BLE=1`) removes that one item,
 which must free enough (`tools/builder/room.py` make_room). `optimist.py test` builds its BLE emulator packages with it.

@@ -37,7 +37,7 @@ Four ready-made builds, in every release; the builder makes any other.
 
 | Flavour | What it is |
 | --- | --- |
-| **synths-USB-BTA-BTM** (the default) | ANALOG 2, DIGITAL, FM6 with five voice packs, PLAITS, JUNO, ACID, PHYS; the synthesised kits with PLAITS, the X0X 909 and 808, your kits; USB audio, Bluetooth MIDI, Bluetooth audio, the second core. The web editor mirrors the screen only (no backup). |
+| **synths-USB-BTA-BTM** (the default) | ANALOG 2, DIGITAL, FM6 with five voice packs, PLAITS, JUNO, ACID, PHYS; the synthesised kits with KAWA and PLAITS, the X0X 909 and 808, your kits; USB audio, Bluetooth MIDI, Bluetooth audio. The web editor does backup, restore and the screen mirror. |
 | **synths** | ANALOG 2, DIGITAL, PHASE, FM6 with five voice packs, PLAITS, STRINGS, PROPHET, JUNO, ACID, PHYS; the synthesised kits with KAWA and PLAITS, the X0X 909 and 808, your kits; Bluetooth audio. The web editor does backup, restore and the screen mirror. |
 | **synths-2** | LOFI, VOICE, WHEEL, DRONE, VPS, TERRAIN, WSEQ, VECTOR, WAVE, SID, PROPHET; the synthesised kits; Bluetooth audio. The web editor does backup, restore and the screen mirror. |
 | **drum machine** | The synthesised kits with KAWA and PLAITS, the sampled kits, the X0X 909 and 808, the drum editor, your samples and kits, SAMPLE, GRAIN; USB audio, Bluetooth MIDI, Bluetooth audio. The web editor does backup, restore and the screen mirror. |
@@ -80,7 +80,8 @@ working project as a SLOOP 2.7 song file to go the other way.
   Juno chorus and more), reverb, delay and chorus sends with three returns, punch-in effects.
 - **Sequencer:** 64 steps a track, parameter locks, motion recording, chance and conditions, note generators (EUCLID, RANDOM, PULSE, GRIDS), pattern tools, fills, patterns and
   scenes, sections A–P and a song chain, snapshots, undo.
-- **Connections:** USB and TRS MIDI in, MIDI out, MIDI clock in and out, Bluetooth MIDI, USB audio (experimental).
+- **Connections:** USB and TRS MIDI in, MIDI out over USB, MIDI clock in and out (also over Bluetooth MIDI), Bluetooth
+  MIDI and Bluetooth audio (headphones, speakers) at once, USB audio.
 - **One interface:** rows of values on the screen, SELECT / ALGORITHM / PRESETS, SAVE = yes, HOME = no, and held buttons
   for performance layers. PLAY's two lights show the transport: green dim stopped, green full playing, red full recording.
 
