@@ -44,6 +44,7 @@ final class FakeFM1: Transport {
         switch cmd {
         case .info: return info
         case .panel: return [a.first ?? 0, 0]
+        case .nav: return FakeFM1.nav(a)
         case .project:
             let k = Int(a[1])
             if a[0] == 1 { sections[k] = 1; log.append("SAVE \(k)") }
@@ -158,4 +159,15 @@ final class FakeFM1: Transport {
 enum Fake {
     static func ascii(_ s: String) -> [UInt8] { Array(s.utf8) }
     static func cstr(_ s: String) -> [UInt8] { Array(s.utf8) + [0] }
+}
+
+extension FakeFM1 {
+    /// 109 NAV as ed_mirror.c ed_nav answers it: SOUND narrowed to LFO (button 3), row 1 of LFO / LFO DEST / LFO 2, on T2;
+    /// TRACKS: the mixer rows' names
+    static func nav(_ a: [UInt8]) -> [UInt8] {
+        let op = a.first ?? 0
+        if op == 4 { return [4, 0, 7] + ["MASTER", "T1", "T2", "T3", "DR", "KICK", "SNARE"].flatMap { Array($0.utf8) + [0] } }
+        let row: UInt8 = op == 1 && a.count > 1 ? a[1] : 1
+        return [op, op > 4 ? 1 : 0, 1, 3, row, 3] + ["LFO", "LFO DEST", "LFO 2"].flatMap { Array($0.utf8) + [0] } + [2, 2]
+    }
 }

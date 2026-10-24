@@ -127,6 +127,9 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
     case ED_PANEL:                                         /* the panel pressed by the mirror's client (ed_mirror.c) */
         ed_panel(a, na);
         break;
+    case ED_NAV:                                           /* the client's touch navigation (ed_mirror.c, ui/optimist/op_nav.c) */
+        ed_nav(a, na);
+        break;
 #endif
     default:
         for (i = 0; ED_CMDS[i]; i++)

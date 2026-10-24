@@ -14,7 +14,7 @@
 #define ED_OPTI_BK ""
 #endif
 #if FELUCCA_ED_MIRROR
-#define ED_OPTI_MIR "opti_mirror_2 opti_panel_1 "   /* (ed_mirror_enc.h MIR_VERSION; 108 PANEL, ed_mirror.c) */
+#define ED_OPTI_MIR "opti_mirror_2 opti_panel_1 opti_nav_1 "   /* (ed_mirror_enc.h MIR_VERSION; 108 PANEL, 109 NAV, ed_mirror.c) */
 #else
 #define ED_OPTI_MIR ""
 #endif
