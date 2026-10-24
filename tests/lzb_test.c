@@ -1,8 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The boot stream's decoder (firmware/src/system/lzb.h lzb_expand, what fm1_cstart runs on the LZB stream of the RAM
  * code, the tables and .data) against tools/lzb.py's vectors (lzb_vectors.h, generated at every build: blobs with a
- * 1-byte offset of 256, 2-byte offsets, overlapping copies, long literal and match runs, empty and tiny ones, all in
- * one range-coded stream): every blob decodes byte for byte, each block ends exactly where the next starts, and the
+ * 1-byte offset of 256, 2-byte offsets, overlapping copies, 2-byte matches, rep matches (the last offset again), long
+ * literal and match runs, empty and tiny ones, all in one range-coded stream): every blob decodes byte for byte, each block ends exactly where the next starts, and the
  * decoder ends within the coder's 5 flush bytes of the stream's end (it reads ahead by up to 4). */
 #include <stdint.h>
 #include <stdio.h>
