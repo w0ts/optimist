@@ -337,8 +337,12 @@ def build_app():
     # flash on mots against the blobs as arrays: the range coder squeezes the LEB128 bytes)
     tca = int(CFG_VALUES.get("FELUCCA_TAB_CODED_ALL", os.environ.get("FELUCCA_TAB_CODED_ALL", "0")))
     fm6 = int(CFG_VALUES.get("FELUCCA_ENG_FM6", os.environ.get("FELUCCA_ENG_FM6", "1")))
+    plaits = int(CFG_VALUES.get("FELUCCA_ENG_PLAITS", os.environ.get("FELUCCA_ENG_PLAITS", "0")))
+    juno = int(CFG_VALUES.get("FELUCCA_ENG_JUNO", os.environ.get("FELUCCA_ENG_JUNO", "0")))
     tab_blob = b"".join((GEN / f"tab_blob_{g}.bin").read_bytes()
-                        for g, on in (("core", True), ("flash", tca >= 1), ("fm6", fm6 == 1 and tca >= 2)) if on)
+                        for g, on in (("core", True), ("flash", tca >= 1), ("fm6", fm6 == 1 and tca >= 2),
+                                      ("plaits", plaits == 1 and tca >= 1), ("juno", juno == 1 and tca >= 1)) if on)
+    # (gen_tables.py GROUPS' order; a group whose condition disagrees with the header's does not compile: TAB_BLOB_TOTAL)
     (OUT / "tabblob.bin").write_bytes(tab_blob)
     flags.append(f"-DTAB_STREAM_LEN={len(tab_blob)}u")
     # Felucca 1.0.1 (20c275e): felucca.c goes to LLVM IR without the optimizer, the main-loop functions

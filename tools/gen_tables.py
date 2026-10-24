@@ -7,6 +7,7 @@ FS = 44100 Hz, control rate = every CTL (32) samples. All curves map a
 0..127 parameter value to the unit the DSP needs, plus a display table.
 """
 import math
+import re
 import struct
 import sys
 from pathlib import Path
@@ -40,8 +41,10 @@ CODED = []              # (group, name, ctype, n, flags, stream, values)
 # builder's TAB_CODED_ALL: 1 the "flash" group, 2 the "fm6" group too, off by default; each then takes its size in the pool, TAB_CPOOL whether or not TAB_IN_POOL,
 # which the undo history ring would have had: pool +7.3 KB; measured 2026-10-23 on mots.config: flash -3,2xx B, see
 # tools/builder/costs.json)
-GROUPS = {"core": None, "flash": "FELUCCA_TAB_CODED_ALL", "fm6": "FELUCCA_ENG_FM6 && FELUCCA_TAB_CODED_ALL >= 2"}   # (1: the small tables; 2: FM6's too)
-CODED_W = {"int16_t": 2, "uint16_t": 2, "int32_t": 4, "uint32_t": 4, "int64_t": 8}
+GROUPS = {"core": None, "flash": "FELUCCA_TAB_CODED_ALL", "fm6": "FELUCCA_ENG_FM6 && FELUCCA_TAB_CODED_ALL >= 2",
+          "plaits": "FELUCCA_ENG_PLAITS && FELUCCA_TAB_CODED_ALL",   # (1: the small tables, PLAITS' waveshapers and JUNO's
+          "juno": "FELUCCA_ENG_JUNO && FELUCCA_TAB_CODED_ALL"}       #  cutoff steps when built; 2: FM6's too)
+CODED_W = {"uint8_t": 1, "int16_t": 2, "uint16_t": 2, "int32_t": 4, "uint32_t": 4, "int64_t": 8}
 F_ORDER2 = 2
 F_SINE = 4
 
@@ -83,9 +86,12 @@ def unzigzag_leb(stream, n, order):
     return out, i
 
 
-def carr(name, ctype, vals, per=12, ram=False, group="core", sine=False):
+def carr(name, ctype, vals, per=12, ram=False, group="core", sine=False, dims=None, ext=False):
     """arr, with the table delta-coded on the target (TAB_CODED; sine: the first quarter coded, the rest its
-    mirror). The coded tables' order within a group is the stream's."""
+    mirror). The coded tables' order within a group is the stream's. dims: the declaration's dimensions when the
+    table is two-dimensional ("[5][257]": vals flat, row after row). ext: a table another header defines plain
+    (its generator wraps that in #if !TAB_<name>_CODED): only the coded declaration here, and TAB_<name>_CODED 1
+    when it is built coded, else 0"""
     store = vals[:257] if sine else vals
     if sine:
         assert len(vals) == 1024 and all(vals[512 - i] == vals[i] for i in range(1, 256)) \
@@ -93,15 +99,18 @@ def carr(name, ctype, vals, per=12, ram=False, group="core", sine=False):
     order, stream = min(((o, zigzag_leb(store, o)) for o in (1, 2)), key=lambda t: len(t[1]))
     got, used = unzigzag_leb(stream, len(store), order)
     assert got == list(store) and used == len(stream), name
-    lo, hi = {"int16_t": (-32768, 32767), "uint16_t": (0, 65535), "int32_t": (-(1 << 31), (1 << 31) - 1),
+    lo, hi = {"uint8_t": (0, 255), "int16_t": (-32768, 32767), "uint16_t": (0, 65535), "int32_t": (-(1 << 31), (1 << 31) - 1),
               "uint32_t": (0, (1 << 32) - 1), "int64_t": (-(1 << 63), (1 << 63) - 1)}[ctype]
     assert all(lo <= v <= hi for v in vals), name
     CODED.append((group, name, ctype, len(vals), (F_ORDER2 if order == 2 else 0) | (F_SINE if sine else 0), stream,
                   list(vals)))
     cond = GROUPS[group]
     place = "TAB_POOL" if group == "core" else "TAB_CPOOL"
-    return [f"#if TAB_CODED{' && ' + cond if cond else ''}", f"static {ctype} {name}[{len(vals)}] {place};", "#else",
-            *arr(name, ctype, vals, per, ram), "#endif"]
+    decl = f"static {ctype} {name}{dims or f'[{len(vals)}]'} {place};"
+    if ext:
+        return [f"#if TAB_CODED{' && ' + cond if cond else ''}", decl, f"#define TAB_{name}_CODED 1", "#else",
+                f"#define TAB_{name}_CODED 0", "#endif"]
+    return [f"#if TAB_CODED{' && ' + cond if cond else ''}", decl, "#else", *arr(name, ctype, vals, per, ram), "#endif"]
 
 
 def coded_tables():
@@ -119,6 +128,10 @@ def coded_tables():
               "typedef int32_t tab_v_t;", "typedef uint32_t tab_z_t;", "#endif"]
     else:
         L += ["#define TAB_WIDE 0", "typedef int32_t tab_v_t;", "typedef uint32_t tab_z_t;"]
+    # a byte table (JUNO's cutoff steps): the decoder's byte store only when a built group has one (TAB_BYTE)
+    byte = [cond for g, cond in groups if any(c[0] == g and CODED_W[c[2]] == 1 for c in CODED)]
+    L += [f"#if {' || '.join(f'({c})' for c in byte) if byte and all(byte) else ('1' if byte else '0')}",
+          "#define TAB_BYTE 1", "#else", "#define TAB_BYTE 0", "#endif"]
     # the streams: on the target they travel in the boot stream (TAB_STREAM: build.py appends the built groups' blobs,
     # in this order, as a block of the LZB stream; main.c decodes it onto the stack and calls tab_expand(s)); a host
     # test of the decoder (TAB_CODED_FORCE) keeps them as arrays. TAB_BLOB_<g>_IN: the group's length when built, else 0
@@ -169,6 +182,10 @@ def coded_tables():
           "#if TAB_WIDE",
           "            else if (t->w == 8u)",
           "                ((int64_t *)t->dst)[i] = v;",
+          "#endif",
+          "#if TAB_BYTE",
+          "            else if (t->w == 1u)",
+          "                ((uint8_t *)t->dst)[i] = (uint8_t)v;",
           "#endif",
           "            else",
           "                ((int32_t *)t->dst)[i] = (int32_t)v;",
@@ -364,6 +381,20 @@ def main(path):
     L += carr("DECAY_K", "uint16_t", [min(65535, int(65536 * math.exp(-6.9 / (m / 1000 * FS)))) for m in dms], group="flash")
     # soft clip curve for |x| in 0..2 (Q12 in, Q15 out): tanh
     L += carr("TANH_Q15", "int16_t", [int(32767 * math.tanh(i / 256 * 2)) for i in range(257)], ram=True)
+    # PLAITS' five waveshapers (plaits_tables.h PL_WS, gen_plaits_tables.py: smooth curves, 2,570 B of flash): with
+    # TAB_CODED_ALL they travel delta-coded in the boot stream and live in the pool (the "plaits" group, built with the
+    # engine); plaits_tables.h keeps the plain table for every other build (#if !TAB_PL_WS_CODED). Measured 2026-10-24
+    # on mots.config: -1,919 B of flash for 2,570 B of the pool (the folders PL_FOLD / PL_FOLD2 would give 361 B for 1,028)
+    import gen_plaits_tables
+    L += carr("PL_WS", "int16_t", [v for row in gen_plaits_tables.shapers() for v in row], group="plaits",
+              dims="[5][257]", ext=True)
+    # JUNO's cutoff curve (juno_tables.h JUNO_VCF_G1Q_D: the 1,025 byte steps of fm-106's VCF_G1 at every 4th point,
+    # gen_juno_tables.py from a source not in this tree, so the values are read from the header as it is): the same way,
+    # the "juno" group; -832 B of flash for 1,025 B of the pool on mots.config (2026-10-24)
+    juno_h = (Path(__file__).resolve().parents[1] / "firmware/src/engines/juno/juno_tables.h").read_text()
+    juno_d = [int(x) for x in re.findall(r"\d+", re.search(r"JUNO_VCF_G1Q_D\[1025\] = \{(.*?)\};", juno_h, re.S).group(1))]
+    assert len(juno_d) == 1025, len(juno_d)
+    L += carr("JUNO_VCF_G1Q_D", "uint8_t", juno_d, 16, group="juno", ext=True)
     L += fm6_tables()
     coded, blobs = coded_tables()
     L += coded
