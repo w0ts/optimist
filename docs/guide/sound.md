@@ -138,7 +138,7 @@ The **VOICE** page has four cards: the mode, GLD (glide time), GLMOD and PRIO.
 
 | Engine | Card 1 | Card 2 | Card 3 | Card 4 |
 |---|---|---|---|---|
-| ANALOG (SUPER) | FLT | PIT | SHP (the pulse width) | RES |
+| ANALOG 2 | FLT | PIT | SHP (the pulse width) | RES |
 | DIGITAL | IDX (the FM index) | PIT | FB | MDEC |
 | PHASE | ENV (its EDIT ENV: the DCW envelope) | PIT | DTN | SUB |
 | LOFI | TONE | PIT | DUTY | SWP |

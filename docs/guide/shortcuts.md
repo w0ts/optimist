@@ -195,7 +195,7 @@ What only one page has; everything above works there too.
 
 **NAME** (before a save). The white keys type like a phone (AB, CD ... the same key within 0.8 s cycles); black keys: F# left, G# space, A# right, C# delete, D# ABC / 123. KNOB 1 the cursor, KNOB 2 the character; SHIFT + a knob clears the name. SAVE done, HOME deletes a character (at the start: cancel), PLAY stops.
 
-**GLOBAL and SYSTEM.** KNOB k edits line k; SAVE is YES on the cursor line; PRESETS does nothing. SYSTEM > INFO: KNOB 1 shows the CPU load NOW, MAX 5 S or MAX; SHIFT + SAVE clears the counters. BT MIDI and BT AUDIO: SAVE lets a connected device go, else connects to the last one, else opens the devices list (SAVE there connects to the row); SAVE held forgets that page's last device.
+**GLOBAL and SYSTEM.** KNOB k edits line k; SAVE is YES on the cursor line; PRESETS does nothing. SYSTEM > INFO: KNOB 1 shows the CPU load NOW, MAX 5 S or MAX; SHIFT + SAVE clears the counters. BT MIDI and BT AUDIO: KNOB 2 moves the cursor in the devices list, SAVE connects to the row (or lets a connected device go), SAVE held forgets the row's remembered device ([midi-usb.md](midi-usb.md#bluetooth-midi-and-bluetooth-audio)).
 
 **SCOPE** (HOME on the mixer). ALGORITHM the source; the knobs LEVEL, PAN, FX, DRIVE of a track, or FILT, THRS, RATIO of MASTER; SAVE the track's FX on / dry.
 

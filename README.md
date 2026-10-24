@@ -27,7 +27,7 @@ Use **Chrome or Edge** (they have Web MIDI) and a USB data cable, straight into 
 | [**Build**](https://w0ts.github.io/optimist/webapp/editor/#build) | Choose the engines, drum kits, effects and features you want, with a live flash and RAM budget, and press *Build in the cloud*: it opens a GitHub issue with your configuration (a GitHub account is needed), and a few minutes later the answer there links your firmware. It is then in the installer's and the simulator's lists. |
 | [**Install**](https://w0ts.github.io/optimist/webapp/editor/#install) | Install a release flavour, your cloud build or a `.fwsc` file on your FM-1. It offers a backup first, and can put the official firmware back. |
 | [**Simulator**](https://w0ts.github.io/optimist/webapp/editor/#sim) | The firmware running in your browser, with the FM-1's panel and its keyboard shortcuts: try a build before you install it. It can copy your FM-1's memory in, and write it back. |
-| [**Editor**](https://w0ts.github.io/optimist/webapp/editor/#mixer) | Every sound, drum, effect and setting as knobs, the drum grid, the samples (with CHOP), the preset library, and the **Backup** of your whole FM-1 in one file. |
+| [**Editor**](https://w0ts.github.io/optimist/webapp/editor/#mixer) | The **Backup** of your whole FM-1 in one file, the projects and presets librarian, and the FM-1's screen mirrored. A build with live editing (`ED_LIVE`, not in the four flavours) adds every sound, drum, effect and setting as knobs, the drum grid and the samples (with CHOP). |
 
 The firmware files are also on the [releases page](https://github.com/w0ts/optimist/releases).
 
