@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The Security Manager, peripheral (responder) side (Core Specification Vol 3 Part H); with BLE_CENTRAL 1 or 2
+/* The Security Manager, peripheral (responder) side (Core Specification Vol 3 Part H); with BLE_CENTRAL 1
  * (BLE_CEN_PAIR) also the initiator, for the links we are the master of (ble_smp_init.c, included below). BLE_CENTRAL
  * 3 pairs nothing as master: smp_cen_refuse.
  *
@@ -95,15 +95,13 @@ static struct {
 #if BLE_CEN_PAIR
     uint8_t init;                               /* we are the initiator (the link's master: ble_smp_init.c) */
     uint8_t mrand[16];                          /* our random; mconf holds the responder's confirm then */
-#if BLE_CEN_PASSKEY
     uint8_t tk[16];                             /* the TK: 0 (Just Works) or the passkey (passkey entry) */
     uint8_t mitm, auth;                         /* MITM asked; the method is passkey entry */
-#endif
     uint32_t t0;                               /* our last SMP command (the 30 s SMP timeout, 3.4) */
     struct ble_keys keys;                       /* the responder's keys as they come */
 #endif
 } bsmp;
-#if BLE_CEN_PASSKEY
+#if BLE_CEN_PAIR
 /* the passkey on screen while a passkey pairing of ours waits for the peer's user (BLE_NO_PASSKEY: none). A variable
  * of its own (a symbol): the emulator's virtual phone user reads it there (fm1-emulator FM1_BLE_PASSKEY_AT) */
 static uint32_t smp_passkey = BLE_NO_PASSKEY;
@@ -112,7 +110,7 @@ static uint32_t smp_passkey = BLE_NO_PASSKEY;
 BLE_API void ble_smp_reset(void)
 {
     ble_zero((uint8_t *)&bsmp, sizeof bsmp);
-#if BLE_CEN_PASSKEY
+#if BLE_CEN_PAIR
     smp_passkey = BLE_NO_PASSKEY;
 #endif
 }
@@ -142,14 +140,9 @@ static void smp_c1(const uint8_t r[16], uint8_t out[16])
 {
     static const uint8_t tk[16] = {0};          /* Just Works: TK = 0 */
     uint8_t own[6], peer[6], t = ble_ll_addrs(own, peer);
-#if BLE_CEN_PASSKEY
+#if BLE_CEN_PAIR
     if (bsmp.init) {                            /* the initiator's address is ours (ia), the responder's the peer's */
         ble_smp_c1(bsmp.tk, r, bsmp.preq, bsmp.pres, (uint8_t)(t & 1u), own, (uint8_t)(t >> 1 & 1u), peer, out);
-        return;
-    }
-#elif BLE_CEN_PAIR
-    if (bsmp.init) {                            /* (Just Works only: TK = 0 as ours) */
-        ble_smp_c1(tk, r, bsmp.preq, bsmp.pres, (uint8_t)(t & 1u), own, (uint8_t)(t >> 1 & 1u), peer, out);
         return;
     }
 #endif

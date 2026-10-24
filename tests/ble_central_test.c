@@ -21,9 +21,7 @@
  *                 Connections (AUTH, no loop), the 30 s SMP timeout while nobody types, a Security Request asking MITM
  *   RPA           ah() with the Core spec's sample (Vol 3 Part H D.7)
  *   endings       no packet from the peripheral (0x3E), its terminate, ours
- * Built at each level of BLE_CENTRAL (ble_cfg.h; tests/run_tests.sh): 1 all of the above; 2 (Just Works only) the
- * pairing scenarios with Just Works, then the peers that need a passkey failing cleanly (NEED_MITM, no passkey, no
- * pairing again on the link, no pause), no RPA; 3 (no pairing) a peer that asks for nothing ready as at every level, one
+ * Built at each level of BLE_CENTRAL (ble_cfg.h; tests/run_tests.sh): 1 all of the above; 3 (no pairing) a peer that asks for nothing ready as at every level, one
  * that asks for security (Insufficient Authentication, a Security Request) left with NEED_PAIR, nothing of SMP sent but
  * the Pairing Failed that answers a Security Request; with BLE_BOND=1 too (the responder kept beside it). */
 #include <stdint.h>
@@ -140,7 +138,6 @@ enum { PH_GAP = 1, PH_NAME_D, PH_NAME, PH_BAT, PH_BAT_D, PH_BAT_V, PH_MIDI, PH_M
        PH_DIS, PH_DIS_D, PH_DIS_V, PH_LAST = PH_DIS_V };
 static struct {
     int alive, need_auth, no_fbtv, no_midi, sec_req, wrong_conf, fail_pair, lost_bond;
-    int jw_refuse;                             /* a Pairing Request without MITM: Pairing Failed, Authentication Req. */
     uint8_t q[96][2 + 255];
     int qn;
     uint8_t l2[700];
@@ -381,11 +378,6 @@ static void p_smp(const uint8_t *p, int n)
             return;                            /* (on the encrypted link: no answer) */
         if (P.fail_pair || (P.enc_rx && P.no_repair)) {
             c[0] = 0x05, c[1] = 0x08;
-            p_l2(6, c, 2);
-            return;
-        }
-        if (P.jw_refuse && !(p[3] & 0x04)) {   /* (MITM it needs, and the request does not ask it) */
-            c[0] = 0x05, c[1] = 0x03;
             p_l2(6, c, 2);
             return;
         }
@@ -796,19 +788,10 @@ static void test_pairing(void)
           ble_dgc.gc_auth_errs >= 1 && ble_dgc.si_pair_req >= 1 && ble_dgc.si_pair_rsp >= 1 && ble_dgc.si_confirm_ok >= 1);
     check("pairing: the STK encryption (EDIV 0, Rand 0) started by us, the link encrypted both ways",
           ble_ll_encrypted() && P.enc_tx && P.enc_rx && ble_dgc.m_enc_on >= 1);
-#if BLE_CEN_PASSKEY
     check("pairing: its keys taken (LTK, EDIV / Rand, IRK, identity), ours sent after (4 PDUs), to the firmware",
           got_keys_n == n0 + 1 && got_keys.has == (BLE_KEYS_LTK | BLE_KEYS_ID) && got_keys.ltk[0] == 0x40 &&
               got_keys.ediv == 0xBEEF && got_keys.rand[7] == 0x77 && got_keys.irk[0] == 0xA7 &&
               !memcmp(got_keys.id, PID, 6) && got_keys.id_rand == 1 && P.keys_from_master == 4 && P.paired);
-#else
-    check("pairing (Just Works only): our Pairing Request NoInputNoOutput, bonding, no MITM; its LTK alone asked for",
-          P.preq[1] == 0x03 && P.preq[3] == 0x01 && P.preq[5] == 0x03 && P.preq[6] == 0x01 && !P.pk);
-    check("pairing: its keys taken (LTK, EDIV / Rand; no identity: nothing resolves a private address), ours sent "
-          "after (4 PDUs), to the firmware", got_keys_n == n0 + 1 && got_keys.has == BLE_KEYS_LTK &&
-              got_keys.ltk[0] == 0x40 && got_keys.ediv == 0xBEEF && got_keys.rand[7] == 0x77 &&
-              P.keys_from_master == 4 && P.paired);
-#endif
     {
         uint8_t irk[16];
         smp_own_irk(irk);
@@ -856,7 +839,7 @@ static void test_pairing(void)
 }
 #endif
 
-#if BLE_CEN_PASSKEY
+#if BLE_CEN_PAIR
 /* p_events, watching whether a passkey was ever shown */
 static int shown;
 static void p_events_watch(int n)
@@ -867,8 +850,6 @@ static void p_events_watch(int n)
     }
 }
 
-#endif
-#if BLE_CEN_PAIR
 /* an iPhone app's MIDI characteristic (blell-dev3, docs/BLE-STACK.md §9.2): Insufficient Authentication even after a Just
  * Works pairing; a passkey pairing (we display, its user types) is what it takes */
 static void iphone(void)
@@ -876,8 +857,6 @@ static void iphone(void)
     P.need_auth = P.mitm_need = P.iphone = P.own_len = 1;
     P.io = 0x04;                               /* KeyboardDisplay, as a Mac and an iPhone answer */
 }
-#endif
-#if BLE_CEN_PASSKEY
 
 /* an unauthenticated bond with it (a Just Works pairing, as the builds before 2026-10-18 made with a Mac or a phone),
  * for a reconnection that finds it needs a passkey after all */
@@ -1061,42 +1040,6 @@ static void test_passkey(void)
 }
 #endif
 
-#if BLE_CEN_PAIR && !BLE_CEN_PASSKEY
-/* BLE_CENTRAL 2 (Just Works only): the peers that need a passkey fail cleanly, nothing shown, no pairing again */
-static void test_jw_only(void)
-{
-    uint32_t pr0 = ble_dgc.si_pair_req;
-    connect(0);
-    iphone();
-    p_events(150);
-    check("Just Works only: an iPhone-like peer (it can type; its MIDI characteristic needs MITM): ONE pairing, "
-          "NoInputNoOutput, bonding, no MITM: Just Works, no passkey; refused again after it -> NEED_MITM (5), the "
-          "link left: no pairing again on it, no encryption pause",
-          !ble_connected() && ble_central_fail() == BLE_CF_NEED_MITM && ble_central_code() == 0x05 &&
-              P.pair_reqs == 1 && P.preq_first[1] == 0x03 && P.preq_first[3] == 0x01 && !P.pk && P.paired &&
-              P.pause_n == 0 && ble_dgc.si_pair_req == pr0 + 1 && ble_dgc.si_passkey == 0 &&
-              ble_dgc.si_repair == 0 && ble_dgc.si_fail_late == 1 && hw.adv_on);
-    pr0 = ble_dgc.si_pair_req;
-    connect(0);
-    P.need_auth = P.jw_refuse = 1;
-    P.io = 0x04;
-    p_events(40);
-    check("a peer that refuses Just Works at once (Pairing Failed, Authentication Requirements): NEED_MITM (3), the "
-          "link left, one Pairing Request", !ble_connected() && ble_central_fail() == BLE_CF_NEED_MITM &&
-              ble_central_code() == 0x03 && P.pair_reqs == 1 && ble_dgc.si_pair_req == pr0 + 1);
-    connect(0);
-    P.io = 0x04;
-    {
-        static const uint8_t sec[2] = {0x0B, 0x05};   /* a Security Request: bonding + MITM */
-        p_l2(6, sec, 2);
-    }
-    p_events(80);
-    check("its Security Request asking MITM (a Mac): Just Works all the same (no MITM asked), accepted, ready",
-          P.preq[1] == 0x03 && P.preq[3] == 0x01 && !P.pk && P.paired && ble_central_state() == BLE_CS_READY);
-    leave();
-}
-#endif
-
 #if !BLE_CEN_PAIR
 /* BLE_CENTRAL 3 (no pairing): whatever asks for security leaves the link (NEED_PAIR); a peer that asks for nothing works */
 static void test_no_pairing(void)
@@ -1166,7 +1109,7 @@ static void test_endings(void)
           ble_central_code() == 0x13);
 }
 
-#if BLE_CEN_PASSKEY
+#if BLE_CEN_PAIR
 /* ah(): the Core spec's sample (Vol 3 Part H D.7): IRK ec0234a357c8ad05341010a60a397d9b, prand 708194 -> 0dfbaa */
 static void test_rpa(void)
 {
@@ -1209,18 +1152,15 @@ int main(void)
 {
     test_initiator();
     test_master_and_gatt();
-#if BLE_CEN_PASSKEY
+#if BLE_CEN_PAIR
     test_pairing();
     test_passkey();
-#elif BLE_CEN_PAIR
-    test_pairing();
-    test_jw_only();
 #else
     test_no_pairing();
 #endif
     test_gatt_variants();
     test_endings();
-#if BLE_CEN_PASSKEY
+#if BLE_CEN_PAIR
     test_rpa();
 #endif
     test_blell();

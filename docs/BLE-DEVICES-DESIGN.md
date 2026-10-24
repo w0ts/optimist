@@ -115,20 +115,20 @@ with the arp on and MIDI OUT = SEQ can ping-pong. If both pick each other at onc
 link as peripheral. Clock and transport are not passed over BLE. Tested with two whole stacks in one process
 (`tests/ble_f2f_test.c`) and in the emulator; not on two FM-1s.
 
-### 4.5 Three levels (the builder's `BLE_CENTRAL`, 2026-10-24)
-The user: "We could make 2 options, full and minimal for ble central", then "maybe 3 options?". `ble/ble_cfg.h` derives
-`BLE_CEN_PAIR` (levels 1, 2) and `BLE_CEN_PASSKEY` (level 1) from it; `#if BLE_CENTRAL` still means any level. `BLE_BOND` (the
+### 4.5 Two levels (the builder's `BLE_CENTRAL`, 2026-10-24)
+The user: "We could make 2 options, full and minimal for ble central". A Just Works only level between them was built
+(2026-10-24: 2.2 KB of flash less than FULL) and removed again: "I guess just works is not really worth separating". `ble/ble_cfg.h`
+derives `BLE_CEN_PAIR` (level 1) from it, and the builder refuses 2; `#if BLE_CENTRAL` still means any level. `BLE_BOND` (the
 peripheral's pairing as responder) is independent at every level. Flash and RAM on the user's config (`mots.config`, against
 `BLE_CENTRAL=0`):
 
 | Level | What it does | Fails cleanly with | Flash | RAM |
 |---|---|---|---|---|
 | 1 FULL | everything above: Just Works or the passkey, the pairing again with MITM on the link, the new link with MITM, LAST behind a private address | | +21,924 B | +2,288 B |
-| 2 JUST WORKS | pairs and bonds with Just Works only: Pairing Request NoInputNoOutput, bonding, no MITM, the responder's LTK alone (no IRK asked). No passkey, no pairing again on the link, no encryption pause, no hint, no RPA resolution: remembered devices are initiated to at their stored address | a peer refusing after Just Works (0x05) or refusing it (Authentication Requirements): `FAILED: NEEDS PASSKEY`, held | +19,692 B | +2,224 B |
 | 3 MINIMAL | no SMP initiator, no LL encryption as master, no bonds: scan, the list, connect, GATT, MIDI both ways, up to 4 remembered devices by address | a Security Request (answered Pairing Failed, Pairing Not Supported) or ATT 0x05 / 0x0F / 0x0C: `FAILED: NEEDS PAIRING`, held | +13,420 B | +1,584 B |
 
 Controllers that ask for nothing and FM-1 to FM-1 work at every level (`tests/ble_f2f_test.c` builds the picking FM-1 at each). A
-device whose address changes (iOS, macOS) is found again only at level 1; at 2 and 3 it is picked from the list again. The settings
+device whose address changes (iOS, macOS) is found again only at level 1; at 3 it is picked from the list again. The settings
 record keeps its BLE fields (bonds, `ble_kept`) at every level: a level 1 bond read by a level 3 build is just not used.
 
 ## 5. Where it is in the code, and tests

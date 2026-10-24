@@ -33,7 +33,7 @@ static struct {
                                                          * they moved (only while the list is closed: no RAM of its own) */
         } act;
     };
-#if BLE_CEN_PASSKEY
+#if BLE_CEN_PAIR
     uint32_t key;                                       /* the passkey (BLE_NO_PASSKEY: none) */
 #endif
 } bdp;
@@ -105,7 +105,7 @@ static void dev_paint(void)                             /* the panel's band in i
     uint32_t i, rows_h = bdp.h - DEV_STATUS_H;
     char nm[BLE_NAME_MAX + 4u], b[BLE_NAME_MAX + 4u];
     int32_t wide = bdp.n > bdp.shown ? 236 : 240;
-#if BLE_CEN_PASSKEY
+#if BLE_CEN_PAIR
     if (bdp.key != BLE_NO_PASSKEY) {                    /* pairing with a code: the phone's user types it */
         char d[7];
         pk_digits(d, bdp.key);
@@ -180,7 +180,7 @@ static void dev_draw(uint32_t y, uint32_t h)
     }
     bdp.h = h;
     bdp.bar = trk_col(song.sel);
-#if BLE_CEN_PASSKEY
+#if BLE_CEN_PAIR
     bdp.key = ble_connect_passkey();
 #endif
     bdp.tone = bt_list_line(dev_side(), b, sizeof b);

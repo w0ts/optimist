@@ -2,8 +2,8 @@
 /* One whole FM-1 BLE stack (the firmware's sources, BLE_API static as in its unity build) behind a fake baseband, for
  * tests/ble_f2f_test.c, which links two (or three) of these into one program and carries the packets between them:
  * FM-1 to FM-1 (docs/BLE-DEVICES-DESIGN.md §4.4, §4.2). Built once per unit with -DF2F_U=<name>: every function here is
- * <name>_<function> (tests/ble_f2f.h). The firmware's settings as built: BLE_CENTRAL (1 by default; 2 and 3 as given)
- * brings LL encryption and legacy pairing at levels 1 and 2; BLE_MIDI_NEED_ENC as given (0 by default: no security on
+ * <name>_<function> (tests/ble_f2f.h). The firmware's settings as built: BLE_CENTRAL (1 by default; 3 as given)
+ * brings LL encryption and legacy pairing at level 1; BLE_MIDI_NEED_ENC as given (0 by default: no security on
  * the MIDI characteristic). */
 #include <stdint.h>
 #include <string.h>
@@ -121,10 +121,10 @@ void F2F(event_end)(uint16_t counter)
 }
 int F2F(central_state)(void) { return ble_central_state(); }
 int F2F(central_fail)(void) { return ble_central_fail(); }
-#if BLE_CEN_PASSKEY
+#if BLE_CEN_PAIR
 uint32_t F2F(passkey)(void) { return ble_central_passkey(); }
 #else
-uint32_t F2F(passkey)(void) { return BLE_NO_PASSKEY; }   /* (BLE_CENTRAL 2 / 3: none built in) */
+uint32_t F2F(passkey)(void) { return BLE_NO_PASSKEY; }   /* (BLE_CENTRAL 3: none built in) */
 #endif
 int F2F(midi_ready)(void) { return ble_midi_ready(); }
 int F2F(connected)(void) { return ble_connected(); }

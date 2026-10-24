@@ -7,7 +7,6 @@
 #include "../../ble/ble_util.h"                         /* (ble_eq, ble_cpy: the page and bt_audio.c compare addresses) */
 #define BLE_CENTRAL 0                                   /* (no scanner, no LAST: midi_ble.c defines it from the build) */
 #define BLE_CEN_PAIR 0                                  /* (ble/ble_cfg.h: its levels) */
-#define BLE_CEN_PASSKEY 0
 #define BLE_SCAN_N 8u                                   /* (ble/ble_scan.h's sizes: the page's buffers) */
 #define BLE_NAME_MAX 16u
 #define BLE_LINE_NO_NAME 0xFFu

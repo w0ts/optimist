@@ -80,33 +80,28 @@
 #if defined(FELUCCA_BLE_CENTRAL)
 #define BLE_CENTRAL FELUCCA_BLE_CENTRAL  /* builder item BLE_CENTRAL */
 #else
-#define BLE_CENTRAL 0                    /* 1..3: the central role (docs/BLE-DEVICES-DESIGN.md): the scanner for the
+#define BLE_CENTRAL 0                    /* 1 or 3: the central role (docs/BLE-DEVICES-DESIGN.md): the scanner for the
                                           * DEVICES list, connecting out to a BLE-MIDI peripheral (initiator, master
                                           * link, GATT client, SMP initiator) and reconnecting to LAST. One link,
-                                          * time-sliced with advertising. Levels 1 and 2 bring bonding (BLE_LL_ENC,
-                                          * SMP) with them (its levels: below) */
+                                          * time-sliced with advertising. Level 1 brings bonding (BLE_LL_ENC, SMP)
+                                          * with it (its levels: below) */
 #endif
 #endif
 /* BLE_CENTRAL's level (the builder's choice, docs/BLE-DEVICES-DESIGN.md §4.5; `#if BLE_CENTRAL`: any level):
  *   1 FULL         pairing as initiator with Just Works or a passkey we display (an iPhone app that needs MITM), the
  *                  pairing again with the passkey on the same link, LAST found behind a resolvable private address;
- *   2 JUST WORKS   pairing as initiator with Just Works only (NoInputNoOutput, no MITM asked) and the bond kept; no
- *                  passkey, no search behind a private address (remembered devices by their stored address): a peer
- *                  that needs a passkey fails ("FAILED: NEEDS PASSKEY");
  *   3 MINIMAL      no pairing and no encryption from the central role: no SMP initiator, no LL encryption as master, no
  *                  bonds; a peer that asks for security is left ("FAILED: NEEDS PAIRING"). Controllers and FM-1 to
- *                  FM-1 need none. BLE_BOND (the peripheral's pairing as responder) stays as it is at every level */
-#if BLE_CENTRAL < 0 || BLE_CENTRAL > 3
-#error "BLE_CENTRAL: 0 off, 1 full, 2 Just Works only, 3 minimal"
+ *                  FM-1 need none. BLE_BOND (the peripheral's pairing as responder) stays as it is at every level
+ * (2 was a Just Works only level, removed: it saved 2.2 KB over FULL; the builder refuses it) */
+#if BLE_CENTRAL < 0 || BLE_CENTRAL > 3 || BLE_CENTRAL == 2
+#error "BLE_CENTRAL: 0 off, 1 full, 3 minimal"
 #endif
 #ifndef BLE_CEN_PAIR
-#define BLE_CEN_PAIR (BLE_CENTRAL == 1 || BLE_CENTRAL == 2)   /* the central pairs (SMP initiator, LL encryption as master) */
-#endif
-#ifndef BLE_CEN_PASSKEY
-#define BLE_CEN_PASSKEY (BLE_CENTRAL == 1)       /* ... with the passkey too, and finds LAST behind a private address */
+#define BLE_CEN_PAIR (BLE_CENTRAL == 1)  /* the central pairs (SMP initiator, LL encryption as master, passkey, RPA search) */
 #endif
 #if (defined(FELUCCA_BLE_BOND) && FELUCCA_BLE_BOND) || BLE_CEN_PAIR
-/* builder item BLE_BOND: bonding (SMP Just Works + LL encryption); BLE_CENTRAL levels 1 and 2 need it too: Apple's
+/* builder item BLE_BOND: bonding (SMP Just Works + LL encryption); BLE_CENTRAL level 1 needs it too: Apple's
  * BLE-MIDI peripherals (QA1831) and many controllers ask the central to pair, so connecting out pairs as initiator */
 #ifndef BLE_LL_ENC
 #define BLE_LL_ENC 1
@@ -140,7 +135,7 @@
 #error "BLE_SMP_SEC_REQ / BLE_MIDI_NEED_ENC need BLE_SMP_LEGACY=1"
 #endif
 #if BLE_CEN_PAIR && !BLE_SMP_LEGACY
-#error "BLE_CENTRAL 1 / 2 (the central pairs) need BLE_SMP_LEGACY=1"
+#error "BLE_CENTRAL 1 (the central pairs) needs BLE_SMP_LEGACY=1"
 #endif
 
 /* ---- central role, part 1: scanning for the DEVICES list (docs/BLE-STACK.md §9.1, HW §21.2) */

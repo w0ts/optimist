@@ -790,8 +790,6 @@ job; ( jobin
     run "Optimist UI with BLE and no scanner built in: the devices list is NONE alone" "$OUT/ui_optimist_blenc_test" "$OUT/optimist"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_BLE=1 -DBLE_CENTRAL=2 $SEC4 -o "$OUT/ui_optimist_blejw_test" tests/ui_optimist_test.c -lm
-    run "Optimist UI with BLE_CENTRAL=2 (Just Works only): the devices list as at level 1, no passkey overlay, a peer that needs a passkey held as FAILED: NEEDS PASSKEY" "$OUT/ui_optimist_blejw_test" "$OUT/optimist"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_BLE=1 -DBLE_CENTRAL=3 $SEC4 -o "$OUT/ui_optimist_blemin_test" tests/ui_optimist_test.c -lm
     run "Optimist UI with BLE_CENTRAL=3 (no pairing): the devices list, remembered devices without bonds, a peer that asks to pair held as FAILED: NEEDS PAIRING" "$OUT/ui_optimist_blemin_test" "$OUT/optimist"
 ) >"$U.out" 2>&1 & jobbg
@@ -1088,11 +1086,7 @@ job; ( jobin
     $CC -Wextra $BLE_SAN -o "$OUT/ble_central_test" tests/ble_central_test.c
     run "BLE central role against a simulated BLE-MIDI peripheral: our CONNECT_IND, the master's LL procedures and updates, the GATT client (discovery, CCCD, MIDI both ways), SMP as initiator (Insufficient Authentication, Security Request, a bond reused / lost, failures; an iPhone-like peer: Just Works refused -> the passkey pairing on the same link (the encryption pause), refused or unanswered -> NEED_MITM, the authenticated bond, a wrong passkey, no keyboard, a Secure Connections-only peer, the 30 s timeout), ah() on the Core sample, endings" "$OUT/ble_central_test"
 ) >"$U.out" 2>&1 & jobbg
-# BLE_CENTRAL's other levels (ble/ble_cfg.h): 2 Just Works only, 3 no pairing (alone and beside BLE_BOND's responder)
-job; ( jobin
-    $CC -Wextra $BLE_SAN -DBLE_CENTRAL=2 -o "$OUT/ble_central_jw_test" tests/ble_central_test.c
-    run "BLE central role, BLE_CENTRAL=2 (Just Works only): the pairing scenarios with Just Works (NoInputNoOutput, no MITM, its LTK alone), a bond reused / lost; an iPhone-like peer refused after Just Works and one refusing it at once (Authentication Requirements): NEED_MITM, the link left, no passkey, no pairing again, no pause; a Security Request with MITM paired Just Works all the same" "$OUT/ble_central_jw_test"
-) >"$U.out" 2>&1 & jobbg
+# BLE_CENTRAL's other level (ble/ble_cfg.h): 3 no pairing (alone and beside BLE_BOND's responder)
 job; ( jobin
     $CC -Wextra $BLE_SAN -DBLE_CENTRAL=3 -o "$OUT/ble_central_min_test" tests/ble_central_test.c
     run "BLE central role, BLE_CENTRAL=3 (no pairing, no encryption): a peer that asks for nothing ready, MIDI both ways; Insufficient Authentication and a Security Request (Pairing Not Supported) leave the link with NEED_PAIR, no Pairing Request, no LL_ENC_REQ" "$OUT/ble_central_min_test"
@@ -1108,11 +1102,8 @@ job; ( jobin
     $CC -Wextra $BLE_SAN -c -DF2F_U=c -DBLE_MIDI_NEED_ENC=1 -o "$OUT/ble_f2f_c.o" tests/ble_f2f_unit.c
     $CC -Wextra $BLE_SAN -o "$OUT/ble_f2f_test" tests/ble_f2f_test.c "$OUT/ble_f2f_a.o" "$OUT/ble_f2f_b.o" "$OUT/ble_f2f_c.o"
     run "BLE FM-1 to FM-1: two of our stacks, one picks the other: discovery, CCCD, MIDI both ways with no SMP, no encryption, no passkey; against one with BLE_MIDI_NEED_ENC=1 a silent Just Works pairing (no MITM, no passkey)" "$OUT/ble_f2f_test"
-    for lv in 2 3; do
-        $CC -Wextra $BLE_SAN -c -DF2F_U=a -DBLE_CENTRAL=$lv -o "$OUT/ble_f2f_a$lv.o" tests/ble_f2f_unit.c
-        $CC -Wextra $BLE_SAN -DF2F_A_LEVEL=$lv -o "$OUT/ble_f2f_l${lv}_test" tests/ble_f2f_test.c "$OUT/ble_f2f_a$lv.o" "$OUT/ble_f2f_b.o" "$OUT/ble_f2f_c.o"
-    done
-    run "BLE FM-1 to FM-1, the picking FM-1 at BLE_CENTRAL=2 (Just Works only): the same" "$OUT/ble_f2f_l2_test"
+    $CC -Wextra $BLE_SAN -c -DF2F_U=a -DBLE_CENTRAL=3 -o "$OUT/ble_f2f_a3.o" tests/ble_f2f_unit.c
+    $CC -Wextra $BLE_SAN -DF2F_A_LEVEL=3 -o "$OUT/ble_f2f_l3_test" tests/ble_f2f_test.c "$OUT/ble_f2f_a3.o" "$OUT/ble_f2f_b.o" "$OUT/ble_f2f_c.o"
     run "BLE FM-1 to FM-1, the picking FM-1 at BLE_CENTRAL=3 (no pairing): an FM-1 as shipped ready, MIDI both ways; one with BLE_MIDI_NEED_ENC=1 left with NEEDS PAIRING, nothing of SMP on the air" "$OUT/ble_f2f_l3_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin

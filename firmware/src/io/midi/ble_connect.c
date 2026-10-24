@@ -29,10 +29,9 @@
  *   incoming     a central that connects to the visible FM-1 is accepted as always (the search waits) and never
  *                changes LAST;
  *   NONE         leaves our central link and stops the search.
- * The levels (ble/ble_cfg.h BLE_CENTRAL): 1 all of the above; 2 (no BLE_CEN_PASSKEY) Just Works only: no passkey, no
- * escalation, no hint, no search behind a private address (a remembered device is initiated to at its stored address;
- * one whose address changes is picked from the list again), a peer that needs a passkey held as "FAILED: NEEDS
- * PASSKEY"; 3 (no BLE_CEN_PAIR) no pairing, no bonds: a peer that asks for security held as "FAILED: NEEDS PAIRING".
+ * The levels (ble/ble_cfg.h BLE_CENTRAL): 1 all of the above; 3 (no BLE_CEN_PAIR) no pairing, no bonds: a peer that asks
+ * for security held as "FAILED: NEEDS PAIRING" (no passkey, no escalation, no hint, no search behind a private address:
+ * a remembered device is initiated to at its stored address; one whose address changes is picked from the list again).
  * What the status area shows: ble_connect_status (CONNECTING / PAIRING / the passkey / CONNECTED <name> / FAILED: <why>,
  * the failure kept until the user acts). The stack's calls go through the BLE interrupts' hold (fm1_ble_irqs_hold),
  * as ble_midi_set's do. */
@@ -51,14 +50,14 @@ enum { RCS_NONE, RCS_INFO, RCS_GOOD, RCS_BAD };   /* ble_connect_status: nothing
 
 static struct {
     uint8_t phase, to_last, was_ready;            /* RC_*; the attempt is to LAST; it reached READY */
-#if BLE_CEN_PASSKEY
+#if BLE_CEN_PAIR
     uint8_t mitm, escalated;                      /* the attempt pairs with a passkey; it was made again for that */
 #endif
     uint8_t failed;                               /* msg is a failure, shown until the user acts */
     uint8_t tries;                                /* link attempts of this user action (or search try), 1..RC_TRIES */
     uint8_t tgt, nsearch;                         /* the search's device: 0 LAST, 1.. a remembered one (ble_kept); its
                                                    * tries so far (each the next device: LAST, then the others) */
-#if BLE_CEN_PASSKEY
+#if BLE_CEN_PAIR
     uint8_t hint_has, hint_addr[6], hint_rand, hint_irk[16];   /* a device that needed a passkey (RAM: 1 its address,
                                                    * 2 its IRK too): picked again, it pairs with the passkey at once */
 #endif
@@ -82,7 +81,7 @@ BLE_API void ble_app_central_keys(const struct ble_keys *k)   /* BLE interrupts:
 }
 #endif
 
-#if BLE_CEN_PASSKEY
+#if BLE_CEN_PAIR
 static int rc_hint(const uint8_t a[6], uint8_t rnd)   /* this device needed a passkey on an earlier attempt */
 {
     if ((brc.hint_has & 1u) && brc.hint_rand == rnd && ble_eq(brc.hint_addr, a, 6))
@@ -139,8 +138,7 @@ static void rc_name(char out[BLE_NAME_MAX + 1u])  /* the device of the attempt, 
 }
 
 /* connect to a (its AdvA now). LAST's bond goes with it when it is LAST, unless a passkey is needed and the bond is
- * not one (or the attempt was made again for the passkey) -> 1 started. BLE_CENTRAL 2: the bond whenever there is one;
- * 3: none */
+ * not one (or the attempt was made again for the passkey) -> 1 started. BLE_CENTRAL 3: no bond */
 static int rc_connect(const uint8_t a[6], uint8_t rnd)
 {
     struct ble_peer p;
@@ -153,7 +151,7 @@ static int rc_connect(const uint8_t a[6], uint8_t rnd)
     p.addr_rand = rnd;
     ble_cpy(brc.addr, a, 6);
     brc.addr_rand = rnd;
-#if BLE_CEN_PASSKEY
+#if BLE_CEN_PAIR
     if ((brc.to_last && (d->sec & BLE_DEV_SEC_MITM)) || rc_hint(a, rnd))
         brc.mitm = 1;
     if (brc.mitm)
@@ -162,13 +160,6 @@ static int rc_connect(const uint8_t a[6], uint8_t rnd)
         (!brc.mitm || (d->sec & BLE_DEV_SEC_AUTH))) {
         p.bonded = 1;
         p.sec |= (uint8_t)(d->sec & BLE_DEV_SEC_AUTH ? BLE_PEER_AUTH : 0u);
-        ble_cpy(p.ltk, d->ltk, 16);
-        ble_cpy(p.rand, d->rand, 8);
-        p.ediv = ble_rd16(d->ediv);
-    }
-#elif BLE_CEN_PAIR
-    if (brc.to_last && (d->info & BLE_DEV_BONDED)) {
-        p.bonded = 1;
         ble_cpy(p.ltk, d->ltk, 16);
         ble_cpy(p.rand, d->rand, 8);
         p.ediv = ble_rd16(d->ediv);
@@ -190,7 +181,7 @@ static int rc_connect(const uint8_t a[6], uint8_t rnd)
 static void rc_stop(void)                         /* initiating or scanning for the search: back to advertising */
 {
     fm1_ble_irqs_hold(1);
-#if BLE_CEN_PASSKEY
+#if BLE_CEN_PAIR
     if (brc.phase == RC_SCAN)
         ble_ll_scan(ble_devs_open);               /* (DEVICES opened meanwhile: its scan goes on) */
     else
@@ -232,13 +223,13 @@ static void rc_try(void)
     brc.tgt = (uint8_t)(brc.nsearch++ % (1u + ble_kept_n()));   /* (LAST, then each remembered one in turn) */
     d = rc_dev();
     brc.to_last = 1;
-#if BLE_CEN_PASSKEY
+#if BLE_CEN_PAIR
     brc.mitm = brc.escalated = brc.tries = 0;
 #else
     brc.tries = 0;
 #endif
     brc.t_end = fm1_ms + (fm1_ms - brc.search_t0 < RC_FAST_MS ? RC_TRY_FAST_MS : RC_TRY_SLOW_MS);
-#if BLE_CEN_PASSKEY
+#if BLE_CEN_PAIR
     if (d->info & BLE_DEV_IRK) {                  /* private addresses: scan and resolve */
         fm1_ble_irqs_hold(1);
         ble_ll_scan(1);
@@ -254,7 +245,7 @@ static void rc_try(void)
         rc_wait();
 }
 
-#if BLE_CEN_PASSKEY
+#if BLE_CEN_PAIR
 /* a scan report while searching for LAST behind a private address (ble_devices_poll) */
 static void rc_report(const uint8_t *pdu, uint8_t n)
 {
@@ -280,14 +271,10 @@ static const char *rc_why(uint8_t f)
 {
     switch (f) {
     case BLE_CF_NO_MIDI: return "NO MIDI SERVICE";
-#if BLE_CEN_PASSKEY
+#if BLE_CEN_PAIR
     case BLE_CF_PAIRING: return "PAIRING";
     case BLE_CF_AUTH:
     case BLE_CF_NEED_MITM: return "AUTH";
-#elif BLE_CEN_PAIR
-    case BLE_CF_PAIRING: return "PAIRING";
-    case BLE_CF_AUTH: return "AUTH";
-    case BLE_CF_NEED_MITM: return "NEEDS PASSKEY";   /* (BLE_CENTRAL 2: no passkey built in) */
 #else
     case BLE_CF_NEED_PAIR: return "NEEDS PAIRING";   /* (BLE_CENTRAL 3: no pairing built in) */
 #endif
@@ -328,7 +315,7 @@ static void rc_ready(void)
         ble_kept_take(brc.tgt - 1u);              /* (a remembered one reached: it is LAST now, with its bond) */
         brc.tgt = 0;
     }
-#if BLE_CEN_PASSKEY
+#if BLE_CEN_PAIR
     if (brc.mitm || ble_central_mitm())           /* (a passkey asked for on its link, or the link made for it) */
         ble_store_set_mitm(&ble_store);
 #endif
@@ -347,15 +334,13 @@ static void rc_keys(void)                         /* a pairing's keys, once the 
     brc.keys_new = 0;
     if (k.has & BLE_KEYS_LTK)
         ble_store_set_bond(&ble_store, k.ltk, k.rand, k.ediv, (k.has & BLE_KEYS_AUTH) != 0u);
-#if BLE_CEN_PASSKEY
     if (k.has & BLE_KEYS_ID)
         ble_store_set_id(&ble_store, k.irk, k.id, k.id_rand);
-#endif
     ble_keys_save();                              /* (to flash now: a reboot soon after must find them) */
 }
 #endif
 
-#if BLE_CEN_PASSKEY
+#if BLE_CEN_PAIR
 /* refused again after Just Works: the same device again at once, pairing with a passkey (once per attempt) -> 1 */
 static int rc_escalate(void)
 {
@@ -398,20 +383,13 @@ static void rc_link(void)
     f = ble_central_fail();
     BLE_DG(ble_dgc.rc_fails++);
     BLE_DG(ble_dgc.rc_last_fail = f);
-#if BLE_CEN_PASSKEY
+#if BLE_CEN_PAIR
     if (ble_central_mitm())
         rc_hint_keep();
     if (f == BLE_CF_NEED_MITM && rc_escalate())
         return;
-#endif
-#if BLE_CEN_PAIR
     if (f == BLE_CF_LOST && !ble_central_prompted() && rc_retry())
         return;                                   /* (a link attempt again: no pairing was started on it) */
-#else
-    if (f == BLE_CF_LOST && rc_retry())
-        return;                                   /* (a link attempt again: none pairs at this level) */
-#endif
-#if BLE_CEN_PAIR
     if (f == BLE_CF_KEY && brc.tries < RC_KEY_TRIES && rc_retry())
         return;                                   /* (its bond refused: again, RC_KEY_TRIES links in all) */
     if (f == BLE_CF_KEY && brc.to_last) {         /* (then dropped: LAST picked again pairs afresh) */
@@ -419,6 +397,9 @@ static void rc_link(void)
         rc_dev()->sec &= (uint8_t)~BLE_DEV_SEC_AUTH;   /* (as ble_store_drop_bond: MITM kept) */
         ble_store_changed();
     }
+#else
+    if (f == BLE_CF_LOST && rc_retry())
+        return;                                   /* (a link attempt again: none pairs at this level) */
 #endif
     rc_failed_why(rc_why(f));
 #if BLE_CEN_PAIR
@@ -454,7 +435,7 @@ static void ble_connect_pick(const struct ble_found *e)
     brc.to_last = (uint8_t)rc_is_last(e->addr, e->addr_rand);
     brc.tgt = 0;
     brc.search_t0 = 0;
-#if BLE_CEN_PASSKEY
+#if BLE_CEN_PAIR
     brc.mitm = brc.escalated = brc.failed = brc.tries = 0;
 #else
     brc.failed = brc.tries = 0;
@@ -506,13 +487,13 @@ static int ble_connect_last_up(void)
  * over whatever screen is up, not only in the DEVICES list: the search for LAST runs while the list is closed, and a
  * Mac or phone that lost the bond is paired afresh then, with the passkey LAST needs (2026-10-18: the Mac asked for a
  * PIN, nothing showed on the FM-1) */
-#if BLE_CEN_PASSKEY
+#if BLE_CEN_PAIR
 static uint32_t ble_connect_passkey(void)
 {
     return ble_up && brc.phase == RC_LINK ? ble_central_passkey() : BLE_NO_PASSKEY;
 }
 #else
-#define ble_connect_passkey() BLE_NO_PASSKEY      /* (BLE_CENTRAL 2 / 3: never a passkey) */
+#define ble_connect_passkey() BLE_NO_PASSKEY      /* (BLE_CENTRAL 3: never a passkey) */
 #endif
 
 /* the device being paired, as shown (terminated): its name as advertised, else its address */
@@ -538,18 +519,13 @@ static uint32_t ble_connect_status(char *out, uint32_t room)
     char nm[BLE_NAME_MAX + 1u];
     uint8_t st = ble_up ? ble_central_state() : BLE_CS_IDLE;
     rc_nm_at = BLE_LINE_NO_NAME;
-#if BLE_CEN_PASSKEY
+#if BLE_CEN_PAIR
     if (brc.phase == RC_PICK || (brc.phase == RC_TRY && (brc.escalated || brc.tries > 1u)) ||
         (brc.phase == RC_LINK && (st == BLE_CS_CONNECTING || st == BLE_CS_SETUP))) {
         rc_name(nm);
         if (ble_connect_passkey() != BLE_NO_PASSKEY)
             rc_text(out, room, "ENTER THIS CODE ON THE PHONE", 0);
         else if (brc.phase == RC_LINK && ble_central_pairing()) {
-#elif BLE_CEN_PAIR
-    if (brc.phase == RC_PICK || (brc.phase == RC_TRY && brc.tries > 1u) ||
-        (brc.phase == RC_LINK && (st == BLE_CS_CONNECTING || st == BLE_CS_SETUP))) {
-        rc_name(nm);
-        if (brc.phase == RC_LINK && ble_central_pairing()) {
 #else
     if (brc.phase == RC_PICK || (brc.phase == RC_TRY && brc.tries > 1u) ||
         (brc.phase == RC_LINK && (st == BLE_CS_CONNECTING || st == BLE_CS_SETUP))) {
@@ -565,7 +541,7 @@ static uint32_t ble_connect_status(char *out, uint32_t room)
             rc_text(out, room, t, nm);
             rc_nm_at = (uint8_t)str_len(t);
         } else {
-#if BLE_CEN_PASSKEY
+#if BLE_CEN_PAIR
             rc_text(out, room, brc.escalated ? "PAIRING " : "CONNECTING ", nm);
             rc_nm_at = brc.escalated ? 8u : 11u;
 #else
@@ -614,7 +590,7 @@ static void ble_connect_poll(void)
         else if (!ble_connected() && (int32_t)(fm1_ms - brc.next_try) >= 0)
             rc_try();                             /* (a central connected to us: the search waits) */
         return;
-#if BLE_CEN_PASSKEY
+#if BLE_CEN_PAIR
     case RC_SCAN:
         if (!want || (int32_t)(fm1_ms - brc.t_end) >= 0) {
             rc_stop();

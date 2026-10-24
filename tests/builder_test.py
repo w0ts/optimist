@@ -102,8 +102,9 @@ check("LFO2: no item, retired (its bit 91 not reused), counted ON in the configu
       "LFO2" not in R.ITEMS and "LFO2" in R.RETIRED and R.HASH_AS.get("LFO2") == 1 and all(it.bit != 91 for it in R.ITEMS.values()) and
       not [p.name for d in (C.PROFILES, ROOT / "tools" / "builder" / "estimate", ROOT / "tests" / "profiles") for p in d.glob("*.config")
            if any(ln.startswith("LFO2=") for ln in p.read_text().splitlines())])
-# BLE_CENTRAL became a choice of three levels (2026-10-24; firmware/src/ble/ble_cfg.h): a .config from before says
-# BLE_CENTRAL=1 and loads as level 1 (FULL), unchanged, its header FELUCCA_BLE_CENTRAL 1 as before; 2 and 3 are taken, 4 refused
+# BLE_CENTRAL became a choice of levels (2026-10-24; firmware/src/ble/ble_cfg.h): a .config from before says
+# BLE_CENTRAL=1 and loads as level 1 (FULL), unchanged, its header FELUCCA_BLE_CENTRAL 1 as before; 3 (MINIMAL) is taken; 2 (a Just Works
+# level, removed again) and 4 are refused
 _w = io.StringIO()
 with contextlib.redirect_stderr(_w):
     _cfg, _ = C.parse("# name: old\nBLE=1\nBLE_CENTRAL=1\nMISSING_WARN=0\n")
@@ -112,10 +113,10 @@ _h, _ = C.flags(_cfg)
 check("BLE_CENTRAL=1 in an old .config: loads as level 1 (FULL) unchanged, valid, no warning, the header's FELUCCA_BLE_CENTRAL 1",
       _cfg["BLE_CENTRAL"] == 1 and not _err and "warning" not in _w.getvalue() and _h.get("FELUCCA_BLE_CENTRAL") == 1 and
       "#define FELUCCA_BLE_CENTRAL 1" in C.header(_cfg))
-check("BLE_CENTRAL: a choice of off / FULL / JUST WORKS / MINIMAL (0..3), off by default",
-      items["BLE_CENTRAL"].is_choice and [c[0] for c in items["BLE_CENTRAL"].choices] == [0, 1, 2, 3] and
+check("BLE_CENTRAL: a choice of off / FULL / MINIMAL (0, 1, 3), off by default",
+      items["BLE_CENTRAL"].is_choice and [c[0] for c in items["BLE_CENTRAL"].choices] == [0, 1, 3] and
       items["BLE_CENTRAL"].default == 0)
-for _v, _ok in ((2, True), (3, True), (4, False)):
+for _v, _ok in ((2, False), (3, True), (4, False)):
     _c = dict(_cfg, BLE_CENTRAL=_v)
     _err, _, _ = C.validate(_c)
     check(f"BLE_CENTRAL={_v}: " + ("valid, the header carries the level" if _ok else "refused"),
