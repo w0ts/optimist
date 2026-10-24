@@ -57,9 +57,19 @@ static void ed_str(const char *s, uint32_t max)   /* ASCII, 0-terminated */
         ed_b((uint8_t)s[i]);
     ed_b(0);
 }
+#if MIR_BLE
+static uint8_t ed_bt;                       /* the request came over Bluetooth (ed_mirror.c mir_poll): its reply goes back there */
+static void mir_bt_reply(const uint8_t *p, uint32_t n);
+#endif
 static void ed_send(void)
 {
     ed_out[ed_n++] = 0xF7;
+#if MIR_BLE
+    if (ed_bt) {
+        mir_bt_reply(ed_out, ed_n);
+        return;
+    }
+#endif
     ota_wire_send(ed_out, ed_n);
 }
 static int32_t ed_rv(const uint8_t *p) { return (int32_t)(p[0] | p[1] << 7) - 8192; }
