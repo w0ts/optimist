@@ -1,9 +1,10 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The automation store's int8 check (docs/UI-OPTIMIST-DESIGN.md 7 The automation store): an event's value is a signed byte, so every
- * parameter an event may set (motion's set, the locks' set) must have its range inside -128..127, in TP[] and in
+ * parameter an event may set (motion's set, the locks' set), and every value of a sound (a user preset keeps each in a
+ * byte, storage/upreset.c UPB4), must have its range inside -128..127, in TP[] and in
  * every engine's edit descriptors (and the mode-dependent ones, desc()). Prints each id whose range does not fit,
- * with whether it is recordable (motion) or lockable; exit status: the number of such ids that are recordable or
- * lockable. Built with every switch that adds values (run_tests.sh: ANALOG 2, the track FILTER, CHORD+, COMP). */
+ * with whether it is recordable (motion) or lockable; exit status: the number of such ids that are recordable,
+ * lockable or a sound's. Built with every switch that adds values (run_tests.sh: ANALOG 2, the track FILTER, CHORD+, COMP). */
 #define main hostsim_main
 #include "hostsim.c"
 #undef main
@@ -29,7 +30,7 @@ int main(void)
                     if (!d || (k && !en->desc))
                         continue;
                     seen++;
-                    if (!fits(d) && (lockable || rec_part)) {
+                    if (!fits(d)) {                        /* (an EDIT value: a sound's, a byte in a user preset) */
                         printf("E%u engine %-8s %-8s %6d..%-6d lockable %d motion %d\n", (unsigned)(id - P_E0),
                                en->name ? en->name : "?", d->label ? d->label : "-", d->min, d->max, lockable, rec_part);
                         bad++;
@@ -41,7 +42,7 @@ int main(void)
             continue;
         }
         seen++;
-        if (!fits(&TP[id]) && (lockable || rec_part || rec_drum)) {
+        if (!fits(&TP[id]) && (lockable || rec_part || rec_drum || id < P_ENG_END || (id >= P_E1PIT && id <= P_SLAST))) {
             printf("id %3u %-8s %6d..%-6d lockable %d motion %d\n", (unsigned)id, TP[id].label ? TP[id].label : "-",
                    TP[id].min, TP[id].max, lockable, rec_part || rec_drum);
             bad++;
@@ -66,7 +67,7 @@ int main(void)
                (unsigned)MOT_TAIL_END);
         bad++;
     }
-    printf("int8 check: %u descriptors, %u lockable / recordable ranges outside -128..127\n", (unsigned)seen,
+    printf("int8 check: %u descriptors, %u lockable / recordable / stored-in-a-user-preset ranges outside -128..127\n", (unsigned)seen,
            (unsigned)bad);
     return (int)bad;
 }

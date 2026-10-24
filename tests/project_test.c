@@ -550,6 +550,8 @@ int main(void)
             (void)env_load(trk[t].p);
             trk[t].p[P_A2FATK] = (int16_t)(30 + t);
             trk[t].p[P_E7] = (int16_t)(40 + t);
+            trk[t].p[P_A2BTYP] = (int16_t)(A2M_MODES + t), trk[t].p[P_A2BCUT] = (int16_t)(20 + 50 * t);   /* (FLT B: SVF */
+            trk[t].p[P_A2BRES] = (int16_t)(127 - t);                                                     /* LP12 .. BP) */
         }
         proj_capture(&q, &rt_dl);
         ok = sizeof q == 3640u && q.magic == PROJ_MAGIC && PROJ_MAGIC == 0x46554E42u && PROJ_MAGIC_VA == 0x46554E41u &&
@@ -562,9 +564,13 @@ int main(void)
             for (i = P_A2ESUS; i < P_E0; i++)
                 trk[t].p[i] = 0;
         for (t = 0; t < NTRK; t++)
-            trk[t].p[P_E7] = 0;
+            trk[t].p[P_E7] = 0, trk[t].p[P_A2BTYP] = trk[t].p[P_A2BCUT] = trk[t].p[P_A2BRES] = 0;
         proj_apply(&q, &rt_dl, 1);
         ok = 1;
+        for (t = 0; t < NPART; t++)
+            ok &= trk[t].p[P_A2BTYP] == (int16_t)(A2M_MODES + t) && trk[t].p[P_A2BCUT] == (int16_t)(20 + 50 * t) &&
+                  trk[t].p[P_A2BRES] == (int16_t)(127 - t);
+        bad += check("FLT B (modulation record 0xD5): each part's MODEL+TYPE, FREQ, RES back", ok);
         for (t = 0; t < NPART; t++)
             ok &= trk[t].p[P_A2ESUS] == (int16_t)(10 + t) && trk[t].p[P_A2EREL] == (int16_t)(120 + t) &&
                   env_rt(trk[t].p)[P_A2EPIT] == (int16_t)(-64 + (int)t) && env_rt(trk[t].p)[P_A2ESHP] == (int16_t)(63 - (int)t) &&
@@ -648,193 +654,25 @@ int main(void)
 #endif
 
 #if FELUCCA_ANALOG2
-    {   /* user presets of SLOOP plus (bank "UPB1": SUPER 9, DX7 10, SLICE 11) -> today's numbers on load */
-        static up_bank2_t bk;
-        static const int16_t SV[8] = {4, 70, 81, 20, 3, 99, 17, 1};   /* SUPR SDTN MIX DRFT SUB CUT RES FTYP */
-        const preset_t *pr = &ENG_ANALOG.presets[A2_SUPER0];
-        int16_t v[P_COUNT], def[P_COUNT];
-        up_rec_t *r;
-        for (i = 0; i < P_COUNT; i++)
-            def[i] = TP[i].def;
-        memset(&bk, 0, sizeof bk);
-        bk.magic = UP_BANK_MAGIC_V1;
-        bk.rsize = sizeof(up_rec2_t);
-        bk.nslot = UP_PER_BANK;
-        for (i = 0; i < 5u; i++) {
-            up_rec2_t *o = &bk.r[i];
-            o->used = UP_USED;
-            o->ver = 1;
-            o->np = PROJ_NP_V5;
-            o->name[0] = (char)('A' + i);
-            for (t = 0; t < PROJ_NP_V5; t++)
-                o->p[t] = oldv(i, t);
-            o->note[0] = (uint8_t)(60u + i);
-        }
-        bk.r[0].engine = 9;                              /* SUPER */
-        memcpy(&bk.r[0].p[PROJ_NP_V5 - 8u], SV, sizeof SV);
-        bk.r[1].engine = 10;                             /* DX7 */
-        bk.r[2].engine = 11;                             /* SLICE (FELUCCA_SLICE builds) */
-        bk.r[3].engine = 6;                              /* TRIO: as it was */
-        bk.r[4].used = 0;                                /* an empty slot stays empty */
-        bk.r[4].engine = 9;
-        up_bank_check(0, &bk, (int)sizeof bk);
-        r = up_rec(0);
-        up_params(r, v, def);
-        ok = up_bank[0].magic == UP_BANK_MAGIC && r->engine == 0 && r->np == P_ENG_END && up_valid(r) &&
-             v[P_A2SWRM] == 4 && v[P_A2SDTN] == 70 && v[P_A2DRFT] == 20 && v[P_E4] == 99 && v[P_E5] == 17 &&
-             v[P_A2FTYP] == 1 && v[P_E0] == pr->e[0] && v[P_E2] == pr->e[2] && v[P_E7] == pr->e[7] &&
-             v[P_LEVEL] == oldv(0, P_LEVEL) && v[P_FXOFF] == oldv(0, P_FXOFF) && v[P_A2WAVE] == def[P_A2WAVE] &&
-             r->note[0] == 60 && r->name[0] == 'A';
-        bad += check("UPB1 user preset on SUPER -> ANALOG on the swarm (its values kept, today's P_COUNT)", ok);
-        ok = up_rec(1)->engine == ENG_IX_FM6 && up_valid(up_rec(1)) && up_rec(1)->np == PROJ_NP_V5 &&
-             up_rec(1)->p[3] == oldv(1, 3) && up_rec(2)->engine == 10u && up_rec(3)->engine == 6u &&
-             up_rec(3)->p[PROJ_NP_V5 - 1u] == oldv(3, PROJ_NP_V5 - 1u) && !up_valid(up_rec(4)) &&
-             up_rec(4)->engine == 9u;
-        bad += check("UPB1 user presets: DX7 -> FM6 (listed again), SLICE 11 -> 10, the rest as stored", ok);
-        memcpy(&up_bank[1], &up_bank[0], sizeof up_bank[1]);
-        up_bank_check(1, &up_bank[1], (int)sizeof up_bank[1]);   /* a UPB3 bank: read as it is, no second migration */
-        ok = !memcmp(&up_bank[1], &up_bank[0], sizeof up_bank[1]);
-        bk.rsize = 100;
-        up_bank_check(1, &bk, (int)sizeof bk);
-        bad += check("UPB2 bank read as stored; a UPB1 bank of another shape reads empty", ok && !up_bank[1].magic);
-        memset(up_bank, 0, sizeof up_bank);
-    }
-#if FELUCCA_SL24_SAFE
-    {   /* SLOOP 2.4 / 2.5's user presets (UPB1, UP_VER 1, np 61: P_TFLT P_STRUM P_VLEAD at 50..52, P_E0 at 53; 0..9 our
-         * numbers, 2.5's PHYS 10 and NOISE 11): 0..49 as stored, 50.. their defaults, E0..E7 from 53; PHYS ours, NOISE
-         * ANALOG at its EDIT defaults */
-        static up_bank2_t bk;
-        int16_t v[P_COUNT], def[P_COUNT];
-        memset(&bk, 0, sizeof bk);
-        bk.magic = UP_BANK_MAGIC_V1, bk.rsize = sizeof(up_rec2_t), bk.nslot = UP_PER_BANK;
-        for (i = 0; i < P_COUNT; i++)
-            def[i] = TP[i].def;
-        for (i = 0; i < 3u; i++) {
-            up_rec2_t *r = &bk.r[i];
-            uint32_t k;
-            r->used = UP_USED, r->ver = 1, r->np = 61, r->name[0] = (char)('P' + i);
-            r->engine = (uint8_t)(i == 0 ? 9u : i == 1 ? 10u : 11u);   /* FM6, 2.5's PHYS, 2.5's NOISE */
-            for (k = 0; k < 61u; k++)
-                r->p[k] = (int16_t)(k + 3u * i);
-            r->p[50] = -40;                              /* their TFLT: not our P_FXOFF */
-        }
-        up_bank_check(0, &bk, (int)sizeof bk);
-        ok = up_rec(0)->engine == 9u && up_rec(1)->engine == ENG_UID_PHYS && up_rec(2)->engine == 0u && up_valid(up_rec(0));
-        for (i = 0; i < 8u; i++)
-            ok &= up_rec(2)->p[53u + i] == (eng_built(0) ? ENGINES[eng_slot_built(0)]->edit[i].def : 0);
-        up_params(up_rec(1), v, def);
-        ok &= v[P_LEVEL] == 3 && v[P_CHORD] == 49 + 3 && v[P_FXOFF] == def[P_FXOFF] && v[P_E0] == 53 + 3 &&
-              v[P_E7] == 60 + 3;
-        bad += check("SLOOP 2.4 / 2.5 user presets (np 61): FM6 stays FM6, 2.5's PHYS (10) ours, its NOISE (11) ANALOG at its EDIT defaults; TFLT.. not read as FX OFF; E0..E7", ok);
-        memset(up_bank, 0, sizeof up_bank);
-    }
-    {   /* SLOOP 2.6's user presets (UPB1, UP_VER 1, np 71: 2.5's 61 and P_ITYPE .. P_LPOL at 53..62, P_FTYPE 58, P_E0 at
-         * 63; 2.5's engine numbers): mapped as np 61's, E0..E7 from 63, an ANALOG's filter TYPE BP / HP -> FTYP 2 / 3.
-         * Before: read as a SLOOP plus record of 71 values (their INSERT as our ANALOG 2, PHYS as SLICE) */
-        static up_bank2_t bk;
-        int16_t v[P_COUNT], def[P_COUNT];
-        memset(&bk, 0, sizeof bk);
-        bk.magic = UP_BANK_MAGIC_V1, bk.rsize = sizeof(up_rec2_t), bk.nslot = UP_PER_BANK;
-        for (i = 0; i < P_COUNT; i++)
-            def[i] = TP[i].def;
-        for (i = 0; i < 5u; i++) {
-            static const uint8_t E[5] = {0, 9, 10, 11, 0}, FT[5] = {2, 0, 0, 1, 1};
-            up_rec2_t *r = &bk.r[i];
-            uint32_t k;
-            r->used = UP_USED, r->ver = 1, r->np = 71, r->name[0] = (char)('Q' + i), r->engine = E[i];
-            for (k = 0; k < 71u; k++)
-                r->p[k] = (int16_t)(k + 3u * i);
-            r->p[50] = -40;                              /* their TFLT: not our P_FXOFF */
-            r->p[53] = 5;                                /* their INSERT TYPE: not our ANALOG 2's */
-            r->p[58] = FT[i];                            /* their FTYPE: HP, -, -, BP (NOISE: not heard), BP */
-        }
-        up_bank_check(0, &bk, (int)sizeof bk);
-        ok = up_rec(0)->engine == 0u && up_rec(1)->engine == 9u && up_rec(2)->engine == ENG_UID_PHYS &&
-             up_rec(3)->engine == 0u && up_valid(up_rec(0)) && up_valid(up_rec(2)) && up_valid(up_rec(3));
-        for (i = 0; i < 8u; i++)
-            ok &= up_rec(3)->p[63u + i] == (eng_built(0) ? ENGINES[eng_slot_built(0)]->edit[i].def : 0);
-        bad += check("SLOOP 2.6 user presets (np 71): FM6 stays, PHYS (10) ours, NOISE (11) ANALOG at its EDIT defaults", ok);
-        up_params(up_rec(2), v, def);
-        ok = v[P_LEVEL] == 6 && v[P_CHORD] == 49 + 6 && v[P_FXOFF] == def[P_FXOFF] && v[P_A2WAVE] == def[P_A2WAVE] &&
-             v[P_E0] == 63 + 6 && v[P_E7] == 70 + 6 && v[P_A2FTYP] == def[P_A2FTYP];
-        bad += check("SLOOP 2.6 user preset: 0..49 as stored, TFLT / INSERT .. not read as ours, E0..E7 from 63", ok);
-        up_params(up_rec(0), v, def);
-        ok = v[P_A2FTYP] == 3 && v[P_E0] == 63;
-        up_params(up_rec(4), v, def);
-        ok &= v[P_A2FTYP] == 2;
-        up_params(up_rec(3), v, def);
-        ok &= v[P_A2FTYP] == def[P_A2FTYP];
-        bad += check("SLOOP 2.6 user preset on ANALOG: filter TYPE HP -> FTYP HP, BP -> BP; a NOISE one's: none", ok);
-        {   /* its LFO 2 SYNC (P_LSYNC, p[60]): n 1..10 -> our RATE -(SLOOP_LSYNC_DUR[n-1] + 1); 0 (or past 10): its free RATE (p[P_LRATE]) */
-            static const uint8_t LS[5] = {0, 1, 7, 10, 11};
-            for (i = 0, ok = 1; i < 5u; i++) {
-                up_rec_t *r = up_rec(0);
-                r->p[60] = LS[i], r->p[P_LRATE] = 77;
-                up_params(r, v, def);
-                ok &= v[P_LRATE] == (LS[i] >= 1 && LS[i] <= 10 ? -(int)(SLOOP_LSYNC_DUR[LS[i] - 1] + 1) : 77);
-            }
-            bad += check("SLOOP 2.6 user preset: its LFO 2 SYNC n -> RATE by SLOOP_LSYNC_DUR (0, 11: the free RATE)", ok);
-        }
-        memset(up_bank, 0, sizeof up_bank);
-    }
-#endif
-    {   /* UP_VER 1 records of np 72 (SUS2 REL2 DST2 a word each): DST2 with AMT2 -> that amount; UP_VER 2: ENV2's
-         * extras packed, a round trip of every value */
+    {   /* a user preset (UPB4) of an ANALOG part: every value of the sound back (up_params, its engine's defaults),
+         * FLT B too; the values after P_E7 that are not a sound's: their defaults */
         static up_rec_t r;
         int16_t v[P_COUNT], w[P_COUNT], def[P_COUNT];
-        static const uint8_t ID[5] = {P_A2FENV, P_A2EPIT, P_A2ESHP, P_A2EOS2, P_A2ESDT};
-        int32_t d, k;
+        host_tracks_init();
         for (i = 0; i < P_COUNT; i++)
-            def[i] = TP[i].def;
-        for (d = 0; d < 5; d++) {
-            memset(&r, 0, sizeof r);
-            r.used = UP_USED, r.ver = 1, r.np = 72, r.name[0] = 'X';
-            for (i = 0; i < 72u; i++)
-                r.p[i] = oldv(1, i) % 50;
-            r.p[P_A2FENV] = -33;
-            r.p[61] = 70, r.p[62] = 5, r.p[63] = (int16_t)d;
-            ok = up_valid(&r);
-            up_params(&r, v, def);
-            ok &= v[P_A2ESUS] == 70 && v[P_A2EREL] == 5 && v[P_LEVEL] == oldv(1, 0) % 50 && v[P_A2SDTN] == oldv(1, P_A2SDTN) % 50;
-            for (k = 0; k < 5; k++)
-                ok &= env_rt(v)[ID[k]] == (k == d ? -33 : 0);
-            for (i = 0; i < 8u; i++)
-                ok &= v[P_E0 + i] == oldv(1, 64u + i) % 50;
-            bad += check("UP_VER 1, np 72: DST2 d with AMT2 -> amount on d alone, E0..E7 from 64", ok);
-        }
-        for (i = 0; i < P_COUNT; i++)
-            v[i] = (int16_t)((int)(i * 7u % 120u) - 60);
-        v[P_A2ESUS] = 127, v[P_A2EREL] = 0, v[P_A2EPIT] = -64, v[P_A2ESHP] = 63, v[P_A2EOS2] = -1, v[P_A2ESDT] = 1;
-        v[P_L1DA] = LT_PAN, v[P_L1AA] = 50, v[P_L1DB] = LT_FLT, v[P_L1AB] = -30;   /* (LFO DEST: two slots, in range) */
-        v[P_E1PIT] = 20, v[P_E1X] = -30, v[P_E1Y] = 5, v[P_E1Z] = -64;   /* (ENV 1 MOD's, ENV2's: in range) */
-        v[P_N2DA] = LT_SDTN, v[P_N2AA] = 3, v[P_N2DB] = LT_L1RT, v[P_N2AB] = -128;
-        v[P_ED_FLT] = 12, v[P_ED_SHP] = -7;            /* (ENV 1's FLT SHP: in their words) */
-        v[P_A2FENV] = v[P_A2EPIT] = v[P_A2ESHP] = v[P_A2EOS2] = v[P_A2ESDT] = 0;   /* (0 at run time) */
+            v[i] = trk[0].p[i];
+        v[P_E4] = 33, v[P_E5] = 127, v[P_A2SWRM] = 4, v[P_A2SEMI] = -24, v[P_L1DA] = LT_FLTB, v[P_L1AA] = -128;
+        v[P_A2BTYP] = (int16_t)(A2M_MODES + 3), v[P_A2BCUT] = 77, v[P_A2BRES] = 101;
         memset(&r, 0, sizeof r);
-        r.used = UP_USED, r.name[0] = 'Y';
+        r.used = UP_USED, r.engine = (uint8_t)eng_uid(0), r.name[0] = 'A';
         up_vals_put(&r, v);
+        for (i = 0; i < P_COUNT; i++)
+            def[i] = i >= P_E0 && i <= P_E7 ? ENGINES[0]->edit[i - P_E0].def : TP[i].def;
         up_params(&r, w, def);
-        ok = r.ver == UP_VER && r.np == P_ENG_END && up_valid(&r) && sizeof(up_rec_t) == 216u;
-        for (i = 0; i < P_ENG_END; i++)                  /* (ENV2's words: the slots' stored form, 0 here) */
-            ok &= ENV_ID(i) ? !w[i] : w[i] == v[i];
-        for (i = P_ENG_END; i < P_COUNT; i++)            /* (the values after P_E7: none in a record, the defaults; the */
-            ok &= i >= P_E1PIT && i <= P_NLAST ? w[i] == v[i] : w[i] == def[i];   /* envelopes' values back) */
-        bad += check("UP_VER 4: every value in its word, ENV 1 MOD's and ENV2's after them, read back as written", ok);
-        {   /* UP_VER 3 (2026-10-14 .. 16): ENV DEST's slots in P_E1PIT .., ENV's FLT SHP words 0 -> folded (env1_fold) */
-            up_rec_t r3 = r;
-            r3.ver = 3;
-            r3.p[P_ED_FLT] = r3.p[P_ED_SHP] = 0;
-            r3.p[P_ENG_END + 0] = LT_AMP, r3.p[P_ENG_END + 1] = 127, r3.p[P_ENG_END + 2] = LT_FLT, r3.p[P_ENG_END + 3] = 61;
-            ok = up_valid(&r3);
-            up_params(&r3, w, def);
-            ok &= w[P_ED_FLT] == 30 && !w[P_ED_SHP] && !w[P_E1PIT] && !w[P_E1X] && !w[P_E1Y] && !w[P_E1Z];
-            ok &= w[P_N2DA] == LT_SDTN && w[P_N2AA] == 3;   /* (ENV2 as it was) */
-            bad += check("UP_VER 3: ENV DEST AMP 127 + FLT 61 -> ENV 1's FLT 30 (an odd AMT: an LSB), ENV2 kept", ok);
-        }
-        r.np = 80;
-        ok = !up_valid(&r);
-        r.np = P_ENG_END, r.ver = 5;
-        bad += check("UP_VER 4 of a size beyond the record, UP_VER 5: not valid", ok && !up_valid(&r));
+        ok = up_valid(&r) && r.ver == 5u && r.nv == P_ENG_END + UP_NTAIL;
+        for (i = 0; i < P_COUNT; i++)
+            ok &= i < P_ENG_END || (i >= P_E1PIT && i <= P_SLAST) ? w[i] == v[i] : w[i] == TP[i].def;
+        bad += check("user preset (UPB4): an ANALOG sound back, FLT B and an LFO on FLT B at -128 too", ok);
     }
 #endif
 

@@ -1,8 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
 /* Host test of the user preset record (firmware/src/storage/upreset.c, -DUP_HOST part):
- * UP_PUT parsing, a bank round trip through storage.c on a simulated NOR,
- * bank / record version checks, map-by-count, pattern <-> steps. */
+ * UP_PUT parsing, a bank round trip through storage.c on a simulated NOR (UPB4),
+ * bank / record version checks, map-by-count, a byte a value, pattern <-> steps. */
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -68,17 +68,17 @@ int main(void)
     int16_t v[P_COUNT], def[P_COUNT];
     memset(nor, 0xFF, sizeof nor);
     for (i = 0; i < P_COUNT; i++)
-        def[i] = (int16_t)(1000 + i);
+        def[i] = (int16_t)(100 + i % 20u);
 
     n = put_frame(a, 5, 2, "Bass One", -40);
     bad += check("UP_PUT frame < 640 bytes", 5u + n + 1u < 640u);
     bad += check("UP_PUT parses", up_parse(a, n, &r, &slot) == 0 && slot == 5u && r.engine == 2u &&
                                       up_valid(&r) && !memcmp(r.name, "Bass One", 8) && !r.name[8]);
-    ok = r.ver == UP_VER && r.np == P_ENG_END;              /* (the values after P_E7, if built: none in a record) */
-    up_params(&r, v, def);                                  /* (UP_VER 2: ENV2's extras packed, up_vals_put) */
+    ok = r.ver == UP_VER && UP_VER == 5u && r.ne0 == P_E0 && r.nv == P_ENG_END + UP_NTAIL;
+    up_params(&r, v, def);                                  /* (the values after P_E7: a sound's kept, the others' defaults) */
     for (i = 0; i < P_COUNT; i++)
-        ok &= LFO_ID(i) || v[i] == (i < P_ENG_END ? (int16_t)(-40 + (int32_t)i) : def[i]);
-    bad += check("UP_PUT values (negative v14 too)", ok);
+        ok &= LFO_ID(i) || v[i] == (i < P_ENG_END || (i >= P_E1PIT && i <= P_SLAST) ? (int16_t)(-40 + (int32_t)i) : def[i]);
+    bad += check("UP_PUT values: a byte each, negative ones too, the sound's after P_E7 too", ok);
     bad += check("pattern: rest drops flags, tie has no note",
                  r.note[0] == 0 && r.flags[0] == 0 && r.note[1] == 41 && r.flags[1] == 1 && r.note[3] == 0 &&
                      r.flags[3] == 4);
@@ -108,7 +108,8 @@ int main(void)
     up_bank[1].rsize = sizeof(up_rec_t);
     up_bank[1].nslot = UP_PER_BANK;
     *up_rec(17) = r;
-    bad += check("bank fits one object", sizeof(up_bank_t) <= ST_PAYLOAD_MAX);
+    bad += check("bank fits one object; record 216 B, UPB4", sizeof(up_bank_t) <= ST_PAYLOAD_MAX && sizeof(up_rec_t) == 216u &&
+                                                             UP_BANK_MAGIC == 0x34425055u);
     bad += check("bank save", st_save(OBJ_UPRESET0 + 1, &up_bank[1], sizeof up_bank[1]) == 0);
     memset(up_bank, 0, sizeof up_bank);
     len = st_load(OBJ_UPRESET0 + 1, &up_bank[1], sizeof up_bank[1]);
@@ -122,112 +123,77 @@ int main(void)
     bad += check("banks in 0xDC000..0xDFFFF", st_sector(OBJ_UPRESET0, 0) == 0xDC000u &&
                                                    st_sector(OBJ_UPRESET0 + 1, 1) == 0xDF000u &&
                                                    st_sector(OBJ_PROJECT0 + 3, 1) + 4096u <= 0xA0000u);
-    up_bank[1].rsize = 190;                                 /* another record layout */
+    up_bank[1].magic = 0x33425055u;                         /* UPB3 (before 2026-10-24): not read */
     up_bank_check(1, &up_bank[1], (int)sizeof up_bank[1]);
-    bad += check("bank with another record size -> empty", !up_used(17));
+    bad += check("a UPB3 bank (the format before) -> empty", !up_used(17));
     up_bank[1].magic = UP_BANK_MAGIC;
     up_bank[1].rsize = sizeof(up_rec_t);
     up_bank[1].nslot = UP_PER_BANK;
     *up_rec(17) = r;
-    up_rec(17)->ver = UP_VER + 1u;
-    bad += check("record with another version -> empty", !up_used(17));
+    up_rec(17)->ver = 4;
+    bad += check("record of another version -> empty", !up_used(17));
+    *up_rec(17) = r;
+    up_rec(17)->nv = UP_NV + 1u;
+    bad += check("record of more values than it holds -> empty", !up_used(17));
 
-    /* map by count (UP_VER 1 records, one value a word): a record from a build with fewer parameters (ANALOG 2:
-     * FUN8's 69, before ENV2's extras; else 2 fewer) */
-    r.ver = 1;
-    {
-        uint32_t np = FELUCCA_ANALOG2 ? 69u : P_COUNT - 2u, nc = np - 8u;
-        r.np = (uint8_t)np;
-        for (i = 0; i < np; i++)
-            r.p[i] = (int16_t)i;
+    {   /* a record of a build with fewer values: P_E0 two earlier, no values after P_E7 -> by count, the rest defaults */
+        uint32_t e0 = P_E0 - 2u;
+        memset(&r, 0, sizeof r);
+        r.used = UP_USED, r.ver = UP_VER, r.name[0] = 'Z', r.ne0 = (uint8_t)e0, r.nv = (uint8_t)(e0 + 8u);
+        for (i = 0; i < e0 + 8u; i++)
+            r.v[i] = (int8_t)(i % 100u);
         up_params(&r, v, def);
         ok = up_valid(&r);
         for (i = 0; i < P_E0; i++)
-            ok &= LFO_ID(i) || v[i] == (i < nc ? (int16_t)i : def[i]);
+            ok &= LFO_ID(i) || v[i] == (i < e0 ? (int16_t)(i % 100u) : def[i]);
         for (i = 0; i < 8u; i++)
-            ok &= v[P_E0 + i] == (int16_t)(nc + i);
+            ok &= v[P_E0 + i] == (int16_t)((e0 + i) % 100u);
+        for (i = P_ENG_END; i < P_COUNT; i++)
+            ok &= LFO_ID(i) || v[i] == def[i];
+        bad += check("fewer values: by count (P_E0 .. from ne0), the rest the defaults", ok);
     }
-    bad += check("np < P_COUNT: mapped by count", ok);
-    /* a record saved before the SLICER (P_COUNT 53, P_E0 45): the four SLICER parameters (just
-     * before P_E0) take their defaults, everything else keeps its id */
-    r.np = 53;
-    for (i = 0; i < 53u; i++)
-        r.p[i] = (int16_t)(2000 + i);
-    up_params(&r, v, def);
-    ok = P_SLCR == 45 && P_SLDEPTH + 1 == P_CHORD && P_CHORD == 49 && P_FXOFF == 50 && P_E0 == 51 + 16 * FELUCCA_ANALOG2;   /* (ANALOG 2: its ten, ENV2's six) */
-    for (i = 0; i < 45u; i++)
-        ok &= LFO_ID(i) || v[i] == (int16_t)(2000 + i);
-    for (i = P_SLCR; i < P_E0; i++)
-        ok &= LFO_ID(i) || v[i] == def[i];
-    for (i = 0; i < 8u; i++)
-        ok &= v[P_E0 + i] == (int16_t)(2000 + 45 + i);
-    bad += check("old record (np 53): SLICER and CHORD defaults, E0..E7 kept", ok);
-    /* a record of SLOOP 1.0 (P_COUNT 57, P_E0 49): CHORD (SLOOP 2.0) takes its default */
-    r.np = 57;
-    for (i = 0; i < 57u; i++)
-        r.p[i] = (int16_t)(3000 + i);
-    up_params(&r, v, def);
-    ok = 1;
-    for (i = 0; i < P_CHORD; i++)
-        ok &= LFO_ID(i) || v[i] == (int16_t)(3000 + i);
-    ok &= v[P_CHORD] == def[P_CHORD] && v[P_FXOFF] == def[P_FXOFF];
-    for (i = 0; i < 8u; i++)
-        ok &= v[P_E0 + i] == (int16_t)(3000 + 49 + i);
-    bad += check("SLOOP 1.0 record (np 57): CHORD, FX defaults, the rest kept", ok);
-    /* a record of SLOOP 2.0 .. 2.2 (P_COUNT 58, P_E0 50): the FX bypass takes its default (the effects on) */
-    r.np = 58;
-    for (i = 0; i < 58u; i++)
-        r.p[i] = (int16_t)(4000 + i);
-    up_params(&r, v, def);
-    ok = v[P_FXOFF] == def[P_FXOFF];
-    for (i = 0; i < P_FXOFF; i++)
-        ok &= LFO_ID(i) || v[i] == (int16_t)(4000 + i);
-    for (i = 0; i < 8u; i++)
-        ok &= v[P_E0 + i] == (int16_t)(4000 + 50 + i);
-    bad += check("SLOOP 2.x record (np 58): FX on, the rest kept", ok);
-    {   /* today's record (up_vals_put): every value back as given */
+    {   /* every value a signed byte: -128 and 127 kept, beyond clamped (a range never reaches it: auto_int8_check) */
         int16_t w[P_COUNT];
         for (i = 0; i < P_COUNT; i++)
-            w[i] = (int16_t)(i * 5u % 128u) - 64;
+            w[i] = ENV_ID(i) ? 0 : (int16_t)(i & 1u ? -128 : 127);
+        w[P_LEVEL] = 300, w[P_PAN] = -300;
+        memset(&r, 0, sizeof r);
+        r.used = UP_USED, r.name[0] = 'Y';
         up_vals_put(&r, w);
         up_params(&r, v, def);
-        ok = r.np == P_ENG_END && r.ver == UP_VER && up_valid(&r) && UP_NS(P_ENG_END) <= UP_PMAX;
-        for (i = 0; i < P_ENG_END; i++)
-            ok &= LFO_ID(i) || v[i] == w[i];
-        for (i = P_ENG_END; i < P_COUNT; i++)               /* (the values after P_E7: the defaults) */
-            ok &= LFO_ID(i) || v[i] == def[i];
+        ok = up_valid(&r) && v[P_LEVEL] == 127 && v[P_PAN] == -128;
+        for (i = 0; i < P_COUNT; i++)
+            if (i != P_LEVEL && i != P_PAN && !LFO_ID(i))
+                ok &= i < P_ENG_END || (i >= P_E1PIT && i <= P_SLAST) ? v[i] == w[i] : v[i] == def[i];
+        bad += check("-128 and 127 kept, 300 / -300 clamped; values after P_E7 not a sound's: defaults", ok);
     }
-    bad += check("np == P_ENG_END: as stored (the values after P_E7 are not)", ok);
-    {   /* ENV 1 MOD's values and ENV2 DEST's slots (env_store.h): back as given; ENV's FLT SHP depths as they are */
+    {   /* ENV 1 MOD's values and ENV2 DEST's slots (env_store.h), FLT B: back as given; ENV's FLT SHP depths as they are */
         static const int16_t S[3][8] = {{0, 0, 0, 0, LT_FLT, 0, LT_OFF, 0},
                                         {-64, 63, 1, -1, LT_PIT, 33, LT_SDTN, -7},
                                         {20, -30, 0, 7, LT_FLT, 88, LT_OSC2, -64}};
         int16_t w[P_COUNT];
-        uint32_t k, n = FELUCCA_ANALOG2 ? 8u : 4u;
+        uint32_t k, n8 = FELUCCA_ANALOG2 ? 8u : 4u;
         ok = 1;
         for (k = 0; k < 3u; k++) {
             for (i = 0; i < P_COUNT; i++)
                 w[i] = ENV_ID(i) ? 0 : def[i];               /* (the words of the depths of before: 0 at run time) */
-            memcpy(&w[P_E1PIT], S[k], n * sizeof w[0]);
+            memcpy(&w[P_E1PIT], S[k], n8 * sizeof w[0]);
             w[P_ED_FLT] = (int16_t)(10 * k), w[P_ED_SHP] = (int16_t)(-5 * (int)k);
+#if FELUCCA_ANALOG2
+            w[P_A2BTYP] = (int16_t)(5 + k), w[P_A2BCUT] = (int16_t)(127 - k), w[P_A2BRES] = (int16_t)(60 * k);
+#endif
             up_vals_put(&r, w);
             up_params(&r, v, def);
-            ok &= !memcmp(&v[P_E1PIT], S[k], n * sizeof v[0]) && v[P_ED_FLT] == (int16_t)(10 * k) && v[P_ED_SHP] == (int16_t)(-5 * (int)k);
-            ok &= r.ver == UP_VER && UP_VER == 4u && !memcmp(&r.p[r.np], S[k], n * sizeof v[0]);   /* (in words of their own) */
+            ok &= !memcmp(&v[P_E1PIT], S[k], n8 * sizeof v[0]) && v[P_ED_FLT] == (int16_t)(10 * k) && v[P_ED_SHP] == (int16_t)(-5 * (int)k);
+#if FELUCCA_ANALOG2
+            ok &= v[P_A2BTYP] == (int16_t)(5 + k) && v[P_A2BCUT] == (int16_t)(127 - k) && v[P_A2BRES] == (int16_t)(60 * k);
+#endif
         }
-        r.ver = 3;                                          /* UP_VER 3 (2026-10-14 .. 16): ENV DEST's slots, folded */
-        r.p[P_ED_FLT] = r.p[P_ED_SHP] = 0;
-        r.p[r.np + 0] = LT_SHP, r.p[r.np + 1] = -80, r.p[r.np + 2] = LT_PIT, r.p[r.np + 3] = 40;
+        r.v[P_ENG_END + 4u] = (int8_t)LT_N;                 /* (a DEST past the list: OFF, its AMT 0) */
         up_params(&r, v, def);
-        ok &= v[P_ED_SHP] == -40 && v[P_E1PIT] == 20 && !v[P_ED_FLT] && !v[P_E1X] && !v[P_E1Y] && !v[P_E1Z];
-        r.ver = 1, r.np = P_ENG_END;                        /* a record of before: FLT 20 SHP -40 as they are */
-        for (i = 0; i < P_ENG_END; i++)
-            r.p[i] = def[i];
-        r.p[P_ED_FLT] = 20, r.p[P_ED_SHP] = -40;
-        up_params(&r, v, def);
-        ok &= v[P_ED_FLT] == 20 && v[P_ED_SHP] == -40 && v[P_E1PIT] == def[P_E1PIT] && v[P_E1X] == def[P_E1X];   /* (theirs: the defaults) */
+        ok &= !FELUCCA_ANALOG2 || (v[P_N2DA] == LT_OFF && v[P_N2AA] == 0);
     }
-    bad += check("ENV 1 MOD / ENV2 DEST: round trip (UP_VER 4), UP_VER 3's ENV DEST slots folded (SHP -80 PIT 40 -> SHP -40 PIT 20), depths of before as they are", ok);
+    bad += check("ENV 1 MOD / ENV2 DEST / FLT B: round trip, a DEST past the list OFF", ok);
 
     {   /* steps -> pattern (UP_STORE) */
         step_t st[NSTEP];

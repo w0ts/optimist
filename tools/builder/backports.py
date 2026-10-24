@@ -107,8 +107,8 @@ DESC = {  # what each switch does for the user (plain words; sizes from tools/bu
 DESC["FELUCCA_SL24_SAFE"] = (
     "Coming from SLOOP (2.7): Optimist never erases or writes over what SLOOP left that it cannot read: the four "
     "section slots and the autosave (shown as SLOOP on the PROJECT page and in the editor, not EMPTY), SLOOP's FM6 "
-    "bank and a user sample longer than ours (USR3, USR4); SLOOP's user presets are read right, and one Optimist saves "
-    "into SLOOP's bank leaves SLOOP's presets there byte for byte. SLOOP's settings (its SYN1..SYN4 drum kits, MIDI "
+    "bank and a user sample longer than ours (USR3, USR4). SLOOP's user presets are not read (2026-10-24): a "
+    "save into SLOOP's bank writes it over as Optimist's. SLOOP's settings (its SYN1..SYN4 drum kits, MIDI "
     "LEARN, theme and favourites) are never read as Optimist's and never written over: Optimist keeps its own beside "
     "them, so each firmware finds its own after a switch. Off, the first start erases SLOOP's projects. About 0.7 KB "
     "of flash.")
