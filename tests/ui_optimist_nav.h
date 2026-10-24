@@ -27,6 +27,17 @@ static void nav_tests(void)
     ok = nav_open(SCR_SOUND, B_LFO);
     frames(1);
     check(ok && ui.row[SCR_SOUND] == r, "nav: the family opened again stays (no next row, as a second tap would)");
+    {   /* the rows by the names the FM-1 shows them by (its list and header: the names table's title): LFO DEST is "LFO to" */
+        uint32_t k, raw = 0, titled = 0;
+        char c[12];
+        for (k = 0; k < nav_rows(); k++) {
+            SCR->name(k, a);
+            nav_row_name(k, c, sizeof c);
+            raw |= str_eq(a, "LFO DEST");
+            titled |= str_eq(c, "LFO to");
+        }
+        check(raw && titled, "nav: a row named as the FM-1 titles it (LFO DEST: \"LFO to\", the names table)");
+    }
     ok = n > 1u && nav_row(n - 1u);
     frames(1);
     check(ok && ui.row[SCR_SOUND] == n - 1u, "nav: a row picked is the cursor row");
@@ -55,6 +66,32 @@ static void nav_tests(void)
     frames(1);
     check(ok && ui.scr == SCR_PROJECT && nav_track() == NAV_NONE && !nav_walk(MXR_T1),
           "nav: PROJECT opened, no track there (ALGORITHM walks nothing)");
+    ok = nav_open(SCR_SONG, NAV_NONE);
+    frames(1);
+    nav_row_name(1, a, sizeof a);
+    check(ok && ui.scr == SCR_SONG && nav_rows() == 3u && str_eq(a, "Song") && nav_row(2) && nav_cur() == 2u &&
+          song_kind(ui.row[SCR_SONG], &n) == SG_MODE && nav_row(1) && nav_cur() == 1u && song_kind(ui.row[SCR_SONG], &n) == SG_PART,
+          "nav: SONG lists its three views (Scenes, Song, Settings), one picked as SEQ cycles to it");
+#if FELUCCA_PATTERNS
+    check(nav_row(3) && song_on_pat_row() && nav_cur() == 3u && nav_row(0) && nav_cur() == 0u,
+          "nav: SONG's row 3 is the PATTERNS row (the client's PATTERN button), then back to Scenes");
+    nav_row(3);
+    nav_open(SCR_PROJECT, NAV_NONE);
+    frames(1);
+    check(nav_open(SCR_SONG, NAV_NONE) && ui.scr == SCR_SONG && !song_on_pat_row() && nav_cur() < 3u,
+          "nav: SONG opened after the patterns: one of its views, not the PATTERNS row it was left on");
+    nav_row(3);
+    check(nav_open(SCR_SONG, NAV_NONE) && !song_on_pat_row(), "nav: SONG tapped while on the patterns: its views");
+#endif
+    ok = nav_open(SCR_HOME, NAV_NONE);
+    frames(1);
+    ok = ok && nav_walk(MXR_MASTER);
+    frames(1);
+    if (ui.scr != SCR_HOME)
+        ok = ok && nav_open(SCR_HOME, NAV_NONE), frames(1);
+    ok = ok && mx_on_master() && nav_open(SCR_SOUND, B_FX);
+    frames(1);
+    check(ok && ui.scr == SCR_FX, "nav: FX on the mixer's MASTER row opens the master FX, as the panel's FX");
     check(!nav_open(SCR_TEMPO, NAV_NONE) && !nav_open(SCR_SOUND, B_SAVE), "nav: TEMPO and a button with no family refused");
     nav_open(SCR_GLOBAL, NAV_NONE);
     frames(1);

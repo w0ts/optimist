@@ -57,6 +57,30 @@ final class NavModel: ObservableObject {
     func open(_ s: Nav.Screen) { act { _ = await self.ask(.open, [UInt8(s.rawValue), UInt8(Nav.none)]) } }
     func open(_ m: Nav.Mode) { act { _ = await self.ask(.open, [UInt8(Nav.Screen.sound.rawValue), UInt8(m.rawValue)]) } }
 
+    /// A lit button tapped again does what the FM-1's own button does then (the user, 2026-10-24: "clicking a left button
+    /// scroll thru the pages", "like the FM-1"): its button pressed (108 PANEL, op_input.c: a page button the family's next
+    /// page round, SEQ STEP's next page or SONG's next view, GLOBAL then SYSTEM and back, HOME the mixer then SCOPE). SAVE (a second tap could say YES) and SOUND (no button): the next page round, by NAV ROW.
+    func again(_ m: Nav.Mode) { tap(UInt8(m.rawValue)) }
+    func again(_ s: Nav.Screen) {
+        let button: [Nav.Screen: UInt8] = [.mix: 6, .steps: 9, .song: 9, .global: 5, .system: 5]
+        if let b = button[s] { tap(b); return }
+        guard let st = state, !st.rows.isEmpty else { return }
+        pick(row: (st.row + 1) % st.rows.count)
+    }
+    private func tap(_ b: UInt8) {
+        guard link.canPress else { return }
+        link.press([0, b, 1])
+        link.press([0, b, 0])
+    }
+
+    /// SONG, on its PATTERNS row (the session grid)
+    func openPatterns() {
+        act {
+            guard let s = await self.ask(.open, [UInt8(Nav.Screen.song.rawValue), UInt8(Nav.none)]), !s.refused else { return }
+            await self.ask(.row, [UInt8(Nav.songPatterns)])
+        }
+    }
+
     /// A favourite: its screen (and family), its track when it keeps one, then its row by name
     func go(_ f: Favorite) {
         act {

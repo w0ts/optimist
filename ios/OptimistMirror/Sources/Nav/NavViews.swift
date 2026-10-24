@@ -16,6 +16,7 @@ enum NavMetrics {
 /// One touch button: lit (the place the FM-1 is now), dim (nothing to do there now)
 struct NavButton: View {
     let title: String
+    var caption: String? = nil            // under the title, small: a screen's own name under its button's
     var lit = false
     var dim = false
     var star = false
@@ -28,10 +29,19 @@ struct NavButton: View {
         } label: {
             HStack(spacing: 6) {
                 if star { Image(systemName: "star.fill").font(.caption) }
-                Text(title)
-                    .font(.system(size: 17, weight: lit ? .bold : .semibold, design: .rounded))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.6)
+                VStack(spacing: 0) {
+                    Text(title)
+                        .font(.system(size: 17, weight: lit ? .bold : .semibold, design: .rounded))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+                    if let caption {
+                        Text(caption)
+                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.6)
+                            .opacity(0.65)
+                    }
+                }
             }
             .frame(maxWidth: .infinity, minHeight: NavMetrics.button)
             .padding(.horizontal, 8)
@@ -64,7 +74,7 @@ struct NavPages: View {
     private var heading: String {
         guard let s = nav.state else { return "" }
         if let m = Nav.Mode(rawValue: s.mode), s.mode != Nav.none { return m.title }
-        return Nav.Screen(rawValue: s.screen)?.title ?? ""
+        return Nav.Screen(rawValue: s.screen).map { $0.name == $0.title ? $0.name : "\($0.title) · \($0.name)" } ?? ""
     }
 
     var body: some View {
@@ -74,7 +84,7 @@ struct NavPages: View {
                 ScrollView {
                     LazyVStack(spacing: NavMetrics.gap) {
                         ForEach(Array((nav.state?.rows ?? []).enumerated()), id: \.offset) { r, name in
-                            NavButton(title: name.uppercased(), lit: r == nav.state?.row) { nav.pick(row: r) }
+                            NavButton(title: name, lit: r == nav.state?.row) { nav.pick(row: r) }
                                 .id(r)
                                 .contextMenu { menu(r) }
                         }
@@ -102,27 +112,36 @@ struct NavPages: View {
     }
 }
 
-/// Left: every mode and screen, then the favourites under them (hold one: move, remove) (the user, 2026-10-24:
-/// "favorites below")
+/// Left: every mode and screen, in the panel's order (FX SCL ENV LFO EDIT GLOBAL HOME SAVE ARP SEQ: the user, 2026-10-24: "in
+/// the order they are on the device"), each screen after the button that opens it (left out, the user, 2026-10-24: SOUND's whole list, which no button
+/// opens; the master FX, which is FX with MASTER selected); then the
+/// favourites under them (hold one: move, remove) (the user, 2026-10-24: "favorites below")
 struct NavSide: View {
     @ObservedObject var nav: NavModel
-    private let modes: [Nav.Mode] = [.env, .lfo, .fx, .scl, .edit, .arp]
-    private let screens: [Nav.Screen] = [.mix, .sound, .steps, .song, .project, .master, .global, .system]
+    private enum Item: Hashable { case mode(Nav.Mode), screen(Nav.Screen), patterns }
+    private let items: [Item] = [.mode(.fx), .mode(.scl), .mode(.env), .mode(.lfo), .mode(.edit),
+                                 .screen(.global), .screen(.system), .screen(.mix), .screen(.project), .mode(.arp),
+                                 .screen(.steps), .screen(.song), .patterns]
     private let grid = [GridItem(.flexible(), spacing: NavMetrics.gap), GridItem(.flexible(), spacing: NavMetrics.gap)]
 
     var body: some View {
         ScrollView {
             VStack(spacing: NavMetrics.gap) {
-                Heading(text: "MODES")
+                Heading(text: "BUTTONS")
                 LazyVGrid(columns: grid, spacing: NavMetrics.gap) {
-                    ForEach(modes, id: \.title) { m in
-                        NavButton(title: m.title, lit: nav.state?.screen == Nav.Screen.sound.rawValue && nav.state?.mode == m.rawValue) {
-                            nav.open(m)
-                        }
-                    }
-                    ForEach(screens, id: \.title) { s in
-                        NavButton(title: s.title, lit: nav.state?.screen == s.rawValue && (s != .sound || nav.state?.mode == Nav.none)) {
-                            nav.open(s)
+                    ForEach(items, id: \.self) { item in
+                        switch item {
+                        case .mode(let m):
+                            let lit = nav.state?.screen == Nav.Screen.sound.rawValue && nav.state?.mode == m.rawValue
+                                || (m == .fx && nav.state?.screen == Nav.Screen.master.rawValue)   // (FX on MASTER: the master FX)
+                            NavButton(title: m.title, lit: lit) { lit ? nav.again(m) : nav.open(m) }   // (lit: its next page, as the FM-1)
+                        case .patterns:                 // (SONG's PATTERNS row, its own button: the user, 2026-10-24)
+                            let lit = nav.state?.screen == Nav.Screen.song.rawValue && nav.state?.row == Nav.songPatterns
+                            NavButton(title: "PATTERN", lit: lit) { if !lit { nav.openPatterns() } }
+                        case .screen(let s):
+                            let lit = nav.state?.screen == s.rawValue && (s != .sound || nav.state?.mode == Nav.none)
+                                && (s != .song || nav.state?.row != Nav.songPatterns)
+                            NavButton(title: s.title, caption: s.name == s.title ? nil : s.name, lit: lit) { lit ? nav.again(s) : nav.open(s) }
                         }
                     }
                 }
