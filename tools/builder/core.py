@@ -745,10 +745,20 @@ FIT_ORDER = [  # (key, value): least loss first (docs/MEMORY-MAP.md section 3); 
 FIT_MARGIN = {"flash": 1024, "ram": 448, "pool": 0, "ramtext": 256}   # the estimate's error (~0.5 %; RAM 448: the user, 2026-10-23)
 
 
+def _measured(b):
+    """the budget is a real build of this very configuration, not an estimate: exact (configure.py: its last build
+    from this source) or anchored at distance 0 (its own check build in costs.json, measured with the deltas)"""
+    return bool(b.get("exact")) or b.get("distance") == 0
+
+
 def over_any(cfg, costs, margin=FIT_MARGIN, budget_fn=budget):
-    """-> {region: bytes over, the margin included}; budget_fn: configure.budget on the runner (real builds' sizes)"""
+    """-> {region: bytes over, the margin included}; budget_fn: configure.budget on the runner (real builds' sizes).
+    The margin covers the estimate's error, so a measured budget (_measured) has none: its figures are the link's
+    (2026-10-24: synth, its own build 264 B under the RAM limit, was 184 B "over" and fit() found nothing to drop);
+    one item away the whole margin applies again"""
     b = budget_fn(cfg, costs)
-    return {r: o + margin[r] for r, (_, _, o) in fits(b["total"], cfg).items() if o + margin[r] > 0}
+    m = {r: 0 for r in REGIONS} if _measured(b) else margin
+    return {r: o + m[r] for r, (_, _, o) in fits(b["total"], cfg).items() if o + m[r] > 0}
 
 
 def _fit_run(cfg, costs, keep, order, budget_fn):
