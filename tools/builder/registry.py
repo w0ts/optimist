@@ -993,9 +993,7 @@ _add("ED_MIRROR", "FELUCCA_ED_MIRROR", "web editor: the screen mirrored (the Scr
           "No frame buffer on the device; nothing is sent while none asks; the mixer's meters go 10 times a second over USB, "
           "never over Bluetooth. A link that falls behind (USB: the host stops reading; Bluetooth: its 8 KB send ring is full) "
           "drops what is drawn and catches up once it is clear again, at most 4 times a second: the panel's bands drawn again "
-          "in place, no flash on the device. Over Bluetooth whole screens come at the rate the radio carries (slow on the "
-          "first try 2026-10-23: about 6 KB/s, a whole screen 1.65 KB on average with the version 2 coding: runs, two-colour "
-          "bitmaps, the row above). On mots.config (with BLE): 2.8 KB of flash, 0.2 KB of RAM, 8 KB of pool. With "
+          "in place, no flash on the device. Over Bluetooth whole screens come at the rate the radio carries. With "
           "live editing (ED_LIVE) or without.")
 # (bit 70, SIZE, retired 2026-10: the UI, storage and editor code is always built minsize, tools/size_fns.py keeps the
 #  audio path out of it; never reuse the bit)
@@ -1118,12 +1116,11 @@ _add("BLE_CENTRAL", "FELUCCA_BLE_CENTRAL", "BLE devices: the FM-1 connects to BL
      default=0, parent="BLE", target_only=True,
      choices=((0, "off"), (1, "full: also pairs with devices that ask (passkey, private addresses)"),
               (3, "minimal: never pairs (controllers, another FM-1)")),
-     desc="SYSTEM > Devices lists the BLE-MIDI devices nearby (keyboards, controllers, "
-          "a Mac or an iPhone app that advertises BLE MIDI, another FM-1) with their names and relative signal bars, "
-          "scanning only while the list is open (the FM-1 stops advertising meanwhile). Picking one connects to it as "
+     desc="SYSTEM > BT MIDI lists the BLE-MIDI devices nearby (keyboards, controllers, "
+          "a Mac or an iPhone app that advertises BLE MIDI, another FM-1), scanning while the page is on screen with no "
+          "link (the FM-1 stops advertising meanwhile). Picking one connects to it as "
           "a central, MIDI both ways; it becomes the last device, which the FM-1 reconnects to by itself while "
-          "Bluetooth is on (with up to 3 others remembered). Without this item DEVICES shows NONE and the last device "
-          "only. Two levels, for the flash they take (measured on mots.config): FULL (1, as before) pairs when the "
+          "Bluetooth is on (with up to 3 others remembered). Two levels, for the flash they take: FULL (1) pairs when the "
           "other side asks, with Just Works or, for an iPhone app that needs it, a 6-digit code shown on the FM-1, and "
           "finds the last device again when its address changes (Macs and iPhones use private addresses): everything "
           "works, 21.9 KB of flash and 2.3 KB of RAM. "
@@ -1137,7 +1134,7 @@ _add("BT_AUDIO", "FELUCCA_BT_AUDIO", "Bluetooth Classic Audio (A2DP Source, SBC)
      notice="experimental: Bluetooth Classic A2DP audio source",
      desc="Bluetooth Classic audio out (A2DP source, SBC 44.1 kHz) to headphones and speakers: its own page, S"
           "YSTEM > BT AUDIO (MODE OFF, MAN, AUTO), beside BT MIDI: with BLE built, MIDI and audio can be on at "
-          "the same time on the one radio (untested together on an FM-1). Our own stack: inquiry, paging, Secur"
+          "the same time on the one radio. Our own stack: inquiry, paging, Secur"
           "e Simple Pairing (Just Works), E0 encryption, L2CAP, AVDTP and a fixed-point SBC encoder. Streams on "
           "the FM-1 to AirPods, a Sony WH-1000XM4 and a Bose SoundLink Mini (2026-10-23).",
      symbols=("ba_sbc", "bt_sbc_encode"))
