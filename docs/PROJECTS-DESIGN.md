@@ -1,12 +1,11 @@
 # Projects own their scenes and patterns (PROJECTS)
 
 User ruling (2026-10-22): **the current state of a project is independent of the patterns and scenes.** Scenes and
-patterns belong to a project, not to the device. Before this, a project slot *was* a scene whose steps lived in 16
-device-wide pattern slots a track, shared by every scene (`docs/PATTERNS-DESIGN.md`): any pattern operation could change
-what a project loaded, and a project whose references were rewritten loaded with empty tracks and said LOADED.
+patterns belong to a project, not to the device (when they were device-wide, a pattern operation could change what a
+project loaded).
 
-Builder item `PATTERNS` ("per-project patterns and scenes"). Without it nothing changes: a project is a plain section
-record with its steps inside, in the old log at 0x97000.
+Builder item `PATTERNS` ("per-project patterns and scenes"). Without it a project is a plain section record with its
+steps inside, in the old log at 0x97000.
 
 ## 1. The model
 
@@ -63,9 +62,9 @@ the oldest sector, tombstones). Format 2 ("SLG2" sector magic) changes the recor
 - The old log (0x97000, "SLG1", 8 sectors) is neither read nor written by a PATTERNS build. With samples built, user
   sample slot USR1 reads as empty and takes nothing (`eng_sample.c SMP_USER_CAP`); without them, the log also covers
   USR2's room: sample data left there by another build is lost (the user's trade-off, 2026-10-22).
-- Fixed on the way (both formats): a log whose every sector held a live record could refuse even a clear (MEM FULL
-  forever). A tombstone's write now lets the compaction drop that id's old record instead of copying it
-  (`slg_make_room` `drop`; the room model mirrors it): a clear always goes in, and a cut there leaves the id cleared.
+- Both formats: a tombstone's write lets the compaction drop that id's old record instead of copying it
+  (`slg_make_room` `drop`; the room model mirrors it), so a clear always goes in, even in a full log, and a cut there
+  leaves the id cleared.
 - The calls: `project_scope_set(p)` (the index p's, the arena written first; the chain, BARS, sources read),
   `project_open(p)` (+ the state into the work; 0: none, the UI blanks the work), `state_save()`, `project_clear(p)`
   (every record of p: tombstones), `project_slot_used(p)`. Format 1 keeps `project_load / save` as the sections'.
@@ -80,8 +79,8 @@ the oldest sector, tombstones). Format 2 ("SLG2" sector magic) changes the recor
 - Open: snapshots carry log ids 17..87 (`snapshots.c SN_LOG0..`), the state (19) and the project names (21) among
   them now: a snapshot restore writes them back. To decide: leave 19 and 21 out of a snapshot.
 - Web editor: `PAT_LIST`, launches, `SCENE`, `PAT_OP`, `PAT_READ` / `WRITE` unchanged (the open project). Backup objects
-  become per project: `PJ01`..`PJ16` (kind 5 packs of the project's records: u8 id, u16 length, the record), plus the
-  device-wide ids in `GLOB`; `S01`..`S16`, `PTN1`..`PTN6`, `SNG1`, `FX31`..`FX33`, `DLF1`/`DLF2`, `XSTP` are listed
+  become per project: `PJ01`..`PJ16` (kind 7 packs of the project's records: u8 id, u16 length, the record), plus the
+  project names (id 21) in `PNAM`; `S01`..`S16`, `PTN1`..`PTN6`, `SNG1`, `FX31`..`FX33`, `DLF1`/`DLF2`, `XSTP` are listed
   as not in a PATTERNS build (an older backup's are restored into project 1).
 - Tests: `tests/sec_log_test.c` (format 2, two projects' records interleaved, a switch, dead marks, compaction across
   projects, cuts at every program), `tests/patterns_test.c` and `tests/sections_test.c` (scoped), `tests/project_scope_test.c`
@@ -103,5 +102,4 @@ a key-range extension, no model change) is the cheaper step.
 
 - Usable room: 32 sectors ≈ 108 KiB, 20 ≈ 66 KiB (today 8 ≈ 24 KiB). A busy project (state, 8 scenes, 24 patterns)
   is about 6..8 KiB.
-- RAM: the index is unchanged (the open project); `fliv[]` is 4 bytes a sector. Flash cost of the item: measured
-  when built (`tools/builder/costs.json`).
+- RAM: the index is unchanged (the open project); `fliv[]` is 4 bytes a sector. The item's cost: `docs/PATTERNS-DESIGN.md` section 6.
