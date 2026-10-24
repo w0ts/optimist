@@ -1,0 +1,74 @@
+diff --git a/rust-emulator/src/decode.rs b/rust-emulator/src/decode.rs
+index 1ce548d..711a074 100644
+--- a/rust-emulator/src/decode.rs
++++ b/rust-emulator/src/decode.rs
+@@ -408,7 +408,7 @@ fn wide(h: u32, x: u32) -> Wide {
+     if h == 0xe1f0 && x & 15 == 0 {
+         return Wide::MultiplyExtended;
+     }
+-    if matches!(h, 0xe1f8 | 0xe1fc) && x & 15 == 0 {
++    if matches!(h, 0xe1f8 | 0xe1fc | 0xe1fe) && x & 15 == 0 {
+         return Wide::MultiplyWide;
+     }
+     if h == 0xe1f6 && s & 1 == 0 && x & 15 == 0 {
+@@ -416,7 +416,7 @@ fn wide(h: u32, x: u32) -> Wide {
+         // r1_r0 = r5_r4 / r0 (s)); x bit 0 is not a valid encoding.
+         return Wide::DivideWide;
+     }
+-    if h == 0xe1d8 && d & 1 == 0 && s == 0 && matches!(x & 15, 0 | 2) {
++    if h == 0xe1d8 && d & 1 == 0 && s == 0 && matches!(x & 15, 0 | 2 | 3) {
+         return Wide::ShiftWideRegister;
+     }
+     if h == 0xe1d0 && d & 1 == 0 && s == 0 && (x >> 10) & 3 != 1 {
+diff --git a/rust-emulator/src/extended.rs b/rust-emulator/src/extended.rs
+index 9eafb06..a6c56bf 100644
+--- a/rust-emulator/src/extended.rs
++++ b/rust-emulator/src/extended.rs
+@@ -514,6 +514,15 @@ pub(crate) fn execute(
+                         let (sum, carry) = accumulator.overflowing_add(product);
+                         cpu.sr[5] = (cpu.sr[5] & !2) | (carry as u32) << 1;
+                         sum
++                    } else if h == 0xe1fe {
++                        // Vendor objdump: e1fe d060 is r13_r12 -= r6 * r0 (s)
++                        // (WAVE's wavetable code, Optimist 9a5636ca). C as a
++                        // subtraction's no-borrow, by analogy with e1fc and
++                        // Cpu::arithmetic: NOT measured on an FM-1.
++                        let accumulator = cpu.r[pair] as u64 | ((cpu.r[pair + 1] as u64) << 32);
++                        let borrow = accumulator < product;
++                        cpu.sr[5] = (cpu.sr[5] & !2) | (!borrow as u32) << 1;
++                        accumulator.wrapping_sub(product)
+                     } else {
+                         product
+                     };
+@@ -521,6 +530,8 @@ pub(crate) fn execute(
+                     cpu.r[(d & 14) + 1] = (result >> 32) as u32;
+                     op = if h == 0xe1fc {
+                         "multiply_accumulate_wide"
++                    } else if h == 0xe1fe {
++                        "multiply_subtract_wide"
+                     } else {
+                         "multiply_wide"
+                     };
+@@ -549,12 +560,17 @@ pub(crate) fn execute(
+                 Wide::ShiftWideRegister => {
+                     let value = cpu.r[d] as u64 | ((cpu.r[d + 1] as u64) << 32);
+                     let shift = cpu.r[c];
+-                    let result = if x & 2 == 0 {
+-                        value.checked_shl(shift)
++                    let result = if x & 15 == 3 {
++                        // Vendor objdump: e1d8 0365 is r7_r6 >>>= r5 (an
++                        // arithmetic shift; PLAITS' pl_spectrum, Optimist
++                        // 9a5636ca). A count of 64 or more fills with the
++                        // sign: NOT measured on an FM-1.
++                        ((value as i64) >> shift.min(63)) as u64
++                    } else if x & 2 == 0 {
++                        value.checked_shl(shift).unwrap_or(0)
+                     } else {
+-                        value.checked_shr(shift)
+-                    }
+-                    .unwrap_or(0);
++                        value.checked_shr(shift).unwrap_or(0)
++                    };
+                     cpu.r[d] = result as u32;
+                     cpu.r[d + 1] = (result >> 32) as u32;
+                     op = "shift_wide_register";
