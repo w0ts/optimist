@@ -58,7 +58,7 @@ There is more in 0.2 than one firmware can hold: 26 synth engines, 37 kits, the 
 ## Web: everything on one site
 
 - **Web editor.** Every sound, drum, effect and setting as knobs; the drum grid; the samples (with CHOP); the preset library; projects. Backup of the whole FM-1 in one file, now its own Backup tab. Works over USB in Chrome or Edge (Web MIDI).
-- **Screen tab.** The FM-1's screen, live in the browser as it is drawn, with the mixer's meters ten times a second; a tap fills the display. Over USB. **[check: Bluetooth mirroring was tried and set aside as too slow]**
+- **Screen tab.** The FM-1's screen, live in the browser as it is drawn, with the mixer's meters ten times a second; a tap fills the display. Over USB.
 - **Builder.** Choose engines, kits, effects and features with a live flash / RAM budget; _Build in the cloud_ returns your firmware in minutes. The builder now knows what each choice really costs (measured on the farm), shares one effects memory between every insert with a delay line, and tells you how many of each fit.
 - **Installer.** Install a release flavour, your cloud build or a file; a backup first; stock firmware back any time.
 - **Simulator.** The firmware running in the browser with the FM-1's panel and keys: try a build before installing it.
