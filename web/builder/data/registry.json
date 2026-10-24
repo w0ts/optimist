@@ -4052,7 +4052,7 @@
    {
     "key": "BLE_BOND",
     "flag": "FELUCCA_BLE_BOND",
-    "label": "BLE bonding: pairing (Just Works) and an encrypted link",
+    "label": "BLE pairing when a Mac or phone connects to the FM-1 (Just Works, encrypted, remembered)",
     "group": "USB & BT & MIDI",
     "bit": 254,
     "default": 0,
@@ -4077,7 +4077,7 @@
    {
     "key": "BLE_CENTRAL",
     "flag": "FELUCCA_BLE_CENTRAL",
-    "label": "BLE devices: connect to BLE-MIDI devices, reconnect the last one",
+    "label": "BLE devices: the FM-1 connects to BLE-MIDI devices",
     "group": "USB & BT & MIDI",
     "bit": 255,
     "default": 0,
@@ -4100,11 +4100,11 @@
      ],
      [
       1,
-      "full: Just Works and the passkey, devices with private addresses"
+      "full: also pairs with devices that ask (passkey, private addresses)"
      ],
      [
       3,
-      "minimal: no pairing (controllers, another FM-1)"
+      "minimal: never pairs (controllers, another FM-1)"
      ]
     ],
     "provenance": null,
