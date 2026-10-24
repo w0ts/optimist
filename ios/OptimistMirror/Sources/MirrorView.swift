@@ -231,8 +231,10 @@ struct MirrorView: View {
     @FocusState private var keyboard: Bool
     @State private var held: [String: [UInt8]] = [:]   // the keys down, what each pressed
     @State private var seen = 0
-    @State private var drag: (knob: Int, across: Bool, sent: Int)?   // the knob a drag turns, its axis, the detents sent
-    private static let pointsPerDetent: CGFloat = 6
+    @State private var drag: (knob: Int, across: Bool, sent: Int, per: CGFloat)?   // the knob a drag turns, its axis, the detents sent, points a detent
+    /// a detent every so many points: the 2x2 or 1x4 cards 6; the lines, 240 wide, 15 (the user, 2026-10-24: "the scrub on the
+    /// 4 lines is too sensitive")
+    private static func pointsPerDetent(_ r: CGRect) -> CGFloat { r.width >= 200 ? 15 : 6 }
 
     var body: some View {
         ZStack {
@@ -297,19 +299,19 @@ struct MirrorView: View {
     }
 
     /// A drag that starts on KNOB k's card or line (NavState.knobs, the panel's 240 x 240) turns knob k: up or right is
-    /// clockwise, a detent every pointsPerDetent points, along the axis the drag took first
+    /// clockwise, a detent every pointsPerDetent points (the lines slower), along the axis the drag took first
     private func knobDrag(_ size: CGSize) -> some Gesture {
         DragGesture(minimumDistance: 6)
             .onChanged { g in
                 if drag == nil {
                     let scale = 240 / max(size.width, 1)
                     let p = CGPoint(x: g.startLocation.x * scale, y: g.startLocation.y * scale)
-                    guard let k = nav.state?.knobs.firstIndex(where: { $0.contains(p) }) else { return }
-                    drag = (k, abs(g.translation.width) > abs(g.translation.height), 0)
+                    guard let knobs = nav.state?.knobs, let k = knobs.firstIndex(where: { $0.contains(p) }) else { return }
+                    drag = (k, abs(g.translation.width) > abs(g.translation.height), 0, Self.pointsPerDetent(knobs[k]))
                     UIImpactFeedbackGenerator(style: .light).impactOccurred()
                 }
                 guard let d = drag else { return }
-                let steps = Int((d.across ? g.translation.width : -g.translation.height) / Self.pointsPerDetent)
+                let steps = Int((d.across ? g.translation.width : -g.translation.height) / d.per)
                 if steps != d.sent {
                     link.turn(UInt8(3 + d.knob), steps - d.sent)
                     drag?.sent = steps
