@@ -258,7 +258,7 @@ static void glo_tests(void)
               "Calibrate: YES on PANEL asks first (the question on its line)");
         tap(B_HOME);
         check(!op_armed() && ui.scr == SCR_SYSTEM, "... HOME: cancelled");
-#if FELUCCA_BLE
+#if BT_OVL
         bt.boot = 1;
         ble_store_reset(&ble_store);
         bt_enter(BT_MIDI, 1);                                    /* (the overlay list: since the page lists its devices itself, only dev_open opens it) */
