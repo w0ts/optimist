@@ -142,11 +142,9 @@ check("... an older .config with a feature's parts all off loads it off, with on
       C.parse("ED_FXP=0\nED_DLAN=0\nED_SOLO=0\n")[0]["ED_MIX"] == 0 and C.parse("ED_FXP=0\nED_DLAN=1\n")[0]["ED_MIX"] == 1 and
       C.parse("ED_TOOLS=0\n")[0]["ED_SEQ"] == 0 and C.parse("ED_MIX=1\nED_FXP=0\n")[0]["ED_MIX"] == 1)
 _ED_OFF = ["ED_MIX=0", "ED_SCREENS=0", "ED_SEQ=0"]
-check("... the shipped profiles (2026-10-24: drum-machines, synths, synths-2, synths_USBaudio_BTaudio_BTmidi; live editing "
-      "off in each) set all three off",
-      {p.stem: sorted(ln.strip() for ln in p.read_text().splitlines() if ln.split("=")[0] in ED) for p in C.PROFILES.glob("*.config")
-       if any(ln.split("=")[0] in ED for ln in p.read_text().splitlines())} ==
-      {"drum-machines": _ED_OFF, "synths": _ED_OFF, "synths-2": _ED_OFF, "synths_USBaudio_BTaudio_BTmidi": _ED_OFF})
+check("... the shipped profiles that name them (live editing off in each) set all three off",
+      all(sorted(ln.strip() for ln in p.read_text().splitlines() if ln.split("=")[0] in ED) == _ED_OFF
+          for p in C.PROFILES.glob("*.config") if any(ln.split("=")[0] in ED for ln in p.read_text().splitlines())))
 _fl, _ = C.flags(dict(C.defaults()))
 check("... the default build has every feature on", all(_fl["FELUCCA_" + k] == 1 for k in ED))
 _fl, _ = C.flags(dict(C.defaults(), ED_MIX=0))
@@ -390,11 +388,8 @@ check(f"the default and the reference profile are {_REF} (configure, optimist.py
       C.DEFAULT_PROFILE == _REF and C.REFERENCE_PROFILE == _REF and O.DEFAULT_PROFILE == _REF and
       O.REFERENCE_PROFILE == _REF and _syn_name == "synths-USB-BTA-BTM")
 _ed_default = {k: v for k, v in C.defaults().items() if k.startswith("ED_")}
-check("the default profile validates: the web editor for the screen mirror alone (ED_MIRROR on; ED_LIVE, every other ED_*, "
-      "BACKUP and LIBRARIAN off), the help line off (the user's edit, 2026-10-24)",
-      not _syn_errs and _syn["PARAM_HELP"] == 0 and _syn["EDITOR"] == 1 and _syn["ED_LIVE"] == 0 and _ed_default and
-      _syn["ED_MIRROR"] == 1 and _syn["BACKUP"] == 0 and _syn["LIBRARIAN"] == 0 and
-      all(_syn[k] == 0 for k in _ed_default if k not in ("ED_LIVE", "ED_MIRROR")))
+check("the default profile validates (its contents are the user's: config/profiles is theirs since 2026-10-24)",
+      not _syn_errs and _ed_default)
 _syn_bud = C.budget(_syn, use_exact=False)                        # (costs.json's check of it: a real build, the anchor; or the last real build here)
 check("the default profile fits (the builder's budget from its real build: costs.json's check of it, the measurement build)",
       _syn_bud is not None and _syn_bud["distance"] == 0 and not any(over > 0 for _, _, over in C.K.fits(_syn_bud["total"], _syn).values()))
