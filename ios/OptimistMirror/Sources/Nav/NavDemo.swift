@@ -29,6 +29,12 @@ final class NavDemo {
     }
     private var hasTrack: Bool { [0, 1, 2, 5].contains(screen) }
 
+    /// MIRROR_DEMO_NAV = "screen,mode,row,track": the columns as the demo picture's page (a store screenshot)
+    init() {
+        let v = (ProcessInfo.processInfo.environment["MIRROR_DEMO_NAV"] ?? "").split(separator: ",").compactMap { Int($0) }
+        if v.count == 4 { (screen, mode, row, track) = (v[0], v[1], v[2], v[3]) }
+    }
+
     func reply(_ a: [UInt8]) -> [UInt8] {
         let op = a.first ?? 0
         var ok = true
