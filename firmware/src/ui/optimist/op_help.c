@@ -342,6 +342,7 @@ static uint32_t hl_src(char *b)
 }
 /* before the bands (op_frame_draw, ov: the overlay): shown or not this frame; going, the band is cleared (nothing else
  * ever draws on it: no band to draw again) */
+static uint8_t hl_nn_only;                              /* shown only for the note played (hl_post: no help text) */
 static void hl_pre(uint32_t ov)
 {
     int vis = (hl_menu() || lay_hint_t || (hl.t && hl.scr == ui.scr && lay.shown == LY_PLAY && !name_on())) && ov != 1u && ov != 3u && ov != 4u;
@@ -349,6 +350,8 @@ static void hl_pre(uint32_t ov)
         char w[64];
         vis = hl_src(w) != 0;                           /* (no line: shown still when the value is automated, its sources) */
     }                                        /* (a value with no line: nothing; a menu keeps its empty line) */
+    hl_nn_only = !vis && nn_vis && ov != 1u && ov != 3u && ov != 4u;   /* (the note played on the keys alone: the line shows */
+    vis |= hl_nn_only;                                                  /* it and nothing else, op_draw.c nn_tick) */
     if (vis == hl.on)
         return;
     hl.on = (uint8_t)vis;
@@ -365,10 +368,10 @@ static void hl_post(void)
     uint32_t off, sig, dst, src;
     if (!hl.on)
         return;
-    off = lay_hint_t ? 0xFFFFu : hl_text();             /* (a layer just opened: its hint, op_laydraw.c lay_hint) */
-    dst = lay_hint_t ? 0u : hl_dest(b);                 /* (a DEST on an engine value: its engine and name) */
-    src = lay_hint_t ? 0u : hl_src(w);                  /* (an automated value: where its change comes from) */
-    sig = hu(hu(hu(hu(0x4E1Fu, settings.palette), off), dst), src);
+    off = hl_nn_only ? 0u : lay_hint_t ? 0xFFFFu : hl_text();   /* (a layer just opened: its hint, op_laydraw.c lay_hint) */
+    dst = hl_nn_only || lay_hint_t ? 0u : hl_dest(b);   /* (a DEST on an engine value: its engine and name) */
+    src = hl_nn_only || lay_hint_t ? 0u : hl_src(w);    /* (an automated value: where its change comes from) */
+    sig = hu(hu(hu(hu(hu(0x4E1Fu, settings.palette), off), dst), src), nn_vis);   /* (nn_vis: the note played, op_draw.c) */
     if (src) {                                          /* the sources first ("LOCK LFO-A: Filter cutoff"), cut to the band */
         uint32_t n = str_len(w);
         if (dst || (off && off != 0xFFFFu)) {
@@ -385,12 +388,20 @@ static void hl_post(void)
     ui.sig[5] = sig;
     cv_begin(240, HL_H, C_BLACK);
     cv_hline(0, C_LINE);
-    if (off == 0xFFFFu)
-        cv_texts(4, 2, "Oct- locks it", C_AMB);
-    else if (dst)
-        cv_texts(4, 2, b, C_AMB);
-    else if (off)
-        cv_texts(4, 2, ph_text(off, b), C_AMB);
+    {
+        int32_t x = 4;
+        if (nn_vis) {                                   /* the note played on the keys at the line's left end */
+            note_name(w, nn_vis - 1u);
+            cv_texts(4, 2, w, C_WHITE);
+            x = (int32_t)NN_W;
+        }
+        if (off == 0xFFFFu)
+            cv_texts(x, 2, "Oct- locks it", C_AMB);
+        else if (dst)
+            cv_texts(x, 2, b, C_AMB);
+        else if (off)
+            cv_texts(x, 2, ph_text(off, b), C_AMB);
+    }
     cv_blit(0, HL_Y);
 }
 #endif

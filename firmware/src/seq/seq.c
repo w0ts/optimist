@@ -49,6 +49,8 @@ static volatile uint8_t kb_boot_hold;
 enum { KS_NONE, KS_NOTE, KS_DRUM, KS_ROLL, KS_ERASE, KS_FX, KS_UI, KS_MOD };   /* KS_MOD: a CHORD+ modifier */
 static uint8_t kb_kind[27], kb_trk[27], kb_n[27], kb_nt[27][4];
 static uint8_t kb_root[27];                    /* KS_NOTE: the key's own note (in chord mode the chord's root) */
+static uint8_t kb_shown, kb_shown_n;           /* the lowest note the last key played, and a count of the keys played
+                                                * (the UI's note name, bottom left: op_draw.c nn_post) */
 static int8_t kb_oct[27];                      /* KS_NOTE: the octave buttons when the key went down (arp_add, #191) */
 static uint8_t last_note = 60;
 static uint8_t pen_n = 1, pen_note[4] = {60};   /* the last chord / note played: the SEQ layer writes it */
@@ -2248,6 +2250,10 @@ static void key_down(uint32_t k)
             midi_key_out(mc, kb_nt[k][i], 100u);
         }
         in_key = 0;
+        kb_shown = kb_nt[k][0];
+        for (i = 1; i < kb_n[k]; i++)
+            kb_shown = kb_nt[k][i] < kb_shown ? kb_nt[k][i] : kb_shown;   /* (a chord: its lowest) */
+        kb_shown_n++;
         /* the pen of the SEQ layer: the keys down now (a chord), else this note */
         if (!(kb_prev & ~(1u << k)) || pen_n >= 4u)
             pen_n = 0;
