@@ -469,11 +469,11 @@ job; ( jobin
 job; ( jobin
     $CC -O1 -w -I"$HGEN" -Ifirmware/src $SEC4 -DFELUCCA_ENG_PHYS=1 -DFELUCCA_ENG_ACID=1 -DFELUCCA_ENG_CZ=1 -DFELUCCA_MOTION=1 -DFELUCCA_PLOCK=1 -DFELUCCA_MICRO=1 -DFELUCCA_FILLS=1 -DFELUCCA_TRK_FILT=1 -DFELUCCA_CHORDPLUS=1 -o "$OUT/auto_int8_check" tests/auto_int8_check.c -lm
     run "the automation store's int8 check: every lockable / recordable value (TP[], every engine's EDIT) fits a signed byte" "$OUT/auto_int8_check"
+    $CC -O1 -w -I"$HGEN" -Ifirmware/src $SEC4 $ENV1_ENG -DFELUCCA_ENG_FM6=1 -DFELUCCA_MOTION=1 -DFELUCCA_PLOCK=1 -DFELUCCA_TRK_FILT=1 -DFELUCCA_CHORDPLUS=1 -o "$OUT/auto_int8_all" tests/auto_int8_check.c -lm
+    run "every engine built: every value of a sound fits the signed byte a user preset keeps it in (upreset.c UPB4)" "$OUT/auto_int8_all"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src $SL24_ON -DFELUCCA_CHANCE=1 $SEC4 -o "$OUT/auto_render" tests/auto_render.c -lm
-    $CC -O1 -w -I"$HGEN" -Ifirmware/src $SEC4 $ENV1_ENG -DFELUCCA_ENG_FM6=1 -DFELUCCA_MOTION=1 -DFELUCCA_PLOCK=1 -DFELUCCA_TRK_FILT=1 -DFELUCCA_CHORDPLUS=1 -o "$OUT/auto_int8_all" tests/auto_int8_check.c -lm
-    run "every engine built: every value of a sound fits the signed byte a user preset keeps it in (upreset.c UPB4)" "$OUT/auto_int8_all"
     run "the automation store's render: nudges, fills, locks, motion, chance bits, 8 bars: the mix equal to 2907501's (micro timing as before)" "$OUT/auto_render"
     run "the automation store's CPU: a step's events (24 locks + 30 hold events; a full list of 128), instructions a step within its budget" "$OUT/auto_render" cpu
 ) >"$U.out" 2>&1 & jobbg
