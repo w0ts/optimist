@@ -29,7 +29,7 @@ python tools/optimist.py emu        # pick a firmware (build/ or firmwares/) and
 | --- | --- |
 | `setup [--check] [--yes] [--no-emu]` | check the prerequisites; fetch the builder's venv (Textual, Pillow), the three SDK files and the toolchain (Linux x86-64) or its Docker image (elsewhere). `--check` fetches nothing, `--yes` does not ask |
 | `builder [--profile P \| --config F]` | the interactive builder menu (docs/BUILDER.md) |
-| `build [--profile P \| --config F \| --defaults] [--set KEY=V] [--release X.Y] [--measure] [--summary F]` | build without the menu. Default profile: `synth` |
+| `build [--profile P \| --config F \| --defaults] [--set KEY=V] [--release X.Y] [--measure] [--summary F]` | build without the menu. Default profile: `synths_USBaudio_BTaudio_BTmidi` |
 | `package [... the same ...] [--out DIR]` | build, then copy `optimist-<version>-<profile>.fwsc` and its `-ui.zip` to `DIR` (default `firmwares/`) |
 | `flash [PACKAGE.fwsc \| --no-build] [--profile P \| --config F] [--port NAME] [--yes]` | install a build on an FM-1 over USB-MIDI (below, "Install") |
 | `config ...` | the builder without the menu (`--list`, `--budget`, `--fit`, `--write`, `--profiles`, `--publish`, `--share`, `--delete`; `tools/builder/configure.py --help`) |
@@ -286,7 +286,7 @@ python tools/optimist.py test --python    # the Python tests only (any host, no 
 ```
 
 `test` first makes the builds the tests read, all at once (`JOBS`, default sized to the CPUs and RAM; each in
-`build/slots/t-*`): `synth` (the installer, update and rescue tests need a package that fits and its app), a
+`build/slots/t-*`): the reference profile, `synths_USBaudio_BTaudio_BTmidi` (the installer, update and rescue tests need a package that fits and its app), a
 measurement build of every item (it does not fit the slot; the target-cost check needs `felucca.dis`), two BLE builds
 for the emulator tests (`build/ble/`), and a measurement build of each of the builder's check configurations (the drift
 check). Then it runs `tests/run_tests.sh`: the C host tests (flash storage, presets, MIDI parser, update entry and
@@ -337,8 +337,8 @@ once in processes of their own (`--jobs N`), `timing` alone after them. Exit 1 o
 ### The gate
 
 `make gate` (`python tools/optimist.py gate`; `tools/gate.py --help`) runs before a push: the builder costs check
-(`--missing --check`), every published profile built (`--no-profiles`: `synth` only), `CONFIG=file` and
-`SET="KEY=V ..."` builds if given, the host tests, then `synth` built again last so `build/` holds its package and
+(`--missing --check`), every published profile built (`--no-profiles`: the reference profile only), `CONFIG=file` and
+`SET="KEY=V ..."` builds if given, the host tests, then the reference profile (`synths_USBaudio_BTaudio_BTmidi`) built again last so `build/` holds its package and
 ELF (`EMU=1`: then `make emu-check` on it). Each step logs to `build/gate/`; every step runs even after a failed one.
 
 ## Install

@@ -17,7 +17,7 @@ which asset in this tree (from `hugelton/Felucca` at the tags `v0.9-beta` e5a908
 
   Our `tools/gen_waves.py` is the same generator (it differs from 1.0.3's in three comment lines only).
   In Optimist it makes the SLICE engine's built-in BREAK (`tools/gen_samples.py`; the builder's
-  `ENG_SLICE`, on in the drum-machine and x0x-drums profiles and in `config/user.config`). The sampled drum kit (PERC) takes all of its
+  `ENG_SLICE`, off in every shipped profile since 2026-10-24). The sampled drum kit (PERC) takes all of its
   16 sounds from the CC0 recordings in `assets/samples-cc0/KIT`. The pack would fill in only for a sound
   that kit lacked, and it lacks none.
 - **The panel picture** `docs/panel.jpg`: GPL-3.0-only since Felucca 1.0 (replaced by `docs/controls.jpg`,

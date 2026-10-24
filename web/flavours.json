@@ -3,7 +3,7 @@
     {
       "id": "default",
       "title": "Synths, USB audio, Bluetooth audio and MIDI",
-      "description": "The default build (profile synths_USBaudio_BTaudio_BTmidi): FM6 with its voice packs, ACID, JUNO and PHYS, the X0X 909 and 808 drums, the Optimist UI, USB audio, Bluetooth MIDI, Bluetooth audio, and the web editor's backup and restore.",
+      "description": "The default build (profile synths_USBaudio_BTaudio_BTmidi): FM6 with three voice packs, ACID, JUNO and PHYS, the X0X 909 and 808 drums, the Optimist UI, USB audio, Bluetooth MIDI, Bluetooth audio, and the web editor's backup and restore.",
       "profile": "synths_USBaudio_BTaudio_BTmidi",
       "file": "dist/optimist-*-synths-usb-bta-btm.fwsc",
       "sim": "dist/optimist-sim-synths_USBaudio_BTaudio_BTmidi.wasm"

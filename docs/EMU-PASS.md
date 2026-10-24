@@ -26,7 +26,9 @@ compiler emits that the interpreter did not decode), in WAVE and PLAITS; patched
 | Builds | gpu farm, `OPTIMIST_DUAL_PARK=1 python3 tools/optimist.py build --profile synth --set ...` (`tests/emu/farm_build.sh`) |
 | Baseline | `firmwares/felucca-1.0.3.fwsc` boots and plays (play_check, 96 MHz: chord rms 0.0106, peak 0.0675) |
 
-The six configurations (all on top of `config/profiles/synth.config`):
+The six configurations (all on top of `config/profiles/synth.config`; that profile went 2026-10-24: `tests/emu/farm_build.sh`
+now builds the same sets on the reference profile, `synths_USBaudio_BTaudio_BTmidi`, its first build named `ref`, not measured
+here):
 
 | Build | Engines (ENGINES[]) | --set | Flash / RAM |
 |---|---|---|---|

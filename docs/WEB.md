@@ -58,8 +58,8 @@ is opened; `--shots DIR` saves screenshots).
 
 `web/flavours.json` lists the firmware packages: `id` (lowercase, part of the file name), `title` and `description` (shown
 by the installer), `profile` (the `config/profiles/` profile CI builds), `file` (a glob of the package it produces:
-`dist/optimist-*-<profile>.fwsc`) and `sim` (the simulator `.wasm` built for it). `"default": true` marks the flavour the
-web builder opens with (without one: the first). Today there is one flavour, `default` (the `synth` profile). To add one, add an entry; CI builds
+`dist/optimist-*-<name>.fwsc`, the slug of the profile's `# name:`) and `sim` (the simulator `.wasm` built for it). `"default": true` marks the flavour the
+web builder opens with (without one: the first). Today there is one flavour, `default` (the `synths_USBaudio_BTaudio_BTmidi` profile). To add one, add an entry; CI builds
 every listed profile. `python3 web/make_site.py --profiles` prints the profiles; `--flavours web/flavours.json <version>
 <out>` builds the site from packages already in `dist/`.
 
