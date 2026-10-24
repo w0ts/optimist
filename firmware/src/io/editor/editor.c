@@ -381,12 +381,12 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         ed_b32(id, 2);
         ed_v(*vp);
         break;
+    }
     case ED_DUMP:
         ed9_known_track(song.sel);                         /* the editor gets them all here */
         memcpy(e9.g, song.g, sizeof e9.g);
         ed_b2(ed_eng(TSEL), TSEL->preset);
         ed_vs(TSEL->p, P_COUNT);
-    }
         ed_vs(song.g, G_COUNT);
         break;
     case ED_DESC:                                          /* scope, id (2 x 7 bit) */
