@@ -1106,7 +1106,7 @@ _add("BLE_DIAG", "FELUCCA_BLE_DIAG", "BLE diagnostics: the console's blell, coun
           "console (USB_CONSOLE) for blell itself. Leave it off for normal use: BLE works the same without it; "
           "bletrim and blevm stay, and so does the boot breadcrumb.",
      symbols=("con_blell",))
-_add("BLE_BOND", "FELUCCA_BLE_BOND", "BLE bonding: pairing (Just Works) and an encrypted link", M, 254, default=0,
+_add("BLE_BOND", "FELUCCA_BLE_BOND", "BLE pairing when a Mac or phone connects to the FM-1 (Just Works, encrypted, remembered)", M, 254, default=0,
      parent="BLE", target_only=True,
      desc="LE legacy pairing with Just Works (no passkey, as the FM-1 has no screen keypad for it) and "
           "bonding, so a Mac or phone that pairs once gets an encrypted link and finds the FM-1 bonded after a power-off. "
@@ -1114,10 +1114,10 @@ _add("BLE_BOND", "FELUCCA_BLE_BOND", "BLE bonding: pairing (Just Works) and an e
           "power-off for now), which reconnecting to devices with private addresses needs later. Pairing happens only when the other side asks for it. Paired "
           "with a Mac on an FM-1 (2026-10-18). About 3.6 KB of flash and 0.4 KB of RAM.",
      symbols=("bsmp",), tested="on an FM-1 with a Mac (2026-10-18)")
-_add("BLE_CENTRAL", "FELUCCA_BLE_CENTRAL", "BLE devices: connect to BLE-MIDI devices, reconnect the last one", M, 255,
+_add("BLE_CENTRAL", "FELUCCA_BLE_CENTRAL", "BLE devices: the FM-1 connects to BLE-MIDI devices", M, 255,
      default=0, parent="BLE", target_only=True,
-     choices=((0, "off"), (1, "full: Just Works and the passkey, devices with private addresses"),
-              (3, "minimal: no pairing (controllers, another FM-1)")),
+     choices=((0, "off"), (1, "full: also pairs with devices that ask (passkey, private addresses)"),
+              (3, "minimal: never pairs (controllers, another FM-1)")),
      desc="SYSTEM > Devices lists the BLE-MIDI devices nearby (keyboards, controllers, "
           "a Mac or an iPhone app that advertises BLE MIDI, another FM-1) with their names and relative signal bars, "
           "scanning only while the list is open (the FM-1 stops advertising meanwhile). Picking one connects to it as "
