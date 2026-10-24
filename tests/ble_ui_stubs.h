@@ -13,6 +13,9 @@ static volatile uint32_t bmi_w, bmo_w;           /* (midi_ble.c: BLE MIDI in que
 static int ble_connected(void) { return ble_link; }
 static int ble_radio_ok(void) { return 1; }       /* (the stored RF trims found: midi_ble.c) */
 static void ble_midi_out(uint32_t pkt) { (void)pkt; }
+static int ble_rt_on(void) { return 0; }         /* (midi_ble.c: CLOCK OUT to a central, clock_out.c; none listens here) */
+static void ble_rt_push(uint32_t due, uint32_t pkt) { (void)due, (void)pkt; }
+static void ble_rt_drop_after(uint32_t t, uint32_t pkt) { (void)t, (void)pkt; }
 static void ble_midi_set(uint8_t on) { on = on ? 1u : 0u; if (on != ble_on) { ble_on = on; ble_sets++; } }
 /* the DEVICES list (firmware/src/io/midi/ble_devices.c) with its plain parts (the device store, the scanner's table)
  * and a stand-in link layer: ble_ll_scan records what is wanted, the reports come from the test (ble_fake_rep) */
