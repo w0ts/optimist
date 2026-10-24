@@ -27,8 +27,11 @@ final class MirrorLink: ObservableObject, Transport {
     /// No port taken until a port is chosen, Connect is pressed or the FM-1 is picked in the Bluetooth sheet: at launch and after
     /// Disconnect alike, the welcome screen (the user, 2026-10-24: "NO AUTOCONNECT")
     @Published private(set) var paused = true
-    func disconnect() { paused = true; reconnect() }
-    func resume() { paused = false; reconnect() }
+    /// the port Connect took or the Bluetooth sheet connected ("": the FM-1's, USB first); until the next Disconnect
+    private var want = ""
+    func disconnect() { paused = true; want = ""; reconnect() }
+    /// port: the one to take (the Bluetooth sheet's: not the USB cable's when it is in too)
+    func resume(_ port: String = "") { paused = false; want = port; reconnect() }
     private func reconnect() {
         if source != 0 { MIDIPortDisconnectSource(inPort, source) }
         source = 0; destination = 0
@@ -37,6 +40,7 @@ final class MirrorLink: ObservableObject, Transport {
     @Published var chosen = UserDefaults.standard.string(forKey: "port") ?? "" {
         didSet {
             paused = false
+            want = ""
             UserDefaults.standard.set(chosen, forKey: "port")
             if source != 0 { MIDIPortDisconnectSource(inPort, source) }
             source = 0; destination = 0
@@ -197,10 +201,10 @@ final class MirrorLink: ObservableObject, Transport {
         ports = (0..<MIDIGetNumberOfSources()).map { Self.name(MIDIGetSource($0)) }.filter { outs.contains($0) }
         online = (0..<MIDIGetNumberOfSources()).map(MIDIGetSource).filter { Self.isOnline($0) }.map(Self.name).filter { outs.contains($0) }
         if !paused, !portName.isEmpty, !online.contains(portName) {
-            paused = true               // (the port in use gone, the USB cable out: the welcome screen, no other port taken; the
+            paused = true; want = ""    // (the port in use gone, the USB cable out: the welcome screen, no other port taken; the
         }                               //  user, 2026-10-24: "NO AUTOCONNECT", it went on over Bluetooth by itself)
-        let src = paused ? nil : Self.find(MIDIGetNumberOfSources(), MIDIGetSource, chosen: chosen)
-        let dst = paused ? nil : Self.find(MIDIGetNumberOfDestinations(), MIDIGetDestination, chosen: chosen)
+        let src = paused ? nil : Self.find(MIDIGetNumberOfSources(), MIDIGetSource, chosen: want.isEmpty ? chosen : want)
+        let dst = paused ? nil : Self.find(MIDIGetNumberOfDestinations(), MIDIGetDestination, chosen: want.isEmpty ? chosen : want)
         guard src != source || dst != destination else { return }
         if source != 0 { MIDIPortDisconnectSource(inPort, source) }
         source = src ?? 0
