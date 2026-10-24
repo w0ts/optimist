@@ -105,16 +105,16 @@ The SCL page (and the layer: hold SCL, press a key to set the key of the song) h
 
 Builder item `PATTERNS`: each track keeps up to 16 stored patterns, and a **scene** names a pattern per track. **LFO held** is the patterns layer:
 
-- A white key n launches the selected track's pattern n at the end of its pass (OCT+ + the key: now). SAVE + n stores the working pattern into slot n (asked over a used one). SHIFT + n clears slot n (asked).
+- A white key n launches the selected track's pattern n at the end of its pass (OCT- + the key: at the next bar; OCT+ + the key: now). SAVE + n stores the working pattern into slot n (asked over a used one). HOME + n clears slot n (asked).
 - Black keys 1-4 pick the track, 5 stops the pattern, 9 duplicates the working pattern into the first free slot ("NO FREE PATTERN" if none).
-- Black key 10 turns the white keys into scenes A-P (until black 10 again or LFO is let go): the same verbs launch, store and clear a scene.
+- Black key 10 turns the white keys into scenes A-P (until black 10 again or LFO is let go): the same verbs launch, store and clear a scene. SEQ + n stores the four tracks' patterns as scene n.
 - SAVE + SEQ stores the working pattern into the slot it came from. The SONG screen has a PATTERNS row with the same keys.
 
 ## Sections and the song
 
-Sections A to P (16; a build may have 8 or 4) hold the four tracks: sounds, patterns, kit. In the LFO layer's scene keys: a white key starts the scene at the next bar (stopped: loads it, asked over changed work), SAVE + n stores the loop into it, SHIFT + n clears it (asked). Two taps or more of scene keys in one hold while playing queue a quick chain (`QCHAIN`, up to 8, not saved). SAVE + PLAY plays the song from its start, SAVE + REC tapped records the song as you play the sections.
+Sections A to P (16; a build may have 8 or 4) hold the four tracks: sounds, patterns, kit. In the LFO layer's scene keys: a white key starts the scene at the next bar (stopped: loads it, asked over changed work), SAVE + n stores the loop into it, HOME + n clears it (asked). Two taps or more of scene keys in one hold while playing queue a quick chain (`QCHAIN`, up to 8, not saved). SEQ + PLAY plays the song from its start, SEQ + REC tapped records the song as you play the sections.
 
-**SONG** is SAVE held on PROJECT (SAVE held again: back). It has the scenes (a row each: the pattern each track plays in it; SAVE launches, REC stores the loop, SHIFT + REC clears), the PATTERNS row, MODE (LOOP or SONG, SONG REC, SAVE writes the chain) and the chain's parts (SCENE, BARS, INSERT, DELETE). The sections are stored compressed in one log; PROJECT > MEMORY shows how full it is.
+**SONG** is SAVE held on PROJECT, SEQ held (not on STEP) or SHIFT2 + SEQ. It has the scenes (a row each: the pattern each track plays in it; SAVE launches, REC stores the loop, SHIFT + REC or SAVE held clears), the PATTERNS row, MODE (LOOP or SONG, SONG REC, SAVE writes the chain) and the chain's parts (SCENE, BARS, INSERT, DELETE). The sections are stored compressed in one log; PROJECT > MEMORY shows how full it is.
 
 ## Snapshots
 
