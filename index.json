@@ -1,0 +1,314 @@
+{
+ "version": 1,
+ "retain_days": 30,
+ "builds": [
+  {
+   "id": "7e3be9b65c63ecbf",
+   "key": "7e3be9b65c63ecbf240e760ff89f2c8cc7277dc001331bd9bbd9a70a54f61c25",
+   "stem": "optimist-synth-7e3be9b65c63ecbf",
+   "name": "Synth",
+   "commit": "8b50af224cdd90203bc1a5448bc7e100ece28588",
+   "date": "2026-10-24T11:29:29Z",
+   "issue": 18,
+   "sha256": "59144660157782e5151e66b8a02a48de81e01f9dbcc59e000c3fbf26163c917b",
+   "sizes": {
+    "flash": 469328,
+    "ram": 84116,
+    "pool": 295048,
+    "ramtext": 22036,
+    "noinit": 13246
+   },
+   "fwsc": "optimist-synth-7e3be9b65c63ecbf.fwsc",
+   "ui": "optimist-synth-7e3be9b65c63ecbf-ui.zip",
+   "config": "optimist-synth-7e3be9b65c63ecbf.config",
+   "sim": "optimist-synth-7e3be9b65c63ecbf.wasm"
+  },
+  {
+   "id": "e62b40a572116043",
+   "key": "e62b40a5721160438c89ff47f0f8f4a060036d15852c9ce1909aff5140881cf9",
+   "stem": "optimist-everything-fits-e62b40a572116043",
+   "name": "everything fits",
+   "commit": "a26a32872dcb7f9cc5bdbb3738dfbcdc7f49ff72",
+   "date": "2026-10-24T04:12:16Z",
+   "issue": 16,
+   "sha256": "ab8860d6d68522e4a3fe035908edf76efba2983b202ad90c190e612360fe1194",
+   "sizes": {
+    "flash": 556636,
+    "ram": 73312,
+    "pool": 282476,
+    "ramtext": 27520,
+    "noinit": 13040
+   },
+   "fwsc": "optimist-everything-fits-e62b40a572116043.fwsc",
+   "ui": "optimist-everything-fits-e62b40a572116043-ui.zip",
+   "config": "optimist-everything-fits-e62b40a572116043.config",
+   "sim": "optimist-everything-fits-e62b40a572116043.wasm"
+  },
+  {
+   "id": "76a6f3f8e73ba48b",
+   "key": "76a6f3f8e73ba48b37d24ad9e7667a38f4d54bc98ab5a2e6fb86de0e03071842",
+   "stem": "optimist-everything-fits-jl-76a6f3f8e73ba48b",
+   "name": "everything fits JL",
+   "commit": "8c392850ef67f244d07008a2168ff9d1d221a18f",
+   "date": "2026-10-22T18:32:30Z",
+   "issue": 15,
+   "sha256": "86d697c160f297ef816374742e121daaa81e2620b942e8b98a56658d0b68a52e",
+   "sizes": {
+    "flash": 572440,
+    "ram": 78868,
+    "pool": 269960,
+    "ramtext": 31796,
+    "noinit": 12990
+   },
+   "fwsc": "optimist-everything-fits-jl-76a6f3f8e73ba48b.fwsc",
+   "ui": "optimist-everything-fits-jl-76a6f3f8e73ba48b-ui.zip",
+   "config": "optimist-everything-fits-jl-76a6f3f8e73ba48b.config",
+   "sim": "optimist-everything-fits-jl-76a6f3f8e73ba48b.wasm"
+  },
+  {
+   "id": "23b53f33ee98a42c",
+   "key": "23b53f33ee98a42cae9ed30fda760e2c497da0963368cec025d36c9949253b14",
+   "stem": "optimist-jlop3-23b53f33ee98a42c",
+   "name": "JLOP3",
+   "commit": "8c392850ef67f244d07008a2168ff9d1d221a18f",
+   "date": "2026-10-22T18:14:57Z",
+   "issue": 14,
+   "sha256": "c77f72f72306785db2d4b44be59041ac90408250318bebf23550e34e80b23a94",
+   "sizes": {
+    "flash": 574068,
+    "ram": 83064,
+    "pool": 288556,
+    "ramtext": 22952,
+    "noinit": 13246
+   },
+   "fwsc": "optimist-jlop3-23b53f33ee98a42c.fwsc",
+   "ui": "optimist-jlop3-23b53f33ee98a42c-ui.zip",
+   "config": "optimist-jlop3-23b53f33ee98a42c.config",
+   "sim": "optimist-jlop3-23b53f33ee98a42c.wasm"
+  },
+  {
+   "id": "de8e429ce9e78624",
+   "key": "de8e429ce9e78624319cc148eac549e6064a841090e0036623699e2930d66767",
+   "stem": "optimist-jlop2-de8e429ce9e78624",
+   "name": "JLOP2",
+   "commit": "8c392850ef67f244d07008a2168ff9d1d221a18f",
+   "date": "2026-10-22T18:03:14Z",
+   "issue": 13,
+   "sha256": "8ae8d76d9b3a2176fd7119f113c5335acad50f79c238f5bb2ff61f123a945cea",
+   "sizes": {
+    "flash": 579380,
+    "ram": 90252,
+    "pool": 294272,
+    "ramtext": 23076,
+    "noinit": 13296
+   },
+   "fwsc": "optimist-jlop2-de8e429ce9e78624.fwsc",
+   "ui": "optimist-jlop2-de8e429ce9e78624-ui.zip",
+   "config": "optimist-jlop2-de8e429ce9e78624.config",
+   "sim": "optimist-jlop2-de8e429ce9e78624.wasm"
+  },
+  {
+   "id": "87c17022b07d9bb6",
+   "key": "87c17022b07d9bb64f8d3060ee9a31049e798b8617f770f2f1eae8987ef86333",
+   "stem": "optimist-jkdr-87c17022b07d9bb6",
+   "name": "jkdr",
+   "commit": "8c392850ef67f244d07008a2168ff9d1d221a18f",
+   "date": "2026-10-22T17:42:12Z",
+   "issue": 12,
+   "sha256": "09198148d419ada433231831f5e25eb571b06fd59288f43c5dcfa2f2304393ad",
+   "sizes": {
+    "flash": 564576,
+    "ram": 94028,
+    "pool": 322332,
+    "ramtext": 24100,
+    "noinit": 13246
+   },
+   "fwsc": "optimist-jkdr-87c17022b07d9bb6.fwsc",
+   "ui": "optimist-jkdr-87c17022b07d9bb6-ui.zip",
+   "config": "optimist-jkdr-87c17022b07d9bb6.config",
+   "sim": "optimist-jkdr-87c17022b07d9bb6.wasm"
+  },
+  {
+   "id": "0cdb15fe9cc44da2",
+   "key": "0cdb15fe9cc44da2a05e3f932da161a7ffd9eb4c02907f2ba5853afd6cae7741",
+   "stem": "optimist-fm-va-studio-0cdb15fe9cc44da2",
+   "name": "FM + VA studio",
+   "commit": "8c392850ef67f244d07008a2168ff9d1d221a18f",
+   "date": "2026-10-22T03:03:19Z",
+   "issue": 11,
+   "sha256": "130085627899a02c90b54aa571af668de069f8aabc5488e307ca1bdc0f3a81c0",
+   "sizes": {
+    "flash": 562324,
+    "ram": 93972,
+    "pool": 329336,
+    "ramtext": 25680,
+    "noinit": 13246
+   },
+   "fwsc": "optimist-fm-va-studio-0cdb15fe9cc44da2.fwsc",
+   "ui": "optimist-fm-va-studio-0cdb15fe9cc44da2-ui.zip",
+   "config": "optimist-fm-va-studio-0cdb15fe9cc44da2.config",
+   "sim": "optimist-fm-va-studio-0cdb15fe9cc44da2.wasm"
+  },
+  {
+   "id": "b0acc46d3fd8897a",
+   "key": "b0acc46d3fd8897adea964efc86a3faf15a6f3d23cd7b1137380b5af84c45d5a",
+   "stem": "optimist-custom-v1-b0acc46d3fd8897a",
+   "name": "custom-v1",
+   "commit": "8c392850ef67f244d07008a2168ff9d1d221a18f",
+   "date": "2026-10-22T02:15:14Z",
+   "issue": 10,
+   "sha256": "5f43c2c54ac5f3a8f89891e6fabcbcc5b06351cd6d2626967f6710727010378b",
+   "sizes": {
+    "flash": 551708,
+    "ram": 86756,
+    "pool": 329336,
+    "ramtext": 25404,
+    "noinit": 13246
+   },
+   "fwsc": "optimist-custom-v1-b0acc46d3fd8897a.fwsc",
+   "ui": "optimist-custom-v1-b0acc46d3fd8897a-ui.zip",
+   "config": "optimist-custom-v1-b0acc46d3fd8897a.config",
+   "sim": "optimist-custom-v1-b0acc46d3fd8897a.wasm"
+  },
+  {
+   "id": "e6b258ff4c85aa5f",
+   "key": "e6b258ff4c85aa5f4c576471060b35f7dc281da76c75301ea8d686b3f02979e1",
+   "stem": "optimist-jsm1-e6b258ff4c85aa5f",
+   "name": "jsm1",
+   "commit": "8c392850ef67f244d07008a2168ff9d1d221a18f",
+   "date": "2026-10-20T04:39:59Z",
+   "issue": 8,
+   "sha256": "e4ed4fa55a4abb2adea0a37be301f14587b7e283aa750aae01109aa7dad54f1b",
+   "sizes": {
+    "flash": 536872,
+    "ram": 96172,
+    "pool": 276724,
+    "ramtext": 26668,
+    "noinit": 13296
+   },
+   "fwsc": "optimist-jsm1-e6b258ff4c85aa5f.fwsc",
+   "ui": "optimist-jsm1-e6b258ff4c85aa5f-ui.zip",
+   "config": "optimist-jsm1-e6b258ff4c85aa5f.config",
+   "sim": "optimist-jsm1-e6b258ff4c85aa5f.wasm"
+  },
+  {
+   "id": "efeea70e371da684",
+   "key": "efeea70e371da684b24f3f88033d087aa2a23005a2c758aab41e86706e44a229",
+   "stem": "optimist-synth-efeea70e371da684",
+   "name": "Synth",
+   "commit": "8c392850ef67f244d07008a2168ff9d1d221a18f",
+   "date": "2026-10-20T04:00:22Z",
+   "issue": 7,
+   "sha256": "8d12549e3c97fc3a8b50acd9c4d4a89a9e45583c364ce7ba32091381f040c1a1",
+   "sizes": {
+    "flash": 554096,
+    "ram": 95948,
+    "pool": 275092,
+    "ramtext": 26844,
+    "noinit": 13296
+   },
+   "fwsc": "optimist-synth-efeea70e371da684.fwsc",
+   "ui": "optimist-synth-efeea70e371da684-ui.zip",
+   "config": "optimist-synth-efeea70e371da684.config",
+   "sim": "optimist-synth-efeea70e371da684.wasm"
+  },
+  {
+   "id": "4351466aa961dac8",
+   "key": "4351466aa961dac896b8f15578da8147adcdbf0977fd366f12bbd619bf5a36d9",
+   "stem": "optimist-synth-4351466aa961dac8",
+   "name": "Synth",
+   "commit": "8c392850ef67f244d07008a2168ff9d1d221a18f",
+   "date": "2026-10-19T22:02:03Z",
+   "issue": 6,
+   "sha256": "e11f8e8d3d38833bcf77728f70f81b847d21eef42dd5246e3c9a7024d01e8e2e",
+   "sizes": {
+    "flash": 577796,
+    "ram": 94680,
+    "pool": 310652,
+    "ramtext": 26012,
+    "noinit": 13296
+   },
+   "fwsc": "optimist-synth-4351466aa961dac8.fwsc",
+   "ui": "optimist-synth-4351466aa961dac8-ui.zip",
+   "config": "optimist-synth-4351466aa961dac8.config",
+   "sim": "optimist-synth-4351466aa961dac8.wasm"
+  },
+  {
+   "id": "711ff55ce4048082",
+   "key": "711ff55ce404808277887fa886e23d128f5551b256481db8af432ad8f58292aa",
+   "stem": "optimist-synth-711ff55ce4048082",
+   "name": "Synth",
+   "commit": "8c392850ef67f244d07008a2168ff9d1d221a18f",
+   "date": "2026-10-19T21:37:27Z",
+   "issue": 5,
+   "sha256": "bbe21f0237cb515bbb356f2d44fbf5e1f8c7cc7756223f9b2db2d03ef20d53c1",
+   "sizes": {
+    "flash": 576304,
+    "ram": 93416,
+    "pool": 310652,
+    "ramtext": 22740,
+    "noinit": 13296
+   },
+   "fwsc": "optimist-synth-711ff55ce4048082.fwsc",
+   "ui": "optimist-synth-711ff55ce4048082-ui.zip",
+   "config": "optimist-synth-711ff55ce4048082.config",
+   "sim": "optimist-synth-711ff55ce4048082.wasm"
+  },
+  {
+   "id": "e13cecef7ad0c467",
+   "key": "e13cecef7ad0c4670561f1f7cc9e7d4bfe1e1887f013e7be7af5e02b18f91ddd",
+   "stem": "optimist-synth-e13cecef7ad0c467",
+   "name": "Synth",
+   "commit": "8c392850ef67f244d07008a2168ff9d1d221a18f",
+   "date": "2026-10-19T17:27:55Z",
+   "issue": 4,
+   "sha256": "935abdbe9595c1cd84f65910498a7614ac5edb0abbb71f7e98926d8ca520d807",
+   "sizes": {
+    "flash": 554528,
+    "ram": 96220,
+    "pool": 275092,
+    "ramtext": 26844,
+    "noinit": 13296
+   },
+   "fwsc": "optimist-synth-e13cecef7ad0c467.fwsc",
+   "ui": "optimist-synth-e13cecef7ad0c467-ui.zip",
+   "config": "optimist-synth-e13cecef7ad0c467.config",
+   "sim": "optimist-synth-e13cecef7ad0c467.wasm"
+  },
+  {
+   "id": "1fdbf79ff395158e",
+   "key": "1fdbf79ff395158e721a8545f8dfba50e6631ebbc4504b483836a6d288bb13d3",
+   "stem": "optimist-custom-1fdbf79ff395158e",
+   "name": "custom",
+   "commit": "8c392850ef67f244d07008a2168ff9d1d221a18f",
+   "date": "2026-10-19T14:22:48Z",
+   "issue": 3,
+   "sha256": "86cb09def7dccc22fad72f1c8887a99232ab36460bb8953b0b61f8845913c125",
+   "sizes": {
+    "flash": 470412,
+    "ram": 82316,
+    "pool": 282460,
+    "ramtext": 24740,
+    "noinit": 13246
+   },
+   "fwsc": "optimist-custom-1fdbf79ff395158e.fwsc",
+   "ui": "optimist-custom-1fdbf79ff395158e-ui.zip",
+   "config": "optimist-custom-1fdbf79ff395158e.config",
+   "sim": "optimist-custom-1fdbf79ff395158e.wasm"
+  },
+  {
+   "id": "0372432b1545131d",
+   "key": "0372432b1545131de51050313694ed36b4e4b83992d28d057b627740c8ea6ab8",
+   "stem": "optimist-synth-0372432b1545131d",
+   "name": "Synth",
+   "commit": "ef98611549ace012b7e0488d62efde9988162226",
+   "date": "2026-10-19T03:48:45Z",
+   "issue": 2,
+   "sha256": "8ceba1da786c23db5d241075097f787fe5aaad412c229ebbd7b0ba23d292a771",
+   "sizes": {},
+   "fwsc": "optimist-synth-0372432b1545131d.fwsc",
+   "ui": "optimist-synth-0372432b1545131d-ui.zip",
+   "config": "optimist-synth-0372432b1545131d.config"
+  }
+ ]
+}
