@@ -3985,7 +3985,6 @@ int main(int argc, char **argv)
     geometry_tests();
     mixer_tests();
     stepdots_tests();
-    notename_tests();
     scope_tests();
     step_keys_tests();
     step_synth_tests();
@@ -4108,6 +4107,7 @@ int main(int argc, char **argv)
 #if FELUCCA_BLE
     ble_tests();
 #endif
+    notename_tests();                                   /* (late: the note it plays moves the master's meters, SCRS's golden) */
     fuzz(20000, 12345);
     check(1, "20000 frames of random use: every draw on the screen");
     if (band_hits)
