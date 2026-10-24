@@ -3,7 +3,7 @@
 # Firmware builder (docs/BUILDER.md); a wrapper of tools/optimist.py (any host: python tools/optimist.py builder).
 #   tools/menuconfig                       the interactive menu (Textual; a venv is made on the first run)
 #   tools/menuconfig --config my.config    the menu on a saved configuration
-#   tools/menuconfig --profile drum-machine
+#   tools/menuconfig --profile drum-machines
 #   tools/menuconfig --profile NAME --build | --list | --budget | --set KEY=V ...   no menu: configure.py
 set -e
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

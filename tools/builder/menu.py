@@ -3,7 +3,7 @@
 
 Keys: space / enter toggle (a choice: next value) | / search | p profiles | s save (mine or stock)
       | u publish this profile or not (CI builds the published ones; one of mine is shared first)
-      | d delete a profile (asks first; never synth or user-default)
+      | d delete a profile (asks first; never the default profile, synths_USBaudio_BTaudio_BTmidi)
       | w write a .config file | l load | b build | e build and run it in the emulator
       | f flash a build of the configuration shown to an FM-1 over USB-MIDI: builds it first when this menu has no
         current one (a progress bar for the build and for the flash); refused only when the builder's own code
@@ -559,11 +559,11 @@ class Builder(App):
                     (f"; shared to config/profiles/{n}.config" if shared else "") + " - commit it", timeout=8)
 
     def action_delete(self):
-        """d: pick a profile (mine, then shipped; synth and user-default are never offered), type yes, it is gone"""
+        """d: pick a profile (mine, then shipped; the default and reference profiles are never offered), type yes, it is gone"""
         mine = [n for n in C.my_profile_names() if n not in C.profile_names()]
         names = [f"mine: {n}" for n in mine] + [n for n in C.profile_names() if n not in (C.DEFAULT_PROFILE, C.REFERENCE_PROFILE)]
         if not names:
-            self.notify("no profile to delete (synth and user-default stay)", severity="warning")
+            self.notify(f"no profile to delete ({C.DEFAULT_PROFILE} stays)", severity="warning")
             return
 
         def confirm(n):
@@ -851,7 +851,7 @@ def recall():
     except (OSError, ValueError, C.ConfigError):
         pass
     try:
-        cfg, name = C.load_profile(C.DEFAULT_PROFILE)       # never used before: the default profile (Optimist Synth)
+        cfg, name = C.load_profile(C.DEFAULT_PROFILE)       # never used before: the default profile (synths-USB-BTA-BTM)
         return cfg, name, None, C.DEFAULT_PROFILE
     except (OSError, C.ConfigError):
         return None, "default", None, None
