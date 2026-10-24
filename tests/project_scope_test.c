@@ -228,6 +228,14 @@ int main(void)
     }
     ok &= project_clear(1) == 0 && !project_used(0) && npat() == 0u && !slg_has(SEC_ID_STATE) && !slg_has(SEC_ID_SONG);
     check("24 stores, clears, pattern writes, state saves, a chain and the whole project cleared in project 2", ok);
+    {   /* a cleared project's name goes with it, the others' stay (2026-10-24: "HAPPY ENDING" stayed on an empty slot) */
+        char b[SEC_NAME_LEN + 1];
+        ok = sec_name_set(5, "HAPPY ENDING") == 0 && sec_name_set(6, "KEEP") == 0 && project_clear(5) == 0;
+        sec_name(5, b);
+        ok &= !b[0];
+        sec_name(6, b);
+        check("DELETE: the project's name cleared, another project's kept", ok && !strcmp(b, "KEEP"));
+    }
     check("... project 1's records byte for byte as before", open_p(0) && as_snapshot() && scene_is(0, 1) && state_is(1));
     /* ---- the arena across a switch */
     make(9), take(9);

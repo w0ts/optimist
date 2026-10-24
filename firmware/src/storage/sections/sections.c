@@ -899,7 +899,7 @@ static int project_open(uint32_t p)
     return state_load();
 }
 /* PROJECT page DELETE (any project) and NEW (the open one): every record of project p gone (its state, scenes, patterns,
- * song, sources); stopped. The open project stays open. 0 ok, -1 a record not cleared (the next clear tries again) */
+ * song, sources) and its name; stopped. The open project stays open. 0 ok, -1 a record not cleared (the next clear tries again) */
 static int project_clear(uint32_t p)
 {
     uint32_t i, was = open_proj;
@@ -920,6 +920,8 @@ static int project_clear(uint32_t p)
         return -1;
     if (p == was)
         proj_scope_read();
+    if (!rc && sec_name_set(p, ""))                    /* its name too (2026-10-24: a cleared project kept its name) */
+        rc = -1;
     return rc;
 }
 /* project p holds something (a live record of its: a state, a scene, a pattern, a chain): the PROJECT page's strip */

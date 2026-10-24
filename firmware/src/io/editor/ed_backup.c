@@ -775,6 +775,9 @@ static __attribute__((noinline)) int bk_st_ok(uint32_t obj, const uint8_t *b, ui
 #ifdef PERSIST_MAGIC
     if (obj == OBJ_SETTINGS) {
         const persist_t *p = (const persist_t *)(const void *)b;
+        if (m == PERSIST_MAGIC4)                         /* PER4: what this firmware saves (2026-10-24: its own refused) */
+            return n <= sizeof *p && n >= (uint32_t)PERSIST4_LEN0 &&
+                   (p->panel.magic != PANEL_MAGIC || bk_panel_ok((const uint8_t *)&p->panel));
         if (m == 0x50455231u || m == 0x50455232u || m == 0x50455233u) {   /* PER1..3: this build's or an older one */
             if (m != PERSIST_MAGIC)
                 return 1;
