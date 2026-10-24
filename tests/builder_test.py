@@ -813,9 +813,12 @@ if not _have:
 #    Allowed by name (the user, 2026-10-19, "named allowances"), each measured: the items that move memory between
 #    regions (off, REV_POOL's reverb line and TAB_IN_POOL's tables go back to main RAM; SECTIONS 0 keeps motion in the
 #    project slots, in the pool), DIV_ORDER (its build is 284 B smaller in flash on than off) and FX_DJF (beside
-#    TRK_FILT the FILTER insert's code stays: off saves nothing, +124 B). RAM moves by 16-32 B of alignment as flash does
+#    TRK_FILT the FILTER insert's code stays: off saves nothing, +124 B). RAM moves by 16-32 B of alignment as flash does.
+#    With DLY_ARENA set (a fixed effects memory), FX_DELAY off and the shorter XDLY_LEN leave more of it to the limited
+#    inserts, whose instance tables grow (core.dly_arena): measured 2026-10-24 on synths_USBaudio_BTaudio_BTmidi
+#    (DLY_ARENA 64), FX_DELAY off pool +4 B, XDLY_LEN 8192 pool +40 B, as the estimate says
 _MONO_MOVES = ("REV_POOL", "TAB_IN_POOL", "SECTIONS")
-_MONO_ALLOW = {"DIV_ORDER": "flash", "FX_DJF": "flash"}
+_MONO_ALLOW = {"DIV_ORDER": "flash", "FX_DJF": "flash", "FX_DELAY": "pool", "XDLY_LEN": "pool"}
 _MONO_NOISE = {"flash": K.ALIGN_NOISE, "ram": 32, "pool": 0}
 _mono_bad = []
 if costs:
