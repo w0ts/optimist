@@ -17,8 +17,9 @@ python tools/optimist.py builder --config my.config       # the menu on a saved 
 
 `tools/optimist.py` runs the same on macOS, Linux and Windows. `make builder` and `tools/menuconfig` call it.
 
-Keys: `space` / `enter` toggle (a sized item: its next value), `/` search, `p` profiles (shipped + yours), `s` save as
-your own profile (`config/my-profiles`, git-ignored), `u` publish the profile or not (CI builds the published ones; one
+Keys: `space` / `enter` toggle (a sized item: its next value), `/` search, `p` profiles (shipped + yours), `s` save: a
+name, then where, yours (`config/my-profiles`, git-ignored) or stock (`config/profiles`, to commit; a stock profile saved
+over keeps its first comment lines and its publish flag), `u` publish the profile or not (CI builds the published ones; one
 of yours is moved to `config/profiles` first, to commit), `d` delete a profile (never `synth`), `w`
 write a `.config`, `l` load, `o` sort by size (cycles registry order, flash, RAM, pool, RAM code; items without a
 measured cost last), `b` build, `e` build and run in the emulator (96 MHz, background), `f` flash to the FM-1, `x` / `c`
