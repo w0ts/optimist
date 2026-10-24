@@ -633,7 +633,7 @@ static void bt_two_pages_tests(void)
     /* SAVE held: forgets that page's last device only */
     bta_line("MODE");
     save_held();
-    check(!bta.have_last && said("FORGOTTEN AirPods") && ui.scr == SCR_SYSTEM && !dev_listing(),
+    check(!bta.nmem && said("FORGOTTEN AirPods") && ui.scr == SCR_SYSTEM && !dev_listing(),
           "BT AUDIO: SAVE held forgets AirPods (that page's last device)");
 #if BLE_CENTRAL
     ble_store_set_last(&ble_store, (const uint8_t[6]){1, 2, 3, 4, 5, 6}, 1, "KeyStep 37", BLE_KIND_MIDI);
@@ -641,7 +641,7 @@ static void bt_two_pages_tests(void)
     bta_pick(0);
     bta_line("MODE");
     save_held();
-    check(!bta.have_last && ble_store_has_last(&ble_store), "... with a MIDI last device too: MIDI's kept");
+    check(!bta.nmem && ble_store_has_last(&ble_store), "... with a MIDI last device too: MIDI's kept");
     bt_line("MODE");
     save_held();
     check(!ble_store_has_last(&ble_store) && said("FORGOTTEN KeyStep 37"), "BT MIDI: SAVE held forgets MIDI's (KeyStep 37)");
@@ -654,6 +654,109 @@ static void bt_two_pages_tests(void)
     bta_line("MODE");
     tap(B_SAVE);
     check(said("BT AUDIO OFF") && !dev_listing(), "BT AUDIO OFF: SAVE says so");
+    bt_fresh(0);
+}
+
+/* BT AUDIO remembers up to BTA_MEMS devices (bt/bta_mem.c; the user, 2026-10-24): the last one first, each with its key;
+ * AUTO pages them in turn; the list shows them; SAVE held on a row forgets it; the settings record keeps them */
+static int bta_order(const char *want)                  /* the remembered devices' first address bytes: "44 33 22" */
+{
+    char b[32] = "";
+    uint32_t i;
+    for (i = 0; i < bta.nmem; i++)
+        snprintf(b + strlen(b), sizeof b - strlen(b), "%s%02X", i ? " " : "", bta.mem[i].addr[0]);
+    if (strcmp(b, want))
+        printf("  the remembered devices: \"%s\", wanted \"%s\"\n", b, want);
+    return !strcmp(b, want);
+}
+static void bta_kept_tests(void)
+{
+    static const char *const NM[5] = {"AirPods", "XM4", "Bose", "JBL", "Marshall"};
+    uint8_t rec[32], key[32], kept[BT_KEPT_SIZE];
+    uint32_t i, p0;
+    bt_fresh(BT_MAN);
+    bt_enter(BT_AUD, BT_MAN);
+    for (i = 0; i < 5u; i++)
+        bta_fake_dev(i, (uint8_t)(0x11u * (i + 1u)), NM[i]);
+    for (i = 0; i < 4u; i++) {                          /* four picked, each paired: its own key */
+        bta_pick(i);
+        memset(bta.mem[0].lk, (int)(0xA0u + i), sizeof bta.mem[0].lk);
+        bta.mem[0].bonded = 1;
+    }
+    check(bta.nmem == 4u && bta_order("44 33 22 11") && !strcmp(bta.mem[0].name, "JBL"),
+          "BT AUDIO remembers 4 devices: the last picked first (JBL, Bose, XM4, AirPods)");
+    bta_pick(4);
+    check(bta.nmem == 4u && bta_order("55 44 33 22") && !bta.mem[0].bonded,
+          "... a fifth (Marshall): the oldest (AirPods) drops; the new one not paired yet");
+    bta_pick(1);
+    check(bta_order("22 55 44 33") && bta.mem[0].bonded && bta.mem[0].lk[0] == 0xA1u && bta.mem[0].lk[15] == 0xA1u,
+          "... XM4 picked again: first, its own key back (no pairing again)");
+    /* the list: the remembered devices first (LAST, KNOWN), then the scan's others */
+    btafk.st = BTA_S_FAILED;                            /* (the page above not answered: nothing connecting) */
+    bta_line("MODE");
+    dev_open(BT_AUD);
+    frames(2);
+    {
+        char nm[BLE_NAME_MAX + 1u];
+        const char *tag;
+        int32_t bars;
+        bt_row(BT_AUD, 0, nm, &tag, &bars);
+        check(dev_rows() == 5u && !strcmp(nm, "XM4") && !strcmp(tag, "LAST"), "the AUDIO list: 4 remembered + AirPods heard; row 1 XM4 (LAST)");
+        bt_row(BT_AUD, 3, nm, &tag, &bars);
+        check(!strcmp(nm, "Bose") && !strcmp(tag, "KNOWN"), "... row 4 Bose (KNOWN)");
+        bt_row(BT_AUD, 4, nm, &tag, &bars);
+        check(!strcmp(nm, "AirPods") && !tag[0], "... row 5 AirPods, heard, not remembered (no tag)");
+    }
+    dev_screen("opt-bta-devices-kept");
+    ui.row[SCR_SYSTEM] = 2;                             /* (the cursor on JBL) */
+    save_held();
+    check(bta.nmem == 3u && bta_order("22 55 33") && said("FORGOTTEN JBL") && bta.mem[0].lk[0] == 0xA1u,
+          "SAVE held on a remembered row: that device forgotten (JBL), the last one (XM4) and its key kept");
+    ui.row[SCR_SYSTEM] = 1;                             /* (Marshall) */
+    p0 = btafk.pages;
+    tap(B_SAVE);
+    frames(2);
+    check(btafk.pages == p0 + 1u && btafk_paged[0] == 0x55u && bta_order("55 22 33") && said("CONNECTING Marshall"),
+          "SAVE on a remembered row: paged, first in the list");
+    bt_stop(BT_AUD);
+    /* AUTO: the last one, then the others in turn; the one that answers goes first, the others keep their order */
+    bta_pick(1);                                        /* (XM4 first again: 22 55 33) */
+    bt_stop(BT_AUD);
+    p0 = btafk.pages;
+    bt_enter(BT_AUD, BT_AUTO);
+    check(btafk.pages == p0 + 1u && btafk_paged[0] == 0x22u, "AUTO: the last device (XM4) paged first");
+    btafk.st = BTA_S_FAILED;                            /* (no answer) */
+    frames(1);
+    check(btafk.pages == p0 + 2u && btafk_paged[0] == 0x55u && bta_order("22 55 33"),
+          "... no answer: the next one (Marshall) paged; the list as kept unchanged meanwhile");
+    btafk.st = BTA_S_FAILED;
+    frames(1);
+    check(btafk.pages == p0 + 3u && btafk_paged[0] == 0x33u, "... then Bose");
+    btafk.st = BTA_S_STREAMING;
+    frames(2);
+    check(!bt_wants(BT_AUD) && bta_order("33 22 55") && !strcmp(bta.mem[0].name, "Bose"),
+          "... Bose answers: it goes first, XM4 then Marshall after it (their order)");
+    bta_pick(1);                                        /* (row 1 of the scan: XM4 first again: 22 33 55) */
+    bt_stop(BT_AUD);
+    bt_enter(BT_AUD, BT_AUTO);
+    for (i = 0; i < 4u; i++) {
+        btafk.st = BTA_S_FAILED;
+        frames(1);
+    }
+    fm1_ms += BT_TRY_MS;
+    frames(1);
+    check(!bt_wants(BT_AUD) && said("NO DEVICE ANSWERED") && bta_order("22 33 55") && !strcmp(bta.mem[0].name, "XM4"),
+          "... none answers in 30 s: NO DEVICE ANSWERED, the list as it was (XM4 first)");
+    /* the settings record: the list and every key kept; a record from before (no list): the last device alone */
+    bt_rec_out(rec), bt_key_out(key), bt_kept_out(kept);
+    memset(&bta, 0, sizeof bta);
+    bt_rec_in(rec), bt_key_in(key), bt_kept_in(kept);
+    check(bta_order("22 33 55") && bta.mem[0].bonded && bta.mem[0].lk[0] == 0xA1u && bta.mem[1].lk[0] == 0xA2u && !strcmp(bta.mem[2].name, "Marshall"),
+          "the settings record: the 3 devices back in their order, each with its key and name");
+    memset(kept, 0, sizeof kept);
+    memset(&bta, 0, sizeof bta);
+    bt_rec_in(rec), bt_key_in(key), bt_kept_in(kept);
+    check(bta_order("22") && bta.mem[0].lk[0] == 0xA1u, "... a record from before the list: the last device alone, its key");
     bt_fresh(0);
 }
 #endif
@@ -671,6 +774,7 @@ static void ble_tests(void)
     bt_rec_tests();
 #if FELUCCA_BT_AUDIO
     bt_two_pages_tests();
+    bta_kept_tests();
 #endif
     ble_on = 0, ble_link = 0, ble_up = 1;
     bmi_w = bmo_w = 0;

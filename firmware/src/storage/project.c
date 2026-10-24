@@ -1633,6 +1633,8 @@ static void persist_boot(void)                    /* before settings_init / pane
 #endif
 #if FELUCCA_BT_AUDIO
             bt_key_in(p.bt_key);                   /* our BR/EDR address, the last device's link key (op_bt.c) */
+            _Static_assert(sizeof p.bt_kept == BT_KEPT_SIZE, "the record's remembered audio devices: their size");
+            bt_kept_in(p.bt_kept);                 /* the other remembered audio devices, their keys (op_bt.c) */
 #endif
 #if FELUCCA_DUAL && FELUCCA_DUALCFG
             if (p.dualcfg.magic == DUALCFG_MAGIC)
@@ -1754,6 +1756,7 @@ static void settings_save(void)
 #endif
 #if FELUCCA_BT_AUDIO
     bt_key_out(p.bt_key);
+    bt_kept_out(p.bt_kept);
 #endif
 #if FELUCCA_DUAL && FELUCCA_DUALCFG
     p.dualcfg = dualcfg;

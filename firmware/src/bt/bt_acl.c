@@ -623,7 +623,8 @@ static void ba_poll(void)
         }
         if (bp_ssp.st == BTP_FAILED && bp_ssp.bonded) {   /* (the device lost our key: a fresh pairing) */
             ba_line("the saved key refused (reason, 0): pairing afresh", bp_ssp.reason, 0);
-            bta.bonded = 0;
+            if (bta_mem_of(bp.remote))
+                bta_mem_of(bp.remote)->bonded = 0;
             btp_begin(&bp_ssp, bti.own, bp.remote, bp_rng, bp_ssp_send, 0);
             btp_start(&bp_ssp);
             return;
@@ -635,11 +636,12 @@ static void ba_poll(void)
         }
         if (bp_ssp.st != BTP_ENCRYPTED)
             return;                                /* (under way: ours or the device's) */
-        if (!bp_ssp.bonded && bta.have_last && ble_eq(bp.remote, bta.last, 6)) {   /* a fresh pairing: its key kept */
+        if (!bp_ssp.bonded && bta_mem_of(bp.remote)) {   /* a fresh pairing of a remembered device: its key kept */
+            struct bta_mem *m = bta_mem_of(bp.remote);
             uint32_t k;
             for (k = 0; k < 16u; k++)
-                bta.lk[k] = bp_ssp.lk[k];
-            bta.bonded = 1;
+                m->lk[k] = bp_ssp.lk[k];
+            m->bonded = 1;
             bta.key_new = 1;
             ba.fresh = 1;
             con_puts("btpage: bonded: the link key kept for the next connection\r\n");

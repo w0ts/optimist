@@ -36,7 +36,10 @@ A pick while a Mac is connected to us says "BUSY: A HOST IS CONNECTED".
 
 The page's lines are MODE, DEVICE (the device of the link as advertised; HOST for a computer or phone that connected to us;
 NONE), ACTIVITY (IN / OUT while messages pass) and STATE. SAVE on any line lets a link go, else connects to LAST, else opens
-the list; SAVE held forgets LAST (`bt_forget`). BT AUDIO's page has the same pattern.
+the list; SAVE held forgets LAST (`bt_forget`). BT AUDIO's page has the same pattern, with up to 4 remembered devices
+(2026-10-24, `bt/bta_mem.c`): the last one first, each with its link key; its list shows them (LAST, KNOWN) before the scan's
+others, SAVE on one connects to it, SAVE held on one forgets it; AUTO pages the last one, then the others in turn, and the one
+that answers becomes the last (`NO DEVICE ANSWERED` after 30 s). The settings record keeps the other three (`persist_t.bt_kept`).
 
 **The list** is SYSTEM's rows while it is open: the cursor row first is `NONE (VISIBLE)`, then LAST (tagged `LAST`, `PAIRED` when
 its keys are kept, `CONNECTED` while our link to it is up), then the nearby devices (new ones at the bottom so the list does not
