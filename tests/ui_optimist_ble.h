@@ -78,9 +78,10 @@ static void ble_sys_walk(const char *tag)
 }
 /* ---- SYSTEM > Bluetooth, one pattern for MIDI and AUDIO (op_bt.c; the user, 2026-10-19): MODE OFF / MIDI MAN / MIDI AUTO
  * (/ AUDIO MAN / AUDIO AUTO with BT_AUDIO), DEVICE the last device, ACTIVITY, STATE. SAVE on any line: connected or
- * connecting lets go, else the last device is connected to, none: the devices list (the scan). On the list SAVE connects
- * to the row. SAVE held forgets the last device. HOME goes home. AUTO connects to the last device at boot and when
- * chosen; a link lost is made again in neither. The radio is the stand-in in ble_ui_stubs.h. */
+ * connecting lets go. While the page is on screen with no link and no connect under way (BLE_CENTRAL for MIDI, BT_AUDIO for
+ * AUDIO) it scans and shows its devices (the remembered ones, then the new ones heard; 2026-10-24); DEVICE's knob (K2) moves
+ * the cursor, SAVE connects to the row, SAVE held forgets a remembered one. HOME goes home. AUTO connects to the last device
+ * at boot and when chosen; a link lost is made again in neither. The radio is the stand-in in ble_ui_stubs.h. */
 static void dev_screen(const char *name) { ui.force = 1; frames(3); ppm(name); }
 static uint32_t bt_line(const char *lab)                /* the cursor on the Bluetooth page's line lab; its knob */
 {
@@ -117,6 +118,24 @@ static void blp_shot_t(const char *name)               /* the Bluetooth page dra
     ppm(name);
 }
 static int said(const char *s) { return ui.msg_t && !strcmp(ui.msg, s); }
+/* the page's devices (op_bt.c bt_pg_*): side a's row i as the page draws it */
+static const char *pg_name(uint32_t a, uint32_t i)
+{
+    static char nm[BLE_NAME_MAX + 1u];
+    const char *tag;
+    int32_t bars;
+    bt_row(a, i, nm, &tag, &bars);
+    return nm;
+}
+static const char *pg_tag(uint32_t a, uint32_t i)
+{
+    static char nm[BLE_NAME_MAX + 1u];
+    const char *tag;
+    int32_t bars;
+    bt_row(a, i, nm, &tag, &bars);
+    return tag;
+}
+static void pg_k2(uint32_t knob, int32_t s) { turn(knob, s); frames(2); }   /* DEVICE's knob: the cursor through the list */
 static void bt_fresh(uint32_t mode)                     /* nothing remembered, nothing connected, MODE mode */
 {
     reset_ui();
@@ -151,6 +170,26 @@ static void ble_mode_tests(void)
     turn(k, 1);
     check(ble_on && bt_mode(BT_MIDI) == 1u && !strcmp(bt_val("MODE"), M[1]), "MODE right: MIDI MAN, the radio on");
     check(!strcmp(bt_val("STATE"), "ADVERTISING"), "... nothing connected: STATE ADVERTISING (MIDI is visible)");
+    frames(2);
+#if BLE_CENTRAL
+    check(!strcmp(bt_val("STATE"), "SCANNING") && ble_devs_open && bt_pg_shown() == 1u + BT_MIDI,
+          "... with the central, its page on screen scans instead of advertising: STATE SCANNING, the list shown");
+    go_home();
+    frames(2);
+    check(!ble_devs_open && !bt_pg_shown() && !strcmp(bt_val("STATE"), "ADVERTISING"), "... the page left: advertising again, no scan");
+#else
+    check(!strcmp(bt_val("STATE"), "ADVERTISING") && !ble_devs_open && !bt_pg_shown(),
+          "... without the central, the page does not scan or list: still advertising (the page as it was)");
+    ui.row[SCR_SYSTEM] = 0;
+    k = bt_line("DEVICE");
+    turn(k, 3);
+    frames(2);
+    check(bt.pcur == 0u && !strcmp(bt_val("DEVICE"), "NONE"), "... DEVICE's knob does nothing there");
+    tap(B_SAVE);
+    check(dev_listing() && dev_side() == BT_MIDI, "... SAVE, nothing remembered: the overlay devices list, as before");
+    tap(B_HOME);
+    check(!dev_listing(), "... HOME: back to the page");
+#endif
     blp_shot_t("opt-ble-page-on");
     k = bt_line("MODE");
     turn(k, 1);
@@ -209,49 +248,54 @@ static void cen_up(void)                                /* the stand-in's link i
     ble_devices_poll();
     frames(2);
 }
-/* SAVE: the same on every line; no last device: the list */
+/* SAVE: the same on every line. The page shows its devices while it is on screen with no link (the scan runs): nothing heard,
+ * SAVE says so; a row: SAVE connects to it. */
 static void ble_save_tests(void)
 {
     static const char *const LINES[4] = {"MODE", "DEVICE", "ACTIVITY", "STATE"};
-    uint32_t i, c0;
+    uint32_t i, c0, k2;
     for (i = 0; i < 4u; i++) {
         bt_fresh(1);
         bt_line(LINES[i]);
+        frames(2);
+        check(bt_pg_shown() == 1u + BT_MIDI && ble_devs_open && blefk.want == 1u && !dev_listing(),
+              "the page, no link: its devices list is shown and the scan runs (any line), not the overlay");
+        c0 = (uint32_t)cenfk.connects;
         tap(B_SAVE);
         frames(2);
-        check(dev_listing() && ble_devs_open && blefk.want == 1u, "SAVE, no last device: the devices list opens, the scan starts (any line)");
-        tap(B_HOME);
+        check(said("NONE FOUND") && cenfk.connects == (int)c0 && !bt_wants(BT_MIDI), "SAVE, nothing heard: NONE FOUND, nothing connects (any line)");
     }
-    check(!dev_listing() && ui.scr == SCR_SYSTEM && !ble_devs_open, "the list: HOME goes back to the page, the scan stops");
-    /* the list: the devices heard, no NONE row; SAVE connects to the row, back to the page */
-    bt_fresh(1);
-    bt_line("MODE");
-    tap(B_SAVE);
-    frames(2);
-    check(dev_row_n() == 0u && !strcmp(bdp.st, "Scanning 0 found"), "the list: nothing heard: no rows, \"Scanning 0 found\"");
+    check(!strcmp(bt_val("STATE"), "SCANNING"), "the page scanning: STATE SCANNING");
     dev_screen("opt-ble-devices-empty");
+    /* the devices heard are the rows; K2 moves the cursor; SAVE connects to the row */
+    bt_fresh(1);
+    k2 = bt_line("DEVICE");
+    frames(2);
+    check(dev_row_n() == 0u, "the page: nothing heard: no rows");
     dev_hear(0x01, "KeyStep 37");
     ble_fake_rep(0, 0x02, 0, "Tile", 0x0405);           /* a beacon (no BLE-MIDI UUID): never listed */
     dev_hear(0x03, "Roland Aerophone");
     ble_devices_poll();
     frames(2);
-    check(dev_row_n() == 2u && SCREENS[SCR_SYSTEM].rows() == 2u, "the list: the two BLE-MIDI devices (the beacon left out) are the rows");
+    check(dev_row_n() == 2u && !bt_pg_known(BT_MIDI, 0) && !bt_pg_known(BT_MIDI, 1),
+          "the page: the two BLE-MIDI devices (the beacon left out) are the rows, both new (none remembered)");
     dev_screen("opt-ble-devices");
-    dev_select(-1);
-    check(ui.row[SCR_SYSTEM] == 0u, "the list: SELECT stops at the top (no wrap)");
-    dev_select(5);
-    check(ui.row[SCR_SYSTEM] == 1u, "the list: SELECT stops at the bottom (no wrap)");
-    dev_select(-1);
+    pg_k2(k2, -1);
+    check(bt.pcur == 0u, "K2 left at the top: the cursor stays (no wrap)");
+    pg_k2(k2, 5);
+    check(bt.pcur == 1u, "K2 right past the end: the cursor stays on the last row (no wrap)");
+    pg_k2(k2, -1);
+    check(bt.pcur == 0u, "K2 left: the cursor up one");
     c0 = (uint32_t)cenfk.connects;
     tap(B_SAVE);
     frames(2);
-    check(cenfk.connects == (int)c0 + 1 && !op_armed() && !dev_listing() && ui.scr == SCR_SYSTEM && said("CONNECTING KeyStep 37"),
-          "the list: SAVE connects to the row at once (nothing asked), back to the page: CONNECTING KeyStep 37");
-    check(!strcmp(bt_val("DEVICE"), "KeyStep 37") && !strcmp(bt_val("STATE"), "CONNECTING"),
-          "... the page: DEVICE KeyStep 37, STATE CONNECTING");
+    check(cenfk.connects == (int)c0 + 1 && !op_armed() && !bt_pg_shown() && !ble_devs_open && ui.scr == SCR_SYSTEM && said("CONNECTING KeyStep 37"),
+          "SAVE on the row connects at once (nothing asked), the scan stops: CONNECTING KeyStep 37");
+    check(!strcmp(bt_val("DEVICE"), "KeyStep 37") && !strcmp(bt_val("STATE"), "CONNECTING"), "... the page: DEVICE KeyStep 37, STATE CONNECTING");
     cen_up();
     check(ble_store_has_last(&ble_store) && !strcmp(bt_val("STATE"), "CONNECTED") && !strcmp(bt_val("DEVICE"), "KeyStep 37") && !bt_wants(BT_MIDI),
           "... up: it is the last device, STATE CONNECTED");
+    check(!bt_pg_shown() && !ble_devs_open, "... linked: the page shows no list, the scan is off");
     blp_shot_t("opt-ble-page-connected");
     check(ble_store.sel == BLE_SEL_NONE, "MAN: once up, no search for it is armed (a link lost stays lost)");
     /* connected: SAVE lets go, on any line */
@@ -267,12 +311,16 @@ static void ble_save_tests(void)
         ble_devices_poll();
         frames(1);
     }
-    check(ble_seeking() == 0 && cenfk.connects == (int)c0 && !bt_wants(BT_MIDI), "... and it is not searched for again by itself");
-    /* a last device, not connected: SAVE connects to it; again (connecting): lets go */
+    check(ble_seeking() == 0 && cenfk.connects == (int)c0 && !bt_wants(BT_MIDI) && bt_pg_shown() == 1u + BT_MIDI && ble_devs_open,
+          "... it is not searched for again by itself; the page lists and scans again");
+    /* the last device is the first row (LAST): SAVE connects to it; again (connecting): lets go */
+    check(dev_row_n() == 1u && !strcmp(pg_name(BT_MIDI, 0), "KeyStep 37") && !strcmp(pg_tag(BT_MIDI, 0), "LAST") && bt_pg_known(BT_MIDI, 0),
+          "the page: KeyStep 37 is row 1, LAST, remembered");
     c0 = (uint32_t)cenfk.connects;
     bt_line("DEVICE");
     tap(B_SAVE);
-    check(bt_wants(BT_MIDI) && ble_store.sel == BLE_SEL_LAST && said("CONNECTING KeyStep 37"), "the last device, not connected: SAVE connects to it");
+    check(bt_wants(BT_MIDI) && ble_store.sel == BLE_SEL_LAST && said("CONNECTING KeyStep 37") && !ble_devs_open,
+          "SAVE on the LAST row: connects to it (the scan off so the search can run)");
     for (i = 0; i < 3u && ble_seeking() != 2; i++) {
         fm1_ms += 1000u;
         ble_devices_poll();
@@ -285,16 +333,20 @@ static void ble_save_tests(void)
     fm1_ms += BT_TRY_MS + 16u;
     frames(1);
     check(!bt_wants(BT_MIDI) && ble_store.sel == BLE_SEL_NONE && said("NO ANSWER KeyStep 37"), "a connect not up in 30 s: NO ANSWER KeyStep 37, given up");
-    /* SAVE held: forget, on any line; HOME: home */
+    /* SAVE held: the cursor row's remembered device forgotten, on any line; HOME: home */
     bt_line("MODE");
+    frames(2);
     save_held();
     check(!ble_store_has_last(&ble_store) && said("FORGOTTEN KeyStep 37") && ui.scr == SCR_SYSTEM && !dev_listing(),
-          "SAVE held: FORGOTTEN KeyStep 37 (on MODE too), nothing else");
+          "SAVE held on the LAST row: FORGOTTEN KeyStep 37 (on MODE too), nothing else");
+    frames(2);
     save_held();
-    check(said("NO LAST DEVICE") && !dev_listing(), "SAVE held, nothing remembered: NO LAST DEVICE");
+    check(said("NONE FOUND") && !dev_listing(), "SAVE held, nothing listed: NONE FOUND");
     bt_line("STATE");
     tap(B_HOME);
     check(ui.scr != SCR_SYSTEM, "HOME on the Bluetooth page goes home, as anywhere");
+    frames(2);
+    check(!ble_devs_open && !blefk.want, "... the page left: the scan stops");
     (void)c0;
     bt_fresh(0);
 }
@@ -374,10 +426,9 @@ static void ble_up_as_last(uint8_t a0)                  /* the nearby device a0 
 static void ble_kept_tests(void)
 {
     static const char *const NM[5] = {"Dev A", "Dev B", "Dev C", "Dev D", "Dev E"};
-    uint32_t i, c0;
+    uint32_t i, c0, k2;
     bt_fresh(1);
-    bt_line("MODE");
-    tap(B_SAVE);                                        /* (no LAST: the list) */
+    k2 = bt_line("DEVICE");                             /* (no LAST: the page lists what it hears) */
     for (i = 0; i < 5u; i++) {
         dev_hear((uint8_t)(0x20 + i), NM[i]);
         ble_devices_poll();
@@ -388,18 +439,24 @@ static void ble_kept_tests(void)
           "BT MIDI remembers 4 devices: LAST (Dev D), then C, B, A, each with its bond");
     ble_up_as_last(0x24);
     check(ble_order("24 23 22 21"), "... a fifth (Dev E): LAST, the oldest (Dev A) drops");
-    if (!dev_listing()) {
-        bt_line("MODE");
-        dev_open(BT_MIDI);
+    frames(2);                                          /* (the page scans again: a fresh table) */
+    for (i = 0; i < 5u; i++) {
+        dev_hear((uint8_t)(0x20 + i), NM[i]);
+        ble_devices_poll();
     }
     frames(2);
     check(dev_row_n() == 5u && !strcmp(bt_val_row(0), "Dev E") && !strcmp(dev_row_tag(0), "LAST") &&
               !strcmp(bt_val_row(1), "Dev D") && !strcmp(dev_row_tag(1), "KNOWN") && !strcmp(bt_val_row(3), "Dev B") &&
               !strcmp(bt_val_row(4), "Dev A") && !dev_row_tag(4)[0],
-          "the MIDI list: LAST (Dev E), the 3 others (KNOWN), then Dev A heard nearby (no tag)");
+          "the MIDI page: LAST (Dev E), the 3 others (KNOWN), then Dev A heard nearby (no tag)");
+    check(bt_pg_known(BT_MIDI, 0) && bt_pg_known(BT_MIDI, 3) && !bt_pg_known(BT_MIDI, 4),
+          "... the first four are remembered, Dev A is new (the colours)");
     dev_screen("opt-ble-devices-kept");
     /* SAVE on a remembered row: it becomes LAST with its bond, chosen; the search finds it */
-    ui.row[SCR_SYSTEM] = 2;                             /* (Dev C) */
+    pg_k2(k2, 4);                                       /* (Dev A: heard, new) */
+    save_held();
+    check(ble_order("24 23 22 21") && said("NOT REMEMBERED"), "SAVE held on a new device (Dev A): NOT REMEMBERED, nothing forgotten");
+    pg_k2(k2, -2);                                      /* (Dev C) */
     c0 = (uint32_t)cenfk.connects;
     tap(B_SAVE);
     frames(2);
@@ -410,15 +467,17 @@ static void ble_kept_tests(void)
     ble_devices_poll();
     bt_stop(BT_MIDI);
     /* SAVE held on a remembered row: that one forgotten */
-    bt_line("MODE");
-    dev_open(BT_MIDI);
+    k2 = bt_line("DEVICE");
     frames(2);
-    ui.row[SCR_SYSTEM] = 3;                             /* (Dev B) */
+    pg_k2(k2, 3);                                       /* (Dev B) */
     save_held();
     check(ble_order("22 24 23") && said("FORGOTTEN Dev B"), "SAVE held on Dev B (KNOWN): forgotten, LAST and the others kept");
     tap(B_HOME);
+    frames(2);
+    check(!ble_devs_open, "HOME: the page left, the scan stops");
     /* FORGET LAST: the next remembered one becomes LAST */
     bt_line("MODE");
+    frames(2);
     save_held();
     check(ble_order("24 23") && ble_store.sel == BLE_SEL_NONE && said("FORGOTTEN Dev C"),
           "SAVE held on the page: LAST (Dev C) forgotten, Dev E is LAST now, NONE chosen");
@@ -445,14 +504,13 @@ static void ble_kept_tests(void)
     ble_devices_poll();
     bt_fresh(0);
 }
-/* the list's rows follow the device, not the place; a device gone is said */
+/* the page's rows follow the device, not the place; a device gone is said */
 static void ble_list_tests(void)
 {
-    uint32_t c0, i, first;
+    uint32_t c0, i, first, k2;
     char t[48];
     bt_fresh(1);
-    bt_line("MODE");
-    tap(B_SAVE);
+    k2 = bt_line("DEVICE");
     for (i = 0; i < 8u; i++) {
         char nm[8] = "Dev  ";
         nm[3] = (char)('A' + i);
@@ -460,26 +518,23 @@ static void ble_list_tests(void)
         ble_devices_poll();                             /* (the stand-in's queue holds 8 reports) */
     }
     frames(2);
-    check(dev_row_n() == 8u && bdp.shown < bdp.n, "the list: eight rows, more than the panel shows");
-    dev_select(9);
-    frames(2);
-    first = bdp.first;
-    check(bdp.cur == 7u && first == bdp.n - bdp.shown, "the list: the cursor at the end: the window shows the last rows");
-    dev_select(-1);
-    frames(2);
-    check(bdp.cur == 6u && bdp.first == first, "the list: one row up from the end: the window stays");
+    check(dev_row_n() == 8u && dev_row_n() > BT_PG_ROWS, "the page: eight rows, more than it shows");
+    pg_k2(k2, 9);
+    first = bt.pfirst;
+    check(bt.pcur == 7u && first == dev_row_n() - BT_PG_ROWS, "the page: the cursor at the end: the window shows the last rows");
+    pg_k2(k2, -1);
+    check(bt.pcur == 6u && bt.pfirst == first, "the page: one row up from the end: the window stays");
+    dev_screen("opt-ble-devices-long");
     tap(B_HOME);
     bt_fresh(1);
-    bt_line("MODE");
-    tap(B_SAVE);
+    k2 = bt_line("DEVICE");
     dev_hear(0x01, "Alpha");
     dev_hear(0x03, "Bravo");
     dev_hear(0x05, "Charlie");
     ble_devices_poll();
     frames(2);
-    dev_select(1);
-    frames(2);
-    check(bdp.cur == 1u && !strcmp(bt_val_row(1), "Bravo"), "the list: the cursor on Bravo");
+    pg_k2(k2, 1);
+    check(bt.pcur == 1u && !strcmp(bt_val_row(1), "Bravo"), "the page: the cursor on Bravo");
     c0 = (uint32_t)cenfk.connects;
     press(B_SAVE);                                      /* (SAVE acts on its release: Alpha ages out in between) */
     for (i = 0; i < BLE_SCAN_N; i++)
@@ -489,16 +544,14 @@ static void ble_list_tests(void)
     release(B_SAVE);
     frames(2);
     check(cenfk.connects == (int)c0 + 1 && cenfk.p.addr[0] == 0x03 && said("CONNECTING Bravo"),
-          "the list: a device aging out above the cursor: SAVE connects to the highlighted one (Bravo)");
+          "the page: a device aging out above the cursor: SAVE connects to the highlighted one (Bravo)");
     bt_fresh(1);
-    bt_line("MODE");
-    tap(B_SAVE);
+    k2 = bt_line("DEVICE");
     dev_hear(0x01, "Alpha");
     dev_hear(0x03, "Bravo");
     ble_devices_poll();
     frames(2);
-    dev_select(1);
-    frames(2);
+    pg_k2(k2, 1);
     c0 = (uint32_t)cenfk.connects;
     press(B_SAVE);
     for (i = 0; i < BLE_SCAN_N; i++)                    /* (Bravo: gone) */
@@ -506,12 +559,12 @@ static void ble_list_tests(void)
             ble_found.e[i].used = 0;
     ble_found.gen++;
     release(B_SAVE);
-    check(cenfk.connects == (int)c0 && said("DEVICE GONE"), "the list: the highlighted device gone before SAVE: nothing connected, DEVICE GONE");
+    check(cenfk.connects == (int)c0 && said("DEVICE GONE") && !bt_wants(BT_MIDI), "the page: the highlighted device gone before SAVE: nothing connected, DEVICE GONE");
     tap(B_HOME);
-    /* the status line cut to its room: the words stay, a long name loses its end */
+    /* the overlay list's status line cut to its room: the words stay, a long name loses its end */
     dev_line_text(t, sizeof t, "CONNECTING (TRY 2/6) Roland Aerophone", 21u);
     check(!strncmp(t, "Connecting (try 2/6) ", 21) && text_w(&FONT_S, t) <= DEV_LINE_W && t[21] == 'R',
-          "the list's status line: \"Connecting (try 2/6) \" + a 16-character name is cut to its 232 px");
+          "the overlay list's status line: \"Connecting (try 2/6) \" + a 16-character name is cut to its 232 px");
     /* DEVICE: a long name whole, in the small face */
     ble_connect_none();
     ble_dev_msg = 0;
@@ -654,7 +707,7 @@ static const char *bta_val(const char *lab)
 }
 static void bt_two_pages_tests(void)
 {
-    uint32_t u, midi = 0, aud = 0, s0, p0, h0;
+    uint32_t u, midi = 0, aud = 0, s0, p0, h0, k2;
     for (u = 0; u < NSYS_SETUP; u++) {
         midi += !strcmp(SYS[u].name, "BT MIDI");
         aud += !strcmp(SYS[u].name, "BT AUDIO");
@@ -675,42 +728,47 @@ static void bt_two_pages_tests(void)
           "BT MIDI MODE left: MIDI OFF, the radio's MIDI off; BT AUDIO left as it was (MAN, not stopped)");
     turn(bt_line("MODE"), 1);
     check(ble_on && bt_mode(BT_MIDI) == BT_MAN && bt_mode(BT_AUD) == BT_MAN, "BT MIDI back to MAN: AUDIO still MAN");
-    /* SAVE on BT AUDIO, nothing remembered: AUDIO's list (the inquiry), not MIDI's */
-    bta_line("FORMAT");
-    tap(B_SAVE);
+    /* BT AUDIO's page, nothing remembered: AUDIO's own list (the inquiry), not MIDI's */
+    k2 = bta_line("FORMAT");
     frames(2);
-    check(dev_listing() && dev_side() == BT_AUD && btafk.scan_on && !blefk.want,
-          "BT AUDIO: SAVE, no last device: AUDIO's devices list, the inquiry on (BLE's scan not started)");
+    check(bt_pg_shown() == 1u + BT_AUD && btafk.scan_on && !blefk.want && !dev_listing(),
+          "BT AUDIO: the page, no link: its devices list is shown, the inquiry on (BLE's scan not started)");
     bta_fake_dev(0, 0x11, "AirPods");
     bta_fake_dev(1, 0x22, "Speaker");
     frames(2);
-    if (strcmp(bdp.st, "Save connects, hold forgets"))
-        printf("  the AUDIO list's status line: \"%s\"\n", bdp.st);
-    {
-        char nm[BLE_NAME_MAX + 1u];
-        const char *tag;
-        int32_t bars;
-        bt_row(dev_side(), 1, nm, &tag, &bars);
-        check(!strcmp(nm, "Speaker") && !tag[0] && bars < 0, "... row 2: Speaker, no tag, no bars (the inquiry gives none)");
-    }
-    check(dev_rows() == 2u && !strcmp(bdp.st, "Save connects, hold forgets"),
-          "... the devices the inquiry heard are its rows (the AUDIO list's line under them)");
+    check(bt_rows(BT_AUD) == 2u && !strcmp(pg_name(BT_AUD, 1), "Speaker") && !pg_tag(BT_AUD, 1)[0] && !bt_pg_known(BT_AUD, 1),
+          "... row 2: Speaker, new, no tag (the inquiry gives no signal)");
     dev_screen("opt-bta-devices");
+    k2 = bta_line("DEVICE");
+    pg_k2(k2, 1);
+    check(bt.pcur == 1u, "... DEVICE's knob moves the cursor");
+    pg_k2(k2, -1);
     p0 = btafk.pages;
     tap(B_SAVE);
     frames(2);
-    check(btafk.picks == 1u && btafk.pages == p0 + 1u && !dev_listing() && !btafk.scan_on && said("CONNECTING AirPods") &&
-              bt_wants(BT_AUD) && !bt_wants(BT_MIDI), "... SAVE on AirPods: paged, the list closed, AUDIO connecting, MIDI not");
+    check(btafk.picks == 1u && btafk.pages == p0 + 1u && !bt_pg_shown() && !btafk.scan_on && said("CONNECTING AirPods") &&
+              bt_wants(BT_AUD) && !bt_wants(BT_MIDI), "... SAVE on AirPods: paged, the list off, the inquiry stopped, AUDIO connecting, MIDI not");
     check(!strcmp(bta_val("STATE"), "CONNECTING") && !strcmp(bta_val("DEVICE"), "AirPods") && !strcmp(bt_val("STATE"), "ADVERTISING"),
           "... BT AUDIO: STATE CONNECTING, DEVICE AirPods; BT MIDI's STATE its own (ADVERTISING)");
-    /* MIDI's SAVE meanwhile: MIDI's list, AUDIO's connect left */
+    /* MIDI's page meanwhile: the list is its own, but its scan is held back while AUDIO connects (one radio) */
     bt_line("MODE");
-    tap(B_SAVE);
     frames(2);
-    check(dev_listing() && dev_side() == BT_MIDI && blefk.want && bt_wants(BT_AUD),
-          "BT MIDI: SAVE while AUDIO connects: MIDI's own list (BLE's scan), AUDIO's connect kept");
+#if BLE_CENTRAL
+    check(bt_pg_shown() == 1u + BT_MIDI && !blefk.want && !ble_devs_open && bt_wants(BT_AUD),
+          "BT MIDI: AUDIO connecting: MIDI's list is shown but its scan waits (the radio is AUDIO's)");
+    tap(B_SAVE);
+    check(said("NONE FOUND") && bt_wants(BT_AUD), "... SAVE: nothing listed, AUDIO's connect kept");
     tap(B_HOME);
-    check(!dev_listing() && !blefk.want && bt_wants(BT_AUD), "... HOME: MIDI's scan stops, AUDIO's connect kept");
+    frames(2);
+    check(!blefk.want && bt_wants(BT_AUD), "... HOME: no scan, AUDIO's connect kept");
+#else
+    tap(B_SAVE);                                        /* (no central: the page as it was, SAVE opens the overlay list) */
+    frames(2);
+    check(dev_listing() && dev_side() == BT_MIDI && blefk.want == 0u && bt_wants(BT_AUD) && !bt_pg_shown(),
+          "BT MIDI without the central: SAVE while AUDIO connects: the overlay list (nothing to scan), AUDIO's connect kept");
+    tap(B_HOME);
+    check(!dev_listing() && !blefk.want && bt_wants(BT_AUD), "... HOME: the overlay closes, AUDIO's connect kept");
+#endif
     /* each side's own timer: AUDIO given up after 30 s, a MIDI connect started later goes on */
     fm1_ms += 20000u;
     bt_want(BT_MIDI, 1);
@@ -766,6 +824,58 @@ static void bt_two_pages_tests(void)
     bt_fresh(0);
 }
 
+/* BT AUDIO's page scans while it is on screen with no link and no connect under way (2026-10-24): an inquiry that ends is run
+ * again with the list kept, a link up stops it, the page left stops it, MODE OFF has none; MIDI's connect under way holds it back
+ * (one radio, rf_share.h) */
+static void bta_scan_tests(void)
+{
+    uint32_t k2, r0;
+    bt_fresh(BT_MAN);
+    bt_enter(BT_AUD, BT_MAN);
+    k2 = bta_line("DEVICE");
+    frames(2);
+    check(btafk.scan_on && bt_pg_shown() == 1u + BT_AUD && !dev_listing(), "BT AUDIO page, MAN, no link: the list shown, the inquiry on");
+    btafk.st = BTA_S_SCANNING;
+    bta_fake_dev(0, 0x11, "AirPods");
+    r0 = btafk.rescans;
+    frames(3);
+    check(btafk.rescans == r0 && bt_rows(BT_AUD) == 1u, "... the inquiry running: not started again");
+    btafk.st = BTA_S_FOUND;                             /* (its 10 s over) */
+    frames(2);
+    check(btafk.rescans > r0 && btafk.scan_on && bta.n == 1u && bt_rows(BT_AUD) == 1u, "... the inquiry over: run again, the devices heard kept");
+    pg_k2(k2, 5);
+    check(bt.pcur == 0u, "... one row: K2 stays on it");
+    btafk.st = BTA_S_STREAMING;                         /* (a link up) */
+    frames(2);
+    check(!btafk.scan_on && !bt_pg_shown(), "... a link up: the inquiry stops, no list");
+    btafk.st = BTA_S_FAILED;                            /* (and gone) */
+    frames(2);
+    check(btafk.scan_on && bt_pg_shown() == 1u + BT_AUD && bt.pcur == 0u, "... the link gone: the list and the inquiry again, the cursor on the first row");
+    bt_want(BT_MIDI, 1);                                /* (MIDI connecting: the radio is its) */
+    frames(2);
+    check(!btafk.scan_on, "... MIDI connecting: the inquiry waits");
+    bt_want(BT_MIDI, 0);
+    frames(2);
+    check(btafk.scan_on, "... MIDI's connect over: the inquiry again");
+    bta_fake_dev(1, 0x22, "Speaker");                   /* (two remembered, two new: the picture) */
+    bta_fake_dev(2, 0x33, "Bose QC35");
+    bta_fake_dev(3, 0x44, "JBL Flip");
+    bta_pick(2);
+    bta_pick(0);
+    btafk.st = BTA_S_FOUND;
+    frames(3);
+    check(bt_rows(BT_AUD) == 4u && bt_pg_known(BT_AUD, 0) && bt_pg_known(BT_AUD, 1) && !bt_pg_known(BT_AUD, 2) && !bt_pg_known(BT_AUD, 3) &&
+              !strcmp(pg_name(BT_AUD, 0), "AirPods") && !strcmp(pg_name(BT_AUD, 1), "Bose QC35"),
+          "... two remembered (AirPods LAST, Bose QC35 KNOWN) then two new (Speaker, JBL Flip)");
+    dev_screen("opt-bta-devices-mixed");
+    tap(B_HOME);
+    frames(2);
+    check(!btafk.scan_on && !bt_pg_shown(), "... the page left: the inquiry stops");
+    turn(bta_line("MODE"), -1);
+    frames(2);
+    check(bt_mode(BT_AUD) == BT_OFF && !btafk.scan_on && !bt_pg_shown(), "BT AUDIO MODE OFF: no list, no inquiry");
+    bt_fresh(0);
+}
 /* BT AUDIO remembers up to BTA_MEMS devices (bt/bta_mem.c; the user, 2026-10-24): the last one first, each with its key;
  * AUTO pages them in turn; the list shows them; SAVE held on a row forgets it; the settings record keeps them */
 static int bta_order(const char *want)                  /* the remembered devices' first address bytes: "44 33 22" */
@@ -782,7 +892,7 @@ static void bta_kept_tests(void)
 {
     static const char *const NM[5] = {"AirPods", "XM4", "Bose", "JBL", "Marshall"};
     uint8_t rec[32], key[32], kept[BT_KEPT_SIZE];
-    uint32_t i, p0;
+    uint32_t i, p0, k2;
     bt_fresh(BT_MAN);
     bt_enter(BT_AUD, BT_MAN);
     for (i = 0; i < 5u; i++)
@@ -802,26 +912,30 @@ static void bta_kept_tests(void)
           "... XM4 picked again: first, its own key back (no pairing again)");
     /* the list: the remembered devices first (LAST, KNOWN), then the scan's others */
     btafk.st = BTA_S_FAILED;                            /* (the page above not answered: nothing connecting) */
-    bta_line("MODE");
-    dev_open(BT_AUD);
+    k2 = bta_line("DEVICE");
     frames(2);
+    check(bt_pg_shown() == 1u + BT_AUD && bt.pcur == 0u, "the AUDIO page lists its devices again (not linked, nothing connecting)");
     {
         char nm[BLE_NAME_MAX + 1u];
         const char *tag;
         int32_t bars;
         bt_row(BT_AUD, 0, nm, &tag, &bars);
-        check(dev_rows() == 5u && !strcmp(nm, "XM4") && !strcmp(tag, "LAST"), "the AUDIO list: 4 remembered + AirPods heard; row 1 XM4 (LAST)");
+        check(bt_rows(BT_AUD) == 5u && !strcmp(nm, "XM4") && !strcmp(tag, "LAST"), "the AUDIO list: 4 remembered + AirPods heard; row 1 XM4 (LAST)");
         bt_row(BT_AUD, 3, nm, &tag, &bars);
         check(!strcmp(nm, "Bose") && !strcmp(tag, "KNOWN"), "... row 4 Bose (KNOWN)");
         bt_row(BT_AUD, 4, nm, &tag, &bars);
-        check(!strcmp(nm, "AirPods") && !tag[0], "... row 5 AirPods, heard, not remembered (no tag)");
+        check(!strcmp(nm, "AirPods") && !tag[0] && !bt_pg_known(BT_AUD, 4) && bt_pg_known(BT_AUD, 3),
+              "... row 5 AirPods, heard, not remembered (no tag, a new one)");
     }
     dev_screen("opt-bta-devices-kept");
-    ui.row[SCR_SYSTEM] = 2;                             /* (the cursor on JBL) */
+    pg_k2(k2, 4);                                       /* (AirPods: new) */
+    save_held();
+    check(bta.nmem == 4u && said("NOT REMEMBERED"), "SAVE held on a new device (AirPods): NOT REMEMBERED, nothing forgotten");
+    pg_k2(k2, -2);                                      /* (the cursor on JBL) */
     save_held();
     check(bta.nmem == 3u && bta_order("22 55 33") && said("FORGOTTEN JBL") && bta.mem[0].lk[0] == 0xA1u,
           "SAVE held on a remembered row: that device forgotten (JBL), the last one (XM4) and its key kept");
-    ui.row[SCR_SYSTEM] = 1;                             /* (Marshall) */
+    pg_k2(k2, -1);                                      /* (Marshall) */
     p0 = btafk.pages;
     tap(B_SAVE);
     frames(2);
@@ -878,7 +992,6 @@ static void ble_level_tests(void)
     int c0;
     bt_fresh(1);
     bt_line("MODE");
-    tap(B_SAVE);
     frames(2);
     dev_hear(0x05, "iPad");
     ble_devices_poll();
@@ -919,6 +1032,7 @@ static void ble_tests(void)
     bt_rec_tests();
 #if FELUCCA_BT_AUDIO
     bt_two_pages_tests();
+    bta_scan_tests();
     bta_kept_tests();
 #endif
     ble_on = 0, ble_link = 0, ble_up = 1;

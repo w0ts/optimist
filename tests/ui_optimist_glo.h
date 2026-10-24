@@ -261,17 +261,17 @@ static void glo_tests(void)
 #if FELUCCA_BLE
         bt.boot = 1;
         ble_store_reset(&ble_store);
-        bt_enter(BT_MIDI, 1);                                    /* (MIDI, nothing remembered: SAVE opens the devices list) */
+        bt_enter(BT_MIDI, 1);                                    /* (the overlay list: since the page lists its devices itself, only dev_open opens it) */
         w = line_named(SCR_SYSTEM, "MODE");
         frame();
-        tap(B_SAVE);
+        dev_open(BT_MIDI);
         ok = dev_listing();
         i = song.sel;
         turn(EN_SELECT, 1);
         ok &= song.sel == i && dev_listing() && ui.row[SCR_SYSTEM] <= 1u;
         tap(B_HOME);
         check(ok && !dev_listing() && ui.scr == SCR_SYSTEM && ui.row[SCR_SYSTEM] == w,
-              "Bluetooth: SAVE on the page, nothing remembered, opens the list, SELECT moves its cursor (no track), HOME back to the MODE line");
+              "Bluetooth: the overlay devices list: SELECT moves its cursor (no track), HOME back to the MODE line");
         bt_enter(BT_MIDI, 0);
 #endif
     }

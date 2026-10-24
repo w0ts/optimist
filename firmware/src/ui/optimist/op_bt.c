@@ -6,11 +6,19 @@
  * item is built.
  *   MODE    OFF, MAN, AUTO. MAN: only the user connects. AUTO: the same, and the last device is connected to at boot and
  *           when the mode is chosen. A link lost is not made again in either.
- *   SAVE    whatever line of the page the cursor is on: connected or connecting, it lets go; else the last device,
- *           connected to; none, the scan (that side's devices list). On the list SAVE connects to the row (it becomes the
- *           last device).
- *   SAVE held  forgets that side's last device (AUDIO's list open: that row's remembered device; AUDIO remembers 4,
- *           bt/bta_mem.c, and AUTO pages them in turn). HOME goes home, as anywhere.
+ *   the page's devices (the user, 2026-10-24: "we scan when not connected and on the screen. we show the remembered devices in
+ *           one color and the new ones in another color. save connect/disconnect and forget (long press)"; "the knob k2 to
+ *           scroll thru the list"): while the page is on screen with no link up and no connect under way (that side's, MODE
+ *           MAN or AUTO) the FM-1 scans, and the page's two middle lines give way to the devices (bt_pg_*; BT AUDIO always, BT
+ *           MIDI with BLE_CENTRAL): the remembered ones first (LAST, KNOWN), then the new ones heard, four rows, the remembered
+ *           in C_OK (green), the new in C_WARN (amber), the text only, the cursor a bar at the left edge. DEVICE's knob (K2)
+ *           moves the cursor, stopping at the ends. The scan stops with a link or a connect (either side's: one radio, a scan
+ *           waits while the other side connects, rf_share.h) and with the page left; BT MIDI's advertising waits while it
+ *           scans. Without BLE_CENTRAL BT MIDI is as it was (no scan on the page; SAVE opens the overlay list, dev_open).
+ *   SAVE    whatever line of the page the cursor is on: connected or connecting, it lets go; else the list's row under the
+ *           cursor, connected to (it becomes the last device; nothing heard: NONE FOUND).
+ *   SAVE held  the cursor row's remembered device forgotten (a new one: NOT REMEMBERED; AUDIO remembers 4, bt/bta_mem.c, and
+ *           AUTO pages them in turn); linked or connecting, that side's last device. HOME goes home, as anywhere.
  * MIDI advertises whenever no link is up (ble/ble_ll.c). Each action says what it did (ui_say). Both modes and the AUDIO
  * last device are kept in the settings record (storage/persist_rec.c bt_rec; bt_rec_out below). The radio is shared:
  * ble/rf_share.h, docs/BT-CLASSIC.md §9.1. */
@@ -32,6 +40,8 @@ static struct {
     uint8_t boot;                                       /* the saved modes applied */
     uint8_t rec;                                        /* the modes as the settings record gave them: BT_REC_OK | mode's
                                                          * bits; 0: none */
+    uint8_t scan;                                       /* bit a: side a's page scan runs (bt_pg_sync) */
+    uint8_t pcur, pfirst;                               /* the page's devices: the cursor row, the first row shown */
     uint16_t t0[2];                                     /* fm1_ms >> BT_T_SH: side a's connect started */
 } bt;
 
@@ -190,6 +200,164 @@ static void bt_row(uint32_t a, uint32_t i, char nm[BLE_NAME_MAX + 1u], const cha
         *bars = (int32_t)b;
     }
 }
+
+/* ---- the page's own devices (the user, 2026-10-24: "we scan when not connected and on the screen. we show the remembered
+ * devices in one color and the new ones in another color. save connect/disconnect and forget (long press)"; "the knob k2 to
+ * scroll thru the list"): while side a's page is on screen with no link up and no connect under way, the FM-1 scans and the
+ * page's middle is the devices list (the remembered ones first, from bta_mem.c / ble_devices.c, then the new ones heard);
+ * DEVICE's knob (K2) moves the cursor, SAVE connects to the row, SAVE held forgets a remembered one. MIDI's list is the
+ * central's (BLE_CENTRAL); without it the page is as it was. The overlay list (dev_open) stays for MIDI without a central. */
+static uint32_t bt_page(void);                          /* op_global.c: 0 not a Bluetooth page, else 1 + its side */
+static int bt_pg_side(uint32_t a)                       /* side a has the page list in this build */
+{
+#if FELUCCA_BT_AUDIO
+    if (a == BT_AUD)
+        return 1;
+#endif
+#if BLE_CENTRAL
+    if (a == BT_MIDI)
+        return 1;
+#endif
+    (void)a;
+    return 0;
+}
+static int bt_pg_on(uint32_t a)                         /* the page list is what side a's page shows now */
+{
+    return bt_pg_side(a) && bt_mode(a) && !bdv.open && !bt_linked(a) && !bt_connecting(a);
+}
+static uint32_t bt_pg_shown(void)                       /* the Bluetooth page on screen shows its list: 1 + its side, else 0 */
+{
+    uint32_t p = bt_page();
+    return p && bt_pg_on(p - 1u) ? p : 0u;
+}
+static void bt_pg_sync(void)                            /* the scans follow the pages: on screen, not linked, nothing connecting */
+{
+    uint32_t a, pg = bt_page();
+    for (a = 0; a < 2u; a++) {
+        int want = pg == 1u + a && bt_pg_on(a) && !bt_connecting(a ^ 1u), has = (bt.scan >> a) & 1;
+        if (want == has) {
+#if FELUCCA_BT_AUDIO
+            if (want && a == BT_AUD && bta_state() != BTA_S_SCANNING)
+                bta_scan(2);                            /* (the inquiry ended: again, the list kept) */
+#endif
+            continue;
+        }
+        bt.scan = (uint8_t)(want ? bt.scan | 1u << a : bt.scan & ~(1u << a));
+        if (want)
+            bt.pcur = bt.pfirst = 0, bdv.key_ok = 0;
+        bt_scan(a, want);
+    }
+}
+static uint32_t bt_pg_cur(uint32_t a)                   /* the cursor row, kept inside the list (it shrinks and grows) */
+{
+    uint32_t n = bt_rows(a);
+    if (bt.pcur >= n)
+        bt.pcur = (uint8_t)(n ? n - 1u : 0u);
+    return bt.pcur;
+}
+static int bt_pg_known(uint32_t a, uint32_t i)          /* row i is a remembered device (else a new one, heard) */
+{
+#if FELUCCA_BT_AUDIO
+    if (a == BT_AUD)
+        return bta_row(i) >= 0;
+#endif
+#if BLE_CENTRAL
+    {
+        struct ble_dev_key k;
+        ble_dev_key_of(i + 1u, &k);
+        return k.kind == 1u || k.kind == 4u;
+    }
+#else
+    (void)a, (void)i;
+    return 0;
+#endif
+}
+static int bt_pg_turn(uint32_t a, int32_t s)            /* side a's DEVICE knob: the cursor through the list, stopping at the ends -> 1 */
+{
+    uint32_t n, c;
+    if (!bt_pg_on(a))
+        return 0;
+    if (s != OP_RESET) {
+        n = bt_rows(a);
+        c = bt_pg_cur(a);
+        c = s < 0 ? (c > (uint32_t)-s ? c - (uint32_t)-s : 0u) : c + (uint32_t)s;
+        bt.pcur = (uint8_t)(c >= n ? (n ? n - 1u : 0u) : c);
+        bdv.key_ok = 0;                                 /* (the row now: the key of the one drawn highlighted is retaken) */
+    }
+    return 1;
+}
+/* the list as drawn between y0 and y1, a row each (colour is the only mark: the remembered devices C_OK, green, the new ones
+ * C_WARN, amber; both fixed status colours, whatever the palette; no text on a fill, the cursor row is marked by a bar at the
+ * left edge in col) */
+#define BT_PG_ROWS 4u
+static void bt_pg_paint(uint32_t a, int32_t y0, int32_t y1, uint16_t col)
+{
+    uint32_t n = bt_rows(a), cur = bt_pg_cur(a), i;
+    int32_t rh = (y1 - y0) / (int32_t)BT_PG_ROWS;
+    if (cur < bt.pfirst)
+        bt.pfirst = (uint8_t)cur;
+    else if (cur >= bt.pfirst + BT_PG_ROWS)
+        bt.pfirst = (uint8_t)(cur - (BT_PG_ROWS - 1u));
+    if (bt.pfirst + BT_PG_ROWS > n)
+        bt.pfirst = (uint8_t)(n > BT_PG_ROWS ? n - BT_PG_ROWS : 0u);
+    for (i = bt.pfirst; i < n && i < bt.pfirst + BT_PG_ROWS; i++) {
+        char nm[BLE_NAME_MAX + 1u], b[BLE_NAME_MAX + 4u];
+        const char *tag;
+        int32_t bars, y = y0 + (int32_t)(i - bt.pfirst) * rh, right = 232, room;
+        uint16_t ink = bt_pg_known(a, i) ? C_OK : C_WARN;
+        bt_row(a, i, nm, &tag, &bars);
+        if (i == cur)
+            cv_rect(0, y + 2, 3, rh - 4, col);
+        if (bars >= 0) {
+            dev_bars(right - 16, y + (rh - 16) / 2, (uint32_t)bars, 0);
+            right -= 22;
+        }
+        if (tag[0]) {
+            op_case(b, tag, sizeof b);
+            right -= text_ws(b);
+            cv_texts(right, y + (rh - (int32_t)FONT_S.h) / 2, b, ink);
+            right -= 8;
+        }
+        room = right - 8;
+        cv_text(8, y + (rh - (int32_t)font_big()->h) / 2, font_big(), cut(b, nm, room > 16 ? (uint32_t)room / 16u : 1u), ink);
+    }
+    if (n > BT_PG_ROWS) {                               /* where the window is: a thin bar at the right edge */
+        int32_t h = rh * (int32_t)BT_PG_ROWS, th = h * (int32_t)BT_PG_ROWS / (int32_t)n;
+        cv_rect(238, y0, 2, h, C_LINE);
+        cv_rect(238, y0 + (h - th) * (int32_t)bt.pfirst / (int32_t)(n - BT_PG_ROWS), 2, th, C_GRAY);
+    }
+}
+/* what the list shows, as one number (op_gldraw.c gl_draw: the band is drawn again when it changes), and the key of the row
+ * drawn highlighted (MIDI: SAVE picks that device, wherever the list moved it) */
+static uint32_t bt_pg_sig(uint32_t a)
+{
+    uint32_t n = bt_rows(a), cur = bt_pg_cur(a), i, sig = hu(hu(0x7B5Du + n * 131u, cur), bt.pfirst);
+    char nm[BLE_NAME_MAX + 1u];
+    const char *tag;
+    int32_t bars;
+    for (i = 0; i < n; i++) {
+        bt_row(a, i, nm, &tag, &bars);
+        sig = hu(hs(hs(sig, nm), tag), (uint32_t)(bars + 2) * 2u + (uint32_t)bt_pg_known(a, i));
+    }
+#if BLE_CENTRAL
+    if (a == BT_MIDI && cur < n) {
+        ble_dev_key_of(cur + 1u, &bdv.key);
+        bdv.key_row = (uint8_t)cur;
+        bdv.key_ok = 1;
+    }
+#endif
+    return sig;
+}
+static int bt_midi_row(uint32_t i)                      /* MIDI's list row i: the ble_devices.c row of the device it is (by what it
+                                                         * is, not where: a shrunk list clamps the row) -> -1: gone */
+{
+    struct ble_dev_key k;
+    if (bdv.key_ok && (i == bdv.key_row || (i < bdv.key_row && i + 1u == bt_rows(BT_MIDI))))
+        k = bdv.key;                                    /* (the row the user saw: that device, not that place) */
+    else
+        ble_dev_key_of(i + 1u, &k);
+    return ble_dev_key_row(&k);
+}
 static void bt_pick(uint32_t a, uint32_t i)             /* SAVE on side a's row i: connect to it */
 {
     char nm[BLE_NAME_MAX + 1u];
@@ -204,14 +372,7 @@ static void bt_pick(uint32_t a, uint32_t i)             /* SAVE on side a's row 
     } else
 #endif
     {
-        struct ble_dev_key k;
-        int r;
-        if (bdv.key_ok && (i == bdv.key_row || (i < bdv.key_row && i + 1u == bt_rows(a))))
-            k = bdv.key;                                /* (the row the user saw: that device, not that place; a shrunk
-                                                         * list clamps the row) */
-        else
-            ble_dev_key_of(i + 1u, &k);
-        r = ble_dev_key_row(&k);
+        int r = bt_midi_row(i);
         if (r < 1) {
             ui_message("DEVICE GONE");
             return;
@@ -239,16 +400,69 @@ static void bt_save(uint32_t a)
         ui_say("DISCONNECTED ", nm);
         return;
     }
+    if (bt_pg_on(a)) {                                  /* the page's list: the row under the cursor, remembered or new */
+        if (!bt_rows(a)) {
+            ui_message("NONE FOUND");
+            return;
+        }
+        bt_pick(a, bt_pg_cur(a));
+        bt_pg_sync();                                   /* (connecting: the scan stops now) */
+        return;
+    }
     if (bt_has_last(a)) {
         bt_go(a);
         ui_say("CONNECTING ", nm);
         return;
     }
-    dev_open(a);                                        /* (nothing remembered: the devices around, to pick one) */
+    dev_open(a);                                        /* (MIDI without the central: nothing remembered, the devices list) */
+}
+static int bt_pg_forget(uint32_t a)                     /* SAVE held on the page's list: the cursor row's remembered device -> 1 */
+{
+    char nm[BLE_NAME_MAX + 1u];
+    const char *tag;
+    int32_t bars;
+    uint32_t i = bt_pg_cur(a);
+    if (!bt_pg_on(a))
+        return 0;
+    if (i >= bt_rows(a)) {
+        ui_message("NONE FOUND");
+        return 1;
+    }
+    if (!bt_pg_known(a, i)) {                           /* (a new device: nothing to forget) */
+        ui_message("NOT REMEMBERED");
+        return 1;
+    }
+    bt_row(a, i, nm, &tag, &bars);
+#if FELUCCA_BT_AUDIO
+    if (a == BT_AUD)
+        bta_forget((uint32_t)bta_row(i));               /* (its key goes too; the next one becomes the last) */
+    else
+#endif
+    {
+#if BLE_CENTRAL
+        struct ble_dev_key k;
+        int r = bt_midi_row(i);
+        if (r < 1) {
+            ui_message("DEVICE GONE");
+            return 1;
+        }
+        ble_dev_key_of((uint32_t)r, &k);
+        if (k.kind == 1u)
+            ble_dev_forget();                           /* (LAST: its keys go, the next remembered one becomes LAST) */
+        else
+            (void)ble_dev_forget_row((uint32_t)r);
+#endif
+    }
+    bdv.key_ok = 0;
+    sys_dirty = 1;
+    ui_say("FORGOTTEN ", nm);
+    return 1;
 }
 static void bt_forget(uint32_t a)                       /* SAVE held */
 {
     char nm[BLE_NAME_MAX + 1u];
+    if (bt_pg_forget(a))
+        return;
     if (!bt_has_last(a)) {
         ui_message("NO LAST DEVICE");
         return;
@@ -415,6 +629,7 @@ static void bt_poll(void)
 #if FELUCCA_BT_AUDIO
     bt_poll_side(BT_AUD);
 #endif
+    bt_pg_sync();                                       /* (the page's scan: on while its page is shown with no link) */
 }
 
 #if FELUCCA_BT_AUDIO
