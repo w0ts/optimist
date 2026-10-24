@@ -3,12 +3,14 @@
  * MIDI router, the way USB and TRS MIDI do it (usb.c, midi_uart.c):
  *   in   the stack decodes a central's BLE-MIDI writes, in the BLE interrupts, into USB-MIDI event packets. They wait
  *        in ble_in_q (one producer: the BLE interrupts) until the TIMER5 tick moves them into midi_in_q, whose
- *        producers all run in TIMER5; seq.c's events_block then plays them as it plays USB's. Channel messages only,
- *        as stock does (BLE in -> the synth): clock and transport from BLE are left out (clock_sync.c follows USB
- *        and TRS). Their time: the arrival less how much earlier than the packet's newest one their timestamp is.
+ *        producers all run in TIMER5; seq.c's events_block then plays them as it plays USB's. Channel messages, and
+ *        clock and transport (F8 FA FB FC, F2: clock_sync.c follows BLE as MSRC_BLE, SYNC BLE or AUTO's last). Their
+ *        time: the sender's own (its 13-bit millisecond timestamps, unwrapped) on our clock, at the offset of the
+ *        least delayed message lately (ble_in_time): the connection interval's bunching taken out.
  *   out  midi_out_event (the audio ISR: the FM-1's own notes, the stream USB gets) queues each event with its
  *        millisecond in ble_out_q while a central listens; the stack packs them into notifications at the next
- *        connection event, with real BLE-MIDI timestamps.
+ *        connection event, with real BLE-MIDI timestamps. CLOCK OUT (clock_out.c clko_emit) queues its F8s with
+ *        the time their audio leaves in ble_rt_q: each goes at the first connection event after it, stamped with it.
  *   ble_midi_route  bit 0 in, bit 1 out; both by default, as stock. Nothing is bridged between USB / TRS and BLE.
  *   ble_on          SYSTEM > Bluetooth (ui/optimist/op_project.c; ble_midi_set): OFF by default, kept in the settings word (bit
  *                   SETTINGS_BLE_ON_BIT = 24, 1 = ON: settings_word.c; a fresh unit, an older word or SLOOP's reads OFF). OFF from boot: the radio
@@ -21,7 +23,6 @@
 
 #define BMQ 64u
 enum { BLE_ROUTE_IN = 1, BLE_ROUTE_OUT = 2 };
-enum { MSRC_BLE = 3 };                          /* (only channel messages are queued: clock_sync.c never sees it) */
 static uint8_t ble_midi_route = BLE_ROUTE_IN | BLE_ROUTE_OUT;
 static uint32_t ble_in_q[BMQ], ble_in_t[BMQ], ble_out_q[BMQ], ble_out_ms[BMQ];
 static volatile uint32_t bmi_w, bmi_r, bmo_w, bmo_r;
@@ -30,6 +31,12 @@ static uint8_t ble_on;                         /* SYSTEM > Bluetooth: the radio 
 static uint8_t ble_held[16][16];               /* the notes a central has on (bit per note, per channel), TIMER5's */
 static volatile uint8_t ble_release;           /* the link is gone / off: end those notes (ble_midi_poll) */
 static uint8_t ble_was_conn;
+#if defined(FELUCCA_MIDI_CLKOUT) && FELUCCA_MIDI_CLKOUT
+#define BRTQ 8u                                /* (due within a block's latency: a few F8s at most) */
+static uint32_t ble_rt_q[BRTQ], ble_rt_due[BRTQ];  /* CLOCK OUT's packets, the TIMER4 time each is due (0: taken back) */
+static volatile uint32_t brt_w, brt_r;
+static uint8_t bmo_rt;                          /* the packet peeked is CLOCK OUT's */
+#endif
 #if MIR_BLE                                    /* the screen mirrored (io/editor/ed_mirror.c): its frames go out between the channel messages */
 static int mir_ble_peek(uint32_t *pkt);
 static void mir_ble_pop(void);
@@ -45,6 +52,9 @@ BLE_API void ble_app_state(void)               /* the BLE interrupts, or boot / 
     ble_out_on = (uint8_t)ble_midi_ready();
     if (!ble_out_on) {
         bmo_r = bmo_w;                          /* nothing waits for a central that does not listen */
+#if defined(FELUCCA_MIDI_CLKOUT) && FELUCCA_MIDI_CLKOUT
+        brt_r = brt_w;
+#endif
 #if MIR_BLE
         mir_ble_flush();
 #endif
@@ -54,6 +64,22 @@ BLE_API void ble_app_state(void)               /* the BLE interrupts, or boot / 
     ble_was_conn = c;
 }
 
+#if defined(FELUCCA_MIDI_CLKOUT) && FELUCCA_MIDI_CLKOUT
+/* CLOCK OUT's oldest packet, once due: its time in fm1_ms -> 1 */
+static int ble_rt_peek(uint32_t *pkt, uint32_t *t_ms)
+{
+    uint32_t now = SYNC_NOW();
+    while (brt_r != brt_w && !ble_rt_q[brt_r % BRTQ])
+        brt_r++;                                /* (taken back) */
+    if (brt_r == brt_w || (int32_t)(now - ble_rt_due[brt_r % BRTQ]) < 0)
+        return 0;
+    RING_PUBLISH();
+    *pkt = ble_rt_q[brt_r % BRTQ];
+    *t_ms = fm1_ms - (now - ble_rt_due[brt_r % BRTQ]) / (1000u * FM1_TICKS_PER_US);
+    return 1;
+}
+#endif
+
 BLE_API int ble_app_midi_peek(uint32_t *pkt, uint32_t *t_ms)
 {
 #if MIR_BLE
@@ -62,6 +88,11 @@ BLE_API int ble_app_midi_peek(uint32_t *pkt, uint32_t *t_ms)
         *t_ms = fm1_ms;
         return 1;
     }
+#endif
+#if defined(FELUCCA_MIDI_CLKOUT) && FELUCCA_MIDI_CLKOUT
+    bmo_rt = (uint8_t)ble_rt_peek(pkt, t_ms);  /* (first; a note older than it: the encoder starts the next packet) */
+    if (bmo_rt)
+        return 1;
 #endif
     if (bmo_r == bmo_w)
         return 0;
@@ -77,6 +108,14 @@ BLE_API void ble_app_midi_pop(void)
     if (bmo_mir) {
         bmo_mir = 0;
         mir_ble_pop();
+        return;
+    }
+#endif
+#if defined(FELUCCA_MIDI_CLKOUT) && FELUCCA_MIDI_CLKOUT
+    if (bmo_rt) {
+        bmo_rt = 0;
+        RING_PUBLISH();
+        brt_r++;
         return;
     }
 #endif
@@ -96,6 +135,48 @@ static struct {
 #ifndef OVL_LOST
 #define OVL_LOST(k) ((void)0)            /* (a unit without the overload monitor, system/overload.h: the driver tests) */
 #endif
+static int ble_clock_msg(uint32_t pkt)          /* F8 FA FB FC (CIN F), F2 (CIN 3): for clock_sync.c */
+{
+    uint32_t cin = pkt & 15u, st = (pkt >> 8) & 0xFFu;
+    return (cin == 0xFu && (st == 0xF8u || (st >= 0xFAu && st <= 0xFCu))) || (cin == 3u && st == 0xF2u);
+}
+
+/* a message's time on our clock (TIMER4): the sender's millisecond (ts, 13 bits; unwrapped into bin.s, the packet's
+ * newest last_ts at most 8 s on) plus the offset o of the least delayed message lately: o follows each earlier one at
+ * once and drifts up 1/4096 of the time since (the two clocks' drift, ~250 ppm). A sender whose times do not move
+ * (some send 0) or a gap of 4 s: o from this one (its arrival, less how much older than the packet's newest it is) */
+#define BIN_MS (1000u * FM1_TICKS_PER_US)
+static struct {
+    uint32_t s, o, at;                          /* the sender's time unwrapped, ms; the offset, ticks; our last arrival */
+    uint16_t ts;
+    uint8_t ok;
+} bin;
+static uint32_t ble_in_time(uint16_t ts, uint16_t last_ts)
+{
+    uint32_t now = SYNC_NOW(), arr, t, rise;
+    uint32_t back = (uint32_t)(uint16_t)(last_ts - ts) & 0x1FFFu;   /* ms older than the packet's newest */
+    arr = now - back * BIN_MS;                  /* (as before: the arrival, less that) */
+    if (bin.ok && now - bin.at < 4000u * BIN_MS)
+        bin.s += (uint32_t)(uint16_t)(ts - bin.ts) & 0x1FFFu;
+    else
+        bin.s = 0, bin.o = arr, bin.ok = 1;
+    rise = (now - bin.at) >> 12;
+    bin.ts = ts;
+    bin.at = now;
+    t = arr - bin.s * BIN_MS;                   /* the offset this message gives */
+    if ((int32_t)(t - (bin.o + rise)) < 0)
+        bin.o = t;                              /* less delayed: the offset */
+    else
+        bin.o += rise;
+    t = bin.o + bin.s * BIN_MS;
+    if ((int32_t)(now - t) > (int32_t)(40u * BIN_MS) || (int32_t)(t - now) > 0) {
+        bin.s = 0;                              /* off by more than a connection's worth, or ahead of now: from this one */
+        bin.o = arr;
+        t = arr;
+    }
+    return t;
+}
+
 BLE_API void ble_app_midi_in(uint32_t pkt, uint16_t ts, uint16_t last_ts)
 {
     uint32_t cin = pkt & 15u;
@@ -109,7 +190,7 @@ BLE_API void ble_app_midi_in(uint32_t pkt, uint16_t ts, uint16_t last_ts)
         BLE_DG(ble_mdg.off++);
         return;
     }
-    if (cin < 8u || cin > 0xEu) {
+    if ((cin < 8u || cin > 0xEu) && !ble_clock_msg(pkt)) {
         BLE_DG(ble_mdg.not_chan++);
         return;
     }
@@ -120,10 +201,30 @@ BLE_API void ble_app_midi_in(uint32_t pkt, uint16_t ts, uint16_t last_ts)
     }
     BLE_DG(ble_mdg.pushed++);
     ble_in_q[bmi_w % BMQ] = pkt;
-    ble_in_t[bmi_w % BMQ] = SYNC_NOW() - ((uint32_t)(uint16_t)(last_ts - ts) & 0x1FFFu) * 1000u * FM1_TICKS_PER_US;
+    ble_in_t[bmi_w % BMQ] = ble_in_time(ts, last_ts);
     RING_PUBLISH();
     bmi_w++;
 }
+
+#if defined(FELUCCA_MIDI_CLKOUT) && FELUCCA_MIDI_CLKOUT
+static int ble_rt_on(void) { return ble_out_on && (ble_midi_route & BLE_ROUTE_OUT); }
+static void ble_rt_push(uint32_t due, uint32_t pkt)   /* the audio ISR, clock_out.c clko_emit */
+{
+    if (!ble_out_on || !(ble_midi_route & BLE_ROUTE_OUT) || brt_w - brt_r >= BRTQ)
+        return;
+    ble_rt_q[brt_w % BRTQ] = pkt;
+    ble_rt_due[brt_w % BRTQ] = due;
+    RING_PUBLISH();
+    brt_w++;
+}
+static void ble_rt_drop_after(uint32_t t, uint32_t pkt)   /* (as usb.c rt_out_drop_after: a start's F8s taken back) */
+{
+    uint32_t i;
+    for (i = brt_r; i != brt_w; i++)
+        if (ble_rt_q[i % BRTQ] == pkt && (int32_t)(ble_rt_due[i % BRTQ] - t) > 0)
+            ble_rt_q[i % BRTQ] = 0;
+}
+#endif
 
 static void ble_midi_out(uint32_t pkt)          /* the audio ISR, from usb.c's midi_out_event */
 {

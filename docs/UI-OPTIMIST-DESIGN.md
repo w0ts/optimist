@@ -260,7 +260,7 @@ A page is one section; sections are never combined to fill a page except two joi
 
 | Screen | Sections |
 |---|---|
-| GLOBAL | Tempo (BPM NUDGE SWING TUNE), Rec (MODE LENGTH START CLICK, then QUANT), MIDI (CLK IN, CLK OUT, MIDI OUT), Channels (T1 T2 T3 DR) |
+| GLOBAL | Tempo (BPM NUDGE SWING TUNE), Rec (MODE LENGTH START CLICK, then QUANT), MIDI (CLK IN, CLK OUT, MIDI OUT; CLK OFS, BT OFS: the steps that much earlier while following a clock, on the FM-1's output / on Bluetooth audio, TEMPO's nudge too), Channels (T1 T2 T3 DR) |
 | SYSTEM | INFO, INTERNALS and USB STATS (debug builds, `SYS_DEBUG`), Screen & audio (BRIGHT, KNOB COLORS, LOWCUT), Keys (BUTTONS glow, KEYS), Connections (USB SERIAL), BT MIDI, BT AUDIO, Devices, USB AUDIO, Calibrate (PANEL, HOLD), About (VERSION, BUILD, REPO), Credits |
 
 - **INFO** is text only, no bars. The player's page: CPU (KNOB 1 picks NOW / MAX 5S / MAX; CPU0 and CPU1 in a dual-core build, the other core's stop reason in amber), UNDERRUNS (everything lost, the late halves too, with where), BATTERY. With `SYS_DEBUG` it also has DROPS (the late halves alone), clock, GUARD, and **INTERNALS** (LAST RESET, flash interrupts-off time, the second core's counters) and **USB STATS**. SHIFT + SAVE on INFO clears DROPS, UNDERRUNS and the MAX. Code: `system/overload.h`, `sys_info_cell`.

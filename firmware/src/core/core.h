@@ -405,8 +405,9 @@ static volatile uint8_t miss_gen;   /* + 1 per load (proj_apply, also in the aud
 #define MISS_BUMP() ((void)0)
 #endif
 /* G_SYNC (clock_sync.c): the values of the first clock builds kept (0 INT = projects from before the
- * clock; USB / TRS = usb.c MSRC_*); AUTO, the default, follows TRS, then USB, then the internal tempo */
-enum { SYNC_INT, SYNC_USB, SYNC_TRS, SYNC_AUTO };
+ * clock; USB / TRS = usb.c MSRC_*); AUTO, the default, follows TRS, then USB, then BLE, then the internal tempo;
+ * BLE (MSRC_BLE, io/midi/midi_ble.c) came after AUTO, so the stored values stay */
+enum { SYNC_INT, SYNC_USB, SYNC_TRS, SYNC_AUTO, SYNC_BLE };
 
 /* ----------------------------------------------------------- voices --- */
 typedef struct {

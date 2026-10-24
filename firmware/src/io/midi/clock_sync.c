@@ -5,8 +5,9 @@
  * choice, the tempo filter, the latency compensation, the sample-accurate steps and song position are
  * SLOOP's.
  *
- * Source. SYNC AUTO follows TRS if it brings a clock, else USB, else the internal tempo; USB / TRS follow
- * only that input; INT never follows. A source is present after 4 F8 a steady period apart (each within
+ * Source. SYNC AUTO follows TRS if it brings a clock, else USB, else BLE, else the internal tempo; USB / TRS / BLE
+ * follow only that input; INT never follows. BLE's F8s carry the sender's own time (io/midi/midi_ble.c ble_in_time):
+ * the connection interval's bunching taken out, a millisecond's grain left for the filter. A source is present after 4 F8 a steady period apart (each within
  * 1/4 + 2 ms of the last), and gone 500 ms after its last F8. The source changes only while stopped (never
  * mid-song, not even from the internal tempo); a START / CONTINUE while stopped takes its source at once if
  * it is preferred, or nothing is followed yet. Following a clock that stops while playing: the transport
@@ -38,7 +39,10 @@
  * starts at once, late by the latency, every later step in time. Continue (FB) does the same at the song
  * position (F2, 16ths) or where the clock stopped. PLAY on the device while following arms a start at the
  * next F8; STOP stops.
- * SYNC_DAC_T: the codec's own delay (DAC filter, analog path): 0, as it is not known (no FM-1 measured). */
+ * SYNC_DAC_T: the codec's own delay (DAC filter, analog path): 0, as it is not known (no FM-1 measured).
+ * Offset (GLOBAL > MIDI, settings of the FM-1): CLK OFS on the FM-1's own output, BT OFS while the audio streams to
+ * Bluetooth (on top of what our side of the stream adds, bt/bt_acl.c bta_lat_t): ms the steps go earlier (< 0 later)
+ * than the clock heard. Keys played by hand are not moved: on Bluetooth they are as late as the stream. */
 #ifndef FM1_TICKS_PER_US
 #define FM1_TICKS_PER_US 24u
 #endif
@@ -80,7 +84,34 @@
 #define SY_PMAX (130u * 1000u * FM1_TICKS_PER_US)
 #define SY_LOST (500u * 1000u * FM1_TICKS_PER_US)          /* no F8 for that long: gone (Melodee) */
 #define SY_US (FM1_TICKS_PER_US)
-/* G_SYNC: SYNC_INT .. SYNC_AUTO (core.h) */
+/* G_SYNC: SYNC_INT .. SYNC_BLE (core.h) */
+#define SY_OFS_MIN (-100)                                  /* CLK OFS / BT OFS, ms (op_project.c's lines) */
+#define SY_OFS_MAX 250
+static int16_t sync_ofs[2];                                /* [0] CLK OFS, [1] BT OFS, ms (the settings record) */
+static int32_t sy_lead;                                    /* this block's offset, TIMER4 ticks (sync_follow) */
+#if FELUCCA_BT_AUDIO
+static int32_t bta_lat_t(void);
+#endif
+static uint32_t sync_ofs_ix(void)                          /* the offset in use: 1 BT OFS while the audio streams to
+                                                          * Bluetooth, else 0 CLK OFS (TEMPO's nudge sets it, op_tempo.c) */
+{
+#if FELUCCA_BT_AUDIO
+    return bta_lat_t() >= 0;
+#else
+    return 0;
+#endif
+}
+static const param_desc_t SY_OFS_D[2] = {PU("CLK OFS", F_INT, SY_OFS_MIN, SY_OFS_MAX, 0, "ms"),
+                                         PU("BT OFS", F_INT, SY_OFS_MIN, SY_OFS_MAX, 0, "ms")};
+static int32_t sync_lead_t(void)                           /* the offset now: Bluetooth's while it streams */
+{
+#if FELUCCA_BT_AUDIO
+    int32_t bt = bta_lat_t();
+    if (bt >= 0)
+        return bt + sync_ofs[1] * 1000 * (int32_t)FM1_TICKS_PER_US;
+#endif
+    return sync_ofs[0] * 1000 * (int32_t)FM1_TICKS_PER_US;
+}
 
 static volatile uint32_t sync_out_t;   /* TIMER4 time the block being rendered starts to leave the DMA (audio.c) */
 static struct {
@@ -100,10 +131,10 @@ static struct {
     uint8_t arm;           /* START / CONTINUE: start when the clock reaches pos (n0 set) */
     uint8_t stop;          /* for events_block: stop now */
     uint8_t mode;          /* G_SYNC as last seen */
-    uint8_t src;           /* the source followed: MSRC_USB / MSRC_TRS, 0 = none (internal tempo) */
+    uint8_t src;           /* the source followed: MSRC_USB / MSRC_TRS / MSRC_BLE, 0 = none (internal tempo) */
 } sy;
 #define SY_STEADY 4u                                       /* F8s a steady period apart: a source is present */
-static struct { uint32_t last, dt; uint8_t cnt; } sy_pr[3];   /* per source (MSRC_*): presence */
+static struct { uint32_t last, dt; uint8_t cnt; } sy_pr[4];   /* per source (MSRC_*): presence */
 
 static uint32_t sy_div(uint64_t n, uint32_t d)            /* n / d (no 64-bit division in the runtime) */
 {
@@ -148,12 +179,16 @@ static int sy_present(uint32_t s, uint32_t now)
     return sy_pr[s].cnt >= SY_STEADY && now - sy_pr[s].last < SY_LOST;
 }
 
-/* the sources SYNC allows, TRS first */
+/* the sources SYNC allows */
 static uint32_t sy_allowed(uint32_t s)
 {
     uint32_t m = (uint32_t)song.g[G_SYNC];
-    return m == SYNC_AUTO || (m == SYNC_USB && s == MSRC_USB) || (m == SYNC_TRS && s == MSRC_TRS);
+    return m == SYNC_AUTO || (m == SYNC_USB && s == MSRC_USB) || (m == SYNC_TRS && s == MSRC_TRS) ||
+           (m == SYNC_BLE && s == MSRC_BLE);
 }
+
+/* AUTO's preference: TRS 3, USB 2, BLE 1 (the most jitter last), none 0 */
+static uint32_t sy_rank(uint32_t s) { return s == MSRC_BLE ? 1u : s; }
 
 static void sy_follow_src(uint32_t s)                     /* a new source: its clock from scratch */
 {
@@ -163,7 +198,7 @@ static void sy_follow_src(uint32_t s)                     /* a new source: its c
     sy.stop = 0;
 }
 
-/* once a block, stopped: the source to follow (TRS, USB, or none); never while playing */
+/* once a block, stopped: the source to follow (TRS, USB, BLE, or none); never while playing */
 static void sync_select(uint32_t now)
 {
     uint32_t s, best = 0;
@@ -178,8 +213,8 @@ static void sync_select(uint32_t now)
         song.g[G_MIDI] = (int16_t)sy.src;                  /* (read-only: the source shown, the editor) */
     if (song.playing || sy.arm)
         return;
-    for (s = MSRC_TRS; s >= MSRC_USB && !best; s--)
-        if (sy_allowed(s) && sy_present(s, now))
+    for (s = MSRC_USB; s <= MSRC_BLE; s++)
+        if (sy_allowed(s) && sy_present(s, now) && sy_rank(s) > sy_rank(best))
             best = s;
     if (best != sy.src)
         sy_follow_src(best);
@@ -287,7 +322,7 @@ static void sync_msg(uint32_t st, uint32_t d1, uint32_t d2, uint32_t t, uint32_t
     }
     if (s != sy.src) {                                     /* START / CONTINUE stopped: from a source to prefer */
         if ((st != 0xFAu && st != 0xFBu) || song.playing || sy.arm || !sy_allowed(s) ||
-            (sy.src && sy.src > s && sy_present(sy.src, t)))
+            (sy.src && sy_rank(sy.src) > sy_rank(s) && sy_present(sy.src, t)))
             return;
         sy_follow_src(s);
     }
@@ -312,7 +347,7 @@ static void sync_msg(uint32_t st, uint32_t d1, uint32_t d2, uint32_t t, uint32_t
 /* where the external clock will be at TIMER4 time x, in units from position 0 */
 static int64_t sy_at(uint32_t x)
 {
-    uint32_t lim = 3u * (sy.p >> 8);
+    uint32_t lim = 3u * (sy.p >> 8) + (sy_lead > 0 ? (uint32_t)sy_lead : 0u);   /* (an offset: that far ahead too) */
     int64_t dq = ((int64_t)(int32_t)(x - (uint32_t)(sy.tq >> 8)) << 8) - (int64_t)(sy.tq & 255u);
     if (dq > (int64_t)lim << 8)
         dq = (int64_t)lim << 8;                            /* a stalled clock: the steps stop */
@@ -340,8 +375,10 @@ static void clk_set(int64_t u)                            /* (u >= 0) */
  * position is, for the steps' samples); returns the units it moved */
 static uint32_t sync_follow(uint32_t n)
 {
-    uint32_t t0 = sync_out_t + SYNC_DAC_T + SYNC_LIM_T;
+    uint32_t t0;
     int64_t p0, p1, c;
+    sy_lead = sync_lead_t();
+    t0 = sync_out_t + SYNC_DAC_T + SYNC_LIM_T + (uint32_t)sy_lead;
     if (sy.stop) {
         sy.stop = 0;
         if (song.playing)

@@ -40,8 +40,12 @@ static const char *const N_ORDER[] = {"NOTE", "PLAY"};
 static const char *const N_CLICK[] = {"OFF", "REC", "ON", "AUTO"};   /* G_CLOCK is the metronome (seq.c click_tick; AUTO: while nothing else plays) */
 static const char *const N_NOTE[] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
 static const char *const N_DASH[] = {"--"};
-static const char *const N_SYNC[] = {"INT", "USB", "TRS", "AUTO"};   /* SYNC_* (core.h); AUTO: TRS, USB, INT */
-static const char *const N_CLKSRC[] = {"INT", "USB", "TRS"};         /* G_MIDI: the clock followed (MSRC_*) */
+#if defined(FELUCCA_BLE) && FELUCCA_BLE
+static const char *const N_SYNC[] = {"INT", "USB", "TRS", "AUTO", "BLE"};   /* SYNC_* (core.h); AUTO: TRS, USB, BLE, INT */
+#else
+static const char *const N_SYNC[] = {"INT", "USB", "TRS", "AUTO"};          /* (no BLE MIDI: no SYNC BLE) */
+#endif
+static const char *const N_CLKSRC[] = {"INT", "USB", "TRS", "BLE"};         /* G_MIDI: the clock followed (MSRC_*) */
 static const char *const N_GO[] = {"--", "GO"};
 static const char *const N_SLCR[] = {"OFF", "GATE", "STUT"};             /* SL_OFF .. SL_STUT (slicer.c) */
 #if INS_FX || FELUCCA_USB_AUDIO                      /* (fx_slots.c UT_DESC, the USB input slots, names them too) */
@@ -559,8 +563,8 @@ static void param_format(const param_desc_t *d, int32_t v, char *val, const char
         return;
     }
     if (d == &GP[G_SYNC] && v == SYNC_AUTO) {         /* AUTO and the clock it follows now (G_MIDI): "A:TRS" */
-        static const char *const A[3] = {"A:INT", "A:USB", "A:TRS"};   /* (a column fits 5 characters, */
-        str_cpy(val, A[(uint32_t)song.g[G_MIDI] % 3u], 6);              /* "AUTO:TRS" is the editor's) */
+        static const char *const A[4] = {"A:INT", "A:USB", "A:TRS", "A:BLE"};   /* (a column fits 5 characters, */
+        str_cpy(val, A[(uint32_t)song.g[G_MIDI] % 4u], 6);              /* "AUTO:TRS" is the editor's) */
         return;
     }
     switch (d->fmt) {

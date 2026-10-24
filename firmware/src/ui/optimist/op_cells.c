@@ -178,10 +178,10 @@ static void cell_param(cell_t *c, const param_desc_t *d, int16_t *vp)
  * param_format's 5 characters ("A:USB", "KEYS"). 1: b (14) holds it */
 static int value_long(const param_desc_t *d, int32_t v, char *b)
 {
-    static const char *const CK[3] = {"Auto: Int", "Auto: USB", "Auto: TRS"};
+    static const char *const CK[4] = {"Auto: Int", "Auto: USB", "Auto: TRS", "Auto: BLE"};
     if (d == &GP[G_SYNC]) {                             /* a fixed clock: "Int", to match "Auto: Int" */
-        static const char *const FX[3] = {"Int", "USB", "TRS"};
-        str_cpy(b, v == SYNC_AUTO ? CK[(uint32_t)song.g[G_MIDI] % 3u] : FX[(uint32_t)v % 3u], 14);
+        static const char *const FX[5] = {"Int", "USB", "TRS", "", "BLE"};
+        str_cpy(b, v == SYNC_AUTO ? CK[(uint32_t)song.g[G_MIDI] % 4u] : FX[(uint32_t)v % 5u], 14);
         return 1;
     }
 #if BP_SET_ANY

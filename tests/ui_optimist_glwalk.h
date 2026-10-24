@@ -23,6 +23,7 @@ static uint32_t glw_state(void)                        /* every setting a GLOBAL
     h = glw_mix(h, &knob_colors, 1);
     h = glw_mix(h, &hold_sel, 1);
     h = glw_mix(h, &TSEL->p[P_SLEN], sizeof TSEL->p[P_SLEN]);
+    h = glw_mix(h, sync_ofs, sizeof sync_ofs);      /* (CLK OFS, BT OFS: clock_sync.c) */
 #if FELUCCA_REC_MODES
     h = glw_mix(h, &rec_tempo, 1);
     h = glw_mix(h, &rec_count, 1);
@@ -261,9 +262,14 @@ static void glw_sync_long_tests(void)
             pg_ok &= c.label && !strcmp(c.label, ML[j]) && !strcmp(nm, "MIDI") && gl_first(0, first + k) == gl_first(0, first);
             k++;
         }
-        pg_ok &= k == n && gl_end(0, first) - gl_first(0, first) == n && first == gl_first(0, first);
+        if (FELUCCA_MIDI_CLOCK) {                       /* then CLK OFS (and BT OFS): the MIDI section's second row */
+            SCREENS[SCR_GLOBAL].cell(first + k, gl_kn(SCR_GLOBAL, first + k), &c);
+            pg_ok &= c.label && !strcmp(c.label, "CLK OFS") && c.vp == &sync_ofs[0];
+            n += 1u + (FELUCCA_BT_AUDIO ? 1u : 0u);
+        }
+        pg_ok &= gl_end(0, first) - gl_first(0, first) == n && first == gl_first(0, first);
         glo_cell(TPR_TEMPO, 3, &c);
-        check(pg_ok && c.vp == &song.g[G_TUNE], "GLOBAL: the MIDI page is CLK IN, CLK OUT, MIDI OUT (one page, no MIDI IN, no CLK read-out); GLOBAL's Tempo's fourth line is TUNE, not SYNC");
+        check(pg_ok && c.vp == &song.g[G_TUNE], "GLOBAL: the MIDI page is CLK IN, CLK OUT, MIDI OUT, then CLK OFS (BT OFS) (no MIDI IN, no CLK read-out); GLOBAL's Tempo's fourth line is TUNE, not SYNC");
         tp_cell(TPR_TEMPO, 3, &c);
         check(!FELUCCA_MIDI_CLOCK || (c.kind == CK_VAL && !strcmp(c.label, "SYNC")), "PLAY's TEMPO page still has SYNC (its 4th card)");
     }

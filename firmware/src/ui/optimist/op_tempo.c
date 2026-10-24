@@ -8,18 +8,21 @@
  *              without REC MODES QUANT is on REC's first card and REC 2 is no page (tps_*, the audit's #21).
  *              SELECT walks them (the screen's pages); BPM and NUDGE stay together on the first (the user)
  *   OCT- / +   held: the nudge, the clock a few percent slower / faster while held (seq.c clk_nudge, the BPM value
- *              never changes; nothing while an external clock is followed)
+ *              never changes). Following an external clock: the offset in use (CLK OFS, or BT OFS while the audio
+ *              streams to Bluetooth: clock_sync.c sync_ofs) 1 ms later / earlier each TEMPO_OFS_MS held, kept; the
+ *              NUDGE card shows it and its knob turns it
  *   white key  tap tempo (two taps or more); HOME too (op_combos.c: PLAY held, HOME pressed)
  * The panel: the tempo big, the beat, the nudge, the clock followed (A:USB ...) and its RX light. */
 #define TEMPO_HOLD_MS op_hold_ms()      /* PLAY held this long: the page (shorter: a tap, start / stop; SYSTEM HOLD) */
 #define TEMPO_NUDGE 10                  /* the nudge, in 1/256 of the tempo: 3.9 % */
+#define TEMPO_OFS_MS 40u                /* following a clock: OCT- / + held move the offset 1 ms this often */
 static void tap_tempo(void);                           /* op_layers.c (tap_tempo_at: HOME's, op_combos.c) */
 static struct {
     uint8_t on;                         /* the page is up */
     uint8_t prev;                       /* the screen under it */
     uint8_t pend;                       /* PLAY down, nothing done yet: a tap (start / stop) when let go early */
-    uint8_t ext_said;                   /* "external clock" said for this hold */
     uint32_t t0;                        /* PLAY's press */
+    uint32_t ofs_t;                     /* the offset's last 1 ms step (OCT- / + held, following a clock) */
 } tp;
 static const uint8_t REC_LENS[3] = {16u, 32u, 64u};    /* LENGTH: 1, 2, 4 bars of 1/16 */
 enum { TPR_TEMPO, TPR_REC, TPR_REC2, TPR_N };          /* the page's rows (GLOBAL's first three too: op_global.c) */
@@ -31,7 +34,6 @@ static void tempo_open(void)
         return;
     tp.on = 1;
     tp.prev = ui.scr;
-    tp.ext_said = 0;
     ui.scr = SCR_TEMPO;
     ui.hot = 0;
     ui.hot_lit = 0;
@@ -66,10 +68,14 @@ static void tempo_frame(uint32_t held)
         tempo_open();
     if (tempo_nudging()) {
         n = held & dyn_bit[0] ? -TEMPO_NUDGE : held & dyn_bit[1] ? TEMPO_NUDGE : 0;
-        if (n && sy.src) {                              /* (an external clock: its tempo, no nudge) */
-            if (!tp.ext_said)
-                ui_message("NUDGE: EXTERNAL CLOCK");
-            tp.ext_said = 1;
+        if (n && sy.src) {                              /* (an external clock: its tempo; the offset instead) */
+            if (fm1_ms - tp.ofs_t >= TEMPO_OFS_MS) {
+                int16_t *o = &sync_ofs[sync_ofs_ix()];
+                *o = (int16_t)clamp(*o + (n > 0 ? 1 : -1), SY_OFS_MIN, SY_OFS_MAX);   /* (+: the steps earlier) */
+                tp.ofs_t = fm1_ms;
+                settings_later = 1;                     /* (the settings record, once quiet: project.c; the card
+                                                         * redraws as a turned value does, no ui.force: it flashed) */
+            }
             n = 0;
         }
     }
@@ -105,6 +111,10 @@ static void tp_cell(uint32_t r, uint32_t k, cell_t *c)
     cell_clear(c);
     if (r == TPR_REC2 || (!r && k == 3u))
         return;                                         /* (REC 2: QUANT, then free cells) */
+    if (!r && sy.src) {                                 /* following a clock: the offset in use, OCT- / + and the knob */
+        cell_param(c, &SY_OFS_D[sync_ofs_ix()], &sync_ofs[sync_ofs_ix()]);
+        return;
+    }
     if (!r) {                                           /* NUDGE: what OCT- / OCT+ do now, a read-out */
         c->label = "NUDGE";
         c->kind = CK_RO;
@@ -132,6 +142,11 @@ static void tp_turn(uint32_t r, uint32_t k, int32_t s, int fine)
     int32_t g = tp_g(r, k);
     if (g >= 0) {
         val_turn(&GP[g], &song.g[g], k, s, fine);
+        return;
+    }
+    if (!r && k == 1u && sy.src) {                      /* the offset in use (its card above) */
+        val_turn(&SY_OFS_D[sync_ofs_ix()], &sync_ofs[sync_ofs_ix()], k, s, fine);
+        settings_later = 1;
         return;
     }
     if (r != TPR_REC)

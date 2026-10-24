@@ -5,7 +5,8 @@
  * CoreMIDI's: a header, a timestamp before every status, several messages per packet, running status with and
  * without its own timestamp, the low timestamp wrapping into the header's high part, clock (F8) and active sensing
  * (FE) mixed in, a SysEx over two packets, note offs as 9x velocity 0. It also checks blell's counters (ble_dg.mi_*,
- * ble_mdg) and a flood the size of the FM-1's run (5050 writes) without a ring overflow.
+ * ble_mdg), a flood the size of the FM-1's run (5050 writes) without a ring overflow, clock and transport queued for
+ * clock_sync.c (MSRC_BLE) with the sender's times on ours (ble_in_time), and CLOCK OUT's F8s out at their time.
  * Exit status: the number of failed checks. */
 #define FELUCCA_BLE 1
 #define FELUCCA_BLE_STUB 1
@@ -136,9 +137,9 @@ static void t_apple_packets(void)
     check(ble_dg.mi_on == 5u && ble_dg.mi_off == 5u && ble_dg.mi_clock == 1u && ble_dg.mi_sense == 1u &&
               ble_dg.mi_other == 3u,
           "blell: 5 note ons, 5 offs, 1 clock, 1 active sensing, 3 SysEx event packets");
-    check(ble_mdg.pushed == 10u && ble_mdg.drained == 10u && ble_mdg.drained_on == 5u && ble_mdg.not_chan == 5u &&
+    check(ble_mdg.pushed == 11u && ble_mdg.drained == 11u && ble_mdg.drained_on == 5u && ble_mdg.not_chan == 4u &&
               ble_mdg.overflow == 0u && ble_mdg.off == 0u,
-          "blell: 10 channel messages queued and drained into midi_in_q, the 5 others left out");
+          "blell: 10 channel messages and the clock queued and drained into midi_in_q, the 4 others left out");
     check(ble_dg.mi_raw_len[(ble_dg.mi_raw_n - 1u) & 3u] == 5u && ble_dg.mi_raw[(ble_dg.mi_raw_n - 1u) & 3u][2] == 0x80 &&
               ble_dg.mi_msg[(ble_dg.mi_msg_n - 1u) & 3u] == (0x08u | 0x80u << 8 | 0x4Au << 16),
           "blell: the last raw packet and the last decoded message");
@@ -203,12 +204,78 @@ static void t_flood(void)
     check(ngated() == 0u, "... and every note ended");
 }
 
+/* F8s at 120 BPM (20.83 ms), stamped by the sender to the ms, delivered at 15 ms connection events (one, two or none
+ * a packet): their times in midi_in_q keep the sender's spacing, not the events'; FA FB FC F2 go too, as MSRC_BLE */
+static void t_clock_in(void)
+{
+    uint32_t k, n = 0, bad = 0, src_ok = 1, ev;
+    double send[64];
+    uint32_t got_t[64];
+    reset();
+    host_now = 1000000u;
+    for (k = 0; k < 64u; k++)
+        send[k] = 5000.0 + k * 20.8333;                       /* ms, the sender's clock */
+    for (ev = 0, k = 0; k < 64u; ev++) {                      /* the connection events */
+        double at = 5000.0 + ev * 15.0 + 3.0;                 /* (3 ms after the first F8: the air, the stack) */
+        uint8_t p[16];
+        uint32_t m = 1, ms;
+        if (send[k] > at)
+            continue;
+        ms = (uint32_t)send[k];
+        p[0] = (uint8_t)(0x80u | ((ms >> 7) & 0x3Fu));
+        while (k < 64u && send[k] <= at) {
+            ms = (uint32_t)send[k++];
+            p[m++] = (uint8_t)(0x80u | (ms & 0x7Fu));
+            p[m++] = 0xF8;
+        }
+        host_now = (uint32_t)(1000000.0 + (at - 5000.0) * 24000.0);
+        wcmd(0x000E, p, m);
+        while (bmi_r != bmi_w) {
+            got_t[n] = ble_in_t[bmi_r % BMQ];
+            src_ok &= ((ble_in_q[bmi_r % BMQ] >> 8) & 0xFFu) == 0xF8u;
+            bmi_r++;
+            n++;
+        }
+    }
+    for (k = 9; k < n; k++) {                                 /* (from the 10th: the least delay found) */
+        double d = (double)(got_t[k] - got_t[k - 1]) / 24000.0;
+        bad += d < 19.5 || d > 22.0;
+    }
+    check(n == 64u && src_ok && !bad, "BLE F8s at 120 BPM over 15 ms connection events: 20.8 +- 1 ms apart, as sent");
+    reset();
+    WCMD(0x80, 0x80, 0xFA, 0x81, 0xF8, 0x82, 0xFC, 0x83, 0xF2, 0x08, 0x01, 0x84, 0xFB);
+    tick();
+    check(ble_mdg.pushed == 5u && ble_mdg.not_chan == 0u, "FA F8 FC F2 FB from BLE: queued for the clock (clock_sync.c)");
+}
+
+/* CLOCK OUT to a listening central: an F8 due later waits, then goes with its time; nobody listening: nothing */
+static void t_clock_out(void)
+{
+    uint32_t pkt = 0, t = 0;
+    reset();
+    host_now = 24000000u;
+    fm1_ms = 1000u;
+    ble_out_on = 1;
+    ble_rt_push(host_now + 48000u, 0x0Fu | 0xF8u << 8);       /* due in 2 ms */
+    check(!ble_app_midi_peek(&pkt, &t), "CLOCK OUT: an F8 due in 2 ms is not sent yet");
+    host_now += 72000u;                                       /* 3 ms on */
+    fm1_ms += 3u;
+    check(ble_app_midi_peek(&pkt, &t) && pkt == (0x0Fu | 0xF8u << 8) && t == 1002u,
+          "... 3 ms later: sent, its timestamp the ms it was due");
+    ble_app_midi_pop();
+    check(!ble_app_midi_peek(&pkt, &t), "... and gone from the queue");
+    ble_out_on = 0;
+    check(!ble_rt_on(), "nobody listening: CLOCK OUT sends nothing to BLE");
+}
+
 int main(void)
 {
     t_apple_packets();
     t_channels();
     t_wrong_handle_and_off();
     t_flood();
+    t_clock_in();
+    t_clock_out();
     printf("ble_midi_in: %d failed\n", fails);
     return fails;
 }

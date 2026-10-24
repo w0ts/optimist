@@ -187,6 +187,8 @@ typedef struct {
     uint32_t ua_mark3;
     uint8_t bt_rec[32], bt_key[32];
     uint8_t open_proj, rsv_pj[3];                  /* 2026-10-22: the open project (PATTERNS: sections.c); a record from before: 0 */
+    int16_t clk_ofs[2];                            /* 2026-10-24: GLOBAL > MIDI CLK OFS, BT OFS, ms (clock_sync.c sync_ofs);
+                                                    * a record from before: 0 */
 #if FELUCCA_DUAL && FELUCCA_DUALCFG
     dualcfg_t dualcfg;                             /* (the second-core test image only: after everything) */
 #endif
