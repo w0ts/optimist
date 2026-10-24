@@ -73,6 +73,10 @@ screen, a few pages, Projects, Presets, Backup, Bluetooth; 2-3 minutes, unlisted
 
 ```
 1. Screen recording on a physical device (Mac, macOS 27.0.1): <LINK>
+The inset in the corner is a phone video of the FM-1 itself, filmed at the same time, so the device and the app can be
+compared. The iPhone, iPad and Mac versions are one app built from the same source code (the Mac version is the iPad app
+through Mac Catalyst), so the flow shown is the same on iOS and iPadOS. The only Mac differences: the computer keyboard
+presses the FM-1's buttons, and files are saved with the Mac's Save dialog instead of the share sheet.
 
 2. Purpose and audience
 Optimist Mirror is a free companion app for the M-VAVE FM-1, a pocket synthesizer, when it runs Optimist, our open-source
