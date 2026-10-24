@@ -9,7 +9,8 @@
  *   SAVE    whatever line of the page the cursor is on: connected or connecting, it lets go; else the last device,
  *           connected to; none, the scan (that side's devices list). On the list SAVE connects to the row (it becomes the
  *           last device).
- *   SAVE held  forgets that side's last device. HOME goes home, as anywhere.
+ *   SAVE held  forgets that side's last device (AUDIO's list open: that row's remembered device; AUDIO remembers 4,
+ *           bt/bta_mem.c, and AUTO pages them in turn). HOME goes home, as anywhere.
  * MIDI advertises whenever no link is up (ble/ble_ll.c). Each action says what it did (ui_say). Both modes and the AUDIO
  * last device are kept in the settings record (storage/persist_rec.c bt_rec; bt_rec_out below). The radio is shared:
  * ble/rf_share.h, docs/BT-CLASSIC.md §9.1. */
@@ -49,7 +50,7 @@ static int bt_has_last(uint32_t a)
 {
 #if FELUCCA_BT_AUDIO
     if (a == BT_AUD)
-        return bta.have_last;
+        return bta.nmem != 0u;
 #endif
 #if BLE_CENTRAL
     if (a == BT_MIDI)
@@ -62,8 +63,8 @@ static void bt_last_name(uint32_t a, char nm[BLE_NAME_MAX + 1u])
     nm[0] = 0;
 #if FELUCCA_BT_AUDIO
     if (a == BT_AUD) {
-        if (bta.have_last)
-            str_cpy(nm, bta.last_name, BLE_NAME_MAX + 1u);
+        if (bta.nmem)
+            str_cpy(nm, bta.mem[0].name, BLE_NAME_MAX + 1u);
         return;
     }
 #endif
@@ -103,6 +104,7 @@ static void bt_stop(uint32_t a)                         /* side a's link, or its
 #if FELUCCA_BT_AUDIO
     if (a == BT_AUD) {
         bta_hangup();
+        bta_settle(0);                                  /* (AUTO's round left: the last device first again) */
         return;
     }
 #endif
@@ -123,7 +125,7 @@ static void bt_go(uint32_t a)                           /* side a: connect to it
     bt_want(a, 1);
 #if FELUCCA_BT_AUDIO
     if (a == BT_AUD) {
-        (void)bta_page(bta.last);
+        (void)bta_page(bta.mem[0].addr);
         return;
     }
 #endif
@@ -149,7 +151,7 @@ static uint32_t bt_rows(uint32_t a)
 {
 #if FELUCCA_BT_AUDIO
     if (a == BT_AUD)
-        return bta.n;
+        return bta_rows();                              /* (the remembered devices first, then the scan's others) */
 #endif
     {
         int last;
@@ -166,9 +168,16 @@ static void bt_row(uint32_t a, uint32_t i, char nm[BLE_NAME_MAX + 1u], const cha
     *bars = -1;
 #if FELUCCA_BT_AUDIO
     if (a == BT_AUD) {
-        str_cpy(nm, bta_dev_name(i), BLE_NAME_MAX + 1u);
-        if (bta.have_last && i < bta.n && ble_eq(bta.d[i].addr, bta.last, 6))
-            *tag = bt_linked(a) ? "CONNECTED" : bta_state() == BTA_S_PAGING ? "CONNECTING" : "LAST";
+        int r = bta_row(i);
+        if (r < 0) {                                    /* (found by the scan, not remembered) */
+            str_cpy(nm, bta_dev_name((uint32_t)(-1 - r)), BLE_NAME_MAX + 1u);
+            return;
+        }
+        str_cpy(nm, bta.mem[r].name, BLE_NAME_MAX + 1u);
+        if (r == bta.page_i && (bt_linked(a) || bta_state() == BTA_S_PAGING))
+            *tag = bt_linked(a) ? "CONNECTED" : "CONNECTING";   /* (the one paged: AUTO's round included) */
+        else
+            *tag = r == 0 ? "LAST" : "KNOWN";
         return;
     }
 #endif
@@ -191,7 +200,7 @@ static void bt_pick(uint32_t a, uint32_t i)             /* SAVE on side a's row 
 #if FELUCCA_BT_AUDIO
     if (a == BT_AUD) {
         bt_row(a, i, nm, &tag, &bars);
-        bta_pick(i);
+        bta_pick_row(i);                                /* (it becomes the last device, its key kept) */
     } else
 #endif
     {
@@ -244,21 +253,27 @@ static void bt_forget(uint32_t a)                       /* SAVE held */
         ui_message("NO LAST DEVICE");
         return;
     }
+#if FELUCCA_BT_AUDIO
+    if (a == BT_AUD) {                                  /* the list open: the cursor's remembered device; else the last */
+        int k = bta_row(dev_listing() ? ui.row[SCR_SYSTEM] : 0u);
+        if (k < 0) {
+            ui_message("NOT REMEMBERED");
+            return;
+        }
+        str_cpy(nm, bta.mem[k].name, sizeof nm);
+        if (k == bta.page_i)
+            bt_stop(a);                                 /* (the one linked or paged: its link or connect ends) */
+        bta_forget((uint32_t)k);                        /* (its key goes too; the next one becomes the last) */
+        sys_dirty = 1;
+        ui_say("FORGOTTEN ", nm);
+        return;
+    }
+#endif
     bt_last_name(a, nm);
     bt_stop(a);
-#if FELUCCA_BT_AUDIO
-    if (a == BT_AUD) {
-        bta.have_last = 0;
-        bta.bonded = 0;                                 /* (its key goes too) */
-        memset(bta.lk, 0, sizeof bta.lk);
-        bta.key_new = 1;
-    } else
-#endif
-    {
 #if BLE_CENTRAL
-        ble_dev_forget();                               /* (its keys go too) */
+    ble_dev_forget();                                   /* (its keys go too) */
 #endif
-    }
     sys_dirty = 1;
     ui_say("FORGOTTEN ", nm);
 }
@@ -311,8 +326,13 @@ static void bt_boot(void)
 static void bt_poll_side(uint32_t a)
 {
     char nm[BLE_NAME_MAX + 1u];
-    if (bt_wants(a) && bt_linked(a))
+    if (bt_wants(a) && bt_linked(a)) {
         bt_want(a, 0);
+#if FELUCCA_BT_AUDIO
+        if (a == BT_AUD)
+            bta_settle(1);                              /* (the device that answered first in the list now) */
+#endif
+    }
     if (!bt_wants(a)) {
 #if BLE_CENTRAL
         if (a == BT_MIDI && ble_seeking() != 1)
@@ -321,6 +341,13 @@ static void bt_poll_side(uint32_t a)
         return;
     }
     if (bt_waited(a) >= BT_TRY_MS) {
+#if FELUCCA_BT_AUDIO
+        if (a == BT_AUD && bt_mode(a) == BT_AUTO && bta.nmem > 1u) {   /* (AUTO went round the remembered devices) */
+            bt_stop(a);
+            ui_message("NO DEVICE ANSWERED");
+            return;
+        }
+#endif
         bt_last_name(a, nm);
         bt_stop(a);
         ui_say("NO ANSWER ", nm);
@@ -332,8 +359,11 @@ static void bt_poll_side(uint32_t a)
             bt_last_name(a, nm);
             bt_stop(a);
             ui_say(bta_gave_up() ? "TIMED OUT " : "REFUSED ", nm);   /* (the 20 s limit is ours: bt_acl.c) */
-        } else if (bta_state() != BTA_S_PAGING && bta.have_last)
-            (void)bta_page(bta.last);                   /* (a page is ~5 s: again until BT_TRY_MS) */
+        } else if (bta_state() != BTA_S_PAGING && bta.nmem) {
+            if (bt_mode(a) == BT_AUTO && bta.tried)
+                (void)bta_next();                       /* (AUTO: the next remembered device, the last one first) */
+            (void)bta_page(bta.mem[bta.page_i].addr);   /* (a page is ~5 s: again until BT_TRY_MS) */
+        }
         return;
     }
 #endif
@@ -417,9 +447,9 @@ static void bt_rec_out(uint8_t r[BT_REC_SIZE])
     memcpy(r, &mk, 4);
     r[4] = (uint8_t)(am ? 2u + am : bt_mode(BT_MIDI));
 #if FELUCCA_BT_AUDIO
-    r[5] = bta.have_last;
-    memcpy(r + 6, bta.last, 6);
-    str_cpy((char *)r + 12, bta.last_name, 17);
+    r[5] = (uint8_t)(bta.nmem != 0u);
+    memcpy(r + 6, bta.mem[0].addr, 6);
+    str_cpy((char *)r + 12, bta.mem[0].name, 17);
 #endif
     r[BT_REC_MODES] = (uint8_t)(BT_REC_OK | bt.mode);
 }
@@ -435,9 +465,9 @@ static void bt_rec_in(const uint8_t r[BT_REC_SIZE])
                                                          * OFF; an AUDIO mode in a build without it: as no record) */
         bt.rec = (uint8_t)(BT_REC_OK | (old >= 3u ? (old - 2u) << 2 : old));
 #if FELUCCA_BT_AUDIO
-    bta.have_last = (uint8_t)(r[5] == 1u);
-    memcpy(bta.last, r + 6, 6);
-    str_cpy(bta.last_name, (const char *)r + 12, sizeof bta.last_name);
+    bta.nmem = (uint8_t)(r[5] == 1u);
+    memcpy(bta.mem[0].addr, r + 6, 6);
+    str_cpy(bta.mem[0].name, (const char *)r + 12, sizeof bta.mem[0].name);
 #endif
 }
 
@@ -449,9 +479,9 @@ static void bt_key_out(uint8_t r[32])
     uint32_t mk = BT_KEY_MARK;
     memset(r, 0, 32);
     memcpy(r, &mk, 4);
-    r[4] = bta.own_set, r[5] = bta.bonded;
+    r[4] = bta.own_set, r[5] = bta.mem[0].bonded;
     memcpy(r + 6, bta.own, 6);
-    memcpy(r + 12, bta.lk, 16);
+    memcpy(r + 12, bta.mem[0].lk, 16);
 }
 static void bt_key_in(const uint8_t r[32])
 {
@@ -459,9 +489,25 @@ static void bt_key_in(const uint8_t r[32])
     memcpy(&mk, r, 4);
     if (mk != BT_KEY_MARK)
         return;
-    bta.own_set = (uint8_t)(r[4] == 1u), bta.bonded = (uint8_t)(r[5] == 1u);
+    bta.own_set = (uint8_t)(r[4] == 1u), bta.mem[0].bonded = (uint8_t)(r[5] == 1u);
     memcpy(bta.own, r + 6, 6);
-    memcpy(bta.lk, r + 12, 16);
+    memcpy(bta.mem[0].lk, r + 12, 16);
+}
+/* the other remembered devices' record (storage/persist_rec.c bt_kept, 2026-10-24): bta.mem[1..3] as they are, 40 bytes
+ * each (address, bonded, link key, name), the most recently used first; a name of "" ends them (a record from before: 0) */
+#define BT_KEPT_SIZE (40u * (BTA_MEMS - 1u))
+_Static_assert(sizeof(struct bta_mem) == 40u, "a remembered device: 40 bytes, no padding");
+static void bt_kept_out(uint8_t r[BT_KEPT_SIZE])
+{
+    memset(r, 0, BT_KEPT_SIZE);
+    if (bta.nmem > 1u)
+        memcpy(r, &bta.mem[1], 40u * (bta.nmem - 1u));
+}
+static void bt_kept_in(const uint8_t r[BT_KEPT_SIZE])   /* after bt_rec_in and bt_key_in: none without a last device */
+{
+    bta.page_i = 0;
+    for (; bta.nmem && bta.nmem < BTA_MEMS && r[23]; r += 40)   /* (r[23]: the name's first byte) */
+        memcpy(&bta.mem[bta.nmem++], r, 40);
 }
 #endif
 
@@ -471,8 +517,8 @@ static uint32_t bt_list_line(uint32_t a, char *b, uint32_t room)
 #if FELUCCA_BT_AUDIO
     if (a == BT_AUD) {
         uint32_t s = bta_state();
-        str_cpy(b, s == BTA_S_SCANNING ? "SCANNING ..." : bta.n ? "SAVE CONNECTS, HOLD FORGETS" : "NONE FOUND", room);
-        return s == BTA_S_SCANNING || bta.n ? BDL_PLAIN : BDL_WARN;
+        str_cpy(b, s == BTA_S_SCANNING ? "SCANNING ..." : bta_rows() ? "SAVE CONNECTS, HOLD FORGETS" : "NONE FOUND", room);
+        return s == BTA_S_SCANNING || bta_rows() ? BDL_PLAIN : BDL_WARN;
     }
 #endif
     {
@@ -497,9 +543,11 @@ static uint32_t bt_list_sig(uint32_t a)                 /* what the list shows, 
 {
 #if FELUCCA_BT_AUDIO
     if (a == BT_AUD) {
-        uint32_t i, sig = bta.n * 7u + bta_state() * 131u + bta.have_last;
+        uint32_t i, sig = bta.n * 7u + bta_state() * 131u + bta.nmem * 17u + bta.page_i;
         for (i = 0; i < bta.n; i++)
             sig = hs(sig, bta.d[i].name);
+        for (i = 0; i < bta.nmem; i++)
+            sig = hs(sig, bta.mem[i].name);
         return sig;
     }
 #endif

@@ -15,16 +15,26 @@ static struct {
 static void bta_start(uint32_t m) { bta.mode = (uint8_t)m, bta.tried = 0, btafk.starts++; }
 static void bta_stop(void) { bta.mode = BTA_OFF, btafk.stops++; }
 static void bta_hangup(void) { btafk.hangups++, btafk.st = BTA_S_FAILED; }
-static int bta_page(const uint8_t a[6]) { (void)a; btafk.pages++, btafk.st = BTA_S_PAGING; return 1; }
+static uint8_t btafk_paged[6];                         /* the address the last page went to */
+static int bta_page(const uint8_t a[6]) { ble_cpy(btafk_paged, a, 6); btafk.pages++, btafk.st = BTA_S_PAGING; bta.tried = 1; return 1; }
+#include "../firmware/src/bt/bta_mem.c"                 /* (the remembered devices: the firmware's own list code) */
 static void bta_pick(uint32_t i)
 {
     if (i >= bta.n)
         return;
-    ble_cpy(bta.last, bta.d[i].addr, 6);
-    str_cpy(bta.last_name, bta.d[i].name[0] ? bta.d[i].name : "DEVICE", sizeof bta.last_name);
-    bta.have_last = 1;
+    bta_remember(bta.d[i].addr, bta.d[i].name);
     btafk.picks++;
     (void)bta_page(bta.d[i].addr);
+}
+static void bta_pick_row(uint32_t i)                    /* (as bt_audio.c's) */
+{
+    int r = bta_row(i);
+    if (r >= 0) {
+        bta_front((uint32_t)r);
+        btafk.picks++;
+        (void)bta_page(bta.mem[0].addr);
+    } else if (r > -1 - (int)BTA_DEVS)
+        bta_pick((uint32_t)(-1 - r));
 }
 static void bta_scan(int on) { btafk.scans += on != 0, btafk.scan_on = (uint32_t)(on != 0); }
 static uint32_t bta_state(void) { return bta.mode == BTA_OFF ? BTA_S_OFF : btafk.st; }
