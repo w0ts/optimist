@@ -2,11 +2,16 @@
 
 There is more in 0.2 than one firmware can hold: 26 synth engines, 37 kits, the inserts, Bluetooth, the web screen. No single build has it all, and the release flavours are only our picks. Make your own in the web builder: tick what you want, watch the flash and RAM budget, and build it in the cloud in a few minutes.
 
+## Before you install
+
+User presets and projects saved by an earlier firmware (SLOOP, or Optimist before 0.2) are not read by 0.2: their formats changed. The installer makes a backup first; keep it.
+
 ## Bluetooth
 
 - **Bluetooth audio.** The FM-1 plays through AirPods and other Bluetooth headphones and speakers (A2DP, our own stack): pairing, bonding, reconnect without pairing; SHIFT + volume switches between Bluetooth and the FM-1's own output, or reconnects the last device. Adaptive frequency hopping: the link counts the headset's answers per radio channel and drops the bad channels from the hop set every 30 s, as every phone does.
-- **Bluetooth MIDI.** BLE MIDI, our own stack: play the FM-1 from an iPhone or a Mac, or send notes out; long packets asked for.
-- **Both at once.** BT MIDI and BT AUDIO are two pages in SYSTEM, each with its own mode (OFF / MAN / AUTO), device and state. **[check: running both at once has not been tested on hardware yet]**
+- **Bluetooth MIDI.** BLE MIDI, our own stack: play the FM-1 from an iPhone or a Mac, or send notes out; long packets asked for. MIDI clock both ways over Bluetooth (SYNC BLE), with CLK OFS / BT OFS offsets to line it up.
+- **Both at once.** BT MIDI and BT AUDIO are two pages in SYSTEM, each with its own mode (OFF / MAN / AUTO), device and state. Headphones, BLE MIDI to a Mac and the Mirror app together ran clean on the FM-1.
+- **Devices.** Each page remembers four devices. With no link up, the page scans and lists them: remembered ones in green, new ones in amber. K2 moves through the list, SAVE connects, SAVE held forgets.
 
 ## Sound
 
@@ -21,7 +26,7 @@ There is more in 0.2 than one firmware can hold: 26 synth engines, 37 kits, the 
   - **WAVE** (new): Clipper's wavetables, 8 of its 16 tables, one table shared by every WAVE track; +70 KB of flash and +73 KB of pool, so a build with it needs a shorter delay line.
   - **SID** (new): the Commodore 64's MOS 6581 / 8580, one voice of reSID 0.16 in integer code, three a part (Mini-Tone by Stephane Schmitz, after reSID by Dag Lem).
   - **PROPHET** (new): a Prophet-5 style voice with our controls and presets, no Sequential programs (from Melodee by Kerem Kilic).
-  - **ANALOG 2**: the analog-style synth, swarm, two filters, now with four filter models (below).
+  - **ANALOG 2**: the analog-style synth, swarm, two filters, now with four filter models (below) and FLT B, a second filter before FLT (the MS-20's order).
   - **FM6**: the DX7, bit-exact with Dexed; SysEx voices and banks in; voice packs (from Melodee).
   - **JUNO**: the Juno-106 voice, DCO, OTA ladder filter and HPF (fm-106 / KR-106).
   - **ACID**: the TB-303 bass voice with the TB-3PO line generator (X0X, Open303).
@@ -49,11 +54,13 @@ There is more in 0.2 than one firmware can hold: 26 synth engines, 37 kits, the 
 - **GRIDS note generator** (Mutable Instruments Grids' drum map) and the note generators, apart from the STEP tools. Two builder sub-items, off by default:
   - **LFO modulation:** two LFOs on the drum track move the kit's six GRIDS values (X, Y, CHAOS, the three densities), so the pattern drifts on its own.
   - **Euclidean mode** (OUT DRUMS / EUCL): Grids' own Euclidean output, X, Y and CHAOS the three parts' lengths 1..32, BD SD HH their fills, bit for bit Grids' table.
-- **Projects own their scenes, patterns and song.** A project is one record; PROJECT LOAD opens it (asks to SAVE first), SAVE saves everything, DELETE / NEW clear it; backup objects PJ01..PJ16.
+- **Projects own their scenes, patterns and song.** A project is one record; PROJECT LOAD opens it, SAVE saves everything, DELETE / NEW clear it; backup objects PJ01..PJ16. LOAD over unsaved changes asks "SAVE PROJECT?" first: YES saves then loads, HOME asks "LOAD PROJECT?" to load without saving.
 - **SONG tables:** scenes and parts as tables; SELECT / ALGORITHM navigate, the knobs edit; BARS; edits and clears while playing.
 - **Mute mode** (SHIFT + a key) with three key lights; the master channel too; the track LEDs follow the notes.
 - **CHORD+ latch:** a black modifier key tapped twice stays on.
 - **Live save** (builder item): save while playing.
+- **Drum steps as dots** (after Melodee): on the drum grid and the mixer's drum rows an empty step is a small dot, a beat's first a bigger one; a hit stays a square.
+- **The note you play** shows at the screen's bottom left (A#4; a chord's lowest), for about a second after the key.
 
 ## Web: everything on one site
 
@@ -61,7 +68,13 @@ There is more in 0.2 than one firmware can hold: 26 synth engines, 37 kits, the 
 - **Screen tab.** The FM-1's screen, live in the browser as it is drawn, with the mixer's meters ten times a second; a tap fills the display. Over USB.
 - **Builder.** Choose engines, kits, effects and features with a live flash / RAM budget; _Build in the cloud_ returns your firmware in minutes. The builder now knows what each choice really costs (measured on the farm), shares one effects memory between every insert with a delay line, and tells you how many of each fit.
 - **Installer.** Install a release flavour, your cloud build or a file; a backup first; stock firmware back any time.
-- **Simulator.** The firmware running in the browser with the FM-1's panel and keys: try a build before installing it.
+- **Simulator.** The firmware running in the browser with the FM-1's panel and keys: try a build before installing it. Get a project from the FM-1 into it, or send one back.
+
+## Optimist Mirror (iPhone, iPad, Mac)
+
+- The FM-1's screen live on the phone, tablet or Mac, over USB or Bluetooth. The panel's buttons as touch buttons around it (modes, pages, favourites), or the screen alone.
+- Edit a synth track's clip by touch: a piano roll to add, move, stretch and remove notes.
+- Projects, presets and the backup in their own tabs. It connects only when you ask. **[check: on the App Store once Apple approves it]**
 
 ## Thanks
 
