@@ -85,7 +85,7 @@ SIZE_FILES += ["system/ota.c", "system/recovery.c"]   # (cpuguard.c measured too
 # radio's start-up, the A2DP stream's main-loop half: bti_poll, bp_print_rx, ble_midi_init, mir_blit ...): minsize;
 # what their interrupts reach (the *_irq roots: the LL, the LMP, the baseband drivers) stays at -Os by the guard below
 # (2026-10-23, -668 B on mots.config; ble_ll.c, ble_hw_wl82_central.c, ble_scan.c, ble_store.c and the rest stay listed above)
-SIZE_FILES += ["bt/bt_afh.c", "ble/ble_hw_wl82.c", "bt/bt_inq.c", "io/midi/midi_ble.c", "ble/ble_vm.c", "felucca.c",
+SIZE_FILES += ["bt/bt_afh.c", "bt/bta_mem.c", "ble/ble_hw_wl82.c", "bt/bt_inq.c", "io/midi/midi_ble.c", "ble/ble_vm.c", "felucca.c",
                "bt/bt_acl.c", "bt/bt_l2cap.c", "bt/bt_audio.c", "bt/bt_page.c",
                "bt/bt_inq_core.c", "bt/bt_lmp.c", "bt/bt_sdps.c", "ble/ble_att.c", "ble/ble_host.c", "bt/bt_avdtp.c",
                "ble/ble_midi.c", "io/midi/ble_devices.c"]
