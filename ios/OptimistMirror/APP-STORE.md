@@ -72,7 +72,7 @@ here in Notes. The recording: the Mac, launched from the Dock, then the connecti
 screen, a few pages, Projects, Presets, Backup, Bluetooth; 2-3 minutes, unlisted, no narration.
 
 ```
-1. Screen recording on a physical device (Mac, macOS 27.0.1): <LINK>
+1. Screen recording on a physical device (Mac, macOS 27.0.1): https://motscousus.com/optimist/review-b224de0014c0/optimist-mirror-review.mp4
 The inset in the corner is a phone video of the FM-1 itself, filmed at the same time, so the device and the app can be
 compared. The iPhone, iPad and Mac versions are one app built from the same source code (the Mac version is the iPad app
 through Mac Catalyst), so the flow shown is the same on iOS and iPadOS. The only Mac differences: the computer keyboard
