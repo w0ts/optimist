@@ -353,7 +353,7 @@ static uint32_t analog2_from_super(int16_t *p, uint32_t spi)
 
 
 static const param_desc_t GP[G_COUNT] = {
-    [G_BPM] = PD("BPM", F_BPM, 40, 240, 120),
+    [G_BPM] = PD("BPM", F_BPM, 40, 240, 111),
     [G_SWING] = PD("SWING", F_SWING, 0, 100, 0),
     [G_CLOCK] = PE("CLICK", N_CLICK, 0),            /* (the old CLK slot: projects keep their format) */
     [G_TUNE] = PD("TUNE", F_INT, -50, 50, 0),

@@ -58,7 +58,7 @@ A muted track or lane is **struck through**: a line through its mixer row name, 
 
 PLAY held past the hold time opens the tempo page; let go and the screen before returns. A short tap of PLAY stays start / stop. The page has TEMPO (BPM, NUDGE, SWING, SYNC), REC (MODE, LENGTH, START, CLICK) and REC 2 (QUANT).
 
-- **BPM** 40 to 240, default 120. **SWING** 0 to 100.
+- **BPM** 40 to 240. **SWING** 0 to 100.
 - **NUDGE:** OCT- or OCT+ held makes the clock about 3.9 % slower or faster while held. The BPM value never changes, and nothing happens while an external clock is followed.
 - **Tap tempo:** with PLAY held, tap a white key; two taps or more set the tempo.
 - **SYNC** (the MIDI clock to follow): INT, USB, TRS or AUTO (AUTO shows the clock it follows: A:INT, A:USB, A:TRS). On GLOBAL it is CLK IN.
