@@ -677,6 +677,71 @@ static int env2_test(int quiet)
 }
 #endif
 
+#if FELUCCA_ANALOG2
+/* FLT B (core.h P_A2BTYP ..; eng_analog2.c a2_fltb): a saw at C2 through FLT open (CUT 127, RES 0, KTR 0), B set to
+ * (typ, cut, res); the power (dB) at the fundamental (65.4 Hz) and at harmonic h of the captured output -> *pk its peak */
+static void fltb_run(int32_t typ, int32_t cut, int32_t res, int32_t *pk)
+{
+    static const int16_t E8[8] = {0, 10, 0, 0, 127, 0, 0, 0};
+    uint32_t i;
+    part_setup(&trk[0], E8);
+    trk[0].p[P_A2BTYP] = (int16_t)typ, trk[0].p[P_A2BCUT] = (int16_t)cut, trk[0].p[P_A2BRES] = (int16_t)res;
+    trk_note_on(&trk[0], 36, 100);
+    part_capture(&trk[0], 4096, xbuf, NFFT);
+    *pk = 0;
+    for (i = 0; i < NFFT; i++)
+        *pk = fabs(xbuf[i]) > *pk ? (int32_t)fabs(xbuf[i]) : *pk;
+    spectrum(xbuf);
+}
+static double fltb_h(uint32_t h)                      /* the power (dB) of harmonic h of C2 (+-3 bins) */
+{
+    double f = 65.406 * h, bin = (double)FS / NFFT, p = 0;
+    uint32_t c = (uint32_t)(f / bin + 0.5), i;
+    for (i = c - 3u; i <= c + 3u; i++)
+        p += re_[i];
+    return db(p);
+}
+static int fltb_test(int quiet)
+{
+    static double ref[NFFT];
+    double f0, f16, f60, g0, g16, g60;
+    int32_t pk, pk0, ok = 1;
+    uint32_t i, same = 1;
+    int16_t was;
+    fltb_run(3, 0, 0, &pk0);                          /* OFF (HP, the default): FLT alone */
+    memcpy(ref, xbuf, sizeof ref);
+    f0 = fltb_h(1), f16 = fltb_h(16), f60 = fltb_h(60);
+    fltb_run(0, 99, 120, &pk);                        /* OFF whatever TYPE FREQ RES: the very same samples */
+    for (i = 0; i < NFFT; i++)
+        same &= xbuf[i] == ref[i];
+    ok &= same && TP[P_A2BTYP].def == 3;
+    fltb_run(A2M_MODES + 3, 64, 0, &pk);              /* SVF HP at ~700 Hz: the fundamental gone, the 16th kept */
+    g0 = fltb_h(1), g16 = fltb_h(16);
+    ok &= g0 < f0 - 30 && fabs(g16 - f16) < 6;
+    if (!quiet)
+        printf("fltb: HP 64: fundamental %+.1f dB, 16th %+.1f dB\n", g0 - f0, g16 - f16);
+    fltb_run(A2M_MODES + 0, 64, 0, &pk);              /* SVF LP12: the 60th (3.9 kHz) down, the fundamental kept */
+    g0 = fltb_h(1), g60 = fltb_h(60);
+    ok &= g60 < f60 - 15 && fabs(g0 - f0) < 3;
+    if (!quiet)
+        printf("fltb: LP12 64: fundamental %+.1f dB, 60th %+.1f dB\n", g0 - f0, g60 - f60);
+    fltb_run(A2M_MODES + 3, 40, 127, &pk);            /* HP ringing at RES 127: loud, bounded (FLT's input contract) */
+    ok &= pk > pk0 / 4 && pk < 4 * 32768 * 8;
+    if (!quiet)
+        printf("fltb: HP RES 127 peak %d (OFF %d)\n", pk, pk0);
+    trk[0].p[P_A2BCUT] = 40;                          /* DEST FLTB: an LFO moves FREQ for the block, then back */
+    was = trk[0].p[P_A2BCUT];
+    lfo_ov.n = 0;
+    lo_slot(&trk[0], LT_FLTB, 127, 32767, 0);
+    ok &= trk[0].p[P_A2BCUT] > was && !strcmp(N_LT[LT_FLTB], "FLT B");
+    lfo_over_out();
+    ok &= trk[0].p[P_A2BCUT] == was;
+    if (!ok || !quiet)
+        printf("fltb: OFF identical %s, HP / LP / ringing / DEST FLTB %s\n", same ? "yes" : "NO", ok ? "PASS" : "FAIL");
+    return ok;
+}
+#endif
+
 int main(int argc, char **argv)
 {
     const char *cmd = argc > 1 ? argv[1] : "check";
@@ -690,6 +755,8 @@ int main(int argc, char **argv)
 #if FELUCCA_ANALOG2
     if (!strcmp(cmd, "env2"))
         return !env2_test(0);
+    if (!strcmp(cmd, "fltb"))
+        return !fltb_test(0);
 #endif
 #if FELUCCA_ANALOG2
     if (!strcmp(cmd, "zipcmp") && argc > 2)
@@ -706,6 +773,10 @@ int main(int argc, char **argv)
         ok &= err < 0.03 && lvl > 2000 && zip < -52;
         if (!env2_test(0)) {
             printf("analog2: ENV2 FAIL\n");
+            ok = 0;
+        }
+        if (!fltb_test(1)) {
+            printf("analog2: FLT B FAIL\n");
             ok = 0;
         }
 #endif

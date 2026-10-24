@@ -18,7 +18,7 @@ static const char *const N_L2POL[] = {"BI", "UNI"};
 static const char *const N_LT[LT_N] = {"OFF", "PIT", "FLT", "SHP", "AMP", "RES", "PAN", "LVL", "ATK", "DEC",
                                        "E1", "E2", "E3", "E4", "E5", "E6", "E7", "E8", "CHO", "DLY", "REV", "INS1",
                                        "INS2", "L1 RT", "L1 AMT", "SUS", "REL", "ATK2", "DEC2", "SUS2", "REL2", "E1 AMT",
-                                       "E2 AMT", "OSC2", "SDTN", "L2 RT", "L2 AMT"};
+                                       "E2 AMT", "OSC2", "SDTN", "L2 RT", "L2 AMT", "FLT B"};
 static const char *const N_AMODE[] = {"OFF", "UP", "DN", "UPDN", "RND", "ORD", "BASS"};   /* (BASS appended: the lowest, then the others in turn) */
 static const char *const N_SCALE[] = {"CHR", "MAJ", "MIN", "DOR", "MIX", "PEN", "MPEN", "HARM",
                                     "PHRY", "LYD", "LOC", "MEL", "BLUES", "WHOLE", "DIMHW", "DIMWH"};
@@ -81,7 +81,18 @@ static const char *const N_A2FCOMB[] = {"LP12", "LP24", "BP", "HP", "NOTCH", "LD
                                         "OTA12", "OTA24", "OTABP", "OTAHP", "OTANT", "DIO12", "DIO24", "DIOBP", "DIOHP",
                                         "DIONT", "MS12", "MS24", "MSBP", "MSHP", "MSNT"};
 _Static_assert(sizeof N_A2FCOMB / sizeof N_A2FCOMB[0] == sizeof N_A2FMDL / sizeof N_A2FMDL[0] * A2M_MODES, "MODEL x FTYP");
+/* FLT B's MODEL (core.h P_A2BTYP: model * A2M_MODES + mode, model 0 OFF, then FLT 2's) and its value whole */
+static const char *const N_A2BMDL[] = {"OFF", "SVF", "LADR", "OTA", "DIOD", "MS20"};
+static const char *const N_A2BCOMB[] = {"OFF", "OFF", "OFF", "OFF", "OFF", "LP12", "LP24", "BP", "HP", "NOTCH",
+                                        "LDR12", "LDR24", "LDRBP", "LDRHP", "LDRNT", "OTA12", "OTA24", "OTABP", "OTAHP",
+                                        "OTANT", "DIO12", "DIO24", "DIOBP", "DIOHP", "DIONT", "MS12", "MS24", "MSBP",
+                                        "MSHP", "MSNT"};
+#else
+static const char *const N_A2BMDL[] = {"OFF", "SVF"};
+static const char *const N_A2BCOMB[] = {"OFF", "OFF", "OFF", "OFF", "OFF", "LP12", "LP24", "BP", "HP"};   /* (no NOTCH) */
 #endif
+_Static_assert(sizeof N_A2BCOMB / sizeof N_A2BCOMB[0] == (sizeof N_A2BMDL / sizeof N_A2BMDL[0] - 1u) * A2M_MODES +
+                   sizeof N_A2FTYP / sizeof N_A2FTYP[0], "FLT B: MODEL x TYPE");
 static const char *const N_A2EREL[] = {"=DEC"};   /* REL2 0: the release takes DEC2's time (param_format) */
 #endif
 static const char *const N_ENGNAME[] = {"ANALOG", "DIGITAL", "PHASE", "LOFI", "SAMPLE", "VOICE", "TRIO", "WHEEL", "GRAIN",
@@ -232,6 +243,9 @@ static const param_desc_t TP[P_COUNT] = {
     [P_N2AA] = PD("AMT A", F_BIPCT, LFO_AMT_LO, LFO_AMT_HI, 0),
     [P_N2DB] = PN("DST B", F_ENUM, 0, LT_NB - 1, 0, N_LT),
     [P_N2AB] = PD("AMT B", F_BIPCT, LFO_AMT_LO, LFO_AMT_HI, 0),
+    [P_A2BTYP] = PE("FLTB", N_A2BCOMB, 3),          /* FLT B: MODEL and TYPE (a2f_view), OFF HP */
+    [P_A2BCUT] = PU("FREQ", F_CUTOFF, 0, 127, 0, 0),
+    [P_A2BRES] = PU("RES", F_PCT, 0, 127, 0, 0),
 #endif
     [P_VOICES] = PD("VOICES", F_INT, 0, NPOLY, 0),         /* POLY / UNISON voice count (voice.c trk_nvoice); 0 = the engine's max (track_desc: 1..max shown) */
 };
@@ -707,6 +721,7 @@ static const uint8_t MAC_ID[4] = {P_ED_FLT, P_ED_PIT, P_ED_SHP, P_LEG_FLT};   /*
 #define PID_INST 0xF0u
 #define PID_DKS 0xF4u
 #define PID_A2MDL 0xF8u          /* FLT 2 > MODEL: the model part of P_A2FTYP (a2f_view) */
+#define PID_A2BMDL 0xF9u         /* FLT B > MODEL: the model part of P_A2BTYP (a2f_view) */
 _Static_assert(P_COUNT < PID_INST, "the page ids past the track values");
 #define STEP_ID_CHANCE 4u        /* SC_STEP columns: 0 STEP, 1 NOTE, 2 TIME, 3 FLAG; 4 CHANCE (FELUCCA_CHANCE) */
 enum { GR_NONE, GR_ADSR, GR_LFO, GR_STEPS, GR_ARP, GR_SCALE, GR_FX, GR_ROLL, GR_BROWSE, GR_SLOTS, GR_USER, GR_TRK,
@@ -798,6 +813,7 @@ static const page_t PAGES[] = {
 #else
     {"FLT 2", FAM_EDIT, SC_TRACK, GR_NONE, {P_A2FTYP, 0xFF, 0xFF, 0xFF}},
 #endif
+    {"FLT B", FAM_EDIT, SC_TRACK, GR_NONE, {PID_A2BMDL, P_A2BTYP, P_A2BCUT, P_A2BRES}},   /* MODEL TYPE: P_A2BTYP (a2f_view) */
 #endif
     {"VOICE", FAM_EDIT, SC_TRACK, GR_NONE, {P_VOICE, P_GLIDE, P_GLMODE, P_PRIO}},
     {"VOICE 2", FAM_EDIT, SC_TRACK, GR_NONE, {P_ALLOC, P_DETUNE, P_VOICES, P_ED_PIT}},   /* (the Optimist UI: PAN and MUTE are the mixer's, the user 2026-10-14; DROP on card 4: the pitch drop, ENV DEST PIT before 2026-10-14; card 3: feat/voice-count's VOICES) */
@@ -1020,8 +1036,9 @@ static int page_shown(const page_t *pg)
         return 0;                                     /* (FM6: EDIT 2, PATCH stays) */
 #endif
 #if FELUCCA_ANALOG2
-    return pg->scope != SC_TRACK || pg->id[0] < P_A2WAVE || pg->id[0] >= P_E0 || pg->graph == GR_ENV2 ||   /* (ENV2: every engine) */
-           (!is_drum(TSEL) && ENG_IS(ENGINES[TSEL->eng_req % NENGINES], ANALOG));
+    return pg->scope != SC_TRACK || ((pg->id[0] < P_A2WAVE || pg->id[0] >= P_E0) && pg->id[0] != PID_A2BMDL) ||   /* (FLT B: */
+           pg->graph == GR_ENV2 ||                                                                       /* ANALOG's) */
+           (!is_drum(TSEL) && ENG_IS(ENGINES[TSEL->eng_req % NENGINES], ANALOG));                     /* (ENV2: every engine) */
 #else
     return 1;
 #endif
@@ -1051,30 +1068,45 @@ static int cell_built(const page_t *pg, uint32_t id)
 #if FELUCCA_MISSING_WARN
 static int16_t miss_n;                                /* TOOLS > MISS: what the project uses and this build lacks */
 #endif
-#if FELUCCA_A2_MODELS
-/* FLT 2's two cards on the one stored value P_A2FTYP (model * A2M_MODES + mode): FTYP (id P_A2FTYP) its mode, MODEL
- * (PID_A2MDL) its model, each a copy of its part (a2f_v); a card set writes the whole value back (a2f_word, the
- * Optimist UI's page_set) */
+#if FELUCCA_ANALOG2
+/* FLT 2's and FLT B's two cards on one stored value each (P_A2FTYP, P_A2BTYP: model * A2M_MODES + mode): FTYP / TYPE
+ * (id P_A2FTYP, P_A2BTYP) its mode, MODEL (PID_A2MDL, PID_A2BMDL) its model, each a copy of its part (a2f_v); a card set
+ * writes the whole value back (a2f_word, the Optimist UI's page_set). FLT B's models: OFF, then FLT 2's (index + 1) */
+#define A2F_B(id) ((id) == P_A2BTYP || (id) == PID_A2BMDL)
+#define A2F_MDL(id) ((id) == PID_A2MDL || (id) == PID_A2BMDL)
+static int a2f_is(uint32_t id) { return (FELUCCA_A2_MODELS && (id == P_A2FTYP || id == PID_A2MDL)) || A2F_B(id); }
+static uint32_t a2f_store(uint32_t id) { return A2F_B(id) ? P_A2BTYP : P_A2FTYP; }
+static int a2f_built(uint32_t id, int32_t i)          /* MODEL i of id's filter is in this build */
+{
+    return A2F_B(id) ? i == 0 || (A2M_BUILT >> (i - 1) & 1u) : (A2M_BUILT >> i & 1u);
+}
 static int16_t a2f_v[2];
 static const param_desc_t *a2f_view(uint32_t id, int16_t **valp)
 {
-    static const param_desc_t D[2] = {PE("FTYP", N_A2FTYP, 0), PE("MODEL", N_A2FMDL, 0)};
-    uint32_t w = (uint32_t)clamp(TSEL->p[P_A2FTYP], 0, TP[P_A2FTYP].max), m = id == PID_A2MDL;
+#if FELUCCA_A2_MODELS
+    static const param_desc_t D[4] = {PE("FTYP", N_A2FTYP, 0), PE("MODEL", N_A2FMDL, 0), PE("TYPE", N_A2FTYP, 0),
+                                      PE("MODEL", N_A2BMDL, 0)};
+#else
+    static const param_desc_t D[4] = {PE("FTYP", N_A2FTYP, 0), PE("FTYP", N_A2FTYP, 0), PE("TYPE", N_A2FTYP, 0),
+                                      PE("MODEL", N_A2BMDL, 0)};
+#endif
+    uint32_t s = a2f_store(id), w = (uint32_t)clamp(TSEL->p[s], 0, TP[s].max), m = A2F_MDL(id);
     a2f_v[m] = (int16_t)(m ? w / A2M_MODES : w % A2M_MODES);
     *valp = &a2f_v[m];
-    return &D[m];
+    return &D[2u * (uint32_t)A2F_B(id) + m];
 }
-/* the stored value after FLT 2's card id (P_A2FTYP, PID_A2MDL) was set to v: a MODEL not built is stepped over in the
- * turn's direction (none left that way: the model it was) */
+/* the stored value after card id (FLT 2's, FLT B's) was set to v: a MODEL not built is stepped over in the turn's
+ * direction (none left that way: the model it was) */
 static int16_t a2f_word(uint32_t id, int32_t v)
 {
-    int32_t w = clamp(TSEL->p[P_A2FTYP], 0, TP[P_A2FTYP].max), m = w / (int32_t)A2M_MODES, dir = v > m ? 1 : -1, i;
-    if (id != PID_A2MDL)
-        return (int16_t)(w - w % (int32_t)A2M_MODES + v);
-    for (i = v; i >= 0 && i < (int32_t)(sizeof N_A2FMDL / sizeof N_A2FMDL[0]) && !(A2M_BUILT >> i & 1u); i += dir)
+    uint32_t s = a2f_store(id);
+    int32_t w = clamp(TSEL->p[s], 0, TP[s].max), m = w / (int32_t)A2M_MODES, dir = v > m ? 1 : -1, i;
+    int32_t nm = A2F_B(id) ? (int32_t)(sizeof N_A2BMDL / sizeof N_A2BMDL[0]) : (int32_t)(A2M_N);
+    if (!A2F_MDL(id))
+        return (int16_t)clamp(w - w % (int32_t)A2M_MODES + v, 0, TP[s].max);
+    for (i = v; i >= 0 && i < nm && !a2f_built(id, i); i += dir)
         ;
-    return (int16_t)((i >= 0 && i < (int32_t)(sizeof N_A2FMDL / sizeof N_A2FMDL[0]) ? i : m) * (int32_t)A2M_MODES +
-                     w % (int32_t)A2M_MODES);
+    return (int16_t)clamp((i >= 0 && i < nm ? i : m) * (int32_t)A2M_MODES + w % (int32_t)A2M_MODES, 0, TP[s].max);
 }
 #endif
 static const param_desc_t *page_desc(const page_t *pg, uint32_t slot, int16_t **valp)
@@ -1149,8 +1181,8 @@ static const param_desc_t *page_desc(const page_t *pg, uint32_t slot, int16_t **
         *valp = &song.g[id];
         return &GP[id];
     }
-#if FELUCCA_A2_MODELS
-    if (id == P_A2FTYP || id == PID_A2MDL)              /* FLT 2: FTYP and MODEL, the parts of one value */
+#if FELUCCA_ANALOG2
+    if (pg->scope == SC_TRACK && a2f_is(id))          /* FLT 2, FLT B: FTYP / TYPE and MODEL, the parts of one value */
         return a2f_view(id, valp);
 #endif
 #if FELUCCA_INS_GATER

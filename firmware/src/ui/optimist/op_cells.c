@@ -686,11 +686,11 @@ static void page_set(const page_t *pg, uint32_t k, int16_t *vp, int32_t v, int32
 {
     uint32_t id = page_id(pg, k);
     int32_t was;
-#if FELUCCA_A2_MODELS
-    if (pg->scope == SC_TRACK && (id == P_A2FTYP || id == PID_A2MDL)) {   /* FLT 2's FTYP, MODEL: the stored value whole */
+#if FELUCCA_ANALOG2
+    if (pg->scope == SC_TRACK && a2f_is(id)) {        /* FLT 2's FTYP, MODEL, FLT B's: the stored value whole */
         *vp = (int16_t)v;
         v = a2f_word(id, v);
-        vp = &TSEL->p[P_A2FTYP];
+        vp = &TSEL->p[a2f_store(id)];
     }
 #endif
     was = *vp;

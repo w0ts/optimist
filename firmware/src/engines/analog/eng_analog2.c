@@ -70,9 +70,19 @@
 #endif
 #define A2_NOCUT INT32_MIN
 #define A2_SWARM_GC (80 * 258)                        /* the copies' level against osc 1: SUPER's MIX 80 */
+/* FLT B's states (a2_fltb), a synth part's voice each, laid out as FLT's in v->s (0..1, 4..5 the filter, 6 the last
+ * block's cutoff, 7 the model): outside voice_t, so the drum track's voices carry none; in the pool (main RAM is the
+ * scarcer: synth was 296 B over with them there, 2026-10-24; the filter reads them once a block, into locals) */
+static int32_t a2_fb[NPART][NVOICE][8] IN_POOL;
 
 static void analog_note_on(track_t *t, voice_t *v)
 {
+    uint32_t k = (uint32_t)(t - trk);
+    if (!v->env && !v->env_out && k < NPART) {        /* a fresh note: FLT B from rest (a retrigger keeps it, as FLT) */
+        int32_t *s = a2_fb[k][(uint32_t)(v - t->v) % NVOICE];
+        s[0] = s[1] = s[4] = s[5] = 0;
+        s[6] = A2_NOCUT;
+    }
     if (!t->p[P_A2DRFT]) {                            /* DRFT 0: the phases restart */
         if (!v->env && !v->env_out)
             v->ph[0] = v->ph[2] = 0;                  /* a fresh note: from phase 0 (an 808 starts the same every time) */
@@ -413,6 +423,36 @@ static HOT void a2_filter(int32_t *b, int32_t *s, int32_t c0, int32_t cut, uint3
     }
 }
 
+/* FLT B (core.h P_A2BTYP ..): the second filter, before FLT (the MS-20's order), its states a2_fb. MODEL 1 the SVF, 2..
+ * the models (a2_models.c; one not built: the SVF in the same mode); its cutoff FREQ alone (no key tracking, no ENV 1:
+ * an LFO or an envelope moves FREQ itself, DEST FLTB), smoothed as FLT's. Its output clamped to +-65535: FLT's input
+ * contract (the osc bound above), which a resonant peak of B would break */
+static HOT __attribute__((noinline)) void a2_fltb(const track_t *t, const voice_t *v, int32_t *b, uint32_t n)
+{
+    const int16_t *p = t->p;
+    uint32_t k = (uint32_t)(t - trk), w = (uint32_t)p[P_A2BTYP], mdl = w / A2M_MODES - 1u, mode = w % A2M_MODES, i;
+    int32_t *s, cut = clamp(p[P_A2BCUT], 0, 127) << 8, c0;
+    if (k >= NPART)
+        return;
+    s = a2_fb[k][(uint32_t)(v - t->v) % NVOICE];
+    c0 = s[6] == A2_NOCUT ? cut : s[6];
+    s[6] = cut;
+#if FELUCCA_A2_MODELS
+    if (mdl - 1u < A2M_N - 1u && (A2M_BUILT >> mdl & 1u))
+        FAR(a2m_block)(b, s, c0, cut, mdl, mode, p[P_A2BRES], n);
+    else
+#endif
+    {
+        if (s[7]) {                                   /* (a model's floats there: the SVF from 0) */
+            s[0] = s[1] = s[4] = s[5] = 0;
+            s[7] = 0;
+        }
+        a2_filter(b, s, c0, cut, mode, a2_k(p[P_A2BRES]));
+    }
+    for (i = 0; i < n; i++)
+        b[i] = clamp(b[i], -65535, 65535);
+}
+
 static HOT void A2_REF(a2_out)(int32_t *out, const int32_t *b, int32_t amp0, int32_t amp1, uint32_t n)
 {
     uint32_t i;
@@ -615,7 +655,9 @@ static HOT void analog_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, 
         a2_noise(b, &v->s[2], nz, n);
     if (drv)                                          /* DRV: dry -> driven (1x .. 4x; a clean range low) */
         a2_drive(b, 32768 + drv * 768, drv * 258, n);
-    cut = (p[P_E4] << 8) + m->cutoff + (p[P_E7] * (v->pitch16 - 60 * 16) >> 4);
+    if ((uint32_t)p[P_A2BTYP] >= A2M_MODES)           /* FLT B (MODEL OFF: nothing done) */
+        a2_fltb(t, v, b, n);
+    cut =(p[P_E4] << 8) + m->cutoff + (p[P_E7] * (v->pitch16 - 60 * 16) >> 4);
     cut = clamp(cut, 0, 127 << 8);
     c0 = v->s[6] == A2_NOCUT ? cut : v->s[6];
     v->s[6] = cut;

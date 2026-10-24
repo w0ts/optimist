@@ -201,7 +201,8 @@ static const uint8_t LT_TAB[LT_N][3] = {
     LT_A2(P_A2FATK), LT_A2(P_A2FDEC), LT_A2(P_A2ESUS), LT_A2(P_A2EREL),       /* ATK2 DEC2 SUS2 REL2 */
     {LK_XA, P_ED_FLT - 1u, LC_VAL}, LT_N2XA,                                   /* E1 AMT (ENV 1's FLT SHP) E2 AMT */
     {LK_V, 4, LC_VOICE}, {LK_V, 5, LC_VOICE},                                  /* OSC2 SDTN */
-    {LK_XR, P_L2RATE, LC_PART}, {LK_XA, P_L2DA, LC_PART}};                     /* L2RT L2AMT */
+    {LK_XR, P_L2RATE, LC_PART}, {LK_XA, P_L2DA, LC_PART},                      /* L2RT L2AMT */
+    LT_A2(P_A2BCUT)};                                                          /* FLTB (ANALOG 2's FLT B FREQ) */
 _Static_assert(LT_N <= 64 && P_COUNT <= 256, "a DEST in 6 bits (project.c l2_pack, env_store.h); an id in a byte");
 #define LO_MAX 32u                                     /* the values moved in a block (24 slots, an XAMT two each: more is
                                                         * left as authored) */
