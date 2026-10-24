@@ -37,10 +37,10 @@ Four ready-made builds, in every release; the builder makes any other.
 
 | Flavour | What it is |
 | --- | --- |
-| **Synth** (the default) | FM6 with five voice packs, ANALOG 2, DIGITAL, JUNO, ACID, PHYS, the synthesised kits and the X0X 808, Bluetooth MIDI, USB audio, the second core. The web editor does backup and restore only. |
-| **drum machine** | The synthesised and sampled kits, the X0X 909 and 808, the drum editor, your samples and kits, SAMPLE, SLICE, GRAIN, ANALOG 2 for bass. No web editor: back up with another flavour first. |
-| **FM + VA studio** | ANALOG 2, FM6, DIGITAL, SAMPLE; the synthesised kits with KAWA, the sampled kits. |
-| **everything fits** | ANALOG 2, DIGITAL, LOFI, SAMPLE, VOICE, WHEEL, GRAIN, FM6, CZ; the synthesised and sampled kits; the web editor with live editing. |
+| **synths-USB-BTA-BTM** (the default) | ANALOG 2, DIGITAL, FM6 with three voice packs, JUNO, ACID, PHYS; the synthesised kits with PLAITS, the X0X 909 and 808, your kits; USB audio, Bluetooth MIDI, Bluetooth audio, the second core. The web editor does backup and restore only. |
+| **synths** | ANALOG 2, DIGITAL, PHASE, FM6 with five voice packs, PLAITS, STRINGS, PROPHET, JUNO, ACID, PHYS; the synthesised kits with KAWA and PLAITS, the X0X 909 and 808, your kits; Bluetooth audio. The web editor does backup and restore only. |
+| **synths-2** | LOFI, VOICE, WHEEL, DRONE, VPS, TERRAIN, WSEQ, VECTOR, WAVE, SID, PROPHET; the synthesised kits; Bluetooth audio. The web editor does backup and restore only. |
+| **drum machine** | The synthesised kits with KAWA and PLAITS, the sampled kits, the X0X 909 and 808, the drum editor, your samples and kits, SAMPLE, GRAIN; USB audio, Bluetooth MIDI, Bluetooth audio. The web editor does backup and restore only. |
 
 ## Your first install
 

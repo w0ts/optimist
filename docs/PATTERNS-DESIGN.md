@@ -1,6 +1,6 @@
 # Per-track patterns and scenes (PATTERNS)
 
-Builder item `PATTERNS` (bit 250, default 0; on in the profiles synth, fm-va-studio, drum-machine and x0x-drums; an
+Builder item `PATTERNS` (bit 250, default 0; on in every shipped profile, 2026-10-24; an
 error with `SECTIONS 4`). **Everything below is per project** (`docs/PROJECTS-DESIGN.md`): the 16 pattern slots a
 track, the scenes A..P and the song belong to the open project; the log is format 2 at 0xA0000. "The device" in this
 document reads "the open project".

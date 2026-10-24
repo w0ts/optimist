@@ -11,7 +11,7 @@ is `docs/MEMORY-MAP.md`, with the budget behind the trade-offs in its section 3.
 ```sh
 python tools/optimist.py setup                            # once: the venv, the SDK files, the toolchain (BUILDING.md)
 python tools/optimist.py builder                          # the interactive menu (Textual)
-python tools/optimist.py builder --profile drum-machine   # the menu, starting from a profile
+python tools/optimist.py builder --profile drum-machines  # the menu, starting from a profile
 python tools/optimist.py builder --config my.config       # the menu on a saved configuration
 ```
 
@@ -20,7 +20,7 @@ python tools/optimist.py builder --config my.config       # the menu on a saved 
 Keys: `space` / `enter` toggle (a sized item: its next value), `/` search, `p` profiles (shipped + yours), `s` save: a
 name, then where, yours (`config/my-profiles`, git-ignored) or stock (`config/profiles`, to commit; a stock profile saved
 over keeps its first comment lines and its publish flag), `u` publish the profile or not (CI builds the published ones; one
-of yours is moved to `config/profiles` first, to commit), `d` delete a profile (never `synth`), `w`
+of yours is moved to `config/profiles` first, to commit), `d` delete a profile (never the default, `synths_USBaudio_BTaudio_BTmidi`), `w`
 write a `.config`, `l` load, `o` sort by size (cycles registry order, flash, RAM, pool, RAM code; items without a
 measured cost last), `b` build, `e` build and run in the emulator (96 MHz, background), `f` flash to the FM-1, `x` / `c`
 expand / collapse all, `left` / `right` page the list, `q` quit.
@@ -48,9 +48,9 @@ Without the menu (scripts, tests, CI):
 ```sh
 python tools/optimist.py package --config my.config --out dist --summary dist/result.json   # exit 0 = built and fits
 python tools/optimist.py config --list                                       # the registry with its values
-python tools/optimist.py config --profile fm-va-studio --budget               # the estimate
-python tools/optimist.py config --profile fm-va-studio --set FX_PUNCH=0 --write my.config
-python tools/optimist.py config --profile everything-that-fits --fit          # drop items (least loss first) until it fits
+python tools/optimist.py config --profile synths --budget                     # the estimate
+python tools/optimist.py config --profile synths --set FX_PUNCH=0 --write my.config
+python tools/optimist.py config --profile drum-machines --fit                 # drop items (least loss first) until it fits
 python tools/optimist.py config --config my.config --build                    # real build: exact sizes, the package if it fits
 ```
 
@@ -62,16 +62,18 @@ environment with `sh build.sh` / `tools/build.py` (BUILDING.md, "Build flags").
 A profile is a saved configuration. Shipped ones are in `config/profiles` (`make profiles` lists them); yours are in
 `config/my-profiles` (git-ignored). The first lines of each file say what it is and what it leaves out.
 
-| Profile | What |
+| Profile (`# name:`) | What it builds (its values) |
 |---|---|
-| `synth` | **the default** (Optimist Synth, the maintainer's own build): `build`, `package`, `flash`, `config` and `make` use it without a profile, the menu opens with it the first time, and it is the Pages site's flavour (`web/flavours.json`) |
-| `drum-machine`, `everything-that-fits`, `fm-va-studio`, `x0x-drums` | refits for a purpose, each fitting the flash slot |
+| `synths_USBaudio_BTaudio_BTmidi` (synths-USB-BTA-BTM) | **the default**: `build`, `package`, `flash`, `config` and `make` use it without a profile, the menu opens with it the first time, and it is the Pages site's flavour (`web/flavours.json`). ANALOG 2 (with its four filter models), DIGITAL, FM6 (three voice packs), PHYS, ACID, JUNO; the drum synth with the PLAITS kit, the X0X 909 and 808, the user kits; USB audio, Bluetooth MIDI (BLE, BLE devices at MINIMAL), Bluetooth audio; the web editor's backup and restore |
+| `synths` | ANALOG 2 (with its four filter models), DIGITAL, PHASE, FM6 (five voice packs), PLAITS, STRINGS, PROPHET, PHYS, ACID, JUNO; the drum synth with the KAWA and PLAITS kits, the X0X 909 and 808, the user kits; Bluetooth audio; the web editor's backup and restore |
+| `synths-2` | LOFI, VOICE, WHEEL, DRONE, VPS, TERRAIN, WSEQ, VECTOR, WAVE, SID, PROPHET; the drum synth alone (no user kits); Bluetooth audio; the web editor's backup and restore |
+| `drum-machines` (drum machine) | SAMPLE, GRAIN; the drum synth with the KAWA and PLAITS kits, the X0X 909 and 808, the sampled kits, your samples and kits; USB audio, Bluetooth MIDI, Bluetooth audio; the web editor's backup and restore |
 
-`synth` cannot be deleted (it is also the reference: the host tests, the gate, `emu-check` and CI's fixtures build it; `user-default` went 2026-10-21). `--defaults` is every registry default (too big for the slot).
+The default is also the reference profile (the host tests, the gate, `emu-check` and CI's fixtures build it; `synth` until
+2026-10-24) and cannot be deleted. `--defaults` is every registry default (too big for the slot).
 
 A shipped profile with the line `# publish: yes` is built by CI (`.github/workflows/build.yml` takes the list from
-`config --published`); `# publish: no` or no line: not built. Today `synth`, `drum-machine`, `everything-that-fits` and
-`fm-va-studio` are published.
+`config --published`); `# publish: no` or no line: not built. Today all four are published.
 
 ```sh
 make share PROFILE=my-groove      # move one of mine to config/profiles (config --share)
@@ -451,7 +453,7 @@ What the sum model adds beyond per-item deltas:
 - Built only with another, not an item: the drum ACCENT lane is there wherever the automation store is (it is stored as its events).
 
 **Checked against real builds.** Every run of `measure_costs.py` that builds also makes a measurement build of every
-profile, of each configuration in `tools/builder/estimate/` and of each one's probe (4 items changed), the `checks` of
+profile, of the BLE test builds and of each one's probe (4 items changed), the `checks` of
 `costs.json`. `tests/builder_test.py` then (1) estimates each of them without its own build (from its probe, 4 to 5 items
 away) within 6 KB of flash, 512 B RAM, 1 KB pool and 768 B RAM code (`ESTIMATE_NEAR`), and (2) the **drift** check:
 `optimist.py test` first makes a measurement build of every check configuration from the source under test, and each
