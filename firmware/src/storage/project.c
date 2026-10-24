@@ -1492,6 +1492,22 @@ _Static_assert(sizeof ble_addr_kept == 8u && sizeof ble_rf_kept == BLE_RF_COPY_S
 #endif
 #if FELUCCA_FLASH
 static persist_t persist_saved;
+#if FELUCCA_MIDI_CLOCK
+static void persist_ofs_load(const persist_t *p)  /* CLK OFS, BT OFS (clock_sync.c): out of range read as 0 */
+{
+    uint32_t i;
+    for (i = 0; i < 2u; i++)
+        sync_ofs[i] = (int16_t)(p->clk_ofs[i] >= SY_OFS_MIN && p->clk_ofs[i] <= SY_OFS_MAX ? p->clk_ofs[i] : 0);
+}
+static void persist_ofs_save(persist_t *p)
+{
+    p->clk_ofs[0] = sync_ofs[0];
+    p->clk_ofs[1] = sync_ofs[1];
+}
+#else
+#define persist_ofs_load(p) ((void)0)              /* (no clock: the bytes kept as read) */
+#define persist_ofs_save(p) ((void)0)
+#endif
 #endif
 static void persist_boot(void)                    /* before settings_init / panel_init */
 {
@@ -1621,6 +1637,7 @@ static void persist_boot(void)                    /* before settings_init / pane
 #if FELUCCA_PATTERNS
             open_proj = (uint8_t)(p.open_proj < 16u ? p.open_proj : 0u);   /* (the open project: sections.c) */
 #endif
+            persist_ofs_load(&p);
             persist_saved = p;
         } else if (n == (int)(8u + sizeof(panel_t)) && p3.magic == 0x50455231u) {   /* "PER1": palette, panel */
             const uint32_t *w = (const uint32_t *)&p3;
@@ -1708,6 +1725,7 @@ static void settings_save(void)
 #if FELUCCA_PATTERNS
     p.open_proj = open_proj;                       /* (the open project: sections.c; the chain above is a copy, the log's is read) */
 #endif
+    persist_ofs_save(&p);
 #if FELUCCA_FAVORITES
     persist_fav_save(&p);
 #endif

@@ -361,7 +361,7 @@ static int ble_forget_yes(uint32_t r, uint32_t k, uint32_t ok)   /* FORGET LAST:
 enum { SI_NONE, SI_BRIGHT, SI_LIGHTS, SI_KEYS, SI_LOWCUT, SI_OUT, SI_SYNC, SI_CH1, SI_CH2,
        SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_HOLD, SI_BLE, SI_KCOL, SI_CLKOUT, SI_CPU1, SI_INFO, SI_BATT, SI_BUILD, SI_REPO,
        SI_DROPS, SI_GUARD, SI_UAINFO, SI_XRUN, SI_DIAG, SI_CREDITS, SI_BLEST, SI_BLEPEER, SI_BLEMIDI, SI_BLELIST, SI_BLEAUTO,
-       SI_BLEFGT, SI_FRESO, SI_BTA, SI_BTAPEER, SI_BTAFMT, SI_BTAST,
+       SI_BLEFGT, SI_FRESO, SI_BTA, SI_BTAPEER, SI_BTAFMT, SI_BTAST, SI_CLKOFS, SI_BTOFS,
        SI_UAS0 };                                       /* SI_UAS0 + s: USB AUDIO's line of source s (ua_tap.h UAS_*), last */
 /* a core's load number (% of the audio budget) in its colour: green under 60, amber 60..85, red over 85 (the predictive guard's
  * ceiling, system/cpuguard.c CG_CEIL = 85 %: above it the guard sheds quality / voices). Text only (INFO draws no bars). */
@@ -464,10 +464,14 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
     {"MIDI", {SI_IF(FELUCCA_MIDI_CLOCK, SI_SYNC), SI_IF(FELUCCA_MIDI_CLKOUT, SI_CLKOUT), SI_IF(FELUCCA_MIDI_OUT, SI_OUT),
               SI_NONE}},   /* (CLK IN, CLK OUT, MIDI OUT: no MIDI IN since 2026-10-14, the user: notes come in through the track channels,
                             * the clock through CLK IN; settings word bit 15 is free; CLKOUT: the clock sent, io/midi/clock_out.c) */
+#if FELUCCA_MIDI_CLOCK
+    {"MIDI", {SI_CLKOFS, SI_IF(FELUCCA_BT_AUDIO, SI_BTOFS), SI_NONE, SI_NONE}},   /* (following a clock: the steps that much earlier,
+                            * on the FM-1's output / on Bluetooth audio's: clock_sync.c sync_lead_t; the settings record) */
+#endif
     {"CHANNELS", {SI_CH1, SI_CH2, SI_CH3, SI_CHD}},
 };
 #define NSYS (sizeof SYS / sizeof SYS[0])
-#define NSYS_GLO 2u                                     /* the global rows at SYS's end: MIDI, CHANNELS */
+#define NSYS_GLO (2u + FELUCCA_MIDI_CLOCK)              /* the global rows at SYS's end: MIDI (and its offsets), CHANNELS */
 #define NSYS_SETUP (NSYS - NSYS_GLO)                    /* SYSTEM's rows: the setup (SCREEN, AUDIO, BLUETOOTH ...) */
 static uint8_t sys_dirty;                               /* a setting changed: saved when SYSTEM or GLOBAL is left */
 static uint32_t sys_rows(void)
@@ -501,6 +505,12 @@ static const param_desc_t *sys_desc(uint32_t it, int16_t **vp)
     }
     if (it >= SI_OUT && it <= SI_CHD)
         return bps_desc(BPS[it - SI_OUT], vp);
+#if FELUCCA_MIDI_CLOCK
+    if (it == SI_CLKOFS || it == SI_BTOFS) {           /* (clock_sync.c sync_ofs, ms) */
+        *vp = &sync_ofs[it == SI_BTOFS];
+        return &SY_OFS_D[it == SI_BTOFS];
+    }
+#endif
     return 0;
 }
 static int32_t sys_step(int32_t v, int32_t s, int32_t max)   /* a knob stops at the ends; YES (s 0) goes round */

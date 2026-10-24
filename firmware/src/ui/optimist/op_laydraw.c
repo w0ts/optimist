@@ -266,7 +266,8 @@ static void lay_hint(void)
 static uint32_t tempo_sig(void)
 {
     return hu(hu(hu(hu(0x7E3u, (uint32_t)song.g[G_BPM]), song.playing ? clk_beat % 4u + 1u : 0u), (uint32_t)(clk_nudge + 64)),
-              ((uint32_t)song.g[G_SYNC] * 4u + sy.src) * 4u + (uint32_t)song.g[G_MIDI]);   /* (G_MIDI: the clock followed, "Auto: USB") */
+              ((uint32_t)song.g[G_SYNC] * 4u + sy.src) * 4u + (uint32_t)song.g[G_MIDI]) ^
+           (sy.src ? (uint32_t)(sync_ofs[sync_ofs_ix()] + 512) << 20 | sync_ofs_ix() << 30 : 0u);   /* (following: the offset) */
 }
 static void tempo_draw(int32_t h)
 {
@@ -281,7 +282,15 @@ static void tempo_draw(int32_t h)
     bx = 236 - 4 * bs - 18 < 150 ? 236 - 4 * bs - 18 : 150;   /* (the larger beat: its four boxes inside the screen) */
     for (i = 0; i < 4u; i++)                            /* the beat */
         cv_box(bx + (int32_t)i * (bs + 6), 8 + dy, bs, bs, i == beat ? (i ? C_WHITE : C_OK) : C_BLACK);
-    if (clk_nudge)
+    if (sy.src) {                                       /* following a clock: the offset OCT- / + move (op_tempo.c) */
+        int32_t o = sync_ofs[sync_ofs_ix()];
+        x = cv_texts(bx, (short_ ? 25 : 32) + dy + bs - 16, sync_ofs_ix() ? "BT ofs " : "Ofs ", o ? C_WARN : C_GRAY);
+        b[0] = o > 0 ? '+' : 0;
+        b[1] = 0;
+        fmt_int(b + (o > 0), o);
+        x = cv_texts(x, (short_ ? 25 : 32) + dy + bs - 16, b, o ? C_WARN : C_GRAY);
+        cv_texts(x, (short_ ? 25 : 32) + dy + bs - 16, " ms", o ? C_WARN : C_GRAY);
+    } else if (clk_nudge)
         cv_texts(bx, (short_ ? 25 : 32) + dy + bs - 16, clk_nudge < 0 ? "Nudge -" : "Nudge +", C_WARN);
     if (short_)
         return;

@@ -6,7 +6,8 @@
  * What is sent: F8 at 24 a beat, always while ON (also stopped, so the other side can lock to the tempo first, as most
  * hardware sequencers do); FA at a start from the top, then the downbeat's F8; F2 (song position, 16ths) + FB at a
  * start from elsewhere (following an external clock's CONTINUE); FC at a stop. On USB (the TRS jack is MIDI IN only:
- * no TX on the FM-1's board), and to clko_ble_send, the one place a BLE sender plugs in (empty here).
+ * no TX on the FM-1's board), and to a BLE central that listens (io/midi/midi_ble.c ble_rt_q, each sent
+ * at the first connection event after it is due, with its time as its BLE-MIDI timestamp).
  *
  * Time. The ticks are those of the transport clock (core.h: clk_beat, clk_pos; BEAT_U / 24 units a tick), so they
  * follow tempo changes, the TEMPO page's nudge and the arranger, and never swing (swing moves only the odd steps of a
@@ -18,7 +19,7 @@
  *
  * Following an external clock (clock_sync.c, sy.src): the F8s go on at the followed tempo, timed as the steps are
  * (a re-timed, de-jittered copy), never back out of the port being followed (no loop through a host that echoes):
- * following USB, nothing goes to USB; following TRS, USB gets it (a TRS -> USB clock bridge). */
+ * following USB, nothing goes to USB, BLE gets it; following BLE, nothing goes to BLE; following TRS, both get it. */
 #ifndef FELUCCA_MIDI_CLKOUT
 #define FELUCCA_MIDI_CLKOUT 0
 #endif
@@ -34,23 +35,30 @@ static struct {
     uint8_t live;          /* sending last block */
 } co;
 
-/* BLE MIDI clock: the one hook a BLE sender would fill (pkt as USB-MIDI, due a TIMER4 time). Out of scope here: the
- * BLE code (firmware/src/ble/, io/midi/midi_ble.c) has no timed send yet */
-static void clko_ble_send(uint32_t due, uint32_t pkt) { (void)due, (void)pkt; }
-
-/* the ports this goes to now: USB unless USB is the clock followed */
+/* the ports this goes to now: USB unless USB is the clock followed; BLE (a central listening) unless BLE is */
 static int clko_usb(void)
 {
     return !(FELUCCA_MIDI_CLOCK && sy.src == MSRC_USB);
 }
-/* ON but sending nowhere (following USB): the menu shows it amber */
-static int clko_blocked(void) { return clko_on && !clko_usb(); }
+#if FELUCCA_BLE
+static int ble_rt_on(void);                               /* (io/midi/midi_ble.c: a central listens) */
+static void ble_rt_push(uint32_t due, uint32_t pkt);
+static void ble_rt_drop_after(uint32_t t, uint32_t pkt);
+static int clko_ble(void) { return ble_rt_on() && !(FELUCCA_MIDI_CLOCK && sy.src == MSRC_BLE); }
+#else
+static int clko_ble(void) { return 0; }
+#endif
+/* ON but sending nowhere (following USB, no BLE central listening): the menu shows it amber */
+static int clko_blocked(void) { return clko_on && !clko_usb() && !clko_ble(); }
 
 static void clko_emit(uint32_t due, uint32_t pkt)
 {
     if (clko_usb())
         rt_out_push(due, pkt);
-    clko_ble_send(due, pkt);
+#if FELUCCA_BLE
+    if (clko_ble())
+        ble_rt_push(due, pkt);
+#endif
 }
 
 /* a start at beat, pos (the transport's place at the block's start): FA from the top, else F2 + FB at the next 16th
@@ -66,6 +74,9 @@ static int32_t clko_start(uint32_t beat, uint32_t pos, uint32_t due, uint32_t pe
         k0 += (int32_t)CO_16TH;
     }
     rt_out_drop_after(due - per / 2u, CO_F8);
+#if FELUCCA_BLE
+    ble_rt_drop_after(due - per / 2u, CO_F8);
+#endif
     if (!q) {
         clko_emit(due, CO_RT(0xFAu));
     } else {

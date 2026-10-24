@@ -34,6 +34,7 @@ static uint64_t cpu_instr, cpu_samples;
 #define MS 24000.0
 #define POLL 12000.0                              /* 2 kHz */
 #define BYTE_T 7680.0                             /* a TRS byte, TIMER4 ticks */
+#define BLE_CI (15.0 * MS)                        /* BLE: a connection event every 15 ms (macOS's) */
 static double T;                                  /* host time of the half interrupt (ticks) */
 typedef struct { double t; uint32_t pkt; uint8_t src; } mev_t;   /* t: USB delivery / TRS first byte start */
 static mev_t mev[40000];
@@ -73,7 +74,12 @@ static void polls_until(double until)
         while (mevr < nmev && mev[mevr].t <= next) {
             if (mev[mevr].src == MSRC_USB && !usb_poll && getenv("USB2K"))
                 break;                              /* (ablation: USB waits for the 2 kHz poll, as before) */
-            if (mev[mevr].src == MSRC_USB) {        /* USB: in the endpoint by this tick (usb_rx_peek) */
+            if (mev[mevr].src == MSRC_BLE) {        /* BLE: at the connection event after it, with its time to the ms
+                                                     * (midi_ble.c ble_in_time: the sender's stamps on our clock) */
+                if (ceil(mev[mevr].t / BLE_CI) * BLE_CI > next)
+                    break;
+                midi_in_enqueue(mev[mevr].pkt, MSRC_BLE, (uint32_t)(int64_t)(floor(mev[mevr].t / MS) * MS));
+            } else if (mev[mevr].src == MSRC_USB) {        /* USB: in the endpoint by this tick (usb_rx_peek) */
                 usb_midi_rx_packet(mev[mevr].pkt, (uint32_t)(int64_t)(getenv("EXACT") ? mev[mevr].t : next - (getenv("USB2K") ? POLL / 2 : POLL / 10)));
             } else {                                /* TRS: on the line after what is on it */
                 double st = mev[mevr].t > trs_free ? mev[mevr].t : trs_free;
@@ -156,6 +162,7 @@ static void reset(uint32_t sync)
     memset(&sy, 0, sizeof sy);
     memset(sy_pr, 0, sizeof sy_pr);
     sy.mode = (uint8_t)sync;
+    sync_ofs[0] = sync_ofs[1] = 0;
     T = 1e6;
     nmev = mevr = non = nterr = 0;
     cpu_instr = cpu_samples = 0;
@@ -236,6 +243,7 @@ typedef struct {
     double spike_ms;
     double lim_mean, lim_max, lim_first;          /* checks: |mean|, worst after the first bar, the first hit */
     double at;                                    /* the tempo change starts this many beats after the downbeat */
+    int16_t ofs;                                  /* CLK OFS, ms: the steps this much before their F8 */
 } scen_t;
 
 static void follow(const scen_t *c)
@@ -245,6 +253,7 @@ static void follow(const scen_t *c)
     double t = 2e6, first, late_max = -1e9;
     char line[200];
     reset(SYNC_AUTO);
+    sync_ofs[0] = c->ofs;
     if (every == 2u)                               /* (fast: a hat every other beat, so it falls quiet) */
         for (k = 4; k < 16u; k += 8u)
             memset(&TDRUM->dstep[k], 0, sizeof TDRUM->dstep[k]);
@@ -258,11 +267,11 @@ static void follow(const scen_t *c)
     }
     nticks = nt;
     for (k = 0; k < nt; k++) {
-        if (c->src == MSRC_USB) {
+        if (c->src == MSRC_USB || c->src == MSRC_BLE) {
             if (k == down)                     /* (a tick ahead: just after the F8 before) */
-                push(c->fa_lead > 1.0 ? tick_a[k - 1] + 0.1 * MS : tick_a[k] - c->fa_lead * MS, 0xFA0Fu, MSRC_USB);
+                push(c->fa_lead > 1.0 ? tick_a[k - 1] + 0.1 * MS : tick_a[k] - c->fa_lead * MS, 0xFA0Fu, c->src);
             if (k != c->drop || !k)
-                push(tick_a[k], 0xF80Fu, MSRC_USB);
+                push(tick_a[k], 0xF80Fu, c->src);
         } else {                                   /* (arrival: the end of its byte) */
             if (k == down)
                 trs_byte(c->fa_lead > 1.0 ? tick_a[k - 1] + 0.1 * MS : tick_a[k] - c->fa_lead * MS - BYTE_T, 0xFA);
@@ -277,9 +286,9 @@ static void follow(const scen_t *c)
         check(0, c->name);
         return;
     }
-    first = (on_t[0] - tick_t[down]) / MS;
+    first = (on_t[0] - tick_t[down]) / MS + c->ofs;
     for (k = 1; k < non && k < steps && down + 24u * every * k < nt; k++) {
-        double id = (on_t[k] - tick_t[down + 24u * every * k]) / MS;
+        double id = (on_t[k] - tick_t[down + 24u * every * k]) / MS + c->ofs;   /* (an offset: from where it was asked) */
         e_id[ne] = id;
         if (getenv("STEPS"))
             printf("sync:     step %u  %+.3f ms  (%.2f BPM)\n", k, id, tick_bpm[down + 24u * every * k]);
@@ -370,8 +379,8 @@ static double clock_run(uint32_t src, double t0, uint32_t n, double bpm)
     uint32_t k;
     double p = 60.0 / (24.0 * bpm) * 24e6, t = t0;
     for (k = 0; k < n; k++, t += p) {
-        if (src == MSRC_USB)
-            push(t, 0xF80Fu, MSRC_USB);
+        if (src == MSRC_USB || src == MSRC_BLE)
+            push(t, 0xF80Fu, src);
         else
             trs_byte(t - BYTE_T, 0xF8);
     }
@@ -407,6 +416,27 @@ static void t_auto(void)
         check(ok2 && sy.src == 0 && !strcmp(val, "A:INT") && GP[G_SYNC].def == SYNC_AUTO,
               "AUTO (default) shows the clock followed: A:TRS; both gone: A:INT");
     }
+    /* BLE alone: followed; then USB too (stopped): USB, AUTO's BLE last; SYNC BLE: BLE though USB is there */
+    reset(SYNC_AUTO);
+    clock_run(MSRC_BLE, 2e6, 400, 110);
+    run_to(2e6 + 200 * MS);
+    ok = sy.src == MSRC_BLE && song.g[G_MIDI] == 3 && abs(song.g[G_BPM] - 110) <= 1;   /* (1 ms stamps, 9 ticks in) */
+    {
+        char val[12];
+        const char *unit;
+        param_format(&GP[G_SYNC], SYNC_AUTO, val, &unit);
+        ok = ok && !strcmp(val, "A:BLE");
+    }
+    if (getenv("DBG"))
+        printf("ble auto: src %u midi %d bpm %d\n", sy.src, song.g[G_MIDI], song.g[G_BPM]);
+    clock_run(MSRC_USB, 2e6 + 300 * MS, 300, 100);
+    run_to(2e6 + 500 * MS);
+    check(ok && sy.src == MSRC_USB && song.g[G_BPM] == 100, "AUTO: a BLE clock followed (A:BLE); a USB one arrives (stopped): USB");
+    reset(SYNC_BLE);
+    clock_run(MSRC_USB, 2e6, 400, 100);
+    clock_run(MSRC_BLE, 2e6, 400, 130);
+    run_to(2e6 + 300 * MS);
+    check(sy.src == MSRC_BLE && song.g[G_BPM] == 130, "SYNC BLE: the BLE clock, not USB's");
     /* an unsteady clock (periods 10 and 30 ms by turns) is not a source */
     reset(SYNC_AUTO);
     {
@@ -480,6 +510,12 @@ int main(int argc, char **argv)
         {"USB 120 -> 150 BPM jump at beat 16", MSRC_USB, 120, 150, 0, 0, 48, 20.8, 0, 0, 0, 0.2, 0.3, 0.2, 16},
         {"TRS 140 -> 100 BPM jump at beat 16, +-0.5 ms", MSRC_TRS, 140, 100, 0, 0.5, 48, 17.8, 0, 0, 0, 0.2, 0.5, 1.0, 16},
         {"USB 90 -> 130 BPM ramp over 32 beats from beat 8", MSRC_USB, 90, 130, 32, 0, 64, 27.7, 0, 0, 0, 0.1, 0.5, 0.2, 8},
+        {"BLE 120 BPM, 15 ms connection events, 1 ms stamps", MSRC_BLE, 120, 120, 0, 0, 64, 20.8, 0, 0, 0, 0.6, 1.2, 16},
+        {"BLE 174 BPM, 15 ms connection events, +-1 ms", MSRC_BLE, 174, 174, 0, 1.0, 96, 14.3, 0, 0, 0, 0.6, 1.5, 16},
+        {"USB 120 BPM, CLK OFS +40 ms (steps early)", MSRC_USB, 120, 120, 0, 0, 64, 20.8, 0, 0, 0, 0.1, 0.3, 45, 0, 40},
+        {"USB 120 BPM, CLK OFS -20 ms (steps late)", MSRC_USB, 120, 120, 0, 0, 64, 20.8, 0, 0, 0, 0.1, 0.3, 0.3, 0, -20},
+        {"USB 60 BPM, CLK OFS +250 ms (the most)", MSRC_USB, 60, 60, 0, 0, 32, 41.6, 0, 0, 0, 0.1, 0.3, 260, 0, 250},   /* (60: the hat
+                                                     * of the downbeat, played at FA, done before the next, 250 ms early) */
     };
     uint32_t i;
     (void)argc;

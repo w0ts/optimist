@@ -317,6 +317,19 @@ _Static_assert(4u + 12u + 1u + BA_MFRAMES * (12u + (8u + 16u * BA_BITPOOL + 7u) 
                "bt_page.c BP_MQB: the longest audio packet");
 static uint8_t ba_mbuf[BA_MFRAMES * 128u];
 static uint32_t ba_mlen, ba_mn;
+static uint8_t ba_live;                            /* bt_audio_feed streams (the audio ISR's) */
+static uint32_t ba_qavg;                           /* the audio packets queued (bt_page.c bp_mq), mean over ~0.7 s, Q8 */
+
+/* how much later than the FM-1's own output the Bluetooth stream leaves us, TIMER4 ticks; -1 not streaming
+ * (io/midi/clock_sync.c sync_lead_t: a clock followed that much earlier). Ours only: a sample waits half a packet
+ * for its SBC frames, then the queue's mean depth of packets, less the DMA's half buffer sync_out_t counts. The
+ * device's own buffer is not known here (no AVDTP delay report): GLOBAL > MIDI BT OFS is for it */
+static int32_t bta_lat_t(void)
+{
+    uint32_t pk = (bp.slots5 == 2u ? BA_MFRAMES : 1u) * BT_SBC_SAMPLES_PER_FRAME;
+    int32_t smp = (int32_t)(pk / 2u + ((ba_qavg * pk) >> 8)) - HALF_FRAMES;
+    return ba_live ? (int32_t)(((int64_t)smp * SY_TPS_Q8) >> 8) : -1;
+}
 static void ba_media_send(const uint8_t *sbc_frame, uint32_t sbc_len, uint32_t frames)   /* one L2CAP frame, whole */
 {
     uint8_t pkt[4 + 12 + 1 + BA_MFRAMES * 128u];
@@ -356,8 +369,13 @@ int bt_audio_feed(const int32_t *q15_pcm, uint32_t n)   /* 1: it streams (audio.
                                                     * and the stage, so the FM-1's own output stayed muted after a
                                                     * disconnect, the user 2026-10-20) */
         ba_pcm_cnt = 0;
+        ba_live = 0;
         return 0;
     }
+    if (!ba_live)
+        ba_qavg = (bp_mq.w - bp_mq.r) << 8;        /* (the mean from the depth now) */
+    ba_live = 1;
+    ba_qavg += ((int32_t)((bp_mq.w - bp_mq.r) << 8) - (int32_t)ba_qavg) >> 9;
     if (!ba_sbc_init_done) {
         uint8_t bp_max = ba.conf[3] < BA_BITPOOL ? ba.conf[3] : (uint8_t)BA_BITPOOL;   /* (the agreed range) */
         bt_sbc_init(&ba_sbc, 44100, bp_max < ba.conf[2] ? ba.conf[2] : bp_max, 1);
