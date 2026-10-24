@@ -69,7 +69,7 @@ Three slots, **USR1**, **USR2** (about 7.4 s each) and **USR3** (about 5.9 s; le
 - **Files:** up to 16 WAV per slot; the note each plays at its own pitch is in its name (`KEYS_C4.wav`).
 - **CHOP:** cut one recording (WAV, MP3, AIFF...) into up to 16 chops, by tapping while it plays, by its hits, on a grid or in equal parts, then send them to a slot.
 
-A synth track plays a slot with the SAMPLE engine (**SET** USR1 to USR3); a drum lane plays one with SRC.
+A synth track plays a slot with the SAMPLE engine (**SET** USR1 to USR3); a drum lane plays one with SRC. In a build with `PATTERNS`, USR1's flash holds the projects' log and the slot takes no sample.
 
 ## Your own kits
 

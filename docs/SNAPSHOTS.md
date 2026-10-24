@@ -2,7 +2,7 @@
 
 A **snapshot** keeps the whole current work in a flash slot: the working project, every section (scene) and the song
 chain. Several complete sessions can live side by side and be switched. Builder item `SNAPSHOTS` (0 / 2 / 4 / 8 slots,
-default 4; 4 -> 0 saves 6,896 B of flash and 304 B of RAM). Code: `firmware/src/storage/snapshots/snap_store.c` (the flash
+default 4; 4 -> 0 saves 8,456 B of flash and 400 B of RAM, `tools/builder/costs.json`). Code: `firmware/src/storage/snapshots/snap_store.c` (the flash
 area), `snapshots.c` (what goes in, how it comes back), `firmware/src/io/editor/ed_snap.c` (commands 54..57),
 `firmware/src/ui/optimist/op_prjflow.c` (the device page).
 

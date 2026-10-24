@@ -1,11 +1,11 @@
-# Bluetooth Classic (BR/EDR): the hardware, our probe, and the A2DP plan
+# Bluetooth Classic (BR/EDR): the hardware and our A2DP source
 
-Status 2026-10-19: **research and an EXPERIMENTAL probe, paused.** No Classic code is in a normal build. The
-builder item `BT_INQ_PROBE` (bit 280, dropped 2026-10-20: its stack is `BT_AUDIO`'s) built a probe
-that, from the CDC console, scans, pages a Raspberry Pi, sets up the link, and reads its A2DP record. Pairing and
-encryption (the step before audio) are not done. Nothing here plays audio.
-
-Goal of the whole line: FM-1 -> AirPods over A2DP (SBC), with our own GPL-3.0 BR/EDR stack and no JieLi library.
+The builder item `BT_AUDIO` (EXPERIMENTAL, off by default; on in the shipped profiles) is our own GPL-3.0 BR/EDR stack,
+no JieLi library: inquiry, paging, Secure Simple Pairing (Just Works, P-192), E0, L2CAP, AVDTP and an SBC encoder
+(`firmware/src/bt/`), an A2DP source to headphones and speakers; its page is SYSTEM > BT AUDIO (`ui/optimist/op_bt.c`).
+`BT_AFH` (on with it) skips the channels the headset fails on: measured with a WH-1000XM4 on 2026-10-23 (its registry
+text). This page holds the hardware as it was read and measured; `BT_INQ_PROBE` (bit 280, dropped 2026-10-20) was the
+console probe the stack grew from.
 
 ## 1. How the hardware works
 
@@ -241,7 +241,7 @@ unit). A second FM-1 on stock V15 is therefore a possible inquiry target (unveri
 | U7 | BR modulation index / EDR modem selection (`mdm_set`) |
 | U8 | `PLL_COMP` on a real unit (RX quality is the weak point, §14) |
 | U9 | whether stock V15 on hardware is discoverable as "FM-1" |
-| U10 | whether AirPods accept P-192 legacy SSP + E0 (the whole A2DP plan hangs on it) |
+| U10 | whether AirPods accept P-192 legacy SSP + E0 (a WH-1000XM4 streams: `BT_AFH`'s measurement, 2026-10-23) |
 | U11, U12 | IRQ 40 cost during a connection; coexistence with our BLE link (built 2026-10-23, §9.1; not run on an FM-1) |
 
 ## Where the code is
@@ -254,7 +254,8 @@ unit). A second FM-1 on stock V15 is therefore a possible inquiry target (unveri
 | `firmware/src/bt/bt_inq_core.c` | portable: sync-word parity, FHS parse/build, EIR name (host test `tests/bt_inq_test.c`) |
 | `firmware/src/bt/bt_page.c`, `bt_lmp.c` | stage 2: `btpage ADDR` pages as master, minimal LMP (host test `tests/bt_lmp_test.c`) |
 | `firmware/src/bt/bt_acl.c`, `bt_l2cap.c`, `bt_avdtp.c` | stages 3-4: L2CAP over DM1 fragments, an SDP client, an AVDTP initiator (host tests `bt_l2cap_test`, `bt_avdtp_test`) |
-| `firmware/src/bt/bt_safer.h` | API header only (SAFER+, E1/E21/E22/E3, SSP f1-f3/g, P-192); **no `bt_safer.c` exists and `tests/bt_crypto_test.c` does not exist** |
+| `firmware/src/bt/bt_safer.c`, `bt_ssp.c`, `uECC.c`, `bt_sha256.c` | SAFER+ (E1/E21/E22/E3), SSP (f1-f3/g, P-192) (host tests `tests/bt_crypto_test.c`, `bt_ssp_test.c`) |
+| `firmware/src/bt/bt_audio.c`, `bt_sbc.c`, `bt_afh.c`, `bt_avrcp.c`, `bt_sdps.c` | the A2DP source, the SBC encoder, AFH, AVRCP, the SDP server |
 | `tests/bt_inq_emu_test.py` | stage 1a in the emulator: 1,599.5 slots/s, 264 alarms of ~267 |
 
 ## 14. What was measured on an FM-1 (2026-10-18, against a Raspberry Pi `D8:3A:DD:DE:2A:93` about 1 m away)
@@ -277,35 +278,7 @@ unit). A second FM-1 on stock V15 is therefore a possible inquiry target (unveri
   Our features claimed no SSP or encryption, so the Pi's controller fell back to a PIN, had none, and failed (HCI Auth
   Complete 0x06).
 
-## 15. Status and next steps
-
-State at HEAD (`3242a360`): the SSP skeleton is committed. `bt_lmp.c` `btl_features` now advertises encryption and SSP
-(byte 0 bit3; byte 2 bits 0 and 5), and `btl_answer` has placeholder handlers for IO capability (NoInputNoOutput, Just
-Works), the P-192 key exchange, confirm/random, start-encryption and link-key request. They return dummy values or
-NOT_ACCEPTED: **a pairing attempt will fail at the placeholders.** The crypto they call is not written.
-
-Next, in order: (1) SAFER+ and E1/E21/E22/E3 (`bt_safer.c`, tested against Core Vol 2 Part G section 10); (2) SSP with
-micro-ecc P-192, HMAC-SHA-256 for f1/f2/f3/g; LK = f2(DHKey, N_central, N_peripheral, "btlk", BD_ADDR_C, BD_ADDR_P),
-all in LMP air order (LSB first); (3) E0: `cryptk` + `linkcntl` bits 7/15 (master RX decrypt on at
-START_ENCRYPTION_REQ, TX on at ACCEPTED); (4) AVDTP configure, open, start; (5) the SBC encoder and the audio ring;
-(6) then AirPods (page scan for reconnects, AVRCP taps). Do not flash an FM-1 without asking.
-
-## 16. The A2DP plan: sizes, codecs, latency
-
-Estimates [I] unless marked [M] (measured: link map, emulator instruction count, host build).
-
-**Stack size (own code, one link, master role, SBC only):** about 36-58 KB of flash, 3-6 KB of main RAM and 4-8 KB of
-pool buffers. By layer: baseband driver 6-10 KB, inquiry/page/scan 3-5, LMP subset 8-12, pairing and encryption
-(micro-ecc P-192 3.7 KB [M], SHA-256 1.1 KB [M], SAFER+ about 2.9 KB) 7-9, L2CAP 2-4, SDP 1-2, AVDTP + A2DP source 4-7,
-glue 1-2, UI 2-4; AVRCP +2-4 optional. The probe build today costs 33,364 B of flash, 2,304 B of RAM and 14,848 B of
-pool (`tools/builder/costs.json`, `BT_INQ_PROBE`). For scale, `BLE` costs 32,116 B flash and 6,640 B RAM. Effort for
-interoperability across headphones: 9-18 person-months.
-
-**Why encryption is not optional:** SSP devices use security mode 4; every L2CAP service but SDP needs an encrypted
-link. AirPods need SSP + E0. Secure Connections (P-256 + AES-CCM) is not needed if we do not advertise it.
-
-**Rejected route:** the JieLi SDK's closed `btctrler.a` + `btstack.a` (about 165 KB of flash, 40 KB of RAM, closed, not
-shippable under GPL-3.0).
+## 15. Codecs and latency
 
 **Codecs (AirPods take SBC or AAC; no aptX):** measured with JieLi clang on the emulator, instructions per second as a
 share of the 360 MHz core (lower bounds: no cache or flash waits):
@@ -316,18 +289,9 @@ share of the 360 MHz core (lower bounds: no cache or flash waits):
 | AAC-LC (vo-aacenc), 256 kbit/s | 60-65 KB | 49 KB (pool) | 17-20 % | Apache-2.0; AAC patents separate |
 | aptX / aptX HD | 9-10 KB | 4.4 KB | 24-25 % | LGPL via libfreeaptx; AirPods cannot decode it |
 
-SBC fits beside the audio ISR on CPU 0 (the ISR takes up to ~85 % of each half). AAC and aptX do not fit there; they
-need CPU 1 (see `DUAL-CORE.md`, which now renders parts 2 and 3) or a lighter patch. fdk-aac is GPL-incompatible;
-FAAC needs 254 % of the core. An SBC frame is 119 bytes; basic-rate DH5 carries up to 723 kbit/s, so EDR is not needed.
+SBC fits beside the audio ISR on CPU 0; AAC and aptX do not. fdk-aac is GPL-incompatible; FAAC needs 254 % of the core.
+An SBC frame is 119 bytes; basic-rate DH5 carries up to 723 kbit/s, so EDR is not needed. Rejected: the JieLi SDK's closed
+`btctrler.a` + `btstack.a` (about 165 KB of flash, 40 KB of RAM, not shippable under GPL-3.0).
 
-**Fitting it:** about 50 KB of flash and 4-9 KB of RAM would have to be freed from the synth or user-default profile
-(drop the X0X 909 kit, FM6 MARK I and halve the delay, or the web editor, BLE device scanning and COMP+LIMIT). These
-figures date from 2026-10-18 and were not re-checked against today's profiles.
-
-**Latency:** FM-1 side about 12-25 ms with SBC (output buffer 5.8-11.6 ms, framing, retransmission slack). The AirPods'
-own buffer is 126-274 ms from Apple devices and similar or worse from others. Expect 150-300 ms end to end: fine for
-listening and practice, unusable for playing keys or pads.
-
-Scratch material (IR dumps, traces, run logs, flash list) lives in `~/GitHub/optimist-work/btclassic/` and
-`~/GitHub/optimist-work/btaudio/`; the pairing hand-off notes are `btclassic/PAUSED.md` and
-`btclassic/SSP-INTEGRATION-GUIDE.md`.
+**Latency** [I]: FM-1 side about 12-25 ms with SBC; the headphones' own buffer is 126-274 ms from Apple devices and
+similar or worse from others. Expect 150-300 ms end to end: fine for listening, unusable for playing keys or pads.

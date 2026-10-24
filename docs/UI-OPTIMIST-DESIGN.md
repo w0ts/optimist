@@ -1,6 +1,6 @@
 # Optimist UI: how it works now
 
-The Optimist UI is the only user interface of the firmware (SLOOP's UI was removed on 2026-10-19). This page is the reference for how it is built and why: the grammar, the screens, the rules that cut across them, and where each lives in the code. It describes the state of `optimist` at 8c392850 (2026-10-19). Old design history, dated rulings, build logs and size tables are in git (`git log -- docs/UI-OPTIMIST-DESIGN.md`).
+The Optimist UI is the only user interface of the firmware (SLOOP's UI was removed on 2026-10-19). This page is the reference for how it is built and why: the grammar, the screens, the rules that cut across them, and where each lives in the code. Old design history, build logs and size tables are in git (`git log -- docs/UI-OPTIMIST-DESIGN.md`).
 
 Two other pages carry the user's view and are not repeated here: [guide/shortcuts.md](guide/shortcuts.md) lists every gesture, [guide/interface.md](guide/interface.md) explains the controls and pages. Where this page and the code differ, the code wins: report it.
 
@@ -18,7 +18,7 @@ The look and the first screens come from Felucca 1.0 (Leo Kuroshita, GPL-3.0-onl
 
 ### 1.2 The code
 
-All of it is `firmware/src/ui/optimist/` (about 17,000 lines, one translation unit through `optimist.c`). It calls the core (`core/`, `seq/`, `drums/`, `fx/`, `storage/`) and owns no audio state.
+All of it is `firmware/src/ui/optimist/` (about 19,500 lines, one translation unit through `optimist.c`). It calls the core (`core/`, `seq/`, `drums/`, `fx/`, `storage/`) and owns no audio state.
 
 | File | Holds |
 |---|---|
@@ -27,8 +27,8 @@ All of it is `firmware/src/ui/optimist/` (about 17,000 lines, one translation un
 | `op_cells.c`, `op_names.c`, `op_effval.c` | cells (label, value, unit, kind) made from the shared pages; the names table; effective values |
 | `op_screens.c`, `op_mixer.c`, `op_mixdraw.c` | SOUND and the master FX; the mixer's rows and sets; its drawing |
 | `op_step.c`, `op_stepdraw.c`, `op_tools.c` | STEP; its grid and roll; TOOLS, GEN, GEN OUT |
-| `op_global.c`, `op_gldraw.c`, `op_project.c`, `op_prjflow.c` | GLOBAL and SYSTEM lists and their drawing, the SYSTEM table; PROJECT |
-| `op_layers.c`, `op_laydraw.c`, `op_tempo.c`, `op_song.c`, `op_scope.c`, `op_name.c`, `op_fm6.c`, `op_fm6draw.c`, `op_preset.c`, `op_help.c` | the held layers and their maps; TEMPO; SONG; SCOPE; NAME; the FM6 editor; a preset with its engine; the help line |
+| `op_global.c`, `op_gldraw.c`, `op_bt.c`, `op_project.c`, `op_prjflow.c` | GLOBAL and SYSTEM lists and their drawing, the SYSTEM table; the Bluetooth pages; PROJECT |
+| `op_layers.c`, `op_laydraw.c`, `op_tempo.c`, `op_song.c`, `op_songtbl.c`, `op_scope.c`, `op_name.c`, `op_fm6.c`, `op_fm6draw.c`, `op_preset.c`, `op_help.c` | the held layers and their maps; TEMPO; SONG; SCOPE; NAME; the FM6 editor; a preset with its engine; the help line |
 | `op_draw.c`, `op_graph.c` | the renderer, the forms, the SOUND pictures, the modal |
 
 A screen is five functions (rows, a row's name, a cell, a turn, a YES). A cell is a label, a value, a unit and a kind (value, read-out, action, a row to enter), mostly straight from a descriptor of the shared tables (`core/params.c` PAGES) and `param_format`, so a value lives in one place and the web editor shares its names.
@@ -43,7 +43,7 @@ A screen is five functions (rows, a row's name, a cell, a turn, a YES). A cell i
 | The master FX | FX tapped on the mixer's MASTER row; ALGORITHM left of T1 |
 | GLOBAL, SYSTEM | GLO tapped (again: the other) |
 | PROJECT | SAVE tapped where YES has nothing to do |
-| SONG | SAVE held on PROJECT (on SONG a long SAVE does nothing: the user, 2026-10-23 — a store gesture held long must not leave the screen; back is SEQ held, or a SAVE tap) |
+| SONG | SAVE held on PROJECT, SEQ held off STEP, SHIFT2 + SEQ anywhere (on SONG a long SAVE does nothing: the user, 2026-10-23 — a store gesture held long must not leave the screen; back is SEQ held, or a SAVE tap) |
 | TEMPO | PLAY held |
 | SCOPE | HOME tapped on the mixer |
 | NAME | a save that names (section 4.11) |
@@ -147,7 +147,7 @@ ALGORITHM follows the same rule (`algo_has_track`, using the header's classifica
 
 - **Cards are 2 x 2** on every screen with cards except the mixer's channel and lane rows (which want the height and keep four small cards; its MASTER row takes the big cards). KNOB 1 top left, 2 top right, 3 bottom left, 4 bottom right; label small at the left of the label row, unit right-aligned in it, the value large, its form under it, the hot card white. There is no CARDS setting (settings word bit 23 is reserved).
 - **Under the cards**, a screen shows its picture alone on the rest of the panel when the picture is worth it: the envelope (ENV, ENV2), the LFO wave, the arpeggio (ARP, every row), the scale, the gater, the pattern's steps, FM6's algorithm, TEMPO, SCOPE. A row's picture is its family's nearest one (LFO DEST shows the LFO).
-- **No picture: four lines** (always on: the builder item `PAGE_LINES` was retired 2026-10-21). EDIT, VOICE, a lane's pages, PROJECT, SONG, the master FX, and SOUND pages whose picture only repeats the cards (the FX needles, a lane's name and kit) show the cursor row as four lines in GLOBAL's look, value k on line k, SELECT the next row; the header names the row and its n/N. Off: the 2 x 2 cards with the row list (five rows of 19 px) under them. `pl_on`, `pl_draw`, `pic_useful`.
+- **No picture: four lines** (`FELUCCA_PAGE_LINES`, 1; the builder item was retired 2026-10-21). EDIT, VOICE, a lane's pages, PROJECT, SONG, the master FX, and SOUND pages whose picture only repeats the cards (the FX needles, a lane's name and kit) show the cursor row as four lines in GLOBAL's look, value k on line k, SELECT the next row; the header names the row and its n/N. With the flag at 0: the 2 x 2 cards with the row list (five rows of 19 px) under them. `pl_on`, `pl_draw`, `pic_useful`.
 - Lists put a row's name in a column (9 characters from x 4) and its four cells at x 84 + 38 k; a longer text pushes its neighbours right, and only a row that cannot hold every text whole gives up characters, the longest first (`row_layout`).
 - The cursor row is the line's colour at full strength with black or white ink chosen by contrast (`ink_on`: no text on a fill is hard to read on the FM-1). GLOBAL / SYSTEM's cursor line is inverted instead: the line's colour as text on black. The BLE devices list keeps its own rows.
 
@@ -237,11 +237,11 @@ Reached by FX on the mixer's MASTER row or ALGORITHM left of T1; FX again: the n
 
 ### 4.5 SONG
 
-Entered by SAVE held on PROJECT, any other way is gone. Rows: **SCENE A..P** (T1 T2 T3 DR: the pattern each track plays in it, *KEEP*, *-*; knobs edit the references while stopped, written once they rest; YES launches at the next bar, stopped it loads; REC stores the loop into it; SHIFT + REC clears it; the playing scene green, a queued one amber, *\** a changed one); **PATTERNS** (each track's playing pattern, a turn cues the next; the panel is the 4 x 16 session grid; the keys are the LFO layer's); **MODE** (LOOP / SONG, SONG REC, the MEM gauge, SAVE writes the chain) before the parts; **PART 1..64** (SCENE BARS INSERT DELETE, edited stopped, the part playing white). The chain is saved when SONG is left, stopped. Without PATTERNS a scene says STORED / EMPTY.
+Entered by SAVE held on PROJECT, SEQ held off STEP or SHIFT2 + SEQ (section 1.3). Rows: **SCENE A..P** (T1 T2 T3 DR: the pattern each track plays in it, *KEEP*, *-*; knobs edit the references while stopped, written once they rest; YES launches at the next bar, stopped it loads; REC stores the loop into it; SHIFT + REC clears it; the playing scene green, a queued one amber, *\** a changed one); **PATTERNS** (each track's playing pattern, a turn cues the next; the panel is the 4 x 16 session grid; the keys are the LFO layer's); **MODE** (LOOP / SONG, SONG REC, the MEM gauge, SAVE writes the chain) before the parts; **PART 1..64** (SCENE BARS INSERT DELETE, edited stopped, the part playing white). The chain is saved when SONG is left, stopped. Without PATTERNS a scene says STORED / EMPTY.
 
 ### 4.6 PROJECT
 
-Rows: PROJECT, SNAPSHOT, USER, TOOLS (CLEAR SEQ, INIT SOUND, MISSING, NEW), SLOOP (import of SLOOP 2.4's slots and autosave), MEMORY (USED, FREE). A storage row is four cards (`op_prjflow.c`):
+Rows: PROJECT, SNAPSHOT, USER, TOOLS (CLEAR SEQ, INIT SOUND, MISSING, NEW), SLOOP (import of SLOOP's slots and autosave, `storage/sl24/`), MEMORY (USED, FREE). A storage row is four cards (`op_prjflow.c`):
 
 | Card | |
 |---|---|
@@ -250,7 +250,7 @@ Rows: PROJECT, SNAPSHOT, USER, TOOLS (CLEAR SEQ, INIT SOUND, MISSING, NEW), SLOO
 | 3 ITEM | the slot; walks all of them across the banks |
 | 4 | PROJECT: NEW; USER: INIT; SNAPSHOT: empty |
 
-The 16 white keys are the slots of the bank: key n selects item n and runs the action through the confirm. YES runs it on ITEM. A free slot to LOAD or DELETE: a toast, no question. The action returns to LOAD after each action, when the row changes and when the screen is left, so a stray key never saves. OCT- / OCT+ tapped pick the previous / next bank. SHIFT2 + ITEM on USER marks a favorite. Under the cards: the bank as a strip (used filled, free outlined), the sentence the key would run, the item's name and what is stored (a project's name from the section log, a snapshot's status and size, a user preset's engine). Projects and user presets are named on NAME; project names are record 23 of the section log (16 x 12 bytes); builds with four RAM project slots save unnamed. Kits keep numbers.
+The 16 white keys are the slots of the bank: key n selects item n and runs the action through the confirm. YES runs it on ITEM. A free slot to LOAD or DELETE: a toast, no question. The action returns to LOAD after each action, when the row changes and when the screen is left, so a stray key never saves. OCT- / OCT+ tapped pick the previous / next bank. SHIFT2 + ITEM on USER marks a favorite. Under the cards: the bank as a strip (used filled, free outlined), the sentence the key would run, the item's name and what is stored (a project's name from the section log, a snapshot's status and size, a user preset's engine). Projects and user presets are named on NAME; project names are record 21 of the section log with PATTERNS, else 23 (16 x 12 bytes, `sections.c SEC_ID_NAMES`); builds with four RAM project slots save unnamed. Kits keep numbers.
 
 ### 4.7 GLOBAL and SYSTEM
 
@@ -263,7 +263,7 @@ A page is one section; sections are never combined to fill a page except two joi
 | GLOBAL | Tempo (BPM NUDGE SWING TUNE), Rec (MODE LENGTH START CLICK, then QUANT), MIDI (CLK IN, CLK OUT, MIDI OUT), Channels (T1 T2 T3 DR) |
 | SYSTEM | INFO, INTERNALS and USB STATS (debug builds, `SYS_DEBUG`), Screen & audio (BRIGHT, KNOB COLORS, LOWCUT), Keys (BUTTONS glow, KEYS), Connections (USB SERIAL), BT MIDI, BT AUDIO, Devices, USB AUDIO, Calibrate (PANEL, HOLD), About (VERSION, BUILD, REPO), Credits |
 
-- **INFO** is text only, no bars. The player's page: CPU (KNOB 1 picks NOW / MAX 5S / MAX; CPU0 and CPU1 in a dual-core build, the other core's stop reason in amber), DROPS (late audio halves), UNDERRUNS (everything else lost, with where), BATTERY (n/3, raw count). With `SYS_DEBUG` it also has clock, GUARD, and **INTERNALS** (LAST RESET, flash interrupts-off time, the second core's counters) and **USB STATS**. SHIFT + SAVE on INFO clears DROPS, UNDERRUNS and the MAX. Code: `system/overload.h`, `sys_info_cell`.
+- **INFO** is text only, no bars. The player's page: CPU (KNOB 1 picks NOW / MAX 5S / MAX; CPU0 and CPU1 in a dual-core build, the other core's stop reason in amber), UNDERRUNS (everything lost, the late halves too, with where), BATTERY. With `SYS_DEBUG` it also has DROPS (the late halves alone), clock, GUARD, and **INTERNALS** (LAST RESET, flash interrupts-off time, the second core's counters) and **USB STATS**. SHIFT + SAVE on INFO clears DROPS, UNDERRUNS and the MAX. Code: `system/overload.h`, `sys_info_cell`.
 - **USB AUDIO** is a line a source (MASTER, T1 T2 T3, DRUMS, DRUM BUS, DR1..DR10) choosing NONE, 1, 2, 1+2, 3, 4 or 3+4 (`io/usb/ua_tap.h`).
 - **Bluetooth** is two pages, one pattern (2026-10-23; `ui/optimist/op_bt.c`), each shown only when its item is built: **BT MIDI** (`BLE`: MODE, DEVICE, ACTIVITY, STATE) and **BT AUDIO** (`BT_AUDIO`: MODE, DEVICE, FORMAT, STATE). Both can be on at once on the one radio. MODE is OFF, MAN or AUTO per page (AUTO: the last device connected to at boot and when chosen; a lost link is not made again in either). SAVE on any line of a page acts on that page only: connected or connecting lets go, else connects to its last device, else opens that page's devices list (MIDI: BLE-MIDI devices nearby with signal bars, `io/midi/ble_devices.c`; AUDIO: the inquiry's audio devices); on the list SAVE connects to the row. SAVE held forgets that page's last device. Each page has its own connect timer (30 s, then NO ANSWER). SHIFT + volume is BT AUDIO's (output switch / connect). The settings record keeps both modes; a record from before the split (one MODE) is read as that side's mode with the other OFF. A pairing code shows over any screen.
 - CALIBRATE > PANEL asks first and cancels after 30 s of no input. MIDI IN is not a setting (notes come through the track channels). The second core is always on; `dual_mode` stays AUTO and the guard's reason shows on INFO.
@@ -288,7 +288,7 @@ A page button held shows the layer's map (16 tiles for the white keys, the knobs
 | PRESETS, SHIFT2 + PRESETS | a popup list of the sounds over the panel (the drum track: its kits): the one playing lit in the middle, in its engine's colour, scrolling as you turn, gone ~1.5 s after the last turn |
 | (PRESETS, EDIT's PRESET card) | browsing | the selected track's engine's sounds only (its factory sounds, INIT, its user presets, its own collection such as the FM6 voice packs): PRESETS never changes the engine (2026-10-21). The engine changes with the ENGINE card or SHIFT2 + PRESETS (the whole list's engine groups). LIST FAV still shows the marked sounds of every engine |
 | (any card with a list value) | a knob | the same popup list of that card's values (an insert's type, a scale, a mode, a destination), the value in the middle, up to 11 rows under the header, gone ~1.5 s after the last turn (op_preset.c pop_enum_open; pop_kind 3; two-value toggles, GO buttons and numbers have none). An insert TYPE the slot cannot take now (the other slot's type, or no instance free in the effects memory) is struck and dim: a turn skips it (ins_skip), which otherwise reads as a jump of two or a list that stops short (the user, 2026-10-23) |
-| LFO (patterns, scenes; held or locked it shows SONG's PATTERNS row, back to the screen it left when let go; a knob turned at once, before the hold, is SHIFT and keeps the screen; KNOB 1..4 there select T1..DR and cue their patterns) | white n launches pattern n at its pass's end (OCT+: now), SAVE + n stores, HOME + n clears; black 1-4 pick the track, 5 stop, 9 duplicate, 10 turns the white keys to scenes A-P (same verbs; two launched in one hold: a chain) | none: LFO held + a knob is the fine edit of the screen under it |
+| LFO (patterns, scenes; held or locked it shows SONG's PATTERNS row, back to the screen it left when let go; a knob turned at once, before the hold, is SHIFT and keeps the screen; KNOB 1..4 there select T1..DR and cue their patterns) | white n launches pattern n at its pass's end (OCT-: the next bar, OCT+: now), SAVE + n stores, HOME + n clears; black 1-4 pick the track, 5 stop, 9 duplicate, 10 turns the white keys to scenes A-P (same verbs; two launched in one hold: a chain) | none: LFO held + a knob is the fine edit of the screen under it |
 | ENV on FM6 | black keys pick OP1..OP6 PIT GLO MONO POLY | the page's four values |
 
 A layer's "Oct- locks it" hint shows once per power-on (on the help line, else under the tiles). The tiles for the 16 sounds are the 16 white keys; ERASE and REPEAT on the drum track act on the lanes.
@@ -351,7 +351,7 @@ Storage: with the section log a store is written in the new forms (the extras re
 - **Sequencer mutes** (one mute, the sequencer's): a muted track or lane triggers no new notes (internal sound and MIDI out), its steps' locks do not apply, sounding tails finish; its recorded motion keeps running; notes played live still sound. Saved with the project in the FX record (TLV 0x43: the tracks' bits, the lanes' mask, `seq/seq_mute.c`). A sound mute an older project left shows as muted and the toggle clears it.
 - **Conditions** 1:2 2:2 1:3 2:3 3:3 1:4 .. 4:4: the step plays on loop a of every b of its own track (counts from PLAY, a song section, a launched pattern). Order on one step: condition, FILL, chance; a failed one is a REST. Edited on the held step's EXTRA page, 4th card COND.
 - **TOOLS**: REVERSE mirrors the steps inside LEN (a note moves whole: ties and carry steps with it); RANDOM keeps a synth track's rhythm and gets new scale notes (SCL CHR: the minor pentatonic of ROOT), a drum beat on DR, a lane drawn the same way; COOK changes 15..25 % of notes (drums 10..20 % of hits; never a lane's last nor the kick on step 1); LENGTH x2 copies the steps after themselves (64 at most; refused when the events would pass 128), x1/2 halves LEN. Events move with their steps. The EDIT layer's SHIFT and LENGTH move and copy events too.
-- **GEN** (`seq/gen.c`): a note generator is a layer the sequencer plays over the pattern, never written into it. One slot per synth track and per drum step lane; several on at once. TYPE EUCLID (HITS STEPS ROT), RANDOM (DENSITY % SEED ACCENT %; its own hash, so chance rolls are undisturbed), PULSE (EVERY OFFSET RATCHET). **GEN OUT**: GEN on / off, MODE (REPLACE: the hits are the steps; ADD: pattern plus hits; MASK: the pattern only where it hits), WRITE (asks): bakes exactly what plays into steps 1..LEN and turns the slot off; one undo level brings back the pattern and the ON. A synth hit plays the pattern's NOTE, else a TIE's, else ROOT near C4. The grid draws a generated hit outlined and a silenced pattern hit as a dim stub. Saved with the project and each scene (a TLV of the FX record, `GEN_TLV` in `seq/gen.c`).
+- **GEN** (`seq/gen.c`): a note generator is a layer the sequencer plays over the pattern, never written into it. One slot per synth track and per drum step lane; several on at once. TYPE EUCLID (HITS STEPS ROT), RANDOM (DENSITY % SEED ACCENT %; its own hash, so chance rolls are undisturbed), PULSE (EVERY OFFSET RATCHET), GRIDS (X Y DENS, builder item `GEN_GRIDS`). **GEN OUT**: GEN on / off, MODE (REPLACE: the hits are the steps; ADD: pattern plus hits; MASK: the pattern only where it hits), WRITE (asks): bakes exactly what plays into steps 1..LEN and turns the slot off; one undo level brings back the pattern and the ON. A synth hit plays the pattern's NOTE, else a TIE's, else ROOT near C4. The grid draws a generated hit outlined and a silenced pattern hit as a dim stub. Saved with the project and each scene (a TLV of the FX record, `GEN_TLV` in `seq/gen.c`).
 
 ## 9. Track insert slots and effects pages
 
@@ -391,7 +391,7 @@ REC's own LED shows the take as before (blinking while armed). Legend: guide/int
 
 ## 12. The help line
 
-Builder item `PARAM_HELP` (off in the user-default profile, on in the user's own config; about 7.7 KB of flash). One line of the small face on the screen's last 18 rows: a 1 px rule, then amber words. It shows: what a knob changes while it turns and for about 2 s after, on any screen; always the cursor line on GLOBAL and SYSTEM and the hot cell on PROJECT; never under a question, the REC ring, a layer's map, NAME or the BLE list. An automated value says where its change comes from (LOCK MOTION LFO-A/B LFO2-A/B ENV2-A/B ENV1 MACRO); a DEST names what it moves ("ANALOG CUT - Filter cutoff", "T1 S1 FILT - ..."); an action that asks says "(asks)". The words are `tools/param_help.json` (one table with the web editor's tooltips; kind `op` holds this UI's own lines, found by row name then screen name, then by the value's descriptor), packed in flash (`ph_blob.c`) and unpacked onto the stack when drawn; each fits 232 px (`gen_param_help.py` checks). Code: `op_help.c`. The band is reserved whether or not the line shows (section 3.6).
+Builder item `PARAM_HELP` (off by default, on in the synth, drum-machine and everything-fits profiles; 13,056 B of flash, `costs.json`). One line of the small face on the screen's last 18 rows: a 1 px rule, then amber words. It shows: what a knob changes while it turns and for about 2 s after, on any screen; always the cursor line on GLOBAL and SYSTEM and the hot cell on PROJECT; never under a question, the REC ring, a layer's map, NAME or the BLE list. An automated value says where its change comes from (LOCK MOTION LFO-A/B LFO2-A/B ENV2-A/B ENV1 MACRO); a DEST names what it moves ("ANALOG CUT - Filter cutoff", "T1 S1 FILT - ..."); an action that asks says "(asks)". The words are `tools/param_help.json` (one table with the web editor's tooltips; kind `op` holds this UI's own lines, found by row name then screen name, then by the value's descriptor), packed in flash (`ph_blob.c`) and unpacked onto the stack when drawn; each fits 232 px (`gen_param_help.py` checks). Code: `op_help.c`. The band is reserved whether or not the line shows (section 3.6).
 
 ## 13. Favorites
 
@@ -404,7 +404,6 @@ The host suite is `tests/ui_optimist_test.c` plus the `tests/ui_optimist_*.h` it
 ## 15. Open limits
 
 - The web editor's SOLO / MUTE command (104, `web/EDITOR_PROTOCOL.md`) still offers a solo this UI does not have.
-- The 0.1 BPM FINE tempo was not built; the clock counts whole BPM.
-- A track's recorded motion keeps running while the track is sequencer-muted. A lane's own LFO / LFO 2 / ENV2 values are not recordable or lockable.
+- A lane's own LFO / LFO 2 / ENV2 values are not recordable or lockable.
 - A muted key does not sound as a preview (it is silent).
 - FM6's algorithm picture overlaps its digits on deep stacks in SOUND's band; the layer's full panel draws them clean.

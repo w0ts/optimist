@@ -6,7 +6,7 @@ pool and RAMTEXT budget, then build it: in the browser at [w0ts.github.io/optimi
 is `docs/MEMORY-MAP.md`, with the budget behind the trade-offs in its section 3. Sizes come from measured builds
 (`tools/builder/costs.json`, "Budget" below); the CPU figures from the emulator.
 
-## Run i
+## Run it
 
 ```sh
 python tools/optimist.py setup                            # once: the venv, the SDK files, the toolchain (BUILDING.md)
@@ -78,16 +78,8 @@ make publish PROFILE=my-groove    # CI builds it (--unpublish to stop); commit t
 make delete PROFILE=my-groove     # mine first, else the shipped one
 ```
 
-The estimate for each shipped profile (`config --budget`, 2026-10-20; the limits are in `tools/builder/core.py`
-`LIMITS`):
-
-| Profile | App flash (of 581,564) | RAM (of 98,304) | Pool (of 344,064) | RAM code (of 32,512) |
-|---|---|---|---|---|
-| synth | 578,588 | 92,684 | 310,672 | 22,760 |
-| fm-va-studio | 579,764 | 85,636 | 306,812 | 27,300 |
-| everything-that-fits | 565,180 | 73,924 | 265,800 | 31,892 |
-| x0x-drums | 557,708 | 72,316 | 323,508 | 25,720 |
-| drum-machine | 526,752 | 91,884 | 300,388 | 24,588 |
+`config --profile P --budget` prints a profile's estimate against the limits (`tools/builder/core.py` `LIMITS`: app
+flash 581,564 B, RAM 98,304, pool 344,064 with 8 KiB kept spare, RAM code 32,512).
 
 ## What is switchable
 
@@ -98,19 +90,19 @@ and is ignored, a retired key (below) warns "dropped".
 
 Errors the configuration checks (`validate()` in `tools/builder/core.py`): no synth engine; no drum source (the drum
 synth or a sampled kit); a reverb with no algorithm; PATTERNS with SECTIONS 4; MICRO, FILLS or PLOCK without SL24_XSTEP; an
-the Bluetooth Classic probe without a console or with BLE. Warnings the menu gives: FM6 without its editor and without SysEx has no voice
+effects memory too small for the delay's line or for one line of an insert built; the serial console with USB audio. Warnings the menu gives: FM6 without its editor and without SysEx has no voice
 editing; sample sets without SAMPLE or GRAIN play nowhere; an experimental item says what it has been tested on.
 
 Every engine a build has keeps at least one entry on the PRESETS list, and every drum source at least one kit. An engine
-with no factory preset this build can play shows one entry, INIT (the engine's defaults, no preset data). GRAIN withou
+with no factory preset this build can play shows one entry, INIT (the engine's defaults, no preset data). GRAIN without
 PIANO, VIBES and FLUTE but with another melodic set gets a real preset, GRAIN PAD, on the first of them.
 
 ### Every item, in plain words
 
 The text of the menu's details panel (`desc` in the registry), one table a group, generated from it:
-`tests/builder_test.py` fails when an item is missing or its text differs, so regenerate a row from the registry, do no
+`tests/builder_test.py` fails when an item is missing or its text differs, so regenerate a row from the registry, do not
 edit it here. Sizes are about, from `costs.json`. A `(sub-item)` is an option of the item above it. Items marked
-EXPERIMENTAL are emulator-tested only unless their text says more. The builder's reserve entries (a minimum of undo history or of free app flash) were retired 2026-10-21: the estimate shows the undo ring as information.
+EXPERIMENTAL are emulator-tested only unless their text says more.
 
 #### Synth engines
 
@@ -348,7 +340,7 @@ These run once (on the master, or as the one effect each: chorus, delay, reverb,
 ### Where an item came from
 
 Items ported from another project carry their provenance (project, author, licence, commit) in the registry; the menu
-shows it in the details panel. Items from X0X (`charlesvestal/fm1-x0x`, GPL-3.0-only) show a NOTICE when selected. Wha
+shows it in the details panel. Items from X0X (`charlesvestal/fm1-x0x`, GPL-3.0-only) show a NOTICE when selected. What
 X0X uses only by its author's permission (its break player, no licence) is never offered (`registry.FORBIDDEN`; a
 `.config` naming it is refused).
 
@@ -364,8 +356,8 @@ C.TIM over an inline voice is baked into it once on load, approximately.
 
 ### Song sections (SECTIONS)
 
-16 (default) or 8: sections A..P / A..H in banks of 4 (SAVE + OCT- / OCT+), stored compressed in one 32 KiB log
-(`firmware/src/storage/sections/sec_log.c`); the song layer's title shows the MEM gauge ("mem 34% +12": the share used and
+16 (default) or 8: sections A..P / A..H in banks of 4 (SAVE + OCT- / OCT+), stored compressed in one log
+(`firmware/src/storage/sections/sec_log.c`: 32 KiB; with PATTERNS the per-project log of docs/PROJECTS-DESIGN.md); the song layer's title shows the MEM gauge ("mem 34% +12": the share used and
 how many more sections of the last size fit). MEM FULL refuses a new section; room for one record of the longest size
 is always kept, so the playing section can always be saved, and clearing always works. A record never spans two sectors,
 so `sec_log.c` models its compaction and takes a store only when a record of the longest size would still go in
@@ -379,7 +371,7 @@ hold sections. Tests: `tests/sec_codec_test.c`, `tests/sections_test.c`.
 
 ### Snapshots (SNAPSHOTS)
 
-SAVE > SNAPSHOT keeps the whole state (the working project, every section, the song) in a slot and loads it back
+PROJECT > SNAPSHOT keeps the whole state (the working project, every section, the song) in a slot and loads it back
 (`docs/SNAPSHOTS.md` has the design). 4 (default), 2 or 8 slots plus BEFORE LOAD. The flash comes from the end of USR3
 (slots + 4 sectors of 4 KiB), so USR3 holds that much less; a build without snapshots has the full 64 KiB USR3 again. A
 long USR3 sample uploaded to a build without snapshots is not overwritten by a build with them (`USR3 SAMPLE IN THE
@@ -387,7 +379,7 @@ WAY` until USR3 is erased or loaded again). Cost: `SNAPSHOTS` in `costs.json` (t
 
 ### Backup and restore across builds
 
-The editor's backup holds every stored object (cmds 43..48). `BK_LIST` tells what the device's build holds (engine, ki
+The editor's backup holds every stored object (cmds 43..48). `BK_LIST` tells what the device's build holds (engine, kit
 and sample-set masks by UID, slot capacities, the section count and record layout); before a restore the editor shows a
 report and asks to confirm. Objects not in the build, or larger than its slot, are skipped whole (never truncated), and
 each part whose engine, sample set or kit the build leaves out is named ("section C track 2 uses PHYS: plays ANALOG,
@@ -405,12 +397,12 @@ outside the project's payload, so a PRJ1..PRJ4 / AUTO backup does not hold it.
   last build.
 - Stable IDs: projects, user presets and the drum lanes store engine, kit and sample-set UIDs. A part whose engine this
   build leaves out plays the fallback (FM6 -> DIGITAL -> ANALOG, GRAIN -> SAMPLE -> ANALOG, SLICE -> SAMPLE, CZ -> PHASE,
-  the rest -> ANALOG) with its defaults, shows `FM6*` on HOME, and keeps the original engine, preset and values: they are
+  VPS -> PHASE, SID -> LOFI, the rest -> ANALOG) with its defaults, shows `FM6*` on HOME, and keeps the original engine, preset and values: they are
   written back on save as long as you leave that part's sound alone, so a full build plays it as before
   (`tests/builder_rt_test.c`). A kit not built plays the other source's first kit; a sample set left out keeps its number
   (empty).
 - `MISSING_WARN` (`firmware/src/storage/miss.c`): after a load the main loop scans the working project for what this
-  build lacks and says it in the top bar ("MISSING: PHYS T2, KIT 909 +2"), once per item until power-off. SAVE > TOOLS >
+  build lacks and says it in the top bar ("MISSING: PHYS T2, KIT 909 +2"), once per item until power-off. PROJECT > TOOLS >
   MISS lists them. `tests/missing_test.c` loads a full build's project on a reduced build.
 - The knob's help line (`PARAM_HELP`): the texts are `tools/param_help.json` (every page, TRACKS, SONG and REC included,
   every engine's EDIT values; also the web editor's tooltips);
@@ -420,7 +412,7 @@ outside the project's payload, so a PRJ1..PRJ4 / AUTO backup does not hold it.
 - The firmware reports what it is: `INFO` adds each slot's engine UID, `BUILD` (cmd 49) the configuration's name, hash and
   one bit per registry item (`web/EDITOR_PROTOCOL.md`).
 
-## Budge
+## Budget
 
 `tools/builder/measure_costs.py` builds every item at every non-default value (measurement builds link past the slot)
 and writes `costs.json`: the default build's sizes, each item's delta, the pairs, the groups and the check
@@ -428,7 +420,7 @@ configurations the estimate is held against. The menu's build gives the exact fi
 
 **After adding an item or a pair: `make costs`** (`optimist.py costs`, i.e. `measure_costs.py --missing`). It measures
 only what `costs.json` lacks and the base again when it moved; `--missing --check` builds nothing and fails when
-something lacks. `tests/builder_test.py` and CI's `host-tests` job run that check, so an unmeasured item cannot land. I
+something lacks. `tests/builder_test.py` and CI's `host-tests` job run that check, so an unmeasured item cannot land. It
 does not notice an item whose code changed after it was measured: re-measure it with `--only KEY`. `make costs-all [JOBS=n]` measures everything again
 (about 440 builds at 20 s or less; on a fast Linux host with `tools/farm_size.sh` for single builds). Commit `costs.json`
 and `web/builder/data/` together (`tools/export_builder_web.py`).
@@ -437,7 +429,7 @@ The estimate is **anchored**. The plain sum (base + deltas + pairs + groups + co
 configuration is from the defaults, because the firmware is one LTO unit compiled for size. So `configure.py budget`
 starts from the nearest configuration whose real build is known (the defaults, every check configuration and probe in
 `costs.json`, every real build made from this source in `build/exact-sizes.json`) and adds what the sum model says the
-differing items change, plus `ANCHOR_MARGIN` (256 B of flash per differing item, so it errs over). A configuration buil
+differing items change, plus `ANCHOR_MARGIN` (256 B of flash per differing item, so it errs over). A configuration built
 once is exact from then on.
 
 What the sum model adds beyond per-item deltas:
@@ -468,8 +460,8 @@ estimate (`costs.json`'s anchors only) must be within 1 KB of flash and 256 B el
 
 ### BLE and the room it needs
 
-BLE costs about 29 KB of flash and 6 KB of RAM from the defaults (`BLE` in `costs.json`), about 18 KB when Bluetooth
-Classic Audio is built (they share the Bluetooth stack: the pair `BLE=1,BT_AUDIO=1`); `BLE_DIAG` adds 6 KB and 2.4 KB.
+BLE costs about 30 KB of flash and 6 KB of RAM from the defaults (`BLE` in `costs.json`), about 18 KB when Bluetooth
+Classic Audio is built (they share the Bluetooth stack: the pair `BLE=1,BT_AUDIO=1`); `BLE_DIAG` adds about 4 KB and 2.4 KB.
 Ticking BLE in the menu (the CLI menu and the web builder) **removes nothing**: like any other tick the meters go over and
 the message says it does not fit (the user, 2026-10-21; an earlier rule unticked an item for you, which made BLE on show
 more free flash than BLE off). Remove what you want by hand, or let `--fit` choose.
@@ -486,6 +478,6 @@ own copy and an item left out takes its copy with it: no "shared by A or B" term
 `tools/builder/verify.py [--random N] [--emu]`: every profile and N random configurations (fitted by the estimate)
 build, link and fit; no symbol of an item left out stays in the ELF; `tests/regress.c` built with the configuration
 renders every present preset bit-identically to the full build's goldens; with `--emu` the emulator boots each image and
-the audio stays silent. Every engine built has a loadable PRESETS entry and every drum source a ki
+the audio stays silent. Every engine built has a loadable PRESETS entry and every drum source a kit
 (`tests/preset_cover_test.c`, run by `tests/builder_test.py`). Host tests: `tests/run_tests.sh` (BUILDING.md, "Tests";
 it includes the full -> reduced -> full project round trip).

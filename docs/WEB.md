@@ -59,7 +59,7 @@ is opened; `--shots DIR` saves screenshots).
 `web/flavours.json` lists the firmware packages: `id` (lowercase, part of the file name), `title` and `description` (shown
 by the installer), `profile` (the `config/profiles/` profile CI builds), `file` (a glob of the package it produces:
 `dist/optimist-*-<profile>.fwsc`) and `sim` (the simulator `.wasm` built for it). `"default": true` marks the flavour the
-web builder opens with (without one: the first). Today there is one flavour, `synth`. To add one, add an entry; CI builds
+web builder opens with (without one: the first). Today there is one flavour, `default` (the `synth` profile). To add one, add an entry; CI builds
 every listed profile. `python3 web/make_site.py --profiles` prints the profiles; `--flavours web/flavours.json <version>
 <out>` builds the site from packages already in `dist/`.
 
@@ -104,13 +104,12 @@ the menu's views of that code.
   limit marked on the bar, the UNDO ring, and the configuration's key (a click copies it). It is the estimate
   (`configure.budget`, from the nearest real build in `costs.json`) and only informs: nothing is refused because of it.
 - **Make it fit:** the button exists only while a gauge is over. It opens up to four proposals from `core.proposals` (the
-  least loss, the single item whose removal fits, the reserves lowered first, keep every engine, keep every effect), each
+  least loss, the single item whose removal fits, keep every engine, keep every effect), each
   with the exact changes, the four gauges after it and whether it fits. **Accept** applies it (a toast offers **Undo**),
   **Reject** dismisses it, **Preview** (or hovering) shows the result without applying.
 - **Messages:** only what the user must act on, one line each: red for an error or an overflow, amber for each experimental
   item that is on. The rest (provenance, "tested in the emulator only", credits) is in the (i) popovers and a closed
   "Notes (n)" section.
-- **BLE:** ticking BLE makes room the way the menu does (`room.py`) and says what it removed.
 - **Search, sort, folding:** search matches label, key, group and description; sort works like the menu's `o`; sections and
   parent rows fold (remembered by the browser). Keys outside text fields: `/` search, `o` sort, `x` expand all, `c` collapse
   all.

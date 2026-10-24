@@ -4,7 +4,7 @@ What makes a synth track sound the way it does, and where each control is. The b
 
 ## Engines
 
-A synth track plays one engine at a time. PRESETS on a synth track loads a sound and its engine follows; SHIFT2 + PRESETS steps the engine. Every engine is a builder item (`ENG_*`). A build without an engine plays a track that uses it on a stand-in engine and shows MISSING: DIGITAL stands in for FM6, PHASE for CZ, SAMPLE for GRAIN and SLICE, ANALOG for the others (BUILDER.md names each stand-in).
+A synth track plays one engine at a time. PRESETS on a synth track loads another sound of the track's engine; SHIFT2 + PRESETS (or the ENGINE card) steps the engine. Every engine is a builder item (`ENG_*`). A build without an engine plays a track that uses it on a stand-in engine and shows MISSING: DIGITAL stands in for FM6, PHASE for CZ and VPS, SAMPLE for GRAIN and SLICE, LOFI for SID, ANALOG for the others (BUILDER.md names each stand-in).
 
 **EDIT** (tapped) opens the track's sound. Its first row, SOUND, has the ENGINE, PRESET, INIT and SAVE AS cards. Then **MAIN**: the four values that matter most for the engine (CUT and RES first where it has a filter; FM6 has LPF, RES and HPF). Then the engine's own values on **EDIT 1** and **EDIT 2**, four cards each, with the page titles the engine gives them (ANALOG shows OSC and FLT, for example).
 
@@ -147,7 +147,7 @@ The **VOICE** page has four cards: the mode, GLD (glide time), GLMOD and PRIO.
 | TRIO | FLT | PIT | PW | RES |
 | WHEEL | PIT | DRV | CLICK | TOP |
 | GRAIN | TONE | PIT | POS | DENS |
-| FM6 | PIT | - | - | - |
+| FM6 | PIT | LPF | - | - |
 | SLICE | TONE | PIT | DCAY | PTCH |
 | PHYS | BRIT | PIT | DAMP | EXC |
 | ACID | ENV | DEC | ACC | SLD (the 303's own EDIT values) |
@@ -178,14 +178,14 @@ LFO, LFO 2 and ENV 2 each have a second page with two free destinations: **DEST 
 
 An LFO moves the value for the block; an envelope moves it for each voice as that voice renders. An envelope on a track value (PAN, LVL, the sends, the inserts, an LFO's rate or amount) follows the track's newest voice.
 
-- **ENV 2's DEST A is FLT at 0** on a new sound, on INIT and on every factory preset that does not use ENV 2: raise AMT A and the filter follows ENV 2. Engines without a filter take their nearest: WHEEL TOP, FM6 SHP (MOD), CZ DCW (E2). On ACID, FLT is the 303's CUT and RES its RESO.
+- **ENV 2's DEST A is FLT at 0** on a new sound, on INIT and on every factory preset that does not use ENV 2: raise AMT A and the filter follows ENV 2. Elsewhere it is the nearest: WHEEL TOP, FM6 PIT, CZ DCW (E2). On ACID, FLT is the 303's CUT and RES its RESO.
 - **DROP** is a fast pitch fall from each note's start. It is its own value (VOICE 2, card 4), not a destination.
 - The accent's filter kick (velocity above 110) uses ENV.
 - A drum lane has its own LFOs (LFO, LFO 2) and second envelope (ENV2), each with two destination slots, per hit.
 
 ## Presets, favorites, the user bank
 
-**PRESETS** browses the sounds of a synth track by kind (basses, keys, organs, pads, leads, plucks and bells, stabs); the engine follows. Your own presets come after. There are 32 user presets; PROJECT > USER lists them, with INIT to start from the engine's defaults. A user preset's LOAD over an edited sound is asked in red. SAVE + a page button (ENV, LFO, EDIT, FX, SCL, ARP) stores the current sound as a user preset (NAME first).
+**PRESETS** browses the sounds of the track's engine: its factory sounds, INIT, your presets of that engine and its own collections (the FM6 voice packs); SHIFT2 + PRESETS moves to the next engine's sounds. There are 32 user presets; PROJECT > USER lists them, with INIT to start from the engine's defaults. A user preset's LOAD over an edited sound is asked in red. SAVE + a page button (ENV, LFO, EDIT, FX, SCL, ARP) stores the current sound as a user preset (NAME first).
 
 About 90 factory starting points (more with the optional engines), each a full patch on one engine, level-matched. A new project starts at 120 BPM. The sampled sets are free recordings (CC0: Versilian Studios VSCO-2 CE and VCSL, Sonic Pi).
 

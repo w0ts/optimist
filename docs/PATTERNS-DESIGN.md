@@ -1,12 +1,9 @@
 # Per-track patterns and scenes (PATTERNS)
 
-How patterns and scenes work today. Builder item `PATTERNS` (Sequencer, bit 250, default 0; on in the profiles user-default,
-fm-va-studio, drum-machine, x0x-drums and synth; an error with `SECTIONS 4`). The history of the design is in git
-(`git log -- docs/PATTERNS-DESIGN.md`).
-
-**Since 2026-10-22 everything below is per project** (`docs/PROJECTS-DESIGN.md`): the 16 pattern slots a track, the
-scenes A..P and the song belong to the open project, whose state is its own record; the log is format 2 at 0xA0000.
-"The device" in this document reads "the open project".
+Builder item `PATTERNS` (bit 250, default 0; on in the profiles synth, fm-va-studio, drum-machine and x0x-drums; an
+error with `SECTIONS 4`). **Everything below is per project** (`docs/PROJECTS-DESIGN.md`): the 16 pattern slots a
+track, the scenes A..P and the song belong to the open project; the log is format 2 at 0xA0000. "The device" in this
+document reads "the open project".
 
 ## 1. The model
 
@@ -36,7 +33,7 @@ scenes A..P and the song belong to the open project, whose state is its own reco
 |---|---|
 | pattern and scene logic, launch, store, migrate | `firmware/src/storage/sections/pat.c` (included by `sections.c`) |
 | scene record (`SEC_SCN` 0x20 in the flags byte), step form shared by sections and patterns | `storage/sections/sec_codec.c` |
-| the log | `storage/sections/sec_log.c`: 8 sectors of 4 KiB at 0x97000, records never span a sector, one spare sector for compaction |
+| the log | `storage/sections/sec_log.c`: records never span a sector, one spare sector for compaction; its area and format 2: `docs/PROJECTS-DESIGN.md` section 2 |
 | the sequencer side | `seq/seq.c` (`TRK_IDX`, `pat_switch`, the `PAT_*` and `PW_*` constants), `track_t.org` in `core/core.h` |
 | device keys | `ui/optimist/op_layers.c` (`pat_layer_key`, `pat_knob`), `op_song.c` (SONG), `op_keys.c` (lights), `op_laydraw.c` (the 4 x 16 grid) |
 | editor commands 79..84 | `io/editor/ed_pat.c`, `web/editor.html`, `web/EDITOR_PROTOCOL.md` "Patterns and scenes" |
@@ -47,7 +44,8 @@ scenes A..P and the song belong to the open project, whose state is its own reco
 
 0..15 scenes / sections, 16 the song, 17 the working copies' sources (`SEC_ID_PSTATE`, written with the autosave),
 **24..87 the patterns** (`PAT_ID(track, slot)` = 24 + 16 x track + slot). Other ids: 88..104 the sections' and the
-autosave's step extras, 105..121 FX records, 122..138 drum lane LFO records (`SLG_IDS` 139). A build keeps the
+autosave's step extras, 105..121 FX records, 122..138 drum lane LFO records; format 2 adds 19 (a project's state), 21
+(the project names) and 139..141 (the state's extras, FX and LFO records), `SLG_IDS` 142. A build keeps the
 records of every id it knows, used or not, so switching `PATTERNS` or `SECTIONS` loses nothing. A record of an id past
 the known ones is skipped and not kept by a compaction.
 
@@ -84,22 +82,12 @@ with every track changed. MEM FULL appears when that reserve would not be left.
 
 ## 4. Device (Optimist UI)
 
-- **LFO held** is the patterns layer (a tap still opens the LFO pages; LFO is SHIFT for the knobs, so the layer has no
-  knobs of its own). The 16 white keys are the selected track's 16 slots: playing full, queued blinking, stored dim.
-  - white n: launch at the pattern's end; OCT+ held: now. Stopped: loaded at once.
-  - SAVE + n: store the working copy into slot n (asked over a used one); SHIFT (OCT-) + n: clear slot n (asked, says
-    "CLEAR USED" when a scene plays it; refused while playing: `STOP FIRST`).
-  - black keys 1..4 pick the track, 5 stops it at its end, 9 duplicates the working copy into the first free slot,
-    10 toggles the scenes (the white keys become scenes A..P: n launches, SAVE + n stores the loop, HOME + n clears).
-    Black 6..8 do nothing (they were store, copy and clear).
-  - KNOB 1..4 cue the previous / next stored pattern of track k at its end.
-  - SAVE + SEQ stores the working copy into the slot it came from, else the first free one.
-- **SONG** (SAVE held + SELECT) has a PATTERNS row (each track's playing pattern; a turn cues; the panel is the 4 x 16
-  grid; the keys are the layer's) and scene rows (the hot cell's knob edits a track's reference: a slot, KEEP or "-").
-  A scene tile shows `*` when its tracks no longer play its patterns as stored (`pat_changed`, compared twice a second).
-- Messages: `T2 5 AT END`, `T2 5 NOW`, `LOADED T2 5`, `STORED T2 5`, `CLEARED T2 5`, `T2: NO FREE PATTERN`, `MEM FULL`,
-  `STOP TO SAVE MORE` (the arena is full), `MISSING: PAT T2 5`.
-- Colour: green playing, amber queued, the track's colour as a band on a stored slot.
+The keys are in `docs/guide/shortcuts.md` ("Saving, patterns, scenes and the song"); the code is `op_layers.c`
+`pat_layer_key`. **LFO held** is the patterns layer, the same keys as SONG's PATTERNS row: white n launches (OCT- held:
+the next bar, OCT+ held: now), SAVE + n stores, HOME + n clears (the user, 2026-10-20: HOME clears, as elsewhere); black
+1..4 pick the track, 5 stops it, 9 duplicates, 10 shows the scenes; SEQ held + n stores scene n. Black 6..8 do nothing
+(store, copy and clear became SAVE + n and HOME + n, the user 2026-10-13). A SONG scene card reads `SCENE B*` when its
+tracks no longer play its patterns as stored (`pat_changed`).
 
 ## 5. Web editor
 
@@ -114,10 +102,11 @@ details are in `web/EDITOR_PROTOCOL.md`.
 
 ## 6. Numbers that matter
 
-- The log is 32 KiB (8 sectors). Measured on 2026-10-07 with codec B (`tools/patterns_measure/run.sh`): all 16 busy
+- Measured on 2026-10-07 in the format-1 log of 32 KiB, with codec B (`tools/patterns_measure/run.sh`): all 16 busy
   64-step scenes with their own patterns fit, 62 of 64 slots filled with busy patterns beside 16 busy scenes; the
-  largest pattern is 846 B. Not re-measured since the automation store (version 2 records can hold more events).
-- Cost of the `PATTERNS` item (`tools/builder/costs.json`, default build): +9,568 B flash, +208 B RAM, +88 B RAMTEXT.
+  largest pattern is 846 B. Not re-measured since the automation store (version 2 records can hold more events) nor in
+  the format-2 log (80 or 128 KiB a device, every project in it).
+- Cost of the `PATTERNS` item (`tools/builder/costs.json`): +11,892 B flash, +140 B RAM, +128 B pool, +20 B RAMTEXT.
 - The pending arena (`sec_pend`, `.noinit`) holds sections and patterns stored while playing; they are written when the
   sequencer is quiet (a flash write stops the audio).
 
@@ -131,9 +120,6 @@ codec B), `web/test_web.mjs` `editorPatterns`, `web/e2e_daw.mjs`.
 ## 8. Open limits
 
 - Pattern launches are not recorded by SONG REC.
-- The "next bar" launch (`PW_BAR`) is reachable from the editor (alt-click) and `pat_launch`, but on the device
-  `pat_layer_key` tests SHIFT (OCT-) before it reaches `pat_launch_key`, so OCT- + n clears instead (flagged, not
-  verified on hardware).
 - Copy between slots has no device key now (the editor's PAT_OP 1 does it; the drum pattern copies only to itself).
 - A non-PATTERNS build does not print "PATTERNS: PLAYED AS SECTIONS" or "MOTION CUT" (never built).
 - The editor shows a slot's LEN only, not a step map.

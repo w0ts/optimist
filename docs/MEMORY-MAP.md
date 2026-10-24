@@ -1,6 +1,6 @@
 # Memory map of the FM-1 (flash and RAM), and the budget
 
-State 2026-10-19. Sources: `firmware/app.ld`, `firmware/hal/fm1_flash_map.h`, `firmware/src/storage/storage.c` (its map
+Sources: `firmware/app.ld`, `firmware/hal/fm1_flash_map.h`, `firmware/src/storage/storage.c` (its map
 comment), `firmware/src/engines/sample/eng_sample.c`, `firmware/src/seq/undo.c`, `tools/build.py` (limits and checks),
 `tools/builder/core.py` (`LIMITS`, `SPARE`, `FIT_ORDER`). What each feature costs: `tools/builder/costs.json` (measured on
 a build farm, shown in `docs/BUILDER.md`). This file holds no per-feature sizes: they change every week.
@@ -18,10 +18,10 @@ The FM-1 has two kinds of memory:
 | 0x004000-0x092FFF | 568 KiB (581,564 B) | **the firmware** (code, built-in samples, fonts, tables); the update loader writes only here | app |
 | 0x093000-0x094FFF | 8 KiB | free: the app slot's room to grow | - |
 | 0x095000-0x096FFF | 8 KiB | the user presets' FM6 voices with `UP_FM6` (OBJ_UPFM6, A/B), else free | data |
-| 0x097000-0x09EFFF | 32 KiB | song sections / projects (the section log, compressed) | data |
+| 0x097000-0x09EFFF | 32 KiB | song sections / projects (the section log, compressed); not read by a `PATTERNS` build | data |
 | 0x09F000 | 4 KiB | autosave, copy A (the working project) | data |
-| 0x0A0000-0x0B3FFF | 80 KiB | USR1 user sample slot | data |
-| 0x0B4000-0x0C7FFF | 80 KiB | USR2 user sample slot | data |
+| 0x0A0000-0x0B3FFF | 80 KiB | USR1 user sample slot; with `PATTERNS` the per-project section log instead (`docs/PROJECTS-DESIGN.md`) | data |
+| 0x0B4000-0x0C7FFF | 80 KiB | USR2 user sample slot; with `PATTERNS` and no sample engine (`ENG_SAMPLE`, `DRUM_USR`) the log's 128 KiB reach into it | data |
 | 0x0C8000-... | see 1.1 | USR3 user sample slot, then the snapshots (and the CZ collection) | data |
 | 0x0D8000-0x0D9FFF | 8 KiB | the retired FM6 user bank (dropped 2026-10-18; unused) | - |
 | 0x0DA000-0x0DBFFF | 8 KiB | user drum kits | data |
@@ -100,7 +100,7 @@ EXPERIMENTAL `TAB_IN_POOL` moves them, and the console's `tabbench` times SINE i
 `undo.c` (`FELUCCA_UNDO_HISTORY`, default 1) keeps its ring in the memory nothing else is linked into (`_undo_*` in
 `app.ld`): the pool after `.pool` up to its last 8 KiB, then main RAM after `.bss`. A feature that takes RAM or pool takes
 undo levels away. A level keeps only changed steps (10 B each plus a header) [estimate: a rewritten 64-step track is about
-650 B]. The ring is `(98,304 - RAM) + (344,064 - 8,192 - pool)`. `FELUCCA_UNDO_CAP` caps it. The builder shows the ring in its estimate (information; the reserve entries were retired 2026-10-21). Free **app flash** is only room for
+650 B]. The ring is `(98,304 - RAM) + (344,064 - 8,192 - pool)`. `FELUCCA_UNDO_CAP` caps it. The builder shows the ring in its estimate. Free **app flash** is only room for
 features; saves never use it.
 
 ### 2.2 Cache RAM (EXPERIMENTAL `CACHE_RAM`, off by default)
