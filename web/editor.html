@@ -6395,6 +6395,13 @@ class SetGate {
   }
   clear() { this.m.clear(); }
 }
+/* INFO's tag 66 (firmware/src/io/editor/ed_opti.h): "opti_backup_4 opti_mirror_2 ...". Every Felucca-family firmware answers
+   INFO but numbers its other commands its own way: Screen, Backup, Projects and Library only when their name and version are listed (in PROTO: parse() reads it) */
+function optiParse(b) {
+  const o = {};
+  for (const w of String.fromCharCode(...b).split(" ")) { const u = w.lastIndexOf("_"); if (u > 0 && /^\d+$/.test(w.slice(u + 1))) o[w.slice(0, u)] = +w.slice(u + 1); }
+  return o;
+}
 /*PROTO-END*/
 /* one colour on the web pages: the blue (--t1) wherever an engine, a kit kind or a track had its own; COLORS (above) stays, the device's table */
 const UI_C = "var(--t1)", UI_ON = "var(--on)";
@@ -6921,13 +6928,6 @@ $("about").addEventListener("mousedown", (e) => { if (e.target === $("about")) $
 $("popx").addEventListener("click", () => closePop());
 $("pop").addEventListener("cancel", (e) => { e.preventDefault(); closePop(); });   /* Escape */
 $("pop").addEventListener("mousedown", (e) => { if (e.target === $("pop")) closePop(); });   /* a click outside (the backdrop) */
-/* INFO's tag 66 (firmware/src/io/editor/ed_opti.h): "opti_backup_4 opti_mirror_2 ...". Every Felucca-family firmware answers
-   INFO but numbers its other commands its own way: Screen, Backup, Projects and Library only when their name and version are listed */
-function optiParse(b) {
-  const o = {};
-  for (const w of String.fromCharCode(...b).split(" ")) { const u = w.lastIndexOf("_"); if (u > 0 && /^\d+$/.test(w.slice(u + 1))) o[w.slice(0, u)] = +w.slice(u + 1); }
-  return o;
-}
 const OPTI = { backup: 4, mirror: 2, library: 1, projects: 1 };   /* (the versions this page reads) */
 const opti = (f) => !!dev && !!dev.info && !!dev.info.opti && dev.info.opti["opti_" + f] === OPTI[f];
 const hasKitPage = () => !!dev && !!dev.dl && !!dev.smp;   /* the build has drum lanes (36..) and sample slots */
