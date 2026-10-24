@@ -15,25 +15,40 @@
 #define BLE_ACT_MS 300u                                 /* SYSTEM > Bluetooth's MIDI IN / OUT lit this long after a message */
 #define DEV_STATUS_H 24                                 /* the status line under the rows */
 #define DEV_LINE_W 232                                  /* the status line's room: 4 px in from each side */
+/* The overlay list (dev_open ... dev_draw) is built only where something can open it: BT MIDI without BLE_CENTRAL (op_bt.c
+ * bt_save). With the central, or BT AUDIO, the Bluetooth pages list their devices themselves (op_bt.c bt_pg_*) and the overlay
+ * is compiled out (2026-10-24: BT_OVL 0; its stand-ins below keep every caller as it was, folded away). */
+#define BT_OVL (FELUCCA_BLE && !BLE_CENTRAL)
+#if BT_OVL
+#define BDV_OPEN (bdv.open != 0u)
+#else
+#define BDV_OPEN 0
+#endif
 static struct {
+#if BT_OVL
     uint8_t open, sys_row;                              /* the list is open; SYSTEM's row to come back to */
     uint8_t first;                                      /* the first row shown: kept, it moves only to follow the cursor */
+#endif
     uint8_t key_ok, key_row;                            /* the row drawn highlighted, and which device it is */
     struct ble_dev_key key;                             /* (YES picks that device, wherever the list moved it) */
 } bdv;
 static struct {
+#if BT_OVL
     int last;                                           /* what dev_paint draws */
     uint8_t near[BLE_SCAN_N];
     uint32_t n, cur, first, shown, h, tone;
+#endif
     uint16_t bar;
     union {
+#if BT_OVL
         char st[40];                                    /* the status line (dev_draw, while the list is open) */
+#endif
         struct {
             uint32_t i, o, ti, to;                      /* the Bluetooth page's MIDI line: midi_ble.c's ring counts seen, and when
                                                          * they moved (only while the list is closed: no RAM of its own) */
         } act;
     };
-#if BLE_CEN_PAIR
+#if BT_OVL && BLE_CEN_PAIR
     uint32_t key;                                       /* the passkey (BLE_NO_PASSKEY: none) */
 #endif
 } bdp;
@@ -48,6 +63,16 @@ static void bt_scan(uint32_t a, int on);                /* op_bt.c */
 static uint32_t bt_rows(uint32_t a);
 static void bt_row(uint32_t a, uint32_t i, char nm[BLE_NAME_MAX + 1u], const char **tag, int32_t *bars);
 static void bt_pick(uint32_t a, uint32_t i);
+#if !BT_OVL                                             /* (nothing opens the overlay: its callers fold away) */
+static int dev_listing(void) { return 0; }
+static uint32_t dev_side(void) { return BT_MIDI; }
+static uint32_t dev_rows(void) { return 0; }
+static void dev_close(void) {}
+static void dev_open(uint32_t a) { (void)a; }
+static void dev_draw(uint32_t y, uint32_t h) { (void)y, (void)h; }
+static void dev_cell(uint32_t r, uint32_t k, cell_t *c) { (void)r, (void)k, cell_clear(c); }
+static int dev_yes(uint32_t r, uint32_t ok) { (void)r, (void)ok; return 0; }
+#else
 static uint32_t bt_list_line(uint32_t a, char *b, uint32_t room);
 static uint32_t bt_list_line_name_at(uint32_t a);
 static uint32_t bt_list_sig(uint32_t a);
@@ -89,6 +114,7 @@ static int dev_yes(uint32_t r, uint32_t ok)             /* SAVE on a row: connec
     dev_close();
     return 1;
 }
+#endif
 /* the signal of a nearby row: three bars rising, as many lit as the scan heard (ble_dev_row: relative, no RSSI gain
  * table yet); none lit: not heard in this scan */
 static void dev_bars(int32_t x, int32_t y, uint32_t n, int on)
@@ -100,6 +126,7 @@ static void dev_bars(int32_t x, int32_t y, uint32_t n, int on)
         else
             cv_rect(x + k * 6, y + 16 - 4 * (k + 1), 4, 4 * (k + 1), (uint32_t)k < n ? (on ? cur_ink(bdp.bar) : C_GRAY) : cur_trough(bdp.bar));
 }
+#if BT_OVL
 static void dev_paint(void)                             /* the panel's band in its own coordinates (cv_tall) */
 {
     uint32_t i, rows_h = bdp.h - DEV_STATUS_H;
@@ -191,6 +218,7 @@ static void dev_draw(uint32_t y, uint32_t h)
     ui.sig[2] = sig;
     cv_tall(y, h, C_BLACK, dev_paint);
 }
+#endif
 /* ---- SYSTEM > Bluetooth and Devices, the lines (docs/UI-OPTIMIST-DESIGN.md 4.7 GLOBAL and SYSTEM): STATE in words, the DEVICE the
  * link is with, MIDI activity, RECONNECT (the list's NONE / LAST) and FORGET LAST. Read from ble_devices.c, nothing new kept
  * but the activity's two counters */
@@ -477,7 +505,7 @@ static uint8_t sys_dirty;                               /* a setting changed: sa
 static uint32_t sys_rows(void)
 {
 #if FELUCCA_BT_UI
-    if (bdv.open)
+    if (BDV_OPEN)
         return dev_rows();                              /* (the BLE devices list: its rows) */
 #endif
     return NSYS_SETUP;
@@ -485,7 +513,7 @@ static uint32_t sys_rows(void)
 static void sys_name(uint32_t r, char *b)
 {
 #if FELUCCA_BT_UI
-    if (bdv.open) {
+    if (BDV_OPEN) {
         str_cpy(b, "DEVICES", 12);                      /* (the list's header: "Devices 2/4") */
         return;
     }
@@ -841,7 +869,7 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
 static void sys_cell(uint32_t r, uint32_t k, cell_t *c)
 {
 #if FELUCCA_BT_UI
-    if (bdv.open) {
+    if (BDV_OPEN) {
         dev_cell(r, k, c);
         return;
     }
@@ -1263,7 +1291,7 @@ static void sys_turn(uint32_t r, uint32_t k, int32_t s, int fine)
     int16_t *vp;
     const param_desc_t *d = sys_desc(it, &vp);
 #if FELUCCA_BT_UI
-    if (bdv.open)
+    if (BDV_OPEN)
         return;                                         /* (the list: a knob does nothing) */
     if ((it == SI_BTAPEER || it == SI_BLEPEER) && bt_pg_turn(it == SI_BTAPEER ? BT_AUD : BT_MIDI, s))
         return;                                         /* (a Bluetooth page's DEVICE knob: the cursor through its devices) */
@@ -1285,7 +1313,7 @@ static int sys_yes(uint32_t r, uint32_t k, uint32_t ok)
     int16_t *vp;
     const param_desc_t *d = sys_desc(it, &vp);
 #if FELUCCA_BT_UI
-    if (bdv.open)
+    if (BDV_OPEN)
         return dev_yes(r, ok);
     if (it == SI_BLE || it == SI_BLEPEER || it == SI_BLEST || it == SI_BLEMIDI) {   /* the BT MIDI page, any line */
         bt_save(BT_MIDI);

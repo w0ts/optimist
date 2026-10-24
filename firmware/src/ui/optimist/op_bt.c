@@ -223,7 +223,7 @@ static int bt_pg_side(uint32_t a)                       /* side a has the page l
 }
 static int bt_pg_on(uint32_t a)                         /* the page list is what side a's page shows now */
 {
-    return bt_pg_side(a) && bt_mode(a) && !bdv.open && !bt_linked(a) && !bt_connecting(a);
+    return bt_pg_side(a) && bt_mode(a) && !BDV_OPEN && !bt_linked(a) && !bt_connecting(a);
 }
 static uint32_t bt_pg_shown(void)                       /* the Bluetooth page on screen shows its list: 1 + its side, else 0 */
 {
@@ -738,6 +738,7 @@ static void bt_kept_in(const uint8_t r[BT_KEPT_SIZE])   /* after bt_rec_in and b
 }
 #endif
 
+#if BT_OVL
 /* side a's devices list's status line (op_project.c dev_draw): MIDI ble_devices.c's; AUDIO the scan's */
 static uint32_t bt_list_line(uint32_t a, char *b, uint32_t room)
 {
@@ -781,3 +782,4 @@ static uint32_t bt_list_sig(uint32_t a)                 /* what the list shows, 
     (void)a;
     return ble_dev_sig();
 }
+#endif
