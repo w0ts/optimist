@@ -1,6 +1,6 @@
 # MIDI, Bluetooth, USB audio and the web editor
 
-Where each setting is: GLOBAL > MIDI and Channels, SYSTEM > Bluetooth, Devices and USB AUDIO ([the interface](interface.md)).
+Where each setting is: GLOBAL > MIDI and Channels, SYSTEM > BT MIDI, BT AUDIO and USB AUDIO ([the interface](interface.md)).
 
 ## MIDI in
 
@@ -18,7 +18,9 @@ A keyboard or a DAW on USB or the TRS MIDI IN jack plays the FM-1. Each track ha
 
 ## Bluetooth MIDI
 
-Builder item `BLE` (in the Synth build). **BLUETOOTH** is OFF by default: the radio does not even start. ON, the FM-1 advertises as "Optimist XXXX" (the last four digits of its address) and a Mac, an iPhone or an iPad connects to it as a Bluetooth MIDI device (tested with macOS Audio MIDI Setup). With `BLE_CENTRAL` the FM-1 can also connect out to a BLE-MIDI keyboard or controller: **DEVICES** scans, lists what is nearby and connects; **RECONNECT** finds the last one again by itself. A device that wants a code shows a 6-digit passkey on the FM-1's screen. If the FM-1 restarts by itself within 30 s of starting, the next start leaves the radio off once, so you can switch it OFF.
+Builder item `BLE` (in the Synth build), the page SYSTEM > BT MIDI. **MODE** is OFF by default: the radio does not even start. MAN or AUTO, the FM-1 advertises as "Optimist XXXX" (the last four digits of its address) and a Mac, an iPhone or an iPad connects to it as a Bluetooth MIDI device (tested with macOS Audio MIDI Setup). With `BLE_CENTRAL` the FM-1 can also connect out to a BLE-MIDI keyboard or controller: SAVE on the page opens the devices list, SAVE there connects; AUTO connects to the last one at boot. A device that wants a code shows a 6-digit passkey on the FM-1's screen. If the FM-1 restarts by itself within 30 s of starting, the next start leaves the radio off once, so you can set MODE to OFF.
+
+**Bluetooth audio** (builder item `BT_AUDIO`, the page SYSTEM > BT AUDIO) has the same MODE, devices list and SAVE gestures ([the interface](interface.md#global-and-system)).
 
 **Bluetooth and the second core:** both cores run with the radio on (the radio starts before the audio, in the stock firmware's order).
 
@@ -38,7 +40,7 @@ A flash write (saving a preset or a project) pauses the audio for a moment: avoi
 [w0ts.github.io/optimist/webapp/editor/](https://w0ts.github.io/optimist/webapp/editor/#mixer), in Chrome or Edge, with the FM-1 on USB: **Connect**. What the editor can do depends on the builder items of your build. With live editing (`ED_LIVE`) every track, sound, drum sound, effect and setting is a knob or a menu, laid out as a mixer with a strip per track and the master, following the device live. The Synth build has `ED_LIVE` off: its editor does backup and restore only. The drum machine build has no editor.
 
 - **Library**, **Samples** (with CHOP), **Projects**, **Settings**: screens of their own (`LIBRARIAN`, `ED_LIVE`).
-- **Backup** (Projects): everything the FM-1 keeps (projects and sections, the working project, user presets, your kits, the settings; tick *with the samples* for USR1 to USR3) in one `.optimist-backup` file. **Restore** lists what the file holds and writes what this firmware can read, then the FM-1 restarts on it. The installer offers a backup before it installs.
+- **Backup** (its own tab): everything the FM-1 keeps (projects and sections, the working project, user presets, your kits, the settings; tick *with the samples* for USR1 to USR3) in one `.optimist-backup` file. **Restore** lists what the file holds and writes what this firmware can read, then the FM-1 restarts on it. The installer offers a backup before it installs.
 - **Simulator** (a tab): the firmware running in the browser, with the same panel. **Load from FM-1** copies your FM-1's memory into it, **Write to FM-1** writes it back, and **Save to file / Load file** use the backup file format. The editor's device picker connects it to the simulator instead of an FM-1.
 
 The protocol is [web/EDITOR_PROTOCOL.md](../../web/EDITOR_PROTOCOL.md).

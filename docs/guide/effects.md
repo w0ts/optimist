@@ -144,7 +144,7 @@ A synth track's sends are on `SENDS`: REV, DLY, CHO (blank where no return carri
 
 ## What is not there
 
-- CHRS, ECHO and GATER cannot go in a master slot. XDLY cannot go in a return or the USB input's slots.
+- GATER cannot go in a master slot. XDLY cannot go in a return or the USB input's slots.
 - FLNG, WIDE, CHRS, ECHO, GATER, JUNO, SUB, TAPE, SPIT and XDLY cannot go in a drum lane's slots; they run on the track or the drum bus.
 - There are three returns and no fourth send bus.
 - No effect has a tap tempo or its own clock: GATER follows the transport, the delay time is a note value.

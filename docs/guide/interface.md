@@ -107,7 +107,7 @@ INFO is a text page, no knob edits it except KNOB 1. What a musician reads:
 | Line | Meaning |
 |---|---|
 | CPU0 (CPU LOAD without a second core) | The audio render load in percent; with a second core it includes CPU0's wait for CPU1. KNOB 1 chooses what it shows: NOW, the maximum of the last 5 seconds, or the maximum since boot. Over 100 means a late audio half (a gap in the sound) |
-| CPU1 | The share of each audio half the second core takes. Instead: 2ND CORE OFF and the reason (NO START, TIMEOUT, FAULT, FLASH, MISREAD, CANARY, AFTER CRASH, SETTING, PARKED, BLUETOOTH, OVERLOAD, SUPPLY). BLUETOOTH is the usual one: in a Bluetooth build the second core runs only while BLUETOOTH is OFF ([midi-usb.md](midi-usb.md#bluetooth-midi)) |
+| CPU1 | The share of each audio half the second core takes. Instead: 2ND CORE OFF and the reason (NO START, TIMEOUT, FAULT, FLASH, MISREAD, CANARY, AFTER CRASH, SETTING, PARKED, BLUETOOTH, OVERLOAD, SUPPLY). Both cores run with Bluetooth on ([midi-usb.md](midi-usb.md#bluetooth-midi)) |
 | UNDERRUNS | Losses: late audio halves, USB audio's and MIDI in's, and where |
 | BATTERY | The cell's volts and charge as `~3.87V 72%`, with the 3 bars in the gauge; "USB" while powered by USB; NO READING before the first sample. Both numbers are estimates: the divider and the ADC reference are not measured (assumed 1:2 divider, 3.3 V reference, the usual Li-ion curve), so check them against a meter at the cell |
 
