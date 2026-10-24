@@ -50,6 +50,7 @@ final class EditorSession: ObservableObject {
     @Published var export: ExportItem?
 
     // projects
+    @Published private(set) var projects: ProjList?
     @Published private(set) var sectionUsed: [Int?] = []
     @Published private(set) var bkList: BkList?
     @Published private(set) var patList: PatList?
@@ -125,7 +126,7 @@ final class EditorSession: ObservableObject {
     /// INFO, then what the screens show. Called when the port changes (the FM-1 restarts after a restore).
     func connect() async {
         info = nil
-        sectionUsed = []; bkList = nil; patList = nil; bank = nil
+        projects = nil; sectionUsed = []; bkList = nil; patList = nil; bank = nil
         guard link.editorPossible else { return }
         link.hold()
         defer { link.release() }
@@ -153,7 +154,12 @@ final class EditorSession: ObservableObject {
     }
 
     func loadProjects() {
-        run("Reading the sections…") { [self] in
+        run("Reading the projects…") { [self] in try await readProjects() }
+    }
+
+    private func readProjects() async throws {
+        if info?.has(.proj) == true { projects = try await Ops.projList(link) }
+        if info?.has(.projects) == true {
             bkList = try? await Ops.bkListAll(link)
             var used: [Int?] = []
             for k in 0..<sectionCount {
@@ -162,7 +168,18 @@ final class EditorSession: ObservableObject {
             }
             sectionUsed = used
             if info?.hasPatterns == true { patList = try? await Ops.patList(link) }
-            note = nil
+        }
+        note = nil
+    }
+
+    /// PJ_OP on project p: 1 save the work there, 2 open it, 3 clear it, 4 name it; then everything read again (an open
+    /// changes the sections and patterns, a save to another project makes it the open one)
+    func projOp(_ op: Int, _ p: Int, name: String = "") {
+        let label = ["", "Saving…", "Opening…", "Clearing…", "Naming…"][op]
+        run(label) { [self] in
+            try await Ops.projOp(link, op: op, p, name: name)
+            try await readProjects()
+            say(["", "Saved as project \(p + 1).", "Opened project \(p + 1).", "Cleared project \(p + 1).", "Named."][op])
         }
     }
 

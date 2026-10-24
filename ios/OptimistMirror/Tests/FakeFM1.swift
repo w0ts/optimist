@@ -21,6 +21,9 @@ final class FakeFM1: Transport {
     var busyOnce = true
     var playing = false
     var sections = [1, 0, 1, 0]
+    var projNames = ["SONG A", "LIVE"] + [String](repeating: "", count: 14)
+    var projUsed = [true, true] + [Bool](repeating: false, count: 14)
+    var projOpen = 1
     var patterns: [[Int: [UInt8]]] = [[:], [:], [:], [:]]
     var presets: [Int: Preset] = [:]
     var samples: [Int: (header: [UInt8], data: [UInt8])] = [:]
@@ -34,7 +37,7 @@ final class FakeFM1: Transport {
         self.objs = objs
         info = Array("OPTIMIST 0.9".utf8) + [0, 2, 4, 0, 0, 0, 16, 3, 0] + Array("ANALOG".utf8) + [0] + Array("DIGITAL".utf8) + [0, 4, 7, 0, 1,
                                                                                     0x55, 2, 16, 16, 0x64, 1, 3]
-        let opti = Array("opti_backup_4 opti_library_1 opti_projects_1 opti_patterns_1 ".utf8)   // (INFO's tag 66, ed_opti.h)
+        let opti = Array("opti_backup_4 opti_library_1 opti_projects_1 opti_patterns_1 opti_proj_1 ".utf8)   // (INFO's tag 66, ed_opti.h)
         info += [0x66, UInt8(opti.count)] + opti
     }
 
@@ -45,6 +48,23 @@ final class FakeFM1: Transport {
         case .info: return info
         case .panel: return [a.first ?? 0, 0]
         case .nav: return FakeFM1.nav(a)
+        case .pjOp:
+            if a[0] == 0 {
+                let used = projNames.indices.reduce(0) { projUsed[$1] ? $0 | 1 << $1 : $0 }
+                return [0, 0, 0, UInt8(projOpen)] + Wire.wr7(used, 3) + projNames.flatMap { Fake.cstr($0) }
+            }
+            let p = Int(a[1])
+            if playing { return [a[0], a[1], 3] }
+            switch a[0] {
+            case 1: projUsed[p] = true; projOpen = p
+            case 2: projOpen = p
+            case 3: projUsed[p] = false
+            default:
+                var r = Reader(Array(a.dropFirst(2)))
+                projNames[p] = try r.s()
+            }
+            log.append("PJ \(a[0]) \(p)")
+            return [a[0], a[1], 0]
         case .project:
             let k = Int(a[1])
             if a[0] == 1 { sections[k] = 1; log.append("SAVE \(k)") }

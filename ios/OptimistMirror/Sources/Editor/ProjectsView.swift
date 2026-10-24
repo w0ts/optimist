@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Projects: the song's sections A.. (PROJECT load / save, a section as a .optimist-backup file) and the per-track patterns
+// Projects: the FM-1's 16 projects (PJ_OP 110: open, save the work there, rename, clear), the open project's sections A..
+// (PROJECT load / save, a section as a .optimist-backup file) and the per-track patterns
 // (PAT_*: a pattern as an optimist-pattern .json), as the web editor's Projects tab and librarian.
 import SwiftUI
 import UniformTypeIdentifiers
@@ -10,6 +11,13 @@ struct ProjectsView: View {
     @State private var importing = false
     @State private var target: Target?
     @State private var track = 0
+    @State private var prompt: Prompt?
+    @State private var text = ""
+
+    struct Prompt {
+        let title: String
+        let done: (String) -> Void
+    }
 
     enum Target { case section(Int), pattern(Int, Int) }
 
@@ -19,8 +27,13 @@ struct ProjectsView: View {
         NavigationStack {
             List {
                 Section { LinkStatus(s, .projects) }.listRowBackground(Color.clear)
+                if s.ready(.proj), let l = s.projects {
+                    Section("Projects") {
+                        ForEach(0..<ProjList.count, id: \.self) { p in projectRow(l, p) }
+                    }
+                }
                 if s.ready(.projects) {
-                    Section("Sections") {
+                    Section(s.projects.map { sectionsTitle($0) } ?? "Sections") {
                         ForEach(0..<s.sectionUsed.count, id: \.self) { k in sectionRow(k) }
                     }
                     if let l = s.patList, let len = l.len {
@@ -46,7 +59,49 @@ struct ProjectsView: View {
                 }
             }
         }
-        .task(id: s.ready(.projects)) { if s.ready(.projects) && s.sectionUsed.isEmpty { s.loadProjects() } }
+        .alert(prompt?.title ?? "", isPresented: Binding(get: { prompt != nil }, set: { if !$0 { prompt = nil } })) {
+            TextField("", text: $text).textInputAutocapitalization(.characters).autocorrectionDisabled()
+            Button("OK") { prompt?.done(text); prompt = nil }
+            Button("Cancel", role: .cancel) { prompt = nil }
+        } message: { Text("Up to 12 of A-Z 0-9 space - . _ / # +") }
+        .task(id: s.ready(.projects) || s.ready(.proj)) {
+            if (s.ready(.projects) || s.ready(.proj)) && s.sectionUsed.isEmpty && s.projects == nil { s.loadProjects() }
+        }
+    }
+
+    private func name(_ l: ProjList, _ p: Int) -> String {
+        p < l.names.count && !l.names[p].isEmpty ? l.names[p] : "Project \(p + 1)"
+    }
+
+    private func sectionsTitle(_ l: ProjList) -> String { "Sections of \(name(l, l.open))" }
+
+    private func projectRow(_ l: ProjList, _ p: Int) -> some View {
+        let used = p < l.used.count && l.used[p]
+        let open = l.open == p
+        let n = name(l, p)
+        return HStack {
+            Text("\(p + 1)").font(.headline).monospacedDigit().frame(width: 28)
+            Text(n).foregroundStyle(used || open ? .primary : .secondary)
+            if open { Text("open").font(.caption.bold()).foregroundStyle(Color.accentColor) }
+            Spacer()
+            if !used { Text("empty").foregroundStyle(.secondary) }
+            Menu {
+                Button("Open") {
+                    ask = Confirmation(title: "Open \(n)? The work not saved is replaced.") { s.projOp(2, p) }
+                }.disabled(open)
+                Button("Save the Work Here") {
+                    ask = Confirmation(title: used && !open ? "\(n) holds a project: replace it with the work?" : "Save the work as \(n)?") { s.projOp(1, p) }
+                }
+                Button("Rename…") {
+                    text = p < l.names.count ? l.names[p] : ""
+                    prompt = Prompt(title: "Name of project \(p + 1)") { s.projOp(4, p, name: $0) }
+                }
+                Button("Clear", role: .destructive) {
+                    ask = Confirmation(title: "Clear \(n)? Everything stored in it is erased.") { s.projOp(3, p) }
+                }.disabled(!used)
+            } label: { Image(systemName: "ellipsis.circle") }
+                .disabled(!s.idle)
+        }
     }
 
     private func sectionRow(_ k: Int) -> some View {
