@@ -1573,7 +1573,7 @@
    }
   }
  },
- "measured": "2026-10-24 08:07",
+ "measured": "2026-10-24 08:37",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
@@ -1854,18 +1854,20 @@
    }
   },
   "mots": {
-   "hash": "419722f6",
+   "hash": "695e4f5c",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
     "A2_DIOD": 1,
     "A2_MS20": 1,
+    "PHASE_FOLD": 0,
     "ENG_LOFI": 0,
     "ENG_SAMPLE": 0,
     "ENG_FORMANT": 0,
     "ENG_TRIO": 0,
     "ENG_DRAWBAR": 0,
     "ENG_GRAIN": 0,
+    "FM6_SYSEX": 0,
     "FM6_PK_KEYS": 1,
     "FM6_PK_BASS": 1,
     "FM6_PK_BELLS": 1,
@@ -1898,10 +1900,8 @@
     "INS_FOLD": 1,
     "INS_FUZZ": 1,
     "INS_WIDTH": 1,
-    "INS_SFOLD": 1,
     "INS_RECT": 1,
     "INS_HARM": 1,
-    "INS_RING": 1,
     "INS_SUBOCT": 1,
     "INS_CHORUS": 1,
     "INS_JCHORUS": 1,
@@ -1956,12 +1956,12 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "2681dc91",
+   "built_hash": "149a2217",
    "sizes": {
-    "flash": 582724,
-    "ram": 94824,
-    "pool": 334268,
-    "ramtext": 28672
+    "flash": 580756,
+    "ram": 93576,
+    "pool": 330008,
+    "ramtext": 27552
    }
   },
   "synth+ble-test": {
@@ -2419,19 +2419,21 @@
    }
   },
   "mots~": {
-   "hash": "449e6eec",
+   "hash": "4ca70076",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
     "A2_DIOD": 1,
     "A2_MS20": 1,
     "ENG_DIGITAL": 0,
+    "PHASE_FOLD": 0,
     "ENG_LOFI": 0,
     "ENG_SAMPLE": 0,
     "ENG_FORMANT": 0,
     "ENG_TRIO": 0,
     "ENG_DRAWBAR": 0,
     "ENG_GRAIN": 0,
+    "FM6_SYSEX": 0,
     "FM6_PK_KEYS": 1,
     "FM6_PK_BASS": 1,
     "FM6_PK_BELLS": 1,
@@ -2464,10 +2466,8 @@
     "TRK_FILT": 1,
     "INS_FOLD": 1,
     "INS_WIDTH": 1,
-    "INS_SFOLD": 1,
     "INS_RECT": 1,
     "INS_HARM": 1,
-    "INS_RING": 1,
     "INS_SUBOCT": 1,
     "INS_CHORUS": 1,
     "INS_JCHORUS": 1,
@@ -2521,12 +2521,12 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "7731554f",
+   "built_hash": "53c8e499",
    "sizes": {
-    "flash": 605196,
-    "ram": 94264,
-    "pool": 334268,
-    "ramtext": 27360
+    "flash": 603196,
+    "ram": 93080,
+    "pool": 330008,
+    "ramtext": 26240
    }
   },
   "synth+ble-test~": {
