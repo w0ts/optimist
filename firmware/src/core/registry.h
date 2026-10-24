@@ -103,7 +103,7 @@
 #define FELUCCA_ENG_WAVE 0                 /* WAVE (Clipper's wavetables, one table for every WAVE track: engines/clipper/eng_wave.c) */
 #endif
 
-/* X(uid, NAME, fallback uid, the ENG list name): the UID is the engine's number in FUN7 projects and UPB2 user
+/* X(uid, NAME, fallback uid, the ENG list name): the UID is the engine's number in FUN7 projects and UPB4 user
  * presets. Fallbacks: FM6 -> DIGITAL -> ANALOG, GRAIN -> SAMPLE -> ANALOG, SLICE -> SAMPLE, CZ -> PHASE, VPS -> PHASE, SID -> LOFI, the rest
  * (JUNO, NOISE, DRONE, PLAITS, STRINGS, TERRAIN, WSEQ, VECTOR, PROPHET, WAVE too) -> ANALOG;
  * with ANALOG absent too, the first engine built. Order = ENGINES[] order (the slots). */

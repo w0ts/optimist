@@ -154,20 +154,10 @@ static void user_records(void)
         v[P_E0] = (int16_t)i;
         up_vals_put(&r, v);
         up_values(&r, out);
-        ok &= out[P_E0] == (int16_t)i && (i == 0 ? r.p[P_E0] == 0 : r.p[P_E0] >= 64 && r.p[P_E0] < 64 + 5 * 16);
+        ok &= out[P_E0] == (int16_t)i && r.v[r.ne0] + UP_FM6_OFS == (i == 0 ? 0 : fm6_voice_store((int32_t)i)) &&
+              (i == 0 || (r.v[r.ne0] >= 0 && r.v[r.ne0] < 5 * 16));
     }
-    check("a user preset's VOICE: a pack voice stored by its fixed number (64 + pack x 16 + place), read back (every voice)", ok);
-    ok = 1;
-    v[P_E0] = 0;
-    up_vals_put(&r, v);
-    for (i = 1; i < 64u; i++) {
-        r.p[P_E0] = (int16_t)i;                             /* an old R / U number (a record of before) */
-        r.p[P_E0 + 1] = 20, r.p[P_E0 + 2] = 10, r.p[P_E0 + 3] = -15, r.p[P_E0 + 4] = 1;
-        up_values(&r, out);
-        ok &= out[P_E0] == 0 && out[P_E0 + 1] == 0 && out[P_E0 + 2] == 0 && out[P_E0 + 3] == 0 && out[P_E0 + 4] == 0 &&
-              up_old_fm6[0] == 20 && up_old_fm6[1] == 10 && up_old_fm6[2] == -15;
-    }
-    check("an old user preset (R / U number 1..63, MOD / M.TIM / C.TIM, ENGINE): INIT VOICE, the old values kept for the bake", ok);
+    check("a user preset's VOICE: a pack voice by its fixed number (64 + pack x 16 + place, less 64: a byte), read back (every voice)", ok);
 }
 
 int main(int argc, char **argv)

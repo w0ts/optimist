@@ -2,65 +2,36 @@
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
 /* User presets (editor protocol v2, cmds 16-21; the SAVE > USER page): 32
  * slots in two storage.c objects (OBJ_UPRESET0/1, 0xDC000..0xDFFFF), 16
- * records each, mirrored in RAM so browsing never reads flash. A record:
- * engine, name, the instrument parameters, a 16-step pattern.
+ * records each. A record: engine, name, the sound's values, a 16-step pattern.
  *
- * A bank whose magic, record size or slot count differ reads as empty; so
- * does a record with another UP_VER. A record keeps np = the P_COUNT it was
- * stored with; when that differs it is mapped by count: its last 8 values
- * are P_E0..P_E7, the first np - 8 are P_LEVEL.. in order, missing ones take
- * their defaults. So common parameters may only be added just before P_E0
- * (else bump UP_VER).
- *
- * UP_VER 2 (FELUCCA_ANALOG2, written since the ENV2 destinations): ANALOG 2's
- * ENV2 extras (core.h P_A2ESUS .. P_A2ESDT: SUS2 REL2 and four amounts, the
- * last values before P_E0) are packed a byte each in A2X_W words (a2x_pack),
- * so np = P_COUNT values take np - A2X_N + A2X_W of p[]. UP_VER 1 records
- * still load: one of np 72 (P_A2ESUS REL2 DST2 a word each) gets DST2 with
- * AMT2 as that destination's amount (a2x_from_dst): the same sound.
+ * UPB4 (2026-10-24; the formats before it, ours and SLOOP's, are not read: a
+ * bank of another magic, record size or slot count reads as empty). Every
+ * value of a sound is a signed byte (tests/auto_int8_check.c checks that every
+ * one's range fits; FM6's stored VOICE, 0 or 64 .. 143, is kept less 64), so a
+ * record holds UP_NV of them in 216 bytes, twice the 86 a sound has today:
+ *   v[0 .. ne0 - 1]          P_LEVEL .. the value before P_E0, in P_* order
+ *   v[ne0 .. ne0 + 7]        P_E0 .. P_E7 (the engine's own)
+ *   v[ne0 + 8 .. nv - 1]     the sound's values after P_E7: P_E1PIT .. P_SLAST
+ * A record of another build (another ne0, or fewer values after P_E7) is read
+ * by count: the values it lacks take their defaults, the ones this build lacks
+ * are dropped. A new value of a sound goes after P_SLAST (core.h): older
+ * records then load it at its default. One before P_E0 moves P_E0 for every
+ * record and project (FUNB's PJ_NP): UP_LAYOUT stops the build until UP_VER
+ * moves with it.
  *
  * With -DUP_HOST (host test) only the part above #ifndef UP_HOST is built;
  * it needs nothing but core.h. */
 #define UP_PER_BANK 16u
-#define UP_PMAX 84u                              /* room for P_COUNT to grow (UP_VER 3: P_ENG_END values, the slots) */
-#define UP_PMAX2 72u                             /* the records of UPB1 / UPB2 banks (UP_VER 1, 2) */
+#define UP_NV 167u                               /* a record's values (bytes) */
 #define UP_USED 0xA5u
-#define UP_VER 4u                                /* (2026-10-16) every value in its own word, in P_* order, then
-                                                  * UP_NSLOT more (P_E1PIT ..: ENV 1 MOD's PIT and moves, ENV2's
-                                                  * slots): nothing packed */
-#define UP_VER3 3u                               /* (2026-10-14 .. 16, read) the same, P_E1PIT .. P_E1Z ENV DEST's
-                                                  * slots (folded: env_store.h env1_fold), ENV's FLT SHP words 0 */
-#define UP_VER_OK(v) ((v) == UP_VER || (v) == UP_VER3)
-#define UP_NSLOT 8u
-#if FELUCCA_ANALOG2
-#define UP_VER2 2u                               /* ENV2's extras packed (UPB2, read only) */
-#define UP_NP_V1A2 72u                           /* UP_VER 1's P_COUNT with SUS2 REL2 DST2 (P_E0 64) */
-#define UP_NS(np) ((np) - A2X_N + A2X_W)         /* p[] used by a record of UP_VER 2 */
-#define UP_XN A2X_N
-#else
-#define UP_NS(np) (np)
-#define UP_XN 0u
-#endif
-#if FELUCCA_SL24_SAFE
-#define UP_NP_SL24 61u                           /* SLOOP 2.4's P_COUNT (UPB1, UP_VER 1: P_TFLT P_STRUM P_VLEAD at 50..52) */
-#define UP_NP_SL26 71u                           /* SLOOP 2.6's (v2.6 d30d655: + P_ITYPE .. P_LPOL at 53..62, P_E0 63). No
-                                                  * SLOOP plus stored it (its P_COUNTs: 53 57 58 59, ANALOG 2's 69 72) */
-#define UP_SL26_LSYNC 60u                        /* 2.6's P_LSYNC: LFO 2's SYNC (0 OFF, 1..10), our RATE -n */
-#define UP_SL26_FTYPE 58u                        /* 2.6's P_FTYPE: ANALOG's filter LP / BP / HP */
-#define UP_SL24_COMMON 50u                       /* its values 0..49: ours (P_LEVEL .. P_CHORD) */
-#define UP_IS_SL(r) ((r)->ver == 1u && ((r)->np == UP_NP_SL24 || (r)->np == UP_NP_SL26))   /* SLOOP 2.4 .. 2.6's record */
-#endif
-#define UP_BANK_MAGIC 0x33425055u                /* "UPB3" (2026-10-14): records of UP_VER 3 and 4, UP_PMAX words */
-#if FELUCCA_ANALOG2
-#define UP_BANK_MAGIC_V2 0x32425055u             /* "UPB2": today's engine numbers (FM6 9, SLICE 10); read, written UPB3 */
-#define UP_BANK_MAGIC_V1 0x31425055u             /* "UPB1": SLOOP plus's (SUPER 9, DX7 / FM6 10, SLICE 11) */
-#else
-#define UP_BANK_MAGIC_V2 0x31425055u             /* "UPB1" */
-#endif
+#define UP_VER 5u
+#define UP_NTAIL (P_SLAST - P_E1PIT + 1u)        /* the sound's values after P_E7 */
+#define UP_FM6_OFS 64                            /* FM6's stored VOICE (fm6_voice_store: 0, 64 .. 143) less this */
+#define UP_BANK_MAGIC 0x34425055u                /* "UPB4" */
 typedef struct {
-    uint8_t used, ver, engine, np;               /* UP_USED, UP_VER, engine, P_COUNT when stored */
+    uint8_t used, ver, engine, nv, ne0;          /* UP_USED, UP_VER, engine UID, values stored, where P_E0's are */
     char name[12];                               /* ASCII 32..126, 0-padded (no 0 when 12 long) */
-    int16_t p[UP_PMAX];
+    int8_t v[UP_NV];
     uint8_t note[16], flags[16];                 /* note 0 = rest; flags 1 accent, 2 slide, 4 tie */
 } up_rec_t;
 typedef struct {
@@ -68,73 +39,33 @@ typedef struct {
     uint16_t rsize, nslot;
     up_rec_t r[UP_PER_BANK];
 } up_bank_t;
-typedef struct {                                 /* a record of UPB1 / UPB2 (UP_VER 1, 2), in flash */
-    uint8_t used, ver, engine, np;
-    char name[12];
-    int16_t p[UP_PMAX2];
-    uint8_t note[16], flags[16];
-} up_rec2_t;
-typedef struct {
-    uint32_t magic;
-    uint16_t rsize, nslot;
-    up_rec2_t r[UP_PER_BANK];
-} up_bank2_t;
-_Static_assert(sizeof(up_rec_t) == 216 && sizeof(up_rec2_t) == 192 && sizeof(up_bank_t) <= 3840u,
-               "user preset record layouts (UPB3, UPB1 / UPB2)");
-/* a record of before -> today's struct (the same fields, p[] longer: the rest 0) and back (UP_VER 1, 2 only) */
-static void up_rec_from2(up_rec_t *r, const up_rec2_t *o)
-{
-    memset(r, 0, sizeof *r);
-    r->used = o->used, r->ver = o->ver, r->engine = o->engine, r->np = o->np;
-    memcpy(r->name, o->name, sizeof r->name);
-    memcpy(r->p, o->p, sizeof o->p);
-    memcpy(r->note, o->note, sizeof r->note);
-    memcpy(r->flags, o->flags, sizeof r->flags);
-}
-static void up_rec_to2(up_rec2_t *o, const up_rec_t *r)
-{
-    o->used = r->used, o->ver = r->ver, o->engine = r->engine, o->np = r->np;
-    memcpy(o->name, r->name, sizeof o->name);
-    memcpy(o->p, r->p, sizeof o->p);
-    memcpy(o->note, r->note, sizeof o->note);
-    memcpy(o->flags, r->flags, sizeof o->flags);
-}
-_Static_assert(UP_NS(P_ENG_END) <= UP_PMAX && P_COUNT < 128, "user preset record: P_COUNT");   /* (SLOOP 2.4's track
-                                                 * values after P_E7, core.h P_TFLT ..: not a sound's, not kept here) */
-#if FELUCCA_ANALOG2 && (!defined(UP_HOST) || defined(UP_WITH_ENGINES))
-#define UP_FROM_V1 1                             /* a UPB1 bank (SLOOP plus's engine numbers) reads: up_rec_v1 */
-static void up_rec_v1(up_rec_t *r);
+_Static_assert(sizeof(up_rec_t) == 216 && sizeof(up_bank_t) <= 3840u, "user preset record layout (UPB4)");
+_Static_assert(P_E0 + 8u + UP_NTAIL <= UP_NV && P_ENG_END + UP_NTAIL < 256u, "user preset record: the sound's values");
+#if FELUCCA_ANALOG2
+#define UP_LAYOUT (P_E0 == 67u && UP_NTAIL == 11u)
 #else
-#define UP_FROM_V1 0
+#define UP_LAYOUT (UP_NTAIL == 4u)
 #endif
+_Static_assert(UP_LAYOUT, "the values of a sound moved: a new one goes after P_SLAST; else bump UP_VER and read UP_VER 5 by its own map");
+/* len bytes at src (-1: none) are a UPB4 bank (any other shape: read as empty) */
+static int up_bank_ok(const void *src, int len)
+{
+    const up_bank_t *p = (const up_bank_t *)src;
+    return len == (int)sizeof *p && p->magic == UP_BANK_MAGIC && p->rsize == sizeof(up_rec_t) && p->nslot == UP_PER_BANK;
+}
 #if ST_XIP
 /* the banks are read where they are in flash (storage.c st_xip: the current copy's payload through the XIP window, cached
- * as the code is), not mirrored in RAM: 6,928 B of the pool back (2026-10-23). up_xip[b]: a UPB3 bank as it is; up_xip2[b]:
- * a UPB2 / UPB1 bank (records of 192 bytes), converted a record at a time into up_cv as it is read (up_rec: the record
- * holds until another slot's is read; every reader takes one slot at a time; FELUCCA_SL24_SAFE's SLOOP records as
- * up_bank_from_v1 read them); neither: no valid copy, or another shape: empty (zeros). A save builds the bank in st_buf
- * (st_save takes a source there; with FELUCCA_SL24_SAFE a UPB1 bank is kept SLOOP's, up_put_v1, there too) and reads the
- * copy written; without a flash that reads (flash_ok 0) there is no bank at all: a save fails, nothing is kept for the
- * session. The host keeps the RAM mirror unless a test maps the flash image (storage.c ST_XIP_PTR) */
+ * as the code is), not mirrored in RAM: 6,928 B of the pool back (2026-10-23). up_xip[b]: a UPB4 bank as it is, else 0
+ * (no valid copy, or another shape: every record empty). A save builds the bank in st_buf (st_save takes a source there)
+ * and reads the copy written; without a flash that reads (flash_ok 0) there is no bank at all: a save fails, nothing is
+ * kept for the session. The host keeps the RAM mirror unless a test maps the flash image (storage.c ST_XIP_PTR) */
 #define UP_XIP 1
 static const up_bank_t *up_xip[UP_SLOTS / UP_PER_BANK];
-static const up_bank2_t *up_xip2[UP_SLOTS / UP_PER_BANK];
-static up_rec_t up_cv;                           /* the record read from a UPB2 / UPB1 bank, or an empty bank's (zeros) */
+static const up_rec_t up_none;                   /* (an empty slot of a bank that is not there) */
 static const up_rec_t *up_rec(uint32_t k)
 {
-    uint32_t b = k / UP_PER_BANK, i = k % UP_PER_BANK;
-    if (up_xip[b])
-        return &up_xip[b]->r[i];
-    if (!up_xip2[b]) {
-        memset(&up_cv, 0, sizeof up_cv);
-        return &up_cv;
-    }
-    up_rec_from2(&up_cv, &up_xip2[b]->r[i]);
-#if UP_FROM_V1
-    if (up_xip2[b]->magic == UP_BANK_MAGIC_V1)
-        up_rec_v1(&up_cv);
-#endif
-    return &up_cv;
+    uint32_t b = k / UP_PER_BANK;
+    return up_xip[b] ? &up_xip[b]->r[k % UP_PER_BANK] : &up_none;
 }
 #else
 #define UP_XIP 0
@@ -143,17 +74,29 @@ static up_bank_t up_bank[UP_SLOTS / UP_PER_BANK] IN_POOL;
 static up_rec_t *up_rec(uint32_t k) { return &up_bank[k / UP_PER_BANK].r[k % UP_PER_BANK]; }
 #endif
 
+#if UP_XIP
+/* bank b's current copy in flash when it is a UPB4 bank (st_xip read the payload once through the driver, for its CRC) */
+static void up_bank_find(uint32_t b)
+{
+    uint32_t len = 0;
+    const up_bank_t *p = flash_ok ? (const up_bank_t *)st_xip(OBJ_UPRESET0 + b, &len) : 0;
+    up_xip[b] = p && up_bank_ok(p, (int)len) ? p : 0;
+}
+#else
+static void up_bank_check(uint32_t b, const void *src, int len)
+{
+    up_bank_t *bk = &up_bank[b];
+    if (!up_bank_ok(src, len))
+        memset(bk, 0, sizeof *bk);
+    else if ((const void *)bk != src)
+        memcpy(bk, src, sizeof *bk);
+}
+#endif
+
 static int up_valid(const up_rec_t *r)
 {
-    if (r->used != UP_USED || r->engine >= ENG_UID_N || !r->name[0] || r->np < 8u)
-        return 0;
-    if (UP_VER_OK(r->ver))
-        return r->np + UP_NSLOT <= UP_PMAX;
-#if FELUCCA_ANALOG2
-    if (r->ver == UP_VER2)
-        return r->np >= 8u + UP_XN && UP_NS(r->np) <= UP_PMAX2;
-#endif
-    return r->ver == 1u && r->np <= UP_PMAX2;
+    return r->used == UP_USED && r->ver == UP_VER && r->engine < ENG_UID_N && r->name[0] && r->ne0 <= r->nv &&
+           r->nv <= UP_NV && r->nv >= r->ne0 + 8u;
 }
 
 static int up_used(uint32_t k) { return k < UP_SLOTS && up_valid(up_rec(k)); }
@@ -165,10 +108,10 @@ static uint32_t up_engine_slot(uint32_t k)
 
 #include "../core/lfo_store.h"                     /* (LFO DEST: lfo1_store, lfo1_load) */
 #include "../core/env_store.h"                     /* (ENV 1 MOD, ENV2 DEST: env1_fold, env_store, env_load) */
-/* values v (today's P_* order, P_COUNT) -> record r's p[] and np (UP_VER 4): P_LEVEL .. P_E7 each in its word, the
- * envelopes' slots after them. Values in the words of the depths of before (LFO DEST's slots are in their own ids:
- * kept; ENV DEST FLT SHP, ENV2's amounts, which today's values hold at 0) that are not 0 come from outside (the editor,
- * a file of before): read as those depths (env_load), then 0 */
+static int8_t up_b(int32_t x) { return (int8_t)(x < -128 ? -128 : x > 127 ? 127 : x); }
+/* values v (today's P_* order, P_COUNT) -> record r's v[], nv, ne0 (the layout above). Values in the words of the depths
+ * of before (ENV2's amounts, which today's values hold at 0) that are not 0 come from outside (the editor, a file of
+ * before): read as those depths (env_load), then 0 */
 static void up_vals_put(up_rec_t *r, const int16_t *v0)
 {
     int16_t v[P_COUNT];
@@ -178,186 +121,47 @@ static void up_vals_put(up_rec_t *r, const int16_t *v0)
     if (v[P_A2FENV] || v[P_A2EPIT] || v[P_A2ESHP] || v[P_A2EOS2] || v[P_A2ESDT])
         (void)env_load(v);
 #endif
-    r->ver = UP_VER;
-    r->np = P_ENG_END;
-    memset(r->p, 0, sizeof r->p);
-    for (i = 0; i < P_ENG_END; i++)
-        r->p[i] = v[i];
-    for (i = 0; i <= P_NLAST - P_E1PIT; i++)
-        r->p[P_ENG_END + i] = v[P_E1PIT + i];
 #if FELUCCA_ENG_FM6 && (!defined(UP_HOST) || defined(UP_WITH_ENGINES))
-    if (r->engine == ENG_UID_FM6)
-        r->p[P_E0] = fm6_voice_store(v[P_E0]);          /* (VOICE as stored: INIT, or a pack voice by its fixed number) */
+    if (r->engine == ENG_UID_FM6)                        /* (VOICE as stored: INIT, or a pack voice by its fixed number) */
+        v[P_E0] = (int16_t)(fm6_voice_store(v[P_E0]) - UP_FM6_OFS);
 #endif
+    r->ver = UP_VER;
+    r->ne0 = P_E0;
+    r->nv = (uint8_t)(P_ENG_END + UP_NTAIL);
+    memset(r->v, 0, sizeof r->v);
+    for (i = 0; i < P_ENG_END; i++)
+        r->v[i] = up_b(v[i]);
+    for (i = 0; i < UP_NTAIL; i++)
+        r->v[P_ENG_END + i] = up_b(v[P_E1PIT + i]);
 }
 
-#if FELUCCA_ANALOG2 && (!defined(UP_HOST) || defined(UP_WITH_ENGINES))
-/* a bank of SLOOP plus (UPB1, its engine numbers) -> today's, in RAM (flash keeps UPB1, every time: up_put_v1 saves a
- * slot into it as it is there; without FELUCCA_SL24_SAFE the bank goes out as UPB2): SUPER (9) -> ANALOG on the swarm, as projects do (params.c
- * analog2_from_super: SUPER LEAD's ANALOG version, the record has no preset number), DX7 / FM6 (10) -> FM6 (9),
- * SLICE (11) -> 10. A SUPER record is rewritten with today's P_COUNT values. (Test builds of feat/analog2 also
- * wrote UPB1 with DX7 at 9: such a record now reads as SUPER; none of them shipped) */
-static void up_params(const up_rec_t *r, int16_t *out, const int16_t *def);
-static void up_params_st(const up_rec_t *r, int16_t *out, const int16_t *def);
-static void up_rec_v1(up_rec_t *r)                      /* one record of a UPB1 bank, in today's struct -> today's engine */
-{
-    uint32_t k;
-    if (r->used != UP_USED || r->ver != 1u || r->np < 8u || r->np > UP_PMAX)
-        return;                                         /* (UPB1: UP_VER 1 records only) */
-#if FELUCCA_SL24_SAFE
-    if (UP_IS_SL(r)) {                                  /* (SLOOP 2.4 .. 2.6's: 0..9 our engine numbers, FM6 9; 2.5's */
-        if (r->engine == 10u)                           /* PHYS 10 -> ours, its NOISE 11 -> ANALOG at its EDIT */
-            r->engine = ENG_UID_PHYS;                   /* defaults: sl24_import.c sl24_eng_in; 2.6's filter TYPE */
-        else if (r->engine > ENG_UID_FM6) {             /* was not its: LP) */
-            r->engine = 0;
-            for (k = 0; k < 8u; k++)
-                r->p[r->np - 8u + k] = eng_built(0) ? ENGINES[eng_slot_built(0)]->edit[k].def : 0;
-            if (r->np == UP_NP_SL26)
-                r->p[UP_SL26_FTYPE] = 0;
-        }
-        return;
-    }
-#endif
-    if (r->engine == 10u || r->engine == 11u)
-        r->engine--;
-    else if (r->engine == 9u) {
-        int16_t v[P_COUNT], def[P_COUNT];
-        for (k = 0; k < P_COUNT; k++)
-            def[k] = TP[k].def;
-        up_params(r, v, def);
-        analog2_from_super(v, 0);
-        r->engine = 0;
-        up_vals_put(r, v);
-    }
-}
-#if !UP_XIP
-static void up_bank_from_v1(up_bank_t *bk)
-{
-    uint32_t i;
-    for (i = 0; i < UP_PER_BANK; i++)
-        up_rec_v1(&bk->r[i]);
-    bk->magic = UP_BANK_MAGIC;
-}
-#endif
-#endif
-
-#if !UP_XIP
-/* bank b from len bytes at src (st_buf; -1 = none): UPB3 as it is; UPB2 / UPB1 (records of 192 bytes) into today's
- * struct, a record each (UPB1: SLOOP plus's engine numbers then, up_bank_from_v1); any other shape: empty */
-static void up_bank_check(uint32_t b, const void *src, int len)
-{
-    up_bank_t *bk = &up_bank[b];
-    const up_bank2_t *o = (const up_bank2_t *)src;
-    uint32_t i;
-    if (len == (int)sizeof *bk && ((const up_bank_t *)src)->magic == UP_BANK_MAGIC &&
-        ((const up_bank_t *)src)->rsize == sizeof(up_rec_t) && ((const up_bank_t *)src)->nslot == UP_PER_BANK) {
-        if ((const void *)bk != src)
-            memcpy(bk, src, sizeof *bk);
-        return;
-    }
-    if (len == (int)sizeof *o && o->rsize == sizeof(up_rec2_t) && o->nslot == UP_PER_BANK &&
-        (o->magic == UP_BANK_MAGIC_V2
-#if UP_FROM_V1
-         || o->magic == UP_BANK_MAGIC_V1
-#endif
-         )) {
-        uint32_t m = o->magic;                          /* (src: st_buf, never the bank itself) */
-        for (i = 0; i < UP_PER_BANK; i++)
-            up_rec_from2(&bk->r[i], &o->r[i]);
-        bk->magic = UP_BANK_MAGIC, bk->rsize = sizeof(up_rec_t), bk->nslot = UP_PER_BANK;
-#if UP_FROM_V1
-        if (m == UP_BANK_MAGIC_V1)
-            up_bank_from_v1(bk);
-#endif
-        (void)m;
-        return;
-    }
-    memset(bk, 0, sizeof *bk);
-}
-#endif
-
-/* a record's p[] by count -> out: values 0 .. n0 - 1 from p (those from nc on: def's), P_E0 .. P_E7 from p[e0] .. */
-static void up_by_count(int16_t *out, const int16_t *p, uint32_t nc, uint32_t n0, const int16_t *def, uint32_t e0)
-{
-    uint32_t i;
-    for (i = 0; i < n0; i++)
-        out[i] = i < nc ? p[i] : def[i];
-    for (i = 0; i < 8u; i++)
-        out[P_E0 + i] = p[e0 + i];
-}
-/* the record's values in today's P_* order (mapped by count, see above); def = the defaults. LFO DEST's four words
- * as stored (the depths of before, or the slots' tagged layout): up_params turns them into the slots */
-static void up_params_st(const up_rec_t *r, int16_t *out, const int16_t *def)
-{
-    uint32_t i, nc = r->np - 8u;
-#if P_TAIL
-    for (i = P_ENG_END; i < P_COUNT; i++)        /* (SLOOP 2.4's track values, the COMP insert's: none in a record) */
-        out[i] = def[i];
-#endif
-#if FELUCCA_SL24_SAFE
-    if (UP_IS_SL(r)) {                          /* SLOOP 2.4 / 2.5 (UPB1, P_COUNT 61): 0..49 ours, then its TFLT STRUM */
-        up_by_count(out, r->p, UP_SL24_COMMON, P_E0, def, r->np - 8u);   /* VLEAD (not a sound's here: their defaults),
-                                                * P_E0.. at 53; 2.6 (71): its ten more (INSERT, FTYPE, ENV SYNC, LFO 2
-                                                * TRIG POL: LOST but an ANALOG's filter TYPE, as a 2.6 project's:
-                                                * sl26_ftype_in), P_E0.. at 63 */
-        if (r->np == UP_NP_SL26)                /* (its LFO 2 SYNC n: our RATE -n; OFF: its free RATE, 0..49's) */
-            out[P_LRATE] = (int16_t)LRATE_OF_SLOOP(r->p[UP_SL26_LSYNC], r->p[P_LRATE]);
-#if FELUCCA_ANALOG2
-        if (r->np == UP_NP_SL26 && !r->engine && (r->p[UP_SL26_FTYPE] == 1 || r->p[UP_SL26_FTYPE] == 2))
-            out[P_A2FTYP] = (int16_t)(r->p[UP_SL26_FTYPE] + 1);   /* (BP 2, HP 3; LP: ours as it is) */
-#endif
-        return;
-    }
-#endif
-    if (UP_VER_OK(r->ver)) {                     /* UP_VER 3, 4: the values by count (the last 8 P_E0 ..), the slots */
-        up_by_count(out, r->p, nc, P_E0, def, nc);
-        for (i = 0; i <= P_NLAST - P_E1PIT; i++)
-            out[P_E1PIT + i] = r->p[r->np + i];
-        return;
-    }
-#if FELUCCA_ANALOG2
-    if (r->ver != 1u) {                          /* UP_VER 2: the values, ENV2's extras packed, P_E0 .. */
-        nc = r->np - 8u - A2X_N;
-        up_by_count(out, r->p, nc, P_A2ESUS, def, nc + A2X_W);
-        a2x_unpack(&out[P_A2ESUS], &r->p[nc]);
-        return;
-    }
-    if (r->np == UP_NP_V1A2) {                   /* UP_VER 1 with SUS2 REL2 DST2: DST2's AMT2 -> its amount (clamped */
-                                                 /* after, up_values: as AMT2 was) */
-        up_by_count(out, r->p, P_A2ESUS, P_A2ESUS, def, UP_NP_V1A2 - 8u);
-        out[P_A2ESUS] = r->p[P_A2ESUS];
-        out[P_A2EREL] = r->p[P_A2EREL];
-        a2x_from_dst(&out[P_A2ESUS], &out[P_A2FENV], r->p[P_A2ESUS + 2u]);
-        return;
-    }
-#endif
-    up_by_count(out, r->p, nc, P_E0, def, nc);
-}
-/* the record's values in today's P_* order, LFO DEST's slots from their stored form (params.c lfo1_load: the depths of
- * a record of before, SLOOP's too, keep the two of the most weight) */
+/* the record's values in today's P_* order (mapped by count, see above; def = the defaults), each DEST slot inside the
+ * list (a DEST this build lacks: OFF) */
 static void up_params(const up_rec_t *r, int16_t *out, const int16_t *def)
 {
-    int16_t w[4];
-    int32_t spill;
-    uint32_t k;
-    up_params_st(r, out, def);
-    if (UP_VER_OK(r->ver)) {                           /* (UP_VER 3, 4: the slots as they are, inside their ranges) */
-        for (k = 0; k < 2u; k++)
-            if ((uint32_t)out[P_L1DA + 2u * k] >= LT_NB)
-                out[P_L1DA + 2u * k] = LT_OFF, out[P_L1DA + 2u * k + 1u] = 0;
-        if (r->ver == UP_VER3)                         /* (ENV DEST's slots of 2026-10-14 .. 16 onto ENV 1 MOD) */
-            (void)env1_fold(out);
-#if FELUCCA_ANALOG2
-        for (k = 0; k <= P_NLAST - P_N2DA; k += 2u)
-            if ((uint32_t)out[P_N2DA + k] >= LT_NB)
-                out[P_N2DA + k] = LT_OFF, out[P_N2DA + k + 1u] = 0;
+    uint32_t i, k, nt = r->nv - r->ne0 - 8u;
+    for (i = 0; i < P_COUNT; i++)
+        out[i] = def[i];
+    for (i = 0; i < P_E0 && i < r->ne0; i++)
+        out[i] = r->v[i];
+    for (i = 0; i < 8u; i++)
+        out[P_E0 + i] = r->v[r->ne0 + i];
+    for (i = 0; i < UP_NTAIL && i < nt; i++)
+        out[P_E1PIT + i] = r->v[r->ne0 + 8u + i];
+#if FELUCCA_ENG_FM6
+    if (r->engine == ENG_UID_FM6)
+        out[P_E0] = (int16_t)(out[P_E0] + UP_FM6_OFS);
 #endif
-        return;
-    }
-    memcpy(w, &out[P_LEG_PIT], sizeof w);              /* (a record of before: the depths, SLOOP's too) */
-    (void)lfo1_load(w, &out[P_L1DA], &spill);
-    (void)env_load(out);                               /* ENV2 DEST's slots (env_store.h); ENV 1's depths as they are */
+    for (k = 0; k < 2u; k++)
+        if ((uint32_t)out[P_L1DA + 2u * k] >= LT_NB)
+            out[P_L1DA + 2u * k] = LT_OFF, out[P_L1DA + 2u * k + 1u] = 0;
+#if FELUCCA_ANALOG2
+    for (k = 0; k <= P_NLAST - P_N2DA; k += 2u)
+        if ((uint32_t)out[P_N2DA + k] >= LT_NB)
+            out[P_N2DA + k] = LT_OFF, out[P_N2DA + k + 1u] = 0;
+#endif
 }
+
 
 static int up_name_ok(const uint8_t *s, uint32_t n)   /* 1..12 printable ASCII */
 {
@@ -542,30 +346,6 @@ static int upf_get(uint32_t k, int16_t *ed)      /* slot k's voice -> ed: 1, or 
 #define UPF_BOOT() ((void)0)
 #endif
 
-#if UP_XIP
-/* bank b's current copy in flash, its shape known: UPB3 as it is (up_xip), UPB2 / UPB1 converted as read (up_xip2), else
- * none (st_xip read the payload once through the driver, for its CRC) */
-static void up_bank_find(uint32_t b)
-{
-    uint32_t len = 0;
-    const up_bank_t *p = flash_ok ? (const up_bank_t *)st_xip(OBJ_UPRESET0 + b, &len) : 0;
-    const up_bank2_t *o = (const up_bank2_t *)p;
-    up_xip[b] = 0;
-    up_xip2[b] = 0;
-    if (!p)
-        return;
-    if (len == sizeof *p && p->magic == UP_BANK_MAGIC && p->rsize == sizeof(up_rec_t) && p->nslot == UP_PER_BANK)
-        up_xip[b] = p;
-    else if (len == sizeof *o && o->rsize == sizeof(up_rec2_t) && o->nslot == UP_PER_BANK &&
-             (o->magic == UP_BANK_MAGIC_V2
-#if UP_FROM_V1
-              || o->magic == UP_BANK_MAGIC_V1
-#endif
-              ))
-        up_xip2[b] = o;
-}
-#endif
-
 static void up_boot(void)                      /* persist_boot: the banks from flash */
 {
 #if FELUCCA_FLASH
@@ -588,65 +368,12 @@ static void up_boot(void)                      /* persist_boot: the banks from f
 #endif
 }
 
-#if UP_FROM_V1 && FELUCCA_SL24_SAFE && FELUCCA_FLASH
-/* bank k / 16 in flash is "UPB1" (SLOOP 2.4 .. 2.6's, or SLOOP plus's): record k = *r (0: erased) into it as it is in
- * flash (in st_buf), the bank kept UPB1 and every other record byte for byte, so SLOOP still reads all of its own. Ours
- * is an UP_VER 2 record (up_vals_put): SLOOP skips it (its up_valid: UP_VER 1 only; to it an empty slot, which it may
- * save over), up_bank_from_v1 leaves it as it is. Before, the bank went out as UPB2 (RAM's, converted) and SLOOP
- * then read every slot of it as empty. -> 1 done (*rc: 0 ok, 2 flash error), 0 not such a bank (written as ours) */
-static void up_vals_put2(up_rec2_t *o, const int16_t *v);
-static int up_put_v1(uint32_t k, const up_rec_t *r, int *rc)
-{
-    up_bank2_t *f = (up_bank2_t *)(void *)st_buf;
-    uint32_t obj = OBJ_UPRESET0 + k / UP_PER_BANK;
-    if (st_load(obj, st_buf, sizeof *f) != (int)sizeof *f || f->magic != UP_BANK_MAGIC_V1 || f->rsize != sizeof(up_rec2_t) ||
-        f->nslot != UP_PER_BANK)
-        return 0;
-    if (!r) {
-        memset(&f->r[k % UP_PER_BANK], 0, sizeof(up_rec2_t));
-    } else if (!UP_VER_OK(r->ver)) {
-        up_rec_to2(&f->r[k % UP_PER_BANK], r);          /* (a record of before: as it was) */
-    } else {                                            /* ours in that bank's layout, UP_VER 2: its values, the slots as */
-        int16_t v[P_COUNT], def[P_COUNT];               /* the depths they are (as far as they go) */
-        uint32_t i;
-        for (i = 0; i < P_COUNT; i++)
-            def[i] = TP[i].def;
-        up_params(r, v, def);
-        up_rec_to2(&f->r[k % UP_PER_BANK], r);
-        up_vals_put2(&f->r[k % UP_PER_BANK], v);
-    }
-    *rc = st_save(obj, st_buf, sizeof *f) ? 2 : 0;     /* (storage.c: a source in st_buf, ST_SRC_BUF) */
-    return 1;
-}
-/* values v -> o's p[] and np as UP_VER 2 lays them out (ENV2's extras packed; LFO DEST's, ENV DEST's slots as the depths
- * of before they are: lfo_depths, env_store) */
-static void up_vals_put2(up_rec2_t *o, const int16_t *v0)
-{
-    int16_t v[P_COUNT], d[4];
-    uint32_t i;
-    memcpy(v, v0, sizeof v);
-    (void)env_store(v);
-    (void)lfo_depths(&v[P_L1DA], d);
-    memcpy(&v[P_LEG_PIT], d, sizeof d);
-    o->ver = UP_VER2;
-    o->np = P_ENG_END;
-    memset(o->p, 0, sizeof o->p);
-    for (i = 0; i < P_A2ESUS; i++)
-        o->p[i] = v[i];
-    a2x_pack(&o->p[P_A2ESUS], &v[P_A2ESUS]);
-    for (i = 0; i < 8u; i++)
-        o->p[P_A2ESUS + A2X_W + i] = v[P_E0 + i];
-}
-#define UP_KEEP_V1 1
-#else
-#define UP_KEEP_V1 0
-#endif
-
-/* record k = *r (0: erase), then the bank to flash: 0 ok, 2 flash error, 3 no flash (kept in RAM; UP_XIP: 2, nothing kept) */
+/* record k = *r (0: erase), then the bank to flash: 0 ok, 2 flash error, 3 no flash (kept in RAM; UP_XIP: 2, nothing kept).
+ * A bank of another format in flash is written over as an empty UPB4 bank with this record */
 static int up_put(uint32_t k, const up_rec_t *r)
 {
 #if UP_XIP
-    uint32_t b = k / UP_PER_BANK, i;
+    uint32_t b = k / UP_PER_BANK;
     up_bank_t *bk = (up_bank_t *)(void *)st_buf;        /* (built here after upf_set, which reads its object into st_buf) */
 #else
     up_bank_t *bk = &up_bank[k / UP_PER_BANK];
@@ -672,20 +399,10 @@ static int up_put(uint32_t k, const up_rec_t *r)
 #if UP_XIP
     if (!flash_ok)
         return 2;
-#if UP_KEEP_V1
-    {
-        int rc;
-        if (up_put_v1(k, r, &rc)) {                     /* (SLOOP's bank: kept UPB1, its records untouched; in st_buf) */
-            up_bank_find(b);
-            return rc;
-        }
-    }
-#endif
     if (up_xip[b])                                      /* the bank as it is in flash, in st_buf, the record changed */
         memcpy(bk, up_xip[b], sizeof *bk);
     else
-        for (i = 0; i < UP_PER_BANK; i++)               /* (UPB2 / UPB1: every record as read, up_rec; none: zeros) */
-            bk->r[i] = *up_rec(b * UP_PER_BANK + i);
+        memset(bk, 0, sizeof *bk);
     bk->magic = UP_BANK_MAGIC;
     bk->rsize = sizeof(up_rec_t);
     bk->nslot = UP_PER_BANK;
@@ -695,17 +412,11 @@ static int up_put(uint32_t k, const up_rec_t *r)
         memset(&bk->r[k % UP_PER_BANK], 0, sizeof(up_rec_t));
     if (st_save(OBJ_UPRESET0 + b, st_buf, sizeof *bk))  /* (storage.c: a source in st_buf, ST_SRC_BUF) */
         return 2;
-    up_bank_find(b);                                    /* (the copy written: UPB3) */
+    up_bank_find(b);                                    /* (the copy written) */
     return up_xip[b] ? 0 : 2;
 #elif FELUCCA_FLASH
-    if (flash_ok) {
-#if UP_KEEP_V1
-        int rc;
-        if (up_put_v1(k, r, &rc))                       /* (SLOOP's bank: kept UPB1, its records untouched) */
-            return rc;
-#endif
+    if (flash_ok)
         return st_save(OBJ_UPRESET0 + k / UP_PER_BANK, bk, sizeof *bk) ? 2 : 0;
-    }
 #endif
     return 3;
 }

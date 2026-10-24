@@ -5,7 +5,7 @@
  *
  *   FELUCCA_SL24_SAFE  started on flash SLOOP (2.7; its map is 2.4's) wrote: nothing Optimist cannot read is erased or
  *                      written over (the section slots, the autosave, SLOOP's FM6 bank, a user sample past our
- *                      slots); its projects show as SLOOP's, not EMPTY; its user presets read right; its settings
+ *                      slots); its projects show as SLOOP's, not EMPTY (its user presets: not read, written over, 2026-10-24); its settings
  *                      (the SYN kits, the MIDI part, 2.7's side record of theme and favourites) never read as ours,
  *                      never written over (ours kept beside them: sl24_guard.c sl25_set_scan)                   ours
  *   FELUCCA_SL24_XSTEP the step extras (nudge, locks, fills, stepx.h, 2.4's layout) kept with each project: a store

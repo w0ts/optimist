@@ -198,18 +198,17 @@ static void t_stored(void)
         memset(&r, 0, sizeof r);
         r.engine = 0;
         up_vals_put(&r, v);
-        ok = r.ver == UP_VER && r.p[P_L1DA] == LT_FLT && r.p[P_L1AA] == 40;   /* (UP_VER 3: in their own words) */
+        ok = r.ver == UP_VER && r.v[P_L1DA] == LT_FLT && r.v[P_L1AA] == 40;   /* (UPB4: a byte each, at their ids) */
         up_params(&r, out, def);
         ok &= out[P_L1DA] == LT_FLT && out[P_L1AA] == 40 && !out[P_L1DB];
         v[P_L1DB] = LT_RES, v[P_L1AB] = -90;
         up_vals_put(&r, v);
         up_params(&r, out, def);
         ok &= out[P_L1DA] == LT_FLT && out[P_L1AA] == 40 && out[P_L1DB] == LT_RES && out[P_L1AB] == -90;
-        r.ver = FELUCCA_ANALOG2 ? 2 : 1, r.np = P_ENG_END;          /* (a record of before: the depths) */
-        r.p[P_LEG_PIT] = 3, r.p[P_LEG_FLT] = 0, r.p[P_LEG_SHP] = 0, r.p[P_LEG_AMP] = 100;
+        r.v[P_L1DB] = (int8_t)LT_N;                                 /* (a DEST past the list: OFF) */
         up_params(&r, out, def);
-        ok &= out[P_L1DA] == LT_PIT && out[P_L1AA] == 6 && out[P_L1DB] == LT_AMP && out[P_L1AB] == 100;
-        check(ok, "user presets: the slots in their own words (UP_VER 3), records of before read as their slots");
+        ok &= out[P_L1DB] == LT_OFF && out[P_L1AB] == 0;
+        check(ok, "user presets: the slots at their ids, a DEST past the list OFF");
     }
 }
 
