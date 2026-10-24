@@ -27,10 +27,16 @@ out = ["/* SPDX-License-Identifier: GPL-3.0-only */",
 
 
 def emit(typ, name, vals):
+    coded = name == "VCF_G1Q_D"              # (tools/gen_tables.py reads it from the header and codes it, TAB_CODED_ALL)
+    if coded:
+        out.append("#if !TAB_JUNO_VCF_G1Q_D_CODED   /* (the target with TAB_CODED_ALL: delta-coded in the boot stream, expanded into the pool at")
+        out.append("                                 * boot, felucca_tables.h gen_tables.py carr: the same values, not this copy) */")
     out.append("static const %s JUNO_%s[%d] = {" % (typ, name, len(vals)))
     for i in range(0, len(vals), 16):
         out.append("    " + ", ".join(str(v) for v in vals[i:i + 16]) + ",")
     out.append("};")
+    if coded:
+        out.append("#endif")
 
 
 def unpack(a, d, b, i):                      # (juno_dsp.h juno_dtab)
