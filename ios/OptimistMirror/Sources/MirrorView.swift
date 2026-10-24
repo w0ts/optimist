@@ -114,7 +114,7 @@ struct RootView: View {
         .onChange(of: link.state == .mirroring && link.bluetooth) { _, on in if on { BluetoothPicker.dismiss() } }   // (connected: the sheet's work is done)
         .onChange(of: link.online) { old, now in   // (a device connected in the sheet: taken afresh, whatever the link did before
             // (paused, or a port held with a black screen); the sheet closes once the screen comes: the user, 2026-10-24)
-            if BluetoothPicker.isShown, !Set(now).subtracting(old).isEmpty { link.resume() }
+            if BluetoothPicker.isShown, let p = now.first(where: { !old.contains($0) }) { link.resume(p) }
         }
         .sheet(item: $session.export) { ExportView(url: $0.url) }
         .onAppear {
