@@ -9,12 +9,12 @@ start-up and stored trims, the central role, the console tools. Registers and en
 
 - Builder items (MIDI & USB group): **`BLE`** (`FELUCCA_BLE`, off by default; off, the image is byte-identical but for the
   builder's configuration hash), **`BLE_DIAG`** (the `blell` diagnostics), **`BLE_BOND`** (pairing, an encrypted link),
-  **`BLE_CENTRAL`** (the DEVICES list, connecting out, reconnecting LAST; it brings the bonding code with it). Costs measured
-  by the builder (`tools/builder/costs.json`): BLE +32 KB flash / +6.6 KB RAM, BLE_DIAG +6.0 / +2.4, BLE_BOND +3.6 / +0.4,
-  BLE_CENTRAL +21.7 / +2.0. No V15 file is needed: the radio's start-up tables are committed (section 8.3).
-- **BLUETOOTH is OFF by default** and then the radio does not even start. Switch it on in SYSTEM > Bluetooth.
+  **`BLE_CENTRAL`** (the devices list, connecting out, reconnecting LAST; it brings the bonding code with it). Costs measured
+  by the builder (`tools/builder/costs.json`): BLE +30.3 KB flash / +6.3 KB RAM, BLE_DIAG +3.9 / +2.4, BLE_BOND +3.9 / +0.5,
+  BLE_CENTRAL +20.8 / +2.1. No V15 file is needed: the radio's start-up tables are committed (section 8.3).
+- **SYSTEM > BT MIDI > MODE is OFF by default** and then the radio does not even start; MAN or AUTO switch it on.
 - **Verified on an FM-1** (2026-10): a Mac (Audio MIDI Setup) connects to the FM-1 and MIDI goes both ways; the FM-1 as central
-  picks a Mac from DEVICES, pairs (a passkey on the FM-1's screen) and reconnects after a power cycle; an iPhone app
+  picks a Mac from the devices list, pairs (a passkey on the FM-1's screen) and reconnects after a power cycle; an iPhone app
   connected to the FM-1 as central. Unconfirmed on hardware: the FM-1 as central to an iPhone with the passkey. Not tried:
   Windows. Unmeasured: the radio's analog side (TX power, sensitivity, drift; HW §12).
 - Provenance (clean room): written from the Bluetooth Core Specification v5.x (LE 1M only) and the MIDI Association's "MIDI
@@ -33,7 +33,7 @@ nearby devices' table) · `ble_hw_wl82.c` + `ble_hw_wl82_central.c` + `hal/fm1_b
 section 7) · `ble_hw_stub.c` (a driver that never calls back, `FELUCCA_BLE_STUB=1`) · `ble_vm.c`, `hal/fm1_ble_rf.h`,
 `hal/ble_rf_tables_v15.h` (stored trims, the start-up program runner, the captured tables; section 8) · `ble_diag.c` (`blell`) ·
 `ble_stack.c` (the unity-build wrapper: every function `static` via `BLE_API`) · `io/midi/midi_ble.c`, `ble_devices.c`,
-`ble_connect.c` (rings, bond, address, on / off; the DEVICES list; connecting out and LAST) · `tools/ble_rf_capture.py`,
+`ble_connect.c` (rings, bond, address, on / off; the devices list; connecting out and LAST) · `tools/ble_rf_capture.py`,
 `ble_rf_pack.py`, `ble_vm.py` (the table capture, its packing, a VM dump decoder).
 
 ## 3. The driver interface (`ble_hw.h`)
@@ -122,14 +122,14 @@ I/O `7772E5DB-3868-4112-A1A9-F2669D106BF3` (read: empty; write without response;
   (any cause) and when BLUETOOTH goes OFF; notes sent after OFF are dropped; USB and TRS notes keep sounding.
 
 ### 6.2 On / off, boot, address
-- **The switch:** SYSTEM > Bluetooth > BLUETOOTH. **Bit 24** of the settings word (`SETTINGS_BLE_ON_BIT`, 1 = ON; bit 23 is
+- **The switch:** SYSTEM > BT MIDI > MODE (OFF, or MAN / AUTO: on; `ui/optimist/op_bt.c`). **Bit 24** of the settings word (`SETTINGS_BLE_ON_BIT`, 1 = ON; bit 23 is
   reserved, 25 is KNOB COLORS), saved with the settings. A fresh unit, an older record and one SLOOP 2.3 / 2.4 wrote read OFF; a
   build without BLE keeps the bit as read.
 - **Boot** (`system/main.c`): the settings are read first. `ble_midi_init` scans the VM (flash reads only), chooses the trims and
   attaches the two BLE vectors masked. **Only when ON was saved** does it go on: the stack, the address, `rf_init` and the
   baseband (`ble_radio_start`), advertising, the interrupts let go. With OFF no RF, BT or baseband register is written, so a radio
   start-up that hangs cannot stop the FM-1 booting. In DUAL builds (the default) this runs before `audio_init` as in stock V15
-  (docs/DUAL-CORE.md 3.6) with the second core held while the radio's program runs (`dual_radio_hold`); otherwise after
+  (docs/DUAL-CORE.md section 3: the second core spins in its RAM loop, its jobs start 400 ms after BLE runs); otherwise after
   `usb_start`. When the menu switches ON at run time the radio starts then, once per boot. **Without stored trims it never
   starts:** the switch only changes the setting and the row shows NO CAL.
 - **Safety net** (`ble_boot_radio`, `bootguard`): a boot the guard counts as following a failed start-up (a warm reset in a boot's
@@ -211,7 +211,7 @@ From the Core spec, the BLE-MIDI spec and HW §21. One link at a time, time-slic
 ### 9.1 Link layer and driver (`ble_ll_central.c`, `ble_hw_wl82_central.c`)
 - **Scanning:** state 1, interval 64 / window 60 slots (40 / 37.5 ms), active (the engine sends SCAN_REQ with the Core's backoff) for
   the names controllers put in their scan response. A ring of 16 raw reports from the RX interrupt to the main loop. Only while
-  the DEVICES list is open (advertising pauses meanwhile).
+  the devices list is open (advertising pauses meanwhile).
 - **Our CONNECT_IND** (`ble_ll_connect`): random AA by the Core rules, a **random CRCInit** (not the vendor's fixed one), WinSize 2,
   WinOffset random in [Interval / 2, Interval - 1], Hop random 5..16, 37 channels, latency 0, timeout 2 s, SCA 0, **interval 9
   (11.25 ms)**: the top of what our peripheral asks for, about 89 packets a second each way (7.5 ms would add a third more
@@ -245,7 +245,7 @@ From the Core spec, the BLE-MIDI spec and HW §21. One link at a time, time-slic
   KEY (it lost our bond: dropped after three tries). A failure leaves the link once the queued PDUs went.
 - **RPA:** `ble_rpa_resolve(irk, addr)` = ah (Core Vol 3 Part H 2.2.2) with the software AES, checked against the Core sample.
 - **Roles and MIDI:** the router is unchanged; `ble_midi_ready()` means "its notifications are on" as central and "the central
-  subscribed" as peripheral. While a central link is up the FM-1 does not advertise; when it ends, advertising (or the DEVICES
+  subscribed" as peripheral. While a central link is up the FM-1 does not advertise; when it ends, advertising (or the devices
   scan) comes back.
 
 Hardware (2026-10-09, an iPhone app advertising BLE-MIDI): the engine sent our CONNECT_IND by itself, the peer answered every
@@ -303,7 +303,7 @@ step 0C with a huge `prev_ble_irqs` is an interrupt storm. After a freeze **wait
 and `bletrim`. The **rescue screen** (OPTIMIST USB RESCUE, `recovery.c`) prints `BOOT SSSSPPPP FFFFFFFF` (the last start-up's stage and the
 one before; 41-4B are `main.c` `BOOT_STAGE`s), `BLE <ble_step> <ble_stop>` and `CRASH CCCCVVVV <pc>`: a photo of it is the crash report.
 
-If BLUETOOTH ON hangs the FM-1 at a boot, wait (the watchdog restarts it, the next boot leaves the radio off, switch it OFF); if even that
+If the radio hangs the FM-1 at a boot, wait (the watchdog restarts it, the next boot leaves the radio off, set MODE to OFF); if even that
 does not come up, power on with OCT- and OCT+ held 3 s (UBOOT).
 
 ## 12. Open

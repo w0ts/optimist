@@ -1,9 +1,9 @@
 # Shared DSP building blocks
 
 Optimist is assembled from ports (SLOOP / Felucca; Melodee for FM6, PHASE, CZ; X0X for the 303 and the 909 / 808 kits;
-fm-106 for JUNO; Felucca-Engines for NOISE), and each brought its own copies of the basics. 25 merges replaced 72
-copies. Every shared block is `always_inline`, so a merge moves source, not machine code, and frees no RAM code (each
-copy was already inlined into its caller). New DSP code (TAPE, SPIT, the shaper inserts) should call these blocks.
+fm-106 for JUNO; Felucca-Engines for NOISE), and each brought its own copies of the basics; the copies were merged into
+the blocks below. Every shared block is `always_inline`, so a merge moves source, not machine code, and frees no RAM code
+(each copy was already inlined into its caller). New DSP code should call these blocks.
 
 | File | Holds |
 |---|---|

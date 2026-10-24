@@ -1,6 +1,6 @@
 # The second core (CPU1)
 
-Status 2026-10-19: **on by default.** The builder's `DUAL` item defaults to 2 (`tools/builder/registry.py`); a profile
+**On by default.** The builder's `DUAL` item defaults to 2 (`tools/builder/registry.py`); a profile
 may set `DUAL=0`. A raw compile without the builder still defaults `FELUCCA_DUAL` to 0 (`firmware/src/felucca.c`).
 Verified on an FM-1: a soak of about 75 minutes with BLE on and USB MIDI, zero drops and zero underruns. Some units
 misread RAM on CPU1; those fall back to one core by themselves (section 5).
@@ -25,8 +25,7 @@ CPU1's sums, then runs the buses and master (`mix_block_dual`, `firmware/src/sys
 - Measured (emulator, instructions not cycles): CPU0 load down 40-44 % at 312 MHz with the same sound. Bench at 480 MHz:
   CPU0 20.7 %, CPU1 16.9 % with the late reverb. The real gain on hardware is lower and unmeasured (cache misses, XIP
   waits and bus contention are not modelled).
-- Cost (`tools/builder/costs.json`, `DUAL`): about 3.4 KB of flash, 3.7 KB of RAM, 6.1 KB of pool, 660 B of RAM code.
-  (The builder's own item text still says 1.8 KB / 1.9 KB.)
+- Cost (`tools/builder/costs.json`, `DUAL`): about 3.7 KB of flash, 3.8 KB of RAM, 6 KB of pool, 776 B of RAM code.
 
 State shared by parts is made per core or per part: scratch and accumulators (`mixacc_t`, `mix_part(t, n, A)`), the DX7
 scratch (`fm1_cnum()`), FORMANT's noise (one generator per part, so a different but equally random sequence), SUPER's
@@ -69,8 +68,9 @@ before it, every BLE + dual boot crashed within 2-60 s; after it, 3 x 180 s runs
    SFC (XIP) is off during flash work, so CPU1 may never fetch from XIP then. By construction CPU1 runs XIP code only
    between `req` and `done`, both inside CPU0's audio interrupt; `irq_save()` also checks it.
 6. The TIMER5 and ALNK0 entries run from RAM (`isr_timer5_ram`, `isr_alnk0_ram`).
-7. BLUETOOTH ON at runtime (a radio started while audio runs, which stock never does) holds CPU1 for the radio's
-   program and starts it again after (`dual_radio_hold` / `_release`; emulator-tested only).
+7. A radio started at runtime (BT MIDI or BT AUDIO switched on while audio runs, which stock never does): CPU1 runs on
+   through the radio's program (`DUAL_PARK_NOW` 0). Holding it and starting it again (`dual_radio_hold` / `_release`)
+   left CPU1 at NO START on the FM-1 (2026-10-20), so only `OPTIMIST_DUALCFG` test images still park it.
 
 **CPU1's stack** is `fm1_c1_stack`, 6 KiB in the pool, set by the entry: the spinning build runs its jobs on `usp`
 (5 KiB), the sleeping one in the wake interrupt on `ssp`. `tools/build.py cpu1_stack` checks the static worst path

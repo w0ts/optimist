@@ -346,7 +346,7 @@ CONNECT_IND set-up in the RX interrupt (§7) meets the first window; one unit's 
 | U2 | the VM on a second unit; where stock's second area is | does calibration differ per unit? compaction? |
 | U5 | timing constants `0x28008-0x28018`, `0x28034` [15:8], IFSCNT | measure T_IFS and PDU spacing with a sniffer |
 | U8 | ISR durations on hardware (`isr_max_us` in `blell`) | audio headroom |
-| U9 | RSSI gain table (64 entries) | the DEVICES bars are relative until then |
+| U9 | RSSI gain table (64 entries) | the devices list's bars are relative until then |
 | U10 | TX power level to dBm (stock level 6) | |
 | U13 | drift: stock RMWs `0x11900` about every 2 ms (bit14, meaning unknown) | a periodic re-trim may be needed |
 | U14 | carrier offset and PLL_COMP sign / scale | |

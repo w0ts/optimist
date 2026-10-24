@@ -103,6 +103,7 @@ strings, NTRK, the protocol byte (6), each engine slot's UID, then tagged blocks
 | 61 | `02 04 flags` | SOLO, version 4: bit 0 the USB input is built, bit 1 the returns' mute (op 7) |
 | 62 | `03 01 a b` | STEPLANE (below) |
 | 64 | `01 flags` | lite build: bit 0 backup only, bit 1 the librarian |
+| 65 | `01 version` | MIRROR (below, "The screen mirrored"): `MIR_VERSION` (2) |
 | 66 | `n` ASCII | the features by name and version, space-separated (`ed_opti.h`): `opti_backup_4` (43..48, `BK_VERSION`), `opti_mirror_2` (106, `MIR_VERSION`), `opti_panel_1` (108), `opti_library_1` (16..21), `opti_projects_1` (9), `opti_patterns_1` (79..84). Every Felucca-family firmware answers `INFO` with the same header but numbers its other commands its own way (SLOOP's backup is 34..36; 78 is Melodee's CZ), so a client sends nothing else until it has read this tag, and offers a feature only when its name and a version it reads are listed. A number goes up only when an older client would misread the new form. Over Bluetooth (only 106 answered) the firmware is known by its advertised name, "Optimist ..." |
 
 `BUILD` (no args): the build's name string (16), its config hash (5 x 7 bit), the item bytes count and bytes (bit n = registry item n
@@ -408,7 +409,7 @@ through the screen's own functions, so an editor shows the same lines, words and
 | 3 YES | screen, line, ok (0 may ask a question, 1 does it) | 3, screen, line, rc (1 handled), LINE |
 | 4 SAVE | - | 4: the settings into flash (what SYSTEM does when left; once stopped) |
 
-LINE: page, page title, section (the row's name: TEMPO REC MIDI CHANNELS INFO SCREEN AUDIO KEYS USB USB AUDIO CALIBRATE ABOUT), kind (0 none, 1 value, 2 read-out, 3 action, 4 enter), label, value text, unit, state (0 plain, 1 warn, 2 error, 3 ok, 4 other colour), danger,
+LINE: page, page title, section (the row's name: TEMPO REC MIDI CHANNELS INFO SCREEN AUDIO KEYS USB, BT MIDI, BT AUDIO, USB AUDIO, CALIBRATE, ABOUT), kind (0 none, 1 value, 2 read-out, 3 action, 4 enter), label, value text, unit, state (0 plain, 1 warn, 2 error, 3 ok, 4 other colour), danger,
 ask (1: the device asks for a YES now), gauge form (1 bar, 2 bipolar bar, 3 few entries, 4 many entries, 5 two entries), gmin v14, gmax v14, gv v14, by-descriptor (0/1: then fmt, min v14, max v14, def v14), the action's object text. A bad screen or line, or the BLE devices list open on the device: no reply.
 Help lines: `tools/param_help.json`'s `op` group. Golden: `tests/scrn_table.json`; `tools/gen_fxp_table.py` copies it into the mock.
 
