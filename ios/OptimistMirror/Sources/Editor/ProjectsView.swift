@@ -105,7 +105,7 @@ struct ProjectsView: View {
     }
 
     private func sectionRow(_ k: Int) -> some View {
-        let u = s.sectionUsed[k]
+        let u = k < s.sectionUsed.count ? s.sectionUsed[k] : nil   // (a row drawn once more after a reconnect emptied the list: crashed)
         let letter = Names.sectionLetter(k)
         let hasObject = s.bkList.flatMap { Ops.sectionObject($0, k) } != nil
         return HStack {
