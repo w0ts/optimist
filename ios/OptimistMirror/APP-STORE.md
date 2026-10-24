@@ -83,5 +83,8 @@ simulator saves it sideways: rotate 90), favourites seeded with `simctl spawn <d
 favorites -data <hex JSON>`. Mac: the files copied into the app container's tmp (sandbox), the window captured with
 `screencapture -o -l <id>` and fitted to 2880 x 1800.
 
+Build 3 holds the "screen alone" mode (a button at the screen's top right hides the touch buttons; the choice is remembered), so its
+screenshots can show both layouts, and the Bluetooth touch buttons of bbcbcc15.
+
 **Upload from the command line** works when run outside Claude Code's sandbox: `xcodebuild archive` (generic iOS, then Mac
 Catalyst), then `xcodebuild -exportArchive` with `method app-store-connect`, `destination upload`.

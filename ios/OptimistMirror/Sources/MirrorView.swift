@@ -220,6 +220,9 @@ struct MirrorView: View {
     let upright: Int                    // quarter turns the picture still needs (an iPhone upside down: 2)
     @Binding var bars: Bool
     @StateObject private var nav: NavModel
+    @StateObject private var layout = NavLayoutStore()
+    /// the touch buttons around the screen: there when the firmware has them and the mode is not "screen alone"
+    private var buttons: Bool { nav.on && !layout.screenAlone }
 
     init(link: MirrorLink, upright: Int, bars: Binding<Bool>) {
         self.link = link
@@ -242,6 +245,7 @@ struct MirrorView: View {
             GeometryReader { g in laid(g.size) }
                 .rotationEffect(.degrees(-90 * Double(upright)))
         }
+        .overlay(alignment: .topTrailing) { layoutButton }
         .contentShape(Rectangle())
         .onTapGesture { withAnimation { bars.toggle() } }
         .focusable()
@@ -255,11 +259,29 @@ struct MirrorView: View {
         .task { await nav.run() }
     }
 
+    /// The switch between the two layouts: a small round button at the screen's top right (shown while the firmware has the
+    /// touch buttons, or while they are hidden, so they can come back)
+    @ViewBuilder private var layoutButton: some View {
+        if nav.on || layout.screenAlone {
+            Button { withAnimation { layout.toggle() } } label: {
+                Image(systemName: layout.screenAlone ? "rectangle.split.3x1" : "rectangle.center.inset.filled")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 44, height: 44)
+                    .background(.black.opacity(0.6), in: Circle())
+            }
+            .buttonStyle(.plain)
+            .padding(8)
+            .accessibilityLabel(layout.screenAlone ? "Show Buttons" : "Hide Buttons")
+            .accessibilityHint(layout.screenAlone ? "Shows the touch buttons around the screen" : "Shows the screen alone, larger")
+        }
+    }
+
     /// With the touch navigation (109 NAV, Nav/): wide, the pages left, the favourites and modes right, the tracks under
     /// the screen; tall, the tracks then the pages and the modes under it; without it the screen alone
     @ViewBuilder private func laid(_ size: CGSize) -> some View {
-        let strip = nav.on ? NavTracks.height + NavMetrics.gap : 0
-        if nav.on && size.width - (size.height - strip) >= 2 * 150 {
+        let strip = buttons ? NavTracks.height + NavMetrics.gap : 0
+        if buttons && size.width - (size.height - strip) >= 2 * 150 {
             let side = min(size.height - strip, size.width - 2 * 150 - 4 * NavMetrics.gap)
             let col = (size.width - side) / 2 - 2 * NavMetrics.gap
             HStack(alignment: .top, spacing: NavMetrics.gap) {
@@ -273,7 +295,7 @@ struct MirrorView: View {
             }
             .padding(.horizontal, NavMetrics.gap)
             .frame(width: size.width, height: size.height)
-        } else if nav.on && size.height - size.width >= 3 * NavMetrics.button {
+        } else if buttons && size.height - size.width >= 3 * NavMetrics.button {
             VStack(spacing: NavMetrics.gap) {
                 content.frame(width: size.width, height: size.width)
                 NavTracks(nav: nav).padding(.horizontal, NavMetrics.gap)
@@ -350,7 +372,7 @@ struct MirrorView: View {
                     .interpolation(.none)
                     .aspectRatio(1, contentMode: .fit)
                     .overlay {
-                        if nav.on {
+                        if buttons {
                             GeometryReader { g in
                                 Color.clear.contentShape(Rectangle()).gesture(knobDrag(g.size))
                             }
