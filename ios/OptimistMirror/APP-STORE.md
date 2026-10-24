@@ -66,12 +66,42 @@ Optimist Mirror is an independent project, not affiliated with M-VAVE.
 
 ## App Review Information > Notes
 
-This app needs an M-VAVE FM-1 synthesizer running the Optimist firmware (open source: https://github.com/w0ts/optimist).
-Without one the app shows its connection screen. A video of the app in use with the device: <LINK TO THE VIDEO>.
-- Screen: the FM-1's display, over the USB cable or Bluetooth MIDI ("Connect with Bluetooth" opens iOS's Bluetooth MIDI sheet).
-- Projects, Presets and Backup talk to the FM-1 over the USB cable only; over Bluetooth those tabs say so.
-- On the Mac, the keyboard presses the FM-1's buttons (USB).
-No account, no data collected, no network use.
+The answer to App Review's "Guideline 2.1 - Information Needed" (macOS 1.0, new developer account, 2026-10-24). It describes
+build 3 (the screen-alone button and the swapped columns are not in build 2). Paste it as the reply on the App Review page and
+here in Notes. The recording: the Mac, launched from the Dock, then the connection screen, the FM-1 plugged in, the mirrored
+screen, a few pages, Projects, Presets, Backup, Bluetooth; 2-3 minutes, unlisted, no narration.
+
+```
+1. Screen recording on a physical device (Mac, macOS 27.0.1): <LINK>
+
+2. Purpose and audience
+Optimist Mirror is a free companion app for the M-VAVE FM-1, a pocket synthesizer, when it runs Optimist, our open-source
+firmware (https://github.com/w0ts/optimist). The FM-1's screen is a small 240 x 240 display. The app shows that screen live
+and large on a Mac, iPad or iPhone, with touch buttons to move between its pages, and it lists, loads and backs up the
+device's projects and presets. It is for musicians who own an FM-1 and use the Optimist firmware.
+
+3. Setup and main features
+No account or login. Required hardware: an FM-1 running the Optimist firmware.
+- USB: connect the FM-1 with a USB cable and click "Connect". The mirrored screen appears within a second.
+- Bluetooth: on the FM-1, set SYSTEM > BT MIDI > MODE to MAN or AUTO. In the app, click "Connect with Bluetooth" and pick
+  the FM-1 in the system's Bluetooth MIDI window.
+- Screen tab: the FM-1's display, with buttons around it for its pages, modes, tracks and favourites. The top-right button
+  hides those buttons. On the Mac, the keyboard presses the FM-1's buttons.
+- Projects, Presets and Backup tabs: list and load the device's 16 projects and presets, and save or restore a full backup
+  as a file. These three tabs need the USB cable; over Bluetooth they say so.
+Without an FM-1 connected, the app shows its connection screen, which is expected.
+
+4. External services
+None. The app talks only to the FM-1, over USB MIDI and Bluetooth MIDI, using Apple's Core MIDI and Core Bluetooth. No
+network access, no account, no analytics, no data collected.
+
+5. Regional differences
+None. The app works the same in every region.
+
+6. Regulated industry or third-party material
+Not a regulated industry. The app is not affiliated with M-VAVE. It names the FM-1 only to say which device it works with.
+Everything it displays is drawn by the Optimist firmware, which we wrote and publish as open source (GPL-3.0).
+```
 
 ## Screenshots
 
