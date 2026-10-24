@@ -78,6 +78,9 @@ final class MirrorLink: ObservableObject, Transport {
     private var wantWhole = true
 
     private static let keepAlive: TimeInterval = 1.0
+#if DEBUG
+    private var demo: NavDemo?    // MIRROR_DEMO: 109 NAV answered here (NavDemo.swift)
+#endif
     private static let unanswered = 3   // requests without a reply: no mirror in this build
 
     init() {
@@ -87,7 +90,8 @@ final class MirrorLink: ObservableObject, Transport {
         if let path = ProcessInfo.processInfo.environment["MIRROR_DEMO"], let d = FileManager.default.contents(atPath: path),
            d.count == MirrorDecoder.side * MirrorDecoder.side * 2 {
             let px = stride(from: 0, to: d.count, by: 2).map { UInt16(d[$0]) | UInt16(d[$0 + 1]) << 8 }
-            lock.withLock { $0.decoder.show(px); $0.generation = 1 }
+            lock.withLock { $0.decoder.show(px); $0.generation = 1; $0.features = [Feature.nav.name: Feature.nav.version] }
+            demo = NavDemo()
             portName = "Optimist"
             state = .mirroring
             return
@@ -259,8 +263,37 @@ final class MirrorLink: ObservableObject, Transport {
     var canPress: Bool {
         state == .mirroring && !bluetooth && lock.withLock { $0.features?[Feature.panel.name] == Feature.panel.version }
     }
+    /// The touch navigation (109 NAV) is there: the firmware lists opti_nav_1, over USB (as PANEL)
+    var canNavigate: Bool {
+        state == .mirroring && !bluetooth && lock.withLock { $0.features?[Feature.nav.name] == Feature.nav.version }
+    }
+    /// Why the touch navigation is not there while the screen mirrors (nil: it is, or nothing mirrors)
+    var navMissing: String? {
+        guard state == .mirroring, !canNavigate else { return nil }
+        if bluetooth { return "The touch buttons need the USB cable: over Bluetooth the FM-1 sends its screen only." }
+        guard let f = lock.withLock({ $0.features }) else { return "Reading what this firmware offers…" }
+        return f[Feature.nav.name] == nil
+            ? "This firmware has no touch buttons (opti_nav_1): install a build made after 2026-10-24 with ED_MIRROR."
+            : "This firmware's touch buttons are another version than this app reads."
+    }
+    /// Panel writes applied so far (a change of the screen: the navigation asks again)
+    var generation: Int { lock.withLock { $0.generation } }
     private var presses: [[UInt8]] = []
     private var pressing = false
+    /// Knob `role` (panel.c EN_*: 3..6 KNOB 1..4) turned `steps` detents (+ clockwise): merged into a turn of the same knob
+    /// still waiting in the queue, so a fast drag sends one request per round trip, not one per detent
+    @MainActor
+    func turn(_ role: UInt8, _ steps: Int) {
+        guard steps != 0 else { return }
+        if let last = presses.last, last.count == 3, last[0] == 2, last[1] == role {
+            let s = Int(last[2]) - 64 + steps
+            if abs(s) <= 63 {
+                presses[presses.count - 1] = [2, role, UInt8(64 + s)]
+                return
+            }
+        }
+        press([2, role, UInt8(64 + max(-63, min(63, steps)))])
+    }
     /// A PANEL request (cmd 108), in order, one at a time with the others
     @MainActor
     func press(_ args: [UInt8]) {
@@ -281,6 +314,9 @@ final class MirrorLink: ObservableObject, Transport {
 
     @MainActor
     func exchange(_ cmd: Cmd, _ args: [UInt8], timeout: TimeInterval, retries: Int) async throws -> [UInt8] {
+#if DEBUG
+        if let demo, cmd == .nav { return demo.reply(args) }
+#endif
         let body = try Wire.body(cmd.rawValue, args)
         await gate.acquire()
         defer { gate.release() }

@@ -99,6 +99,9 @@ struct RootView: View {
         .onAppear {
             tilt.start()
             Turn.to(Turn.quarter(tilt.quarter))
+#if DEBUG
+            if let q = ProcessInfo.processInfo.environment["MIRROR_QUARTER"].flatMap(Int.init) { Turn.to(q % 4) }   // (a simulator has no gravity)
+#endif
         }
         .onDisappear { tilt.stop() }
         .onChange(of: tilt.quarter) { _, q in Turn.to(Turn.quarter(q)) }
@@ -216,15 +219,25 @@ struct MirrorView: View {
     @ObservedObject var link: MirrorLink
     let upright: Int                    // quarter turns the picture still needs (an iPhone upside down: 2)
     @Binding var bars: Bool
+    @StateObject private var nav: NavModel
+
+    init(link: MirrorLink, upright: Int, bars: Binding<Bool>) {
+        self.link = link
+        self.upright = upright
+        _bars = bars
+        _nav = StateObject(wrappedValue: NavModel(link: link))
+    }
     @State private var image: CGImage?
     @FocusState private var keyboard: Bool
     @State private var held: [String: [UInt8]] = [:]   // the keys down, what each pressed
     @State private var seen = 0
+    @State private var drag: (knob: Int, across: Bool, sent: Int)?   // the knob a drag turns, its axis, the detents sent
+    private static let pointsPerDetent: CGFloat = 6
 
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
-            content
+            GeometryReader { g in laid(g.size) }
                 .rotationEffect(.degrees(-90 * Double(upright)))
         }
         .contentShape(Rectangle())
@@ -237,6 +250,72 @@ struct MirrorView: View {
         .statusBarHidden()              // (shown, iOS's Bluetooth MIDI sheet laid its table out NaN high: a crash, 2026-10-23)
         .persistentSystemOverlays(bars ? .automatic : .hidden)
         .task { await draw() }
+        .task { await nav.run() }
+    }
+
+    /// With the touch navigation (109 NAV, Nav/): wide, the pages left, the favourites and modes right, the tracks under
+    /// the screen; tall, the tracks then the pages and the modes under it; without it the screen alone
+    @ViewBuilder private func laid(_ size: CGSize) -> some View {
+        let strip = nav.on ? NavTracks.height + NavMetrics.gap : 0
+        if nav.on && size.width - (size.height - strip) >= 2 * 150 {
+            let side = min(size.height - strip, size.width - 2 * 150 - 4 * NavMetrics.gap)
+            let col = (size.width - side) / 2 - 2 * NavMetrics.gap
+            HStack(alignment: .top, spacing: NavMetrics.gap) {
+                NavPages(nav: nav).frame(width: col)
+                VStack(spacing: NavMetrics.gap) {
+                    content.frame(width: side, height: side)
+                    NavTracks(nav: nav)
+                }
+                .frame(width: side)
+                NavSide(nav: nav).frame(width: col)
+            }
+            .padding(.horizontal, NavMetrics.gap)
+            .frame(width: size.width, height: size.height)
+        } else if nav.on && size.height - size.width >= 3 * NavMetrics.button {
+            VStack(spacing: NavMetrics.gap) {
+                content.frame(width: size.width, height: size.width)
+                NavTracks(nav: nav).padding(.horizontal, NavMetrics.gap)
+                HStack(alignment: .top, spacing: NavMetrics.gap) {
+                    NavPages(nav: nav)
+                    NavSide(nav: nav)
+                }
+                .padding(.horizontal, NavMetrics.gap)
+            }
+        } else {
+            content.frame(width: size.width, height: size.height)
+                .overlay(alignment: .bottom) {
+                    if let why = link.navMissing, size.width > 500 {
+                        Text(why)
+                            .font(.footnote)
+                            .foregroundStyle(.white.opacity(0.7))
+                            .padding(8)
+                            .background(.black.opacity(0.7), in: RoundedRectangle(cornerRadius: 8))
+                            .padding(.bottom, 8)
+                    }
+                }
+        }
+    }
+
+    /// A drag that starts on KNOB k's card or line (NavState.knobs, the panel's 240 x 240) turns knob k: up or right is
+    /// clockwise, a detent every pointsPerDetent points, along the axis the drag took first
+    private func knobDrag(_ size: CGSize) -> some Gesture {
+        DragGesture(minimumDistance: 6)
+            .onChanged { g in
+                if drag == nil {
+                    let scale = 240 / max(size.width, 1)
+                    let p = CGPoint(x: g.startLocation.x * scale, y: g.startLocation.y * scale)
+                    guard let k = nav.state?.knobs.firstIndex(where: { $0.contains(p) }) else { return }
+                    drag = (k, abs(g.translation.width) > abs(g.translation.height), 0)
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                }
+                guard let d = drag else { return }
+                let steps = Int((d.across ? g.translation.width : -g.translation.height) / Self.pointsPerDetent)
+                if steps != d.sent {
+                    link.turn(UInt8(3 + d.knob), steps - d.sent)
+                    drag?.sent = steps
+                }
+            }
+            .onEnded { _ in drag = nil }
     }
 
     /// A key of the computer's keyboard: a button or note key held while it is, a knob turned a detent a press (PanelKeys)
@@ -268,6 +347,13 @@ struct MirrorView: View {
                     .resizable()
                     .interpolation(.none)
                     .aspectRatio(1, contentMode: .fit)
+                    .overlay {
+                        if nav.on {
+                            GeometryReader { g in
+                                Color.clear.contentShape(Rectangle()).gesture(knobDrag(g.size))
+                            }
+                        }
+                    }
                     .padding(8)
             }
             if link.state != .mirroring {

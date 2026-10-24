@@ -74,3 +74,4 @@
 #include "op_fm6draw.c"
 #include "op_input.c"
 #include "op_keys.c"
+#include "op_nav.c"                /* the mirror's touch navigation (ED_MIRROR: io/editor/ed_mirror.c 109 NAV) */

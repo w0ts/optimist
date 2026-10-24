@@ -3821,6 +3821,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_algotrack.h"                  /* 2026-10-13: ALGORITHM is the track and nothing else, every screen and layer */
 #include "ui_optimist_uniform.h"                   /* 2026-10-13: the uniform-UI rulings (docs/UI-OPTIMIST-DESIGN.md 2.3) */
 #include "ui_optimist_pagemem.h"                    /* 2026-10-13: every screen remembers its page (SOUND per track, the held step) */
+#include "ui_optimist_nav.h"                        /* 2026-10-24: the mirror's touch navigation (op_nav.c, 109 NAV) */
 /* ---- the buttons' half light: what has a function glows dim, the active button full, what has nothing is dark */
 static uint32_t led_lvl(uint32_t b)                     /* 2 full, 1 dim, 0 dark: the LED of panel button b */
 {
@@ -4058,6 +4059,9 @@ int main(int argc, char **argv)
     strike_tests();
     smute_tests();
     pagemem_tests();
+#if FELUCCA_ED_MIRROR
+    nav_tests();
+#endif
     favorites_tests();
     algotrack_tests();
     uniform_tests();
