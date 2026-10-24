@@ -228,7 +228,7 @@ static int gls_joined(void)
     return (int)ok;
 }
 #if FELUCCA_BLE
-static int gls_ble_enter(void)                          /* SAVE on the Bluetooth page, nothing remembered: the devices list */
+static int gls_ble_enter(void)                          /* the overlay devices list (dev_open): HOME back */
 {
     uint32_t i, ok;
     bt.boot = 1;
@@ -237,7 +237,7 @@ static int gls_ble_enter(void)                          /* SAVE on the Bluetooth
     i = line_named(SCR_SYSTEM, "MODE");
     line_at(SCR_SYSTEM, i);
     frame();
-    tap(B_SAVE);
+    dev_open(BT_MIDI);
     ok = bdv.open != 0u;
     tap(B_HOME);                                        /* (back to the list) */
     ok &= bdv.open == 0u;

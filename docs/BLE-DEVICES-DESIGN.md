@@ -28,18 +28,54 @@ SYSTEM > BT MIDI page (`docs/UI-OPTIMIST-DESIGN.md` section 4.7, `ui/optimist/op
 | OFF | radio off | OFF |
 | MAN (NONE, or no LAST) | advertises, waits for a central | ADVERTISING / CONNECTED |
 | AUTO (LAST), list closed | **searches** for it (section 4.3); between tries it advertises, so a Mac can still connect | SEARCHING / CONNECTING / PAIRING / CONNECTED |
-| on, the list open | scans (advertising paused) | SCANNING |
+| on, the list open, or the BT MIDI page on screen with no link and no connect under way (BLE_CENTRAL) | scans (advertising paused) | SCANNING |
 
 A pick while a Mac is connected to us says "BUSY: A HOST IS CONNECTED".
 
 ## 2. The UI (SYSTEM > BT MIDI; `ui/optimist/op_bt.c`, `op_project.c`)
 
 The page's lines are MODE, DEVICE (the device of the link as advertised; HOST for a computer or phone that connected to us;
-NONE), ACTIVITY (IN / OUT while messages pass) and STATE. SAVE on any line lets a link go, else connects to LAST, else opens
-the list; SAVE held forgets LAST (`bt_forget`). BT AUDIO's page has the same pattern, with up to 4 remembered devices
-(2026-10-24, `bt/bta_mem.c`): the last one first, each with its link key; its list shows them (LAST, KNOWN) before the scan's
-others, SAVE on one connects to it, SAVE held on one forgets it; AUTO pages the last one, then the others in turn, and the one
-that answers becomes the last (`NO DEVICE ANSWERED` after 30 s). The settings record keeps the other three (`persist_t.bt_kept`).
+NONE), ACTIVITY (IN / OUT while messages pass) and STATE. SAVE on any line lets a link go; SAVE held forgets (`bt_forget`).
+BT AUDIO's page has the same pattern, with up to 4 remembered devices (2026-10-24, `bt/bta_mem.c`): the last one first, each
+with its link key; AUTO pages the last one, then the others in turn, and the one that answers becomes the last (`NO DEVICE
+ANSWERED` after 30 s). The settings record keeps the other three (`persist_t.bt_kept`).
+
+**The page's own devices (2026-10-24, `op_bt.c` `bt_pg_*`).** The user: "we scan when not connected and on the screen. we show
+the remembered devices in one color and the new ones in another color. save connect/disconnect and forget (long press)", and "i
+would have expected the knob k2 to scroll thru the list". While a Bluetooth page is on screen, its MODE is MAN or AUTO, its side
+has no link and no connect under way, the FM-1 scans (BT MIDI: the BLE scan, `ble_devices_open`; BT AUDIO: the inquiry, run
+again when its 10 s end, the devices heard kept) and the page's two middle lines (DEVICE, ACTIVITY / FORMAT) give way to the
+devices, MODE above and STATE under them:
+
+- **Rows:** the remembered devices first (LAST, then KNOWN: MIDI `ble_devices.c` order, AUDIO `bta_rows`), then the new ones
+  heard (scan table, 8 at most for AUDIO), four rows shown, a thin bar at the right edge when there are more. A MIDI row carries
+  the relative signal bars (as the overlay list did); a remembered one its tag (LAST, KNOWN). A device a remembered one is not
+  listed twice.
+- **Colour is the only mark** (the UI rule: no text on a fill, unreadable on the FM-1): the remembered devices are `C_OK` (the
+  status green), the new ones `C_WARN` (the status amber), both fixed status colours that every palette keeps, so the two read
+  apart in all five palettes (the palette's own steps are one hue). The cursor row is a 3 px bar at the left edge in the track's
+  colour. Names as advertised.
+- **K2** (DEVICE's knob) moves the cursor through the rows, stopping at the ends (it was a read-out; it is a value while the
+  list shows). SELECT is the SYSTEM page's, as everywhere.
+- **SAVE** connects to the cursor row (it becomes LAST, as a pick always did: `bt_pick`); connected or connecting it lets go
+  (DISCONNECTED). Nothing heard: `NONE FOUND`. **SAVE held** forgets the cursor row's remembered device (`bt_pg_forget`: AUDIO
+  `bta_forget`, MIDI `ble_dev_forget` for LAST, `ble_dev_forget_row` for the others; its keys go too); on a new, not remembered
+  row it says `NOT REMEMBERED` and does nothing.
+- **The scan follows the page:** it starts when the page comes on screen with no link and no connect of its side under way, and
+  stops with a link up, with SAVE (a connect starts), with MODE OFF and when the page is left (`bt_pg_sync`, every pass of the
+  main loop). The cursor starts on the first row each time. A link gone brings the list and the scan back.
+- **One radio (`ble/rf_share.h`, BT-CLASSIC.md §9.1):** the page's scan never runs while the other side has a connect under way
+  (AUTO's paging at boot, a pick), so an inquiry is never started over a BLE initiate and a BLE scan never over a BR/EDR page;
+  the list is shown and the scan starts when that connect ends (a link, 30 s, SAVE). AUTO is not touched: it connects at boot
+  and when chosen as before, and the page scans only while that is not going on. A link already up on the other side is not
+  a reason to wait (a BLE connection event outranks a scan; the inquiry beside an A2DP stream is the old list's case, not
+  measured here).
+- **Visibility:** BT MIDI's scan replaces its advertising (`ble_ll.c`), so with BLE_CENTRAL the FM-1 is not visible to a Mac or a
+  phone while its BT MIDI page is on screen with no link; it advertises again as soon as the page is left or a link is made.
+- **Without BLE_CENTRAL** BT MIDI is as it was: no scan, no list, K2 inert, SAVE connects to LAST, else opens the overlay list
+  below (NONE and LAST only). BT MIDI's `DEVICES` line (`SI_BLELIST`, in no page table since the Bluetooth pages were split) and
+  the overlay list below are the same list in another place; with the central or BT AUDIO nothing opens the overlay any more
+  (`dev_open` stays for BT MIDI without the central).
 
 **The list** is SYSTEM's rows while it is open: the cursor row first is `NONE (VISIBLE)`, then LAST (tagged `LAST`, `PAIRED` when
 its keys are kept, `CONNECTED` while our link to it is up), then the nearby devices (new ones at the bottom so the list does not

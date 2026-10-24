@@ -244,7 +244,7 @@ static void ble_peer_cell(cell_t *c)
 {
     char nm[40];
     const char *v = "NONE";
-    c->kind = CK_RO;
+    c->kind = bt_pg_on(BT_MIDI) ? CK_VAL : CK_RO;       /* (a knob that moves the page's list: op_bt.c) */
     c->label = "DEVICE";
 #if BLE_CENTRAL
     if (ble_on && ble_up && ble_connect_status(nm, sizeof nm) != RCS_NONE && rc_nm_at < str_len(nm))
@@ -296,7 +296,7 @@ static void bta_state_cell(cell_t *c)                   /* BT AUDIO's STATE: the
 static void bta_peer_cell(cell_t *c)                    /* BT AUDIO's DEVICE: the last device (the one connected or paged), NONE */
 {
     char nm[BLE_NAME_MAX + 1u];
-    c->kind = CK_RO;
+    c->kind = bt_pg_on(BT_AUD) ? CK_VAL : CK_RO;        /* (a knob that moves the page's list: op_bt.c) */
     c->label = "DEVICE";
     bt_last_name(BT_AUD, nm);
     cell_val(c, nm[0] ? nm : "NONE");
@@ -1265,6 +1265,8 @@ static void sys_turn(uint32_t r, uint32_t k, int32_t s, int fine)
 #if FELUCCA_BT_UI
     if (bdv.open)
         return;                                         /* (the list: a knob does nothing) */
+    if ((it == SI_BTAPEER || it == SI_BLEPEER) && bt_pg_turn(it == SI_BTAPEER ? BT_AUD : BT_MIDI, s))
+        return;                                         /* (a Bluetooth page's DEVICE knob: the cursor through its devices) */
 #endif
     if (s == OP_RESET && !d) {                          /* SHIFT held: no descriptor, the factory value */
         sys_factory(it);
