@@ -9,10 +9,10 @@ SSH="ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=20 gpufarm"
 OUT=build/emu-sweep/images
 mkdir -p $OUT
 
-# NAME: the --set items on top of the synth profile (DUAL builds parked: OPTIMIST_DUAL_PARK=1, as the emu gate)
+# NAME: the --set items on top of the reference profile, synths_USBaudio_BTaudio_BTmidi (until 2026-10-24: synth; the sets were made for it; DUAL builds parked: OPTIMIST_DUAL_PARK=1, as the emu gate)
 sets() {
     case $1 in
-    synth) echo "" ;;
+    ref) echo "" ;;
     a) echo "DUAL=0 DS_PLAITS=0 MASTER_COMP=0 ENG_PHASE=1 ENG_LOFI=1 ENG_FORMANT=1 ENG_TRIO=1 ENG_CZ=1 ENG_NOISE=1 ENG_DRONE=1 GEN_GRIDS=1" ;;
     b) echo "DUAL=0 DS_PLAITS=0 MASTER_COMP=0 ENG_DRAWBAR=1 ENG_FM6=0 FM6_PK_KEYS=0 FM6_PK_BASS=0 FM6_PK_BELLS=0 FM6_PK_PADS=0 FM6_PK_80S=0 UP_FM6=0 ENG_PLAITS=1 ENG_PROPHET=1 ENG_STRINGS=1 ENG_VPS=1 ENG_WSEQ=1 ENG_SAMPLE=1 ENG_GRAIN=1 SET_STRGS=1" ;;
     c) echo "ENG_FM6=0 FM6_PK_KEYS=0 FM6_PK_BASS=0 FM6_PK_BELLS=0 FM6_PK_PADS=0 FM6_PK_80S=0 UP_FM6=0 ENG_PHYS=0 ENG_ACID=0 ENG_JUNO=0 ENG_TERRAIN=1 ENG_VECTOR=1 ENG_SID=1" ;;
@@ -22,7 +22,7 @@ sets() {
     esac
 }
 
-NAMES=${*:-"synth a b c d"}
+NAMES=${*:-"ref a b c d"}
 $SSH "rm -rf ~/optimist/worktrees/$W && mkdir -p ~/optimist/worktrees/$W"
 for n in $NAMES; do
     $SSH "mkdir -p ~/optimist/worktrees/$W/$n"
@@ -32,7 +32,7 @@ done
 for n in $NAMES; do
     args=""
     for kv in $(sets $n); do args="$args --set $kv"; done
-    $SSH "cd ~/optimist/worktrees/$W/$n && OPTIMIST_DUAL_PARK=1 python3 tools/optimist.py build --profile synth --name ep-$n $args > ../$n.log 2>&1; echo $n rc=\$?; grep -E 'exact:|rror|OVER|over the' ../$n.log | head -8" &
+    $SSH "cd ~/optimist/worktrees/$W/$n && OPTIMIST_DUAL_PARK=1 python3 tools/optimist.py build --profile synths_USBaudio_BTaudio_BTmidi --name ep-$n $args > ../$n.log 2>&1; echo $n rc=\$?; grep -E 'exact:|rror|OVER|over the' ../$n.log | head -8" &
 done
 wait
 for n in $NAMES; do

@@ -152,7 +152,7 @@ t_sim() {
     "$py" tools/sim.py build --wasm --out build/sim/test/sim.wasm >build/sim/test-build.log 2>&1 || { tail -20 build/sim/test-build.log; return 1; }
     node tests/sim_test.mjs build/sim/test/sim.wasm || return 1
     # (one project moved between two instances: a build with PATTERNS, live editing not needed)
-    "$py" tools/sim.py build --wasm --config config/profiles/synth.config --out build/sim/test/sim-pj.wasm >build/sim/test-build-pj.log 2>&1 || { tail -20 build/sim/test-build-pj.log; return 1; }
+    "$py" tools/sim.py build --wasm --config config/profiles/synths_USBaudio_BTaudio_BTmidi.config --out build/sim/test/sim-pj.wasm >build/sim/test-build-pj.log 2>&1 || { tail -20 build/sim/test-build-pj.log; return 1; }
     node tests/sim_projects_test.mjs build/sim/test/sim-pj.wasm
 }
 early t_ble_emu
