@@ -61,11 +61,12 @@ static int up_bank_ok(const void *src, int len)
  * kept for the session. The host keeps the RAM mirror unless a test maps the flash image (storage.c ST_XIP_PTR) */
 #define UP_XIP 1
 static const up_bank_t *up_xip[UP_SLOTS / UP_PER_BANK];
-static const up_rec_t up_none;                   /* (an empty slot of a bank that is not there) */
-static const up_rec_t *up_rec(uint32_t k)
+static const up_rec_t *up_rec(uint32_t k)       /* 0: a slot of a bank that is not there (up_valid and up_name take it
+                                                  * as empty; every other reader comes after up_used; a 216-byte zero
+                                                  * record in flash cost as much, 2026-10-24) */
 {
     uint32_t b = k / UP_PER_BANK;
-    return up_xip[b] ? &up_xip[b]->r[k % UP_PER_BANK] : &up_none;
+    return up_xip[b] ? &up_xip[b]->r[k % UP_PER_BANK] : 0;
 }
 #else
 #define UP_XIP 0
@@ -95,7 +96,7 @@ static void up_bank_check(uint32_t b, const void *src, int len)
 
 static int up_valid(const up_rec_t *r)
 {
-    return r->used == UP_USED && r->ver == UP_VER && r->engine < ENG_UID_N && r->name[0] && r->ne0 <= r->nv &&
+    return r && r->used == UP_USED && r->ver == UP_VER && r->engine < ENG_UID_N && r->name[0] && r->ne0 <= r->nv &&
            r->nv <= UP_NV && r->nv >= r->ne0 + 8u;
 }
 
@@ -178,7 +179,7 @@ static void up_name(uint32_t k, char *b)       /* upper case, 0-terminated: b ho
 {
     const up_rec_t *r = up_rec(k);
     uint32_t i;
-    for (i = 0; i < 12u && r->name[i]; i++)
+    for (i = 0; r && i < 12u && r->name[i]; i++)
         b[i] = r->name[i] >= 'a' && r->name[i] <= 'z' ? (char)(r->name[i] - 32) : r->name[i];
     b[i] = 0;
 }
