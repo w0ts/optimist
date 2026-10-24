@@ -3,34 +3,38 @@
 """LZB: the coder of what the boot copies into RAM (tools/build.py -> one stream after .text; decoded by
 firmware/src/system/lzb.h lzb_expand from main.c fm1_cstart). Two layers:
 
-1. The parse, compress(): LZ4's block shape (tools/lz4blk.py, the loader's), tuned for machine code decoded once: a
-   3-byte minimum match and 1-byte offsets up to 256 (code repeats short sequences at short distances). A sequence: a
-   token byte (bits 7..4 the literal count, 15 = more in the bytes after, each added, 255 = another byte; bit 3 = a
-   2-byte offset; bits 2..0 the match length - 3, 7 = more, the same way), the literals, the offset (1 byte:
-   distance - 1, 1..256; or 2 bytes little-endian, 1..65535), then the length bytes. The match is copied byte by byte
-   from distance back (it may overlap). A block ends with its last literal or its last match, no empty token after,
-   and the next block starts there: the decoder stops at the block's plain size. An optimal parse: the longest match
-   at each position, from hash chains of `depth` earlier positions, and the longest with a 1-byte offset; a backward
-   dynamic programme over the sequence prices, so a shorter match now may leave a longer one later.
-2. The entropy coding, stream(): the parse's bytes are not stored, they are coded by an adaptive binary range coder
-   (LZMA's: 11-bit probabilities, moved by a 32nd a bit; the decoder reads 5 bytes first, the coder's flush writes 5),
-   each byte as 8 bits down a tree of 255 probabilities, a tree per byte class: the tokens, the length bytes, the
-   1-byte offsets, the low and the high byte of a 2-byte offset, and the literals in a context of the previous
-   byte's top LC bits and the position's low PB bits (the block's; 16-bit instruction halves: PB 1). One model and
-   one coder for the whole stream, block after block (a block starts with prev 0, position 0). 55.8 KB of RAM code
-   and tables: the parse's bytes alone 44.9 KB (LZ4 46.5), coded 38.9 KB (zlib -9 40.0, lzma 36.9 with a decoder
-   ten times the size), 2026-10-23.
+1. The parse, parse(): literals and matches, a 2-byte minimum match, offsets up to 65535, and a match may repeat the
+   sequence before it's offset (a rep match: nothing to say about the distance; machine code repeats the same
+   distance often). A sequence: a token (bits 7..4 the literal count, 15 = more in length bytes after, each added,
+   255 = another; bit 3 = the offset is the last one again; bits 2..0 the match length - 2, 7 = more, the same
+   way), the literals, then for a new offset one bit (0: a 1-byte offset, distance - 1, 1..256; 1: two bytes
+   little-endian, 1..65535), then the length bytes. The match is copied byte by byte from distance back (it may
+   overlap). A block ends with its last literal or its last match, no empty token after, and the next block starts
+   there: the decoder stops at the block's plain size; the last offset and the literal context start at 0 in every
+   block. The parse is a forward dynamic programme over the sequence prices (the token, the offset or its absence,
+   the length bytes, a literal) with the last offset carried along each path, the candidates from hash chains of
+   `depth` earlier positions (the longest match and the longest with a 1-byte offset) and the match at the last
+   offset; so a shorter match now may leave a longer or a rep one later.
+2. The entropy coding, stream(): the parse's symbols are not stored, they are coded by an adaptive binary range coder
+   (LZMA's: 11-bit probabilities, moved by a 32nd a bit; the decoder reads 5 bytes first, the coder's flush writes
+   5), each byte as 8 bits down a tree of 255 probabilities, a tree per byte class: the tokens, the length bytes, the
+   1-byte offsets, the low and the high byte of a 2-byte offset, and the literals in a context of the two previous
+   bytes' top bits and the position's parity (16-bit instruction halves: LZB_PB 1), one probability for the offset's
+   size bit. One model and one coder for the whole stream, block after block. 58.4 KB of RAM code and tables on the
+   user's configuration: coded 38.9 KB with the 3-byte LZ4 shape and no rep matches (round 5), 38.2 KB this way
+   (lzma 37.7 with a decoder many times the size), 2026-10-24.
 
 walk(): the decoder as lzb.h has it, blob by blob from one stream (the round-trip check at every build,
-tests/lzb_test.c's vectors). Pure Python, a few seconds for 55 KB."""
-MINM = 3
-LC, PB = 1, 1                       # (lzb.h LZB_LC, LZB_PB: the literal contexts; LC 2: 69 B less for 2 KB more of boot stack, 2026-10-23)
+tests/lzb_test.c's vectors). Pure Python, under a second for 58 KB."""
+MINM = 2
+LC, PB = 2, 1                       # (lzb.h: the literal contexts: the two previous bytes' top bits, the position's parity)
 NBITS, SHIFT, TOP, PINIT = 11, 5, 1 << 24, 1024
-TOK, LEN, OFF1, OFF2LO, OFF2HI, LIT = 0, 256, 512, 768, 1024, 1280   # (lzb.h: the trees' bases in the model)
-NPROBS = LIT + (256 << (LC + PB))
-# the parse's prices, in bits, as the coder spends them on the boot stream (measured 2026-10-23: a literal 6.99, a
-# token 6.83, a 1-byte offset 7.30, a 2-byte one 13.10, a length byte 5.58; priced in bytes the stream was 173 B more)
-BITS_LIT, BITS_TOK, BITS_OFF1, BITS_OFF2, BITS_LEN = 7.0, 6.8, 7.3, 13.1, 5.6
+TOK, LEN, OFF1, OFF2LO, OFF2HI, LONG, LIT = 0, 256, 512, 768, 1024, 1280, 1281   # (lzb.h: the trees' bases in the model;
+NPROBS = LIT + (256 << (LC + PB))                                                 #  LONG one probability, where no tree reaches)
+# the parse's prices, in bits, as the coder spends them on the boot stream (measured 2026-10-24 on the user's
+# configuration: a literal 7.0, a token 6.6, a 1-byte offset 7.3 and its size bit 1.3, a 2-byte one 12.9 and its bit
+# 0.7, a length byte 5.1; a rep match costs its token alone)
+BITS_LIT, BITS_TOK, BITS_OFF1, BITS_OFF2, BITS_LEN = 7.0, 6.6, 7.3 + 1.3, 12.9 + 0.7, 5.1
 
 
 def _len_bytes(n):
@@ -57,7 +61,8 @@ def _extra(v):
     return 0 if v < 7 else 1 + (v - 7) // 255
 
 
-def compress(src: bytes, depth: int = 64) -> bytes:
+def _candidates(src, depth):
+    """at each position: the longest match (length, offset) from the hash chain and the longest with a 1-byte offset"""
     n = len(src)
     cand, table = [[] for _ in range(n)], {}
     for i in range(n - MINM + 1):
@@ -83,78 +88,54 @@ def compress(src: bytes, depth: int = 64) -> bytes:
         if bs >= MINM and (bs, so) != (bl, bo):
             cand[i].append((bs, so))
         lst.append(i)
-    cost, pick = [0.0] * (n + 1), [None] * (n + 1)
-    for i in range(n - 1, -1, -1):
-        c, p = cost[i + 1] + BITS_LIT, None         # a literal byte
-        for b, off in cand[i]:
-            oc = BITS_OFF1 if off <= 256 else BITS_OFF2
-            lens = list(range(MINM, min(b, MINM + 10) + 1)) + ([b] if b > MINM + 10 else [])
-            for L in lens:
-                v = BITS_TOK + oc + BITS_LEN * _extra(L - MINM) + cost[i + L]
-                if v < c:
-                    c, p = v, (L, off)
-        cost[i], pick[i] = c, p
-    out, i, anchor = bytearray(), 0, 0
-    while i < n:
-        if pick[i] is None:
-            i += 1
+    return cand
+
+
+def parse(src: bytes, depth: int = 256):
+    """-> [(literals, offset, match length, rep)] as the decoder reads them; the last one (literals, None, 0, False)
+    when the block ends on literals. The best path by the prices above, the last offset carried along each path"""
+    n = len(src)
+    cand = _candidates(src, depth)
+    INF = float("inf")
+    cost, rep, back = [INF] * (n + 1), [0] * (n + 1), [None] * (n + 1)   # back: (from, length or 0, offset, rep)
+    cost[0] = 0.0
+    for i in range(n):
+        ci = cost[i]
+        if ci == INF:
             continue
-        L, off = pick[i]
-        lit, ml = src[anchor:i], L - MINM
-        out.append((min(len(lit), 15) << 4) | (8 if off > 256 else 0) | min(ml, 7))
-        if len(lit) >= 15:
-            out += _len_bytes(len(lit) - 15)
-        out += lit
-        out += bytes((off & 0xFF, off >> 8)) if off > 256 else bytes((off - 1,))
-        if ml >= 7:
-            out += _len_bytes(ml - 7)
-        i += L
-        anchor = i
-    lit = src[anchor:]
-    if lit:                                         # (a blob that ends on a match ends there: the decoder stops at the
-        out.append(min(len(lit), 15) << 4)         # plain size, so no empty token after it)
-        if len(lit) >= 15:
-            out += _len_bytes(len(lit) - 15)
-        out += lit
-    return bytes(out)
-
-
-def sequences(block, size):
-    """a parse block (compress) -> [(literals, offset or None, match length)], as the token shape reads"""
-    seqs, s, d = [], 0, 0
-    while d < size:
-        t = block[s]
-        s += 1
-        n = t >> 4
-        if n == 15:
-            while True:
-                b = block[s]
-                s += 1
-                n += b
-                if b != 255:
-                    break
-        lits = block[s:s + n]
-        s += n
-        d += n
-        if d >= size:
-            seqs.append((lits, None, 0))
-            break
-        if t & 8:
-            off = block[s] | block[s + 1] << 8
-            s += 2
+        r = rep[i]
+        v = ci + BITS_LIT
+        if v < cost[i + 1]:
+            cost[i + 1], rep[i + 1], back[i + 1] = v, r, (i, 0, 0, False)
+        cands = cand[i]
+        if r and src[i] == src[i - r]:
+            m = _match_len(src, i - r, i, n - i)
+            if m >= MINM:
+                cands = cands + [(m, r)]
+        for b, off in cands:
+            isrep = off == r
+            oc = 0.0 if isrep else BITS_OFF1 if off <= 256 else BITS_OFF2
+            lens = list(range(MINM, min(b, MINM + 12) + 1)) + ([b] if b > MINM + 12 else [])
+            for L in lens:
+                v = ci + BITS_TOK + oc + BITS_LEN * _extra(L - MINM)
+                if v < cost[i + L]:
+                    cost[i + L], rep[i + L], back[i + L] = v, off, (i, L, off, isrep)
+    steps, j = [], n
+    while j > 0:
+        f, L, off, isrep = back[j]
+        steps.append((L, off, isrep))
+        j = f
+    steps.reverse()
+    seqs, lits, pos = [], bytearray(), 0
+    for L, off, isrep in steps:
+        if L == 0:
+            lits.append(src[pos])
+            pos += 1
         else:
-            off = block[s] + 1
-            s += 1
-        n = (t & 7) + MINM
-        if (t & 7) == 7:
-            while True:
-                b = block[s]
-                s += 1
-                n += b
-                if b != 255:
-                    break
-        seqs.append((lits, off, n))
-        d += n
+            seqs.append((bytes(lits), off, L, isrep))
+            lits, pos = bytearray(), pos + L
+    if lits:
+        seqs.append((bytes(lits), None, 0, False))
     return seqs
 
 
@@ -237,9 +218,10 @@ class _Decoder:
         return m & 255
 
 
-def lit_base(prev, pos):
-    """the literal tree for a byte after prev at the block position pos"""
-    return LIT + 256 * (((prev >> (8 - LC)) << PB) | (pos & ((1 << PB) - 1)))
+def lit_base(p1, p2, pos):
+    """the literal tree for a byte after p1 (the byte before it) and p2 (the one before that) at the block position
+    pos; 0 for the bytes a block has not got yet"""
+    return LIT + 256 * ((((p1 >> 7) << 1) | (p2 >> 7)) << PB | (pos & ((1 << PB) - 1)))
 
 
 def _lens(coder, probs, v):
@@ -250,33 +232,34 @@ def _lens(coder, probs, v):
 
 
 def encode_block(raw, coder, probs):
-    """raw as one block of the stream: its parse's bytes through the coder, class by class"""
-    prev, pos = 0, 0
-    for lits, off, mlen in sequences(compress(raw), len(raw)):
+    """raw as one block of the stream: its parse's symbols through the coder, class by class"""
+    pos = 0
+    for lits, off, mlen, isrep in parse(raw):
         n, ml = len(lits), 0 if off is None else mlen - MINM
-        coder.byte(probs, TOK, (min(n, 15) << 4) | (8 if off is not None and off > 256 else 0) | min(ml, 7))
+        coder.byte(probs, TOK, (min(n, 15) << 4) | (8 if isrep else 0) | min(ml, 7))
         if n >= 15:
             _lens(coder, probs, n - 15)
         for b in lits:
-            coder.byte(probs, lit_base(prev, pos), b)
-            prev, pos = b, pos + 1
+            coder.byte(probs, lit_base(raw[pos - 1] if pos else 0, raw[pos - 2] if pos > 1 else 0, pos), b)
+            pos += 1
         if off is None:
             break
-        if off > 256:
-            coder.byte(probs, OFF2LO, off & 255)
-            coder.byte(probs, OFF2HI, off >> 8)
-        else:
-            coder.byte(probs, OFF1, off - 1)
+        if not isrep:
+            coder.bit(probs, LONG, 1 if off > 256 else 0)
+            if off > 256:
+                coder.byte(probs, OFF2LO, off & 255)
+                coder.byte(probs, OFF2HI, off >> 8)
+            else:
+                coder.byte(probs, OFF1, off - 1)
         if ml >= 7:
             _lens(coder, probs, ml - 7)
         pos += mlen
-        prev = raw[pos - 1]
 
 
 def decode_block(dec, size):
     """lzb.h lzb_expand in Python: one block of size bytes from the decoder's stream"""
     d = bytearray()
-    prev = 0
+    p1 = p2 = rep = 0
     while len(d) < size:
         t = dec.byte(TOK)
         n = t >> 4
@@ -287,15 +270,18 @@ def decode_block(dec, size):
                 if b != 255:
                     break
         while n and len(d) < size:
-            b = dec.byte(lit_base(prev, len(d)))
+            b = dec.byte(lit_base(p1, p2, len(d)))
             d.append(b)
-            prev, n = b, n - 1
+            p2, p1, n = p1, b, n - 1
         if len(d) >= size:
             break
         if t & 8:
+            off = rep
+        elif dec.bit(LONG):
             off = dec.byte(OFF2LO) | dec.byte(OFF2HI) << 8
         else:
             off = dec.byte(OFF1) + 1
+        rep = off
         n = (t & 7) + MINM
         if (t & 7) == 7:
             while True:
@@ -306,7 +292,7 @@ def decode_block(dec, size):
         while n and len(d) < size:
             d.append(d[-off])
             n -= 1
-        prev = d[-1]
+        p1, p2 = d[-1], d[-2]
     return bytes(d)
 
 
@@ -336,13 +322,15 @@ def walk(stream, sizes):
 
 def c_vectors():
     """-> C source: test vectors for tests/lzb_test.c (plain, coded) over patterns a decoder can get wrong: a 1-byte
-    offset of 256, a 2-byte one, overlapping copies, long literal and match runs, several blocks in one stream"""
+    offset of 256, a 2-byte one, overlapping copies, 2-byte matches, rep matches, long literal and match runs,
+    several blocks in one stream"""
     import random
     rnd = random.Random(7)
-    cases = [bytes(), b"a", b"abc", b"abcabcabcabc", bytes(300) + b"x" + bytes(300),
+    cases = [bytes(), b"a", b"ab", b"abab", b"abcabcabcabc", bytes(300) + b"x" + bytes(300),
              bytes(rnd.randrange(256) for _ in range(40)) * 3,
              bytes([1, 2, 3, 4] * 70 + [9] * 300 + list(range(256)) * 2),
-             b"".join(bytes([i & 7, i >> 3 & 7, 0x80 | i & 3]) for i in range(600))]
+             b"".join(bytes([i & 7, i >> 3 & 7, 0x80 | i & 3]) for i in range(600)),
+             b"".join(bytes([i & 255, 7, i >> 8, 9]) for i in range(300))]   # (the same distance again and again)
     big = bytearray()
     for _ in range(50):
         if rnd.random() < 0.5 and big:
