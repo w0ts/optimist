@@ -33,11 +33,38 @@ static uint8_t ble_ll_tx_octets(void) { return 251; }     /* (the radio's: ble/b
 static uint16_t ble_att_mtu(void) { return 185; }
 static uint16_t ble_ll_interval(void) { return 9; }
 static uint16_t ble_ll_peer_len(uint32_t i) { static const uint16_t V[4] = {251, 2120, 50, 512}; return V[i & 3u]; }
-static struct { uint8_t overlay; } ui;
+static struct { uint8_t overlay, scr; } ui;
 static uint8_t mir_mute;
+/* the Optimist UI's navigation, stood in (ui/optimist/op_nav.c, op_gldraw.c, op_global.c, op_mixer.c: their logic is
+ * tests/ui_optimist_nav.h's; here 109 NAV's reply is what is checked): three rows, the cursor on the second, the walk on T2,
+ * the four lines with the knobs; ROW 2 refused, TRACK 1..4 and OPEN accepted */
+#define OP_MAXROWS 40u
+#define GL_TOP 20
+#define MXR_LN 5u
+static uint32_t nav_log[4];
+static uint32_t nav_rows(void) { return 3; }
+static uint32_t nav_cur(void) { return 1; }
+static uint32_t nav_mode(void) { return 127; }
+static uint32_t nav_track(void) { return 2; }
+static uint32_t nav_knobs(void) { return 3; }
+static int glo_cycle(void) { return 0; }
+static int32_t gl_y0(void) { return 7; }
+static int32_t gl_pitch(void) { return 30; }
+static void nav_row_name(uint32_t r, char *b, uint32_t n) { snprintf(b, n, "ROW %u", (unsigned)r); }
+static void nav_track_name(uint32_t p, char *b) { snprintf(b, 12, "TRK %u", (unsigned)p); }
+static int nav_row(uint32_t r) { nav_log[1] = r + 1u; return r != 2u; }
+static int nav_walk(uint32_t p) { nav_log[2] = p + 1u; return p >= 1u && p <= 4u; }
+static int nav_open(uint32_t scr, uint32_t b) { nav_log[3] = scr << 8 | b; return 1; }
 static uint8_t rep[64];
 static uint32_t nrep;
 static void ed_b(uint32_t v) { if (nrep < sizeof rep) rep[nrep++] = (uint8_t)(v & 0x7Fu); }
+static void ed_str(const char *s, uint32_t max)   /* (editor.c's: ASCII, 0-terminated) */
+{
+    uint32_t i;
+    for (i = 0; s && s[i] && i < max; i++)
+        ed_b((uint8_t)s[i]);
+    ed_b(0);
+}
 #include "../firmware/src/io/editor/ed_reply.h"
 
 /* ---- the host: packets back into frames (as CoreMIDI does), each decoded */
@@ -419,12 +446,43 @@ static void bt_tests(void)
     radio(~0u);
 }
 
+/* 109 NAV: the reply's shape, each op by the stood-in navigation */
+static void nav_tests(void)
+{
+    static const uint8_t ST[] = {0, 0, 4, 127, 1, 3, 'R', 'O', 'W', ' ', '0', 0, 'R', 'O', 'W', ' ', '1', 0, 'R', 'O', 'W', ' ', '2', 0, 2, 3, 27, 30};
+    static const uint8_t TR[] = {4, 0, 5, 'T', 'R', 'K', ' ', '0', 0, 'T', 'R', 'K', ' ', '1', 0, 'T', 'R', 'K', ' ', '2', 0, 'T', 'R', 'K', ' ', '3', 0, 'T', 'R', 'K', ' ', '4', 0};
+    uint8_t a[3];
+    mir.on = 1, ui.scr = 4;
+    nrep = 0, a[0] = 0, ed_nav(a, 1);
+    check(nrep == sizeof ST && !memcmp(rep, ST, sizeof ST), "NAV STATE: op, done, screen, page, cursor, the 3 rows, the walk's row, the knobs on the lines, top 27 and pitch 30 (%u bytes)", (unsigned)nrep);
+    nrep = 0, a[0] = 4, ed_nav(a, 1);
+    check(nrep == sizeof TR && !memcmp(rep, TR, sizeof TR), "NAV TRACKS: op, done, the 5 mixer rows' names");
+    nrep = 0, a[0] = 1, a[1] = 0, ed_nav(a, 2);
+    check(rep[0] == 1u && rep[1] == 0u && nav_log[1] == 1u && nrep == sizeof ST, "NAV ROW 0: done, the state after");
+    nrep = 0, a[0] = 1, a[1] = 2, ed_nav(a, 2);
+    check(rep[0] == 1u && rep[1] == 1u && nav_log[1] == 3u, "NAV ROW 2: refused by the UI, the state still sent");
+    nrep = 0, a[0] = 1, ed_nav(a, 1);
+    check(rep[0] == 1u && rep[1] == 1u, "NAV ROW without its row: refused");
+    nrep = 0, a[0] = 2, a[1] = 3, ed_nav(a, 2);
+    check(rep[0] == 2u && rep[1] == 0u && nav_log[2] == 4u, "NAV TRACK 3: the walk asked, done");
+    nrep = 0, a[0] = 3, a[1] = 2, a[2] = 7, ed_nav(a, 3);
+    check(rep[0] == 3u && rep[1] == 0u && nav_log[3] == (2u << 8 | 7u), "NAV OPEN screen 2 button 7: asked, done");
+    nrep = 0, a[0] = 3, a[1] = 2, ed_nav(a, 2);
+    check(rep[0] == 3u && rep[1] == 1u, "NAV OPEN without its button: refused");
+    nrep = 0, a[0] = 5, ed_nav(a, 1);
+    check(rep[0] == 5u && rep[1] == 1u, "NAV op 5: refused");
+    mir.on = 0;
+    nrep = 0, a[0] = 0, ed_nav(a, 1);
+    check(rep[0] == 0u && rep[1] == 1u, "NAV while not mirroring: refused");
+}
+
 int main(void)
 {
     uint32_t k;
     usb_tests();
     panel_tests();
     bt_tests();
+    nav_tests();
     /* the fixture for the app's tests: a panel drawn whole, then its frames and its pixels */
     if (getenv("MIRROR_FIXTURE")) {
         char p[512];
