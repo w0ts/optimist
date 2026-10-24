@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """The firmware builder's interactive menu (Textual). Start it with tools/menuconfig.
 
-Keys: space / enter toggle (a choice: next value) | / search | p profiles | s save as my profile
+Keys: space / enter toggle (a choice: next value) | / search | p profiles | s save (mine or stock)
       | u publish this profile or not (CI builds the published ones; one of mine is shared first)
       | d delete a profile (asks first; never synth or user-default)
       | w write a .config file | l load | b build | e build and run it in the emulator
@@ -517,20 +517,29 @@ class Builder(App):
         self.push_screen(Pick("profile", names, go))
 
     def action_save(self):
-        """save as one of my profiles (config/my-profiles): it then shows in p, and --profile NAME builds it"""
-        def go(name):
-            name = name.strip()
+        """s: a name, then where: mine (config/my-profiles, git-ignored) or stock (config/profiles: commit it; a stock
+        profile saved over keeps its header and publish flag). Either then shows in p, and --profile NAME builds it"""
+        MINE, STOCK = "mine (config/my-profiles, git-ignored)", "stock (config/profiles: commit it)"
+
+        def save(name, stock):
             try:
-                p = C.save_my_profile(self.cfg, name)
+                p = C.save_profile(self.cfg, name, stock=stock)
             except (OSError, C.ConfigError) as e:
                 self.notify(str(e), severity="error")
                 return
-            self.cfg_name, self.path, self.profile = name, str(p), name
+            self.path, self.profile = str(p), name
+            self.cfg_name = C.load_profile(name)[1]
             remember("profile", name)
             self.refresh_all()
-            self.notify(f"saved profile {name}")
-        default = "" if self.cfg_name in C.profile_names() + ["default"] else self.cfg_name
-        self.push_screen(Ask("save as my profile (name)", default, go))
+            self.notify(f"saved profile {name} ({'stock: commit it' if stock else 'mine'})")
+
+        def named(name):
+            name = name.strip()
+            first = STOCK if name in C.profile_names() else MINE    # (where it came from first)
+            self.push_screen(Pick(f"save {name} where", [first, STOCK if first == MINE else MINE],
+                                  lambda w: save(name, w == STOCK)))
+        default = self.profile or ("" if self.cfg_name == "default" else self.cfg_name)
+        self.push_screen(Ask("save profile (name)", default, named))
 
     def action_publish(self):
         """u: a shipped profile in or out of CI's builds; one of mine is shared first (config/profiles: commit it)"""

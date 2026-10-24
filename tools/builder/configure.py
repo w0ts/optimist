@@ -109,17 +109,36 @@ def load_profile(name):
     return cfg, nm or name
 
 
-def save_my_profile(cfg, name):
-    """-> the path written; a name must be a plain file name and not shadow a shipped profile"""
+def save_profile(cfg, name, stock=False):
+    """-> the path written: one of mine (config/my-profiles, git-ignored) or, stock, a shipped one (config/profiles: commit
+    it). A name is a plain file name; one folder's profile never takes a name the other has (load_profile reads the shipped
+    one first, so the other would be hidden). A shipped profile saved over keeps its leading comments (its "# name:", its
+    "# publish:" flag, what it holds); only the values are written again"""
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9 _.-]{0,39}", name or "") or name.endswith("."):
         raise ConfigError("a profile name: letters, digits, space, _ . - (up to 40)")
-    if (PROFILES / f"{name}.config").exists():
-        raise ConfigError(f"{name!r} is a shipped profile: pick another name")
+    here, other = (PROFILES, MY_PROFILES) if stock else (MY_PROFILES, PROFILES)
+    if (other / f"{name}.config").exists():
+        raise ConfigError(f"{name!r} is {'one of mine' if stock else 'a shipped profile'}: pick another name")
     _noted()
-    MY_PROFILES.mkdir(parents=True, exist_ok=True)
-    p = MY_PROFILES / f"{name}.config"
-    p.write_text(dump(cfg, name))
+    here.mkdir(parents=True, exist_ok=True)
+    p = here / f"{name}.config"
+    body = dump(cfg, name)
+    if stock and p.exists():
+        head, groups = [], {f"# {g}" for g in R.GROUPS}
+        for ln in p.read_text().splitlines():
+            if not ln.startswith("#") or ln.startswith("# firmware builder configuration") or ln.strip() in groups:
+                break                                    # (a file the menu wrote: its own header and first group end it)
+            head.append(ln)
+        if any(re.match(r"#\s*name:", ln) for ln in head):
+            body = "\n".join(head) + "\n" + "".join(ln + "\n" for ln in body.splitlines()[1:]
+                                                    if not ln.startswith("# firmware builder configuration"))
+    p.write_text(body)
     return p
+
+
+def save_my_profile(cfg, name):
+    """-> the path written (config/my-profiles); save_profile with stock off"""
+    return save_profile(cfg, name)
 
 
 PUBLISH_RE = re.compile(r"#\s*publish:\s*(\S+)\s*$")

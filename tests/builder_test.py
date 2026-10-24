@@ -443,6 +443,25 @@ with tempfile.TemporaryDirectory() as tmp:
         rc_off = C.main(["--unpublish", "b"])
     check("config --publish / --unpublish NAME (2: no such shipped profile)",
           rc_on == 0 and rc_off == 0 and rc_bad == 2 and C.published_profiles() == ["a"])
+    # saving into the shipped profiles too (the user, 2026-10-24: "edit all profiles ... select when i save where it is
+    # saved (mine or stock)"): a stock profile saved over keeps its leading comments (its name, publish flag, what it is)
+    (C.PROFILES / "st.config").write_text("# name: Stock One\n# publish: yes\n# what it holds\nMISSING_WARN=0\n")
+    p = C.save_profile(dict(C.defaults(), MISSING_WARN=0, DLY_LEN=32768), "st", stock=True)
+    text = p.read_text()
+    check("save_profile stock over a shipped one: config/profiles, its header kept, the new values, still published",
+          p == C.PROFILES / "st.config" and text.startswith("# name: Stock One\n# publish: yes\n# what it holds\n") and
+          text.count("# name:") == 1 and C.load_profile("st")[0]["DLY_LEN"] == 32768 and "st" in C.published_profiles())
+    p = C.save_profile(dict(C.defaults(), MISSING_WARN=0), "newstock", stock=True)
+    check("... a new name: a new shipped profile, not published", p == C.PROFILES / "newstock.config" and
+          "newstock" in C.profile_names() and "newstock" not in C.published_profiles())
+    refused = []
+    for name, stock in (("st", False), ("c", True)):
+        try:
+            C.save_profile(C.defaults(), name, stock=stock)
+            refused.append(False)
+        except C.ConfigError:
+            refused.append(True)
+    check("... never mine over a shipped name, nor stock over one of mine (one would hide the other)", refused == [True, True])
     C.save_my_profile(C.defaults(), "gone")
     p_mine, p_shipped = C.delete_profile("gone"), C.delete_profile("a")
     check("delete_profile: one of mine, or a shipped one (git has it back)",
