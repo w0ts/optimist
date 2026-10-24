@@ -1502,7 +1502,14 @@ static void persist_ble(persist_t *p, int out)
     uint32_t i;
     for (i = 0; i < 4u; f += N[i++])
         memcpy(out ? f : K[i], out ? K[i] : f, N[i]);
+#if BLE_CENTRAL
+    memcpy(out ? (void *)p->ble_kept : (void *)ble_kept, out ? (const void *)ble_kept : (const void *)p->ble_kept,
+           sizeof p->ble_kept);                    /* (BT MIDI's other remembered devices, as they are: ble_devices.c) */
+#endif
 }
+#if BLE_CENTRAL
+_Static_assert(sizeof ble_kept == PERSIST4_BLE_KEPT, "the record's remembered BLE devices: their size");
+#endif
 _Static_assert(sizeof ble_addr_kept == 8u && sizeof ble_rf_kept == BLE_RF_COPY_SIZE && sizeof ble_bond_kept == BLE_BOND_SIZE &&
                sizeof ble_dev_kept == BLE_DEV_STORE_SIZE && BLE_DEV_STORE_SIZE < 256u && BLE_RF_COPY_SIZE < 256u,
                "the BLE copies: the record's fields' sizes");

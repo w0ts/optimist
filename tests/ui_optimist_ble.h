@@ -127,6 +127,9 @@ static void bt_fresh(uint32_t mode)                     /* nothing remembered, n
     ble_connect_none();
 #endif
     ble_store_reset(&ble_store);
+#if BLE_CENTRAL
+    memset(ble_kept, 0, sizeof ble_kept);               /* (nothing remembered besides LAST either) */
+#endif
     ble_dev_msg = 0;
 #if FELUCCA_BT_AUDIO
     bt_enter(BT_AUD, 0);                                /* (BT AUDIO off, nothing remembered) */
@@ -336,6 +339,109 @@ static void ble_auto_tests(void)
     bt.rec = 0;
     bt_rec_in(rec);
     check(bt.rec == 0u, "the record without its mark: not read");
+    bt_fresh(0);
+}
+/* BT MIDI remembers up to 4 devices (LAST + ble_kept, io/midi/ble_devices.c; the user, 2026-10-24): each with its bond;
+ * the list shows them; SAVE on one makes it LAST; SAVE held on one forgets it; AUTO's search tries LAST, then the others */
+static int ble_order(const char *want)                  /* LAST, then the others: their AdvAs' first octets ("24 23 22") */
+{
+    char b[32] = "";
+    uint32_t i;
+    if (ble_store_has_last(&ble_store))
+        snprintf(b, sizeof b, "%02X", ble_store.dev.addr[0]);
+    for (i = 0; i < ble_kept_n(); i++)
+        snprintf(b + strlen(b), sizeof b - strlen(b), " %02X", ble_kept[i].addr[0]);
+    if (strcmp(b, want))
+        printf("  the remembered BLE devices: \"%s\", wanted \"%s\"\n", b, want);
+    return !strcmp(b, want);
+}
+static void ble_up_as_last(uint8_t a0)                  /* the nearby device a0 picked from the list and up: LAST, bonded */
+{
+    struct ble_dev_key k = {2u, 1u, {a0, 0x11, 0x22, 0x33, 0x44, 0xC5}};
+    uint8_t ltk[16], rnd[8] = {0};
+    memset(ltk, a0, sizeof ltk);
+    char nm[8] = "Dev  ";
+    nm[4] = (char)('A' + a0 - 0x20);
+    dev_hear(a0, nm);                                   /* (heard now: the list's scan table is cleared when it opens) */
+    ble_devices_poll();
+    ble_dev_pick_key(&k);
+    cen_up();
+    ble_store_set_bond(&ble_store, ltk, rnd, a0, 0);
+    cen_gone(BLE_CF_LOST);
+    ble_devices_poll();
+    bt_stop(BT_MIDI);
+}
+static void ble_kept_tests(void)
+{
+    static const char *const NM[5] = {"Dev A", "Dev B", "Dev C", "Dev D", "Dev E"};
+    uint32_t i, c0;
+    bt_fresh(1);
+    bt_line("MODE");
+    tap(B_SAVE);                                        /* (no LAST: the list) */
+    for (i = 0; i < 5u; i++) {
+        dev_hear((uint8_t)(0x20 + i), NM[i]);
+        ble_devices_poll();
+    }
+    for (i = 0; i < 4u; i++)
+        ble_up_as_last((uint8_t)(0x20 + i));
+    check(ble_order("23 22 21 20") && ble_store.dev.ltk[0] == 0x23u && ble_kept[0].ltk[0] == 0x22u && ble_kept[2].ltk[0] == 0x20u,
+          "BT MIDI remembers 4 devices: LAST (Dev D), then C, B, A, each with its bond");
+    ble_up_as_last(0x24);
+    check(ble_order("24 23 22 21"), "... a fifth (Dev E): LAST, the oldest (Dev A) drops");
+    if (!dev_listing()) {
+        bt_line("MODE");
+        dev_open(BT_MIDI);
+    }
+    frames(2);
+    check(dev_row_n() == 5u && !strcmp(bt_val_row(0), "Dev E") && !strcmp(dev_row_tag(0), "LAST") &&
+              !strcmp(bt_val_row(1), "Dev D") && !strcmp(dev_row_tag(1), "KNOWN") && !strcmp(bt_val_row(3), "Dev B") &&
+              !strcmp(bt_val_row(4), "Dev A") && !dev_row_tag(4)[0],
+          "the MIDI list: LAST (Dev E), the 3 others (KNOWN), then Dev A heard nearby (no tag)");
+    dev_screen("opt-ble-devices-kept");
+    /* SAVE on a remembered row: it becomes LAST with its bond, chosen; the search finds it */
+    ui.row[SCR_SYSTEM] = 2;                             /* (Dev C) */
+    c0 = (uint32_t)cenfk.connects;
+    tap(B_SAVE);
+    frames(2);
+    check(ble_order("22 24 23 21") && ble_store.sel == BLE_SEL_LAST && ble_store.dev.ltk[0] == 0x22u && cenfk.connects == (int)c0 + 1 &&
+              cenfk.p.bonded && cenfk.p.ltk[0] == 0x22u,
+          "SAVE on Dev C (KNOWN): LAST now, chosen, connected to with its own bond (heard nearby)");
+    cen_gone(BLE_CF_LOST);
+    ble_devices_poll();
+    bt_stop(BT_MIDI);
+    /* SAVE held on a remembered row: that one forgotten */
+    bt_line("MODE");
+    dev_open(BT_MIDI);
+    frames(2);
+    ui.row[SCR_SYSTEM] = 3;                             /* (Dev B) */
+    save_held();
+    check(ble_order("22 24 23") && said("FORGOTTEN Dev B"), "SAVE held on Dev B (KNOWN): forgotten, LAST and the others kept");
+    tap(B_HOME);
+    /* FORGET LAST: the next remembered one becomes LAST */
+    bt_line("MODE");
+    save_held();
+    check(ble_order("24 23") && ble_store.sel == BLE_SEL_NONE && said("FORGOTTEN Dev C"),
+          "SAVE held on the page: LAST (Dev C) forgotten, Dev E is LAST now, NONE chosen");
+    /* AUTO: the search tries LAST, then the others; the one that answers becomes LAST */
+    ble_up_as_last(0x22);                               /* (22 24 23 again) */
+    bt_enter(BT_MIDI, 2);
+    c0 = (uint32_t)cenfk.connects;
+    fm1_ms += 1000u;
+    ble_devices_poll();
+    ble_devices_poll();
+    check(cenfk.connects == (int)c0 + 1 && cenfk.p.addr[0] == 0x22u, "AUTO: the search initiates to LAST (Dev C) first");
+    cenfk.initiating = 0;                               /* (not heard in the try's time) */
+    fm1_ms += RC_TRY_FAST_MS + 10u;
+    ble_devices_poll();
+    fm1_ms += RC_GAP_FAST_MS + 10u;
+    ble_devices_poll();
+    check(cenfk.connects == (int)c0 + 2 && cenfk.p.addr[0] == 0x24u && cenfk.p.bonded && cenfk.p.ltk[0] == 0x24u,
+          "... no answer: the next try is Dev E, with its own bond");
+    cen_up();
+    check(ble_order("24 22 23") && ble_store.dev.ltk[0] == 0x24u && !strcmp(bt_val("STATE"), "CONNECTED"),
+          "... Dev E answers: LAST now (its bond kept), Dev C and Dev D after it");
+    cen_gone(BLE_CF_LOST);
+    ble_devices_poll();
     bt_fresh(0);
 }
 /* the list's rows follow the device, not the place; a device gone is said */
@@ -769,6 +875,7 @@ static void ble_tests(void)
     ble_save_tests();
     ble_auto_tests();
     ble_list_tests();
+    ble_kept_tests();
     ble_bg_passkey_tests();
 #endif
     bt_rec_tests();

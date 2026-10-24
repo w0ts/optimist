@@ -269,10 +269,22 @@ static void bt_forget(uint32_t a)                       /* SAVE held */
         return;
     }
 #endif
+#if BLE_CENTRAL
+    if (dev_listing()) {                                /* the list open on a remembered device other than LAST: that one */
+        const char *tag;
+        int32_t bars;
+        bt_row(a, ui.row[SCR_SYSTEM], nm, &tag, &bars);
+        if (ble_dev_forget_row(ui.row[SCR_SYSTEM] + 1u)) {   /* (MIDI's rows: the list's after its NONE) */
+            sys_dirty = 1;
+            ui_say("FORGOTTEN ", nm);
+            return;
+        }
+    }
+#endif
     bt_last_name(a, nm);
     bt_stop(a);
 #if BLE_CENTRAL
-    ble_dev_forget();                                   /* (its keys go too) */
+    ble_dev_forget();                                   /* (its keys go too; the next remembered one becomes LAST) */
 #endif
     sys_dirty = 1;
     ui_say("FORGOTTEN ", nm);

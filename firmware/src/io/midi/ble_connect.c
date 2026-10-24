@@ -50,6 +50,8 @@ static struct {
     uint8_t mitm, escalated;                      /* the attempt pairs with a passkey; it was made again for that */
     uint8_t failed;                               /* msg is a failure, shown until the user acts */
     uint8_t tries;                                /* link attempts of this user action (or search try), 1..RC_TRIES */
+    uint8_t tgt, nsearch;                         /* the search's device: 0 LAST, 1.. a remembered one (ble_kept); its
+                                                   * tries so far (each the next device: LAST, then the others) */
     uint8_t hint_has, hint_addr[6], hint_rand, hint_irk[16];   /* a device that needed a passkey (RAM: 1 its address,
                                                    * 2 its IRK too): picked again, it pairs with the passkey at once */
     uint8_t addr[6], addr_rand;                   /* the attempt's address (as heard: made again to the same) */
@@ -88,12 +90,11 @@ static void rc_hint_keep(void)                    /* the attempt's device needs 
 
 static int rc_is_last(const uint8_t a[6], uint8_t rnd)   /* this address is LAST's, or resolves with its IRK */
 {
-    const struct ble_dev *d = &ble_store.dev;
-    if (!ble_store_has_last(&ble_store))
-        return 0;
-    if ((d->info & BLE_DEV_RANDOM ? 1u : 0u) == rnd && ble_eq(d->addr, a, 6))
-        return 1;
-    return rnd && (d->info & BLE_DEV_IRK) && ble_rpa_resolve(d->irk, a);
+    return ble_is_dev(&ble_store.dev, a, rnd);
+}
+static struct ble_dev *rc_dev(void)               /* the search's device: LAST, or a remembered one (brc.tgt) */
+{
+    return brc.tgt ? &ble_kept[brc.tgt - 1u] : &ble_store.dev;
 }
 
 static void rc_text(char *out, uint32_t room, const char *a, const char *b)   /* "A b" */
@@ -116,7 +117,7 @@ static void rc_failed(const char *a, const char *b)   /* a failure for the statu
 static void rc_name(char out[BLE_NAME_MAX + 1u])  /* the device of the attempt, as shown */
 {
     if (brc.to_last)
-        ble_store_name(&ble_store, out);
+        ble_kept_name(rc_dev(), out);
     else if (brc.pick.name[0])
         ble_cpy((uint8_t *)out, (const uint8_t *)brc.pick.name, BLE_NAME_MAX + 1u);   /* (terminated: ble_scan.h) */
     else
@@ -128,7 +129,7 @@ static void rc_name(char out[BLE_NAME_MAX + 1u])  /* the device of the attempt, 
 static int rc_connect(const uint8_t a[6], uint8_t rnd)
 {
     struct ble_peer p;
-    const struct ble_dev *d = &ble_store.dev;
+    const struct ble_dev *d = rc_dev();
     int ok;
     ble_zero((uint8_t *)&p, sizeof p);
     ble_cpy(p.addr, a, 6);
@@ -196,7 +197,9 @@ static void rc_wait(void)
 
 static void rc_try(void)
 {
-    const struct ble_dev *d = &ble_store.dev;
+    const struct ble_dev *d;
+    brc.tgt = (uint8_t)(brc.nsearch++ % (1u + ble_kept_n()));   /* (LAST, then each remembered one in turn) */
+    d = rc_dev();
     brc.to_last = 1;
     brc.mitm = brc.escalated = brc.tries = 0;
     brc.t_end = fm1_ms + (fm1_ms - brc.search_t0 < RC_FAST_MS ? RC_TRY_FAST_MS : RC_TRY_SLOW_MS);
@@ -222,7 +225,7 @@ static void rc_report(const uint8_t *pdu, uint8_t n)
         return;                                   /* (an ADV_IND: connectable) */
     if (rnd && (pdu[7] >> 6) == 1u)
         BLE_DG(ble_dgc.rc_rpa_seen++);
-    if (!rc_is_last(pdu + 2, rnd))
+    if (!ble_is_dev(rc_dev(), pdu + 2, rnd))
         return;
     BLE_DG(ble_dgc.rc_rpa_ok++);
     fm1_ble_irqs_hold(1);
@@ -269,8 +272,12 @@ static void rc_ready(void)
     brc.was_ready = 1;
     brc.failed = 0;
     if (!brc.to_last) {
+        ble_kept_before_last(brc.pick.addr, brc.pick.addr_rand);   /* (LAST kept among the others) */
         ble_store_set_last(&ble_store, brc.pick.addr, brc.pick.addr_rand, brc.pick.name, brc.pick.kind);
         brc.to_last = 1;                          /* (it is LAST now: keys and the name below are its) */
+    } else if (brc.tgt) {
+        ble_kept_take(brc.tgt - 1u);              /* (a remembered one reached: it is LAST now, with its bond) */
+        brc.tgt = 0;
     }
     if (brc.mitm || ble_central_mitm())           /* (a passkey asked for on its link, or the link made for it) */
         ble_store_set_mitm(&ble_store);
@@ -302,7 +309,7 @@ static int rc_escalate(void)
     brc.mitm = 1;
     brc.tries = 0;                                /* (a new link: its own attempts) */
     if (brc.to_last) {
-        ble_store_set_mitm(&ble_store);           /* (its next pairing: the passkey straight away) */
+        rc_dev()->sec |= BLE_DEV_SEC_MITM;        /* (its next pairing: the passkey straight away) */
         ble_store_changed();
     }
     if (!rc_connect(brc.addr, brc.addr_rand))
@@ -341,7 +348,8 @@ static void rc_link(void)
     if (f == BLE_CF_KEY && brc.tries < RC_KEY_TRIES && rc_retry())
         return;                                   /* (its bond refused: again, RC_KEY_TRIES links in all) */
     if (f == BLE_CF_KEY && brc.to_last) {         /* (then dropped: LAST picked again pairs afresh) */
-        ble_store_drop_bond(&ble_store);
+        rc_dev()->info &= (uint8_t)~BLE_DEV_BONDED;
+        rc_dev()->sec &= (uint8_t)~BLE_DEV_SEC_AUTH;   /* (as ble_store_drop_bond: MITM kept) */
         ble_store_changed();
     }
     rc_failed_why(rc_why(f));
@@ -372,6 +380,7 @@ static void ble_connect_pick(const struct ble_found *e)
     }
     brc.pick = *e;
     brc.to_last = (uint8_t)rc_is_last(e->addr, e->addr_rand);
+    brc.tgt = 0;
     brc.search_t0 = 0;
     brc.mitm = brc.escalated = brc.failed = brc.tries = 0;
     BLE_DG(ble_dgc.picks++);
@@ -487,6 +496,7 @@ static void ble_connect_poll(void)
         if (want && !ble_connected() && !ble_ll_initiating()) {
             brc.search_t0 = fm1_ms | 1u;
             brc.next_try = fm1_ms;
+            brc.nsearch = 0;                      /* (LAST first) */
             rc_phase(RC_WAIT);
         }
         return;

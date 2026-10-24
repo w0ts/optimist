@@ -1,4 +1,4 @@
-# BLE MIDI devices: one list, one remembered device
+# BLE MIDI devices: one list, up to four remembered devices
 
 How the FM-1 chooses and remembers a Bluetooth MIDI device: the devices list (NONE, LAST, nearby devices), connecting out, LAST
 and its reconnection, the pairing a phone or Mac asks for, and what is stored. The stack under it is in
@@ -74,7 +74,7 @@ info: bit0 addr random, bit1 role C (always set for LAST), bit2 bonded (ltk vali
 sec:  bit0 AUTH (the bond came from a passkey pairing), bit1 MITM (it needs an authenticated link: pair with a passkey at once)
 ```
 
-One entry: a new link of ours replaces it (its bond kept only when it is the same device again). The save is the settings save:
+Up to four remembered devices (2026-10-24): LAST here, and `persist_t.ble_kept` (198 B, three `struct ble_dev` as they are, the most recent first). A new link of ours to another device makes it LAST and the old LAST the first of the others (the oldest drops at five); a remembered one picked, or found by the search, becomes LAST with its own bond. The search for LAST (§4.3) tries LAST, then each other one in turn, one per try; the list shows them after LAST (KNOWN), SAVE held on one forgets it, FORGET LAST makes the next one LAST. The save is the settings save:
 **once the FM-1 is quiet** (a flash write stops the audio); the pairing's bond is saved at once unless a song plays. The scan list is
 never saved. The settings word keeps BLUETOOTH ON (bit 24) and the settings record both pages' MODEs (`op_bt.c` `bt_rec`); the choice NONE / LAST is `sel`.
 
@@ -129,4 +129,4 @@ retries), `ble_emu_central_test.py`.
   the FM-1 reconnects); directed advertising was never built.
 - The FM-1 as central to an iPhone with the passkey, on hardware (BLE-STACK.md 12).
 - Real signal bars (the RSSI gain table); the arp ping-pong between two FM-1s; a second FM-1 to test with.
-- Not built: several remembered devices, two simultaneous links, clock / transport over BLE.
+- Not built: two simultaneous links, clock / transport over BLE.
