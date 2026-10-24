@@ -130,22 +130,29 @@ struct RootView: View {
         .preferredColorScheme(.dark)
     }
 
+    /// the tab bar: hidden under the welcome screen (no FM-1: no tabs)
+    private var bar: Visibility { link.state == .searching ? .hidden : .visible }
+
     private var tabs: some View {
         TabView(selection: $tab) {
             MirrorView(link: link, upright: tilt.quarter - Turn.quarter(tilt.quarter), bars: $bars)
-                .toolbar(bars ? .visible : .hidden, for: .tabBar)
+                .toolbar(bars && link.state != .searching ? .visible : .hidden, for: .tabBar)
                 .tabItem { Label("Screen", systemImage: "display") }
                 .tag(0)
             ProjectsView(s: session)
+                .toolbar(bar, for: .tabBar)
                 .tabItem { Label("Projects", systemImage: "folder") }
                 .tag(1)
             LibraryView(s: session)
+                .toolbar(bar, for: .tabBar)
                 .tabItem { Label("Presets", systemImage: "slider.horizontal.3") }
                 .tag(2)
             BackupView(s: session)
+                .toolbar(bar, for: .tabBar)
                 .tabItem { Label("Backup", systemImage: "externaldrive") }
                 .tag(3)
             ConnectionView(link: link)
+                .toolbar(bar, for: .tabBar)
                 .tabItem { Label("Connection", systemImage: "cable.connector") }
                 .tag(4)
         }
