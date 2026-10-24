@@ -42,7 +42,7 @@ static void pages_nav_tests(void)
         tap(B_GLO);
         check(ui.scr == SCR_GLOBAL, "D1: GLO from another screen: GLOBAL");
         check(glo_find(SCR_GLOBAL, "SYSTEM") == ng, "D1: GLOBAL has no SYSTEM line (GLO reaches SYSTEM)");
-#if FELUCCA_BLE
+#if BT_OVL
         bt.boot = 1;
         ble_store_reset(&ble_store);
         bt_enter(BT_MIDI, 1);                                    /* (the overlay devices list, dev_open) */

@@ -88,7 +88,7 @@ static int glo_yes(uint32_t r, uint32_t k, uint32_t ok)
 #define GL_NSYSL (11u + GL_NBRI + GL_NUA + GL_NLIT + GL_NCDC + GL_NBLE)
 #define GL_MAXL (GL_NSYSL > 24u ? GL_NSYSL : 24u)
 #if FELUCCA_BT_UI
-#define GL_DEV (bdv.open != 0u)                         /* SYSTEM shows the BLE devices list (op_project.c) */
+#define GL_DEV BDV_OPEN                         /* SYSTEM shows the BLE devices list (op_project.c) */
 #else
 #define GL_DEV 0
 #endif
