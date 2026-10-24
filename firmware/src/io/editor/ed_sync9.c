@@ -3,7 +3,7 @@
  * web/EDITOR_PROTOCOL.md "Live sync"). The only live sync: on while WATCH is on (the v2..v4 pushes are gone).
  * RELOAD (24) stays the "re-read everything" signal.
  *
- *   59 PARAMS (push)  n x (where, id, v14): where 0..NTRK-1 a track's P_*, 127 a global G_*
+ *   59 PARAMS (push)  n x (where, id (2 x 7 bit), v14): where 0..NTRK-1 a track's P_*, 127 a global G_*
  *   60 STEPS  (push)  track, first index, count, count x step (a synth track: the 11 TRACK_STEP bytes from n; the drum
  *                     track: the 13 DRUM_STEP bytes)
  *   61 LANE   (push)  as the DRUM_LANE (37) reply: lane (+ 0x40: with its 3 send bytes), pack7 lane
@@ -150,10 +150,10 @@ static void ed9_send(void)
 static int ed9_params(void)
 {
     uint32_t i, n = 0, total = NTRK * P_COUNT + G_COUNT, k = e9.ppos, room = ed9_space();
-    if (room < 10u)                                      /* (one entry: 5 + 4 + F7) */
+    if (room < 11u)                                      /* (one entry: 5 + 5 + F7) */
         return 0;
     ed_begin(ED_PARAMS);
-    for (i = 0; i < total && ed_n + 5u <= room; i++, k = k + 1u == total ? 0u : k + 1u) {
+    for (i = 0; i < total && ed_n + 6u <= room; i++, k = k + 1u == total ? 0u : k + 1u) {
         int16_t v, *sh;
         uint32_t where, id;
         if (k < NTRK * P_COUNT) {
@@ -166,7 +166,8 @@ static int ed9_params(void)
         if (v == *sh)
             continue;
         *sh = v;
-        ed_b2(where, id);
+        ed_b(where);
+        ed_b32(id, 2);
         ed_v(v);
         n++;
     }

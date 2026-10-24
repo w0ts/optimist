@@ -4,18 +4,18 @@
  * ISR, macro.c); this says what plays, from the same rows and arithmetic the ISR uses (mac_effective*), so the editor
  * has no table of its own to keep in step.
  *   65 MACRO  track  -> track, COLOR MOTION SPACE ENERGY (4 x v14, each -64..63, 0 = home), n, then n x one of:
- *               0, id, v14                  the track's parameter P_id plays as v14 (only those a macro moves; a drum
+ *               0, id (2 x 7 bit), v14      the track's parameter P_id plays as v14 (only those a macro moves; a drum
  *                                           track has none)
- *               1, id, v14                  the global G_id plays as v14
- *               2, 0, sc v14, add v14       every drum lane's REV send plays as clamp(send * sc / 64 + add, 0, 127),
+ *               1, id (2 x 7 bit), v14      the global G_id plays as v14
+ *               2, 0 0, sc v14, add v14     every drum lane's REV send plays as clamp(send * sc / 64 + add, 0, 127),
  *                                           the send in a synth track's steps (level v of a lane is 4v + v / 8)
  *             A build without the macros does not answer: the editor shows the authored values only. */
 #include "ed_reply.h"         /* (ed_b2..ed_b4, ed_b32) */
 #include "ed_out.h"           /* (ED_PAYLOAD_N: the reply's room) */
 enum { ED_MACRO = 65 };
-/* an entry a value a row of MAC_ROWS moves (at most one each; the drum REV row's 6 bytes): was bounded by every value
+/* an entry a value a row of MAC_ROWS moves (at most one each; the drum REV row's 7 bytes): was bounded by every value
  * (P_COUNT + G_COUNT), which outgrew the reply with the shapers' amounts (2026-10-18) though no macro moves them */
-_Static_assert(10u + 6u * MAC_NROWS <= ED_PAYLOAD_N, "MACRO (every value changed by the macros) fits one reply");
+_Static_assert(10u + 7u * MAC_NROWS <= ED_PAYLOAD_N, "MACRO (every value changed by the macros) fits one reply");
 
 static int ed_macro(uint32_t cmd, const uint8_t *a, uint32_t na)
 {
@@ -33,20 +33,20 @@ static int ed_macro(uint32_t cmd, const uint8_t *a, uint32_t na)
     for (id = 0; k < NPART && id < P_COUNT; id++) {
         int32_t e = mac_effective(k, id, trk[k].p[id]);
         if (e != trk[k].p[id]) {
-            ed_b2(0, id), ed_v(e);
+            ed_b(0), ed_b32(id, 2), ed_v(e);
             n++;
         }
     }
     for (id = 0; id < G_COUNT; id++) {
         int32_t e = mac_effective_g(id, song.g[id]);
         if (e != song.g[id]) {
-            ed_b2(1, id), ed_v(e);
+            ed_b(1), ed_b32(id, 2), ed_v(e);
             n++;
         }
     }
     mac_drev(&sc, &add);
     if (sc != 64 || add) {
-        ed_b2(2, 0), ed_v(sc), ed_v(add);
+        ed_b(2), ed_b32(0, 2), ed_v(sc), ed_v(add);
         n++;
     }
     ed_out[at] = (uint8_t)n;

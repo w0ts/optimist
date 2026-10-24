@@ -44,7 +44,8 @@ enum Wire {
     static func replyMatches(_ cmd: UInt8, _ args: [UInt8], _ a: [UInt8]) -> Bool {
         func same(_ n: Int) -> Bool { a.count >= n && args.count >= n && (0..<n).allSatisfy { a[$0] == args[$0] } }
         switch Cmd(rawValue: cmd) {
-        case .desc, .project: return same(2)
+        case .desc: return same(3)                       // (scope, id 2 x 7 bit)
+        case .project: return same(2)
         case .smpBegin, .smpEnd, .upList, .upGet, .upPut, .upStore, .upLoad, .upErase, .patList, .patOp: return same(1)
         case .smpWrite, .patRead, .patWrite: return same(4)
         default: return true
@@ -134,6 +135,11 @@ struct Reader {
         let lo = try b()
         return Wire.v14dec(lo, try b())
     }
+    /// a parameter id or count, 2 x 7 bit (protocol 7)
+    mutating func id() throws -> Int {
+        let lo = Int(try b())
+        return lo | Int(try b()) << 7
+    }
     mutating func s() throws -> String {
         var out = ""
         while true {
@@ -185,8 +191,8 @@ struct DeviceInfo: Equatable {
         var r = Reader(a)
         var o = DeviceInfo()
         o.version = try r.s()
-        o.nengines = Int(try r.b()); o.pcount = Int(try r.b()); o.gcount = Int(try r.b())
-        o.nstep = Int(try r.b()); o.pe0 = Int(try r.b())
+        o.nengines = Int(try r.b()); o.pcount = try r.id(); o.gcount = try r.id()   // (protocol 7: 2 x 7 bit)
+        o.nstep = Int(try r.b()); o.pe0 = try r.id()
         for _ in 0..<o.nengines { o.engines.append(try r.s()) }
         if !r.atEnd { _ = try r.b() }                    // v3: tracks
         o.proto = r.atEnd ? 0 : Int(try r.b())

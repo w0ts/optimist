@@ -6,7 +6,7 @@
  * with SLOOP's UI, the pages' values that lock_ok takes; a drum lane's values are TUNE .. LEVEL (auto_lane.c), the ACCENT lane's the accent amount.
  *   105 STEPLANE  op track lane [...]    lane 0..15 a drum lane, 16 the ACCENT lane, 127 none (a synth track: 127)
  *       op 0 LIST                  -> 0, track, lane, n (<= 127), np
- *       op 1 DESC  i               -> 1, track, lane, i, kind, id, page, cell, title (12), DESC's body (fmt, min v14, max v14, def v14, label, unit, names)
+ *       op 1 DESC  i               -> 1, track, lane, i, kind, id (2 x 7 bit), page, cell, title (12), DESC's body (fmt, min v14, max v14, def v14, label, unit, names)
  *       op 2 STEP  step            -> the state
  *       op 3 SET   step, field, v14   field 0 level, 1 ratchet, 2 chance, 3 cond, 4 nudge, 5 fill
  *       op 4 LOCK  step, i, v14    op 5 UNLOCK  step, i    op 6 KIND  step, i (lock <-> hold)      -> the state (after)
@@ -348,7 +348,9 @@ static int ed_steplane(uint32_t cmd, const uint8_t *a, uint32_t na)
         ed_b4(1, track, edl_out(lane), i);
         if (i >= n)
             return 1;
-        ed_b4(e.kind, e.id, e.page, e.cell);
+        ed_b(e.kind);
+        ed_b32(e.id, 2);                                /* (v7: 2 x 7 bit) */
+        ed_b2(e.page, e.cell);
         ed_str(e.title, 12);
         ed_desc_body(e.d);
         return 1;

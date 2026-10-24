@@ -297,8 +297,8 @@ enum Ops {
         var labels: [String] = [], defaults: [Int] = []
         for i in 0..<pcount {
             do {
-                var r = Reader(try await t.ask(.desc, [0, UInt8(i)], timeout: i == 0 ? 0.4 : 0.3, retries: i == 0 ? 0 : 1))
-                _ = try r.b(); _ = try r.b(); _ = try r.b()      // scope, id, fmt
+                var r = Reader(try await t.ask(.desc, [0, UInt8(i & 0x7F), UInt8(i >> 7)], timeout: i == 0 ? 0.4 : 0.3, retries: i == 0 ? 0 : 1))
+                _ = try r.b(); _ = try r.id(); _ = try r.b()     // scope, id (2 x 7 bit), fmt
                 _ = try r.v(); _ = try r.v()                     // min, max
                 defaults.append(try r.v())
                 labels.append(try r.s())

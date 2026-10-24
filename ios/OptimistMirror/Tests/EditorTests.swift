@@ -44,11 +44,11 @@ final class WireTests: XCTestCase {
     // the same INFO replies web/test_web.mjs parses
     func testInfoLiteAndLibrarian() throws {
         let enc = { (s: String) in Array(s.utf8) + [0] }
-        let lite = try DeviceInfo.parse(enc("FELUCCA 0.1") + [0, 0, 0, 64, 0, 0, 6, 0x64, 1, 1])
+        let lite = try DeviceInfo.parse(enc("FELUCCA 0.1") + [0, 0, 0, 0, 0, 64, 0, 0, 0, 7, 0x64, 1, 1])
         XCTAssertTrue(lite.lite)
         XCTAssertFalse(lite.lib)
         XCTAssertEqual(lite.nengines, 0)
-        let lib = try DeviceInfo.parse(enc("FELUCCA 0.1") + [2, 90, 0, 64, 50] + enc("ANALOG") + enc("FM6") + [4, 6, 0, 9, 0x55, 2, 16, 16, 0x64, 1, 3])
+        let lib = try DeviceInfo.parse(enc("FELUCCA 0.1") + [2, 90, 0, 0, 0, 64, 50, 0] + enc("ANALOG") + enc("FM6") + [4, 7, 0, 9, 0x55, 2, 16, 16, 0x64, 1, 3])
         XCTAssertTrue(lib.lite && lib.lib)
         XCTAssertEqual(lib.pcount, 90)
         XCTAssertEqual(lib.engines, ["ANALOG", "FM6"])
