@@ -59,8 +59,7 @@ def kb(n):
 
 
 def _off_value(key):
-    it = R.ITEMS[key]
-    return 0 if not it.is_choice else min((c[0] for c in it.choices), key=lambda v: v if v else 1 << 30)
+    return C.K.off_value(key)                           # (core.py: the item's "off" choice, else its smallest)
 
 
 def _need(cfg, costs):
