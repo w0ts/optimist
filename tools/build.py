@@ -132,9 +132,12 @@ def tc_all(*cmds):
 def generator_python():
     """the generators need Pillow: this Python when it has it, else the builder's venv (tools/optimist.py setup makes
     it; CI runs tools/sim.py and the host tests with the runner's own Python, 2026-10-18)"""
-    import importlib.util
-    if importlib.util.find_spec("PIL") is not None:
+    import importlib
+    try:                                                # (a PIL folder without Image passes find_spec, 2026-10-24)
+        importlib.import_module("PIL.Image")
         return sys.executable
+    except ImportError:
+        pass
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import deps
     py = deps.venv_python()
