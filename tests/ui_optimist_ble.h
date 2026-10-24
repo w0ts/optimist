@@ -189,6 +189,12 @@ static void ble_mode_tests(void)
     check(dev_listing() && dev_side() == BT_MIDI, "... SAVE, nothing remembered: the overlay devices list, as before");
     tap(B_HOME);
     check(!dev_listing(), "... HOME: back to the page");
+    {                                                   /* the overlay list's status line cut to its room: the words stay, a long name loses its end */
+        char t[48];
+        dev_line_text(t, sizeof t, "CONNECTING (TRY 2/6) Roland Aerophone", 21u);
+        check(!strncmp(t, "Connecting (try 2/6) ", 21) && text_w(&FONT_S, t) <= DEV_LINE_W && t[21] == 'R',
+              "the overlay list's status line: \"Connecting (try 2/6) \" + a 16-character name is cut to its 232 px");
+    }
 #endif
     blp_shot_t("opt-ble-page-on");
     k = bt_line("MODE");
@@ -561,10 +567,6 @@ static void ble_list_tests(void)
     release(B_SAVE);
     check(cenfk.connects == (int)c0 && said("DEVICE GONE") && !bt_wants(BT_MIDI), "the page: the highlighted device gone before SAVE: nothing connected, DEVICE GONE");
     tap(B_HOME);
-    /* the overlay list's status line cut to its room: the words stay, a long name loses its end */
-    dev_line_text(t, sizeof t, "CONNECTING (TRY 2/6) Roland Aerophone", 21u);
-    check(!strncmp(t, "Connecting (try 2/6) ", 21) && text_w(&FONT_S, t) <= DEV_LINE_W && t[21] == 'R',
-          "the overlay list's status line: \"Connecting (try 2/6) \" + a 16-character name is cut to its 232 px");
     /* DEVICE: a long name whole, in the small face */
     ble_connect_none();
     ble_dev_msg = 0;

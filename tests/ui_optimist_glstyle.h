@@ -227,7 +227,7 @@ static int gls_joined(void)
     }
     return (int)ok;
 }
-#if FELUCCA_BLE
+#if BT_OVL
 static int gls_ble_enter(void)                          /* the overlay devices list (dev_open): HOME back */
 {
     uint32_t i, ok;
@@ -357,7 +357,7 @@ static void glstyle_tests(void)
     check(bars > 8u && toggles > 0u,
           "GLOBAL, SYSTEM: a ranged value's bar spans the screen's width, an on / off value has the square mark and no bar");
     check(gls_joined(), "SYSTEM: Screen & audio and USB + Bluetooth (Connections) share a page when they fit 4 lines together, else they stay apart");
-#if FELUCCA_BLE
+#if BT_OVL
     check(gls_ble_enter(), "SYSTEM: YES on BLE from the joined USB + Bluetooth (Connections) page opens the devices");
 #endif
 #if FELUCCA_SYS_DEBUG
