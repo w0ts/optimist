@@ -12,23 +12,24 @@ A keyboard or a DAW on USB or the TRS MIDI IN jack plays the FM-1. Each track ha
 
 ## MIDI clock
 
-**CLK IN** (saved with the project): **AUTO** follows an external clock when one comes in (TRS first, then USB), else the FM-1's tempo; **INT** ignores clocks; **USB** or **TRS** follows only that input. Start begins at step 1 on the first pulse after it, Continue resumes at the song position sent, Stop stops. The tempo shown, the delay, the arp, the rolls and the slicer follow the measured tempo. The source changes only while stopped.
+**CLK IN** (saved with the project): **AUTO** follows an external clock when one comes in (TRS first, then USB, then Bluetooth MIDI), else the FM-1's tempo; **INT** ignores clocks; **USB**, **TRS** or **BLE** follows only that input. Start begins at step 1 on the first pulse after it, Continue resumes at the song position sent, Stop stops. The tempo shown, the delay, the arp, the rolls and the slicer follow the measured tempo. The source changes only while stopped. **CLK OFS** plays the steps that much earlier while following a clock, **BT OFS** the same while the audio goes to Bluetooth.
 
-**CLK OUT** (off by default) sends MIDI clock on USB (the TRS jack is input only): 24 pulses a beat, also while stopped, Start and Stop with the transport, Song Position and Continue when it continues a song. The pulses never swing. Following a USB clock, nothing is sent back to USB; following TRS, the clock goes on to USB (a TRS-to-USB clock bridge).
+**CLK OUT** (off by default) sends MIDI clock on USB and to a Bluetooth MIDI device that listens (the TRS jack is input only): 24 pulses a beat, also while stopped, Start and Stop with the transport, Song Position and Continue when it continues a song. The pulses never swing. Nothing is sent back to the input being followed.
 
-## Bluetooth MIDI
+## Bluetooth MIDI and Bluetooth audio
 
-Builder item `BLE` (in the Synth build), the page SYSTEM > BT MIDI. **MODE** is OFF by default: the radio does not even start. MAN or AUTO, the FM-1 advertises as "Optimist XXXX" (the last four digits of its address) and a Mac, an iPhone or an iPad connects to it as a Bluetooth MIDI device (tested with macOS Audio MIDI Setup). With `BLE_CENTRAL` the FM-1 can also connect out to a BLE-MIDI keyboard or controller: SAVE on the page opens the devices list, SAVE there connects; AUTO connects to the last one at boot. A device that wants a code shows a 6-digit passkey on the FM-1's screen. If the FM-1 restarts by itself within 30 s of starting, the next start leaves the radio off once, so you can set MODE to OFF.
+Two pages, SYSTEM > BT MIDI (builder item `BLE`) and SYSTEM > BT AUDIO (`BT_AUDIO`, headphones and speakers), one radio: both can be on at once. Each page has **MODE**: OFF (the default), MAN (only you connect) or AUTO (also connects to the last device at start-up).
 
-**Bluetooth audio** (builder item `BT_AUDIO`, the page SYSTEM > BT AUDIO) has the same MODE, devices list and SAVE gestures ([the interface](interface.md#global-and-system)).
+- **BT MIDI:** MAN or AUTO, the FM-1 advertises as "Optimist XXXX" (the last four digits of its address) and a Mac, an iPhone or an iPad connects to it as a Bluetooth MIDI device. With `BLE_CENTRAL` the FM-1 also connects out to BLE-MIDI keyboards and controllers; a device that wants a code gets a 6-digit passkey shown on the FM-1's screen.
+- **The devices:** while a page is on screen with no link, the FM-1 scans and the page lists the devices, the remembered ones (up to 4) in green, new ones in amber. KNOB 2 moves the cursor, SAVE connects (or lets go of the link), SAVE held forgets a remembered device. On BT MIDI the list needs `BLE_CENTRAL`.
 
-**Bluetooth and the second core:** both cores run with the radio on (the radio starts before the audio, in the stock firmware's order).
+If the FM-1 restarts by itself within 30 s of starting, the next start leaves the radio off once, so you can set MODE to OFF.
 
-The web editor talks to the FM-1 over USB only.
+The web editor works over USB. Over Bluetooth MIDI the FM-1 answers only the screen mirror, its buttons and the clip editor (the Optimist Mirror app, `ios/OptimistMirror`).
 
-## USB audio (experimental)
+## USB audio
 
-Builder item `USB_AUDIO` (in the Synth build). On the same cable as MIDI, the computer sees two class-compliant audio devices, no driver needed, 44.1 kHz, 16 or 24 bit:
+Builder item `USB_AUDIO`. On the same cable as MIDI, the computer sees two class-compliant audio devices, no driver needed, 44.1 kHz, 16 or 24 bit:
 
 - **Optimist In:** four capture channels to the computer. SYSTEM > USB AUDIO has one line per source: MASTER (the output after the master inserts), T1 to T3 (a track's stem: after its inserts, level and mute, before pan, sends and master), DRUMS (the drum track's lanes summed), DRUM BUS, and each drum lane DR1 to DR10. Each source goes to NONE, 1, 2, 1+2, 3, 4 or 3+4. A stereo source on a pair goes left and right; on one channel, its two sides are averaged. A mono source on a pair is on both. Sources on one channel add up. By default T1 is on 1, T2 on 2, T3 on 3 and DRUMS on 4.
 - **Optimist Out:** stereo from the computer into the FM-1's output (also usable as the **USB IN** mixer track, [effects](effects.md)).
@@ -37,7 +38,7 @@ A flash write (saving a preset or a project) pauses the audio for a moment: avoi
 
 ## The web editor
 
-[w0ts.github.io/optimist/webapp/editor/](https://w0ts.github.io/optimist/webapp/editor/#mixer), in Chrome or Edge, with the FM-1 on USB: **Connect**. What the editor can do depends on the builder items of your build. With live editing (`ED_LIVE`) every track, sound, drum sound, effect and setting is a knob or a menu, laid out as a mixer with a strip per track and the master, following the device live. The Synth build has `ED_LIVE` off: its editor does backup and restore only. The drum machine build has no editor.
+[w0ts.github.io/optimist/webapp/editor/](https://w0ts.github.io/optimist/webapp/editor/#mixer), in Chrome or Edge, with the FM-1 on USB: **Connect**. What the editor can do depends on the builder items of your build. With live editing (`ED_LIVE`) every track, sound, drum sound, effect and setting is a knob or a menu, laid out as a mixer with a strip per track and the master, following the device live. The four flavours have `ED_LIVE` off: their editor does backup, restore, the librarian and the screen mirror (the **Screen** tab, `ED_MIRROR`).
 
 - **Library**, **Samples** (with CHOP), **Projects**, **Settings**: screens of their own (`LIBRARIAN`, `ED_LIVE`).
 - **Backup** (its own tab): everything the FM-1 keeps (projects and sections, the working project, user presets, your kits, the settings; tick *with the samples* for USR1 to USR3) in one `.optimist-backup` file. **Restore** lists what the file holds and writes what this firmware can read, then the FM-1 restarts on it. The installer offers a backup before it installs.

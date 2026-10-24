@@ -61,7 +61,7 @@ PLAY held past the hold time opens the tempo page; let go and the screen before 
 - **BPM** 40 to 240. **SWING** 0 to 100.
 - **NUDGE:** OCT- or OCT+ held makes the clock about 3.9 % slower or faster while held. The BPM value never changes, and nothing happens while an external clock is followed.
 - **Tap tempo:** with PLAY held, tap a white key; two taps or more set the tempo.
-- **SYNC** (the MIDI clock to follow): INT, USB, TRS or AUTO (AUTO shows the clock it follows: A:INT, A:USB, A:TRS). On GLOBAL it is CLK IN.
+- **SYNC** (the MIDI clock to follow): INT, USB, TRS, BLE or AUTO (AUTO shows the clock it follows, as A:USB). On GLOBAL it is CLK IN.
 - **REC:** MODE FREE or TEMPO, LENGTH 1, 2 or 4 bars, START NOTE or COUNT (count-in), CLICK OFF, REC or ON. **QUANT** ON snaps a recorded note to the grid; OFF keeps its start as a nudge and its length as a gate lock.
 
 ## STEP
@@ -86,7 +86,7 @@ GLOBAL and SYSTEM are settings lists: one setting on a line, the name left and t
 **GLOBAL**
 - **Tempo:** BPM, NUDGE (read-out), SWING, TUNE (the master tuning, -50 to 50 cents).
 - **Rec:** MODE, LENGTH, START, CLICK, QUANT.
-- **MIDI:** CLK IN (the clock to follow: INT, USB, TRS, AUTO), CLK OUT (ON or OFF; amber when ON but USB is the clock being followed, so nothing is sent), MIDI OUT. There is no MIDI IN line: notes come in through the track channels.
+- **MIDI:** CLK IN (the clock to follow: INT, USB, TRS, BLE, AUTO), CLK OUT (ON or OFF; amber when ON but there is nowhere to send it), MIDI OUT; CLK OFS and BT OFS ([midi-usb.md](midi-usb.md#midi-clock)). There is no MIDI IN line: notes come in through the track channels.
 - **Channels:** T1, T2, T3, DR (the MIDI channel of each track).
 
 **SYSTEM**
@@ -95,7 +95,7 @@ GLOBAL and SYSTEM are settings lists: one setting on a line, the name left and t
 - **AUDIO:** LOWCUT (OFF, LOWCUT, or BASS+ in builds with it); FILT RESO, the resonance of every track's FILTER, 0 (clean) to 10, saved with the project (`TFLT_RESO`).
 - **KEYS:** BUTTONS (OFF, LOW, MID, HIGH) and KEYS (OFF, C, WHITE, ALL), the backlight of the buttons and keys, in builds with LIGHTS.
 - **USB:** SERIAL, ON or OFF; amber until a restart applies it (builds with the USB console).
-- **BT MIDI** (builds with `BLE`): MODE, DEVICE, ACTIVITY, STATE. **BT AUDIO** (builds with `BT_AUDIO`): MODE, DEVICE, FORMAT, STATE. Both can be on at once. MODE is OFF, MAN or AUTO (AUTO: the last device is connected to at boot and when AUTO is chosen; a lost link is not made again). SAVE on a line of the page lets a connected device go, else connects to the last one, else opens the page's devices list (MIDI: devices nearby with signal bars), where SAVE connects to the row. SAVE held forgets the page's last device. A connect not up in 30 s says NO ANSWER.
+- **BT MIDI** (builds with `BLE`): MODE, DEVICE, ACTIVITY, STATE. **BT AUDIO** (builds with `BT_AUDIO`): MODE, DEVICE, FORMAT, STATE. Both can be on at once; MODE, the devices list and SAVE: [midi-usb.md](midi-usb.md#bluetooth-midi-and-bluetooth-audio). A connect not up in 30 s says NO ANSWER.
 - **CALIBRATE:** PANEL (teaches the panel's buttons and knobs, asked first) and HOLD (a button's hold time: 250, 350 or 500 ms).
 - **USB AUDIO:** (USB audio builds) one line a source: MASTER, T1 to T3, DRUMS, DRUM BUS, DR1 to DR10. Each goes to NONE, 1, 2, 1+2, 3, 4 or 3+4 of the four capture channels sent to the computer. See [midi-usb.md](midi-usb.md).
 - **ABOUT:** VERSION (and the commit it was built from), BUILD (date and time) and the repository address. **CREDITS** follows.
@@ -107,7 +107,7 @@ INFO is a text page, no knob edits it except KNOB 1. What a musician reads:
 | Line | Meaning |
 |---|---|
 | CPU0 (CPU LOAD without a second core) | The audio render load in percent; with a second core it includes CPU0's wait for CPU1. KNOB 1 chooses what it shows: NOW, the maximum of the last 5 seconds, or the maximum since boot. Over 100 means a late audio half (a gap in the sound) |
-| CPU1 | The share of each audio half the second core takes. Instead: 2ND CORE OFF and the reason (NO START, TIMEOUT, FAULT, FLASH, MISREAD, CANARY, AFTER CRASH, SETTING, PARKED, BLUETOOTH, OVERLOAD, SUPPLY). Both cores run with Bluetooth on ([midi-usb.md](midi-usb.md#bluetooth-midi)) |
+| CPU1 | The share of each audio half the second core takes. Instead: 2ND CORE OFF and the reason (NO START, TIMEOUT, FAULT, FLASH, MISREAD, CANARY, AFTER CRASH, SETTING, PARKED, BLUETOOTH, OVERLOAD, SUPPLY). |
 | UNDERRUNS | Losses: late audio halves, USB audio's and MIDI in's, and where |
 | BATTERY | The cell's volts and charge as `~3.87V 72%`, with the 3 bars in the gauge; "USB" while powered by USB; NO READING before the first sample. Both numbers are estimates: the divider and the ADC reference are not measured (assumed 1:2 divider, 3.3 V reference, the usual Li-ion curve), so check them against a meter at the cell |
 
@@ -115,7 +115,7 @@ SHIFT + SAVE on this page clears the counters. Builds made with the builder item
 
 ## Connections
 
-MIDI in and out, the clock, Bluetooth MIDI, USB audio and the web editor: [midi-usb.md](midi-usb.md).
+MIDI in and out, the clock, Bluetooth MIDI and audio, USB audio and the web editor: [midi-usb.md](midi-usb.md).
 
 ## The update loader
 

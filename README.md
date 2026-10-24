@@ -27,7 +27,7 @@ Use **Chrome or Edge** (they have Web MIDI) and a USB data cable, straight into 
 | [**Build**](https://w0ts.github.io/optimist/webapp/editor/#build) | Choose the engines, drum kits, effects and features you want, with a live flash and RAM budget, and press *Build in the cloud*: it opens a GitHub issue with your configuration (a GitHub account is needed), and a few minutes later the answer there links your firmware. It is then in the installer's and the simulator's lists. |
 | [**Install**](https://w0ts.github.io/optimist/webapp/editor/#install) | Install a release flavour, your cloud build or a `.fwsc` file on your FM-1. It offers a backup first, and can put the official firmware back. |
 | [**Simulator**](https://w0ts.github.io/optimist/webapp/editor/#sim) | The firmware running in your browser, with the FM-1's panel and its keyboard shortcuts: try a build before you install it. It can copy your FM-1's memory in, and write it back. |
-| [**Editor**](https://w0ts.github.io/optimist/webapp/editor/#mixer) | Every sound, drum, effect and setting as knobs, the drum grid, the samples (with CHOP), the preset library, and the **Backup** of your whole FM-1 in one file. |
+| [**Editor**](https://w0ts.github.io/optimist/webapp/editor/#mixer) | The **Backup** of your whole FM-1 in one file, the projects and presets librarian, and the FM-1's screen mirrored. A build with live editing (`ED_LIVE`, not in the four flavours) adds every sound, drum, effect and setting as knobs, the drum grid and the samples (with CHOP). |
 
 The firmware files are also on the [releases page](https://github.com/w0ts/optimist/releases).
 
@@ -37,7 +37,7 @@ Four ready-made builds, in every release; the builder makes any other.
 
 | Flavour | What it is |
 | --- | --- |
-| **synths-USB-BTA-BTM** (the default) | ANALOG 2, DIGITAL, FM6 with five voice packs, PLAITS, JUNO, ACID, PHYS; the synthesised kits with PLAITS, the X0X 909 and 808, your kits; USB audio, Bluetooth MIDI, Bluetooth audio, the second core. The web editor mirrors the screen only (no backup). |
+| **synths-USB-BTA-BTM** (the default) | ANALOG 2, DIGITAL, FM6 with five voice packs, PLAITS, JUNO, ACID, PHYS; the synthesised kits with KAWA and PLAITS, the X0X 909 and 808, your kits; USB audio, Bluetooth MIDI, Bluetooth audio. The web editor does backup, restore and the screen mirror. |
 | **synths** | ANALOG 2, DIGITAL, PHASE, FM6 with five voice packs, PLAITS, STRINGS, PROPHET, JUNO, ACID, PHYS; the synthesised kits with KAWA and PLAITS, the X0X 909 and 808, your kits; Bluetooth audio. The web editor does backup, restore and the screen mirror. |
 | **synths-2** | LOFI, VOICE, WHEEL, DRONE, VPS, TERRAIN, WSEQ, VECTOR, WAVE, SID, PROPHET; the synthesised kits; Bluetooth audio. The web editor does backup, restore and the screen mirror. |
 | **drum machine** | The synthesised kits with KAWA and PLAITS, the sampled kits, the X0X 909 and 808, the drum editor, your samples and kits, SAMPLE, GRAIN; USB audio, Bluetooth MIDI, Bluetooth audio. The web editor does backup, restore and the screen mirror. |
@@ -80,7 +80,8 @@ working project as a SLOOP 2.7 song file to go the other way.
   Juno chorus and more), reverb, delay and chorus sends with three returns, punch-in effects.
 - **Sequencer:** 64 steps a track, parameter locks, motion recording, chance and conditions, note generators (EUCLID, RANDOM, PULSE, GRIDS), pattern tools, fills, patterns and
   scenes, sections A–P and a song chain, snapshots, undo.
-- **Connections:** USB and TRS MIDI in, MIDI out, MIDI clock in and out, Bluetooth MIDI, USB audio (experimental).
+- **Connections:** USB and TRS MIDI in, MIDI out over USB, MIDI clock in and out (also over Bluetooth MIDI), Bluetooth
+  MIDI and Bluetooth audio (headphones, speakers) at once, USB audio.
 - **One interface:** rows of values on the screen, SELECT / ALGORITHM / PRESETS, SAVE = yes, HOME = no, and held buttons
   for performance layers. PLAY's two lights show the transport: green dim stopped, green full playing, red full recording.
 
