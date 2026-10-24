@@ -75,6 +75,13 @@ No account, no data collected, no network use.
 
 ## Screenshots
 
-iPhone 6.9" (1320 x 2868 or 2868 x 1320), iPad 13" (2064 x 2752), Mac (2880 x 1800 or 1440 x 900): the Screen tab mirroring a busy
-page (the mixer playing), the Presets tab, the Backup tab, the welcome screen. On a device: side button + volume up; on the Mac:
-shift-cmd-4, space, click the window.
+App Store Connect asks for iPhone "Dynamic Island (medium display)" (1206 x 2622: the iPhone 18 Pro simulator), iPad 13"
+(2064 x 2752 or 2752 x 2064) and Mac (2880 x 1800). Build 2's set: the mixer, LFO and ENV pages with the touch columns.
+Made from a DEBUG build: `MIRROR_DEMO` = a 240 x 240 RGB565 file (the UI test's `opt-cardspic-*.ppm`, converted),
+`MIRROR_DEMO_NAV` = "screen,mode,row,track" (the columns as that page), `MIRROR_QUARTER=1` for the iPad in landscape (the
+simulator saves it sideways: rotate 90), favourites seeded with `simctl spawn <dev> defaults write com.w0ts.optimist.mirror
+favorites -data <hex JSON>`. Mac: the files copied into the app container's tmp (sandbox), the window captured with
+`screencapture -o -l <id>` and fitted to 2880 x 1800.
+
+**Upload from the command line** works when run outside Claude Code's sandbox: `xcodebuild archive` (generic iOS, then Mac
+Catalyst), then `xcodebuild -exportArchive` with `method app-store-connect`, `destination upload`.
