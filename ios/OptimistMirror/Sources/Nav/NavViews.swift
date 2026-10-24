@@ -169,7 +169,8 @@ struct NavSide: View {
     }
 }
 
-/// Under the screen: MASTER T1 T2 T3 DR; the drum lanes as a second line while the drum track or a lane is selected. Dim where
+/// Under the screen: the drum lanes' line (its room always kept) over MASTER T1 T2 T3 DR (the user, 2026-10-24: "put the drum
+/// buttons above the track buttons"); the lanes show while the drum track or a lane is selected. Dim where
 /// ALGORITHM walks nothing (PROJECT, SONG, GLOBAL, SYSTEM)
 struct NavTracks: View {
     @ObservedObject var nav: NavModel
@@ -180,13 +181,6 @@ struct NavTracks: View {
     var body: some View {
         let cur = nav.state?.track ?? Nav.none, dim = cur == Nav.none, n = nav.tracks.count
         VStack(spacing: NavMetrics.gap) {
-            HStack(spacing: NavMetrics.gap) {
-                ForEach(0..<min(n, Nav.drumRow + 1), id: \.self) { p in
-                    NavButton(title: nav.tracks[p], lit: p == cur || (p == Nav.drumRow && cur > Nav.drumRow && cur != Nav.none), dim: dim) {
-                        nav.pick(track: p)
-                    }
-                }
-            }
             HStack(spacing: 4) {
                 if !dim, cur >= Nav.drumRow, n > Nav.drumRow + 1 {
                     ForEach(Nav.drumRow + 1..<n, id: \.self) { p in
@@ -195,7 +189,14 @@ struct NavTracks: View {
                 }
             }
             .frame(height: NavMetrics.button)
+            HStack(spacing: NavMetrics.gap) {
+                ForEach(0..<min(n, Nav.drumRow + 1), id: \.self) { p in
+                    NavButton(title: nav.tracks[p], lit: p == cur || (p == Nav.drumRow && cur > Nav.drumRow && cur != Nav.none), dim: dim) {
+                        nav.pick(track: p)
+                    }
+                }
+            }
         }
-        .frame(height: Self.height, alignment: .top)
+        .frame(height: Self.height, alignment: .bottom)
     }
 }
