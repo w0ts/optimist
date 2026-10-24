@@ -94,6 +94,9 @@ struct RootView: View {
     @StateObject private var session: EditorSession
     @StateObject private var tilt = Tilt()
     @State private var bars = true
+    /// the tab shown, kept here: the tabs are made again after a reconnect, and without it the Mac's tab bar kept the old
+    /// tab lit over the Screen tab (the user, 2026-10-24)
+    @State private var tab = 0
 
     init(link: MirrorLink) {
         self.link = link
@@ -110,10 +113,11 @@ struct RootView: View {
         }
         .task(id: "\(link.portName)|\(link.bluetooth)") { await session.connect() }
         .onChange(of: link.state == .mirroring && link.bluetooth) { _, on in if on { BluetoothPicker.dismiss() } }   // (connected: the sheet's work is done)
-        .onChange(of: link.ports) { _, now in   // (a device connected in the sheet: take it, after a Disconnect too)
-            if BluetoothPicker.isShown, link.paused, !Set(now).subtracting(BluetoothPicker.before).isEmpty { link.resume() }
+        .onChange(of: link.online) { old, now in   // (a device connected in the sheet: taken afresh, whatever the link did before
+            // (paused, or a port held with a black screen); the sheet closes once the screen comes: the user, 2026-10-24)
+            if BluetoothPicker.isShown, !Set(now).subtracting(old).isEmpty { link.resume() }
         }
-        .sheet(item: $session.export) { ActivityView(url: $0.url) }
+        .sheet(item: $session.export) { ExportView(url: $0.url) }
         .onAppear {
             tilt.seed()
             tilt.start()
@@ -128,18 +132,23 @@ struct RootView: View {
     }
 
     private var tabs: some View {
-        TabView {
+        TabView(selection: $tab) {
             MirrorView(link: link, upright: tilt.quarter - Turn.quarter(tilt.quarter), bars: $bars)
                 .toolbar(bars ? .visible : .hidden, for: .tabBar)
                 .tabItem { Label("Screen", systemImage: "display") }
+                .tag(0)
             ProjectsView(s: session)
                 .tabItem { Label("Projects", systemImage: "folder") }
+                .tag(1)
             LibraryView(s: session)
                 .tabItem { Label("Presets", systemImage: "slider.horizontal.3") }
+                .tag(2)
             BackupView(s: session)
                 .tabItem { Label("Backup", systemImage: "externaldrive") }
+                .tag(3)
             ConnectionView(link: link)
                 .tabItem { Label("Connection", systemImage: "cable.connector") }
+                .tag(4)
         }
     }
 }
@@ -167,7 +176,7 @@ struct ConnectionView: View {
                     Text("Automatic uses the USB cable when it is plugged in, Bluetooth otherwise.")
                 }
                 Section {
-                    Button("Connect with Bluetooth…") { BluetoothPicker.present() }
+                    Button("Connect with Bluetooth…") { BluetoothPicker.present(ports: link.online) }
                     Button("Disconnect", role: .destructive) { link.disconnect() }
                 }
             }
@@ -181,7 +190,7 @@ struct ConnectView: View {
     @ObservedObject var link: MirrorLink
 
     private var bluetooth: some View {
-        Button { BluetoothPicker.present(ports: link.ports) { link.resume() } } label: {
+        Button { BluetoothPicker.present(ports: link.online) } label: {
             Label("Connect with Bluetooth", systemImage: "dot.radiowaves.left.and.right")
                 .frame(maxWidth: .infinity)
         }
@@ -200,18 +209,12 @@ struct ConnectView: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-            if link.paused {
-                Button { link.resume() } label: {
-                    Label("Connect", systemImage: "cable.connector").frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
+            Button { link.resume() } label: {     // (always there: the screen the same before and after a click)
+                Label("Connect", systemImage: "cable.connector").frame(maxWidth: .infinity)
             }
-            if link.paused {
-                bluetooth.buttonStyle(.bordered).controlSize(.large)
-            } else {
-                bluetooth.buttonStyle(.borderedProminent).controlSize(.large)
-            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            bluetooth.buttonStyle(.bordered).controlSize(.large)
             if !link.ports.isEmpty || !link.chosen.isEmpty {
                 Menu {
                     Picker("MIDI Port", selection: $link.chosen) {
@@ -434,7 +437,7 @@ struct MirrorView: View {
                     Text(title).font(.headline)
                     Text(detail).font(.footnote).multilineTextAlignment(.center)
                     if link.state == .searching || link.bluetooth {
-                        Button("Bluetooth…") { BluetoothPicker.present() }
+                        Button("Bluetooth…") { BluetoothPicker.present(ports: link.online) }
                             .buttonStyle(.bordered)
                             .tint(.white)
                     }

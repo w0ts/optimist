@@ -44,6 +44,29 @@ struct NoteView: View {
     }
 }
 
+/// A file to save or send: the Mac's Save dialog, iOS's share sheet (its Save to Files) elsewhere
+struct ExportView: View {
+    let url: URL
+    var body: some View {
+#if targetEnvironment(macCatalyst)
+        SaveView(url: url)
+#else
+        ActivityView(url: url)
+#endif
+    }
+}
+
+#if targetEnvironment(macCatalyst)
+/// The Mac's Save dialog for a file (on the Mac the share sheet has no Save), the file keeps its name
+struct SaveView: UIViewControllerRepresentable {
+    let url: URL
+    func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
+        UIDocumentPickerViewController(forExporting: [url], asCopy: true)
+    }
+    func updateUIViewController(_ controller: UIDocumentPickerViewController, context: Context) {}
+}
+#endif
+
 /// iOS's share sheet for a file (Save to Files, AirDrop, Mail ...), the file keeps its name.
 struct ActivityView: UIViewControllerRepresentable {
     let url: URL

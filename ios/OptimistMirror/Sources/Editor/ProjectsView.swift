@@ -98,7 +98,7 @@ struct ProjectsView: View {
                 }
                 Button("Clear", role: .destructive) {
                     ask = Confirmation(title: "Clear \(n)? Everything stored in it is erased.") { s.projOp(3, p) }
-                }.disabled(!used)
+                }.disabled(!used || open)       // (the loaded project: never cleared from here; the user, 2026-10-24)
             } label: { Image(systemName: "ellipsis.circle") }
                 .disabled(!s.idle)
         }

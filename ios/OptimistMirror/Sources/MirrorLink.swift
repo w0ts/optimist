@@ -20,9 +20,13 @@ final class MirrorLink: ObservableObject, Transport {
     @Published private(set) var portName = ""
     @Published private(set) var bluetooth = false   // the port in use is the Bluetooth one
     @Published private(set) var ports: [String] = []   // every MIDI port with both directions, by name (the picker)
+    /// .. of them, the ones online: the Mac keeps a Bluetooth port it paired listed while it is away (offline), so the
+    /// Bluetooth sheet's connection shows as one going online, not as a new port
+    @Published private(set) var online: [String] = []
     /// The port picked by hand ("": the FM-1's, found by its name); kept across launches
-    /// Disconnect: no port taken until a port is chosen or Connect is pressed (the welcome screen)
-    @Published private(set) var paused = false
+    /// No port taken until a port is chosen, Connect is pressed or the FM-1 is picked in the Bluetooth sheet: at launch and after
+    /// Disconnect alike, the welcome screen (the user, 2026-10-24: "NO AUTOCONNECT")
+    @Published private(set) var paused = true
     func disconnect() { paused = true; reconnect() }
     func resume() { paused = false; reconnect() }
     private func reconnect() {
@@ -101,7 +105,7 @@ final class MirrorLink: ObservableObject, Transport {
         }
 #endif
         MIDIClientCreateWithBlock("Optimist Mirror" as CFString, &client) { [weak self] note in
-            if note.pointee.messageID == .msgSetupChanged {
+            if note.pointee.messageID == .msgSetupChanged || note.pointee.messageID == .msgPropertyChanged {   // (online: a property)
                 DispatchQueue.main.async { self?.connect() }
             }
         }
@@ -174,6 +178,12 @@ final class MirrorLink: ObservableObject, Transport {
         return driver.lowercased().contains("bluetooth") || name(e).lowercased().contains("bluetooth")
     }
 
+    private static func isOnline(_ e: MIDIEndpointRef) -> Bool {
+        var v: Int32 = 0
+        MIDIObjectGetIntegerProperty(e, kMIDIPropertyOffline, &v)
+        return v == 0
+    }
+
     /// The port picked by hand when it is there, else the FM-1's: USB first, Bluetooth else.
     private static func find(_ count: Int, _ get: (Int) -> MIDIEndpointRef, chosen: String) -> MIDIEndpointRef? {
         let all = (0..<count).map(get)
@@ -185,6 +195,7 @@ final class MirrorLink: ObservableObject, Transport {
     private func connect() {
         let outs = Set((0..<MIDIGetNumberOfDestinations()).map { Self.name(MIDIGetDestination($0)) })
         ports = (0..<MIDIGetNumberOfSources()).map { Self.name(MIDIGetSource($0)) }.filter { outs.contains($0) }
+        online = (0..<MIDIGetNumberOfSources()).map(MIDIGetSource).filter { Self.isOnline($0) }.map(Self.name).filter { outs.contains($0) }
         let src = paused ? nil : Self.find(MIDIGetNumberOfSources(), MIDIGetSource, chosen: chosen)
         let dst = paused ? nil : Self.find(MIDIGetNumberOfDestinations(), MIDIGetDestination, chosen: chosen)
         guard src != source || dst != destination else { return }

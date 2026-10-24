@@ -93,8 +93,9 @@ extension EditorSession {
         if bank != nil, let s = r.slots.first, slot < bank!.slots.count { bank!.slots[slot] = s }
     }
 
-    private func check(_ rc: Int) throws {
+    private func check(_ rc: Int, store: Bool = false) throws {
         if rc == 3 { throw WireError("The FM-1 is playing: stop it (PLAY), then try again.") }
+        if rc == 1 && store { throw WireError("The drum track is selected on the FM-1: select a synth track, then try again.") }
         if rc != 0 { throw WireError("Write failed (rc \(rc))") }
     }
 
@@ -108,7 +109,7 @@ extension EditorSession {
 
     func bankStore(_ slot: Int, name: String) {
         run("Storing…") { [self] in
-            try check(await Ops.bankStore(link, slot: slot, name: name.trimmingCharacters(in: .whitespaces)))
+            try check(await Ops.bankStore(link, slot: slot, name: name.trimmingCharacters(in: .whitespaces)), store: true)
             try await refreshSlot(slot)
             say("Stored on the device: \(Names.slotName(slot)) \(bank?.slots[slot].name ?? "")")
         }
