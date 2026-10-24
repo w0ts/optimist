@@ -196,6 +196,9 @@ final class MirrorLink: ObservableObject, Transport {
         let outs = Set((0..<MIDIGetNumberOfDestinations()).map { Self.name(MIDIGetDestination($0)) })
         ports = (0..<MIDIGetNumberOfSources()).map { Self.name(MIDIGetSource($0)) }.filter { outs.contains($0) }
         online = (0..<MIDIGetNumberOfSources()).map(MIDIGetSource).filter { Self.isOnline($0) }.map(Self.name).filter { outs.contains($0) }
+        if !paused, !portName.isEmpty, !online.contains(portName) {
+            paused = true               // (the port in use gone, the USB cable out: the welcome screen, no other port taken; the
+        }                               //  user, 2026-10-24: "NO AUTOCONNECT", it went on over Bluetooth by itself)
         let src = paused ? nil : Self.find(MIDIGetNumberOfSources(), MIDIGetSource, chosen: chosen)
         let dst = paused ? nil : Self.find(MIDIGetNumberOfDestinations(), MIDIGetDestination, chosen: chosen)
         guard src != source || dst != destination else { return }

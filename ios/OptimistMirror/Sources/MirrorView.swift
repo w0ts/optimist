@@ -104,11 +104,10 @@ struct RootView: View {
     }
 
     var body: some View {
-        Group {
+        ZStack {                        // (the tabs made once, the welcome screen over them: made again after a USB -> Bluetooth
+            tabs                        //  switch, under the Bluetooth sheet, the Mac's tab bar took no click; the user, 2026-10-24)
             if link.state == .searching {
                 ConnectView(link: link)
-            } else {
-                tabs
             }
         }
         .task(id: "\(link.portName)|\(link.bluetooth)") { await session.connect() }
