@@ -16,6 +16,11 @@
 #define FELUCCA_SL24_SAFE 1
 #endif
 #define FELUCCA_UP_FM6 1
+#if FELUCCA_BLE                                     /* (midi_ble.c's realtime out, stood in: clock_out.c clko_emit through seq.c; none listens here) */
+static int ble_rt_on(void) { return 0; }
+static void ble_rt_push(uint32_t due, uint32_t pkt) { (void)due, (void)pkt; }
+static void ble_rt_drop_after(uint32_t t, uint32_t pkt) { (void)t, (void)pkt; }
+#endif
 #define main hostsim_main
 #include "hostsim.c"
 #undef main
