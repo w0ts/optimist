@@ -15,6 +15,82 @@
 
 static struct ble_dev_store ble_store;           /* LAST and the choice, decoded at start-up (ble_devices_boot) */
 static uint8_t ble_dev_kept[BLE_DEV_STORE_SIZE]; /* its octets in the settings record (project.c persist_t.ble_dev) */
+#if BLE_CENTRAL
+/* the other remembered devices (the user, 2026-10-24: "the same for BT midi", up to 4 with LAST): former LASTs, the most
+ * recent first, each with its bond; kept as they are in the settings record (persist_t.ble_kept, project.c persist_ble).
+ * The search for LAST goes through them in turn (ble_connect.c rc_try); the one it reaches becomes LAST */
+#define BLE_KEPT 3u
+static struct ble_dev ble_kept[BLE_KEPT];
+_Static_assert(sizeof(struct ble_dev) == 66u, "a remembered BLE device: 66 octets, no padding");
+static int ble_kept_ok(const struct ble_dev *d)
+{
+    return (d->info & (BLE_DEV_USED | BLE_DEV_CENTRAL)) == (BLE_DEV_USED | BLE_DEV_CENTRAL);
+}
+static uint32_t ble_kept_n(void)                 /* how many (they are packed from the front) */
+{
+    uint32_t n = 0;
+    while (n < BLE_KEPT && ble_kept_ok(&ble_kept[n]))
+        n++;
+    return n;
+}
+static int ble_is_dev(const struct ble_dev *d, const uint8_t a[6], uint8_t rnd)   /* this address is d's, or resolves */
+{
+    return ble_kept_ok(d) && (((d->info & BLE_DEV_RANDOM ? 1u : 0u) == rnd && ble_eq(d->addr, a, 6)) ||
+                              (rnd && (d->info & BLE_DEV_IRK) && ble_rpa_resolve(d->irk, a)));
+}
+static int ble_kept_at(const uint8_t a[6], uint8_t rnd)   /* the remembered device (not LAST) at this address, -1 */
+{
+    uint32_t i;
+    for (i = 0; i < BLE_KEPT; i++)
+        if (ble_is_dev(&ble_kept[i], a, rnd))
+            return (int)i;
+    return -1;
+}
+static void ble_kept_drop(uint32_t i)            /* entry i goes, the rest move up */
+{
+    for (; i + 1u < BLE_KEPT; i++)
+        ble_kept[i] = ble_kept[i + 1u];
+    memset(&ble_kept[BLE_KEPT - 1u], 0, sizeof ble_kept[0]);
+}
+static void ble_kept_push(const struct ble_dev *d)   /* d (an old LAST) first; the oldest drops */
+{
+    uint32_t i;
+    if (!ble_kept_ok(d))
+        return;
+    for (i = BLE_KEPT - 1u; i; i--)
+        ble_kept[i] = ble_kept[i - 1u];
+    ble_kept[0] = *d;
+}
+/* remembered device i becomes LAST, with its bond; LAST becomes the first of the others */
+static void ble_kept_take(uint32_t i)
+{
+    struct ble_dev d = ble_kept[i];
+    ble_kept_drop(i);
+    ble_kept_push(&ble_store.dev);
+    ble_store.dev = d;
+}
+static void ble_kept_name(const struct ble_dev *d, char out[BLE_NAME_MAX + 1u])   /* as ble_store_name, for any entry */
+{
+    uint32_t i;
+    for (i = 0; i < BLE_NAME_MAX && d->name[i]; i++)
+        out[i] = d->name[i];
+    out[i] = 0;
+    if (!i)
+        ble_addr_text(d->addr, out);
+}
+/* a new device becomes LAST (ble_store_set_last next): LAST, unless it is that device, first of the others */
+static void ble_kept_before_last(const uint8_t a[6], uint8_t rnd)
+{
+    int k = ble_kept_at(a, rnd);
+    if (k >= 0)
+        ble_kept_drop((uint32_t)k);              /* (that device again: its old entry goes) */
+    if (ble_store_has_last(&ble_store) && !ble_is_dev(&ble_store.dev, a, rnd))
+        ble_kept_push(&ble_store.dev);
+}
+#define BLE_NK(last) ((last) >= 0 ? ble_kept_n() : 0u) /* the remembered rows after LAST's (none without LAST) */
+#else
+#define BLE_NK(last) 0u
+#endif
 static uint8_t ble_devs_open;                    /* the DEVICES list is on screen: scan (BLE_CENTRAL) */
 /* the status line's tones: plain (dim), good, a notice (BLUETOOTH IS OFF, BUSY), a failure; and "no device name in it" */
 enum { BDL_PLAIN, BDL_GOOD, BDL_WARN, BDL_BAD };
@@ -142,8 +218,8 @@ static void ble_devices_poll(void)
 #endif
 }
 
-/* the list's rows: 0 NONE, then LAST (when there is one), then the nearby devices -> how many; *last: LAST's row or -1;
- * near[]: the nearby rows' indexes into ble_found.e */
+/* the list's rows: 0 NONE, then LAST (when there is one), then the other remembered devices (BLE_NK), then the nearby
+ * devices -> how many; *last: LAST's row or -1; near[]: the nearby rows' indexes into ble_found.e */
 static uint32_t ble_dev_rows(int *last, uint8_t *near, uint32_t *n_near)
 {
     uint32_t n = 1;
@@ -151,11 +227,13 @@ static uint32_t ble_dev_rows(int *last, uint8_t *near, uint32_t *n_near)
     *n_near = 0;
     if (ble_store_has_last(&ble_store))
         *last = (int)n++;
+    n += BLE_NK(*last);
 #if BLE_CENTRAL
     {
         uint32_t i, k = 0, m = ble_scan_list(&ble_found, near);
-        for (i = 0; i < m; i++)                   /* (LAST heard nearby: its own row, not a second one) */
-            if (!rc_is_last(ble_found.e[near[i]].addr, ble_found.e[near[i]].addr_rand))
+        for (i = 0; i < m; i++)                   /* (a remembered device heard nearby: its own row, not a second one) */
+            if (!rc_is_last(ble_found.e[near[i]].addr, ble_found.e[near[i]].addr_rand) &&
+                ble_kept_at(ble_found.e[near[i]].addr, ble_found.e[near[i]].addr_rand) < 0)
                 near[k++] = near[i];
         *n_near = k;
     }
@@ -169,23 +247,29 @@ static uint32_t ble_dev_rows(int *last, uint8_t *near, uint32_t *n_near)
 /* which device a row is, by what it is rather than where: the list moves under the cursor (a device ages out above it),
  * so a UI keeps the key of the row it drew highlighted and picks by that (ble_dev_pick_key) */
 struct ble_dev_key {
-    uint8_t kind;                                /* 0 NONE, 1 LAST, 2 a nearby device (addr, rnd), 3 nothing */
+    uint8_t kind;                                /* 0 NONE, 1 LAST, 2 a nearby device (addr, rnd), 3 nothing, 4 a
+                                                  * remembered device (its addr, rnd) */
     uint8_t rnd, addr[6];
 };
 static void ble_dev_key_of(uint32_t row, struct ble_dev_key *k)
 {
     int last;
     uint8_t near[16];
-    uint32_t n_near, n = ble_dev_rows(&last, near, &n_near);
+    uint32_t n_near, n = ble_dev_rows(&last, near, &n_near), nk = BLE_NK(last);
     k->kind = 3u;
     k->rnd = 0;
     memset(k->addr, 0, 6);
     if (row >= n)
         return;
-    k->kind = row == 0u ? 0u : (int)row == last ? 1u : 2u;
+    k->kind = row == 0u ? 0u : (int)row == last ? 1u : last >= 0 && row <= (uint32_t)last + nk ? 4u : 2u;
 #if BLE_CENTRAL
+    if (k->kind == 4u) {
+        const struct ble_dev *d = &ble_kept[row - 1u - (uint32_t)last];
+        k->rnd = (uint8_t)(d->info & BLE_DEV_RANDOM ? 1u : 0u);
+        memcpy(k->addr, d->addr, 6);
+    }
     if (k->kind == 2u) {
-        const struct ble_found *e = &ble_found.e[near[row - 1u - (last >= 0 ? 1u : 0u)]];
+        const struct ble_found *e = &ble_found.e[near[row - 1u - (last >= 0 ? 1u : 0u) - nk]];
         k->rnd = e->addr_rand;
         memcpy(k->addr, e->addr, 6);
     }
@@ -203,7 +287,7 @@ static int ble_dev_key_row(const struct ble_dev_key *k)   /* the row of that dev
     n = ble_dev_rows(&last, near, &n_near);
     for (r = 0; r < n; r++) {
         ble_dev_key_of(r, &c);
-        if (c.kind == k->kind && (k->kind != 2u || (c.rnd == k->rnd && !memcmp(c.addr, k->addr, 6))))
+        if (c.kind == k->kind && (k->kind < 2u || (c.rnd == k->rnd && !memcmp(c.addr, k->addr, 6))))
             return (int)r;
     }
 #if BLE_CENTRAL
@@ -218,11 +302,17 @@ static void ble_dev_pick(uint32_t row)
 {
     int last;
     uint8_t near[16];
-    uint32_t n_near, n = ble_dev_rows(&last, near, &n_near);
+    uint32_t n_near, n = ble_dev_rows(&last, near, &n_near), nk = BLE_NK(last);
     if (row >= n) {
         ble_dev_say("DEVICE GONE", BDL_WARN);
         return;
     }
+#if BLE_CENTRAL
+    if (last >= 0 && row > (uint32_t)last && row <= (uint32_t)last + nk) {
+        ble_kept_take(row - 1u - (uint32_t)last); /* (a remembered device: LAST now, with its bond; chosen below) */
+        row = (uint32_t)last;
+    }
+#endif
     if (row == 0) {                              /* NONE: visible, no auto-connect (a connected Mac stays) */
 #if BLE_CENTRAL
         ble_connect_none();                      /* (our central link and the search end) */
@@ -256,7 +346,7 @@ static void ble_dev_pick(uint32_t row)
         return;
     }
 #if BLE_CENTRAL
-    ble_connect_pick(&ble_found.e[near[row - 1u - (last >= 0 ? 1u : 0u)]]);
+    ble_connect_pick(&ble_found.e[near[row - 1u - (last >= 0 ? 1u : 0u) - nk]]);
 #endif
 }
 
@@ -276,9 +366,30 @@ static void ble_dev_forget(void)                 /* FORGET LAST: the entry and i
     ble_connect_none();                          /* (a link to it ends) */
 #endif
     ble_store_forget(&ble_store);
+#if BLE_CENTRAL
+    if (ble_kept_n()) {                          /* (the next remembered device is LAST now; NONE stays the choice) */
+        ble_store.dev = ble_kept[0];
+        ble_kept_drop(0);
+    }
+#endif
     ble_store_changed();
     ble_dev_say("FORGOTTEN", BDL_GOOD);
 }
+#if BLE_CENTRAL
+/* SAVE held on the list's row: a remembered device other than LAST forgotten (its keys too) -> 1; else 0 (LAST: FORGET) */
+static int ble_dev_forget_row(uint32_t row)
+{
+    int last;
+    uint8_t near[16];
+    uint32_t n_near;
+    (void)ble_dev_rows(&last, near, &n_near);
+    if (last < 0 || row <= (uint32_t)last || row > (uint32_t)last + ble_kept_n())
+        return 0;
+    ble_kept_drop(row - 1u - (uint32_t)last);
+    ble_store_changed();
+    return 1;
+}
+#endif
 
 /* ---- what the list shows: the pieces ui/optimist/op_project.c draws, in capitals (it sets
  * their case). */
@@ -331,6 +442,16 @@ static void ble_dev_row(uint32_t r, int last, const uint8_t *near, char *nm, con
         *chosen = ble_store.sel == BLE_SEL_NONE;
         return;
     }
+#if BLE_CENTRAL
+    if (last >= 0 && r > (uint32_t)last && r <= (uint32_t)last + BLE_NK(last)) {
+        const struct ble_dev *d = &ble_kept[r - 1u - (uint32_t)last];
+        int f = ble_dev_found_at(d->addr, d->info & BLE_DEV_RANDOM ? 1u : 0u);
+        ble_kept_name(d, nm);
+        *tag = "KNOWN";
+        *bars = f >= 0 ? ble_scan_bars(&ble_found, (uint32_t)f) : 0u;
+        return;
+    }
+#endif
     if ((int)r == last) {
         ble_store_name(&ble_store, nm);
         *tag = "LAST";
@@ -348,7 +469,7 @@ static void ble_dev_row(uint32_t r, int last, const uint8_t *near, char *nm, con
     }
 #if BLE_CENTRAL
     {
-        const struct ble_found *e = &ble_found.e[near[r - 1u - (last >= 0 ? 1u : 0u)]];
+        const struct ble_found *e = &ble_found.e[near[r - 1u - (last >= 0 ? 1u : 0u) - BLE_NK(last)]];
         if (e->name[0])
             str_cpy(nm, e->name, BLE_NAME_MAX + 1u);
         else
@@ -367,7 +488,7 @@ static void ble_dev_row(uint32_t r, int last, const uint8_t *near, char *nm, con
 static uint32_t ble_dev_sig(void)
 {
     uint32_t sig = ble_store.sel * 13u + (uint32_t)ble_store_has_last(&ble_store) * 17u + ble_dev_status() * 19u +
-                   (uint32_t)ble_on * 29u;
+                   (uint32_t)ble_on * 29u + BLE_NK(0) * 23u;
     const char *m = ble_dev_message();
     for (; m && *m; m++)
         sig = sig * 31u + (uint8_t)*m;

@@ -172,6 +172,7 @@ static int persist_upgrade(persist_v3_t *pp, int n)
 #define PERSIST4_UA_ROUTE 4u                       /* io/usb/ua_tap.h UA_ROUTE_N */
 #define PERSIST4_FAV 136u                          /* core/favorites.c fav_t (its bytes: the type is the build's) */
 #define PERSIST4_BT_KEPT 120u                      /* ui/optimist/op_bt.c BT_KEPT_SIZE: 3 devices x 40 */
+#define PERSIST4_BLE_KEPT 198u                     /* io/midi/ble_devices.c ble_kept: 3 devices x 66 (struct ble_dev) */
 typedef struct {
     uint32_t magic, palette, lowcut, zoom;
     panel_t panel;
@@ -192,6 +193,8 @@ typedef struct {
                                                     * a record from before: 0 */
     uint8_t bt_kept[PERSIST4_BT_KEPT];             /* 2026-10-24: BT AUDIO's other remembered devices (op_bt.c bt_kept_out);
                                                     * a record from before: none */
+    uint8_t ble_kept[PERSIST4_BLE_KEPT];           /* 2026-10-24: BT MIDI's other remembered devices (io/midi/ble_devices.c
+                                                    * ble_kept, struct ble_dev x 3); a record from before: none */
 #if FELUCCA_DUAL && FELUCCA_DUALCFG
     dualcfg_t dualcfg;                             /* (the second-core test image only: after everything) */
 #endif
