@@ -81,6 +81,22 @@ static uint32_t ed_unpack7(const uint8_t *a, uint32_t na, uint8_t *out, uint32_t
 static int flushed, dropped;
 #define BK_FLUSH() (flushed++)
 static void proj_slots_drop(void) { dropped++; }
+#define PANEL_MAGIC 0x50414E35u                     /* (ui/panel.c's table, the record's field: its type, as favorites_test.c) */
+typedef struct {
+    uint32_t magic;
+    uint8_t btn[14];
+    uint8_t enc[7];
+    int8_t dir[7];
+} panel_t;
+#define NB 14u                                      /* (ui/panel.c: the buttons, the encoders) */
+#define NE 7u
+#if FELUCCA_SL24_SAFE                               /* (persist_upgrade's SLOOP records: not read here) */
+static uint32_t sl_word_in(uint32_t w) { return w; }
+#ifndef SL25_DSU_MAGIC
+#define SL25_DSU_MAGIC 0u
+#endif
+#endif
+#include "../firmware/src/storage/persist_rec.c"   /* (the settings record: ed_backup.c checks a SETT against it) */
 #include "../firmware/src/io/editor/ed_backup.c"
 
 static uint32_t pack(const void *p, uint32_t n, uint8_t *o)
@@ -228,13 +244,13 @@ int main(void)
 {
     static project_t P, Q;
     static dlrec_t D, E;
-    static uint8_t settings_b[120], bank_b[2000];
+    static uint8_t settings_b[PERSIST4_LEN], set2_b[PERSIST4_LEN], bank_b[2000];   /* (settings: PER4 records, the check reads them) */
     uint32_t i, k;
     int ok, r;
     host_tracks_init();
     memset(nor, 0xFF, sizeof nor);
     /* the device's flash: two projects with drum lanes and sends, the working project, a kit, two user
-     * preset banks and the settings (opaque bytes here: a restore does not look inside), a sample in USR1 */
+     * preset banks and the settings (PER4 records: a restore checks their magic and length), a sample in USR1 */
     memset(&dl, 0, sizeof dl);
     dl.ofs[2][DE_TUNE] = 5;
     dsend[2] = dsend_word(20, 3, 0);
@@ -248,8 +264,12 @@ int main(void)
     ukit_store(3);
     for (i = 0; i < sizeof settings_b; i++)
         settings_b[i] = (uint8_t)(i * 13u + 1u);
+    for (i = 0; i < sizeof set2_b; i++)
+        set2_b[i] = (uint8_t)(i * 7u);
     for (i = 0; i < sizeof bank_b; i++)
         bank_b[i] = (uint8_t)(i * 7u);
+    memcpy(settings_b, "PER4", 4);                    /* (PERSIST_MAGIC4; the panel's magic not PAN5: not looked into) */
+    memcpy(set2_b, "PER4", 4);
     st_save(OBJ_SETTINGS, settings_b, sizeof settings_b);
     st_save(OBJ_UPRESET0 + 1, bank_b, sizeof bank_b);
     {
@@ -335,10 +355,10 @@ int main(void)
     check("... the kit bank: BACKUP in slot 4", ukit_used(3) && ukit_count() == 1u);
 
     /* torn transfers */
-    r = write_obj((uint32_t)find("SETT"), bank_b, 1500, 3, -1);
+    r = write_obj((uint32_t)find("SETT"), set2_b, sizeof set2_b, 3, -1);
     check("a transfer cut after 3 chunks (no COMMIT): nothing written", r == -1 && obj_is(OBJ_SETTINGS, settings_b, sizeof settings_b));
-    r = write_obj((uint32_t)find("SETT"), bank_b, 1500, -1, 2);
-    check("a chunk with a wrong CRC: refused (rc 2), sent again, the object written", r == 0 && obj_is(OBJ_SETTINGS, bank_b, 1500));
+    r = write_obj((uint32_t)find("SETT"), set2_b, sizeof set2_b, -1, 2);
+    check("a chunk with a wrong CRC: refused (rc 2), sent again, the object written", r == 0 && obj_is(OBJ_SETTINGS, set2_b, sizeof set2_b));
     {
         uint32_t total, n, bad = 0;
         progs = 0;
@@ -346,7 +366,7 @@ int main(void)
         total = progs;
         for (n = 0; n < total; n++) {
             fail_after = (int)n;
-            r = write_obj((uint32_t)find("SETT"), bank_b, sizeof bank_b, -1, -1);
+            r = write_obj((uint32_t)find("SETT"), set2_b, sizeof set2_b, -1, -1);
             fail_after = -1;
             bad += !(r == 7 && obj_is(OBJ_SETTINGS, settings_b, sizeof settings_b));
         }
@@ -444,6 +464,19 @@ int main(void)
             commit_dry = 0;
             ok &= obj_is(OBJ_PROJECT0, (const uint8_t *)&P, sizeof P);
             check("restore check, dry: a bad object rc 8, a good one rc 0, and NOTHING written either way", ok);
+        }
+        /* the settings record as this firmware saves it (PER4, project.c settings_save): restored; a short one refused
+         * (2026-10-24: a backup restored a minute after it was made: "SETT: not a valid object") */
+        {
+            static persist_t s4;
+            memset(&s4, 0, sizeof s4);
+            s4.magic = PERSIST_MAGIC4;
+            s4.palette = 3;
+            ok = write_obj((uint32_t)find("SETT"), (const uint8_t *)&s4, (uint32_t)PERSIST4_LEN, -1, -1) == 0 &&
+                 obj_is(OBJ_SETTINGS, (const uint8_t *)&s4, (uint32_t)PERSIST4_LEN);
+            ok &= write_obj((uint32_t)find("SETT"), (const uint8_t *)&s4, (uint32_t)PERSIST4_LEN0, -1, -1) == 0;   /* (from before open_proj) */
+            ok &= write_obj((uint32_t)find("SETT"), (const uint8_t *)&s4, 40u, -1, -1) == 8;
+            check("restore: the settings record this firmware saves (PER4) written; a cut one refused (rc 8)", ok);
         }
         cmd(ED_BK_END, (const uint8_t *)"\0", 1);
     }
