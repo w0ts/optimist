@@ -17,6 +17,8 @@ static int ble_rt_on(void) { return 0; }         /* (midi_ble.c: CLOCK OUT to a 
 static void ble_rt_push(uint32_t due, uint32_t pkt) { (void)due, (void)pkt; }
 static void ble_rt_drop_after(uint32_t t, uint32_t pkt) { (void)t, (void)pkt; }
 static void ble_midi_set(uint8_t on) { on = on ? 1u : 0u; if (on != ble_on) { ble_on = on; ble_sets++; } }
+static int ble_sig_audio_on = -1;                /* (ble_host.c: BT audio streaming, the interval to ask for; -1 never told) */
+static void ble_sig_audio(int on) { ble_sig_audio_on = on != 0; }
 /* the DEVICES list (firmware/src/io/midi/ble_devices.c) with its plain parts (the device store, the scanner's table)
  * and a stand-in link layer: ble_ll_scan records what is wanted, the reports come from the test (ble_fake_rep) */
 #define BLE_API static

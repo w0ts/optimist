@@ -726,6 +726,41 @@ static void test_midi(void)
     c_att((const uint8_t[]){0x12, 15, 0, 1, 0}, 5, &n);
 }
 
+/* Bluetooth audio streaming (op_bt.c bt_poll -> ble_sig_audio): the slower interval asked for, the fast one after */
+static void test_audio_interval(void)
+{
+    const uint8_t *r;
+    int n;
+    ble_sig_audio(1);
+    r = c_frame(5, &n);
+    check("audio on at 12: L2CAP Connection Parameter Update Request {24, 36, 0, 200}",
+          r && r[0] == 0x12 && r[2] == 8 && r[4] == 24 && r[6] == 36 && r[8] == 0 && r[10] == 200 && bhs.slow);
+    c_l2cap(5, (const uint8_t[]){0x13, r ? r[1] : 0, 2, 0, 0, 0}, 6);   /* accepted */
+    c_event();
+    ble_sig_audio(1);
+    r = c_frame(5, &n);
+    check("audio still on: asked once", !r && bhs.fast == 3);
+    bll.interval = 24;                         /* (the central moved the link to 30 ms) */
+    ble_sig_audio(0);
+    r = c_frame(5, &n);
+    check("audio off at 24: {6, 9, 0, 100} again", r && r[0] == 0x12 && r[4] == 6 && r[6] == 9 && r[10] == 100 && !bhs.slow);
+    c_l2cap(5, (const uint8_t[]){0x13, r ? r[1] : 0, 2, 0, 0, 0}, 6);
+    c_event();
+    ble_sig_audio(0);
+    r = c_frame(5, &n);
+    check("audio still off: nothing more", !r);
+    ble_sig_audio(1);
+    r = c_frame(5, &n);
+    check("audio on at 24 already: nothing asked", !r && bhs.slow);
+    bll.interval = 12;
+    bhs.slow = 0;
+    bhs.fast = 1;                              /* (our fast request under way) */
+    ble_sig_audio(1);
+    r = c_frame(5, &n);
+    check("audio on while a request is under way: it waits", !r && !bhs.slow);
+    bhs.fast = 3;
+}
+
 static void test_l2cap(void)
 {
     const uint8_t *r;
@@ -1231,6 +1266,7 @@ int main(void)
     test_connect_ll();
     test_gatt();
     test_midi();
+    test_audio_interval();
     test_l2cap();
     test_endings();
     test_blell();
