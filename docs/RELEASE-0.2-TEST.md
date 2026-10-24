@@ -36,14 +36,14 @@ What only the FM-1 can show (the user's list):
 
 ## The packages
 
-Packages are in `/Users/mots/GitHub/optimist/build/release-pass/` (git-ignored), all four built from `525e290d` on `optimist` (today's features, rounds 7, 8 and 9, the Mirror over Bluetooth; round 9's LZB coder and raw table blocks in the boot stream have never booted on an FM-1); each passes the emulator's `boot` check 10/10. Each has a `-ui.zip` beside it (the web editor's sidecar) and its ELF (`*.elf`, for the emulator). The configs are `config/release-pass/*.config`. Slot limits: flash 581,564, RAM 98,304, pool 344,064 (8,192 of it kept spare), RAM code 32,512.
+Packages are in `/Users/mots/GitHub/optimist/build/release-pass/` (git-ignored), all four built from `3c2a32dd` on `optimist` (today's features, rounds 7, 8 and 9, the BLE_CENTRAL levels, the Mirror over Bluetooth; round 9's LZB coder and raw table blocks in the boot stream have never booted on an FM-1); each passes the emulator's `boot` check 10/10. Each has a `-ui.zip` beside it (the web editor's sidecar) and its ELF (`*.elf`, for the emulator). The configs are `config/release-pass/*.config`. Slot limits: flash 581,564, RAM 98,304, pool 344,064 (8,192 of it kept spare), RAM code 32,512.
 
 | Package | File | Flash | RAM | Pool | RAM code | sha1 |
 |---|---|---|---|---|---|---|
-| A: mots | `A-mots.fwsc` | 577,948 | 91,464 | 335,824 | 27,596 | 15f9c5970aa621b15a4edb01d738ffbd043537b7 |
-| B: engines | `B-engines.fwsc` | 517,772 | 84,308 | 300,768 | 31,240 | 10709a141d1fa73e732dd447d751d23a98a594e5 |
-| C: wave | `C-wave.fwsc` | 506,080 | 73,156 | 301,684 | 30,188 | 5dd2a69e791c3893e994de56b8a3daf521b527a6 |
-| D: btdiag (optional) | `D-btdiag.fwsc` | 560,628 | 89,132 | 328,852 | 28,288 | 3e04db277c8aa761771c945ce4a46e1c8945891c |
+| A: mots | `A-mots.fwsc` | 577,948 | 91,464 | 335,824 | 27,596 | b2d1c51fe309b8b4ed876481f5ae37131c26e962 |
+| B: engines | `B-engines.fwsc` | 517,772 | 84,308 | 300,768 | 31,240 | dba1b2359571c90b75652bf28d8cce01444b211b |
+| C: wave | `C-wave.fwsc` | 506,080 | 73,156 | 301,684 | 30,188 | 1bdcef0a14eaee1ae51b2810836606b53fc91e9a |
+| D: btdiag (optional) | `D-btdiag.fwsc` | 560,628 | 89,132 | 328,852 | 28,288 | d6cff92b0a7ef1edd88858c59db313fcbfa3b134 |
 
 Flash, RAM and pool are the exact build's numbers; "RAM code" is the build's `.ram_text` + `.ram_hot` total, the figure the builder reports as ramtext.
 
