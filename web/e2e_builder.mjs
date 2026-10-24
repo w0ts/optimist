@@ -50,15 +50,16 @@ const SITE = join(WORK, "site");
 py(["web/make_site.py", "--builder", SITE]);
 const SHA = "89abcdef0123456789abcdef0123456789abcdef";
 writeFileSync(join(SITE, "webapp", "builder", "build-info.json"), JSON.stringify({ commit: SHA }) + "\n");
-/* STANDIN_DEFAULT=FILE.config: the test site (only it: build/) gets that file as profile "synth" and a flavour "Synth"
-   marked default, as the manifest will have it once config/profiles/synth.config lands; the page must open with it */
+/* STANDIN_DEFAULT=FILE.config: the test site (only it: build/) gets that file as profile DEF (the default profile) and a flavour "Synth"
+   marked default, as web/flavours.json marks the default; the page must open with it */
 const STANDIN = process.env.STANDIN_DEFAULT || null;
+const DEF = "synths_USBaudio_BTaudio_BTmidi";
 if (STANDIN) {
   const pf = join(SITE, "webapp", "builder", "data", "profiles.json");
   const pj = JSON.parse(readFileSync(pf, "utf8"));
-  if (!pj.profiles.some((p) => p.name === "synth")) pj.profiles.push({ name: "synth", text: readFileSync(STANDIN, "utf8"), published: true });
-  pj.flavours = [{ id: "synth", title: "Synth", description: "stand-in: " + STANDIN, profile: "synth", default: true },
-    ...pj.flavours.filter((f) => f.id !== "synth").map((f) => ({ ...f, default: false }))];
+  if (!pj.profiles.some((p) => p.name === DEF)) pj.profiles.push({ name: DEF, text: readFileSync(STANDIN, "utf8"), published: true });
+  pj.flavours = [{ id: DEF, title: "Synth", description: "stand-in: " + STANDIN, profile: DEF, default: true },
+    ...pj.flavours.filter((f) => f.id !== DEF).map((f) => ({ ...f, default: false }))];
   writeFileSync(pf, JSON.stringify(pj, null, 1) + "\n");
 }
 const PYDIR = process.env.PYODIDE_DIR || null;
