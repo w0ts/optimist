@@ -12,12 +12,15 @@ static const uint16_t MC_LOG2[65] = {
     2869, 2926, 2982, 3037, 3092, 3146, 3200, 3254, 3307, 3359, 3412, 3463, 3514, 3565, 3615, 3665, 3715, 3764, 3812,
     3861, 3908, 3956, 4003, 4050, 4096};
 /* round(32768 2^(i / 64)), i = 0..64: 2^frac, Q15 */
+#if !TAB_MC_EXP2_CODED   /* (the target with TAB_CODED_ALL: delta-coded in the boot stream, expanded into the pool at boot,
+                          * felucca_tables.h gen_tables.py carr: the same values, read from the pool) */
 static const uint32_t MC_EXP2[65] = {
     32768, 33125, 33486, 33850, 34219, 34591, 34968, 35349, 35734, 36123, 36516, 36914, 37316, 37722, 38133, 38548,
     38968, 39392, 39821, 40255, 40693, 41136, 41584, 42037, 42495, 42958, 43425, 43898, 44376, 44859, 45348, 45842,
     46341, 46846, 47356, 47871, 48393, 48920, 49452, 49991, 50535, 51085, 51642, 52204, 52773, 53347, 53928, 54515,
     55109, 55709, 56316, 56929, 57549, 58176, 58809, 59449, 60097, 60751, 61413, 62081, 62757, 63441, 64132, 64830,
     65536};
+#endif
 /* the settings' values (params.c N_CRAT, N_CATK, N_CREL, N_CCEIL: the same order). Steps of a one-pole a sub-block
  * (11025 Hz), Q20: 1 - exp(-1 / (tau 11025)) */
 static const uint16_t MC_SLOPE[8] = {5461, 8192, 10923, 12288, 13653, 14336, 15565, 16384};   /* 1 - 1 / R, Q14 */

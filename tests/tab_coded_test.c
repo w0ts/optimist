@@ -12,7 +12,9 @@
 #define FELUCCA_ENG_FM6 1
 #endif
 #define FELUCCA_ENG_PLAITS 1                   /* (the "plaits" group: PL_WS, coded with TAB_CODED_ALL when built) */
-#define FELUCCA_ENG_JUNO 1                     /* (the "juno" group: JUNO_VCF_G1Q_D, a byte table) */
+#define FELUCCA_ENG_JUNO 1                     /* (the "juno" group: JUNO_VCF_G1Q_D, a byte table, and the small tables) */
+#define FELUCCA_MASTER_COMP 1                  /* (the "mcomp" group: MC_EXP2) */
+#define FELUCCA_INS_XDLY 1                     /* (the "xdly" group: XD_D) */
 #include "felucca_tables.h"
 
 static int fails;
@@ -34,6 +36,8 @@ int main(void)
     TAB_CHECK_fm6(CHECK)
     TAB_CHECK_plaits(CHECK)
     TAB_CHECK_juno(CHECK)
+    TAB_CHECK_mcomp(CHECK)
+    TAB_CHECK_xdly(CHECK)
     /* the streams end where the descriptors say: every byte decoded, none left (a trailing byte would be a table
      * entry the generator and the decoder disagree on) */
     for (i = 0; i < sizeof(TAB_DESC_core) / sizeof(TAB_DESC_core[0]); i++)

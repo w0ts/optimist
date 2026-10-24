@@ -70,7 +70,13 @@ static void lcd_window(uint32_t x0, uint32_t y0, uint32_t x1, uint32_t y1)
     lcd_cmd(0x2C);
 }
 
+#ifdef __PI32V2__
+static uint16_t lcd_fillbuf[240] __attribute__((section(".pool")));   /* (core.h IN_POOL, defined after this file: the main
+                                                                        * loop's fill row in the pool, which the LCD's DMA reads
+                                                                        * as it reads main RAM; 480 B of main RAM back, round 9) */
+#else
 static uint16_t lcd_fillbuf[240];
+#endif
 #if FELUCCA_ED_MIRROR
 static uint8_t mir_mute;                /* 1: what is drawn now is not mirrored (a mixer meter not due: op_mixdraw.c mx_vu_at) */
 static uint32_t mir_meters_due(void);   /* io/editor/ed_mirror.c: the meters may go to the client this mixer frame */

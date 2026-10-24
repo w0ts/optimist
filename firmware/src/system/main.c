@@ -593,7 +593,7 @@ void fm1_cstart(void)
 {
     uint32_t *d, p3, src, wdt, boot_mode, hold;
 #if !FELUCCA_SIM
-    lzb_t lz;                                   /* the boot stream's decoder (lzb.h): 4.6 KB of this stack, once */
+    lzb_t lz;                                   /* the boot stream's decoder (lzb.h): 6.5 KB of this stack, once */
 #endif
     fm1_time_init();
     fm1_reset_reason();
