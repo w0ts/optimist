@@ -66,6 +66,9 @@
 #ifndef BLE_CONN_AUDIO_TIMEOUT
 #define BLE_CONN_AUDIO_TIMEOUT 200u
 #endif
+#ifndef BLE_SIG_AUDIO_RETRY_US
+#define BLE_SIG_AUDIO_RETRY_US 5000000u  /* the link still fast while the audio streams: asked again this long after */
+#endif
 
 /* ---- link layer */
 #ifndef BLE_LL_MAX_OCTETS

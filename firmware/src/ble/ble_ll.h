@@ -22,7 +22,7 @@ enum {
     BLE_ERR_UNKNOWN_CMD = 0x01, BLE_ERR_PIN_KEY_MISSING = 0x06, BLE_ERR_CONN_TIMEOUT = 0x08,
     BLE_ERR_REMOTE_USER = 0x13, BLE_ERR_LOCAL_HOST = 0x16, BLE_ERR_UNSUPP_REMOTE = 0x1A,
     BLE_ERR_INVALID_LL_PARAMS = 0x1E, BLE_ERR_LL_RSP_TIMEOUT = 0x22, BLE_ERR_INSTANT_PASSED = 0x28,
-    BLE_ERR_UNSPECIFIED = 0x1F, BLE_ERR_MIC_FAILURE = 0x3D, BLE_ERR_CONN_FAILED = 0x3E
+    BLE_ERR_UNSPECIFIED = 0x1F, BLE_ERR_UNACCEPT_PARAMS = 0x3B, BLE_ERR_MIC_FAILURE = 0x3D, BLE_ERR_CONN_FAILED = 0x3E
 };
 /* feature bits we may claim (FeatureSet, octet 0 bits) */
 #define BLE_FEAT_ENC (1u << 0)
@@ -80,6 +80,7 @@ BLE_API void ble_ll_start_enc(const uint8_t ltk[16], const uint8_t rand[8], uint
 /* ---- the link layer tells the host (ble_l2cap.c) ---- */
 BLE_API void ble_host_connected(void);
 BLE_API void ble_host_disconnected(uint8_t reason);
+BLE_API int ble_host_audio(void);              /* Bluetooth audio streams: a central's faster interval refused */
 /* a data PDU's payload: start = 1 for the start of an L2CAP frame (LLID 10b), 0 for a continuation */
 BLE_API void ble_host_rx(const uint8_t *p, uint8_t len, uint8_t start);
 /* once per connection event, after the link layer's own work: the host may queue frames */

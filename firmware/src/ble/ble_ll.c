@@ -649,6 +649,11 @@ static void ll_rx_ctrl(const uint8_t *p, uint8_t n)
             ll_reject(op, BLE_ERR_INVALID_LL_PARAMS);
             return;
         }
+        if (ble_host_audio() && ble_rd16(p + 3) < BLE_CONN_AUDIO_MIN) {   /* (Bluetooth audio streams: a faster interval
+                                                                         * leaves it short of air, ble_host.c) */
+            ll_reject(op, BLE_ERR_UNACCEPT_PARAMS);
+            return;
+        }
         ll_ctrl(LL_CONNECTION_PARAM_RSP, p + 1, 23);   /* accepted as asked */
         bll.rproc = P_UPD;
         bll.rproc_t = ble_hw_time_us();
