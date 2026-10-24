@@ -48,7 +48,9 @@ static struct {
 static uint32_t song_nscn(void) { return LAY_NSCN; }
 static uint32_t song_base_mode(void) { return song_nscn() + (FELUCCA_PATTERNS ? 1u : 0u); }
 static uint32_t song_pat_row_idx(void) { return song_base_mode() - 1u; }   /* the PATTERNS row: LFO's screen (PATTERNS builds) */
-static uint32_t song_rows(void) { return song_base_mode() + 1u + arrangement.count; }
+/* (an empty chain keeps one part row, empty, so that PARTS is there with the way to make part 1: the user, 2026-10-24,
+ * "the screen should still show, just saying how to save a part") */
+static uint32_t song_rows(void) { return song_base_mode() + 1u + (arrangement.count ? arrangement.count : 1u); }
 static uint32_t song_row_of_part(uint32_t a) { return song_base_mode() + 1u + a; }
 static uint32_t song_kind(uint32_t r, uint32_t *a)      /* row r: its kind and its scene / part */
 {
@@ -286,6 +288,8 @@ static void song_cell(uint32_t r, uint32_t k, cell_t *c)
         return;
     case SG_PART: {
         const arr_entry_t *e = &arrangement.entry[a % ARR_STEPS];
+        if (a >= arrangement.count)
+            return;                                     /* (an empty chain's row: nothing in it) */
         if (k == 0u) {
             c->label = "SCENE";
             c->kind = CK_VAL;
@@ -343,7 +347,7 @@ static void song_turn(uint32_t r, uint32_t k, int32_t s, int fine)
         return;
     case SG_PART: {
         arr_entry_t *e = &arrangement.entry[a % ARR_STEPS];
-        if (k > 1u)
+        if (k > 1u || a >= arrangement.count)
             return;
         if (k == 0u)                                    /* (playing too: the chain is RAM, read by the clock at each bar; saved once stopped) */
             e->scene = (uint8_t)ui_clamp(e->scene + (s > 0 ? 1 : -1), 0, (int32_t)ARR_SCENES - 1);
@@ -419,7 +423,7 @@ static int song_yes(uint32_t r, uint32_t k, uint32_t ok)
         }
         return k != 2u;
     case SG_PART:
-        if (k >= 3u)
+        if (k >= 3u || a >= arrangement.count)
             return 0;                                   /* (the table's cells are lanes 0 and 1; SAVE on a part inserts a copy: INSERT, asked) */
         if (!ok) {                                      /* INSERT asks first (the user, 2026-10-13) */
             char b[10];
@@ -493,7 +497,7 @@ static void song_part_assign(uint32_t a, uint32_t scene)
 static uint32_t song_view_of(uint32_t kind) { return kind == SG_PART ? 1u : kind == SG_MODE ? 2u : 0u; }
 static void song_view_cycle(void)
 {
-    static const char *const NAME[3] = {"SCENES", "PARTS", "SETTINGS"};
+    static const char *const NAME[3] = {"SCENES", "SONG", "SETTINGS"};   /* (the parts view named SONG: the user, 2026-10-24 "rename the page parts into song") */
     uint32_t a, v = song_view_of(song_kind(ui.row[SCR_SONG], &a)), r;
     sg_vrow[v] = ui.row[SCR_SONG];
     v = (v + 1u) % 3u;
