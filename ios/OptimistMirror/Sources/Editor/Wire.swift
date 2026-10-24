@@ -9,7 +9,7 @@ enum Cmd: UInt8 {
     case upList = 16, upGet = 17, upPut = 18, upStore = 19, upLoad = 20, upErase = 21
     case bkList = 43, bkRead = 44, bkBegin = 45, bkData = 46, bkCommit = 47, bkEnd = 48
     case patList = 79, patOp = 82, patRead = 83, patWrite = 84
-    case panel = 108
+    case panel = 108, nav = 109
 }
 
 struct WireError: Error, LocalizedError, Equatable {
@@ -46,7 +46,7 @@ enum Wire {
         switch Cmd(rawValue: cmd) {
         case .desc: return same(3)                       // (scope, id 2 x 7 bit)
         case .project: return same(2)
-        case .smpBegin, .smpEnd, .upList, .upGet, .upPut, .upStore, .upLoad, .upErase, .patList, .patOp: return same(1)
+        case .smpBegin, .smpEnd, .upList, .upGet, .upPut, .upStore, .upLoad, .upErase, .patList, .patOp, .nav: return same(1)
         case .smpWrite, .patRead, .patWrite: return same(4)
         default: return true
         }
@@ -161,6 +161,7 @@ struct Feature: Equatable {
     static let projects = Feature(name: "opti_projects", version: 1)
     static let patterns = Feature(name: "opti_patterns", version: 1)
     static let panel = Feature(name: "opti_panel", version: 1)
+    static let nav = Feature(name: "opti_nav", version: 1)
 }
 
 struct DeviceInfo: Equatable {

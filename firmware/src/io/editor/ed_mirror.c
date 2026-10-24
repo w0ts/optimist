@@ -247,6 +247,46 @@ static void ed_panel(const uint8_t *a, uint32_t na)
     ed_b(na ? a[0] : 0u);
     ed_b(!ok);
 }
+/* 109 NAV: the client's touch navigation, while it mirrors (ui/optimist/op_nav.c: each jump by the panel's own path). op, then:
+ *   0 STATE              nothing
+ *   1 ROW    r           the cursor to row r of the screen's rows (SELECT)
+ *   2 TRACK  p           the walk to mixer row p: 0 MASTER, 1..3 T1..T3, 4 DR, 5.. the lanes, then ACCENT (ALGORITHM)
+ *   3 OPEN   scr, b      screen scr (SCR_*), on SOUND page button b's family (panel.c B_*; 127: every row)
+ *   4 TRACKS             nothing
+ * Reply: op, 0 done / 1 refused, then for 0..3 the state: screen, page button (127: none), cursor row, n, the n row names
+ * (ASCII, 0-terminated; GLOBAL and SYSTEM: their pages' titles, 20 at most, the cursor the page), the walk's row (127: no track
+ * here), then where KNOB 1..4 are on the panel (op_nav.c nav_knobs: 0 nowhere, 1 the 1x4 cards, 2 the 2x2 cards, 3 the four
+ * lines, then the first line's top and the lines' pitch; a drag there turns the knob); for 4: n, the n mixer rows' names */
+static void ed_nav(const uint8_t *a, uint32_t na)
+{
+    uint32_t op = na ? a[0] : 0u, ok = mir.on, i, n;
+    char b[24];
+    if (ok && op == 1u)
+        ok = na >= 2u && nav_row(a[1]);
+    else if (ok && op == 2u)
+        ok = na >= 2u && nav_walk(a[1]);
+    else if (ok && op == 3u)
+        ok = na >= 3u && nav_open(a[1], a[2]);
+    else if (op > 4u)
+        ok = 0;
+    ed_b2(op, !ok);
+    if (op == 4u) {
+        ed_b(MXR_LN);
+        for (i = 0; i < MXR_LN; i++)
+            nav_track_name(i, b), ed_str(b, 11);
+        return;
+    }
+    n = nav_rows();
+    n = n < OP_MAXROWS ? n : OP_MAXROWS;
+    ed_b4(ui.scr, nav_mode(), nav_cur(), n);
+    for (i = 0; i < n; i++)
+        nav_row_name(i, b, sizeof b), ed_str(b, glo_cycle() ? 20u : 11u);
+    ed_b(nav_track());
+    n = nav_knobs();
+    ed_b(n);
+    if (n == 3u)
+        ed_b2((uint32_t)(GL_TOP + gl_y0()), (uint32_t)gl_pitch());
+}
 /* ed_service, every main-loop pass: a request over Bluetooth answered; a link that fell behind caught up once it is clear */
 static void mir_poll(void)
 {

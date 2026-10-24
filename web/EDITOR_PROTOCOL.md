@@ -105,7 +105,7 @@ strings, NTRK, the protocol byte (7), each engine slot's UID, then tagged blocks
 | 62 | `03 01 a b` | STEPLANE (below) |
 | 64 | `01 flags` | lite build: bit 0 backup only, bit 1 the librarian |
 | 65 | `01 version` | MIRROR (below, "The screen mirrored"): `MIR_VERSION` (2) |
-| 66 | `n` ASCII | the features by name and version, space-separated (`ed_opti.h`): `opti_backup_4` (43..48, `BK_VERSION`), `opti_mirror_2` (106, `MIR_VERSION`), `opti_panel_1` (108), `opti_library_1` (16..21), `opti_projects_1` (9), `opti_patterns_1` (79..84), `opti_proj_1` (110). Every Felucca-family firmware answers `INFO` with the same header but numbers its other commands its own way (SLOOP's backup is 34..36; 78 is Melodee's CZ), so a client sends nothing else until it has read this tag, and offers a feature only when its name and a version it reads are listed. A number goes up only when an older client would misread the new form. Over Bluetooth (only 106 answered) the firmware is known by its advertised name, "Optimist ..." |
+| 66 | `n` ASCII | the features by name and version, space-separated (`ed_opti.h`): `opti_backup_4` (43..48, `BK_VERSION`), `opti_mirror_2` (106, `MIR_VERSION`), `opti_panel_1` (108), `opti_nav_1` (109), `opti_library_1` (16..21), `opti_projects_1` (9), `opti_patterns_1` (79..84), `opti_proj_1` (110). Every Felucca-family firmware answers `INFO` with the same header but numbers its other commands its own way (SLOOP's backup is 34..36; 78 is Melodee's CZ), so a client sends nothing else until it has read this tag, and offers a feature only when its name and a version it reads are listed. A number goes up only when an older client would misread the new form. Over Bluetooth (only 106 answered) the firmware is known by its advertised name, "Optimist ..." |
 
 `BUILD` (no args): the build's name string (16), its config hash (5 x 7 bit), the item bytes count and bytes (bit n = registry item n
 built, 7 a byte). The backup file records it.
@@ -548,6 +548,21 @@ The encoder takes a bitmap or the row above only where it is the shorter. Measur
 ## The panel pressed (108 PANEL; INFO tag 66 `opti_panel_1`)
 
 `ed_mirror.c` (`ED_MIRROR`). The mirror's client presses the panel as a finger would (the app's keyboard: the FM-1 Emulator's keys); only while it mirrors, and every key it holds comes up when the mirror ends (`106 0`, or 3 s without a request). The keys go through the panel's own debounce (`hal/fm1_input.h` `fm1_remote_key`), so taps, holds and chords behave as on the panel. Request: kind, id, value. Kind 0 a button by its label (0 FX, 1 SEL, 2 ENV, 3 LFO, 4 EDIT, 5 GLO, 6 HOME, 7 SAVE, 8 ARP, 9 SEQ, 10 PLAY, 11 REC, 12 OCT-, 13 OCT+; a calibrated panel's too), kind 1 a note key (0 = F3 .. 26 = G5), value 1 down / 0 up; kind 2 a knob by its role (0 SELECT, 1 ALGORITHM, 2 PRESETS, 3..6 KNOB 1..4), value its detents + 64 (above: clockwise). Reply: kind, 0 done / 1 refused. Over USB only (Bluetooth answers 106 alone).
+
+## The touch navigation (109 NAV; INFO tag 66 `opti_nav_1`)
+
+`ed_mirror.c` `ed_nav`, `ui/optimist/op_nav.c` (`ED_MIRROR`). What a touch screen beside the mirror lists (the app's columns: the screen's pages, the tracks and lanes, the modes, favourites kept on the client), and the jumps it makes, each by the panel's own path: a row as SELECT lands on it, a track as ALGORITHM does, a SOUND family as its page button's first tap (never the second tap's next row). Only while the client mirrors; refused while a question, NAME, a held or locked layer, the TEMPO page or a held step is up. Over USB only (Bluetooth answers 106 alone).
+
+| op | Request args | Does |
+| --- | --- | --- |
+| 0 STATE | | nothing |
+| 1 ROW | r | the cursor to row r of the screen's rows |
+| 2 TRACK | p | the walk to mixer row p: 0 MASTER, 1..3 T1..T3, 4 DR, 5.. the drum lanes, then ACCENT; only where ALGORITHM walks |
+| 3 OPEN | screen, button | the screen; on SOUND (1) `button` (a page button's label as in 108: 0 FX, 1 SCL, 2 ENV, 3 LFO, 4 EDIT, 8 ARP; 127 every row) narrows it to that family |
+| 4 TRACKS | | nothing |
+
+Screens: 0 MIX, 1 SOUND, 2 MASTER (the master FX), 3 PROJECT, 4 SYSTEM, 5 STEPS, 6 SONG, 7 TEMPO (never opened: PLAY held), 8 SCOPE, 9 GLOBAL.
+Reply to 0..3: `op, 0 done / 1 refused, screen, button (127: every row, or not SOUND), cursor row, n, n row names (ASCII, 0-terminated, 11 at most), track, knobs [, top, pitch]`. `track` is the walk's mixer row, 127 where ALGORITHM walks nothing (PROJECT, SONG, GLOBAL, SYSTEM). The rows are what SELECT walks: on MIX the selected row's knob sets (MIX, INSERT, SENDS, SOUND; MASTER's RETURNS, A SENDS ...; the tracks themselves are TRACK's), on GLOBAL and SYSTEM their pages of 4 lines by title (20 characters at most; ROW puts the cursor on the page's first line). `knobs` says where KNOB 1..4's values are on the 240 x 240 panel, for a drag there to turn that knob (108 PANEL): 0 nowhere (a layer, STEP, SCOPE, a list, a popup), 1 the 1x4 cards (x 3 + 59 k, y 28, 57 x 45), 2 the 2x2 cards (x 3 or 121, y 28 or 75, 116 x 46), 3 four lines across the panel, the first from `top`, `pitch` apart. Reply to 4: `4, 0, n, n names` (the mixer rows: MASTER, T1, T2, T3, DR, the lanes by their names, ACCENT). A client asks STATE again when the screen changes.
 
 ## Undo (102 UNDO; INFO tag 5F)
 

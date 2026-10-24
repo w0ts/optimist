@@ -483,6 +483,9 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
     case ED_PANEL:                                         /* the panel pressed by the mirror's client (ed_mirror.c) */
         ed_panel(a, na);
         break;
+    case ED_NAV:                                           /* the client's touch navigation (ed_mirror.c, ui/optimist/op_nav.c) */
+        ed_nav(a, na);
+        break;
 #endif
     case ED_TRACK:                                         /* [track] -> selected, NTRK, per track: engine, preset, level, mute, armed */
         if (na >= 1u && a[0] < NTRK && a[0] != song.sel) {
