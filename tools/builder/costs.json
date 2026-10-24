@@ -1579,7 +1579,7 @@
    }
   }
  },
- "measured": "2026-10-24 20:58",
+ "measured": "2026-10-24 21:33",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
@@ -3013,6 +3013,12 @@
    "pool": 0,
    "ramtext": 0
   },
+  "BLE=1,BLE_CENTRAL=3,BT_AUDIO=1": {
+   "flash": -1600,
+   "ram": -16,
+   "pool": 0,
+   "ramtext": 0
+  },
   "BT_AUDIO=1,BT_DIAG=1": {
    "flash": 0,
    "ram": 0,
@@ -3097,6 +3103,42 @@
    "pool": 0,
    "ramtext": 0
   },
+  "SEQTOOLS=1,NOTEGEN=1,GEN_GRIDS=1": {
+   "flash": 240,
+   "ram": 32,
+   "pool": 0,
+   "ramtext": 0
+  },
+  "SEQTOOLS=1,NOTEGEN=1,ED_SEQ=0": {
+   "flash": 148,
+   "ram": 16,
+   "pool": 0,
+   "ramtext": 0
+  },
+  "SEQTOOLS=1,GEN_GRIDS=1,ED_SEQ=0": {
+   "flash": 176,
+   "ram": 16,
+   "pool": 0,
+   "ramtext": 0
+  },
+  "NOTEGEN=1,GEN_GRIDS=1,ED_SEQ=0": {
+   "flash": 904,
+   "ram": 16,
+   "pool": 0,
+   "ramtext": 0
+  },
+  "SEQTOOLS=1,NOTEGEN=1,GEN_GRIDS=1,ED_SEQ=0": {
+   "flash": -168,
+   "ram": -16,
+   "pool": 0,
+   "ramtext": 0
+  },
+  "ENG_FM6=0,TAB_IN_POOL=1": {
+   "flash": -12,
+   "ram": 4864,
+   "pool": -4868,
+   "ramtext": 28
+  },
   "TAB_CODED_ALL=1,ENG_PLAITS=1": {
    "flash": -1868,
    "ram": 0,
@@ -3162,6 +3204,21 @@
     "ram": -354,
     "pool": 388,
     "ramtext": 0
+   }
+  },
+  "INS_LIM": {
+   "members": [
+    "INS_CHORUS",
+    "INS_DELAY",
+    "INS_JCHORUS",
+    "INS_FLANGER",
+    "INS_XDLY"
+   ],
+   "shared": {
+    "flash": 3468,
+    "ram": 388,
+    "pool": 144,
+    "ramtext": 1
    }
   }
  }
