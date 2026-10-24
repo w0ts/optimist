@@ -599,7 +599,8 @@ static void gen_render(const track_t *t, step_t *o, uint32_t lanes)
  * interrupts on (the main loop), gen_write_commit copies it into the pattern with them off (the caller marks the undo
  * level). Only that slot's generator merged (a drum lane: that lane), the others' stay layers. A step the ISR records
  * between the two halves is overwritten, as WRITE overwrites the pattern anyway */
-static step_t gen_wbuf[NSTEP];
+static step_t gen_wbuf[NSTEP];                             /* (the STEP grid's draw renders into it too: op_stepdraw.c
+                                                            * sg_gst; nothing is drawn between the two halves) */
 static uint8_t gen_wdrum;                                  /* (gen_wbuf holds dsteps) */
 static int gen_write_prep(const track_t *t, uint32_t slot) /* -> 0: the slot is off, nothing to write */
 {

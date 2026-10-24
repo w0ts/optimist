@@ -31,7 +31,10 @@ static int32_t sg_dy;
 /* a note generator on (seq/gen.c): the steps as they play, drawn instead of the pattern's; a generated hit or note
  * outlined, a pattern's hit the generator silences a dim stub (stored and played: solid, as ever) */
 #if GEN_ON
-static step_t sg_gst[NSTEP];
+/* rendered into the generator's WRITE buffer (seq/gen.c gen_wbuf, 896 B): WRITE's two halves run in one key handler
+ * (op_tools.c, ed_tools.c: prep, then commit with the interrupts off), no frame is drawn between them, and a draw
+ * renders its own steps first (sg_prep): one buffer, not two (2026-10-24) */
+#define sg_gst gen_wbuf
 static const step_t *sg_st;             /* the steps drawn (0: the pattern's) */
 static void sg_prep(const track_t *t)
 {
