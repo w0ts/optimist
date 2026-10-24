@@ -30,6 +30,20 @@ final class Tilt: ObservableObject {
     @Published private(set) var quarter = 0
     private let motion = CMMotionManager()
 
+    /// At launch: the orientation iOS opened the app in (the user, 2026-10-24: "when it start should orient correctly": the
+    /// quarter began at 0 and Turn's portrait-only mask turned a landscape launch to portrait; lying flat, no gravity corrects it)
+    func seed() {
+#if !targetEnvironment(macCatalyst)
+        guard let scene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first else { return }
+        switch scene.interfaceOrientation {
+        case .landscapeLeft: quarter = 1
+        case .portraitUpsideDown: quarter = 2
+        case .landscapeRight: quarter = 3
+        default: quarter = 0
+        }
+#endif
+    }
+
     func start() {
         guard motion.isDeviceMotionAvailable, !motion.isDeviceMotionActive else { return }
         motion.deviceMotionUpdateInterval = 0.1
@@ -47,7 +61,7 @@ final class Tilt: ObservableObject {
 
 /// The interface's orientation: the tilt's.
 final class Turn: NSObject, UIApplicationDelegate {
-    @MainActor static var allowed: UIInterfaceOrientationMask = .portrait
+    @MainActor static var allowed: UIInterfaceOrientationMask = .all   // (until the first Turn.to: the launch keeps iOS's orientation)
 
     func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
         MainActor.assumeIsolated { Self.allowed }
@@ -95,8 +109,13 @@ struct RootView: View {
             }
         }
         .task(id: "\(link.portName)|\(link.bluetooth)") { await session.connect() }
+        .onChange(of: link.state == .mirroring && link.bluetooth) { _, on in if on { BluetoothPicker.dismiss() } }   // (connected: the sheet's work is done)
+        .onChange(of: link.ports) { _, now in   // (a device connected in the sheet: take it, after a Disconnect too)
+            if BluetoothPicker.isShown, link.paused, !Set(now).subtracting(BluetoothPicker.before).isEmpty { link.resume() }
+        }
         .sheet(item: $session.export) { ActivityView(url: $0.url) }
         .onAppear {
+            tilt.seed()
             tilt.start()
             Turn.to(Turn.quarter(tilt.quarter))
 #if DEBUG
@@ -162,7 +181,7 @@ struct ConnectView: View {
     @ObservedObject var link: MirrorLink
 
     private var bluetooth: some View {
-        Button { link.resume(); BluetoothPicker.present() } label: {
+        Button { BluetoothPicker.present(ports: link.ports) { link.resume() } } label: {
             Label("Connect with Bluetooth", systemImage: "dot.radiowaves.left.and.right")
                 .frame(maxWidth: .infinity)
         }
@@ -252,7 +271,7 @@ struct MirrorView: View {
             GeometryReader { g in laid(g.size) }
                 .rotationEffect(.degrees(-90 * Double(upright)))
         }
-        .overlay(alignment: .topTrailing) { HStack(spacing: 0) { rollButton; layoutButton } }
+        .overlay(alignment: .topTrailing) { layoutButton }
         .contentShape(Rectangle())
         .onTapGesture { withAnimation { bars.toggle() } }
         .focusable()
@@ -286,18 +305,19 @@ struct MirrorView: View {
         }
     }
 
-    /// On STEPS: the clip editor or the screen (a synth track; the drum track shows the screen)
+    /// On STEPS: the clip editor or the screen (a synth track; the drum track shows the screen), in the screen's own top right
+    /// corner (over the touch columns it hid their first row)
     @ViewBuilder private var rollButton: some View {
         if onSteps && !clip.drum {
             Button { rollChosen.toggle() } label: {
                 Image(systemName: rollChosen ? "display" : "pianokeys")
                     .font(.body.weight(.semibold))
                     .foregroundStyle(.white)
-                    .frame(width: 44, height: 44)
+                    .frame(width: 40, height: 40)
                     .background(.black.opacity(0.6), in: Circle())
             }
             .buttonStyle(.plain)
-            .padding(8)
+            .padding(4)
             .accessibilityLabel(rollChosen ? "Show Screen" : "Edit Notes")
             .accessibilityHint(rollChosen ? "Shows the FM-1's screen in place of the notes" : "Shows the clip's notes to edit by touch")
         }
@@ -424,6 +444,7 @@ struct MirrorView: View {
                 .background(.black.opacity(0.7), in: RoundedRectangle(cornerRadius: 12))
                 .padding()
             }
+            rollButton.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
         }
     }
 

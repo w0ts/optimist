@@ -9,8 +9,15 @@ enum Nav {
     /// The firmware's screens (op_state.c SCR_*), the numbers 109 NAV OPEN takes
     enum Screen: Int, CaseIterable {
         case mix = 0, sound, master, project, system, steps, song, tempo, scope, global
-        var title: String {
+        /// the screen's own name
+        var name: String {
             ["MIX", "SOUND", "MASTER", "PROJECT", "SYSTEM", "STEPS", "SONG", "TEMPO", "SCOPE", "GLOBAL"][rawValue]
+        }
+        /// the panel's way there, by its button (op_input.c; the user, 2026-10-24: "name the screen like their button"): HOME the
+        /// mixer, FX on its MASTER row, SAVE from the mixer, SYSTEM and SONG by their own names (GLOBAL tapped twice, SEQ held: the user, 2026-10-24 "SEQ Hold => SONG", "global*2 should be System"), PLAY held TEMPO, HOME on
+        /// the mixer SCOPE; SOUND has none (the page buttons open its families)
+        var title: String {
+            ["HOME", "SOUND", "FX", "SAVE", "SYSTEM", "SEQ", "SONG", "PLAY HOLD", "HOME ×2", "GLOBAL"][rawValue]
         }
     }
     /// panel.c's labels of the page buttons (B_*): a SOUND family each
@@ -28,6 +35,8 @@ enum Nav {
         }
     }
     static let none = 127
+    /// SONG's rows are its three views (Scenes, Song: the parts, Settings); row 3 its PATTERNS row (op_nav.c, a PATTERNS build)
+    static let songPatterns = 3
     /// Mixer row numbers (op_mixer.c MXR_*): 0 MASTER, 1..3 T1..T3, 4 DR, 5.. the drum lanes, then ACCENT
     static let drumRow = 4
 
