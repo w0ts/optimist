@@ -2,8 +2,9 @@
 /* One whole FM-1 BLE stack (the firmware's sources, BLE_API static as in its unity build) behind a fake baseband, for
  * tests/ble_f2f_test.c, which links two (or three) of these into one program and carries the packets between them:
  * FM-1 to FM-1 (docs/BLE-DEVICES-DESIGN.md §4.4, §4.2). Built once per unit with -DF2F_U=<name>: every function here is
- * <name>_<function> (tests/ble_f2f.h). The firmware's settings as built: BLE_CENTRAL brings LL encryption and legacy
- * pairing; BLE_MIDI_NEED_ENC as given (0 by default: no security on the MIDI characteristic). */
+ * <name>_<function> (tests/ble_f2f.h). The firmware's settings as built: BLE_CENTRAL (1 by default; 2 and 3 as given)
+ * brings LL encryption and legacy pairing at levels 1 and 2; BLE_MIDI_NEED_ENC as given (0 by default: no security on
+ * the MIDI characteristic). */
 #include <stdint.h>
 #include <string.h>
 #define BLE_API static
@@ -75,7 +76,9 @@ BLE_API void ble_app_midi_in(uint32_t pkt, uint16_t ts, uint16_t last) { (void)t
 BLE_API void ble_app_state(void) {}
 BLE_API void ble_app_bond(const uint8_t rand[8], uint16_t ediv, const uint8_t ltk[16]) { (void)rand, (void)ediv, (void)ltk; }
 BLE_API void ble_app_peer_id(const uint8_t irk[16], const uint8_t a[6], uint8_t r) { (void)irk, (void)a, (void)r; }
+#if BLE_CEN_PAIR
 BLE_API void ble_app_central_keys(const struct ble_keys *k) { (void)k, keys_n++; }
+#endif
 
 /* ---- the unit's face (tests/ble_f2f.h) */
 void F2F(init)(const uint8_t addr[6], uint32_t seed)
@@ -118,7 +121,11 @@ void F2F(event_end)(uint16_t counter)
 }
 int F2F(central_state)(void) { return ble_central_state(); }
 int F2F(central_fail)(void) { return ble_central_fail(); }
+#if BLE_CEN_PASSKEY
 uint32_t F2F(passkey)(void) { return ble_central_passkey(); }
+#else
+uint32_t F2F(passkey)(void) { return BLE_NO_PASSKEY; }   /* (BLE_CENTRAL 2 / 3: none built in) */
+#endif
 int F2F(midi_ready)(void) { return ble_midi_ready(); }
 int F2F(connected)(void) { return ble_connected(); }
 int F2F(encrypted)(void) { return ble_ll_encrypted(); }

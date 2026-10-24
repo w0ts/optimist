@@ -40,6 +40,10 @@ BLE_API void ble_central_connected(void);
 BLE_API void ble_central_disconnected(uint8_t reason);
 BLE_API void ble_central_event(void);
 BLE_API uint8_t ble_central_sig(const uint8_t *d, uint16_t n);   /* a Connection Parameter Update Request -> result */
+#if !BLE_CEN_PAIR
+/* BLE_CENTRAL 3: the peripheral asked for security (0: its SMP Security Request; else the ATT error): the link is left */
+BLE_API void ble_central_no_pairing(uint8_t code);
+#endif
 #endif
 
 /* ble_host.c: ask the central for BLE_CONN_MIN..MAX (L2CAP Connection Parameter Update Request), once per

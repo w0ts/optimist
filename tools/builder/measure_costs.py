@@ -86,6 +86,10 @@ PAIRS = [{"MOTION": 1, "SECTIONS": 4},
          {"BLE": 1, "BLE_BOND": 1, "BLE_CENTRAL": 1, "BLE_DIAG": 1},
          {"BLE": 1, "BLE_BOND": 1, "BLE_CENTRAL": 1, "USB_CONSOLE": 1}, {"BLE": 1, "BLE_CENTRAL": 1, "BLE_DIAG": 1, "USB_CONSOLE": 1},
          {"BLE": 1, "BLE_BOND": 1, "BLE_CENTRAL": 1, "BLE_DIAG": 1, "USB_CONSOLE": 1},
+         # the central's other levels (BLE_CENTRAL 2 Just Works only, 3 no pairing, 2026-10-24): 2 shares SMP and the AES
+         # with the bond as 1 does; 3 shares none of SMP, its central block of the diagnostics is the same
+         *[p for v in (2, 3) for p in ({"BLE": 1, "BLE_BOND": 1, "BLE_CENTRAL": v}, {"BLE": 1, "BLE_CENTRAL": v, "BLE_DIAG": 1},
+                                       {"BLE": 1, "BLE_BOND": 1, "BLE_CENTRAL": v, "BLE_DIAG": 1})],
          # BLE and Bluetooth Classic Audio share the Bluetooth stack (HCI, the controller, L2CAP): with BT_AUDIO on, BLE costs
          # ~11 KB less than its delta from the defaults (2026-10-21, real builds of mots-2: BLE off 582,596, on 600,352 B,
          # the estimate said 611,664; with them both off the delta is 28.8 KB, with BT_AUDIO already built 17.8 KB)
