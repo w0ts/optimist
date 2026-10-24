@@ -1,8 +1,8 @@
 # Optimist 0.2: hardware pass on the FM-1
 
-Nothing here has been run on an FM-1. Every package below was built and size-checked on the build farm (the exact build, not the estimate); none has been booted. User flashes, Claude never does. Back the FM-1 up first (README.md, "Getting back" is the way out: OCT- held alone while switching on = OPTIMIST USB RESCUE).
+Nothing here has been run on an FM-1. Every package below was built and size-checked on the build farm (the exact build, not the estimate). A boots in the FM-1 emulator (tests/emu's `boot` check, 10 of 10, 2026-10-24: no crash record, the boot guard clears, no late audio half, a note sounds); B, C and D have not been booted. User flashes, Claude never does. Back the FM-1 up first (README.md, "Getting back" is the way out: OCT- held alone while switching on = OPTIMIST USB RESCUE).
 
-Branch `rel/hw-pass`. Packages A, B, C were built from commit `c3275895` (the stamp in the package name), D from `bebd5736`; the later commit only adds this file. The configs are `config/release-pass/*.config`.
+A was rebuilt from `42a5aee9` on `optimist` (round 6 merged: the XIP user-preset path, the 40-packet Bluetooth audio queue, the coded tables in the boot stream); its ELF is beside it (`A-mots.elf`, for the emulator). B and C were built from commit `c3275895` on `rel/hw-pass`, D from `bebd5736`: they predate round 6 and the user-facing fixes merged since (the ACCENT lane's FX rows, the drum cards' automation display, the insert TYPE popup). The configs are `config/release-pass/*.config`.
 
 ## The packages
 
@@ -10,18 +10,20 @@ Packages are in `/Users/mots/GitHub/optimist/build/release-pass/` (git-ignored).
 
 | Package | File | Flash | RAM | Pool | RAM code | sha1 |
 |---|---|---|---|---|---|---|
-| A: mots | `A-mots.fwsc` | 581,232 | 93,164 | 333,356 | 28,452 | b0114f69b73bfbb1bb107acb720dff8498a52ad8 |
+| A: mots | `A-mots.fwsc` | 580,456 | 94,040 | 333,436 | 28,452 | 1a7559fb7b259e4daa23d5fc68799162be92162a |
 | B: engines | `B-engines.fwsc` | 520,312 | 86,584 | 306,256 | 31,064 | 11ecd72c225f590bd11bf147a4710c99788fc64f |
 | C: wave | `C-wave.fwsc` | 508,364 | 75,416 | 307,428 | 29,912 | cd98a06d75928cfe70f5b2478f7ad8292515462e |
 | D: btdiag (optional) | `D-btdiag.fwsc` | 563,892 | 91,200 | 321,228 | 28,116 | 2169fd29ed540fa0d2c6df72fb435c73cc7c2244 |
 
-A has 332 B of flash to spare. Flash, RAM and pool are the exact build's numbers; "RAM code" is the build's `.ram_text` + `.ram_hot` total, the figure the builder reports as ramtext.
+A has 1,108 B of flash to spare and 10,628 B of pool headroom (8,192 required). Flash, RAM and pool are the exact build's numbers; "RAM code" is the build's `.ram_text` + `.ram_hot` total, the figure the builder reports as ramtext.
 
 ### A: mots (the daily build; also the Bluetooth, USB audio, web screen and inserts package)
 
-`config/release-pass/A-mots.config` is the maintainer's `config/my-profiles/mots.config` (2026-10-23) with four items off, because as it stands it does not fit: the exact build was 583,092 B, 1,528 B over the slot. Off: INS_RECT, INS_HARM, INS_RING (the three inserts) and FM6_PK_80S (the 80s voice pack). Everything else is mots: nothing of the user's UI settings changed.
+`config/release-pass/A-mots.config` is the maintainer's `config/my-profiles/mots.config` as it is (2026-10-24), every item on. The first build (2026-10-23, 583,092 B) had INS_RECT, INS_HARM, INS_RING and FM6_PK_80S off to fit; round 6 (lossless: the sound side's main-loop functions at size, the delta-coded tables in the boot stream) brought them back.
 
-Holds: engines ANALOG 2 (filter models LADR, OTA, DIOD, MS20), DIGITAL, PHASE, FM6 (4 voice packs), PLAITS, PHYS, ACID, JUNO. Drums: the 32 synth kits, KAWA (47), PLAITS (48), X0X 808 and 909, drum EDIT. GRIDS with EUCL, LFO and VEL. BLE MIDI + BT audio + BT_AFH. Screen mirror (ED_MIRROR, USB and Bluetooth). USB audio. Inserts FOLD FUZZ WIDE SFLD SUB GATER CHRS JUNO-CHORUS FLNG XDLY. LIVE_SAVE.
+Holds: engines ANALOG 2 (filter models LADR, OTA, DIOD, MS20), DIGITAL, PHASE, FM6 (5 voice packs, 80S included), PLAITS, PHYS, ACID, JUNO. Drums: the 32 synth kits, KAWA (47), PLAITS (48), X0X 808 and 909, drum EDIT. GRIDS with EUCL, LFO and VEL. BLE MIDI + BT audio + BT_AFH. Screen mirror (ED_MIRROR, USB and Bluetooth). USB audio. Inserts FOLD FUZZ WIDE SFLD SUB GATER RECT HARM RING CHRS JUNO-CHORUS FLNG XDLY. LIVE_SAVE.
+
+First on an FM-1 in A, never booted on one before: the LZB boot stream (the packed tables decoded at boot, now three blocks), the user preset banks read in place through XIP (storage/upreset.c UP_XIP), the Bluetooth audio queue at 40 packets with slots the packet's length, AFH. If A does not boot: OCT- held alone while switching on is the rescue (README.md, "Getting back").
 
 Effects memory in A is set to 64 KB, which is the delay's whole line: the builder says CHRS, JUNO CHORUS, FLNG and XDLY get room for 0 instances at once, and +9 (CHRS, JUNO, FLNG) or +1 (XDLY) only while the delay is in no master insert slot. So in A the line-based inserts only work with the delay taken out of the master's slots; FOLD, FUZZ, WIDE, SFLD, SUB and GATER need no line and work as usual. Test CHRS and XDLY in B.
 
