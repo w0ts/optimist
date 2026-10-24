@@ -1,27 +1,29 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* LZB: what the boot copies into RAM (.data's initial values, the pool's tables, the RAM code) is one stream in flash,
- * coded by tools/lzb.py: LZ4's block shape (a 3-byte minimum match, 1-byte offsets up to 256 or 2-byte ones) whose
- * bytes are not stored but coded by an adaptive binary range coder (LZMA's: 11-bit probabilities moved by a 32nd a
- * bit, 5 bytes read first), each byte as 8 bits down a tree of 255 probabilities, a tree per byte class: the tokens
- * (bits 7..4 the literal count, 15 = more in length bytes, each added, 255 = another; bit 3 = a 2-byte offset; bits
- * 2..0 the match length - 3, 7 = more, the same way), the length bytes, the 1-byte offsets (distance - 1), the low and
- * the high byte of a 2-byte offset, and the literals in a context of the previous byte's top LZB_LC bits and the
- * block position's low LZB_PB bits. 55.8 KB of RAM code and tables take 38.9 KB of flash (the parse's bytes alone
- * 44.9 KB, 2026-10-23). One lzb_t (the stream cursor, the coder, the model: 4.6 KB on the boot stack) for the whole
- * stream, a block for each section in the order main.c fm1_cstart decodes them; a block starts with prev 0 at
- * position 0. The match is copied byte by byte from distance back (it may overlap). The block's last sequence is
- * literals only: the loop ends when d reaches e, which is where the next block starts. Never past e whatever the
- * stream says. Runs from flash before any RAM code or global exists: no global (its state is the caller's), calls
- * only what is here (tests/lzb_test.c runs it on tools/lzb.py's vectors). */
-#define LZB_LC 1
+ * coded by tools/lzb.py: an LZ parse (a 2-byte minimum match, 1-byte offsets up to 256 or 2-byte ones, and a match
+ * at the offset before it again: a rep match, no offset coded) whose symbols are not stored but coded by an adaptive
+ * binary range coder (LZMA's: 11-bit probabilities moved by a 32nd a bit, 5 bytes read first), each byte as 8 bits
+ * down a tree of 255 probabilities, a tree per byte class: the tokens (bits 7..4 the literal count, 15 = more in
+ * length bytes, each added, 255 = another; bit 3 = the last offset again; bits 2..0 the match length - 2, 7 = more,
+ * the same way), the length bytes, the 1-byte offsets (distance - 1), the low and the high byte of a 2-byte offset,
+ * and the literals in a context of the two previous bytes' top bits and the block position's low LZB_PB bits; one
+ * probability for a new offset's size bit (0: 1 byte, 1: 2 bytes). 58.4 KB of RAM code and tables take 38.2 KB of
+ * flash on the user's configuration (38.9 before the rep matches, the 2-byte matches and the second context byte,
+ * 2026-10-24). One lzb_t (the stream cursor, the coder, the model: 6.5 KB on the boot stack) for the whole stream, a
+ * block for each section in the order main.c fm1_cstart decodes them; a block starts with its last offset and its
+ * previous bytes at 0, at position 0. The match is copied byte by byte from distance back (it may overlap). The
+ * block's last sequence is literals only: the loop ends when d reaches e, which is where the next block starts.
+ * Never past e whatever the stream says. Runs from flash before any RAM code or global exists: no global (its state
+ * is the caller's), calls only what is here (tests/lzb_test.c runs it on tools/lzb.py's vectors). */
 #define LZB_PB 1
 #define LZB_TOK 0
 #define LZB_LEN 256
 #define LZB_OFF1 512
 #define LZB_OFF2LO 768
 #define LZB_OFF2HI 1024
-#define LZB_LIT 1280
-#define LZB_NPROBS (LZB_LIT + (256 << (LZB_LC + LZB_PB)))
+#define LZB_LONG 1280                               /* (one probability: no tree reads its base) */
+#define LZB_LIT 1281
+#define LZB_NPROBS (LZB_LIT + (256 << (2 + LZB_PB)))
 
 typedef struct {
     const uint8_t *s;                           /* the stream: the next byte the coder takes */
@@ -41,28 +43,34 @@ static void lzb_init(lzb_t *z, const uint8_t *s)
     z->s = s;
 }
 
+/* one bit with the probability at p */
+static uint32_t lzb_bit(lzb_t *z, uint16_t *p)
+{
+    uint32_t bound = (z->range >> 11) * *p, b;
+    if (z->code < bound) {
+        z->range = bound;
+        *p = (uint16_t)(*p + ((2048u - *p) >> 5));
+        b = 0;
+    } else {
+        z->code -= bound;
+        z->range -= bound;
+        *p = (uint16_t)(*p - (*p >> 5));
+        b = 1;
+    }
+    while (z->range < (1u << 24)) {
+        z->range <<= 8;
+        z->code = (z->code << 8) | *z->s++;
+    }
+    return b;
+}
+
 /* one byte of the tree at probs (8 bits, the top first) */
 static uint32_t lzb_byte(lzb_t *z, uint16_t *probs)
 {
     uint32_t m = 1;
-    do {
-        uint16_t *p = probs + m;
-        uint32_t bound = (z->range >> 11) * *p;
-        if (z->code < bound) {
-            z->range = bound;
-            *p = (uint16_t)(*p + ((2048u - *p) >> 5));
-            m <<= 1;
-        } else {
-            z->code -= bound;
-            z->range -= bound;
-            *p = (uint16_t)(*p - (*p >> 5));
-            m = (m << 1) | 1u;
-        }
-        while (z->range < (1u << 24)) {
-            z->range <<= 8;
-            z->code = (z->code << 8) | *z->s++;
-        }
-    } while (m < 256u);
+    do
+        m = (m << 1) | lzb_bit(z, probs + m);
+    while (m < 256u);
     return m & 255u;
 }
 
@@ -81,28 +89,32 @@ static uint32_t lzb_more(lzb_t *z, uint32_t n)
 static void lzb_expand(lzb_t *z, uint8_t *d, uint8_t *e)
 {
     const uint8_t *d0 = d;
-    uint32_t prev = 0;
+    uint32_t p1 = 0, p2 = 0, rep = 0;           /* the two bytes before d (0 before the block has them), the last offset */
     while (d < e) {
-        uint32_t t = lzb_byte(z, z->p + LZB_TOK), n = t >> 4, b;
+        uint32_t t = lzb_byte(z, z->p + LZB_TOK), n = t >> 4;
         if (n == 15u)
             n = lzb_more(z, n);
         for (; n && d < e; n--, d++) {
-            uint32_t ctx = ((prev >> (8 - LZB_LC)) << LZB_PB) | ((uint32_t)(d - d0) & ((1u << LZB_PB) - 1u));
-            *d = (uint8_t)(prev = lzb_byte(z, z->p + LZB_LIT + 256u * ctx));
+            uint32_t ctx = ((((p1 >> 7) << 1) | (p2 >> 7)) << LZB_PB) | ((uint32_t)(d - d0) & ((1u << LZB_PB) - 1u));
+            p2 = p1;
+            *d = (uint8_t)(p1 = lzb_byte(z, z->p + LZB_LIT + 256u * ctx));
         }
         if (d >= e)
             break;                                  /* (the block's last literals) */
-        if (t & 8u) {
-            b = lzb_byte(z, z->p + LZB_OFF2LO);
-            b |= lzb_byte(z, z->p + LZB_OFF2HI) << 8;
-        } else {
-            b = lzb_byte(z, z->p + LZB_OFF1) + 1u;
+        if (!(t & 8u)) {
+            if (lzb_bit(z, z->p + LZB_LONG)) {
+                rep = lzb_byte(z, z->p + LZB_OFF2LO);
+                rep |= lzb_byte(z, z->p + LZB_OFF2HI) << 8;
+            } else {
+                rep = lzb_byte(z, z->p + LZB_OFF1) + 1u;
+            }
         }
-        n = (t & 7u) + 3u;
+        n = (t & 7u) + 2u;
         if ((t & 7u) == 7u)
             n = lzb_more(z, n);
         for (; n && d < e; n--, d++)
-            *d = d[-(int32_t)b];
-        prev = d[-1];
+            *d = d[-(int32_t)rep];
+        p1 = d[-1];
+        p2 = d[-2];
     }
 }
