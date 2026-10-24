@@ -234,7 +234,8 @@ static void op_yes(void)
 static void op_no(void)
 {
     if (op_armed()) {
-        op_disarm();                                    /* cancel */
+        if (!prj_no())
+            op_disarm();                                /* cancel (op_prjflow.c: "SAVE <open>?" asks the LOAD instead) */
         return;
     }
 #if FELUCCA_BT_UI

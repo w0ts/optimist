@@ -274,6 +274,24 @@ static void prj_ask(uint32_t r, uint32_t kind, uint32_t op, uint32_t s)
 #endif
     op_arm(SCR_PROJECT, r, 0, PO_NAME[op], t, prj_danger(kind, op, s));
 }
+/* HOME on "SAVE <open>?": not saved, the LOAD asked next (red: the changes go); HOME again cancels (the user, 2026-10-25:
+ * "if i dont want to save the current project i am in a dead loop"). 0: not that question, HOME cancels as usual */
+static int prj_no(void)
+{
+#if FELUCCA_PATTERNS
+    char l[8], t[16];
+    if (ui.arm_scr != SCR_PROJECT || prj_arm_op != PO_SAVE_LOAD)
+        return 0;
+    prj_slot_label(PR_PROJECT, prj_arm_slot, l);
+    str_cpy(t, PRJ_WHAT[PR_PROJECT], sizeof t);
+    str_app(t, l, sizeof t);
+    prj_arm_op = PO_LOAD;
+    op_arm(SCR_PROJECT, ui.arm_row, 0, PO_NAME[PO_LOAD], t, 1);
+    return 1;
+#else
+    return 0;
+#endif
+}
 static void prj_do(uint32_t kind, uint32_t op, uint32_t s)
 {
     if (kind == PR_PROJECT) {

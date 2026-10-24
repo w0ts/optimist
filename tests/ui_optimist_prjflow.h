@@ -182,6 +182,32 @@ static void prjflow_tests(void)
         op_enter(SCR_PROJECT);
         check(prj_cur == 1 && song.g[G_SLOT] == 2, "PROJECT opens on the slot loaded last (a SAVE asks for that one)");
     }
+#if FELUCCA_PATTERNS
+    if (!prj_slot_used(PR_PROJECT, 1))
+        (void)prj_save_go(1);                           /* (the real log here: project 2 stored, open) */
+    song.g[G_SLOT] = 1;
+    if (prj_slot_used(PR_PROJECT, 1)) {
+        /* LOAD while the work changed: "SAVE <open>?" first; HOME = not saved, the LOAD asked (red); HOME again cancels */
+        edt.work_ok = 1;
+        edt.work = work_sig() ^ 1u;
+        h0 = saves;
+        pf_key(1);
+        check(op_armed() && !strncmp(ui.arm_q, "SAVE PROJECT", 12) && prj_arm_op == PO_SAVE_LOAD,
+              "LOAD with the work changed: \"Save project?\" first");
+        tap(B_HOME);
+        check(op_armed() && !strcmp(ui.arm_q, "LOAD PROJECT 2?") && ui.arm_danger && saves == h0,
+              "... HOME: not saved, \"Load project 2?\" asked, red");
+        tap(B_HOME);
+        check(!op_armed() && saves == h0, "... HOME again: cancelled, nothing saved");
+        loads = 0;
+        edt.work = work_sig() ^ 1u;
+        pf_key(1);
+        tap(B_HOME);
+        tap(B_SAVE);
+        check(!op_armed() && saves == h0 && !work_changed(), "... HOME then YES: loaded without a save, the work as loaded");
+    } else
+        check(0, "LOAD with the work changed: project 2 stored for the test");
+#endif
     ui.toast_t = 0;
     pf_key(3);
     check(song.g[G_SLOT] == 4 && (op_armed() != (ui.toast_t != 0u)), "PROJECT: key 4 selects slot 4: a question when used, a toast when free");
