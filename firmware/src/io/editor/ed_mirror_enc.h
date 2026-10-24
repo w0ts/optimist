@@ -17,7 +17,7 @@
  *   The encoder takes a bitmap or the pixels above only where they are the shorter. */
 #ifndef ED_MIRROR_ENC_H
 #define ED_MIRROR_ENC_H
-enum { ED_MIRROR = 106, ED_PANEL = 108, MIR_VERSION = 2, MIR_CUT = 250, MIR_SLOTS = 7, MIR_LIT = 7, MIR_LONG = 13, MIR_BITS = 14, MIR_UP = 15,
+enum { ED_MIRROR = 106, ED_PANEL = 108, ED_NAV = 109, MIR_VERSION = 2, MIR_CUT = 250, MIR_SLOTS = 7, MIR_LIT = 7, MIR_LONG = 13, MIR_BITS = 14, MIR_UP = 15,
        MIR_SHORT = 13,                  /* the pixels a one-byte run holds at most */
        MIR_LMAX = 8191,                 /* a length's largest */
        MIR_BMAX = 16 };                 /* a bitmap's 7-pixel bytes at most */
