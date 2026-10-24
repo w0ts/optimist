@@ -297,8 +297,10 @@ static HOT void dual_run(uint32_t mask, uint32_t n, mixacc_t *A)
             if (p < NPART) {
                 mix_part(&trk[p], n, A);
             } else if (p == NPART) {
+                SCOPE_DRUMS(scope_drums_mark);     /* (the SCOPE on the drums: their part of the mix, as mix_block does) */
                 slicer_drums(mix_l, mix_r, send_r, n);
                 dbus_run(n);                       /* the drum bus's inserts and sends (fx.c; the drums alone) */
+                SCOPE_DRUMS(scope_drums_take);
             } else {
 #if REV_LATE
                 if (!rvj.done)                     /* (CPU1 down after it ran it: not twice) */
