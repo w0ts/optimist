@@ -54,7 +54,7 @@ User presets and projects saved by an earlier firmware (SLOOP, or Optimist befor
 - **GRIDS note generator** (Mutable Instruments Grids' drum map) and the note generators, apart from the STEP tools. Two builder sub-items, off by default:
   - **LFO modulation:** two LFOs on the drum track move the kit's six GRIDS values (X, Y, CHAOS, the three densities), so the pattern drifts on its own.
   - **Euclidean mode** (OUT DRUMS / EUCL): Grids' own Euclidean output, X, Y and CHAOS the three parts' lengths 1..32, BD SD HH their fills, bit for bit Grids' table.
-- **Projects own their scenes, patterns and song.** A project is one record; PROJECT LOAD opens it, SAVE saves everything, DELETE / NEW clear it; backup objects PJ01..PJ16. LOAD over unsaved changes asks "SAVE PROJECT?" first: YES saves then loads, HOME asks "LOAD PROJECT?" to load without saving.
+- **Projects own their scenes, patterns and song.** A project is one record; PROJECT LOAD opens it, SAVE saves everything, DELETE / NEW clear it; backup objects PJ01..PJ16.
 - **SONG tables:** scenes and parts as tables; SELECT / ALGORITHM navigate, the knobs edit; BARS; edits and clears while playing.
 - **Mute mode** (SHIFT + a key) with three key lights; the master channel too; the track LEDs follow the notes.
 - **CHORD+ latch:** a black modifier key tapped twice stays on.
