@@ -267,9 +267,26 @@ static void glw_sync_long_tests(void)
             pg_ok &= c.label && !strcmp(c.label, "CLK OFS") && c.vp == &sync_ofs[0];
             n += 1u + (FELUCCA_BT_AUDIO ? 1u : 0u);
         }
-        pg_ok &= gl_end(0, first) - gl_first(0, first) == n && first == gl_first(0, first);
+        pg_ok &= gl_end(0, first) - gl_first(0, first) == (FELUCCA_BT_AUDIO ? k : n) && first == gl_first(0, first);   /* (BT OFS too: the second row on the next page) */
         glo_cell(TPR_TEMPO, 3, &c);
         check(pg_ok && c.vp == &song.g[G_TUNE], "GLOBAL: the MIDI page is CLK IN, CLK OUT, MIDI OUT, then CLK OFS (BT OFS) (no MIDI IN, no CLK read-out); GLOBAL's Tempo's fourth line is TUNE, not SYNC");
+        if (FELUCCA_MIDI_CLOCK) {                       /* CLK OFS below 0 by its knob, and by the editor's SCRN turn (fine, steps) */
+            uint32_t l = line_named(SCR_GLOBAL, "CLK OFS"), j;
+            int32_t v1, v2, v3;
+            sync_ofs[0] = 0;
+            line_at(SCR_GLOBAL, l);
+            turn(LINE_KNOB(l), -1);
+            v1 = sync_ofs[0];
+            for (j = 0; j < 30u; j++)
+                turn(LINE_KNOB(l), -1);
+            v2 = sync_ofs[0];
+            for (j = 0; j < 200u; j++)
+                turn(LINE_KNOB(l), -1);
+            v3 = sync_ofs[0];
+            printf("  clk ofs: one detent down %d, 31 %d, the end %d\n", (int)v1, (int)v2, (int)v3);
+            check(v1 < 0 && v2 < v1 && v3 == SY_OFS_MIN, "GLOBAL CLK OFS: its knob goes below 0, down to -100 ms");
+            sync_ofs[0] = 0;
+        }
         tp_cell(TPR_TEMPO, 3, &c);
         check(!FELUCCA_MIDI_CLOCK || (c.kind == CK_VAL && !strcmp(c.label, "SYNC")), "PLAY's TEMPO page still has SYNC (its 4th card)");
     }

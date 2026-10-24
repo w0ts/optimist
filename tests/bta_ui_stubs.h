@@ -48,6 +48,7 @@ static const char *bta_lost(void)
 }
 static int bta_out_bt(void) { return btafk.out_bt; }
 static int bta_gave_up(void) { return btafk.gave_up; }
+static int32_t bta_lat_t(void) { return -1; }     /* (bt_acl.c: the stream's own delay, clock_sync.c; -1 not streaming) */
 static int bta_rejoin(void) { return 0; }
 static void bta_output(int bt) { btafk.out_bt = (uint8_t)(bt != 0); }
 static void bta_fake_dev(uint32_t i, uint8_t a0, const char *name)   /* the inquiry heard device i */
