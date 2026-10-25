@@ -85,6 +85,16 @@ for what, ev, err in (("a rule not met", {"errors": [{"text": "PATTERNS needs SE
         check(f"verdict: refused, {what}", False)
     except CB.Refused as e:
         check(f"verdict: refused, {what}", "refused" in str(e) or "no cloud key" in str(e))
+try:                                            # (issue 29: every engine on, built anyway, the linker 183 KB over)
+    CB.verdict({"errors": [], "key": KEY, "name": "All", "fit": False,
+                "fits": {"flash": {"used": 817080, "capacity": 581564, "over": 235516},
+                         "ram": {"used": 90000, "capacity": 98304, "over": -8304}}})
+    check("verdict: refused, a configuration the estimate says does not fit", False)
+except CB.Refused as e:
+    check("verdict: refused, a configuration the estimate says does not fit (the region over, by how much; not the one "
+          "that fits)", "does not fit" in str(e) and "flash: 817,080 of 581,564 B, 235,516 B too many" in str(e)
+          and "ram:" not in str(e))
+check("verdict: a configuration that fits goes on", CB.verdict({"errors": [], "key": KEY, "name": "Pad", "fit": True})["key"] == KEY)
 
 # ---- the replies
 env = {"REPO": "w0ts/optimist", "RUN_URL": "https://github.com/w0ts/optimist/actions/runs/1", "COMMIT": SHA, "KEY": KEY,
