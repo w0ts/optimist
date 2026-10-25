@@ -1,7 +1,7 @@
 # The FM-1 SD board (v5)
 
 A board with everything the SD card mod needs (docs/SD-CARD-DESIGN.md), and the splitter too: a push-push microSD
-socket, the chip-select inverter, the 1 kOhm on the card's data out, the pull-ups, the decoupling, and two 10-pin
+socket, the chip-select inverter, the 220 Ohm on the card's data out, the pull-ups, the decoupling, and two 10-pin
 0.5 mm flat-cable sockets (the user, 2026-10-25). It sits on the back of the FM-1's board, right of the battery, by
 the battery's plug (the battery stays). Its lower part (25.4 x 41.5 mm, the card socket) slides into a printed tray
 round the cover's pole there; a column goes up the right of the speaker plug to a head right under the audio jacks.
