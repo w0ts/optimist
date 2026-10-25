@@ -319,7 +319,16 @@ static BOOT_ORDER void fm1_main(void)
     BOOT_STAGE(SETTINGS);
     settings_init();
     BOOT_STAGE(LCD);
+#if FELUCCA_SDCARD
+    fm1_lcd_hw_init();
+    (void)sd_mount_boot();                              /* the card in SPI mode before the first screen traffic: a card
+                                                         * still in its native mode reads the pixels on CMD (2026-10-25
+                                                         * review); none: a few failed CMD0s, ms */
+#endif
     lcd_init();
+#if FELUCCA_SDCARD
+    sd_lcd_live = 1;
+#endif
     boot_splash();                                      /* the Optimist logo and version (splash.c) */
 #if FELUCCA_SIMD
     sine_pk_init();                                     /* the packed sine of hal/fm1_simd.h (dsp.c) */
@@ -537,6 +546,7 @@ static BOOT_ORDER void fm1_main(void)
         felucca_dbg.home = 0;                       /* (SLOOP's HOME screen is gone; the field keeps the layout) */
         felucca_dbg.stage = 1;
         ui_input();
+        fxm_poll();                                     /* the effects' lines in the arena (fx/fx_arena.c; FX_ARENA) */
         fxi_poll();                                     /* the limited inserts' instances after a change (fx/insfx/fxi.c) */
         rto_poll();                                     /* the engines the parts asked for: their code into the slots (overlay.c) */
         felucca_dbg.stage = 2;
@@ -572,6 +582,7 @@ static BOOT_ORDER void fm1_main(void)
 #endif
         MAIN_WAIT_BEGIN                                 /* while (fm1_ms - m < 15u): ~60 UI frames/s at most */
             ui_input();
+            fxm_poll();                         /* (an effect picked: its line within a pass) */
             fxi_poll();                         /* (a type picked: its instance within a pass) */
             rto_poll();                         /* (an engine a part asked for: its code into the part's slot, overlay.c) */
             meter_tap();                        /* (once per audio half: the meters see every one) */

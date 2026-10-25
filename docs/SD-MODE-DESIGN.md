@@ -7,7 +7,10 @@ Phases 1 and 2 are built and host-tested (section 8); nothing has run on an FM-1
 
 - **Flash for code.** The freed flash holds code, run in place (XIP): code there costs no RAM.
 - **Hot code loaded on the fly** into the fast area (RAMTEXT) depending on what the project uses.
-- **A fake SD mode for testing:** one project (maybe two) in flash, **no user samples**, about **4 presets and 4 kits**.
+- **A fake SD mode for testing:** **one project** in flash (the user, 2026-10-25: the web app and the iOS app move a
+  project to and from the FM-1 over USB, so they keep the others; `PROJ_SLOTS` 1: the PROJECT page shows one slot, the
+  editor's project command answers 1 for another, a backup's PJ02..PJ16 are not restored), **no user samples**, about
+  **4 presets and 4 kits**.
 - **The built-in samples stay in flash** for now (no RAM spent on sample streaming yet).
 - **Plugins** (code loaded into RAM from the card): later, maybe.
 
@@ -196,6 +199,40 @@ trk_note_on), the UI shows NONE in grey with no sound name; a project or section
 `ENG_UID_SILENT` (0xFE; an older firmware plays its stand-in for an unknown engine) and a load restores the placeholder;
 picking an engine or loading a user preset ends it. `tests/placeholder_test.c`. Not yet: the drop picker that calls
 part_drop (the confirm on an edit, the list on a load).
+
+**Built (phase 3b, the effects' lines, 2026-10-25):** `firmware/src/fx/fx_arena.c`. With `FELUCCA_FX_ARENA=1` and an
+arena placed by need (`FELUCCA_ARENA_BYTES`), the effects' big lines are blocks of the same arena, after the parts': the
+chorus, delay and reverb sends' lines (`cho_buf`, `dly_buf`, `rev_line`) and the limited inserts' own room (`fxa_ins`).
+The default build keeps them static as before (its image byte-identical). The builder's `ARENA` (bit 411, KB; 0 off)
+sets both: `FELUCCA_ARENA_KB` -> `FELUCCA_ARENA_BYTES` and `FELUCCA_FX_ARENA` (registry.h); its pool estimate is
+`core.py arena_mem` (the arena less the fixed memories it replaces), its code and RAM unmeasured in costs.json yet (a
+gpufarm run); a measurement build can also set `OPTIMIST_ARENA_BYTES` and `OPTIMIST_FX_ARENA=1` (`tools/build.py`).
+- **Used** = a send's type in a master slot, or its line lent to the inserts (or wanted for an owner starved of a type it
+  would hold); the own room while any owner holds a limited type. Only those hold a block.
+- **Placed** in the main loop (`fxm_poll`, every pass before `fxi_poll`): reserved and taken with the interrupts off,
+  zeroed and the bus at rest while the bus is gated (`fxm_off`: `fx_ret_block` runs no bus whose line is not placed,
+  `rev_guard` keeps the reverb off), then the gate opened. The largest line first; the lines placed best fit from the
+  arena's top (`ARN_TOPS`), the engines first fit from its bottom, so the two cut each other's room up less.
+- **No longer used**: gated, given back two audio blocks later (CPU1's kept reverb block, `REV_LATE`, has run by then);
+  the own room once the last instance in it has faded out. The audio runs on with the pointer 0 (tested).
+- **No room** (the ruling for parts carried over): the effect is **bypassed where it is** (a send's return adds nothing,
+  the dry signal passes; a limited insert FULL, as when the effects memory is full), **kept in the project**, shown dim
+  (the master slot's card: FULL, struck through), MEM FULL said once, and **placed by itself as soon as there is room**
+  (tried every pass, never while a part's refused change waits: a part's sound first). When the free room is only cut
+  up, the send lines whose buses are silent are gated, given back and placed again with it, the largest first, if a
+  trial on the arena says that makes it fit (nothing heard is lost: a silent bus's line is all zeros).
+- **Parts first, then the effects** (the user, 2026-10-25): a part's refused change proposes the parts first
+  (`arn_drop_for` names parts only, `ARN_DROPPABLE`), then, in the same confirm, the effects' send lines placed and not
+  lent, the largest first ("DROP REV 32 KB", `fxm_offer`); a dropped effect is bypassed as when refused (`fxm_drop`:
+  gated, given back two blocks later, FULL, kept in its slot, back by itself once there is room). The inserts' own room
+  is not offered (its owners hold their types). A part's change refused while an effect's line is on its way back
+  waits for it (`model.c mem_retry`, `fxm_pending`) and goes through when that makes room.
+Default profile (`synths_USBaudio_BTaudio_BTmidi`, measured 2026-10-25): FX_ARENA off: flash, RAM, pool unchanged. An
+arena of the same room (38,664 B of engines + the 64 + 4 + 32 KB lines = 141,064 B): flash +2,140 B, RAM +256 B, pool
+the same (of which the engines' arena by need alone: +200 B flash, -16 B RAM). A 96 KB arena: pool -42,760 B, the undo
+ring 12,136 -> 54,896 B; the builder's ARENA 96: flash +2,384 B, RAM +240 B, pool -42,760 B. Not yet:
+the punch ring, the slicer's buffers and the reverbs' small cells (static, as before).
+Tests: `tests/fx_arena_test.c` (ROOM; ROOM + FDN8 + SPRING), `tests/arena_test.c` (best fit from the top, never named).
 
 ## 7. Phases
 

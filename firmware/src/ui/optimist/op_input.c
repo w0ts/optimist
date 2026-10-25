@@ -208,6 +208,13 @@ static void mem_tick(void)
 {
     uint32_t k;
     char a[24];
+#if FXM_NEED
+    if (fxm_news && !op_armed()) {                      /* an effect refused (fx/fx_arena.c): bypassed until there is room */
+        ui_message(fxm_news & 1u ? "MEM FULL CHO" : fxm_news & 2u ? "MEM FULL DLY" : fxm_news & 4u ? "MEM FULL REV" :
+                   "MEM FULL INSERTS");
+        fxm_news = 0;
+    }
+#endif
     if (!part_mem_refused.on || op_armed())
         return;
     if (mem_retry() >= 0 && (!part_mem_refused.on || part_mem_refused.waiting))
@@ -217,6 +224,19 @@ static void mem_tick(void)
         ui_message("MEM FULL");
         return;
     }
+#if FXM_NEED
+    if (k >= NPART) {                                   /* an effect's line (fx_arena.c, after every part): "REV 32 KB" */
+        static const char *const FXN[3] = {"CHO", "DLY", "REV"};
+        uint32_t n;
+        str_cpy(a, FXN[(k - NPART) % 3u], sizeof a);
+        str_app(a, " ", sizeof a);
+        n = str_len(a);
+        fmt_int(a + n, (int32_t)(FXM_BYTES[(k - NPART) % 3u] / 1024u));
+        str_app(a, " KB", sizeof a);
+        op_arm(ARM_OP, OA_DROP, k, "DROP", a, 1);
+        return;
+    }
+#endif
     str_cpy(a, trk_tag(k), sizeof a);
     str_app(a, " ", sizeof a);
     str_app(a, trk_eng_name(&trk[k]), sizeof a);

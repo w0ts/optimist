@@ -440,6 +440,23 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
                                             * and every insert line (1 KB units); 0: the send's line and one line of each
                                             * limited insert type built */
 #endif
+#ifndef FELUCCA_ARENA_KB
+#define FELUCCA_ARENA_KB 0                 /* the builder's ARENA (bit 411): KB of pool for the parts' engine states and
+                                            * the effects' lines, placed by need (core/arena.c, fx/fx_arena.c); 0: the
+                                            * fixed memories as before */
+#endif
+#if FELUCCA_ARENA_KB && !defined(FELUCCA_ARENA_BYTES)
+#define FELUCCA_ARENA_BYTES (FELUCCA_ARENA_KB * 1024u)
+#ifndef FELUCCA_FX_ARENA
+#define FELUCCA_FX_ARENA 1
+#endif
+#endif
+#ifndef FELUCCA_FX_ARENA
+#define FELUCCA_FX_ARENA 0                 /* 1: with an arena placed by need (FELUCCA_ARENA_BYTES, engines.c), the effects'
+                                            * big lines (the sends' delay, chorus and reverb lines, the inserts' own room)
+                                            * are placed in it while a project uses them (fx/fx_arena.c); 0: static, as
+                                            * before */
+#endif
 #ifndef FELUCCA_RET_FB
 #define FELUCCA_RET_FB 1                   /* the returns' feedback sends B -> A, C -> A, C -> B (fx_slots.c rs_amt, fx.c rs_fbv) */
 #endif
@@ -625,6 +642,8 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #define FELUCCA_LAYOUT 0                   /* the flash layout (hal/fm1_flash_map.h): 1 the fake SD mode, the app slot to
                                             * 0xD0000 over the user samples and snapshots (docs/SD-MODE-DESIGN.md) */
 #endif
+#define PROJ_SLOTS (FELUCCA_LAYOUT == 1 ? 1u : 16u)   /* the projects the flash keeps (PATTERNS): the fake SD mode one, the
+                                            * others kept by the web app or the iOS app over USB (the user, 2026-10-25) */
 #ifndef FELUCCA_OVERLAY
 #define FELUCCA_OVERLAY 0                  /* the RAMTEXT overlays (core/overlay.c, docs/SD-MODE-DESIGN.md 6): the engines' hot
                                             * code in a slot per part, loaded at an engine change; needs LAYOUT 1 (flash) */

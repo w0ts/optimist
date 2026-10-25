@@ -190,8 +190,9 @@ static void part_drop(track_t *t)
 
 /* What to drop when memory is short (the user, 2026-10-25: refuse, and propose what to drop; the UI asks with its one
  * confirm, op_input.c mem_tick). mem_offer: the next part to propose, first those arn_drop_for named, then any other part
- * whose engine keeps memory, never one already asked; 0 none left. mem_drop: that part a silent placeholder (its memory
- * free once its switch is done). mem_retry, each frame: 0 nothing to do or still waiting for a dropped part's switch,
+ * whose engine keeps memory, never one already asked, then (FELUCCA_FX_ARENA) the effects' lines placed, the largest
+ * first (NPART + fx_arena.c FXM_*); 0 none left. mem_drop: that part a silent placeholder (its memory free once its
+ * switch is done), or that effect bypassed as when refused (its line given back two blocks later). mem_retry, each frame: 0 nothing to do or still waiting for a dropped part's switch,
  * 1 the change went through, -1 still no room (offer the next) */
 static int mem_offer(uint32_t *out)
 {
@@ -206,13 +207,28 @@ static int mem_offer(uint32_t *out)
             part_mem_refused.asked |= (uint8_t)(1u << k);
             return 1;
         }
+#if FXM_NEED                                          /* every part offered: then the effects' lines (the user, 2026-10-25) */
+    if (fxm_offer(part_mem_refused.asked >> NPART, &k)) {
+        *out = NPART + k;                             /* (NPART + fx_arena.c's FXM_*: "DROP REV 32 KB") */
+        part_mem_refused.asked |= (uint8_t)(1u << (NPART + k));
+        return 1;
+    }
+#endif
     return 0;
 }
 
 static void part_drop(track_t *t);
 
+#define MEM_W_FX 0x80u                                /* (part_mem_refused.waiting: an effect's line going back) */
 static void mem_drop(uint32_t k)
 {
+#if FXM_NEED
+    if (k >= NPART) {                                 /* an effect's line: bypassed as when refused, its block back */
+        fxm_drop(k - NPART);
+        part_mem_refused.waiting |= MEM_W_FX;         /* (mem_retry waits while it goes back: fxm_pending) */
+        return;
+    }
+#endif
     if (k >= NPART)
         return;
     part_drop(&trk[k]);
@@ -224,6 +240,10 @@ static void set_engine_of(track_t *t, uint32_t ei);
 static int mem_retry(void)
 {
     uint32_t k, p = part_mem_refused.part, e = part_mem_refused.eng;
+    if (part_mem_refused.on && fxm_pending()) {        /* (an effect's line no longer used, on its way back: wait */
+        part_mem_refused.waiting |= MEM_W_FX;           /* for it, then try again: fx/fx_arena.c) */
+        return 0;
+    }
     if (!part_mem_refused.on || !part_mem_refused.waiting)
         return 0;
     for (k = 0; k < NPART; k++)

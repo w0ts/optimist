@@ -1000,6 +1000,15 @@ job; ( jobin   # the arena (core/arena.c, docs/SD-MODE-DESIGN.md 6b): first fit 
     run "arena placed by need: reserve, take, reuse, idle reclaimed, refused, what to drop; random switches, some pending" "$OUT/arena_test"
     $CC -O2 -w -Ifirmware/src -DARN_SLOT=1008u -DARN_FIXED=1 -o "$OUT/arena_fixed_test" tests/arena_test.c
     run "arena at fixed slots (the default): the fixed per-part memories' places, never refused" "$OUT/arena_fixed_test"
+    $CC -O2 -w -Ifirmware/src -DARN_TOPS=0xCu -DARN_DROPPABLE=0x3u -o "$OUT/arena_tops_test" tests/arena_test.c
+    run "arena, two parts placed best fit from the top (the effects' lines), never named to drop; random switches" "$OUT/arena_tops_test"
+) >"$U.out" 2>&1 & jobbg
+job; ( jobin   # the effects' lines in the arena (fx/fx_arena.c, docs/SD-MODE-DESIGN.md 6b phase 3b; FELUCCA_FX_ARENA)
+    FXA="-DFELUCCA_ENG_FM6=1 -DFELUCCA_FX_ARENA=1 -DFELUCCA_INS_CHORUS=1 -DFELUCCA_INS_DELAY=1 -DFELUCCA_DLY_LEN=16384u"
+    $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA "-DFELUCCA_ARENA_BYTES=(sizeof(fm6_mem_t) + 64512u)" -o "$OUT/fx_arena_test" tests/fx_arena_test.c -lm
+    run "effects' lines in the arena (ROOM): placed while used, zeroed, gated and given back, refused (bypassed, kept, said once) and restored, a part's change waits for a line going back, the own room, lent instead; random switches" "$OUT/fx_arena_test"
+    $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA -DFELUCCA_REV_FDN8=1 -DFELUCCA_REV_POOL=1 -DFELUCCA_SPRING=1 "-DFELUCCA_ARENA_BYTES=(sizeof(fm6_mem_t) + 79912u)" -o "$OUT/fx_arena_rev_test" tests/fx_arena_test.c -lm
+    run "the same with ROOM, FDN8 and SPRING (the reverb's TYPE switched, its line 32 KB)" "$OUT/fx_arena_rev_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin   # the RAMTEXT overlays (core/overlay.c, docs/SD-MODE-DESIGN.md 6): the slots' protocol on the host
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_OVERLAY=1 -DFELUCCA_ENG_STRINGS=1 -o "$OUT/overlay_test" tests/overlay_test.c -lm
@@ -1014,7 +1023,7 @@ job; ( jobin   # the flash layouts (docs/SD-MODE-DESIGN.md): the numbers agree; 
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SL24_XSTEP=1 $L1 -o "$OUT/patterns_test_l1" tests/patterns_test.c -lm
     run "patterns and scenes in the fake SD mode's log (7 sectors at 0xD0000): store, MEM FULL" "$OUT/patterns_test_l1"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SL24_XSTEP=1 $L1 -o "$OUT/project_scope_test_l1" tests/project_scope_test.c -lm
-    run "projects in the fake SD mode's log: apart, MEM FULL across projects" "$OUT/project_scope_test_l1"
+    run "the fake SD mode keeps one project: another refused, the log the one project's, MEM FULL" "$OUT/project_scope_test_l1"
 ) >"$U.out" 2>&1 & jobbg
 
 job; ( jobin
@@ -1288,7 +1297,7 @@ job; ( jobin   # the SD card (SDCARD): ChaN's driver + Petit FatFs on a card mod
     gunzip -c tests/fixtures/sd/fat16.img.gz > "$OUT/sd_fat16.img"
     gunzip -c tests/fixtures/sd/fat32.img.gz > "$OUT/sd_fat32.img"
     $CC -O2 -w -Ifirmware/src -o "$OUT/sd_test" tests/sd_test.c firmware/src/storage/sd/pff.c
-    run "SD card: SDHC / SDSC / SDv1 / MMC start-up, FAT16 + FAT32 (MBR or none), read, seek, list, write, no card, timeouts, LCD sees only 0xFF; CMD18 + CMD12 and CMD17 blocks by bytes and by a DMA model (polled, no CPU byte during a DMA), CRC16, the card's end, block writes, a file's runs" "$OUT/sd_test" "$OUT/sd_fat16.img" "$OUT/sd_fat32.img"
+    run "SD card (CRC7 + CMD59, every block's CRC16 both ways): SDHC / SDSC / SDv1 / MMC start-up, FAT16 + FAT32 (MBR or none), read, seek, list, write, no card, timeouts, LCD sees only 0xFF; CMD18 + CMD12 and CMD17 blocks by bytes and by a DMA model (polled, no CPU byte during a DMA), CRC16, the card's end, block writes, a file's runs" "$OUT/sd_test" "$OUT/sd_fat16.img" "$OUT/sd_fat32.img"
     rm -f "$OUT/sd_fat16.img" "$OUT/sd_fat32.img"
 ) >"$U.out" 2>&1 & jobbg
 # the screen mirrored (ED_MIRROR, io/editor/ed_mirror.c): the stream through a stand-in USB ring decoded back to the panel after

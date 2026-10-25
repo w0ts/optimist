@@ -28,7 +28,7 @@ What is measured on a real FM-1 (calipers, the user, 2026-10-25) and what is sti
 | | What | Value |
 |---|---|---|
 | k | The board's left edge to the battery's right side | 72.6 mm |
-| l | The hole by the battery's corner (a pole of the cover): its centre to the board's left edge | 78 mm |
+| l | The hole by the battery's corner (a pole of the cover): its centre to the board's left edge | 78 mm (photo-era value; the test fit put it at **75 mm**, which the board uses) |
 | m | The same hole's centre to the board's bottom edge | 40 mm |
 | n | The battery's bottom side to the board's bottom edge ("approx, the battery is not straight") | 8 mm |
 | o | The battery's right side to the battery plug's left side (sheet 3: to the plug's leftmost point, about) | 30 mm (sheet 2: 28) |
@@ -49,7 +49,7 @@ What is measured on a real FM-1 (calipers, the user, 2026-10-25) and what is sti
 | | Re-checked by the user: the LCD cable "can just about reach the back of the jack ... tight": the LCD socket as close to the audio jacks as possible (the jacks end 13.5 mm below the top edge, F) | supersedes A |
 | | The LCD cable comes between the two black jacks (at 90 mm); its socket's cable side right against the jacks' back end: it reaches (the user, checked on the FM-1) | yes |
 | | The cable from J12 comes between the right black jack and the USB socket; the 5.5 mm cable fits there (the user, checked) | yes |
-| | Contacts (the user, 2026-10-25): J12 bottom-contact; the LCD cable reaches our board straight from the LCD, so its contacts face UP there: our LCD socket top-contact. Both our sockets top-contact; the J12 cable then a REVERSE (B) type, 60 mm (the pin order mirrored end to end) | top contact, B 60 mm |
+| | Contacts (the user, 2026-10-25): J12 bottom-contact; the LCD cable reaches our board straight from the LCD, so its contacts face UP there: our LCD socket top-contact. Both our sockets top-contact; the J12 cable then a REVERSE (B) type, 60 mm (the pin order mirrored end to end). SUPERSEDED: the cables bought are 80 mm type A; the user's ruling (2026-10-25 review): single-sided sockets, J3 top-contact, J2's face picked after the breakout's mirror check | J3 top contact; J2 after the breakout |
 | C | The speaker plug's top end, from the board's bottom edge | 51 mm (so the plug is 44 to 51 mm up) |
 | D | The speaker plug's right side, from the board's left edge | 90 mm (so 85.6 to 90 mm across) |
 | E | Free right of the speaker plug, to the nearest part | 11 mm (to 101 mm) |

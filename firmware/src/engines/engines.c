@@ -121,13 +121,31 @@ typedef union {
 /* the memories live in the arena (core/arena.c, docs/SD-MODE-DESIGN.md 6b): by default NPART x the largest, placed at
  * fixed slots (ARN_SLOT): the same room and the same places as the fixed memories had, nothing ever refused.
  * FELUCCA_ARENA_BYTES smaller: placed by need, a change that does not fit refused (part_mem_reserve) */
-#define ARN_PARTS NPART
 #define ARN_SLOT (PART_MEM_ANY ? (sizeof(part_mem_t) + 7u) & ~7u : 8u)
 #ifndef FELUCCA_ARENA_BYTES
 #define ARN_BYTES (NPART * ARN_SLOT)
 #define ARN_FIXED 1
 #else
 #define ARN_BYTES FELUCCA_ARENA_BYTES
+#endif
+/* FELUCCA_FX_ARENA with an arena placed by need: the effects' lines (the chorus, delay and reverb sends', the inserts'
+ * own room) are blocks of it too, after the parts' (fx/fx_arena.c: a line placed while its effect is used); never
+ * named by arn_drop_for (a part's change proposes parts only). Else the lines stay where they were (fx.c) */
+#if FELUCCA_FX_ARENA && !defined(FELUCCA_ARENA_BYTES)
+#error "FELUCCA_FX_ARENA: the effects' lines in an arena placed by need, which needs FELUCCA_ARENA_BYTES"
+#endif
+#ifdef FELUCCA_ARENA_BYTES
+#define FXM_NEED (FELUCCA_FX_ARENA != 0)
+#else
+#define FXM_NEED 0
+#endif
+#if FXM_NEED
+#define FXM_NC 4u                                        /* the effects' blocks (fx_arena.c FXM_CHO DLY REV INS) */
+#define ARN_PARTS (NPART + FXM_NC)
+#define ARN_DROPPABLE ((1u << NPART) - 1u)
+#define ARN_TOPS (((1u << FXM_NC) - 1u) << NPART)        /* (the lines from the top, best fit: core/arena.c) */
+#else
+#define ARN_PARTS NPART
 #endif
 #include "../core/arena.c"
 #if ARN_FIXED                                            /* part p's memory: its slot, from power-on (as the fixed array) */

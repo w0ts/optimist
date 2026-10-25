@@ -205,6 +205,40 @@ int main(void)
 #endif
     sec_pend_clear();
     fresh();
+#if FELUCCA_LAYOUT == 1
+    /* ---- the fake SD mode keeps one project (PROJ_SLOTS 1, the user 2026-10-25: the web app and the iOS app keep the
+     * others over USB): another is never opened, cleared or listed; the one project fills the whole log */
+    make(1), take(1);
+    ok = state_save() == 0;
+    project_save(0);
+    ok &= !strcmp(last_msg, "SAVED") && scene_is(0, 1) && state_is(1);
+    check("one project: the work saved as its state, stored as scene A", ok);
+    ok = !open_p(1) && open_proj == 0u && slg.proj == 0u && scene_is(0, 1) && state_is(1);
+    check("... project 2 refused: project 1 still open, as it was", ok);
+    snapshot();
+    ok = project_clear(3) != 0 && as_snapshot();
+    check("... project 4 not cleared (none kept): project 1's records byte for byte", ok);
+    check("... only project 1 listed", project_slot_used(0) && !project_slot_used(1) && !project_slot_used(15));
+    restart();
+    check("... a restart: project 1, its state and scene A", open_proj == 0u && scene_is(0, 1) && state_is(1));
+    for (i = 1, rc = 0; i < SEC_IDS && rc == 0; i++) {   /* dense scenes (every step busy, none shared) until refused */
+        uint32_t j;
+        host_tracks_init();
+        for (k = 0; k < NTRK; k++) {
+            trk[k].p[P_SLEN] = NSTEP;
+            for (j = 0; j < NSTEP; j++)
+                memset(&trk[k].step[j], (int)(1u + (i * 7u + j + k) % 200u), sizeof trk[k].step[j]);
+        }
+        memset(pat_cur, PAT_NONE, NTRK);
+        project_save(i);
+        rc = strcmp(last_msg, "SAVED");
+    }
+    printf("one project: %u busy scenes stored, then \"%s\"; MEM %u %%\n", i - 1u, last_msg, slg_used_pct());
+    check("... the log full of the one project: refused, its state and scene A whole", (rc != 0 || i == SEC_IDS) &&
+          state_is(1) && scene_is(0, 1));
+    printf("project scope test %s\n", bad ? "FAILED" : "passed");
+    return bad != 0;
+#endif
     /* ---- a project's state and scenes are its own */
     make(1), take(1);
     ok = state_save() == 0;
