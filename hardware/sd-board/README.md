@@ -3,7 +3,7 @@
 A board with everything the SD card mod needs (docs/SD-CARD-DESIGN.md), and the splitter too: a push-push microSD
 socket, the chip-select inverter, the 1 kOhm on the card's data out, the pull-ups, the decoupling, and two 10-pin
 0.5 mm flat-cable sockets (the user, 2026-10-25). It sits on the back of the FM-1's board, right of the battery, by
-the battery's plug (the battery stays). Its lower part (22.4 x 41.5 mm, the card socket) slides into a printed tray
+the battery's plug (the battery stays). Its lower part (25.4 x 41.5 mm, the card socket) slides into a printed tray
 round the cover's pole there; a column goes up the right of the speaker plug to a head right under the audio jacks.
 - **J3**, at the top, under the gap between the black jacks: the LCD's own cable plugs in here instead of into J12.
 - **J2**, below it: a standard 10-pin cable from J12 (the FM-1's LCD socket), round the board's edge between the right
@@ -28,7 +28,7 @@ breakout will tell; then the lines are re-routed.
 
 ## Order it (JLCPCB, assembled)
 
-1. jlcpcb.com > Order now > upload `fab/sd-board-gerbers.zip` (2 layers, 22.4 x 78.2 mm overall, 1.6 mm; the defaults are fine).
+1. jlcpcb.com > Order now > upload `fab/sd-board-gerbers.zip` (2 layers, 25.4 x 78.2 mm overall, 1.6 mm; the defaults are fine).
 2. Tick **PCB Assembly**, top side, Economic.
 3. Upload `fab/bom.csv` (the parts) and `fab/cpl.csv` (where they go). Every part is a JLC part (LCSC numbers in the BOM).
 4. Check the placement preview: the card socket's opening past the bottom edge, both 10-pin sockets' openings facing the top,

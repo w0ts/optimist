@@ -20,9 +20,10 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 FLOOR, PCB, PLAY, LIP = 0.8, 1.6, 0.25, 0.7      # (mm: the floor, the board, its play in the groove, the lip over it)
 SIDE, OVER = 0.4, 0.8                            # (the groove reaches 0.4 past each board edge, play for the board's
                                                  # and the print's tolerances, the user; the lip covers 0.8)
-LEFT = 72.6 + 0.6                                # the left rail's outside: 0.6 mm clear of the battery
+LEFT = 72.6 - 3.0 + 0.6                          # the left rail's outside: 0.6 mm clear of the battery (3 mm left of
+                                                 # the measured k: the user's test fit)
 UP = float(sys.argv[1]) if len(sys.argv) > 1 else 0.5   # (the user, 2026-10-25: 0.5 and 1.0 higher, printed to compare)
-POLE, POLE_D, COLLAR_H = (78.0, 40.0), 6.9, 5.6 + UP   # the pole (l, m, i); the collar's height (the pole stands 6)
+POLE, POLE_D, COLLAR_H = (75.0, 40.0), 6.9, 5.6 + UP   # the pole (75: 3 mm left of l, a test fit); collar height
 # Two posts up toward the cover (POSTS, below), as high as the collar, each the rail's width (rail and lip, no overhang
 # to print) and long along it (the user: "more up and down"), out of the cover's tapered edge band (t: some 4 mm from
 # the walls, the bottom wall's inside about 0.6 mm below the board). They stand on the lips, 2.65 mm above the board, so
