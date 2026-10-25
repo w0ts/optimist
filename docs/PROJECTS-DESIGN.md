@@ -47,7 +47,7 @@ the oldest sector, tombstones). Format 2 ("SLG2" sector magic) changes the recor
   steps in it; its extras, FX and LFO records at **139 / 140 / 141**, `SLG_IDS` 142), 24..87 the patterns, 88..103 /
   105..120 / 122..137 the scenes' extras / FX / drum lane LFO records, 104 / 121 / 138 the working copy's (the device
   autosave's companions, written in the open project's scope). Device-wide (proj 0xFF): **21 the project names** (the
-  PROJECT page's; scenes have no names). **Which project is open is the settings record's** (`persist_t.open_proj`,
+  PROJECT page's; scenes have no names), **20 a save as under way** (from, to; section 3). **Which project is open is the settings record's** (`persist_t.open_proj`,
   appended to PER4; a record from before reads as project 1): opening a project must never need room in the log.
 - **The index holds the open project** (and the device-wide ids): `slg.at / aseq / alen / tomb[SLG_IDS]` as today, so
   `sections.c`, `pat.c`, the records' logs and the editor keep their calls. Opening a project walks the sectors again
@@ -67,15 +67,27 @@ the oldest sector, tombstones). Format 2 ("SLG2" sector magic) changes the recor
   leaves the id cleared.
 - The calls: `project_scope_set(p)` (the index p's, the arena written first; the chain, BARS, sources read),
   `project_open(p)` (+ the state into the work; 0: none, the UI blanks the work), `state_save()`, `project_clear(p)`
-  (every record of p: tombstones), `project_slot_used(p)`. Format 1 keeps `project_load / save` as the sections'.
+  (every record of p: tombstones), `project_save_as(t)`, `project_slot_used(p)`. Format 1 keeps `project_load / save`
+  as the sections'.
 
 ## 3. Device, editor, tests
 
 - PROJECT page: LOAD opens (the work changed: "SAVE PROJECT n?" first — YES saves the open project then opens, HOME
-  cancels as every question does (the user, 2026-10-22); `op_prjflow.c PO_SAVE_LOAD`), SAVE saves the state (NAME first; another slot: that project
-  is the open one from then on), DELETE clears the whole project, NEW blanks the work and clears the open project
+  cancels as every question does (the user, 2026-10-22); `op_prjflow.c PO_SAVE_LOAD`), SAVE saves the state (NAME first),
+  DELETE clears the whole project, NEW blanks the work and clears the open project
   (stopped). SONG, the pattern layer, the session grid: the open project's. `op_edits.c prj_load_go / prj_save_go`
   are the one way in (the deferred load / save while playing too).
+- **SAVE into another slot is a save as** (the user, 2026-10-25: "copy everything"; `sections.c project_save_as`): every
+  record of the open project (its state as saved, scenes, patterns, song, BARS, sources; not the device-wide names: NAME
+  sets the target's) is copied into the target over what it held, the target becomes the open project and the work is
+  saved as its state. The room for the whole copy plus the reserve is checked on the room model first: MEM FULL writes
+  nothing and the target stays as it was (its old records count as live until the copy is in: DELETE it first to make
+  room; every id without a record is counted as a clear). Power cuts: a device-wide marker (id 20: from, to) is written
+  first; then every record of the target is cleared as DELETE clears it (tombstones, the old records marked dead, so no
+  compaction copies them again), then the source's records are copied in with new sequence numbers, then the marker is
+  cleared. A boot that finds the marker runs all of it again before any project opens, so the target reads as its old
+  self (cut before the marker is done) or as the whole copy of the source as saved (cut after it), never a mix; the
+  source is never written. While playing: the existing deferred save (the transport stops, the save runs, PLAY again).
 - Open: snapshots carry log ids 17..87 (`snapshots.c SN_LOG0..`), the state (19) and the project names (21) among
   them now: a snapshot restore writes them back. To decide: leave 19 and 21 out of a snapshot.
 - Web editor: `PAT_LIST`, launches, `SCENE`, `PAT_OP`, `PAT_READ` / `WRITE` unchanged (the open project). Backup objects

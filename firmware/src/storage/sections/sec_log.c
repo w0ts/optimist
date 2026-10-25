@@ -63,10 +63,12 @@ _Static_assert(SEC_IDS <= SEC_ID_SONG, "the sections' ids come before the songs'
 #define SEC_SECT 4096u
 _Static_assert(SEC_LOG_SECTORS <= 64u, "the index keeps where a record is as sector << 10 | offset / 4 (16 bits)");
 /* format 2: the device-wide ids (proj 0xFF, in the index whatever project is open); every other id is the open
- * project's. 21 the project names (sections.c). Which project is open is the settings record's (project.c), not
- * the log's: opening one must never need room in the log */
+ * project's. 21 the project names, 20 a save as under way (sections.c). Which project is open is the settings record's
+ * (project.c), not the log's: opening one must never need room in the log */
 #define SEC_ID_PNAMES 21u
-#define SLG_GLOBAL(id) ((id) == SEC_ID_PNAMES)
+#define SEC_ID_SAVEAS 20u                              /* a save as under way (sections.c project_save_as: from, to) */
+#define SLG_GLOBAL(id) ((id) == SEC_ID_PNAMES)         /* (the names: no project's record, never copied, cleared or streamed) */
+#define SLG_DEV(id) (((id) | 1u) == SEC_ID_PNAMES)     /* the device-wide records, tagged 0xFF: the names and the marker (20) */
 #define SLG_PROJ_GLOBAL 0xFFu
 #define SLG_PROJ_NONE 0xFEu                            /* (slg.proj while booting: the device-wide ids alone) */
 #define SLG_MINE(pr, id) ((pr) == SLG_PROJ_GLOBAL || (pr) == slg.proj)
@@ -347,7 +349,7 @@ static int slg_append_rawp(uint32_t id, uint32_t proj, uint32_t seq, const uint8
 }
 static int slg_append_raw(uint32_t id, uint32_t seq, const uint8_t *data, uint32_t len)
 {
-    return slg_append_rawp(id, SLG_V2 && !SLG_GLOBAL(id) ? slg.proj : SLG_PROJ_GLOBAL, seq, data, len);
+    return slg_append_rawp(id, SLG_V2 && !SLG_DEV(id) ? slg.proj : SLG_PROJ_GLOBAL, seq, data, len);
 }
 
 /* the oldest sector (not the head) */
@@ -387,7 +389,7 @@ static uint32_t slg_findp(uint32_t t, uint32_t proj, uint32_t id, uint32_t seq, 
 }
 static uint32_t slg_find(uint32_t t, uint32_t id, uint32_t seq)
 {
-    return slg_findp(t, SLG_V2 && !SLG_GLOBAL(id) ? slg.proj : SLG_PROJ_GLOBAL, id, seq, 0);
+    return slg_findp(t, SLG_V2 && !SLG_DEV(id) ? slg.proj : SLG_PROJ_GLOBAL, id, seq, 0);
 }
 /* id i's newest record (in sector s) as a valid copy in another sector: where (0: none) */
 static uint32_t slg_copy_of(uint32_t s, uint32_t i)
