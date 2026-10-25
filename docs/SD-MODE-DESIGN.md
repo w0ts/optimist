@@ -156,8 +156,10 @@ part_drop (the confirm on an edit, the list on a load).
 **Built (phase 3b, the effects' lines, 2026-10-25):** `firmware/src/fx/fx_arena.c`. With `FELUCCA_FX_ARENA=1` and an
 arena placed by need (`FELUCCA_ARENA_BYTES`), the effects' big lines are blocks of the same arena, after the parts': the
 chorus, delay and reverb sends' lines (`cho_buf`, `dly_buf`, `rev_line`) and the limited inserts' own room (`fxa_ins`).
-The default build keeps them static as before (its image byte-identical; no builder item yet: a measurement build sets
-`OPTIMIST_ARENA_BYTES` and `OPTIMIST_FX_ARENA=1`, `tools/build.py`).
+The default build keeps them static as before (its image byte-identical). The builder's `ARENA` (bit 411, KB; 0 off)
+sets both: `FELUCCA_ARENA_KB` -> `FELUCCA_ARENA_BYTES` and `FELUCCA_FX_ARENA` (registry.h); its pool estimate is
+`core.py arena_mem` (the arena less the fixed memories it replaces), its code and RAM unmeasured in costs.json yet (a
+gpufarm run); a measurement build can also set `OPTIMIST_ARENA_BYTES` and `OPTIMIST_FX_ARENA=1` (`tools/build.py`).
 - **Used** = a send's type in a master slot, or its line lent to the inserts (or wanted for an owner starved of a type it
   would hold); the own room while any owner holds a limited type. Only those hold a block.
 - **Placed** in the main loop (`fxm_poll`, every pass before `fxi_poll`): reserved and taken with the interrupts off,
@@ -172,13 +174,17 @@ The default build keeps them static as before (its image byte-identical; no buil
   (tried every pass, never while a part's refused change waits: a part's sound first). When the free room is only cut
   up, the send lines whose buses are silent are gated, given back and placed again with it, the largest first, if a
   trial on the arena says that makes it fit (nothing heard is lost: a silent bus's line is all zeros).
-- **Parts first**: a part's refused change proposes parts only (`ARN_DROPPABLE`); one refused while an effect's line is
-  on its way back waits for it (`model.c mem_retry`, `fxm_pending`) and goes through when that makes room.
+- **Parts first, then the effects** (the user, 2026-10-25): a part's refused change proposes the parts first
+  (`arn_drop_for` names parts only, `ARN_DROPPABLE`), then, in the same confirm, the effects' send lines placed and not
+  lent, the largest first ("DROP REV 32 KB", `fxm_offer`); a dropped effect is bypassed as when refused (`fxm_drop`:
+  gated, given back two blocks later, FULL, kept in its slot, back by itself once there is room). The inserts' own room
+  is not offered (its owners hold their types). A part's change refused while an effect's line is on its way back
+  waits for it (`model.c mem_retry`, `fxm_pending`) and goes through when that makes room.
 Default profile (`synths_USBaudio_BTaudio_BTmidi`, measured 2026-10-25): FX_ARENA off: flash, RAM, pool unchanged. An
 arena of the same room (38,664 B of engines + the 64 + 4 + 32 KB lines = 141,064 B): flash +2,140 B, RAM +256 B, pool
 the same (of which the engines' arena by need alone: +200 B flash, -16 B RAM). A 96 KB arena: pool -42,760 B, the undo
-ring 12,136 -> 54,896 B. Not yet: a builder item for the arena (its size, and FX_ARENA), the proposal of an effect to drop
-for a part (open: the user's call), the punch ring, the slicer's buffers and the reverbs' small cells (static, as before).
+ring 12,136 -> 54,896 B; the builder's ARENA 96: flash +2,384 B, RAM +240 B, pool -42,760 B. Not yet:
+the punch ring, the slicer's buffers and the reverbs' small cells (static, as before).
 Tests: `tests/fx_arena_test.c` (ROOM; ROOM + FDN8 + SPRING), `tests/arena_test.c` (best fit from the top, never named).
 
 ## 7. Phases

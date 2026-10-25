@@ -440,6 +440,17 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
                                             * and every insert line (1 KB units); 0: the send's line and one line of each
                                             * limited insert type built */
 #endif
+#ifndef FELUCCA_ARENA_KB
+#define FELUCCA_ARENA_KB 0                 /* the builder's ARENA (bit 411): KB of pool for the parts' engine states and
+                                            * the effects' lines, placed by need (core/arena.c, fx/fx_arena.c); 0: the
+                                            * fixed memories as before */
+#endif
+#if FELUCCA_ARENA_KB && !defined(FELUCCA_ARENA_BYTES)
+#define FELUCCA_ARENA_BYTES (FELUCCA_ARENA_KB * 1024u)
+#ifndef FELUCCA_FX_ARENA
+#define FELUCCA_FX_ARENA 1
+#endif
+#endif
 #ifndef FELUCCA_FX_ARENA
 #define FELUCCA_FX_ARENA 0                 /* 1: with an arena placed by need (FELUCCA_ARENA_BYTES, engines.c), the effects'
                                             * big lines (the sends' delay, chorus and reverb lines, the inserts' own room)

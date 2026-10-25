@@ -214,6 +214,17 @@ def validate(cfg):
                                  ["DLY_ARENA", k]))
         if mem["types"]:
             note.append(Issue(f"{R.ITEMS['DLY_ARENA'].label}: {fx_memory_text(mem)}", ["DLY_ARENA"]))
+    if cfg.get("ARENA", 0):
+        blocks, room = arena_blocks(cfg), cfg["ARENA"] * 1024
+        big = [n for n, b in blocks.items() if b > room]
+        if big:
+            err.append(Issue(f"the arena ({cfg['ARENA']} KB) cannot hold {', '.join(big)} "
+                             f"({max(blocks.values()) // 1024} KB): a larger ARENA, or off", ["ARENA"]))
+        else:
+            fixed = room - arena_mem(cfg)["pool"]
+            note.append(Issue(f"{R.ITEMS['ARENA'].label}: {cfg['ARENA']} KB in place of {fixed // 1024} KB of fixed "
+                              "memories (the parts' engine states and the effects' lines); a project using more is "
+                              "refused and offered what to drop", ["ARENA"]))
     for k, it in R.ITEMS.items():
         if it.off_warning and not cfg[k] and (not it.parent or built(cfg, it.parent)):
             warn.append(Issue(f"{it.label} off: {it.off_warning}", [k]))
@@ -542,13 +553,40 @@ def dly_arena(cfg):
             "pool": mem["own"] * FXM_UNIT + sum(tables.values()) + bm}
 
 
+NPART = 3                  # core.h: the synth parts (part_mem's NPART states)
+
+
+def arena_mem(cfg):
+    """-> {region: bytes} of the arena (ARENA, KB: core/arena.c, fx/fx_arena.c) against the fixed memories it replaces:
+    its own pool less the parts' engine states (part_mem), the delay and chorus sends' lines, the reverb's line
+    (rev_lines: in main RAM without REV_POOL) and the inserts' own room (fx_memory); {} with ARENA off. The code and
+    bookkeeping it adds (about 2 KB of flash, 256 B of RAM) is its measured delta (costs.json)"""
+    f, _ = flags(cfg)
+    kb = int(f.get(R.ITEMS["ARENA"].flag, 0) or 0)
+    if not kb:
+        return {}
+    rev, mem = rev_lines(cfg), fx_memory(cfg)
+    lines = (mem["send"] + mem["cho"] + mem["own"]) * 1024 + rev.get("pool", 0)
+    return {"pool": kb * 1024 - part_mem(cfg)["pool"] - lines, "ram": -rev.get("ram", 0)}
+
+
+def arena_blocks(cfg):
+    """-> {name: bytes} the blocks the arena places (a part's engine state, each effect's line; validate: each must fit)"""
+    rev, mem = rev_lines(cfg), fx_memory(cfg)
+    out = {"a part's engine state": part_mem(cfg)["pool"] // NPART, "the delay's line": mem["send"] * 1024,
+           "the chorus send's line": mem["cho"] * 1024, "the reverb's line": sum(rev.values()) if built(cfg, "FX_REVERB") else 0,
+           "the inserts' own room": mem["own"] * 1024}
+    return {k: v for k, v in out.items() if v}
+
+
 def model_terms(cfg):
     """-> {region: bytes} the computed part of the estimate, against the default build: what is not a sum of
     per-item deltas (the reverb's line buffer, rev_lines; the automation store, auto_store; the engines' part
-    states, part_mem; the delay arena, dly_arena)"""
+    states, part_mem; the delay arena, dly_arena; the arena for both, arena_mem)"""
     d = defaults()
     arena = ({"pool": dly_arena(cfg)["pool"]}, {"pool": dly_arena(d)["pool"]})
-    terms = [(rev_lines(cfg), rev_lines(d)), (auto_store(cfg), auto_store(d)), (part_mem(cfg), part_mem(d)), arena]
+    terms = [(rev_lines(cfg), rev_lines(d)), (auto_store(cfg), auto_store(d)), (part_mem(cfg), part_mem(d)), arena,
+             (arena_mem(cfg), arena_mem(d))]
     return {r: sum(a.get(r, 0) - b.get(r, 0) for a, b in terms) for r in REGIONS}
 
 

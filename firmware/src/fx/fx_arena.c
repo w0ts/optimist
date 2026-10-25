@@ -340,11 +340,45 @@ static int fxm_pending(void)
 #endif
     return 0;
 }
+/* send line c is its bus' own (not lent to the inserts: their instances on it cannot be dropped with it) */
+static uint32_t fxm_heard(uint32_t c)
+{
+#if INS_LIM
+    if (c < FXM_REV && fxl_st[c] != FXL_SEND)
+        return 0;
+#endif
+    return 1;
+}
+/* a part's refused change, every part offered (model.c mem_offer): the next effect's line to propose, a send line
+ * placed, its bus' own (not lent) and not in asked (a bit by FXM_*), the largest first; 0 none. The own room is not offered (its instances'
+ * owners hold their types: they would only take it again) */
+static int fxm_offer(uint32_t asked, uint32_t *out)
+{
+    uint8_t o[FXM_NC];
+    uint32_t i;
+    fxm_ord(o);
+    for (i = 0; i < FXM_NC; i++)
+        if (o[i] < 3u && fxm_st[o[i]] == FXM_ON && !(asked >> o[i] & 1u) && fxm_heard(o[i])) {
+            *out = o[i];
+            return 1;
+        }
+    return 0;
+}
+/* send line c dropped (the confirm, model.c mem_drop): bypassed as when refused (FULL, kept in its slot), gated now,
+ * given back two blocks later; placed again by itself once there is room (after the part's change: fxm_poll waits) */
+static void fxm_drop(uint32_t c)
+{
+    if (c >= 3u || fxm_st[c] != FXM_ON || !fxm_heard(c))
+        return;
+    fxm_full |= (uint8_t)(1u << c);                     /* (no MEM FULL: the user dropped it) */
+    fxm_mv |= (uint8_t)(1u << c);                       /* (at the gate's end: given back, not opened again) */
+    fxm_gate(c);
+}
 /* send type t (CHO DLY REV) in a master slot, refused: bypassed (op_cells.c dims it) */
 static int fxm_refused(uint32_t t)
 {
     uint32_t c = t == FXT_CHO ? FXM_CHO : t == FXT_DLY ? FXM_DLY : t == FXT_REV ? FXM_REV : 3u;
-    return c < 3u && (fxm_full >> c & 1u) && fxm_st[c] == FXM_NONE;
+    return c < 3u && (fxm_full >> c & 1u) && fxm_st[c] != FXM_ON;   /* (refused, or dropped and going back) */
 }
 #else
 #define fxm_poll() ((void)0)
