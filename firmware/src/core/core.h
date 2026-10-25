@@ -583,6 +583,8 @@ typedef struct track {
     uint8_t engine, preset;      /* engine: what the audio ISR renders */
     uint8_t eng_req;             /* engine the UI asked for (the ISR switches at a block start) */
     uint8_t user;                /* user preset slot + 1 the sound came from (UI), 0 = none */
+    uint8_t silent;              /* a silent placeholder (dropped to make memory room, docs/SD-MODE-DESIGN.md 6b): its
+                                  * sequence kept, no note played, no engine shown, until an engine is picked */
     voice_t v[NVOICE];
     /* LFO */
     uint32_t lfo_ph;

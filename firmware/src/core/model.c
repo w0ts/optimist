@@ -172,6 +172,22 @@ static void apply_preset_to(track_t *t, uint32_t pi)
 
 /* the engine's defaults and its first preset. With the audio IRQ off: the ISR sees the old engine with
  * its values or the new one with its own (voice.c engine_block), never one with the other's */
+/* the engine's name as shown: NONE for a silent placeholder (core.h) */
+static const char *trk_eng_name(const track_t *t) { return t->silent ? "NONE" : ENGINES[t->eng_req % NENGINES]->name; }
+
+/* a part dropped to make memory room (the user, 2026-10-25): a silent placeholder, its sequence kept, its memory
+ * given back at the switch (an engine that keeps nothing in the arena), until an engine is picked (set_engine_of) */
+static void part_drop(track_t *t)
+{
+    if (is_drum(t) || (uint32_t)(t - trk) >= NPART)
+        return;
+    sound_change(t);                                  /* (what sounds fades out, no click) */
+    fm1_irq_off();
+    t->silent = 1;
+    t->eng_req = (uint8_t)eng_silent_slot();
+    fm1_irq_on();
+}
+
 static void set_engine_of(track_t *t, uint32_t ei)
 {
     const engine_t *e = ENGINES[ei % NENGINES];
@@ -187,6 +203,7 @@ static void set_engine_of(track_t *t, uint32_t ei)
 #endif
     sound_change(t);                                  /* (SLOOP 2.6: the sound as it is, before anything new is written) */
     t->eng_req = (uint8_t)(ei % NENGINES);
+    t->silent = 0;                                    /* (an engine picked: the placeholder plays again) */
     for (i = 0; i < 8u; i++)
         t->p[P_E0 + i] = e->edit[i].def;
     apply_preset_to(t, eng_first_playable(e));      /* (its first preset; none: INIT) */

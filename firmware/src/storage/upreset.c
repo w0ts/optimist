@@ -500,6 +500,7 @@ static int up_load(uint32_t k)
     panic_req |= (uint8_t)(1u << song.sel);
     fm1_irq_off();                                      /* the audio ISR must not see half a sound */
     t->eng_req = (uint8_t)eng_slot_built(r->engine);
+    t->silent = 0;                                      /* (a sound loaded: the placeholder plays again) */
     for (i = 0; i < P_COUNT; i++)
         t->p[i] = v[i];
     t->preset = 0;

@@ -989,6 +989,10 @@ job; ( jobin
     $CC -DFELUCCA_LAYOUT=1 -o "$OUT/ldr_test_l1" tests/ldr_test.c
     run "update loader of the fake SD mode (LAYOUT 1): what a switch of layout clears, nothing else" "$OUT/ldr_test_l1" --layout
 ) >"$U.out" 2>&1 & jobbg
+job; ( jobin   # the silent placeholder (docs/SD-MODE-DESIGN.md 6b): a part dropped to make memory room
+    $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -DFELUCCA_ENG_FM6=1 -o "$OUT/placeholder_test" tests/placeholder_test.c -lm
+    run "a dropped part: silent, its memory idle, NONE, through a save and a load until an engine is picked" "$OUT/placeholder_test"
+) >"$U.out" 2>&1 & jobbg
 job; ( jobin   # the arena (core/arena.c, docs/SD-MODE-DESIGN.md 6b): first fit and the fixed slots
     $CC -O2 -w -Ifirmware/src -o "$OUT/arena_test" tests/arena_test.c
     run "arena placed by need: reserve, take, reuse, idle reclaimed, refused, what to drop; random switches, some pending" "$OUT/arena_test"
