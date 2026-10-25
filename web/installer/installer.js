@@ -276,7 +276,8 @@ function addStyle(doc) {
 }
 
 export function mountInstaller(container, opts = {}) {
-  const packages = opts.packages || [];
+  const packages = (opts.packages || []).filter((p) => p && p.release);   /* releases only, each with its version and date (the
+                                                       development build of main is not offered: the user, 2026-10-25) */
   const version = opts.version || "";
   const source = opts.source || "";
   const links = { ...DEFAULT_LINKS, docs: `${REPO}/blob/${source || "main"}/README.md#getting-back`, ...(opts.links || {}) };

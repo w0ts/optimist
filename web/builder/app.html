@@ -3,7 +3,8 @@
      The web builder for the Optimist Mirror app (ios/OptimistMirror, Sources/Flash/BuilderWebView.swift): the same module
      (builder.js, mountBuilder) as index.html, without the site's header and menu; the app puts in its own look (a style
      sheet it adds as the page loads). Served as webapp/builder/app.html by web/make_site.py (the shared style only).
-       ?flavour=<web/flavours.json id>   the configuration it starts from (the builder's preset "flavour:<id>")
+       ?flavour=<id>   the configuration it starts from: the builder's preset "flavour:<id>" (web/flavours.json), else
+                       "profile:<id>" (a release's package is named by its profile)
      A cloud build sent (the builder keeps it in localStorage, WATCH_KEY of builder.js, to watch for it) is posted to the app:
      window.webkit.messageHandlers.optimist.postMessage({type: "cloud-build", key, name}); in a browser there is no handler. -->
 <html lang="en">
@@ -39,10 +40,12 @@ function sent() {
 
 async function start() {
   const flavour = new URLSearchParams(location.search).get("flavour");
-  if (flavour && /^[a-z0-9-]{1,32}$/.test(flavour)) {
+  if (flavour && /^[A-Za-z0-9_-]{1,64}$/.test(flavour)) {
     await handle.ready;
     while (!handle.readyFlag) await new Promise((r) => setTimeout(r, 100));   /* (its default preset first, then ours) */
-    await handle.choosePreset(`flavour:${flavour}`);
+    const ids = new Set(handle.state.presets.map((p) => p.id));
+    const id = [`flavour:${flavour}`, `profile:${flavour}`].find((x) => ids.has(x));
+    if (id) await handle.choosePreset(id);   /* (a profile gone since that release: the builder's default) */
   }
 }
 start().catch(() => { /* the builder shows its own errors */ });

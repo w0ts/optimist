@@ -238,8 +238,9 @@ def published_profiles():
 
 def releases_of(folder, manifest=HERE / "flavours.json"):
     """DIR/TAG/release.json ({tag, date}) + DIR/TAG/optimist-VER-PROFILE.fwsc (release.yml's names) -> the releases,
-    newest first: [{tag, date, flavours: [{id, title, description, pkg}]}], only the published profiles' packages, titled
-    as web/flavours.json titles a flavour of that profile (else the profile's name)"""
+    newest first: [{tag, date, flavours: [{id, title, description, pkg}]}]: every package the release carries (a release is
+    what it shipped: v0.1's profiles were renamed since, and today's "# publish" marks hid it, the user 2026-10-25), titled
+    as web/flavours.json titles a flavour of that profile, else by the profile's "# name:", else its id"""
     listed = json.loads(Path(manifest).read_text(encoding="utf-8"))["flavours"]
     titled = {f["profile"]: f for f in listed}
     rank = {f["profile"]: k for k, f in enumerate(listed)}   # (the manifest's flavours first, in its order: the default first)
@@ -256,10 +257,10 @@ def releases_of(folder, manifest=HERE / "flavours.json"):
         flavours = []
         for f in sorted(d.glob("optimist-*.fwsc")):
             m = re.fullmatch(r"optimist-[0-9][0-9A-Za-z.]*-([A-Za-z0-9_-]+)", f.stem)   # (a profile id: synths_USBaudio_BTaudio_BTmidi)
-            if not m or m.group(1) not in published:
-                continue                                 # (a shipped-only profile, or not a release package)
+            if not m:
+                continue                                 # (not a release package)
             t = titled.get(m.group(1), {})
-            flavours.append({"id": m.group(1), "title": t.get("title", published[m.group(1)]),
+            flavours.append({"id": m.group(1), "title": t.get("title", published.get(m.group(1), m.group(1))),
                              "description": t.get("description", ""), "pkg": f})
         if flavours:
             flavours.sort(key=lambda f: (rank.get(f["id"], len(rank)), f["id"]))

@@ -425,12 +425,15 @@ with tempfile.TemporaryDirectory() as d:
         ms.main("9.9-test", Path(d) / "site3", ms.flavours_of(man), rs)
         sj = json.loads((Path(d) / "site3/webapp/installer/site.json").read_text(encoding="utf-8"))
         rels = [x["release"] for x in sj["packages"]]
-        check("releases: the published flavours of each release on the site (firmware/r/TAG/), a profile id with _ and capitals too; not a package of no published profile",
+        titles = {f["id"]: f["title"] for f in rs[0]["flavours"]}
+        check("releases: every package of each release on the site (firmware/r/TAG/), a profile id with _ and capitals too; one of a profile renamed since too, titled by its id",
               (Path(d) / "site3/firmware/r/v0.2/optimist-0.2-synths_USBaudio_BTaudio_BTmidi.fwsc").is_file()
-              and not (Path(d) / "site3/firmware/r/v0.2/optimist-0.2-no-such-profile.fwsc").exists()
-              and [r["tag"] for r in rs] == ["v0.2", "v0.1"])
+              and (Path(d) / "site3/firmware/r/v0.2/optimist-0.2-no-such-profile.fwsc").is_file()
+              and titles.get("no-such-profile") == "no-such-profile" and [r["tag"] for r in rs] == ["v0.2", "v0.1"])
         check("releases: listed first, newest first, then this commit's development packages (release \"\")",
-              rels == ["v0.2", "v0.1", "", ""] and sj["packages"][0]["pkg"] == "../../firmware/r/v0.2/optimist-0.2-synths_USBaudio_BTaudio_BTmidi.fwsc"
+              rels == ["v0.2", "v0.2", "v0.1", "v0.1", "", ""]   # (in a release: the manifest's flavours first, then by id)
+              and [x["pkg"] for x in sj["packages"][:2]] == ["../../firmware/r/v0.2/optimist-0.2-no-such-profile.fwsc",
+                                                           "../../firmware/r/v0.2/optimist-0.2-synths_USBaudio_BTaudio_BTmidi.fwsc"]
               and sj["packages"][0]["date"].startswith("2026-10-15"))
         check("the site carries every Simulator module next to the editor (bk.js missing broke the tab)",
               all((Path(d) / "site3/webapp/editor/sim" / f.name).is_file() for f in (ROOT / "web/sim").iterdir() if f.suffix in (".js", ".css")))
