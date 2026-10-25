@@ -21,10 +21,6 @@ enum FlashCatalog {
     /// the web builder's page for this app (web/builder/app.html: no site header or menu; the app adds its look), started on
     /// a flavour; its Build in the cloud goes through the relay, which opens the issue
     static let builder = URL(string: "https://w0ts.github.io/optimist/webapp/builder/app.html")!
-    /// the web simulator with a cloud build (the editor's Simulator tab, ?sim=<build id>), in the browser
-    static func simulator(build: String) -> URL {
-        URL(string: "https://w0ts.github.io/optimist/webapp/editor/?sim=\(build)&connect=0#sim")!
-    }
     static func builder(flavour: String) -> URL {
         var c = URLComponents(url: builder, resolvingAgainstBaseURL: false)!
         if !flavour.isEmpty { c.queryItems = [URLQueryItem(name: "flavour", value: flavour)] }

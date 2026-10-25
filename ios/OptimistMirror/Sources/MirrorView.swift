@@ -117,7 +117,11 @@ struct RootView: View {
             }
         }
         .fullScreenCover(isPresented: $flashSheet) {   // (a sheet on the Mac was a small box: the user, 2026-10-25)
-            FlashView(flash: flash, link: link, close: { flashSheet = false })
+            FlashView(flash: flash, link: link, close: { flashSheet = false }, trySim: { id in
+                sim.simBuild = id
+                flashSheet = false
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { simSheet = true }   // (one full-window page at a time)
+            })
         }
         .fullScreenCover(isPresented: $simSheet) {     // (the Simulator: the home screen's, like Install Firmware; the user, 2026-10-25)
             NavigationStack {
