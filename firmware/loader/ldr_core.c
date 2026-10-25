@@ -38,11 +38,11 @@
  *   ldr_progress(done, total)
  * plus the ota.c hooks (frames, time, idle). */
 #define LDR_APP_LO 0x4000u
-#define LDR_APP_HI 0x93000u
-#define LDR_REC_LO 0x93000u                     /* update records live above the app ... */
+#define LDR_APP_HI FL_APP_HI                   /* fm1_flash_map.h: by FELUCCA_LAYOUT (docs/SD-MODE-DESIGN.md) */
+#define LDR_REC_LO FL_APP_HI                    /* update records live above the app ... */
 #define LDR_REC_HI 0xFC000u                     /* ... and below Felucca's globals */
 #define LDR_NSEC ((LDR_APP_HI - LDR_APP_LO) >> 12)
-_Static_assert(LDR_APP_HI == FL_APP_HI, "the loader writes the app slot of fm1_flash_map.h (ota.c OTA_FL_LEN)");
+_Static_assert(LDR_APP_HI == FL_APP_HI, "the loader writes the app slot of fm1_flash_map.h (its FELUCCA_LAYOUT)");
 
 static int ldr_fread(uint32_t off, void *p, uint32_t n);
 static int ldr_erase(uint32_t off);
@@ -139,6 +139,34 @@ static void ldr_records_drop(void)
     }
 }
 
+/* 2c. a switch of layout (docs/SD-MODE-DESIGN.md): the device's own app header (copy at 0x4000, the chip key) says
+ * how far the installed app reaches. Before anything is written, the sectors the other layout used for something
+ * else are erased: after a fake-SD-mode app, a normal one erases the old app's tail [0x93000, 0xD0000) (else the
+ * normal store would read code as its data); after a normal app, a fake-SD-mode one erases its squeezed store's
+ * [0xD0000, 0xDA000) (the normal layout's user samples and snapshots: not a log). Run before the app is written, so a
+ * resumed install (the record kept) sees the old header again and does the same. */
+static int ldr_layout_switch(uint32_t key, uint8_t *b)
+{
+    uint32_t end, s, lo, hi;
+    if (ldr_fread(LDR_APP_LO, b, 32))
+        return -8;
+    ldr_sfc(b, 32, 0, key);
+    end = ota_crc16(b + 2, 30, 0) == ota_rd16(b) ? LDR_APP_LO + ota_rd32(b + 8) : 0u;   /* the app area block's size
+                                                     * (fm1pkg_make.py app_area_head); 0 no header of ours: a normal
+                                                     * install clears nothing (user data may be there), a fake-SD-mode
+                                                     * one its store (tools/flash_layout.py switch_clear) */
+    if (LDR_APP_HI == FL_APP_HI_NORMAL && end > FL_APP_HI_NORMAL)
+        lo = FL_APP_HI_NORMAL, hi = FL_APP_HI_BIG;
+    else if (LDR_APP_HI == FL_APP_HI_BIG && end <= FL_APP_HI_NORMAL)
+        lo = FL_APP_HI_BIG, hi = FL_UPF_HI;
+    else
+        return 0;                                    /* the same layout */
+    for (s = lo; s < hi; s += 0x1000u)
+        if (ldr_erase(s))
+            return -9;
+    return 0;
+}
+
 /* 2b. flash.bin [0, fl_size) from the host, before any erase: its CRC16 must be the UFW entry's (want); sc gets
  * the CRC16 of each app sector as it came in (the write pass reads a sector again if it differs) */
 static int ldr_check(uint32_t fl_off, uint32_t fl_size, uint32_t want, uint16_t *sc, uint8_t *b)
@@ -186,6 +214,8 @@ static int ldr_pass(void)
     }
     /* 2b. the whole package first: nothing is erased for a damaged one (the head is never written, but is checked) */
     if ((rc = ldr_check(fl_off, fl_size, want, sc, sec)) != 0)
+        return rc;
+    if ((rc = ldr_layout_switch(key, cur)) != 0)     /* 2c. another layout before: its other sectors cleared */
         return rc;
     /* 3. app area, sector by sector */
     for (s = LDR_APP_LO; s < LDR_APP_HI; s += 0x1000u) {

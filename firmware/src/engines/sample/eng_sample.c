@@ -44,7 +44,11 @@ AINL uint32_t pow2_q16(int32_t d16)
  * that much less (32 KiB with 4 snapshots) */
 #define SMP_BANKS 0xD8000u
 #define SMP_USR3_END (SMP_BANKS - (SN_SECTORS + NB_SECTORS) * 0x1000u)   /* (and the CZ collection: cz_bank.c) */
-#if FELUCCA_PATTERNS
+#if FELUCCA_LAYOUT == 1
+/* the fake SD mode (hal/fm1_flash_map.h): the slots' flash is the app's: no slot holds anything (the editor lists them
+ * empty and writes nothing; smp_user_scan reads no header there) */
+#define SMP_USER_CAP(k) ((void)(k), 0u)
+#elif FELUCCA_PATTERNS
 /* the section log (format 2, docs/PROJECTS-DESIGN.md) is slot USR1 (0xA0000, 80 KiB: sec_log.c SEC_LOG_BASE): the slot
  * holds nothing (its capacity 0: the editor lists it so and writes nothing there; the log's head is no sample header) */
 #define SMP_USER_CAP(k) ((k) == 0u ? 0u : (k) == 2u ? SMP_USR3_END - (SMP_USER_BASE + 2u * SMP_USER_SIZE) : SMP_USER_SIZE)
@@ -101,6 +105,8 @@ static void smp_user_scan(uint32_t k)
     smp_user_gen++;
     usr_nz[k] = 0;                                  /* (from here no new voice takes the slot) */
     slc_user_scan(k, 0);
+    if (SMP_USER_CAP(k) <= SMP_USER_DATA)
+        return;                                     /* a slot with no room (FELUCCA_LAYOUT 1, USR1 with PATTERNS) */
     if (h->magic != SMP_USER_MAGIC || h->version != 1 || !h->nz || h->nz > 16u ||
         h->data_len > SMP_USER_CAP(k) - SMP_USER_DATA)
         return;

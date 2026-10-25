@@ -1029,6 +1029,19 @@ _add("SDCARD", "FELUCCA_SDCARD", "SD card on the LCD bus (a hardware mod)", Y, 4
           "console's sd commands only (USB_CONSOLE): mount, list, dump, speed test, write test. Without the mod it "
           "finds no card and changes nothing. 5,032 B of flash, 20 B of RAM and 556 B of pool with the console (measured 2026-10-25).",
      off_warning="no SD card")
+# bit 410 (2026-10-25): the next free one after SDCARD's 409
+_add("LAYOUT", "FELUCCA_LAYOUT", "flash layout: fake SD mode (more room for code, little user data)", Y, 410, default=0,
+     choices=((0, "normal"), (1, "fake SD mode: 816 KiB app")),
+     experimental=True, target_only=True, tested="host-tested only; the first install on an FM-1 is the far probe "
+     "(docs/SD-MODE-DESIGN.md)",
+     desc="Grows the firmware's flash from 568 KiB to 816 KiB over the user data: the user sample slots, the "
+          "snapshots and most of the projects' room become code space (code runs in place from flash: no RAM). What "
+          "is left: one or two projects (a 28 KiB project log), the user presets, the user kits, the settings. Builds "
+          "without SAMPLE, user drum samples, SNAPSHOTS and the CZ collection, with PATTERNS. Installing it ERASES the "
+          "user data the normal layout keeps there, and going back erases this layout's (the update loader clears "
+          "the other layout's sectors first): back up with the web editor before. The first install needs a normal "
+          "build of this version first (an older updater refuses the larger package). The console's far command "
+          "checks the flash past the old end (the far probe).")
 _add("CPU_GUARD", "FELUCCA_CPU_GUARD", "predictive CPU guard (ease back before shedding)", Y, 61, default=0,
      provenance=FLOWSTATE_GUARD,
      desc="Avoids audio dropouts under heavy load by easing quality back step by step before cutting notes. Under "

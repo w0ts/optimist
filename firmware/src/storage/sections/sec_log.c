@@ -19,7 +19,14 @@
 #ifndef SLG_V2
 #define SLG_V2 FELUCCA_PATTERNS
 #endif
-#if SLG_V2
+#if SLG_V2 && FELUCCA_LAYOUT == 1                     /* the fake SD mode (fm1_flash_map.h): the squeezed store */
+#ifndef SEC_LOG_BASE
+#define SEC_LOG_BASE 0xD0000u
+#endif
+#ifndef SEC_LOG_SECTORS
+#define SEC_LOG_SECTORS 7u                             /* 28 KiB: one project or two (autosave copy A at 0xD7000) */
+#endif
+#elif SLG_V2
 #ifndef SEC_LOG_BASE
 #define SEC_LOG_BASE 0xA0000u                          /* (user sample slot 1, which the samples lose: eng_sample.c) */
 #endif
@@ -42,6 +49,9 @@
 #define SEC_IDS 16u
 #endif
 #include "../../../hal/fm1_flash_map.h"
+#if FELUCCA_LAYOUT == 1
+_Static_assert(SEC_LOG_BASE + SEC_LOG_SECTORS * 0x1000u <= 0xD7000u, "the section log: below autosave copy A (storage.c)");
+#endif
 _Static_assert(FL_IN(SEC_LOG_BASE, SEC_LOG_SECTORS * 0x1000u, FL_DATA_LO, FL_DATA_HI) &&
                !FL_NEVER(SEC_LOG_BASE, SEC_LOG_SECTORS * 0x1000u), "the section log: in the store, off the SDK's sectors");
 /* the log's ids, the same in every build: 0..15 the sections A..P, 16..23 the songs (SEC_ID_SONG: the song chain

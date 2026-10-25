@@ -24,7 +24,8 @@ takes it away from macOS (hence sudo) and keeps it.
 
 FM-1.fwsc is M-VAVE's FM-1 V15 (m-vave.com/download, PC Firmware), the default. ANY other known-good
 .fwsc (an earlier Optimist or Melodee build that booted) can be written too, but only after it passes the
-same checks (identity, header and file-list CRCs, every file's CRC, a flash entry of exactly 0x93000 B,
+same checks (identity, header and file-list CRCs, every file's CRC, a flash entry of 0x93000 B, or 0xD0000 B
+for the fake SD mode layout (tools/flash_layout.py),
 a chip key and an application header that agree), with the package named before anything is written and
 an explicit flag that repeats its hash:  --write --confirm-package <first 8+ hex digits of its sha256>
 (--check prints it; with --ask you type it instead). The chip key found in the package must equal the
@@ -35,9 +36,10 @@ FM-1-transporter, docs/PROTOCOL.md), which were verified on hardware:
      and checked against its hash) is loaded into RAM and started;
   2. the chip key must be 980F and the flash 856014 (1 MiB), or nothing is done;
   3. the whole flash is read and saved as a backup before anything else;
-  4. only 4 KiB sectors in [0x4000, 0x93000) that differ from the package are written (the bootloader below
-     0x4000 and the device data above 0x93000 are never touched; a difference below 0x4000 stops
-     it), each erased, written and read back;
+  4. only 4 KiB sectors in [0x4000, the package's end) that differ from the package are written (the bootloader
+     below 0x4000 is never touched, a difference there stops it; the device data above the package's end is
+     kept, except when the package switches layout: the sectors the other layout used differently are cleared
+     first, as the update loader does, tools/flash_layout.py switch_clear), each erased, written and read back;
   5. a final full read must equal the expected image; then the FM-1 restarts into V15.
 """
 import argparse
@@ -50,6 +52,7 @@ import time
 import urllib.request
 from collections import namedtuple
 
+import flash_layout
 import fm1_install
 import fm1pkg_make
 
@@ -63,7 +66,8 @@ LOADER_SHA256 = "d41da6126760c9d66660bcc0cac8d27d221806c5e369a8036921efe68dca537
 LOADER_ADDR, LOADER_ARG = 0x1C02000, 0x0001
 
 FLASH_SIZE = 0x100000
-APP_END = 0x93000          # the .fwsc flash entry is raw flash [0, APP_END)
+APP_END = flash_layout.app_hi(0)   # the normal layout's .fwsc flash entry: raw flash [0, APP_END)
+CLEAR_END = flash_layout.BIG_STORE_HI   # the highest sector a layout switch may clear
 WRITE_MIN = 0x4000         # flash header, SPL, isd_config: never written
 SECTOR = 0x1000
 IO = 512
@@ -110,7 +114,7 @@ def enc(buf, key=0xFFFF):
 
 # ---------------------------------------------------------------- package ---
 def package_flash_image(raw):
-    """The .fwsc's type-0 entry: raw flash [0, APP_END). Layout as tools/fm1pkg_make.py writes it:
+    """The .fwsc's type-0 entry: raw flash [0, a layout's app end). Layout as tools/fm1pkg_make.py writes it:
     the logical image is the .fwsc without the marker byte after each of its first 20 0x2F-byte
     blocks; it starts with a 0x40-byte header and a list of 0x50-byte entries, each ENC'd."""
     logical = bytearray()
@@ -135,6 +139,17 @@ def package_flash_image(raw):
 
 
 Package = namedtuple("Package", "path product sha256 flash key stock")
+
+
+def installed_end(flash, key):
+    """where the installed app area ends: its app_area_head at 0x4000 (SFC'd with the chip key), else the normal
+    layout's end (no header of ours: nothing to clear)"""
+    mk = fm1pkg_make
+    head = bytearray(flash[WRITE_MIN:WRITE_MIN + 32])
+    mk.sfc(head, 0, 32, 0, key)
+    if mk.crc16(head[2:]) != struct.unpack_from("<H", head)[0]:
+        return 0
+    return WRITE_MIN + struct.unpack_from("<I", head, 8)[0]
 
 
 def package_chip_key(flash):
@@ -170,7 +185,7 @@ def package_chip_key(flash):
 
 def load_package(path):
     """Read and validate any .fwsc before it can be written: FM-1 identity, header / file-list / per-file
-    CRCs (tools/fm1_install.package_damage), one flash entry of exactly APP_END bytes (its own CRC
+    CRCs (tools/fm1_install.package_damage), one flash entry of a layout's size (its own CRC
     checked), and a chip key that agrees with its application header. Raises Fail."""
     try:
         raw = open(path, "rb").read()
@@ -189,8 +204,9 @@ def load_package(path):
     if bad:
         raise Fail(f"{path}: damaged package ({bad}); nothing is written. Get the file again")
     flash = package_flash_image(raw)
-    if len(flash) != APP_END:
-        raise Fail(f"{path}: the flash entry is {len(flash):#x} B, expected {APP_END:#x}")
+    if len(flash) not in flash_layout.APP_HI.values():
+        raise Fail(f"{path}: the flash entry is {len(flash):#x} B, expected one of "
+                   + ", ".join(f"{v:#x}" for v in flash_layout.APP_HI.values()))
     return Package(os.path.abspath(path), product, digest, flash, package_chip_key(flash), digest == STOCK_SHA256)
 
 
@@ -314,7 +330,7 @@ class Uboot:
         return bytes(out)
 
     def write_sector(self, addr, data):
-        if addr < WRITE_MIN or addr >= APP_END or addr % SECTOR or len(data) != SECTOR:
+        if addr < WRITE_MIN or addr >= CLEAR_END or addr % SECTOR or len(data) != SECTOR:
             raise Fail(f"refusing to write {addr:#x}")
         self.cmd(CMD_ERASE_SECTOR, struct.pack(">I", addr))
         for off in range(0, SECTOR, IO):
@@ -352,17 +368,27 @@ def rescue(dev, image, loader, write, backup_dir, say=print, confirm=None, key=N
     with open(path, "wb") as f:
         f.write(now)
     say(f"  backup saved: {path} ({time.time() - t0:.1f} s)")
-    diff = [a for a in range(0, APP_END, SECTOR) if image[a:a + SECTOR] != now[a:a + SECTOR]]
+    end = len(image)                                         # the package's layout (load_package checked it)
+    diff = [a for a in range(0, end, SECTOR) if image[a:a + SECTOR] != now[a:a + SECTOR]]
+    lo, hi = flash_layout.switch_clear(installed_end(now, chip_key), flash_layout.layout_of(end))
+    clear = [a for a in range(lo, hi, SECTOR) if now[a:a + SECTOR] != b"\xFF" * SECTOR]
     low = [a for a in diff if a < WRITE_MIN]
     if low:
         raise Fail(f"the protected head of the flash differs from {label} (sectors "
                    + " ".join(f"{a:#06x}" for a in low) + "): not writing; send this output and the backup")
-    say(f"  {len(diff)} of {APP_END // SECTOR} firmware sectors differ from {label}")
+    say(f"  {len(diff)} of {end // SECTOR} firmware sectors differ from {label}")
+    if clear:
+        say(f"  a switch of flash layout: {len(clear)} sectors in [{lo:#x}, {hi:#x}) cleared first (the other layout's)")
     if not write and confirm is not None:
         write = keep_alive(dev, confirm)
     if not write:
         say(f"  check passed. Nothing written: run again with --write to put {label} back.")
         return False
+    for i, a in enumerate(clear):                            # (before the app: as the update loader does)
+        dev.write_sector(a, b"\xFF" * SECTOR)
+        say(f"\r  clearing {i + 1}/{len(clear)}", end="")
+    if clear:
+        say("")
     # high to low: the firmware's start-up code (low in the app area: its watchdog and its crash
     # counter, which bring it back to a rescue mode) is the last thing replaced if the write is cut short
     for i, a in enumerate(reversed(diff)):
@@ -376,7 +402,10 @@ def rescue(dev, image, loader, write, backup_dir, say=print, confirm=None, key=N
         say(f"\r  writing {i + 1}/{len(diff)}", end="")
     say("")
     say("  final read ...")
-    expect = image + now[APP_END:]
+    kept = bytearray(now)
+    for a in clear:
+        kept[a:a + SECTOR] = b"\xFF" * SECTOR
+    expect = image + bytes(kept[end:])
     final = dev.read(0, FLASH_SIZE)
     if final != expect:
         bad = [a for a in range(0, FLASH_SIZE, SECTOR) if final[a:a + SECTOR] != expect[a:a + SECTOR]]

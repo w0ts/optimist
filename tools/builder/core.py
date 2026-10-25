@@ -38,6 +38,8 @@ def _stderr(msg):
 
 
 LIMITS = {"flash": 581564, "ram": 98304, "pool": 344064, "ramtext": 32512}
+FLASH_BY_LAYOUT = {1: 831420}    # the app slot of the other flash layouts (LAYOUT): tools/flash_layout.py app_slot, which the
+                                 # web builder does not ship; tests/flash_layout_test.py checks they agree
 SPARE = {"flash": 0, "ram": 0, "pool": 8192, "ramtext": 0}   # build.py keeps 8 KiB of the pool spare
 REGIONS = ("flash", "ram", "pool", "ramtext")
 GRAIN_SETS = ("SET_PIANO", "SET_VIBES", "SET_FLUTE")       # the sets of GRAIN's presets (eng_grain.c)
@@ -169,6 +171,14 @@ def validate(cfg):
                          ["SL24_XSTEP"] + sx_users))
     if cfg.get("PATTERNS") and cfg.get("SECTIONS") == 4:
         err.append(Issue("patterns live in the section log: SECTIONS 8 or 16 (or PATTERNS off)", ["PATTERNS", "SECTIONS"]))
+    if cfg.get("LAYOUT"):                        # the fake SD mode: the user samples' and snapshots' flash is the app's
+        clash = [k for k in ("ENG_SAMPLE", "DRUM_USR", "SNAPSHOTS") if k in R.ITEMS and built(cfg, k)]
+        if built(cfg, "NATIVE_BANKS") and built(cfg, "ENG_CZ"):
+            clash.append("NATIVE_BANKS")
+        if clash or not cfg.get("PATTERNS"):
+            err.append(Issue("the fake SD mode layout keeps no user samples, snapshots or CZ collection and needs "
+                             "PATTERNS: " + ", ".join(clash + ([] if cfg.get("PATTERNS") else ["PATTERNS off"])),
+                             ["LAYOUT"] + clash + ([] if cfg.get("PATTERNS") else ["PATTERNS"])))
     revs = [k for k in R.REV_ALGOS if k in R.ITEMS]
     if built(cfg, "FX_REVERB") and not any(cfg[k] for k in revs):
         err.append(Issue("the reverb bus needs an algorithm: tick ROOM, PLATE, FDN8, SPRING or VTINY "
@@ -689,8 +699,11 @@ def undo_ring(total):
 
 
 def fits(total, cfg=None):
-    """-> {region: (used, capacity, over)}: over > 0 overflows (the pool keeps its 8 KiB spare)"""
+    """-> {region: (used, capacity, over)}: over > 0 overflows (the pool keeps its 8 KiB spare); the flash by the
+    configuration's layout (LAYOUT: tools/flash_layout.py)"""
     cap = {r: LIMITS[r] - SPARE[r] for r in REGIONS}
+    if cfg and cfg.get("LAYOUT") in FLASH_BY_LAYOUT:
+        cap["flash"] = FLASH_BY_LAYOUT[cfg["LAYOUT"]] - SPARE["flash"]
     return {r: (total[r], cap[r], total[r] - cap[r]) for r in REGIONS}
 
 

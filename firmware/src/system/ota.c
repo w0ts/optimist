@@ -35,8 +35,8 @@
 #include "../../hal/fm1_flash_map.h"
 _Static_assert(OTA_AREA == FL_OTA_LO && OTA_AREA + OTA_AREA_LEN == FL_OTA_HI && !FL_NEVER(OTA_AREA, OTA_AREA_LEN) &&
                OTA_AREA >= FL_APP_HI, "the update staging: off the app slot and the SDK's sectors");
-#define OTA_FL_LEN FL_APP_HI                     /* flash.bin = [0, the app slot's end): the head and this board's app
-                                                  * area, what the update loader writes (ldr_core.c LDR_APP_HI) */
+/* flash.bin = [0, an app slot's end): the head and this board's app area in one of the layouts (fm1_flash_map.h
+ * FL_APP_HI_NORMAL, FL_APP_HI_BIG), what the package's own update loader writes (ldr_core.c LDR_APP_HI) */
 #define OTA_LDR_HCRC 0xEBAAu                     /* official update loader (usb_hid_ota.bin) */
 #define OTA_LDR_DCRC 0x5881u
 #define OTA_LDR_LEN 0x4DE1u
@@ -321,8 +321,9 @@ static int ota_stage(void)                       /* steps 1..6; 0 = host said su
         return rc;
     if (!fl_off || !ota_off)
         return -3;
-    if (fl_len != OTA_FL_LEN)
-        return -15;                                         /* another board's package: nothing erased */
+    if (fl_len != FL_APP_HI_NORMAL && fl_len != FL_APP_HI_BIG)
+        return -15;                                         /* another board's package: nothing erased (either */
+                                                            /* layout: the package's own loader writes it) */
     /* 2. which loader: the official one (known CRCs; it rewrites the whole flash.bin
      *    including the head) or Felucca's own (app area only, checks the chip key) */
     if (ota_read(ota_off, b, 512))
@@ -338,6 +339,8 @@ static int ota_stage(void)                       /* steps 1..6; 0 = host said su
         own = ota_memeq(b + i, (const uint8_t *)"FELUCCA-LOADER-1", 16) && ota_rd32(b + 0x20 + 4) <= 0x14000u;
     if (!official && !own)
         return -7;
+    if (official && fl_len != FL_APP_HI_NORMAL)
+        return -15;                    /* the official loader knows the normal layout only */
     if (official) {                    /* the official loader writes the head: it must equal ours */
         ota_show(2, 0);
         for (i = 0; i < 0x4000u; i += 512u) {

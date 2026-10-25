@@ -35,7 +35,8 @@ The FM-1 has two kinds of memory:
 | 0x0FC000-0x0FEFFF | 12 KiB | settings A/B, autosave copy B | data |
 | 0x0FF000 | 4 KiB | SDK key_mac: never written | system |
 
-Your data is about 340 KiB in fixed areas, the same for every build. The one build setting that moves space between
+Your data is about 340 KiB in fixed areas, the same for every build (in the normal flash layout; the fake SD mode,
+builder item `LAYOUT` 1, grows the app slot to 0xD0000 over most of it: [SD-MODE-DESIGN.md](SD-MODE-DESIGN.md)). The one build setting that moves space between
 them is `SNAPSHOTS` (with the CZ collection), which trades USR3 sample space for snapshots.
 
 ### 1.1 USR3, the snapshots and the CZ collection

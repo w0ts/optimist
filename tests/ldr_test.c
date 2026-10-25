@@ -3,7 +3,9 @@
 /* Host test of the Felucca update loader (firmware/loader/ldr_core.c): a fake
  * host serves a package over the SysEx protocol, the "device" flash starts as
  * another package's flash.bin (as if that firmware were installed).
- *   ldr_test OLD.fwsc NEW.fwsc */
+ *   ldr_test OLD.fwsc NEW.fwsc
+ *   ldr_test --layout          only the switch of flash layout (ldr_layout_switch), for a build of another
+ *                              FELUCCA_LAYOUT (docs/SD-MODE-DESIGN.md) */
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -101,7 +103,7 @@ static int ldr_prog(uint32_t off, const void *p, uint32_t n)
 {
     const uint8_t *s = p;
     uint32_t i;
-    if (off < 0x4000u || off + n > 0x93000u || ((off & 0xFFu) + n) > 256u) bad_range++;
+    if (off < 0x4000u || off + n > FL_APP_HI || ((off & 0xFFu) + n) > 256u) bad_range++;
     for (i = 0; i < n; i++) nor[off + i] &= s[i];
     return 0;
 }
@@ -198,10 +200,12 @@ static void felu_at(uint32_t sec, uint16_t type, uint16_t slot)
     memcpy(nor + sec, h, 32);
 }
 
-/* the record sweep keeps the SDK's sectors and our objects: a record-looking tail there is never erased */
+/* the record sweep keeps the SDK's sectors and our objects: a record-looking tail there is never erased. The objects
+ * where this layout keeps them (FELUCCA_LAYOUT 1: the presets' FM6 voices at 0xD8000, autosave copy A at 0xD7000) */
 static int sweep_test(void)
 {
     static uint8_t img[0x100000];
+    const uint32_t upf = FL_UPF_LO, obj = LDR_APP_HI == FL_APP_HI_BIG ? 0xD7000u : 0x97000u, bare = LDR_APP_HI;
     int bad = 0;
     uint32_t i;
     bad += check("sweep: its CRC-32 is zlib's, as storage.c's", ldr_crc32((const uint8_t *)"123456789", 9) == 0xCBF43926u);
@@ -209,24 +213,80 @@ static int sweep_test(void)
     nor[0xE8000] = 0x55, nor[0xE8001] = 0xAA, nor[0xE8002] = 0xAA, nor[0xE8003] = 0x55;   /* the stock SDK VM */
     for (i = 0; i < 3u; i++)
         record_at(0xE7F00u + i * 0x1000u);                /* 0xE7F00, 0xE8F00, 0xE9F00 */
-    felu_at(0x95000u, 10, 0);                             /* UP_FM6's voices, A / B, each with a record-like tail */
-    felu_at(0x96000u, 10, 1);
-    record_at(0x95F00u), record_at(0x96F00u);
-    felu_at(0x97000u, 1, 0);                              /* a project object */
-    record_at(0x97F00u);
+    felu_at(upf, 10, 0);                                  /* UP_FM6's voices, A / B, each with a record-like tail */
+    felu_at(upf + 0x1000u, 10, 1);
+    record_at(upf + 0xF00u), record_at(upf + 0x1F00u);
+    felu_at(obj, 1, 0);                                   /* a project (layout 1: autosave) object */
+    record_at(obj + 0xF00u);
+    if (LDR_APP_HI == FL_APP_HI_BIG)
+        record_at(0x93F00u);                              /* inside this layout's app: never swept */
     memcpy(img, nor, sizeof nor);
-    record_at(0x93F00u);                                  /* a bare record (the app's room): erased */
+    record_at(bare + 0xF00u);                             /* a bare record (past the app): erased */
     put_record();                                         /* ours, 0xE4F00: erased */
     erases = 0;
     ldr_records_drop();
-    bad += check("sweep: the records at 0xE4F00 and 0x93F00 erased", nor[0xE4F06] == 0xFF && nor[0x93F06] == 0xFF &&
-                 erases == 2);
+    bad += check("sweep: the records at 0xE4F00 and past the app erased", nor[0xE4F06] == 0xFF &&
+                 nor[bare + 0xF06u] == 0xFF && erases == 2);
     bad += check("sweep: 0xE7000..0xE9FFF (SDK VM, BTIF) never erased", !memcmp(nor + 0xE7000, img + 0xE7000, 0x3000));
-    bad += check("sweep: UP_FM6's 0x95000 / 0x96000 and a project kept",
-                 !memcmp(nor + 0x95000, img + 0x95000, 0x2000) && !memcmp(nor + 0x97000, img + 0x97000, 0x1000));
-    nor[0x95001] ^= 1;                                    /* a broken head: not ours, the record goes */
+    bad += check("sweep: UP_FM6's two sectors and a project kept",
+                 !memcmp(nor + upf, img + upf, 0x2000) && !memcmp(nor + obj, img + obj, 0x1000));
+    if (LDR_APP_HI == FL_APP_HI_BIG)
+        bad += check("sweep: a record-like tail inside the app kept", nor[0x93F06] == img[0x93F06]);
+    nor[upf + 1u] ^= 1;                                   /* a broken head: not ours, the record goes */
     ldr_records_drop();
-    bad += check("sweep: a sector whose FELU head is broken is not taken for ours", nor[0x95F06] == 0xFF);
+    bad += check("sweep: a sector whose FELU head is broken is not taken for ours", nor[upf + 0xF06u] == 0xFF);
+    return bad;
+}
+
+/* the switch of flash layout (ldr_core.c ldr_layout_switch): the installed app's own header at 0x4000 (SFC'd with the
+ * chip key) says how far it reaches; the sectors the other layout used differently are erased, nothing else */
+static void installed_head(uint32_t key, uint32_t blk)
+{
+    uint8_t e[32];
+    uint32_t c;
+    memset(e, 0xFF, sizeof e);
+    e[4] = 0x20; e[5] = 0x01; e[6] = 0x00; e[7] = 0x02;               /* (0x02000120: fm1pkg_make.py app_area_head) */
+    e[8] = (uint8_t)blk; e[9] = (uint8_t)(blk >> 8); e[10] = (uint8_t)(blk >> 16); e[11] = (uint8_t)(blk >> 24);
+    c = ota_crc16(e + 2, 30, 0);
+    e[0] = (uint8_t)c; e[1] = (uint8_t)(c >> 8);
+    ldr_sfc(e, 32, 0, key);
+    memcpy(nor + 0x4000, e, sizeof e);
+}
+
+static int all(uint32_t lo, uint32_t hi, uint8_t v)
+{
+    uint32_t i;
+    for (i = lo; i < hi; i++)
+        if (nor[i] != v)
+            return 0;
+    return 1;
+}
+
+static int layout_switch_test(void)
+{
+    static const uint32_t KEY = 0x980Fu, NORMAL_BLK = 0x8E000u, BIG_BLK = 0xCB25Bu;   /* (blocks as the packages have) */
+    static const char *const WHAT[3] = {"after a normal app", "after a fake-SD-mode app", "after no header of ours"};
+    uint8_t buf[32];
+    int bad = 0, k, rc;
+    for (k = 0; k < 3; k++) {
+        char what[96];
+        memset(nor, 0xFF, sizeof nor);
+        memset(nor + 0x5000, 0xA5, 0xE0000u - 0x5000u);               /* the app, the store: all non-erased */
+        if (k < 2)
+            installed_head(KEY, k ? BIG_BLK : NORMAL_BLK);
+        erases = 0; bad_range = 0;
+        rc = ldr_layout_switch(KEY, buf);
+        snprintf(what, sizeof what, "layout %d loader, %s", FELUCCA_LAYOUT, WHAT[k]);
+        if (LDR_APP_HI == FL_APP_HI_NORMAL && k == 1)                  /* back to normal: the old app's tail cleared */
+            bad += check(what, rc == 0 && erases == 61u && all(0x93000u, 0xD0000u, 0xFF) && all(0x5000u, 0x93000u, 0xA5)
+                         && all(0xD0000u, 0xE0000u, 0xA5));
+        else if (LDR_APP_HI == FL_APP_HI_BIG && k != 1)                /* to the fake SD mode: its store cleared */
+            bad += check(what, rc == 0 && erases == 10u && all(0xD0000u, 0xDA000u, 0xFF) && all(0x5000u, 0xD0000u, 0xA5)
+                         && all(0xDA000u, 0xE0000u, 0xA5));
+        else
+            bad += check(what, rc == 0 && erases == 0 && all(0x5000u, 0xE0000u, 0xA5));
+        bad += check("... nothing outside the loader's windows", bad_range == 0);
+    }
     return bad;
 }
 
@@ -236,7 +296,12 @@ int main(int argc, char **argv)
     uint8_t *old, head[0x4000];
     uint32_t ofo, nfo;
     int bad = 0, rc;
-    if (argc < 3) { printf("usage: ldr_test OLD.fwsc NEW.fwsc\n"); return 2; }
+    if (argc == 2 && !strcmp(argv[1], "--layout")) {
+        bad = layout_switch_test();
+        printf("%s\n", bad ? "LOADER TEST FAILED" : "loader test passed");
+        return bad != 0;
+    }
+    if (argc < 3) { printf("usage: ldr_test OLD.fwsc NEW.fwsc | --layout\n"); return 2; }
     old = load_logical(argv[1], &olen);
     logical = load_logical(argv[2], &logical_len);
     ofo = flash_off(old);
@@ -356,6 +421,7 @@ int main(int argc, char **argv)
         flash_unknown = 0;
     }
     bad += sweep_test();
+    bad += layout_switch_test();
     printf("%s\n", bad ? "LOADER TEST FAILED" : "loader test passed");
     return bad != 0;
 }

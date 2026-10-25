@@ -230,7 +230,8 @@ int main(int argc, char **argv)
     reset_dev();
     rc = ota_session();
     printf("  %u requests\n", requests);
-    bad += check("session commits (flash.bin exactly the app area)", rc == 0 && committed && fl_entry(12) == 0x93000u);
+    bad += check("session commits (flash.bin exactly an app slot: either flash layout)", rc == 0 && committed &&
+                 (fl_entry(12) == FL_APP_HI_NORMAL || fl_entry(12) == FL_APP_HI_BIG));
     bad += check("headers + loader twice + confirm, no head reads", requests >= 10 && requests <= 45);
     {
         uint8_t *h = nor + 0xE0000, *p = committed_parm;
