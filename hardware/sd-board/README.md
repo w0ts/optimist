@@ -1,6 +1,6 @@
 # The FM-1 SD board
 
-A 24 x 30 mm board with everything the SD card mod needs (docs/SD-CARD-DESIGN.md): a push-push microSD socket, the
+A 26 x 36 mm board (it fits the 27 x 40 mm free on the FM-1's back, beside the battery) with everything the SD card mod needs (docs/SD-CARD-DESIGN.md): a push-push microSD socket, the
 chip-select inverter, the 1 kOhm on the card's data out, the pull-ups and the decoupling. Order it assembled, stick it
 inside the case, solder six wires to the FM-1. Status (2026-10-25): designed and checked (KiCad's design-rule check: no
 error); **no board has been made yet**.
@@ -9,7 +9,7 @@ error); **no board has been made yet**.
 
 ## Order it (JLCPCB, assembled)
 
-1. jlcpcb.com > Order now > upload `fab/sd-board-gerbers.zip` (2 layers, 24 x 30 mm, 1.6 mm; the defaults are fine).
+1. jlcpcb.com > Order now > upload `fab/sd-board-gerbers.zip` (2 layers, 26 x 36 mm, 1.6 mm; the defaults are fine).
 2. Tick **PCB Assembly**, top side, Economic.
 3. Upload `fab/bom.csv` (the parts) and `fab/cpl.csv` (where they go). Every part is a JLC part (LCSC numbers in the BOM);
    P1, the row of seven holes, is not assembled.
@@ -32,7 +32,8 @@ The same board can be shared on OSHWLab (JLC's open-hardware site) so anyone ord
 | MISO | PC8 (the LCD's D/C) | J12 (pin 31) |
 
 The pad between CS and MOSI is unused. The board sits on the back of the FM-1's board (the free area beside the
-battery), on double-sided tape; the wires go around the board's edge.
+battery); four 2.2 mm holes in its corners (two beside the card's opening, two by the pads) take an M2 screw, a zip tie
+or a rivet, or it goes on double-sided tape. The wires go around the FM-1 board's edge from J12 to the pads.
 
 ## The design
 

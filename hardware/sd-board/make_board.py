@@ -26,7 +26,8 @@ LIB = os.path.join(HERE, "lib", "sdboard.pretty")
 KICAD_FP = "/Applications/KiCad/KiCad.app/Contents/SharedSupport/footprints"
 MM = pcbnew.FromMM
 
-X0, Y0, W, H = 98.0, 100.0, 24.0, 30.0           # the board outline (mm): the card's opening on the top edge
+X0, Y0, W, H = 97.0, 100.0, 26.0, 36.0           # the board outline (mm): the card's opening on the top edge; the
+                                                 # space on the FM-1's back: 27 x 40 (the user, 2026-10-25)
 TRACK, POWER = 0.25, 0.4
 
 board = pcbnew.BOARD()
@@ -106,6 +107,10 @@ C1 = place(LIB, "C0805", "C1", "10uF", 120.0, 121.5, 90, "C15850")
 C2 = place(LIB, "C0603", "C2", "100nF", 103.9, 118.2, 0, "C14663")
 P1 = place(os.path.join(KICAD_FP, "Connector_PinHeader_2.54mm.pretty"), "PinHeader_1x07_P2.54mm_Vertical", "P1",
            "to the FM-1", 103.65, 127.5, 90)
+# four holes to fix it (an M2 screw, a zip tie, a rivet: the user, 2026-10-25: "to easily attach it to something"), two
+# beside the card's opening, two by the wire pads; nothing of the copper inside their keep-out
+HOLES = [place(os.path.join(KICAD_FP, "MountingHole.pretty"), "MountingHole_2.2mm_M2", f"H{i + 1}", "M2", x, y)
+         for i, (x, y) in enumerate(((99.4, 102.9), (120.6, 102.9), (99.4, 133.4), (120.6, 133.4)))]
 
 # ---- the nets
 for num, name in ((1, "DAT2"), (2, "CARD_CS"), (3, "MOSI"), (4, "3V3"), (5, "CLK"), (6, "GND"), (7, "DAT0"),
@@ -198,7 +203,7 @@ def label(text, x, y, size=0.8, rot=0.0):
 for i, name in enumerate(("CS", "", "MOSI", "3V3", "CLK", "GND", "MISO")):
     if name:                                    # (upright, beside each pad: four letters fit the 2.54 mm pitch so)
         label(name, 103.65 + 2.54 * i, 124.6, 0.8, 90)
-label("OPTIMIST SD", 110.0, 129.2, 0.8)
+label("OPTIMIST SD", 110.0, 132.4, 0.8)
 
 board.GetDesignSettings().SetAuxOrigin(pcbnew.VECTOR2I(MM(X0), MM(Y0 + H)))   # (the lower left: the Gerbers, the drill
 pcbnew.ZONE_FILLER(board).Fill(board.Zones())                                   # files and cpl.csv share it)
@@ -209,7 +214,7 @@ print("saved", out)
 # ---- JLCPCB's assembly files: the parts list (BOM) and the placement (CPL); P1 is not assembled (the wires go in it)
 FAB = os.path.join(HERE, "fab")
 os.makedirs(FAB, exist_ok=True)
-parts = [fp for fp in board.GetFootprints() if fp.GetReference() != "P1"]
+parts = [fp for fp in board.GetFootprints() if fp.GetReference() != "P1" and not fp.GetReference().startswith("H")]
 groups = {}
 for fp in parts:
     lcsc = fp.GetFieldText("LCSC")
