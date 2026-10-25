@@ -474,7 +474,7 @@ def auto_store(cfg):
 
 # engines.c part_mem: NPART engine states in the pool, a union of the engines built that keep one there; bytes of
 # the array with each member alone (sizes.json "symbols", measure_costs.py holds these against every build it makes)
-PART_MEM = {"ENG_FM6": 11712, "ENG_PHYS": 38664, "ENG_GRAIN": 21060, "ENG_ACID": 1440}   # (2026-10-14)
+PART_MEM = {"ENG_FM6": 11712, "ENG_PHYS": 38664, "ENG_GRAIN": 21072, "ENG_ACID": 1440, "ENG_PLAITS": 1920}   # (2026-10-25: arn_mem)
 PART_MEM_NONE = 0                                   # (none built: not in the image)
 
 
