@@ -11,7 +11,8 @@ struct FlashView: View {
     @ObservedObject var link: MirrorLink
     /// shown over the welcome screen (the whole window): its Done button; nil in the tab
     var close: (() -> Void)? = nil
-    @Environment(\.openURL) private var openURL
+    /// a build's "Try it in the simulator": the app's own Simulator with it (the user, 2026-10-25: "should stay in the app")
+    var trySim: (String) -> Void = { _ in }
     @State private var ask: Confirmation?
     @State private var building: BuilderPage?            // the builder shown, started on a flavour
     @State private var importing = false
@@ -40,7 +41,7 @@ struct FlashView: View {
                 flash.builder(e)
                 if case .open(let w, let id) = e {
                     building = nil
-                    if w == "sim" { openURL(FlashCatalog.simulator(build: id)) }
+                    if w == "sim" { trySim(id) }
                 }
             }, close: { building = nil })
         }

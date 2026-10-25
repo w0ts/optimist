@@ -61,10 +61,16 @@ final class WebEditor: ObservableObject {
     }
 
     /// the page `tab` (the editor's data-tab: mixer, samples, drumkit, snapshots, device, settings, sim)
+    /// the build the Simulator runs (a cloud build's id: ?sim=); a new one loads the page again
+    var simBuild: String?
+    private var loadedBuild: String?
+
     func show(_ tab: String) {
-        if !loaded {
+        if !loaded || loadedBuild != simBuild {
             loaded = true
+            loadedBuild = simBuild
             var c = URLComponents(url: Self.site, resolvingAgainstBaseURL: false)!
+            if let b = simBuild { c.queryItems = [URLQueryItem(name: "sim", value: b)] }
             c.fragment = tab
             view.load(URLRequest(url: c.url!))
         } else {
