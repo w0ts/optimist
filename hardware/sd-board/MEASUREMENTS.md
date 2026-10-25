@@ -85,6 +85,9 @@ What is measured on a real FM-1 (calipers, the user, 2026-10-25) and what is sti
   battery: the board's left edge at 71.4 (25.4 mm wide at the bottom), the tray's left rail with it; the card stays
   where it was (81.7 mm from the wall). The column 1 mm narrower on its left (91.5 to 96.8: 1.5 mm clear of the speaker plug) to pass between the plugs.
   Check on the print: the collar's outside now reaches 70.35 mm across.
+- J3 (the LCD's socket) 3.5 mm left of B, at 86.5 mm (the user): the head's top widened left to 82.4 mm, from 68 mm
+  up; the thin column unchanged. (The photo put the 10 V capacitor near 78 to 84.7 across, 63 to 74 up: check the
+  new top-left corner against it on the mockup.)
 - v3 (the L along the left edge) did not fit: 10.4 mm free beside the battery; it is in git (5af03500).
 
 ## Still unmeasured
