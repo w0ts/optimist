@@ -26,7 +26,8 @@
  *              on the 16 steps of the page playing (6 px a step) and its meter (its hits: drums.hits, full at the hit and falling over 12 frames; the drum voices
  *              have no level of their own to read). The header names the lane ("Snare mix")
  * The selected row framed in its colour, its ground tinted. No pan, send or insert forms on the rows: the cards show the
- * selected row's values. Each row's meter and steps are canvases of their own, drawn again only when they change. */
+ * selected row's values. Each row's meter and steps are canvases of their own, drawn again only when they change.
+ * The builder item MIXER_2X draws the panel instead in op_mix2x.c (the 2x2 cards over it on every row). */
 #define MXL_N 4u                        /* the channels a screen */
 #define MXL_H ((int32_t)OP_PH / (int32_t)MXL_N)   /* a channel's row: 41 px (the panel 164, the mixer's cards 1x4; over the
                                          * help band 36: the panel 146) */
@@ -140,6 +141,12 @@ static void mx_vu_paint(uint32_t r, int32_t x, int32_t y, int32_t w, int32_t h, 
 static void mx_vu_band(uint32_t r, int32_t x, int32_t y, int32_t w, int32_t h, uint32_t pk, uint32_t gr);
 static void mx_steps_paint(uint32_t r, int32_t x, int32_t y);
 static uint32_t mx_gr_px(uint32_t r, int32_t w);
+#if FELUCCA_MIXER_2X
+static void m2_paint(void);                             /* op_mix2x.c: the mixer in the big face */
+static uint32_t m2_sig(uint32_t sig);
+static void m2_live(const uint32_t *trk_lv, const uint32_t *ret_lv, uint32_t n);
+static void m2_redraw(void);
+#endif
 /* the selected row: framed in its colour on black, no fill (the user, 2026-10-18: the tinted ground made it hard to read);
  * its code and preset white */
 static void mx_paint_ground(uint32_t i, const mrect_t *q, uint16_t c)
@@ -216,12 +223,17 @@ static void mx_paint_row(uint32_t i)                    /* a channel's or a lane
 static void mx_paint(void)                              /* the group in view (cv_tall) */
 {
     uint32_t i;
+#if FELUCCA_MIXER_2X
+    (void)i;
+    m2_paint();
+#else
     if (mxd.first == MXR_MASTER) {
         mx_paint_master();
         return;
     }
     for (i = mxd.first; i < mxd.last; i++)
         mx_paint_row(i);
+#endif
 }
 static uint32_t mx_static_sig(void)
 {
@@ -243,6 +255,9 @@ static uint32_t mx_static_sig(void)
         if (i >= MXR_T1 && i <= MXR_DR)
             sig = hu(sig, mx_muted(i));
     }
+#if FELUCCA_MIXER_2X
+    sig = m2_sig(sig);
+#endif
     return sig;
 }
 
@@ -512,6 +527,9 @@ static __attribute__((noinline)) void mx_draw(void)
 #if FELUCCA_ED_MIRROR
     mxd.mir = (uint8_t)mir_meters_due();
 #endif
+#if FELUCCA_MIXER_2X
+    m2_live(trk_lv, ret_lv, n);
+#else
     if (mxd.first == MXR_MASTER) {                      /* MASTER alone: its meter, its reduction, the returns' meters */
         mx_vu_at(MXR_MASTER, MXM_X, MXM_VY, MXM_W, MXM_VH, mx_level(MXR_MASTER, trk_lv), 0);
         mx_master_gr();
@@ -526,6 +544,7 @@ static __attribute__((noinline)) void mx_draw(void)
             mx_vu_at(i, q.x + q.vx, q.y + q.vy, q.vw, q.vh, mx_level(i, trk_lv), mx_gr_px(i, q.vw));
         mx_steps(i);
     }
+#endif
 }
 static void mx_redraw(void)                             /* the live parts again (an overlay went) */
 {
@@ -537,4 +556,7 @@ static void mx_redraw(void)                             /* the live parts again 
 #endif
     memset(mxd.stp, 0, sizeof mxd.stp);
     mxd.mgr = 0xFF;
+#if FELUCCA_MIXER_2X
+    m2_redraw();
+#endif
 }
