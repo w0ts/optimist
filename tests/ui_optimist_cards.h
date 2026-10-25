@@ -136,8 +136,8 @@ static void cards_tests(void)
         k = line_named(SCR_SYSTEM, "KNOB COLORS");
         SCR->cell(k, gl_kn(SCR_SYSTEM, k), &c);
         SCR->name(k, nm);
-        check(none && c.label && !strcmp(c.label, "KNOB COLORS") && !strcmp(nm, "SCREEN") && settings.palette == 4u,
-              "SYSTEM SCREEN: no CARDS line, no COLOR line (MONO always, 2026-10-18): BRIGHT, then KNOB COLORS");
+        check(none && c.label && !strcmp(c.label, "KNOB COLORS") && !strcmp(nm, "GENERAL") && settings.palette == 4u,
+              "SYSTEM GENERAL: no CARDS line, no COLOR line (MONO always, 2026-10-18): BRIGHT, then KNOB COLORS");
         w = bp23_word();
         bp23_from_word(w | 1u << 23);                   /* an old record that chose 1x4 */
         op_enter(SCR_SOUND);
