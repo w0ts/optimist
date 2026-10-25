@@ -41,7 +41,7 @@ def T(u, v):
 BATTERY_R = 72.6                                 # k: the battery's right side
 PLUG_L = BATTERY_R + 30.0                        # o: the plug's left side (above p, 23.5 mm up)
 POLE = (78.0, 40.0)                              # l, m: the cover's pole there (6.9 mm wide, i)
-COLLAR_R = (6.9 + 0.4) / 2 + 1.0                # the tray's collar round the pole (make_tray.py): 0.2 mm play, 1 mm wall
+COLLAR_R = (6.9 + 0.4) / 2 + 1.0                # the tray's collar round the pole (make_tray.py): 0.2 play, 1 mm wall
 POLE_R = COLLAR_R + 0.3                          # (the board's seat round the collar; it stops the board sliding in)
 TRAY_RAIL = 1.2                                  # the tray's rails along the board's sides (a groove each: the user,
                                                  # 2026-10-25, the board slides into the tray, held up and down)
@@ -154,17 +154,18 @@ def V(name, u, v):
 
 
 # ---- the parts: the card socket at the bottom, its opening on the bottom wall's outside (the card flush, the user);
-# the FFC socket 8.5 mm under the board's top (the ribbon comes down over the 4 mm speaker plug, the user), its
+# the FFC socket's cable side 5 mm under the board's top (the ribbon comes down over the 4 mm speaker plug, the
+# user), its
 # cable from between the jacks (r: 90 mm); U1 and its parts right
 CARD_C = CARD_L + 5.5                            # (the card, 11 mm wide, taken as centred in its socket: UNMEASURED)
 J1 = P(LIB, "TF-SMD_TF-01A", "J1", "TF-01A push-push", CARD_C, WALL_OUT + 9.62, 0, "C91145")
-J2 = P(LIB, "FPC-SMD_6P-P0.50_XUNPU_FPC-05F-6PH20", "J2", "FFC 6P 0.5mm", 91.0, 34.5, 180, "C2856796")
-U1 = P(LIB, "SOT-23-5_L3.0-W1.7-P0.95-LS2.8-BR", "U1", "74LVC1G04", 93.6, 26.0, 90, "C7827")
-R4 = P(LIB, "R0603", "R4", "47k", 94.35, 29.2, 0, "C25819")
-C1 = P(LIB, "C0805", "C1", "10uF", 94.2, 19.5, 180, "C15850")
-C2 = P(LIB, "C0603", "C2", "100nF", 94.0, 22.6, 0, "C14663")
+J2 = P(LIB, "FPC-SMD_6P-P0.50_XUNPU_FPC-05F-6PH20", "J2", "FFC 6P 0.5mm", 91.0, 31.0, 180, "C2856796")
+U1 = P(LIB, "SOT-23-5_L3.0-W1.7-P0.95-LS2.8-BR", "U1", "74LVC1G04", 93.6, 22.5, 90, "C7827")
+R4 = P(LIB, "R0603", "R4", "47k", 94.35, 25.7, 0, "C25819")
+C1 = P(LIB, "C0805", "C1", "10uF", 94.2, 16.0, 180, "C15850")
+C2 = P(LIB, "C0603", "C2", "100nF", 94.0, 19.1, 0, "C14663")
 R1 = P(LIB, "R0603", "R1", "1k", CARD_C - 4.36, 22.0, 270, "C21190")
-R2 = P(LIB, "R0603", "R2", "47k", 94.3, 14.6, 180, "C25819")
+R2 = P(LIB, "R0603", "R2", "47k", 94.3, 14.0, 180, "C25819")
 R3 = P(LIB, "R0603", "R3", "47k", 80.2, 14.2, 0, "C25819")
 
 # ---- the nets. J2's order is free (the tap board at J12 is not designed yet): left to right the card's own order
@@ -186,12 +187,12 @@ for fp, a, b in ((R1, "MISO", "DAT0"), (R2, "3V3", "DAT2"), (R3, "3V3", "DAT1"),
 P2 = {n: A(J2, n) for n in range(1, 7)}
 C = {n: A(J1, n) for n in range(1, 9)}
 RAIL = 95.8
-for name, pin, card, turn in (("MISO", 6, 7, 30.0), ("CLK", 5, 5, 29.2), ("MOSI", 3, 3, 28.4)):
+for name, pin, card, turn in (("MISO", 6, 7, 26.5), ("CLK", 5, 5, 25.7), ("MOSI", 3, 3, 24.9)):
     R(name, [P2[pin], (P2[pin][0], turn), (C[card][0], turn), A(R1, 1) if name == "MISO" else C[card]])
 R("DAT0", [A(R1, 2), C[7]])
-R("GND", [P2[4], (P2[4][0], 34.4)])               # (a via under the FFC socket's body)
-R("LCD_CS", [P2[2], (P2[2][0], 31.6), (93.6, 29.75), A(U1, 2)])
-R("3V3", [P2[1], (P2[1][0], 32.2), (RAIL, 32.2), (RAIL, A(R2, 1)[1]), A(R2, 1)], POWER)
+R("GND", [P2[4], (P2[4][0], 30.9)])               # (a via under the FFC socket's body)
+R("LCD_CS", [P2[2], (P2[2][0], 28.1), (93.6, 26.25), A(U1, 2)])
+R("3V3", [P2[1], (P2[1][0], 28.7), (RAIL, 28.7), (RAIL, A(R2, 1)[1]), A(R2, 1)], POWER)
 R("3V3", [A(C1, 1), (RAIL, A(C1, 1)[1])], POWER)
 R("3V3", [A(R4, 2), (RAIL, A(R4, 2)[1])], POWER)
 R("3V3", [A(U1, 5), (RAIL, A(U1, 5)[1])], POWER)
@@ -202,7 +203,7 @@ R("DAT1", [C[8], (C[8][0], 14.2), A(R3, 2)])
 R("GND", [C[6], (C[6][0], 15.2)])
 R("3V3", [C[4], (C[4][0], 14.2)], POWER)
 R("3V3", [A(R3, 1), (78.4, 14.2)], POWER)
-R("GND", [A(U1, 3), (91.9, 28.6)])
+R("GND", [A(U1, 3), (91.9, 25.1)])
 R("GND", [A(C2, 1), (92.3, A(C2, 1)[1])])
 R("GND", [A(C1, 2), (92.0, A(C1, 2)[1])])
 
@@ -211,8 +212,8 @@ B = pcbnew.B_Cu
 R("3V3", [(78.4, 14.2), (RAIL, 14.2), (RAIL, 16.8)], POWER, B)
 for u, v in ((78.4, 14.2), (C[4][0], 14.2), (RAIL, 16.8)):
     V("3V3", u, v)
-for u, v in ((P2[4][0], 34.4), (C[6][0], 15.2), (91.9, 28.6), (92.3, A(C2, 1)[1]), (92.0, A(C1, 2)[1]),
-             (76.0, 5.0), (76.0, 25.0), (79.0, 25.0), (95.9, 6.0), (76.0, 34.0)):   # (the last five: the pours stitched)
+for u, v in ((P2[4][0], 30.9), (C[6][0], 15.2), (91.9, 25.1), (92.3, A(C2, 1)[1]), (92.0, A(C1, 2)[1]),
+             (76.0, 5.0), (76.0, 25.0), (79.0, 25.0), (95.9, 6.0), (76.0, 34.0)):   # (the last five: the pours)
     V("GND", u, v)
 
 # ---- the outline, the ground pours, the labels
