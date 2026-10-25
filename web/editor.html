@@ -675,7 +675,10 @@
   /* Help: an icon beside GitHub's at the bar's end, not a tab (the user, 2026-10-25); it opens the help as before */
   .menubar .tabs #helpbtn { margin-left: auto; padding: 4px 6px; border: 0; background: none; color: var(--dim); display: inline-flex; align-items: center; }
   .menubar .tabs #helpbtn:hover { color: var(--fg); background: none; }
-  .menubar .tabs #helpbtn .si { width: 18px; height: 18px; }
+  .menubar .tabs #helpbtn .si { width: 20px; height: 20px; }
+  /* the icon-only tabs: their icons a bit bigger than a label's (the user, 2026-10-25) */
+  .menubar .tabs button.ionly .ic { font-size: 1.3em; margin-right: 0; vertical-align: -2px; }
+  .menubar .tabs button.ionly .si { width: 19px; height: 19px; margin-right: 0; vertical-align: -4px; }
   .menubar .tabs #helpbtn + .gh { margin-left: 0; }
   #tabs .navh:nth-of-type(2) { display: none; }   /* (the separator before Device screens and Settings, both out of the bar) */
   .menubar .tabs button { background: none; color: var(--dim); text-align: left; padding: 4px 10px; border: 0; border-bottom: 3px solid transparent; white-space: nowrap; }
