@@ -13,7 +13,9 @@
  From Petit FatFs' generic/mmcbbp.c (pfsample, elm-chan.org). Optimist (2026-10-25, GPL-3.0-only as a whole): the byte
  I/O is the FM-1's SD bus (hal/fm1_sd_bus.h, builder item SDCARD) or a host test's card (tests/sd_test.c), through the
  SD_* macros; the waits are timed (SD_NOW) instead of counted 100 us sleeps; the card's capacity (CSD) is read for the
- console. The command sequence is ChaN's.
+ console. The command sequence is ChaN's. Added (2026-10-25): whole blocks by CMD17 / CMD18 (stopped by CMD12, as
+ ChaN's full FatFs mmc driver does) through a polled reader (sd_rd_*: the data by DMA where the bus has it, so the CPU
+ is free while 512 bytes come in), a block write (CMD24, the data by DMA), the blocks' CRC16 checked.
 /-------------------------------------------------------------------------*/
 
 #include "diskio.h"
@@ -28,6 +30,12 @@
 #define SD_FAST() fm1_sd_baud(FM1_SD_BAUD_FAST)   /* the card is up: the full clock */
 #define SD_NOW() fm1_ticks()
 #define SD_TICKS_MS (FM1_TICKS_PER_US * 1000u)
+#define SD_RXBLK(p, n) fm1_sd_rx_block(p, n)
+#define SD_DMA_OK() (fm1_sd_dma && fm1_sd_mode != FM1_SD_BITBANG)
+#define SD_RXDMA(p, n) fm1_sd_rx_dma(p, n)
+#define SD_TXDMA(p, n) fm1_sd_tx_dma(p, n)
+#define SD_DMA_DONE() fm1_sd_rx_dma_done()
+#define SD_DMA_END() fm1_sd_rx_dma_end()
 #endif
 
 static DWORD sd_ms_since(DWORD t0) { return (DWORD)(SD_NOW() - t0) / SD_TICKS_MS; }   /* (wraps cleanly) */
@@ -38,8 +46,10 @@ static DWORD sd_ms_since(DWORD t0) { return (DWORD)(SD_NOW() - t0) / SD_TICKS_MS
 #define	ACMD41	(0xC0+41)	/* SEND_OP_COND (SDC) */
 #define CMD8	(0x40+8)	/* SEND_IF_COND */
 #define CMD9	(0x40+9)	/* SEND_CSD */
+#define CMD12	(0x40+12)	/* STOP_TRANSMISSION */
 #define CMD16	(0x40+16)	/* SET_BLOCKLEN */
 #define CMD17	(0x40+17)	/* READ_SINGLE_BLOCK */
+#define CMD18	(0x40+18)	/* READ_MULTIPLE_BLOCK */
 #define CMD24	(0x40+24)	/* WRITE_BLOCK */
 #define CMD55	(0x40+55)	/* APP_CMD */
 #define CMD58	(0x40+58)	/* READ_OCR */
@@ -88,9 +98,11 @@ static BYTE send_cmd(BYTE cmd, DWORD arg)
 		if (res > 1) return res;
 	}
 
-	/* Select the card */
-	SD_DESEL(); (void)SD_RX();
-	SD_SEL(); (void)SD_RX();
+	/* Select the card (CMD12 goes into the running multi-block read: the card stays selected) */
+	if (cmd != CMD12) {
+		SD_DESEL(); (void)SD_RX();
+		SD_SEL(); (void)SD_RX();
+	}
 
 	/* Send a command packet */
 	SD_TX(cmd);					/* Start + Command index */
@@ -104,6 +116,7 @@ static BYTE send_cmd(BYTE cmd, DWORD arg)
 	SD_TX(n);
 
 	/* Receive a command response */
+	if (cmd == CMD12) (void)SD_RX();	/* the stuff byte */
 	n = 10;						/* Wait for a valid response in timeout of 10 attempts */
 	do {
 		res = SD_RX();
@@ -198,10 +211,11 @@ DRESULT disk_readp(
 			if (offset) skip_mmc(offset);
 
 			/* Receive a part of the sector */
-			if (buff) {
-				do
-					*buff++ = SD_RX();
-				while (--count);
+			if (buff && count == 512 && SD_DMA_OK() && !((UINT)(uintptr_t)buff & 3)) {
+				SD_RXDMA(buff, 512);		/* a whole sector into an aligned buffer: by DMA (offset is 0) */
+				if (!SD_DMA_END()) { release_spi(); return RES_ERROR; }
+			} else if (buff) {
+				SD_RXBLK(buff, count);
 			} else {
 				skip_mmc(count);
 			}
@@ -260,4 +274,161 @@ DRESULT disk_writep(
 	}
 
 	return res;
+}
+
+/* ---- whole blocks (Optimist) ---------------------------------------------------------------------------------------
+ * A polled reader, main loop only, inside one bus session (sdcard.c sd_begin / sd_end; the screen waits meanwhile):
+ *   sd_rd_open(sector, n)   CMD18 for n > 1 blocks (CMD17 for one): RES_OK, or RES_ERROR (the card refused)
+ *   sd_rd_next(buf)         the next block into buf (512 B, 4-byte aligned for the DMA), then poll:
+ *   sd_rd_poll()            SDR_BUSY (the data token not seen yet, or the DMA running: do other work and poll again),
+ *                           SDR_READY (buf holds the block; sd_rd.crc_ok says whether its CRC16 matched, when
+ *                           SD_RD_CRC is on), SDR_ERR (no data token in 100 ms, or the DMA never ended)
+ *   sd_rd_close()           CMD12 after a multi-block read (the card stops at once; the block it had begun is lost),
+ *                           the busy end waited for, the card released; RES_OK or RES_ERROR
+ * Each poll in the token wait reads at most SD_RD_TOKEN_TRIES bytes, so a poll is short (a few us). With DMA the CPU
+ * spends ~ the token's bytes, the DMA's start and the 2 CRC bytes on a block; without it, 512 byte transfers.
+ * disk_readblocks(buf, sector, n): the same, blocking (n blocks to buf, n x 512 B). disk_writeblock(buf, sector):
+ * one block written (CMD24), the data by DMA where the bus has it, the card's busy end waited for (500 ms). */
+enum { SDR_IDLE = 0, SDR_TOKEN, SDR_DMA, SDR_READY, SDR_ERR };
+#define SDR_BUSY SDR_TOKEN
+#ifndef SD_RD_TOKEN_TRIES
+#define SD_RD_TOKEN_TRIES 8u
+#endif
+#ifndef SD_RD_CRC
+#define SD_RD_CRC 0						/* 1: every block's CRC16 computed (~0.1 ms of CPU a block, bitwise) */
+#endif
+static struct {
+	BYTE *buf;
+	DWORD t0;							/* the token wait's start */
+	WORD crc;							/* the CRC16 the card sent with the last block */
+	BYTE state, multi, crc_ok;
+	BYTE dma;							/* the block in flight comes by DMA */
+} sd_rd;
+
+/* CRC16-CCITT (x^16 + x^12 + x^5 + 1, from 0), the SD data block's */
+static WORD sd_crc16(const BYTE *p, UINT n)
+{
+	WORD c = 0;
+	UINT i;
+	while (n--) {
+		c ^= (WORD)(*p++ << 8);
+		for (i = 0; i < 8; i++) c = (WORD)(c & 0x8000 ? (c << 1) ^ 0x1021 : c << 1);
+	}
+	return c;
+}
+
+static DRESULT sd_rd_open(DWORD sector, UINT n)
+{
+	if (!(CardType & CT_BLOCK)) sector *= 512;
+	sd_rd.multi = n > 1;
+	sd_rd.state = SDR_IDLE;
+	if (send_cmd(n > 1 ? CMD18 : CMD17, sector) != 0) {
+		release_spi();
+		sd_rd.multi = 0;
+		return RES_ERROR;
+	}
+	return RES_OK;
+}
+
+static void sd_rd_next(BYTE *buf)
+{
+	sd_rd.buf = buf;
+	sd_rd.state = SDR_TOKEN;
+	sd_rd.t0 = SD_NOW();
+}
+
+static void sd_rd_crc(void)
+{
+	sd_rd.crc = (WORD)(SD_RX() << 8);
+	sd_rd.crc |= SD_RX();
+	sd_rd.crc_ok = !SD_RD_CRC || sd_crc16(sd_rd.buf, 512) == sd_rd.crc;
+	sd_rd.state = SDR_READY;
+}
+
+static BYTE sd_rd_poll(void)
+{
+	UINT k;
+	BYTE d;
+	if (sd_rd.state == SDR_TOKEN) {
+		for (k = 0; k < SD_RD_TOKEN_TRIES; k++) {
+			d = SD_RX();
+			if (d == 0xFE) {
+				sd_rd.dma = SD_DMA_OK();
+				if (sd_rd.dma) {
+					SD_RXDMA(sd_rd.buf, 512);
+					sd_rd.state = SDR_DMA;
+					return SDR_BUSY;
+				}
+				SD_RXBLK(sd_rd.buf, 512);
+				sd_rd_crc();
+				return SDR_READY;
+			}
+			if (d != 0xFF) { sd_rd.state = SDR_ERR; return SDR_ERR; }	/* an error token */
+		}
+		if (sd_ms_since(sd_rd.t0) >= 100) sd_rd.state = SDR_ERR;
+		return sd_rd.state;
+	}
+	if (sd_rd.state == SDR_DMA) {
+		if (!SD_DMA_DONE()) return SDR_BUSY;
+		if (!SD_DMA_END()) { sd_rd.state = SDR_ERR; return SDR_ERR; }
+		sd_rd_crc();
+	}
+	return sd_rd.state;
+}
+
+static DRESULT sd_rd_close(void)
+{
+	DRESULT r = sd_rd.state == SDR_ERR ? RES_ERROR : RES_OK;
+	DWORD t0;
+	if (sd_rd.state == SDR_DMA && !SD_DMA_END()) r = RES_ERROR;	/* (a DMA still running: let it end first) */
+	if (sd_rd.multi) {
+		if (send_cmd(CMD12, 0) & 0x80) r = RES_ERROR;			/* (R1's busy bit clear: answered) */
+		t0 = SD_NOW();
+		while (SD_RX() != 0xFF)									/* R1b: busy until the card lets DO go high */
+			if (sd_ms_since(t0) >= 100) { r = RES_ERROR; break; }
+	}
+	sd_rd.state = SDR_IDLE;
+	sd_rd.multi = 0;
+	release_spi();
+	return r;
+}
+
+static DRESULT disk_readblocks(BYTE *buf, DWORD sector, UINT n)
+{
+	BYTE st;
+	if (!n || sd_rd_open(sector, n) != RES_OK) return RES_ERROR;
+	for (; n; n--, buf += 512) {
+		sd_rd_next(buf);
+		while ((st = sd_rd_poll()) == SDR_BUSY)
+			;
+		if (st != SDR_READY || !sd_rd.crc_ok) { sd_rd.state = SDR_ERR; break; }
+	}
+	return sd_rd_close();
+}
+
+static DRESULT disk_writeblock(const BYTE *buf, DWORD sector)
+{
+	DRESULT r = RES_ERROR;
+	DWORD t0;
+	WORD c = sd_crc16(buf, 512);
+	UINT i;
+	if (!(CardType & CT_BLOCK)) sector *= 512;
+	if (send_cmd(CMD24, sector) == 0) {
+		SD_TX(0xFF); SD_TX(0xFE);						/* a byte gap, the data token */
+		if (SD_DMA_OK()) {
+			SD_TXDMA(buf, 512);
+			if (!SD_DMA_END()) { release_spi(); return RES_ERROR; }
+		} else {
+			for (i = 0; i < 512; i++) SD_TX(buf[i]);
+		}
+		SD_TX((BYTE)(c >> 8)); SD_TX((BYTE)c);			/* (SPI mode ignores the CRC unless CMD59 turned it on) */
+		if ((SD_RX() & 0x1F) == 0x05) {					/* data accepted; busy until the card has written it */
+			t0 = SD_NOW();
+			while (SD_RX() != 0xFF)
+				if (sd_ms_since(t0) >= 500) break;
+			if (sd_ms_since(t0) < 500) r = RES_OK;
+		}
+	}
+	release_spi();
+	return r;
 }

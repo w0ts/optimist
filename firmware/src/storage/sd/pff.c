@@ -1174,3 +1174,34 @@ FRESULT pf_readdir (
 
 #endif /* PF_USE_DIR */
 
+
+
+
+#if PF_USE_READ
+/*-----------------------------------------------------------------------*/
+/* Optimist (2026-10-25): the file's sectors for a multi-block read      */
+/*-----------------------------------------------------------------------*/
+/* The card sector under the file pointer (a multiple of 512) in *sect, and the number of sectors from it to its
+ * cluster's end or the file's (contiguous on the card): what one CMD18 may read. 0 at the end, off a sector boundary or
+ * on an error. Nothing moves: pf_lseek(fptr + n * 512) after the n read, as pf_read would have. */
+UINT pf_run (
+	DWORD* sect
+)
+{
+	CLUST clst;
+	BYTE cs;
+	DWORD left;
+	FATFS *fs = FatFs;
+
+	if (!fs || !(fs->flag & FA_OPENED) || fs->fptr % 512 || fs->fptr >= fs->fsize) return 0;
+	cs = (BYTE)(fs->fptr / 512 & (fs->csize - 1));	/* Sector offset in the cluster */
+	clst = fs->curr_clust;
+	if (!cs) clst = fs->fptr ? get_fat(fs->curr_clust) : fs->org_clust;	/* the next cluster, as pf_read finds it */
+	if (clst <= 1 || clst >= fs->n_fatent) return 0;
+	*sect = clust2sect(clst);
+	if (!*sect) return 0;
+	*sect += cs;
+	left = (fs->fsize - fs->fptr + 511) / 512;
+	return (UINT)(left < (DWORD)(fs->csize - cs) ? left : (DWORD)(fs->csize - cs));
+}
+#endif

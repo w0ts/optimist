@@ -122,6 +122,9 @@ code takes the bus between two screen transfers:
    checks exactly that (`LCD sees only 0xFF`).
 4. **`sd_end`**: the card selected and idle (the LCD deselected, as `lcd.c` leaves it), PC8 driven again, SPI1's
    control word and the LCD's clock (`LCD_BAUD`) put back.
+5. **While the screen idles** the card is selected (the LCD's CS is high) and may drive PC8: `fm1_lcd_deselect`
+   (`hal/fm1_lcd_hw.h`, and the LCD's start-up) leaves D/C **high** with CS, so the FM-1 never holds PC8 low against a
+   card driving it high (a bare command used to leave it low; 2026-10-25).
 
 The card's start-up runs at 400 kHz (SPI1 BAUD 149: 60 MHz / 150), then 20 MHz (BAUD 2); the screen runs at 30 MHz
 (BAUD 1). PC8 can be driven by the FM-1 and the card at once in two short moments (the LCD's D/C set just before its CS
@@ -138,17 +141,33 @@ goes low; a card that has not let go yet): the 1 kOhm keeps that to 3.3 mA.
 | `bitbang` | PC9 / PC10 / PC8 as plain GPIO (SPI1 off its pins for the session: IOMAP_CON1 b4 cleared, *unverified*) |
 
 In `dirrx` mode whether the data-out line stays high (the card needs 0xFF on CMD while it answers) is also
-unverified; a logic analyser on CLK / DO / PC8 settles both questions at once.
+unverified; a logic analyser on CLK / DO / PC8 settles both questions at once. `sd` (the mount) tries the set mode
+first and then the other two, and prints the one that found the card.
+
+**Blocks by DMA (2026-10-25, unverified on an FM-1).** A 512-byte block of a CMD17 / CMD18 read can come in by SPI1's
+DMA: CON b3 + b12 (receive, as `dirrx`), then `SPI_ADR` and `SPI_CNT`, which starts it, as the SDK's own SPI receive does
+(`ac79-sdk` `apps/wifi_story_machine/video/spi_recv.c`: b12, ADR, then CNT "starts the hardware receive"; that one is a
+slave, ours is the master clocking the bytes in: unverified). The main loop polls CON b15 as `lcd_sync` does; the CPU is
+free while the block comes in, but **the bus is not**: the screen waits until the read is over. PC10 is pulled up for
+the session in case SPI1 lets DO float while it receives (a card ignores DI during a read unless it looks like a
+command). After the mount, `sd` reads sector 0 by bytes and by DMA, checks both CRC16s and compares them, and turns the
+DMA on only when it read right (`dma ok` / `dma off` in its answer; `sd dma on|off` overrides). Writes (`sd write`)
+send a block by DMA the LCD's own way (transmit DMA, proven by the screen) when the DMA is on.
+
+**Estimates (not measured):** a block is 4,096 bits: 205 us of wire at 20 MHz, 137 us at 30 MHz. CMD18 by DMA: about
+2.2-2.4 MB/s at 20 MHz and 3.2-3.5 MB/s at 30 MHz, less the card's gap before each block (a few to tens of us); the CPU
+a block: the token poll, the DMA's start and end, the 2 CRC bytes, a few us. By bytes (`duplex`, `dirrx`): every byte
+a register round trip, the CPU busy the whole block, roughly 1 MB/s. `sd bench` measures all of these.
 
 ## 5. Firmware
 
 | File | What |
 |---|---|
 | `hal/fm1_sd_bus.h` | the bus: select / deselect through the LCD's CS, byte in / out (three modes), clocks |
-| `src/storage/sd/sd_mmc.c` | ChaN's SPI-mode card driver (Petit FatFs `generic/mmcbbp.c`): MMCv3, SDv1, SDv2 byte or block addressed; the waits timed on TIMER4; the CSD read for the capacity |
+| `src/storage/sd/sd_mmc.c` | ChaN's SPI-mode card driver (Petit FatFs `generic/mmcbbp.c`): MMCv3, SDv1, SDv2 byte or block addressed; the waits timed on TIMER4; the CSD read for the capacity. Added: the polled block reader `sd_rd_*` (CMD17, CMD18 stopped by CMD12), `disk_readblocks`, `disk_writeblock` (CMD24), the CRC16; a whole sector into an aligned buffer by DMA in `disk_readp` |
 | `src/storage/sd/pff.c`, `pff.h`, `pffconf.h`, `diskio.h` | Petit FatFs R0.03a (ChaN, 1-clause BSD: `LICENSES/BSD-1-Clause-FatFs.txt`), its own compile unit (`tools/build.py`); configured: read, write, seek, directories, FAT16 + FAT32 |
 | `src/storage/sd/sdcard.c` | the API the rest calls (`sd_mount`, `sd_open`, `sd_read`, `sd_write`, `sd_seek`, `sd_opendir`, `sd_readdir`), each call taking and giving back the bus |
-| `src/io/console.c` | the `sd` commands (console builds only) |
+| `src/io/console_sd.c` | the `sd` commands (console builds only; included by `src/io/console.c`) |
 | `tests/sd_test.c` | the host test: a byte-level card model on FAT16 / FAT32 images from a real formatter (`tests/fixtures/sd/make_images.sh`) |
 
 **Filesystem limits (Petit FatFs):** FAT16 and FAT32 only (exFAT would need full FatFs with long names, roughly 15-20 KB
@@ -174,8 +193,16 @@ Each step names who does it. Claude never writes to the FM-1.
      `sd mode bitbang`, each followed by `sd`.
    - `sd raw 0`: the first sector; `55 AA` should end it (`sd raw` shows only 64 bytes: look for the partition entry).
    - `sd ls`, `sd cat HELLO.TXT`.
-   - `sd bench BIG.BIN` (a file of a few MB made on the computer): the read speed.
-   - `sd write DATA.BIN` (a file made on the computer, its contents lost): written, read back, `wrong B 0`.
+   - `sd`: the line `read mode ... dma ok|off (probe: bytes crc 1 dma crc 1 same 1)` says which read mode found the card
+     and whether the DMA read sector 0 right.
+   - `sd bench` (no file): one line a mode (`duplex`, `dirrx`, `dma` by CMD18 and by CMD17, at 20 and 30 MHz, then
+     `bitbng`) over 64 blocks of the card: `KB/s`, `cpu_ns/blk` (the CPU inside the driver), `us/blk` (wall),
+     `free_us/blk` (the DMA running, the CPU free), `crc_bad N/64` (0: read right) and `sum` (the same on every row
+     that read the same data). A row with `ERR` or `crc_bad` above 0 does not read on this FM-1 (or at that clock).
+   - `sd bench BIG.BIN` (a file of a few MB made on the computer): the read speed through Petit FatFs (`read KB/s`),
+     then a cluster per CMD18 (`stream KB/s`).
+   - `sd write DATA.BIN` (a file made on the computer, its contents lost): written block by block, read back,
+     `wrong B 0`.
    - The screen must look the same after each command (no stray pixels, no lock-up).
 5. **Claude**: from what the console printed, fixes the mode / timing and makes the working mode the default.
 
@@ -190,4 +217,5 @@ Each step names who does it. Claude never writes to the FM-1.
 - **Plugins** (engines and effects loaded from the card into the pool, per project): about 60-120 KB of code and state
   per project once the pool is shared out again (*estimate*; whether code runs as fast from the pool as from RAMTEXT
   is unmeasured).
-- **Faster reads**: multi-block reads (CMD18) and SPI1's DMA in receive mode, once the read direction is known.
+- **Faster reads**: built (CMD18 and the DMA, section 4); what is left is the streaming itself: a main-loop task that
+  takes the bus between screen strips, a cluster's run at a time (`sd_file_run`), into the voices' buffers.

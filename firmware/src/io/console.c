@@ -1062,128 +1062,7 @@ static void con_far(void)                            /* the far probe (system/fa
 #endif
 
 #if FELUCCA_SDCARD
-/* sd: the SD card on the LCD's bus (storage/sd/sdcard.c; docs/SD-CARD-DESIGN.md "Bring-up"):
- *   sd                    mount: card type, size, filesystem
- *   sd mode duplex|dirrx|bitbang   how SPI1 reads (hal/fm1_sd_bus.h), then sd again
- *   sd raw SECTOR         the sector's first 64 bytes, no filesystem (sector 0: the MBR or boot record, 55 AA at 510)
- *   sd ls [DIR]           the directory's entries
- *   sd cat FILE           the file's first 64 bytes
- *   sd bench FILE         the whole file read: KB/s
- *   sd write FILE         a pattern written over the file (its size, up to 64 KB), read back and compared: KB/s */
-static uint8_t con_sd_buf[512] IN_POOL;
-
-static void con_sd_mount(void)
-{
-    static const char *const ST[] = {"unmounted", "no card", "no FAT16 / FAT32 filesystem", "ready"};
-    uint32_t st = sd_mount(), t = sd_card_type();
-    con_puts("sd ");
-    con_puts(ST[st]);
-    if (t) {
-        con_puts(t & CT_MMC ? "  MMC" : t & CT_BLOCK ? "  SDHC" : t & CT_SD2 ? "  SDSC v2" : "  SDSC v1");
-        con_kv("  MB", (int32_t)sd_card_mb());
-    } else {
-        con_puts("\r\n");
-    }
-    if (st == SD_READY) {
-        con_kv("fat", sd_fs.fs_type == FS_FAT32 ? 32 : 16);
-        con_kv("cluster B", (int32_t)sd_fs.csize * 512);
-    }
-}
-
-static void con_sd_ls(const char *path)
-{
-    DIR d;
-    FILINFO fi;
-    if (sd_opendir(&d, path) != FR_OK) {
-        con_puts("sd: no such directory (mount first: sd)\r\n");
-        return;
-    }
-    while (sd_readdir(&d, &fi) == FR_OK && fi.fname[0]) {
-        con_puts(fi.fattrib & AM_DIR ? "  <dir> " : "        ");
-        con_puts(fi.fname);
-        if (!(fi.fattrib & AM_DIR))
-            con_kv("", (int32_t)fi.fsize);
-        else
-            con_puts("\r\n");
-    }
-}
-
-static void con_sd_rw(const char *path, uint32_t what)   /* 0 cat, 1 bench, 2 write */
-{
-    uint32_t got, put, total = 0, bad = 0, t0, us, i, n;
-    if (sd_open(path) != FR_OK) {
-        con_puts("sd: no such file (mount first: sd)\r\n");
-        return;
-    }
-    if (what == 0) {
-        sd_read(con_sd_buf, 64, &got);
-        con_bytes(path, con_sd_buf, got);
-        return;
-    }
-    n = sd_fs.fsize > 65536u ? 65536u : sd_fs.fsize;
-    t0 = fm1_micros();
-    if (what == 2) {
-        for (total = 0; total < n; total += put) {
-            for (i = 0; i < 512u; i++)
-                con_sd_buf[i] = (uint8_t)((total + i) * 13u + 5u);
-            if (sd_write(con_sd_buf, n - total < 512u ? n - total : 512u, &put) != FR_OK || !put)
-                break;
-        }
-        sd_write(0, 0, &put);
-        us = fm1_micros() - t0;
-        con_kv("written B", (int32_t)total);
-        con_kv("write KB/s", us ? (int32_t)((uint64_t)total * 1000u / us) : 0);
-        sd_open(path);
-        for (total = 0; total < n; total += got) {
-            if (sd_read(con_sd_buf, 512u, &got) != FR_OK || !got)
-                break;
-            for (i = 0; i < got; i++)
-                bad += con_sd_buf[i] != (uint8_t)((total + i) * 13u + 5u);
-        }
-        con_kv("read back B", (int32_t)total);
-        con_kv("wrong B", (int32_t)bad);
-        return;
-    }
-    for (;;) {
-        if (sd_read(con_sd_buf, 512u, &got) != FR_OK || !got)
-            break;
-        total += got;
-    }
-    us = fm1_micros() - t0;
-    con_kv("read B", (int32_t)total);
-    con_kv("read KB/s", us ? (int32_t)((uint64_t)total * 1000u / us) : 0);
-}
-
-static void con_sd(const char *p)
-{
-    if (con_word(&p, "mode")) {
-        if (con_word(&p, "duplex"))
-            fm1_sd_mode = FM1_SD_DUPLEX;
-        else if (con_word(&p, "dirrx"))
-            fm1_sd_mode = FM1_SD_DIRRX;
-        else if (con_word(&p, "bitbang"))
-            fm1_sd_mode = FM1_SD_BITBANG;
-        con_kv("sd mode", fm1_sd_mode);
-    } else if (con_word(&p, "raw")) {
-        int ok;
-        uint32_t s = con_num(&p, &ok);
-        sd_begin(FM1_SD_BAUD_FAST);
-        if (disk_readp(con_sd_buf, (DWORD)s, 0, 64) == RES_OK)
-            con_bytes("sector", con_sd_buf, 64);
-        else
-            con_puts("sd: read failed (mount first: sd)\r\n");
-        sd_end();
-    } else if (con_word(&p, "ls"))
-        con_sd_ls(p);
-    else if (con_word(&p, "cat"))
-        con_sd_rw(p, 0);
-    else if (con_word(&p, "bench"))
-        con_sd_rw(p, 1);
-    else if (con_word(&p, "write"))
-        con_sd_rw(p, 2);
-    else
-        con_sd_mount();
-}
+#include "console_sd.c"                              /* sd: the SD card (storage/sd/sdcard.c) */
 #endif
 
 static void con_exec(const char *p)
@@ -1216,7 +1095,7 @@ static void con_exec(const char *p)
                  "  far"
 #endif
 #if FELUCCA_SDCARD
-                 "  sd [mode duplex|dirrx|bitbang | raw SECTOR | ls [DIR] | cat FILE | bench FILE | write FILE]"
+                 "  sd [mode duplex|dirrx|bitbang | dma on|off | raw SECTOR | ls [DIR] | cat FILE | bench [FILE] | write FILE]"
 #endif
                  "  keys  keylog  uboot yes\r\n");
     else if (con_word(&p, "status"))

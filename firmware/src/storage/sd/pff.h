@@ -123,6 +123,7 @@ FRESULT pf_open (const char* path);							/* Open a file */
 FRESULT pf_read (void* buff, UINT btr, UINT* br);			/* Read data from the open file */
 FRESULT pf_write (const void* buff, UINT btw, UINT* bw);	/* Write data to the open file */
 FRESULT pf_lseek (DWORD ofs);								/* Move file pointer of the open file */
+UINT pf_run (DWORD* sect);									/* Optimist: the sectors under the pointer to the cluster's end */
 FRESULT pf_opendir (DIR* dj, const char* path);				/* Open a directory */
 FRESULT pf_readdir (DIR* dj, FILINFO* fno);					/* Read a directory item from the open directory */
 
