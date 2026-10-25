@@ -1,11 +1,14 @@
-# The FM-1 SD board (v2)
+# The FM-1 SD board (v3)
 
-A 20 x 45.5 mm board with everything the SD card mod needs (docs/SD-CARD-DESIGN.md): a push-push microSD socket, the
+An L-shaped board (a 10 mm strip, 61.5 mm long, with a 31 x 26.5 mm foot) with everything the SD card mod needs (docs/SD-CARD-DESIGN.md): a push-push microSD socket, the
 chip-select inverter, the 1 kOhm on the card's data out, the pull-ups, the decoupling, and a 6-pin 0.5 mm flat-cable
-(FFC) socket. It sits on the back of the FM-1's board, in the 20 x 60 mm free above the battery; a flat cable from a tap
-at J12 (the LCD's connector, on the front) reaches it around the board's edge: **no soldering** (the user, 2026-10-25).
+(FFC) socket. It sits on the back of the FM-1's board along its left edge (the user's plan, 2026-10-25): the flat cable
+from a tap at J12 (the LCD's connector, on the front) runs between the buttons and the encoders, round the board's left
+edge into the FFC socket at the strip's top; the strip runs down the edge to the foot, where the battery was (the
+battery moves right); the card goes in from the left edge. **No soldering.**
 Status (2026-10-25): designed and checked (KiCad: no design-rule error, the schematic's nets equal the board's);
-**no board has been made yet**; **the tap board at J12 is not designed yet** (it needs J12's pin order, metered).
+**the sizes are read off a photo, not measured**; **no board has been made yet**; **the tap board at J12 is not designed
+yet** (it needs J12's pin order, metered).
 
 ![top](render-top.png)
 
@@ -13,16 +16,16 @@ Status (2026-10-25): designed and checked (KiCad: no design-rule error, the sche
 
 1. **This board**, ordered assembled (below).
 2. **The tap board at J12** (to come): the LCD's flex and J12 pass through it, six of their lines go out on the FFC.
-3. **A 6-wire 0.5 mm FFC**, about 3.5 mm wide, long enough from J12 around the FM-1 board's edge to this board
-   (measure; 100-150 mm are standard lengths). Which contact side ("same side" / "opposite side") follows from how the
+3. **A 6-wire 0.5 mm FFC**, about 3.5 mm wide, long enough from J12 along the strip between the buttons and the
+   encoders, round the board's left edge, to this board (measure; 100-150 mm are standard lengths). Which contact side ("same side" / "opposite side") follows from how the
    two sockets face once the tap board exists.
 
 ## Order it (JLCPCB, assembled)
 
-1. jlcpcb.com > Order now > upload `fab/sd-board-gerbers.zip` (2 layers, 20 x 45.5 mm, 1.6 mm; the defaults are fine).
+1. jlcpcb.com > Order now > upload `fab/sd-board-gerbers.zip` (2 layers, 31 x 61.5 mm, 1.6 mm; JLC prices the L by its box; the defaults are fine).
 2. Tick **PCB Assembly**, top side, Economic.
 3. Upload `fab/bom.csv` (the parts) and `fab/cpl.csv` (where they go). Every part is a JLC part (LCSC numbers in the BOM).
-4. Check the placement preview: the card socket's opening at the end with two holes, the FFC socket at the other end,
+4. Check the placement preview: the card socket's and the FFC socket's openings on the long straight edge,
    U1's pin 1 dot as on the render.
 5. Order. Rough cost (an estimate from JLC's usual prices, not a quote): about 20 USD for 2 boards, 22 for 5, 26 for 10,
    32 for 20, plus shipping and VAT. Three parts are JLC "extended" parts (the two sockets, the inverter): 3 USD each
@@ -42,7 +45,7 @@ project (`sd-board.kicad_pcb`, `sd-board.kicad_sch`) into EasyEDA Pro (File > Im
 | 5 | GND | ground |
 | 6 | MISO | PC8, the LCD's D/C (pin 31) |
 
-Four 2.2 mm holes (two beside the card's opening, two beside the FFC socket) take an M2 screw, a zip tie or a rivet,
+Four 2.2 mm holes (the strip's top, the foot's three free corners) take an M2 screw, a zip tie or a rivet,
 or the board goes on double-sided tape.
 
 ## The design
