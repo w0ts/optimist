@@ -41,7 +41,8 @@ v1 = max(v for _, v in pts)
 v_left = max(v for u, v in pts if abs(u - u0) < 0.01)
 
 RIGHT = u1 + SIDE + 0.9                          # (the right rail as wide as the left)
-POSTS = ((LEFT, None, 2.5, 29.5), (None, RIGHT, 2.5, 29.5), (None, RIGHT, 39.0, None))
+POSTS = ((LEFT, None, 2.5, 24.0), (None, RIGHT, 2.5, 24.0), (None, RIGHT, 40.0, None))   # (the cable's gap: 24 to 40,
+                                                 # the user: "make the gaps for battery wires bigger")
 top = FLOOR + PCB + PLAY + LIP
 groove = FLOOR + PCB + PLAY
 
