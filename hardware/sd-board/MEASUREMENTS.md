@@ -56,7 +56,7 @@ What is measured on a real FM-1 (calipers, the user, 2026-10-25) and what is sti
 - The FFC socket at 93 mm (the jacks' gap at r = 90 mm), its cable coming down from the top.
 - The board slides into a printed tray (`make_tray.py`, `sd-tray.stl`): a 0.8 mm floor, a rail with a groove along
   each side (the board 26.4 mm wide so the rails fit), a collar round the pole that stops it, posts toward the cover.
-  Only the collar (5.6 mm, the pole is 6) and the posts reach up; the rails stand 3.35 mm: the battery's cable passes
+  Only the collar and three wide posts (all 5.6 mm, the pole is 6; the posts clear of the cover's edge band) reach up; the rails stand 3.35 mm: the battery's cable passes
   over (in its band the parts stand at most 4.4 mm with the floor, leaving about 1.6 to 2.3 mm under the cover).
 - The cover's edge band (t, about 4.8 mm left, taken): the floor, the board and the socket stand 4.25 mm there.
 - v3 (the L along the left edge) did not fit: 10.4 mm free beside the battery; it is in git (5af03500).
