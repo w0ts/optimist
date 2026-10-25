@@ -729,6 +729,17 @@ job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $BP23_ON -DFELUCCA_CDC=1 -DFELUCCA_TRK_FILT=1 -DFELUCCA_PLOCK=1 $SEC4 -o "$OUT/ui_optimist_bp23_test" tests/ui_optimist_test.c -lm
     run "Optimist UI with LIGHTS, USB SERIAL, the track FILTER row" "$OUT/ui_optimist_bp23_test" "$OUT/optimist"
 ) >"$U.out" 2>&1 & jobbg
+# every font built (the builder's FONT_* items: tools/gen_font.py with FELUCCA_FONTS): SYSTEM > General > FONT
+# (tests/ui_optimist_font.h); with BRIGHT and FILT RESO General holds 5
+# lines, so SCREEN and AUDIO stay apart (FONT with KNOB COLORS on General)
+job; ( jobin
+    rm -rf "$OUT/gen-fonts" && mkdir -p "$OUT/gen-fonts" "$OUT/optimist-fonts"
+    FELUCCA_FONTS="TERMINUS,TERM BOLD,TAMZEN,UNIFONT,UNSCII" python3 tools/gen_font.py "$OUT/gen-fonts/felucca_font.h" >/dev/null
+    $CC -O2 -w -I"$OUT/gen-fonts" -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -o "$OUT/ui_optimist_fonts_test" tests/ui_optimist_test.c -lm
+    run "Optimist UI with every font built: the FONT line before KNOB COLORS, the face drawn changes (FONT_S and FONT_L), YES round, the factory face, kept by its stable number, one not built: the first" "$OUT/ui_optimist_fonts_test" "$OUT/optimist-fonts"
+    $CC -O2 -w -I"$OUT/gen-fonts" -I"$HGEN" -Ifirmware/src -Ifirmware/hal $BP23_ON -DFELUCCA_CDC=1 -DFELUCCA_BRIGHT=1 -DFELUCCA_TRK_FILT=1 -DFELUCCA_TFLT_RESO=1 -DFELUCCA_PARAM_HELP=1 $SEC4 -o "$OUT/ui_optimist_fonts5_test" tests/ui_optimist_test.c -lm
+    run "Optimist UI with every font, BRIGHT and FILT RESO: General (BRIGHT FONT KNOB COLORS) and Audio apart, every line's help" "$OUT/ui_optimist_fonts5_test" "$OUT/optimist-fonts"
+) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     mkdir -p "$OUT/optimist-scrn"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $BP23_ON -DFELUCCA_CDC=1 -DFELUCCA_BRIGHT=1 -DEDSCRN_GOLDEN=1 $SEC4 -o "$OUT/ui_optimist_scrn_test" tests/ui_optimist_test.c -lm
