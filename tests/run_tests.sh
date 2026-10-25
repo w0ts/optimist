@@ -1001,6 +1001,13 @@ job; ( jobin   # the arena (core/arena.c, docs/SD-MODE-DESIGN.md 6b): first fit 
     $CC -O2 -w -Ifirmware/src -DARN_SLOT=1008u -DARN_FIXED=1 -o "$OUT/arena_fixed_test" tests/arena_test.c
     run "arena at fixed slots (the default): the fixed per-part memories' places, never refused" "$OUT/arena_fixed_test"
 ) >"$U.out" 2>&1 & jobbg
+job; ( jobin   # the RAMTEXT overlays (core/overlay.c, docs/SD-MODE-DESIGN.md 6): the slots' protocol on the host
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_OVERLAY=1 -DFELUCCA_ENG_STRINGS=1 -o "$OUT/overlay_test" tests/overlay_test.c -lm
+    run "overlays: a part plays from its slot only once its engine is there (asked, loaded by the main loop), the same samples as in place, a change while playing, 30000 random changes" "$OUT/overlay_test"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_OVERLAY=1 -o "$OUT/regress_ovl" tests/regress.c -lm
+    run "regression with the overlays (FELUCCA_OVERLAY, the host's slots): the same golden renders (no CPU budget: tests/regress.c's own)" "$OUT/regress_ovl" tests/golden.txt "$OUT/regress_ovl_no_cpu.txt"
+    run "ovl_link: the plan (the least RAMTEXT), the linker scripts, the table" python3 tests/ovl_link_test.py
+) >"$U.out" 2>&1 & jobbg
 job; ( jobin   # the flash layouts (docs/SD-MODE-DESIGN.md): the numbers agree; the fake SD mode's 7-sector log
     run "flash layouts: fm1_flash_map.h, flash_layout.py, the builder and the package agree; the switch table" python3 tests/flash_layout_test.py
     L1="-DFELUCCA_LAYOUT=1 -DFELUCCA_ENG_SAMPLE=0 -DFELUCCA_DRUM_USR=0 -DFELUCCA_SNAPSHOTS=0 -DFELUCCA_PATTERNS=1 -DSEC_LOG_SECTORS=7u"

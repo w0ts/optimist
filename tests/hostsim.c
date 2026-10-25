@@ -186,6 +186,17 @@ static void host_main_services(void)
     for (k = 0; k < 64u && wt_wanted() >= 0 && wt_have != wt_wanted(); k++)
         wt_service();
 #endif
+#if FELUCCA_OVERLAY                              /* the RAMTEXT overlays (core/overlay.c): each part's engine into its
+                                                  * slot, as the main loop's rto_poll does after the part asked */
+    {
+        uint32_t p;
+        if (!rto_slot0)
+            (void)rto_init();
+        for (p = 0; p < NPART; p++)
+            rto_want[p] = (uint8_t)(trk[p].eng_req % NENGINES + 1u);
+        rto_poll();
+    }
+#endif
 }
 static void host_preset(track_t *t, uint32_t e, uint32_t pi)
 {
