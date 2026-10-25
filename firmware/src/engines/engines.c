@@ -322,3 +322,5 @@ static int part_mem_claim(uint32_t k, uint32_t e)
     part_mem_owner[k] = (uint8_t)(e + 1u);
     return 0;
 }
+
+#include "../core/overlay.c"                  /* the RAMTEXT overlays: the engines' hot code in a slot per part (FELUCCA_OVERLAY) */

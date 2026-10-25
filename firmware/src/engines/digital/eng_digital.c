@@ -27,7 +27,7 @@ AINL uint32_t fm_ratio_inc(uint32_t inc, uint32_t r)
 
 AINL uint32_t digital_mod(int32_t x, int32_t idx) { return (uint32_t)(x * idx) * 2065u; }
 
-static HOT void digital_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
+static OVL(digital) void digital_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
     const int16_t *p = t->p;
     uint32_t alg = (uint32_t)p[P_E0] & 7u, i;
@@ -144,6 +144,9 @@ static const engine_t ENG_DIGITAL = {
         PU("FB", F_PCT, 0, 127, 0, 0),
         PU("-", F_INT, 0, 0, 0, 0),
     },
-    DIGITAL_PRESETS, sizeof(DIGITAL_PRESETS) / sizeof(DIGITAL_PRESETS[0]), -1, digital_note_on, digital_render,
+    DIGITAL_PRESETS, sizeof(DIGITAL_PRESETS) / sizeof(DIGITAL_PRESETS[0]), -1, digital_note_on, OVL_FN(digital_render),
     0xFD20, {P_E4, P_E5, P_E6, P_REL},
 };
+#if FELUCCA_ENG_DIGITAL
+OVL_ENGINE(digital, ENG_SLOT_DIGITAL, digital_render, 0, 0, 0)
+#endif

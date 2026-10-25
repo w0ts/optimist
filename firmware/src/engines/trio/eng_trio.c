@@ -98,7 +98,7 @@ AINL int32_t trio_ps(uint32_t ph, const trio_pw_t *q)
 }
 
 /* naive value of a wave at phase ph (the step of a sync restart) */
-static HOT int32_t trio_naive(uint32_t w, uint32_t ph, const trio_pw_t *q)
+static OVL(trio) int32_t trio_naive(uint32_t w, uint32_t ph, const trio_pw_t *q)
 {
     switch (w) {
     case TW_TRI:
@@ -119,8 +119,8 @@ static HOT int32_t trio_naive(uint32_t w, uint32_t ph, const trio_pw_t *q)
 /* one oscillator over the block: mix[i] += its sample at level g, its steps into cr; one loop per
  * wave, so the wave is not looked at per sample. wx (osc 1 of a SYNC set: saw or pulse): where it
  * starts a cycle, how far before sample i (Q15), else -1 */
-static HOT void trio_pass(uint32_t w, uint32_t *php, uint32_t inc, int32_t g, const trio_pw_t *q, int32_t *nz,
-                      int32_t *nst, int32_t *mix, int32_t *cr, int16_t *wx, uint32_t n)
+static OVL(trio) void trio_pass(uint32_t w, uint32_t *php, uint32_t inc, int32_t g, const trio_pw_t *q, int32_t *nz,
+                            int32_t *nst, int32_t *mix, int32_t *cr, int16_t *wx, uint32_t n)
 {
     uint32_t ph = *php, o, i, pw = q->pw;
     int32_t pdc = q->pdc, z = *nz;
@@ -190,8 +190,8 @@ static HOT void trio_pass(uint32_t w, uint32_t *php, uint32_t inc, int32_t g, co
 
 /* osc 1 as a triangle whose sign osc 3's top phase bit flips (RING; osc 3 starts at p3); each flip
  * is a step of twice the triangle's value. wx as in trio_pass */
-static HOT void trio_ring(uint32_t *php, uint32_t inc, int32_t g, uint32_t p3, uint32_t inc3, int32_t *mix, int32_t *cr,
-                      int16_t *wx, uint32_t n)
+static OVL(trio) void trio_ring(uint32_t *php, uint32_t inc, int32_t g, uint32_t p3, uint32_t inc3, int32_t *mix, int32_t *cr,
+                            int16_t *wx, uint32_t n)
 {
     uint32_t ph = *php, o, o3, i;
     for (i = 0; i < n; i++) {
@@ -214,8 +214,8 @@ static HOT void trio_ring(uint32_t *php, uint32_t inc, int32_t g, uint32_t p3, u
 /* osc 2, saw or pulse, restarted where osc 1 starts a cycle (wx, from trio_pass / trio_ring): the
  * restart lies x before sample i, so osc 2 is x of its own cycle in; the jump from where it was
  * to its start is one step */
-static HOT void trio_sync(uint32_t w, uint32_t *php, uint32_t inc, int32_t g, const trio_pw_t *q, const int16_t *wx,
-                      int32_t *mix, int32_t *cr, uint32_t n)
+static OVL(trio) void trio_sync(uint32_t w, uint32_t *php, uint32_t inc, int32_t g, const trio_pw_t *q, const int16_t *wx,
+                            int32_t *mix, int32_t *cr, uint32_t n)
 {
     uint32_t ph = *php, o, i, pw = q->pw;
     int32_t pdc = q->pdc, pls = w == TW_PLS;
@@ -244,7 +244,7 @@ static HOT void trio_sync(uint32_t w, uint32_t *php, uint32_t inc, int32_t g, co
 
 /* osc 2 / 3 increment: the base pitch + semitones + cents, with the voice's fine factor (unison,
  * TUNE) that m->inc carries */
-static HOT uint32_t trio_inc(int32_t pitch16, int32_t semi, int32_t ct, int32_t fine)
+static OVL(trio) uint32_t trio_inc(int32_t pitch16, int32_t semi, int32_t ct, int32_t fine)
 {
     int32_t d16 = ct * 16 / 100, rem = ct * 16 - d16 * 100;      /* rem: 1/1600 semitone */
     uint32_t inc = pitch_inc(clamp(pitch16 + semi * 16 + d16, 0, 2047));
@@ -266,7 +266,7 @@ static void trio_note_on(track_t *t, voice_t *v)
     v->s[5] = 0;                 /* cutoff drift */
 }
 
-static HOT void trio_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
+static OVL(trio) void trio_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
     const int16_t *p = t->p;
     const trio_set_t *ws = &TRIO_SETS[(uint32_t)p[P_E0] & 15u];
@@ -373,6 +373,9 @@ static const engine_t ENG_TRIO = {
         PU("RES", F_PCT, 0, 127, 40, 0),
         PU("PW", F_PCT, 0, 127, 64, 0),
     },
-    TRIO_PRESETS, sizeof(TRIO_PRESETS) / sizeof(TRIO_PRESETS[0]), 1, trio_note_on, trio_render,
+    TRIO_PRESETS, sizeof(TRIO_PRESETS) / sizeof(TRIO_PRESETS[0]), 1, trio_note_on, OVL_FN(trio_render),
     0xFFE0, {P_E5, P_E6, P_E7, P_E1},
 };
+#if FELUCCA_ENG_TRIO
+OVL_ENGINE(trio, ENG_SLOT_TRIO, trio_render, 0, 0, 0)
+#endif

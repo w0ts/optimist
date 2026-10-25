@@ -39,7 +39,7 @@ static const uint32_t SEMI_Q16[13] = {
 
 /* 2^(st16 / 192) in Q16 (st16 in 1/16 semitone), clamped to 1/16 .. 16.
  * Divisions by constants are written as multiplies: -Os keeps them as divides */
-static HOT uint32_t fmt_ratio(int32_t st16)
+static OVL(formant) uint32_t fmt_ratio(int32_t st16)
 {
     int32_t o, k;
     uint32_t r;
@@ -51,7 +51,7 @@ static HOT uint32_t fmt_ratio(int32_t st16)
 }
 
 /* the three formants of vowel position pos (0..127 << 8, A E I O U), Hz * 16 */
-static HOT void vowel_at(int32_t pos, int32_t *f, int32_t *b)
+static OVL(formant) void vowel_at(int32_t pos, int32_t *f, int32_t *b)
 {
     int32_t x = (clamp(pos, 0, 127 << 8) * 33027) >> 20, i = x >> 8, fr = x & 255, j;   /* * 4 / 127 */
     if (i >= 4) {
@@ -74,7 +74,7 @@ static int32_t formant_nz = 0x2545F491;                 /* breath noise, one xor
 #endif
 
 /* Klatt resonator coefficients (Q30) for F, BW in Hz * 16 */
-static HOT void fres_coef(fres_t *r, uint32_t f16, uint32_t bw16)
+static OVL(formant) void fres_coef(fres_t *r, uint32_t f16, uint32_t bw16)
 {
     int32_t s = sine_i(f16 * 3044u);                    /* sin(pi F / FS), Q15 (2^32 / (2 FS) / 16) */
     int32_t x = (int32_t)(bw16 * 4781u);                /* pi BW / FS, Q30 (<= 0.2) */
@@ -103,7 +103,7 @@ static void formant_note_on(track_t *t, voice_t *v)
     }
 }
 
-static HOT void formant_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
+static OVL(formant) void formant_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
     const int16_t *p = t->p;
     fres_t r1, r2, r3, r4;
@@ -237,6 +237,9 @@ static const engine_t ENG_FORMANT = {
         PU("Q", F_PCT, 0, 127, 64, 0),
         PU("RAND", F_PCT, 0, 127, 0, 0),
     },
-    FORMANT_PRESETS, sizeof(FORMANT_PRESETS) / sizeof(FORMANT_PRESETS[0]), 0, formant_note_on, formant_render,
+    FORMANT_PRESETS, sizeof(FORMANT_PRESETS) / sizeof(FORMANT_PRESETS[0]), 0, formant_note_on, OVL_FN(formant_render),
     0xF81F, {P_E0, P_E4, P_E5, P_E2}, 4,
 };
+#if FELUCCA_ENG_FORMANT
+OVL_ENGINE(formant, ENG_SLOT_FORMANT, formant_render, 0, 0, 0)
+#endif

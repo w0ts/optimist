@@ -337,6 +337,8 @@ static BOOT_ORDER void fm1_main(void)
 #if FELUCCA_BENCH
     bench_setup();                                      /* measurement scenario (bench.c) */
 #endif
+    rto_boot();                                         /* the parts' engines' code into their slots (core/overlay.c),
+                                                         * before the audio */
 #if FELUCCA_DUAL
     dual_boot();                                        /* CPU1 (dual.c): before the audio runs (a failed start
                                                          * waits 50 ms) and before the vectors are locked */
@@ -536,6 +538,7 @@ static BOOT_ORDER void fm1_main(void)
         felucca_dbg.stage = 1;
         ui_input();
         fxi_poll();                                     /* the limited inserts' instances after a change (fx/insfx/fxi.c) */
+        rto_poll();                                     /* the engines the parts asked for: their code into the slots (overlay.c) */
         felucca_dbg.stage = 2;
         ui_leds();
         ui_draw();
@@ -570,6 +573,7 @@ static BOOT_ORDER void fm1_main(void)
         MAIN_WAIT_BEGIN                                 /* while (fm1_ms - m < 15u): ~60 UI frames/s at most */
             ui_input();
             fxi_poll();                         /* (a type picked: its instance within a pass) */
+            rto_poll();                         /* (an engine a part asked for: its code into the part's slot, overlay.c) */
             meter_tap();                        /* (once per audio half: the meters see every one) */
 #if FELUCCA_OTA && FELUCCA_EDITOR
             ed_service();                       /* editor replies without waiting for the next frame */

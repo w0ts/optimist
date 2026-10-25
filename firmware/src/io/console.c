@@ -1064,6 +1064,40 @@ static void con_far(void)                            /* the far probe (system/fa
 #if FELUCCA_SDCARD
 #include "console_sd.c"                              /* sd: the SD card (storage/sd/sdcard.c) */
 #endif
+#if FELUCCA_OVERLAY
+static void con_ovl(void)                            /* the RAMTEXT overlays (core/overlay.c): the slots, the copies */
+{
+    static const char *const WHERE[] = {"slots", "ram", "xip", "-"};
+    uint32_t k, e;
+    con_kv("ovl_bad", rto_st.bad);
+    con_kv("slot_bytes", (int32_t)rto_slot_len);
+    for (k = 0; k < NPART; k++) {
+        con_puts("slot ");
+        con_dec((int32_t)k + 1);
+        con_puts(" ");
+        con_puts(rto_eng[k] && rto_eng[k] <= NENGINES ? ENGINES[rto_eng[k] - 1u]->name : "-");
+        con_puts("\r\n");
+    }
+    for (e = 0; e < NENGINES; e++) {
+        uint32_t w = rto_src[e] ? 0u : rto_res[e] ? ((const void *)rto_res[e] >= (const void *)_xip_org ? 2u : 1u) : 3u;
+        if (w == 3u && ENGINES[e]->render)
+            continue;                                /* (an engine with no overlay code) */
+        con_puts(ENGINES[e]->name);
+        con_puts(" ");
+        con_puts(WHERE[w]);
+        if (!w) {
+            con_puts(" ");
+            con_dec(rto_len[e]);
+            con_puts(" B");
+        }
+        con_puts("\r\n");
+    }
+    con_kv("loads", (int32_t)rto_st.loads);
+    con_kv("copy_us_last", (int32_t)rto_st.us_last);
+    con_kv("copy_us_max", (int32_t)rto_st.us_max);
+    con_kv("copy_bytes_max", (int32_t)rto_st.bytes_max);
+}
+#endif
 
 static void con_exec(const char *p)
 {
@@ -1097,6 +1131,9 @@ static void con_exec(const char *p)
 #if FELUCCA_SDCARD
                  "  sd [mode duplex|dirrx|bitbang | dma on|off | raw SECTOR | ls [DIR] | cat FILE | bench [FILE] | write FILE]"
 #endif
+#if FELUCCA_OVERLAY
+                 "  ovl"
+#endif
                  "  keys  keylog  uboot yes\r\n");
     else if (con_word(&p, "status"))
         con_status();
@@ -1129,6 +1166,10 @@ static void con_exec(const char *p)
 #if FELUCCA_SDCARD
     else if (con_word(&p, "sd"))
         con_sd(p);
+#endif
+#if FELUCCA_OVERLAY
+    else if (con_word(&p, "ovl"))
+        con_ovl();
 #endif
     else if (con_word(&p, "memr"))
         con_memr(p);

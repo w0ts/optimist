@@ -181,7 +181,7 @@ static void sample_note_on(track_t *t, voice_t *v)
     v->s[7] = 0;                 /* lo-pass state */
 }
 
-static HOT void sample_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
+static OVL(sample) void sample_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
     const int16_t *p = t->p;
     const smp_zone_t *z = smp_zone((uint32_t)v->s[4]);
@@ -235,6 +235,9 @@ static const engine_t ENG_SAMPLE = {
         PU("DRV", F_PCT, 0, 127, 0, 0),
         PU("-", F_INT, 0, 0, 0, 0),
     },
-    SMP_PRESET_TABLE, sizeof(SMP_PRESET_TABLE) / sizeof(SMP_PRESET_TABLE[0]), -1, sample_note_on, sample_render,
+    SMP_PRESET_TABLE, sizeof(SMP_PRESET_TABLE) / sizeof(SMP_PRESET_TABLE[0]), -1, sample_note_on, OVL_FN(sample_render),
     0xFFFF, {P_E0, P_E4, P_ATK, P_REL},
 };
+#if FELUCCA_ENG_SAMPLE
+OVL_ENGINE(sample, ENG_SLOT_SAMPLE, sample_render, 0, 0, 0)
+#endif

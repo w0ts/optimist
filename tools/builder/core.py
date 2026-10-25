@@ -179,6 +179,9 @@ def validate(cfg):
             err.append(Issue("the fake SD mode layout keeps no user samples, snapshots or CZ collection and needs "
                              "PATTERNS: " + ", ".join(clash + ([] if cfg.get("PATTERNS") else ["PATTERNS off"])),
                              ["LAYOUT"] + clash + ([] if cfg.get("PATTERNS") else ["PATTERNS"])))
+    if cfg.get("OVERLAY") and not cfg.get("LAYOUT"):   # each slot engine's code linked once per slot: the big flash
+        err.append(Issue("the RAMTEXT overlays put each engine's fast code in flash once per part: they need the fake "
+                         "SD mode layout (LAYOUT 1)", ["OVERLAY", "LAYOUT"]))
     revs = [k for k in R.REV_ALGOS if k in R.ITEMS]
     if built(cfg, "FX_REVERB") and not any(cfg[k] for k in revs):
         err.append(Issue("the reverb bus needs an algorithm: tick ROOM, PLATE, FDN8, SPRING or VTINY "
