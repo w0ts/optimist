@@ -856,6 +856,7 @@ FRESULT pf_mount (
 	fsize *= buf[BPB_NumFATs-13];						/* Number of sectors in FAT area */
 	fs->fatbase = bsect + ld_word(buf+BPB_RsvdSecCnt-13); /* FAT start sector (lba) */
 	fs->csize = buf[BPB_SecPerClus-13];					/* Number of sectors per cluster */
+	if (!fs->csize) return FR_NO_FILESYSTEM;			/* (Optimist: a damaged boot record, never a divide by 0 below) */
 	fs->n_rootdir = ld_word(buf+BPB_RootEntCnt-13);		/* Nmuber of root directory entries */
 	tsect = ld_word(buf+BPB_TotSec16-13);				/* Number of sectors on the file system */
 	if (!tsect) tsect = ld_dword(buf+BPB_TotSec32-13);

@@ -283,3 +283,6 @@ src/ui/optimist/op_songtbl.c:stb_paint:(int32_t)nl | nl = 5 (SCENE) or 2
 # 2026-10-24: BT AUDIO remembers up to 4 devices
 src/bt/bta_mem.c:bta_next:bta.nmem | guarded: returns 0 first when nmem < 2, so the modulo sees 2 or more
 src/io/midi/ble_connect.c:rc_try:(1u+ble_kept_n()) | 1 + a count: never 0
+src/io/console.c:con_sd_rw:us | the console's sd bench / write: "us ? ... : 0" (a 0 µs run prints 0 KB/s, no divide)
+src/storage/sd/pff.c:pf_mount:fs->csize | pf_mount returns FR_NO_FILESYSTEM before the divide when the boot record's sectors per cluster is 0 (Optimist's guard)
+src/storage/sd/pff.c:pf_lseek:bcs | bcs = csize x 512: pf_lseek needs a mounted filesystem (FR_NOT_ENABLED else), and a mount refuses csize 0

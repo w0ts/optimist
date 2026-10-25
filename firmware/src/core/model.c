@@ -178,6 +178,8 @@ static void set_engine_of(track_t *t, uint32_t ei)
     uint32_t i;
     if (is_drum(t))
         return;
+    if ((uint32_t)(t - trk) < NPART && part_mem_reserve((uint32_t)(t - trk), ei % NENGINES))
+        return;                                       /* no room in the arena: refused (part_mem_refused: what to drop) */
     fm1_irq_off();
 #if FELUCCA_MOTION || FELUCCA_PLOCK
     motion_restore(t);                                /* (the automation's values back first, then the new sound: it is

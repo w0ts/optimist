@@ -125,6 +125,23 @@ inserts' lines) becomes general:
   2.1, an estimate; the reserve is sized from the largest level `undo.c` can record, so about 4-8 KB).
 - First the arena for the state and the lines (measurable alone: the pool most projects never touch), then the
   RAMTEXT overlays, then the card.
+- What does not fit (the user, 2026-10-25): refused, and the device proposes what to drop; on a project load the user
+  picks one or more items to drop until it fits (rare: every FM-1 has the same RAM). A dropped part becomes a **silent
+  placeholder** (the user, 2026-10-25): it keeps its sequence, plays nothing, shown dimmed as having no engine, until
+  the user picks an engine for it. On an edit the proposal is the UI's one confirm (red: it replaces a part's sound;
+  "DROP T2 FM6, 9.7 KB"); on a load, a list of the candidate parts the keys toggle, a gauge that says when it fits,
+  SAVE to confirm.
+
+**Built (phase 3a, 2026-10-25):** `firmware/src/core/arena.c`, the parts' engine memories (`part_mem`: FM6, PHYS,
+GRAIN, ACID, PLAITS) placed in it. By default the arena is exactly the old fixed memory (4 x the largest engine's) at
+fixed slots: the same room and places, never refused (pool unchanged, +96 B RAM, +620 B flash on the default profile);
+`FELUCCA_ARENA_BYTES` smaller places by need (first fit, blocks never move, a part's own block free for its own next
+engine, idle blocks reclaimed without asking). The main loop reserves before a part's engine changes (model.c
+set_engine_of, project load, user preset load); a refusal records the part, the engine and `arn_drop_for`'s proposal in
+`part_mem_refused`; the audio keeps the old engine when a switch finds no room. Not yet: the UI that shows the proposal
+and lets the user pick what to drop, a builder item for the arena's size, the engines' and effects' other static state.
+Tests: `tests/arena_test.c` (first fit and fixed slots; 300,000 random switches with some left pending), the backports
+test in a two-part arena (FM6, PHYS, ACID swapped on a part).
 
 ## 7. Phases
 
