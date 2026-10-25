@@ -53,7 +53,8 @@ What is measured on a real FM-1 (calipers, the user, 2026-10-25) and what is sti
 | u | J12's top side to the board's edge at the jacks (the user: "to the top of the board"; the photos put J12 about 37 mm from the jacks' edge, 53 from the LEDs' edge) | 35 mm |
 | | So the 6-pin cable: 35 on the front + about 5 round the edge (the user) + about 54 down the back to J2 = about 94 mm: a standard 10 cm cable (6 mm slack) | |
 | | J12: the LCD's cable is 5.5 mm wide, 10 pins (the user): so 0.5 mm pitch (a standard 10-pin 0.5 mm cable is 5.5 mm wide) | 10 pins, 0.5 mm |
-| | J12: contact side, pin map (chip pins 29 to 32, 3.3 V, ground) | not measured yet: with a 10-pin breakout (on order) and a pin-finder firmware (to build, the user: once the breakout is here) |
+| | J12: the LCD cable's contacts face the FM-1 board (the user): J12 is bottom-contact; a cable round the edge keeps them facing the board, so type A (same side) | bottom contact |
+| | J12: pin map (chip pins 29 to 32, 3.3 V, ground) | not measured yet: with a 10-pin breakout (on order) and a pin-finder firmware (to build, the user: once the breakout is here) |
 | | Where the card goes through the bottom wall: the card's left side from the left wall's INSIDE (pegs that close the case's bottom stand left and right of it) | 86 mm, then 84 (the user), then the socket centred on the board (the user): 81.7 mm (80.1 from the board's left edge) |
 
 ## How the board uses them (v4, by the battery's plug)
