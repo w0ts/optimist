@@ -19,13 +19,44 @@ columns empty: Terminus) is FONT_BITS 1: each row only the pixels after
 the PAD columns, 8 a byte (MSB first), alpha 15: 3,584 B, not 21,504 B,
 the same pixels on screen (tests/font_test.c). A scaled font's h, pad and drawn advance are k times its base
 font's; its glyph indices are the base's (the same first character).
+
+The faces (the builder's FONT_* items, tools/builder/registry.py; FELUCCA_FONTS in the environment: their names, in
+FACES order, Terminus alone when unset): one face is the header as it always was. Two or more: every face's bitmap
+(the first's TAB_RAW_POOL, the others in flash), FONT_S and FONT_L not const (their data pointer follows the face
+chosen: gfx.c font_use, SYSTEM > FONT), FONT_N, FONT_DATA, FONT_ID (the face's stable number, FACES' index: what the
+settings record keeps) and FONT_NAME. Every face must have Terminus' cell (8x16, the same first / last, the same
+format): the screens' layouts are made for it.
 """
+import os
 import sys
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
 FONTS = Path(__file__).resolve().parents[1] / "assets" / "fonts"
+# the faces a build may carry: (name, file); the index is the face's stable id (the settings record keeps it): append
+# only, never reorder (assets/fonts/, LICENSING.md)
+FACES = [("TERMINUS", "ter-u16n.bdf"),          # Terminus 8x16 (SIL OFL 1.1), the default
+         ("TERM BOLD", "ter-u16b.bdf"),          # Terminus bold 8x16 4.49.1 (SIL OFL 1.1): heavy, the most legible
+         ("TAMZEN", "Tamzen8x16r.bdf"),          # thin; Tamzen 8x16 regular (Tamsyn / Tamzen licence: free, use as you see fit)
+         ("UNIFONT", "unifont-8x16-ascii.bdf"),  # the classic PC look; GNU Unifont 16.0.04, ASCII (SIL OFL 1.1 / GPL-2.0-or-later)
+         ("UNSCII", "unscii-16-ascii.bdf")]      # round, 8-bit computer style; Unscii 16 by Viznut, ASCII (public domain)
+FACE_IDS = {n: i for i, (n, _) in enumerate(FACES)}
+
+
+def faces_built(env=None):
+    """-> [(id, name, file)] the faces of this build, in FACES order: FELUCCA_FONTS (names, comma separated), Terminus
+    alone when unset; none is an error (every build draws text)"""
+    v = (os.environ if env is None else env).get("FELUCCA_FONTS")
+    names = ["TERMINUS"] if v is None else [n.strip().upper() for n in v.split(",") if n.strip()]
+    bad = [n for n in names if n not in FACE_IDS]
+    if bad:
+        raise SystemExit(f"gen_font: FELUCCA_FONTS: no face {', '.join(bad)} (one of {', '.join(FACE_IDS)})")
+    if not names:
+        raise SystemExit("gen_font: FELUCCA_FONTS names no face: a build needs at least one font")
+    return [(FACE_IDS[n], n, FACES[FACE_IDS[n]][1]) for n in sorted(set(names), key=FACE_IDS.get)]
+
+
 # (name, file, px, pixel, first, last): pixel fonts are rendered without
 # anti-aliasing at their design size
 SIZES = [("S", "ter-u16n.bdf", 16, True, 32, 126)]   # ASCII (the splash is a picture: no umlaut drawn as text)
@@ -64,6 +95,8 @@ def render_bdf(path, first, last):
                         x, y = bx + c, top + r
                         if 0 <= x < cw and 0 <= y < ch:
                             cell[y * cw + x] = 15
+                        elif first <= code <= last:   # (Tamzen's 8x17 boxes: their extra row is empty)
+                            raise SystemExit(f"font {path.name}: {chr(code)!r} has a pixel outside the {cw}x{ch} cell")
             glyphs[code] = (dw, cell)
             i = k + bh
         i += 1
@@ -130,42 +163,74 @@ def pack(h, glyphs, bits):
     return data, offs
 
 
+def face_data(name, ttf, px, pixel, first, last, bits):
+    """one face's bitmaps: -> (bits, data, (h, glyphs, adv, bw, stride))"""
+    h, glyphs = render(ttf, px, pixel, first, last)
+    bits = bits or (1 if one_bit(h, glyphs) else 4)
+    assert bits == 4 or one_bit(h, glyphs)
+    data, offs = pack(h, glyphs, bits)
+    assert len(data) < 65536
+    # a monospace font (Terminus: every glyph the same advance and width, the bitmaps one after the other): the
+    # descriptor carries the advance, the width and the bytes a glyph takes, no per-glyph tables (gfx.c; 380 B
+    # less than the three tables, 2026-10-22). A proportional font would need them back (and gfx.c's reader).
+    adv, bw = glyphs[0][0], glyphs[0][1]
+    stride = len(data) // len(glyphs)
+    if any(a != adv or b != bw for a, b, _ in glyphs) or offs != [i * stride for i in range(len(glyphs))]:
+        raise SystemExit(f"gen_font: {ttf} is not monospace: gfx.c draws monospace fonts (per-glyph tables)")
+    print(f"font {name}: {ttf} {px}px h {h}, digit adv {glyphs[ord('0') - first][0]}, {len(data)} B")
+    return bits, data, (h, glyphs, adv, bw, stride)
+
+
+def c_array(cname, data, attr=" TAB_RAW_POOL"):
+    out = [f"static const uint8_t {cname}[{len(data)}]{attr} = {{"]   # (felucca_tables.h: the pool with TAB_CODED_ALL)
+    for i in range(0, len(data), 24):
+        out.append("    " + ", ".join(f"0x{b:02x}" for b in data[i:i + 24]) + ",")
+    return out + ["};"]
+
+
 def main(out, bits=0):
     """bits: 4 or 1, 0 = 1 when the font allows it (a pixel font: 4.5 times less flash, the same pixels)"""
-    lines = [f"/* generated by tools/gen_font.py from {SIZES[0][1]} */",
+    faces = faces_built()
+    multi = len(faces) > 1
+    lines = [f"/* generated by tools/gen_font.py from {', '.join(f for _, _, f in faces)} */",
              "#pragma once", "#include <stdint.h>", f"#define FONT_PAD {PAD}  /* x scale, see below */",
              "/* TAB_RAW_POOL: felucca_tables.h's (the firmware includes it first: the bitmaps in the pool with TAB_CODED_ALL);",
              " * nothing when this header is read alone (the host tests' font checks) */",
              "#ifndef TAB_RAW_POOL", "#define TAB_RAW_POOL", "#endif"]
     made = {}
-    for name, ttf, px, pixel, first, last in SIZES:
-        h, glyphs = render(ttf, px, pixel, first, last)
-        bits = bits or (1 if one_bit(h, glyphs) else 4)
-        assert bits == 4 or one_bit(h, glyphs)
+    const = "" if multi else "const "                  # (several faces: FONT_S / FONT_L's data follows the face chosen)
+    for name, _, px, pixel, first, last in SIZES:
+        bits, data, m = face_data(name, faces[0][2], px, pixel, first, last, bits)
+        h, glyphs, adv, bw, stride = m
         lines += [f"#define FONT_BITS {bits}  /* 1: a bit a pixel (alpha 15), rows after the PAD columns; "
                   "4: alpha 0..15, 2 pixels a byte */", ""]
-        data, offs = pack(h, glyphs, bits)
-        assert len(data) < 65536
-        # a monospace font (Terminus: every glyph the same advance and width, the bitmaps one after the other): the
-        # descriptor carries the advance, the width and the bytes a glyph takes, no per-glyph tables (gfx.c; 380 B
-        # less than the three tables, 2026-10-22). A proportional font would need them back (and gfx.c's reader).
-        adv, bw = glyphs[0][0], glyphs[0][1]
-        stride = len(data) // len(glyphs)
-        if any(a != adv or b != bw for a, b, _ in glyphs) or offs != [i * stride for i in range(len(glyphs))]:
-            raise SystemExit(f"gen_font: {ttf} is not monospace: gfx.c draws monospace fonts (per-glyph tables)")
-        lines.append(f"static const uint8_t FONT_{name}_DATA[{len(data)}] TAB_RAW_POOL = {{")   # (felucca_tables.h: the pool with TAB_CODED_ALL)
-        for i in range(0, len(data), 24):
-            lines.append("    " + ", ".join(f"0x{b:02x}" for b in data[i:i + 24]) + ",")
-        lines.append("};")
-        lines.append(f"static const felucca_font_t FONT_{name} = {{ {h}, {PAD}, {first}, {last}, 1, "
+        lines += c_array(f"FONT_{name}_DATA", data)
+        extra = []
+        for j, (_, fname, ffile) in enumerate(faces[1:], 1):   # (the other faces: in flash, the same cell and format)
+            b2, d2, m2 = face_data(f"{name}{j} {fname}", ffile, px, pixel, first, last, bits)
+            if b2 != bits or m2[0] != h or m2[2:] != m[2:] or len(d2) != len(data):
+                raise SystemExit(f"gen_font: {ffile} is not {faces[0][2]}'s cell ({adv}x{h}, {bits}-bit): the screens "
+                                 "are laid out for it")
+            lines += c_array(f"FONT_{name}{j}_DATA", d2, "")
+            extra.append(f"FONT_{name}{j}_DATA")
+        lines.append(f"static {const}felucca_font_t FONT_{name} = {{ {h}, {PAD}, {first}, {last}, 1, "
                      f"{adv}, {bw}, {stride}, FONT_{name}_DATA }};")
         lines.append("")
         made[name] = (h, first, last, glyphs, adv, bw, stride)
-        print(f"font {name}: {ttf} {px}px h {h}, digit adv {glyphs[ord('0') - first][0]}, {len(data)} B")
+        if multi:
+            assert name == "S" and len(SIZES) == 1          # (FONT_DATA: the small font's faces)
+            lines += [f"#define FONT_N {len(faces)}u  /* the faces built (gfx.c font_use: SYSTEM > FONT) */",
+                      f"static const uint8_t *const FONT_DATA[FONT_N] = {{ FONT_{name}_DATA, {', '.join(extra)} }};",
+                      "static const uint8_t FONT_ID[FONT_N] = { " + ", ".join(str(i) for i, _, _ in faces)
+                      + " };   /* the face's stable number (tools/gen_font.py FACES): the settings record's */",
+                      "static const char *const FONT_NAME[FONT_N] = { " + ", ".join(f'"{n}"' for _, n, _ in faces)
+                      + " };", ""]
+        else:
+            lines += ["#define FONT_N 1u  /* one face: no choice, nothing to select (gfx.c) */", ""]
     for name, base, k, first, last in SCALED:          # no data: the base's bitmaps, drawn k x k
         h, bfirst, blast, glyphs, adv, bw, stride = made[base]
         assert first == bfirst and last <= blast       # (the same glyph indices)
-        lines.append(f"static const felucca_font_t FONT_{name} = {{ {h * k}, {PAD * k}, {first}, {last}, {k}, "
+        lines.append(f"static {const}felucca_font_t FONT_{name} = {{ {h * k}, {PAD * k}, {first}, {last}, {k}, "
                      f"{adv}, {bw}, {stride}, FONT_{base}_DATA }};   /* FONT_{base} x {k} */")
         lines.append("")
         print(f"font {name}: FONT_{base} x {k}, h {h * k}, digit adv {glyphs[ord('0') - first][0] * k}, 0 B")
