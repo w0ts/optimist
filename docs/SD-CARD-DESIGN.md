@@ -150,6 +150,16 @@ is about 35 pF. R1 220 Ohm: a 7.7 ns time constant, about 15 ns to a clean level
 host's (unknown) setup time. 100 Ohm: 14 + 7 = 21 ns, a marginal pass; 47 Ohm: 17 ns, comfortable. So the board is
 ordered with **R1 100 Ohm** and 47 Ohm on the shelf; `sd bench`'s 20 MHz CRC rows decide. 30 MHz is not expected.
 
+**The card's clock: the fastest it proves** (the user, 2026-10-25). SPI1 gives 20 or 30 MHz (60 / (BAUD + 1)). The
+spec's 14 ns tODLY fits 20 MHz, not 30; real cards are usually 5-8 ns and do make 30, so it is measured per card at
+the mount (`sd_clock_probe`, sd_mmc.c): CMD6 asks an SDv2 card for high speed, then 64 blocks from sector 0 by one
+CMD18 at 20 MHz and again at 30, every block's CRC16 checked and their CRCs compared: 30 MHz is kept for the session
+only when every block read right and the two passes agree; SDv1 and MMC stay at 20. At run time a block whose CRC16
+fails is read again; a second failure at 30 MHz drops the session to 20 and the read goes on (`sd_crc_retry`); at 20 a
+second failure is an error. The console: `sd` prints `clock 30 MHz` or `clock 20 MHz (30 failed: blocks N of 64)`,
+the CRC failures and the drops; `sd clock 20|30|auto` overrides and mounts again. The emulator cannot run an SD build
+past the boot mount (it models SPI1 as the LCD only); the probe is host-tested (`tests/sd_test.c` clocks).
+
 **The screen at 60 MHz over the longer path is a bench result, not a design assumption.** The ST7789V's serial write
 cycle is 16 ns at least (SCL high and low 7 ns each): 60 MHz (16.7 ns) has no datasheet margin today and works because
 the stock flex is short. The mod's path is J12, the 80 mm cable, J2, the pass-through, J3 and the LCD's flex: about

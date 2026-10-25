@@ -38,10 +38,14 @@ typedef struct {
     int rs;                                    /* CMD18 streaming */
     uint32_t rsec;                             /* the next block it sends */
     uint32_t corrupt;                          /* a sector whose data comes with one byte flipped (its CRC unchanged) */
+    uint32_t corrupt_once;                     /* the same, the first time it is read only (a glitch) */
+    int bad30;                                 /* every block's data wrong at the faster clock (a card that cannot) */
+    int hs;                                    /* CMD6 switched it to high speed */
     int nac_long;                              /* 1: some gaps before a token longer than a poll's tries */
     long cmd18s, cmd12s, cmd17s;
 } card_t;
 static card_t C;
+static int t_over;                             /* the host's clock: 1 the faster one (SD_SET_OVER) */
 
 static void q(uint8_t b) { if (C.outlen < (int)sizeof C.out) C.out[C.outlen++] = b; }
 
@@ -80,7 +84,8 @@ static void q_block(uint32_t s, int gap)       /* gap 0xFF bytes, the token, the
     int i;
     memcpy(d, sector_ptr(s, scratch), 512);
     c = crc16(d, 512);
-    if (s == C.corrupt) d[100] ^= 0x10;
+    if (s == C.corrupt || (t_over && C.bad30)) d[100] ^= 0x10;
+    if (s == C.corrupt_once) d[200] ^= 0x01, C.corrupt_once = 0xFFFFFFFFu;
     while (gap--) q(0xFF);
     q(0xFE);
     for (i = 0; i < 512; i++) q(d[i]);
@@ -137,6 +142,19 @@ static void command(void)
         C.crc_on = arg & 1u;
         q(C.idle);
         return;
+    case 6: {                                  /* SWITCH_FUNC (SDv2): a 64-byte status block */
+        uint8_t st[64];
+        uint16_t c;
+        if (!C.v2 || C.mmc || C.idle) { q(0x05); return; }
+        memset(st, 0, 64);
+        C.hs = (arg >> 31) && (arg & 15u) == 1u;
+        st[16] = (uint8_t)(arg & 15u);         /* bits 379:376: group 1's function now */
+        c = crc16(st, 64);
+        q(0); q(0xFF); q(0xFE);
+        for (i = 0; i < 64; i++) q(st[i]);
+        q((uint8_t)(c >> 8)); q((uint8_t)c);
+        return;
+    }
     case 0:
         C.idle = 1;
         q(C.cmd[5] == 0x95 ? 0x01 : 0x09);     /* (a bad CRC: the CRC error bit) */
@@ -326,6 +344,7 @@ static void rx_block(uint8_t *p, unsigned n)
 #define SD_SEL() (C.selected = 1)
 #define SD_DESEL() (C.selected = 0, C.cmdlen = 0, C.outlen = C.outpos = 0)
 #define SD_FAST() ((void)0)
+#define SD_SET_OVER(on) (t_over = (on))
 #define SD_NOW() clk
 #define SD_TICKS_MS 1000u
 #include "storage/sd/sd_mmc.c"
@@ -354,7 +373,8 @@ static void card(uint8_t *img, uint32_t sectors, uint32_t base, int v2, int hc, 
     C.img = img; C.sectors = sectors; C.base = base;
     C.present = 1; C.v2 = v2; C.hc = hc; C.mmc = mmc;
     C.acmd41_busy = 20;
-    C.corrupt = 0xFFFFFFFFu;
+    C.corrupt = C.corrupt_once = 0xFFFFFFFFu;
+    t_over = 0;
 }
 
 static uint8_t kick(uint32_t i) { return (uint8_t)((i * 7 + (i >> 8)) & 255); }
@@ -531,6 +551,52 @@ static void blocks(const char *what)
     dma_on = 0;
 }
 
+/* the clock the card proves (sd_clock_probe) and the drop to the floor on CRC failures (sd_crc_retry) */
+static void clocks(const char *what)
+{
+    static uint8_t buf[8 * 512] __attribute__((aligned(4)));
+    uint8_t one[4], scratch[512];
+    uint32_t s0 = C.base + 3, n = card_sectors() < 64u ? card_sectors() : 64u;
+    UINT bad;
+    long d0, r0 = C.crc_refused;
+    int sd2 = C.v2 && !C.mmc;
+
+    C.bad30 = 0;
+    bad = sd_clock_probe(buf, n, 0);
+    if (sd2) {
+        CHECK(bad == 0 && sd_over && t_over && C.hs, "%s: a card that reads right at 30 MHz: kept there (CMD6 switched)",
+              what);
+    } else {
+        CHECK(sd_over == 0 && !t_over && bad == n, "%s: SDv1 / MMC: the floor, 20 MHz, nothing tried", what);
+        return;
+    }
+    C.bad30 = 1;
+    bad = sd_clock_probe(buf, n, 0);
+    CHECK(bad == n && !sd_over && !t_over, "%s: a card that fails at 30 MHz: %u of %u blocks bad, back to 20", what,
+          (unsigned)bad, (unsigned)n);
+    CHECK(sd_clock_probe(buf, n, 20) == n && !sd_over && !t_over, "%s: sd clock 20: the floor, nothing tried", what);
+    CHECK(sd_clock_probe(buf, n, 30) == n && sd_over && t_over, "%s: sd clock 30: forced", what);
+
+    d0 = sd_demotions;                         /* at 30, the card starts failing: the read goes on at 20 */
+    CHECK(disk_readblocks(buf, s0, 8) == RES_OK && same_as_card(buf, s0, 8), "%s: CRC failures at 30: read right", what);
+    CHECK(sd_demotions == d0 + 1 && !sd_over && !t_over, "%s: ... the session dropped to 20 MHz once", what);
+    SD_SET_OVER(1), sd_over = 1;
+    CHECK(disk_readp(one, s0 + 1, 40, 4) == RES_OK && !memcmp(one, sector_ptr(s0 + 1, scratch) + 40, 4) &&
+          sd_demotions == d0 + 2 && !sd_over, "%s: disk_readp at 30 failing: read at 20, dropped", what);
+    C.bad30 = 0;
+
+    d0 = sd_demotions;                         /* at 20, a glitch: read again, no drop, no error */
+    C.corrupt_once = s0 + 4;
+    CHECK(disk_readblocks(buf, s0, 8) == RES_OK && same_as_card(buf, s0, 8) && sd_demotions == d0,
+          "%s: one CRC glitch at 20: the block read again, right", what);
+    C.corrupt_once = s0 + 2;
+    CHECK(disk_readp(buf, s0 + 2, 0, 512) == RES_OK && same_as_card(buf, s0 + 2, 1), "%s: ... disk_readp too", what);
+    C.corrupt = s0 + 4;                        /* at 20, a block that keeps failing: an error */
+    CHECK(disk_readblocks(buf, s0, 8) == RES_ERROR, "%s: a block failing twice at 20: an error", what);
+    C.corrupt = 0xFFFFFFFFu;
+    CHECK(C.crc_refused == r0, "%s: no command refused for its CRC through the probes", what);
+}
+
 int main(int argc, char **argv)
 {
     uint32_t n16, n32;
@@ -561,12 +627,14 @@ int main(int argc, char **argv)
           D.clash, D.misaligned);
     dma_on = 0;
     blocks("SDHC + MBR");
+    clocks("SDHC + MBR");
 
     memcpy(copy, i16, (size_t)n16 * 512u);
     card(copy, n16, 2048, 1, 0, 0);            /* SDv2 byte-addressed (SDSC), FAT16 in a partition */
     files("SDSC v2 FAT16 + MBR", FS_FAT16);
     CHECK(CardType == CT_SD2, "SDSC v2: card type %u", CardType);
     blocks("SDSC v2 (byte addresses)");
+    clocks("SDSC v2 (byte addresses)");
 
     memcpy(copy, i16, (size_t)n16 * 512u);
     card(copy, n16, 0, 0, 0, 0);               /* SDv1 */
@@ -578,6 +646,7 @@ int main(int argc, char **argv)
     files("MMC FAT16", FS_FAT16);
     CHECK(CardType == CT_MMC, "MMC: card type %u", CardType);
     blocks("MMC");
+    clocks("MMC");
 
     card(copy, n16, 0, 1, 1, 0);
     C.present = 0;                             /* no card: every byte 0xFF */

@@ -9,6 +9,10 @@
  *                               (fm1_sd_mode) that finds no card makes it try the other two, so the mode that reads is
  *                               the one left set; then the DMA probe (sd_dma_probe) sets fm1_sd_dma
  *   sd_mount_boot()             the same with the set mode only (boot, before the screen's first command)
+ *   the clock: after the mount, sd_clock_probe (sd_mmc.c) keeps 30 MHz when the card proves it (64 blocks at 20 and at
+ *               30 MHz, CRC16 checked and compared), else 20; sd_clock_pick (the console's sd clock: 0 auto, 20, 30)
+ *               overrides; a CRC failure at 30 later drops the session to 20 (sd_crc_retry); SD_BAUD() the clock of
+ *               every session; sd_clock_bad: the blocks the probe's 30 MHz pass failed
  *   a card error (FR_DISK_ERR, FR_NOT_READY) in any call below: sd_state SD_NOCARD, later calls FR_NOT_ENABLED at once
  *   sd_dma_probe()              sector 0 read by bytes and by DMA, each block's CRC16 checked: 1 = DMA reads right
  *                               (fm1_sd_dma = 1), 0 = the byte path only; sd_probe_seen: b0 bytes CRC ok, b1 DMA CRC
@@ -28,10 +32,18 @@
 enum { SD_UNMOUNTED = 0, SD_NOCARD, SD_NOFS, SD_READY };
 static FATFS sd_fs IN_POOL;
 static uint8_t sd_state;
+static uint8_t sd_clock_pick;                        /* 0 auto (the probe), 20 or 30 MHz (the console's sd clock) */
+static uint8_t sd_clock_bad;                         /* the probe's 30 MHz pass: blocks failed (64: not tried) */
+#define SD_CLOCK_BLOCKS 64u                          /* the probe's run at each clock: 128 block reads, under 100 ms */
+#define SD_BAUD() (sd_over ? FM1_SD_BAUD_OVER : FM1_SD_BAUD_FAST)
+
+static uint8_t sd_lcd_live;                          /* the LCD started (main.c, after lcd_init) */
 
 static void sd_begin(uint32_t baud)
 {
-    lcd_cmd(0x00);                                   /* NOP: ends a memory write; leaves the LCD deselected */
+    if (sd_lcd_live)
+        lcd_cmd(0x00);                               /* NOP: ends a memory write (none before the LCD's start-up: the
+                                                      * boot mount sends none; the emulator refuses a bare NOP there) */
     fm1_sd_bus_begin(baud);
 }
 
@@ -81,6 +93,14 @@ static uint32_t sd_mount_modes(uint32_t tries)
         fm1_sd_mode = (uint8_t)m0;
     else
         sd_dma_probe();
+    if (r == FR_OK) {                                /* the clock the card proves */
+        sd_begin(FM1_SD_BAUD_FAST);
+        sd_clock_bad = (uint8_t)sd_clock_probe(sd_blk, sd_sectors < SD_CLOCK_BLOCKS ? sd_sectors : SD_CLOCK_BLOCKS,
+                                               sd_clock_pick);
+        sd_end();
+    } else {
+        sd_over = 0;
+    }
     sd_state = r == FR_OK ? SD_READY : r == FR_NOT_READY ? SD_NOCARD : SD_NOFS;
     return sd_state;
 }
@@ -94,7 +114,7 @@ static uint32_t sd_file_run(uint32_t *sector)
     UINT n;
     if (sd_state != SD_READY)
         return 0;
-    sd_begin(FM1_SD_BAUD_FAST);                      /* (a FAT read when the pointer is on a cluster boundary) */
+    sd_begin(SD_BAUD());                             /* (a FAT read when the pointer is on a cluster boundary) */
     n = pf_run(&s);
     sd_end();
     *sector = s;
@@ -108,7 +128,7 @@ static uint32_t sd_card_type(void) { return CardType; }
  * return at once (FR_NOT_ENABLED) until a mount finds it again, instead of each waiting out its timeouts */
 #define SD_CALL(expr) do { \
     if (sd_state != SD_READY) return FR_NOT_ENABLED; \
-    sd_begin(FM1_SD_BAUD_FAST); r = (expr); sd_end(); \
+    sd_begin(SD_BAUD()); r = (expr); sd_end(); \
     if (r == FR_DISK_ERR || r == FR_NOT_READY) sd_state = SD_NOCARD; \
 } while (0)
 

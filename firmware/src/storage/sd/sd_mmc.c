@@ -31,6 +31,7 @@
 #define SD_SEL() fm1_sd_sel()
 #define SD_DESEL() fm1_sd_desel()
 #define SD_FAST() fm1_sd_baud(FM1_SD_BAUD_FAST)   /* the card is up: the full clock */
+#define SD_SET_OVER(on) fm1_sd_baud((on) ? FM1_SD_BAUD_OVER : FM1_SD_BAUD_FAST)   /* the faster clock (30 MHz) or 20 */
 #define SD_NOW() fm1_ticks()
 #define SD_TICKS_MS (FM1_TICKS_PER_US * 1000u)
 #define SD_RXBLK(p, n) fm1_sd_rx_block(p, n)
@@ -47,6 +48,7 @@ static DWORD sd_ms_since(DWORD t0) { return (DWORD)(SD_NOW() - t0) / SD_TICKS_MS
 #define CMD0	(0x40+0)	/* GO_IDLE_STATE */
 #define CMD1	(0x40+1)	/* SEND_OP_COND (MMC) */
 #define	ACMD41	(0xC0+41)	/* SEND_OP_COND (SDC) */
+#define CMD6	(0x40+6)	/* SWITCH_FUNC */
 #define CMD8	(0x40+8)	/* SEND_IF_COND */
 #define CMD9	(0x40+9)	/* SEND_CSD */
 #define CMD12	(0x40+12)	/* STOP_TRANSMISSION */
@@ -71,6 +73,9 @@ static DWORD sd_sectors;		/* the card's capacity in 512-byte sectors (CSD; 0: no
 #define SD_RD_CRC 1						/* every block's CRC16 checked (a nibble table: ~1 K operations a block) */
 #endif
 static BYTE sd_crc_on;			/* the card checks the CRCs (CMD59 accepted) */
+static BYTE sd_over;			/* the clock the card proved: 1 the faster one (SD_SET_OVER, 30 MHz), 0 the floor (20) */
+static DWORD sd_crc_fails, sd_demotions;	/* blocks whose CRC16 failed; drops from the faster clock to the floor */
+static BYTE sd_crc_bad;			/* the last disk_readp failed on the block's CRC16 (not a timeout) */
 
 /* CRC16-CCITT (x^16 + x^12 + x^5 + 1, from 0), the SD data block's: a nibble at a time (a 32-byte table) */
 static const WORD SD_CRC16_NIB[16] = {
@@ -235,7 +240,7 @@ DSTATUS disk_initialize(void)
 }
 
 /* Read partial sector */
-DRESULT disk_readp(
+static DRESULT sd_readp1(
 	BYTE *buff,		/* Pointer to the read buffer (NULL: the bytes are skipped) */
 	DWORD sector,	/* Sector number (LBA) */
 	UINT offset,	/* Byte offset to read from (0..511) */
@@ -271,13 +276,39 @@ DRESULT disk_readp(
 			c = sd_rx_crc(0, bc, c);
 			got = (WORD)(SD_RX() << 8);
 			got |= SD_RX();
-			res = !SD_RD_CRC || got == c ? RES_OK : RES_ERROR;
+			sd_crc_bad = SD_RD_CRC && got != c;
+			res = sd_crc_bad ? RES_ERROR : RES_OK;
 		}
 	}
 
 	release_spi();
 
 	return res;
+}
+
+/* a block's CRC16 failed (fails: this block's failures so far): 1 = read it again. A second failure at the faster
+ * clock drops the session to the floor (20 MHz) and the read goes on there; at the floor a second failure is an error */
+static BYTE sd_crc_retry(BYTE *fails)
+{
+	sd_crc_fails++;
+	if (++*fails < 2) return 1;
+	if (!sd_over) return 0;
+	sd_over = 0;
+	sd_demotions++;
+	SD_SET_OVER(0);
+	*fails = 0;
+	return 1;
+}
+
+/* Read partial sector (a CRC failure read again: sd_crc_retry) */
+DRESULT disk_readp(BYTE *buff, DWORD sector, UINT offset, UINT count)
+{
+	DRESULT r;
+	BYTE fails = 0;
+	sd_crc_bad = 0;
+	while ((r = sd_readp1(buff, sector, offset, count)) != RES_OK && sd_crc_bad && sd_crc_retry(&fails))
+		sd_crc_bad = 0;
+	return r;
 }
 
 /* Write partial sector */
@@ -432,15 +463,83 @@ static DRESULT sd_rd_close(void)
 
 static DRESULT disk_readblocks(BYTE *buf, DWORD sector, UINT n)
 {
+	BYTE st = SDR_ERR, fails = 0;
+	UINT done = 0;
+	if (!n) return RES_ERROR;
+	for (;;) {									/* a run from the first block not read yet */
+		if (sd_rd_open(sector + done, n - done) != RES_OK) return RES_ERROR;
+		for (; done < n; done++) {
+			sd_rd_next(buf + done * 512);
+			while ((st = sd_rd_poll()) == SDR_BUSY)
+				;
+			if (st != SDR_READY || !sd_rd.crc_ok) { sd_rd.state = SDR_ERR; break; }
+			fails = 0;
+		}
+		if (done == n) return sd_rd_close();
+		(void)sd_rd_close();
+		if (st != SDR_READY || !sd_crc_retry(&fails)) return RES_ERROR;	/* (a timeout, an error token: not retried) */
+	}
+}
+
+/* the clock the card proves (the user, 2026-10-25): the floor (20 MHz) always works by the spec; the faster clock (30)
+ * only when the card shows it on this board. In a session at the floor after the mount: CMD6 asks an SDv2 card for high
+ * speed (some refuse clocks over 25 MHz without it; SDv1 and MMC answer illegal command and stay at the floor), then
+ * n blocks from sector 0 by one CMD18 at the floor and again at the faster clock into buf (512 B, aligned), each CRC16
+ * checked, their CRCs summed: the faster clock kept only when every block read right and the sums agree. force: 20 or
+ * 30 (the console's sd clock), 0 auto. sd_over set, the clock left set; returns the blocks that failed at 30 (n: not
+ * tried, or the card refused the switch) */
+static BYTE sd_switch_hs(void)
+{
+	BYTE st[64], ok = 0;
+	WORD c, got;
+	if (!(CardType & CT_SD2)) return 0;
+	if (send_cmd(CMD6, 0x80FFFFF1UL) == 0 && wait_token(100) == 0xFE) {	/* mode 1 (switch), group 1 = 1 (high speed) */
+		c = sd_rx_crc(st, 64, 0);
+		got = (WORD)(SD_RX() << 8);
+		got |= SD_RX();
+		ok = got == c && (st[16] & 15) == 1;	/* bits 379:376, group 1's function now: 1 = high speed */
+	}
+	release_spi();
+	return ok;
+}
+
+static UINT sd_rd_sum(BYTE *buf, UINT n, WORD *sum)	/* n blocks from 0 by one CMD18 into buf: the blocks that failed */
+{
+	UINT i, bad = 0;
 	BYTE st;
-	if (!n || sd_rd_open(sector, n) != RES_OK) return RES_ERROR;
-	for (; n; n--, buf += 512) {
+	*sum = 0;
+	if (sd_rd_open(0, n) != RES_OK) return n;
+	for (i = 0; i < n; i++) {
 		sd_rd_next(buf);
 		while ((st = sd_rd_poll()) == SDR_BUSY)
 			;
-		if (st != SDR_READY || !sd_rd.crc_ok) { sd_rd.state = SDR_ERR; break; }
+		if (st != SDR_READY) { sd_rd.state = SDR_ERR; bad += n - i; break; }
+		bad += !sd_rd.crc_ok;
+		*sum = sd_crc16_up(sd_crc16_up(*sum, (BYTE)(sd_rd.crc >> 8)), (BYTE)sd_rd.crc);
 	}
-	return sd_rd_close();
+	if (sd_rd_close() != RES_OK && !bad) bad = 1;
+	return bad;
+}
+
+static UINT sd_clock_probe(BYTE *buf, UINT n, BYTE force)
+{
+	WORD s20, s30;
+	UINT bad = n, bad20;
+	sd_over = 0;
+	SD_SET_OVER(0);
+	if (force == 20 || !n || (!(CardType & CT_SD2) && force != 30)) return n;	/* (SDv1, MMC: the floor) */
+	(void)sd_switch_hs();
+	if (force == 30) {
+		sd_over = 1;
+	} else {
+		bad20 = sd_rd_sum(buf, n, &s20);
+		SD_SET_OVER(1);
+		bad = sd_rd_sum(buf, n, &s30);
+		sd_over = !bad20 && !bad && s20 == s30;
+		if (!bad && s20 != s30) bad = 1;
+	}
+	SD_SET_OVER(sd_over);
+	return bad;
 }
 
 static DRESULT disk_writeblock(const BYTE *buf, DWORD sector)
