@@ -60,7 +60,25 @@ static int sound(void)                                   /* the invariants */
 
 static void fixed_cases(void)
 {
-#if !ARN_FIXED
+#if !ARN_FIXED && ARN_TOPS                              /* (parts 2 and 3 from the top, best fit; 0 and 1 droppable) */
+    reset();
+    CHECK(sw(0, 1000) == 0 && sw(2, 1000) == 0 && sw(3, 600) == 0 && sw(1, 1000) == 0 && sound(), "four placed");
+    CHECK(off_of(0) == 0 && off_of(1) == 1000 && off_of(2) == 3032 && off_of(3) == 2432,
+          "0 and 1 first fit from the bottom, 2 and 3 at the top end of the smallest gap that holds them");
+    arn_give(0);
+    arn_give(2);
+    CHECK(!arn_ptr(0) && !arn_ptr(2) && !arn_has_next[0] && sound(), "given back: no block, no reservation");
+    CHECK(sw(2, 400) == 0 && off_of(2) == 2032, "400 B for part 2: the 432 B gap (not the 1000 B ones), at its top");
+    CHECK(arn_fits(2, 1000) && arn_fits(0, 1000) && !arn_fits(0, 1100) && arn_cur[0].len == 0 && !arn_has_next[0],
+          "arn_fits: 1000 B would fit, 1100 B not; nothing reserved by asking");
+    CHECK(arn_drop_for(0, 2100) == -1, "2100 B: only with part 2 dropped too, never named (ARN_DROPPABLE): nothing");
+    CHECK(arn_drop_for(0, 2000) == (int32_t)(1u << 1), "2000 B: part 1 named (0 .. 2000)");
+#elif !ARN_FIXED
+    reset();
+    CHECK(sw(0, 1000) == 0 && sw(1, 1000) == 0 && sw(2, 1000) == 0, "three placed");
+    arn_give(1);
+    CHECK(!arn_ptr(1) && arn_fits(1, 1000) && !arn_fits(1, 1040) && arn_fits(3, 1032) && !arn_fits(3, 1040) && arn_cur[1].len == 0,
+          "arn_give: the block gone; arn_fits says what would fit, nothing reserved");
     reset();
     CHECK(sw(0, 1000) == 0 && sw(1, 1000) == 0 && sw(2, 1000) == 0 && sw(3, 1000) == 0, "four of the largest fit");
     CHECK(off_of(0) == 0 && off_of(1) == 1000 && off_of(2) == 2000 && off_of(3) == 3000 && sound(),

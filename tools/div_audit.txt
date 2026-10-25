@@ -269,6 +269,7 @@ src/engines/analog/a2_models.c:a2m_diod:(1.f+k*q[3]) | float: k = RES x 22 / 127
 src/engines/analog/a2_models.c:a2m_diod_coef:M[i][i] | float: M = I - g A is tridiagonal, its diagonal 1 + 2 g (1 + g in the last row) exceeds its row's off-diagonal sum (g or 2 g) by at least 1 with g > 0: strictly diagonally dominant, so Gauss-Jordan without pivoting meets no zero pivot
 src/engines/analog/a2_models.c:a2m_ms20:(1.f+g) | float: g > 0 (a2m_g, as the ladder's): > 1
 src/engines/analog/a2_models.c:a2m_ms20:(1.f-k*G*(1.f-G)) | float: G = g / (1 + g) in (0, 1), so G (1 - G) <= 1/4, and k = RES x 2.3 / 127 <= 2.3 (PARAM 0..127): >= 1 - 0.575 = 0.425
+src/fx/insfx/fxi.c:fxa_room:n | n = FXA_SZ(j): TABLE FXA_SZS (FXA_Z0..Z4 = 2, 8, 2, 1 and 2 x FELUCCA_XDLY_LEN / 512, every one >= 1); only built with FELUCCA_FX_ARENA (the own room not placed yet)
 src/fx/insfx/fxi_mem.h:-:(z) | FXI_MX(z), a compile-time constant expression: z is FXA_Z0..Z4 = 2, 8, 2, 1 and 2 x FELUCCA_XDLY_LEN / 512 (64 at the default 16384; fx_slots.c asserts 16384 or 8192 with XDLY built)
 src/fx/insfx/gater.c:-:((uint64_t)DUR_U48*(d)) | the IGT_KE macro (IGT_KC's const initializer): d a DUR_LIST entry (768 .. 3), DUR_U48 = BEAT_U / 48: a compile-time constant >= 3 x BEAT_U / 48
 src/fx/insfx/gater.c:igt_phase:d | d = DUR_48[r % DUR_N]: TABLE DUR_48 (768 .. 3), so >= 3
