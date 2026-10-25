@@ -18,13 +18,22 @@ breakout will tell; then the lines are re-routed.
 
 ![top](render-top.png)
 
-**Before ordering** (the review, 2026-10-25), with the re-route once J12's pin map is known:
-- 33 Ohm 0603 (C23140) in series on CLK and MOSI where the SD branch leaves J2 (keeps the card's stub off the LCD's
-  fast lines; the LCD runs at 60 MHz on the user's FM-1);
-- ESD protection at the card socket: two USBLC6-2SC6 (C7519) on CLK, CMD, CS, DAT0 (the slot is open to the outside);
-- check the mirror: the sockets touch both faces, a cable turned over connects pin 1 to pin 10 (marked on the board:
-  "LCD: gold UP", "IN: gold DOWN");
-- firmware: the LCD leaves D/C high when idle (so R1 can be 220 Ohm and the card read at 20 MHz), SD reads by DMA.
+**Before ordering** (the reviews of 2026-10-25, the user's rulings), with the re-route once J12's pin map is known:
+- **Single-sided sockets** (the user): a cable turned over must not connect, not connect mirrored (with the provisional
+  map a flipped cable puts the backlight's LEDA on CLK, 3V3 on the LCD's CS, RST on MOSI). J3 = top-contact (the LCD's
+  own cable arrives gold up, checked); J2's face is what the breakout's mirror check answers, picked then. The
+  double-sided HCTL part goes.
+- **On the breakout, before routing** (the pin finder's session): every pin's line; LEDA's voltage; and the 3.3 V's
+  headroom: 33 Ohm (100 mA) from J12's 3V3 to GND with the FM-1 running, the rail and the screen watched. If it sags,
+  a Y-tap on the battery plug (right beside the board) into an LDO on the board feeds the card instead.
+- **100 Ohm** 0603 in series on CLK and MOSI where the SD branch leaves the through-lines (not 33: the branch is the
+  whole ~55 mm column, and 100 Ohm also bounds a native-mode card answering on CMD against PC10 to ~15 mA).
+- **R4 a pull-DOWN** (the inverter's input): the firmware now idles with the LCD's CS low (the card deselected,
+  `hal/fm1_lcd_hw.h` FM1_LCD_IDLE_CS), so the card is also deselected while the FM-1 resets.
+- R1 220 Ohm stays for now; the bench (`sd bench`'s 20 / 30 MHz rows) decides: 100 Ohm if 20 MHz shows CRC errors.
+- **J3 a few mm lower** if the head allows: the LCD's bonded flex should not sit under tension for life.
+- ESD protection at the card socket: two USBLC6-2SC6 (C7519) on CLK, CMD, CS, DAT0 (the slot is open to the outside).
+- Owners: take the card out before a stock firmware update (a firmware that idles the LCD's CS high selects the card).
 
 ## The kit
 
@@ -75,7 +84,7 @@ Check the fit first: `mockup-printable.stl` (3D print, one piece: the board and 
 | U1 | 74LVC1G04 single inverter, SOT-23-5 (TI SN74LVC1G04DBVR) | C7827 |
 | R1 | 220 Ohm 0603: the card's DO to the FM-1's PC8 (shared with the LCD's D/C) | C22962 |
 | R2, R3 | 47 kOhm 0603: DAT2, DAT1 pulled up (unused in SPI mode) | C25819 |
-| R4 | 47 kOhm 0603: the inverter's input pulled up while the FM-1 resets | C25819 |
+| R4 | 47 kOhm 0603: the inverter's input held while the FM-1 resets. It also sets the idle polarity: pulled UP today (the card selected); to become a pull-DOWN with the next re-route (the card deselected, as the firmware now idles: Before ordering) | C25819 |
 | C1 | 10 uF 0805 | C15850 |
 | C2 | 100 nF 0603 at U1 | C14663 |
 

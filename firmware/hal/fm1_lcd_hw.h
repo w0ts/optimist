@@ -8,9 +8,12 @@
  *   fm1_lcd_send_cmd(c)        D/C low, CS low, one byte (then fm1_lcd_wait)
  *   fm1_lcd_send_data(p, n)    D/C high, CS low, DMA n bytes from RAM p
  *   fm1_lcd_wait()             SPI done (or timeout, counted), pending cleared
- *   fm1_lcd_deselect()         CS high, D/C high (the panel ignores D/C while deselected; an SD card on the bus,
- *                              docs/SD-CARD-DESIGN.md, is selected then and drives its DO onto PC8: D/C left low
- *                              would hold against it through the series resistor while the screen idles)
+ *   fm1_lcd_deselect()         CS high, D/C high (the panel ignores D/C while deselected)
+ * With the SD card mod (FELUCCA_SDCARD, docs/SD-CARD-DESIGN.md: the card's CS is the LCD's inverted, its DO on D/C) the
+ * screen idles SELECTED instead (CS low: the ST7789 allows CS tied low; D/C high, no clock), so the card is deselected and
+ * lets go of PC8 between its sessions: an LCD command's D/C low never meets the card's DO (2026-10-25 review). The
+ * card's sessions (hal/fm1_sd_bus.h) select it themselves. A firmware that idles CS high (the stock update loader)
+ * selects the card: the card comes out before a stock update.
  */
 #pragma once
 #include <stdint.h>
@@ -31,6 +34,11 @@
 #define FM1_LCD_DC (1u << 8)
 #define FM1_LCD_CLK (1u << 9)
 #define FM1_LCD_DO (1u << 10)
+#if defined(FELUCCA_SDCARD) && FELUCCA_SDCARD
+#define FM1_LCD_IDLE_CS 0u                              /* idle selected: the SD card (CS inverted) off the bus */
+#else
+#define FM1_LCD_IDLE_CS FM1_LCD_CS
+#endif
 
 static uint32_t fm1_lcd_timeouts;
 
@@ -39,7 +47,12 @@ FM1_INLINE void fm1_lcd_hw_init(void)
     FM1_LCD_PA_OUT &= ~FM1_LCD_BL;
     FM1_LCD_PA_DIR &= ~FM1_LCD_BL;
     FM1_LCD_IOMAP_CON1 |= 0x10u;
+#if FM1_LCD_IDLE_CS
     FM1_LCD_PC_OUT |= FM1_LCD_CS | FM1_LCD_DC;          /* deselected, D/C high (as fm1_lcd_deselect) */
+#else
+    FM1_LCD_PC_OUT |= FM1_LCD_DC;                       /* idle selected, D/C high (as fm1_lcd_deselect, the SD mod) */
+    FM1_LCD_PC_OUT &= ~FM1_LCD_CS;
+#endif
     FM1_LCD_PC_OUT &= ~(FM1_LCD_CLK | FM1_LCD_DO);
     FM1_LCD_PC_DIR &= ~(FM1_LCD_CS | FM1_LCD_DC | FM1_LCD_CLK | FM1_LCD_DO);
     FM1_LCD_SPI_CON = 0x4021u;
@@ -80,7 +93,7 @@ static void fm1_lcd_wait(void)
     FM1_LCD_SPI_CON |= 0x4000u;
 }
 
-FM1_INLINE void fm1_lcd_deselect(void) { FM1_LCD_PC_OUT |= FM1_LCD_CS | FM1_LCD_DC; }
+FM1_INLINE void fm1_lcd_deselect(void) { FM1_LCD_PC_OUT |= FM1_LCD_IDLE_CS | FM1_LCD_DC; }   /* (the SD mod: CS stays low) */
 
 FM1_INLINE void fm1_lcd_send_cmd(uint8_t c)
 {
