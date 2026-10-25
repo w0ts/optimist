@@ -200,6 +200,21 @@ static void lane_lfo_tests(void)
     frame();
     check(snd_fam == FAM_LFO && kit_lfo_pg(snd_page(ui.row[SCR_SOUND])), "... tapped: the kit's LFO");
     ppm("opt-kit-lfo");
+    {                                                   /* its graph as every LFO page's: the kit LFO's own wave drawn */
+        static uint16_t before[240 * 240];
+        uint8_t w0 = klfo[0].wave;
+        check(snd_page(ui.row[SCR_SOUND])->graph == GR_LFO && LANE_LFO_PG[2].graph == GR_LFO && LANE_LFO_PG[8].graph == GR_LFO,
+              "... with the LFO graph, as every LFO and LFO 2 page (a lane's LFO 2, the kit's LFO 2 too)");
+        klfo[0].wave = 0;
+        ui.force = 1;
+        frame();
+        memcpy(before, screen, sizeof before);
+        klfo[0].wave = 2;
+        ui.force = 1;
+        frame();
+        check(memcmp(before, screen, sizeof before) != 0, "... the graph follows the kit LFO's WAVE");
+        klfo[0].wave = w0;
+    }
     op_enter(SCR_SOUND);
     ui.lane = 0;
     frame();

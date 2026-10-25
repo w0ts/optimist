@@ -183,15 +183,22 @@ static void graph_adsr(const page_t *pg, uint16_t col)
 /* the LFO as it runs: two cycles over the width from the core's own wave (core/lfo_slot.h lfo_shape, voice.c lfo_wave's),
  * its phase as set; S&H drawn as random steps (SLOOP's graph_lfo, copied). two: LFO 2, from phase 0, POL UNI one way
  * only (from the centre line up, lfo2_tick's (v + 1) / 2) */
-static void graph_lfo(uint16_t col, uint32_t two)
+static void graph_lfo(const page_t *pg, uint16_t col)
 {
     const track_t *t = TSEL;
     int32_t x, py = GRAPH_H / 2, mid = GRAPH_H / 2, amp = GRAPH_H / 2 - 6;
+    uint32_t two = pg->graph == GR_LFO2;
     uint32_t ph = two ? 0u : (uint32_t)t->p[P_LPHASE] << 25, w = (uint32_t)t->p[two ? P_L2WAVE : P_LWAVE];
 #if LANE_LFO_UI
-    const dlfo_t *dc = !two && is_drum(t) && lane_snd() ? dlfo_get(lane_selected()) : 0;   /* (a lane's LFO page: its own wave, lane_play.c) */
-    if (dc)
+    if (lane_lfo_pg(pg)) {                              /* a lane's LFO or LFO 2, the kit's on DR: its own wave and phase */
+        uint32_t i = (uint32_t)(pg - LANE_LFO_PG);
+        const dlfo_t *dc = i == 2u ? &dlfo2[lane_selected() % DRUM_LANES] : dlfo_get(lane_selected());
+#if KLFO_ON
+        if (kit_lfo_pg(pg))
+            dc = &klfo[(i - 6u) / 2u];
+#endif
         ph = (uint32_t)dc->phase << 25, w = dc->wave;
+    }
 #endif
     for (x = 0; x < 240; x++) {
         int32_t v = w == 4u ? (int32_t)((uint32_t)(x / 20) * 2654435761u >> 16) - 32768
@@ -604,7 +611,7 @@ static __attribute__((noinline)) void draw_sound_graph(const page_t *pg)
         break;
     case GR_LFO:
     case GR_LFO2:
-        graph_lfo(col, pg->graph == GR_LFO2);
+        graph_lfo(pg, col);
         break;
     case GR_FX:
     case GR_INS:
