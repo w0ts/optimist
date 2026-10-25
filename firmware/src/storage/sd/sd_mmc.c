@@ -15,7 +15,10 @@
  SD_* macros; the waits are timed (SD_NOW) instead of counted 100 us sleeps; the card's capacity (CSD) is read for the
  console. The command sequence is ChaN's. Added (2026-10-25): whole blocks by CMD17 / CMD18 (stopped by CMD12, as
  ChaN's full FatFs mmc driver does) through a polled reader (sd_rd_*: the data by DMA where the bus has it, so the CPU
- is free while 512 bytes come in), a block write (CMD24, the data by DMA), the blocks' CRC16 checked.
+ is free while 512 bytes come in), a block write (CMD24, the data by DMA), the blocks' CRC16 checked. Later (the second
+ 2026-10-25 review): every command carries its real CRC7 and CMD59 turns the card's CRC checking on, so a garbled
+ command (or a stray 0x4C on DI during a CMD18 run: a false CMD12) is refused, and every block written carries its
+ CRC16; every block read (disk_readp too) has its CRC16 checked (SD_RD_CRC 1, a nibble table).
 /-------------------------------------------------------------------------*/
 
 #include "diskio.h"
@@ -53,6 +56,7 @@ static DWORD sd_ms_since(DWORD t0) { return (DWORD)(SD_NOW() - t0) / SD_TICKS_MS
 #define CMD24	(0x40+24)	/* WRITE_BLOCK */
 #define CMD55	(0x40+55)	/* APP_CMD */
 #define CMD58	(0x40+58)	/* READ_OCR */
+#define CMD59	(0x40+59)	/* CRC_ON_OFF */
 
 /* Card type flags (CardType) */
 #define CT_MMC				0x01	/* MMC ver 3 */
@@ -63,6 +67,50 @@ static DWORD sd_ms_since(DWORD t0) { return (DWORD)(SD_NOW() - t0) / SD_TICKS_MS
 
 static BYTE CardType;			/* b0:MMC, b1:SDv1, b2:SDv2, b3:Block addressing */
 static DWORD sd_sectors;		/* the card's capacity in 512-byte sectors (CSD; 0: not read) */
+#ifndef SD_RD_CRC
+#define SD_RD_CRC 1						/* every block's CRC16 checked (a nibble table: ~1 K operations a block) */
+#endif
+static BYTE sd_crc_on;			/* the card checks the CRCs (CMD59 accepted) */
+
+/* CRC16-CCITT (x^16 + x^12 + x^5 + 1, from 0), the SD data block's: a nibble at a time (a 32-byte table) */
+static const WORD SD_CRC16_NIB[16] = {
+	0x0000, 0x1021, 0x2042, 0x3063, 0x4084, 0x50A5, 0x60C6, 0x70E7,
+	0x8108, 0x9129, 0xA14A, 0xB16B, 0xC18C, 0xD1AD, 0xE1CE, 0xF1EF
+};
+static WORD sd_crc16_up(WORD c, BYTE b)
+{
+	c = (WORD)((c << 4) ^ SD_CRC16_NIB[(c >> 12) ^ (b >> 4)]);
+	return (WORD)((c << 4) ^ SD_CRC16_NIB[(c >> 12) ^ (b & 15)]);
+}
+static WORD sd_crc16(const BYTE *p, UINT n)
+{
+	WORD c = 0;
+	while (n--) c = sd_crc16_up(c, *p++);
+	return c;
+}
+
+/* CRC7 (x^7 + x^3 + 1) of a command's first five bytes, as the packet's last byte: CRC << 1 | the stop bit */
+static BYTE sd_crc7_end(const BYTE *p)
+{
+	BYTE c = 0, b, i, n;
+	for (n = 0; n < 5; n++)
+		for (b = p[n], i = 0; i < 8; i++, b <<= 1) {
+			c <<= 1;
+			if ((b ^ c) & 0x80) c ^= 0x09;
+		}
+	return (BYTE)(c << 1 | 1);
+}
+
+static WORD sd_rx_crc(BYTE *p, UINT n, WORD c)	/* n bytes in (to p, or skipped: p NULL), the CRC16 updated */
+{
+	BYTE b;
+	while (n--) {
+		b = SD_RX();
+		if (p) *p++ = b;
+		c = sd_crc16_up(c, b);
+	}
+	return c;
+}
 
 static void skip_mmc(UINT n)		/* n bytes of 0xFF clocked out */
 {
@@ -104,16 +152,12 @@ static BYTE send_cmd(BYTE cmd, DWORD arg)
 		SD_SEL(); (void)SD_RX();
 	}
 
-	/* Send a command packet */
-	SD_TX(cmd);					/* Start + Command index */
-	SD_TX((BYTE)(arg >> 24));	/* Argument[31..24] */
-	SD_TX((BYTE)(arg >> 16));	/* Argument[23..16] */
-	SD_TX((BYTE)(arg >> 8));	/* Argument[15..8] */
-	SD_TX((BYTE)arg);			/* Argument[7..0] */
-	n = 0x01;					/* Dummy CRC + Stop */
-	if (cmd == CMD0) n = 0x95;	/* Valid CRC for CMD0(0) */
-	if (cmd == CMD8) n = 0x87;	/* Valid CRC for CMD8(0x1AA) */
-	SD_TX(n);
+	/* Send a command packet, with its real CRC7 (the card checks it once CMD59 turned the CRCs on) */
+	{
+		BYTE pk[5] = {cmd, (BYTE)(arg >> 24), (BYTE)(arg >> 16), (BYTE)(arg >> 8), (BYTE)arg};
+		for (n = 0; n < 5; n++) SD_TX(pk[n]);
+		SD_TX(sd_crc7_end(pk));
+	}
 
 	/* Receive a command response */
 	if (cmd == CMD12) (void)SD_RX();	/* the stuff byte */
@@ -181,6 +225,7 @@ DSTATUS disk_initialize(void)
 				ty = 0;
 		}
 	}
+	sd_crc_on = ty && send_cmd(CMD59, 1) == 0;	/* the CRCs checked from here on (refused: the card works without) */
 	CardType = ty;
 	release_spi();
 	if (ty) SD_FAST();
@@ -205,25 +250,28 @@ DRESULT disk_readp(
 	res = RES_ERROR;
 	if (send_cmd(CMD17, sector) == 0) {		/* READ_SINGLE_BLOCK */
 		if (wait_token(100) == 0xFE) {		/* A data packet arrived (within 100 ms) */
-			bc = 514 - offset - count;
+			WORD c = 0, got;
+			bc = 512 - offset - count;
 
-			/* Skip leading bytes */
-			if (offset) skip_mmc(offset);
+			/* the leading bytes (their CRC counted) */
+			c = sd_rx_crc(0, offset, c);
 
 			/* Receive a part of the sector */
 			if (buff && count == 512 && SD_DMA_OK() && !((UINT)(uintptr_t)buff & 3)) {
 				SD_RXDMA(buff, 512);		/* a whole sector into an aligned buffer: by DMA (offset is 0) */
 				if (!SD_DMA_END()) { release_spi(); return RES_ERROR; }
-			} else if (buff) {
+				c = sd_crc16(buff, 512);
+			} else if (buff && !SD_RD_CRC) {
 				SD_RXBLK(buff, count);
 			} else {
-				skip_mmc(count);
+				c = sd_rx_crc(buff, count, c);
 			}
 
-			/* Skip trailing bytes and CRC */
-			skip_mmc(bc);
-
-			res = RES_OK;
+			/* the trailing bytes, then the block's CRC16, checked */
+			c = sd_rx_crc(0, bc, c);
+			got = (WORD)(SD_RX() << 8);
+			got |= SD_RX();
+			res = !SD_RD_CRC || got == c ? RES_OK : RES_ERROR;
 		}
 	}
 
@@ -242,12 +290,14 @@ DRESULT disk_writep(
 	UINT bc;
 	DWORD t0;
 	static UINT wc;
+	static WORD wcrc;		/* the CRC16 of the bytes sent so far */
 
 	res = RES_ERROR;
 
 	if (buff) {		/* Send data bytes */
 		bc = (UINT)sc;
 		while (bc && wc) {		/* Send data bytes to the card */
+			wcrc = sd_crc16_up(wcrc, *buff);
 			SD_TX(*buff++);
 			wc--; bc--;
 		}
@@ -258,11 +308,13 @@ DRESULT disk_writep(
 			if (send_cmd(CMD24, sc) == 0) {			/* WRITE_SINGLE_BLOCK */
 				SD_TX(0xFF); SD_TX(0xFE);		/* Data block header */
 				wc = 512;							/* Set byte counter */
+				wcrc = 0;
 				res = RES_OK;
 			}
 		} else {	/* Finalize sector write transaction */
-			bc = wc + 2;
-			while (bc--) SD_TX(0);	/* Fill left bytes and CRC with zeros */
+			bc = wc;
+			while (bc--) { SD_TX(0); wcrc = sd_crc16_up(wcrc, 0); }	/* the left bytes zeros, then the CRC16 */
+			SD_TX((BYTE)(wcrc >> 8)); SD_TX((BYTE)wcrc);
 			if ((SD_RX() & 0x1F) == 0x05) {	/* Receive data resp and wait for end of write process, 500 ms */
 				t0 = SD_NOW();
 				while (SD_RX() != 0xFF)
@@ -294,9 +346,6 @@ enum { SDR_IDLE = 0, SDR_TOKEN, SDR_DMA, SDR_READY, SDR_ERR };
 #ifndef SD_RD_TOKEN_TRIES
 #define SD_RD_TOKEN_TRIES 8u
 #endif
-#ifndef SD_RD_CRC
-#define SD_RD_CRC 0						/* 1: every block's CRC16 computed (~0.1 ms of CPU a block, bitwise) */
-#endif
 static struct {
 	BYTE *buf;
 	DWORD t0;							/* the token wait's start */
@@ -304,18 +353,6 @@ static struct {
 	BYTE state, multi, crc_ok;
 	BYTE dma;							/* the block in flight comes by DMA */
 } sd_rd;
-
-/* CRC16-CCITT (x^16 + x^12 + x^5 + 1, from 0), the SD data block's */
-static WORD sd_crc16(const BYTE *p, UINT n)
-{
-	WORD c = 0;
-	UINT i;
-	while (n--) {
-		c ^= (WORD)(*p++ << 8);
-		for (i = 0; i < 8; i++) c = (WORD)(c & 0x8000 ? (c << 1) ^ 0x1021 : c << 1);
-	}
-	return c;
-}
 
 static DRESULT sd_rd_open(DWORD sector, UINT n)
 {
@@ -421,7 +458,7 @@ static DRESULT disk_writeblock(const BYTE *buf, DWORD sector)
 		} else {
 			for (i = 0; i < 512; i++) SD_TX(buf[i]);
 		}
-		SD_TX((BYTE)(c >> 8)); SD_TX((BYTE)c);			/* (SPI mode ignores the CRC unless CMD59 turned it on) */
+		SD_TX((BYTE)(c >> 8)); SD_TX((BYTE)c);			/* (checked by the card: CMD59) */
 		if ((SD_RX() & 0x1F) == 0x05) {					/* data accepted; busy until the card has written it */
 			t0 = SD_NOW();
 			while (SD_RX() != 0xFF)

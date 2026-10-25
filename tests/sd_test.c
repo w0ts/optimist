@@ -23,6 +23,8 @@ typedef struct {
     int acmd41_busy;                           /* idle answers before ready (-1: never ready) */
     int no_token;                              /* CMD17 never sends its data token */
     int selected, app, idle;
+    int crc_on;                                /* CMD59: commands' CRC7 and written blocks' CRC16 checked */
+    long crc_refused;                          /* commands and blocks refused for their CRC */
     uint8_t cmd[6];
     int cmdlen;
     uint8_t out[600];
@@ -116,7 +118,25 @@ static void command(void)
     int app = C.app, i;
     C.app = 0;
     q(0xFF);                                   /* NCR: one byte before the answer */
+    if (C.crc_on || idx == 0 || idx == 8) {    /* (CMD0 and CMD8 are always checked) */
+        uint8_t cc = 0, b;
+        int n, k;
+        for (n = 0; n < 5; n++)
+            for (b = C.cmd[n], k = 0; k < 8; k++, b <<= 1) {
+                cc <<= 1;
+                if ((b ^ cc) & 0x80) cc ^= 0x09;
+            }
+        if ((uint8_t)(cc << 1 | 1) != C.cmd[5]) {
+            C.crc_refused++;
+            q((uint8_t)(C.idle | 0x08));       /* the command CRC error bit: not executed */
+            return;
+        }
+    }
     switch (idx) {
+    case 59:
+        C.crc_on = arg & 1u;
+        q(C.idle);
+        return;
     case 0:
         C.idle = 1;
         q(C.cmd[5] == 0x95 ? 0x01 : 0x09);     /* (a bad CRC: the CRC error bit) */
@@ -176,6 +196,7 @@ static void command(void)
 
 static uint8_t xchg(uint8_t in)
 {
+    int rs0;
     clk++;
     if (!C.present)
         return 0xFF;
@@ -184,6 +205,7 @@ static uint8_t xchg(uint8_t in)
         if (in != 0xFF) C.lcd_bad++;
         return 0xFF;
     }
+    rs0 = C.rs;                                /* (a byte the stream's listener took is not taken again below) */
     if (C.rs) {                                /* streaming: the card listens for CMD12 while it sends */
         if (C.cmdlen || (in & 0xC0) == 0x40) {
             C.cmd[C.cmdlen++] = in;
@@ -199,6 +221,12 @@ static uint8_t xchg(uint8_t in)
             stream_more();
         }
     }
+    if (!rs0 && !C.wstate && (C.cmdlen || (in & 0xC0) == 0x40)) {   /* a command coming in (DI is read while DO sends: */
+        C.outlen = C.outpos = 0;               /* what the card had left to say, a stopped stream's end, is dropped) */
+        C.cmd[C.cmdlen++] = in;
+        if (C.cmdlen == 6) { C.cmdlen = 0; command(); }
+        return 0xFF;
+    }
     if (C.outpos < C.outlen) {
         uint8_t b = C.out[C.outpos++];
         if (C.outpos == C.outlen) C.outlen = C.outpos = 0;
@@ -213,9 +241,14 @@ static uint8_t xchg(uint8_t in)
         if (C.wpos == 514) {
             uint8_t scratch[512];
             uint8_t *p = sector_ptr(C.waddr, scratch);
+            C.wstate = 0; C.outlen = C.outpos = 0;
+            if (C.crc_on && crc16(C.wbuf, 512) != (uint16_t)(C.wbuf[512] << 8 | C.wbuf[513])) {
+                C.crc_refused++;
+                q(0xEB);                       /* data rejected: a CRC error (nothing written) */
+                return 0xFF;
+            }
             memcpy(p, C.wbuf, 512);
             C.writes++;
-            C.wstate = 0; C.outlen = C.outpos = 0;
             q(0xE5); q(0); q(0); q(0);         /* data accepted, then busy */
         }
         return 0xFF;
@@ -454,7 +487,11 @@ static void blocks(const char *what)
         dma_on = d;
         C.corrupt = s0 + 2;                    /* a block whose CRC does not match: an error, the stream stopped */
         CHECK(disk_readblocks(buf, s0, 5) == RES_ERROR && !C.rs, "%s dma %d: a CRC error", what, d);
+        CHECK(disk_readp(one, s0 + 2, 100, 4) == RES_ERROR && disk_readp(buf, s0 + 2, 0, 512) == RES_ERROR,
+              "%s dma %d: disk_readp checks the block's CRC too (a part, a whole sector)", what, d);
         C.corrupt = 0xFFFFFFFFu;
+        CHECK(disk_readp(one, s0 + 2, 100, 4) == RES_OK && !memcmp(one, sector_ptr(s0 + 2, scratch) + 100, 4),
+              "%s dma %d: disk_readp of a part, CRC right", what, d);
         CHECK(disk_readblocks(buf, s0, 5) == RES_OK && same_as_card(buf, s0, 5), "%s dma %d: read again", what, d);
         CHECK(disk_readblocks(buf, card_sectors() - 2, 4) == RES_ERROR, "%s dma %d: past the card's end", what, d);
         CHECK(disk_readblocks(buf, card_sectors() - 2, 2) == RES_OK && same_as_card(buf, card_sectors() - 2, 2),
@@ -477,6 +514,20 @@ static void blocks(const char *what)
         CHECK(disk_readblocks(buf, s0 + 9, 1) == RES_OK && !memcmp(buf, pat, 512), "%s dma %d: read back", what, d);
     }
     CHECK(C.lcd_bad == 0, "%s: %ld bytes not 0xFF reached the LCD", what, C.lcd_bad);
+    CHECK(C.crc_on && sd_crc_on, "%s: CMD59: the card checks the CRCs", what);
+    CHECK(C.crc_refused == 0, "%s: %ld commands or blocks refused for their CRC (each CRC7 and CRC16 sent right)", what,
+          C.crc_refused);
+    {   /* a command with a wrong CRC7 (a garbled one, or a stray CMD12 on DI during a CMD18 run): refused, not executed */
+        static const uint8_t bad[6] = {0x40 | 12, 0, 0, 0, 0, 0x01};
+        long r0 = C.crc_refused;
+        C.rs = 1;
+        memcpy(C.cmd, bad, 6);
+        C.outlen = C.outpos = 0;
+        command();
+        CHECK(C.crc_refused == r0 + 1 && C.rs == 1, "%s: a CMD12 with a wrong CRC7: refused, the stream goes on", what);
+        C.rs = 0;
+        C.outlen = C.outpos = 0;
+    }
     dma_on = 0;
 }
 

@@ -132,7 +132,7 @@ code takes the bus between two screen transfers:
    its sessions. An LCD command's D/C low then never meets the card's DO; the overlap exists only inside an SD session,
    where the panel is not listening. The update loader of an SD build idles the same way. A firmware that idles CS high
    (a normal build, the stock update loader) selects the card: **the card comes out before such an update**.
-6. **At boot** the card is put in SPI mode (`sd_mount`, `main.c`) before the screen's first command: a card still in
+6. **At boot** the card is put in SPI mode (`sd_mount_boot`: the set read mode once, `main.c`) before the screen's first command: a card still in
    its native mode (fresh, or hot-plugged) parses the LCD's traffic on CMD, may find a valid command in it and answer on
    CMD (open-drain) against PC10. The socket's card-detect is not wired, so a hot-plugged card is not seen; for
    streaming, a periodic CMD13 (status) checks the card and only a CMD13 with no answer sends CMD0 (CMD0 resets a card
@@ -143,9 +143,23 @@ The card's start-up runs at 400 kHz (SPI1 BAUD 149: 60 MHz / 150), then 20 MHz (
 by the FM-1 and the card at once for a few clocks inside a session (the card not yet let go when D/C goes high):
 R1 (220 Ohm on the board) keeps that to about 15 mA.
 
-**Timing, estimates (the 2026-10-25 review):** the card's DO drives R1 into the column, both cables, the MCU pad and
-the panel's D/C input, about 35 pF: about 8 ns a time constant, against a 16.7 ns half-bit at 30 MHz. Expect CRC
-errors on `sd bench`'s 30 MHz rows; 20 MHz is marginal; R1 100 Ohm is the next step if 20 MHz fails. The 10 kHz tick
+**Timing, estimates (the 2026-10-25 reviews):** the card runs at **20 MHz** (the user). The card's DO changes up to
+14 ns (tODLY, SD default speed) after CLK's falling edge; the FM-1 samples on the rising edge, 25 ns later at 20 MHz.
+The DO / D/C net (the PC8 pad, the panel's D/C input through its flex, the 80 mm cable, the 55 mm column, the socket)
+is about 35 pF. R1 220 Ohm: a 7.7 ns time constant, about 15 ns to a clean level: 14 + 15 = 29 ns, past 25 before the
+host's (unknown) setup time. 100 Ohm: 14 + 7 = 21 ns, a marginal pass; 47 Ohm: 17 ns, comfortable. So the board is
+ordered with **R1 100 Ohm** and 47 Ohm on the shelf; `sd bench`'s 20 MHz CRC rows decide. 30 MHz is not expected.
+
+**The screen at 60 MHz over the longer path is a bench result, not a design assumption.** The ST7789V's serial write
+cycle is 16 ns at least (SCL high and low 7 ns each): 60 MHz (16.7 ns) has no datasheet margin today and works because
+the stock flex is short. The mod's path is J12, the 80 mm cable, J2, the pass-through, J3 and the LCD's flex: about
+150 mm and four contact sets, with only pins 1 and 10 grounded. Ringing that narrows a clock pulse under 7 ns or
+crosses the threshold twice is a double clock: shifted bytes, stripes. **30 MHz (`LCD_BAUD` 1) is the design's
+guaranteed mode** (a full frame 30.7 ms instead of 15.4); 60 MHz is kept if the bench's soak passes (section 6).
+
+**A risk to watch:** idling with CS low loses the ST7789's resync on CS's rising edge between the card's sessions. A
+single glitched clock edge would shift the panel's bytes until the next card session raises CS. None is expected;
+the soak looks for corruption that persists and clears on a card access. The 10 kHz tick
 never touches SPI1 here (`fm1_lcd_bl_scan` drives PA2 only), so it cannot clear the done bit the SD code polls.
 
 **Which way SPI1 reads is unverified.** The flash driver reads SPI0 with CON bit 12 (DIR = receive) after writing
@@ -182,7 +196,7 @@ a register round trip, the CPU busy the whole block, roughly 1 MB/s. `sd bench` 
 | File | What |
 |---|---|
 | `hal/fm1_sd_bus.h` | the bus: select / deselect through the LCD's CS, byte in / out (three modes), clocks |
-| `src/storage/sd/sd_mmc.c` | ChaN's SPI-mode card driver (Petit FatFs `generic/mmcbbp.c`): MMCv3, SDv1, SDv2 byte or block addressed; the waits timed on TIMER4; the CSD read for the capacity. Added: the polled block reader `sd_rd_*` (CMD17, CMD18 stopped by CMD12), `disk_readblocks`, `disk_writeblock` (CMD24), the CRC16; a whole sector into an aligned buffer by DMA in `disk_readp` |
+| `src/storage/sd/sd_mmc.c` | ChaN's SPI-mode card driver (Petit FatFs `generic/mmcbbp.c`): MMCv3, SDv1, SDv2 byte or block addressed; the waits timed on TIMER4; the CSD read for the capacity. Added: the polled block reader `sd_rd_*` (CMD17, CMD18 stopped by CMD12), `disk_readblocks`, `disk_writeblock` (CMD24), the CRC16; a whole sector into an aligned buffer by DMA in `disk_readp`. CRCs on (2026-10-25 review): every command's real CRC7 and CMD59, so the card refuses a garbled command (a stray CMD12 on DI during a CMD18 run among them); every block written carries its CRC16; every block read is checked (`SD_RD_CRC` 1, a 32-byte nibble table) |
 | `src/storage/sd/pff.c`, `pff.h`, `pffconf.h`, `diskio.h` | Petit FatFs R0.03a (ChaN, 1-clause BSD: `LICENSES/BSD-1-Clause-FatFs.txt`), its own compile unit (`tools/build.py`); configured: read, write, seek, directories, FAT16 + FAT32 |
 | `src/storage/sd/sdcard.c` | the API the rest calls (`sd_mount`, `sd_open`, `sd_read`, `sd_write`, `sd_seek`, `sd_opendir`, `sd_readdir`), each call taking and giving back the bus |
 | `src/io/console_sd.c` | the `sd` commands (console builds only; included by `src/io/console.c`) |
@@ -222,6 +236,9 @@ Each step names who does it. Claude never writes to the FM-1.
    - `sd write DATA.BIN` (a file made on the computer, its contents lost): written block by block, read back,
      `wrong B 0`.
    - The screen must look the same after each command (no stray pixels, no lock-up).
+   - **The screen soak** (the board fitted, the screen at 60 MHz): a static full-screen pattern for minutes, with the
+     card in and out, then normal use; any stripe or shifted bytes: the profile goes to `LCD_BAUD` 1 (30 MHz). Also
+     watch for corruption that persists and clears on a card access (section 4, CS idle low).
 5. **Claude**: from what the console printed, fixes the mode / timing and makes the working mode the default.
 
 ## 7. What comes after the bring-up
@@ -236,4 +253,22 @@ Each step names who does it. Claude never writes to the FM-1.
   per project once the pool is shared out again (*estimate*; whether code runs as fast from the pool as from RAMTEXT
   is unmeasured).
 - **Faster reads**: built (CMD18 and the DMA, section 4); what is left is the streaming itself: a main-loop task that
-  takes the bus between screen strips, a cluster's run at a time (`sd_file_run`), into the voices' buffers.
+  takes the bus between screen strips into the voices' buffers. **Bus budget (estimates):** CMD18 by DMA at 20 MHz is
+  about 1.9 MB/s; eight mono voices at 48 kHz 16-bit are 768 KB/s, 40 % of the bus, and the screen cannot draw during
+  a CMD18 run (deselecting the card aborts it). A 32 KB cluster run is about 16 ms of bus, a visible UI stall: the run
+  length is a parameter (8 blocks, 4 KB, about 2.2 ms), runs interleaved with screen strips, measured with
+  `fm1_in.ui_gap_max`. The card's presence: a periodic CMD13, CMD0 only when CMD13 gets no answer (section 4, 6).
+- **Recording needs its own writer**: `pf_write` goes byte by byte through `disk_writep` (one CMD24 a sector) and the
+  sector's end waits for the card's busy in the main loop, up to 500 ms (real cards hit 100-250 ms now and then).
+  Recording needs the mirror of `sd_rd_*`: a polled CMD25 multi-block writer from a ring, never blocking on busy
+  (CMD25 is also several times faster than CMD24 on most cards). Today's write path is backup-grade.
+- **Card formats safe over a power cut**: a project or backup written in place destroys the old copy before the new
+  one is whole (no journal, fixed-size files). The card's formats get A/B slots with a generation number and a CRC,
+  as the settings in flash already do.
+- **Full FatFs once the flash allows** (LAYOUT gives the room: 15-20 KB): files created and grown, long names, several
+  files open, a sector cache, fast seek with a cluster-link map (a fragmented sample does not stall at every cluster).
+  `diskio`'s layer stays, so `sd_mmc.c` is reused; Petit FatFs' limits must not shape the user's workflow.
+- **What a card stall touches** (checked, 2026-10-25 review): USB is serviced from the TIMER5 ISR, the sequencer from
+  the audio ISR, the key scan from TIMER5; a card stall in the main loop freezes only the UI, the screen and the
+  autosave, never audio, notes, MIDI or USB. The codec's port C lines are written at audio init only (no ISR does a
+  read-modify-write on the port the SD code toggles).

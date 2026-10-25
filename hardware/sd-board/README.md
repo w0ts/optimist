@@ -30,7 +30,9 @@ breakout will tell; then the lines are re-routed.
   whole ~55 mm column, and 100 Ohm also bounds a native-mode card answering on CMD against PC10 to ~15 mA).
 - **R4 a pull-DOWN** (the inverter's input): the firmware now idles with the LCD's CS low (the card deselected,
   `hal/fm1_lcd_hw.h` FM1_LCD_IDLE_CS), so the card is also deselected while the FM-1 resets.
-- R1 220 Ohm stays for now; the bench (`sd bench`'s 20 / 30 MHz rows) decides: 100 Ohm if 20 MHz shows CRC errors.
+- **R1 = 100 Ohm** for the order (47 Ohm on the shelf): 220 Ohm likely misses 20 MHz (SD-CARD-DESIGN.md section 4,
+  the timing); `sd bench`'s 20 MHz rows decide. With the card deselected at idle, the only D/C overlap left is inside
+  a deselect, under half a microsecond (22 mA at 100 Ohm, 34 mA at 47).
 - **J3 a few mm lower** if the head allows: the LCD's bonded flex should not sit under tension for life.
 - ESD protection at the card socket: two USBLC6-2SC6 (C7519) on CLK, CMD, CS, DAT0 (the slot is open to the outside).
 - Owners: take the card out before a stock firmware update (a firmware that idles the LCD's CS high selects the card).
