@@ -15,7 +15,7 @@
 #if FELUCCA_ED_MIRROR
 _Static_assert(SCR_N == 10u, "109 NAV's screen numbers are SCR_*: web/EDITOR_PROTOCOL.md lists them");
 #define NAV_NONE 127u                                   /* (no family, no track: a 7-bit byte) */
-static int nav_free(void) { return !op_armed() && !name_on() && lay_now() == LY_PLAY && !tp.on && !st_holding(); }
+static int nav_free(void) { return !op_armed() && !page_owned() && lay_now() == LY_PLAY && !tp.on && !st_holding(); }
 /* MIX lists the selected row's knob sets (MIX INSERT SENDS SOUND; MASTER's RETURNS, A SENDS ...), as SELECT pages them there
  * (op_mixer.c mx_page): its rows are the tracks, the client's track buttons (the user, 2026-10-24: "a pletora of buttons
  * just called mix") */

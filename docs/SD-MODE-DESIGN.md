@@ -197,8 +197,25 @@ test in a two-part arena (FM6, PHYS, ACID swapped on a part).
 that keeps nothing in the arena (its block idle, taken back when needed), notes into it play nothing (voice.c
 trk_note_on), the UI shows NONE in grey with no sound name; a project or section saves its engine byte as
 `ENG_UID_SILENT` (0xFE; an older firmware plays its stand-in for an unknown engine) and a load restores the placeholder;
-picking an engine or loading a user preset ends it. `tests/placeholder_test.c`. Not yet: the drop picker that calls
-part_drop (the confirm on an edit, the list on a load).
+picking an engine or loading a user preset ends it. `tests/placeholder_test.c`. The drop pickers that call
+part_drop: the one confirm on an edit (op_input.c mem_tick), the list on a load (below).
+
+**Built (the load's list, 2026-10-25):** a project load (`project.c proj_apply`, `engines.c part_mem_load_begin`,
+`part_mem_load`) records every part it cannot place (`part_mem_refused.lmask`, the engine each wants in `leng`; two
+refusals on one load once overwrote each other and the first part kept its old engine with the new sound) and makes
+each a silent placeholder with the project's sound; a switch that still finds no room in the audio (`voice.c`, an idle
+state taken back by another part's reservation) does the same (`part_mem_unplaced`), never keeping the old engine.
+The effects are not placed while a load's refusals wait (`PART_MEM_SHORT`). `model.c mem_load_settle` (each frame)
+waits for the parts' switches and the lines on their way back, then places each refused part that fits by itself;
+what is still short opens the UI's list (`ui/optimist/op_memlist.c`, docs/UI-OPTIMIST-DESIGN.md 4.13): the parts that
+hold memory, then the send lines placed (REV DLY CHO), toggled on the keys; `mem_load_fits` tries the commit on the
+arena itself (the dropped parts' blocks idle as after their switch, the lines given back, the reservations in the
+settle's order, then put back), so FITS on screen is what SAVE gets (`mem_load_commit`, then the settle); HOME
+(`mem_load_cancel`) leaves the placeholders. An edit keeps the one confirm. Only with an arena placed by need (the
+default's code: -60 B flash, -16 B RAM; with ARENA 96: +2,916 B flash, +32 B RAM, pool the same, measured
+2026-10-25 on the default profile). Tests: `tests/placeholder_test.c` (two parts refused on one load, settled by itself,
+SAVE, HOME), `tests/fx_arena_test.c` (the parts then REV DLY CHO, an effect dropped from the list; loads in the random
+switches: every FITS committed placed), `tests/ui_optimist_memlist.h` (the page).
 
 **Built (phase 3b, the effects' lines, 2026-10-25):** `firmware/src/fx/fx_arena.c`. With `FELUCCA_FX_ARENA=1` and an
 arena placed by need (`FELUCCA_ARENA_BYTES`), the effects' big lines are blocks of the same arena, after the parts': the

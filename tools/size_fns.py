@@ -48,7 +48,7 @@ SIZE_FILES = ["ui/colors.c", "ui/splash.c", "storage/storage.c", "storage/uprese
               "ui/optimist/op_stepdraw.c", "ui/optimist/op_input.c", "ui/optimist/op_layers.c", "ui/optimist/op_nav.c",
               "ui/optimist/op_tempo.c", "ui/optimist/op_song.c", "ui/optimist/op_combos.c", "ui/optimist/op_laydraw.c",
               "ui/optimist/op_mixer.c", "ui/optimist/op_mixdraw.c", "ui/optimist/op_scope.c",
-              "ui/optimist/op_fm6.c", "ui/optimist/op_fm6draw.c", "ui/optimist/op_name.c", "ui/optimist/op_preset.c",
+              "ui/optimist/op_fm6.c", "ui/optimist/op_fm6draw.c", "ui/optimist/op_name.c", "ui/optimist/op_memlist.c", "ui/optimist/op_preset.c",
               "ui/optimist/op_global.c", "ui/optimist/op_walk.c", "ui/optimist/op_keys.c",
               "ui/optimist/op_effval.c", "ui/optimist/op_gldraw.c", "ui/optimist/op_tools.c",
               "ui/optimist/op_help.c", "ui/optimist/op_edits.c", "ui/optimist/op_names.c", "ui/optimist/op_songtbl.c"]

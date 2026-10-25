@@ -71,6 +71,20 @@ static void settle(uint32_t n)                          /* passes with blocks be
     }
     pass();
 }
+/* a project's load as storage/project.c proj_apply makes it (its engines only): part k on FM6 when bit k of want, else
+ * on an engine that keeps nothing; a part with no room a placeholder, recorded (engines.c part_mem_load) */
+static void load_like(uint32_t want)
+{
+    uint32_t k;
+    fm1_irq_off();
+    part_mem_load_begin();
+    for (k = 0; k < NPART; k++) {
+        uint32_t e = (want >> k & 1u) ? ENG_IX_FM6 : eng_silent_slot(), no = part_mem_load(k, e) != 0;
+        trk[k].silent = (uint8_t)no;
+        trk[k].eng_req = (uint8_t)(no ? eng_silent_slot() : e);
+    }
+    fm1_irq_on();
+}
 static void *fx_ptr(uint32_t c)
 {
     return c == FXM_CHO ? (void *)cho_buf : c == FXM_DLY ? (void *)dly_buf : c == FXM_REV ? (void *)rev_line : (void *)fxa_ins;
@@ -306,9 +320,63 @@ int main(void)
           "drop: part 2 off FM6 (its block idle): DLY placed again by itself");
     put_chrs(0, 0);
     settle(40);
+    /* 7c. a load's list (ui/optimist/op_memlist.c): the parts first, then the effects' lines placed (REV DLY CHO); HOME
+     * leaves the placeholder; an effect dropped there (SAVE) bypassed, the refused part placed */
+    put_chrs(0, 1);
+    settle(4);
+    {
+        uint8_t it[NPART + 3u];
+        uint32_t m, f2;
+        int st;
+        load_like(3u);                                  /* (FM6 on part 1 as it is, on part 2: the arena full) */
+        CHECK(part_mem_refused.lmask == 2u && part_mem_refused.leng[1] == ENG_IX_FM6 && t1->silent &&
+              t1->eng_req == eng_silent_slot() && !part_mem_refused.on, "list: a load's FM6 on part 2 refused: recorded, a placeholder");
+        for (f2 = 0, st = 0; f2 < 200u && !st; f2++) {
+            pass();
+            blocks(1);
+            st = mem_load_settle();
+        }
+        m = mem_load_items(it);
+        CHECK(st < 0 && m == 4u && it[0] == 0u && it[1] == NPART + FXM_REV && it[2] == NPART + FXM_DLY && it[3] == NPART + FXM_CHO,
+              "list: still short once settled; the items: part 1, then REV DLY CHO (not the own room)");
+        CHECK(!mem_load_fits(0) && mem_load_fits(1u << 0) && mem_load_fits(1u << (NPART + FXM_DLY)) &&
+              mem_item_bytes(NPART + FXM_DLY) == FXM_BYTES[FXM_DLY] && mem_item_bytes(0) >= part_mem_bytes(ENG_IX_FM6) &&
+              fxm_st[FXM_DLY] == FXM_ON && arena_ok(),
+              "list: nothing dropped does not fit; part 1 or DLY dropped fits (the trial changes nothing)");
+        mem_load_cancel();                              /* (HOME) */
+        settle(4);
+        blocks(64);
+        CHECK(!part_mem_refused.lmask && t1->silent && t1->engine == eng_silent_slot() && !strcmp(trk_eng_name(t1), "NONE") &&
+              t0->engine == ENG_IX_FM6 && dly_buf && arena_ok(), "list: HOME: part 2 stays a placeholder (NONE), the rest as loaded");
+        load_like(3u);
+        for (f2 = 0, st = 0; f2 < 200u && !st; f2++) {
+            pass();
+            blocks(1);
+            st = mem_load_settle();
+        }
+        CHECK(st < 0 && part_mem_refused.lmask == 2u, "list: the same load again: part 2 refused");
+        mem_load_commit(1u << (NPART + FXM_DLY));       /* (DLY's key, SAVE) */
+        for (f2 = 0, st = 0; f2 < 200u && !st; f2++) {
+            pass();
+            blocks(1);
+            st = mem_load_settle();
+        }
+        blocks(64);
+        settle(4);
+        CHECK(st > 0 && !part_mem_refused.lmask && t1->engine == ENG_IX_FM6 && !t1->silent && t0->engine == ENG_IX_FM6 &&
+              !dly_buf && fxm_refused(FXT_DLY) && fxs_slot[2] == FXT_DLY && arena_ok(),
+              "list: DLY dropped (SAVE): part 2 on FM6, part 1 kept; DLY bypassed, kept in its slot");
+        set_engine_of(t1, eng_silent_slot());
+        blocks(64);
+        settle(4);
+        CHECK(dly_buf && !fxm_refused(FXT_DLY) && arena_ok(), "list: part 2 off FM6: DLY back by itself");
+    }
+    put_chrs(0, 0);
+    settle(40);
     /* 8. random switches */
     {
         uint32_t n, okall = 1, worst = 0, nfull = 0, nref = 0, nlent = 0, nown = 0, nmv = 0, ndrop = 0;
+        uint32_t nlist = 0, nfit = 0, nlied = 0;   /* (a load's list: shown, FITS committed, FITS that did not) */
         srand(7);
         for (n = 0; n < 20000u && okall; n++) {
             uint32_t r = (uint32_t)rand(), op = r % 9u, a = (r >> 8) % 4u;
@@ -323,6 +391,8 @@ int main(void)
                 set_engine_of(&trk[a % NPART], (r >> 12) & 1u ? ENG_IX_FM6 : eng_silent_slot());
             else if (op == 4u)
                 part_drop(&trk[a % NPART]);
+            else if (op == 6u && !((r >> 15) & 3u))
+                load_like((r >> 12) & 7u);              /* (a project's load now and then) */
             else if (op == 5u && part_mem_refused.on && !mem_retry()) {
                 uint32_t x, got = mem_offer(&x);
                 while (got && x < NPART && (r >> 13) & 1u)
@@ -332,6 +402,30 @@ int main(void)
                 else
                     part_mem_refused.on = 0;            /* (given up, as MEM FULL) */
             }
+            if (part_mem_refused.lmask) {               /* a load's refusals (or a switch that found no room, its idle
+                                                         * state taken back): the list, as the UI's (op_memlist.c ml_tick) */
+                int st = mem_load_settle();
+                if (st < 0) {
+                    uint8_t it[NPART + 3u];
+                    uint32_t m = mem_load_items(it), sel = 0, i;
+                    nlist++;
+                    for (i = 0; i < m; i++)
+                        if ((r >> (17u + i)) & 1u)
+                            sel |= 1u << it[i];
+                    if (mem_load_fits(sel)) {
+                        uint32_t f2;
+                        mem_load_commit(sel);           /* (SAVE: then the frames until the drops' switches are done) */
+                        nfit++;
+                        for (f2 = 0, st = 0; f2 < 400u && !st; f2++) {
+                            pass();
+                            blocks(1);
+                            st = mem_load_settle();
+                        }
+                        nlied += st <= 0;               /* (FITS said, the commit then short: never) */
+                    } else
+                        mem_load_cancel();              /* (HOME: placeholders) */
+                }
+            }
             pass();
             blocks(1u + (r >> 16) % 3u);
             okall = arena_ok();
@@ -339,6 +433,9 @@ int main(void)
             nfull += fxm_full != 0, nref += part_mem_refused.on, nlent += fxl_st[0] != FXL_SEND || fxl_st[1] != FXL_SEND;
             nown += fxa_ins != 0, nmv += fxm_mv != 0;
         }
+        CHECK(!nlied && nlist > 20u && nfit > 5u, "... a load's list (a project's load now and then, or a switch that found no room): shown %u times, FITS committed %u times, the "
+              "commit always placed what FITS said (%u short)", (unsigned)nlist, (unsigned)nfit, (unsigned)nlied);
+        mem_load_cancel();
         CHECK(okall && nfull > 1000u && nref > 100u && nlent > 1000u && nown > 1000u && nmv > 10u && ndrop > 5u,
               "20,000 random switches: the invariants held at every step (to %u; steps with an effect refused %u, a part's "
               "change refused %u, a send's line lent %u, the own room placed %u, silent lines moved %u, effects dropped %u)",

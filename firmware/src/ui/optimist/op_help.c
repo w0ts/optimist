@@ -81,7 +81,7 @@ static uint32_t hl_find(uint32_t scr, uint32_t row, const cell_t *c)
     return o;
 }
 /* a vertical menu: the line always there (GLOBAL and SYSTEM's settings list, PROJECT's rows) */
-static int hl_menu(void) { return (glo_cycle() || ui.scr == SCR_PROJECT) && lay.shown == LY_PLAY && !name_on(); }
+static int hl_menu(void) { return (glo_cycle() || ui.scr == SCR_PROJECT) && lay.shown == LY_PLAY && !page_owned(); }
 /* knob k turned on the cursor row (op_input.c op_knobs): its line for HL_FRAMES */
 static void hl_note(uint32_t k)
 {
@@ -345,7 +345,7 @@ static uint32_t hl_src(char *b)
 static uint8_t hl_nn_only;                              /* shown only for the note played (hl_post: no help text) */
 static void hl_pre(uint32_t ov)
 {
-    int vis = (hl_menu() || lay_hint_t || (hl.t && hl.scr == ui.scr && lay.shown == LY_PLAY && !name_on())) && ov != 1u && ov != 3u && ov != 4u;
+    int vis = (hl_menu() || lay_hint_t || (hl.t && hl.scr == ui.scr && lay.shown == LY_PLAY && !page_owned())) && ov != 1u && ov != 3u && ov != 4u;
     if (vis && !hl_menu() && !lay_hint_t && !hl_text()) {
         char w[64];
         vis = hl_src(w) != 0;                           /* (no line: shown still when the value is automated, its sources) */
