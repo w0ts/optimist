@@ -27,7 +27,9 @@ What is measured on a real FM-1 (calipers, the user, 2026-10-25) and what is sti
 - d (46.1, the board) and j (45, the cover) should be the same distance (each pole stands on its screw hole) but differ
   by 1.1 mm. The notches sit at the middle, 45.55 mm apart; their 0.6 mm play takes 0.55 mm either way.
 - The strip is 10 mm wide (f: 10.5 free). Its top is 0.4 mm inside the FM-1 board's top edge (c).
-- The foot reaches 22.6 mm below the lower pole (g: 40.8 free).
+- The foot starts 5.5 mm above the lower pole (no thin neck at the notch) with a brace from the strip's edge 9 mm
+  above the pole (1 mm under the diode D42, its height from the photo) to the foot's corner; it reaches 22.6 mm below
+  the pole (g: 40.8 free).
 - The card socket stands 1 mm past the strip's edge; the case's outside is 2.5 mm from the board's edge (h): the card's
   slot in the wall is about 1.5 mm in front of the socket.
 

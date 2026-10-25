@@ -41,8 +41,12 @@ POLE_R = POLE_D / 2 + 0.6                        # (the notch's radius: 0.6 mm p
 POLES = ((100.0 + POLE_IN, 135.0), (100.0 + POLE_IN, 135.0 - POLE_PITCH))   # the L's corner (its place: photo), above
 X0, Y0 = 100.0, POLES[1][1] - 3.0                 # the board's top left (mm): the upper pole 3.4 below the FM-1 board's
                                                   # top edge (measured): 0.4 mm inside it
-SW, FY, FW, YB = 10.0, 135.0, 22.0, 157.6       # the strip's width, the foot's top, its width, the board's bottom
+SW, FY, FW, YB = 10.0, 129.5, 22.0, 157.6       # the strip's width, the foot's top (above the lower notch, so no thin
+                                                 # neck: free there below the diodes, photo), its width, the bottom
 SD_OUT = 1.0                                     # the card socket past the left edge, nearer the slot in the case wall (unmeasured)
+
+BRACE = 126.0                                    # the strip's edge where the brace to the foot's corner starts (the
+                                                 # user, 2026-10-25): 1 mm below the diode D42 (f: 10.5 mm in, photo)
 
 
 def notch(cx, cy, a0, a1, n=24):
@@ -53,7 +57,7 @@ def notch(cx, cy, a0, a1, n=24):
 
 (LX, LY), (UX, UY) = POLES
 UA = math.degrees(math.asin((Y0 - UY) / POLE_R))  # (where the upper notch meets the top edge)
-OUTLINE = tuple([notch(UX, UY, UA, UA)[0], (X0 + SW, Y0), (X0 + SW, FY), (X0 + FW, FY), (X0 + FW, YB), (X0, YB),
+OUTLINE = tuple([notch(UX, UY, UA, UA)[0], (X0 + SW, Y0), (X0 + SW, BRACE), (X0 + FW, FY), (X0 + FW, YB), (X0, YB),
                  (X0, LY + POLE_R), *notch(LX, LY, 90, -90), (X0, LY - POLE_R), (X0, UY + POLE_R),
                  *notch(UX, UY, 90, UA)[:-1]])
 TRACK, POWER = 0.2, 0.3                          # (0.2 / 0.3: the FFC's 0.5 mm pitch)
