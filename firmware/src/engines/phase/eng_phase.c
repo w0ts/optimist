@@ -26,7 +26,7 @@ typedef struct {
 
 AINL uint32_t pd_slope(uint32_t span, uint32_t len) { return (span << 16) / (len ? len : 1u); }
 
-static HOT void pd_setup(pd_t *b, uint32_t w, uint32_t dcw)
+static OVL(phase) void pd_setup(pd_t *b, uint32_t w, uint32_t dcw)
 {
     uint32_t x;
     b->w = w;
@@ -67,7 +67,7 @@ static HOT void pd_setup(pd_t *b, uint32_t w, uint32_t dcw)
 }
 
 /* one sample at phase ph (16 bit): bipolar Q15 */
-static HOT int32_t pd_wave(const pd_t *b, uint32_t ph)
+static OVL(phase) int32_t pd_wave(const pd_t *b, uint32_t ph)
 {
     uint32_t pd, x = b->x;
     switch (b->w) {
@@ -225,8 +225,8 @@ AINL void phase_loop(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmo
 #if FELUCCA_PHASE_FOLD
 /* the loop's two copies in RAM: phase_render's without FOLD (its code as it always was, tests/target_budget.txt) and
  * this one with a FOLD gain g (0: the same samples as without; the switch's crossfade renders both sides with it) */
-static HOT __attribute__((noinline)) void phase_loopf(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m,
-                                                      uint32_t g)
+static OVL(phase) __attribute__((noinline)) void phase_loopf(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m,
+                                                             uint32_t g)
 {
     phase_loop(t, v, out, n, m, g);
 }
@@ -237,8 +237,8 @@ static HOT __attribute__((noinline)) void phase_loopf(track_t *t, voice_t *v, in
  * is rendered both ways and crossfaded, unfolded -> folded or back (going off: at the last FOLD's gain); going on, the
  * blocker starts afresh as on a note-on. Once per switch: not the loop's cost */
 static int32_t pd_xa[CTL], pd_xb[CTL];
-static HOT __attribute__((noinline)) void phase_xfade(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m,
-                                                      uint32_t on)
+static OVL(phase) __attribute__((noinline)) void phase_xfade(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m,
+                                                             uint32_t on)
 {
     uint32_t ph0 = v->ph[0], ph1 = v->ph[1], ph2 = v->ph[2], i;
     int32_t tg0 = v->s[0], tg1 = v->s[1], k;
@@ -265,7 +265,7 @@ static HOT __attribute__((noinline)) void phase_xfade(track_t *t, voice_t *v, in
     }
 }
 
-static HOT void phase_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
+static OVL(phase) void phase_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
     if (t->p[P_E7] > 0) {
         if (v->s[4] == PD_UNFOLDED)
@@ -280,7 +280,7 @@ static HOT void phase_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, c
 }
 #else
 #undef fg
-static HOT void phase_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
+static OVL(phase) void phase_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
     phase_loop(t, v, out, n, m);
 }
@@ -311,6 +311,9 @@ static const engine_t ENG_PHASE = {
         PU("-", F_INT, 0, 0, 0, 0),
 #endif
     },
-    PHASE_PRESETS, sizeof(PHASE_PRESETS) / sizeof(PHASE_PRESETS[0]), 0, phase_note_on, phase_render,
+    PHASE_PRESETS, sizeof(PHASE_PRESETS) / sizeof(PHASE_PRESETS[0]), 0, phase_note_on, OVL_FN(phase_render),
     0x05DF, {P_E2, P_E3, P_E4, P_REL},
 };
+#if FELUCCA_ENG_PHASE
+OVL_ENGINE(phase, ENG_SLOT_PHASE, phase_render, 0, 0, 0)
+#endif

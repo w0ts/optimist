@@ -12,8 +12,8 @@ optimizer, this script adds 'minsize' to those definitions, and the IR is then c
 (without the edit, that round trip is byte-identical to compiling felucca.c directly).
 
 Never marked, whatever file defines them: functions placed in RAM (a section attribute: HOT,
-.ram_text) and every function the audio side can reach through direct calls, address
-references, or a global whose initializer holds the function (a function pointer table such as
+.ram_text; an engine's overlay code, core.h OVL / OVLX) and every function the audio side can reach through direct
+calls, address references, or a global whose initializer holds the function (a function pointer table such as
 an engine's, or seq_tick's pattern-switch hook). The audio side is the IRQ bodies (*_irq), the RAM code and every function defined in
 AUDIO_FILES.
 
@@ -97,7 +97,7 @@ AUDIO_FILES = [  # (the A2DP stream's SBC encoder runs in the audio interrupt: b
                "bt/bt_sbc.c", "bt/sbc/sbc_analysis.c", "bt/sbc/sbc_dct.c", "bt/sbc/sbc_dct_coeffs.c",
                "bt/sbc/sbc_enc_bit_alloc_mono.c", "bt/sbc/sbc_enc_bit_alloc_ste.c", "bt/sbc/sbc_enc_coeffs.c",
                "bt/sbc/sbc_encoder.c", "bt/sbc/sbc_packing.c",
-               "engines/engines.c", "core/arena.c", "dsp/dsp.c", "engines/analog/eng_analog.c", "engines/analog/eng_analog2.c",
+               "engines/engines.c", "core/arena.c", "core/overlay.c", "dsp/dsp.c", "engines/analog/eng_analog.c", "engines/analog/eng_analog2.c",
                "engines/digital/eng_digital.c", "engines/phase/eng_phase.c", "engines/lofi/eng_lofi.c",
                "engines/sample/eng_sample.c", "engines/formant/eng_formant.c", "engines/trio/eng_trio.c",
                "engines/drawbar/eng_drawbar.c", "engines/grain/eng_grain.c", "engines/super/eng_super.c",
@@ -126,6 +126,7 @@ def definitions(text):
     names = []
     text = re.sub(r"/\*.*?\*/|//[^\n]*", " ", text, flags=re.S)        # comments (none hold code)
     text = re.sub(r"\b__attribute__\s*\(\((?:[^()]|\([^()]*\))*\)\)", " ", text)   # 'static __attribute__((noinline)) int f('
+    text = re.sub(r"\bOVLX?\(\w+\)", " ", text)         # 'static OVL(phase) int f(' (core.h: an engine's overlay code)
     for m in DEF.finditer(text):
         if m.group(1) in SKIP or re.match(r"(typedef|return)\b", m.group(0)):
             continue
@@ -185,7 +186,7 @@ def audio_reach(funcs, audio_names, globs=None):
     reach stops at MAIN_CUT (those are not reached)"""
     globs = globs or {}
     roots = {n for n, (head, _) in funcs.items()
-             if n.endswith("_irq") or n in audio_names or re.search(r'section "\.ram', head)}
+             if n.endswith("_irq") or n in audio_names or re.search(r'section "\.(?:ram|ovl\.|ovx\.)', head)}
     seen, todo = set(roots), list(roots)
     while todo:
         n = todo.pop()
@@ -206,7 +207,7 @@ SIDE_OUT = ("system/", "io/usb/", "io/midi/", "storage/", "display/", "ble/", "b
 
 def main_loop_side(funcs, globs):
     """the functions of AUDIO_FILES / OS_FILES (but SIDE_OUT's) that no interrupt / RAM root reaches"""
-    roots = {n for n, (head, _) in funcs.items() if n.endswith("_irq") or re.search(r'section "\.ram', head)}
+    roots = {n for n, (head, _) in funcs.items() if n.endswith("_irq") or re.search(r'section "\.(?:ram|ovl\.|ovx\.)', head)}
     seen, todo = set(roots), list(roots)
     while todo:
         n = todo.pop()

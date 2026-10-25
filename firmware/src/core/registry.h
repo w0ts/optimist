@@ -625,6 +625,10 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #define FELUCCA_LAYOUT 0                   /* the flash layout (hal/fm1_flash_map.h): 1 the fake SD mode, the app slot to
                                             * 0xD0000 over the user samples and snapshots (docs/SD-MODE-DESIGN.md) */
 #endif
+#ifndef FELUCCA_OVERLAY
+#define FELUCCA_OVERLAY 0                  /* the RAMTEXT overlays (core/overlay.c, docs/SD-MODE-DESIGN.md 6): the engines' hot
+                                            * code in a slot per part, loaded at an engine change; needs LAYOUT 1 (flash) */
+#endif
 #ifndef FELUCCA_PARAM_HELP
 #define FELUCCA_PARAM_HELP 0              /* the knob's value in plain words on the top bar ("Filter cutoff"), from
                                             * tools/param_help.json (param_help.c) */

@@ -1381,6 +1381,15 @@ static HOT uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
     const engine_t *e = ENGINES[t->engine];
     const int16_t *p = t->p;
     uint32_t i;
+#if FELUCCA_OVERLAY
+    rto_hdr_t hk;                                       /* the engine's sound hooks: its engine_t's or its overlay's; */
+    int plays;                                          /* 0: its code not in the part's slot yet (core/overlay.c) */
+#define E_HOOK(h) hk.h
+#define E_PLAYS plays
+#else
+#define E_HOOK(h) e->h
+#define E_PLAYS 1
+#endif
     int32_t lfo = mulq15(t->lfo_val, t->lfo_fade);
     lfo_mod_t lm;                                       /* the LFOs on the voices this block (lfo1_voices, lfo2_tick) */
     int32_t midi = midi_pitch_tick(t, n) * 16;          /* MIDI bend + wheel, 1/4096 semitone */
@@ -1392,6 +1401,11 @@ static HOT uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
     env_plan_t pl;                                      /* the envelopes' slots this block (env_plan) */
     for (i = 0; i < n; i++)
         out[i] = 0;
+#if FELUCCA_OVERLAY
+    plays = rto_hooks(t, e, &hk);
+    if (!plays)                                         /* (nothing of the engine runs: its voices wait) */
+        hk.block = 0, hk.post = 0;
+#endif
     if (env_plain(p)) {                                 /* (ENV 1's FLT SHP alone: the sound of before, no plan) */
         pl.slow = 0;
     } else {
@@ -1407,22 +1421,22 @@ static HOT uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
     track_lfo_tick(t);
     if (LFO2_ON(t))
         FAR(lfo2_tick)(t, &lm);
-    if (e->block)                                      /* the engine's per-part work (DRAWBAR: bars, rotor) */
-        e->block(t);
+    if (E_HOOK(block))                                 /* the engine's per-part work (DRAWBAR: bars, rotor) */
+        E_HOOK(block)(t);
     for (i = 0; i < NVOICE; i++) {
         voice_t *v = &t->v[i];
         vmod_t m;
         int32_t env, amp, pitch;
         env_vo_t vo;                                    /* (the envelopes' slots off the plain path: env_pre, env_post) */
-        if (!v->active)
+        if (!v->active || !E_PLAYS)
             continue;
         vo.nsw = 0;
         {
             if (pl.slow)
                 FAR(env_pre)(t, v, &pl, &vo);
             env = env_tick(t, v);
-            if (e->amp)                                 /* the engine's own amplitude curve */
-                env = e->amp(t, v, env);
+            if (E_HOOK(amp))                            /* the engine's own amplitude curve */
+                env = E_HOOK(amp)(t, v, env);
             m.envq15 = amp = env;                       /* (ENV 1: the amplitude; its FLT SHP below: as before) */
             if (pl.slow) {
                 FAR(env_post)(t, v, &pl, &vo, env, &newest, &m, &lm);
@@ -1483,16 +1497,16 @@ static HOT uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
             uint32_t o = v->ofs < n ? v->ofs : n - 1u;  /* amplitude ramp reaching amp1 at its end */
             v->ofs = 0;
             m.amp1 = m.amp0 + (m.amp1 - m.amp0) * (int32_t)CTL / (int32_t)(n - o);
-            e->render(t, v, out + o, n - o, &m);
+            E_HOOK(render)(t, v, out + o, n - o, &m);
         } else {
-            e->render(t, v, out, n, &m);
+            E_HOOK(render)(t, v, out, n, &m);
         }
         if (vo.nsw)
             FAR(env_back)(t, &vo);                      /* (its values back: env_pre) */
         nr++;
     }
-    if (e->post)                                        /* the part after its voices (FM6: Dexed's DC filter) */
-        e->post(t, out, n, nr);
+    if (E_HOOK(post))                                   /* the part after its voices (FM6: Dexed's DC filter) */
+        E_HOOK(post)(t, out, n, nr);
     if (fade) {
         for (i = 0; i < 8u; i++)
             t->p[P_E0 + i] = pe_new[i];
@@ -1500,3 +1514,5 @@ static HOT uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
     }
     return nr;
 }
+#undef E_HOOK
+#undef E_PLAYS

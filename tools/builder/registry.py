@@ -1042,6 +1042,19 @@ _add("LAYOUT", "FELUCCA_LAYOUT", "flash layout: fake SD mode (more room for code
           "the other layout's sectors first): back up with the web editor before. The first install needs a normal "
           "build of this version first (an older updater refuses the larger package). The console's far command "
           "checks the flash past the old end (the far probe).")
+# bit 412 (2026-10-25): reserved for the RAMTEXT overlays (411: the effects' arena)
+_add("OVERLAY", "FELUCCA_OVERLAY", "engines' fast code loaded per part (RAMTEXT overlays)", Y, 412, default=0,
+     experimental=True, target_only=True, tested="host-tested and booted in the emulator only, not on an FM-1",
+     desc="The engines' fast code (the sound loops run from the 32 KB code RAM) is no longer all in that RAM from "
+          "start-up: each synth part has a slot there, and the code of the engine the part plays is copied into its "
+          "slot from flash when the part starts playing it (a project load, an engine change: the part is silent "
+          "for the copy, well under a millisecond (an estimate; 10 us in the emulator), and the notes of that moment start when it is there, within a "
+          "main-loop pass). The build picks the slot size that leaves the most code RAM; an engine larger than a slot "
+          "stays in the code RAM as before. Each engine in the slots is in flash once per slot (3x its fast code), "
+          "so this needs the fake SD mode layout (LAYOUT). It pays when the engines built together have more fast "
+          "code than three slots of the largest: with today's profiles (ANALOG 2 alone is 5 KB) the build may find no "
+          "gain and keep every engine where it was. The console's ovl line shows the slots and the copy times.",
+     off_warning="every engine's fast code in the code RAM from start-up, as before")
 _add("CPU_GUARD", "FELUCCA_CPU_GUARD", "predictive CPU guard (ease back before shedding)", Y, 61, default=0,
      provenance=FLOWSTATE_GUARD,
      desc="Avoids audio dropouts under heavy load by easing quality back step by step before cutting notes. Under "

@@ -49,6 +49,7 @@ import fm1pkg_make  # noqa: E402
 import flash_layout  # noqa: E402  (the app slot's end by FELUCCA_LAYOUT: fm1_flash_map.h's numbers)
 import lz4blk  # noqa: E402
 import lzb  # noqa: E402  (the boot stream's coder: the RAM code, the tables and .data in flash)
+import ovl_link  # noqa: E402  (the RAMTEXT overlays' link: FELUCCA_OVERLAY, core/overlay.c)
 import toolchain as TC
 import progress as PR  # noqa: E402  (the stage lines the builder menu's progress bar reads)
 sys.path.insert(0, str(SRC / "tools" / "builder"))
@@ -216,6 +217,112 @@ def layout():
     return int(CFG_VALUES.get("FELUCCA_LAYOUT", os.environ.get("FELUCCA_LAYOUT", "0")))
 
 
+def overlay():
+    """the RAMTEXT overlays (the OVERLAY builder item: FELUCCA_OVERLAY, core/overlay.c)"""
+    return int(CFG_VALUES.get("FELUCCA_OVERLAY", os.environ.get("FELUCCA_OVERLAY", "0"))) == 1
+
+
+def npart():
+    """NPART (core.h): the parts, one overlay slot each"""
+    return int(re.search(r"^#define NPART (\d+)", (FW / "src" / "core" / "core.h").read_text(), re.M).group(1))
+
+
+OVL = {}                            # an overlay build's link (ovl_link): its plan, the engines' sizes, the slots' links
+
+
+def ovl_links(ld_text, objs, elf):
+    """an overlay build: the probe link (every engine's size in a slot), the plan, then a link per slot (link 0 is
+    elf, the image's). -> [the other slots' elfs]"""
+    try:
+        kind = ovl_link.kinds(tc("common/bin/objdump", "-h", *objs))
+    except ValueError as e:
+        raise SystemExit(f"build: {e}")
+    if not kind:
+        raise SystemExit("build: OVERLAY on, but no engine has overlay code (core.h OVL / OVLX)")
+
+    def link(text, name, out):
+        path = OUT / name
+        path.write_text(text)
+        sync_view(path)
+        tc("pi32v2/bin/ld", "--gc-sections", "-T", path, *objs, "-o", out)
+    probe = OUT / "felucca_ovlprobe.elf"
+    link(ovl_link.script(ld_text, kind, None, 0, 0, probe=True), "app_ovlprobe.ld", probe)
+    sec = section_sizes(tc("common/bin/objdump", "-h", probe))
+    sizes = {n: sec.get(f".ovl_{n}", 0) for n in kind}
+    if not all(sizes.values()):
+        raise SystemExit(f"build: overlay: no code linked for {[n for n in kind if not sizes[n]]}")
+    force = os.environ.get("OPTIMIST_OVL_SLOT")
+    if force is not None and not force.isdigit():
+        raise SystemExit(f"build: OPTIMIST_OVL_SLOT={force}: a slot's bytes")
+    p = ovl_link.plan(sizes, kind, npart(), force)
+    rsize = ovl_link.rom_size(p, sizes, kind)
+    head = f"slots {p.nslot} x {p.slot_len} B: {', '.join(p.slots)}" if p.slots else "no slots (none pays)"
+    rest = ", ".join(f"{n} {sizes[n]} B ({kind[n]})" for n in sorted(kind) if n not in p.slots) or "none"
+    print(f"ovl      {head}; resident: {rest}; the engines' RAMTEXT {p.ramtext} B (without the overlays "
+          f"{sum(n for k, n in sizes.items() if kind[k] == 'ovl')} B)", flush=True)
+    others = []
+    for k in range(p.nslot if p.slots else 1):
+        out = elf if k == 0 else OUT / f"felucca_ovl{k}.elf"
+        link(ovl_link.script(ld_text, kind, p, k, rsize), f"app_ovl{k}.ld", out)
+        if k:
+            others.append(out)
+    OVL.update(kind=kind, sizes=sizes, plan=p, rom_size=rsize)
+    return others
+
+
+OVL_RESIDENT = ("text.bin", "data.bin", "ramtext.bin", "ramhot.bin", "ramhot2.bin", "poolinit.bin")
+
+
+def ovl_rom(others, syms):
+    """an overlay build: each slot engine's code from each slot's link, the resident image compared across the links
+    (nothing resident may name an overlay's code), the table's bytes"""
+    p, kind, sizes = OVL["plan"], OVL["kind"], OVL["sizes"]
+    elfs = [OUT / "felucca.elf", *others]
+    cmds, outs = [], {}
+    for k, e in enumerate(elfs):
+        d = OUT / "ovl" / str(k)
+        d.mkdir(parents=True, exist_ok=True)
+        for sname in ([] if k == 0 else OVL_RESIDENT):
+            sect = {"text.bin": ".text", "data.bin": ".data", "ramtext.bin": ".ram_text", "ramhot.bin": ".ram_hot",
+                    "ramhot2.bin": ".ram_hot2", "poolinit.bin": ".pool_init"}[sname]
+            (d / sname).unlink(missing_ok=True)
+            cmds.append(("common/bin/objcopy", "-O", "binary", "-j", sect, e, d / sname))
+        for n in p.slots:
+            (d / f"{n}.bin").unlink(missing_ok=True)
+            cmds.append(("common/bin/objcopy", "-O", "binary", "-j", f".ovl_{n}", e, d / f"{n}.bin"))
+    if cmds:
+        tc_all(*cmds)
+    for k in range(1, len(elfs)):
+        for sname in OVL_RESIDENT:
+            a, b = OUT / sname, OUT / "ovl" / str(k) / sname
+            if (a.read_bytes() if a.exists() else b"") != (b.read_bytes() if b.exists() else b""):
+                raise SystemExit(f"build: overlay: {sname} differs between slot 0's link and slot {k}'s: resident "
+                                 "code or data names an engine's overlay code (core.h OVL: only through its hooks' table)")
+    blobs = {n: [(OUT / "ovl" / str(k) / f"{n}.bin").read_bytes() for k in range(len(elfs))] for n in p.slots}
+
+    def symv(name):
+        m = re.search(r"^([0-9a-f]+) .*\s" + re.escape(name) + r"$", syms, re.M)
+        if not m:
+            raise SystemExit(f"build: overlay: no symbol {name}")
+        return int(m.group(1), 16)
+    resident = {}
+    for n in kind:
+        if n in p.slots:
+            continue
+        a = symv(f"rto_hdr_{n}")
+        src, base = (("text.bin", APP_XIP) if kind[n] == "ovx" else ("ramhot.bin", symv("_rh_start")))
+        resident[n] = (a, struct.unpack_from("<I", (OUT / src).read_bytes(), a - base)[0])
+    try:
+        rom = ovl_link.rom(p, kind, sizes, blobs, resident, symv("_ovl_slots"))
+    except ValueError as e:
+        raise SystemExit(f"build: {e}")
+    if len(rom) != OVL["rom_size"]:
+        raise SystemExit(f"build: overlay table {len(rom)} B, the link reserved {OVL['rom_size']} B")
+    if symv("_ovl_slots_end") - symv("_ovl_slots") != p.nslot * p.slot_len:
+        raise SystemExit("build: overlay slots: the link's span is not the plan's")
+    return rom
+
+
 def build_loader():
     LDR.mkdir(parents=True, exist_ok=True)
     src = FW / "loader"
@@ -329,6 +436,7 @@ def build_app():
     if os.environ.get("FELUCCA_BENCH") in ("10", "11", "12", "13", "14", "15", "16"):   # (bench.c scenarios 10..15: two digits, the loop below takes one)
         flags.append(f"-DFELUCCA_BENCH={os.environ['FELUCCA_BENCH']}")
     for flag, ok in (("FELUCCA_DUAL", "012"), ("FELUCCA_BENCH", "0123456789"), ("FELUCCA_BENCH_SAVE", "01"),
+                     ("FELUCCA_BENCH_SWAP", "01"),
                      ("FELUCCA_BENCH_MIX", "01"), ("FELUCCA_BENCH_COMP", "01"), ("FELUCCA_BENCH_REVONLY", "01"),
                      ("DUAL_REV", "01"),
                      ("FELUCCA_DUAL_IDLE", "01"), ("DUAL_PARTS", "01234567"), ("DUAL_FAILTEST", "01234567")):
@@ -442,7 +550,13 @@ def build_app():
         sync_view(ld)
     # --gc-sections: the units' functions nothing calls go (CFLAGS has -ffunction-sections; the X0X / ACID float
     # units export getters and renders this firmware never calls); crt0, the RAM code and the pool are KEEP in app.ld
-    tc("pi32v2/bin/ld", "--gc-sections", "-T", ld, *objs, "-o", elf)
+    OVL.clear()
+    if overlay() and not layout():
+        raise SystemExit("build: OVERLAY needs LAYOUT 1 (each slot engine's code in flash once per slot, past the far probe)")
+    if overlay():                   # the RAMTEXT overlays: a link per slot (ovl_links)
+        ovl_others = ovl_links(ld.read_text(), objs, elf)
+    else:
+        tc("pi32v2/bin/ld", "--gc-sections", "-T", ld, *objs, "-o", elf)
     for sect in ("text.bin", "data.bin", "ramtext.bin", "ramhot.bin", "ramhot2.bin", "poolinit.bin", "far.bin"):
         (OUT / sect).unlink(missing_ok=True)
     *_, syms, dis, rt, hdr = tc_all(("common/bin/objcopy", "-O", "binary", "-j", ".text_far", elf, OUT / "far.bin"),
@@ -484,6 +598,13 @@ def build_app():
                              f"({flash_layout.app_slot(0)} B): the far probe needs everything the boot reads below 0x93000")
         img += b"\xff" * (FAR_OFF - len(img)) + far
         print(f"far      probe {len(far)} B at app offset {FAR_OFF:#x} (flash {0x4120 + FAR_OFF:#x})")
+    if OVL:                         # the overlay table and the slots' code, after the far probe (_ovl_rom: the big layout)
+        rom = ovl_rom(ovl_others, syms)
+        at = symv("_ovl_rom") - APP_XIP
+        if at < len(img):
+            raise SystemExit(f"_ovl_rom {at + APP_XIP:#x}: inside the image before it")
+        img += b"\xff" * (at - len(img)) + rom
+        print(f"ovl      table + the slots' code {len(rom):,} B of flash at app offset {at:#x}")
     (OUT / "felucca.bin").write_bytes(img)
     return bytes(img), syms, dis, rt, hdr
 
@@ -515,7 +636,8 @@ def sizes(img, syms, hdr):
         return int(mm.group(1), 16) if mm else 0
     sec = section_sizes(hdr)
     return {"flash": len(img), "ram": sym("_bss_end") - (0x01C10000 if MEASURE else 0x01C08000), "pool": sym("_pool_end") - sym("_pool_start"),
-            "ramtext": sym("_rt_end") - sym("_rt_start") + sym("_rh_end") - sym("_rh_start"),
+            "ramtext": sym("_rt_end") - sym("_rt_start") + sym("_rh_end") - sym("_rh_start")
+                       + sym("_ovl_slots_end") - sym("_ovl_slots"),       # (the overlays' slots: 0 without)
             "noinit": sec.get(".noinit", 0), "limits": LIMITS,
             "symbols": {n: size_of(n) for n in SIZED_SYMBOLS}}
 
@@ -741,6 +863,9 @@ def check(img, syms, dis, rt):
                  f"{sym('_rh_end') - sym('_rh_start')} B of {0x7F00}; .ram_hot2 "
                  f"{sym('_rh2_end') - sym('_rh2_start')} B in RAM (counted in .data+.bss)")
     rtext = sym("_rt_end") - sym("_rt_start") + sym("_rh_end") - sym("_rh_start")
+    if sym("_ovl_slots"):           # the RAMTEXT overlays' slots (core/overlay.c)
+        notes.append(f"RAM code: the overlays' slots {sym('_ovl_slots_end') - sym('_ovl_slots')} B after .ram_hot")
+        rtext += sym("_ovl_slots_end") - sym("_ovl_slots")
     if MEASURE and rtext > 0x7F00:                 # (a measurement link has a larger RAMTEXT)
         over.append(f"RAMTEXT {rtext} B > {0x7F00} B")
     if bss > 96 * 1024:
