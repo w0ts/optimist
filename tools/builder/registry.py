@@ -1048,15 +1048,18 @@ _add("LAYOUT", "FELUCCA_LAYOUT", "flash layout: fake SD mode (more room for code
 _add("ARENA", "FELUCCA_ARENA_KB", "memory per project (an arena for the engines and the effects' lines)", Y, 411, default=0,
      choices=((0, "off: every memory reserved, as before"), (64, "64 KB"), (96, "96 KB"), (128, "128 KB"),
               (160, "160 KB"), (192, "192 KB"), (256, "256 KB")),
-     experimental=True, tested="host-tested only (tests/fx_arena_test.c, arena_test.c, placeholder_test.c); not on an FM-1",
+     experimental=True, tested="host-tested only (tests/fx_arena_test.c, arena_bufs_test.c, arena_test.c, placeholder_test.c); not on an FM-1",
      desc="Instead of reserving every engine's and effect's memory whether a project uses it or not, one pool memory of"
           " this size holds what the project uses: each synth part's engine state (FM6, PHYS, GRAIN, ACID, PLAITS) and "
-          "the effects' lines (the delay, chorus and reverb sends' lines, the limited inserts' own room), placed when "
+          "the effects' lines (the delay, chorus and reverb sends' lines, the limited inserts' own room), and the other "
+          "buffers only some projects use (each track's SLICER recording while it is on STUT, WAVE's table while a "
+          "part plays WAVE, the X0X 909's and 808's states while the kit or a lane plays them), placed when "
           "an engine is picked or an effect is put in a slot, given back when it goes. What the arena does not need "
           "goes to the undo history. A change that does not fit is refused and the device proposes what to drop: the "
           "parts first, then the effects' lines (DROP REV 32 KB); a dropped part plays nothing (NONE), a dropped or "
           "refused effect is bypassed and dimmed (FULL), kept in the project, and comes back by itself once there is "
-          "room. Off: every memory reserved as before, nothing ever refused. About 2 KB of flash and 256 B of RAM (the "
+          "room (a refused SLICER plays the live sound, WAVE is silent, an X0X kit plays its stand-in kit, each with "
+          "a MEM FULL message once). Off: every memory reserved as before, nothing ever refused. About 2 KB of flash and 256 B of RAM (the "
           "default profile, measured 2026-10-25); the room is the size chosen, against the engines' and lines' fixed "
           "memories it replaces.")
 # bit 412 (2026-10-25): reserved for the RAMTEXT overlays (411: the effects' arena)

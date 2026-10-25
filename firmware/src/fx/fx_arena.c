@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The effects' lines in the arena (docs/SD-MODE-DESIGN.md 6b, phase 3b; FELUCCA_FX_ARENA with an arena placed by need,
- * FELUCCA_ARENA_BYTES: engines.c). The chorus, delay and reverb sends' lines (fx.c cho_buf dly_buf, rev_line) and the
+ * FELUCCA_ARENA_BYTES: engines.c). The chorus, delay and reverb sends' lines (fx.c cho_buf dly_buf, rev_line; the ROOM's
+ * diffusers rev_ap after the reverb's line, in its block) and the
  * limited inserts' own room (fxi_mem.h fxa_ins) are blocks of the parts' arena (core/arena.c, the clients after the
  * parts: FXM_K), held only while the project uses them:
  *   - a send's line while its type is in a master slot (FXS_HAS), or while it is lent to the inserts (fxi.c "Lending";
@@ -29,8 +30,13 @@ enum { FXM_NONE, FXM_ON, FXM_GOING };                   /* a send line's: not pl
 #else
 #define FXM_INS_BYTES 0u
 #endif
+#if FELUCCA_REV_ROOM
+#define FXM_REV_AP (REV_AP_N * 2u)                      /* (the ROOM's diffusers, rev_ap: after the line, in its block) */
+#else
+#define FXM_REV_AP 0u
+#endif
 static const uint32_t FXM_BYTES[FXM_NC] = {FELUCCA_FX_CHORUS ? CHO_LEN * 2u : 0u, FELUCCA_FX_DELAY ? DLY_LEN * 2u : 0u,
-                                           FELUCCA_FX_REVERB ? REV_LINE_N * 2u : 0u, FXM_INS_BYTES};
+                                           FELUCCA_FX_REVERB ? REV_LINE_N * 2u + FXM_REV_AP : 0u, FXM_INS_BYTES};
 static const uint8_t FXM_TY[3] = {FXT_CHO, FXT_DLY, FXT_REV};
 static uint8_t fxm_st[3];                               /* FXM_NONE .. FXM_GOING, by send line */
 static uint8_t fxm_t0[3];                               /* fxm_tick when it was gated */
@@ -44,8 +50,12 @@ static void fxm_set(uint32_t c, void *p)                /* the line's pointer (t
         cho_buf = (int16_t *)p;
     else if (c == FXM_DLY)
         dly_buf = (int16_t *)p;
-    else if (c == FXM_REV)
+    else if (c == FXM_REV) {
         rev_line = (int16_t *)p;
+#if FELUCCA_REV_ROOM
+        rev_ap = p ? (int16_t *)p + REV_LINE_N : 0;     /* (the diffusers after the line: one block) */
+#endif
+    }
 #if INS_LIM && FXA_I
     else
         fxa_ins = (int16_t *)p;
@@ -327,10 +337,14 @@ static void fxm_poll(void)
         if (need >> c & 1u)
             fxm_refuse(c);
 }
-/* an effect's line still held though nothing uses it: given back within a pass or a fade (model.c mem_retry waits) */
+static int arb_pending(void);                           /* (core/arena_bufs.c: the other buffers) */
+/* an effect's line (or another buffer, arena_bufs.c) still held though nothing uses it: given back within a pass or a
+ * fade (model.c mem_retry waits) */
 static int fxm_pending(void)
 {
     uint32_t c;
+    if (arb_pending())
+        return 1;
     for (c = 0; c < 3u; c++)
         if (fxm_st[c] == FXM_GOING || (fxm_st[c] == FXM_ON && !fxm_want(c)))
             return 1;

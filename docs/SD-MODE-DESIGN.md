@@ -247,8 +247,38 @@ gpufarm run); a measurement build can also set `OPTIMIST_ARENA_BYTES` and `OPTIM
 Default profile (`synths_USBaudio_BTaudio_BTmidi`, measured 2026-10-25): FX_ARENA off: flash, RAM, pool unchanged. An
 arena of the same room (38,664 B of engines + the 64 + 4 + 32 KB lines = 141,064 B): flash +2,140 B, RAM +256 B, pool
 the same (of which the engines' arena by need alone: +200 B flash, -16 B RAM). A 96 KB arena: pool -42,760 B, the undo
-ring 12,136 -> 54,896 B; the builder's ARENA 96: flash +2,384 B, RAM +240 B, pool -42,760 B. Not yet:
-the punch ring, the slicer's buffers and the reverbs' small cells (static, as before).
+ring 12,136 -> 54,896 B; the builder's ARENA 96: flash +2,384 B, RAM +240 B, pool -42,760 B.
+
+**Built (the other buffers, 2026-10-25):** `firmware/src/core/arena_bufs.c` (engines.c `ARB_*`, after the effects'
+lines; only with `FELUCCA_FX_ARENA`, the default build byte-identical). The big buffers only some projects use are
+blocks of the arena too, held only while the project uses their feature, placed from the arena's top as the lines:
+
+| Buffer | Bytes | Held while | Refused (no room) |
+|---|---|---|---|
+| each track's SLICER recording (`slicer.c sl_bp`, `FX_SLICER`) | SL_LEN x 2 (8,192) | its SLICER is on STUT, or a repeat still plays | STUT bypassed: the live sound, as OFF |
+| WAVE's table: its copies and the frame builder's scratch (`eng_wave.c wt_mip wt_fr wt_fi`, `ENG_WAVE`) | 73,216 | a part plays WAVE | its voices silent, as while a table is built |
+| the X0X 909's / 808's state (`x0x_drums.c x0x_mem`, `DRUM_X0X909` / `808`) | 5,344 / 3,376 | the kit or a lane plays the machine, or one of its voices sounds | its hits play the stand-in kit (as the notes the machine lacks) |
+| the ROOM's diffusers (`fx.c rev_ap`, `REV_ROOM`) | 1,994 | in the reverb's block, after its line (fx_arena.c) | as the reverb |
+
+- The main loop only (`arb_poll`, every pass after `fxm_poll`): placed (the interrupts off), zeroed, the feature's state
+  reset, then its pointer set (the interrupts off); no longer used: its pointer 0 at once, the block given back two
+  audio blocks later (`fxm_tick`); used again meanwhile: the same block, zeroed again.
+- No room: bypassed where it is, kept in the project, MEM FULL SLICER / WAVE / X0X said once (op_input.c mem_tick,
+  `arb_said`), placed by itself once there is room (tried every pass, never while a part's refused change waits or the
+  lines are being moved), the largest first. A part's change refused while one of them is on its way back waits for it
+  (`fxm_pending`). They are never proposed to drop.
+- Left static (no gain): the PUNCH ring (it records the mix all the time, for loops of what was just played: a punch
+  needs the past, and no project setting says PUNCH is used); FM6's sine table (4,100 B, every FM6 part reads it, built
+  at boot); the screen canvas, USB's and Bluetooth's rings, the storage buffers, the undo ring (every project); the
+  reverbs' small state (`rv`, `rvj`: a few hundred bytes, in main RAM, read every block).
+- Default profile (`synths_USBaudio_BTaudio_BTmidi`, measured 2026-10-25): ARENA off: the image identical but its build
+  time. ARENA 96: flash +852 B, RAM +104 B, pool -8,720 B (the X0X machines) against ARENA 96 before; against the
+  profile without the arena: flash +3,236 B, RAM +344 B, pool -51,480 B, the undo ring 12,376 -> 63,512 B. With ROOM,
+  the SLICER and WAVE too (a measurement build): ARENA 96 pool -159,460 B (436,476 -> 277,016 B: the same pool as without
+  them). The builder's estimate (core.py `arena_mem`, `arena_bufs`, `rev_ap`) gives both deltas to the byte.
+- Tests: `tests/arena_bufs_test.c` (each buffer placed, used, given back, refused and bypassed, said once, placed by
+  itself; a part's change waiting; 20,000 random switches), `tests/fx_arena_test.c` (the ROOM's diffusers in the reverb's
+  block; without the SLICER: no other buffer).
 Tests: `tests/fx_arena_test.c` (ROOM; ROOM + FDN8 + SPRING), `tests/arena_test.c` (best fit from the top, never named).
 
 ## 7. Phases
