@@ -139,19 +139,23 @@ struct RootView: View {
     private var bar: Visibility { link.state == .searching && !flash.busy ? .hidden : .visible }
 
     private var tabs: some View {
-        TabView(selection: $tab) {
+        TabView(selection: $tab) {      // (the web editor's order and names: Firmware, Mirror, Library, Projects, Backup; the user, 2026-10-25)
+            FlashView(flash: flash, link: link)
+                .toolbar(bar, for: .tabBar)
+                .tabItem { Label("Firmware", systemImage: "arrow.down.circle") }
+                .tag(5)
             MirrorView(link: link, upright: tilt.quarter - Turn.quarter(tilt.quarter), bars: $bars)
                 .toolbar(bars && link.state != .searching ? .visible : .hidden, for: .tabBar)
-                .tabItem { Label("Screen", systemImage: "display") }
+                .tabItem { Label("Mirror", systemImage: "display") }
                 .tag(0)
+            LibraryView(s: session)
+                .toolbar(bar, for: .tabBar)
+                .tabItem { Label("Library", systemImage: "books.vertical") }
+                .tag(2)
             ProjectsView(s: session)
                 .toolbar(bar, for: .tabBar)
                 .tabItem { Label("Projects", systemImage: "folder") }
                 .tag(1)
-            LibraryView(s: session)
-                .toolbar(bar, for: .tabBar)
-                .tabItem { Label("Presets", systemImage: "slider.horizontal.3") }
-                .tag(2)
             BackupView(s: session)
                 .toolbar(bar, for: .tabBar)
                 .tabItem { Label("Backup", systemImage: "externaldrive") }
@@ -160,10 +164,6 @@ struct RootView: View {
                 .toolbar(bar, for: .tabBar)
                 .tabItem { Label("Connection", systemImage: "cable.connector") }
                 .tag(4)
-            FlashView(flash: flash, link: link)
-                .toolbar(bar, for: .tabBar)
-                .tabItem { Label("Firmware", systemImage: "arrow.down.circle") }
-                .tag(5)
         }
     }
 }

@@ -27,7 +27,7 @@ struct LibraryView: View {
                 if page == 0 { device } else { library }
                 Section { NoteView(s: s) }
             }
-            .navigationTitle("Presets")
+            .navigationTitle("Library")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     if page == 1 {

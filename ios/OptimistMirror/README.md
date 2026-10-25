@@ -26,11 +26,13 @@ one line `DEVELOPMENT_TEAM = <your team ID>`, or pick the team in Xcode's Signin
 The app connects only when asked: plug the FM-1 in (USB-C, or the Lightning camera adapter) and tap **Connect**, or set
 SYSTEM > BT MIDI > MODE to MAN or AUTO on the FM-1 and tap **Connect with Bluetooth** to pick it in the system's sheet. The tabs:
 
-- **Screen**: the FM-1's screen. With a firmware that has them, the panel's buttons are drawn around it (the round button
+- **Firmware**: an official release (version, flavour), your last build or a .fwsc file, installed over the USB cable;
+  Build Your Own opens the web builder.
+- **Mirror**: the FM-1's screen. With a firmware that has them, the panel's buttons are drawn around it (the round button
   at the top right switches to the screen alone) and a drag on the screen turns the knobs. A hardware keyboard (a Mac's, or one on an iPad)
   plays the panel too (`Sources/PanelKeys.swift`). On a synth track's STEPS page, the piano-keys button shows the
   clip as notes: a tap adds or removes a note, a drag moves it, a drag of its end stretches it, a swipe turns the page.
-- **Projects, Presets, Backup**: the web editor's tabs, with the same files (`.optimist-backup`, `felucca-library` /
+- **Library, Projects, Backup**: the web editor's tabs, with the same files (`.optimist-backup`, `felucca-library` /
   `felucca-patch`, `optimist-pattern` JSON). Export through the share sheet, import through the Files picker. The snapshots
   area is restored in the web editor only; DX7 `.syx` and the user drum kits are not in the app.
 - **Connection**: the port in use, another one, Bluetooth, Disconnect.
