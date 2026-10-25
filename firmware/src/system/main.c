@@ -326,6 +326,9 @@ static BOOT_ORDER void fm1_main(void)
                                                          * review); none: a few failed CMD0s, ms */
 #endif
     lcd_init();
+#if FELUCCA_SDCARD
+    sd_lcd_live = 1;
+#endif
     boot_splash();                                      /* the Optimist logo and version (splash.c) */
 #if FELUCCA_SIMD
     sine_pk_init();                                     /* the packed sine of hal/fm1_simd.h (dsp.c) */
