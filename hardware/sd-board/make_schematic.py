@@ -30,7 +30,7 @@ def block(text, name):
 
 
 LIBS = {"Device": ["R", "C"], "74xGxx": ["74LVC1G04"], "Connector": ["Micro_SD_Card_Det1"],
-        "Connector_Generic_MountingPin": ["Conn_01x06_MountingPin"], "power": ["PWR_FLAG"]}
+        "Connector_Generic_MountingPin": ["Conn_01x10_MountingPin"], "power": ["PWR_FLAG"]}
 lib_symbols = []
 for lib, names in LIBS.items():
     text = open(os.path.join(SYMS, f"{lib}.kicad_sym")).read()
@@ -48,12 +48,14 @@ PINS = {
                                      "4": (-22.86, 2.54, 0), "5": (-22.86, 0, 0), "6": (-22.86, -2.54, 0),
                                      "7": (-22.86, -5.08, 0), "8": (-22.86, -7.62, 0), "9": (-22.86, -12.7, 0),
                                      "SH": (20.32, -12.7, 180)},
-    "Connector_Generic_MountingPin:Conn_01x06_MountingPin": {**{str(n): (-5.08, 5.08 - 2.54 * (n - 1), 0)
-                                                              for n in range(1, 7)}, "MP": (0, -12.7, 90)},
+    "Connector_Generic_MountingPin:Conn_01x10_MountingPin": {**{str(n): (-5.08, 10.16 - 2.54 * (n - 1), 0)
+                                                              for n in range(1, 11)}, "MP": (0, -17.78, 90)},
     "power:PWR_FLAG": {"1": (0, 0, 90)},
 }
 LABEL_ANGLE = {0: 180, 180: 0, 90: 270, 270: 90}   # (the label away from the body)
 
+LCD10 = {"1": "GND", "2": "MISO", "3": "CLK", "4": "MOSI", "5": "LCD_CS", "6": "3V3", "7": "LCD_RST", "8": "LCD_LEDA",
+         "9": "LCD_LEDK", "10": "GND", "MP": "GND"}   # (as LCD_PINS in make_board.py: PROVISIONAL)
 # (ref, lib_id, value, footprint, LCSC, x, y, {pin: net})
 PARTS = [
     ("J1", "Connector:Micro_SD_Card_Det1", "TF-01A push-push", "sdboard:TF-SMD_TF-01A", "C91145", 170, 90,
@@ -67,8 +69,11 @@ PARTS = [
     ("R4", "Device:R", "47k", "sdboard:R0603", "C25819", 45, 70, {"1": "LCD_CS", "2": "3V3"}),
     ("C1", "Device:C", "10uF", "sdboard:C0805", "C15850", 60, 125, {"1": "3V3", "2": "GND"}),
     ("C2", "Device:C", "100nF", "sdboard:C0603", "C14663", 75, 125, {"1": "GND", "2": "3V3"}),
-    ("J2", "Connector_Generic_MountingPin:Conn_01x06_MountingPin", "FFC 6P 0.5mm", "sdboard:FPC-SMD_6P-P0.50_XUNPU_FPC-05F-6PH20",
-     "C2856796", 230, 90, {"1": "3V3", "2": "LCD_CS", "3": "MOSI", "4": "GND", "5": "CLK", "6": "MISO", "MP": "GND"}),
+    # (v5: J2 from J12, J3 the LCD's cable, every line through; the pin order PROVISIONAL until J12 is measured)
+    ("J2", "Connector_Generic_MountingPin:Conn_01x10_MountingPin", "FPC 10P 0.5mm (IN)",
+     "sdboard:FPC-SMD_10P-P0.50_HC-FPC-05-09-10RLTAG", "C5213750", 230, 90, LCD10),
+    ("J3", "Connector_Generic_MountingPin:Conn_01x10_MountingPin", "FPC 10P 0.5mm (LCD)",
+     "sdboard:FPC-SMD_10P-P0.50_HC-FPC-05-09-10RLTAG", "C5213750", 260, 90, LCD10),
     ("#FLG01", "power:PWR_FLAG", "PWR_FLAG", "", "", 40, 150, {"1": "3V3"}),
     ("#FLG02", "power:PWR_FLAG", "PWR_FLAG", "", "", 55, 150, {"1": "GND"}),
 ]

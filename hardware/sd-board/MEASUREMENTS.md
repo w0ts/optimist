@@ -61,7 +61,7 @@ What is measured on a real FM-1 (calipers, the user, 2026-10-25) and what is sti
 | | J12: pin map (chip pins 29 to 32, 3.3 V, ground) | not measured yet: with a 10-pin breakout (on order) and a pin-finder firmware (to build, the user: once the breakout is here) |
 | | Where the card goes through the bottom wall: the card's left side from the left wall's INSIDE (pegs that close the case's bottom stand left and right of it) | 86 mm, then 84 (the user), then the socket centred on the board (the user): 81.7 mm (80.1 from the board's left edge) |
 
-## How the board uses them (v4, by the battery's plug)
+## How the board uses them (v5: v4's lower part, plus a column and a head under the jacks)
 
 - The board spans 74.4 to 96.8 mm from the left edge (its tray's rail 0.6 mm clear of the battery, k; it ends 0.5 mm
   past the card socket, the user) and from
@@ -78,6 +78,9 @@ What is measured on a real FM-1 (calipers, the user, 2026-10-25) and what is sti
   Only the collar and three posts (all 5.6 mm, the pole is 6; rail-wide, long along the rails, clear of the cover's edge band and the cable's) reach up; the rails stand 3.35 mm: the battery's cable passes
   over, between the posts (24 to 40 mm up; in its band the parts stand at most 4.4 mm with the floor, leaving about 1.6 to 2.3 mm under the cover).
 - The cover's edge band (t, about 4.8 mm left, taken): the floor, the board and the socket stand 4.25 mm there.
+- v5: a column up the right of the speaker plug (from 90.5 mm across) to a head under the jacks (86 to 96.8 across,
+  up to 76.7, the jacks from 76.8): J3 (the LCD's cable) against the jacks at 90 mm, J2 (from J12) below it. No tray
+  there (parts of the FM-1 under it): the board hovers 0.8 mm up, on the tray floor's thickness.
 - v3 (the L along the left edge) did not fit: 10.4 mm free beside the battery; it is in git (5af03500).
 
 ## Still unmeasured

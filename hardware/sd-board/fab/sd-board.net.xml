@@ -2,7 +2,7 @@
 <export version="E">
   <design>
     <source>/Users/mots/GitHub/optimist/worktrees/sdcard/hardware/sd-board/sd-board.kicad_sch</source>
-    <date>2026-10-25T14:02:01</date>
+    <date>2026-10-25T15:03:09</date>
     <tool>Eeschema 10.0.7</tool>
     <sheet number="1" name="/" tstamps="/">
       <title_block>
@@ -111,16 +111,16 @@
       </units>
     </comp>
     <comp ref="J2">
-      <value>FFC 6P 0.5mm</value>
-      <footprint>sdboard:FPC-SMD_6P-P0.50_XUNPU_FPC-05F-6PH20</footprint>
+      <value>FPC 10P 0.5mm (IN)</value>
+      <footprint>sdboard:FPC-SMD_10P-P0.50_HC-FPC-05-09-10RLTAG</footprint>
       <fields>
-        <field name="LCSC">C2856796</field>
-        <field name="Footprint">sdboard:FPC-SMD_6P-P0.50_XUNPU_FPC-05F-6PH20</field>
+        <field name="LCSC">C5213750</field>
+        <field name="Footprint">sdboard:FPC-SMD_10P-P0.50_HC-FPC-05-09-10RLTAG</field>
         <field name="Datasheet"/>
         <field name="Description"/>
       </fields>
-      <libsource lib="Connector_Generic_MountingPin" part="Conn_01x06_MountingPin" description="Generic connectable mounting pin connector, single row, 01x06, script generated (kicad-library-utils/schlib/autogen/connector/)"/>
-      <property name="LCSC" value="C2856796"/>
+      <libsource lib="Connector_Generic_MountingPin" part="Conn_01x10_MountingPin" description="Generic connectable mounting pin connector, single row, 01x10, script generated (kicad-library-utils/schlib/autogen/connector/)"/>
+      <property name="LCSC" value="C5213750"/>
       <property name="Sheetname" value="sd-board"/>
       <property name="Sheetfile" value="sd-board.kicad_sch"/>
       <property name="ki_keywords" value="connector"/>
@@ -136,6 +136,45 @@
             <pin num="4"/>
             <pin num="5"/>
             <pin num="6"/>
+            <pin num="7"/>
+            <pin num="8"/>
+            <pin num="9"/>
+            <pin num="10"/>
+            <pin num="MP"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="J3">
+      <value>FPC 10P 0.5mm (LCD)</value>
+      <footprint>sdboard:FPC-SMD_10P-P0.50_HC-FPC-05-09-10RLTAG</footprint>
+      <fields>
+        <field name="LCSC">C5213750</field>
+        <field name="Footprint">sdboard:FPC-SMD_10P-P0.50_HC-FPC-05-09-10RLTAG</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="Connector_Generic_MountingPin" part="Conn_01x10_MountingPin" description="Generic connectable mounting pin connector, single row, 01x10, script generated (kicad-library-utils/schlib/autogen/connector/)"/>
+      <property name="LCSC" value="C5213750"/>
+      <property name="Sheetname" value="sd-board"/>
+      <property name="Sheetfile" value="sd-board.kicad_sch"/>
+      <property name="ki_keywords" value="connector"/>
+      <property name="ki_fp_filters" value="Connector*:*_1x??-1MP*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>1868c439-f00a-5f4c-a87d-59d0519ef592</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+            <pin num="3"/>
+            <pin num="4"/>
+            <pin num="5"/>
+            <pin num="6"/>
+            <pin num="7"/>
+            <pin num="8"/>
+            <pin num="9"/>
+            <pin num="10"/>
             <pin num="MP"/>
           </pins>
         </unit>
@@ -326,17 +365,17 @@
         <pin num="SH" name="SHIELD" type="passive"/>
       </pins>
     </libpart>
-    <libpart lib="Connector_Generic_MountingPin" part="Conn_01x06_MountingPin">
-      <description>Generic connectable mounting pin connector, single row, 01x06, script generated (kicad-library-utils/schlib/autogen/connector/)</description>
+    <libpart lib="Connector_Generic_MountingPin" part="Conn_01x10_MountingPin">
+      <description>Generic connectable mounting pin connector, single row, 01x10, script generated (kicad-library-utils/schlib/autogen/connector/)</description>
       <footprints>
         <fp>Connector*:*_1x??-1MP*</fp>
       </footprints>
       <fields>
         <field name="Reference">J</field>
-        <field name="Value">Conn_01x06_MountingPin</field>
+        <field name="Value">Conn_01x10_MountingPin</field>
         <field name="Footprint"/>
         <field name="Datasheet"/>
-        <field name="Description">Generic connectable mounting pin connector, single row, 01x06, script generated (kicad-library-utils/schlib/autogen/connector/)</field>
+        <field name="Description">Generic connectable mounting pin connector, single row, 01x10, script generated (kicad-library-utils/schlib/autogen/connector/)</field>
       </fields>
       <pins>
         <pin num="1" name="Pin_1" type="passive"/>
@@ -345,6 +384,10 @@
         <pin num="4" name="Pin_4" type="passive"/>
         <pin num="5" name="Pin_5" type="passive"/>
         <pin num="6" name="Pin_6" type="passive"/>
+        <pin num="7" name="Pin_7" type="passive"/>
+        <pin num="8" name="Pin_8" type="passive"/>
+        <pin num="9" name="Pin_9" type="passive"/>
+        <pin num="10" name="Pin_10" type="passive"/>
         <pin num="MP" name="MountPin" type="passive"/>
       </pins>
     </libpart>
@@ -389,7 +432,8 @@
       <node ref="C1" pin="1" pintype="passive"/>
       <node ref="C2" pin="2" pintype="passive"/>
       <node ref="J1" pin="4" pinfunction="VDD_4" pintype="power_in"/>
-      <node ref="J2" pin="1" pinfunction="Pin_1_1" pintype="passive"/>
+      <node ref="J2" pin="6" pinfunction="Pin_6_6" pintype="passive"/>
+      <node ref="J3" pin="6" pinfunction="Pin_6_6" pintype="passive"/>
       <node ref="R2" pin="1" pintype="passive"/>
       <node ref="R3" pin="1" pintype="passive"/>
       <node ref="R4" pin="2" pintype="passive"/>
@@ -401,7 +445,8 @@
     </net>
     <net code="3" name="/CLK" class="Default">
       <node ref="J1" pin="5" pinfunction="CLK_5" pintype="input"/>
-      <node ref="J2" pin="5" pinfunction="Pin_5_5" pintype="passive"/>
+      <node ref="J2" pin="3" pinfunction="Pin_3_3" pintype="passive"/>
+      <node ref="J3" pin="3" pinfunction="Pin_3_3" pintype="passive"/>
     </net>
     <net code="4" name="/DAT0" class="Default">
       <node ref="J1" pin="7" pinfunction="DAT0_7" pintype="bidirectional"/>
@@ -420,27 +465,46 @@
       <node ref="C2" pin="1" pintype="passive"/>
       <node ref="J1" pin="6" pinfunction="VSS_6" pintype="power_in"/>
       <node ref="J1" pin="SH" pinfunction="SHIELD_SH" pintype="passive"/>
-      <node ref="J2" pin="4" pinfunction="Pin_4_4" pintype="passive"/>
+      <node ref="J2" pin="1" pinfunction="Pin_1_1" pintype="passive"/>
+      <node ref="J2" pin="10" pinfunction="Pin_10_10" pintype="passive"/>
       <node ref="J2" pin="MP" pinfunction="MountPin_MP" pintype="passive"/>
+      <node ref="J3" pin="1" pinfunction="Pin_1_1" pintype="passive"/>
+      <node ref="J3" pin="10" pinfunction="Pin_10_10" pintype="passive"/>
+      <node ref="J3" pin="MP" pinfunction="MountPin_MP" pintype="passive"/>
       <node ref="U1" pin="3" pinfunction="GND_3" pintype="power_in"/>
     </net>
     <net code="8" name="/LCD_CS" class="Default">
-      <node ref="J2" pin="2" pinfunction="Pin_2_2" pintype="passive"/>
+      <node ref="J2" pin="5" pinfunction="Pin_5_5" pintype="passive"/>
+      <node ref="J3" pin="5" pinfunction="Pin_5_5" pintype="passive"/>
       <node ref="R4" pin="1" pintype="passive"/>
       <node ref="U1" pin="2" pintype="input"/>
     </net>
-    <net code="9" name="/MISO" class="Default">
-      <node ref="J2" pin="6" pinfunction="Pin_6_6" pintype="passive"/>
+    <net code="9" name="/LCD_LEDA" class="Default">
+      <node ref="J2" pin="8" pinfunction="Pin_8_8" pintype="passive"/>
+      <node ref="J3" pin="8" pinfunction="Pin_8_8" pintype="passive"/>
+    </net>
+    <net code="10" name="/LCD_LEDK" class="Default">
+      <node ref="J2" pin="9" pinfunction="Pin_9_9" pintype="passive"/>
+      <node ref="J3" pin="9" pinfunction="Pin_9_9" pintype="passive"/>
+    </net>
+    <net code="11" name="/LCD_RST" class="Default">
+      <node ref="J2" pin="7" pinfunction="Pin_7_7" pintype="passive"/>
+      <node ref="J3" pin="7" pinfunction="Pin_7_7" pintype="passive"/>
+    </net>
+    <net code="12" name="/MISO" class="Default">
+      <node ref="J2" pin="2" pinfunction="Pin_2_2" pintype="passive"/>
+      <node ref="J3" pin="2" pinfunction="Pin_2_2" pintype="passive"/>
       <node ref="R1" pin="1" pintype="passive"/>
     </net>
-    <net code="10" name="/MOSI" class="Default">
+    <net code="13" name="/MOSI" class="Default">
       <node ref="J1" pin="3" pinfunction="CMD_3" pintype="input"/>
-      <node ref="J2" pin="3" pinfunction="Pin_3_3" pintype="passive"/>
+      <node ref="J2" pin="4" pinfunction="Pin_4_4" pintype="passive"/>
+      <node ref="J3" pin="4" pinfunction="Pin_4_4" pintype="passive"/>
     </net>
-    <net code="11" name="unconnected-(J1-DET-Pad9)" class="Default">
+    <net code="14" name="unconnected-(J1-DET-Pad9)" class="Default">
       <node ref="J1" pin="9" pinfunction="DET_9" pintype="passive+no_connect"/>
     </net>
-    <net code="12" name="unconnected-(U1-NC-Pad1)" class="Default">
+    <net code="15" name="unconnected-(U1-NC-Pad1)" class="Default">
       <node ref="U1" pin="1" pinfunction="NC_1" pintype="no_connect"/>
     </net>
   </nets>

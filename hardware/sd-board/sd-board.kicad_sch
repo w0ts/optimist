@@ -868,7 +868,7 @@
 		)
 		(embedded_fonts no)
 	)
-(symbol "Connector_Generic_MountingPin:Conn_01x06_MountingPin"
+(symbol "Connector_Generic_MountingPin:Conn_01x10_MountingPin"
 		(pin_names
 			(offset 1.016)
 			(hide yes)
@@ -879,7 +879,7 @@
 		(in_pos_files yes)
 		(duplicate_pin_numbers_are_jumpers no)
 		(property "Reference" "J"
-			(at 0 7.62 0)
+			(at 0 12.7 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -888,8 +888,8 @@
 				)
 			)
 		)
-		(property "Value" "Conn_01x06_MountingPin"
-			(at 1.27 -10.16 0)
+		(property "Value" "Conn_01x10_MountingPin"
+			(at 1.27 -15.24 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -921,7 +921,7 @@
 				)
 			)
 		)
-		(property "Description" "Generic connectable mounting pin connector, single row, 01x06, script generated (kicad-library-utils/schlib/autogen/connector/)"
+		(property "Description" "Generic connectable mounting pin connector, single row, 01x10, script generated (kicad-library-utils/schlib/autogen/connector/)"
 			(at 0 0 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -954,16 +954,38 @@
 				)
 			)
 		)
-		(symbol "Conn_01x06_MountingPin_1_1"
+		(symbol "Conn_01x10_MountingPin_1_1"
 			(rectangle
-				(start -1.27 6.35)
-				(end 1.27 -8.89)
+				(start -1.27 11.43)
+				(end 1.27 -13.97)
 				(stroke
 					(width 0.254)
 					(type default)
 				)
 				(fill
 					(type background)
+				)
+			)
+			(rectangle
+				(start -1.27 10.287)
+				(end 0 10.033)
+				(stroke
+					(width 0.1524)
+					(type default)
+				)
+				(fill
+					(type none)
+				)
+			)
+			(rectangle
+				(start -1.27 7.747)
+				(end 0 7.493)
+				(stroke
+					(width 0.1524)
+					(type default)
+				)
+				(fill
+					(type none)
 				)
 			)
 			(rectangle
@@ -1032,9 +1054,31 @@
 					(type none)
 				)
 			)
+			(rectangle
+				(start -1.27 -10.033)
+				(end 0 -10.287)
+				(stroke
+					(width 0.1524)
+					(type default)
+				)
+				(fill
+					(type none)
+				)
+			)
+			(rectangle
+				(start -1.27 -12.573)
+				(end 0 -12.827)
+				(stroke
+					(width 0.1524)
+					(type default)
+				)
+				(fill
+					(type none)
+				)
+			)
 			(polyline
 				(pts
-					(xy -1.016 -9.652) (xy 1.016 -9.652)
+					(xy -1.016 -14.732) (xy 1.016 -14.732)
 				)
 				(stroke
 					(width 0.1524)
@@ -1045,7 +1089,7 @@
 				)
 			)
 			(text "Mounting"
-				(at 0 -9.271 0)
+				(at 0 -14.351 0)
 				(effects
 					(font
 						(size 0.381 0.381)
@@ -1053,7 +1097,7 @@
 				)
 			)
 			(pin passive line
-				(at -5.08 5.08 0)
+				(at -5.08 10.16 0)
 				(length 3.81)
 				(name "Pin_1"
 					(effects
@@ -1071,7 +1115,7 @@
 				)
 			)
 			(pin passive line
-				(at -5.08 2.54 0)
+				(at -5.08 7.62 0)
 				(length 3.81)
 				(name "Pin_2"
 					(effects
@@ -1089,7 +1133,7 @@
 				)
 			)
 			(pin passive line
-				(at -5.08 0 0)
+				(at -5.08 5.08 0)
 				(length 3.81)
 				(name "Pin_3"
 					(effects
@@ -1107,7 +1151,7 @@
 				)
 			)
 			(pin passive line
-				(at -5.08 -2.54 0)
+				(at -5.08 2.54 0)
 				(length 3.81)
 				(name "Pin_4"
 					(effects
@@ -1125,7 +1169,7 @@
 				)
 			)
 			(pin passive line
-				(at -5.08 -5.08 0)
+				(at -5.08 0 0)
 				(length 3.81)
 				(name "Pin_5"
 					(effects
@@ -1143,7 +1187,7 @@
 				)
 			)
 			(pin passive line
-				(at -5.08 -7.62 0)
+				(at -5.08 -2.54 0)
 				(length 3.81)
 				(name "Pin_6"
 					(effects
@@ -1161,7 +1205,79 @@
 				)
 			)
 			(pin passive line
-				(at 0 -12.7 90)
+				(at -5.08 -5.08 0)
+				(length 3.81)
+				(name "Pin_7"
+					(effects
+						(font
+							(size 1.27 1.27)
+						)
+					)
+				)
+				(number "7"
+					(effects
+						(font
+							(size 1.27 1.27)
+						)
+					)
+				)
+			)
+			(pin passive line
+				(at -5.08 -7.62 0)
+				(length 3.81)
+				(name "Pin_8"
+					(effects
+						(font
+							(size 1.27 1.27)
+						)
+					)
+				)
+				(number "8"
+					(effects
+						(font
+							(size 1.27 1.27)
+						)
+					)
+				)
+			)
+			(pin passive line
+				(at -5.08 -10.16 0)
+				(length 3.81)
+				(name "Pin_9"
+					(effects
+						(font
+							(size 1.27 1.27)
+						)
+					)
+				)
+				(number "9"
+					(effects
+						(font
+							(size 1.27 1.27)
+						)
+					)
+				)
+			)
+			(pin passive line
+				(at -5.08 -12.7 0)
+				(length 3.81)
+				(name "Pin_10"
+					(effects
+						(font
+							(size 1.27 1.27)
+						)
+					)
+				)
+				(number "10"
+					(effects
+						(font
+							(size 1.27 1.27)
+						)
+					)
+				)
+			)
+			(pin passive line
+				(at 0 -17.78 90)
 				(length 3.048)
 				(name "MountPin"
 					(effects
@@ -1332,14 +1448,30 @@
 (symbol (lib_id "Device:C") (at 76.2 124.46 0) (unit 1) (exclude_from_sim no) (in_bom yes) (on_board yes) (dnp no) (uuid "9f268560-3bfb-5461-81e9-67fdbbe37c8d") (property "Reference" "C2" (at 76.2 110.46 0) (effects (font (size 1.27 1.27)))) (property "Value" "100nF" (at 76.2 138.45999999999998 0) (effects (font (size 1.27 1.27)))) (property "Footprint" "sdboard:C0603" (at 76.2 124.46 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Datasheet" "" (at 76.2 124.46 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "LCSC" "C14663" (at 76.2 124.46 0) (effects (font (size 1.27 1.27)) (hide yes))) (pin "1" (uuid "a82e52ef-d7df-5101-98c0-2dfa41d26992")) (pin "2" (uuid "459e9fe6-70e6-5507-9da9-dd2f3bfe745b")) (instances (project "sd-board" (path "/766c70bd-1acb-59f5-b703-96c0315a8041" (reference "C2") (unit 1)))))
 (label "GND" (at 76.2 120.65 90) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "1f2148a2-d2db-5532-ba6c-b2f5e88bd4ba"))
 (label "3V3" (at 76.2 128.27 270) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "39cc8e67-2558-5f3f-87b7-c9064741b5bb"))
-(symbol (lib_id "Connector_Generic_MountingPin:Conn_01x06_MountingPin") (at 231.14 88.9 0) (unit 1) (exclude_from_sim no) (in_bom yes) (on_board yes) (dnp no) (uuid "b2695cd3-90aa-5393-8b74-704865b6b24b") (property "Reference" "J2" (at 231.14 74.9 0) (effects (font (size 1.27 1.27)))) (property "Value" "FFC 6P 0.5mm" (at 231.14 102.9 0) (effects (font (size 1.27 1.27)))) (property "Footprint" "sdboard:FPC-SMD_6P-P0.50_XUNPU_FPC-05F-6PH20" (at 231.14 88.9 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Datasheet" "" (at 231.14 88.9 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "LCSC" "C2856796" (at 231.14 88.9 0) (effects (font (size 1.27 1.27)) (hide yes))) (pin "1" (uuid "b7d1af43-93be-5e0a-b32c-9cee22794e90")) (pin "2" (uuid "5c3ca00b-a573-58e5-bbcf-77deab441566")) (pin "3" (uuid "582cc1a1-1879-50d2-98ad-4702657563b7")) (pin "4" (uuid "a0fdacbd-3edd-5c93-be89-5a22865d13c1")) (pin "5" (uuid "1689108a-08a5-57c2-8eb9-431f325297e3")) (pin "6" (uuid "64dfe955-f20c-58c1-96a0-f770330dbe15")) (pin "MP" (uuid "cd2b3a30-43aa-5ea6-a66e-eb9f2e445e8e")) (instances (project "sd-board" (path "/766c70bd-1acb-59f5-b703-96c0315a8041" (reference "J2") (unit 1)))))
-(label "3V3" (at 226.06 83.82 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "fe814ba1-09bb-5064-b9e8-a97e1dc3f229"))
-(label "LCD_CS" (at 226.06 86.36 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "e0094e4d-770a-5f12-8762-85c1efe3afb1"))
-(label "MOSI" (at 226.06 88.9 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "393f06ce-8148-55ca-9367-4f98f17f2bee"))
-(label "GND" (at 226.06 91.44 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "2cf5f533-85ce-5126-8f5d-fd4833eae486"))
-(label "CLK" (at 226.06 93.98 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "77cc2ecf-095a-5b86-80c5-a9a5b5a3a571"))
-(label "MISO" (at 226.06 96.52 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "7028bd1c-f16e-567c-8ffb-688178ebeed3"))
-(label "GND" (at 231.14 101.6 270) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "a449b195-b09b-5837-ae61-29b69e43a199"))
+(symbol (lib_id "Connector_Generic_MountingPin:Conn_01x10_MountingPin") (at 231.14 88.9 0) (unit 1) (exclude_from_sim no) (in_bom yes) (on_board yes) (dnp no) (uuid "b2695cd3-90aa-5393-8b74-704865b6b24b") (property "Reference" "J2" (at 231.14 74.9 0) (effects (font (size 1.27 1.27)))) (property "Value" "FPC 10P 0.5mm (IN)" (at 231.14 102.9 0) (effects (font (size 1.27 1.27)))) (property "Footprint" "sdboard:FPC-SMD_10P-P0.50_HC-FPC-05-09-10RLTAG" (at 231.14 88.9 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Datasheet" "" (at 231.14 88.9 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "LCSC" "C5213750" (at 231.14 88.9 0) (effects (font (size 1.27 1.27)) (hide yes))) (pin "1" (uuid "b7d1af43-93be-5e0a-b32c-9cee22794e90")) (pin "2" (uuid "5c3ca00b-a573-58e5-bbcf-77deab441566")) (pin "3" (uuid "582cc1a1-1879-50d2-98ad-4702657563b7")) (pin "4" (uuid "a0fdacbd-3edd-5c93-be89-5a22865d13c1")) (pin "5" (uuid "1689108a-08a5-57c2-8eb9-431f325297e3")) (pin "6" (uuid "64dfe955-f20c-58c1-96a0-f770330dbe15")) (pin "7" (uuid "0dbc086e-6f00-5ea5-ad48-779a1db107e2")) (pin "8" (uuid "5b4a567e-c836-5b21-968c-901b31ba7578")) (pin "9" (uuid "1660250b-5126-5d8b-afed-5a0aea868dca")) (pin "10" (uuid "926f4a0d-1a7c-51ae-a766-761267ee8f33")) (pin "MP" (uuid "cd2b3a30-43aa-5ea6-a66e-eb9f2e445e8e")) (instances (project "sd-board" (path "/766c70bd-1acb-59f5-b703-96c0315a8041" (reference "J2") (unit 1)))))
+(label "GND" (at 226.06 78.74 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "fe814ba1-09bb-5064-b9e8-a97e1dc3f229"))
+(label "MISO" (at 226.06 81.28 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "e0094e4d-770a-5f12-8762-85c1efe3afb1"))
+(label "CLK" (at 226.06 83.82 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "393f06ce-8148-55ca-9367-4f98f17f2bee"))
+(label "MOSI" (at 226.06 86.36 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "2cf5f533-85ce-5126-8f5d-fd4833eae486"))
+(label "LCD_CS" (at 226.06 88.9 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "77cc2ecf-095a-5b86-80c5-a9a5b5a3a571"))
+(label "3V3" (at 226.06 91.44 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "7028bd1c-f16e-567c-8ffb-688178ebeed3"))
+(label "LCD_RST" (at 226.06 93.98 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "32f3a452-e351-5b3b-8544-258f7158629c"))
+(label "LCD_LEDA" (at 226.06 96.52 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "925922d9-4b62-5c02-a697-118f893592f8"))
+(label "LCD_LEDK" (at 226.06 99.06 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "6b0e809a-956d-58a5-916f-5ded3e080692"))
+(label "GND" (at 226.06 101.6 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "bd3bdd57-078e-53e5-adcd-4f2c0557c5ac"))
+(label "GND" (at 231.14 106.68 270) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "a449b195-b09b-5837-ae61-29b69e43a199"))
+(symbol (lib_id "Connector_Generic_MountingPin:Conn_01x10_MountingPin") (at 259.08 88.9 0) (unit 1) (exclude_from_sim no) (in_bom yes) (on_board yes) (dnp no) (uuid "1868c439-f00a-5f4c-a87d-59d0519ef592") (property "Reference" "J3" (at 259.08 74.9 0) (effects (font (size 1.27 1.27)))) (property "Value" "FPC 10P 0.5mm (LCD)" (at 259.08 102.9 0) (effects (font (size 1.27 1.27)))) (property "Footprint" "sdboard:FPC-SMD_10P-P0.50_HC-FPC-05-09-10RLTAG" (at 259.08 88.9 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Datasheet" "" (at 259.08 88.9 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "LCSC" "C5213750" (at 259.08 88.9 0) (effects (font (size 1.27 1.27)) (hide yes))) (pin "1" (uuid "f44591ed-2aba-5fab-9e78-2c73842f42ff")) (pin "2" (uuid "a87a3ed8-a6e6-5578-91b2-ceac6d39226b")) (pin "3" (uuid "d2e332bf-5531-5ae5-8bd9-2676e7a8fcf7")) (pin "4" (uuid "b35454b9-f4fd-5f38-9a1d-0a33d11e8dab")) (pin "5" (uuid "83e88c05-646b-5cc5-b8f6-403058870fcc")) (pin "6" (uuid "1633c14e-4932-5c71-b393-f6d213c20503")) (pin "7" (uuid "7e99ab6d-07c3-5787-8c49-775de893b196")) (pin "8" (uuid "6ee5ff9c-11bf-5db3-91b5-70f230efb929")) (pin "9" (uuid "234761d1-befa-54af-bb33-d1e06f84b489")) (pin "10" (uuid "17daa780-3c16-511a-8ac7-03480687541f")) (pin "MP" (uuid "3f4a978f-471f-5a88-92ba-6e7afea50900")) (instances (project "sd-board" (path "/766c70bd-1acb-59f5-b703-96c0315a8041" (reference "J3") (unit 1)))))
+(label "GND" (at 254.0 78.74 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "84c761b6-bdb3-5e43-843e-f31f4632bb08"))
+(label "MISO" (at 254.0 81.28 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "3776eb77-8b24-574f-8186-887c5dcaa703"))
+(label "CLK" (at 254.0 83.82 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "d3fab314-15ca-50c9-aeb6-d72c64ee39b6"))
+(label "MOSI" (at 254.0 86.36 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "a2aae500-36f2-5969-9062-daba21e9e9b6"))
+(label "LCD_CS" (at 254.0 88.9 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "2ca278b3-90f2-52f3-99c9-59e0bf4d8b61"))
+(label "3V3" (at 254.0 91.44 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "965cfe81-ce0a-51d8-9f56-1f76c678cde7"))
+(label "LCD_RST" (at 254.0 93.98 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "b6ac05d9-c777-5d41-b476-ca1bf02677af"))
+(label "LCD_LEDA" (at 254.0 96.52 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "9ca7272f-b8b0-5cbe-96e6-b4cd4e614c9a"))
+(label "LCD_LEDK" (at 254.0 99.06 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "f4561229-3b15-5449-99c9-d36f490e61d4"))
+(label "GND" (at 254.0 101.6 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "5825d6c3-ee39-5975-8eac-4f656f3453a6"))
+(label "GND" (at 259.08 106.68 270) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "53929259-aa58-51f9-a403-403dec15c55f"))
 (symbol (lib_id "power:PWR_FLAG") (at 40.64 149.86 0) (unit 1) (exclude_from_sim no) (in_bom no) (on_board no) (dnp no) (uuid "cf31f794-8f57-5253-8b56-9b4b8d0d7c96") (property "Reference" "#FLG01" (at 40.64 135.86 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Value" "PWR_FLAG" (at 40.64 163.86 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Footprint" "" (at 40.64 149.86 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Datasheet" "" (at 40.64 149.86 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "LCSC" "" (at 40.64 149.86 0) (effects (font (size 1.27 1.27)) (hide yes))) (pin "1" (uuid "101a547c-20b9-53ab-b34e-6e1adc40b1ac")) (instances (project "sd-board" (path "/766c70bd-1acb-59f5-b703-96c0315a8041" (reference "#FLG01") (unit 1)))))
 (label "3V3" (at 40.64 149.86 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "7da47807-b2c2-545d-bcf8-f559aadfea1d"))
 (symbol (lib_id "power:PWR_FLAG") (at 55.88 149.86 0) (unit 1) (exclude_from_sim no) (in_bom no) (on_board no) (dnp no) (uuid "216b2527-ad5c-58f9-8559-8b88131b8ea8") (property "Reference" "#FLG02" (at 55.88 135.86 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Value" "PWR_FLAG" (at 55.88 163.86 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Footprint" "" (at 55.88 149.86 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Datasheet" "" (at 55.88 149.86 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "LCSC" "" (at 55.88 149.86 0) (effects (font (size 1.27 1.27)) (hide yes))) (pin "1" (uuid "bf2ed4e6-1a1e-5893-8a6d-b3d4adeb47eb")) (instances (project "sd-board" (path "/766c70bd-1acb-59f5-b703-96c0315a8041" (reference "#FLG02") (unit 1)))))
