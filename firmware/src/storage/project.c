@@ -1665,6 +1665,9 @@ static void persist_boot(void)                    /* before settings_init / pane
             open_proj = (uint8_t)(p.open_proj < 16u ? p.open_proj : 0u);   /* (the open project: sections.c) */
 #endif
             persist_ofs_load(&p);
+#if FONT_N > 1
+            font_use_id(p.font);                   /* SYSTEM > FONT (gfx.c: a face not built, the first built) */
+#endif
             persist_saved = p;
         } else if (n == (int)(8u + sizeof(panel_t)) && p3.magic == 0x50455231u) {   /* "PER1": palette, panel */
             const uint32_t *w = (const uint32_t *)&p3;
@@ -1753,6 +1756,9 @@ static void settings_save(void)
     p.open_proj = open_proj;                       /* (the open project: sections.c; the chain above is a copy, the log's is read) */
 #endif
     persist_ofs_save(&p);
+#if FONT_N > 1
+    p.font = font_rec();                           /* (SYSTEM > FONT, gfx.c; a build of one face keeps the byte as read) */
+#endif
 #if FELUCCA_FAVORITES
     persist_fav_save(&p);
 #endif

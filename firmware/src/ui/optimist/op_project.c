@@ -390,6 +390,9 @@ enum { SI_NONE, SI_BRIGHT, SI_LIGHTS, SI_KEYS, SI_LOWCUT, SI_OUT, SI_SYNC, SI_CH
        SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_HOLD, SI_BLE, SI_KCOL, SI_CLKOUT, SI_CPU1, SI_INFO, SI_BATT, SI_BUILD, SI_REPO,
        SI_DROPS, SI_GUARD, SI_UAINFO, SI_XRUN, SI_DIAG, SI_CREDITS, SI_BLEST, SI_BLEPEER, SI_BLEMIDI, SI_BLELIST, SI_BLEAUTO,
        SI_BLEFGT, SI_FRESO, SI_BTA, SI_BTAPEER, SI_BTAFMT, SI_BTAST, SI_CLKOFS, SI_BTOFS,
+#if FONT_N > 1
+       SI_FONT,                                         /* (FONT: the face drawn, only with more than one built: gfx.c font_use) */
+#endif
        SI_UAS0 };                                       /* SI_UAS0 + s: USB AUDIO's line of source s (ua_tap.h UAS_*), last */
 /* a core's load number (% of the audio budget) in its colour: green under 60, amber 60..85, red over 85 (the predictive guard's
  * ceiling, system/cpuguard.c CG_CEIL = 85 %: above it the guard sheds quality / voices). Text only (INFO draws no bars). */
@@ -460,8 +463,12 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
     {"USB STATS", {SI_UAINFO, SI_NONE, SI_NONE, SI_NONE}},   /* the USB audio glitch counters */
 #endif
 #endif
-    {"SCREEN", {SI_IF(FELUCCA_BRIGHT, SI_BRIGHT), SI_NONE, SI_NONE, SI_KCOL}},   /* (SI_KCOL: KNOB COLORS; KNOB 3 was CARDS, gone
+#if FONT_N > 1
+    {"GENERAL", {SI_IF(FELUCCA_BRIGHT, SI_BRIGHT), SI_NONE, SI_FONT, SI_KCOL}},   /* (FONT next to KNOB COLORS: the faces built) */
+#else
+    {"GENERAL", {SI_IF(FELUCCA_BRIGHT, SI_BRIGHT), SI_NONE, SI_NONE, SI_KCOL}},   /* (SI_KCOL: KNOB COLORS; KNOB 3 was CARDS, gone
                                                          * 2026-10-12; COLOR gone 2026-10-18: the palette is MONO, panel.c) */
+#endif
     {"AUDIO", {SI_LOWCUT, SI_IF(FELUCCA_TFLT_RESO && FELUCCA_TRK_FILT, SI_FRESO), SI_NONE, SI_NONE}},   /* (FILT RESO: SLOOP 2.8's FILTER RESO, a project's: core.h G_TFRES) */
 #if FELUCCA_LIGHTS
     {"KEYS", {SI_LIGHTS, SI_KEYS, SI_NONE, SI_NONE}},
@@ -844,6 +851,11 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
     case SI_KCOL:                                       /* the knob caps' colours on dials, labels, cards (core/knobcol.h) */
         sys_onoff(c, "KNOB COLORS", knob_colors);       /* (the settings list has the room: op_gldraw.c) */
         break;
+#if FONT_N > 1
+    case SI_FONT:                                       /* the face drawn (gfx.c font_use; the settings record's font) */
+        cell_list(c, "FONT", FONT_NAME[font_sel], (int32_t)FONT_N - 1, font_sel);
+        break;
+#endif
 #if FELUCCA_MIDI_CLKOUT
     case SI_CLKOUT:                                     /* MIDI clock out (io/midi/clock_out.c) */
         sys_onoff(c, "CLK OUT", clko_on);
@@ -1186,6 +1198,12 @@ static void sys_set(uint32_t it, int32_t s)
         knob_colors = (uint8_t)sys_step(knob_colors, s, 1);
         ui.force = 1;                                   /* (every band's colours move) */
         break;
+#if FONT_N > 1
+    case SI_FONT:                                       /* (kept in the settings record: project.c persist_t font) */
+        font_use((uint32_t)sys_step(font_sel, s, (int32_t)FONT_N - 1));
+        ui.force = 1;                                   /* (every band's text moves) */
+        break;
+#endif
 #if FELUCCA_MIDI_CLKOUT
     case SI_CLKOUT:                                     /* (kept in the settings word: settings_word.c) */
         clko_on = (uint8_t)sys_step(clko_on, s, 1);
@@ -1266,6 +1284,12 @@ static int sys_factory(uint32_t it)
         knob_colors = 0;
         ui.force = 1;
         break;
+#if FONT_N > 1
+    case SI_FONT:                                       /* (the first face built: Terminus when it is) */
+        font_use(0);
+        ui.force = 1;
+        break;
+#endif
 #if FELUCCA_MIDI_CLKOUT
     case SI_CLKOUT:
         clko_on = 0;
