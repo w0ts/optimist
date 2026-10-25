@@ -1078,12 +1078,10 @@ static void engine_block(track_t *t)
             v->stage = 0;
             v->env = v->env_out = 0;
         }
-        {
-            uint8_t was = t->engine;
-            t->engine = t->eng_req % NENGINES;
-            if (part_mem_claim((uint32_t)(t - trk), t->engine))   /* its engine memory (engines.c); no room (an arena */
-                t->engine = t->eng_req = was;                    /* placed by need, a load nobody reserved): the old */
-        }                                                        /* engine stays (part_mem_refused: the UI offers drops) */
+        t->engine = t->eng_req % NENGINES;
+        if (part_mem_claim((uint32_t)(t - trk), t->engine))     /* its engine memory (engines.c); no room (an arena */
+            part_mem_unplaced(t, t->engine);                     /* placed by need, nobody reserved): a placeholder,
+                                                                  * the UI's list offers what to drop */
         t->xf_on = 0;
         t->pold = 0;
         t->nmono = 0;

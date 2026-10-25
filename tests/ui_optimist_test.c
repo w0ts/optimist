@@ -3823,6 +3823,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_uniform.h"                   /* 2026-10-13: the uniform-UI rulings (docs/UI-OPTIMIST-DESIGN.md 2.3) */
 #include "ui_optimist_pagemem.h"                    /* 2026-10-13: every screen remembers its page (SOUND per track, the held step) */
 #include "ui_optimist_nav.h"                        /* 2026-10-24: the mirror's touch navigation (op_nav.c, 109 NAV) */
+#include "ui_optimist_memlist.h"                    /* 2026-10-25: a load that does not fit: the list of what to drop */
 /* ---- the buttons' half light: what has a function glows dim, the active button full, what has nothing is dark */
 static uint32_t led_lvl(uint32_t b)                     /* 2 full, 1 dim, 0 dark: the LED of panel button b */
 {
@@ -3956,6 +3957,11 @@ int main(int argc, char **argv)
         memcpy(&TDRUM->p[P_GRX], keep, sizeof keep);
         gr_out = GRO_DRUMS;
     }
+#endif
+#if UI_MEMLIST                                           /* (the arena's build, run_tests.sh: the list's tests alone) */
+    memlist_tests();
+    printf(fails ? "optimist ui test FAILED (%d)\n" : "optimist ui test passed\n", fails);
+    return fails != 0;
 #endif
 #if FELUCCA_PAGE_LINES
     plines_tests();                                     /* (the lines build: the rest of the suite assumes the 2x2 cards) */

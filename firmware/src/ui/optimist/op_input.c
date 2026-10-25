@@ -70,7 +70,7 @@ static int keys_none(void)
 static int algo_has_track(void)
 {
     uint32_t l = lay_now();
-    if (name_on() || op_armed())
+    if (page_owned() || op_armed())
         return 0;
     if (l != LY_PLAY)
         return HEAD_TRK_LY[l % LY_COUNT];
@@ -82,13 +82,13 @@ static int algo_has_track(void)
  * NAME, under a question, in a layer, or on a page with neither (GLOBAL, SYSTEM, PROJECT, SONG) */
 static int oct_master_ok(void)
 {
-    return !name_on() && !op_armed() && lay_now() == LY_PLAY && !ft_on && (algo_has_track() || master_sel());
+    return !page_owned() && !op_armed() && lay_now() == LY_PLAY && !ft_on && (algo_has_track() || master_sel());
 }
 static void oct_master_toggle(void);                    /* op_walk.c */
 static uint8_t oct_both;                                /* both OCT are down and nothing else was used: the toggle when they are let go */
 static uint32_t oct_both_t;                             /* (when both went down: FOLD wants a quick tap) */
 #define FOLD_TAP_MS 400u                                /* both OCT let go within this on a synth track's STEP: FOLD on / off */
-static int oct_fold_here(void) { return ui.scr == SCR_STEP && !is_drum(TSEL) && !st.held && !op_armed() && !name_on(); }
+static int oct_fold_here(void) { return ui.scr == SCR_STEP && !is_drum(TSEL) && !st.held && !op_armed() && !page_owned(); }
 static void op_enter(uint32_t scr)
 {
     fx_by_walk = 0;                                     /* (a screen entered: the master FX screen is the walk's again only via walk_master_in) */
@@ -215,6 +215,8 @@ static void mem_tick(void)
         fxm_news = 0;
     }
 #endif
+    if (ml_tick())                                      /* a load's refusals: its list (op_memlist.c), the edit's waits */
+        return;
     if (!part_mem_refused.on || op_armed())
         return;
     if (mem_retry() >= 0 && (!part_mem_refused.on || part_mem_refused.waiting))
@@ -452,7 +454,7 @@ static int pick_mod(uint32_t held)
  * "global pages dont play tracks. period.") */
 static int shift_alone(uint32_t held, uint32_t b, int master)
 {
-    return (held & 0x3FFFu) == (1u << panel.btn[b]) && !name_on() && lay_now() == LY_PLAY && !song_on_pat_row() &&
+    return (held & 0x3FFFu) == (1u << panel.btn[b]) && !page_owned() && lay_now() == LY_PLAY && !song_on_pat_row() &&
            (!keys_none() || (master && (ui.scr == SCR_FX || mx_on_master() || mx_on_usb())));
 }
 /* the mute mode works on the master channel too (the user, 2026-10-22: "left shift mute should work when on master channel
@@ -564,7 +566,7 @@ static void oct_tap(uint32_t b)                         /* the keyboard octave, 
     int32_t o = song.octave + (b == B_OCTDN ? -1 : 1);
     if (prj_bank_tap(b == B_OCTUP))
         return;                                         /* (PROJECT: the bank) */
-    if (ui.scr == SCR_SONG && !name_on()) {
+    if (ui.scr == SCR_SONG && !page_owned()) {
         if (!song_on_pat_row())
             song_page_tap(b == B_OCTUP);                /* (SONG: the parts window by eight) */
         return;                                         /* (the PATTERNS row, the LFO patterns screen: nothing, the keys launch patterns) */
@@ -715,7 +717,7 @@ static void op_tap(uint32_t b, uint32_t id)
 }
 
 /* PRESETS free to act: no question, no REC ring, not the NAME screen, not MASTER (the mixer's either) */
-static int pre_free(void) { return !op_armed() && !rh.ring && !name_on() && ui.scr != SCR_FX && !ui.master && !mx_on_master(); }
+static int pre_free(void) { return !op_armed() && !rh.ring && !page_owned() && ui.scr != SCR_FX && !ui.master && !mx_on_master(); }
 #if FELUCCA_FAVORITES
 /* FAVORITES (docs/UI-OPTIMIST-DESIGN.md 13 Favorites) are marked and browsed where presets are picked, not on a SOUND row (the user, 2026-10-14: "we have a
  * preset button, that is enough"): SAVE held + PRESETS marks the sound playing a favorite (right: saved into the favorites, 2026-10-16)
@@ -901,7 +903,7 @@ static void op_knobs(uint32_t shift)
             )
             ;                                           /* (SONG and the patterns screen are global: ALGORITHM does nothing, the user, 2026-10-21; the scenes table's lanes
                                                          * are read in op_songtbl.c) */
-        else if (glo_cycle() && lay_now() == LY_PLAY && !name_on())
+        else if (glo_cycle() && lay_now() == LY_PLAY && !page_owned())
             glo_walk(s);                                /* (GLOBAL, SYSTEM: the cursor a line a detent, no track here; a layer over them keeps the walk's rules) */
         else
             algo_walk(s, 0);
@@ -1017,7 +1019,7 @@ static void save_clear_tick(uint32_t held)
         done = 0;
         return;
     }
-    if (done || held != sb || ui.scr != SCR_SONG || op_armed() || name_on() || song_rows() <= ui.row[SCR_SONG] ||
+    if (done || held != sb || ui.scr != SCR_SONG || op_armed() || page_owned() || song_rows() <= ui.row[SCR_SONG] ||
         song_kind(ui.row[SCR_SONG], &a) != SG_SCENE || fm1_ms - op_t0[panel.btn[B_SAVE] % 14u] < op_hold_ms())
         return;
     done = 1;
@@ -1044,6 +1046,14 @@ static void ui_input(void)
         op_held = held;
         if (ly_lock != LY_STEP)
             ly_lock = LY_STEP;                          /* (the keys reach the UI and play nothing: seq.c) */
+        return;
+    }
+    if (ml_on()) {                                      /* the load's memory list: the keys pick, SAVE drops, HOME keeps */
+        ml_frame(pressed);                              /* (op_memlist.c) */
+        op_clean = 0;
+        op_held = held;
+        if (ly_lock != LY_STEP)
+            ly_lock = LY_STEP;
         return;
     }
     op_rows_fix();
@@ -1083,7 +1093,7 @@ static void ui_input(void)
     if (notes && keys) {
         lay.used = 1;
         op_clean &= ~(held | op_frame_up);              /* (a button let go in this frame: the key was its chord, no tap) */
-    } else if (notes && ui.scr == SCR_SONG && !name_on()) {   /* SONG: scenes, parts, PATTERNS / MODE (op_song.c): a key loads / launches, SHIFT2 + it selects */
+    } else if (notes && ui.scr == SCR_SONG && !page_owned()) {   /* SONG: scenes, parts, PATTERNS / MODE (op_song.c): a key loads / launches, SHIFT2 + it selects */
         song_keys(notes);
         op_clean &= ~(held | op_frame_up);
     } else if (notes && (mute_mod(held) || sel_mod(held))) {   /* SHIFT + a key: its mute; SHIFT2 + a key: selected */
@@ -1123,7 +1133,7 @@ static void ui_input(void)
         if ((taps >> id) & 1u && panel_btn_of(id) != B_PLAY)
             op_tap(panel_btn_of(id), id);
     held = fm1_in.buttons;                              /* the ISR's keys: a layer's, STEP's steps, else they play */
-    id = name_on() ? LY_STEP : lay.lock != LY_PLAY ? lay.lock : pick_silent(held) ? LY_STEP
+    id = page_owned() ? LY_STEP : lay.lock != LY_PLAY ? lay.lock : pick_silent(held) ? LY_STEP
        : lay.held != LY_PLAY || (held & BIT(B_PLAY)) ? LY_PLAY
        : step_keys(held) || keys_none() ? LY_STEP : FIF(FELUCCA_PATTERNS)(song_on_pat_row() ? LY_PAT :) LY_PLAY;
     if (ly_lock != id)
@@ -1277,7 +1287,7 @@ static uint32_t op_oct_avail(void)
     int mixer = ui.scr == SCR_HOME && !mx_on_master();
     if (oct_master_ok() || tempo_nudging())
         m = both;                                       /* (the track <-> MASTER toggle; the TEMPO nudge) */
-    if (mixer || ui.scr == SCR_SOUND || ui.scr == SCR_STEP || (!keys_none() && !name_on()))
+    if (mixer || ui.scr == SCR_SOUND || ui.scr == SCR_STEP || (!keys_none() && !page_owned()))
         m |= both;                                      /* (SHIFT: a value's default, a key's mute; SHIFT2: a key selected, PRESETS) */
 #if FELUCCA_BT_UI
     if (dev_listing())
@@ -1305,7 +1315,7 @@ static uint32_t op_btn_avail(void)                      /* a bit per panel butto
     static const uint8_t PAGE_BTN[] = {B_ENV, B_LFO, B_FX, B_SCL, B_EDIT, B_ARP};
     static const uint8_t PAGE_FAM[] = {FAM_ENV, FAM_LFO, FAM_FX, FAM_SCL, FAM_EDIT, FAM_ARP};
     uint32_t m = 1u << B_HOME | 1u << B_SAVE | 1u << B_PLAY, fam, i, l;
-    if (name_on())
+    if (page_owned())
         return m;
     m |= 1u << B_REC | 1u << B_GLO | 1u << B_SEQ | op_oct_avail();
     fam = op_fam_mask();
@@ -1445,8 +1455,8 @@ static void ui_draw(void)
     ui.page = (uint8_t)op_cursor_page();
 #if FELUCCA_MISSING_WARN
     miss_tick();                                        /* a load used what this build lacks: say so (miss.c) */
-    mem_tick();                                         /* memory short for an engine: propose what to drop (below) */
 #endif
+    mem_tick();                                         /* memory short for an engine: propose what to drop (above) */
     op_frame_draw();
 }
 

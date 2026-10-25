@@ -993,7 +993,7 @@ job; ( jobin   # the silent placeholder (docs/SD-MODE-DESIGN.md 6b): a part drop
     $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -DFELUCCA_ENG_FM6=1 -o "$OUT/placeholder_test" tests/placeholder_test.c -lm
     run "a dropped part: silent, its memory idle, NONE, through a save and a load until an engine is picked" "$OUT/placeholder_test"
     $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -DFELUCCA_ENG_FM6=1 "-DFELUCCA_ARENA_BYTES=ARN_SLOT" -o "$OUT/placeholder_flow_test" tests/placeholder_test.c -lm
-    run "memory short (an arena of one part's): refused, the part to drop proposed, dropped, the change made; on a load too, its sound kept" "$OUT/placeholder_flow_test"
+    run "memory short (an arena of one part's): an edit refused, the part to drop proposed, dropped, the change made; a load: every part refused collected (two on one load), placeholders, settled by itself when room comes, the list's trial, SAVE, HOME, the sound kept" "$OUT/placeholder_flow_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin   # the arena (core/arena.c, docs/SD-MODE-DESIGN.md 6b): first fit and the fixed slots
     $CC -O2 -w -Ifirmware/src -o "$OUT/arena_test" tests/arena_test.c
@@ -1009,6 +1009,8 @@ job; ( jobin   # the effects' lines in the arena (fx/fx_arena.c, docs/SD-MODE-DE
     run "effects' lines in the arena (ROOM): placed while used, zeroed, gated and given back, refused (bypassed, kept, said once) and restored, a part's change waits for a line going back, the own room, lent instead; random switches" "$OUT/fx_arena_test"
     $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA -DFELUCCA_REV_FDN8=1 -DFELUCCA_REV_POOL=1 -DFELUCCA_SPRING=1 "-DFELUCCA_ARENA_BYTES=(sizeof(fm6_mem_t) + 79912u)" -o "$OUT/fx_arena_rev_test" tests/fx_arena_test.c -lm
     run "the same with ROOM, FDN8 and SPRING (the reverb's TYPE switched, its line 32 KB)" "$OUT/fx_arena_rev_test"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA -DUI_MEMLIST=1 "-DFELUCCA_ARENA_BYTES=(sizeof(fm6_mem_t) + 56000u)" -o "$OUT/ui_optimist_memlist_test" tests/ui_optimist_test.c -lm
+    run "a load that does not fit (ui/optimist/op_memlist.c): the refused parts listed, then the parts and the effects' lines on the keys, the gauge and FITS the arena's trial, SAVE drops and places, HOME leaves placeholders, an edit's one confirm" "$OUT/ui_optimist_memlist_test" "$OUT/optimist"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin   # the RAMTEXT overlays (core/overlay.c, docs/SD-MODE-DESIGN.md 6): the slots' protocol on the host
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_OVERLAY=1 -DFELUCCA_ENG_STRINGS=1 -o "$OUT/overlay_test" tests/overlay_test.c -lm

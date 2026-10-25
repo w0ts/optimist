@@ -22,7 +22,8 @@
  * op_song.c (SONG), op_combos.c (SAVE / SHIFT + a button), op_prjflow.c (PROJECT), op_project.c (SYSTEM), op_global.c (GLOBAL, GLO
  * tapped; the screen table),
  * op_graph.c (the forms of values, the SOUND graphs, the modal), op_preset.c (a preset named with its engine),
- * op_name.c (NAME: a user preset or a project named on the device), op_draw.c (the renderer, the mixer's strips),
+ * op_name.c (NAME: a user preset or a project named on the device), op_memlist.c (a load that does not fit the
+ * arena: the list of what to drop; page_owned: NAME or it), op_draw.c (the renderer, the mixer's strips),
  * op_edits.c (the sound's edits, the work changed: what a load asks),
  * op_gldraw.c (GLOBAL and SYSTEM's settings list), op_help.c (the help line on the screen's foot),
  * op_mixdraw.c (the mixer's rows: meters, steps), op_scope.c (SCOPE), op_stepdraw.c (STEP's
@@ -63,6 +64,7 @@
 #include "op_graph.c"
 #include "op_preset.c"
 #include "op_name.c"
+#include "op_memlist.c"            /* a load that does not fit: the list of what to drop (docs/SD-MODE-DESIGN.md 6b) */
 #include "op_draw.c"
 #include "op_gldraw.c"
 #include "op_help.c"
