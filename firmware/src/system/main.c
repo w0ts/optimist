@@ -319,6 +319,12 @@ static BOOT_ORDER void fm1_main(void)
     BOOT_STAGE(SETTINGS);
     settings_init();
     BOOT_STAGE(LCD);
+#if FELUCCA_SDCARD
+    fm1_lcd_hw_init();
+    (void)sd_mount();                                   /* the card in SPI mode before the first screen traffic: a card
+                                                         * still in its native mode reads the pixels on CMD (2026-10-25
+                                                         * review); none: a few failed CMD0s, ms */
+#endif
     lcd_init();
     boot_splash();                                      /* the Optimist logo and version (splash.c) */
 #if FELUCCA_SIMD

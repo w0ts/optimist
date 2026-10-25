@@ -19,7 +19,7 @@ v5: J2 (IN, from J12) and J3 (the LCD's cable), 10 pins each, every line through
   MOSI     J2 3 -> J1 3 (CMD)
   GND      J2 4 -> J1 6, the shell, U1 GND, J2's tabs
   CLK      J2 5 -> J1 5
-  MISO     J2 6 -> R1 1k -> J1 7 (DAT0): the FM-1's PC8 is the LCD's D/C too (the 1k takes any overlap)
+  MISO     J2 6 -> R1 220 -> J1 7 (DAT0): the FM-1's PC8 is the LCD's D/C too (R1 takes any overlap)
   DAT1/DAT2  47k pull-ups (unused in SPI mode, not left floating)
 """
 import math

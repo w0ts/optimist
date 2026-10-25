@@ -15,12 +15,16 @@ The LCD's SPI1 already has a clock (PC9) and data out (PC10), and SPI1's data **
 as the clock and data out), which the LCD uses as D/C. An ST7789 ignores D/C while its CS is high. So:
 
 - the card's CLK and CMD (DI) share the LCD's clock and data;
-- the card's DAT0 (DO) drives PC8 through 1 kOhm while the LCD is deselected;
+- the card's DAT0 (DO) drives PC8 through a series resistor (R1, 220 Ohm on the SD board) while the LCD is deselected;
 - the card's CS is the LCD's CS **inverted**: the card is selected exactly when the LCD is not.
 
 Six wires, one inverter, two resistors, no pin of the main chip touched.
 
 ## 2. Parts
+
+> **Superseded (2026-10-25):** the SD board (`hardware/sd-board/`, v5: the board is the splitter, two 10-pin
+> sockets, no soldering) replaces the hand-wired kit and the "v2" tap board below. The 1 kOhm figures below belong to
+> that kit; the board uses 220 Ohm (section 4). The board's README is the current parts list.
 
 **For everyone: the SD board (hardware/sd-board/, 2026-10-25).** One small board with the socket (push-push), the
 inverter, the resistors and the capacitors, ordered assembled from JLCPCB with the files in `hardware/sd-board/fab/` (or
@@ -119,16 +123,30 @@ code takes the bus between two screen transfers:
 2. **Select the card** = the LCD's CS high, then PC8 an input (the card drives it).
 3. **Deselect the card** = PC8 driven high first (D/C = data), then the LCD's CS low. Every byte clocked in this state
    reaches the panel; ChaN's driver only ever clocks 0xFF here (the "release" and dummy clocks), and the host test
-   checks exactly that (`LCD sees only 0xFF`).
-4. **`sd_end`**: the card selected and idle (the LCD deselected, as `lcd.c` leaves it), PC8 driven again, SPI1's
-   control word and the LCD's clock (`LCD_BAUD`) put back.
-5. **While the screen idles** the card is selected (the LCD's CS is high) and may drive PC8: `fm1_lcd_deselect`
-   (`hal/fm1_lcd_hw.h`, and the LCD's start-up) leaves D/C **high** with CS, so the FM-1 never holds PC8 low against a
-   card driving it high (a bare command used to leave it low; 2026-10-25).
+   checks exactly that (`LCD sees only 0xFF`). That test's card model proves the firmware's sequencing, **not the
+   panel's behaviour**: that the ST7789 ignores those bytes is the datasheet's claim, unverified on this panel.
+4. **`sd_end`**: the card deselected, the LCD selected and idle (D/C high, no clock), PC8 driven again, SPI1's control
+   word and the LCD's clock (`LCD_BAUD`) put back.
+5. **While the screen idles** (2026-10-25 review): SD builds idle the LCD **selected** (its CS low, `hal/fm1_lcd_hw.h`
+   `FM1_LCD_IDLE_CS`; the ST7789 allows CS tied low), so the card (CS inverted) is deselected and lets go of PC8 between
+   its sessions. An LCD command's D/C low then never meets the card's DO; the overlap exists only inside an SD session,
+   where the panel is not listening. The update loader of an SD build idles the same way. A firmware that idles CS high
+   (a normal build, the stock update loader) selects the card: **the card comes out before such an update**.
+6. **At boot** the card is put in SPI mode (`sd_mount`, `main.c`) before the screen's first command: a card still in
+   its native mode (fresh, or hot-plugged) parses the LCD's traffic on CMD, may find a valid command in it and answer on
+   CMD (open-drain) against PC10. The socket's card-detect is not wired, so a hot-plugged card is not seen; for
+   streaming, a periodic CMD13 (status) checks the card and only a CMD13 with no answer sends CMD0 (CMD0 resets a card
+   in use). The board's MOSI branch gets 100 Ohm in series, which bounds that fight to about 15 mA.
 
-The card's start-up runs at 400 kHz (SPI1 BAUD 149: 60 MHz / 150), then 20 MHz (BAUD 2); the screen runs at 30 MHz
-(BAUD 1). PC8 can be driven by the FM-1 and the card at once in two short moments (the LCD's D/C set just before its CS
-goes low; a card that has not let go yet): the 1 kOhm keeps that to 3.3 mA.
+The card's start-up runs at 400 kHz (SPI1 BAUD 149: 60 MHz / 150), then 20 MHz (BAUD 2). The screen runs at 60 MHz
+(`LCD_BAUD` 0 in every profile; 30 MHz, BAUD 1, is the fallback if the column's stub disturbs it). PC8 can be driven
+by the FM-1 and the card at once for a few clocks inside a session (the card not yet let go when D/C goes high):
+R1 (220 Ohm on the board) keeps that to about 15 mA.
+
+**Timing, estimates (the 2026-10-25 review):** the card's DO drives R1 into the column, both cables, the MCU pad and
+the panel's D/C input, about 35 pF: about 8 ns a time constant, against a 16.7 ns half-bit at 30 MHz. Expect CRC
+errors on `sd bench`'s 30 MHz rows; 20 MHz is marginal; R1 100 Ohm is the next step if 20 MHz fails. The 10 kHz tick
+never touches SPI1 here (`fm1_lcd_bl_scan` drives PA2 only), so it cannot clear the done bit the SD code polls.
 
 **Which way SPI1 reads is unverified.** The flash driver reads SPI0 with CON bit 12 (DIR = receive) after writing
 0xFF (`hal/fm1_flash.h` `fl_rx`); whether SPI1's group-B data-in follows PC8 in transmit mode as well is not known.

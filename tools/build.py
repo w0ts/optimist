@@ -219,7 +219,8 @@ def layout():
 def build_loader():
     LDR.mkdir(parents=True, exist_ok=True)
     src = FW / "loader"
-    flags = [*CFLAGS, "-Ifirmware/hal", "-Ifirmware/src", f"-DFELUCCA_LAYOUT={layout()}"]   # (it writes that slot)
+    flags = [*CFLAGS, "-Ifirmware/hal", "-Ifirmware/src", f"-DFELUCCA_LAYOUT={layout()}",   # (it writes that slot)
+             *(["-DFELUCCA_SDCARD=1"] if CFG_VALUES.get("FELUCCA_SDCARD") == 1 else [])]   # (its LCD idles as the app's)
     tc_all(("cc", "-c", src / "crt0_ldr.S", "-o", LDR / "crt0_ldr.o"),
            ("cc", *flags, "-c", src / "loader.c", "-o", LDR / "loader.o"))
     elf = LDR / "loader.elf"
