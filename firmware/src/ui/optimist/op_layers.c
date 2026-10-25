@@ -85,9 +85,12 @@ static struct {
 /* the cards 2x2 (op_state.c): everywhere but the mixer's channel and lane rows, which want the height ("but not in mixer !",
  * the user, 2026-10-12); the mixer's MASTER row is one meter and the returns, so it takes the big cards too (the user,
  * 2026-10-17: "Master mixer. 2*2 cards"); a layer's map over the mixer is the layer's screen, so it is 2x2 too. The
- * builder item MIXER_2X takes them on every mixer row too (op_mix2x.c: the steps of the selected row, a bar a track) */
-#if FELUCCA_MIXER_2X
+ * builder item MIXER_2X takes them on every mixer row too (op_mix2x.c: the rows, the selected row's steps), "both" while
+ * the mixer is the big one */
+#if FELUCCA_MIXER_2X == 1
 static int cards_2x2(void) { return 1; }
+#elif FELUCCA_MIXER_2X == 2
+static int cards_2x2(void) { return mx_big || ui.scr != SCR_HOME || lay.shown != LY_PLAY || mx_row() == MXR_MASTER; }
 #else
 static int cards_2x2(void) { return ui.scr != SCR_HOME || lay.shown != LY_PLAY || mx_row() == MXR_MASTER; }
 #endif
