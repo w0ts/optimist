@@ -323,7 +323,7 @@ def check_terms(cfg, sizes, name):
     "symbols", tools/build.py SIZED_SYMBOLS): a structure that grew is a wrong estimate everywhere, so it stops here"""
     syms0 = sizes.get("symbols") or {}
     real = syms0.get("arn_mem") or syms0.get("part_mem")   # (core/arena.c arn_mem holds the states: NPART 8-aligned slots)
-    kb = int(C.flags(cfg)[0].get(C.R.ITEMS["ARENA"].flag, 0) or 0) if "ARENA" in C.R.ITEMS else 0
+    kb = int(cfg.get("ARENA", 0) or 0)               # (ARENA set: arn_mem is the arena's size, its own)
     if real is not None and not kb and real != C.part_mem(cfg)["pool"]:
         alone = [k for k in C.PART_MEM if C.built(cfg, k)]
         raise SystemExit(f"measure_costs: {name}: engines.c part_mem is {real} B, configure.py part_mem says "
