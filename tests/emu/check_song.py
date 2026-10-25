@@ -100,7 +100,7 @@ def run(ctx):
         s10 = sorted(P.steps_of(0))
         u.shot("project-10-scene-a")
         ctx.info("SAVE into another slot (10)", f"the scenes there: scene A loads T1 steps {s10} (sections.c "
-                 "project_scope_set: the new slot's own scenes and patterns, not the open project's)")
+                 "project_save_as: a save as, the open project's scenes and patterns copied into the new slot)")
         u.to_mixer()
         u.tap("SAVE")
         u.key(F.white(1))

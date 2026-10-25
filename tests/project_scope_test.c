@@ -8,7 +8,9 @@
  *   - the song chain and the scenes' BARS are the project's;
  *   - a restart opens the project the settings say, with its chain;
  *   - DELETE / NEW: every record of that project gone, the others whole;
- *   - MEM FULL counts every project; clearing one makes room for another.
+ *   - MEM FULL counts every project; clearing one makes room for another;
+ *   - SAVE into another slot is a save as: every record of the open project copied over what the target held, the
+ *     work its state; a power cut at any write leaves the target its old self or the whole copy; MEM FULL writes nothing.
  * Run by tests/run_tests.sh. */
 #define FELUCCA_ARRANGER 1
 #define FELUCCA_FLASH 1
@@ -24,14 +26,26 @@
 static uint32_t trk_def_engine(uint32_t i) { static const uint8_t E[NPART] = {0, 1, 3}; return i < NPART ? E[i] : 0u; }
 #include "../firmware/src/storage/project.c"
 static uint8_t nor[0x100000];
+static uint32_t erases;                                /* (counted: a compaction under way) */
+static int cut_in = -1;                                /* a power cut: the cut_in-th erase / program from now is half done and
+                                                        * every one after it fails (-1: none) */
+static int cut_now(void) { return cut_in == 0 || (cut_in > 0 && --cut_in == 0); }
 static int st_read(uint32_t off, void *dst, uint32_t n) { memcpy(dst, nor + off, n); return 0; }
-static int st_erase(uint32_t off) { memset(nor + off, 0xFF, 4096); return 0; }
+static int st_erase(uint32_t off)
+{
+    int c = cut_in == 0 ? 2 : cut_now();
+    erases++;
+    memset(nor + off, 0xFF, c == 2 ? 0u : c ? 2048u : 4096u);
+    return c ? -1 : 0;
+}
 static int st_prog(uint32_t off, const void *src, uint32_t n)
 {
     uint32_t i;
+    int c = cut_in == 0 ? 2 : cut_now();
+    n = c == 2 ? 0u : c ? n / 2u : n;
     for (i = 0; i < n; i++)
         nor[off + i] &= ((const uint8_t *)src)[i];
-    return 0;
+    return c ? -1 : 0;
 }
 #include "../firmware/src/storage/storage.c"
 static union {
@@ -136,28 +150,32 @@ static uint32_t npat(void)                            /* pattern records of the 
             n += slg_has(PAT_ID(k, s)) || sec_pend_has(SEC_PEND_PAT + PAT_N * k + s);
     return n;
 }
-static uint8_t snap[SLG_IDS][SEC_REC_MAX];            /* a project's records, every id (len 0: none) */
-static uint32_t snapl[SLG_IDS];
-static void snapshot(void)
+typedef struct { uint8_t r[SLG_IDS][SEC_REC_MAX]; uint32_t l[SLG_IDS]; } psnap_t;   /* a project's records, every id (len 0: none) */
+static psnap_t snap, snap2;
+static void snapshot_to(psnap_t *s)
 {
     uint32_t i;
     for (i = 0; i < SLG_IDS; i++) {
-        int n = slg_get(i, snap[i]);
-        snapl[i] = n > 0 ? (uint32_t)n : 0u;
+        int n = slg_get(i, s->r[i]);
+        s->l[i] = n > 0 ? (uint32_t)n : 0u;
     }
 }
-static int as_snapshot(void)
+static int is_state_id(uint32_t i) { return i == SEC_ID_STATE || i == SEC_ID_PSTATE || i >= SX_ID_STATE; }
+/* the open project's records as s's (the device-wide ones aside; nostate: its state's and sources' too) */
+static int as_snap(const psnap_t *s, int nostate)
 {
     uint32_t i;
     for (i = 0; i < SLG_IDS; i++) {
         int n = slg_get(i, sec_rbuf);
-        if (SLG_GLOBAL(i))
+        if (SLG_GLOBAL(i) || (nostate && is_state_id(i)))
             continue;
-        if ((n > 0 ? (uint32_t)n : 0u) != snapl[i] || (n > 0 && memcmp(sec_rbuf, snap[i], (uint32_t)n)))
+        if ((n > 0 ? (uint32_t)n : 0u) != s->l[i] || (n > 0 && memcmp(sec_rbuf, s->r[i], (uint32_t)n)))
             return 0;
     }
     return 1;
 }
+static void snapshot(void) { snapshot_to(&snap); }
+static int as_snapshot(void) { return as_snap(&snap, 0); }
 static void fresh(void)
 {
     memset(nor, 0xFF, sizeof nor);
@@ -277,6 +295,128 @@ int main(void)
     ok = open_p(0);
     check("... project 1 opened: empty (no scene, pattern, state or chain)", ok && !project_used(0) && !project_used(5) && npat() == 0u &&
           !slg_has(SEC_ID_STATE) && !slg_has(SEC_ID_SONG) && arrangement.count == 0u);
+    /* ---- SAVE into another slot: a save as (the user, 2026-10-25: "copy everything") */
+    fresh();
+    make(11), take(11);
+    ok = state_save() == 0;
+    project_save(0);                                   /* scene A */
+    make(12), take(12);
+    project_save(2);                                   /* scene C */
+    arrangement.count = 2, arrangement.entry[0].scene = 0, arrangement.entry[1].scene = 2;
+    scene_bars[2] = 4;
+    ok &= sec_song_put_all(&arrangement) == 0 && sec_sbars_put() == 0;
+    k = npat();
+    snapshot_to(&snap2);                               /* project 1 as saved */
+    make(13), take(13);                                /* the work, changed since */
+    ok &= project_save_as(3) == 0 && open_proj == 3u && slg.proj == 3u && state_save() == 0;
+    check("save as from project 1 into the empty project 4: done, project 4 open", ok);
+    ok = as_snap(&snap2, 1) && scene_is(0, 11) && scene_is(2, 12) && npat() == k && arrangement.count == 2u &&
+         arrangement.entry[1].scene == 2u && scene_bars[2] == 4u && state_is(13) && project_slot_used(3) && !slg_has(SEC_ID_SAVEAS);
+    check("... project 4: every record of project 1 (scenes, patterns, chain, BARS), the work as its state, no marker", ok);
+    restart();
+    check("... a restart: the same", slg.proj == 3u && as_snap(&snap2, 1) && scene_is(2, 12) && arrangement.count == 2u && state_is(13));
+    check("... project 1 as it was (its own state, not the work)", open_p(0) && as_snap(&snap2, 0) && state_is(11));
+    ok = open_p(1);                                    /* project 2: its own state, scenes B and D, a chain */
+    make(14), take(14);
+    ok &= state_save() == 0;
+    project_save(1);
+    make(15);
+    project_save(3);
+    arrangement.count = 1, arrangement.entry[0].scene = 3;
+    ok &= sec_song_put_all(&arrangement) == 0 && project_used(1) && project_used(3) && open_p(0);
+    make(16), take(16);
+    ok &= project_save_as(1) == 0 && state_save() == 0;
+    check("save as from project 1 into project 2 (which held a state, scenes B and D, a chain): done", ok && open_proj == 1u);
+    ok = !project_used(1) && !project_used(3) && as_snap(&snap2, 1) && scene_is(0, 11) && scene_is(2, 12) && npat() == k &&
+         arrangement.count == 2u && state_is(16);
+    check("... project 2: its old scenes, patterns and chain gone, project 1's there, the work as its state", ok);
+    snapshot_to(&snap);
+    make(17), take(17);
+    ok = state_save() == 0 && as_snap(&snap, 1) && state_is(17) && !slg_has(SEC_ID_SAVEAS);
+    check("SAVE into the open project: its state only, the rest as it was", ok);
+    for (k = 0; k < 2u; k++) {   /* a power cut anywhere in a save as: the target reads as it was or as the whole copy, the
+                                  * source whole (k 1: two dense scenes more, stored over and over: the copy compacts the log on its way) */
+        static uint8_t img[sizeof nor];
+        uint32_t n, olds = 0, news = 0, all = 1, done = 0, j, d;
+        fresh();
+        for (d = 0; d < 12u * k; d++) {           /* (stored over and over: the sectors full of dead records) */
+            host_tracks_init();
+            for (i = 0; i < NTRK; i++) {
+                trk[i].p[P_SLEN] = NSTEP;
+                for (j = 0; j < NSTEP; j++)
+                    memset(&trk[i].step[j], (int)(1u + (d * 7u + j + i) % 200u), sizeof trk[i].step[j]);
+            }
+            memset(pat_cur, PAT_NONE, NTRK);
+            project_save(8u + d % 2u);
+        }
+        make(18);
+        ok = state_save() == 0;
+        project_save(0);
+        make(19);
+        project_save(1);
+        arrangement.count = 2, arrangement.entry[0].scene = 1, arrangement.entry[1].scene = 0;
+        ok &= sec_song_put_all(&arrangement) == 0 && open_p(2);
+        make(20);
+        ok &= state_save() == 0;
+        project_save(4);
+        project_save(5);
+        ok &= open_p(2);
+        snapshot_to(&snap);                            /* the target as it was */
+        ok &= open_p(0);
+        snapshot_to(&snap2);                           /* the source */
+        memcpy(img, nor, sizeof nor);
+        for (n = 1; ok && !done && n < 20000u; n++) {
+            int o, w;
+            memcpy(nor, img, sizeof nor);
+            open_proj = 0;
+            restart();
+            cut_in = (int)n, erases = 0;
+            (void)project_save_as(2);
+            done = cut_in > 0;                         /* (the cut never came: the save as went through) */
+            d = erases;
+            cut_in = -1;
+            open_proj = 0;                             /* (the settings: still the source) */
+            restart();
+            w = open_p(0) && as_snap(&snap2, 0);
+            w &= open_p(2) && !slg_has(SEC_ID_SAVEAS);
+            o = as_snap(&snap, 0);
+            w &= o || as_snap(&snap2, 0);
+            olds += (uint32_t)o, news += (uint32_t)!o;
+            if (!w)
+                printf("cut at the %u-th write: a mix\n", n);
+            all &= (uint32_t)w;
+        }
+        printf("save as cut at each of %u writes (%u sectors erased by the whole one): %u read the old target, %u the whole copy; MEM %u %%\n", n - 1u, d, olds, news, slg_used_pct());
+        check("... a cut at every write: the target its old self or the whole copy, never a mix; the source whole", ok && all && done && olds && news);
+    }
+    {   /* MEM FULL: the copy does not fit, nothing written */
+        uint32_t j;
+        fresh();
+        ok = open_p(3);
+        make(2);
+        ok &= state_save() == 0;
+        project_save(0);
+        ok &= open_p(0);
+        for (i = 0, rc = 0; i < SEC_IDS && rc == 0; i++) {
+            host_tracks_init();
+            for (k = 0; k < NTRK; k++) {
+                trk[k].p[P_SLEN] = NSTEP;
+                for (j = 0; j < NSTEP; j++)
+                    memset(&trk[k].step[j], (int)(1u + (i * 7u + j + k) % 200u), sizeof trk[k].step[j]);
+            }
+            memset(pat_cur, PAT_NONE, NTRK);
+            project_save(i);
+            rc = strcmp(last_msg, "SAVED");
+        }
+        ok &= open_p(3);
+        snapshot_to(&snap);
+        ok &= open_p(0);
+        k = slg_used_pct();
+        rc = project_save_as(3);
+        check("save as of a project that fills the log: MEM FULL, project 1 still open, nothing written",
+              ok && rc == 1 && open_proj == 0u && slg.proj == 0u && slg_used_pct() == k && !slg_has(SEC_ID_SAVEAS));
+        check("... project 4 as it was", open_p(3) && as_snapshot());
+    }
     /* ---- MEM FULL counts every project */
     fresh();
     for (i = 0, rc = 0; i < SEC_IDS && rc == 0; i++) {   /* project 1 fills the log with dense scenes (every step busy, none shared) */

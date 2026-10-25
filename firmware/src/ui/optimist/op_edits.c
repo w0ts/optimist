@@ -110,7 +110,7 @@ static void pj_defer(uint32_t op, uint32_t slot)
 static void op_project_new(void);                       /* op_screens.c */
 #if FELUCCA_PATTERNS
 static int project_open(uint32_t p);                    /* storage/sections/sections.c: the projects (docs/PROJECTS-DESIGN.md) */
-static int project_scope_set(uint32_t p);
+static int project_save_as(uint32_t t);
 static int state_save(void);
 static int project_clear(uint32_t p);
 static int project_slot_used(uint32_t p);
@@ -136,11 +136,12 @@ static void prj_load_go(uint32_t s)
     work_mark();
 }
 /* PROJECT page SAVE into slot s, stopped: FELUCCA_PATTERNS, the work as that project's state (another slot than the open
- * one: that project is the open one from now on, the work as it is); else the section stored. -> 0 saved */
+ * one: a save as, the open project's scenes, patterns and song copied there over what it held, and it is the open one
+ * from now on); else the section stored. -> 0 saved */
 static int prj_save_go(uint32_t s)
 {
 #if FELUCCA_PATTERNS
-    int rc = s != project_cur() ? project_scope_set(s) : 0;
+    int rc = s != project_cur() ? project_save_as(s) : 0;
     if (!rc)
         rc = state_save();
     ui_message(rc == 1 ? "MEM FULL" : rc ? "SAVE ERROR" : "SAVED");

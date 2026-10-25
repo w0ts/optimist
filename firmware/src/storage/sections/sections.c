@@ -769,6 +769,9 @@ static void sec_fx_rescue(void)
     }
 }
 #endif
+#if FELUCCA_PATTERNS
+static int proj_copy(void);
+#endif
 static void sec_boot(void)                             /* persist_boot */
 {
     uint32_t s;
@@ -801,8 +804,10 @@ static void sec_boot(void)                             /* persist_boot */
         sec_fx_rescue();                               /* (a scene's FX record a build before the fix misfiled) */
 #endif
 #if FELUCCA_PATTERNS
-    if (slg.up)
+    if (slg.up) {
         pat_migrate();                                 /* (the old sections become scenes: once, resumed if cut) */
+        (void)proj_copy();                             /* (a save as cut short: finished, project_save_as) */
+    }
 #endif
     for (s = 0; s < SEC_IDS; s++)                      /* (a warm reset: what still waits for flash) */
         if (sec_pend_has(s))
@@ -832,17 +837,21 @@ static void proj_scope_read(void)
     sec_sbars_get();
 #endif
 }
-/* project p opened for the log (stopped): what waits in the arena is written first (the song and the autosave with it),
- * then the index is p's. The work stays as it is (project_open loads p's state into it; at boot the autosave is the
- * work). 0 ok, -1 flash */
-static int project_scope_set(uint32_t p)
+static int proj_quiet(uint32_t p)                      /* (stopped, p a project: the arena into the log, dropped) */
 {
     if (p >= 16u || !flash_ok)
         return -1;
     persist_flush_now();
     sec_pend_clear();
     sec_dirty = 0;
-    if (slg_open_proj(p))
+    return 0;
+}
+/* project p opened for the log (stopped): what waits in the arena is written first (the song and the autosave with it),
+ * then the index is p's. The work stays as it is (project_open loads p's state into it; at boot the autosave is the
+ * work). 0 ok, -1 flash */
+static int project_scope_set(uint32_t p)
+{
+    if (proj_quiet(p) || slg_open_proj(p))
         return -1;
     open_proj = (uint8_t)p;
     proj_scope_read();
@@ -898,24 +907,28 @@ static int project_open(uint32_t p)
         return -1;
     return state_load();
 }
+static int proj_tomb(uint32_t p)                       /* project p opened, every record of its cleared: 0 ok, -1 not all */
+{
+    uint32_t i;
+    int rc = 0;
+    if (slg_open_proj(p))
+        return -1;
+    for (i = 0; i < SLG_IDS; i++)                      /* (a clear not written: the others still tried) */
+        if (!SLG_DEV(i) && slg_has(i) && slg_put(i, sec_rbuf, 0, 0))
+            rc = -1;
+    if (!rc)
+        slg.pused &= (uint16_t)~(1u << p);
+    return rc;
+}
 /* PROJECT page DELETE (any project) and NEW (the open one): every record of project p gone (its state, scenes, patterns,
  * song, sources) and its name; stopped. The open project stays open. 0 ok, -1 a record not cleared (the next clear tries again) */
 static int project_clear(uint32_t p)
 {
-    uint32_t i, was = open_proj;
-    int rc = 0;
-    if (p >= 16u || !flash_ok)
+    uint32_t was = open_proj;
+    int rc;
+    if (proj_quiet(p))
         return -1;
-    persist_flush_now();
-    sec_pend_clear();
-    sec_dirty = 0;
-    if (slg_open_proj(p))
-        return -1;
-    for (i = 0; i < SLG_IDS; i++)
-        if (!SLG_GLOBAL(i) && slg_has(i) && slg_put(i, sec_rbuf, 0, 0))
-            rc = -1;
-    if (!rc)
-        slg.pused &= (uint16_t)~(1u << p);
+    rc = proj_tomb(p);
     if (slg_open_proj(was))
         return -1;
     if (p == was)
@@ -923,6 +936,51 @@ static int project_clear(uint32_t p)
     if (!rc && sec_name_set(p, ""))                    /* its name too (2026-10-24: a cleared project kept its name) */
         rc = -1;
     return rc;
+}
+/* a save as, by its marker (SEC_ID_SAVEAS: from, to): every record of project "to" cleared (as DELETE: its old records
+ * marked dead by their tombstones, never copied again by a compaction), then every record of "from" copied into "to",
+ * then the marker cleared. Run again from the start by the next boot when cut (sec_boot): "to" cleared again (the
+ * copies made so far too) and copied whole, so "to" reads as its old self (the marker not done) or as the whole copy
+ * (the boot finishes it before anything opens it), never a mix. 0 ok (-1 no marker), else not finished (the marker
+ * kept: the next boot) */
+static int proj_copy(void)
+{
+    uint32_t i, f, t;
+    int n;
+    if (slg_get(SEC_ID_SAVEAS, sec_rbuf) != 2)
+        return -1;
+    f = sec_rbuf[0], t = sec_rbuf[1];
+    if (proj_tomb(t) || slg_open_proj(f))
+        return -1;
+    for (i = 0; i < SLG_IDS; i++)                      /* (slg_make_room moves records, never sec_rbuf's bytes) */
+        if (!SLG_DEV(i) && (n = slg_get(i, sec_rbuf)) != 0 && (n < 0 ||
+            slg_make_room(SEC_ALIGN(SEC_HEAD + (uint32_t)n), SLG_IDS) || slg_append_rawp(i, t, slg.seq++, sec_rbuf, (uint32_t)n)))
+            return -1;
+    return slg_put(SEC_ID_SAVEAS, sec_rbuf, 0, 1);
+}
+/* PROJECT page SAVE into another slot t (the user, 2026-10-25: a save as, "copy everything"): the open project's records
+ * (its state as saved, scenes, patterns, song, BARS, sources) copied over whatever t held, t the open project (the
+ * caller saves the work as its state). The room for the whole copy and the reserve checked first: 1 MEM FULL, nothing
+ * written, t as it was; stopped. -1 flash (cut short: the project the index holds is the open one, the next boot
+ * finishes the copy) */
+static int project_save_as(uint32_t t)
+{
+    uint8_t m[2];
+    uint32_t i;
+    slg_model_t sm;
+    if (proj_quiet(t))                                 /* (the arena into the open project first: it is copied too) */
+        return -1;
+    sm_init(&sm);                                      /* (t's old records counted as live, though its clears drop them; */
+    for (i = 0; i < SLG_IDS; i++)                      /* an id without a record counted as a clear) */
+        if (!sm_put(&sm, SLG_IDS, slg.alen[i]))
+            return 1;
+    if (!sm_keep(&sm))
+        return 1;
+    m[0] = open_proj, m[1] = (uint8_t)t;
+    if (slg_put(SEC_ID_SAVEAS, m, 2, 1))
+        return -1;
+    i = (uint32_t)proj_copy();                         /* (not finished: the open project stays) */
+    return project_scope_set(i ? open_proj : t) | (int)i;
 }
 /* project p holds something (a live record of its: a state, a scene, a pattern, a chain): the PROJECT page's strip */
 static int project_slot_used(uint32_t p) { return p < 16u && ((slg.pused >> p) & 1u); }
