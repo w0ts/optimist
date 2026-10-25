@@ -34,12 +34,6 @@ static int mx_is_usb(uint32_t r) { return r == MXR_USB; }
 #else
 #define mx_is_usb(r) 0
 #endif
-#if FELUCCA_MIXER_2X == 2
-static uint8_t mx_big;                          /* MIXER_2X "both": the mixer in the big face (1) or the small one (0); HOME at
-                                                 * the root goes small -> big -> scope -> small (op_input.c op_no), the
-                                                 * settings record keeps it (project.c persist_t mix_big; an older one: small) */
-static void mx_face_in(uint32_t b) { mx_big = (uint8_t)(b == 1u); }   /* the record's byte (anything but 1: small) */
-#endif
 #define MXR_ACC (MXR_LANE0 + DRUM_ACC)           /* the ACCENT lane's row, past the 16 sounds (core.h DRUM_UILANES) */
 static int mx_is_acc(uint32_t r) { return ACC_UI && r == MXR_ACC; }
 enum { MI_NONE, MI_TRK, MI_GLOB, MI_LANE, MI_LMUTE, MI_RET, MI_INST, MI_INSA, MI_DKS, MI_ACC, MI_AMUTE, MI_MINST, MI_MINSA,

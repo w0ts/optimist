@@ -644,12 +644,6 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
                                             * second core, drops, guard lines (op_project.c); off, INFO is CPU LOAD,
                                             * UNDERRUNS, BATTERY. The builder's default is 0; the host tests keep them */
 #endif
-#ifndef FELUCCA_MIXER_2X
-#define FELUCCA_MIXER_2X 0                 /* the Optimist UI's mixer: 0 small (the 1x4 cards and the rows, op_mixdraw.c), 1 big
-                                            * (the 2x2 cards on every row, a row a track or lane with 1 px steps and meter,
-                                            * the selected row's steps large: op_mix2x.c), 2 both (HOME switches, the
-                                            * settings record keeps it) */
-#endif
 #ifndef FELUCCA_DRUM_ACCENT
 #define FELUCCA_DRUM_ACCENT 1              /* the drum track's ACCENT lane is heard: its steps raise every hit of the step
                                             * by the ACCENT amount (drums.c dacc_vel, seq.c drum_step); off: the lane is

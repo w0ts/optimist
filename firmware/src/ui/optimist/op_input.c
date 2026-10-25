@@ -252,18 +252,6 @@ static void op_no(void)
         held_clear();
         return;
     }
-#if FELUCCA_MIXER_2X == 2
-    if (ui.scr == SCR_HOME && !mx_big) {                /* MIXER_2X "both", at the root: small -> big -> scope -> small (the
-                                                         * user, 2026-10-25); back from any other page: the face last used */
-        mx_big = 1;
-        settings_later = 1;                             /* (kept with the settings, written once quiet) */
-        return;
-    }
-    if (ui.scr == SCR_SCOPE && mx_big) {
-        mx_big = 0;
-        settings_later = 1;
-    }
-#endif
     if (ui.scr == SCR_HOME)
         op_enter(SCR_SCOPE);                            /* at the root: the mixer and the scope, in turn [P] */
     else
