@@ -46,6 +46,7 @@ What is measured on a real FM-1 (calipers, the user, 2026-10-25) and what is sti
 | v | The 6-pin cable (about 3.5 mm wide) fits between the jacks beside the LCD's cable (the user) | yes |
 | A | Sheet 4: from the board's top edge down the back, as far as the LCD cable's end reaches | 40 mm (to 50.3 mm up, the board's top edge at 90.3: c + d + g) |
 | B | The LCD cable's middle there, from the board's left edge | 90 mm |
+| | Re-checked by the user: the LCD cable "can just about reach the back of the jack ... tight": the LCD socket as close to the audio jacks as possible (the jacks end 13.5 mm below the top edge, F) | supersedes A |
 | C | The speaker plug's top end, from the board's bottom edge | 51 mm (so the plug is 44 to 51 mm up) |
 | D | The speaker plug's right side, from the board's left edge | 90 mm (so 85.6 to 90 mm across) |
 | E | Free right of the speaker plug, to the nearest part | 11 mm (to 101 mm) |
