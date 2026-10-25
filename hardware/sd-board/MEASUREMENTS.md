@@ -49,6 +49,7 @@ What is measured on a real FM-1 (calipers, the user, 2026-10-25) and what is sti
 | | Re-checked by the user: the LCD cable "can just about reach the back of the jack ... tight": the LCD socket as close to the audio jacks as possible (the jacks end 13.5 mm below the top edge, F) | supersedes A |
 | | The LCD cable comes between the two black jacks (at 90 mm); its socket's cable side right against the jacks' back end: it reaches (the user, checked on the FM-1) | yes |
 | | The cable from J12 comes between the right black jack and the USB socket; the 5.5 mm cable fits there (the user, checked) | yes |
+| | Contacts (the user, 2026-10-25): J12 bottom-contact; the LCD cable reaches our board straight from the LCD, so its contacts face UP there: our LCD socket top-contact. Both our sockets top-contact; the J12 cable then a REVERSE (B) type, 60 mm (the pin order mirrored end to end) | top contact, B 60 mm |
 | C | The speaker plug's top end, from the board's bottom edge | 51 mm (so the plug is 44 to 51 mm up) |
 | D | The speaker plug's right side, from the board's left edge | 90 mm (so 85.6 to 90 mm across) |
 | E | Free right of the speaker plug, to the nearest part | 11 mm (to 101 mm) |
