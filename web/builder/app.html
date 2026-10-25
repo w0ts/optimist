@@ -32,6 +32,16 @@ const app = window.webkit && window.webkit.messageHandlers && window.webkit.mess
 const onNavigate = (where, detail) => {
   if (app && (where === "install" || where === "sim")) app.postMessage({ type: "open", where, build: String((detail && detail.build) || "") });
 };
+/* a menu (<select>) already focused did not open again on a click in the app's web view (the user, 2026-10-25: "when i
+   click on start from box and it was already selected it does not open the drop down"): unfocused first, the click then
+   focuses and opens it. Only in the app (in a browser a click opens it anyway). */
+if (app) {
+  document.addEventListener("pointerdown", (e) => {
+    const sel = e.target instanceof Element && e.target.closest("select");
+    if (sel && document.activeElement === sel) sel.blur();
+  }, true);
+}
+
 const handle = mountBuilder(document.getElementById("app"), { onNavigate });
 window.optimistBuilder = handle;
 handle.activate();
