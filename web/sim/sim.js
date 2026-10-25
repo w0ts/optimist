@@ -57,7 +57,7 @@ const THEME_KEY = "optimist-sim-theme";
 export const TEXT = {
   title: "Simulator",
   what: "",
-  build: "Build", site: "The site's build", cloud: "Your builds",
+  build: "Build", site: "The site's build", cloud: "Your builds", fileGroup: "A file", pickFile: "A file on this computer…",
   themeLabel: "Theme",
   power: "Start", stop: "Stop", starting: "Starting…", clickToStart: "Click anywhere (or press a key) to start: the browser lets the sound start only after one.", stopped: "Stopped.",
   reboot: "Restarting…", fault: "The firmware stopped (a fault). Start again.", noaudio: "This browser has no AudioWorklet: use Chrome, Edge or Firefox.",
@@ -212,7 +212,21 @@ export function mountSim(container, opts = {}) {
   const st = { mine: new Set([wanted, mine && mine.id].filter((x) => /^[0-9a-f]{16}$/.test(x || ""))), choice: null, cloud: null, ctx: null, node: null, info: null, busy: false, wasm: null, keysDown: new Map(), buttonKeys: null, knobKeys: {} };
   const el = {};
 
-  el.pick = h("select.oi-csearch.os-pick", { "aria-label": TEXT.build, onchange: () => choose(el.pick.value) });
+  el.pick = h("select.oi-csearch.os-pick", { "aria-label": TEXT.build, onchange: () => (el.pick.value === "pickfile:" ? pickWasm() : choose(el.pick.value)) });
+  /* a simulator build from a file (the user, 2026-10-25: "or pick a file locally"): a firmware's .wasm (tools/sim.py --wasm,
+     a cloud build's optimist-...wasm), read here, never uploaded */
+  el.wasmFile = h("input", { type: "file", accept: ".wasm,application/wasm", style: "display:none",
+    onchange: async () => {
+      const f = el.wasmFile.files && el.wasmFile.files[0];
+      el.wasmFile.value = "";
+      if (!f) { options(); return; }
+      st.file = { name: f.name, bytes: await f.arrayBuffer() };
+      options();
+      el.pick.value = "file:";
+      choose("file:");
+      if (!engine) start();
+    } });
+  const pickWasm = () => { options(); el.wasmFile.click(); };
   el.power = setLabel(h("button.o-btn.primary.os-power", { type: "button",
     onclick: () => { if (engine) { st.userStopped = true; stop(); } else { st.userStopped = false; start(); } } }), "play", TEXT.power);
   el.reset = setLabel(h("button.o-btn.quiet", { type: "button", onclick: () => resetMemory() }), "erase", TEXT.reset);
@@ -249,7 +263,7 @@ export function mountSim(container, opts = {}) {
   const root = h("div.os", {},
     h("div.os-main", {}, el.stage, el.status),   /* (no help paragraph: the keys are on the buttons; the user, 2026-10-25) */
     h("div.os-side", {},
-      h("div.os-group", { role: "group", "aria-label": TEXT.build }, h("label.o-field", {}, h("span", {}, TEXT.build), el.pick),
+      h("div.os-group", { role: "group", "aria-label": TEXT.build }, h("label.o-field", {}, h("span", {}, TEXT.build), el.pick), el.wasmFile,
         h("label.o-field", {}, h("span", {}, TEXT.themeLabel), el.theme), el.power, el.install, el.config),
       h("div.os-group", { role: "group", "aria-label": TEXT.memory }, h("span.os-glabel", {}, TEXT.memory), el.save, el.loadf, el.reset, el.file),
       h("div.os-group", { role: "group", "aria-label": TEXT.device }, h("span.os-glabel", {}, TEXT.device), el.load, el.write, el.pjGet, el.pjSend),
@@ -282,7 +296,8 @@ export function mountSim(container, opts = {}) {
     const cloud = st.cloud ? st.cloud.builds.filter((b) => b.sim && st.mine.has(b.id)) : [];
     el.pick.replaceChildren(
       packages.length ? h("optgroup", { label: TEXT.site }, packages.map((p, i) => opt(`site:${i}`, p.title))) : null,
-      cloud.length ? h("optgroup", { label: TEXT.cloud }, cloud.map((b) => opt(`cloud:${b.id}`, `${b.name} · ${b.id} · ${b.date.slice(0, 10)}`))) : null);
+      cloud.length ? h("optgroup", { label: TEXT.cloud }, cloud.map((b) => opt(`cloud:${b.id}`, `${b.name} · ${b.id} · ${b.date.slice(0, 10)}`))) : null,
+      h("optgroup", { label: TEXT.fileGroup }, st.file ? opt("file:", st.file.name) : null, opt("pickfile:", TEXT.pickFile)));
     if (st.choice) el.pick.value = st.choice;
   }
   async function loadBuilds() {
@@ -319,6 +334,7 @@ export function mountSim(container, opts = {}) {
     if (!st.choice) return null;
     const [kind, id] = st.choice.split(":");
     if (kind === "site") { const p = packages[Number(id)]; return p ? { title: p.title, url: p.sim, id: null, flavour: p.id } : null; }
+    if (kind === "file") return st.file ? { title: st.file.name, url: `file:${st.file.name}`, bytes: st.file.bytes, id: null } : null;
     const b = st.cloud && st.cloud.builds.find((x) => x.id === id);
     return b && b.sim ? { title: `${b.name} (${b.id})`, url: cloudFileUrl(repo, st.cloud.sha, b.sim), id: b.id, stem: b.stem, sha256: b.simSha256 } : null;
   }
@@ -335,9 +351,12 @@ export function mountSim(container, opts = {}) {
     el.power.disabled = true;
     try {
       if (!st.wasm || st.wasm.url !== b.url) {
-        const r = await fetch(b.url, { cache: "no-cache" });
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        st.wasm = { url: b.url, bytes: await r.arrayBuffer() };
+        if (b.bytes) st.wasm = { url: b.url, bytes: b.bytes };   /* (a file picked: already read) */
+        else {
+          const r = await fetch(b.url, { cache: "no-cache" });
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          st.wasm = { url: b.url, bytes: await r.arrayBuffer() };
+        }
       }
       if (!st.ctx) {
         st.ctx = new AudioContext({ sampleRate: 44100, latencyHint: "interactive" });
