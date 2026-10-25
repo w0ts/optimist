@@ -792,6 +792,8 @@ static int drone_unlatch(track_t *t, uint32_t note)
 static volatile uint8_t trk_hits;
 static void trk_note_on(track_t *t, uint32_t note, uint32_t vel)
 {
+    if (t->silent)
+        return;                                         /* a silent placeholder plays nothing (core.h) */
     uint32_t any = 0, i, mode = (uint32_t)t->p[P_VOICE];
     if (trk_silent(t))
         return;                                         /* MUTE, or another track soloed */

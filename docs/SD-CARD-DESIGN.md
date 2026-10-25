@@ -22,6 +22,22 @@ Six wires, one inverter, two resistors, no pin of the main chip touched.
 
 ## 2. Parts
 
+**The kit (2026-10-25, for every user: off the shelf, through-hole, no board to order):**
+
+| Part | Why | Where |
+|---|---|---|
+| Adafruit **4682** "Micro SD SPI or SDIO Card Breakout - 3V ONLY" (or a clone, about EUR 2) | the card's socket with nothing in the way: "no level shifting or power regulator" (adafruit.com/product/4682). Its socket may not be push-push (the user: a minor downside) | adafruit.com/product/4682; AliExpress "4682 Adafruit Micro SD" (nl.aliexpress.com/item/1005012308647078.html, 2026-10-25) |
+| **74HC04** in **DIP-14** | the chip-select inverter (one of its six gates; the other inputs tied to GND): big legs, works at 3.3 V, switches in 10-20 ns | any shop, "74HC04 DIP" |
+| 1 kOhm through-hole resistor | in series on the card's DO, at the card's end | any kit |
+| 100 nF capacitor | across the 74HC04's VCC (pin 14) and GND (pin 7) | any kit |
+| thin wire (0.1-0.2 mm enamelled or 30 AWG Kynar) | the six taps | |
+
+A transistor inverter is not enough: it lets go too slowly, and the first bits of an LCD transfer would reach a card
+still selected. The 74HC04 pinout: gate 1 is pin 1 in (from the LCD's CS, PC7), pin 2 out (to the card's CS); pin 7
+GND, pin 14 3.3 V; tie the unused inputs (pins 3, 5, 9, 11, 13) to GND.
+
+The rest of this section: the parts list before the kit was chosen (the SOT-23 inverter, other breakouts).
+
 | Part | What | Notes |
 |---|---|---|
 | microSD breakout, 3.3 V, **no regulator, no level shifter** | the socket on a small board with CS, DI/MOSI, SCK, DO/MISO, VCC, GND pins | e.g. the "D1 mini micro SD shield" style board. **Avoid** the common "Micro SD Card Adapter" with an AMS1117 (SOT-223) and a 74LVC125 (14 pins): made for 5 V, its regulator drops the card's supply at 3.3 V in. Look at the photos before buying. Fallback: a bare push-push TF socket ("TF-01A", 8 pins) |

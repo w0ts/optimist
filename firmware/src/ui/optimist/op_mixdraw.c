@@ -132,7 +132,7 @@ static void mx_names(uint32_t r, char *eng, char *pre)
             str_cpy(pre, lane_sound_name(r - MXR_LANE0), 14);
     } else {
         uint32_t k = mx_trk_of(r);
-        str_cpy(eng, is_drum(&trk[k]) ? "DRUMS" : ENGINES[trk[k].eng_req % NENGINES]->name, 9);
+        str_cpy(eng, is_drum(&trk[k]) ? "DRUMS" : trk_eng_name(&trk[k]), 9);
         snd_name(k, pre);
     }
 }

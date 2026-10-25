@@ -143,6 +143,13 @@ and lets the user pick what to drop, a builder item for the arena's size, the en
 Tests: `tests/arena_test.c` (first fit and fixed slots; 300,000 random switches with some left pending), the backports
 test in a two-part arena (FM6, PHYS, ACID swapped on a part).
 
+**Built (the silent placeholder, 2026-10-25):** `track_t.silent`; `part_drop` (model.c) puts a part on the first engine
+that keeps nothing in the arena (its block idle, taken back when needed), notes into it play nothing (voice.c
+trk_note_on), the UI shows NONE in grey with no sound name; a project or section saves its engine byte as
+`ENG_UID_SILENT` (0xFE; an older firmware plays its stand-in for an unknown engine) and a load restores the placeholder;
+picking an engine or loading a user preset ends it. `tests/placeholder_test.c`. Not yet: the drop picker that calls
+part_drop (the confirm on an edit, the list on a load).
+
 ## 7. Phases
 
 | Phase | What | Device risk |

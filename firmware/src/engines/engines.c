@@ -255,6 +255,17 @@ static int part_mem_reserve(uint32_t k, uint32_t e)
 
 static int part_mem_claim(uint32_t k, uint32_t e);
 
+/* the engine a silent placeholder sits on: the first built that keeps nothing in the arena (its memory freed) */
+#define ENG_UID_SILENT 0xFEu                             /* a project's engine byte for a silent placeholder (project.c) */
+static uint32_t eng_silent_slot(void)
+{
+    uint32_t e;
+    for (e = 0; e < NENGINES; e++)
+        if (!part_mem_bytes(e))
+            return e;
+    return 0;
+}
+
 /* at power-on, before the audio (main.c felucca_init): each part's first engine gets its memory (an arena placed by
  * need; the fixed slots are there from the start) */
 static void part_mem_boot(void)

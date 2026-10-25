@@ -985,7 +985,8 @@ static void proj_capture(project_t *p, dlrec_t *d)   /* what is playing now, as 
         if (i < NPART)                                  /* (LFO DEST's, ENV DEST's, ENV2's slots: the modulation record,
                                                          * dlfo_rec.c; the words of their depths of before at 0) */
             pj_mods_zero(p->t[i].p);
-        p->t[i].engine = (uint8_t)(i < NPART ? eng_uid(trk[i].eng_req % NENGINES) : 0u);   /* (a UID) */
+        p->t[i].engine = (uint8_t)(i < NPART ? (trk[i].silent ? ENG_UID_SILENT : eng_uid(trk[i].eng_req % NENGINES))
+                                             : 0u);   /* (a UID; a silent placeholder: ENG_UID_SILENT) */
         p->t[i].preset = trk[i].preset;
         steps_store(p->t[i].step, &trk[i], i);         /* (each note's own end: an event of its store, below) */
     }
@@ -1069,9 +1070,10 @@ static void proj_apply(const project_t *p, const dlrec_t *d, int all)
     for (k = 0; k < NTRK; k++) {
         track_t *t = &trk[k];
         const proj_trk_t *s = &p->t[k];
-        uint32_t e = k < NPART ? eng_slot(s->engine) : 0u;   /* UID -> slot (not built: its fallback) */
-        if (k < NPART)
+        uint32_t e = k < NPART ? (s->engine == ENG_UID_SILENT ? eng_silent_slot() : eng_slot(s->engine)) : 0u;
+        if (k < NPART)                                  /* (UID -> slot, not built: its fallback; a silent placeholder) */
             (void)part_mem_reserve(k, e);               /* (no room: the old engine stays at the switch, the UI offers drops) */
+        t->silent = (uint8_t)(k < NPART && s->engine == ENG_UID_SILENT);
         t->eng_req = (uint8_t)e;
         t->user = 0;                                    /* (no user preset slot is saved) */
         pj_to_p(v, s->p);
