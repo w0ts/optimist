@@ -810,6 +810,15 @@ job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_PAGE_LINES=1 -DFELUCCA_PARAM_HELP=1 $SEC4 -o "$OUT/ui_optimist_lines_help_test" tests/ui_optimist_test.c -lm
     run "... with the help line" "$OUT/ui_optimist_lines_help_test" "$OUT/optimist-lines"
 ) >"$U.out" 2>&1 & jobbg
+# MIXER_2X (builder item, off by default): the mixer in the big face (tests/ui_optimist_mixer2x.h; off: the default
+# build above checks the mixer as before), with and without the help line
+mkdir -p "$OUT/optimist-mixer2x"
+job; ( jobin
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_MIXER_2X=1 $SEC4 -o "$OUT/ui_optimist_mixer2x_test" tests/ui_optimist_test.c -lm
+    run "Optimist UI, MIXER_2X: the mixer's 2x2 cards, the selected row's steps large, a playback bar a track, MASTER's line and returns; random frames" "$OUT/ui_optimist_mixer2x_test" "$OUT/optimist-mixer2x"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_MIXER_2X=1 -DFELUCCA_PARAM_HELP=1 $SEC4 -o "$OUT/ui_optimist_mixer2x_help_test" tests/ui_optimist_test.c -lm
+    run "... with the help line (the panel 99 rows, nothing in the help band)" "$OUT/ui_optimist_mixer2x_help_test" "$OUT/optimist-mixer2x"
+) >"$U.out" 2>&1 & jobbg
 # the Optimist UI's help line (PARAM_HELP, ui/optimist/op_help.c; tests/ui_optimist_help.h): every settings line and
 # PROJECT cell has its line within 232 px, a turn shows it ~2 s; the values still without a line listed
 mkdir -p "$OUT/optimist-help"
