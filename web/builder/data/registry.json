@@ -3787,7 +3787,7 @@
     "default": 0,
     "parent": null,
     "desc": "Saving no longer stops or waits for the transport: SAVE on a user preset, a kit, a project, a name or the song writes as the music plays (no STOP BEFORE SAVE, the naming page no longer stops and restarts the transport), and what waited for the stop (live sections and patterns, the song, the settings) goes to flash while playing, one record at a time, 250 ms apart, once the panel has rested 1.5 s. The audio keeps playing because every sector erase is already cut into 1 ms windows with the erase suspended between them (hal/fm1_flash_slice.h); the main loop (the screen, the panel) still pauses for one record's write, tens of ms. If the flash part ever holds an erase in one window (no suspend: the audio silenced in it), saves wait for the stop again until the next start. Snapshots, backup restores, sample uploads, the web editor's writes and the working project's autosave still wait for the stop. About 240 B of flash, 1 byte of RAM.",
-    "experimental": true,
+    "experimental": false,
     "notice": "",
     "off_warning": "saves refused (STOP BEFORE SAVE) or held until the transport stops, as before",
     "env": "",
@@ -3798,7 +3798,7 @@
     "choices": [],
     "provenance": null,
     "children": [],
-    "tested": "built and host-tested only, not on a device",
+    "tested": "on the FM-1: saving while playing works (the user, 2026-10-25); host-tested",
     "provenance_line": ""
    },
    {
