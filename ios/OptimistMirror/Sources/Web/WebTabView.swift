@@ -16,10 +16,10 @@ final class WebEditor: ObservableObject {
     /// the app's look over the editor: no menu bar of its own (the app's tab bar is it), the system's theme
     private static let css = """
     #side, .menubar { display: none !important; }
-    /* the device is the app's connection: no connect card of the page's own (its "connect" button misled: the user,
-       2026-10-25), a line while the page takes the app's port */
-    #connectcard { display: none !important; }
-    html[data-conn=off] main.main::before { content: "Connecting to the FM-1…"; display: block; padding: 24px; color: var(--dim, #888); }
+    /* the device is the app's connection: the connect card keeps its loading progress (#cstatus) and loses what picks or
+       connects a device (its "connect" button misled; the user, 2026-10-25) */
+    #connectcard p:has(#connect), #connectcard p:has(#devsrc), #connectcard [data-t=connectHint],
+    #connectcard p:has([data-t=installerLink]) { display: none !important; }
     :root { --menubar-h: 0px; }
     body { padding-top: 0 !important; }
     """
