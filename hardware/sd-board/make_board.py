@@ -21,6 +21,7 @@ FFC J2 pins 1..6, 7/8 its tabs):
   MISO     J2 6 -> R1 1k -> J1 7 (DAT0): the FM-1's PC8 is the LCD's D/C too (the 1k takes any overlap)
   DAT1/DAT2  47k pull-ups (unused in SPI mode, not left floating)
 """
+import math
 import os
 
 import pcbnew
@@ -30,13 +31,31 @@ LIB = os.path.join(HERE, "lib", "sdboard.pretty")
 KICAD_FP = "/Applications/KiCad/KiCad.app/Contents/SharedSupport/footprints"
 MM = pcbnew.FromMM
 
-POLE_D, POLE_GAP = 5.2, 0.3                      # the case's poles: diameter (photo: UNMEASURED), the hole's play
-POLE_PITCH = 38.1 - POLE_D                       # 38.1 over the two poles' outer edges (calipers, the user, 2026-10-25)
-POLES = ((103.8, 135.0), (104.4, 135.0 - POLE_PITCH))     # where they pass through: the L's corner (photo), the one above
-X0, Y0 = 100.0, POLES[1][1] - (POLE_D + POLE_GAP) / 2 - 1.5   # the board's top left (mm): 1.5 mm above the upper pole
+# The back cover's two poles hold the board (calipers, the user, 2026-10-25; MEASUREMENTS.md): 6.9 mm wide, their
+# centres 3.4 mm in from the FM-1 board's left edge, so they stand over the edge: U-notches open to the left, not holes.
+# Their spacing: 46.1 mm between the board's screw holes, 45 between the poles' centres on the cover; the middle, with
+# the play taking the difference.
+POLE_D, POLE_IN = 6.9, 3.4
+POLE_PITCH = (46.1 + 45.0) / 2
+POLE_R = POLE_D / 2 + 0.6                        # (the notch's radius: 0.6 mm play, more than half the 1.1 mm doubt)
+POLES = ((100.0 + POLE_IN, 135.0), (100.0 + POLE_IN, 135.0 - POLE_PITCH))   # the L's corner (its place: photo), above
+X0, Y0 = 100.0, POLES[1][1] - 3.0                 # the board's top left (mm): the upper pole 3.4 below the FM-1 board's
+                                                  # top edge (measured): 0.4 mm inside it
 SW, FY, FW, YB = 10.0, 135.0, 22.0, 157.6       # the strip's width, the foot's top, its width, the board's bottom
 SD_OUT = 1.0                                     # the card socket past the left edge, nearer the slot in the case wall (unmeasured)
-OUTLINE = ((X0, Y0), (X0 + SW, Y0), (X0 + SW, FY), (X0 + FW, FY), (X0 + FW, YB), (X0, YB))
+
+
+def notch(cx, cy, a0, a1, n=24):
+    """the points of the notch's round end, from angle a0 to a1 (degrees, 0 = right, 90 = down)"""
+    return [(cx + POLE_R * math.cos(math.radians(a0 + (a1 - a0) * i / n)),
+             cy + POLE_R * math.sin(math.radians(a0 + (a1 - a0) * i / n))) for i in range(n + 1)]
+
+
+(LX, LY), (UX, UY) = POLES
+UA = math.degrees(math.asin((Y0 - UY) / POLE_R))  # (where the upper notch meets the top edge)
+OUTLINE = tuple([notch(UX, UY, UA, UA)[0], (X0 + SW, Y0), (X0 + SW, FY), (X0 + FW, FY), (X0 + FW, YB), (X0, YB),
+                 (X0, LY + POLE_R), *notch(LX, LY, 90, -90), (X0, LY - POLE_R), (X0, UY + POLE_R),
+                 *notch(UX, UY, 90, UA)[:-1]])
 TRACK, POWER = 0.2, 0.3                          # (0.2 / 0.3: the FFC's 0.5 mm pitch)
 
 board = pcbnew.BOARD()
@@ -117,30 +136,6 @@ C1 = place(LIB, "C0805", "C1", "10uF", 105.3, 126.6, 180, "C15850")
 R1 = place(LIB, "R0603", "R1", "1k", 115.0, 143.64, 180, "C21190")
 R3 = place(LIB, "R0603", "R3", "47k", 120.3, 144.2, 90, "C25819")
 R2 = place(LIB, "R0603", "R2", "47k", 120.3, 149.0, 270, "C25819")
-# the case's two poles pass through it and hold it (the user, 2026-10-25)
-def pole_hole(ref, x, y):
-    """a plain hole (not plated) the case's pole passes through"""
-    fp = pcbnew.FOOTPRINT(board)
-    fp.SetFPID(pcbnew.LIB_ID("sdboard", "PoleHole"))
-    fp.SetReference(ref)
-    fp.SetValue("pole")
-    fp.Reference().SetVisible(False)
-    fp.Value().SetVisible(False)
-    fp.SetAttributes(pcbnew.FP_EXCLUDE_FROM_BOM | pcbnew.FP_EXCLUDE_FROM_POS_FILES)
-    d = MM(POLE_D + POLE_GAP)
-    h = pcbnew.PAD(fp)
-    h.SetAttribute(pcbnew.PAD_ATTRIB_NPTH)
-    h.SetShape(pcbnew.PAD_SHAPE_CIRCLE)
-    h.SetSize(pcbnew.VECTOR2I(d, d))
-    h.SetDrillSize(pcbnew.VECTOR2I(d, d))
-    h.SetLayerSet(pcbnew.LSET.AllCuMask())
-    fp.Add(h)
-    fp.SetPosition(pcbnew.VECTOR2I(MM(x), MM(y)))
-    board.Add(fp)
-    return fp
-
-
-HOLES = [pole_hole(f"H{i + 1}", x, y) for i, (x, y) in enumerate(POLES)]
 
 # ---- the nets. J2's order is free (the tap board at J12 is not designed yet): the three lines to the card on top, so
 # they go straight to their lanes, GND, then 3V3 and LCD_CS at the bottom, straight down to the parts under it
@@ -162,7 +157,7 @@ for fp, a, b in ((R1, "MISO", "DAT0"), (R2, "3V3", "DAT2"), (R3, "3V3", "DAT1"),
 # from the strip round the right of the lower screw; DAT1 and DAT2 go on the bottom to R3 and R2.
 P = {n: at(J2, n) for n in range(1, 7)}
 C = {n: at(J1, n) for n in range(1, 9)}
-LANE = {"MOSI": 108.9, "CLK": 108.2, "MISO": 107.5}       # (down the strip)
+LANE = {"MOSI": 109.2, "CLK": 108.65, "MISO": 108.1}       # (down the strip)
 BAND = {"MOSI": 136.0, "CLK": 136.7, "MISO": 137.4}       # (across, above the card)
 DOWN = {"MISO": 116.9, "CLK": 117.6, "MOSI": 118.3}       # (down, right of the card)
 END = {"MOSI": C[3], "CLK": C[5], "MISO": at(R1, 1)}
@@ -192,8 +187,8 @@ for name, card in (("DAT1", 8), ("GND", 6), ("3V3", 4), ("CARD_CS", 2), ("DAT2",
 # ---- the bottom: CS and 3V3 west under the card, north right of the lower screw, into the strip; DAT1, 3V3, DAT2 east
 # under the lanes to R3 and R2
 B = pcbnew.B_Cu
-route("3V3", [VIA_AT["3V3"], (108.3, C[4][1]), (108.3, 128.4), (TRUNK, 128.4)], POWER, B)
-route("CARD_CS", [VIA_AT["CARD_CS"], (107.5, C[2][1]), (107.5, 129.4), (101.6, 129.4)], TRACK, B)
+route("3V3", [VIA_AT["3V3"], (108.85, C[4][1]), (108.85, 128.4), (TRUNK, 128.4)], POWER, B)
+route("CARD_CS", [VIA_AT["CARD_CS"], (108.1, C[2][1]), (108.1, 129.4), (101.6, 129.4)], TRACK, B)
 route("DAT1", [VIA_AT["DAT1"], (120.3, C[8][1])], TRACK, B)
 route("3V3", [VIA_AT["3V3"], (120.3, C[4][1])], POWER, B)
 route("DAT2", [VIA_AT["DAT2"], (120.3, C[1][1]), (120.3, 150.65)], TRACK, B)
@@ -229,9 +224,7 @@ for layer in (pcbnew.F_Cu, pcbnew.B_Cu):
     z.SetIslandRemovalMode(pcbnew.ISLAND_REMOVAL_MODE_ALWAYS)   # (a pour island touching nothing: removed)
     o = z.Outline()
     o.NewOutline()
-    inset = ((X0 + 0.3, Y0 + 0.3), (X0 + SW - 0.3, Y0 + 0.3), (X0 + SW - 0.3, FY + 0.3), (X0 + FW - 0.3, FY + 0.3),
-             (X0 + FW - 0.3, YB - 0.3), (X0 + 0.3, YB - 0.3))
-    for x, y in inset:
+    for x, y in OUTLINE:                                        # (the fill keeps off the edge)
         o.Append(MM(x), MM(y))
     board.Add(z)
 
@@ -247,7 +240,7 @@ def label(text, x, y, size=0.8, rot=0.0):
     board.Add(t)
 
 
-label("OPTIMIST SD", 108.4, 103.0, 0.8, 90)
+label("OPTIMIST SD", 105.0, 100.5, 0.8, 90)
 
 board.GetDesignSettings().SetAuxOrigin(pcbnew.VECTOR2I(MM(X0), MM(YB)))   # (the lower left: the Gerbers, the drill
 pcbnew.ZONE_FILLER(board).Fill(board.Zones())                                   # files and cpl.csv share it)

@@ -1296,105 +1296,6 @@
 		)
 		(embedded_fonts no)
 	)
-(symbol "Mechanical:MountingHole"
-		(pin_names
-			(offset 1.016)
-		)
-		(exclude_from_sim no)
-		(in_bom no)
-		(on_board yes)
-		(in_pos_files yes)
-		(duplicate_pin_numbers_are_jumpers no)
-		(property "Reference" "H"
-			(at 0 5.08 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "MountingHole"
-			(at 0 3.175 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" ""
-			(at 0 0 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(hide yes)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Datasheet" ""
-			(at 0 0 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(hide yes)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Description" "Mounting Hole without connection"
-			(at 0 0 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(hide yes)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "ki_keywords" "mounting hole"
-			(at 0 0 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(hide yes)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "ki_fp_filters" "MountingHole*"
-			(at 0 0 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(hide yes)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(symbol "MountingHole_0_1"
-			(circle
-				(center 0 0)
-				(radius 1.27)
-				(stroke
-					(width 1.27)
-					(type default)
-				)
-				(fill
-					(type none)
-				)
-			)
-		)
-		(embedded_fonts no)
-	)
 )
 (symbol (lib_id "Connector:Micro_SD_Card_Det1") (at 170.18 88.9 0) (unit 1) (exclude_from_sim no) (in_bom yes) (on_board yes) (dnp no) (uuid "7ddb8f82-cfbe-537d-9383-8fc72a835b71") (property "Reference" "J1" (at 170.18 74.9 0) (effects (font (size 1.27 1.27)))) (property "Value" "TF-01A push-push" (at 170.18 102.9 0) (effects (font (size 1.27 1.27)))) (property "Footprint" "sdboard:TF-SMD_TF-01A" (at 170.18 88.9 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Datasheet" "" (at 170.18 88.9 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "LCSC" "C91145" (at 170.18 88.9 0) (effects (font (size 1.27 1.27)) (hide yes))) (pin "1" (uuid "1ed1bea4-002b-5459-a8b7-8a3503a2a589")) (pin "2" (uuid "ee89e4c2-5214-579f-8f48-60a833d82d94")) (pin "3" (uuid "f1911c15-c5ae-5a1b-a58f-d270df96c1e7")) (pin "4" (uuid "c7ab897b-a2d5-500d-84b6-874260a69847")) (pin "5" (uuid "7bc9adea-95a4-5537-ab11-f211e76d4749")) (pin "6" (uuid "e9dd7342-ae1e-5287-ac44-cf4bc32e90e2")) (pin "7" (uuid "f3529295-4ac9-5028-8c16-2924e39af7b7")) (pin "8" (uuid "b3f8ddc9-96a5-5f67-9da1-42cebdb8e366")) (pin "9" (uuid "b6070d90-e917-5d24-8139-287592976afd")) (pin "SH" (uuid "74f3faa4-47ed-50c1-aa14-289e9dac7193")) (instances (project "sd-board" (path "/766c70bd-1acb-59f5-b703-96c0315a8041" (reference "J1") (unit 1)))))
 (label "DAT2" (at 147.32 78.74 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "b019be9a-e475-5e57-adc1-9a20a424bcf7"))
@@ -1439,8 +1340,6 @@
 (label "3V3" (at 226.06 93.98 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "77cc2ecf-095a-5b86-80c5-a9a5b5a3a571"))
 (label "LCD_CS" (at 226.06 96.52 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "7028bd1c-f16e-567c-8ffb-688178ebeed3"))
 (label "GND" (at 231.14 101.6 270) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "a449b195-b09b-5837-ae61-29b69e43a199"))
-(symbol (lib_id "Mechanical:MountingHole") (at 215.9 149.86 0) (unit 1) (exclude_from_sim no) (in_bom no) (on_board yes) (dnp no) (uuid "d57478e8-53ec-5097-8ca3-3c0a1c72288c") (property "Reference" "H1" (at 215.9 135.86 0) (effects (font (size 1.27 1.27)))) (property "Value" "pole" (at 215.9 163.86 0) (effects (font (size 1.27 1.27)))) (property "Footprint" "sdboard:PoleHole" (at 215.9 149.86 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Datasheet" "" (at 215.9 149.86 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "LCSC" "" (at 215.9 149.86 0) (effects (font (size 1.27 1.27)) (hide yes)))  (instances (project "sd-board" (path "/766c70bd-1acb-59f5-b703-96c0315a8041" (reference "H1") (unit 1)))))
-(symbol (lib_id "Mechanical:MountingHole") (at 231.14 149.86 0) (unit 1) (exclude_from_sim no) (in_bom no) (on_board yes) (dnp no) (uuid "927cb6de-8279-53b1-9403-0a321f4cb4e5") (property "Reference" "H2" (at 231.14 135.86 0) (effects (font (size 1.27 1.27)))) (property "Value" "pole" (at 231.14 163.86 0) (effects (font (size 1.27 1.27)))) (property "Footprint" "sdboard:PoleHole" (at 231.14 149.86 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Datasheet" "" (at 231.14 149.86 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "LCSC" "" (at 231.14 149.86 0) (effects (font (size 1.27 1.27)) (hide yes)))  (instances (project "sd-board" (path "/766c70bd-1acb-59f5-b703-96c0315a8041" (reference "H2") (unit 1)))))
 (symbol (lib_id "power:PWR_FLAG") (at 40.64 149.86 0) (unit 1) (exclude_from_sim no) (in_bom no) (on_board no) (dnp no) (uuid "cf31f794-8f57-5253-8b56-9b4b8d0d7c96") (property "Reference" "#FLG01" (at 40.64 135.86 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Value" "PWR_FLAG" (at 40.64 163.86 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Footprint" "" (at 40.64 149.86 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Datasheet" "" (at 40.64 149.86 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "LCSC" "" (at 40.64 149.86 0) (effects (font (size 1.27 1.27)) (hide yes))) (pin "1" (uuid "101a547c-20b9-53ab-b34e-6e1adc40b1ac")) (instances (project "sd-board" (path "/766c70bd-1acb-59f5-b703-96c0315a8041" (reference "#FLG01") (unit 1)))))
 (label "3V3" (at 40.64 149.86 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "7da47807-b2c2-545d-bcf8-f559aadfea1d"))
 (symbol (lib_id "power:PWR_FLAG") (at 55.88 149.86 0) (unit 1) (exclude_from_sim no) (in_bom no) (on_board no) (dnp no) (uuid "216b2527-ad5c-58f9-8559-8b88131b8ea8") (property "Reference" "#FLG02" (at 55.88 135.86 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Value" "PWR_FLAG" (at 55.88 163.86 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Footprint" "" (at 55.88 149.86 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Datasheet" "" (at 55.88 149.86 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "LCSC" "" (at 55.88 149.86 0) (effects (font (size 1.27 1.27)) (hide yes))) (pin "1" (uuid "bf2ed4e6-1a1e-5893-8a6d-b3d4adeb47eb")) (instances (project "sd-board" (path "/766c70bd-1acb-59f5-b703-96c0315a8041" (reference "#FLG02") (unit 1)))))
