@@ -7,8 +7,8 @@ difference() { union() {
   translate([73.200, -1.800, 2.650]) cube([2.000, 38.403, 0.700]);   // its lip
   translate([101.100, -1.800, 0.000]) cube([0.900, 44.800, 3.350]);   // the right rail
   translate([100.000, -1.800, 2.650]) cube([2.000, 44.800, 0.700]);   // its lip
-  translate([73.200, 2.500, 2.650]) cube([6.800, 7.000, 2.950]);   // a post
-  translate([100.000, 2.500, 2.650]) cube([2.000, 7.000, 2.950]);   // a post
+  translate([73.200, 2.500, 2.650]) cube([2.000, 27.000, 2.950]);   // a post
+  translate([100.000, 2.500, 2.650]) cube([2.000, 27.000, 2.950]);   // a post
   translate([100.000, 39.000, 2.650]) cube([2.000, 4.000, 2.950]);   // a post
   translate([78.0, 40.0, 0]) difference() { cylinder(r=4.65, h=5.6); translate([0, 0, -1]) cylinder(r=3.6500000000000004, h=7.6); }   // the collar
 }

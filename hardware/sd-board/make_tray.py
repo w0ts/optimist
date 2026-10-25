@@ -19,12 +19,11 @@ FLOOR, PCB, PLAY, LIP = 0.8, 1.6, 0.25, 0.7      # (mm: the floor, the board, it
 SIDE, OVER = 0.3, 0.8                            # (the groove reaches 0.3 past the board's edge; the lip covers 0.8)
 LEFT, RIGHT = 72.6 + 0.6, 72.6 + 30.0 - 0.6      # the rails' outsides: 0.6 mm clear of the battery and the plug
 POLE, POLE_D, COLLAR_H = (78.0, 40.0), 6.9, 5.6  # the pole (l, m, i) and the collar's height (the pole stands 6 mm)
-# Three wide posts up toward the cover, all as high as the collar, clear of the cover's tapered edge band (t: some 4 mm
-# from the walls, the bottom wall's inside about 0.6 mm below the board) and of the cable's band (30 to 38 mm up).
-# They stand on the rails' lips, 2.65 mm above the board, so the board still slides in under them; the left one also
-# reaches over the board's bare left strip (nothing on it taller than copper up to 80 mm), the right ones cannot (parts
-# close to the edge). (u from, u to, v from, v to)
-POSTS = ((LEFT, 80.0, 2.5, 9.5), (None, RIGHT, 2.5, 9.5), (None, RIGHT, 39.0, None))
+# Three posts up toward the cover, as high as the collar, each the rail's width (rail and lip, no overhang to print) and
+# long along it (the user: "more up and down"): from out of the cover's tapered edge band (t: some 4 mm from the walls,
+# the bottom wall's inside about 0.6 mm below the board) up to the cable's band (30 to 38 mm up), and above it on the
+# right. They stand on the lips, 2.65 mm above the board, so the board still slides in under them. (u, u, v, v)
+POSTS = ((LEFT, None, 2.5, 29.5), (None, RIGHT, 2.5, 29.5), (None, RIGHT, 39.0, None))
 # Only the collar and the posts reach toward the cover: the battery's cable crosses over the board and the tray (the
 # user, 2026-10-25), in a band about 8 mm wide some 10 mm below the speaker plug (w2: 44 mm up), about 30 to 38 mm up.
 COLLAR_IN = (POLE_D + 0.4) / 2
@@ -61,7 +60,7 @@ with open(scad, "w") as f:
     f.write(f"  {box(u1 + SIDE, v0 - SIDE, RIGHT, v1, 0, top)}   // the right rail\n")
     f.write(f"  {box(u1 - OVER, v0 - SIDE, RIGHT, v1, groove, top)}   // its lip\n")
     for a, b, c, d in POSTS:
-        f.write(f"  {box(a if a else u1 - OVER, c, b, d if d else v1, groove, COLLAR_H)}   // a post\n")
+        f.write(f"  {box(a or u1 - OVER, c, b or u0 + OVER, d or v1, groove, COLLAR_H)}   // a post\n")
     f.write(f"  translate([{POLE[0]}, {POLE[1]}, 0]) difference() {{ cylinder(r={COLLAR_OUT}, h={COLLAR_H});"
             f" translate([0, 0, -1]) cylinder(r={COLLAR_IN}, h={COLLAR_H + 2}); }}   // the collar\n")
     f.write("}\n")
