@@ -6,10 +6,10 @@ difference() { union() {
   translate([70.200, -1.900, 0.000]) cube([0.800, 38.503, 3.350]);   // the left rail
   translate([70.200, -1.900, 2.650]) cube([2.000, 38.503, 0.700]);   // its lip
   translate([97.160, -1.900, 0.000]) cube([0.900, 25.900, 3.350]);   // the right rail
-  translate([95.960, -1.900, 2.650]) cube([2.100, 7.400, 0.700]);   // its lip, below the post only
+  translate([95.960, -1.900, 2.650]) cube([2.100, 25.900, 0.700]);   // its lip, as far as the post
   translate([97.160, 24.000, 0.000]) cube([0.900, 16.000, 2.400]);   // the rail above: no higher than the board
   translate([70.200, 15.103, 2.650]) cube([2.000, 21.500, 3.950]);   // a post
-  translate([97.160, 5.500, 2.650]) cube([0.900, 18.500, 3.950]);   // a post
+  translate([95.960, 5.500, 2.650]) cube([2.100, 18.500, 3.950]);   // a post
   translate([75.0, 40.0, 0]) difference() { cylinder(r=4.65, h=6.6); translate([0, 0, -1]) cylinder(r=3.6500000000000004, h=8.6); }   // the collar
 }
   translate([75.0, 40.0, -1]) cylinder(r=3.6500000000000004, h=8.6);
