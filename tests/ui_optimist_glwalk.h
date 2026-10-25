@@ -280,8 +280,8 @@ static void glw_sync_long_tests(void)
             {                                           /* what the line shows (the FM-1, 2026-10-25: "1.0 ms" at 0 and
                                                          * below: XDLY's TIME formatter took CLK OFS's "ms", one merged
                                                          * string; -fmerge-all-constants reproduces it here) */
-                char want[8];
-                glw_line(SCR_GLOBAL, l, &c, 0);
+                char want[8], lt[16];
+                glw_line(SCR_GLOBAL, l, &c, lt);
                 snprintf(want, sizeof want, "%d", (int)v1);
                 if (strcmp(c.val, want))
                     printf("  clk ofs at %d shows '%s' '%s'\n", (int)v1, c.val, c.unit);
