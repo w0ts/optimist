@@ -114,9 +114,26 @@ def render_bdf(path, first, last):
     return ch, out
 
 
+# rows a face is drawn higher in the cell, so its baseline is Terminus' (the capitals' last row 11; measured 2026-10-25:
+# Unifont's and NEC APC's sat on row 12, one pixel below Terminus on the same line: the user, "not vertically aligned");
+# a glyph with a pixel in the rows lifted off (Unifont's `) stays where it is
+LIFT = {"unifont-8x16-ascii.bdf": 1, "Px437_NEC_APC3_8x16.bdf": 1}
+
+
+def lift(h, glyphs, n):
+    """glyphs drawn n rows higher in their h-row cell"""
+    out = []
+    for dw, bw, px in glyphs:
+        if not any(px[:n * bw]):
+            px = px[n * bw:] + [0] * (n * bw)
+        out.append((dw, bw, px))
+    return out
+
+
 def render(ttf, px, pixel, first, last):
     if ttf.endswith(".bdf"):
-        return render_bdf(FONTS / ttf, first, last)
+        h, glyphs = render_bdf(FONTS / ttf, first, last)
+        return h, lift(h, glyphs, LIFT[ttf]) if ttf in LIFT else glyphs
     font = ImageFont.truetype(str(FONTS / ttf), px)
     feats = None if pixel else ["tnum"]
     asc, desc = font.getmetrics()
