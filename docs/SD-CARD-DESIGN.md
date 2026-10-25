@@ -302,44 +302,52 @@ Each step names who does it. Claude never writes to the FM-1.
   rendered to a sample (a new instrument), renders as 16-bit 44.1 kHz stereo WAV in `/Renders`; loop and up to 128
   slice markers stored inside the WAV file.
 
-### What we take, and what we do differently
+### The user's rulings (2026-10-25)
 
-The M8's pain points are the free paths (a moved sample breaks a song, hence bundles) and the card's random reads.
-A **fixed folder structure** with **fixed file names** removes the first, and suits Petit FatFs (it cannot create or
-grow files: section 5), whose limit becomes a rule instead of a nuisance.
+- **A real filesystem with names** (not slot-numbered files): "we have a file system! we use names". The folders are
+  fixed, the files inside them are named freely (long names), created and grown by the FM-1. That means **full FatFs**
+  (long names, create / grow / rename, several files, a cluster-link map for fast seek): about 15-20 KB of flash
+  (estimate), affordable with LAYOUT; `diskio` stays, so `sd_mmc.c` is reused. Petit FatFs stays only for the bring-up.
+- **Names mapped onto the 16 keys**: a list of files is shown as **pages of 16 slots** (the white keys), the page
+  picked by the knob; the same list can be **sorted / filtered by recent, name, folder** (and more views later).
+- **Versions per project, N configurable** (a setting: how many earlier saves each project keeps).
+- **Samples identified by a hash of the file** (the user: "Elektron has a nice approach"): a project stores each
+  sample's content hash (and its last known name and folder as a hint), never only a path. A sample renamed or moved
+  inside the card is still found by its hash; one missing is named MISSING with its last name, never silently swapped.
+
+### The layout
 
 ```
-/OPTIMIST/                     the FM-1's folder (anything else on the card is ignored)
-  PROJECTS/P01/ .. P16/         one folder a project slot, as the PROJECT page's slots
-    PROJECT.BIN                 the project: A/B halves, each with a generation number and a CRC (a power cut while
-                                saving leaves the older half whole); the newer whole one is the project
-    V01.BIN .. V08.BIN          versions: each SAVE also writes the oldest of these (a ring of 8, generation-numbered);
-                                the PROJECT page lists them with their save count and lets one be loaded back
-  SAMPLES/S001.WAV .. S256.WAV  the samples, by slot number only: a project names slot numbers (and a short hash of the
-                                file's header to notice a slot replaced on the computer), never a path; nothing to move,
-                                nothing to bundle
-  KITS/K01.BIN .., PRESETS/U001.BIN ..   the user kits and presets, the same way
-  RECORD/R01.WAV .. R16.WAV     recordings, preallocated (a recording fills the next free one)
-  BACKUP/B01.BIN .. B08.BIN     whole-device backups (the web editor's .optimist-backup), a ring
-  SYSTEM/                       what the firmware itself needs (a startup project, test files for sd bench)
+/OPTIMIST/                    the FM-1's folder (anything else on the card is left alone)
+  PROJECTS/<name>/            a project's folder, named as the project
+    <name>.OPP                the project (written to a new file, then renamed over the old: a power cut leaves the
+                              old one whole; a CRC and a save counter inside)
+    VERSIONS/<name>-0007.OPP  the earlier saves, newest N kept (N: the setting), numbered by the save counter
+  SAMPLES/                    samples, in any sub-folders the user makes; WAV (16-bit mono by default, the M8's
+                              speed advice); loop points and slice markers inside the WAV (as the M8 does)
+  KITS/, PRESETS/             the user's kits and presets, by name
+  RECORD/                     recordings (a new file each, named by date / project)
+  RENDERS/                    song / stem renders
+  BACKUP/                     whole-device backups (the web editor's .optimist-backup), newest N kept
+  SYSTEM/INDEX.BIN            the sample index: path, size, date -> hash (rebuilt for files whose size or date
+                              changed: hashing every sample at each mount would be slow)
 ```
 
-- **Who makes the files**: the web app's "prepare a card" (and the iOS app's) writes the folders and the preallocated
-  files at their full size, contiguous, on a card formatted with the SD Association formatter. The FM-1 only fills them
-  (Petit FatFs: write in place). A card without `/OPTIMIST` is "not prepared": the FM-1 says so, never formats.
-- **One sample from one place** (the user: "one cannot load a sample from anywhere"): the FM-1's sample picker lists
-  `SAMPLES` only; the computer side (web / iOS app) converts and drops files into free slots (resampled to the FM-1's
-  rate, 16-bit, mono unless stereo is asked for: the M8's speed advice made the default).
-- **Speed** (the M8's lesson): every streamed file is contiguous (the preparing tool makes it so: no cluster chain to
-  follow, `pf_run` gives a whole run per CMD18), mono 16-bit by default, the run length a parameter (section 7's bus
-  budget), a pitch ceiling per voice like the M8's, and `sd bench` names the card's random-read speed so a slow card is
-  told apart from a bug.
-- **Versions and backups without a journal**: A/B halves + generation numbers for the live project, a version ring
-  for "go back to what I had", a backup ring for the whole device; nothing is ever overwritten in place without the
-  other copy whole.
-- **Sharing a project**: the web / iOS app exports the project with the samples it names (what M8's bundle does), the
-  slots renumbered on import.
+### How it works
 
-Open (the user's call): the counts (16 projects x 8 versions, 256 samples, 16 recordings: sizes follow), whether the
-version ring is per project or one shared ring, and whether full FatFs (once LAYOUT gives the flash) should later allow
-free names inside the fixed folders.
+- **The 16-key browser**: a folder's entries (or a view across folders: recent, by name) as pages of 16; a key picks
+  an entry, the knob turns pages; recent = the files the projects and the FM-1 used last (kept in the index).
+- **Hash**: computed once per file when the index meets it (the audio data, so a header edit or a rename keeps it),
+  stored in the index with the file's size and date; a project's load looks its samples up by hash, then by the hint
+  if the hash is not indexed yet. Which hash: a fast 64-bit one is enough (not a security hash); to decide when built.
+- **Speed** (the M8's lesson: random reads matter most): streamed files are best contiguous; the FM-1 grows files by
+  whole preallocated runs (FatFs `f_expand`) when it records, the computer side copies whole files; the fast seek map
+  (FatFs `CREATE_LINKMAP`) turns a fragmented file's cluster chain into runs once at open, so streaming never walks the
+  FAT; mono 16-bit by default, the run length a parameter (section 7), a pitch ceiling per voice like the M8's.
+- **Safe saves**: write the new project to a temporary name, check it, rename it over the old one, then move the
+  previous one into VERSIONS and drop the oldest past N; a cut at any point leaves the old project whole.
+- **Sharing**: a project names its samples by hash, so the web / iOS app exports the project with exactly those files
+  and an import puts them back under SAMPLES (whatever their names).
+
+Open: the hash (which 64-bit function), the views beyond recent / name / folder, and whether the FM-1 or the computer
+side creates the folders on a fresh card (the FM-1 can, with full FatFs).
