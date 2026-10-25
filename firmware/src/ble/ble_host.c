@@ -171,7 +171,10 @@ BLE_API void ble_sig_audio(int on)
         return;
     if (on) {
         bhs.slow = 1;
-        if (iv >= BLE_CONN_AUDIO_MIN || (bhs.asked && ble_hw_time_us() - bhs.ask_us < BLE_SIG_AUDIO_RETRY_US))
+        if ((iv >= BLE_CONN_AUDIO_MIN && ble_ll_timeout() >= BLE_CONN_AUDIO_TIMEOUT) ||   /* (a Mac connects at 30 ms
+                                                     * with 720 ms: a gap of the audio's ends it; its own update to 2 s
+                                                     * comes with the 7.5 ms we refuse: 2 s asked for, 2026-10-25) */
+            (bhs.asked && ble_hw_time_us() - bhs.ask_us < BLE_SIG_AUDIO_RETRY_US))
             return;
         sent = sig_conn_params(BLE_CONN_AUDIO_MIN, BLE_CONN_AUDIO_MAX, BLE_CONN_AUDIO_TIMEOUT);
         BLE_DG(ble_dg.sa_sent += (uint32_t)sent, ble_dg.sa_full += (uint32_t)!sent);

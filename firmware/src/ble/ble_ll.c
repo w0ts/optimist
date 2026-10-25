@@ -107,6 +107,7 @@ BLE_API void ble_ll_set_adv_data(const uint8_t *ad, uint8_t ad_len, const uint8_
 
 BLE_API int ble_ll_connected(void) { return bll.state == LL_CONN; }
 BLE_API uint16_t ble_ll_interval(void) { return bll.state == LL_CONN ? bll.interval : 0; }
+BLE_API uint16_t ble_ll_timeout(void) { return bll.state == LL_CONN ? bll.timeout : 0; }
 BLE_API uint8_t ble_ll_peer_features(void) { return bll.feat_known ? bll.peer_feat : 0; }
 BLE_API uint8_t ble_ll_tx_octets(void) { return bll.state == LL_CONN ? bll.max_tx : 0; }
 BLE_API uint16_t ble_ll_peer_len(uint32_t i) { return bll.state == LL_CONN ? bll.peer_len[i & 3u] : 0; }

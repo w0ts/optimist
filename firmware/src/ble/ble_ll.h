@@ -46,6 +46,7 @@ BLE_API uint32_t ble_ll_tx_room(void);
 /* leave the connection: LL_TERMINATE_IND with reason, then ble_host_disconnected(BLE_ERR_LOCAL_HOST) */
 BLE_API void ble_ll_disconnect(uint8_t reason);
 BLE_API uint16_t ble_ll_interval(void);                   /* connInterval in use (x 1.25 ms), 0 when not connected */
+BLE_API uint16_t ble_ll_timeout(void);                    /* the supervision timeout in use (x 10 ms), 0 when not connected */
 BLE_API uint8_t ble_ll_peer_features(void);               /* the central's FeatureSet octet 0 (0 until exchanged) */
 BLE_API uint8_t ble_ll_tx_octets(void);                   /* the data length we send (27 .. 251), 0 when not connected */
 BLE_API uint16_t ble_ll_peer_len(uint32_t i);             /* the central's last LL_LENGTH values: 0 MaxRxOctets, 1 MaxRxTime (us),
