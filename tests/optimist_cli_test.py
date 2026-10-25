@@ -419,7 +419,7 @@ with tempfile.TemporaryDirectory() as d:
         for tag, date in (("v0.1", "2026-10-01T00:00:00Z"), ("v0.2", "2026-10-15T00:00:00Z")):
             (rel / tag).mkdir(parents=True)
             (rel / tag / "release.json").write_text(json.dumps({"tag": tag, "date": date}))
-            for prof in ("synths_USBaudio_BTaudio_BTmidi", "no-such-profile"):   # (a published profile; no profile at all)
+            for prof in ("synths_USBaudio_BTaudio_BTmidi", "no-such-profile", "user-default"):   # (published; none at all; left off)
                 shutil.copy(fwsc, rel / tag / f"optimist-{tag[1:]}-{prof}.fwsc")
         rs = ms.releases_of(rel, man)
         ms.main("9.9-test", Path(d) / "site3", ms.flavours_of(man), rs)
@@ -429,7 +429,8 @@ with tempfile.TemporaryDirectory() as d:
         check("releases: every package of each release on the site (firmware/r/TAG/), a profile id with _ and capitals too; one of a profile renamed since too, titled by its id",
               (Path(d) / "site3/firmware/r/v0.2/optimist-0.2-synths_USBaudio_BTaudio_BTmidi.fwsc").is_file()
               and (Path(d) / "site3/firmware/r/v0.2/optimist-0.2-no-such-profile.fwsc").is_file()
-              and titles.get("no-such-profile") == "no-such-profile" and [r["tag"] for r in rs] == ["v0.2", "v0.1"])
+              and titles.get("no-such-profile") == "no-such-profile" and "user-default" not in titles
+              and not (Path(d) / "site3/firmware/r/v0.2/optimist-0.2-user-default.fwsc").exists() and [r["tag"] for r in rs] == ["v0.2", "v0.1"])
         check("releases: listed first, newest first, then this commit's development packages (release \"\")",
               rels == ["v0.2", "v0.2", "v0.1", "v0.1", "", ""]   # (in a release: the manifest's flavours first, then by id)
               and [x["pkg"] for x in sj["packages"][:2]] == ["../../firmware/r/v0.2/optimist-0.2-no-such-profile.fwsc",

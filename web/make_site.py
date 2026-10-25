@@ -76,7 +76,7 @@ def source_ref():
     return ref if re.fullmatch(r"[A-Za-z0-9._-]+", ref) else ""
 
 
-BUILDER_FILES = ("index.html", "app.html", "logic.js", "ui.js", "builder.js", "builder.css", "py-worker.js")
+BUILDER_FILES = ("index.html", "app.html", "logic.js", "ui.js", "builder.js", "cloud.js", "builder.css", "py-worker.js")
 
 
 INSTALLER_IMPORTS = re.compile(r'^import \{[^}]*\} from "\.\./(fm1ota|fm1pkg)\.js";\n', re.M)
@@ -236,6 +236,10 @@ def published_profiles():
     return out
 
 
+# a release's packages left off the site: v0.1's user-default was a personal default, not a flavour (the user, 2026-10-25)
+HIDDEN_RELEASE_PROFILES = {"user-default"}
+
+
 def releases_of(folder, manifest=HERE / "flavours.json"):
     """DIR/TAG/release.json ({tag, date}) + DIR/TAG/optimist-VER-PROFILE.fwsc (release.yml's names) -> the releases,
     newest first: [{tag, date, flavours: [{id, title, description, pkg}]}]: every package the release carries (a release is
@@ -257,8 +261,8 @@ def releases_of(folder, manifest=HERE / "flavours.json"):
         flavours = []
         for f in sorted(d.glob("optimist-*.fwsc")):
             m = re.fullmatch(r"optimist-[0-9][0-9A-Za-z.]*-([A-Za-z0-9_-]+)", f.stem)   # (a profile id: synths_USBaudio_BTaudio_BTmidi)
-            if not m:
-                continue                                 # (not a release package)
+            if not m or m.group(1) in HIDDEN_RELEASE_PROFILES:
+                continue                                 # (not a release package, or one left off)
             t = titled.get(m.group(1), {})
             flavours.append({"id": m.group(1), "title": t.get("title", published.get(m.group(1), m.group(1))),
                              "description": t.get("description", ""), "pkg": f})
