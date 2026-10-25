@@ -30,7 +30,7 @@ SRC = _ROOT / "firmware" / "src"
 SIZE_FILES = ["ui/colors.c", "ui/splash.c", "storage/storage.c", "storage/upreset.c", "storage/project.c",
               "seq/arranger_scene.c", "drums/drum_kits.c", "engines/fm6/fm6_sysex.c", "io/editor/editor.c",
               "io/editor/ed_drums.c", "io/editor/ed_backup.c", "io/editor/ed_lite.c", "io/editor/ed_cz.c", "storage/nbank.c",
-              "io/console.c", "io/console_run.c", "storage/sections/sec_log.c", "storage/sections/sections.c",
+              "io/console.c", "io/console_run.c", "io/console_mem.c", "storage/sections/sec_log.c", "storage/sections/sections.c",
               "storage/sections/sec_codec.c", "io/editor/ed_dsend.c", "io/editor/ed_dsrc.c",
               "io/editor/ed_macro.c", "io/editor/ed_pages.c", "io/editor/ed_snap.c",
               "io/editor/ed_steps.c", "io/editor/ed_user.c", "core/bp_set.c",

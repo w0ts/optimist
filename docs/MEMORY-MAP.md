@@ -83,24 +83,27 @@ asserts it stays below 0x95000), the loader's `LDR_APP_HI` and the rescue tool's
 
 RAM and POOL are one contiguous SRAM range (0x01C08000-0x01C74000) split by `app.ld` [the stock firmware places data
 across the boundary; no datasheet]. Main RAM is the scarcer. A buffer only the main loop uses can go to the pool with
-`IN_POOL` (`core.h`); moving one changes neither flash nor the undo total. Whether the FM-1 reads both at the same speed
-is unmeasured (the emulator has no memory timing); the audio loops' tables (`TAB_RAM`) stay in main RAM unless the
-EXPERIMENTAL `TAB_IN_POOL` moves them, and the console's `tabbench` times SINE in main RAM against the pool.
+`IN_POOL` (`core.h`); moving one changes neither flash nor the undo total. RAMTEXT, RAM and the pool run code and data
+at the same speed on the FM-1 (measured 2026-10-25, section 2.3); the audio loops' tables (`TAB_RAM`) stay in main RAM
+unless the EXPERIMENTAL `TAB_IN_POOL` moves them, and the console's `tabbench` times SINE in main RAM against the pool.
 
 | Region (app.ld) | Size | What |
 |---|---|---|
-| RAMTEXT 0x01C00000 | 32,512 B | the audio path copied from flash at boot: `.ram_text` (flash driver, CPU1 spin loop) and `.ram_hot` (`HOT`: the mix, drums, most engines). Everything the boot copies (`.data`, `.pool_init`, the delta-coded tables' blobs (`gen_tables.py` TAB_STREAM: decoded onto the boot stack and expanded from there, `tab_expand`), the three RAM code sections) is one LZB stream in the image after `.text` (`tools/lzb.py`: an LZ parse whose bytes an adaptive range coder codes, decoded by `system/lzb.h lzb_expand` from `fm1_cstart` with a 6.5 KB model on the boot stack): 58 KB of copies take 38 KB of flash |
-| RAM 0x01C08000 | 96 KiB | `.ram_hot2` (`HOT2`: code that no longer fits RAMTEXT, mostly FX), `.data`, `.bss` |
-| POOL 0x01C20000 | 336 KiB (344,064 B) | `.pool_init` (with `TAB_IN_POOL`: the TAB_RAM tables, copied at boot), then `.pool`: the effects memory (the delay line and the inserts' lines, `fx/insfx/fxi_mem.h`), reverbs, engine memory shared per part, USB audio rings, slicer and punch buffers, the screen canvas, the main loop's `IN_POOL` buffers |
+| STATUS 0x01C00000 | 256 B | crt0's debug words (icfg, psr, the boot-parameter pointer, sp, ssp as the SPL left them) |
+| SRAM 0x01C00100 | 474,880 B, one packed region (since 2026-10-25; section 2.4), in this order: | |
+| - RAM code | | `.ram_text` (flash driver, CPU1 spin loop), `.ram_hot` (`HOT`: the mix, drums, most engines), `.ram_hot2` (`HOT2`: mostly FX), one run (one guard window). Everything the boot copies (`.data`, `.pool_init`, the delta-coded tables' blobs (`gen_tables.py` TAB_STREAM: decoded onto the boot stack and expanded from there, `tab_expand`), the three RAM code sections) is one LZB stream in the image after `.text` (`tools/lzb.py`: an LZ parse whose bytes an adaptive range coder codes, decoded by `system/lzb.h lzb_expand` from `fm1_cstart` with a 6.5 KB model on the boot stack): 58 KB of copies take 38 KB of flash |
+| - data | | `.data`, `.bss` |
+| - pool | | `.pool_init` (with `TAB_IN_POOL`: the TAB_RAM tables, copied at boot), then `.pool`: the effects memory (the delay line and the inserts' lines, `fx/insfx/fxi_mem.h`), reverbs, engine memory shared per part, USB audio rings, slicer and punch buffers, the screen canvas, the main loop's `IN_POOL` buffers |
+| - the rest | | the undo history (section 2.1), then 8 KiB kept spare below the stacks |
 | stacks 0x01C74000 | 32 KiB | user 0x01C74100-0x01C7A000 and system 0x01C7A100-0x01C7C000, each after a guard band; CPU1's stack is in the pool |
 | NOINIT 0x01C7C000 | 15,696 B | survives a reset: the pending arena (sections saved while playing, written when the transport stops), panel table and settings, boot guard, crash record, with SECTIONS=4 the project slots |
 
 ### 2.1 Free RAM is the undo history
 
 `undo.c` (`FELUCCA_UNDO_HISTORY`, default 1) keeps its ring in the memory nothing else is linked into (`_undo_*` in
-`app.ld`): the pool after `.pool` up to its last 8 KiB, then main RAM after `.bss`. A feature that takes RAM or pool takes
+`app.ld`): SRAM after `.pool` up to 8 KiB below the stacks. A feature that takes RAM code, data or pool takes
 undo levels away. A level keeps only changed steps (10 B each plus a header) [estimate: a rewritten 64-step track is about
-650 B]. The ring is `(98,304 - RAM) + (344,064 - 8,192 - pool)`. `FELUCCA_UNDO_CAP` caps it. The builder shows the ring in its estimate. Free **app flash** is only room for
+650 B]. The ring is `474,880 - 8,192 - (RAM + pool + RAM code)` (the builder's parts: section 3). `FELUCCA_UNDO_CAP` caps it. The builder shows the ring in its estimate. Free **app flash** is only room for
 features; saves never use it.
 
 ### 2.2 Cache RAM (EXPERIMENTAL `CACHE_RAM`, off by default)
@@ -114,14 +117,61 @@ object placed there must check `fm1_cache_ram_ok()`). On a failed test the way m
 fast as main RAM, but flash data reads over 16 KB are 57 times slower (1.7 us against 32 ns), because flash data goes
 through the data cache and only 4 KB is left; so it stays off. Not known: whether DMA or CPU1 can use the memory.
 
+### 2.3 One speed (measured 2026-10-25)
+
+The console's `membench` (`io/console_mem.c`, a bench build only: `OPTIMIST_MEMBENCH=1`) runs one ALU loop linked three
+times (RAMTEXT, RAM, XIP; byte-identical, 16-byte aligned) and reads and writes a 2 KiB scratch in each region. **Measured
+on one FM-1** (default profile with the console, `OPTIMIST_CDC_FORCE=1`, no USB audio, no JUNO; CPU0, interrupts on):
+
+| | RAMTEXT | RAM | POOL | XIP (cached) |
+|---|---|---|---|---|
+| code, ns a loop step (49 instructions) | 161.7 | 161.6 | - | 161.5 |
+| data, ns a 32-bit read (stride / in order) | 35.2 / 37.9 | 35.2 / 37.9 | 35.2 / 37.9 | 32.4 (tabbench) |
+| data, ns a 32-bit write | 35.1 | 35.1 | 35.1 | - |
+
+`tabbench` the same run: main RAM, pool and cache RAM 35.1 ns a read. `status`: `cpu_khz 313604` (about one instruction a
+cycle in every region). So the split of 0x01C00000-0x01C74000 into RAMTEXT, RAM and POOL costs no speed: it is
+bookkeeping. Not measured: contention with DMA (the screen's SPI1 reads the pool), CPU1's access, XIP code the cache has
+dropped. Code in the pool is not tried: `fm1_guard.h`'s PC windows allow XIP and `.ram_text` .. `.ram_hot2` only.
+
+### 2.4 One packed region (built 2026-10-25, branch `memory-map`; not yet run on the FM-1)
+
+Today three fixed budgets fill up one by one (RAMTEXT 32,512 B, RAM 96 KiB, POOL 336 KiB less an 8 KiB spare), and the
+builder works around them: `HOT2` (RAM code because RAMTEXT is full), `IN_POOL`, `IN_POOL_AUDIO`, `TAB_IN_POOL` (data
+moved because RAM is full). With section 2.3 those moves buy nothing. What changed:
+
+- `app.ld`: one region `SRAM`, 0x01C00100 up to the stacks (`_guard0`, 0x01C74000; an ASSERT keeps them together), the
+  sections packed in order: RAM code (`.ram_text`, `.ram_hot`, `.ram_hot2`), `.data`, `.bss`, `.pool_init`, `.pool`; the
+  undo ring takes what is left less the 8 KiB spare (kept: the reason is not documented, and it sits right below the
+  stacks' first guard band). The section names and symbols stay, so `main.c`'s copies, `HOT` / `HOT2` and the guard need
+  no change;
+- crt0's STATUS moved from 0x01C07F00 (between the old RAMTEXT and RAM) to 0x01C00000, below the packed run;
+- one budget in `tools/build.py` (`LIMITS` sram 474,880, `sram_spare` 8,192) and the builder (`core.py` `BUDGETS`: flash
+  and sram; `fits`, `over_any`, `FIT_MARGIN` sram 704 = the old RAM 448 + RAM code 256). costs.json keeps its four
+  columns as sizes (`ram` = `.ram_hot2` + `.data` + `.bss`, `pool`, `ramtext` = `.ram_text` + `.ram_hot`, as before);
+  their sum is what the SRAM budget counts (`core.used`). The web builder shows two gauges, FLASH and SRAM;
+- not done yet: `HOT2` folded into `HOT`, and `IN_POOL`, `IN_POOL_AUDIO`, `TAB_IN_POOL` retired. They are harmless now
+  (plain placement inside one region) and touch many files.
+
+Default profile (synths_USBaudio_BTaudio_BTmidi, 2ab989d5): SRAM 449,776 of 466,688 B; the undo ring 16,912 B (13,200
+with the fixed regions: the old RAMTEXT's unused 3.7 KB went to it).
+
+Fixed whatever the layout: 0x01C7FD50-0x01C7FFFF (boot info, mailbox, vectors), NOINIT and the crash record from
+0x01C7C000, the stacks below it, and the update loader at 0x01C0A800 (80 KiB, overwritten during an update: nothing there
+may need to survive one). The RAMTEXT overlays (branch `sdcard` e574ddde, local; builder `OVERLAY`, bit 412, opt-in,
+only with `LAYOUT=1`): `tools/ovl_link.py` rewrites `app.ld` by exact text and needs two anchors, kept or moved with it
+(`ovl_link.script()`, `tests/ovl_link_test.py`): the resident hot code's one KEEP line
+(`KEEP(*(.ram_hot .ram_hot.*)) . = ALIGN(4); _rh_end = .;`) and one region name whose ORIGIN + LENGTH bounds the slots
+(`RAMTEXT` before the packed layout, `SRAM` in it: `ovl_link.py` needs that one edit when `sdcard` takes this). The audio path and the flash driver stay in RAM code in any layout: an erase or a write stalls XIP. Stays as it is: `CACHE_RAM` (its cost is the data cache), `FX_ARENA`
+(sharing inside the pool), the delta-coded tables (they save flash, the scarcest).
+
 ## 3. The budget
 
-**Limits** (`tools/builder/core.py` `LIMITS`, `tools/build.py`): app flash 581,564 B; main RAM 98,304 B; pool 344,064 B
-with 8,192 B always kept spare (`SPARE`; the reason is not documented); RAMTEXT 32,512 B. The builder's estimate adds a
-margin (`FIT_MARGIN`: flash 1,024 B, RAM 448 B, RAMTEXT 256 B).
+**Limits** (`tools/builder/core.py` `LIMITS`, `tools/build.py`): app flash 581,564 B; SRAM 474,880 B (RAM code, data
+and pool together, section 2.4) with 8,192 B always kept spare (`SPARE`; the reason is not documented). The builder's
+estimate adds a margin (`FIT_MARGIN`: flash 1,024 B, SRAM 704 B).
 
-**What `tools/build.py` refuses:** an image over the app slot; main RAM over 96 KiB; less than 8,192 B of pool spare;
-RAMTEXT over 32,512 B; an undo ring under 1,408 B (then build `FELUCCA_UNDO_HISTORY=0`, the single level of SLOOP 2.x);
+**What `tools/build.py` refuses:** an image over the app slot; SRAM over 474,880 - 8,192 B; an undo ring under 1,408 B (then build `FELUCCA_UNDO_HISTORY=0`, the single level of SLOOP 2.x);
 a direct call between RAM code and XIP code (`HOT` code calls
 other `HOT` code directly and XIP code only through a pointer, `FAR`); a reference to a ROM address. It also prints the
 region sizes and the ring on every build.

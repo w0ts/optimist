@@ -106,7 +106,8 @@ async def estimate_over_build_fits_test():
     app = M.Builder(C.defaults(), "default")
     async with app.run_test(size=(200, 60)) as pilot:
         await pilot.pause()
-        cap = {r: C.LIMITS[r] - C.SPARE[r] for r in C.REGIONS}
+        sram = C.LIMITS["sram"] - C.SPARE["sram"]                  # (the SRAM parts filling the budget exactly)
+        cap = {"flash": C.LIMITS["flash"], "ram": 90000, "pool": sram - 120000, "ramtext": 30000}
         est = C.budget(app.cfg, app.costs)
         app.budget = lambda cfg=None: dict(est, total=dict(cap, flash=cap["flash"] + 19046), exact=False)
         real = dict(cap, flash=cap["flash"] - 14072)

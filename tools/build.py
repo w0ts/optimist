@@ -78,9 +78,10 @@ OPTIMIST_VERSION = (Path(__file__).resolve().parent.parent / "VERSION").read_tex
 MEASURE = False                     # --measure: link past the slot and the pool (sizes only, never a package)
 CFG_FLAGS = set()                   # the switches build/gen/felucca_config.h sets (the env loop below skips them)
 CFG_VALUES = {}                     # ... and their values
-# the budgets (bytes): the app slot, main RAM .data+.bss, the pool (and the spare build.py keeps), RAM code, noinit
-LIMITS = {"flash": 0x8DFBC, "ram": 96 * 1024, "pool": 0x54000, "pool_spare": 8192, "ramtext": 0x7F00,
-          "noinit": 0x3D50}
+# the budgets (bytes): the app slot, the packed SRAM (app.ld: RAM code, .data/.bss, the pool; the spare build.py keeps
+# below the stacks), noinit
+LIMITS = {"flash": 0x8DFBC, "sram": 0x73F00, "sram_spare": 8192, "noinit": 0x3D50}
+MEASURE_SRAM = 0x180000             # the SRAM of a measurement link (sizes only: a pool of big lines still links)
 
 
 def backend():
@@ -270,6 +271,8 @@ def build_app():
     flags += ["-include", f"{GEN_REL}/felucca_config.h"]   # the builder's configuration (tools/builder)
     if os.environ.get("OPTIMIST_CDC_FORCE") == "1":   # (a debug build: the CDC console presented without USB SERIAL ON)
         flags.append("-DFELUCCA_CDC_FORCE=1")
+    if os.environ.get("OPTIMIST_MEMBENCH") == "1":    # (a bench build: the console's membench, io/console_mem.c)
+        flags.append("-DFELUCCA_MEMBENCH=1")
     if os.environ.get("OPTIMIST_DUAL_PARK") in ("0", "1") and os.environ.get("FELUCCA_DUAL_PARK") is None:   # a DUAL build parks CPU1 (never started)
         flags.append(f"-DFELUCCA_DUAL_PARK={os.environ['OPTIMIST_DUAL_PARK']}")   # unless 0: a hardware test build (2026-10-15, dual_mode.h)
     if os.environ.get("OPTIMIST_DUALCFG") == "1":   # (the switchable second-core test image: the console's dualcfg)
@@ -402,15 +405,16 @@ def build_app():
        OUT / "felucca_size.ll", "-o", OUT / "felucca.o")
     elf = OUT / "felucca.elf"
     ld = FW / "app.ld"
-    if MEASURE:                     # a measurement link: XIP and POOL larger than the chip has (not flashable)
+    if MEASURE:                     # a measurement link: XIP and SRAM larger than the chip has (not flashable)
         ld = OUT / "app_measure.ld"
-        ld.write_text((FW / "app.ld").read_text().replace("LENGTH = 0x8DFBC", "LENGTH = 0xEDFBC")
-                      .replace("ORIGIN = 0x01C00000, LENGTH = 0x7F00", "ORIGIN = 0x01C00000, LENGTH = 0xFF00")
-                      .replace("ORIGIN = 0x01C08000, LENGTH = 96K", "ORIGIN = 0x01C10000, LENGTH = 96K")
-                      .replace("LENGTH = 96K", "LENGTH = 128K")             # (RAM, POOL and NOINIT moved up:
-                      .replace("ORIGIN = 0x01C20000, LENGTH = 0x54000",    # addresses for sizes only)
-                               "ORIGIN = 0x01C30000, LENGTH = 0x80000")
-                      .replace("ORIGIN = 0x01C7C000", "ORIGIN = 0x01CB0000"))
+        src = (FW / "app.ld").read_text()
+        meas = (src.replace("LENGTH = 0x8DFBC", "LENGTH = 0xEDFBC")
+                .replace("ORIGIN = 0x01C00100, LENGTH = 0x73F00", f"ORIGIN = 0x01C00100, LENGTH = {MEASURE_SRAM:#x}")
+                .replace("ORIGIN = 0x01C7C000", "ORIGIN = 0x01E00000")   # (NOINIT moved up: addresses for sizes only)
+                .replace('ASSERT(ORIGIN(SRAM) + LENGTH(SRAM) == _guard0', 'ASSERT(1'))
+        if meas.count(f"LENGTH = {MEASURE_SRAM:#x}") != 1 or "ORIGIN = 0x01E00000" not in meas:
+            raise SystemExit("build: app.ld changed: the measurement link's SRAM / NOINIT lines no longer match")
+        ld.write_text(meas)
         sync_view(ld)
     # --gc-sections: the units' functions nothing calls go (CFLAGS has -ffunction-sections; the X0X / ACID float
     # units export getters and renders this firmware never calls); crt0, the RAM code and the pool are KEEP in app.ld
@@ -478,8 +482,11 @@ def sizes(img, syms, hdr):
         mm = re.search(r"\s([0-9a-f]{8})\s+" + name + r"(\.\S+)?$", syms, re.M)
         return int(mm.group(1), 16) if mm else 0
     sec = section_sizes(hdr)
-    return {"flash": len(img), "ram": sym("_bss_end") - (0x01C10000 if MEASURE else 0x01C08000), "pool": sym("_pool_end") - sym("_pool_start"),
+    # (the parts keep their meaning from the fixed regions, costs.json compares them: "ram" = .ram_hot2 + .data + .bss,
+    # "ramtext" = .ram_text + .ram_hot; "sram" = what the packed region holds, alignment included)
+    return {"flash": len(img), "ram": sym("_bss_end") - sym("_rh2_start"), "pool": sym("_pool_end") - sym("_pool_start"),
             "ramtext": sym("_rt_end") - sym("_rt_start") + sym("_rh_end") - sym("_rh_start"),
+            "sram": sym("_pool_end") - sym("_sram_org"),
             "noinit": sec.get(".noinit", 0), "limits": LIMITS,
             "symbols": {n: size_of(n) for n in SIZED_SYMBOLS}}
 
@@ -698,34 +705,29 @@ def check(img, syms, dis, rt):
     def sym(name):
         mm = re.search(r"^([0-9a-f]+) .*\s" + name + r"$", syms, re.M)
         return int(mm.group(1), 16) if mm else 0
-    bss = sym("_bss_end") - (0x01C10000 if MEASURE else 0x01C08000)
-    pool = sym("_pool_end") - sym("_pool_start")
-    notes.append(f"image {len(img)} B; RAM .data+.bss {bss} B of 98304; pool {pool} B of {0x54000}")
-    notes.append(f"RAM code: .ram_text {sym('_rt_end') - sym('_rt_start')} B + .ram_hot "
-                 f"{sym('_rh_end') - sym('_rh_start')} B of {0x7F00}; .ram_hot2 "
-                 f"{sym('_rh2_end') - sym('_rh2_start')} B in RAM (counted in .data+.bss)")
-    rtext = sym("_rt_end") - sym("_rt_start") + sym("_rh_end") - sym("_rh_start")
-    if MEASURE and rtext > 0x7F00:                 # (a measurement link has a larger RAMTEXT)
-        over.append(f"RAMTEXT {rtext} B > {0x7F00} B")
-    if bss > 96 * 1024:
-        over.append("RAM region overflow")
+    used = sym("_pool_end") - sym("_sram_org")      # the packed SRAM (app.ld): RAM code, .data/.bss, the pool
+    sram_cap = LIMITS["sram"] - LIMITS["sram_spare"]
+    notes.append(f"image {len(img)} B; SRAM {used} B of {sram_cap} (+{LIMITS['sram_spare']} spare): RAM code "
+                 f"{sym('_rh2_end') - sym('_rt_start')} B (.ram_text {sym('_rt_end') - sym('_rt_start')}, .ram_hot "
+                 f"{sym('_rh_end') - sym('_rh_start')}, .ram_hot2 {sym('_rh2_end') - sym('_rh2_start')}), "
+                 f".data+.bss {sym('_bss_end') - sym('_data_start')} B, pool {sym('_pool_end') - sym('_pool_start')} B")
     burst = re.search(r"^([0-9a-f]+) .*\sfm1_rf_burst_run$", syms, re.M)   # a BLE build's radio start-up
     if burst and not sym("_rt_start") <= int(burst.group(1), 16) < sym("_rt_end"):
         errors.append("fm1_rf_burst_run is not in .ram_text: rf_init's group-5 burst must not fetch from flash "
                       "(hal/fm1_ble_rf.h FM1_RF_BURST_GROUPS)")
-    if 0x54000 - pool < 8192:                     # keep >= 8 KiB of the pool spare
-        over.append(f"pool headroom {0x54000 - pool} B < 8192 B")
+    if used > sram_cap:                            # keep the 8 KiB spare below the stacks
+        over.append(f"SRAM {used} B > {sram_cap} B (SRAM headroom {LIMITS['sram'] - used} B < {LIMITS['sram_spare']} B)")
     if sym("_undo_pool_lo") and re.search(r"\sundo_h(\.\S+)?$", syms, re.M):   # the undo history (undo.c)
         upool = max(0, sym("_undo_pool_hi") - sym("_undo_pool_lo"))
         uram = max(0, sym("_undo_ram_hi") - sym("_undo_ram_lo"))
         cap = os.environ.get("FELUCCA_UNDO_CAP", "")
         ring = min(upool + uram, int(cap)) if cap.isdigit() and int(cap) else upool + uram
-        notes.append(f"undo history ring {ring} B (pool {upool} B after the 8 KiB spare + main RAM {uram} B"
+        notes.append(f"undo history ring {ring} B (SRAM after the pool, less the 8 KiB spare"
                      + (f", cap {cap} B" if cap.isdigit() and int(cap) else "") + ")")
         if re.search(r"\sfm1_cache_set$", syms, re.M):   # EXPERIMENTAL CACHE_RAM (hal/fm1_cache.h)
             ucache = max(0, sym("_undo_cache_hi") - sym("_undo_cache_lo"))
-            notes.append(f"cache RAM: the undo ring's second part up to {ucache} B (CACHE_RAM ways x 4 KB) instead of main RAM's {uram} B when its "
-                         f"boot test passes (pool {upool} B + {ucache} B); the checks here count the fallback")
+            notes.append(f"cache RAM: the undo ring's second part up to {ucache} B (CACHE_RAM ways x 4 KB) when its "
+                         f"boot test passes ({upool} B + {ucache} B); the checks here count the ring without it")
         if ring < 1408:
             over.append(f"undo history ring {ring} B < 1408 B (FELUCCA_UNDO_HISTORY=0: the single level)")
     return errors, notes

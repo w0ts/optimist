@@ -5192,17 +5192,17 @@
   "pool",
   "ramtext"
  ],
+ "budgets": [
+  "flash",
+  "sram"
+ ],
  "limits": {
   "flash": 581564,
-  "ram": 98304,
-  "pool": 344064,
-  "ramtext": 32512
+  "sram": 474880
  },
  "spare": {
   "flash": 0,
-  "ram": 0,
-  "pool": 8192,
-  "ramtext": 0
+  "sram": 8192
  },
  "needs_auto": [],
  "fit_order": [
@@ -5415,8 +5415,6 @@
  ],
  "fit_margin": {
   "flash": 1024,
-  "ram": 448,
-  "pool": 0,
-  "ramtext": 256
+  "sram": 704
  }
 }

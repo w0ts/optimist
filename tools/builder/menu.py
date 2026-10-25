@@ -249,7 +249,8 @@ class Builder(App):
         if not s:
             return []
         return [(r, s[r]) for r in C.REGIONS
-                if abs(s[r]) >= 64 or (self.over.get(r, 0) > 0 and s[r] > 0)]
+                if abs(s[r]) >= 64 or (self.over.get(r, 0) > 0 and s[r] > 0)] + \
+            ([("sram", s["sram"])] if self.over.get("sram", 0) > 0 and s.get("sram", 0) > 0 else [])   # (what it frees of the overflowing SRAM)
 
     def budget(self, cfg=None):
         """the estimate, or the last build's exact sizes when that build was of this very selection (a measurement
