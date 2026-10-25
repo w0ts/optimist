@@ -8,7 +8,7 @@ name: build
 
 on:
   push:
-    branches: [optimist]
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
