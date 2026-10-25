@@ -24,7 +24,7 @@ LEFT = 72.6 - 3.0 + 0.6                          # the left rail's outside: 0.6 
                                                  # the measured k: the user's test fit)
 UP = float(sys.argv[1]) if len(sys.argv) > 1 else 0.5   # (the user, 2026-10-25: 0.5 and 1.0 higher, printed to compare)
 POLE, POLE_D, COLLAR_H = (75.0, 40.0), 6.9, 5.6 + UP   # the pole (75: 3 mm left of l, a test fit); collar height
-# A post up toward the cover (POSTS, below), as high as the collar, each the rail's width (rail and lip, no overhang
+# Two posts up toward the cover (POSTS, below), as high as the collar, each the rail's width (rail and lip, no overhang
 # to print) and long along it (the user: "more up and down"), out of the cover's tapered edge band (t: some 4 mm from
 # the walls, the bottom wall's inside about 0.6 mm below the board). They stand on the lips, 2.65 mm above the board, so
 # the board still slides in under them. Only the collar and the posts reach toward the cover: the battery's wires cross
@@ -48,8 +48,11 @@ v1 = min(v1, TRAY_TOP)                           # the head have parts of the FM
                                                  # hovers there 0.8 mm up, on the floor's thickness
 
 RIGHT = u1 + SIDE + 0.9                          # (the right rail as wide as the left)
-POSTS = ((LEFT, None, v_left - 21.5, v_left),)   # (up against the collar: the wires leave the battery low on the
-# left, the user's sketch. No post on the right: nothing there higher than the board's rail, the user)
+RIGHT_END = 24.0                                 # the right post's top end: above it the right rail stays as low as
+                                                 # the board (no lip, no post: the battery's wires cross there, the user)
+POSTS = ((LEFT, None, v_left - 21.5, v_left), (None, RIGHT, 5.5, RIGHT_END))   # (the left one up against the collar:
+# the wires leave the battery low on the left, the user's sketch; the right one from 5.5 mm, 3 mm clear of the case's
+# taper, the user)
 top = FLOOR + PCB + PLAY + LIP
 groove = FLOOR + PCB + PLAY
 
@@ -67,8 +70,9 @@ with open(scad, "w") as f:
     f.write(f"    translate([{POLE[0]}, {POLE[1]}]) circle(r={COLLAR_OUT}); }}\n")
     f.write(f"  {box(LEFT, v0 - SIDE, u0 - SIDE, v_left, 0, top)}   // the left rail\n")
     f.write(f"  {box(LEFT, v0 - SIDE, u0 + OVER, v_left, groove, top)}   // its lip\n")
-    f.write(f"  {box(u1 + SIDE, v0 - SIDE, RIGHT, v1, 0, top)}   // the right rail\n")
-    f.write(f"  {box(u1 - OVER, v0 - SIDE, RIGHT, v1, groove, top)}   // its lip\n")
+    f.write(f"  {box(u1 + SIDE, v0 - SIDE, RIGHT, RIGHT_END, 0, top)}   // the right rail\n")
+    f.write(f"  {box(u1 - OVER, v0 - SIDE, RIGHT, RIGHT_END, groove, top)}   // its lip\n")
+    f.write(f"  {box(u1 + SIDE, RIGHT_END, RIGHT, v1, 0, FLOOR + PCB)}   // the rail above: no higher than the board\n")
     for a, b, c, d in POSTS:
         f.write(f"  {box(a or u1 - OVER, c, b or u0 + OVER, d or v1, groove, COLLAR_H)}   // a post\n")
     f.write(f"  translate([{POLE[0]}, {POLE[1]}, 0]) difference() {{ cylinder(r={COLLAR_OUT}, h={COLLAR_H});"
