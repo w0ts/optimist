@@ -5,8 +5,10 @@
      sheet it adds as the page loads). Served as webapp/builder/app.html by web/make_site.py (the shared style only).
        ?flavour=<id>   the configuration it starts from: the builder's preset "flavour:<id>" (web/flavours.json), else
                        "profile:<id>" (a release's package is named by its profile)
-     A cloud build sent (the builder keeps it in localStorage, WATCH_KEY of builder.js, to watch for it) is posted to the app:
-     window.webkit.messageHandlers.optimist.postMessage({type: "cloud-build", key, name}); in a browser there is no handler. -->
+     The builder posts its cloud build's stages to the app itself (builder.js: window.webkit.messageHandlers.optimist,
+     {type: "cloud-build", stage: sent | building | done | refused | failed | error, ...}); its "Flash it" and "Try it in the
+     simulator" links come here (onNavigate) and go to the app as {type: "open", where: "install" | "sim", build}. In a
+     browser there is no handler: nothing is posted. -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -16,6 +18,9 @@
 <style>
   body { margin: 0; }
   .o-page { padding: var(--sp-3) var(--sp-3) var(--sp-5); max-width: none; }
+  #result { position: sticky; top: 0; z-index: 5; margin-bottom: var(--sp-3); }   /* (Build stays in reach while scrolling the items) */
+  #result #build { width: 100%; }
+  [hidden] { display: none !important; }
 </style>
 </head>
 <body class="o-ui">
@@ -23,19 +28,37 @@
 <script type="module">
 import { mountBuilder } from "./builder.js";
 
-const WATCH_KEY = "optimist-builder-watch";          /* builder.js: the build sent last, {id, name, t0} */
 const app = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.optimist;
-const handle = mountBuilder(document.getElementById("app"), {});
+const onNavigate = (where, detail) => {
+  if (app && (where === "install" || where === "sim")) app.postMessage({ type: "open", where, build: String((detail && detail.build) || "") });
+};
+const handle = mountBuilder(document.getElementById("app"), { onNavigate });
 window.optimistBuilder = handle;
 handle.activate();
 
-/** the build being watched, when it was sent after this page opened (an older one is not this visit's) */
-const opened = Date.now();
-function sent() {
-  try {
-    const w = JSON.parse(localStorage.getItem(WATCH_KEY) || "null");
-    return w && /^[0-9a-f]{16}$/.test(w.id) && w.t0 >= opened - 5000 ? w : null;
-  } catch (e) { return null; }
+/* the app's page is three steps (the user, 2026-10-25: "we create our config at the top, watch it build and flash it"): the
+   build panel goes to the top, with only its Build button and the build's progress; the download, the hash and key, building
+   it yourself, loading a file, the canonical text and the .config file stay on the web page. Ids of builder.js's template:
+   a missing one is left alone. */
+{
+  const root = handle.root, $ = (id) => root.querySelector("#" + id);
+  const result = $("result");
+  if (result) {
+    root.prepend(result);
+    const h = result.querySelector(".o-panel-h h2");
+    if (h) h.textContent = "Build";
+    for (const id of ["download", "keynote", "buildhow", "import", "canon", "dump", "keychip"]) {
+      const el = $(id);
+      const box = el && (el.closest("details") || el);
+      if (box) box.hidden = true;
+    }
+    const hash = $("hash");
+    if (hash && hash.closest("p")) hash.closest("p").hidden = true;
+    const build = $("build");
+    if (build) { build.classList.add("primary"); build.textContent = "Build"; }
+  }
+  const foot = root.querySelector(".ob-foot");
+  if (foot) foot.hidden = true;
 }
 
 async function start() {
@@ -50,13 +73,6 @@ async function start() {
 }
 start().catch(() => { /* the builder shows its own errors */ });
 
-if (app) {
-  let told = "";
-  setInterval(() => {
-    const w = sent();
-    if (w && w.id !== told) { told = w.id; app.postMessage({ type: "cloud-build", key: w.id, name: String(w.name || "") }); }
-  }, 1000);
-}
 </script>
 </body>
 </html>
