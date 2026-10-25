@@ -1005,10 +1005,16 @@ job; ( jobin   # the arena (core/arena.c, docs/SD-MODE-DESIGN.md 6b): first fit 
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin   # the effects' lines in the arena (fx/fx_arena.c, docs/SD-MODE-DESIGN.md 6b phase 3b; FELUCCA_FX_ARENA)
     FXA="-DFELUCCA_ENG_FM6=1 -DFELUCCA_FX_ARENA=1 -DFELUCCA_INS_CHORUS=1 -DFELUCCA_INS_DELAY=1 -DFELUCCA_DLY_LEN=16384u"
-    $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA "-DFELUCCA_ARENA_BYTES=(sizeof(fm6_mem_t) + 64512u)" -o "$OUT/fx_arena_test" tests/fx_arena_test.c -lm
+    $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA "-DFELUCCA_ARENA_BYTES=(sizeof(fm6_mem_t) + 66506u)" -o "$OUT/fx_arena_test" tests/fx_arena_test.c -lm
     run "effects' lines in the arena (ROOM): placed while used, zeroed, gated and given back, refused (bypassed, kept, said once) and restored, a part's change waits for a line going back, the own room, lent instead; random switches" "$OUT/fx_arena_test"
-    $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA -DFELUCCA_REV_FDN8=1 -DFELUCCA_REV_POOL=1 -DFELUCCA_SPRING=1 "-DFELUCCA_ARENA_BYTES=(sizeof(fm6_mem_t) + 79912u)" -o "$OUT/fx_arena_rev_test" tests/fx_arena_test.c -lm
+    $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA -DFELUCCA_REV_FDN8=1 -DFELUCCA_REV_POOL=1 -DFELUCCA_SPRING=1 "-DFELUCCA_ARENA_BYTES=(sizeof(fm6_mem_t) + 81906u)" -o "$OUT/fx_arena_rev_test" tests/fx_arena_test.c -lm
     run "the same with ROOM, FDN8 and SPRING (the reverb's TYPE switched, its line 32 KB)" "$OUT/fx_arena_rev_test"
+    $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA -DFELUCCA_FX_SLICER=0 "-DFELUCCA_ARENA_BYTES=(sizeof(fm6_mem_t) + 66506u)" -o "$OUT/fx_arena_nobufs_test" tests/fx_arena_test.c -lm
+    run "the same without the SLICER (no other buffer in the arena: core/arena_bufs.c's stubs)" "$OUT/fx_arena_nobufs_test"
+    # (the arena: one FM6 3904, the lines 66472, WAVE's table 73216, one SLICER recording 8192, the 909 5360 and the
+    #  808 3376 on the host, and 32 B)
+    $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA -DFELUCCA_ENG_WAVE=1 -DFELUCCA_DRUM_X909=1 -DFELUCCA_DRUM_X808=1 "-DFELUCCA_ARENA_BYTES=160552u" -o "$OUT/arena_bufs_test" tests/arena_bufs_test.c -lm
+    run "other buffers in the arena (SLICER recordings, WAVE's table, the X0X machines): placed while used, given back, refused (bypassed, said once) and placed by themselves, a part's change waits; random switches" "$OUT/arena_bufs_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin   # the RAMTEXT overlays (core/overlay.c, docs/SD-MODE-DESIGN.md 6): the slots' protocol on the host
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_OVERLAY=1 -DFELUCCA_ENG_STRINGS=1 -o "$OUT/overlay_test" tests/overlay_test.c -lm

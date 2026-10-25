@@ -49,7 +49,15 @@ static const uint16_t SL_PAT[SL_NPAT] = {
     0x7597,   /* 16 xxx.x..xx.x.xxx. */
 };
 
+#if FXM_NEED && FELUCCA_FX_SLICER
+/* in the arena (core/arena_bufs.c): a track's recording held only while its SLICER is on STUT (or a repeat still plays);
+ * 0 not placed: STUT is bypassed (sl_mode OFF, the live sound passes), placed by itself once there is room */
+static int16_t *sl_bp[NTRK];
+#define SL_BUF(k) sl_bp[k]
+#else
 static int16_t sl_buf[FELUCCA_FX_SLICER ? NTRK : 1][SL_LEN] __attribute__((section(".pool")));
+#define SL_BUF(k) sl_buf[k]
+#endif
 typedef struct {
     uint32_t pos, len;           /* clock units into the step, its length */
     uint32_t base;               /* the step without swing (units) */
@@ -77,7 +85,15 @@ static void slicer_start(uint32_t pos)   /* seq_start: step 0 of every track, po
 }
 
 /* the SLICER mode heard: OFF while the track's FX are bypassed (P_SLCR keeps its value) */
+#if FXM_NEED && FELUCCA_FX_SLICER
+AINL uint32_t sl_mode(const track_t *t)
+{
+    uint32_t m = fx_on(t) ? (uint32_t)t->p[P_SLCR] : SL_OFF;
+    return m == SL_STUT && !sl_bp[t - trk] ? SL_OFF : m;   /* (STUT with no recording placed: bypassed) */
+}
+#else
 AINL uint32_t sl_mode(const track_t *t) { return fx_on(t) ? (uint32_t)t->p[P_SLCR] : SL_OFF; }
+#endif
 AINL uint32_t sl_pattern(const track_t *t) { return SL_PAT[(uint32_t)(t->p[P_SLPAT] - 1) % SL_NPAT]; }
 
 /* the step clock enters the next step */
@@ -171,7 +187,7 @@ static HOT void slicer_track(const track_t *t, int32_t *b, uint32_t n)
         left = (s->len - s->pos + bpm - 1u) / bpm;  /* samples to the boundary */
         m = left < n - i ? left : n - i;
         if (act)
-            sl_seg(t, s, sl_buf[k], b + i, m, left);
+            sl_seg(t, s, SL_BUF(k), b + i, m, left);
         s->pos += m * bpm;
         i += m;
     }

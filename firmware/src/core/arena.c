@@ -170,7 +170,7 @@ static void *arn_ptr(uint32_t k) { return k < ARN_PARTS && arn_cur[k].len ? arn_
 
 static int32_t arn_drop_for(uint32_t k, uint32_t n)
 {
-    uint32_t mask, i, idle = 0, best = 0, best_bytes = 0xFFFFFFFFu, had = k < ARN_PARTS ? arn_has_next[k] : 0u;
+    uint32_t mask = 0, i, idle = 0, best = 0, best_bytes = 0xFFFFFFFFu, had = k < ARN_PARTS ? arn_has_next[k] : 0u, can;
     n = arn_round(n);
     if (k >= ARN_PARTS || n > ARN_BYTES)
         return -1;
@@ -183,16 +183,16 @@ static int32_t arn_drop_for(uint32_t k, uint32_t n)
         if (arn_cur[i].len && arn_cur[i].idle)
             idle |= 1u << i;
     arn_has_next[k] = 0;                                /* (its own old reservation: replaced by the new one) */
-    for (mask = 0; mask < (1u << ARN_PARTS); mask++) {  /* (2^ARN_PARTS sets: 16 with four parts) */
+    can = (uint32_t)ARN_DROPPABLE & ~idle & ~(1u << k);  /* (not the part asking; idle ones are free anyway) */
+    do {                                                /* (every set of them, in increasing order: 8 with three parts) */
         uint32_t bytes = 0;
-        if (((mask >> k) & 1u) || (mask & idle) || (mask & ~(uint32_t)ARN_DROPPABLE))
-            continue;                                   /* (not the part asking; idle ones are free anyway) */
         for (i = 0; i < ARN_PARTS; i++)
             if ((mask >> i) & 1u)
                 bytes += arn_cur[i].len;
         if (arn_gap(n, mask | idle | 1u << k) != ARN_BYTES && bytes < best_bytes)
             best = mask, best_bytes = bytes;            /* the least memory given back that makes room */
-    }
+        mask = (mask - can) & can;                      /* (the next set of can's bits) */
+    } while (mask);
     arn_has_next[k] = (uint8_t)had;
     return best_bytes == 0xFFFFFFFFu ? -1 : (int32_t)best;
 }
