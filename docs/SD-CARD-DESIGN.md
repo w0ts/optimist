@@ -354,10 +354,13 @@ Each step names who does it. Claude never writes to the FM-1.
 - **No fragmentation: space wasted on purpose** (the user, 2026-10-25: "cards are cheap, most users will use 16 GB+
   cards they will never fill up; this can be a setting"). Every file the FM-1 writes is allocated as **one contiguous
   run, rounded up generously**, never grown cluster by cluster:
-  - a setting, the **allocation step** (e.g. 256 KB / 1 MB / 4 MB, default 1 MB): every file the FM-1 creates is
-    expanded to whole steps in one contiguous run (FatFs `f_expand`), its real length kept in the file (WAV length,
-    the project's own header) and the file never truncated: the slack is the point (the next save
-    or a longer take reuses it in place);
+  - the slack **depends on the kind of file**, never one size for all:
+    - presets, kits, the index, small files: **none**: a file within one cluster (32 KB on a 16-32 GB card) cannot
+      fragment, so it is written as it is;
+    - projects (tens of KB): rounded up to a small step (e.g. 64 KB) so the next save reuses the run;
+    - samples the FM-1 writes and recordings: the big step (the setting, e.g. 256 KB / 1 MB / 4 MB, default 1 MB);
+  - each run allocated contiguous in one go (FatFs `f_expand`), the real length kept inside the file (WAV length, the
+    project's header), the file never truncated: the slack is the point;
   - recordings start with a run of the step x a few (or the take's length limit) and continue into a new run when
     longer; a take never interleaves with another file;
   - project saves (temp + rename) get a run of the step, so the new file is contiguous too;
