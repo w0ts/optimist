@@ -41,9 +41,12 @@ breakout will tell; then the lines are re-routed.
 3. Upload `fab/bom.csv` (the parts) and `fab/cpl.csv` (where they go). Every part is a JLC part (LCSC numbers in the BOM).
 4. Check the placement preview: the card socket's opening past the bottom edge, both 10-pin sockets' openings facing the top,
    U1's pin 1 dot as on the render.
-5. Order. Rough cost (an estimate from JLC's usual prices, not a quote): about 20 USD for 2 boards, 22 for 5, 26 for 10,
-   32 for 20, plus shipping and VAT. Four parts are JLC "extended" parts (the card socket, the 10-pin socket, the inverter, and so on): 3 USD each
-   per order.
+3b. JLC warns "multiple lines matched to the same part" on J2/J3 (same socket, two values): correct, tick both.
+5. Order. JLC quote of 2026-10-25 (v5 files, Economic, 2-day PCB, before the ESD chip and the 33 ohm resistors):
+   2 assembled of 5 bare 26.99 USD, 5: 28.99, 10: 33.31, 20: 42.86, 30: 49.81, 50: 65.56. About 19 USD of it is fixed per
+   order (setup 8.24, stencil 1.55, three extended parts 9.27: card socket, 10-pin socket, inverter). The ESD chip adds one
+   more extended part (about 3.50). Shipping to Belgium for 5 (0.29 kg): Global Standard 8.16 (12-16 days), EuroPacket
+   15.08, DHL 23.40; VAT not shown in the quote.
 
 The same board can be shared on OSHWLab (JLC's open-hardware site) so anyone orders it from a page: import the KiCad
 project (`sd-board.kicad_pcb`, `sd-board.kicad_sch`) into EasyEDA Pro (File > Import > KiCad), publish it.
