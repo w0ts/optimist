@@ -274,14 +274,14 @@ static int lane_value_rec(uint32_t l, uint32_t id, int32_t v)
 #define KLFO_PGN (KLFO_ON ? 4u : 0u)
 static const page_t LANE_LFO_PG[6u + KLFO_PGN] = {{"LFO", FAM_LFO, SC_DSND, GR_LFO, {24, 25, 26, 27}},
                                       {"LFO DEST", FAM_LFO, SC_DSND, GR_NONE, {28, 29, 30, 31}},
-                                      {"LFO 2", FAM_LFO, SC_DSND, GR_NONE, {32, 33, 34, 35}},
+                                      {"LFO 2", FAM_LFO, SC_DSND, GR_LFO, {32, 33, 34, 35}},
                                       {"LFO2 DEST", FAM_LFO, SC_DSND, GR_NONE, {36, 37, 38, 39}},
                                       {"ENV2", FAM_ENV, SC_DSND, GR_ENV2, {40, 41, 42, 43}},
                                       {"ENV2 DEST", FAM_ENV, SC_DSND, GR_NONE, {44, 45, 46, 47}},
 #if KLFO_ON
-                                      {"LFO", FAM_LFO, SC_DSND, GR_NONE, {KL0, KL0 + 1, KL0 + 2, KL0 + 3}},
+                                      {"LFO", FAM_LFO, SC_DSND, GR_LFO, {KL0, KL0 + 1, KL0 + 2, KL0 + 3}},
                                       {"LFO DEST", FAM_LFO, SC_DSND, GR_NONE, {KL0 + 4, KL0 + 5, KL0 + 6, KL0 + 7}},
-                                      {"LFO 2", FAM_LFO, SC_DSND, GR_NONE, {KL0 + 8, KL0 + 9, KL0 + 10, KL0 + 11}},
+                                      {"LFO 2", FAM_LFO, SC_DSND, GR_LFO, {KL0 + 8, KL0 + 9, KL0 + 10, KL0 + 11}},
                                       {"LFO2 DEST", FAM_LFO, SC_DSND, GR_NONE, {KL0 + 12, KL0 + 13, KL0 + 14, KL0 + 15}},
 #endif
 };
