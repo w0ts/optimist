@@ -46,6 +46,11 @@ breakout will tell; then the lines are re-routed.
   4. kept as they are: R1 at the card's end of DAT0, the 100 Ohm CLK / MOSI resistors at the J2 end of the branch,
      the J3-J2 pass-through short and over the pour;
   5. four layers only if the bench still shows CRC errors at 30 MHz after this (the auto clock stays the safety net).
+- **Parts off the tray's lips** (the user, 2026-10-25 review): U1, R2, R4, C2 sit 2.4-3.2 mm from the right edge
+  (copper ~1.4 mm), right where the tray's right lip (0.8 mm over the edge, up to RIGHT_END 24 mm) passes as the board
+  slides in. Move them above the card socket (v > ~16), at least 2 mm from the right edge, with the 3V3 rail (RAIL
+  95.8 today); and `make_board.py` asserts a 2 mm keep-out from each edge where a lip runs (the left the whole length,
+  the right to RIGHT_END), checked on every placed part's courtyard. The left side is fine already.
 - **The cable is the weakest part of the path**: 80 mm, 10 lines at 0.5 mm, ground only on pins 1 and 10, the order
   fixed by J12 (the provisional map has MISO, CLK, MOSI side by side). The path is only as good as the cable: use the
   shortest cable that reaches.
