@@ -1372,7 +1372,7 @@
   },
   "ENG_NOISE": {
    "1": {
-    "flash": 2836,
+    "flash": 2832,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -1579,7 +1579,7 @@
    }
   }
  },
- "measured": "2026-10-25 18:24",
+ "measured": "2026-10-25 20:27",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
@@ -1601,7 +1601,7 @@
  },
  "checks": {
   "bt-debug": {
-   "hash": "786caf69",
+   "hash": "68959d1b",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -1628,7 +1628,7 @@
     "SET_STRGS": 0,
     "SET_FLUTE": 0,
     "SET_SCRCH": 0,
-    "DLY_LEN": 32768,
+    "DLY_LEN": 16384,
     "REV_ROOM": 0,
     "REV_FDN8": 1,
     "REV_POOL": 1,
@@ -1646,6 +1646,7 @@
     "INS_JCHORUS": 1,
     "INS_FLANGER": 1,
     "INS_XDLY": 1,
+    "XDLY_LEN": 8192,
     "DLY_ARENA": 64,
     "INS_GATER": 1,
     "CHORDPLUS": 1,
@@ -1697,12 +1698,12 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "66318b73",
+   "built_hash": "49f02705",
    "sizes": {
-    "flash": 569528,
+    "flash": 569644,
     "ram": 93964,
-    "pool": 328848,
-    "ramtext": 28356
+    "pool": 328888,
+    "ramtext": 28360
    }
   },
   "drum-machines": {
@@ -1792,7 +1793,7 @@
    }
   },
   "synths-2": {
-   "hash": "7dc1a720",
+   "hash": "29e1643c",
    "cfg": {
     "ENG_ANALOG": 0,
     "ENG_DIGITAL": 0,
@@ -1823,7 +1824,7 @@
     "SET_STRGS": 0,
     "SET_FLUTE": 0,
     "SET_SCRCH": 0,
-    "DLY_LEN": 32768,
+    "DLY_LEN": 16384,
     "REV_ROOM": 0,
     "REV_FDN8": 1,
     "REV_POOL": 1,
@@ -1844,6 +1845,7 @@
     "INS_JCHORUS": 1,
     "INS_FLANGER": 1,
     "INS_XDLY": 1,
+    "XDLY_LEN": 8192,
     "DLY_ARENA": 64,
     "INS_GATER": 1,
     "CHORDPLUS": 1,
@@ -1883,16 +1885,16 @@
     "COND": 1,
     "SEQTOOLS": 1
    },
-   "built_hash": "733409d2",
+   "built_hash": "678f2f1e",
    "sizes": {
-    "flash": 570788,
+    "flash": 570920,
     "ram": 78904,
-    "pool": 328272,
-    "ramtext": 21172
+    "pool": 328312,
+    "ramtext": 21200
    }
   },
   "synths": {
-   "hash": "5d1800a7",
+   "hash": "0100eb33",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -1926,7 +1928,7 @@
     "SET_STRGS": 0,
     "SET_FLUTE": 0,
     "SET_SCRCH": 0,
-    "DLY_LEN": 32768,
+    "DLY_LEN": 16384,
     "REV_ROOM": 0,
     "REV_FDN8": 1,
     "REV_POOL": 1,
@@ -1947,7 +1949,7 @@
     "INS_JCHORUS": 1,
     "INS_FLANGER": 1,
     "INS_XDLY": 1,
-    "DLY_ARENA": 64,
+    "XDLY_LEN": 8192,
     "INS_GATER": 1,
     "CHORDPLUS": 1,
     "SNAPSHOTS": 0,
@@ -1993,16 +1995,16 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "750fbe88",
+   "built_hash": "2589945a",
    "sizes": {
-    "flash": 574768,
+    "flash": 574860,
     "ram": 81368,
-    "pool": 303908,
+    "pool": 317280,
     "ramtext": 28168
    }
   },
   "synths_USBaudio_BTaudio_BTmidi": {
-   "hash": "79710366",
+   "hash": "49ad7696",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -2035,7 +2037,7 @@
     "SET_STRGS": 0,
     "SET_FLUTE": 0,
     "SET_SCRCH": 0,
-    "DLY_LEN": 32768,
+    "DLY_LEN": 16384,
     "REV_ROOM": 0,
     "REV_FDN8": 1,
     "REV_POOL": 1,
@@ -2055,6 +2057,7 @@
     "INS_JCHORUS": 1,
     "INS_FLANGER": 1,
     "INS_XDLY": 1,
+    "XDLY_LEN": 8192,
     "DLY_ARENA": 64,
     "INS_GATER": 1,
     "CHORDPLUS": 1,
@@ -2102,16 +2105,16 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "50223f3d",
+   "built_hash": "67515d0f",
    "sizes": {
-    "flash": 580392,
+    "flash": 580544,
     "ram": 92128,
-    "pool": 328848,
-    "ramtext": 28760
+    "pool": 328888,
+    "ramtext": 28852
    }
   },
   "synths_USBaudio_BTaudio_BTmidi+ble-test": {
-   "hash": "1c8d5432",
+   "hash": "7553a576",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -2146,7 +2149,7 @@
     "SET_STRGS": 0,
     "SET_FLUTE": 0,
     "SET_SCRCH": 0,
-    "DLY_LEN": 32768,
+    "DLY_LEN": 16384,
     "REV_ROOM": 0,
     "REV_FDN8": 1,
     "REV_POOL": 1,
@@ -2165,6 +2168,7 @@
     "INS_JCHORUS": 1,
     "INS_FLANGER": 1,
     "INS_XDLY": 1,
+    "XDLY_LEN": 8192,
     "DLY_ARENA": 64,
     "INS_GATER": 1,
     "CHORDPLUS": 1,
@@ -2204,16 +2208,16 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "18f91696",
+   "built_hash": "1399f2d2",
    "sizes": {
-    "flash": 533672,
+    "flash": 533832,
     "ram": 87852,
-    "pool": 287432,
-    "ramtext": 25232
+    "pool": 287472,
+    "ramtext": 25324
    }
   },
   "synths_USBaudio_BTaudio_BTmidi+ble-full": {
-   "hash": "4d379958",
+   "hash": "7293d088",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -2248,7 +2252,7 @@
     "SET_STRGS": 0,
     "SET_FLUTE": 0,
     "SET_SCRCH": 0,
-    "DLY_LEN": 32768,
+    "DLY_LEN": 16384,
     "REV_ROOM": 0,
     "REV_FDN8": 1,
     "REV_POOL": 1,
@@ -2267,6 +2271,7 @@
     "INS_JCHORUS": 1,
     "INS_FLANGER": 1,
     "INS_XDLY": 1,
+    "XDLY_LEN": 8192,
     "DLY_ARENA": 64,
     "INS_GATER": 1,
     "CHORDPLUS": 1,
@@ -2307,16 +2312,16 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "4d786dd8",
+   "built_hash": "1f161788",
    "sizes": {
-    "flash": 528356,
+    "flash": 528476,
     "ram": 83108,
-    "pool": 268392,
-    "ramtext": 22752
+    "pool": 268432,
+    "ramtext": 22764
    }
   },
   "bt-debug~": {
-   "hash": "55ccc6fd",
+   "hash": "1329d7e7",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -2342,7 +2347,7 @@
     "SET_STRGS": 0,
     "SET_FLUTE": 0,
     "SET_SCRCH": 0,
-    "DLY_LEN": 32768,
+    "DLY_LEN": 16384,
     "REV_ROOM": 0,
     "REV_FDN8": 1,
     "REV_POOL": 1,
@@ -2361,6 +2366,7 @@
     "INS_JCHORUS": 1,
     "INS_FLANGER": 1,
     "INS_XDLY": 1,
+    "XDLY_LEN": 8192,
     "DLY_ARENA": 64,
     "CHORDPLUS": 1,
     "SNAPSHOTS": 0,
@@ -2410,12 +2416,12 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "3d0a0c03",
+   "built_hash": "3d7d8875",
    "sizes": {
-    "flash": 558244,
+    "flash": 558360,
     "ram": 95264,
-    "pool": 328624,
-    "ramtext": 30848
+    "pool": 328664,
+    "ramtext": 30852
    }
   },
   "drum-machines~": {
@@ -2500,7 +2506,7 @@
    }
   },
   "synths-2~": {
-   "hash": "6506adc9",
+   "hash": "0296b83f",
    "cfg": {
     "ENG_ANALOG": 0,
     "ENG_DIGITAL": 0,
@@ -2531,7 +2537,7 @@
     "SET_STRGS": 0,
     "SET_FLUTE": 0,
     "SET_SCRCH": 0,
-    "DLY_LEN": 32768,
+    "DLY_LEN": 16384,
     "REV_FDN8": 1,
     "REV_POOL": 1,
     "FX_SLICER": 0,
@@ -2550,6 +2556,7 @@
     "INS_JCHORUS": 1,
     "INS_FLANGER": 1,
     "INS_XDLY": 1,
+    "XDLY_LEN": 8192,
     "DLY_ARENA": 64,
     "INS_GATER": 1,
     "CHORDPLUS": 1,
@@ -2589,16 +2596,16 @@
     "COND": 1,
     "SEQTOOLS": 1
    },
-   "built_hash": "4490dec7",
+   "built_hash": "5a14b635",
    "sizes": {
-    "flash": 562212,
-    "ram": 76920,
-    "pool": 324120,
-    "ramtext": 20116
+    "flash": 562312,
+    "ram": 76904,
+    "pool": 324160,
+    "ramtext": 20124
    }
   },
   "synths~": {
-   "hash": "7fdbf59b",
+   "hash": "328f2027",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -2632,7 +2639,7 @@
     "SET_STRGS": 0,
     "SET_FLUTE": 0,
     "SET_SCRCH": 0,
-    "DLY_LEN": 32768,
+    "DLY_LEN": 16384,
     "REV_ROOM": 0,
     "REV_FDN8": 1,
     "REV_POOL": 1,
@@ -2655,7 +2662,7 @@
     "INS_JCHORUS": 1,
     "INS_FLANGER": 1,
     "INS_XDLY": 1,
-    "DLY_ARENA": 64,
+    "XDLY_LEN": 8192,
     "INS_GATER": 1,
     "CHORDPLUS": 1,
     "SNAPSHOTS": 0,
@@ -2703,16 +2710,16 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "23324808",
+   "built_hash": "32536b12",
    "sizes": {
-    "flash": 586376,
+    "flash": 586524,
     "ram": 88904,
-    "pool": 299812,
-    "ramtext": 28628
+    "pool": 313184,
+    "ramtext": 28720
    }
   },
   "synths_USBaudio_BTaudio_BTmidi~": {
-   "hash": "15906418",
+   "hash": "39733eec",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -2744,7 +2751,7 @@
     "SET_STRGS": 0,
     "SET_FLUTE": 0,
     "SET_SCRCH": 0,
-    "DLY_LEN": 32768,
+    "DLY_LEN": 16384,
     "REV_ROOM": 0,
     "REV_FDN8": 1,
     "REV_POOL": 1,
@@ -2763,6 +2770,7 @@
     "INS_DELAY": 1,
     "INS_JCHORUS": 1,
     "INS_XDLY": 1,
+    "XDLY_LEN": 8192,
     "DLY_ARENA": 64,
     "INS_GATER": 1,
     "CHORDPLUS": 1,
@@ -2810,16 +2818,16 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "3f76be8b",
+   "built_hash": "525fa771",
    "sizes": {
-    "flash": 595656,
+    "flash": 595812,
     "ram": 93168,
-    "pool": 328632,
-    "ramtext": 28760
+    "pool": 328672,
+    "ramtext": 28852
    }
   },
   "synths_USBaudio_BTaudio_BTmidi+ble-test~": {
-   "hash": "03cd9b7a",
+   "hash": "59dd55de",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -2853,7 +2861,7 @@
     "SET_STRGS": 0,
     "SET_FLUTE": 0,
     "SET_SCRCH": 0,
-    "DLY_LEN": 32768,
+    "DLY_LEN": 16384,
     "REV_ROOM": 0,
     "REV_FDN8": 1,
     "REV_POOL": 1,
@@ -2872,6 +2880,7 @@
     "INS_JCHORUS": 1,
     "INS_FLANGER": 1,
     "INS_XDLY": 1,
+    "XDLY_LEN": 8192,
     "DLY_ARENA": 64,
     "INS_GATER": 1,
     "CHORDPLUS": 1,
@@ -2912,16 +2921,16 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "1d479d42",
+   "built_hash": "0f597466",
    "sizes": {
-    "flash": 531564,
+    "flash": 531712,
     "ram": 88044,
-    "pool": 287432,
-    "ramtext": 25232
+    "pool": 287472,
+    "ramtext": 25324
    }
   },
   "synths_USBaudio_BTaudio_BTmidi+ble-full~": {
-   "hash": "231f33f4",
+   "hash": "21d079dc",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -2959,7 +2968,7 @@
     "SET_STRGS": 0,
     "SET_FLUTE": 0,
     "SET_SCRCH": 0,
-    "DLY_LEN": 32768,
+    "DLY_LEN": 16384,
     "REV_ROOM": 0,
     "REV_FDN8": 1,
     "REV_POOL": 1,
@@ -2978,6 +2987,7 @@
     "INS_JCHORUS": 1,
     "INS_FLANGER": 1,
     "INS_XDLY": 1,
+    "XDLY_LEN": 8192,
     "DLY_ARENA": 64,
     "INS_GATER": 1,
     "CHORDPLUS": 1,
@@ -3019,12 +3029,12 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "2f0a9bd4",
+   "built_hash": "2083173c",
    "sizes": {
-    "flash": 535456,
+    "flash": 535588,
     "ram": 83028,
-    "pool": 268392,
-    "ramtext": 22104
+    "pool": 268432,
+    "ramtext": 22116
    }
   }
  },
