@@ -3,8 +3,6 @@
      The web builder for the Optimist Mirror app (ios/OptimistMirror, Sources/Flash/BuilderWebView.swift): the same module
      (builder.js, mountBuilder) as index.html, without the site's header and menu; the app puts in its own look (a style
      sheet it adds as the page loads). Served as webapp/builder/app.html by web/make_site.py (the shared style only).
-       ?flavour=<id>   the configuration it starts from: the builder's preset "flavour:<id>" (web/flavours.json), else
-                       "profile:<id>" (a release's package is named by its profile)
      The builder posts its cloud build's stages to the app itself (builder.js: window.webkit.messageHandlers.optimist,
      {type: "cloud-build", stage: sent | building | done | refused | failed | error, ...}); its "Flash it" and "Try it in the
      simulator" links come here (onNavigate) and go to the app as {type: "open", where: "install" | "sim", build}. In a
@@ -18,8 +16,6 @@
 <style>
   body { margin: 0; }
   .o-page { padding: var(--sp-3) var(--sp-3) var(--sp-5); max-width: none; }
-  #result { position: sticky; top: 0; z-index: 5; margin-bottom: var(--sp-3); }   /* (Build stays in reach while scrolling the items) */
-  #result #build { width: 100%; }
   [hidden] { display: none !important; }
 </style>
 </head>
@@ -42,47 +38,10 @@ if (app) {
   }, true);
 }
 
-const handle = mountBuilder(document.getElementById("app"), { onNavigate });
+const handle = mountBuilder(document.getElementById("app"), { onNavigate, app: true });   /* (app: the Build card first and
+                                                     sticky, without the files and keys: builder.js + builder.css) */
 window.optimistBuilder = handle;
 handle.activate();
-
-/* the app's page is three steps (the user, 2026-10-25: "we create our config at the top, watch it build and flash it"): the
-   build panel goes to the top, with only its Build button and the build's progress; the download, the hash and key, building
-   it yourself, loading a file, the canonical text and the .config file stay on the web page. Ids of builder.js's template:
-   a missing one is left alone. */
-{
-  const root = handle.root, $ = (id) => root.querySelector("#" + id);
-  const result = $("result");
-  if (result) {
-    root.prepend(result);
-    const h = result.querySelector(".o-panel-h h2");
-    if (h) h.textContent = "Build";
-    for (const id of ["download", "keynote", "buildhow", "import", "canon", "dump", "keychip"]) {
-      const el = $(id);
-      const box = el && (el.closest("details") || el);
-      if (box) box.hidden = true;
-    }
-    const hash = $("hash");
-    if (hash && hash.closest("p")) hash.closest("p").hidden = true;
-    const build = $("build");
-    if (build) { build.classList.add("primary"); build.textContent = "Build"; }
-  }
-  const foot = root.querySelector(".ob-foot");
-  if (foot) foot.hidden = true;
-}
-
-async function start() {
-  const flavour = new URLSearchParams(location.search).get("flavour");
-  if (flavour && /^[A-Za-z0-9_-]{1,64}$/.test(flavour)) {
-    await handle.ready;
-    while (!handle.readyFlag) await new Promise((r) => setTimeout(r, 100));   /* (its default preset first, then ours) */
-    const ids = new Set(handle.state.presets.map((p) => p.id));
-    const id = [`flavour:${flavour}`, `profile:${flavour}`].find((x) => ids.has(x));
-    if (id) await handle.choosePreset(id);   /* (a profile gone since that release: the builder's default) */
-  }
-}
-start().catch(() => { /* the builder shows its own errors */ });
-
 </script>
 </body>
 </html>
