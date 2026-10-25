@@ -67,9 +67,6 @@
 #include "op_gldraw.c"
 #include "op_help.c"
 #include "op_mixdraw.c"
-#if FELUCCA_MIXER_2X
-#include "op_mix2x.c"              /* the mixer in the big face (MIXER_2X): the 2x2 cards, the selected row's steps, a bar a track */
-#endif
 #include "op_scope.c"
 #include "op_stepdraw.c"
 #include "op_laydraw.c"

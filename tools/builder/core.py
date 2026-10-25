@@ -719,7 +719,7 @@ def is_last_kit(cfg, key):
 # the smallest setting of a choice with no "off" whose numbers do not say it (the smallest non-zero value is not the
 # smallest build): the 6-bit 909 hats and the 256-point X0X tanh table (costs.json: -4,928 / -3,092 B of flash
 # against 1, 2026-10-24)
-SMALLEST = {"X909_HAT": 2, "X0X_TANH": 2, "MIXER_2X": 0}   # (MIXER_2X: "small", the mixer as ever, no "off" label)
+SMALLEST = {"X909_HAT": 2, "X0X_TANH": 2}
 
 
 def off_value(key):
