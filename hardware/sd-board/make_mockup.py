@@ -12,7 +12,7 @@ import pcbnew
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 THICK = 1.6
-HEIGHT = {"J1": 1.85, "J2": 2.0, "U1": 1.1, "C1": 1.3, "C2": 0.8}    # (mm above the board; the resistors 0.55)
+HEIGHT = {"J1": 1.85, "J2": 1.0, "J3": 1.0, "U1": 1.1, "C1": 1.3, "C2": 0.8}    # (mm above the board; the resistors 0.55)
 
 board = pcbnew.LoadBoard(os.path.join(HERE, "sd-board.kicad_pcb"))
 outline = pcbnew.SHAPE_POLY_SET()

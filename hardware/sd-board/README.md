@@ -1,39 +1,40 @@
-# The FM-1 SD board (v4)
+# The FM-1 SD board (v5)
 
-A 22.4 x 41.5 mm board with everything the SD card mod needs (docs/SD-CARD-DESIGN.md): a push-push microSD socket, the
-chip-select inverter, the 1 kOhm on the card's data out, the pull-ups, the decoupling, and a 6-pin 0.5 mm flat-cable
-(FFC) socket. It sits on the back of the FM-1's board, right of the battery, by the battery's plug (the user's plan,
-2026-10-25; the battery stays where it is). The card goes in through the case's bottom wall, flush with the outside,
-81.7 mm from the left wall (between the pegs that close the case). It slides into a printed tray (`sd-tray.stl`, `make_tray.py`) that sits round the cover's pole there; the battery's cable passes over both.
-A flat cable from a tap at J12 (the LCD's connector, on the front) comes round the board's edge between the two jacks
-and down the back to the FFC socket: **no soldering**.
-Status (2026-10-25): designed and checked (KiCad: no design-rule error, the schematic's nets equal the board's); the
-sizes measured with calipers (`MEASUREMENTS.md`); **no board has been made yet**; **the tap board at J12 is not
-designed yet** (it needs J12's pin order, metered, and u, v: the room beside the LCD's cable between the jacks).
+A board with everything the SD card mod needs (docs/SD-CARD-DESIGN.md), and the splitter too: a push-push microSD
+socket, the chip-select inverter, the 1 kOhm on the card's data out, the pull-ups, the decoupling, and two 10-pin
+0.5 mm flat-cable sockets (the user, 2026-10-25). It sits on the back of the FM-1's board, right of the battery, by
+the battery's plug (the battery stays). Its lower part (22.4 x 41.5 mm, the card socket) slides into a printed tray
+round the cover's pole there; a column goes up the right of the speaker plug to a head right under the audio jacks.
+- **J3**, at the top, under the gap between the black jacks: the LCD's own cable plugs in here instead of into J12.
+- **J2**, below it: a standard 10-pin cable from J12 (the FM-1's LCD socket), round the board's edge between the right
+  black jack and the USB socket.
+- All 10 lines go straight from J2 to J3 (the LCD works as before); the SD part takes the six it needs.
+
+The card goes in through the case's bottom wall, flush with the outside, 81.7 mm from the left wall. **No soldering.**
+Status (2026-10-25): designed and checked (KiCad: no design-rule error, the schematic's nets equal the board's); sizes
+measured with calipers (`MEASUREMENTS.md`); **NOT READY TO ORDER: which J12 pin is which line is a PROVISIONAL guess**
+(`LCD_PINS` in `make_board.py`), and whether the LCD cable arrives mirrored is still to check. The pin finder and a
+breakout will tell; then the lines are re-routed.
 
 ![top](render-top.png)
 
 ## The kit
 
 1. **This board**, ordered assembled (below).
-2. **The splitter at J12** (to come; the user, 2026-10-25): a small rigid board with three sockets, assembled in the same
-   JLCPCB order. A standard flat cable goes from J12 to its input; the LCD's own cable plugs into its second socket (every
-   line 1:1; the user checked the LCD cable reaches it); six lines go out of its third socket to this board. A custom
-   flex tap was dropped: about 75 to 130 USD an order (an estimate), more than the FM-1. Needs J12's pin count, pitch,
-   contact side and pin map.
-3. **A 6-wire 0.5 mm FFC**, about 3.5 mm wide, from J12 between the jacks, round the board's edge and down the back
-   to this board (measure; 100-150 mm are standard lengths).
-4. **A slot in the bottom wall** for the card: about 15 x 2.5 mm, the card's left side 81.7 mm from the left wall's inside (the socket's 2 mm further left).
+2. **A 10-pin 0.5 mm cable**, 60 or 80 mm (the user has both types, A and B: the sockets take either), from J12 to J2.
+3. **The tray** (`sd-tray.stl`, 3D print): the board slides in from the bottom end until it meets the collar.
+4. **A slot in the bottom wall** for the card: about 15 x 2.5 mm, the card's left side 81.7 mm from the left wall's
+   inside (the socket's 2 mm further left).
 
 ## Order it (JLCPCB, assembled)
 
-1. jlcpcb.com > Order now > upload `fab/sd-board-gerbers.zip` (2 layers, 22.4 x 41.5 mm, 1.6 mm; the defaults are fine).
+1. jlcpcb.com > Order now > upload `fab/sd-board-gerbers.zip` (2 layers, 22.4 x 78.2 mm overall, 1.6 mm; the defaults are fine).
 2. Tick **PCB Assembly**, top side, Economic.
 3. Upload `fab/bom.csv` (the parts) and `fab/cpl.csv` (where they go). Every part is a JLC part (LCSC numbers in the BOM).
-4. Check the placement preview: the card socket's opening past the bottom edge, the FFC socket's opening at the top,
+4. Check the placement preview: the card socket's opening past the bottom edge, both 10-pin sockets' openings facing the top,
    U1's pin 1 dot as on the render.
 5. Order. Rough cost (an estimate from JLC's usual prices, not a quote): about 20 USD for 2 boards, 22 for 5, 26 for 10,
-   32 for 20, plus shipping and VAT. Three parts are JLC "extended" parts (the two sockets, the inverter): 3 USD each
+   32 for 20, plus shipping and VAT. Four parts are JLC "extended" parts (the card socket, the 10-pin socket, the inverter, and so on): 3 USD each
    per order.
 
 The same board can be shared on OSHWLab (JLC's open-hardware site) so anyone orders it from a page: import the KiCad
@@ -44,23 +45,22 @@ Check the fit first: `mockup-printable.stl` (3D print, one piece: the board and 
 
 ## The FFC socket's pins
 
-| J2 pin | Net | On the FM-1 |
-|---|---|---|
-| 1 | 3V3 | 3.3 V (the LCD's VCC) |
-| 2 | CS (in) | PC7, the LCD's CS (the chip's pin 32) |
-| 3 | MOSI | PC10, the LCD's data out (pin 29) |
-| 4 | GND | ground |
-| 5 | CLK | PC9, the LCD's clock (pin 30) |
-| 6 | MISO | PC8, the LCD's D/C (pin 31) |
-
-(The order follows the card's contacts, so nothing crosses; the tap board at J12 is designed to match it.)
+| J2 / J3 pin | Line (PROVISIONAL, until J12 is measured) |
+|---|---|
+| 1, 10 | GND |
+| 2 | MISO = the LCD's D/C (PC8) |
+| 3 | CLK (PC9) |
+| 4 | MOSI (PC10) |
+| 5 | LCD CS (PC7) |
+| 6 | 3.3 V |
+| 7, 8, 9 | the LCD's reset and backlight: only through |
 
 ## The design
 
 | Ref | Part | LCSC |
 |---|---|---|
 | J1 | microSD socket, push-push (Korean Hroparts TF-01A) | C91145 |
-| J2 | FFC socket, 6 pins, 0.5 mm, hinged lid, 2 mm high (XUNPU FPC-05F-6PH20) | C2856796 |
+| J2, J3 | FPC socket, 10 pins, 0.5 mm, contacts on both sides, flip lock, 1 mm high (HCTL HC-FPC-05-09-10RLTAG; JLCPCB stock, SMT assembly) | C5213750 |
 | U1 | 74LVC1G04 single inverter, SOT-23-5 (TI SN74LVC1G04DBVR) | C7827 |
 | R1 | 1 kOhm 0603: the card's DO to the FM-1's PC8 | C21190 |
 | R2, R3 | 47 kOhm 0603: DAT2, DAT1 pulled up (unused in SPI mode) | C25819 |
