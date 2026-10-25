@@ -31,6 +31,10 @@ if set(shell.values()) - {sch.get(("J1", "SH"))}:
     print("the shell pads", shell, "vs the schematic's SH", sch.get(("J1", "SH")))
     sys.exit(1)
 sch.pop(("J1", "SH"), None)
+tabs = {k: pcb.pop(k) for k in [("J2", "7"), ("J2", "8")] if k in pcb}     # (the FFC socket's tabs: the schematic's MP)
+if tabs and set(tabs.values()) != {sch.pop(("J2", "MP"), None)}:
+    print("the FFC tabs", tabs, "vs the schematic's MP")
+    sys.exit(1)
 bad = sorted(k for k in set(sch) | set(pcb) if sch.get(k) != pcb.get(k))
 for k in bad:
     print(f"{k[0]}.{k[1]}: schematic {sch.get(k)}, board {pcb.get(k)}")
