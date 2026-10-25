@@ -169,17 +169,21 @@ struct RootView: View {
         (4, "Connection", "cable.connector"),   // (no Device Screens, no Settings: the user, 2026-10-25)
     ]
 
-    /// every page always in sight as a tab, a row like the web editor's (the system's tab bar folded the rest into a menu:
-    /// the user, 2026-10-25); hidden under the welcome screen, and on Mirror when its bars are off
+    /// the system's own tabs again (the user, 2026-10-25: "use the standard tabs like before"; with 11 pages they folded into a
+    /// menu, with these 9 they should fit), hidden under the welcome screen and on Mirror when its bars are off
     private var tabs: some View {
-        VStack(spacing: 0) {
-            if bar == .visible && (tab != 0 || bars) { TabStrip(pages: Self.pages, tab: $tab) }
-            page.frame(maxWidth: .infinity, maxHeight: .infinity)
+        TabView(selection: $tab) {
+            ForEach(Self.pages, id: \.tag) { p in
+                pageView(p.tag)
+                    .toolbar(bar == .visible && (p.tag != 0 || bars) ? .visible : .hidden, for: .tabBar)
+                    .tabItem { Label(p.title, systemImage: p.icon) }
+                    .tag(p.tag)
+            }
         }
     }
 
-    @ViewBuilder private var page: some View {
-        switch tab {
+    @ViewBuilder private func pageView(_ t: Int) -> some View {
+        switch t {
         case 0: MirrorView(link: link, upright: tilt.quarter - Turn.quarter(tilt.quarter), bars: $bars)
         case 1: ProjectsView(s: session)
         case 2: LibraryView(s: session)
@@ -191,40 +195,6 @@ struct RootView: View {
         case 14: WebTab(editor: web, tab: "snapshots", link: link)
         default: MirrorView(link: link, upright: tilt.quarter - Turn.quarter(tilt.quarter), bars: $bars)
         }
-    }
-}
-
-/// The app's tab row: an icon and its name per page (the name alone in a narrow window: its icon, the name as the tooltip),
-/// the page shown lit; it scrolls sideways when the window is narrower than the row.
-struct TabStrip: View {
-    let pages: [(tag: Int, title: String, icon: String)]
-    @Binding var tab: Int
-    @Environment(\.horizontalSizeClass) private var size
-
-    var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 2) {
-                ForEach(pages, id: \.tag) { p in
-                    Button { tab = p.tag } label: {
-                        Group {
-                            if size == .compact { Image(systemName: p.icon) } else { Label(p.title, systemImage: p.icon) }
-                        }
-                        .font(.body)
-                        .padding(.horizontal, 10).padding(.vertical, 6)   // (footnote size was tiny: the user, 2026-10-25)
-                        .background(tab == p.tag ? Color.primary.opacity(0.12) : Color.clear, in: Capsule())
-                        .foregroundStyle(tab == p.tag ? Color.primary : Color.secondary)
-                    }
-                    .buttonStyle(.plain)
-                    .help(p.title)
-                    .accessibilityLabel(p.title)
-                    .accessibilityAddTraits(tab == p.tag ? .isSelected : [])
-                }
-            }
-            .padding(.horizontal, 8).padding(.vertical, 4)
-            .frame(maxWidth: .infinity)
-        }
-        .background(.bar)
-        .overlay(alignment: .bottom) { Divider() }
     }
 }
 
