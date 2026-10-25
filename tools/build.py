@@ -209,13 +209,16 @@ def ldr_wrap(image):
     return ldr_head(crc16(body), 0x20, len(body), 0x41, LOADER_NAME) + body
 
 
-FAR_OFF = 0x90000                   # the far probe (FELUCCA_LAYOUT 1): .text_far at app.bin offset 0x90000, flash 0x94120,
-                                    # past the normal layout's end (docs/SD-MODE-DESIGN.md; src/system/far_probe.c)
 
 
 def layout():
     """the build's flash layout (tools/flash_layout.py, the LAYOUT builder item)"""
     return int(CFG_VALUES.get("FELUCCA_LAYOUT", os.environ.get("FELUCCA_LAYOUT", "0")))
+
+
+def far_ok():
+    """the far probe passed on the FM-1 (the FAR_OK builder item): the code may use the fake SD mode's whole slot"""
+    return int(CFG_VALUES.get("FELUCCA_FAR_OK", os.environ.get("FELUCCA_FAR_OK", "0"))) == 1
 
 
 def overlay():
@@ -541,7 +544,9 @@ def build_app():
     elf = OUT / "felucca.elf"
     ld = FW / "app.ld"
     slot = flash_layout.app_slot(layout())
-    LIMITS["flash"] = slot
+    LIMITS["flash"] = slot          # (the whole image, the far probe included; the code's own limit: the far probe's guard
+                                    # below, flash_layout.code_limit: a probe build the normal slot, FAR_OK the big one)
+    FAR_OFF = flash_layout.far_off(far_ok())
     ld_text = (FW / "app.ld").read_text()
     if layout():                    # another flash layout: its XIP length, and the far probe's section past 0x93000
         ld_text = (ld_text.replace("LENGTH = 0x8DFBC", f"LENGTH = 0x{slot:X}")
@@ -607,9 +612,11 @@ def build_app():
     img += b"\xff" * (-len(img) % 4)
     far = (OUT / "far.bin").read_bytes() if (OUT / "far.bin").exists() else b""
     if far:                         # the far probe: after everything the boot needs, at its own offset past 0x93000
-        if len(img) > flash_layout.app_slot(0):
-            raise SystemExit(f"build: the image ({len(img)} B) is past the normal layout's slot "
-                             f"({flash_layout.app_slot(0)} B): the far probe needs everything the boot reads below 0x93000")
+        if len(img) > FAR_OFF or (not far_ok() and len(img) > flash_layout.app_slot(0)):
+            raise SystemExit(f"build: the image ({len(img)} B) is past {'the far probe' if far_ok() else 'the normal layout' + chr(39) + 's slot'} "
+                             f"({min(FAR_OFF, LIMITS['flash'])} B): " + ("the far probe and the overlays' table keep the "
+                             "slot's last 64 KB" if far_ok() else "until the far probe passed (FAR_OK) everything the boot "
+                             "reads stays below 0x93000"))
         img += b"\xff" * (FAR_OFF - len(img)) + far
         print(f"far      probe {len(far)} B at app offset {FAR_OFF:#x} (flash {0x4120 + FAR_OFF:#x})")
     if OVL:                         # the overlay table and the slots' code, after the far probe (_ovl_rom: the big layout)

@@ -41,8 +41,9 @@ def _stderr(msg):
 # 2026-10-25, docs/MEMORY-MAP.md 2.3-2.4); build.py keeps 8 KiB of SRAM spare below the stacks
 LIMITS = {"flash": 581564, "sram": 474880}
 SPARE = {"flash": 0, "sram": 8192}
-FLASH_BY_LAYOUT = {1: 831420}    # the app slot of the other flash layouts (LAYOUT): tools/flash_layout.py app_slot, which the
-                                 # web builder does not ship; tests/flash_layout_test.py checks they agree
+FLASH_BY_LAYOUT = {1: 765696}    # the code's room in the other flash layouts once the far probe passed (LAYOUT + FAR_OK):
+                                 # tools/flash_layout.py code_limit, which the web builder does not ship; a probe build
+                                 # (LAYOUT without FAR_OK) keeps the normal slot; tests/flash_layout_test.py checks they agree
 BUDGETS = ("flash", "sram")
 # the measured parts (costs.json, the deltas): "ram" = .ram_hot2 + .data + .bss, "pool", "ramtext" = .ram_text +
 # .ram_hot; the three together fill the SRAM budget
@@ -190,6 +191,9 @@ def validate(cfg):
             err.append(Issue("the fake SD mode layout keeps no user samples, snapshots or CZ collection and needs "
                              "PATTERNS: " + ", ".join(clash + ([] if cfg.get("PATTERNS") else ["PATTERNS off"])),
                              ["LAYOUT"] + clash + ([] if cfg.get("PATTERNS") else ["PATTERNS"])))
+    if cfg.get("FAR_OK") and not cfg.get("LAYOUT"):    # the big slot exists only in the fake SD mode layout
+        err.append(Issue("the far probe's answer (FAR_OK) opens the fake SD mode's whole slot: it needs that layout "
+                         "(LAYOUT 1)", ["FAR_OK", "LAYOUT"]))
     if cfg.get("OVERLAY") and not cfg.get("LAYOUT"):   # each slot engine's code linked once per slot: the big flash
         err.append(Issue("the RAMTEXT overlays put each engine's fast code in flash once per part: they need the fake "
                          "SD mode layout (LAYOUT 1)", ["OVERLAY", "LAYOUT"]))
@@ -792,7 +796,7 @@ def fits(total, cfg=None):
     out = {}
     for b in BUDGETS:
         u, cap = used(total, b), LIMITS[b] - SPARE[b]
-        if b == "flash" and cfg and cfg.get("LAYOUT") in FLASH_BY_LAYOUT:
+        if b == "flash" and cfg and cfg.get("LAYOUT") in FLASH_BY_LAYOUT and cfg.get("FAR_OK"):
             cap = FLASH_BY_LAYOUT[cfg["LAYOUT"]] - SPARE["flash"]
         out[b] = (u, cap, u - cap)
     return out
