@@ -7,7 +7,7 @@
  *   bars        a ranged value's bar spans the screen's width (GL_BX .. GL_BX + GL_BW), 4 px thick
  *   toggles     an on / off value has the square mark and no bar
  *   pitch       the 4 lines fill the room between the title and the help line
- *   joined      Screen & audio and USB + Bluetooth (Connections) share a page when they fit 4 lines together, else they stay apart; YES
+ *   joined      General (SCREEN + AUDIO) and USB + Bluetooth (Connections) share a page when they fit 4 lines together, else they stay apart; YES
  *               on BLE still opens the devices from the joined page
  *   info        SYSTEM's first page lists the memory used / total; About: version, build date + time, chip, the repo link */
 static uint32_t gls_rowpx(int32_t y, int32_t x0, int32_t x1, int32_t *lo, int32_t *hi)   /* the lit pixels of screen rows y.. in x0..x1 */
@@ -205,7 +205,7 @@ static uint32_t gls_lines(const char *row)              /* the lines of SYSTEM's
 }
 static int gls_joined(void)
 {
-    static const struct { const char *a, *b, *title; } J[2] = {{"SCREEN", "AUDIO", "Screen & audio"}, {"USB", "BT MIDI", "Connections"}};
+    static const struct { const char *a, *b, *title; } J[2] = {{"GENERAL", "AUDIO", "General"}, {"USB", "BT MIDI", "Connections"}};
     uint32_t j, ok = 1;
     for (j = 0; j < 2u; j++) {
         uint32_t na = gls_lines(J[j].a), nb = gls_lines(J[j].b), a, b;
@@ -356,7 +356,7 @@ static void glstyle_tests(void)
     }
     check(bars > 8u && toggles > 0u,
           "GLOBAL, SYSTEM: a ranged value's bar spans the screen's width, an on / off value has the square mark and no bar");
-    check(gls_joined(), "SYSTEM: Screen & audio and USB + Bluetooth (Connections) share a page when they fit 4 lines together, else they stay apart");
+    check(gls_joined(), "SYSTEM: General (SCREEN + AUDIO) and USB + Bluetooth (Connections) share a page when they fit 4 lines together, else they stay apart");
 #if BT_OVL
     check(gls_ble_enter(), "SYSTEM: YES on BLE from the joined USB + Bluetooth (Connections) page opens the devices");
 #endif

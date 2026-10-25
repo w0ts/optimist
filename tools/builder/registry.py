@@ -937,6 +937,34 @@ _add("LCD_DIRTY", "FELUCCA_LCD_DIRTY", "screen: send only the changed rectangle"
      provenance=x0x("201b95c"),
      notice="Ported from X0X by Charles Vestal (GPL-3.0): dirty-rectangle screen updates. Not yet tried on "
             "hardware here.")
+# the fonts (tools/gen_font.py FACES, assets/fonts/; the user, 2026-10-25: "a few as builder options and an entry to select in
+# a system screen", "pick the ones that make most sense"): one item a face, at least one (core.py validate); FELUCCA_FONTS
+# tells gen_font.py which (core.py flags). Two or more: SYSTEM > General > FONT picks the face drawn (kept with the
+# settings); one: no FONT line, no selection code
+_FONT_DESC = (" Every font has the same 8x16 cell, so every screen keeps its layout; the large text is the same font at "
+              "twice the size. With two or more fonts built, SYSTEM > General gets a FONT line next to KNOB COLORS that "
+              "picks the one drawn (kept with the settings of the FM-1; a font a later build leaves out falls back to the "
+              "first one built). With one font there is no FONT line and no selection code.")
+_FONT_COST = (" Its bitmaps are 1,520 B of flash; the second font built also brings the FONT line (about 2 KB of flash "
+              "and 64 B of RAM together, measured on the default profile), each further one about 1.5 KB. Built alone, "
+              "instead of Terminus, it costs nothing.")
+_add("FONT_TERMINUS", "", "font: Terminus 8x16 (the default)", U, 399, env="TERMINUS",
+     desc="Terminus 8x16 by Dimitar Toshkov Zhekov (SIL OFL 1.1): the firmware's font so far, thin even strokes, "
+          "a slashed zero." + _FONT_DESC)
+_add("FONT_TERM_BOLD", "", "font: Terminus bold 8x16", U, 400, default=0, env="TERM BOLD",
+     desc="Terminus 8x16 bold by Dimitar Toshkov Zhekov (SIL OFL 1.1): the default font's letters with two-pixel "
+          "strokes, the easiest to read at a distance." + _FONT_COST + _FONT_DESC)
+_add("FONT_TAMZEN", "", "font: Tamzen 8x16 (thin)", U, 401, default=0, env="TAMZEN",
+     desc="Tamzen 8x16 by Suraj N. Kurapati, after Scott Fial's Tamsyn (free, use as you see fit): thin strokes, "
+          "shorter capitals than Terminus, a two-storey g: the lightest." + _FONT_COST + _FONT_DESC)
+_add("FONT_UNIFONT", "", "font: GNU Unifont 8x16 (classic PC)", U, 402, default=0, env="UNIFONT",
+     desc="GNU Unifont 8x16, ASCII (Roman Czyborra, Paul Hardy and others; SIL OFL 1.1 or GPL-2.0-or-later): the "
+          "classic PC text look, thin strokes, an oval slashed zero, a two-storey g; drawn one row higher than the "
+          "original to sit as the other fonts do." + _FONT_COST + _FONT_DESC)
+_add("FONT_UNSCII", "", "font: Unscii 16 (round, 8-bit)", U, 403, default=0, env="UNSCII",
+     desc="Unscii 16 by Viznut (public domain): two-pixel strokes, round letters, in the spirit of the 8-bit home "
+          "computers' text modes." + _FONT_COST + _FONT_DESC)
+FONT_ITEMS = ("FONT_TERMINUS", "FONT_TERM_BOLD", "FONT_TAMZEN", "FONT_UNIFONT", "FONT_UNSCII")   # at least one (core.py validate)
 
 # ---- system
 Y = "System"
