@@ -30,7 +30,7 @@ def block(text, name):
 
 
 LIBS = {"Device": ["R", "C"], "74xGxx": ["74LVC1G04"], "Connector": ["Micro_SD_Card_Det1"],
-        "Connector_Generic": ["Conn_01x07"], "power": ["PWR_FLAG"], "Mechanical": ["MountingHole"]}
+        "Connector_Generic_MountingPin": ["Conn_01x06_MountingPin"], "power": ["PWR_FLAG"], "Mechanical": ["MountingHole"]}
 lib_symbols = []
 for lib, names in LIBS.items():
     text = open(os.path.join(SYMS, f"{lib}.kicad_sym")).read()
@@ -48,7 +48,8 @@ PINS = {
                                      "4": (-22.86, 2.54, 0), "5": (-22.86, 0, 0), "6": (-22.86, -2.54, 0),
                                      "7": (-22.86, -5.08, 0), "8": (-22.86, -7.62, 0), "9": (-22.86, -12.7, 0),
                                      "SH": (20.32, -12.7, 180)},
-    "Connector_Generic:Conn_01x07": {str(n): (-5.08, 7.62 - 2.54 * (n - 1), 0) for n in range(1, 8)},
+    "Connector_Generic_MountingPin:Conn_01x06_MountingPin": {**{str(n): (-5.08, 5.08 - 2.54 * (n - 1), 0)
+                                                              for n in range(1, 7)}, "MP": (0, -12.7, 90)},
     "power:PWR_FLAG": {"1": (0, 0, 90)},
     "Mechanical:MountingHole": {},
 }
@@ -67,8 +68,8 @@ PARTS = [
     ("R4", "Device:R", "47k", "sdboard:R0603", "C25819", 45, 70, {"1": "LCD_CS", "2": "3V3"}),
     ("C1", "Device:C", "10uF", "sdboard:C0805", "C15850", 60, 125, {"1": "3V3", "2": "GND"}),
     ("C2", "Device:C", "100nF", "sdboard:C0603", "C14663", 75, 125, {"1": "GND", "2": "3V3"}),
-    ("P1", "Connector_Generic:Conn_01x07", "to the FM-1", "Connector_PinHeader_2.54mm:PinHeader_1x07_P2.54mm_Vertical",
-     "", 230, 90, {"1": "LCD_CS", "3": "MOSI", "4": "3V3", "5": "CLK", "6": "GND", "7": "MISO"}),
+    ("J2", "Connector_Generic_MountingPin:Conn_01x06_MountingPin", "FFC 6P 0.5mm", "sdboard:FPC-SMD_6P-P0.50_XUNPU_FPC-05F-6PH20",
+     "C2856796", 230, 90, {"1": "LCD_CS", "2": "MOSI", "3": "3V3", "4": "CLK", "5": "GND", "6": "MISO", "MP": "GND"}),
     *[(f"H{i}", "Mechanical:MountingHole", "M2", "MountingHole:MountingHole_2.2mm_M2", "", 200 + 15 * i, 150, {})
       for i in range(1, 5)],
     ("#FLG01", "power:PWR_FLAG", "PWR_FLAG", "", "", 40, 150, {"1": "3V3"}),
@@ -89,7 +90,7 @@ for ref, lib, value, fp, lcsc, x, y, pins in PARTS:
     x, y = round(round(x / 2.54) * 2.54, 2), round(round(y / 2.54) * 2.54, 2)   # (on KiCad's connection grid)
     pins_txt = " ".join(f'(pin "{p}" (uuid "{uid(ref, "pin", p)}"))' for p in PINS[lib])
     flag = ref.startswith("#")
-    out.append(f'(symbol (lib_id "{lib}") (at {x} {y} 0) (unit 1) (exclude_from_sim no) (in_bom {"no" if flag or ref == "P1" or ref.startswith("H") else "yes"})'
+    out.append(f'(symbol (lib_id "{lib}") (at {x} {y} 0) (unit 1) (exclude_from_sim no) (in_bom {"no" if flag or ref.startswith("H") else "yes"})'
                f' (on_board {"no" if flag else "yes"}) (dnp no) (uuid "{uid(ref)}")'
                f' {prop("Reference", ref, x, y - 14, flag)} {prop("Value", value, x, y + 14, flag)}'
                f' {prop("Footprint", fp, x, y, True)} {prop("Datasheet", "", x, y, True)} {prop("LCSC", lcsc, x, y, True)}'
