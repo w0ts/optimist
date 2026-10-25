@@ -198,7 +198,10 @@ static int reduce(char **argv)
     ui.force = 1;
     frame();
     frames(160);
-    check("the message goes after ~2.5 s", ui.msg_t == 0u);
+    check("the message stays until HOME (2026-10-25: past the old ~2.5 s)", ui.msg_t && !strcmp(ui.msg, "MISSING: FM6 T1, DELAY +8"));
+    check("HOME lets it go (miss_dismiss)", miss_dismiss() && ui.msg_t == 0u && !ui.msg[0]);
+    frames(160);
+    check("... and it does not come back", ui.msg_t == 0u);
     load(&a, 1);
     frames(2);
     check("the same project again: nothing said", ui.msg_t == 0u);
@@ -217,6 +220,8 @@ static int reduce(char **argv)
     frame();
     check("... its part plays ANALOG meanwhile, the audio goes on", ENGINES[trk[1].eng_req] == &ENG_ANALOG && song.playing);
     frames(160);
+    check("... PHYS T2 still up until HOME", !strcmp(ui.msg, "MISSING: PHYS T2") && ui.msg_t);
+    (void)miss_dismiss();
     load(&a, 0);
     load(&b, 0);
     frames(2);

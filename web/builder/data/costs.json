@@ -1,6 +1,6 @@
 {
  "base": {
-  "flash": 673556,
+  "flash": 673560,
   "ram": 85084,
   "pool": 365656,
   "ramtext": 39864
@@ -1187,25 +1187,25 @@
   "LAYOUT": {},
   "ARENA": {
    "128": {
-    "flash": 2016,
-    "ram": 264,
-    "pool": 0,
-    "ramtext": 76
-   },
-   "160": {
     "flash": 2012,
     "ram": 264,
     "pool": 0,
     "ramtext": 76
    },
+   "160": {
+    "flash": 2008,
+    "ram": 264,
+    "pool": 0,
+    "ramtext": 76
+   },
    "192": {
-    "flash": 2016,
+    "flash": 2012,
     "ram": 264,
     "pool": 0,
     "ramtext": 76
    },
    "256": {
-    "flash": 2016,
+    "flash": 2012,
     "ram": 264,
     "pool": 0,
     "ramtext": 76
@@ -1615,7 +1615,7 @@
    }
   }
  },
- "measured": "2026-10-25 19:35",
+ "measured": "2026-10-25 19:38",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
