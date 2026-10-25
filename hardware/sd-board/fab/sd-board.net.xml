@@ -2,7 +2,7 @@
 <export version="E">
   <design>
     <source>/Users/mots/GitHub/optimist/worktrees/sdcard/hardware/sd-board/sd-board.kicad_sch</source>
-    <date>2026-10-25T15:58:57</date>
+    <date>2026-10-25T16:19:15</date>
     <tool>Eeschema 10.0.7</tool>
     <sheet number="1" name="/" tstamps="/">
       <title_block>
@@ -181,16 +181,16 @@
       </units>
     </comp>
     <comp ref="R1">
-      <value>1k</value>
+      <value>220</value>
       <footprint>sdboard:R0603</footprint>
       <fields>
-        <field name="LCSC">C21190</field>
+        <field name="LCSC">C22962</field>
         <field name="Footprint">sdboard:R0603</field>
         <field name="Datasheet"/>
         <field name="Description"/>
       </fields>
       <libsource lib="Device" part="R" description="Resistor"/>
-      <property name="LCSC" value="C21190"/>
+      <property name="LCSC" value="C22962"/>
       <property name="Sheetname" value="sd-board"/>
       <property name="Sheetfile" value="sd-board.kicad_sch"/>
       <property name="ki_keywords" value="R res resistor"/>

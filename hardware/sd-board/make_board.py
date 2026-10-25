@@ -177,7 +177,8 @@ U1 = P(LIB, "SOT-23-5_L3.0-W1.7-P0.95-LS2.8-BR", "U1", "74LVC1G04", 93.6, 17.5, 
 R4 = P(LIB, "R0603", "R4", "47k", 94.35, 20.7, 0, "C25819")
 C1 = P(LIB, "C0805", "C1", "10uF", 76.0, 17.5, 270, "C15850")
 C2 = P(LIB, "C0603", "C2", "100nF", 94.0, 14.1, 0, "C14663")
-R1 = P(LIB, "R0603", "R1", "1k", CARD_C - 4.36, 17.5, 270, "C21190")
+R1 = P(LIB, "R0603", "R1", "220", CARD_C - 4.36, 17.5, 270, "C22962")   # (220 ohm, not 1k: the card
+                                                 # reads at 20 MHz through it; the firmware leaves D/C high at idle)
 R2 = P(LIB, "R0603", "R2", "47k", 94.3, 12.6, 180, "C25819")
 R3 = P(LIB, "R0603", "R3", "47k", CARD_C - 7.6, BUS, 0, "C25819")
 
@@ -295,6 +296,10 @@ def label(text, x, y, size=0.8, rot=0.0):
 
 
 label("OPTIMIST SD", *T(77.5, 29.0), 0.8, 90)
+# which way each cable goes in: the sockets touch both faces, so a cable turned over connects MIRRORED (pin 1 on
+# pin 10): the LCD's cable arrives gold up (the user), the cable from J12 (type A) gold down
+label("LCD: gold UP", *T(88.0, 69.6), 0.7)
+label("IN: gold DOWN", *T(92.2, 53.0), 0.7)
 
 board.GetDesignSettings().SetAuxOrigin(pcbnew.VECTOR2I(MM(X0), MM(YB)))   # (the lower left: the Gerbers, the drill
 pcbnew.ZONE_FILLER(board).Fill(board.Zones())                                   # files and cpl.csv share it)
