@@ -169,7 +169,8 @@ def V(name, u, v):
 CARD_C = CARD_L + 5.5                            # (the card, 11 mm wide, taken as centred in its socket: UNMEASURED)
 BUS = 13.3                                       # (the 3V3 line across, on the bottom)
 FPC10 = "FPC-SMD_10P-P0.50_HC-FPC-05-09-10RLTAG"
-J1 = P(LIB, "TF-SMD_TF-01A", "J1", "TF-01A push-push", CARD_C, WALL_OUT + 9.62, 0, "C91145")
+CARD_PROUD = 1.0                                 # (the card 1 mm out past the case's outside, to grip: the user)
+J1 = P(LIB, "TF-SMD_TF-01A", "J1", "TF-01A push-push", CARD_C, WALL_OUT - CARD_PROUD + 9.62, 0, "C91145")
 J3 = P(LIB, FPC10, "J3", "FPC 10P 0.5mm (LCD)", 86.5, 74.55, 180, "C5213750")   # (3.5 mm left of B, the user)
 J2 = P(LIB, FPC10, "J2", "FPC 10P 0.5mm (IN)", 92.4, 57.0, 180, "C5213750")   # (5 mm lower for a 6 cm cable,
                                                  # the user; 1 mm right so the column's lines reach it)
