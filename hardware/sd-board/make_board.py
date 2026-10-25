@@ -30,9 +30,10 @@ LIB = os.path.join(HERE, "lib", "sdboard.pretty")
 KICAD_FP = "/Applications/KiCad/KiCad.app/Contents/SharedSupport/footprints"
 MM = pcbnew.FromMM
 
-SCREW_PITCH = 38.1                               # the two case poles' centres apart (calipers, the user, 2026-10-25)
-SCREWS = ((103.8, 135.0), (104.4, 135.0 - SCREW_PITCH))   # the FM-1's screws: the L's corner (photo), the one above
-X0, Y0 = 100.0, SCREWS[1][1] - 3.4                # the board's top left (mm): the strip from just above the upper screw
+POLE_D, POLE_GAP = 5.2, 0.3                      # the case's poles: diameter (photo: UNMEASURED), the hole's play
+POLE_PITCH = 38.1 - POLE_D                       # 38.1 over the two poles' outer edges (calipers, the user, 2026-10-25)
+POLES = ((103.8, 135.0), (104.4, 135.0 - POLE_PITCH))     # where they pass through: the L's corner (photo), the one above
+X0, Y0 = 100.0, POLES[1][1] - (POLE_D + POLE_GAP) / 2 - 1.5   # the board's top left (mm): 1.5 mm above the upper pole
 SW, FY, FW, YB = 10.0, 135.0, 22.0, 157.6       # the strip's width, the foot's top, its width, the board's bottom
 SD_OUT = 1.0                                     # the card socket past the left edge, nearer the slot in the case wall (unmeasured)
 OUTLINE = ((X0, Y0), (X0 + SW, Y0), (X0 + SW, FY), (X0 + FW, FY), (X0 + FW, YB), (X0, YB))
@@ -116,9 +117,30 @@ C1 = place(LIB, "C0805", "C1", "10uF", 105.3, 126.6, 180, "C15850")
 R1 = place(LIB, "R0603", "R1", "1k", 115.0, 143.64, 180, "C21190")
 R3 = place(LIB, "R0603", "R3", "47k", 120.3, 144.2, 90, "C25819")
 R2 = place(LIB, "R0603", "R2", "47k", 120.3, 149.0, 270, "C25819")
-# the FM-1's own two screws through it (the user, 2026-10-25: the case's poles hold it)
-HOLES = [place(os.path.join(KICAD_FP, "MountingHole.pretty"), "MountingHole_2.7mm_M2.5", f"H{i + 1}", "M2.5", x, y)
-         for i, (x, y) in enumerate(SCREWS)]
+# the case's two poles pass through it and hold it (the user, 2026-10-25)
+def pole_hole(ref, x, y):
+    """a plain hole (not plated) the case's pole passes through"""
+    fp = pcbnew.FOOTPRINT(board)
+    fp.SetFPID(pcbnew.LIB_ID("sdboard", "PoleHole"))
+    fp.SetReference(ref)
+    fp.SetValue("pole")
+    fp.Reference().SetVisible(False)
+    fp.Value().SetVisible(False)
+    fp.SetAttributes(pcbnew.FP_EXCLUDE_FROM_BOM | pcbnew.FP_EXCLUDE_FROM_POS_FILES)
+    d = MM(POLE_D + POLE_GAP)
+    h = pcbnew.PAD(fp)
+    h.SetAttribute(pcbnew.PAD_ATTRIB_NPTH)
+    h.SetShape(pcbnew.PAD_SHAPE_CIRCLE)
+    h.SetSize(pcbnew.VECTOR2I(d, d))
+    h.SetDrillSize(pcbnew.VECTOR2I(d, d))
+    h.SetLayerSet(pcbnew.LSET.AllCuMask())
+    fp.Add(h)
+    fp.SetPosition(pcbnew.VECTOR2I(MM(x), MM(y)))
+    board.Add(fp)
+    return fp
+
+
+HOLES = [pole_hole(f"H{i + 1}", x, y) for i, (x, y) in enumerate(POLES)]
 
 # ---- the nets. J2's order is free (the tap board at J12 is not designed yet): the three lines to the card on top, so
 # they go straight to their lanes, GND, then 3V3 and LCD_CS at the bottom, straight down to the parts under it
@@ -181,7 +203,7 @@ for name, x, y in (("3V3", TRUNK, 128.4), ("CARD_CS", 101.6, 129.4), ("DAT1", 12
                    ("DAT2", 120.3, 150.65)):
     via(name, x, y)
 for x, y in ((103.9, P[4][1]), (104.8, 116.9), (102.6, 125.2), (103.3, 127.8),
-             (101.6, 102.0), (112.0, 138.5), (116.0, 153.0)):   # (the last three: the pours stitched)
+             (101.3, 106.3), (112.0, 138.5), (116.0, 153.0)):   # (the last three: the pours stitched)
     via("GND", x, y)
 
 # ---- the outline, the ground pours, the labels
