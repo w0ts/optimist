@@ -134,7 +134,8 @@ def cmd_build(a):
     extra = ["--release", a.release] if a.release else []
     ok, sizes, _ = C.build(cfg, name, measure=a.measure, extra=extra, echo=True)
     if sizes:
-        print("exact:   " + ", ".join(f"{r} {sizes[r]:,} of {C.LIMITS[r]:,}" for r in C.REGIONS))
+        print("exact:   " + ", ".join(f"{b} {u:,} of {cap:,}" for b, (u, cap, _) in C.fits(sizes).items())
+              + " (" + ", ".join(f"{r} {sizes[r]:,}" for r in C.REGIONS if r != "flash") + ")")
     C._summary(a.summary, {"ok": ok, "name": name, "hash": f"{C.cfg_hash(cfg):08x}", "sizes": sizes,
                            "fwsc": str(named_package(started)) if ok and not a.measure else None})
     return 0 if ok else 1

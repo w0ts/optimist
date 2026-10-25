@@ -1026,6 +1026,7 @@ static void con_tabbench(void)
     con_puts(")\r\n");
 }
 
+#include "console_mem.c"                              /* membench (a bench build only: FELUCCA_MEMBENCH) */
 #include "console_run.c"                              /* play pause rec proj heavy wdtreset (scripted tests) */
 
 #if FELUCCA_BT_AUDIO && FELUCCA_DUAL >= 2
@@ -1058,6 +1059,9 @@ static void con_exec(const char *p)
                  "dualcfg  reboot  "
 #endif
                  "params  tabbench  memr ADDR [LEN]  flr OFF [LEN]"
+#if FELUCCA_MEMBENCH && defined(__PI32V2__)
+                 "  membench"
+#endif
 #if FELUCCA_BLE
                  "  blevm  blevmdump  bletrim"
 #if BLE_DIAG
@@ -1098,6 +1102,10 @@ static void con_exec(const char *p)
         con_params();
     else if (con_word(&p, "tabbench"))
         con_tabbench();
+#if FELUCCA_MEMBENCH && defined(__PI32V2__)
+    else if (con_word(&p, "membench"))
+        con_membench();
+#endif
     else if (con_word(&p, "memr"))
         con_memr(p);
 #if FELUCCA_FLASH

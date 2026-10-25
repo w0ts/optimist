@@ -1,7 +1,7 @@
 # Firmware builder
 
-Pick the engines, FX, drum kits, sample sets and features that go into your FM-1 firmware, with a live flash, RAM,
-pool and RAMTEXT budget, then build it: in the browser at [w0ts.github.io/optimist](https://w0ts.github.io/optimist/)
+Pick the engines, FX, drum kits, sample sets and features that go into your FM-1 firmware, with a live flash and
+SRAM budget, then build it: in the browser at [w0ts.github.io/optimist](https://w0ts.github.io/optimist/)
 (Build tab: a cloud build, nothing to install; docs/WEB.md), or on your computer with `make builder`. The memory map
 is `docs/MEMORY-MAP.md`, with the budget behind the trade-offs in its section 3. Sizes come from measured builds
 (`tools/builder/costs.json`, "Budget" below); the CPU figures from the emulator.
@@ -81,7 +81,7 @@ make delete PROFILE=my-groove     # mine first, else the shipped one
 ```
 
 `config --profile P --budget` prints a profile's estimate against the limits (`tools/builder/core.py` `LIMITS`: app
-flash 581,564 B, RAM 98,304, pool 344,064 with 8 KiB kept spare, RAM code 32,512).
+flash 581,564 B; SRAM 474,880 with 8 KiB kept spare, shared by RAM code, RAM and pool: docs/MEMORY-MAP.md 2.4).
 
 ## What is switchable
 

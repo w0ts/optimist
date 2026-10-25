@@ -100,7 +100,7 @@ the menu's views of that code.
 - **Layout:** the item tree on the left; on the right cards that stay in view: **Size** (the gauges), **Your
   configuration** (download, hash and key, import, the canonical form), the ways to fit and the messages, the **Info** card of
   the selected item. At 900 px and narrower the cards stack above the list with the Size card compact at the top.
-- **Gauges:** FLASH, RAM, POOL and RAMTEXT show used / limit in KiB (exact bytes on hover), the overflow in red with the
+- **Gauges:** FLASH and SRAM (RAM code, RAM and pool share it: docs/MEMORY-MAP.md 2.4) show used / limit in KiB (exact bytes on hover), the overflow in red with the
   limit marked on the bar, the UNDO ring, and the configuration's key (a click copies it). It is the estimate
   (`configure.budget`, from the nearest real build in `costs.json`) and only informs: nothing is refused because of it.
 - **Make it fit:** the button exists only while a gauge is over. It opens up to four proposals from `core.proposals` (the

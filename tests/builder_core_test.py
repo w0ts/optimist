@@ -66,16 +66,20 @@ check("configure.budget without real builds = core.budget",
 # at distance 0), the whole margin one item away with the very same figures (2026-10-24: synth, its own check build
 # 264 B under the RAM limit, was "over" by 184 B of the 448 B margin; fit() and the BLE check failed on it)
 _in = 184
-_base = {r: K.LIMITS[r] - K.SPARE[r] - (_in if r == "ram" else 4096) for r in K.REGIONS}   # (the others well inside)
+_sram = K.LIMITS["sram"] - K.SPARE["sram"] - _in                 # (the SRAM parts sum to _in inside; flash well inside)
+_base = {"flash": K.LIMITS["flash"] - 4096, "ram": 90000, "pool": _sram - 90000 - 30000, "ramtext": 30000}
 _one = dict(d, LCD_DIRTY=1 - d["LCD_DIRTY"])
 _tc = dict(costs, base=_base, checks={},
            deltas=dict(costs["deltas"], LCD_DIRTY={str(_one["LCD_DIRTY"]): {r: 0 for r in K.REGIONS}}))
 _b0, _b1 = K.budget(d, _tc), K.budget(_one, _tc)
-check(f"fit margin: a configuration's own build (distance 0) {_in} B inside the RAM limit is not over",
+check(f"fit margin: a configuration's own build (distance 0) {_in} B inside the SRAM budget is not over",
       _b0["distance"] == 0 and _b0["total"]["ram"] == _base["ram"] and not K.over_any(d, _tc))
 check("fit margin: ... one item away with the same figures it is (the estimate's error applies)",
       _b1["distance"] == 1 and _b1["total"] == _b0["total"] and
-      K.over_any(_one, _tc) == {"ram": K.FIT_MARGIN["ram"] - _in})
+      K.over_any(_one, _tc) == {"sram": K.FIT_MARGIN["sram"] - _in})
+check("the SRAM budget: RAM, pool and RAM code share it (any part's bytes count the same)",
+      K.fits(dict(_base, ram=_base["ram"] + 500, pool=_base["pool"] - 500))["sram"] == K.fits(_base)["sram"] and
+      K.fits(dict(_base, ramtext=_base["ramtext"] + _in + 1))["sram"][2] == 1)
 
 # ---- the key
 SHA, SHA2 = "0123456789abcdef" * 2 + "01234567", "f" * 40
@@ -158,7 +162,7 @@ check("proposals: a dropped item's dependants are changed with it (none left wit
 ev = K.evaluate({"config": {"ENG_FM6": 1, "MIDI_CLKOUT": 1}, "commit": SHA, "costs": costs})
 check("evaluate: JSON in, JSON out, the merged key warned about, the budget and the fit",
       json.loads(json.dumps(ev)) == ev and ev["error"] is None and any("merged" in w for w in ev["parse_warnings"])
-      and ev["budget"] and set(ev["fits"]) == set(K.REGIONS) and ev["cfg_hash"] == f"{K.cfg_hash(ev['config']):08x}")
+      and ev["budget"] and set(ev["fits"]) == set(K.BUDGETS) and ev["cfg_hash"] == f"{K.cfg_hash(ev['config']):08x}")
 check("evaluate: an unknown key: a warning, strict: an error",
       K.evaluate({"config": {"NOPE_X": 1}})["parse_warnings"] and
       "NOPE_X" in (K.evaluate({"config": {"NOPE_X": 1}, "strict": True})["error"] or ""))
