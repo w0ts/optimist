@@ -604,6 +604,9 @@ static void pat_knob(uint32_t k, int32_t s)             /* track k's next / prev
 static void op_act(uint32_t a, uint32_t k)
 {
     switch (a) {
+    case OA_DROP:                                       /* memory short: this part a silent placeholder (op_input.c mem_tick) */
+        mem_drop(k);
+        return;
     case OA_SCN_STORE:
         scene_store_now(k);
         break;

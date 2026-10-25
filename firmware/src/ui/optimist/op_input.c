@@ -201,6 +201,28 @@ static void op_undo(int redo)
     ui_message(b);
 }
 
+/* ---- memory short (engines.c part_mem_refused, model.c mem_offer): "DROP T2 FM6?" with the one confirm, red (it replaces
+ * a part's sound with the silent placeholder); YES drops it and the change is tried again once its switch is done; a
+ * confirm let go without YES (NO, another row, 3 s) passes to the next part; none left: MEM FULL, given up */
+static void mem_tick(void)
+{
+    uint32_t k;
+    char a[24];
+    if (!part_mem_refused.on || op_armed())
+        return;
+    if (mem_retry() >= 0 && (!part_mem_refused.on || part_mem_refused.waiting))
+        return;                                         /* (done, or a dropped part still switching) */
+    if (!mem_offer(&k)) {
+        part_mem_refused.on = 0;
+        ui_message("MEM FULL");
+        return;
+    }
+    str_cpy(a, trk_tag(k), sizeof a);
+    str_app(a, " ", sizeof a);
+    str_app(a, trk_eng_name(&trk[k]), sizeof a);
+    op_arm(ARM_OP, OA_DROP, k, "DROP", a, 1);
+}
+
 /* ---- YES and NO */
 static void op_yes(void)
 {
@@ -1403,6 +1425,7 @@ static void ui_draw(void)
     ui.page = (uint8_t)op_cursor_page();
 #if FELUCCA_MISSING_WARN
     miss_tick();                                        /* a load used what this build lacks: say so (miss.c) */
+    mem_tick();                                         /* memory short for an engine: propose what to drop (below) */
 #endif
     op_frame_draw();
 }

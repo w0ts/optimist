@@ -231,7 +231,13 @@ static uint32_t part_mem_bytes(uint32_t e)
 
 /* a refused change (the user, 2026-10-25: refuse, and propose what to drop; the UI shows it and offers the drops):
  * the part, the engine it asked for, the parts whose memory would make room (arn_drop_for; -1 none would) */
-static struct { uint8_t on, part, eng; int8_t drop; } part_mem_refused;
+static struct {
+    uint8_t on, part, eng;
+    int8_t drop;                                         /* arn_drop_for's parts (a bit mask; -1 none would make room) */
+    uint8_t from_load;                                   /* a project's load (keep its sound) or an edit (the engine's first) */
+    uint8_t asked;                                       /* the parts already proposed (model.c mem_offer: never twice) */
+    uint8_t waiting;                                     /* the parts dropped, their switch to the placeholder not done yet */
+} part_mem_refused;
 
 /* the main loop, before part k's engine becomes e (model.c set_engine_of, project and user preset loads): its memory
  * set aside. 0 ok; -1 no room (only with a smaller FELUCCA_ARENA_BYTES): part_mem_refused says what would make room */
@@ -247,8 +253,11 @@ static int part_mem_reserve(uint32_t k, uint32_t e)
         IRQ_RESTORE(ie);
     }
     if (r) {
+        if (!part_mem_refused.on || part_mem_refused.part != k)   /* (a new refusal: nothing asked yet) */
+            part_mem_refused.asked = part_mem_refused.waiting = 0;
         part_mem_refused.on = 1, part_mem_refused.part = (uint8_t)k, part_mem_refused.eng = (uint8_t)(e % NENGINES);
         part_mem_refused.drop = (int8_t)arn_drop_for(k, n);
+        part_mem_refused.from_load = 0;                  /* (project.c sets it for a load) */
     }
     return r;
 }
