@@ -16,7 +16,11 @@ designed yet** (it needs J12's pin order, metered, and u, v: the room beside the
 ## The kit
 
 1. **This board**, ordered assembled (below).
-2. **The tap board at J12** (to come): the LCD's flex and J12 pass through it, six of their lines go out on the FFC.
+2. **The splitter at J12** (to come; the user, 2026-10-25): a small rigid board with three sockets, assembled in the same
+   JLCPCB order. A standard flat cable goes from J12 to its input; the LCD's own cable plugs into its second socket (every
+   line 1:1; the user checked the LCD cable reaches it); six lines go out of its third socket to this board. A custom
+   flex tap was dropped: about 75 to 130 USD an order (an estimate), more than the FM-1. Needs J12's pin count, pitch,
+   contact side and pin map.
 3. **A 6-wire 0.5 mm FFC**, about 3.5 mm wide, from J12 between the jacks, round the board's edge and down the back
    to this board (measure; 100-150 mm are standard lengths).
 4. **A slot in the bottom wall** for the card: about 15 x 2.5 mm, the card's left side 84 mm from the left wall's inside (the socket's 2 mm further left).
