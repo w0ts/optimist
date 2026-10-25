@@ -112,6 +112,10 @@ src/ui/optimist/op_gldraw.c:gl_info_draw:(int32_t)n | n = info_lines(pg) >= 1: I
 src/ui/optimist/op_mixdraw.c:mx_steps:len | TLEN: "clamp(t->p[P_SLEN], 1, NSTEP)"
 src/ui/optimist/op_mixdraw.c:mx_steps_paint:len | TLEN: "clamp(t->p[P_SLEN], 1, NSTEP)"
 src/ui/optimist/op_mixdraw.c:mx_steps_paint:np | guarded "if (np > 1u)"
+src/ui/optimist/op_mix2x.c:m2_bar_px:len | TLEN: "ui_clamp(t->p[P_SLEN], 1, NSTEP)"
+src/ui/optimist/op_mix2x.c:m2_steps:len | TLEN: "ui_clamp(t->p[P_SLEN], 1, NSTEP)"
+src/ui/optimist/op_mix2x.c:m2_steps_paint:len | TLEN: "ui_clamp(t->p[P_SLEN], 1, NSTEP)"
+src/ui/optimist/op_mix2x.c:m2_steps_paint:np | guarded "if (np > 1u)"
 src/ui/optimist/op_input.c:step_win:len | TLEN
 src/ui/optimist/op_input.c:step_win:slen | seq.c trk_grid -> grid_at: a step of DUR_U48 x DUR_48[div] (TABLE DUR_48 >= 3) +- its swing, the swing at most half of it (swing_units: pct <= 100, / 200): >= 3 x BEAT_U / 96; guarded "slen ?" too
 src/ui/optimist/op_step.c:olp_len:trk_len(t) | TLEN
