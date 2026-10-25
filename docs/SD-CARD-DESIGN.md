@@ -357,8 +357,13 @@ Each step names who does it. Claude never writes to the FM-1.
   - the slack **depends on the kind of file**, never one size for all:
     - presets, kits, the index, small files: **none**: a file within one cluster (32 KB on a 16-32 GB card) cannot
       fragment, so it is written as it is;
-    - projects (tens of KB): rounded up to a small step (e.g. 64 KB) so the next save reuses the run;
-    - samples the FM-1 writes and recordings: the big step (the setting, e.g. 256 KB / 1 MB / 4 MB, default 1 MB);
+    - bigger files: the run sized by a **best guess of the file's final size** (the user: "we can take best
+      guesses"), then rounded up to whole clusters, the setting scaling the guesses (less slack on a nearly full card):
+      - a project: its size now x 1.5 (it grows as scenes and patterns are added; the next saves reuse the run);
+      - a recording: the length asked for, else the song or pattern loop's length at the tempo (x 2 for a second
+        take), else a minute; past the run, a new run of the same guess;
+      - a sample the FM-1 edits or resamples: its new length exactly (it is known before writing);
+      - a render: the song's length at the tempo;
   - each run allocated contiguous in one go (FatFs `f_expand`), the real length kept inside the file (WAV length, the
     project's header), the file never truncated: the slack is the point;
   - recordings start with a run of the step x a few (or the take's length limit) and continue into a new run when
