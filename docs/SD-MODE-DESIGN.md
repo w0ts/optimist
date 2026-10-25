@@ -7,7 +7,10 @@ Phases 1 and 2 are built and host-tested (section 8); nothing has run on an FM-1
 
 - **Flash for code.** The freed flash holds code, run in place (XIP): code there costs no RAM.
 - **Hot code loaded on the fly** into the fast area (RAMTEXT) depending on what the project uses.
-- **A fake SD mode for testing:** one project (maybe two) in flash, **no user samples**, about **4 presets and 4 kits**.
+- **A fake SD mode for testing:** **one project** in flash (the user, 2026-10-25: the web app and the iOS app move a
+  project to and from the FM-1 over USB, so they keep the others; `PROJ_SLOTS` 1: the PROJECT page shows one slot, the
+  editor's project command answers 1 for another, a backup's PJ02..PJ16 are not restored), **no user samples**, about
+  **4 presets and 4 kits**.
 - **The built-in samples stay in flash** for now (no RAM spent on sample streaming yet).
 - **Plugins** (code loaded into RAM from the card): later, maybe.
 

@@ -1007,7 +1007,7 @@ job; ( jobin   # the flash layouts (docs/SD-MODE-DESIGN.md): the numbers agree; 
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SL24_XSTEP=1 $L1 -o "$OUT/patterns_test_l1" tests/patterns_test.c -lm
     run "patterns and scenes in the fake SD mode's log (7 sectors at 0xD0000): store, MEM FULL" "$OUT/patterns_test_l1"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SL24_XSTEP=1 $L1 -o "$OUT/project_scope_test_l1" tests/project_scope_test.c -lm
-    run "projects in the fake SD mode's log: apart, MEM FULL across projects" "$OUT/project_scope_test_l1"
+    run "the fake SD mode keeps one project: another refused, the log the one project's, MEM FULL" "$OUT/project_scope_test_l1"
 ) >"$U.out" 2>&1 & jobbg
 
 job; ( jobin

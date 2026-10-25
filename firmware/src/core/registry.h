@@ -625,6 +625,8 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #define FELUCCA_LAYOUT 0                   /* the flash layout (hal/fm1_flash_map.h): 1 the fake SD mode, the app slot to
                                             * 0xD0000 over the user samples and snapshots (docs/SD-MODE-DESIGN.md) */
 #endif
+#define PROJ_SLOTS (FELUCCA_LAYOUT == 1 ? 1u : 16u)   /* the projects the flash keeps (PATTERNS): the fake SD mode one, the
+                                            * others kept by the web app or the iOS app over USB (the user, 2026-10-25) */
 #ifndef FELUCCA_PARAM_HELP
 #define FELUCCA_PARAM_HELP 0              /* the knob's value in plain words on the top bar ("Filter cutoff"), from
                                             * tools/param_help.json (param_help.c) */

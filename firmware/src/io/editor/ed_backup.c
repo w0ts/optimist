@@ -93,7 +93,7 @@ static const bk_obj_t BK_OBJS[] = {
 #define BK_S(n) {{'S', (char)('0' + (n) / 10), (char)('0' + (n) % 10), ' '}, BK_SEC, (n) - 1, (n) <= FELUCCA_SECTIONS}
 #define BK_P(n) {{'P', 'T', 'N', (char)('0' + (n))}, BK_LOG, BK_PID + (n) - 1, 1}
 #if FELUCCA_PATTERNS
-#define BK_PJ(n) {{'P', 'J', (char)('0' + (n) / 10), (char)('0' + (n) % 10)}, BK_PJS, (n) - 1, 1}
+#define BK_PJ(n) {{'P', 'J', (char)('0' + (n) / 10), (char)('0' + (n) % 10)}, BK_PJS, (n) - 1, (n) <= PROJ_SLOTS}
     BK_PJ(1), BK_PJ(2), BK_PJ(3), BK_PJ(4), BK_PJ(5), BK_PJ(6), BK_PJ(7), BK_PJ(8),   /* each project whole (its state, scenes, */
     BK_PJ(9), BK_PJ(10), BK_PJ(11), BK_PJ(12), BK_PJ(13), BK_PJ(14), BK_PJ(15), BK_PJ(16),   /* patterns, song, records) */
     {{'P', 'N', 'A', 'M'}, BK_LOG, BK_NMID, 1},           /* the project names (device-wide) */
