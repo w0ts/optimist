@@ -241,7 +241,7 @@ static int pput(uint32_t j, uint32_t id, uint32_t n, int playing)   /* project P
     if (!rc) {
         uint32_t t;
         for (t = 0; t < 2u; t++)
-            if (t == j || SLG_GLOBAL(id)) {
+            if (t == j || SLG_DEV(id)) {             /* (20, 21: device-wide) */
                 memcpy(pmodel[t][id], data, n);
                 pmlen[t][id] = n;
             }
@@ -343,7 +343,7 @@ static void scoped_log(void)
         if (rc == 0) {
             uint32_t t;
             for (t = 0; t < 2u; t++)
-                if (t == j || SLG_GLOBAL(id)) {
+                if (t == j || SLG_DEV(id)) {             /* (20, 21: device-wide) */
                     memcpy(pmodel[t][id], data, n);
                     pmlen[t][id] = n;
                 }

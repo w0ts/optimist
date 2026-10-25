@@ -20,7 +20,7 @@ Found, for the user to decide (no firmware fault seen):
 
 - A as built has no SFLD and no RING insert (the A insert list read from the running firmware: ---- CHRS DST DYN EQ3 FILT FLNG FOLD FUZZ GATER HARM JUNO RECT SUB WIDE XDLY; its felucca_config.h: INS_SFOLD 0, INS_RING 0), though this page said it held them; today's A leaves them out on purpose (section A updated).
 - GRIDS VEL OFF plays NORM and HARD hits (gen.c gr_kit_merge: HARD over 192, else NORM), not "all hits HARD" as section 5 says.
-- PROJECT SAVE into a slot other than the open project gives that project the work but not the scenes and patterns stored before (sections.c project_scope_set / op_edits.c prj_save_go: the new slot's own, empty ones). The first draft of the `song` check saved scenes A and B as project 9 and found them empty after LOAD 9; they stay with the project that was open. By the code's comment this is meant; it can read as lost scenes.
+- FIXED 2026-10-25: PROJECT SAVE into a slot other than the open project is a save as now: the work and every scene, pattern and the song of the open project go there, replacing what it held (sections.c project_save_as; was: the work only, the scenes stayed with the open project).
 - PRESETS reaches 6 WAVE presets (ids 1 2 4 6 10 12), not 13; SAMPLE and GRAIN 1 each; FM6 3 (its INIT voices; the voice packs were not reached by the sweep).
 - The header's MISSING message names the first missing item and counts the rest ("MISSING: FM6 T1 +1" for FM6 and the X0X 909 kit).
 
