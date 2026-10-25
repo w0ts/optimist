@@ -54,7 +54,7 @@ User presets and projects saved by an earlier firmware (SLOOP, or Optimist befor
 - **GRIDS note generator** (Mutable Instruments Grids' drum map) and the note generators, apart from the STEP tools. Two builder sub-items, off by default:
   - **LFO modulation:** two LFOs on the drum track move the kit's six GRIDS values (X, Y, CHAOS, the three densities), so the pattern drifts on its own.
   - **Euclidean mode** (OUT DRUMS / EUCL): Grids' own Euclidean output, X, Y and CHAOS the three parts' lengths 1..32, BD SD HH their fills, bit for bit Grids' table.
-- **Projects own their scenes, patterns and song.** A project is one record; PROJECT LOAD opens it, SAVE saves everything, DELETE / NEW clear it; backup objects PJ01..PJ16.
+- **Projects own their scenes, patterns and song.** A project is one record; PROJECT LOAD opens it, SAVE saves everything (into another slot: the whole project copied there, a save as), DELETE / NEW clear it; backup objects PJ01..PJ16.
 - **SONG tables:** scenes and parts as tables; SELECT / ALGORITHM navigate, the knobs edit; BARS; edits and clears while playing.
 - **Mute mode** (SHIFT + a key) with three key lights; the master channel too; the track LEDs follow the notes.
 - **CHORD+ latch:** a black modifier key tapped twice stays on.
@@ -65,16 +65,17 @@ User presets and projects saved by an earlier firmware (SLOOP, or Optimist befor
 ## Web: everything on one site
 
 - **Web editor.** Every sound, drum, effect and setting as knobs; the drum grid; the samples (with CHOP); the preset library; projects. Backup of the whole FM-1 in one file, now its own Backup tab. Works over USB in Chrome or Edge (Web MIDI).
-- **Screen tab.** The FM-1's screen, live in the browser as it is drawn, with the mixer's meters ten times a second; a tap fills the display. Over USB.
-- **Builder.** Choose engines, kits, effects and features with a live flash / RAM budget; _Build in the cloud_ returns your firmware in minutes. The builder now knows what each choice really costs (measured on the farm), shares one effects memory between every insert with a delay line, and tells you how many of each fit.
+- **Mirror tab.** The FM-1's screen, live in the browser as it is drawn, with the panel's buttons, keyboard shortcuts and knob drag; the mixer's meters ten times a second over USB. Over USB or Bluetooth.
+- **Builder.** Choose engines, kits, effects and features with a live flash / RAM budget; _Build in the cloud_ returns your firmware in minutes, no GitHub account needed; build from a release or the latest version. The builder now knows what each choice really costs (measured on the farm), shares one effects memory between every insert with a delay line, and tells you how many of each fit.
 - **Installer.** Install a release flavour, your cloud build or a file; a backup first; stock firmware back any time.
-- **Simulator.** The firmware running in the browser with the FM-1's panel and keys: try a build before installing it. Get a project from the FM-1 into it, or send one back.
+- **Simulator.** The firmware running in the browser with the FM-1's panel and keys: try a build before installing it, or a .wasm file from your computer. Get a project from the FM-1 into it, or send one back.
 
 ## Optimist Mirror (iPhone, iPad, Mac)
 
 - The FM-1's screen live on the phone, tablet or Mac, over USB or Bluetooth. The panel's buttons as touch buttons around it (modes, pages, favourites), or the screen alone.
 - Edit a synth track's clip by touch: a piano roll to add, move, stretch and remove notes.
-- Projects, presets and the backup in their own tabs. It connects only when you ask.
+- Projects, presets and the backup in their own tabs, and the web editor's pages (editor, samples, kits, snapshots) inside the app. It connects only when you ask.
+- Install firmware over USB (a release, your last build or a file) and build your own; try a build in the app's simulator.
 
 ## Thanks
 
