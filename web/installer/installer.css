@@ -15,7 +15,7 @@
 .oi-title { margin: 0 0 var(--sp-2); font-size: var(--fs-6); font-weight: 400; line-height: 1.15; color: var(--text); }
 .oi-what { max-width: 680px; color: var(--text); }
 
-/* the cards, one column: Install, Build your own, then When something goes wrong (folded) */
+/* the cards, one column: Build your own, Install, then When something goes wrong (folded) */
 .oi-steps { margin: 0; padding: 0; display: grid; gap: var(--sp-4); }
 .oi-step .o-panel-h { justify-content: flex-start; }
 .oi-h { display: flex; align-items: center; gap: var(--sp-2); }
