@@ -41,11 +41,15 @@ def T(u, v):
 BATTERY_R = 72.6                                 # k: the battery's right side
 PLUG_L = BATTERY_R + 30.0                        # o: the plug's left side (above p, 23.5 mm up)
 POLE = (78.0, 40.0)                              # l, m: the cover's pole there (6.9 mm wide, i)
-POLE_R = 6.9 / 2 + 0.6                           # (the seat round its lower half: 0.6 mm play)
+COLLAR_R = (6.9 + 0.4) / 2 + 1.0                # the tray's collar round the pole (make_tray.py): 0.2 mm play, 1 mm wall
+POLE_R = COLLAR_R + 0.3                          # (the board's seat round the collar; it stops the board sliding in)
+TRAY_RAIL = 1.2                                  # the tray's rails along the board's sides (a groove each: the user,
+                                                 # 2026-10-25, the board slides into the tray, held up and down)
 WALL_OUT = -3.0                                  # x: the bottom wall's outside, 3 mm below the board's bottom edge
 CARD_L = 86.0 - 1.6                              # the card's left side 86 mm from the left wall's inside (the user):
                                                  # 84.4 from the board's edge (the wall's inside at 1.6, MEASUREMENTS)
-U0, U1_, V0, V1 = BATTERY_R + 0.6, PLUG_L - 0.6, -1.5, 43.0   # the board: 0.6 mm clear of the battery and the plug,
+U0, U1_ = BATTERY_R + 0.6 + TRAY_RAIL, PLUG_L - 0.6 - TRAY_RAIL   # the board: its tray's rails 0.6 mm clear of the
+V0, V1 = -1.5, 43.0                              # battery and the plug,
                                                  # 1.5 mm into the gap to the bottom wall, its top under the switch (w2)
 X0, YB = T(U0, V0)                               # (the lower left: the Gerbers' and the placement's origin)
 TRACK, POWER = 0.2, 0.3
@@ -58,8 +62,9 @@ def notch(cx, cy, a0, a1, n=24):
 
 
 PX, PY = T(*POLE)
+SEAT_END = math.degrees(math.acos((U0 - POLE[0]) / POLE_R))   # (where the seat meets the board's left edge)
 OUTLINE = tuple([T(U0, V0), T(U1_, V0), T(U1_, V1), T(POLE[0] + POLE_R, V1), (PX + POLE_R, PY),
-                 *notch(PX, PY, 0, 180)[1:], T(U0, POLE[1])])
+                 *notch(PX, PY, 0, SEAT_END)[1:]])
 
 
 board = pcbnew.BOARD()
@@ -204,7 +209,7 @@ R("3V3", [(80.4, 14.2), (RAIL, 14.2), (RAIL, 15.5)], POWER, B)
 for u, v in ((80.4, 14.2), (C[4][0], 14.2), (RAIL, 15.5)):
     V("3V3", u, v)
 for u, v in ((P2[4][0], 39.4), (C[6][0], 15.2), (94.3, 28.6), (A(C2, 1)[0], 20.8), (A(C1, 2)[0], 32.4),
-             (76.0, 5.0), (76.0, 25.0), (81.0, 25.0), (101.0, 5.0), (76.0, 34.0)):   # (the last five: the pours stitched)
+             (76.0, 5.0), (76.0, 25.0), (81.0, 25.0), (99.8, 5.0), (76.0, 34.0)):   # (the last five: the pours stitched)
     V("GND", u, v)
 
 # ---- the outline, the ground pours, the labels
