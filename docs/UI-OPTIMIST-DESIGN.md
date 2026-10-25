@@ -28,7 +28,7 @@ All of it is `firmware/src/ui/optimist/` (about 19,500 lines, one translation un
 | `op_screens.c`, `op_mixer.c`, `op_mixdraw.c` | SOUND and the master FX; the mixer's rows and sets; its drawing |
 | `op_step.c`, `op_stepdraw.c`, `op_tools.c` | STEP; its grid and roll; TOOLS, GEN, GEN OUT |
 | `op_global.c`, `op_gldraw.c`, `op_bt.c`, `op_project.c`, `op_prjflow.c` | GLOBAL and SYSTEM lists and their drawing, the SYSTEM table; the Bluetooth pages; PROJECT |
-| `op_layers.c`, `op_laydraw.c`, `op_tempo.c`, `op_song.c`, `op_songtbl.c`, `op_scope.c`, `op_name.c`, `op_fm6.c`, `op_fm6draw.c`, `op_preset.c`, `op_help.c` | the held layers and their maps; TEMPO; SONG; SCOPE; NAME; the FM6 editor; a preset with its engine; the help line |
+| `op_layers.c`, `op_laydraw.c`, `op_tempo.c`, `op_song.c`, `op_songtbl.c`, `op_scope.c`, `op_name.c`, `op_memlist.c`, `op_fm6.c`, `op_fm6draw.c`, `op_preset.c`, `op_help.c` | the held layers and their maps; TEMPO; SONG; SCOPE; NAME; the load's memory list; the FM6 editor; a preset with its engine; the help line |
 | `op_draw.c`, `op_graph.c` | the renderer, the forms, the SOUND pictures, the modal |
 
 A screen is five functions (rows, a row's name, a cell, a turn, a YES). A cell is a label, a value, a unit and a kind (value, read-out, action, a row to enter), mostly straight from a descriptor of the shared tables (`core/params.c` PAGES) and `param_format`, so a value lives in one place and the web editor shares its names.
@@ -47,6 +47,7 @@ A screen is five functions (rows, a row's name, a cell, a turn, a YES). A cell i
 | TEMPO | PLAY held |
 | SCOPE | HOME tapped on the mixer |
 | NAME | a save that names (section 4.11) |
+| MEMORY (the load's list) | a project load that does not fit the arena (section 4.13) |
 | a layer's map | its button held (section 4.9) |
 
 ## 2. The grammar
@@ -305,6 +306,10 @@ A user preset or a project is named before it is written: SAVE + a sound button,
 ### 4.12 The FM6 editor
 
 On an FM6 track ENV held is the operator layer (the black keys pick OP1..6, PIT, GLO, MONO / POLY; OCT-/OCT+ the page). ENV tapped is SOUND's FM6 family: OPERATOR (OP ALG FDBK VCE), the picked operator's six pages (TUNE, RATES, LEVELS, SENS, SCALE, CURVES, in M-VAVE's order), PIT's two, ALGO, LFO, LFO 2, PORTA; the algorithm is drawn over the rows (RATES, LEVELS and PIT draw the envelope instead). On those rows SHIFT2 + a black key picks the operator, SHIFT + it switches it off. Edits go into the part's voice (`fm6_ed`); a voice is kept by SAVE AS, a DX7 voice arrives by SysEx.
+
+### 4.13 The load's memory list
+
+Only with an arena placed by need (builder `ARENA`; the default's fixed slots never refuse; `docs/SD-MODE-DESIGN.md` 6b). A project load that cannot place a part's engine makes every such part a silent placeholder with the project's sound; once the parts' switches are done and none of them found room by itself, this page opens (`op_memlist.c`, the user's ruling of 2026-10-25). Header: *MEMORY Load*. The cards' band: the room the picked drops leave against what the refused parts want (*2 KB / 8 KB*), a gauge, FITS in green or SHORT in amber; FITS is the arena's own trial of the commit (`model.c mem_load_fits`), never an estimate. The panel: the refused parts (their engine in its colour, the KB they want in amber), a rule, then what can be dropped, each on a white key with its number at the left: the parts that hold memory (engine, KB), then the effects' lines placed (REV DLY CHO, `FELUCCA_FX_ARENA`). A white key toggles its item: dropped, the row and its number red with DROP (no fill). SAVE with FITS drops them (a part a silent placeholder; an effect bypassed, FULL, back by itself once there is room) and the refused parts get their engines once that memory is free; SAVE while SHORT says NO ROOM. HOME keeps the project as loaded with the refused parts as placeholders (NONE, grey; an engine picked ends one). The keys play nothing, the knobs do nothing, PLAY works. The foot is the modal's (*Home no*, *Save yes*, dim while SHORT). An edit's change keeps the one confirm (*DROP T2 FM6*, section 2.5), after the load's list.
 
 ## 5. The drum track
 

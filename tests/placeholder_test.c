@@ -106,7 +106,7 @@ int main(void)
         blocks(64);
         CHECK(t->engine == ENG_IX_FM6 && !t->silent, "flow: part 1 on FM6, the arena full");
         set_engine_of(u, ENG_IX_FM6);
-        CHECK(u->eng_req != ENG_IX_FM6 && part_mem_refused.on && part_mem_refused.part == 1u && !part_mem_refused.from_load,
+        CHECK(u->eng_req != ENG_IX_FM6 && part_mem_refused.on && part_mem_refused.part == 1u && !part_mem_refused.lmask,
               "flow: part 2 asks FM6: refused, the refusal recorded (an edit)");
         CHECK(part_mem_refused.drop == 1 && mem_offer(&k) && k == 0u, "flow: proposed: drop part 1 (what arn_drop_for names)");
         CHECK(!mem_offer(&k), "flow: nothing else to propose (part 3 keeps no memory, part 2 is the one asking)");
@@ -122,20 +122,61 @@ int main(void)
         CHECK(active(u) > 0, "flow: part 2's FM6 plays");
         trk_note_off(u, 60);
         blocks(4u * FS / CTL);
-        proj_capture(&pj, &dl);                         /* a project with part 3 on FM6 too: its load cannot fit */
-        pj.t[2].engine = (uint8_t)eng_uid(ENG_IX_FM6);
+        /* a load's refusals (the user, 2026-10-25: the list page): every part refused collected (two parts on one load
+         * once overwrote each other: the first kept its old engine with the new sound), each a silent placeholder with
+         * the project's sound until the list (ui/optimist/op_memlist.c) finds it room; HOME leaves them so */
+        proj_capture(&pj, &dl);                         /* FM6 on all three parts: room for one */
+        pj.t[0].engine = pj.t[2].engine = (uint8_t)eng_uid(ENG_IX_FM6);
         proj_apply(&pj, &dl, 1);
-        blocks(64);
-        CHECK(part_mem_refused.on && part_mem_refused.from_load && part_mem_refused.part == 2u && trk[2].engine != ENG_IX_FM6,
-              "flow: a load with one FM6 too many: that part refused (a load), its old engine kept");
-        CHECK(mem_offer(&k) && k == 1u, "flow: proposed: drop part 2");
-        trk[2].p[P_E0] = 77;                            /* (the loaded sound's own value: a load's retry keeps it) */
-        mem_drop(1);
-        for (f = 0; f < 200u && mem_retry() == 0 && part_mem_refused.on; f++)
-            blocks(8);
-        blocks(64);
-        CHECK(!part_mem_refused.on && trk[2].engine == ENG_IX_FM6 && trk[2].p[P_E0] == 77 && trk[1].silent,
-              "flow: part 2 dropped: part 3 on FM6 with the project's sound (not the engine's first preset)");
+        CHECK(part_mem_refused.lmask == 5u && part_mem_refused.leng[0] == ENG_IX_FM6 && part_mem_refused.leng[2] == ENG_IX_FM6 &&
+              trk[0].silent && trk[2].silent && trk[0].eng_req == eng_silent_slot() && trk[2].eng_req == eng_silent_slot() &&
+              !part_mem_refused.on, "load: FM6 on parts 1 and 3 refused on one load: both recorded, both placeholders");
+        for (f = 0; f < 200u && mem_load_settle() == 0; f++)
+            blocks(8);                                  /* (the parts' switches: their old blocks free after) */
+        {
+            uint8_t it[NPART + 3u];
+            uint32_t m;
+            int st = mem_load_settle();
+            m = mem_load_items(it);
+            CHECK(st < 0 && m == 1u && it[0] == 1u && !mem_load_fits(0) && !mem_load_fits(2u),
+                  "load: settled, still short: part 2 the only item; with or without it the two do not fit");
+            mem_load_cancel();                          /* (HOME) */
+            blocks(64);
+            CHECK(!part_mem_refused.lmask && trk[0].silent && trk[2].silent && !strcmp(trk_eng_name(&trk[0]), "NONE") &&
+                  !strcmp(trk_eng_name(&trk[2]), "NONE") && trk[1].engine == ENG_IX_FM6 && mem_load_settle() > 0,
+                  "load: HOME: parts 1 and 3 stay placeholders (NONE), part 2 on FM6");
+            pj.t[1].engine = (uint8_t)eng_uid(eng_silent_slot());
+            pj.t[2].engine = (uint8_t)eng_uid(eng_silent_slot());
+            proj_apply(&pj, &dl, 1);                    /* FM6 on part 1, part 2 off FM6: no room until part 2 switched */
+            CHECK(part_mem_refused.lmask == 1u && trk[0].silent, "load: FM6 on part 1 while part 2's FM6 still plays: refused");
+            trk[0].p[P_E0] = 77;                        /* (the loaded sound's own value: kept through) */
+            for (f = 0; f < 200u && mem_load_settle() == 0; f++)
+                blocks(8);
+            blocks(64);
+            CHECK(!part_mem_refused.lmask && trk[0].engine == ENG_IX_FM6 && !trk[0].silent && trk[0].p[P_E0] == 77,
+                  "load: once part 2 switched: part 1 on FM6 by itself, the project's sound, no list");
+            pj.t[0].engine = pj.t[1].engine = (uint8_t)eng_uid(ENG_IX_FM6);
+            proj_apply(&pj, &dl, 1);                    /* FM6 on parts 1 and 2: part 2 refused */
+            trk[1].p[P_E0] = 77;
+            for (f = 0; f < 200u && (st = mem_load_settle()) == 0; f++)
+                blocks(8);
+            m = mem_load_items(it);
+            CHECK(st < 0 && part_mem_refused.lmask == 2u && m == 1u && it[0] == 0u && !mem_load_fits(0) && mem_load_fits(1u) &&
+                  mem_load_free() < part_mem_bytes(ENG_IX_FM6) && mem_load_free() + mem_item_bytes(0) >= part_mem_bytes(ENG_IX_FM6),
+                  "load: FM6 on parts 1 and 2: part 2 refused; part 1 the item, FITS with it dropped (the gauge's room enough)");
+            mem_load_commit(1u);                        /* (part 1's key, SAVE) */
+            for (f = 0; f < 200u && (st = mem_load_settle()) == 0; f++)
+                blocks(8);
+            blocks(64);
+            CHECK(st > 0 && !part_mem_refused.lmask && trk[1].engine == ENG_IX_FM6 && !trk[1].silent && trk[1].p[P_E0] == 77 &&
+                  trk[0].silent && trk[0].engine == eng_silent_slot(),
+                  "load: SAVE: part 1 a placeholder, part 2 on FM6 with the project's sound");
+            trk_note_on(&trk[1], 60, 100);
+            blocks(4);
+            CHECK(active(&trk[1]) > 0, "load: part 2's FM6 plays");
+            trk_note_off(&trk[1], 60);
+            blocks(4u * FS / CTL);
+        }
     }
 #endif
     printf("placeholder test: %d checks, %d failed\n", checks, bad);

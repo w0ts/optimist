@@ -23,7 +23,7 @@ static struct {
 static int song_tbl_on(void)
 {
     uint32_t a, k;
-    if (ui.scr != SCR_SONG || name_on() || lay.shown != LY_PLAY || ui.row[SCR_SONG] >= song_rows())
+    if (ui.scr != SCR_SONG || page_owned() || lay.shown != LY_PLAY || ui.row[SCR_SONG] >= song_rows())
         return 0;
     k = song_kind(ui.row[SCR_SONG], &a);
     return k == SG_SCENE || k == SG_PART;

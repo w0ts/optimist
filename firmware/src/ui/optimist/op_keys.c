@@ -179,6 +179,10 @@ static void keys_lit(uint32_t *f, uint32_t *d, uint32_t *h)
         *f = name_leds(d);
         return;
     }
+    if (ml_on()) {
+        *f = ml_leds(d);                                /* (the load's memory list: an item's key dim, a dropped one full) */
+        return;
+    }
     if (lay.shown == LY_OPS) {
         *f = fm6_keys_lit();
         *d = FM6_KEYS_FN;
