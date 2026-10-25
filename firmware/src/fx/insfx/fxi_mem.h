@@ -51,7 +51,9 @@ _Static_assert(!FXI_B2 || FXI_MX(FXA_Z2) >= 1u, "FELUCCA_DLY_ARENA: no room for 
 _Static_assert(!FXI_B3 || FXI_MX(FXA_Z3) >= 1u, "FELUCCA_DLY_ARENA: no room for one FLNG line (1 KB)");
 _Static_assert(!FXI_B4 || FXI_MX(FXA_Z4) >= 1u, "FELUCCA_DLY_ARENA: no room for one XDLY (2 lines of FELUCCA_XDLY_LEN)");
 _Static_assert(FELUCCA_XDLY_LEN % 256 == 0 && CHO_LEN % FXA_U == 0, "the lines: whole units");
-#if FXA_I
+#if FXA_I && FXM_NEED
+static int16_t *fxa_ins;                                /* (in the arena while a limited type is held: fx/fx_arena.c) */
+#elif FXA_I
 static int16_t fxa_ins[FXA_I * FXA_U] __attribute__((section(".pool"), aligned(4)));
 #endif
 /* unit u's samples (fxi.c: an instance's line; 4-byte aligned: the kernels zero a line a word at a time) */

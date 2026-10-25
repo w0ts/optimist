@@ -335,6 +335,11 @@ def build_app():
         v = os.environ.get(flag)    # EXPERIMENTAL second core / emulator scenarios (docs/DUAL-CORE.md)
         if v is not None and len(v) == 1 and v in ok and flag not in CFG_FLAGS:
             flags.append(f"-D{flag}={v}")
+    v = os.environ.get("OPTIMIST_ARENA_BYTES")   # (EXPERIMENTAL, a measurement build, docs/SD-MODE-DESIGN.md 6b: the parts'
+    if v and v.isdigit() and int(v) > 0:         # arena placed by need, bytes; OPTIMIST_FX_ARENA=1 the effects' lines in it)
+        flags.append(f"-DFELUCCA_ARENA_BYTES={int(v)}u")
+        if os.environ.get("OPTIMIST_FX_ARENA") == "1":
+            flags.append("-DFELUCCA_FX_ARENA=1")
     flags.append(f'-DFELUCCA_ID="{PRODUCT}"')
     try:    # the commit the build comes from, for SYSTEM > ABOUT ("" outside a checkout)
         commit = subprocess.run(["git", "rev-parse", "--short=7", "HEAD"], cwd=FW, capture_output=True, text=True, check=True).stdout.strip()

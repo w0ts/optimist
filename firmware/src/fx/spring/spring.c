@@ -26,7 +26,7 @@
 #define SP_A 2867                        /* their coefficient, Q12 (0.7: Q12 keeps (x - o) * a in 32 bits up to
                                           * |x - o| < 749000, far past any peak the chain reaches) */
 #define SP_GAIN 512                      /* the output, Q8 (see above): x2, Felucca's level -5.9 dB under our ROOM */
-_Static_assert(sizeof rev_line / 2u >= SP_LEN, "SPRING in the tanks' line");
+_Static_assert(REV_LINE_N >= SP_LEN, "SPRING in the tanks' line");
 static int32_t sp_ap[4u * (SP_N + 1u)];  /* the chain: stage k's output 4 samples ago, per phase (wp & 3) */
 static struct {
     uint32_t ph;                         /* the output tap's wobble */
