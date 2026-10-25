@@ -39,9 +39,11 @@ def T(u, v):
     return 100.0 + u, 200.0 - v
 
 
-BATTERY_R = 72.6                                 # k: the battery's right side
-PLUG_L = BATTERY_R + 30.0                        # o: the plug's left side (above p, 23.5 mm up)
-POLE = (78.0, 40.0)                              # l, m: the cover's pole there (6.9 mm wide, i)
+PLUG_L = 72.6 + 30.0                             # k + o: the plug's left side (above p, 23.5 mm up)
+BATTERY_R = 72.6 - 3.0                           # k, but the user's test fit puts the left side (the pole, the room by
+                                                 # the battery) 3 mm further left than measured: the board 3 mm wider
+POLE = (75.0, 40.0)                              # l, m: the cover's pole there (6.9 mm wide, i); 3 mm left of the
+                                                 # measured 78 (the user, after a test fit)
 COLLAR_R = (6.9 + 0.4) / 2 + 1.0                # the tray's collar round the pole (make_tray.py): 0.2 play, 1 mm wall
 POLE_R = COLLAR_R + 0.3                          # (the board's seat round the collar; it stops the board sliding in)
 TRAY_RAIL = 1.2                                  # the tray's rails along the board's sides (a groove each: the user,
@@ -49,7 +51,8 @@ TRAY_RAIL = 1.2                                  # the tray's rails along the bo
 WALL_OUT = -3.0                                  # x: the bottom wall's outside, 3 mm below the board's bottom edge
 U0 = BATTERY_R + 0.6 + TRAY_RAIL                 # the board's left edge: its tray's rail 0.6 mm clear of the battery
 U1_ = 96.76                                      # its right edge (cut at the card socket when the card was at 84 mm)
-CARD_L = (U0 + U1_) / 2 - 5.5                    # the card socket in the board's middle (the user): the card's left
+CARD_L = (74.4 + U1_) / 2 - 5.5                  # the card socket where it was, in the middle of the board before it
+                                                 # grew 3 mm left (the slot in the wall stays): the card's left
                                                  # side 80.1 mm from the board's edge, 81.7 from the left wall's inside
 V0, V1 = -1.5, POLE[1]                           # its bottom 1.5 mm into the gap to the bottom wall; its top at the
                                                  # pole's centre (the seat round its lower half), 4 mm under the speaker
@@ -69,7 +72,9 @@ SEAT_END = math.degrees(math.acos((U0 - POLE[0]) / POLE_R))   # (where the seat 
 # the column and the head (v5): up the right of the speaker plug (85.6 to 90 across, 44 to 51 up: C, D, w1, w2) to
 # under the jacks (from 76.8 up: F), where J3 and J2 sit; no tray there, the board 0.8 mm over the FM-1's small parts
 COL_L, HEAD_BOT, HEAD_L, HEAD_TOP = 90.5, 51.5, 86.0, 76.7  # (the top right against the jacks)
-OUTLINE = tuple([T(U0, V0), T(U1_, V0), T(U1_, HEAD_TOP), T(HEAD_L, HEAD_TOP), T(HEAD_L, HEAD_BOT),
+COL_R = U1_ - 1.0                                # (the column 1 mm narrower on its right: room between the plugs, the user)
+OUTLINE = tuple([T(U0, V0), T(U1_, V0), T(U1_, V1), T(COL_R, V1), T(COL_R, HEAD_BOT), T(U1_, HEAD_BOT),
+                 T(U1_, HEAD_TOP), T(HEAD_L, HEAD_TOP), T(HEAD_L, HEAD_BOT),
                  T(COL_L, HEAD_BOT), T(COL_L, V1), (PX + POLE_R, PY),
                  *notch(PX, PY, 0, SEAT_END)[1:]])
 
@@ -246,7 +251,7 @@ for u, v in ((76.0, 19.8), (76.0, BUS), (C[4][0], BUS), (RAIL, BUS)):
     V("3V3", u, v)
 for u, v in ((C[6][0], 15.2), (91.9, 20.1), (92.3, 14.6), (77.4, A(C1, 2)[1]),
              (76.0, 5.0), (76.0, 25.0), (79.0, 25.0), (95.9, 6.0), (76.0, 34.0),   # (from here: the pours stitched,
-             (95.7, 45.0), (87.0, 53.5), (86.9, 66.0), (95.7, 56.0), (95.7, 66.0), (95.7, 74.5)):   # the head's too)
+             (87.0, 53.5), (86.9, 66.0), (95.7, 56.0), (95.7, 66.0), (95.7, 74.5)):   # the head's too)
     V("GND", u, v)
 
 # ---- the outline, the ground pours, the labels
