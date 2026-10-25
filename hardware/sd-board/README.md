@@ -18,6 +18,14 @@ breakout will tell; then the lines are re-routed.
 
 ![top](render-top.png)
 
+**Before ordering** (the review, 2026-10-25), with the re-route once J12's pin map is known:
+- 33 Ohm 0603 (C23140) in series on CLK and MOSI where the SD branch leaves J2 (keeps the card's stub off the LCD's
+  fast lines; the LCD runs at 60 MHz on the user's FM-1);
+- ESD protection at the card socket: two USBLC6-2SC6 (C7519) on CLK, CMD, CS, DAT0 (the slot is open to the outside);
+- check the mirror: the sockets touch both faces, a cable turned over connects pin 1 to pin 10 (marked on the board:
+  "LCD: gold UP", "IN: gold DOWN");
+- firmware: the LCD leaves D/C high when idle (so R1 can be 220 Ohm and the card read at 20 MHz), SD reads by DMA.
+
 ## The kit
 
 1. **This board**, ordered assembled (below).
@@ -62,7 +70,7 @@ Check the fit first: `mockup-printable.stl` (3D print, one piece: the board and 
 | J1 | microSD socket, push-push (Korean Hroparts TF-01A) | C91145 |
 | J2, J3 | FPC socket, 10 pins, 0.5 mm, contacts on both sides, flip lock, 1 mm high (HCTL HC-FPC-05-09-10RLTAG; JLCPCB stock, SMT assembly) | C5213750 |
 | U1 | 74LVC1G04 single inverter, SOT-23-5 (TI SN74LVC1G04DBVR) | C7827 |
-| R1 | 1 kOhm 0603: the card's DO to the FM-1's PC8 | C21190 |
+| R1 | 220 Ohm 0603: the card's DO to the FM-1's PC8 (shared with the LCD's D/C) | C22962 |
 | R2, R3 | 47 kOhm 0603: DAT2, DAT1 pulled up (unused in SPI mode) | C25819 |
 | R4 | 47 kOhm 0603: the inverter's input pulled up while the FM-1 resets | C25819 |
 | C1 | 10 uF 0805 | C15850 |
