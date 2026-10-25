@@ -5,8 +5,9 @@
 //   mountSim(container, {
 //     packages,   the site's flavours [{ id, title, sim }]: sim a URL of the flavour's .wasm (make_site.py)
 //     sims,       simulators that come with no package [{ id, title, sim }] (the local one: make web)
-//     repo,       "owner/name": the cloud builds with a simulator (the cloud-builds branch, installer.js loadCloud)
-//     build,      a cloud build id to open (default: the page's ?sim=)
+//     repo,       "owner/name": the user's builds with a simulator (the cloud-builds branch, installer.js loadCloud): the
+//                 one asked for (build, openBuild) and the builder's last (installer.js myBuild); no list of everyone's
+//     build,      the id of a build of the user's to open (default: the page's ?sim=)
 //     onNavigate, (where, detail) => void: "install" with { build } (Install this build); without it a link
 //     links,      { install }: the installer's href (default ../installer/)
 //   }) -> { activate(), deactivate(), unmount(), busy }
@@ -17,7 +18,7 @@
 //
 // The simulator's flash is kept in this browser (IndexedDB), one state for every build (the user's choice,
 // 2026-10-18): a build that cannot read what another left handles it as the FM-1 would.
-import { cloudFileUrl, loadCloud, matchCloud } from "../installer/installer.js";
+import { cloudFileUrl, loadCloud, myBuild } from "../installer/installer.js";
 import { findButton } from "./buttons.js";
 import { client as bkClient, transfer as bkTransfer, readToFile as bkReadToFile, writeFromFile as bkWriteFromFile, unpackFile as bkUnpackFile,
   hasProjects, projects as pjList, moveProject, pjName, PJ_N, PJ_NAME } from "./bk.js";
@@ -53,13 +54,13 @@ const THEME_KEY = "optimist-sim-theme";
 export const TEXT = {
   title: "Simulator",
   what: "",
-  build: "Build", site: "The site's build", cloud: "Cloud builds",
+  build: "Build", site: "The site's build", cloud: "Your builds",
   themeLabel: "Theme",
   power: "Start", stop: "Stop", starting: "Starting…", clickToStart: "Click anywhere (or press a key) to start: the browser lets the sound start only after one.", stopped: "Stopped.",
   reboot: "Restarting…", fault: "The firmware stopped (a fault). Start again.", noaudio: "This browser has no AudioWorklet: use Chrome, Edge or Firefox.",
   reset: "Reset memory", resetAsk: "Erase the simulator's saved projects, presets and samples? (Every build shares them.)",
   resetDone: "Memory erased.", shared: "The simulator's memory (projects, presets, samples) is kept in this browser and shared by every build.",
-  install: "Install this build on my FM-1", config: "Configuration", configTip: "Open this build's configuration in the builder (to change it and build again)", keysHelp: "Keys: the device's own — A W S E D … play notes (Shift for the octave above), the other keys hold the buttons; the arrows are OCT, Space is PLAY.",
+  install: "Flash it", config: "Configuration", configTip: "Open this build's configuration in the builder (to change it and build again)", keysHelp: "Keys: the device's own — A W S E D … play notes (Shift for the octave above), the other keys hold the buttons; the arrows are OCT, Space is PLAY.",
   load: "Load from FM-1", write: "Write to FM-1", saveFile: "Save to file", loadFile: "Load file",
   writeAsk: "Write the simulator's memory onto the FM-1? This replaces the projects, presets, kits and samples on the device.",
   writeDoing: "Writing", writeDone: "Written to the FM-1: objects",
@@ -187,7 +188,8 @@ export function mountSim(container, opts = {}) {
   const wanted = opts.build ?? (typeof location !== "undefined" ? new URLSearchParams(location.search).get("sim") : null);
   addStyle(container.ownerDocument);
   let active = false;                                  /* (the tab shown: activate / deactivate) */
-  const st = { choice: null, cloud: null, ctx: null, node: null, info: null, busy: false, wasm: null, keysDown: new Map(), buttonKeys: null };
+  const mine = myBuild();
+  const st = { mine: new Set([wanted, mine && mine.id].filter((x) => /^[0-9a-f]{16}$/.test(x || ""))), choice: null, cloud: null, ctx: null, node: null, info: null, busy: false, wasm: null, keysDown: new Map(), buttonKeys: null };
   const el = {};
 
   el.pick = h("select.oi-csearch.os-pick", { "aria-label": TEXT.build, onchange: () => choose(el.pick.value) });
@@ -251,10 +253,10 @@ export function mountSim(container, opts = {}) {
   const img = g.createImageData(240, 240);
   const say = (t, kind = "") => { el.status.textContent = t; el.status.dataset.kind = kind; };
 
-  /* ---- the builds: the site's, then the cloud builds that have a simulator */
+  /* ---- the builds: the site's, then the user's own (st.mine: asked for, or the builder's last) that have a simulator */
   function options() {
     const opt = (value, text) => h("option", { value }, text);
-    const cloud = st.cloud ? st.cloud.builds.filter((b) => b.sim) : [];
+    const cloud = st.cloud ? st.cloud.builds.filter((b) => b.sim && st.mine.has(b.id)) : [];
     el.pick.replaceChildren(
       packages.length ? h("optgroup", { label: TEXT.site }, packages.map((p, i) => opt(`site:${i}`, p.title))) : null,
       cloud.length ? h("optgroup", { label: TEXT.cloud }, cloud.map((b) => opt(`cloud:${b.id}`, `${b.name} · ${b.id} · ${b.date.slice(0, 10)}`))) : null);
@@ -268,8 +270,8 @@ export function mountSim(container, opts = {}) {
   async function loadBuildsNow() {
     options();
     try { st.cloud = await loadCloud(repo); } catch (e) { st.cloud = { sha: "", builds: [] }; }
-    const hit = wanted ? matchCloud(st.cloud.builds.filter((b) => b.sim), wanted) : [];
-    st.choice = hit.length === 1 ? `cloud:${hit[0].id}` : st.choice || (packages.length ? "site:0" : null);
+    const hit = wanted ? st.cloud.builds.find((b) => b.sim && b.id === wanted) : null;
+    st.choice = hit ? `cloud:${hit.id}` : st.choice || (packages.length ? "site:0" : null);
     options();
     if (!st.choice) say(TEXT.nosim);
     autoStart();
@@ -742,12 +744,13 @@ export function mountSim(container, opts = {}) {
     },
     deactivate() { active = false; releaseAll(); document.removeEventListener("keydown", kd); document.removeEventListener("keyup", ku); window.removeEventListener("blur", releaseAll); },
     async unmount() { this.deactivate(); await stop(); if (st.ctx) await st.ctx.close(); container.replaceChildren(); },
-    /** a cloud build chosen from outside (the installer's "try it"): picked, and started if the simulator runs */
+    /** a build of the user's chosen from outside (the builder's "Try it in the simulator"): picked, and started */
     async openBuild(id) {
       if (!/^[0-9a-f]{16}$/.test(id || "")) return;
       if (!st.cloud) await loadBuilds();
       const b = st.cloud.builds.find((x) => x.id === id && x.sim);
       if (!b) { say(TEXT.nosim, "err"); return; }
+      st.mine.add(id);
       st.choice = `cloud:${id}`; st.wasm = null; options();
       if (engine) { await stop(); }
       await start();

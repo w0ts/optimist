@@ -14,8 +14,9 @@
 //                    the return to stock in step 4 without a download; none: the user's own file only
 //     version,       the site's version ("0.1"); shown with the package
 //     source,        the tag or commit the site was made from ("" when unknown): the Source link
-//     repo,          "owner/name" whose cloud-builds branch lists the cloud builds (default: REPO's); build: a build
-//                    id to open that list on (default: the page's ?build=, which a cloud build's issue links to)
+//     repo,          "owner/name" whose cloud-builds branch holds the builds made with Build (default: REPO's); build:
+//                    the id of the user's build to offer first (default: the page's ?build=, which its issue links to,
+//                    else the builder's last finished build, localStorage MY_BUILD)
 //     onNavigate,    (where, detail) => void, where one of "build" "backup" "editor" "about", or "sim" with { build }
 //                    (a cloud build's "try it"), "build" with { cloud: stem } (its configuration): the host opens it (its tab, the
 //                    About box); without it those are plain links (links below). The rescue guide is always a link.
@@ -57,14 +58,12 @@ export const TEXT = {
   idOptimist: "Optimist", idRescue: "Optimist in USB rescue", idOfficial: "the official firmware V", idSloop: "SLOOP, Felucca or X0X",
   idUpdate: "in update mode", idOther: "another firmware",
   chooseLegend: "Firmware to install", relLabel: "Release", devBuild: "Development build",
+  useRelease: "Official release", flavLabel: "Flavour",
   useFile: "A file on this computer (.fwsc)", fileLabel: "Package file",
-  useCloud: "A cloud build",
-  cloudDesc: "Made by the builder's Build in the cloud; each is kept 30 days after it was last asked for.",
-  cloudSearch: "Build id or name", cloudLoading: "Loading the cloud builds…", cloudNone: "No cloud builds at the moment.",
-  cloudNoMatch: "No cloud build matches this.", cloudFail: "Could not load the cloud builds: ",
-  cloudPick: "Choose a build in the list.", cloudConfig: "configuration", cloudCopy: "Copy the build id",
-  cloudTitle: "cloud build ", cloudConfigTip: "Open its configuration in the builder (to look at it, or change it and build again)", cloudTry: "try it", cloudTryTip: "Run this build in the Simulator tab (in the browser, before flashing)",
-  buildOwn: "Or build your own firmware: ", buildLink: "open the builder",
+  useMine: "Your build", mineTitle: "your build ", mineFail: "Could not load your build: ",
+  mineGone: "Your build is no longer kept (30 days after it was last asked for): build it again.",
+  ownTitle: "Build your own", buildOwn: "Make your build…", buildAnother: "Make another build…",
+  buildOwnDesc: "Start from a flavour or one of your saved configurations, choose what goes in, build it in the cloud: it comes back here, ready to install.",
   pkgLoading: "Checking the package…", pkgReady: "Ready: ",
   pkgPickFile: "Choose a .fwsc file.",
   badpkg: "The package is damaged (its checksum does not match). Reload the page.",
@@ -74,7 +73,7 @@ export const TEXT = {
   stockTitle: "Official firmware V15 (your file)",
   stockNote: "The official firmware does not use Optimist's projects, presets, kits or samples: save your work with the editor's Backup first.",
   keep: "Keep the cable in and this page open until it says Done.",
-  install: "Install", installStock: "Install the official V15", installAgain: "Install again",
+  install: "Install", installFile: "Install ", installStock: "Install the official V15", installAgain: "Install again",
   phases: ["The FM-1 checks the package", "Switching to update mode", "Writing", "Restarting"],
   done: "Done. The FM-1 runs ", doneResumed: "Done. The update finished.",
   openEditor: "Open the editor",
@@ -219,15 +218,12 @@ export function cloudBuilds(index) {
       sim: b.sim === `${b.stem}.wasm` ? b.sim : null }));   /* (its simulator: web/sim/sim.js) */
 }
 
-/** the builds a search keeps: a build id (or its start, 4+ digits, spaces and a "key" word ignored) or part of a name */
-export function matchCloud(builds, query) {
-  const text = String(query || "").trim().toLowerCase(), id = text.replace(/^(build|key|id)\s*/, "").replace(/[\s`]+/g, "");
-  if (!text) return builds;
-  if (/^[0-9a-f]{4,64}$/.test(id)) {
-    const byId = builds.filter((b) => b.id.startsWith(id.slice(0, 16)));
-    if (byId.length) return byId;
-  }
-  return builds.filter((b) => b.name.toLowerCase().includes(text) || b.stem.includes(text));
+/* the builder's last finished build (web/builder/cloud.js MY_BUILD, {id, name, issue, t}): offered, and picked when the
+   page opens (the Mirror app does the same) */
+const MY_BUILD = "optimist-my-build";
+export function myBuild() {
+  try { const v = JSON.parse(localStorage.getItem(MY_BUILD) || "null"); return v && /^[0-9a-f]{16}$/.test(v.id) ? { id: v.id, name: String(v.name || "").slice(0, 32), t: Number(v.t) || 0 } : null; }
+  catch (e) { return null; }
 }
 
 export const cloudFileUrl = (repo, sha, name) => `https://raw.githubusercontent.com/${repo}/${sha}/${encodeURIComponent(name)}`;
@@ -287,11 +283,12 @@ export function mountInstaller(container, opts = {}) {
   const repo = opts.repo || REPO.replace("https://github.com/", "");
   const fetchFn = opts.fetch || ((...a) => fetch(...a));
   const wanted = opts.build ?? (typeof location !== "undefined" ? new URLSearchParams(location.search).get("build") : null);
-  let wantedNow = null;                               /* (openBuild's id, while the list loads) */
+  const mine0 = /^[0-9a-f]{16}$/.test(wanted || "") ? { id: wanted, name: "", t: Date.now() } : myBuild();
+  const fresh = !!mine0;                               /* (the user's build, when there is one, is picked at once: as the app) */
   addStyle(container.ownerDocument);
 
-  const st = { access: null, choice: wanted ? "cloud" : packages.length ? "0" : "file", pkg: null, pkgErr: "", busy: false, asked: false, gen: 0,
-    cloud: null, cloudPick: null };
+  const st = { access: null, choice: fresh ? "mine" : packages.length ? "0" : "file", pkg: null, pkgErr: "", busy: false, asked: false, gen: 0,
+    mine: mine0 };
   const el = {};
   const link = (where, text) => h("a", { href: links[where], ...(/^https?:/.test(links[where]) ? { target: "_blank", rel: "noopener" } : {}),
     onclick: (ev) => { if (opts.onNavigate && where !== "docs") { ev.preventDefault(); opts.onNavigate(where); } } }, text);
@@ -310,38 +307,43 @@ export function mountInstaller(container, opts = {}) {
     el.help);
 
   /* ---- 2 Choose */
-  const radios = packages.map((p, i) => choiceRow(String(i), p.title, p.description, p.product));
+  /* a release: its version, then its flavour (two menus in one row, as the Mirror app); st.choice is the package's index */
   const groups = releaseGroups(packages, source), groupOf = (i) => (packages[i] && packages[i].release) || "";
   st.group = groups.length ? groups[0].key : "";
   if (groups.length && st.choice === "0") st.choice = String(groups[0].idx[0]);   /* (the newest release's first flavour) */
-  el.rel = groups.length > 1
-    ? h("select.oi-csearch.oi-rel", { "aria-label": TEXT.relLabel, onchange: () => pickGroup(el.rel.value) }, groups.map((g) => h("option", { value: g.key }, g.label)))
-    : null;
-  const relRow = groups.length ? h("div.oi-relrow", {}, h("span.o-dim", {}, `${TEXT.relLabel}: `), el.rel || h("b", {}, groups[0].label)) : null;
-  function showGroup() { radios.forEach((r, i) => { r.hidden = groupOf(i) !== st.group; }); }
+  el.rel = h("select.oi-csearch.oi-rel", { "aria-label": TEXT.relLabel, onchange: () => pickGroup(el.rel.value) }, groups.map((g) => h("option", { value: g.key }, g.label)));
+  el.flav = h("select.oi-csearch.oi-flav", { "aria-label": TEXT.flavLabel, onchange: () => { st.choice = el.flav.value; syncChoice(); loadChoice(); } });
+  el.flavDesc = h("span.oi-desc.o-dim");
+  const relRow = groups.length ? choiceRow("rel", TEXT.useRelease, null, null,
+    h("div.oi-relpick", {}, h("label.o-field", {}, h("span", {}, TEXT.relLabel), el.rel), h("label.o-field", {}, h("span", {}, TEXT.flavLabel), el.flav), el.flavDesc)) : null;
+  function fillFlavours() {
+    const g = groups.find((x) => x.key === st.group) || groups[0];
+    if (!g) return;
+    el.rel.value = g.key;
+    el.flav.replaceChildren(...g.idx.map((i) => h("option", { value: String(i) }, packages[i].title)));
+    el.flav.value = /^\d+$/.test(st.choice) && groupOf(+st.choice) === g.key ? st.choice : String(g.idx[0]);
+    const p = packages[Number(el.flav.value)];
+    el.flavDesc.textContent = p ? [p.product, p.description].filter(Boolean).join(" · ") : "";
+  }
   function pickGroup(key) {
     st.group = key;
-    showGroup();
-    if (/^\d+$/.test(st.choice) && groupOf(+st.choice) !== key) {   /* a flavour of another release was picked: this one's first */
-      const g = groups.find((x) => x.key === key);
-      if (g) { st.choice = String(g.idx[0]); syncChoice(); loadChoice(); }
-    }
+    fillFlavours();
+    st.choice = el.flav.value;   /* (another release: its flavour of the same place, its first) */
+    syncChoice();
+    loadChoice();
   }
-  showGroup();
+  fillFlavours();
   el.file = h("input.oi-file", { type: "file", accept: ".fwsc", "aria-label": TEXT.fileLabel, onchange: () => { st.choice = "file"; syncChoice(); loadChoice(); } });
   const fileRow = choiceRow("file", TEXT.useFile, null, null, el.file);
-  el.csearch = h("input.oi-csearch", { type: "search", placeholder: TEXT.cloudSearch, "aria-label": TEXT.cloudSearch, value: wanted || "",
-    spellcheck: "false", autocomplete: "off", oninput: () => renderCloud(), onfocus: () => { if (st.choice !== "cloud") { st.choice = "cloud"; syncChoice(); loadChoice(); } } });
-  el.clist = h("ul.oi-clist");
-  el.cmsg = h("p.oi-cmsg.o-dim", { role: "status", "aria-live": "polite" });
-  const cloudRow = choiceRow("cloud", TEXT.useCloud, TEXT.cloudDesc, null, h("div.oi-cloud", {}, el.csearch, el.cmsg, el.clist));
+  el.mineInfo = h("span.oi-desc.o-dim");
+  el.mineRow = choiceRow("mine", TEXT.useMine, null, null, el.mineInfo);
+  el.own = h("button.o-btn", { type: "button", onclick: () => { if (opts.onNavigate) opts.onNavigate("build"); else location.href = links.build; } }, TEXT.buildOwn);
   el.stockRow = choiceRow("stock", TEXT.stockTitle, TEXT.stockNote, "FM-1_015");
   el.stockRow.hidden = true;
   el.pkginfo = h("p.oi-pkg", { role: "status", "aria-live": "polite" });
   const step2 = card(2, TEXT.s2,
-    h("fieldset.oi-choices", {}, h("legend.o-sr", {}, TEXT.chooseLegend), relRow, radios, cloudRow, fileRow, el.stockRow),
-    el.pkginfo,
-    h("p.o-dim", {}, TEXT.buildOwn, link("build", TEXT.buildLink)));
+    h("fieldset.oi-choices", {}, h("legend.o-sr", {}, TEXT.chooseLegend), relRow, el.mineRow, fileRow, el.stockRow),
+    el.pkginfo);
 
   /* ---- 3 Install */
   el.go = h("button.o-btn.primary.big.oi-go", { type: "button", disabled: true, onclick: () => install() }, TEXT.install);
@@ -355,6 +357,11 @@ export function mountInstaller(container, opts = {}) {
   const step3 = card(3, TEXT.s3,
     h("p", {}, TEXT.keep), el.stockWarn, el.go, el.phases, el.bar, el.status, el.err, el.ok,
     h("details.o-details.oi-logbox", {}, h("summary", {}, TEXT.logTitle), el.log));
+
+  /* ---- Build your own: its own flow (the builder), a card of its own below Install, as the Mirror app */
+  const ownCard = h("section.o-panel.oi-step.oi-own", { "aria-labelledby": "oi-sown" },
+    h("div.o-panel-h", {}, h("h2.oi-h", { id: "oi-sown" }, h("span", {}, TEXT.ownTitle))),
+    h("div.o-panel-b", {}, h("p.o-dim", {}, TEXT.buildOwnDesc), el.own));
 
   /* ---- 4 When something goes wrong */
   el.stockFile = h("input.oi-file", { type: "file", accept: ".fwsc", "aria-label": TEXT.stockFile, onchange: () => loadStock() });
@@ -375,7 +382,9 @@ export function mountInstaller(container, opts = {}) {
   el.meta = h("p.oi-meta.o-dim");
   const root = h("div.oi", {},
     h("header.oi-intro", {}, h("h1.oi-title", {}, TEXT.title), h("p.oi-what", {}, TEXT.what)),
-    h("ol.oi-steps", {}, [step1, step2, step3, step4].map((s) => h("li", {}, s))),
+    h("ol.oi-steps", {}, [step1, step2, step3].map((s) => h("li", {}, s))),
+    ownCard,
+    h("ol.oi-steps", { start: "4" }, h("li", {}, step4)),
     h("footer.oi-foot", {}, el.meta,
       h("p.o-dim", {}, h("a", { href: srcHref, target: "_blank", rel: "noopener" }, TEXT.source), " · ", link("about", TEXT.about))));
   container.replaceChildren(root);
@@ -388,16 +397,20 @@ export function mountInstaller(container, opts = {}) {
   }
   function choiceRow(value, title, desc, product, extra = null) {
     const id = `oi-c-${value}`;
-    const input = h("input.oi-radio", { type: "radio", name: "oi-choice", id, value, onchange: () => { st.choice = value; syncChoice(); loadChoice(); } });
+    const input = h("input.oi-radio", { type: "radio", name: "oi-choice", id, value, onchange: () => { st.choice = value === "rel" ? el.flav.value : value; syncChoice(); loadChoice(); } });
     return h("div.oi-choice", { "data-value": value },
       input,
       h("label", { for: id }, h("b", {}, title), product ? h("span.o-tag.outline", {}, product) : null, desc ? h("span.oi-desc.o-dim", {}, desc) : null),
       extra);
   }
   function syncChoice() {
-    for (const r of root.querySelectorAll(".oi-radio")) r.checked = r.value === st.choice;
-    el.file.disabled = el.csearch.disabled = st.busy;
-    for (const b of el.clist.querySelectorAll("button")) b.disabled = st.busy;
+    for (const r of root.querySelectorAll(".oi-radio")) r.checked = r.value === st.choice || (r.value === "rel" && /^\d+$/.test(st.choice));
+    if (/^\d+$/.test(st.choice) && groupOf(+st.choice) !== st.group) { st.group = groupOf(+st.choice); fillFlavours(); }
+    el.flav.disabled = el.rel.disabled = st.busy;
+    el.own.textContent = st.mine ? TEXT.buildAnother : TEXT.buildOwn;
+    el.file.disabled = st.busy;
+    el.mineRow.hidden = !st.mine;
+    el.mineInfo.textContent = st.mine ? `${st.mine.name ? st.mine.name + " · " : ""}${st.mine.id}` : "";
     for (const r of root.querySelectorAll(".oi-radio")) r.disabled = st.busy;
   }
 
@@ -407,9 +420,7 @@ export function mountInstaller(container, opts = {}) {
     st.pkg = null; st.pkgErr = "";
     render();
     if (st.choice === "stock") { st.pkg = st.stock || null; render(); return; }
-    if (st.choice === "cloud" && !st.cloud) loadCloudList();
-    say(el.pkginfo, st.choice === "file" && !(el.file.files && el.file.files[0]) ? TEXT.pkgPickFile
-      : st.choice === "cloud" && !st.cloudPick ? TEXT.cloudPick : TEXT.pkgLoading);
+    say(el.pkginfo, st.choice === "file" && !(el.file.files && el.file.files[0]) ? TEXT.pkgPickFile : TEXT.pkgLoading);
     try {
       let pkg;
       if (st.choice === "file") {
@@ -417,20 +428,27 @@ export function mountInstaller(container, opts = {}) {
         if (!f) return;
         pkg = await checkPackage(new Uint8Array(await f.arrayBuffer()));
         pkg.title = pkg.stock ? TEXT.stockTitle : f.name;
-      } else if (st.choice === "cloud") {
-        const b = st.cloudPick;
-        if (!b) return;
-        const r = await fetchFn(cloudFileUrl(repo, st.cloud.sha, b.fwsc));
+        pkg.file = f.name;
+      } else if (st.choice === "mine") {
+        if (!st.mine) return;
+        let shelf;
+        try { shelf = await loadCloud(repo, fetchFn); } catch (e) { throw codeError("loadfail", e.message); }
+        const b = shelf.builds.find((x) => x.id === st.mine.id);
+        if (!b) { if (gen === st.gen) { st.pkgErr = TEXT.mineGone; render(); } return; }
+        if (!st.mine.name) { st.mine = { ...st.mine, name: b.name }; syncChoice(); }
+        const r = await fetchFn(cloudFileUrl(repo, shelf.sha, b.fwsc));
         if (!r.ok) throw codeError("loadfail", `HTTP ${r.status}`);
         pkg = await checkPackage(new Uint8Array(await r.arrayBuffer()));
         if (pkg.stock || (pkg.sha256 && pkg.sha256 !== b.sha256)) throw codeError("badpkg", `sha256 ${pkg.sha256}, expected ${b.sha256}`);
-        pkg.title = `${b.name} (${TEXT.cloudTitle}${b.id})`;
+        pkg.title = `${b.name} (${TEXT.mineTitle}${b.id})`;
+        pkg.file = b.fwsc;
       } else {
         const meta = packages[Number(st.choice)];
         const r = await fetch(meta.pkg, { cache: "no-cache" });   /* (Pages lets a browser keep a file 10 min: a newer deploy's package against an older page's checksum read "damaged") */
         if (!r.ok) throw codeError("loadfail", `HTTP ${r.status}`);
         pkg = await checkPackage(new Uint8Array(await r.arrayBuffer()), meta);
         pkg.title = meta.title; pkg.version = meta.release || version;
+        pkg.file = decodeURIComponent(String(meta.pkg).split(/[/?#]/).filter(Boolean).pop() || "");
       }
       if (gen !== st.gen) return;
       st.pkg = pkg;
@@ -440,43 +458,6 @@ export function mountInstaller(container, opts = {}) {
       if (e && e.detail && e.code === "badpkg") log(e.detail);
     }
     render();
-  }
-  /* ---- the cloud builds: the list (loaded once, when the choice is first made), the search, the pick */
-  async function loadCloudList() {
-    st.cloud = { loading: true, builds: [] };
-    renderCloud();
-    try { st.cloud = await loadCloud(repo, fetchFn); }
-    catch (e) { st.cloud = { err: e.message, builds: [] }; renderCloud(); st.cloud = null; return; }
-    const want = wantedNow || wanted;
-    const hit = want ? matchCloud(st.cloud.builds, want) : [];
-    if (hit.length === 1 && st.choice === "cloud") { pickCloud(hit[0]); return; }
-    renderCloud();
-  }
-  function pickCloud(b) {
-    if (st.busy) return;
-    st.cloudPick = b; st.choice = "cloud";
-    syncChoice(); renderCloud(); loadChoice();
-  }
-  function renderCloud() {
-    const c = st.cloud;
-    if (!c) { el.cmsg.textContent = ""; el.clist.replaceChildren(); return; }
-    const shown = matchCloud(c.builds, el.csearch.value);
-    el.cmsg.textContent = c.loading ? TEXT.cloudLoading : c.err ? TEXT.cloudFail + c.err : !c.builds.length ? TEXT.cloudNone : !shown.length ? TEXT.cloudNoMatch : "";
-    const cfg = (b) => `${links.build}${links.build.includes("?") ? "&" : "?"}cloud=${b.stem}`;
-    el.clist.replaceChildren(...shown.map((b) => h("li.oi-cbuild", { "data-on": st.cloudPick && st.cloudPick.id === b.id ? "1" : null },
-      h("button.oi-cpick", { type: "button", "aria-pressed": String(!!(st.cloudPick && st.cloudPick.id === b.id)), disabled: st.busy, onclick: () => pickCloud(b) },
-        h("b", {}, b.name), " ", h("code.oi-cid", {}, b.id)),
-      h("span.oi-cmeta.o-dim", {}, [b.date.slice(0, 10), b.commit ? `from ${b.commit.slice(0, 7)}` : null, b.flash ? `flash ${b.flash.toLocaleString("en")} B` : null].filter(Boolean).join(" · ")),
-      h("span.oi-cacts", {},
-        h("button.o-btn.sm.quiet", { type: "button", title: TEXT.cloudCopy, onclick: () => copyId(b.id) }, "copy id"),
-        b.sim ? h("a", { href: `${links.sim}?sim=${b.id}#sim`, title: TEXT.cloudTryTip,
-          onclick: (ev) => { if (opts.onNavigate) { ev.preventDefault(); opts.onNavigate("sim", { build: b.id }); } } }, TEXT.cloudTry) : null,
-        h("a", { href: cfg(b), target: "_blank", rel: "noopener", title: TEXT.cloudConfigTip,
-          onclick: (ev) => { if (opts.onNavigate) { ev.preventDefault(); opts.onNavigate("build", { cloud: b.stem }); } } }, TEXT.cloudConfig)))));
-  }
-  async function copyId(id) {
-    try { await navigator.clipboard.writeText(id); el.cmsg.textContent = `Copied ${id}`; }
-    catch (e) { el.cmsg.textContent = `Build id: ${id}`; }     // (no clipboard here: shown instead)
   }
   async function loadStock(own = false) {   /* own: the copy the site keeps (opts.stock), else the file chosen */
     const f = !own && el.stockFile.files && el.stockFile.files[0];
@@ -504,12 +485,13 @@ export function mountInstaller(container, opts = {}) {
     const p = st.pkg;
     if (p) say(el.pkginfo, `${TEXT.pkgReady}${p.title}${p.version ? " " + p.version : ""} · ${p.product}`, "ok");
     else if (st.pkgErr) say(el.pkginfo, st.pkgErr, "err");
-    el.go.textContent = p && p.stock ? TEXT.installStock : TEXT.install;
+    /* (the button names the file it writes: nothing is installed blindly; the user, for the app and the page alike) */
+    el.go.textContent = p && p.stock ? TEXT.installStock : p && p.file ? TEXT.installFile + p.file : TEXT.install;
     el.go.disabled = !p || st.busy || !midiOf || !secure;
     el.find.disabled = st.busy || !midiOf || !secure;
     el.stockWarn.hidden = !(p && p.stock);
     el.meta.replaceChildren(...(p ? [h("span", {}, `${p.title}${p.version ? " " + p.version : ""}`), " · ", h("span", {}, p.product),
-      source && !p.stock && st.choice !== "file" && st.choice !== "cloud" ? [" · ", TEXT.builtFrom, h("span.o-mono", {}, source)] : [],
+      source && !p.stock && st.choice !== "file" && st.choice !== "mine" ? [" · ", TEXT.builtFrom, h("span.o-mono", {}, source)] : [],
       p.sha256 ? [" · sha256 ", h("code.oi-sha", {}, p.sha256)] : []] : []).flat());
   }
 
@@ -661,14 +643,13 @@ export function mountInstaller(container, opts = {}) {
   return {
     unmount() { window.removeEventListener("beforeunload", beforeUnload); if (st.access) st.access.onstatechange = null; container.replaceChildren(); },
     get busy() { return st.busy; },
-    /** a cloud build chosen from outside (the simulator's "Install this build"): the list opened on its id */
+    /** the user's build chosen from outside (the builder's and the simulator's "Flash it"): offered first and picked */
     openBuild(id) {
       if (st.busy || !/^[0-9a-f]{16}$/.test(id || "")) return;
-      el.csearch.value = id;
-      st.choice = "cloud";
+      st.mine = st.mine && st.mine.id === id ? st.mine : { id, name: "", t: Date.now() };
+      st.choice = "mine";
       syncChoice();
-      if (st.cloud && !st.cloud.loading) { const hit = matchCloud(st.cloud.builds, id); if (hit.length === 1) { pickCloud(hit[0]); return; } renderCloud(); }
-      else { wantedNow = id; loadChoice(); }
+      loadChoice();
     },
   };
 }

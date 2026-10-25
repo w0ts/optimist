@@ -64,7 +64,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           AUTHOR: ${{ github.event.issue.user.login }}
+          ROLE: ${{ github.event.issue.author_association }}
         run: |
+          # (the maintainers are not counted: the relay's issues are theirs, and tools/cloud_relay counts those per address)
+          case "$ROLE" in OWNER|MEMBER|COLLABORATOR) exit 0 ;; esac
           since="$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%SZ)"
           n="$(gh api -X GET search/issues -f q="repo:$REPO is:issue label:cloud-build author:$AUTHOR created:>$since" --jq .total_count)"
           if [ "$n" -gt "$MAX_PER_DAY" ]; then

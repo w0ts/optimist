@@ -1,14 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// The web builder as a module: mountBuilder(container, {onNavigate, pyodideBase}) builds the whole UI inside `container`
-// (a root class `ob-root`, the shared o- classes, its own CSS in builder.css under that class) and returns a handle:
+// The web builder as a module: mountBuilder(container, {onNavigate, onBuild, pyodideBase, app}) builds the whole UI inside
+// `container` (a root class `ob-root`, the shared o- classes, its own CSS in builder.css under that class) and returns a handle:
 // activate() / deactivate() (the keyboard shortcuts and, the first time, Python), destroy(). Nothing here touches the
 // page outside the container but the shortcuts while active and one <link> for builder.css. The list, the cards, the
 // messages and the details are the menu's (tools/builder/menu.py); every rule runs in Python (py-worker.js ->
-// tools/builder/web_api.py). docs/WEB.md.
+// tools/builder/web_api.py). The cloud build (where from, the request, its progress): cloud.js. opts.app: the Mirror
+// app's page (web/builder/app.html): the Build card first, without the files and the keys. docs/WEB.md.
 import {
-  CLOUD_RELEASE, PYODIDE_VERSION, REGIONS, SORTS, assetStem, barModel, fmtK, built, cloudConfigUrl, cloudIssueUrl, commitOf, repoOf, defaultPreset, defaults, deltaOf, fileName, fmt,
-  changeText, gaugeModel, hasInfo, indexRegistry, kDelta, messagesOf, offFits, oneLine, overflowLines, presets, pyodideBase, treeOf,
+  PYODIDE_VERSION, TURNSTILE_SITEKEY, REGIONS, SORTS, barModel, fmtK, built, cloudConfigUrl, commitOf, repoOf, defaultPreset, defaults, deltaOf, fileName, fmt,
+  changeText, gaugeModel, hasInfo, indexRegistry, kDelta, messagesOf, offFits, oneLine, overflowLines, presets, pyodideBase, savedOf, treeOf,
 } from "./logic.js";
+import { mountCloud } from "./cloud.js";
 
 
 const TEMPLATE = `
@@ -20,8 +22,11 @@ const TEMPLATE = `
   <div class="cols">
     <div id="left">
     <div class="tools">
+      <button type="button" id="back" class="quiet" hidden>← Firmware</button>
       <label class="o-field">Start from<select id="bpreset" aria-describedby="presetdesc"></select></label>
       <label class="o-field">Name<input id="name" type="text" maxlength="40" autocomplete="off" spellcheck="false"></label>
+      <button type="button" id="save" title="Keep this configuration under its name (in this browser, or the app)">Save</button>
+      <button type="button" id="unsave" class="quiet" hidden>Delete</button>
       <label class="o-field grow">Search<input id="search" type="search" placeholder="label, key, group" autocomplete="off"></label>
       <label class="o-field half">Sort<select id="sort"><option value="">default order</option><option value="flash">flash, largest first</option><option value="ram">ram, largest first</option><option value="pool">pool, largest first</option><option value="ramtext">ramtext, largest first</option></select></label>
       <button type="button" id="expand" class="icon" title="Expand all (x)" aria-label="Expand all">▾▾</button>
@@ -34,7 +39,7 @@ const TEMPLATE = `
     </div>
     <aside id="bside" aria-label="Size, configuration and details">
       <section id="gauges" class="o-panel" aria-label="Size estimate">
-        <div class="o-panel-h"><h2>Size</h2><span class="o-chip accent" id="previewtag" hidden>preview</span><button type="button" id="how" class="o-info" aria-label="About the estimate" aria-haspopup="dialog">i</button></div>
+        <div class="o-panel-h"><h2>Size</h2><span class="o-chip" id="fitmark" hidden></span><span class="o-chip accent" id="previewtag" hidden>preview</span><button type="button" id="how" class="o-info" aria-label="About the estimate" aria-haspopup="dialog">i</button></div>
         <div class="o-panel-b">
           <div id="bars"></div>
           <div class="side">
@@ -44,16 +49,18 @@ const TEMPLATE = `
           </div>
         </div>
       </section>
-      <section id="result" class="o-panel" aria-label="Your configuration">
-        <div class="o-panel-h"><h2>Your configuration</h2></div>
+      <section id="result" class="o-panel" aria-label="Build">
+        <div class="o-panel-h"><h2>Build</h2></div>
         <div class="o-panel-b">
+          <label class="o-field">Build from<select id="bref"></select></label>
           <div class="row2">
-            <button type="button" id="download" class="primary" disabled>Download .config</button>
-            <button type="button" id="build" disabled aria-describedby="buildmsg">Build in the cloud</button>
+            <button type="button" id="build" class="primary" disabled aria-describedby="buildmsg">Build</button>
+            <button type="button" id="download" disabled>Download .config</button>
           </div>
-          <p class="o-small">Hash <code id="hash">-</code> · cloud key <code id="key" role="button" tabindex="0" aria-label="Copy the cloud key">-</code></p>
+          <p class="o-small" id="hashline">Hash <code id="hash">-</code> · cloud key <code id="key" role="button" tabindex="0" aria-label="Copy the cloud key">-</code></p>
           <p class="o-small o-dim" id="keynote"></p>
           <p class="o-small" id="buildmsg" role="status"></p>
+          <div id="botcheck" hidden></div>
           <div class="o-small" id="buildwatch" role="status" aria-live="polite" hidden></div>
           <details class="o-details" id="buildhow"><summary>Build it yourself</summary>
             <p id="buildnote" class="o-small o-dim">From a checkout: <code>python3 tools/optimist.py build --config FILE</code> (or open it in the menu: <code>python3 tools/optimist.py builder --config FILE</code>).</p>
@@ -67,8 +74,8 @@ const TEMPLATE = `
               <div class="row2"><button type="button" id="pasteload">Load the pasted text</button><span id="importmsg" class="o-small" role="status"></span></div>
             </div>
           </details>
-          <details class="o-details"><summary>The canonical configuration (what the key hashes)</summary><pre id="canon"></pre></details>
-          <details class="o-details"><summary>The .config file</summary><pre id="dump"></pre></details>
+          <details class="o-details" id="canondet"><summary>The canonical configuration (what the key hashes)</summary><pre id="canon"></pre></details>
+          <details class="o-details" id="dumpdet"><summary>The .config file</summary><pre id="dump"></pre></details>
         </div>
       </section>
       <section id="proposals" class="o-panel" aria-label="Ways to fit" hidden>
@@ -122,6 +129,7 @@ const el = (tag, attrs = {}, ...kids) => {
 export function mountBuilder(container, opts = {}) {
 const root = container;
 root.classList.add("ob-root", "o-ui");
+if (opts.app) root.classList.add("ob-app");      // (the Mirror app: builder.css shows the Build card first, no files or keys)
 root.innerHTML = TEMPLATE;
 loadStyle();
 const $ = (id) => root.querySelector("#" + id);
@@ -129,6 +137,11 @@ let active = false, started = false;
 const REMEMBER = "optimist-builder-last";        // (only a convenience: the page works without storage)
 const remember = (text) => { try { localStorage.setItem(REMEMBER, JSON.stringify({ text })); } catch (e) { /* no storage: fine */ } };
 const recall = () => { try { const v = JSON.parse(localStorage.getItem(REMEMBER) || "null"); return v && typeof v.text === "string" ? v.text : null; } catch (e) { return null; } };
+
+/* the configurations the user saves by name (the Save button: the Name field's name): this browser's, or the app's */
+const SAVED = "optimist-builder-saved";
+const loadSaved = () => { try { return savedOf(JSON.parse(localStorage.getItem(SAVED) || "{}")); } catch (e) { return {}; } };
+const storeSaved = (all) => { try { localStorage.setItem(SAVED, JSON.stringify(all)); return true; } catch (e) { return false; } };
 
 const FOLDS = "optimist-builder-folds";       // (the folded sections, remembered by this browser: only a convenience)
 const loadFolds = () => { try { const v = JSON.parse(localStorage.getItem(FOLDS) || "[]"); return new Set(Array.isArray(v) ? v.filter((x) => typeof x === "string") : []); } catch (e) { return new Set(); } };
@@ -190,12 +203,8 @@ async function choosePreset(id) {
   const p = S.presets.find((x) => x.id === id);
   if (!p) return;
   $("bpreset").value = id;
+  $("unsave").hidden = p.kind !== "saved";
   $("presetdesc").textContent = p.description;
-  if (p.kind === "defaults") {
-    S.values = defaults(S.reg); S.name = "default"; S.room = null; S.fit = null; $("name").value = S.name;
-    await refresh();
-    return;
-  }
   const r = await loadText(p.text, p.name, p.label);
   if (!r.ok) say(r.message);
 }
@@ -256,7 +265,12 @@ function renderBars() {
       el("span", { class: "gn" }, el("span", { class: "gu", text: m.text }), m.overText ? el("span", { class: "go", text: m.overText }) : null), bar));
   }
   const overNow = Object.keys(v.over).length > 0;
-  $("fit").hidden = !overNow;                 // (only when the configuration does not fit: nothing in its place otherwise)
+  /* the card's marker: its head line green when it all fits, red when a region is over (the preview's, while previewed),
+     with the word for who cannot tell the colours apart */
+  $("gauges").dataset.fit = over ? "over" : "ok";
+  $("fitmark").hidden = false;
+  $("fitmark").textContent = over ? "too big" : "fits";
+  $("fit").hidden = !overNow;                // (only when the configuration does not fit: nothing in its place otherwise)
   const u = v.undo, ud = $("undo");
   ud.className = "o-chip";
   ud.textContent = u ? `undo ${fmtKB(u.ring)}` : "";
@@ -453,7 +467,8 @@ function renderResult() {
   const cloud = buildState(ev);
   $("build").disabled = !cloud.ok;
   $("build").title = cloud.why;
-  if (!S.building) $("buildmsg").textContent = cloud.ok ? "Build in the cloud opens a GitHub issue with this configuration (a GitHub account is needed); a workflow builds it and answers there with the download link." : cloud.why;
+  if (!S.building) $("buildmsg").textContent = cloud.ok ? (TURNSTILE_SITEKEY ? "Build in the cloud sends this configuration (no GitHub account needed, a quick check that you are not a robot first); a workflow builds it and this page shows it when it is ready."
+    : "Build in the cloud opens a GitHub issue with this configuration (a GitHub account is needed); a workflow builds it and answers there with the download link.") : cloud.why;
   $("download").title = ev.errors.length ? "This configuration has errors: a build refuses it (download it anyway to fix it in the menu)" : "";
 }
 
@@ -472,109 +487,14 @@ function buildState(ev) {
   return { ok: true, why: "" };
 }
 
-/** the release asset of this key, when it was built before (the public API: no login, 60 calls an hour) -> URL or null */
-async function builtBefore(stem) {
-  try {
-    const r = await fetch(`https://api.github.com/repos/${S.repo}/releases/tags/${CLOUD_RELEASE}`, { signal: AbortSignal.timeout(5000) });
-    if (!r.ok) return null;
-    const a = ((await r.json()).assets || []).find((x) => x.name === `${stem}.fwsc`);
-    return a ? a.browser_download_url : null;
-  } catch (e) { return null; }   // (offline, rate-limited: ask for a build instead)
-}
-
-/* ---- the build watch: a request sent, the builder looks for its build on the cloud-builds branch (the installer's list:
-   tools/cloud_shelf.sh) until it is there, then offers it to the installer and the simulator. The build id is the cloud key's
-   first 16 digits, known before the issue is sent; kept in this browser, so a reload goes on watching. The public API is
-   60 calls an hour per network: one a check, every 40 s (2 min once GitHub says the limit is reached), 30 min at most */
-const WATCH_KEY = "optimist-builder-watch", WATCH_EVERY = 40000, WATCH_SLOW = 120000, WATCH_FOR = 30 * 60000;
-function watchSaved() {
-  try { const w = JSON.parse(localStorage.getItem(WATCH_KEY) || "null"); return w && /^[0-9a-f]{16}$/.test(w.id) && Date.now() - w.t0 < WATCH_FOR ? w : null; }
-  catch (e) { return null; }
-}
-function watchSave(w) { try { if (w) localStorage.setItem(WATCH_KEY, JSON.stringify(w)); else localStorage.removeItem(WATCH_KEY); } catch (e) { /* no storage */ } }
-/** the build of this id on the cloud-builds branch, or null (none yet); throws "limit" when GitHub refuses the check */
-async function shelfBuild(id) {
-  const r = await fetch(`https://api.github.com/repos/${S.repo}/branches/cloud-builds`, { signal: AbortSignal.timeout(8000) });
-  if (r.status === 404) return null;                   /* (no build on the branch yet) */
-  if (r.status === 403 || r.status === 429) throw new Error("limit");
-  if (!r.ok) return null;
-  const sha = ((await r.json()).commit || {}).sha;
-  if (!/^[0-9a-f]{40}$/.test(sha || "")) return null;
-  const ix = await fetch(`https://raw.githubusercontent.com/${S.repo}/${sha}/index.json`, { signal: AbortSignal.timeout(8000) });
-  if (!ix.ok) return null;
-  const b = ((await ix.json()).builds || []).find((x) => x && x.id === id);
-  return b ? { id, name: String(b.name || ""), sim: typeof b.sim === "string" && b.sim.endsWith(".wasm") } : null;
-}
-function watchGo(where, id) {
-  if (opts.onNavigate) opts.onNavigate(where, { build: id });
-  else location.href = where === "sim" ? `../editor/?sim=${id}#sim` : `../installer/?build=${id}`;
-}
-function watchShow(state, w, b) {
-  const box = $("buildwatch");
-  box.hidden = !state;
-  if (!state) { box.replaceChildren(); return; }
-  if (state === "ready") {
-    box.replaceChildren(el("b", { text: `Built: ${b.name || w.name || "your configuration"} (build id ${w.id}). ` }),
-      el("button", { type: "button", class: "primary", text: "Install on my FM-1", onclick: () => watchGo("install", w.id) }), " ",
-      b.sim ? el("button", { type: "button", text: "Try in the simulator", onclick: () => watchGo("sim", w.id) }) : el("span", { class: "o-dim", text: "(this build has no simulator)" }), " ",
-      el("button", { type: "button", class: "quiet", text: "Dismiss", onclick: () => { watchSave(null); watchShow(null); } }));
-    return;
-  }
-  const mins = Math.max(0, Math.round((WATCH_FOR - (Date.now() - w.t0)) / 60000));
-  box.replaceChildren(state === "timeout" ? `Build ${w.id} has not appeared in 30 minutes: see your request on GitHub (it may have failed). `
-    : `Waiting for build ${w.id}: submit the request on GitHub, then it takes a few minutes${state === "slow" ? " (GitHub limits the checks from this network: checking every 2 minutes)" : ""}. Watching ${mins} more min. `,
-    el("a", { href: `https://github.com/${S.repo}/issues?q=label%3Acloud-build`, target: "_blank", rel: "noopener", text: "the requests" }), " ",
-    el("button", { type: "button", class: "quiet", text: state === "timeout" ? "Dismiss" : "Stop watching", onclick: () => { watchStop(); watchSave(null); watchShow(null); } }));
-}
-function watchStop() { clearTimeout(S.watchT); S.watchT = 0; }
-/** watch for build id (the name for the message); checked at once, then every WATCH_EVERY */
-function watchBuild(id, name, t0 = Date.now()) {
-  const w = { id, name, t0 };
-  watchStop();
-  watchSave(w);
-  const tick = async () => {
-    if (Date.now() - w.t0 >= WATCH_FOR) { watchShow("timeout", w); watchSave(null); return; }
-    let slow = false;
-    try {
-      const b = await shelfBuild(id);
-      if (b) { watchSave(null); watchShow("ready", w, b); toast(`Your build ${id} is ready: install it, or try it in the simulator`, "ok"); return; }
-    } catch (e) { slow = e.message === "limit"; }
-    watchShow(slow ? "slow" : "wait", w);
-    S.watchT = setTimeout(tick, slow ? WATCH_SLOW : WATCH_EVERY);
-  };
-  tick();
-}
-
+const cloud = mountCloud({ S, $, el, toast, opts });
 async function cloudBuild() {
   const ev = S.view && S.view.eval;
   if (!ev || !buildState(ev).ok) return;
   S.building = true;
   $("build").disabled = true;
-  const msg = $("buildmsg");
-  try {
-    if (ev.key) {
-      msg.textContent = "Looking for a build of this configuration…";
-      const id = ev.key.slice(0, 16);
-      let shelf = null;
-      try { shelf = await shelfBuild(id); } catch (e) { shelf = null; }
-      if (shelf) {
-        msg.textContent = "Built before.";
-        watchShow("ready", { id, name: S.name, t0: Date.now() }, shelf);
-        return;
-      }
-      const url = await builtBefore(assetStem(S.name, ev.key));
-      if (url) {
-        msg.replaceChildren("Built before: ", el("a", { href: url, text: url.split("/").pop() }), " (install it with the installer: A .fwsc of yours).");
-        return;
-      }
-    }
-    const issue = cloudIssueUrl(S.repo, S.commit, S.view.dump, S.name);
-    const w = window.open(issue, "_blank");   // (not "noopener": with it the call returns null, opened or blocked alike)
-    if (w) w.opener = null;
-    msg.replaceChildren(w ? "Opened the request on GitHub: press Submit new issue there; the answer comes in that issue in a few minutes. " : "Open the request on GitHub: ",
-      el("a", { href: issue, target: "_blank", rel: "noopener", text: w ? "(the link again)" : "the request" }));
-    if (ev.key) watchBuild(ev.key.slice(0, 16), S.name);   /* (no key, a local copy: the id is only known at build time) */
-  } finally {
+  try { await cloud.build(ev); }
+  finally {
     S.building = false;
     $("build").disabled = !buildState(ev).ok;
   }
@@ -668,13 +588,47 @@ async function showProposals() {
   await loadProposals();
 }
 
+/* ---- the Start-from menu: your last configuration, the flavours, the published profiles, your saved ones */
+function allPresets() {
+  const last = recall(), mine = loadSaved();
+  return [...(last ? [{ id: "last", label: "your last configuration", kind: "last", text: last, name: "custom", description: "" }] : []),
+    ...presets(S.prof),
+    ...Object.keys(mine).sort((a, b) => a.localeCompare(b)).map((n) => ({ id: `saved:${n}`, label: n, kind: "saved", text: mine[n], name: n, description: "" }))];
+}
+function renderMenu(value) {
+  S.presets = allPresets();
+  const sel = $("bpreset"), of = (k) => S.presets.filter((p) => p.kind === k), opt = (p) => el("option", { value: p.id, text: p.label });
+  const group = (label, list) => (list.length ? [el("optgroup", { label }, list.map(opt))] : []);
+  sel.replaceChildren(el("option", { value: "", text: "(loaded from a file)", hidden: true }), ...of("last").map(opt),
+    ...group("Flavours", of("flavour")), ...group("Published profiles", of("profile")), ...group("My configurations", of("saved")));
+  sel.value = S.presets.some((p) => p.id === value) ? value : "";
+  $("unsave").hidden = !String(sel.value).startsWith("saved:");
+}
+function saveConfig() {
+  const name = $("name").value.trim().slice(0, 40);
+  if (!name) { toast("Give it a name first (the Name field)", "err"); $("name").focus(); return; }
+  if (!S.view) return;
+  const all = { ...loadSaved(), [name]: S.view.dump };
+  if (!storeSaved(all)) { toast("Not saved: this browser keeps no data for the page", "err"); return; }
+  renderMenu(`saved:${name}`);
+  toast(`Saved "${name}"`, "ok");
+}
+function deleteSaved() {
+  const id = $("bpreset").value;
+  if (!id.startsWith("saved:")) return;
+  const { [id.slice(6)]: gone, ...rest } = loadSaved();
+  storeSaved(rest);
+  renderMenu("");
+  toast(`Deleted "${id.slice(6)}"`, "ok");
+}
+
 async function importText(text, source) {
   const msg = $("importmsg");
   msg.textContent = "";
   const r = await loadText(text, "custom", source);
   msg.textContent = r.ok ? `Loaded ${source}` + (r.warnings.length ? ` (${r.warnings.length} warning${r.warnings.length > 1 ? "s" : ""}: ${r.warnings.join("; ")})` : "") : r.message;
   msg.style.color = r.ok ? "" : "var(--err)";
-  if (r.ok) { $("bpreset").value = ""; $("presetdesc").textContent = ""; }
+  if (r.ok) { $("bpreset").value = ""; $("unsave").hidden = true; $("presetdesc").textContent = ""; }
 }
 
 /* a cloud build's configuration (?cloud=<stem>), from the cloud-builds branch, loaded as an import */
@@ -700,6 +654,10 @@ function wire() {
   $("download").addEventListener("click", download);
   $("build").addEventListener("click", cloudBuild);
   $("reset").addEventListener("click", () => choosePreset(S.default.id));
+  $("save").addEventListener("click", saveConfig);
+  $("back").hidden = !opts.onNavigate || !!opts.app;   // (in the site's Firmware tab: back to its first page)
+  $("back").addEventListener("click", () => opts.onNavigate("install"));
+  $("unsave").addEventListener("click", deleteSaved);
   $("propsclose").addEventListener("click", () => { S.fitOpen = false; S.preview = null; renderProposals(); renderBars(); });
   $("keychip").addEventListener("click", copyKey);
   $("key").addEventListener("click", copyKey);      // (the key shows cut short: selecting it would copy only what shows)
@@ -741,21 +699,12 @@ async function start() {
   S.prof = prof;
   S.commit = commitOf(info);
   S.repo = repoOf(info);
-  S.presets = presets(prof);
   S.values = defaults(S.reg);
-  const sel = $("bpreset");
-  const flav = S.presets.filter((p) => p.kind === "flavour"), profs = S.presets.filter((p) => p.kind !== "flavour");
-  sel.append(el("option", { value: "", text: "(your own)" }));
-  const last = recall();
-  if (last) {
-    S.presets.unshift({ id: "last", label: "your last configuration (this browser)", kind: "last", text: last, name: "custom", description: "" });
-    sel.append(el("option", { value: "last", text: "your last configuration (this browser)" }));
-  }
+  renderMenu("");
   S.default = defaultPreset(prof, S.presets);
   $("reset").textContent = `Reset to default (${S.default.label})`;
-  if (flav.length) sel.append(el("optgroup", { label: "Flavours (the site's packages)" }, flav.map((p) => el("option", { value: p.id, text: p.label }))));
-  sel.append(el("optgroup", { label: "Profiles (config/profiles)" }, profs.map((p) => el("option", { value: p.id, text: p.label }))));
   wire();
+  cloud.loadRefs();
   renderTree();
   startPython();
   try {
@@ -774,12 +723,11 @@ async function start() {
   $("fit").disabled = false;
   $("reset").disabled = false;
   await choosePreset(S.default.id);           // (always the manifest's default: the last configuration is a choice)
-  const cloud = S.pendingCloud || (typeof location !== "undefined" ? new URLSearchParams(location.search).get("cloud") : null);
+  const stem = S.pendingCloud || (typeof location !== "undefined" ? new URLSearchParams(location.search).get("cloud") : null);
   S.pendingCloud = null;
-  if (cloud) await openCloud(cloud);          // (the installer's and the simulator's Configuration, the issue's link)
+  if (stem) await openCloud(stem);            // (a build's configuration: the issue's link, ?cloud=<stem>)
   handle.readyFlag = true;
-  const w = watchSaved();                     /* a request sent before a reload: go on watching for its build */
-  if (w) watchBuild(w.id, w.name, w.t0);
+  cloud.resume();                             /* a build followed before a reload: followed again */
 }
 
 const handle = {
@@ -796,7 +744,7 @@ const handle = {
   /** the tab is hidden: the shortcuts off (the page, the worker and the state stay) */
   deactivate() { active = false; document.removeEventListener("keydown", onKey); document.removeEventListener("click", onDocClick); },
   /** gone: the shortcuts off, the worker ended, the container emptied */
-  destroy() { handle.deactivate(); watchStop(); if (worker) worker.terminate(); root.replaceChildren(); root.classList.remove("ob-root", "o-ui"); },
+  destroy() { handle.deactivate(); cloud.stop(); if (worker) worker.terminate(); root.replaceChildren(); root.classList.remove("ob-root", "o-ui"); },
 };
 return handle;
 }

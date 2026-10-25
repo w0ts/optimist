@@ -2706,8 +2706,9 @@ function editorTabs() {
   const tabs = [...html.matchAll(/<button role="tab" data-tab="(\w+)"/g)].map((x) => x[1]);
   const panels = [...html.matchAll(/<section class="panel" id="p-(\w+)" data-tab="(\w+)"/g)].map((x) => [x[1], x[2]]);
   const TABS = JSON.parse((/const SCREENS = (\[[^\]]*\]);/.exec(html) || [])[1] || "[]");
-  ok(tabs.length === 13 && js(tabs.slice(0, 3)) === js(["build", "install", "sim"]) && js(tabs.slice(3)) === js(TABS) && js(panels.map((x) => x[1])) === js(TABS) && panels.every(([a, b]) => a === b) && TABS[0] === "mixer",
-    `editor: ${tabs.length} screens, one panel each, the mixer first (${tabs.join(" ")})`);
+  ok(tabs.length === 12 && js(tabs.slice(0, 2)) === js(["install", "sim"]) && js(tabs.slice(2)) === js(TABS) && js(panels.map((x) => x[1])) === js(TABS) && panels.every(([a, b]) => a === b) && TABS[0] === "mixer"
+    && /id="p-build" data-tab="build"/.test(html),
+    `editor: ${tabs.length} screens, one panel each, the mixer first, Build inside Firmware (no tab of its own) (${tabs.join(" ")})`);
   {   /* the full backup is its own screen, after Projects: not inside the Projects panel; lite firmware shows it, the not-connected state hides it */
     const sec = (id) => (new RegExp(`<section class="panel" id="p-${id}"[\\s\\S]*?</section>`).exec(html) || [""])[0];
     const css = html.slice(0, html.indexOf("</style>"));
@@ -3329,10 +3330,6 @@ async function installerModule() {
   const withSim = INST.cloudBuilds({ builds: [{ ...good, sim: `${cstem}.wasm` }, { ...other, sim: "../evil.wasm" }] });
   ok(withSim[0].sim === `${cstem}.wasm` && withSim[1].sim === null && cb[0].sim === null,
     "installer: cloud builds: a build's simulator only as <stem>.wasm (the Simulator tab's try it)");
-  ok(INST.matchCloud(cb, "").length === 2 && INST.matchCloud(cb, cid).length === 1 && INST.matchCloud(cb, ` key ${cid.slice(0, 6)} `)[0].id === cid
-    && INST.matchCloud(cb, "`" + cid + "`").length === 1 && INST.matchCloud(cb, cid + "0".repeat(48)).length === 1
-    && INST.matchCloud(cb, "x0x drums")[0].name === "x0x drums" && INST.matchCloud(cb, "nothing").length === 0,
-    "installer: cloud search: a pasted build id (or its start, or the full key, backticks and a 'key' word ignored), or part of a name");
   const calls = [];
   const fakeFetch = (routes) => async (url) => { calls.push(url); const r = routes[url];
     return r === undefined ? { ok: false, status: 404 } : { ok: true, status: 200, json: async () => r }; };

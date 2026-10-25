@@ -173,28 +173,29 @@ before a build (the cloud build's answer has them).
 Anyone with a GitHub account can build a firmware from the web builder without installing anything: **Build in the
 cloud** sends the configuration to this repository's GitHub Actions, which build it with the same toolchain as CI.
 
-1. Open the builder (<https://w0ts.github.io/optimist/webapp/builder/>, or the editor's Build tab) and make a configuration.
-2. **Build in the cloud**. If the same cloud key (the site's commit and the canonical form) was built before, the page
-   shows its download. Otherwise it opens a filled-in GitHub issue: press **Submit new issue**.
+1. Open the builder (the Firmware tab's **Build your own…**, or <https://w0ts.github.io/optimist/webapp/builder/>) and make
+   a configuration.
+2. **Build**. Through the relay (below) it needs no GitHub account and the page follows it to the end; without the relay
+   it opens a filled-in GitHub issue: press **Submit new issue**. The same cloud key (the site's commit and the canonical
+   form) built before is ready at once.
 3. A workflow answers in the issue: "Building ..." with a link to the log, then a few minutes later the **build id** (the
    key's first 16 hex digits), an **Install it** link, a link to the configuration in the builder, and the downloads
    `optimist-<name>-<key16>.fwsc` and its `-ui.zip`; it closes the issue. A refused configuration (unknown key, rule not
    met) is answered at once and closed; a failed build (most often: it does not fit, the page's size is an estimate) is
    answered with the log and stays open.
-4. Install it: the **Install it** link, or the installer's *Choose* > *A cloud build* (the builds kept, searched by id or
-   name, each with *copy id*, *configuration* (`webapp/builder/?cloud=<stem>`) and *try it* in the Simulator), or download
-   the `.fwsc` and `python3 tools/optimist.py flash FILE`.
+4. Install it: the page's **Flash it**, the issue's **Install it** link (`?build=<id>`), Firmware's *Your build*, or download
+   the `.fwsc` and `python3 tools/optimist.py flash FILE`. There is no list of everyone's builds: a page offers yours.
 
 | Part | What it does |
 |---|---|
-| `web/builder/builder.js`, `logic.js` | the button: the cached build (the public releases API, no login), else `cloudIssueUrl` (the form with `commit` and `config` filled in) |
+| `web/builder/cloud.js`, `logic.js` | Build from (`?refs`), the request (the relay, else `cloudIssueUrl`: the form with `commit` and `config` filled in), the build followed (`?status=`), your build kept |
 | `web/make_site.py` | `build-info.json`: `commit` (the site's) and `repo` (`$GITHUB_REPOSITORY`, so a fork's site asks its own repository) |
 | `.github/ISSUE_TEMPLATE/cloud-build.yml` | the form: *Commit* (empty = the default branch's latest) and *Configuration*; label `cloud-build` |
 | `.github/workflows/cloud-build.yml` | `request` > `build` > `publish`, `failed` on a failure, `prune` daily |
 | `tools/cloud_build.py` | reads the body, checks the commit, the verdict, the replies (`tests/cloud_build_test.py`) |
 | the `cloud-builds` pre-release | the builds, one `.fwsc` + `-ui.zip` per cloud key |
 | `tools/cloud_shelf.sh` | the `cloud-builds` **branch**: the same files, `<stem>.config` and `index.json`, one commit, replaced |
-| `web/installer/installer.js` | *A cloud build*: `loadCloud` (the branch's commit from the API, then `index.json` and the `.fwsc` from raw.githubusercontent.com), `matchCloud`, the SHA-256 checked before install |
+| `web/installer/installer.js` | *Your build*: `loadCloud` (the branch's commit from the API, then `index.json` and the `.fwsc` from raw.githubusercontent.com), the build found by its id, the SHA-256 checked before install |
 
 The branch exists because a release download ends on a host with no CORS header, so a web page cannot fetch it;
 raw.githubusercontent.com sends `Access-Control-Allow-Origin: *`.
@@ -229,6 +230,66 @@ each publish). The branch is always one commit, replaced (force-pushed with a le
 expires; the prune also deletes release assets of no build on the branch and, when the release is empty, the release and
 its tag. Hand-over artifacts are kept 1 day. By hand: `gh release delete-asset cloud-builds NAME`. If requests are abused,
 limit who can open issues (Settings > Moderation) or disable the workflow.
+
+### Cloud builds without a GitHub account (the relay)
+
+**The flow (the site's Firmware tab and the Mirror app alike).** Firmware's first page (the installer) offers, in
+this order: **your build** (the last one finished with Build, or `?build=<id>`; picked at once when it is under 6 hours
+old), the **releases** with their published flavours, a **`.fwsc` file**, and **Build your own…**. That opens the builder
+(the editor's `build` view: no tab of its own, the Firmware tab stays lit; its `← Firmware` goes back). In the builder:
+
+1. **Start from** a flavour, a published profile, your last configuration or one of **your configurations** (Save keeps
+   the current one under the Name field's name, Delete removes it; `localStorage` `optimist-builder-saved`, which the
+   Mirror app's web view keeps too). No development profile and no "registry defaults" are offered.
+2. **Build from** main (the default), a release tag or a branch (the relay's `?refs`). The options are main's: a build
+   from an older tag can be refused for an option that tag does not have; the refusal says which.
+3. **Build** (`web/builder/cloud.js`). When `TURNSTILE_SITEKEY` is set (`logic.js`), it needs no GitHub account:
+   - Cloudflare Turnstile is loaded at that click only (no third party on the page before) and checks the visitor is
+     not a robot, usually without asking anything;
+   - the page posts `{turnstile, commit, config, name}` to the relay (`CLOUD_RELAY`), which opens the cloud-build issue
+     (the form's headings, then `### Sent by`); the workflow reads and checks it like any other issue;
+   - the page then follows it: `GET ?status=<issue>` every 20 s gives the stage (queued, building, done, refused,
+     failed, error), read from the marker the workflow ends each comment with (`tools/cloud_build.py marker`,
+     `<!-- optimist-cloud {...} -->`; only the github-actions bot's count). Its steps show Sent, Building, Ready, with a
+     link to the issue on GitHub and to the run's log; a refusal or a failure shows its reason;
+   - done, the build reaches the `cloud-builds` branch; then **Flash it** (Firmware, the build picked) and **Try it in
+     the simulator** (when it has one), and it is kept as **your build** (`localStorage` `optimist-my-build`).
+   The same configuration from the site's own commit built before is ready at once. A refusal by the relay (its limits)
+   is shown and the form is not opened; no relay or no check (a blocked script) opens the GitHub form instead.
+4. The Simulator lists the site's builds and your own (no list of everyone's), with **Flash it**.
+
+The page tells its host every stage: `opts.onBuild(ev)` and, in the Mirror app's web view, the `optimist` message
+handler, `ev = {type: "cloud-build", stage, issue, url, id?, run?, name?, sim?, reason?}` (stage sent, building, done,
+refused, failed or error); the two buttons call `opts.onNavigate("install" | "sim", {build: id})`. `mountBuilder(...,
+{app: true})` is the app's page (`web/builder/app.html`): the Build card first and in view, without the files and the
+keys.
+
+What the relay holds and refuses (`cloud-relay-config.php`, outside the web root, never in git):
+
+- **The GitHub token**: fine-grained, only this repository, **Issues: read and write** and nothing else. A leak can open
+  and close issues, nothing more. The workflow, not the relay, decides what is built.
+- **The robot check**: Cloudflare's `siteverify` must answer success for action `cloud-build` on a hostname in
+  `turnstile_hostnames`. It is made last, only for a request that would be built.
+- **`GET ?status=<issue>`** answers only for issues the relay opened (a day), cached 15 s; **`GET ?refs`** lists the
+  branches and tags (not `cloud-builds`), cached 5 minutes. Both count apart from the requests to build
+  (`polls_per_ip_per_hour`, 400).
+- **Flooding**, under one file lock (requests are handled one at a time), per address = `sha256(salt . IP)`:
+  - before anything else, the browser's `Origin` must be the site, and the request must be JSON (so it needs a CORS
+    preflight) and at most 20 KB; nginx also limits that path to 10 requests a minute per IP;
+  - every request counts: `per_ip_per_hour`;
+  - **one build queued per address**: refused while that address's last issue is open (the workflow closes it when the
+    build is done or refused), for `queue_max_seconds` at most (a failed run leaves its issue open);
+  - `min_gap_seconds` between two builds, `per_ip_per_day` builds; all addresses together, `all_per_day`;
+  - the same commit and configuration again from that address within a day answers its first issue.
+- The workflow's own limit (5 a day per issue author) skips the maintainers (owner, members, collaborators): the relay's
+  issues are authored by the token's account, a maintainer's, and the relay counts them per address instead.
+
+Set up: PHP 7.4+ with curl. `cloud-build.php` and `cloud-relay-config.php` (from `cloud-relay-config.example.php`) go
+outside the web root, with a `data_dir` writable by PHP. An exact nginx `location = /optimist/cloud-build.php` runs that
+one file through php-fpm (`fastcgi_param SCRIPT_FILENAME` pointing at it). On motscousus.com, they are in
+`/home/mots/cloud-relay/`. A Turnstile widget (dash.cloudflare.com > Turnstile, free) for the hostname `w0ts.github.io`
+gives the site key (`logic.js`) and the secret (`turnstile_secret`). `tests/cloud_build_test.py` checks that the
+relay's issue body reads as the form's.
 
 ## The simulator
 

@@ -40,6 +40,12 @@
 .oi-choice label b { font-weight: 400; color: var(--text); }
 .oi-desc { flex-basis: 100%; }
 .oi-choice > .oi-file { grid-column: 2; }
+.oi-choice > .oi-desc { grid-column: 2; }   /* (a row's detail under its title: Your build's name and id) */
+.oi-relpick { grid-column: 2; display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-3); align-items: end; min-width: 0; }
+.oi-relpick .o-field { min-width: 0; }
+.oi-relpick select { max-width: 100%; }
+.oi-relpick .oi-desc { flex-basis: 100%; }
+.oi-own .o-panel-b > p { margin: 0 0 var(--sp-2); }
 .oi-radio { margin: 3px 0 0; width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
 .oi-file { max-width: 100%; font: inherit; color: var(--text-dim); }
 .oi-file::file-selector-button { font: inherit; color: var(--text); background: var(--surface-2); border: 0; border-radius: var(--r); padding: 4px 12px;
