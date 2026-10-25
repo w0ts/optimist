@@ -144,12 +144,17 @@ static int ble_clock_msg(uint32_t pkt)          /* F8 FA FB FC (CIN F), F2 (CIN 
 /* a message's time on our clock (TIMER4): the sender's millisecond (ts, 13 bits; unwrapped into bin.s, the packet's
  * newest last_ts at most 8 s on) plus the offset o of the least delayed message lately: o follows each earlier one at
  * once and drifts up 1/4096 of the time since (the two clocks' drift, ~250 ppm). A sender whose times do not move
- * (some send 0) or a gap of 4 s: o from this one (its arrival, less how much older than the packet's newest it is) */
+ * (some send 0) or a gap of 4 s: o from this one (its arrival, less how much older than the packet's newest it is).
+ * A late message keeps o (a packet lost waits for the next connection event: 30 ms and more while Bluetooth audio
+ * streams, ble_host.c ble_sig_audio); only BIN_LATE_N in a row more than BIN_LATE_MS late take o from the last one
+ * (2026-10-25: one 40 ms late message did, and at 30 ms events that moved the clock every few ticks) */
 #define BIN_MS (1000u * FM1_TICKS_PER_US)
+#define BIN_LATE_MS 100u
+#define BIN_LATE_N 24u                          /* (a beat of F8s) */
 static struct {
     uint32_t s, o, at;                          /* the sender's time unwrapped, ms; the offset, ticks; our last arrival */
     uint16_t ts;
-    uint8_t ok;
+    uint8_t ok, late;                           /* late: messages in a row more than BIN_LATE_MS late */
 } bin;
 static uint32_t ble_in_time(uint16_t ts, uint16_t last_ts)
 {
@@ -169,9 +174,11 @@ static uint32_t ble_in_time(uint16_t ts, uint16_t last_ts)
     else
         bin.o += rise;
     t = bin.o + bin.s * BIN_MS;
-    if ((int32_t)(now - t) > (int32_t)(40u * BIN_MS) || (int32_t)(t - now) > 0) {
-        bin.s = 0;                              /* off by more than a connection's worth, or ahead of now: from this one */
+    bin.late = (int32_t)(now - t) > (int32_t)(BIN_LATE_MS * BIN_MS) ? (uint8_t)(bin.late + 1u) : 0u;
+    if (bin.late >= BIN_LATE_N || (int32_t)(t - now) > 0) {
+        bin.s = 0;                              /* late a beat long, or ahead of now: from this one */
         bin.o = arr;
+        bin.late = 0;
         t = arr;
     }
     return t;

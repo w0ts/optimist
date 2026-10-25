@@ -248,6 +248,50 @@ static void t_clock_in(void)
     check(ble_mdg.pushed == 5u && ble_mdg.not_chan == 0u, "FA F8 FC F2 FB from BLE: queued for the clock (clock_sync.c)");
 }
 
+/* the same F8s over 30 ms connection events (a Mac's while Bluetooth audio streams, ble_host.c ble_sig_audio), about 4 in
+ * 10 lost: their F8s go at the next event, 30 ms later and more (the FM-1, 2026-10-25: the clock wandered). Each late
+ * packet must not move the times: only a run of them does (ble_in_time BIN_LATE_N) */
+static void t_clock_in_lossy(void)
+{
+    enum { NF = 480 };
+    uint32_t k, n = 0, bad = 0, ev;
+    double send[NF], dmax = 0;
+    static uint32_t got_t[NF];
+    reset();
+    memset(&bin, 0, sizeof bin);
+    for (k = 0; k < NF; k++)
+        send[k] = 9000.0 + k * 20.8333;
+    for (ev = 0, k = 0; k < NF; ev++) {
+        double at = 9000.0 + ev * 30.0 + 3.0;
+        uint8_t p[40];
+        uint32_t m = 1, ms;
+        if (send[k] > at || (ev * 7u) % 10u < 4u)
+            continue;                                         /* (nothing yet, or this event lost: the next one) */
+        ms = (uint32_t)send[k];
+        p[0] = (uint8_t)(0x80u | ((ms >> 7) & 0x3Fu));
+        while (k < NF && send[k] <= at && m + 2u <= sizeof p) {
+            ms = (uint32_t)send[k++];
+            p[m++] = (uint8_t)(0x80u | (ms & 0x7Fu));
+            p[m++] = 0xF8;
+        }
+        host_now = (uint32_t)(1000000.0 + (at - 5000.0) * 24000.0);
+        wcmd(0x000E, p, m);
+        while (bmi_r != bmi_w) {
+            got_t[n++] = ble_in_t[bmi_r % BMQ];
+            bmi_r++;
+        }
+    }
+    for (k = 24; k < n; k++) {                                /* (from the second beat: the least delay found) */
+        double d = (double)(got_t[k] - got_t[k - 1]) / 24000.0;
+        if (fabs(d - 20.8333) > dmax)
+            dmax = fabs(d - 20.8333);
+        bad += d < 19.5 || d > 22.0;
+    }
+    if (bad)
+        printf("  lossy: %u of %u F8s off, the worst %.1f ms off its 20.8 ms\n", bad, n, dmax);
+    check(n == NF && !bad, "BLE F8s over 30 ms events, 4 in 10 lost: still 20.8 +- 1 ms apart (a late packet moves nothing)");
+}
+
 /* CLOCK OUT to a listening central: an F8 due later waits, then goes with its time; nobody listening: nothing */
 static void t_clock_out(void)
 {
@@ -275,6 +319,7 @@ int main(void)
     t_wrong_handle_and_off();
     t_flood();
     t_clock_in();
+    t_clock_in_lossy();
     t_clock_out();
     printf("ble_midi_in: %d failed\n", fails);
     return fails;
