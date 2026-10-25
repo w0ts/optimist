@@ -73,7 +73,7 @@ What is measured on a real FM-1 (calipers, the user, 2026-10-25) and what is sti
   the bottom wall's outside (x: 3 mm below the board's edge), the card flush.
 - The FFC socket at 91 mm (the jacks' gap at r = 90 mm), its cable side at 30 mm up: 10 mm under the board's top
   and 14 mm under the speaker plug (4 mm tall), so the ribbon comes down over the plug and bends down to it (the user).
-- The board slides into a printed tray (`make_tray.py`, `sd-tray.stl`): a 0.8 mm floor, a rail with a groove along
+- The board slides into a printed tray (`make_tray.py`, `sd-tray-up0.5.stl` or `sd-tray-up1.0.stl`): a 0.8 mm floor, a rail with a groove along
   each side (the board 22.4 mm wide; the tray 73.2 to 98 mm), a collar round the pole that stops it, posts toward the cover.
   Only the collar and three posts (all 5.6 mm, the pole is 6; rail-wide, long along the rails, clear of the cover's edge band and the cable's) reach up; the rails stand 3.35 mm: the battery's cable passes
   over, between the posts (24 to 40 mm up; in its band the parts stand at most 4.4 mm with the floor, leaving about 1.6 to 2.3 mm under the cover).
