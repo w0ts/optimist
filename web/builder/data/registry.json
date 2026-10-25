@@ -54,7 +54,7 @@
     "default": 0,
     "parent": "ENG_ANALOG",
     "desc": "A 4-pole transistor ladder: a tanh at its input (drive grits it), the bass thinning as RES rises, ringing in tune at the top of RES. FTYP as the Oberheim Xpander's mixes of its four stages. FLT 2 gets a MODEL card next to FTYP (LP12 LP24 BP HP NOTCH), on an ANALOG track only. A sound that asks for a model this build leaves out plays ANALOG 2's own filter in the same mode. Floating point (the FPU), about 3x the CPU of ANALOG 2's own filter on the host per voice, not measured on the FM-1 yet.",
-    "experimental": true,
+    "experimental": false,
     "notice": "",
     "off_warning": "",
     "env": "",
@@ -65,7 +65,7 @@
     "choices": [],
     "provenance": null,
     "children": [],
-    "tested": "host-tested only (responses, self-oscillation, stability), not on a device",
+    "tested": "on the FM-1: in use, working (the user, 2026-10-25); host-tested (responses, self-oscillation, stability)",
     "provenance_line": ""
    },
    {
@@ -77,7 +77,7 @@
     "default": 0,
     "parent": "ENG_ANALOG",
     "desc": "A 4-pole OTA ladder: the input stays clean and the passband is made up as RES rises, the resonance saturates on its own path: creamy, its self-oscillation round. FTYP as the Xpander's mixes. FLT 2 gets a MODEL card next to FTYP (LP12 LP24 BP HP NOTCH), on an ANALOG track only. A sound that asks for a model this build leaves out plays ANALOG 2's own filter in the same mode. Floating point (the FPU), about 3x the CPU of ANALOG 2's own filter on the host per voice, not measured on the FM-1 yet.",
-    "experimental": true,
+    "experimental": false,
     "notice": "",
     "off_warning": "",
     "env": "",
@@ -88,7 +88,7 @@
     "choices": [],
     "provenance": null,
     "children": [],
-    "tested": "host-tested only (responses, self-oscillation, stability), not on a device",
+    "tested": "on the FM-1: in use, working (the user, 2026-10-25); host-tested (responses, self-oscillation, stability)",
     "provenance_line": ""
    },
    {
@@ -100,7 +100,7 @@
     "default": 0,
     "parent": "ENG_ANALOG",
     "desc": "A diode ladder: four coupled stages, each loading the one before, solved exactly every 16 samples, a tanh at its input: squelchy, a thin vocal resonance that rings at the cutoff. FLT 2 gets a MODEL card next to FTYP (LP12 LP24 BP HP NOTCH), on an ANALOG track only. A sound that asks for a model this build leaves out plays ANALOG 2's own filter in the same mode. Floating point (the FPU), about 3x the CPU of ANALOG 2's own filter on the host per voice, not measured on the FM-1 yet.",
-    "experimental": true,
+    "experimental": false,
     "notice": "",
     "off_warning": "",
     "env": "",
@@ -111,7 +111,7 @@
     "choices": [],
     "provenance": null,
     "children": [],
-    "tested": "host-tested only (responses, self-oscillation, stability), not on a device",
+    "tested": "on the FM-1: in use, working (the user, 2026-10-25); host-tested (responses, self-oscillation, stability)",
     "provenance_line": ""
    },
    {
@@ -123,7 +123,7 @@
     "default": 0,
     "parent": "ENG_ANALOG",
     "desc": "A Sallen-Key 2-pole with its band fed back through a tanh: it screams at high RES and rings loud. LP, BP, HP and NOTCH its own, LP24 a further pole (18 dB). FLT 2 gets a MODEL card next to FTYP (LP12 LP24 BP HP NOTCH), on an ANALOG track only. A sound that asks for a model this build leaves out plays ANALOG 2's own filter in the same mode. Floating point (the FPU), about 3x the CPU of ANALOG 2's own filter on the host per voice, not measured on the FM-1 yet.",
-    "experimental": true,
+    "experimental": false,
     "notice": "",
     "off_warning": "",
     "env": "",
@@ -134,7 +134,7 @@
     "choices": [],
     "provenance": null,
     "children": [],
-    "tested": "host-tested only (responses, self-oscillation, stability), not on a device",
+    "tested": "on the FM-1: in use, working (the user, 2026-10-25); host-tested (responses, self-oscillation, stability)",
     "provenance_line": ""
    },
    {
@@ -3705,7 +3705,7 @@
     "default": 0,
     "parent": "EDITOR",
     "desc": "The FM-1's screen in the web editor's Mirror tab or on an iPhone (the Optimist Mirror app, ios/OptimistMirror), over a USB cable or Bluetooth MIDI (with BLE): while one asks (cmd 106), every write to the panel also goes out, run-length coded, as it is drawn, so it shows the very pixels: the mixer, the step grid, the layers, the dialogs. No frame buffer on the device; nothing is sent while none asks; the mixer's meters go 10 times a second over USB, never over Bluetooth. A link that falls behind (USB: the host stops reading; Bluetooth: its 8 KB send ring is full) drops what is drawn and catches up once it is clear again, at most 4 times a second: the panel's bands drawn again in place, no flash on the device. Over Bluetooth whole screens come at the rate the radio carries. With live editing (ED_LIVE) or without.",
-    "experimental": true,
+    "experimental": false,
     "notice": "",
     "off_warning": "",
     "env": "",
@@ -3716,7 +3716,7 @@
     "choices": [],
     "provenance": null,
     "children": [],
-    "tested": "host-tested only (the stream decoded back to every screen drawn, every catch-up the panel), not on a device",
+    "tested": "on the FM-1: the web editor's Mirror tab and the Optimist Mirror app, USB and Bluetooth (the user, 2026-10-25); host-tested (the stream decoded back to every screen drawn, every catch-up the panel)",
     "provenance_line": ""
    },
    {
@@ -3728,7 +3728,7 @@
     "default": 0,
     "parent": null,
     "desc": "Moves what the sound loops read from main RAM to the pool: the sine, soft-clip and GRAIN window tables (about 2.5 KB, copied there from flash at start-up) and FM6's sine table, operator buses and voices (about 5.9 KB), so builder items get that much more main RAM. Unverified on hardware: both are the same SRAM as far as is known and the emulator cannot tell a speed difference, so on the FM-1 it may be slower; compare the console's TABBENCH figures and the CPU meter with it off and on. The sound is the same.",
-    "experimental": true,
+    "experimental": false,
     "notice": "",
     "off_warning": "",
     "env": "",
@@ -3739,7 +3739,7 @@
     "choices": [],
     "provenance": null,
     "children": [],
-    "tested": "emulator-tested only (no memory timing there)",
+    "tested": "on the FM-1: in daily use for days, all good (the user, 2026-10-25); emulator-tested",
     "provenance_line": ""
    },
    {
@@ -3871,8 +3871,8 @@
     "bit": 92,
     "default": 0,
     "parent": null,
-    "desc": "Uses 2, 4 or 7 of the 8 data-cache ways (4 KB each) as RAM; 7 is what M-VAVE's own FM-1 firmware and the AC79 SDK's flash-only builds do; the instruction cache (the flash's code and constants) keeps all its ways. The memory is tested at start-up; when the test passes it becomes the undo history's second part (28 KB instead of what main RAM has left), else everything is put back as it was and nothing uses it. It costs about 0.4 KB of flash and 0.1 KB of fast RAM code. Off until checked on an FM-1: whether the flash's data reads use the data cache (then the sound's tables in flash could cost CPU) is not known; the console's tabbench (flash 16K) and boot lines show it.",
-    "experimental": true,
+    "desc": "Uses 2, 4 or 7 of the 8 data-cache ways (4 KB each) as RAM; 7 is what M-VAVE's own FM-1 firmware and the AC79 SDK's flash-only builds do; the instruction cache (the flash's code and constants) keeps all its ways. The memory is tested at start-up; when the test passes it becomes the undo history's second part (28 KB instead of what main RAM has left), else everything is put back as it was and nothing uses it. It costs about 0.4 KB of flash and 0.1 KB of fast RAM code. The flash's data reads go through the data cache: with fewer ways kept, flash data reads over 16 KB slow down (57x measured with 4 KB left), so 8 KB is the safe choice; the console's tabbench (flash 16K) and boot lines show it.",
+    "experimental": false,
     "notice": "",
     "off_warning": "",
     "env": "",
@@ -3900,7 +3900,7 @@
     ],
     "provenance": null,
     "children": [],
-    "tested": "on one FM-1 2026-10-18: the boot test passes, cache RAM as fast as main RAM, but flash data reads over 16 KB 57x slower (1.7 us vs 32 ns: flash data goes through the data cache, 4 KB left)",
+    "tested": "8 KB: in daily use on the user's FM-1 for days, no fault (2026-10-25); on one FM-1 2026-10-18: the boot test passes, cache RAM as fast as main RAM, flash data reads over 16 KB 57x slower (1.7 us vs 32 ns: flash data goes through the data cache)",
     "provenance_line": ""
    },
    {
@@ -4121,8 +4121,8 @@
     "default": 0,
     "parent": null,
     "desc": "Bluetooth Classic audio out (A2DP source, SBC 44.1 kHz) to headphones and speakers: its own page, SYSTEM > BT AUDIO (MODE OFF, MAN, AUTO), beside BT MIDI: with BLE built, MIDI and audio can be on at the same time on the one radio. Our own stack: inquiry, paging, Secure Simple Pairing (Just Works), E0 encryption, L2CAP, AVDTP and a fixed-point SBC encoder. Streams on the FM-1 to AirPods, a Sony WH-1000XM4 and a Bose SoundLink Mini (2026-10-23).",
-    "experimental": true,
-    "notice": "experimental: Bluetooth Classic A2DP audio source",
+    "experimental": false,
+    "notice": "",
     "off_warning": "",
     "env": "",
     "target_only": true,
@@ -4138,7 +4138,7 @@
      "BT_AFH",
      "BT_DIAG"
     ],
-    "tested": "host-tested (SSP, SAFER+, SBC encoder, AVDTP, L2CAP) and unit-tested",
+    "tested": "on the FM-1: AirPods, a Sony WH-1000XM4 and a Bose SoundLink Mini, with BLE MIDI and the Mirror app at once (the user, 2026-10-25); host-tested (SSP, SAFER+, SBC encoder, AVDTP, L2CAP)",
     "provenance_line": ""
    },
    {
