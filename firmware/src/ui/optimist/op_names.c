@@ -28,7 +28,7 @@ static const char NM_TITLE[] =
 static const char NM_SHORT[] =
     "Pattern\0Pat\0"           "Scale2\0Scl2\0"            "Voice2\0Vox2\0"            "Kit sends\0Kit snd\0"
     "LFO2 to\0L2 to\0"           "ENV2 to\0E2 to\0"           "ENV mod\0E1 mod\0"           "Slicer\0Slcr\0"
-    "Screen & audio\0Scr+aud\0" "Connections\0Connect\0"  "Insert\0Ins\0"            "Internals\0Intern\0"
+    "Insert\0Ins\0"            "Internals\0Intern\0"
     "Calibrate\0Calib\0"         "USB audio\0USB aud\0"       "Credits\0Credit\0"          "Devices\0Devs\0"
     "USB stats\0Stats\0"        "BT audio\0BT aud\0"
     "\0";

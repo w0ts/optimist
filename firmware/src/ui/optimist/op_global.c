@@ -119,7 +119,7 @@ static void gl_secname(uint32_t s, uint32_t e, char *b) /* the section of entry 
 }
 /* ---- the pages (the user, 2026-10-13: "the global and system screen should be grouped in logical pages, dont cut a page
  * in the middle if possible", "i prefer two pages with 2 items than messy pages", "the midi channels for the tracks should
- * be on one page"). A page is one section (gl_sid: REC 2's lines are REC's), or a joined pair (GL_JOIN: Screen & audio, USB + Bluetooth (Connections)), sections are otherwise never combined to fill a page,
+ * be on one page"). A page is one section (gl_sid: REC 2's lines are REC's), or a joined pair (GL_JOIN: General with USB SERIAL), sections are otherwise never combined to fill a page,
  * a short one leaves its page's last lines empty and their knobs do nothing. Only a section of more than 4 lines is split,
  * between its rows (REC: MODE LENGTH START CLICK, then QUANT: "REC 1/2" over each page). The pages are made from the lines
  * this build has (gl_build): a section the build lacks moves the rest up, no page number is fixed */
@@ -133,11 +133,11 @@ static uint32_t gl_sid(uint32_t s, uint32_t e)          /* entry e's section: on
         ;
     return 8u + r;
 }
-/* joined pages (the user, 2026-10-14: "Screen and Audio could be on one page", "USB and Bluetooth go together"): two
+/* joined pages (the user, 2026-10-14: "Screen and Audio could be on one page"; 2026-10-25: USB SERIAL with them): two
  * neighbouring sections of SYSTEM that fit one page together (4 lines at most) share it, the page titled by GL_JOIN's
  * name (written as drawn); when they do not fit (a build with more lines) each keeps its own pages. One table: a pair is one entry */
 static const struct { const char *a, *b, *title; } GL_JOIN[] = {
-    {"SCREEN", "AUDIO", "Screen & audio"}, {"USB", "BT MIDI", "Connections"}};
+    {"GENERAL", "USB", "General"}};                    /* (USB SERIAL alone on a page: the user, 2026-10-25) */
 #define GL_NJOIN (sizeof GL_JOIN / sizeof GL_JOIN[0])
 static const char *gl_rowname(uint32_t s, uint32_t e) { return SYS[(s ? e >> 2 : glo_sys(e >> 2)) % NSYS].name; }
 static uint32_t gl_grp(uint32_t s, uint32_t e)          /* entry e's page group: its section, or its joined pair's */
@@ -249,7 +249,7 @@ static void gl_sect(uint32_t s, uint32_t i, char *b)    /* line i's section: its
     gl_secname(s, gl_ent(s, i), b);
 }
 /* the title of the page of line i, n bytes into b, cased: its section's name, or a joined pair's when the page holds both
- * ("Screen & audio") */
+ * ("General") */
 static void gl_ptitle(uint32_t s, uint32_t i, char *b, uint32_t n)
 {
     char t[24];

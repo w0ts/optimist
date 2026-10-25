@@ -460,14 +460,15 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
     {"USB STATS", {SI_UAINFO, SI_NONE, SI_NONE, SI_NONE}},   /* the USB audio glitch counters */
 #endif
 #endif
-    {"SCREEN", {SI_IF(FELUCCA_BRIGHT, SI_BRIGHT), SI_NONE, SI_NONE, SI_KCOL}},   /* (SI_KCOL: KNOB COLORS; KNOB 3 was CARDS, gone
-                                                         * 2026-10-12; COLOR gone 2026-10-18: the palette is MONO, panel.c) */
-    {"AUDIO", {SI_LOWCUT, SI_IF(FELUCCA_TFLT_RESO && FELUCCA_TRK_FILT, SI_FRESO), SI_NONE, SI_NONE}},   /* (FILT RESO: SLOOP 2.8's FILTER RESO, a project's: core.h G_TFRES) */
+    /* the screen and the sound in one section (the user, 2026-10-25: KNOB COLORS was on a page read as "audio", "group and
+     * make it logical"): BRIGHT, KNOB COLORS (the knob caps' colours; COLOR gone 2026-10-18: the palette is MONO, panel.c),
+     * LOWCUT, FILT RESO (SLOOP 2.8's FILTER RESO, a project's: core.h G_TFRES) */
+    {"GENERAL", {SI_IF(FELUCCA_BRIGHT, SI_BRIGHT), SI_KCOL, SI_LOWCUT, SI_IF(FELUCCA_TFLT_RESO && FELUCCA_TRK_FILT, SI_FRESO)}},
+#if FELUCCA_CDC
+    {"USB", {SI_USB, SI_NONE, SI_NONE, SI_NONE}},       /* (USB SERIAL: on General's page when it fits, GL_JOIN) */
+#endif
 #if FELUCCA_LIGHTS
     {"KEYS", {SI_LIGHTS, SI_KEYS, SI_NONE, SI_NONE}},
-#endif
-#if FELUCCA_CDC
-    {"USB", {SI_USB, SI_NONE, SI_NONE, SI_NONE}},
 #endif
 #if FELUCCA_BLE                                         /* (Bluetooth, a page a side, each with its item: op_bt.c) */
     {"BT MIDI", {SI_BLE, SI_BLEPEER, SI_BLEMIDI, SI_BLEST}},   /* MODE, DEVICE, ACTIVITY, STATE */
