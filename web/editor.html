@@ -172,11 +172,24 @@
   /* a backup-only firmware (data-conn=lite, loadLite): the Backup tab, Install, Build, the Simulator; with the librarian
      (data-lib) the Library tab and the Projects tab (the librarian) too, the Library's buttons that play or read the
      sound left out (no live editing) */
-  html[data-conn=lite] #tabs > button[data-tab]:not([data-tab=projects]):not([data-tab=backup]):not([data-tab=library]):not([data-tab=install]):not([data-tab=build]):not([data-tab=sim]):not([data-tab=screen]),
-  html[data-conn=lite]:not([data-lib]) #tabs > button[data-tab=library], html[data-conn=lite]:not([data-lib]) #tabs > button[data-tab=projects], html:not([data-conn=lite]) #libr, html[data-conn=lite]:not([data-lib]) #libr,
+  html:not([data-conn=lite]) #libr, html[data-conn=lite]:not([data-lib]) #libr,
   html[data-conn=lite] #libaud, html[data-conn=lite] #libsave, html[data-conn=lite] #czbox,
   html[data-conn=lite] #slots, html[data-conn=lite] #p-projects > .pghelp, html[data-conn=lite] .tbar > :not(#mock) { display: none !important; }
+  /* Bluetooth (data-conn=bt, loadBt): the Mirror page alone, Install, Build, the Simulator */
+  html[data-conn=bt] .tbar > :not(#mock) { display: none !important; }
+  /* tabs only for what the connection offers (the user, 2026-10-25, back to it after trying every tab always shown: "i see
+     now why you only show the tabs after connecting"): the backup-only firmware (lite: its Backup, Firmware, the Simulator,
+     Mirror, with the librarian Library and Projects), Bluetooth (Mirror, Firmware, the Simulator); no FM-1: html[data-conn=off]
+     below; a page the firmware lacks: renderPanels */
+  html[data-conn=lite] #tabs > button[data-tab]:not([data-tab=projects]):not([data-tab=backup]):not([data-tab=library]):not([data-tab=install]):not([data-tab=build]):not([data-tab=sim]):not([data-tab=mirror]),
+  html[data-conn=lite]:not([data-lib]) #tabs > button[data-tab=library], html[data-conn=lite]:not([data-lib]) #tabs > button[data-tab=projects],
+  html[data-conn=bt] #tabs > button[data-tab]:not([data-tab=mirror]):not([data-tab=install]):not([data-tab=build]):not([data-tab=sim]) { display: none !important; }
+  /* the icon-only tabs: their name when the icon font is not there (file://, a failed load) */
+  html:not(.fk) .tabs button.ionly[data-ic]::after { content: attr(aria-label); }
   #libr .lbr { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0 8px; }
+  #libr .lbrtabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; margin: 6px 0; max-width: 32rem; }
+  #libr .lbrtabs button[aria-selected="true"] { background: var(--fg); color: var(--bg); }
+  #libr .lbrgrid { display: grid; grid-template-columns: repeat(8, minmax(2.5rem, 1fr)); gap: 4px; margin: 4px 0 8px; max-width: 48rem; }
   #libr .lbr .pslot { min-width: 34px; }
   #libr td .pslot.sel, #libr .lbr .pslot.sel { outline: 2px solid var(--accent, currentColor); }
   .connectcard { max-width: 460px; margin: 12vh auto 0; text-align: center; }
@@ -335,8 +348,63 @@
   /* v13: the device's screens (SCRS): a row of four cards under its name, the pages of SOUND under their family */
   .scbar { display: flex; flex-wrap: wrap; gap: 8px 14px; margin: 8px 0; }
   #scscope { width: 100%; max-width: 944px; height: 180px; border: 1px solid var(--line); margin: 4px 0 8px; display: block; }
-  #mirror { width: min(100%, 480px); aspect-ratio: 1; image-rendering: pixelated; background: #000; display: block; margin: 8px auto; cursor: zoom-in; }
-  #mirror:fullscreen { background: #000; cursor: zoom-out; }
+  #mirror { width: 100%; aspect-ratio: 1; image-rendering: pixelated; background: #000; display: block; margin: 0 auto; touch-action: none; }
+  /* the Mirror page: the buttons and favourites left, the screen with the tracks under it, the pages right (the Mirror app's) */
+  .mirbar { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; margin: 0 0 8px; }
+  .mirbar:empty { display: none; }
+  /* over the screen, right: buttons on or off, full screen (round icons) */
+  .mircenter { position: relative; }
+  .mirtools { position: absolute; top: 8px; right: 8px; z-index: 2; display: flex; gap: 6px; }   /* (on the screen's corner: no row of its own) */
+  .mirtool { width: 32px; height: 32px; padding: 0; border-radius: 50%; background: rgba(40, 40, 44, .7); color: #fff;
+             display: flex; align-items: center; justify-content: center; }
+  .mirtool:hover { background: rgba(60, 60, 66, .9); }
+  .mirtool svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  /* the screen as large as the window lets it (its height less the bars, the tracks under it), the button columns narrow */
+  /* (the page's top: no empty rows, the help "i" in the corner, the tools on the screen; the user, 2026-10-25) */
+  #p-mirror { position: relative; padding-top: 8px; }
+  #p-mirror > .pghelp { position: absolute; left: 0; top: 8px; margin: 0; z-index: 3; max-width: 28rem; }
+  #p-mirror > .pghelp[open] { background: var(--bg); padding: 0 8px 8px 0; }
+  .mirwrap { --ms: calc(100vh - var(--menubar-h, 48px) - 120px); display: grid; gap: 12px; align-items: start; justify-content: center;
+             grid-template-columns: minmax(120px, 168px) minmax(240px, var(--ms)) minmax(120px, 168px); }
+  .mirwrap.alone { grid-template-columns: minmax(240px, calc(var(--ms) + 60px)); }
+  .mirwrap.alone .mirside, .mirwrap.alone .mirpages, .mirwrap.alone .mirtracks { display: none; }
+  .mirside, .mirpages, .mircenter { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+
+  .mirbtns .mirb { min-height: 34px; font-size: 12px; }
+  /* full screen with the buttons: the whole page, the screen to the window's height */
+  #p-mirror:fullscreen { background: var(--bg); color: var(--fg); padding: 16px 20px; overflow: auto; margin: 0;
+                         display: flex; flex-direction: column; justify-content: center; }
+  #p-mirror:fullscreen .pghelp { display: none; }
+  #p-mirror:fullscreen .mirwrap { --ms: calc(100vh - 130px); width: 100%; grid-template-columns: minmax(120px, 200px) minmax(240px, var(--ms)) minmax(120px, 200px); }
+  #p-mirror:fullscreen .mirwrap.alone { grid-template-columns: minmax(240px, calc(var(--ms) + 50px)); }
+  #p-mirror:fullscreen .mirpages { max-height: calc(100vh - 40px); }
+  .mirpages { max-height: 560px; overflow-y: auto; }
+  .mirh { font-size: 11px; font-weight: 600; color: var(--dim); text-transform: uppercase; margin-top: 4px; }
+  .mirbtns { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .mirb { min-height: 38px; padding: 2px 6px; background: color-mix(in srgb, var(--fg) 8%, var(--bg)); color: var(--fg); border: 0; border-radius: 8px; font-weight: 600;
+          display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.15; min-width: 0; }
+  .mirb span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  .mirb small { font-size: 10px; font-weight: 500; opacity: .65; }
+  .mirb:hover:not(:disabled) { background: color-mix(in srgb, var(--fg) 15%, var(--bg)); }
+  .mirb[aria-pressed=true], .mirb[aria-pressed=true]:hover { background: var(--fg); color: var(--bg); }
+  .mirfav { display: flex; gap: 4px; }
+  .mirfav .mirb { flex: 1; }
+  .mirfavadd { display: flex; flex-direction: column; gap: 4px; }
+  .mirfavadd .mirb { min-height: 30px; font-size: 12px; font-weight: 500; }
+  .mirx { background: color-mix(in srgb, var(--fg) 8%, var(--bg)); color: var(--dim); border: 0; border-radius: 8px; padding: 0 10px; }
+  .mirx:hover { color: var(--fg); }
+  .mirtracks { display: flex; flex-direction: column; gap: 6px; }
+  .mirlanes { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 4px; }
+  .mirlanes:empty { display: none; }
+  .mirlanes .mirb { min-height: 32px; font-size: 12px; }
+  .mirtrk { display: flex; gap: 4px; }
+  .mirtrk .mirb { flex: 1; padding: 2px; }
+  @media (max-width: 760px) {
+    .mirwrap, #p-mirror:fullscreen .mirwrap { grid-template-columns: 1fr 1fr; }
+    .mirwrap.alone, #p-mirror:fullscreen .mirwrap.alone { grid-template-columns: 1fr; }
+    .mircenter { grid-column: 1 / -1; order: -1; }
+    .mirpages { max-height: none; }
+  }
   .scrows { display: flex; flex-direction: column; gap: 6px; }
   .scrow { border: 1px solid var(--line); padding: 4px 8px 6px; }
   .scrow[data-asking="1"] { outline: 2px solid var(--warn, #e7c15b); }
@@ -604,6 +672,11 @@
   .menubar .tabs .navh:first-child { margin-left: 0; padding-left: 0; border-left: 0; }
   .menubar .tabs .gh { margin-left: auto; padding: 4px 10px; color: var(--dim); text-decoration: none; white-space: nowrap; display: inline-flex; align-items: center; }   /* (the repository, at the bar's end: the GitHub mark) */
   .menubar .tabs .gh:hover { color: var(--fg); }
+  /* Help: an icon beside GitHub's at the bar's end, not a tab (the user, 2026-10-25); it opens the help as before */
+  .menubar .tabs #helpbtn { margin-left: auto; padding: 4px 6px; border: 0; background: none; color: var(--dim); display: inline-flex; align-items: center; }
+  .menubar .tabs #helpbtn:hover { color: var(--fg); background: none; }
+  .menubar .tabs #helpbtn .si { width: 18px; height: 18px; }
+  .menubar .tabs #helpbtn + .gh { margin-left: 0; }
   .menubar .tabs button { background: none; color: var(--dim); text-align: left; padding: 4px 10px; border: 0; border-bottom: 3px solid transparent; white-space: nowrap; }
   .menubar .tabs button:hover { color: var(--fg); background: var(--s1); }
   .menubar .tabs button[aria-selected="true"] { color: var(--fg); background: var(--s2); border-bottom-color: var(--trk); }
@@ -830,8 +903,6 @@
   /* v13: the device's screens (SCRS): a row of four cards under its name, the pages of SOUND under their family */
   .scbar { display: flex; flex-wrap: wrap; gap: 8px 14px; margin: 8px 0; }
   #scscope { width: 100%; max-width: 944px; height: 180px; border: 1px solid var(--line); margin: 4px 0 8px; display: block; }
-  #mirror { width: min(100%, 480px); aspect-ratio: 1; image-rendering: pixelated; background: #000; display: block; margin: 8px auto; cursor: zoom-in; }
-  #mirror:fullscreen { background: #000; cursor: zoom-out; }
   .scrows { display: flex; flex-direction: column; gap: 6px; }
   .scrow { border: 1px solid var(--line); padding: 4px 8px 6px; }
   .scrow[data-asking="1"] { outline: 2px solid var(--warn, #e7c15b); }
@@ -1091,6 +1162,7 @@
 
   .titlebar { display: flex; align-items: flex-end; gap: 16px; min-height: 32px; }
   #status { margin-left: auto; color: var(--dim); text-align: right; min-height: 20px; overflow-wrap: anywhere; max-width: 70%; }
+  .tbar #status { order: 99; }   /* (the status last, on the right: the transport's controls from the left; the user, 2026-10-25) */
   .tbar { border: 0; padding: 12px 0 0; gap: 8px 16px; }
   .tbar .tp { gap: 6px; }
   .tbar label.bpm { display: inline-flex; align-items: center; gap: 8px; }
@@ -1106,7 +1178,7 @@
   .panel { margin: 0; padding-top: 20px; }
   .hint { margin: 32px 0; }
   html[data-conn=off] .titlebar { display: none !important; }
-  html[data-app] #transport { display: none; } html[data-conn=off][data-app] #connectcard { display: none; } html[data-conn=off][data-app] .panel.appview:not([hidden]) { display: block !important; }
+  html[data-app] #transport, html[data-page]:not([data-page=mixer]) #transport { display: none; }   /* (the transport: the Editor's only; the user, 2026-10-25) */ html[data-conn=off][data-app] #connectcard { display: none; } html[data-conn=off][data-app] .panel.appview:not([hidden]) { display: block !important; }
   .appview { padding-top: 12px; } .appview .appnote { margin: 0 0 8px; }
   .connectcard .clogo { font-size: 32px; line-height: 32px; font-weight: 400; text-transform: uppercase; color: var(--trk); }
   .connectcard #cstatus[data-st=err] { color: var(--err); }
@@ -1432,12 +1504,13 @@
   #mixer .strip .srow[data-row="nav"] .bchips { display: flex; gap: 2px; flex: 1; justify-content: center; min-width: 0; } #mixer .strip .srow[data-row="nav"] .bchips button { min-width: 20px; height: 24px; padding: 0 3px; font-size: 12px; }
   #mixer .strip .srow[data-row="nav"] .bchips button[aria-pressed="true"] { background: var(--fg); color: var(--bg); } #mixer .strip .srow[data-row="nav"] > button.ib { width: 22px; min-width: 22px; flex: none; }
   html[data-conn=off] #disconnect, html[data-conn=off] .devcard #version { display: none; } .o-host .o-num, .o-host .oi-num { margin-right: 8px; }
+  html[data-conn=off] #tabs > :not([data-tab=install]):not([data-tab=build]):not([data-tab=sim]):not([data-tab=mixer]):not(.navh:first-of-type):not(.gh) { display: none; } html[data-conn=off] #tabs .navh { display: none; }   /* (no device: the pages that need one are not offered; Install, Build and Simulator do not; the Editor tab stays, it shows the connect card: Install releases the device, and without it there was no way back) */
   /* automated steps (p-locks, motion) in the device's COL_MK_AUTO: the tiles, the drum cells, the strips' overview */
   :root { --mk-auto: #ffec80; }
   .tiles button.auto { background: var(--mk-auto); color: #000; } .tiles button.auto::after { background: #000; outline-color: var(--mk-auto); }
   .dgrid button.lk, .dgrid button.on.lk, .dgrid button.on.l1.lk, .dgrid button.on.l2.lk, .dgrid button.on.l3.lk { background: var(--mk-auto); color: #000; box-shadow: inset 0 0 0 2px #000; }
   #mixer .strip .ov i.auto { background: var(--mk-auto); }
-  html[data-conn=off] #tabs > :not([data-tab=install]):not([data-tab=build]):not([data-tab=sim]):not([data-tab=mixer]):not(.navh:first-of-type):not(.gh) { display: none; } html[data-conn=off] #tabs .navh { display: none; }   /* (no device: the pages that need one are not offered; Install, Build and Simulator do not; the Editor tab stays, it shows the connect card: Install releases the device, and without it there was no way back) */
+  /* (no device: every tab stays; a page that needs the FM-1 shows the connect card, Firmware and the Simulator do not) */
 </style>
 </head>
 <body>
@@ -1450,19 +1523,18 @@
     <button role="tab" data-tab="install" data-t="tabInstall" data-ic="port_usb_c"></button>
     <button role="tab" data-tab="sim" data-t="tabSim" data-ic="symbol_waves"></button>
     <span class="navh" role="separator" aria-orientation="vertical"></span>
-    <button role="tab" data-tab="mixer" data-t="tabMixer" data-ic="ui_slider_vertical"></button>
+    <button role="tab" data-tab="mixer" data-t="tabMixer" data-ic="ui_slider_vertical" class="ionly"></button>
+    <button role="tab" data-tab="mirror" data-t="tabMirror" data-ic="symbol_grid" class="ionly" hidden></button>
+    <button role="tab" data-tab="library" data-t="library" data-ic="symbol_books" class="ionly"></button>
+    <button role="tab" data-tab="samples" data-t="samples" data-si="sample" class="ionly"></button>
+    <button role="tab" data-tab="drumkit" data-t="kitPage" data-ic="symbol_drum" class="ionly" hidden></button>
+    <button role="tab" data-tab="projects" data-t="projects" data-ic="symbol_folder" class="ionly"></button>
+    <button role="tab" data-tab="backup" data-t="bkTitle" data-ic="port_disk" class="ionly"></button>
+    <button role="tab" data-tab="snapshots" data-t="snTitle" data-si="snapshot" class="ionly" hidden></button>
     <span class="navh" role="separator" aria-orientation="vertical"></span>
-    <button role="tab" data-tab="library" data-t="library" data-ic="symbol_books"></button>
-    <button role="tab" data-tab="samples" data-t="samples" data-ic="symbol_waves"></button>
-    <button role="tab" data-tab="drumkit" data-t="kitPage" data-ic="symbol_audio" hidden></button>
-    <button role="tab" data-tab="projects" data-t="projects" data-ic="symbol_folder"></button>
-    <button role="tab" data-tab="backup" data-t="bkTitle" data-ic="port_disk"></button>
-    <button role="tab" data-tab="snapshots" data-t="snTitle" data-si="snapshot" hidden></button>
-    <span class="navh" role="separator" aria-orientation="vertical"></span>
-    <button role="tab" data-tab="device" data-t="tabDevice" data-ic="ui_knob" hidden></button>
-    <button role="tab" data-tab="screen" data-t="tabScreen" data-ic="symbol_grid" hidden></button>
-    <button role="tab" data-tab="settings" data-t="tabSettings" data-ic="symbol_cog"></button>
-    <button type="button" id="helpbtn" data-pop="help" data-t="help"></button>
+    <button role="tab" data-tab="device" data-t="tabDevice" data-ic="ui_knob" class="ionly" hidden></button>
+    <button role="tab" data-tab="settings" data-t="tabSettings" data-ic="symbol_cog" class="ionly"></button>
+    <button type="button" id="helpbtn" data-pop="help" data-t="help" data-si="help" class="ionly"></button>
     <a class="gh" href="https://github.com/w0ts/optimist" target="_blank" rel="noopener" title="Optimist on GitHub" aria-label="Optimist on GitHub"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg></a>
   </nav>
   <p class="dim sidenote" id="sidenote" role="note" hidden></p>
@@ -1496,7 +1568,7 @@
   <section id="connectcard" class="connectcard" aria-live="polite">
     <h1 class="clogo"><img src="../../icon.svg" alt="" width="32" height="32" style="vertical-align:-6px;margin-right:12px">Optimist</h1>
     <p><button id="connect" class="big" data-t="connect" data-ic="port_usb_c"></button></p>
-    <p><label class="dim"><span data-t="devSource"></span> <select id="devsrc"><option value="usb" data-t="devUsb"></option><option value="sim" data-t="devSim"></option></select></label></p>
+    <p><label class="dim"><span data-t="devSource"></span> <select id="devsrc"><option value="usb" data-t="devUsb"></option><option value="bt" data-t="devBt"></option><option value="sim" data-t="devSim"></option></select></label></p>
     <p id="cstatus"></p>
     <p class="dim" data-t="connectHint"></p>
     <p><a class="dim" href="#install" data-t="installerLink"></a></p>
@@ -1545,6 +1617,19 @@
   </section>
 
   <!-- works without a device too (the device bank shows while connected) -->
+  <section class="panel" id="p-mirror" data-tab="mirror" data-dev hidden>
+    <details class="pghelp"><summary title="About this page" aria-label="About this page">i</summary><p class="dim" data-t="mirHelp"></p></details>
+    <div class="mirbar" id="mirbar"></div>
+    <div class="mirwrap" id="mirwrap">
+      <div class="mirside" id="mirside"></div>
+      <div class="mircenter">
+        <div class="mirtools" id="mirtools"></div>
+        <div class="mirscreen"><canvas id="mirror" width="240" height="240"></canvas></div>
+        <div class="mirtracks" id="mirtracks"></div>
+      </div>
+      <div class="mirpages" id="mirpages"></div>
+    </div>
+  </section>
   <section class="panel" id="p-library" data-tab="library" hidden>
     <div class="libcols" id="libsec">
       <div id="libpane">
@@ -1659,7 +1744,8 @@
     <div class="scrows" id="scrows"></div>
   </section>
 
-  <section class="panel" id="p-screen" data-tab="screen" data-dev hidden><canvas id="mirror" width="240" height="240"></canvas></section>
+  <!-- the FM-1's own screen (106 MIRROR) and, as in the Mirror app, the touch buttons (109 NAV), the computer keys and knob drags
+       (108 PANEL), the notes of a synth track's clip on STEPS (111 CLIP) -->
   <section class="panel" id="p-settings" data-tab="settings" data-dev hidden>
     <div class="groups" id="setgroups"></div>
     <div class="groups" id="devscr" hidden></div>
@@ -1712,7 +1798,7 @@ const CMD = { INFO: 1, GET: 2, SET: 3, DUMP: 4, DESC: 5, STEP_GET: 6, STEP_SET: 
   SL24_PUT: 90,   /* (a SLOOP 2.4 backup file's project in: ed_sl24.c; 91, SL24_BANK, is retired) */
   AUTO_GET: 92, AUTO_SET: 93,   /* (v11: the automation store, ed_stepx.c; a firmware before it does not answer) */
   FXP: 94, DLAN: 95, SCRN: 96, SONGC: 97, TOOLS: 98, SCRS: 99, FAVS: 100, SCOPE: 101,
-  UNDO: 102, NOTE: 103, SOLO: 104, STEPLANE: 105, MIRROR: 106, REC: 107 };   /* (MIRROR: the screen, ED_MIRROR; INFO tag 65) */   /* (v14: undo / redo, notes, solo and mute, a step in the context of a drum lane; INFO tags 5F..62) */   /* (v13: every effect slot of every owner, ed_fxp.c; INFO tag 0x57) */
+  UNDO: 102, NOTE: 103, SOLO: 104, STEPLANE: 105, MIRROR: 106, REC: 107, PANEL: 108, NAV: 109 };   /* (PANEL, NAV: the Mirror page's keys, knob drags and touch buttons, ED_MIRROR; INFO 66) */   /* (MIRROR: the screen, ED_MIRROR; INFO tag 65) */   /* (v14: undo / redo, notes, solo and mute, a step in the context of a drum lane; INFO tags 5F..62) */   /* (v13: every effect slot of every owner, ed_fxp.c; INFO tag 0x57) */
 /* the automation store (firmware seq/auto.h): an event's place (bits 0..5 the step, bit 6 STEP-ONLY: a lock; else a hold
    event, motion), its parameter (a stored P_* id, or a pseudo-parameter), its value (a signed byte) */
 const AUTO = { ONLY: 0x40, STEP: 0x3F, COND: 0xFC, NUDGE: 0xFD, FILL: 0xFE, CHANCE: 0xFF, MAX: 128, PAGE: 64,   /* (COND 1..9: 1:2 2:2 1:3 2:3 3:3 1:4 2:4 3:4 4:4, Felucca 1.5.6) */
@@ -2488,7 +2574,7 @@ const parse = {
       if (id === 0x5C && n >= 3 && a[r.i] >= 1) o.scrs = { mask: a[r.i + 1] | (a[r.i + 2] << 7) };   /* 5C: version, the screens built (2 x 7 bits) */
       if (id === 0x59 && n >= 2 && a[r.i] >= 1) o.scrn = { screens: a[r.i + 1] };   /* 59: version, screens (GLOBAL, SYSTEM) */
       if (id === 0x65 && n >= 1 && a[r.i] >= 1) o.mirror = { v: a[r.i] };   /* 65: the screen mirrored (ED_MIRROR), version */
-      if (id === 0x66) o.opti = optiParse(a.slice(r.i, r.i + n));   /* 66: the features by name and version (ed_opti.h) */
+      if (id === 0x66 || id === 0x67) o.opti = { ...(o.opti || {}), ...optiParse(a.slice(r.i, r.i + n)) };   /* 66, 67 (66 full): the features by name and version (ed_opti.h) */
       if (id === 0x64 && n >= 1) { o.lite = !!(a[r.i] & 1); o.lib = !!(a[r.i] & 2); }   /* 64: backup and restore only (loadLite), bit 1 the librarian */
       if (id === 0x58 && n >= 2 && a[r.i] >= 1) o.dlan = { groups: a[r.i + 1] };   /* 58: version, groups */
       if (id === 0x5F && n >= 2 && a[r.i] >= 1) o.undo = { many: !!(a[r.i + 1] & 1) };   /* 5F: version, flags (bit 0 a history of many levels) */
@@ -3155,6 +3241,7 @@ function replyMatches(cmd, args, a) {
     case CMD.STEPLANE: return a[0] === args[0] && (args[0] === 0 ? a[1] === args[1] && a[2] === args[2] : args[0] === 1 ? a[1] === args[1] && a[2] === args[2] && a[3] === args[3] : a[2] === args[1] && a[3] === args[2]);
     case CMD.NOTE: return a[0] === args[0] && a[2] === args[1] && (args[0] === 2 || a[3] === args[2]);
     case CMD.SOLO: return a[0] === args[0];
+    case CMD.PANEL: case CMD.NAV: return a[0] === args[0];
     case CMD.FAVS: return a[0] === args[0] && (args[0] === 0 || args[0] === 3 || a[1] === args[1]) && (args[0] !== 2 || a[2] === args[2]);
     case CMD.SCRS: return a[0] === args[0] && a[1] === args[1] && (args[0] === 0 || a[2] === args[5]);
     case CMD.SCRN: return a[0] === args[0] && (args[0] === 4 || a[1] === args[1]) && (args[0] < 1 || args[0] === 4 || a[2] === args[2]);
@@ -4587,7 +4674,7 @@ const textOn = (bg) => (contrast(bg, "#000000") >= contrast(bg, "#ffffff") ? "#0
    the transport bar; every track editor is a popup one click from a strip, closed by its x, Escape or a click outside,
    back to the mixer as it was. NAV lists every popup with the strip button that opens it (opener: CSS selector inside
    the strip of track `strip` (0..3, "master")). The tests walk it: depth 1, Esc back to the mixer */
-const SCREENS = ["mixer", "library", "samples", "drumkit", "projects", "backup", "snapshots", "device", "screen", "settings"];
+const SCREENS = ["mixer", "mirror", "library", "samples", "drumkit", "projects", "backup", "snapshots", "device", "settings"];   /* (Mirror beside the Editor: the user, 2026-10-25) */
 const NAV = {
   sound: { strip: "synth", opener: "[data-pop=sound]" },
   sequence: { strip: "any", opener: "[data-pop=sequence]" },
@@ -4697,11 +4784,12 @@ async function openMidi(nav) {
 const isFM1Port = (p) => !!p && /felucca|optimist/i.test(p.name || "") && p.state !== "disconnected";
 /* an FM-1 shows as two ports when its Bluetooth MIDI is paired too ("Optimist 112D Bluetooth", listed first on a Mac): the
    USB one, else the Bluetooth one (the USB port answered INFO in 1 ms, the Bluetooth one not at all, 2026-10-18) */
-const pickFM1 = (ports) => { const c = [...ports].filter(isFM1Port); return c.find((p) => !/bluetooth/i.test(p.name || "")) || c[0]; };
+const isBtPort = (p) => /bluetooth/i.test((p && p.name) || "");
+const pickFM1 = (ports, bt = false) => { const c = [...ports].filter(isFM1Port); return bt ? c.find(isBtPort) : c.find((p) => !isBtPort(p)) || c[0]; };
 /* the FM-1's input and output, or null (not plugged in: the statechange event says when it comes) */
-function findPorts(access) {
+function findPorts(access, bt = false) {
   if (!access) return null;
-  const input = pickFM1(access.inputs.values()), output = pickFM1(access.outputs.values());
+  const input = pickFM1(access.inputs.values(), bt), output = pickFM1(access.outputs.values(), bt);
   return input && output ? { input, output } : null;
 }
 /* a port event worth a reconnect: an FM-1 output appeared while we want to be connected and are not */
@@ -6401,6 +6489,75 @@ function optiParse(b) {
   for (const w of String.fromCharCode(...b).split(" ")) { const u = w.lastIndexOf("_"); if (u > 0 && /^\d+$/.test(w.slice(u + 1))) o[w.slice(0, u)] = +w.slice(u + 1); }
   return o;
 }
+/* the Mirror page's keys and touch buttons, as the Mirror app's (ios/OptimistMirror/Sources/PanelKeys.swift, Nav/NavState.swift;
+   web/EDITOR_PROTOCOL.md "The panel pressed", "The touch navigation"). The computer keyboard is the FM-1's panel, the FM-1
+   Emulator's keys: letters and Space hold the buttons (108 PANEL kind 0, by label), the arrows OCT- and OCT+, A W S E D R F G T H
+   Y J K the note keys (kind 1; Shift: an octave up), pairs of keys turn the knobs a detent a press (kind 2, by role) */
+const PANEL_BUTTONS = { x: 0, b: 1, v: 2, l: 3, i: 4, o: 5, u: 6, z: 7, p: 8, q: 9, " ": 10, c: 11, arrowleft: 12, arrowright: 13 };
+const PANEL_NOTES = "awsedrfgthyjk";
+const PANEL_KNOBS = { "[": [0, -1], "]": [0, 1], "-": [1, -1], "=": [1, 1], 9: [2, -1], 0: [2, 1],   /* SELECT ALGORITHM PRESETS, */
+  1: [3, -1], 2: [3, 1], 3: [4, -1], 4: [4, 1], 5: [5, -1], 6: [5, 1], 7: [6, -1], 8: [6, 1] };       /* KNOB 1..4: ccw, cw */
+/* a key's name (e.key, lower case: Shift's capital the same key) */
+const panelKeyName = (key) => String(key).toLowerCase();
+/* the PANEL a key makes: {held: [kind, id]} a button or note key, down and up with the key; {knob: [role, detents]}; null: none */
+function panelKey(key, shift) {
+  const k = panelKeyName(key);
+  if (k in PANEL_KNOBS) return { knob: PANEL_KNOBS[k] };
+  if (k in PANEL_BUTTONS) return { held: [0, PANEL_BUTTONS[k]] };
+  const n = k.length === 1 ? PANEL_NOTES.indexOf(k) : -1;
+  return n >= 0 ? { held: [1, n + (shift ? 13 : 0)] } : null;
+}
+/* 109 NAV: the screens (op_state.c SCR_*), their panel buttons' names (the app's Nav.Screen title), the SOUND families by page
+   button (108's labels), the buttons' order on the page (the panel's: FX SCL ENV LFO EDIT GLOBAL SYSTEM HOME SAVE ARP SEQ SONG
+   PATTERN), and the button a lit screen's own button presses again (its next page, as on the FM-1) */
+const MNAV = {
+  NONE: 127, SOUND: 1, MASTER: 2, STEPS: 5, SONG: 6, PATTERNS: 3, DRUM_ROW: 4,
+  SCREENS: ["MIX", "SOUND", "MASTER", "PROJECT", "SYSTEM", "STEPS", "SONG", "TEMPO", "SCOPE", "GLOBAL"],
+  TITLES: ["HOME", "SOUND", "FX", "SAVE", "SYSTEM", "SEQ", "SONG", "PLAY HOLD", "HOME ×2", "GLOBAL"],
+  MODES: { 0: "FX", 1: "SCL", 2: "ENV", 3: "LFO", 4: "EDIT", 8: "ARP" },
+  ITEMS: [["mode", 0], ["mode", 1], ["mode", 2], ["mode", 3], ["mode", 4], ["screen", 9], ["screen", 4], ["screen", 0], ["screen", 3],
+    ["mode", 8], ["screen", 5], ["screen", 6], ["patterns"]],
+  AGAIN: { 0: 6, 5: 9, 6: 9, 9: 5, 4: 5 },
+};
+/* KNOB 1..4's places on the 240 x 240 panel: layout 1 the 1x4 cards, 2 the 2x2 cards, 3 four lines from `top`, `pitch` apart */
+function navKnobs(layout, top = 0, pitch = 0) {
+  const k4 = [0, 1, 2, 3];
+  if (layout === 1) return k4.map((k) => ({ x: 3 + 59 * k, y: 28, w: 57, h: 45 }));
+  if (layout === 2) return k4.map((k) => ({ x: k & 1 ? 121 : 3, y: 28 + (k & 2 ? 47 : 0), w: 116, h: 46 }));
+  if (layout === 3) return k4.map((k) => ({ x: 0, y: top + k * pitch, w: 240, h: pitch }));
+  return [];
+}
+/* a reply to 0..3: op, refused, screen, button, row, n, n names (0-terminated), track [, knobs [, top, pitch]]; null: short */
+function navParse(a) {
+  if (!a || a.length < 6) return null;
+  const st = { refused: a[1] !== 0, screen: a[2], mode: a[3], row: a[4], rows: [], track: MNAV.NONE, knobs: [] };
+  let i = 6;
+  for (let r = 0; r < a[5]; r++) {
+    const z = a.indexOf(0, i);
+    if (z < 0) return null;
+    st.rows.push(String.fromCharCode(...a.slice(i, z)));
+    i = z + 1;
+  }
+  if (i >= a.length) return null;
+  st.track = a[i++];
+  if (i < a.length) st.knobs = a[i] === 3 ? navKnobs(3, a[i + 1] | 0, a[i + 2] | 0) : navKnobs(a[i]);
+  return st;
+}
+/* a reply to 4 TRACKS: 4, 0, n, n names (MASTER, T1..T3, DR, the lanes, ACCENT) */
+function navTracksParse(a) {
+  if (!a || a.length < 3) return [];
+  const out = [];
+  let i = 3;
+  for (let r = 0; r < a[2] && i < a.length; r++) {
+    const z = a.indexOf(0, i);
+    if (z < 0) break;
+    out.push(String.fromCharCode(...a.slice(i, z)));
+    i = z + 1;
+  }
+  return out;
+}
+/* the knob a point of the panel (240 x 240) is on, -1 none */
+const navKnobAt = (knobs, x, y) => knobs.findIndex((r) => x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h);
 /*PROTO-END*/
 /* one colour on the web pages: the blue (--t1) wherever an engine, a kit kind or a track had its own; COLORS (above) stays, the device's table */
 const UI_C = "var(--t1)", UI_ON = "var(--on)";
@@ -6456,6 +6613,7 @@ const ICONS = {
   play: "M7 4v16l13-8z",
   stop: "M6 6h12v12H6z",
   snapshot: "M4 8h3.5l2-3h5l2 3H20v11H4zM12 10.5a3.25 3.25 0 1 0 0 6.5a3.25 3.25 0 1 0 0-6.5",
+  sample: "M3 12h1M6 9v6M9 5v14M12 8v8M15 3v18M18 7v10M21 10.5v3",   /* (a recorded sound's waveform: the Samples tab) */
   inserts: "M3 5h18v5H3zM3 14h18v5H3zM17 7.5h.01M17 16.5h.01",   /* (v13: two slots in series) */
   returns: "M4 12h12M12 7l5 5-5 5M20 5v14",
 };
@@ -6485,7 +6643,14 @@ const WAVE_IC = { SIN: "waveform_sine", TRI: "waveform_triangle_ac", SAW: "wavef
 /* options can hold an icon only where the browser draws the picker itself; a native menu would show a box */
 const RICH_SELECT = typeof CSS !== "undefined" && CSS.supports && CSS.supports("appearance", "base-select");
 function icon(name) { return el("span", { class: "ic", "aria-hidden": "true", text: String.fromCharCode(GLYPH[name]) }); }
-function setLabel(e, txt) { e.replaceChildren(...(e.dataset.ic ? [icon(e.dataset.ic)] : e.dataset.si ? [svgIcon(e.dataset.si)] : []), txt); }
+function setLabel(e, txt) {
+  const ic = e.dataset.ic ? [icon(e.dataset.ic)] : e.dataset.si ? [svgIcon(e.dataset.si)] : [];
+  if (e.classList.contains("ionly")) {           /* (the tabs from Editor on: the icon, the name as its tooltip; the user, 2026-10-25) */
+    e.replaceChildren(...ic);
+    e.title = txt;
+    e.setAttribute("aria-label", txt);
+  } else e.replaceChildren(...ic, txt);
+}
 /* icons stay hidden (html:not(.fk)) until the face has loaded; on failure, or from file://, words only */
 (async () => {
   try {
@@ -6517,6 +6682,8 @@ const TEXT = {
   connectHint: "Plug the FM-1 in by USB: the editor finds it by itself. It needs Optimist on the FM-1 and Chrome or Edge.",
   installerLink: "No Optimist on the FM-1 yet? The installer",
   nodevice: "No FM-1 found. Plug it in by USB: it connects as soon as it appears.",
+  nodevicebt: "No FM-1 over Bluetooth: turn Bluetooth on in the FM-1's SYSTEM page, then connect it to this computer (Mac: Audio MIDI Setup, Window > Show MIDI Studio, the Bluetooth button). It connects as soon as its port appears.",
+  readyBt: "Connected over Bluetooth: the Mirror page only (the rest of the editor needs the USB cable).",
   connecting: "Connecting", reading: "Reading ", steploading: "Reading steps ",
   ready: "Connected", disconnected: "Disconnected", lost: "The FM-1 was unplugged",
   noreply: "No reply from the device", error: "Error: ", busy: "Busy",
@@ -6527,9 +6694,15 @@ const TEXT = {
   samples: "Samples", smpHelp: "Drop or choose WAV files. Up to 16 files per slot, stored as mono 22050 Hz ADPCM (about 7 s in all). Select USR1–USR3 with SET on the SAMPLE engine (or SRC on the SLICE engine).",
   tabDrums: "Drum sounds", drumSounds: "The 16 drum sounds", drumHelp: "Each of the drum track's 16 sounds: its source (the kit, a sample of USR1–USR3, another kit's sound for it, any voice of X0X's 909 or 808), the sample's hit (zone), start and length (1/1024 of the hit), and the sound editor's 8 offsets (0 = as the kit). On the device: EDIT on the drum track.",
   userKits: "User kits", ukitHelp: "16 kits, KIT 1 to KIT 16 (every lane's source and offsets). Loading one puts it into the project's drums. Export writes the kit and the samples of the USR slots it plays into one file.",
-  tabInstall: "Firmware", tabBuild: "Build", tabSim: "Simulator", tabScreen: "Screen",
+  tabInstall: "Firmware", tabBuild: "Build", tabSim: "Simulator", tabMirror: "Mirror",
+  mirHelp: "The FM-1's screen as it draws it. Keys: X FX, B SCL, V ENV, L LFO, I EDIT, O GLOBAL, U HOME, Z SAVE, P ARP, Q SEQ, Space PLAY, C REC, \u2190 \u2192 OCT; A W S E D R F G T H Y J K the keys (Shift: an octave up); [ ] SELECT, - = ALGORITHM, 9 0 PRESETS, 1 2 / 3 4 / 5 6 / 7 8 KNOB 1..4. A drag or the wheel on a knob's value turns it; a double click: full screen. Right click on a page: a favourite (kept in this browser).",
+  mirFavs: "Favorites", mirFavAdd: "the page", mirFavOn: "on", mirFavAddTip: "Keep the page shown as a favorite (on the track: that track's)", mirFavDrop: "Remove the favorite",
+  mirNoPages: "No pages to list here: use the knobs.", mirHideButtons: "Screen alone (larger)", mirShowButtons: "The buttons around the screen",
+  mirFull: "Full screen (Esc: back)", mirFullExit: "Exit full screen", mirRoll: "Piano roll", mirRollTip: "This track's steps as notes (Sequence)",
+  mirNoBt: "Over Bluetooth this firmware sends its screen only: the buttons and keys need the USB cable, or a build made after 2026-10-24 (opti_mirbt_1).",
+  mirNoNav: "This firmware has no touch buttons (opti_nav_1): a build with ED_MIRROR made after 2026-10-24.",
   mirrorNone: "This firmware does not send its screen: build it with ED_MIRROR (under the web editor in Build).", appSimMissing: "The simulator module is not available here.",
-  devSource: "Device", devUsb: "FM-1 (USB)", devSim: "Simulator", simoff: "The simulator is not running: start it in the Simulator tab (it connects by itself).", appLoading: "Loading…", appNoSite: "This copy has no packages next to it (installer/site.json): choose a .fwsc file of your own.", appInstallMissing: "The installer module is not available here.", appBuildMissing: "The builder module is not available here yet.", appBusy: "Installing: stay on this page until it is done.",
+  devSource: "Device", devUsb: "FM-1 (USB)", devBt: "FM-1 (Bluetooth: Mirror)", devSim: "Simulator", simoff: "The simulator is not running: start it in the Simulator tab (it connects by itself).", appLoading: "Loading…", appNoSite: "This copy has no packages next to it (installer/site.json): choose a .fwsc file of your own.", appInstallMissing: "The installer module is not available here.", appBuildMissing: "The builder module is not available here yet.", appBusy: "Installing: stay on this page until it is done.",
   tabMixer: "Editor", help: "Help", bpm: "BPM", close: "Close", section: "Section", meter: "Meter", syncTip: "MIDI clock (Settings)", syncLocked: "an external clock is followed", syncWaiting: "waiting for that clock", choose: "Choose", number: "Number", value: "Value",
   keysTitle: "Keyboard shortcuts", keyTrack: "Select the previous / next track", keyClose: "Close the open editor (or press its key again)",
   keyLanes: "Select drum sound 1\u201310 (its sends on the strip); again: open it", keyLaneOpen: "Open the selected drum sound",
@@ -6696,7 +6869,7 @@ const TEXT = {
   bkBackup: "Back up", bkSamples: "with the samples ({n} KiB)", bkRestore: "Restore from a file…", bkRestoreGo: "Restore the ticked ones",
   bkStopped: "Stopped only. The FM-1 restarts when done.", bkConfirm: "Write {n} objects back into the FM-1 (what is there is replaced)?",
   bkReading: "Reading: ", bkSaved: "Backup saved: ", bkRestored: "Restored (the FM-1 restarts): ", bkSkipped: "not written: ", bkNothingWritten: "Nothing was restored.",
-  bkBadFile: "Cannot read the backup file: ", bkBadChunk: "damaged data", bkNone: "This firmware has no backup.",
+  bkBadFile: "Cannot read the backup file: ", bkBadChunk: "damaged data", patCopyTo: "Copy to…", bkNone: "This firmware has no backup.", bkAsking: "Asking the FM-1 for its backup list…", bkNoAnswer: "The FM-1 did not answer the backup list: stop playback, then open this page again.",
   bkUnknown: "not a kind this firmware has", bkNotInBuild: "not in this build (not written)",
   bkTooBig: "larger than this build's slot (not written)", bkOlder: "an older format (converted as it loads)",
   bkReport: "On this device:",
@@ -6717,7 +6890,7 @@ const TEXT = {
 };
 const t = (k) => TEXT[k] ?? k;   /* English only */
 let lastKey = null, lastArg = "";
-const SAY_ST = { nomidi: "err", denied: "err", error: "err", noreply: "err", nodevice: "warn", lost: "warn", simoff: "warn" };
+const SAY_ST = { nomidi: "err", denied: "err", error: "err", noreply: "err", nodevice: "warn", nodevicebt: "warn", lost: "warn", simoff: "warn" };
 function sayK(k, arg = "") {
   lastKey = k; lastArg = arg;
   $("status").textContent = k === "ready" ? "" : t(k) + arg;   /* (ready: the Live light says it) */
@@ -6747,12 +6920,14 @@ const APPS = ["install", "build", "sim"];          /* the installer, the builder
 const TABS = [...SCREENS, ...APPS];
 const TAB_KEY = "felucca-editor-tab";
 const OLD_TABS = { sound: "sound", sequencer: "sequence", drums: "lane", tracks: null };
+const RENAMED_TABS = { screen: "mirror" };          /* (an old #screen, a remembered "screen": the Mirror page) */
+const tabName = (h) => RENAMED_TABS[h] || h;
 let pendingPop = null;                           /* an old #tab: its popup, once connected */
 let tab = (() => {
-  const h = location.hash.slice(1);
+  const h = tabName(location.hash.slice(1));
   if (h in OLD_TABS) { pendingPop = OLD_TABS[h]; return "mixer"; }
   if (TABS.includes(h)) return h;
-  try { const v = localStorage.getItem(TAB_KEY); if (TABS.includes(v)) return v; } catch (e) { /* no storage */ }
+  try { const v = tabName(localStorage.getItem(TAB_KEY)); if (TABS.includes(v)) return v; } catch (e) { /* no storage */ }
   return "mixer";
 })();
 let nav = { screen: tab, pop: null };
@@ -6841,6 +7016,7 @@ function appSwitch(prev, name) {
   }
 }
 function showTab(name) {
+  name = tabName(name);
   if (name in OLD_TABS) { const p = OLD_TABS[name]; name = "mixer"; if (p && dev && dev.dump) setTimeout(() => openPop(p, p === "lane" ? drumIndex() : dev.sel, kl.sel), 0); }
   if (!TABS.includes(name)) name = "mixer";
   if (appBusy() && name !== tab) { sayK("appBusy"); if (location.hash !== "#" + tab) history.replaceState(null, "", location.pathname + location.search + "#" + tab); return; }   /* (writing the firmware: stay) */
@@ -6865,7 +7041,8 @@ async function openPop(id, track = 0, lane = 0) {
   if (!help && (!dev || !dev.dump || !NAV[id] || (NAV[id].fxp && !fxpOn()) || (NAV[id].usb && !dev.info.fxp.usb) || (NAV[id].songc && !dev.info.songc) || (NAV[id].tools && !dev.info.tools))) return;
   closePop();
   nav = navOpen(nav, id, track, lane);
-  if (!help && tab !== "mixer") { tab = "mixer"; renderPanels(); }
+  if (tab === "mirror") nav = { ...nav, screen: "mirror" };   /* (from the Mirror page, its piano roll: over the mirrored screen, which goes on) */
+  else if (!help && tab !== "mixer") { tab = "mixer"; renderPanels(); }
   const dlg = $("pop"), body = $("popbody");
   const p = $(POP_PANEL[id] || "p-dyn");
   popPanel = p;
@@ -6929,7 +7106,7 @@ $("about").addEventListener("mousedown", (e) => { if (e.target === $("about")) $
 $("popx").addEventListener("click", () => closePop());
 $("pop").addEventListener("cancel", (e) => { e.preventDefault(); closePop(); });   /* Escape */
 $("pop").addEventListener("mousedown", (e) => { if (e.target === $("pop")) closePop(); });   /* a click outside (the backdrop) */
-const OPTI = { backup: 4, mirror: 2, library: 1, projects: 1 };   /* (the versions this page reads) */
+const OPTI = { backup: 4, mirror: 2, library: 1, projects: 1, panel: 1, nav: 1, mirbt: 1 };   /* (the versions this page reads) */
 const opti = (f) => !!dev && !!dev.info && !!dev.info.opti && dev.info.opti["opti_" + f] === OPTI[f];
 const hasKitPage = () => !!dev && !!dev.dl && !!dev.smp;   /* the build has drum lanes (36..) and sample slots */
 const hasSnaps = () => !!dev && !!dev.sn;            /* the firmware has snapshots (protocol v8, commands 54..57) */
@@ -6940,7 +7117,7 @@ function renderPanels() {
     if (b.dataset.tab === "drumkit") b.hidden = !hasKitPage();   /* (the Drum kit page: drum lanes and sample slots) */
     if (b.dataset.tab === "snapshots") b.hidden = !hasSnaps();   /* (the Snapshots screen: only with snapshots) */
     if (b.dataset.tab === "device") b.hidden = !scrsOn();   /* (the device's screens: the Optimist UI's, v13) */
-    if (b.dataset.tab === "screen") b.hidden = !mirrorOn() || !opti("mirror");   /* (the device's own screen: ED_MIRROR) */
+    if (b.dataset.tab === "mirror") b.hidden = !mirrorOn() || !opti("mirror");   /* (the device's own screen: ED_MIRROR) */
     if (b.dataset.tab === "backup" || b.dataset.tab === "projects" || b.dataset.tab === "library")
       b.hidden = !!dev && !!dev.info && !opti(b.dataset.tab);   /* (another firmware's numbering: not offered; ed_opti.h) */
     const on = b.dataset.tab === want || (want === "build" && b.dataset.tab === "install");   /* (Build is Firmware's: no tab of its own) */
@@ -6948,10 +7125,12 @@ function renderPanels() {
     b.tabIndex = on ? 0 : -1;
   }
   const lite = !!dev && !!dev.info && dev.info.lite;   /* (a backup-only firmware: the Backup alone, loadLite) */
-  const ready = !!dev && (!!dev.dump || lite);
-  document.documentElement.dataset.conn = lite ? "lite" : ready ? "on" : "off";   /* not connected: the connect card only (the Install and Build tabs need no device) */
+  const ready = !!dev && (!!dev.dump || lite || (!!dev.bt && !!dev.info));
+  const bt = !!dev && !!dev.bt && !!dev.info;   /* (Bluetooth: the Mirror page alone, loadBt) */
+  document.documentElement.dataset.conn = bt ? "bt" : lite ? "lite" : ready ? "on" : "off";   /* not connected: the connect card only (the Install and Build tabs need no device) */
   if (lite && dev.info.lib) document.documentElement.dataset.lib = ""; else delete document.documentElement.dataset.lib;
   if (APPS.includes(want)) document.documentElement.dataset.app = want; else delete document.documentElement.dataset.app;
+  document.documentElement.dataset.page = want;   /* (the page shown: the transport bar on the Editor page only) */
   let hint = "";
   for (const p of document.querySelectorAll(".panel[data-tab]")) {
     const mine = p.dataset.tab === want;
@@ -6965,8 +7144,8 @@ function renderPanels() {
     if (show && want === "device" && !scrsOn()) { show = false; hint = "scsNone"; }
     if (show && want === "device") renderDevice().catch(report);
     if (show && want === "snapshots" && !hasSnaps()) { show = false; hint = "snNone"; }
-    if (show && want === "screen" && !mirrorOn()) { show = false; hint = "mirrorNone"; }
-    if (show && want === "screen") mirrorStart();
+    if (show && want === "mirror" && !mirrorOn()) { show = false; hint = "mirrorNone"; }
+    if (show && want === "mirror") mirrorStart();
     p.hidden = !show;
   }
   $("hint").hidden = !hint;
@@ -6984,7 +7163,7 @@ $("tabs").addEventListener("keydown", (e) => {          /* arrow keys move betwe
   showTab(n.dataset.tab);
   n.focus();
 });
-window.addEventListener("hashchange", () => { const h = location.hash.slice(1); if ((TABS.includes(h) || h in OLD_TABS) && h !== tab) showTab(h); });
+window.addEventListener("hashchange", () => { const h = tabName(location.hash.slice(1)); if ((TABS.includes(h) || h in OLD_TABS) && h !== tab) showTab(h); });
 
 /* the colours follow the system (prefers-color-scheme, in the stylesheet: no switch, no stored preference); the canvases read
    the CSS colours when they draw, so they are drawn again when the system changes while the page is open */
@@ -7017,7 +7196,7 @@ let wantConnected = false;
 /* the device the editor talks to: the FM-1 over USB, or the simulator (web/sim/sim.js simAccess: its "Optimist (sim)" port
    pair, there while the Simulator tab runs one); a choice of the user's, remembered here */
 const DEVSRC_KEY = "optimist-editor-device";
-let devSrc = (() => { try { return localStorage.getItem(DEVSRC_KEY) === "sim" ? "sim" : "usb"; } catch (e) { return "usb"; } })();
+let devSrc = (() => { try { const v = localStorage.getItem(DEVSRC_KEY); return v === "sim" || v === "bt" ? v : "usb"; } catch (e) { return "usb"; } })();
 const ctl = new Map(); /* key "s:id" -> {input, out, desc, scope, id, row} */
 const sets = new SetGate(); /* key -> {last: time of the user's last change, sent: the value last requested} */
 let needReload = false; /* a RELOAD push came: re-read DESC, DUMP and steps when free */
@@ -7119,8 +7298,8 @@ async function connect() {
       }
       access.onstatechange = onState;
     }
-    const ports = findPorts(access);
-    if (!ports) { sayK(devSrc === "sim" && !MOCK ? "simoff" : "nodevice"); return; }
+    const ports = findPorts(access, devSrc === "bt");
+    if (!ports) { sayK(devSrc === "sim" && !MOCK ? "simoff" : devSrc === "bt" ? "nodevicebt" : "nodevice"); return; }
     const { input, output } = ports;
     const link = new Link((d) => output.send(d), {
       timeout: 300,
@@ -7133,7 +7312,7 @@ async function connect() {
     input.onmidimessage = (e) => link.receive(e.data);
     if (input.open) await input.open().catch(() => {});
     dev = { link, input, output, info: null, pdesc: [], gdesc: [], names: [], dump: null, steps: [], slotUsed: [null, null, null, null],
-      keys: null, watch: false, bank: null, fm6: null };
+      keys: null, watch: false, bank: null, fm6: null, bt: devSrc !== "sim" && isBtPort(input) };   /* (bt: the Mirror page alone, loadBt) */
     sets.clear();                                    /* (another FM-1, maybe) */
     await load(dev);
   } catch (e) {
@@ -7193,6 +7372,7 @@ function drumAsStep(d) {
 
 /* the whole connect sequence */
 async function load(d) {
+  if (d.bt) return loadBt(d);
   busy++;
   try {
     /* the first frame after opening the port can be lost: a few tries */
@@ -7221,7 +7401,10 @@ async function load(d) {
     d.pages = await readDevicePages((r, o) => d.link.request(r, o));   /* the device's pages (null: older firmware, LAYOUT) */
     d.rtype = await readReverbType((r, o) => d.link.request(r, o), d.info);   /* REVERB > TYPE (null: one algorithm) */
     d.midiSet = await readMidiSettings((r, o) => d.link.request(r, o), d.info);   /* the MIDI channels, OUT, IN (null: none) */
-    try { d.sn = parse[CMD.SN_LIST](await d.link.request(req.snList(), { timeout: 400, retries: 0, quiet: true })); }
+    /* (a firmware that lists opti_backup is ours: a missed answer is a busy FM-1, not a missing feature: asked longer. The
+       user, 2026-10-25: "no backup" and no Snapshots tab on a firmware with both, the 400 ms first asks missed) */
+    const ours = !!(d.info && d.info.opti && d.info.opti.opti_backup === OPTI.backup), wait = ours ? { timeout: 1500, retries: 1 } : { timeout: 400, retries: 0 };
+    try { d.sn = parse[CMD.SN_LIST](await d.link.request(req.snList(), { ...wait, quiet: true })); }
     catch (e) { if (e.message === "closed") throw e; d.sn = null; }   /* (older firmware: no snapshots) */
     d.stepx = null;                                   /* SLOOP 2.4's step extras: which the build has (BUILD bits 177..179; no reply: none) */
     try { d.stepx = stepxBuilt(parse[CMD.BUILD](await d.link.request(req.build(), { timeout: 400, retries: 0, quiet: true }))); }
@@ -7229,7 +7412,7 @@ async function load(d) {
     d.autoOk = false;                                 /* the automation store (v11, AUTO_GET 92): chance, condition, nudge, fill, locks, a drum lane's locks; no reply: none */
     try { d.autoOk = !!parse[CMD.AUTO_GET](await d.link.request(req.autoGet(0, 0), { timeout: 400, retries: 0, quiet: true })); }
     catch (e) { if (e.message === "closed") throw e; }
-    try { d.bk = await bkListAll((r, o) => d.link.request(r, o), { timeout: 400, retries: 0, quiet: true }); }
+    try { d.bk = await bkListAll((r, o) => d.link.request(r, o), { ...wait, quiet: true }); }
     catch (e) { if (e.message === "closed") throw e; d.bk = null; }   /* (older firmware: no backup) */
     try { d.s24 = parse[CMD.SL24_GET](await d.link.request(req.sl24Get(0, 0), { timeout: 400, retries: 0, quiet: true })).rc === 0; }
     catch (e) { if (e.message === "closed") throw e; d.s24 = false; }   /* (a build without the SLOOP export; part 0, the only one since 2.7) */
@@ -7272,6 +7455,23 @@ async function load(d) {
 }
 /* a backup-only firmware (INFO tag 0x64, builder ED_LIVE off): what Backup and restore need, the sample slots (a
  * restore writes the USR slots), the snapshots (their area), the object list; the page shows the Backup alone */
+/* over Bluetooth MIDI the FM-1 answers INFO, the mirror (106) and its buttons (108, 109: with opti_mirbt_1) and nothing else
+   (web/EDITOR_PROTOCOL.md "The screen mirrored"; the Mirror app's MirrorLink.swift): the Mirror page alone, its replies behind
+   up to 0.65 s of screen (ed_mirror.c MIR_BLE_LAG). A firmware that answers 106 alone there: the screen, known by the port's name */
+const BT_WAIT = 1500;
+async function loadBt(d) {
+  let info = null;
+  try { info = parse[CMD.INFO](await d.link.request(req.info(), { timeout: BT_WAIT, retries: 2 })); }
+  catch (e) { if (e.message === "closed") throw e; }
+  d.info = info ? { ...info, ntrk: 0, lite: false, lib: false }
+    : { version: d.input.name, ntrk: 0, mirror: { v: MIRROR_V }, opti: { opti_mirror: OPTI.mirror } };
+  if (dev !== d) return;
+  $("version").textContent = d.info.version;
+  tab = "mirror";
+  if (location.hash !== "#mirror") history.replaceState(null, "", location.pathname + location.search + "#mirror");
+  renderPanels();
+  sayK("readyBt");
+}
 async function loadLite(d) {
   const quiet = { timeout: 400, retries: 0, quiet: true };
   try { d.smp = parse[CMD.SMP_INFO](await d.link.request(req.smpInfo())); }
@@ -7694,7 +7894,9 @@ async function project(op, slot) {
    file each), the user kits (UKIT_*: the drum kit store's own load / store / erase / export / import); the user presets
    are the Library tab's (UP_*). */
 const LBR = { FORMAT: "optimist-pattern", VERSION: 1 };
-const lbr = { sel: null, busy: false };   /* sel: the picked pattern {k, s} */
+const lbr = { sel: null, busy: false, track: 0 };   /* sel: the picked pattern {k, s}; track: the track shown (T1 T2 T3 DR) */
+/* a track's name as the FM-1 and the Mirror app show it (the user, 2026-10-25: "use T1/T2/T3/DR like every where else") */
+const trkName = (k) => (k === 3 ? "DR" : `T${k + 1}`);
 async function libLiteRead(d) {
   const quiet = { timeout: 400, retries: 0, quiet: true };
   const nsec = d.info.pat ? d.info.pat.scenes : (d.bk && d.bk.objs.filter((o) => o.kind === "sec").length) || 4;
@@ -7796,7 +7998,7 @@ function lbrPatExport({ k, s }) {
     if (!bytes.length) { sayK("emptySlot", `${s + 1}`); return; }
     saveBlob(`optimist-pattern-t${k + 1}-${s + 1}.json`, new Blob([JSON.stringify({ format: LBR.FORMAT, version: LBR.VERSION, track: k, bytes: [...bytes] })],
       { type: "application/json" }));
-    sayK("lbrExported", `${t("track")} ${k + 1} · ${t("pattern")} ${s + 1}`);
+    sayK("lbrExported", `${trkName(k)} · ${t("pattern")} ${s + 1}`);
   });
 }
 async function lbrPatImport({ k, s }, f) {
@@ -7804,11 +8006,11 @@ async function lbrPatImport({ k, s }, f) {
   try { x = JSON.parse(await f.text()); } catch (e) { sayK("lbrBadFile", e.message); return; }
   if (!x || x.format !== LBR.FORMAT || x.version !== LBR.VERSION || !Array.isArray(x.bytes) || x.bytes.length > PATREC.MAX
     || x.bytes.some((b) => !Number.isInteger(b) || b < 0 || b > 255)) { sayK("lbrBadFile", f.name); return; }
-  if (dev.patL && dev.patL.len[k][s] && !confirm(t("lbrConfirmImport").replace("{x}", `${t("track")} ${k + 1} · ${t("pattern")} ${s + 1}`))) return;
+  if (dev.patL && dev.patL.len[k][s] && !confirm(t("lbrConfirmImport").replace("{x}", `${trkName(k)} · ${t("pattern")} ${s + 1}`))) return;
   lbrOp(async () => {
     await patWriteAll(rq, k, s, Uint8Array.from(x.bytes));   /* (another kind of track's: rc 2, said) */
     await lbrPatList();
-    sayK("lbrImported", `${t("track")} ${k + 1} · ${t("pattern")} ${s + 1}`);
+    sayK("lbrImported", `${trkName(k)} · ${t("pattern")} ${s + 1}`);
   });
 }
 const lbrFile = (accept, fn) => {
@@ -7832,25 +8034,32 @@ function lbrSections() {
 function lbrPatterns() {
   const L = dev.patL;
   if (!dev.info.pat || !L || !L.len) return [el("h3", { text: t("lbrPatterns") }), el("p", { class: "dim", text: t("lbrNoPat") })];
-  const rows = L.len.map((lens, k) => el("div", { class: "lbr", role: "group", "aria-label": `${t("track")} ${k + 1}` },
-    el("span", { class: "kl", text: `${t("track")} ${k + 1}` }),
-    ...lens.map((n, s) => {
-      const v = patSlotView(L, k, s), on = lbr.sel && lbr.sel.k === k && lbr.sel.s === s;
-      return el("button", { type: "button", class: `pslot ${v.cls}${on ? " sel" : ""}`, text: v.text, title: `${t("pattern")} ${s + 1}`,
-        draggable: n ? "true" : "false", disabled: lbr.busy,
-        onclick: () => { lbr.sel = { k, s }; renderLibr(); },
-        ondragstart: (e) => e.dataTransfer.setData("text/plain", `${k},${s}`),
-        ondragover: (e) => e.preventDefault(),
-        ondrop: (e) => { e.preventDefault(); const [k0, a] = e.dataTransfer.getData("text/plain").split(",").map(Number); lbrPatCopy(k0, a, k, s); },
-        onkeydown: (e) => { if (e.key === "Delete" || e.key === "Backspace") lbrPatClear({ k, s }); } });
-    })));
+  /* as the Mirror app: the track picked (T1 T2 T3 DR), its 16 slots, then the pattern picked and what to do with it */
+  const k = lbr.track;
+  const tabs = el("div", { class: "lbrtabs", role: "tablist", "aria-label": t("track") }, ...[0, 1, 2, 3].map((i) =>
+    el("button", { type: "button", role: "tab", "aria-selected": i === k ? "true" : "false", class: i === k ? "on" : "", text: trkName(i),
+      onclick: () => { lbr.track = i; renderLibr(); } })));
+  const grid = el("div", { class: "lbrgrid", role: "group", "aria-label": trkName(k) }, ...L.len[k].map((n, s) => {
+    const v = patSlotView(L, k, s), on = lbr.sel && lbr.sel.k === k && lbr.sel.s === s;
+    return el("button", { type: "button", class: `pslot ${v.cls}${on ? " sel" : ""}`, text: v.text, title: `${t("pattern")} ${s + 1}`,
+      draggable: n ? "true" : "false", disabled: lbr.busy,
+      onclick: () => { lbr.sel = { k, s }; renderLibr(); },
+      ondragstart: (e) => e.dataTransfer.setData("text/plain", `${k},${s}`),
+      ondragover: (e) => e.preventDefault(),
+      ondrop: (e) => { e.preventDefault(); const [k0, a] = e.dataTransfer.getData("text/plain").split(",").map(Number); lbrPatCopy(k0, a, k, s); },
+      onkeydown: (e) => { if (e.key === "Delete" || e.key === "Backspace") lbrPatClear({ k, s }); } });
+  }));
   const sel = lbr.sel, used = !!sel && !!L.len[sel.k][sel.s];
   const imp = lbrFile(".json,application/json", (f) => sel && lbrPatImport(sel, f));
   const b = (key, fn, on, ic) => el("button", { ic, disabled: lbr.busy || !on, onclick: fn }, t(key));
-  return [el("h3", { text: t("lbrPatterns") }), el("p", { class: "dim", text: t("lbrPatHelp") }), ...rows,
-    el("p", { class: "bar" }, el("b", { text: sel ? `${t("track")} ${sel.k + 1} · ${t("pattern")} ${sel.s + 1}` : "" }),
+  const copyTo = el("select", { disabled: lbr.busy || !used, "aria-label": t("patCopyTo"),
+    onchange: (e) => { const [k2, s2] = e.target.value.split(",").map(Number); e.target.value = ""; if (sel && !isNaN(k2)) lbrPatCopy(sel.k, sel.s, k2, s2); } },
+    el("option", { value: "", text: t("patCopyTo") }),
+    ...[0, 1, 2, 3].map((i) => el("optgroup", { label: trkName(i) }, ...L.len[i].map((_, s2) => el("option", { value: `${i},${s2}`, text: `${trkName(i)} · ${t("pattern")} ${s2 + 1}` })))));
+  return [el("h3", { text: t("lbrPatterns") }), el("p", { class: "dim", text: t("lbrPatHelp") }), tabs, grid,
+    el("p", { class: "bar" }, el("b", { text: sel ? `${trkName(sel.k)} · ${t("pattern")} ${sel.s + 1}` : "" }),
       b("lbrExport", () => lbrPatExport(sel), used, "symbol_download"), b("lbrImport", () => imp.click(), !!sel, "symbol_upload"), imp,
-      b("lbrClear", () => lbrPatClear(sel), used, "symbol_trash"))];
+      copyTo, b("lbrClear", () => lbrPatClear(sel), used, "symbol_trash"))];
 }
 function lbrKits() {
   if (!dev.ukits) return [el("h3", { text: t("lbrKits") }), el("p", { class: "dim", text: t("lbrNoKits") })];
@@ -9849,7 +10058,14 @@ function renderBackup() {
       el("button", { ic: "symbol_upload", disabled: bkDraft.busy, onclick: () => f24.click() }, t("s24Import")),
       el("span", { class: "dim", text: t("s24ImportHelp") })));
   }
-  if (!dev || !dev.bk) { box.replaceChildren(el("p", { class: "dim", text: dev ? t("bkNone") : "" }), ...s24); return; }
+  if (dev && !dev.bk && opti("backup") && !bkDraft.asking && bkDraft.askedFor !== dev) {   /* (it has one, the first ask was missed: asked again, once per connection) */
+    bkDraft.asking = true;
+    bkDraft.askedFor = dev;
+    box.replaceChildren(el("p", { class: "dim", text: t("bkAsking") }), ...s24);
+    bkListAll(rq, { timeout: 1500, retries: 1 }).then((L) => { dev.bk = L; }, () => {}).finally(() => { bkDraft.asking = false; renderBackup(); });
+    return;
+  }
+  if (!dev || !dev.bk) { box.replaceChildren(el("p", { class: "dim", text: dev ? t(opti("backup") ? "bkNoAnswer" : "bkNone") : "" }), ...s24); return; }
   const L = dev.bk, usr = L.objs.filter((o) => o.kind === "usr" && o.hasData && !o.fm6).reduce((s, o) => s + o.len, 0);
   const all = L.objs.filter((o) => o.hasData && (o.kind !== "usr" || o.fm6)).reduce((s, o) => s + o.len, 0);
   const smp = el("input", { type: "checkbox", checked: bkDraft.samples, disabled: bkDraft.busy });
@@ -11015,9 +11231,9 @@ async function renderDevice() {
   if (scs.scr === 8) scopeStart();
 }
 /* the device's own screen (MIRROR, cmd 106; ed_mirror.c, web/EDITOR_PROTOCOL.md "The screen mirrored"): asked about once a second
-   while the Screen tab shows (the device stops 3 s after the last request, or at 106 0), every write to its panel pushed as it is
+   while the Mirror tab shows (the device stops 3 s after the last request, or at 106 0), every write to its panel pushed as it is
    drawn (FILL, BLIT, MORE: Link.receive -> mirrorFrame); the decoder is tests/mirror_dec.h's, drawn once a frame */
-const mir = { on: false, img: null, x: 0, y: 0, w: 0, h: 0, at: 0, slot: new Uint16Array(7), rr: 1, dirty: false, held: 0, last: 0, rows: new Uint8Array(240), left: 0 };
+const mir = { on: false, img: null, x: 0, y: 0, w: 0, h: 0, at: 0, slot: new Uint16Array(7), rr: 1, dirty: false, held: 0, last: 0, rows: new Uint8Array(240), left: 0, gen: 0 };   /* (gen: pushes drawn, the touch buttons ask NAV again) */
 const MIRROR_V = 2;                                /* (the token codes below: ed_mirror_enc.h MIR_VERSION; another: no tab) */
 const mirrorOn = () => !!dev && !!dev.info && !!dev.info.mirror && dev.info.mirror.v === MIRROR_V;
 function mirPx(c, n) {
@@ -11085,6 +11301,7 @@ function mirrorFrame(a) {
     }
   } else return false;
   mir.last = performance.now();
+  mir.gen++;
   mirrorShow();
   return true;
 }
@@ -11101,7 +11318,7 @@ function mirrorShow() {
   requestAnimationFrame(() => {
     mir.dirty = false;
     const now = performance.now();
-    if (mir.held && mir.left > 12 && now - mir.last < 120 && now - mir.held < 250) { setTimeout(mirrorShow, 60); return; }   /* (USB: a page is in within a few frames) */
+    if (mir.held && mir.left > 12 && now - mir.last < 120 && now - mir.held < (dev && dev.bt ? 1000 : 250)) { setTimeout(mirrorShow, 60); return; }   /* (USB: a page is in within a few frames) */
     mir.held = 0;
     const c = $("mirror"); if (c && mir.img) c.getContext("2d").putImageData(mir.img, 0, 0);
   });
@@ -11109,36 +11326,268 @@ function mirrorShow() {
 function mirrorStart() {
   const c = $("mirror");
   if (!c || !mirrorOn() || mir.on) return;
-  c.onclick = mirrorFull;
+  if (mnav.dev !== dev) { mnav.dev = dev; mnav.st = null; mnav.tracks = []; mnav.tracksFor = -2; mnav.held.clear(); }   /* (another FM-1) */
+  if (!c.dataset.wired) { c.dataset.wired = "1"; mirWire(c); }   /* (a drag on a knob's card turns it; a double click: full screen) */
   mir.on = true;
+  mnav.drawn = "";
+  mirRender();
   if (!mir.img) { mir.img = c.getContext("2d").createImageData(240, 240); for (let i = 3; i < mir.img.data.length; i += 4) mir.img.data[i] = 255; }
   const d = dev;
   let bits = 3;                                    /* (the first ask: on and the whole panel again) */
   (async function loop() {
-    while (dev === d && tab === "screen" && !document.hidden) {
+    while (dev === d && tab === "mirror" && !document.hidden) {
       try {
-        const r = await rq([CMD.MIRROR, [bits]], { key: "mirror", timeout: 600, retries: 0, quiet: true });
+        const r = await rq([CMD.MIRROR, [bits]], { key: "mirror", timeout: mirWait(600), retries: 0, quiet: true });
         bits = r && r[0] === 1 ? 1 : 3;           /* (not on: ask for all of it again) */
       } catch (e) { bits = 3; /* the link is busy: next time */ }
-      await new Promise((res) => setTimeout(res, 1000));
+      for (let w = 0; w < 5 && dev === d && tab === "mirror"; w++) {   /* (the touch buttons' state between: NAV STATE) */
+        const now = performance.now();
+        if (navOn() && !mnav.busy && (mir.gen !== mnav.seen || now - mnav.asked > 2000)) { mnav.seen = mir.gen; mnav.asked = now; await navAsk(0); }
+        await new Promise((res) => setTimeout(res, 200));
+      }
     }
     mir.on = false;
+    mirReleaseAll();
     if (dev === d) rq([CMD.MIRROR, [0]], { key: "mirror", timeout: 600, retries: 0, quiet: true }).catch(() => {});   /* (off: nothing more pushed) */
   })();
 }
 /* a tap on the screen: full screen (the browser letterboxes it on black, square), again or Esc: back; the phone kept awake meanwhile */
 function mirrorFull() {
-  const c = $("mirror"), fs = document.fullscreenElement || document.webkitFullscreenElement;
+  const c = $("p-mirror"), fs = document.fullscreenElement || document.webkitFullscreenElement;   /* (the page: the buttons too, when shown) */
   try {
     if (fs) Promise.resolve((document.exitFullscreen || document.webkitExitFullscreen).call(document)).catch(() => {});
     else if (c) Promise.resolve((c.requestFullscreen || c.webkitRequestFullscreen).call(c)).catch(() => {});
   } catch (e) { /* no full screen here */ }
 }
 document.addEventListener("fullscreenchange", async () => {
-  if (document.fullscreenElement && document.fullscreenElement.id === "mirror") {
+  mirRender(true);                                  /* (its button: back) */
+  if (document.fullscreenElement && document.fullscreenElement.id === "p-mirror") {
     try { mir.wake = await navigator.wakeLock.request("screen"); } catch (e) { /* no wake lock */ }
   } else if (mir.wake) { mir.wake.release().catch(() => {}); mir.wake = null; }
 });
+/* the Mirror page around the screen, as the Mirror app's (ios/OptimistMirror/Sources/Nav/, MirrorView.swift): the buttons left (the
+   panel's modes and screens, then the favourites, kept in this browser), the pages of the screen shown right, the tracks and drum
+   lanes under it (109 NAV, asked again when the screen was drawn again, at most every 0.2 s, else every 2 s); a drag or the wheel on
+   a knob's card turns that knob, the computer keys press the panel (108 PANEL, one request at a time, a knob's detents merged) */
+const MIR_FAV_KEY = "optimist-mirror-favorites", MIR_ALONE_KEY = "optimist-mirror-alone";
+const mnav = { st: null, tracks: [], tracksFor: -2, busy: false, seen: -1, asked: 0, drawn: "", presses: [], pressing: false,
+  held: new Map(), drag: null, wheel: 0,
+  favs: (() => { try { const f = JSON.parse(localStorage.getItem(MIR_FAV_KEY)); return Array.isArray(f) ? f : []; } catch (e) { return []; } })(),
+  alone: (() => { try { return localStorage.getItem(MIR_ALONE_KEY) === "1"; } catch (e) { return false; } })() };
+const btCarries = () => !dev.bt || opti("mirbt");   /* (Bluetooth: PANEL and NAV only with opti_mirbt_1) */
+const navOn = () => mirrorOn() && opti("nav") && btCarries();
+const panelOn = () => mirrorOn() && opti("panel") && btCarries();
+const mirWait = (ms) => (dev && dev.bt ? Math.max(ms, BT_WAIT) : ms);
+function mirKeep(key, v) { try { localStorage.setItem(key, v); } catch (e) { /* no storage: this visit only */ } }
+async function navAsk(op, args = []) {
+  let st = null;
+  try { st = navParse(await rq([CMD.NAV, [op, ...args]], { timeout: mirWait(500), retries: 0, quiet: true })); } catch (e) { return null; }
+  if (!st) return null;
+  mnav.st = st;
+  if (!mnav.tracks.length || (st.track !== MNAV.NONE && st.track !== mnav.tracksFor)) {   /* (a kit names its lanes) */
+    mnav.tracksFor = st.track;
+    try { mnav.tracks = navTracksParse(await rq([CMD.NAV, [4]], { timeout: mirWait(500), retries: 0, quiet: true })); } catch (e) { /* next time */ }
+  }
+  mirRender();
+  return st;
+}
+/* a jump: one at a time, the state it leaves shown */
+function navAct(body) {
+  if (!navOn() || mnav.busy) return;
+  mnav.busy = true;
+  body().catch(report).finally(() => { mnav.seen = mir.gen; mnav.busy = false; });
+}
+const navOpenScreen = (s) => navAct(() => navAsk(3, [s, MNAV.NONE]));
+const navOpenMode = (m) => navAct(() => navAsk(3, [MNAV.SOUND, m]));
+const navRow = (r) => navAct(() => navAsk(1, [r]));
+const navTrack = (p) => navAct(() => navAsk(2, [p]));
+function navTap(b) { if (panelOn()) { mirPress([0, b, 1]); mirPress([0, b, 0]); } }
+/* a lit button again: what the FM-1's own button does then (its next page); SOUND and SAVE: the next row round */
+function navAgain(kind, v) {
+  if (kind === "mode") { navTap(v); return; }
+  if (v in MNAV.AGAIN) { navTap(MNAV.AGAIN[v]); return; }
+  const st = mnav.st;
+  if (st && st.rows.length) navRow((st.row + 1) % st.rows.length);
+}
+function navGo(f) {
+  navAct(async () => {
+    let st = await navAsk(3, [f.screen, f.mode]);
+    if (!st || st.refused) return;
+    if (f.track != null && st.track !== MNAV.NONE && st.track !== f.track) { st = await navAsk(2, [f.track]); if (!st) return; }
+    const r = st.rows.indexOf(f.page);
+    if (r >= 0 && r !== st.row) await navAsk(1, [r]);
+  });
+}
+function navFavAdd(withTrack) {
+  const st = mnav.st;
+  if (!st || st.row >= st.rows.length) return;
+  const track = withTrack && st.track !== MNAV.NONE ? st.track : null;
+  const f = { screen: st.screen, mode: st.mode, page: st.rows[st.row], track, trackName: track != null ? mnav.tracks[track] || "" : "" };
+  if (mnav.favs.some((x) => x.screen === f.screen && x.mode === f.mode && x.page === f.page && x.track === f.track)) return;
+  mnav.favs = [...mnav.favs, f];
+  mirKeep(MIR_FAV_KEY, JSON.stringify(mnav.favs));
+  mirRender(true);
+}
+function navFavDrop(i) {
+  mnav.favs = mnav.favs.filter((_, k) => k !== i);
+  mirKeep(MIR_FAV_KEY, JSON.stringify(mnav.favs));
+  mirRender(true);
+}
+const navHere = (f, st) => !!st && st.screen === f.screen && st.mode === f.mode && st.rows[st.row] === f.page && (f.track == null || f.track === st.track);
+/* 108 PANEL, in order, one at a time; a knob turned while its last turn still waits: one turn */
+function mirPress(a) {
+  mnav.presses.push(a);
+  if (mnav.pressing) return;
+  mnav.pressing = true;
+  (async () => {
+    while (mnav.presses.length && dev) {
+      const x = mnav.presses.shift();
+      try { await rq([CMD.PANEL, x], { timeout: mirWait(300), retries: 0, quiet: true }); } catch (e) { /* lost: the next press goes on */ }
+    }
+    mnav.presses = [];
+    mnav.pressing = false;
+  })();
+}
+function mirTurn(role, steps) {
+  if (!steps || !panelOn()) return;
+  const q = mnav.presses, last = q[q.length - 1];
+  if (last && last[0] === 2 && last[1] === role && Math.abs(last[2] - 64 + steps) <= 63) { q[q.length - 1] = [2, role, last[2] + steps]; return; }
+  mirPress([2, role, 64 + Math.max(-63, Math.min(63, steps))]);
+}
+function mirReleaseAll() {
+  for (const a of mnav.held.values()) mirPress([...a, 0]);
+  mnav.held.clear();
+}
+/* the panel's point (0..240) under a pointer: the canvas letterboxes in full screen */
+function mirPoint(c, e) {
+  const r = c.getBoundingClientRect(), side = Math.min(r.width, r.height) || 1;
+  return { x: (e.clientX - r.left - (r.width - side) / 2) * 240 / side, y: (e.clientY - r.top - (r.height - side) / 2) * 240 / side, side };
+}
+const mirKnobs = () => (panelOn() && mnav.st ? mnav.st.knobs : []);
+/* a drag that starts on KNOB k's card or line turns knob k: up or right clockwise, along the axis it took first; a detent every
+   15 px of the panel shown 240 wide on the lines, 6 on the cards (the app's points) */
+function mirWire(c) {
+  c.addEventListener("pointerdown", (e) => {
+    const p = mirPoint(c, e), k = navKnobAt(mirKnobs(), p.x, p.y);
+    if (k < 0 || e.button !== 0) return;
+    e.preventDefault();
+    c.setPointerCapture(e.pointerId);
+    mnav.drag = { k, x: e.clientX, y: e.clientY, across: null, sent: 0, per: mnav.st.knobs[k].w >= 200 ? 15 : 6 };
+  });
+  c.addEventListener("pointermove", (e) => {
+    const d = mnav.drag;
+    if (!d) { c.style.cursor = navKnobAt(mirKnobs(), mirPoint(c, e).x, mirPoint(c, e).y) >= 0 ? "ns-resize" : ""; return; }
+    const dx = e.clientX - d.x, dy = e.clientY - d.y;
+    if (d.across == null) { if (Math.hypot(dx, dy) < 6) return; d.across = Math.abs(dx) > Math.abs(dy); }
+    const steps = Math.trunc((d.across ? dx : -dy) / d.per);
+    if (steps !== d.sent) { mirTurn(3 + d.k, steps - d.sent); d.sent = steps; }
+  });
+  const end = () => { mnav.drag = null; };
+  c.addEventListener("pointerup", end);
+  c.addEventListener("pointercancel", end);
+  c.addEventListener("wheel", (e) => {                 /* the wheel on a knob's card: a detent every 40 px of scroll */
+    const p = mirPoint(c, e), k = navKnobAt(mirKnobs(), p.x, p.y);
+    if (k < 0) return;
+    e.preventDefault();
+    mnav.wheel -= e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
+    const steps = Math.trunc(mnav.wheel / 40);
+    if (steps) { mnav.wheel -= steps * 40; mirTurn(3 + k, steps); }
+  }, { passive: false });
+  c.addEventListener("dblclick", mirrorFull);
+}
+/* the computer keys on the Mirror page: the panel's (not while typing, nor under a popup or dialog); before the editor's own keys */
+window.addEventListener("keydown", (e) => {
+  if (tab !== "mirror" || !panelOn() || e.ctrlKey || e.metaKey || e.altKey || spaceIsTyping(e.target) || nav.pop || document.querySelector("dialog[open]")) return;
+  const k = panelKey(e.key, e.shiftKey);
+  if (!k) return;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  if (k.knob) { mirTurn(k.knob[0], k.knob[1]); return; }
+  const name = panelKeyName(e.key);
+  if (e.repeat || mnav.held.has(name)) return;
+  mnav.held.set(name, k.held);
+  mirPress([...k.held, 1]);
+}, true);
+window.addEventListener("keyup", (e) => {
+  const name = panelKeyName(e.key), a = mnav.held.get(name);
+  if (!a) return;
+  mnav.held.delete(name);
+  mirPress([...a, 0]);
+}, true);
+window.addEventListener("blur", () => { if (mnav.held.size) mirReleaseAll(); });
+function mirButton(title, { caption = "", lit = false, dim = false, star = false, on, menu } = {}) {
+  const b = el("button", { class: "mirb", type: "button", "aria-pressed": lit ? "true" : "false", disabled: dim, onclick: on },
+    el("span", { text: (star ? "★ " : "") + title }));
+  if (caption) b.append(el("small", { text: caption }));
+  if (menu) b.addEventListener("contextmenu", (e) => { e.preventDefault(); menu(); });
+  return b;
+}
+/* the buttons, the favourites, the pages, the tracks: drawn again only when what they show changed */
+function mirRender(force = false) {
+  const st = mnav.st, show = navOn() && !!st && !mnav.alone;
+  const key = JSON.stringify([show, st, mnav.tracks, mnav.favs, mnav.alone, panelOn(), !!(dev && dev.dump)]);
+  if (!force && key === mnav.drawn) return;
+  mnav.drawn = key;
+  $("mirwrap").classList.toggle("alone", !show);
+  mirBar(st);
+  if (!show) { $("mirside").replaceChildren(); $("mirpages").replaceChildren(); $("mirtracks").replaceChildren(); return; }
+  const songPat = st.screen === MNAV.SONG && st.row === MNAV.PATTERNS;
+  const btns = MNAV.ITEMS.map(([kind, v]) => {
+    if (kind === "mode") {
+      const lit = (st.screen === MNAV.SOUND && st.mode === v) || (v === 0 && st.screen === MNAV.MASTER);
+      return mirButton(MNAV.MODES[v], { lit, on: () => (lit ? navAgain("mode", v) : navOpenMode(v)) });
+    }
+    if (kind === "patterns")
+      return mirButton("PATTERN", { lit: songPat, on: () => { if (!songPat) navAct(async () => { const s = await navAsk(3, [MNAV.SONG, MNAV.NONE]); if (s && !s.refused) await navAsk(1, [MNAV.PATTERNS]); }); } });
+    const lit = st.screen === v && (v !== MNAV.SOUND || st.mode === MNAV.NONE) && (v !== MNAV.SONG || !songPat);
+    const name = MNAV.SCREENS[v], title = MNAV.TITLES[v];
+    return mirButton(title, { caption: name === title ? "" : name, lit, on: () => (lit ? navAgain("screen", v) : navOpenScreen(v)) });
+  });
+  const here = st.row < st.rows.length, onTrack = here && st.track !== MNAV.NONE && mnav.tracks[st.track];
+  const favs = mnav.favs.map((f, i) => el("div", { class: "mirfav" },
+    mirButton(f.trackName ? `${f.trackName} ${f.page}` : f.page, { lit: navHere(f, st), star: true, on: () => navGo(f) }),
+    el("button", { class: "mirx", type: "button", title: t("mirFavDrop"), "aria-label": t("mirFavDrop"), text: "×", onclick: () => navFavDrop(i) })));
+  $("mirside").replaceChildren(
+    el("div", { class: "mirbtns" }, ...btns),
+    el("div", { class: "mirh", text: t("mirFavs") }),
+    el("div", { class: "mirfavadd" },
+      el("button", { class: "mirb", type: "button", disabled: !here, title: t("mirFavAddTip"), onclick: () => navFavAdd(false) }, el("span", { text: "+ " + (here ? st.rows[st.row] : t("mirFavAdd")) })),
+      onTrack ? el("button", { class: "mirb", type: "button", title: t("mirFavAddTip"), onclick: () => navFavAdd(true) }, el("span", { text: `+ ${st.rows[st.row]} ${t("mirFavOn")} ${mnav.tracks[st.track]}` })) : ""),
+    ...favs);
+  $("mirpages").replaceChildren(
+    ...(st.rows.length ? st.rows.map((r, i) => mirButton(r, { lit: i === st.row, on: () => navRow(i),
+      menu: () => { if (i === st.row) navFavAdd(false); else navAct(async () => { await navAsk(1, [i]); }); } }))
+      : [el("p", { class: "dim", text: t("mirNoPages") })]));
+  const cur = st.track, dimT = cur === MNAV.NONE, n = mnav.tracks.length, lanes = !dimT && cur >= MNAV.DRUM_ROW && n > MNAV.DRUM_ROW + 1;
+  $("mirtracks").replaceChildren(
+    el("div", { class: "mirlanes" }, ...(lanes ? mnav.tracks.slice(MNAV.DRUM_ROW + 1).map((nm, k) => mirButton(nm, { lit: cur === MNAV.DRUM_ROW + 1 + k, on: () => navTrack(MNAV.DRUM_ROW + 1 + k) })) : [])),
+    el("div", { class: "mirtrk" }, ...mnav.tracks.slice(0, MNAV.DRUM_ROW + 1).map((nm, p) =>
+      mirButton(nm, { lit: p === cur || (p === MNAV.DRUM_ROW && cur > MNAV.DRUM_ROW && !dimT), dim: dimT, on: () => navTrack(p) }))));
+}
+/* over the screen: the buttons on or off, full screen, on STEPS of a synth track its piano roll (the editor's Sequence) */
+/* the corner's icons (stroked 24 x 24 paths) */
+const MIR_ICONS = { full: "M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5", exit: "M9 4v5H4M20 9h-5V4M15 20v-5h5M4 15h5v5",
+  alone: "M5 5h14v14H5z", buttons: "M2 6h4v12H2zM8 4h8v16H8zM18 6h4v12h-4z" };
+function mirTool(icon, label, on) {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg"), path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("aria-hidden", "true");
+  path.setAttribute("d", MIR_ICONS[icon]);
+  svg.append(path);
+  return el("button", { class: "mirtool", type: "button", title: label, "aria-label": label, onclick: on }, svg);
+}
+function mirBar(st) {
+  const bar = [], fs = !!document.fullscreenElement;
+  $("mirtools").replaceChildren(
+    ...(navOn() ? [mirTool(mnav.alone ? "buttons" : "alone", t(mnav.alone ? "mirShowButtons" : "mirHideButtons"),
+      () => { mnav.alone = !mnav.alone; mirKeep(MIR_ALONE_KEY, mnav.alone ? "1" : "0"); mirRender(true); })] : []),
+    mirTool(fs ? "exit" : "full", t(fs ? "mirFullExit" : "mirFull"), mirrorFull));
+  if (st && st.screen === MNAV.STEPS && st.track >= 1 && st.track < MNAV.DRUM_ROW && dev && dev.dump && hasTracks())
+    bar.push(el("button", { type: "button", title: t("mirRollTip"), onclick: () => openPop("sequence", st.track - 1) }, t("mirRoll")));
+  if (mirrorOn() && !opti("nav")) bar.push(el("span", { class: "dim", text: t("mirNoNav") }));
+  else if (mirrorOn() && !btCarries()) bar.push(el("span", { class: "dim", text: t("mirNoBt") }));
+  $("mirbar").replaceChildren(...bar);
+}
 /* the oscilloscope: the device's own trace (SCOPE, cmd 101) about 12 times a second while the page shows it */
 let scopeOn = false;
 function scopeStart() {
@@ -13152,7 +13601,7 @@ async function keepAlive() {
 }
 setInterval(keepAlive, 1000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden && dev && dev.watch) { rewatch = true; keepAlive(); } });
-document.addEventListener("visibilitychange", () => { if (!document.hidden && tab === "screen") mirrorStart(); });   /* (the screen: its loop stops while the page is hidden) */
+document.addEventListener("visibilitychange", () => { if (!document.hidden && tab === "mirror") mirrorStart(); });   /* (the screen: its loop stops while the page is hidden) */
 
 let stepRR = 0;
 setInterval(async () => {
@@ -13758,7 +14207,7 @@ $("czfile").addEventListener("change", () => {
 $("connect").addEventListener("click", () => connect());
 $("devsrc").value = devSrc;
 $("devsrc").addEventListener("change", (e) => {   /* another device: let the current one go, ask the new source next time */
-  devSrc = e.target.value === "sim" ? "sim" : "usb";
+  devSrc = e.target.value === "sim" || e.target.value === "bt" ? e.target.value : "usb";
   try { localStorage.setItem(DEVSRC_KEY, devSrc); } catch (err) { /* no storage */ }
   if (dev) disconnect();
   if (access) access.onstatechange = null;

@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // The builder's cloud build (docs/WEB.md): what it builds from (main, a tag or a branch: the relay's ?refs), the request
-// (the relay with a Turnstile check, else the GitHub issue form), then the build followed to its end (the relay's
+// (the relay with a Turnstile check: never the GitHub issue form, the user 2026-10-25), then the build followed to its end (the relay's
 // ?status=, which reads the workflow's markers) and handed to Flash and the Simulator. builder.js mounts it on its own
 // state and elements: mountCloud({ S, $, el, toast, opts }).
 //
 // The host hears every stage: opts.onBuild(ev) and, in the Mirror app's web view, its "optimist" message handler, with
 // ev = {type: "cloud-build", stage, issue, url, id?, run?, name?, sim?, reason?}; stage sent, building, done, refused,
 // failed or error. The two buttons of a finished build call opts.onNavigate("install" | "sim", {build: id}).
-import { CLOUD_RELAY, TURNSTILE_JS, TURNSTILE_SITEKEY, cloudIssueUrl, relayRequest } from "./logic.js";
+import { CLOUD_RELAY, TURNSTILE_JS, TURNSTILE_SITEKEY, relayRequest } from "./logic.js";
 
 const WATCH_KEY = "optimist-builder-watch";   // the build followed, {issue, url, name, t0, id?, stage?}: a reload goes on
 const MY_BUILD = "optimist-my-build";        // the last build finished, {id, name, issue, t}: Flash offers it first
@@ -36,9 +36,16 @@ export function mountCloud({ S, $, el, toast, opts }) {
   }
 
   /* ---- what it builds from: main (the default), the tags (the releases), the other branches; the relay lists them */
-  async function loadRefs() {
+  /** ref: the version the page reads (null: main, the site's copy); pick(sha | ""): the page again on another one */
+  async function loadRefs(ref = null, pick = null) {
     const sel = $("bref");
-    sel.replaceChildren(el("option", { value: S.commit || "", text: "main (latest)" }));
+    const mark = () => {      // (the version shown; one the relay no longer lists: by its commit)
+      if (ref && ![...sel.options].some((o) => o.value === ref)) sel.append(el("option", { value: ref, text: `commit ${ref.slice(0, 8)}` }));
+      sel.value = ref || "";
+    };
+    sel.replaceChildren(el("option", { value: "", text: "main (latest)" }));
+    mark();
+    if (pick) sel.onchange = () => pick(sel.value);
     if (!TURNSTILE_SITEKEY) return;
     try {
       const r = await fetch(`${CLOUD_RELAY}?refs`, { signal: AbortSignal.timeout(10000) });
@@ -48,9 +55,10 @@ export function mountCloud({ S, $, el, toast, opts }) {
       const branches = (out.branches || []).filter(ok), tags = (out.tags || []).filter(ok);
       const main = branches.find((b) => b.name === "main"), others = branches.filter((b) => b.name !== "main");
       const opt = (x) => el("option", { value: x.sha, text: x.name });
-      sel.replaceChildren(el("option", { value: main ? main.sha : S.commit || "", text: "main (latest)" }),
+      sel.replaceChildren(el("option", { value: "", text: "main (latest)" }),
         ...(tags.length ? [el("optgroup", { label: "Releases and tags" }, tags.map(opt))] : []),
         ...(others.length ? [el("optgroup", { label: "Branches" }, others.map(opt))] : []));
+      mark();
     } catch (e) { /* main only */ }
   }
 
@@ -176,13 +184,13 @@ export function mountCloud({ S, $, el, toast, opts }) {
     } finally { box.hidden = true; box.replaceChildren(); }
   }
 
-  /** the request through the relay -> "sent" (followed from now on), "refused" (the relay said why: shown, no form) or
-      "form" (no check or no relay: the issue form instead) */
+  /** the request through the relay -> "sent" (followed from now on), "refused" (the relay said why) or "failed" (no check,
+      no answer): said in the Build card, nothing opened elsewhere */
   async function relaySend(msg, commit) {
     msg.textContent = "Checking you are not a robot…";
     let token;
     try { token = await botToken(); }
-    catch (e) { toast(`${e.message}: the GitHub form opens instead.`, "err"); return "form"; }
+    catch (e) { msg.textContent = `Not sent: ${e.message}. Try again in a moment.`; return "failed"; }
     msg.textContent = "Sending…";
     let r = null, out = {};
     try {
@@ -202,12 +210,12 @@ export function mountCloud({ S, $, el, toast, opts }) {
       msg.replaceChildren(`Not sent: ${why}`, ...(url ? [" (", link(url, "your build on GitHub"), ")"] : []));
       return "refused";
     }
-    toast(`The build service did not answer${why ? `: ${why}` : ""}. The GitHub form opens instead.`, "err");
-    return "form";
+    msg.textContent = `Not sent: the build service did not answer${why ? ` (${why})` : ""}. Try again in a moment.`;
+    return "failed";
   }
 
-  /** Build: the same configuration from the site's own commit built before is ready at once; else the relay, else the
-      GitHub issue form (a GitHub account: its answer comes in the issue) */
+  /** Build: the same configuration from the site's own commit built before is ready at once; else the relay (the build
+      service: no GitHub account, no issue form) */
   async function build(ev) {
     const msg = $("buildmsg"), commit = $("bref").value || "";
     if (ev.key && commit && commit === S.commit) {
@@ -217,12 +225,8 @@ export function mountCloud({ S, $, el, toast, opts }) {
       if (b) { msg.textContent = "Built before."; ready({ id: b.id, name: S.name, t0: Date.now() }, b); return; }
       msg.textContent = "";
     }
-    if (TURNSTILE_SITEKEY && await relaySend(msg, commit) !== "form") return;
-    const issue = cloudIssueUrl(S.repo, commit, S.view.dump, S.name);
-    const w = window.open(issue, "_blank");   // (not "noopener": with it the call returns null, opened or blocked alike)
-    if (w) w.opener = null;
-    msg.replaceChildren(w ? "Opened the request on GitHub: press Submit new issue there; the answer comes in that issue. " : "Open the request on GitHub: ",
-      link(issue, w ? "(the link again)" : "the request"));
+    if (!TURNSTILE_SITEKEY) { msg.textContent = "The build service is not set up on this page (TURNSTILE_SITEKEY)."; return; }
+    await relaySend(msg, commit);
   }
 
   /** a build followed before a reload: followed again */

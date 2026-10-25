@@ -53,6 +53,10 @@
   .ob-root #loading.failed { border-left: 3px solid var(--err); }
 
   /* the toolbar */
+  /* the version first, alone on its row (everything under it is read from it) */
+  .ob-root .ob-src { display: flex; flex-wrap: wrap; align-items: end; gap: var(--sp-2) var(--sp-3); margin: 0 0 var(--sp-3);
+    padding: var(--sp-2) var(--sp-3); border: 1px solid var(--line); background: var(--panel); }
+  .ob-root .ob-src select { min-width: 14rem; }
   .ob-root .tools { display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-3); align-items: end; margin: 0 0 var(--sp-2); }
   .ob-root #bpreset { max-width: 300px; }
   .ob-root #search { width: 220px; }

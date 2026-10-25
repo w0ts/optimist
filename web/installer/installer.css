@@ -15,12 +15,10 @@
 .oi-title { margin: 0 0 var(--sp-2); font-size: var(--fs-6); font-weight: 400; line-height: 1.15; color: var(--text); }
 .oi-what { max-width: 680px; color: var(--text); }
 
-/* the steps: one column of cards */
-.oi-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-4); }
+/* the cards, one column: Install, Build your own, then When something goes wrong (folded) */
+.oi-steps { margin: 0; padding: 0; display: grid; gap: var(--sp-4); }
 .oi-step .o-panel-h { justify-content: flex-start; }
 .oi-h { display: flex; align-items: center; gap: var(--sp-2); }
-.oi-num { display: inline-grid; place-content: center; min-width: 22px; height: 22px; padding: 0 4px; background: var(--s3); color: var(--fg);
-          font-variant-numeric: tabular-nums; }
 .oi-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-3); margin: 0 0 var(--sp-3); }
 .oi-row:last-child { margin-bottom: 0; }
 .oi-row > p { margin: 0; }
@@ -32,7 +30,7 @@
 .oi-help li { margin: 0 0 var(--sp-1); }
 .oi-browser { margin: 0 0 var(--sp-3); }
 
-/* 2 Choose: a list of choices, the title, the identity, a line of description */
+/* Install: a list of choices, the title, the identity, a line of description */
 .oi-choices { margin: 0 0 var(--sp-3); padding: 0; min-width: 0; display: grid; gap: 1px; background: var(--line); border: 1px solid var(--line); }
 .oi-choice { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--sp-1) var(--sp-3); align-items: start; padding: var(--sp-2) var(--sp-3); background: var(--surface-1); }
 .oi-choice:has(.oi-radio:checked) { background: var(--surface-2); box-shadow: inset 3px 0 0 var(--fg); }
@@ -42,8 +40,8 @@
 .oi-choice > .oi-file { grid-column: 2; }
 .oi-choice > .oi-desc { grid-column: 2; }   /* (a row's detail under its title: Your build's name and id) */
 .oi-relpick { grid-column: 2; display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-3); align-items: end; min-width: 0; }
-.oi-relpick .o-field { min-width: 0; }
-.oi-relpick select { max-width: 100%; }
+.oi-relpick .o-field { min-width: 0; flex: 1 1 220px; }
+.oi-relpick select { width: 100%; max-width: 100%; }
 .oi-relpick .oi-desc { flex-basis: 100%; }
 .oi-own .o-panel-b > p { margin: 0 0 var(--sp-2); }
 .oi-radio { margin: 3px 0 0; width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
@@ -85,11 +83,19 @@
 .oi-bar { margin: 0 0 var(--sp-2); }
 .oi-status { min-height: 20px; font-variant-numeric: tabular-nums; }
 .oi-err, .oi-ok { margin: 0 0 var(--sp-3); align-items: center; flex-wrap: wrap; }
+.oi-keep { margin: 0 0 var(--sp-3); font-size: var(--fs-1); }
+/* the FM-1 found, under the button */
+.oi-conn { margin-top: var(--sp-3); padding-top: var(--sp-3); border-top: 1px solid var(--line); }
+.oi-conn .oi-row { margin-bottom: var(--sp-1); }
+.oi-how { margin: 0 0 var(--sp-2); font-size: var(--fs-1); }
 .oi-logbox { margin-top: var(--sp-3); }
 .oi-log { margin: 0; max-height: 180px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text-dim); font-family: var(--font-mono); font-size: var(--fs-1); }
 .oi-log:empty::before { content: "—"; }
 
-/* 4 When something goes wrong */
+/* When something goes wrong: folded under the cards */
+.oi-rescuebox { border: 1px solid var(--line); padding: var(--sp-2) var(--sp-3); background: var(--surface-1); }
+.oi-rescuebox > summary { cursor: pointer; color: var(--text); }
+.oi-rescuebox[open] > summary { margin-bottom: var(--sp-3); }
 .oi-rescue { margin: 0 0 var(--sp-3); }
 .oi-rescue dt { color: var(--text); text-transform: uppercase; margin: var(--sp-3) 0 var(--sp-1); }
 .oi-rescue dt:first-child { margin-top: 0; }

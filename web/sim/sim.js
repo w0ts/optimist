@@ -32,6 +32,9 @@ const NOTE_KEYS = ["a", "w", "s", "e", "d", "r", "f", "g", "t", "h", "y", "j", "
 const BUTTON_KEYS = { "OCT-": "arrowleft", "OCT+": "arrowright", FX: "x", SCL: "b", SEL: "b", ENV: "v", LFO: "l", EDIT: "i",
   GLO: "o", HOME: "u", SAVE: "z", ARP: "p", SEQ: "q", PLAY: " ", "PLAY/STOP": " ", REC: "c" };
 const btnKeyCap = { arrowleft: "←", arrowright: "→", " ": "␣" };   /* ← → ␣ shown on the keys */
+/* the encoders' keys, a pair each (left: counter-clockwise), the Mirror app's (ios/OptimistMirror/Sources/PanelKeys.swift);
+   held, the key repeats and the knob keeps turning */
+const KNOB_KEYS = { SELECT: ["[", "]"], ALGORITHM: ["-", "="], PRESETS: ["9", "0"], KNOB1: ["1", "2"], KNOB2: ["3", "4"], KNOB3: ["5", "6"], KNOB4: ["7", "8"] };
 
 /* the FM-1's 27-key keyboard: the black keys carry the function legends (the device, and the chip emulator's panel:
    fm1-emulator rust-emulator/src/ui.rs). The 11 black keys are these note indices, in this label order */
@@ -60,7 +63,7 @@ export const TEXT = {
   reboot: "Restarting…", fault: "The firmware stopped (a fault). Start again.", noaudio: "This browser has no AudioWorklet: use Chrome, Edge or Firefox.",
   reset: "Erase", resetAsk: "Erase the simulator's saved projects, presets and samples? (Every build shares them.)",
   resetDone: "Memory erased.", shared: "The simulator's memory (projects, presets, samples) is kept in this browser and shared by every build.",
-  install: "Flash it", config: "Configuration", configTip: "Open this build's configuration in the builder (to change it and build again)", keysHelp: "Keys: the device's own — A W S E D … play notes (Shift for the octave above), the other keys hold the buttons; the arrows are OCT, Space is PLAY.",
+  install: "Flash it", config: "Configuration", configTip: "Open this build's configuration in the builder (to change it and build again)", keysHelp: "Keys: each button's key is on it; A W S E D … play notes (Shift for the octave above); the encoders turn with the pair of keys under them.",
   load: "Read its memory", write: "Write ours to it", saveFile: "Save to a file", loadFile: "Load a file",
   memory: "The simulator's memory", device: "The FM-1 (USB)",
   writeAsk: "Write the simulator's memory onto the FM-1? This replaces the projects, presets, kits and samples on the device.",
@@ -177,6 +180,22 @@ function h(tag, attrs = {}, ...kids) {
   for (const c of kids.flat()) if (c !== null && c !== undefined && c !== false) el.append(c.nodeType ? c : String(c));
   return el;
 }
+/* the side's icons (stroke paths on a 24 grid, the editor's style) */
+const ICON = {
+  play: "M7 4v16l13-8z", stop: "M6 6h12v12H6z",
+  flash: "M12 3v12M7 10l5 5 5-5M5 21h14", config: "M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0M14 4v4M8 10v4M16 16v4",
+  save: "M12 4v11M7 10l5 5 5-5M4 20h16", load: "M12 15V4M7 9l5-5 5 5M4 20h16", erase: "M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13",
+  read: "M3 5h8v14H3zM14 12h7M17 9l-3 3 3 3", write: "M13 5h8v14h-8zM3 12h7M7 9l3 3-3 3",
+  pjGet: "M3 6h7l2 2h9v11H3zM12 11v6M9 14l3 3 3-3", pjSend: "M3 6h7l2 2h9v11H3zM12 17v-6M9 14l3-3 3 3",
+};
+function icon(name) {
+  const NS = "http://www.w3.org/2000/svg", svg = document.createElementNS(NS, "svg"), path = document.createElementNS(NS, "path");
+  svg.setAttribute("viewBox", "0 0 24 24"); svg.setAttribute("aria-hidden", "true"); svg.setAttribute("class", "os-ic");
+  path.setAttribute("d", ICON[name] || ""); svg.append(path);
+  return svg;
+}
+/** a button's content: its icon, then its words (setLabel keeps the icon when the words change) */
+function setLabel(b, name, txt) { b.replaceChildren(icon(name), h("span", {}, txt)); return b; }
 function addStyle(doc) {
   if (doc.getElementById(STYLE_ID)) return;
   doc.head.append(Object.assign(doc.createElement("link"), { id: STYLE_ID, rel: "stylesheet", href: new URL("sim.css", import.meta.url).href }));
@@ -190,19 +209,19 @@ export function mountSim(container, opts = {}) {
   addStyle(container.ownerDocument);
   let active = false;                                  /* (the tab shown: activate / deactivate) */
   const mine = myBuild();
-  const st = { mine: new Set([wanted, mine && mine.id].filter((x) => /^[0-9a-f]{16}$/.test(x || ""))), choice: null, cloud: null, ctx: null, node: null, info: null, busy: false, wasm: null, keysDown: new Map(), buttonKeys: null };
+  const st = { mine: new Set([wanted, mine && mine.id].filter((x) => /^[0-9a-f]{16}$/.test(x || ""))), choice: null, cloud: null, ctx: null, node: null, info: null, busy: false, wasm: null, keysDown: new Map(), buttonKeys: null, knobKeys: {} };
   const el = {};
 
   el.pick = h("select.oi-csearch.os-pick", { "aria-label": TEXT.build, onchange: () => choose(el.pick.value) });
-  el.power = h("button.o-btn.primary.os-power", { type: "button",
-    onclick: () => { if (engine) { st.userStopped = true; stop(); } else { st.userStopped = false; start(); } } }, TEXT.power);
-  el.reset = h("button.o-btn.sm.quiet", { type: "button", onclick: () => resetMemory() }, TEXT.reset);
-  el.install = h("button.o-btn", { type: "button", onclick: () => installThis() }, TEXT.install);
-  el.config = h("button.o-btn.quiet", { type: "button", title: TEXT.configTip, onclick: () => configThis() }, TEXT.config);
-  el.load = h("button.o-btn.sm", { type: "button", onclick: () => loadFromDevice() }, TEXT.load);
-  el.write = h("button.o-btn.sm", { type: "button", onclick: () => writeToDevice() }, TEXT.write);
-  el.pjGet = h("button.o-btn.sm", { type: "button", onclick: () => pjOpen("get") }, TEXT.pjGet);
-  el.pjSend = h("button.o-btn.sm", { type: "button", onclick: () => pjOpen("send") }, TEXT.pjSend);
+  el.power = setLabel(h("button.o-btn.primary.os-power", { type: "button",
+    onclick: () => { if (engine) { st.userStopped = true; stop(); } else { st.userStopped = false; start(); } } }), "play", TEXT.power);
+  el.reset = setLabel(h("button.o-btn.quiet", { type: "button", onclick: () => resetMemory() }), "erase", TEXT.reset);
+  el.install = setLabel(h("button.o-btn", { type: "button", onclick: () => installThis() }), "flash", TEXT.install);
+  el.config = setLabel(h("button.o-btn.quiet", { type: "button", title: TEXT.configTip, onclick: () => configThis() }), "config", TEXT.config);
+  el.load = setLabel(h("button.o-btn", { type: "button", onclick: () => loadFromDevice() }), "read", TEXT.load);
+  el.write = setLabel(h("button.o-btn", { type: "button", onclick: () => writeToDevice() }), "write", TEXT.write);
+  el.pjGet = setLabel(h("button.o-btn", { type: "button", onclick: () => pjOpen("get") }), "pjGet", TEXT.pjGet);
+  el.pjSend = setLabel(h("button.o-btn", { type: "button", onclick: () => pjOpen("send") }), "pjSend", TEXT.pjSend);
   el.pjPick = h("select.oi-csearch.os-pick", { onchange: () => pjPicked() });
   el.pjPickLabel = h("span", {}, TEXT.pjFrom);
   el.pjName = h("input.os-pjname", { type: "text", maxlength: String(PJ_NAME), spellcheck: "false", autocomplete: "off",
@@ -211,8 +230,8 @@ export function mountSim(container, opts = {}) {
   el.pjGo = h("button.o-btn.sm.primary", { type: "button", onclick: () => pjGo() }, TEXT.pjGo);
   el.pj = h("div.os-bar.os-pj", { hidden: true }, h("label.o-field", {}, el.pjPickLabel, el.pjPick), el.pjNameField, el.pjGo,
     h("button.o-btn.sm.quiet", { type: "button", onclick: () => pjClose() }, TEXT.pjCancel));
-  el.save = h("button.o-btn.sm", { type: "button", onclick: () => saveToFile() }, TEXT.saveFile);
-  el.loadf = h("button.o-btn.sm", { type: "button", onclick: () => el.file.click() }, TEXT.loadFile);
+  el.save = setLabel(h("button.o-btn", { type: "button", onclick: () => saveToFile() }), "save", TEXT.saveFile);
+  el.loadf = setLabel(h("button.o-btn", { type: "button", onclick: () => el.file.click() }), "load", TEXT.loadFile);
   el.file = h("input", { type: "file", accept: ".optimist-backup,application/octet-stream", style: "display:none",
     onchange: () => { const f = el.file.files && el.file.files[0]; el.file.value = ""; if (f) loadFromFile(f); } });
   let themeIx = 0;
@@ -224,20 +243,17 @@ export function mountSim(container, opts = {}) {
   el.canvas = h("canvas.os-screen", { width: "240", height: "240", "aria-label": "The FM-1's screen" });
   el.body = h("div.os-body");                 /* the device, drawn in a fixed 1160x700 space (the chip emulator's), scaled to fit */
   el.stage = h("div.os-stage", {}, el.body);
+  /* the device on the left, its controls on the right (the user, 2026-10-25: no title, the tab bar names the page; the
+     buttons beside the simulator, with icons): the run (which build, its look, start / stop; this build: flash it, its
+     configuration), then the simulator's memory (a file, erase) and the FM-1's (all of it, or one project) */
   const root = h("div.os", {},
-    h("header", {}, h("h1.oi-title", {}, TEXT.title), TEXT.what ? h("p.oi-what", {}, TEXT.what) : null),
-    /* the run (which build, its look, start / stop; this build: flash it, its configuration), then two groups: the
-       simulator's memory (a file, erase) and the FM-1's (all of it, or one project) */
-    h("div.os-bar", {}, h("label.o-field", {}, h("span", {}, TEXT.build), el.pick),
-      h("label.o-field", {}, h("span", {}, TEXT.themeLabel), el.theme), el.power,
-      h("span.os-sep", { "aria-hidden": "true" }), el.install, el.config),
-    h("div.os-groups", {},
+    h("div.os-main", {}, el.stage, el.status),   /* (no help paragraph: the keys are on the buttons; the user, 2026-10-25) */
+    h("div.os-side", {},
+      h("div.os-group", { role: "group", "aria-label": TEXT.build }, h("label.o-field", {}, h("span", {}, TEXT.build), el.pick),
+        h("label.o-field", {}, h("span", {}, TEXT.themeLabel), el.theme), el.power, el.install, el.config),
       h("div.os-group", { role: "group", "aria-label": TEXT.memory }, h("span.os-glabel", {}, TEXT.memory), el.save, el.loadf, el.reset, el.file),
-      h("div.os-group", { role: "group", "aria-label": TEXT.device }, h("span.os-glabel", {}, TEXT.device), el.load, el.write, el.pjGet, el.pjSend)),
-    el.pj,
-    el.status,
-    el.stage,
-    h("p.o-dim.os-help", {}, TEXT.keysHelp, " ", TEXT.shared));
+      h("div.os-group", { role: "group", "aria-label": TEXT.device }, h("span.os-glabel", {}, TEXT.device), el.load, el.write, el.pjGet, el.pjSend),
+      el.pj));
   container.replaceChildren(root);
   const fit = () => { const s = Math.min(1, el.stage.clientWidth / 1160); el.body.style.setProperty("--os-scale", s); el.stage.style.height = `${700 * s}px`; };
   const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(fit) : null;
@@ -348,7 +364,7 @@ export function mountSim(container, opts = {}) {
     if (m.type === "ready") {
       st.info = m.info; buildPanel(m.info);
       say(st.ctx && st.ctx.state !== "running" ? TEXT.clickToStart : "");   /* (running: the Stop button says it) */
-      el.power.textContent = TEXT.stop;
+      setLabel(el.power, "stop", TEXT.stop);
       setConnected(true);
     } else if (m.type === "frame") {
       draw(m.bands); leds(m.leds); st.midiLost = m.midiLost;
@@ -369,7 +385,7 @@ export function mountSim(container, opts = {}) {
   }
   async function restart(status, b) {   /* bit 0 reboot (a restore, a firmware restart), 1 update mode, 2 fault */
     detach();
-    if (status & 4) { say(TEXT.fault, "err"); clearScreen(); el.power.textContent = TEXT.power; return; }
+    if (status & 4) { say(TEXT.fault, "err"); clearScreen(); setLabel(el.power, "play", TEXT.power); return; }
     say(TEXT.reboot);
     await new Promise((r) => setTimeout(r, 300));   /* (the last flash message saved first) */
     await boot(b);
@@ -390,7 +406,7 @@ export function mountSim(container, opts = {}) {
     }
     detach();
     clearScreen();                                   /* the device is off: a black screen */
-    el.power.textContent = TEXT.power;
+    setLabel(el.power, "play", TEXT.power);
     say("");                                         /* (the Start button already says it is stopped) */
   }
   async function resetMemory() {
@@ -660,7 +676,8 @@ export function mountSim(container, opts = {}) {
     return h("button.os-btn", { type: "button", "data-led": i >= 0 ? String(i) : null, style: at(x, y, w, hgt),
       title: key ? `${label.replace(/\n/g, " / ")} · ${btnKeyCap[key] || key.toUpperCase()}` : label,
       onpointerdown: (e) => press(e, "button", i), onpointerup: () => send("button", i, 0), onpointerleave: () => send("button", i, 0) },
-      ...String(label).split("\n").map((s, k) => h(k ? "small" : "span", {}, s)));
+      ...String(label).split("\n").map((s, k) => h(k ? "small" : "span", {}, s)),
+      key ? h("span.os-bcap", { "aria-hidden": "true" }, btnKeyCap[key] || key.toUpperCase()) : null);   /* (its key, small, bottom right) */
   }
   function keyEls(n, nbtn) {
     const black = {};
@@ -691,7 +708,9 @@ export function mountSim(container, opts = {}) {
     const face = h("div.os-knobface", { role: "slider", tabindex: "0", "aria-label": label, title: `${label}: drag up / down or scroll`,
       style: `position:absolute;left:${cx + OFF_X - r}px;top:${cy + OFF_Y - r}px;width:${r * 2}px;height:${r * 2}px` }, h("span.os-knobdot"));
     const name = h("div.os-klabel", { style: `position:absolute;left:${cx + OFF_X - 60}px;top:${cy + OFF_Y - 62}px;width:120px` }, label);
-    const wrap = h("div.os-knobw", {}, name, face);
+    const keys = KNOB_KEYS[label];
+    const cap = keys ? h("div.os-kncap", { "aria-hidden": "true", style: `position:absolute;left:${cx + OFF_X - 40}px;top:${cy + OFF_Y + r + 4}px;width:80px` }, keys.join(" ")) : null;
+    const wrap = h("div.os-knobw", {}, name, face, cap);
     let py = null, acc = 0, master = 700;
     const setAng = (a) => face.style.setProperty("--a", `${a}deg`);
     if (enc === null) setAng(master / 1023 * 300 - 150);
@@ -705,13 +724,16 @@ export function mountSim(container, opts = {}) {
     face.addEventListener("pointerup", () => { py = null; });
     face.addEventListener("wheel", (e) => { e.preventDefault(); turn(e.deltaY < 0 ? 1 : -1); }, { passive: false });
     face.addEventListener("keydown", (e) => { if (e.key === "ArrowUp" || e.key === "ArrowRight") turn(1); else if (e.key === "ArrowDown" || e.key === "ArrowLeft") turn(-1); });
+    if (keys) { st.knobKeys[keys[0]] = () => turn(-1); st.knobKeys[keys[1]] = () => turn(1); }
     return wrap;
   }
   /* the computer keyboard: the FM-1's keys, while the tab is shown and no text field has the focus */
   function onKey(e, down) {
-    if (!engine || !st.info || e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (!engine || !st.info || e.metaKey || e.ctrlKey || e.altKey) return;
     if (e.target && /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) return;
     const k = e.key.toLowerCase();
+    if (st.knobKeys[k]) { e.preventDefault(); if (down) st.knobKeys[k](); return; }   /* an encoder's key: one detent, repeated while held */
+    if (e.repeat) return;
     // a button? (its firmware index, from the name -> key map)
     const bi = st.buttonKeys ? st.buttonKeys[k] : undefined;
     if (bi !== undefined) {
