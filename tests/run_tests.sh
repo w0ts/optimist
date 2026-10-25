@@ -1009,7 +1009,7 @@ job; ( jobin   # the effects' lines in the arena (fx/fx_arena.c, docs/SD-MODE-DE
     run "effects' lines in the arena (ROOM): placed while used, zeroed, gated and given back, refused (bypassed, kept, said once) and restored, a part's change waits for a line going back, the own room, lent instead; random switches" "$OUT/fx_arena_test"
     $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA -DFELUCCA_REV_FDN8=1 -DFELUCCA_REV_POOL=1 -DFELUCCA_SPRING=1 "-DFELUCCA_ARENA_BYTES=(sizeof(fm6_mem_t) + 81906u)" -o "$OUT/fx_arena_rev_test" tests/fx_arena_test.c -lm
     run "the same with ROOM, FDN8 and SPRING (the reverb's TYPE switched, its line 32 KB)" "$OUT/fx_arena_rev_test"
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA -DUI_MEMLIST=1 "-DFELUCCA_ARENA_BYTES=(sizeof(fm6_mem_t) + 56000u)" -o "$OUT/ui_optimist_memlist_test" tests/ui_optimist_test.c -lm
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA -DUI_MEMLIST=1 "-DFELUCCA_ARENA_BYTES=(sizeof(fm6_mem_t) + 57994u)" -o "$OUT/ui_optimist_memlist_test" tests/ui_optimist_test.c -lm
     run "a load that does not fit (ui/optimist/op_memlist.c): the refused parts listed, then the parts and the effects' lines on the keys, the gauge and FITS the arena's trial, SAVE drops and places, HOME leaves placeholders, an edit's one confirm" "$OUT/ui_optimist_memlist_test" "$OUT/optimist"
     $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA -DFELUCCA_FX_SLICER=0 "-DFELUCCA_ARENA_BYTES=(sizeof(fm6_mem_t) + 66506u)" -o "$OUT/fx_arena_nobufs_test" tests/fx_arena_test.c -lm
     run "the same without the SLICER (no other buffer in the arena: core/arena_bufs.c's stubs)" "$OUT/fx_arena_nobufs_test"
