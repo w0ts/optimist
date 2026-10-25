@@ -30,7 +30,7 @@ def block(text, name):
 
 
 LIBS = {"Device": ["R", "C"], "74xGxx": ["74LVC1G04"], "Connector": ["Micro_SD_Card_Det1"],
-        "Connector_Generic": ["Conn_01x07"], "power": ["PWR_FLAG"]}
+        "Connector_Generic": ["Conn_01x07"], "power": ["PWR_FLAG"], "Mechanical": ["MountingHole"]}
 lib_symbols = []
 for lib, names in LIBS.items():
     text = open(os.path.join(SYMS, f"{lib}.kicad_sym")).read()
@@ -50,6 +50,7 @@ PINS = {
                                      "SH": (20.32, -12.7, 180)},
     "Connector_Generic:Conn_01x07": {str(n): (-5.08, 7.62 - 2.54 * (n - 1), 0) for n in range(1, 8)},
     "power:PWR_FLAG": {"1": (0, 0, 90)},
+    "Mechanical:MountingHole": {},
 }
 LABEL_ANGLE = {0: 180, 180: 0, 90: 270, 270: 90}   # (the label away from the body)
 
@@ -68,6 +69,8 @@ PARTS = [
     ("C2", "Device:C", "100nF", "sdboard:C0603", "C14663", 75, 125, {"1": "GND", "2": "3V3"}),
     ("P1", "Connector_Generic:Conn_01x07", "to the FM-1", "Connector_PinHeader_2.54mm:PinHeader_1x07_P2.54mm_Vertical",
      "", 230, 90, {"1": "LCD_CS", "3": "MOSI", "4": "3V3", "5": "CLK", "6": "GND", "7": "MISO"}),
+    *[(f"H{i}", "Mechanical:MountingHole", "M2", "MountingHole:MountingHole_2.2mm_M2", "", 200 + 15 * i, 150, {})
+      for i in range(1, 5)],
     ("#FLG01", "power:PWR_FLAG", "PWR_FLAG", "", "", 40, 150, {"1": "3V3"}),
     ("#FLG02", "power:PWR_FLAG", "PWR_FLAG", "", "", 55, 150, {"1": "GND"}),
 ]
@@ -86,7 +89,7 @@ for ref, lib, value, fp, lcsc, x, y, pins in PARTS:
     x, y = round(round(x / 2.54) * 2.54, 2), round(round(y / 2.54) * 2.54, 2)   # (on KiCad's connection grid)
     pins_txt = " ".join(f'(pin "{p}" (uuid "{uid(ref, "pin", p)}"))' for p in PINS[lib])
     flag = ref.startswith("#")
-    out.append(f'(symbol (lib_id "{lib}") (at {x} {y} 0) (unit 1) (exclude_from_sim no) (in_bom {"no" if flag or ref == "P1" else "yes"})'
+    out.append(f'(symbol (lib_id "{lib}") (at {x} {y} 0) (unit 1) (exclude_from_sim no) (in_bom {"no" if flag or ref == "P1" or ref.startswith("H") else "yes"})'
                f' (on_board {"no" if flag else "yes"}) (dnp no) (uuid "{uid(ref)}")'
                f' {prop("Reference", ref, x, y - 14, flag)} {prop("Value", value, x, y + 14, flag)}'
                f' {prop("Footprint", fp, x, y, True)} {prop("Datasheet", "", x, y, True)} {prop("LCSC", lcsc, x, y, True)}'
