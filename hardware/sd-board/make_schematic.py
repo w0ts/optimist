@@ -70,8 +70,8 @@ PARTS = [
     ("C2", "Device:C", "100nF", "sdboard:C0603", "C14663", 75, 125, {"1": "GND", "2": "3V3"}),
     ("J2", "Connector_Generic_MountingPin:Conn_01x06_MountingPin", "FFC 6P 0.5mm", "sdboard:FPC-SMD_6P-P0.50_XUNPU_FPC-05F-6PH20",
      "C2856796", 230, 90, {"1": "MOSI", "2": "CLK", "3": "MISO", "4": "GND", "5": "3V3", "6": "LCD_CS", "MP": "GND"}),
-    *[(f"H{i}", "Mechanical:MountingHole", "M2", "MountingHole:MountingHole_2.7mm_M2.5" if i < 3 else "MountingHole:MountingHole_2.2mm_M2", "", 200 + 15 * i, 150, {})
-      for i in range(1, 4)],
+    *[(f"H{i}", "Mechanical:MountingHole", "M2.5", "MountingHole:MountingHole_2.7mm_M2.5", "", 200 + 15 * i, 150, {})
+      for i in range(1, 3)],
     ("#FLG01", "power:PWR_FLAG", "PWR_FLAG", "", "", 40, 150, {"1": "3V3"}),
     ("#FLG02", "power:PWR_FLAG", "PWR_FLAG", "", "", 55, 150, {"1": "GND"}),
 ]
