@@ -273,12 +273,48 @@ static struct {
 } part_mem_refused;
 #define PART_MEM_SHORT() (part_mem_refused.on || part_mem_refused.lmask)   /* (the effects wait: a part's sound first) */
 
+#if FXM_NEED && FELUCCA_ENG_WAVE
+/* WAVE keeps nothing in the part's memory, but every WAVE part needs WAVE's table (core/arena_bufs.c ARB_WAVE): a part's
+ * change to WAVE when no block holds the table or is set aside for it sets the table's aside, and is refused like any
+ * other engine change when it does not fit (the night's ruling, 2026-10-25: the drop proposal, parts first, then the
+ * effects; on a load the list page) */
+#define PART_TAB_K (NPART + FXM_NC + (uint32_t)ARB_WAVE)   /* (the table's arena client) */
+static uint32_t part_tab_bytes(uint32_t e)               /* WAVE's table for engine e: its bytes when nothing holds it */
+{
+    if (e % NENGINES != (uint32_t)ENG_SLOT_WAVE || arn_cur[PART_TAB_K].len ||
+        (arn_has_next[PART_TAB_K] && arn_next[PART_TAB_K].len))
+        return 0;
+    return WT_MEM_BYTES;
+}
+#else
+#define part_tab_bytes(e) ((void)(e), 0u)
+#endif
+/* the arena's bytes engine e needs for a part: its own memory, or WAVE's table when nothing holds it (the UI's counts) */
+static uint32_t part_mem_need(uint32_t e) { return part_mem_bytes(e) + part_tab_bytes(e); }
+/* (the interrupts off) part k's memory for engine e, or WAVE's table, set aside as it is: 0 ok, -1 no room */
+static int part_mem_aside(uint32_t k, uint32_t e)
+{
+#if FXM_NEED && FELUCCA_ENG_WAVE
+    if (part_tab_bytes(e))
+        return arn_reserve(PART_TAB_K, WT_MEM_BYTES);
+#endif
+    return arn_reserve(k, part_mem_bytes(e));
+}
+
 /* part k's memory for engine e set aside (the interrupts off: a section applied inside the audio ISR reaches here
  * through the project's apply); 0 ok or none needed, -1 no room. Nothing recorded */
 static int part_mem_try(uint32_t k, uint32_t e)
 {
     uint32_t n = part_mem_bytes(e);
     int r;
+#if FXM_NEED && FELUCCA_ENG_WAVE
+    if (k < NPART && part_tab_bytes(e)) {                /* (WAVE: its table, the part keeps nothing) */
+        IRQ_SAVE(ie);
+        r = part_mem_aside(k, e);
+        IRQ_RESTORE(ie);
+        return r;
+    }
+#endif
     if (k >= NPART || !n || (part_mem_owner[k] == e % NENGINES + 1u && arn_ptr(k)))
         return 0;                                        /* (none needed, or its own state still there; an idle one
                                                           * another reservation takes back first: the switch finds no
@@ -295,13 +331,20 @@ static int part_mem_try(uint32_t k, uint32_t e)
  * aside. 0 ok; -1 no room (only with a smaller FELUCCA_ARENA_BYTES): part_mem_refused says what would make room */
 static int part_mem_reserve(uint32_t k, uint32_t e)
 {
+    uint32_t tab = part_tab_bytes(e);
     int r = part_mem_try(k, e);
     if (r) {
         if (!part_mem_refused.on || part_mem_refused.part != k)   /* (a new refusal: nothing asked yet) */
             part_mem_refused.asked = part_mem_refused.waiting = 0;
         part_mem_refused.on = 1, part_mem_refused.part = (uint8_t)k, part_mem_refused.eng = (uint8_t)(e % NENGINES);
-        part_mem_refused.drop = (int8_t)arn_drop_for(k, part_mem_bytes(e));
+#if FXM_NEED && FELUCCA_ENG_WAVE
+        if (tab)                                         /* (WAVE's table: the parts whose blocks would make it room) */
+            part_mem_refused.drop = (int8_t)arn_drop_for(PART_TAB_K, tab);
+        else
+#endif
+            part_mem_refused.drop = (int8_t)arn_drop_for(k, part_mem_bytes(e));
     }
+    (void)tab;
     return r;
 }
 
