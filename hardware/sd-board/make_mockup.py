@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """A mockup to 3D-print, to try the board in the FM-1: the board's outline 1.6 mm thick and each part as a solid block
 (its courtyard, its height) standing on it, all one piece (the parts' own 3D models float above the board in a slicer).
-Writes mockup-printable.scad and, with OpenSCAD, mockup-printable.stl; with an argument, a microSD card in it too
-(the user, 2026-10-25): "card-in" (latched, its end flush with the socket's front, the case's outside) or "card-out"
-(released, CARD_OUT mm out through the wall's slot: an estimate, the socket's travel is not measured):
+Writes mockup-printable.scad and, with OpenSCAD, mockup-printable.stl; with "card-out", a released microSD card in it
+too, CARD_OUT mm out through the wall's slot (an estimate: the socket's travel is not measured). ("card-in" also
+works, but a latched card hides inside the socket's solid block: it looks like the empty one, so it is not kept.)
 
-  /Applications/KiCad/KiCad.app/Contents/Frameworks/Python.framework/Versions/3.9/bin/python3.9 make_mockup.py [card-in|card-out]
+  /Applications/KiCad/KiCad.app/Contents/Frameworks/Python.framework/Versions/3.9/bin/python3.9 make_mockup.py [card-out]
 """
 import os
 import subprocess
