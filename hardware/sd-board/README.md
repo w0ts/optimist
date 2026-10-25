@@ -30,7 +30,7 @@ breakout will tell; then the lines are re-routed.
 
 1. **This board**, ordered assembled (below).
 2. **A 10-pin 0.5 mm cable**, 60 or 80 mm (the user has both types, A and B: the sockets take either), from J12 to J2.
-3. **The tray** (`sd-tray-up0.5.stl` or `sd-tray-up1.0.stl`, 3D print): the board slides in from the bottom end until it meets the collar.
+3. **The tray** (`sd-tray.stl`, 3D print): the board slides in from the bottom end until it meets the collar.
 4. **A slot in the bottom wall** for the card: about 15 x 2.5 mm, the card's left side 81.7 mm from the left wall's
    inside (the socket's 2 mm further left).
 
