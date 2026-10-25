@@ -155,7 +155,7 @@ const open = async (path, w = 1440, s = "dark") => {
     return { kind: $(".oi-pkg").dataset.kind, text: $(".oi-pkg").textContent };`);
 };
 
-/* ---- 1 the page: Install (the choices, the button, the FM-1 found), Build your own, the rescue folded; the package checked */
+/* ---- 1 the page: Build your own, Install (the choices, the button, the FM-1 found), the rescue folded; the package checked */
 const start = await open("/webapp/installer/");
 const p0 = await run(`${U} return { steps: [...document.querySelectorAll(".oi-step .oi-h")].map((e) => e.textContent), h1: $("h1").textContent,
   rescue: $(".oi-rescuebox > summary").textContent, folded: !$(".oi-rescuebox").open, under: !!$(".oi-step .oi-go ~ .oi-conn .o-btn"),
@@ -165,9 +165,9 @@ const p0 = await run(`${U} return { steps: [...document.querySelectorAll(".oi-st
   nameless: [...document.querySelectorAll(".oi button")].filter((b) => !b.textContent.trim() && !b.getAttribute("aria-label")).length,
   source: $(".oi-foot a").href, about: [...document.querySelectorAll(".oi-foot a")].map((a) => a.getAttribute("href")) };`);
 ok(start.kind === "ok" && /^Ready: .+ v0\.1-e2e · FM-1_720$/.test(start.text), `step 2: the site's package downloaded and checked (${start.text})`);
-ok(JSON.stringify(p0.steps) === JSON.stringify(["Install", "Build your own"]) && p0.rescue === "When something goes wrong" && p0.folded && p0.under
+ok(JSON.stringify(p0.steps) === JSON.stringify(["Build your own", "Install"]) && p0.rescue === "When something goes wrong" && p0.folded && p0.under
   && p0.h1 === "Install Optimist" && p0.head && !p0.tiles,
-  "the page: Install (the choices, the button, the FM-1 found under it), Build your own, the rescue folded; the shared header, no SLOOP tiles");
+  "the page: Build your own, Install (the choices, the button, the FM-1 found under it), the rescue folded; the shared header, no SLOOP tiles");
 ok(JSON.stringify(p0.radios) === JSON.stringify([["rel", true], ["file", false]]) && !p0.go && !p0.find, "the release's flavour chosen, a file of yours offered; Find and Install on");
 ok(p0.meta.includes(`sha256 ${SHA}`) && p0.meta.includes("built from v0.1-e2e") && p0.source === "https://github.com/w0ts/optimist/tree/v0.1-e2e" && p0.about.includes("../../LICENSING.md"),
   "the version, the tag, the package's sha256 small at the end; Source at the tag; About and licences");
