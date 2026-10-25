@@ -30,7 +30,7 @@ def block(text, name):
 
 
 LIBS = {"Device": ["R", "C"], "74xGxx": ["74LVC1G04"], "Connector": ["Micro_SD_Card_Det1"],
-        "Connector_Generic_MountingPin": ["Conn_01x06_MountingPin"], "power": ["PWR_FLAG"], "Mechanical": ["MountingHole"]}
+        "Connector_Generic_MountingPin": ["Conn_01x06_MountingPin"], "power": ["PWR_FLAG"]}
 lib_symbols = []
 for lib, names in LIBS.items():
     text = open(os.path.join(SYMS, f"{lib}.kicad_sym")).read()
@@ -51,7 +51,6 @@ PINS = {
     "Connector_Generic_MountingPin:Conn_01x06_MountingPin": {**{str(n): (-5.08, 5.08 - 2.54 * (n - 1), 0)
                                                               for n in range(1, 7)}, "MP": (0, -12.7, 90)},
     "power:PWR_FLAG": {"1": (0, 0, 90)},
-    "Mechanical:MountingHole": {},
 }
 LABEL_ANGLE = {0: 180, 180: 0, 90: 270, 270: 90}   # (the label away from the body)
 
@@ -70,8 +69,6 @@ PARTS = [
     ("C2", "Device:C", "100nF", "sdboard:C0603", "C14663", 75, 125, {"1": "GND", "2": "3V3"}),
     ("J2", "Connector_Generic_MountingPin:Conn_01x06_MountingPin", "FFC 6P 0.5mm", "sdboard:FPC-SMD_6P-P0.50_XUNPU_FPC-05F-6PH20",
      "C2856796", 230, 90, {"1": "MOSI", "2": "CLK", "3": "MISO", "4": "GND", "5": "3V3", "6": "LCD_CS", "MP": "GND"}),
-    *[(f"H{i}", "Mechanical:MountingHole", "pole", "sdboard:PoleHole", "", 200 + 15 * i, 150, {})
-      for i in range(1, 3)],
     ("#FLG01", "power:PWR_FLAG", "PWR_FLAG", "", "", 40, 150, {"1": "3V3"}),
     ("#FLG02", "power:PWR_FLAG", "PWR_FLAG", "", "", 55, 150, {"1": "GND"}),
 ]
