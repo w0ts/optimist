@@ -1579,7 +1579,7 @@
    }
   }
  },
- "measured": "2026-10-25 11:29",
+ "measured": "2026-10-25 16:14",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
@@ -1706,7 +1706,7 @@
    }
   },
   "drum-machines": {
-   "hash": "3a90f6e2",
+   "hash": "7f1c3bba",
    "cfg": {
     "ENG_ANALOG": 0,
     "ENG_DIGITAL": 0,
@@ -1741,9 +1741,15 @@
     "INS_RECT": 1,
     "INS_SUBOCT": 1,
     "INS_TAPE": 1,
+    "INS_CHORUS": 1,
     "INS_DELAY": 1,
+    "INS_JCHORUS": 1,
+    "INS_FLANGER": 1,
+    "INS_GATER": 1,
     "SNAPSHOTS": 0,
     "PATTERNS": 1,
+    "REC_PLAIN": 1,
+    "NOTEGEN": 1,
     "USB_AUDIO": 1,
     "MIDI_EXPR": 0,
     "MIDI_NOTEOUT": 0,
@@ -1758,21 +1764,31 @@
     "TAB_IN_POOL": 1,
     "LIVE_SAVE": 1,
     "CPU_GUARD": 1,
-    "BLE": 1,
-    "BLE_CENTRAL": 1,
+    "CACHE_RAM": 2,
     "BT_AUDIO": 1,
+    "CHANCE": 1,
+    "QNT_SEQ": 1,
     "BRIGHT": 0,
+    "MOTION": 1,
     "DIV_ORDER": 1,
     "SL24_SAFE": 0,
+    "SL24_XSTEP": 1,
     "SL24_IMPORT": 0,
-    "COND": 1
+    "MICRO": 1,
+    "FILLS": 1,
+    "COND": 1,
+    "SEQTOOLS": 1,
+    "GEN_GRIDS": 1,
+    "GRIDS_EUCLID": 1,
+    "GRIDS_LFO": 1,
+    "GRIDS_VEL": 1
    },
-   "built_hash": "22de52f2",
+   "built_hash": "2b133d49",
    "sizes": {
-    "flash": 581296,
-    "ram": 97444,
-    "pool": 311908,
-    "ramtext": 21144
+    "flash": 571380,
+    "ram": 94996,
+    "pool": 311052,
+    "ramtext": 21240
    }
   },
   "synths-2": {
@@ -2404,7 +2420,7 @@
    }
   },
   "drum-machines~": {
-   "hash": "1f50056a",
+   "hash": "306494ee",
    "cfg": {
     "ENG_ANALOG": 0,
     "ENG_DIGITAL": 0,
@@ -2435,10 +2451,14 @@
     "INS_RECT": 1,
     "INS_SUBOCT": 1,
     "INS_TAPE": 1,
-    "INS_CHORUS": 1,
     "INS_DELAY": 1,
+    "INS_JCHORUS": 1,
+    "INS_FLANGER": 1,
+    "INS_GATER": 1,
     "SNAPSHOTS": 0,
     "PATTERNS": 1,
+    "REC_PLAIN": 1,
+    "NOTEGEN": 1,
     "USB_AUDIO": 1,
     "MIDI_EXPR": 0,
     "MIDI_NOTEOUT": 0,
@@ -2453,21 +2473,31 @@
     "TAB_IN_POOL": 1,
     "LIVE_SAVE": 1,
     "CPU_GUARD": 1,
-    "BLE": 1,
-    "BLE_CENTRAL": 1,
+    "CACHE_RAM": 2,
     "BT_AUDIO": 1,
+    "CHANCE": 1,
+    "QNT_SEQ": 1,
     "BRIGHT": 0,
+    "MOTION": 1,
     "DIV_ORDER": 1,
     "SL24_SAFE": 0,
+    "SL24_XSTEP": 1,
     "SL24_IMPORT": 0,
-    "COND": 1
+    "MICRO": 1,
+    "FILLS": 1,
+    "COND": 1,
+    "SEQTOOLS": 1,
+    "GEN_GRIDS": 1,
+    "GRIDS_EUCLID": 1,
+    "GRIDS_LFO": 1,
+    "GRIDS_VEL": 1
    },
-   "built_hash": "3721eceb",
+   "built_hash": "5c5c6764",
    "sizes": {
-    "flash": 590288,
-    "ram": 98272,
-    "pool": 308828,
-    "ramtext": 21144
+    "flash": 578440,
+    "ram": 94096,
+    "pool": 303444,
+    "ramtext": 21240
    }
   },
   "synths-2~": {
