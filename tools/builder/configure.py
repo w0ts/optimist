@@ -405,6 +405,11 @@ def _run(cmd, env, echo, on_line=None):
     return PR.stream(cmd, on_line=each, cwd=ROOT, env=env)
 
 
+def build_dir(outdir=None):
+    """the build directory: outdir, else OPTIMIST_BUILD_DIR (inside the tree, as tools/build.py reads it), else build/"""
+    return Path(outdir) if outdir else ROOT / (os.environ.get("OPTIMIST_BUILD_DIR") or "build")
+
+
 def build(cfg, name, measure=False, log=None, extra=(), echo=False, on_line=None, outdir=None):
     """a real build of this configuration (tools/build.py) -> (ok, sizes dict, output text); extra: more
     build.py arguments (--release X.Y); on_line: called with each output line while it builds; outdir: another
@@ -415,13 +420,12 @@ def build(cfg, name, measure=False, log=None, extra=(), echo=False, on_line=None
         if echo:                                        # (the CLI: say why; it used to exit 1 with no word)
             print(msg, file=sys.stderr)
         return False, None, msg
-    bdir = Path(outdir) if outdir else ROOT / "build"
+    bdir = build_dir(outdir)
     cfgfile = bdir / "builder.config"
     cfgfile.parent.mkdir(parents=True, exist_ok=True)
     cfgfile.write_text(dump(cfg, name))
     env = {k: v for k, v in os.environ.items() if not k.startswith("FELUCCA_")}
-    if outdir:
-        env["OPTIMIST_BUILD_DIR"] = bdir.resolve().relative_to(ROOT.resolve()).as_posix()
+    env["OPTIMIST_BUILD_DIR"] = bdir.resolve().relative_to(ROOT.resolve()).as_posix()   # (build.py writes where we read)
     cmd = [build_python(), str(ROOT / "tools" / "build.py"), "--config", str(cfgfile),
            *(["--measure"] if measure else []), *extra]
     out, rc = "", 1
@@ -469,7 +473,7 @@ def package(cfg, name, outdir, stem=None, echo=False, summary=None, release=None
     files, sizes, the configuration's hash), for scripts and CI. release: X.Y, a release build (build.py --release:
     its identity and version string), named optimist-X.Y-<name> (release.yml)"""
     ok, sizes, out = build(cfg, name, measure=False, echo=echo, extra=["--release", release] if release else ())
-    pkg, ui = ROOT / "build" / "felucca.fwsc", ROOT / "build" / "felucca-ui.zip"
+    pkg, ui = build_dir() / "felucca.fwsc", build_dir() / "felucca-ui.zip"   # (OPTIMIST_BUILD_DIR's, as build's)
     result = {"ok": False, "name": name, "hash": f"{cfg_hash(cfg):08x}", "sizes": sizes, "fwsc": None, "ui": None}
     if not ok or not pkg.exists() or not ui.exists():
         if not echo:

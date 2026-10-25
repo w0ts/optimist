@@ -397,6 +397,16 @@ out = io.StringIO()
 with redirect_stdout(out):
     rc = C.main(["--published"])
 check("config --published: the list as JSON (CI's matrix)", rc == 0 and json.loads(out.getvalue()) == pub)
+_bd_env = C.os.environ.pop("OPTIMIST_BUILD_DIR", None)
+_bd = [C.build_dir(), C.build_dir("x/y")]
+C.os.environ["OPTIMIST_BUILD_DIR"] = "worktrees/pk/build"
+_bd.append(C.build_dir())
+if _bd_env is None:
+    del C.os.environ["OPTIMIST_BUILD_DIR"]
+else:
+    C.os.environ["OPTIMIST_BUILD_DIR"] = _bd_env
+check("build_dir: build/, an outdir, or OPTIMIST_BUILD_DIR's (package copies the package from where build.py wrote it)",
+      _bd == [C.ROOT / "build", C.Path("x/y"), C.ROOT / "worktrees/pk/build"])
 out = io.StringIO()
 with redirect_stdout(out):
     rc = C.main(["--profiles"])
