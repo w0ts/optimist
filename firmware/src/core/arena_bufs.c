@@ -19,6 +19,9 @@
  * it is placed by itself as soon as there is room: tried every pass, except while a part's refused change waits (a
  * part's sound first) or the effects' lines are being moved (fx_arena.c fxm_mv). The largest first. A part's change
  * refused while one of these is on its way back waits for it (fxm_pending). They are never proposed to drop.
+ * WAVE's table is first a part's: a change to WAVE sets its room aside (engines.c part_mem_aside) or is refused like any
+ * engine change (the drop proposal; on a load the list page), so its refusal here is only the fallback. A refused
+ * SLICER's card reads FULL, dim, struck through (op_cells.c, arb_sl_refused), as a refused master FX slot
  * Included by fx.c after fx_arena.c */
 #if FXM_NEED
 #define ARB_K(c) (NPART + FXM_NC + (uint32_t)(c))       /* (its arena client) */
@@ -79,8 +82,14 @@ static uint32_t arb_want(uint32_t c)                    /* client c's feature is
     }
 #endif
 #if FELUCCA_ENG_WAVE
-    if (c == (uint32_t)ARB_WAVE)
+    if (c == (uint32_t)ARB_WAVE) {                      /* (a part on WAVE, or switching to it: engines.c set its
+                                                         * table's room aside, part_mem_aside) */
+        uint32_t k;
+        for (k = 0; k < NPART; k++)
+            if (trk[k].eng_req == (uint8_t)ENG_SLOT_WAVE)
+                return 1;
         return wt_wanted() >= 0;
+    }
 #endif
 #if FELUCCA_DRUM_X909
     if (c == (uint32_t)ARB_X909)
@@ -171,8 +180,13 @@ static void arb_poll(void)
         }
         if (!u)
             arb_full &= ~(1u << c);                     /* (refused, then let go: nothing to place) */
+        if (!u && arb_st[c] == FXM_NONE && arn_has_next[ARB_K(c)]) {
+            fm1_irq_off();
+            arn_has_next[ARB_K(c)] = 0;                 /* (set aside for a change since undone: let go) */
+            fm1_irq_on();
+        }
     }
-    if (part_mem_refused.on || fxm_mv)
+    if (PART_MEM_SHORT() || fxm_mv)
         return;                                         /* (a part's refused change first; the lines being moved) */
     arb_ord(o);
     for (i = 0; i < ARB_NC; i++) {
@@ -194,6 +208,17 @@ static void arb_poll(void)
         }
     }
 }
+#if FELUCCA_FX_SLICER
+/* the UI (op_cells.c): vp, a track's SLICER mode, is on STUT and its recording refused (bypassed: FULL, dim, struck) */
+static int arb_sl_refused(const int16_t *vp)
+{
+    uint32_t k;
+    for (k = 0; k < NTRK; k++)
+        if (vp == &trk[k].p[P_SLCR])
+            return *vp == SL_STUT && !sl_bp[k] && (arb_full >> (ARB_SL0 + k) & 1u);
+    return 0;
+}
+#endif
 /* one of them still held though nothing uses it: given back within a pass and two blocks (model.c mem_retry waits) */
 static int arb_pending(void)
 {

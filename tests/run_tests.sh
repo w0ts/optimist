@@ -1016,7 +1016,7 @@ job; ( jobin   # the effects' lines in the arena (fx/fx_arena.c, docs/SD-MODE-DE
     # (the arena: one FM6 3904, the lines 66472, WAVE's table 73216, one SLICER recording 8192, the 909 5360 and the
     #  808 3376 on the host, and 32 B)
     $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA -DFELUCCA_ENG_WAVE=1 -DFELUCCA_DRUM_X909=1 -DFELUCCA_DRUM_X808=1 "-DFELUCCA_ARENA_BYTES=160552u" -o "$OUT/arena_bufs_test" tests/arena_bufs_test.c -lm
-    run "other buffers in the arena (SLICER recordings, WAVE's table, the X0X machines): placed while used, given back, refused (bypassed, said once) and placed by themselves, a part's change waits; random switches" "$OUT/arena_bufs_test"
+    run "other buffers in the arena (SLICER recordings, WAVE's table, the X0X machines): placed while used, given back, refused (bypassed, FULL, said once) and placed by themselves; a change to WAVE refused as an engine change, on a load the list page; a part's change waits; random switches" "$OUT/arena_bufs_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin   # the RAMTEXT overlays (core/overlay.c, docs/SD-MODE-DESIGN.md 6): the slots' protocol on the host
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_OVERLAY=1 -DFELUCCA_ENG_STRINGS=1 -o "$OUT/overlay_test" tests/overlay_test.c -lm
