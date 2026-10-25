@@ -618,7 +618,7 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
                                             * erase in one window (seq.c SAVE_WAITS_PLAY, felucca.c FL_ERASE_HELD) */
 #endif
 #ifndef FELUCCA_PARAM_HELP
-#define FELUCCA_PARAM_HELP 0               /* the knob's value in plain words on the top bar ("Filter cutoff"), from
+#define FELUCCA_PARAM_HELP 0              /* the knob's value in plain words on the top bar ("Filter cutoff"), from
                                             * tools/param_help.json (param_help.c) */
 #endif
 #ifndef FELUCCA_ED_LIVE
