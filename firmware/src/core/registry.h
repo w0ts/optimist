@@ -617,6 +617,10 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
                                             * at a time; off again until the next start if the flash part ever holds an
                                             * erase in one window (seq.c SAVE_WAITS_PLAY, felucca.c FL_ERASE_HELD) */
 #endif
+#ifndef FELUCCA_SDCARD
+#define FELUCCA_SDCARD 0                   /* a microSD card on the LCD's SPI1 (a hardware mod, docs/SD-CARD-DESIGN.md):
+                                            * storage/sd/sdcard.c, hal/fm1_sd_bus.h; the console's sd commands */
+#endif
 #ifndef FELUCCA_PARAM_HELP
 #define FELUCCA_PARAM_HELP 0              /* the knob's value in plain words on the top bar ("Filter cutoff"), from
                                             * tools/param_help.json (param_help.c) */

@@ -1253,6 +1253,13 @@ job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_LIVE_SAVE=1 -o "$OUT/sections_live_test" tests/sections_test.c -lm
     run "song sections with LIVE_SAVE: saved while playing, the waiting ones one a call, back to waiting after a held erase" "$OUT/sections_live_test"
 ) >"$U.out" 2>&1 & jobbg
+job; ( jobin   # the SD card (SDCARD): ChaN's driver + Petit FatFs on a card model, real FAT16 / FAT32 images
+    gunzip -c tests/fixtures/sd/fat16.img.gz > "$OUT/sd_fat16.img"
+    gunzip -c tests/fixtures/sd/fat32.img.gz > "$OUT/sd_fat32.img"
+    $CC -O2 -w -Ifirmware/src -o "$OUT/sd_test" tests/sd_test.c firmware/src/storage/sd/pff.c
+    run "SD card: SDHC / SDSC / SDv1 / MMC start-up, FAT16 + FAT32 (MBR or none), read, seek, list, write, no card, timeouts, LCD sees only 0xFF" "$OUT/sd_test" "$OUT/sd_fat16.img" "$OUT/sd_fat32.img"
+    rm -f "$OUT/sd_fat16.img" "$OUT/sd_fat32.img"
+) >"$U.out" 2>&1 & jobbg
 # the screen mirrored (ED_MIRROR, io/editor/ed_mirror.c): the stream through a stand-in USB ring decoded back to the panel after
 # every write, a stalled host, the keep-alive; then the Optimist UI's whole run through the encoder, the decoded screen its own
 job; ( jobin
