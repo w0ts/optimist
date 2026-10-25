@@ -644,6 +644,10 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #endif
 #define PROJ_SLOTS (FELUCCA_LAYOUT == 1 ? 1u : 16u)   /* the projects the flash keeps (PATTERNS): the fake SD mode one, the
                                             * others kept by the web app or the iOS app over USB (the user, 2026-10-25) */
+#ifndef FELUCCA_FAR_OK
+#define FELUCCA_FAR_OK 0                   /* the far probe passed: the code may use the fake SD mode's whole slot (tools/build.py,
+                                            * tools/flash_layout.py code_limit; the build only, nothing in C) */
+#endif
 #ifndef FELUCCA_OVERLAY
 #define FELUCCA_OVERLAY 0                  /* the RAMTEXT overlays (core/overlay.c, docs/SD-MODE-DESIGN.md 6): the engines' hot
                                             * code in a slot per part, loaded at an engine change; needs LAYOUT 1 (flash) */

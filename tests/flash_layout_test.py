@@ -44,11 +44,12 @@ check("fm1_flash_map.h FL_APP_HI_NORMAL / FL_APP_HI_BIG == flash_layout.APP_HI",
 ld = (ROOT / "firmware" / "app.ld").read_text()
 check("app.ld's XIP length is the normal layout's app slot (581,564 B)",
       f"LENGTH = 0x{L.app_slot(0):X}" in ld and L.app_slot(0) == 581564)
-check("the builder's flash limit is the normal slot, FLASH_BY_LAYOUT the others'",
-      K.LIMITS["flash"] == L.app_slot(0) and all(K.FLASH_BY_LAYOUT[k] == L.app_slot(k) for k in K.FLASH_BY_LAYOUT)
+check("the builder's flash limit is the normal slot, FLASH_BY_LAYOUT the others' code room once the far probe passed",
+      K.LIMITS["flash"] == L.app_slot(0) and all(K.FLASH_BY_LAYOUT[k] == L.code_limit(k, True) for k in K.FLASH_BY_LAYOUT)
       and set(K.FLASH_BY_LAYOUT) == set(L.APP_HI) - {0})
-check("the builder's fits() gives a LAYOUT 1 configuration the larger slot",
-      K.fits({r: 0 for r in K.REGIONS}, {"LAYOUT": 1})["flash"][1] == L.app_slot(1) - K.SPARE["flash"])
+check("the builder's fits(): LAYOUT 1 alone (a probe build) the normal slot, with FAR_OK the larger room",
+      K.fits({r: 0 for r in K.REGIONS}, {"LAYOUT": 1})["flash"][1] == L.app_slot(0) - K.SPARE["flash"]
+      and K.fits({r: 0 for r in K.REGIONS}, {"LAYOUT": 1, "FAR_OK": 1})["flash"][1] == L.code_limit(1, True) - K.SPARE["flash"])
 check("layout_of: a flash.bin's length names its layout; another length is refused",
       L.layout_of(0x93000) == 0 and L.layout_of(0xD0000) == 1 and
       all(_raises(L.layout_of, n) for n in (0x92FFF, 0x9D000, 0xB7000)))

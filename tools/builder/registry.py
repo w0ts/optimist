@@ -1062,6 +1062,15 @@ _add("ARENA", "FELUCCA_ARENA_KB", "memory per project (an arena for the engines 
           "a MEM FULL message once). Off: every memory reserved as before, nothing ever refused. About 2 KB of flash and 256 B of RAM (the "
           "default profile, measured 2026-10-25); the room is the size chosen, against the engines' and lines' fixed "
           "memories it replaces.")
+# bit 413 (2026-10-25): the next free one after OVERLAY's 412; the big slot only once the far probe answered on the FM-1
+_add("FAR_OK", "FELUCCA_FAR_OK", "the far probe passed on this FM-1: use the fake SD mode's whole flash", Y, 413, default=0,
+     experimental=True, target_only=True, tested="needs the far probe's ok on the FM-1 it is installed on",
+     desc="The fake SD mode layout (LAYOUT) frees the flash past the old end, but a build keeps its code below that end "
+          "until the console's far command (on the probe build) has said the FM-1 runs code and reads data past it. "
+          "Tick this only after that: the code may then use the slot up to about 765 KB (the far probe and the "
+          "overlays' table keep its last 64 KB). On an FM-1 whose far probe failed such a build does not start: the "
+          "rescue (OCT- at power-on, UBOOT) puts a normal build back.",
+     off_warning="the code stays below the old end (568 KiB): a probe build")
 # bit 412 (2026-10-25): reserved for the RAMTEXT overlays (411: the effects' arena)
 _add("OVERLAY", "FELUCCA_OVERLAY", "engines' fast code loaded per part (RAMTEXT overlays)", Y, 412, default=0,
      experimental=True, target_only=True, tested="host-tested and booted in the emulator only, not on an FM-1",
