@@ -1,6 +1,6 @@
 # The FM-1 SD board (v3)
 
-An L-shaped board (a 10 mm strip, 61.5 mm long, with a 31 x 26.5 mm foot) with everything the SD card mod needs (docs/SD-CARD-DESIGN.md): a push-push microSD socket, the
+An L-shaped board (a 10 mm strip, 68 mm long, with a 22 x 26.5 mm foot) with everything the SD card mod needs (docs/SD-CARD-DESIGN.md): a push-push microSD socket, the
 chip-select inverter, the 1 kOhm on the card's data out, the pull-ups, the decoupling, and a 6-pin 0.5 mm flat-cable
 (FFC) socket. It sits on the back of the FM-1's board along its left edge (the user's plan, 2026-10-25): the flat cable
 from a tap at J12 (the LCD's connector, on the front) runs between the buttons and the encoders, round the board's left
@@ -22,7 +22,7 @@ yet** (it needs J12's pin order, metered).
 
 ## Order it (JLCPCB, assembled)
 
-1. jlcpcb.com > Order now > upload `fab/sd-board-gerbers.zip` (2 layers, 31 x 61.5 mm, 1.6 mm; JLC prices the L by its box; the defaults are fine).
+1. jlcpcb.com > Order now > upload `fab/sd-board-gerbers.zip` (2 layers, 22 x 68 mm, 1.6 mm; JLC prices the L by its box; the defaults are fine).
 2. Tick **PCB Assembly**, top side, Economic.
 3. Upload `fab/bom.csv` (the parts) and `fab/cpl.csv` (where they go). Every part is a JLC part (LCSC numbers in the BOM).
 4. Check the placement preview: the card socket's and the FFC socket's openings on the long straight edge,
@@ -38,15 +38,18 @@ project (`sd-board.kicad_pcb`, `sd-board.kicad_sch`) into EasyEDA Pro (File > Im
 
 | J2 pin | Net | On the FM-1 |
 |---|---|---|
-| 1 | CS (in) | PC7, the LCD's CS (the chip's pin 32) |
-| 2 | MOSI | PC10, the LCD's data out (pin 29) |
-| 3 | 3V3 | 3.3 V (the LCD's VCC) |
-| 4 | CLK | PC9, the LCD's clock (pin 30) |
-| 5 | GND | ground |
-| 6 | MISO | PC8, the LCD's D/C (pin 31) |
+| 1 | MOSI | PC10, the LCD's data out (the chip's pin 29) |
+| 2 | CLK | PC9, the LCD's clock (pin 30) |
+| 3 | MISO | PC8, the LCD's D/C (pin 31) |
+| 4 | GND | ground |
+| 5 | 3V3 | 3.3 V (the LCD's VCC) |
+| 6 | CS (in) | PC7, the LCD's CS (pin 32) |
 
-Four 2.2 mm holes (the strip's top, the foot's three free corners) take an M2 screw, a zip tie or a rivet,
-or the board goes on double-sided tape.
+(The order suits this board's routing; the tap board at J12 is designed to match it.)
+
+It is held by two of the FM-1's own screws: two 2.7 mm holes at their places (38.1 mm apart, measured; their place along
+the edge is from a photo, see `MEASUREMENTS.md`), the case's poles (6.8 mm) pressing on it. A third hole (2.2 mm) in
+the foot's corner takes a tie. Check the fit first with `mockup.stl` (3D print) or `template-1to1.pdf` (print at 100 %).
 
 ## The design
 
