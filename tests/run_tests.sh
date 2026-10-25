@@ -797,6 +797,10 @@ job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_BLE=1 -DFELUCCA_BT_AUDIO=1 $SEC4 -o "$OUT/ui_optimist_btboth_test" tests/ui_optimist_test.c -lm
     run "Optimist UI with BLE and BT_AUDIO built in: SYSTEM > BT MIDI and BT AUDIO, both on at once, each its MODE, connect, timer and devices list, SAVE / SAVE held per page; the settings record keeps both modes and reads an old single MODE" "$OUT/ui_optimist_btboth_test" "$OUT/optimist"
 ) >"$U.out" 2>&1 & jobbg
+job; ( jobin
+    $CC -O2 -w -fmerge-all-constants -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_INS_XDLY=1 -DFELUCCA_MIDI_CLOCK=1 $SEC4 -o "$OUT/ui_optimist_xdly_test" tests/ui_optimist_test.c -lm
+    run "Optimist UI with XDLY built in and equal constants merged (as the target's compiler does): GLOBAL > MIDI CLK OFS shows its own value below 0, not XDLY's TIME" "$OUT/ui_optimist_xdly_test" "$OUT/optimist"
+) >"$U.out" 2>&1 & jobbg
 # PAGE_LINES (the builder's default): the rows with no picture as GLOBAL's lines (tests/ui_optimist_plines.h), with and
 # without the help line
 mkdir -p "$OUT/optimist-lines"

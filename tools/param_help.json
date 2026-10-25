@@ -432,8 +432,8 @@
     {"kind": "op", "ctx": "REC 2", "params": {"QUANT": "Snap recorded notes to steps"}},
     {"kind": "op", "ctx": "MIDI", "params": {
       "CLK IN": {"text": "MIDI clock to follow", "if": "FELUCCA_MIDI_CLOCK"},
-      "CLK OFS": {"text": "Synced: steps earlier (+), ms", "if": "FELUCCA_MIDI_CLOCK"},
-      "BT OFS": {"text": "The same on Bluetooth audio", "if": "FELUCCA_BT_AUDIO"},
+      "CLK OFS": {"text": "USB/TRS clock: steps earlier", "if": "FELUCCA_MIDI_CLOCK"},
+      "BT OFS": {"text": "BLE clock: steps earlier (+)", "if": "FELUCCA_BLE"},
       "CLK OUT": {"text": "Send MIDI clock out", "if": "FELUCCA_MIDI_CLKOUT"},
       "MIDI IN": {"text": "MIDI in: notes or clock", "if": "FELUCCA_MIDI_INCLK"},
       "MIDI OUT": {"text": "MIDI out: keys, both or seq", "if": "FELUCCA_MIDI_OUT"}}},
