@@ -38,6 +38,7 @@ What is measured on a real FM-1 (calipers, the user, 2026-10-25) and what is sti
 | s | Between the jacks: the board's top edge to the wall's inside ("zero, but I would dig there") | 0 mm |
 | t | The tallest on the cable's way: the battery, about 6 mm; the cover's inside is tapered along its edges (a 4 mm band, a couple of mm lower) | 6 mm |
 | u, v | J12 to the jacks' edge; the free width beside the LCD's cable | not measured yet |
+| | Where the card goes through the bottom wall: the card's left side from the left wall's INSIDE (pegs that close the case's bottom stand left and right of it) | 86 mm (84.4 from the board's left edge) |
 
 ## How the board uses them
 
