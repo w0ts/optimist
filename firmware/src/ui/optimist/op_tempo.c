@@ -8,8 +8,8 @@
  *              without REC MODES QUANT is on REC's first card and REC 2 is no page (tps_*, the audit's #21).
  *              SELECT walks them (the screen's pages); BPM and NUDGE stay together on the first (the user)
  *   OCT- / +   held: the nudge, the clock a few percent slower / faster while held (seq.c clk_nudge, the BPM value
- *              never changes). Following an external clock: the offset in use (CLK OFS, or BT OFS while the audio
- *              streams to Bluetooth: clock_sync.c sync_ofs) 1 ms later / earlier each TEMPO_OFS_MS held, kept; the
+ *              never changes). Following an external clock: that clock's offset (CLK OFS, or BT OFS for a Bluetooth
+ *              clock: clock_sync.c sync_ofs) 1 ms later / earlier each TEMPO_OFS_MS held, kept; the
  *              NUDGE card shows it and its knob turns it
  *   white key  tap tempo (two taps or more); HOME too (op_combos.c: PLAY held, HOME pressed)
  * The panel: the tempo big, the beat, the nudge, the clock followed (A:USB ...) and its RX light. */

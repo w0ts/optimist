@@ -493,8 +493,8 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
               SI_NONE}},   /* (CLK IN, CLK OUT, MIDI OUT: no MIDI IN since 2026-10-14, the user: notes come in through the track channels,
                             * the clock through CLK IN; settings word bit 15 is free; CLKOUT: the clock sent, io/midi/clock_out.c) */
 #if FELUCCA_MIDI_CLOCK
-    {"MIDI", {SI_CLKOFS, SI_IF(FELUCCA_BT_AUDIO, SI_BTOFS), SI_NONE, SI_NONE}},   /* (following a clock: the steps that much earlier,
-                            * on the FM-1's output / on Bluetooth audio's: clock_sync.c sync_lead_t; the settings record) */
+    {"MIDI", {SI_CLKOFS, SI_IF(SY_BT_OFS, SI_BTOFS), SI_NONE, SI_NONE}},   /* (following a clock: the steps that much earlier,
+                            * a wired clock's / a Bluetooth (BLE) clock's: clock_sync.c sync_lead_t; the settings record) */
 #endif
     {"CHANNELS", {SI_CH1, SI_CH2, SI_CH3, SI_CHD}},
 };

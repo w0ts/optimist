@@ -40,9 +40,10 @@
  * position (F2, 16ths) or where the clock stopped. PLAY on the device while following arms a start at the
  * next F8; STOP stops.
  * SYNC_DAC_T: the codec's own delay (DAC filter, analog path): 0, as it is not known (no FM-1 measured).
- * Offset (GLOBAL > MIDI, settings of the FM-1): CLK OFS on the FM-1's own output, BT OFS while the audio streams to
- * Bluetooth (on top of what our side of the stream adds, bt/bt_acl.c bta_lat_t): ms the steps go earlier (< 0 later)
- * than the clock heard. Keys played by hand are not moved: on Bluetooth they are as late as the stream. */
+ * Offset (GLOBAL > MIDI, settings of the FM-1): the clock's source's, CLK OFS for a wired clock (USB, TRS), BT OFS for a
+ * Bluetooth (BLE) one; while the audio streams to Bluetooth, what our side of the stream adds on top (bt/bt_acl.c
+ * bta_lat_t): ms the steps go earlier (< 0 later) than the clock heard. Keys played by hand are not moved: on Bluetooth
+ * they are as late as the stream. */
 #ifndef FM1_TICKS_PER_US
 #define FM1_TICKS_PER_US 24u
 #endif
@@ -92,26 +93,13 @@ static int32_t sy_lead;                                    /* this block's offse
 #if FELUCCA_BT_AUDIO
 static int32_t bta_lat_t(void);
 #endif
-static uint32_t sync_ofs_ix(void)                          /* the offset in use: 1 BT OFS while the audio streams to
-                                                          * Bluetooth, else 0 CLK OFS (TEMPO's nudge sets it, op_tempo.c) */
-{
-#if FELUCCA_BT_AUDIO
-    return bta_lat_t() >= 0;
+#if FELUCCA_BLE
+#define SY_BT_OFS 1                                        /* BT OFS: a Bluetooth (BLE) clock can be followed */
 #else
-    return 0;
+#define SY_BT_OFS 0
 #endif
-}
 static const param_desc_t SY_OFS_D[2] = {PU("CLK OFS", F_INT, SY_OFS_MIN, SY_OFS_MAX, 0, "ms"),
                                          PU("BT OFS", F_INT, SY_OFS_MIN, SY_OFS_MAX, 0, "ms")};
-static int32_t sync_lead_t(void)                           /* the offset now: Bluetooth's while it streams */
-{
-#if FELUCCA_BT_AUDIO
-    int32_t bt = bta_lat_t();
-    if (bt >= 0)
-        return bt + sync_ofs[1] * 1000 * (int32_t)FM1_TICKS_PER_US;
-#endif
-    return sync_ofs[0] * 1000 * (int32_t)FM1_TICKS_PER_US;
-}
 
 static volatile uint32_t sync_out_t;   /* TIMER4 time the block being rendered starts to leave the DMA (audio.c) */
 static struct {
@@ -133,6 +121,20 @@ static struct {
     uint8_t mode;          /* G_SYNC as last seen */
     uint8_t src;           /* the source followed: MSRC_USB / MSRC_TRS / MSRC_BLE, 0 = none (internal tempo) */
 } sy;
+/* the offset of the clock followed (the user, 2026-10-25: "one for usb, one for BLE ... like the name implies"): BT OFS
+ * for a Bluetooth (BLE) clock, CLK OFS for a wired one (USB, TRS); TEMPO's nudge sets it (op_tempo.c) */
+static uint32_t sync_ofs_ix(void) { return sy.src == MSRC_BLE; }
+static int32_t sync_lead_t(void)                           /* the offset now: the source's, and the Bluetooth audio's own
+                                                          * delay on top while it streams (bt/bt_acl.c bta_lat_t) */
+{
+    int32_t t = sync_ofs[sync_ofs_ix()] * 1000 * (int32_t)FM1_TICKS_PER_US;
+#if FELUCCA_BT_AUDIO
+    int32_t bt = bta_lat_t();
+    if (bt >= 0)
+        t += bt;
+#endif
+    return t;
+}
 #define SY_STEADY 4u                                       /* F8s a steady period apart: a source is present */
 static struct { uint32_t last, dt; uint8_t cnt; } sy_pr[4];   /* per source (MSRC_*): presence */
 

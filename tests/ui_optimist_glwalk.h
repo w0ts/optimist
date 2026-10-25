@@ -267,7 +267,7 @@ static void glw_sync_long_tests(void)
             pg_ok &= c.label && !strcmp(c.label, "CLK OFS") && c.vp == &sync_ofs[0];
             n += 1u + (FELUCCA_BT_AUDIO ? 1u : 0u);
         }
-        pg_ok &= gl_end(0, first) - gl_first(0, first) == (FELUCCA_BT_AUDIO ? k : n) && first == gl_first(0, first);   /* (BT OFS too: the second row on the next page) */
+        pg_ok &= gl_end(0, first) - gl_first(0, first) == (SY_BT_OFS ? k : n) && first == gl_first(0, first);   /* (BT OFS too: the second row on the next page) */
         glo_cell(TPR_TEMPO, 3, &c);
         check(pg_ok && c.vp == &song.g[G_TUNE], "GLOBAL: the MIDI page is CLK IN, CLK OUT, MIDI OUT, then CLK OFS (BT OFS) (no MIDI IN, no CLK read-out); GLOBAL's Tempo's fourth line is TUNE, not SYNC");
         if (FELUCCA_MIDI_CLOCK) {                       /* CLK OFS below 0 by its knob, and by the editor's SCRN turn (fine, steps) */
@@ -277,6 +277,35 @@ static void glw_sync_long_tests(void)
             line_at(SCR_GLOBAL, l);
             turn(LINE_KNOB(l), -1);
             v1 = sync_ofs[0];
+            {                                           /* what the line shows (the FM-1, 2026-10-25: "1.0 ms" at 0 and
+                                                         * below: XDLY's TIME formatter took CLK OFS's "ms", one merged
+                                                         * string; -fmerge-all-constants reproduces it here) */
+                char want[8];
+                glw_line(SCR_GLOBAL, l, &c, 0);
+                snprintf(want, sizeof want, "%d", (int)v1);
+                if (strcmp(c.val, want))
+                    printf("  clk ofs at %d shows '%s' '%s'\n", (int)v1, c.val, c.unit);
+                check(c.label && !strcmp(c.val, want) && !strcmp(c.unit, "ms"),
+                      "GLOBAL CLK OFS one detent down: the line shows its value (-1 ms), not XDLY's TIME");
+            }
+            {                                           /* ... and the formatters it was taken for still format theirs */
+                char b[16];
+                const char *u;
+                int ok = 1;
+                param_format(&EQ_D[EQV_LO], 3, b, &u);
+                ok &= !strcmp(b, "+3") && !strcmp(u, "dB");
+                param_format(&EQ_D[EQV_MID], EQ_KILL, b, &u);
+                ok &= !strcmp(b, "KILL");
+                param_format(&EQ_D[EQV_FL], 0, b, &u);
+                ok &= !strcmp(u, "Hz") || !strcmp(u, "kHz");
+#if FELUCCA_INS_XDLY
+                param_format(&XD_DESC[XDV_T1], 0, b, &u);
+                ok &= !strcmp(b, "1.0") && !strcmp(u, "ms");
+#endif
+                if (!ok)
+                    printf("  formatters: last '%s' '%s'\n", b, u);
+                check(ok, "EQ3's gains (+3 dB, KILL) and FREQ, XDLY's TIME (1.0 ms) still shown as theirs");
+            }
             for (j = 0; j < 30u; j++)
                 turn(LINE_KNOB(l), -1);
             v2 = sync_ofs[0];

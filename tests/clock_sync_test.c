@@ -243,7 +243,8 @@ typedef struct {
     double spike_ms;
     double lim_mean, lim_max, lim_first;          /* checks: |mean|, worst after the first bar, the first hit */
     double at;                                    /* the tempo change starts this many beats after the downbeat */
-    int16_t ofs;                                  /* CLK OFS, ms: the steps this much before their F8 */
+    int16_t ofs;                                  /* the source's offset, ms (CLK OFS; a BLE clock: BT OFS): the steps this
+                                                   * much before their F8 */
 } scen_t;
 
 static void follow(const scen_t *c)
@@ -253,7 +254,8 @@ static void follow(const scen_t *c)
     double t = 2e6, first, late_max = -1e9;
     char line[200];
     reset(SYNC_AUTO);
-    sync_ofs[0] = c->ofs;
+    sync_ofs[c->src == MSRC_BLE] = c->ofs;
+    sync_ofs[c->src != MSRC_BLE] = 77;           /* (the other source's offset: never this clock's) */
     if (every == 2u)                               /* (fast: a hat every other beat, so it falls quiet) */
         for (k = 4; k < 16u; k += 8u)
             memset(&TDRUM->dstep[k], 0, sizeof TDRUM->dstep[k]);
@@ -514,6 +516,7 @@ int main(int argc, char **argv)
         {"BLE 174 BPM, 15 ms connection events, +-1 ms", MSRC_BLE, 174, 174, 0, 1.0, 96, 14.3, 0, 0, 0, 0.6, 1.5, 16},
         {"USB 120 BPM, CLK OFS +40 ms (steps early)", MSRC_USB, 120, 120, 0, 0, 64, 20.8, 0, 0, 0, 0.1, 0.3, 45, 0, 40},
         {"USB 120 BPM, CLK OFS -20 ms (steps late)", MSRC_USB, 120, 120, 0, 0, 64, 20.8, 0, 0, 0, 0.1, 0.3, 0.3, 0, -20},
+        {"BLE 120 BPM, BT OFS +40 ms (steps early; CLK OFS not used)", MSRC_BLE, 120, 120, 0, 0, 64, 20.8, 0, 0, 0, 0.6, 1.2, 45, 0, 40},
         {"USB 60 BPM, CLK OFS +250 ms (the most)", MSRC_USB, 60, 60, 0, 0, 32, 41.6, 0, 0, 0, 0.1, 0.3, 260, 0, 250},   /* (60: the hat
                                                      * of the downbeat, played at FA, done before the next, 250 ms early) */
     };

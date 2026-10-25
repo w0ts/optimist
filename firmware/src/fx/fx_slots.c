@@ -609,11 +609,14 @@ static void xdl_defaults(void)
             XDL_V(o)[i] = XD_DESC[i].def;
 }
 #endif
+/* XDLY's and EQ3's values as they read: known by their descriptors, never by their unit's pointer (2026-10-25: the
+ * compiler merges equal constant strings, so XD_TAG_MS was GLOBAL > MIDI CLK OFS's "ms" too, and CLK OFS showed as a
+ * delay TIME: "1.0 ms" at 0 and below, on the FM-1, for three sessions) */
 static int fxs_fmt(const param_desc_t *d, int32_t v, char *val, const char **unit)
 {
     uint32_t hz;
 #if FELUCCA_INS_XDLY
-    if (pd_unit(d) == XD_TAG_MS) {                        /* XDLY's TIMEs: ms, a tenth below 100 */
+    if (d == &XD_DESC[XDV_T1] || d == &XD_DESC[XDV_T2]) {   /* XDLY's TIMEs: ms, a tenth below 100 */
         uint32_t t = (xd_samples(v) * 100u + 220u) / 441u;   /* (tenths of a ms) */
         if (t < 1000u)
             fmt_fix(val, (int32_t)t, 1);
@@ -623,9 +626,9 @@ static int fxs_fmt(const param_desc_t *d, int32_t v, char *val, const char **uni
         return 1;
     }
 #endif
-    if (pd_unit(d) != EQ_TAG_DB && pd_unit(d) != EQ_TAG_FL && pd_unit(d) != EQ_TAG_FH)
-        return 0;                                      /* (by its tag) */
-    if (pd_unit(d) == EQ_TAG_DB) {
+    if (d < EQ_D || d >= EQ_D + EQV_N)
+        return 0;                                      /* (not one of EQ3's) */
+    if (d < EQ_D + EQV_FL) {                           /* (the gains) */
         if (v <= EQ_KILL) {
             str_cpy(val, "KILL", 6);
             *unit = "";
@@ -638,7 +641,7 @@ static int fxs_fmt(const param_desc_t *d, int32_t v, char *val, const char **uni
         }
         return 1;
     }
-    hz = (pd_unit(d) == EQ_TAG_FL ? EQ_FL_HZ : EQ_FH_HZ)[clamp(v, 0, EQ_FMAX)];
+    hz = (d == &EQ_D[EQV_FL] ? EQ_FL_HZ : EQ_FH_HZ)[clamp(v, 0, EQ_FMAX)];
     if (hz < 1000u) {
         fmt_int(val, (int32_t)hz);
         *unit = "Hz";
