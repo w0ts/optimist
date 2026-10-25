@@ -553,7 +553,8 @@ def build_app():
                    .replace("*(.text*) *(.rodata*)", "*(.text .text.*) *(.rodata*)")   # (.text_far: not in .text)
                    .replace("_etext = .; } > XIP",
                             "_etext = .; } > XIP\n    .text_far (ORIGIN(XIP) + " + f"{FAR_OFF:#x}" +
-                            ") : { KEEP(*(.text_far .text_far.*)) } > XIP"))
+                            ") : { KEEP(*(.text_far .text_far.*)) } > XIP\n"
+                            "    _xip_code_end = ADDR(.text_far) + SIZEOF(.text_far);"))   # (the guard's PC window: fm1_guard.h)
         ld = OUT / "app_layout.ld"
         ld.write_text(ld_text)
         sync_view(ld)
