@@ -208,7 +208,8 @@ state taken back by another part's reservation) does the same (`part_mem_unplace
 The effects are not placed while a load's refusals wait (`PART_MEM_SHORT`). `model.c mem_load_settle` (each frame)
 waits for the parts' switches and the lines on their way back, then places each refused part that fits by itself;
 what is still short opens the UI's list (`ui/optimist/op_memlist.c`, docs/UI-OPTIMIST-DESIGN.md 4.13): the parts that
-hold memory, then the send lines placed (REV DLY CHO), toggled on the keys; `mem_load_fits` tries the commit on the
+hold memory, then the send lines placed (REV DLY CHO), toggled on the keys; the refused parts are on the keys too,
+first: picked, one is left silent (a placeholder) so that the others can be placed (the user, the night of 2026-10-25); `mem_load_fits` tries the commit on the
 arena itself (the dropped parts' blocks idle as after their switch, the lines given back, the reservations in the
 settle's order, then put back), so FITS on screen is what SAVE gets (`mem_load_commit`, then the settle); HOME
 (`mem_load_cancel`) leaves the placeholders. An edit keeps the one confirm. Only with an arena placed by need (the
