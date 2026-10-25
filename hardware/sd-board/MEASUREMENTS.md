@@ -15,7 +15,7 @@ each photo value is a constant there, to replace once measured.
 | What | Photo value | In make_board.py |
 |---|---|---|
 | The free strip along the left edge of the FM-1 board's back | 10 mm wide | `SW` |
-| The foot (where the battery was) | to 26.5 mm high | `FY`, `YB` |
+| The foot (where the battery was): 22 mm wide, to 22.6 mm past the lower screw (the card socket needs 17) | the user's cover sketch: about 23 x 13 | `FW`, `YB` |
 | The lower screw, at the L's inner corner: from the strip's left edge, and where along it | 3.8 mm; 13 mm above the card's middle | `SCREWS` |
 | The upper screw: from the strip's left edge (38.1 mm above the lower one, measured) | 4.4 mm | `SCREWS` |
 | The strip's top above the upper screw | 3.4 mm | `Y0` |

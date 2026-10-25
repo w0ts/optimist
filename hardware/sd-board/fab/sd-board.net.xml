@@ -2,7 +2,7 @@
 <export version="E">
   <design>
     <source>/Users/mots/GitHub/optimist/worktrees/sdcard/hardware/sd-board/sd-board.kicad_sch</source>
-    <date>2026-10-25T11:34:11</date>
+    <date>2026-10-25T11:35:12</date>
     <tool>Eeschema 10.0.7</tool>
     <sheet number="1" name="/" tstamps="/">
       <title_block>
@@ -77,7 +77,7 @@
       </units>
     </comp>
     <comp ref="H1">
-      <value>M2</value>
+      <value>M2.5</value>
       <footprint>MountingHole:MountingHole_2.7mm_M2.5</footprint>
       <fields>
         <field name="LCSC"/>
@@ -101,7 +101,7 @@
       </units>
     </comp>
     <comp ref="H2">
-      <value>M2</value>
+      <value>M2.5</value>
       <footprint>MountingHole:MountingHole_2.7mm_M2.5</footprint>
       <fields>
         <field name="LCSC"/>
@@ -118,30 +118,6 @@
       <property name="ki_fp_filters" value="MountingHole*"/>
       <sheetpath names="/" tstamps="/"/>
       <tstamps>927cb6de-8279-53b1-9403-0a321f4cb4e5</tstamps>
-      <units>
-        <unit name="A">
-          <pins/>
-        </unit>
-      </units>
-    </comp>
-    <comp ref="H3">
-      <value>M2</value>
-      <footprint>MountingHole:MountingHole_2.2mm_M2</footprint>
-      <fields>
-        <field name="LCSC"/>
-        <field name="Footprint">MountingHole:MountingHole_2.2mm_M2</field>
-        <field name="Datasheet"/>
-        <field name="Description"/>
-      </fields>
-      <libsource lib="Mechanical" part="MountingHole" description="Mounting Hole without connection"/>
-      <property name="LCSC" value=""/>
-      <property name="Sheetname" value="sd-board"/>
-      <property name="Sheetfile" value="sd-board.kicad_sch"/>
-      <property name="exclude_from_bom"/>
-      <property name="ki_keywords" value="mounting hole"/>
-      <property name="ki_fp_filters" value="MountingHole*"/>
-      <sheetpath names="/" tstamps="/"/>
-      <tstamps>cfd16bb3-1377-5be5-b7bd-3034bcd43b2b</tstamps>
       <units>
         <unit name="A">
           <pins/>
