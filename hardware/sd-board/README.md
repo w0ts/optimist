@@ -35,6 +35,20 @@ breakout will tell; then the lines are re-routed.
   a deselect, under half a microsecond (22 mA at 100 Ohm, 34 mA at 47).
 - **J3 a few mm lower** if the head allows: the LCD's bonded flex should not sit under tension for life.
 - ESD protection at the card socket: two USBLC6-2SC6 (C7519) on CLK, CMD, CS, DAT0 (the slot is open to the outside).
+- **The column** (the user, 2026-10-25 review; `make_board.py` LANE / UP / COL_L, the via list): today five lanes side
+  by side for ~35 mm at 0.65 mm pitch, MISO next to CLK (the worst pairing: CLK's edge couples into MISO when the chip
+  samples it), no pour between the lanes, one stitching via near the top. Re-route:
+  1. lane order **CLK, MOSI, 3V3, LCD_CS, MISO** (the quiet lines between the aggressors and the victim);
+  2. the column wider (MEASUREMENTS E: free to 101 mm right of the speaker plug; it uses 91.5-96.8 today), with a
+     **ground trace between the CLK / MOSI pair and the quiet group**, tied to the bottom pour by vias;
+  3. **stitching vias along both sides of the column every ~5 mm** (both pours), and one each side at the top and the
+     bottom of the lane run;
+  4. kept as they are: R1 at the card's end of DAT0, the 100 Ohm CLK / MOSI resistors at the J2 end of the branch,
+     the J3-J2 pass-through short and over the pour;
+  5. four layers only if the bench still shows CRC errors at 30 MHz after this (the auto clock stays the safety net).
+- **The cable is the weakest part of the path**: 80 mm, 10 lines at 0.5 mm, ground only on pins 1 and 10, the order
+  fixed by J12 (the provisional map has MISO, CLK, MOSI side by side). The path is only as good as the cable: use the
+  shortest cable that reaches.
 - Owners: take the card out before a stock firmware update (a firmware that idles the LCD's CS high selects the card).
 
 ## The kit
