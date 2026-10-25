@@ -366,6 +366,7 @@
   #p-mirror > .pghelp[open] { background: var(--bg); padding: 0 8px 8px 0; }
   .mirwrap { --ms: calc(100vh - var(--menubar-h, 48px) - 120px); display: grid; gap: 12px; align-items: start; justify-content: center;
              grid-template-columns: minmax(120px, 168px) minmax(240px, var(--ms)) minmax(120px, 168px); }
+  .mirwrap.lanes { --ms: calc(100vh - var(--menubar-h, 48px) - 210px); }   /* (two rows of drum lanes under the screen: the user, 2026-10-25) */
   .mirwrap.alone { grid-template-columns: minmax(240px, calc(var(--ms) + 60px)); }
   .mirwrap.alone .mirside, .mirwrap.alone .mirpages, .mirwrap.alone .mirtracks { display: none; }
   .mirside, .mirpages, .mircenter { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
@@ -375,6 +376,7 @@
   #p-mirror:fullscreen { background: var(--bg); color: var(--fg); padding: 16px 20px; overflow: auto; margin: 0;
                          display: flex; flex-direction: column; justify-content: center; }
   #p-mirror:fullscreen .pghelp { display: none; }
+  #p-mirror:fullscreen .mirwrap.lanes { --ms: calc(100vh - 220px); }
   #p-mirror:fullscreen .mirwrap { --ms: calc(100vh - 130px); width: 100%; grid-template-columns: minmax(120px, 200px) minmax(240px, var(--ms)) minmax(120px, 200px); }
   #p-mirror:fullscreen .mirwrap.alone { grid-template-columns: minmax(240px, calc(var(--ms) + 50px)); }
   #p-mirror:fullscreen .mirpages { max-height: calc(100vh - 40px); }
@@ -11564,6 +11566,7 @@ function mirRender(force = false) {
       menu: () => { if (i === st.row) navFavAdd(false); else navAct(async () => { await navAsk(1, [i]); }); } }))
       : [el("p", { class: "dim", text: t("mirNoPages") })]));
   const cur = st.track, dimT = cur === MNAV.NONE, n = mnav.tracks.length, lanes = !dimT && cur >= MNAV.DRUM_ROW && n > MNAV.DRUM_ROW + 1;
+  $("mirwrap").classList.toggle("lanes", lanes);   /* (the drum lanes' rows under the screen: the screen smaller, all of it fits) */
   $("mirtracks").replaceChildren(
     el("div", { class: "mirlanes" }, ...(lanes ? mnav.tracks.slice(MNAV.DRUM_ROW + 1).map((nm, k) => mirButton(nm, { lit: cur === MNAV.DRUM_ROW + 1 + k, on: () => navTrack(MNAV.DRUM_ROW + 1 + k) })) : [])),
     el("div", { class: "mirtrk" }, ...mnav.tracks.slice(0, MNAV.DRUM_ROW + 1).map((nm, p) =>
