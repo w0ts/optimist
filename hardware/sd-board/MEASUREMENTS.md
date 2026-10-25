@@ -31,39 +31,37 @@ What is measured on a real FM-1 (calipers, the user, 2026-10-25) and what is sti
 | l | The hole by the battery's corner (a pole of the cover): its centre to the board's left edge | 78 mm |
 | m | The same hole's centre to the board's bottom edge | 40 mm |
 | n | The battery's bottom side to the board's bottom edge ("approx, the battery is not straight") | 8 mm |
-| o | The battery's right side to the battery plug's left side | 28 mm |
-| p | The plug's bottom end to the board's bottom edge | 24 mm |
+| o | The battery's right side to the battery plug's left side (sheet 3: to the plug's leftmost point, about) | 30 mm (sheet 2: 28) |
+| p | The plug's lowest point to the board's bottom edge (sheet 3, about) | 23.5 mm (sheet 2: 24) |
 | q | The gap between the two black jacks | 5.5 to 6 mm |
 | r | The board's left edge to the middle of that gap | 90 mm |
 | s | Between the jacks: the board's top edge to the wall's inside ("zero, but I would dig there") | 0 mm |
 | t | The tallest on the cable's way: the battery, about 6 mm; the cover's inside is tapered along its edges (a 4 mm band, a couple of mm lower) | 6 mm |
+| w1 | The white slide switch's left side to the board's left edge | 85.6 mm |
+| w2 | The white slide switch's lower end to the board's bottom edge | 44 mm |
+| x | Below the plug: the board's bottom edge to the OUTSIDE of the case's bottom wall (about) | 3 mm |
 | u, v | J12 to the jacks' edge; the free width beside the LCD's cable | not measured yet |
 | | Where the card goes through the bottom wall: the card's left side from the left wall's INSIDE (pegs that close the case's bottom stand left and right of it) | 86 mm (84.4 from the board's left edge) |
 
-## How the board uses them
+## How the board uses them (v4, by the battery's plug)
 
-- The poles (6.9 mm, centres 3.4 mm in) reach over the board's edge, so they cannot pass through holes: the board has two
-  U-notches open to the left, radius 3.45 + 0.6 mm.
-- d (46.1, the board) and j (45, the cover) should be the same distance (each pole stands on its screw hole) but differ
-  by 1.1 mm. The notches sit at the middle, 45.55 mm apart; their 0.6 mm play takes 0.55 mm either way.
-- The strip is 10 mm wide (f: 10.5 free). Its top is 0.4 mm inside the FM-1 board's top edge (c).
-- The foot starts 5.5 mm above the lower pole (no thin neck at the notch) with a brace from the strip's edge 9 mm
-  above the pole (1 mm under the diode D42, its height from the photo) to the foot's corner; it reaches 22.6 mm below
-  the pole (g: 40.8 free).
-- The battery moves right by about 11 mm (the foot is 22 mm wide; 12 mm are free between the wall and the battery).
-  A board that fits the 12 mm needs the card turned to go in along the edge and a socket under 12 mm wide; none was
-  found (LCSC's push-push ones are 14 to 15 mm; JAE ST11-H 13.4; Molex 502579 13.8). The user: "we will move the
-  battery" (2026-10-25).
-- The card socket stands 1 mm past the strip's edge; the case's outside is 2.5 mm from the board's edge (h): the card's
-  slot in the wall is about 1.5 mm in front of the socket.
+- The board spans 73.2 to 102 mm from the left edge (0.6 mm clear of the battery, k, and of the plug, k + o) and from
+  1.5 mm below the bottom edge (into the gap to the wall) up to 43 mm (1 mm under the switch, w2).
+- The cover's pole (l, m; 6.9 mm, i) sits in a half-round seat in the board's top left, 0.6 mm play.
+- The card's left side at 84.4 mm (86 from the wall's inside, the wall's inside taken 1.6 mm out: from h and the
+  left-wall figures); the card taken as centred in its socket (UNMEASURED: check on the mockup). The socket's front at
+  the bottom wall's outside (x: 3 mm below the board's edge), the card flush.
+- The FFC socket at 93 mm (the jacks' gap at r = 90 mm), its cable coming down from the top.
+- The case's cover is tapered along its edges (t): the socket and the board stand 3.45 mm, under its lowest part.
+- v3 (the L along the left edge) did not fit: 10.4 mm free beside the battery; it is in git (5af03500).
 
-## Still from the photo (2026-10-25)
+## Still unmeasured
 
-| What | Photo value | In make_board.py |
-|---|---|---|
-| The lower pole's place along the edge, relative to the card | 13 mm above the card's middle | `POLES`, J1 |
-| Where the flat cable comes round the edge (the FFC socket's middle, above the lower pole) | 23.5 mm | J2 |
-| The foot's width, free once the battery moves right | 22 mm | `FW` |
+| What | In make_board.py |
+|---|---|
+| Where the card sits across its socket (taken as centred) | `CARD_C` |
+| The bottom wall's inside (taken 1.6 mm out, as the left wall's) | `V0`, `CARD_L` |
+| u, v: the room beside the LCD's cable between the jacks, for the flat cable | (the tap board) |
 
-A 3D-printed mockup (`mockup.stl`, 1.6 mm thick, the outline) or the 1:1 template (`template-1to1.pdf`, printed at
+A 3D-printed mockup (`mockup-printable.stl`, one piece) or the 1:1 template (`template-1to1.pdf`, printed at
 100 %) checks the fit. `make_fab.sh` writes both.

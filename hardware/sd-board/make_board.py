@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""The FM-1 SD board (docs/SD-CARD-DESIGN.md), v3: a push-push microSD socket, the chip-select inverter, the series and
-pull-up resistors, the decoupling, and a 6-pin 0.5 mm FFC socket. The user's plan (2026-10-25, a photo): an L along
-the left edge of the FM-1 board's back: a 10 mm strip from where the flat cable comes round the board's edge (the FFC
-socket, its cable side on the board's edge) down to a 31 x 26.5 mm foot where the battery was (the battery moves), the
-card's opening on the left edge. The sizes are read off the photo (the 704060 battery = 40 x 60 mm as the scale):
-UNMEASURED. Generates sd-board.kicad_pcb with KiCad's own Python (pcbnew):
+"""The FM-1 SD board (docs/SD-CARD-DESIGN.md), v4: a push-push microSD socket, the chip-select inverter, the series and
+pull-up resistors, the decoupling, and a 6-pin 0.5 mm FFC socket. The user's plan (2026-10-25): a small board on the
+FM-1 board's back right of the battery, by its plug (the battery stays); the card goes in through the bottom wall,
+flush with the outside, between the pegs that close the case; the cover's pole there holds it; the flat cable from a
+tap at J12 comes round the board's edge between the two jacks and down the back to the FFC socket. Every size is
+measured (MEASUREMENTS.md). Generates sd-board.kicad_pcb with KiCad's own Python (pcbnew):
 
   /Applications/KiCad/KiCad.app/Contents/Frameworks/Python.framework/Versions/3.9/bin/python3.9 make_board.py
 
@@ -12,12 +12,12 @@ Then make_fab.sh checks it (DRC, the schematic's nets) and writes the JLCPCB fil
 
 Nets (microSD pins: 1 DAT2, 2 DAT3/CS, 3 CMD, 4 VDD, 5 CLK, 6 VSS, 7 DAT0, 8 DAT1, 9 card detect, 10-13 shell;
 FFC J2 pins 1..6, 7/8 its tabs):
-  LCD_CS   J2 1 -> U1 A (74LVC1G04 in); R4 47k pull-up (the line floats while the FM-1 resets)
+  3V3      J2 1 -> J1 4, U1 VCC, C1 10 uF, C2 100 nF, the pull-ups
+  LCD_CS   J2 2 -> U1 A (74LVC1G04 in); R4 47k pull-up (the line floats while the FM-1 resets)
   CARD_CS  U1 Y  -> J1 2
-  MOSI     J2 2 -> J1 3 (CMD)
-  3V3      J2 3 -> J1 4, U1 VCC, C1 10 uF, C2 100 nF, the pull-ups
-  CLK      J2 4 -> J1 5
-  GND      J2 5 -> J1 6, the shell, U1 GND, J2's tabs
+  MOSI     J2 3 -> J1 3 (CMD)
+  GND      J2 4 -> J1 6, the shell, U1 GND, J2's tabs
+  CLK      J2 5 -> J1 5
   MISO     J2 6 -> R1 1k -> J1 7 (DAT0): the FM-1's PC8 is the LCD's D/C too (the 1k takes any overlap)
   DAT1/DAT2  47k pull-ups (unused in SPI mode, not left floating)
 """
@@ -31,36 +31,36 @@ LIB = os.path.join(HERE, "lib", "sdboard.pretty")
 KICAD_FP = "/Applications/KiCad/KiCad.app/Contents/SharedSupport/footprints"
 MM = pcbnew.FromMM
 
-# The back cover's two poles hold the board (calipers, the user, 2026-10-25; MEASUREMENTS.md): 6.9 mm wide, their
-# centres 3.4 mm in from the FM-1 board's left edge, so they stand over the edge: U-notches open to the left, not holes.
-# Their spacing: 46.1 mm between the board's screw holes, 45 between the poles' centres on the cover; the middle, with
-# the play taking the difference.
-POLE_D, POLE_IN = 6.9, 3.4
-POLE_PITCH = (46.1 + 45.0) / 2
-POLE_R = POLE_D / 2 + 0.6                        # (the notch's radius: 0.6 mm play, more than half the 1.1 mm doubt)
-POLES = ((100.0 + POLE_IN, 135.0), (100.0 + POLE_IN, 135.0 - POLE_PITCH))   # the L's corner (its place: photo), above
-X0, Y0 = 100.0, POLES[1][1] - 3.0                 # the board's top left (mm): the upper pole 3.4 below the FM-1 board's
-                                                  # top edge (measured): 0.4 mm inside it
-SW, FY, FW, YB = 10.0, 129.5, 22.0, 157.6       # the strip's width, the foot's top (above the lower notch, so no thin
-                                                 # neck: free there below the diodes, photo), its width, the bottom
-SD_OUT = 1.0                                     # the card socket past the left edge, nearer the slot in the case wall (unmeasured)
+# The board sits on the FM-1 board's back in the corner right of the battery, by the battery's plug (the user's plan,
+# 2026-10-25; every size measured with calipers, MEASUREMENTS.md). Placed in the FM-1 board's own millimetres: u from
+# its left edge, v up from its bottom edge, both seen from the back; T() turns them into KiCad's page (y down).
+def T(u, v):
+    return 100.0 + u, 200.0 - v
 
-BRACE = 126.0                                    # the strip's edge where the brace to the foot's corner starts (the
-                                                 # user, 2026-10-25): 1 mm below the diode D42 (f: 10.5 mm in, photo)
+
+BATTERY_R = 72.6                                 # k: the battery's right side
+PLUG_L = BATTERY_R + 30.0                        # o: the plug's left side (above p, 23.5 mm up)
+POLE = (78.0, 40.0)                              # l, m: the cover's pole there (6.9 mm wide, i)
+POLE_R = 6.9 / 2 + 0.6                           # (the seat round its lower half: 0.6 mm play)
+WALL_OUT = -3.0                                  # x: the bottom wall's outside, 3 mm below the board's bottom edge
+CARD_L = 86.0 - 1.6                              # the card's left side 86 mm from the left wall's inside (the user):
+                                                 # 84.4 from the board's edge (the wall's inside at 1.6, MEASUREMENTS)
+U0, U1_, V0, V1 = BATTERY_R + 0.6, PLUG_L - 0.6, -1.5, 43.0   # the board: 0.6 mm clear of the battery and the plug,
+                                                 # 1.5 mm into the gap to the bottom wall, its top under the switch (w2)
+X0, YB = T(U0, V0)                               # (the lower left: the Gerbers' and the placement's origin)
+TRACK, POWER = 0.2, 0.3
 
 
 def notch(cx, cy, a0, a1, n=24):
-    """the points of the notch's round end, from angle a0 to a1 (degrees, 0 = right, 90 = down)"""
+    """the points of the seat round the pole's lower half, from angle a0 to a1 (degrees, 0 = right, 90 = down)"""
     return [(cx + POLE_R * math.cos(math.radians(a0 + (a1 - a0) * i / n)),
              cy + POLE_R * math.sin(math.radians(a0 + (a1 - a0) * i / n))) for i in range(n + 1)]
 
 
-(LX, LY), (UX, UY) = POLES
-UA = math.degrees(math.asin((Y0 - UY) / POLE_R))  # (where the upper notch meets the top edge)
-OUTLINE = tuple([notch(UX, UY, UA, UA)[0], (X0 + SW, Y0), (X0 + SW, BRACE), (X0 + FW, FY), (X0 + FW, YB), (X0, YB),
-                 (X0, LY + POLE_R), *notch(LX, LY, 90, -90), (X0, LY - POLE_R), (X0, UY + POLE_R),
-                 *notch(UX, UY, 90, UA)[:-1]])
-TRACK, POWER = 0.2, 0.3                          # (0.2 / 0.3: the FFC's 0.5 mm pitch)
+PX, PY = T(*POLE)
+OUTLINE = tuple([T(U0, V0), T(U1_, V0), T(U1_, V1), T(POLE[0] + POLE_R, V1), (PX + POLE_R, PY),
+                 *notch(PX, PY, 0, 180)[1:], T(U0, POLE[1])])
+
 
 board = pcbnew.BOARD()
 nets = {}
@@ -128,22 +128,38 @@ def via(name, x, y):
     board.Add(v)
 
 
-# ---- the parts: J2 at the strip's top, its cable side on the left edge (the cable comes round the FM-1 board's edge
-# there); U1 and its parts in the strip under it (the user, 2026-10-25: the foot as small as can be, so the battery
-# moves less); J1 in the foot, its opening on the left edge, R1 at its contacts, R2 and R3 right of them
-J2 = place(LIB, "FPC-SMD_6P-P0.50_XUNPU_FPC-05F-6PH20", "J2", "FFC 6P 0.5mm", 104.0, 111.5, 270, "C2856796")
-J1 = place(LIB, "TF-SMD_TF-01A", "J1", "TF-01A push-push", X0 + 9.62 - SD_OUT, 148.0, 270, "C91145")
-U1 = place(LIB, "SOT-23-5_L3.0-W1.7-P0.95-LS2.8-BR", "U1", "74LVC1G04", 103.5, 119.0, 0, "C7827")
-R4 = place(LIB, "R0603", "R4", "47k", 105.85, 121.6, 0, "C25819")
-C2 = place(LIB, "C0603", "C2", "100nF", 103.4, 123.9, 0, "C14663")
-C1 = place(LIB, "C0805", "C1", "10uF", 105.3, 126.6, 180, "C15850")
-R1 = place(LIB, "R0603", "R1", "1k", 115.0, 143.64, 180, "C21190")
-R3 = place(LIB, "R0603", "R3", "47k", 120.3, 144.2, 90, "C25819")
-R2 = place(LIB, "R0603", "R2", "47k", 120.3, 149.0, 270, "C25819")
+def P(lib, name, ref, value, u, v, rot, lcsc):
+    return place(lib, name, ref, value, *T(u, v), rot, lcsc)
 
-# ---- the nets. J2's order is free (the tap board at J12 is not designed yet): the three lines to the card on top, so
-# they go straight to their lanes, GND, then 3V3 and LCD_CS at the bottom, straight down to the parts under it
-J2_PINS = ((1, "MOSI"), (2, "CLK"), (3, "MISO"), (4, "GND"), (5, "3V3"), (6, "LCD_CS"), (7, "GND"), (8, "GND"))
+
+def A(fp, num):
+    x, y = at(fp, num)
+    return round(x - 100.0, 3), round(200.0 - y, 3)
+
+
+def R(name, pts, width=TRACK, layer=pcbnew.F_Cu):
+    route(name, [T(*p) for p in pts], width, layer)
+
+
+def V(name, u, v):
+    via(name, *T(u, v))
+
+
+# ---- the parts: the card socket at the bottom, its opening on the bottom wall's outside (the card flush, the user);
+# the FFC socket at the top, its cable coming down from between the jacks (r: 90 mm); U1 and its parts right
+CARD_C = CARD_L + 5.5                            # (the card, 11 mm wide, taken as centred in its socket: UNMEASURED)
+J1 = P(LIB, "TF-SMD_TF-01A", "J1", "TF-01A push-push", CARD_C, WALL_OUT + 9.62, 0, "C91145")
+J2 = P(LIB, "FPC-SMD_6P-P0.50_XUNPU_FPC-05F-6PH20", "J2", "FFC 6P 0.5mm", 93.0, 39.5, 180, "C2856796")
+U1 = P(LIB, "SOT-23-5_L3.0-W1.7-P0.95-LS2.8-BR", "U1", "74LVC1G04", 96.0, 26.0, 90, "C7827")
+R4 = P(LIB, "R0603", "R4", "47k", 98.0, 30.0, 90, "C25819")
+C1 = P(LIB, "C0805", "C1", "10uF", 98.4, 34.5, 270, "C15850")
+C2 = P(LIB, "C0603", "C2", "100nF", 98.4, 22.0, 0, "C14663")
+R1 = P(LIB, "R0603", "R1", "1k", CARD_C - 4.36, 22.0, 270, "C21190")
+R2 = P(LIB, "R0603", "R2", "47k", 98.0, 13.6, 180, "C25819")
+R3 = P(LIB, "R0603", "R3", "47k", 82.2, 14.2, 0, "C25819")
+
+# ---- the nets. J2's order is free (the tap board at J12 is not designed yet): left to right the card's own order
+J2_PINS = ((1, "3V3"), (2, "LCD_CS"), (3, "MOSI"), (4, "GND"), (5, "CLK"), (6, "MISO"), (7, "GND"), (8, "GND"))
 for num, name in ((1, "DAT2"), (2, "CARD_CS"), (3, "MOSI"), (4, "3V3"), (5, "CLK"), (6, "GND"), (7, "DAT0"),
                   (8, "DAT1"), (10, "GND"), (11, "GND"), (12, "GND"), (13, "GND")):
     connect(J1, num, name)
@@ -156,54 +172,40 @@ for fp, a, b in ((R1, "MISO", "DAT0"), (R2, "3V3", "DAT2"), (R3, "3V3", "DAT1"),
     connect(fp, 1, a)
     connect(fp, 2, b)
 
-# ---- the copper, top. MOSI, CLK, MISO go down the strip's right side, turn into the foot above the card and come down
-# right of its contacts, each turning left into its own (MISO through R1). CS and 3V3 reach the card on the bottom,
-# from the strip round the right of the lower screw; DAT1 and DAT2 go on the bottom to R3 and R2.
-P = {n: at(J2, n) for n in range(1, 7)}
-C = {n: at(J1, n) for n in range(1, 9)}
-LANE = {"MOSI": 109.2, "CLK": 108.65, "MISO": 108.1}       # (down the strip)
-BAND = {"MOSI": 136.0, "CLK": 136.7, "MISO": 137.4}       # (across, above the card)
-DOWN = {"MISO": 116.9, "CLK": 117.6, "MOSI": 118.3}       # (down, right of the card)
-END = {"MOSI": C[3], "CLK": C[5], "MISO": at(R1, 1)}
-for name, pin in (("MOSI", 1), ("CLK", 2), ("MISO", 3)):
-    route(name, [P[pin], (LANE[name], P[pin][1]), (LANE[name], BAND[name]), (DOWN[name], BAND[name]),
-                 (DOWN[name], END[name][1]), END[name]])
-route("DAT0", [at(R1, 2), C[7]])
-route("GND", [P[4], (103.9, P[4][1])])                     # (a via under the FFC socket's body)
-TRUNK = 106.6                                              # (3V3 down the parts' right side)
-route("3V3", [P[5], (TRUNK, P[5][1]), (TRUNK, 128.4)], POWER)
-route("LCD_CS", [P[6], (105.3, 116.4), (105.9, 117.0), (105.9, at(U1, 2)[1]), at(U1, 2)])
-route("LCD_CS", [(105.9, at(U1, 2)[1]), (105.9, 120.4), (105.1, 121.2), at(R4, 1)])
-route("3V3", [(TRUNK, 122.6), (at(U1, 5)[0], 122.6), at(U1, 5)], POWER)
-route("3V3", [at(C2, 2), (at(C2, 2)[0], 122.6)], POWER)
-route("GND", [at(U1, 3), (104.8, 116.9)])
-route("GND", [at(C2, 1), (102.6, 125.2)])
-route("GND", [at(C1, 2), (103.3, 127.8)])
-route("CARD_CS", [(101.6, 129.4), (100.9, 128.7), (100.9, at(U1, 4)[1]), at(U1, 4)])
-route("3V3", [at(R3, 1), at(R2, 1)], POWER)
-route("DAT1", [(120.3, C[8][1]), at(R3, 2)])
-route("DAT2", [(120.3, 150.65), at(R2, 2)])
-VIA_AT = {"DAT1": (115.0, C[8][1]), "GND": (115.0, C[6][1]), "3V3": (115.0, C[4][1]), "CARD_CS": (115.0, C[2][1]),
-          "DAT2": (115.9, C[1][1])}                        # (beside the card's contacts)
-for name, card in (("DAT1", 8), ("GND", 6), ("3V3", 4), ("CARD_CS", 2), ("DAT2", 1)):
-    route(name, [C[card], VIA_AT[name]], POWER if name == "3V3" else TRACK)
+# ---- the copper, top. MISO, CLK, MOSI go down from J2, turn left one under the other and come down onto their
+# contacts; LCD_CS and 3V3 turn right, to U1 and to a 3V3 rail down the right edge; U1's output comes down onto CS.
+P2 = {n: A(J2, n) for n in range(1, 7)}
+C = {n: A(J1, n) for n in range(1, 9)}
+RAIL = 99.8
+for name, pin, card, turn in (("MISO", 6, 7, 34.0), ("CLK", 5, 5, 33.2), ("MOSI", 3, 3, 32.4)):
+    R(name, [P2[pin], (P2[pin][0], turn), (C[card][0], turn), A(R1, 1) if name == "MISO" else C[card]])
+R("DAT0", [A(R1, 2), C[7]])
+R("GND", [P2[4], (P2[4][0], 39.4)])               # (a via under the FFC socket's body)
+R("LCD_CS", [P2[2], (P2[2][0], 35.0), (96.0, 32.75), A(U1, 2)])
+R("LCD_CS", [(96.0, A(R4, 1)[1]), A(R4, 1)])
+R("3V3", [P2[1], (P2[1][0], 36.6), (RAIL, 36.6), (RAIL, A(R2, 1)[1]), A(R2, 1)], POWER)
+R("3V3", [A(C1, 1), (RAIL, A(C1, 1)[1])], POWER)
+R("3V3", [A(R4, 2), (RAIL, A(R4, 2)[1])], POWER)
+R("3V3", [A(U1, 5), (A(U1, 5)[0], 23.3), (RAIL, 23.3)], POWER)
+R("3V3", [A(C2, 2), (RAIL, A(C2, 2)[1])], POWER)
+R("CARD_CS", [A(U1, 4), (A(U1, 4)[0], 17.0), (C[2][0], 17.0), C[2]])
+R("DAT2", [C[1], (C[1][0], 13.6), A(R2, 2)])
+R("DAT1", [C[8], (C[8][0], 14.2), A(R3, 2)])
+R("GND", [C[6], (C[6][0], 15.2)])
+R("3V3", [C[4], (C[4][0], 14.2)], POWER)
+R("3V3", [A(R3, 1), (80.4, 14.2)], POWER)
+R("GND", [A(U1, 3), (94.3, 28.6)])
+R("GND", [A(C2, 1), (A(C2, 1)[0], 20.8)])
+R("GND", [A(C1, 2), (A(C1, 2)[0], 32.4)])
 
-# ---- the bottom: CS and 3V3 west under the card, north right of the lower screw, into the strip; DAT1, 3V3, DAT2 east
-# under the lanes to R3 and R2
+# ---- the bottom: 3V3 across, from the rail to the card's 3V3 contact and to R3
 B = pcbnew.B_Cu
-route("3V3", [VIA_AT["3V3"], (108.85, C[4][1]), (108.85, 128.4), (TRUNK, 128.4)], POWER, B)
-route("CARD_CS", [VIA_AT["CARD_CS"], (108.1, C[2][1]), (108.1, 129.4), (101.6, 129.4)], TRACK, B)
-route("DAT1", [VIA_AT["DAT1"], (120.3, C[8][1])], TRACK, B)
-route("3V3", [VIA_AT["3V3"], (120.3, C[4][1])], POWER, B)
-route("DAT2", [VIA_AT["DAT2"], (120.3, C[1][1]), (120.3, 150.65)], TRACK, B)
-for name, (x, y) in VIA_AT.items():
-    via(name, x, y)
-for name, x, y in (("3V3", TRUNK, 128.4), ("CARD_CS", 101.6, 129.4), ("DAT1", 120.3, C[8][1]), ("3V3", 120.3, C[4][1]),
-                   ("DAT2", 120.3, 150.65)):
-    via(name, x, y)
-for x, y in ((103.9, P[4][1]), (104.8, 116.9), (102.6, 125.2), (103.3, 127.8),
-             (101.3, 106.3), (112.0, 138.5), (116.0, 153.0)):   # (the last three: the pours stitched)
-    via("GND", x, y)
+R("3V3", [(80.4, 14.2), (RAIL, 14.2), (RAIL, 15.5)], POWER, B)
+for u, v in ((80.4, 14.2), (C[4][0], 14.2), (RAIL, 15.5)):
+    V("3V3", u, v)
+for u, v in ((P2[4][0], 39.4), (C[6][0], 15.2), (94.3, 28.6), (A(C2, 1)[0], 20.8), (A(C1, 2)[0], 32.4),
+             (76.0, 5.0), (76.0, 25.0), (81.0, 25.0), (101.0, 5.0), (76.0, 34.0)):   # (the last five: the pours stitched)
+    V("GND", u, v)
 
 # ---- the outline, the ground pours, the labels
 def edge(ax, ay, bx, by):
@@ -244,7 +246,7 @@ def label(text, x, y, size=0.8, rot=0.0):
     board.Add(t)
 
 
-label("OPTIMIST SD", 105.0, 100.5, 0.8, 90)
+label("OPTIMIST SD", *T(77.5, 18.0), 0.8, 90)
 
 board.GetDesignSettings().SetAuxOrigin(pcbnew.VECTOR2I(MM(X0), MM(YB)))   # (the lower left: the Gerbers, the drill
 pcbnew.ZONE_FILLER(board).Fill(board.Zones())                                   # files and cpl.csv share it)

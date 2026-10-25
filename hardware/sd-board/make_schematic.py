@@ -68,7 +68,7 @@ PARTS = [
     ("C1", "Device:C", "10uF", "sdboard:C0805", "C15850", 60, 125, {"1": "3V3", "2": "GND"}),
     ("C2", "Device:C", "100nF", "sdboard:C0603", "C14663", 75, 125, {"1": "GND", "2": "3V3"}),
     ("J2", "Connector_Generic_MountingPin:Conn_01x06_MountingPin", "FFC 6P 0.5mm", "sdboard:FPC-SMD_6P-P0.50_XUNPU_FPC-05F-6PH20",
-     "C2856796", 230, 90, {"1": "MOSI", "2": "CLK", "3": "MISO", "4": "GND", "5": "3V3", "6": "LCD_CS", "MP": "GND"}),
+     "C2856796", 230, 90, {"1": "3V3", "2": "LCD_CS", "3": "MOSI", "4": "GND", "5": "CLK", "6": "MISO", "MP": "GND"}),
     ("#FLG01", "power:PWR_FLAG", "PWR_FLAG", "", "", 40, 150, {"1": "3V3"}),
     ("#FLG02", "power:PWR_FLAG", "PWR_FLAG", "", "", 55, 150, {"1": "GND"}),
 ]
