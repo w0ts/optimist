@@ -39,7 +39,12 @@
  * with a drum groove (1 to 4, 7) (kick, snare, hats in eighths at 120 BPM) and the presets' FX sends. The notes
  * start again every 2 s. FELUCCA_BENCH_SAVE=1: a project save (flash erase + program) from the main
  * loop 1.5 s in, while it all plays. FELUCCA_BENCH_COMP=1 (FELUCCA_MASTER_COMP): every scenario with the master COMP
- * at THRS -10, 2:1, 10 ms, AUTO, GAIN +4 and LIMIT CEIL -0.3 (tests/master_comp_test.c's glue-limit render). */
+ * at THRS -10, 2:1, 10 ms, AUTO, GAIN +4 and LIMIT CEIL -0.3 (tests/master_comp_test.c's glue-limit render).
+ * FELUCCA_BENCH_SWAP=1 (scenarios with the eighths groove): each part to DIGITAL and back in the middle of every phrase
+ * (the RAMTEXT overlays' loads while playing, core/overlay.c). */
+#ifndef FELUCCA_BENCH_SWAP
+#define FELUCCA_BENCH_SWAP 0
+#endif
 #ifndef FELUCCA_BENCH_COMP
 #define FELUCCA_BENCH_COMP 0
 #endif
@@ -64,6 +69,7 @@ static const uint8_t BENCH_NOTES[NPART][3] = {{48, 52, 55}, {60, 64, 67}, {72, 7
 static struct {
     uint32_t blk;
     volatile uint8_t save_req;
+    uint8_t swap_from[NPART];                              /* (FELUCCA_BENCH_SWAP: the engine slot + 1 a part swaps back to) */
     uint32_t saves;
     uint32_t decoded;                                      /* (scenario 4: the record's length + decodes done) */
 } bench;
@@ -344,6 +350,18 @@ static void bench_block(void)                              /* audio interrupt, a
             bench_notes(0);
         bench_notes(1);
     }
+#if FELUCCA_BENCH_SWAP && FELUCCA_ENG_DIGITAL
+    {   /* part p's engine to DIGITAL and back, in the middle of each phrase (its notes sounding: the fade, the switch,
+         * with the overlays its code loaded into the part's slot), a part a 100 blocks after the one before */
+        uint32_t p;
+        for (p = 0; p < NPART; p++)
+            if (b % BENCH_PHRASE == BENCH_PHRASE / 2u + p * 100u) {
+                bench.swap_from[p] = bench.swap_from[p] ? bench.swap_from[p] : (uint8_t)(trk[p].engine + 1u);
+                trk[p].eng_req = trk[p].eng_req == (uint8_t)ENG_SLOT_DIGITAL ? (uint8_t)(bench.swap_from[p] - 1u)
+                                                                               : (uint8_t)ENG_SLOT_DIGITAL;
+            }
+    }
+#endif
     if (b % BENCH_EIGHTH == 0u) {
         trk_note_on(TDRUM, 42, 90);                        /* hat */
         if (e % 4u == 0u)
