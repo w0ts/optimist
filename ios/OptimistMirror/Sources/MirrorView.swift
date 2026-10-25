@@ -165,8 +165,8 @@ struct RootView: View {
     /// buttons); the web editor's own pages in a web view (the user, 2026-10-25)
     private static let pages: [(tag: Int, title: String, icon: String)] = [
         (11, "Editor", "slider.vertical.3"), (0, "Mirror", "display"), (2, "Library", "books.vertical"), (12, "Samples", "waveform"),
-        (13, "Kit Builder", "circle.grid.2x2"), (1, "Projects", "folder"), (3, "Backup", "externaldrive"), (14, "Snapshots", "camera"),
-        (15, "Device Screens", "dial.medium"), (16, "Settings", "gearshape"), (4, "Connection", "cable.connector"),
+        (13, "Kits", "circle.grid.2x2"), (1, "Projects", "folder"), (3, "Backup", "externaldrive"), (14, "Snapshots", "camera"),
+        (4, "Connection", "cable.connector"),   // (no Device Screens, no Settings: the user, 2026-10-25)
     ]
 
     /// every page always in sight as a tab, a row like the web editor's (the system's tab bar folded the rest into a menu:
@@ -189,8 +189,6 @@ struct RootView: View {
         case 12: WebTab(editor: web, tab: "samples", link: link)
         case 13: WebTab(editor: web, tab: "drumkit", link: link)
         case 14: WebTab(editor: web, tab: "snapshots", link: link)
-        case 15: WebTab(editor: web, tab: "device", link: link)
-        case 16: WebTab(editor: web, tab: "settings", link: link)
         default: MirrorView(link: link, upright: tilt.quarter - Turn.quarter(tilt.quarter), bars: $bars)
         }
     }
@@ -205,14 +203,14 @@ struct TabStrip: View {
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 2) {
+            HStack(spacing: 0) {
                 ForEach(pages, id: \.tag) { p in
                     Button { tab = p.tag } label: {
                         Group {
                             if size == .compact { Image(systemName: p.icon) } else { Label(p.title, systemImage: p.icon) }
                         }
-                        .font(.callout)
-                        .padding(.horizontal, 10).padding(.vertical, 6)
+                        .font(.footnote)
+                        .padding(.horizontal, 7).padding(.vertical, 4)   // (narrower: the user, 2026-10-25)
                         .background(tab == p.tag ? Color.primary.opacity(0.12) : Color.clear, in: Capsule())
                         .foregroundStyle(tab == p.tag ? Color.primary : Color.secondary)
                     }
@@ -222,7 +220,7 @@ struct TabStrip: View {
                     .accessibilityAddTraits(tab == p.tag ? .isSelected : [])
                 }
             }
-            .padding(.horizontal, 8).padding(.vertical, 4)
+            .padding(.horizontal, 6).padding(.vertical, 2)
             .frame(maxWidth: .infinity)
         }
         .background(.bar)

@@ -1298,8 +1298,8 @@ async function editorFxp() {
   ok(/scsOpen\(1, drumIndex\(\), l\)/.test(html) && /scsPages/.test(html), "scrs: the lane popup opens the device's pages of the lane; an FM6 track has the operator rows");
   ok(await rq(E.req.scrsInfo(4, 0, 127), { timeout: 100, retries: 0, quiet: true }).then(() => false, () => true) && await rq(E.req.scrsRow(1, 0, 127, 127, 99), { timeout: 100, retries: 0, quiet: true }).then(() => false, () => true),
     "scrs: SYSTEM is not offered here, a row past the table: no reply");
-  ok(/async function renderDevice\(/.test(html) && /function scsCard\(/.test(html) && /req\.scrsYes\(\.\.\.scsCtx\(\), r, k, true\)/.test(html) && /data-tab="device"/.test(html) && /b\.hidden = !scrsOn\(\)/.test(html),
-    "scrs: the Device screens page: cards (sliders, steppers, switches, actions that ask), a store's YES, hidden without the tag");
+  ok(/async function renderDevice\(/.test(html) && /function scsCard\(/.test(html) && /req\.scrsYes\(\.\.\.scsCtx\(\), r, k, true\)/.test(html) && /data-tab="device"/.test(html) && /b\.dataset\.tab === "device" \|\| b\.dataset\.tab === "settings"\) b\.hidden = true/.test(html) && /function scsOpen\(/.test(html),
+    "scrs: the Device screens page: cards (sliders, steppers, switches, actions that ask), a store's YES; not in the tab bar (a popup's device pages opens it)");
   /* v13 SONGC (cmd 97, ed_song.c): the song chain */
   const SG = E.parse[C.SONGC], eg = readFileSync(join(HERE, "../firmware/src/io/editor/ed_song.c"), "utf8");
   ok(C.SONGC === 97 && /ED_SONGC = 97/.test(eg) && /ed_b\(0x5A\)/.test(eg) && info.songc && info.songc.v === 1, "songc: command 97, tag 0x5A == ed_song.c");

@@ -677,6 +677,7 @@
   .menubar .tabs #helpbtn:hover { color: var(--fg); background: none; }
   .menubar .tabs #helpbtn .si { width: 18px; height: 18px; }
   .menubar .tabs #helpbtn + .gh { margin-left: 0; }
+  #tabs .navh:nth-of-type(2) { display: none; }   /* (the separator before Device screens and Settings, both out of the bar) */
   .menubar .tabs button { background: none; color: var(--dim); text-align: left; padding: 4px 10px; border: 0; border-bottom: 3px solid transparent; white-space: nowrap; }
   .menubar .tabs button:hover { color: var(--fg); background: var(--s1); }
   .menubar .tabs button[aria-selected="true"] { color: var(--fg); background: var(--s2); border-bottom-color: var(--trk); }
@@ -6832,7 +6833,7 @@ const TEXT = {
   smpSendTo: "Send to USR{n}", smpPlayOn: "Play this slot on:",
   smpWhere: "On the FM-1: a synth track, engine SAMPLE, SET = USR{n} (KNOB 1 on the EDIT page). The buttons above set it for you.",
   smpNoEngine: "This firmware cannot be set from here: choose SAMPLE and SET = USR on the track.", smpPlaying: "Track",
-  kitPage: "Kit builder", kitPageNone: "This firmware has no drum lanes or no user sample slots.",
+  kitPage: "Kits", kitPageNone: "This firmware has no drum lanes or no user sample slots.",
   kpHelp: "Build the drum track's kit from your own sounds: one per pad (the 16 drum lanes). Three steps: put sounds on the pads, choose the sample slot, send. A pad you leave empty keeps the sound its lane has now.",
   kpStep1: "Sounds on the pads", kpStep1Help: "Drop a WAV on a pad, or choose several files: they are sorted onto the pads by name (kick, bd, snare, hh, open, crash...). Click a wave to hear it. Pitch and gain are the lane's TUNE and LEVEL on the device (they change live after a send); length cuts the sound (it also saves room in the slot).",
   kpAdd: "Add sounds...", kpClear: "Clear all", kpFit: "Fit the slot", kpFitHelp: "Shortens the longest pads until everything fits.",
@@ -7116,7 +7117,8 @@ function renderPanels() {
   for (const b of $("tabs").querySelectorAll("button[data-tab]")) {
     if (b.dataset.tab === "drumkit") b.hidden = !hasKitPage();   /* (the Drum kit page: drum lanes and sample slots) */
     if (b.dataset.tab === "snapshots") b.hidden = !hasSnaps();   /* (the Snapshots screen: only with snapshots) */
-    if (b.dataset.tab === "device") b.hidden = !scrsOn();   /* (the device's screens: the Optimist UI's, v13) */
+    if (b.dataset.tab === "device" || b.dataset.tab === "settings") b.hidden = true;   /* (not in the tab bar: the user, 2026-10-25; the
+       sync button opens Settings at SYNC, a popup's "device pages" the Device screens) */
     if (b.dataset.tab === "mirror") b.hidden = !mirrorOn() || !opti("mirror");   /* (the device's own screen: ED_MIRROR) */
     if (b.dataset.tab === "backup" || b.dataset.tab === "projects" || b.dataset.tab === "library")
       b.hidden = !!dev && !!dev.info && !opti(b.dataset.tab);   /* (another firmware's numbering: not offered; ed_opti.h) */
