@@ -109,6 +109,15 @@ final class FlashTests: XCTestCase {
         XCTAssertNil(BuilderEvent(["type": "open", "where": "shell", "build": id]))
     }
 
+    /// the web pages' MIDI through the app (WebMIDIBridge): their bytes as Universal MIDI Packets
+    func testWebMIDIBytesToUMP() {
+        XCTAssertEqual(WebMIDIBridge.ump([0x90, 60, 100]), [0x2090_3C64])                 // note on: type 2
+        XCTAssertEqual(WebMIDIBridge.ump([0xC1, 5]), [0x20C1_0500])                       // program change: two bytes
+        XCTAssertEqual(WebMIDIBridge.ump([0xF8]), [0x10F8_0000])                          // clock: type 1
+        XCTAssertEqual(WebMIDIBridge.ump([0xF0, 0x7D, 0x46, 0x4C, 1, 0xF7]), SysExAssembler.packets([0x7D, 0x46, 0x4C, 1]))
+        XCTAssertEqual(WebMIDIBridge.ump([0x80, 60, 0, 0xF0, 1, 2, 0xF7]).count, 1 + 2)   // two messages in one send
+    }
+
     // MARK: - installs
 
     private func updater(_ dev: FakeFlashDevice) -> FlashUpdater {

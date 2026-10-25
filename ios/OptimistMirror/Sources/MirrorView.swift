@@ -93,6 +93,9 @@ struct RootView: View {
     @ObservedObject var link: MirrorLink
     @StateObject private var session: EditorSession
     @StateObject private var flash: FlashModel
+    @StateObject private var web = WebEditor()      // (the web editor's own tabs: one page, kept)
+    @StateObject private var sim = WebEditor()      // (the Simulator, from the home screen: a page of its own, no FM-1 needed)
+    @State private var simSheet = false
     @StateObject private var tilt = Tilt()
     @State private var flashSheet = false     // (the welcome screen's Install Firmware: no FM-1 mirrored, a stock or broken-off one)
     @State private var bars = true
@@ -110,13 +113,29 @@ struct RootView: View {
         ZStack {                        // (the tabs made once, the welcome screen over them: made again after a USB -> Bluetooth
             tabs                        //  switch, under the Bluetooth sheet, the Mac's tab bar took no click; the user, 2026-10-24)
             if link.state == .searching && !flash.busy {   // (an install restarts the FM-1: its progress stays in front)
-                ConnectView(link: link, installFirmware: { flashSheet = true })
+                ConnectView(link: link, installFirmware: { flashSheet = true }, openSimulator: { simSheet = true })
             }
         }
         .fullScreenCover(isPresented: $flashSheet) {   // (a sheet on the Mac was a small box: the user, 2026-10-25)
             FlashView(flash: flash, link: link, close: { flashSheet = false })
         }
-        .task(id: "\(link.portName)|\(link.bluetooth)") { await session.connect() }
+        .fullScreenCover(isPresented: $simSheet) {     // (the Simulator: the home screen's, like Install Firmware; the user, 2026-10-25)
+            NavigationStack {
+                WebTabView(editor: sim, tab: "sim", link: link)
+                    .ignoresSafeArea(edges: .bottom)
+                    .navigationTitle("Simulator")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { simSheet = false } } }
+            }
+        }
+        .task(id: "\(link.portName)|\(link.bluetooth)|\(link.paused)") {
+            // (one connection for every tab: the web pages see the app's port only, and lose it when the app disconnects:
+            //  the user, 2026-10-25)
+            let port = link.paused ? "" : link.portName
+            web.follow(port: port, bluetooth: link.bluetooth)
+            sim.follow(port: port, bluetooth: link.bluetooth)
+            await session.connect()
+        }
         .onChange(of: link.state == .mirroring && link.bluetooth) { _, on in if on { BluetoothPicker.dismiss() } }   // (connected: the sheet's work is done)
         .onChange(of: link.online) { old, now in   // (a device connected in the sheet: taken afresh, whatever the link did before
             // (paused, or a port held with a black screen); the sheet closes once the screen comes: the user, 2026-10-24)
@@ -138,39 +157,80 @@ struct RootView: View {
     /// the tab bar: hidden under the welcome screen (no FM-1: no tabs)
     private var bar: Visibility { link.state == .searching && !flash.busy ? .hidden : .visible }
 
+    /// the pages in the web editor's order and names, but Firmware and the Simulator (the home screen's and Connection's
+    /// buttons); the web editor's own pages in a web view (the user, 2026-10-25)
+    private static let pages: [(tag: Int, title: String, icon: String)] = [
+        (11, "Editor", "slider.vertical.3"), (0, "Mirror", "display"), (2, "Library", "books.vertical"), (12, "Samples", "waveform"),
+        (13, "Kit Builder", "circle.grid.2x2"), (1, "Projects", "folder"), (3, "Backup", "externaldrive"), (14, "Snapshots", "camera"),
+        (15, "Device Screens", "dial.medium"), (16, "Settings", "gearshape"), (4, "Connection", "cable.connector"),
+    ]
+
+    /// every page always in sight as a tab, a row like the web editor's (the system's tab bar folded the rest into a menu:
+    /// the user, 2026-10-25); hidden under the welcome screen, and on Mirror when its bars are off
     private var tabs: some View {
-        TabView(selection: $tab) {      // (the web editor's order and names: Firmware, Mirror, Library, Projects, Backup; the user, 2026-10-25)
-            FlashView(flash: flash, link: link)
-                .toolbar(bar, for: .tabBar)
-                .tabItem { Label("Firmware", systemImage: "arrow.down.circle") }
-                .tag(5)
-            MirrorView(link: link, upright: tilt.quarter - Turn.quarter(tilt.quarter), bars: $bars)
-                .toolbar(bars && link.state != .searching ? .visible : .hidden, for: .tabBar)
-                .tabItem { Label("Mirror", systemImage: "display") }
-                .tag(0)
-            LibraryView(s: session)
-                .toolbar(bar, for: .tabBar)
-                .tabItem { Label("Library", systemImage: "books.vertical") }
-                .tag(2)
-            ProjectsView(s: session)
-                .toolbar(bar, for: .tabBar)
-                .tabItem { Label("Projects", systemImage: "folder") }
-                .tag(1)
-            BackupView(s: session)
-                .toolbar(bar, for: .tabBar)
-                .tabItem { Label("Backup", systemImage: "externaldrive") }
-                .tag(3)
-            ConnectionView(link: link)
-                .toolbar(bar, for: .tabBar)
-                .tabItem { Label("Connection", systemImage: "cable.connector") }
-                .tag(4)
+        VStack(spacing: 0) {
+            if bar == .visible && (tab != 0 || bars) { TabStrip(pages: Self.pages, tab: $tab) }
+            page.frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+    }
+
+    @ViewBuilder private var page: some View {
+        switch tab {
+        case 0: MirrorView(link: link, upright: tilt.quarter - Turn.quarter(tilt.quarter), bars: $bars)
+        case 1: ProjectsView(s: session)
+        case 2: LibraryView(s: session)
+        case 3: BackupView(s: session)
+        case 4: ConnectionView(link: link, installFirmware: { flashSheet = true }, openSimulator: { simSheet = true })
+        case 11: WebTab(editor: web, tab: "mixer", link: link)
+        case 12: WebTab(editor: web, tab: "samples", link: link)
+        case 13: WebTab(editor: web, tab: "drumkit", link: link)
+        case 14: WebTab(editor: web, tab: "snapshots", link: link)
+        case 15: WebTab(editor: web, tab: "device", link: link)
+        case 16: WebTab(editor: web, tab: "settings", link: link)
+        default: MirrorView(link: link, upright: tilt.quarter - Turn.quarter(tilt.quarter), bars: $bars)
+        }
+    }
+}
+
+/// The app's tab row: an icon and its name per page (the name alone in a narrow window: its icon, the name as the tooltip),
+/// the page shown lit; it scrolls sideways when the window is narrower than the row.
+struct TabStrip: View {
+    let pages: [(tag: Int, title: String, icon: String)]
+    @Binding var tab: Int
+    @Environment(\.horizontalSizeClass) private var size
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 2) {
+                ForEach(pages, id: \.tag) { p in
+                    Button { tab = p.tag } label: {
+                        Group {
+                            if size == .compact { Image(systemName: p.icon) } else { Label(p.title, systemImage: p.icon) }
+                        }
+                        .font(.callout)
+                        .padding(.horizontal, 10).padding(.vertical, 6)
+                        .background(tab == p.tag ? Color.primary.opacity(0.12) : Color.clear, in: Capsule())
+                        .foregroundStyle(tab == p.tag ? Color.primary : Color.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help(p.title)
+                    .accessibilityLabel(p.title)
+                    .accessibilityAddTraits(tab == p.tag ? .isSelected : [])
+                }
+            }
+            .padding(.horizontal, 8).padding(.vertical, 4)
+            .frame(maxWidth: .infinity)
+        }
+        .background(.bar)
+        .overlay(alignment: .bottom) { Divider() }
     }
 }
 
 /// The port in use, another one, Bluetooth, Disconnect (back to the welcome screen).
 struct ConnectionView: View {
     @ObservedObject var link: MirrorLink
+    var installFirmware: () -> Void = {}
+    var openSimulator: () -> Void = {}
 
     var body: some View {
         NavigationStack {
@@ -194,6 +254,10 @@ struct ConnectionView: View {
                     Button("Connect with Bluetooth…") { BluetoothPicker.present(ports: link.online) }
                     Button("Disconnect", role: .destructive) { link.disconnect() }
                 }
+                Section {
+                    Button("Install Firmware…", action: installFirmware)   // (the home screen's too: no tab of their own)
+                    Button("Simulator…", action: openSimulator)
+                }
             }
             .navigationTitle("Connection")
         }
@@ -204,6 +268,7 @@ struct ConnectionView: View {
 struct ConnectView: View {
     @ObservedObject var link: MirrorLink
     var installFirmware: () -> Void = {}
+    var openSimulator: () -> Void = {}
     @State private var choosingPort = false
 
     private var bluetooth: some View {
@@ -247,6 +312,11 @@ struct ConnectView: View {
             }
             Button(action: installFirmware) {
                 Label("Install Firmware…", systemImage: "arrow.down.circle").frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.large)
+            Button(action: openSimulator) {
+                Label("Simulator…", systemImage: "waveform.path").frame(maxWidth: .infinity)
             }
             .buttonStyle(.bordered)
             .controlSize(.large)

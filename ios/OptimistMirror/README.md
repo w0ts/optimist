@@ -26,8 +26,6 @@ one line `DEVELOPMENT_TEAM = <your team ID>`, or pick the team in Xcode's Signin
 The app connects only when asked: plug the FM-1 in (USB-C, or the Lightning camera adapter) and tap **Connect**, or set
 SYSTEM > BT MIDI > MODE to MAN or AUTO on the FM-1 and tap **Connect with Bluetooth** to pick it in the system's sheet. The tabs:
 
-- **Firmware**: an official release (version, flavour), your last build or a .fwsc file, installed over the USB cable;
-  Build Your Own opens the web builder.
 - **Mirror**: the FM-1's screen. With a firmware that has them, the panel's buttons are drawn around it (the round button
   at the top right switches to the screen alone) and a drag on the screen turns the knobs. A hardware keyboard (a Mac's, or one on an iPad)
   plays the panel too (`Sources/PanelKeys.swift`). On a synth track's STEPS page, the piano-keys button shows the
@@ -35,7 +33,15 @@ SYSTEM > BT MIDI > MODE to MAN or AUTO on the FM-1 and tap **Connect with Blueto
 - **Library, Projects, Backup**: the web editor's tabs, with the same files (`.optimist-backup`, `felucca-library` /
   `felucca-patch`, `optimist-pattern` JSON). Export through the share sheet, import through the Files picker. The snapshots
   area is restored in the web editor only; DX7 `.syx` and the user drum kits are not in the app.
-- **Connection**: the port in use, another one, Bluetooth, Disconnect.
+- **Editor, Samples, Kit Builder, Snapshots, Device Screens, Settings**: the web editor's own pages, in a web view
+  (one page, kept); their MIDI goes through the app's USB and Bluetooth ports (`Sources/Web/WebMIDIBridge.swift`: WKWebView
+  has no Web MIDI).
+- **Connection**: the port in use, another one, Bluetooth, Disconnect, Install Firmware.
+
+**Simulator** (the home screen, Connection): the web Simulator, no FM-1 needed.
+
+**Install Firmware** (the home screen, Connection): an official release (version, flavour), your last build or a .fwsc
+file, installed over the USB cable; Build Your Own opens the web builder.
 
 Over Bluetooth the FM-1 answers the screen, the buttons and knobs, the navigation and the clip only (`ed_mirror.c`
 `mbr_take`): Projects, Presets and Backup need the USB cable. The mixer's meters come over USB only.

@@ -10,6 +10,7 @@
 		04911E8303FC273E81596618 /* web_pattern.json in Resources */ = {isa = PBXBuildFile; fileRef = BC918D1CB71D2C0601F37E2A /* web_pattern.json */; };
 		062132F0259E36C55666B468 /* FlashModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97A7F3D3AAA5E0266A203852 /* FlashModel.swift */; };
 		18163E4D3F3B904F94913039 /* FlashUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D6035C9DAED9B3828807EBA /* FlashUpdater.swift */; };
+		1D46E590B2CB267114600BB1 /* WebMIDIBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = B520285C89B9B6694A5AADEE /* WebMIDIBridge.swift */; };
 		248CC23956BA23EDB0DA6D41 /* NavViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A64EF8F12D362FE851E5119 /* NavViews.swift */; };
 		252C6F0B10E2DDF937BB7884 /* FlashPackage.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0846C9A6195130B751E2FAA /* FlashPackage.swift */; };
 		2B092C4BA428EF74970B4EF0 /* Clip.swift in Sources */ = {isa = PBXBuildFile; fileRef = B863C7AA9D1164281B82F9E5 /* Clip.swift */; };
@@ -30,6 +31,7 @@
 		4BBE66E9AF2B60BEBD45A2B3 /* NavModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80E117300E52E6D293A00964 /* NavModel.swift */; };
 		4CDD58F19C56C8CBB7CE57F1 /* FakeFM1.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC7D08FB654B9DFAB6A218E /* FakeFM1.swift */; };
 		4DEE706CD9164E7FB8DAD1B1 /* NavTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A561D6989A7E8999B645A3FF /* NavTests.swift */; };
+		4F744A40E73497D46C97718D /* WebTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 767C19A1A44F5402AAA48323 /* WebTabView.swift */; };
 		590E774A42EE127044B729DF /* FlashTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3379525767B548F895665DF5 /* FlashTests.swift */; };
 		59385CC6793D8483D7960E66 /* FlashLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FE726FFB0EECCD2974DCD93 /* FlashLink.swift */; };
 		59ECCFB2802F9750703DC830 /* LibraryFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DD5DDFFD7CFEC7920FB8F45 /* LibraryFile.swift */; };
@@ -92,6 +94,7 @@
 		69FC05011ED5286C56AEC8F9 /* EditorSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorSession.swift; sourceTree = "<group>"; };
 		6EB0E61259FE4F0AAF558D5C /* EditorSession+Library.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EditorSession+Library.swift"; sourceTree = "<group>"; };
 		74CA39AA661ECFC0D0F4BA76 /* ClipView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipView.swift; sourceTree = "<group>"; };
+		767C19A1A44F5402AAA48323 /* WebTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebTabView.swift; sourceTree = "<group>"; };
 		7A64EF8F12D362FE851E5119 /* NavViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavViews.swift; sourceTree = "<group>"; };
 		80E117300E52E6D293A00964 /* NavModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavModel.swift; sourceTree = "<group>"; };
 		966AB47DC696C8582C328253 /* MirrorDecoderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MirrorDecoderTests.swift; sourceTree = "<group>"; };
@@ -102,6 +105,7 @@
 		AA29302C9082248DA82C3DC5 /* FlashView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlashView.swift; sourceTree = "<group>"; };
 		AC68F48F900D43C5CCDBEDD1 /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
 		B44F5DDB3FA5A048A53E14BC /* MirrorLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MirrorLink.swift; sourceTree = "<group>"; };
+		B520285C89B9B6694A5AADEE /* WebMIDIBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebMIDIBridge.swift; sourceTree = "<group>"; };
 		B8345EA2BC0DFECA12176351 /* make_fixtures.mjs */ = {isa = PBXFileReference; path = make_fixtures.mjs; sourceTree = "<group>"; };
 		B863C7AA9D1164281B82F9E5 /* Clip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Clip.swift; sourceTree = "<group>"; };
 		BC918D1CB71D2C0601F37E2A /* web_pattern.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = web_pattern.json; sourceTree = "<group>"; };
@@ -225,8 +229,18 @@
 				FB64732FC016E8AFD3E8B510 /* Editor */,
 				BC3C8A595C5FC00586FDA634 /* Flash */,
 				37C1EB80335E02A62E10A687 /* Nav */,
+				DE8DFC00B56704C77460C1BB /* Web */,
 			);
 			path = Sources;
+			sourceTree = "<group>";
+		};
+		DE8DFC00B56704C77460C1BB /* Web */ = {
+			isa = PBXGroup;
+			children = (
+				B520285C89B9B6694A5AADEE /* WebMIDIBridge.swift */,
+				767C19A1A44F5402AAA48323 /* WebTabView.swift */,
+			);
+			path = Web;
 			sourceTree = "<group>";
 		};
 		F21B6F0BA5B5031641946E7A /* Products */ = {
@@ -396,6 +410,8 @@
 				BF19193839D22CA41D55DCA2 /* PanelKeys.swift in Sources */,
 				D49D71173482047512F84808 /* PatternFile.swift in Sources */,
 				E5AA9C28DDBCD932D70D5713 /* ProjectsView.swift in Sources */,
+				1D46E590B2CB267114600BB1 /* WebMIDIBridge.swift in Sources */,
+				4F744A40E73497D46C97718D /* WebTabView.swift in Sources */,
 				386A854128A10BF09661B03D /* Wire.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
