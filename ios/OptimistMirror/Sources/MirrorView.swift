@@ -156,6 +156,9 @@ struct RootView: View {
         }
         .onDisappear { tilt.stop() }
         .onChange(of: tilt.quarter) { _, q in Turn.to(Turn.quarter(q)) }
+        .onChange(of: tab) { old, now in   // (the Disconnect tab: back to the home page, the tab before it kept for the next time)
+            if now == 4 { tab = old == 4 ? 0 : old; link.disconnect() }
+        }
     }
 
     /// the tab bar: hidden under the welcome screen (no FM-1: no tabs)
@@ -166,7 +169,8 @@ struct RootView: View {
     private static let pages: [(tag: Int, title: String, icon: String)] = [
         (11, "Editor", "slider.vertical.3"), (0, "Mirror", "display"), (2, "Library", "books.vertical"), (12, "Samples", "waveform"),
         (13, "Kits", "circle.grid.2x2"), (1, "Projects", "folder"), (3, "Backup", "externaldrive"), (14, "Snapshots", "camera"),
-        (4, "Connection", "cable.connector"),   // (no Device Screens, no Settings: the user, 2026-10-25)
+        (4, "Disconnect", "eject"),   // (no Device Screens, no Settings; the connection itself on the home page, this tab only
+                                      //  disconnects: the user, 2026-10-25)
     ]
 
     /// the system's own tabs again (the user, 2026-10-25: "use the standard tabs like before"; with 11 pages they folded into a
@@ -188,50 +192,12 @@ struct RootView: View {
         case 1: ProjectsView(s: session)
         case 2: LibraryView(s: session)
         case 3: BackupView(s: session)
-        case 4: ConnectionView(link: link, installFirmware: { flashSheet = true }, openSimulator: { simSheet = true })
+        case 4: Color.clear                         // (Disconnect: never shown, the tap disconnects; onChange below)
         case 11: WebTab(editor: web, tab: "mixer", link: link)
         case 12: WebTab(editor: web, tab: "samples", link: link)
         case 13: WebTab(editor: web, tab: "drumkit", link: link)
         case 14: WebTab(editor: web, tab: "snapshots", link: link)
         default: MirrorView(link: link, upright: tilt.quarter - Turn.quarter(tilt.quarter), bars: $bars)
-        }
-    }
-}
-
-/// The port in use, another one, Bluetooth, Disconnect (back to the welcome screen).
-struct ConnectionView: View {
-    @ObservedObject var link: MirrorLink
-    var installFirmware: () -> Void = {}
-    var openSimulator: () -> Void = {}
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section("Connected To") {
-                    LabeledContent("Link") {
-                        Label(link.bluetooth ? "Bluetooth" : "USB Cable",
-                              systemImage: link.bluetooth ? "dot.radiowaves.left.and.right" : "cable.connector")
-                    }
-                    LabeledContent("Port", value: link.portName)
-                }
-                Section {
-                    Picker("MIDI Port", selection: $link.chosen) {
-                        Text("Automatic").tag("")
-                        ForEach(link.ports, id: \.self) { Text($0).tag($0) }
-                    }
-                } footer: {
-                    Text("Automatic uses the USB cable when it is plugged in, Bluetooth otherwise.")
-                }
-                Section {
-                    Button("Connect with Bluetooth…") { BluetoothPicker.present(ports: link.online) }
-                    Button("Disconnect", role: .destructive) { link.disconnect() }
-                }
-                Section {
-                    Button("Install Firmware…", action: installFirmware)   // (the home screen's too: no tab of their own)
-                    Button("Simulator…", action: openSimulator)
-                }
-            }
-            .navigationTitle("Connection")
         }
     }
 }
