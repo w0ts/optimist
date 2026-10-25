@@ -12,7 +12,8 @@
  *   6. refused: the send stays in its slot (the project keeps it), bypassed, FULL, said once; never placed while a
  *      part's refused change waits; restored by itself once a part is dropped (its block idle, taken back)
  *   7. the inserts' own room: placed while a limited type is held, given back after the last fade-out; refused, the
- *      chorus send's line (in no slot) placed and lent instead
+ *      chorus send's line (in no slot) placed and lent instead; the drop proposal: the parts, then the effects' lines
+ *      (the largest first), a dropped effect bypassed as when refused, the part's change made, the effect back later
  *   8. random switches (sends in and out of the slots, inserts, parts' engines, drops, blocks between): the blocks never
  *      overlap, every pointer is its block, a gate open only on a placed line; at the end everything given back
  *   fx_arena_test */
@@ -266,9 +267,48 @@ int main(void)
     put_chrs(2, 0);
     settle(40);
     CHECK(fxl_st[0] == FXL_SEND && !cho_buf && arena_ok(), "... let go: the line back to its send, then given back (CHO in no slot)");
+    /* 7b. the drop proposal: the parts, then the effects' lines (the user, 2026-10-25) */
+    quiet();
+    fxs_set(FXS_DEF);
+    set_engine_of(t0, ENG_IX_FM6);
+    blocks(64);
+    put_chrs(0, 1);
+    settle(4);
+    CHECK(t0->engine == ENG_IX_FM6 && cho_buf && dly_buf && rev_line && fxa_ins && arena_ok(),
+          "drop: FM6 on part 1, CHO DLY REV and the own room: the arena full");
+    set_engine_of(t1, ENG_IX_FM6);
+    {
+        uint32_t o[5], n = 0;
+        CHECK(part_mem_refused.on && part_mem_refused.part == 1u, "drop: FM6 on part 2 refused");
+        while (n < 5u && mem_offer(&o[n]))
+            n++;
+        CHECK(n == 4u && o[0] == 0u && o[1] == NPART + FXM_DLY && o[2] == NPART + FXM_REV && o[3] == NPART + FXM_CHO,
+              "drop: proposed part 1, then the effects' lines, the largest first: DLY REV CHO (not the own room), each once");
+        CHECK(!fxm_pending() && fxm_st[FXM_DLY] == FXM_ON, "drop: proposing changes nothing");
+    }
+    mem_drop(NPART + FXM_DLY);                          /* (YES on "DROP DLY 32 KB") */
+    CHECK((fxm_off & 2u) && fxm_refused(FXT_DLY) && fxm_pending() && (part_mem_refused.waiting & MEM_W_FX),
+          "drop: DLY dropped: gated at once, FULL, the part's change waits for its line");
+    fxm_news = 0;
+    for (f = 0; f < 50u && part_mem_refused.on; f++) {
+        pass();
+        blocks(1);
+        (void)mem_retry();
+    }
+    blocks(64);
+    pass();
+    CHECK(!part_mem_refused.on && t1->engine == ENG_IX_FM6 && !dly_buf && fxm_refused(FXT_DLY) && fxs_slot[2] == FXT_DLY &&
+          !fxm_news && arena_ok(), "drop: part 2 on FM6; DLY bypassed as when refused, kept in its slot, nothing said");
+    set_engine_of(t1, eng_silent_slot());
+    blocks(64);
+    settle(2);
+    CHECK(dly_buf && fxm_st[FXM_DLY] == FXM_ON && !fxm_refused(FXT_DLY) && arena_ok(),
+          "drop: part 2 off FM6 (its block idle): DLY placed again by itself");
+    put_chrs(0, 0);
+    settle(40);
     /* 8. random switches */
     {
-        uint32_t n, okall = 1, worst = 0, nfull = 0, nref = 0, nlent = 0, nown = 0, nmv = 0;
+        uint32_t n, okall = 1, worst = 0, nfull = 0, nref = 0, nlent = 0, nown = 0, nmv = 0, ndrop = 0;
         srand(7);
         for (n = 0; n < 20000u && okall; n++) {
             uint32_t r = (uint32_t)rand(), op = r % 9u, a = (r >> 8) % 4u;
@@ -283,8 +323,15 @@ int main(void)
                 set_engine_of(&trk[a % NPART], (r >> 12) & 1u ? ENG_IX_FM6 : eng_silent_slot());
             else if (op == 4u)
                 part_drop(&trk[a % NPART]);
-            else if (op == 5u && part_mem_refused.on && !mem_retry())
-                part_mem_refused.on = 0;                /* (given up, as MEM FULL) */
+            else if (op == 5u && part_mem_refused.on && !mem_retry()) {
+                uint32_t x, got = mem_offer(&x);
+                while (got && x < NPART && (r >> 13) & 1u)
+                    got = mem_offer(&x);                /* (NO on the parts, sometimes: the effects come next) */
+                if ((r >> 12) & 1u && got)
+                    mem_drop(x), ndrop += x >= NPART;   /* (YES on what is proposed: a part or an effect) */
+                else
+                    part_mem_refused.on = 0;            /* (given up, as MEM FULL) */
+            }
             pass();
             blocks(1u + (r >> 16) % 3u);
             okall = arena_ok();
@@ -292,10 +339,10 @@ int main(void)
             nfull += fxm_full != 0, nref += part_mem_refused.on, nlent += fxl_st[0] != FXL_SEND || fxl_st[1] != FXL_SEND;
             nown += fxa_ins != 0, nmv += fxm_mv != 0;
         }
-        CHECK(okall && nfull > 1000u && nref > 100u && nlent > 1000u && nown > 1000u && nmv > 10u,
+        CHECK(okall && nfull > 1000u && nref > 100u && nlent > 1000u && nown > 1000u && nmv > 10u && ndrop > 5u,
               "20,000 random switches: the invariants held at every step (to %u; steps with an effect refused %u, a part's "
-              "change refused %u, a send's line lent %u, the own room placed %u, silent lines moved %u)", (unsigned)worst,
-              (unsigned)nfull, (unsigned)nref, (unsigned)nlent, (unsigned)nown, (unsigned)nmv);
+              "change refused %u, a send's line lent %u, the own room placed %u, silent lines moved %u, effects dropped %u)",
+              (unsigned)worst, (unsigned)nfull, (unsigned)nref, (unsigned)nlent, (unsigned)nown, (unsigned)nmv, (unsigned)ndrop);
         part_mem_refused.on = 0;
         for (k = 1; k < FX_NSLOT; k++)
             fxs_load(k, FXT_NONE);

@@ -1042,6 +1042,23 @@ _add("LAYOUT", "FELUCCA_LAYOUT", "flash layout: fake SD mode (more room for code
           "the other layout's sectors first): back up with the web editor before. The first install needs a normal "
           "build of this version first (an older updater refuses the larger package). The console's far command "
           "checks the flash past the old end (the far probe).")
+# bit 411 (2026-10-25): the next free one after LAYOUT's 410; the arena (core/arena.c, fx/fx_arena.c, docs/SD-MODE-DESIGN.md
+# 6b): KB, 0 the fixed memories as before; set, the effects' lines in it too (registry.h FELUCCA_ARENA_KB -> ARENA_BYTES,
+# FX_ARENA); the pool estimate: core.py arena_mem
+_add("ARENA", "FELUCCA_ARENA_KB", "memory per project (an arena for the engines and the effects' lines)", Y, 411, default=0,
+     choices=((0, "off: every memory reserved, as before"), (64, "64 KB"), (96, "96 KB"), (128, "128 KB"),
+              (160, "160 KB"), (192, "192 KB"), (256, "256 KB")),
+     experimental=True, tested="host-tested only (tests/fx_arena_test.c, arena_test.c, placeholder_test.c); not on an FM-1",
+     desc="Instead of reserving every engine's and effect's memory whether a project uses it or not, one pool memory of"
+          " this size holds what the project uses: each synth part's engine state (FM6, PHYS, GRAIN, ACID, PLAITS) and "
+          "the effects' lines (the delay, chorus and reverb sends' lines, the limited inserts' own room), placed when "
+          "an engine is picked or an effect is put in a slot, given back when it goes. What the arena does not need "
+          "goes to the undo history. A change that does not fit is refused and the device proposes what to drop: the "
+          "parts first, then the effects' lines (DROP REV 32 KB); a dropped part plays nothing (NONE), a dropped or "
+          "refused effect is bypassed and dimmed (FULL), kept in the project, and comes back by itself once there is "
+          "room. Off: every memory reserved as before, nothing ever refused. About 2 KB of flash and 256 B of RAM (the "
+          "default profile, measured 2026-10-25); the room is the size chosen, against the engines' and lines' fixed "
+          "memories it replaces.")
 _add("CPU_GUARD", "FELUCCA_CPU_GUARD", "predictive CPU guard (ease back before shedding)", Y, 61, default=0,
      provenance=FLOWSTATE_GUARD,
      desc="Avoids audio dropouts under heavy load by easing quality back step by step before cutting notes. Under "

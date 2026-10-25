@@ -224,6 +224,19 @@ static void mem_tick(void)
         ui_message("MEM FULL");
         return;
     }
+#if FXM_NEED
+    if (k >= NPART) {                                   /* an effect's line (fx_arena.c, after every part): "REV 32 KB" */
+        static const char *const FXN[3] = {"CHO", "DLY", "REV"};
+        uint32_t n;
+        str_cpy(a, FXN[(k - NPART) % 3u], sizeof a);
+        str_app(a, " ", sizeof a);
+        n = str_len(a);
+        fmt_int(a + n, (int32_t)(FXM_BYTES[(k - NPART) % 3u] / 1024u));
+        str_app(a, " KB", sizeof a);
+        op_arm(ARM_OP, OA_DROP, k, "DROP", a, 1);
+        return;
+    }
+#endif
     str_cpy(a, trk_tag(k), sizeof a);
     str_app(a, " ", sizeof a);
     str_app(a, trk_eng_name(&trk[k]), sizeof a);
