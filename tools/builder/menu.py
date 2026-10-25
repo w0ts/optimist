@@ -681,7 +681,7 @@ class Builder(App):
             for r, (used, cap, over) in C.fits({k: sizes[k] for k in C.REGIONS}, cfg).items():
                 lines.append(f"  exact {r:8s} {used:9,d} / {cap:9,d}  " +
                              (f"OVER by {over:,}" if over > 0 else f"{-over:,} free"))
-        pkg = C.ROOT / "build" / "felucca.fwsc"
+        pkg = C.build_dir() / "felucca.fwsc"
         keep = ("over", "FAIL", "package", "error", "Error", "ld:", "overflowed", "undefined reference")
         tail = [ln for ln in out.splitlines() if ln.strip().startswith(keep) or any(k in ln for k in keep[3:])]
         tail = tail[-12:] if ok else tail[-20:]          # a failure keeps the compiler's own lines
@@ -690,7 +690,7 @@ class Builder(App):
         built = None
         if ok and fit and pkg.exists():
             text += f"\n  package: {pkg}"
-            named = F.last_package()
+            named = F.last_package(C.build_dir())
             if named and named.stat().st_mtime >= started - 1:
                 built = ST.Stamp(named, C.cfg_hash(cfg), name)
                 text += "\n  f: Flash to FM-1 (this build only; shows both identities and its commit, asks first)"
@@ -705,8 +705,8 @@ class Builder(App):
 
     def launch_emu(self):
         """the newest named package of this build in the emulator, in the background -> one line for the panel"""
-        named = sorted((C.ROOT / "build").glob("optimist-*.fwsc"), key=lambda f: f.stat().st_mtime)
-        fw = named[-1] if named else C.ROOT / "build" / "felucca.fwsc"
+        named = sorted(C.build_dir().glob("optimist-*.fwsc"), key=lambda f: f.stat().st_mtime)
+        fw = named[-1] if named else C.build_dir() / "felucca.fwsc"
         cmd = [sys.executable, str(C.ROOT / "tools" / "optimist.py"), "emu", str(fw), "--bg"]
         try:
             r = subprocess.run(cmd, cwd=C.ROOT, capture_output=True, text=True, timeout=900)
