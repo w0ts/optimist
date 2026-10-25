@@ -98,6 +98,46 @@ int main(void)
     proj_apply(&back, &dl, 1);
     blocks(64);
     CHECK(t->silent && t->engine == eng_silent_slot(), "a load of the saved project: the placeholder again");
+#ifdef FELUCCA_ARENA_BYTES                               /* (built with an arena of one part's memory: the drop flow) */
+    {
+        track_t *u = &trk[1];
+        uint32_t k = 0, f;
+        set_engine_of(t, ENG_IX_FM6);
+        blocks(64);
+        CHECK(t->engine == ENG_IX_FM6 && !t->silent, "flow: part 1 on FM6, the arena full");
+        set_engine_of(u, ENG_IX_FM6);
+        CHECK(u->eng_req != ENG_IX_FM6 && part_mem_refused.on && part_mem_refused.part == 1u && !part_mem_refused.from_load,
+              "flow: part 2 asks FM6: refused, the refusal recorded (an edit)");
+        CHECK(part_mem_refused.drop == 1 && mem_offer(&k) && k == 0u, "flow: proposed: drop part 1 (what arn_drop_for names)");
+        CHECK(!mem_offer(&k), "flow: nothing else to propose (part 3 keeps no memory, part 2 is the one asking)");
+        mem_drop(0);
+        CHECK(mem_retry() == 0, "flow: part 1 still fading: wait");
+        for (f = 0; f < 200u && mem_retry() == 0 && part_mem_refused.on; f++)
+            blocks(8);
+        blocks(64);
+        CHECK(!part_mem_refused.on && t->silent && u->engine == ENG_IX_FM6 && !u->silent,
+              "flow: once part 1 switched: part 2 on FM6, part 1 the placeholder");
+        trk_note_on(u, 60, 100);
+        blocks(4);
+        CHECK(active(u) > 0, "flow: part 2's FM6 plays");
+        trk_note_off(u, 60);
+        blocks(4u * FS / CTL);
+        proj_capture(&pj, &dl);                         /* a project with part 3 on FM6 too: its load cannot fit */
+        pj.t[2].engine = (uint8_t)eng_uid(ENG_IX_FM6);
+        proj_apply(&pj, &dl, 1);
+        blocks(64);
+        CHECK(part_mem_refused.on && part_mem_refused.from_load && part_mem_refused.part == 2u && trk[2].engine != ENG_IX_FM6,
+              "flow: a load with one FM6 too many: that part refused (a load), its old engine kept");
+        CHECK(mem_offer(&k) && k == 1u, "flow: proposed: drop part 2");
+        trk[2].p[P_E0] = 77;                            /* (the loaded sound's own value: a load's retry keeps it) */
+        mem_drop(1);
+        for (f = 0; f < 200u && mem_retry() == 0 && part_mem_refused.on; f++)
+            blocks(8);
+        blocks(64);
+        CHECK(!part_mem_refused.on && trk[2].engine == ENG_IX_FM6 && trk[2].p[P_E0] == 77 && trk[1].silent,
+              "flow: part 2 dropped: part 3 on FM6 with the project's sound (not the engine's first preset)");
+    }
+#endif
     printf("placeholder test: %d checks, %d failed\n", checks, bad);
     return bad ? 1 : 0;
 }

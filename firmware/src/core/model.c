@@ -188,6 +188,58 @@ static void part_drop(track_t *t)
     fm1_irq_on();
 }
 
+/* What to drop when memory is short (the user, 2026-10-25: refuse, and propose what to drop; the UI asks with its one
+ * confirm, op_input.c mem_tick). mem_offer: the next part to propose, first those arn_drop_for named, then any other part
+ * whose engine keeps memory, never one already asked; 0 none left. mem_drop: that part a silent placeholder (its memory
+ * free once its switch is done). mem_retry, each frame: 0 nothing to do or still waiting for a dropped part's switch,
+ * 1 the change went through, -1 still no room (offer the next) */
+static int mem_offer(uint32_t *out)
+{
+    uint32_t k, pass;
+    for (pass = 0; pass < 2u; pass++)
+        for (k = 0; k < NPART; k++) {
+            uint32_t named = part_mem_refused.drop > 0 && ((uint32_t)part_mem_refused.drop >> k & 1u);
+            if (k == part_mem_refused.part || (part_mem_refused.asked >> k & 1u) || trk[k].silent ||
+                !part_mem_bytes(trk[k].engine) || (pass == 0u && !named))
+                continue;
+            *out = k;
+            part_mem_refused.asked |= (uint8_t)(1u << k);
+            return 1;
+        }
+    return 0;
+}
+
+static void part_drop(track_t *t);
+
+static void mem_drop(uint32_t k)
+{
+    if (k >= NPART)
+        return;
+    part_drop(&trk[k]);
+    part_mem_refused.waiting |= (uint8_t)(1u << k);
+}
+
+static void set_engine_of(track_t *t, uint32_t ei);
+
+static int mem_retry(void)
+{
+    uint32_t k, p = part_mem_refused.part, e = part_mem_refused.eng;
+    if (!part_mem_refused.on || !part_mem_refused.waiting)
+        return 0;
+    for (k = 0; k < NPART; k++)
+        if ((part_mem_refused.waiting >> k & 1u) && trk[k].engine != trk[k].eng_req)
+            return 0;                                 /* (a dropped part still fading: its memory not free yet) */
+    part_mem_refused.waiting = 0;
+    if (part_mem_reserve(p, e))
+        return -1;
+    part_mem_refused.on = 0;
+    if (part_mem_refused.from_load)
+        trk[p].eng_req = (uint8_t)e;                  /* (the project's sound as loaded, now on its engine) */
+    else
+        set_engine_of(&trk[p], e);                    /* (the edit asked for: the engine and its first preset) */
+    return 1;
+}
+
 static void set_engine_of(track_t *t, uint32_t ei)
 {
     const engine_t *e = ENGINES[ei % NENGINES];

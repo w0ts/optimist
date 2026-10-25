@@ -1071,8 +1071,8 @@ static void proj_apply(const project_t *p, const dlrec_t *d, int all)
         track_t *t = &trk[k];
         const proj_trk_t *s = &p->t[k];
         uint32_t e = k < NPART ? (s->engine == ENG_UID_SILENT ? eng_silent_slot() : eng_slot(s->engine)) : 0u;
-        if (k < NPART)                                  /* (UID -> slot, not built: its fallback; a silent placeholder) */
-            (void)part_mem_reserve(k, e);               /* (no room: the old engine stays at the switch, the UI offers drops) */
+        if (k < NPART && part_mem_reserve(k, e))        /* (UID -> slot, not built: its fallback; a silent placeholder) */
+            part_mem_refused.from_load = 1;             /* (no room: the old engine stays at the switch, the UI offers drops) */
         t->silent = (uint8_t)(k < NPART && s->engine == ENG_UID_SILENT);
         t->eng_req = (uint8_t)e;
         t->user = 0;                                    /* (no user preset slot is saved) */
