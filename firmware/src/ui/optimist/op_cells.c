@@ -169,6 +169,13 @@ static void cell_param(cell_t *c, const param_desc_t *d, int16_t *vp)
     if (d >= FXS_DESC && d < FXS_DESC + FX_NSLOT) {     /* a master FX slot: its role in the unit's place (the user, */
         uint32_t t = fxs_slot[d - FXS_DESC];            /* 2026-10-12: "slot 1 is insert, right ? it is not clear"): */
         c->unit = t == FXT_CHO || t == FXT_DLY || t == FXT_REV ? "SEND" : t == FXT_NONE ? "" : "INS";   /* by type */
+#if FXM_NEED
+        if (fxm_refused(t)) {                           /* (its line refused by the arena: bypassed, kept, fx_arena.c) */
+            c->unit = "FULL";
+            c->dim = 1;
+            c->strike = 1;
+        }
+#endif
     }
     cell_gauge_d(c, d, *vp);
 }

@@ -440,6 +440,12 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
                                             * and every insert line (1 KB units); 0: the send's line and one line of each
                                             * limited insert type built */
 #endif
+#ifndef FELUCCA_FX_ARENA
+#define FELUCCA_FX_ARENA 0                 /* 1: with an arena placed by need (FELUCCA_ARENA_BYTES, engines.c), the effects'
+                                            * big lines (the sends' delay, chorus and reverb lines, the inserts' own room)
+                                            * are placed in it while a project uses them (fx/fx_arena.c); 0: static, as
+                                            * before */
+#endif
 #ifndef FELUCCA_RET_FB
 #define FELUCCA_RET_FB 1                   /* the returns' feedback sends B -> A, C -> A, C -> B (fx_slots.c rs_amt, fx.c rs_fbv) */
 #endif

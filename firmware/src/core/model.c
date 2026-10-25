@@ -221,9 +221,14 @@ static void mem_drop(uint32_t k)
 
 static void set_engine_of(track_t *t, uint32_t ei);
 
+#define MEM_W_FX 0x80u                                /* (part_mem_refused.waiting: an effect's line going back) */
 static int mem_retry(void)
 {
     uint32_t k, p = part_mem_refused.part, e = part_mem_refused.eng;
+    if (part_mem_refused.on && fxm_pending()) {        /* (an effect's line no longer used, on its way back: wait */
+        part_mem_refused.waiting |= MEM_W_FX;           /* for it, then try again: fx/fx_arena.c) */
+        return 0;
+    }
     if (!part_mem_refused.on || !part_mem_refused.waiting)
         return 0;
     for (k = 0; k < NPART; k++)

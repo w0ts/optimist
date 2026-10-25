@@ -70,6 +70,14 @@ static uint16_t fxa_hi[FXL_NS] IN_POOL;
 static uint16_t fxi_full[FXI_NL];                       /* the owners (a bit each) holding the type with none left */
 static uint8_t fxi_pend;                                /* a pass is due: a fade-out, a tail, a starved owner */
 static uint8_t fxl_st[FXL_NS];                          /* each send line's owner (FXL_*: above); the main loop's only */
+#if FXM_NEED && FXA_I                                    /* the own room in the arena (fx/fx_arena.c, after this file) */
+static void fxm_ins_post(void);
+static void fxm_ins_init(void);
+static int fxm_ins_could(void);
+#else
+#define fxm_ins_post() ((void)0)
+#define fxm_ins_init() ((void)0)
+#endif
 _Static_assert(FXI_TN0 <= FXI_IMAX && FXI_TN1 <= FXI_IMAX && FXI_TN2 <= FXI_IMAX && FXI_TN3 <= FXI_IMAX &&
                FXI_TN4 <= FXI_IMAX && FXI_NK <= 16u, "fxi_own: FXI_IMAX instances; fxi_full: an owner a bit");
 
@@ -264,6 +272,9 @@ static uint32_t fxl_take(uint32_t s)
     uint32_t ok;
     fm1_irq_off();
     ok = !fxl_send_on(s) && (s ? fx.dly_q >= DLY_LEN && !DLY_FST() && !fxz.dclr : fx.cho_q >= CHO_LEN && !fxz.cclr);
+#if FXM_NEED
+    ok = ok && !(fxm_off >> s & 1u);                    /* (its line in the arena: fx_arena.c places it for a starved type) */
+#endif
     if (ok)
         fxl_lent |= (uint8_t)(1u << s);
     fm1_irq_on();
@@ -289,15 +300,22 @@ static uint32_t fxi_nused(uint32_t j)                   /* type j's instances ha
         n += fxi_own[j][i] != FXI_NONE;
     return n;
 }
+/* send line s would serve an owner left without: a type it holds starved, one of its instances free */
+static uint32_t fxl_starved(uint32_t s)
+{
+    uint32_t j, want = 0;
+    for (j = 0; j < FXI_NL; j++)
+        want |= fxl_fits(s, j) && fxi_full[j] && fxi_nused(j) < FXI_TN[j];
+    return want;
+}
 /* the line's owner after the pass's sync; 1: just lent (a sync again places lines on it) */
 static uint32_t fxl_step(uint32_t s)
 {
-    uint32_t i, j, held = 0, want = 0, on = fxl_send_on(s);
+    uint32_t i, j, held = 0, want, on = fxl_send_on(s);
     if (!fxl_lends(s))
         return 0;
     if (fxl_st[s] == FXL_SEND) {
-        for (j = 0; j < FXI_NL; j++)                    /* (a type it holds starved, one of its instances free) */
-            want |= fxl_fits(s, j) && fxi_full[j] && fxi_nused(j) < FXI_TN[j];
+        want = fxl_starved(s);
         if (!want || on)
             return 0;
         if (fxl_take(s)) {
@@ -362,6 +380,7 @@ static void fxi_poll(void)
     for (s = 0; s < FXL_NS; s++)
         if (fxl_st[s] != FXL_SEND)
             fxi_pend = 1;                               /* (a lent line is watched: its send back in a slot, none using it) */
+    fxm_ins_post();                                     /* (the own room in the arena: given back when no type is held) */
 }
 /* boot, the host tests: every instance free, every line the send's, the memory empty */
 static void fxi_init(void)
@@ -378,6 +397,7 @@ static void fxi_init(void)
         if (fxl_st[j] != FXL_SEND)
             fxl_return(j);
     memset(fxa_bm, 0, sizeof fxa_bm);
+    fxm_ins_init();                                     /* (the own room not in the arena: its units marked taken) */
     fxi_pend = 0;
     fxi_dirty = 2;
 }
@@ -396,6 +416,10 @@ static uint32_t fxl_wait(uint32_t j)
 static uint32_t fxa_room(uint32_t j)
 {
     uint32_t n = FXA_SZ(j), r = fxa_fits(FXA_S, FXA_N, n), s;
+#if FXM_NEED && FXA_I
+    if (!fxa_ins && fxm_ins_could())
+        r = FXA_I / n;                                  /* (the own room not in the arena yet: what it would hold) */
+#endif
     for (s = 0; s < FXL_NS; s++)
         if (fxl_fits(s, j) && !fxl_send_on(s) && fxl_st[s] != FXL_BACK)
             r += fxa_fits(FXL_LO(s), FXL_HI(s), n);

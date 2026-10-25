@@ -9,8 +9,18 @@
 #define DLY_LEN ((uint32_t)FELUCCA_DLY_LEN)
 _Static_assert(FELUCCA_DLY_LEN >= 4096 && (FELUCCA_DLY_LEN & (FELUCCA_DLY_LEN - 1)) == 0, "FELUCCA_DLY_LEN: a power of two");
 #define CHO_LEN 2048u
-static int16_t dly_buf[FELUCCA_FX_DELAY ? DLY_LEN : 1] __attribute__((section(".pool"), aligned(4)));   /* (an FX not built: */
-static int16_t cho_buf[FELUCCA_FX_CHORUS ? CHO_LEN : 1] __attribute__((section(".pool"), aligned(4)));  /* no buffer) */
+#define DLY_BUF_N (FELUCCA_FX_DELAY ? DLY_LEN : 1u)    /* the lines' samples (an FX not built: no buffer) */
+#define CHO_BUF_N (FELUCCA_FX_CHORUS ? CHO_LEN : 1u)
+#if FXM_NEED                                            /* in the arena while a project uses them (fx/fx_arena.c) */
+static int16_t *dly_buf, *cho_buf;
+/* the send lines not placed (FXB_C FXB_D FXB_R, below): their buses do not run and nothing of them is touched (fx_ret_block,
+ * rev_guard); fx_arena.c's, written with the interrupts off. fxm_tick: fx_ret_block's blocks (a line gated is given back
+ * or cleared two blocks later: CPU1's kept reverb block, REV_LATE, has run by then) */
+static volatile uint8_t fxm_off = 7u, fxm_tick;
+#else
+static int16_t dly_buf[DLY_BUF_N] __attribute__((section(".pool"), aligned(4)));
+static int16_t cho_buf[CHO_BUF_N] __attribute__((section(".pool"), aligned(4)));
+#endif
 /* the reverb: two input diffusers, then four delay lines mixed by a Hadamard matrix (a feedback delay
  * network: every echo feeds all four, so it thickens instead of ringing like a comb), damped in the
  * loop, one line slowly modulated (no metallic tone on long tails); left and right take different lines.
@@ -55,7 +65,12 @@ static int16_t rev_ap[FELUCCA_FX_REVERB ? REV_A0 + REV_A1 : 1] __attribute__((se
 /* the shared line buffer without PLATE / FDN8 (with them: reverb_alt.c, at least RV_N): the ROOM's, SPRING's loop */
 #define REV_LINE_OWN (REV_ROOM_LEN > 4096u * FELUCCA_SPRING ? REV_ROOM_LEN : 4096u * FELUCCA_SPRING)
 #if !REV_ALT
-static int16_t rev_line[(FELUCCA_FX_REVERB ? REV_LINE_OWN : 0u) ? REV_LINE_OWN : 1] REV_SECTION;
+#define REV_LINE_N ((FELUCCA_FX_REVERB ? REV_LINE_OWN : 0u) ? REV_LINE_OWN : 1u)   /* (its samples) */
+#if FXM_NEED
+static int16_t *rev_line;                              /* (in the arena: fx/fx_arena.c) */
+#else
+static int16_t rev_line[REV_LINE_N] REV_SECTION;
+#endif
 #endif
 #define FX_Q_MAX 0x40000000u     /* (fx_q, below: the zero-write counts stop here) */
 static struct {
@@ -343,7 +358,7 @@ static __attribute__((noinline)) uint32_t fx_zclear(int16_t *b, uint32_t len, ui
 static __attribute__((noinline)) void cho_zero(void)   /* (CHO RET 0: a block, the line not clear yet) */
 {
     if (fx.cho_q < CHO_LEN || fxz.cclr)
-        if (!(fxz.cclr = fx_zclear(cho_buf, sizeof cho_buf / 2u, fxz.cclr)))
+        if (!(fxz.cclr = fx_zclear(cho_buf, CHO_BUF_N, fxz.cclr)))
             fx.cho_q = FX_Q_MAX;                        /* (idle: every cell 0) */
 }
 #define DLY_FST() (fx.dly_f[0] | fx.dly_f[1] | fx.dly_f[4] | fx.dly_f[5])   /* (the delay filter not at rest) */
@@ -352,7 +367,7 @@ static __attribute__((noinline)) void dly_zero(void)   /* (DLY RET 0: the same, 
     if (fx.dly_q < DLY_LEN || DLY_FST() || fxz.dclr) {
         memset(fx.dly_f, 0, sizeof fx.dly_f);
         fx.dly_ec = 0;
-        if (!(fxz.dclr = fx_zclear(dly_buf, sizeof dly_buf / 2u, fxz.dclr)))
+        if (!(fxz.dclr = fx_zclear(dly_buf, DLY_BUF_N, fxz.dclr)))
             fx.dly_q = FX_Q_MAX;
     }
 }
@@ -732,7 +747,7 @@ static void rev_cells_clear(void)
 static void rev_tank_clear(void)
 {
     uint32_t i;
-    for (i = 0; i < sizeof rev_line / 2u; i++)
+    for (i = 0; i < REV_LINE_N; i++)
         rev_line[i] = 0;
     rev_cells_clear();
 }
@@ -1049,7 +1064,7 @@ static struct {
 static volatile uint8_t rev_live;
 static __attribute__((noinline)) void rev_gclear(void)  /* (XIP: a block while RG_CLEAR) */
 {
-    uint32_t i = rgd.clr, e = i + REV_GCHUNK, len = sizeof rev_line / 2u;
+    uint32_t i = rgd.clr, e = i + REV_GCHUNK, len = REV_LINE_N;
     e = e < len ? e : len;
     for (; i < e; i++)
         rev_line[i] = 0;
@@ -1071,6 +1086,13 @@ static __attribute__((noinline)) void rev_gclear(void)  /* (XIP: a block while R
 AINL uint32_t rev_guard(int run)
 {
     int z = !song.g[G_RRET];                            /* (REV RET at 0) */
+#if FXM_NEED
+    if (fxm_off & 4u) {                                 /* (FXB_R: its line not placed, fx_arena.c: off, nothing */
+        rev_live = 0;                                   /* cleared nor run; placed again, the main loop clears it) */
+        rgd.st = RG_OFF;
+        return RG_OFF;
+    }
+#endif
     rev_live = (uint8_t)(run && !z);
     if (CG_LEVEL >= CG_L_REVERB || z) {
         if (rgd.st == RG_ON) {                          /* (an idle tank: every cell 0 already, nothing to clear) */
@@ -1131,13 +1153,17 @@ static HOT2 __attribute__((noinline)) void rev_post(uint32_t rg, const int32_t *
 #define FXB_C 1u
 #define FXB_D 2u
 _Static_assert(FXB_C == 1u && FXB_D == 2u, "fx_ret_block: fxl_lent's bits (fx_slots.c) are FXB_C FXB_D");
-#define FXB_R 4u
+#define FXB_R 4u                                        /* (rev_guard's fxm_off test: 4) */
 #define FXB_BUILT ((FELUCCA_FX_CHORUS ? FXB_C : 0u) | (FELUCCA_FX_DELAY ? FXB_D : 0u) | (FELUCCA_FX_REVERB ? FXB_R : 0u))
 #define FXB_CG 8u
 #define FXB_RS 16u
 #define FXB_RG 8
 static HOT2 __attribute__((noinline)) uint32_t fx_ret_block(uint32_t run)
 {
+#if FXM_NEED
+    fxm_tick++;
+    run &= ~(uint32_t)fxm_off;                         /* a line not in the arena (fx_arena.c): its bus not run */
+#endif
 #if INS_LIM
     run &= ~(uint32_t)fxl_lent;                        /* a line lent to the inserts (fxi.c, the main loop): its bus not
                                                         * run, its line untouched (no step, no RET-0 clear) until it is
@@ -1922,6 +1948,7 @@ static HOT2 __attribute__((noinline)) void dust_run(dust_t *s, int32_t d, int32_
 
 #include "insfx/insfx.c"            /* the further insert types FOLD FUZZ PHSR FLNG FRMT WIDE CHRS ECHO (ins_one, dbus_ins) */
 #include "insfx/fxi.c"              /* the limited types' instances (CHRS ECHO): the main loop hands them out, fxi_poll */
+#include "fx_arena.c"               /* FELUCCA_FX_ARENA: the effects' lines in the arena while used (fxm_poll) */
 /* the second-core test image can switch the inserts off (outside the DINS block: the track strips use it too) */
 #if defined(FELUCCA_DUALCFG) && FELUCCA_DUALCFG && FELUCCA_DUAL
 #define FX_INS_BYPASS fm1_ins_bypass                    /* (the second-core test image: dualcfg ins off, hal/fm1_dual.h) */
