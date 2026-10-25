@@ -45,8 +45,8 @@ struct NavButton: View {
             }
             .frame(maxWidth: .infinity, minHeight: NavMetrics.button)
             .padding(.horizontal, 8)
-            .foregroundStyle(lit ? Color.black : dim ? Color.white.opacity(0.35) : Color.white)
-            .background(lit ? Color.white : Color.white.opacity(dim ? 0.05 : 0.12),
+            .foregroundStyle(lit ? Color(.systemBackground) : dim ? Color.primary.opacity(0.35) : Color.primary)   // (the system's theme)
+            .background(lit ? Color.primary : Color.primary.opacity(dim ? 0.05 : 0.12),
                         in: RoundedRectangle(cornerRadius: NavMetrics.corner, style: .continuous))
             .contentShape(RoundedRectangle(cornerRadius: NavMetrics.corner, style: .continuous))
         }
@@ -61,7 +61,7 @@ private struct Heading: View {
     var body: some View {
         Text(text)
             .font(.caption.weight(.semibold))
-            .foregroundStyle(.white.opacity(0.5))
+            .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.top, 4)
     }
@@ -98,7 +98,7 @@ struct NavPages: View {
             if nav.state?.rows.isEmpty ?? true {
                 Text("No pages to list here: use the panel's knobs.")
                     .font(.footnote)
-                    .foregroundStyle(.white.opacity(0.5))
+                    .foregroundStyle(.secondary)
                 Spacer()
             }
         }
@@ -152,7 +152,7 @@ struct NavSide: View {
                 if nav.favorites.isEmpty {
                     Text("Hold a page on the right to add it.")
                         .font(.footnote)
-                        .foregroundStyle(.white.opacity(0.5))
+                        .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 ForEach(nav.favorites) { f in

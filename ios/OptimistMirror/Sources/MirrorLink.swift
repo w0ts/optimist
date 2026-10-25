@@ -160,7 +160,7 @@ final class MirrorLink: ObservableObject, Transport {
 
     // MARK: - ports
 
-    private static func name(_ e: MIDIEndpointRef) -> String {
+    static func name(_ e: MIDIEndpointRef) -> String {
         var s: Unmanaged<CFString>?
         MIDIObjectGetStringProperty(e, kMIDIPropertyDisplayName, &s)
         return (s?.takeRetainedValue() as String?) ?? ""
@@ -172,7 +172,7 @@ final class MirrorLink: ObservableObject, Transport {
     }
 
     /// A Bluetooth MIDI port: its device's driver is Apple's Bluetooth MIDI driver, or its name says so (as on a Mac).
-    private static func isBluetooth(_ e: MIDIEndpointRef) -> Bool {
+    static func isBluetooth(_ e: MIDIEndpointRef) -> Bool {
         var entity = MIDIEntityRef(), device = MIDIDeviceRef()
         var owner: Unmanaged<CFString>?
         if MIDIEndpointGetEntity(e, &entity) == noErr, MIDIEntityGetDevice(entity, &device) == noErr {

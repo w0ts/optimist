@@ -232,7 +232,7 @@ final class EditorSession: ObservableObject {
             let bytes = try await Ops.patRead(link, track: k, slot: s)
             if bytes.isEmpty { say("Empty slot: \(s + 1)", error: true); return }
             export = ExportItem(url: try FileIO.temp("optimist-pattern-t\(k + 1)-\(s + 1).json", try PatternFile.encode(track: k, bytes: bytes)))
-            say("Exported: track \(k + 1) · pattern \(s + 1).")
+            say("Exported: \(ProjectsView.trackName(k)) · pattern \(s + 1).")
         }
     }
 
@@ -242,7 +242,7 @@ final class EditorSession: ObservableObject {
         run("Writing the pattern…") { [self] in
             try await Ops.patWrite(link, track: k, slot: s, bytes: bytes)
             patList = try await Ops.patList(link)
-            say("Imported: track \(k + 1) · pattern \(s + 1).")
+            say("Imported: \(ProjectsView.trackName(k)) · pattern \(s + 1).")
         }
     }
 

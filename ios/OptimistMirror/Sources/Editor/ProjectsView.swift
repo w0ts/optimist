@@ -11,6 +11,8 @@ struct ProjectsView: View {
     @State private var importing = false
     @State private var target: Target?
     @State private var track = 0
+    /// the tracks as the FM-1 and the rest of the app name them (the user, 2026-10-25: "use T1/T2/T3/DR like everywhere else")
+    static func trackName(_ k: Int) -> String { k == 3 ? "DR" : "T\(k + 1)" }
     @State private var prompt: Prompt?
     @State private var text = ""
 
@@ -55,7 +57,7 @@ struct ProjectsView: View {
                 case .section(let k):
                     ask = Confirmation(title: "Replace section \(Names.sectionLetter(k)) with the file's? Stopped only. The FM-1 restarts when done.") { s.importSection(k, url) }
                 case .pattern(let k, let p):
-                    ask = Confirmation(title: "Replace track \(k + 1) · pattern \(p + 1) with the file's?") { s.importPattern(k, p, url) }
+                    ask = Confirmation(title: "Replace \(Self.trackName(k)) · pattern \(p + 1) with the file's?") { s.importPattern(k, p, url) }
                 }
             }
         }
@@ -124,7 +126,7 @@ struct ProjectsView: View {
     }
 
     @ViewBuilder private func patterns(_ l: PatList, _ len: [[Int]]) -> some View {
-        Picker("Track", selection: $track) { ForEach(0..<4, id: \.self) { Text("\($0 + 1)").tag($0) } }.pickerStyle(.segmented)
+        Picker("Track", selection: $track) { ForEach(0..<4, id: \.self) { Text(Self.trackName($0)).tag($0) } }.pickerStyle(.segmented)
         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 8), spacing: 4) {
             ForEach(0..<16, id: \.self) { slot in
                 let n = len[track][slot]
@@ -137,13 +139,13 @@ struct ProjectsView: View {
         }
         if let sel = s.patSel {
             let used = len[sel.track][sel.slot] > 0
-            Text("Track \(sel.track + 1) · pattern \(sel.slot + 1)").font(.subheadline.bold())
+            Text("\(Self.trackName(sel.track)) · pattern \(sel.slot + 1)").font(.subheadline.bold())
             HStack {
                 Button("Export…") { s.exportPattern(sel.track, sel.slot) }.disabled(!used)
                 Button("Import…") { target = .pattern(sel.track, sel.slot); importing = true }
                 Menu("Copy to") {
                     ForEach(0..<4, id: \.self) { k in
-                        Menu("Track \(k + 1)") {
+                        Menu(Self.trackName(k)) {
                             ForEach(0..<16, id: \.self) { p in
                                 Button("Pattern \(p + 1)") { copy(from: sel, to: (k, p), over: len[k][p] > 0) }
                             }
