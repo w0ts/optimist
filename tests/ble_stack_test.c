@@ -777,10 +777,20 @@ static void test_audio_interval(void)
     {                                          /* a Mac: connected at 30 ms, then its own LL request for 7.5 ms */
         uint8_t d[24];
         uint32_t rej;
+        uint16_t to = bll.timeout;
         bll.interval = 24;
+        bll.timeout = 200;
         ble_sig_audio(1);
         r = c_frame(5, &n);
-        check("audio on at 30 ms: nothing asked", !r && bhs.slow && !bhs.asked);
+        check("audio on at 30 ms, 2 s supervision: nothing asked", !r && bhs.slow && !bhs.asked);
+        bhs.slow = bhs.asked = 0;
+        bll.timeout = 72;                      /* (the Mac's 720 ms at connect: a 750 ms gap ended the link, 2026-10-25) */
+        ble_sig_audio(1);
+        r = c_frame(5, &n);
+        check("audio on at 30 ms, 720 ms supervision: {24, 36, 0, 200} asked (2 s)",
+              r && r[0] == 0x12 && r[4] == 24 && r[6] == 36 && r[10] == 200 && bhs.asked);
+        bhs.asked = 0;
+        bll.timeout = to;
         memset(d, 0, sizeof d);
         d[0] = LL_CONNECTION_PARAM_REQ, d[1] = 6, d[3] = 6, d[7] = 200;   /* 7.5 ms, 2 s */
         rej = c_ctrl_count(LL_REJECT_EXT_IND);
