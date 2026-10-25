@@ -311,7 +311,8 @@ def measure_part_mem(logd):
         if not ok or not sizes or "symbols" not in sizes:
             print(f"measure_costs: part_mem with {k or 'none'}: the build failed (log {logd})")
             return 1
-        out[k or "none"] = sizes["symbols"].get("part_mem", 0)   # (0: not in the image)
+        syms = sizes["symbols"]
+        out[k or "none"] = syms.get("arn_mem") or syms.get("part_mem", 0)   # (the arena holds them now)
     print("PART_MEM = {" + ", ".join(f'"{k}": {n}' for k, n in out.items() if k != "none") + "}")
     print(f"PART_MEM_NONE = {out['none']}")
     return 0
@@ -320,8 +321,10 @@ def measure_part_mem(logd):
 def check_terms(cfg, sizes, name):
     """the computed terms (configure.py model_terms) against the objects' real sizes in this build (sizes.json
     "symbols", tools/build.py SIZED_SYMBOLS): a structure that grew is a wrong estimate everywhere, so it stops here"""
-    real = (sizes.get("symbols") or {}).get("part_mem")
-    if real is not None and real != C.part_mem(cfg)["pool"]:
+    syms0 = sizes.get("symbols") or {}
+    real = syms0.get("arn_mem") or syms0.get("part_mem")   # (core/arena.c arn_mem holds the states: NPART 8-aligned slots)
+    kb = int(C.flags(cfg)[0].get(C.R.ITEMS["ARENA"].flag, 0) or 0) if "ARENA" in C.R.ITEMS else 0
+    if real is not None and not kb and real != C.part_mem(cfg)["pool"]:
         alone = [k for k in C.PART_MEM if C.built(cfg, k)]
         raise SystemExit(f"measure_costs: {name}: engines.c part_mem is {real} B, configure.py part_mem says "
                          f"{C.part_mem(cfg)['pool']} B (built: {', '.join(alone) or 'none'}): update configure.py "
