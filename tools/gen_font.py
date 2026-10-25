@@ -40,7 +40,14 @@ FACES = [("TERMINUS", "ter-u16n.bdf"),          # Terminus 8x16 (SIL OFL 1.1), t
          ("TERM BOLD", "ter-u16b.bdf"),          # Terminus bold 8x16 4.49.1 (SIL OFL 1.1): heavy, the most legible
          ("TAMZEN", "Tamzen8x16r.bdf"),          # thin; Tamzen 8x16 regular (Tamsyn / Tamzen licence: free, use as you see fit)
          ("UNIFONT", "unifont-8x16-ascii.bdf"),  # the classic PC look; GNU Unifont 16.0.04, ASCII (SIL OFL 1.1 / GPL-2.0-or-later)
-         ("UNSCII", "unscii-16-ascii.bdf")]      # round, 8-bit computer style; Unscii 16 by Viznut, ASCII (public domain)
+         ("UNSCII", "unscii-16-ascii.bdf"),      # round, 8-bit computer style; Unscii 16 by Viznut, ASCII (public domain)
+         # the Ultimate Oldschool PC Font Pack by VileR (int10h.org, CC BY-SA 4.0: GPL-3.0 one-way compatible),
+         # ASCII of the Px437 TTF at 16 px written as BDF, pixel for pixel its Bm437 bitmap strike
+         ("IBM VGA", "Px437_IBM_VGA_8x16.bdf"),          # the IBM VGA BIOS text mode: the DOS look
+         ("TOSHIBA", "Px437_ToshibaTxL1_8x16.bdf"),      # Toshiba T-series laptops: heavy, slab serifs
+         ("COMPAQ", "Px437_CompaqThin_8x16.bdf"),        # Compaq's thin VGA face: one-pixel strokes, PC shapes
+         ("NEC APC", "Px437_NEC_APC3_8x16.bdf"),         # NEC APC III: thin, round, wide, a slashed zero
+         ("STINGRAY", "Px437_CL_Stingray_8x16.bdf")]     # Cirrus Logic Stingray VGA: the heaviest, tall capitals
 FACE_IDS = {n: i for i, (n, _) in enumerate(FACES)}
 
 
