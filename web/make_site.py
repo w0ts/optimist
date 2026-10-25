@@ -76,7 +76,7 @@ def source_ref():
     return ref if re.fullmatch(r"[A-Za-z0-9._-]+", ref) else ""
 
 
-BUILDER_FILES = ("index.html", "logic.js", "ui.js", "builder.js", "builder.css", "py-worker.js")
+BUILDER_FILES = ("index.html", "app.html", "logic.js", "ui.js", "builder.js", "builder.css", "py-worker.js")
 
 
 INSTALLER_IMPORTS = re.compile(r'^import \{[^}]*\} from "\.\./(fm1ota|fm1pkg)\.js";\n', re.M)
@@ -176,6 +176,10 @@ def builder_site(out, dst=None):
         text = (HERE / "builder" / f).read_text(encoding="utf-8")
         if f == "index.html":
             text = styled(text, "builder", "web/builder/index.html")
+        elif f == "app.html":                           # (the Mirror app's page: the style, no header; the app adds its look)
+            if text.count(STYLE_MARK) != 1:
+                raise SystemExit(f"web/builder/app.html must contain {STYLE_MARK} once; update make_site.py")
+            text = text.replace(STYLE_MARK, shared_css())
         (dst / f).write_text(text, encoding="utf-8")
     sys.path.insert(0, str(HERE.parent / "tools"))
     import export_builder_web
