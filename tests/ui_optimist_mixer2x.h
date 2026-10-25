@@ -218,9 +218,7 @@ static void mixer2x_tests(void)
 #else
 static void mixer2x_tests(void)
 {
-    reset_ui();
-    ui.force = 1;
-    frame();
+    reset_ui();                                         /* (no frame: its audio would move MASTER's GR, the SCRS golden) */
 #ifdef M2_BP
     check(0, "MIXER_2X off: op_mix2x.c not built");
 #endif
