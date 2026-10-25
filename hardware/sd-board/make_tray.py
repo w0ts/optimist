@@ -17,7 +17,7 @@ import pcbnew
 HERE = os.path.dirname(os.path.abspath(__file__))
 FLOOR, PCB, PLAY, LIP = 0.8, 1.6, 0.25, 0.7      # (mm: the floor, the board, its play in the groove, the lip over it)
 SIDE, OVER = 0.3, 0.8                            # (the groove reaches 0.3 past the board's edge; the lip covers 0.8)
-LEFT, RIGHT = 72.6 + 0.6, 72.6 + 30.0 - 0.6      # the rails' outsides: 0.6 mm clear of the battery and the plug
+LEFT = 72.6 + 0.6                                # the left rail's outside: 0.6 mm clear of the battery
 POLE, POLE_D, COLLAR_H = (78.0, 40.0), 6.9, 5.6  # the pole (l, m, i) and the collar's height (the pole stands 6 mm)
 # Three posts up toward the cover, as high as the collar, each the rail's width (rail and lip, no overhang to print) and
 # long along it (the user: "more up and down"): from out of the cover's tapered edge band (t: some 4 mm from the walls,
@@ -41,6 +41,7 @@ v0 = min(v for _, v in pts)
 v1 = max(v for _, v in pts)
 v_left = max(v for u, v in pts if abs(u - u0) < 0.01)
 
+RIGHT = u1 + SIDE + 0.9                          # (the right rail as wide as the left)
 top = FLOOR + PCB + PLAY + LIP
 groove = FLOOR + PCB + PLAY
 
