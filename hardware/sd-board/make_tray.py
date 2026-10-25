@@ -19,11 +19,11 @@ FLOOR, PCB, PLAY, LIP = 0.8, 1.6, 0.25, 0.7      # (mm: the floor, the board, it
 SIDE, OVER = 0.3, 0.8                            # (the groove reaches 0.3 past the board's edge; the lip covers 0.8)
 LEFT = 72.6 + 0.6                                # the left rail's outside: 0.6 mm clear of the battery
 POLE, POLE_D, COLLAR_H = (78.0, 40.0), 6.9, 5.6  # the pole (l, m, i) and the collar's height (the pole stands 6 mm)
-# Three posts up toward the cover, as high as the collar, each the rail's width (rail and lip, no overhang to print) and
-# long along it (the user: "more up and down"): from out of the cover's tapered edge band (t: some 4 mm from the walls,
-# the bottom wall's inside about 0.6 mm below the board) up to under the cable's band (30 to 38 mm up). They stand on the lips, 2.65 mm above the board, so the board still slides in under them (POSTS, below).
-# Only the collar and the posts reach toward the cover: the battery's cable crosses over the board and the tray (the
-# user, 2026-10-25), in a band about 8 mm wide some 10 mm below the speaker plug (w2: 44 mm up), about 30 to 38 mm up.
+# Two posts up toward the cover (POSTS, below), as high as the collar, each the rail's width (rail and lip, no overhang
+# to print) and long along it (the user: "more up and down"), out of the cover's tapered edge band (t: some 4 mm from
+# the walls, the bottom wall's inside about 0.6 mm below the board). They stand on the lips, 2.65 mm above the board, so
+# the board still slides in under them. Only the collar and the posts reach toward the cover: the battery's wires cross
+# over the board and the tray (the user, 2026-10-25), through the gaps the posts leave (the user: bigger).
 COLLAR_IN = (POLE_D + 0.4) / 2
 COLLAR_OUT = COLLAR_IN + 1.0
 
@@ -40,8 +40,8 @@ v1 = max(v for _, v in pts)
 v_left = max(v for u, v in pts if abs(u - u0) < 0.01)
 
 RIGHT = u1 + SIDE + 0.9                          # (the right rail as wide as the left)
-POSTS = ((LEFT, None, 2.5, 24.0), (None, RIGHT, 2.5, 24.0))   # (the cable's gap above them, the user: "make the
-                                                 # gaps for battery wires bigger")
+POSTS = ((LEFT, None, v_left - 21.5, v_left), (None, RIGHT, 2.5, 24.0))   # (the left one up against the collar,
+                                                 # the user's sketch: the wires leave the battery low on the left)
 top = FLOOR + PCB + PLAY + LIP
 groove = FLOOR + PCB + PLAY
 
