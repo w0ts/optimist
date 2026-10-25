@@ -24,7 +24,7 @@ Six wires, one inverter, two resistors, no pin of the main chip touched.
 
 **For everyone: the SD board (hardware/sd-board/, 2026-10-25).** One small board with the socket (push-push), the
 inverter, the resistors and the capacitors, ordered assembled from JLCPCB with the files in `hardware/sd-board/fab/` (or
-from OSHWLab once published there); the user solders six wires. See `hardware/sd-board/README.md`.
+from OSHWLab once published there). v2 (20 x 45.5 mm, the back of the board above the battery) takes a 6-pin 0.5 mm flat cable from a tap board at J12, so nothing is soldered; the tap board is still to design (it needs J12 metered). See `hardware/sd-board/README.md`.
 
 
 **The kit (2026-10-25, for every user: off the shelf, through-hole, no board to order):**
