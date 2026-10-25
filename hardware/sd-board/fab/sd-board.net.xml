@@ -1,0 +1,450 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<export version="E">
+  <design>
+    <source>/Users/mots/GitHub/optimist/worktrees/sdcard/hardware/sd-board/sd-board.kicad_sch</source>
+    <date>2026-10-25T10:36:58</date>
+    <tool>Eeschema 10.0.7</tool>
+    <sheet number="1" name="/" tstamps="/">
+      <title_block>
+        <title>FM-1 SD board</title>
+        <company/>
+        <rev/>
+        <date/>
+        <source>sd-board.kicad_sch</source>
+        <comment number="1" value="docs/SD-CARD-DESIGN.md; hardware/sd-board/README.md"/>
+        <comment number="2" value=""/>
+        <comment number="3" value=""/>
+        <comment number="4" value=""/>
+        <comment number="5" value=""/>
+        <comment number="6" value=""/>
+        <comment number="7" value=""/>
+        <comment number="8" value=""/>
+        <comment number="9" value=""/>
+      </title_block>
+    </sheet>
+  </design>
+  <components>
+    <comp ref="C1">
+      <value>10uF</value>
+      <footprint>sdboard:C0805</footprint>
+      <fields>
+        <field name="LCSC">C15850</field>
+        <field name="Footprint">sdboard:C0805</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="Device" part="C" description="Unpolarized capacitor"/>
+      <property name="LCSC" value="C15850"/>
+      <property name="Sheetname" value="sd-board"/>
+      <property name="Sheetfile" value="sd-board.kicad_sch"/>
+      <property name="ki_keywords" value="cap capacitor"/>
+      <property name="ki_fp_filters" value="C_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>1ddadac2-c390-5262-a9c4-13658d4b422e</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="C2">
+      <value>100nF</value>
+      <footprint>sdboard:C0603</footprint>
+      <fields>
+        <field name="LCSC">C14663</field>
+        <field name="Footprint">sdboard:C0603</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="Device" part="C" description="Unpolarized capacitor"/>
+      <property name="LCSC" value="C14663"/>
+      <property name="Sheetname" value="sd-board"/>
+      <property name="Sheetfile" value="sd-board.kicad_sch"/>
+      <property name="ki_keywords" value="cap capacitor"/>
+      <property name="ki_fp_filters" value="C_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>9f268560-3bfb-5461-81e9-67fdbbe37c8d</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="J1">
+      <value>TF-01A push-push</value>
+      <footprint>sdboard:TF-SMD_TF-01A</footprint>
+      <fields>
+        <field name="LCSC">C91145</field>
+        <field name="Footprint">sdboard:TF-SMD_TF-01A</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="Connector" part="Micro_SD_Card_Det1" description="Micro SD Card Socket with one card detection pin"/>
+      <property name="LCSC" value="C91145"/>
+      <property name="Sheetname" value="sd-board"/>
+      <property name="Sheetfile" value="sd-board.kicad_sch"/>
+      <property name="ki_keywords" value="connector SD microsd"/>
+      <property name="ki_fp_filters" value="microSD*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>7ddb8f82-cfbe-537d-9383-8fc72a835b71</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+            <pin num="3"/>
+            <pin num="4"/>
+            <pin num="5"/>
+            <pin num="6"/>
+            <pin num="7"/>
+            <pin num="8"/>
+            <pin num="9"/>
+            <pin num="SH"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="P1">
+      <value>to the FM-1</value>
+      <footprint>Connector_PinHeader_2.54mm:PinHeader_1x07_P2.54mm_Vertical</footprint>
+      <fields>
+        <field name="LCSC"/>
+        <field name="Footprint">Connector_PinHeader_2.54mm:PinHeader_1x07_P2.54mm_Vertical</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="Connector_Generic" part="Conn_01x07" description="Generic connector, single row, 01x07, script generated (kicad-library-utils/schlib/autogen/connector/)"/>
+      <property name="LCSC" value=""/>
+      <property name="Sheetname" value="sd-board"/>
+      <property name="Sheetfile" value="sd-board.kicad_sch"/>
+      <property name="exclude_from_bom"/>
+      <property name="ki_keywords" value="connector"/>
+      <property name="ki_fp_filters" value="Connector*:*_1x??_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>b4794752-f881-5f98-80aa-3a5ac29d308f</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+            <pin num="3"/>
+            <pin num="4"/>
+            <pin num="5"/>
+            <pin num="6"/>
+            <pin num="7"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="R1">
+      <value>1k</value>
+      <footprint>sdboard:R0603</footprint>
+      <fields>
+        <field name="LCSC">C21190</field>
+        <field name="Footprint">sdboard:R0603</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="Device" part="R" description="Resistor"/>
+      <property name="LCSC" value="C21190"/>
+      <property name="Sheetname" value="sd-board"/>
+      <property name="Sheetfile" value="sd-board.kicad_sch"/>
+      <property name="ki_keywords" value="R res resistor"/>
+      <property name="ki_fp_filters" value="R_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>6d3a0cc3-136e-5f75-b052-7077a46af1bb</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="R2">
+      <value>47k</value>
+      <footprint>sdboard:R0603</footprint>
+      <fields>
+        <field name="LCSC">C25819</field>
+        <field name="Footprint">sdboard:R0603</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="Device" part="R" description="Resistor"/>
+      <property name="LCSC" value="C25819"/>
+      <property name="Sheetname" value="sd-board"/>
+      <property name="Sheetfile" value="sd-board.kicad_sch"/>
+      <property name="ki_keywords" value="R res resistor"/>
+      <property name="ki_fp_filters" value="R_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>8a5e2d04-2450-59a4-a575-1b4315b13535</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="R3">
+      <value>47k</value>
+      <footprint>sdboard:R0603</footprint>
+      <fields>
+        <field name="LCSC">C25819</field>
+        <field name="Footprint">sdboard:R0603</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="Device" part="R" description="Resistor"/>
+      <property name="LCSC" value="C25819"/>
+      <property name="Sheetname" value="sd-board"/>
+      <property name="Sheetfile" value="sd-board.kicad_sch"/>
+      <property name="ki_keywords" value="R res resistor"/>
+      <property name="ki_fp_filters" value="R_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>85545ef3-56d6-56c0-ab94-437aba3b6584</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="R4">
+      <value>47k</value>
+      <footprint>sdboard:R0603</footprint>
+      <fields>
+        <field name="LCSC">C25819</field>
+        <field name="Footprint">sdboard:R0603</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="Device" part="R" description="Resistor"/>
+      <property name="LCSC" value="C25819"/>
+      <property name="Sheetname" value="sd-board"/>
+      <property name="Sheetfile" value="sd-board.kicad_sch"/>
+      <property name="ki_keywords" value="R res resistor"/>
+      <property name="ki_fp_filters" value="R_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>0fa0ffa3-854f-5ac3-8017-f6fb4988bf04</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="U1">
+      <value>74LVC1G04</value>
+      <footprint>sdboard:SOT-23-5_L3.0-W1.7-P0.95-LS2.8-BR</footprint>
+      <fields>
+        <field name="LCSC">C7827</field>
+        <field name="Footprint">sdboard:SOT-23-5_L3.0-W1.7-P0.95-LS2.8-BR</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="74xGxx" part="74LVC1G04" description="Single NOT Gate, Low-Voltage CMOS"/>
+      <property name="LCSC" value="C7827"/>
+      <property name="Sheetname" value="sd-board"/>
+      <property name="Sheetfile" value="sd-board.kicad_sch"/>
+      <property name="ki_keywords" value="Single Gate NOT LVC CMOS"/>
+      <property name="ki_fp_filters" value="SOT?23* Texas?R-PDSO-G5?DCK* Texas?R-PDSO-N5?DRL* Texas?X2SON*0.8x0.8mm*P0.48mm*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>e9c70f2e-fa66-59f0-923b-b1edc269e462</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="2"/>
+            <pin num="1"/>
+            <pin num="5"/>
+            <pin num="3"/>
+            <pin num="4"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+  </components>
+  <libparts>
+    <libpart lib="74xGxx" part="74LVC1G04">
+      <description>Single NOT Gate, Low-Voltage CMOS</description>
+      <docs>https://www.ti.com/lit/ds/symlink/sn74lvc1g04.pdf</docs>
+      <footprints>
+        <fp>SOT?23*</fp>
+        <fp>Texas?R-PDSO-G5?DCK*</fp>
+        <fp>Texas?R-PDSO-N5?DRL*</fp>
+        <fp>Texas?X2SON*0.8x0.8mm*P0.48mm*</fp>
+      </footprints>
+      <fields>
+        <field name="Reference">U</field>
+        <field name="Value">74LVC1G04</field>
+        <field name="Footprint"/>
+        <field name="Datasheet">https://www.ti.com/lit/ds/symlink/sn74lvc1g04.pdf</field>
+        <field name="Description">Single NOT Gate, Low-Voltage CMOS</field>
+      </fields>
+      <pins>
+        <pin num="1" name="NC" type="no_connect"/>
+        <pin num="2" name="" type="input"/>
+        <pin num="3" name="GND" type="power_in"/>
+        <pin num="4" name="" type="output"/>
+        <pin num="5" name="VCC" type="power_in"/>
+      </pins>
+    </libpart>
+    <libpart lib="Connector" part="Micro_SD_Card_Det1">
+      <description>Micro SD Card Socket with one card detection pin</description>
+      <docs>https://datasheet.lcsc.com/lcsc/2110151630_XKB-Connectivity-XKTF-015-N_C381082.pdf</docs>
+      <footprints>
+        <fp>microSD*</fp>
+      </footprints>
+      <fields>
+        <field name="Reference">J</field>
+        <field name="Value">Micro_SD_Card_Det1</field>
+        <field name="Footprint"/>
+        <field name="Datasheet">https://datasheet.lcsc.com/lcsc/2110151630_XKB-Connectivity-XKTF-015-N_C381082.pdf</field>
+        <field name="Description">Micro SD Card Socket with one card detection pin</field>
+      </fields>
+      <pins>
+        <pin num="1" name="DAT2" type="bidirectional"/>
+        <pin num="2" name="DAT3/CD" type="bidirectional"/>
+        <pin num="3" name="CMD" type="input"/>
+        <pin num="4" name="VDD" type="power_in"/>
+        <pin num="5" name="CLK" type="input"/>
+        <pin num="6" name="VSS" type="power_in"/>
+        <pin num="7" name="DAT0" type="bidirectional"/>
+        <pin num="8" name="DAT1" type="bidirectional"/>
+        <pin num="9" name="DET" type="passive"/>
+        <pin num="SH" name="SHIELD" type="passive"/>
+      </pins>
+    </libpart>
+    <libpart lib="Connector_Generic" part="Conn_01x07">
+      <description>Generic connector, single row, 01x07, script generated (kicad-library-utils/schlib/autogen/connector/)</description>
+      <footprints>
+        <fp>Connector*:*_1x??_*</fp>
+      </footprints>
+      <fields>
+        <field name="Reference">J</field>
+        <field name="Value">Conn_01x07</field>
+        <field name="Footprint"/>
+        <field name="Datasheet"/>
+        <field name="Description">Generic connector, single row, 01x07, script generated (kicad-library-utils/schlib/autogen/connector/)</field>
+      </fields>
+      <pins>
+        <pin num="1" name="Pin_1" type="passive"/>
+        <pin num="2" name="Pin_2" type="passive"/>
+        <pin num="3" name="Pin_3" type="passive"/>
+        <pin num="4" name="Pin_4" type="passive"/>
+        <pin num="5" name="Pin_5" type="passive"/>
+        <pin num="6" name="Pin_6" type="passive"/>
+        <pin num="7" name="Pin_7" type="passive"/>
+      </pins>
+    </libpart>
+    <libpart lib="Device" part="C">
+      <description>Unpolarized capacitor</description>
+      <footprints>
+        <fp>C_*</fp>
+      </footprints>
+      <fields>
+        <field name="Reference">C</field>
+        <field name="Value">C</field>
+        <field name="Footprint"/>
+        <field name="Datasheet"/>
+        <field name="Description">Unpolarized capacitor</field>
+      </fields>
+      <pins>
+        <pin num="1" name="" type="passive"/>
+        <pin num="2" name="" type="passive"/>
+      </pins>
+    </libpart>
+    <libpart lib="Device" part="R">
+      <description>Resistor</description>
+      <footprints>
+        <fp>R_*</fp>
+      </footprints>
+      <fields>
+        <field name="Reference">R</field>
+        <field name="Value">R</field>
+        <field name="Footprint"/>
+        <field name="Datasheet"/>
+        <field name="Description">Resistor</field>
+      </fields>
+      <pins>
+        <pin num="1" name="" type="passive"/>
+        <pin num="2" name="" type="passive"/>
+      </pins>
+    </libpart>
+  </libparts>
+  <libraries/>
+  <nets>
+    <net code="1" name="/3V3" class="Default">
+      <node ref="C1" pin="1" pintype="passive"/>
+      <node ref="C2" pin="2" pintype="passive"/>
+      <node ref="J1" pin="4" pinfunction="VDD_4" pintype="power_in"/>
+      <node ref="P1" pin="4" pinfunction="Pin_4_4" pintype="passive"/>
+      <node ref="R2" pin="1" pintype="passive"/>
+      <node ref="R3" pin="1" pintype="passive"/>
+      <node ref="R4" pin="2" pintype="passive"/>
+      <node ref="U1" pin="5" pinfunction="VCC_5" pintype="power_in"/>
+    </net>
+    <net code="2" name="/CARD_CS" class="Default">
+      <node ref="J1" pin="2" pinfunction="DAT3/CD_2" pintype="bidirectional"/>
+      <node ref="U1" pin="4" pintype="output"/>
+    </net>
+    <net code="3" name="/CLK" class="Default">
+      <node ref="J1" pin="5" pinfunction="CLK_5" pintype="input"/>
+      <node ref="P1" pin="5" pinfunction="Pin_5_5" pintype="passive"/>
+    </net>
+    <net code="4" name="/DAT0" class="Default">
+      <node ref="J1" pin="7" pinfunction="DAT0_7" pintype="bidirectional"/>
+      <node ref="R1" pin="2" pintype="passive"/>
+    </net>
+    <net code="5" name="/DAT1" class="Default">
+      <node ref="J1" pin="8" pinfunction="DAT1_8" pintype="bidirectional"/>
+      <node ref="R3" pin="2" pintype="passive"/>
+    </net>
+    <net code="6" name="/DAT2" class="Default">
+      <node ref="J1" pin="1" pinfunction="DAT2_1" pintype="bidirectional"/>
+      <node ref="R2" pin="2" pintype="passive"/>
+    </net>
+    <net code="7" name="/GND" class="Default">
+      <node ref="C1" pin="2" pintype="passive"/>
+      <node ref="C2" pin="1" pintype="passive"/>
+      <node ref="J1" pin="6" pinfunction="VSS_6" pintype="power_in"/>
+      <node ref="J1" pin="SH" pinfunction="SHIELD_SH" pintype="passive"/>
+      <node ref="P1" pin="6" pinfunction="Pin_6_6" pintype="passive"/>
+      <node ref="U1" pin="3" pinfunction="GND_3" pintype="power_in"/>
+    </net>
+    <net code="8" name="/LCD_CS" class="Default">
+      <node ref="P1" pin="1" pinfunction="Pin_1_1" pintype="passive"/>
+      <node ref="R4" pin="1" pintype="passive"/>
+      <node ref="U1" pin="2" pintype="input"/>
+    </net>
+    <net code="9" name="/MISO" class="Default">
+      <node ref="P1" pin="7" pinfunction="Pin_7_7" pintype="passive"/>
+      <node ref="R1" pin="1" pintype="passive"/>
+    </net>
+    <net code="10" name="/MOSI" class="Default">
+      <node ref="J1" pin="3" pinfunction="CMD_3" pintype="input"/>
+      <node ref="P1" pin="3" pinfunction="Pin_3_3" pintype="passive"/>
+    </net>
+    <net code="11" name="unconnected-(J1-DET-Pad9)" class="Default">
+      <node ref="J1" pin="9" pinfunction="DET_9" pintype="passive+no_connect"/>
+    </net>
+    <net code="12" name="unconnected-(P1-Pin_2-Pad2)" class="Default">
+      <node ref="P1" pin="2" pinfunction="Pin_2_2" pintype="passive+no_connect"/>
+    </net>
+    <net code="13" name="unconnected-(U1-NC-Pad1)" class="Default">
+      <node ref="U1" pin="1" pinfunction="NC_1" pintype="no_connect"/>
+    </net>
+  </nets>
+</export>

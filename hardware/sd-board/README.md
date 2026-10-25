@@ -46,7 +46,10 @@ battery), on double-sided tape; the wires go around the board's edge.
 | C1 | 10 uF 0805 | C15850 |
 | C2 | 100 nF 0603 at U1 | C14663 |
 
+The schematic: `sd-board-schematic.pdf` (and `sd-board.kicad_sch`, KiCad's own symbols, a net label on every pin).
+
 Regenerate everything with `sh make_fab.sh` (KiCad 10): `make_board.py` builds the board from code (parts, nets, the
-copper, the ground pours), `make_fab.sh` runs the design-rule check and writes `fab/`. The footprints in `lib/` are LCSC's
+copper, the ground pours), `make_schematic.py` the schematic; `make_fab.sh` runs the design-rule check (board) and the
+electrical rule check (schematic), checks that both have the same nets pin for pin (`check_nets.py`), and writes `fab/`. The footprints in `lib/` are LCSC's
 own (EasyEDA's library, converted with easyeda2kicad), so they are the ones JLC assembles on; the socket's 3D model is
 moved 5.09 mm to sit on its pads. The DRC's remaining notes are silkscreen only (the small parts' outlines touching).

@@ -43,6 +43,7 @@ def net(name):
 
 def place(lib, name, ref, value, x, y, rot=0.0, lcsc=""):
     fp = pcbnew.FootprintLoad(lib, name)
+    fp.SetFPID(pcbnew.LIB_ID("sdboard" if lib == LIB else os.path.basename(lib)[:-len(".pretty")], name))
     fp.SetReference(ref)
     fp.SetValue(value)
     fp.SetPosition(pcbnew.VECTOR2I(MM(x), MM(y)))

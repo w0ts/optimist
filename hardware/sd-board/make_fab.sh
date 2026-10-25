@@ -5,7 +5,14 @@
 set -eu
 KP=/Applications/KiCad/KiCad.app/Contents/Frameworks/Python.framework/Versions/3.9/bin/python3.9
 "$KP" make_board.py 2>&1 | grep -v "wxApp\|stdpbase" || true
+"$KP" make_schematic.py
 kicad-cli pcb drc --severity-error --exit-code-violations -o fab/drc.rpt sd-board.kicad_pcb   # (errors only: the silk notes stay)
+kicad-cli sch erc --severity-error --exit-code-violations -o fab/erc.rpt sd-board.kicad_sch >/dev/null 2>&1 || {
+    grep -E "^\[" fab/erc.rpt | grep -v "lib_symbol_issues\|footprint_link_issues" && exit 1; }   # (a fresh KiCad
+                                                                    # without its global library tables: only those notes)
+kicad-cli sch export netlist --format kicadxml -o fab/sd-board.net.xml sd-board.kicad_sch >/dev/null 2>&1
+"$KP" check_nets.py fab/sd-board.net.xml sd-board.kicad_pcb 2>&1 | grep -v "wxApp\|stdpbase"
+kicad-cli sch export pdf -o sd-board-schematic.pdf sd-board.kicad_sch >/dev/null 2>&1
 rm -rf fab/gerbers && mkdir -p fab/gerbers
 kicad-cli pcb export gerbers --layers F.Cu,B.Cu,F.Mask,B.Mask,F.Paste,F.Silkscreen,B.Silkscreen,Edge.Cuts \
     --no-protel-ext --use-drill-file-origin -o fab/gerbers/ sd-board.kicad_pcb >/dev/null
