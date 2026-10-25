@@ -16,7 +16,8 @@ import pcbnew
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 FLOOR, PCB, PLAY, LIP = 0.8, 1.6, 0.25, 0.7      # (mm: the floor, the board, its play in the groove, the lip over it)
-SIDE, OVER = 0.3, 0.8                            # (the groove reaches 0.3 past the board's edge; the lip covers 0.8)
+SIDE, OVER = 0.4, 0.8                            # (the groove reaches 0.4 past each board edge, play for the board's
+                                                 # and the print's tolerances, the user; the lip covers 0.8)
 LEFT = 72.6 + 0.6                                # the left rail's outside: 0.6 mm clear of the battery
 POLE, POLE_D, COLLAR_H = (78.0, 40.0), 6.9, 5.6  # the pole (l, m, i) and the collar's height (the pole stands 6 mm)
 # Two posts up toward the cover (POSTS, below), as high as the collar, each the rail's width (rail and lip, no overhang
