@@ -282,3 +282,64 @@ Each step names who does it. Claude never writes to the FM-1.
   the audio ISR, the key scan from TIMER5; a card stall in the main loop freezes only the UI, the screen and the
   autosave, never audio, notes, MIDI or USB. The codec's port C lines are written at audio init only (no ISR does a
   read-modify-write on the port the SD code toggles).
+
+## 8. The card's layout (a proposal, 2026-10-25; the user: "fully for a fixed folder structure")
+
+### What the M8 does (Dirtywave M8 operation manual v6.0.0, 2025-06-21: read, not tried)
+
+- **Folders**: `/Songs` (the browser opens there; `/Songs/Demos`), `/Samples` (subfolders allowed), instrument presets
+  (`.m8i`), `/Bundles`, `/Renders`, `/Scales` (`/Scales/Factory`), `/System` (the STARTUP song, `Metronome.m8i`), themes.
+- **A song file holds no samples**, only their paths: moving or deleting a sample breaks the song ("failed to load").
+  So the M8 has **BUNDLE**: a sub-folder in `/Bundles` with the project file, its samples and its instruments (to share
+  or archive a song before moving samples). Paths up to 127 characters.
+- **Saving**: LOAD / SAVE / NEW and a NAME; the manual describes no autosave, no versions, no backup copies.
+- **Samples are streamed from the card, never held in RAM** ("no memory / length limitation"). The cost: the card's
+  **random-read speed** is critical (most cards are tuned for one sequential file; a tested-card list), the card must be
+  formatted with the SD Association's formatter (aligned clusters), and a card overworked stops playback with "CPU TOO
+  BUSY". Their advice: mono where stereo is not needed, 16 or 8 bits, avoid playing a sample an octave or more above its
+  recorded pitch (each octave doubles the data a second); notes above C-4 are limited by bit depth and channels.
+- **Recording / rendering**: samples recorded in the sample editor (SAVE / OVERWRITE with a NAME), song selections
+  rendered to a sample (a new instrument), renders as 16-bit 44.1 kHz stereo WAV in `/Renders`; loop and up to 128
+  slice markers stored inside the WAV file.
+
+### What we take, and what we do differently
+
+The M8's pain points are the free paths (a moved sample breaks a song, hence bundles) and the card's random reads.
+A **fixed folder structure** with **fixed file names** removes the first, and suits Petit FatFs (it cannot create or
+grow files: section 5), whose limit becomes a rule instead of a nuisance.
+
+```
+/OPTIMIST/                     the FM-1's folder (anything else on the card is ignored)
+  PROJECTS/P01/ .. P16/         one folder a project slot, as the PROJECT page's slots
+    PROJECT.BIN                 the project: A/B halves, each with a generation number and a CRC (a power cut while
+                                saving leaves the older half whole); the newer whole one is the project
+    V01.BIN .. V08.BIN          versions: each SAVE also writes the oldest of these (a ring of 8, generation-numbered);
+                                the PROJECT page lists them with their save count and lets one be loaded back
+  SAMPLES/S001.WAV .. S256.WAV  the samples, by slot number only: a project names slot numbers (and a short hash of the
+                                file's header to notice a slot replaced on the computer), never a path; nothing to move,
+                                nothing to bundle
+  KITS/K01.BIN .., PRESETS/U001.BIN ..   the user kits and presets, the same way
+  RECORD/R01.WAV .. R16.WAV     recordings, preallocated (a recording fills the next free one)
+  BACKUP/B01.BIN .. B08.BIN     whole-device backups (the web editor's .optimist-backup), a ring
+  SYSTEM/                       what the firmware itself needs (a startup project, test files for sd bench)
+```
+
+- **Who makes the files**: the web app's "prepare a card" (and the iOS app's) writes the folders and the preallocated
+  files at their full size, contiguous, on a card formatted with the SD Association formatter. The FM-1 only fills them
+  (Petit FatFs: write in place). A card without `/OPTIMIST` is "not prepared": the FM-1 says so, never formats.
+- **One sample from one place** (the user: "one cannot load a sample from anywhere"): the FM-1's sample picker lists
+  `SAMPLES` only; the computer side (web / iOS app) converts and drops files into free slots (resampled to the FM-1's
+  rate, 16-bit, mono unless stereo is asked for: the M8's speed advice made the default).
+- **Speed** (the M8's lesson): every streamed file is contiguous (the preparing tool makes it so: no cluster chain to
+  follow, `pf_run` gives a whole run per CMD18), mono 16-bit by default, the run length a parameter (section 7's bus
+  budget), a pitch ceiling per voice like the M8's, and `sd bench` names the card's random-read speed so a slow card is
+  told apart from a bug.
+- **Versions and backups without a journal**: A/B halves + generation numbers for the live project, a version ring
+  for "go back to what I had", a backup ring for the whole device; nothing is ever overwritten in place without the
+  other copy whole.
+- **Sharing a project**: the web / iOS app exports the project with the samples it names (what M8's bundle does), the
+  slots renumbered on import.
+
+Open (the user's call): the counts (16 projects x 8 versions, 256 samples, 16 recordings: sizes follow), whether the
+version ring is per project or one shared ring, and whether full FatFs (once LAYOUT gives the flash) should later allow
+free names inside the fixed folders.
