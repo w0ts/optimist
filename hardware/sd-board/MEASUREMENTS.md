@@ -44,7 +44,8 @@ What is measured on a real FM-1 (calipers, the user, 2026-10-25) and what is sti
 | | The battery's cable crosses over the board: about 8 mm wide, some 10 mm below the speaker plug | 30 to 38 mm up |
 | | The LCD's cable can reach a splitter's socket about 3 to 4 mm above J12 (the user: "it would totally work") | yes |
 | u, v | J12 to the jacks' edge; the free width beside the LCD's cable | not measured yet |
-| | J12: pin count, pitch, contact side, pin map (chip pins 29 to 32, 3.3 V, ground) | not measured yet |
+| | J12: the LCD's cable is 5.5 mm wide, 10 pins (the user): so 0.5 mm pitch (a standard 10-pin 0.5 mm cable is 5.5 mm wide) | 10 pins, 0.5 mm |
+| | J12: contact side, pin map (chip pins 29 to 32, 3.3 V, ground) | not measured yet |
 | | Where the card goes through the bottom wall: the card's left side from the left wall's INSIDE (pegs that close the case's bottom stand left and right of it) | 86 mm, then moved 2 mm left by the user: 84 mm (82.4 from the board's left edge) |
 
 ## How the board uses them (v4, by the battery's plug)
