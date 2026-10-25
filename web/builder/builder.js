@@ -19,6 +19,11 @@ const TEMPLATE = `
     <div class="o-dim" id="loadnote">The builder's rules are its Python code, run in this page (Pyodide, about 13 MB the first time, then cached by the browser).</div>
   </div>
 
+  <div class="ob-src" id="bsrc">
+    <label class="o-field">Build from<select id="bref" aria-describedby="brefnote"></select></label>
+    <span class="o-small o-dim" id="brefnote">Everything below (the items, their costs, the profiles) is this version's: pick it first.</span>
+  </div>
+
   <div class="cols">
     <div id="left">
     <div class="tools">
@@ -52,7 +57,6 @@ const TEMPLATE = `
       <section id="result" class="o-panel" aria-label="Build">
         <div class="o-panel-h"><h2>Build</h2></div>
         <div class="o-panel-b">
-          <label class="o-field">Build from<select id="bref"></select></label>
           <div class="row2">
             <button type="button" id="build" class="primary" disabled aria-describedby="buildmsg">Build</button>
             <button type="button" id="download" disabled>Download .config</button>
@@ -160,6 +164,24 @@ const pyReady = new Promise((res, rej) => { readyResolve = res; readyReject = re
 function call(fn, ...args) {
   return new Promise((res, rej) => { const id = ++nextId; waiting.set(id, { res, rej }); worker.postMessage({ id, fn, args }); });
 }
+/* the version everything is read from (the user, 2026-10-25: "the branch should be chosen first, everything else depends on
+   it"): ?ref=<commit> or opts.ref, a tag or a branch the relay listed; none: the site's own copy (main as deployed). Its
+   web/builder/data (registry, profiles, costs, the Python) comes from that commit, raw.githubusercontent.com (CORS *) */
+function refOf() {
+  const r = opts.ref ?? (typeof location !== "undefined" ? new URLSearchParams(location.search).get("ref") : null);
+  return /^[0-9a-f]{40}$/.test(r || "") ? r : null;
+}
+const REF = refOf();
+const dataBase = () => (REF ? `https://raw.githubusercontent.com/${S.repo || "w0ts/optimist"}/${REF}/web/builder/data/` : new URL("./data/", import.meta.url).href);
+const CARRY = "optimist-builder-carry";      // the configuration carried over a change of version (sessionStorage)
+/** another version: the page again with ?ref (none: main), the configuration carried */
+function switchRef(sha) {
+  if ((sha || null) === REF) return;
+  try { if (S.view && S.view.dump) sessionStorage.setItem(CARRY, S.view.dump); } catch (e) { /* no storage: the default */ }
+  const u = new URL(location.href);
+  if (sha) u.searchParams.set("ref", sha); else u.searchParams.delete("ref");
+  location.replace(u.href);
+}
 function startPython() {
   worker = new Worker(new URL("./py-worker.js", import.meta.url), { type: "module" });
   worker.onmessage = (e) => {
@@ -173,7 +195,7 @@ function startPython() {
     if ("error" in m) w.rej(new Error(m.error)); else w.res(m.result);
   };
   worker.onerror = (e) => readyReject(new Error(e.message || "the Python worker did not start"));
-  worker.postMessage({ boot: { base: pyodideBase(opts.pyodideBase || window.OPTIMIST_PYODIDE_BASE), data: new URL("./data/", import.meta.url).href } });
+  worker.postMessage({ boot: { base: pyodideBase(opts.pyodideBase || window.OPTIMIST_PYODIDE_BASE), data: dataBase() } });
 }
 function showProgress({ stage, loaded, total, step }) {
   if (!S.stages.length || S.stages.at(-1)[0] !== stage + (step || "")) S.stages.push([stage + (step || ""), Math.round(performance.now())]);
@@ -468,7 +490,7 @@ function renderResult() {
   $("build").disabled = !cloud.ok;
   $("build").title = cloud.why;
   if (!S.building) $("buildmsg").textContent = cloud.ok ? (TURNSTILE_SITEKEY ? "Build in the cloud sends this configuration (no GitHub account needed, a quick check that you are not a robot first); a workflow builds it and this page shows it when it is ready."
-    : "Build in the cloud opens a GitHub issue with this configuration (a GitHub account is needed); a workflow builds it and answers there with the download link.") : cloud.why;
+    : "The build service is not set up on this page.") : cloud.why;
   $("download").title = ev.errors.length ? "This configuration has errors: a build refuses it (download it anyway to fix it in the menu)" : "";
 }
 
@@ -480,7 +502,7 @@ async function copyKey() {
   catch (e) { toast(`${ev.key ? "Cloud key" : "Configuration hash"}: ${key}`); }   // (no clipboard here: shown instead)
 }
 
-/* ---- cloud builds (docs/WEB.md): a build of the same key already made is offered at once, else the issue form */
+/* ---- cloud builds (docs/WEB.md): a build of the same key already made is offered at once, else the build service */
 function buildState(ev) {
   if (!S.ready) return { ok: false, why: "" };
   if (ev.errors.length) return { ok: false, why: "This configuration has errors: fix them before a cloud build." };
@@ -693,18 +715,19 @@ function onKey(e) {
 function onDocClick(e) { if (!hasPopover && !e.target.closest("#bpop, .o-info")) $("bpop").hidden = true; }
 
 async function start() {
-  const [desc, prof, info] = await Promise.all([fetch(new URL("./data/registry.json", import.meta.url)).then((r) => r.json()), fetch(new URL("./data/profiles.json", import.meta.url)).then((r) => r.json()),
-    fetch(new URL("./build-info.json", import.meta.url)).then((r) => (r.ok ? r.json() : null)).catch(() => null)]);
+  const info = await fetch(new URL("./build-info.json", import.meta.url)).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+  S.repo = repoOf(info);
+  const json = (f) => fetch(dataBase() + f).then((r) => { if (!r.ok) throw new Error(`${f} of this version: HTTP ${r.status}`); return r.json(); });
+  const [desc, prof] = await Promise.all([json("registry.json"), json("profiles.json")]);
   S.reg = indexRegistry(desc);
   S.prof = prof;
-  S.commit = commitOf(info);
-  S.repo = repoOf(info);
+  S.commit = REF || commitOf(info);
   S.values = defaults(S.reg);
   renderMenu("");
   S.default = defaultPreset(prof, S.presets);
   $("reset").textContent = `Reset to default (${S.default.label})`;
   wire();
-  cloud.loadRefs();
+  cloud.loadRefs(REF, switchRef);
   renderTree();
   startPython();
   try {
@@ -722,7 +745,10 @@ async function start() {
   S.ready = true;
   $("fit").disabled = false;
   $("reset").disabled = false;
-  await choosePreset(S.default.id);           // (always the manifest's default: the last configuration is a choice)
+  let carried = null;
+  try { carried = sessionStorage.getItem(CARRY); sessionStorage.removeItem(CARRY); } catch (e) { /* no storage */ }
+  if (carried) await importText(carried, "the configuration before the change of version");   // (its items this version lacks: reported)
+  else await choosePreset(S.default.id);      // (always the manifest's default: the last configuration is a choice)
   const stem = S.pendingCloud || (typeof location !== "undefined" ? new URLSearchParams(location.search).get("cloud") : null);
   S.pendingCloud = null;
   if (stem) await openCloud(stem);            // (a build's configuration: the issue's link, ?cloud=<stem>)

@@ -48,7 +48,7 @@ const E = vm.runInNewContext(proto + `
    openMidi, findPorts, wantsReconnect, syncState, ROLL, rollRest, rollNotes, noteSpan, rollAdd, rollRemove, rollToggle, rollSetLength, rollSetNote, rollSetStep, rollChanged, rollGrid, rollLen, DRUM_PAGE, drumPages, drumPageRange, COLORS, engineColor, kindColor, contrast, textOn, MASTER_FX, MASTER_BUS, fxInline, FX_INLINE_MAX, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth, KEYS, KEY_FIXED, LANE_KEYS, keyFor, keyLabel, keyPlan, stepxBuilt, PAT, patSlotView, patUsers,
    PATREC, patRecParse, patRecBuild, patRawEmpty, patStepFrom, patStepRaw, patDrumFrom, patDrumRaw, patReadAll, patWriteAll,
    FXT, FXT_NAMES, fxsLoad, fxType, fxSlotAmt, readFx, keptIds, AUTO, autoLane, SetGate,
-   FXP, FXP_TABLE, SCRN_TABLE, SCRS_TABLE, EQ_FL_HZ, EQ_FH_HZ, fxpClass, fxpName, fxpTypeName, fxpAllows, fxpFmt, readFxpOwner, readFxpSlot })`,
+   FXP, FXP_TABLE, SCRN_TABLE, SCRS_TABLE, EQ_FL_HZ, EQ_FH_HZ, fxpClass, fxpName, fxpTypeName, fxpAllows, fxpFmt, readFxpOwner, readFxpSlot, panelKey, panelKeyName, navParse, navTracksParse, navKnobs, navKnobAt, MNAV })`,
 { setTimeout, clearTimeout, setInterval, clearInterval, console, TextEncoder, TextDecoder });
 
 async function editorMock() {
@@ -1636,7 +1636,7 @@ async function editorDaw() {
   }
   const openers = ids.every((id) => html.includes(`popBtn("${id}"`) || html.includes(`"data-pop": "${id}"`) || html.includes(`data-pop="${id}"`) || html.includes(`g("${id}", `) || (E.MASTER_FX.some((f) => f.id === id) && /"data-pop": f\.id/.test(html)) || (id === "fxslot" && /dataset\.pop = bus1 \|\| "fxslot"/.test(html)));
   ok(flat && openers && ids.length === 16 && !("project" in E.NAV) && E.navScreen({ screen: "mixer", pop: { id: "sound" } }, "library").pop === null
-    && E.navKey({ screen: "mixer", pop: null }, "Escape").screen === "mixer" && js(E.SCREENS) === js(["mixer", "library", "samples", "drumkit", "projects", "backup", "snapshots", "device", "screen", "settings"]),
+    && E.navKey({ screen: "mixer", pop: null }, "Escape").screen === "mixer" && js(E.SCREENS) === js(["mixer", "mirror", "library", "samples", "drumkit", "projects", "backup", "snapshots", "device", "settings"]),
     "daw: every popup is one click from a strip of the mixer, Escape returns to it, one popup at a time, a screen closes it");
   ok(html.includes('$("pop").addEventListener("cancel"') && html.includes('e.target === $("pop")') && html.includes('$("popx").addEventListener("click"'),
     "daw: the popup closes by Escape (cancel), a click outside (the backdrop) and its x");
@@ -2486,7 +2486,7 @@ async function editorUiPass() {
   const card = (/<section id="connectcard"[\s\S]*?<\/section>/.exec(html) || [""])[0];
   ok(/<html lang="en" data-conn="off">/.test(html) && /html\[data-conn=off\] \.panel/.test(css) && /html:not\(\[data-conn=off\]\) #connectcard/.test(css)
     && /id="connect"/.test(card) && /id="cstatus"/.test(card) && /data-t="connectHint"/.test(card) && /href="#install"/.test(card)
-    && /dataset\.conn = lite \? "lite" : ready \? "on" : "off"/.test(html) && !/<section[^>]*id="p-\w+"[^>]*>[^<]*\d/.test(card),
+    && /dataset\.conn = bt \? "bt" : lite \? "lite" : ready \? "on" : "off"/.test(html) && !/<section[^>]*id="p-\w+"[^>]*>[^<]*\d/.test(card),
     "ui: not connected, only the connect card (Connect, status, hint, installer link)");
   {   /* a backup-only firmware (builder ED_LIVE off, ed_lite.c): INFO's tag 0x64; the page loads the backup alone */
     const enc = (s) => [...s].map((c) => c.charCodeAt(0)).concat(0);
@@ -2522,6 +2522,15 @@ async function editorUiPass() {
   const gone = E.findPorts({ inputs: new Map([["a", { name: "Optimist", state: "disconnected" }]]), outputs: new Map([["b", { name: "Optimist", state: "disconnected" }]]) });
   ok(a.st === "ok" && ports && /optimist|felucca/i.test(ports.input.name) && ports.output && denied.st === "denied" && none.st === "nomidi"
     && empty === null && gone === null, "ui: auto-connect with a mocked MIDI access (found; refused; no Web MIDI; not plugged in)");
+  {   /* the FM-1 with its Bluetooth MIDI paired too: USB first; FM-1 (Bluetooth) the Bluetooth port; Bluetooth alone: that one */
+    const P = (...names) => new Map(names.map((n, i) => [String(i), { name: n, state: "connected" }]));
+    const both = { inputs: P("Optimist 112D Bluetooth", "Optimist"), outputs: P("Optimist 112D Bluetooth", "Optimist") };
+    const btOnly = { inputs: P("Optimist 112D Bluetooth"), outputs: P("Optimist 112D Bluetooth") };
+    ok(E.findPorts(both).input.name === "Optimist" && E.findPorts(both, true).output.name === "Optimist 112D Bluetooth"
+      && E.findPorts(btOnly).input.name === "Optimist 112D Bluetooth" && E.findPorts({ inputs: P("Optimist"), outputs: P("Optimist") }, true) === null
+      && /bt: devSrc !== "sim" && isBtPort\(input\)/.test(html) && /if \(d\.bt\) return loadBt\(d\);/.test(html) && /<option value="bt"/.test(html),
+      "ui: Bluetooth: the USB port first, the Bluetooth one when asked or alone; a Bluetooth port opens the Mirror page alone (loadBt)");
+  }
   const ev = (name, state, type) => ({ port: { name, state, type } });
   ok(E.wantsReconnect(ev("Optimist FM-1", "connected", "output"), false, true) && !E.wantsReconnect(ev("Optimist FM-1", "connected", "output"), true, true)
     && !E.wantsReconnect(ev("Optimist FM-1", "connected", "output"), false, false) && !E.wantsReconnect(ev("Other synth", "connected", "output"), false, true)
@@ -2543,6 +2552,13 @@ async function editorUiPass() {
   ok(/data-si="snapshot"/.test(snTab) && / hidden>/.test(snTab) && /id="snaps"/.test(snPanel) && /id="snprog"/.test(snPanel)
     && /b\.hidden = !hasSnaps\(\)/.test(html) && /const hasSnaps = \(\) => !!dev && !!dev\.sn;/.test(html) && E.SCREENS.includes("snapshots"),
     "ui: a Snapshots tab (icon) opens their screen; hidden without snapshots (no SN_LIST reply)");
+  ok(/html\[data-conn=off\] #tabs > :not\(\[data-tab=install\]\)/.test(html) && /html\[data-conn=bt\] #tabs > button\[data-tab\]:not\(\[data-tab=mirror\]\)[^{]*\{ display: none !important; \}/.test(html)
+    && !/data-na[^r]/.test(html),
+    "ui: tabs only for what the connection offers (none before an FM-1 connects but Firmware, Simulator and Editor; Bluetooth: Mirror)");
+  ok(["mixer", "library", "samples", "drumkit", "projects", "backup", "snapshots", "device", "mirror", "settings"].every((t) => new RegExp(`data-tab="${t}"[^>]*class="ionly"`).test(html))
+    && /id="helpbtn"[^>]*data-si="help" class="ionly"/.test(html) && !/data-tab="(install|sim)"[^>]*ionly/.test(html)
+    && /e\.title = txt;\s*e\.setAttribute\("aria-label", txt\);/.test(html) && /data-tab="samples" data-t="samples" data-si="sample"/.test(html) && /\n  sample: "M/.test(html),
+    "ui: the tabs from Editor on are icons with their name as the tooltip (Firmware and Simulator keep their words); Samples a waveform icon");
   /* the MIDI clock pill: SYNC and the clock followed; green = an external clock, amber = USB / TRS chosen with none, neutral */
   const sy = (a, b) => JSON.stringify(E.syncState(a, b));
   ok(sy("AUTO", "TRS") === '{"text":"SYNC AUTO:TRS","st":"ok"}' && sy("AUTO", "INT") === '{"text":"SYNC AUTO:INT","st":""}'
@@ -2815,7 +2831,7 @@ async function masterStrip() {
   const lic = existsSync(join(HERE, "JETBRAINSMONO-LICENSE.txt")) ? readFileSync(join(HERE, "JETBRAINSMONO-LICENSE.txt"), "utf8") : "";
   ok(!/@font-face \{ font-family: "(JetBrains Mono|SLOOP Terminus)"/.test(html) && /--font: system-ui/.test(html),
     "look: the editor's text is the system's own sans-serif (no font data inlined)");
-  ok(/<div class="menubar" id="side"/.test(html) && !/<aside/.test(html) && !/id="toptracks"/.test(html) && (html.match(/class="navh"/g) || []).length === 3 && !/data-t="nav(Play|Lib|Sys)"/.test(html) && !["navTrack", "navFx"].some((k) => html.includes(`data-t="${k}"`))
+  ok(/<div class="menubar" id="side"/.test(html) && !/<aside/.test(html) && !/id="toptracks"/.test(html) && (html.match(/class="navh"/g) || []).length === 2 && !/data-t="nav(Play|Lib|Sys)"/.test(html) && !["navTrack", "navFx"].some((k) => html.includes(`data-t="${k}"`))
     && [...html.matchAll(/data-go="(\w+)"/g)].every((m) => E.NAV[m[1]]) && /function drawTiles\(/.test(html) && /--t1: #287cff; --t2: var\(--t1\); --t3: var\(--t1\); --t4: var\(--t1\);/.test(html) && !/data-sel="\d"\] \{ --trk/.test(html),
     "look: a menu bar on top with the pages that are not in the mixer (library, projects, ..., settings, help; no editor buttons, no tab row: the strips' heads select), the step tiles, one colour (the blue) for every track");
   /* the Samples page in three steps (SLOOP 2.4's): the slot, the sound (files with the key map, or CHOP), send + play on a track */
@@ -3346,7 +3362,7 @@ async function installerModule() {
     "installer module: mountInstaller(container, opts); no innerHTML (the manifest's words stay text), a real dialog, not confirm()");
 }
 
-/* the Screen tab (106 MIRROR, ED_MIRROR): the editor's decoder (mirrorFrame) gives the fixture's pixels from its frames (the iOS app's
+/* the Mirror tab (106 MIRROR, ED_MIRROR): the editor's decoder (mirrorFrame) gives the fixture's pixels from its frames (the iOS app's
    fixture, tests/mirror_test.c MIRROR_FIXTURE; the reference decoder tests/mirror_dec.h); the reply told from the pushes; the tab */
 async function editorMirror() {
   const m = /const mir = \{[\s\S]*?\n\}\nfunction mirrorStart/.exec(html);
@@ -3370,11 +3386,29 @@ async function editorMirror() {
   ok(!mirrorFrame([3, 0, 0]) && !mirrorFrame([1, 0, 0]), "mirror: an unknown op or a short BLIT refused");
   ok(/f\.cmd === CMD\.MIRROR && !\(f\.a\.length === 6 && f\.a\[0\] <= 1 && f\.a\[1\] >= 1\)\) \{ this\.onMirror\(f\.a\)/.test(html) && /onMirror: \(a\) => mirrorFrame\(a\),/.test(html)
     && /MIRROR: 106/.test(html) && /id === 0x65 && n >= 1 && a\[r\.i\] >= 1\) o\.mirror/.test(html) && /dev\.info\.mirror\.v === MIRROR_V/.test(html)
-    && /<button role="tab" data-tab="screen"[^>]* hidden>/.test(html) && /b\.hidden = !mirrorOn\(\)/.test(html)
-    && /:not\(\[data-tab=screen\]\)/.test(html),
+    && /<button role="tab" data-tab="mirror"[^>]* hidden>/.test(html) && /b\.hidden = !mirrorOn\(\)/.test(html)
+    && /:not\(\[data-tab=mirror\]\)/.test(html),
     "mirror: pushes routed apart from the reply, INFO tag 65, the tab (hidden unless built; offered on a backup-only firmware)");
-  ok(/c\.onclick = mirrorFull;/.test(html) && /function mirrorFull\(\)/.test(html) && /#mirror:fullscreen \{/.test(html) && /wakeLock\.request\("screen"\)/.test(html),
-    "mirror: a tap on the screen: full screen and back, the phone kept awake meanwhile");
+  ok(/addEventListener\("dblclick", mirrorFull\)/.test(html) && /function mirrorFull\(\)/.test(html) && /#p-mirror:fullscreen \{/.test(html) && /const c = \$\("p-mirror"\)/.test(html) && /wakeLock\.request\("screen"\)/.test(html),
+    "mirror: a double click on the screen: full screen and back, the phone kept awake meanwhile");
+  /* the Mirror page's keys (108 PANEL, the app's PanelKeys.swift) and touch buttons (109 NAV, the app's NavState.swift) */
+  const pk = (k, sh = false) => JSON.stringify(E.panelKey(k, sh));
+  ok(pk("x") === '{"held":[0,0]}' && pk(" ") === '{"held":[0,10]}' && pk("ArrowLeft") === '{"held":[0,12]}' && pk("ArrowRight") === '{"held":[0,13]}'
+    && pk("a") === '{"held":[1,0]}' && pk("K", true) === '{"held":[1,25]}' && pk("[") === '{"knob":[0,-1]}' && pk("8") === '{"knob":[6,1]}'
+    && pk("m") === "null" && pk("Enter") === "null" && E.panelKeyName("A") === E.panelKeyName("a"),
+    "mirror: the computer keys: buttons by label, the note keys (Shift an octave up), knob pairs; others not the panel's");
+  const nz = (str) => [...str].map((c) => c.charCodeAt(0)).concat(0);
+  const st = E.navParse([0, 0, 1, 2, 1, 3, ...nz("A"), ...nz("DECAY"), ...nz("C"), 2, 1]);
+  ok(st && !st.refused && st.screen === 1 && st.mode === 2 && st.row === 1 && JSON.stringify(st.rows) === '["A","DECAY","C"]' && st.track === 2
+    && st.knobs.length === 4 && st.knobs[3].x === 180 && E.navKnobAt(st.knobs, 200, 40) === 3 && E.navKnobAt(st.knobs, 200, 100) === -1,
+    "mirror: NAV STATE parsed: screen, family, cursor, rows, track, the 1x4 cards");
+  const l3 = E.navParse([1, 1, 9, 127, 0, 0, 127, 3, 50, 20]);
+  ok(l3 && l3.refused && l3.track === 127 && l3.knobs[2].y === 90 && l3.knobs[2].w === 240 && E.navParse([0, 0, 1, 2, 0, 1, 65]) === null
+    && JSON.stringify(E.navTracksParse([4, 0, 3, ...nz("MASTER"), ...nz("T1"), ...nz("T2")])) === '["MASTER","T1","T2"]',
+    "mirror: NAV: the four lines, a refusal, a short reply refused; TRACKS' names");
+  ok(/tabMirror: "Mirror"/.test(html) && /RENAMED_TABS = \{ screen: "mirror" \}/.test(html) && /rq\(\[CMD\.PANEL, x\]/.test(html) && /case CMD\.PANEL: case CMD\.NAV:/.test(html)
+    && /openPop\("sequence", st\.track - 1\)/.test(html) && /if \(tab === "mirror"\) nav = \{ \.\.\.nav, screen: "mirror" \}/.test(html),
+    "mirror: the tab named Mirror (an old #screen opens it), PANEL and NAV replies matched, STEPS' piano roll over the mirrored screen");
 }
 
 await editorMock();

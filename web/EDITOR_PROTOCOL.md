@@ -513,7 +513,7 @@ Asking sets the ring's source for the next 2 s: ask again about every 80 ms to w
 
 ## The screen mirrored (106 MIRROR; INFO tag 65)
 
-`ed_mirror.c`, `ed_mirror_enc.h` (`ED_MIRROR`, with live editing or without; the clients are the iPhone app `ios/OptimistMirror` and the editor's Screen tab). While a client asks, every write to the panel
+`ed_mirror.c`, `ed_mirror_enc.h` (`ED_MIRROR`, with live editing or without; the clients are the iPhone app `ios/OptimistMirror` and the editor's Mirror tab). While a client asks, every write to the panel
 (`display/lcd.c` `lcd_fill`, `lcd_blit`) also goes out as it is drawn; a client applying them in order holds the panel's pixels. The device keeps no frame buffer and sends nothing while no client asks; the mixer's meters go 10 times a second over USB, never over Bluetooth.
 
 Request: bits (bit 0 on, bit 1 the whole panel again). Reply: on, version 2, width (2 x 7 bit), height (2 x 7 bit). The pushes go on the link the last request came on:

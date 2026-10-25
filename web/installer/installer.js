@@ -41,7 +41,7 @@ export const TEXT = {
     "An install writes only the firmware area, not the area where the FM-1 keeps your projects, presets, kits and samples. " +
     "Optimist is a work in progress: an install can fail, its formats change between versions, and coming from another " +
     "firmware it may erase what it cannot read (SLOOP's data is kept). Back up first. No warranty.",
-  s1: "Connect", s2: "Choose", s3: "Install", s4: "When something goes wrong",
+  s3: "Install", s4: "When something goes wrong",
   connectHow: "Use Chrome or Edge. Connect the FM-1 with a USB data cable, straight into the computer (no hub), and switch it on.",
   find: "Find the FM-1", findAgain: "Find again",
   unchecked: "Not looked for yet.", looking: "Looking for the FM-1…",
@@ -85,7 +85,7 @@ export const TEXT = {
   leave: "Writing. Do not close the page.",
   /* errors (fm1ota.js codes) */
   error: "Error: ",
-  notfound: "No FM-1 found. Check the cable (step 1), close other apps that use MIDI, and press Install again.",
+  notfound: "No FM-1 found. Check the cable (see under the Install button), close other apps that use MIDI, and press Install again.",
   model: "The connected device is not an FM-1: ",
   stopped: "The FM-1 stopped answering. Replug the USB cable and press Install again.",
   lost: "The USB connection was lost. Replug the cable and press Install again: the FM-1 stays in update mode until it is finished.",
@@ -300,11 +300,8 @@ export function mountInstaller(container, opts = {}) {
   el.found = h("p.oi-found", { role: "status", "aria-live": "polite" }, TEXT.unchecked);
   el.help = h("ul.oi-help", { hidden: true }, TEXT.notfoundHelp.map((t) => h("li", {}, t)));
   el.browser = h("p.o-msg.err.oi-browser", { hidden: true, role: "alert" });
-  const step1 = card(1, TEXT.s1,
-    h("p", {}, TEXT.connectHow),
-    el.browser,
-    h("div.oi-row", {}, el.find, el.found),
-    el.help);
+  /* (the FM-1 found, under the Install button: the Mirror app's footer) */
+  const connectBox = h("div.oi-conn", {}, el.browser, h("div.oi-row", {}, el.found, el.find), h("p.o-dim.oi-how", {}, TEXT.connectHow), el.help);
 
   /* ---- 2 Choose */
   /* a release: its version, then its flavour (two menus in one row, as the Mirror app); st.choice is the package's index */
@@ -312,7 +309,7 @@ export function mountInstaller(container, opts = {}) {
   st.group = groups.length ? groups[0].key : "";
   if (groups.length && st.choice === "0") st.choice = String(groups[0].idx[0]);   /* (the newest release's first flavour) */
   el.rel = h("select.oi-csearch.oi-rel", { "aria-label": TEXT.relLabel, onchange: () => pickGroup(el.rel.value) }, groups.map((g) => h("option", { value: g.key }, g.label)));
-  el.flav = h("select.oi-csearch.oi-flav", { "aria-label": TEXT.flavLabel, onchange: () => { st.choice = el.flav.value; syncChoice(); loadChoice(); } });
+  el.flav = h("select.oi-csearch.oi-flav", { "aria-label": TEXT.flavLabel, onchange: () => { st.choice = el.flav.value; fillFlavours(); syncChoice(); loadChoice(); } });   /* (fillFlavours: its description) */
   el.flavDesc = h("span.oi-desc.o-dim");
   const relRow = groups.length ? choiceRow("rel", TEXT.useRelease, null, null,
     h("div.oi-relpick", {}, h("label.o-field", {}, h("span", {}, TEXT.relLabel), el.rel), h("label.o-field", {}, h("span", {}, TEXT.flavLabel), el.flav), el.flavDesc)) : null;
@@ -341,9 +338,6 @@ export function mountInstaller(container, opts = {}) {
   el.stockRow = choiceRow("stock", TEXT.stockTitle, TEXT.stockNote, "FM-1_015");
   el.stockRow.hidden = true;
   el.pkginfo = h("p.oi-pkg", { role: "status", "aria-live": "polite" });
-  const step2 = card(2, TEXT.s2,
-    h("fieldset.oi-choices", {}, h("legend.o-sr", {}, TEXT.chooseLegend), relRow, el.mineRow, fileRow, el.stockRow),
-    el.pkginfo);
 
   /* ---- 3 Install */
   el.go = h("button.o-btn.primary.big.oi-go", { type: "button", disabled: true, onclick: () => install() }, TEXT.install);
@@ -354,8 +348,14 @@ export function mountInstaller(container, opts = {}) {
   el.ok = h("div.o-msg.ok.oi-ok", { hidden: true });
   el.log = h("pre.oi-log");
   el.stockWarn = h("p.o-msg.warn", { hidden: true }, TEXT.stockNote);
-  const step3 = card(3, TEXT.s3,
-    h("p", {}, TEXT.keep), el.stockWarn, el.go, el.phases, el.bar, el.status, el.err, el.ok,
+  /* Install: what to write (an official release's version and flavour, your build, a .fwsc file), then the button, its
+     progress and the FM-1 found, together in one card (the Mirror app's Firmware tab, the user 2026-10-25) */
+  const installCard = card("install", TEXT.s3,
+    h("fieldset.oi-choices", {}, h("legend.o-sr", {}, TEXT.chooseLegend), relRow, el.mineRow, fileRow, el.stockRow),
+    el.pkginfo, el.stockWarn,
+    el.go, h("p.o-dim.oi-keep", {}, TEXT.keep),
+    el.phases, el.bar, el.status, el.err, el.ok,
+    connectBox,
     h("details.o-details.oi-logbox", {}, h("summary", {}, TEXT.logTitle), el.log));
 
   /* ---- Build your own: its own flow (the builder), a card of its own below Install, as the Mirror app */
@@ -366,7 +366,7 @@ export function mountInstaller(container, opts = {}) {
   /* ---- 4 When something goes wrong */
   el.stockFile = h("input.oi-file", { type: "file", accept: ".fwsc", "aria-label": TEXT.stockFile, onchange: () => loadStock() });
   el.stockMsg = h("p.oi-stockmsg", { role: "status", "aria-live": "polite" });
-  const step4 = card(4, TEXT.s4,
+  const rescueBox = h("details.o-details.oi-rescuebox", {}, h("summary", {}, TEXT.s4),
     h("dl.oi-rescue", {},
       h("dt", {}, TEXT.r1h), h("dd", {}, TEXT.r1),
       h("dt", {}, TEXT.r2h), h("dd", {}, TEXT.r2),
@@ -382,17 +382,15 @@ export function mountInstaller(container, opts = {}) {
   el.meta = h("p.oi-meta.o-dim");
   const root = h("div.oi", {},
     h("header.oi-intro", {}, h("h1.oi-title", {}, TEXT.title), h("p.oi-what", {}, TEXT.what)),
-    h("ol.oi-steps", {}, [step1, step2, step3].map((s) => h("li", {}, s))),
-    ownCard,
-    h("ol.oi-steps", { start: "4" }, h("li", {}, step4)),
+    h("div.oi-steps", {}, installCard, ownCard, rescueBox),
     h("footer.oi-foot", {}, el.meta,
       h("p.o-dim", {}, h("a", { href: srcHref, target: "_blank", rel: "noopener" }, TEXT.source), " · ", link("about", TEXT.about))));
   container.replaceChildren(root);
 
-  function card(n, title, ...body) {   /* (neutral: the track colours are the device's, not the installer's) */
-    const hid = `oi-s${n}`;
+  function card(name, title, ...body) {   /* (neutral: the track colours are the device's, not the installer's) */
+    const hid = `oi-s${name}`;
     return h("section.o-panel.oi-step", { "aria-labelledby": hid },
-      h("div.o-panel-h", {}, h("h2.oi-h", { id: hid }, h("span.oi-num", { "aria-hidden": "true" }, String(n)), h("span", {}, title))),
+      h("div.o-panel-h", {}, h("h2.oi-h", { id: hid }, h("span", {}, title))),
       h("div.o-panel-b", {}, ...body));
   }
   function choiceRow(value, title, desc, product, extra = null) {

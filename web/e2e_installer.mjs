@@ -42,7 +42,7 @@ writeFileSync(join(WORK, "sloop.fwsc"), fakePackage("FM-1_905"));
 const SHA = createHash("sha256").update(raw).digest("hex");
 const SITE = join(WORK, "site");
 execFileSync(PYTHON, ["-c", "import json, sys; sys.path.insert(0, 'web'); import make_site; from pathlib import Path; "
-  + "fl = [{**f, 'pkg': Path(sys.argv[1])} for f in json.load(open('web/flavours.json'))['flavours']]; make_site.main(None, '0.1-e2e', sys.argv[2], fl)",
+  + "fl = [{**f, 'pkg': Path(sys.argv[1])} for f in json.load(open('web/flavours.json'))['flavours']]; make_site.main('0.1-e2e', sys.argv[2], releases=[{'tag': 'v0.1-e2e', 'date': '2026-10-25', 'flavours': fl}])",
   join(WORK, "fake.fwsc"), SITE], { cwd: ROOT, stdio: ["ignore", "ignore", "inherit"], env: { ...process.env, OPTIMIST_SOURCE_REF: "v0.1-e2e" } });
 const PAGE = join(SITE, "webapp", "installer", "index.html");
 if (styleFile) {                                     /* another shared style (and its font) in place of ours */
@@ -155,25 +155,27 @@ const open = async (path, w = 1440, s = "dark") => {
     return { kind: $(".oi-pkg").dataset.kind, text: $(".oi-pkg").textContent };`);
 };
 
-/* ---- 1 the page: four steps, the package checked, what it says */
+/* ---- 1 the page: Install (the choices, the button, the FM-1 found), Build your own, the rescue folded; the package checked */
 const start = await open("/webapp/installer/");
 const p0 = await run(`${U} return { steps: [...document.querySelectorAll(".oi-step .oi-h")].map((e) => e.textContent), h1: $("h1").textContent,
+  rescue: $(".oi-rescuebox > summary").textContent, folded: !$(".oi-rescuebox").open, under: !!$(".oi-step .oi-go ~ .oi-conn .o-btn"),
   radios: [...document.querySelectorAll(".oi-choice:not([hidden]) .oi-radio")].map((r) => [r.value, r.checked]), meta: $(".oi-meta").textContent, go: $(".oi-go").disabled,
-  find: $(".oi-find, .oi-row .o-btn").disabled, tiles: document.querySelectorAll(".tile, .tiles").length, head: !!$(".o-head [aria-current=page]"),
+  find: $(".oi-conn .o-btn").disabled, tiles: document.querySelectorAll(".tile, .tiles").length, head: !!$(".o-head [aria-current=page]"),
   unlabeled: [...document.querySelectorAll(".oi input")].filter((i) => !(i.labels && i.labels.length) && !i.getAttribute("aria-label")).length,
   nameless: [...document.querySelectorAll(".oi button")].filter((b) => !b.textContent.trim() && !b.getAttribute("aria-label")).length,
   source: $(".oi-foot a").href, about: [...document.querySelectorAll(".oi-foot a")].map((a) => a.getAttribute("href")) };`);
-ok(start.kind === "ok" && /^Ready: Synth 0\.1-e2e · FM-1_720$/.test(start.text), `step 2: the site's package downloaded and checked (${start.text})`);
-ok(JSON.stringify(p0.steps) === JSON.stringify(["1Connect", "2Choose", "3Install", "4When something goes wrong"]) && p0.h1 === "Install Optimist" && p0.head && !p0.tiles,
-  "the page: one column of four numbered steps, the shared header, no SLOOP tiles");
-ok(JSON.stringify(p0.radios) === JSON.stringify([["0", true], ["file", false]]) && !p0.go && !p0.find, "the manifest's flavour chosen, a file of yours offered; Find and Install on");
+ok(start.kind === "ok" && /^Ready: .+ v0\.1-e2e · FM-1_720$/.test(start.text), `step 2: the site's package downloaded and checked (${start.text})`);
+ok(JSON.stringify(p0.steps) === JSON.stringify(["Install", "Build your own"]) && p0.rescue === "When something goes wrong" && p0.folded && p0.under
+  && p0.h1 === "Install Optimist" && p0.head && !p0.tiles,
+  "the page: Install (the choices, the button, the FM-1 found under it), Build your own, the rescue folded; the shared header, no SLOOP tiles");
+ok(JSON.stringify(p0.radios) === JSON.stringify([["rel", true], ["file", false]]) && !p0.go && !p0.find, "the release's flavour chosen, a file of yours offered; Find and Install on");
 ok(p0.meta.includes(`sha256 ${SHA}`) && p0.meta.includes("built from v0.1-e2e") && p0.source === "https://github.com/w0ts/optimist/tree/v0.1-e2e" && p0.about.includes("../../LICENSING.md"),
   "the version, the tag, the package's sha256 small at the end; Source at the tag; About and licences");
 ok(!p0.unlabeled && !p0.nameless, "every field has a label, every button a name");
 await full("installer-desktop-dark-start", 1440);
 
 /* ---- 2 connect: nothing plugged -> not found and what to do; plugged -> found by itself (statechange) */
-const nf = await run(`${U} $(".oi-step .o-btn").click(); await until(() => $(".oi-found").dataset.kind === "err");
+const nf = await run(`${U} $(".oi-conn .o-btn").click(); await until(() => $(".oi-found").dataset.kind === "err");
   return { t: $(".oi-found").textContent, help: vis(".oi-help"), items: $(".oi-help").textContent, calls: window.__midiCalls };`);
 ok(nf.t === "No FM-1 found." && nf.help && /OCT− alone/.test(nf.items) && nf.calls === 1, "step 1: no FM-1: said, with what to do (cable, hub, other apps, USB rescue)");
 await shot("installer-desktop-dark-notfound");
@@ -199,7 +201,7 @@ await full("installer-desktop-dark-writing", 1440);
 const done = await run(`${U} await until(() => vis(".oi-ok"), 90000);
   return { ok: $(".oi-ok").textContent, st: [...document.querySelectorAll(".oi-phases li")].map((l) => l.dataset.st), bar: $(".oi-bar").value, bad: D().bad,
     go: $(".oi-go").textContent, err: vis(".oi-err"), busy: window.optimistInstaller.busy, id: D().identity };`);
-ok(/^Done\. The FM-1 runs Synth \(FM-1_720\)\./.test(done.ok) && done.st.every((s) => s === "done") && done.bar === 100 && done.bad === 0 && !done.err && !done.busy && done.id === PRODUCT,
+ok(/^Done\. The FM-1 runs .+ \(FM-1_720\)\./.test(done.ok) && done.st.every((s) => s === "done") && done.bar === 100 && done.bad === 0 && !done.err && !done.busy && done.id === PRODUCT,
   `done: the four phases ticked, the bar full, the identity checked, every read answered right (${done.ok})`);
 await full("installer-desktop-dark-done", 1440);
 
@@ -216,7 +218,7 @@ const res = await run(`${U} D().unplugAfter = Infinity; D().served = 0; D().plug
 ok(res.ok && /FM-1_720/.test(res.ok) && !res.err && res.bad === 0 && /update mode \(ota-FM-1_900\)/.test(res.found),
   "replugged in update mode: found as such, Install again finishes the write and checks the FM-1 comes back");
 const none = await run(`${U} D().unplug(); await sleep(800); $(".oi-go").click(); await until(() => vis(".oi-err"), 20000); return $(".oi-err").textContent;`);
-ok(/^No FM-1 found\. Check the cable \(step 1\)/.test(none), "no FM-1 at Install: said, pointing at step 1");
+ok(/^No FM-1 found\. Check the cable \(see under the Install button\)/.test(none), "no FM-1 at Install: said, pointing at step 1");
 
 /* ---- a file of yours: not a package -> refused in words; a SLOOP package -> ready */
 const doc = await send("DOM.getDocument", { depth: -1 });
@@ -238,7 +240,7 @@ if (process.env.FM1_V15 && existsSync(process.env.FM1_V15)) {
   ok(v.go === "Install the official V15" && v.warn && v.checked, "back to V15: the official file chosen, the button says so, the warning about the data");
 }
 
-/* ---- the keyboard: Tab reaches Find, the choices, Install, in order; focus is visible */
+/* ---- the keyboard: Tab reaches the choices, Install, then Find (under it), in order; focus is visible */
 await open("/webapp/installer/");
 const order = [];
 await run(`document.activeElement && document.activeElement.blur(); window.scrollTo(0, 0); return true;`);
@@ -248,8 +250,8 @@ for (let i = 0; i < 24; i++) {
   order.push(await run(`const e = document.activeElement; return e ? (e.className || e.tagName) + "|" + (e.textContent || e.value || "").slice(0, 20) + "|" + getComputedStyle(e).outlineStyle : "";`));
 }
 const at = (re) => order.findIndex((o) => re.test(o));
-ok(at(/^o-btn\|Find the FM-1/) >= 0 && at(/^oi-radio/) > at(/Find the FM-1/) && at(/oi-go/) > at(/^oi-radio/) && order.filter((o) => /oi-go|Find the FM-1/.test(o)).every((o) => !o.endsWith("|none")),
-  `keyboard: Tab goes Find -> the choices -> Install, each with a visible focus ring`);
+ok(at(/^oi-radio/) >= 0 && at(/oi-go/) > at(/^oi-radio/) && at(/^o-btn\|Find (again|the FM-1)/) > at(/oi-go/) && order.filter((o) => /oi-go|Find the FM-1/.test(o)).every((o) => !o.endsWith("|none")),
+  `keyboard: Tab goes the choices -> Install -> Find, each with a visible focus ring`);
 
 /* ---- the looks: 1440 and 390, dark and light; the phone has no sideways scroll and 16 px gutters */
 const colors = [];
@@ -265,7 +267,7 @@ for (const [w, dev] of [[1440, "desktop"], [390, "phone"]]) {
 }
 ok(colors[0] !== colors[1] && colors[0] === colors[2] && colors[1] === colors[3], `light / dark follow the system (${colors[0]} / ${colors[1]})`);
 const nm = await open("/webapp/installer/?nomidi", 390, "light");
-const nmv = await run(`${U} return { msg: vis(".oi-browser") && $(".oi-browser").textContent, go: $(".oi-go").disabled, find: !vis(".oi-step .o-btn") };`);
+const nmv = await run(`${U} return { msg: vis(".oi-browser") && $(".oi-browser").textContent, go: $(".oi-go").disabled, find: !vis(".oi-conn .o-btn") };`);
 ok(nm.kind === "ok" && /Safari and the browsers on iPhone and iPad do not have Web MIDI/.test(nmv.msg) && nmv.go && nmv.find,
   "no Web MIDI (iPhone, Safari): said plainly in step 1, no Find, Install off, the package still checked");
 await full("installer-phone-light-nomidi", 390);
@@ -274,14 +276,15 @@ await full("installer-phone-dark-nomidi", 390);
 
 /* ---- the shipped module mounted by a host page: two flavours, the links go to the host */
 await open("/webapp/host.html", 1440, "dark");
-const host = await run(`${U} const r = { radios: document.querySelectorAll(".oi-choice:not([hidden]) .oi-radio").length, descs: [...document.querySelectorAll(".oi-desc")].map((d) => d.textContent),
+const host = await run(`${U} const r = { radios: document.querySelectorAll(".oi-choice:not([hidden]) .oi-radio").length, flavs: document.querySelectorAll(".oi-flav option").length,
     styles: document.querySelectorAll("#optimist-installer-style").length };
-  [...document.querySelectorAll(".oi a")].find((a) => a.textContent === "open the builder").click();
+  $(".oi-own .o-btn").click();
   [...document.querySelectorAll(".oi a")].find((a) => a.textContent === "About and licences").click();
   r.navs = window.navs.slice(); r.url = location.pathname; r.busy = window.inst.busy;
-  document.querySelector(".oi-radio[value='1']").click(); await until(() => $(".oi-pkg").dataset.kind === "ok" && /Drum machine/.test($(".oi-pkg").textContent), 5000);
+  const f = $(".oi-flav"); f.value = "1"; f.dispatchEvent(new Event("change")); await until(() => $(".oi-pkg").dataset.kind === "ok" && /Drum machine/.test($(".oi-pkg").textContent), 5000);
+  r.descs = [...document.querySelectorAll(".oi-desc")].map((d) => d.textContent);
   r.second = $(".oi-pkg").textContent; window.inst.unmount(); r.empty = document.getElementById("tab").children.length === 0; return r;`);
-ok(host.radios === 3 && host.descs.includes("A second flavour, for the test.") && host.styles === 1, "mounted (webapp/installer/installer.js): two flavours with their descriptions, its style put in once");
+ok(host.radios === 2 && host.flavs === 2 && host.descs.some((d) => d.includes("A second flavour, for the test.")) && host.styles === 1, `mounted (webapp/installer/installer.js): one release with two flavours in its menu, the picked one's description, its style put in once (${JSON.stringify([host.radios, host.flavs, host.styles, host.descs])})`);
 ok(JSON.stringify(host.navs) === JSON.stringify(["build", "about"]) && host.url === "/webapp/host.html" && /Drum machine/.test(host.second) && host.empty && !host.busy,
   "mounted: Build and About go to the host (onNavigate), the second flavour loads, unmount() empties it");
 
