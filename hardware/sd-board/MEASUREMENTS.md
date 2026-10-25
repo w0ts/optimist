@@ -20,6 +20,24 @@ What is measured on a real FM-1 (calipers, the user, 2026-10-25) and what is sti
 | i | A pole's outside diameter | 6.9 mm |
 | j | Pole to pole, centre to centre, on the cover | 45 mm |
 | | The case's wall to the battery | 12 mm |
+| | The case's wall's inside to the battery, the battery moved as far as it goes | 14 mm |
+| | The board's left edge to the battery (moved) | 10.4 mm |
+
+## Measured: the corner by the battery's leads (sheet 2, 2026-10-25)
+
+| | What | Value |
+|---|---|---|
+| k | The board's left edge to the battery's right side | 72.6 mm |
+| l | The hole by the battery's corner (a pole of the cover): its centre to the board's left edge | 78 mm |
+| m | The same hole's centre to the board's bottom edge | 40 mm |
+| n | The battery's bottom side to the board's bottom edge ("approx, the battery is not straight") | 8 mm |
+| o | The battery's right side to the battery plug's left side | 28 mm |
+| p | The plug's bottom end to the board's bottom edge | 24 mm |
+| q | The gap between the two black jacks | 5.5 to 6 mm |
+| r | The board's left edge to the middle of that gap | 90 mm |
+| s | Between the jacks: the board's top edge to the wall's inside ("zero, but I would dig there") | 0 mm |
+| t | The tallest on the cable's way: the battery, about 6 mm; the cover's inside is tapered along its edges (a 4 mm band, a couple of mm lower) | 6 mm |
+| u, v | J12 to the jacks' edge; the free width beside the LCD's cable | not measured yet |
 
 ## How the board uses them
 
