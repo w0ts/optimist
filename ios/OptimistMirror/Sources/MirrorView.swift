@@ -203,14 +203,14 @@ struct TabStrip: View {
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 0) {
+            HStack(spacing: 2) {
                 ForEach(pages, id: \.tag) { p in
                     Button { tab = p.tag } label: {
                         Group {
                             if size == .compact { Image(systemName: p.icon) } else { Label(p.title, systemImage: p.icon) }
                         }
-                        .font(.footnote)
-                        .padding(.horizontal, 7).padding(.vertical, 4)   // (narrower: the user, 2026-10-25)
+                        .font(.body)
+                        .padding(.horizontal, 10).padding(.vertical, 6)   // (footnote size was tiny: the user, 2026-10-25)
                         .background(tab == p.tag ? Color.primary.opacity(0.12) : Color.clear, in: Capsule())
                         .foregroundStyle(tab == p.tag ? Color.primary : Color.secondary)
                     }
@@ -220,7 +220,7 @@ struct TabStrip: View {
                     .accessibilityAddTraits(tab == p.tag ? .isSelected : [])
                 }
             }
-            .padding(.horizontal, 6).padding(.vertical, 2)
+            .padding(.horizontal, 8).padding(.vertical, 4)
             .frame(maxWidth: .infinity)
         }
         .background(.bar)
