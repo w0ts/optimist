@@ -44,6 +44,12 @@ What is measured on a real FM-1 (calipers, the user, 2026-10-25) and what is sti
 | | The battery's cable crosses over the board: about 8 mm wide, some 10 mm below the speaker plug | 30 to 38 mm up |
 | | The LCD's cable can reach a splitter's socket about 3 to 4 mm above J12 (the user: "it would totally work") | yes |
 | v | The 6-pin cable (about 3.5 mm wide) fits between the jacks beside the LCD's cable (the user) | yes |
+| A | Sheet 4: from the board's top edge down the back, as far as the LCD cable's end reaches | 40 mm (to 50.3 mm up, the board's top edge at 90.3: c + d + g) |
+| B | The LCD cable's middle there, from the board's left edge | 90 mm |
+| C | The speaker plug's top end, from the board's bottom edge | 51 mm (so the plug is 44 to 51 mm up) |
+| D | The speaker plug's right side, from the board's left edge | 90 mm (so 85.6 to 90 mm across) |
+| E | Free right of the speaker plug, to the nearest part | 11 mm (to 101 mm) |
+| F | The board's top edge down to the jacks' lower end | 13.5 mm (the jacks from 76.8 mm up) |
 | u | J12's top side to the board's edge at the jacks (the user: "to the top of the board"; the photos put J12 about 37 mm from the jacks' edge, 53 from the LEDs' edge) | 35 mm |
 | | So the 6-pin cable: 35 on the front + about 5 round the edge (the user) + about 54 down the back to J2 = about 94 mm: a standard 10 cm cable (6 mm slack) | |
 | | J12: the LCD's cable is 5.5 mm wide, 10 pins (the user): so 0.5 mm pitch (a standard 10-pin 0.5 mm cable is 5.5 mm wide) | 10 pins, 0.5 mm |
