@@ -1017,6 +1017,18 @@ _add("LIVE_SAVE", "FELUCCA_LIVE_SAVE", "save while playing (flash writes in shor
           "for the stop again until the next start. Snapshots, backup restores, sample uploads, the web editor's writes "
           "and the working project's autosave still wait for the stop. About 240 B of flash, 1 byte of RAM.",
      off_warning="saves refused (STOP BEFORE SAVE) or held until the transport stops, as before")
+# bit 409 (2026-10-25): the first free one after the reverted font items' 399..408 (never reused)
+_add("SDCARD", "FELUCCA_SDCARD", "SD card on the LCD bus (a hardware mod)", Y, 409, default=0,
+     experimental=True, target_only=True, tested="host-tested only (a card model on real FAT16 / FAT32 images); no FM-1 "
+     "has the mod yet",
+     desc="Reads and writes a microSD card wired to the LCD's SPI bus: the card's clock and data in on the LCD's, its data "
+          "out on the LCD's D/C line through 1 kOhm, its chip select the LCD's through one inverter (74LVC1G04), so the "
+          "card is selected whenever the screen is not (docs/SD-CARD-DESIGN.md has the wiring and the parts). FAT16 or "
+          "FAT32 (cards up to 32 GB as sold; larger ones reformatted FAT32), 8.3 names; files are made on a computer "
+          "and the FM-1 reads them and writes inside them (Petit FatFs: no new files, no growing). For now the serial "
+          "console's sd commands only (USB_CONSOLE): mount, list, dump, speed test, write test. Without the mod it "
+          "finds no card and changes nothing. 5,032 B of flash, 20 B of RAM and 556 B of pool with the console (measured 2026-10-25).",
+     off_warning="no SD card")
 _add("CPU_GUARD", "FELUCCA_CPU_GUARD", "predictive CPU guard (ease back before shedding)", Y, 61, default=0,
      provenance=FLOWSTATE_GUARD,
      desc="Avoids audio dropouts under heavy load by easing quality back step by step before cutting notes. Under "

@@ -215,6 +215,9 @@ static int st_prog(uint32_t off, const void *src, uint32_t n)
 #if FELUCCA_NB_LIST
 #include "storage/nbank.c"             /* the FM6 / CZ native collections in PRESETS, the CZ store (after Melodee 0.12) */
 #endif
+#if FELUCCA_SDCARD
+#include "storage/sd/sdcard.c"         /* a microSD card on the LCD's bus (a hardware mod; Petit FatFs: tools/build.py) */
+#endif
 #if FELUCCA_OTA
 static uint8_t recovery_active;
 #define OTA_IDENTITY (recovery_active ? "FM-1_000" : FELUCCA_ID)

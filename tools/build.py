@@ -391,6 +391,12 @@ def build_app():
                       *(["-DFELUCCA_CPU_GUARD=1"] if CFG_VALUES.get("FELUCCA_CPU_GUARD") == 1 else []), "-c",
                       FW / "src" / "drums" / "x0x" / "x0x_drums.c", "-o", OUT / "x0x.o"))
         objs.append(OUT / "x0x.o")
+    (OUT / "pff.o").unlink(missing_ok=True)
+    if CFG_VALUES.get("FELUCCA_SDCARD", 0) == 1 or os.environ.get("FELUCCA_SDCARD") == "1":
+        # Petit FatFs (firmware/src/storage/sd/pff.c, ChaN's, vendored): its own unit, at the firmware's flags; the card
+        # driver it calls (disk_*) is in felucca.c (storage/sd/sdcard.c)
+        units.append(("cc", *flags, "-Os", "-c", FW / "src" / "storage" / "sd" / "pff.c", "-o", OUT / "pff.o"))
+        objs.append(OUT / "pff.o")
     tc_all(*units)
     subprocess.run([sys.executable, SRC / "tools" / "size_fns.py",
                     OUT / "felucca.ll", OUT / "felucca_size.ll"], check=True)
