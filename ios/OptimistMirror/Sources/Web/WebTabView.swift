@@ -84,6 +84,7 @@ struct WebTabView: UIViewRepresentable {
     @ObservedObject var editor: WebEditor
     let tab: String
     let link: MirrorLink
+    var shown = 0                                   // (bumped each time the tab appears: the shared view moved back in)
 
     func makeUIView(context: Context) -> UIView { UIView() }
 
@@ -105,12 +106,12 @@ struct WebTab: View {
     @ObservedObject var editor: WebEditor
     let tab: String
     let link: MirrorLink
+    @State private var shown = 0
 
     var body: some View {
-        WebTabView(editor: editor, tab: tab, link: link)
-            .id(tab)                                    // (a tab switch: the host made again, the shared view moved into it)
+        WebTabView(editor: editor, tab: tab, link: link, shown: shown)
             .ignoresSafeArea(edges: .bottom)
-            .onAppear { link.hold() }
+            .onAppear { shown += 1; link.hold() }
             .onDisappear { link.release() }
     }
 }
