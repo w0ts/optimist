@@ -351,6 +351,20 @@ Each step names who does it. Claude never writes to the FM-1.
   whole preallocated runs (FatFs `f_expand`) when it records, the computer side copies whole files; the fast seek map
   (FatFs `CREATE_LINKMAP`) turns a fragmented file's cluster chain into runs once at open, so streaming never walks the
   FAT; mono 16-bit by default, the run length a parameter (section 7), a pitch ceiling per voice like the M8's.
+- **No fragmentation: space wasted on purpose** (the user, 2026-10-25: "cards are cheap, most users will use 16 GB+
+  cards they will never fill up; this can be a setting"). Every file the FM-1 writes is allocated as **one contiguous
+  run, rounded up generously**, never grown cluster by cluster:
+  - a setting, the **allocation step** (e.g. 256 KB / 1 MB / 4 MB, default 1 MB): every file the FM-1 creates is
+    expanded to whole steps in one contiguous run (FatFs `f_expand`), its real length kept in the file (WAV length,
+    the project's own header) and the file never truncated: the slack is the point (the next save
+    or a longer take reuses it in place);
+  - recordings start with a run of the step x a few (or the take's length limit) and continue into a new run when
+    longer; a take never interleaves with another file;
+  - project saves (temp + rename) get a run of the step, so the new file is contiguous too;
+  - the card formatted with large clusters (the SD Association formatter's defaults: 32 KB on 16-32 GB SDHC, more
+    on SDXC) so even files from a computer come in few runs; the fast-seek map covers the rest;
+  - the FM-1 says how much room the card has left counting the slack, and the setting can be lowered for a nearly
+    full card.
 - **Safe saves, with the FM-1's own flash as the staging copy** (the user, 2026-10-25: "we have flash for temp /
   buffer"): the working project is already whole in the internal flash (the autosave, and the 1-project store of the
   fake SD mode), so a save to the card is:
