@@ -102,6 +102,53 @@ or not; RAMTEXT (32 KB) is the real limit for DSP code and the SD card does not 
 Gain: RAMTEXT holds only the engines the project plays, so more (and bigger) engines can be built in. Cost: a little
 flash per engine and a loader of a few hundred bytes.
 
+**Built (phase 3b, 2026-10-25; builder item `OVERLAY`, bit 412, needs `LAYOUT` 1):** host-tested and run in the
+emulator, not on an FM-1.
+
+- **Marking.** An engine's hot code is `OVL(name)` (it was `HOT`) or `OVLX(name)` (code that runs from XIP without the
+  overlays: STRINGS so far); its sound hooks (render, block, amp, post) are a table, `OVL_ENGINE`, the first bytes of
+  its code; its `engine_t` names them through `OVL_FN` (0 with the overlays). Without the item every macro is what
+  it replaced: the default build is byte for byte the same (but the build time string). Marked: ANALOG (2), DIGITAL,
+  PHASE, LOFI, SAMPLE's render, VOICE, TRIO, WHEEL, SUPER (the old ANALOG builds), STRINGS (OVLX).
+- **One link per slot instead of `OVERLAY` with copies.** GNU ld cannot link one input section at several addresses;
+  `tools/build.py` (with `tools/ovl_link.py`) links the firmware once per part (`NPART` = 3): the engines in the
+  slots are one `OVERLAY` statement at slot k's address in link k, nothing else moves. Each engine's code is taken
+  from each link (its copy for that slot) and the resident image (`.text`, `.data`, `.ram_text`, `.ram_hot`,
+  `.ram_hot2`, `.pool_init`) is compared across the links: a resident reference to an overlay's code fails the
+  build. `NOCROSSREFS` refuses one engine calling another's. No position-independent code; measured: a slot's copy
+  differs from another slot's only in its hooks' table (the calls are PC-relative).
+- **Slot per part, size chosen by the build** (`ovl_link.plan`): 3 slots of S bytes plus every `OVL` engine larger
+  than S kept resident (an `OVLX` one larger stays in XIP), S the engine size with the least RAMTEXT (a tie: the
+  larger S). Deviation from the sketch: no "two adjacent slots" (a part's slot is its own; a big engine stays
+  resident), because slots shared between parts would need a placement that can refuse a project (open question in
+  the report). `OPTIMIST_OVL_SLOT=N` forces S for a test build.
+- **The table** (`_ovl_rom`, after the far probe's `.text_far` past 0x93000: the big layout only): each engine's
+  place (RAMTEXT, XIP, or the slots: its code once per slot). `core/overlay.c` checks it at boot (magic, the slots'
+  address and span, each table's tag); refused, the overlay engines play nothing (the console's `ovl`: `ovl_bad 1`).
+  If the chip does not map the flash past 0x93000 (the far probe's question), this is what happens.
+- **Protocol** (`core/overlay.c`): the audio (`track_render`, either core) calls a part's hooks only while
+  `rto_eng[k]` names the part's engine, else the part plays nothing that block (its voices wait) and asks
+  (`rto_want`). The main loop (`rto_poll`, every pass and in the wait loop) loads: `rto_eng[k]` = none, the copy,
+  then the engine. CPU1 renders only inside CPU0's audio interrupt (fork / join), so it is never mid-block while the
+  main loop copies. An engine change needs nothing more: the fade, the switch, the first block asks. At power-on,
+  `rto_boot` loads each part's engine before the audio.
+- **Measured (2026-10-25).** Today's profiles: the plan finds no gain (ANALOG 2's 5,152 B x 3 slots is more than
+  every engine together) and keeps every engine resident: `sd-mode-probe` + OVERLAY: RAMTEXT 26,424 B (26,188
+  without; +236 B: the hooks' lookup in the resident render), .text +1,024 B (the loader, the console's ovl), the
+  boot stream +138 B, the table 36 B, RAM +112 B. The default profile in the
+  normal layout: refused (builder rule, and `build.py`). A build with more small engines (`sd-mode-probe` + PHASE,
+  LOFI, VOICE, WHEEL, STRINGS, without PLAITS): without the overlays RAMTEXT overflows by 696 B; with them it
+  links, RAMTEXT 32,384 of 32,512 (3 slots of 2,432 B: DIGITAL, WHEEL, VOICE, LOFI, PHASE and STRINGS, which moves
+  from XIP into RAM; ANALOG 2 resident), the engines' RAMTEXT 12,448 B instead of 13,588; flash +30,100 B (the table
+  and the copies). Copy time: 10 us for DIGITAL's 1,336 B in the emulator (no flash wait model); on the FM-1 an
+  estimate of 20-100 us for a 2.4 KB slot (32 ns a flash read, 2026-10-18's tabbench, plus line fills), the
+  console's `ovl` prints the real `copy_us_max`.
+- **Tests:** `tests/overlay_test.c` (not loaded: silent, no call into the slot, asked, loaded; every overlay engine
+  bit for bit from its slot as in place; a change while playing; 30,000 random changes), `tests/regress.c` built
+  with the overlays (the 108 goldens unchanged), `tests/ovl_link_test.py` (plan, scripts, table). Emulator: bench 12
+  (PHASE on the three parts, CPU1 rendering) with the overlays and without: the same samples for 6 s; with
+  `FELUCCA_BENCH_SWAP=1` (each part to DIGITAL and back every phrase, 18 loads in 11 s) the same samples too.
+
 ## 6b. Memory per project (the arena)
 
 With every engine and effect built into the bigger flash, their RAM can no longer be reserved statically: each would
@@ -156,7 +203,7 @@ part_drop (the confirm on an edit, the list on a load).
 |---|---|---|
 | 1 (built) | `FELUCCA_LAYOUT` (builder item `LAYOUT`, bit 410): the app slot's end and the store map from `fm1_flash_map.h` / `tools/flash_layout.py`; the normal layout's package byte-identical from the same app; the normal image +36 B (its updater accepts either layout's package) | none |
 | 2 (built) | The **fake SD mode** (`sd-mode-probe` profile): the 816 KiB slot, the squeezed store (a 7-sector project log at 0xD0000: about 5 dense scenes a project; autosave A 0xD7000; FM6 voices 0xD8000; kits and presets unchanged), no user samples / snapshots / CZ collection, the update loader and the rescue tool clearing the other layout's sectors on a switch, the far probe | the user's install: the user data in the overlap is lost; the far probe answers the SPL question |
-| 3 | The arena (section 6b), then the RAMTEXT overlays (section 6) | none beyond a normal build |
+| 3 | The arena (section 6b, built), then the RAMTEXT overlays (section 6, built: `OVERLAY`) | none beyond a normal build |
 | 4 | Real SD mode: the user data on the card (`SDCARD`), flash keeps settings + one project | needs the SD mod |
 | 5 | Plugins (code from the card into RAM), if ever needed | |
 
