@@ -3887,6 +3887,7 @@ static void led_tests(void)
 #include "ui_optimist_lfo2.h"                      /* LFO 2: the LFO 2 and LFO2 DEST rows, RATE, SHIFT + a knob, the AMT bar */
 #include "ui_optimist_plocks.h"
 #include "ui_optimist_seqtools.h"                   /* Felucca 1.5.6: STEP's TOOLS and EUCLID, the COND card */
+#include "ui_optimist_missline.h"                   /* the MISSING line stays until HOME */
 #include "ui_optimist_premiss.h"                    /* a user preset of an engine not built: not in PRESETS */
 #include "ui_optimist_notename.h"                   /* the note played on the keys, bottom left (Melodee's) */
 #include "ui_optimist_stepdots.h"                   /* the drum steps as dots (Melodee's): STEP and the mixer */
@@ -4110,6 +4111,7 @@ int main(int argc, char **argv)
     ble_tests();
 #endif
     premiss_tests();
+    missline_tests();
     notename_tests();                                   /* (late: the note it plays moves the master's meters, SCRS's golden) */
     fuzz(20000, 12345);
     check(1, "20000 frames of random use: every draw on the screen");

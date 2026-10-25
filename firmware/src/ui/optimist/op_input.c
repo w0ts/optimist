@@ -238,6 +238,10 @@ static void op_no(void)
             op_disarm();                                /* cancel (op_prjflow.c: "SAVE <open>?" asks the LOAD instead) */
         return;
     }
+#if FELUCCA_MISSING_WARN
+    if (miss_dismiss())
+        return;                                         /* (the MISSING line: HOME lets it go, miss.c) */
+#endif
 #if FELUCCA_BT_UI
     if (dev_listing()) {                                /* the BLE devices: back to SYSTEM's BLUETOOTH row (op_project.c) */
         dev_close();
