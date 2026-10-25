@@ -247,37 +247,70 @@ static uint32_t part_mem_bytes(uint32_t e)
     return 0;
 }
 
-/* a refused change (the user, 2026-10-25: refuse, and propose what to drop; the UI shows it and offers the drops):
- * the part, the engine it asked for, the parts whose memory would make room (arn_drop_for; -1 none would) */
+/* a refused change (the user, 2026-10-25: refuse, and propose what to drop; the UI shows it and offers the drops).
+ * An edit's (one part: the engine it asked for, arn_drop_for's proposal; the UI's one confirm, op_input.c mem_tick), and
+ * a load's apart (every part a project's load could not place, lmask, with the engine each wants, leng: each a silent
+ * placeholder meanwhile, the UI's list of what to drop, op_memlist.c; one load's refusals never overwrite each other) */
 static struct {
     uint8_t on, part, eng;
     int8_t drop;                                         /* arn_drop_for's parts (a bit mask; -1 none would make room) */
-    uint8_t from_load;                                   /* a project's load (keep its sound) or an edit (the engine's first) */
     uint8_t asked;                                       /* the parts already proposed (model.c mem_offer: never twice) */
     uint8_t waiting;                                     /* the parts dropped, their switch to the placeholder not done yet */
+    uint8_t lmask;                                       /* a load's parts refused (a bit by part): placeholders, waiting */
+    uint8_t lseq;                                        /* + 1 at each load (the UI's list starts afresh) */
+    uint8_t leng[NPART];                                 /* .. the engine slot each wants */
 } part_mem_refused;
+#define PART_MEM_SHORT() (part_mem_refused.on || part_mem_refused.lmask)   /* (the effects wait: a part's sound first) */
 
-/* the main loop, before part k's engine becomes e (model.c set_engine_of, project and user preset loads): its memory
- * set aside. 0 ok; -1 no room (only with a smaller FELUCCA_ARENA_BYTES): part_mem_refused says what would make room */
-static int part_mem_reserve(uint32_t k, uint32_t e)
+/* part k's memory for engine e set aside (the interrupts off: a section applied inside the audio ISR reaches here
+ * through the project's apply); 0 ok or none needed, -1 no room. Nothing recorded */
+static int part_mem_try(uint32_t k, uint32_t e)
 {
     uint32_t n = part_mem_bytes(e);
     int r;
     if (k >= NPART || !n || (part_mem_owner[k] == e % NENGINES + 1u && arn_ptr(k)))
-        return 0;                                        /* (none needed, or its own state still there) */
+        return 0;                                        /* (none needed, or its own state still there; an idle one
+                                                          * another reservation takes back first: the switch finds no
+                                                          * room, part_mem_unplaced) */
     {
-        IRQ_SAVE(ie);                                    /* (the state kept: a section applied inside the audio ISR */
-        r = arn_reserve(k, n);                           /* reaches here through the project's apply) */
+        IRQ_SAVE(ie);
+        r = arn_reserve(k, n);
         IRQ_RESTORE(ie);
     }
+    return r;
+}
+
+/* the main loop, before part k's engine becomes e (model.c set_engine_of, the user preset loads): its memory set
+ * aside. 0 ok; -1 no room (only with a smaller FELUCCA_ARENA_BYTES): part_mem_refused says what would make room */
+static int part_mem_reserve(uint32_t k, uint32_t e)
+{
+    int r = part_mem_try(k, e);
     if (r) {
         if (!part_mem_refused.on || part_mem_refused.part != k)   /* (a new refusal: nothing asked yet) */
             part_mem_refused.asked = part_mem_refused.waiting = 0;
         part_mem_refused.on = 1, part_mem_refused.part = (uint8_t)k, part_mem_refused.eng = (uint8_t)(e % NENGINES);
-        part_mem_refused.drop = (int8_t)arn_drop_for(k, n);
-        part_mem_refused.from_load = 0;                  /* (project.c sets it for a load) */
+        part_mem_refused.drop = (int8_t)arn_drop_for(k, part_mem_bytes(e));
     }
     return r;
+}
+
+/* a project's load (storage/project.c, before its tracks): the refusals of before forgotten (an edit's change waiting
+ * included: the load replaces the parts) */
+static void part_mem_load_begin(void)
+{
+    part_mem_refused.on = part_mem_refused.asked = part_mem_refused.waiting = 0;
+    part_mem_refused.lmask = 0;
+    part_mem_refused.lseq++;
+}
+/* .. part k's engine e on that load: 0 placed (or none needed); -1 refused, recorded with the others (the caller makes
+ * the part a placeholder until the UI's list finds it room, op_memlist.c) */
+static int part_mem_load(uint32_t k, uint32_t e)
+{
+    if (part_mem_try(k, e))
+        return part_mem_refused.lmask |= (uint8_t)(1u << k), part_mem_refused.leng[k] = (uint8_t)(e % NENGINES), -1;
+    if (k < NPART)
+        part_mem_refused.lmask &= (uint8_t)~(1u << k);
+    return 0;
 }
 
 static int part_mem_claim(uint32_t k, uint32_t e);
@@ -291,6 +324,21 @@ static uint32_t eng_silent_slot(void)
         if (!part_mem_bytes(e))
             return e;
     return 0;
+}
+
+/* (the audio, voice.c engine_block) part k's switch to engine e found no room: nobody reserved for it, or its own idle
+ * state was taken back by another part's reservation since. The part a silent placeholder, recorded as a load's
+ * refusal (the UI's list offers what to drop; it never keeps its old engine with the new sound's values) */
+static void part_mem_unplaced(track_t *t, uint32_t e)
+{
+    uint32_t k = (uint32_t)(t - trk);
+    if (k >= NPART)
+        return;
+    part_mem_refused.lmask |= (uint8_t)(1u << k);
+    part_mem_refused.leng[k] = (uint8_t)(e % NENGINES);
+    t->engine = t->eng_req = (uint8_t)eng_silent_slot();
+    t->silent = 1;
+    (void)part_mem_claim(k, t->engine);                  /* (its block idle: free for the others) */
 }
 
 /* at power-on, before the audio (main.c felucca_init): each part's first engine gets its memory (an arena placed by

@@ -301,7 +301,7 @@ static const uint8_t HEAD_TRK_LY[LY_COUNT] = {
 };
 static uint32_t head_has_track(void)
 {
-    if (name_on())
+    if (page_owned())
         return 0;
     if (lay.shown != LY_PLAY)
         return HEAD_TRK_LY[lay.shown % LY_COUNT] && !ui.master;
@@ -333,7 +333,7 @@ typedef struct {
 #define HEAD_BATT_W 16                  /* the icon (13) and its gap to the tempo */
 static uint32_t head_batt(void)
 {
-    if (ui.msg_t || lay.shown != LY_PLAY || name_on() || (ui.scr != SCR_GLOBAL && ui.scr != SCR_SYSTEM))
+    if (ui.msg_t || lay.shown != LY_PLAY || page_owned() || (ui.scr != SCR_GLOBAL && ui.scr != SCR_SYSTEM))
         return 0;
     return song.batt_raw ? 2u + sys_batt_bars() : 1u;
 }
@@ -354,6 +354,11 @@ static void head_batt_draw(int32_t x, uint32_t st)     /* the icon at x: an outl
 static int head_other(head_t *h)
 {
     h->tc = C_HI;
+    if (ml_on()) {                                      /* the load's memory list (op_memlist.c) */
+        h->eng = "MEMORY";
+        str_cpy(h->t, "Load", sizeof h->t);
+        return 1;
+    }
     if (name_on()) {
         char b[32];
         h->eng = "NAME";
@@ -475,7 +480,7 @@ static __attribute__((noinline)) void draw_head(void)
     sig = hu(hu(sig, h.muted), h.batt);
     sig = hu(sig, (uint32_t)(ui.msg_t != 0) + settings.palette * 8u + drop * 2u);
     tflash_tick();
-    fl = tf.t && !ui.msg_t && !name_on() && !master_sel();   /* (MASTER: its own badge, no track flash: #8) */
+    fl = tf.t && !ui.msg_t && !page_owned() && !master_sel();   /* (MASTER: its own badge, no track flash: #8) */
     if (fl) {
         snd_name(song.sel, c);
         sig = hs(hu(hu(sig, 0x7F1u), TSEL->eng_req), c);
@@ -956,7 +961,7 @@ static uint32_t row_pic(uint32_t cur)
 static int pl_on(void)
 {
 #if FELUCCA_PAGE_LINES
-    return lay.shown == LY_PLAY && !name_on() && ui.scr != SCR_HOME && ui.scr != SCR_STEP && ui.scr != SCR_SCOPE && !song_tbl_on() &&
+    return lay.shown == LY_PLAY && !page_owned() && ui.scr != SCR_HOME && ui.scr != SCR_STEP && ui.scr != SCR_SCOPE && !song_tbl_on() &&
            !glo_cycle() && !prj_listing() && SCR->rows() && !row_pic(ui.row[ui.scr])
 #if FELUCCA_BT_UI
            && !dev_listing()
@@ -1183,7 +1188,7 @@ static void op_frame_draw(void)
     {                                                   /* STEP's grid takes the panel from y 25 (no cards): the band again whole when
                                                          * that changes (a layer on STEP, the NAME screen) */
         static uint8_t was_full;
-        uint32_t full = (ui.scr == SCR_STEP || glo_cycle() || pl_on() || song_tbl_on()) && lay.shown == LY_PLAY && !name_on();   /* (GLOBAL and
+        uint32_t full = (ui.scr == SCR_STEP || glo_cycle() || pl_on() || song_tbl_on()) && lay.shown == LY_PLAY && !page_owned();   /* (GLOBAL and
                                                          * SYSTEM's list too: no cards, op_gldraw.c) */
         if (full != was_full && !ui.force) {
             lcd_fill(0, OH_HEAD, 240, 240 - OH_HEAD, C_BLACK);
@@ -1195,6 +1200,11 @@ static void op_frame_draw(void)
     nn_tick();                                          /* (the note played: before the help line, which shows it) */
     hl_pre(ov);                                         /* (the help line: its rows kept from the bands, op_help.c) */
     draw_head();
+    if (ml_on() && ov != 4u) {                          /* the load's memory list: the gauge, the rows, SAVE / HOME */
+        ml_draw();
+        ui.force = 0;
+        return;
+    }
     if (name_on() && ov != 4u) {                        /* NAME: the field, the keyboard, the hints (op_name.c) */
         name_draw();
         ui.force = 0;

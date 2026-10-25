@@ -300,8 +300,8 @@ static void fxm_poll(void)
             fxm_send(c);
     if (!fxm_ins_want())
         fxm_full &= (uint8_t)~(1u << FXM_INS);          /* (refused, then let go) */
-    if (part_mem_refused.on || fxm_mv)
-        return;                                         /* (a part's refused change first; a move under way) */
+    if (PART_MEM_SHORT() || fxm_mv)
+        return;                                         /* (a part's refused change first, a load's too; a move under way) */
     fxm_ord(o);
     for (i = 0; i < FXM_NC; i++)
         if (fxm_needs(o[i])) {

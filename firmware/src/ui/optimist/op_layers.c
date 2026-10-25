@@ -816,7 +816,7 @@ static int lay_knobs(void)
  * the screen it was on is left for it and back again when the layer ends; already there: nothing moves */
 static struct { uint8_t on, scr, row, fine; } lpk;    /* fine: a knob turned during the hold (LFO is SHIFT: the cells' fine path), no peek then */
 static uint32_t song_pat_row_idx(void);                 /* op_song.c */
-static int name_on(void);                               /* op_name.c */
+static int page_owned(void);                            /* op_memlist.c: NAME, the load's memory list */
 static void lay_pat_peek(int want)
 {
     if (!want && !lpk.on)
@@ -825,7 +825,7 @@ static void lay_pat_peek(int want)
         lpk.on = 0;                                     /* (a page button took you elsewhere: that is where you stay; no peek again before LFO is let go) */
         lpk.fine = 1;
     }
-    if (want && !lpk.on && !lpk.fine && !song_on_pat_row() && !name_on() && !op_armed()) {
+    if (want && !lpk.on && !lpk.fine && !song_on_pat_row() && !page_owned() && !op_armed()) {
         lpk.on = 1, lpk.scr = ui.scr, lpk.row = ui.row[SCR_SONG];
         op_enter(SCR_SONG);
         op_row_pick(song_pat_row_idx());
