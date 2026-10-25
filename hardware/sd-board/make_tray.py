@@ -50,9 +50,9 @@ v1 = min(v1, TRAY_TOP)                           # the head have parts of the FM
 RIGHT = u1 + SIDE + 0.9                          # (the right rail as wide as the left)
 RIGHT_END = 24.0                                 # the right post's top end: above it the right rail stays as low as
                                                  # the board (no lip, no post: the battery's wires cross there, the user)
-POSTS = ((LEFT, None, v_left - 21.5, v_left), (u1 + SIDE, RIGHT, 5.5, RIGHT_END))   # (the left one up against the collar:
+POSTS = ((LEFT, None, v_left - 21.5, v_left), (None, RIGHT, 5.5, RIGHT_END))   # (the left one up against the collar:
 # the wires leave the battery low on the left, the user's sketch; the right one from 5.5 mm, 3 mm clear of the case's
-# taper, the user, standing on the rail only: nothing over the board there, the user)
+# taper, the user; on the lip, which runs along it)
 top = FLOOR + PCB + PLAY + LIP
 groove = FLOOR + PCB + PLAY
 
@@ -71,7 +71,7 @@ with open(scad, "w") as f:
     f.write(f"  {box(LEFT, v0 - SIDE, u0 - SIDE, v_left, 0, top)}   // the left rail\n")
     f.write(f"  {box(LEFT, v0 - SIDE, u0 + OVER, v_left, groove, top)}   // its lip\n")
     f.write(f"  {box(u1 + SIDE, v0 - SIDE, RIGHT, RIGHT_END, 0, top)}   // the right rail\n")
-    f.write(f"  {box(u1 - OVER, v0 - SIDE, RIGHT, POSTS[1][2], groove, top)}   // its lip, below the post only\n")
+    f.write(f"  {box(u1 - OVER, v0 - SIDE, RIGHT, RIGHT_END, groove, top)}   // its lip, as far as the post\n")
     f.write(f"  {box(u1 + SIDE, RIGHT_END, RIGHT, v1, 0, FLOOR + PCB)}   // the rail above: no higher than the board\n")
     for a, b, c, d in POSTS:
         f.write(f"  {box(a or u1 - OVER, c, b or u0 + OVER, d or v1, groove, COLLAR_H)}   // a post\n")
