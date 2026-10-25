@@ -689,7 +689,9 @@ static int card_wide(const cell_t *c, uint32_t k)
 static void draw_card_band(const cell_t *c, uint32_t hot)
 {
     uint32_t k;
-    cv_begin(240, OP_CH, C_BLACK);
+    cv_begin(240, OP_PY - OY_CARD, C_BLACK);            /* (down to the panel: the rows between the cards and the panel too,
+                                                         * which the other layout's panel covers; the FM-1, 2026-10-25: T1's
+                                                         * rows left under MASTER's DYN) */
     for (k = 0; k < 4u; k++) {
         if (cards_2x2()) {
             draw_big(k, &c[k], k == hot);
