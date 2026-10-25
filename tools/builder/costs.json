@@ -1082,33 +1082,9 @@
     "ramtext": 0
    }
   },
-  "FONT_TERM_BOLD": {
-   "1": {
-    "flash": 1944,
-    "ram": 64,
-    "pool": 0,
-    "ramtext": 0
-   }
-  },
-  "FONT_TAMZEN": {
-   "1": {
-    "flash": 1940,
-    "ram": 64,
-    "pool": 0,
-    "ramtext": 0
-   }
-  },
   "FONT_UNIFONT": {
    "1": {
     "flash": 1936,
-    "ram": 64,
-    "pool": 0,
-    "ramtext": 0
-   }
-  },
-  "FONT_UNSCII": {
-   "1": {
-    "flash": 1940,
     "ram": 64,
     "pool": 0,
     "ramtext": 0

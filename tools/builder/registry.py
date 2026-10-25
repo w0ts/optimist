@@ -951,39 +951,17 @@ _FONT_COST = (" Its bitmaps are 1,520 B of flash; the second font built also bri
 _add("FONT_TERMINUS", "", "font: Terminus 8x16 (the default)", U, 399, env="TERMINUS",
      desc="Terminus 8x16 by Dimitar Toshkov Zhekov (SIL OFL 1.1): the firmware's font so far, thin even strokes, "
           "a slashed zero." + _FONT_DESC)
-_add("FONT_TERM_BOLD", "", "font: Terminus bold 8x16", U, 400, default=0, env="TERM BOLD",
-     desc="Terminus 8x16 bold by Dimitar Toshkov Zhekov (SIL OFL 1.1): the default font's letters with two-pixel "
-          "strokes, the easiest to read at a distance." + _FONT_COST + _FONT_DESC)
-_add("FONT_TAMZEN", "", "font: Tamzen 8x16 (thin)", U, 401, default=0, env="TAMZEN",
-     desc="Tamzen 8x16 by Suraj N. Kurapati, after Scott Fial's Tamsyn (free, use as you see fit): thin strokes, "
-          "shorter capitals than Terminus, a two-storey g: the lightest." + _FONT_COST + _FONT_DESC)
 _add("FONT_UNIFONT", "", "font: GNU Unifont 8x16 (classic PC)", U, 402, default=0, env="UNIFONT",
      desc="GNU Unifont 8x16, ASCII (Roman Czyborra, Paul Hardy and others; SIL OFL 1.1 or GPL-2.0-or-later): the "
           "classic PC text look, thin strokes, an oval slashed zero, a two-storey g; drawn one row higher than the "
           "original to sit as the other fonts do." + _FONT_COST + _FONT_DESC)
-_add("FONT_UNSCII", "", "font: Unscii 16 (round, 8-bit)", U, 403, default=0, env="UNSCII",
-     desc="Unscii 16 by Viznut (public domain): two-pixel strokes, round letters, in the spirit of the 8-bit home "
-          "computers' text modes." + _FONT_COST + _FONT_DESC)
 # the Ultimate Oldschool PC Font Pack (VileR, int10h.org; CC BY-SA 4.0, one-way compatible with GPL-3.0: LICENSING.md),
-# 2026-10-25 "4 fonts? :) i would have expected a few more": five PC faces, each clearly unlike the others
+# 2026-10-25: of ten tried, the user kept Terminus, Unifont and NEC APC ("only keep terminus, apc and unifont")
 _OLDSCHOOL = "from VileR's Ultimate Oldschool PC Font Pack (CC BY-SA 4.0, compatible with the GPL-3.0)"
-_add("FONT_IBM_VGA", "", "font: IBM VGA 8x16 (DOS)", U, 404, default=0, env="IBM VGA",
-     desc="IBM VGA 8x16, " + _OLDSCHOOL + ": the text mode of the IBM VGA BIOS, the DOS look; two-pixel "
-          "upright strokes, a dotted zero." + _FONT_COST + _FONT_DESC)
-_add("FONT_TOSHIBA", "", "font: Toshiba 8x16 (slab serif)", U, 405, default=0, env="TOSHIBA",
-     desc="Toshiba T-series laptop 8x16 (ToshibaTxL1), " + _OLDSCHOOL + ": heavy, with slab serifs on the "
-          "capitals and the digits, a slashed zero." + _FONT_COST + _FONT_DESC)
-_add("FONT_COMPAQ", "", "font: Compaq thin 8x16", U, 406, default=0, env="COMPAQ",
-     desc="Compaq thin 8x16, " + _OLDSCHOOL + ": the PC letter shapes drawn with one-pixel strokes, light and "
-          "open." + _FONT_COST + _FONT_DESC)
 _add("FONT_NEC_APC", "", "font: NEC APC III 8x16 (round, thin)", U, 407, default=0, env="NEC APC",
      desc="NEC APC III 8x16, " + _OLDSCHOOL + ": thin, round and wide letters, a slashed zero, unlike any of "
           "the other fonts." + _FONT_COST + _FONT_DESC)
-_add("FONT_STINGRAY", "", "font: Cirrus Logic Stingray 8x16 (heavy)", U, 408, default=0, env="STINGRAY",
-     desc="Cirrus Logic Stingray VGA 8x16, " + _OLDSCHOOL + ": the heaviest font, broad strokes and tall "
-          "capitals, for reading from afar." + _FONT_COST + _FONT_DESC)
-FONT_ITEMS = ("FONT_TERMINUS", "FONT_TERM_BOLD", "FONT_TAMZEN", "FONT_UNIFONT", "FONT_UNSCII", "FONT_IBM_VGA",
-              "FONT_TOSHIBA", "FONT_COMPAQ", "FONT_NEC_APC", "FONT_STINGRAY")   # at least one (core.py validate)
+FONT_ITEMS = ("FONT_TERMINUS", "FONT_UNIFONT", "FONT_NEC_APC")   # at least one (core.py validate)
 
 # ---- system
 Y = "System"
