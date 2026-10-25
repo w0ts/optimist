@@ -216,19 +216,19 @@ _A2M_DESC = (" FLT 2 gets a MODEL card next to FTYP (LP12 LP24 BP HP NOTCH), on 
              "a model this build leaves out plays ANALOG 2's own filter in the same mode. Floating point (the FPU), about "
              "3x the CPU of ANALOG 2's own filter on the host per voice, not measured on the FM-1 yet.")
 _add("A2_LADR", "FELUCCA_A2_LADR", "ANALOG 2 filter: LADR (transistor ladder, Moog-style)", E, 382, parent="ENG_ANALOG", default=0,
-     experimental=True, tested="host-tested only (responses, self-oscillation, stability), not on a device",
+     tested="on the FM-1: in use, working (the user, 2026-10-25); host-tested (responses, self-oscillation, stability)",
      desc="A 4-pole transistor ladder: a tanh at its input (drive grits it), the bass thinning as RES rises, ringing "
           "in tune at the top of RES. FTYP as the Oberheim Xpander's mixes of its four stages." + _A2M_DESC)
 _add("A2_OTA", "FELUCCA_A2_OTA", "ANALOG 2 filter: OTA (IR3109 4-pole, Juno-style)", E, 383, parent="ENG_ANALOG", default=0,
-     experimental=True, tested="host-tested only (responses, self-oscillation, stability), not on a device",
+     tested="on the FM-1: in use, working (the user, 2026-10-25); host-tested (responses, self-oscillation, stability)",
      desc="A 4-pole OTA ladder: the input stays clean and the passband is made up as RES rises, the resonance "
           "saturates on its own path: creamy, its self-oscillation round. FTYP as the Xpander's mixes." + _A2M_DESC)
 _add("A2_DIOD", "FELUCCA_A2_DIOD", "ANALOG 2 filter: DIOD (diode ladder, 303-style)", E, 384, parent="ENG_ANALOG", default=0,
-     experimental=True, tested="host-tested only (responses, self-oscillation, stability), not on a device",
+     tested="on the FM-1: in use, working (the user, 2026-10-25); host-tested (responses, self-oscillation, stability)",
      desc="A diode ladder: four coupled stages, each loading the one before, solved exactly every 16 samples, a "
           "tanh at its input: squelchy, a thin vocal resonance that rings at the cutoff." + _A2M_DESC)
 _add("A2_MS20", "FELUCCA_A2_MS20", "ANALOG 2 filter: MS20 (Sallen-Key, MS-20-style)", E, 385, parent="ENG_ANALOG", default=0,
-     experimental=True, tested="host-tested only (responses, self-oscillation, stability), not on a device",
+     tested="on the FM-1: in use, working (the user, 2026-10-25); host-tested (responses, self-oscillation, stability)",
      desc="A Sallen-Key 2-pole with its band fed back through a tanh: it screams at high RES and rings loud. LP, BP, "
           "HP and NOTCH its own, LP24 a further pole (18 dB)." + _A2M_DESC)
 _add("ENG_DIGITAL", "FELUCCA_ENG_DIGITAL", "DIGITAL (4-operator FM)", E, 1,
@@ -985,8 +985,8 @@ _add("ED_SCREENS", "FELUCCA_ED_SCREENS", "web editor: the device's screens (card
           "oscilloscope (cmd 101). Off: no Device tab; "
           "the editor keeps its own Sound / Mixer / Sequence tabs.")
 _add("ED_MIRROR", "FELUCCA_ED_MIRROR", "web editor: the screen mirrored (the Mirror tab, the iPhone app; USB or Bluetooth)", Y, 381,
-     parent="EDITOR", default=0, experimental=True, tested="host-tested only (the stream decoded back to every screen drawn, "
-     "every catch-up the panel), not on a device",
+     parent="EDITOR", default=0, tested="on the FM-1: the web editor's Mirror tab and the Optimist Mirror app, USB and "
+     "Bluetooth (the user, 2026-10-25); host-tested (the stream decoded back to every screen drawn, every catch-up the panel)",
      desc="The FM-1's screen in the web editor's Mirror tab or on an iPhone (the Optimist Mirror app, ios/OptimistMirror), over "
           "a USB cable or Bluetooth MIDI (with BLE): while one asks (cmd 106), every write to the panel also goes out, "
           "run-length coded, as it is drawn, so it shows the very pixels: the mixer, the step grid, the layers, the dialogs. "
@@ -998,7 +998,7 @@ _add("ED_MIRROR", "FELUCCA_ED_MIRROR", "web editor: the screen mirrored (the Mir
 # (bit 70, SIZE, retired 2026-10: the UI, storage and editor code is always built minsize, tools/size_fns.py keeps the
 #  audio path out of it; never reuse the bit)
 _add("TAB_IN_POOL", "FELUCCA_TAB_IN_POOL", "sound tables and FM6 buffers in the pool, not main RAM", Y, 300, default=0,
-     experimental=True, tested="emulator-tested only (no memory timing there)",
+     tested="on the FM-1: in daily use for days, all good (the user, 2026-10-25); emulator-tested",
      desc="Moves what the sound loops read from main RAM to the pool: the sine, soft-clip and GRAIN window tables (about 2.5 KB, copied there from flash at start-up) and FM6's sine table, operator buses and voices (about 5.9 KB), so builder items get that much more main RAM. Unverified on hardware: both are the same SRAM as far as is known and the emulator cannot tell a speed difference, so on the FM-1 it may be slower; compare the console's TABBENCH figures and the CPU meter with it off and on. The sound is the same.")
 _add("TAB_CODED_ALL", "FELUCCA_TAB_CODED_ALL", "tables unpacked into RAM (flash for pool)", F, 386, default=0,
      choices=((0, "off"), (1, "the small tables and the small font; PLAITS' waveshapers, JUNO's tables, the compressor's and XDLY's curves when built (5.8 KB of pool, up to 11.4 with every one)"),
@@ -1037,15 +1037,14 @@ _add("VOICE_OWN", "FELUCCA_VOICE_OWN", "voices: reuse a track's own released voi
             "only, not on a device.")
 _add("CACHE_RAM", "FELUCCA_CACHE_RAM", "more memory from the data cache (for the undo history)", Y, 92, default=0,
      choices=((0, "off"), (2, "8 KB (6 cache ways kept)"), (4, "16 KB (4 kept)"), (7, "28 KB (1 kept, as V15)")),
-     experimental=True, target_only=True,
-     tested="on one FM-1 2026-10-18: the boot test passes, cache RAM as fast as main RAM, but flash data reads over 16 KB 57x slower (1.7 us vs 32 ns: flash data goes through the data cache, 4 KB left)",
+     target_only=True,
+     tested="8 KB: in daily use on the user's FM-1 for days, no fault (2026-10-25); on one FM-1 2026-10-18: the boot test passes, cache RAM as fast as main RAM, flash data reads over 16 KB 57x slower (1.7 us vs 32 ns: flash data goes through the data cache)",
      desc="Uses 2, 4 or 7 of the 8 data-cache ways (4 KB each) as RAM; 7 is what M-VAVE's own FM-1 firmware and the AC79 SDK's flash-only "
           "builds do; the instruction cache (the flash's code and constants) keeps all its ways. The memory is tested "
           "at start-up; when the test passes it becomes the undo history's second part (28 KB instead of what main "
           "RAM has left), else everything is put back as it was and nothing uses it. It costs about 0.4 KB of flash and "
           "0.1 KB of fast RAM code. "
-          "Off until checked on an FM-1: whether the flash's data reads use the data cache (then the sound's tables "
-          "in flash could cost CPU) is not known; the console's tabbench (flash 16K) and boot lines show it.")
+          "The flash's data reads go through the data cache: with fewer ways kept, flash data reads over 16 KB slow down (57x measured with 4 KB left), so 8 KB is the safe choice; the console's tabbench (flash 16K) and boot lines show it.")
 _add("ASM", "FELUCCA_ASM", "hand-written assembly speed-ups (FM6, ANALOG 2)", Y, 56, target_only=True,
      desc="The hottest loops of FM6 and ANALOG 2 written in the processor's assembly: the same sound, about 8 to 19 % "
           "less audio CPU (emulator), for about 0.6 KB of flash and 0.7 KB of fast RAM code. Keep on; off only to "
@@ -1129,9 +1128,8 @@ _add("BLE_CENTRAL", "FELUCCA_BLE_CENTRAL", "BLE devices: the FM-1 connects to BL
           "with it; at level 3 BLE_BOND still lets a Mac pair with the FM-1 when the Mac connects to it.",
      symbols=("ble_found",), tested="on an FM-1: an iPhone app reconnected as the last device (2026-10-18)")
 _add("BT_AUDIO", "FELUCCA_BT_AUDIO", "Bluetooth Classic Audio (A2DP Source, SBC)", M, 281,
-     default=0, experimental=True, target_only=True,
-     tested="host-tested (SSP, SAFER+, SBC encoder, AVDTP, L2CAP) and unit-tested",
-     notice="experimental: Bluetooth Classic A2DP audio source",
+     default=0, target_only=True,
+     tested="on the FM-1: AirPods, a Sony WH-1000XM4 and a Bose SoundLink Mini, with BLE MIDI and the Mirror app at once (the user, 2026-10-25); host-tested (SSP, SAFER+, SBC encoder, AVDTP, L2CAP)",
      desc="Bluetooth Classic audio out (A2DP source, SBC 44.1 kHz) to headphones and speakers: its own page, S"
           "YSTEM > BT AUDIO (MODE OFF, MAN, AUTO), beside BT MIDI: with BLE built, MIDI and audio can be on at "
           "the same time on the one radio. Our own stack: inquiry, paging, Secur"
