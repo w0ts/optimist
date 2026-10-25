@@ -19,6 +19,7 @@ What is measured on a real FM-1 (calipers, the user, 2026-10-25) and what is sti
 | h | The board's left edge to the outside of the case's wall | 2.5 mm |
 | i | A pole's outside diameter | 6.9 mm |
 | j | Pole to pole, centre to centre, on the cover | 45 mm |
+| | The case's wall to the battery | 12 mm |
 
 ## How the board uses them
 
@@ -30,6 +31,10 @@ What is measured on a real FM-1 (calipers, the user, 2026-10-25) and what is sti
 - The foot starts 5.5 mm above the lower pole (no thin neck at the notch) with a brace from the strip's edge 9 mm
   above the pole (1 mm under the diode D42, its height from the photo) to the foot's corner; it reaches 22.6 mm below
   the pole (g: 40.8 free).
+- The battery moves right by about 11 mm (the foot is 22 mm wide; 12 mm are free between the wall and the battery).
+  A board that fits the 12 mm needs the card turned to go in along the edge and a socket under 12 mm wide; none was
+  found (LCSC's push-push ones are 14 to 15 mm; JAE ST11-H 13.4; Molex 502579 13.8). The user: "we will move the
+  battery" (2026-10-25).
 - The card socket stands 1 mm past the strip's edge; the case's outside is 2.5 mm from the board's edge (h): the card's
   slot in the wall is about 1.5 mm in front of the socket.
 
