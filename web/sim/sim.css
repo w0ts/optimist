@@ -4,6 +4,14 @@
    (style/optimist.css); the device uses its own --os-* variables, set per theme by applyTheme(). */
 .os { display: grid; gap: var(--sp-3); max-width: 1000px; }
 .os-bar { display: flex; flex-wrap: wrap; align-items: end; gap: var(--sp-2) var(--sp-3); }
+.os-power { min-width: 7em; }
+.os-sep { align-self: stretch; width: 1px; background: var(--line); margin: 0 var(--sp-1); }
+/* the two groups under the bar: the simulator's memory, the FM-1's; each a label then its buttons */
+.os-groups { display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-4, 24px); margin-top: var(--sp-3); }
+.os-group { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-1) var(--sp-2); padding: var(--sp-1) var(--sp-2);
+  border: 1px solid var(--line); border-radius: var(--r, 2px); min-width: 0; }
+.os-glabel { font-size: var(--fs-1); text-transform: uppercase; letter-spacing: .06em; color: var(--text-dim); margin-right: var(--sp-1); }
+@media (max-width: 520px) { .os-sep { display: none; } .os-group { flex: 1 1 100%; } }
 .os-pick { width: auto; max-width: 100%; }
 .os-status { margin: 0; min-height: 1.2em; }
 .os-status[data-kind="err"] { color: var(--err); }
