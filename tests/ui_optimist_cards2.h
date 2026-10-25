@@ -12,11 +12,18 @@ static void c2_master_tests(void)
     static const int32_t zero[CTL];
     static int32_t in[CTL], wl[CTL], wr[CTL];
     uint8_t ret[3];
-    uint32_t i, n, ok = 1, y;
+    uint32_t i, n, ok = 1, y, x;
     reset_ui();
-    turn(EN_ALGO, -1);                                  /* MASTER, alone */
-    ui.force = 1;
+    ui.force = 1;                                       /* T1's row first (the cards 1x4, its panel from row 76) */
     frame();
+    turn(EN_ALGO, -1);                                  /* MASTER, alone (no forced redraw: as the FM-1 draws it) */
+    frame();
+    frame();
+    for (y = OY_CARD + OH_CARD_2X2; y < OY_PANEL_2X2; y++)   /* (the FM-1, 2026-10-25: T1's rows left under DYN) */
+        for (x = 0; x < 240u; x++)
+            ok &= (uint32_t)(screen[y * 240u + x] == C_BLACK);
+    check(ok, "MASTER after T1: the rows between the 2x2 cards and the panel cleared (nothing of T1's panel left)");
+    ok = 1;
     n = mx_rets(ret);
     check(mxd.first == MXR_MASTER && n == 3u && ret[0] == 0u && ret[1] == 1u && ret[2] == 2u,
           "MASTER page: three return lines, A B C = CHO DLY REV (the default; every FX built here)");
