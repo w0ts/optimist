@@ -74,7 +74,7 @@ User presets and projects saved by an earlier firmware (SLOOP, or Optimist befor
 
 - The FM-1's screen live on the phone, tablet or Mac, over USB or Bluetooth. The panel's buttons as touch buttons around it (modes, pages, favourites), or the screen alone.
 - Edit a synth track's clip by touch: a piano roll to add, move, stretch and remove notes.
-- Projects, presets and the backup in their own tabs. It connects only when you ask. **[check: on the App Store once Apple approves it]**
+- Projects, presets and the backup in their own tabs. It connects only when you ask.
 
 ## Thanks
 

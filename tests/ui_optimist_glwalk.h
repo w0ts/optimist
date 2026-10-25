@@ -457,7 +457,7 @@ static void glwalk_tests(void)
     i = line_named(SCR_SYSTEM, "VERSION");
     glw_line(SCR_SYSTEM, i, &c, v);
     check(c.kind == CK_RO && v[0] && !strstr(v, "OPTIMIST") && strstr(FELUCCA_VERSION, v),
-          "About: VERSION a read-out, the version itself (\"OPTIMIST 0.1\": 0.1)");
+          "About: VERSION a read-out, the version itself (\"OPTIMIST 0.2\": 0.2)");
     memcpy(song.g, g0, sizeof g0);                      /* (an accelerated knob turned back may land near: as before) */
     memcpy(bp_set, b0, sizeof b0);
     settings.palette = pal;

@@ -6,7 +6,7 @@
  * that a build with the other UI (FELUCCA_UI, ui/optimist) has them too; felucca.c includes it before the UI.
  * Nothing here touches a UI's state: what must redraw says so through sync_reload (the editor) or its caller. */
 #ifndef FELUCCA_VERSION
-#define FELUCCA_VERSION "OPTIMIST 0.1"  /* the FM-1 firmware Optimist (based on SLOOP and Felucca) */
+#define FELUCCA_VERSION "OPTIMIST 0.2"  /* the FM-1 firmware Optimist (based on SLOOP and Felucca) */
 #endif
 static void project_save(uint32_t slot);
 static void arrangement_save(void);
