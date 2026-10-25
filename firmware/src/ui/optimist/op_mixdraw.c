@@ -27,7 +27,8 @@
  *              have no level of their own to read). The header names the lane ("Snare mix")
  * The selected row framed in its colour, its ground tinted. No pan, send or insert forms on the rows: the cards show the
  * selected row's values. Each row's meter and steps are canvases of their own, drawn again only when they change.
- * The builder item MIXER_2X draws the panel instead in op_mix2x.c (the 2x2 cards over it on every row). */
+ * The builder item MIXER_2X "big" draws the panel instead in op_mix2x.c (the 2x2 cards over it on every row); "both"
+ * builds the two, mx_big picks (HOME at the root, op_input.c op_no). */
 #define MXL_N 4u                        /* the channels a screen */
 #define MXL_H ((int32_t)OP_PH / (int32_t)MXL_N)   /* a channel's row: 41 px (the panel 164, the mixer's cards 1x4; over the
                                          * help band 36: the panel 146) */
@@ -223,10 +224,16 @@ static void mx_paint_row(uint32_t i)                    /* a channel's or a lane
 static void mx_paint(void)                              /* the group in view (cv_tall) */
 {
     uint32_t i;
-#if FELUCCA_MIXER_2X
+#if FELUCCA_MIXER_2X == 1
     (void)i;
     m2_paint();
 #else
+#if FELUCCA_MIXER_2X == 2
+    if (mx_big) {                                       /* ("both": the big one shown) */
+        m2_paint();
+        return;
+    }
+#endif
     if (mxd.first == MXR_MASTER) {
         mx_paint_master();
         return;
@@ -527,10 +534,16 @@ static __attribute__((noinline)) void mx_draw(void)
 #if FELUCCA_ED_MIRROR
     mxd.mir = (uint8_t)mir_meters_due();
 #endif
-#if FELUCCA_MIXER_2X
+#if FELUCCA_MIXER_2X == 1
     m2_live(trk_lv, ret_lv, n);
 #else
-    if (mxd.first == MXR_MASTER) {                      /* MASTER alone: its meter, its reduction, the returns' meters */
+#if FELUCCA_MIXER_2X == 2
+    if (mx_big) {
+        m2_live(trk_lv, ret_lv, n);
+        return;
+    }
+#endif
+    if (mxd.first == MXR_MASTER) {                    /* MASTER alone: its meter, its reduction, the returns' meters */
         mx_vu_at(MXR_MASTER, MXM_X, MXM_VY, MXM_W, MXM_VH, mx_level(MXR_MASTER, trk_lv), 0);
         mx_master_gr();
         for (i = 0; i < n; i++)

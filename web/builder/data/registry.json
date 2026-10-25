@@ -3428,12 +3428,12 @@
    {
     "key": "MIXER_2X",
     "flag": "FELUCCA_MIXER_2X",
-    "label": "mixer in the big face",
+    "label": "mixer: small, big face, or both",
     "group": "UI",
     "bit": 399,
     "default": 0,
     "parent": null,
-    "desc": "The mixer's four cards as the other screens' 2x2 big cards on every row (the same values, KNOB 1..4 = the cards in the same order). Under them the selected track's or lane's steps large (the page playing, two lines of 8) and a thin bar a track (T1 T2 T3 DR) showing where its pattern plays, the selected track's marked. MASTER: the level and the compressor's reduction as one thin line, then the effects' returns CHO DLY REV in the large face, each with its meter. Off: the 1x4 cards and a row a track.",
+    "desc": "small: the mixer as ever, the 1x4 cards and a row a track. big: the mixer's four cards as the other screens' 2x2 big cards on every row (the same values, KNOB 1..4 = the cards in the same order); under them a row a track (T1 T2 T3 DR; on DR and its lanes the drum lanes instead, two columns, ALGORITHM walks into them), each its code, a one-pixel line of its 16 steps (the playhead marked) and a one-pixel meter; under the rows the selected track's or lane's 16 steps large on one line. MASTER: the normal level meter with its dB scale, the compressor's reduction, the returns CHO DLY REV in the small face with their meters. both: the two built, HOME at the mixer goes small, big, the scope, small again; back from another page the mixer shows the face last used, kept with the settings over a power-off.",
     "experimental": false,
     "notice": "",
     "off_warning": "",
@@ -3442,7 +3442,20 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
-    "choices": [],
+    "choices": [
+     [
+      0,
+      "small"
+     ],
+     [
+      1,
+      "big"
+     ],
+     [
+      2,
+      "both"
+     ]
+    ],
     "provenance": null,
     "children": [],
     "tested": "emulator-tested only",
