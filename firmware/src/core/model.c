@@ -288,7 +288,7 @@ static uint32_t mem_item_bytes(uint32_t it)          /* (a refused part: what it
         return it - NPART < 3u ? arn_cur[FXM_K(it - NPART)].len : 0u;
 #endif
     if (it < NPART && (part_mem_refused.lmask >> it & 1u))
-        return part_mem_bytes(part_mem_refused.leng[it]);
+        return part_mem_need(part_mem_refused.leng[it]);   /* (WAVE: its table, engines.c part_tab_bytes) */
     return it < NPART ? arn_cur[it].len : 0u;
 }
 static uint32_t mem_load_items(uint8_t *it)
@@ -312,10 +312,13 @@ static uint32_t mem_load_items(uint8_t *it)
 }
 static uint32_t mem_load_need(uint32_t sel)           /* the bytes the refused parts want, but those left silent in sel */
 {
-    uint32_t k, n = 0;
+    uint32_t k, n = 0, tab = 0;
     for (k = 0; k < NPART; k++)
-        if ((part_mem_refused.lmask & ~sel) >> k & 1u)
-            n += part_mem_bytes(part_mem_refused.leng[k]);
+        if ((part_mem_refused.lmask & ~sel) >> k & 1u) {
+            uint32_t t = part_tab_bytes(part_mem_refused.leng[k]);   /* (WAVE's table: one for every WAVE part) */
+            n += part_mem_bytes(part_mem_refused.leng[k]) + (tab ? 0u : t);
+            tab |= t;
+        }
     return n;
 }
 static uint32_t mem_load_free(void)                   /* the arena's room now, every gap (the idle blocks free) */
@@ -333,7 +336,7 @@ static int mem_load_place(uint32_t sel)               /* the refused parts' rese
     uint32_t k;
     int r = 0;
     for (k = 0; k < NPART; k++)
-        if (((part_mem_refused.lmask & ~sel) >> k & 1u) && arn_reserve(k, part_mem_bytes(part_mem_refused.leng[k])))
+        if (((part_mem_refused.lmask & ~sel) >> k & 1u) && part_mem_aside(k, part_mem_refused.leng[k]))
             r = -1;
     return r;
 }
@@ -369,7 +372,7 @@ static int mem_load_settle(void)
             return 0;                                 /* (a part still switching: its old block not free yet) */
     fm1_irq_off();
     for (k = 0; k < NPART; k++)                       /* (each that fits now, by part: the rest stay refused) */
-        if ((part_mem_refused.lmask >> k & 1u) && !arn_reserve(k, part_mem_bytes(part_mem_refused.leng[k]))) {
+        if ((part_mem_refused.lmask >> k & 1u) && !part_mem_aside(k, part_mem_refused.leng[k])) {
             part_mem_refused.lmask &= (uint8_t)~(1u << k);
             trk[k].eng_req = part_mem_refused.leng[k];    /* (the project's sound as loaded, now on its engine) */
             trk[k].silent = 0;

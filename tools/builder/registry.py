@@ -1058,8 +1058,8 @@ _add("ARENA", "FELUCCA_ARENA_KB", "memory per project (an arena for the engines 
           "goes to the undo history. A change that does not fit is refused and the device proposes what to drop: the "
           "parts first, then the effects' lines (DROP REV 32 KB); a dropped part plays nothing (NONE), a dropped or "
           "refused effect is bypassed and dimmed (FULL), kept in the project, and comes back by itself once there is "
-          "room (a refused SLICER plays the live sound, WAVE is silent, an X0X kit plays its stand-in kit, each with "
-          "a MEM FULL message once). Off: every memory reserved as before, nothing ever refused. About 2 KB of flash and 256 B of RAM (the "
+          "room (a refused SLICER plays the live sound, its card FULL; an X0X kit plays its stand-in kit; each with "
+          "a MEM FULL message once; a change to WAVE without room for its table is refused as an engine change). Off: every memory reserved as before, nothing ever refused. About 2 KB of flash and 256 B of RAM (the "
           "default profile, measured 2026-10-25); the room is the size chosen, against the engines' and lines' fixed "
           "memories it replaces.")
 # bit 412 (2026-10-25): reserved for the RAMTEXT overlays (411: the effects' arena)
