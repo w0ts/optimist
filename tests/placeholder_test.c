@@ -138,8 +138,10 @@ int main(void)
             uint32_t m;
             int st = mem_load_settle();
             m = mem_load_items(it);
-            CHECK(st < 0 && m == 1u && it[0] == 1u && !mem_load_fits(0) && !mem_load_fits(2u),
-                  "load: settled, still short: part 2 the only item; with or without it the two do not fit");
+            CHECK(st < 0 && m == 3u && it[0] == 0u && it[1] == 2u && it[2] == 1u && !mem_load_fits(0) && !mem_load_fits(2u) &&
+                  !mem_load_fits(1u) && mem_load_fits(1u | 2u) && mem_load_fits(5u),
+                  "load: settled, still short: the items parts 1 and 3 (refused), then part 2; with or without part 2 the two do "
+                  "not fit; part 1 left silent and part 2 dropped: part 3 fits; both left silent: fits");
             mem_load_cancel();                          /* (HOME) */
             blocks(64);
             CHECK(!part_mem_refused.lmask && trk[0].silent && trk[2].silent && !strcmp(trk_eng_name(&trk[0]), "NONE") &&
@@ -161,7 +163,7 @@ int main(void)
             for (f = 0; f < 200u && (st = mem_load_settle()) == 0; f++)
                 blocks(8);
             m = mem_load_items(it);
-            CHECK(st < 0 && part_mem_refused.lmask == 2u && m == 1u && it[0] == 0u && !mem_load_fits(0) && mem_load_fits(1u) &&
+            CHECK(st < 0 && part_mem_refused.lmask == 2u && m == 2u && it[0] == 1u && it[1] == 0u && !mem_load_fits(0) && mem_load_fits(1u) &&
                   mem_load_free() < part_mem_bytes(ENG_IX_FM6) && mem_load_free() + mem_item_bytes(0) >= part_mem_bytes(ENG_IX_FM6),
                   "load: FM6 on parts 1 and 2: part 2 refused; part 1 the item, FITS with it dropped (the gauge's room enough)");
             mem_load_commit(1u);                        /* (part 1's key, SAVE) */

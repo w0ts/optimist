@@ -346,8 +346,8 @@ int main(void)
             st = mem_load_settle();
         }
         m = mem_load_items(it);
-        CHECK(st < 0 && m == 4u && it[0] == 0u && it[1] == NPART + FXM_REV && it[2] == NPART + FXM_DLY && it[3] == NPART + FXM_CHO,
-              "list: still short once settled; the items: part 1, then REV DLY CHO (not the own room)");
+        CHECK(st < 0 && m == 5u && it[0] == 1u && it[1] == 0u && it[2] == NPART + FXM_REV && it[3] == NPART + FXM_DLY &&
+              it[4] == NPART + FXM_CHO, "list: still short once settled; the items: part 2 (refused), part 1, then REV DLY CHO (not the own room)");
         CHECK(!mem_load_fits(0) && mem_load_fits(1u << 0) && mem_load_fits(1u << (NPART + FXM_DLY)) &&
               mem_item_bytes(NPART + FXM_DLY) == FXM_BYTES[FXM_DLY] && mem_item_bytes(0) >= part_mem_bytes(ENG_IX_FM6) &&
               fxm_st[FXM_DLY] == FXM_ON && arena_ok(),
