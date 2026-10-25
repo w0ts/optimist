@@ -49,12 +49,14 @@ What is measured on a real FM-1 (calipers, the user, 2026-10-25) and what is sti
 
 - The board spans 74.4 to 96.8 mm from the left edge (its tray's rail 0.6 mm clear of the battery, k; it ends 0.5 mm
   past the card socket, the user) and from
-  1.5 mm below the bottom edge (into the gap to the wall) up to 43 mm (1 mm under the switch, w2).
+  1.5 mm below the bottom edge (into the gap to the wall) up to 40 mm, the pole's centre: 4 mm under the
+  speaker plug (w2), which the board must not rest against (the user).
 - The cover's pole (l, m; 6.9 mm, i) sits in a half-round seat in the board's top left, 0.6 mm play.
 - The card's left side at 82.4 mm (84 from the wall's inside, the wall's inside taken 1.6 mm out: from h and the
   left-wall figures); the card taken as centred in its socket (UNMEASURED: check on the mockup). The socket's front at
   the bottom wall's outside (x: 3 mm below the board's edge), the card flush.
-- The FFC socket at 93 mm (the jacks' gap at r = 90 mm), its cable coming down from the top.
+- The FFC socket at 91 mm (the jacks' gap at r = 90 mm), 34.5 mm up: its ribbon comes down over the speaker plug
+  (4 mm tall, the user) and has room to bend down to it.
 - The board slides into a printed tray (`make_tray.py`, `sd-tray.stl`): a 0.8 mm floor, a rail with a groove along
   each side (the board 22.4 mm wide; the tray 73.2 to 98 mm), a collar round the pole that stops it, posts toward the cover.
   Only the collar and three posts (all 5.6 mm, the pole is 6; rail-wide, long along the rails, clear of the cover's edge band and the cable's) reach up; the rails stand 3.35 mm: the battery's cable passes
