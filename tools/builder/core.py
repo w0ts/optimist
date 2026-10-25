@@ -174,9 +174,6 @@ def validate(cfg):
         err.append(Issue("the reverb bus needs an algorithm: tick ROOM, PLATE, FDN8, SPRING or VTINY "
                          "(or the reverb bus off)",
                          ["FX_REVERB"] + revs))
-    fonts = [k for k in R.FONT_ITEMS if k in R.ITEMS]
-    if not any(cfg[k] for k in fonts):
-        err.append(Issue("at least one font: every screen draws text (tick TERMINUS, the default, or another)", fonts))
     kits = [k for k in R.ITEMS if k.startswith("KIT_")]
     synths = list(DRUM_SYNTHS)   # (the drum synths, first in Drums: each a drum source on its own)
     if not any(built(cfg, k) for k in synths + kits):
@@ -255,8 +252,7 @@ def flags(cfg):
     skip = [R.ITEMS[k].env for k in R.ITEMS if k.startswith("SET_") and not cfg[k]]
     if not out.get("FELUCCA_DRUM_SAMPLED", 1):
         skip.append("PERC")
-    env = {"FELUCCA_SAMPLES_SKIP": ",".join(skip), "FELUCCA_SLICE": str(cfg["ENG_SLICE"]),
-           "FELUCCA_FONTS": ",".join(R.ITEMS[k].env for k in R.FONT_ITEMS if cfg[k])}   # (gen_font.py: the faces built)
+    env = {"FELUCCA_SAMPLES_SKIP": ",".join(skip), "FELUCCA_SLICE": str(cfg["ENG_SLICE"])}
     return out, env
 
 

@@ -64,7 +64,7 @@ static void glo_list_tests(void)
 #if FELUCCA_USB_AUDIO
                                      "USB STATS",         /* (the USB audio counters) */
 #endif
-                                     "GENERAL", "AUDIO", "KEYS", "USB", "BT MIDI", "BT AUDIO", "DEVICES", "USB AUDIO", "CALIBRATE", "ABOUT", "CREDITS"};
+                                     "SCREEN", "AUDIO", "KEYS", "USB", "BT MIDI", "BT AUDIO", "DEVICES", "USB AUDIO", "CALIBRATE", "ABOUT", "CREDITS"};
     cell_t want[GL_MAXL], c;
     char sec[GL_MAXL][12], nm[12];
     uint32_t s, i, n, ok = 1;

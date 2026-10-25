@@ -660,9 +660,6 @@ static const felucca_font_t *font_big(void)
         f = FONT_L;
         f.last = FONT_S.last;
     }
-#if FONT_N > 1
-    f.data = FONT_L.data;                               /* (the face SYSTEM > FONT chose: gfx.c font_use) */
-#endif
     return &f;
 }
 /* the question in the large font: one line, "Clear DR?", its target in its colour, when it fits; else the verb
