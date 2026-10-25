@@ -71,10 +71,8 @@ PX, PY = T(*POLE)
 SEAT_END = math.degrees(math.acos((U0 - POLE[0]) / POLE_R))   # (where the seat meets the board's left edge)
 # the column and the head (v5): up the right of the speaker plug (85.6 to 90 across, 44 to 51 up: C, D, w1, w2) to
 # under the jacks (from 76.8 up: F), where J3 and J2 sit; no tray there, the board 0.8 mm over the FM-1's small parts
-COL_L, HEAD_BOT, HEAD_L, HEAD_TOP = 90.5, 51.5, 86.0, 76.7  # (the top right against the jacks)
-COL_R = U1_ - 1.0                                # (the column 1 mm narrower on its right: room between the plugs, the user)
-OUTLINE = tuple([T(U0, V0), T(U1_, V0), T(U1_, V1), T(COL_R, V1), T(COL_R, HEAD_BOT), T(U1_, HEAD_BOT),
-                 T(U1_, HEAD_TOP), T(HEAD_L, HEAD_TOP), T(HEAD_L, HEAD_BOT),
+COL_L, HEAD_BOT, HEAD_L, HEAD_TOP = 91.5, 51.5, 86.0, 76.7  # (the top right against the jacks)
+OUTLINE = tuple([T(U0, V0), T(U1_, V0), T(U1_, HEAD_TOP), T(HEAD_L, HEAD_TOP), T(HEAD_L, HEAD_BOT),
                  T(COL_L, HEAD_BOT), T(COL_L, V1), (PX + POLE_R, PY),
                  *notch(PX, PY, 0, SEAT_END)[1:]])
 
@@ -226,16 +224,17 @@ R("GND", [A(C2, 1), (92.3, 14.6)])
 R("GND", [A(C1, 2), (77.4, A(C1, 2)[1])])
 
 # ---- up the column (right of the speaker plug) to J2: each line steps right into its lane one after the other, the
-# rightmost first; in the head, each steps left onto its J2 pin, the leftmost first (provisional order, LCD_PINS)
-LANE = {"MISO": 91.2, "CLK": 91.9, "MOSI": 92.6, "LCD_CS": 93.3, "3V3": 94.0}
-UP = {"3V3": 26.0, "LCD_CS": 28.0, "MOSI": 30.0, "CLK": 32.0, "MISO": 34.0}       # (where each steps right)
-OVER = {"MISO": 52.0, "CLK": 53.6, "MOSI": 55.4, "LCD_CS": 57.4, "3V3": 59.6}     # (where each steps left)
+# rightmost first; in the head, they slant left together onto their J2 pins (provisional order, LCD_PINS)
+LANE = {"MISO": 92.1, "CLK": 92.75, "MOSI": 93.4, "LCD_CS": 94.05, "3V3": 94.7}   # (the column from 91.5: 1.5 mm
+                                                 # clear of the speaker plug, the user)
+UP = {"3V3": 26.0, "LCD_CS": 28.5, "MOSI": 31.0, "CLK": 33.5, "MISO": 36.3}       # (where each steps right)
 PIN = {name: num for num, name in LCD_PINS.items() if name in LANE}
 for name, (u, v) in P2.items():
     x = LANE[name]
     tx = A(J2, PIN[name])
-    R(name, [(u, v), (u, UP[name]), (x, UP[name] + x - u), (x, OVER[name]),
-             (tx[0], OVER[name] + x - tx[0]), tx], POWER if name == "3V3" else TRACK)
+    R(name, [(u, v), (u, UP[name]), (x, UP[name] + x - u), (x, 52.4),
+             (tx[0], 52.4 + (x - tx[0]) / 0.4), tx], POWER if name == "3V3" else TRACK)   # (all slant together at
+                                                 # 22 degrees from 52.4 mm up, onto J2's pins under its body)
 
 # ---- J3 to J2: every line straight through (under J3's body, a slant right, down onto J2's pins from above); the
 # ground pins join through the pours
