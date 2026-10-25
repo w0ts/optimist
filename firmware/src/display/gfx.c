@@ -15,25 +15,6 @@ typedef struct {               /* monospace, see tools/gen_font.py */
     const uint8_t *data;
 } felucca_font_t;
 #include "felucca_font.h"
-#if FONT_N > 1
-/* the face drawn, of the FONT_N built (the builder's FONT_* items; SYSTEM > FONT, op_project.c): FONT_S and FONT_L read its
- * bitmaps (FONT_L its glyphs at 2x). One face: none of this, FONT_S and FONT_L const (tools/gen_font.py) */
-static uint8_t font_sel;
-static void font_use(uint32_t i)
-{
-    font_sel = (uint8_t)(i < FONT_N ? i : 0u);
-    FONT_S.data = FONT_L.data = FONT_DATA[font_sel];
-}
-/* the face of stable number id (the settings record's, tools/gen_font.py FACES): one this build lacks, the first built */
-static void font_use_id(uint32_t id)
-{
-    uint32_t i;
-    for (i = 0; i < FONT_N && FONT_ID[i] != id; i++)
-        ;
-    font_use(i);
-}
-static uint8_t font_rec(void) { return FONT_ID[font_sel]; }   /* the settings record's byte (project.c persist_t font) */
-#endif
 
 #define CV_MAX (240u * 124u)      /* the graph strip is 240 x 124 */
 static uint16_t cv_px[CV_MAX] __attribute__((section(".pool")));

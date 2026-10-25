@@ -448,9 +448,8 @@
       "CPU1": {"text": "2nd core's load, or why off", "if": "DUAL_LOAD"}}},
     {"kind": "op", "ctx": "INTERNALS", "params": {"INTERNALS": "Last reset, flash, 2nd core"}},
     {"kind": "op", "ctx": "USB STATS", "if": "FELUCCA_USB_AUDIO", "params": {"USB STATS": "USB audio glitch counters"}},
-    {"kind": "op", "ctx": "GENERAL", "params": {
+    {"kind": "op", "ctx": "SCREEN", "params": {
       "BRIGHT": {"text": "Backlight (8: full)", "if": "FELUCCA_BRIGHT"},
-      "FONT": {"text": "Typeface of all the text", "if": "defined(FONT_N) && FONT_N > 1"},
       "KNOB COLORS": "Knob numbers in cap colours"}},
     {"kind": "op", "ctx": "KEYS", "if": "FELUCCA_LIGHTS", "params": {
       "BUTTONS": "Buttons glow in the dark", "KEYS": "Which keys glow"}},

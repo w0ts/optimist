@@ -41,7 +41,7 @@ GEN = OUT / "gen"
 # the host tests' headers (tests/run_tests.sh): every sample set, whatever profile build/gen was made for, so one
 # tests/golden.txt covers every preset and no profile hides a render (--host-headers)
 HOST_GEN = OUT / "gen-host"
-HOST_ENV = {"FELUCCA_SAMPLES_SKIP": "", "FELUCCA_SLICE": "0", "FELUCCA_FONTS": "TERMINUS"}   # (one face: tests/run_tests.sh builds the FONT line with its own header)
+HOST_ENV = {"FELUCCA_SAMPLES_SKIP": "", "FELUCCA_SLICE": "0"}
 LDR = OUT / "loader"
 GEN_REL = GEN.relative_to(SRC).as_posix()       # (the tools run with cwd SRC: build/gen, or a slot's)
 sys.path.insert(0, str(SRC / "tools"))

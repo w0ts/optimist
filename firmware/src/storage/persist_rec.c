@@ -188,10 +188,7 @@ typedef struct {
     uint8_t ua_dst[PERSIST_UA_SRC];
     uint32_t ua_mark3;
     uint8_t bt_rec[32], bt_key[32];
-    uint8_t open_proj, font, rsv_pj[2];            /* 2026-10-22: the open project (PATTERNS: sections.c); a record from before: 0;
-                                                    * font, 2026-10-25: SYSTEM > FONT, the face's stable number (tools/gen_font.py
-                                                    * FACES; gfx.c font_use_id: one not built, the first built), only a build of
-                                                    * more than one face reads or writes it; a record from before: 0, TERMINUS */
+    uint8_t open_proj, rsv_pj[3];                  /* 2026-10-22: the open project (PATTERNS: sections.c); a record from before: 0 */
     int16_t clk_ofs[2];                            /* 2026-10-24: GLOBAL > MIDI CLK OFS, BT OFS, ms (clock_sync.c sync_ofs);
                                                     * a record from before: 0 */
     uint8_t bt_kept[PERSIST4_BT_KEPT];             /* 2026-10-24: BT AUDIO's other remembered devices (op_bt.c bt_kept_out);

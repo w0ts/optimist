@@ -163,7 +163,7 @@ PAIR_WITH = {"REV_ROOM=0,REV_HALF=1": {"REV_PLATE": 1}, "MICRO=1,FILLS=1": {"SL2
                                                      # RAMTEXT part, -1,264 B, did not carry over)
 # a value that is not valid alone (the last reverb algorithm off): measured with these set too, less their own deltas
 # (so those are measured first)
-WITH = {("REV_ROOM", 0): {"REV_PLATE": 1}, ("FONT_TERMINUS", 0): {"FONT_UNIFONT": 1},   # (at least one font)
+WITH = {("REV_ROOM", 0): {"REV_PLATE": 1},
         ("MICRO", 1): {"SL24_XSTEP": 1}, ("FILLS", 1): {"SL24_XSTEP": 1}, ("PLOCK", 1): {"SL24_XSTEP": 1}}   # (their storage)   # (the Optimist UI's: nothing without it)
 # an item the firmware switches off without the automation store (configure.py NEEDS_AUTO; DRUM_ACCENT was one, 0 B on
 # the defaults, +148 B of flash with the store, until it was retired 2026-10-20): measured with MOTION on, and counted only where the store is built

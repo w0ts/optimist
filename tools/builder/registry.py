@@ -937,31 +937,6 @@ _add("LCD_DIRTY", "FELUCCA_LCD_DIRTY", "screen: send only the changed rectangle"
      provenance=x0x("201b95c"),
      notice="Ported from X0X by Charles Vestal (GPL-3.0): dirty-rectangle screen updates. Not yet tried on "
             "hardware here.")
-# the fonts (tools/gen_font.py FACES, assets/fonts/; the user, 2026-10-25: "a few as builder options and an entry to select in
-# a system screen", "pick the ones that make most sense"): one item a face, at least one (core.py validate); FELUCCA_FONTS
-# tells gen_font.py which (core.py flags). Two or more: SYSTEM > General > FONT picks the face drawn (kept with the
-# settings); one: no FONT line, no selection code
-_FONT_DESC = (" Every font has the same 8x16 cell, so every screen keeps its layout; the large text is the same font at "
-              "twice the size. With two or more fonts built, SYSTEM > General gets a FONT line next to KNOB COLORS that "
-              "picks the one drawn (kept with the settings of the FM-1; a font a later build leaves out falls back to the "
-              "first one built). With one font there is no FONT line and no selection code.")
-_FONT_COST = (" Its bitmaps are 1,520 B of flash; the second font built also brings the FONT line (about 2 KB of flash "
-              "and 64 B of RAM together, measured on the default profile), each further one about 1.5 KB. Built alone, "
-              "instead of Terminus, it costs nothing.")
-_add("FONT_TERMINUS", "", "font: Terminus 8x16 (the default)", U, 399, env="TERMINUS",
-     desc="Terminus 8x16 by Dimitar Toshkov Zhekov (SIL OFL 1.1): the firmware's font so far, thin even strokes, "
-          "a slashed zero." + _FONT_DESC)
-_add("FONT_UNIFONT", "", "font: GNU Unifont 8x16 (classic PC)", U, 402, default=0, env="UNIFONT",
-     desc="GNU Unifont 8x16, ASCII (Roman Czyborra, Paul Hardy and others; SIL OFL 1.1 or GPL-2.0-or-later): the "
-          "classic PC text look, thin strokes, an oval slashed zero, a two-storey g; drawn one row higher than the "
-          "original to sit as the other fonts do." + _FONT_COST + _FONT_DESC)
-# the Ultimate Oldschool PC Font Pack (VileR, int10h.org; CC BY-SA 4.0, one-way compatible with GPL-3.0: LICENSING.md),
-# 2026-10-25: of ten tried, the user kept Terminus, Unifont and NEC APC ("only keep terminus, apc and unifont")
-_OLDSCHOOL = "from VileR's Ultimate Oldschool PC Font Pack (CC BY-SA 4.0, compatible with the GPL-3.0)"
-_add("FONT_NEC_APC", "", "font: NEC APC III 8x16 (round, thin)", U, 407, default=0, env="NEC APC",
-     desc="NEC APC III 8x16, " + _OLDSCHOOL + ": thin, round and wide letters, a slashed zero, unlike any of "
-          "the other fonts." + _FONT_COST + _FONT_DESC)
-FONT_ITEMS = ("FONT_TERMINUS", "FONT_UNIFONT", "FONT_NEC_APC")   # at least one (core.py validate)
 
 # ---- system
 Y = "System"
