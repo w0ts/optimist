@@ -1,14 +1,15 @@
-# The FM-1 SD board (v3)
+# The FM-1 SD board (v4)
 
-An L-shaped board (a 10 mm strip, 71 mm long, with a 22 x 22.6 mm foot) with everything the SD card mod needs (docs/SD-CARD-DESIGN.md): a push-push microSD socket, the
+A 28.8 x 44.5 mm board with everything the SD card mod needs (docs/SD-CARD-DESIGN.md): a push-push microSD socket, the
 chip-select inverter, the 1 kOhm on the card's data out, the pull-ups, the decoupling, and a 6-pin 0.5 mm flat-cable
-(FFC) socket. It sits on the back of the FM-1's board along its left edge (the user's plan, 2026-10-25): the flat cable
-from a tap at J12 (the LCD's connector, on the front) runs between the buttons and the encoders, round the board's left
-edge into the FFC socket at the strip's top; the strip runs down the edge to the foot, where the battery was (the
-battery moves right); the card goes in from the left edge. **No soldering.**
-Status (2026-10-25): designed and checked (KiCad: no design-rule error, the schematic's nets equal the board's);
-**most sizes measured (MEASUREMENTS.md), a few still from a photo**; **no board has been made yet**; **the tap board at J12 is not designed
-yet** (it needs J12's pin order, metered).
+(FFC) socket. It sits on the back of the FM-1's board, right of the battery, by the battery's plug (the user's plan,
+2026-10-25; the battery stays where it is). The card goes in through the case's bottom wall, flush with the outside,
+86 mm from the left wall (between the pegs that close the case). The cover's pole there seats in a half-round notch.
+A flat cable from a tap at J12 (the LCD's connector, on the front) comes round the board's edge between the two jacks
+and down the back to the FFC socket: **no soldering**.
+Status (2026-10-25): designed and checked (KiCad: no design-rule error, the schematic's nets equal the board's); the
+sizes measured with calipers (`MEASUREMENTS.md`); **no board has been made yet**; **the tap board at J12 is not
+designed yet** (it needs J12's pin order, metered, and u, v: the room beside the LCD's cable between the jacks).
 
 ![top](render-top.png)
 
@@ -16,16 +17,16 @@ yet** (it needs J12's pin order, metered).
 
 1. **This board**, ordered assembled (below).
 2. **The tap board at J12** (to come): the LCD's flex and J12 pass through it, six of their lines go out on the FFC.
-3. **A 6-wire 0.5 mm FFC**, about 3.5 mm wide, long enough from J12 along the strip between the buttons and the
-   encoders, round the board's left edge, to this board (measure; 100-150 mm are standard lengths). Which contact side ("same side" / "opposite side") follows from how the
-   two sockets face once the tap board exists.
+3. **A 6-wire 0.5 mm FFC**, about 3.5 mm wide, from J12 between the jacks, round the board's edge and down the back
+   to this board (measure; 100-150 mm are standard lengths).
+4. **A slot in the bottom wall** for the card: about 15 x 2.5 mm, its left end 84.5 mm from the left wall's inside.
 
 ## Order it (JLCPCB, assembled)
 
-1. jlcpcb.com > Order now > upload `fab/sd-board-gerbers.zip` (2 layers, 22 x 71 mm, 1.6 mm; JLC prices the L by its box; the defaults are fine).
+1. jlcpcb.com > Order now > upload `fab/sd-board-gerbers.zip` (2 layers, 28.8 x 44.5 mm, 1.6 mm; the defaults are fine).
 2. Tick **PCB Assembly**, top side, Economic.
 3. Upload `fab/bom.csv` (the parts) and `fab/cpl.csv` (where they go). Every part is a JLC part (LCSC numbers in the BOM).
-4. Check the placement preview: the card socket's and the FFC socket's openings on the long straight edge,
+4. Check the placement preview: the card socket's opening past the bottom edge, the FFC socket's opening at the top,
    U1's pin 1 dot as on the render.
 5. Order. Rough cost (an estimate from JLC's usual prices, not a quote): about 20 USD for 2 boards, 22 for 5, 26 for 10,
    32 for 20, plus shipping and VAT. Three parts are JLC "extended" parts (the two sockets, the inverter): 3 USD each
@@ -34,22 +35,21 @@ yet** (it needs J12's pin order, metered).
 The same board can be shared on OSHWLab (JLC's open-hardware site) so anyone orders it from a page: import the KiCad
 project (`sd-board.kicad_pcb`, `sd-board.kicad_sch`) into EasyEDA Pro (File > Import > KiCad), publish it.
 
+Check the fit first: `mockup-printable.stl` (3D print, one piece: the board and its parts as blocks), or
+`template-1to1.pdf` (print at 100 %).
+
 ## The FFC socket's pins
 
 | J2 pin | Net | On the FM-1 |
 |---|---|---|
-| 1 | MOSI | PC10, the LCD's data out (the chip's pin 29) |
-| 2 | CLK | PC9, the LCD's clock (pin 30) |
-| 3 | MISO | PC8, the LCD's D/C (pin 31) |
+| 1 | 3V3 | 3.3 V (the LCD's VCC) |
+| 2 | CS (in) | PC7, the LCD's CS (the chip's pin 32) |
+| 3 | MOSI | PC10, the LCD's data out (pin 29) |
 | 4 | GND | ground |
-| 5 | 3V3 | 3.3 V (the LCD's VCC) |
-| 6 | CS (in) | PC7, the LCD's CS (pin 32) |
+| 5 | CLK | PC9, the LCD's clock (pin 30) |
+| 6 | MISO | PC8, the LCD's D/C (pin 31) |
 
-(The order suits this board's routing; the tap board at J12 is designed to match it.)
-
-It is held by the back cover's two poles (6.9 mm wide, 6.8 mm high, measured): they stand over the FM-1 board's edge,
-so the board has two U-notches open to the left around them, and the cover holds it in place when it closes. All the
-sizes are in `MEASUREMENTS.md`. Check the fit first with `mockup.stl` (3D print) or `template-1to1.pdf` (print at 100 %).
+(The order follows the card's contacts, so nothing crosses; the tap board at J12 is designed to match it.)
 
 ## The design
 
