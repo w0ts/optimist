@@ -22,8 +22,7 @@ POLE, POLE_D, COLLAR_H = (78.0, 40.0), 6.9, 5.6  # the pole (l, m, i) and the co
 # Three posts up toward the cover, as high as the collar, each the rail's width (rail and lip, no overhang to print) and
 # long along it (the user: "more up and down"): from out of the cover's tapered edge band (t: some 4 mm from the walls,
 # the bottom wall's inside about 0.6 mm below the board) up to the cable's band (30 to 38 mm up), and above it on the
-# right. They stand on the lips, 2.65 mm above the board, so the board still slides in under them. (u, u, v, v)
-POSTS = ((LEFT, None, 2.5, 29.5), (None, RIGHT, 2.5, 29.5), (None, RIGHT, 39.0, None))
+# right. They stand on the lips, 2.65 mm above the board, so the board still slides in under them (POSTS, below).
 # Only the collar and the posts reach toward the cover: the battery's cable crosses over the board and the tray (the
 # user, 2026-10-25), in a band about 8 mm wide some 10 mm below the speaker plug (w2: 44 mm up), about 30 to 38 mm up.
 COLLAR_IN = (POLE_D + 0.4) / 2
@@ -42,6 +41,7 @@ v1 = max(v for _, v in pts)
 v_left = max(v for u, v in pts if abs(u - u0) < 0.01)
 
 RIGHT = u1 + SIDE + 0.9                          # (the right rail as wide as the left)
+POSTS = ((LEFT, None, 2.5, 29.5), (None, RIGHT, 2.5, 29.5), (None, RIGHT, 39.0, None))
 top = FLOOR + PCB + PLAY + LIP
 groove = FLOOR + PCB + PLAY
 
