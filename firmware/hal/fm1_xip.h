@@ -11,3 +11,6 @@
 #define FM1_XIP(off) (0x02000000u + (uint32_t)(off) - 0x4000u)
 
 FM1_INLINE const uint8_t *fm1_xip_ptr(uint32_t off) { return (const uint8_t *)FM1_XIP(off); }
+
+/* a word read through XIP every time (never folded into the constant it is meant to be): src/system/far_probe.c */
+FM1_INLINE uint32_t fm1_xip_word(const void *p) { return *(const volatile uint32_t *)p; }

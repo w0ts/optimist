@@ -46,6 +46,7 @@ LDR = OUT / "loader"
 GEN_REL = GEN.relative_to(SRC).as_posix()       # (the tools run with cwd SRC: build/gen, or a slot's)
 sys.path.insert(0, str(SRC / "tools"))
 import fm1pkg_make  # noqa: E402
+import flash_layout  # noqa: E402  (the app slot's end by FELUCCA_LAYOUT: fm1_flash_map.h's numbers)
 import lz4blk  # noqa: E402
 import lzb  # noqa: E402  (the boot stream's coder: the RAM code, the tables and .data in flash)
 import toolchain as TC
@@ -206,10 +207,19 @@ def ldr_wrap(image):
     return ldr_head(crc16(body), 0x20, len(body), 0x41, LOADER_NAME) + body
 
 
+FAR_OFF = 0x90000                   # the far probe (FELUCCA_LAYOUT 1): .text_far at app.bin offset 0x90000, flash 0x94120,
+                                    # past the normal layout's end (docs/SD-MODE-DESIGN.md; src/system/far_probe.c)
+
+
+def layout():
+    """the build's flash layout (tools/flash_layout.py, the LAYOUT builder item)"""
+    return int(CFG_VALUES.get("FELUCCA_LAYOUT", os.environ.get("FELUCCA_LAYOUT", "0")))
+
+
 def build_loader():
     LDR.mkdir(parents=True, exist_ok=True)
     src = FW / "loader"
-    flags = [*CFLAGS, "-Ifirmware/hal", "-Ifirmware/src"]
+    flags = [*CFLAGS, "-Ifirmware/hal", "-Ifirmware/src", f"-DFELUCCA_LAYOUT={layout()}"]   # (it writes that slot)
     tc_all(("cc", "-c", src / "crt0_ldr.S", "-o", LDR / "crt0_ldr.o"),
            ("cc", *flags, "-c", src / "loader.c", "-o", LDR / "loader.o"))
     elf = LDR / "loader.elf"
@@ -408,9 +418,21 @@ def build_app():
        OUT / "felucca_size.ll", "-o", OUT / "felucca.o")
     elf = OUT / "felucca.elf"
     ld = FW / "app.ld"
+    slot = flash_layout.app_slot(layout())
+    LIMITS["flash"] = slot
+    ld_text = (FW / "app.ld").read_text()
+    if layout():                    # another flash layout: its XIP length, and the far probe's section past 0x93000
+        ld_text = (ld_text.replace("LENGTH = 0x8DFBC", f"LENGTH = 0x{slot:X}")
+                   .replace("*(.text*) *(.rodata*)", "*(.text .text.*) *(.rodata*)")   # (.text_far: not in .text)
+                   .replace("_etext = .; } > XIP",
+                            "_etext = .; } > XIP\n    .text_far (ORIGIN(XIP) + " + f"{FAR_OFF:#x}" +
+                            ") : { KEEP(*(.text_far .text_far.*)) } > XIP"))
+        ld = OUT / "app_layout.ld"
+        ld.write_text(ld_text)
+        sync_view(ld)
     if MEASURE:                     # a measurement link: XIP and POOL larger than the chip has (not flashable)
         ld = OUT / "app_measure.ld"
-        ld.write_text((FW / "app.ld").read_text().replace("LENGTH = 0x8DFBC", "LENGTH = 0xEDFBC")
+        ld.write_text(ld_text.replace(f"LENGTH = 0x{slot:X}", f"LENGTH = 0x{slot + 0x60000:X}")
                       .replace("ORIGIN = 0x01C00000, LENGTH = 0x7F00", "ORIGIN = 0x01C00000, LENGTH = 0xFF00")
                       .replace("ORIGIN = 0x01C08000, LENGTH = 96K", "ORIGIN = 0x01C10000, LENGTH = 96K")
                       .replace("LENGTH = 96K", "LENGTH = 128K")             # (RAM, POOL and NOINIT moved up:
@@ -421,9 +443,10 @@ def build_app():
     # --gc-sections: the units' functions nothing calls go (CFLAGS has -ffunction-sections; the X0X / ACID float
     # units export getters and renders this firmware never calls); crt0, the RAM code and the pool are KEEP in app.ld
     tc("pi32v2/bin/ld", "--gc-sections", "-T", ld, *objs, "-o", elf)
-    for sect in ("text.bin", "data.bin", "ramtext.bin", "ramhot.bin", "ramhot2.bin", "poolinit.bin"):
+    for sect in ("text.bin", "data.bin", "ramtext.bin", "ramhot.bin", "ramhot2.bin", "poolinit.bin", "far.bin"):
         (OUT / sect).unlink(missing_ok=True)
-    *_, syms, dis, rt, hdr = tc_all(("common/bin/objcopy", "-O", "binary", "-j", ".text", elf, OUT / "text.bin"),
+    *_, syms, dis, rt, hdr = tc_all(("common/bin/objcopy", "-O", "binary", "-j", ".text_far", elf, OUT / "far.bin"),
+                                    ("common/bin/objcopy", "-O", "binary", "-j", ".text", elf, OUT / "text.bin"),
                                ("common/bin/objcopy", "-O", "binary", "-j", ".data", elf, OUT / "data.bin"),
                                ("common/bin/objcopy", "-O", "binary", "-j", ".ram_text", elf, OUT / "ramtext.bin"),
                                ("common/bin/objcopy", "-O", "binary", "-j", ".ram_hot", elf, OUT / "ramhot.bin"),
@@ -454,6 +477,13 @@ def build_app():
     img += b"\xff" * (load - APP_XIP - len(img))
     img += stream
     img += b"\xff" * (-len(img) % 4)
+    far = (OUT / "far.bin").read_bytes() if (OUT / "far.bin").exists() else b""
+    if far:                         # the far probe: after everything the boot needs, at its own offset past 0x93000
+        if len(img) > flash_layout.app_slot(0):
+            raise SystemExit(f"build: the image ({len(img)} B) is past the normal layout's slot "
+                             f"({flash_layout.app_slot(0)} B): the far probe needs everything the boot reads below 0x93000")
+        img += b"\xff" * (FAR_OFF - len(img)) + far
+        print(f"far      probe {len(far)} B at app offset {FAR_OFF:#x} (flash {0x4120 + FAR_OFF:#x})")
     (OUT / "felucca.bin").write_bytes(img)
     return bytes(img), syms, dis, rt, hdr
 
@@ -698,7 +728,7 @@ def check(img, syms, dis, rt):
     if far:
         errors.append(f"direct calls between RAM and XIP code: {far[:4]}")
     over = errors if not MEASURE else OVER       # a measurement build reports the overflow, it never ships
-    if len(img) > APP_SLOT:
+    if len(img) > LIMITS["flash"]:
         over.append(f"image {len(img)} B exceeds the app slot")
 
     def sym(name):
@@ -934,7 +964,7 @@ def main():
         print(f"measure  {OUT / 'sizes.json'} (no package: a measurement build is not flashable)")
         return 0
     mark(5)
-    pkg = fm1pkg_make.ufw(fm1pkg_make.flash_image(img, fm1pkg_make.KEY), ota, PRODUCT)
+    pkg = fm1pkg_make.ufw(fm1pkg_make.flash_image(img, fm1pkg_make.KEY, flash_layout.app_hi(layout())), ota, PRODUCT)
     (OUT / name).write_bytes(pkg)
     att = SRC / "assets" / "samples-cc0" / "ATTRIBUTION.txt"
     if att.exists():

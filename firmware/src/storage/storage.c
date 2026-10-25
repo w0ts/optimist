@@ -43,15 +43,25 @@ enum { OBJ_SETTINGS, OBJ_PROJECT0, OBJ_UPRESET0 = OBJ_PROJECT0 + 4, OBJ_AUTOSAVE
 #define ST_DLANES_SECTOR 0xE5000u              /* FL_DLANE_LO */
 #define ST_UPF_SECTOR FL_UPF_LO                /* 0x95000: OBJ_UPFM6 (until fix/upfm6-off-vm 0xE7000 / 0xE8000: st_upf_move) */
 #define ST_UPF_OLD FL_OLD_UPF_LO               /* 0xE7000: the old copy A; B at 0xE8000 (read only, never written) */
+#if FELUCCA_LAYOUT == 1 && (FELUCCA_ENG_SAMPLE || FELUCCA_DRUM_USR || FELUCCA_SNAPSHOTS || CZ_NUSER || !FELUCCA_PATTERNS)
+#error "FELUCCA_LAYOUT 1 (fake SD mode): no user sample slots (ENG_SAMPLE, DRUM_USR), no SNAPSHOTS, no CZ collection; PATTERNS on (docs/SD-MODE-DESIGN.md)"
+#endif
+#if FELUCCA_LAYOUT == 1                        /* the fake SD mode (fm1_flash_map.h): the old slots are the app's */
+#define ST_AUTOSAVE_A 0xD7000u                 /* the squeezed store's sector before the FM6 voices */
+#define ST_PROJECTS 0u                         /* no old project slots: nothing to read, migrate or write */
+#else
+#define ST_AUTOSAVE_A 0x9F000u
+#define ST_PROJECTS 0x97000u                   /* the old project slots A/B x 4 (sections.c migrates them) */
+#endif
 /* the flash map, checked when the firmware builds: every fixed object sector is Optimist's own, none the SDK's */
-_Static_assert(FL_STORE_OK(0xFC000u, 2u * ST_SECTOR) && FL_STORE_OK(0x9F000u, ST_SECTOR) &&
+_Static_assert(FL_STORE_OK(0xFC000u, 2u * ST_SECTOR) && FL_STORE_OK(ST_AUTOSAVE_A, ST_SECTOR) &&
                FL_STORE_OK(0xFE000u, ST_SECTOR) && FL_STORE_OK(ST_UKIT_SECTOR, 2u * ST_SECTOR) &&
-               FL_STORE_OK(ST_DLANES_SECTOR, 2u * ST_SECTOR) && FL_STORE_OK(0x97000u, 8u * ST_SECTOR) &&
+               FL_STORE_OK(ST_DLANES_SECTOR, 2u * ST_SECTOR) && (!ST_PROJECTS || FL_STORE_OK(ST_PROJECTS, 8u * ST_SECTOR)) &&
                FL_STORE_OK(0xDC000u, 4u * ST_SECTOR), "storage objects: inside the store's allow-list");
 #if FELUCCA_UP_FM6
 _Static_assert(FL_STORE_OK(ST_UPF_SECTOR, 2u * ST_SECTOR), "fm1_flash_map.h included before FELUCCA_UP_FM6 was set");
 #endif
-#ifdef SMP_USER_BASE                             /* (eng_sample.c before: the user sample slots, the banks) */
+#if defined(SMP_USER_BASE) && FELUCCA_LAYOUT != 1   /* (eng_sample.c before: the user sample slots; layout 1: none) */
 _Static_assert(FL_STORE_OK(SMP_USER_BASE, SMP_USER_SLOTS * SMP_USER_SIZE), "user sample slots: in the store");
 #endif
 _Static_assert(FL_IN(ST_UPF_SECTOR, 2u * ST_SECTOR, FL_UPF_LO, FL_UPF_HI) && !FL_NEVER(ST_UPF_SECTOR, 2u * ST_SECTOR) &&
@@ -91,7 +101,7 @@ static uint32_t st_sector(uint32_t obj, uint32_t copy)  /* flash offset of copy 
     if (obj == OBJ_SETTINGS)
         return 0xFC000u + copy * ST_SECTOR;
     if (obj == OBJ_AUTOSAVE)
-        return copy ? 0xFE000u : 0x9F000u;
+        return copy ? 0xFE000u : ST_AUTOSAVE_A;
     if (obj == OBJ_UKIT)
         return ST_UKIT_SECTOR + copy * ST_SECTOR;
     if (obj == OBJ_DLANES)
@@ -106,7 +116,7 @@ static uint32_t st_sector(uint32_t obj, uint32_t copy)  /* flash offset of copy 
 #endif
     if (obj >= OBJ_UPRESET0 && obj < OBJ_AUTOSAVE)
         return 0xDC000u + (obj - OBJ_UPRESET0) * 2u * ST_SECTOR + copy * ST_SECTOR;
-    return 0x97000u + (obj - OBJ_PROJECT0) * 2u * ST_SECTOR + copy * ST_SECTOR;
+    return ST_PROJECTS + (obj - OBJ_PROJECT0) * 2u * ST_SECTOR + copy * ST_SECTOR;   /* (layout 1: never asked, st_head) */
 }
 
 #ifndef IN_POOL
@@ -198,6 +208,10 @@ static int st_head(uint32_t obj, uint32_t copy, st_hdr_t *h)   /* commit record 
 {
     if (obj >= OBJ_COUNT || copy > 1u)
         return -1;
+#if FELUCCA_LAYOUT == 1
+    if (obj >= OBJ_PROJECT0 && obj < OBJ_PROJECT0 + 4u)
+        return -1;                                  /* no old project slots in this layout: absent, never read */
+#endif
     if (st_read(st_sector(obj, copy), h, sizeof *h))
         return -1;
     if (h->magic != ST_MAGIC || h->type != obj || h->len > ST_PAYLOAD_MAX ||

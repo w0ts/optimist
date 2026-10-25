@@ -235,11 +235,11 @@ static RAMFN int fl_read_ram(uint32_t off, uint8_t *dst, uint32_t n)   /* 0x0B f
 static void fl_plain_window_init(void)
 {
     SFCENC_CON &= (uint8_t)~2u;
-    SFCENC_UNENC_L = FL_XIP(0x93000u);            /* 0x0208F000 */
+    SFCENC_UNENC_L = FL_XIP(FL_APP_HI);           /* 0x0208F000 (layout 1: 0x020CC000) */
     SFCENC_UNENC_H = 0x07FFFFFFu;
     SFCENC_CON |= 2u;
     __asm__ volatile("cli" ::: "memory");
-    fl_inval(0x93000u, 0x100000u - 0x93000u);     /* drop any decrypted lines */
+    fl_inval(FL_APP_HI, 0x100000u - FL_APP_HI);   /* drop any decrypted lines */
     __asm__ volatile("csync\n\tsti" ::: "memory");
 }
 
@@ -336,7 +336,7 @@ static int fl_erase4k_sliced(uint32_t off, uint32_t *took_us, int32_t *audio, ui
     FL_ESTAT(fl_erase_nosus += fl_erase_nosus < 0xFFu && j.nosus);
     if (j.held)
         FL_ERASE_HELD();
-    if (!rc && j.windows > 1u && !((SFCENC_CON & 2u) && off >= 0x93000u && fl_blank_xip(off))) {
+    if (!rc && j.windows > 1u && !((SFCENC_CON & 2u) && off >= FL_APP_HI && fl_blank_xip(off))) {
         fls_job_t k = { 0, quiet, quiet_n, 0, 0, 0, 0 };
         FL_ESTAT(fl_erase_redo += fl_erase_redo < 0xFFu);
         FL_ERASE_HELD();

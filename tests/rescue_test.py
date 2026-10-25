@@ -79,9 +79,9 @@ def main():
     pkg = ROOT / "build" / "felucca.fwsc"
     if pkg.exists() and (ROOT / "build" / "felucca.bin").exists():
         import fm1pkg_make
-        want = fm1pkg_make.flash_image((ROOT / "build" / "felucca.bin").read_bytes(), fm1pkg_make.KEY)
-        got = R.package_flash_image(pkg.read_bytes())
-        ok(got == bytes(want[:len(got)]) and len(got) <= R.APP_END,
+        got = R.package_flash_image(pkg.read_bytes())         # (its length: the build's flash layout)
+        want = fm1pkg_make.flash_image((ROOT / "build" / "felucca.bin").read_bytes(), fm1pkg_make.KEY, len(got))
+        ok(got == bytes(want) and len(got) in R.flash_layout.APP_HI.values(),
            f"package_flash_image(our .fwsc) == fm1pkg_make's flash image ({len(got)} B)")
     else:
         print("rescue: build/felucca.fwsc not built: package format check skipped")
@@ -134,6 +134,27 @@ def main():
         dev = FakeUboot(flash, fail_writes=2)
         r = R.rescue(dev, stock, b"LDR", True, tmp, say=say)
         ok(r is True and bytes(dev.flash[:R.APP_END]) == stock, "a sector write that fails twice is retried")
+
+        # a switch of flash layout (docs/SD-MODE-DESIGN.md), as the update loader does it (ldr_layout_switch)
+        import fm1pkg_make as M
+        big_end, normal, big = 0xCF25B, R.flash_layout.app_hi(0), R.flash_layout.app_hi(1)
+        head = bytearray(M.entry(0xFFFF, 0x02000120, big_end - 0x4000, 0x83, 0xFF, 0, "app_area_head"))
+        M.sfc(head, 0, 32, 0, 0x980F)
+        was_big = bytearray(flash)
+        was_big[0x4000:0x4020] = head                        # a fake-SD-mode app installed
+        dev = FakeUboot(was_big)
+        r = R.rescue(dev, stock, b"LDR", True, tmp, say=say)
+        ok(r is True and bytes(dev.flash[:normal]) == stock and bytes(dev.flash[normal:big]) == b"\xFF" * (big - normal)
+           and bytes(dev.flash[big:]) == bytes(was_big[big:]),
+           "normal after a fake-SD-mode app: its tail [0x93000, 0xD0000) cleared, the rest kept")
+        rnd = random.Random(9)
+        big_img = stock[:0x4000] + bytes(rnd.getrandbits(8) for _ in range(big - 0x4000))   # (the device's own head)
+        dev = FakeUboot(flash)                               # a normal app (no header of ours in the random image)
+        r = R.rescue(dev, big_img, b"LDR", True, tmp, say=say)
+        hi = R.flash_layout.BIG_STORE_HI
+        ok(r is True and bytes(dev.flash[:big]) == big_img and bytes(dev.flash[big:hi]) == b"\xFF" * (hi - big)
+           and bytes(dev.flash[hi:]) == bytes(flash[hi:]),
+           "fake SD mode after a normal app: its store [0xD0000, 0xDA000) cleared, kits / presets / settings kept")
     print(f"rescue: {'ok' if not fails else f'{fails} FAILED'}")
     return 1 if fails else 0
 

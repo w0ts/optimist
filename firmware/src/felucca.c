@@ -215,6 +215,9 @@ static int st_prog(uint32_t off, const void *src, uint32_t n)
 #if FELUCCA_NB_LIST
 #include "storage/nbank.c"             /* the FM6 / CZ native collections in PRESETS, the CZ store (after Melodee 0.12) */
 #endif
+#if FELUCCA_LAYOUT == 1
+#include "system/far_probe.c"          /* the far probe: code past the normal layout's end (the console's far) */
+#endif
 #if FELUCCA_SDCARD
 #include "storage/sd/sdcard.c"         /* a microSD card on the LCD's bus (a hardware mod; Petit FatFs: tools/build.py) */
 #endif

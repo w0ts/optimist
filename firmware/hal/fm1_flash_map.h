@@ -26,11 +26,29 @@
 #define FL_HITS(off, n, lo, hi) ((uint32_t)(off) < (hi) && \
                                  ((uint32_t)(n) > (lo) || (uint32_t)(off) > (lo) - (uint32_t)(n)))
 
+/* The layout (docs/SD-MODE-DESIGN.md): 0 the normal one; 1 the fake SD mode, the app slot grown to 0xD0000 over the
+ * user samples, the snapshots and the old project slots, the store squeezed into 0xD0000..0xDFFFF (the project log
+ * 0xD0000..0xD6FFF, autosave copy A 0xD7000, the presets' FM6 voices 0xD8000; kits and presets where they were).
+ * tools/flash_layout.py holds the same numbers for the build, the package and the rescue tool. */
+#ifndef FELUCCA_LAYOUT
+#define FELUCCA_LAYOUT 0
+#endif
+#define FL_APP_HI_NORMAL 0x00093000u
+#define FL_APP_HI_BIG   0x000D0000u                /* the largest layout's app end (a normal loader clears up to it) */
 #define FL_APP_LO       0x00004000u                /* the app slot (fm1pkg_make.py FLASH_SIZE, ldr_core.c) */
-#define FL_APP_HI       0x00093000u
+#if FELUCCA_LAYOUT == 1
+#define FL_APP_HI       FL_APP_HI_BIG
+#define FL_UPF_LO       0x000D8000u                /* FELUCCA_UP_FM6: OBJ_UPFM6, A/B (the retired FM6 bank's sectors) */
+#define FL_UPF_HI       0x000DA000u
+#define FL_DATA_LO      0x000D0000u                /* the squeezed store */
+#elif FELUCCA_LAYOUT == 0
+#define FL_APP_HI       FL_APP_HI_NORMAL
 #define FL_UPF_LO       0x00095000u                /* FELUCCA_UP_FM6: OBJ_UPFM6, A/B (storage.c, upreset.c) */
 #define FL_UPF_HI       0x00097000u
 #define FL_DATA_LO      0x00097000u                /* Felucca main store */
+#else
+#error "FELUCCA_LAYOUT: 0 (normal) or 1 (fake SD mode)"
+#endif
 #define FL_DATA_HI      0x000E0000u
 #define FL_OTA_LO       0x000E0000u                /* M-UPGRADE loader staging, ota.c */
 #define FL_OTA_HI       0x000E5000u

@@ -103,8 +103,8 @@ static void con_flr(const char *p)                  /* flash read over SPI (no X
     static uint8_t b[256];
     int ok, ok2;
     uint32_t a = con_num(&p, &ok), n = con_num(&p, &ok2), i;
-    if (!ok || a < 0x93000u || a >= 0x100000u) {
-        con_puts("usage: flr OFFSET [LEN<=256]   (0x93000..0xFFFFF)\r\n");
+    if (!ok || a < FL_APP_HI || a >= 0x100000u) {
+        con_puts("usage: flr OFFSET [LEN<=256]   (the app end..0xFFFFF)\r\n");
         return;
     }
     if (!ok2 || !n)
@@ -1047,6 +1047,20 @@ static void con_cpu1park(void)
     con_kv("cpu1_why_after", dual.why);
 }
 #endif
+#if FELUCCA_LAYOUT == 1
+static void con_far(void)                            /* the far probe (system/far_probe.c, docs/SD-MODE-DESIGN.md) */
+{
+    static const char *const R[] = {"ok: code and data past 0x93000 work", "the constant reads wrong (not called)",
+                                    "the call returned wrong"};
+    uint32_t r = far_check();
+    con_puts("far probe ");
+    con_puts(R[r]);
+    con_puts("\r\n");
+    con_bytes("read", (const uint8_t *)far_seen, sizeof far_seen);
+    con_kx("at", (uint32_t)(uintptr_t)far_magic);
+}
+#endif
+
 #if FELUCCA_SDCARD
 /* sd: the SD card on the LCD's bus (storage/sd/sdcard.c; docs/SD-CARD-DESIGN.md "Bring-up"):
  *   sd                    mount: card type, size, filesystem
@@ -1198,6 +1212,9 @@ static void con_exec(const char *p)
                  "  cpu1park"
 #endif
 #endif
+#if FELUCCA_LAYOUT == 1
+                 "  far"
+#endif
 #if FELUCCA_SDCARD
                  "  sd [mode duplex|dirrx|bitbang | raw SECTOR | ls [DIR] | cat FILE | bench FILE | write FILE]"
 #endif
@@ -1226,6 +1243,10 @@ static void con_exec(const char *p)
         con_params();
     else if (con_word(&p, "tabbench"))
         con_tabbench();
+#if FELUCCA_LAYOUT == 1
+    else if (con_word(&p, "far"))
+        con_far();
+#endif
 #if FELUCCA_SDCARD
     else if (con_word(&p, "sd"))
         con_sd(p);

@@ -1,6 +1,6 @@
 # SD mode: the flash for code (design, 2026-10-25)
 
-Not built. The plan for turning the FM-1's user-data flash into code space, with the user data on an SD card
+Phases 1 and 2 are built and host-tested (section 8); nothing has run on an FM-1 yet. The plan for turning the FM-1's user-data flash into code space, with the user data on an SD card
 ([SD-CARD-DESIGN.md](SD-CARD-DESIGN.md)) or, for testing, a "fake SD mode" that simply keeps very little user data.
 
 ## 1. Rulings (the user, 2026-10-25)
@@ -102,15 +102,61 @@ or not; RAMTEXT (32 KB) is the real limit for DSP code and the SD card does not 
 Gain: RAMTEXT holds only the engines the project plays, so more (and bigger) engines can be built in. Cost: a little
 flash per engine and a loader of a few hundred bytes.
 
+## 6b. Memory per project (the arena)
+
+With every engine and effect built into the bigger flash, their RAM can no longer be reserved statically: each would
+keep its state and lines whether a project uses it or not (the effects alone reserve 238 KB of pool today). Today's
+sharing (`part_mem`: one engine's state per part, 38.6 KB; the effects arena `DLY_ARENA`: the delay's line and the
+inserts' lines) becomes general:
+
+| Part | What | How |
+|---|---|---|
+| Resident | the mix, the sequencer, the screen canvas, USB's rings, the RAM flash driver | static, as today |
+| Project arena (pool) | each part's engine state, the insert / effect lines, the reverb and delay lines; later the sample preload and stream buffers, plugin code | laid out per project |
+| RAMTEXT slots | the hot code of the engines the project plays (section 6) | the same planner |
+| Undo history | a fixed reserve of 5 levels, always kept (the user, 2026-10-25), plus what the arena leaves | the planner never lays out into the reserve |
+
+- Every engine and effect declares what it needs: state bytes, line bytes, hot-code bytes, an init.
+- At a project load or an engine / effect change (main loop, the part silent for the change) a planner adds the
+  needs and lays them out with a bump allocator rebuilt on each change; nothing is allocated or freed while the
+  audio runs; the audio reads pointers.
+- What does not fit is refused with a MEM message, as MEM FULL is today; nothing is left half loaded. "Fits" means
+  with the undo reserve left over: 5 levels (a level of a rewritten 64-step track is about 650 B, `MEMORY-MAP.md`
+  2.1, an estimate; the reserve is sized from the largest level `undo.c` can record, so about 4-8 KB).
+- First the arena for the state and the lines (measurable alone: the pool most projects never touch), then the
+  RAMTEXT overlays, then the card.
+
 ## 7. Phases
 
 | Phase | What | Device risk |
 |---|---|---|
-| 1 | `FELUCCA_LAYOUT`: one source for the app slot's end and the store map; every place in section 4 derived from it; no change to the normal layout (the image byte-identical) | none |
-| 2 | The **fake SD mode** flavour: the big layout (816 KiB app), the compact store (1-2 projects, 4 presets, 4 kits, no user samples, no snapshots), the loader / package / rescue tool accepting it, a canary past 0x93000. The user installs it on an FM-1 whose data is backed up | the user's install: the user data is lost; the SPL question decides it |
-| 3 | RAMTEXT overlays (section 6) | none beyond a normal build |
+| 1 (built) | `FELUCCA_LAYOUT` (builder item `LAYOUT`, bit 410): the app slot's end and the store map from `fm1_flash_map.h` / `tools/flash_layout.py`; the normal layout's package byte-identical from the same app; the normal image +36 B (its updater accepts either layout's package) | none |
+| 2 (built) | The **fake SD mode** (`sd-mode-probe` profile): the 816 KiB slot, the squeezed store (a 7-sector project log at 0xD0000: about 5 dense scenes a project; autosave A 0xD7000; FM6 voices 0xD8000; kits and presets unchanged), no user samples / snapshots / CZ collection, the update loader and the rescue tool clearing the other layout's sectors on a switch, the far probe | the user's install: the user data in the overlap is lost; the far probe answers the SPL question |
+| 3 | The arena (section 6b), then the RAMTEXT overlays (section 6) | none beyond a normal build |
 | 4 | Real SD mode: the user data on the card (`SDCARD`), flash keeps settings + one project | needs the SD mod |
 | 5 | Plugins (code from the card into RAM), if ever needed | |
 
 Who does what: Claude writes and host-tests every phase and hands over packages; the user installs them and runs the
 checks. Claude never writes to the FM-1.
+
+## 8. Installing the probe (phase 2)
+
+The packages of 2026-10-25 (`worktrees/sd-packages/`, git-ignored): `1-normal-sdcard-branch.fwsc` (the default profile
+built from this branch: a normal layout whose updater accepts the bigger package) and `2-sd-mode-probe.fwsc` (layout 1).
+
+1. **User**: backs up with the web editor (projects, presets, kits). Installing layout 1 erases the user samples,
+   the snapshots and the old project log; going back to a normal build later erases layout 1's project log.
+2. **User**: installs `1-normal-sdcard-branch.fwsc` (any installer). An older Optimist refuses the bigger package
+   (-15), so this step comes first.
+3. **User**: installs `2-sd-mode-probe.fwsc`.
+4. **User**, at the serial console (`tools/fm1_console.py`): `far`. `ok: code and data past 0x93000 work` answers the
+   question of section 5; `the constant reads wrong` means the chip does not decrypt (or map) past V15's length:
+   install `1-normal-sdcard-branch.fwsc` again (the probe build still updates: nothing it needs is past 0x93000).
+5. **User**: saves a project, powers off and on, loads it (the squeezed store), saves a preset.
+
+What was checked before (host only): the probe's package decoded with the chip key (app area to 0xCF25B, the far
+section at flash 0x94120, the VM descriptor at 0xD0000); the probe boots to its main screen in the emulator
+(`~/GitHub/fm1-emulator` diagnose); the update loader's whole test with a normal device and the probe package, and the
+layout switch both ways (`tests/ldr_test.c --layout`); the rescue tool's switch both ways (`tests/rescue_test.py`); the
+updater accepting both sizes (`tests/ota_test.c`); the layouts' numbers in agreement (`tests/flash_layout_test.py`);
+the patterns and project tests on the 7-sector log.
