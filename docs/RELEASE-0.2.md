@@ -64,11 +64,12 @@ User presets and projects saved by an earlier firmware (SLOOP, or Optimist befor
 
 ## Web: everything on one site
 
-- **Web editor.** Every sound, drum, effect and setting as knobs; the drum grid; the samples (with CHOP); the preset library; projects. Backup of the whole FM-1 in one file, now its own Backup tab. Works over USB in Chrome or Edge (Web MIDI).
+- **Web editor.** Backup of the whole FM-1 in one file (its own Backup tab), the projects and presets librarian, the Mirror. With a build that has live editing (the builder's ED_LIVE): every sound, drum, effect and setting as knobs, the drum grid, the samples (with CHOP). Works over USB in Chrome or Edge (Web MIDI).
 - **Mirror tab.** The FM-1's screen, live in the browser as it is drawn, with the panel's buttons, keyboard shortcuts and knob drag; the mixer's meters ten times a second over USB. Over USB or Bluetooth.
 - **Builder.** Choose engines, kits, effects and features with a live flash / RAM budget; _Build in the cloud_ returns your firmware in minutes, no GitHub account needed; build from a release or the latest version. The builder now knows what each choice really costs (measured on the farm), shares one effects memory between every insert with a delay line, and tells you how many of each fit.
 - **Installer.** Install a release flavour, your cloud build or a file; a backup first; stock firmware back any time.
 - **Simulator.** The firmware running in the browser with the FM-1's panel and keys: try a build before installing it, or a .wasm file from your computer. Get a project from the FM-1 into it, or send one back.
+- **Emulator.** Test your own build before installing it: the real firmware image running on your computer in the FM-1 emulator (fm1-emulator by Simon Johansson), its screen and keys: `python tools/optimist.py emu your-build.fwsc` (BUILDING.md).
 
 ## Optimist Mirror (iPhone, iPad, Mac)
 
