@@ -210,6 +210,9 @@ async def main():
             check("... unticked: the profile again", app.cfg == base)
     for prof in C.profile_names():        # (BLE_DIAG ticked after BLE)
         base, _ = C.load_profile(prof)
+        if base["BLE_DIAG"]:              # (on in the profile already, bt-debug: ticking it would turn it off)
+            print(f"BLE_DIAG ticked on {prof}: the profile has BLE_DIAG on already, not a case")
+            continue
         app = M.Builder(dict(base), prof)
         async with app.run_test(size=(200, 60)) as pilot:
             await pilot.pause()
