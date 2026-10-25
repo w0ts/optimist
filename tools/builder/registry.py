@@ -919,12 +919,16 @@ _add("SYS_DEBUG", "FELUCCA_SYS_DEBUG", "SYSTEM's debug pages (internals, USB sta
           "UNDERRUNS (the drop-outs counted in) and BATTERY, in the large face, and the code of the rest is left out "
           "(about 2.9 KB less flash, measured on a USB-audio build). The red / amber mark on the header's rule after a "
           "drop-out stays either way.")
-_add("MIXER_2X", "FELUCCA_MIXER_2X", "mixer in the big face", U, 399, default=0,
-     desc="The mixer's four cards as the other screens' 2x2 big cards on every row (the same values, KNOB 1..4 = the "
-          "cards in the same order). Under them the selected track's or lane's steps large (the page playing, two lines "
-          "of 8) and a thin bar a track (T1 T2 T3 DR) showing where its pattern plays, the selected track's marked. "
-          "MASTER: the level and the compressor's reduction as one thin line, then the effects' returns CHO DLY REV in "
-          "the large face, each with its meter. Off: the 1x4 cards and a row a track.")
+_add("MIXER_2X", "FELUCCA_MIXER_2X", "mixer: small, big face, or both", U, 399, default=0,
+     choices=((0, "small"), (1, "big"), (2, "both")),
+     desc="small: the mixer as ever, the 1x4 cards and a row a track. big: the mixer's four cards as the other screens' "
+          "2x2 big cards on every row (the same values, KNOB 1..4 = the cards in the same order); under them a row a "
+          "track (T1 T2 T3 DR; on DR and its lanes the drum lanes instead, two columns, ALGORITHM walks into them), each "
+          "its code, a one-pixel line of its 16 steps (the playhead marked) and a one-pixel meter; under the rows the "
+          "selected track's or lane's 16 steps large on one line. MASTER: the normal level meter with its dB scale, the "
+          "compressor's reduction, the returns CHO DLY REV in the small face with their meters. both: the two built, "
+          "HOME at the mixer goes small, big, the scope, small again; back from another page the mixer shows the face "
+          "last used, kept with the settings over a power-off.")
 _add("KNOB_ACCEL", "FELUCCA_KNOB_ACCEL", "knob acceleration by turn speed", U, 67,
      desc="1 / 2 / 3 / 5 / 8 steps a detent when turned fast; never on lists (engines, kits, presets)",
      provenance=x0x("61654ba"),

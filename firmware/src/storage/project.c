@@ -1533,6 +1533,11 @@ static void persist_ofs_save(persist_t *p)
 #define persist_ofs_load(p) ((void)0)              /* (no clock: the bytes kept as read) */
 #define persist_ofs_save(p) ((void)0)
 #endif
+#if FELUCCA_MIXER_2X == 2
+static void persist_mix_load(const persist_t *p) { mx_face_in(p->mix_big); }   /* (op_mixer.c: the mixer's face) */
+#else
+#define persist_mix_load(p) ((void)0)              /* (one mixer built: the byte kept as read) */
+#endif
 #endif
 static void persist_boot(void)                    /* before settings_init / panel_init */
 {
@@ -1665,6 +1670,7 @@ static void persist_boot(void)                    /* before settings_init / pane
             open_proj = (uint8_t)(p.open_proj < 16u ? p.open_proj : 0u);   /* (the open project: sections.c) */
 #endif
             persist_ofs_load(&p);
+            persist_mix_load(&p);
             persist_saved = p;
         } else if (n == (int)(8u + sizeof(panel_t)) && p3.magic == 0x50455231u) {   /* "PER1": palette, panel */
             const uint32_t *w = (const uint32_t *)&p3;
@@ -1753,6 +1759,9 @@ static void settings_save(void)
     p.open_proj = open_proj;                       /* (the open project: sections.c; the chain above is a copy, the log's is read) */
 #endif
     persist_ofs_save(&p);
+#if FELUCCA_MIXER_2X == 2
+    p.mix_big = mx_big;
+#endif
 #if FELUCCA_FAVORITES
     persist_fav_save(&p);
 #endif
