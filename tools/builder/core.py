@@ -37,11 +37,22 @@ def _stderr(msg):
     print(f"warning: {msg}", file=sys.stderr)
 
 
-LIMITS = {"flash": 581564, "ram": 98304, "pool": 344064, "ramtext": 32512}
+# the budgets: the app slot and the packed SRAM (app.ld: RAM code, .data/.bss and the pool in one region since
+# 2026-10-25, docs/MEMORY-MAP.md 2.3-2.4); build.py keeps 8 KiB of SRAM spare below the stacks
+LIMITS = {"flash": 581564, "sram": 474880}
+SPARE = {"flash": 0, "sram": 8192}
 FLASH_BY_LAYOUT = {1: 831420}    # the app slot of the other flash layouts (LAYOUT): tools/flash_layout.py app_slot, which the
                                  # web builder does not ship; tests/flash_layout_test.py checks they agree
-SPARE = {"flash": 0, "ram": 0, "pool": 8192, "ramtext": 0}   # build.py keeps 8 KiB of the pool spare
+BUDGETS = ("flash", "sram")
+# the measured parts (costs.json, the deltas): "ram" = .ram_hot2 + .data + .bss, "pool", "ramtext" = .ram_text +
+# .ram_hot; the three together fill the SRAM budget
 REGIONS = ("flash", "ram", "pool", "ramtext")
+SRAM_PARTS = ("ram", "pool", "ramtext")
+
+
+def used(total, budget):
+    """what a total (per measured part) puts against a budget: the SRAM budget is the sum of its parts"""
+    return sum(total[r] for r in SRAM_PARTS) if budget == "sram" else total[budget]
 GRAIN_SETS = ("SET_PIANO", "SET_VIBES", "SET_FLUTE")       # the sets of GRAIN's presets (eng_grain.c)
 
 
@@ -734,18 +745,21 @@ def budget(cfg, costs, anchor=True, exclude=(), exact=None, extra_anchors=()):
 
 # ---- the undo history's ring (information: what RAM and the pool leave)
 def undo_ring(total):
-    """the undo history's ring a build leaves (app.ld _undo_*): the free main RAM plus the pool beyond its 8 KiB spare
+    """the undo history's ring a build leaves (app.ld _undo_*): the SRAM after the pool, less its 8 KiB spare
     (docs/MEMORY-MAP.md 2.1); never below 0"""
-    return max(0, LIMITS["ram"] - total["ram"]) + max(0, LIMITS["pool"] - SPARE["pool"] - total["pool"])
+    return max(0, LIMITS["sram"] - SPARE["sram"] - used(total, "sram"))
 
 
 def fits(total, cfg=None):
-    """-> {region: (used, capacity, over)}: over > 0 overflows (the pool keeps its 8 KiB spare); the flash by the
-    configuration's layout (LAYOUT: tools/flash_layout.py)"""
-    cap = {r: LIMITS[r] - SPARE[r] for r in REGIONS}
-    if cfg and cfg.get("LAYOUT") in FLASH_BY_LAYOUT:
-        cap["flash"] = FLASH_BY_LAYOUT[cfg["LAYOUT"]] - SPARE["flash"]
-    return {r: (total[r], cap[r], total[r] - cap[r]) for r in REGIONS}
+    """-> {budget: (used, capacity, over)} for flash and the packed SRAM: over > 0 overflows (SRAM keeps its 8 KiB
+    spare); the flash by the configuration's layout (LAYOUT: tools/flash_layout.py)"""
+    out = {}
+    for b in BUDGETS:
+        u, cap = used(total, b), LIMITS[b] - SPARE[b]
+        if b == "flash" and cfg and cfg.get("LAYOUT") in FLASH_BY_LAYOUT:
+            cap = FLASH_BY_LAYOUT[cfg["LAYOUT"]] - SPARE["flash"]
+        out[b] = (u, cap, u - cap)
+    return out
 
 
 def kit_keys():
@@ -807,6 +821,7 @@ def savings_of(cfg, costs):
             continue
         there, _, _ = additive(dict(cfg, **{k: alt}), costs)
         out[k] = {r: total[r] - there[r] for r in REGIONS}
+        out[k]["sram"] = used(total, "sram") - used(there, "sram")   # (against the SRAM budget's overflow)
     return out
 
 
@@ -817,7 +832,7 @@ FIT_ORDER = [  # (key, value): least loss first (docs/MEMORY-MAP.md section 3); 
     ("SET_SCRCH", 0), ("SET_STRGS", 0), ("SET_HORNS", 0),
     ("LCD_DIRTY", 0),   # (after the samples: for main RAM, 656 B, the graph strip redrawn whole; the defaults were 52 B over 2026-10-13)
 ]
-FIT_MARGIN = {"flash": 1024, "ram": 448, "pool": 0, "ramtext": 256}   # the estimate's error (~0.5 %; RAM 448: the user, 2026-10-23)
+FIT_MARGIN = {"flash": 1024, "sram": 704}   # the estimate's error (~0.5 %; SRAM: RAM 448, the user 2026-10-23, + RAM code 256)
 
 
 def _measured(b):
@@ -832,7 +847,7 @@ def over_any(cfg, costs, margin=FIT_MARGIN, budget_fn=budget):
     (2026-10-24: synth, its own build 264 B under the RAM limit, was 184 B "over" and fit() found nothing to drop);
     one item away the whole margin applies again"""
     b = budget_fn(cfg, costs)
-    m = {r: 0 for r in REGIONS} if _measured(b) else margin
+    m = {r: 0 for r in BUDGETS} if _measured(b) else margin
     return {r: o + m[r] for r, (_, _, o) in fits(b["total"], cfg).items() if o + m[r] > 0}
 
 
@@ -848,7 +863,7 @@ def _fit_run(cfg, costs, keep, order, budget_fn):
         trial = dict(cfg)
         trial[k] = v
         b0, b1 = budget_fn(cfg, costs)["total"], budget_fn(trial, costs)["total"]
-        if not any(b1[r] < b0[r] for r in over):        # (it would not help a region that overflows)
+        if not any(used(b1, r) < used(b0, r) for r in over):   # (it would not help a budget that overflows)
             continue
         cfg = trial
         changes.append(f"{k}={v}")
@@ -994,7 +1009,7 @@ def _proposals(cfg, costs, budget_fn, limit):
             continue
         t = _drop(cfg, k, _off_value(cfg, k))
         if t is not None and not over_any(t, costs, budget_fn=budget_fn):
-            singles.append((sum(sav[k].values()), k, t))
+            singles.append((sum(sav[k][r] for r in REGIONS), k, t))
     for i, (_, k, t) in enumerate(sorted(singles)[:2]):
         add(f"single-{k}", f"Drop only {R.ITEMS[k].label}", "One item alone makes it fit; nothing else changes.", t)
     engines = {k for k, it in R.ITEMS.items() if it.group == "Synth engines"}
@@ -1029,7 +1044,8 @@ def cloud_key(cfg, commit):
 # ---- the JSON API (dict in, dict out): the menu, the CLI, the workflow and a web page alike
 def describe():
     """-> the registry and the constants a front end needs, JSON-serialisable"""
-    return {"key_tag": KEY_TAG, "registry": R.to_json(), "regions": list(REGIONS), "limits": dict(LIMITS),
+    return {"key_tag": KEY_TAG, "registry": R.to_json(), "regions": list(REGIONS), "budgets": list(BUDGETS),
+            "limits": dict(LIMITS),
             "spare": dict(SPARE), "needs_auto": list(NEEDS_AUTO), "fit_order": [list(x) for x in FIT_ORDER]}
 
 

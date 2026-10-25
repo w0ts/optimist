@@ -5,7 +5,8 @@
 
 export const PYODIDE_VERSION = "314.0.7";            // pinned (released 2026-09-14); docs/WEB.md
 export const PYODIDE_CDN = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/`;
-export const REGIONS = ["flash", "ram", "pool", "ramtext"];
+export const REGIONS = ["flash", "ram", "pool", "ramtext"];   // the measured parts (core.py REGIONS)
+export const BUDGETS = ["flash", "sram"];                     // the limits: the app slot, the packed SRAM (core.py BUDGETS)
 export const SORTS = [null, ...REGIONS];             // the menu's o: default order, then each region, largest first
 export const OVER_W = 20;                             // menu.py: cells for the overflow, past the capacity mark
 export const SHOW_MIN = 64;                           // menu.py delta_of: the regions an item moves by 64 B or more
@@ -49,7 +50,8 @@ export function kDelta(n) {
 export function deltaOf(key, savings, over) {
   const s = (savings || {})[key];
   if (!s) return [];
-  return REGIONS.filter((r) => Math.abs(s[r]) >= SHOW_MIN || ((over || {})[r] > 0 && s[r] > 0)).map((r) => [r, s[r]]);
+  const out = REGIONS.filter((r) => Math.abs(s[r]) >= SHOW_MIN || ((over || {})[r] > 0 && s[r] > 0)).map((r) => [r, s[r]]);
+  return (over || {}).sram > 0 && s.sram > 0 ? [...out, ["sram", s.sram]] : out;   // (what it frees of the overflowing SRAM)
 }
 
 /** switching the item off alone makes every overflowing region fit (the menu's "◀ off = fits") */

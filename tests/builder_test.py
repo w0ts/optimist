@@ -544,14 +544,14 @@ if um:
 import measure_costs as MC  # noqa: E402
 check("costs.json: every pair measure_costs.py defines is measured (run measure_costs.py --missing)",
       not MC.missing_pairs(costs))
-# a value whose lines no pool holds (INS_XDLY 3, 4: the link says "region POOL overflowed by N" even in the measurement link) is
+# a value whose lines no pool holds (INS_XDLY 3, 4: the link says "region SRAM overflowed by N" even in the measurement link) is
 # its pool exactly and the rest of the value before it (the lines are the pool: the same code), not a stop of the whole run
 _like = {"flash": 100, "ram": 20, "pool": 300, "ramtext": 5}
-_run_build, MC.run_build = MC.run_build, lambda cfg, name, log: (False, None, "ld: region `POOL' overflowed by 45588 bytes\n")
+_run_build, MC.run_build = MC.run_build, lambda cfg, name, log: (False, None, "ld: region `SRAM' overflowed by 45588 bytes\n")
 try:
     _got = MC.measure({}, "m-fake-3", Path("/nonexistent.log"), like=_like)
-    check("measure_costs: a value no pool holds is its pool (the measurement link's region + the overflow), the rest as the value before",
-          _got["pool"] == MC.MEASURE_POOL + 45588 and all(_got[r] == _like[r] for r in ("flash", "ram", "ramtext")))
+    check("measure_costs: a value no pool holds is its pool (the measurement link's SRAM + the overflow, less RAM and RAM code), the rest as the value before",
+          _got["pool"] == MC.MEASURE_SRAM + 45588 - _like["ram"] - _like["ramtext"] and all(_got[r] == _like[r] for r in ("flash", "ram", "ramtext")))
     _stop = False
     try:
         MC.measure({}, "m-fake-1", Path("/nonexistent.log"))               # (nothing before it to copy: still a failure)
@@ -854,9 +854,9 @@ import build as BUILD  # noqa: E402  (its check() is the real build's refusal)
 check("reserve: the retired items are not offered", "RESERVE_UNDO_KB" not in items and "RESERVE_FLASH_KB" not in items and
       "RESERVE_UNDO_KB" in R.RETIRED and "RESERVE_FLASH_KB" in R.RETIRED)
 tot = {"flash": 500000, "ram": 80000, "pool": 300000, "ramtext": 30000}
-ring = (98304 - 80000) + (344064 - 8192 - 300000)
-check("undo ring: the estimate shows it, (98,304 - RAM) + (344,064 - 8,192 - pool)",
-      C.undo_ring(tot) == ring == 54176 and C.undo_ring(dict(tot, ram=100000, pool=400000)) == 0 and
+ring = 474880 - 8192 - (80000 + 300000 + 30000)
+check("undo ring: the estimate shows it, 474,880 - 8,192 - (RAM + pool + RAM code): the packed SRAM's rest",
+      C.undo_ring(tot) == ring == 56688 and C.undo_ring(dict(tot, ram=100000, pool=400000)) == 0 and
       "undo ring" in C.fmt_budget(C.defaults(), dict(costs, base=dict(costs["base"], **tot))))
 check("a .config naming a retired reserve item still loads (the setting is ignored, with a warning)",
       "RESERVE_UNDO_KB" not in C.parse("RESERVE_UNDO_KB=8\nRESERVE_FLASH_KB=16\n", strict=False)[0])

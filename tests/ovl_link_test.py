@@ -66,7 +66,7 @@ check("plan: forced 0: no slots", O.plan(sizes, kind, 3, force="0").slot_len == 
 LD = ("    .text : { KEEP(*(.text.crt0)) *(.text .text.*) *(.rodata*) . = ALIGN(4); _etext = .; } > XIP\n"
       "    .text_far (ORIGIN(XIP) + 0x90000) : { KEEP(*(.text_far .text_far.*)) } > XIP\n"
       "    _lz_load = _etext;\n"
-      "    .ram_hot : { _rh_start = .; KEEP(*(.ram_hot .ram_hot.*)) . = ALIGN(4); _rh_end = .; } > RAMTEXT AT > LOAD\n"
+      "    .ram_hot : { _rh_start = .; KEEP(*(.ram_hot .ram_hot.*)) . = ALIGN(4); _rh_end = .; } > SRAM AT > LOAD\n"
       "    _rh_load = LOADADDR(.ram_hot);\n")
 k3 = {"analog": "ovl", "digital": "ovl", "strings": "ovx"}
 p = O.Plan(1336, 3, ["digital"], 0)
@@ -79,8 +79,8 @@ check("script: an OVL engine larger than a slot in .ram_hot, an OVLX one in .tex
 check("script: the table after the far probe, the boot stream where it was",
       "_ovl_rom = ALIGN(ADDR(.text_far) + SIZEOF(.text_far), 4); _ovl_rom_end = _ovl_rom + 0x40;" in s1
       and "_lz_load = _etext;" in s1)
-check("script: the slots' span asserted inside RAMTEXT", "_ovl_slots_end = _ovl_slots + 0xfa8;" in s1
-      and "ASSERT(_ovl_slots_end <= ORIGIN(RAMTEXT)" in s1)
+check("script: the slots' span asserted inside SRAM (the packed region)", "_ovl_slots_end = _ovl_slots + 0xfa8;" in s1
+      and "ASSERT(_ovl_slots_end <= ORIGIN(SRAM)" in s1)
 s0 = O.script(LD, k3, p, 0, 0x40)
 check("script: two slots' links differ only in the OVERLAY's address",
       [a for a, b in zip(s0.splitlines(), s1.splitlines()) if a != b] == ["    OVERLAY _ovl_slots + 0x0 : NOCROSSREFS AT (0x10080000)"])

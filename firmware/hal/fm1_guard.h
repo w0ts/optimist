@@ -78,8 +78,8 @@ static void fm1_guard_enable(uint32_t which)
     if (which & FM1_GUARD_PC) {
         FM1_PC_LIMIT0_L = 0x02000120u;
         FM1_PC_LIMIT0_H = (uint32_t)(uintptr_t)_etext;
-        {   /* RAM code: .ram_text, then .ram_hot right after it, and .ram_hot2 at the start of RAM (one
-             * window over both, crt0's STATUS words between them); with none, repeat the XIP window */
+        {   /* RAM code: .ram_text, .ram_hot and .ram_hot2, one after the other at the start of the packed SRAM
+             * (app.ld): one window over the run; with none, repeat the XIP window */
             volatile uint32_t rs = (uint32_t)(uintptr_t)_rt_start, re = (uint32_t)(uintptr_t)_rh_end;
             volatile uint32_t r2s = (uint32_t)(uintptr_t)_rh2_start, r2e = (uint32_t)(uintptr_t)_rh2_end;
             if (r2e > r2s)

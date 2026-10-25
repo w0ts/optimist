@@ -93,7 +93,7 @@ def script(ld_text, kind, p, k, rom_size, probe=False):
         body = "\n".join(f"        .ovl_{n} {{ {_keep(n, kind[n])} }}" for n in inslot)
         slots.append(f"    OVERLAY {at} : NOCROSSREFS AT ({PROBE_LMA:#x})\n    {{\n{body}\n    }}")
     if not probe:
-        slots.append('    ASSERT(_ovl_slots_end <= ORIGIN(RAMTEXT) + LENGTH(RAMTEXT), "the overlay slots do not fit RAMTEXT")')
+        slots.append('    ASSERT(_ovl_slots_end <= ORIGIN(SRAM) + LENGTH(SRAM), "the overlay slots do not fit SRAM")')
     anchor = "_rh_load = LOADADDR(.ram_hot);"
     if out.count(anchor) != 1:
         raise ValueError(f"app.ld: {anchor!r} not found once")

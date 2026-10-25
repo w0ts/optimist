@@ -269,19 +269,19 @@ def build_all(plan, jobs):
                   f"{dt:.0f} s  |  {clock(el)} so far, ~{clock(el / done * (len(todo) - done))} left", flush=True)
 
 
-MEASURE_POOL = 0x80000          # the pool region of a measurement link (tools/build.py MEASURE: "LENGTH = 0x54000" -> 0x80000)
+MEASURE_SRAM = 0x180000         # the SRAM region of a measurement link (tools/build.py MEASURE_SRAM)
 
 
 def pool_overflow(out):
     """-> how many bytes the link says the pool is over even the measurement link's (an item with a count of big lines:
     XDLY 3 and 4 hold 65 KB a line), None when it failed for another reason"""
-    m = re.search(r"region `POOL' overflowed by (\d+) bytes", out or "")
+    m = re.search(r"region `SRAM' overflowed by (\d+) bytes", out or "")
     return int(m.group(1)) if m else None
 
 
 def measure(cfg, name, log, like=None):
     """the sizes of a measurement build; like: the sizes of the same item's previous value. A value whose lines no
-    pool holds, even the measurement link's (the link is the one thing that fails: "region POOL overflowed by N"),
+    pool holds, even the measurement link's (the link is the one thing that fails: "region SRAM overflowed by N"),
     is its pool exactly (the region and N) and everything else as `like`'s (the lines are the pool: the code is the
     same for 3 lines as for 2), so the estimate knows what a configuration of the item costs, built or not"""
     ok, sizes, out = run_build(cfg, name, log)
@@ -290,7 +290,8 @@ def measure(cfg, name, log, like=None):
         over = pool_overflow(Path(log).read_text(errors="replace") if log and Path(log).exists() else "")
     if over is not None and like is not None:
         print(f"  {name}: no pool holds it (over by {over} B even in the measurement link): pool counted, the rest as the value before", flush=True)
-        sizes = dict(like, pool=MEASURE_POOL + over)
+        # (the packed SRAM: the pool is what the region holds after the code and data, plus what it is over)
+        sizes = dict(like, pool=MEASURE_SRAM + over - like["ram"] - like["ramtext"])
         ok = True
     if not ok or not sizes:
         raise SystemExit(f"measure_costs: {name} failed (log {log})\n{out[-1500:]}")
