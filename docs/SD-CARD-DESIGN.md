@@ -351,8 +351,18 @@ Each step names who does it. Claude never writes to the FM-1.
   whole preallocated runs (FatFs `f_expand`) when it records, the computer side copies whole files; the fast seek map
   (FatFs `CREATE_LINKMAP`) turns a fragmented file's cluster chain into runs once at open, so streaming never walks the
   FAT; mono 16-bit by default, the run length a parameter (section 7), a pitch ceiling per voice like the M8's.
-- **Safe saves**: write the new project to a temporary name, check it, rename it over the old one, then move the
-  previous one into VERSIONS and drop the oldest past N; a cut at any point leaves the old project whole.
+- **Safe saves, with the FM-1's own flash as the staging copy** (the user, 2026-10-25: "we have flash for temp /
+  buffer"): the working project is already whole in the internal flash (the autosave, and the 1-project store of the
+  fake SD mode), so a save to the card is:
+  1. the project made whole in flash first (as the autosave does) and a "card save pending: <name>" record written
+     in flash (the settings' log);
+  2. the card file written from that flash copy (no RAM buffer the size of a project: it streams sector by sector) to
+     a temporary name, read back and checked, renamed over the old one; the previous one moved into VERSIONS, the
+     oldest past N dropped;
+  3. the pending record cleared.
+  A power cut anywhere: the card holds the old project whole (or the new one, past the rename), and at the next boot
+  a pending record makes the FM-1 finish the save from the flash copy. The card never holds the only copy of the
+  work in progress. (The flash is not a streaming buffer: a 4 KB erase stalls tens of ms; recordings buffer in RAM.)
 - **Sharing**: a project names its samples by hash, so the web / iOS app exports the project with exactly those files
   and an import puts them back under SAMPLES (whatever their names).
 
