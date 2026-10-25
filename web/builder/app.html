@@ -36,6 +36,11 @@ if (app) {
     const sel = e.target instanceof Element && e.target.closest("select");
     if (sel && document.activeElement === sel) sel.blur();
   }, true);
+  /* (the click on a focused menu may never reach the page there: the menu is unfocused as soon as a value is picked, so the
+     next click finds it unfocused; every menu of the page, the builder's Start from, Build from, Sort ...) */
+  document.addEventListener("change", (e) => {
+    if (e.target instanceof HTMLSelectElement) { const sel = e.target; setTimeout(() => sel.blur(), 0); }
+  }, true);
 }
 
 const handle = mountBuilder(document.getElementById("app"), { onNavigate, app: true });   /* (app: the Build card first and
