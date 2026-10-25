@@ -71,10 +71,9 @@ PX, PY = T(*POLE)
 SEAT_END = math.degrees(math.acos((U0 - POLE[0]) / POLE_R))   # (where the seat meets the board's left edge)
 # the column and the head (v5): up the right of the speaker plug (85.6 to 90 across, 44 to 51 up: C, D, w1, w2) to
 # under the jacks (from 76.8 up: F), where J3 and J2 sit; no tray there, the board 0.8 mm over the FM-1's small parts
-COL_L, HEAD_BOT, HEAD_L, HEAD_TOP = 91.5, 51.5, 86.0, 76.7  # (the top right against the jacks)
-TOP_L, TOP_BOT = 82.4, 68.0                      # (the head's top widened left for J3, moved left: the user)
-OUTLINE = tuple([T(U0, V0), T(U1_, V0), T(U1_, HEAD_TOP), T(TOP_L, HEAD_TOP), T(TOP_L, TOP_BOT), T(HEAD_L, TOP_BOT),
-                 T(HEAD_L, HEAD_BOT),
+COL_L, HEAD_BOT, HEAD_L, HEAD_TOP = 91.5, 51.5, 82.4, 76.7  # (the top right against the jacks; the head one
+                                                 # width, from 82.4 for J3 moved left: the user)
+OUTLINE = tuple([T(U0, V0), T(U1_, V0), T(U1_, HEAD_TOP), T(HEAD_L, HEAD_TOP), T(HEAD_L, HEAD_BOT),
                  T(COL_L, HEAD_BOT), T(COL_L, V1), (PX + POLE_R, PY),
                  *notch(PX, PY, 0, SEAT_END)[1:]])
 
