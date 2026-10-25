@@ -428,6 +428,10 @@ static uint32_t up_engine_slot(uint32_t k);                 /* storage/upreset.c
 static uint8_t pl_whole;                             /* the browsing list: 1 every engine's sounds in a row (the PRESETS knob), 0 the track's engine's (EDIT's PRESET card): set by whoever last browsed */
 static int pl_keep(uint32_t e, uint32_t k)
 {
+    if (e == NENGINES && up_engine_slot(k) == NENGINES)
+        return 0;                                       /* (a user preset of an engine this build lacks: not listed; PRESETS
+                                                         * stalled on it, up_load says MISSING and the sound stays: the FM-1,
+                                                         * 2026-10-25, a synth preset under drum-machines) */
 #if FELUCCA_FAVORITES
     if (fav_list)
         return fav_entry(e, k);

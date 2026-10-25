@@ -206,7 +206,8 @@ static uint32_t up_rank(uint32_t s) { return s; }
 static void up_name(uint32_t k, char *b) { str_cpy(b, k ? "MY PAD" : "MY LEAD", 13); }
 static void up_slot_label(char *b, uint32_t k) { b[0] = 'U'; b[1] = (char)('0' + (k + 1u) / 10u); b[2] = (char)('0' + (k + 1u) % 10u); b[3] = 0; }
 static void up_ui(uint32_t op, uint32_t k) { (void)k; up_ops[op % 3u]++; ui_message(op == 2u ? "SAVED U03" : op ? "ERASED" : "LOADED"); }
-static uint32_t up_engine_slot(uint32_t k) { return k < 2u ? 0u : NENGINES; }   /* (the two used slots: engine 0's) */
+static uint32_t up_missing;                             /* bit k: user preset k's engine not built (ui_optimist_premiss.h) */
+static uint32_t up_engine_slot(uint32_t k) { return k < 2u && !((up_missing >> k) & 1u) ? 0u : NENGINES; }   /* (the two used slots: engine 0's) */
 static char up_stored[16];                              /* NAME: what up_store was given (upreset.c) */
 static uint32_t up_stores, up_store_slot;
 static int up_store(uint32_t k, const char *name) { up_store_slot = k; str_cpy(up_stored, name, sizeof up_stored); up_stores++; return 0; }
@@ -3886,6 +3887,7 @@ static void led_tests(void)
 #include "ui_optimist_lfo2.h"                      /* LFO 2: the LFO 2 and LFO2 DEST rows, RATE, SHIFT + a knob, the AMT bar */
 #include "ui_optimist_plocks.h"
 #include "ui_optimist_seqtools.h"                   /* Felucca 1.5.6: STEP's TOOLS and EUCLID, the COND card */
+#include "ui_optimist_premiss.h"                    /* a user preset of an engine not built: not in PRESETS */
 #include "ui_optimist_notename.h"                   /* the note played on the keys, bottom left (Melodee's) */
 #include "ui_optimist_stepdots.h"                   /* the drum steps as dots (Melodee's): STEP and the mixer */
 #include "ui_optimist_accent.h"                     /* the drum track's ACCENT lane: key 1, STEP's 17th row, the amount, the walk */
@@ -4107,6 +4109,7 @@ int main(int argc, char **argv)
 #if FELUCCA_BLE
     ble_tests();
 #endif
+    premiss_tests();
     notename_tests();                                   /* (late: the note it plays moves the master's meters, SCRS's golden) */
     fuzz(20000, 12345);
     check(1, "20000 frames of random use: every draw on the screen");
