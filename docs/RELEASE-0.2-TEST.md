@@ -19,7 +19,7 @@ Checks (tests/emu, `make emu-check ONLY=...`): `boot`, `autosave`, `upfm6`, `tim
 Found, for the user to decide (no firmware fault seen):
 
 - A as built has no SFLD and no RING insert (the A insert list read from the running firmware: ---- CHRS DST DYN EQ3 FILT FLNG FOLD FUZZ GATER HARM JUNO RECT SUB WIDE XDLY; its felucca_config.h: INS_SFOLD 0, INS_RING 0), though this page said it held them; today's A leaves them out on purpose (section A updated).
-- GRIDS VEL OFF plays NORM and HARD hits (gen.c gr_kit_merge: HARD over 192, else NORM), not "all hits HARD" as section 5 says.
+- GRIDS VEL OFF plays NORM and HARD hits (gen.c gr_kit_merge: HARD over 192, else NORM), not "all hits HARD" as section 5 said: the firmware is right (OFF = Grids' own accent output, two dynamics), section 5's line is corrected.
 - PROJECT SAVE into a slot other than the open project gives that project the work but not the scenes and patterns stored before (sections.c project_scope_set / op_edits.c prj_save_go: the new slot's own, empty ones). The first draft of the `song` check saved scenes A and B as project 9 and found them empty after LOAD 9; they stay with the project that was open. By the code's comment this is meant; it can read as lost scenes.
 - PRESETS reaches 6 WAVE presets (ids 1 2 4 6 10 12), not 13; SAMPLE and GRAIN 1 each; FM6 3 (its INIT voices; the voice packs were not reached by the sweep).
 - The header's MISSING message names the first missing item and counts the rest ("MISSING: FM6 T1 +1" for FM6 and the X0X 909 kit).
@@ -239,8 +239,8 @@ Emulator (`grids`, A B C D): the pattern read step by step from the firmware (ge
   - emulator: pass (CHAOS up: 3 different passes of 3; SHIFT + KNOB 3: CHAOS 0, the passes identical).
 - [ ] DENSITY BD SD HH. Pass: each part gets denser and thinner with its value.
   - emulator: pass (BD lane 1 0 -> 16 hits, SD lane 2 0 -> 20, HH lane 4 0 -> 24 over 2 passes, down then up).
-- [ ] VEL card on DENSITY ON/OFF. Pass: ON gives loud main beats and soft/ghost in-between; OFF plays all hits HARD.
-  - emulator: pass for ON (NORM, SOFT and HARD hits); OFF plays NORM and HARD, no soft / ghost: as gen.c says (HARD over 192, else NORM), not "all HARD" as this line says.
+- [ ] VEL card on DENSITY ON/OFF. Pass: ON gives loud main beats and soft/ghost in-between; OFF plays two dynamics, Grids' accent: HARD where the level is over 192, the other hits NORM (or the stored step's own level where the lane already has a hit), never SOFT or GHOST.
+  - emulator: pass (ON: NORM, SOFT and HARD hits; OFF: NORM and HARD only, as gen.c gr_kit_merge does).
 - [ ] OUT card: DRUMS / EUCL. In EUCL, X Y CHAOS set the kick/snare/hat lengths (1 to 32), DENSITY the fills. Pass: three Euclidean rhythms with different loop lengths, no accent.
   - emulator: pass for kick and snare (X 16 -> the kick repeats every 5 steps, Y 104 -> the snare every 27, gen.c gr_eu_len); the hat's length and the fills: not run.
 - [ ] LFO button on DR: LFO and LFO 2 exist with RATE (free or synced), WAVE, PHS, FADE, two destinations among X, Y, CHAOS, BD, SD, HH. LFO 1 to X and LFO 2 to Y. Pass: the pattern drifts by itself; the values you set stay where they are when the LFO is off; both restart at PLAY.
