@@ -337,9 +337,16 @@ Each step names who does it. Claude never writes to the FM-1.
 
 - **The 16-key browser**: a folder's entries (or a view across folders: recent, by name) as pages of 16; a key picks
   an entry, the knob turns pages; recent = the files the projects and the FM-1 used last (kept in the index).
-- **Hash**: computed once per file when the index meets it (the audio data, so a header edit or a rename keeps it),
-  stored in the index with the file's size and date; a project's load looks its samples up by hash, then by the hint
-  if the hash is not indexed yet. Which hash: a fast 64-bit one is enough (not a security hash); to decide when built.
+- **Hash**: computed once per file (the audio data, so a header edit or a rename keeps it) and **kept with the file's
+  date and size** in the index; a project's load looks its samples up by hash, then by the hint if the hash is not
+  indexed yet. Which hash: a fast 64-bit one is enough (not a security hash); to decide when built.
+- **When to hash again** (the user, 2026-10-25): the FM-1 has no clock, other systems do. So:
+  - a sample **the FM-1 changes** (records, crops, normalises, writes) is hashed again right away by the FM-1 itself,
+    whatever date it writes (it knows it changed it);
+  - a file whose **date or size differs from the index** was changed elsewhere (a computer, a phone): hashed again at
+    the next index pass;
+  - the date the FM-1 stamps on its own writes (FatFs `get_fattime`, no RTC) is only a placeholder; a later idea: the
+    web / iOS app sets the FM-1's date when it connects, so its files carry real dates while it stays powered.
 - **Speed** (the M8's lesson: random reads matter most): streamed files are best contiguous; the FM-1 grows files by
   whole preallocated runs (FatFs `f_expand`) when it records, the computer side copies whole files; the fast seek map
   (FatFs `CREATE_LINKMAP`) turns a fragmented file's cluster chain into runs once at open, so streaming never walks the
