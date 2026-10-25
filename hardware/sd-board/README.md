@@ -47,8 +47,10 @@ project (`sd-board.kicad_pcb`, `sd-board.kicad_sch`) into EasyEDA Pro (File > Im
 
 (The order suits this board's routing; the tap board at J12 is designed to match it.)
 
-It is held by two of the FM-1's own screws: two 2.7 mm holes at their places (38.1 mm apart, measured; their place along
-the edge is from a photo, see `MEASUREMENTS.md`), the case's poles (6.8 mm) pressing on it. Check the fit first with `mockup.stl` (3D print) or `template-1to1.pdf` (print at 100 %).
+It is held by the back cover's two poles (6.8 mm high, measured): they pass through two 5.5 mm holes (the pole's
+diameter, 5.2 mm from a photo, plus 0.3 mm) when the cover closes. Their places: 38.1 mm over the poles' outer edges
+(measured), the rest from a photo, see `MEASUREMENTS.md`. Check the fit first with `mockup.stl` (3D print) or
+`template-1to1.pdf` (print at 100 %).
 
 ## The design
 
