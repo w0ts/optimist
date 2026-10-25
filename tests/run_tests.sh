@@ -258,6 +258,8 @@ job; ( jobin
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src $BACKPORTS_ON $SEC4 -o "$OUT/backports_test" tests/backports_test.c -lm
     run "backported features (each switch on): chance, QNT SEQ, spring reverb, BASS+, delay halving, motion, PHYS, ACID" "$OUT/backports_test"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src $BACKPORTS_ON $SEC4 "-DFELUCCA_ARENA_BYTES=(2u * ARN_SLOT)" -o "$OUT/backports_arena_test" tests/backports_test.c -lm
+    run "the same with an arena of two parts' memory placed by need (core/arena.c): FM6, PHYS, ACID swapped on a part" "$OUT/backports_arena_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src $BACKPORTS_ON $SEC4 -DFELUCCA_TRK_FILT=1 -o "$OUT/backports_tf_test" tests/backports_test.c -lm
@@ -986,6 +988,12 @@ job; ( jobin
     run "update loader: other app -> this build" "$OUT/ldr_test" "$OUT/old.fwsc" build/felucca.fwsc
     $CC -DFELUCCA_LAYOUT=1 -o "$OUT/ldr_test_l1" tests/ldr_test.c
     run "update loader of the fake SD mode (LAYOUT 1): what a switch of layout clears, nothing else" "$OUT/ldr_test_l1" --layout
+) >"$U.out" 2>&1 & jobbg
+job; ( jobin   # the arena (core/arena.c, docs/SD-MODE-DESIGN.md 6b): first fit and the fixed slots
+    $CC -O2 -w -Ifirmware/src -o "$OUT/arena_test" tests/arena_test.c
+    run "arena placed by need: reserve, take, reuse, idle reclaimed, refused, what to drop; random switches, some pending" "$OUT/arena_test"
+    $CC -O2 -w -Ifirmware/src -DARN_SLOT=1008u -DARN_FIXED=1 -o "$OUT/arena_fixed_test" tests/arena_test.c
+    run "arena at fixed slots (the default): the fixed per-part memories' places, never refused" "$OUT/arena_fixed_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin   # the flash layouts (docs/SD-MODE-DESIGN.md): the numbers agree; the fake SD mode's 7-sector log
     run "flash layouts: fm1_flash_map.h, flash_layout.py, the builder and the package agree; the switch table" python3 tests/flash_layout_test.py

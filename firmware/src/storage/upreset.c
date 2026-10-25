@@ -492,6 +492,10 @@ static int up_load(uint32_t k)
     for (i = 0; i < P_COUNT; i++)                       /* (LEN etc. of a kept pattern changed too, and */
         if (param_kept(i))                              /* a preset pattern then counted as edited) */
             v[i] = t->p[i];
+    if ((uint32_t)(t - trk) < NPART && part_mem_reserve((uint32_t)(t - trk), eng_slot_built(r->engine))) {
+        ui_say("MEM FULL", "");                         /* no room in the arena: refused (part_mem_refused: what to drop) */
+        return 1;
+    }
     sound_change(t);                                    /* (SLOOP 2.6: what sounds fades out with the old sound, no click) */
     panic_req |= (uint8_t)(1u << song.sel);
     fm1_irq_off();                                      /* the audio ISR must not see half a sound */

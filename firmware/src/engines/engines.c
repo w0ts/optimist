@@ -118,12 +118,29 @@ typedef union {
     uint32_t none;
 } part_mem_t;
 #define PART_MEM_ANY (FELUCCA_ENG_FM6 || FELUCCA_ENG_PHYS || FELUCCA_ENG_GRAIN || FELUCCA_ENG_ACID || FELUCCA_ENG_PLAITS)
-static part_mem_t part_mem[PART_MEM_ANY ? NPART : 1] __attribute__((section(".pool"), aligned(8)));
+/* the memories live in the arena (core/arena.c, docs/SD-MODE-DESIGN.md 6b): by default NPART x the largest, placed at
+ * fixed slots (ARN_SLOT): the same room and the same places as the fixed memories had, nothing ever refused.
+ * FELUCCA_ARENA_BYTES smaller: placed by need, a change that does not fit refused (part_mem_reserve) */
+#define ARN_PARTS NPART
+#define ARN_SLOT (PART_MEM_ANY ? (sizeof(part_mem_t) + 7u) & ~7u : 8u)
+#ifndef FELUCCA_ARENA_BYTES
+#define ARN_BYTES (NPART * ARN_SLOT)
+#define ARN_FIXED 1
+#else
+#define ARN_BYTES FELUCCA_ARENA_BYTES
+#endif
+#include "../core/arena.c"
+#if ARN_FIXED                                            /* part p's memory: its slot, from power-on (as the fixed array) */
+#define PART_MEM_AT(p) ((void *)(arn_mem + (p) * ARN_SLOT))
+#else                                                    /* placed by need: where its switch took it (0 before) */
+static void *part_mem_p[NPART];
+#define PART_MEM_AT(p) part_mem_p[p]
+#endif
 static uint8_t part_mem_owner[NPART];                    /* the engine slot + 1 whose state it holds, 0 = none */
 AINL fm6_mem_t *fm6_mem(uint32_t p)
 {
 #if FELUCCA_ENG_FM6
-    return &part_mem[p].fm6;
+    return (fm6_mem_t *)PART_MEM_AT(p);
 #else
     (void)p;
     return 0;
@@ -132,20 +149,20 @@ AINL fm6_mem_t *fm6_mem(uint32_t p)
 AINL gr_part_t *gr_mem(uint32_t p)
 {
 #if FELUCCA_ENG_GRAIN
-    return &part_mem[p].grain;
+    return (gr_part_t *)PART_MEM_AT(p);
 #else
     (void)p;
     return 0;
 #endif
 }
 #if FELUCCA_ENG_PHYS
-AINL phys_slot_t *phys_mem(uint32_t p) { return part_mem[p].phys; }
+AINL phys_slot_t *phys_mem(uint32_t p) { return (phys_slot_t *)PART_MEM_AT(p); }
 #endif
 #if FELUCCA_ENG_ACID
-void *acid_mem(int k) { return part_mem[(uint32_t)k % NPART].acid; }
+void *acid_mem(int k) { return PART_MEM_AT((uint32_t)k % NPART); }
 #endif
 #if FELUCCA_ENG_PLAITS
-AINL pl_voice_t *pl_mem(uint32_t p) { return part_mem[p].plaits; }
+AINL pl_voice_t *pl_mem(uint32_t p) { return (pl_voice_t *)PART_MEM_AT(p); }
 #endif
 
 /* the engines built, in UID order (registry.h ENGINE_LIST): the slots */
@@ -185,39 +202,103 @@ static int16_t preset_trim(uint32_t uid, uint32_t pi)    /* by engine UID */
     return uid < PT_ENGINES && pi < PT_MAX ? PRESET_TRIM[uid][pi] : 0;
 }
 
-/* part k switched to engine slot e (voice.c engine_block, every voice of the part over): the part's engine memory
- * for e (part_mem above) */
-static void part_mem_claim(uint32_t k, uint32_t e)
+/* the bytes engine slot e keeps in its part's memory (0: none) */
+static uint32_t part_mem_bytes(uint32_t e)
 {
-    int uses = 0;
     e %= NENGINES;
 #if FELUCCA_ENG_FM6
-    uses |= e == (uint32_t)ENG_SLOT_FM6;
+    if (e == (uint32_t)ENG_SLOT_FM6)
+        return sizeof(fm6_mem_t);
 #endif
 #if FELUCCA_ENG_PHYS
-    uses |= e == (uint32_t)ENG_SLOT_PHYS;
+    if (e == (uint32_t)ENG_SLOT_PHYS)
+        return sizeof(phys_slot_t) * PHYS_POLY;
 #endif
 #if FELUCCA_ENG_GRAIN
-    uses |= e == (uint32_t)ENG_SLOT_GRAIN;
+    if (e == (uint32_t)ENG_SLOT_GRAIN)
+        return sizeof(gr_part_t);
 #endif
 #if FELUCCA_ENG_ACID
-    uses |= e == (uint32_t)ENG_SLOT_ACID;
+    if (e == (uint32_t)ENG_SLOT_ACID)
+        return ACID_MEM_BYTES;
 #endif
 #if FELUCCA_ENG_PLAITS
-    uses |= e == (uint32_t)ENG_SLOT_PLAITS;
+    if (e == (uint32_t)ENG_SLOT_PLAITS)
+        return sizeof(pl_voice_t) * PL_POLY;
 #endif
-    if (!uses || k >= NPART || part_mem_owner[k] == e + 1u)
-        return;
-    {                                                    /* another engine's state (or none): from zeros, as at power-on */
-        uint32_t i, *w = (uint32_t *)(void *)&part_mem[k];
-        for (i = 0; i < sizeof part_mem[k] / 4u; i++)
-            w[i] = 0;
+    return 0;
+}
+
+/* a refused change (the user, 2026-10-25: refuse, and propose what to drop; the UI shows it and offers the drops):
+ * the part, the engine it asked for, the parts whose memory would make room (arn_drop_for; -1 none would) */
+static struct { uint8_t on, part, eng; int8_t drop; } part_mem_refused;
+
+/* the main loop, before part k's engine becomes e (model.c set_engine_of, project and user preset loads): its memory
+ * set aside. 0 ok; -1 no room (only with a smaller FELUCCA_ARENA_BYTES): part_mem_refused says what would make room */
+static int part_mem_reserve(uint32_t k, uint32_t e)
+{
+    uint32_t n = part_mem_bytes(e);
+    int r;
+    if (k >= NPART || !n || (part_mem_owner[k] == e % NENGINES + 1u && arn_ptr(k)))
+        return 0;                                        /* (none needed, or its own state still there) */
+    {
+        IRQ_SAVE(ie);                                    /* (the state kept: a section applied inside the audio ISR */
+        r = arn_reserve(k, n);                           /* reaches here through the project's apply) */
+        IRQ_RESTORE(ie);
+    }
+    if (r) {
+        part_mem_refused.on = 1, part_mem_refused.part = (uint8_t)k, part_mem_refused.eng = (uint8_t)(e % NENGINES);
+        part_mem_refused.drop = (int8_t)arn_drop_for(k, n);
+    }
+    return r;
+}
+
+static int part_mem_claim(uint32_t k, uint32_t e);
+
+/* at power-on, before the audio (main.c felucca_init): each part's first engine gets its memory (an arena placed by
+ * need; the fixed slots are there from the start) */
+static void part_mem_boot(void)
+{
+#if !ARN_FIXED
+    uint32_t k;
+    for (k = 0; k < NPART; k++)
+        if (part_mem_bytes(trk[k].engine))
+            (void)part_mem_claim(k, trk[k].engine);
+#endif
+}
+
+/* part k switched to engine slot e (voice.c engine_block, every voice of the part over): the part's engine memory
+ * for e (part_mem above). To an engine that uses it from another that did: zeroed (as at power-on: each engine
+ * builds its state from zeros) and the engine told; to one that keeps nothing here: left, idle (back finds it) */
+static int part_mem_claim(uint32_t k, uint32_t e)
+{
+    uint32_t n, i, *w;
+    e %= NENGINES;
+    n = part_mem_bytes(e);
+    if (k >= NPART)
+        return 0;
+    if (!n) {
+        arn_rest(k);
+        return 0;
+    }
+    if (part_mem_owner[k] == e + 1u && arn_ptr(k) && !arn_has_next[k]) {
+        (void)arn_take(k);                               /* (its own state, as it was) */
+        return 0;
+    }
+    if (!arn_has_next[k] && arn_reserve(k, n))           /* (a switch nobody reserved for: here; the default arena */
+        return -1;                                       /* never refuses; a smaller one: the caller keeps the old one) */
+    w = (uint32_t *)arn_take(k);                         /* another engine's state (or none): from zeros */
+#if !ARN_FIXED
+    part_mem_p[k] = w;
+#endif
+    for (i = 0; i < n / 4u; i++)
+        w[i] = 0;
 #if FELUCCA_ENG_ACID
-        acid_forget((int)k);
+    acid_forget((int)k);
 #endif
 #if FELUCCA_ENG_FM6
-        fm6_pt[k].lav = fm6_pt[k].mcur = fm6_pt[k].mlav = fm6_pt[k].mnew = fm6_pt[k].mlive = 0;   /* (into those) */
+    fm6_pt[k].lav = fm6_pt[k].mcur = fm6_pt[k].mlav = fm6_pt[k].mnew = fm6_pt[k].mlive = 0;   /* (into those) */
 #endif
-    }
     part_mem_owner[k] = (uint8_t)(e + 1u);
+    return 0;
 }

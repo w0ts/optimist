@@ -1053,6 +1053,11 @@ static __attribute__((noinline)) void pold_out(uint32_t m)
 static void engine_block(track_t *t)
 {
     uint32_t i, any = 0;
+#if !ARN_FIXED                                          /* (an arena placed by need: the engine a part starts with, or
+                                                         * one a load put there without a switch, gets its memory) */
+    if ((uint32_t)(t - trk) < NPART && !part_mem_p[t - trk] && part_mem_bytes(t->engine))
+        (void)part_mem_claim((uint32_t)(t - trk), t->engine);
+#endif
     if (t->xf_on || t->eng_req != t->engine || t->pold) {
         if (!t->xf_on) {
             for (i = 0; i < NVOICE; i++)
@@ -1071,8 +1076,12 @@ static void engine_block(track_t *t)
             v->stage = 0;
             v->env = v->env_out = 0;
         }
-        t->engine = t->eng_req % NENGINES;
-        part_mem_claim((uint32_t)(t - trk), t->engine);   /* its engine memory (engines.c) */
+        {
+            uint8_t was = t->engine;
+            t->engine = t->eng_req % NENGINES;
+            if (part_mem_claim((uint32_t)(t - trk), t->engine))   /* its engine memory (engines.c); no room (an arena */
+                t->engine = t->eng_req = was;                    /* placed by need, a load nobody reserved): the old */
+        }                                                        /* engine stays (part_mem_refused: the UI offers drops) */
         t->xf_on = 0;
         t->pold = 0;
         t->nmono = 0;

@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------/
-/  Optimist (2026-10-25): directories, seek and write on, FAT16 and FAT32 (builder item SDCARD); otherwise R0.03a as is.
+/  Optimist (2026-10-25): directories, seek and write on, FAT16 and FAT32 (builder item SDCARD); pff.c refuses a boot record with 0 sectors per cluster; otherwise R0.03a as is.
 /  Petit FatFs - Configuration file
 /---------------------------------------------------------------------------*/
 
