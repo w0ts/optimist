@@ -547,6 +547,7 @@ static BOOT_ORDER void fm1_main(void)
         felucca_dbg.stage = 1;
         ui_input();
         fxm_poll();                                     /* the effects' lines in the arena (fx/fx_arena.c; FX_ARENA) */
+        arb_poll();                                     /* the other buffers in it (core/arena_bufs.c) */
         fxi_poll();                                     /* the limited inserts' instances after a change (fx/insfx/fxi.c) */
         rto_poll();                                     /* the engines the parts asked for: their code into the slots (overlay.c) */
         felucca_dbg.stage = 2;
@@ -583,6 +584,7 @@ static BOOT_ORDER void fm1_main(void)
         MAIN_WAIT_BEGIN                                 /* while (fm1_ms - m < 15u): ~60 UI frames/s at most */
             ui_input();
             fxm_poll();                         /* (an effect picked: its line within a pass) */
+            arb_poll();
             fxi_poll();                         /* (a type picked: its instance within a pass) */
             rto_poll();                         /* (an engine a part asked for: its code into the part's slot, overlay.c) */
             meter_tap();                        /* (once per audio half: the meters see every one) */

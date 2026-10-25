@@ -237,7 +237,8 @@ def validate(cfg):
         else:
             fixed = room - arena_mem(cfg)["pool"]
             note.append(Issue(f"{R.ITEMS['ARENA'].label}: {cfg['ARENA']} KB in place of {fixed // 1024} KB of fixed "
-                              "memories (the parts' engine states and the effects' lines); a project using more is "
+                              "memories (the parts' engine states, the effects' lines, the SLICER's recordings, WAVE's "
+                              "table, the X0X machines); a project using more is "
                               "refused and offered what to drop", ["ARENA"]))
     for k, it in R.ITEMS.items():
         if it.off_warning and not cfg[k] and (not it.parent or built(cfg, it.parent)):
@@ -570,26 +571,61 @@ def dly_arena(cfg):
 NPART = 3                  # core.h: the synth parts (part_mem's NPART states)
 
 
+REV_AP = (556 + 441, 278 + 221)   # fx.c REV_A0 + REV_A1, the ROOM's diffusers rev_ap (full, half rate), samples
+WAVE_MEM = 16 * 2032 * 2 + 2 * 1024 * 4   # eng_wave.c WT_MEM_BYTES: the table's copies and the frame builder's scratch
+# the X0X machines' states on the FM-1 (x0x_drums.c x909 x808; build/sizes.json of the default profile, 2026-10-25): the
+# 909's 5,344 B with its 6-bit samples (X909_CYM or X909_HAT 2: a field more in each of its 4 sample voices), 5,328 without
+X909_STATE, X808_STATE = (5328, 5344), 3376
+
+
+def arena_bufs(cfg):
+    """-> {name: bytes} the other buffers the arena holds only while a project uses them (core/arena_bufs.c; in the
+    pool, static, without ARENA): each track's SLICER recording, WAVE's table, the X0X machines' states"""
+    f, _ = flags(cfg)
+
+    def on(key):
+        return int(f.get(R.ITEMS[key].flag, 0) or 0)
+    out = {"a track's SLICER recording": 2 * on("SL_LEN") if built(cfg, "FX_SLICER") else 0,
+           "WAVE's table": WAVE_MEM if built(cfg, "ENG_WAVE") else 0,
+           "the X0X 909's state": X909_STATE[on("X909_CYM") == 2 or on("X909_HAT") == 2] if built(cfg, "DRUM_X0X909") else 0,
+           "the X0X 808's state": X808_STATE if built(cfg, "DRUM_X0X808") else 0}
+    return {k: v for k, v in out.items() if v}
+
+
 def arena_mem(cfg):
-    """-> {region: bytes} of the arena (ARENA, KB: core/arena.c, fx/fx_arena.c) against the fixed memories it replaces:
-    its own pool less the parts' engine states (part_mem), the delay and chorus sends' lines, the reverb's line
-    (rev_lines: in main RAM without REV_POOL) and the inserts' own room (fx_memory); {} with ARENA off. The code and
-    bookkeeping it adds (about 2 KB of flash, 256 B of RAM) is its measured delta (costs.json)"""
+    """-> {region: bytes} of the arena (ARENA, KB: core/arena.c, fx/fx_arena.c, core/arena_bufs.c) against the fixed
+    memories it replaces: its own pool less the parts' engine states (part_mem), the delay and chorus sends' lines, the
+    reverb's line (rev_lines: in main RAM without REV_POOL) and the ROOM's diffusers after it, the inserts' own room
+    (fx_memory), the SLICER's recordings (a track each), WAVE's table and the X0X machines' states (arena_bufs); {} with
+    ARENA off. The code and bookkeeping it adds (about 2 KB of flash, 256 B of RAM) is its measured delta (costs.json)"""
     f, _ = flags(cfg)
     kb = int(f.get(R.ITEMS["ARENA"].flag, 0) or 0)
     if not kb:
         return {}
-    rev, mem = rev_lines(cfg), fx_memory(cfg)
-    lines = (mem["send"] + mem["cho"] + mem["own"]) * 1024 + rev.get("pool", 0)
-    return {"pool": kb * 1024 - part_mem(cfg)["pool"] - lines, "ram": -rev.get("ram", 0)}
+    rev, mem, bufs = rev_lines(cfg), fx_memory(cfg), arena_bufs(cfg)
+    lines = (mem["send"] + mem["cho"] + mem["own"]) * 1024 + rev.get("pool", 0) + rev_ap(cfg)
+    other = sum(v * (NTRK if k.startswith("a track's") else 1) for k, v in bufs.items())
+    return {"pool": kb * 1024 - part_mem(cfg)["pool"] - lines - other, "ram": -rev.get("ram", 0)}
+
+
+def rev_ap(cfg):
+    """-> bytes of the ROOM's diffusers (fx.c rev_ap, always in the pool; in the reverb's block with ARENA), as the
+    pool holds them: 4-aligned (the default profile with ROOM, the SLICER and WAVE, 2026-10-25: 1,996 B of pool for
+    the 1,994 B array)"""
+    f, _ = flags(cfg)
+    if not built(cfg, "FX_REVERB") or not built(cfg, "REV_ROOM"):
+        return 0
+    return (2 * REV_AP[int(f.get(R.ITEMS["REV_HALF"].flag, 0) or 0)] + 3) & ~3
 
 
 def arena_blocks(cfg):
-    """-> {name: bytes} the blocks the arena places (a part's engine state, each effect's line; validate: each must fit)"""
+    """-> {name: bytes} the blocks the arena places (a part's engine state, each effect's line, the other buffers;
+    validate: each must fit)"""
     rev, mem = rev_lines(cfg), fx_memory(cfg)
     out = {"a part's engine state": part_mem(cfg)["pool"] // NPART, "the delay's line": mem["send"] * 1024,
-           "the chorus send's line": mem["cho"] * 1024, "the reverb's line": sum(rev.values()) if built(cfg, "FX_REVERB") else 0,
-           "the inserts' own room": mem["own"] * 1024}
+           "the chorus send's line": mem["cho"] * 1024,
+           "the reverb's line": sum(rev.values()) + rev_ap(cfg) if built(cfg, "FX_REVERB") else 0,
+           "the inserts' own room": mem["own"] * 1024, **arena_bufs(cfg)}
     return {k: v for k, v in out.items() if v}
 
 

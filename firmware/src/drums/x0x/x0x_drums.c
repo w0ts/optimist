@@ -86,13 +86,81 @@ static struct {
     float bus[X0X_BLK], pair[X0X_BLK];   /* this block's metal bank */
 #endif
 } xd;
+#ifndef FELUCCA_FX_ARENA
+#define FELUCCA_FX_ARENA 0
+#endif
+#if FELUCCA_FX_ARENA
+/* Optimist: in the arena (core/arena_bufs.c, x0x_mem): each machine's state held only while a lane or the kit plays it
+ * (or it still sounds); 0 not placed: its hits refused (x0x_hit: the stand-in kit plays them). xd.ready a bit by
+ * machine (1 the 909, 2 the 808): set up at its first hit once placed */
+#if FELUCCA_DRUM_X909
+static drum909_t *x909_p;
+#define x909 (*x909_p)
+#endif
+#if FELUCCA_DRUM_X808
+static drum808_t *x808_p;
+#define x808 (*x808_p)
+#endif
+#define X909_UP (xd.ready & 1u)
+#define X808_UP (xd.ready & 2u)
+#else
 #if FELUCCA_DRUM_X909
 static drum909_t x909 __attribute__((section(".pool")));
 #endif
 #if FELUCCA_DRUM_X808
 static drum808_t x808 __attribute__((section(".pool")));
 #endif
+#define X909_UP 1
+#define X808_UP 1
+#endif
 
+#if FELUCCA_FX_ARENA
+static FM_SETUP void x0x_ready(void)
+{
+#if FELUCCA_DRUM_X909
+    if (x909_p && !(xd.ready & 1u)) {
+        drum909_init(&x909);
+        xd.ready |= 1u;
+    }
+#endif
+#if FELUCCA_DRUM_X808
+    if (x808_p && !(xd.ready & 2u)) {
+        drum808_init(&x808);
+        drum808_set(&x808, D8_KIT, 0, 127);       /* kit level: X0X's factory setting */
+        xd.ready |= 2u;
+    }
+#endif
+}
+/* (the main loop, the interrupts off: core/arena_bufs.c) machine m (0 the 909, 1 the 808) at p (zeroed; 0: none): its
+ * hits due dropped, set up again at its next hit */
+void x0x_mem(uint32_t m, void *p)
+{
+    uint32_t c, lo = m ? X0X_CH808 : 0u, hi = m ? X0X_NCH : X0X_CH808;
+    for (c = lo; c < hi; c++)
+        xd.pend[c].on = 0;
+    xd.ready &= (uint8_t)~(1u << m);
+#if FELUCCA_DRUM_X909
+    if (!m)
+        x909_p = (drum909_t *)p;
+#endif
+#if FELUCCA_DRUM_X808
+    if (m)
+        x808_p = (drum808_t *)p;
+#endif
+}
+uint32_t x0x_mem_bytes(uint32_t m)                /* machine m's state (0: not built) */
+{
+#if FELUCCA_DRUM_X909
+    if (!m)
+        return sizeof(drum909_t);
+#endif
+#if FELUCCA_DRUM_X808
+    if (m)
+        return sizeof(drum808_t);
+#endif
+    return 0;
+}
+#else
 static FM_SETUP void x0x_ready(void)
 {
     if (xd.ready)
@@ -106,6 +174,7 @@ static FM_SETUP void x0x_ready(void)
 #endif
     xd.ready = 1;
 }
+#endif
 
 static int x0x_clamp(int v, int lo, int hi) { return v < lo ? lo : v > hi ? hi : v; }
 
@@ -281,11 +350,11 @@ FM_SETUP uint32_t x0x_hit(uint32_t snd, uint32_t vel, const int8_t *ofs, uint32_
     x0x_pend_t *p;
     x0x_ready();
 #if FELUCCA_DRUM_X909
-    if (snd < DR_NUM)
+    if (snd < DR_NUM && X909_UP)
         ch = snd;
 #endif
 #if FELUCCA_DRUM_X808
-    if (snd >= 16u && snd < 16u + D8S_NUM)
+    if (snd >= 16u && snd < 16u + D8S_NUM && X808_UP)
         ch = X0X_CH808 + X8_LANE[snd - 16u];
 #endif
     if (ch == 0xFFu)
@@ -325,7 +394,7 @@ uint32_t x0x_block(uint32_t n)
         if (xd.pend[c].on)
             mask |= 1u << c;
 #if FELUCCA_DRUM_X909
-    for (c = 0; c < DR_NUM; c++)
+    for (c = 0; X909_UP && c < DR_NUM; c++)
         if (x9_on((int)c))
             mask |= 1u << c;
     if (mask & ((1u << DR_NUM) - 1u))             /* (X0X runs the noise on through silence too: only its filters'
@@ -333,7 +402,7 @@ uint32_t x0x_block(uint32_t n)
         x9_block((int)n);
 #endif
 #if FELUCCA_DRUM_X808
-    {
+    if (X808_UP) {
         uint32_t metal = 0;
         for (c = 0; c < L_NUM; c++)
             if (lane_on(&x808, (int)c) || xd.pend[X0X_CH808 + c].on) {
@@ -397,17 +466,19 @@ FM_SETUP void x0x_off(void)
     for (c = 0; c < X0X_NCH; c++)
         xd.pend[c].on = 0;
 #if FELUCCA_DRUM_X909
-    for (c = 0; c < 5u; c++)
+    for (c = 0; X909_UP && c < 5u; c++)
         if (c < 2u)
             x909.bt[c].mute = 0;
         else
             x909.tom[c - 2u].mute = 0;
-    x909.rim.mute = x909.clap.mute = 0;
-    for (c = 0; c < 4u; c++)
-        x909.smp[c].mute = 0;
+    if (X909_UP) {
+        x909.rim.mute = x909.clap.mute = 0;
+        for (c = 0; c < 4u; c++)
+            x909.smp[c].mute = 0;
+    }
 #endif
 #if FELUCCA_DRUM_X808
-    for (c = 0; c < L_NUM; c++)
+    for (c = 0; X808_UP && c < L_NUM; c++)
         voice_stop(&x808, (int)c);
 #endif
 }
