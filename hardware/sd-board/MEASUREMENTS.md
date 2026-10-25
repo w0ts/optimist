@@ -83,7 +83,7 @@ What is measured on a real FM-1 (calipers, the user, 2026-10-25) and what is sti
   there (parts of the FM-1 under it): the board hovers 0.8 mm up, on the tray floor's thickness.
 - After a test fit (the user, 2026-10-25): the pole is 3 mm further left than l (75 mm), and so is the room by the
   battery: the board's left edge at 71.4 (25.4 mm wide at the bottom), the tray's left rail with it; the card stays
-  where it was (81.7 mm from the wall). The column 1 mm narrower on its right (90.5 to 95.8) to pass between the plugs.
+  where it was (81.7 mm from the wall). The column 1 mm narrower on its left (91.5 to 96.8: 1.5 mm clear of the speaker plug) to pass between the plugs.
   Check on the print: the collar's outside now reaches 70.35 mm across.
 - v3 (the L along the left edge) did not fit: 10.4 mm free beside the battery; it is in git (5af03500).
 
