@@ -20,4 +20,8 @@ kicad-cli pcb export drill --format excellon --excellon-separate-th --drill-orig
 (cd fab/gerbers && zip -q -r ../sd-board-gerbers.zip .)
 kicad-cli pcb render --side top --width 1200 --height 1500 --quality high --zoom 0.9 -o render-top.png sd-board.kicad_pcb >/dev/null
 kicad-cli pcb render --side bottom --width 1200 --height 1500 --zoom 0.9 -o render-bottom.png sd-board.kicad_pcb >/dev/null
-echo "fab/sd-board-gerbers.zip fab/bom.csv fab/cpl.csv render-top.png render-bottom.png"
+# a mockup to 3D-print (the outline and the holes, 1.6 mm) and a 1:1 paper template, to check the fit in the FM-1
+kicad-cli pcb export stl --board-only --drill-origin -f -o mockup.stl sd-board.kicad_pcb >/dev/null
+kicad-cli pcb export pdf --layers Edge.Cuts,F.Fab,F.SilkS --mode-single --include-border-title -o template-1to1.pdf \
+    sd-board.kicad_pcb >/dev/null
+echo "fab/sd-board-gerbers.zip fab/bom.csv fab/cpl.csv render-top.png render-bottom.png mockup.stl template-1to1.pdf"

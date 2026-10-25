@@ -30,8 +30,11 @@ LIB = os.path.join(HERE, "lib", "sdboard.pretty")
 KICAD_FP = "/Applications/KiCad/KiCad.app/Contents/SharedSupport/footprints"
 MM = pcbnew.FromMM
 
-X0, Y0 = 100.0, 100.0                            # the board's top left (mm)
-SW, FY, FW, YB = 10.0, 135.0, 31.0, 161.5       # the strip's width, the foot's top, its width, the board's bottom
+SCREW_PITCH = 38.1                               # the two case poles' centres apart (calipers, the user, 2026-10-25)
+SCREWS = ((103.8, 135.0), (104.4, 135.0 - SCREW_PITCH))   # the FM-1's screws: the L's corner (photo), the one above
+X0, Y0 = 100.0, SCREWS[1][1] - 3.4                # the board's top left (mm): the strip from just above the upper screw
+SW, FY, FW, YB = 10.0, 135.0, 22.0, 161.5       # the strip's width, the foot's top, its width, the board's bottom
+SD_OUT = 1.0                                     # the card socket past the left edge, nearer the slot in the case wall (unmeasured)
 OUTLINE = ((X0, Y0), (X0 + SW, Y0), (X0 + SW, FY), (X0 + FW, FY), (X0 + FW, YB), (X0, YB))
 TRACK, POWER = 0.2, 0.3                          # (0.2 / 0.3: the FFC's 0.5 mm pitch)
 
@@ -102,25 +105,30 @@ def via(name, x, y):
 
 
 # ---- the parts: J2 at the strip's top, its cable side on the left edge (the cable comes round the FM-1 board's edge
-# there); J1 in the foot, its opening on the left edge; the small parts in the foot right of the card
+# there); U1 and its parts in the strip under it (the user, 2026-10-25: the foot as small as can be, so the battery
+# moves less); J1 in the foot, its opening on the left edge, R1 at its contacts, R2 and R3 right of them
 J2 = place(LIB, "FPC-SMD_6P-P0.50_XUNPU_FPC-05F-6PH20", "J2", "FFC 6P 0.5mm", 104.0, 111.5, 270, "C2856796")
-J1 = place(LIB, "TF-SMD_TF-01A", "J1", "TF-01A push-push", 109.62, 148.0, 270, "C91145")
-R1 = place(LIB, "R0603", "R1", "1k", 105.4, 119.5, 270, "C21190")
-R3 = place(LIB, "R0603", "R3", "47k", 127.6, 142.54, 180, "C25819")
-R4 = place(LIB, "R0603", "R4", "47k", 127.6, 144.6, 0, "C25819")
-C1 = place(LIB, "C0805", "C1", "10uF", 127.6, 147.2, 180, "C15850")
-U1 = place(LIB, "SOT-23-5_L3.0-W1.7-P0.95-LS2.8-BR", "U1", "74LVC1G04", 122.0, 150.1, 0, "C7827")
-R2 = place(LIB, "R0603", "R2", "47k", 117.6, 152.0, 90, "C25819")
-C2 = place(LIB, "C0603", "C2", "100nF", 122.0, 154.0, 0, "C14663")
-# four holes to fix it (an M2 screw, a zip tie, a rivet): the strip's top, the foot's corners
-HOLES = [place(os.path.join(KICAD_FP, "MountingHole.pretty"), "MountingHole_2.2mm_M2", f"H{i + 1}", "M2", x, y)
-         for i, (x, y) in enumerate(((105.0, 103.2), (128.4, 137.6), (128.4, 158.9), (102.6, 158.9)))]
+J1 = place(LIB, "TF-SMD_TF-01A", "J1", "TF-01A push-push", X0 + 9.62 - SD_OUT, 148.0, 270, "C91145")
+U1 = place(LIB, "SOT-23-5_L3.0-W1.7-P0.95-LS2.8-BR", "U1", "74LVC1G04", 103.5, 119.0, 0, "C7827")
+R4 = place(LIB, "R0603", "R4", "47k", 105.85, 121.6, 0, "C25819")
+C2 = place(LIB, "C0603", "C2", "100nF", 103.4, 123.9, 0, "C14663")
+C1 = place(LIB, "C0805", "C1", "10uF", 105.3, 126.6, 180, "C15850")
+R1 = place(LIB, "R0603", "R1", "1k", 115.0, 143.64, 180, "C21190")
+R3 = place(LIB, "R0603", "R3", "47k", 120.3, 144.2, 90, "C25819")
+R2 = place(LIB, "R0603", "R2", "47k", 120.3, 149.0, 270, "C25819")
+# the FM-1's own two screws through it (the user, 2026-10-25: the case's poles hold it), and one more hole for a tie
+HOLES = [place(os.path.join(KICAD_FP, "MountingHole.pretty"), "MountingHole_2.7mm_M2.5", f"H{i + 1}", "M2.5", x, y)
+         for i, (x, y) in enumerate(SCREWS)]
+HOLES.append(place(os.path.join(KICAD_FP, "MountingHole.pretty"), "MountingHole_2.2mm_M2", "H3", "M2",
+                   X0 + FW - 2.9, 158.9))
 
-# ---- the nets
+# ---- the nets. J2's order is free (the tap board at J12 is not designed yet): the three lines to the card on top, so
+# they go straight to their lanes, GND, then 3V3 and LCD_CS at the bottom, straight down to the parts under it
+J2_PINS = ((1, "MOSI"), (2, "CLK"), (3, "MISO"), (4, "GND"), (5, "3V3"), (6, "LCD_CS"), (7, "GND"), (8, "GND"))
 for num, name in ((1, "DAT2"), (2, "CARD_CS"), (3, "MOSI"), (4, "3V3"), (5, "CLK"), (6, "GND"), (7, "DAT0"),
                   (8, "DAT1"), (10, "GND"), (11, "GND"), (12, "GND"), (13, "GND")):
     connect(J1, num, name)
-for num, name in ((1, "LCD_CS"), (2, "MOSI"), (3, "3V3"), (4, "CLK"), (5, "GND"), (6, "MISO"), (7, "GND"), (8, "GND")):
+for num, name in J2_PINS:
     connect(J2, num, name)
 for num, name in ((2, "LCD_CS"), (3, "GND"), (4, "CARD_CS"), (5, "3V3")):
     connect(U1, num, name)
@@ -129,50 +137,54 @@ for fp, a, b in ((R1, "MISO", "DAT0"), (R2, "3V3", "DAT2"), (R3, "3V3", "DAT1"),
     connect(fp, 1, a)
     connect(fp, 2, b)
 
-# ---- the copper, top. The FFC's lines go down the strip side by side (0.7 mm apart), turn into the foot above the
-# card socket and come down right of its contacts, each turning left into its own: in the card's pin order already
-# (DAT0, CLK, 3V3, MOSI, then CS through U1), so nothing crosses. GND goes down a via under the FFC socket's body.
+# ---- the copper, top. MOSI, CLK, MISO go down the strip's right side, turn into the foot above the card and come down
+# right of its contacts, each turning left into its own (MISO through R1). CS and 3V3 reach the card on the bottom,
+# from the strip round the right of the lower screw; DAT1 and DAT2 go on the bottom to R3 and R2.
 P = {n: at(J2, n) for n in range(1, 7)}
-LANE = {"LCD_CS": 109.2, "MOSI": 108.5, "3V3": 107.8, "CLK": 107.1, "MISO": 106.4}     # (down the strip)
-BAND = {"LCD_CS": 136.0, "MOSI": 136.7, "3V3": 137.4, "CLK": 138.1, "DAT0": 138.8}      # (across, above the card)
-DOWN = {"DAT0": 117.0, "CLK": 117.7, "3V3": 118.4, "MOSI": 119.1, "LCD_CS": 125.0}      # (down, right of the card)
 C = {n: at(J1, n) for n in range(1, 9)}
-route("LCD_CS", [P[1], (LANE["LCD_CS"], P[1][1]), (LANE["LCD_CS"], BAND["LCD_CS"]), (DOWN["LCD_CS"], BAND["LCD_CS"]),
-                 (DOWN["LCD_CS"], at(U1, 2)[1]), at(U1, 2)])
-for name, pin, card in (("MOSI", 2, 3), ("3V3", 3, 4), ("CLK", 4, 5)):
+LANE = {"MOSI": 108.9, "CLK": 108.2, "MISO": 107.5}       # (down the strip)
+BAND = {"MOSI": 136.0, "CLK": 136.7, "MISO": 137.4}       # (across, above the card)
+DOWN = {"MISO": 116.9, "CLK": 117.6, "MOSI": 118.3}       # (down, right of the card)
+END = {"MOSI": C[3], "CLK": C[5], "MISO": at(R1, 1)}
+for name, pin in (("MOSI", 1), ("CLK", 2), ("MISO", 3)):
     route(name, [P[pin], (LANE[name], P[pin][1]), (LANE[name], BAND[name]), (DOWN[name], BAND[name]),
-                 (DOWN[name], C[card][1]), C[card]], POWER if name == "3V3" else TRACK)
-route("MISO", [P[6], (LANE["MISO"], P[6][1]), (LANE["MISO"], 116.5), (105.4, 117.5), at(R1, 1)])
-route("DAT0", [at(R1, 2), (105.4, BAND["DAT0"]), (DOWN["DAT0"], BAND["DAT0"]), (DOWN["DAT0"], C[7][1]), C[7]])
-route("GND", [P[5], (103.9, P[5][1])])
-route("CARD_CS", [at(U1, 4), C[2]])
-route("DAT2", [C[1], (117.6, C[1][1]), at(R2, 2)])
-route("DAT1", [C[8], (116.3, C[8][1])])
-route("DAT1", [(125.9, C[8][1]), at(R3, 2)])
-route("LCD_CS", [at(R4, 1), (DOWN["LCD_CS"], at(R4, 1)[1])])
-BUS = 129.6                                         # (3V3 down the foot's right edge, fed from below)
-route("3V3", [(BUS, 141.0), (BUS, 152.6), (117.6, 152.6)], POWER)
-route("3V3", [at(R3, 1), (BUS, at(R3, 1)[1])], POWER)
-route("3V3", [at(R4, 2), (BUS, at(R4, 2)[1])], POWER)
-route("3V3", [at(C1, 1), (BUS, at(C1, 1)[1])], POWER)
-route("3V3", [at(U1, 5), (at(U1, 5)[0], 152.6)], POWER)
-route("3V3", [at(C2, 2), (at(C2, 2)[0], 152.6)], POWER)
-route("GND", [at(C1, 2), (126.6, 148.6)])
-route("GND", [at(U1, 3), (123.3, 147.9)])
-route("GND", [at(C2, 1), (120.0, 154.0)])
-route("GND", [C[6], (116.3, C[6][1])])
+                 (DOWN[name], END[name][1]), END[name]])
+route("DAT0", [at(R1, 2), C[7]])
+route("GND", [P[4], (103.9, P[4][1])])                     # (a via under the FFC socket's body)
+TRUNK = 106.6                                              # (3V3 down the parts' right side)
+route("3V3", [P[5], (TRUNK, P[5][1]), (TRUNK, 128.4)], POWER)
+route("LCD_CS", [P[6], (105.3, 116.4), (105.9, 117.0), (105.9, at(U1, 2)[1]), at(U1, 2)])
+route("LCD_CS", [(105.9, at(U1, 2)[1]), (105.9, 120.4), (105.1, 121.2), at(R4, 1)])
+route("3V3", [(TRUNK, 122.6), (at(U1, 5)[0], 122.6), at(U1, 5)], POWER)
+route("3V3", [at(C2, 2), (at(C2, 2)[0], 122.6)], POWER)
+route("GND", [at(U1, 3), (104.8, 116.9)])
+route("GND", [at(C2, 1), (102.6, 125.2)])
+route("GND", [at(C1, 2), (103.3, 127.8)])
+route("CARD_CS", [(101.6, 129.4), (100.9, 128.7), (100.9, at(U1, 4)[1]), at(U1, 4)])
+route("3V3", [at(R3, 1), at(R2, 1)], POWER)
+route("DAT1", [(120.3, C[8][1]), at(R3, 2)])
+route("DAT2", [(120.3, 150.65), at(R2, 2)])
+VIA_AT = {"DAT1": (115.0, C[8][1]), "GND": (115.0, C[6][1]), "3V3": (115.0, C[4][1]), "CARD_CS": (115.0, C[2][1]),
+          "DAT2": (115.9, C[1][1])}                        # (beside the card's contacts)
+for name, card in (("DAT1", 8), ("GND", 6), ("3V3", 4), ("CARD_CS", 2), ("DAT2", 1)):
+    route(name, [C[card], VIA_AT[name]], POWER if name == "3V3" else TRACK)
 
-# ---- the vias and the bottom: 3V3 from its lane to the bus, DAT1 under the lanes to R3
+# ---- the bottom: CS and 3V3 west under the card, north right of the lower screw, into the strip; DAT1, 3V3, DAT2 east
+# under the lanes to R3 and R2
 B = pcbnew.B_Cu
-for x, y in ((118.4, 141.0), (BUS, 141.0)):
-    via("3V3", x, y)
-route("3V3", [(118.4, 141.0), (BUS, 141.0)], POWER, B)
-for x, y in ((116.3, C[8][1]), (125.9, C[8][1])):
-    via("DAT1", x, y)
-route("DAT1", [(116.3, C[8][1]), (125.9, C[8][1])], TRACK, B)
-for x, y in ((103.9, P[5][1]), (116.3, C[6][1]), (126.6, 148.6), (123.3, 147.9), (120.0, 154.0),
-             (102.0, 122.0), (102.0, 130.0), (112.0, 158.5), (124.5, 158.5), (108.5, 102.0)):   # (the last five: the
-    via("GND", x, y)                                                                              # pours stitched)
+route("3V3", [VIA_AT["3V3"], (108.3, C[4][1]), (108.3, 128.4), (TRUNK, 128.4)], POWER, B)
+route("CARD_CS", [VIA_AT["CARD_CS"], (107.5, C[2][1]), (107.5, 129.4), (101.6, 129.4)], TRACK, B)
+route("DAT1", [VIA_AT["DAT1"], (120.3, C[8][1])], TRACK, B)
+route("3V3", [VIA_AT["3V3"], (120.3, C[4][1])], POWER, B)
+route("DAT2", [VIA_AT["DAT2"], (120.3, C[1][1]), (120.3, 150.65)], TRACK, B)
+for name, (x, y) in VIA_AT.items():
+    via(name, x, y)
+for name, x, y in (("3V3", TRUNK, 128.4), ("CARD_CS", 101.6, 129.4), ("DAT1", 120.3, C[8][1]), ("3V3", 120.3, C[4][1]),
+                   ("DAT2", 120.3, 150.65)):
+    via(name, x, y)
+for x, y in ((103.9, P[4][1]), (104.8, 116.9), (102.6, 125.2), (103.3, 127.8),
+             (101.6, 102.0), (112.0, 138.5), (116.0, 153.0), (104.0, 157.5)):   # (the last four: the pours stitched)
+    via("GND", x, y)
 
 # ---- the outline, the ground pours, the labels
 def edge(ax, ay, bx, by):
@@ -215,7 +227,7 @@ def label(text, x, y, size=0.8, rot=0.0):
     board.Add(t)
 
 
-label("OPTIMIST SD", 120.2, 158.6, 0.8)
+label("OPTIMIST SD", 108.4, 103.0, 0.8, 90)
 
 board.GetDesignSettings().SetAuxOrigin(pcbnew.VECTOR2I(MM(X0), MM(YB)))   # (the lower left: the Gerbers, the drill
 pcbnew.ZONE_FILLER(board).Fill(board.Zones())                                   # files and cpl.csv share it)
