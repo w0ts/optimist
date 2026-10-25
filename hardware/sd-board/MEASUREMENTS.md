@@ -90,6 +90,8 @@ What is measured on a real FM-1 (calipers, the user, 2026-10-25) and what is sti
   new top-left corner against it on the mockup.)
 - J2 (from J12) 5 mm lower, 57 mm up (and 1 mm right, 92.4): the cable from J12 is 80 mm (the user); its path about
   35 + 5 + 32 = 72 mm. The LCD cable reaches J3 at 86.5 mm (tested by the user on the FM-1).
+- The card socket 1 mm further out (the user): its front, and the latched card's end, 1 mm past the case's outside
+  (x + 1 = 4 mm below the board's bottom edge).
 - v3 (the L along the left edge) did not fit: 10.4 mm free beside the battery; it is in git (5af03500).
 
 ## Still unmeasured
