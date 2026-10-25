@@ -148,16 +148,31 @@ export function cloudIssueUrl(repo, commit, text, name) {
   return `https://github.com/${repo}/issues/new?${q}`;
 }
 
-/** the presets: the flavours first (each its profile), then every shipped profile */
+/** the relay that opens the issue for anyone (tools/cloud_relay/cloud-build.php): no GitHub account needed. Its bot check
+    is Cloudflare Turnstile: the site key below (public by design; empty = no relay, the issue form only) */
+export const CLOUD_RELAY = "https://motscousus.com/optimist/cloud-build.php";
+export const TURNSTILE_SITEKEY = "0x4AAAAAAFk1oyVlHqX0qHcQ";
+export const TURNSTILE_JS = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+/** the relay's request: the same commit, configuration and title as the issue form, and the Turnstile token */
+export const relayRequest = (token, commit, text, name) => ({ turnstile: token, commit: commit || "", config: text, name: firmwareName(name) || "custom" });
+
+/** the presets: the flavours first (each its profile), then the published profiles (a development one, bt-debug or
+    fonts-test, is not offered on the public page; nor the registry's defaults, no configuration of anyone's) */
 export function presets(prof) {
   const byName = Object.fromEntries((prof.profiles || []).map((p) => [p.name, p]));
   const out = [];
   for (const f of prof.flavours || []) {
     if (byName[f.profile]) out.push({ id: `flavour:${f.id}`, label: `${f.title} (${f.profile})`, kind: "flavour", text: byName[f.profile].text, name: f.profile, description: f.description || "" });
   }
-  for (const p of prof.profiles || []) out.push({ id: `profile:${p.name}`, label: p.name + (p.published ? " (published)" : ""), kind: "profile", text: p.text, name: p.name, description: "" });
-  out.push({ id: "defaults", label: "(registry defaults)", kind: "defaults", text: "", name: "default", description: "" });
+  for (const p of (prof.profiles || []).filter((x) => x.published === true)) out.push({ id: `profile:${p.name}`, label: p.name, kind: "profile", text: p.text, name: p.name, description: "" });
   return out;
+}
+
+/** the saved configurations as stored ({name: .config text}), the well-formed ones only: a name of 1-40 characters, a
+    text of at most 20,000; 100 at most */
+export function savedOf(v) {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return {};
+  return Object.fromEntries(Object.entries(v).filter(([n, t]) => n.trim() && n.length <= 40 && typeof t === "string" && t.length <= 20000).slice(0, 100));
 }
 
 /** the preset the page opens with and "Reset to default" restores: the manifest's flavour marked "default": true, else

@@ -108,6 +108,25 @@ with tempfile.TemporaryDirectory() as t:
 check("reply error: the run link, the issue stays open", env["RUN_URL"] in CB.reply("error", env))
 check("reply building / failed: the run link", env["RUN_URL"] in CB.reply("building", env) and env["RUN_URL"] in CB.reply("failed", env))
 
+
+def mark(text):
+    """the comment's marker (tools/cloud_build.py marker), as the relay reads it"""
+    import re
+    m = re.search(r"<!-- optimist-cloud (\{.*?\}) -->\s*$", text)
+    return json.loads(m.group(1)) if m else None
+
+
+check("marker: building and done carry the build id, the key and the run; failed and error the run",
+      mark(CB.reply("building", env)) == {"stage": "building", "id": KEY[:16], "key": KEY, "run": env["RUN_URL"]}
+      and mark(done) == {"stage": "done", "id": KEY[:16], "key": KEY, "run": env["RUN_URL"]}
+      and mark(CB.reply("failed", env))["stage"] == "failed" and mark(CB.reply("error", env))["run"] == env["RUN_URL"])
+check("marker: an odd key or run is left out, never quoted",
+      mark(CB.reply("failed", dict(env, KEY="x" * 64, RUN_URL="javascript:alert(1)"))) == {"stage": "failed"})
+with tempfile.TemporaryDirectory() as t:
+    p = subprocess.run([sys.executable, str(ROOT / "tools" / "cloud_build.py"), "request", "--out", t], capture_output=True, text=True,
+                       env=dict(os.environ, ISSUE_BODY="", RUN_URL=env["RUN_URL"]))
+    check("marker: a refused request's reply says refused", p.returncode == 1
+          and mark((Path(t) / "reply.md").read_text()) == {"stage": "refused", "run": env["RUN_URL"]})
 check("reply done: the installer opened on the build id, the builder on its configuration",
       f"/webapp/installer/?build={KEY[:16]}" in done and f"/webapp/builder/?cloud={env['STEM']}" in done)
 
@@ -282,5 +301,28 @@ try:
 except (OSError, subprocess.CalledProcessError) as e:
     check(f"the issue URL (node: {e})", False)
 
-print("cloud build: " + ("all ok" if not fails else f"{fails} FAILED"))
+# ---- the relay (tools/cloud_relay/cloud-build.php): the issue body it writes is read as the form's; it refuses what
+# the form would not carry (an odd commit, a fence or a heading that would cut the body)
+RELAY = ROOT / "tools" / "cloud_relay" / "cloud-build.php"
+
+
+def relay(req):
+    p = subprocess.run(["php", str(RELAY), "body"], input=json.dumps(req), capture_output=True, text=True)
+    return p.stdout if p.returncode == 0 else None
+
+
+if shutil.which("php"):
+    body = relay({"commit": SHA, "config": "# name: my synth\r\nENG_FM6=1\nBLE=0\n", "name": "x"})
+    check("relay: its body reads as the form's (commit, configuration), starts as the workflow's trigger", body is not None
+          and body.startswith("### Commit\n")
+          and CB.parse_request(body) == {"commit": SHA, "config": "# name: my synth\nENG_FM6=1\nBLE=0\n"})
+    check("relay: no commit is the latest", CB.parse_request(relay({"commit": "", "config": "BLE=0"}))["commit"] is None)
+    check("relay: refused: an odd commit, no configuration, a fence, a heading, a long one",
+          relay({"commit": "main; x", "config": "BLE=0"}) is None and relay({"commit": "", "config": " "}) is None
+          and relay({"config": "A=1\n```\n### Commit\n"}) is None and relay({"config": "### Commit\nA=1"}) is None
+          and relay({"config": "A=1\n" * 5000}) is None and relay([1]) is None)
+else:
+    print("relay: no php here, not checked")
+
+print("cloud build: " + ("all ok"if not fails else f"{fails} FAILED"))
 sys.exit(1 if fails else 0)

@@ -1447,7 +1447,6 @@
 <div class="menubar" id="side">
   <a class="brand" href="#mixer" title="Optimist editor" aria-label="Optimist editor" style="color:inherit;flex:none;display:flex;align-items:center"><svg width="28" height="28" style="display:block" xmlns="http://www.w3.org/2000/svg" viewBox="-20 1 150 150" aria-hidden="true" fill="currentColor"><mask id="op-sail-ed"><rect x="-20" y="0" width="150" height="152" fill="#fff"/><g fill="none" stroke="#000" stroke-width="3.6"><circle cx="46" cy="62" r="6.2"/></g><rect x="44.2" y="63" width="3.6" height="17" fill="#000"/></mask><path d="M15 49L53 4L89 102H15Z" mask="url(#op-sail-ed)"/><path d="M4 103Q50 116 102 113L95 127L16 126Q10 118 4 103Z"/><rect x="40" y="126" width="9" height="23"/><path d="M102 113L101 133L107 139L109 121Z"/><rect x="12.5" y="49" width="5" height="64"/></svg></a><b class="brand" title="Optimist Editor">Optimist</b>
   <nav class="tabs" id="tabs" role="tablist" aria-label="Pages">
-    <button role="tab" data-tab="build" data-t="tabBuild" data-ic="ui_knob"></button>
     <button role="tab" data-tab="install" data-t="tabInstall" data-ic="port_usb_c"></button>
     <button role="tab" data-tab="sim" data-t="tabSim" data-ic="symbol_waves"></button>
     <span class="navh" role="separator" aria-orientation="vertical"></span>
@@ -6528,7 +6527,7 @@ const TEXT = {
   samples: "Samples", smpHelp: "Drop or choose WAV files. Up to 16 files per slot, stored as mono 22050 Hz ADPCM (about 7 s in all). Select USR1–USR3 with SET on the SAMPLE engine (or SRC on the SLICE engine).",
   tabDrums: "Drum sounds", drumSounds: "The 16 drum sounds", drumHelp: "Each of the drum track's 16 sounds: its source (the kit, a sample of USR1–USR3, another kit's sound for it, any voice of X0X's 909 or 808), the sample's hit (zone), start and length (1/1024 of the hit), and the sound editor's 8 offsets (0 = as the kit). On the device: EDIT on the drum track.",
   userKits: "User kits", ukitHelp: "16 kits, KIT 1 to KIT 16 (every lane's source and offsets). Loading one puts it into the project's drums. Export writes the kit and the samples of the USR slots it plays into one file.",
-  tabInstall: "Install", tabBuild: "Build", tabSim: "Simulator", tabScreen: "Screen",
+  tabInstall: "Firmware", tabBuild: "Build", tabSim: "Simulator", tabScreen: "Screen",
   mirrorNone: "This firmware does not send its screen: build it with ED_MIRROR (under the web editor in Build).", appSimMissing: "The simulator module is not available here.",
   devSource: "Device", devUsb: "FM-1 (USB)", devSim: "Simulator", simoff: "The simulator is not running: start it in the Simulator tab (it connects by itself).", appLoading: "Loading…", appNoSite: "This copy has no packages next to it (installer/site.json): choose a .fwsc file of your own.", appInstallMissing: "The installer module is not available here.", appBuildMissing: "The builder module is not available here yet.", appBusy: "Installing: stay on this page until it is done.",
   tabMixer: "Editor", help: "Help", bpm: "BPM", close: "Close", section: "Section", meter: "Meter", syncTip: "MIDI clock (Settings)", syncLocked: "an external clock is followed", syncWaiting: "waiting for that clock", choose: "Choose", number: "Number", value: "Value",
@@ -6861,10 +6860,12 @@ const POP_PANEL = { sound: "p-sound", sequence: "p-sequencer", lane: "p-drums", 
 let popPanel = null;
 const POP_TRACK = new Set(["sound", "sequence", "loadpreset", "savepreset", "tools", "scale"]);   /* (these act on the selected track: selected first) */
 async function openPop(id, track = 0, lane = 0) {
-  if (!dev || !dev.dump || !NAV[id] || (NAV[id].fxp && !fxpOn()) || (NAV[id].usb && !dev.info.fxp.usb) || (NAV[id].songc && !dev.info.songc) || (NAV[id].tools && !dev.info.tools)) return;
+  /* (Help is text only: it opens with no FM-1 connected and over any tab; every other popup is the device's mixer's) */
+  const help = id === "help";
+  if (!help && (!dev || !dev.dump || !NAV[id] || (NAV[id].fxp && !fxpOn()) || (NAV[id].usb && !dev.info.fxp.usb) || (NAV[id].songc && !dev.info.songc) || (NAV[id].tools && !dev.info.tools))) return;
   closePop();
   nav = navOpen(nav, id, track, lane);
-  if (tab !== "mixer") { tab = "mixer"; renderPanels(); }
+  if (!help && tab !== "mixer") { tab = "mixer"; renderPanels(); }
   const dlg = $("pop"), body = $("popbody");
   const p = $(POP_PANEL[id] || "p-dyn");
   popPanel = p;
@@ -6942,7 +6943,7 @@ function renderPanels() {
     if (b.dataset.tab === "screen") b.hidden = !mirrorOn() || !opti("mirror");   /* (the device's own screen: ED_MIRROR) */
     if (b.dataset.tab === "backup" || b.dataset.tab === "projects" || b.dataset.tab === "library")
       b.hidden = !!dev && !!dev.info && !opti(b.dataset.tab);   /* (another firmware's numbering: not offered; ed_opti.h) */
-    const on = b.dataset.tab === want;
+    const on = b.dataset.tab === want || (want === "build" && b.dataset.tab === "install");   /* (Build is Firmware's: no tab of its own) */
     b.setAttribute("aria-selected", on ? "true" : "false");
     b.tabIndex = on ? 0 : -1;
   }

@@ -30,6 +30,12 @@
   .ob-root .prop .acts [aria-pressed="true"] { background: var(--trk); color: var(--on); }
   .ob-root #gauges[data-preview] { box-shadow: inset 0 0 0 1px var(--trk); }
   .ob-root #gauges .o-panel-h .o-info { margin-left: auto; }
+  /* fits / too big: the head's line (--c, optimist.css .o-panel-h) and its chip, green or red, in both themes */
+  .ob-root #gauges { --fit-ok: #2ea44f; }
+  .ob-root #gauges[data-fit="ok"] .o-panel-h { --c: var(--fit-ok); }
+  .ob-root #gauges[data-fit="over"] .o-panel-h { --c: var(--err); }
+  .ob-root #gauges[data-fit="ok"] #fitmark { background: var(--fit-ok); color: #fff; border-color: transparent; }
+  .ob-root #gauges[data-fit="over"] #fitmark { background: var(--err); color: #fff; border-color: transparent; }
   .ob-root #bars { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp-3); min-width: 0; }
   .ob-root #bars:empty::before { content: "The size estimate appears once Python has started."; color: var(--text-dim); font-size: var(--fs-2); }
   .ob-root #gauges .side { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-2); margin-top: var(--sp-3); min-width: 0; }
@@ -120,6 +126,31 @@
   .ob-root #result code, .ob-root #result pre { font: var(--fs-2)/1.45 var(--font-mono); overflow-wrap: anywhere; }
   .ob-root #result pre { white-space: pre-wrap; max-height: 260px; overflow: auto; background: var(--surface-0); border: 1px solid var(--line); padding: var(--sp-2); margin: var(--sp-2) 0 0; border-radius: var(--r); }
   .ob-root #key { word-break: break-all; }
+  .ob-root #result .o-field { margin-bottom: var(--sp-2); }
+  .ob-root #bref { max-width: 100%; }
+
+  /* the build followed (cloud.js): its steps, what it says, the reason it was refused or failed */
+  .ob-root #buildwatch { margin-top: var(--sp-2); }
+  .ob-root #buildwatch .steps { display: flex; gap: var(--sp-2); list-style: none; margin: 0 0 var(--sp-2); padding: 0; flex-wrap: wrap; }
+  .ob-root #buildwatch .steps li { padding: 1px var(--sp-2); border: 1px solid var(--line); border-radius: var(--r); color: var(--text-dim); font-size: var(--fs-2); }
+  .ob-root #buildwatch .steps li[data-st="on"] { border-color: var(--accent); color: var(--text); }
+  .ob-root #buildwatch .steps li[data-st="done"] { background: #2ea44f; border-color: transparent; color: #fff; }
+  .ob-root #buildwatch .steps li[data-st="fail"] { background: var(--err); border-color: transparent; color: #fff; }
+  .ob-root #buildwatch p { margin: 0 0 var(--sp-2); }
+  .ob-root #buildwatch .why { white-space: pre-wrap; max-height: 200px; overflow: auto; }
+
+  /* the Mirror app (opts.app): the Build card first and in view, without the files, the keys and the footer */
+  .ob-root.ob-app #download, .ob-root.ob-app #hashline, .ob-root.ob-app #keynote, .ob-root.ob-app #buildhow,
+  .ob-root.ob-app #import, .ob-root.ob-app #canondet, .ob-root.ob-app #dumpdet, .ob-root.ob-app #keychip,
+  .ob-root.ob-app .ob-foot { display: none; }
+  .ob-root.ob-app #bside { display: contents; }
+  .ob-root.ob-app .cols { grid-template-columns: minmax(0, 1fr); gap: var(--sp-3); }
+  .ob-root.ob-app #result { order: 0; position: sticky; top: 0; z-index: 21; }
+  .ob-root.ob-app #gauges { order: 1; position: static; }
+  .ob-root.ob-app #proposals { order: 2; }
+  .ob-root.ob-app #alerts { order: 3; }
+  .ob-root.ob-app #left { order: 4; }
+  .ob-root.ob-app #info { order: 5; }
 
   @media (max-width: 900px) {
     .ob-root .cols { grid-template-columns: minmax(0, 1fr); gap: var(--sp-3); }

@@ -140,9 +140,24 @@ def safe_name(name):
     return re.sub(r"[^A-Za-z0-9 +._-]", "", str(name or ""))[:32] or "custom"
 
 
+def marker(stage, key="", run=""):
+    """the comment's last line, hidden when rendered: what the relay (tools/cloud_relay, ?status=) and the web builder read
+    of a request's progress, never the prose. stage: building, done, refused, failed, error"""
+    m = {"stage": stage}
+    if KEY.fullmatch(key or ""):
+        m.update(id=key[:16], key=key)
+    if re.fullmatch(r"https://github\.com/[A-Za-z0-9._/-]+", run or ""):
+        m["run"] = run
+    return f"\n\n<!-- optimist-cloud {json.dumps(m, separators=(',', ':'))} -->"
+
+
 def reply(kind, env):
-    """the comment text; env: REPO, RUN_URL, COMMIT, KEY, STEM, NAME (strings from the workflow) and SUMMARY_FILE (the
-    package's JSON summary) as needed"""
+    """the comment text (its marker last); env: REPO, RUN_URL, COMMIT, KEY, STEM, NAME (strings from the workflow) and
+    SUMMARY_FILE (the package's JSON summary) as needed"""
+    return reply_text(kind, env) + marker(kind, env.get("KEY", ""), env.get("RUN_URL", ""))
+
+
+def reply_text(kind, env):
     repo, run = env.get("REPO", ""), env.get("RUN_URL", "")
     if kind == "building":
         return (f"Building **{safe_name(env.get('NAME'))}** from `{env.get('COMMIT', '')[:12]}` "
@@ -160,8 +175,7 @@ def reply(kind, env):
         site = f"https://{owner.lower()}.github.io/{name}/webapp"
         build_id = env.get("KEY", "")[:16]
         return (f"{cached} Build id `{build_id}`.\n\n"
-                f"- **[Install it]({site}/installer/?build={build_id})** with the web installer (or paste the build id "
-                "in its *A cloud build* list)\n"
+                f"- **[Install it]({site}/installer/?build={build_id})** with the web installer\n"
                 f"- [Its configuration in the web builder]({site}/builder/?cloud={env.get('STEM', '')})\n"
                 f"- Firmware: [{env.get('STEM')}.fwsc]({base}.fwsc) (`python3 tools/optimist.py flash FILE.fwsc`)\n"
                 f"- The web editor's sidecar: [{env.get('STEM')}-ui.zip]({base}-ui.zip)\n\n"
@@ -299,7 +313,7 @@ def cmd_request(a):
             raise Refused(f"`{commit[:12]}` is not a commit of a branch of this repository. Use the web builder of "
                           "the published site, or leave the commit empty for the latest.")
     except Refused as e:
-        (out / "reply.md").write_text(str(e) + "\n")
+        (out / "reply.md").write_text(str(e) + marker("refused", run=os.environ.get("RUN_URL", "")) + "\n")
         print(e, file=sys.stderr)
         return 1
     (out / "request.config").write_text(req["config"])
@@ -316,7 +330,7 @@ def cmd_verdict(a):
         v = verdict(ev, err)
     except (Refused, json.JSONDecodeError) as e:
         msg = str(e) if isinstance(e, Refused) else "The configuration check gave no readable result."
-        (d / "reply.md").write_text(msg + "\n")
+        (d / "reply.md").write_text(msg + marker("refused", run=os.environ.get("RUN_URL", "")) + "\n")
         print(msg, file=sys.stderr)
         return 1
     output(key=v["key"], stem=v["stem"], name=safe_name(v["name"]))

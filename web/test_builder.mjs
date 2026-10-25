@@ -123,9 +123,13 @@ ok(same(t0.map((g) => g.group), reg.groups.filter((g) => (reg.top[g] || []).leng
 const tq = L.treeOf(reg, "reverb", {}, null);
 ok(tq.length > 0 && tq.every((g) => g.items.every((i) => L.matches(reg.byKey[i.key], "reverb") || i.children.some((c) => L.matches(reg.byKey[c], "reverb")))), "search: what matches label, key, group or description, with its parent");
 const ps = L.presets(prof);
-ok(ps[0].kind === "flavour" && ps.filter((p) => p.kind === "profile").length === prof.profiles.length && ps.at(-1).kind === "defaults", "presets: the flavours, then every profile, then the registry defaults");
+ok(ps[0].kind === "flavour" && ps.filter((p) => p.kind === "profile").length === prof.profiles.filter((p) => p.published === true).length && !ps.some((p) => p.kind === "defaults")
+  && L.presets({ profiles: [{ name: "dev", text: "", published: false }, { name: "pub", text: "", published: true }] }).filter((p) => p.kind === "profile").map((p) => p.label).join() === "pub",
+  "presets: the flavours, then the published profiles only (no registry defaults)");
+ok(JSON.stringify(L.savedOf({ pad: "A=1\n", "": "B=1", [("x").repeat(41)]: "C=1", odd: 3 })) === JSON.stringify({ pad: "A=1\n" }) && JSON.stringify(L.savedOf(null)) === "{}" && JSON.stringify(L.savedOf([1])) === "{}",
+  "saved configurations: a name of 1-40 characters and a text, nothing else");
 {
-  const P = { profiles: [{ name: "a", text: "" }, { name: "synth", text: "ENG_FM6=1\n" }], flavours: [{ id: "x", title: "X", profile: "a" }, { id: "synth", title: "Synth", profile: "synth", default: true }] };
+  const P = { profiles: [{ name: "a", text: "", published: true }, { name: "synth", text: "ENG_FM6=1\n", published: true }], flavours: [{ id: "x", title: "X", profile: "a" }, { id: "synth", title: "Synth", profile: "synth", default: true }] };
   const P2 = { profiles: P.profiles, flavours: [{ id: "x", title: "X", profile: "a" }, { id: "synth", title: "Synth", profile: "synth" }] };
   ok(L.defaultPreset(P).id === "flavour:synth" && L.defaultPreset(P2).id === "flavour:x" && L.defaultPreset({ profiles: P.profiles }).id === "profile:a"
     && L.defaultPreset(prof).kind === "flavour", "default preset: the flavour marked default, else the first flavour, else the first profile");
@@ -137,6 +141,9 @@ ok(L.repoOf({ repo: "me/optimist" }) === "me/optimist" && L.repoOf({ repo: "x/y?
   && new URL(L.cloudIssueUrl("me/o", SHA, "", "p<a>d")).searchParams.get("title") === "Cloud build: pad"
   && L.cloudIssueUrl("me/o", SHA, "", "").startsWith("https://github.com/me/o/issues/new?template=cloud-build.yml&"),
   "cloud build: the repository from build-info, the issue form's URL (commit, configuration, title)");
+ok(JSON.stringify(L.relayRequest("t", null, "A=1\n", "p<a>d")) === JSON.stringify({ turnstile: "t", commit: "", config: "A=1\n", name: "pad" })
+  && L.relayRequest("t", SHA, "", "").name === "custom" && L.CLOUD_RELAY.startsWith("https://") && L.TURNSTILE_JS.startsWith("https://challenges.cloudflare.com/"),
+  "cloud build relay: the request (Turnstile token, commit, configuration, the firmware name)");
 ok(L.cloudConfigUrl("me/o", "optimist-synth-e1fb1e6cc99a2056") === "https://raw.githubusercontent.com/me/o/cloud-builds/optimist-synth-e1fb1e6cc99a2056.config"
   && L.cloudConfigUrl("me/o", "../x") === null && L.cloudConfigUrl("me/o", "optimist-synth-e1fb") === null && L.cloudConfigUrl("me/o", null) === null,
   "cloud build: ?cloud=<stem> -> its .config on the cloud-builds branch; anything else is not fetched");
@@ -174,8 +181,8 @@ ok(m2.errors.length === 2 && m2.errors.filter((e) => e.kind === "over").length =
   "notices: an overflow is ONE error line (every region, the biggest items, the legend), a broken rule another");
 ok(L.hasInfo(reg1.byKey.A) && !L.hasInfo(reg1.byKey.B) && L.hasInfo({ notice: "n" }) && L.hasInfo({ provenance_line: "p" }), "notices: an (i) on the items with notes");
 const shell = readFileSync(join(HERE, "builder", "index.html"), "utf8"), mod = readFileSync(join(HERE, "builder", "builder.js"), "utf8"), bcss = readFileSync(join(HERE, "builder", "builder.css"), "utf8");
-const page = shell + mod;
-ok(shell.includes("<!--OPTIMIST-HEADER-->") && shell.includes("/*OPTIMIST-CSS*/") && /id="build"/.test(page) && /cloudIssueUrl\(S\.repo, S\.commit, S\.view\.dump, S\.name\)/.test(page) && !/not live yet/.test(page) && /id="gauges"/.test(page) && /mountBuilder/.test(shell + readFileSync(join(HERE, "builder", "ui.js"), "utf8"))
+const page = shell + mod + readFileSync(join(HERE, "builder", "cloud.js"), "utf8");
+ok(shell.includes("<!--OPTIMIST-HEADER-->") && shell.includes("/*OPTIMIST-CSS*/") && /id="build"/.test(page) && /cloudIssueUrl\(S\.repo, commit, S\.view\.dump, S\.name\)/.test(page) && !/not live yet/.test(page) && /id="gauges"/.test(page) && /mountBuilder/.test(shell + readFileSync(join(HERE, "builder", "ui.js"), "utf8"))
   && /\.ob-root #bside \{ position: sticky/.test(bcss) && !/localStorage/.test(shell), "page: the shared header and style, the sticky card column, Build in the cloud (the issue form)");
 ok(/export function mountBuilder\(container, opts = \{\}\)/.test(mod) && /activate\(\)/.test(mod) && /deactivate\(\)/.test(mod) && /destroy\(\)/.test(mod)
   && !/document\.getElementById|document\.body|document\.querySelector\(/.test(mod) && !/^\s*(body|html|:root)\b/m.test(bcss) && bcss.split("\n").filter((l) => /\{/.test(l) && !/^\s*(\/\*|@media|\})/.test(l) && !/^\s*\.ob-root/.test(l)).length === 0,
@@ -184,8 +191,8 @@ const css = readFileSync(join(HERE, "style", "optimist.css"), "utf8");
 ok(/@media \(prefers-color-scheme: light\)/.test(css) && ["--surface-0", "--surface-3", "--text-dim", "--accent", "--ok", "--warn", "--err", "--t1", "--t4"].every((t) => css.includes(t + ":"))
   && !/data-theme/.test(css), "style: the tokens, light / dark from the system (no switch)");
 const inst = readFileSync(join(HERE, "installer", "index.html"), "utf8"), instJs = readFileSync(join(HERE, "installer", "installer.js"), "utf8");
-ok(/build: "\.\.\/builder\/"/.test(instJs) && /link\("build", TEXT\.buildLink\)/.test(instJs) && inst.includes("<!--OPTIMIST-HEADER-->") && inst.includes("/*OPTIMIST-CSS*/"),
-  "installer: the shared header and style, links to the builder");
+ok(/build: "\.\.\/builder\/"/.test(instJs) && /opts\.onNavigate\("build"\); else location\.href = links\.build/.test(instJs) && inst.includes("<!--OPTIMIST-HEADER-->") && inst.includes("/*OPTIMIST-CSS*/"),
+  "installer: the shared header and style, Build your own opens the builder");
 const hdr = JSON.parse(execFileSync(process.env.PYTHON || "python3", ["-c", "import json, sys; sys.path.insert(0, 'web'); import make_site; print(json.dumps([make_site.shared_header(a) for a in ('installer', 'editor', 'builder')]))"], { cwd: join(HERE, ".."), encoding: "utf8" }));
 ok(hdr.every((h, i) => (h.match(/aria-current="page"/g) || []).length === 1 && h.includes(`href="../${["installer", "editor", "builder"][i]}/" aria-current="page"`)
   && /href="\.\.\/installer\/"/.test(h) && /href="\.\.\/editor\/"/.test(h) && /href="\.\.\/builder\/"/.test(h) && /<svg/.test(h)), "header: the dinghy, the three apps linked, the current one marked");

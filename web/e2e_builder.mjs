@@ -220,19 +220,43 @@ const ui = await run(`${U} await B.choosePreset("flavour:default"); await until(
   const ev = B.state.view.eval;
   return { key: $("#key").textContent, keyIs: ev.key, bars: [...document.querySelectorAll("#gauges .o-gauge")].map((b) => b.dataset.region), build: $("#build").disabled,
     note: $("#buildmsg").textContent, dl: $("#download").disabled, hash: $("#hash").textContent, msgs: $("#msgs").textContent.slice(0, 200) };`);
-ok(ui.key === ui.keyIs && /^[0-9a-f]{64}$/.test(ui.key) && same(ui.bars, ["flash", "ram", "pool", "ramtext"]) && !ui.build && /GitHub issue/.test(ui.note) && !ui.dl,
+ok(ui.key === ui.keyIs && /^[0-9a-f]{64}$/.test(ui.key) && same(ui.bars, ["flash", "ram", "pool", "ramtext"]) && !ui.build && /no GitHub account/.test(ui.note) && !ui.dl,
   "page: the key shown, four gauges (FLASH RAM POOL RAMTEXT), Build in the cloud on with its note, Download on");
-/* Build in the cloud: a key built before is offered at once (the release API, stubbed), else the issue form opens */
+/* Build: the same configuration built before is ready at once (the cloud-builds branch, stubbed); else the relay (Turnstile
+   and the relay stubbed): sent, then followed (its ?status=), its issue linked; the relay down: the issue form opens */
 const cb = await run(`${U} const realFetch = window.fetch, opened = []; const realOpen = window.open; window.open = (u) => { opened.push(u); return {}; };
-  const ev = B.state.view.eval; let hit = false;
-  window.fetch = (u, o) => String(u).startsWith("https://api.github.com/") ? Promise.resolve(new Response(JSON.stringify({ assets: hit ? [{ name: "optimist-" + (B.state.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "custom") + "-" + ev.key.slice(0, 16) + ".fwsc", browser_download_url: "https://example.invalid/x.fwsc" }] : [] }), { status: 200 })) : realFetch(u, o);
-  $("#build").click(); await until(() => opened.length === 1);
+  const ev = B.state.view.eval; let hit = false, relay = "up"; const posted = [], polled = [];
+  const json = (o, status = 200) => Promise.resolve(new Response(JSON.stringify(o), { status }));
+  window.turnstile = { render: (box, o) => setTimeout(() => o.callback("tok"), 0) };
+  window.fetch = (u, o) => {
+    u = String(u);
+    if (u.startsWith("https://motscousus.com/")) {
+      if (relay !== "up") return Promise.reject(new TypeError("down"));
+      if (o && o.method === "POST") { posted.push(JSON.parse(o.body)); return json({ issue: "https://github.com/w0ts/optimist/issues/99", number: 99 }, 201); }
+      polled.push(u);
+      return json({ issue: 99, url: "https://github.com/w0ts/optimist/issues/99", stage: "queued" });
+    }
+    if (u.startsWith("https://api.github.com/") && u.endsWith("/branches/cloud-builds")) return hit ? json({ commit: { sha: "a".repeat(40) } }) : json({}, 404);
+    if (u.startsWith("https://raw.githubusercontent.com/") && u.endsWith("/index.json")) return json({ builds: [{ id: ev.key.slice(0, 16), name: "pad", sim: "x.wasm" }] });
+    return realFetch(u, o);
+  };
+  $("#build").click(); await until(() => $("#buildwatch").querySelector("a[href='https://github.com/w0ts/optimist/issues/99']") && polled.length);
+  const sent = posted[0], openedOnSend = opened.length, steps = [...$("#buildwatch").querySelectorAll(".steps li")].map((li) => li.dataset.st).join();
+  [...$("#buildwatch").querySelectorAll("button")].find((x) => /Stop following/.test(x.textContent)).click();
+  relay = "down"; $("#build").click(); await until(() => opened.length === 1);
   const issue = new URL(opened[0]);
-  hit = true; $("#build").click(); await until(() => $("#buildmsg").querySelector("a[href='https://example.invalid/x.fwsc']"));
-  window.fetch = realFetch; window.open = realOpen;
-  return { path: issue.pathname, template: issue.searchParams.get("template"), commit: issue.searchParams.get("commit"), config: issue.searchParams.get("config"), dump: B.state.view.dump, opened: opened.length };`);
+  hit = true; $("#build").click(); await until(() => [...$("#buildwatch").querySelectorAll("button")].some((x) => x.textContent === "Flash it"));
+  const ready = { flash: true, sim: [...$("#buildwatch").querySelectorAll("button")].some((x) => /simulator/.test(x.textContent)),
+    mine: JSON.parse(localStorage.getItem("optimist-my-build") || "null") };
+  [...$("#buildwatch").querySelectorAll("button")].find((x) => x.textContent === "Dismiss").click();
+  window.fetch = realFetch; window.open = realOpen; delete window.turnstile;
+  return { sent, openedOnSend, steps, ready, key: ev.key, path: issue.pathname, template: issue.searchParams.get("template"), commit: issue.searchParams.get("commit"), config: issue.searchParams.get("config"), dump: B.state.view.dump, opened: opened.length };`);
+ok(cb.sent && cb.sent.turnstile === "tok" && cb.sent.commit === SHA && cb.sent.config === cb.dump && cb.openedOnSend === 0 && cb.steps === "on,wait,wait",
+  "Build: through the relay (the Turnstile token, the commit, the .config), then followed (Sent), its issue linked, no form");
 ok(cb.path.endsWith("/issues/new") && cb.template === "cloud-build.yml" && cb.commit === SHA && cb.config === cb.dump && cb.opened === 1,
-  "Build in the cloud: the issue form with the commit and the .config; a key built before gives its download instead");
+  "Build: the relay down, the issue form with the commit and the .config");
+ok(cb.ready.flash && cb.ready.sim && cb.ready.mine && cb.ready.mine.id === cb.key.slice(0, 16),
+  "Build: the same configuration built before: Flash it and Try it in the simulator at once, kept as your build for Flash");
 const tg = await run(`${U} const before = B.state.view.eval.budget.total.flash; const c = $("#it-ENG_FM6"); const was = c.checked; c.click();
   await until(() => B.state.values.ENG_FM6 === (was ? 0 : 1) && B.state.view.eval.config.ENG_FM6 === (was ? 0 : 1));
   const after = B.state.view.eval.budget.total.flash; const shown = $(".o-gauge[data-region=flash]").title;
