@@ -1036,7 +1036,7 @@ _add("LAYOUT", "FELUCCA_LAYOUT", "flash layout: fake SD mode (more room for code
      "(docs/SD-MODE-DESIGN.md)",
      desc="Grows the firmware's flash from 568 KiB to 816 KiB over the user data: the user sample slots, the "
           "snapshots and most of the projects' room become code space (code runs in place from flash: no RAM). What "
-          "is left: one or two projects (a 28 KiB project log), the user presets, the user kits, the settings. Builds "
+          "is left: one project (a 28 KiB project log; the web app or the iOS app keeps the others over USB), the user presets, the user kits, the settings. Builds "
           "without SAMPLE, user drum samples, SNAPSHOTS and the CZ collection, with PATTERNS. Installing it ERASES the "
           "user data the normal layout keeps there, and going back erases this layout's (the update loader clears "
           "the other layout's sectors first): back up with the web editor before. The first install needs a normal "

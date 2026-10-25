@@ -24,7 +24,7 @@
 #define SEC_LOG_BASE 0xD0000u
 #endif
 #ifndef SEC_LOG_SECTORS
-#define SEC_LOG_SECTORS 7u                             /* 28 KiB: one project or two (autosave copy A at 0xD7000) */
+#define SEC_LOG_SECTORS 7u                             /* 28 KiB: the one project (autosave copy A at 0xD7000) */
 #endif
 #elif SLG_V2
 #ifndef SEC_LOG_BASE
