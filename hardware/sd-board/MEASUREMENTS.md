@@ -88,6 +88,8 @@ What is measured on a real FM-1 (calipers, the user, 2026-10-25) and what is sti
 - J3 (the LCD's socket) 3.5 mm left of B, at 86.5 mm (the user): the whole head one width, from 82.4 mm (from
   51.5 mm up, above the speaker plug; the user); the thin column unchanged. (The photo put the 10 V capacitor near 78 to 84.7 across, 63 to 74 up: check the
   new top-left corner against it on the mockup.)
+- J2 (from J12) 5 mm lower, 57 mm up (and 1 mm right, 92.4): the cable from J12 is 80 mm (the user); its path about
+  35 + 5 + 32 = 72 mm. The LCD cable reaches J3 at 86.5 mm (tested by the user on the FM-1).
 - v3 (the L along the left edge) did not fit: 10.4 mm free beside the battery; it is in git (5af03500).
 
 ## Still unmeasured
