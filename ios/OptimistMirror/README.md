@@ -36,7 +36,7 @@ SYSTEM > BT MIDI > MODE to MAN or AUTO on the FM-1 and tap **Connect with Blueto
 - **Editor, Samples, Kits, Snapshots**: the web editor's own pages, in a web view
   (one page, kept); their MIDI goes through the app's USB and Bluetooth ports (`Sources/Web/WebMIDIBridge.swift`: WKWebView
   has no Web MIDI).
-- **Disconnect**: back to the home page, where the connection is made (USB, Bluetooth, the port), Install Firmware and the
+- **Disconnect** (the button top right): back to the home page, where the connection is made (USB, Bluetooth, the port), Install Firmware and the
   Simulator.
 
 **Simulator** (the home screen): the web Simulator, no FM-1 needed.
