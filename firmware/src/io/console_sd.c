@@ -4,6 +4,7 @@
  *   sd                    mount: card type, size, filesystem; the read mode that found the card; the DMA probe
  *   sd mode duplex|dirrx|bitbang   how SPI1 reads bytes (hal/fm1_sd_bus.h), then sd again
  *   sd dma on|off         block data by SPI1's DMA (sd sets it from its probe)
+ *   sd clock 20|30|auto   the card's clock (auto: the fastest the card proves at the mount), then the mount again
  *   sd raw SECTOR         the sector's first 64 bytes, no filesystem (sector 0: the MBR or boot record, 55 AA at 510)
  *   sd ls [DIR]           the directory's entries
  *   sd cat FILE           the file's first 64 bytes
@@ -38,6 +39,16 @@ static void con_sd_mount(void)
         con_sd_field("dma crc", (int32_t)(sd_probe_seen >> 1 & 1u));
         con_sd_field("same", (int32_t)(sd_probe_seen >> 2 & 1u));
         con_puts(")\r\n");
+        con_puts(sd_over ? "clock 30 MHz" : "clock 20 MHz");
+        if (!sd_over && sd_clock_pick != 20u) {
+            con_sd_field("(30 failed: blocks", (int32_t)sd_clock_bad);
+            con_sd_field("of", (int32_t)SD_CLOCK_BLOCKS);
+            con_putc(')');
+        }
+        con_puts(sd_clock_pick ? "  (set)" : "  (auto)");
+        con_sd_field(" crc fails", (int32_t)sd_crc_fails);
+        con_sd_field("drops to 20", (int32_t)sd_demotions);
+        con_puts("\r\n");
     } else {
         con_puts("\r\n");
     }
@@ -150,6 +161,7 @@ static void con_sd_bench_modes(void)
         con_puts("sd: no card (mount first: sd)\r\n");
         return;
     }
+    uint32_t over = sd_over;
     con_kv("sd bench: blocks from sector", (int32_t)s);
     for (b = 0; b < 2u; b++) {
         con_sd_row("duplex", FM1_SD_DUPLEX, 0, BAUD[b], 1, s);
@@ -158,6 +170,7 @@ static void con_sd_bench_modes(void)
         con_sd_row("dma   ", cm, 1, BAUD[b], 0, s);
     }
     con_sd_row("bitbng", FM1_SD_BITBANG, 0, FM1_SD_BAUD_FAST, 1, s);
+    sd_over = (uint8_t)over;                         /* (the rows set their own clocks: the session's back) */
     con_puts("(the same sum on every row = the same data; crc_bad 0 = read right)\r\n");
 }
 
@@ -165,7 +178,7 @@ static void con_sd_stream(uint32_t size)             /* the open file a cluster 
 {
     uint32_t total = 0, n, j, sec, t0 = fm1_ticks(), bad = 0, st;
     while ((n = sd_file_run(&sec)) != 0) {
-        sd_begin(FM1_SD_BAUD_FAST);
+        sd_begin(SD_BAUD());
         if (sd_rd_open(sec, n) != RES_OK) {
             sd_end();
             break;
@@ -193,7 +206,7 @@ static void con_sd_write(const char *path, uint32_t n)   /* the pattern by whole
 {
     uint32_t total = 0, got, bad = 0, sec, k, j, i, t0 = fm1_ticks(), err = 0;
     while (total < n && (k = sd_file_run(&sec)) != 0) {
-        sd_begin(FM1_SD_BAUD_FAST);
+        sd_begin(SD_BAUD());
         for (j = 0; j < k && total < n; j++, total += 512u) {
             for (i = 0; i < 512u; i++)
                 sd_blk[i] = (uint8_t)((total + i) * 13u + 5u);
@@ -268,10 +281,13 @@ static void con_sd(const char *p)
         else if (con_word(&p, "off"))
             fm1_sd_dma = 0;
         con_kv("sd dma", fm1_sd_dma);
+    } else if (con_word(&p, "clock")) {
+        sd_clock_pick = con_word(&p, "20") ? 20u : con_word(&p, "30") ? 30u : 0u;   /* (auto, or anything else) */
+        con_sd_mount();
     } else if (con_word(&p, "raw")) {
         int ok;
         uint32_t s = con_num(&p, &ok);
-        sd_begin(FM1_SD_BAUD_FAST);
+        sd_begin(SD_BAUD());
         if (disk_readp(sd_blk, (DWORD)s, 0, 64) == RES_OK)
             con_bytes("sector", sd_blk, 64);
         else

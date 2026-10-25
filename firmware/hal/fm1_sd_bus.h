@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* FM-1 SD card on the LCD's SPI1 (builder item SDCARD; a hardware mod, docs/SD-CARD-DESIGN.md):
  *   PC9  CLK -> card CLK        PC10 DO -> card CMD (DI)
- *   PC8  D/C <- card DAT0 (DO) through 1 kOhm (the card drives it only while selected)
+ *   PC8  D/C <- card DAT0 (DO) through R1 220 Ohm on the SD board (the card drives it only while selected)
  *   PC7  CS  -> 74LVC1G04 -> card DAT3 (CS): the card is selected whenever the LCD is not.
  * So "select the card" is the LCD's CS high, and "deselect" is the LCD's CS low: the LCD then sees the bytes clocked
  * while the card is deselected, with D/C high (data). The caller sends the LCD a NOP first (src/storage/sd/sdcard.c
@@ -12,8 +12,8 @@
  *   fm1_sd_baud(baud)       the clock, as above
  *   fm1_sd_sel() / _desel() the card selected (LCD CS high, PC8 an input) / deselected (PC8 driven high, LCD CS low)
  *   fm1_sd_tx(b), _rx()     one byte out / in (0xFF out while reading)
- *   fm1_sd_bus_end()        the card selected and idle, PC8 driven (D/C), SPI1 as the LCD set it; the caller puts the
- *                           LCD's clock back (fm1_lcd_baud)
+ *   fm1_sd_bus_end()        the card deselected, the LCD selected and idle (fm1_lcd_hw.h FM1_LCD_IDLE_CS: D/C high, no
+ *                           clock), PC8 driven, SPI1 as the LCD set it; the caller puts the LCD's clock back (fm1_lcd_baud)
  * Unverified on an FM-1 (no SD mod built yet): which way SPI1 reads. fm1_sd_mode picks it at run time (console "sd mode"):
  *   FM1_SD_DUPLEX  each byte sent in transmit mode and the shifted-in byte read back from BUF
  *   FM1_SD_DIRRX   as the flash driver reads SPI0 (hal/fm1_flash.h fl_rx: CON b3 + b12 DIR = receive, 0xFF written)
@@ -65,7 +65,7 @@ FM1_INLINE void fm1_sd_sel(void)
 FM1_INLINE void fm1_sd_desel(void)
 {
     FM1_LCD_PC_OUT |= FM1_LCD_DC;                    /* D/C high (data, ignored after the NOP), driven before the */
-    FM1_LCD_PC_DIR &= ~FM1_LCD_DC;                   /* card lets go: the 1 kOhm takes any overlap */
+    FM1_LCD_PC_DIR &= ~FM1_LCD_DC;                   /* card lets go: R1 takes any overlap (8 release clocks follow) */
     FM1_LCD_PC_OUT &= ~FM1_LCD_CS;                   /* the card off the bus */
 }
 
@@ -188,9 +188,8 @@ static void fm1_sd_bus_begin(uint32_t baud)
 
 static void fm1_sd_bus_end(void)
 {
-    fm1_sd_sel();                                    /* the LCD deselected, as lcd.c leaves it */
+    fm1_sd_desel();                                  /* the card off the bus, the LCD selected and idle, D/C driven high */
     FM1_PR(FM1_PC, FM1_PU) &= ~(FM1_LCD_DC | FM1_LCD_DO);
-    FM1_LCD_PC_DIR &= ~FM1_LCD_DC;                   /* D/C driven again */
     if (fm1_sd_mode == FM1_SD_BITBANG)
         FM1_LCD_IOMAP_CON1 |= 0x10u;
     FM1_LCD_SPI_CON = FM1_SD_CON_LCD;

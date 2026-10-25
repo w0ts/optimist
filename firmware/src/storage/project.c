@@ -1666,7 +1666,7 @@ static void persist_boot(void)                    /* before settings_init / pane
             persist_ble(&p, 0);                    /* (the BLE address, trims, bond, devices) */
 #endif
 #if FELUCCA_PATTERNS
-            open_proj = (uint8_t)(p.open_proj < 16u ? p.open_proj : 0u);   /* (the open project: sections.c) */
+            open_proj = (uint8_t)(p.open_proj < PROJ_SLOTS ? p.open_proj : 0u);   /* (the open project: sections.c) */
 #endif
             persist_ofs_load(&p);
             persist_saved = p;

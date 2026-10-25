@@ -78,7 +78,7 @@ static uint32_t prj_slot_n(uint32_t kind)
     if (kind == PR_SNAP)
         return sn_ui_n();
 #endif
-    return kind == PR_PROJECT ? FELUCCA_SECTIONS : kind == PR_USER ? UP_SLOTS : 0u;
+    return kind == PR_PROJECT ? (FELUCCA_LAYOUT == 1 ? PROJ_SLOTS : FELUCCA_SECTIONS) : kind == PR_USER ? UP_SLOTS : 0u;
 }
 static uint32_t prj_slot_cur(uint32_t kind)
 {

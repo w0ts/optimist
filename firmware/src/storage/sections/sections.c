@@ -839,7 +839,7 @@ static void proj_scope_read(void)
 }
 static int proj_quiet(uint32_t p)                      /* (stopped, p a project: the arena into the log, dropped) */
 {
-    if (p >= 16u || !flash_ok)
+    if (p >= PROJ_SLOTS || !flash_ok)
         return -1;
     persist_flush_now();
     sec_pend_clear();
@@ -983,7 +983,7 @@ static int project_save_as(uint32_t t)
     return project_scope_set(i ? open_proj : t) | (int)i;
 }
 /* project p holds something (a live record of its: a state, a scene, a pattern, a chain): the PROJECT page's strip */
-static int project_slot_used(uint32_t p) { return p < 16u && ((slg.pused >> p) & 1u); }
+static int project_slot_used(uint32_t p) { return p < PROJ_SLOTS && ((slg.pused >> p) & 1u); }
 static uint32_t project_cur(void) { return open_proj; }   /* the open project (the UI) */
 #endif
 static void proj_slots_drop(void)                      /* a restore done: nothing in RAM goes back to flash */

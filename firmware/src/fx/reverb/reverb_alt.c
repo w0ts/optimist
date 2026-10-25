@@ -36,8 +36,12 @@
 #define RV_N (FELUCCA_REV_HALF ? 4096u : 8192u)
 #endif
 #define RV_M (RV_N - 1u)
-static int16_t rev_line[FELUCCA_FX_REVERB ? (RV_N > REV_LINE_OWN ? RV_N : REV_LINE_OWN) : 1] REV_SECTION;   /* (shared:
-                                 * the ROOM's lines and SPRING's loop too, fx.c) */
+#define REV_LINE_N (FELUCCA_FX_REVERB ? (RV_N > REV_LINE_OWN ? RV_N : REV_LINE_OWN) : 1u)   /* (its samples) */
+#if FXM_NEED
+static int16_t *rev_line;       /* (in the arena while the reverb is used: fx/fx_arena.c) */
+#else
+static int16_t rev_line[REV_LINE_N] REV_SECTION;   /* (shared: the ROOM's lines and SPRING's loop too, fx.c) */
+#endif
 static struct {                 /* (one tank runs at a time: PLATE's and FDN8's fields side by side, fx.c's switch clears) */
     uint32_t p;                  /* the write index (counts down, masked on access) */
 #if FELUCCA_REV_FDN8
