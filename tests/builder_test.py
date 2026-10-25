@@ -595,7 +595,9 @@ check("... an effects memory too small for one line of a type built: an error na
       "with no delay line to lend)", any("XDLY" in e and "INS_XDLY" in e.keys for e in _e))
 check("... under the delay's line: an error; the delay's line alone holds one XDLY (lent): fine",
       bool(C.validate(dict(C.defaults(), INS_XDLY=1, DLY_ARENA=64))[0])
-      and not C.validate(dict(C.defaults(), INS_XDLY=1, DLY_LEN=32768, DLY_ARENA=64))[0])
+      and any("XDLY cannot play while the delay is on the master" in e and "at least 128 KB" in e
+              for e in C.validate(dict(C.defaults(), INS_XDLY=1, DLY_LEN=32768, DLY_ARENA=64))[0])
+      and not C.validate(dict(C.defaults(), INS_XDLY=1, XDLY_LEN=8192, DLY_LEN=16384, DLY_ARENA=64))[0])
 _cfg, _ = C.parse("INS_CHORUS=2\nINS_DELAY=4\nINS_JCHORUS=3\nINS_FLANGER=1\nINS_XDLY=2\n", warn=lambda m: None)
 check("an old .config's instance counts (INS_CHORUS=2 ...) load as built: no setting lost, no error",
       all(_cfg[k] == 1 for k in C.FXM_TYPES) and not [e for e in C.validate(_cfg)[0] if set(e.keys) & set(C.FXM_TYPES)]

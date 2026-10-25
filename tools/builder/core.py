@@ -198,10 +198,14 @@ def validate(cfg):
                          "delay)", ["DLY_ARENA", "DLY_LEN"]))
     else:
         for k, t in mem["types"].items():
-            if not t["max"]:
-                err.append(Issue(f"the effects memory has no room for one {FXM_NAMES[k]} line ({t['kb']} KB): a larger "
-                                 "DLY_ARENA, auto, or the delay in no master slot with a longer delay line",
-                                 ["DLY_ARENA", k]))
+            if not t["own"]:                            # (borrowing a send's line only: silent while the sends are on
+                                                        # the master, as by default; the FM-1, 2026-10-25: XDLY did
+                                                        # nothing, "it should be addressed at the builder stage")
+                err.append(Issue(f"{FXM_NAMES[k]} cannot play while the delay is on the master: its line is "
+                                 f"{t['kb']} KB and the effects memory has {mem['own']} KB beside the delay's "
+                                 f"{mem['send']} KB: DLY_ARENA at least {mem['send'] + t['kb']} KB (or auto), a shorter "
+                                 "DLY_LEN" + (" or XDLY_LEN" if k == "INS_XDLY" else ""),
+                                 ["DLY_ARENA", k] + (["XDLY_LEN"] if k == "INS_XDLY" else []) + ["DLY_LEN"]))
         if mem["types"]:
             note.append(Issue(f"{R.ITEMS['DLY_ARENA'].label}: {fx_memory_text(mem)}", ["DLY_ARENA"]))
     for k, it in R.ITEMS.items():
