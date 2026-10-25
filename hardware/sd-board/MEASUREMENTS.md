@@ -8,7 +8,7 @@ each photo value is a constant there, to replace once measured.
 | What | Value | How | Date |
 |---|---|---|---|
 | The poles for the screws on the back of the case | 6.8 mm high ("7 mm is fine") | calipers, the user | 2026-10-25 |
-| The two poles in the board's area, apart | 38.1 mm (taken as centre to centre; the photo said 42.6) | calipers, the user | 2026-10-25 |
+| The two poles in the board's area, apart | 38.1 mm over their OUTER edges (centre to centre = 38.1 minus one pole's diameter, i, still to measure; the board uses 38.1 for now) | calipers, the user | 2026-10-25 |
 
 ## Still from the photo (2026-10-25, the 704060 battery = 40 x 60 mm as the scale; perhaps 2 mm off)
 
