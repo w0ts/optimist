@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The effects' lines in the arena (firmware/src/fx/fx_arena.c; docs/SD-MODE-DESIGN.md 6b, phase 3b): built with
- * FELUCCA_FX_ARENA and an arena of one FM6 part's memory plus every effect line and 40 B (run_tests.sh), CHRS and ECHO
+ * FELUCCA_FX_ARENA and an arena of one FM6 part's memory plus every effect line (the reverb's with the ROOM's diffusers
+ * after it) and 40 B (run_tests.sh), CHRS and ECHO
  * built, the delay's line 16384 samples:
  *   1. placed by need: the sends in the master slots get their lines at the first pass, zeroed, the gate open; nothing
  *      for the inserts' own room while no limited type is held
@@ -112,6 +113,10 @@ static int arena_ok(void)
         if (c < 3u && ((fxm_st[c] == FXM_NONE) != !p || (fxm_st[c] == FXM_ON) != !(fxm_off >> c & 1u)))
             return 0;
     }
+#if FELUCCA_REV_ROOM
+    if (rev_ap != (rev_line ? rev_line + REV_LINE_N : 0))
+        return 0;                                       /* (the ROOM's diffusers: in the reverb's block, after its line) */
+#endif
     if (!fxa_ins)
         for (i = FXA_S; i < FXA_N; i++)
             if (!fxa_busy(i))
@@ -282,8 +287,12 @@ int main(void)
         CHECK(part_mem_refused.on && part_mem_refused.part == 1u, "drop: FM6 on part 2 refused");
         while (n < 5u && mem_offer(&o[n]))
             n++;
-        CHECK(n == 4u && o[0] == 0u && o[1] == NPART + FXM_DLY && o[2] == NPART + FXM_REV && o[3] == NPART + FXM_CHO,
-              "drop: proposed part 1, then the effects' lines, the largest first: DLY REV CHO (not the own room), each once");
+        uint32_t big = FXM_BYTES[FXM_REV] > FXM_BYTES[FXM_DLY] ? FXM_REV : FXM_DLY;   /* (ROOM + FDN8: REV's block the
+                                                                                     * larger, its diffusers in it) */
+        CHECK(n == 4u && o[0] == 0u && o[1] == NPART + big && o[2] == NPART + (FXM_DLY + FXM_REV - big) &&
+              o[3] == NPART + FXM_CHO,
+              "drop: proposed part 1, then the effects' lines, the largest first: %s CHO (not the own room), each once",
+              big == FXM_DLY ? "DLY REV" : "REV DLY");
         CHECK(!fxm_pending() && fxm_st[FXM_DLY] == FXM_ON, "drop: proposing changes nothing");
     }
     mem_drop(NPART + FXM_DLY);                          /* (YES on "DROP DLY 32 KB") */

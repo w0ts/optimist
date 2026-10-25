@@ -23,10 +23,15 @@
  * Tone) set the model's own parameters at the hit (x0x_drums.c X9_POT / X8_POT), BEND does not apply. Velocity
  * as X0X plays it: 100 (a step) is X0X's unaccented step, 127 (HARD) its accent. */
 #define X0X_NCH 24u
+#define X0X_CH808 11u                              /* (x0x_drums.c: the 808's first channel) */
 uint32_t x0x_hit(uint32_t snd, uint32_t vel, const int8_t *ofs, uint32_t at);   /* x0x/x0x_drums.c (float) */
 uint32_t x0x_block(uint32_t n);
 void x0x_render(uint32_t ch, int32_t *out, uint32_t n, int32_t gain, int add);
 void x0x_off(void);
+#if FXM_NEED
+void x0x_mem(uint32_t m, void *p);                 /* (core/arena_bufs.c: machine m's state in the arena, 0 none) */
+uint32_t x0x_mem_bytes(uint32_t m);
+#endif
 #if FELUCCA_CPU_GUARD && FELUCCA_DRUM_X808
 void x0x_tails(uint32_t shorter);                  /* (the CPU guard's quality level: the 808's tails at -40 dB) */
 #endif

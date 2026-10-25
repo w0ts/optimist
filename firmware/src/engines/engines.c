@@ -141,9 +141,20 @@ typedef union {
 #endif
 #if FXM_NEED
 #define FXM_NC 4u                                        /* the effects' blocks (fx_arena.c FXM_CHO DLY REV INS) */
-#define ARN_PARTS (NPART + FXM_NC)
+/* the other buffers a project holds only while it uses their feature (core/arena_bufs.c), after the effects' lines: the
+ * SLICER's recording of each track (STUT), WAVE's table, the X0X machines' states; only those built */
+enum {
+    ARB_SL0,
+    ARB_WAVE = ARB_SL0 + (FELUCCA_FX_SLICER ? NTRK : 0),
+    ARB_X909 = ARB_WAVE + (FELUCCA_ENG_WAVE ? 1 : 0),
+    ARB_X808 = ARB_X909 + (FELUCCA_DRUM_X909 ? 1 : 0),
+    ARB_NC = ARB_X808 + (FELUCCA_DRUM_X808 ? 1 : 0)
+};
+#define ARB_ANY ((FELUCCA_FX_SLICER ? NTRK : 0) + FELUCCA_ENG_WAVE + FELUCCA_DRUM_X909 + FELUCCA_DRUM_X808)   /* (#if) */
+#define ARN_PARTS (NPART + FXM_NC + (uint32_t)ARB_NC)
 #define ARN_DROPPABLE ((1u << NPART) - 1u)
-#define ARN_TOPS (((1u << FXM_NC) - 1u) << NPART)        /* (the lines from the top, best fit: core/arena.c) */
+#define ARN_TOPS (((1u << (FXM_NC + (uint32_t)ARB_NC)) - 1u) << NPART)   /* (the lines and buffers from the top, best fit:
+                                                                         * core/arena.c) */
 #else
 #define ARN_PARTS NPART
 #endif

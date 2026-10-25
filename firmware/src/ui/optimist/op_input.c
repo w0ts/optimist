@@ -213,6 +213,10 @@ static void mem_tick(void)
         ui_message(fxm_news & 1u ? "MEM FULL CHO" : fxm_news & 2u ? "MEM FULL DLY" : fxm_news & 4u ? "MEM FULL REV" :
                    "MEM FULL INSERTS");
         fxm_news = 0;
+    } else if (!op_armed()) {
+        const char *m = arb_said();                     /* (another buffer refused, core/arena_bufs.c: bypassed) */
+        if (m)
+            ui_message(m);
     }
 #endif
     if (!part_mem_refused.on || op_armed())

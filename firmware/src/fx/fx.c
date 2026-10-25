@@ -57,7 +57,12 @@ static int16_t cho_buf[CHO_BUF_N] __attribute__((section(".pool"), aligned(4)));
 static const uint16_t REV_LINE[4] = {REV_N0, REV_N1, REV_N2, REV_N3};
 static const uint16_t REV_AP[2] = {REV_A0, REV_A1};
 #define REV_ROOM_LEN (REV_N0 + REV_N1 + REV_N2 + REV_N3 + REV_MOD + 2u)
-static int16_t rev_ap[FELUCCA_FX_REVERB ? REV_A0 + REV_A1 : 1] __attribute__((section(".pool")));
+#define REV_AP_N (FELUCCA_FX_REVERB ? REV_A0 + REV_A1 : 1u)   /* (the diffusers' samples) */
+#if FXM_NEED
+static int16_t *rev_ap;                                /* (in the arena, after the reverb's line: fx/fx_arena.c) */
+#else
+static int16_t rev_ap[REV_AP_N] __attribute__((section(".pool")));
+#endif
 #else
 #define REV_MOD 6                /* (fx_buses' line-0 LFO: unused by the other tanks) */
 #define REV_ROOM_LEN 0u
@@ -736,7 +741,7 @@ static void rev_cells_clear(void)
     rva_clear();
 #endif
 #if FELUCCA_REV_ROOM
-    for (i = 0; i < sizeof rev_ap / 2u; i++)
+    for (i = 0; i < REV_AP_N; i++)
         rev_ap[i] = 0;
     for (i = 0; i < 4u; i++)
         fx.line_lp[i] = 0;
@@ -1949,6 +1954,7 @@ static HOT2 __attribute__((noinline)) void dust_run(dust_t *s, int32_t d, int32_
 #include "insfx/insfx.c"            /* the further insert types FOLD FUZZ PHSR FLNG FRMT WIDE CHRS ECHO (ins_one, dbus_ins) */
 #include "insfx/fxi.c"              /* the limited types' instances (CHRS ECHO): the main loop hands them out, fxi_poll */
 #include "fx_arena.c"               /* FELUCCA_FX_ARENA: the effects' lines in the arena while used (fxm_poll) */
+#include "../core/arena_bufs.c"     /* ... and the other buffers only some projects use (arb_poll) */
 /* the second-core test image can switch the inserts off (outside the DINS block: the track strips use it too) */
 #if defined(FELUCCA_DUALCFG) && FELUCCA_DUALCFG && FELUCCA_DUAL
 #define FX_INS_BYPASS fm1_ins_bypass                    /* (the second-core test image: dualcfg ins off, hal/fm1_dual.h) */
