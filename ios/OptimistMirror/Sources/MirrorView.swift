@@ -92,7 +92,9 @@ final class Turn: NSObject, UIApplicationDelegate {
 struct RootView: View {
     @ObservedObject var link: MirrorLink
     @StateObject private var session: EditorSession
+    @StateObject private var flash: FlashModel
     @StateObject private var tilt = Tilt()
+    @State private var flashSheet = false     // (the welcome screen's Install Firmware: no FM-1 mirrored, a stock or broken-off one)
     @State private var bars = true
     /// the tab shown, kept here: the tabs are made again after a reconnect, and without it the Mac's tab bar kept the old
     /// tab lit over the Screen tab (the user, 2026-10-24)
@@ -101,14 +103,18 @@ struct RootView: View {
     init(link: MirrorLink) {
         self.link = link
         _session = StateObject(wrappedValue: EditorSession(link: link))
+        _flash = StateObject(wrappedValue: FlashModel(link: link))
     }
 
     var body: some View {
         ZStack {                        // (the tabs made once, the welcome screen over them: made again after a USB -> Bluetooth
             tabs                        //  switch, under the Bluetooth sheet, the Mac's tab bar took no click; the user, 2026-10-24)
-            if link.state == .searching {
-                ConnectView(link: link)
+            if link.state == .searching && !flash.busy {   // (an install restarts the FM-1: its progress stays in front)
+                ConnectView(link: link, installFirmware: { flashSheet = true })
             }
+        }
+        .fullScreenCover(isPresented: $flashSheet) {   // (a sheet on the Mac was a small box: the user, 2026-10-25)
+            FlashView(flash: flash, link: link, close: { flashSheet = false })
         }
         .task(id: "\(link.portName)|\(link.bluetooth)") { await session.connect() }
         .onChange(of: link.state == .mirroring && link.bluetooth) { _, on in if on { BluetoothPicker.dismiss() } }   // (connected: the sheet's work is done)
@@ -127,11 +133,10 @@ struct RootView: View {
         }
         .onDisappear { tilt.stop() }
         .onChange(of: tilt.quarter) { _, q in Turn.to(Turn.quarter(q)) }
-        .preferredColorScheme(.dark)
     }
 
     /// the tab bar: hidden under the welcome screen (no FM-1: no tabs)
-    private var bar: Visibility { link.state == .searching ? .hidden : .visible }
+    private var bar: Visibility { link.state == .searching && !flash.busy ? .hidden : .visible }
 
     private var tabs: some View {
         TabView(selection: $tab) {
@@ -155,6 +160,10 @@ struct RootView: View {
                 .toolbar(bar, for: .tabBar)
                 .tabItem { Label("Connection", systemImage: "cable.connector") }
                 .tag(4)
+            FlashView(flash: flash, link: link)
+                .toolbar(bar, for: .tabBar)
+                .tabItem { Label("Firmware", systemImage: "arrow.down.circle") }
+                .tag(5)
         }
     }
 }
@@ -194,6 +203,8 @@ struct ConnectionView: View {
 /// No FM-1 port: the app's icon, then the ways to connect (no tabs: there is nothing to show yet).
 struct ConnectView: View {
     @ObservedObject var link: MirrorLink
+    var installFirmware: () -> Void = {}
+    @State private var choosingPort = false
 
     private var bluetooth: some View {
         Button { BluetoothPicker.present(ports: link.online) } label: {
@@ -222,23 +233,28 @@ struct ConnectView: View {
             .controlSize(.large)
             bluetooth.buttonStyle(.bordered).controlSize(.large)
             if !link.ports.isEmpty || !link.chosen.isEmpty {
-                Menu {
-                    Picker("MIDI Port", selection: $link.chosen) {
-                        Text("Automatic").tag("")
-                        ForEach(link.ports, id: \.self) { Text($0).tag($0) }
-                    }
-                } label: {
+                Button { choosingPort = true } label: {   // (a Menu on the Mac sized itself to its title: a button, one width)
                     Label(link.chosen.isEmpty ? "Choose MIDI Port" : link.chosen, systemImage: "cable.connector")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.large)
+                .confirmationDialog("MIDI Port", isPresented: $choosingPort, titleVisibility: .visible) {
+                    Button("Automatic") { link.chosen = "" }
+                    ForEach(link.ports, id: \.self) { p in Button(p) { link.chosen = p } }
+                    Button("Cancel", role: .cancel) {}
+                }
             }
+            Button(action: installFirmware) {
+                Label("Install Firmware…", systemImage: "arrow.down.circle").frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.large)
         }
         .padding(32)
         .frame(maxWidth: 420)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.black.ignoresSafeArea())
+        .background(Color(.systemBackground).ignoresSafeArea())   // (the system's theme: the user, 2026-10-25)
         .statusBarHidden()              // (shown, iOS's Bluetooth MIDI sheet crashes: MirrorView)
     }
 }
@@ -276,7 +292,7 @@ struct MirrorView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            Color(.systemBackground).ignoresSafeArea()
             GeometryReader { g in laid(g.size) }
                 .rotationEffect(.degrees(-90 * Double(upright)))
         }

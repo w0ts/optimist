@@ -9,6 +9,9 @@ import UIKit
 
 struct ClipView: View {
     @ObservedObject var clip: ClipModel
+    @Environment(\.colorScheme) private var scheme
+    /// the grid's and a lit note's colour: the system's theme (the user, 2026-10-25)
+    private var ink: Color { scheme == .dark ? .white : .black }
     @State private var page = 0
     @State private var top = 76                       // the highest pitch shown (E5)
     @State private var placed = -1                    // the track `top` was set for
@@ -28,7 +31,7 @@ struct ClipView: View {
         VStack(spacing: 6) {
             header
             GeometryReader { g in roll(g.size) }
-                .background(Color(white: 0.06), in: RoundedRectangle(cornerRadius: 8))
+                .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 8))
                 .clipShape(RoundedRectangle(cornerRadius: 8))
         }
         .padding(8)
@@ -42,7 +45,7 @@ struct ClipView: View {
             Text(clip.len > 0 ? "Steps \(page * Clip.page + 1)–\(min(clip.len, (page + 1) * Clip.page)) of \(clip.len)" : "Reading the clip…")
                 .font(.system(.callout, design: .rounded).weight(.semibold))
                 .monospacedDigit()
-                .foregroundStyle(.white)
+                .foregroundStyle(.primary)
             pageButton("chevron.right", 1)
             Spacer(minLength: 4)
             if let p = clip.problem {
@@ -56,10 +59,10 @@ struct ClipView: View {
             Image(systemName: icon)
                 .font(.body.weight(.semibold))
                 .frame(width: 44, height: 36)
-                .background(Color.white.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+                .background(Color.primary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
         }
         .buttonStyle(.plain)
-        .foregroundStyle(.white)
+        .foregroundStyle(.primary)
         .disabled(d < 0 ? page == 0 : page >= pages - 1)
         .accessibilityLabel(d < 0 ? "Previous Page" : "Next Page")
     }
@@ -105,21 +108,21 @@ struct ClipView: View {
             guard p >= 0 else { break }
             let y = g.y(p)
             if black.contains(p % 12) {
-                ctx.fill(Path(CGRect(x: 0, y: y, width: g.size.width, height: g.rowH)), with: .color(.white.opacity(0.04)))
+                ctx.fill(Path(CGRect(x: 0, y: y, width: g.size.width, height: g.rowH)), with: .color(ink.opacity(0.04)))
             }
             if p % 12 == 0 {
-                ctx.fill(Path(CGRect(x: 0, y: y + g.rowH - 1, width: g.size.width, height: 1)), with: .color(.white.opacity(0.18)))
+                ctx.fill(Path(CGRect(x: 0, y: y + g.rowH - 1, width: g.size.width, height: 1)), with: .color(ink.opacity(0.18)))
             }
             ctx.draw(Text(Clip.name(p)).font(.system(size: 11, weight: p % 12 == 0 ? .bold : .regular, design: .rounded))
-                        .foregroundColor(.white.opacity(p % 12 == 0 ? 0.9 : 0.45)),
+                        .foregroundColor(ink.opacity(p % 12 == 0 ? 0.9 : 0.45)),
                      at: CGPoint(x: Self.keyW / 2, y: y + g.rowH / 2))
         }
         for c in 0...Clip.page {
             let s = g.first + c
             let x = Self.keyW + CGFloat(c) * g.colW
-            ctx.fill(Path(CGRect(x: x, y: 0, width: 1, height: g.size.height)), with: .color(.white.opacity(s % 4 == 0 ? 0.22 : 0.08)))
+            ctx.fill(Path(CGRect(x: x, y: 0, width: 1, height: g.size.height)), with: .color(ink.opacity(s % 4 == 0 ? 0.22 : 0.08)))
             if c < Clip.page && s >= clip.len {
-                ctx.fill(Path(CGRect(x: x, y: 0, width: g.colW, height: g.size.height)), with: .color(.black.opacity(0.55)))
+                ctx.fill(Path(CGRect(x: x, y: 0, width: g.colW, height: g.size.height)), with: .color(.black.opacity(scheme == .dark ? 0.55 : 0.12)))
             }
         }
         let moving = grab?.note
@@ -135,7 +138,7 @@ struct ClipView: View {
         let r = g.rect(n)
         guard r.maxX > Self.keyW, r.minX < g.size.width, r.maxY > 0, r.minY < g.size.height else { return }
         let shape = Path(roundedRect: r, cornerRadius: 4)
-        let c: Color = lit ? .white : n.flags & Clip.accent != 0 ? .orange : Color(red: 0.55, green: 0.8, blue: 1)
+        let c: Color = lit ? ink : n.flags & Clip.accent != 0 ? .orange : Color(red: 0.55, green: 0.8, blue: 1)
         ctx.fill(shape, with: .color(c.opacity(lit ? 0.95 : 0.85)))
         ctx.fill(Path(CGRect(x: r.maxX - 4, y: r.minY + 4, width: 2, height: max(0, r.height - 8))), with: .color(.black.opacity(0.35)))
     }
