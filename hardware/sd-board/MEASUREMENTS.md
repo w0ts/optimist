@@ -37,9 +37,11 @@ What is measured on a real FM-1 (calipers, the user, 2026-10-25) and what is sti
 | r | The board's left edge to the middle of that gap | 90 mm |
 | s | Between the jacks: the board's top edge to the wall's inside ("zero, but I would dig there") | 0 mm |
 | t | The tallest on the cable's way: the battery, about 6 mm; the cover's inside is tapered along its edges (a 4 mm band, a couple of mm lower) | 6 mm |
-| w1 | The white slide switch's left side to the board's left edge | 85.6 mm |
-| w2 | The white slide switch's lower end to the board's bottom edge | 44 mm |
+| w1 | The white speaker plug's left side (first taken for a switch) to the board's left edge | 85.6 mm |
+| w2 | The white speaker plug's lower end to the board's bottom edge | 44 mm |
 | x | Below the plug: the board's bottom edge to the OUTSIDE of the case's bottom wall (about) | 3 mm |
+| | The cover's pole by the battery plug, high | about 6 mm |
+| | The battery's cable crosses over the board: about 8 mm wide, some 10 mm below the speaker plug | 30 to 38 mm up |
 | u, v | J12 to the jacks' edge; the free width beside the LCD's cable | not measured yet |
 | | Where the card goes through the bottom wall: the card's left side from the left wall's INSIDE (pegs that close the case's bottom stand left and right of it) | 86 mm (84.4 from the board's left edge) |
 
@@ -52,7 +54,11 @@ What is measured on a real FM-1 (calipers, the user, 2026-10-25) and what is sti
   left-wall figures); the card taken as centred in its socket (UNMEASURED: check on the mockup). The socket's front at
   the bottom wall's outside (x: 3 mm below the board's edge), the card flush.
 - The FFC socket at 93 mm (the jacks' gap at r = 90 mm), its cable coming down from the top.
-- The case's cover is tapered along its edges (t): the socket and the board stand 3.45 mm, under its lowest part.
+- The board slides into a printed tray (`make_tray.py`, `sd-tray.stl`): a 0.8 mm floor, a rail with a groove along
+  each side (the board 26.4 mm wide so the rails fit), a collar round the pole that stops it, posts toward the cover.
+  Only the collar (5.6 mm, the pole is 6) and the posts reach up; the rails stand 3.35 mm: the battery's cable passes
+  over (in its band the parts stand at most 4.4 mm with the floor, leaving about 1.6 to 2.3 mm under the cover).
+- The cover's edge band (t, about 4.8 mm left, taken): the floor, the board and the socket stand 4.25 mm there.
 - v3 (the L along the left edge) did not fit: 10.4 mm free beside the battery; it is in git (5af03500).
 
 ## Still unmeasured
