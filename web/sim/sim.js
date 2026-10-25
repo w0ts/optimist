@@ -58,10 +58,11 @@ export const TEXT = {
   themeLabel: "Theme",
   power: "Start", stop: "Stop", starting: "Starting…", clickToStart: "Click anywhere (or press a key) to start: the browser lets the sound start only after one.", stopped: "Stopped.",
   reboot: "Restarting…", fault: "The firmware stopped (a fault). Start again.", noaudio: "This browser has no AudioWorklet: use Chrome, Edge or Firefox.",
-  reset: "Reset memory", resetAsk: "Erase the simulator's saved projects, presets and samples? (Every build shares them.)",
+  reset: "Erase", resetAsk: "Erase the simulator's saved projects, presets and samples? (Every build shares them.)",
   resetDone: "Memory erased.", shared: "The simulator's memory (projects, presets, samples) is kept in this browser and shared by every build.",
   install: "Flash it", config: "Configuration", configTip: "Open this build's configuration in the builder (to change it and build again)", keysHelp: "Keys: the device's own — A W S E D … play notes (Shift for the octave above), the other keys hold the buttons; the arrows are OCT, Space is PLAY.",
-  load: "Load from FM-1", write: "Write to FM-1", saveFile: "Save to file", loadFile: "Load file",
+  load: "Read its memory", write: "Write ours to it", saveFile: "Save to a file", loadFile: "Load a file",
+  memory: "The simulator's memory", device: "The FM-1 (USB)",
   writeAsk: "Write the simulator's memory onto the FM-1? This replaces the projects, presets, kits and samples on the device.",
   writeDoing: "Writing", writeDone: "Written to the FM-1: objects",
   saving: "Saving…", savedFile: "Saved the simulator's memory to a file.", saveFail: "Could not save: ",
@@ -76,7 +77,7 @@ export const TEXT = {
   loadNoAnswer: "The FM-1 did not answer. Check it is the right device and runs Optimist (the web editor should connect to it too).",
   loadNoBackup: "This FM-1's firmware has no editor Backup, so its memory cannot be read. Flash a current build (with the editor) first.",
   loadFail: "Could not load from the FM-1: ",
-  pjGet: "Get a project from FM-1", pjSend: "Send this project to FM-1", pjGo: "Get it", pjGoSend: "Send it", pjCancel: "Cancel",
+  pjGet: "Get a project", pjSend: "Send this project", pjGo: "Get it", pjGoSend: "Send it", pjCancel: "Cancel",
   pjFrom: "FM-1 project", pjTo: "Into FM-1 project", pjNameLabel: "Name", pjEmpty: "(empty)", pjUnnamed: "(no name)",
   pjNoSim: "This simulator build cannot move projects: pick a build with per-project patterns (PATTERNS) and the editor's backup.",
   pjNoDev: "This FM-1's firmware cannot move projects yet: User flashes a current build (with the editor's backup and PATTERNS) first.",
@@ -193,11 +194,11 @@ export function mountSim(container, opts = {}) {
   const el = {};
 
   el.pick = h("select.oi-csearch.os-pick", { "aria-label": TEXT.build, onchange: () => choose(el.pick.value) });
-  el.power = h("button.o-btn.primary", { type: "button",
+  el.power = h("button.o-btn.primary.os-power", { type: "button",
     onclick: () => { if (engine) { st.userStopped = true; stop(); } else { st.userStopped = false; start(); } } }, TEXT.power);
   el.reset = h("button.o-btn.sm.quiet", { type: "button", onclick: () => resetMemory() }, TEXT.reset);
-  el.install = h("button.o-btn.sm", { type: "button", onclick: () => installThis() }, TEXT.install);
-  el.config = h("button.o-btn.sm", { type: "button", title: TEXT.configTip, onclick: () => configThis() }, TEXT.config);
+  el.install = h("button.o-btn", { type: "button", onclick: () => installThis() }, TEXT.install);
+  el.config = h("button.o-btn.quiet", { type: "button", title: TEXT.configTip, onclick: () => configThis() }, TEXT.config);
   el.load = h("button.o-btn.sm", { type: "button", onclick: () => loadFromDevice() }, TEXT.load);
   el.write = h("button.o-btn.sm", { type: "button", onclick: () => writeToDevice() }, TEXT.write);
   el.pjGet = h("button.o-btn.sm", { type: "button", onclick: () => pjOpen("get") }, TEXT.pjGet);
@@ -225,8 +226,14 @@ export function mountSim(container, opts = {}) {
   el.stage = h("div.os-stage", {}, el.body);
   const root = h("div.os", {},
     h("header", {}, h("h1.oi-title", {}, TEXT.title), TEXT.what ? h("p.oi-what", {}, TEXT.what) : null),
+    /* the run (which build, its look, start / stop; this build: flash it, its configuration), then two groups: the
+       simulator's memory (a file, erase) and the FM-1's (all of it, or one project) */
     h("div.os-bar", {}, h("label.o-field", {}, h("span", {}, TEXT.build), el.pick),
-      h("label.o-field", {}, h("span", {}, TEXT.themeLabel), el.theme), el.power, el.save, el.loadf, el.load, el.write, el.pjGet, el.pjSend, el.install, el.config, el.reset, el.file),
+      h("label.o-field", {}, h("span", {}, TEXT.themeLabel), el.theme), el.power,
+      h("span.os-sep", { "aria-hidden": "true" }), el.install, el.config),
+    h("div.os-groups", {},
+      h("div.os-group", { role: "group", "aria-label": TEXT.memory }, h("span.os-glabel", {}, TEXT.memory), el.save, el.loadf, el.reset, el.file),
+      h("div.os-group", { role: "group", "aria-label": TEXT.device }, h("span.os-glabel", {}, TEXT.device), el.load, el.write, el.pjGet, el.pjSend)),
     el.pj,
     el.status,
     el.stage,
