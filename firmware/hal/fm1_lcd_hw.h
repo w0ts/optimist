@@ -8,7 +8,9 @@
  *   fm1_lcd_send_cmd(c)        D/C low, CS low, one byte (then fm1_lcd_wait)
  *   fm1_lcd_send_data(p, n)    D/C high, CS low, DMA n bytes from RAM p
  *   fm1_lcd_wait()             SPI done (or timeout, counted), pending cleared
- *   fm1_lcd_deselect()         CS high
+ *   fm1_lcd_deselect()         CS high, D/C high (the panel ignores D/C while deselected; an SD card on the bus,
+ *                              docs/SD-CARD-DESIGN.md, is selected then and drives its DO onto PC8: D/C left low
+ *                              would hold against it through the series resistor while the screen idles)
  */
 #pragma once
 #include <stdint.h>
@@ -37,8 +39,8 @@ FM1_INLINE void fm1_lcd_hw_init(void)
     FM1_LCD_PA_OUT &= ~FM1_LCD_BL;
     FM1_LCD_PA_DIR &= ~FM1_LCD_BL;
     FM1_LCD_IOMAP_CON1 |= 0x10u;
-    FM1_LCD_PC_OUT |= FM1_LCD_CS;
-    FM1_LCD_PC_OUT &= ~(FM1_LCD_DC | FM1_LCD_CLK | FM1_LCD_DO);
+    FM1_LCD_PC_OUT |= FM1_LCD_CS | FM1_LCD_DC;          /* deselected, D/C high (as fm1_lcd_deselect) */
+    FM1_LCD_PC_OUT &= ~(FM1_LCD_CLK | FM1_LCD_DO);
     FM1_LCD_PC_DIR &= ~(FM1_LCD_CS | FM1_LCD_DC | FM1_LCD_CLK | FM1_LCD_DO);
     FM1_LCD_SPI_CON = 0x4021u;
     FM1_LCD_SPI_BAUD = 4u;
@@ -78,7 +80,7 @@ static void fm1_lcd_wait(void)
     FM1_LCD_SPI_CON |= 0x4000u;
 }
 
-FM1_INLINE void fm1_lcd_deselect(void) { FM1_LCD_PC_OUT |= FM1_LCD_CS; }
+FM1_INLINE void fm1_lcd_deselect(void) { FM1_LCD_PC_OUT |= FM1_LCD_CS | FM1_LCD_DC; }
 
 FM1_INLINE void fm1_lcd_send_cmd(uint8_t c)
 {

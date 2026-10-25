@@ -16,6 +16,6 @@ FM1_INLINE void fm1_lcd_baud(uint32_t b) { (void)b; }
 FM1_INLINE void fm1_lcd_bl_scan(void) {}
 FM1_INLINE void fm1_lcd_bl_tick(uint32_t duty) { sim_lcd_bl = (uint8_t)(duty > 16u ? 16u : duty); }
 static void fm1_lcd_wait(void) {}
-FM1_INLINE void fm1_lcd_deselect(void) {}
+FM1_INLINE void fm1_lcd_deselect(void) {}           /* (the board's: CS and D/C high; no pins here) */
 FM1_INLINE void fm1_lcd_send_cmd(uint8_t c) { sim_lcd_cmd(c); }
 FM1_INLINE void fm1_lcd_send_data(const void *p, uint32_t n) { sim_lcd_data((const uint8_t *)p, n); }
