@@ -171,7 +171,8 @@ BUS = 13.3                                       # (the 3V3 line across, on the 
 FPC10 = "FPC-SMD_10P-P0.50_HC-FPC-05-09-10RLTAG"
 J1 = P(LIB, "TF-SMD_TF-01A", "J1", "TF-01A push-push", CARD_C, WALL_OUT + 9.62, 0, "C91145")
 J3 = P(LIB, FPC10, "J3", "FPC 10P 0.5mm (LCD)", 86.5, 74.55, 180, "C5213750")   # (3.5 mm left of B, the user)
-J2 = P(LIB, FPC10, "J2", "FPC 10P 0.5mm (IN)", 91.4, 62.0, 180, "C5213750")
+J2 = P(LIB, FPC10, "J2", "FPC 10P 0.5mm (IN)", 92.4, 57.0, 180, "C5213750")   # (5 mm lower for a 6 cm cable,
+                                                 # the user; 1 mm right so the column's lines reach it)
 U1 = P(LIB, "SOT-23-5_L3.0-W1.7-P0.95-LS2.8-BR", "U1", "74LVC1G04", 93.6, 17.5, 90, "C7827")
 R4 = P(LIB, "R0603", "R4", "47k", 94.35, 20.7, 0, "C25819")
 C1 = P(LIB, "C0805", "C1", "10uF", 76.0, 17.5, 270, "C15850")
@@ -251,7 +252,7 @@ for u, v in ((76.0, 19.8), (76.0, BUS), (C[4][0], BUS), (RAIL, BUS)):
     V("3V3", u, v)
 for u, v in ((C[6][0], 15.2), (91.9, 20.1), (92.3, 14.6), (77.4, A(C1, 2)[1]),
              (76.0, 5.0), (76.0, 25.0), (79.0, 25.0), (95.9, 6.0), (76.0, 34.0),   # (from here: the pours stitched,
-             (87.0, 53.5), (86.9, 66.0), (83.3, 70.5), (95.7, 56.0), (95.7, 66.0), (95.7, 74.5)):   # the head's too)
+             (87.0, 53.5), (86.9, 66.0), (83.3, 70.5), (95.9, 53.5), (95.7, 66.0), (95.7, 74.5)):   # the head's too)
     V("GND", u, v)
 
 # ---- the outline, the ground pours, the labels
