@@ -33,7 +33,7 @@ SYSTEM > BT MIDI > MODE to MAN or AUTO on the FM-1 and tap **Connect with Blueto
 - **Library, Projects, Backup**: the web editor's tabs, with the same files (`.optimist-backup`, `felucca-library` /
   `felucca-patch`, `optimist-pattern` JSON). Export through the share sheet, import through the Files picker. The snapshots
   area is restored in the web editor only; DX7 `.syx` and the user drum kits are not in the app.
-- **Editor, Samples, Kit Builder, Snapshots, Device Screens, Settings**: the web editor's own pages, in a web view
+- **Editor, Samples, Kits, Snapshots**: the web editor's own pages, in a web view
   (one page, kept); their MIDI goes through the app's USB and Bluetooth ports (`Sources/Web/WebMIDIBridge.swift`: WKWebView
   has no Web MIDI).
 - **Connection**: the port in use, another one, Bluetooth, Disconnect, Install Firmware.
