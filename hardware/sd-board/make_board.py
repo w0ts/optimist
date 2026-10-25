@@ -72,7 +72,9 @@ SEAT_END = math.degrees(math.acos((U0 - POLE[0]) / POLE_R))   # (where the seat 
 # the column and the head (v5): up the right of the speaker plug (85.6 to 90 across, 44 to 51 up: C, D, w1, w2) to
 # under the jacks (from 76.8 up: F), where J3 and J2 sit; no tray there, the board 0.8 mm over the FM-1's small parts
 COL_L, HEAD_BOT, HEAD_L, HEAD_TOP = 91.5, 51.5, 86.0, 76.7  # (the top right against the jacks)
-OUTLINE = tuple([T(U0, V0), T(U1_, V0), T(U1_, HEAD_TOP), T(HEAD_L, HEAD_TOP), T(HEAD_L, HEAD_BOT),
+TOP_L, TOP_BOT = 82.4, 68.0                      # (the head's top widened left for J3, moved left: the user)
+OUTLINE = tuple([T(U0, V0), T(U1_, V0), T(U1_, HEAD_TOP), T(TOP_L, HEAD_TOP), T(TOP_L, TOP_BOT), T(HEAD_L, TOP_BOT),
+                 T(HEAD_L, HEAD_BOT),
                  T(COL_L, HEAD_BOT), T(COL_L, V1), (PX + POLE_R, PY),
                  *notch(PX, PY, 0, SEAT_END)[1:]])
 
@@ -169,7 +171,7 @@ CARD_C = CARD_L + 5.5                            # (the card, 11 mm wide, taken 
 BUS = 13.3                                       # (the 3V3 line across, on the bottom)
 FPC10 = "FPC-SMD_10P-P0.50_HC-FPC-05-09-10RLTAG"
 J1 = P(LIB, "TF-SMD_TF-01A", "J1", "TF-01A push-push", CARD_C, WALL_OUT + 9.62, 0, "C91145")
-J3 = P(LIB, FPC10, "J3", "FPC 10P 0.5mm (LCD)", 90.0, 74.55, 180, "C5213750")
+J3 = P(LIB, FPC10, "J3", "FPC 10P 0.5mm (LCD)", 86.5, 74.55, 180, "C5213750")   # (3.5 mm left of B, the user)
 J2 = P(LIB, FPC10, "J2", "FPC 10P 0.5mm (IN)", 91.4, 62.0, 180, "C5213750")
 U1 = P(LIB, "SOT-23-5_L3.0-W1.7-P0.95-LS2.8-BR", "U1", "74LVC1G04", 93.6, 17.5, 90, "C7827")
 R4 = P(LIB, "R0603", "R4", "47k", 94.35, 20.7, 0, "C25819")
@@ -236,12 +238,12 @@ for name, (u, v) in P2.items():
              (tx[0], 52.4 + (x - tx[0]) / 0.4), tx], POWER if name == "3V3" else TRACK)   # (all slant together at
                                                  # 22 degrees from 52.4 mm up, onto J2's pins under its body)
 
-# ---- J3 to J2: every line straight through (under J3's body, a slant right, down onto J2's pins from above); the
+# ---- J3 to J2: every line straight through (under J3's body, a step right, down onto J2's pins from above); the
 # ground pins join through the pours
 for n in range(2, 10):
     a, b = A(J3, n), A(J2, n)
-    R(LCD_PINS[n], [a, (a[0], 71.5), (b[0], 68.0), b], POWER if LCD_PINS[n] == "3V3" else TRACK)   # (a slant
-                                                 # of 22 degrees: 0.46 mm between the lines at 0.5 pitch)
+    turn = 72.3 - (9 - n) * 0.5                  # (a staircase: each turns right in turn, the rightmost first and
+    R(LCD_PINS[n], [a, (a[0], turn), (b[0], turn), b], POWER if LCD_PINS[n] == "3V3" else TRACK)   # highest)
 
 # ---- the bottom: 3V3 across, from the rail to the card's 3V3 contact and to R3
 B = pcbnew.B_Cu
@@ -250,7 +252,7 @@ for u, v in ((76.0, 19.8), (76.0, BUS), (C[4][0], BUS), (RAIL, BUS)):
     V("3V3", u, v)
 for u, v in ((C[6][0], 15.2), (91.9, 20.1), (92.3, 14.6), (77.4, A(C1, 2)[1]),
              (76.0, 5.0), (76.0, 25.0), (79.0, 25.0), (95.9, 6.0), (76.0, 34.0),   # (from here: the pours stitched,
-             (87.0, 53.5), (86.9, 66.0), (95.7, 56.0), (95.7, 66.0), (95.7, 74.5)):   # the head's too)
+             (87.0, 53.5), (86.9, 66.0), (83.3, 70.5), (95.7, 56.0), (95.7, 66.0), (95.7, 74.5)):   # the head's too)
     V("GND", u, v)
 
 # ---- the outline, the ground pours, the labels
