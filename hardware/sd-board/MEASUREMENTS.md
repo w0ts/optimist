@@ -48,7 +48,7 @@ What is measured on a real FM-1 (calipers, the user, 2026-10-25) and what is sti
 | | So the 6-pin cable: 35 on the front + about 5 round the edge (the user) + about 54 down the back to J2 = about 94 mm: a standard 10 cm cable (6 mm slack) | |
 | | J12: the LCD's cable is 5.5 mm wide, 10 pins (the user): so 0.5 mm pitch (a standard 10-pin 0.5 mm cable is 5.5 mm wide) | 10 pins, 0.5 mm |
 | | J12: contact side, pin map (chip pins 29 to 32, 3.3 V, ground) | not measured yet: with a 10-pin breakout (on order) and a pin-finder firmware (to build, the user: once the breakout is here) |
-| | Where the card goes through the bottom wall: the card's left side from the left wall's INSIDE (pegs that close the case's bottom stand left and right of it) | 86 mm, then moved 2 mm left by the user: 84 mm (82.4 from the board's left edge) |
+| | Where the card goes through the bottom wall: the card's left side from the left wall's INSIDE (pegs that close the case's bottom stand left and right of it) | 86 mm, then 84 (the user), then the socket centred on the board (the user): 81.7 mm (80.1 from the board's left edge) |
 
 ## How the board uses them (v4, by the battery's plug)
 
@@ -57,11 +57,11 @@ What is measured on a real FM-1 (calipers, the user, 2026-10-25) and what is sti
   1.5 mm below the bottom edge (into the gap to the wall) up to 40 mm, the pole's centre: 4 mm under the
   speaker plug (w2), which the board must not rest against (the user).
 - The cover's pole (l, m; 6.9 mm, i) sits in a half-round seat in the board's top left, 0.6 mm play.
-- The card's left side at 82.4 mm (84 from the wall's inside, the wall's inside taken 1.6 mm out: from h and the
+- The card socket in the board's middle (the user): the card's left side at 80.1 mm (81.7 from the wall's inside; was 84, the wall's inside taken 1.6 mm out: from h and the
   left-wall figures); the card taken as centred in its socket (UNMEASURED: check on the mockup). The socket's front at
   the bottom wall's outside (x: 3 mm below the board's edge), the card flush.
-- The FFC socket at 91 mm (the jacks' gap at r = 90 mm), its cable side at 35 mm up: 5 mm under the board's top and
-  9 mm under the speaker plug (4 mm tall), so the ribbon comes down over the plug and bends down to it (the user).
+- The FFC socket at 91 mm (the jacks' gap at r = 90 mm), its cable side at 30 mm up: 10 mm under the board's top
+  and 14 mm under the speaker plug (4 mm tall), so the ribbon comes down over the plug and bends down to it (the user).
 - The board slides into a printed tray (`make_tray.py`, `sd-tray.stl`): a 0.8 mm floor, a rail with a groove along
   each side (the board 22.4 mm wide; the tray 73.2 to 98 mm), a collar round the pole that stops it, posts toward the cover.
   Only the collar and three posts (all 5.6 mm, the pole is 6; rail-wide, long along the rails, clear of the cover's edge band and the cable's) reach up; the rails stand 3.35 mm: the battery's cable passes
