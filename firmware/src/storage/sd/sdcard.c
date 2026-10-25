@@ -8,6 +8,8 @@
  *   sd_mount()                  the card and its filesystem: SD_READY, SD_NOCARD or SD_NOFS (sd_state). A mode
  *                               (fm1_sd_mode) that finds no card makes it try the other two, so the mode that reads is
  *                               the one left set; then the DMA probe (sd_dma_probe) sets fm1_sd_dma
+ *   sd_mount_boot()             the same with the set mode only (boot, before the screen's first command)
+ *   a card error (FR_DISK_ERR, FR_NOT_READY) in any call below: sd_state SD_NOCARD, later calls FR_NOT_ENABLED at once
  *   sd_dma_probe()              sector 0 read by bytes and by DMA, each block's CRC16 checked: 1 = DMA reads right
  *                               (fm1_sd_dma = 1), 0 = the byte path only; sd_probe_seen: b0 bytes CRC ok, b1 DMA CRC
  *                               ok, b2 the two equal
@@ -64,11 +66,11 @@ static uint32_t sd_dma_probe(void)
     return ok;
 }
 
-static uint32_t sd_mount(void)
+static uint32_t sd_mount_modes(uint32_t tries)
 {
     FRESULT r = FR_NOT_READY;
     uint32_t i, m0 = fm1_sd_mode;
-    for (i = 0; i < 3u && r == FR_NOT_READY; i++) {   /* the set mode first, then the others */
+    for (i = 0; i < tries && r == FR_NOT_READY; i++) {   /* the set mode first, then the others */
         fm1_sd_mode = (uint8_t)((m0 + i) % 3u);
         fm1_sd_dma = 0;
         sd_begin(FM1_SD_BAUD_SLOW);
@@ -82,6 +84,9 @@ static uint32_t sd_mount(void)
     sd_state = r == FR_OK ? SD_READY : r == FR_NOT_READY ? SD_NOCARD : SD_NOFS;
     return sd_state;
 }
+static uint32_t sd_mount(void) { return sd_mount_modes(3u); }     /* (the console: every read mode tried) */
+static uint32_t sd_mount_boot(void) { return sd_mount_modes(1u); }   /* (boot: the set mode once; a slow or bad card
+                                                                       * costs one ACMD41 timeout, 1 s, not three) */
 
 static uint32_t sd_file_run(uint32_t *sector)
 {
@@ -99,13 +104,17 @@ static uint32_t sd_file_run(uint32_t *sector)
 static uint32_t sd_card_mb(void) { return sd_sectors / 2048u; }
 static uint32_t sd_card_type(void) { return CardType; }
 
-#define SD_CALL(expr) do { sd_begin(FM1_SD_BAUD_FAST); r = (expr); sd_end(); } while (0)
+/* a filesystem call in a bus session; a card that fails (gone, or answering wrong) is taken as gone: the next calls
+ * return at once (FR_NOT_ENABLED) until a mount finds it again, instead of each waiting out its timeouts */
+#define SD_CALL(expr) do { \
+    if (sd_state != SD_READY) return FR_NOT_ENABLED; \
+    sd_begin(FM1_SD_BAUD_FAST); r = (expr); sd_end(); \
+    if (r == FR_DISK_ERR || r == FR_NOT_READY) sd_state = SD_NOCARD; \
+} while (0)
 
 static FRESULT sd_open(const char *path)
 {
     FRESULT r;
-    if (sd_state != SD_READY)
-        return FR_NOT_ENABLED;
     SD_CALL(pf_open(path));
     return r;
 }
@@ -114,6 +123,7 @@ static FRESULT sd_read(void *p, uint32_t n, uint32_t *got)
 {
     FRESULT r;
     UINT g = 0;
+    *got = 0;
     SD_CALL(pf_read(p, (UINT)n, &g));
     *got = g;
     return r;
@@ -123,6 +133,7 @@ static FRESULT sd_write(const void *p, uint32_t n, uint32_t *put)
 {
     FRESULT r;
     UINT w = 0;
+    *put = 0;
     SD_CALL(pf_write(p, (UINT)n, &w));
     *put = w;
     return r;
@@ -138,8 +149,6 @@ static FRESULT sd_seek(uint32_t ofs)
 static FRESULT sd_opendir(DIR *d, const char *path)
 {
     FRESULT r;
-    if (sd_state != SD_READY)
-        return FR_NOT_ENABLED;
     SD_CALL(pf_opendir(d, path));
     return r;
 }
