@@ -112,6 +112,17 @@ struct RootView: View {
     var body: some View {
         ZStack {                        // (the tabs made once, the welcome screen over them: made again after a USB -> Bluetooth
             tabs                        //  switch, under the Bluetooth sheet, the Mac's tab bar took no click; the user, 2026-10-24)
+            if link.state != .searching {   // (Disconnect, top right: back to the home page, where the connection is made; the user, 2026-10-25)
+                Button { link.disconnect() } label: {
+                    Image(systemName: "eject.fill").font(.body.weight(.semibold)).frame(width: 34, height: 34)
+                        .background(.regularMaterial, in: Circle())
+                }
+                .buttonStyle(.plain)
+                .help("Disconnect")
+                .accessibilityLabel("Disconnect")
+                .padding(.top, 6).padding(.trailing, 12)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+            }
             if link.state == .searching && !flash.busy {   // (an install restarts the FM-1: its progress stays in front)
                 ConnectView(link: link, installFirmware: { flashSheet = true }, openSimulator: { simSheet = true })
             }
@@ -156,9 +167,7 @@ struct RootView: View {
         }
         .onDisappear { tilt.stop() }
         .onChange(of: tilt.quarter) { _, q in Turn.to(Turn.quarter(q)) }
-        .onChange(of: tab) { old, now in   // (the Disconnect tab: back to the home page, the tab before it kept for the next time)
-            if now == 4 { tab = old == 4 ? 0 : old; link.disconnect() }
-        }
+
     }
 
     /// the tab bar: hidden under the welcome screen (no FM-1: no tabs)
@@ -169,8 +178,6 @@ struct RootView: View {
     private static let pages: [(tag: Int, title: String, icon: String)] = [
         (11, "Editor", "slider.vertical.3"), (0, "Mirror", "display"), (2, "Library", "books.vertical"), (12, "Samples", "waveform"),
         (13, "Kits", "circle.grid.2x2"), (1, "Projects", "folder"), (3, "Backup", "externaldrive"), (14, "Snapshots", "camera"),
-        (4, "Disconnect", "eject"),   // (no Device Screens, no Settings; the connection itself on the home page, this tab only
-                                      //  disconnects: the user, 2026-10-25)
     ]
 
     /// the system's own tabs again (the user, 2026-10-25: "use the standard tabs like before"; with 11 pages they folded into a
@@ -192,7 +199,6 @@ struct RootView: View {
         case 1: ProjectsView(s: session)
         case 2: LibraryView(s: session)
         case 3: BackupView(s: session)
-        case 4: Color.clear                         // (Disconnect: never shown, the tap disconnects; onChange below)
         case 11: WebTab(editor: web, tab: "mixer", link: link)
         case 12: WebTab(editor: web, tab: "samples", link: link)
         case 13: WebTab(editor: web, tab: "drumkit", link: link)
@@ -304,7 +310,7 @@ struct MirrorView: View {
             GeometryReader { g in laid(g.size) }
                 .rotationEffect(.degrees(-90 * Double(upright)))
         }
-        .overlay(alignment: .topTrailing) { layoutButton }
+        .overlay(alignment: .topLeading) { layoutButton }   // (top left: the top right is the app's Disconnect)
         .contentShape(Rectangle())
         .onTapGesture { withAnimation { bars.toggle() } }
         .focusable()
