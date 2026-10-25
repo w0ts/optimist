@@ -263,7 +263,8 @@ static int mem_retry(void)
  * project's load could not place is a silent placeholder with the project's sound, its engine wanted (leng). The UI's
  * list (ui/optimist/op_memlist.c) shows them and what can be dropped: the parts that hold memory, then the effects' lines
  * placed (FELUCCA_FX_ARENA; the parts first, the user, 2026-10-25). An item is a part k (k < NPART) or an effect's line
- * NPART + fx_arena.c FXM_*; a set of them a bit mask by item.
+ * NPART + fx_arena.c FXM_*; a set of them a bit mask by item. A refused part is an item too (first; the user,
+ * 2026-10-25, the night's ruling): picked, it is left silent (a placeholder, not placed), so the others can fit.
  *   mem_load_settle   each frame: 0 waiting (a switch or an effect's line on its way back), 1 nothing refused (any part
  *                     that finds room now on its engine: the other parts' old blocks free once they switched), -1
  *                     still short: the list
@@ -280,12 +281,14 @@ static uint32_t mem_load_part(uint32_t k)             /* part k can be dropped: 
     return k < NPART && !(part_mem_refused.lmask >> k & 1u) && !trk[k].silent && part_mem_bytes(trk[k].engine) &&
            arn_ptr(k) && !arn_cur[k].idle;
 }
-static uint32_t mem_item_bytes(uint32_t it)
+static uint32_t mem_item_bytes(uint32_t it)          /* (a refused part: what it wants) */
 {
 #if FXM_NEED
     if (it >= NPART)
         return it - NPART < 3u ? arn_cur[FXM_K(it - NPART)].len : 0u;
 #endif
+    if (it < NPART && (part_mem_refused.lmask >> it & 1u))
+        return part_mem_bytes(part_mem_refused.leng[it]);
     return it < NPART ? arn_cur[it].len : 0u;
 }
 static uint32_t mem_load_items(uint8_t *it)
@@ -294,6 +297,9 @@ static uint32_t mem_load_items(uint8_t *it)
 #if FXM_NEED
     static const uint8_t SEND_ORD[3] = {FXM_REV, FXM_DLY, FXM_CHO};   /* (one send order everywhere: REV DLY CHO) */
 #endif
+    for (k = 0; k < NPART; k++)                       /* the refused parts (picked: left silent) */
+        if (part_mem_refused.lmask >> k & 1u)
+            it[n++] = (uint8_t)k;
     for (k = 0; k < NPART; k++)
         if (mem_load_part(k))
             it[n++] = (uint8_t)k;
@@ -304,11 +310,11 @@ static uint32_t mem_load_items(uint8_t *it)
 #endif
     return n;
 }
-static uint32_t mem_load_need(void)                   /* the bytes the refused parts want */
+static uint32_t mem_load_need(uint32_t sel)           /* the bytes the refused parts want, but those left silent in sel */
 {
     uint32_t k, n = 0;
     for (k = 0; k < NPART; k++)
-        if (part_mem_refused.lmask >> k & 1u)
+        if ((part_mem_refused.lmask & ~sel) >> k & 1u)
             n += part_mem_bytes(part_mem_refused.leng[k]);
     return n;
 }
@@ -321,12 +327,13 @@ static uint32_t mem_load_free(void)                   /* the arena's room now, e
     }
     return used < ARN_BYTES ? ARN_BYTES - used : 0u;
 }
-static int mem_load_place(void)                       /* the refused parts' reservations, by part; 0 every one placed */
+static int mem_load_place(uint32_t sel)               /* the refused parts' reservations (but those left silent in sel),
+                                                       * by part; 0 every one placed */
 {
     uint32_t k;
     int r = 0;
     for (k = 0; k < NPART; k++)
-        if ((part_mem_refused.lmask >> k & 1u) && arn_reserve(k, part_mem_bytes(part_mem_refused.leng[k])))
+        if (((part_mem_refused.lmask & ~sel) >> k & 1u) && arn_reserve(k, part_mem_bytes(part_mem_refused.leng[k])))
             r = -1;
     return r;
 }
@@ -339,13 +346,13 @@ static int mem_load_fits(uint32_t sel)
     fm1_irq_off();
     memcpy(cur, arn_cur, sizeof cur), memcpy(nxt, arn_next, sizeof nxt), memcpy(hn, arn_has_next, sizeof hn);
     for (k = 0; k < ARN_PARTS; k++)
-        if (sel >> k & 1u) {
+        if ((sel & ~(uint32_t)part_mem_refused.lmask) >> k & 1u) {
             if (k < NPART)
                 arn_cur[k].idle = 1, arn_has_next[k] = 0;    /* (a part dropped: arn_rest at its switch) */
             else
                 arn_cur[k].len = 0, arn_has_next[k] = 0;     /* (a line dropped: arn_give two blocks later) */
         }
-    ok = !mem_load_place();
+    ok = !mem_load_place(sel);
     memcpy(arn_cur, cur, sizeof cur), memcpy(arn_next, nxt, sizeof nxt), memcpy(arn_has_next, hn, sizeof hn);
     fm1_irq_on();
     return ok;
@@ -373,6 +380,9 @@ static int mem_load_settle(void)
 static void mem_load_commit(uint32_t sel)
 {
     uint32_t k;
+    fm1_irq_off();
+    part_mem_refused.lmask &= (uint8_t)~sel;          /* (the refused parts picked: left silent, placeholders) */
+    fm1_irq_on();
     for (k = 0; k < NPART; k++)
         if ((sel >> k & 1u) && mem_load_part(k))
             part_drop(&trk[k]);                       /* (a placeholder: its block idle at its switch) */
