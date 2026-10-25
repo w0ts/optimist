@@ -1,6 +1,6 @@
 # The FM-1 SD board (v4)
 
-A 26.4 x 44.5 mm board with everything the SD card mod needs (docs/SD-CARD-DESIGN.md): a push-push microSD socket, the
+A 24.4 x 44.5 mm board with everything the SD card mod needs (docs/SD-CARD-DESIGN.md): a push-push microSD socket, the
 chip-select inverter, the 1 kOhm on the card's data out, the pull-ups, the decoupling, and a 6-pin 0.5 mm flat-cable
 (FFC) socket. It sits on the back of the FM-1's board, right of the battery, by the battery's plug (the user's plan,
 2026-10-25; the battery stays where it is). The card goes in through the case's bottom wall, flush with the outside,
@@ -23,7 +23,7 @@ designed yet** (it needs J12's pin order, metered, and u, v: the room beside the
 
 ## Order it (JLCPCB, assembled)
 
-1. jlcpcb.com > Order now > upload `fab/sd-board-gerbers.zip` (2 layers, 26.4 x 44.5 mm, 1.6 mm; the defaults are fine).
+1. jlcpcb.com > Order now > upload `fab/sd-board-gerbers.zip` (2 layers, 24.4 x 44.5 mm, 1.6 mm; the defaults are fine).
 2. Tick **PCB Assembly**, top side, Economic.
 3. Upload `fab/bom.csv` (the parts) and `fab/cpl.csv` (where they go). Every part is a JLC part (LCSC numbers in the BOM).
 4. Check the placement preview: the card socket's opening past the bottom edge, the FFC socket's opening at the top,

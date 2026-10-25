@@ -47,7 +47,8 @@ What is measured on a real FM-1 (calipers, the user, 2026-10-25) and what is sti
 
 ## How the board uses them (v4, by the battery's plug)
 
-- The board spans 73.2 to 102 mm from the left edge (0.6 mm clear of the battery, k, and of the plug, k + o) and from
+- The board spans 74.4 to 98.8 mm from the left edge (its tray's rail 0.6 mm clear of the battery, k; it ends 0.5 mm
+  past the card socket, the user) and from
   1.5 mm below the bottom edge (into the gap to the wall) up to 43 mm (1 mm under the switch, w2).
 - The cover's pole (l, m; 6.9 mm, i) sits in a half-round seat in the board's top left, 0.6 mm play.
 - The card's left side at 84.4 mm (86 from the wall's inside, the wall's inside taken 1.6 mm out: from h and the
@@ -55,7 +56,7 @@ What is measured on a real FM-1 (calipers, the user, 2026-10-25) and what is sti
   the bottom wall's outside (x: 3 mm below the board's edge), the card flush.
 - The FFC socket at 93 mm (the jacks' gap at r = 90 mm), its cable coming down from the top.
 - The board slides into a printed tray (`make_tray.py`, `sd-tray.stl`): a 0.8 mm floor, a rail with a groove along
-  each side (the board 26.4 mm wide so the rails fit), a collar round the pole that stops it, posts toward the cover.
+  each side (the board 24.4 mm wide; the tray 73.2 to 100 mm), a collar round the pole that stops it, posts toward the cover.
   Only the collar and three posts (all 5.6 mm, the pole is 6; rail-wide, long along the rails, clear of the cover's edge band and the cable's) reach up; the rails stand 3.35 mm: the battery's cable passes
   over (in its band the parts stand at most 4.4 mm with the floor, leaving about 1.6 to 2.3 mm under the cover).
 - The cover's edge band (t, about 4.8 mm left, taken): the floor, the board and the socket stand 4.25 mm there.
