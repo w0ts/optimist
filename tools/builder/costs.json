@@ -918,7 +918,7 @@
   },
   "PATTERNS": {
    "1": {
-    "flash": 12708,
+    "flash": 12940,
     "ram": 252,
     "pool": 128,
     "ramtext": -40
@@ -1579,7 +1579,7 @@
    }
   }
  },
- "measured": "2026-10-25 16:14",
+ "measured": "2026-10-25 16:40",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
@@ -1699,7 +1699,7 @@
    },
    "built_hash": "66318b73",
    "sizes": {
-    "flash": 569176,
+    "flash": 569444,
     "ram": 93932,
     "pool": 328848,
     "ramtext": 28356
@@ -1785,7 +1785,7 @@
    },
    "built_hash": "2b133d49",
    "sizes": {
-    "flash": 571380,
+    "flash": 571656,
     "ram": 94996,
     "pool": 311052,
     "ramtext": 21240
@@ -1885,7 +1885,7 @@
    },
    "built_hash": "733409d2",
    "sizes": {
-    "flash": 570448,
+    "flash": 570700,
     "ram": 78872,
     "pool": 328272,
     "ramtext": 21172
@@ -1995,7 +1995,7 @@
    },
    "built_hash": "750fbe88",
    "sizes": {
-    "flash": 574424,
+    "flash": 574692,
     "ram": 81336,
     "pool": 303908,
     "ramtext": 28168
@@ -2105,7 +2105,7 @@
    },
    "built_hash": "1499d954",
    "sizes": {
-    "flash": 574364,
+    "flash": 574616,
     "ram": 93176,
     "pool": 328496,
     "ramtext": 26548
@@ -2207,7 +2207,7 @@
    },
    "built_hash": "0847ab6e",
    "sizes": {
-    "flash": 529672,
+    "flash": 529944,
     "ram": 89172,
     "pool": 287080,
     "ramtext": 25232
@@ -2494,7 +2494,7 @@
    },
    "built_hash": "5c5c6764",
    "sizes": {
-    "flash": 578440,
+    "flash": 578716,
     "ram": 94096,
     "pool": 303444,
     "ramtext": 21240
@@ -2592,7 +2592,7 @@
    },
    "built_hash": "4490dec7",
    "sizes": {
-    "flash": 561876,
+    "flash": 562132,
     "ram": 76888,
     "pool": 324120,
     "ramtext": 20116
@@ -2706,7 +2706,7 @@
    },
    "built_hash": "23324808",
    "sizes": {
-    "flash": 586064,
+    "flash": 586340,
     "ram": 88872,
     "pool": 299812,
     "ramtext": 28628
@@ -2814,7 +2814,7 @@
    },
    "built_hash": "3090fa26",
    "sizes": {
-    "flash": 589528,
+    "flash": 589792,
     "ram": 94216,
     "pool": 328280,
     "ramtext": 26548
@@ -2916,7 +2916,7 @@
    },
    "built_hash": "5168220a",
    "sizes": {
-    "flash": 527596,
+    "flash": 527820,
     "ram": 89348,
     "pool": 287080,
     "ramtext": 25232
