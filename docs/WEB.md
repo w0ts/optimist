@@ -80,7 +80,7 @@ fails with "Get Pages site failed", the first step is missing).
 
 1. Set `VERSION` (X.Y, one digit each: it is the package identity, `FM-1_7(X+2)Y`) and commit it.
 2. Tag that commit `v<VERSION>` (a suffix after a dash is allowed, `v0.2-rc1`) and push the tag: `release.yml` builds every
-   profile in `config/profiles/` as a release build (`optimist-<version>-<profile>.fwsc`) and creates a **draft** release
+   published profile (`# publish: yes`) in `config/profiles/` as a release build (`optimist-<version>-<profile>.fwsc`) and creates a **draft** release
    with them and `SHA256SUMS.txt`. A tag that does not match `VERSION` fails at once.
 3. Read the draft and publish it: the release event asks for a Pages run on `main` and the installer lists the release.
 

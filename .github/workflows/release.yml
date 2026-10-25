@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-only
-# A GitHub release for a v* tag (v0.1, v0.2-rc1): every profile in config/profiles is built (the published ones
-# and the shipped ones alike) and its package and its web-editor sidecar are attached to the release, one pair per
+# A GitHub release for a v* tag (v0.1, v0.2-rc1): every published profile ("# publish: yes" in config/profiles, as
+# build.yml; bt-debug and other test builds are not) is built and its package and its web-editor sidecar are attached to the release, one pair per
 # flavour: optimist-<VERSION>-<profile>.fwsc and optimist-<VERSION>-<profile>-ui.zip (tools/builder/configure.py
 # package names them). The toolchain and the SDK files are downloaded on each runner as in build.yml and are never
 # attached or stored. The tag must match the VERSION file (v0.1 for 0.1; a suffix after a dash is allowed).
@@ -39,13 +39,11 @@ jobs:
           want="$(cat VERSION | tr -d '[:space:]')"
           have="${TAG#v}"; have="${have%%-*}"
           if [ "$have" != "$want" ]; then echo "tag $TAG does not match VERSION $want" >&2; exit 1; fi
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
       - id: list
-        run: |
-          python3 - <<'PY' >> "$GITHUB_OUTPUT"
-          import json, pathlib
-          names = sorted(p.stem for p in pathlib.Path("config/profiles").glob("*.config"))
-          print("profiles=" + json.dumps(names))
-          PY
+        run: echo "profiles=$(python tools/optimist.py config --published)" >> "$GITHUB_OUTPUT"
 
   package:
     needs: flavours
