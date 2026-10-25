@@ -16,14 +16,26 @@
  *   arn_ptr(k)              the part's block, 0 none
  *   arn_drop_for(k, n)      the parts (a bit mask) whose blocks, given back, would let n bytes fit for part k, the
  *                           least memory given back; 0 it fits as it is; -1 nothing would (n larger than the arena)
+ *   arn_give(k)             (the main loop) the block given back, none reserved: an effect's line no longer used
+ *                           (fx/fx_arena.c; the audio no longer reads it)
+ *   arn_fits(k, n)          1: arn_reserve(k, n) would succeed now (the UI's counts; nothing changed)
  *   arn_free_bytes()        the room left (the largest gap, for the MEM message)
- * ARN_PARTS and ARN_BYTES are set by the includer. With ARN_FIXED, ARN_SLOT (the largest block a part can ask, a
+ * ARN_PARTS and ARN_BYTES are set by the includer; ARN_DROPPABLE (default all) the parts arn_drop_for may name (the
+ * effects' lines in the arena, fx/fx_arena.c, are never proposed: only the parts' engines); ARN_TOPS (default none)
+ * the parts placed best fit from the arena's top instead of first fit from its bottom (the effects' lines: apart from
+ * the engines' blocks, and the gaps they leave filled by size, so the arena cuts up less). With ARN_FIXED, ARN_SLOT (the largest block a part can ask, a
  * multiple of ARN_ALIGN) and an arena of ARN_PARTS x ARN_SLOT, the placement is fixed, part k at k x ARN_SLOT, as the fixed per-part memories were: nothing is
  * ever refused (engines.c's default). A smaller arena places by first fit and may refuse.
  * A part's own block is free for its own reservation: the new block is written only at the switch, when the old
  * engine is done (as the one fixed memory per part was reused); the other parts' blocks and reservations are not. */
 #ifndef ARN_ALIGN
 #define ARN_ALIGN 8u
+#endif
+#ifndef ARN_DROPPABLE
+#define ARN_DROPPABLE ((1u << ARN_PARTS) - 1u)
+#endif
+#ifndef ARN_TOPS
+#define ARN_TOPS 0u                                      /* (the parts placed best fit from the top: none) */
 #endif
 
 typedef struct {
@@ -41,10 +53,11 @@ static uint32_t arn_round(uint32_t n) { return (n + ARN_ALIGN - 1u) & ~(ARN_ALIG
 #endif
 
 /* the blocks in use (the parts' blocks, the reservations), but those in skip (a bit mask of parts whose current block
- * is not counted) -> a first-fit gap of n bytes, ARN_BYTES when none */
-static uint32_t arn_gap(uint32_t n, uint32_t skip)
+ * is not counted) -> a gap of n bytes, ARN_BYTES when none: the lowest that fits (first fit), or with top the smallest
+ * that fits (best fit; of two alike the higher), n bytes at its top end */
+static uint32_t arn_scan(uint32_t n, uint32_t skip, uint32_t top)
 {
-    uint32_t off[2u * ARN_PARTS], len[2u * ARN_PARTS], c = 0, i, j, at = 0;
+    uint32_t off[2u * ARN_PARTS], len[2u * ARN_PARTS], c = 0, i, j, at = 0, best = ARN_BYTES, room = 0xFFFFFFFFu;
     for (i = 0; i < ARN_PARTS; i++) {
         if (arn_cur[i].len && !((skip >> i) & 1u))
             off[c] = arn_cur[i].off, len[c++] = arn_cur[i].len;
@@ -56,14 +69,20 @@ static uint32_t arn_gap(uint32_t n, uint32_t skip)
             uint32_t t = off[j]; off[j] = off[j - 1u]; off[j - 1u] = t;
             t = len[j]; len[j] = len[j - 1u]; len[j - 1u] = t;
         }
-    for (i = 0; i < c; i++) {
-        if (off[i] >= at + n)
-            return at;
-        if (off[i] + len[i] > at)
+    for (i = 0; i <= c; i++) {
+        uint32_t end = i < c ? off[i] : ARN_BYTES;       /* (the gap at .. end; the last one up to the arena's end) */
+        if (end >= at + n) {
+            if (!top)
+                return at;
+            if (end - at <= room)
+                room = end - at, best = (end - n) & ~(ARN_ALIGN - 1u);   /* (>= at: at is aligned) */
+        }
+        if (i < c && off[i] + len[i] > at)
             at = off[i] + len[i];
     }
-    return at + n <= ARN_BYTES ? at : ARN_BYTES;
+    return best;
 }
+static uint32_t arn_gap(uint32_t n, uint32_t skip) { return arn_scan(n, skip, 0); }
 
 static int arn_reserve(uint32_t k, uint32_t n)
 {
@@ -87,12 +106,12 @@ static int arn_reserve(uint32_t k, uint32_t n)
         return 0;
     }
     arn_has_next[k] = 0;                                /* (its old reservation is not in the way of its new one) */
-    at = arn_gap(n, 1u << k);                           /* (its own block: free for it) */
+    at = arn_scan(n, 1u << k, ARN_TOPS >> k & 1u);      /* (its own block: free for it) */
     if (at == ARN_BYTES) {                              /* the idle blocks back (nothing reads them), then again */
         for (i = 0; i < ARN_PARTS; i++)
             if (arn_cur[i].len && arn_cur[i].idle)
                 idle |= 1u << i;
-        at = arn_gap(n, idle | 1u << k);
+        at = arn_scan(n, idle | 1u << k, ARN_TOPS >> k & 1u);
         if (at == ARN_BYTES)
             return -1;
         for (i = 0; i < ARN_PARTS; i++)
@@ -124,6 +143,29 @@ static void arn_rest(uint32_t k)
     }
 }
 
+static void arn_give(uint32_t k)
+{
+    if (k < ARN_PARTS)
+        arn_cur[k].len = 0, arn_has_next[k] = 0;
+}
+
+static int arn_fits(uint32_t k, uint32_t n)             /* 1: arn_reserve(k, n) would place it now (nothing changed) */
+{
+    uint32_t i, idle = 0;
+    n = arn_round(n);
+    if (k >= ARN_PARTS)
+        return 0;
+    if (!n || arn_cur[k].len >= n)
+        return 1;
+#if ARN_FIXED
+    return n <= arn_round(ARN_SLOT);
+#endif
+    for (i = 0; i < ARN_PARTS; i++)
+        if (arn_cur[i].len && arn_cur[i].idle)
+            idle |= 1u << i;
+    return arn_gap(n, idle | 1u << k) != ARN_BYTES;
+}
+
 static void *arn_ptr(uint32_t k) { return k < ARN_PARTS && arn_cur[k].len ? arn_mem + arn_cur[k].off : 0; }
 
 static int32_t arn_drop_for(uint32_t k, uint32_t n)
@@ -143,7 +185,7 @@ static int32_t arn_drop_for(uint32_t k, uint32_t n)
     arn_has_next[k] = 0;                                /* (its own old reservation: replaced by the new one) */
     for (mask = 0; mask < (1u << ARN_PARTS); mask++) {  /* (2^ARN_PARTS sets: 16 with four parts) */
         uint32_t bytes = 0;
-        if (((mask >> k) & 1u) || (mask & idle))
+        if (((mask >> k) & 1u) || (mask & idle) || (mask & ~(uint32_t)ARN_DROPPABLE))
             continue;                                   /* (not the part asking; idle ones are free anyway) */
         for (i = 0; i < ARN_PARTS; i++)
             if ((mask >> i) & 1u)

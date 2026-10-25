@@ -208,6 +208,13 @@ static void mem_tick(void)
 {
     uint32_t k;
     char a[24];
+#if FXM_NEED
+    if (fxm_news && !op_armed()) {                      /* an effect refused (fx/fx_arena.c): bypassed until there is room */
+        ui_message(fxm_news & 1u ? "MEM FULL CHO" : fxm_news & 2u ? "MEM FULL DLY" : fxm_news & 4u ? "MEM FULL REV" :
+                   "MEM FULL INSERTS");
+        fxm_news = 0;
+    }
+#endif
     if (!part_mem_refused.on || op_armed())
         return;
     if (mem_retry() >= 0 && (!part_mem_refused.on || part_mem_refused.waiting))
