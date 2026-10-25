@@ -177,6 +177,14 @@ static void cell_param(cell_t *c, const param_desc_t *d, int16_t *vp)
         }
 #endif
     }
+#if FXM_NEED && FELUCCA_FX_SLICER
+    if (d == &TP[P_SLCR] && arb_sl_refused(vp)) {       /* (STUT's recording refused by the arena: bypassed, kept,
+                                                         * core/arena_bufs.c) */
+        c->unit = "FULL";
+        c->dim = 1;
+        c->strike = 1;
+    }
+#endif
     cell_gauge_d(c, d, *vp);
 }
 

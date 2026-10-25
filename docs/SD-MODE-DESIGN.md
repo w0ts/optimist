@@ -256,15 +256,15 @@ blocks of the arena too, held only while the project uses their feature, placed 
 
 | Buffer | Bytes | Held while | Refused (no room) |
 |---|---|---|---|
-| each track's SLICER recording (`slicer.c sl_bp`, `FX_SLICER`) | SL_LEN x 2 (8,192) | its SLICER is on STUT, or a repeat still plays | STUT bypassed: the live sound, as OFF |
-| WAVE's table: its copies and the frame builder's scratch (`eng_wave.c wt_mip wt_fr wt_fi`, `ENG_WAVE`) | 73,216 | a part plays WAVE | its voices silent, as while a table is built |
+| each track's SLICER recording (`slicer.c sl_bp`, `FX_SLICER`) | SL_LEN x 2 (8,192) | its SLICER is on STUT, or a repeat still plays | STUT bypassed: the live sound, as OFF; its card FULL, dim, struck through (op_cells.c) |
+| WAVE's table: its copies and the frame builder's scratch (`eng_wave.c wt_mip wt_fr wt_fi`, `ENG_WAVE`) | 73,216 | a part plays WAVE (or is switching to it) | the change to WAVE refused as any engine's: the drop proposal, parts first, then the effects; on a load the list page (the table its need) (the night's ruling, 2026-10-25); only if it is lost after that: silent, MEM FULL WAVE |
 | the X0X 909's / 808's state (`x0x_drums.c x0x_mem`, `DRUM_X0X909` / `808`) | 5,344 / 3,376 | the kit or a lane plays the machine, or one of its voices sounds | its hits play the stand-in kit (as the notes the machine lacks) |
 | the ROOM's diffusers (`fx.c rev_ap`, `REV_ROOM`) | 1,994 | in the reverb's block, after its line (fx_arena.c) | as the reverb |
 
 - The main loop only (`arb_poll`, every pass after `fxm_poll`): placed (the interrupts off), zeroed, the feature's state
   reset, then its pointer set (the interrupts off); no longer used: its pointer 0 at once, the block given back two
   audio blocks later (`fxm_tick`); used again meanwhile: the same block, zeroed again.
-- No room: bypassed where it is, kept in the project, MEM FULL SLICER / WAVE / X0X said once (op_input.c mem_tick,
+- No room (WAVE's table aside, above): bypassed where it is, kept in the project, MEM FULL SLICER / WAVE / X0X said once (op_input.c mem_tick,
   `arb_said`), placed by itself once there is room (tried every pass, never while a part's refused change waits or the
   lines are being moved), the largest first. A part's change refused while one of them is on its way back waits for it
   (`fxm_pending`). They are never proposed to drop.

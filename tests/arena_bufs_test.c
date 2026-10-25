@@ -8,9 +8,10 @@
  *   3. WAVE on part 2: its table placed, built by wt_service, heard; another engine: given back
  *   4. the X0X 909 kit: its machine placed, a hit plays on it; a lane on an 808 voice: the 808 placed too; the kit and
  *      the lane elsewhere: both given back once their voices are silent
- *   5. refused: a second STUT track finds no room: bypassed (its output the OFF output), MEM FULL SLICER said once,
+ *   5. refused: a second STUT track finds no room: bypassed (never a repeat), MEM FULL SLICER said once, its card FULL,
  *      kept in the project; placed by itself once the first track's is given back; never while a part's refused change
- *      waits. WAVE with no room: silent, MEM FULL WAVE, placed once a part's block is idle. The X0X kit with no room:
+ *      waits. A change to WAVE with no room for its table: refused as any engine change, a part proposed and dropped,
+ *      then on WAVE with its table; on a load: the list page (the table its need, FITS with a part dropped). The X0X kit with no room:
  *      its hits play the stand-in kit
  *   6. a part's change that fits once a buffer is back waits for it (mem_retry, fxm_pending), then goes through
  *   7. random switches (STUT on and off, WAVE, FM6, the kit, a lane's X0X voice, the effects, blocks between): the
@@ -297,8 +298,9 @@ int main(void)
     {
         const char *m = arb_said();
         CHECK(arb_st[ARB_SL0 + 2] == FXM_NONE && !sl_bp[2] && sl_mode(t2) == SL_OFF && (arb_full >> (ARB_SL0 + 2) & 1u) &&
-              t2->p[P_SLCR] == SL_STUT && m && !strcmp(m, "MEM FULL SLICER"),
-              "STUT on track 3: no room: refused, bypassed (OFF), MEM FULL SLICER, kept in the project");
+              t2->p[P_SLCR] == SL_STUT && m && !strcmp(m, "MEM FULL SLICER") && arb_sl_refused(&t2->p[P_SLCR]) &&
+              !arb_sl_refused(&t0->p[P_SLCR]),
+              "STUT on track 3: no room: refused, bypassed (OFF), MEM FULL SLICER, its card FULL, kept in the project");
     }
     pass();
     CHECK(!arb_said() && (arb_full >> (ARB_SL0 + 2) & 1u), "... tried again every pass, said once only");
@@ -324,6 +326,7 @@ int main(void)
     }
     CHECK(sl_bp[2] && arb_st[ARB_SL0 + 2] == FXM_ON && !sl_bp[0] && !(arb_full >> (ARB_SL0 + 2) & 1u) && arena_ok(),
           "track 1's STUT off: its block given back, track 3's placed by itself");
+    CHECK(!arb_sl_refused(&t2->p[P_SLCR]), "... its card no longer FULL");
     stut(2, 0);
     for (f = 0; f < 400u && arb_st[ARB_SL0 + 2] != FXM_NONE; f++) {
         blocks(1);
@@ -346,20 +349,62 @@ int main(void)
     settle(2);
     (void)arb_said();
     set_engine_of(t1, ENG_WAVE);
-    blocks(64);
-    pass();
+    CHECK(part_mem_refused.on && part_mem_refused.part == 1u && part_mem_refused.eng == ENG_WAVE &&
+          part_mem_refused.drop > 0 && t1->eng_req != ENG_WAVE && !wt_mip && !arn_has_next[ARB_K(ARB_WAVE)],
+          "WAVE on part 2 with no room for its table: the change refused as any engine's, the parts to drop proposed "
+          "(%d), nothing set aside", part_mem_refused.drop);
     {
-        const char *m = arb_said();
-        CHECK(!wt_mip && (arb_full >> ARB_WAVE & 1u) && m && !strcmp(m, "MEM FULL WAVE") && t1->engine == ENG_WAVE,
-              "WAVE on part 2 with no room for its table: refused, MEM FULL WAVE, the part on WAVE");
+        uint32_t x;
+        CHECK(mem_offer(&x) && x < NPART && x != 1u, "... the proposal: a part first (part %u)", (unsigned)(x + 1u));
     }
-    CHECK(part_play(1, 200) == 0, "... silent (as while a table is built)");
-    set_engine_of(t2, eng_silent_slot());               /* (part 3's block idle: taken back when needed) */
+    mem_drop(2);                                        /* (YES on "DROP T3 FM6") */
+    for (f = 0; f < 50u && part_mem_refused.on; f++) {
+        pass();
+        blocks(1);
+        (void)mem_retry();
+    }
     blocks(64);
     settle(8);
-    CHECK(wt_mip && wt_have == (int16_t)wt_wanted() && !(arb_full >> ARB_WAVE & 1u) && arena_ok(),
-          "part 3 off FM6: WAVE's table placed by itself, built");
+    CHECK(!part_mem_refused.on && t1->engine == ENG_WAVE && t2->silent && wt_mip && wt_have == (int16_t)wt_wanted() &&
+          !arb_full && !arb_said() && arena_ok(), "part 3 dropped (a placeholder): part 2 on WAVE, its table placed and "
+          "built, no MEM FULL");
+    set_engine_of(t2, eng_silent_slot());
+    blocks(64);
+    settle(2);
     CHECK(part_play(1, 200) > 0, "... heard");
+    /* on a load: WAVE's table on the list page (model.c mem_load_*) */
+    set_engine_of(t1, eng_silent_slot());
+    blocks(64);
+    settle(4);
+    set_engine_of(t2, ENG_IX_FM6);
+    blocks(64);
+    settle(4);
+    CHECK(!wt_mip && t2->engine == ENG_IX_FM6, "load: part 2 off WAVE (its table given back), part 3 on FM6");
+    part_mem_load_begin();                              /* (as project.c's load: part 2 on WAVE, refused, a placeholder) */
+    if (part_mem_load(1, ENG_WAVE))
+        t1->silent = 1, t1->eng_req = (uint8_t)eng_silent_slot();
+    CHECK((part_mem_refused.lmask >> 1 & 1u) && part_mem_refused.leng[1] == ENG_WAVE && t1->silent &&
+          !arn_has_next[ARB_K(ARB_WAVE)], "load: part 2's WAVE refused (no room for its table), a placeholder");
+    {
+        uint8_t it[NPART + 3u];
+        uint32_t n = mem_load_items(it), i, has3 = 0;
+        for (i = 0; i < n; i++)
+            has3 |= it[i] == 2u;
+        CHECK(n >= 3u && it[0] == 1u && has3 && mem_item_bytes(1) == WT_MEM_BYTES && mem_load_need(0) == WT_MEM_BYTES,
+              "load: the list: the refused part 2 first (its need: the table, %u B), part 3 among the drops", (unsigned)mem_load_need(0));
+        CHECK(!mem_load_fits(0) && mem_load_fits(1u << 2) && !arn_has_next[ARB_K(ARB_WAVE)],
+              "load: FITS only with part 3 dropped (a trial: nothing set aside)");
+    }
+    mem_load_commit(1u << 2);
+    for (f = 0; f < 50u && mem_load_settle() != 1; f++) {
+        blocks(1);
+        pass();
+    }
+    blocks(64);
+    settle(8);
+    CHECK(!part_mem_refused.lmask && t1->engine == ENG_WAVE && !t1->silent && t2->silent && wt_mip &&
+          wt_have == (int16_t)wt_wanted() && !arb_full && arena_ok(),
+          "load: part 3 dropped: part 2 on WAVE with the project's sound, its table placed and built");
     /* the X0X kit with no room: the stand-in */
     TDRUM->p[P_E0] = (int16_t)DRUM_SAMPLED;
     dl.src[3] = DL_KIT;
@@ -410,7 +455,7 @@ int main(void)
     /* 7. random switches */
     quiet();
     {
-        uint32_t n, okall = 1, worst = 0, nfull = 0, nsl = 0, nwt = 0, nx = 0;
+        uint32_t n, okall = 1, worst = 0, nfull = 0, nsl = 0, nwt = 0, nx = 0, nwr = 0;
         srand(11);
         for (n = 0; n < 20000u && okall; n++) {
             uint32_t r = (uint32_t)rand(), op = r % 8u, a = (r >> 8) % 4u;
@@ -441,12 +486,13 @@ int main(void)
             nsl += sl_bp[0] || sl_bp[1] || sl_bp[2] || sl_bp[3];
             nwt += wt_mip != 0;
             nx += x909_p || x808_p;
+            nwr += part_mem_refused.on && part_mem_refused.eng == ENG_WAVE;
             (void)arb_said();
         }
-        CHECK(okall && nfull > 500u && nsl > 1000u && nwt > 1000u && nx > 1000u,
-              "20,000 random switches: the invariants held at every step (to %u; steps with a buffer refused %u, a SLICER "
-              "recording placed %u, WAVE's table %u, an X0X machine %u)", (unsigned)worst, (unsigned)nfull, (unsigned)nsl,
-              (unsigned)nwt, (unsigned)nx);
+        CHECK(okall && nfull > 50u && nwr > 50u && nsl > 1000u && nwt > 1000u && nx > 1000u,
+              "20,000 random switches: the invariants held at every step (to %u; steps with a buffer refused %u, a change "
+              "to WAVE refused %u, a SLICER recording placed %u, WAVE's table %u, an X0X machine %u)", (unsigned)worst,
+              (unsigned)nfull, (unsigned)nwr, (unsigned)nsl, (unsigned)nwt, (unsigned)nx);
         part_mem_refused.on = 0;
         quiet();
         blocks(8000);
