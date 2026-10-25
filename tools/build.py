@@ -611,6 +611,9 @@ def build_app():
     img += b"\xff" * (load - APP_XIP - len(img))
     img += stream
     img += b"\xff" * (-len(img) % 4)
+    global CODE_LEN
+    CODE_LEN = len(img)             # (the code and the boot stream: what the builder's flash budget counts; the far probe
+                                    # and the overlays' table past it keep their own place: flash_layout.code_limit)
     far = (OUT / "far.bin").read_bytes() if (OUT / "far.bin").exists() else b""
     if far:                         # the far probe: after everything the boot needs, at its own offset past 0x93000
         if len(img) > FAR_OFF or (not far_ok() and len(img) > flash_layout.app_slot(0)):
@@ -649,6 +652,9 @@ SIZED_SYMBOLS = ("part_mem",        # (engines.c: the synth parts' engine state,
                  "ifx_chrs", "ifx_echo", "ifx_jcho", "ifx_flng", "ifx_xdly")   # (its instance tables)
 
 
+CODE_LEN = None                     # (build_app: app.bin's code before the far probe's place; sizes() reports it)
+
+
 def sizes(img, syms, hdr):
     """the five budgets of this build (build/sizes.json; tools/builder reads it)"""
     def sym(name):
@@ -660,7 +666,7 @@ def sizes(img, syms, hdr):
     sec = section_sizes(hdr)
     # (the parts keep their meaning from the fixed regions, costs.json compares them: "ram" = .ram_hot2 + .data + .bss,
     # "ramtext" = .ram_text + .ram_hot; "sram" = what the packed region holds, alignment included)
-    return {"flash": len(img), "ram": sym("_bss_end") - sym("_rh2_start"), "pool": sym("_pool_end") - sym("_pool_start"),
+    return {"flash": CODE_LEN if CODE_LEN is not None else len(img), "ram": sym("_bss_end") - sym("_rh2_start"), "pool": sym("_pool_end") - sym("_pool_start"),
             "ramtext": sym("_rt_end") - sym("_rt_start") + sym("_rh_end") - sym("_rh_start")
                        + sym("_ovl_slots_end") - sym("_ovl_slots"),       # (the overlays' slots: 0 without)
             "sram": sym("_pool_end") - sym("_sram_org"),
