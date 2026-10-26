@@ -617,6 +617,10 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
                                             * at a time; off again until the next start if the flash part ever holds an
                                             * erase in one window (seq.c SAVE_WAITS_PLAY, felucca.c FL_ERASE_HELD) */
 #endif
+#ifndef FELUCCA_LANE_FX
+#define FELUCCA_LANE_FX 0                  /* a black key held on the drum track: its lane's FX page (ROLL CHANCE FILL NUDGE),
+                                            * kept as the pattern's automation events (seq/lane_fx.c, auto.h AUTO_IS_LFX) */
+#endif
 #ifndef FELUCCA_PARAM_HELP
 #define FELUCCA_PARAM_HELP 0              /* the knob's value in plain words on the top bar ("Filter cutoff"), from
                                             * tools/param_help.json (param_help.c) */

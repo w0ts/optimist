@@ -562,7 +562,7 @@ The encoder takes a bitmap or the row above only where it is the shorter. Measur
 | 3 OPEN | screen, button | the screen; on SOUND (1) `button` (a page button's label as in 108: 0 FX, 1 SCL, 2 ENV, 3 LFO, 4 EDIT, 8 ARP; 127 every row) narrows it to that family |
 | 4 TRACKS | | nothing |
 
-Screens: 0 MIX, 1 SOUND, 2 MASTER (the master FX), 3 PROJECT, 4 SYSTEM, 5 STEPS, 6 SONG, 7 TEMPO (never opened: PLAY held), 8 SCOPE, 9 GLOBAL.
+Screens: 0 MIX, 1 SOUND, 2 MASTER (the master FX), 3 PROJECT, 4 SYSTEM, 5 STEPS, 6 SONG, 7 TEMPO (never opened: PLAY held), 8 SCOPE, 9 GLOBAL, 10 LANE FX (never opened: a drum lane's black key held, FELUCCA_LANE_FX).
 Reply to 0..3: `op, 0 done / 1 refused, screen, button (127: every row, or not SOUND), cursor row, n, n row names (ASCII, 0-terminated, 11 at most), track, knobs [, top, pitch]`. `track` is the walk's mixer row, 127 where ALGORITHM walks nothing (PROJECT, SONG, GLOBAL, SYSTEM). The rows are what SELECT walks: on MIX the selected row's knob sets (MIX, INSERT, SENDS, SOUND; MASTER's RETURNS, A SENDS ...; the tracks themselves are TRACK's), on GLOBAL and SYSTEM their pages of 4 lines by title (20 characters at most; ROW puts the cursor on the page's first line). `knobs` says where KNOB 1..4's values are on the 240 x 240 panel, for a drag there to turn that knob (108 PANEL): 0 nowhere (a layer, STEP, SCOPE, a list, a popup), 1 the 1x4 cards (x 3 + 59 k, y 28, 57 x 45), 2 the 2x2 cards (x 3 or 121, y 28 or 75, 116 x 46), 3 four lines across the panel, the first from `top`, `pitch` apart. Reply to 4: `4, 0, n, n names` (the mixer rows: MASTER, T1, T2, T3, DR, the lanes by their names, ACCENT). A client asks STATE again when the screen changes.
 
 ## The clip (111 CLIP; INFO tag 67 `opti_clip_1`)

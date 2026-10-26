@@ -184,7 +184,7 @@ static int auto_to_motion(motion_store_t *m, const auto_list_t *l, uint32_t on)
     for (k = 0; k < NTRK; k++)
         for (i = 0; i < l[k].n; i++) {
             const auto_ev_t *e = &l[k].ev[i];
-            if ((e->place & AUTO_ONLY) || AUTO_IS_LANE(e->param))
+            if ((e->place & AUTO_ONLY) || AUTO_IS_LANE(e->param) || AUTO_IS_LFX(e))
                 continue;
             if (m->count >= MOTION_MAX) {
                 all = 0;
@@ -232,6 +232,21 @@ static uint8_t auto_ch[NTRK];            /* the step playing's chance event, 100
 #endif
 #if SEQ_SKIP
 static uint8_t seq_skip[NTRK];           /* the step playing failed its condition or its fill: nothing of it sounds */
+#endif
+#if FELUCCA_LANE_FX
+/* the drum lanes' FX in force (auto.h AUTO_IS_LFX; i = page x 4 + the value on it), read from the list at each drum step (auto_step), so an
+ * edit, a load or a pattern switch is heard at the next step: [lane][param - AUTO_COND] ROLL NUDGE FILL CHANCE */
+enum { LFX_I_ROLL, LFX_I_NUDGE, LFX_I_FILL, LFX_I_CHANCE, LFX_I_VRND, LFX_I_FLAM, LFX_I_RAMP, LFX_I_EVERY, LFX_N };
+_Static_assert(LFX_N == 4u * LFX_PAGES, "four values a page");
+static int8_t lfx_v[LFX_LANES][LFX_N];
+static uint32_t lfx_eabs = SEQ_NONE;    /* the step (seq_abs) the early lanes were decided for (lane_fx.c; STOP: none) */
+static void lfx_reset(void)
+{
+    uint32_t l, i;
+    for (l = 0; l < LFX_LANES; l++)
+        for (i = 0; i < LFX_N; i++)
+            lfx_v[l][i] = LFX_R[i / 4u][i % 4u][2];
+}
 #endif
 /* the step playing's muted notes (auto.h AUTO_MUTE; auto_step sets them, seq.c plays around them): a drum lane's bit
  * (the drum track), AUTO_MUTED_SYN a synth step's (all its notes) */
@@ -321,10 +336,20 @@ static uint32_t auto_step(track_t *t, uint32_t idx)
         sa_restore(k);                               /* (each pass from the devices' values, as motion_pass) */
 #endif
 #endif
+#if FELUCCA_LANE_FX
+    if (k == TRK_DRUM)
+        lfx_reset();
+#endif
     for (i = 0; i < l->n && i < AUTO_MAX; i++) {
         const auto_ev_t *e = &l->ev[i];
-        if ((e->place & AUTO_STEP) != idx)
+        if ((e->place & AUTO_STEP) != idx || AUTO_IS_LFX(e)) {   /* (another step's; or a lane's FX, no step's: the
+                                                                  * place's step bits are its lane and page) */
+#if FELUCCA_LANE_FX
+            if (k == TRK_DRUM && AUTO_IS_LFX(e) && AUTO_LFX_PG(e) < LFX_PAGES)
+                lfx_v[AUTO_LFX_L(e) % LFX_LANES][(AUTO_LFX_PG(e) * 4u + e->param - AUTO_COND) % LFX_N] = e->value;
+#endif
             continue;
+        }
         if (AUTO_IS_MUTE(e->param)) {                /* (a muted note: before the lanes and mot_id, which have no such id) */
             if ((e->place & AUTO_ONLY) && e->value)
                 auto_muted[k] |= (uint16_t)(e->param == AUTO_SMUTE ? AUTO_MUTED_SYN : 1u << (e->param - AUTO_MUTE0));
@@ -423,6 +448,29 @@ static int step_fill_set(track_t *t, uint32_t idx, uint32_t v)
 static uint32_t step_cond(const track_t *t, uint32_t idx) { return (uint32_t)auto_pseudo(AL(t), idx % NSTEP, AUTO_COND, 0); }
 static int step_cond_set(track_t *t, uint32_t idx, uint32_t c) { return auto_pseudo_set(AL(t), idx % NSTEP, AUTO_COND, (int32_t)c); }
 static int step_chance_set(track_t *t, uint32_t idx, uint32_t pct) { return auto_pseudo_set(AL(t), idx % NSTEP, AUTO_CHANCE, pct >= 100u ? 100 : (int32_t)pct); }
+#if FELUCCA_LANE_FX
+/* drum lane l's FX i (LFX_I_*: page i / 4) as the pattern keeps it: its event, else its default (auto.h LFX_R) */
+static int32_t lfx_get(const track_t *t, uint32_t l, uint32_t i)
+{
+    int32_t v;
+    i %= LFX_N;
+    return auto_get(AL(t), AUTO_LFX_PLACE(l, i / 4u), AUTO_COND + i % 4u, &v) ? v : LFX_R[i / 4u][i % 4u][2];
+}
+/* ... set to v (its default, or a value out of range: the event goes); 0 the list is full. The IRQ off */
+static int lfx_set(track_t *t, uint32_t l, uint32_t i, int32_t v)
+{
+    auto_ev_t e = {(uint8_t)AUTO_LFX_PLACE(l, i % LFX_N / 4u), (uint8_t)(AUTO_COND + i % 4u), (int8_t)v};
+    int q;
+    if (!is_drum(t) || l >= LFX_LANES)
+        return 0;
+    if (v < -128 || v > 127 || !auto_lfx_ok(&e)) {
+        if ((q = auto_find(AL(t), e.place, e.param)) >= 0)
+            auto_del(AL(t), (uint32_t)q);
+        return 1;
+    }
+    return auto_put(AL(t), e.place, e.param, v) >= 0;
+}
+#endif
 /* the step-only event of (step idx, our id): 1 there is one, its value into *v */
 static int lock_get(const track_t *t, uint32_t idx, uint32_t id, int32_t *v)
 {
@@ -471,7 +519,7 @@ static uint32_t auto_step_marks(const track_t *t, uint32_t idx)
     const auto_list_t *l = AL(t);
     uint32_t i, m = 0, s = idx % NSTEP;
     for (i = 0; i < l->n && i < AUTO_MAX; i++)
-        if ((l->ev[i].place & AUTO_STEP) == s)
+        if ((l->ev[i].place & AUTO_STEP) == s && !AUTO_IS_LFX(&l->ev[i]))
             m |= auto_mark_of(&l->ev[i]);
     return m;
 }
@@ -483,7 +531,8 @@ static void auto_marks_all(const track_t *t, uint8_t *m)
     for (i = 0; i < NSTEP; i++)
         m[i] = 0;
     for (i = 0; i < l->n && i < AUTO_MAX; i++)
-        m[l->ev[i].place & AUTO_STEP] |= (uint8_t)auto_mark_of(&l->ev[i]);
+        if (!AUTO_IS_LFX(&l->ev[i]))                 /* (a lane's FX: no step's mark) */
+            m[l->ev[i].place & AUTO_STEP] |= (uint8_t)auto_mark_of(&l->ev[i]);
 }
 /* every step-only event of track t gone (a cleared pattern: seq.c steps_clear) */
 static void auto_only_clear(track_t *t)
@@ -496,6 +545,8 @@ static void auto_only_clear(track_t *t)
 static int auto_clear_hit(const auto_ev_t *e, int32_t sid, int32_t lane)
 {
     uint32_t p = e->param;
+    if (AUTO_IS_LFX(e))
+        return 0;                                    /* (a lane's FX: the lane's setting, neither motion nor a lock) */
     if ((e->place & AUTO_ONLY) && (p == mot_sid(P_SGATE) || AUTO_IS_MUTE(p)))
         return 0;                                    /* (nor a muted note's mute: the note's, not a lock) */
     if (sid >= 0)
@@ -551,7 +602,7 @@ static uint32_t auto_clear_where(track_t *t, int32_t sid, int32_t lane)
             k++;
             continue;
         }
-        holds += !(e->place & AUTO_ONLY);
+        holds += auto_kind_of(e) == AUTO_HOLDS;
         l->ev[n++] = *e;
     }
     l->n = (uint8_t)n;

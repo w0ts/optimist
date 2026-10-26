@@ -46,7 +46,7 @@ SIZE_FILES = ["ui/colors.c", "ui/splash.c", "storage/storage.c", "storage/uprese
               "ui/optimist/optimist.c", "ui/optimist/op_state.c", "ui/optimist/op_cells.c", "ui/optimist/op_screens.c",
               "ui/optimist/op_step.c", "ui/optimist/op_project.c", "ui/optimist/op_bt.c", "ui/optimist/op_prjflow.c", "ui/optimist/op_graph.c", "ui/optimist/op_draw.c",
               "ui/optimist/op_stepdraw.c", "ui/optimist/op_input.c", "ui/optimist/op_layers.c", "ui/optimist/op_nav.c",
-              "ui/optimist/op_tempo.c", "ui/optimist/op_song.c", "ui/optimist/op_combos.c", "ui/optimist/op_laydraw.c",
+              "ui/optimist/op_tempo.c", "ui/optimist/op_lanefx.c", "ui/optimist/op_song.c", "ui/optimist/op_combos.c", "ui/optimist/op_laydraw.c",
               "ui/optimist/op_mixer.c", "ui/optimist/op_mixdraw.c", "ui/optimist/op_scope.c",
               "ui/optimist/op_fm6.c", "ui/optimist/op_fm6draw.c", "ui/optimist/op_name.c", "ui/optimist/op_preset.c",
               "ui/optimist/op_global.c", "ui/optimist/op_walk.c", "ui/optimist/op_keys.c",
@@ -104,7 +104,7 @@ AUDIO_FILES = [  # (the A2DP stream's SBC encoder runs in the audio interrupt: b
                "engines/clipper/eng_terrain.c", "engines/clipper/eng_wseq.c", "engines/clipper/eng_vector.c", "engines/sid/eng_sid.c", "engines/prophet/eng_prophet.c", "engines/clipper/eng_wave.c",
                "fx/fx.c", "fx/punch/punch.c", "system/dual.c", "core/audio.c", "seq/seq.c", "seq/arranger.c",
                "io/midi/midi_control.c", "io/midi/clock_sync.c", "io/midi/clock_out.c", "io/midi/midi_uart.c",
-               "io/usb/usb_audio_stream.c", "seq/seq24.c", "seq/ednote.c", "seq/auto.c", "seq/auto_slot.c", "seq/auto_base.c", "drums/lane_play.c", "seq/seq_mute.c",
+               "io/usb/usb_audio_stream.c", "seq/seq24.c", "seq/ednote.c", "seq/auto.c", "seq/auto_slot.c", "seq/auto_base.c", "drums/lane_play.c", "seq/seq_mute.c", "seq/lane_fx.c",
                "seq/gen.c"]
 # X0X's float units: units of their own (tools/build.py), outside the unity build and these lists
 FLOAT_UNITS = ("drums/x0x/drum808.c", "drums/x0x/drum909.c", "drums/x0x/x0x_drums.c", "engines/acid/acid_dsp.c",

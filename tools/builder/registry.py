@@ -821,6 +821,16 @@ _add("ENERGY", "FELUCCA_ENERGY", "ENERGY bands thin / thicken the drums", Q, 121
      desc="ENERGY also thins or thickens the drum pattern in five bands, walked on the beat: core lanes on the "
           "eighths, no ghosts, as written, harder hits, hat ratchets and a snare fill every second pass. About "
           "0.6 KB of flash.", symbols=("EN_EDGE",))
+_add("LANE_FX", "FELUCCA_LANE_FX", "drum lane FX: hold a black key (ROLL, CHANCE, FILL, NUDGE, VRAND, FLAM, RAMP, EVERY)", Q, 420, default=0,
+     experimental=True, tested="host-tested only, not on a device",
+     desc="On the drum track, a black key held past the hold time opens its lane's FX page until the key is let go: "
+          "ROLL (every hit of the lane repeats x2 to x8 in its step), CHANCE (each hit plays with this probability), "
+          "FILL (the lane plays always, only in a fill or never in one: GLO + 9 / 10) and NUDGE (the whole lane early "
+          "or late, up to half a step); SELECT, the second page: VRAND (each hit's velocity at random, up to 64 either "
+          "way), FLAM (a grace note 5 to 40 ms before the hit), RAMP (a roll's hits fade in or out) and EVERY (the lane "
+          "plays on loop 1:2 .. 4:4 only; with COND). KNOB 1-4 turn them, SHIFT + a knob resets. Saved with the pattern, "
+          "as events of its automation (an older build refuses a drum pattern that has them). Not on STEP (a lane key "
+          "held + a step sets its level there). Needs the automation store.")
 
 _add("REC_PLAIN", "FELUCCA_REC_PLAIN", "REC plain: every note played is recorded, the voice mode never cuts it", Q, 364, default=0,
      desc="Experimental (2026-10-21, off for now). Recording keeps every note you play: a chord stays a chord, an overdub only "

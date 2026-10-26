@@ -1165,6 +1165,7 @@ static uint32_t BK(uint32_t l) { return key_of_lane(l); }   /* drum lane l's bla
 static void kdown(uint32_t k) { fm1_in.notes |= 1u << k; frame(); }
 static void kup(uint32_t k) { fm1_in.notes &= ~(1u << k); frame(); }
 #include "ui_optimist_mixer.h"                     /* the horizontal mixer, SCOPE, no footer */
+#include "ui_optimist_lanefx.h"                    /* SHIFT + a key held: its mute back on release; LANE FX */
 #include "ui_optimist_usbfx.h"                     /* the USB input's insert slots: every type, its sets, FULL */
 static void seq_long(void)                              /* SEQ held alone past HOLD, let go */
 {
@@ -3982,6 +3983,9 @@ int main(int argc, char **argv)
     family_tests();
     header_footer_tests();
     header_track_tests();
+    hold_mute_tests();
+    step_peek_tests();
+    lane_fx_ui_tests();
     header_tracknum_tests();
     names_tests();
     bd_layout_tests();
@@ -4101,7 +4105,7 @@ int main(int argc, char **argv)
 #if FELUCCA_SEQTOOLS || FELUCCA_GENS
     seqtools_tests();
 #endif
-#if FELUCCA_COND
+#if FELUCCA_COND && FELUCCA_CHANCE
     cond_card_tests();
 #endif
     accent_ui_tests();

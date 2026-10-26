@@ -213,8 +213,12 @@ static void t_list(void)
           step_chance_set(t, 1, 30) && step_chance_ev(t, 1) == 30u && step_chance_set(t, 1, 100) && AL(t)->n == 2u);
     {
         auto_ev_t e = {AUTO_NUDGE, AUTO_NUDGE, 4}, f = {0x80u | 3u, P_PAN, 1};
-        e.place = 3;                                   /* (a NUDGE event without STEP-ONLY) */
-        check("an event a list never holds: a pseudo-parameter as a hold event, place bit 7 set", !auto_ev_ok(&e) && !auto_ev_ok(&f));
+        auto_ev_t g = {3u, AUTO_NUDGE, 4}, h = {AUTO_LFX_PLACE(9, 1), AUTO_CHANCE, 5}, z = {3u, AUTO_CHANCE, 100};
+        e.place = 10;                                  /* (a NUDGE event without STEP-ONLY, of no lane: 10) */
+        check("an event a list never holds: a pseudo-parameter as a hold event of no lane, place bit 7 set", !auto_ev_ok(&e) && !auto_ev_ok(&f));
+        check("a pseudo-parameter as a hold event of a lane 0..9 is its lane FX (LANE_FX), its value in range",
+              auto_ev_ok(&g) && AUTO_IS_LFX(&g) && AUTO_LFX_L(&g) == 3u && auto_ev_ok(&h) && AUTO_LFX_PG(&h) == 1u &&
+              !auto_ev_ok(&z) && auto_kind_of(&g) == AUTO_LFXS && auto_kind_of(&f) == AUTO_HOLDS);
     }
 }
 
@@ -489,8 +493,9 @@ static void t_cond(void)
     check("... a 2.4 export reports it (SX24_COND, the second word's bit 8)", sl24_auto_out(&x, &m.l[2]) == SX24_COND &&
           ((SX24_COND >> 14) & 0x3FFFu) == 256u);
     {
-        auto_ev_t e = {5u | AUTO_ONLY, AUTO_COND, 0}, f = {5u, AUTO_COND, 2}, g = {5u | AUTO_ONLY, AUTO_COND, 9};
-        check("an event a list never holds: COND 0, COND as a hold event; COND 9 (4:4) is one", !auto_ev_ok(&e) && !auto_ev_ok(&f) && auto_ev_ok(&g));
+        auto_ev_t e = {5u | AUTO_ONLY, AUTO_COND, 0}, f = {5u, AUTO_COND, 6}, g = {5u | AUTO_ONLY, AUTO_COND, 9}, r = {5u, AUTO_COND, 2};
+        check("an event a list never holds: COND 0, COND as a hold event past ROLL's x8; COND 9 (4:4) is one, a lane's ROLL x3 too",
+              !auto_ev_ok(&e) && !auto_ev_ok(&f) && auto_ev_ok(&g) && auto_ev_ok(&r) && AUTO_IS_LFX(&r));
     }
 }
 

@@ -107,7 +107,8 @@ static void loop_pos(const track_t *t, char *b)
  * audit's #11) */
 static const uint8_t HEAD_TRK_SCR[SCR_N] = {
     [SCR_HOME] = 0, [SCR_SOUND] = 1, [SCR_FX] = 0, [SCR_PROJECT] = 0, [SCR_SYSTEM] = 0,
-    [SCR_STEP] = 1, [SCR_SONG] = 0,  [SCR_TEMPO] = 0, [SCR_SCOPE] = 0, [SCR_GLOBAL] = 0};
+    [SCR_STEP] = 1, [SCR_SONG] = 0,  [SCR_TEMPO] = 0, [SCR_SCOPE] = 0, [SCR_GLOBAL] = 0,
+    [SCR_LFX] = 1};
 /* the page's title into t (n bytes), as drawn (sentence case, the names table's: op_names.c): the cursor row's name alone,
  * the badge names the screen ("Ins tone", "Tools", "Scene A"); the mixer's track rows: the row's name and the set ("T1 mix").
  * The title is the row's name verbatim, its continuation number kept ("Edit 1 2/7": the audit's #2, style guide 1) */

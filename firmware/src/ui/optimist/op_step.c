@@ -820,6 +820,8 @@ static void ev_block_shift(track_t *t, uint32_t a, uint32_t n, int32_t d)   /* t
     uint32_t i;
     for (i = 0; i < l->n && i < AUTO_MAX; i++) {
         uint32_t s = l->ev[i].place & AUTO_STEP, ns = s;
+        if (AUTO_IS_LFX(&l->ev[i]))
+            continue;                                   /* (a lane's FX: no step's) */
         if (s >= a && s < a + n)
             ns = (uint32_t)((int32_t)s + d);
         else if (d > 0 && s == a + n)
@@ -938,6 +940,8 @@ static void blocks_swap(track_t *t, uint32_t a, uint32_t n, uint32_t m)
         uint32_t i;
         for (i = 0; i < l->n && i < AUTO_MAX; i++) {    /* (the events go with their steps) */
             uint32_t s = l->ev[i].place & AUTO_STEP, ns = s;
+            if (AUTO_IS_LFX(&l->ev[i]))
+                continue;                               /* (a lane's FX: no step's) */
             if (s >= a && s < a + n)
                 ns = s + m;
             else if (s >= a + n && s < a + n + m)
@@ -1148,18 +1152,63 @@ static uint32_t step_chance_of(const track_t *t, uint32_t idx)
     return c < 100u || is_drum(t) ? c : step_chance(&t->step[idx % NSTEP]);
 }
 #endif
-#if FELUCCA_CHANCE
-/* the chance as an event of the automation store, on drum and synth steps alike (this UI writes events only) */
-static void edit_chance(track_t *t, uint32_t idx, int32_t s)
+/* CHANCE and the conditions on one knob (the user, 2026-10-26: "every should be merged with chance. above 100 we go in
+ * every mode", "and we should do the same for plocks"): 0..100 %, then past 100 the conditions 1:2 .. 4:4 (COND built),
+ * one value c: 101.. = condition c - 100. A detent: 5 % below 100 (fine: 1 %), one condition above; SHIFT + the knob: 100 %.
+ * The step's (extra_turn) and a drum lane's (op_lanefx.c) */
+#define CHC_TOP (100 + (FELUCCA_COND ? (int32_t)AUTO_NCOND : 0))
+static int32_t chc_turn(int32_t c, int32_t s, int fine)
 {
-    if (step_has(t, idx) || (is_drum(t) && dstep_lanes(&t->dstep[idx % NSTEP])))
-        (void)step_chance_set(t, idx, s == OP_RESET ? 100u : (uint32_t)ui_clamp((int32_t)step_chance_of(t, idx) + s * (int32_t)CH_STEP, 0, 100));
+    if (s == OP_RESET)
+        return 100;
+    if (c > 100 || (c == 100 && s > 0))
+        return ui_clamp(c + s, 100, CHC_TOP);           /* (down past 1:2: 100 %, the next detent goes on in %) */
+    return ui_clamp(c + s * (fine ? 1 : 5), 0, 100);
 }
-#endif
 #if FELUCCA_COND
 /* a step's condition (Felucca 1.5.6, seq/auto.c cond_miss): -, then a:b, plays on loop a of every b */
 static const char *const COND_NAME[AUTO_NCOND + 1u] = {"-", "1:2", "2:2", "1:3", "2:3", "3:3", "1:4", "2:4", "3:4", "4:4"};
 static void edit_cond(track_t *t, uint32_t idx, int32_t v) { (void)step_cond_set(t, idx, (uint32_t)v); }
+#endif
+/* its card: the percent, or past 100 the condition ("1:2"), the gauge over the whole range */
+static void chc_cell(cell_t *c, int32_t v)
+{
+    c->label = "CHANCE";
+    c->kind = CK_VAL;
+#if FELUCCA_COND
+    if (v > 100) {
+        cell_val(c, COND_NAME[(v - 100) % (int32_t)(AUTO_NCOND + 1u)]);
+        c->unit = "";
+    } else
+#endif
+    {
+        fmt_int(c->val, v);
+        c->unit = "%";
+    }
+    cell_gauge(c, 0, 0, CHC_TOP, v);
+}
+#if FELUCCA_CHANCE
+/* the step's CHANCE knob (chc_turn): the chance as an event of the automation store, on drum and synth steps alike (this UI
+ * writes events only), past 100 % its condition */
+static int32_t step_chc(const track_t *t, uint32_t idx)
+{
+#if FELUCCA_COND
+    if (step_cond(t, idx))
+        return 100 + (int32_t)step_cond(t, idx);
+#endif
+    return (int32_t)step_chance_of(t, idx);
+}
+static void edit_chance(track_t *t, uint32_t idx, int32_t s)
+{
+    int32_t c;
+    if (!step_has(t, idx) && !(is_drum(t) && dstep_lanes(&t->dstep[idx % NSTEP])))
+        return;
+    c = chc_turn(step_chc(t, idx), s, 0);
+    (void)step_chance_set(t, idx, c > 100 ? 100u : (uint32_t)c);
+#if FELUCCA_COND
+    (void)step_cond_set(t, idx, c > 100 ? (uint32_t)(c - 100) : 0u);
+#endif
+}
 #endif
 /* ---- the note picker (the user, 2026-10-17): STEP with its cards down, nothing held. KNOB 1 picks a note (the drum
  * track: a hit of the selected lane), KNOB 2 moves it a step (SHIFT held: its nudge), KNOB 3 its pitch (the drum track:
@@ -1665,7 +1714,7 @@ static void held_yes(void)
  *   then     the track's sound pages (the SOUND screen's rows, a drum lane's own pages left out): a turn writes the
  *            step's p-lock (FELUCCA_PLOCK; none: no pages)
  * A page button with a step held still jumps to its family's page (step_lock_page) */
-#define EX_N ((FELUCCA_CHANCE != 0) + (FELUCCA_MICRO != 0) + (FELUCCA_FILLS != 0) + (FELUCCA_COND != 0))
+#define EX_N ((FELUCCA_CHANCE != 0) + (FELUCCA_MICRO != 0) + (FELUCCA_FILLS != 0) + (FELUCCA_COND && !FELUCCA_CHANCE))   /* (COND: on CHANCE past 100) */
 static int ex_kind(uint32_t k)                          /* extras cell k: 0 chance, 1 nudge, 2 fill, 3 cond; -1 none */
 {
     uint32_t n = 0;
@@ -1681,9 +1730,9 @@ static int ex_kind(uint32_t k)                          /* extras cell k: 0 chan
     if (n++ == k)
         return 2;
 #endif
-#if FELUCCA_COND
+#if FELUCCA_COND && !FELUCCA_CHANCE
     if (n++ == k)
-        return 3;
+        return 3;                                       /* (with CHANCE: its knob past 100 %, chc_turn) */
 #endif
     (void)n;
     (void)k;
@@ -1771,11 +1820,7 @@ static void extra_cell(uint32_t k, cell_t *c)           /* the first step held's
     c->kind = CK_VAL;
 #if FELUCCA_CHANCE
     if (kd == 0) {
-        v = (int32_t)step_chance_of(tsel(), (uint32_t)i);
-        c->label = "CHANCE";
-        c->unit = "%";
-        fmt_int(c->val, v);
-        cell_gauge(c, 0, 0, 100, v);
+        chc_cell(c, step_chc(tsel(), (uint32_t)i));
         return;
     }
 #endif
