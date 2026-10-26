@@ -1282,6 +1282,7 @@
   "BT_PROJ": {},
   "FAR_OK": {},
   "SD_RING": {},
+  "SD_REC": {},
   "OVERLAY": {},
   "CPU_GUARD": {
    "1": {
@@ -1479,7 +1480,7 @@
   },
   "ENG_NOISE": {
    "1": {
-    "flash": 2828,
+    "flash": 2824,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -1694,7 +1695,7 @@
    }
   }
  },
- "measured": "2026-10-26 13:11",
+ "measured": "2026-10-26 14:08",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
@@ -1716,7 +1717,7 @@
  },
  "checks": {
   "bt-debug": {
-   "hash": "39886f1a",
+   "hash": "7edb7565",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -1813,7 +1814,7 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "6dddeb26",
+   "built_hash": "6f15bd49",
    "sizes": {
     "flash": 570556,
     "ram": 92688,
@@ -1822,7 +1823,7 @@
    }
   },
   "drum-machines": {
-   "hash": "6987dec1",
+   "hash": "273241d6",
    "cfg": {
     "ENG_ANALOG": 0,
     "ENG_DIGITAL": 0,
@@ -1899,7 +1900,7 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "786df00a",
+   "built_hash": "73315223",
    "sizes": {
     "flash": 572752,
     "ram": 95084,
@@ -1908,7 +1909,7 @@
    }
   },
   "sd-card-mots": {
-   "hash": "06df1863",
+   "hash": "08554c36",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -2010,7 +2011,7 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "63479f98",
+   "built_hash": "13d78bfb",
    "sizes": {
     "flash": 761680,
     "ram": 98900,
@@ -2019,7 +2020,7 @@
    }
   },
   "sd-card": {
-   "hash": "06f75957",
+   "hash": "2f9b2872",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -2122,7 +2123,7 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "5216bb18",
+   "built_hash": "33ccaedb",
    "sizes": {
     "flash": 589832,
     "ram": 90044,
@@ -2131,7 +2132,7 @@
    }
   },
   "sd-mode-probe": {
-   "hash": "712f637b",
+   "hash": "5443733e",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -2234,7 +2235,7 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "5169d6a0",
+   "built_hash": "6cbf6f03",
    "sizes": {
     "flash": 580184,
     "ram": 89968,
@@ -2243,7 +2244,7 @@
    }
   },
   "synths-2": {
-   "hash": "75ee78c9",
+   "hash": "68d7da84",
    "cfg": {
     "ENG_ANALOG": 0,
     "ENG_DIGITAL": 0,
@@ -2335,7 +2336,7 @@
     "COND": 1,
     "SEQTOOLS": 1
    },
-   "built_hash": "31afe591",
+   "built_hash": "7cb9a126",
    "sizes": {
     "flash": 572336,
     "ram": 76508,
@@ -2344,7 +2345,7 @@
    }
   },
   "synths": {
-   "hash": "1a797822",
+   "hash": "36040dbf",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -2445,7 +2446,7 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "56ab0d19",
+   "built_hash": "30d18fde",
    "sizes": {
     "flash": 575804,
     "ram": 80104,
@@ -2454,7 +2455,7 @@
    }
   },
   "synths_USBaudio_BTaudio_BTmidi": {
-   "hash": "112d7b0e",
+   "hash": "2dd32449",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -2554,7 +2555,7 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "37c0de69",
+   "built_hash": "2fa4512c",
    "sizes": {
     "flash": 581184,
     "ram": 90364,
@@ -2563,7 +2564,7 @@
    }
   },
   "synths_USBaudio_BTaudio_BTmidi+ble-test": {
-   "hash": "12904afa",
+   "hash": "08a3e331",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -2656,7 +2657,7 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "1147b32c",
+   "built_hash": "3fbc737b",
    "sizes": {
     "flash": 534256,
     "ram": 86068,
@@ -2665,7 +2666,7 @@
    }
   },
   "synths_USBaudio_BTaudio_BTmidi+ble-full": {
-   "hash": "06ecca3a",
+   "hash": "57eca049",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -2759,7 +2760,7 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "0564f25c",
+   "built_hash": "46d49863",
    "sizes": {
     "flash": 528856,
     "ram": 81344,
@@ -2768,7 +2769,7 @@
    }
   },
   "bt-debug~": {
-   "hash": "1fdb16c0",
+   "hash": "6b2b1963",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -2863,7 +2864,7 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "12b02574",
+   "built_hash": "1932720f",
    "sizes": {
     "flash": 559164,
     "ram": 93976,
@@ -2872,7 +2873,7 @@
    }
   },
   "drum-machines~": {
-   "hash": "7367eed5",
+   "hash": "29e615fc",
    "cfg": {
     "ENG_ANALOG": 0,
     "ENG_DIGITAL": 0,
@@ -2944,7 +2945,7 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "38ccbaaf",
+   "built_hash": "28e540d4",
    "sizes": {
     "flash": 579824,
     "ram": 94184,
@@ -2953,7 +2954,7 @@
    }
   },
   "sd-card-mots~": {
-   "hash": "14f251d7",
+   "hash": "40f165e6",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -3051,7 +3052,7 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "6af4816c",
+   "built_hash": "2518d6fb",
    "sizes": {
     "flash": 758820,
     "ram": 105316,
@@ -3060,7 +3061,7 @@
    }
   },
   "sd-card~": {
-   "hash": "34bb8023",
+   "hash": "66942686",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -3161,7 +3162,7 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "391f95ac",
+   "built_hash": "5486d7a7",
    "sizes": {
     "flash": 589336,
     "ram": 89596,
@@ -3170,7 +3171,7 @@
    }
   },
   "sd-mode-probe~": {
-   "hash": "679e8ab5",
+   "hash": "02cdc6f0",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -3275,7 +3276,7 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "1ba3f2b6",
+   "built_hash": "03888a59",
    "sizes": {
     "flash": 578036,
     "ram": 89816,
@@ -3284,7 +3285,7 @@
    }
   },
   "synths-2~": {
-   "hash": "79c7a25e",
+   "hash": "0bdd1415",
    "cfg": {
     "ENG_ANALOG": 0,
     "ENG_DIGITAL": 0,
@@ -3374,7 +3375,7 @@
     "COND": 1,
     "SEQTOOLS": 1
    },
-   "built_hash": "6e39d756",
+   "built_hash": "68024297",
    "sizes": {
     "flash": 563432,
     "ram": 74488,
@@ -3383,7 +3384,7 @@
    }
   },
   "synths~": {
-   "hash": "77e3ca5e",
+   "hash": "450636a5",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -3488,7 +3489,7 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "1f2af89d",
+   "built_hash": "527c8fd0",
    "sizes": {
     "flash": 587428,
     "ram": 87580,
@@ -3497,7 +3498,7 @@
    }
   },
   "synths_USBaudio_BTaudio_BTmidi~": {
-   "hash": "32b466b6",
+   "hash": "76bdf0b1",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -3595,7 +3596,7 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "4d5a8a3d",
+   "built_hash": "2b9ddad8",
    "sizes": {
     "flash": 596132,
     "ram": 91372,
@@ -3604,7 +3605,7 @@
    }
   },
   "synths_USBaudio_BTaudio_BTmidi+ble-test~": {
-   "hash": "42a8be4a",
+   "hash": "06aa9747",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -3697,7 +3698,7 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "040435bc",
+   "built_hash": "2f87c9e1",
    "sizes": {
     "flash": 532124,
     "ram": 86260,
@@ -3706,7 +3707,7 @@
    }
   },
   "synths_USBaudio_BTaudio_BTmidi+ble-full~": {
-   "hash": "0475421e",
+   "hash": "1db790d5",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -3804,7 +3805,7 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "6dc1c738",
+   "built_hash": "191bf167",
    "sizes": {
     "flash": 535992,
     "ram": 81240,
