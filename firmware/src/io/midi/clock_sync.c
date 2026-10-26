@@ -136,7 +136,15 @@ static int32_t sync_lead_t(void)                           /* the offset now: th
     return t;
 }
 #define SY_STEADY 4u                                       /* F8s a steady period apart: a source is present */
-static struct { uint32_t last, dt; uint8_t cnt; } sy_pr[4];   /* per source (MSRC_*): presence */
+#ifndef FELUCCA_LINK
+#define FELUCCA_LINK 0                                     /* (params.c: LINK offered only in builds with it) */
+#endif
+#if FELUCCA_LINK
+#define SY_SRC_LAST MSRC_LINK                              /* the last source sync_select looks at */
+#else
+#define SY_SRC_LAST MSRC_BLE
+#endif
+static struct { uint32_t last, dt; uint8_t cnt; } sy_pr[SY_SRC_LAST + 1];   /* per source (MSRC_*): presence */
 
 static uint32_t sy_div(uint64_t n, uint32_t d)            /* n / d (no 64-bit division in the runtime) */
 {
@@ -186,11 +194,26 @@ static uint32_t sy_allowed(uint32_t s)
 {
     uint32_t m = (uint32_t)song.g[G_SYNC];
     return m == SYNC_AUTO || (m == SYNC_USB && s == MSRC_USB) || (m == SYNC_TRS && s == MSRC_TRS) ||
+#if FELUCCA_LINK
+           (m == SYNC_LINK && s == MSRC_LINK) ||
+#endif
            (m == SYNC_BLE && s == MSRC_BLE);
 }
 
+#if FELUCCA_LINK
+/* AUTO's preference: TRS 4, USB 3, LINK 2, BLE 1 (the most jitter last), none 0 */
+static uint32_t sy_rank(uint32_t s)
+{
+    if (s == MSRC_TRS) return 4u;
+    if (s == MSRC_USB) return 3u;
+    if (s == MSRC_LINK) return 2u;
+    if (s == MSRC_BLE) return 1u;
+    return 0u;
+}
+#else
 /* AUTO's preference: TRS 3, USB 2, BLE 1 (the most jitter last), none 0 */
 static uint32_t sy_rank(uint32_t s) { return s == MSRC_BLE ? 1u : s; }
+#endif
 
 static void sy_follow_src(uint32_t s)                     /* a new source: its clock from scratch */
 {
@@ -200,7 +223,7 @@ static void sy_follow_src(uint32_t s)                     /* a new source: its c
     sy.stop = 0;
 }
 
-/* once a block, stopped: the source to follow (TRS, USB, BLE, or none); never while playing */
+/* once a block, stopped: the source to follow (TRS, USB, LINK, BLE, or none); never while playing */
 static void sync_select(uint32_t now)
 {
     uint32_t s, best = 0;
@@ -215,7 +238,7 @@ static void sync_select(uint32_t now)
         song.g[G_MIDI] = (int16_t)sy.src;                  /* (read-only: the source shown, the editor) */
     if (song.playing || sy.arm)
         return;
-    for (s = MSRC_USB; s <= MSRC_BLE; s++)
+    for (s = MSRC_USB; s <= SY_SRC_LAST; s++)
         if (sy_allowed(s) && sy_present(s, now) && sy_rank(s) > sy_rank(best))
             best = s;
     if (best != sy.src)

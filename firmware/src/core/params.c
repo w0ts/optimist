@@ -40,12 +40,19 @@ static const char *const N_ORDER[] = {"NOTE", "PLAY"};
 static const char *const N_CLICK[] = {"OFF", "REC", "ON", "AUTO"};   /* G_CLOCK is the metronome (seq.c click_tick; AUTO: while nothing else plays) */
 static const char *const N_NOTE[] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
 static const char *const N_DASH[] = {"--"};
-#if defined(FELUCCA_BLE) && FELUCCA_BLE
-static const char *const N_SYNC[] = {"INT", "USB", "TRS", "AUTO", "BLE"};   /* SYNC_* (core.h); AUTO: TRS, USB, BLE, INT */
-#else
-static const char *const N_SYNC[] = {"INT", "USB", "TRS", "AUTO"};          /* (no BLE MIDI: no SYNC BLE) */
+#ifndef FELUCCA_LINK
+#define FELUCCA_LINK 0                       /* Ableton Link over Wi-Fi (src/link/, docs/LINK-DESIGN.md): no builder item yet */
 #endif
+#if defined(FELUCCA_BLE) && FELUCCA_BLE && FELUCCA_LINK
+static const char *const N_SYNC[] = {"INT", "USB", "TRS", "AUTO", "BLE", "LINK"};   /* SYNC_* (core.h); AUTO: TRS, USB, LINK, BLE, INT */
+static const char *const N_CLKSRC[] = {"INT", "USB", "TRS", "BLE", "LINK"};         /* G_MIDI: the clock followed (MSRC_*) */
+#elif defined(FELUCCA_BLE) && FELUCCA_BLE
+static const char *const N_SYNC[] = {"INT", "USB", "TRS", "AUTO", "BLE"};   /* SYNC_* (core.h); AUTO: TRS, USB, BLE, INT */
 static const char *const N_CLKSRC[] = {"INT", "USB", "TRS", "BLE"};         /* G_MIDI: the clock followed (MSRC_*) */
+#else
+static const char *const N_SYNC[] = {"INT", "USB", "TRS", "AUTO"};          /* (no BLE MIDI: no SYNC BLE, no LINK: Wi-Fi needs the BLE radio code) */
+static const char *const N_CLKSRC[] = {"INT", "USB", "TRS", "BLE"};         /* G_MIDI: the clock followed (MSRC_*) */
+#endif
 static const char *const N_GO[] = {"--", "GO"};
 static const char *const N_SLCR[] = {"OFF", "GATE", "STUT"};             /* SL_OFF .. SL_STUT (slicer.c) */
 #if INS_FX || FELUCCA_USB_AUDIO                      /* (fx_slots.c UT_DESC, the USB input slots, names them too) */
