@@ -1147,7 +1147,7 @@ static void draw_overlay(uint32_t ov)
 {
     uint32_t sig = ov == 4u ? hu(hu(5u, ble_code_sig()), settings.palette)
                  : ov == 3u ? hu(hu(hu(0x71u, (fm1_ms - rh.t1) * 64u / RH_CLEAR_MS), (rh.trk * 16u + settings.palette) * 32u + (uint32_t)(rh.lane + 1)), rh.motion)
-                 : ov == 1u ? hs(hs(hu(hu(3u, ui.arm_danger), settings.palette + (ui.arm_ring ? (fm1_ms - ui.arm_ms) * 64u / RH_CLEAR_MS * 256u : 0u)), ui.arm_verb), ui.arm_arg)
+                 : ov == 1u ? hs(hs(hu(hu(3u, ui.arm_danger + ui.arm_stop * 2u), settings.palette + (ui.arm_ring ? (fm1_ms - ui.arm_ms) * 64u / RH_CLEAR_MS * 256u : 0u)), ui.arm_verb), ui.arm_arg)
                  : ov == 5u ? hu(hu(0x505u, pre_sig()), pop_kind)
                            : hs(hu(4u, ui.msg_st), ui.msg);
     if (sig == ui.sig[4])

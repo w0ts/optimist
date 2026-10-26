@@ -28,6 +28,7 @@ static uint32_t sdm_count(void);
 static const char *sdm_slot(uint32_t k, uint32_t *dir, uint32_t *cut);
 static const char *sdm_base_of(uint32_t k);
 static int sdm_into(uint32_t k);
+static void sdm_load_later(uint32_t k);
 static int sdm_up(void);
 static int sdm_at_top(void);
 static void sdm_folder(char *b, uint32_t cap);
@@ -264,6 +265,7 @@ static void sdc_ask(uint32_t r, uint32_t l, uint32_t op, uint32_t k)
     }
     op_arm(SCR_PROJECT, r, 0, SDO_NAME_S[op], a,
            op != SDO_LOAD || (l == SDC_PROJ ? work_changed() : l == SDC_PRE ? snd_edited(song.sel) : snd_edited(TRK_DRUM)));
+    ui.arm_stop = (uint8_t)(l == SDC_PROJ && op == SDO_LOAD && (song.playing || transport_req));
 }
 static int sdc_no(void)                                 /* HOME on "SAVE <the work>?": the LOAD asked next (prj_no's) */
 {
@@ -293,6 +295,8 @@ static int sdc_yes(uint32_t r, uint32_t kind, uint32_t ok)
             sdm_load_name(want);                        /* (the card's copy whole first: never the flash copy's only) */
     } else if (op == SDO_SAVE) {
         sdc_name_for(l, k);
+    } else if (op == SDO_LOAD && l == SDC_PROJ && (song.playing || transport_req)) {
+        sdm_load_later(k);                              /* (stopped, loaded, played again: op_edits.c pj_tick) */
     } else {
         sdm_do(op, k);
     }

@@ -100,7 +100,11 @@ static void work_mark(void)                             /* the work is as stored
  * transport stops, the operation runs once it has stopped (a flash write stops the audio), then PLAY again */
 static int8_t prj_cur = -1;                             /* the project slot loaded or saved last (-1: none, NEW or power-on): the PROJECT page
                                                          * opens on it, so that a SAVE asks for that slot (the user, 2026-10-21) */
-static uint8_t pj_op, pj_slot;                          /* 1 load, 2 save (the slot); 0 none */
+static uint8_t pj_op, pj_slot;                          /* 1 load, 2 save (the slot), 3 the card's project load
+                                                         * (sd_mode.c sdm_load_later); 0 none */
+#if FELUCCA_SD_UI
+static void sdm_load_now(void);                        /* storage/sd/sd_mode.c */
+#endif
 static void pj_defer(uint32_t op, uint32_t slot)
 {
     pj_op = (uint8_t)op;
@@ -162,6 +166,10 @@ static void pj_tick(void)                               /* once a frame (lay_fra
     pj_op = 0;
     if (op == 1u)
         prj_load_go(pj_slot);
+#if FELUCCA_SD_UI
+    else if (op == 3u)
+        sdm_load_now();
+#endif
     else
         (void)prj_save_go(pj_slot);
     transport_req = 1;

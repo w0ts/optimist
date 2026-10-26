@@ -327,6 +327,7 @@ static void prj_ask(uint32_t r, uint32_t kind, uint32_t op, uint32_t s)
     }
 #endif
     op_arm(SCR_PROJECT, r, 0, PO_NAME[op], t, prj_danger(kind, op, s));
+    ui.arm_stop = (uint8_t)(kind == PR_PROJECT && op == PO_LOAD && (song.playing || transport_req));
 }
 /* HOME on "SAVE <open>?": not saved, the LOAD asked next (red: the changes go); HOME again cancels (the user, 2026-10-25:
  * "if i dont want to save the current project i am in a dead loop"). 0: not that question, HOME cancels as usual */
