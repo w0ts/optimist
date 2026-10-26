@@ -246,6 +246,7 @@ static HOT2 __attribute__((noinline)) void ifx_mod(ifx_drv_t *s, uint32_t fx, in
 }
 #endif
 #include "tapespit.c"                                   /* TAPE SPIT (2026-10-19): the shapers' range, their own state */
+#include "exgain.c"                                     /* EXGN: the example insert (EX_GAIN, CONTRIBUTING.md) */
 #if IFX_DRV || IFX_MOD
 /* shaper ty's state on instance i (0: not built) */
 AINL ifx_drv_t *ifx_sh_st(uint32_t ty, uint32_t i)
@@ -615,6 +616,9 @@ AINL int32_t ifx_w(uint32_t ty, uint32_t i)
         return s ? s->w : 0;
     }
 #endif
+#if FELUCCA_EX_GAIN
+    case FXT_EXGN: return ifx_exgn[i % IFX_NI].g;      /* [INSERT] (its gain while it acts, 0 at rest) */
+#endif
     default: return 0;
     }
 }
@@ -693,6 +697,9 @@ static HOT2 __attribute__((noinline)) void ifx_run(uint32_t ty, uint32_t i, int3
             ifx_ts_run(s, ty == FXT_SPIT, a, b, n, sh);
         break;
     }
+#endif
+#if FELUCCA_EX_GAIN
+    case FXT_EXGN: ifx_exgn_run(&ifx_exgn[i % IFX_NI], a, b, n); break;   /* [INSERT] (a part's, the bus's L, R) */
 #endif
     default: break;
     }
@@ -778,6 +785,9 @@ static HOT2 __attribute__((noinline)) void ifx_quiet_part(const track_t *t)
                 ifx_zero(s, sizeof *s);
             break;
         }
+#endif
+#if FELUCCA_EX_GAIN
+        case FXT_EXGN: ifx_exgn[k].g = 0; break;        /* [INSERT] (to rest: the next note starts at 0 dB) */
 #endif
         default: break;
         }

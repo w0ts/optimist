@@ -88,6 +88,12 @@
 #if FELUCCA_ENG_WAVE
 #include "clipper/eng_wave.c"                 /* WAVE (Clipper's wavetables): engine 25 */
 #endif
+#if FELUCCA_EX_SQUARE && !FELUCCA_ANALOG2
+#error "the SQUARE example engine takes its engine number (26) from the ANALOG 2 build"
+#endif
+#if FELUCCA_EX_SQUARE
+#include "square/eng_square.c"                /* SQUARE (the example engine, CONTRIBUTING.md): engine 26 */
+#endif
 
 /* The part's engine memory: the running state an engine keeps per part beyond its voices (FM6's voices and MONO
  * keys, PHYS's model slots, GRAIN's grains and seek index, ACID's 303). A part plays one engine at a time, so one
@@ -155,6 +161,7 @@ static const engine_t *const ENGINES[NENGINES] = {ENGINE_LIST(ENG_PTR_)};
 #define ENG_IX_NOISE ((uint32_t)ENG_SLOT_NOISE)
 #define ENG_IX_DRONE ((uint32_t)ENG_SLOT_DRONE)
 #define ENG_IX_PLAITS ((uint32_t)ENG_SLOT_PLAITS)
+#define ENG_IX_SQUARE ((uint32_t)ENG_SLOT_SQUARE)   /* (the tests; 0xFF when not built) */
 #define ENG_IX_PHYS ((uint32_t)ENG_SLOT_PHYS)  /* (the tests) */
 #define ENG_IX_ACID ((uint32_t)ENG_SLOT_ACID)
 #define ENG_IX_CZ ((uint32_t)ENG_SLOT_CZ)
