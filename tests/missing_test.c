@@ -24,6 +24,9 @@
 static struct { char msg[40]; uint32_t msg_t; uint8_t layer, hold_kind; int force; } ui;
 static uint8_t settings_later;
 static void ui_message(const char *m) { str_cpy(ui.msg, m, sizeof ui.msg); ui.msg_t = 40; }
+/* the UI's popup after a load (op_state.c miss_show): here the bar, ~2.5 s, as the scan's checks read it */
+static void miss_show(const char *items) { str_cpy(ui.msg, "MISSING: ", sizeof ui.msg); str_cpy(ui.msg + 9, items, sizeof ui.msg - 9); ui.msg_t = 150; }
+static int miss_busy(void) { return ui.msg_t != 0; }
 static void ui_say(const char *a, const char *b) { (void)b; ui_message(a); }
 static int project_used(uint32_t i) { return i < 2; }
 static void arrangement_apply(uint32_t s) { (void)s; }
@@ -198,10 +201,7 @@ static int reduce(char **argv)
     ui.force = 1;
     frame();
     frames(160);
-    check("the message stays until HOME (2026-10-25: past the old ~2.5 s)", ui.msg_t && !strcmp(ui.msg, "MISSING: FM6 T1, DELAY +8"));
-    check("HOME lets it go (miss_dismiss)", miss_dismiss() && ui.msg_t == 0u && !ui.msg[0]);
-    frames(160);
-    check("... and it does not come back", ui.msg_t == 0u);
+    check("the message goes after ~2.5 s", ui.msg_t == 0u);
     load(&a, 1);
     frames(2);
     check("the same project again: nothing said", ui.msg_t == 0u);
@@ -220,8 +220,6 @@ static int reduce(char **argv)
     frame();
     check("... its part plays ANALOG meanwhile, the audio goes on", ENGINES[trk[1].eng_req] == &ENG_ANALOG && song.playing);
     frames(160);
-    check("... PHYS T2 still up until HOME", !strcmp(ui.msg, "MISSING: PHYS T2") && ui.msg_t);
-    (void)miss_dismiss();
     load(&a, 0);
     load(&b, 0);
     frames(2);
@@ -277,8 +275,8 @@ static int reduce(char **argv)
     check("the full build's kit 1 loads", ukit_load(0) == 1);
     frame();
     printf("missing:   \"%s\"\n", ui.msg);
-    check("the user kit: its 909 and 606, its sample on USR2, its edit are named (its lane's DLY: DELAY, said already)",
-          !strcmp(ui.msg, "MISSING: KIT 909, KIT 606 +2") && ui.msg_t);
+    check("the user kit: the popup's 16 characters, KIT 909 and +3 (606, the USR2 sample, the edit; its lane's DLY: DELAY, said already)",
+          !strcmp(ui.msg, "MISSING: KIT 909 +3") && ui.msg_t);
     for (n = miss_scan(), i = 0; i < n; i++)
         ;
     check("... all of them in the list", n >= 5u);

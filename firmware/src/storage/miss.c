@@ -276,40 +276,27 @@ static uint32_t miss_fresh(uint32_t n)
 
 #ifndef MISS_SCAN_ONLY
 static uint8_t miss_done, miss_ix;                    /* the miss_gen looked at; TOOLS > MISS: the item shown */
-#define MISS_SHOW 150u                                /* frames the message stays (~2.5 s; ui_say's 40 are short) */
-/* the line stays until HOME (the user, 2026-10-25: "it should remain, as long as the user does not dismiss it with
- * home"): another message takes the bar for its time, then the line is back */
-static char miss_txt[sizeof ui.msg];                  /* the line kept; "": none */
+#define MISS_SHOW 150u                                /* frames a message stays (~2.5 s; ui_say's 40 are short) */
+/* after a load, what is new: a popup that stays until HOME or SAVE (the UI: op_layers.c miss_show; the user, 2026-10-26:
+ * "this should have been a modal popup when loading the project"); the host test's stand-in puts it in the bar */
+static void miss_show(const char *items);             /* the items' line, "PHYS T2, KIT 909 +1" */
+static int miss_busy(void);                           /* a message or a question up (the UI: op_state.c) */
 
 /* a frame of the main loop (ui_draw): after a load, say what is new; on TOOLS, the count for MISS */
 static void miss_tick(void)
 {
     uint32_t n;
+    char b[40];
     if (cur_page()->id[2] == G_MISS && cur_page()->scope == SC_GLOBAL)
         miss_n = (int16_t)miss_scan();
-    if (ui.msg_t)                                     /* (a message up: this one waits for it) */
+    if (miss_done == miss_gen || miss_busy())         /* (a message or a question up: this one waits for it) */
         return;
-    if (miss_done != miss_gen) {
-        miss_done = miss_gen;
-        n = miss_fresh(miss_scan());
-        if (n)
-            miss_line(miss_txt, n, ui.layer != LY_PLAY || ui.hold_kind ? 14u : 25u);
+    miss_done = miss_gen;
+    n = miss_fresh(miss_scan());
+    if (n) {
+        miss_line(b, n, 9u + 13u);                    /* ("MISSING: " and 13 characters of items, then " +n": the popup's 16) */
+        miss_show(b + 9);
     }
-    if (miss_txt[0]) {
-        str_cpy(ui.msg, miss_txt, sizeof ui.msg);
-        ui.msg_t = MISS_SHOW;
-    }
-}
-/* HOME with the line up: it goes (and HOME does nothing else). 1: taken */
-static int miss_dismiss(void)
-{
-    if (!miss_txt[0])
-        return 0;
-    miss_txt[0] = 0;
-    ui.msg[0] = 0;
-    ui.msg_t = 0;
-    ui.force = 1;                                     /* (the header back to the page's title) */
-    return 1;
 }
 
 /* TOOLS > MISS turned: the next / previous item, "MISSING 2/3: KIT 909" */
