@@ -42,7 +42,7 @@ writeFileSync(join(WORK, "sloop.fwsc"), fakePackage("FM-1_905"));
 const SHA = createHash("sha256").update(raw).digest("hex");
 const SITE = join(WORK, "site");
 execFileSync(PYTHON, ["-c", "import json, sys; sys.path.insert(0, 'web'); import make_site; from pathlib import Path; "
-  + "fl = [{**f, 'pkg': Path(sys.argv[1])} for f in json.load(open('web/flavours.json'))['flavours']]; make_site.main('0.1-e2e', sys.argv[2], releases=[{'tag': 'v0.1-e2e', 'date': '2026-10-25', 'flavours': fl}])",
+  + "fl = [{**f, 'pkg': Path(sys.argv[1]), 'sim': None} for f in json.load(open('web/flavours.json'))['flavours']]; make_site.main('0.1-e2e', sys.argv[2], releases=[{'tag': 'v0.1-e2e', 'date': '2026-10-25', 'flavours': fl}])",
   join(WORK, "fake.fwsc"), SITE], { cwd: ROOT, stdio: ["ignore", "ignore", "inherit"], env: { ...process.env, OPTIMIST_SOURCE_REF: "v0.1-e2e" } });
 const PAGE = join(SITE, "webapp", "installer", "index.html");
 if (styleFile) {                                     /* another shared style (and its font) in place of ours */

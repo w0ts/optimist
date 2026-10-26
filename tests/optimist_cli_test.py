@@ -416,11 +416,15 @@ with tempfile.TemporaryDirectory() as d:
         # the releases (pages.yml downloads them): DIR/TAG/release.json + the release's packages; a published profile's on
         # the site under firmware/r/TAG/, a shipped-only one's not; the releases listed first, newest first
         rel = Path(d) / "releases"
+        REL_SHA = "498a3ae47c4f01a6c0cc891c794f8cd2ed78cd66"
         for tag, date in (("v0.1", "2026-10-01T00:00:00Z"), ("v0.2", "2026-10-15T00:00:00Z")):
             (rel / tag).mkdir(parents=True)
-            (rel / tag / "release.json").write_text(json.dumps({"tag": tag, "date": date}))
+            (rel / tag / "release.json").write_text(json.dumps({"tag": tag, "date": date, "sha": REL_SHA if tag == "v0.2" else "HEAD"}))
             for prof in ("synths_USBaudio_BTaudio_BTmidi", "no-such-profile", "user-default"):   # (published; none at all; left off)
                 shutil.copy(fwsc, rel / tag / f"optimist-{tag[1:]}-{prof}.fwsc")
+        check("release sims: pages.yml builds each package of the latest release (its tag's commit), none of the older ones",
+              ms.release_sims(rel) == [("v0.2", REL_SHA, "synths_USBaudio_BTaudio_BTmidi"), ("v0.2", REL_SHA, "no-such-profile")])   # (web/flavours.json's default first)
+        (rel / "v0.2" / "optimist-sim-synths_USBaudio_BTaudio_BTmidi.wasm").write_bytes(b"\0asm")   # (what pages.yml builds from the tag)
         rs = ms.releases_of(rel, man)
         ms.main("9.9-test", Path(d) / "site3", ms.flavours_of(man), rs)
         sj = json.loads((Path(d) / "site3/webapp/installer/site.json").read_text(encoding="utf-8"))
@@ -436,13 +440,22 @@ with tempfile.TemporaryDirectory() as d:
               and [x["pkg"] for x in sj["packages"][:2]] == ["../../firmware/r/v0.2/optimist-0.2-no-such-profile.fwsc",
                                                            "../../firmware/r/v0.2/optimist-0.2-synths_USBaudio_BTaudio_BTmidi.fwsc"]
               and sj["packages"][0]["date"].startswith("2026-10-15"))
+        rsim = {x["pkg"]: x.get("sim") for x in sj["packages"] if x["release"]}
+        check("releases: site.json names the latest release (tag, its commit, date): the builder and the simulator start there",
+              sj.get("latest") == {"tag": "v0.2", "sha": REL_SHA, "date": "2026-10-15T00:00:00Z"}
+              and rs[1]["sha"] == "" and ms.latest_of(rs[1:]) is None and ms.latest_of([]) is None)
+        check("releases: the latest release's simulator, built from its tag, next to its package (firmware/r/TAG/*.wasm); none without one",
+              rsim["../../firmware/r/v0.2/optimist-0.2-synths_USBaudio_BTaudio_BTmidi.fwsc"] == "../../firmware/r/v0.2/optimist-0.2-synths_USBaudio_BTaudio_BTmidi.wasm"
+              and (Path(d) / "site3/firmware/r/v0.2/optimist-0.2-synths_USBaudio_BTaudio_BTmidi.wasm").is_file()
+              and rsim["../../firmware/r/v0.2/optimist-0.2-no-such-profile.fwsc"] is None
+              and rsim["../../firmware/r/v0.1/optimist-0.1-synths_USBaudio_BTaudio_BTmidi.fwsc"] is None)
         check("the site carries every Simulator module next to the editor (bk.js missing broke the tab)",
               all((Path(d) / "site3/webapp/editor/sim" / f.name).is_file() for f in (ROOT / "web/sim").iterdir() if f.suffix in (".js", ".css")))
         (Path(d) / "x.wasm").write_bytes(b"\0asm")
         ms.main("dev", Path(d) / "site4", sims=[{"id": "local", "title": "Local build: synth", "sim": Path(d) / "x.wasm"}])
         sj4 = json.loads((Path(d) / "site4/webapp/installer/site.json").read_text(encoding="utf-8"))
         check("the local site (make web): no firmware at all, its simulator alone (sims: the Simulator tab, not the installer)",
-              sj4["packages"] == [] and not list((Path(d) / "site4/firmware").glob("optimist-*.fwsc"))
+              sj4["packages"] == [] and "latest" not in sj4 and not list((Path(d) / "site4/firmware").glob("optimist-*.fwsc"))
               and sj4["sims"] == [{"id": "local", "title": "Local build: synth", "sim": "../../firmware/optimist-sim-local.wasm"}]
               and (Path(d) / "site4/firmware/optimist-sim-local.wasm").is_file())
         check("icon: the site ships the icon files and every page links one relatively",

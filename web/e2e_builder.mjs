@@ -223,7 +223,8 @@ const ui = await run(`${U} await B.choosePreset("flavour:default"); await until(
 ok(ui.key === ui.keyIs && /^[0-9a-f]{64}$/.test(ui.key) && same(ui.bars, ["flash", "ram", "pool", "ramtext"]) && !ui.build && /no GitHub account/.test(ui.note) && !ui.dl,
   "page: the key shown, four gauges (FLASH RAM POOL RAMTEXT), Build in the cloud on with its note, Download on");
 /* Build: the same configuration built before is ready at once (the cloud-builds branch, stubbed); else the relay (Turnstile
-   and the relay stubbed): sent, then followed (its ?status=), its issue linked; the relay down: the issue form opens */
+   and the relay stubbed): sent, then followed (its ?status=), its issue linked; the relay down: said in the Build card,
+   nothing opened (never the GitHub issue form, the user 2026-10-25). Here no site.json: main, so the site's own commit */
 const cb = await run(`${U} const realFetch = window.fetch, opened = []; const realOpen = window.open; window.open = (u) => { opened.push(u); return {}; };
   const ev = B.state.view.eval; let hit = false, relay = "up"; const posted = [], polled = [];
   const json = (o, status = 200) => Promise.resolve(new Response(JSON.stringify(o), { status }));
@@ -243,18 +244,18 @@ const cb = await run(`${U} const realFetch = window.fetch, opened = []; const re
   $("#build").click(); await until(() => $("#buildwatch").querySelector("a[href='https://github.com/w0ts/optimist/issues/99']") && polled.length);
   const sent = posted[0], openedOnSend = opened.length, steps = [...$("#buildwatch").querySelectorAll(".steps li")].map((li) => li.dataset.st).join();
   [...$("#buildwatch").querySelectorAll("button")].find((x) => /Stop following/.test(x.textContent)).click();
-  relay = "down"; $("#build").click(); await until(() => opened.length === 1);
-  const issue = new URL(opened[0]);
+  relay = "down"; $("#build").click(); await until(() => /did not answer/.test($("#buildmsg").textContent), 30000);
+  const downMsg = $("#buildmsg").textContent, from = $("#bref").value;
   hit = true; $("#build").click(); await until(() => [...$("#buildwatch").querySelectorAll("button")].some((x) => x.textContent === "Flash it"));
   const ready = { flash: true, sim: [...$("#buildwatch").querySelectorAll("button")].some((x) => /simulator/.test(x.textContent)),
     mine: JSON.parse(localStorage.getItem("optimist-my-build") || "null") };
   [...$("#buildwatch").querySelectorAll("button")].find((x) => x.textContent === "Dismiss").click();
   window.fetch = realFetch; window.open = realOpen; delete window.turnstile;
-  return { sent, openedOnSend, steps, ready, key: ev.key, path: issue.pathname, template: issue.searchParams.get("template"), commit: issue.searchParams.get("commit"), config: issue.searchParams.get("config"), dump: B.state.view.dump, opened: opened.length };`);
+  return { sent, openedOnSend, steps, ready, key: ev.key, downMsg, from, dump: B.state.view.dump, opened: opened.length };`);
 ok(cb.sent && cb.sent.turnstile === "tok" && cb.sent.commit === SHA && cb.sent.config === cb.dump && cb.openedOnSend === 0 && cb.steps === "on,wait,wait",
   "Build: through the relay (the Turnstile token, the commit, the .config), then followed (Sent), its issue linked, no form");
-ok(cb.path.endsWith("/issues/new") && cb.template === "cloud-build.yml" && cb.commit === SHA && cb.config === cb.dump && cb.opened === 1,
-  "Build: the relay down, the issue form with the commit and the .config");
+ok(/^Not sent: the build service did not answer/.test(cb.downMsg) && cb.opened === 0 && cb.from === "main",
+  "Build: the relay down: said in the Build card, nothing opened (no issue form); built from main = the site's commit");
 ok(cb.ready.flash && cb.ready.sim && cb.ready.mine && cb.ready.mine.id === cb.key.slice(0, 16),
   "Build: the same configuration built before: Flash it and Try it in the simulator at once, kept as your build for Flash");
 const tg = await run(`${U} const before = B.state.view.eval.budget.total.flash; const c = $("#it-ENG_FM6"); const was = c.checked; c.click();
@@ -470,6 +471,44 @@ await sleep(200);
 await top0();
 const ph2 = await scrollW();
 ok(ph2.sw <= ph2.cw, `390 px phone, dark: no sideways scroll (${ph2.sw} <= ${ph2.cw})`);
+
+/* ---- "Build from": the latest published release by default (site.json "latest", beside the builder as on the site; the
+   user, 2026-10-26), its data read from that commit (raw.githubusercontent.com: the network); main a choice that stays
+   in the URL (?ref=main: the site's own copy); no site.json or a broken one: main */
+await metrics(1440, 1000, false);
+const REL = { tag: "v0.2", sha: process.env.E2E_RELEASE_SHA || "498a3ae47c4f01a6c0cc891c794f8cd2ed78cd66", date: "2026-10-25T19:58:05Z" };
+mkdirSync(join(SITE, "webapp", "installer"), { recursive: true });
+const SITE_JSON = join(SITE, "webapp", "installer", "site.json");
+const openAt = async (path) => {
+  const n0 = events.length;
+  if (path) await send("Page.navigate", { url: `http://127.0.0.1:${port}${path}` });
+  else { await run(`const sel = document.querySelector("#bref"); sel.value = "main"; sel.dispatchEvent(new Event("change")); return true;`).catch(() => true); }
+  await sleep(1500);
+  const r = await run(`${U} const W = () => window.optimistBuilder; await until(() => (W() && W().readyFlag) || (W() && document.querySelector("#loading").classList.contains("failed")), ${START_MS});
+    const H = W(), sel = $("#bref");
+    return { ready: !!H.readyFlag, load: $("#loadtext").textContent, value: sel.value, text: sel.selectedOptions[0] ? sel.selectedOptions[0].textContent : "", options: [...sel.options].map((o) => [o.value, o.textContent]),
+      commit: H.state.commit, search: location.search, preset: $("#bpreset").value, errors: H.state.view ? H.state.view.eval.errors.length : -1 };`);
+  r.data = events.slice(n0).filter((e) => e.method === "Network.requestWillBeSent").map((e) => e.params.request.url).filter((u) => /\/data\/(registry|profiles|python)\.json$/.test(u));
+  return r;
+};
+writeFileSync(SITE_JSON, JSON.stringify({ version: "0.2", packages: [], sims: [], latest: REL }) + "\n");
+const rl = await openAt("/webapp/builder/");
+ok(rl.ready && rl.value === REL.sha && rl.text === "v0.2 (latest release)" && rl.commit === REL.sha && rl.search === "" && !rl.errors
+  && rl.data.length >= 2 && rl.data.every((u) => u.startsWith(`https://raw.githubusercontent.com/w0ts/optimist/${REL.sha}/web/builder/data/`))
+  && rl.options.some(([v, t]) => v === "main" && t === "main (development)"),
+  `Build from: no ?ref opens the latest release, ${REL.tag} (its data from that commit, ${rl.data.length} files; the key at its commit), main offered${rl.ready ? "" : ": " + rl.load}`);
+const rm = await openAt(null);                       /* (main picked in the select: the page again, on main) */
+ok(rm.ready && rm.search === "?ref=main" && rm.value === "main" && rm.commit === SHA && rm.data.length >= 2 && rm.data.every((u) => u.startsWith(`http://127.0.0.1:${port}/webapp/builder/data/`)),
+  `Build from: main picked = the page again with ?ref=main, the site's own copy and commit (${rm.search})`);
+const rm2 = await openAt("/webapp/builder/?ref=main");
+ok(rm2.ready && rm2.value === "main" && rm2.commit === SHA && rm2.data.every((u) => u.startsWith(`http://127.0.0.1:${port}/`))
+  && rm2.options.some(([v, t]) => v === REL.sha && t === "v0.2 (latest release)"), "Build from: ?ref=main opened directly stays on main; the latest release still offered");
+writeFileSync(SITE_JSON, "{ not json");
+const rb = await openAt("/webapp/builder/");
+ok(rb.ready && rb.value === "main" && rb.commit === SHA && rb.data.every((u) => u.startsWith(`http://127.0.0.1:${port}/`)),
+  "Build from: a broken site.json (or none, above): main, as before");
+rmSync(SITE_JSON);
+
 const errs = events.filter((e) => e.method === "Runtime.exceptionThrown");
 ok(!errs.length, `no uncaught error in the page${errs.length ? ": " + JSON.stringify(errs[0].params).slice(0, 300) : ""}`);
 
