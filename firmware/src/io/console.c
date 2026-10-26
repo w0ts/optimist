@@ -217,11 +217,13 @@ static void con_wifi_cnt(void)
     }
     con_puts("\r\n");
 }
+#define CON_WIFI_MAX 2400u                                /* one 802.11 frame (2346) + its receive header */
+static uint32_t con_wifi_buf[(CON_WIFI_MAX + 8u) / 4u + 1u];   /* (wifirx and wifiscan share it) */
 static int32_t con_wifi_listen(uint32_t *buf, uint32_t ms, uint32_t *got)   /* frames for ms: length + 48 bytes each */
 {
     uint32_t t0 = fm1_ticks(), i;
     while (fm1_ticks() - t0 < ms * 1000u * FM1_TICKS_PER_US && *got < 8u) {
-        int32_t n = fm1_wifi_rx(buf);
+        int32_t n = fm1_wifi_rx(buf, CON_WIFI_MAX);
         fm1_wdt_feed();
         if (!n)
             continue;
@@ -237,7 +239,7 @@ static int32_t con_wifi_listen(uint32_t *buf, uint32_t ms, uint32_t *got)   /* f
 }
 static void con_wifirx(const char *p)
 {
-    static uint32_t buf[(FM1_WIFI_RX_MAX + 8u) / 4u + 1u];
+    uint32_t *buf = con_wifi_buf;
     static const uint8_t chans[3] = {1u, 6u, 11u};
     uint32_t t0, c, got = 0, filt, ch;
     int on, all;
@@ -319,6 +321,83 @@ static void con_wifiup(void)
     con_kx("rx_filter", fm1_wifi_mac_rd(FM1_WIFI_RX_FILTER));
     con_kx("mac_sys_ctrl", fm1_wifi_mac_rd(0x1004u));
     con_kv("channel", (int32_t)fm1_wifi_channel());
+}
+/* wifiscan: the networks around, from their beacons (and probe responses): channels 1-13, 150 ms each (a beacon is
+ * every 102 ms), the RX filter open meanwhile; each new BSSID listed with its channel (the beacon's DS parameter),
+ * the RSSI byte of the receive header and its SSID. Needs the Wi-Fi side up (wifiup). Listens only */
+struct con_bss { uint8_t bssid[6], ch; int8_t rssi; char ssid[33]; };
+static void con_wifi_beacon(const uint8_t *f, uint32_t n, struct con_bss *t, uint32_t *nt, uint32_t ch)
+{
+    const uint8_t *h = f + FM1_WIFI_RXWI, *e;
+    uint32_t len = fm1_wifi_rx_mpdu_len(f), i;
+    struct con_bss b;
+    if (len + FM1_WIFI_RXWI > n || len < 36u || (h[0] != 0x80u && h[0] != 0x50u))
+        return;                                           /* (beacon 0x80, probe response 0x50) */
+    for (i = 0; i < 6u; i++)
+        b.bssid[i] = h[16u + i];
+    for (i = 0; i < *nt; i++)
+        if (!memcmp(t[i].bssid, b.bssid, 6))
+            return;
+    b.ch = (uint8_t)ch;
+    b.rssi = (int8_t)fm1_wifi_rx_rssi(f);
+    b.ssid[0] = 0;
+    e = h + len;
+    for (h += 36u; h + 2u <= e && h + 2u + h[1] <= e; h += 2u + h[1]) {
+        if (h[0] == 0u && h[1] <= 32u) {                  /* SSID */
+            for (i = 0; i < h[1]; i++)
+                b.ssid[i] = (h[2 + i] >= 32u && h[2 + i] < 127u) ? (char)h[2 + i] : '.';
+            b.ssid[h[1]] = 0;
+        } else if (h[0] == 3u && h[1] == 1u) {           /* DS parameter: the AP's own channel */
+            b.ch = h[2];
+        }
+    }
+    if (*nt < 8u)
+        t[(*nt)++] = b;
+}
+static void con_wifiscan(void)
+{
+    uint32_t *buf = con_wifi_buf;
+    static struct con_bss t[8];
+    uint32_t nt = 0, ch, frames = 0, i, filt, ch0, t0;
+    if (!rfs_is_up() || !(fm1_wifi_rd(FM1_WL_EN) & FM1_WL_EN_WIFI)) {
+        con_puts("Wi-Fi not up: wifiup first\r\n");
+        return;
+    }
+    filt = fm1_wifi_mac_rd(FM1_WIFI_RX_FILTER);
+    ch0 = fm1_wifi_channel();
+    fm1_wifi_mac_wr(FM1_WIFI_RX_FILTER, FM1_WIFI_RX_FILTER_ALL);
+    for (ch = 1; ch <= 13u; ch++) {
+        fm1_wifi_set_channel(ch);
+        t0 = fm1_ticks();
+        while (fm1_ticks() - t0 < 150000u * FM1_TICKS_PER_US) {
+            int32_t n = fm1_wifi_rx(buf, CON_WIFI_MAX);
+            fm1_wdt_feed();
+            if (n < 0)
+                continue;                                 /* (a frame too long for the buffer: skipped) */
+            if (n > 0) {
+                frames++;
+                con_wifi_beacon((const uint8_t *)buf + 4u, (uint32_t)n, t, &nt, ch);
+            }
+        }
+    }
+    fm1_wifi_set_channel(ch0);
+    fm1_wifi_mac_wr(FM1_WIFI_RX_FILTER, filt);
+    con_kv("frames", (int32_t)frames);
+    for (i = 0; i < nt; i++) {
+        uint32_t k;
+        con_puts("bss ");
+        for (k = 0; k < 6u; k++) {
+            con_hex(t[i].bssid[k], 2);
+            con_putc(k < 5u ? ':' : ' ');
+        }
+        con_puts("ch ");
+        con_hex(t[i].ch, 2);
+        con_puts(" rssi ");
+        con_hex((uint8_t)t[i].rssi, 2);
+        con_puts(" \"");
+        con_puts(t[i].ssid);
+        con_puts("\"\r\n");
+    }
 }
 #endif
 
@@ -1275,6 +1354,8 @@ static void con_exec(const char *p)
         con_wifirx(p);
     else if (con_word(&p, "wifiup"))
         con_wifiup();
+    else if (con_word(&p, "wifiscan"))
+        con_wifiscan();
 #endif
 #if BLE_DIAG
     else if (con_word(&p, "blell"))

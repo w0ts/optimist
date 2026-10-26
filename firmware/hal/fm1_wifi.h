@@ -25,6 +25,13 @@
 #define FM1_WIFI_RX_ACK 0x324u           /* MAC register written 2 before a frame is fetched (sdio_recv_int_hdl) */
 #define FM1_WIFI_RX_MAX 4088u            /* the SDK takes a length below 4089 */
 
+/* a received frame in the RX DMA buffer (after its 4-byte length word): Ralink's RXWI, 16 bytes, then the 802.11 frame.
+ * RXWI word 0: WCID [7:0] (0xFF: no station), MPDU length [27:16]; bytes 4-5 the frame's sequence control; bytes 8-10
+ * RSSI per chain (signed); measured on the FM-1 against three beacons and an action frame (docs/WIFI-HW-FACTS.md §2) */
+#define FM1_WIFI_RXWI 16u
+FM1_INLINE uint32_t fm1_wifi_rx_mpdu_len(const uint8_t *f) { return (uint32_t)(f[2] | f[3] << 8) & 0xFFFu; }
+FM1_INLINE int32_t fm1_wifi_rx_rssi(const uint8_t *f) { return (int8_t)f[8]; }
+
 FM1_INLINE uint32_t fm1_wifi_mac_rd(uint32_t r) { return *(const volatile uint32_t *)(uintptr_t)(FM1_WIFI_MAC + r); }
 FM1_INLINE void fm1_wifi_mac_wr(uint32_t r, uint32_t v) { *(volatile uint32_t *)(uintptr_t)(FM1_WIFI_MAC + r) = v; }
 FM1_INLINE uint32_t fm1_wifi_rd(uint32_t a) { return *(const volatile uint32_t *)(uintptr_t)a; }   /* the DMA / clock words */
@@ -95,11 +102,11 @@ FM1_INLINE int fm1_wifi_dma_wait(uint32_t bit, uint32_t ticks)   /* 1: the bit c
     return 1;
 }
 
-/* one waiting frame into buf (4-aligned, FM1_WIFI_RX_MAX + 8 bytes), as the SDK's wl30_mmc_io_rw_extended (addr 12):
+/* one waiting frame into buf (4-aligned, max + 8 bytes; max <= FM1_WIFI_RX_MAX), as the SDK's wl30_mmc_io_rw_extended (addr 12):
  * the length word first (big endian), then length + 4 bytes from buf + 4. Returns the length, 0 if none waited,
  * -1 if the DMA did not finish within 10 ms or the length was out of range. The SDK writes no cache maintenance
  * around it (a csync only): neither does this */
-FM1_INLINE int32_t fm1_wifi_rx(uint32_t *buf)
+FM1_INLINE int32_t fm1_wifi_rx(uint32_t *buf, uint32_t max)
 {
     volatile uint32_t *s = (volatile uint32_t *)(uintptr_t)FM1_WIFI_WDMA1;
     uint32_t n, w;
@@ -117,7 +124,7 @@ FM1_INLINE int32_t fm1_wifi_rx(uint32_t *buf)
     __asm__ volatile("csync;");
     w = *(volatile uint32_t *)buf;
     n = w >> 24 | (w >> 8 & 0xFF00u) | (w << 8 & 0xFF0000u) | w << 24;
-    if (!w || n > FM1_WIFI_RX_MAX)
+    if (!w || n > max || n > FM1_WIFI_RX_MAX)
         return -1;
     *(volatile uint32_t *)(uintptr_t)FM1_WIFI_RX_ADDR = (uint32_t)(uintptr_t)buf + 4u;
     *(volatile uint32_t *)(uintptr_t)FM1_WIFI_RX_LEN = n + 4u;

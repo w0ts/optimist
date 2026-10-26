@@ -75,6 +75,8 @@ Read locally (git-ignored): `worktrees/link-ref/ac79-liba/` (the three `.a`, `ll
   `D2:21:F9:29:A3:79`, `D0:21:F9:49:A3:79`, and a `D0 00` action frame (912 bytes). Each frame: 16 bytes of receive
   header (`FF 3C ...`, its length in it) then the 802.11 frame. Interrupt 52 did not latch (it may need its CPU-side
   set-up); polling bit 17 works. **The missing piece was the coexistence controller's set-up.**
+  `wifiscan` (channels 1-13, 150 ms each, beacons and probe responses parsed: BSSID, the DS parameter's channel, the
+  RXWI's RSSI byte, SSID): 52 frames, 8 networks on channels 3, 6 and 11 (the user's own on 11), listening only.
 - **Start order** (`wf_rf_common_init`): `wf_clk_rst_init`, `wdma_init`, `wfhw_init` (PHY / MAC reset, SIFS, `wf_phy_init`,
   `wf_rf_init`, `wf_phy_init` again, `rapp_init`, analog control, power 6, channel 6, PA MCS gain, RF DC reload,
   then a temperature trim every 3 s).
