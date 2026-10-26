@@ -17,9 +17,11 @@ start-up and stored trims, the central role, the console tools. Registers and en
   picks a Mac from the devices list, pairs (a passkey on the FM-1's screen) and reconnects after a power cycle; an iPhone app
   connected to the FM-1 as central. Unconfirmed on hardware: the FM-1 as central to an iPhone with the passkey. Not tried:
   Windows. Unmeasured: the radio's analog side (TX power, sensitivity, drift; HW §12).
-- Provenance (clean room): written from the Bluetooth Core Specification v5.x (LE 1M only) and the MIDI Association's "MIDI
-  over Bluetooth Low Energy" 1.0; the driver from the fact sheet and the Core spec. No vendor code, libraries, IR or
-  disassembly were read for the stack or the driver (the fact sheet was read from the vendor's binary by a separate reader).
+- Provenance (an independent implementation, not derived from vendor code): written from the Bluetooth Core Specification v5.x (LE 1M
+  only) and the MIDI Association's "MIDI over Bluetooth Low Energy" 1.0; the driver from the fact sheet and the Core spec.
+  The fact sheet was read from the vendor's binary (M-VAVE's stock V15, JieLi's libraries) by a separate reader, and the
+  radio start-up values are captured from V15 (Apache-2.0, LICENSING.md); the author of the stack and the driver read no
+  vendor code, IR or disassembly, and no vendor code was copied.
   Portable C, no `malloc`, no C library.
 
 ## 2. Layout (`firmware/src/ble/`, `io/midi/`)
