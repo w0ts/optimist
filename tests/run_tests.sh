@@ -206,7 +206,7 @@ job; ( jobin
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -o "$OUT/storage_test" tests/storage_test.c
-    run "flash storage (A/B, torn writes; SLOOP 2.3's checks: the copy a record was written to, object bounds, whole-header read back)" "$OUT/storage_test"
+    run "flash storage (A/B, torn writes; SLOOP 2.3's checks: the copy a record was written to, object bounds, whole-header read back; a copy that cannot be read: the save refused)" "$OUT/storage_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -DFELUCCA_UP_FM6=1 -o "$OUT/storage_test_upf" tests/storage_test.c
