@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* WPA2-PSK Station (IEEE 802.11i / 802.11-2020 §12.7): PTK derivation, 4-way handshake
- * state machine (EAPOL-Key M1-M4), GTK unwrapping, and MAC key table installation. */
+ * state machine (EAPOL-Key M1-M4), GTK unwrapping, 802.11 Auth/Assoc framing, LLC/SNAP
+ * EAPOL encapsulation, MAC address discovery, and MAC key table installation. */
 #ifndef WIFI_STA_H
 #define WIFI_STA_H
 #include <stdint.h>
@@ -11,6 +12,8 @@
 
 enum wifi_sta_state {
     WIFI_STA_STATE_IDLE = 0,
+    WIFI_STA_STATE_AUTH,
+    WIFI_STA_STATE_ASSOC,
     WIFI_STA_STATE_WAIT_M1,
     WIFI_STA_STATE_WAIT_M3,
     WIFI_STA_STATE_CONNECTED,
@@ -36,6 +39,8 @@ struct wifi_sta {
     uint8_t gtk[16];                       /* Group Temporal Key */
     uint8_t gtk_id;                        /* GTK Key ID (1..3) */
     uint64_t replay_cnt;                   /* Last seen replay counter */
+    uint16_t aid;                          /* Assigned Association ID */
+    uint16_t tx_seq;                       /* Transmit sequence counter */
     void (*rand)(uint8_t *out, uint8_t n); /* random bytes for the SNonce (firmware: ble_hw_rand) */
 };
 
@@ -51,5 +56,32 @@ int wifi_sta_rx_eapol(struct wifi_sta *sta, const uint8_t *pkt, uint32_t len, ui
 
 /* Install derived PTK and GTK into RT3070 MAC hardware tables (0x1800, 0x4000, 0x6000, 0x6800, 0x6C00, 0x7000). */
 void wifi_sta_install_hw_keys(const struct wifi_sta *sta);
+
+/* 802.11 Authentication Frame: builds Open System Auth (Seq 1) frame. Returns frame byte count. */
+uint32_t wifi_sta_build_auth(struct wifi_sta *sta, uint8_t *tx_buf);
+
+/* Parses 802.11 Auth Response from AP (Seq 2, Status 0). Returns 0 on success, -1 on error. */
+int wifi_sta_parse_auth_resp(const struct wifi_sta *sta, const uint8_t *frame, uint32_t len);
+
+/* 802.11 Association Request Frame: builds Assoc Req with SSID, Rates, Ext Rates, RSN IE. Returns frame byte count. */
+uint32_t wifi_sta_build_assoc_req(struct wifi_sta *sta, uint8_t *tx_buf);
+
+/* Parses 802.11 Assoc Response from AP (Status 0, records AID). Returns 0 on success, -1 on error. */
+int wifi_sta_parse_assoc_resp(struct wifi_sta *sta, const uint8_t *frame, uint32_t len);
+
+/* Encapsulates an EAPOL packet in an 802.11 Data frame with LLC/SNAP header (AA-AA-03-00-00-00-88-8E).
+ * Returns frame byte count. */
+uint32_t wifi_sta_encap_eapol(struct wifi_sta *sta, const uint8_t *eapol, uint32_t eapol_len, uint8_t *tx_buf);
+
+/* Processes an incoming 802.11 frame (Auth Resp, Assoc Resp, or EAPOL Data). If an EAPOL response
+ * (M2/M4 wrapped in 802.11 Data + LLC/SNAP) is produced, returns 1 and sets tx_len; returns 0 if consumed, -1 on error. */
+int wifi_sta_rx_frame(struct wifi_sta *sta, const uint8_t *frame, uint32_t len, uint8_t *tx_buf, uint32_t *tx_len);
+
+/* Retrieves Station MAC address from VM record 102 (BTIF 0x0E9000), applies locally-administered bit (bit 1 of byte 0).
+ * Falls back to 02:11:22:33:44:55 if absent. Returns 1 if from VM, 0 if fallback. */
+int wifi_sta_get_mac(uint8_t mac[6]);
+
+/* Programs Station MAC (0x1008/0x100C), Target BSSID (0x1010/0x1014), and Radio Channel (0x1405C). */
+void wifi_sta_set_mac_regs(const uint8_t sta_mac[6], const uint8_t bssid[6], uint32_t channel);
 
 #endif

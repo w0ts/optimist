@@ -88,7 +88,8 @@ SIZE_FILES += ["system/ota.c", "system/recovery.c"]   # (cpuguard.c measured too
 SIZE_FILES += ["bt/bt_afh.c", "bt/bta_mem.c", "ble/ble_hw_wl82.c", "bt/bt_inq.c", "io/midi/midi_ble.c", "ble/ble_vm.c", "felucca.c",
                "bt/bt_acl.c", "bt/bt_l2cap.c", "bt/bt_audio.c", "bt/bt_page.c",
                "bt/bt_inq_core.c", "bt/bt_lmp.c", "bt/bt_sdps.c", "ble/ble_att.c", "ble/ble_host.c", "bt/bt_avdtp.c",
-               "ble/ble_midi.c", "io/midi/ble_devices.c"]
+               "ble/ble_midi.c", "io/midi/ble_devices.c",
+               "wifi/wifi_crypto.c", "wifi/wifi_sta.c", "link/link.c"]
 # the sound side: what the audio ISR, the second core and the voices run (never minsize)
 AUDIO_FILES = [  # (the A2DP stream's SBC encoder runs in the audio interrupt: bt_audio_feed, bt/bt_sbc.c and AOSP's bt/sbc/)
                "bt/bt_sbc.c", "bt/sbc/sbc_analysis.c", "bt/sbc/sbc_dct.c", "bt/sbc/sbc_dct_coeffs.c",

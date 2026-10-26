@@ -170,131 +170,16 @@ static void con_trims(const struct ble_rf_trims *t, uint8_t have)
 }
 
 #if BLE_HW_WL82
-/* wifiregs: the Wi-Fi MAC's registers, read only (docs/WIFI-HW-FACTS.md §2): the MAC is Ralink's RT3070, register r
- * at 0x30000 + r (the SDK's wl30_mmc_io_rw_extended). Read only with the radio started: the BT start-up has clocked the
- * block then (it loads the BBP through 0x3101C); with the radio off the block may be unclocked, so nothing is read */
-static void con_wifiregs(void)
-{
-    static const uint16_t mac[] = {0x1000u, 0x1004u, 0x1008u, 0x100Cu, 0x1010u, 0x101Cu, 0x1100u, 0x1104u, 0x1200u, 0x1204u};
-    uint32_t i;
-    if (!ble_up) {
-        con_puts("radio off: turn BLUETOOTH on first\r\n");
-        return;
-    }
-    for (i = 0; i < sizeof mac / sizeof *mac; i++) {   /* MAC_CSR0 (ASIC version: RT3070 0x3070xxxx), MAC_SYS_CTRL, MAC_ADDR_DW0 / 1, ... */
-        con_puts("mac ");
-        con_hex(mac[i], 4);
-        con_puts(" = ");
-        con_hex(fm1_wifi_mac_rd(mac[i]), 8);
-        con_puts("\r\n");
-    }
-    con_kx("wdma_30F00", fm1_wifi_rd(FM1_WIFI_WDMA0));
-    con_kx("wdma_30F04", fm1_wifi_rd(FM1_WIFI_WDMA1));
-    for (i = FM1_WIFI_CLK0; i <= FM1_WIFI_CLK_END; i += 4u) {       /* the Wi-Fi clock / reset block (the SDK's wf_clk_rst_init) */
-        con_puts("clk ");
-        con_hex(i, 5);
-        con_puts(" = ");
-        con_hex(fm1_wifi_rd(i), 8);
-        con_puts("\r\n");
-    }
-}
+#include "../wifi/wifi_crypto.c"                      /* (the station: used by wifijoin only, so far) */
+#include "../wifi/wifi_sta.c"
 
-/* wifirx: does the Wi-Fi receiver hear anything, as the BT start-up left it (no channel set by us)? The RX filter, the
- * RX / TX counters (Ralink's RX_STA_CNT0-2, TX_STA_CNT0-2: they clear when read) twice 1 s apart, then 2 s of
- * polling for frames: each one fetched by the RX DMA (fm1_wifi_rx), its length and first 48 bytes printed (8 at most).
- * Writes only what the SDK's receive path writes (0x324 = 2, the RX DMA). "wifirx on": the Wi-Fi RF path (0x14000
- * bit 1, off after the BT start-up) on for the probe, then off again; no coexistence tables loaded, so BT may stutter
- * meanwhile. "wifirx on all": also the RX filter opened to every good frame (it reads 0x15F9F: bit 3 drops frames
- * not from our BSSID, and we have none), the SDK's RX arming (MAC 0x328 = 2, 0x14050 bit 0; interrupt 52 is never
- * attached here, only its pending bit is read) and 700 ms on each of channels 1, 6, 11; all put back after.
- * The console waits 3 s (all: 3.1 s) */
-static void con_wifi_cnt(void)
-{
-    uint32_t r;
-    for (r = 0x1700u; r <= 0x1714u; r += 4u) {
-        con_puts(" ");
-        con_hex(fm1_wifi_mac_rd(r), 8);
-    }
-    con_puts("\r\n");
-}
 #define CON_WIFI_MAX 2400u                                /* one 802.11 frame (2346) + its receive header */
-static uint32_t con_wifi_buf[(CON_WIFI_MAX + 8u) / 4u + 1u];   /* (wifirx and wifiscan share it) */
-static int32_t con_wifi_listen(uint32_t *buf, uint32_t ms, uint32_t *got)   /* frames for ms: length + 48 bytes each */
-{
-    uint32_t t0 = fm1_ticks(), i;
-    while (fm1_ticks() - t0 < ms * 1000u * FM1_TICKS_PER_US && *got < 8u) {
-        int32_t n = fm1_wifi_rx(buf, CON_WIFI_MAX);
-        fm1_wdt_feed();
-        if (!n)
-            continue;
-        (*got)++;
-        con_kv("frame_len", n);
-        if (n < 0)
-            return -1;
-        for (i = 0; i < 48u && i < (uint32_t)n; i++)
-            con_hex(((const uint8_t *)buf)[4u + i], 2);
-        con_puts("\r\n");
-    }
-    return 0;
-}
-static void con_wifirx(const char *p)
-{
-    uint32_t *buf = con_wifi_buf;
-    static const uint8_t chans[3] = {1u, 6u, 11u};
-    uint32_t t0, c, got = 0, filt, ch;
-    int on, all;
-    if (!ble_up && !rfs_is_up()) {
-        con_puts("radio off: turn BLUETOOTH on, or wifiup, first\r\n");
-        return;
-    }
-    on = con_word(&p, "on");                              /* wifirx on: the Wi-Fi RF path on for the probe only */
-    all = con_word(&p, "all");                            /* wifirx on all: every good frame (RX filter), channels 1 / 6 / 11 */
-    filt = fm1_wifi_mac_rd(FM1_WIFI_RX_FILTER);
-    ch = fm1_wifi_channel();
-    if (on)
-        fm1_wifi_rf(1);
-    con_kx("irq_en_328", fm1_wifi_mac_rd(FM1_WIFI_IRQ_EN));
-    con_kx("irq_ctl_14050", fm1_wifi_rd(FM1_WIFI_IRQ_CTL));
-    con_kv("irq52_pending", (int32_t)fm1_wifi_irq_pending());
-    if (all) {
-        fm1_wifi_mac_wr(FM1_WIFI_RX_FILTER, FM1_WIFI_RX_FILTER_ALL);
-        fm1_wifi_rx_arm(1);                               /* (interrupt 52 stays unattached: only its pending bit) */
-    }
-    con_kx("wl_en", fm1_wifi_rd(FM1_WL_EN));
-    con_kx("rx_filter", fm1_wifi_mac_rd(FM1_WIFI_RX_FILTER));
-    con_kv("channel", (int32_t)ch);
-    con_kx("wdma_30F04", fm1_wifi_rd(FM1_WIFI_WDMA1));
-    con_puts("cnt rx0 rx1 rx2 tx0 tx1 tx2:");
-    con_wifi_cnt();                                       /* (clears them) */
-    t0 = fm1_ticks();
-    while (fm1_ticks() - t0 < 1000000u * FM1_TICKS_PER_US)
-        fm1_wdt_feed();
-    con_puts("cnt after 1 s:");
-    con_wifi_cnt();
-    if (all) {
-        for (c = 0; c < 3u && got < 8u; c++) {
-            fm1_wifi_set_channel(chans[c]);
-            con_kv("listen_channel", chans[c]);
-            if (con_wifi_listen(buf, 700u, &got) < 0)
-                break;
-        }
-        con_kv("irq52_pending", (int32_t)fm1_wifi_irq_pending());
-        con_kx("wdma_30F04", fm1_wifi_rd(FM1_WIFI_WDMA1));
-        fm1_wifi_rx_arm(0);
-        fm1_wifi_set_channel(ch);
-        fm1_wifi_mac_wr(FM1_WIFI_RX_FILTER, filt);
-    } else {
-        con_wifi_listen(buf, 2000u, &got);
-    }
-    con_kv("frames", (int32_t)got);
-    if (on)
-        fm1_wifi_rf(0);
-}
+static uint32_t con_wifi_buf[(CON_WIFI_MAX + 8u) / 4u + 1u];   /* (wifiscan, wifitx and wifijoin share it) */
 
 /* wifiup: the Wi-Fi side brought up as the SDK does on a radio BT has started (usb_register): the radio started by our
  * start-up program if nothing has (BLUETOOTH and BT audio off: as Bluetooth audio starts it, bt_inq.c, CPU1 held), the
  * Ralink STA driver's MAC settings (fm1_wifi_sta_init), the coexistence controller's tables (wlc_main: fm1_wifi_wlc_setup,
- * which sets both RF paths), then "wifirx on all" listens. Off again only by a restart */
+ * which sets both RF paths); then wifiscan / wifitx / wifijoin. Off again only by a restart */
 static void con_wifiup(void)
 {
     struct ble_rf_trims t;
@@ -459,6 +344,183 @@ static void con_wifitx(const char *p)
     fm1_wifi_mac_wr(FM1_WIFI_RX_FILTER, filt);
     con_kv("frames", (int32_t)all);
     con_kv("responses", (int32_t)got);
+}
+
+static void con_wifijoin(const char *p)
+{
+    static uint32_t tx[(FM1_WIFI_TX_HDR + 256u) / 4u];
+    uint8_t *frame_tx = (uint8_t *)tx + FM1_WIFI_TX_HDR;
+    uint32_t *buf = con_wifi_buf;
+    char target_ssid[33] = {0};
+    char pass[65] = {0};
+    uint8_t target_bssid[6] = {0};
+    uint32_t target_ch = 0, ch, k;
+    uint8_t sta_mac[6];
+    struct wifi_sta sta;
+    uint32_t t0, tx_len = 0, target_ssid_len = 0;
+    int retry, got_beacon = 0;
+
+    if (!con_str(&p, target_ssid, sizeof target_ssid)) {
+        con_puts("usage: wifijoin <ssid> [passphrase]\r\n");
+        return;
+    }
+    con_str(&p, pass, sizeof pass);
+    while (target_ssid[target_ssid_len])
+        target_ssid_len++;
+
+    if (!rfs_is_up() || !(fm1_wifi_rd(FM1_WL_EN) & FM1_WL_EN_WIFI)) {
+        con_puts("Wi-Fi not up: running wifiup\r\n");
+        con_wifiup();
+    }
+
+    con_puts("searching for \"");
+    con_puts(target_ssid);
+    con_puts("\"...\r\n");
+
+    /* Scan channels 1..13 to locate target BSSID and channel */
+    fm1_wifi_mac_wr(FM1_WIFI_RX_FILTER, FM1_WIFI_RX_FILTER_ALL);
+    for (ch = 1; ch <= 13u && !got_beacon; ch++) {
+        fm1_wifi_set_channel(ch);
+        t0 = fm1_ticks();
+        while (fm1_ticks() - t0 < 150000u * FM1_TICKS_PER_US) {
+            int32_t n = fm1_wifi_rx(buf, CON_WIFI_MAX);
+            const uint8_t *f, *h, *e, *ie;
+            uint32_t mpdu_len;
+            fm1_wdt_feed();
+            if (n <= 0)
+                continue;
+            f = (const uint8_t *)buf + 4u;
+            h = f + FM1_WIFI_RXWI;
+            mpdu_len = fm1_wifi_rx_mpdu_len(f);
+            if (mpdu_len + FM1_WIFI_RXWI > (uint32_t)n || mpdu_len < 36u || (h[0] != 0x80u && h[0] != 0x50u))
+                continue;
+            e = h + mpdu_len;
+            for (ie = h + 36u; ie + 2u <= e && ie + 2u + ie[1] <= e; ie += 2u + ie[1]) {
+                if (ie[0] == 0u && ie[1] <= 32u) {
+                    if (ie[1] == target_ssid_len && !memcmp(ie + 2, target_ssid, ie[1])) {
+                        memcpy(target_bssid, h + 16, 6);
+                        target_ch = ch;
+                        got_beacon = 1;
+                        break;
+                    }
+                }
+            }
+            if (got_beacon)
+                break;
+        }
+    }
+
+    if (!got_beacon) {
+        con_puts("SSID not found\r\n");
+        return;
+    }
+
+    con_puts("found bss ");
+    for (k = 0; k < 6u; k++) {
+        con_hex(target_bssid[k], 2);
+        con_putc(k < 5u ? ':' : ' ');
+    }
+    con_puts("ch ");
+    con_hex(target_ch, 2);
+    con_puts("\r\n");
+
+    /* Obtain station MAC address and set up MAC hardware registers */
+    wifi_sta_get_mac(sta_mac);
+    wifi_sta_set_mac_regs(sta_mac, target_bssid, target_ch);
+
+    wifi_sta_init(&sta, sta_mac, ble_hw_rand);
+    wifi_sta_set_creds(&sta, pass, (const uint8_t *)target_ssid, target_ssid_len);
+    wifi_sta_set_ap(&sta, target_bssid);
+
+    /* 1. Open System Authentication */
+    sta.state = WIFI_STA_STATE_AUTH;
+    con_puts("authenticating...");
+    for (retry = 0; retry < 3 && sta.state == WIFI_STA_STATE_AUTH; retry++) {
+        uint32_t flen = wifi_sta_build_auth(&sta, frame_tx);
+        fm1_wifi_tx_prepare(tx, flen);
+        fm1_wifi_tx(tx);
+
+        t0 = fm1_ticks();
+        while (fm1_ticks() - t0 < 300000u * FM1_TICKS_PER_US && sta.state == WIFI_STA_STATE_AUTH) {
+            int32_t n = fm1_wifi_rx(buf, CON_WIFI_MAX);
+            const uint8_t *f;
+            uint32_t mpdu_len;
+            fm1_wdt_feed();
+            if (n <= 0)
+                continue;
+            f = (const uint8_t *)buf + 4u;
+            mpdu_len = fm1_wifi_rx_mpdu_len(f);
+            if (mpdu_len + FM1_WIFI_RXWI <= (uint32_t)n)
+                wifi_sta_rx_frame(&sta, f + FM1_WIFI_RXWI, mpdu_len, frame_tx, &tx_len);
+        }
+    }
+
+    if (sta.state != WIFI_STA_STATE_ASSOC) {
+        con_puts(" auth timeout / failed\r\n");
+        memset(pass, 0, sizeof pass);
+        return;
+    }
+    con_puts(" ok\r\n");
+
+    /* 2. Association Request */
+    con_puts("associating...");
+    for (retry = 0; retry < 3 && sta.state == WIFI_STA_STATE_ASSOC; retry++) {
+        uint32_t flen = wifi_sta_build_assoc_req(&sta, frame_tx);
+        fm1_wifi_tx_prepare(tx, flen);
+        fm1_wifi_tx(tx);
+
+        t0 = fm1_ticks();
+        while (fm1_ticks() - t0 < 300000u * FM1_TICKS_PER_US && sta.state == WIFI_STA_STATE_ASSOC) {
+            int32_t n = fm1_wifi_rx(buf, CON_WIFI_MAX);
+            const uint8_t *f;
+            uint32_t mpdu_len;
+            fm1_wdt_feed();
+            if (n <= 0)
+                continue;
+            f = (const uint8_t *)buf + 4u;
+            mpdu_len = fm1_wifi_rx_mpdu_len(f);
+            if (mpdu_len + FM1_WIFI_RXWI <= (uint32_t)n)
+                wifi_sta_rx_frame(&sta, f + FM1_WIFI_RXWI, mpdu_len, frame_tx, &tx_len);
+        }
+    }
+
+    if (sta.state != WIFI_STA_STATE_WAIT_M1) {
+        con_puts(" assoc timeout / failed\r\n");
+        memset(pass, 0, sizeof pass);
+        return;
+    }
+    con_puts(" ok aid ");
+    con_dec((int32_t)sta.aid);
+    con_puts("\r\n");
+
+    /* 3. 4-Way WPA2 Handshake */
+    con_puts("handshake...");
+    t0 = fm1_ticks();
+    while (fm1_ticks() - t0 < 2000000u * FM1_TICKS_PER_US && sta.state != WIFI_STA_STATE_CONNECTED && sta.state != WIFI_STA_STATE_FAILED) {
+        int32_t n = fm1_wifi_rx(buf, CON_WIFI_MAX);
+        const uint8_t *f;
+        uint32_t mpdu_len;
+        fm1_wdt_feed();
+        if (n <= 0)
+            continue;
+        f = (const uint8_t *)buf + 4u;
+        mpdu_len = fm1_wifi_rx_mpdu_len(f);
+        if (mpdu_len + FM1_WIFI_RXWI <= (uint32_t)n) {
+            int res = wifi_sta_rx_frame(&sta, f + FM1_WIFI_RXWI, mpdu_len, frame_tx, &tx_len);
+            if (res == 1) {
+                fm1_wifi_tx_prepare(tx, tx_len);
+                fm1_wifi_tx(tx);
+            }
+        }
+    }
+
+    memset(pass, 0, sizeof pass);
+
+    if (sta.state == WIFI_STA_STATE_CONNECTED) {
+        con_puts(" ok, connected, keys installed\r\n");
+    } else {
+        con_puts(" handshake failed / timeout\r\n");
+    }
 }
 #endif
 
@@ -1353,6 +1415,9 @@ static void con_exec(const char *p)
                  "params  tabbench  memr ADDR [LEN]  flr OFF [LEN]"
 #if FELUCCA_BLE
                  "  blevm  blevmdump  bletrim"
+#if BLE_HW_WL82
+                 "  wifiup  wifiscan  wifitx  wifijoin"
+#endif
 #if BLE_DIAG
                  "  blell [clear|regs]"
 #endif
@@ -1409,16 +1474,14 @@ static void con_exec(const char *p)
     else if (con_word(&p, "bletrim"))
         con_bletrim();
 #if BLE_HW_WL82
-    else if (con_word(&p, "wifiregs"))
-        con_wifiregs();
-    else if (con_word(&p, "wifirx"))
-        con_wifirx(p);
     else if (con_word(&p, "wifiup"))
         con_wifiup();
     else if (con_word(&p, "wifiscan"))
         con_wifiscan();
     else if (con_word(&p, "wifitx"))
         con_wifitx(p);
+    else if (con_word(&p, "wifijoin"))
+        con_wifijoin(p);
 #endif
 #if BLE_DIAG
     else if (con_word(&p, "blell"))

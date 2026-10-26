@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* WPA2-PSK Station (IEEE 802.11i / 802.11-2020 §12.7): PTK derivation, 4-way handshake
- * state machine (EAPOL-Key M1-M4), GTK unwrapping, and MAC key table installation. */
+ * state machine (EAPOL-Key M1-M4), GTK unwrapping, 802.11 Auth/Assoc framing, LLC/SNAP
+ * EAPOL encapsulation, MAC address discovery, and MAC key table installation. */
 #include "wifi_sta.h"
 
 #if defined(__PI32V2__) || defined(FM1_FIRMWARE)
@@ -8,7 +9,9 @@
 void *memcpy(void *d, const void *s, unsigned n);
 void *memset(void *d, int c, unsigned n);
 int memcmp(const void *a, const void *b, unsigned n);
-#include "hal/fm1_wifi.h"
+int st_read(uint32_t off, void *dst, uint32_t n);
+uint32_t ble_crc16_xmodem(uint32_t crc, const uint8_t *p, uint32_t n);
+#include "../../hal/fm1_wifi.h"
 #define STA_MAC_WR(r, v) fm1_wifi_mac_wr((r), (v))
 #else
 #include <string.h>
@@ -16,6 +19,25 @@ int memcmp(const void *a, const void *b, unsigned n);
 static void (*sta_test_mac_wr_fn)(uint32_t r, uint32_t v) = 0;
 void wifi_sta_set_test_mac_wr(void (*fn)(uint32_t r, uint32_t v)) { sta_test_mac_wr_fn = fn; }
 #define STA_MAC_WR(r, v) do { if (sta_test_mac_wr_fn) sta_test_mac_wr_fn((r), (v)); } while (0)
+
+static uint32_t host_crc16_xmodem(uint32_t crc, const uint8_t *p, uint32_t n)
+{
+    uint32_t k;
+    while (n--) {
+        crc ^= (uint32_t)*p++ << 8;
+        for (k = 0; k < 8u; k++)
+            crc = crc & 0x8000u ? (crc << 1) ^ 0x1021u : crc << 1;
+        crc &= 0xFFFFu;
+    }
+    return crc;
+}
+#define ble_crc16_xmodem host_crc16_xmodem
+static int (*sta_test_st_read_fn)(uint32_t off, void *dst, uint32_t n) = 0;
+void wifi_sta_set_test_st_read(int (*fn)(uint32_t off, void *dst, uint32_t n)) { sta_test_st_read_fn = fn; }
+static int st_read(uint32_t off, void *dst, uint32_t n)
+{
+    return sta_test_st_read_fn ? sta_test_st_read_fn(off, dst, n) : -1;
+}
 #endif
 
 /* Standard WPA2-PSK RSN Information Element for Station (22 bytes) */
@@ -314,4 +336,247 @@ int wifi_sta_rx_eapol(struct wifi_sta *sta, const uint8_t *pkt, uint32_t len, ui
     }
 
     return 0;
+}
+
+uint32_t wifi_sta_build_auth(struct wifi_sta *sta, uint8_t *tx_buf)
+{
+    uint16_t seq;
+    if (!sta || !tx_buf)
+        return 0;
+    seq = sta->tx_seq++;
+    memset(tx_buf, 0, 30);
+    tx_buf[0] = 0xB0;                               /* Type: Management, Subtype: Authentication */
+    tx_buf[1] = 0x00;
+    tx_buf[2] = 0x3A; tx_buf[3] = 0x01;             /* Duration */
+    memcpy(tx_buf + 4, sta->bssid, 6);              /* Addr 1: DA (AP BSSID) */
+    memcpy(tx_buf + 10, sta->mac, 6);               /* Addr 2: SA (Station MAC) */
+    memcpy(tx_buf + 16, sta->bssid, 6);             /* Addr 3: BSSID */
+    tx_buf[22] = (uint8_t)(seq << 4);               /* Sequence Control */
+    tx_buf[23] = (uint8_t)(seq >> 4);
+    /* Auth body: Algorithm Open System (0), Seq 1, Status 0 */
+    tx_buf[24] = 0x00; tx_buf[25] = 0x00;           /* Auth algorithm 0 */
+    tx_buf[26] = 0x01; tx_buf[27] = 0x00;           /* Auth transaction seq 1 */
+    tx_buf[28] = 0x00; tx_buf[29] = 0x00;           /* Status code 0 */
+    return 30u;
+}
+
+int wifi_sta_parse_auth_resp(const struct wifi_sta *sta, const uint8_t *frame, uint32_t len)
+{
+    if (!sta || !frame || len < 30u)
+        return -1;
+    /* Check Frame Control: Management Authentication (subtype 0x0B -> 0xB0) */
+    if ((frame[0] & 0xFCu) != 0xB0u)
+        return -1;
+    /* Check DA == our MAC, SA == BSSID */
+    if (memcmp(frame + 4, sta->mac, 6) != 0)
+        return -1;
+    if (memcmp(frame + 10, sta->bssid, 6) != 0)
+        return -1;
+    /* Body: Alg 0, Seq 2, Status 0 */
+    if (frame[24] != 0 || frame[25] != 0)           /* Alg 0 */
+        return -1;
+    if (frame[26] != 2 || frame[27] != 0)           /* Seq 2 */
+        return -1;
+    if (frame[28] != 0 || frame[29] != 0)           /* Status 0 (Success) */
+        return -1;
+    return 0;
+}
+
+uint32_t wifi_sta_build_assoc_req(struct wifi_sta *sta, uint8_t *tx_buf)
+{
+    static const uint8_t rates[10] = {0x01, 0x08, 0x82, 0x84, 0x8B, 0x96, 0x0C, 0x12, 0x18, 0x24};
+    static const uint8_t ext_rates[6] = {0x32, 0x04, 0x30, 0x48, 0x60, 0x6C};
+    uint16_t seq;
+    uint32_t off;
+
+    if (!sta || !tx_buf)
+        return 0;
+    seq = sta->tx_seq++;
+    memset(tx_buf, 0, 24);
+    tx_buf[0] = 0x00;                               /* Type: Management, Subtype: Assoc Req */
+    tx_buf[1] = 0x00;
+    tx_buf[2] = 0x3A; tx_buf[3] = 0x01;             /* Duration */
+    memcpy(tx_buf + 4, sta->bssid, 6);              /* Addr 1: DA (AP BSSID) */
+    memcpy(tx_buf + 10, sta->mac, 6);               /* Addr 2: SA (Station MAC) */
+    memcpy(tx_buf + 16, sta->bssid, 6);             /* Addr 3: BSSID */
+    tx_buf[22] = (uint8_t)(seq << 4);               /* Sequence Control */
+    tx_buf[23] = (uint8_t)(seq >> 4);
+    off = 24;
+
+    /* Fixed Parameters: Capability Info (0x0431), Listen Interval (10) */
+    tx_buf[off++] = 0x31; tx_buf[off++] = 0x04;     /* ESS, Short Preamble, Short Slot, Privacy */
+    tx_buf[off++] = 0x0A; tx_buf[off++] = 0x00;     /* Listen interval: 10 */
+
+    /* Tag 0: SSID */
+    tx_buf[off++] = 0x00;
+    tx_buf[off++] = (uint8_t)sta->ssid_len;
+    memcpy(tx_buf + off, sta->ssid, sta->ssid_len);
+    off += sta->ssid_len;
+
+    /* Tag 1: Supported Rates (1, 2, 5.5, 11, 6, 9, 12, 18 Mbps) */
+    memcpy(tx_buf + off, rates, sizeof(rates));
+    off += sizeof(rates);
+
+    /* Tag 50 (0x32): Extended Supported Rates (24, 36, 48, 54 Mbps) */
+    memcpy(tx_buf + off, ext_rates, sizeof(ext_rates));
+    off += sizeof(ext_rates);
+
+    /* Tag 48 (0x30): RSN IE (22 bytes) */
+    memcpy(tx_buf + off, sta_rsn_ie, sizeof(sta_rsn_ie));
+    off += sizeof(sta_rsn_ie);
+
+    return off;
+}
+
+int wifi_sta_parse_assoc_resp(struct wifi_sta *sta, const uint8_t *frame, uint32_t len)
+{
+    uint16_t status, aid;
+    if (!sta || !frame || len < 30u)
+        return -1;
+    /* Check Frame Control: Management Assoc Response (subtype 0x01 -> 0x10) */
+    if ((frame[0] & 0xFCu) != 0x10u)
+        return -1;
+    /* Check DA == our MAC, SA == BSSID */
+    if (memcmp(frame + 4, sta->mac, 6) != 0)
+        return -1;
+    if (memcmp(frame + 10, sta->bssid, 6) != 0)
+        return -1;
+    /* Fixed parameters: Capability (24..25), Status (26..27), AID (28..29) */
+    status = (uint16_t)frame[26] | ((uint16_t)frame[27] << 8);
+    if (status != 0)
+        return -1;
+    aid = ((uint16_t)frame[28] | ((uint16_t)frame[29] << 8)) & 0x3FFFu;
+    sta->aid = aid;
+    return 0;
+}
+
+uint32_t wifi_sta_encap_eapol(struct wifi_sta *sta, const uint8_t *eapol, uint32_t eapol_len, uint8_t *tx_buf)
+{
+    uint16_t seq;
+    if (!sta || !tx_buf)
+        return 0;
+    seq = sta->tx_seq++;
+    /* 802.11 Data header (24 bytes): ToDS=1, FromDS=0 */
+    memset(tx_buf, 0, 24);
+    tx_buf[0] = 0x08;                               /* Type: Data, Subtype: Data */
+    tx_buf[1] = 0x01;                               /* ToDS = 1 */
+    tx_buf[2] = 0x00; tx_buf[3] = 0x00;             /* Duration */
+    memcpy(tx_buf + 4, sta->bssid, 6);              /* Addr 1: RA / BSSID */
+    memcpy(tx_buf + 10, sta->mac, 6);               /* Addr 2: TA / SA */
+    memcpy(tx_buf + 16, sta->bssid, 6);             /* Addr 3: DA */
+    tx_buf[22] = (uint8_t)(seq << 4);
+    tx_buf[23] = (uint8_t)(seq >> 4);
+
+    /* LLC/SNAP Header (8 bytes): AA-AA-03-00-00-00-88-8E */
+    tx_buf[24] = 0xAA;
+    tx_buf[25] = 0xAA;
+    tx_buf[26] = 0x03;
+    tx_buf[27] = 0x00;
+    tx_buf[28] = 0x00;
+    tx_buf[29] = 0x00;
+    tx_buf[30] = 0x88;
+    tx_buf[31] = 0x8E;
+
+    /* EAPOL payload */
+    if (eapol && eapol_len)
+        memcpy(tx_buf + 32, eapol, eapol_len);
+
+    return 32u + eapol_len;
+}
+
+int wifi_sta_rx_frame(struct wifi_sta *sta, const uint8_t *frame, uint32_t len, uint8_t *tx_buf, uint32_t *tx_len)
+{
+    uint32_t hdr_len;
+    if (!sta || !frame || len < 24u)
+        return -1;
+
+    if (sta->state == WIFI_STA_STATE_AUTH) {
+        if (wifi_sta_parse_auth_resp(sta, frame, len) == 0) {
+            sta->state = WIFI_STA_STATE_ASSOC;
+            return 0;
+        }
+        return -1;
+    }
+
+    if (sta->state == WIFI_STA_STATE_ASSOC) {
+        if (wifi_sta_parse_assoc_resp(sta, frame, len) == 0) {
+            sta->state = WIFI_STA_STATE_WAIT_M1;
+            return 0;
+        }
+        return -1;
+    }
+
+    /* Data frame: check for LLC/SNAP 802.1X EAPOL */
+    if ((frame[0] & 0x0Cu) != 0x08u)
+        return -1;
+
+    /* Check QoS Data bit */
+    hdr_len = (frame[0] & 0x80u) ? 26u : 24u;
+    if (len < hdr_len + 8u)
+        return -1;
+
+    /* Verify LLC/SNAP header (AA-AA-03-00-00-00-88-8E) */
+    if (frame[hdr_len + 0] != 0xAAu || frame[hdr_len + 1] != 0xAAu ||
+        frame[hdr_len + 2] != 0x03u || frame[hdr_len + 3] != 0x00u ||
+        frame[hdr_len + 4] != 0x00u || frame[hdr_len + 5] != 0x00u ||
+        frame[hdr_len + 6] != 0x88u || frame[hdr_len + 7] != 0x8Eu)
+        return -1;
+
+    {
+        const uint8_t *eapol_pkt = frame + hdr_len + 8u;
+        uint32_t eapol_len = len - (hdr_len + 8u);
+        uint8_t eapol_resp[WIFI_STA_EAPOL_MAX];
+        uint32_t eapol_resp_len = 0;
+
+        int res = wifi_sta_rx_eapol(sta, eapol_pkt, eapol_len, eapol_resp, &eapol_resp_len);
+        if (res == 1 && tx_buf && tx_len) {
+            *tx_len = wifi_sta_encap_eapol(sta, eapol_resp, eapol_resp_len, tx_buf);
+            return 1;
+        }
+        return res;
+    }
+}
+
+int wifi_sta_get_mac(uint8_t mac[6])
+{
+    uint8_t h[10];
+    if (st_read(0x0E9000u, h, sizeof(h)) == 0) {
+        if (h[1] == 0x66 && (h[2] & 0x0Fu) == 0 && (h[2] >> 4) == 6 && h[3] == 0) {
+            uint32_t crc = ble_crc16_xmodem(0, h + 4, 6);
+            if ((crc & 0xFFu) == h[0]) {
+                memcpy(mac, h + 4, 6);
+                mac[0] |= 0x02;                     /* locally administered bit */
+                return 1;
+            }
+        }
+    }
+    /* Fallback MAC address */
+    mac[0] = 0x02;
+    mac[1] = 0x11;
+    mac[2] = 0x22;
+    mac[3] = 0x33;
+    mac[4] = 0x44;
+    mac[5] = 0x55;
+    return 0;
+}
+
+void wifi_sta_set_mac_regs(const uint8_t sta_mac[6], const uint8_t bssid[6], uint32_t channel)
+{
+    /* Station MAC: 0x1008 / 0x100C */
+    STA_MAC_WR(0x1008u, (uint32_t)sta_mac[0] | ((uint32_t)sta_mac[1] << 8) |
+                        ((uint32_t)sta_mac[2] << 16) | ((uint32_t)sta_mac[3] << 24));
+    STA_MAC_WR(0x100Cu, (uint32_t)sta_mac[4] | ((uint32_t)sta_mac[5] << 8) | 0x00FF0000u);
+
+    /* Target BSSID: 0x1010 / 0x1014 */
+    STA_MAC_WR(0x1010u, (uint32_t)bssid[0] | ((uint32_t)bssid[1] << 8) |
+                        ((uint32_t)bssid[2] << 16) | ((uint32_t)bssid[3] << 24));
+    STA_MAC_WR(0x1014u, (uint32_t)bssid[4] | ((uint32_t)bssid[5] << 8));
+
+    /* Radio channel: 0x1405C */
+#if defined(__PI32V2__) || defined(FM1_FIRMWARE)
+    fm1_wifi_set_channel(channel);
+    fm1_wifi_mac_wr(FM1_WIFI_RX_FILTER, FM1_WIFI_RX_FILTER_ALL);
+#else
+    (void)channel;
+#endif
 }

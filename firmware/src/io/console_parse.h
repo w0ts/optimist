@@ -44,6 +44,30 @@ static int con_word(const char **p, const char *w)       /* match a whole word *
     return 1;
 }
 
+static int con_str(const char **p, char *dst, uint32_t max)  /* quoted or unquoted string token */
+{
+    const char *s = *p;
+    uint32_t n = 0;
+    while (*s == ' ')
+        s++;
+    if (!*s)
+        return 0;
+    if (*s == '"') {
+        s++;
+        while (*s && *s != '"' && n + 1 < max)
+            dst[n++] = *s++;
+        if (*s == '"')
+            s++;
+    } else {
+        while (*s && *s != ' ' && n + 1 < max)
+            dst[n++] = *s++;
+    }
+    if (max)
+        dst[n] = '\0';
+    *p = s;
+    return (int)n;
+}
+
 /* the run-control commands: CR_NONE is "not one of these" (con_exec goes on), CR_BAD a usage error */
 enum { CR_NONE, CR_BAD, CR_PLAY, CR_STOP, CR_REC_ON, CR_REC_OFF, CR_PROJ_LOAD, CR_HEAVY, CR_WDTRESET };
 #define CR_SLOTS 4u                                     /* the project slots (project.c proj_slot) */
