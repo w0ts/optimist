@@ -561,6 +561,10 @@ static void lt_text(const param_desc_t *d, int32_t v, char *val)
         str_cpy(val, v == LT_INS1 ? "S1 --" : "S2 --", 7);   /* (empty: INSERTS' ---- with the slot) */
         return;
     }
+#if FELUCCA_ENG_PROPHET
+    if (v == LT_OSC2 && ENGINES[TSEL->eng_req % NENGINES] == &ENG_PROPHET)
+        s = "A PIT";                                    /* (PROPHET: OSC2 is A's pitch alone, eng_prophet.c) */
+#endif
     if (v >= LT_E1 && v <= LT_E8) {
         const param_desc_t *e = track_desc(TSEL, P_E0 + (uint32_t)(v - LT_E1));
         if (e->label && e->label[0] && e->label[0] != '-')
