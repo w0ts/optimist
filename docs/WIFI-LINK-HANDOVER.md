@@ -39,7 +39,7 @@ tools/builder/venv/bin/python tools/fm1_console.py wifiup wifiscan     # console
 ```
 
 Console (BLE builds, `firmware/src/io/console.c`): `wifiup` (radio + STA settings + WLC + Wi-Fi path), `wifiscan`,
-`wifitx [ch]`, `wifijoin <ssid> [passphrase]`. (`wifiregs` and `wifirx`, the first probes, were removed to make room:
+`wifijoin <ssid> [passphrase]`, `wifidata` (3 s of data frames after the join). (`wifitx` gave way to `wifidata`.) (`wifiregs` and `wifirx`, the first probes, were removed to make room:
 `bt-debug` has 4 bytes of flash left with `wifijoin`; the facts they showed are in WIFI-HW-FACTS.) Commands that wait several seconds outrun
 `fm1_console.py`'s 0.6 s quiet timeout. Read the port directly for those (see the session notes in the commits).
 
@@ -72,6 +72,10 @@ The station join sequence on the FM-1 and host test bench is implemented:
    authentication ok, association ok (AID 11), 4-way handshake complete (the access point sent M3, so our M2 MIC and
    the PMK / PTK were right), keys installed. Not yet seen: a decrypted frame (proves the key install and the
    `0x6804` value) and the access point keeping us after M4.
+   Then (same day, `wifidata`, 3 s after a second join, to the other access point, AID 1): 236 data frames, 31 of them
+   start with LLC/SNAP `AA AA 03`, so the MAC decrypts at least the group traffic with the installed GTK. The
+   pairwise path (frames to us) is not yet shown. The user saw `06:d1:58:78:55:b0` on the router: likely the FM-1 (VM 102
+   address with the local bit), not confirmed from the FM-1's side.
 2. **Lightweight IP layer + early filter:** ARP, DHCP, IGMP multicast join (`224.76.78.75`), UDP dispatch; drop everything else right after the RX DMA (`LINK-DESIGN.md` §2.7).
 3. **Link clock sync integration:** Link on top, then `firmware/src/io/midi/clock_sync.c` (`MSRC_LINK`, `SYNC LINK`), builder items `WIFI`, `WIFI_STA`, `LINK` (`docs/LINK-DESIGN.md` §3).
 

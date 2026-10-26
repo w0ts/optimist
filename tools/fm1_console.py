@@ -13,7 +13,7 @@ import sys
 import time
 
 READ_ONLY = ("status", "dbg", "boot", "crash", "help", "keys", "keylog", "bletrim", "blevm", "blell", "blell clear",
-             "wifiup", "wifiscan", "wifitx", "wifitx 11")      # wifiup brings the Wi-Fi side up; wifitx sends one probe request
+             "wifiup", "wifiscan", "wifidata")      # wifiup brings the Wi-Fi side up; wifidata listens after wifijoin
 FM1_VID = 0x1209                         # usb.c
 QUIET_S = 0.6                            # a reply is over after this long without a byte
 
