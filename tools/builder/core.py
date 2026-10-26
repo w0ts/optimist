@@ -211,7 +211,7 @@ def validate(cfg):
         if mem["types"]:
             note.append(Issue(f"{R.ITEMS['DLY_ARENA'].label}: {fx_memory_text(mem)}", ["DLY_ARENA"]))
     if cfg.get("ARENA", 0):                      # (the engines' arena: one part's largest state must fit it)
-        one, room = part_mem(cfg)["pool"] // NPART, cfg["ARENA"] * 1024
+        one, room = part_mem(cfg)["pool"] // nparts(cfg), cfg["ARENA"] * 1024
         if one > room:
             err.append(Issue(f"the arena ({cfg['ARENA']} KB) cannot hold a part's engine state ({one // 1024} KB): a "
                              "larger ARENA, or off", ["ARENA"]))
@@ -469,8 +469,8 @@ def auto_store(cfg):
 # the array with each member alone (sizes.json "symbols", measure_costs.py holds these against every build it makes)
 # (2026-10-26: JUNO, DRAWBAR, CZ and SLICE's states moved in from their static arrays: their measured item costs in
 # costs.json count those arrays as RAM until a re-measure)
-PART_MEM = {"ENG_FM6": 11712, "ENG_PHYS": 38664, "ENG_GRAIN": 21072, "ENG_ACID": 1440, "ENG_PLAITS": 1920,
-            "ENG_JUNO": 1344, "ENG_DRAWBAR": 2496, "ENG_CZ": 3120, "ENG_SLICE": 3072}   # (2026-10-25/26, measured)
+PART_MEM = {"ENG_FM6": 11712, "ENG_PHYS": 38664, "ENG_GRAIN": 21060, "ENG_ACID": 1440, "ENG_PLAITS": 1920,
+            "ENG_JUNO": 1332, "ENG_DRAWBAR": 2496, "ENG_CZ": 3120, "ENG_SLICE": 3072}   # (2026-10-25/26, measured)
 PART_MEM_NONE = 0                                   # (none built: not in the image)
 
 
@@ -479,10 +479,15 @@ def part_mem(cfg):
     built. A maximum: no per-item delta adds up to it (GRAIN off frees 9.3 KB, but not with PHYS on), so the estimate
     computes it (model_terms) and the measured deltas and pairs leave it out (measure_costs.py)"""
     sizes = [n for k, n in PART_MEM.items() if built(cfg, k)]
-    return {"pool": max(sizes) if sizes else PART_MEM_NONE}
+    return {"pool": max(sizes) // NPART * nparts(cfg) if sizes else PART_MEM_NONE}
 
 
-NPART = 3                  # core.h: the synth parts (part_mem's NPART states)
+NPART = 3                  # core.h: the synth parts with the drums (PART_MEM's sizes are for NPART states)
+
+
+def nparts(cfg):
+    """-> core.h NPART: 3 synth parts, 4 without the drums (DRUMS off: track 4 a 4th synth part)"""
+    return NPART if "DRUMS" not in R.ITEMS or built(cfg, "DRUMS") else NPART + 1
 
 
 def arena_mem(cfg):
