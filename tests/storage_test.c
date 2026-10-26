@@ -10,7 +10,15 @@
 static uint8_t nor[0x100000];
 static int fail_after = -1;            /* torn-write injection: stop after N programs */
 
-static int st_read(uint32_t off, void *dst, uint32_t n) { memcpy(dst, nor + off, n); return 0; }
+static uint32_t rd_bad_lo, rd_bad_hi, rd_bad2_lo, rd_bad2_hi;   /* read I/O errors injected: [lo, hi), 0 0: none */
+static int rd_bad(uint32_t off, uint32_t n, uint32_t lo, uint32_t hi) { return off < hi && off + n > lo; }
+static int st_read(uint32_t off, void *dst, uint32_t n)
+{
+    if (rd_bad(off, n, rd_bad_lo, rd_bad_hi) || rd_bad(off, n, rd_bad2_lo, rd_bad2_hi))
+        return -2;                     /* (the driver's read error: fl_read_ram) */
+    memcpy(dst, nor + off, n);
+    return 0;
+}
 static int st_erase(uint32_t off) { memset(nor + off, 0xFF, 4096); return 0; }
 static int st_prog(uint32_t off, const void *src, uint32_t n)
 {
@@ -87,6 +95,24 @@ int main(void)
     nor[st_sector(OBJ_PROJECT0 + 2, 0) + 8] ^= 0x01;    /* both headers broken */
     nor[st_sector(OBJ_PROJECT0 + 2, 1) + 8] ^= 0x01;
     bad += check("both headers broken -> nothing", st_load(OBJ_PROJECT0 + 2, got, sizeof got) < 0);
+    {   /* a copy that cannot be read (an I/O error, not a bad CRC): its seq is unknown, so a save refuses (after fm1-base's
+         * device/storage.c, charlesvestal/fm1-base#13): else it could land under the copy it could not read (both unreadable:
+         * written as seq 1, the old seq-2 copy wins the next load) or over the newest one */
+        uint32_t o = OBJ_PROJECT0 + 1, s0 = st_sector(o, 0), s1 = st_sector(o, 1);
+        memset(nor, 0xFF, sizeof nor);
+        st_save(o, a, sizeof a);                          /* copy 0, seq 1 */
+        st_save(o, b, sizeof b);                          /* copy 1, seq 2: the current one */
+        rd_bad_lo = s1, rd_bad_hi = s1 + 4096u;
+        n = st_load(o, got, sizeof got);
+        bad += check("read error on the newer copy: the older one loads", n == (int)sizeof a && !memcmp(got, a, sizeof a));
+        bad += check("... a save refuses (ST_E_READ)", st_save(o, a, sizeof a) == ST_E_READ);
+        rd_bad2_lo = s0, rd_bad2_hi = s0 + 4096u;
+        bad += check("read errors on both copies: a save refuses", st_save(o, a, sizeof a) == ST_E_READ);
+        rd_bad_lo = rd_bad_hi = rd_bad2_lo = rd_bad2_hi = 0;
+        n = st_load(o, got, sizeof got);
+        bad += check("... nothing was written: the newer copy loads again", n == (int)sizeof b && !memcmp(got, b, sizeof b));
+        bad += check("... and saves go on once it reads", st_save(o, a, sizeof a) == 0 && st_load(o, got, sizeof got) == (int)sizeof a);
+    }
     {   /* every copy of every object in the Felucca regions, off the sample slots (0xA0000..0xD9FFF) and
          * the update staging (0xE0000..), and no two sectors shared */
         uint32_t o, c, o2, c2, inside = 1, apart = 1;
