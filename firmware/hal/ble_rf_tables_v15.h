@@ -1,4 +1,7 @@
-/* BLE radio start-up values captured from the stock FM-1 V15 firmware (see docs/BLE-STACK.md). */
+/* SPDX-License-Identifier: Apache-2.0 */
+/* BLE radio start-up values captured from the stock FM-1 V15 firmware (see docs/BLE-STACK.md): M-VAVE's FM-1_015.fwsc,
+ * Copyright (c) 2026 Zhuhai Shengke / M-VAVE, published under Apache-2.0 as sdk/firmware/FM-1_015.fwsc in
+ * https://github.com/m-vave/fm1_open (its THIRD_PARTY.md). */
 #pragma once
 #include <stdint.h>
 #define BLE_RF_TABLES_FORMAT 3

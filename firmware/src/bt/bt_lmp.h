@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* The Classic probe's minimal LMP (Core spec Vol 2 Part C), the master side of a fresh ACL link: what we send to set
  * the connection up (features, version, host connection, setup complete) and the answers to what a slave asks.
  * Portable C, no C library; host-tested in tests/bt_lmp_test.c. Written from the specification, no vendor code.

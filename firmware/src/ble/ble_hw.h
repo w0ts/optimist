@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* The baseband driver's interface: what the link layer (ble_ll.c) asks of the radio, and what the driver
  * reports back. Designed for a link-controller engine that does the timing of each event in hardware:
  *   advertising on 37 / 38 / 39 with an automatic SCAN_RSP; anchors, the transmit window, CSA #1 hopping, the

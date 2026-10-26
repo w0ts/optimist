@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* Secure Simple Pairing, Just Works, P-192, the FM-1 as the responder (Core Vol 2 Part C 4.2.7, Part H 7.7): the device
  * (a phone, headphones, the Raspberry Pi of docs/BT-CLASSIC.md 14) starts it after its host asked for authentication;
  * then the device's LMP_au_rand gets our SRES (E1 with the new link key) and the encryption is started (we are the

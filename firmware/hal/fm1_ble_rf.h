@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* FM-1 (AC791N / WL82) radio start-up, the part before the BT block: the shared Wi-Fi front end that the BT RF
  * init runs first (docs/BLE-HW-FACTS.md §5.2, §16; branch feat/ble-facts d907ce3, "HW §n" below). Included by
  * hal/fm1_ble.h in a BLE build with the real driver.

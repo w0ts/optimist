@@ -136,7 +136,7 @@ Unofficial: not made, endorsed or supported by M-VAVE. M-VAVE and FM-1 are trade
 
 ## Licence and contributing
 
-Code: **GPL-3.0-only** ([LICENSE](LICENSE)); assets have their own terms ([LICENSING.md](LICENSING.md)). No warranty. If
+Code: **GPL-3.0-only** ([LICENSE](LICENSE)), the Bluetooth stack GPL-3.0-only OR MPL-2.0; assets have their own terms ([LICENSING.md](LICENSING.md)). No warranty. If
 you distribute a build, give its source under the same licence.
 
 Issues and pull requests: [github.com/w0ts/optimist](https://github.com/w0ts/optimist). A useful report names the build

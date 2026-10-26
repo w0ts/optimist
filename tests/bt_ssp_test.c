@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* Secure Simple Pairing, Just Works, the FM-1 as the responder (firmware/src/bt/bt_ssp.c): a simulated initiator (the device
  * that starts pairing, as the Raspberry Pi of docs/BT-CLASSIC.md 14 did) built from the spec functions (bt_safer.c, its
  * f1 f2 f3 E1 E3 checked against Part G's sample data in tests/bt_crypto_test.c) runs the whole exchange through the

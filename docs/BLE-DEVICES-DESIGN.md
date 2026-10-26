@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 -->
 # BLE MIDI devices: one list, up to four remembered devices
 
 How the FM-1 chooses and remembers a Bluetooth MIDI device: the devices list (NONE, LAST, nearby devices), connecting out, LAST

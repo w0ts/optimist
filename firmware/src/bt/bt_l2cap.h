@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* The Classic probe's L2CAP signalling and SDP client (Core spec Vol 3 Part A, Part B): the frames we send and the
  * reading of an SDP attribute list (the A2DP sink record: its PSM, versions, name). Portable C, no C library;
  * host-tested in tests/bt_l2cap_test.c. Written from the specification, no vendor code.

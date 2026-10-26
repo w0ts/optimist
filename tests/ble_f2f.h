@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* The face of one FM-1 stack unit (tests/ble_f2f_unit.c) for tests/ble_f2f_test.c: F2F_DECLARE(u) declares u_init, ...
  * Inside a unit (F2F_U defined), F2F(name) names its own functions. */
 #ifndef BLE_F2F_H

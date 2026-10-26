@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 -->
 # Bluetooth Classic (BR/EDR): the hardware and our A2DP source
 
 The builder item `BT_AUDIO` (EXPERIMENTAL, off by default; on in the shipped profiles) is our own GPL-3.0 BR/EDR stack,

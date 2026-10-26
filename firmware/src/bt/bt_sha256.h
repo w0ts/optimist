@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* SHA-256 (FIPS PUB 180-4) and HMAC-SHA-256 (RFC 2104), for Secure Simple Pairing's f1 / g / f2 / f3 (Core spec Vol 2
  * Part H §7.7). Written from the standards; portable C, no C library; host-tested in tests/bt_crypto_test.c. */
 #ifndef BT_SHA256_H

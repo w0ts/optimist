@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* BLE-MIDI packets (MIDI Association, "Specification for MIDI over Bluetooth Low Energy" 1.0) to and from
  * USB-MIDI event packets, the firmware's router format: cin | status << 8 | data1 << 16 | data2 << 24
  * (cable 0; CIN 4 SysEx start / continue, 5 / 6 / 7 SysEx end with 1 / 2 / 3 octets or a single-octet

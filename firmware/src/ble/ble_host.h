@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* Inside the host: L2CAP (ble_host.c: fixed channels, LE signalling, SMP, GAP start-up) and the ATT server with
  * its GATT database (ble_att.c). */
 #ifndef BLE_HOST_H

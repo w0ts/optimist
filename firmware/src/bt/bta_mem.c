@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* Bluetooth audio's remembered devices (the user, 2026-10-24: "remember up to 4 BT audio devices"): bta.mem, the last one
  * first, each with its link key; AUTO pages them in that order (bta.page_i, bta_next) and the one that answers goes first
  * (bta_settle); the devices list's rows. Pure: the bta state only (bt_audio.h). Included by bt_audio.c, and by the host

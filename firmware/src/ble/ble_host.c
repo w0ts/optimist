@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* The host below ATT (Core Specification Vol 3):
  *   - GAP: the advertisement (flags, the BLE-MIDI service UUID) and the scan response (the name), Part C 11;
  *   - L2CAP on LE: basic frames over the fixed channels, reassembled from the link layer's fragments; the LE

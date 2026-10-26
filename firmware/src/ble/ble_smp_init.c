@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* The Security Manager as initiator (BLE_CENTRAL 1, BLE_CEN_PAIR: we are the master of the link; Core Specification Vol 3 Part H),
  * part of ble_smp.c (included there: it shares bsmp, smp_send, smp_c1, smp_cut). LE legacy pairing with bonding, and
  * only when the peripheral asks (a Security Request, Insufficient Authentication / Encryption: ble_central.c). Our

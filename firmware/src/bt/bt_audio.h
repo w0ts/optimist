@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* Bluetooth audio's state as the screen reads it (bt_audio.c; SYSTEM > Bluetooth, op_project.c): included by felucca.c
  * before the UI, the code after the Classic stack */
 #define BTA_DEVS 8u

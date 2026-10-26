@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* The radio's stored calibration (route C, docs/BLE-STACK.md §8.2): a read-only reader of stock V15's SDK "VM" store
  * and the copy Optimist keeps of the four RF records. Written from docs/BLE-HW-FACTS.md §14 / §15.4 (branch
  * feat/ble-facts, d907ce3), not from vendor code. Portable C, no C library; host-tested in tests/ble_vm_test.c.

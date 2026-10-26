@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0
 """The BLE radio start-up program (tools/ble_rf_capture.py) packed for flash: capture format 3.
 
 The capture makes a format-2 program (one op per register / window / LUT write, docs/BLE-STACK.md section 8.1); its
