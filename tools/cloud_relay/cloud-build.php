@@ -130,7 +130,7 @@ function not_a_robot(array $cfg, string $token): bool {
 }
 
 /** this address's last build is still queued or building: its issue is open (the workflow closes it when the build is
-    done or refused) and younger than queue_max_seconds (a failed run leaves it open). No answer from GitHub = queued */
+    done, refused or failed) and younger than queue_max_seconds (a workflow error leaves it open). No answer from GitHub = queued */
 function still_queued(array $cfg, ?array $q): bool {
   if (!is_array($q) || !is_int($q[0] ?? null) || !is_int($q[2] ?? null) || $q[0] <= time() - $cfg['queue_max_seconds']) return false;
   [$code, $out] = github($cfg, "issues/{$q[2]}");

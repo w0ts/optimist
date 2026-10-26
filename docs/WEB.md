@@ -186,7 +186,7 @@ cloud** sends the configuration to this repository's GitHub Actions, which build
    key's first 16 hex digits), an **Install it** link, a link to the configuration in the builder, and the downloads
    `optimist-<name>-<key16>.fwsc` and its `-ui.zip`; it closes the issue. A refused configuration (unknown key, rule not
    met) is answered at once and closed; a failed build (most often: it does not fit, the page's size is an estimate) is
-   answered with the log and stays open.
+   answered with the log and closed (an open one would count as still building).
 4. Install it: the page's **Flash it**, the issue's **Install it** link (`?build=<id>`), Firmware's *Your build*, or download
    the `.fwsc` and `python3 tools/optimist.py flash FILE`. There is no list of everyone's builds: a page offers yours.
 
