@@ -222,6 +222,9 @@ static const param_desc_t TP[P_COUNT] = {
     [P_TSPIT] = PD("SPIT", F_PCT, 0, 127, 0),      /* the band's sharpness and the drive into the clip */
     [P_TXDLY] = PD("XDLY", F_PCT, 0, 127, 0),      /* the cross-modulated dual delay (xdly.c): its MIX, dry to all wet */
 #endif
+#if FELUCCA_EX_GAIN
+    [P_TEXGN] = PD("EXGN", F_DB, 0, 127, 0),       /* EXGN, the example insert (exgain.c): OFF, then LEVEL's dB (112: 0 dB) */
+#endif
 #if FELUCCA_FX_DUST
     [P_TDUST] = PD("DUST", F_PCT, 0, 127, 0),      /* the DUST insert (fx.c dust_run): a track's lo-fi / vinyl */
 #endif
