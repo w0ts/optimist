@@ -39,6 +39,14 @@ The peer needs an IPv4 UDP layer and nothing more. Contract (to agree with the d
 5. **Power save off while Link is on.** In power-save mode the access point holds multicast until the next DTIM
    (100-300 ms) and unicast until the station wakes: discovery still works, but the measurement goes lopsided.
 6. **ARP** (unicast replies to the peers' measurement endpoints) and the usual ICMP. No TCP, no DNS, no mDNS.
+7. **Receive filter: drop early** (the user's point, 2026-10-26). Link is multicast for discovery only: discovery
+   responses and the measurement pings / pongs are unicast to our port. In two stages:
+   - **the MAC** (Ralink's RX filter, `0x1400`): joined, the station setting (`0x17F97`: unicast not to us and frames
+     of other networks dropped). It keeps or drops multicast only as a whole (one bit), not per group;
+   - **right after the RX DMA**, before any copy or IP processing, a few byte compares (LLC/SNAP type, IP protocol,
+     destination address and port) keep only: UDP to 224.76.78.75:20808; UDP to our address on our Link port; ARP
+     for our address; DHCP to port 68; IGMP queries (answered, so a switch keeps forwarding the group). Everything
+     else (mDNS, SSDP, other broadcast chatter of a busy network) is dropped there: some 20 instructions a frame.
 
 Wi-Fi and BT share one RF front end (docs/BLE-HW-FACTS.md §5.2). Whether BLE MIDI or BT audio can run at the
 same time as Wi-Fi is for the driver to answer. Link does not need them.
