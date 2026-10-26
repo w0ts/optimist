@@ -278,6 +278,14 @@
     "ramtext": 0
    }
   },
+  "EX_SQUARE": {
+   "1": {
+    "flash": 1908,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
+   }
+  },
   "DRUM_SYNTH": {
    "0": {
     "flash": -1148,
@@ -524,7 +532,7 @@
   },
   "FX_REVERB": {
    "0": {
-    "flash": -760,
+    "flash": -764,
     "ram": -1978,
     "pool": -1992,
     "ramtext": 1284
@@ -754,6 +762,14 @@
     "ramtext": 0
    }
   },
+  "EX_GAIN": {
+   "1": {
+    "flash": 420,
+    "ram": 368,
+    "pool": 8,
+    "ramtext": 4
+   }
+  },
   "INS_CHORUS": {
    "1": {
     "flash": 4256,
@@ -961,6 +977,14 @@
     "flash": 5480,
     "ram": 1104,
     "pool": 288,
+    "ramtext": 0
+   }
+  },
+  "EX_NOTEGEN": {
+   "1": {
+    "flash": 808,
+    "ram": 0,
+    "pool": 0,
     "ramtext": 0
    }
   },
@@ -1587,7 +1611,7 @@
    }
   }
  },
- "measured": "2026-10-26 09:20",
+ "measured": "2026-10-26 09:39",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
@@ -1609,7 +1633,7 @@
  },
  "checks": {
   "bt-debug": {
-   "hash": "6a573eb5",
+   "hash": "032ac8da",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -1706,7 +1730,7 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "534a6733",
+   "built_hash": "7d6476dc",
    "sizes": {
     "flash": 570428,
     "ram": 93996,
@@ -1715,7 +1739,7 @@
    }
   },
   "drum-machines": {
-   "hash": "4e7def44",
+   "hash": "65fd4df3",
    "cfg": {
     "ENG_ANALOG": 0,
     "ENG_DIGITAL": 0,
@@ -1792,7 +1816,7 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "6b94d337",
+   "built_hash": "78272ab6",
    "sizes": {
     "flash": 572408,
     "ram": 95076,
@@ -1801,7 +1825,7 @@
    }
   },
   "synths-2": {
-   "hash": "79797276",
+   "hash": "785f2577",
    "cfg": {
     "ENG_ANALOG": 0,
     "ENG_DIGITAL": 0,
@@ -1893,7 +1917,7 @@
     "COND": 1,
     "SEQTOOLS": 1
    },
-   "built_hash": "7f56c2b4",
+   "built_hash": "7a45ad53",
    "sizes": {
     "flash": 571844,
     "ram": 78952,
@@ -1902,7 +1926,7 @@
    }
   },
   "synths": {
-   "hash": "76982681",
+   "hash": "24331f02",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -2003,7 +2027,7 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "16c65160",
+   "built_hash": "429ddf49",
    "sizes": {
     "flash": 575820,
     "ram": 81416,
@@ -2012,7 +2036,7 @@
    }
   },
   "synths_USBaudio_BTaudio_BTmidi": {
-   "hash": "5b5fcdbc",
+   "hash": "4e4492b7",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -2113,7 +2137,7 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "4c3a70fd",
+   "built_hash": "51e31fc8",
    "sizes": {
     "flash": 581352,
     "ram": 92160,
@@ -2122,7 +2146,7 @@
    }
   },
   "synths_USBaudio_BTaudio_BTmidi+ble-test": {
-   "hash": "411d6ecc",
+   "hash": "16368817",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -2216,7 +2240,7 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "503fb0b4",
+   "built_hash": "726a19d3",
    "sizes": {
     "flash": 534252,
     "ram": 87884,
@@ -2225,7 +2249,7 @@
    }
   },
   "synths_USBaudio_BTaudio_BTmidi+ble-full": {
-   "hash": "0d444cea",
+   "hash": "68b6d727",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -2320,7 +2344,7 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "6e617d5e",
+   "built_hash": "09ee0d2f",
    "sizes": {
     "flash": 528860,
     "ram": 83156,
@@ -2329,7 +2353,7 @@
    }
   },
   "bt-debug~": {
-   "hash": "01ff82fd",
+   "hash": "3dabd350",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -2424,7 +2448,7 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "1c7c6047",
+   "built_hash": "024bc186",
    "sizes": {
     "flash": 559100,
     "ram": 95312,
@@ -2433,7 +2457,7 @@
    }
   },
   "drum-machines~": {
-   "hash": "79425544",
+   "hash": "61f84ba5",
    "cfg": {
     "ENG_ANALOG": 0,
     "ENG_DIGITAL": 0,
@@ -2505,7 +2529,7 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "79912d1e",
+   "built_hash": "672b275d",
    "sizes": {
     "flash": 579488,
     "ram": 94176,
@@ -2514,7 +2538,7 @@
    }
   },
   "synths-2~": {
-   "hash": "27c27275",
+   "hash": "7e940700",
    "cfg": {
     "ENG_ANALOG": 0,
     "ENG_DIGITAL": 0,
@@ -2604,7 +2628,7 @@
     "COND": 1,
     "SEQTOOLS": 1
    },
-   "built_hash": "31a4b3f7",
+   "built_hash": "30e979e0",
    "sizes": {
     "flash": 563088,
     "ram": 76952,
@@ -2613,7 +2637,7 @@
    }
   },
   "synths~": {
-   "hash": "4ee79611",
+   "hash": "759aea8a",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -2718,7 +2742,7 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "76e91da4",
+   "built_hash": "4cad0665",
    "sizes": {
     "flash": 587476,
     "ram": 88952,
@@ -2727,7 +2751,7 @@
    }
   },
   "synths_USBaudio_BTaudio_BTmidi~": {
-   "hash": "11c31e36",
+   "hash": "55f4f11b",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -2826,7 +2850,7 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "5fdc05a3",
+   "built_hash": "08a7f7f4",
    "sizes": {
     "flash": 596212,
     "ram": 93200,
@@ -2835,7 +2859,7 @@
    }
   },
   "synths_USBaudio_BTaudio_BTmidi+ble-test~": {
-   "hash": "0dd12178",
+   "hash": "0e296c81",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -2929,7 +2953,7 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "25338984",
+   "built_hash": "5e183571",
    "sizes": {
     "flash": 532132,
     "ram": 88076,
@@ -2938,7 +2962,7 @@
    }
   },
   "synths_USBaudio_BTaudio_BTmidi+ble-full~": {
-   "hash": "58c482b6",
+   "hash": "6e16361b",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -3037,7 +3061,7 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "3580b49a",
+   "built_hash": "7b826493",
    "sizes": {
     "flash": 535988,
     "ram": 83060,
@@ -3438,7 +3462,7 @@
    "ramtext": 0
   },
   "FX_REVERB=0": {
-   "flash": -4,
+   "flash": 0,
    "ram": 0,
    "pool": 0,
    "ramtext": 1284
