@@ -12,8 +12,10 @@ Wi-Fi driver of our own (clean room, as the BT stack was). Details: `docs/LINK-D
 | Wi-Fi receive | **works on the FM-1** | `firmware/hal/fm1_wifi.h`, console `wifiup`, `wifirx` |
 | Scan (beacons, channels 1-13) | **works**: lists the networks around | console `wifiscan` |
 | Transmit | **works**: access points answer our probe requests | `fm1_wifi_tx`, console `wifitx [ch]` |
-| WPA2 crypto (SHA-1, HMAC, PBKDF2, PRF, AES, key unwrap) | written, published test vectors pass, not wired in | `firmware/src/wifi/wifi_crypto.c`, `tests/wifi_sta_test.c` |
-| Join (authentication, association, 4-way handshake), key install | **not started** | (next) |
+| WPA2 crypto (SHA-1, HMAC, PBKDF2, PRF, AES, key unwrap) | **done**: test vectors pass | `firmware/src/wifi/wifi_crypto.c`, `tests/wifi_sta_test.c` |
+| 4-way handshake (EAPOL M1-M4, PTK, GTK unwrap) | host-tested: a simulated AP, the PTK checked against an independent PRF computation, replay / bounds / padding cases (23 checks); **not run on the FM-1** | `firmware/src/wifi/wifi_sta.c`, `wifi_sta.h`, `tests/wifi_sta_test.c` |
+| Key install into the MAC tables | written, **unverified**: the WCID attribute value (`0x6804` = `0x04`) may be wrong (Ralink's layout would give `0x09` for CCMP in the pairwise table); only a decrypted frame on the FM-1 settles it | `wifi_sta_install_hw_keys` |
+| Join wire-in (open authentication, association framing on-chip) | **next** | `firmware/src/wifi/` |
 | IP layer (ARP, DHCP, IGMP, UDP), early receive filter | not started | `docs/LINK-DESIGN.md` §2 |
 | Link in `clock_sync.c` (`MSRC_LINK`, `SYNC LINK`), builder items | not started | `docs/LINK-DESIGN.md` §3 |
 
@@ -50,12 +52,13 @@ register access. `split.py` / `diff_v15.py` compare traces. The SDK libraries ar
 
 ## Next steps
 
-1. **Join:** open authentication, association with an RSN element, the WPA2-PSK 4-way handshake (host-test it first
-   against a simulated AP in `tests/wifi_sta_test.c`). The passphrase comes from the console at run time: never in a
-   file, a commit or a note.
-2. **Key install** into the MAC's tables (Ralink layout, confirmed by the capture's clears): WCID table `0x1800`,
-   pairwise keys `0x4000`, IV/EIV `0x6000`, WCID attributes `0x6800`, shared keys `0x6C00`, shared key mode `0x7000`.
-   CCMP is done by the MAC (unverified until a decrypted frame is seen).
+1. **Join wire-in:** Open system authentication and association request / response with RSN element framing over the air, feeding EAPOL frames into `wifi_sta_rx_eapol`. The passphrase comes from the console at run time: never in a file, a commit or a note.
+2. **Key install verification:** `wifi_sta_install_hw_keys` writes the PTK / GTK into the MAC tables (`0x1800`,
+   `0x4000`, `0x6000`, `0x6800`, `0x6C00`, `0x7000`). Confirm the MAC decrypts (CCMP) on a real encrypted frame;
+   check the WCID attribute value first.
+2b. **Group key rekey:** the 2-message group handshake (pairwise bit off) is refused today, so the link would drop at
+   the access point's first rekey (often after an hour). The SNonce comes from the caller's random source
+   (`wifi_sta_init`'s `rand`: in the firmware, the radio's `ble_hw_rand`).
 3. **MAC address:** the unit's VM 102 BT address with the locally-administered bit (the user's choice); a random one
    kept in Optimist's settings if VM 102 is missing. (Tests use `02:11:22:33:44:55`.)
 4. **IP + filter:** ARP, DHCP, IGMP, UDP; drop everything else right after the RX DMA (`LINK-DESIGN.md` §2.7).

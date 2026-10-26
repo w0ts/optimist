@@ -570,7 +570,7 @@ job; ( jobin
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -o "$OUT/wifi_sta_test" tests/wifi_sta_test.c
-    run "Wi-Fi station crypto: SHA-1, HMAC, PBKDF2 PMK, AES-128, key unwrap (published vectors)" "$OUT/wifi_sta_test"
+    run "Wi-Fi station WPA2-PSK: SHA-1, HMAC, PBKDF2 PMK, AES-128, AES wrap/unwrap, PTK derivation, 4-way handshake, key install" "$OUT/wifi_sta_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/clock_out_test" tests/clock_out_test.c -lm
