@@ -11,7 +11,7 @@ A synth track plays one engine at a time. PRESETS on a synth track loads another
 | Engine | Builder item | What it is | EDIT 1 / EDIT 2 cards |
 |---|---|---|---|
 | ANALOG 2 | `ENG_ANALOG` | Two band-limited oscillators with hard sync, a swarm of up to 6 detuned copies, two filters | OSC: WAVE DTN MIX NOIS; FLT: CUT RES DRV KTR. Extra pages OSC 2, SWARM, FLT 2, FLT B, and ENV2 (below) |
-| DIGITAL | `ENG_DIGITAL` | Four-operator FM, 8 algorithms, feedback on operator 4, one modulation INDEX with its own envelope | OPS: ALG R2 R3 R4; MOD: IDX MDEC FB |
+| DIGITAL | `ENG_DIGITAL` | Four-operator FM, 8 algorithms, feedback on operator 4, one modulation INDEX with its own envelope; TONE (`DIG_TONE`) adds T1..T8, Digitone-style routings | OPS: ALG R2 R3 R4; MOD: IDX MDEC FB (T1..T8: C A B; A LEV B LEV FDBK MIX) |
 | PHASE | `ENG_PHASE` | Phase distortion: a cosine with a bent phase, a second line to mix or ring-modulate; FOLD a sine wavefolder (`PHASE_FOLD`) | PHS: WAVE WAVE2 DCW ENV; LINE: DTN LINE SUB FOLD |
 | LOFI | `ENG_LOFI` | Chip voice: pulse, triangle, saw, noise, a 4-bit wavetable, bit crush, a pitch sweep | CHIP: CHIP WAVE DUTY CRSH; MOTN: SWP VIB ARP TONE |
 | SAMPLE | `ENG_SAMPLE` | Built-in sample sets and your own USR1 to USR3 samples across the keys, with loops | SET: SET TUNE BITS LOOP; TONE: CUT DRV |
@@ -103,6 +103,11 @@ A synth track plays one engine at a time. PRESETS on a synth track loads another
   from 0 it bends A's pitch with B (bells, growls, with sync the classic sweeps), down from 0 it moves the cutoff with B.
   **PW** narrows both pulses (the track's SHP moves it). The track's ENV is the amplitude and, through ENV 1's FLT
   card, the filter envelope. Five voices. Our own presets; it plays no Sequential programs.
+- **DIGITAL TONE** (builder item `DIG_TONE`): ALG's T1..T8 are routings in the manner of Elektron's Digitone (ours;
+  not affiliated with Elektron): a carrier **C**, its modulator **A** and a pair **B** (B1 B2, the same ratio), two
+  outputs X and Y that **MIX** crossfades (-64 X, 63 Y), **FDBK** on one operator. **C**, **A** and **B** are the
+  ratios (C sets the pitch), **A LEV** A's depth (steady; ENV 1's card moves it), **B LEV** the pair's depth, which
+  follows the track's ENV. The classic routings 1..8 sound as before; on them EDIT 8 is "-".
 - **CS80:** a Yamaha CS-80 style voice after CS-1's (twochannels), with our controls: two channels a voice, each a VCO
   through a high-pass and a low-pass in series. **I** and **II** are the channels' waves (SAW, PULSE, BOTH, SAW+SIN with
   the sine added after the filters, NOISE), **II FT** channel II's footage against I's 8' (16' to 2', the fifths

@@ -102,6 +102,9 @@
 #ifndef FELUCCA_ENG_WAVE
 #define FELUCCA_ENG_WAVE 0                 /* WAVE (Clipper's wavetables, one table for every WAVE track: engines/clipper/eng_wave.c) */
 #endif
+#ifndef FELUCCA_DIG_TONE
+#define FELUCCA_DIG_TONE 0                 /* DIGITAL's TONE routings T1..T8 (Digitone-style: engines/digital/eng_digital.c) */
+#endif
 #ifndef FELUCCA_ENG_CS80
 #define FELUCCA_ENG_CS80 0                 /* CS80 (a CS-80 style voice after CS-1: engines/cs80/eng_cs80.c) */
 #endif

@@ -319,6 +319,10 @@ job; ( jobin
     run "the scene's engines (Clipper's STRINGS VPS TERRAIN WSEQ VECTOR WAVE, SID, PROPHET, CS80; UIDs 18..26): every preset audible / bounded / silent after, tests/golden_scene_engines.txt, level, each EDIT value acts, corners, deterministic, pitch" "$OUT/scene_engines_test" tests/golden_scene_engines.txt
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_DIG_TONE=1 -o "$OUT/dig_tone_test" tests/dig_tone_test.c -lm
+    run "DIGITAL TONE (DIG_TONE): the TONE presets audible / bounded / silent after, T1..T8 distinct, each value acts, corners, the names, 220 Hz" "$OUT/dig_tone_test"
+) >"$U.out" 2>&1 & jobbg
+job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_PHASE_FOLD=1 -o "$OUT/phase_fold_test" tests/phase_fold_test.c -lm
     run "PHASE FOLD (Felucca-Engines, PHASE_FOLD): E7 FOLD brightens, bounded, no DC, folds less above A4, no click on or off" "$OUT/phase_fold_test"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_PHASE_FOLD=0 -o "$OUT/phase_fold_test_off" tests/phase_fold_test.c -lm
