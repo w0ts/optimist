@@ -25,6 +25,41 @@
 #define FM1_WIFI_RX_ACK 0x324u           /* MAC register written 2 before a frame is fetched (sdio_recv_int_hdl) */
 #define FM1_WIFI_RX_MAX 4088u            /* the SDK takes a length below 4089 */
 
+/* one frame out by the TX DMA, as the SDK's usb_submit_urb / wl30_mmc_io_rw_extended (addr 0) hand it over (the emulator
+ * capture of a raw send, docs/WIFI-HW-FACTS.md §2b). buf (4-aligned): word 0 = MPDU length + 22; word 1 = 4 (bits 1-2:
+ * queue 2); a 16-byte Ralink TXWI (word 0 PHY / MCS: 0xB0 for 1 Mb/s CCK; word 1 = ACK | BA window 13 << 2 | WCID 1
+ * << 8 | MPDU length << 16); then the 802.11 frame. The DMA takes word 0 + 4 bytes from buf + 4. Returns 0, or -1 if
+ * the DMA did not finish within 10 ms. No queue-room check (MAC 0x438: one frame at a time here) */
+#define FM1_WIFI_TX_ADDR 0x30F10u
+#define FM1_WIFI_TX_LEN 0x30F14u
+#define FM1_WIFI_TX_CLR (1u << 10)       /* 0x30F04: written before / after each TX transfer */
+#define FM1_WIFI_TX_DONE (1u << 20)      /* 0x30F04: the TX DMA transfer finished */
+#define FM1_WIFI_TX_HDR 24u              /* bytes before the 802.11 frame in buf */
+FM1_INLINE void fm1_wifi_tx_prepare(uint32_t *buf, uint32_t mpdu_len)
+{
+    buf[0] = mpdu_len + 22u;
+    buf[1] = 4u;
+    buf[2] = 0xB0u;
+    buf[3] = 1u | 13u << 2 | 1u << 8 | (mpdu_len & 0xFFFu) << 16;
+    buf[4] = buf[5] = 0;
+}
+FM1_INLINE int fm1_wifi_tx(uint32_t *buf)
+{
+    volatile uint32_t *s = (volatile uint32_t *)(uintptr_t)FM1_WIFI_WDMA1;
+    uint32_t t0;
+    *s |= FM1_WIFI_TX_CLR;
+    __asm__ volatile("csync;");
+    *(volatile uint32_t *)(uintptr_t)FM1_WIFI_TX_ADDR = (uint32_t)(uintptr_t)buf + 4u;
+    *(volatile uint32_t *)(uintptr_t)FM1_WIFI_TX_LEN = buf[0] + 4u;
+    __asm__ volatile("csync;");
+    t0 = FM1_T4_CNT;
+    while (!(*s & FM1_WIFI_TX_DONE))
+        if (FM1_T4_CNT - t0 > 10000u * FM1_TICKS_PER_US)
+            return -1;
+    *s |= FM1_WIFI_TX_CLR;
+    return 0;
+}
+
 /* a received frame in the RX DMA buffer (after its 4-byte length word): Ralink's RXWI, 16 bytes, then the 802.11 frame.
  * RXWI word 0: WCID [7:0] (0xFF: no station), MPDU length [27:16]; bytes 4-5 the frame's sequence control; bytes 8-10
  * RSSI per chain (signed); measured on the FM-1 against three beacons and an action frame (docs/WIFI-HW-FACTS.md §2) */

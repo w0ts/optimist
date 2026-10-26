@@ -399,6 +399,67 @@ static void con_wifiscan(void)
         con_puts("\"\r\n");
     }
 }
+/* wifitx [channel]: one broadcast probe request at 1 Mb/s from 02:11:22:33:44:55 (locally administered; set as our MAC
+ * address), then 300 ms listening with the RX filter open: probe responses (0x50) to that address show the frame went
+ * out. Needs wifiup. The channel and filter are put back after */
+static void con_wifitx(const char *p)
+{
+    static uint32_t tx[(FM1_WIFI_TX_HDR + 64u) / 4u];
+    static const uint8_t me[6] = {0x02, 0x11, 0x22, 0x33, 0x44, 0x55};
+    static const uint8_t body[12] = {0x00, 0x00, 0x01, 0x08, 0x82, 0x84, 0x8B, 0x96, 0x0C, 0x12, 0x18, 0x24};
+    uint8_t *f = (uint8_t *)tx + FM1_WIFI_TX_HDR;
+    uint32_t *buf = con_wifi_buf, ch0 = fm1_wifi_channel(), filt, ch = ch0, i, t0, got = 0, all = 0, v;
+    int ok;
+    if (!rfs_is_up() || !(fm1_wifi_rd(FM1_WL_EN) & FM1_WL_EN_WIFI)) {
+        con_puts("Wi-Fi not up: wifiup first\r\n");
+        return;
+    }
+    v = con_num(&p, &ok);
+    if (ok && v >= 1u && v <= 13u)
+        ch = v;
+    fm1_wifi_tx_prepare(tx, 24u + sizeof body);
+    for (i = 0; i < 24u; i++)
+        f[i] = 0;
+    f[0] = 0x40;                                          /* probe request */
+    for (i = 0; i < 6u; i++) {
+        f[4 + i] = 0xFF;                                  /* DA, BSSID: broadcast */
+        f[16 + i] = 0xFF;
+        f[10 + i] = me[i];                                /* SA */
+    }
+    for (i = 0; i < sizeof body; i++)
+        f[24 + i] = body[i];                              /* SSID (any), supported rates 1 2 5.5 11 6 9 12 18 */
+    fm1_wifi_mac_wr(0x1008u, (uint32_t)me[0] | me[1] << 8 | me[2] << 16 | (uint32_t)me[3] << 24);
+    fm1_wifi_mac_wr(0x100Cu, (uint32_t)me[4] | me[5] << 8 | 0xFFu << 16);
+    filt = fm1_wifi_mac_rd(FM1_WIFI_RX_FILTER);
+    fm1_wifi_mac_wr(FM1_WIFI_RX_FILTER, FM1_WIFI_RX_FILTER_ALL);
+    fm1_wifi_set_channel(ch);
+    con_kv("channel", (int32_t)ch);
+    con_kx("txq_438", fm1_wifi_mac_rd(0x438u));
+    con_kv("tx", fm1_wifi_tx(tx));
+    con_kx("tx_cnt", fm1_wifi_mac_rd(0x170Cu));           /* TX_STA_CNT0 */
+    t0 = fm1_ticks();
+    while (fm1_ticks() - t0 < 300000u * FM1_TICKS_PER_US) {
+        int32_t n = fm1_wifi_rx(buf, CON_WIFI_MAX);
+        const uint8_t *h = (const uint8_t *)buf + 4u + FM1_WIFI_RXWI;
+        fm1_wdt_feed();
+        if (n <= 0)
+            continue;
+        all++;
+        if (h[0] != 0x50u || memcmp(h + 4, me, 6))
+            continue;
+        got++;
+        con_puts("probe response from ");
+        for (i = 0; i < 6u; i++) {
+            con_hex(h[10 + i], 2);
+            con_putc(i < 5u ? ':' : '\r');
+        }
+        con_puts("\n");
+    }
+    fm1_wifi_set_channel(ch0);
+    fm1_wifi_mac_wr(FM1_WIFI_RX_FILTER, filt);
+    con_kv("frames", (int32_t)all);
+    con_kv("responses", (int32_t)got);
+}
 #endif
 
 static void con_blevm(void)                         /* stock V15's VM where the firmware finds it (ble_vm.h's candidates) */
@@ -1356,6 +1417,8 @@ static void con_exec(const char *p)
         con_wifiup();
     else if (con_word(&p, "wifiscan"))
         con_wifiscan();
+    else if (con_word(&p, "wifitx"))
+        con_wifitx(p);
 #endif
 #if BLE_DIAG
     else if (con_word(&p, "blell"))

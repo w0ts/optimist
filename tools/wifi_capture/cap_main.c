@@ -21,6 +21,7 @@
 #endif
 
 extern uint32_t _data_start[], _data_end[], _data_load[], _bss_start[], _bss_end[];
+void *memcpy(void *d, const void *s, unsigned n);
 volatile uint32_t cap_phase;                      /* 1 rf_common_init, 2 rf_on, 3 irq init, 4 first pass done,
                                                    * 5 rf_common_init (quick), 6 rf_on, 7 done */
 volatile uint32_t jiffies;
@@ -48,6 +49,10 @@ void cap_cstart(void)
 #if CAP_STA
 int usb_register(void *drv);
 void tasklet_initialize(void);
+uint8_t *wifi_get_wifi_send_pkg_ptr(void);
+int wl30_usb_control_msg(void *dev, unsigned pipe, uint8_t req, uint8_t type, uint16_t value, uint16_t index, void *data,
+                         uint16_t size, int timeout);
+void wifi_send_data(int len, int rate);
 int main(void)                                    /* the SDK's start: radio, WLC, rtusb_probe (the driver up) */
 {
     tasklet_initialize();                         /* (the driver's timer / tasklet lists; its thread never runs here) */
@@ -56,6 +61,18 @@ int main(void)                                    /* the SDK's start: radio, WLC
     cap_phase = 10;
     usb_register(0);
     cap_phase = 11;
+    {   /* one frame through JieLi's raw send (wifi_send_data, the SDK's raw_txrx example): a broadcast probe request at
+         * 1 Mb/s, to capture what reaches the TX DMA (0x30F10 / 0x30F14 and the buffer, tx_s_buf) */
+        static const uint8_t hdr[24] = {0x40, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+                                        0x02, 0x11, 0x22, 0x33, 0x44, 0x55, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00};
+        static const uint8_t body[12] = {0x00, 0x00, 0x01, 0x08, 0x82, 0x84, 0x8B, 0x96, 0x0C, 0x12, 0x18, 0x24};
+        uint8_t *pkg = wifi_get_wifi_send_pkg_ptr();
+        memcpy(pkg + 20, hdr, sizeof hdr);
+        memcpy(pkg + 44, body, sizeof body);
+        cap_phase = 12;
+        wifi_send_data(sizeof body, 0);
+        cap_phase = 13;
+    }
     for (;;)
         ;
 }
