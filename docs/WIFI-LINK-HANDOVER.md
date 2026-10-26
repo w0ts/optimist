@@ -84,6 +84,20 @@ All previous blockers in the handover chain have been resolved and host-tested:
    - `tests/link_test.c`: 151 checks passing (Link peer sync, timelines, session handovers).
    - `tools/size_fns.py --check` and `tools/div_audit.py` passing cleanly.
 
+## First Link try on the FM-1 (2026-10-26, evening): result
+
+Package `optimist-link-try1-bt-debug.fwsc` (`c5a3552d`), `wifiup`, `wifijoin mots`, `wifilink`, Live open with Link on:
+- join ok (channel 11, AID 5, handshake, keys installed);
+- **frames to us decrypt**: `unicast_to_us 1`, `unicast_decrypted 1`, `unicast_still_protected 0`, so the WCID attribute
+  `0x08` is right;
+- receive and the early filter work: `rx 3095`, `data 262`, `kept_by_filter 14`;
+- **DHCP got no answer**: `tx 6`, `tx_err 0`, `dhcp 4` (gave up), `ip 0.0.0.0`, so Link never started (`peers 0`);
+- `eapol 1` after the join: the access point may have repeated a handshake message (our M4?), not confirmed.
+
+Most likely blocker: our outgoing protected data frames (the MAC adding the CCMP header and encrypting with the
+pairwise key at WCID 1). If it does not, the access point drops them silently. Claude was stopped again by the safety
+classifier at this point and hands this over.
+
 ## Blocked for Claude (2026-10-26, night): the first Link-over-Wi-Fi test build
 
 A safety classifier stopped Claude while it was starting this step (handing it to an agent, which may have begun before
