@@ -64,6 +64,7 @@ static uint32_t ed_unpack7(const uint8_t *a, uint32_t na, uint8_t *out, uint32_t
     }
     return n;
 }
+static uint8_t st_blank;                /* (felucca.c's: a test session refuses the flash writes; none here) */
 #include "../firmware/src/io/editor/ed_user.c"
 
 static int cmd(uint32_t c, const uint8_t *a, uint32_t na) { ed_n = 0; return ed_user(c, a, na); }

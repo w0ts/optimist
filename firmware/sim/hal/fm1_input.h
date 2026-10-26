@@ -141,6 +141,7 @@ static inline void fm1__unlock(uint32_t v) { if (v) fm1_irq_on(); }
 static void fm1_remote_key(uint32_t id, uint32_t down) { sim_inq[sim_inq_w++ % SIM_INQ] = (uint8_t)(id | (down ? 0x80u : 0u)); }
 static void fm1_remote_enc(uint32_t e, int32_t s) { fm1_in.enc_steps[e] = (int16_t)(fm1_in.enc_steps[e] + s); }
 static void fm1_remote_clear(void) {}
+static int16_t fm1_turned[FM1_NENC];      /* the steps taken since the mirror's last STATE (firmware/hal/fm1_input.h's) */
 #endif
 static int32_t fm1_enc_take(uint32_t e)
 {
@@ -148,6 +149,9 @@ static int32_t fm1_enc_take(uint32_t e)
     int32_t s = fm1_in.enc_steps[e];
     fm1_in.enc_steps[e] = 0;
     fm1__unlock(k);
+#if FELUCCA_ED_MIRROR
+    fm1_turned[e] = (int16_t)(fm1_turned[e] + s);
+#endif
     return s;
 }
 

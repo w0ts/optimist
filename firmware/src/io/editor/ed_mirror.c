@@ -24,17 +24,41 @@
  * INFO tag 0x65: 1 byte, the version; 0x66's opti_mirbt_1: PANEL and NAV over Bluetooth too (0x63 was REC's: retired,
  * not reused). */
 #include "ed_mirror_enc.h"
+#if !MIR_BLE
+#define ed_bt 0                         /* (editor.c's flag exists with Bluetooth only: every request came over USB) */
+#endif
 enum { MIR_STALL_MS = 30, MIR_ALIVE_MS = 3000, MIR_USB = 0, MIR_BT = 1,
        MIR_CATCH_MS = 250,
-       MIR_METER_MS = 100 };               /* the meters to a USB client: 10 times a second */               /* catch-ups at most this often: the panel repainted for the mirror 4 times a second at most,
+       MIR_METER_MS = 100,                 /* the meters to a USB client: 10 times a second */               /* catch-ups at most this often: the panel repainted for the mirror 4 times a second at most,
                                             * and a screen whose catch-up is more than the Bluetooth ring retries at that pace */
+       MIR_STATE_MS = 20, MIR_STATE_BT_MS = 100,   /* STATE when the panel changed, this far apart at least (USB; Bluetooth) */
+       MIR_STATE_IDLE_MS = 500,            /* ... and this often anyway */
+       MIR_STATE_N = 29 };                 /* STATE's bytes after its op */
 static struct {
     uint8_t on, behind, link;           /* behind: what is drawn is dropped until the catch-up (mir_poll) */
+    uint8_t state;                      /* the client asked for STATE (106 bit 2) */
     uint8_t k, acc[3];                  /* USB: the bytes of the next USB-MIDI packet */
+    uint8_t pseq, prc, phave;           /* PANEL: the last request's seq, its answer; one since on */
+    uint16_t master;                    /* MASTER from the client (108 kind 3): its value + 1; 0 the pot's */
+    uint16_t pot;                       /* MASTER's pot, 0..1023 (system/main.c master_pot) */
     uint32_t resets, last_ms;           /* usb.resets when asked; fm1_ms of the last request of any kind */
     uint32_t catch_ms;                  /* fm1_ms of the last catch-up */
     uint32_t meter_ms;                  /* fm1_ms of the last meters sent */
+    uint32_t state_ms;                  /* fm1_ms of the last STATE sent */
+    uint8_t last[MIR_STATE_N];          /* the last STATE's bytes */
+    uint8_t test_req, test_had;         /* 108 kind 5: 1 a test session to start (again), 2 to end, after its reply has gone;
+                                         * test_had: the mirror was on in this test session */
+    uint32_t test_ms;                   /* fm1_ms of the kind 5 request */
 } mir;
+#define MIR_TEST_MAGIC 0x5453544Du      /* "MTST" in felucca.c mir_test_boot: the next start is a test session */
+enum { MIR_TEST_REPLY_MS = 100,         /* the restart this long after the request: its answer out first */
+       MIR_TEST_WAIT_MS = 15000 };      /* a test session no client mirrors this long after its start: ended */
+/* the client's hands off the panel: its keys up, MASTER the pot's again (it went away, or asked: 108 kind 4) */
+static void mir_letgo(void)
+{
+    fm1_remote_clear();
+    mir.master = 0;
+}
 #define MIR_SEEN() (mir.last_ms = fm1_ms)   /* (editor.c, ed_lite.c: each request that comes in) */
 static void op_repaint(void);
 
@@ -204,7 +228,7 @@ static int mir_link_up(void)
 static int mir_live(void)
 {
     if (mir.on && (!mir_link_up() || fm1_ms - mir.last_ms > MIR_ALIVE_MS))
-        mir.on = 0, fm1_remote_clear();   /* (its keys up: none stays held once the client is gone) */
+        mir.on = 0, mir_letgo();          /* (its keys up: none stays held once the client is gone) */
     return mir.on && !mir.behind && !mir_mute;
 }
 /* USB: one USB-MIDI SysEx packet (cin 4: three bytes go on; 5..7: one to three, the last F7) into the ring, waiting while the host reads */
@@ -260,12 +284,12 @@ static void mir_wire_end(void)
 static void mir_fill(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t c)
 {
     if (mir_live())
-        mir_enc_fill(x, y, w, h, c);
+        mir_enc_fill_skip(x, y, w, h, c);
 }
 static void mir_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *px)
 {
     if (mir_live())
-        mir_enc_blit(x, y, w, h, px);
+        mir_enc_blit_skip(x, y, w, h, px);   /* (what the client already has: not again) */
 }
 /* op_mixdraw.c, once a mixer frame: the meters may go to the client this frame (USB only) */
 static uint32_t mir_meters_due(void)
@@ -280,16 +304,21 @@ static uint32_t mir_meters_off(void)
 {
     return mir.on && mir.link == MIR_BT;
 }
-/* a request on link l: on / off, the whole panel again (bit 1); a first on catches up */
+/* a request on link l: on / off, the whole panel again (bit 1), the panel's STATE too (bit 2); a first on catches up */
 static void mir_ask(uint32_t bits, uint32_t l)
 {
     MIR_SEEN();
     mir_live();                         /* (a mirror that ended: this is a first on again) */
     if ((bits & 1u) && (!mir.on || mir.link != l || (bits & 2u)))
         mir.behind = 1, mir.catch_ms = fm1_ms - MIR_CATCH_MS;   /* (asked: at once) */
+    if ((bits & 1u) && !mir.on)
+        mir.phave = 0;                  /* (a new client: no PANEL seq known) */
+    if ((bits & 4u) && !mir.state)
+        mir.state_ms = fm1_ms - MIR_STATE_IDLE_MS;   /* (asked: a STATE at once) */
+    mir.state = (uint8_t)(bits >> 2 & 1u);
     mir.on = (uint8_t)(bits & 1u);
     if (!mir.on)
-        fm1_remote_clear();
+        mir_letgo();
     mir.link = (uint8_t)l;
     mir.resets = usb.resets;
 }
@@ -303,20 +332,125 @@ static void ed_mirror(const uint8_t *a, uint32_t na)
 /* 108 PANEL: the client presses the panel as a finger would (the app's keyboard: the FM-1 Emulator's keys), while it mirrors
  * (its keys come up when the mirror ends, mir_live): kind 0 a button by its label (panel.c B_*: FX .. REC, OCT-, OCT+; a
  * calibrated panel too) and 1 a note key (0 = F3 .. 26 = G5), then 1 down / 0 up; kind 2 a knob by its role (EN_*: SELECT,
- * ALGORITHM, PRESETS, KNOB 1..4), then its detents + 64 (+ clockwise). Reply: kind, 0 done / 1 refused */
+ * ALGORITHM, PRESETS, KNOB 1..4), then its detents + 64 (+ clockwise). Reply: kind, 0 done / 1 refused.
+ * With opti_panelx_1 (after fm1-base's remote, device/mirror.c cmd 0x54): kind 3 MASTER, its value 0..1023 as 2 x 7 bit (1024 and
+ * up: the pot's again), played instead of the pot's until the mirror ends; kind 4 let go (every key up, MASTER the pot's); and a
+ * fourth byte, seq: a request with the seq of the one before is answered again, not done twice (its answer lost, the client
+ * asks again). The reply then carries the seq too */
 static void ed_panel(const uint8_t *a, uint32_t na)
 {
-    uint32_t ok = mir.on && na >= 3u;
-    if (ok && a[0] == 0u && a[1] < NB)
+    uint32_t ok = mir.on && na >= 3u, again = na >= 4u && mir.phave && a[3] == mir.pseq;
+    if (again)
+        ok = !mir.prc;
+    else if (ok && a[0] == 0u && a[1] < NB)
         fm1_remote_key(panel.btn[a[1]], a[2] & 1u);
     else if (ok && a[0] == 1u && a[1] < 27u)
         fm1_remote_key(14u + a[1], a[2] & 1u);
     else if (ok && a[0] == 2u && a[1] < NE)
         fm1_remote_enc(panel.enc[a[1]], ((int32_t)a[2] - 64) * panel.dir[a[1]]);
-    else
+    else if (ok && a[0] == 3u) {
+        uint32_t v = a[1] | (uint32_t)a[2] << 7;
+        mir.master = (uint16_t)(v < 1024u ? v + 1u : 0u);
+    } else if (ok && a[0] == 4u)
+        mir_letgo();
+    else if (ok && a[0] == 5u && !ed_bt && (a[1] == 1u || st_blank)) {
+        mir.test_req = (uint8_t)(a[1] == 1u ? 1u : 2u);   /* (opti_mtest_1: start, again, or end; the restart in mir_poll) */
+        mir.test_ms = fm1_ms;
+    } else
         ok = 0;
+    if (na >= 4u && !again)
+        mir.pseq = a[3], mir.prc = (uint8_t)!ok, mir.phave = 1;
     ed_b(na ? a[0] : 0u);
     ed_b(!ok);
+    if (na >= 4u)
+        ed_b(a[3]);
+}
+/* system/main.c master_pot: MASTER's pot (0..1023) -> what plays, the client's value while it sets one */
+static uint32_t mir_master(uint32_t pot)
+{
+    mir.pot = (uint16_t)pot;
+    return mir.on && mir.master ? mir.master - 1u : pot;
+}
+/* a key id's LED (0..13 a button, 14..40 a note key) in m (fm1_led, fm1_led_dim: by column, a row bit each) */
+static uint32_t mir_led(const uint8_t *m, uint32_t id)
+{
+    uint32_t p, r;
+    for (p = 0; p < FM1_NCOL; p++)
+        for (r = 1; r < 5u; r++)
+            if (FM1_KEYMAP[r][p] == (int8_t)id)
+                return m[p] >> r & 1u;
+    return 0;
+}
+static void mir_bits(uint8_t *b, uint32_t v, uint32_t n)   /* v as n 7-bit bytes, the lowest first */
+{
+    uint32_t i;
+    for (i = 0; i < n; i++)
+        b[i] = (uint8_t)(v >> (7u * i) & 127u);
+}
+/* the panel's state now, as STATE carries it (MIR_STATE_N bytes; the knobs' detents taken from fm1_turned) */
+static void mir_state_now(uint8_t *b)
+{
+    uint8_t dim[FM1_NCOL];
+    uint32_t i, held = 0, lit = 0, dimb = 0, litk = 0, dimk = 0;
+    for (i = 0; i < FM1_NCOL; i++)
+        dim[i] = (uint8_t)(fm1_led_dim[i] | fm1_led_half[i]);
+    for (i = 0; i < NB; i++) {
+        held |= (fm1_in.buttons >> panel.btn[i] & 1u) << i;
+        lit |= mir_led(fm1_led, panel.btn[i]) << i;
+        dimb |= mir_led(dim, panel.btn[i]) << i;
+    }
+    lit |= (uint32_t)(fm1_led[OP_LAMP_COL] >> OP_LAMP_ROW & 1u) << 14;   /* PLAY's green lamp (op_input.c) */
+    for (i = 0; i < 27u; i++) {
+        litk |= mir_led(fm1_led, 14u + i) << i;
+        dimk |= mir_led(dim, 14u + i) << i;
+    }
+    mir_bits(b, held, 2), mir_bits(b + 2, fm1_in.notes, 4);
+    mir_bits(b + 6, lit, 3), mir_bits(b + 9, litk, 4);
+    mir_bits(b + 13, dimb, 2), mir_bits(b + 15, dimk, 4);
+    for (i = 0; i < NE; i++) {
+        int32_t s = fm1_turned[panel.enc[i]] * panel.dir[i];
+        b[19 + i] = (uint8_t)(s < -63 ? 1 : s > 63 ? 127 : s + 64);
+    }
+    mir_bits(b + 26, mir.pot, 2);
+    b[28] = (uint8_t)((mir.on && mir.master) | (st_blank ? 2u : 0u));
+}
+/* the room for one STATE frame on the link now (never a frame dropped for it: that would catch the screen up) */
+static int mir_state_room(void)
+{
+#if MIR_BLE
+    if (mir.link == MIR_BT)
+        return MIR_BLE_RING - (mbr.fw - mbr.r) >= 64u;
+#endif
+    return mir.link == MIR_USB && SXQ - (so_w - so_r) >= 16u;
+}
+/* 106 op 4 STATE, the client asking (106 bit 2; INFO "opti_mstate_1"; after fm1-base's input report, device/mirror.c 0x53): held
+ * buttons by label (bit B_*, 2 x 7 bit), held note keys (bit 0 = F3, 4 x 7 bit), the lit buttons (bit 14: PLAY's green lamp, 3 x 7
+ * bit), the lit note keys (4 x 7 bit), the dim buttons and keys (the half light: 2 and 4 x 7 bit), the knobs' detents since the
+ * last STATE (EN_* order, + 64 each, 1..127), MASTER's pot (0..1023, 2 x 7 bit), 1 when the client's MASTER plays instead.
+ * Held is the panel's or the client's (108). Sent when it changed, MIR_STATE_MS apart at least (Bluetooth MIR_STATE_BT_MS), and
+ * every MIR_STATE_IDLE_MS anyway; never while the link has no room for it */
+static void mir_state(void)
+{
+    uint8_t b[MIR_STATE_N];
+    uint32_t i, turned = 0, gap = mir.link == MIR_BT ? MIR_STATE_BT_MS : MIR_STATE_MS, idle = fm1_ms - mir.state_ms >= MIR_STATE_IDLE_MS;
+    if (!mir.on || !mir.state || mir.behind || fm1_ms - mir.state_ms < gap || !mir_state_room())
+        return;
+    mir_state_now(b);
+    for (i = 0; i < NE; i++)
+        turned |= b[19 + i] != 64u;
+    if (!idle && !turned && !memcmp(b, mir.last, 19) && !memcmp(b + 26, mir.last + 26, MIR_STATE_N - 26u))
+        return;
+    me.ok = 1;
+    me_open(4);
+    for (i = 0; i < MIR_STATE_N; i++)
+        me_b(b[i]);
+    me_close();
+    if (!me.ok)
+        return;
+    for (i = 0; i < FM1_NENC; i++)
+        fm1_turned[i] = 0;
+    memcpy(mir.last, b, sizeof b);
+    mir.state_ms = fm1_ms;
 }
 /* 109 NAV: the client's touch navigation, while it mirrors (ui/optimist/op_nav.c: each jump by the panel's own path). op, then:
  *   0 STATE              nothing
@@ -357,6 +491,29 @@ static void ed_nav(const uint8_t *a, uint32_t na)
     ed_b(n);
     if (n == 3u)
         ed_b2((uint32_t)(GL_TOP + gl_y0()), (uint32_t)gl_pitch());
+}
+/* The test session (108 kind 5, INFO "opti_mtest_1"; after fm1-base's, device/mirror.c op 5): the FM-1 as a blank one, for a
+ * demonstration or an automated test from the client, the user's own flash untouched. It starts with a restart (the request's
+ * answer sent first): felucca.c st_blank, set at the start from mir_test_boot, makes Optimist's own data read erased and every
+ * write to it a no-op (the radio's calibration and the firmware read as ever; the user's samples, read in place, still sound;
+ * sample uploads refused). Asked again: blank again (another restart). It ends with a restart into the user's own: asked (kind 5,
+ * 0), the mirror off (asked, or its keep-alive out), or no client mirroring within MIR_TEST_WAIT_MS of the start; a crash ends
+ * it too (main.c clears mir_test_boot first thing). USB only: the restart drops a Bluetooth link, and a blank FM-1 has no bond
+ * to take it back. STATE's last byte has bit 1 set in a session */
+static void mir_test(void)
+{
+    if (mir.test_req && fm1_ms - mir.test_ms >= MIR_TEST_REPLY_MS) {
+        mir_test_boot = mir.test_req == 1u ? MIR_TEST_MAGIC : 0u;
+        fm1_reboot();
+    }
+    if (!st_blank)
+        return;
+    if (mir.on)
+        mir.test_had = 1;
+    if ((mir.test_had && !mir.on) || (!mir.test_had && fm1_ms > MIR_TEST_WAIT_MS)) {
+        mir_test_boot = 0;
+        fm1_reboot();                   /* (the user's own again) */
+    }
 }
 /* ed_service, every main-loop pass: a request over Bluetooth answered; a link that fell behind caught up once it is clear */
 static void mir_poll(void)
@@ -414,12 +571,15 @@ static void mir_poll(void)
     }
 #endif
     mir_live();                         /* (the link gone, the keep-alive out: off) */
+    mir_test();
+    mir_state();
     if (!mir.on || !mir.behind || ui.overlay == 5u || (mir.link == MIR_BT ? !mir_bt_clear() : so_w != so_r) ||
         fm1_ms - mir.catch_ms < MIR_CATCH_MS)
         return;
     mir.behind = 0;
     mir.catch_ms = fm1_ms;
-    mir_enc_fill(0, 0, 240, 240, 0);    /* (black to the client only: the panel is not cleared) */
+    mir_enc_forget_all();               /* (a frame may have been lost: nothing known; the black makes every row known black) */
+    mir_enc_fill_skip(0, 0, 240, 240, 0);   /* (black to the client only: the panel is not cleared) */
     op_repaint();
 }
 static void ed_mirror_info(void) { ed_b3(0x65, 1, MIR_VERSION); }

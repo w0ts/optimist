@@ -37,10 +37,14 @@
 #define ED_OPTI_PJ ""
 #endif
 #if FELUCCA_ED_MIRROR && MBR_PROJ
-#define ED_OPTI_MORE "opti_clip_1 opti_btproj_1 "   /* (tag 0x67, 0x66 being full: 111 the clip, ed_clip.c; opti_btproj_1:
-                                                   * the projects' moves over Bluetooth too, ed_mirror.c MBR_PROJ) */
+#define ED_OPTI_MORE "opti_clip_1 opti_btproj_1 opti_mstate_1 opti_panelx_1 opti_mtest_1 "   /* (tag 0x67, 0x66 being full: 111
+                                                   * the clip, ed_clip.c; opti_btproj_1: the projects' moves over Bluetooth too,
+                                                   * ed_mirror.c MBR_PROJ; 106 op 4 STATE, 108 kinds 3 MASTER and 4 let go, its
+                                                   * seq, 108 kind 5 the test session: ed_mirror.c) */
 #elif FELUCCA_ED_MIRROR
-#define ED_OPTI_MORE "opti_clip_1 "     /* (tag 0x67, 0x66 being full: 111 the clip, ed_clip.c) */
+#define ED_OPTI_MORE "opti_clip_1 opti_mstate_1 opti_panelx_1 opti_mtest_1 "   /* (tag 0x67, 0x66 being full: 111 the clip,
+                                                                     * ed_clip.c; 106 op 4 STATE, 108 kinds 3 MASTER and 4 let go, its
+                                                                     * seq, 108 kind 5 the test session: ed_mirror.c) */
 #else
 #define ED_OPTI_MORE ""
 #endif

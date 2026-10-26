@@ -18,6 +18,7 @@
 #define FELUCCA_ARRANGER 1
 #ifdef MIRROR_CHECK
 #define FELUCCA_ED_MIRROR 1             /* (the mixer's meters to the client at most every 100 ms: op_mixdraw.c mx_vu_at) */
+#define MIR_SKIP 1                      /* (the segment skip: off in the firmware by default, checked here on the whole run) */
 #endif
 #define STP_PAT 0u                      /* STEP's first row, PATTERN (no LANE page after it since 2026-10-14) */
 #define STP_DR_TL (STP_TL + (STP_TL && FELUCCA_GEN_GRIDS ? 1u : 0u))   /* DR itself (no lane picked): GRIDS and DENSITY in GEN's place */
@@ -43,6 +44,7 @@ static uint32_t blit_px;                                /* the pixels sent (ui_o
 #include "mirror_dec.h"
 static uint8_t mc_f[512];
 static uint32_t mc_n, mc_frames, mc_bytes, mc_bad;
+static int mc_trace_off;                                /* (a catch-up: not recorded, its bytes not counted in the comparison) */
 static int mir_wire(uint32_t b)
 {
     if (mc_n < sizeof mc_f)
@@ -51,6 +53,15 @@ static int mir_wire(uint32_t b)
 }
 static void mir_wire_end(void)
 {
+    static FILE *wf;
+    static int wtried;
+    if (!wtried) {                                      /* MIRROR_WIRE=FILE: the frames as sent, F0 .. F7 each (to measure a coding on them) */
+        const char *path = getenv("MIRROR_WIRE");
+        wtried = 1;
+        wf = path ? fopen(path, "wb") : 0;
+    }
+    if (wf && !mc_trace_off)
+        fwrite(mc_f, 1, mc_n, wf);
     mc_bad += !md_frame(mc_f, mc_n);
     mc_frames++, mc_bytes += mc_n;
     mc_n = 0;
@@ -67,14 +78,34 @@ static uint32_t mir_meters_due(void)                    /* (ed_mirror.c's, the c
     return 1;
 }
 static uint32_t mir_meters_off(void) { return 0; }    /* (USB here: Bluetooth's empty meters, mirror_test.c) */
-static void mir_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *p) { mir_enc_blit(x, y, w, h, p); }   /* (gfx.c cv_mirror) */
+static void mir_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *p) { mir_enc_blit_skip(x, y, w, h, p); }   /* (gfx.c cv_mirror) */
+/* MIRROR_TRACE=FILE: every write the mirror sends, recorded (B x y w h, the pixels; F x y w h c; u16 each) to replay it
+ * through another encoder and compare the bytes */
+static void mc_trace(uint16_t op, uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *p, uint16_t c)
+{
+    static FILE *f;
+    static int tried;
+    uint16_t hd[6] = {op, (uint16_t)x, (uint16_t)y, (uint16_t)w, (uint16_t)h, c};
+    if (!tried) {
+        const char *path = getenv("MIRROR_TRACE");
+        tried = 1;
+        f = path ? fopen(path, "wb") : 0;
+    }
+    if (!f || mc_trace_off)
+        return;
+    fwrite(hd, sizeof hd, 1, f);
+    if (p)
+        fwrite(p, 2, w * h, f);
+}
 #endif
 static void lcd_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *p)
 {
     uint32_t i, j;
 #ifdef MIRROR_CHECK
-    if (!mir_mute)
-        mir_enc_blit(x, y, w, h, p);
+    if (!mir_mute) {
+        mir_enc_blit_skip(x, y, w, h, p);
+        mc_trace('B', x, y, w, h, p, 0);
+    }
 #endif
     blit_px += w * h;
     if (x <= 120u && 120u < x + w && y <= 180u && 180u < y + h)
@@ -93,7 +124,8 @@ static void lcd_fill(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t c)
     uint32_t i, j;
     assert(x + w <= 240 && y + h <= 240);
 #ifdef MIRROR_CHECK
-    mir_enc_fill(x, y, w, h, c);
+    mir_enc_fill_skip(x, y, w, h, c);
+    mc_trace('F', x, y, w, h, 0, c);
 #endif
     full_fills += w == 240u && h == 240u;
     for (j = 0; j < h; j++)
@@ -3170,13 +3202,16 @@ static uint32_t mc_resyncs, mc_resync_bad, mc_resync_max, mc_resync_sum;
 static void mc_resync(void)
 {
     uint32_t i, b0 = mc_bytes, n, diff = 0;
-    mir_enc_fill(0, 0, 240, 240, C_BLACK);
+    mc_trace_off = 1;
+    mir_enc_forget_all();
+    mir_enc_fill_skip(0, 0, 240, 240, C_BLACK);
     op_repaint();
     frames(7);                                          /* (SCOPE draws its trace every other frame) */
     mc_meter_now = 1;                                   /* (the meters lag the panel by up to 100 ms: compared in a window, nothing */
     frame();                                            /* left stale) */
     mc_meter_now = 0;
     n = mc_bytes - b0;
+    mc_trace_off = 0;
     for (i = 0; i < 240u * 240u; i++)
         diff += md_fb[i] != swap16(screen[i]);
     mc_resyncs++, mc_resync_sum += n, mc_resync_bad += diff != 0u;
@@ -4163,6 +4198,7 @@ int main(int argc, char **argv)
         for (i = 0; i < 240u * 240u; i++)
             diff += md_fb[i] != swap16(screen[i]);
         printf("  mirror: %u frames, %u bytes, the screen drawn %u px; %u bad frames, %u px differ\n", mc_frames, mc_bytes, blit_px, mc_bad, diff);
+        printf("  mirror: %u bytes without the %u catch-ups (%u bytes); %u segments not sent again\n", mc_bytes - mc_resync_sum, mc_resyncs, mc_resync_sum, (unsigned)me_skipped);
         printf("  mirror catch-up (black to the client, op_repaint): %u, %u not the panel after; %u bytes each on average, %u at most\n",
                mc_resyncs, mc_resync_bad, mc_resyncs ? mc_resync_sum / mc_resyncs : 0u, mc_resync_max);
         check(!mc_bad && !diff, "the screen mirrored: every write decoded, the same pixels");

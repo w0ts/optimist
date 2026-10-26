@@ -497,6 +497,7 @@ static void fm1_remote_enc(uint32_t e, int32_t s)
     fm1__unlock(k);
 }
 static void fm1_remote_clear(void) { fm1_rem_btn = fm1_rem_note = 0; }
+static int16_t fm1_turned[FM1_NENC];      /* the steps taken since the mirror's last STATE (ed_mirror.c mir_state): the panel's and the client's */
 #endif
 /* detent steps turned since the last call, + = clockwise */
 static int32_t fm1_enc_take(uint32_t e)
@@ -505,6 +506,9 @@ static int32_t fm1_enc_take(uint32_t e)
     int32_t s = fm1_in.enc_steps[e];
     fm1_in.enc_steps[e] = 0;
     fm1__unlock(k);
+#if FELUCCA_ED_MIRROR
+    fm1_turned[e] = (int16_t)(fm1_turned[e] + s);
+#endif
     return s;
 }
 

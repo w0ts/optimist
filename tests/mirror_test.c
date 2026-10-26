@@ -20,6 +20,7 @@ static int fails, checks;
 
 /* ---- the device's side, stood in: usb.c's SysEx ring, editor.c's reply, midi_ble.c's listener, the UI */
 #define MIR_BLE 1
+#define MIR_SKIP 1                      /* (off in the firmware by default: tested here all the same) */
 #define IN_POOL
 #define SXQ 64u
 #define RING_PUBLISH() ((void)0)
@@ -72,6 +73,8 @@ static void ed_str(const char *s, uint32_t max)   /* (editor.c's: ASCII, 0-termi
 static uint8_t hf[4096];
 static uint32_t hn, frames, bytes, bad, max_frame, replies, last_reply_on, links, link[7], ed_replies, ed_last[3];
 static int stalled;                     /* 1: the USB host reads nothing (the ring stays full) */
+static uint32_t states;                 /* op 4 STATE frames received; the last one's bytes */
+static uint8_t state[29];
 static FILE *fix;
 static void host_byte(uint8_t b)
 {
@@ -84,6 +87,8 @@ static void host_byte(uint8_t b)
         max_frame = hn > max_frame ? hn : max_frame;
         if (hn >= 6u && hf[4] != 106u)
             ed_replies++, ed_last[0] = hf[4], ed_last[1] = hn > 5u ? hf[5] : 0u, ed_last[2] = hn > 6u ? hf[6] : 0u;   /* (an editor reply: Bluetooth's PANEL, NAV, INFO) */
+        else if (hn == 6u + 29u + 1u && hf[5] == 4u)     /* (op 4 STATE) */
+            states++, memcpy(state, hf + 6, 29);
         else if (hn == 12u && hf[5] <= 1u && hf[6] >= 1u)
             replies++, last_reply_on = hf[5];
         else if (hn == 21u && hf[5] == 3u) {             /* (op 3 LINK, after a Bluetooth reply) */
@@ -136,6 +141,27 @@ static void fm1_remote_key(uint32_t id, uint32_t down)
 }
 static void fm1_remote_enc(uint32_t e, int32_t s) { rem_enc[e] += s; }
 static void fm1_remote_clear(void) { rem_btn = rem_note = 0; }
+/* the input layer's state and LEDs (hal/fm1_input.h: its key map, debounced keys, the steps taken, the LED columns), for STATE */
+#define FM1_NCOL 11u
+#define FM1_NENC 7u
+static const int8_t FM1_KEYMAP[6][FM1_NCOL] = {
+    {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
+    { 5, 11,  4, 10,  3,  9,  2,  8, -1, -1, -1},
+    {34, 35, 36, 37, 38, 40, 39, 13,  7,  6, 12},
+    {23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33},
+    { 0,  1, 15, 14, 17, 16, 19, 18, 20, 21, 22},
+    {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
+};
+static struct { uint32_t notes, buttons; } fm1_in;
+static int16_t fm1_turned[FM1_NENC];
+static uint8_t fm1_led[FM1_NCOL], fm1_led_dim[FM1_NCOL], fm1_led_half[FM1_NCOL];
+#define OP_LAMP_COL 8u                  /* (op_input.c: PLAY's green lamp) */
+#define OP_LAMP_ROW 1u
+/* the test session's side in felucca.c and the HAL: the blank store, the start's flag, a restart (counted, nothing restarts here) */
+static uint8_t st_blank;
+static volatile uint32_t mir_test_boot;
+static uint32_t reboots;
+static void fm1_reboot(void) { reboots++; }
 static uint8_t ed_bt;                  /* (editor.c's: the request came over Bluetooth) */
 #define panel panel_tab
 #define MIR_BLE_LAG 1536u               /* (smaller than the firmware's: the random screens here catch up in less than its 4 KB) */
@@ -374,6 +400,130 @@ static void panel_tests(void)
     nrep = 0, ed_panel(FX_DOWN, 3);
     check(rem_btn == 0u && nrep == 2 && rep[1] == 1, "PANEL: refused while not mirroring");
 }
+/* 108 PANEL's extensions (opti_panelx_1): MASTER from the client, let go, the seq (a request repeated is answered again, not done twice) */
+static void panelx_tests(void)
+{
+    static const uint8_t M500[3] = {3, 500u & 127u, 500u >> 7}, MPOT[3] = {3, 127, 127}, GO[3] = {4, 0, 0},
+                         FX9[4] = {0, 0, 1, 9}, FX10[4] = {0, 0, 1, 10};
+    ask(1);
+    check(mir_master(800) == 800u, "MASTER: the pot's while the client sets none");
+    nrep = 0, ed_panel(M500, 3);
+    check(nrep == 2 && rep[1] == 0 && mir_master(800) == 500u && mir.pot == 800u, "MASTER 500 from the client plays, the pot read 800");
+    ed_panel(MPOT, 3);
+    check(mir_master(800) == 800u, "MASTER 1024 and up: the pot's again");
+    ed_panel(M500, 3), ed_panel(FX9, 4);
+    check(rem_btn == 1u << 2, "FX held with seq 9");
+    nrep = 0, ed_panel(GO, 3);
+    check(rem_btn == 0u && mir_master(800) == 800u && nrep == 2 && rep[1] == 0, "let go: every key up, MASTER the pot's");
+    nrep = 0, ed_panel(FX9, 4);
+    check(rem_btn == 0u && nrep == 3 && rep[1] == 0 && rep[2] == 9, "seq 9 again: answered again (done), not done twice");
+    nrep = 0, ed_panel(FX10, 4);
+    check(rem_btn == 1u << 2 && nrep == 3 && rep[2] == 10, "seq 10: done, its seq in the reply");
+    ed_panel(M500, 3);
+    ask(0);
+    check(rem_btn == 0u && mir.master == 0u, "the mirror off: keys up, MASTER the pot's");
+    ask(1);
+    nrep = 0, ed_panel(FX10, 4);
+    check(rem_btn == 1u << 2, "a new client: seq 10 is new to it, done");
+    ask(0);
+}
+/* 108 kind 5, the test session (opti_mtest_1): a restart after the answer, into a blank FM-1 (mir_test_boot) or the user's own;
+ * ended by the mirror going off, or no client within MIR_TEST_WAIT_MS of its start; never over Bluetooth */
+static void test_session_tests(void)
+{
+    static const uint8_t START[3] = {5, 1, 0}, END[3] = {5, 0, 0};
+    uint32_t r0 = reboots;
+    ask(1);
+    nrep = 0, ed_panel(END, 3);
+    check(nrep == 2 && rep[1] == 1, "end refused outside a test session");
+    ed_bt = 1, nrep = 0, ed_panel(START, 3), ed_bt = 0;
+    check(rep[1] == 1 && !mir.test_req, "refused over Bluetooth");
+    nrep = 0, ed_panel(START, 3);
+    check(rep[1] == 0 && mir.test_req == 1u, "start: answered");
+    fm1_ms += MIR_TEST_REPLY_MS - 1u, MIR_SEEN(), mir_poll();
+    check(reboots == r0, "no restart before its answer has had MIR_TEST_REPLY_MS");
+    fm1_ms += 1u, mir_poll();
+    check(reboots == r0 + 1u && mir_test_boot == MIR_TEST_MAGIC, "then a restart into a test session");
+    /* the start as main.c makes it: the flag read and cleared, the store blank; the client asks again */
+    memset(&mir, 0, sizeof mir), st_blank = 1, mir_test_boot = 0, fm1_ms = 1000;
+    host_drain(), MIR_SEEN(), ask(5), mir_poll(), host_drain(), mir_poll(), host_drain();   /* (the catch-up, then the STATE) */
+    check(reboots == r0 + 1u && (state[28] & 2u), "in the session: STATE says so");
+    nrep = 0, ed_panel(START, 3);
+    fm1_ms += MIR_TEST_REPLY_MS, MIR_SEEN(), mir_poll();
+    check(reboots == r0 + 2u && mir_test_boot == MIR_TEST_MAGIC, "asked again: blank again (a restart)");
+    memset(&mir, 0, sizeof mir), mir_test_boot = 0, fm1_ms = 1000;
+    MIR_SEEN(), ask(1), mir_poll();
+    nrep = 0, ed_panel(END, 3);
+    fm1_ms += MIR_TEST_REPLY_MS, MIR_SEEN(), mir_poll();
+    check(rep[1] == 0 && reboots == r0 + 3u && mir_test_boot == 0u, "end: a restart into the user's own");
+    memset(&mir, 0, sizeof mir), fm1_ms = 1000;
+    MIR_SEEN(), ask(1), mir_poll();
+    ask(0), mir_poll();
+    check(reboots == r0 + 4u && mir_test_boot == 0u, "the mirror off: the session ends (the user's own)");
+    memset(&mir, 0, sizeof mir), fm1_ms = 1000;
+    mir_poll();
+    check(reboots == r0 + 4u, "no client yet: the session waits");
+    fm1_ms = MIR_TEST_WAIT_MS + 1u, mir_poll();
+    check(reboots == r0 + 5u && mir_test_boot == 0u, "no client within MIR_TEST_WAIT_MS: ended");
+    memset(&mir, 0, sizeof mir), st_blank = 0, fm1_ms = 100000;
+}
+static uint32_t bits7(const uint8_t *b, uint32_t n)
+{
+    uint32_t v = 0, i;
+    for (i = 0; i < n; i++)
+        v |= (uint32_t)b[i] << (7u * i);
+    return v;
+}
+/* 106 op 4 STATE (opti_mstate_1): asked with bit 2; what is held and lit, the knobs' detents, MASTER; when it changes, at most
+ * every MIR_STATE_MS, every MIR_STATE_IDLE_MS anyway, never without room on the link (no catch-up for it) */
+static void state_tests(void)
+{
+    uint32_t s0;
+    host_drain();
+    s0 = states;
+    MIR_SEEN();
+    ask(1);
+    mir_poll(), host_drain();
+    fm1_ms += 600u, MIR_SEEN(), mir_poll(), host_drain();
+    check(states == s0, "no STATE unless asked (bit 2)");
+    ask(5);
+    mir_poll(), host_drain();           /* (a first on: the catch-up first) */
+    mir_poll(), host_drain();
+    check(states == s0 + 1u && bits7(state, 2) == 0u && bits7(state + 2, 4) == 0u, "asked: a STATE at once, nothing held");
+    mir_master(700);
+    fm1_in.buttons = 1u << 12;          /* (PLAY: matrix button 12) */
+    fm1_in.notes = 1u << 5;
+    fm1_led[10] |= 1u << 2;             /* (PLAY's LED: column 10, row PA6) */
+    fm1_led[6] |= 1u << 4;              /* (note key 5, id 19: column 6, row PA8) */
+    fm1_led[OP_LAMP_COL] |= 1u << OP_LAMP_ROW;
+    fm1_led_dim[3] |= 1u << 4;          /* (note key 0, id 14: column 3, row PA8) */
+    fm1_turned[2] = 3, fm1_turned[6] = 2;   /* (KNOB 1 three on; PRESETS: encoder 6, direction -1) */
+    fm1_ms += MIR_STATE_MS - 1u, MIR_SEEN(), mir_poll(), host_drain();
+    check(states == s0 + 1u, "a change: not before MIR_STATE_MS");
+    fm1_ms += 1u, mir_poll(), host_drain();
+    check(states == s0 + 2u, "a change: sent after MIR_STATE_MS");
+    check(bits7(state, 2) == 1u << 10 && bits7(state + 2, 4) == 1u << 5, "held: PLAY by its label, note key 5");
+    check(bits7(state + 6, 3) == (1u << 10 | 1u << 14) && bits7(state + 9, 4) == 1u << 5, "lit: PLAY, its green lamp, note key 5");
+    check(bits7(state + 13, 2) == 0u && bits7(state + 15, 4) == 1u, "dim: note key 0");
+    check(state[19 + 3] == 64u + 3u && state[19 + 2] == 64u - 2u && state[19] == 64u, "the detents: KNOB 1 +3, PRESETS -2, SELECT none");
+    check(bits7(state + 26, 2) == 700u && state[28] == 0u, "MASTER's pot 700, the pot's playing");
+    check(fm1_turned[2] == 0 && fm1_turned[6] == 0, "the detents reported are cleared");
+    fm1_ms += MIR_STATE_MS, mir_poll(), host_drain();
+    check(states == s0 + 2u, "no change: nothing");
+    fm1_ms += MIR_STATE_IDLE_MS, MIR_SEEN(), mir_poll(), host_drain();
+    check(states == s0 + 3u && state[19 + 3] == 64u, "every MIR_STATE_IDLE_MS anyway, no detents twice");
+    fm1_in.buttons = 0;
+    so_w = so_r + SXQ - 10u;            /* (the SysEx ring nearly full: no room for a STATE) */
+    fm1_ms += MIR_STATE_MS, MIR_SEEN(), mir_poll();
+    check(!mir.behind && so_w == so_r + SXQ - 10u, "no room: no STATE, the screen not behind for it");
+    so_r = so_w;
+    fm1_ms += MIR_STATE_MS, MIR_SEEN(), mir_poll(), host_drain();
+    check(states == s0 + 4u && bits7(state, 2) == 0u, "room again: the change sent");
+    fm1_in.notes = 0;
+    memset(fm1_led, 0, sizeof fm1_led), memset(fm1_led_dim, 0, sizeof fm1_led_dim);
+    ask(0);
+    check(bad == 0u, "%u frames not decoded", bad);
+}
 static void bt_tests(void)
 {
     static const uint8_t ON[] = {0xF0, 0x7D, 0x46, 0x4C, 106, 1, 0xF7}, BAD[] = {0xF0, 0x7D, 0x46, 0x4C, 105, 1, 0xF7},
@@ -581,6 +731,9 @@ int main(void)
     uint32_t k;
     usb_tests();
     panel_tests();
+    panelx_tests();
+    state_tests();
+    test_session_tests();
     bt_tests();
     nav_tests();
     /* the fixture for the app's tests: a panel drawn whole, then its frames and its pixels */

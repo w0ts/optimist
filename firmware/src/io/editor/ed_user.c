@@ -8,7 +8,7 @@
  * SMP_ERASE), rc 5 for SMP_WRITE (its 3 is a failed write). SMP_END only programs the header (no erase). After
  * SLOOP 2.4 (isod89/sloop-fm1 v2.4, 8d3823f, editor.c ed_flash_busy, GPL-3.0-only) */
 #include "ed_reply.h"         /* (ed_b2..ed_b4, ed_b32) */
-static uint32_t ed_flash_busy(void) { return song.playing || transport_req; }
+static uint32_t ed_flash_busy(void) { return song.playing || transport_req || st_blank; }   /* (st_blank: a test session writes nothing) */
 #if ED_LIB                                              /* (the user presets: the librarian's, in either editor; else the
                                                          * sample slots alone, which a restore and the samples page write) */
 /* a user preset's engine on the wire: its slot, 127 when this build leaves the engine out (kept, not loadable) */
