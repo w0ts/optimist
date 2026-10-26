@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* The link layer (one connection, LE 1M; the peripheral, and with BLE_CENTRAL the master): its side towards the
  * host. The driver side is ble_hw.h. Everything runs in the BLE interrupts' context (ble_hw.h): the host's
  * callbacks below are called from there, and the host calls ble_ll_send() etc. from there too. */

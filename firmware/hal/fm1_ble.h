@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* FM-1 (AC791N / WL82) BLE baseband: the registers, the link-column port, the interrupt lines and the radio
  * bring-up, for the route C driver (src/ble/ble_hw_wl82.c, FELUCCA_BLE). Written only from the clean-room fact
  * sheet docs/BLE-HW-FACTS.md (branch feat/ble-facts, 41b7374; §14-§17 from d907ce3): every register access names its

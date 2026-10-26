@@ -31,15 +31,24 @@
 #if GEN_BUILT                                            /* (seq.c, before undo.c) */
 #define GEN_ON 1
 #define GEN_NP 3u                                        /* values a generator */
-#if FELUCCA_GEN_GRIDS
+#if FELUCCA_GEN_GRIDS && FELUCCA_DRUMS
 #define GEN_KIT (NPART + DRUM_SLANES)                    /* the kit's GRIDS: one slot over the drum track (gr_kit_merge) */
 #define GEN_NSLOT (NPART + DRUM_SLANES + 1u)
-#else
+#elif FELUCCA_DRUMS
 #define GEN_NSLOT (NPART + DRUM_SLANES)
+#else
+#define GEN_NSLOT NPART                                  /* (no drums: the parts' only) */
+#define GEN_KIT 0u                                       /* (no kit: never asked for, is_drum is never true) */
 #endif
 /* the types by their stored number (GEN_TLV), the same in every build; one the build leaves out has no step in GEN_TYPES
  * (gen_has): a project's slot of that type loads off, at the defaults (gen_untlv) */
-enum { GT_EUCLID, GT_RANDOM, GT_PULSE, GT_GRIDS, GT_N };
+enum { GT_EUCLID, GT_RANDOM, GT_PULSE, GT_GRIDS, GT_EXWALK, GT_EXUPDN, GT_ALL };
+/* GT_N: the types a build may hold. WALK and UPDN (4, 5) are the example generators of CONTRIBUTING.md (FELUCCA_EX_NOTEGEN,
+ * gen_ex.c): without them the table ends at GRIDS, as before. A type added for good takes the next number after them */
+#define GT_N (FELUCCA_EX_NOTEGEN ? GT_ALL : GT_EXWALK)
+#if FELUCCA_EX_NOTEGEN && !FELUCCA_NOTEGEN
+#error "the example generators (EX_NOTEGEN) are an option of NOTEGEN"
+#endif
 #if FELUCCA_NOTEGEN
 #define GEN_FIRST GT_EUCLID                              /* a slot's type at power-on and after a reset */
 #define GEN_FIRST_P {4, 16, 0}
@@ -56,6 +65,9 @@ typedef struct {
 typedef struct {
     uint8_t hit;
     uint8_t lvl, rat;                                    /* laid over the hit's (0: the hit's own) */
+#if FELUCCA_EX_NOTEGEN
+    uint8_t note;                                        /* a synth track's note (0: the pattern's there, else ROOT: below) */
+#endif
 } gen_ev_t;
 typedef struct {
     const char *label;
@@ -73,7 +85,7 @@ static volatile uint8_t gen_trk;                         /* bit k: track k has a
 static volatile uint32_t gen_lanes;                      /* the drum lanes with one on; bit DRUM_SLANES: the kit's GRIDS */
 #define GEN_LANES_M ((1u << DRUM_SLANES) - 1u)           /* (gen_lanes: the lanes' own) */
 #define GEN_DSLOTS (GEN_NSLOT - NPART)                   /* the drum track's slots: its lanes, then the kit's */
-_Static_assert(NPART == TRK_DRUM && DRUM_SLANES < 31u, "the slots: the synth tracks, then the drum lanes (and the kit)");
+_Static_assert((!FELUCCA_DRUMS || NPART == TRK_DRUM) && DRUM_SLANES < 31u, "the slots: the synth tracks, then the drum lanes (and the kit)");
 
 static uint32_t gen_slot(uint32_t k, uint32_t lane) { return k < NPART ? k : NPART + lane % DRUM_SLANES; }
 static uint32_t gen_mix(uint32_t h)                      /* (murmur3's finaliser) */
@@ -323,6 +335,7 @@ static void gr_kit_merge(const track_t *t, uint32_t i, uint32_t len, const dstep
     }
 }
 #endif
+#include "gen_ex.c"                                     /* WALK UPDN: the example generators (EX_NOTEGEN) */
 static const gen_type_t GEN_TYPES[GT_N] = {
 #if FELUCCA_NOTEGEN
     [GT_EUCLID] = {"EUCLID", {{"HITS", 0, 64, 4, GD_INT}, {"STEPS", 1, 0, 16, GD_INT}, {"ROT", 0, 63, 0, GD_INT}}, eu_gfit, eu_gstep, 0},
@@ -332,12 +345,17 @@ static const gen_type_t GEN_TYPES[GT_N] = {
 #if FELUCCA_GEN_GRIDS
     [GT_GRIDS] = {"GRIDS", {{"X", 0, 127, 64, GD_INT}, {"Y", 0, 127, 64, GD_INT}, {"DENS", 0, 127, 64, GD_INT}}, gr_gfit, gr_gstep, 0},
 #endif
+#if FELUCCA_EX_NOTEGEN                                   /* [GEN] the type's entry: its name, its three values {label, min, max,
+                                                          * default, how shown}, its fit and step functions, its state (0) */
+    [GT_EXWALK] = {"WALK", {{"RANGE", 2, EXG_RANGE_MAX, 7, GD_INT}, {"LEAP", 1, 4, 2, GD_INT}, {"DRAW", 0, 99, 1, GD_INT}}, wk_gfit, wk_gstep, 0},
+    [GT_EXUPDN] = {"UPDN", {{"RANGE", 2, EXG_RANGE_MAX, 8, GD_INT}, {"HOP", 1, 4, 1, GD_INT}, {"RATE", 1, 4, 1, GD_INT}}, ud_gfit, ud_gstep, 0},
+#endif
 };
 static const char *const GEN_MODE[GM_N] = {"REPLACE", "ADD", "MASK"};
 static int gen_has(uint32_t ty) { return ty < GT_N && GEN_TYPES[ty].step; }   /* the build has type ty */
 /* the types the build has, in order: how many, ty's place among them, and the one s places on from ty (clamped at the
  * ends: the TYPE card) */
-static uint32_t gen_ntypes(void) { return (FELUCCA_NOTEGEN ? 3u : 0u) + (FELUCCA_GEN_GRIDS ? 1u : 0u); }
+static uint32_t gen_ntypes(void) { return (FELUCCA_NOTEGEN ? 3u : 0u) + (FELUCCA_GEN_GRIDS ? 1u : 0u) + (FELUCCA_EX_NOTEGEN ? 2u : 0u); }
 static uint32_t gen_type_ix(uint32_t ty)
 {
     uint32_t t, n = 0;
@@ -430,6 +448,9 @@ static int gen_hit(uint32_t slot, uint32_t i, uint32_t len, gen_ev_t *e)
 {
     const gen_t *g = &gen[slot % GEN_NSLOT];
     e->hit = e->lvl = e->rat = 0;
+#if FELUCCA_EX_NOTEGEN
+    e->note = 0;
+#endif
     if (i >= len)
         return 0;
     e->hit = (uint8_t)(GEN_TYPES[g->type % GT_N].step(g, i, len, gen_mix(slot * 0x27D4EB2Fu + 1u), e) != 0);
@@ -500,6 +521,10 @@ static const step_t *gen_eff(const track_t *t, uint32_t i, step_t *o)
             o->lvl = gen_rep(e.lvl);
         if (e.rat)
             o->rat = gen_rep(e.rat);
+#if FELUCCA_EX_NOTEGEN
+        if (e.note)                                      /* (a note generator: its note, one, in place of the step's) */
+            o->note[0] = e.note, o->n = 1;
+#endif
         return o;
     }
     if (gen[slot].mode == GM_ADD)

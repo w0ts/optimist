@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* Host test of the Classic probe's minimal LMP (firmware/src/bt/bt_lmp.c): the PDUs we send to set a link up and the
  * answers to a slave's requests, byte for byte against the Core spec's layouts (Vol 2 Part C §5). */
 #include <stdint.h>

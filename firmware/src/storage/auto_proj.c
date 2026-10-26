@@ -173,7 +173,7 @@ static uint32_t auto_hash(void)
     for (k = 0; k < NPART; k++)
         for (i = 0; i < NSTEP; i++)
             h = (h ^ proj_hash(trk[k].step[i].ngate, sizeof trk[k].step[i].ngate)) * 16777619u;
-    for (i = 0; i < NSTEP; i++)                         /* (the drum track's ACCENT lane: not in a project_t either) */
+    for (i = 0; FELUCCA_DRUMS && i < NSTEP; i++)       /* (the drum track's ACCENT lane: not in a project_t either) */
         h = (h ^ TDRUM->dstep[i].acc) * 16777619u;
     return h;
 }

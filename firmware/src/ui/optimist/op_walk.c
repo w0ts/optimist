@@ -147,9 +147,14 @@ static void algo_walk_trk(int32_t s)
 enum { LK_KIT, LK_USR, LK_SAMPLED, LK_SYNTH, LK_X0X, LK_N };
 static uint32_t ls_count(uint32_t l)                    /* the SOURCE list's length (0: none in this build) */
 {
+#if DL_ANY
     int16_t *vp;
     const param_desc_t *d = dsnd_desc_lane(l, 8u, &vp);
     return d ? (uint32_t)d->max + 1u : 0u;
+#else
+    (void)l;
+    return 0;                                           /* (no drums) */
+#endif
 }
 static uint32_t ls_kind(uint32_t i)                     /* SOURCE entry i's kind */
 {
@@ -172,14 +177,23 @@ static int ls_ok(uint32_t i)                            /* entry i plays in this
 }
 static uint32_t ls_cur(uint32_t l, uint32_t n)
 {
+#if DL_ANY
     uint32_t i = dsnd_src_idx(dl.src[l]);
     return i < n ? i : 0u;
+#else
+    (void)l, (void)n;
+    return 0;
+#endif
 }
 static void ls_set(uint32_t l, uint32_t i)
 {
+#if DL_ANY
     uint32_t was = ui.force;
     lane_set_src(l, dsnd_idx_src(i));                   /* (as the SOURCE row: op_cells.c op_dsnd_set) */
     op_preset_shown(was);                               /* (its pages may change: sampled / synthesised values) */
+#else
+    (void)l, (void)i;
+#endif
 }
 /* PRESETS acts on the lane's own sound: a lane selected whose source is not KIT (KIT: the kit, as on DR) */
 static int lane_presets(void)
@@ -220,7 +234,12 @@ static void lane_kind_step(int32_t s)                   /* SHIFT + PRESETS on a 
 /* lane l's sound by name: the kit's name while it plays the project's kit, else its source's ("X9 SD", "USR2") */
 static const char *lane_sound_name(uint32_t l)
 {
+#if DL_ANY
     uint32_t i = dsnd_src_idx(dl.src[l % DRUM_LANES]);
     return i ? DS_SRC_NAMES[i] : drum_kit_name();
+#else
+    (void)l;
+    return "";                                          /* (no drums: no lane) */
+#endif
 }
 

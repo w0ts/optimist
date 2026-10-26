@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0
 """The JieLi SDK "VM" key/value store as stock V15 keeps it in flash: a reader and, for tests and the RF capture
 only, a writer. Written from docs/BLE-HW-FACTS.md §14 (branch feat/ble-facts, d907ce3), not from vendor code.
 

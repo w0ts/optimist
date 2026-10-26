@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* The AD parser and the found-devices table (ble_scan.h). Written from the Core Specification Supplement Part A
  * (AD types 0x01, 0x06, 0x07, 0x08, 0x09) and Core Vol 6 Part B 2.3 (advertising PDUs). No vendor code. */
 #include "ble_scan.h"

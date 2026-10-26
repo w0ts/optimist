@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* The least AVRCP a sink needs from us (AVRCP 1.6 §6, AVCTP §6, AV/C): the AirPods open the control channel (L2CAP
  * PSM 0x0017) right after the stream starts and play at the volume the source sets, 0/127 until then (a Raspberry
  * Pi's capture, 2026-10-21: the stream open, the AirPods silent). We are the target they ask (their questions

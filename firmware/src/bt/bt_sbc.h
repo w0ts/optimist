@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* The SBC encoder the A2DP stream sends (bt_acl.c): AOSP's (Android's Bluedroid, bt/sbc/, Apache-2.0, Broadcom 1999-2012)
  * behind this interface, set as the FM-1 configures the stream: 44.1 / 48 kHz, 16 blocks, 8 subbands, joint stereo or
  * stereo, loudness. Our own encoder of before wrote frames no decoder takes (2026-10-20: libsbc refused every one: the

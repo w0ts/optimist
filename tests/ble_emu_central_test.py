@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0
 """BLE MIDI as central, end to end in the FM-1 emulator (docs/BLE-DEVICES-DESIGN.md §4): a package with
 BLE_CENTRAL in fm1-emulator's `diagnose` with its engine model's initiating and master states (BLE-HW-FACTS §21.3 /
 §21.4) and a virtual BLE-MIDI peripheral (FM1_BLE_PERIPHERALS: a GATT server with the BLE-MIDI service, notifications,

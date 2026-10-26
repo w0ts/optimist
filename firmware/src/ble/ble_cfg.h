@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* BLE stack configuration (route C, docs/BLE-STACK.md). Every value can be set with -D; the defaults are the
  * FM-1 build's. Sizes are in bytes; times in the Bluetooth units named.
  *

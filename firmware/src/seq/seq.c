@@ -1854,7 +1854,7 @@ static void input_on(track_t *t, uint32_t note, uint32_t vel)
 static void input_off(track_t *t, uint32_t note)
 {
     if (is_drum(t)) {
-        if (ft_on && ft_trk == TRK_DRUM && lane_of_note(note) < DRUM_LANES)
+        if (ft_on && IS_DRUMK(ft_trk) && lane_of_note(note) < DRUM_LANES)
             ft_note_off(lane_of_note(note));
         return;
     }
@@ -1874,7 +1874,7 @@ static void drum_input(uint32_t lane, uint32_t lvl, uint32_t rat, int rec)
         return;                                     /* (no lane) */
     pen_lane = (uint8_t)lane;
     arm_start(t);
-    if (ft_on && ft_trk == TRK_DRUM && lane != DRUM_ACC)
+    if (ft_on && IS_DRUMK(ft_trk) && lane != DRUM_ACC)
         ft_note_on(lane, lvl);
     if (rec && ((song.rec >> TRK_DRUM) & 1u) && song.playing)
         rec_hit(t, lane, lvl, rat);
@@ -1969,11 +1969,11 @@ static void roll_start(uint32_t k, track_t *t, uint32_t note, uint32_t lvl)
 
 static void roll_end(uint32_t r)
 {
-    if (roll[r].on && roll[r].off && roll[r].trk != TRK_DRUM) {
+    if (roll[r].on && roll[r].off && !IS_DRUMK(roll[r].trk)) {
         trk_note_off(&trk[roll[r].trk % NTRK], roll[r].note);
         seq_out_off(&trk[roll[r].trk % NTRK], roll[r].note);
     }
-    if (roll[r].on && roll[r].trk == TRK_DRUM)
+    if (roll[r].on && IS_DRUMK(roll[r].trk))
         seq_out_off(&trk[TRK_DRUM], LANE_NOTE_OF(roll[r].note));
     roll[r].on = 0;
 }
@@ -2307,7 +2307,7 @@ static void key_up(uint32_t k)
     case KS_DRUM:
         if (kb_nt[k][0] == DRUM_ACC)
             return;                                 /* (the ACCENT lane: no note was sent) */
-        if (ft_on && ft_trk == TRK_DRUM)
+        if (ft_on && IS_DRUMK(ft_trk))
             ft_note_off(kb_nt[k][0]);
         mc = trk_midi_ch(TRK_DRUM);
         midi_key_out(mc, LANE_NOTE_OF(kb_nt[k][0]), 0u);
@@ -2413,7 +2413,7 @@ static void click_tick(void)
     click_last = clk_beat;
     ev_at(clk_pos);
     if (mode == CLICK_ON || (mode == CLICK_REC && song.rec) || (mode == CLICK_AUTO && click_auto))
-        drum_on(clk_beat % 4u ? 76u : 77u, clk_beat % 4u ? 72u : 120u);
+        click_note(clk_beat % 4u ? 76u : 77u, clk_beat % 4u ? 72u : 120u);
 }
 
 /* -------------------------------------------------------- sequencer --- */
@@ -2695,6 +2695,9 @@ static void seq_stop(void)
 #endif
 #if FELUCCA_FILLS
     fill_held = 0;                                  /* STOP ends a fill, held or armed */
+#if FELUCCA_LANE_FX
+    lfx_eabs = SEQ_NONE;                            /* (no early lane decided for a step to come) */
+#endif
     fill_arm = 0;
     fill_bar_on = 0;
 #endif
@@ -2859,6 +2862,12 @@ static void seq_step(track_t *t, const step_t *s, uint32_t slen, uint32_t skip)
 #else
 #define DACC_VEL(v, s) (v)
 #endif
+#if FELUCCA_LANE_FX
+#include "lane_fx.c"          /* the drum lanes' FX: ROLL CHANCE FILL NUDGE (a black key held) */
+#define LFX_LEFT() ((uint32_t)lfx_out | lfx_man)    /* (lanes drum_step's ratchets leave: silent, or played by lane_fx.c) */
+#else
+#define LFX_LEFT() 0u
+#endif
 /* play one drum step: each lane a hit (skip: lanes already played by live recording, or rolling) */
 static void drum_step(track_t *t, const dstep_t *s, uint32_t skip)
 {
@@ -2866,6 +2875,9 @@ static void drum_step(track_t *t, const dstep_t *s, uint32_t skip)
                                                      * hit: no hit, no MIDI) */
     smute_lhits |= dstep_mask(s) & ~skip & (uint32_t)smute_lane;   /* (a muted lane's key flashes: something to unmute) */
     seq_out_track_off(t);                           /* the last step's hits end here */
+#if FELUCCA_LANE_FX
+    m = lfx_step(t, m);                             /* (its lanes' FX: silent, late, early, rolled) */
+#endif
     for (l = 0; m; l++, m >>= 1)
         if (m & 1u) {
             uint32_t v = DACC_VEL(lvl_vel(dstep_lvl(s, l), 100), s);   /* (the ACCENT lane's step: every hit raised) */
@@ -2880,6 +2892,10 @@ static void seq_ratchets(track_t *t, uint32_t into, uint32_t slen)
     uint32_t i;
     if (smute_trk_on(trk_index(t)))
         return;                                     /* (the track's sequencer muted: no further hit) */
+#if FELUCCA_LANE_FX
+    if (is_drum(t))
+        lfx_ahead(t, t->seq_idx, trk_len(t), into, slen);   /* (the next step's early lanes, whatever this one plays) */
+#endif
 #if SEQ_SKIP
     if (seq_skip[trk_index(t) % NTRK])
         return;                                     /* (its condition or fill failed: no hit at all) */
@@ -2890,7 +2906,10 @@ static void seq_ratchets(track_t *t, uint32_t into, uint32_t slen)
             return;                                 /* (its chance said no: no hit at all) */
 #endif
         const dstep_t *s = EN_CUR(GEN_DPLAYING(t));     /* (a generator's step: as it fired, gen.c) */
-        uint32_t m = dstep_mask(s) & ~roll_lanes(t) & ~(uint32_t)smute_lane & ~STEP_MUTED_LANES(t);
+        uint32_t m = dstep_mask(s) & ~roll_lanes(t) & ~(uint32_t)smute_lane & ~STEP_MUTED_LANES(t) & ~LFX_LEFT();
+#if FELUCCA_LANE_FX
+        lfx_tick(t, s, into, slen);                 /* (the lanes rolled or nudged: lane_fx.c) */
+#endif
         for (i = 0; m; i++, m >>= 1) {
             uint32_t hits = 1u + dstep_rat(s, i), h, done;
             if (!(m & 1u) || hits == 1u)
@@ -3211,7 +3230,7 @@ static void events_block(uint32_t n)
             ci_on = 1;                              /* COUNT: one bar of clicks first (below) */
             ci_u = 0;
             ci_beat = 0;
-            drum_on(77u, 120u);
+            click_note(77u, 120u);
 #endif
         } else {
             seq_start();
@@ -3243,7 +3262,7 @@ static void events_block(uint32_t n)
                     rec_begin();
             } else if (b != ci_beat) {
                 ci_beat = (uint8_t)b;
-                drum_on(76u, 72u);
+                click_note(76u, 72u);
             }
         }
     }

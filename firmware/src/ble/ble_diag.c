@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* The console's `blell` (docs/BLE-STACK.md §11): ble_diag.h's counters, the link layer's state and, on the FM-1, the
  * engine's registers, one "key value" line each in the console's style. Included after ble_ll.c (it reads bll). */
 #include "ble_diag.h"

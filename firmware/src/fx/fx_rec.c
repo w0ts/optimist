@@ -180,7 +180,7 @@ static uint32_t ins_map(const uint8_t *hdr, int norec, uint8_t (*o)[INS_N])
         live |= hdr[i] < FXT_N ? FXT_BIT(hdr[i]) : 0u;
     live &= FXT_BUILT & FXT_INSERT;
     for (k = 0; k < NTRK; k++) {
-        const uint8_t *ord = ORD[k == TRK_DRUM];
+        const uint8_t *ord = ORD[IS_DRUMK(k)];
         uint32_t n = 0, keep = 0;
         o[k][0] = o[k][1] = FXT_NONE;
         for (i = 0; i < 3u; i++)                       /* (rules 1, 2: heard and in use) */
@@ -569,7 +569,7 @@ static void fxr_from_rec(const project_t *p, const uint8_t *r, uint32_t n, uint3
     if (n >= 4u)
         memcpy(&k, r, 4);
     m->psum = p->sum;
-    m->n = (uint16_t)(n > 4u && n <= 4u + FXR_MAX && k == key ? n - 4u : 0u);
+    m->n = (uint16_t)(n > 4u && n <= 4u + FXR_MAX && PSUM_IS(k, key) ? n - 4u : 0u);
     memcpy(m->b, r + 4, m->n);
 }
 /* the autosave's change test: a hash of the FX state captured with autosave_buf */

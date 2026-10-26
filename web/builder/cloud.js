@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// The builder's cloud build (docs/WEB.md): what it builds from (main, a tag or a branch: the relay's ?refs), the request
+// The builder's cloud build (docs/WEB.md): what it builds from (the latest release, main, a tag or a branch: the relay's ?refs), the request
 // (the relay with a Turnstile check: never the GitHub issue form, the user 2026-10-25), then the build followed to its end (the relay's
 // ?status=, which reads the workflow's markers) and handed to Flash and the Simulator. builder.js mounts it on its own
 // state and elements: mountCloud({ S, $, el, toast, opts }).
@@ -7,7 +7,7 @@
 // The host hears every stage: opts.onBuild(ev) and, in the Mirror app's web view, its "optimist" message handler, with
 // ev = {type: "cloud-build", stage, issue, url, id?, run?, name?, sim?, reason?}; stage sent, building, done, refused,
 // failed or error. The two buttons of a finished build call opts.onNavigate("install" | "sim", {build: id}).
-import { CLOUD_RELAY, TURNSTILE_JS, TURNSTILE_SITEKEY, relayRequest } from "./logic.js";
+import { CLOUD_RELAY, MAIN_REF, TURNSTILE_JS, TURNSTILE_SITEKEY, buildCommit, relayRequest } from "./logic.js";
 
 const WATCH_KEY = "optimist-builder-watch";   // the build followed, {issue, url, name, t0, id?, stage?}: a reload goes on
 const MY_BUILD = "optimist-my-build";        // the last build finished, {id, name, issue, t}: Flash offers it first
@@ -35,15 +35,19 @@ export function mountCloud({ S, $, el, toast, opts }) {
     else location.href = where === "sim" ? `../editor/?sim=${id}#sim` : `../installer/?build=${id}`;
   }
 
-  /* ---- what it builds from: main (the default), the tags (the releases), the other branches; the relay lists them */
-  /** ref: the version the page reads (null: main, the site's copy); pick(sha | ""): the page again on another one */
-  async function loadRefs(ref = null, pick = null) {
+  /* ---- what it builds from: the latest release (the default, site.json "latest"), main, the tags, the other branches; the
+     relay lists the tags and branches */
+  /** cur: the version the page reads (MAIN_REF: main, the site's copy; else a commit); pick(MAIN_REF | sha): the page
+      again on another one; latest: the latest release {tag, sha} (null: none known) */
+  async function loadRefs(cur = MAIN_REF, pick = null, latest = null) {
     const sel = $("bref");
+    const latestText = (name) => `${name} (latest release)`;
+    const mainOpt = () => el("option", { value: MAIN_REF, text: "main (development)" });
     const mark = () => {      // (the version shown; one the relay no longer lists: by its commit)
-      if (ref && ![...sel.options].some((o) => o.value === ref)) sel.append(el("option", { value: ref, text: `commit ${ref.slice(0, 8)}` }));
-      sel.value = ref || "";
+      if (cur !== MAIN_REF && ![...sel.options].some((o) => o.value === cur)) sel.append(el("option", { value: cur, text: `commit ${cur.slice(0, 8)}` }));
+      sel.value = cur;
     };
-    sel.replaceChildren(el("option", { value: "", text: "main (latest)" }));
+    sel.replaceChildren(...(latest ? [el("option", { value: latest.sha, text: latestText(latest.tag) })] : []), mainOpt());
     mark();
     if (pick) sel.onchange = () => pick(sel.value);
     if (!TURNSTILE_SITEKEY) return;
@@ -53,13 +57,14 @@ export function mountCloud({ S, $, el, toast, opts }) {
       const out = await r.json();
       const ok = (x) => x && typeof x.name === "string" && /^[0-9a-f]{40}$/.test(x.sha || "");
       const branches = (out.branches || []).filter(ok), tags = (out.tags || []).filter(ok);
-      const main = branches.find((b) => b.name === "main"), others = branches.filter((b) => b.name !== "main");
-      const opt = (x) => el("option", { value: x.sha, text: x.name });
-      sel.replaceChildren(el("option", { value: "", text: "main (latest)" }),
+      const others = branches.filter((b) => b.name !== "main");
+      const isLatest = (x) => latest && x.sha === latest.sha && x.name === latest.tag;
+      const opt = (x) => el("option", { value: x.sha, text: isLatest(x) ? latestText(x.name) : x.name });
+      sel.replaceChildren(...(latest && !tags.some(isLatest) ? [el("option", { value: latest.sha, text: latestText(latest.tag) })] : []), mainOpt(),
         ...(tags.length ? [el("optgroup", { label: "Releases and tags" }, tags.map(opt))] : []),
         ...(others.length ? [el("optgroup", { label: "Branches" }, others.map(opt))] : []));
       mark();
-    } catch (e) { /* main only */ }
+    } catch (e) { /* the latest release and main only */ }
   }
 
   /* ---- the cloud-builds branch: a build there is ready for Flash and the Simulator */
@@ -217,7 +222,7 @@ export function mountCloud({ S, $, el, toast, opts }) {
   /** Build: the same configuration from the site's own commit built before is ready at once; else the relay (the build
       service: no GitHub account, no issue form) */
   async function build(ev) {
-    const msg = $("buildmsg"), commit = $("bref").value || "";
+    const msg = $("buildmsg"), commit = buildCommit($("bref").value, S.siteCommit);   // (main: the site's own commit)
     if (ev.key && commit && commit === S.commit) {
       msg.textContent = "Looking for a build of this configuration…";
       let b = null;

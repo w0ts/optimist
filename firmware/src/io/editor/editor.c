@@ -517,11 +517,11 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         if (na < 1u || a[0] >= NTRK)
             return;
         t = &trk[a[0]];
-        lv = a[0] == TRK_DRUM ? &song.g[G_DRLVL] : &t->p[P_LEVEL];
+        lv = IS_DRUMK(a[0]) ? &song.g[G_DRLVL] : &t->p[P_LEVEL];
         if (na >= 4u) {
             *lv = (int16_t)clamp(ed_rv(a + 1), 0, 127);
             t->p[P_MUTE] = (int16_t)(a[3] ? 1 : 0);
-            if (a[0] == TRK_DRUM)                          /* the editor's own change: no push */
+            if (IS_DRUMK(a[0]))                          /* the editor's own change: no push */
                 ed9_known_g(G_DRLVL);
             else
                 ed_known(a[0], P_LEVEL);
@@ -551,8 +551,8 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
                                                             * -> index, on (3), lvl (5), rat (5): the drum track's 16 lanes
                                                             * and the ACCENT lane (on bit 16, the fifth groups' bits 4..5) */
         dstep_t *d;
-        if (na < 1u || a[0] >= NSTEP)
-            return;
+        if (!FELUCCA_DRUMS || na < 1u || a[0] >= NSTEP)
+            return;                                         /* (no drums: track 4's steps are a part's notes) */
         d = &TDRUM->dstep[a[0]];
         if (na >= 14u) {
             ed_undo_edit(TDRUM);

@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* EXPERIMENTAL Bluetooth Classic probe, stage 2 (BT_AUDIO): `btpage ADDR [SECONDS] [OPTIONS]` pages a device as the
  * master (docs/BT-CLASSIC.md §8.3: the ID train with the device's access code, its ID answer, our FHS, its
  * second ID, our POLL), keeps the link up with the engine's POLL / NULL and runs the minimal LMP of bt_lmp.c: our

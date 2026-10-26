@@ -34,7 +34,8 @@ env:
   ISSUE: ${{ github.event.issue.number }}
   RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
   REPO: ${{ github.repository }}
-  MAX_PER_DAY: "5"
+  MAX_PER_DAY: "100"
+  RELAY_AUTHOR: hdavid                       # (tools/cloud_relay's account: GitHub calls it CONTRIBUTOR, not a maintainer)
   RETAIN_DAYS: "30"
 
 jobs:
@@ -68,11 +69,27 @@ jobs:
         run: |
           # (the maintainers are not counted: the relay's issues are theirs, and tools/cloud_relay counts those per address)
           case "$ROLE" in OWNER|MEMBER|COLLABORATOR) exit 0 ;; esac
-          since="$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%SZ)"
-          n="$(gh api -X GET search/issues -f q="repo:$REPO is:issue label:cloud-build author:$AUTHOR created:>$since" --jq .total_count)"
-          if [ "$n" -gt "$MAX_PER_DAY" ]; then
+          # (everyone on the web builder is this one author: one open request of it refused them all, #58 2026-10-26)
+          [ "$AUTHOR" = "$RELAY_AUTHOR" ] && exit 0
+          # one build at a time (the user, 2026-10-26: "allow as much as possible and just protect from hackers"): another
+          # request of this author still open (sent in the last 2 hours), refused; the daily number below is only a backstop
+          recent="$(date -u -d '2 hours ago' +%Y-%m-%dT%H:%M:%SZ)"   # (a workflow error leaves its issue open: an older one never blocks)
+          busy="$(gh api -X GET search/issues -f q="repo:$REPO is:issue is:open label:cloud-build author:$AUTHOR created:>$recent" --jq "[.items[].number | select(. != $ISSUE)] | length")"
+          if [ "$busy" -gt 0 ]; then
             mkdir -p work
-            printf 'You have sent %s cloud builds in the last 24 hours; the limit is %s a day. Please send this one again tomorrow.\n' "$n" "$MAX_PER_DAY" > work/reply.md
+            printf 'Not built: your previous cloud build is still running. Send this one again once it is done (a few minutes).\n' > work/reply.md
+            exit 1
+          fi
+          # (the builds that ran: open, or closed as completed; a refused request, the over-limit ones included, does not
+          # count: retrying while over the limit used to push the wait further, 16 "sent" against 5, 2026-10-26)
+          since="$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%SZ)"
+          q="repo:$REPO is:issue label:cloud-build author:$AUTHOR created:>$since -reason:\"not planned\""   # (this request too: it is open)
+          n="$(gh api -X GET search/issues -f q="$q" --jq .total_count)"
+          if [ "$n" -gt "$MAX_PER_DAY" ]; then
+            first="$(gh api -X GET search/issues -f q="$q" -f sort=created -f order=asc -f per_page=1 --jq '.items[0].created_at')"
+            next="$(date -u -d "@$(( $(date -u -d "$first" +%s) + 86400 ))" '+%Y-%m-%d %H:%M UTC')"
+            mkdir -p work
+            printf 'Not built: you already had %s cloud builds in the last 24 hours, and the limit is %s a day (refused requests do not count). Send it again after %s.\n' "$((n - 1))" "$MAX_PER_DAY" "$next" > work/reply.md
             exit 1
           fi
       - name: Read the request
@@ -259,12 +276,13 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      - name: Say it failed (the issue stays open)
+      - name: Say it failed and close (an open issue counts as a build still running)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           python3 tools/cloud_build.py reply failed work
           gh issue comment "$ISSUE" --body-file work/reply.md
+          gh issue close "$ISSUE" --reason "not planned"
 
   prune:
     # (the daily run, or by hand: the builds not asked for in RETAIN_DAYS off the cloud-builds branch and release)

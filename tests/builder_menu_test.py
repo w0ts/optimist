@@ -100,6 +100,22 @@ async def sort_test():
     check("sort: per session, a new builder starts in the default order", M.Builder(C.defaults(), "default").sort_by is None)
 
 
+async def drums_head_test():
+    """DRUMS, the Drums group's head: its items under it, an X0X kit's options under the kit (two levels); DRUMS off
+    greys them and the drum-only items of other groups (LANE_FX)"""
+    app = M.Builder(dict(C.defaults(), DRUM_X0X909=1, LANE_FX=1), "default")
+    async with app.run_test(size=(200, 60)) as pilot:
+        await pilot.pause()
+        n = app.nodes
+        check("DRUMS heads the drum items, an X0X kit's options under the kit",
+              n["DRUM_SYNTH"].parent.data == "DRUMS" and n["X909_CYM"].parent.data == "DRUM_X0X909" and
+              n["DRUM_X0X909"].parent.data == "DRUMS")
+        await toggle(app, pilot, "DRUMS")
+        check("DRUMS off: its items and the drum-only items greyed, no drum source asked for",
+              app.cfg["DRUMS"] == 0 and all("dim" in str(app.nodes[k].label.style) for k in ("DRUM_SYNTH", "X909_CYM", "LANE_FX"))
+              and not any("drum source" in e for e in C.validate(app.cfg)[0]))
+
+
 async def estimate_over_build_fits_test():
     """b where the estimate overflows but the measurement build fits (the estimate KBs off): the menu builds again for
     real (a package to flash), never says "does not fit", and the bars and overflow lines take the build's sizes"""
@@ -131,6 +147,7 @@ async def estimate_over_build_fits_test():
 
 async def main():
     await sort_test()
+    await drums_head_test()
     await estimate_over_build_fits_test()
     app = M.Builder(C.defaults(), "default")
     async with app.run_test(size=(200, 60)) as pilot:
@@ -162,8 +179,9 @@ async def main():
               "drum source" in label(app, "DRUM_SYNTH") and not app.build_out)
         styles = [s.style for s in app.nodes["DRUM_SYNTH"].label.spans if "✗" in app.nodes["DRUM_SYNTH"].label.plain[s.start:s.end]]
         check("... in red", any("red" in str(s) for s in styles))
-        check("... only the items the error names", all(k in ("DRUM_SYNTH", "DS_KAWA", "DS_PLAITS", "DRUM_SAMPLED", "DRUM_X0X909",
-                                                              "DRUM_X0X808") or k.startswith("KIT_") for k in marked))
+        check("... only the items the error names (and their parent, DRUMS: it may be folded)",
+              all(k in ("DRUMS", "DRUM_SYNTH", "DS_KAWA", "DS_PLAITS", "DRUM_SAMPLED", "DRUM_X0X909", "DRUM_X0X808")
+                  or k.startswith("KIT_") for k in marked))
         check("... the message panel lists the error", "ERROR" in panel(app) and "drum source" in panel(app))
         await pilot.press("b")
         await pilot.pause()

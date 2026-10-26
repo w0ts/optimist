@@ -103,7 +103,8 @@ static void tl_ev_move(track_t *t, uint32_t len, const uint8_t *to, int32_t lane
     for (i = 0; i < l->n && i < AUTO_MAX; i++) {
         auto_ev_t *e = &l->ev[i];
         uint32_t s = e->place & AUTO_STEP;
-        if (s >= len || (lane >= 0 && !AUTO_LANE_EV(e->param, lane)))   /* (its values and its mute) */
+        if (s >= len || (lane >= 0 && !AUTO_LANE_EV(e->param, lane)) || AUTO_IS_LFX(e))   /* (its values and its mute; a
+                                                                                          * lane's FX is no step's) */
             continue;
         e->place = (uint8_t)((e->place & ~AUTO_STEP) | (to[s] & AUTO_STEP));
     }
@@ -152,6 +153,8 @@ static int tl_ev_double(track_t *t, uint32_t len, uint32_t nl, int check)
     uint32_t i, n = 0, drop = 0, add = 0, m;
     for (i = 0; i < l->n && i < AUTO_MAX; i++) {
         uint32_t s = l->ev[i].place & AUTO_STEP;
+        if (AUTO_IS_LFX(&l->ev[i]))
+            continue;                                   /* (a lane's FX: kept once, no step's) */
         drop += s >= len && s < nl;
         add += s < nl - len;
     }
@@ -161,11 +164,11 @@ static int tl_ev_double(track_t *t, uint32_t len, uint32_t nl, int check)
         return 1;
     for (i = 0; i < l->n; i++) {
         uint32_t s = l->ev[i].place & AUTO_STEP;
-        if (!(s >= len && s < nl))
+        if (!(s >= len && s < nl) || AUTO_IS_LFX(&l->ev[i]))
             l->ev[n++] = l->ev[i];
     }
     for (i = 0, m = n; i < m; i++)
-        if ((l->ev[i].place & AUTO_STEP) < nl - len) {
+        if ((l->ev[i].place & AUTO_STEP) < nl - len && !AUTO_IS_LFX(&l->ev[i])) {
             l->ev[n] = l->ev[i];
             l->ev[n++].place = (uint8_t)((l->ev[i].place & ~AUTO_STEP) | ((l->ev[i].place & AUTO_STEP) + len));
         }

@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* The Classic probe's L2CAP signalling and SDP client (bt_l2cap.h), from the Core spec Vol 3 Parts A and B;
  * host-tested (tests/bt_l2cap_test.c). */
 #include "bt_l2cap.h"

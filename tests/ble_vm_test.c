@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* Host test of the stored-RF-calibration reader (firmware/src/ble/ble_vm.c) and of the copy's precedence:
  *   images built from the record format of docs/BLE-HW-FACTS.md §14 (feat/ble-facts d907ce3): the magic, the check
  *   byte (CRC-16/XMODEM low byte over the data), the 12-bit id and length, last-valid-wins, the end at the first bad

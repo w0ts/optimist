@@ -55,6 +55,7 @@
 #include "op_effval.c"
 #include "op_layers.c"
 #include "op_tempo.c"
+#include "op_lanefx.c"            /* LANE FX: a drum lane's black key held (FELUCCA_LANE_FX) */
 #include "op_walk.c"
 #include "op_song.c"
 #include "op_combos.c"

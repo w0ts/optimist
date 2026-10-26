@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* The link layer's central role (BLE_CENTRAL; Core Specification Vol 6 Part B, docs/BLE-STACK.md §9.1, HW §21),
  * part of ble_ll.c (included there: it shares bll and the TX queues):
  *   - scanning for the DEVICES list: the raw reports' ring between the RX interrupt and the main loop (4.4.3);

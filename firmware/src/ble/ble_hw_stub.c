@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* A stand-in for the baseband driver (ble_hw.h): it accepts every request and never calls back, so the stack links,
  * sits idle in advertising and costs no time. FELUCCA_BLE_STUB=1 builds it instead of the real driver
  * (ble_hw_wl82.c); FELUCCA_BLE_HW leaves both out for a build that brings its own. */

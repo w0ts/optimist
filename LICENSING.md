@@ -59,6 +59,30 @@ firmware derived from it, you must also give your recipients its complete corres
 source under the same licence. That includes devices that ship with modified Optimist
 inside.
 
+## The Bluetooth stack (GPL-3.0-only OR MPL-2.0)
+
+Optimist's own Bluetooth code is offered under either GPL-3.0-only or the Mozilla Public License 2.0 (`MPL-2.0`, full
+text in `LICENSES/MPL-2.0.txt`), at the recipient's choice: its files carry `SPDX-License-Identifier: GPL-3.0-only OR
+MPL-2.0`. Optimist itself, and every firmware built from it, stays GPL-3.0-only; the second licence lets other FM-1
+firmwares and libraries (felucca-bsp, fm1-base) use the stack under MPL-2.0 whatever their own licence. The MPL's
+Exhibit B ("Incompatible With Secondary Licenses") does not apply. The files, all written for Optimist by hdavid:
+
+- `firmware/src/ble/` (all files)
+- `firmware/src/bt/`, except the third-party parts, which keep their own licences (the table below): the SBC encoder
+  in `firmware/src/bt/sbc/` (Apache-2.0) and micro-ecc (`uECC.c`, `uECC.h`, `uECC_vli.h`, `types.h`, the `.inc` files;
+  BSD-2-Clause)
+- `firmware/hal/fm1_ble.h`, `fm1_ble_rf.h`, `fm1_bredr.h`
+- `tools/ble_rf_capture.py`, `ble_rf_pack.py`, `ble_vm.py`
+- their tests: `tests/ble_*`, `tests/bt_*`, `tests/ble_fake/` (not `tests/bt_crypto_vectors.h`, the Bluetooth Core
+  specification's sample data, nor `tests/ble_vm_fm1_e6000.bin`, an FM-1's stored calibration)
+- `docs/BLE-STACK.md`, `docs/BLE-HW-FACTS.md`, `docs/BT-CLASSIC.md`, `docs/BLE-DEVICES-DESIGN.md`
+
+The radio start-up values captured from V15 (`firmware/hal/ble_rf_tables_v15.h`, and the few of them the radio drivers
+above keep as constants) are JieLi's and M-VAVE's, under Apache-2.0; four details of the Bluetooth Classic code were
+read from JieLi's Apache-2.0 controller library (both in the third-party table below). Not included: the parts of
+Optimist that use the stack and come from Felucca or SLOOP (`midi_ble.c`, the UI pages, storage), which stay
+GPL-3.0-only.
+
 ## Additional permission (GPL-3.0 section 7)
 
 Felucca 0.9-beta's grant, kept as it was given. No Felucca Asset outside the GPL is left in this tree (the
@@ -125,7 +149,8 @@ assets, is entirely governed by the GPL.
 | Flowstate by Zakaria Chowdhury (<https://github.com/zakariachowdhury/flowstate-fm1>, `3962560`): the performance macros COLOR / MOTION / SPACE / ENERGY and ENERGY's bands, after its `macro.c` and `arrange.c`, rewritten (`FELUCCA_MACROS`, `FELUCCA_ENERGY`) | GPL-3.0-only | `firmware/src/core/macro.c`, `firmware/src/io/editor/ed_macro.c`, `tests/macro_test.c` (its SLOOP macro UI, `macro_ui.c`, went with SLOOP's UI, 2026-10-19) |
 | Jangada by zednaked (Thiago Gonçalves) (<https://github.com/zednaked/jangada>, a Felucca fork): the SUPER engine (its ANALOG superwave `analog_render_x`, `d43e6ab`); the SVF band-pass step (`tsvf_lpbp`); the USB MIDI ring that a DAW cannot fill (`0835cc4`); for the second core (`07cce38`): the core supply levels and their order (`fm1_core_supply`, after Melodee's `hal/fm1_power.h`; now `FELUCCA_STOCK_SUPPLY`, with Melodee's stock sequence), the 2ND CORE AUTO / OFF setting (Jangada 0.9.6), CPU1's main loop kept in RAM and its measurements of CPU1's misreads | GPL-3.0-only | `firmware/src/engines/super/eng_super.c`, `firmware/src/dsp/dsp.c`, `firmware/src/io/usb/usb.c`, `firmware/hal/fm1_supply.h`, `firmware/src/system/dual_mode.h`, `firmware/hal/fm1_dual.h` |
 | The second core, after the FM-1 firmwares that run it: X0X by Charles Vestal (<https://github.com/charlesvestal/fm1-x0x>, `47f8e4c`, `hal/fm1_cpu1.h`, `hal/fm1_cpu1.S`: CPU1's entry, its own EMU and interrupt banks, the mailbox lines, only the next posted job run after its check word) and Melodee by Kerem Kilic (`crt0.S`, `hal/fm1_multicore.h`; the CPU1 fault handler `fm1_core1_fault_c` of `hal/fm1_irq.h`, `dce4960`) | GPL-3.0-only | `firmware/hal/fm1_dual.h`, `firmware/hal/fm1_dual_guard.h`, `firmware/src/system/dual.c`, `tests/dual_guard_test.c` |
-| The BLE radio's start-up values (`FELUCCA_BLE`, off by default): register writes and tables captured by `tools/ble_rf_capture.py` from M-VAVE's stock FM-1 V15 firmware running in the emulator, committed as data (docs/BLE-STACK.md §12). Origin, plainly: they are register values for the radio's start-up, read out of M-VAVE's own V15 firmware; M-VAVE states no licence for them, and they are not Optimist's work. The BLE stack itself is Optimist's own | no licence stated upstream (M-VAVE) | `firmware/hal/ble_rf_tables_v15.h` |
+| The BLE radio's start-up values (`FELUCCA_BLE`, off by default): register writes and tables captured by `tools/ble_rf_capture.py` from M-VAVE's stock FM-1 V15 firmware running in the emulator, committed as data (docs/BLE-STACK.md §12). The writes are V15's `rf_init`, JieLi's radio start-up for the AC791N / WL82 (`cpu/wl82/liba/wl_rf_common.a`, `btctrler.a`), which JieLi's AC79 AIoT SDK (Copyright (c) 2024-2026 Zhuhai Jieli Technology Co., Ltd., Apache-2.0, <https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK>) publishes under Apache-2.0; the V15 package they were read from (Copyright (c) 2026 Zhuhai Shengke / M-VAVE) M-VAVE publishes under Apache-2.0 as `sdk/firmware/FM-1_015.fwsc` in <https://github.com/m-vave/fm1_open> (its THIRD_PARTY.md: "Boot/update resources and recovery firmware ... Apache-2.0"; the same SHA-256, `db1642b2…edb8a`, as the V15 the tool accepts). A few of the same values are constants in `fm1_ble.h`, `fm1_ble_rf.h` and `fm1_bredr.h` (with two eSCO RX defaults of the SDK, unused). They are not Optimist's work; the BLE stack itself is Optimist's own | Apache-2.0 | `firmware/hal/ble_rf_tables_v15.h`, `LICENSES/Apache-2.0.txt` |
+| JieLi's Bluetooth controller library `cpu/wl82/liba/btctrler.a` from JieLi's AC79 AIoT SDK (Copyright (c) 2024-2026 Zhuhai Jieli Technology Co., Ltd., Apache-2.0, <https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK>): four facts read from its LLVM bitcode (2026-10-23) and written anew in our code, no code taken: how the engine is given the AFH hop table and channel map (`bdhw_set_afh`, `bdhw_set_frq_table`), how the LMP_set_AFH instant is compared with the slot clock (`connection_rx_handler`), and the octet order of the encryption key size reduction (`Entrypt_Key_Length_Change`) | Apache-2.0 | `firmware/src/bt/bt_afh.c`, `bt_page.c`, `bt_lmp.c`, `bt_safer.c`; docs/BT-CLASSIC.md §1 |
 | Melodee 0.12 by Kerem Kilic (Ellic Studio) (<https://github.com/keremimo/melodee>, `v0.12` 18bfd53): native tone collections (`native_presets.c`: the engine's own tones after the user presets in PRESETS, a load sets only the tone), the CZ-1 tone check (`cz_patch.h` `cz_patch_valid`), the CZ editor command shape (`editor_native.c`) and Casio CZ .syx import (a CZ-101 tone completed as its CZ-1 bytes), written for our stores behind `FELUCCA_NATIVE_BANKS` | GPL-3.0-only | `firmware/src/storage/nbank.c`, `firmware/src/io/editor/ed_cz.c`, `tests/nbank_test.c`, `web/editor.html` (`czSyx`, the CZ panel) |
 | Caravel 0.3.3 by bonszaimusic (<https://github.com/bonszaimusic/caravel>, a Felucca 1.6.1 fork, `c6c61c7`): the DRONE engine's coupled network (its `firmware/src/eng_drone.c`, TOPO 0..2: four generators phase-modulating each other as PAIRS, CHAIN or RING, SPREAD, CHAR, DRIFT, TONE, its presets STILL AIR .. BEAT FIELD), rewritten without divides; its RATE folded into DRIFT, its DETUNE on the track's DTUNE, our BEAT and HOLD added; its cell modes not ported | GPL-3.0-only | `firmware/src/engines/drone/eng_drone.c` |
 | Melodee 1.3.6 by Kerem Kilic (Ellic Studio) (<https://github.com/keremimo/melodee>, `7a51700` "match stock V15 supply startup"): the stock FM-1 supply start-up sequence as its BUILDING.md describes it ("The stock supply setup": the LDO13 to DCDC13 handover, the analog register values and their order, SYSVDD last, the read-back checks; read from the M-VAVE FM-1_015 package, app_core 0x02004F90..0x0200509A), written anew here | GPL-3.0-only | `firmware/hal/fm1_supply.h`, `firmware/src/system/supply.c` |
@@ -148,6 +173,7 @@ assets, is entirely governed by the GPL.
 
 Contributions are welcome under GPL-3.0-only. By submitting one, you agree that it may be
 combined with the Felucca Assets under the section 7 permission above.
+A contribution to a file of the Bluetooth stack (above) is made under GPL-3.0-only OR MPL-2.0, as the file is.
 
 ## Trademarks
 
@@ -166,4 +192,4 @@ by those owners.
 ## Radio
 
 A default build never enables the Bluetooth / Wi-Fi radio of the hardware. The builder item `BLE` (off by default) builds Optimist's own Bluetooth LE MIDI stack, which starts the radio with values captured from
-M-VAVE's stock V15 firmware (the third-party table above). Wi-Fi is never enabled.
+M-VAVE's stock V15 firmware (Apache-2.0, the third-party table above). Wi-Fi is never enabled.

@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* Legacy Bluetooth authentication, SAFER+ and Secure Simple Pairing (SSP) cryptography (bt_safer.h).
  * Implemented from Bluetooth Core Specification Vol 2 Part H §6 and §7; host-tested in tests/bt_crypto_test.c. */
 #include "bt_safer.h"

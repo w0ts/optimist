@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* Adaptive frequency hopping as the master of the audio link (builder item BT_AFH; Core Vol 2 Part B 2.6.4, Part C
  * 4.1.4): the channels the device fails to answer on leave the hop set, and the device is told with LMP_set_AFH
  * (bt_lmp.c btl_set_afh). bt_page.c measures (bp.ch_good, its answers per RF channel over BP_CH_SEC) and applies (the

@@ -128,8 +128,8 @@ typedef struct {
     uint32_t rnd;                                       /* S&H's value this cycle (the top 16 bits) */
     int32_t v;                                          /* its value of the last block (Q15, POL in; lfo_over) */
 } lfo2_t;
-static lfo2_t lfo2[NPART] = {{0, 0x80000000u, 0}, {0, 0x80000000u, 0}, {0, 0x80000000u, 0}};   /* (S&H at 0 till a wrap) */
-_Static_assert(NPART == 3 && P_L2AA == P_L2DA + 1 && P_L2DB == P_L2DA + 2 && P_L2AB == P_L2DA + 3, "lfo2[]: one a part");
+static lfo2_t lfo2[NPART] = {[0 ... NPART - 1] = {0, 0x80000000u, 0}};   /* (S&H at 0 till a wrap) */
+_Static_assert(P_L2AA == P_L2DA + 1 && P_L2DB == P_L2DA + 2 && P_L2AB == P_L2DA + 3, "lfo2[]: one a part");
 #define LFO2_ON(t) (((t)->p[P_L2DA] && (t)->p[P_L2AA]) || ((t)->p[P_L2DB] && (t)->p[P_L2AB]))   /* (else: nothing) */
 /* part t's LFO 2 this block -> o (left as it is while it is off). In XIP flash, called through a pointer (FAR) by the
  * render, only while it acts: once a part a block, its code out of RAMTEXT (the ISR never runs while the flash is busy) */

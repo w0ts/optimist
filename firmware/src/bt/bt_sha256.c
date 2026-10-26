@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* SHA-256 and HMAC-SHA-256 (bt_sha256.h), from FIPS PUB 180-4 §4.2.2, §5.3.3, §6.2 and RFC 2104. */
 #include "bt_sha256.h"
 

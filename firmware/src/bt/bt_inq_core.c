@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* The inquiry probe's portable part (bt_inq.h): written from the Core specification, host-tested (tests/bt_inq_test.c). */
 #include "bt_inq.h"
 

@@ -16,7 +16,10 @@ path. Chrome or Edge is needed for Web MIDI.
 installer then offers cloud builds and a `.fwsc` of yours). The published installer offers, newest first, each published
 release (not a draft, not a pre-release) with its published flavours (the profiles marked `publish: yes`), then this
 commit's development build of each flavour in `web/flavours.json`. `pages.yml` downloads the releases' packages into the
-site (`firmware/r/<tag>/`) because a page cannot fetch a GitHub release file itself (no CORS header). The site holds:
+site (`firmware/r/<tag>/`) because a page cannot fetch a GitHub release file itself (no CORS header), and builds the
+latest release's simulators from that tag's own source (its `config/profiles` and `tools/sim.py`: `firmware/r/<tag>/*.wasm`).
+`site.json` names that release (`"latest": {tag, sha, date}`): the builder and the Simulator tab start from it, main's
+development build stays a choice (the user, 2026-10-26). The site holds:
 
 - `webapp/installer/`: the standalone installer. `index.html` (from `web/installer/index.html`) is one offline file: the
   shared header and style and the installer module, inlined. Beside it `installer.js` (the same module as one file, for
@@ -68,7 +71,8 @@ every listed profile. `python3 web/make_site.py --profiles` prints the profiles;
 `.github/workflows/pages.yml` runs on a push to `main` and by hand (Actions > pages > Run workflow). A published release
 asks for a run on `main` (its `redeploy` job), because the `github-pages` environment deploys from `main` only. It
 downloads the JieLi toolchain and SDK files on the runner (`tools/optimist.py setup`; nothing of them is stored or
-published), builds each listed profile and its simulator (Emscripten, `tools/sim.py build --wasm`), makes the site and
+published), builds each listed profile and its simulator (Emscripten, `tools/sim.py build --wasm`), checks out the latest
+release's tag beside the checkout and builds the simulator of each of its packages from there (about 30 s each), makes the site and
 deploys it with `actions/deploy-pages` (actions pinned to commit SHAs; permissions: contents read, pages write, id-token
 write).
 
@@ -182,7 +186,7 @@ cloud** sends the configuration to this repository's GitHub Actions, which build
    key's first 16 hex digits), an **Install it** link, a link to the configuration in the builder, and the downloads
    `optimist-<name>-<key16>.fwsc` and its `-ui.zip`; it closes the issue. A refused configuration (unknown key, rule not
    met) is answered at once and closed; a failed build (most often: it does not fit, the page's size is an estimate) is
-   answered with the log and stays open.
+   answered with the log and closed (an open one would count as still building).
 4. Install it: the page's **Flash it**, the issue's **Install it** link (`?build=<id>`), Firmware's *Your build*, or download
    the `.fwsc` and `python3 tools/optimist.py flash FILE`. There is no list of everyone's builds: a page offers yours.
 
@@ -201,7 +205,7 @@ The branch exists because a release download ends on a host with no CORS header,
 raw.githubusercontent.com sends `Access-Control-Allow-Origin: *`.
 
 **The workflow.**
-- **request** (reads the repository, writes issues): refuses an author past `MAX_PER_DAY` (5) in 24 hours, then runs
+- **request** (reads the repository, writes issues): refuses an author with a build still running (one at a time) or past `MAX_PER_DAY` (100, a backstop) builds that ran in 24 hours (a refused request does not count; the reply says when the next is possible), then runs
   `tools/cloud_build.py` from the default branch, so a request cannot change how it is read. The issue body reaches it
   through an environment variable only. The commit must be a full SHA on a branch of this repository (only maintainers push
   branches, so only published code is built). That commit's own builder checks the configuration (`optimist.py cloud-key
@@ -241,8 +245,11 @@ old), the **releases** with their published flavours, a **`.fwsc` file**, and **
 1. **Start from** a flavour, a published profile, your last configuration or one of **your configurations** (Save keeps
    the current one under the Name field's name, Delete removes it; `localStorage` `optimist-builder-saved`, which the
    Mirror app's web view keeps too). No development profile and no "registry defaults" are offered.
-2. **Build from** main (the default), a release tag or a branch (the relay's `?refs`). The options are main's: a build
-   from an older tag can be refused for an option that tag does not have; the refusal says which.
+2. **Build from** the latest published release (the default: `site.json` `latest`; no `?ref` in the URL), main
+   (`?ref=main`: the site's own copy, its commit), another release tag or a branch (the relay's `?refs`; `?ref=<commit>`).
+   Everything below (the items, the costs, the profiles, the rules) is that version's (`web/builder/data` of that commit
+   from raw.githubusercontent.com). No `site.json` or no `latest` in it (the local site, the builder alone): main. A
+   build asks for the commit chosen (main: the site's commit).
 3. **Build** (`web/builder/cloud.js`). When `TURNSTILE_SITEKEY` is set (`logic.js`), it needs no GitHub account:
    - Cloudflare Turnstile is loaded at that click only (no third party on the page before) and checks the visitor is
      not a robot, usually without asking anything;
@@ -281,7 +288,7 @@ What the relay holds and refuses (`cloud-relay-config.php`, outside the web root
     build is done or refused), for `queue_max_seconds` at most (a failed run leaves its issue open);
   - `min_gap_seconds` between two builds, `per_ip_per_day` builds; all addresses together, `all_per_day`;
   - the same commit and configuration again from that address within a day answers its first issue.
-- The workflow's own limit (5 a day per issue author) skips the maintainers (owner, members, collaborators): the relay's
+- The workflow's own limits (one at a time, 100 a day per issue author) skips the maintainers (owner, members, collaborators): the relay's
   issues are authored by the token's account, a maintainer's, and the relay counts them per address instead.
 
 Set up: PHP 7.4+ with curl. `cloud-build.php` and `cloud-relay-config.php` (from `cloud-relay-config.example.php`) go

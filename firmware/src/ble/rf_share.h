@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* The one radio, BLE's and BR/EDR's (Bluetooth MIDI and Bluetooth audio at the same time; docs/BT-CLASSIC.md §9.1).
  * Both stacks start it the first time they need it; whichever comes first runs the start-up, the other finds it up:
  *   rfs_rf_up(trims)   the radio's start-up (hal/fm1_ble.h fm1_ble_rf_init), once per boot -> 1 run now, 0 up already.

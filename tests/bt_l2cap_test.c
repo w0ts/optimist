@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* Host test of the Classic probe's L2CAP signalling and SDP client (firmware/src/bt/bt_l2cap.c): the frames byte for
  * byte (Core spec Vol 3 Part A §4) and the reading of an A2DP sink record built here from the spec's data elements
  * (Part B §3, the A2DP spec's record layout): class 0x110B, L2CAP PSM 0x0019, AVDTP 1.3, A2DP 1.3, features, name. */

@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* Host test of the BLE stack's central role (BLE_CENTRAL: firmware/src/ble/ble_ll_central.c, ble_gattc.c, ble_central.c,
  * ble_smp_init.c) against a simulated BLE-MIDI peripheral behind a fake baseband (ble_hw.h): the mirror of
  * tests/ble_stack_test.c's simulated central. One connection event: the master's PDUs are taken (all acknowledged),

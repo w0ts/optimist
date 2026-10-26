@@ -107,7 +107,8 @@ static void loop_pos(const track_t *t, char *b)
  * audit's #11) */
 static const uint8_t HEAD_TRK_SCR[SCR_N] = {
     [SCR_HOME] = 0, [SCR_SOUND] = 1, [SCR_FX] = 0, [SCR_PROJECT] = 0, [SCR_SYSTEM] = 0,
-    [SCR_STEP] = 1, [SCR_SONG] = 0,  [SCR_TEMPO] = 0, [SCR_SCOPE] = 0, [SCR_GLOBAL] = 0};
+    [SCR_STEP] = 1, [SCR_SONG] = 0,  [SCR_TEMPO] = 0, [SCR_SCOPE] = 0, [SCR_GLOBAL] = 0,
+    [SCR_LFX] = 1};
 /* the page's title into t (n bytes), as drawn (sentence case, the names table's: op_names.c): the cursor row's name alone,
  * the badge names the screen ("Ins tone", "Tools", "Scene A"); the mixer's track rows: the row's name and the set ("T1 mix").
  * The title is the row's name verbatim, its continuation number kept ("Edit 1 2/7": the audit's #2, style guide 1) */
@@ -957,11 +958,13 @@ static uint32_t row_pic(uint32_t cur)
 }
 /* the builder's PAGE_LINES (the user, 2026-10-18): a screen of rows with no picture (EDIT, VOICE, PROJECT, SONG, the
  * master FX ...) shows its cursor row as GLOBAL's four lines (op_gldraw.c pl_draw), from under the header to the help
- * line, KNOB k line k, SELECT the next row; no 2x2 cards, no row list. Off: the cards and the list under them */
+ * line, KNOB k line k, SELECT the next row; no 2x2 cards, no row list. Off: the cards and the list under them. LANE FX
+ * keeps the 2x2 cards, as STEP's held step (the user, 2026-10-26: "use the 2*2 layout ... uniform with other pages") */
 static int pl_on(void)
 {
 #if FELUCCA_PAGE_LINES
-    return lay.shown == LY_PLAY && !page_owned() && ui.scr != SCR_HOME && ui.scr != SCR_STEP && ui.scr != SCR_SCOPE && !song_tbl_on() &&
+    return lay.shown == LY_PLAY && !page_owned() && ui.scr != SCR_HOME && ui.scr != SCR_STEP && ui.scr != SCR_SCOPE && ui.scr != SCR_LFX &&
+           !song_tbl_on() &&
            !glo_cycle() && !prj_listing() && SCR->rows() && !row_pic(ui.row[ui.scr])
 #if FELUCCA_BT_UI
            && !dev_listing()

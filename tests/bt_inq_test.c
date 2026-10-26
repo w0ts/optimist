@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* Host test of the Classic inquiry probe's portable part (firmware/src/bt/bt_inq_core.c):
  *   the sync word's 34 parity bits for the GIAC (the value docs/BT-CLASSIC.md §5.3 lists) and for stock
  *   V15's own LAP (its page-scan frame in the emulator's RAM, §11), and for LAPs with bit 23 set and clear (the two

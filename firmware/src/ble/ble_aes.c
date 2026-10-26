@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* AES-128 encryption (FIPS-197) for size: the round keys are made on the fly, one S-box, no T-tables. CCM as the
  * LL uses it (Core Specification Vol 6 Part E 2): M = 4 (MIC), L = 2, a 13-octet nonce of the 39-bit packet
  * counter, the direction bit and the IV; one octet of additional data, the PDU header with NESN, SN and MD

@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* The Classic probe's AVDTP initiator (bt_avdtp.h), from AVDTP 1.3 and A2DP 1.3; host-tested (tests/bt_avdtp_test.c). */
 #include "bt_avdtp.h"
 

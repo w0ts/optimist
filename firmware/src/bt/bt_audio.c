@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* Bluetooth audio as the screen drives it (builder item BT_AUDIO; SYSTEM > BT AUDIO's MODE MAN / AUTO, op_bt.c).
  * Included by bt_inq.c after bt_page.c (it calls the inquiry, the page and the ACL stage of the Classic stack). Not the
  * console's: nothing here prints.

@@ -28,7 +28,7 @@
 static uint32_t trk_midi_ch(uint32_t i)
 {
 #if FELUCCA_MIDI_CH
-    uint32_t c = i < NPART ? (uint32_t)bp_set[BPS_CH0 + i] : (uint32_t)song.g[G_DRCH];
+    uint32_t c = i < 3u ? (uint32_t)bp_set[BPS_CH0 + i] : (uint32_t)song.g[G_DRCH];   /* (track 4: G_DRCH, drums or not) */
     return c >= 1u && c <= 16u ? c - 1u : MCH_OFF;
 #else
     if (i < NPART)
@@ -47,7 +47,7 @@ static int midi_track_idx(uint32_t ch)
     i = song.sel % NTRK;
     return trk_midi_ch(i) == MCH_OFF ? -1 : (int)i;     /* (a channel nobody has: the selected track, as before) */
 #else
-    if (song.g[G_DRCH] && ch + 1u == (uint32_t)song.g[G_DRCH])
+    if (FELUCCA_DRUMS && song.g[G_DRCH] && ch + 1u == (uint32_t)song.g[G_DRCH])
         return TRK_DRUM;
     return ch < NPART ? (int)ch : (int)(song.sel % NTRK);
 #endif

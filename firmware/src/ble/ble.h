@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* The BLE-MIDI peripheral as the firmware sees it (route C: our own stack, docs/BLE-STACK.md).
  *
  *   ble_init(addr, random)     once at start, before the driver's interrupts are on

@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* AES-128 (FIPS-197, encryption only) and the LL's AES-CCM (Core Specification Vol 6 Part E, sample data in
  * Vol 6 Part C 1). Byte order: AES's own (the Bluetooth security function e() with its most significant octet
  * first); the LL turns the least-significant-first fields it receives around before calling it.

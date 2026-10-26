@@ -1045,7 +1045,7 @@ async function editorFxSlots() {
   const C = E.CMD, T = E.FXT;
   const ef = readFileSync(join(HERE, "../firmware/src/io/editor/ed_fxs.c"), "utf8"), fs = readFileSync(join(HERE, "../firmware/src/fx/fx_slots.c"), "utf8");
   ok(/ED_FX = 86, ED_FX_PUSH = 87/.test(ef) && C.FX === 86 && C.FX_PUSH === 87 && /ed_b\(0x56\)/.test(ef)
-    && /enum \{ FXT_NONE, FXT_DIST, FXT_CHO, FXT_DLY, FXT_REV, FXT_COMP, FXT_FILT,\s+FXT_FOLD, FXT_FUZZ, FXT_PHSR, FXT_FLNG, FXT_FRMT, FXT_WIDE,[^\n]*\n\s+FXT_CHRS, FXT_ECHO,[^\n]*\n\s+FXT_GATE,[^\n]*\n\s+FXT_DUST,[^\n]*\n\s+FXT_JUNO,[^\n]*\n\s+FXT_EQ3,[^\n]*\n\s+FXT_SFLD, FXT_WRAP, FXT_RECT, FXT_HARM, FXT_RING, FXT_SUBO, FXT_SLEW,[^\n]*\n[^\n]*\n[^\n]*\n\s+FXT_TAPE, FXT_SPIT,[^\n]*\n\s+FXT_XDLY,[^\n]*\n[^\n]*\n\s+FXT_N \}/.test(fs)
+    && /enum \{ FXT_NONE, FXT_DIST, FXT_CHO, FXT_DLY, FXT_REV, FXT_COMP, FXT_FILT,\s+FXT_FOLD, FXT_FUZZ, FXT_PHSR, FXT_FLNG, FXT_FRMT, FXT_WIDE,[^\n]*\n\s+FXT_CHRS, FXT_ECHO,[^\n]*\n\s+FXT_GATE,[^\n]*\n\s+FXT_DUST,[^\n]*\n\s+FXT_JUNO,[^\n]*\n\s+FXT_EQ3,[^\n]*\n\s+FXT_SFLD, FXT_WRAP, FXT_RECT, FXT_HARM, FXT_RING, FXT_SUBO, FXT_SLEW,[^\n]*\n[^\n]*\n[^\n]*\n\s+FXT_TAPE, FXT_SPIT,[^\n]*\n\s+FXT_XDLY,[^\n]*\n[^\n]*\n(#if FELUCCA_EX_GAIN\n\s+FXT_EXGN,[^\n]*\n#endif\n)?\s+FXT_N \}/.test(fs)
     && T.NONE === 0 && T.DIST === 1 && T.CHO === 2 && T.DLY === 3 && T.REV === 4 && T.COMP === 5 && T.FILT === 6
     && T.FOLD === 7 && T.FUZZ === 8 && T.PHSR === 9 && T.FLNG === 10 && T.FRMT === 11 && T.WIDE === 12
     && T.CHRS === 13 && T.ECHO === 14 && T.GATE === 15 && T.DUST === 16 && T.JUNO === 17 && T.EQ3 === 18
@@ -3466,6 +3466,16 @@ await installerModule();
     "sim: OCT- / OCT+ (and the drawn OCT−) find their own buttons, not both the first");
   ok(findButton(names, "PLAY") === 12 && findButton(names, "PLAY/STOP") === 12 && findButton(names, "NOPE") === -1,
     "sim: PLAY/STOP found by its 3-letter prefix; an unknown label is -1");
+}
+/* the simulator's builds: the latest release's first (make_site.py lists the releases first; built from the tag), main's
+   development build named as such, a simulator alone by its title */
+{
+  const SIM = await import("./sim/sim.js");
+  const src = readFileSync(join(HERE, "sim", "sim.js"), "utf8");
+  ok(SIM.siteLabel({ release: "v0.2", title: "Synths", pkg: "x" }) === "v0.2 · Synths" && SIM.siteLabel({ release: "", title: "Synths", pkg: "x" }) === "main (development) · Synths"
+    && SIM.siteLabel({ id: "local", title: "Local build: synth", sim: "x.wasm" }) === "Local build: synth"
+    && /st\.choice \|\| \(packages\.length \? "site:0" : null\)/.test(src) && /\.\.\.\(p\.release \? \{ profile: p\.id \} : \{ flavour: p\.id \}\)/.test(src),
+    "sim: the first site build is the default (the latest release's, listed first); main's labelled development; a release's Configuration opens its profile");
 }
 console.log(failed ? `WEB TESTS FAILED (${failed})` : "web tests passed");
 process.exit(failed ? 1 : 0);

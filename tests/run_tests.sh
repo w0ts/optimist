@@ -45,6 +45,9 @@ BACKPORTS_ON="$BACKPORTS_ON -DFELUCCA_ENG_NOISE=1"
 SCENE_ON="-DFELUCCA_ENG_STRINGS=1 -DFELUCCA_ENG_VPS=1 -DFELUCCA_ENG_TERRAIN=1 -DFELUCCA_ENG_WSEQ=1 -DFELUCCA_ENG_VECTOR=1 -DFELUCCA_ENG_SID=1 -DFELUCCA_ENG_PROPHET=1 -DFELUCCA_ENG_WAVE=1"
 # ENV 1 MOD's test (tests/env1_test.c): every engine built, so every engine's cards are rendered
 ENV1_ENG="-DFELUCCA_ENG_SLICE=1 -DFELUCCA_ENG_PHYS=1 -DFELUCCA_ENG_ACID=1 -DFELUCCA_ENG_CZ=1 -DFELUCCA_ENG_JUNO=1 -DFELUCCA_ENG_NOISE=1 -DFELUCCA_ENG_DRONE=1 -DFELUCCA_ENG_PLAITS=1 $SCENE_ON"
+# the worked examples of CONTRIBUTING.md, each a builder item off by default: EXGN (an insert), SQUARE (an engine), WALK and
+# UPDN (note generators, an option of NOTEGEN); tests/examples_test.c, a UI run and a PRESETS cover with them
+EX_ON="-DFELUCCA_EX_GAIN=1 -DFELUCCA_EX_SQUARE=1 -DFELUCCA_NOTEGEN=1 -DFELUCCA_EX_NOTEGEN=1"
 # FM6's voice packs, every one (tools/fm6_packs, firmware/src/engines/fm6/eng_fm6_pk_*.h)
 FM6_PACKS_ON="-DFELUCCA_FM6_PK_KEYS=1 -DFELUCCA_FM6_PK_BASS=1 -DFELUCCA_FM6_PK_BELLS=1 -DFELUCCA_FM6_PK_PADS=1 -DFELUCCA_FM6_PK_80S=1"
 run() { echo "== $1"; d=$1; shift; "$@" || { fail=1; echo "!! FAILED: $d"; : > "$U.fail"; }; }
@@ -153,7 +156,11 @@ t_sim() {
     node tests/sim_test.mjs build/sim/test/sim.wasm || return 1
     # (one project moved between two instances: a build with PATTERNS, live editing not needed)
     "$py" tools/sim.py build --wasm --config config/profiles/synths_USBaudio_BTaudio_BTmidi.config --out build/sim/test/sim-pj.wasm >build/sim/test-build-pj.log 2>&1 || { tail -20 build/sim/test-build-pj.log; return 1; }
-    node tests/sim_projects_test.mjs build/sim/test/sim-pj.wasm
+    node tests/sim_projects_test.mjs build/sim/test/sim-pj.wasm || return 1
+    # (DRUMS off: the same profile, track 4 a part; its projects against the build with drums')
+    { cat config/profiles/synths_USBaudio_BTaudio_BTmidi.config; echo DRUMS=0; } >build/sim/test/nodrums.config
+    "$py" tools/sim.py build --wasm --config build/sim/test/nodrums.config --out build/sim/test/sim-nd.wasm >build/sim/test-build-nd.log 2>&1 || { tail -20 build/sim/test-build-nd.log; return 1; }
+    node tests/sim_nodrums_test.mjs build/sim/test/sim-nd.wasm build/sim/test/sim-pj.wasm
 }
 early t_ble_emu
 early t_ble_central
@@ -280,6 +287,13 @@ job; ( jobin
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_ENG_NOISE=1 -o "$OUT/noise_test" tests/noise_test.c -lm
     run "NOISE engine (FELUCCA_ENG_NOISE=1): UID 15, every preset audible / bounded / voices free, tests/golden_noise.txt, EDIT values, colour, pitched LFSR / META, seeded, retrigger" "$OUT/noise_test" tests/golden_noise.txt
+) >"$U.out" 2>&1 & jobbg
+job; ( jobin
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $EX_ON -DFELUCCA_MOTION=1 -o "$OUT/examples_test" tests/examples_test.c -lm
+    run "the examples of CONTRIBUTING.md (EX_GAIN EX_SQUARE EX_NOTEGEN): EXGN bypassed at OFF, its dB, its glide, TLV, motion id; SQUARE UID 26, its presets heard, 220 Hz, every EDIT value; WALK UPDN's notes, in the scale, WRITE" "$OUT/examples_test"
+    mkdir -p "$OUT/optimist-ex"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_MICRO=1 -DFELUCCA_FILLS=1 -DFELUCCA_PLOCK=1 -DFELUCCA_CHANCE=1 -DFELUCCA_MOTION=1 -DFELUCCA_COND=1 -DFELUCCA_SEQTOOLS=1 -DFELUCCA_PARAM_HELP=1 $EX_ON $SEC4 -o "$OUT/ui_optimist_ex_test" tests/ui_optimist_test.c -lm
+    run "Optimist UI with the examples (EXGN, SQUARE, WALK UPDN): every screen, the names, the colours, every value's help line" "$OUT/ui_optimist_ex_test" "$OUT/optimist-ex"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_ENG_DRONE=1 -o "$OUT/drone_test" tests/drone_test.c -lm
@@ -509,6 +523,16 @@ job; ( jobin
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/ngate_store_test" tests/ngate_store_test.c -lm
     run "POLY notes' own ends + drum lane events: ids apart, events only in the stored forms (capture / apply), an older project, a scene, the autosave, a pattern copied and launched, TRACK_STEP v12, AUTO_GET / SET, the 2.4 lost bit 5, a full list" "$OUT/ngate_store_test"
+) >"$U.out" 2>&1 & jobbg
+# the drum lanes' FX (FELUCCA_LANE_FX, seq/lane_fx.c): the events, every value heard; the LANE FX page and the mute held (UI)
+job; ( jobin
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/lane_fx_test" tests/lane_fx_test.c -lm
+    run "drum lane FX: a lane's events (no step's: the tools, the marks, the old motion form leave them), ROLL, CHANCE, FILL, NUDGE late / early, VRAND, FLAM, RAMP, EVERY heard" "$OUT/lane_fx_test"
+    mkdir -p "$OUT/optimist-lfx"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_LANE_FX=1 -DFELUCCA_COND=1 -DFELUCCA_CHANCE=1 -DFELUCCA_MOTION=1 $SEC4 -o "$OUT/ui_optimist_lfx_test" tests/ui_optimist_test.c -lm
+    run "Optimist UI with LANE_FX: a lane's black key held opens its two pages, the knobs write its FX, let go the screen before; the rest as ever" "$OUT/ui_optimist_lfx_test" "$OUT/optimist-lfx"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_PAGE_LINES=1 -DFELUCCA_LANE_FX=1 -DFELUCCA_COND=1 -DFELUCCA_CHANCE=1 -DFELUCCA_MOTION=1 $SEC4 -o "$OUT/ui_optimist_lfx_lines_test" tests/ui_optimist_test.c -lm
+    run "Optimist UI with LANE_FX and PAGE_LINES: LANE FX keeps the 2x2 cards; the lines tests as ever" "$OUT/ui_optimist_lfx_lines_test" "$OUT/optimist-lfx"
 ) >"$U.out" 2>&1 & jobbg
 # the drum track's ACCENT lane (core.h DRUM_ACC, drums.c dacc_vel, seq/ngate.h): heard, stored, the editor, 2.4; off; with ENERGY
 job; ( jobin
@@ -1289,7 +1313,7 @@ KITS1="-DFELUCCA_DRUM_SYNTH=0 -DFELUCCA_DS_KAWA=0 -DFELUCCA_DS_PLAITS=0 -DFELUCC
 S1="-DCOVER_STRICT=1"
 for c in "$HGEN|$S1" "$HGEN|$S1 -DFELUCCA_ENG_SLICE=1 -DFELUCCA_ENG_PHYS=1 -DFELUCCA_ENG_ACID=1 -DFELUCCA_ENG_CZ=1 $FM6_PACKS_ON" \
          "$HGEN|$S1 $X0X_ON -DFELUCCA_ENG_ACID=1" "$HGEN|$S1 $KITS1" "$HGEN|$S1 $X0X_ON -DFELUCCA_DRUM_SYNTH=0 -DFELUCCA_DS_KAWA=0 -DFELUCCA_DS_PLAITS=0 -DFELUCCA_DRUM_SAMPLED=0" "$OUT/gen_noset|-DFELUCCA_DRUM_SAMPLED=0" \
-         "$OUT/gen_nogr|-DFELUCCA_ENG_SLICE=1"; do
+         "$OUT/gen_nogr|-DFELUCCA_ENG_SLICE=1" "$HGEN|$S1 $EX_ON"; do
     job; ( jobin
         $CC -w -I"${c%%|*}" -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 ${c#*|} -o "$OUT/preset_cover_test$nu" tests/preset_cover_test.c -lm
         run "every engine built has a loadable entry on the PRESETS list (a factory preset, else INIT), every drum source a kit (${c#*|})" sh -c "'$OUT/preset_cover_test$nu' > '$OUT/preset_cover$nu.txt' || { cat '$OUT/preset_cover$nu.txt'; exit 1; }"
