@@ -515,6 +515,8 @@ job; ( jobin
     mkdir -p "$OUT/optimist-lfx"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_LANE_FX=1 -DFELUCCA_COND=1 -DFELUCCA_CHANCE=1 -DFELUCCA_MOTION=1 $SEC4 -o "$OUT/ui_optimist_lfx_test" tests/ui_optimist_test.c -lm
     run "Optimist UI with LANE_FX: a lane's black key held opens its two pages, the knobs write its FX, let go the screen before; the rest as ever" "$OUT/ui_optimist_lfx_test" "$OUT/optimist-lfx"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_PAGE_LINES=1 -DFELUCCA_LANE_FX=1 -DFELUCCA_COND=1 -DFELUCCA_CHANCE=1 -DFELUCCA_MOTION=1 $SEC4 -o "$OUT/ui_optimist_lfx_lines_test" tests/ui_optimist_test.c -lm
+    run "Optimist UI with LANE_FX and PAGE_LINES: LANE FX keeps the 2x2 cards; the lines tests as ever" "$OUT/ui_optimist_lfx_lines_test" "$OUT/optimist-lfx"
 ) >"$U.out" 2>&1 & jobbg
 # the drum track's ACCENT lane (core.h DRUM_ACC, drums.c dacc_vel, seq/ngate.h): heard, stored, the editor, 2.4; off; with ENERGY
 job; ( jobin

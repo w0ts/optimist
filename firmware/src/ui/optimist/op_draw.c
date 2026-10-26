@@ -953,11 +953,13 @@ static uint32_t row_pic(uint32_t cur)
 }
 /* the builder's PAGE_LINES (the user, 2026-10-18): a screen of rows with no picture (EDIT, VOICE, PROJECT, SONG, the
  * master FX ...) shows its cursor row as GLOBAL's four lines (op_gldraw.c pl_draw), from under the header to the help
- * line, KNOB k line k, SELECT the next row; no 2x2 cards, no row list. Off: the cards and the list under them */
+ * line, KNOB k line k, SELECT the next row; no 2x2 cards, no row list. Off: the cards and the list under them. LANE FX
+ * keeps the 2x2 cards, as STEP's held step (the user, 2026-10-26: "use the 2*2 layout ... uniform with other pages") */
 static int pl_on(void)
 {
 #if FELUCCA_PAGE_LINES
-    return lay.shown == LY_PLAY && !name_on() && ui.scr != SCR_HOME && ui.scr != SCR_STEP && ui.scr != SCR_SCOPE && !song_tbl_on() &&
+    return lay.shown == LY_PLAY && !name_on() && ui.scr != SCR_HOME && ui.scr != SCR_STEP && ui.scr != SCR_SCOPE && ui.scr != SCR_LFX &&
+           !song_tbl_on() &&
            !glo_cycle() && !prj_listing() && SCR->rows() && !row_pic(ui.row[ui.scr])
 #if FELUCCA_BT_UI
            && !dev_listing()

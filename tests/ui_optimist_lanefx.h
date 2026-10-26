@@ -62,6 +62,21 @@ static void step_peek_tests(void)
     reset_ui();
 }
 #if FELUCCA_LANE_FX
+/* PAGE_LINES: LANE FX keeps the 2x2 cards (the user, 2026-10-26: "use the 2*2 layout ... uniform with other pages") */
+static void lane_fx_lines_tests(void)
+{
+    reset_ui();
+    song.sel = TRK_DRUM;
+    ui.scr = SCR_SOUND;
+    kdown(BK(4));
+    frames(HOLD_FRAMES);
+    ui.force = 1;
+    frame();
+    check(ui.scr == SCR_LFX && !pl_on(), "PAGE_LINES: LANE FX as the 2x2 cards, not four lines");
+    ppm("opt-lane-fx-lines");
+    kup(BK(4));
+    reset_ui();
+}
 static void lane_fx_ui_tests(void)
 {
     track_t *t;
@@ -175,5 +190,6 @@ static void lane_fx_ui_tests(void)
     reset_ui();
 }
 #else
+static void lane_fx_lines_tests(void) {}
 static void lane_fx_ui_tests(void) {}
 #endif
