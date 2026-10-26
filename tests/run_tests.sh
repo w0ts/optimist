@@ -1309,6 +1309,8 @@ job; ( jobin   # the SD card (SDCARD): ChaN's driver + Petit FatFs, then full Fa
     FF="firmware/src/storage/sd/fatfs/ff.c firmware/src/storage/sd/fatfs/ffunicode.c"
     $CC -O2 -Ifirmware/src -o "$OUT/sd_fs_test" tests/sd_fs_test.c $FF
     run "SD card, full FatFs (the big layout): FAT16 + FAT32 start-ups, long names (UTF-8), files created / grown / renamed / moved / deleted, folders, read back after a mount, f_expand one run (fragmented room, never across the volume's end), the fast-seek map's runs by CMD18, DMA (aligned window, unaligned buffer by bytes), the card pulled: every call fails at once" "$OUT/sd_fs_test" "$OUT/sd_fat16.img" "$OUT/sd_fat32.img"
+    $CC -O2 -Ifirmware/src -o "$OUT/sd_layout_test" tests/sd_layout_test.c $FF
+    run "SD card's layout (the big layout's FatFs): XXH64 (its vectors, a WAV's data only), the OPTIMIST folders, the sample index (new and changed files hashed, a moved one found by hash, the FM-1's writes hashed at once, a power cut at every write of a pass), the 16-key pages (folder / by name / recent: each entry once, in order, forward and back, cut names), the staged project save (versions, the spare run, a power cut at every block write: old or new whole, the boot finishes it, a cut rename's halves), every file the FM-1 writes one run on a card in holes" "$OUT/sd_layout_test" "$OUT/sd_fat16.img" "$OUT/sd_fat32.img"
     rm -f "$OUT/sd_fat16.img" "$OUT/sd_fat32.img"
 ) >"$U.out" 2>&1 & jobbg
 # the screen mirrored (ED_MIRROR, io/editor/ed_mirror.c): the stream through a stand-in USB ring decoded back to the panel after

@@ -331,4 +331,6 @@ src/storage/sd/fatfs/ff.c:put_fat:(SS(fs)/2) | SS(fs) is FF_MAX_SS, the constant
 src/storage/sd/fatfs/ff.c:put_fat:(SS(fs)/4) | SS(fs) is FF_MAX_SS, the constant 512 (ffconf.h FF_MIN_SS == FF_MAX_SS: ff.c defines SS(fs) as it) (/2, /4, /SZDIRE 32: 256, 128, 16)
 src/storage/sd/fatfs/ff.c:put_fat:SS(fs) | SS(fs) is FF_MAX_SS, the constant 512 (ffconf.h FF_MIN_SS == FF_MAX_SS: ff.c defines SS(fs) as it)
 src/storage/sd/fatfs/ff.c:sync_fs:(fs->n_fatent-2) | exFAT only, not built (FF_FS_EXFAT 0); a mounted volume has n_fatent - 2 >= 1 cluster
+src/storage/sd/sd_alloc.c:sda_round:cl | a mounted volume's sectors per cluster (or x 512): mount_volume returns FR_NO_FILESYSTEM for csize 0 (and not a power of 2) before any use; every call needs a mounted volume
 src/storage/sd/sd_diskio.c:sd_map_run:cs | a mounted volume's sectors per cluster (or x 512): mount_volume returns FR_NO_FILESYSTEM for csize 0 (and not a power of 2) before any use; every call needs a mounted volume
+src/storage/sd/sd_index.c:sdx_scan_path:count | only in the loop over count records (count > 0 there); its one caller passes oldn when oldn is not 0

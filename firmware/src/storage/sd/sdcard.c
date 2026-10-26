@@ -72,6 +72,12 @@ static void sd_end(void)
 #define SD_SESSION() sd_begin(SD_BAUD())
 #define SD_SESSION_END() sd_end()
 #include "storage/sd/sd_diskio.c"
+#include "storage/sd/sd_layout.c"                 /* the card's own folder, the tree walker */
+#include "storage/sd/sd_hash.c"                   /* XXH64: a sample's identity */
+#include "storage/sd/sd_alloc.c"                  /* every file the FM-1 writes one contiguous run */
+#include "storage/sd/sd_index.c"                  /* SYSTEM/INDEX.BIN: the samples by hash */
+#include "storage/sd/sd_browse.c"                 /* any list as pages of 16 on the keys */
+#include "storage/sd/sd_save.c"                   /* a project saved by name, staged in flash, with versions */
 _Static_assert(__builtin_offsetof(FATFS, win) % 4u == 0, "sd_diskio.c: FatFs' window 4-byte aligned for the DMA");
 #endif
 
