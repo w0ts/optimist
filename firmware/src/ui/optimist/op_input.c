@@ -689,8 +689,11 @@ static void op_tap(uint32_t b, uint32_t id)
 #endif
         else if (!(mx_quiet() && hold))
             op_no();                                    /* (held alone on the mixer: nothing) */
-    } else if (b == B_OCTDN || b == B_OCTUP)
-        oct_tap(b);                                     /* (a tap: let go with nothing used meanwhile) */
+    } else if (b == B_OCTDN || b == B_OCTUP) {
+        if (!hold)
+            oct_tap(b);                                 /* (a tap: let go with nothing used meanwhile; held long, nothing: the user,
+                                                         * 2026-10-26, "pressing oct for long should not change octave") */
+    }
     else if (b == B_SEQ && ui.scr == SCR_SONG && !hold)
         song_view_cycle();                              /* SEQ tapped on SONG: its views in turn (the user, 2026-10-20) */
     else if (b == B_SEQ && ui.scr != SCR_STEP && hold)
