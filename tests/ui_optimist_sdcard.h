@@ -494,3 +494,58 @@ static void sdu_rec_tests(void)
     check(sdr_state == RC_DONE && sdu_has("OPTIMIST/RECORD/REC-0002.WAV"), "... stopped, its file");
 }
 #endif
+
+#if FELUCCA_ENG_FM6
+/* DX7 banks on the card (sd_mode.c sdm_dx7_*; the user, 2026-10-26: the FM6 collections): a 32-voice .SYX under
+ * PRESETS is a folder of its voices, two pages of 16; a voice's LOAD puts it into the part on FM6 */
+static void sdu_dx7_tests(void)
+{
+    static uint8_t f[4104];
+    FIL fp;
+    UINT w;
+    uint32_t i, j, ok;
+    uint8_t pk[128];
+    sdu_card();
+    f[0] = 0xF0, f[1] = 0x43, f[2] = 0x00, f[3] = 0x09, f[4] = 0x20, f[5] = 0x00, f[4103] = 0xF7;
+    for (i = 0; i < 32u; i++) {                          /* (real voices: part 1's, each operator's level its own) */
+        int16_t ed[sizeof fm6_ed[0] / sizeof fm6_ed[0][0]];
+        uint8_t *v = f + 6u + i * 128u;
+        memcpy(ed, fm6_ed[0], sizeof ed);
+        for (j = 0; j < 6u; j++)
+            ed[j * FO_N + FO_OL] = (int16_t)((i * 3u + j * 11u) % 100u);
+        ed[FV_ALG] = (int16_t)(i % 32u);
+        fm6_pack(v, ed);
+        memcpy(v + 118, "VOICE     ", 10);
+        v[124] = (uint8_t)('0' + i / 10u), v[125] = (uint8_t)('0' + i % 10u);
+    }
+    f_mkdir("OPTIMIST/PRESETS/DX7");
+    check(f_open(&fp, "OPTIMIST/PRESETS/DX7/BANK1.syx", FA_CREATE_ALWAYS | FA_WRITE) == FR_OK &&
+          f_write(&fp, f, sizeof f, &w) == FR_OK && w == sizeof f && f_close(&fp) == FR_OK, "DX7: a bank written by a computer");
+    sdu_row(PR_CPRE);
+    sdu_op(SDO_LOAD);
+    for (i = 0; i < sdm_count() && strcmp(sdc_name(i), "DX7"); i++)
+        ;
+    sdu_key(i);
+    check(sdm_count() == 1u && !strcmp(sdc_name(0), "BANK1") && sdc_is_dir(0), "DX7: the folder; the bank shown as a folder");
+    sdu_key(0);
+    check(sdm_count() == 16u && !strcmp(sdc_name(0), "VOICE 00") && !strcmp(sdc_name(15), "VOICE 15") && sdm_pages() == 2u,
+          "DX7: into the bank: its voices, 16 a page");
+    tap(B_OCTUP);
+    check(sdm_page() == 1u && !strcmp(sdc_name(4), "VOICE 20"), "DX7: OCT+: the page of voices 16..31");
+    song.sel = 1;
+    trk[1].eng_req = trk[1].engine = 0;                 /* (another engine: the load puts the part on FM6) */
+    sdu_op(SDO_LOAD);
+    sdu_key(4);
+    tap(B_SAVE);
+    sdu_frames(4);
+    fm6_pack(pk, fm6_ed[1]);
+    for (ok = 1, j = 0; j < 118u; j++)
+        ok &= pk[j] == f[6u + 20u * 128u + j];
+    check(trk[1].eng_req == (uint8_t)ENG_SLOT_FM6, "DX7: voice 20's LOAD puts T2 on FM6");
+    check(ok, "... its voice as the file's");
+    check(sdu_msg("LOADED"), "... LOADED said");
+    check(sdm_count() == 16u && sdm_page() == 1u, "... the bank still shown");
+    tap(B_HOME);
+    check(sdm_count() == 1u && !strcmp(sdc_name(0), "BANK1"), "DX7: HOME: back to the folder");
+}
+#endif
