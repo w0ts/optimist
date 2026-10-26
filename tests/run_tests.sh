@@ -1355,7 +1355,7 @@ job; ( jobin   # the SD card (SDCARD): ChaN's driver + Petit FatFs, then full Fa
     run "SD card mode's UI with streaming (SAMPLE, ARENA 96, SD_RING 4): the same, a picked sample given to the streams' plan (and from the project's record), SYSTEM > SD card's PRE-BUFFER and its KB, MEM FULL CARD: a part's drop asked, then the pre-buffer that fits" "$OUT/ui_optimist_sdstream_test" "$OUT/optimist" "$OUT/sd_fat32.img"
     rm -f "$OUT/sd_fat16.img" "$OUT/sd_fat32.img"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/sd_stream_engine_test" tests/sd_stream_engine_test.c -lm
-    run "SAMPLE's CARD set (SD_RING): a note at its pitch, an octave up at most, a dry stream fades out with no click (counted), LOOP held past the end, the source let go, more notes than rings, a released voice's ring free" "$OUT/sd_stream_engine_test"
+    run "SAMPLE's CARD set (SD_RING): a note at its pitch, an octave up at most, a dry stream fades out with no click (counted), LOOP held past the end, the source let go, more notes than rings, a released voice's ring free; a drum lane on CARD: its hit streamed, a second hit cuts the first on the same ring" "$OUT/sd_stream_engine_test"
 ) >"$U.out" 2>&1 & jobbg
 # the screen mirrored (ED_MIRROR, io/editor/ed_mirror.c): the stream through a stand-in USB ring decoded back to the panel after
 # every write, a stalled host, the keep-alive; then the Optimist UI's whole run through the encoder, the decoded screen its own

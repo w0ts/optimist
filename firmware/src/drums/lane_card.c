@@ -42,7 +42,7 @@ static void dlc_hit(uint32_t l, uint32_t note, uint32_t vel)
     uint32_t si = sst_part_src[SST_NPART + l], i, vi, stepq;
     const sst_src_t *s = &sst_src[si < SST_NSRC ? si : 0u];
     voice_t *v;
-    int32_t k, x;
+    int32_t k;
     if (si >= SST_NSRC || !s->ready)
         return;                                      /* (MISSING, refused, not placed yet: silent) */
     for (i = 0; i < NDRUM; i++)                      /* the lane's hit before: cut, its ring for this one */
@@ -64,9 +64,10 @@ static void dlc_hit(uint32_t l, uint32_t note, uint32_t vel)
 #endif
     v->s[4] = (int32_t)(SMP_STREAM | (uint32_t)k);
     v->s[0] = (int32_t)si;
-    v->ph[0] = v->ph[1] = 0;
-    v->s[2] = 0;
-    v->s[3] = sst_frame(&sst[k], s, 0, &x) ? x : 0;  /* (the head's first frame) */
+    v->ph[0] = (uint32_t)-1;                         /* (frame 0 read by the mix's first pass, dlc_next: RAM code;
+                                                      * the hit here runs from flash, the reader's slow path from RAM) */
+    v->ph[1] = 0;
+    v->s[2] = v->s[3] = 0;
     v->s[5] = (int32_t)stepq;
     drums.kit[vi] = 0;
     drums.synth[vi] = 0;

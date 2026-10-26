@@ -335,7 +335,13 @@ Each step names who does it. Claude never writes to the FM-1.
     pulled, too much for the bus), `tests/sd_stream_plan_test.c` (the arena: placement, setting, refusal and
     proposal, retry, rings by voices, missing), `tests/sd_stream_engine_test.c` (SAMPLE's CARD set in the host
     render: pitch, octave cap, the dry fade without a click, LOOP, a source let go, rings by notes).
-  - Not built: drum lanes and the slicer from the card (the lanes' user sounds and SLICE read the flash's slots by
+  - Drum lanes from the card (built 2026-10-26, FELUCCA_SD_LANES = SD_STREAM with the drums): a lane's SRC CARD plays
+    its card sample as a one-shot through the same reader (`drums/lane_card.c`; a hit cuts the lane's hit before, on
+    its ring; TUNE an octave up at most, DECAY, CUT, LEVEL as a flash sample's). USE on the SAMPLES list with a drum
+    lane picked sets it; the project's samples record holds the lanes' after the parts' (a record of before reads as
+    the parts'), the plan gives a lane its slot only while it is on CARD, and a kit saved to the card carries its
+    lanes' samples ("LCRD" after the kit). Tested: `tests/sd_stream_engine_test.c`.
+  - Not built: the slicer from the card (the lanes' user sounds and SLICE read the flash's slots by
     zone; each would take a source per sound and its own render path: the same reader, `sst_frame`); the sample
     picker's call (`sst_part_set`) and the hash in the project (the UI's); WAV loop points (smpl) and the root note
     from the file.

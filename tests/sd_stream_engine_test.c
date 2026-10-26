@@ -218,6 +218,31 @@ int main(void)
     render(4410u, 0);
     CHECK(card_voice(t) && sst_nostream == 1, "a ring free again after the release (%u)", sst_nostream);
 
+#if FELUCCA_SD_LANES
+    {   /* a drum lane on the card sample (drums/lane_card.c): a hit plays it as a one-shot, a second hit cuts the first */
+        uint32_t l = 2, i, at, nz = 0;
+        int32_t peak = 0;
+        trk_note_off(t, 62);
+        render(44100u, 0);
+        sst_part_src[SST_NPART + l] = 0;
+        dl.src[l] = DL_CARD;
+        drum_on(DNOTE_LANE | l, 100);
+        at = render(22050u, 0);
+        for (i = 0; i < at; i++) {
+            nz += L[i] != 0;
+            peak = abs(L[i]) > peak ? abs(L[i]) : peak;
+        }
+        CHECK(nz > 20000u && peak > 1000, "a lane on CARD: the hit plays the card sample (%u frames sounding, peak %d)", nz, peak);
+        CHECK(step_max(0, at) < 6000, "... no click (the largest step %d)", step_max(0, at));
+        drum_on(DNOTE_LANE | l, 100);
+        render(4410u, 0);
+        CHECK(sst_nostream == 1u, "a second hit: the lane's own stream back for it, no ring short (%u)", sst_nostream);
+        render(44100u * 3u, 0);
+        for (nz = 0, i = 0; i < 4410u; i++)
+            nz += L[i] != 0;
+        dl.src[l] = 0;
+    }
+#endif
     printf("sd_stream_engine_test: %s\n", fails ? "FAIL" : "ok");
     return fails != 0;
 }
