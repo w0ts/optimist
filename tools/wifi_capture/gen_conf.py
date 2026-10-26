@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0
 """The capture image's constants from the user's own copy of the AC79 SDK's apps/common/net/wifi_conf.c (Apache-2.0),
 as a default build of it has them: the RX detection thresholds and wl_rfd_ram_lut of the active branch of its
 `#if 0 ... #else ... #endif` (the "stronger against interference" one), and the switches the RF code reads. The output

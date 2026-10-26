@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* The capture image (tools/wifi_capture/README.md): code and constants in XIP, .data copied to RAM by cap_cstart,
  * .bss zeroed; the RAM range of firmware/app.ld. */
 ENTRY(_start)

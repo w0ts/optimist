@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* WPA2-PSK crypto (wifi_crypto.h). Small over fast: run a few times per join, never per frame. */
 #include "wifi_crypto.h"
 

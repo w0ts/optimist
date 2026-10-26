@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* The capture image's entry (tools/wifi_capture/README.md): the same hand-over as firmware/crt0.S (the SPL maps the
  * image at XIP 0x02000120 and jumps to its first byte; `goto +4; rts` first), then interrupts off, our stacks, C. */
 	.section .text.crt0,"ax",@progbits

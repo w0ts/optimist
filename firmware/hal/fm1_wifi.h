@@ -1,10 +1,11 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* FM-1 (AC791N / WL82) Wi-Fi MAC (docs/WIFI-HW-FACTS.md §2): JieLi's "wl30" core (MAC_CSR0 reads 0x00300100 on
  * the FM-1) with Ralink's RT3070 register layout; register r (Ralink's numbering: MAC_CSR0 0x1000, BBP_CSR_CFG 0x101C
  * ...) is plain MMIO at 0x30000 + r, as the JieLi AC79 SDK reaches it (wl_sdio.c wl30_mmc_io_rw_extended, Apache-2.0).
  * The frame DMA is at 0x30F00-0x30F1C, the Wi-Fi clock / reset block at 0x14040-0x1405C. Used by the console's
  * wifiregs (read only) and wifirx (one RX DMA fetch), with the radio started: the BT start-up clocks the block, and
- * with it unclocked an access may not answer. */
+ * with it unclocked an access may not answer. The register addresses and values are facts read from JieLi's SDK
+ * (Apache-2.0, LICENSING.md); the code around them is Optimist's. */
 #pragma once
 #include <stdint.h>
 #include "fm1_sys.h"
