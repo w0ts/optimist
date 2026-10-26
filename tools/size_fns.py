@@ -94,6 +94,7 @@ SIZE_FILES += ["bt/bt_afh.c", "bt/bta_mem.c", "ble/ble_hw_wl82.c", "bt/bt_inq.c"
 SIZE_FILES += ["storage/sd/sdcard.c", "storage/sd/sd_mmc.c", "storage/sd/pff.c", "io/console_sd.c",
                "storage/sd/sd_diskio.c", "storage/sd/fatfs/ff.c", "storage/sd/fatfs/ffunicode.c",
                "storage/sd/sd_layout.c", "storage/sd/sd_hash.c", "storage/sd/sd_alloc.c", "storage/sd/sd_index.c",
+               "storage/sd/sd_stream.c", "storage/sd/sd_stream_plan.c",
                "storage/sd/sd_browse.c", "storage/sd/sd_save.c", "storage/sd/sd_mode.c",
                "system/far_probe.c"]
 # the sound side: what the audio ISR, the second core and the voices run (never minsize)

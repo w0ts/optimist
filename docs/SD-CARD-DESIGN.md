@@ -212,6 +212,7 @@ a register round trip, the CPU busy the whole block, roughly 1 MB/s. `sd bench` 
 | `src/storage/sd/sd_diskio.c` | FatFs' disk layer over `sd_mmc.c`: CMD18 runs with every CRC16 checked (and the auto clock's retry), DMA into aligned buffers only, a bus session per read or write (so FatFs is called directly), a card that fails fails every later call at once; `get_fattime` a placeholder date; `sd_map_run`: a file's contiguous runs from its link map |
 | `src/storage/sd/sd_layout.c`, `sd_hash.c`, `sd_alloc.c`, `sd_index.c`, `sd_browse.c`, `sd_save.c` | the card's layout of section 8 (big layout only; host-tested, `tests/sd_layout_test.c`) |
 | `src/storage/sd/sd_mode.c`, `src/ui/optimist/op_sdcard.c` | SD card mode on the device (section 9): the boot's card, the projects, presets, kits and samples by name, the PROJECT page's lists |
+| `src/storage/sd/sd_stream.h`, `sd_stream.c`, `sd_stream_plan.c` | samples streamed from the card (builder `SD_RING`, section 7): the rings the voices read, the main loop's CMD18 runs between the screen's strips, the heads and rings per project in the arena |
 | `src/storage/sd/sdcard.c` | the API the rest calls (`sd_mount`, `sd_open`, `sd_read`, `sd_write`, `sd_seek`, `sd_opendir`, `sd_readdir`), each call taking and giving back the bus |
 | `src/io/console_sd.c` | the `sd` commands (console builds only; included by `src/io/console.c`) |
 | `tests/sd_card_model.h`, `sd_test.c`, `sd_fs_test.c`, `sd_layout_test.c` | the host tests: a byte-level card model (with power cuts) on FAT16 / FAT32 images from a real formatter (`tests/fixtures/sd/make_images.sh`): the driver and Petit FatFs; full FatFs; the card's layout |
@@ -285,6 +286,73 @@ Each step names who does it. Claude never writes to the FM-1.
   when they do not fit); a per-sample override later if wanted; (2) the RING per playing voice, the stream's lookahead
   filled in runs between screen strips: a builder value (2-3 runs, about 12 KB a voice at most); (3) a voice whose
   stream runs dry fades out at once (no click) and the console counts it, so the setting is chosen by measurement.
+- **Streaming, built (2026-10-26, host-tested only; builder `SD_RING`, `FELUCCA_SD_STREAM`: full FatFs, SAMPLE and
+  ARENA too).** `src/storage/sd/sd_stream.h` (the audio's side), `sd_stream.c` (the main loop's runs, the sources),
+  `sd_stream_plan.c` (the memory per project), SAMPLE's CARD set (`engines/sample/eng_sample.c` `smp_card_*`):
+  - **A source** is a WAV the project plays (PCM 8 or 16 bits, mono or stereo, up to 4 x 44.1 kHz; a stereo one
+    mixed to the voice's mono): its data's place, its format, its runs on the card (FatFs' fast-seek map converted
+    once at the load into (file sector, card sector, count) runs: streaming never reads the FAT), its head.
+  - **A stream** (one a sounding voice, `SST_N` 8) is a ring of `SD_RING` KB in 512-byte slots, each slot tagged
+    (generation << 24 | the file's sector + 1) by the main loop after its data: the audio reads a slot only when its
+    tag is the sector it wants under its own note's generation, so a note started again in the middle of a run never
+    reads the old note's block (the tags are cleared at the start, the generation checked before a tag is written and
+    by the reader). The reader's fast path is one compare a sample (`sst_at`: the window, the head or one slot);
+    leaving it gives the slot back. Play order with loops: after the loop's last sector, the sector of its start (or of
+    the head's end: a loop starting in the head reads the head again, from RAM).
+  - **The runs** (`sst_service` in the main loop's idle wait and once a pass, `sst_strip` between two of the screen's
+    strips, `lcd_blit`): the stream with the least time left that has a free slot gets one CMD18 of at most `SST_RUN`
+    (8) blocks, contiguous on the card and in play order; between strips only a stream with less than 40 ms left (the
+    screen draws on otherwise). A block's token not come in 3 ms (a busy card): CMD12, the bus back to the screen, the
+    card asked again 2 ms later, so a 150 ms stall never freezes the screen (tested: the longest wait between two
+    strips stays under 3.6 ms through it). A block's CRC16 failing: read again (`sd_crc_retry`). Three runs failing
+    in a row: the card is gone (`sd_gone`), the voices run dry and fade. A voice ended without its engine knowing
+    (a release's end, a steal) frees its stream with its active flag; one no longer rendered at all (its beat still
+    for 50 ms) is taken back.
+  - **Dry**: a voice whose next slot is not there fades out at once over 64 samples (1.5 ms) from the sample it was
+    at, then ends; `sd stream` counts it (`dry`). A note with no ring free is silent and counted (`no ring`).
+  - **The memory** (`sd_stream_plan.c`): each part's CARD sample by its hash (`sst_part_set(part, hash)`: the sample
+    picker and the project's load call it), looked up in the index; one arena block (`SST_ARN_K`, after the other
+    buffers: `engines.c`) holds the rings (as many as the CARD parts can sound at once: a mono part 2, else the
+    engine's voices, 8 at most) and each source's runs and head. Placed again when the parts' samples, their voice
+    counts or the pre-buffer change (the CARD voices let go first, their sources not ready: they fade; the old block
+    given back 20 ms later), and at every mount (a run is a sector number: another card's would be garbage). No room:
+    refused (`sstp.state` 3): the project's card samples silent, MEM FULL CARD for the UI to say once, the proposal
+    `sstp.drop` (the parts any one of whose engine memory would make room, one drop at a time as model.c mem_offer
+    proposes) and `sstp.fit_ms` (the longest pre-buffer that fits as it is); tried again every 200 ms, placed by
+    itself once it fits. A hash not in the index: that part MISSING (`sstp.missing`), never another sound.
+  - **The setting**: `sst_pre_ms` 25 / 50 / 100 / 200 (default 50), `sst_pre_kb(ms)` the KB it costs with the
+    project's samples (for the page to show beside it). Kept in the settings: not yet (the UI's).
+  - **Pitch**: a card sample plays at most an octave up (`SST_UP16`: each octave doubles its reads); the root is C4.
+  - **Cost** (local measurement builds, 2026-10-26, `sd-card-mots` + SDCARD + ARENA 96, PROPHET off to stay in the
+    slot in both): SD_RING 8 with SAMPLE on: flash +13,580 B, RAM +620 B, pool +3,696 B, RAM code +1,820 B. SAMPLE
+    alone is about 1.2 KB of flash and 0.6 KB of RAM code (costs.json); most of the rest is FatFs' and the index's
+    code the streams are the first to reach (the sample picker reaches it too). `sd-card-mots` + SDCARD + ARENA 96 +
+    SAMPLE + SD_RING 8 is 3,244 B over its slot (768,940 of 765,696 B): something has to go in that profile. At run
+    time the block is in the arena: 8 KB rings x 8 voices = 64 KB plus the heads (4.4 KB a 50 ms mono 16-bit sample),
+    only while the project plays card samples; SD_RING 4 halves the rings.
+  - Tests: `tests/sd_stream_test.c` (the card model with an interrupt-driven audio clock: every sample checked
+    against its file; stalls at a start and while playing, loops, restarts from the interrupt, a CRC glitch, the card
+    pulled, too much for the bus), `tests/sd_stream_plan_test.c` (the arena: placement, setting, refusal and
+    proposal, retry, rings by voices, missing), `tests/sd_stream_engine_test.c` (SAMPLE's CARD set in the host
+    render: pitch, octave cap, the dry fade without a click, LOOP, a source let go, rings by notes).
+  - Not built: drum lanes and the slicer from the card (the lanes' user sounds and SLICE read the flash's slots by
+    zone; each would take a source per sound and its own render path: the same reader, `sst_frame`); the sample
+    picker's call (`sst_part_set`) and the hash in the project (the UI's); WAV loop points (smpl) and the root note
+    from the file; recording.
+- **Streaming on the bench** (when an FM-1 has the card; a console build: USB_CONSOLE, which needs room in the
+  profile): 1. `sd`, then `sd bench` and `sd bench SAMPLES/x.wav`: the clock, the DMA, KB/s by CMD18 (the budget the
+  streams share). 2. The index pass, then `sd stream part 1 SAMPLES/x.wav` (and parts 2, 3), SAMPLE on those parts,
+  SET CARD; `sd stream`: plan 2 (placed), each source's runs (1 = contiguous), the need. 3. `sd stream reset`, play
+  for a minute: chords of 8 notes, then a held loop an octave up, with the screen busy (turning a knob on a page that
+  redraws); `sd stream`: dry 0, KB/s, `longest run us` (the screen's longest wait: about 2,200 at 20 MHz, 1,500 at 30
+  expected), `least lead ms` (the margin left: over 20 is comfortable), `stalls`, `crc retries`; `keys` for
+  `keys_ui_gap_max_ms` (the main loop's longest pass, with the runs). 4. Each pre-buffer (`sd stream pre 25`, 50,
+  100, 200) with notes started fast (a drum-like pattern of short one-shots): dry counts per setting decide the
+  default. 5. The same on a cheap card and a good one, FAT32 formatted by the SD Association's formatter (32 KB
+  clusters) and by a computer (small clusters: `runs` per source). 6. `profile` / the CPU guard's numbers with 8 CARD
+  voices against 8 SAMPLE (flash) voices: the reader's cost a sample (expected small: one compare, a slot change
+  every 256 samples). What decides: the ring size (SD_RING) from `least lead ms` and the dry count under load; the
+  run length (`SST_RUN`) from the screen's smoothness against `longest run us`.
 - **Recording needs its own writer**: `pf_write` goes byte by byte through `disk_writep` (one CMD24 a sector) and the
   sector's end waits for the card's busy in the main loop, up to 500 ms (real cards hit 100-250 ms now and then).
   Recording needs the mirror of `sd_rd_*`: a polled CMD25 multi-block writer from a ring, never blocking on busy

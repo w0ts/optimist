@@ -109,10 +109,16 @@ static void lcd_fill(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t c)
 #endif
 }
 
+#if FELUCCA_SD_STREAM
+static uint32_t sst_strip(void);   /* storage/sd/sd_stream.c: a run for a stream close to dry, between two strips */
+#endif
 static void lcd_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *px)
 {
     if (!w || !h)
         return;
+#if FELUCCA_SD_STREAM
+    (void)sst_strip();
+#endif
     lcd_window(x, y, x + w - 1u, y + h - 1u);
     lcd_data(px, w * h * 2u);
 #if FELUCCA_ED_MIRROR

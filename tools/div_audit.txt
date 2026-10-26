@@ -334,3 +334,5 @@ src/storage/sd/fatfs/ff.c:sync_fs:(fs->n_fatent-2) | exFAT only, not built (FF_F
 src/storage/sd/sd_alloc.c:sda_round:cl | a mounted volume's sectors per cluster (or x 512): mount_volume returns FR_NO_FILESYSTEM for csize 0 (and not a power of 2) before any use; every call needs a mounted volume
 src/storage/sd/sd_diskio.c:sd_map_run:cs | a mounted volume's sectors per cluster (or x 512): mount_volume returns FR_NO_FILESYSTEM for csize 0 (and not a power of 2) before any use; every call needs a mounted volume
 src/storage/sd/sd_index.c:sdx_scan_path:count | only in the loop over count records (count > 0 there); its one caller passes oldn when oldn is not 0
+src/storage/sd/sd_stream.c:sst_kbs:ms | only when ms is not 0 (the test before it)
+src/storage/sd/sd_stream.c:sst_lead:(st->bpms?st->bpms:1u) | 1 when bpms is 0

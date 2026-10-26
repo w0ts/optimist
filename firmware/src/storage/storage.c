@@ -43,7 +43,9 @@ enum { OBJ_SETTINGS, OBJ_PROJECT0, OBJ_UPRESET0 = OBJ_PROJECT0 + 4, OBJ_AUTOSAVE
 #define ST_DLANES_SECTOR 0xE5000u              /* FL_DLANE_LO */
 #define ST_UPF_SECTOR FL_UPF_LO                /* 0x95000: OBJ_UPFM6 (until fix/upfm6-off-vm 0xE7000 / 0xE8000: st_upf_move) */
 #define ST_UPF_OLD FL_OLD_UPF_LO               /* 0xE7000: the old copy A; B at 0xE8000 (read only, never written) */
-#if FELUCCA_LAYOUT == 1 && (FELUCCA_ENG_SAMPLE || FELUCCA_DRUM_USR || FELUCCA_SNAPSHOTS || CZ_NUSER || !FELUCCA_PATTERNS)
+#if FELUCCA_LAYOUT == 1 && ((FELUCCA_ENG_SAMPLE && !FELUCCA_SD_STREAM) || FELUCCA_DRUM_USR || FELUCCA_SNAPSHOTS || CZ_NUSER || \
+                             !FELUCCA_PATTERNS)   /* (SAMPLE with SD_RING: its CARD set; its slots hold nothing here,
+                                                   * eng_sample.c SMP_USER_CAP) */
 #error "FELUCCA_LAYOUT 1 (fake SD mode): no user sample slots (ENG_SAMPLE, DRUM_USR), no SNAPSHOTS, no CZ collection; PATTERNS on (docs/SD-MODE-DESIGN.md)"
 #endif
 #if FELUCCA_LAYOUT == 1                        /* the fake SD mode (fm1_flash_map.h): the old slots are the app's */
