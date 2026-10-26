@@ -589,8 +589,8 @@ every one back and compares every value) and zipped with the card's folders by `
   PRESETS INIT*, once).
 - The PRESETS knob's whole list goes engine by engine in the tables' order (no BANK: the by-kind order of the flash
   builds is not kept); its label is the engine's name.
-- Not tested on the host yet: the card path itself (`sdm_factory_*`; the SD UI test runs with `PRESETS_CARD=0`, its
-  harness reads the tables).
+- Tested: `tests/ui_optimist_test.c` built with `PRESETS_CARD=1` (`sdu_factory_tests`): the names from the card, a
+  preset read on the next pass, an ask dropped, a missing file and no card said.
 
 **The UI** (`ui/optimist/op_sdcard.c`; docs/UI-OPTIMIST-DESIGN.md 4.14): PROJECT's rows PROJECT (the card's projects
 while a card is ready, else the flash slot with *No SD card: in flash*), PRESETS, KITS, SAMPLES; four small cards (PAGE,

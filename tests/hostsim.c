@@ -156,6 +156,13 @@ static void host_tracks_init(void)                /* as felucca_init: defaults, 
  * the engine as the UI asks for it (eng_req: the audio side switches; host_preset: at once) */
 static void host_preset_req(track_t *t, uint32_t e, uint32_t pi)
 {
+#if PRESETS_CARD                                     /* (a test of SD card mode's card presets: no tables, the engine's defaults) */
+    uint32_t k;
+    t->eng_req = (uint8_t)e;
+    t->preset = (uint8_t)(ENGINES[e]->npresets ? pi % ENGINES[e]->npresets : 0u);
+    for (k = 0; k < 8u; k++)
+        t->p[P_E0 + k] = ENGINES[e]->edit[k].def;
+#else
     static const uint8_t FX_DEF[4] = {0, 24, 28, 36};
     const preset_t *p = &ENGINES[e]->presets[pi % ENGINES[e]->npresets];
     uint32_t i;
@@ -180,6 +187,7 @@ static void host_preset_req(track_t *t, uint32_t e, uint32_t pi)
         t->p[i] = 0;                             /* DEST A the engine's default: as apply_preset_to) */
     (void)env_load(t->p);
     env2_dest_def(t->p, e);
+#endif
 }
 /* the main loop's work a sound waits for, done at once (the harness has no main loop): WAVE's table (eng_wave.c) */
 static void host_main_services(void)

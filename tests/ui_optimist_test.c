@@ -4008,6 +4008,11 @@ int main(int argc, char **argv)
         return 2;
     }
     sdu_img = load(argv[2], &sdu_sectors);
+#if PRESETS_CARD                                        /* (the card presets' build: its tests alone; the others read the tables) */
+    sdu_factory_tests();
+    printf(fails ? "optimist ui test FAILED (%d)\n" : "optimist ui test passed\n", fails);
+    return fails != 0;
+#endif
     sdcard_tests();
 #if FELUCCA_SD_REC
     sdu_rec_tests();
