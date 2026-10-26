@@ -51,6 +51,8 @@ enum Wire {
         case .smpWrite, .patRead, .patWrite: return same(4)
         case .clip:                                      // (op 0: 0, 0, ..; 1, 2: op, rc, track, index)
             return args.first == 0 ? same(1) : a.count >= 4 && args.count >= 3 && a[0] == args[0] && a[2] == args[1] && a[3] == args[2]
+        case .panel:                                     // (opti_panelx_1: kind, rc, seq)
+            return args.count < 4 || (a.count >= 3 && a[0] == args[0] && a[2] == args[3])
         default: return true
         }
     }
@@ -168,6 +170,7 @@ struct Feature: Equatable {
     static let proj = Feature(name: "opti_proj", version: 1)
     static let mirbt = Feature(name: "opti_mirbt", version: 1)   // INFO, PANEL and NAV over Bluetooth too (ed_mirror.c)
     static let clip = Feature(name: "opti_clip", version: 1)     // 111 CLIP, a synth track's steps (ed_clip.c; INFO tag 67)
+    static let panelx = Feature(name: "opti_panelx", version: 1) // 108 PANEL's seq and let go (ed_mirror.c; INFO tag 67)
 }
 
 struct DeviceInfo: Equatable {

@@ -297,6 +297,7 @@ struct MirrorView: View {
     }
     @State private var image: CGImage?
     @FocusState private var keyboard: Bool
+    @Environment(\.scenePhase) private var phase
     @State private var held: [String: [UInt8]] = [:]   // the keys down, what each pressed
     @State private var seen = 0
     @State private var drag: (knob: Int, across: Bool, sent: Int, per: CGFloat)?   // the knob a drag turns, its axis, the detents sent, points a detent
@@ -318,7 +319,10 @@ struct MirrorView: View {
         .focused($keyboard)
         .onAppear { keyboard = true }
         .onKeyPress(phases: [.down, .repeat, .up]) { k in key(k) }
-        .statusBarHidden()              // (shown, iOS's Bluetooth MIDI sheet laid its table out NaN high: a crash, 2026-10-23)
+        .onChange(of: phase) { _, now in   // (the app left the front: the key-ups of what it holds will not come)
+            if now != .active, !held.isEmpty { link.letGo(Array(held.values)); held.removeAll() }
+        }
+        .statusBarHidden()             // (shown, iOS's Bluetooth MIDI sheet laid its table out NaN high: a crash, 2026-10-23)
         .persistentSystemOverlays(bars ? .automatic : .hidden)
         .task { await draw() }
         .task { await nav.run() }

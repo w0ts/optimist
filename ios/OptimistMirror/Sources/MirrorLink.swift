@@ -338,7 +338,11 @@ final class MirrorLink: ObservableObject, Transport {
         }
         press([2, role, UInt8(64 + max(-63, min(63, steps)))])
     }
-    /// A PANEL request (cmd 108), in order, one at a time with the others
+    /// The firmware takes PANEL's seq and let go (opti_panelx_1)
+    private var hasPanelX: Bool { lock.withLock { $0.features?[Feature.panelx.name] == Feature.panelx.version } }
+    private var seq: UInt8 = 0
+    /// A PANEL request (cmd 108), in order, one at a time with the others. With opti_panelx_1 each carries a seq, so one whose
+    /// answer was lost is sent again (twice more at most) and done once: a key-up is never lost
     @MainActor
     func press(_ args: [UInt8]) {
         presses.append(args)
@@ -346,11 +350,17 @@ final class MirrorLink: ObservableObject, Transport {
         pressing = true
         Task { @MainActor in
             while !presses.isEmpty {
-                let a = presses.removeFirst()
-                _ = try? await exchange(.panel, a, timeout: 0.3, retries: 0)
+                let a = presses.removeFirst(), x = hasPanelX
+                if x { seq = (seq + 1) & 127 }
+                _ = try? await exchange(.panel, x ? a + [seq] : a, timeout: 0.3, retries: x ? 2 : 0)
             }
             pressing = false
         }
+    }
+    /// Every key the app holds up (the app left the front, its key-ups will not come): one let go (108 kind 4), else each key up
+    @MainActor
+    func letGo(_ held: [[UInt8]]) {
+        if hasPanelX { press([4, 0, 0]) } else { held.forEach { press($0 + [0]) } }
     }
 
     /// True when the port in use can carry the editor's requests: the USB one (over Bluetooth the FM-1 answers the mirror only).
