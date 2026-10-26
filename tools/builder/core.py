@@ -467,7 +467,9 @@ def part_mem(cfg):
     built. A maximum: no per-item delta adds up to it (GRAIN off frees 9.3 KB, but not with PHYS on), so the estimate
     computes it (model_terms) and the measured deltas and pairs leave it out (measure_costs.py)"""
     sizes = [n for k, n in PART_MEM.items() if built(cfg, k)]
-    return {"pool": max(sizes) if sizes else PART_MEM_NONE}
+    if not sizes:
+        return {"pool": PART_MEM_NONE}
+    return {"pool": max(sizes) * (3 if built(cfg, "DRUMS") else 4) // 3}   # (PART_MEM: 3 parts; DRUMS off, track 4 a 4th)
 
 
 NTRK = 4
