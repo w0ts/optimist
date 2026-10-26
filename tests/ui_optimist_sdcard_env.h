@@ -69,4 +69,14 @@ static int up_card_give(const uint8_t *in, uint32_t n)
     upc_gives++;
     return 0;
 }
+/* the settings record as sd_mode.c's BACKUP / RESTORE use it (project.c persist_t, not linked here: its fields they
+ * name), the restart counted */
+#define PERSIST_MAGIC4 0x34524550u
+typedef struct {
+    uint32_t magic, lowcut;
+    uint8_t ble_addr[8], ble_rf[100], ble_bond[28], ble_dev[70], bt_rec[32], bt_key[32], bt_kept[120], ble_kept[198];
+} persist_t;
+static persist_t persist_saved;
+static int sdu_reboots;
+#define SDM_REBOOT() (sdu_reboots++, sdm_reboot_at = 0)
 #include "storage/sd/sd_mode.c"

@@ -570,7 +570,10 @@ checked: only the build time and the commit differ).
 **The UI** (`ui/optimist/op_sdcard.c`; docs/UI-OPTIMIST-DESIGN.md 4.14): PROJECT's rows PROJECT (the card's projects
 while a card is ready, else the flash slot with *No SD card: in flash*), PRESETS, KITS, SAMPLES; four small cards (PAGE,
 ACTION, ITEM, VIEW) over the page: two columns of eight names, as the white keys sit. SYSTEM > SD card: CARD (READY and
-its size; YES mounts again), VERSIONS, SLACK, SAMPLES INDEX.
+its size; YES mounts again), VERSIONS, SLACK, SAMPLES INDEX. SYSTEM > SETTINGS: BACKUP writes the device's settings record (`persist_t`, as
+`settings_save` makes it) to `OPTIMIST/BACKUP/SETTINGS.OPD` ("OPST"); RESTORE (asked, red) writes it back into flash and
+restarts the FM-1 a second later (the settings are read at power-on). This unit's Bluetooth address and its copy of the
+radio's calibration always stay; its pairings too when the file comes from another FM-1 (another address).
 
 **Cost** (local measurement builds, not gpufarm). `sd-card-mots` is the SD card mode's build now (the user, 2026-10-26:
 "we are in dev mode: drop whatever you want, but keep the code slim"): SDCARD, ARENA 96, SAMPLE, SD_RING 4, and to fit,

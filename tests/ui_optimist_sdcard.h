@@ -549,3 +549,34 @@ static void sdu_dx7_tests(void)
     check(sdm_count() == 1u && !strcmp(sdc_name(0), "BANK1"), "DX7: HOME: back to the folder");
 }
 #endif
+
+/* SYSTEM > SETTINGS (sd_mode.c sdm_backup / sdm_restore; the user, 2026-10-26): BACKUP writes the settings record to the
+ * card, RESTORE puts it back into flash and restarts; this FM-1's address and radio copy stay, its pairings too when the
+ * file is another unit's */
+static void sdu_settings_tests(void)
+{
+    persist_t mine;
+    sdu_card();
+    memset(&persist_saved, 0, sizeof persist_saved);
+    persist_saved.magic = PERSIST_MAGIC4;
+    persist_saved.lowcut = 3;
+    memset(persist_saved.ble_addr, 0x11, sizeof persist_saved.ble_addr);
+    memset(persist_saved.ble_rf, 0x22, sizeof persist_saved.ble_rf);
+    memset(persist_saved.ble_bond, 0x33, sizeof persist_saved.ble_bond);
+    sdm_backup();
+    check(sdu_has("OPTIMIST/BACKUP/SETTINGS.OPD") && sdu_msg("SETTINGS SAVED TO CARD"), "SETTINGS: BACKUP written to the card");
+    persist_saved.lowcut = 7;                            /* (changed since) */
+    sdm_restore();
+    check(persist_saved.lowcut == 3u && sdu_msg("RESTARTING"), "SETTINGS: RESTORE: the record back (LOWCUT 3 again)");
+    sdu_frames(70);
+    check(sdu_reboots == 1, "... and a restart, a moment after its message");
+    mine = persist_saved;                                /* another FM-1: its own address, radio copy and pairings */
+    memset(persist_saved.ble_addr, 0x44, sizeof persist_saved.ble_addr);
+    memset(persist_saved.ble_rf, 0x55, sizeof persist_saved.ble_rf);
+    memset(persist_saved.ble_bond, 0x66, sizeof persist_saved.ble_bond);
+    persist_saved.lowcut = 1;
+    sdm_restore();
+    check(persist_saved.lowcut == 3u && persist_saved.ble_addr[0] == 0x44 && persist_saved.ble_rf[0] == 0x55 &&
+          persist_saved.ble_bond[0] == 0x66, "another FM-1's backup: its settings, this unit's address, radio and pairings kept");
+    (void)mine;
+}
