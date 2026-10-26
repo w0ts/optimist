@@ -142,6 +142,85 @@ static void setup(track_t *t)
     make_file();
 }
 
+#if FELUCCA_SLICE
+/* SLICE on CARD (eng_slice.c slc_enc_*, storage/sd/sd_slice.c reads the file into them): four quarter-second tones,
+ * 220 / 441 / 882 / 1764 Hz, as one sample in RAM as ADPCM; DIV 4 plays each by its key, forwards and REV; no
+ * material placed: silent, never BREAK */
+#define SLC_Q 11025u
+static uint64_t slc_mem_buf[(SLC_TAB_BYTES + 4u * SLC_Q / 2u + 64u) / 8u];
+static int16_t slc_pcm[4u * SLC_Q];
+
+static uint32_t crossings(uint32_t a, uint32_t b)
+{
+    uint32_t i, n = 0;
+    for (i = a + 1u; i < b; i++)
+        n += (L[i - 1u] < 0) != (L[i] < 0);
+    return n;
+}
+
+static void slice_card_tests(track_t *t)
+{
+    static const uint32_t hz[4] = {220, 441, 882, 1764};
+    slc_enc_t e;
+    const slc_src_t *s;
+    slc_dec_t d;
+    uint32_t i, e_n, j, at, eng;
+    double err = 0, sig = 0;
+    for (i = 0; i < 4u * SLC_Q; i++)
+        slc_pcm[i] = (int16_t)(16000.0 * sin(2.0 * M_PI * hz[i / SLC_Q] * (i % SLC_Q) / 44100.0));
+    CHECK(slc_enc_bytes(4u * SLC_Q) <= sizeof slc_mem_buf, "the block's size (%u)", slc_enc_bytes(4u * SLC_Q));
+    slc_enc_begin(&e, slc_mem_buf, 4u * SLC_Q, 65536u);
+    for (i = 0; i < 4u * SLC_Q; i++)
+        slc_enc_put(&e, slc_pcm[i]);
+    s = slc_enc_end(&e);
+    CHECK(s && s->len == 4u * SLC_Q && s->nseg == 1u, "encoded: %u samples", s ? s->len : 0);
+    if (!s)
+        return;
+    d.dat = slc_dat(s);
+    slc_dec_at(&d, 0, 0);
+    for (i = 0; i < s->len; i++) {
+        double x = slc_dec_next(s, &d), y = slc_pcm[i];
+        err += (x - y) * (x - y);
+        sig += y * y;
+    }
+    e_n = (uint32_t)(10.0 * log10(sig / (err + 1.0)));
+    CHECK(e_n >= 25u, "ADPCM as the voice decodes it: %u dB SNR", e_n);
+
+    host_tracks_init();
+    for (eng = 0; eng < NENGINES && strcmp(ENGINES[eng]->name, "SLICE"); eng++)
+        ;
+    CHECK(eng < NENGINES, "SLICE built");
+    for (j = 0; j < 5u; j++) {                        /* 4 slices forward, then slice 3 REV */
+        uint32_t k = j < 4u ? j : 3u, want = hz[k] * 2u / 5u, got;   /* (crossings in 0.2 s: two a cycle) */
+        host_preset(t, eng, 0);
+        t->p[P_E0] = (int16_t)SLC_SRC_CARD;
+        t->p[P_E1] = 0;                               /* DIV 4 */
+        t->p[P_E2] = t->p[P_E3] = 0;
+        t->p[P_E4] = 0;                               /* ONE */
+        t->p[P_E5] = j == 4u;
+        t->p[P_E6] = t->p[P_E7] = 127;
+        t->p[P_ROOT] = 0;
+        t->p[P_DIST] = t->p[P_CHOR] = t->p[P_DLY] = t->p[P_REV] = 0;
+        slc_crd[0] = s;
+        trk_note_on(t, j < 4u ? 60 + (int)j : 59, 100);   /* (59: slice -1, the last) */
+        at = render(8820u, 0);
+        got = crossings(441u, at);
+        CHECK(got + got / 10u >= want && got <= want + want / 10u, "slice %u%s: %u crossings in 0.2 s, %u wanted", k,
+              j == 4u ? " REV" : "", got, want);
+        trk_note_off(t, j < 4u ? 60 + (int)j : 59);
+        render(44100u, 0);
+    }
+    /* no material placed (the plan refused, the sample not on the card): silent */
+    slc_crd[0] = 0;
+    trk_note_on(t, 60, 100);
+    at = render(8820u, 0);
+    for (i = 0, j = 0; i < at; i++)
+        j += L[i] != 0;
+    CHECK(j == 0u, "CARD with nothing placed: silent, not BREAK (%u frames sounding)", j);
+    trk_note_off(t, 60);
+}
+#endif
+
 int main(void)
 {
     track_t *t = &trk[0];
@@ -242,6 +321,9 @@ int main(void)
             nz += L[i] != 0;
         dl.src[l] = 0;
     }
+#endif
+#if FELUCCA_SLICE
+    slice_card_tests(t);
 #endif
     printf("sd_stream_engine_test: %s\n", fails ? "FAIL" : "ok");
     return fails != 0;

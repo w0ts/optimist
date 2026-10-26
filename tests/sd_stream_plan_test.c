@@ -9,7 +9,8 @@
  *   - no room: refused, the part whose memory would make room proposed (one at a time, as model.c mem_offer), the longest pre-buffer that fits proposed, the
  *     samples silent; placed by itself once the part's memory is given back;
  *   - a hash not on the card: that part MISSING, the others play;
- *   - a placed sample streams: its frames through the rings as the file holds them.
+ *   - a placed sample streams: its frames through the rings as the file holds them;
+ *   - a part on SLICE CARD: its sample whole in the block (sd_slice.c), no ring and no head for it; off it, streamed.
  *   sd_stream_plan_test FAT16.img FAT32.img */
 #define FELUCCA_SD_FATFS 1
 #define FELUCCA_SD_RING_KB 4
@@ -32,6 +33,30 @@ static uint32_t part_voices[3] = {8, 8, 8};
 static int irq_depth;
 static void fm1_irq_off(void) { irq_depth++; }
 static void fm1_irq_on(void) { irq_depth--; }
+/* SLICE on CARD (sd_slice.c in the firmware): a part on it, its sample whole in the block (a stand-in size) */
+static uint32_t part_slice;
+#define SST_PART_SLICE(p) ((part_slice >> (p)) & 1u)
+static const void *slc_tab[3];
+static char ssl_path[64];
+static FRESULT ssl_need(const char *path, uint32_t *bytes)
+{
+    FIL f;
+    FRESULT r = f_open(&f, path, FA_READ);
+    if (r != FR_OK)
+        return r;
+    *bytes = (uint32_t)f_size(&f) / 4u + 1001u;
+    (void)f_close(&f);
+    return FR_OK;
+}
+static const void *ssl_load(const char *path, uint8_t *mem, uint32_t n, uint32_t *used)
+{
+    if (ssl_need(path, used) != FR_OK || *used > n)
+        return 0;
+    snprintf(ssl_path, sizeof ssl_path, "%s", path);
+    memset(mem, 0xA5, *used);
+    return mem;
+}
+static void ssl_set(uint32_t p, const void *t) { slc_tab[p] = t; }
 #include "storage/sd/sd_stream_plan.c"
 
 static FATFS fs __attribute__((aligned(4)));
@@ -185,6 +210,30 @@ static void run_card(const char *img_path)
           "%s: three one-voice parts, three rings (%u)", what, sstp.nring);
     CHECK(sstp.need == 3u * SST_K * 512u + 12u * (sst_src[0].nrun + sst_src[1].nrun) + 2u * 17640u,
           "%s: their need (%u)", what, sstp.need);
+    part_voices[0] = part_voices[1] = part_voices[2] = 8;
+
+    /* part 1 on SLICE CARD: its sample whole in the block, no ring and no head for it; off again: streamed (one-voice
+     * parts: the arena's 72 KB) */
+    part_voices[0] = part_voices[1] = part_voices[2] = 1;
+    part_slice = 2u;
+    sst_plan_poll();
+    CHECK(sstp.state == SSTP_GATED && !slc_tab[1], "%s: SLICE CARD: placed again", what);
+    settle();
+    blk = (uint8_t *)arn_ptr(SST_ARN_K);
+    k = (66150u * 2u + 44u) / 4u + 1001u;
+    CHECK(sstp.state == SSTP_PLACED && slc_tab[1] && (const uint8_t *)slc_tab[1] >= blk &&
+          (const uint8_t *)slc_tab[1] + k <= blk + sstp.need && strstr(ssl_path, "pad.wav"),
+          "%s: part 1's sample whole in the block (%u, %s)", what, sstp.state, ssl_path);
+    CHECK(sst_part_src[1] == 0xFF && !sst_src[1].ready && sst_part_src[0] == 0 && sst_part_src[2] == 0,
+          "%s: not streamed; parts 0 and 2 stream (%u %u %u)", what, sst_part_src[0], sst_part_src[1], sst_part_src[2]);
+    CHECK(sstp.nring == 2u && sstp.need == 2u * SST_K * 512u + 12u * sst_src[0].nrun + 17640u + ((k + 3u) & ~3u),
+          "%s: the need: two rings (parts 0 and 2), kick's head, pad whole (%u rings, %u B)", what, sstp.nring, sstp.need);
+    part_slice = 0;
+    sst_plan_poll();
+    CHECK(!slc_tab[1], "%s: off SLICE CARD: its material let go at once", what);
+    settle();
+    CHECK(sstp.state == SSTP_PLACED && sstp.nring == 3u && sst_part_src[1] == 1 && head_ok(1, 2) && !slc_tab[1],
+          "%s: off SLICE CARD: streamed again", what);
     part_voices[0] = part_voices[1] = part_voices[2] = 8;
 
     /* a sample not on the card: MISSING, the others play */

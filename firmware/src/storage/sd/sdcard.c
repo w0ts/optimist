@@ -89,6 +89,7 @@ static void sd_end(void)
                             ENGINES[trk[p].engine % NENGINES]->poly ? (uint32_t)ENGINES[trk[p].engine % NENGINES]->poly \
                                                                     : (uint32_t)NVOICE)   /* (mono: the note before's tail) */
 #include "storage/sd/sd_stream.c"                 /* samples streamed from the card: the main loop's runs */
+#include "storage/sd/sd_slice.c"                  /* SLICE on a card sample: read whole, as ADPCM */
 #include "storage/sd/sd_stream_plan.c"            /* their heads and rings in the arena, per project */
 #endif
 _Static_assert(__builtin_offsetof(FATFS, win) % 4u == 0, "sd_diskio.c: FatFs' window 4-byte aligned for the DMA");
