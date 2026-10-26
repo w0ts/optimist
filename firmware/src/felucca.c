@@ -163,9 +163,21 @@ static uint8_t live_save_off;            /* an erase held the audio (no suspend)
 #if FELUCCA_FLASH
 #include "fm1_flash.h"
 static uint8_t flash_ok;                 /* JEDEC id matched at boot (persist_boot) */
+#if FELUCCA_ED_MIRROR
+static uint8_t st_blank;                 /* a test session (ed_mirror.c, 108 kind 5): Optimist's own data reads erased (a blank FM-1),
+                                          * nothing is written; the radio's calibration and the rest read as ever */
+static volatile uint32_t mir_test_boot __attribute__((section(".noinit")));   /* MIR_TEST_MAGIC: the next start is a test session
+                                          * (system/main.c reads and clears it at once: a crash in the session ends it) */
+#else
+#define st_blank 0
+#endif
 static int st_read(uint32_t off, void *dst, uint32_t n)   /* 256-byte IRQ-off windows: audio keeps up */
 {
     uint8_t *d = dst;
+    if (st_blank && FL_STORE_OK(off, n)) {
+        memset(dst, 0xFF, n);
+        return 0;
+    }
     while (n) {
         uint32_t k = n > 256u ? 256u : n, f;
         int rc;
@@ -195,12 +207,16 @@ static int st_erase(uint32_t off)
     uint32_t took;
     if (!FL_STORE_OK(off, 0x1000u))
         return -8;
+    if (st_blank)
+        return 0;                        /* (a test session: done, nothing erased) */
     return fl_erase4k_quiet(off, &took);
 }
 static int st_prog(uint32_t off, const void *src, uint32_t n)
 {
     if (!FL_STORE_OK(off, n))
         return -8;
+    if (st_blank)
+        return 0;                        /* (a test session: done, nothing written) */
     return fl_write(off, src, n);
 }
 #include "storage/storage.c"
@@ -305,6 +321,7 @@ static void mir_fill(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t c)
 static void mir_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *px) { (void)x, (void)y, (void)w, (void)h, (void)px; }
 static uint32_t mir_meters_due(void) { return 0; }
 static uint32_t mir_meters_off(void) { return 0; }
+static uint32_t mir_master(uint32_t pot) { return pot; }
 #endif
 #if FELUCCA_CDC
 #include "io/console.c"

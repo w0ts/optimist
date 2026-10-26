@@ -518,7 +518,7 @@ Asking sets the ring's source for the next 2 s: ask again about every 80 ms to w
 `ed_mirror.c`, `ed_mirror_enc.h` (`ED_MIRROR`, with live editing or without; the clients are the iPhone app `ios/OptimistMirror` and the editor's Mirror tab). While a client asks, every write to the panel
 (`display/lcd.c` `lcd_fill`, `lcd_blit`) also goes out as it is drawn; a client applying them in order holds the panel's pixels. The device keeps no frame buffer and sends nothing while no client asks; the mixer's meters go 10 times a second over USB, never over Bluetooth.
 
-Request: bits (bit 0 on, bit 1 the whole panel again). Reply: on, version 2, width (2 x 7 bit), height (2 x 7 bit). The pushes go on the link the last request came on:
+Request: bits (bit 0 on, bit 1 the whole panel again, bit 2 the panel's state too: op 4 STATE below, with `opti_mstate_1`). Reply: on, version 2, width (2 x 7 bit), height (2 x 7 bit). The pushes go on the link the last request came on:
 USB, or Bluetooth MIDI (with `BLE`; there the FM-1 answers this request, `INFO`, `108 PANEL`, `109 NAV` (`opti_mirbt_1`) and `111 CLIP` (18 arguments at most, 64 bytes of requests waiting, their replies in the mirror's send ring, behind the screen's frames; `ed_mirror.c` `mbr_take`), every other SysEx is ignored).
 Mirroring ends 3 s after the last request of any kind (ask again or `PING` about every 1 s), with `106 0`, and when its link goes (a USB reset; no Bluetooth central listening).
 
@@ -534,6 +534,7 @@ Pushes, cmd 106, by op:
 | 1 BLIT | x, y, w, h, then runs: the rectangle's pixels row by row |
 | 2 MORE | runs: the BLIT before goes on (a BLIT is cut into frames of about 250 bytes) |
 | 3 LINK | Bluetooth only, after the reply: the radio's data length (octets a packet), ATT MTU, interval (x 1.25 ms), the central's LL_LENGTH MaxRxOctets, MaxRxTime, MaxTxOctets, MaxTxTime (us), 2 x 7 bit each |
+| 4 STATE | asked with bit 2 (INFO tag 67 `opti_mstate_1`; after fm1-base's input report): held buttons by label (bit as in 108: 0 FX .. 13 OCT+, 2 x 7 bit), held note keys (bit 0 = F3, 4 x 7 bit), lit buttons (bit 14: PLAY's green lamp; 3 x 7 bit), lit note keys (4 x 7 bit), dim buttons (2 x 7 bit) and keys (4 x 7 bit), the knobs' detents since the last STATE (SELECT, ALGORITHM, PRESETS, KNOB 1..4, + 64 each, 1..127), MASTER's pot (0..1023, 2 x 7 bit), 1 when the client's MASTER plays instead (108 kind 3). Held is the panel's or the client's. Sent when it changed, 20 ms apart at least (Bluetooth 100 ms), every 500 ms anyway; never when the link has no room for it (no catch-up for a STATE) |
 
 The rectangle's pixels as tokens (version 2), `t = n << 3 | s`. `s` 0..6: the colour in that slot; `s` 7: a colour follows (3 x 7 bit) and
 takes slot k, k going 1, 2 .. 6, 1 ... The slots are reset at each BLIT: all black, slot 0 stays black. A length L is 1 byte below 64, else 2: `(L & 63) | 64`, `L >> 6`.
@@ -551,6 +552,10 @@ The encoder takes a bitmap or the row above only where it is the shorter. Measur
 ## The panel pressed (108 PANEL; INFO tag 66 `opti_panel_1`)
 
 `ed_mirror.c` (`ED_MIRROR`). The mirror's client presses the panel as a finger would (the app's keyboard: the FM-1 Emulator's keys); only while it mirrors, and every key it holds comes up when the mirror ends (`106 0`, or 3 s without a request). The keys go through the panel's own debounce (`hal/fm1_input.h` `fm1_remote_key`), so taps, holds and chords behave as on the panel. Request: kind, id, value. Kind 0 a button by its label (0 FX, 1 SEL, 2 ENV, 3 LFO, 4 EDIT, 5 GLO, 6 HOME, 7 SAVE, 8 ARP, 9 SEQ, 10 PLAY, 11 REC, 12 OCT-, 13 OCT+; a calibrated panel's too), kind 1 a note key (0 = F3 .. 26 = G5), value 1 down / 0 up; kind 2 a knob by its role (0 SELECT, 1 ALGORITHM, 2 PRESETS, 3..6 KNOB 1..4), value its detents + 64 (above: clockwise). Reply: kind, 0 done / 1 refused. Over USB only (Bluetooth answers 106 alone).
+
+With `opti_panelx_1` (INFO tag 67; after fm1-base's remote): kind 3 MASTER, id and value its level 0..1023 as 2 x 7 bit (1024 and up: the pot's again), played instead of the pot's until the mirror ends; kind 4 let go (every key the client holds up, MASTER the pot's). A fourth byte, seq, makes a request safe to send again: one with the seq of the request before is answered again (the same answer) and not done twice; the reply then ends with the seq. A new mirror (106 on after off) forgets the seq.
+
+With `opti_mtest_1` (INFO tag 67; after fm1-base's test session): kind 5, id 1 a test session, id 0 its end; USB only, while mirroring. The FM-1 answers, then restarts as a blank FM-1: Optimist's own data in flash reads erased and nothing is written to it (the radio's calibration and the firmware read as ever; the user's samples, read in place, still sound; sample uploads are refused). Asked again: blank again (another restart). It ends with a restart into the user's own state: asked (id 0), the mirror off (asked, or 3 s without a request), no client mirroring within 15 s of the restart, or a crash. The client asks 106 again after each restart; STATE's last byte has bit 1 set during a session.
 
 ## The touch navigation (109 NAV; INFO tag 66 `opti_nav_1`)
 

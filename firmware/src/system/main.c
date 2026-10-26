@@ -227,6 +227,9 @@ static __attribute__((noinline)) void master_pot(int32_t *knob, int glide)
         return;                                         /* SHIFT + the knob: the output switch, the volume held (op_bt.c) */
 #endif
     k10 = (uint32_t)(*knob / 16);
+#if FELUCCA_ED_MIRROR
+    k10 = mir_master(k10);                              /* (the mirror's client may set MASTER: ed_mirror.c, 108 kind 3) */
+#endif
     song.master_q12 = (k10 * k10) >> 8;                 /* 0 .. ~4096 */
 }
 
@@ -653,6 +656,10 @@ void fm1_cstart(void)
         *d = 0;
     for (d = _pz_start; d < _pool_end; d++)
         *d = 0;
+#if FELUCCA_ED_MIRROR && FELUCCA_FLASH && FELUCCA_OTA && FELUCCA_EDITOR
+    st_blank = mir_test_boot == MIR_TEST_MAGIC;   /* the mirror's client asked for a test session (ed_mirror.c, 108 kind 5) */
+    mir_test_boot = 0;                          /* (once: a crash, a watchdog in the session, and the next start is the user's) */
+#endif
 #if !FELUCCA_SIM
     lzb_init(&lz, (const uint8_t *)_lz_load);
     lzb_expand(&lz, (uint8_t *)_data_start, (uint8_t *)_data_end);   /* .data's initial values */
