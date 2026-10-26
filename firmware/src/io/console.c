@@ -169,12 +169,20 @@ static void con_trims(const struct ble_rf_trims *t, uint8_t have)
         con_bytes("187:", t->x187, sizeof t->x187);
 }
 
-#if BLE_HW_WL82
+#ifndef FELUCCA_WIFI
+#define FELUCCA_WIFI 0                                /* Wi-Fi (work in progress, docs/WIFI-LINK-HANDOVER.md): a test build
+                                                       * sets it with OPTIMIST_WIFI=1 (tools/build.py); no builder item yet */
+#endif
+#if BLE_HW_WL82 && FELUCCA_WIFI
+#include "../../hal/fm1_wifi.h"
 #include "../wifi/wifi_crypto.c"                      /* (the station: used by wifijoin only, so far) */
 #include "../wifi/wifi_sta.c"
+#include "../wifi/wifi_ip.c"                          /* ARP, DHCP, IGMP, UDP; the early filter */
+#include "../link/link.c"                             /* Ableton Link (the sync part) */
 
 #define CON_WIFI_MAX 2400u                                /* one 802.11 frame (2346) + its receive header */
 static uint32_t con_wifi_buf[(CON_WIFI_MAX + 8u) / 4u + 1u];   /* (wifiscan, wifitx and wifijoin share it) */
+#include "../wifi/wifi_link.c"                        /* wifilink: DHCP + Link after the join (the service runs from the main loop) */
 
 /* wifiup: the Wi-Fi side brought up as the SDK does on a radio BT has started (usb_register): the radio started by our
  * start-up program if nothing has (BLUETOOTH and BT audio off: as Bluetooth audio starts it, bt_inq.c, CPU1 held), the
@@ -492,6 +500,7 @@ static void con_wifijoin(const char *p)
 
     if (sta.state == WIFI_STA_STATE_CONNECTED) {
         con_puts(" ok, connected, keys installed\r\n");
+        wl_attach(&sta);
     } else {
         con_puts(" handshake failed / timeout\r\n");
     }
@@ -1389,8 +1398,8 @@ static void con_exec(const char *p)
                  "params  tabbench  memr ADDR [LEN]  flr OFF [LEN]"
 #if FELUCCA_BLE
                  "  blevm  blevmdump  bletrim"
-#if BLE_HW_WL82
-                 "  wifiup  wifiscan  wifijoin  wifidata"
+#if BLE_HW_WL82 && FELUCCA_WIFI
+                 "  wifiup  wifiscan  wifijoin  wifidata  wifilink"
 #endif
 #if BLE_DIAG
                  "  blell [clear|regs]"
@@ -1447,9 +1456,11 @@ static void con_exec(const char *p)
         con_blevm();
     else if (con_word(&p, "bletrim"))
         con_bletrim();
-#if BLE_HW_WL82
+#if BLE_HW_WL82 && FELUCCA_WIFI
     else if (con_word(&p, "wifiup"))
         con_wifiup();
+    else if (con_word(&p, "wifilink"))
+        con_wifilink(p);
     else if (con_word(&p, "wifiscan"))
         con_wifiscan();
     else if (con_word(&p, "wifidata"))

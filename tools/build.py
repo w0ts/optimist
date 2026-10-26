@@ -268,6 +268,8 @@ def build_app():
         flags += ["-DBLE_LL_ENC=1", "-DBLE_SMP_LEGACY=1"]
         flags += {"2": ["-DBLE_SMP_SEC_REQ=1"], "3": ["-DBLE_MIDI_NEED_ENC=1"]}.get(v, [])
     flags += ["-include", f"{GEN_REL}/felucca_config.h"]   # the builder's configuration (tools/builder)
+    if os.environ.get("OPTIMIST_WIFI") == "1":   # (a Wi-Fi test build: the console's wifiup / wifiscan / wifijoin; work in progress)
+        flags += ["-DFELUCCA_WIFI=1", "-DFELUCCA_LINK=1"]   # (LINK: SYNC LINK, clock_sync.c follows the session's MIDI clock, wifi/wifi_link.c)
     if os.environ.get("OPTIMIST_CDC_FORCE") == "1":   # (a debug build: the CDC console presented without USB SERIAL ON)
         flags.append("-DFELUCCA_CDC_FORCE=1")
     if os.environ.get("OPTIMIST_DUAL_PARK") in ("0", "1") and os.environ.get("FELUCCA_DUAL_PARK") is None:   # a DUAL build parks CPU1 (never started)
