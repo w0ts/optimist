@@ -24,7 +24,7 @@
 //     midi,          (options) => Promise<MIDIAccess>: default navigator.requestMIDIAccess (tests pass a mock)
 //   }) -> { unmount(), busy }    busy: true while writing (the host must not unload or hide the page then)
 import { OFFICIAL_LOADER, OUR_LOADER, Updater } from "../fm1ota.js";
-import { STOCK_V15_SHA256, logicalImage, productOf, sha256hex, stockBanks, validateStockPackage } from "../fm1pkg.js";
+import { STOCK_V15_SHA256, checkUfw, logicalImage, productOf, sha256hex, stockBanks, validateStockPackage } from "../fm1pkg.js";
 
 const STYLE_ID = "optimist-installer-style";
 const BUNDLED_CSS = null;                           /* make_site.py puts web/installer/installer.css here */
@@ -70,6 +70,7 @@ export const TEXT = {
   loadfail: "Could not load the package: ",
   notours: "This file is not a package this page can install (an Optimist, SLOOP or Felucca .fwsc, or the official FM-1 V15): ",
   noloaderpkg: "This package has no update loader in it, so it cannot be installed over USB.",
+  damaged: "This package is damaged, nothing was sent to the FM-1 (download or build it again): ",
   stockTitle: "Official firmware V15 (your file)",
   stockNote: "The official firmware does not use Optimist's projects, presets, kits or samples: save your work with the editor's Backup first.",
   keep: "Keep the cable in and this page open until it says Done.",
@@ -152,6 +153,7 @@ export async function checkPackage(bytes, expect = null) {
     if (!/^FM-1_[79]\d\d$/.test(product)) throw codeError("notours", product || "no identity");
   } else if (product !== expect.product) throw codeError("badpkg");
   if (!has(bytes, LOADER_MARK)) throw codeError("noloaderpkg");
+  try { checkUfw(logicalImage(bytes)); } catch (e) { throw codeError("damaged", e.message); }   /* (before anything is sent) */
   const sha256 = globalThis.crypto && globalThis.crypto.subtle ? await sha256hex(bytes) : "";
   if (expect && expect.sha256 && sha256 && sha256 !== expect.sha256) throw codeError("badpkg", `sha256 ${sha256}, expected ${expect.sha256}`);
   return { product, sha256, image: logicalImage(bytes), stock: false };
