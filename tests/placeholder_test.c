@@ -114,7 +114,19 @@ int main(void)
     proj_apply(&back, &dl, 1);
     blocks(64);
     CHECK(t->silent && t->engine == eng_silent_slot(), "a load of the saved project: the placeholder again");
-#ifdef FELUCCA_ARENA_BYTES                               /* (built with an arena of one part's memory: the drop flow) */
+#if FELUCCA_PUNCH_SW                                    /* (built with the arena's extras: the PUNCH switch, a project's) */
+    punch_sw = 1;
+    proj_capture(&pj, &dl);
+    CHECK(pj.g[G_INFO] >> 1 & 1, "a project saved with PUNCH on: bit 1 of its G_INFO slot");
+    punch_sw = 0;
+    proj_apply(&pj, &dl, 1);
+    CHECK(punch_sw == 1 && song.g[G_RECQ] == 1, "... loaded: PUNCH on, REC QUANTIZE as it was (bit 0)");
+    pj.g[G_INFO] = 0;                                   /* (an older project) */
+    proj_apply(&pj, &dl, 1);
+    CHECK(punch_sw == 0, "an older project (0 there): PUNCH off");
+    blocks(64);
+#endif
+#if defined(FELUCCA_ARENA_BYTES) && !FELUCCA_FX_ARENA   /* (built with an arena of one part's memory: the drop flow) */
     {
         track_t *u = &trk[1];
         uint32_t k = 0, f;

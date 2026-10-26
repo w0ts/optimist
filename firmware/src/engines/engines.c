@@ -145,15 +145,18 @@ typedef union {
 #if FXM_NEED
 #define FXM_NC 4u                                        /* the effects' blocks (fx_arena.c FXM_CHO DLY REV INS) */
 /* the other buffers a project holds only while it uses their feature (core/arena_bufs.c), after the effects' lines: the
- * SLICER's recording of each track (STUT), WAVE's table, the X0X machines' states; only those built */
+ * SLICER's recording of each track (STUT), WAVE's table, the X0X machines' states, the punch's ring (its project's PUNCH
+ * switch on); only those built */
 enum {
     ARB_SL0,
     ARB_WAVE = ARB_SL0 + (FELUCCA_FX_SLICER ? NTRK : 0),
     ARB_X909 = ARB_WAVE + (FELUCCA_ENG_WAVE ? 1 : 0),
     ARB_X808 = ARB_X909 + (FELUCCA_DRUM_X909 ? 1 : 0),
-    ARB_NC = ARB_X808 + (FELUCCA_DRUM_X808 ? 1 : 0)
+    ARB_PUNCH = ARB_X808 + (FELUCCA_DRUM_X808 ? 1 : 0),
+    ARB_NC = ARB_PUNCH + (FELUCCA_PUNCH_SW ? 1 : 0)
 };
-#define ARB_ANY ((FELUCCA_FX_SLICER ? NTRK : 0) + FELUCCA_ENG_WAVE + FELUCCA_DRUM_X909 + FELUCCA_DRUM_X808)   /* (#if) */
+#define ARB_ANY ((FELUCCA_FX_SLICER ? NTRK : 0) + FELUCCA_ENG_WAVE + FELUCCA_DRUM_X909 + FELUCCA_DRUM_X808 + \
+                 FELUCCA_PUNCH_SW)       /* (#if) */
 #define ARN_PARTS (NPART + FXM_NC + (uint32_t)ARB_NC)
 #define ARN_TOPS (((1u << (FXM_NC + (uint32_t)ARB_NC)) - 1u) << NPART)   /* (the lines and buffers from the top, best fit:
                                                                          * core/arena.c) */

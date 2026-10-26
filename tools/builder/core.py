@@ -588,7 +588,8 @@ X909_STATE, X808_STATE = (5328, 5344), 3376
 
 def arena_bufs(cfg):
     """-> {name: bytes} the other buffers the arena holds only while a project uses them (core/arena_bufs.c; in the
-    pool, static, without ARENA): each track's SLICER recording, WAVE's table, the X0X machines' states"""
+    pool, static, without ARENA): each track's SLICER recording, WAVE's table, the X0X machines' states, the punch's
+    ring (held while the project's PUNCH switch is on)"""
     f, _ = flags(cfg)
 
     def on(key):
@@ -596,7 +597,8 @@ def arena_bufs(cfg):
     out = {"a track's SLICER recording": 2 * on("SL_LEN") if built(cfg, "FX_SLICER") else 0,
            "WAVE's table": WAVE_MEM if built(cfg, "ENG_WAVE") else 0,
            "the X0X 909's state": X909_STATE[on("X909_CYM") == 2 or on("X909_HAT") == 2] if built(cfg, "DRUM_X0X909") else 0,
-           "the X0X 808's state": X808_STATE if built(cfg, "DRUM_X0X808") else 0}
+           "the X0X 808's state": X808_STATE if built(cfg, "DRUM_X0X808") else 0,
+           "the PUNCH ring": 2 * on("PUNCH_N") if built(cfg, "FX_PUNCH") else 0}
     return {k: v for k, v in out.items() if v}
 
 

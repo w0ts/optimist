@@ -866,6 +866,13 @@ static void mc_unpack(const project_t *p)
  * sl24_export.c sl24_g_out) */
 #define RECQ_PACK() ((int16_t)(song.g[G_RECQ] ? 0 : 1))
 #define RECQ_UNPACK(v) ((int16_t)!((v) & 1))
+/* the PUNCH switch (FELUCCA_PUNCH_SW, fx/punch/punch.c) in the same slot, bit 1 = ON: an older project (0) loads with it
+ * off, a build without the switch reads bit 0 only (and saves its projects with it off) */
+#if FELUCCA_PUNCH_SW
+#define PUNCH_PACK() ((int16_t)(punch_sw ? 2 : 0))
+#else
+#define PUNCH_PACK() 0
+#endif
 #if FELUCCA_MIDI_CH
 /* the synth tracks' MIDI channels in the project's G_MIDI slot (a status, never saved before: 0 in every older project,
  * and SLOOP 2.4's MIDI OUT flag 0 / 1 there, which reads as channel 1 for part 1: its own): five bits a track, 0 = the
@@ -960,7 +967,7 @@ static void proj_capture(project_t *p, dlrec_t *d)   /* what is playing now, as 
 #else
     p->g[G_MIDI] = 0;                                   /* (G_MIDI: a status, not saved) */
 #endif
-    p->g[G_INFO] = RECQ_PACK();                         /* (G_INFO's slot, the CPU read-out: REC QUANTIZE) */
+    p->g[G_INFO] = (int16_t)(RECQ_PACK() | PUNCH_PACK());   /* (G_INFO's slot, the CPU read-out: REC QUANTIZE, PUNCH) */
     p->g[G_DCOLOR] = (int16_t)(song.g[G_DCOLOR] + DLY_FREQ_MARK);   /* (the delay's FREQ: dly_freq_in) */
     p->sel = song.sel;
     p->rsv[0] = rev_pack();                             /* the reverb's algorithm (rev_type.c; 0 ROOM): bits 0..2 */
@@ -1063,6 +1070,10 @@ static void proj_apply(const project_t *p, const dlrec_t *d, int all)
         mc_unpack(p);                                   /* (older projects: 0, COMP and LIMIT off) */
     if (all)
         song.g[G_RECQ] = RECQ_UNPACK(p->g[G_INFO]);     /* (older projects: 0, ON) */
+#if FELUCCA_PUNCH_SW
+    if (all)
+        punch_sw = (int16_t)(p->g[G_INFO] >> 1 & 1);    /* (older projects: 0, PUNCH off) */
+#endif
 #if FELUCCA_MIDI_CH
     if (all)
         midi_ch_unpack(p->g[G_MIDI]);                   /* the synth tracks' channels (older projects: 0, the defaults) */

@@ -50,6 +50,9 @@ static void op_project_new(void)
         if (i != G_SLOT && i != G_DRCH && i != G_VIEW && i != G_SYNC)
             song.g[i] = GP[i].def;
     song.g[G_RSIZE] = RSIZE_NEW;                        /* (the reverb a little larger than its default: fx.c) */
+#if FELUCCA_PUNCH_SW
+    punch_sw = 0;                                       /* (PUNCH off: its ring not held, fx/punch/punch.c) */
+#endif
     fm1_irq_off();                                      /* (blank, as a project with nothing stored loads: the mixing, the sends, the inserts) */
 #if FELUCCA_ANALOG2
     dlrec_apply(0, DRREV_MOVED);                        /* the drum lanes (levels, pan, tune...) and their sends */

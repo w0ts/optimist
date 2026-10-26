@@ -96,6 +96,10 @@ static void *arb_ptr(uint32_t c)                        /* client c's pointer as
         return wt_mip;
     if (c == (uint32_t)ARB_X909)
         return x909_p;
+#if FELUCCA_PUNCH_SW
+    if (c == (uint32_t)ARB_PUNCH)
+        return punch_ring;
+#endif
     return x808_p;
 }
 static int zeros(const void *p, uint32_t n)
@@ -208,7 +212,7 @@ int main(void)
     fxi_init();
     for (c = 0; c < FXM_NC; c++)
         lines += arn_round(FXM_BYTES[c]);
-    CHECK(ARB_NC == NTRK + 3u && ARN_BYTES >= FM + lines + WT + SL + X9 + X8 && ARN_BYTES <= FM + lines + WT + SL + X9 + X8 + 64u,
+    CHECK(ARB_NC == NTRK + 3u + FELUCCA_PUNCH_SW && ARN_BYTES >= FM + lines + WT + SL + X9 + X8 && ARN_BYTES <= FM + lines + WT + SL + X9 + X8 + 64u,
           "the premise: one FM6, the lines, WAVE's table, one SLICER recording and both X0X machines fit (arena %u B: FM6 %u, "
           "lines %u, WAVE %u, SLICER %u, 909 %u, 808 %u)", (unsigned)ARN_BYTES, (unsigned)FM, (unsigned)lines,
           (unsigned)WT, (unsigned)SL, (unsigned)X9, (unsigned)X8);
@@ -453,6 +457,44 @@ int main(void)
     blocks(64);
     CHECK(!part_mem_refused.on && t2->engine == ENG_IX_FM6 && !wt_mip && arena_ok(), "... the table given back: part 3 on FM6");
     put_chrs(0, 0);
+#if FELUCCA_PUNCH_SW
+    /* the PUNCH switch (fx/punch/punch.c, a project's): the ring held only while it is on */
+    {
+        uint32_t w;
+        const char *m;
+        settle(4);
+        (void)arb_said();
+        CHECK(!punch_sw && !punch_ring && !arn_cur[ARB_K(ARB_PUNCH)].len, "PUNCH off (power-on): no ring in the arena");
+        punch.req = 3;                                  /* (FX + a white key: the ISR's keyboard_block) */
+        pass();
+        m = arb_said();
+        CHECK(punch.req < 0 && !punch_ring && m && !strcmp(m, "PUNCH OFF"), "FX + a key with PUNCH off: let go, PUNCH OFF");
+        blocks(16);
+        CHECK(punch.cur < 0, "... the mix as it is");
+        punch_sw = 1;
+        pass();
+        CHECK(punch_ring && arn_cur[ARB_K(ARB_PUNCH)].len == arn_round(FELUCCA_PUNCH_N * 2u) && !arb_full && arena_ok(),
+              "PUNCH on: its ring placed (%u B)", (unsigned)(FELUCCA_PUNCH_N * 2u));
+        w = punch.w;
+        CHECK(part_play(0, 64) > 0 && punch.w != w, "... the mix recorded into it while a part plays");
+        punch.req = PX_REV;
+        blocks(8);
+        CHECK(punch.cur == PX_REV, "... FX + a key: the punch plays (REVERSE)");
+        punch_sw = 0;                                   /* (switched off while it plays: held until it has faded out) */
+        pass();
+        CHECK(punch_ring && arb_st[ARB_PUNCH] == FXM_ON, "PUNCH off while REVERSE plays: the ring kept for its fade");
+        punch.req = -1;
+        for (w = 0; w < 50u && (punch.cur >= 0 || arn_cur[ARB_K(ARB_PUNCH)].len); w++) {
+            blocks(1);
+            pass();
+        }
+        CHECK(punch.cur < 0 && !punch_ring && !arn_cur[ARB_K(ARB_PUNCH)].len && arena_ok(),
+              "... faded out: the ring given back");
+        punch_sw = 0;
+        settle(4);
+        CHECK(!punch_ring && arena_ok(), "PUNCH off: its ring not held");
+    }
+#endif
     /* 7. random switches */
     quiet();
     {
