@@ -215,7 +215,7 @@ static const char *head_engine(void)
         ln[i] = 0;
         return ln;
     }
-    return is_drum(TSEL) ? "DRUMS" : ENGINES[TSEL->eng_req % NENGINES]->name;
+    return is_drum(TSEL) ? "DRUMS" : trk_eng_name(TSEL);
 }
 /* the track page's badge (the user, 2026-10-14: "we should always have the track number on the top left with the engine/
  * preset"): the track code and the engine, "2 DIGITAL", "4 DRUMS", "4 SNARE" for a picked lane, "4 ACCENT" */
@@ -271,7 +271,7 @@ static void draw_head_flash(uint16_t tc)                /* the header while tf.t
     char b[16], c[32];
     int32_t x, bw;
     uint32_t room;
-    const char *eng = ENGINES[TSEL->eng_req % NENGINES]->name;
+    const char *eng = trk_eng_name(TSEL);
     str_cpy(b, "TRACK ", sizeof b);
     fmt_int(b + 6, (int32_t)song.sel + 1);
     bw = text_ws(b) + 8;

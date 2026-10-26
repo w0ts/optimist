@@ -320,7 +320,7 @@ def measure_part_mem(logd):
 def check_terms(cfg, sizes, name):
     """the computed terms (configure.py model_terms) against the objects' real sizes in this build (sizes.json
     "symbols", tools/build.py SIZED_SYMBOLS): a structure that grew is a wrong estimate everywhere, so it stops here"""
-    real = (sizes.get("symbols") or {}).get("part_mem")
+    real = (sizes.get("symbols") or {}).get("part_mem")   # (with ARENA the states live in core/arena.c's arn_mem)
     if real is not None and real != C.part_mem(cfg)["pool"]:
         alone = [k for k in C.PART_MEM if C.built(cfg, k)]
         raise SystemExit(f"measure_costs: {name}: engines.c part_mem is {real} B, configure.py part_mem says "

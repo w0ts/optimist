@@ -113,8 +113,12 @@ typedef struct {                 /* per voice */
     uint8_t gate, init;
 } drw_vc_t;
 
-static drw_trk_t drw_t[NPART];
-static drw_vc_t drw_v[NPART][NVOICE];
+typedef struct {                 /* a part's DRAWBAR state: its engine memory (engines.c part_mem_t, the arena; zeroed when the
+                                  * part comes to DRAWBAR) */
+    drw_trk_t t;
+    drw_vc_t v[NVOICE];
+} drw_mem_t;
+AINL drw_mem_t *drw_mem(uint32_t p);                  /* (engines.c, after every engine) */
 
 AINL uint32_t drw_part(const track_t *t) { return (uint32_t)(t - trk) % NPART; }
 
@@ -129,7 +133,7 @@ AINL int32_t drw_level(const int16_t *p, uint32_t k)
 /* once per block, before the voices: bar gains, percussion, click, drive, the rotors */
 static HOT void drawbar_block(track_t *t)
 {
-    drw_trk_t *T = &drw_t[drw_part(t)];
+    drw_trk_t *T = &drw_mem(drw_part(t))->t;
     const int16_t *p = t->p;
     uint32_t k, perc = (uint32_t)p[P_E4] % 7u, rot = (uint32_t)p[P_E7] % 3u;
     int32_t s = 0, lv[DRW_NP];
@@ -177,7 +181,7 @@ static HOT void drawbar_block(track_t *t)
 static void drawbar_note_on(track_t *t, voice_t *v)
 {
     uint32_t vi = (uint32_t)(v - t->v) % NVOICE, k, held = 0;
-    drw_vc_t *V = &drw_v[drw_part(t)][vi];
+    drw_vc_t *V = &drw_mem(drw_part(t))->v[vi];
     for (k = 0; k < NVOICE; k++)                        /* single trigger: another key of the part held? */
         if (&t->v[k] != v && t->v[k].active && t->v[k].gate && t->v[k].stage != 4u)
             held = 1;
@@ -195,8 +199,9 @@ static void drawbar_note_on(track_t *t, voice_t *v)
 
 static HOT void drawbar_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
-    const drw_trk_t *T = &drw_t[drw_part(t)];
-    drw_vc_t *V = &drw_v[drw_part(t)][(uint32_t)(v - t->v) % NVOICE];
+    drw_mem_t *M = drw_mem(drw_part(t));
+    const drw_trk_t *T = &M->t;
+    drw_vc_t *V = &M->v[(uint32_t)(v - t->v) % NVOICE];
     int32_t acc[CTL], perc1, clk0, clk1;
     uint32_t i, k;
     if (n > CTL)

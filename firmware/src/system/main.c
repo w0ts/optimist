@@ -168,6 +168,7 @@ static void felucca_init(void)
             t->engine = t->eng_req;
         }
     }
+    part_mem_boot();                          /* (their engines' memories, before the audio: engines.c) */
 #if FELUCCA_DRUMS
     TDRUM->p[P_E0] = DRUM_DEFAULT_KIT;        /* the 808 kit */
 #endif

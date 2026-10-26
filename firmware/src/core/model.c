@@ -176,12 +176,112 @@ static void apply_preset_to(track_t *t, uint32_t pi)
 
 /* the engine's defaults and its first preset. With the audio IRQ off: the ISR sees the old engine with
  * its values or the new one with its own (voice.c engine_block), never one with the other's */
+/* the engine's name as shown: NONE for a silent placeholder (core.h) */
+static const char *trk_eng_name(const track_t *t) { return T_SILENT(t) ? "NONE" : ENGINES[t->eng_req % NENGINES]->name; }
+
+#if PART_DROPS
+/* a part dropped to make memory room (the user, 2026-10-25): a silent placeholder, its sequence kept, its memory
+ * given back at the switch (an engine that keeps nothing in the arena), until an engine is picked (set_engine_of) */
+static void part_drop(track_t *t)
+{
+    if (is_drum(t) || (uint32_t)(t - trk) >= NPART)
+        return;
+    sound_change(t);                                  /* (what sounds fades out, no click) */
+    fm1_irq_off();
+    t->silent = 1;
+    t->eng_req = (uint8_t)eng_silent_slot();
+    fm1_irq_on();
+}
+
+/* What to drop when memory is short (the user, 2026-10-25: refuse, and propose what to drop; the UI asks with its one
+ * confirm, op_input.c mem_tick). mem_offer: the next part to propose, first those whose memory alone would make room
+ * (engines.c part_mem_frees: one drop at a time, each dropped part free when the next is proposed), then any other part
+ * whose engine keeps memory, never one already asked; 0 none left. mem_drop: that part a silent placeholder (its memory free once its
+ * switch is done),. mem_retry, each frame: 0 nothing to do or still waiting for a dropped part's switch,
+ * 1 the change went through, -1 still no room (offer the next) */
+static int mem_offer(uint32_t *out)
+{
+    uint32_t k, pass;
+    for (pass = 0; pass < 2u; pass++)
+        for (k = 0; k < NPART; k++) {
+            if (k == part_mem_refused.part || (part_mem_refused.asked >> k & 1u) || trk[k].silent ||
+                !part_mem_bytes(trk[k].engine) || (pass == 0u && !part_mem_frees(k)))
+                continue;
+            *out = k;
+            part_mem_refused.asked |= (uint8_t)(1u << k);
+            return 1;
+        }
+    return 0;
+}
+
+static void part_drop(track_t *t);
+
+static void mem_drop(uint32_t k)
+{
+    if (k >= NPART)
+        return;
+    part_drop(&trk[k]);
+    part_mem_refused.waiting |= (uint8_t)(1u << k);
+}
+
+static void set_engine_of(track_t *t, uint32_t ei);
+
+static int mem_retry(void)
+{
+    uint32_t k, p = part_mem_refused.part, e = part_mem_refused.eng;
+    if (!part_mem_refused.on || !part_mem_refused.waiting)
+        return 0;
+    for (k = 0; k < NPART; k++)
+        if ((part_mem_refused.waiting >> k & 1u) && trk[k].engine != trk[k].eng_req)
+            return 0;                                 /* (a dropped part still fading: its memory not free yet) */
+    part_mem_refused.waiting = 0;
+    if (part_mem_reserve(p, e))
+        return -1;
+    part_mem_refused.on = 0;
+    if (part_mem_refused.keep) {                      /* (a load's refusal, mem_load_next: the project's sound as
+                                                       * loaded, now on its engine, as mem_load_settle places one) */
+        fm1_irq_off();
+        trk[p].eng_req = (uint8_t)e;
+        trk[p].silent = 0;
+        fm1_irq_on();
+        return 1;
+    }
+    set_engine_of(&trk[p], e);                        /* (the edit asked for: the engine and its first preset) */
+    return 1;
+}
+
+/* A load's refusals (engines.c part_mem_refused.lmask): every part a project's load could not place is a silent
+ * placeholder with the project's sound, its engine wanted (leng). Each frame (op_input.c mem_tick), the load's first
+ * part still refused becomes the edit's refusal with the project's sound kept (keep): mem_retry waits for every part's
+ * switch (the old blocks free after), then places it with that sound if it fits now; else the one confirm proposes what
+ * to drop ("DROP T2 FM6"); a placeholder still when nothing is dropped (MEM FULL); then the next. 0: the edit's flow
+ * goes on */
+static int mem_load_next(void)
+{
+    uint32_t k = 0;
+    if (!part_mem_refused.lmask || part_mem_refused.on)
+        return 0;
+    while (!(part_mem_refused.lmask >> k & 1u))
+        k++;
+    fm1_irq_off();
+    part_mem_refused.lmask &= (uint8_t)~(1u << k);
+    fm1_irq_on();
+    part_mem_refused.on = part_mem_refused.keep = 1;
+    part_mem_refused.part = (uint8_t)k, part_mem_refused.eng = part_mem_refused.leng[k];
+    part_mem_refused.asked = 0;
+    part_mem_refused.waiting = (uint8_t)((1u << NPART) - 1u);   /* (every part's switch first: mem_retry) */
+    return 0;
+}
+#endif
+
 static void set_engine_of(track_t *t, uint32_t ei)
 {
     const engine_t *e = ENGINES[ei % NENGINES];
     uint32_t i;
     if (is_drum(t))
         return;
+    if ((uint32_t)(t - trk) < NPART && part_mem_reserve((uint32_t)(t - trk), ei % NENGINES))
+        return;                                       /* no room in the arena: refused (part_mem_refused: what to drop) */
     fm1_irq_off();
 #if FELUCCA_MOTION || FELUCCA_PLOCK
     motion_restore(t);                                /* (the automation's values back first, then the new sound: it is
@@ -189,6 +289,9 @@ static void set_engine_of(track_t *t, uint32_t ei)
 #endif
     sound_change(t);                                  /* (SLOOP 2.6: the sound as it is, before anything new is written) */
     t->eng_req = (uint8_t)(ei % NENGINES);
+#if PART_DROPS
+    t->silent = 0;                                    /* (an engine picked: the placeholder plays again) */
+#endif
     for (i = 0; i < 8u; i++)
         t->p[P_E0 + i] = e->edit[i].def;
     apply_preset_to(t, eng_first_playable(e));      /* (its first preset; none: INIT) */
