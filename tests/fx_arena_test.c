@@ -225,8 +225,8 @@ int main(void)
     CHECK(t0->engine == ENG_IX_FM6 && fxa_ins && fxi_state(0, 0) == FXI_OK && arena_ok(),
           "FM6 on part 1, CHRS on track 1: the own room placed, its instance in it: the arena full");
     set_engine_of(t1, ENG_IX_FM6);
-    CHECK(part_mem_refused.on && part_mem_refused.part == 1u && t1->eng_req != ENG_IX_FM6 && part_mem_refused.drop == 1,
-          "FM6 on part 2: refused; the proposal names part 1 (parts only: no effect)");
+    CHECK(part_mem_refused.on && part_mem_refused.part == 1u && t1->eng_req != ENG_IX_FM6 && part_mem_frees(0),
+          "FM6 on part 2: refused; part 1's memory would make room (proposed first: parts before effects)");
     part_mem_refused.on = 0;                            /* (the UI's MEM FULL: given up) */
     fxs_load(3, FXT_NONE);                              /* (REV out: its line on its way back) */
     set_engine_of(t1, ENG_IX_FM6);
@@ -274,8 +274,8 @@ int main(void)
     set_engine_of(t2, ENG_IX_FM6);
     blocks(64);
     settle(2);
-    CHECK(t1->engine == ENG_IX_FM6 && t2->engine == ENG_IX_FM6 && !cho_buf && !arn_fits(FXM_K(FXM_INS), FXM_INS_BYTES) &&
-          arn_fits(FXM_K(FXM_CHO), FXM_BYTES[FXM_CHO]), "three FM6, CHO in no slot: no room for the own room, room for CHO's line");
+    CHECK(t1->engine == ENG_IX_FM6 && t2->engine == ENG_IX_FM6 && !cho_buf && !arn_fits(FXM_K(FXM_INS), FXM_INS_BYTES, 0) &&
+          arn_fits(FXM_K(FXM_CHO), FXM_BYTES[FXM_CHO], 0), "three FM6, CHO in no slot: no room for the own room, room for CHO's line");
     fxm_news = 0;
     put_chrs(2, 1);
     settle(8);

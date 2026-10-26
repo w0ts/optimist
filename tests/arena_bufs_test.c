@@ -350,9 +350,10 @@ int main(void)
     (void)arb_said();
     set_engine_of(t1, ENG_WAVE);
     CHECK(part_mem_refused.on && part_mem_refused.part == 1u && part_mem_refused.eng == ENG_WAVE &&
-          part_mem_refused.drop > 0 && t1->eng_req != ENG_WAVE && !wt_mip && !arn_has_next[ARB_K(ARB_WAVE)],
-          "WAVE on part 2 with no room for its table: the change refused as any engine's, the parts to drop proposed "
-          "(%d), nothing set aside", part_mem_refused.drop);
+          (part_mem_frees(0) || part_mem_frees(2)) && t1->eng_req != ENG_WAVE && !wt_mip &&
+          !arn_has_next[ARB_K(ARB_WAVE)],
+          "WAVE on part 2 with no room for its table: the change refused as any engine's, a part's memory would make "
+          "it room, nothing set aside");
     {
         uint32_t x;
         CHECK(mem_offer(&x) && x < NPART && x != 1u, "... the proposal: a part first (part %u)", (unsigned)(x + 1u));

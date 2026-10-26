@@ -16,9 +16,10 @@
  *   HOME             the refused parts stay placeholders (an engine picked ends one); the rest of the project as loaded
  *   PLAY             as anywhere (the page stays)
  * The keys play nothing (seq.c ly_lock LY_STEP, as NAME's); the knobs do nothing. An edit's change keeps its one
- * confirm (op_input.c mem_tick); it waits while a load's list is up. Only with an arena placed by need (the fixed slots,
- * the default, never refuse) */
-#if !ARN_FIXED
+ * confirm (op_input.c mem_tick); it waits while a load's list is up. One of the arena's extras (MEM_LIST: the SD card
+ * mode's builds, FELUCCA_FX_ARENA); the core alone offers a load's refusals one by one on the edit's confirm (model.c
+ * mem_load_next) */
+#if MEM_LIST
 #define ML_MAX (NPART + 3u)                            /* the parts (refused or droppable), then REV DLY CHO */
 static struct {
     uint8_t on;
@@ -254,7 +255,7 @@ static void ml_draw(void)                              /* (op_draw.c op_frame_dr
 }
 #else
 #define ml_on() 0
-#define ml_tick() 0
+#define ml_tick() mem_load_next()
 #define ml_frame(p) ((void)(p))
 #define ml_draw() ((void)0)
 #define ml_leds(d) (*(d) = 0, 0u)
