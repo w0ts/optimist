@@ -525,7 +525,15 @@ checked: only the build time and the commit differ).
   hint (its path under `SAMPLES/`, cut at 51 bytes); a project file on the card carries it. For the player (streaming:
   another helper): `sdm_sample_of(part, &hash, &hint)` (1: a sample), `sdm_sample_path(part, out, cap)` (its path now,
   found by the hash: a renamed or moved file too; 0 MISSING), `sdm_smp_gen` bumped at each change. A file not indexed
-  yet (or changed since the pass) is hashed when picked (`sdx_note_written`); the pick marks it used (RECENT).
+  yet (or changed since the pass) is hashed when picked (`sdx_note_written`); the pick marks it used (RECENT). With
+  streaming built (`FELUCCA_SD_STREAM`, section 7) a pick and every read of the record (a load, NEW, the boot) give each
+  part's hash to the streams' plan (`sst_part_set`: the part's CARD sample).
+- **Streaming's memory** (`FELUCCA_SD_STREAM`): the pre-buffer (`sst_pre_ms` 25 / 50 / 100 / 200, default 50) is the
+  device record's too, shown with what the project's heads take (`sst_pre_kb`). The plan refused (`sstp` SSTP_REFUSED):
+  *MEM FULL CARD*, then one drop at a time with the one confirm, red (*Drop T2 FM6?*: a part of `sstp.drop`, whose
+  memory alone makes room, never one asked, as model.c `mem_offer`; YES: the part a silent placeholder, the plan places
+  by itself once its memory is back); none left: *MEM FULL CARD: 25 MS FITS* (`sstp.fit_ms`, the longest pre-buffer that
+  fits), or *MEM FULL CARD*. Said once a refusal.
 - **Presets and kits**: one small file each, `PRESETS/<name>.OPS` ("OPPR": a user preset's record, `upreset.c up_card_*`
   through slot `UP_CARD` = `UP_SLOTS`, RAM only) and `KITS/<name>.OPK` ("OPKT": a user kit and its lanes' sends,
   `drum_kits.c ukit_card_*`), a 16-byte header (magic, version, length, the payload's XXH64), a sector at most
@@ -538,10 +546,13 @@ while a card is ready, else the flash slot with *No SD card: in flash*), PRESETS
 ACTION, ITEM, VIEW) over the page: two columns of eight names, as the white keys sit. SYSTEM > SD card: CARD (READY and
 its size; YES mounts again), VERSIONS, SLACK, SAMPLES INDEX.
 
-**Cost** (`sd-card-mots` + `SDCARD=1`, a local measurement build, not gpufarm): flash 757,892 of 765,696 B (7.8 KB left),
-RAM 97,524 B, pool 320,508 B, against 726,400 B / 96,556 / 313,872 without the card: the card, FatFs, the layout and
-this side +31.5 KB of flash, +968 B of RAM, +6.6 KB of pool. To fit, `PARAM_HELP` is off in `sd-card-mots`
-(the help line: -17 KB in that build). This side (the wiring and the UI) is about 11 KB of it (*estimate*: against the modules-reached measurement of section 5).
+**Cost** (local measurement builds, not gpufarm). `sd-card-mots` is the SD card mode's build now (the user, 2026-10-26:
+"we are in dev mode: drop whatever you want, but keep the code slim"): SDCARD, ARENA 96, SAMPLE, SD_RING 4, and to fit,
+`PARAM_HELP` off (the help line: 17,064 B) and `ENG_PROPHET` off (10,772 B; both back on: 789,056 B, 23,360 B over):
+flash 760,880 of 765,696 B (4.8 KB left), RAM 98,532 B, pool 284,632 B, RAM code 61,904 B. Before streaming (the same
+profile with SDCARD only, PARAM_HELP off): 757,892 B against 726,400 B without the card: the card, FatFs, the layout and
+this side +31.5 KB of flash, +968 B of RAM, +6.6 KB of pool; this side (the wiring and the UI) about 11 KB of it
+(*estimate*: against the modules-reached measurement of section 5).
 
 **Tests**: `tests/ui_optimist_sdcard.h` (`UI_SDCARD`, run on the FAT32 image with the card model): the boot's folders
 and index; PROJECT's list driven by keys and knobs (SAVE by name, a version kept, SAVES listed and loaded, SAVE
@@ -549,7 +560,9 @@ and index; PROJECT's list driven by keys and knobs (SAVE by name, a version kept
 PRESETS and KITS by name (a name of another file refused, a / refused); SAMPLES (folders first, into and up, USE by hash,
 found again after a move, RECENT); SYSTEM > SD card; a full card (the save pending in flash, finished at the next
 mount); the card pulled; no card at the boot; a power cut at every block write of a save made from the UI (the next boot
-finishes it: the card's project the staged one, the record cleared); a pending save of another project dropped. Not run on an FM-1; the emulator stops at the
+finishes it: the card's project the staged one, the record cleared); a pending save of another project dropped; with
+streaming built (`ui_optimist_sdstream_test`): the pick given to the plan, PRE-BUFFER and its KB, MEM FULL CARD's drop
+and the pre-buffer that fits. Not run on an FM-1; the emulator stops at the
 boot's mount in SD builds.
 
 Open: a card LOAD while playing says STOP FIRST (the flash slots stop, load and play again); projects with names the
