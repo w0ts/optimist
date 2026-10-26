@@ -201,7 +201,7 @@ The branch exists because a release download ends on a host with no CORS header,
 raw.githubusercontent.com sends `Access-Control-Allow-Origin: *`.
 
 **The workflow.**
-- **request** (reads the repository, writes issues): refuses an author past `MAX_PER_DAY` (5) in 24 hours, then runs
+- **request** (reads the repository, writes issues): refuses an author past `MAX_PER_DAY` (5) builds that ran in 24 hours (a refused request does not count; the reply says when the next is possible), then runs
   `tools/cloud_build.py` from the default branch, so a request cannot change how it is read. The issue body reaches it
   through an environment variable only. The commit must be a full SHA on a branch of this repository (only maintainers push
   branches, so only published code is built). That commit's own builder checks the configuration (`optimist.py cloud-key

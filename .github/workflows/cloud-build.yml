@@ -68,11 +68,16 @@ jobs:
         run: |
           # (the maintainers are not counted: the relay's issues are theirs, and tools/cloud_relay counts those per address)
           case "$ROLE" in OWNER|MEMBER|COLLABORATOR) exit 0 ;; esac
+          # (the builds that ran: open, or closed as completed; a refused request, the over-limit ones included, does not
+          # count: retrying while over the limit used to push the wait further, 16 "sent" against 5, 2026-10-26)
           since="$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%SZ)"
-          n="$(gh api -X GET search/issues -f q="repo:$REPO is:issue label:cloud-build author:$AUTHOR created:>$since" --jq .total_count)"
+          q="repo:$REPO is:issue label:cloud-build author:$AUTHOR created:>$since -reason:\"not planned\""   # (this request too: it is open)
+          n="$(gh api -X GET search/issues -f q="$q" --jq .total_count)"
           if [ "$n" -gt "$MAX_PER_DAY" ]; then
+            first="$(gh api -X GET search/issues -f q="$q" -f sort=created -f order=asc -f per_page=1 --jq '.items[0].created_at')"
+            next="$(date -u -d "@$(( $(date -u -d "$first" +%s) + 86400 ))" '+%Y-%m-%d %H:%M UTC')"
             mkdir -p work
-            printf 'You have sent %s cloud builds in the last 24 hours; the limit is %s a day. Please send this one again tomorrow.\n' "$n" "$MAX_PER_DAY" > work/reply.md
+            printf 'Not built: you already had %s cloud builds in the last 24 hours, and the limit is %s a day (refused requests do not count). Send it again after %s.\n' "$((n - 1))" "$MAX_PER_DAY" "$next" > work/reply.md
             exit 1
           fi
       - name: Read the request
