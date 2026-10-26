@@ -3406,9 +3406,12 @@ async function editorMirror() {
   ok(l3 && l3.refused && l3.track === 127 && l3.knobs[2].y === 90 && l3.knobs[2].w === 240 && E.navParse([0, 0, 1, 2, 0, 1, 65]) === null
     && JSON.stringify(E.navTracksParse([4, 0, 3, ...nz("MASTER"), ...nz("T1"), ...nz("T2")])) === '["MASTER","T1","T2"]',
     "mirror: NAV: the four lines, a refusal, a short reply refused; TRACKS' names");
-  ok(/tabMirror: "Mirror"/.test(html) && /RENAMED_TABS = \{ screen: "mirror" \}/.test(html) && /rq\(\[CMD\.PANEL, x\]/.test(html) && /case CMD\.PANEL: case CMD\.NAV:/.test(html)
+  ok(/tabMirror: "Mirror"/.test(html) && /RENAMED_TABS = \{ screen: "mirror" \}/.test(html) && /rq\(\[CMD\.PANEL, seq \? \[\.\.\.x, mnav\.seq\] : x\]/.test(html)
+    && /case CMD\.PANEL: return a\[0\] === args\[0\] && \(args\.length < 4 \|\| a\[2\] === args\[3\]\)/.test(html) && /case CMD\.NAV: return a\[0\] === args\[0\]/.test(html)
     && /openPop\("sequence", st\.track - 1\)/.test(html) && /if \(tab === "mirror"\) nav = \{ \.\.\.nav, screen: "mirror" \}/.test(html),
     "mirror: the tab named Mirror (an old #screen opens it), PANEL and NAV replies matched, STEPS' piano roll over the mirrored screen");
+  ok(/retries: seq \? 2 : 0/.test(html) && /if \(opti\("panelx"\) && mnav\.held\.size\) mirPress\(\[4, 0, 0\]\)/.test(html) && /panelx: 1 \}/.test(html),
+    "mirror: with opti_panelx_1 a press carries a seq and is sent again when its answer is lost (done once); letting go is one request");
 }
 
 await editorMock();

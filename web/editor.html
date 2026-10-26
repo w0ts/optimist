@@ -3247,7 +3247,8 @@ function replyMatches(cmd, args, a) {
     case CMD.STEPLANE: return a[0] === args[0] && (args[0] === 0 ? a[1] === args[1] && a[2] === args[2] : args[0] === 1 ? a[1] === args[1] && a[2] === args[2] && a[3] === args[3] : a[2] === args[1] && a[3] === args[2]);
     case CMD.NOTE: return a[0] === args[0] && a[2] === args[1] && (args[0] === 2 || a[3] === args[2]);
     case CMD.SOLO: return a[0] === args[0];
-    case CMD.PANEL: case CMD.NAV: return a[0] === args[0];
+    case CMD.PANEL: return a[0] === args[0] && (args.length < 4 || a[2] === args[3]);   /* (opti_panelx_1: its seq back) */
+    case CMD.NAV: return a[0] === args[0];
     case CMD.FAVS: return a[0] === args[0] && (args[0] === 0 || args[0] === 3 || a[1] === args[1]) && (args[0] !== 2 || a[2] === args[2]);
     case CMD.SCRS: return a[0] === args[0] && a[1] === args[1] && (args[0] === 0 || a[2] === args[5]);
     case CMD.SCRN: return a[0] === args[0] && (args[0] === 4 || a[1] === args[1]) && (args[0] < 1 || args[0] === 4 || a[2] === args[2]);
@@ -7117,7 +7118,7 @@ $("about").addEventListener("mousedown", (e) => { if (e.target === $("about")) $
 $("popx").addEventListener("click", () => closePop());
 $("pop").addEventListener("cancel", (e) => { e.preventDefault(); closePop(); });   /* Escape */
 $("pop").addEventListener("mousedown", (e) => { if (e.target === $("pop")) closePop(); });   /* a click outside (the backdrop) */
-const OPTI = { backup: 4, mirror: 2, library: 1, projects: 1, panel: 1, nav: 1, mirbt: 1 };   /* (the versions this page reads) */
+const OPTI = { backup: 4, mirror: 2, library: 1, projects: 1, panel: 1, nav: 1, mirbt: 1, panelx: 1 };   /* (the versions this page reads) */
 const opti = (f) => !!dev && !!dev.info && !!dev.info.opti && dev.info.opti["opti_" + f] === OPTI[f];
 const hasKitPage = () => !!dev && !!dev.dl && !!dev.smp;   /* the build has drum lanes (36..) and sample slots */
 const hasSnaps = () => !!dev && !!dev.sn;            /* the firmware has snapshots (protocol v8, commands 54..57) */
@@ -11389,7 +11390,7 @@ document.addEventListener("fullscreenchange", async () => {
    lanes under it (109 NAV, asked again when the screen was drawn again, at most every 0.2 s, else every 2 s); a drag or the wheel on
    a knob's card turns that knob, the computer keys press the panel (108 PANEL, one request at a time, a knob's detents merged) */
 const MIR_FAV_KEY = "optimist-mirror-favorites", MIR_ALONE_KEY = "optimist-mirror-alone";
-const mnav = { st: null, tracks: [], tracksFor: -2, busy: false, seen: -1, asked: 0, drawn: "", presses: [], pressing: false,
+const mnav = { st: null, tracks: [], tracksFor: -2, busy: false, seen: -1, asked: 0, drawn: "", presses: [], pressing: false, seq: 0,
   held: new Map(), drag: null, wheel: 0,
   favs: (() => { try { const f = JSON.parse(localStorage.getItem(MIR_FAV_KEY)); return Array.isArray(f) ? f : []; } catch (e) { return []; } })(),
   alone: (() => { try { return localStorage.getItem(MIR_ALONE_KEY) === "1"; } catch (e) { return false; } })() };
@@ -11453,15 +11454,17 @@ function navFavDrop(i) {
   mirRender(true);
 }
 const navHere = (f, st) => !!st && st.screen === f.screen && st.mode === f.mode && st.rows[st.row] === f.page && (f.track == null || f.track === st.track);
-/* 108 PANEL, in order, one at a time; a knob turned while its last turn still waits: one turn */
+/* 108 PANEL, in order, one at a time; a knob turned while its last turn still waits: one turn. With opti_panelx_1 each carries a
+   seq, so a press whose answer was lost is sent again (twice more at most) and done once: a key-up is never lost */
 function mirPress(a) {
   mnav.presses.push(a);
   if (mnav.pressing) return;
   mnav.pressing = true;
   (async () => {
     while (mnav.presses.length && dev) {
-      const x = mnav.presses.shift();
-      try { await rq([CMD.PANEL, x], { timeout: mirWait(300), retries: 0, quiet: true }); } catch (e) { /* lost: the next press goes on */ }
+      const x = mnav.presses.shift(), seq = opti("panelx");
+      if (seq) mnav.seq = (mnav.seq + 1) & 127;
+      try { await rq([CMD.PANEL, seq ? [...x, mnav.seq] : x], { timeout: mirWait(300), retries: seq ? 2 : 0, quiet: true }); } catch (e) { /* lost: the next press goes on */ }
     }
     mnav.presses = [];
     mnav.pressing = false;
@@ -11474,7 +11477,8 @@ function mirTurn(role, steps) {
   mirPress([2, role, 64 + Math.max(-63, Math.min(63, steps))]);
 }
 function mirReleaseAll() {
-  for (const a of mnav.held.values()) mirPress([...a, 0]);
+  if (opti("panelx") && mnav.held.size) mirPress([4, 0, 0]);   /* (let go: every key up in one request) */
+  else for (const a of mnav.held.values()) mirPress([...a, 0]);
   mnav.held.clear();
 }
 /* the panel's point (0..240) under a pointer: the canvas letterboxes in full screen */
