@@ -78,6 +78,74 @@ static void sdu_card(void)                              /* a fresh card in, the 
     sdm_st = SDM_OFF;                                   /* (the boot: the device record read again) */
     sdu_frames(3);
 }
+#if FELUCCA_SD_STREAM && FELUCCA_SLICE
+/* USE on a part on SLICE (sd_mode.c): it stays on SLICE, SRC CARD; the plan reads the file whole into its block
+ * (sd_slice.c) and SLICE's table is the file's: four 100 ms slices, a 25 ms tone at the start of each */
+static void sdu_le16(uint8_t *p, uint32_t v) { p[0] = (uint8_t)v; p[1] = (uint8_t)(v >> 8); }
+static void sdu_le32(uint8_t *p, uint32_t v) { sdu_le16(p, v); sdu_le16(p + 2, v >> 16); }
+static void sdu_slice_use(void)
+{
+    static const uint32_t hz[4] = {220, 441, 882, 1764};
+    uint8_t h[44], d[2];
+    uint32_t i, n, at, idx;
+    FIL f;
+    UINT k;
+    memcpy(h, "RIFF", 4); sdu_le32(h + 4, 36u + 4u * 4410u * 2u); memcpy(h + 8, "WAVEfmt ", 8); sdu_le32(h + 16, 16);
+    sdu_le16(h + 20, 1); sdu_le16(h + 22, 1); sdu_le32(h + 24, 44100); sdu_le32(h + 28, 88200); sdu_le16(h + 32, 2); sdu_le16(h + 34, 16);
+    memcpy(h + 36, "data", 4); sdu_le32(h + 40, 4u * 4410u * 2u);
+    check(f_open(&f, "OPTIMIST/SAMPLES/loop.wav", FA_CREATE_ALWAYS | FA_WRITE) == FR_OK && f_write(&f, h, 44, &k) == FR_OK,
+          "SLICE USE: a WAV of four tones on the card");
+    for (i = 0; i < 4u * 4410u; i++) {
+        double x = i % 4410u < 1100u ? 12000.0 * sin(2.0 * M_PI * hz[i / 4410u] * (i % 4410u) / 44100.0) : 0.0;
+        sdu_le16(d, (uint16_t)(int16_t)x);              /* (25 ms of tone, then silence: four hits) */
+        f_write(&f, d, 2, &k);
+    }
+    f_close(&f);
+    sdm_again();
+    sdu_frames(3);
+    sdu_row(PR_CSMP);
+    turn(EN_K4, -1);                                    /* (VIEW: from RECENT back to the folders) */
+    turn(EN_K4, -1);
+    for (idx = 0, n = sdm_count(); idx < n && strcmp(sdc_name(idx), "loop.wav"); idx++)
+        ;
+    check(idx < n, "SLICE USE: loop.wav listed");
+    set_engine_of(&trk[2], ENG_SLOT_SLICE);
+    sdu_frames(1);
+    check(trk[2].engine == (uint8_t)ENG_SLOT_SLICE, "SLICE USE: T3 on SLICE");
+    song.sel = 2;
+    sdu_key(idx);
+    check(trk[2].eng_req == (uint8_t)ENG_SLOT_SLICE && trk[2].p[P_E0] == (int16_t)SLC_SRC_CARD && sst_part_hash[2] &&
+          sst_part_hash[2] == sdm_smp[2].hash, "USE on a SLICE part: it stays on SLICE, SRC CARD, the sample to the plan");
+    for (i = 0; i < 6u && !slc_crd[2]; i++) {           /* (the gate's two halves, then placed) */
+        clk += 30u * SD_TICKS_MS;
+        sst_plan_poll();
+    }
+    check(sstp.state == SSTP_PLACED && slc_crd[2] && slc_crd[2]->len == 4u * 4410u && sst_part_src[2] == 0xFFu,
+          "... placed whole: SLICE's table the file's 17640 samples, no stream for it");
+    trk[2].p[P_E1] = 0;                                 /* DIV 4 */
+    trk[2].p[P_ROOT] = 0;
+    trk[2].p[P_E2] = 0;
+    for (i = 0; i < 4u && slc_crd[2]; i++) {
+        uint32_t a, b, st;
+        slc_bounds(slc_crd[2], 0, i, &a, &b, &st);
+        check(a == i * 4410u && b == (i + 1u) * 4410u, "... DIV 4: each slice one tone");
+    }
+    at = slc_crd[2] ? slc_count(slc_crd[2], SLC_DIV_AUTO) : 0;
+    check(at == 4u, "... AUTO finds the four tones' starts");
+    set_engine_of(&trk[2], ENG_SLOT_SAMPLE);           /* (back as the tests after it expect) */
+    sdu_frames(1);
+    for (i = 0; i < 6u && slc_crd[2]; i++) {
+        clk += 30u * SD_TICKS_MS;
+        sst_plan_poll();
+    }
+    check(!slc_crd[2], "T3 off SLICE: its whole copy let go");
+    sdu_row(PR_CSMP);
+    turn(EN_K4, 1);                                     /* (VIEW RECENT again, as the tests after it found it) */
+    turn(EN_K4, 1);
+    song.sel = 1;
+}
+#endif
+
 static void sdcard_tests(void)
 {
     uint32_t i, r;
@@ -287,6 +355,9 @@ static void sdcard_tests(void)
     sdu_frames(3);
     check(sdm_sample_path(1, nm2, sizeof nm2) && !strcmp(nm2, "OPTIMIST/SAMPLES/drums/snare 2.wav"),
           "renamed and moved on the card: found by its hash");
+#if FELUCCA_SD_STREAM && FELUCCA_SLICE
+    sdu_slice_use();
+#endif
     song.sel = 0;
     /* ---- SYSTEM > SD CARD: VERSIONS, SLACK, kept in the log's device record */
     op_enter(SCR_SYSTEM);

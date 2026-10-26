@@ -287,6 +287,69 @@ static void load_src(uint32_t si, const wav_t *w, uint32_t pre_ms, const char *w
     W[si] = w;
 }
 
+/* a mono 16-bit WAV with a "smpl" chunk (unity note, one loop ls .. le) before or after its data; nl 0: no loop */
+static int put_smpl_wav(const char *path, uint32_t frames, uint32_t unity, uint32_t nl, uint32_t ls, uint32_t le, int after)
+{
+    uint8_t h[44], sm[8 + 60], d[2];
+    uint32_t i, smn = nl ? 60u : 36u;
+    FIL f;
+    UINT k;
+    memset(sm, 0, sizeof sm);
+    memcpy(sm, "smpl", 4); le32(sm + 4, smn); le32(sm + 8 + 12, unity); le32(sm + 8 + 28, nl);
+    le32(sm + 8 + 36 + 8, ls); le32(sm + 8 + 36 + 12, le);
+    memcpy(h, "RIFF", 4); le32(h + 4, 36u + 8u + smn + frames * 2u); memcpy(h + 8, "WAVEfmt ", 8); le32(h + 16, 16);
+    le16(h + 20, 1); le16(h + 22, 1); le32(h + 24, 44100); le32(h + 28, 88200); le16(h + 32, 2); le16(h + 34, 16);
+    memcpy(h + 36, "data", 4); le32(h + 40, frames * 2u);
+    if (f_open(&f, path, FA_CREATE_ALWAYS | FA_WRITE) != FR_OK || f_write(&f, h, 36, &k) != FR_OK)
+        return 0;
+    if (!after && f_write(&f, sm, 8u + smn, &k) != FR_OK)
+        return 0;
+    if (f_write(&f, h + 36, 8, &k) != FR_OK)
+        return 0;
+    for (i = 0; i < frames; i++) {
+        le16(d, (uint16_t)pat16(i, 9));
+        if (f_write(&f, d, 2, &k) != FR_OK)
+            return 0;
+    }
+    if (after && f_write(&f, sm, 8u + smn, &k) != FR_OK)
+        return 0;
+    return f_close(&f) == FR_OK;
+}
+
+/* "smpl": the unity note and the first loop, before or after the data; out of the data or none: C4, no loop */
+static void smpl_tests(const char *what)
+{
+    static const struct { const char *path; uint32_t unity, nl, ls, le; int after; int8_t root; uint32_t lps, lpe; } T[] = {
+        {"m0.wav", 48, 1, 1000, 3999, 1, -12, 1000, 3999},   /* after the data: C3, a loop */
+        {"m1.wav", 72, 1, 200, 4400, 0, 12, 200, 4400},      /* before the data: C5 */
+        {"m2.wav", 60, 0, 0, 0, 1, 0, 0, 0},                 /* no loop */
+        {"m3.wav", 64, 1, 100, 9000, 0, 4, 0, 0},            /* its end past the data: no loop */
+        {"m4.wav", 200, 1, 300, 100, 1, 0, 0, 0},            /* a note past 127, an end before the start */
+    };
+    uint32_t i, used, f;
+    for (i = 0; i < sizeof T / sizeof T[0]; i++) {
+        sst_src_t *s = &sst_src[8u + i];
+        int32_t x;
+        CHECK(put_smpl_wav(T[i].path, 5000, T[i].unity, T[i].nl, T[i].ls, T[i].le, T[i].after), "%s: %s written", what,
+              T[i].path);
+        src_used = (src_used + 3u) & ~3u;
+        CHECK(sst_src_load(8u + i, T[i].path, 50, src_mem + src_used, sizeof src_mem - src_used, &used) == FR_OK,
+              "%s: %s loaded", what, T[i].path);
+        src_used += used;
+        CHECK(s->frames == 5000u && s->root == T[i].root && s->lps == T[i].lps && s->lpe == T[i].lpe,
+              "%s: %s: %u frames, root %d, loop %u..%u", what, T[i].path, s->frames, s->root, s->lps, s->lpe);
+        for (f = 0, x = 0; f < 5000u; f++) {             /* (the head: the data's first frames, not the smpl's bytes) */
+            const uint8_t *q = f * 2u < s->hlen ? s->head + f * 2u : 0;
+            if (!q)
+                break;
+            x = (int16_t)(q[0] | q[1] << 8);
+            if (x != pat16(f, 9))
+                break;
+        }
+        CHECK(f * 2u >= s->hlen, "%s: %s: its head is the data (frame %u)", what, T[i].path, f);
+    }
+}
+
 static uint32_t step_of(const wav_t *w, double pitch) { return (uint32_t)((double)w->rate / 44100.0 * pitch * 65536.0); }
 
 static const wav_t WAVS[] = {
@@ -326,6 +389,7 @@ static void run_card(const char *img_path)
     CHECK(sst_src[0].hlen == 4412u && sst_src[1].hlen >= 9592u && sst_src[1].hlen <= 9600u && sst_src[2].hlen == 1104u,
           "%s: 50 ms heads (%u %u %u)", what, sst_src[0].hlen, sst_src[1].hlen, sst_src[2].hlen);
     CHECK(sst_src[4].hlen == 2000u, "%s: a short sample whole in its head (%u)", what, sst_src[4].hlen);
+    smpl_tests(what);
     sst_rings(ring_mem, SST_N);
     clk_hook = audio;
     next_block = clk + BLOCK_US;

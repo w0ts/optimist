@@ -288,17 +288,22 @@ static uint32_t sst_kbs(void)                        /* KB/s read since the stat
 /* ---- sources: a WAV on the card ---- */
 static uint32_t sst_le16(const uint8_t *p) { return (uint32_t)p[0] | (uint32_t)p[1] << 8; }
 
-/* the "fmt " and "data" chunks: FR_OK with s's format and data set, FR_INVALID_OBJECT not a WAV the streams play */
+/* the "fmt " and "data" chunks: FR_OK with s's format and data set, FR_INVALID_OBJECT not a WAV the streams play.
+ * "smpl" (before or after the data): its unity note (s->root, from C4) and its first loop (s->lps .. s->lpe, frames,
+ * the end inclusive), kept when it lies in the data; none: C4, no loop */
 static FRESULT sst_wav(FIL *fp, sst_src_t *s, uint8_t *buf)
 {
     UINT got;
-    uint32_t at = 12, size = (uint32_t)f_size(fp), n, fmt = 0, rate = 0, bits = 0, ch = 0, ba = 0;
+    uint32_t at = 12, size = (uint32_t)f_size(fp), n, fmt = 0, rate = 0, bits = 0, ch = 0, ba = 0, unity = 60, ls = 0,
+             le = 0;
     FRESULT r;
     if ((r = f_lseek(fp, 0)) != FR_OK || (r = f_read(fp, buf, 12, &got)) != FR_OK)
         return r;
     if (got < 12 || memcmp(buf, "RIFF", 4) || memcmp(buf + 8, "WAVE", 4))
         return FR_INVALID_OBJECT;
     s->dlen = 0;
+    s->lps = s->lpe = 0;
+    s->root = 0;
     while (at + 8u <= size) {
         if ((r = f_lseek(fp, at)) != FR_OK || (r = f_read(fp, buf, 8, &got)) != FR_OK)
             return r;
@@ -320,7 +325,15 @@ static FRESULT sst_wav(FIL *fp, sst_src_t *s, uint8_t *buf)
         } else if (!memcmp(buf, "data", 4)) {
             s->dofs = at + 8u;
             s->dlen = n < size - s->dofs ? n : size - s->dofs;
-            break;
+        } else if (!memcmp(buf, "smpl", 4) && n >= 36u) {
+            if ((r = f_read(fp, buf + 8, 36 + 24, &got)) != FR_OK)
+                return r;
+            if (got >= 36u)
+                unity = sdh_le32(buf + 8 + 12);
+            if (got >= 60u && sdh_le32(buf + 8 + 28) && n >= 60u) {   /* (its first loop: start, end) */
+                ls = sdh_le32(buf + 8 + 36 + 8);
+                le = sdh_le32(buf + 8 + 36 + 12);
+            }
         }
         if (n > size - at - 8u)
             break;
@@ -338,6 +351,12 @@ static FRESULT sst_wav(FIL *fp, sst_src_t *s, uint8_t *buf)
     s->hash = 0;
     if (!s->frames)
         return FR_INVALID_OBJECT;
+    if (unity <= 127u)
+        s->root = (int8_t)((int32_t)unity - 60);
+    if (le > ls && le < s->frames) {
+        s->lps = ls;
+        s->lpe = le;
+    }
     return FR_OK;
 }
 
@@ -351,7 +370,7 @@ static uint32_t sst_head_bytes(const sst_src_t *s, uint32_t pre_ms)   /* pre_ms 
 static FRESULT sst_src_load(uint32_t si, const char *path, uint32_t pre_ms, uint8_t *mem, uint32_t n, uint32_t *used)
 {
     static FIL f IN_POOL;
-    static uint8_t hd[64] __attribute__((aligned(4)));
+    static uint8_t hd[96] __attribute__((aligned(4)));   /* (sst_wav: a chunk header and 60 bytes of smpl) */
     sst_src_t s, *d = &sst_src[si];
     const FATFS *fs;
     sst_run_t *run = (sst_run_t *)mem;

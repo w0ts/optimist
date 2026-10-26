@@ -22,6 +22,7 @@
 #endif
 #if FELUCCA_SD_STREAM                                   /* (UI_SDCARD with SAMPLE, ARENA and SD_RING: the streams' plan) */
 #include "storage/sd/sd_stream.c"
+#include "storage/sd/sd_slice.c"                       /* (with SLICE: a SLICE part's card sample whole) */
 #include "storage/sd/sd_stream_plan.c"
 #endif
 

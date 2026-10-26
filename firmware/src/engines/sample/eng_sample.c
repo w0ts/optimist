@@ -194,7 +194,8 @@ static void smp_card_on(track_t *t, voice_t *v)
     v->s[6] = 1;
     if (si >= SST_NSRC || !sst_src[si].ready)
         return;                                      /* (none, or not loaded yet: silent) */
-    i = sst_start(si, t->p[P_E3] != 0, 0, sst_src[si].frames - 1u, sst_rate(&sst_src[si], sst_src[si].rate),
+    i = sst_start(si, t->p[P_E3] != 0, sst_src[si].lpe ? sst_src[si].lps : 0u,   /* LOOP: the file's loop, or all */
+                  sst_src[si].lpe ? sst_src[si].lpe : sst_src[si].frames - 1u, sst_rate(&sst_src[si], sst_src[si].rate),
                   &v->active);
     if (i < 0)
         return;
@@ -208,7 +209,7 @@ static OVL(sample) void smp_card_render(track_t *t, voice_t *v, int32_t *out, ui
     uint32_t k = (uint32_t)(v->s[4] & 0xFF), i, frac = v->ph[1], stepq, r;
     sst_t *st = &sst[k < SST_N ? k : 0];
     const sst_src_t *s = &sst_src[(uint32_t)v->s[0] < SST_NSRC ? (uint32_t)v->s[0] : 0];
-    int32_t d16 = clamp(m->pitch16 + p[P_E1] * 16 - 60 * 16, -1536, SST_UP16), x;
+    int32_t d16 = clamp(m->pitch16 + p[P_E1] * 16 - (60 + s->root) * 16, -1536, SST_UP16), x;   /* (root: smpl) */
     int32_t bits = p[P_E2], lp = smp_lp_k((p[P_E4] << 8) + m->cutoff), drv = p[P_E6], sh = bits / 10;
     if (v->s[6] || k >= SST_N) {
         v->active = 0;
@@ -238,7 +239,7 @@ static OVL(sample) void smp_card_render(track_t *t, voice_t *v, int32_t *out, ui
             while (frac >= 65536u) {
                 frac -= 65536u;
                 v->s[2] = v->s[3];
-                if (++v->ph[0] >= s->frames) {
+                if (++v->ph[0] >= (st->lpend ? st->lpend >> s->fsh : s->frames)) {   /* (LOOP: its end) */
                     if (st->lpend)
                         v->ph[0] = st->lpstart >> s->fsh;
                     else {                           /* one-shot: its end */
