@@ -184,7 +184,8 @@ def validate(cfg):
     if cfg.get("PATTERNS") and cfg.get("SECTIONS") == 4:
         err.append(Issue("patterns live in the section log: SECTIONS 8 or 16 (or PATTERNS off)", ["PATTERNS", "SECTIONS"]))
     if cfg.get("LAYOUT"):                        # the fake SD mode: the user samples' and snapshots' flash is the app's
-        clash = [k for k in ("ENG_SAMPLE", "DRUM_USR", "SNAPSHOTS") if k in R.ITEMS and built(cfg, k)]
+        clash = [k for k in ("ENG_SAMPLE", "DRUM_USR", "SNAPSHOTS") if k in R.ITEMS and built(cfg, k)
+                 and not (k == "ENG_SAMPLE" and cfg.get("SD_RING"))]   # (SAMPLE's CARD set: from the card)
         if built(cfg, "NATIVE_BANKS") and built(cfg, "ENG_CZ"):
             clash.append("NATIVE_BANKS")
         if clash or not cfg.get("PATTERNS"):
@@ -194,6 +195,11 @@ def validate(cfg):
     if cfg.get("BT_PROJ") and not (cfg.get("BLE") and cfg.get("ED_MIRROR") and cfg.get("PATTERNS") and cfg.get("BACKUP")):
         err.append(Issue("projects over Bluetooth need Bluetooth MIDI (BLE), the Mirror (ED_MIRROR, its Bluetooth link), the "
                          "projects (PATTERNS) and the backup (BACKUP)", ["BT_PROJ", "BLE", "ED_MIRROR", "PATTERNS", "BACKUP"]))
+    if cfg.get("SD_RING") and not (cfg.get("SDCARD") and cfg.get("LAYOUT") == 1 and cfg.get("FAR_OK") and
+                                   cfg.get("ARENA") and built(cfg, "ENG_SAMPLE")):
+        err.append(Issue("samples from the card (SD_RING) need the card under full FatFs (SDCARD, LAYOUT 1, FAR_OK), "
+                         "SAMPLE (its CARD set) and the arena (ARENA: the heads and the rings)",
+                         ["SD_RING", "SDCARD", "LAYOUT", "FAR_OK", "ENG_SAMPLE", "ARENA"]))
     if cfg.get("FAR_OK") and not cfg.get("LAYOUT"):    # the big slot exists only in the fake SD mode layout
         err.append(Issue("the far probe's answer (FAR_OK) opens the fake SD mode's whole slot: it needs that layout "
                          "(LAYOUT 1)", ["FAR_OK", "LAYOUT"]))
