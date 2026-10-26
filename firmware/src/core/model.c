@@ -59,8 +59,15 @@ static uint8_t sync_reload;                  /* engine / preset / project / user
 /* LIVE: no factory sequence patterns. Loading a sound (factory or user preset) never
  * writes the sequencer: every pattern is the one the player records or enters. */
 
-/* the parts' sounds at power-on (engine, preset): bass, pad, lead */
-static const uint8_t TRK_DEF[NPART][2] = {{0, 0}, {1, 0}, {4, 5},   /* ANALOG 808 BOOM, DIGITAL RHODES, SAMPLE LOFI FLUTE */
+/* the parts' sounds at power-on (engine, preset): bass, pad, lead. LOFI FLUTE plays SAMPLE's FLUTE set (5); a build
+ * without it (SD card mode: no set in flash, SMP_SET_MASK 0) starts T3 on ANALOG G-FUNK LD instead, never a MISSING at
+ * power-on (the user, 2026-10-26) */
+#if FELUCCA_ENG_SAMPLE && defined(SMP_SET_MASK) && !((SMP_SET_MASK >> 5) & 1u)
+#define TRK_DEF_LEAD {0, 9}
+#else
+#define TRK_DEF_LEAD {4, 5}
+#endif
+static const uint8_t TRK_DEF[NPART][2] = {{0, 0}, {1, 0}, TRK_DEF_LEAD,   /* ANALOG 808 BOOM, DIGITAL RHODES, the lead */
 #if NPART > 3
                                           {0, 13},  /* (no drums: track 4, ANALOG WARM PAD) */
 #endif

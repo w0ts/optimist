@@ -15,7 +15,7 @@
  *   sst_plan_poll()            places again when something changed: the CARD voices are let go first (their sources
  *                              not ready: they fade out, eng_sample.c), the old block given back two audio halves later,
  *                              each hash looked up in the sample index (sd_index.c), each file's need summed (the rings:
- *                              as many as the CARD parts can sound voices at once, a card lane one, SST_N at most; its
+ *                              as many as the CARD parts can sound voices at once, SST_PART_RINGS a part, a card lane one, SST_N at most; its
  *                              runs, its head; a
  *                              part's voice count changed is placed again too), the block reserved and taken (the interrupts off), the rings set, the
  *                              sources loaded, each part pointed at its source
@@ -30,6 +30,12 @@
  * arena's other buffers are (core/arena_bufs.c). */
 #ifndef SST_PART_VOICES
 #define SST_PART_VOICES(p) SST_N                     /* (sdcard.c: the voices part p can sound at once) */
+#endif
+/* a part's rings at most: its card notes at once (a 5th is silent and counted, sst_nostream). Measured 2026-10-26 on the
+ * default project (the emulator, SD card build): the effects' lines held 68 KB of the 96 KB arena, and a SAMPLE part's 8
+ * rings of 4 KB plus its head (37,192 B) never fit beside them (MEM FULL CARD at the first USE); 4 rings, about 21 KB, do */
+#ifndef SST_PART_RINGS
+#define SST_PART_RINGS 4u
 #endif
 /* the card lanes (slots SST_NPART + lane, FELUCCA_SD_LANES): a ring each (a lane's hit cuts its own hit before:
  * drums/lane_card.c), sharing the SST_N rings with the parts */
@@ -67,13 +73,14 @@ static uint32_t sst_slicers(void)                    /* the parts on SLICE with 
     return m;
 }
 
-static uint32_t sst_nring(void)                      /* the rings the CARD parts and the card lanes can use at once */
+static uint32_t sst_nring(void)                      /* the rings the CARD parts (SST_PART_RINGS each at most) and the card
+                                                      * lanes can use at once */
 {
     uint32_t p, n = 0;
     uint32_t sl = sst_slicers();
     for (p = 0; p < SST_NSLOT; p++)
         if (sst_part_hash[p] && !((sl >> p) & 1u))
-            n += p < SST_NPART ? SST_PART_VOICES(p) : 1u;
+            n += p < SST_NPART ? (SST_PART_VOICES(p) < SST_PART_RINGS ? SST_PART_VOICES(p) : SST_PART_RINGS) : 1u;
     return n < SST_N ? n : SST_N;
 }
 

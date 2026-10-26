@@ -216,6 +216,9 @@ static int value_long(const param_desc_t *d, int32_t v, char *b)
 static uint32_t nb_kind(const track_t *t);              /* storage/nbank.c */
 static void nb_name(uint32_t kind, uint32_t k, char *nm);
 #endif
+#if FELUCCA_SD_UI
+static const char *sdm_part_name(uint32_t k);           /* (storage/sd/sd_mode.c: a card preset's name) */
+#endif
 static void snd_name(uint32_t c, char *b)
 {
     const track_t *t = &trk[c % NTRK];
@@ -232,6 +235,12 @@ static void snd_name(uint32_t c, char *b)
             nb_name(nb_kind(t), at, b);
             return;
         }
+    }
+#endif
+#if FELUCCA_SD_UI
+    if (!IS_DRUMK(c) && sdm_part_name(c)) {
+        str_cpy(b, sdm_part_name(c), 14);
+        return;
     }
 #endif
     if (IS_DRUMK(c))
