@@ -3,7 +3,9 @@
 # The installer offers the published releases, each with its published flavours (firmware/r/<tag>/, downloaded from the
 # releases here: a page cannot fetch a release file itself, GitHub sends it with no CORS header), and this commit's
 # development build of each flavour in web/flavours.json (firmware/optimist-<version>-<id>.fwsc), all fetched by a
-# relative URL and checked against the SHA-256 written into the page. A release published redeploys the site. The
+# relative URL and checked against the SHA-256 written into the page. The latest release's simulators are built from its
+# tag's own source (firmware/r/<tag>/*.wasm), and site.json names it ("latest": tag, commit): the builder and the
+# Simulator tab start from that release, main stays a choice. A release published redeploys the site. The
 # toolchain is downloaded on the runner as build.yml does. The editor needs no firmware. Details: docs/WEB.md.
 #
 # Needs Pages enabled with the source "GitHub Actions" (Settings > Pages); on a private repository that needs a
@@ -84,10 +86,26 @@ jobs:
           while read -r tag date; do
             case "$tag" in v[0-9]*) ;; *) echo "skipped: $tag (not a v tag)"; continue ;; esac
             mkdir -p "releases/$tag"
-            printf '{"tag": "%s", "date": "%s"}\n' "$tag" "$date" > "releases/$tag/release.json"
+            sha=$(gh api "repos/$GITHUB_REPOSITORY/commits/$tag" --jq .sha) || sha=""   # (the tag's commit: the builder reads that version)
+            printf '{"tag": "%s", "date": "%s", "sha": "%s"}\n' "$tag" "$date" "$sha" > "releases/$tag/release.json"
             gh release download "$tag" --pattern 'optimist-*.fwsc' --dir "releases/$tag" || echo "::warning::$tag: no packages"
           done
           ls -R releases
+      - name: The latest release's simulators, built from its tag's own source (the Simulator tab starts on them)
+        # (the tag's config/profiles and tools/sim.py are that release's; one checkout of the tag beside this one)
+        run: |
+          python3 web/make_site.py --release-sims releases | while read -r tag sha profile; do
+            src="worktrees/release-$tag"
+            if [ ! -d "$src" ]; then
+              git fetch --no-tags --depth 1 origin "+refs/tags/$tag:refs/tags/$tag" < /dev/null
+              git worktree add --detach "$src" "$sha" < /dev/null || { echo "::warning::$tag: no checkout of $sha"; continue; }
+            fi
+            cfg="config/profiles/$profile.config"
+            if [ ! -f "$src/$cfg" ]; then echo "::warning::$tag: no $cfg at the tag"; continue; fi
+            (cd "$src" && python tools/sim.py build --wasm --config "$cfg" --out "$GITHUB_WORKSPACE/releases/$tag/optimist-sim-$profile.wasm" < /dev/null) \
+              || echo "::warning::$tag: the simulator of $profile did not build"
+          done
+          ls -l releases/*/
       - name: Make the site
         env:
           OPTIMIST_SOURCE_REF: ${{ github.ref_type == 'tag' && github.ref_name || '' }}   # the page's Source link: the tag

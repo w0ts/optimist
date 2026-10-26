@@ -7,7 +7,7 @@
 // tools/builder/web_api.py). The cloud build (where from, the request, its progress): cloud.js. opts.app: the Mirror
 // app's page (web/builder/app.html): the Build card first, without the files and the keys. docs/WEB.md.
 import {
-  PYODIDE_VERSION, TURNSTILE_SITEKEY, REGIONS, SORTS, barModel, fmtK, built, cloudConfigUrl, commitOf, repoOf, defaultPreset, defaults, deltaOf, fileName, fmt,
+  MAIN_REF, PYODIDE_VERSION, TURNSTILE_SITEKEY, REGIONS, SORTS, barModel, fmtK, built, cloudConfigUrl, commitOf, latestOf, pickRef, refUrl, repoOf, defaultPreset, defaults, deltaOf, fileName, fmt,
   changeText, gaugeModel, hasInfo, indexRegistry, kDelta, messagesOf, offFits, oneLine, overflowLines, presets, pyodideBase, savedOf, treeOf,
 } from "./logic.js";
 import { mountCloud } from "./cloud.js";
@@ -165,22 +165,27 @@ function call(fn, ...args) {
   return new Promise((res, rej) => { const id = ++nextId; waiting.set(id, { res, rej }); worker.postMessage({ id, fn, args }); });
 }
 /* the version everything is read from (the user, 2026-10-25: "the branch should be chosen first, everything else depends on
-   it"): ?ref=<commit> or opts.ref, a tag or a branch the relay listed; none: the site's own copy (main as deployed). Its
-   web/builder/data (registry, profiles, costs, the Python) comes from that commit, raw.githubusercontent.com (CORS *) */
-function refOf() {
-  const r = opts.ref ?? (typeof location !== "undefined" ? new URLSearchParams(location.search).get("ref") : null);
-  return /^[0-9a-f]{40}$/.test(r || "") ? r : null;
+   it"; 2026-10-26: "by default it should pick the last release tag, not main"): ?ref=<commit> or opts.ref (a tag or a
+   branch the relay listed), ?ref=main (the site's own copy, main as deployed); none: the latest published release
+   (site.json "latest", web/make_site.py), else main. A commit's web/builder/data (registry, profiles, costs, the Python)
+   comes from raw.githubusercontent.com (CORS *). Set by start() (pickRef) before anything is read */
+let REF = null, CUR = MAIN_REF, LATEST = null;
+const askedRef = () => opts.ref ?? (typeof location !== "undefined" ? new URLSearchParams(location.search).get("ref") : null);
+/** the latest release from the site's package list (../installer/site.json beside the builder, on the site and in the
+    editor); none or broken: null (main) */
+async function latestRelease() {
+  try {
+    const r = await fetch(new URL("../installer/site.json", import.meta.url), { cache: "no-cache", signal: AbortSignal.timeout(10000) });
+    return r.ok ? latestOf(await r.json()) : null;
+  } catch (e) { return null; }
 }
-const REF = refOf();
 const dataBase = () => (REF ? `https://raw.githubusercontent.com/${S.repo || "w0ts/optimist"}/${REF}/web/builder/data/` : new URL("./data/", import.meta.url).href);
 const CARRY = "optimist-builder-carry";      // the configuration carried over a change of version (sessionStorage)
-/** another version: the page again with ?ref (none: main), the configuration carried */
-function switchRef(sha) {
-  if ((sha || null) === REF) return;
+/** another version (MAIN_REF or a commit): the page again with its ?ref (none: the latest release), the configuration carried */
+function switchRef(value) {
+  if (!value || value === CUR) return;
   try { if (S.view && S.view.dump) sessionStorage.setItem(CARRY, S.view.dump); } catch (e) { /* no storage: the default */ }
-  const u = new URL(location.href);
-  if (sha) u.searchParams.set("ref", sha); else u.searchParams.delete("ref");
-  location.replace(u.href);
+  location.replace(refUrl(location.href, value, LATEST));
 }
 function startPython() {
   worker = new Worker(new URL("./py-worker.js", import.meta.url), { type: "module" });
@@ -222,9 +227,10 @@ async function loadText(text, name, source) {
 }
 
 async function choosePreset(id) {
-  const p = S.presets.find((x) => x.id === id);
+  /* (profile:NAME of a profile not published here: the flavour built from it; a release's simulator asks for its profile) */
+  const p = S.presets.find((x) => x.id === id) || (String(id).startsWith("profile:") ? S.presets.find((x) => x.kind === "flavour" && x.name === id.slice(8)) : null);
   if (!p) return;
-  $("bpreset").value = id;
+  $("bpreset").value = p.id;
   $("unsave").hidden = p.kind !== "saved";
   $("presetdesc").textContent = p.description;
   const r = await loadText(p.text, p.name, p.label);
@@ -715,8 +721,13 @@ function onKey(e) {
 function onDocClick(e) { if (!hasPopover && !e.target.closest("#bpop, .o-info")) $("bpop").hidden = true; }
 
 async function start() {
-  const info = await fetch(new URL("./build-info.json", import.meta.url)).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+  const asked = askedRef();
+  const [info, latest] = await Promise.all([fetch(new URL("./build-info.json", import.meta.url)).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+    latestRelease()]);              // (asked for main or a commit too: the latest release stays offered in Build from)
+  LATEST = latest;
+  ({ ref: REF, value: CUR } = pickRef(asked, latest));
   S.repo = repoOf(info);
+  S.siteCommit = commitOf(info);
   const json = (f) => fetch(dataBase() + f).then((r) => { if (!r.ok) throw new Error(`${f} of this version: HTTP ${r.status}`); return r.json(); });
   const [desc, prof] = await Promise.all([json("registry.json"), json("profiles.json")]);
   S.reg = indexRegistry(desc);
@@ -727,7 +738,7 @@ async function start() {
   S.default = defaultPreset(prof, S.presets);
   $("reset").textContent = `Reset to default (${S.default.label})`;
   wire();
-  cloud.loadRefs(REF, switchRef);
+  cloud.loadRefs(CUR, switchRef, LATEST);
   renderTree();
   startPython();
   try {

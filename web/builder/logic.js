@@ -132,6 +132,31 @@ export const DEFAULT_REPO = "w0ts/optimist";
  * ?cloud=<stem>), else null for anything that is not a build's stem */
 export const cloudConfigUrl = (repo, stem) => (/^optimist-[a-z0-9-]{1,32}-[0-9a-f]{16}$/.test(stem || "")
   ? `https://raw.githubusercontent.com/${repo}/cloud-builds/${stem}.config` : null);
+/** the version the builder reads ("Build from"): MAIN, the site's own copy (main as deployed), or a commit */
+export const MAIN_REF = "main";
+/** site.json's latest published release ({tag, sha, date}, web/make_site.py latest_of), well formed, else null */
+export function latestOf(site) {
+  const l = site && site.latest;
+  return l && typeof l.tag === "string" && /^v[0-9A-Za-z._-]{1,32}$/.test(l.tag) && typeof l.sha === "string" && /^[0-9a-f]{40}$/.test(l.sha)
+    ? { tag: l.tag, sha: l.sha, date: typeof l.date === "string" ? l.date : "" } : null;
+}
+/** where the builder starts (the user, 2026-10-26: "by default it should pick the last release tag, not main"): asked, the
+    page's ?ref (or opts.ref): "main" or a commit; else the latest release; else main. -> {ref: the commit to read the data
+    of (null: the site's own copy), value: the "Build from" choice (MAIN_REF or the commit)} */
+export function pickRef(asked, latest) {
+  if (asked === MAIN_REF) return { ref: null, value: MAIN_REF };
+  if (/^[0-9a-f]{40}$/.test(asked || "")) return { ref: asked, value: asked };
+  return latest ? { ref: latest.sha, value: latest.sha } : { ref: null, value: MAIN_REF };
+}
+/** the page's URL for another "Build from" choice: ?ref=main, ?ref=<commit>, or none for the latest release (the default) */
+export function refUrl(href, value, latest) {
+  const u = new URL(href);
+  if (latest && value === latest.sha) u.searchParams.delete("ref"); else u.searchParams.set("ref", value);
+  return u.href;
+}
+/** the commit a cloud build asks for: the one chosen; main: the site's own commit (main as deployed; "" unknown: the relay's main) */
+export const buildCommit = (value, siteCommit) => (value === MAIN_REF ? siteCommit || "" : /^[0-9a-f]{40}$/.test(value || "") ? value : "");
+
 export const repoOf =(info) => (info && typeof info.repo === "string" && /^[A-Za-z0-9-]+\/[A-Za-z0-9._-]+$/.test(info.repo) ? info.repo : DEFAULT_REPO);
 
 /** a cloud build's release assets: <stem>.fwsc and <stem>-ui.zip (tools/cloud_build.py asset_stem says the same) */
