@@ -1141,7 +1141,8 @@ static void proj_capture(project_t *p, dlrec_t *d)   /* what is playing now, as 
         if (i < NPART)                                  /* (LFO DEST's, ENV DEST's, ENV2's slots: the modulation record,
                                                          * dlfo_rec.c; the words of their depths of before at 0) */
             pj_mods_zero(p->t[i].p);
-        p->t[i].engine = (uint8_t)(i < NPART ? eng_uid(trk[i].eng_req % NENGINES) : 0u);   /* (a UID) */
+        p->t[i].engine = (uint8_t)(i < NPART ? (T_SILENT(&trk[i]) ? ENG_UID_SILENT : eng_uid(trk[i].eng_req % NENGINES))
+                                             : 0u);   /* (a UID; a silent placeholder: ENG_UID_SILENT) */
         p->t[i].preset = trk[i].preset;
         steps_store(p->t[i].step, &trk[i], i);         /* (each note's own end: an event of its store, below) */
     }
@@ -1234,11 +1235,23 @@ static void proj_apply(const project_t *p, const dlrec_t *d, int all)
     for (k = 0; k < 4u; k++)                            /* the macros' positions (FUNC's tail) */
         mac_pos[k] = (int16_t)clamp(p->nd.mac[k], -64, 63);
 #endif
+#if PART_DROPS
+    part_mem_load_begin();                              /* (the refusals of before: replaced by this load's) */
+#endif
     for (k = 0; k < NTRK; k++) {
         track_t *t = &trk[k];
         const proj_trk_t *s = &p->t[k];
+#if PART_DROPS
+        uint32_t e = k < NPART ? (s->engine == ENG_UID_SILENT ? eng_silent_slot() : eng_slot(s->engine)) : 0u;
+        uint32_t no = k < NPART && part_mem_load(k, e); /* (UID -> slot, not built: its fallback; a silent placeholder) */
+        t->silent = (uint8_t)(k < NPART && (s->engine == ENG_UID_SILENT || no));
+        t->eng_req = (uint8_t)(no ? eng_silent_slot() : e);   /* no room: a placeholder with the project's sound until
+                                                         * there is room (engines.c part_mem_refused.lmask, model.c
+                                                         * mem_load_next); every part refused is recorded */
+#else
         uint32_t e = k < NPART ? eng_slot(s->engine) : 0u;   /* UID -> slot (not built: its fallback) */
         t->eng_req = (uint8_t)e;
+#endif
         t->user = 0;                                    /* (no user preset slot is saved) */
         pj_to_p(v, s->p);
         if (IS_DRUMK(k))                              /* (the ACCENT amount: stored from its default) */

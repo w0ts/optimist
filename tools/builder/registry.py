@@ -1097,6 +1097,22 @@ _add("ASM", "FELUCCA_ASM", "hand-written assembly speed-ups (FM6, ANALOG 2)", Y,
      desc="The hottest loops of FM6 and ANALOG 2 written in the processor's assembly: the same sound, about 8 to 19 % "
           "less audio CPU (emulator), for about 0.6 KB of flash and 0.7 KB of fast RAM code. Keep on; off only to "
           "compare with the plain C.")
+# bit 411 (2026-10-25, the sdcard branch's; free on main): the arena (core/arena.c, docs/ARENA.md): KB, 0 the fixed
+# memories as before (no arena code built). The parts' engine states placed by need, the edit's one confirm for what to
+# drop, a load's refusals on it one by one. The pool estimate: core.py arena_mem
+_add("ARENA", "FELUCCA_ARENA_KB", "memory per project (an arena for the synth engines)",
+     Y, 411, default=0,
+     choices=((0, "off: every engine's memory reserved, as before"), (24, "24 KB"), (32, "32 KB"), (40, "40 KB"),
+              (48, "48 KB"), (64, "64 KB"), (96, "96 KB")),
+     experimental=True, tested="host-tested only (tests/arena_test.c, placeholder_test.c, backports_test.c); not on an FM-1",
+     desc="Instead of reserving the largest engine's memory for each synth part whether a project uses it or not, one "
+          "pool memory of this size holds what the project uses: each part's engine state (FM6, PHYS, GRAIN, ACID, "
+          "PLAITS, JUNO, DRAWBAR, CZ, SLICE), placed when an engine is picked, its room free for the others once the "
+          "part plays an engine that keeps nothing there. What the arena does not need goes to the undo history. A "
+          "change that does not fit is refused and the device proposes a part to drop (DROP T2 FM6); a dropped part "
+          "plays nothing (NONE) until an engine is picked for it; a project load that does not fit offers its refused "
+          "parts the same way, one at a time, the project's sound kept. Off: every memory reserved as before, nothing "
+          "ever refused, no arena code.")
 # (bit 57, SIMD, withdrawn 2026-10-12: the packed 16-bit forms compute something else on the real FM-1 than the emulator
 #  assumes, a build with them crackles; the code stays (hal/fm1_simd.h, FELUCCA_SIMD default 0, the boot probe
 #  FELUCCA_SIMD_PROBE through tools/build.py); RETIRED below; never reuse the bit)

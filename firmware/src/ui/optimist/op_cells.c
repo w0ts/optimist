@@ -205,6 +205,10 @@ static void snd_name(uint32_t c, char *b)
 {
     const track_t *t = &trk[c % NTRK];
     const engine_t *e = ENGINES[t->eng_req % NENGINES];
+    if (T_SILENT(t)) {                                    /* a silent placeholder: no sound to name (core.h) */
+        b[0] = 0;
+        return;
+    }
 #if FELUCCA_NB_LIST
     if (!IS_DRUMK(c) && t == TSEL) {                   /* the engine's own collection (the FM6 voice packs, a received bank): the voice's name */
         uint32_t at, r, n = nb_list(&r, ~0u, &at);

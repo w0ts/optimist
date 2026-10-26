@@ -792,6 +792,8 @@ static int drone_unlatch(track_t *t, uint32_t note)
 static volatile uint8_t trk_hits;
 static void trk_note_on(track_t *t, uint32_t note, uint32_t vel)
 {
+    if (T_SILENT(t))
+        return;                                         /* a silent placeholder plays nothing (core.h) */
     uint32_t any = 0, i, mode = (uint32_t)t->p[P_VOICE];
     if (trk_silent(t))
         return;                                         /* MUTE, or another track soloed */
@@ -1053,6 +1055,11 @@ static __attribute__((noinline)) void pold_out(uint32_t m)
 static void engine_block(track_t *t)
 {
     uint32_t i, any = 0;
+#if PART_DROPS                                          /* (an arena placed by need: the engine a part starts with, or
+                                                         * one a load put there without a switch, gets its memory) */
+    if ((uint32_t)(t - trk) < NPART && !part_mem_p[t - trk] && part_mem_bytes(t->engine))
+        (void)part_mem_claim((uint32_t)(t - trk), t->engine);
+#endif
     if (t->xf_on || t->eng_req != t->engine || t->pold) {
         if (!t->xf_on) {
             for (i = 0; i < NVOICE; i++)
@@ -1072,7 +1079,13 @@ static void engine_block(track_t *t)
             v->env = v->env_out = 0;
         }
         t->engine = t->eng_req % NENGINES;
+#if PART_DROPS
+        if (part_mem_claim((uint32_t)(t - trk), t->engine))     /* its engine memory (engines.c); no room (an arena */
+            part_mem_unplaced(t, t->engine);                     /* placed by need, nobody reserved): a placeholder,
+                                                                  * the UI offers what to drop */
+#else
         part_mem_claim((uint32_t)(t - trk), t->engine);   /* its engine memory (engines.c) */
+#endif
         t->xf_on = 0;
         t->pold = 0;
         t->nmono = 0;
@@ -1396,7 +1409,7 @@ static HOT uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
     track_lfo_tick(t);
     if (LFO2_ON(t))
         FAR(lfo2_tick)(t, &lm);
-    if (e->block)                                      /* the engine's per-part work (DRAWBAR: bars, rotor) */
+    if (e->block)                                 /* the engine's per-part work (DRAWBAR: bars, rotor) */
         e->block(t);
     for (i = 0; i < NVOICE; i++) {
         voice_t *v = &t->v[i];
@@ -1410,7 +1423,7 @@ static HOT uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
             if (pl.slow)
                 FAR(env_pre)(t, v, &pl, &vo);
             env = env_tick(t, v);
-            if (e->amp)                                 /* the engine's own amplitude curve */
+            if (e->amp)                            /* the engine's own amplitude curve */
                 env = e->amp(t, v, env);
             m.envq15 = amp = env;                       /* (ENV 1: the amplitude; its FLT SHP below: as before) */
             if (pl.slow) {
@@ -1480,7 +1493,7 @@ static HOT uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
             FAR(env_back)(t, &vo);                      /* (its values back: env_pre) */
         nr++;
     }
-    if (e->post)                                        /* the part after its voices (FM6: Dexed's DC filter) */
+    if (e->post)                                   /* the part after its voices (FM6: Dexed's DC filter) */
         e->post(t, out, n, nr);
     if (fade) {
         for (i = 0; i < 8u; i++)

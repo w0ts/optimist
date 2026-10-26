@@ -50,7 +50,7 @@ static uint16_t lane_col(uint32_t l)
 static uint16_t trk_col(uint32_t i)
 {
     const track_t *t = &trk[i % NTRK];
-    return is_drum(t) ? kit_col() : ENG_COL[t->eng_req % NENGINES];
+    return is_drum(t) ? kit_col() : T_SILENT(t) ? C_GRAY : ENG_COL[t->eng_req % NENGINES];   /* (a silent placeholder: grey) */
 }
 #define TRK_MID(i) col_shade(trk_col(i), 5u)
 #define TRK_DIM(i) col_shade(trk_col(i), 3u)

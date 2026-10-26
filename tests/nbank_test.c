@@ -171,14 +171,14 @@ int main(void)
     check("... the list's cursor on it", r == 1u);
     cz_block(&trk[0]);
     tone(t2, 2, "SOFT PAD");
-    check("... the part plays the stored bytes (cz_block)", !memcmp(cz_tone[0], t2, 128));
+    check("... the part plays the stored bytes (cz_block)", !memcmp(cz_tone(0), t2, 128));
     czb_put(25, t1);
     cz_block(&trk[0]);
-    check("the slot written again: the part takes the new bytes", !memcmp(cz_tone[0], t1, 128));
+    check("the slot written again: the part takes the new bytes", !memcmp(cz_tone(0), t1, 128));
     czb_put(25, 0);
     cz_block(&trk[0]);
     cz_encode(&CZ_TONES[CZT_INIT], t2);
-    check("the slot erased: the part plays INIT, the list skips it", !memcmp(cz_tone[0], t2, 128) && nb_list(&r, ~0u, &at) == 1u && r == 1u);
+    check("the slot erased: the part plays INIT, the list skips it", !memcmp(cz_tone(0), t2, 128) && nb_list(&r, ~0u, &at) == 1u && r == 1u);
     nb_load(25);
     check("an empty slot: no load", trk[0].p[P_E0] == (int16_t)(CZT_N + 25u));
 

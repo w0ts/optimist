@@ -210,6 +210,15 @@ def validate(cfg):
                                  ["DLY_ARENA", k] + (["XDLY_LEN"] if k == "INS_XDLY" else []) + ["DLY_LEN"]))
         if mem["types"]:
             note.append(Issue(f"{R.ITEMS['DLY_ARENA'].label}: {fx_memory_text(mem)}", ["DLY_ARENA"]))
+    if cfg.get("ARENA", 0):                      # (the engines' arena: one part's largest state must fit it)
+        one, room = part_mem(cfg)["pool"] // NPART, cfg["ARENA"] * 1024
+        if one > room:
+            err.append(Issue(f"the arena ({cfg['ARENA']} KB) cannot hold a part's engine state ({one // 1024} KB): a "
+                             "larger ARENA, or off", ["ARENA"]))
+        else:
+            note.append(Issue(f"{R.ITEMS['ARENA'].label}: {cfg['ARENA']} KB in place of "
+                              f"{part_mem(cfg)['pool'] // 1024} KB of fixed engine memories; a project using more is "
+                              "refused and offered what to drop", ["ARENA"]))
     for k, it in R.ITEMS.items():
         if it.off_warning and not cfg[k] and (not it.parent or built(cfg, it.parent)):
             warn.append(Issue(f"{it.label} off: {it.off_warning}", [k]))
@@ -458,7 +467,10 @@ def auto_store(cfg):
 
 # engines.c part_mem: NPART engine states in the pool, a union of the engines built that keep one there; bytes of
 # the array with each member alone (sizes.json "symbols", measure_costs.py holds these against every build it makes)
-PART_MEM = {"ENG_FM6": 11712, "ENG_PHYS": 38664, "ENG_GRAIN": 21060, "ENG_ACID": 1440}   # (2026-10-14)
+# (2026-10-26: JUNO, DRAWBAR, CZ and SLICE's states moved in from their static arrays: their measured item costs in
+# costs.json count those arrays as RAM until a re-measure)
+PART_MEM = {"ENG_FM6": 11712, "ENG_PHYS": 38664, "ENG_GRAIN": 21072, "ENG_ACID": 1440, "ENG_PLAITS": 1920,
+            "ENG_JUNO": 1344, "ENG_DRAWBAR": 2496, "ENG_CZ": 3120, "ENG_SLICE": 3072}   # (2026-10-25/26, measured)
 PART_MEM_NONE = 0                                   # (none built: not in the image)
 
 
@@ -468,6 +480,17 @@ def part_mem(cfg):
     computes it (model_terms) and the measured deltas and pairs leave it out (measure_costs.py)"""
     sizes = [n for k, n in PART_MEM.items() if built(cfg, k)]
     return {"pool": max(sizes) if sizes else PART_MEM_NONE}
+
+
+NPART = 3                  # core.h: the synth parts (part_mem's NPART states)
+
+
+def arena_mem(cfg):
+    """-> {region: bytes} of the arena (ARENA, KB: core/arena.c) against the fixed memories it replaces: its own pool
+    less the parts' engine states (part_mem); {} with ARENA off. The code it adds is its measured delta (costs.json)"""
+    f, _ = flags(cfg)
+    kb = int(f.get(R.ITEMS["ARENA"].flag, 0) or 0)
+    return {"pool": kb * 1024 - part_mem(cfg)["pool"]} if kb else {}
 
 
 NTRK = 4
@@ -543,10 +566,11 @@ def dly_arena(cfg):
 def model_terms(cfg):
     """-> {region: bytes} the computed part of the estimate, against the default build: what is not a sum of
     per-item deltas (the reverb's line buffer, rev_lines; the automation store, auto_store; the engines' part
-    states, part_mem; the delay arena, dly_arena)"""
+    states, part_mem; the delay arena, dly_arena; the engines' arena, arena_mem)"""
     d = defaults()
     arena = ({"pool": dly_arena(cfg)["pool"]}, {"pool": dly_arena(d)["pool"]})
-    terms = [(rev_lines(cfg), rev_lines(d)), (auto_store(cfg), auto_store(d)), (part_mem(cfg), part_mem(d)), arena]
+    terms = [(rev_lines(cfg), rev_lines(d)), (auto_store(cfg), auto_store(d)), (part_mem(cfg), part_mem(d)), arena,
+             (arena_mem(cfg), arena_mem(d))]
     return {r: sum(a.get(r, 0) - b.get(r, 0) for a, b in terms) for r in REGIONS}
 
 

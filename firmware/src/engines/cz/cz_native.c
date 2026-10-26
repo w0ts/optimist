@@ -152,9 +152,9 @@ static uint32_t cz_mod(const uint8_t *b, const cz_ed_t *ed)
 static void cz_native_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
     uint32_t part = (uint32_t)(t - trk) % NPART;
-    const uint8_t *b = cz_tone[part];
-    const cz_ed_t *ed = &cz_ed[part];
-    cz_voice_t *c = cz_voice(t, v); cz_env_def_t (*defs)[3] = cz_defs[part], dca; cz_hw_pd_t pd[2];
+    const uint8_t *b = cz_tone(part);
+    const cz_ed_t *ed = &cz_ed(part);
+    cz_voice_t *c = cz_voice(t, v); cz_env_def_t (*defs)[3] = cz_defs(part), dca; cz_hw_pd_t pd[2];
     uint32_t inc[2], ph[2] = {v->ph[0],v->ph[1]}, tg[2] = {(uint32_t)v->s[0],(uint32_t)v->s[1]};
     int32_t amp[2][2], dc[2] = {v->s[2],v->s[3]}, step[2];
     uint32_t ls = cz_lines(b, ed), first = ls == 1u ? 1u : 0u, last = ls >= 2u ? 1u : first;

@@ -728,13 +728,18 @@ static int pm_play(uint32_t e, uint32_t pi, uint32_t note)
            pk, part_mem_owner[0], busy ? " STILL SOUNDING" : "");
     return acc > 0 && pk <= 32767 && !busy && part_mem_owner[0] == (e == 0u ? part_mem_owner[0] : e + 1u);
 }
+#if PART_DROPS
+#define PM_FIXED_OK 1                                   /* (an arena placed by need: its own size) */
+#else
+#define PM_FIXED_OK (sizeof part_mem == NPART * ARN_SLOT)
+#endif
 static void t_part_mem(void)
 {
-    static part_mem_t keep;
+    static uint8_t keep[ARN_SLOT];
     int ok;
     reset(120);
-    check(sizeof part_mem[0] >= sizeof(fm6_mem_t) && sizeof part_mem[0] >= PHYS_POLY * sizeof(phys_slot_t) &&
-          sizeof part_mem[0] < sizeof(fm6_mem_t) + PHYS_POLY * sizeof(phys_slot_t),
+    check(ARN_SLOT >= sizeof(fm6_mem_t) && ARN_SLOT >= PHYS_POLY * sizeof(phys_slot_t) &&
+          ARN_SLOT < sizeof(fm6_mem_t) + PHYS_POLY * sizeof(phys_slot_t) && PM_FIXED_OK,
           "part memory: one per part, the largest engine's, not the sum");
     ok = pm_play(ENG_IX_FM6, 0, 60);
     ok &= pm_play(ENG_IX_PHYS, 3, 48);                /* (SYMP-like presets fill the lines) */
@@ -744,7 +749,7 @@ static void t_part_mem(void)
     ok &= pm_play(ENG_IX_PHYS, 0, 52);
     check(ok, "part memory: FM6, PHYS, ACID, FM6, ACID, PHYS on one part: each audible, bounded, free after the release");
     ok = pm_play(ENG_IX_FM6, 0, 60);
-    keep = part_mem[0];
+    memcpy(keep, PART_MEM_AT(0), sizeof keep);
     {
         int32_t out[CTL * 2];
         uint32_t b;
@@ -753,7 +758,7 @@ static void t_part_mem(void)
             events_block(CTL);
             mix_block(out, CTL);
         }
-        ok &= trk[0].engine == 0u && part_mem_owner[0] == ENG_IX_FM6 + 1u && !memcmp(&keep, &part_mem[0], sizeof keep);
+        ok &= trk[0].engine == 0u && part_mem_owner[0] == ENG_IX_FM6 + 1u && !memcmp(keep, PART_MEM_AT(0), sizeof keep);
     }
     ok &= pm_play(ENG_IX_FM6, 0, 60);
     check(ok, "part memory: FM6 -> ANALOG keeps FM6's state untouched, FM6 again plays");

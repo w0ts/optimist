@@ -265,6 +265,18 @@ job; ( jobin
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src $BACKPORTS_ON $SEC4 -o "$OUT/backports_test" tests/backports_test.c -lm
     run "backported features (each switch on): chance, QNT SEQ, spring reverb, BASS+, delay halving, motion, PHYS, ACID" "$OUT/backports_test"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src $BACKPORTS_ON $SEC4 "-DFELUCCA_ARENA_BYTES=(2u * ARN_SLOT)" -o "$OUT/backports_arena_test" tests/backports_test.c -lm
+    run "the same with an arena of two parts' memory placed by need (core/arena.c): FM6, PHYS, ACID swapped on a part" "$OUT/backports_arena_test"
+) >"$U.out" 2>&1 & jobbg
+job; ( jobin   # the silent placeholder (docs/ARENA.md): a part dropped to make memory room
+    $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -DFELUCCA_ENG_FM6=1 "-DFELUCCA_ARENA_BYTES=(NPART * ARN_SLOT)" -o "$OUT/placeholder_test" tests/placeholder_test.c -lm
+    run "a dropped part (an arena of every part's memory: nothing refused): silent, its memory idle, NONE, through a save and a load until an engine is picked" "$OUT/placeholder_test"
+    $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -DFELUCCA_ENG_FM6=1 -DPH_FLOW=1 "-DFELUCCA_ARENA_BYTES=ARN_SLOT" -o "$OUT/placeholder_flow_test" tests/placeholder_test.c -lm
+    run "memory short (an arena of one part's): an edit refused, the part to drop proposed, dropped, the change made; a load: every part refused collected (two on one load), placeholders, each in turn on the edit's confirm with the project's sound kept, declined: a placeholder" "$OUT/placeholder_flow_test"
+) >"$U.out" 2>&1 & jobbg
+job; ( jobin   # the arena (core/arena.c, docs/ARENA.md): first fit and the fixed slots
+    $CC -O2 -w -Ifirmware/src -o "$OUT/arena_test" tests/arena_test.c
+    run "arena placed by need: reserve, take, reuse, idle reclaimed, refused, what to drop; random switches, some pending" "$OUT/arena_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src $BACKPORTS_ON $SEC4 -DFELUCCA_TRK_FILT=1 -o "$OUT/backports_tf_test" tests/backports_test.c -lm
