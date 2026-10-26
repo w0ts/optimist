@@ -413,6 +413,15 @@ _add("ENG_CS80", "FELUCCA_ENG_CS80", "CS80 (a CS-80 style voice)", E, 431, defau
           "presets of our own. Eight voices, integer code; about 3.5 KB of flash.",
      notice="After CS-1's CS-80 voice (twochannels, GPL-3.0-only), with our controls; none of CS-1's presets or its "
             "RANDOM model. Tested in the host tests only, not on a device. Not affiliated with Yamaha.")
+_add("ENG_STRETCH", "FELUCCA_ENG_STRETCH", "STRETCH (PaulStretch-style stretching)", E, 433, default=0,
+     desc="Extreme time stretching of the SAMPLE material (engine 27), in the manner of Paul Nasca's PaulStretch: the "
+          "source read through a 4096-sample window, a fixed-point FFT, every bin turned by a random phase (SMEAR), the "
+          "spectrum moved to each voice's pitch, one inverse FFT and an overlap-add, a frame every 46 ms. STRCH sets how "
+          "many times slower (up to frozen), POS where the scan starts, TONE a spectral low-pass, SUB and SHIM octaves, "
+          "BLUR tones into noise bands: a smooth, endless sound from any sample. One part plays it at a time (45 KB of "
+          "the pool, once). 8 presets of our own. Integer code; about 6 KB of flash.",
+     notice="Our code, after PaulStretch's algorithm (Paul Nasca) and AEther's design (an fm1-base app) as a reference; "
+            "none of their code. Tested in the host tests only, not on a device.")
 # (bit 91, LFO2, retired 2026-10-16: LFO 2, a second LFO on each synth track, is always built; never reuse the bit)
 # the worked examples of CONTRIBUTING.md (2026-10-26): one each of an insert, an engine, note generators; off in every
 # profile, every line they add is under their flag (a build without them is the build from before)
@@ -420,7 +429,7 @@ _EX_TESTED = "host-tested only (tests/examples_test.c), not on a device"
 _EX_NOTE = "An example to copy (CONTRIBUTING.md), not a feature: " + _EX_TESTED + "."
 _add("EX_SQUARE", "FELUCCA_EX_SQUARE", "SQUARE: the example engine (a pulse, its sub, a filter)", E, 422, default=0,
      experimental=True, tested=_EX_TESTED, notice=_EX_NOTE, symbols=("sq_render",),
-     desc="The worked example of CONTRIBUTING.md for a new synth engine (engines/square/eng_square.c, engine UID 27): a "
+     desc="The worked example of CONTRIBUTING.md for a new synth engine (engines/square/eng_square.c, engine UID 28): a "
           "band-limited pulse (PW, the track's SHP moves it), a square an octave down (SUB), a second pulse detuned up "
           "(DTN), white noise (NOIS), a 12 dB low-pass (CUT, RES, TRK: key tracking) and a soft drive (DRV); three "
           "presets, SQ LEAD, SQ BASS and SQ PLUCK. Integer code. Off in every profile: a build without it is the build "

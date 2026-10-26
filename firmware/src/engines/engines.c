@@ -94,11 +94,17 @@
 #if FELUCCA_ENG_CS80
 #include "cs80/eng_cs80.c"                    /* CS80 (a CS-80 style voice after CS-1): engine 26 */
 #endif
+#if FELUCCA_ENG_STRETCH && !FELUCCA_ANALOG2
+#error "the STRETCH engine takes its engine number (27) from the ANALOG 2 build"
+#endif
+#if FELUCCA_ENG_STRETCH
+#include "stretch/eng_stretch.c"              /* STRETCH (PaulStretch-style, on SAMPLE's material): engine 27 */
+#endif
 #if FELUCCA_EX_SQUARE && !FELUCCA_ANALOG2
-#error "the SQUARE example engine takes its engine number (27) from the ANALOG 2 build"
+#error "the SQUARE example engine takes its engine number (28) from the ANALOG 2 build"
 #endif
 #if FELUCCA_EX_SQUARE
-#include "square/eng_square.c"                /* SQUARE (the example engine, CONTRIBUTING.md): engine 27 */
+#include "square/eng_square.c"                /* SQUARE (the example engine, CONTRIBUTING.md): engine 28 */
 #endif
 
 /* The part's engine memory: the running state an engine keeps per part beyond its voices (FM6's voices and MONO

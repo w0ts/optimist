@@ -181,6 +181,8 @@ def validate(cfg):
     if built(cfg, "DRUMS") and not any(built(cfg, k) for k in synths + kits):
         err.append(Issue("the drum track needs a drum source: a drum synth (the 32 synthesised kits, KAWA, PLAITS, "
                          "X0X 909, X0X 808) or a sampled kit", synths + ["DRUM_SAMPLED"] + kits))
+    if built(cfg, "ENG_STRETCH") and not built(cfg, "ENG_SAMPLE"):
+        err.append(Issue("STRETCH stretches SAMPLE's material: it needs SAMPLE", ["ENG_STRETCH", "ENG_SAMPLE"]))
     sets = [k for k in R.ITEMS if k.startswith("SET_")]
     if any(cfg[k] for k in sets) and not built(cfg, "ENG_SAMPLE") and not built(cfg, "ENG_GRAIN"):
         warn.append(Issue("sample sets without SAMPLE or GRAIN: nothing plays them (only the drums use PERC)",

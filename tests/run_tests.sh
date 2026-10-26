@@ -300,7 +300,7 @@ job; ( jobin
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $EX_ON -DFELUCCA_MOTION=1 -o "$OUT/examples_test" tests/examples_test.c -lm
-    run "the examples of CONTRIBUTING.md (EX_GAIN EX_SQUARE EX_NOTEGEN): EXGN bypassed at OFF, its dB, its glide, TLV, motion id; SQUARE UID 27, its presets heard, 220 Hz, every EDIT value; WALK UPDN's notes, in the scale, WRITE" "$OUT/examples_test"
+    run "the examples of CONTRIBUTING.md (EX_GAIN EX_SQUARE EX_NOTEGEN): EXGN bypassed at OFF, its dB, its glide, TLV, motion id; SQUARE UID 28, its presets heard, 220 Hz, every EDIT value; WALK UPDN's notes, in the scale, WRITE" "$OUT/examples_test"
     mkdir -p "$OUT/optimist-ex"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_MICRO=1 -DFELUCCA_FILLS=1 -DFELUCCA_PLOCK=1 -DFELUCCA_CHANCE=1 -DFELUCCA_MOTION=1 -DFELUCCA_COND=1 -DFELUCCA_SEQTOOLS=1 -DFELUCCA_PARAM_HELP=1 $EX_ON $SEC4 -o "$OUT/ui_optimist_ex_test" tests/ui_optimist_test.c -lm
     run "Optimist UI with the examples (EXGN, SQUARE, WALK UPDN): every screen, the names, the colours, every value's help line" "$OUT/ui_optimist_ex_test" "$OUT/optimist-ex"
@@ -317,6 +317,10 @@ job; ( jobin
     # (-ffp-contract=off: PROPHET's float voice as the FM-1's FPU unit computes it, no fused multiply-add: an arm64 host fused them, x86 did not)
     $CC -O2 -w -ffp-contract=off -I"$HGEN" -Ifirmware/src $SCENE_ON -o "$OUT/scene_engines_test" tests/scene_engines_test.c -lm
     run "the scene's engines (Clipper's STRINGS VPS TERRAIN WSEQ VECTOR WAVE, SID, PROPHET, CS80; UIDs 18..26): every preset audible / bounded / silent after, tests/golden_scene_engines.txt, level, each EDIT value acts, corners, deterministic, pitch" "$OUT/scene_engines_test" tests/golden_scene_engines.txt
+) >"$U.out" 2>&1 & jobbg
+job; ( jobin
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_ENG_STRETCH=1 -o "$OUT/stretch_test" tests/stretch_test.c -lm
+    run "STRETCH (ENG_STRETCH): UID 27, the FFT chain's round trip, every preset audible / bounded / idle after, level, each value acts, corners, paced work, one instance, deterministic" "$OUT/stretch_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_DIG_TONE=1 -o "$OUT/dig_tone_test" tests/dig_tone_test.c -lm

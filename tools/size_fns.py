@@ -101,7 +101,7 @@ AUDIO_FILES = [  # (the A2DP stream's SBC encoder runs in the audio interrupt: b
                "engines/fm6/eng_fm6.c", "engines/slice/eng_slice.c", "drums/drums.c", "drums/synth/drum_synth.c", "drums/synth/drum_plaits.c",
                "drums/drum_edit.c", "drums/x0x/drum_x0x.c", "core/params.c", "core/voice.c", "fx/slicer/slicer.c", "fx/insfx/insfx.c", "fx/insfx/fxi_kern.c", "fx/insfx/gater.c", "fx/insfx/eq3.c", "fx/insfx/tapespit.c", "fx/insfx/xdly.c",
                "engines/juno/eng_juno.c", "engines/noise/eng_noise.c", "engines/drone/eng_drone.c", "engines/plaits/eng_plaits.c", "engines/clipper/eng_strings.c", "engines/clipper/eng_vps.c",
-               "engines/clipper/eng_terrain.c", "engines/clipper/eng_wseq.c", "engines/clipper/eng_vector.c", "engines/sid/eng_sid.c", "engines/prophet/eng_prophet.c", "engines/clipper/eng_wave.c", "engines/cs80/eng_cs80.c",
+               "engines/clipper/eng_terrain.c", "engines/clipper/eng_wseq.c", "engines/clipper/eng_vector.c", "engines/sid/eng_sid.c", "engines/prophet/eng_prophet.c", "engines/clipper/eng_wave.c", "engines/cs80/eng_cs80.c", "engines/stretch/eng_stretch.c",
                "fx/fx.c", "fx/punch/punch.c", "system/dual.c", "core/audio.c", "seq/seq.c", "seq/arranger.c",
                "io/midi/midi_control.c", "io/midi/clock_sync.c", "io/midi/clock_out.c", "io/midi/midi_uart.c",
                "io/usb/usb_audio_stream.c", "seq/seq24.c", "seq/ednote.c", "seq/auto.c", "seq/auto_slot.c", "seq/auto_base.c", "drums/lane_play.c", "seq/seq_mute.c", "seq/lane_fx.c",

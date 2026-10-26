@@ -288,3 +288,5 @@ src/ui/optimist/op_songtbl.c:stb_paint:(int32_t)nl | nl = 5 (SCENE) or 2
 # 2026-10-24: BT AUDIO remembers up to 4 devices
 src/bt/bta_mem.c:bta_next:bta.nmem | guarded: returns 0 first when nmem < 2, so the modulo sees 2 or more
 src/io/midi/ble_connect.c:rc_try:(1u+ble_kept_n()) | 1 + a count: never 0
+# 2026-10-26: STRETCH (PaulStretch-style), once a frame
+src/engines/stretch/eng_stretch.c:pst_adv_q16:pow2_q16 | pow2_q16 of 0..1586 (1/16 semitone) is 2^0 .. 2^8.3 in Q16: 65536 or more, never 0

@@ -75,8 +75,9 @@ static const uint8_t MAC_BRIGHT[ENG_UID_N] = {
     0x02, 0x05, 0x02,                                  /* NOISE FREQ, DRONE TONE, PLAITS TIMB */
     0x04, 0x04, 0x06, 0x06, 0x07, 0x05, 0x04, 0x04,    /* STRINGS CUT, VPS CUT, TERRAIN CUT, WSEQ CUT, VECTOR CUT, SID CUT, PROPHET CUT, WAVE CUT */
     0x05,                                              /* CS80 LPF */
+    0x04,                                              /* STRETCH TONE */
 #if FELUCCA_EX_SQUARE
-    0x04,                                              /* SQUARE CUT (the example engine, UID 27) */
+    0x04,                                              /* SQUARE CUT (the example engine, UID 28) */
 #endif
 };
 #else

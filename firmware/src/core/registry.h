@@ -108,12 +108,15 @@
 #ifndef FELUCCA_ENG_CS80
 #define FELUCCA_ENG_CS80 0                 /* CS80 (a CS-80 style voice after CS-1: engines/cs80/eng_cs80.c) */
 #endif
+#ifndef FELUCCA_ENG_STRETCH
+#define FELUCCA_ENG_STRETCH 0              /* STRETCH (PaulStretch-style stretching of SAMPLE's material: engines/stretch/eng_stretch.c) */
+#endif
 
 /* ------------------------------------------------------------- examples --- */
 /* The worked examples of CONTRIBUTING.md (2026-10-26): an insert effect, a synth engine and two note generators, each
  * a builder item (tools/builder/registry.py EX_*), off in every profile. Every line they add elsewhere is under its
  * flag, so a build without them is byte for byte the build from before; that is also why their ids (FX type 29,
- * engine UID 27, generator types 4 and 5) exist only in a build that has them. A real feature takes the next id for
+ * engine UID 28, generator types 4 and 5) exist only in a build that has them. A real feature takes the next id for
  * good (and the example's id moves up); see CONTRIBUTING.md "Ids are permanent". */
 #ifndef FELUCCA_EX_GAIN
 #define FELUCCA_EX_GAIN 0                  /* EXGN, an insert type: a gain in dB (fx/insfx/exgain.c) */
@@ -129,14 +132,14 @@
  * itself; tools/builder/cpu_costs.py reads that list for the CPU guard's table, which leaves this one out: the guard
  * counts a SQUARE voice as an ANALOG one) */
 #if FELUCCA_EX_SQUARE
-#define ENGINE_LIST_EX(X) X(27, SQUARE, 0, "SQUARE")
-#define ENG_UID_SQUARE 27u                 /* (fallback: ANALOG) */
+#define ENGINE_LIST_EX(X) X(28, SQUARE, 0, "SQUARE")
+#define ENG_UID_SQUARE 28u                 /* (fallback: ANALOG) */
 #else
 #define ENGINE_LIST_EX(X)
 #endif
 
 /* X(uid, NAME, fallback uid, the ENG list name): the UID is the engine's number in FUN7 projects and UPB4 user
- * presets. Fallbacks: FM6 -> DIGITAL -> ANALOG, GRAIN -> SAMPLE -> ANALOG, SLICE -> SAMPLE, CZ -> PHASE, VPS -> PHASE, SID -> LOFI, the rest
+ * presets. Fallbacks: FM6 -> DIGITAL -> ANALOG, GRAIN -> SAMPLE -> ANALOG, SLICE -> SAMPLE, STRETCH -> SAMPLE, CZ -> PHASE, VPS -> PHASE, SID -> LOFI, the rest
  * (JUNO, NOISE, DRONE, PLAITS, STRINGS, TERRAIN, WSEQ, VECTOR, PROPHET, WAVE, CS80 too) -> ANALOG;
  * with ANALOG absent too, the first engine built. Order = ENGINES[] order (the slots). */
 #if FELUCCA_ANALOG2
@@ -147,8 +150,8 @@
     X(15, NOISE, 0, "NOISE") X(16, DRONE, 0, "DRONE") X(17, PLAITS, 0, "PLAITS") X(18, STRINGS, 0, "STRINGS") \
     X(19, VPS, 2, "VPS") X(20, TERRAIN, 0, "TERRAIN") X(21, WSEQ, 0, "WSEQ") X(22, VECTOR, 0, "VECTOR") \
     X(23, SID, 3, "SID") X(24, PROPHET, 0, "PROPHET") \
-    X(25, WAVE, 0, "WAVE") X(26, CS80, 0, "CS80") ENGINE_LIST_EX(X)
-#define ENG_UID_N (27u + FELUCCA_EX_SQUARE)  /* (+ the example engine's UID 27 when it is built: above) */
+    X(25, WAVE, 0, "WAVE") X(26, CS80, 0, "CS80") X(27, STRETCH, 4, "STRETCH") ENGINE_LIST_EX(X)
+#define ENG_UID_N (28u + FELUCCA_EX_SQUARE)  /* (+ the example engine's UID 28 when it is built: above) */
 #define ENG_UID_PHYS 11u
 #define ENG_UID_ACID 12u
 #define ENG_UID_CZ 13u                     /* (fallback: PHASE) */
@@ -165,6 +168,7 @@
 #define ENG_UID_PROPHET 24u                /* (fallback: ANALOG) */
 #define ENG_UID_WAVE 25u                   /* (fallback: ANALOG) */
 #define ENG_UID_CS80 26u                   /* (fallback: ANALOG) */
+#define ENG_UID_STRETCH 27u                /* (fallback: SAMPLE) */
 #define ENG_UID_FM6 9u                     /* (the importers: DX7 and FM6 parts of older projects play FM6) */
 #define ENG_UID_SLICE 10u
 #define ENG_UID_SUPER 0u                   /* SUPER's presets and parts: ANALOG's swarm */
@@ -198,11 +202,11 @@ enum { ENGINE_LIST(ENG_GONEE_) ENG_GONE_END_ };
 #define ENG_DENSEE_(u, N, fb, s) &&(ENG_SLOT_##N == (FELUCCA_ENG_##N ? (u) : 0xFF))
 #define ENG_DENSE (1 ENGINE_LIST(ENG_DENSEE_))
 /* every engine of the default build with a factory preset in ui.c BANK is built (SLICE, ACID, CZ, JUNO, NOISE, DRONE, PLAITS,
- * Clipper's six, SID, PROPHET, CS80: optional) */
+ * Clipper's six, SID, PROPHET, CS80, STRETCH: optional) */
 #define ENG_BANK_ALL (NENGINES - FELUCCA_ENG_SLICE - FELUCCA_ENG_ACID - FELUCCA_ENG_CZ - FELUCCA_ENG_JUNO - FELUCCA_ENG_NOISE - \
                       FELUCCA_ENG_DRONE - FELUCCA_ENG_PLAITS - FELUCCA_ENG_STRINGS - FELUCCA_ENG_VPS - FELUCCA_ENG_TERRAIN - \
                       FELUCCA_ENG_WSEQ - FELUCCA_ENG_VECTOR - FELUCCA_ENG_SID - FELUCCA_ENG_PROPHET - \
-                      FELUCCA_ENG_WAVE - FELUCCA_ENG_CS80 - FELUCCA_EX_SQUARE == (int)ENG_UID_N - 16 - FELUCCA_EX_SQUARE)
+                      FELUCCA_ENG_WAVE - FELUCCA_ENG_CS80 - FELUCCA_ENG_STRETCH - FELUCCA_EX_SQUARE == (int)ENG_UID_N - 17 - FELUCCA_EX_SQUARE)
 
 /* UID <-> slot (the tables fold away with every engine built) */
 #define ENG_UIDV_(u, N, fb, s) FIF(FELUCCA_ENG_##N)(u,)
