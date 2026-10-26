@@ -1538,10 +1538,12 @@ job; ( jobin
     $FC -DFELUCCA_FM6_PK_KEYS=1 -DFELUCCA_FM6_PK_80S=1 -o "$OUT/fm6_compat_w" tests/fm6_compat_test.c -lm
     $FC -DFELUCCA_FM6_PK_80S=1 -o "$OUT/fm6_compat_80s" tests/fm6_compat_test.c -lm
     $FC -DFELUCCA_FM6_PK_BASS=1 -o "$OUT/fm6_compat_bass" tests/fm6_compat_test.c -lm
+    $FC -DUP_CARD_ON=1 -o "$OUT/fm6_compat_card" tests/fm6_compat_test.c -lm
     $FC -o "$OUT/fm6_compat_none" tests/fm6_compat_test.c -lm
     $FC $FM6_PACKS_ON -o "$OUT/fm6_compat_all" tests/fm6_compat_test.c -lm
     run "FM6 old data and pack ids, no pack: an old R / U VOICE number is INIT VOICE, MOD / M.TIM / C.TIM baked into the inline voice, user preset records" "$OUT/fm6_compat_none"
     run "FM6 old data and pack ids, every pack: the same, no old number lands on a pack voice" "$OUT/fm6_compat_all"
+    run "FM6 user presets on the SD card (SD card mode): an FM6 sound's file keeps its own voice, the operator edits back on a load; a file of before loads its VOICE" "$OUT/fm6_compat_card"
     run "FM6 pack ids: a project with an 80S voice (packs KEYS + 80S) stores a fixed number" "$OUT/fm6_compat_w" write "$OUT/fm6_compat_A.bin"
     run "FM6 pack ids: ... it loads as the same voice in a build with the 80S pack alone (another list index)" "$OUT/fm6_compat_80s" check "$OUT/fm6_compat_A.bin"
     run "FM6 pack ids: ... as INIT VOICE with the voice kept in a build without that pack" "$OUT/fm6_compat_bass" check "$OUT/fm6_compat_A.bin"

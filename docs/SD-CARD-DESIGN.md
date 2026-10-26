@@ -556,8 +556,8 @@ checked: only the build time and the commit differ).
 - **Presets and kits**: one small file each, `PRESETS/<name>.OPS` ("OPPR": a user preset's record, `upreset.c up_card_*`
   through slot `UP_CARD` = `UP_SLOTS`, RAM only) and `KITS/<name>.OPK` ("OPKT": a user kit and its lanes' sends,
   `drum_kits.c ukit_card_*`), a 16-byte header (magic, version, length, the payload's XXH64), a sector at most
-  (written whole), allocated exact (`SDA_EXACT`). A preset of an FM6 sound keeps its VOICE number, not the operator
-  edits (the flash slots' `UP_FM6` object is not on the card yet). Saved into the folder's top; loaded from any
+  (written whole), allocated exact (`SDA_EXACT`). A preset of an FM6 sound keeps its own voice too, the operator edits
+  and all (`fm6_pack`'s 128 B after the record, as the flash slots' `UP_FM6`; a file of before loads its VOICE). Saved into the folder's top; loaded from any
   sub-folder.
 
 **The UI** (`ui/optimist/op_sdcard.c`; docs/UI-OPTIMIST-DESIGN.md 4.14): PROJECT's rows PROJECT (the card's projects
