@@ -84,6 +84,17 @@ All previous blockers in the handover chain have been resolved and host-tested:
    - `tests/link_test.c`: 151 checks passing (Link peer sync, timelines, session handovers).
    - `tools/size_fns.py --check` and `tools/div_audit.py` passing cleanly.
 
+## Also open (Claude stopped before these, 2026-10-26, late evening)
+
+1. **Encrypted transmit** (the blocker for DHCP, above): first.
+2. **FM-1 to Link:** send the FM-1's own PLAY / STOP (`lk_set_playing`, at the next bar) and tempo changes
+   (`lk_set_tempo`) to the session; today `firmware/src/wifi/wifi_link.c` only follows Link (Live drives the FM-1).
+3. **Builder items** `WIFI`, `WIFI_STA`, `LINK` in `tools/builder/registry.py` instead of the `OPTIMIST_WIFI=1`
+   switch (a new item needs its costs measured: `make costs-all` on the farm).
+4. **Timing:** arrival times are stamped when the main loop reads a frame; stamping in the RX path would cut
+   Link's measurement error.
+5. **This file:** fold the stacked "Blocked" sections into one current-state page.
+
 ## First Link try on the FM-1 (2026-10-26, evening): result
 
 Package `optimist-link-try1-bt-debug.fwsc` (`c5a3552d`), `wifiup`, `wifijoin mots`, `wifilink`, Live open with Link on:
