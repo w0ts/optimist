@@ -221,7 +221,7 @@ static const engine_t ENG_LOFI = {
         PN("ARP", F_ENUM, 0, 3, 0, N_RARP),
         PU("TONE", F_PCT, 0, 127, 127, 0),
     },
-    LOFI_PRESETS, sizeof(LOFI_PRESETS) / sizeof(LOFI_PRESETS[0]), 1, lofi_note_on, OVL_FN(lofi_render),
+    PRESETS_OF(LOFI_PRESETS), 1, lofi_note_on, OVL_FN(lofi_render),
     0x3F2C, {P_E1, P_E2, P_E3, P_REL}, 0, OVL_FN(lofi_amp), lofi_desc,
 };
 #if FELUCCA_ENG_LOFI

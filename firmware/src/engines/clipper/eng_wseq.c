@@ -245,7 +245,7 @@ static const engine_t ENG_WSEQ = {
         PU("CUT", F_CUTOFF, 0, 127, 110, 0),
         PU("RES", F_PCT, 0, 127, 10, 0),
     },
-    .presets = WSEQ_PRESETS,
+    .presets = PRESETS_PTR(WSEQ_PRESETS),
     .npresets = sizeof(WSEQ_PRESETS) / sizeof(WSEQ_PRESETS[0]),
     .fil_page = 1,
     .note_on = wseq_note_on,

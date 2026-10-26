@@ -567,6 +567,25 @@ checked: only the build time and the commit differ).
   voice kept with its edits goes into a preset (`.OPS`, above). Not yet: CZ tones on the card (they need a RAM slot
   the CZ engine plays; the flash's U01..U26 are not in the big layout).
 
+**Factory presets on the card; the SD card zip** (the user, 2026-10-26: "all presets (user or factory) go on the card",
+"card only in SD mode"): SD card mode carries no factory preset tables (core.h `PRESETS_CARD`, `PRESETS_PTR`: each
+engine's table named only inside sizeof, its count kept; BANK, the level trims and ANALOG 2's extras left out with them:
+8,740 B of flash on sd-card-mots, 4,160 B of pool for the names). The presets are files,
+`OPTIMIST/PRESETS/FACTORY/<ENGINE>/<nnn> <NAME>.OPS`, made by `tools/sd_factory.c` from the firmware's own sources
+(each preset applied as the device applies it and taken as the card's preset record; `tests/sd_factory_test.c` loads
+every one back and compares every value) and zipped with the card's folders by `tools/sd_zip.py`;
+`optimist.py package` writes `optimist-sd-card.zip` next to an SD card mode package. Unzipped at the card's root.
+- At a mount the names are read once (`sd_mode.c sdm_factory_scan`): the PRESETS lists, the favorites, the console and
+  the web editor show them; a missing file "?".
+- An engine picked, a preset chosen, a fresh track: the engine's defaults at once (the interrupts may be off there), the
+  preset's file on the main loop's next pass (`sdm_factory_ask` / `sdm_factory_poll`: loaded as a user preset loads, the
+  preset's place kept). A project's load or a user preset over it drops the ask. No card: the defaults (*NO SD CARD:
+  PRESETS INIT*, once).
+- The PRESETS knob's whole list goes engine by engine in the tables' order (no BANK: the by-kind order of the flash
+  builds is not kept); its label is the engine's name.
+- Not tested on the host yet: the card path itself (`sdm_factory_*`; the SD UI test runs with `PRESETS_CARD=0`, its
+  harness reads the tables).
+
 **The UI** (`ui/optimist/op_sdcard.c`; docs/UI-OPTIMIST-DESIGN.md 4.14): PROJECT's rows PROJECT (the card's projects
 while a card is ready, else the flash slot with *No SD card: in flash*), PRESETS, KITS, SAMPLES; four small cards (PAGE,
 ACTION, ITEM, VIEW) over the page: two columns of eight names, as the white keys sit. SYSTEM > SD card: CARD (READY and

@@ -256,7 +256,7 @@ static const engine_t ENG_DRONE = {
         PU("BEAT", F_LFOHZ, 0, 127, 0, 0),           /* 0: OFF (drone_desc) */
         PU("HOLD", F_ONOFF, 0, 1, 0, 0),             /* (P_E7: voice.c drone_latch) */
     },
-    .presets = DRONE_PRESETS,
+    .presets = PRESETS_PTR(DRONE_PRESETS),
     .npresets = sizeof(DRONE_PRESETS) / sizeof(DRONE_PRESETS[0]),
     .note_on = drone_note_on,
     .render = drone_render,

@@ -170,7 +170,7 @@ static const engine_t ENG_ANALOG = {
         PU("DRV", F_PCT, 0, 127, 0, 0),
         PU("KTR", F_PCT, 0, 127, 64, 0),
     },
-    ANALOG_PRESETS, sizeof(ANALOG_PRESETS) / sizeof(ANALOG_PRESETS[0]), 1, analog_note_on, OVL_FN(analog_render),
+    PRESETS_OF(ANALOG_PRESETS), 1, analog_note_on, OVL_FN(analog_render),
     0xF986, {P_E4, P_E5, P_ATK, P_REL},
 #if FELUCCA_ANALOG2
     .block = OVL_FN(super_block),                     /* (the swarm's CPU cap: voices sounding) */

@@ -254,7 +254,7 @@ static const engine_t ENG_PHYS = {
         PU("BOW", F_PCT, 0, 127, 0, 0),
         PU("EXC", F_PCT, 0, 127, 0, 0),
     },
-    .presets = PHYS_PRESETS,
+    .presets = PRESETS_PTR(PHYS_PRESETS),
     .npresets = sizeof(PHYS_PRESETS) / sizeof(PHYS_PRESETS[0]),
     .fil_page = 0,
     .note_on = phys_note_on,

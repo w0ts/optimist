@@ -445,6 +445,6 @@ static const engine_t ENG_GRAIN = {
         PU("RAND", F_PCT, 0, 127, 10, 0),
         PU("TONE", F_PCT, 0, 127, 127, 0),
     },
-    GRAIN_PRESETS, sizeof(GRAIN_PRESETS) / sizeof(GRAIN_PRESETS[0]), 1, grain_note_on, grain_render,
+    PRESETS_OF(GRAIN_PRESETS), 1, grain_note_on, grain_render,
     0x87F0, {P_E1, P_E2, P_E3, P_E5}, GR_POLY, 0, 0, grain_block,
 };

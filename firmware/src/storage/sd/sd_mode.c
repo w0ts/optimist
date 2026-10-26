@@ -46,6 +46,10 @@ _Static_assert(sizeof(sdm_smp_t) == 64u && sizeof(sdm_smp_t) * NPART <= SEC_REC_
 #endif
 static uint32_t sdm_reboot_at;                       /* (fm1_ms + 1 when a restore asked for the restart: sdm_poll) */
 #define SDM_KEEP_MAX 16u
+#if PRESETS_CARD
+static void sdm_factory_scan(void);
+static void sdm_factory_poll(void);
+#endif
 #define SDM_SCALE_MAX 16u                            /* (x 25 %: 400 %, sd_alloc.c's cap) */
 static sdm_rec_t sdm_rec;
 static uint8_t sdm_st, sdm_smp_dirty;               /* (the samples' record written once the audio is quiet: sdm_poll) */
@@ -280,7 +284,13 @@ static void sdm_poll(void)
         (void)sdm_was(sdx_update(sd_blk, sizeof sd_blk, 0, 0));
         sdm_st = SDM_READY;
         ui.force = 1;
+#if PRESETS_CARD
+        sdm_factory_scan();                          /* (the factory presets' names: the lists') */
+#endif
     }
+#if PRESETS_CARD
+    sdm_factory_poll();
+#endif
 }
 
 /* ---- DX7 banks (the user, 2026-10-26: the FM6 collections on the card): a .SYX of 32 voices (4104 B: F0 43 0n 09 20 00,
@@ -567,6 +577,117 @@ static uint32_t sdm_small_get(const char *path, const char *magic, uint8_t *p, u
     (void)f_close(&sdm.f);
     return n;
 }
+
+#if PRESETS_CARD
+/* ---- the factory presets on the card (PRESETS_CARD; the user, 2026-10-26: "all presets (user or factory) go on the
+ * card", "card only in SD mode"): OPTIMIST/PRESETS/FACTORY/<ENGINE>/<nnn> <NAME>.OPS, as tools/sd_factory.c writes them
+ * (the SD card zip, tools/sd_zip.py). The firmware carries no preset tables (core.h PRESETS_PTR), only their counts.
+ *   sdm_factory_scan    at a mount: each built engine's folder read once, the names into sdm_fac_nm (the lists, the
+ *                       favorites, the web editor: model.c preset_name -> sdm_factory_name; "?" a file missing)
+ *   sdm_factory_ask     (model.c apply_preset_to: maybe the interrupts off) part k's engine defaults are set; its
+ *                       preset file is loaded on the main loop's next pass (sdm_factory_poll), as a user preset loads
+ *                       (upreset.c up_card_give: the record, an FM6 voice), the preset's place kept. A project's load
+ *                       or a user preset over it drops the ask (sdm_factory_drop). No card: the defaults, said once */
+#define SDM_FAC_N 320u                               /* (model.c NBANK_ALL: every engine's presets) */
+#define SDM_FAC_NM 13u
+static char sdm_fac_nm[SDM_FAC_N][SDM_FAC_NM] IN_POOL;
+static uint8_t sdm_fac_pend[NTRK], sdm_fac_eng[NTRK], sdm_fac_said;
+static uint32_t sdm_fac_ix(uint32_t e, uint32_t k)   /* engine slot e's preset k in the table of names */
+{
+    uint32_t i, n = 0;
+    for (i = 0; i < e && i < NENGINES; i++)
+        n += ENGINES[i]->npresets;
+    return n + k;
+}
+static const char *sdm_factory_name(uint32_t e, uint32_t k)
+{
+    uint32_t i = sdm_fac_ix(e, k);
+    return i < SDM_FAC_N && sdm_fac_nm[i][0] ? sdm_fac_nm[i] : "?";
+}
+static uint32_t sdm_fac_dir(uint32_t e)              /* the engine's folder into sdm.path: its length */
+{
+    uint32_t n = sdl_path(sdm.path, sizeof sdm.path, SDL_PRESETS, "FACTORY/");
+    return n ? sdl_cat(sdm.path, n, sizeof sdm.path, ENGINES[e]->name) : 0u;
+}
+static void sdm_factory_scan(void)
+{
+    DIR d;
+    FILINFO fi;
+    uint32_t e, k, i, n;
+    memset(sdm_fac_nm, 0, sizeof sdm_fac_nm);
+    for (e = 0; e < NENGINES; e++) {
+        if (!ENGINES[e]->npresets || !sdm_fac_dir(e) || f_opendir(&d, sdm.path) != FR_OK)
+            continue;
+        while (f_readdir(&d, &fi) == FR_OK && fi.fname[0]) {
+            const char *s = fi.fname;
+            if (s[0] < '0' || s[0] > '9' || s[1] < '0' || s[1] > '9' || s[2] < '0' || s[2] > '9' || s[3] != ' ' ||
+                !(n = sdm_len_is(s, ".OPS")) || n < 5u)
+                continue;
+            k = (uint32_t)(s[0] - '0') * 100u + (uint32_t)(s[1] - '0') * 10u + (uint32_t)(s[2] - '0');
+            if (k >= ENGINES[e]->npresets || (i = sdm_fac_ix(e, k)) >= SDM_FAC_N)
+                continue;
+            n -= 4u;
+            sdl_cat(sdm_fac_nm[i], 0, SDM_FAC_NM, s + 4);
+            if (n < SDM_FAC_NM)
+                sdm_fac_nm[i][n] = 0;               /* (".OPS" cut) */
+        }
+        (void)f_closedir(&d);
+    }
+}
+static void sdm_factory_ask(track_t *t, uint32_t pi)
+{
+    uint32_t k = (uint32_t)(t - trk);
+    if (k < NTRK) {
+        sdm_fac_pend[k] = (uint8_t)(pi + 1u);
+        sdm_fac_eng[k] = t->eng_req;
+    }
+}
+static void sdm_factory_drop(uint32_t k)
+{
+    if (k < NTRK)
+        sdm_fac_pend[k] = 0;
+}
+static void sdm_factory_poll(void)
+{
+    uint32_t k, n, pi, sel;
+    for (k = 0; k < NTRK; k++) {
+        if (!sdm_fac_pend[k])
+            continue;
+        pi = sdm_fac_pend[k] - 1u;
+        if (trk[k].eng_req != sdm_fac_eng[k]) {      /* (another engine since: its own ask, or none) */
+            sdm_fac_pend[k] = 0;
+            continue;
+        }
+        if (sdm_st < SDM_READY) {                    /* (no card, or not read yet: the defaults; said once) */
+            if (sdm_st == SDM_NONE) {
+                sdm_fac_pend[k] = 0;
+                if (!sdm_fac_said++)
+                    ui_message("NO SD CARD: PRESETS INIT");
+            }
+            return;
+        }
+        sdm_fac_pend[k] = 0;
+        n = sdm_fac_dir(trk[k].eng_req % NENGINES);
+        if (n) {                                     /* "<folder>/<nnn> <name>.OPS" */
+            char num[5] = {(char)('0' + pi / 100u), (char)('0' + pi / 10u % 10u), (char)('0' + pi % 10u), ' ', 0};
+            n = sdl_cat(sdm.path, n, sizeof sdm.path, "/");
+            n = sdl_cat(sdm.path, n, sizeof sdm.path, num);
+            n = sdl_cat(sdm.path, n, sizeof sdm.path, sdm_factory_name(trk[k].eng_req % NENGINES, pi));
+            n = sdl_cat(sdm.path, n, sizeof sdm.path, ".OPS");
+        }
+        n = n ? sdm_small_get(sdm.path, "OPPR", sd_blk, sizeof sd_blk) : 0u;
+        if (!n) {
+            ui_message("PRESET NOT ON THE CARD");
+            continue;
+        }
+        sel = song.sel;
+        song.sel = (uint8_t)k;                       /* (up_card_give loads into the selected part) */
+        if (!up_card_give(sd_blk, n))
+            trk[k].preset = (uint8_t)pi;             /* (its place in the engine's list, as the table's was) */
+        song.sel = (uint8_t)sel;
+    }
+}
+#endif
 
 /* ---- the project: the card's file <-> project 0 */
 /* the payload's records (len bytes from the open file's pointer) into project 0: 0 ok, 1 MEM FULL, -1 not a project */

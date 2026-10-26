@@ -1629,7 +1629,7 @@ static const engine_t ENG_FM6 = {
         PU("RES", F_PCT, 0, 127, 0, 0),
         PU("HPF", F_PCT, 0, 127, 0, 0),                 /* (0 off) */
     },
-    FM6_PRESETS, sizeof(FM6_PRESETS) / sizeof(FM6_PRESETS[0]), -1, fm6_note_on, fm6_render,
+    PRESETS_OF(FM6_PRESETS), -1, fm6_note_on, fm6_render,
     0x5D7F, {P_E0, P_E5, P_E6, P_E7}, NVOICE,             /* (MAIN: VOICE LPF RES HPF) */ fm6_amp, 0, fm6_block, 1, fm6_alloc, fm6_legato, fm6_key,
     fm6_post,
 };

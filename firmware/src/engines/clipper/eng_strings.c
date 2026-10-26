@@ -118,7 +118,7 @@ static const engine_t ENG_STRINGS = {
         PU("SHP", F_PCT, 0, 127, 0, 0),
         PU("RES", F_PCT, 0, 127, 10, 0),
     },
-    .presets = STRINGS_PRESETS,
+    .presets = PRESETS_PTR(STRINGS_PRESETS),
     .npresets = sizeof(STRINGS_PRESETS) / sizeof(STRINGS_PRESETS[0]),
     .fil_page = 1,
     .note_on = strings_note_on,

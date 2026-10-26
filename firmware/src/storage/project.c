@@ -1249,6 +1249,10 @@ static void proj_apply(const project_t *p, const dlrec_t *d, int all)
 #if PART_DROPS
     part_mem_load_begin();                              /* (the refusals of before: replaced by this load's) */
 #endif
+#if PRESETS_CARD
+    for (k = 0; k < NTRK; k++)
+        sdm_factory_drop(k);                            /* (the project's sounds: no factory preset asked before over them) */
+#endif
     for (k = 0; k < NTRK; k++) {
         track_t *t = &trk[k];
         const proj_trk_t *s = &p->t[k];

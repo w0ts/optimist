@@ -334,6 +334,9 @@ static void preset_extras(int16_t *p, const preset_t *pr)
 }
 #if FELUCCA_ANALOG2
 /* ANALOG 2's values of ANALOG preset pi (eng_analog.c A2_PX) into p, clamped; after preset_extras */
+#if PRESETS_CARD
+#define analog2_extras(p, e, pi) ((void)0)               /* (SD card mode: the card's preset records hold them) */
+#else
 static void analog2_extras(int16_t *p, const engine_t *e, uint32_t pi)
 {
     uint32_t i;
@@ -342,6 +345,7 @@ static void analog2_extras(int16_t *p, const engine_t *e, uint32_t pi)
             if ((uint32_t)A2_PX[i][0] == pi)
                 p[A2_PX[i][1]] = (int16_t)clamp(A2_PX[i][2], TP[A2_PX[i][1]].min, TP[A2_PX[i][1]].max);
 }
+#endif
 /* SUPER's presets 0..4 are ANALOG's 16..20 now, in the same order (eng_analog.c; tests/project_test.c) */
 #define A2_SUPER0 16u
 /* a sound that played SUPER (p: today's layout, SUPER's eight values in P_E0..P_E7; spi: its SUPER preset)
@@ -351,15 +355,19 @@ static void analog2_extras(int16_t *p, const engine_t *e, uint32_t pi)
 static uint32_t analog2_from_super(int16_t *p, uint32_t spi)
 {
     int16_t sv[8];
-    uint32_t k, pi = A2_SUPER0 + (spi < 5u ? spi : 0u);
-    const preset_t *pr;
+    uint32_t pi = A2_SUPER0 + (spi < 5u ? spi : 0u);
     if (!ENG_HAS(ANALOG))                       /* (ANALOG not built: the part keeps SUPER's values, ANALOG's UID) */
         return pi;
-    pr = &ENG_ANALOG.presets[pi];
     memcpy(sv, &p[P_E0], sizeof sv);
-    for (k = 0; k < 8u; k++)
-        p[P_E0 + k] = pr->e[k];
-    analog2_extras(p, &ENG_ANALOG, pi);
+#if !PRESETS_CARD                               /* (SD card mode: no tables; the SUPER values below on ANALOG's defaults) */
+    {
+        const preset_t *pr = &ENG_ANALOG.presets[pi];
+        uint32_t k;
+        for (k = 0; k < 8u; k++)
+            p[P_E0 + k] = pr->e[k];
+        analog2_extras(p, &ENG_ANALOG, pi);
+    }
+#endif
     p[P_A2SWRM] = sv[0];
     p[P_A2SDTN] = sv[1];
     p[P_A2DRFT] = sv[3];
