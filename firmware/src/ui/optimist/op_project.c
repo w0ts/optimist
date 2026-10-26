@@ -393,6 +393,7 @@ enum { SI_NONE, SI_BRIGHT, SI_LIGHTS, SI_KEYS, SI_LOWCUT, SI_OUT, SI_SYNC, SI_CH
 #if FELUCCA_SD_UI
        SI_SDCARD, SI_SDVERS, SI_SDSLACK, SI_SDINDEX,    /* SD CARD: the card, VERSIONS, SLACK, the sample index (sd_mode.c) */
        SI_SDPRE,                                        /* (SD_STREAM: the card samples' pre-buffer) */
+       SI_SDBACK, SI_SDREST,                            /* SETTINGS: BACKUP to the card, RESTORE from it (sd_mode.c) */
 #endif
        SI_UAS0 };                                       /* SI_UAS0 + s: USB AUDIO's line of source s (ua_tap.h UAS_*), last */
 /* a core's load number (% of the audio budget) in its colour: green under 60, amber 60..85, red over 85 (the predictive guard's
@@ -477,6 +478,7 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
 #if FELUCCA_SD_STREAM
     {"SD CARD", {SI_SDPRE, SI_NONE, SI_NONE, SI_NONE}},   /* (the card samples' pre-buffer, its KB beside it) */
 #endif
+    {"SETTINGS", {SI_SDBACK, SI_SDREST, SI_NONE, SI_NONE}},   /* (the device's settings to the card and back) */
 #endif
 #if FELUCCA_LIGHTS
     {"KEYS", {SI_LIGHTS, SI_KEYS, SI_NONE, SI_NONE}},
@@ -893,6 +895,12 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         break;
     case SI_SDINDEX:
         cell_act(c, 0, "SAMPLES", "INDEX", 0);
+        break;
+    case SI_SDBACK:
+        cell_act(c, 0, "BACKUP", "TO CARD", 0);
+        break;
+    case SI_SDREST:
+        cell_act(c, 0, "RESTORE", "FROM CARD", 1);
         break;
     case SI_SDPRE: {                                    /* each card sample's head in RAM, ms, and what the project's take */
         static char kb[10];
@@ -1417,6 +1425,15 @@ static int sys_yes(uint32_t r, uint32_t k, uint32_t ok)
 #if FELUCCA_SD_UI
     if (it == SI_SDCARD || it == SI_SDINDEX) {          /* the card mounted again (or found), its folders, the index's pass */
         sdm_again();
+        return 1;
+    }
+    if (it == SI_SDBACK || it == SI_SDREST) {           /* the settings to the card or back (RESTORE: red, then a restart) */
+        if (!ok)
+            op_arm(SCR_SYSTEM, r, k, it == SI_SDBACK ? "BACKUP" : "RESTORE", "SETTINGS", it == SI_SDREST);
+        else if (it == SI_SDBACK)
+            sdm_backup();
+        else
+            sdm_restore();
         return 1;
     }
     if (it == SI_SDVERS || it == SI_SDSLACK || it == SI_SDPRE)

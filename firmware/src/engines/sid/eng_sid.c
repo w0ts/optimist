@@ -190,7 +190,7 @@ static const preset_t SID_PRESETS[] = {
     {"PWM STRINGS", {2, 64, 0, 0, 1, 36, 20, 0}, {70, 90, 110, 85}, 10, 0, FX(0, 55, 20, 60)},
     {"COMBO BITE", {6, 50, 0, 0, 1, 33, 90, 0}, {0, 62, 50, 30}, 35, 1, FX(20, 0, 20, 15)},
     /* the two chips: one patch each. The 6581's filter is lazy and rough, its resonance sings; the 8580's is clean */
-    {"6581 GROWL", {1, 0, 0, 0, 1, 10, 110, 0}, {0, 55, 40, 25}, 70, 1, FX(25, 0, 10, 10)},
+    {"6581 GROWL", {1, 0, 0, 0, 1, 10, 110, 0}, {0, 55, 40, 25}, 63, 1, FX(25, 0, 10, 10)},
     {"8580 ACID", {1, 0, 0, 0, 1, 12, 110, 1}, {0, 55, 40, 25}, 50, 1, FX(25, 0, 10, 10)},
     /* the combined waveforms are samples of real chips, gated by the pulse: the 6581's are rough, the 8580's smooth */
     {"6581 PS REED", {6, 70, 0, 0, 1, 60, 40, 0}, {10, 70, 90, 50}, 20, 0, FX(0, 15, 25, 30)},
@@ -227,7 +227,7 @@ static const engine_t ENG_SID = {
         PU("RES", F_PCT, 0, 127, 40, 0),
         PN("MODEL", F_ENUM, 0, 1, 0, N_SID_MODEL),
     },
-    .presets = SID_PRESETS,
+    .presets = PRESETS_PTR(SID_PRESETS),
     .npresets = sizeof(SID_PRESETS) / sizeof(SID_PRESETS[0]),
     .note_on = sid_note_on,
     .render = sid_render,

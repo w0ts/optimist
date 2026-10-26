@@ -169,7 +169,7 @@ static const engine_t ENG_SUPER = {
         PU("RES", F_PCT, 0, 127, 20, 0),
         PN("FTYP", F_ENUM, 0, 3, 0, N_SUPER_FTYP),
     },
-    SUPER_PRESETS, sizeof(SUPER_PRESETS) / sizeof(SUPER_PRESETS[0]), 1, super_note_on, OVL_FN(super_render),
+    PRESETS_OF(SUPER_PRESETS), 1, super_note_on, OVL_FN(super_render),
     0xFD20, {P_E1, P_E5, P_E6, P_REL},
     .block = OVL_FN(super_block),
 };

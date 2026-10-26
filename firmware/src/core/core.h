@@ -505,6 +505,18 @@ typedef struct {
     const int8_t *x;
 } preset_t;
 #define FX(d, c, dl, r) .fx = {(d) + 1, (c) + 1, (dl) + 1, (r) + 1}
+/* an engine's factory presets (engine_t .presets, .npresets). SD card mode reads them from the card instead (PRESETS_CARD:
+ * storage/sd/sd_mode.c sdm_factory_*, the files tools/sd_factory.c makes): the table is then named only inside sizeof,
+ * its count kept, the table and its names never in the image */
+#ifndef PRESETS_CARD
+#define PRESETS_CARD FELUCCA_SD_UI                       /* (a host test sets 0: its harness reads the tables) */
+#endif
+#if PRESETS_CARD
+#define PRESETS_PTR(a) ((const preset_t *)0)
+#else
+#define PRESETS_PTR(a) (a)
+#endif
+#define PRESETS_OF(a) PRESETS_PTR(a), (uint8_t)(sizeof(a) / sizeof((a)[0]))
 #define XP(...) .x = (const int8_t[8]){__VA_ARGS__}  /* XP(P_GLIDE + 1, 30, P_ED_PIT + 1, 8): parameter id + 1, value
                                                       * (a ninth value does not compile: the four pairs are the room) */
 #define ARP(m, rt, o, g) XP(P_AMODE + 1, m, P_ARATE + 1, rt, P_AOCT + 1, o, P_AGATE + 1, g)   /* MODE, RATE, OCT, GATE */

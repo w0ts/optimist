@@ -319,7 +319,7 @@ static const engine_t ENG_WAVE = {
         PU("DRV", F_PCT, 0, 127, 0, 0),
         PU("KTR", F_PCT, 0, 127, 64, 0),
     },
-    .presets = WAVE_PRESETS,
+    .presets = PRESETS_PTR(WAVE_PRESETS),
     .npresets = sizeof(WAVE_PRESETS) / sizeof(WAVE_PRESETS[0]),
     .fil_page = 1,
     .note_on = wave_note_on,

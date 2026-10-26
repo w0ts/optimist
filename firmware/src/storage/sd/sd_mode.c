@@ -40,7 +40,16 @@ typedef struct {
 } sdm_smp_t;
 _Static_assert(sizeof(sdm_smp_t) == 64u && sizeof(sdm_smp_t) * NPART <= SEC_REC_MAX, "sd_mode.c: a part's sample record");
 
+#define SDM_DX7 FELUCCA_ENG_FM6                      /* DX7 banks in PRESETS (below: the FM6 collections on the card) */
+#ifndef SDM_REBOOT
+#define SDM_REBOOT() fm1_reboot()
+#endif
+static uint32_t sdm_reboot_at;                       /* (fm1_ms + 1 when a restore asked for the restart: sdm_poll) */
 #define SDM_KEEP_MAX 16u
+#if PRESETS_CARD
+static void sdm_factory_scan(void);
+static void sdm_factory_poll(void);
+#endif
 #define SDM_SCALE_MAX 16u                            /* (x 25 %: 400 %, sd_alloc.c's cap) */
 static sdm_rec_t sdm_rec;
 static uint8_t sdm_st, sdm_smp_dirty;               /* (the samples' record written once the audio is quiet: sdm_poll) */
@@ -55,6 +64,11 @@ static struct {
     uint8_t list, view;
     char vname[SDL_NAME_MAX + 1];                    /* VERSIONS: whose */
     char path[FF_LFN_BUF + 1], shown[SDL_NAME_MAX + 9u];
+#if SDM_DX7
+    uint8_t bank, bank_page;                         /* a DX7 bank's voices shown (its file's path in bpath), the page */
+    char bpath[FF_LFN_BUF + 1];
+    char bvn[SDB_KEYS][11];                          /* the page's voice names */
+#endif
     struct { uint32_t base; uint16_t id, have; } sc; /* the staged stream's cursor (sdm_stage_read) */
 } sdm IN_POOL;
 
@@ -218,6 +232,8 @@ static void sdm_mount_try(void)                      /* (PROJECT entered, SYSTEM
 static void sdm_poll(void)
 {
     FRESULT r;
+    if (sdm_reboot_at && fm1_ms - sdm_reboot_at > 1000u)
+        SDM_REBOOT();                                /* (a restore: the settings read at power-on; its message seen) */
     if (sdm_st == SDM_OFF) {                         /* (the first pass: the log is up) */
         sdp_hooks.read = sdm_stage_read;
         sdp_hooks.pend_set = sdm_pend_set;
@@ -268,18 +284,112 @@ static void sdm_poll(void)
         (void)sdm_was(sdx_update(sd_blk, sizeof sd_blk, 0, 0));
         sdm_st = SDM_READY;
         ui.force = 1;
+#if PRESETS_CARD
+        sdm_factory_scan();                          /* (the factory presets' names: the lists') */
+#endif
     }
+#if PRESETS_CARD
+    sdm_factory_poll();
+#endif
 }
+
+/* ---- DX7 banks (the user, 2026-10-26: the FM6 collections on the card): a .SYX of 32 voices (4104 B: F0 43 0n 09 20 00,
+ * 32 packed voices of 128 B, the checksum, F7: what every DX7 site and editor offers) anywhere under PRESETS is shown as
+ * a folder of its voices, 16 a page; a voice's LOAD reads its 128 B and puts them into the selected part's FM6 voice
+ * (eng_fm6.c fm6_unpack; the part on FM6 first if it plays another engine), as a single-voice dump does. Nothing is
+ * kept in RAM but the page's names: no received bank needed (FM6_SYSEX) */
+#if SDM_DX7
+#define SDM_DX7_LEN 4104u
+static int sdm_dx7_page(void)                        /* the page's 16 names from the file: 0 ok */
+{
+    UINT got;
+    uint32_t k, n;
+    FRESULT r = f_open(&sdm.f, sdm.bpath, FA_READ);
+    for (k = 0; r == FR_OK && k < SDB_KEYS; k++) {
+        n = sdm.bank_page * SDB_KEYS + k;
+        r = f_lseek(&sdm.f, 6u + n * 128u + 118u);
+        if (r == FR_OK && (r = f_read(&sdm.f, sdm.bvn[k], 10, &got)) == FR_OK && got != 10u)
+            r = FR_INT_ERR;
+        for (n = 0; n < 10u; n++)                    /* (7 bits; anything not printable a blank) */
+            if (sdm.bvn[k][n] < 32 || sdm.bvn[k][n] > 126)
+                sdm.bvn[k][n] = ' ';
+        for (n = 10; n && sdm.bvn[k][n - 1u] == ' '; n--)
+            ;
+        sdm.bvn[k][n] = 0;
+    }
+    (void)f_close(&sdm.f);
+    return sdm_was(r) == FR_OK ? 0 : -1;
+}
+static int sdm_dx7_open(uint32_t k)                  /* slot k (a .SYX) as a bank: its voices shown; 0 ok */
+{
+    FILINFO fi;
+    uint8_t h[6];
+    UINT got;
+    if (!sdb_path(&sdm.b, k, sdm.bpath, sizeof sdm.bpath) || f_stat(sdm.bpath, &fi) != FR_OK || fi.fsize != SDM_DX7_LEN ||
+        f_open(&sdm.f, sdm.bpath, FA_READ) != FR_OK)
+        return -1;
+    got = 0;
+    (void)f_read(&sdm.f, h, 6, &got);
+    (void)f_close(&sdm.f);
+    if (got != 6u || h[0] != 0xF0 || h[1] != 0x43 || h[3] != 9u)
+        return -1;
+    sdm.bank = 1;
+    sdm.bank_page = 0;
+    return sdm_dx7_page();
+}
+static void sdm_dx7_load(uint32_t k)                 /* voice k of the page into the selected part */
+{
+    uint8_t v[128];
+    UINT got = 0;
+    uint32_t p = song.sel;
+    track_t *t = &trk[p % NTRK];
+    if (p >= NPART) {
+        ui_message("PICK T1 T2 OR T3");
+        return;
+    }
+    if (f_open(&sdm.f, sdm.bpath, FA_READ) == FR_OK) {
+        if (f_lseek(&sdm.f, 6u + (sdm.bank_page * SDB_KEYS + k) * 128u) == FR_OK)
+            (void)f_read(&sdm.f, v, 128, &got);
+        (void)f_close(&sdm.f);
+    }
+    if (got != 128u) {
+        ui_message("NOT A DX7 BANK");
+        return;
+    }
+    if (t->eng_req != (uint8_t)ENG_SLOT_FM6) {
+        set_engine_of(t, ENG_SLOT_FM6);
+        if (t->eng_req != (uint8_t)ENG_SLOT_FM6)
+            return;                                  /* (refused: memory short, the drop is proposed: model.c) */
+    }
+    fm1_irq_off();
+    fm6_unpack(fm6_ed[p], v);
+    fm6_cur[p] = (int16_t)(t->p[P_E0] + 1);          /* (its VOICE's, no reload over it) */
+    fm1_irq_on();
+    snd_mark(p);
+    ui_say("LOADED ", sdm.bvn[k]);
+}
+#endif
 
 /* ---- the lists (op_sdcard.c): one folder view at a time, SDV_* its view */
 static const uint8_t SDM_FOLDER[SDC_N] = {SDL_PROJECTS, SDL_PRESETS, SDL_KITS, SDL_SAMPLES};
+#if SDM_DX7
+static uint32_t sdm_page(void) { return sdm.bank ? sdm.bank_page : sdm.b.page; }
+static uint32_t sdm_pages(void) { return sdm.bank ? 2u : sdm.b.pages ? sdm.b.pages : 1u; }
+static uint32_t sdm_count(void) { return sdm.bank ? SDB_KEYS : sdm.b.n; }
+#else
 static uint32_t sdm_page(void) { return sdm.b.page; }
 static uint32_t sdm_pages(void) { return sdm.b.pages ? sdm.b.pages : 1u; }
 static uint32_t sdm_count(void) { return sdm.b.n; }
+#endif
 static int sdm_open(uint32_t list, uint32_t view, const char *vname)
 {
     uint32_t n;
     FRESULT r;
+#if SDM_DX7
+    if (sdm.bank && list == sdm.list && view == sdm.view && sdm_ready())
+        return sdm_dx7_page();                       /* (a bank shown: read again, still shown) */
+    sdm.bank = 0;
+#endif
     sdm.list = (uint8_t)list;
     sdm.view = (uint8_t)view;
     sdm.b.n = 0;
@@ -304,13 +414,38 @@ static int sdm_open(uint32_t list, uint32_t view, const char *vname)
 }
 static void sdm_turn(int32_t step)
 {
+#if SDM_DX7
+    if (sdm.bank) {
+        sdm.bank_page = step > 0 ? 1u : step < 0 ? 0u : sdm.bank_page;
+        (void)sdm_dx7_page();
+        return;
+    }
+#endif
     if (sdm_ready())
         (void)sdm_was(sdb_turn(&sdm.b, step));
 }
-static int sdm_into(uint32_t k) { return sdm_ready() && sdm_was(sdb_into(&sdm.b, k)) == FR_OK; }
+static int sdm_into(uint32_t k)
+{
+#if SDM_DX7
+    if (sdm.list == SDC_PRE && !sdm.bank && k < sdm.b.n && !sdm.b.slot[k].dir) {   /* (a .SYX: its voices) */
+        if (sdm_ready() && !sdm_dx7_open(k))
+            return 1;
+        sdm.bank = 0;
+        ui_message("NOT A DX7 BANK");
+        return 0;
+    }
+#endif
+    return sdm_ready() && sdm_was(sdb_into(&sdm.b, k)) == FR_OK;
+}
 static int sdm_up(void)                              /* up a folder; 0 at the list's own folder */
 {
     uint32_t n = sdl_path(sdm.path, sizeof sdm.path, SDM_FOLDER[sdm.list % SDC_N], 0);
+#if SDM_DX7
+    if (sdm.bank) {                                  /* out of a bank: its folder as it was */
+        sdm.bank = 0;
+        return 1;
+    }
+#endif
     if (!sdm_ready() || sdm.b.view != SDB_FOLDER || !n || !sdl_cmp(sdm.b.root, sdm.path))
         return 0;
     return sdm_was(sdb_up(&sdm.b)) == FR_OK;
@@ -318,10 +453,20 @@ static int sdm_up(void)                              /* up a folder; 0 at the li
 static int sdm_at_top(void)
 {
     uint32_t n = sdl_path(sdm.path, sizeof sdm.path, SDM_FOLDER[sdm.list % SDC_N], 0);
+#if SDM_DX7
+    if (sdm.bank)
+        return 0;
+#endif
     return sdm.b.view != SDB_FOLDER || sdm.view == SDV_VERSIONS || !n || !sdl_cmp(sdm.b.root, sdm.path);
 }
 static void sdm_folder(char *b, uint32_t cap)        /* the folder shown: its last part ("SAMPLES", "DRUMS"); VERSIONS: whose */
 {
+#if SDM_DX7
+    if (sdm.bank) {
+        sdl_cat(b, 0, cap, sdb_base(sdm.bpath));
+        return;
+    }
+#endif
     sdl_cat(b, 0, cap, sdm.view == SDV_VERSIONS ? sdm.vname : sdb_base(sdm.b.root));
 }
 static uint32_t sdm_len_is(const char *s, const char *ext)   /* s ends in ext (".OPS"): s's length without it, else 0 */
@@ -329,16 +474,42 @@ static uint32_t sdm_len_is(const char *s, const char *ext)   /* s ends in ext ("
     uint32_t n = sdl_len(s), e = sdl_len(ext);
     return n > e && !sdl_cmp(s + n - e, ext) ? n - e : 0u;
 }
+#if SDM_DX7
+static uint32_t sdm_syx(const char *s)               /* s ends in .SYX, any case: its length without it, else 0 */
+{
+    uint32_t n = sdl_len(s), i;
+    if (n < 5u || s[n - 4u] != '.')
+        return 0;
+    for (i = 1; i < 4u; i++)
+        if ((s[n - 4u + i] & ~0x20) != "SYX"[i - 1u])
+            return 0;
+    return n - 4u;
+}
+#endif
 /* slot k as shown: our own files without their extension, a version as "VERSION 7"; 0: no slot k */
 static const char *sdm_slot(uint32_t k, uint32_t *dir, uint32_t *cut)
 {
     static const char *const EXT[SDC_N] = {".OPP", ".OPS", ".OPK", ""};
     const sdb_item *it = &sdm.b.slot[k % SDB_KEYS];
     uint32_t n, a;
+#if SDM_DX7
+    if (sdm.bank) {                                  /* a bank's voice: its name */
+        *dir = *cut = 0;
+        return k < SDB_KEYS ? sdm.bvn[k] : 0;
+    }
+#endif
     if (k >= sdm.b.n)
         return 0;
     *dir = it->dir;
     *cut = it->cut;
+#if SDM_DX7
+    if (sdm.list == SDC_PRE && !it->dir && !it->cut && (n = sdm_syx(it->name)) != 0) {
+        *dir = 1;                                    /* (a DX7 bank: a folder of its voices) */
+        sdl_cat(sdm.shown, 0, sizeof sdm.shown, it->name);
+        sdm.shown[n] = 0;
+        return sdm.shown;
+    }
+#endif
     sdl_cat(sdm.shown, 0, sizeof sdm.shown, it->name);
     if (sdm.view == SDV_VERSIONS) {                  /* "<name>-0007.OPP": "VERSION 7" */
         a = sdl_len(sdm.vname) + 1u;
@@ -406,6 +577,117 @@ static uint32_t sdm_small_get(const char *path, const char *magic, uint8_t *p, u
     (void)f_close(&sdm.f);
     return n;
 }
+
+#if PRESETS_CARD
+/* ---- the factory presets on the card (PRESETS_CARD; the user, 2026-10-26: "all presets (user or factory) go on the
+ * card", "card only in SD mode"): OPTIMIST/PRESETS/FACTORY/<ENGINE>/<nnn> <NAME>.OPS, as tools/sd_factory.c writes them
+ * (the SD card zip, tools/sd_zip.py). The firmware carries no preset tables (core.h PRESETS_PTR), only their counts.
+ *   sdm_factory_scan    at a mount: each built engine's folder read once, the names into sdm_fac_nm (the lists, the
+ *                       favorites, the web editor: model.c preset_name -> sdm_factory_name; "?" a file missing)
+ *   sdm_factory_ask     (model.c apply_preset_to: maybe the interrupts off) part k's engine defaults are set; its
+ *                       preset file is loaded on the main loop's next pass (sdm_factory_poll), as a user preset loads
+ *                       (upreset.c up_card_give: the record, an FM6 voice), the preset's place kept. A project's load
+ *                       or a user preset over it drops the ask (sdm_factory_drop). No card: the defaults, said once */
+#define SDM_FAC_N 320u                               /* (model.c NBANK_ALL: every engine's presets) */
+#define SDM_FAC_NM 13u
+static char sdm_fac_nm[SDM_FAC_N][SDM_FAC_NM] IN_POOL;
+static uint8_t sdm_fac_pend[NTRK], sdm_fac_eng[NTRK], sdm_fac_said;
+static uint32_t sdm_fac_ix(uint32_t e, uint32_t k)   /* engine slot e's preset k in the table of names */
+{
+    uint32_t i, n = 0;
+    for (i = 0; i < e && i < NENGINES; i++)
+        n += ENGINES[i]->npresets;
+    return n + k;
+}
+static const char *sdm_factory_name(uint32_t e, uint32_t k)
+{
+    uint32_t i = sdm_fac_ix(e, k);
+    return i < SDM_FAC_N && sdm_fac_nm[i][0] ? sdm_fac_nm[i] : "?";
+}
+static uint32_t sdm_fac_dir(uint32_t e)              /* the engine's folder into sdm.path: its length */
+{
+    uint32_t n = sdl_path(sdm.path, sizeof sdm.path, SDL_PRESETS, "FACTORY/");
+    return n ? sdl_cat(sdm.path, n, sizeof sdm.path, ENGINES[e]->name) : 0u;
+}
+static void sdm_factory_scan(void)
+{
+    DIR d;
+    FILINFO fi;
+    uint32_t e, k, i, n;
+    memset(sdm_fac_nm, 0, sizeof sdm_fac_nm);
+    for (e = 0; e < NENGINES; e++) {
+        if (!ENGINES[e]->npresets || !sdm_fac_dir(e) || f_opendir(&d, sdm.path) != FR_OK)
+            continue;
+        while (f_readdir(&d, &fi) == FR_OK && fi.fname[0]) {
+            const char *s = fi.fname;
+            if (s[0] < '0' || s[0] > '9' || s[1] < '0' || s[1] > '9' || s[2] < '0' || s[2] > '9' || s[3] != ' ' ||
+                !(n = sdm_len_is(s, ".OPS")) || n < 5u)
+                continue;
+            k = (uint32_t)(s[0] - '0') * 100u + (uint32_t)(s[1] - '0') * 10u + (uint32_t)(s[2] - '0');
+            if (k >= ENGINES[e]->npresets || (i = sdm_fac_ix(e, k)) >= SDM_FAC_N)
+                continue;
+            n -= 4u;
+            sdl_cat(sdm_fac_nm[i], 0, SDM_FAC_NM, s + 4);
+            if (n < SDM_FAC_NM)
+                sdm_fac_nm[i][n] = 0;               /* (".OPS" cut) */
+        }
+        (void)f_closedir(&d);
+    }
+}
+static void sdm_factory_ask(track_t *t, uint32_t pi)
+{
+    uint32_t k = (uint32_t)(t - trk);
+    if (k < NTRK) {
+        sdm_fac_pend[k] = (uint8_t)(pi + 1u);
+        sdm_fac_eng[k] = t->eng_req;
+    }
+}
+static void sdm_factory_drop(uint32_t k)
+{
+    if (k < NTRK)
+        sdm_fac_pend[k] = 0;
+}
+static void sdm_factory_poll(void)
+{
+    uint32_t k, n, pi, sel;
+    for (k = 0; k < NTRK; k++) {
+        if (!sdm_fac_pend[k])
+            continue;
+        pi = sdm_fac_pend[k] - 1u;
+        if (trk[k].eng_req != sdm_fac_eng[k]) {      /* (another engine since: its own ask, or none) */
+            sdm_fac_pend[k] = 0;
+            continue;
+        }
+        if (sdm_st < SDM_READY) {                    /* (no card, or not read yet: the defaults; said once) */
+            if (sdm_st == SDM_NONE) {
+                sdm_fac_pend[k] = 0;
+                if (!sdm_fac_said++)
+                    ui_message("NO SD CARD: PRESETS INIT");
+            }
+            return;
+        }
+        sdm_fac_pend[k] = 0;
+        n = sdm_fac_dir(trk[k].eng_req % NENGINES);
+        if (n) {                                     /* "<folder>/<nnn> <name>.OPS" */
+            char num[5] = {(char)('0' + pi / 100u), (char)('0' + pi / 10u % 10u), (char)('0' + pi % 10u), ' ', 0};
+            n = sdl_cat(sdm.path, n, sizeof sdm.path, "/");
+            n = sdl_cat(sdm.path, n, sizeof sdm.path, num);
+            n = sdl_cat(sdm.path, n, sizeof sdm.path, sdm_factory_name(trk[k].eng_req % NENGINES, pi));
+            n = sdl_cat(sdm.path, n, sizeof sdm.path, ".OPS");
+        }
+        n = n ? sdm_small_get(sdm.path, "OPPR", sd_blk, sizeof sd_blk) : 0u;
+        if (!n) {
+            ui_message("PRESET NOT ON THE CARD");
+            continue;
+        }
+        sel = song.sel;
+        song.sel = (uint8_t)k;                       /* (up_card_give loads into the selected part) */
+        if (!up_card_give(sd_blk, n))
+            trk[k].preset = (uint8_t)pi;             /* (its place in the engine's list, as the table's was) */
+        song.sel = (uint8_t)sel;
+    }
+}
+#endif
 
 /* ---- the project: the card's file <-> project 0 */
 /* the payload's records (len bytes from the open file's pointer) into project 0: 0 ok, 1 MEM FULL, -1 not a project */
@@ -539,6 +821,15 @@ static void sdm_do(uint32_t op, uint32_t k)
     const char *nm;
     uint32_t n, part = song.sel;
     FRESULT r = FR_OK;
+#if SDM_DX7
+    if (sdm.bank) {                                  /* (a bank's voices: LOAD only) */
+        if (op == SDO_LOAD)
+            sdm_dx7_load(k);
+        else
+            ui_message("A DX7 BANK: LOAD ONLY");
+        return;
+    }
+#endif
     if (!sdm_ready() || !sdb_path(&sdm.b, k, sdm.path, sizeof sdm.path)) {
         ui_message("NOT ON THE CARD");
         return;
@@ -686,6 +977,55 @@ static void sdm_leave(void)                          /* SYSTEM left: the setting
     if (sdm_dirty)
         sdm_dirty = 1;
 }
+/* SETTINGS (the user, 2026-10-26: a settings backup on the card): BACKUP writes the device's settings record (project.c
+ * persist_t, as settings_save makes it now) to OPTIMIST/BACKUP/SETTINGS.OPD ("OPST", sdm_small_put); RESTORE reads it
+ * back into flash and starts the FM-1 again (the settings are read at power-on). This FM-1's own stay: its Bluetooth
+ * address and its copy of the radio's calibration always; its pairings too when the file is another FM-1's (another
+ * address: the bonds and remembered devices are that unit's) */
+static int sdm_settings_path(void) { return sdl_path(sdm.path, sizeof sdm.path, SDL_BACKUP, "SETTINGS.OPD") != 0; }
+static void sdm_backup(void)
+{
+    if (!sdm_ready() || !sdm_settings_path()) {
+        ui_message("NO SD CARD");
+        return;
+    }
+    settings_save();                                 /* (the record as the device is now) */
+    (void)sdl_path(sdm.path, sizeof sdm.path, SDL_BACKUP, 0);
+    (void)f_mkdir(sdm.path);
+    (void)sdm_settings_path();
+    ui_message(sdm_was(sdm_small_put(sdm.path, "OPST", (const uint8_t *)&persist_saved, sizeof persist_saved)) == FR_OK
+               ? "SETTINGS SAVED TO CARD" : "SETTINGS NOT SAVED");
+}
+static void sdm_restore(void)
+{
+    persist_t r;
+    if (!sdm_ready() || !sdm_settings_path()) {
+        ui_message("NO SD CARD");
+        return;
+    }
+    if (sdm_small_get(sdm.path, "OPST", (uint8_t *)&r, sizeof r) != sizeof r || r.magic != PERSIST_MAGIC4) {
+        ui_message("NO SETTINGS BACKUP");
+        return;
+    }
+    if (memcmp(r.ble_addr, persist_saved.ble_addr, sizeof r.ble_addr)) {   /* another FM-1's: its pairings are its own */
+        memcpy(r.ble_bond, persist_saved.ble_bond, sizeof r.ble_bond);
+        memcpy(r.ble_dev, persist_saved.ble_dev, sizeof r.ble_dev);
+        memcpy(r.bt_rec, persist_saved.bt_rec, sizeof r.bt_rec);
+        memcpy(r.bt_key, persist_saved.bt_key, sizeof r.bt_key);
+        memcpy(r.bt_kept, persist_saved.bt_kept, sizeof r.bt_kept);
+        memcpy(r.ble_kept, persist_saved.ble_kept, sizeof r.ble_kept);
+    }
+    memcpy(r.ble_addr, persist_saved.ble_addr, sizeof r.ble_addr);   /* (this FM-1's address, its radio's calibration) */
+    memcpy(r.ble_rf, persist_saved.ble_rf, sizeof r.ble_rf);
+    if (st_save(OBJ_SETTINGS, &r, sizeof r)) {
+        ui_message("SETTINGS NOT RESTORED");
+        return;
+    }
+    persist_saved = r;
+    ui_message("RESTORED: RESTARTING");
+    sdm_reboot_at = fm1_ms + 1u;
+}
+
 static void sdm_again(void)                          /* SD CARD's YES: mounted again (or the first time), folders, index */
 {
     if (sd_state == SD_READY)

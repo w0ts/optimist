@@ -137,7 +137,7 @@ static const engine_t ENG_VPS = {
         PU("DTN", F_PCT, 0, 127, 20, 0),
         PU("SUB", F_PCT, 0, 127, 0, 0),
     },
-    .presets = VPS_PRESETS,
+    .presets = PRESETS_PTR(VPS_PRESETS),
     .npresets = sizeof(VPS_PRESETS) / sizeof(VPS_PRESETS[0]),
     .fil_page = 1,
     .note_on = vps_note_on,

@@ -267,7 +267,7 @@ static const engine_t ENG_NOISE = {
         PU("DRFT", F_PCT, 0, 127, 0, 0),
         PU("CRSH", F_PCT, 0, 127, 0, 0),           /* LFSR, META: the clock above the key */
     },
-    .presets = NOISE_PRESETS,
+    .presets = PRESETS_PTR(NOISE_PRESETS),
     .npresets = sizeof(NOISE_PRESETS) / sizeof(NOISE_PRESETS[0]),
     .note_on = noise_note_on,
     .render = noise_render,

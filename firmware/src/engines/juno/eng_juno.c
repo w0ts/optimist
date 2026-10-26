@@ -133,7 +133,7 @@ static const engine_t ENG_JUNO = {
         PU("KEY", F_PCT, 0, 127, 0, 0),
         PN("HPF", F_ENUM, 0, 3, 1, N_JUNO_HPF),
     },
-    .presets = JUNO_PRESETS,
+    .presets = PRESETS_PTR(JUNO_PRESETS),
     .npresets = sizeof(JUNO_PRESETS) / sizeof(JUNO_PRESETS[0]),
     .fil_page = 1,
     .note_on = juno_note_on,

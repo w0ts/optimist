@@ -381,10 +381,77 @@ static void rh_ring_go(void)                            /* the ring starts: on t
     rh.trk = song.sel;
     rh.lane = (int8_t)(is_drum(TSEL) && lane_picked() ? (int32_t)lane_selected() : -1);
 }
+#if FELUCCA_SD_REC
+/* the card recorder (storage/sd/sd_rec.c; the user, 2026-10-26: "short plus long click on rec, and then rec is flashing
+ * while on"): REC tapped, then pressed again within CR_GAP_MS and held CR_HOLD_MS starts or stops a take of the
+ * master on the card. The tap's arm is put back as it was before it; that second press does nothing on its own and
+ * never starts the clear ring; let go sooner, it is a plain REC press after all */
+#define CR_TAP_MS 300u
+#define CR_GAP_MS 400u
+#define CR_HOLD_MS 500u
+static int sdr_toggle(void);                            /* storage/sd/sd_rec.c */
+static const char *sdr_name(void);
+static int sdr_busy(void);
+static int sdr_news(void);
+static struct {
+    uint8_t down, tapped, second;                       /* REC down; tapped (let go quickly); the second press waiting */
+    uint8_t prev_rec, prev_wait;                        /* the arm before the tap */
+    uint32_t t0, up_t;
+} crec;
+static int crec_press(void)                             /* REC pressed: 1 = the second press (held: the card take) */
+{
+    uint32_t t = op_t0[panel.btn[B_REC] % 14u];
+    if (crec.tapped && t - crec.up_t < CR_GAP_MS) {
+        crec.second = 1;
+        crec.tapped = 0;
+        crec.t0 = t;
+        rh.on = rh.ring = 0;                            /* (no clear ring from this press) */
+        return 1;
+    }
+    crec.down = 1;
+    crec.t0 = t;
+    crec.prev_rec = song.rec;
+    crec.prev_wait = rec_wait;
+    return 0;
+}
+static int crec_frame(uint32_t held)                    /* once a frame, before rec_held: 1 = REC is this gesture's */
+{
+    int down = (held >> panel.btn[B_REC]) & 1u, n = sdr_news();
+    if (n)
+        ui_say(n == 1 ? "CARD REC FULL " : "CARD REC FAILED ", sdr_name());
+    if (crec.second) {
+        if (down && fm1_ms - crec.t0 >= CR_HOLD_MS) {   /* held: the take on or off, the tap's arm put back */
+            int r;
+            crec.second = 0;
+            song.rec = crec.prev_rec;
+            rec_wait = crec.prev_wait;
+            r = sdr_toggle();
+            ui_say(r > 0 ? "CARD REC " : r == 0 ? "CARD STOP " : "NO SD CARD", r >= 0 ? sdr_name() : "");
+            crec.down = 2;                              /* (until REC is let go: nothing more) */
+        } else if (!down) {
+            crec.second = 0;                            /* let go sooner: a plain REC press after all */
+            rh.prev_rec = song.rec;
+            rh.prev_wait = rec_wait;
+            (void)op_rec();
+        }
+        return 1;
+    }
+    if (!down && crec.down) {
+        crec.tapped = crec.down == 1 && fm1_ms - crec.t0 < CR_TAP_MS;
+        crec.up_t = fm1_ms;
+        crec.down = 0;
+    }
+    return crec.down == 2;
+}
+#endif
 /* REC held (op_state.c rh): once a frame. Held RH_ARM_MS after a plain press, the press is undone and the ring fills;
  * RH_CLEAR_MS more, the track is cleared (op_clear_track: undoable, "T2 cleared"); let go before: nothing */
 static void rec_held(uint32_t held)
 {
+#if FELUCCA_SD_REC
+    if (crec_frame(held))
+        return;
+#endif
     if (!(held & (1u << panel.btn[B_REC]))) {
         if (rh.on && !rh.ring && !rh.knob && op_btn_span(panel.btn[B_REC], rh.t0) >= RH_ARM_MS) {
             song.rec = rh.prev_rec;                     /* (held past the ring's start, a slow frame between: a hold, the */
@@ -655,6 +722,10 @@ static __attribute__((noinline)) void op_press(uint32_t b, uint32_t held)
         }
         break;
     case B_REC:
+#if FELUCCA_SD_REC
+        if (crec_press())
+            break;                                      /* (the card take's second press: crec_frame) */
+#endif
         rh.prev_rec = song.rec;                         /* (a hold undoes the press: rec_held) */
         rh.prev_wait = rec_wait;
         rh.t0 = op_t0[panel.btn[B_REC] % 14u];
@@ -1421,7 +1492,11 @@ static void ui_leds(void)
 #endif
     led_btn(nl, B_SAVE, armed && blink);                /* YES is asked for */
     led_btn(nl, B_PLAY, op_recording() || play_led());  /* (recording: full; playing: on each beat) */
-    led_btn(nl, B_REC, song.rec != 0u || ft_on || (rec_wait && blink));
+    led_btn(nl, B_REC, song.rec != 0u || ft_on || (rec_wait && blink)
+#if FELUCCA_SD_REC
+                       || (sdr_busy() && blink)          /* (the card recording: REC flashes) */
+#endif
+           );
     if (is_drum(TSEL)) {                                /* the drum track: OCT lit while held on STEP (a ghost / hard hit) */
         led_btn(nl, B_OCTDN, ui.scr == SCR_STEP && btn_held(B_OCTDN));
         led_btn(nl, B_OCTUP, ui.scr == SCR_STEP && btn_held(B_OCTUP));

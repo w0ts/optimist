@@ -91,7 +91,7 @@ static const engine_t ENG_PROPHET = {
         PU("PMOD", F_BIPCT, -64, 63, 0, 0),
         PU("PW", F_PCT, 0, 127, 0, 0),
     },
-    .presets = PROPHET_PRESETS,
+    .presets = PRESETS_PTR(PROPHET_PRESETS),
     .npresets = sizeof(PROPHET_PRESETS) / sizeof(PROPHET_PRESETS[0]),
     .fil_page = 1,
     .note_on = prophet_note_on,

@@ -600,7 +600,7 @@ static const engine_t ENG_PLAITS = {
         PU("LPG", F_PCT, 0, 127, 0, 0),
         PU("VEL", F_PCT, 0, 127, 0, 0),
     },
-    .presets = PLAITS_PRESETS,
+    .presets = PRESETS_PTR(PLAITS_PRESETS),
     .npresets = sizeof(PLAITS_PRESETS) / sizeof(PLAITS_PRESETS[0]),
     .note_on = plaits_note_on,
     .render = plaits_render,

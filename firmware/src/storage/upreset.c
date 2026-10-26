@@ -27,6 +27,9 @@
 #define UP_VER 5u
 #define UP_NTAIL (P_SLAST - P_E1PIT + 1u)        /* the sound's values after P_E7 */
 #define UP_FM6_OFS 64                            /* FM6's stored VOICE (fm6_voice_store: 0, 64 .. 143) less this */
+#ifndef UP_CARD_ON
+#define UP_CARD_ON FELUCCA_SD_UI                 /* the card's presets (SD card mode: sd_mode.c; a host test sets it alone) */
+#endif
 #define UP_BANK_MAGIC 0x34425055u                /* "UPB4" */
 typedef struct {
     uint8_t used, ver, engine, nv, ne0;          /* UP_USED, UP_VER, engine UID, values stored, where P_E0's are */
@@ -61,7 +64,7 @@ static int up_bank_ok(const void *src, int len)
  * kept for the session. The host keeps the RAM mirror unless a test maps the flash image (storage.c ST_XIP_PTR) */
 #define UP_XIP 1
 static const up_bank_t *up_xip[UP_SLOTS / UP_PER_BANK];
-#if FELUCCA_SD_UI
+#if UP_CARD_ON
 static up_rec_t up_card IN_POOL;                 /* SD card mode: a preset on its way to or from the card, slot UP_CARD (sd_mode.c) */
 #define UP_CARD UP_SLOTS
 #endif
@@ -70,7 +73,7 @@ static const up_rec_t *up_rec(uint32_t k)       /* 0: a slot of a bank that is n
                                                   * record in flash cost as much, 2026-10-24) */
 {
     uint32_t b = k / UP_PER_BANK;
-#if FELUCCA_SD_UI
+#if UP_CARD_ON
     if (k == UP_CARD)
         return &up_card;
 #endif
@@ -80,7 +83,7 @@ static const up_rec_t *up_rec(uint32_t k)       /* 0: a slot of a bank that is n
 #define UP_XIP 0
 static up_bank_t up_bank[UP_SLOTS / UP_PER_BANK] IN_POOL;
 
-#if FELUCCA_SD_UI
+#if UP_CARD_ON
 static up_rec_t up_card IN_POOL;                 /* SD card mode: a preset on its way to or from the card, slot UP_CARD (sd_mode.c) */
 #define UP_CARD UP_SLOTS
 static up_rec_t *up_rec(uint32_t k) { return k == UP_CARD ? &up_card : &up_bank[k / UP_PER_BANK].r[k % UP_PER_BANK]; }
@@ -114,7 +117,7 @@ static int up_valid(const up_rec_t *r)
            r->nv <= UP_NV && r->nv >= r->ne0 + 8u;
 }
 
-#if FELUCCA_SD_UI
+#if UP_CARD_ON
 static int up_used(uint32_t k) { return k <= UP_CARD && up_valid(up_rec(k)); }   /* (UP_CARD: the card's preset) */
 #else
 static int up_used(uint32_t k) { return k < UP_SLOTS && up_valid(up_rec(k)); }
@@ -391,7 +394,7 @@ static void up_boot(void)                      /* persist_boot: the banks from f
  * A bank of another format in flash is written over as an empty UPB4 bank with this record */
 static int up_put(uint32_t k, const up_rec_t *r)
 {
-#if FELUCCA_SD_UI
+#if UP_CARD_ON
     if (k == UP_CARD) {                                 /* (the card's: RAM only, sd_mode.c writes the file) */
         if (r)
             up_card = *r;
@@ -500,6 +503,28 @@ static int up_store(uint32_t k, const char *name)
  * stored in the record is not loaded: changing the sound never changes the sequence.
  * 0 ok, 1 empty (or the drum track is selected), or its engine is left out of this build (kept, not loaded:
  * "MISSING: PHYS") */
+#if FELUCCA_ENG_FM6 && UP_CARD_ON
+static const uint8_t *up_card_voice;             /* the card file's FM6 voice (fm6_pack's 128 B), 0 none: up_card_give */
+#endif
+#if FELUCCA_ENG_FM6 && ((FELUCCA_UP_FM6 && FELUCCA_FLASH) || UP_CARD_ON)
+static int up_voice_of(uint32_t k, int16_t *ed)  /* slot k's own FM6 voice -> ed: 1, or none: 0 (its VOICE then) */
+{
+#if UP_CARD_ON
+    if (k == UP_CARD) {
+        if (!up_card_voice)
+            return 0;
+        fm6_unpack(ed, up_card_voice);
+        return 1;
+    }
+#endif
+#if FELUCCA_UP_FM6 && FELUCCA_FLASH
+    return upf_get(k, ed);
+#else
+    (void)ed;
+    return 0;
+#endif
+}
+#endif
 static int up_load(uint32_t k)
 {
     const up_rec_t *r;
@@ -508,6 +533,9 @@ static int up_load(uint32_t k)
     track_t *t = TSEL;
     if (!up_used(k) || is_drum(t))
         return 1;
+#if PRESETS_CARD
+    sdm_factory_drop(song.sel);                         /* (a factory preset asked for before: this sound over it) */
+#endif
     if (!eng_built(up_rec(k)->engine)) {
         ui_say("MISSING: ", ENG_UID_NAME[up_rec(k)->engine % ENG_UID_N]);
         return 1;
@@ -531,8 +559,8 @@ static int up_load(uint32_t k)
     for (i = 0; i < P_COUNT; i++)
         t->p[i] = v[i];
     t->preset = 0;
-#if FELUCCA_UP_FM6 && FELUCCA_ENG_FM6 && FELUCCA_FLASH
-    if (r->engine == ENG_UID_FM6 && upf_get(k, fm6_ed[song.sel % NPART])) {   /* its own voice (UP_FM6): kept as the */
+#if FELUCCA_ENG_FM6 && ((FELUCCA_UP_FM6 && FELUCCA_FLASH) || UP_CARD_ON)
+    if (r->engine == ENG_UID_FM6 && up_voice_of(k, fm6_ed[song.sel % NPART])) {   /* its own voice (UP_FM6, the card's */
         fm6_bake_old(fm6_ed[song.sel % NPART], up_old_fm6[0], up_old_fm6[1], up_old_fm6[2]);   /* (MOD ..: in the voice) */
         fm6_cur[song.sel % NPART] = (int16_t)(t->p[P_E0] + 1);   /* VOICE's, no reload */
     } else
@@ -546,27 +574,41 @@ static int up_load(uint32_t k)
     return 0;
 }
 
-#if FELUCCA_SD_UI
+#if UP_CARD_ON
 /* SD card mode (storage/sd/sd_mode.c): a preset file's record. up_card_take: the selected part's sound as a record named
- * name (12 characters at most) -> out (sizeof(up_rec_t)): its size, 0 the drum track. up_card_give: a record (n bytes)
- * into the selected part, as a user preset's LOAD: 0 loaded, 1 refused (said: MISSING, MEM FULL, the drum track), -1 not
- * a record of this format. An FM6 sound keeps its VOICE number (the operator edits are the flash slots' UP_FM6 only) */
+ * name (12 characters at most) -> out: its size, 0 the drum track; an FM6 sound's own voice after it, edits and all
+ * (fm6_pack's 128 B: UP_CARD_FM6; the user, 2026-10-26: as the flash slots' UP_FM6 keeps it). up_card_give: a record
+ * (n bytes, the voice after it or not) into the selected part, as a user preset's LOAD: 0 loaded, 1 refused (said:
+ * MISSING, MEM FULL, the drum track), -1 not a record of this format. A file of before (no voice): its VOICE number */
+#define UP_CARD_FM6 128u
 static uint32_t up_card_take(uint8_t *out, const char *name)
 {
     if (up_store(UP_CARD, name))
         return 0;
     memcpy(out, &up_card, sizeof up_card);
+#if FELUCCA_ENG_FM6
+    if (up_card.engine == ENG_UID_FM6) {
+        fm6_pack(out + sizeof up_card, fm6_ed[song.sel % NPART]);
+        return sizeof up_card + UP_CARD_FM6;
+    }
+#endif
     return sizeof up_card;
 }
 static int up_card_give(const uint8_t *in, uint32_t n)
 {
     int rc;
-    if (n != sizeof up_card)
+    if (n != sizeof up_card && n != sizeof up_card + UP_CARD_FM6)
         return -1;
     memcpy(&up_card, in, sizeof up_card);
     if (!up_valid(&up_card))
         return -1;
+#if FELUCCA_ENG_FM6
+    up_card_voice = n > sizeof up_card && up_card.engine == ENG_UID_FM6 ? in + sizeof up_card : (const uint8_t *)0;
+#endif
     rc = up_load(UP_CARD);
+#if FELUCCA_ENG_FM6
+    up_card_voice = 0;
+#endif
     if (!rc)
         TSEL->user = 0;                                 /* (no flash slot plays: SAVE asks for a free one) */
     return rc;

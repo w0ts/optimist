@@ -293,7 +293,7 @@ static const engine_t ENG_DRAWBAR = {
         PU("DRV", F_PCT, 0, 127, 0, 0),
         PN("ROTR", F_ENUM, 0, 2, 1, N_DRW_ROTR),
     },
-    DRAWBAR_PRESETS, sizeof(DRAWBAR_PRESETS) / sizeof(DRAWBAR_PRESETS[0]), -1, drawbar_note_on, OVL_FN(drawbar_render),
+    PRESETS_OF(DRAWBAR_PRESETS), -1, drawbar_note_on, OVL_FN(drawbar_render),
     0xBC1F, {P_E0, P_E4, P_E6, P_E7}, 0, 0, 0, OVL_FN(drawbar_block),
 };
 #if FELUCCA_ENG_DRAWBAR

@@ -316,7 +316,7 @@ static const engine_t ENG_CZ = {
         PN("MOD", F_ENUM, 0, 3, 0, N_CZ_MOD),
         PU("VIB", F_INT, 0, 99, 0, 0),
     },
-    .presets = CZ_PRESETS,
+    .presets = PRESETS_PTR(CZ_PRESETS),
     .npresets = sizeof(CZ_PRESETS) / sizeof(CZ_PRESETS[0]),
     .fil_page = 0,
     .note_on = cz_note_on,
