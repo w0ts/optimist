@@ -533,6 +533,9 @@ static int up_load(uint32_t k)
     track_t *t = TSEL;
     if (!up_used(k) || is_drum(t))
         return 1;
+#if PRESETS_CARD
+    sdm_factory_drop(song.sel);                         /* (a factory preset asked for before: this sound over it) */
+#endif
     if (!eng_built(up_rec(k)->engine)) {
         ui_say("MISSING: ", ENG_UID_NAME[up_rec(k)->engine % ENG_UID_N]);
         return 1;

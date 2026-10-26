@@ -237,7 +237,7 @@ static const engine_t ENG_FORMANT = {
         PU("Q", F_PCT, 0, 127, 64, 0),
         PU("RAND", F_PCT, 0, 127, 0, 0),
     },
-    FORMANT_PRESETS, sizeof(FORMANT_PRESETS) / sizeof(FORMANT_PRESETS[0]), 0, formant_note_on, OVL_FN(formant_render),
+    PRESETS_OF(FORMANT_PRESETS), 0, formant_note_on, OVL_FN(formant_render),
     0xF81F, {P_E0, P_E4, P_E5, P_E2}, 4,
 };
 #if FELUCCA_ENG_FORMANT

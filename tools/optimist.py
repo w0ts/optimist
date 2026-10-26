@@ -154,7 +154,14 @@ def cmd_package(a):
     # (a release package is named by its profile's id, optimist-0.1-drum-machines: the site matches releases' files
     # to the published profiles by it, web/make_site.py releases_of; a development package by its name, as before)
     stem = f"optimist-{a.release}-{a.profile}" if a.release and a.profile else None
-    return C.package(cfg, name, Path(a.out).expanduser(), stem=stem, echo=True, summary=a.summary, release=a.release)
+    rc = C.package(cfg, name, Path(a.out).expanduser(), stem=stem, echo=True, summary=a.summary, release=a.release)
+    if not rc and cfg.get("SDCARD") and cfg.get("LAYOUT") == 1 and cfg.get("FAR_OK"):
+        # SD card mode (registry.h FELUCCA_SD_UI) reads its factory presets from the card: the SD card zip beside it
+        # (tools/sd_zip.py; docs/SD-CARD-DESIGN.md 9), unzipped at the card's root
+        sys.path.insert(0, str(ROOT / "tools"))
+        import sd_zip
+        sd_zip.make(Path(a.out).expanduser() / "optimist-sd-card.zip")
+    return rc
 
 
 def cmd_config(a):

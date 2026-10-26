@@ -414,6 +414,6 @@ static const engine_t ENG_SLICE = {
         PU("DCAY", F_TIME, 0, 127, 127, 0),
         PU("TONE", F_INT, 0, 127, 127, 0),
     },
-    SLICE_PRESETS, sizeof(SLICE_PRESETS) / sizeof(SLICE_PRESETS[0]), -1, slice_note_on, slice_render,
+    PRESETS_OF(SLICE_PRESETS), -1, slice_note_on, slice_render,
     0xFB2C, {P_E0, P_E1, P_E3, P_E6}, 0, slice_amp,
 };

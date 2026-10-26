@@ -311,7 +311,7 @@ static const engine_t ENG_PHASE = {
         PU("-", F_INT, 0, 0, 0, 0),
 #endif
     },
-    PHASE_PRESETS, sizeof(PHASE_PRESETS) / sizeof(PHASE_PRESETS[0]), 0, phase_note_on, OVL_FN(phase_render),
+    PRESETS_OF(PHASE_PRESETS), 0, phase_note_on, OVL_FN(phase_render),
     0x05DF, {P_E2, P_E3, P_E4, P_REL},
 };
 #if FELUCCA_ENG_PHASE
