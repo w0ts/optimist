@@ -569,6 +569,10 @@ job; ( jobin
     run "Ableton Link peer: wire format, Link's rounding, join the older session, tempo / start-stop both ways, phase, ttl" "$OUT/link_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
+    $CC -O2 -w -o "$OUT/wifi_sta_test" tests/wifi_sta_test.c
+    run "Wi-Fi station crypto: SHA-1, HMAC, PBKDF2 PMK, AES-128, key unwrap (published vectors)" "$OUT/wifi_sta_test"
+) >"$U.out" 2>&1 & jobbg
+job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/clock_out_test" tests/clock_out_test.c -lm
     run "MIDI clock out: 24 PPQN at 5 tempos, with the sound, FA / FC / F2 + FB, OFF, tempo change, no swing, ext follow" "$OUT/clock_out_test"
 ) >"$U.out" 2>&1 & jobbg
