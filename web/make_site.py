@@ -6,6 +6,8 @@
   index.html                  redirect to the installer
   firmware/optimist-VER-ID.fwsc  the development packages: one per flavour in web/flavours.json, built from this commit
   firmware/r/TAG/optimist-VER-PROFILE.fwsc  each published release's packages (--releases): its published flavours
+  firmware/r/TAG/optimist-VER-PROFILE.wasm  their simulators, when pages.yml built them from the tag's source (the latest
+                              release); site.json "latest": {tag, sha, date}, where the builder and the simulator start
   firmware/FM-1_015.fwsc      M-VAVE's official V15, unchanged (web/stock/, Apache-2.0): the installer's return to stock
   icon.svg, favicon.ico, apple-touch-icon.png, icon-*.png, manifest.webmanifest   the icon (assets/logo/)
   webapp/installer/index.html the standalone installer (web/installer/index.html): the installer module with fm1pkg.js,
@@ -27,6 +29,8 @@
   web/make_site.py --local X.Y OUT_DIR                         no firmware at all (make web): the installer offers cloud
                                                                builds and a .fwsc of yours
   web/make_site.py --profiles                                  the manifest's profiles, one per line (CI builds them)
+  web/make_site.py --release-sims DIR                          "TAG SHA PROFILE" per package of the latest release in DIR
+                                                               (CI builds their simulators from the tag's source)
   web/make_site.py --builder OUT_DIR                           only OUT_DIR/webapp/builder (no package needed)
 
 The package identity (Optimist FM-1_7xx, Felucca / SLOOP FM-1_9xx) is read from the package; the device reports it
@@ -240,11 +244,17 @@ def published_profiles():
 HIDDEN_RELEASE_PROFILES = {"user-default"}
 
 
+SHA_RE = re.compile(r"[0-9a-f]{40}")
+RELEASE_PKG = re.compile(r"optimist-[0-9][0-9A-Za-z.]*-([A-Za-z0-9_-]+)")   # (a profile id: synths_USBaudio_BTaudio_BTmidi)
+
+
 def releases_of(folder, manifest=HERE / "flavours.json"):
-    """DIR/TAG/release.json ({tag, date}) + DIR/TAG/optimist-VER-PROFILE.fwsc (release.yml's names) -> the releases,
-    newest first: [{tag, date, flavours: [{id, title, description, pkg}]}]: every package the release carries (a release is
-    what it shipped: v0.1's profiles were renamed since, and today's "# publish" marks hid it, the user 2026-10-25), titled
-    as web/flavours.json titles a flavour of that profile, else by the profile's "# name:", else its id"""
+    """DIR/TAG/release.json ({tag, date, sha}) + DIR/TAG/optimist-VER-PROFILE.fwsc (release.yml's names) -> the releases,
+    newest first: [{tag, date, sha, flavours: [{id, title, description, pkg, sim}]}]: every package the release carries (a
+    release is what it shipped: v0.1's profiles were renamed since, and today's "# publish" marks hid it, the user
+    2026-10-25), titled as web/flavours.json titles a flavour of that profile, else by the profile's "# name:", else its
+    id. sha: the tag's commit ("" when unknown); sim: DIR/TAG/optimist-sim-PROFILE.wasm when pages.yml built it from the
+    tag's source (else None)"""
     listed = json.loads(Path(manifest).read_text(encoding="utf-8"))["flavours"]
     titled = {f["profile"]: f for f in listed}
     rank = {f["profile"]: k for k, f in enumerate(listed)}   # (the manifest's flavours first, in its order: the default first)
@@ -256,20 +266,40 @@ def releases_of(folder, manifest=HERE / "flavours.json"):
             continue
         info = json.loads(meta.read_text(encoding="utf-8"))
         tag, date = str(info.get("tag", "")), str(info.get("date", ""))
+        sha = str(info.get("sha", ""))
         if not re.fullmatch(r"v[0-9A-Za-z._-]{1,32}", tag):
             raise SystemExit(f"{meta}: tag {tag!r} is not a release tag (v0.1, v0.2-rc1)")
         flavours = []
         for f in sorted(d.glob("optimist-*.fwsc")):
-            m = re.fullmatch(r"optimist-[0-9][0-9A-Za-z.]*-([A-Za-z0-9_-]+)", f.stem)   # (a profile id: synths_USBaudio_BTaudio_BTmidi)
+            m = RELEASE_PKG.fullmatch(f.stem)
             if not m or m.group(1) in HIDDEN_RELEASE_PROFILES:
                 continue                                 # (not a release package, or one left off)
             t = titled.get(m.group(1), {})
+            sim = d / f"optimist-sim-{m.group(1)}.wasm"
             flavours.append({"id": m.group(1), "title": t.get("title", published.get(m.group(1), m.group(1))),
-                             "description": t.get("description", ""), "pkg": f})
+                             "description": t.get("description", ""), "pkg": f, "sim": sim if sim.is_file() else None})
         if flavours:
             flavours.sort(key=lambda f: (rank.get(f["id"], len(rank)), f["id"]))
-            out.append({"tag": tag, "date": date, "flavours": flavours})
+            out.append({"tag": tag, "date": date, "sha": sha if SHA_RE.fullmatch(sha) else "", "flavours": flavours})
     return sorted(out, key=lambda r: r["date"], reverse=True)
+
+
+def latest_of(releases):
+    """the latest published release (releases_of: newest first) as site.json's "latest", {tag, sha, date}: where the
+    builder and the simulator start (the user, 2026-10-26: "by default it should pick the last release tag, not main");
+    None when there is none or its commit is unknown (the pages then start from main, the site's own copy)"""
+    if not releases or not SHA_RE.fullmatch(releases[0].get("sha") or ""):
+        return None
+    r = releases[0]
+    return {"tag": r["tag"], "sha": r["sha"], "date": r["date"]}
+
+
+def release_sims(folder):
+    """what pages.yml builds from the latest release's own source: [(tag, sha, profile)] for each of its packages
+    (releases_of: the ones the site lists); none when the latest release's commit is unknown"""
+    rs = releases_of(folder)
+    latest = latest_of(rs)
+    return [(latest["tag"], latest["sha"], f["id"]) for f in rs[0]["flavours"]] if latest else []
 
 
 def package_entry(path, name, flavour, release="", date=""):
@@ -299,6 +329,9 @@ def main(version, out, flavours=None, releases=None, sims=None):
             name = f"r/{r['tag']}/{Path(fl['pkg']).name}"
             packages.append(package_entry(fl["pkg"], name, fl, r["tag"], r["date"]))
             files.append((Path(fl["pkg"]), name))
+            if fl.get("sim"):                           # its simulator, built from the tag's source (pages.yml)
+                packages[-1]["sim"] = "../../firmware/" + name.replace(".fwsc", ".wasm")
+                files.append((Path(fl["sim"]), name.replace(".fwsc", ".wasm")))
     for fl in flavours:
         name = f"optimist-{ver}-{fl['id']}.fwsc"
         packages.append(package_entry(fl["pkg"], name, fl))
@@ -319,6 +352,9 @@ def main(version, out, flavours=None, releases=None, sims=None):
     site = {"version": version, "source": source_ref(), "packages": packages, "sims": sim_list,
             "repo": os.environ.get("GITHUB_REPOSITORY") or "w0ts/optimist",     # (the cloud builds' list: installer.js)
             "stock": {"pkg": "../../firmware/" + STOCK_NAME, "sha256": stock_sha}}
+    latest = latest_of(releases)
+    if latest:                                          # (the builder's and the simulator's default: builder.js, sim.js)
+        site["latest"] = latest
     meta = json.dumps(site)
     for mark in ("/*INSTALLER*/", "/*META*/"):
         if html.count(mark) != 1:
@@ -373,6 +409,8 @@ if __name__ == "__main__":
         print(f"builder: {builder_site(args[1])}")
     elif args[:1] == ["--profiles"]:
         print("\n".join(f["profile"] for f in json.loads((HERE / "flavours.json").read_text(encoding="utf-8"))["flavours"]))
+    elif args[:1] == ["--release-sims"] and len(args) == 2:
+        print("\n".join(" ".join(x) for x in release_sims(args[1])))
     elif args[:1] == ["--flavours"] and len(args) in (4, 6) and (len(args) == 4 or args[4] == "--releases"):
         main(args[2], args[3], flavours_of(args[1]), releases_of(args[5], args[1]) if len(args) == 6 else None)
     elif args[:1] == ["--local"] and len(args) == 3:

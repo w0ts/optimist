@@ -3467,5 +3467,15 @@ await installerModule();
   ok(findButton(names, "PLAY") === 12 && findButton(names, "PLAY/STOP") === 12 && findButton(names, "NOPE") === -1,
     "sim: PLAY/STOP found by its 3-letter prefix; an unknown label is -1");
 }
+/* the simulator's builds: the latest release's first (make_site.py lists the releases first; built from the tag), main's
+   development build named as such, a simulator alone by its title */
+{
+  const SIM = await import("./sim/sim.js");
+  const src = readFileSync(join(HERE, "sim", "sim.js"), "utf8");
+  ok(SIM.siteLabel({ release: "v0.2", title: "Synths", pkg: "x" }) === "v0.2 · Synths" && SIM.siteLabel({ release: "", title: "Synths", pkg: "x" }) === "main (development) · Synths"
+    && SIM.siteLabel({ id: "local", title: "Local build: synth", sim: "x.wasm" }) === "Local build: synth"
+    && /st\.choice \|\| \(packages\.length \? "site:0" : null\)/.test(src) && /\.\.\.\(p\.release \? \{ profile: p\.id \} : \{ flavour: p\.id \}\)/.test(src),
+    "sim: the first site build is the default (the latest release's, listed first); main's labelled development; a release's Configuration opens its profile");
+}
 console.log(failed ? `WEB TESTS FAILED (${failed})` : "web tests passed");
 process.exit(failed ? 1 : 0);
