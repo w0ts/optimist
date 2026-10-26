@@ -3,7 +3,7 @@
  * shares the control block, drv and the helpers): scanning (state 1, §21.2), initiating (state 3, §21.3) and the
  * switch to the master of the connection (state 6, §21.3 / §21.4). The master's connection then runs on the
  * peripheral's code (the RX rule of §8, the TX rule of §8.2, the event service) with the differences of §21.4 there
- * (drv.master). Clean room: the fact sheet, the Core Specification; no vendor code. */
+ * (drv.master). Written from the fact sheet and the Core Specification; no vendor code. */
 
 /* ------------------------------------------------------------------------------------------- scanning --- */
 

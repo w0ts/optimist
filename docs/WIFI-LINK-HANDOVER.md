@@ -1,7 +1,7 @@
 # Wi-Fi + Ableton Link: handover (2026-10-26)
 
 Work in progress on branch `link` (w0ts/optimist). Not for main. Goal: Ableton Link sync on the FM-1 over Wi-Fi, with a
-Wi-Fi driver of our own (clean room, as the BT stack was). Details: `docs/LINK-DESIGN.md` (Link) and
+Wi-Fi driver of our own (an independent implementation that uses captured JieLi register values, as the BT stack does). Details: `docs/LINK-DESIGN.md` (Link) and
 `docs/WIFI-HW-FACTS.md` (the hardware, every measurement).
 
 ## Where it stands
