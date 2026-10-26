@@ -479,6 +479,12 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #if FELUCCA_ARENA_KB && !defined(FELUCCA_ARENA_BYTES)
 #define FELUCCA_ARENA_BYTES (FELUCCA_ARENA_KB * 1024u)
 #endif
+#ifdef FELUCCA_ARENA_BYTES
+#define PART_DROPS 1                       /* (an arena placed by need: a change can be refused, a part dropped, a silent
+                                            * placeholder: engines.c part_mem_*, model.c mem_*, op_input.c mem_tick) */
+#else
+#define PART_DROPS 0
+#endif
 #ifndef FELUCCA_RET_FB
 #define FELUCCA_RET_FB 1                   /* the returns' feedback sends B -> A, C -> A, C -> B (fx_slots.c rs_amt, fx.c rs_fbv) */
 #endif

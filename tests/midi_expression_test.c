@@ -166,7 +166,7 @@ static void fm6_render_run(int bend, int32_t *sum)
     track_t *t = &trk[0];
     uint32_t k, j;
     reset_test();
-    memset(arn_mem, 0, sizeof arn_mem);          /* FM6's own running state (its voices, MONO keys): each run from the same start */
+    memset(part_mem, 0, sizeof part_mem);          /* FM6's own running state (its voices, MONO keys): each run from the same start */
     memset(fm6_lfo, 0, sizeof fm6_lfo);
     memset(fm6_pt, 0, sizeof fm6_pt);
     memset(fm6_dc, 0, sizeof fm6_dc);

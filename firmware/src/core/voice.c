@@ -792,7 +792,7 @@ static int drone_unlatch(track_t *t, uint32_t note)
 static volatile uint8_t trk_hits;
 static void trk_note_on(track_t *t, uint32_t note, uint32_t vel)
 {
-    if (t->silent)
+    if (T_SILENT(t))
         return;                                         /* a silent placeholder plays nothing (core.h) */
     uint32_t any = 0, i, mode = (uint32_t)t->p[P_VOICE];
     if (trk_silent(t))
@@ -1055,7 +1055,7 @@ static __attribute__((noinline)) void pold_out(uint32_t m)
 static void engine_block(track_t *t)
 {
     uint32_t i, any = 0;
-#if !ARN_FIXED                                          /* (an arena placed by need: the engine a part starts with, or
+#if PART_DROPS                                          /* (an arena placed by need: the engine a part starts with, or
                                                          * one a load put there without a switch, gets its memory) */
     if ((uint32_t)(t - trk) < NPART && !part_mem_p[t - trk] && part_mem_bytes(t->engine))
         (void)part_mem_claim((uint32_t)(t - trk), t->engine);
@@ -1079,9 +1079,13 @@ static void engine_block(track_t *t)
             v->env = v->env_out = 0;
         }
         t->engine = t->eng_req % NENGINES;
+#if PART_DROPS
         if (part_mem_claim((uint32_t)(t - trk), t->engine))     /* its engine memory (engines.c); no room (an arena */
             part_mem_unplaced(t, t->engine);                     /* placed by need, nobody reserved): a placeholder,
                                                                   * the UI's list offers what to drop */
+#else
+        part_mem_claim((uint32_t)(t - trk), t->engine);   /* its engine memory (engines.c) */
+#endif
         t->xf_on = 0;
         t->pold = 0;
         t->nmono = 0;

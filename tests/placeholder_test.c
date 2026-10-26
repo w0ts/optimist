@@ -53,7 +53,10 @@ static void blocks(uint32_t n)
     }
 }
 
-#if defined(FELUCCA_ARENA_BYTES) && !MEM_LIST
+#ifndef PH_PLAIN
+#define PH_PLAIN 0                                      /* (1: an arena of every part's memory: nothing refused, run_tests.sh) */
+#endif
+#if !PH_PLAIN && !MEM_LIST
 /* op_input.c mem_tick's steps without the UI: 1 a part proposed to drop (*k), 2 nothing left to propose (MEM FULL), 0
  * else (waiting, done, nothing refused) */
 static int core_tick(uint32_t *k)
@@ -126,7 +129,7 @@ int main(void)
     CHECK(punch_sw == 0, "an older project (0 there): PUNCH off");
     blocks(64);
 #endif
-#if defined(FELUCCA_ARENA_BYTES) && !FELUCCA_FX_ARENA   /* (built with an arena of one part's memory: the drop flow) */
+#if !PH_PLAIN && !FELUCCA_FX_ARENA                   /* (built with an arena of one part's memory: the drop flow) */
     {
         track_t *u = &trk[1];
         uint32_t k = 0, f;

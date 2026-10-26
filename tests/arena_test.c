@@ -4,7 +4,7 @@
  *                        other parts reserve, against the invariants (no block or reservation overlaps another part's,
  *                        every block inside the arena, a part's block moves only when it switches, what to drop is
  *                        always enough)
- *   (built with -DARN_SLOT=1008: the fixed placement of the default arena, never refused up to the slot) */
+ */
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -60,7 +60,7 @@ static int sound(void)                                   /* the invariants */
 
 static void fixed_cases(void)
 {
-#if !ARN_FIXED && ARN_TOPS                              /* (parts 2 and 3 from the top, best fit; 0 and 1 droppable) */
+#if ARN_TOPS                              /* (parts 2 and 3 from the top, best fit; 0 and 1 droppable) */
     reset();
     CHECK(sw(0, 1000) == 0 && sw(2, 1000) == 0 && sw(3, 600) == 0 && sw(1, 1000) == 0 && sound(), "four placed");
     CHECK(off_of(0) == 0 && off_of(1) == 1000 && off_of(2) == 3032 && off_of(3) == 2432,
@@ -72,7 +72,7 @@ static void fixed_cases(void)
     CHECK(arn_fits(2, 1000, 0) && arn_fits(0, 1000, 0) && !arn_fits(0, 1100, 0) && arn_cur[0].len == 0 && !arn_has_next[0],
           "arn_fits: 1000 B would fit, 1100 B not; nothing reserved by asking");
     CHECK(!arn_fits(0, 2100, 1u << 1) && arn_fits(0, 2000, 1u << 1), "2000 B with part 1 given back: 0 .. 2000; 2100 B not");
-#elif !ARN_FIXED
+#else
     reset();
     CHECK(sw(0, 1000) == 0 && sw(1, 1000) == 0 && sw(2, 1000) == 0, "three placed");
     arn_give(1);
@@ -104,15 +104,6 @@ static void fixed_cases(void)
     arn_take(0);
     arn_take(2);
     CHECK(off_of(0) == 0 && arn_cur[0].len == 2000 && off_of(2) == 3400 && sound(), "after the switches");
-#else
-    uint32_t k;
-    reset();
-    CHECK(sw(0, 8) == 0 && sw(1, 1008) == 0 && sw(2, 200) == 0 && sw(3, 1008) == 0, "fixed: any sizes up to the slot");
-    CHECK(off_of(0) == 0 && off_of(1) == 1008 && off_of(2) == 2016 && off_of(3) == 3024 && sound(),
-          "fixed: part k at k x the slot, as the fixed memories were");
-    for (k = 0; k < 4u; k++)
-        CHECK(sw(k, 1008) == 0 && off_of(k) == k * 1008u && arn_fits(k, 1008, 0), "fixed: never refused (part %u)", k);
-    CHECK(arn_reserve(0, 1016) == -1 && !arn_fits(0, 1016, 0xFu), "fixed: past the slot: refused, nothing helps");
 #endif
 }
 

@@ -569,6 +569,7 @@ typedef struct {
 #endif
 
 /* ------------------------------------------------------------ track --- */
+#define T_SILENT(t) (PART_DROPS && (t)->silent)   /* a silent placeholder (track_t.silent; only with an ARENA) */
 enum { ST_NOTE, ST_TIE, ST_REST };
 #define SF_ACCENT 1u
 #define SF_SLIDE 2u

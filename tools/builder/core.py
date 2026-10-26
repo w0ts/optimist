@@ -509,8 +509,8 @@ def auto_store(cfg):
 # the array with each member alone (sizes.json "symbols", measure_costs.py holds these against every build it makes)
 # (2026-10-26: JUNO, DRAWBAR, CZ and SLICE's states moved in from their static arrays: their measured item costs in
 # costs.json still count those arrays as RAM until a re-measure)
-PART_MEM = {"ENG_FM6": 11712, "ENG_PHYS": 38664, "ENG_GRAIN": 21072, "ENG_ACID": 1440, "ENG_PLAITS": 1920,
-            "ENG_JUNO": 1344, "ENG_DRAWBAR": 2496, "ENG_CZ": 3120, "ENG_SLICE": 3072}   # (2026-10-25/26: arn_mem)
+PART_MEM = {"ENG_FM6": 11712, "ENG_PHYS": 38664, "ENG_GRAIN": 21060, "ENG_ACID": 1440, "ENG_PLAITS": 1920,
+            "ENG_JUNO": 1332, "ENG_DRAWBAR": 2496, "ENG_CZ": 3120, "ENG_SLICE": 3072}   # (2026-10-26: part_mem, measured on main)
 PART_MEM_NONE = 0                                   # (none built: not in the image)
 
 
@@ -519,7 +519,7 @@ def part_mem(cfg):
     built. A maximum: no per-item delta adds up to it (GRAIN off frees 9.3 KB, but not with PHYS on), so the estimate
     computes it (model_terms) and the measured deltas and pairs leave it out (measure_costs.py)"""
     sizes = [n for k, n in PART_MEM.items() if built(cfg, k)]
-    return {"pool": max(sizes) if sizes else PART_MEM_NONE}
+    return {"pool": max(sizes) // NPART * nparts(cfg) if sizes else PART_MEM_NONE}
 
 
 NTRK = 4
@@ -592,7 +592,12 @@ def dly_arena(cfg):
             "pool": mem["own"] * FXM_UNIT + sum(tables.values()) + bm}
 
 
-NPART = 3                  # core.h: the synth parts (part_mem's NPART states)
+NPART = 3                  # core.h: the synth parts with the drums (PART_MEM's sizes are for NPART states)
+
+
+def nparts(cfg):
+    """-> core.h NPART: 3 synth parts, 4 without the drums (DRUMS off: track 4 a 4th synth part)"""
+    return NPART if "DRUMS" not in R.ITEMS or built(cfg, "DRUMS") else NPART + 1
 
 
 REV_AP = (556 + 441, 278 + 221)   # fx.c REV_A0 + REV_A1, the ROOM's diffusers rev_ap (full, half rate), samples
@@ -661,9 +666,9 @@ def arena_blocks(cfg):
     """-> {name: bytes} the blocks the arena places (a part's engine state, each effect's line, the other buffers;
     validate: each must fit)"""
     if not sd_mode(cfg):
-        return {"a part's engine state": part_mem(cfg)["pool"] // NPART}
+        return {"a part's engine state": part_mem(cfg)["pool"] // nparts(cfg)}
     rev, mem = rev_lines(cfg), fx_memory(cfg)
-    out = {"a part's engine state": part_mem(cfg)["pool"] // NPART, "the delay's line": mem["send"] * 1024,
+    out = {"a part's engine state": part_mem(cfg)["pool"] // nparts(cfg), "the delay's line": mem["send"] * 1024,
            "the chorus send's line": mem["cho"] * 1024,
            "the reverb's line": sum(rev.values()) + rev_ap(cfg) if built(cfg, "FX_REVERB") else 0,
            "the inserts' own room": mem["own"] * 1024, **arena_bufs(cfg)}

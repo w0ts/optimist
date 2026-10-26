@@ -220,7 +220,7 @@ static void snd_name(uint32_t c, char *b)
 {
     const track_t *t = &trk[c % NTRK];
     const engine_t *e = ENGINES[t->eng_req % NENGINES];
-    if (t->silent) {                                    /* a silent placeholder: no sound to name (core.h) */
+    if (T_SILENT(t)) {                                    /* a silent placeholder: no sound to name (core.h) */
         b[0] = 0;
         return;
     }

@@ -609,9 +609,11 @@ static void pat_knob(uint32_t k, int32_t s)             /* track k's next / prev
 static void op_act(uint32_t a, uint32_t k)
 {
     switch (a) {
+#if PART_DROPS
     case OA_DROP:                                       /* memory short: this part a silent placeholder (op_input.c mem_tick) */
         mem_drop(k);
         return;
+#endif
 #if FELUCCA_SD_STREAM
     case OA_SDDROP:                                     /* the card samples' memory short: this part a silent placeholder (its
                                                          * memory back once its switch is done; the plan places by itself) */
