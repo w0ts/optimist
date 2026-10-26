@@ -18,6 +18,7 @@
 #include "fm1_irq.h"
 #include "fm1_time.h"
 #include "fm1_ble_rf.h"   /* the captured start-up program (build/gen/ble_rf_tables.h) */
+#include "fm1_wifi.h"     /* the Wi-Fi MAC behind the same radio (console wifiregs) */
 
 /* ---- BLE baseband registers (HW §2.1), all 32-bit accesses */
 #define FM1_BLE_CON      (*(volatile uint32_t *)0x28000u)   /* bit0 enable, 13/14 init, 4 cleared */
