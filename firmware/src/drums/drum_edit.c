@@ -14,6 +14,8 @@
 enum { DE_TUNE, DE_DECAY, DE_SNAP, DE_CLICK, DE_BEND, DE_CUT, DE_DRIVE, DE_LEVEL, DE_N };
 #define DL_KIT 0u                /* src: the project's kit */
 #define DL_USR 1u                /* src 1..3: USR1..USR3 */
+#define DL_CARD 4u               /* src 4: the lane's sample on the SD card (lane_card.c, FELUCCA_SD_LANES; kept by every
+                                  * build, the kit played for it without the card) */
 #define DL_KIT0 16u              /* src 16 + k: kit k's sound for this lane */
 #define DL_X909 64u              /* src 64 + v: the X0X 909's voice v (DR_*: BD SD LT MT HT RS CP CH OH CR RD) */
 #define DL_X808 80u              /* src 80 + s: the X0X 808's sound s (D8S_*: BD SD LT MT HT LC MC HC RS CL MA CP CB
@@ -33,7 +35,7 @@ _Static_assert(DL_KIT0 + DRUM_UID_XKIT <= DL_X909 && DL_X808 + DL_X808_N <= DL_X
 #define DL_ANY FELUCCA_DRUMS     /* the lanes' pages: every build with drums has SOUND 3 at least (their sends, drum_sends.c) */
 typedef struct {                 /* a project's drum lanes (204 bytes; user kits keep the same per lane) */
     int8_t ofs[DRUM_LANES][DE_N];          /* offsets from the kit's sound (DE_*), 0 = as the kit */
-    uint8_t src[DRUM_LANES];               /* DL_KIT, DL_USR + k, DL_KIT0 + kit, DL_X909 + v, DL_X808 + s */
+    uint8_t src[DRUM_LANES];               /* DL_KIT, DL_USR + k, DL_CARD, DL_KIT0 + kit, DL_X909 + v, DL_X808 + s */
     uint8_t ref[DRUM_LANES][3];            /* user sample: hit (zone) 4 bits, start 10 bits, length 10 bits */
     uint8_t ins[DRUM_LANES];              /* the lane's instrument + 1 (drums.c INST_*), 0 = its default (LANE_DEF_INST) */
     uint8_t ukit;                          /* the user kit these lanes came from (1..16), 0 = none */
@@ -144,7 +146,8 @@ static void dl_fix(dlanes_t *d)
     for (l = 0; l < DRUM_LANES; l++) {
         for (i = 0; i < DE_N; i++)
             d->ofs[l][i] = (int8_t)clamp(d->ofs[l][i], DE_MIN[i], DE_MAX[i]);
-        if (d->src[l] > DL_USR + SMP_USER_SLOTS - 1u && d->src[l] < DL_KIT0)
+        _Static_assert(DL_CARD == DL_USR + SMP_USER_SLOTS && DL_CARD < DL_KIT0, "lane sources: CARD after USR1..3");
+        if (d->src[l] > DL_CARD && d->src[l] < DL_KIT0)
             d->src[l] = DL_KIT;                     /* (a kit not in this build is kept: dl_kit_of skips it) */
     }
     for (l = 0; l < DRUM_LANES; l++)

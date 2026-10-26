@@ -92,9 +92,14 @@ typedef struct {
 #ifndef SST_NPART
 #define SST_NPART 3u                                 /* the synth parts (core.h NPART) */
 #endif
+#ifndef SST_NLANE
+#define SST_NLANE 0u                                 /* the drum lanes that play card samples (eng_sample.c: DRUM_LANES with
+                                                      * FELUCCA_SD_LANES), slots SST_NPART + lane after the parts */
+#endif
+#define SST_NSLOT (SST_NPART + SST_NLANE)
 static sst_src_t sst_src[SST_NSRC] IN_POOL_AUDIO;
-static uint8_t sst_part_src[SST_NPART] = {0xFF, 0xFF, 0xFF};   /* the source each part's CARD plays, 0xFF none
-                                                                * (sd_stream_plan.c) */
+static uint8_t sst_part_src[SST_NSLOT] = {[0 ... SST_NSLOT - 1u] = 0xFF};   /* the source each part's CARD (each card
+                                                                             * lane) plays, 0xFF none (sd_stream_plan.c) */
 static sst_t sst[SST_N] IN_POOL_AUDIO;
 static volatile uint32_t sst_dry;                    /* streams that ran dry (the console's sd stream) */
 static volatile uint32_t sst_nostream;               /* notes on a card sample with no ring free (silent) */

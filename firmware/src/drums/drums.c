@@ -334,6 +334,16 @@ static void drums_off(void)
         }
 }
 
+#if FELUCCA_SD_LANES
+/* a drum voice on a card sample (lane_card.c), and its stream given back (the voice ended or taken for another hit) */
+AINL int dlc_is(const voice_t *v) { return (uint32_t)(v->s[4] & 0xFF000000) == SMP_STREAM; }
+AINL void dlc_let_go(voice_t *v)
+{
+    uint32_t k = (uint32_t)v->s[4] & 0xFFu;
+    if (dlc_is(v) && k < SST_N && sst[k].owner == &v->active)
+        sst_stop(k);
+}
+#endif
 /* a voice for a hit: free, else the oldest (stolen: its last value fades, the declick tail); a closed or
  * pedal hat chokes the open one */
 static voice_t *drum_voice(uint32_t note, uint32_t vel, uint32_t lane)
@@ -356,6 +366,9 @@ static voice_t *drum_voice(uint32_t note, uint32_t vel, uint32_t lane)
     }
     if (v->active)
         drums.tail += v->s[7];                      /* stolen voice: fade its last value */
+#if FELUCCA_SD_LANES
+    dlc_let_go(v);                                  /* (a card hit's stream back: lane_card.c) */
+#endif
     v->note = (uint8_t)note;
     drums.lane[v - drums.v] = (uint8_t)(lane < DRUM_LANES ? lane : DRUM_LANES);
     v->vel = (uint8_t)vel;
@@ -384,6 +397,9 @@ static uint32_t dins_of(uint32_t k, uint32_t note, int32_t on);
 static void dins_post(uint32_t k, uint32_t note, uint32_t i0, uint32_t i1, uint32_t n, const dins_mix_t *x);
 static void dins_restart(uint32_t k);
 #endif
+#if FELUCCA_SD_LANES
+#include "lane_card.c"         /* a lane on a sample of the SD card, streamed */
+#endif
 
 static void drum_on(uint32_t note, uint32_t vel)
 {
@@ -409,6 +425,12 @@ static void drum_on(uint32_t note, uint32_t vel)
     DL_PLAY_HIT(lane);                              /* (its automation and LFO for this hit: drum_edit.c dl_ofs_play) */
 #if DL_ANY
     kit = dl_kit_of(lane, kit);                     /* (the lane may play another kit's sound, a user sample) */
+#if FELUCCA_SD_LANES
+    if (lane < DRUM_LANES && dl.src[lane] == DL_CARD) {
+        dlc_hit(lane, note, vel);
+        return;
+    }
+#endif
 #if FELUCCA_DRUM_USR
     if ((i = dl_usr_of(lane)) != 0u) {
         dl_usr_hit(lane, i, note, vel);
@@ -642,6 +664,13 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
             while (frac >= 65536u) {
                 frac -= 65536u;
                 v->s[2] = v->s[3];
+#if FELUCCA_SD_LANES
+                if (dlc_is(v)) {                    /* a card sample (lane_card.c): its next frame, else it ended */
+                    if (!dlc_next(v))
+                        break;
+                    continue;
+                }
+#endif
                 if (v->ph[0] >= z->n || v->ph[0] >= v->ph[2]) {   /* (ph[2]: a lane's hit ends there) */
                     v->active = 0;
                     if (v->s[4] >= 0x8000)
