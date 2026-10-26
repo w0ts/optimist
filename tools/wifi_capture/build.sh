@@ -1,5 +1,5 @@
 #!/bin/sh
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0
 # The Wi-Fi start-up capture image (tools/wifi_capture/README.md), in the toolchain image (tools/toolchain.py).
 #   tools/wifi_capture/build.sh <wl_rf_common.a> <wifi_conf.c> [out dir, default worktrees/wifi-capture] [CAP_RF_TRIM 0|1]
 #       [wl_wifi_sta.a: also the Ralink STA driver, and the image runs the SDK's usb_register (CAP_STA=1)]

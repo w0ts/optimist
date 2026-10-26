@@ -136,7 +136,7 @@ Unofficial: not made, endorsed or supported by M-VAVE. M-VAVE and FM-1 are trade
 
 ## Licence and contributing
 
-Code: **GPL-3.0-only** ([LICENSE](LICENSE)), the Bluetooth stack GPL-3.0-only OR MPL-2.0; assets have their own terms ([LICENSING.md](LICENSING.md)). No warranty. If
+Code: **GPL-3.0-only** ([LICENSE](LICENSE)), the Bluetooth stack and the Wi-Fi code GPL-3.0-only OR MPL-2.0 (the Ableton Link port stays GPL-3.0-only); assets have their own terms ([LICENSING.md](LICENSING.md)). No warranty. If
 you distribute a build, give its source under the same licence.
 
 To add an engine, an effect, a note generator or a UI change, read [CONTRIBUTING.md](CONTRIBUTING.md): where the code

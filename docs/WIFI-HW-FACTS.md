@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 -->
 # Wi-Fi on the FM-1 (AC791N): feasibility (2026-10-26)
 
 What a Wi-Fi driver of our own would take, read from JieLi's AC79 SDK the way the Bluetooth facts were

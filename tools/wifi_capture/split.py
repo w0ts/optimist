@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0
 """Split a capture trace (diagnose FM1_MMIO_TRACE) into its two passes at wifi_rf_off and count the writes of each by
 the function that made them (the image's nm output for the names). tools/wifi_capture/README.md.
   tools/wifi_capture/split.py <trace.txt> <image.syms> [--write-pass2 OUT]"""

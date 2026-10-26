@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* The Wi-Fi station on the host (firmware/src/wifi/): the WPA2 crypto against the published vectors.
  *   SHA-1 (FIPS 180-4 "abc"), HMAC-SHA1 (RFC 2202 case 1), the PMK (IEEE 802.11 PBKDF2 example "password" / "IEEE"),
  *   AES-128 both ways (FIPS-197 C.1), AES key unwrap (RFC 3394 §4.1)

@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* WPA2-PSK Station (IEEE 802.11i / 802.11-2020 §12.7): PTK derivation, 4-way handshake
  * state machine (EAPOL-Key M1-M4), GTK unwrapping, 802.11 Auth/Assoc framing, LLC/SNAP
  * EAPOL encapsulation, MAC address discovery, and MAC key table installation. */

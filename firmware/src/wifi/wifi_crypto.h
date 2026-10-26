@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* The crypto a WPA2-PSK station needs (IEEE 802.11-2020 §12.7): SHA-1 (FIPS 180-4), HMAC-SHA1 (RFC 2104), PBKDF2 (RFC
  * 8018) for the PMK from the passphrase, the PRF for the PTK (§12.7.1.2), AES-128 decryption (FIPS-197) for the AES key
  * unwrap (RFC 3394) of the group key. CCMP itself is the MAC's (docs/WIFI-HW-FACTS.md). Written for this tree, host-tested

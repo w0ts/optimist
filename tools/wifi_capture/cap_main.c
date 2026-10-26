@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* The Wi-Fi start-up capture image (tools/wifi_capture/README.md): JieLi's own Wi-Fi radio start-up (the AC79 SDK's
  * wl_rf_common.a, Apache-2.0, linked from the user's download, never committed) run in the FM-1 emulator with its
  * register writes traced, as tools/ble_rf_capture.py does for the BT start-up with stock V15. This file is the rest of

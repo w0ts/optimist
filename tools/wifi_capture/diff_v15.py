@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0
 """What JieLi's Wi-Fi quick start (the capture image's pass 2) writes that stock V15's radio start-up (boot 2) does not,
 and the reverse: both traces' writes as (address, value), aligned (difflib), the differing runs listed with the
 writing function on the capture side. tools/wifi_capture/README.md.

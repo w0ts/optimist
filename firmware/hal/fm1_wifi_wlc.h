@@ -1,8 +1,12 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
-/* The coexistence controller's ("WLC") set-up, as the JieLi AC79 SDK's cpu.a wlc.c (Apache-2.0) writes it when Wi-Fi
+/* SPDX-License-Identifier: Apache-2.0 */
+/* The coexistence controller's ("WLC") set-up, as the JieLi AC79 SDK's cpu.a wlc.c writes it when Wi-Fi
  * starts on a radio BT has started (usb_register -> wlc_main -> wlc_init, coexistence index 0): every word written to the
  * WLC port 0x14004, in order, after 0x14000 |= 3. Taken from the emulator capture (tools/wifi_capture,
- * docs/WIFI-HW-FACTS.md §2b); a test table for the wifiup probe, not a design. Stock V15 never writes this port. */
+ * docs/WIFI-HW-FACTS.md §2b); a test table for the wifiup probe, not a design. Stock V15 never writes this port.
+ * The words are JieLi's: Copyright (c) 2024-2026 Zhuhai Jieli Technology Co., Ltd., published under Apache-2.0 in its AC79
+ * AIoT SDK, https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK (cpu/wl82/liba/cpu.a, wlc.c).
+ * Changed by Optimist (Apache-2.0 section 4(b)): not the code but the writes it made, recorded in the emulator by
+ * tools/wifi_capture and listed here as data. */
 #pragma once
 #include <stdint.h>
 #define FM1_WLC_PORT 0x14004u
