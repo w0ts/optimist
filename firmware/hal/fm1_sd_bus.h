@@ -194,3 +194,22 @@ static void fm1_sd_bus_end(void)
         FM1_LCD_IOMAP_CON1 |= 0x10u;
     FM1_LCD_SPI_CON = FM1_SD_CON_LCD;
 }
+
+/* the pin finder (console sd pins, bring-up before the SD board): the LCD's four bus lines as plain outputs, one
+ * held high at a time (k: 0 PC7 CS, 1 PC8 D/C, 2 PC9 CLK, 3 PC10 MOSI), then all low; the caller starts the LCD again */
+#define FM1_SD_PINS_ALL (FM1_LCD_CS | FM1_LCD_DC | FM1_LCD_CLK | FM1_LCD_DO)
+static void fm1_sd_pins_begin(void)
+{
+    FM1_LCD_SPI_CON = 0;
+    FM1_LCD_IOMAP_CON1 &= ~0x10u;                    /* SPI1 off PC9 / PC10: plain GPIO */
+    FM1_LCD_PC_OUT &= ~FM1_SD_PINS_ALL;
+    FM1_LCD_PC_DIR &= ~FM1_SD_PINS_ALL;              /* all four driven, low */
+}
+
+static void fm1_sd_pin_high(uint32_t k)
+{
+    static const uint32_t BIT[4] = {FM1_LCD_CS, FM1_LCD_DC, FM1_LCD_CLK, FM1_LCD_DO};
+    FM1_LCD_PC_OUT = (FM1_LCD_PC_OUT & ~FM1_SD_PINS_ALL) | BIT[k & 3u];
+}
+
+FM1_INLINE void fm1_sd_pins_end(void) { FM1_LCD_PC_OUT &= ~FM1_SD_PINS_ALL; }

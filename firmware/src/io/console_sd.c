@@ -11,8 +11,41 @@
  *   sd bench              the read modes compared on 64 blocks of the card (CON_SD_N): one line each
  *   sd bench FILE         the whole file read: through Petit FatFs (512 B a call), then a cluster per CMD18
  *   sd write FILE         a pattern written over the file (its size, up to 64 KB) block by block (CMD24, the data by DMA
- *                         when sd dma is on), read back and compared: KB/s */
+ *                         when sd dma is on), read back and compared: KB/s
+ *   sd pins [7|8|9|10]    the pin finder (bring-up, before the SD board: a breakout on J12, a multimeter): each of the
+ *                         LCD's bus lines PC7 CS, PC8 D/C, PC9 CLK, PC10 MOSI (or the one named) held HIGH alone for
+ *                         CON_SD_PIN_S seconds, the other three LOW, SPI1 off its pins; a dot a second meanwhile. The
+ *                         screen does not draw while it holds (the main loop is here; the audio and USB run on, their
+ *                         interrupts), then the LCD is started again and redrawn whole */
 #define CON_SD_N 64u                                 /* blocks a bench row reads (32 KB) */
+#define CON_SD_PIN_S 15u                             /* the pin finder: seconds a line is held */
+
+static void con_sd_pins(uint32_t only)               /* only: 7..10 one line, else all four in turn */
+{
+    static const char *const NAME[4] = {"PC7 = LCD CS (chip pin 32)", "PC8 = LCD D/C, the card's DO (chip pin 31)",
+                                        "PC9 = CLK (chip pin 30)", "PC10 = MOSI (chip pin 29)"};
+    uint32_t k, t0, s;
+    lcd_sync();
+    fm1_sd_pins_begin();                             /* (hal/fm1_sd_bus.h: SPI1 off, all four driven low) */
+    for (k = 0; k < 4u; k++) {
+        if (only >= 7u && only <= 10u && k != only - 7u)
+            continue;
+        fm1_sd_pin_high(k);
+        con_puts("HIGH now: ");
+        con_puts(NAME[k]);
+        con_puts("; the other three low. Meter J12's legs to GND: the one at 3.3 V is this line\r\n");
+        for (s = 0; s < CON_SD_PIN_S; s++) {
+            for (t0 = fm1_ms; fm1_ms - t0 < 1000u;)
+                fm1_wdt_feed();
+            con_putc('.');                           /* (the console tool listens while it hears something) */
+        }
+        con_puts("\r\n");
+    }
+    fm1_sd_pins_end();
+    lcd_init();                                      /* (the panel saw stray levels: started again, the pins back) */
+    ui.force = 1;
+    con_puts("sd pins: done, the screen back\r\n");
+}
 
 static void con_sd_field(const char *k, int32_t v)   /* " key value" */
 {
@@ -267,7 +300,11 @@ static void con_sd_rw(const char *path, uint32_t what)   /* 0 cat, 1 bench, 2 wr
 
 static void con_sd(const char *p)
 {
-    if (con_word(&p, "mode")) {
+    if (con_word(&p, "pins")) {
+        int ok;
+        uint32_t n = con_num(&p, &ok);
+        con_sd_pins(ok ? n : 0u);
+    } else if (con_word(&p, "mode")) {
         if (con_word(&p, "duplex"))
             fm1_sd_mode = FM1_SD_DUPLEX;
         else if (con_word(&p, "dirrx"))

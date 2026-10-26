@@ -13,7 +13,9 @@ import sys
 import time
 
 READ_ONLY = ("status", "dbg", "boot", "crash", "help", "keys", "keylog", "bletrim", "blevm", "blell", "blell clear",
-             "tabbench", "membench", "far")   # (far: the far probe reads a constant and calls a function past 0x93000)
+             "tabbench", "membench", "far",
+             "sd pins", "sd pins 7", "sd pins 8", "sd pins 9", "sd pins 10")   # (sd pins: the LCD's lines held one at a
+                                                     # time for a multimeter; GPIO only, nothing written)   # (far: the far probe reads a constant and calls a function past 0x93000)
 FM1_VID = 0x1209                         # usb.c
 QUIET_S = 0.6                            # a reply is over after this long without a byte
 
