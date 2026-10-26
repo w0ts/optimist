@@ -4125,6 +4125,18 @@
    "ram": 0,
    "pool": 2564,
    "ramtext": 0
+  },
+  "SDCARD=1,LAYOUT=1,FAR_OK=1": {
+   "flash": 1000,
+   "ram": 516,
+   "pool": 524,
+   "ramtext": 0
+  },
+  "SDCARD=1,LAYOUT=1,FAR_OK=1,USB_CONSOLE=1": {
+   "flash": 6076,
+   "ram": -8,
+   "pool": 300,
+   "ramtext": 0
   }
  },
  "groups": {

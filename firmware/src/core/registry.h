@@ -649,7 +649,12 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #endif
 #ifndef FELUCCA_FAR_OK
 #define FELUCCA_FAR_OK 0                   /* the far probe passed: the code may use the fake SD mode's whole slot (tools/build.py,
-                                            * tools/flash_layout.py code_limit; the build only, nothing in C) */
+                                            * tools/flash_layout.py code_limit; in C only FELUCCA_SD_FATFS below) */
+#endif
+#ifndef FELUCCA_SD_FATFS
+#define FELUCCA_SD_FATFS (FELUCCA_SDCARD && FELUCCA_LAYOUT == 1 && FELUCCA_FAR_OK)   /* the card under full FatFs (its
+                                            * ~15 KB fit the big slot: storage/sd/fatfs/, tools/build.py), else Petit FatFs
+                                            * (the bring-up's: no files created, 8.3 names) */
 #endif
 #ifndef FELUCCA_OVERLAY
 #define FELUCCA_OVERLAY 0                  /* the RAMTEXT overlays (core/overlay.c, docs/SD-MODE-DESIGN.md 6): the engines' hot

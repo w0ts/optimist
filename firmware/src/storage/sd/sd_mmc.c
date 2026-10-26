@@ -18,10 +18,17 @@
  is free while 512 bytes come in), a block write (CMD24, the data by DMA), the blocks' CRC16 checked. Later (the second
  2026-10-25 review): every command carries its real CRC7 and CMD59 turns the card's CRC checking on, so a garbled
  command (or a stray 0x4C on DI during a CMD18 run: a false CMD12) is refused, and every block written carries its
- CRC16; every block read (disk_readp too) has its CRC16 checked (SD_RD_CRC 1, a nibble table).
+ CRC16; every block read (disk_readp too) has its CRC16 checked (SD_RD_CRC 1, a nibble table). 2026-10-26: under
+ full FatFs too (FELUCCA_SD_FATFS: fatfs/, the glue in sd_diskio.c): the start-up is sd_card_init, the partial read
+ sd_readp; Petit FatFs' own entry points (disk_initialize, disk_readp, disk_writep) are at the end, Petit builds only.
 /-------------------------------------------------------------------------*/
 
+#if FELUCCA_SD_FATFS
+#include "fatfs/ff.h"
+#include "fatfs/diskio.h"
+#else
 #include "diskio.h"
+#endif
 
 #ifndef SD_TX                               /* the FM-1's bus (a host test defines its own) */
 #include "fm1_sd_bus.h"
@@ -75,7 +82,7 @@ static DWORD sd_sectors;		/* the card's capacity in 512-byte sectors (CSD; 0: no
 static BYTE sd_crc_on;			/* the card checks the CRCs (CMD59 accepted) */
 static BYTE sd_over;			/* the clock the card proved: 1 the faster one (SD_SET_OVER, 30 MHz), 0 the floor (20) */
 static DWORD sd_crc_fails, sd_demotions;	/* blocks whose CRC16 failed; drops from the faster clock to the floor */
-static BYTE sd_crc_bad;			/* the last disk_readp failed on the block's CRC16 (not a timeout) */
+static BYTE sd_crc_bad;			/* the last sd_readp failed on the block's CRC16 (not a timeout) */
 
 /* CRC16-CCITT (x^16 + x^12 + x^5 + 1, from 0), the SD data block's: a nibble at a time (a 32-byte table) */
 static const WORD SD_CRC16_NIB[16] = {
@@ -196,7 +203,7 @@ static DWORD sd_read_capacity(void)
 }
 
 /* Initialize Disk Drive (the caller has the bus at the start-up clock, at most 400 kHz) */
-DSTATUS disk_initialize(void)
+static DSTATUS sd_card_init(void)
 {
 	BYTE n, cmd, ty, buf[4];
 	DWORD t0;
@@ -301,7 +308,7 @@ static BYTE sd_crc_retry(BYTE *fails)
 }
 
 /* Read partial sector (a CRC failure read again: sd_crc_retry) */
-DRESULT disk_readp(BYTE *buff, DWORD sector, UINT offset, UINT count)
+static DRESULT sd_readp(BYTE *buff, DWORD sector, UINT offset, UINT count)
 {
 	DRESULT r;
 	BYTE fails = 0;
@@ -309,54 +316,6 @@ DRESULT disk_readp(BYTE *buff, DWORD sector, UINT offset, UINT count)
 	while ((r = sd_readp1(buff, sector, offset, count)) != RES_OK && sd_crc_bad && sd_crc_retry(&fails))
 		sd_crc_bad = 0;
 	return r;
-}
-
-/* Write partial sector */
-DRESULT disk_writep(
-	const BYTE *buff,	/* Pointer to the bytes to be written (NULL:Initiate/Finalize sector write) */
-	DWORD sc			/* Number of bytes to send, Sector number (LBA) or zero */
-)
-{
-	DRESULT res;
-	UINT bc;
-	DWORD t0;
-	static UINT wc;
-	static WORD wcrc;		/* the CRC16 of the bytes sent so far */
-
-	res = RES_ERROR;
-
-	if (buff) {		/* Send data bytes */
-		bc = (UINT)sc;
-		while (bc && wc) {		/* Send data bytes to the card */
-			wcrc = sd_crc16_up(wcrc, *buff);
-			SD_TX(*buff++);
-			wc--; bc--;
-		}
-		res = RES_OK;
-	} else {
-		if (sc) {	/* Initiate sector write transaction */
-			if (!(CardType & CT_BLOCK)) sc *= 512;	/* Convert to byte address if needed */
-			if (send_cmd(CMD24, sc) == 0) {			/* WRITE_SINGLE_BLOCK */
-				SD_TX(0xFF); SD_TX(0xFE);		/* Data block header */
-				wc = 512;							/* Set byte counter */
-				wcrc = 0;
-				res = RES_OK;
-			}
-		} else {	/* Finalize sector write transaction */
-			bc = wc;
-			while (bc--) { SD_TX(0); wcrc = sd_crc16_up(wcrc, 0); }	/* the left bytes zeros, then the CRC16 */
-			SD_TX((BYTE)(wcrc >> 8)); SD_TX((BYTE)wcrc);
-			if ((SD_RX() & 0x1F) == 0x05) {	/* Receive data resp and wait for end of write process, 500 ms */
-				t0 = SD_NOW();
-				while (SD_RX() != 0xFF)
-					if (sd_ms_since(t0) >= 500) break;
-				if (sd_ms_since(t0) < 500) res = RES_OK;
-			}
-			release_spi();
-		}
-	}
-
-	return res;
 }
 
 /* ---- whole blocks (Optimist) ---------------------------------------------------------------------------------------
@@ -421,7 +380,8 @@ static BYTE sd_rd_poll(void)
 		for (k = 0; k < SD_RD_TOKEN_TRIES; k++) {
 			d = SD_RX();
 			if (d == 0xFE) {
-				sd_rd.dma = SD_DMA_OK();
+				sd_rd.dma = SD_DMA_OK() && !((UINT)(uintptr_t)sd_rd.buf & 3);	/* (FatFs reads straight into a
+										 * caller's buffer: an unaligned one by bytes) */
 				if (sd_rd.dma) {
 					SD_RXDMA(sd_rd.buf, 512);
 					sd_rd.state = SDR_DMA;
@@ -551,7 +511,7 @@ static DRESULT disk_writeblock(const BYTE *buf, DWORD sector)
 	if (!(CardType & CT_BLOCK)) sector *= 512;
 	if (send_cmd(CMD24, sector) == 0) {
 		SD_TX(0xFF); SD_TX(0xFE);						/* a byte gap, the data token */
-		if (SD_DMA_OK()) {
+		if (SD_DMA_OK() && !((UINT)(uintptr_t)buf & 3)) {
 			SD_TXDMA(buf, 512);
 			if (!SD_DMA_END()) { release_spi(); return RES_ERROR; }
 		} else {
@@ -568,3 +528,57 @@ static DRESULT disk_writeblock(const BYTE *buf, DWORD sector)
 	release_spi();
 	return r;
 }
+
+#if !FELUCCA_SD_FATFS
+/* Petit FatFs' entry points (diskio.h): the start-up, a partial sector read, the partial sector write below */
+DSTATUS disk_initialize(void) { return sd_card_init(); }
+DRESULT disk_readp(BYTE *buff, DWORD sector, UINT offset, UINT count) { return sd_readp(buff, sector, offset, count); }
+
+/* Write partial sector */
+DRESULT disk_writep(
+	const BYTE *buff,	/* Pointer to the bytes to be written (NULL:Initiate/Finalize sector write) */
+	DWORD sc			/* Number of bytes to send, Sector number (LBA) or zero */
+)
+{
+	DRESULT res;
+	UINT bc;
+	DWORD t0;
+	static UINT wc;
+	static WORD wcrc;		/* the CRC16 of the bytes sent so far */
+
+	res = RES_ERROR;
+
+	if (buff) {		/* Send data bytes */
+		bc = (UINT)sc;
+		while (bc && wc) {		/* Send data bytes to the card */
+			wcrc = sd_crc16_up(wcrc, *buff);
+			SD_TX(*buff++);
+			wc--; bc--;
+		}
+		res = RES_OK;
+	} else {
+		if (sc) {	/* Initiate sector write transaction */
+			if (!(CardType & CT_BLOCK)) sc *= 512;	/* Convert to byte address if needed */
+			if (send_cmd(CMD24, sc) == 0) {			/* WRITE_SINGLE_BLOCK */
+				SD_TX(0xFF); SD_TX(0xFE);		/* Data block header */
+				wc = 512;							/* Set byte counter */
+				wcrc = 0;
+				res = RES_OK;
+			}
+		} else {	/* Finalize sector write transaction */
+			bc = wc;
+			while (bc--) { SD_TX(0); wcrc = sd_crc16_up(wcrc, 0); }	/* the left bytes zeros, then the CRC16 */
+			SD_TX((BYTE)(wcrc >> 8)); SD_TX((BYTE)wcrc);
+			if ((SD_RX() & 0x1F) == 0x05) {	/* Receive data resp and wait for end of write process, 500 ms */
+				t0 = SD_NOW();
+				while (SD_RX() != 0xFF)
+					if (sd_ms_since(t0) >= 500) break;
+				if (sd_ms_since(t0) < 500) res = RES_OK;
+			}
+			release_spi();
+		}
+	}
+
+	return res;
+}
+#endif
