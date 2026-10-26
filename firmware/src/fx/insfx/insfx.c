@@ -851,7 +851,7 @@ AINL void ifx_bus_run(uint32_t ty, int32_t a, int32_t *l, int32_t *r, uint32_t n
 #endif
     ifx_st_run(ty, IFX_BUS, a, l, r, n);
 }
-_Static_assert(IFX_BUS == TRK_DRUM, "ifx_awake: the drum bus's bit is the drum track's");
+_Static_assert(!FELUCCA_DRUMS || IS_DRUMK(IFX_BUS), "ifx_awake: the drum bus's bit is the drum track's");
 static HOT2 __attribute__((noinline)) void ifx_bus(uint32_t ty, int32_t a, int32_t *l, int32_t *r, uint32_t n)
 {
     int32_t w0 = FAR(ifx_wn)(ty, IFX_BUS);

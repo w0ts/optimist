@@ -2757,7 +2757,7 @@ const parse = {
   },
   /* STEPS: {track, first, steps}: a synth track's steps as TRACK_STEP gives them, the drum track's as DRUM_STEP */
   [CMD.STEPS](a, info, ends) {                       /* (ends: WATCH granted ENDS, a synth step has 15 bytes) */
-    const track = a[0], first = a[1], n = a[2], drum = !!info && track === info.ntrk - 1, steps = [], per = ends ? 15 : 11;
+    const track = a[0], first = a[1], n = a[2], drum = track === drumOf(info), steps = [], per = ends ? 15 : 11;
     for (let k = 0, p = 3; k < n; k++) {
       if (drum) { steps.push(parse[CMD.DRUM_STEP]([first + k, ...a.slice(p, p + 13)])); p += 13; }
       else { steps.push(parse[CMD.STEP_GET]([first + k, ...a.slice(p, p + per)])); p += per; }
@@ -4328,7 +4328,7 @@ const fxSlotAmt = (info, slots, k) => { const x = fxType(info, slots[k]); return
    describes (the editor names none): fxpOwner / fxpSlot read them, fxpFmt shows a value as the device does */
 const FXP = { TRK0: 0, MST: 4, USB: 5, RET0: 6, LANE0: 9, N: 25 };
 const fxpClass = (ow) => (ow < 4 ? "track" : ow === 4 ? "master" : ow === 5 ? "usb" : ow < 9 ? "return" : "lane");
-const fxpName = (ow) => (ow < 4 ? ["T1", "T2", "T3", "DR"][ow] : ow === 4 ? "MASTER" : ow === 5 ? "USB IN" : ow < 9 ? "RET " + "ABC"[ow - 6] : "SOUND " + (ow - 8));
+const fxpName = (ow, nd) => (ow < 4 ? ["T1", "T2", "T3", nd ? "T4" : "DR"][ow] : ow === 4 ? "MASTER" : ow === 5 ? "USB IN" : ow < 9 ? "RET " + "ABC"[ow - 6] : "SOUND " + (ow - 8));
 const fxpTypeName = (ty) => FXT_NAMES[ty] || String(ty);
 const fxpAllows = (lay, ty) => ty === FXT.NONE || Math.floor(lay.mask / 2 ** ty) % 2 === 1;
 /* EQ3's crossovers: the Hz of FREQ L / FREQ H's index 0..60 (firmware fx_slots.c EQ_FL_HZ, EQ_FH_HZ; the web test compares them) */
@@ -4749,7 +4749,7 @@ const keyLabel = (k) => (k === " " ? "Space" : k === "ArrowLeft" ? "\u2190" : k 
    {select, track} | {pick, track, lane} (a drum sound selected) | {open, id, track, lane} | {close} | {screen} */
 function keyPlan(st, ev) {
   if (ev.ctrlKey || ev.metaKey || ev.altKey || !st.nav || st.nav.screen !== "mixer" || !st.ntrk) return null;
-  const drum = st.ntrk - 1, isDrum = st.sel === drum, k = ev.key.length === 1 ? ev.key.toLowerCase() : ev.key;
+  const drum = st.drum != null ? st.drum : st.ntrk - 1, isDrum = drum >= 0 && st.sel === drum, k = ev.key.length === 1 ? ev.key.toLowerCase() : ev.key;
   const open = st.nav.pop, lane = st.lane | 0;
   const lm = st.lm;
   if ((k === "ArrowLeft" || k === "ArrowRight") && !open && isDrum && lm && lm.mode !== "collapsed") {   /* the drum track's sounds are its members */
@@ -6488,6 +6488,11 @@ class SetGate {
   }
   clear() { this.m.clear(); }
 }
+/* the drum track of an FM-1 whose INFO is info: the last track; -1 when it has none (opti_nodrums_1, a build without DRUMS:
+   track 4 is a synth part like 1..3, firmware/src/core/core.h FELUCCA_DRUMS) or no tracks */
+function drumOf(info) {
+  return !info || !info.ntrk || (info.opti && info.opti.opti_nodrums === 1) ? -1 : info.ntrk - 1;
+}
 /* INFO's tag 66 (firmware/src/io/editor/ed_opti.h): "opti_backup_4 opti_mirror_2 ...". Every Felucca-family firmware answers
    INFO but numbers its other commands its own way: Screen, Backup, Projects and Library only when their name and version are listed (in PROTO: parse() reads it) */
 function optiParse(b) {
@@ -7036,7 +7041,7 @@ function showTab(name) {
   renderPanels();
   if (name === "mixer" && prev !== "mixer" && hasTracks() && dev.dump) op(readMixer);
 }
-const drumIndex = () => (dev && dev.mix ? dev.mix.ntrk - 1 : 3);
+const drumIndex = () => (dev && dev.info ? drumOf(dev.info) : 3);   /* (-1: no drum track) */
 /* the popup: its panel moved into the dialog (and home again when it closes) */
 const POP_PANEL = { sound: "p-sound", sequence: "p-sequencer", lane: "p-drums", kitstore: "p-kitstore" };
 let popPanel = null;
@@ -7064,7 +7069,7 @@ async function openPop(id, track = 0, lane = 0) {
     p.classList.remove("loading");
     if (!nav.pop || nav.pop.id !== id) return;
   }
-  if (id === "lane") { kl.acc = lane === 16 && accOn(); if (!kl.acc) kl.sel = lane & 15; mixLanes.lane = laneCur(); renderKit(); if (dev && dev.mix) updateStrip(dev.mix.ntrk - 1); }
+  if (id === "lane") { kl.acc = lane === 16 && accOn(); if (!kl.acc) kl.sel = lane & 15; mixLanes.lane = laneCur(); renderKit(); if (dev && dev.mix && drumIndex() >= 0) updateStrip(drumIndex()); }
   else if (id === "kitstore") renderKit();
   else if (id === "sequence") renderSteps();
   else if (!POP_PANEL[id]) buildDyn(id, track, p);
@@ -7096,7 +7101,7 @@ function popTitle(id, track, lane = 0) {
     case "lane": return `${t("drumKit")} · ${laneName(lane)}`;
     case "tools": return `${t("popTools")} · ${tr} · ${what}`;
     case "scale": return `${t("popScale")} · ${tr} · ${what}`;
-    case "fxslot": return `${t("popIns")} \u00b7 ${slotPick ? `${fxpName(slotPick.ow)} S${slotPick.sl + 1}` : ""}`;
+    case "fxslot": return `${t("popIns")} \u00b7 ${slotPick ? `${fxpNameOf(slotPick.ow)} S${slotPick.sl + 1}` : ""}`;
     default: return t({ kit: "popKit", kitstore: "userKits", fxdelay: "popDelay", fxreverb: "popReverb", fxchorus: "popChorus", fxcomp: "popComp", song: "popSong", help: "help" }[id] || "help");
   }
 }
@@ -7540,7 +7545,7 @@ function renderTrackbar() {
   for (const box of [$("trackbtns")]) {              /* (the page's own tab row is gone: the strips' heads are the selector) */
     if (box.children.length !== ntrk) {
       box.replaceChildren(...Array.from({ length: ntrk }, (_, i) => el("button", { type: "button", "data-i": i, style: `--c: var(--t${i + 1})`,
-        onclick: () => selectTrack(i) }, `${i + 1}${i === ntrk - 1 ? " " + t("drum") : ""}`)));
+        onclick: () => selectTrack(i) }, `${i + 1}${i === drumIndex() ? " " + t("drum") : ""}`)));
     }
     for (const b of box.children) b.setAttribute("aria-pressed", +b.dataset.i === (dev.sel || 0) ? "true" : "false");
   }
@@ -7564,7 +7569,7 @@ function renderSideGo() {
   kbdRender();
   if (undoOn() && !dev.undoSt) undoRefresh(); else if (!undoOn()) $("undotp").hidden = true;
   $("songbtn").hidden = !(dev && dev.dump && dev.info && dev.info.songc);
-  const drum = hasTracks() && dev.sel === dev.info.ntrk - 1;
+  const drum = hasTracks() && dev.sel === drumIndex();
   for (const b of $("tabs").querySelectorAll("button[data-go]")) {
     const f = b.dataset.for;
     b.hidden = !!f && f !== "any" && (f === "drums") !== drum || (b.hasAttribute("data-songc") && !(dev && dev.info && dev.info.songc)) || (b.hasAttribute("data-tools") && !(dev && dev.info && dev.info.tools)) || (b.hasAttribute("data-fxp") && (!fxpOn() || (b.dataset.fxp === "usb" && !dev.info.fxp.usb))) || (b.hasAttribute("data-nofxp") && fxpOn());   /* (data-nofxp: an older firmware's entries; with FXP the slots are on the strips) */
@@ -7903,7 +7908,8 @@ async function project(op, slot) {
 const LBR = { FORMAT: "optimist-pattern", VERSION: 1 };
 const lbr = { sel: null, busy: false, track: 0 };   /* sel: the picked pattern {k, s}; track: the track shown (T1 T2 T3 DR) */
 /* a track's name as the FM-1 and the Mirror app show it (the user, 2026-10-25: "use T1/T2/T3/DR like every where else") */
-const trkName = (k) => (k === 3 ? "DR" : `T${k + 1}`);
+const fxpNameOf = (ow) => fxpName(ow, drumIndex() < 0);   /* (an owner's name: T4 on an FM-1 without drums) */
+const trkName = (k) => (k === 3 && drumIndex() === 3 ? "DR" : `T${k + 1}`);   /* (no drums: T4) */
 async function libLiteRead(d) {
   const quiet = { timeout: 400, retries: 0, quiet: true };
   const nsec = d.info.pat ? d.info.pat.scenes : (d.bk && d.bk.objs.filter((o) => o.kind === "sec").length) || 4;
@@ -9200,11 +9206,15 @@ const laneShort = (l) => laneName(l).replace(/^(CLOSED|OPEN|PEDAL) /, (m, w) => 
 const laneName = (l) => (l === 16 ? "ACCENT" : (dev && dev.dshow && dev.dshow[l] && dev.dshow[l].name) || DRUM_LANE(l)[1]);   /* (16: the ACCENT lane, core.h DRUM_ACC) */
 const styleKey = (s) => "sty" + s[0].toUpperCase() + s.slice(1);
 const gDrCh = () => { const i = dev.gdesc.findIndex((d, k) => d && k > gEng() && d.label === "CH"); return i >= 0 ? i : 24; };
-const auditionCh = () => (dev && dev.dump ? auditionChannel(dev.dump.g[gDrCh()] | 0, !!dev.mix && dev.sel === dev.mix.ntrk - 1) : -1);
+const auditionCh = () => (dev && dev.dump ? auditionChannel(dev.dump.g[gDrCh()] | 0, !!dev.mix && dev.sel === drumIndex()) : -1);
 
 /* v2 (the lane sends) first; a firmware without them does not answer it: version 1 (no send columns). Then the
    sources and what each lane shows (50, 51; older firmware: from the names) */
 async function drumsRead(d = dev) {
+  if (drumOf(d.info) < 0 && d.info && d.info.ntrk) {   /* (no drum track: no lanes, kits or drum sources) */
+    d.dl = null; d.ukits = null; d.dsrc = null; d.dshow = null;
+    return;
+  }
   if (d.info && d.info.lite) {                      /* (the librarian: the user kits alone, their sends with them) */
     d.dl = null; d.dlV2 = true;
     d.ukits = parse[CMD.UKIT_LIST](await d.link.request(req.ukitList(), { timeout: 400, retries: 1, quiet: true })).kits;
@@ -9222,7 +9232,7 @@ async function drumsRead(d = dev) {
   d.dl = parse[CMD.DRUM_LANES](r || await d.link.request(req.drumLanes(null, d.dlV2), { timeout: 400, retries: 1, quiet: true }));
   try { d.ukits = parse[CMD.UKIT_LIST](await d.link.request(req.ukitList(), { timeout: 400, retries: 1, quiet: true })).kits; }
   catch (e) { if (e.message === "closed") throw e; d.ukits = null; }   /* (a build without the librarian: no user kits, the lanes as ever) */
-  if (d.info && d.info.ntrk) d.dlKit = parse[CMD.TRACK_PARAM](await d.link.request(req.trackParam(d.info.ntrk - 1, d.info.pe0))).value;
+  if (d.info && d.info.ntrk) d.dlKit = parse[CMD.TRACK_PARAM](await d.link.request(req.trackParam(drumOf(d.info), d.info.pe0))).value;
   if (d.dsrc === undefined) d.dsrc = await readDrumSources(rqd);
   await readShows(d);
 }
@@ -9430,7 +9440,7 @@ async function kitPoll() {
   kl.lastPoll = now;
   try {
     const l = kl.sel, r = parse[CMD.DRUM_LANE](await rq(req.drumLane(l, null, d.dlV2), { key: "dlpoll" }));
-    const kit = d.info.ntrk ? parse[CMD.TRACK_PARAM](await rq(req.trackParam(d.info.ntrk - 1, d.info.pe0))).value : d.dlKit;
+    const kit = drumOf(d.info) >= 0 ? parse[CMD.TRACK_PARAM](await rq(req.trackParam(drumOf(d.info), d.info.pe0))).value : d.dlKit;
     if (d !== dev || performance.now() - kl.edit < 1500) return;
     const { lane, ...x } = r, o = d.dl.lanes[lane];
     const srcMoved = o.src !== x.src || kit !== d.dlKit;
@@ -9465,7 +9475,7 @@ function kitKind(k) { const s = kitSources().find((x) => x.src === DL.KIT0 + (k 
    user kit (loaded into the project) */
 function chooseKit(v) {
   op(async () => {
-    const n = +v.slice(1), drum = dev.mix ? dev.mix.ntrk - 1 : 3;
+    const n = +v.slice(1), drum = dev.mix ? drumIndex() : 3;
     if (v[0] === "u") {
       const r = parse[CMD.UKIT_OP](await rq(req.ukitOp(n, 0), { timeout: 1500, retries: 0 }));
       if (r.rc) { sayK("dlFail", String(r.rc)); return; }
@@ -9500,7 +9510,7 @@ function renderDrumSound() {
   const fmtd = (d) => (v) => fmtValue(d, v).filter(Boolean).join(" ");
   dsk.knobs = [
     [() => dev.dump.g[gDrLvl()], knob({ label: "LEVEL", aria: `${t("track")} 4 LEVEL`, help: phText("page", "DRUM KIT", "level"), min: lv.min, max: lv.max, def: lv.def, value: dev.dump.g[gDrLvl()], fmt: fmtd(lv),
-      set: (v, f) => { if (dev.mix) { dev.mix.tracks[dev.mix.ntrk - 1].level = v; } userSet(1, gDrLvl(), v, f); } })],
+      set: (v, f) => { if (dev.mix && drumIndex() >= 0) { dev.mix.tracks[drumIndex()].level = v; } userSet(1, gDrLvl(), v, f); } })],
     [() => dev.dump.p[pPan()], knob({ label: "PAN", aria: `${t("track")} 4 PAN`, help: phText("page", "DRUM KIT", "pan"), min: pn.min, max: pn.max, def: pn.def, value: dev.dump.p[pPan()], fmt: fmtd(pn),
       set: (v, f) => userSet(0, pPan(), v, f) })],
   ];
@@ -10710,7 +10720,7 @@ let panning = false;                /* v3 firmware: another track is selected fo
 const mixTouched = (kind, i) => mixDrag === `${kind}:${i}` || performance.now() - (mixEdit.get(`${kind}:${i}`) || 0) < 600
   || (!!dev && kind === "lv" && dev.link.hasQueued("mix:" + i))
   || (kind === "pan" && (panWant.has(i) || (!!dev && dev.link.hasQueued("pan:" + i))));
-const drumTrack = (i) => !!dev && !!dev.mix && i === dev.mix.ntrk - 1;
+const drumTrack = (i) => !!dev && !!dev.mix && i === drumIndex();
 function trackName(x) {
   if (x.engine >= dev.info.nengines) return ["DRUMS", (dev.kitNames || [])[x.e0]].filter(Boolean).join(" ");
   return [dev.info.engines[x.engine], (dev.names[x.engine] || [])[x.preset]].filter(Boolean).join(" ");
@@ -10773,7 +10783,7 @@ async function onFx(f) {
   const keep = d.fx;
   d.fx = { ...f, dist: f.dist.map((v, l) => (fxTouched("dist", l) ? keep.dist[l] : v)), comp: f.comp.map((v, l) => (fxTouched("comp", l) ? keep.comp[l] : v)),
     cset: fxTouched("cset", 0) ? keep.cset : f.cset };
-  if (d.mix) updateStrip(d.mix.ntrk - 1);
+  if (d.mix && drumOf(d.info) >= 0) updateStrip(drumOf(d.info));
   updateMaster();
   kitRefresh();                               /* (the lane popup's DST / CMP) */
 }
@@ -11757,7 +11767,7 @@ async function fxpPut(ow, sl, i, v) {
 }
 /* a parameter's control: a knob, or a list for an enum / switch; -> {el, value(v)} */
 function fxpControl(ow, sl, ty, i, d, v) {
-  const aria = `${fxpName(ow)}${sl < 2 ? ` S${sl + 1}` : ""} ${d.label}`, help = fxpHelp(ow, ty, d);
+  const aria = `${fxpNameOf(ow)}${sl < 2 ? ` S${sl + 1}` : ""} ${d.label}`, help = fxpHelp(ow, ty, d);
   if (d.fmt === F.ENUM || d.fmt === F.ONOFF) {
     const sel = setHelp(el("select", { "aria-label": aria, "data-fxp": `${sl}/${i}` }), help || aria);
     for (let x = d.min; x <= d.max; x++) sel.append(el("option", { value: x, text: fxpFmt(d, x)[0] }));
@@ -11791,7 +11801,7 @@ function splitSlot(base, sel, nameText, label, onOpen) {
    o.only = one slot's panel only (the open button's popup) */
 function fxpCard(ow, title, o = {}) {
   const body = el("div", { class: "fxo-slots" });
-  const card = el("div", { class: `group fxo${o.compact ? " compact" : ""}`, "data-owner": ow, role: "group", "aria-label": title || fxpName(ow) }, ...(o.compact ? [] : [el("h3", { text: title })]), ...(o.extra || []), body);
+  const card = el("div", { class: `group fxo${o.compact ? " compact" : ""}`, "data-owner": ow, role: "group", "aria-label": title || fxpNameOf(ow) }, ...(o.compact ? [] : [el("h3", { text: title })]), ...(o.extra || []), body);
   const c = { ow, el: card, sig: "", ctl: new Map(), lay: null };
   c.setType = async (sl, ty) => {
     const d = dev;
@@ -11808,7 +11818,7 @@ function fxpCard(ow, title, o = {}) {
       if (d !== dev) return;
       const head = [];
       if (sl < 2 || ow >= FXP.RET0) {
-        const sel = el("select", { "aria-label": `${fxpName(ow)} S${sl + 1} ${t("fxpType")}`, "data-type": sl },
+        const sel = el("select", { "aria-label": `${fxpNameOf(ow)} S${sl + 1} ${t("fxpType")}`, "data-type": sl },
           ...[FXT.NONE, ...FXT_NAMES.map((_, id) => id).filter((id) => id && fxpAllows(lay, id))].map((id) => el("option", { value: id, text: fxpTypeName(id) })));
         sel.value = String(type);
         setHelp(sel, t("fxpTypeHelp"));
@@ -11816,7 +11826,7 @@ function fxpCard(ow, title, o = {}) {
         /* the one open part of the slot: a send return holding CHO / DLY / REV opens that bus's own panel, any other slot its parameters */
         const bus1 = ow >= FXP.RET0 && ow < FXP.LANE0 && type >= FXT.CHO && type <= FXT.REV ? ["", "", "fxchorus", "fxdelay", "fxreverb"][type] : "";
         if (o.compact && o.ids) {
-          const w = splitSlot(`${o.ids}-slot${sl + 1}`, sel, type ? fxpTypeName(type) : "", `${t("fxpOpen")} ${fxpName(ow)} S${sl + 1}`, () => (bus1 ? openPop(bus1, 0) : openSlot(ow, sl)));
+          const w = splitSlot(`${o.ids}-slot${sl + 1}`, sel, type ? fxpTypeName(type) : "", `${t("fxpOpen")} ${fxpNameOf(ow)} S${sl + 1}`, () => (bus1 ? openPop(bus1, 0) : openSlot(ow, sl)));
           w.dataset.pop = bus1 || "fxslot";
           w.firstChild.dataset.pop = bus1 || "fxslot";
           head.push(w);
@@ -11867,7 +11877,7 @@ function dynFxSlot() {
   const { ow, sl } = slotPick || { ow: 0, sl: 0 };
   const ret = ow >= FXP.RET0 && ow < FXP.LANE0;
   const after = async (x) => { await x.load(true); for (const sc of (dev.stripFx || [])) if (sc.ow === ow && sc.el.isConnected) await sc.load(false); if (ret) await retAfter(); };
-  const c = fxpCard(ow, `${fxpName(ow)} S${sl + 1}`, { only: sl, after });
+  const c = fxpCard(ow, `${fxpNameOf(ow)} S${sl + 1}`, { only: sl, after });
   fxpOpen([c]);
   return [c.el];
 }
@@ -11948,17 +11958,17 @@ function fxpGroup(ow, sl) {
   const g = { ow, sl, el: null, ctl: new Map() };
   const reg = (i, fn, node) => { g.ctl.set(i, fn); if (!g.el) g.el = node; return node; };
   g.knob = (i, d, label) => {
-    const k = knob({ tip: true, label, aria: `${fxpName(ow)} ${label}`, help: fxpHelp(ow, 0, d), min: d.min, max: d.max, def: d.def, value: d.def, fmt: (x) => fxpFmt(d, x).filter(Boolean).join(" "), set: (x) => { fxpPut(ow, sl, i, x); } });
+    const k = knob({ tip: true, label, aria: `${fxpNameOf(ow)} ${label}`, help: fxpHelp(ow, 0, d), min: d.min, max: d.max, def: d.def, value: d.def, fmt: (x) => fxpFmt(d, x).filter(Boolean).join(" "), set: (x) => { fxpPut(ow, sl, i, x); } });
     return reg(i, (v) => { if (!fxpTouched(ow, sl, i)) k.value(v, false); }, k.el);
   };
   g.fader = (i, d, label) => {
-    const f = faderRow({ aria: `${fxpName(ow)} ${label}`, label, min: d.min, max: d.max, def: d.def, fmt: (x) => fxpFmt(d, x).filter(Boolean).join(" "), set: (x) => { fxpPut(ow, sl, i, x); } });
+    const f = faderRow({ aria: `${fxpNameOf(ow)} ${label}`, label, min: d.min, max: d.max, def: d.def, fmt: (x) => fxpFmt(d, x).filter(Boolean).join(" "), set: (x) => { fxpPut(ow, sl, i, x); } });
     reg(i, (v) => { if (!fxpTouched(ow, sl, i)) f.value(v); f.disable(false); }, f.el);
     g.off = () => f.disable(true);
     return f;
   };
   g.toggle = (i, d, label) => {
-    const b = el("button", { type: "button", class: "tog", "aria-pressed": "false", title: label, "aria-label": `${fxpName(ow)} ${label}` }, label);
+    const b = el("button", { type: "button", class: "tog", "aria-pressed": "false", title: label, "aria-label": `${fxpNameOf(ow)} ${label}` }, label);
     b.addEventListener("click", () => { const on = b.getAttribute("aria-pressed") === "true" ? 0 : 1; b.setAttribute("aria-pressed", on ? "true" : "false"); fxpPut(ow, sl, i, on); });
     return reg(i, (v) => { if (!fxpTouched(ow, sl, i)) b.setAttribute("aria-pressed", v ? "true" : "false"); }, b);
   };
@@ -11979,8 +11989,8 @@ function stripInsert(i, snd) {
 /* the Sound view's values of the selected track (and the drum level, a global) -> the strips */
 function mixFromDump() {
   if (!dev || !dev.mix || !dev.dump || panning) return;
-  const m = dev.mix, ds = m.ntrk - 1, x = m.tracks[dev.sel];
-  if (!mixTouched("lv", ds)) m.tracks[ds].level = dev.dump.g[gDrLvl()];
+  const m = dev.mix, ds = drumIndex(), x = m.tracks[dev.sel];
+  if (ds >= 0 && !mixTouched("lv", ds)) m.tracks[ds].level = dev.dump.g[gDrLvl()];   /* (the drum track's LEVEL: GLO > DRUMS; none: none) */
   if (x) {
     if (!mixTouched("lv", dev.sel)) {
       if (dev.sel !== ds) x.level = dev.dump.p[P.LEVEL];
@@ -12054,7 +12064,7 @@ const foldLanes = () => setLaneMode(mixLanes.mode === "collapsed" ? mixLanes.exp
 const setLaneSizeMode = (n) => setLaneMode(LANE_MODE_OF[n] || "all");
 /* a member strip's title bar: the drum track is selected, this sound is the picked one */
 function laneSelect(l) {
-  const drum = dev.mix.ntrk - 1;
+  const drum = drumIndex();
   mixLanes.focus = true;
   if (dev.sel !== drum) selectTrack(drum);
   pickLane(l);
@@ -12085,7 +12095,7 @@ const LANE_ACC_DESC = { fmt: F.INT, min: 0, max: 127, def: 27 };                
 /* a drum sound's tag, as the tracks' T1..T4 and the returns' A B C: D1 .. D16, the ACCENT lane DA */
 const laneTag = (l) => (l === 16 ? "DA" : `D${l + 1}`);
 function buildLaneStrip(l) {
-  const drum = dev.mix.ntrk - 1, acc = l === 16, nm = laneName(l), c = { l, acc, snd: [] }, dl = dlanOn();
+  const drum = drumIndex(), acc = l === 16, nm = laneName(l), c = { l, acc, snd: [] }, dl = dlanOn();
   const step = (d, glyph, key) => el("button", { type: "button", class: "ib", "data-lstep": d, title: t(key), "aria-label": t(key), onclick: () => laneStep(d) }, glyph);
   c.num = el("span", { class: "num", text: laneTag(l) });
   c.eng = el("span", { class: "eng", text: laneShort(l) });
@@ -12160,7 +12170,7 @@ function buildLaneStrip(l) {
 }
 /* the member strips again (a fold, the one sound changed): right after the drum strip, in the device's lane order */
 function syncLaneStrips() {
-  const box = $("mixer"), dc = dev && dev.mix ? mixCtl[dev.mix.ntrk - 1] : null;
+  const box = $("mixer"), dc = dev && dev.mix && drumIndex() >= 0 ? mixCtl[drumIndex()] : null;
   for (const e of box.querySelectorAll(":scope > .strip.sub")) e.remove();
   laneCtl.length = 0;
   if (!dc) return;
@@ -12187,7 +12197,7 @@ function syncLaneStrips() {
 /* what the member strips show: the sound's LEVEL, sends, PAN, the mix buttons, the picked one outlined */
 function updateLaneStrips() {
   if (!dev || !dev.mix || !laneCtl.length) return;
-  const cur = laneCur(), drumSel = dev.sel === dev.mix.ntrk - 1, m = dev.dlMix, list = dev.dl ? kitSources() : [];
+  const cur = laneCur(), drumSel = dev.sel === drumIndex(), m = dev.dlMix, list = dev.dl ? kitSources() : [];
   for (const c of laneCtl) {
     const l = c.l, on = mixLanes.focus && drumSel && l === cur;
     c.strip.classList.toggle("sel", on);
@@ -12242,7 +12252,7 @@ function retMainKnobs(ow, ty, g) {
     const [id, labels] = BUS_MAIN[ty], f = MASTER_FX.find((x) => x.id === id), nm = fxpTypeName(ty);
     for (const l of labels) {
       const gi = gIdByLabel(l, -1);
-      if (gi >= 0 && dev.gdesc[gi] && dev.gdesc[gi].label) out.push(masterKnob(gi, l, `${fxpName(ow)} ${nm} ${l}`, paramHelp(1, gi, dev.gdesc[gi], f.page)));
+      if (gi >= 0 && dev.gdesc[gi] && dev.gdesc[gi].label) out.push(masterKnob(gi, l, `${fxpNameOf(ow)} ${nm} ${l}`, paramHelp(1, gi, dev.gdesc[gi], f.page)));
     }
   } else if (ty) {
     const T = FXP_TABLE.return.types.find((x) => x.id === ty);
@@ -12407,7 +12417,7 @@ async function soloRefresh() {
 /* the keyboard: the selected track plays through the device's note input. A held key is a NOTE ON until its OFF; a PING every 1.2 s keeps the device from ending it (3 s of silence ends every held note) */
 const kbd = { on: false, keys: false, oct: 4, vel: 100, held: new Map(), timer: 0 };
 const KBD_MAP = { a: 0, w: 1, s: 2, e: 3, d: 4, f: 5, t: 6, g: 7, y: 8, h: 9, u: 10, j: 11, k: 12, o: 13, l: 14, p: 15, ";": 16 };
-const kbdDrum = () => !!dev && hasTracks() && dev.sel === dev.info.ntrk - 1;
+const kbdDrum = () => !!dev && hasTracks() && dev.sel === drumIndex();
 function kbdDown(id, note) {
   if (!dev || !dev.info.note || kbd.held.has(id)) return;
   const tr = dev.sel;
@@ -12421,7 +12431,7 @@ function kbdUp(id) {
   if (!h) return;
   kbd.held.delete(id);
   for (const b of document.querySelectorAll(`#kbd [data-kid="${id}"]`)) b.classList.remove("down");
-  if (dev && dev.info.note && !(dev.info.ntrk && h.tr === dev.info.ntrk - 1)) rq(req.noteOff(h.tr, h.note), { key: `note:${h.tr}:${h.note}` }).catch(report);
+  if (dev && dev.info.note && h.tr !== drumOf(dev.info)) rq(req.noteOff(h.tr, h.note), { key: `note:${h.tr}:${h.note}` }).catch(report);
   if (!kbd.held.size && kbd.timer) { clearInterval(kbd.timer); kbd.timer = 0; }
 }
 function kbdAllOff() {
@@ -12713,7 +12723,7 @@ function drumFxBlock(i, c, box) {
 /* the drum strip's FX knobs again (a sound picked, its sends or inserts changed, a push) */
 const laneNoIns = (l) => !!(dev && dev.dl && laneShow(l).noIns);   /* (DRUM_SHOW flag 4: this sound has no DIST / COMP: an X0X sound's) */
 function drumFxShow(c) {
-  const x = dev.mix.tracks[dev.mix.ntrk - 1];
+  const x = dev.mix.tracks[drumIndex()];
   if (c.fxsnd) c.fxsnd.textContent = laneName(kl.sel);
   dev.fx.slots.forEach((ty0, j) => {
     const ty = fxSend(j), k = c.fxk[j], f = LANE_FX[ty], ins = f === "dist" || f === "comp", hard = k.el.dataset.hard === "1";
@@ -12743,7 +12753,7 @@ async function setLaneIns(l, f, v) {
     const r = parse[CMD.FX](await rq(req.fx(3, [l, f === "comp" ? 1 : 0, v]), { key }));
     if (d !== dev || d.link.hasQueued(key) || performance.now() - (mixEdit.get(key) || 0) < 150) return;
     d.fx[f][l] = r[f][l];
-    if (d.mix) updateStrip(d.mix.ntrk - 1);
+    if (d.mix && drumOf(d.info) >= 0) updateStrip(drumOf(d.info));
   } catch (e) { report(e); }
 }
 /* the drum track's send levels REV DLY CHO (FX op 6, drum_sends.c dsend_kit): every drum sound's send to that bus scaled by
@@ -12752,7 +12762,7 @@ async function setKitSend(n, v) {
   if (!dev || !dev.fx || !dev.fx.kit) return;
   const d = dev, key = "fxi:kit:0";
   d.fx.kit = d.fx.kit.map((x, j) => (j === n ? v : x));
-  mixEdit.set(`kit${n}:${d.mix ? d.mix.ntrk - 1 : 0}`, performance.now());
+  mixEdit.set(`kit${n}:${d.mix ? drumOf(d.info) : 0}`, performance.now());
   try {
     const r = parse[CMD.FX](await rq(req.fx(6, d.fx.kit), { key }));
     if (d !== dev || d.link.hasQueued(key) || !r.kit) return;
@@ -12994,7 +13004,7 @@ function laneSendsShow(c) {
 /* the drum strip's send row again (a sound picked, its sends changed elsewhere) */
 function laneSendsShown(l) {
   if (!dev || !dev.mix || l !== kl.sel) return;
-  const c = mixCtl[dev.mix.ntrk - 1];
+  const c = drumIndex() >= 0 ? mixCtl[drumIndex()] : null;
   if (c && c.fxmode) drumFxShow(c);
   else if (c && c.fxl) laneSendsShow(c);
 }
@@ -13005,7 +13015,7 @@ function pickLane(l) {
   if (!kl.acc) kl.sel = l & 15;
   mixLanes.lane = laneCur();
   mixLanesSave();
-  if (dev && dev.mix) updateStrip(dev.mix.ntrk - 1);
+  if (dev && dev.mix && drumIndex() >= 0) updateStrip(drumIndex());
   if (mixLanes.mode !== "collapsed" && mixLanes.mode !== "all" && shownLanes().join() !== laneCtl.map((c) => c.l).join()) syncLaneStrips();   /* (the window follows the pick) */
   if (nav.pop && nav.pop.id === "lane") { nav.pop.lane = laneCur(); $("poptitle").textContent = popTitle("lane", nav.pop.track, laneCur()); renderKit(); }
 }
@@ -13302,7 +13312,7 @@ document.addEventListener("keydown", (e) => {
   if (tg && tg.closest && (tg.closest("#tabs") || tg.closest("[role=slider]") || (tg.dataset && tg.dataset.ownSpace))) return;
   if (e.key === "Enter" && tg && tg.closest && tg.closest("button, a, input, select, textarea, summary")) return;   /* (its own Enter) */
   if ((e.key === "[" || e.key === "]") && !e.ctrlKey && !e.metaKey && !e.altKey && !nav.pop && mixLanes.mode !== "collapsed" && laneIds().length) { e.preventDefault(); laneStep(e.key === "]" ? 1 : -1); return; }   /* previous / next block of sounds */
-  const plan = keyPlan({ nav, sel: selWant != null ? selWant : dev.sel | 0, ntrk: dev.info.ntrk, lane: laneCur(),
+  const plan = keyPlan({ nav, sel: selWant != null ? selWant : dev.sel | 0, ntrk: dev.info.ntrk, drum: drumOf(dev.info), lane: laneCur(),
     lm: { mode: mixLanes.mode, focus: mixLanes.focus, ids: laneIds(), shown: shownLanes() } }, e);
   if (!plan) return;
   e.preventDefault();
@@ -13446,7 +13456,7 @@ function onPush(f) {
     } else if (f.cmd === CMD.PARAMS) {              /* v9: parameters of any track and globals, coalesced */
       fxpPing();                                    /* (an insert's amount is a track parameter: an open FX popup follows) */
       for (const c of parse[CMD.PARAMS](f.a)) {
-        if (c.track === d.info.ntrk - 1 && c.id === d.info.pe0) onKit(c.value);   /* the drum kit: the kit editor (kitPoll's job) */
+        if (c.track === drumOf(d.info) && c.id === d.info.pe0) onKit(c.value);   /* the drum kit: the kit editor (kitPoll's job) */
         if (c.track < 0) onPush({ cmd: CMD.CHANGED, a: [1, c.id, ...v14enc(c.value)] });
         else if (c.track === d.sel) onPush({ cmd: CMD.CHANGED, a: [0, c.id, ...v14enc(c.value)] });
         else onTrackParam(c);

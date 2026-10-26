@@ -37,7 +37,7 @@ static void meter_tap(void)
     if (h == mt.half)
         return;
     for (c = 0; c < NTRK; c++) {
-        int32_t *src = c == TRK_DRUM ? &drums.peak : &trk[c].peak, pk;
+        int32_t *src = IS_DRUMK(c) ? &drums.peak : &trk[c].peak, pk;
         fm1_irq_off();                  /* (the ISR's read-modify-write of it may not fall in between) */
         pk = *src;
         *src = 0;
@@ -45,7 +45,7 @@ static void meter_tap(void)
         if (pk > mt.ui[c])
             mt.ui[c] = pk;
     }
-    for (c = 0; c < DRUM_LANES; c++) {  /* the drum lanes (drum_mix.c dlm_pk), as the tracks */
+    for (c = 0; FELUCCA_DRUMS && c < DRUM_LANES; c++) {   /* the drum lanes (drum_mix.c dlm_pk), as the tracks */
         int32_t pk;
         fm1_irq_off();
         pk = dlm_pk[c];

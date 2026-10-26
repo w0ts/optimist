@@ -43,8 +43,18 @@
  * with what it plays); pat.c puts the patterns in (sec_read: flattened). Never raw, never with a motion chunk (the
  * motion is the patterns'). A firmware before phase 1 refuses the flag: the section reads as empty there, kept */
 #define SEC_SCN 32u
+/* flags: FUNC's (FELUCCA_DRUMS 0, 2026-10-26): track 4 a part, and after dl_hash the tail's values but part 4's FM6 voice
+ * (project.c pj_nd_t: the parts' ENV2 extras, the macros, SLOOP 2.4's values; part 4's voice with the others, fm6_has bit 3).
+ * A build with drums does not know it (refused); a build without reads a record without it as FUNB's and converts it
+ * (project.c proj_nd_of: track 4 a new part) */
+#define SEC_ND 64u
 /* flags this build does not know (a later firmware's): the record is refused, never read as something it is not */
+#if FELUCCA_DRUMS
 #define SEC_UNKNOWN 0xC0u
+#else
+#define SEC_UNKNOWN 0x80u
+#define SEC_ND_N ((uint32_t)sizeof(pj_nd_t) - (uint32_t)__builtin_offsetof(pj_nd_t, x))   /* (the tail's values in a record) */
+#endif
 #define sec_is_raw(f) (((f) & (SEC_RAW | SEC_B)) == SEC_RAW)
 #define SEC_MOT_MAX (2u + 3u * 64u)                   /* count, PLAY bits, 64 events (motion.c MOTION_MAX) */
 #define SEC_RAW_N ((uint32_t)sizeof(project_t) + (uint32_t)sizeof(dlrec_t) + 1u)   /* a raw record, no motion */
@@ -57,7 +67,11 @@ _Static_assert(SEC_REC_MAX >= SEC_RAW_N, "the longest record");
 _Static_assert(PJ_NG > 24u && PJ_NG <= 32u, "the globals' mask: 4 bytes (the G_* after PJ_NG live in rsv: project.c mc_pack)");
 #define SEC_TRK_MAX(sb) (2u + (PJ_NP + 7u) / 8u + 2u * PJ_NP + NSTEP / 8u + (sb) * NSTEP)   /* one track, compressed */
 #define SEC_STEP_B_MAX 12u                            /* a codec B step: 2 mask bytes, its 10 bytes */
+#if FELUCCA_DRUMS
 #define SEC_TAIL_MAX (1u + NPART * (128u + 1u + 16u) + 4u + (uint32_t)sizeof(dlrec_t))   /* FM6, the drum record */
+#else
+#define SEC_TAIL_MAX (1u + NPART * (128u + 1u + 16u) + 4u + (uint32_t)sizeof(dlrec_t) + SEC_ND_N)   /* (and FUNC's tail) */
+#endif
 #include "../../seq/stepx.h"
 /* the longest scene (SEC_SCN: no step) and pattern record (pat.c: 64 motion events, 64 codec A steps, the extras) */
 #define SCN_REC_MAX (9u + 2u * PJ_NG + NTRK * SEC_TRK_MAX(0u) + SEC_TAIL_MAX + 4u)
@@ -74,7 +88,7 @@ static uint32_t sec_len(const proj_trk_t *t)                                  /*
 static void sec_step_clear(pstep_t *s, uint32_t trk)
 {
     memset(s, 0, sizeof *s);
-    if (trk != TRK_DRUM)
+    if (!IS_DRUMK(trk))
         s->time = ST_REST;
 }
 static int sec_step_empty(const pstep_t *s, uint32_t trk)
@@ -234,7 +248,7 @@ static int sec_steps_get(proj_trk_t *t, uint32_t trk, const uint8_t **a, const u
 static uint32_t sec_body(const project_t *p, const dlrec_t *d, uint8_t *out, int nost)
 {
     uint8_t *o = out + 1;
-    uint32_t i, f = (p->dl_hash ? SEC_DL : 0u) | SEC_V2, b = (uint32_t)sec_use_b(p, nost);
+    uint32_t i, f = (p->dl_hash ? SEC_DL : 0u) | SEC_V2 | (FELUCCA_DRUMS ? 0u : SEC_ND), b = (uint32_t)sec_use_b(p, nost);
     o = sec_vals_put(o, p->g, PJ_NG, GP, PJ_NG);      /* the globals */
     *o++ = p->sel;
     memcpy(o, p->rsv, 3), o += 3;
@@ -252,11 +266,14 @@ static uint32_t sec_body(const project_t *p, const dlrec_t *d, uint8_t *out, int
     *o++ = p->fm6_has;
     for (i = 0; i < NPART; i++)
         if ((p->fm6_has >> i) & 1u) {
-            memcpy(o, p->fm6[i], 128), o += 128;
-            *o++ = p->fm6_on[i];
-            memcpy(o, p->fm6_fn[i], 16), o += 16;
+            memcpy(o, PJ_FM6(p, i), 128), o += 128;
+            *o++ = PJ_FM6ON(p, i);
+            memcpy(o, PJ_FM6FN(p, i), 16), o += 16;
         }
     memcpy(o, &p->dl_hash, 4), o += 4;
+#if !FELUCCA_DRUMS
+    memcpy(o, p->nd.x, SEC_ND_N), o += SEC_ND_N;     /* (FUNC's tail: SEC_ND) */
+#endif
     if (f & SEC_DL)
         memcpy(o, d, sizeof *d), o += sizeof *d;
     if ((uint32_t)(o - out) >= sizeof *p + ((f & SEC_DL) ? sizeof *d : 0u) + 1u)
@@ -365,11 +382,29 @@ static uint32_t sec_encode_mig(const project_t *p, const dlrec_t *d, uint8_t *ou
 
 /* a record (n bytes) -> project p and its drum record d (none: all 0), its motion (motion builds); 0 = not a
  * section record */
+#if !FELUCCA_DRUMS
+/* a record of a build with drums, decoded into p (ok) and converted: its drum track's motion and locks out of p's store */
+static int sec_nd_motion(int ok, const project_t *p, int dr)
+{
+#if FELUCCA_AUTO
+    auto_store_t *m = ok && dr ? auto_for(p, 0) : 0;
+    if (m) {
+        m->l[TRK_DRUM].n = 0;
+        m->on &= (uint8_t)~(1u << TRK_DRUM);
+    }
+#endif
+    (void)p, (void)dr;
+    return ok;
+}
+#endif
 static int sec_decode(const uint8_t *a, uint32_t n, project_t *p, dlrec_t *d)
 {
     const uint8_t *e = a + n, *ch = 0;
     const int8_t *va = 0;
     uint32_t i, f, c = 0;
+#if !FELUCCA_DRUMS
+    int dr = 0;
+#endif
 #if FELUCCA_ANALOG2
     int8_t vad[NPART];
 #endif
@@ -387,8 +422,15 @@ static int sec_decode(const uint8_t *a, uint32_t n, project_t *p, dlrec_t *d)
         c = 2u + 3u * a[1];
     }
     memset(d, 0, sizeof *d);
+#if !FELUCCA_DRUMS
+    dr = !(f & SEC_ND);                               /* (a record of a build with drums: FUNB's layout, converted below) */
+#endif
     if (sec_is_raw(f)) {
+#if FELUCCA_DRUMS
         uint32_t pn = ch ? SEC_RAWT_N : (uint32_t)sizeof *p;
+#else
+        uint32_t pn = dr ? (ch ? PROJ_D_N - 12u : PROJ_D_N) : ch ? SEC_RAWT_N : (uint32_t)sizeof *p;
+#endif
         if (n != 1u + c + pn + ((f & SEC_DL) ? sizeof *d : 0u))
             return 0;
         if (ch) {
@@ -397,19 +439,37 @@ static int sec_decode(const uint8_t *a, uint32_t n, project_t *p, dlrec_t *d)
             p->size = sizeof *p;
             p->sum = proj_sum(p);
         } else
-            memcpy(p, a + 1, sizeof *p);
+            memcpy(p, a + 1, pn);
         if (f & SEC_DL)
             memcpy(d, a + 1 + c + pn, sizeof *d);
 #if FELUCCA_ANALOG2
+#if FELUCCA_DRUMS
         if (!(f & SEC_V2) && !ch) {                   /* (format 10's raw project: FUNA, its own sum) */
             if (p->magic != PROJ_MAGIC_VA || p->size != sizeof *p || p->sum != proj_sum(p))
                 return 0;
             p->magic = PROJ_MAGIC;
             p->sum = proj_sum(p);
         }
+#else
+        if (dr && !ch) {                              /* (FUNB's raw project, or format 10's: their own sums) */
+            uint32_t sum;
+            memcpy(&sum, a + 1 + pn - 4u, 4);
+            if (p->magic != ((f & SEC_V2) ? PROJ_MAGIC_B : PROJ_MAGIC_VA) || p->size != PROJ_D_N ||
+                sum != proj_hash(p, PROJ_D_N - 4u))
+                return 0;
+        }
+        pj_x_dr = (uint8_t)dr;
+#endif
         va = sec_from_va(f, p, vad);
 #endif
+#if !FELUCCA_DRUMS
+        pj_x_dr = 0;
+        if (dr)
+            proj_nd_of(p);                            /* (FUNB's -> FUNC: track 4 a new part) */
+        return sec_nd_motion(sec_take_motion(proj_ok(p), p, ch, va), p, dr);
+#else
         return sec_take_motion(proj_ok(p), p, ch, va);
+#endif
     }
     memset(p, 0, sizeof *p);
     p->magic = PROJ_MAGIC;
@@ -433,26 +493,42 @@ static int sec_decode(const uint8_t *a, uint32_t n, project_t *p, dlrec_t *d)
     SEC_NEED(1);
     p->fm6_has = *a++;
     for (i = 0; i < NPART; i++) {
-        memset(p->fm6_fn[i], 0xFF, sizeof p->fm6_fn[i]);
+        memset(PJ_FM6FN(p, i), 0xFF, 16u);
         if ((p->fm6_has >> i) & 1u) {
             SEC_NEED(128 + 1 + 16);
-            memcpy(p->fm6[i], a, 128), a += 128;
-            p->fm6_on[i] = *a++;
-            memcpy(p->fm6_fn[i], a, 16), a += 16;
+            memcpy(PJ_FM6(p, i), a, 128), a += 128;
+            PJ_FM6ON(p, i) = *a++;
+            memcpy(PJ_FM6FN(p, i), a, 16), a += 16;
         }
     }
     SEC_NEED(4);
     memcpy(&p->dl_hash, a, 4), a += 4;
+#if !FELUCCA_DRUMS
+    if (!dr) {
+        SEC_NEED(SEC_ND_N);
+        memcpy(p->nd.x, a, SEC_ND_N), a += SEC_ND_N;
+    }
+#endif
     if (f & SEC_DL) {
         SEC_NEED(sizeof *d);
         memcpy(d, a, sizeof *d), a += sizeof *d;
     }
 #undef SEC_NEED
     p->sum = proj_sum(p);
+#if !FELUCCA_DRUMS
+    pj_x_dr = (uint8_t)dr;
+#endif
 #if FELUCCA_ANALOG2
     va = sec_from_va(f, p, vad);
 #endif
+#if !FELUCCA_DRUMS
+    pj_x_dr = 0;
+    if (dr)
+        proj_nd_of(p);                                /* (FUNB's -> FUNC: track 4 a new part) */
+    return sec_nd_motion(sec_take_motion(a == e, p, ch, va), p, dr);
+#else
     return sec_take_motion(a == e, p, ch, va);
+#endif
 }
 
 /* what sec_encode keeps of a project (steps past LEN, the functions of parts without FM6 voice: their defaults);
@@ -465,9 +541,9 @@ static void sec_canon(project_t *p)
             sec_step_clear(&p->t[i].step[k], i);
     for (i = 0; i < NPART; i++)
         if (!((p->fm6_has >> i) & 1u)) {
-            memset(p->fm6[i], 0, sizeof p->fm6[i]);
-            p->fm6_on[i] = 0;
-            memset(p->fm6_fn[i], 0xFF, sizeof p->fm6_fn[i]);
+            memset(PJ_FM6(p, i), 0, 128u);
+            PJ_FM6ON(p, i) = 0;
+            memset(PJ_FM6FN(p, i), 0xFF, 16u);
         }
     p->sum = proj_sum(p);
 }

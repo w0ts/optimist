@@ -118,8 +118,14 @@ ok(same(L.deltaOf("A", sav, { ram: 5 }), [["flash", 100], ["ram", 10]]) && same(
   "costs shown: the regions it moves by 64 B or more and the overflowing ones it takes");
 ok(L.offFits([["flash", 900]], { flash: 800 }) && !L.offFits([["flash", 900]], { flash: 800, ram: 1 }) && !L.offFits([["flash", 1]], {}), "◀ off = fits: alone it covers every overflow");
 const t0 = L.treeOf(reg, "", {}, null);
-ok(same(t0.map((g) => g.group), reg.groups.filter((g) => (reg.top[g] || []).length)) && t0.reduce((n, g) => n + g.items.length + g.items.reduce((m, i) => m + i.children.length, 0), 0) === reg.items.length,
-  "list: every group with items, every item once (top level, then its options)");
+const tcount = (ns) => ns.reduce((n, i) => n + 1 + tcount(i.children), 0);   /* (a group's head: two levels, DRUMS) */
+ok(same(t0.map((g) => g.group), reg.groups.filter((g) => (reg.top[g] || []).length)) && t0.reduce((n, g) => n + tcount(g.items), 0) === reg.items.length,
+  "list: every group with items, every item once (top level, then its options, a group's head's options' options)");
+const tdr = t0.find((g) => g.group === "Drums");
+ok(tdr && tdr.items.length === 1 && tdr.items[0].key === "DRUMS" && tdr.items[0].children.some((c) => c.key === "DRUM_X0X909" && c.children.some((o) => o.key === "X909_CYM")),
+  "list: DRUMS heads the drum group, an X0X kit's options under the kit");
+ok(!L.built(reg, { DRUMS: 0, LANE_FX: 1 }, "LANE_FX") && !L.built(reg, { DRUMS: 0 }, "X909_CYM") && L.built(reg, { LANE_FX: 1 }, "LANE_FX"),
+  "built: DRUMS off leaves out its options' options and the drum-only items of other groups (core.built)");
 const tq = L.treeOf(reg, "reverb", {}, null);
 ok(tq.length > 0 && tq.every((g) => g.items.every((i) => L.matches(reg.byKey[i.key], "reverb") || i.children.some((c) => L.matches(reg.byKey[c], "reverb")))), "search: what matches label, key, group or description, with its parent");
 const ps = L.presets(prof);

@@ -722,8 +722,8 @@ static const param_desc_t *lay_desc(uint32_t l, uint32_t k, int16_t **vp)
         return &TP[P[k]];
     }
     case LY_MIX:
-        *vp = k == TRK_DRUM ? &song.g[G_DRLVL] : &trk[k].p[P_LEVEL];
-        return k == TRK_DRUM ? &GP[G_DRLVL] : &TP[P_LEVEL];
+        *vp = IS_DRUMK(k) ? &song.g[G_DRLVL] : &trk[k].p[P_LEVEL];
+        return IS_DRUMK(k) ? &GP[G_DRLVL] : &TP[P_LEVEL];
     default:
         return 0;
     }

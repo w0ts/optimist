@@ -330,7 +330,7 @@ static uint32_t auto_step(track_t *t, uint32_t idx)
 #endif
     auto_muted[k] = 0;
 #if DLA_ON
-    if (k == TRK_DRUM)
+    if (IS_DRUMK(k))
         dla_locks_off();                             /* (the last step's lane locks let go) */
 #endif
 #if SLOT_AUTO
@@ -341,7 +341,7 @@ static uint32_t auto_step(track_t *t, uint32_t idx)
 #endif
 #endif
 #if FELUCCA_LANE_FX
-    if (k == TRK_DRUM)
+    if (IS_DRUMK(k))
         lfx_reset();
 #endif
     for (i = 0; i < l->n && i < AUTO_MAX; i++) {
@@ -349,7 +349,7 @@ static uint32_t auto_step(track_t *t, uint32_t idx)
         if ((e->place & AUTO_STEP) != idx || AUTO_IS_LFX(e)) {   /* (another step's; or a lane's FX, no step's: the
                                                                   * place's step bits are its lane and page) */
 #if FELUCCA_LANE_FX
-            if (k == TRK_DRUM && AUTO_IS_LFX(e) && AUTO_LFX_PG(e) < LFX_PAGES)
+            if (IS_DRUMK(k) && AUTO_IS_LFX(e) && AUTO_LFX_PG(e) < LFX_PAGES)
                 lfx_v[AUTO_LFX_L(e) % LFX_LANES][(AUTO_LFX_PG(e) * 4u + e->param - AUTO_COND) % LFX_N] = e->value;
 #endif
             continue;
@@ -361,7 +361,7 @@ static uint32_t auto_step(track_t *t, uint32_t idx)
         }
 #if DLA_ON
         if (AUTO_IS_LANE(e->param)) {                /* (a drum lane's value: before mot_id, which has no such id) */
-            if (k == TRK_DRUM)
+            if (IS_DRUMK(k))
 #if FELUCCA_MOTION
                 dla_event(e, mo);
 #else
@@ -426,7 +426,7 @@ static uint32_t auto_step(track_t *t, uint32_t idx)
     lock_apply(t, lp, lv, plays && !smute_trk_on(k) ? m : 0u);   /* (a fill-skipped step, a track muted: its locks do not apply) */
 #endif
 #if DLA_ON
-    if ((!plays || smute_trk_on(k)) && k == TRK_DRUM)
+    if ((!plays || smute_trk_on(k)) && IS_DRUMK(k))
         dla_locks_off();                             /* (nor its lane locks: its lane holds stay) */
 #endif
     return plays;

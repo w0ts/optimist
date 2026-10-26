@@ -206,7 +206,7 @@ static void snd_name(uint32_t c, char *b)
     const track_t *t = &trk[c % NTRK];
     const engine_t *e = ENGINES[t->eng_req % NENGINES];
 #if FELUCCA_NB_LIST
-    if (c != TRK_DRUM && t == TSEL) {                   /* the engine's own collection (the FM6 voice packs, a received bank): the voice's name */
+    if (!IS_DRUMK(c) && t == TSEL) {                   /* the engine's own collection (the FM6 voice packs, a received bank): the voice's name */
         uint32_t at, r, n = nb_list(&r, ~0u, &at);
         if (r < n) {
             nb_list(&r, r, &at);
@@ -215,7 +215,7 @@ static void snd_name(uint32_t c, char *b)
         }
     }
 #endif
-    if (c == TRK_DRUM)
+    if (IS_DRUMK(c))
         str_cpy(b, drum_kit_name(), 14);
     else if (user_of(t) < UP_SLOTS)
         up_name(user_of(t), b);
@@ -450,13 +450,18 @@ static const param_desc_t *op_dsnd_desc(uint32_t id, int16_t **vp)
             return 0;
         }
     }
+#if DL_ANY
     d = dsnd_desc_lane(lane_selected(), id, vp);
     if (d)
         dsv_rec(lane_selected(), id & 31u);
+#else
+    d = 0, *vp = 0;                                     /* (no drums: no lane) */
+#endif
     return d;
 }
 static const param_desc_t *(*dsnd_desc_fn)(uint32_t id, int16_t **vp) = op_dsnd_desc;   /* (params.c page_desc) */
 
+#if DL_ANY
 static void op_dsnd_set(uint32_t id, int32_t v, int32_t steps)   /* as ui_drums.c dsnd_set, without its confirm */
 {
     uint32_t l = lane_selected();
@@ -519,14 +524,17 @@ static void op_dsnd_set(uint32_t id, int32_t v, int32_t steps)   /* as ui_drums.
         break;
     }
 }
+#endif
 /* once a frame (as ui_drums.c dsnd_tick): another kit set elsewhere drops a user kit's lanes; user samples' states */
 static void op_dsnd_tick(void)
 {
+#if FELUCCA_DRUMS
     if (TDRUM->p[P_E0] != dl_e0) {
         if (dl.ukit && dl_e0 >= 0)
             dl_reset_lanes();
         dl_e0 = TDRUM->p[P_E0];
     }
+#endif
     dl_tick();
 }
 
@@ -728,8 +736,10 @@ static void page_set(const page_t *pg, uint32_t k, int16_t *vp, int32_t v, int32
         return;
     if (pg->scope == SC_FXSLOT && id < FX_NSLOT)        /* FX > SLOTS: load the type (a type held elsewhere swaps) */
         fxs_load(id, fxs_list[v]);
+#if DL_ANY
     if (pg->scope == SC_DSND && !lane_value_rec(lane_selected(), id, v))
         op_dsnd_set(id, v, steps);
+#endif
 }
 
 /* LEN, coarse (the user, 2026-10-08): a detent to the next / previous of 1 2 4 8 16 32 64 within min..max; from a
@@ -817,15 +827,21 @@ static int page_yes(uint32_t scr, uint32_t row, const page_t *pg, uint32_t k, ui
         return 1;
     }
     if (!ok) {                                          /* every GO here asks (INIT: over an unedited sound too) */
+#if DL_ANY
         char kit_arg[8] = "KIT ";
+#endif
         const char *arg = trk_tag(song.sel);            /* "CLRSQ T2?", "INIT T2?" */
+#if DL_ANY
         if (pg->scope == SC_DSND)                       /* "RESET SNARE?"; SAVE / ERASE name the user kit: "SAVE KIT 3?" */
             arg = id == 15u ? LANE_NAME_OF(lane_selected()) : (fmt_int(kit_arg + 4, (int32_t)dsnd_slot + 1), kit_arg);
-        else if (pg->scope == SC_GLOBAL && id == G_NEWPRJ)
+        else
+#endif
+        if (pg->scope == SC_GLOBAL && id == G_NEWPRJ)
             arg = "";                                   /* "NEW?" */
         op_arm(scr, row, k, d->label, arg, go_danger(d));
         return 1;
     }
+#if DL_ANY
     if (pg->scope == SC_DSND) {
         uint32_t l = lane_selected();
         if (id == 15u) {                                /* RESET: the sound as the kit has it */
@@ -842,6 +858,7 @@ static int page_yes(uint32_t scr, uint32_t row, const page_t *pg, uint32_t k, ui
         ui.force = 1;
         return 1;
     }
+#endif
 #if FELUCCA_ENG_ACID
     if (pg->scope == SC_BPSET && id == BPS_GGO) {       /* ACID GEN > GO: a new line */
         undo_level(TSEL);

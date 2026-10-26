@@ -276,6 +276,7 @@ static uint32_t effv_cell(cell_t *c)
     if (c->kind != CK_VAL || !c->vp || !c->d || st_holding())
         return 0;
     e = *c->vp;
+#if DL_ANY
     if (c->vp >= dsv && c->vp < dsv + DE_N) {           /* a drum lane value */
         if (effv_lane(effv_lane_l(), (uint32_t)(c->vp - dsv), &val, &mn, &mx) == 1u && val == e)
             r = 2;
@@ -286,7 +287,9 @@ static uint32_t effv_cell(cell_t *c)
             return 0;
         (void)effv_lane(lane_selected(), s->dest - 1u, &val, &mn, &mx);
 #endif
-    } else if (!is_drum(TSEL) && c->vp >= tsel()->p && c->vp < tsel()->p + P_COUNT) {   /* a synth part's value */
+    } else
+#endif
+    if (!is_drum(TSEL) && c->vp >= tsel()->p && c->vp < tsel()->p + P_COUNT) {   /* a synth part's value */
         uint32_t k = effv_synth(song.sel, (uint32_t)(c->vp - tsel()->p), &val, &mn, &mx);
         if (!k)
             return 0;

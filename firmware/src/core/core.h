@@ -9,9 +9,26 @@
 #include "backports.h"       /* the backported features' build switches (FELUCCA_CHANCE ...) */
 #define NVOICE 8                 /* voices per part, and the budget shared by all parts */
 #define NPOLY 8
+/* FELUCCA_DRUMS 0 (the builder's DRUMS, 2026-10-26): no drum track and no drum code; track 4 is a fourth synth part */
+#ifndef FELUCCA_DRUMS
+#define FELUCCA_DRUMS 1
+#endif
+#if FELUCCA_DRUMS
 #define NPART 3                  /* synth parts: tracks 1..3 */
+#else
+#define NPART 4                  /* synth parts: tracks 1..4 */
+#include "nodrums.h"             /* (every drum switch 0) */
+#endif
 #define NTRK 4                   /* + the drum track */
-#define TRK_DRUM 3
+#define TRK_DRUM 3               /* (its index; without drums track 4 is a part: IS_DRUMK is never true) */
+#define IS_DRUMK(k) (FELUCCA_DRUMS && (uint32_t)(k) == TRK_DRUM)   /* track k is the drum track */
+#if FELUCCA_DRUMS
+#define TRK4_TAG "DR"            /* track 4's short name */
+#define TRK4_NAME "DRUMS"
+#else
+#define TRK4_TAG "T4"
+#define TRK4_NAME "T4"
+#endif
 #if FELUCCA_USB_AUDIO
 /* USB audio capture (usb_audio_stream.c): interleaved mono stems, cleared by mix_block;
  * post insert / level / mute, pre pan / sends / FX buses / master. */
@@ -774,7 +791,7 @@ static void ev_at(uint32_t ago)
 }
 #define TSEL (&trk[song.sel])    /* the selected track */
 #define TDRUM (&trk[TRK_DRUM])
-static int is_drum(const track_t *t) { return t == TDRUM; }
+static int is_drum(const track_t *t) { return FELUCCA_DRUMS && t == TDRUM; }   /* (no drums: never) */
 /* step i of track t as bytes (*n of them): the drum track's 16-lane step, a synth step with its own note ends */
 static const uint8_t *trk_step_raw(const track_t *t, uint32_t i, uint32_t *n)
 {

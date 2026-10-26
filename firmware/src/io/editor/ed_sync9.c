@@ -183,7 +183,7 @@ static int ed9_steps(void)
     uint32_t j, t, i, first, cnt, per, room;
     for (j = 0; j < NTRK; j++) {
         t = (e9.spos + j) % NTRK;
-        per = t == TRK_DRUM ? 13u : ED9_ENDS ? 15u : 11u;   /* (v12: a synth step's own note ends) */
+        per = IS_DRUMK(t) ? 13u : ED9_ENDS ? 15u : 11u;   /* (v12: a synth step's own note ends) */
         for (i = 0; i < NSTEP && e9.st[t][i] == ed9_step_sig(t, i); i++)
             ;
         if (i == NSTEP)
@@ -198,7 +198,7 @@ static int ed9_steps(void)
             if (h == e9.st[t][i])
                 break;                                   /* a run of changed steps */
             e9.st[t][i] = h;
-            if (t == TRK_DRUM)
+            if (IS_DRUMK(t))
                 ed_dstep_out(&trk[t].dstep[i]);
             else
                 ed_step_out(&trk[t], i, ED9_ENDS);
@@ -243,7 +243,7 @@ static void ed9_tracks_out(void)                       /* the TRACK (27) reply's
     ed_b2(song.sel, NTRK);
     for (c = 0; c < NTRK; c++) {
         ed_b2(ed_eng(&trk[c]), trk[c].preset);
-        ed_v(c == TRK_DRUM ? song.g[G_DRLVL] : trk[c].p[P_LEVEL]);
+        ed_v(IS_DRUMK(c) ? song.g[G_DRLVL] : trk[c].p[P_LEVEL]);
         ed_b2(trk[c].p[P_MUTE] != 0, (song.rec >> c) & 1u);
     }
     ed_b(song.solo & 15u);

@@ -31,11 +31,14 @@
 #if GEN_BUILT                                            /* (seq.c, before undo.c) */
 #define GEN_ON 1
 #define GEN_NP 3u                                        /* values a generator */
-#if FELUCCA_GEN_GRIDS
+#if FELUCCA_GEN_GRIDS && FELUCCA_DRUMS
 #define GEN_KIT (NPART + DRUM_SLANES)                    /* the kit's GRIDS: one slot over the drum track (gr_kit_merge) */
 #define GEN_NSLOT (NPART + DRUM_SLANES + 1u)
-#else
+#elif FELUCCA_DRUMS
 #define GEN_NSLOT (NPART + DRUM_SLANES)
+#else
+#define GEN_NSLOT NPART                                  /* (no drums: the parts' only) */
+#define GEN_KIT 0u                                       /* (no kit: never asked for, is_drum is never true) */
 #endif
 /* the types by their stored number (GEN_TLV), the same in every build; one the build leaves out has no step in GEN_TYPES
  * (gen_has): a project's slot of that type loads off, at the defaults (gen_untlv) */
@@ -82,7 +85,7 @@ static volatile uint8_t gen_trk;                         /* bit k: track k has a
 static volatile uint32_t gen_lanes;                      /* the drum lanes with one on; bit DRUM_SLANES: the kit's GRIDS */
 #define GEN_LANES_M ((1u << DRUM_SLANES) - 1u)           /* (gen_lanes: the lanes' own) */
 #define GEN_DSLOTS (GEN_NSLOT - NPART)                   /* the drum track's slots: its lanes, then the kit's */
-_Static_assert(NPART == TRK_DRUM && DRUM_SLANES < 31u, "the slots: the synth tracks, then the drum lanes (and the kit)");
+_Static_assert((!FELUCCA_DRUMS || NPART == TRK_DRUM) && DRUM_SLANES < 31u, "the slots: the synth tracks, then the drum lanes (and the kit)");
 
 static uint32_t gen_slot(uint32_t k, uint32_t lane) { return k < NPART ? k : NPART + lane % DRUM_SLANES; }
 static uint32_t gen_mix(uint32_t h)                      /* (murmur3's finaliser) */

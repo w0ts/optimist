@@ -102,9 +102,9 @@ static int32_t sl24_param(uint32_t id, uint32_t trk, uint32_t eng)
 #endif
 #if FELUCCA_CHORDPLUS
     if (id == SL24_STRUM || id == SL24_VLEAD)
-        return trk != TRK_DRUM ? (int32_t)(P_TFLT + id - SL24_TFLT) : -1;   /* (the parts' only) */
+        return !IS_DRUMK(trk) ? (int32_t)(P_TFLT + id - SL24_TFLT) : -1;   /* (the parts' only) */
 #endif
-    if (id < SL24_E0 || id >= SL24_NP || (trk != TRK_DRUM && (eng == ENG_UID_FM6 || eng == SL24_ENG_LOST)))
+    if (id < SL24_E0 || id >= SL24_NP || (!IS_DRUMK(trk) && (eng == ENG_UID_FM6 || eng == SL24_ENG_LOST)))
         return -1;                                      /* (TFLT STRUM VLEAD without their switches; FM6's macros; the EDIT
                                                          * of an engine not ours) */
     return (int32_t)(P_E0 + id - SL24_E0);
@@ -399,13 +399,13 @@ static int proj_from_sl24(project_t *q, const void *b, int n, stepx_t *x)
         px[i][0] = (int16_t)clamp(e[SL24_TFLT], TP[P_TFLT].min, TP[P_TFLT].max);
 #endif
 #if FELUCCA_CHORDPLUS
-        if (i != TRK_DRUM) {                            /* (the parts' only) */
+        if (!IS_DRUMK(i)) {                            /* (the parts' only) */
             px[i][1] = (int16_t)clamp(e[SL24_STRUM], TP[P_STRUM].min, TP[P_STRUM].max);
             px[i][2] = (int16_t)clamp(e[SL24_VLEAD], TP[P_VLEAD].min, TP[P_VLEAD].max);
         }
 #endif
 #endif
-        if (i == TRK_DRUM) {
+        if (IS_DRUMK(i)) {
             v[P_E0] = sl24_kit(e[SL24_E0]);
             for (k = 1; k < 8u; k++)                    /* (SLOOP's E1..E7 there: 2.7's drum TUNE / DECAY bits, sl27_dt_in;
                                                          * ours: E1 the ACCENT amount, core.h P_DACC: its default) */
@@ -424,13 +424,13 @@ static int proj_from_sl24(project_t *q, const void *b, int n, stepx_t *x)
             for (k = 0; k < 8u; k++)
                 v[P_E0 + k] = eng_built(0) ? ENGINES[eng_slot_built(0)]->edit[k].def : 0;
         }
-        if (i != TRK_DRUM)
+        if (!IS_DRUMK(i))
             v[P_AMODE] = sl27_amode_in(v[P_AMODE], &sl27_arp_cut);
         pj_from_p(q->t[i].p, v);
         q->t[i].engine = (uint8_t)(eng == SL24_ENG_LOST ? 0u : eng);
         q->t[i].preset = eng == SL24_ENG_LOST ? 0u : s[2u * SL24_NP + 1u];
         memcpy(q->t[i].step, s + 2u * SL24_NP + 2u, sizeof q->t[i].step);
-        for (k = 0; i != TRK_DRUM && k < NSTEP; k++)
+        for (k = 0; !IS_DRUMK(i) && k < NSTEP; k++)
             q->t[i].step[k].flags = sl27_flags_in(q->t[i].step[k].flags);
         if (x) {
             stepx_t *d = &x[i];
@@ -441,7 +441,7 @@ static int proj_from_sl24(project_t *q, const void *b, int n, stepx_t *x)
                 int32_t p = l.step < SX_NSTEP ? sl24_param(l.param, i, eng) : -1;
                 if (p < 0)
                     continue;
-                if (i == TRK_DRUM && p == (int32_t)P_E0)
+                if (IS_DRUMK(i) && p == (int32_t)P_E0)
                     l.val = sl24_kit(l.val);
                 l.param = (uint8_t)p;
                 d->lock[m++] = l;

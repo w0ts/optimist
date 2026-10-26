@@ -295,7 +295,7 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 /* Three drum synths, each a switch of its own (the user, 2026-10-22): the 32 kits (FELUCCA_DRUM_SYNTH), KAWA, PLAITS.
  * The synth's voice they share (drum_synth.c, the sound table DS_SNDS) is built with any of them */
 #define DRUM_DS (FELUCCA_DRUM_SYNTH || FELUCCA_DS_KAWA || FELUCCA_DS_PLAITS)
-#if !DRUM_DS && !DRUM_SMASK && !DRUM_X0X
+#if FELUCCA_DRUMS && !DRUM_DS && !DRUM_SMASK && !DRUM_X0X
 #error "the drum track needs a drum source: a drum synth (the 32 synthesised kits, KAWA, PLAITS, X0X 909, X0X 808) or a sampled kit"
 #endif
 #define DRUM_UID_X909 37u

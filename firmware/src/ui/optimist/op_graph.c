@@ -541,6 +541,7 @@ static const char *denv_syn_tag(uint32_t l, uint32_t kit)
 #else
 #define denv_syn_tag(l, kit) "SYN"
 #endif
+#if DL_ANY
 static void graph_denv(void)
 {
     uint32_t l = lane_selected(), usr = dl_usr_of(l), kit = dl_kit_of(l, drum_kit());
@@ -571,6 +572,7 @@ static void graph_denv(void)
     else
         denv_synth(l, kit, o, y0, h, c);
 }
+#endif
 
 /* what the graphs read beyond the cursor row's cells (those are in the list's signature already): the scale, the
  * FX bypass and the slots' sends, the LFO's wave and phase, the lane, the pattern's steps */
@@ -632,9 +634,12 @@ static __attribute__((noinline)) void draw_sound_graph(const page_t *pg)
         break;
 #endif
     default:
+#if DL_ANY
         if (pg->scope == SC_DSND && pg->fam == FAM_ENV)
             graph_denv();                               /* (the drum track's ENV: the lane's envelope) */
-        else if (pg->fam == FAM_FX && pg->scope != SC_DSND)
+        else
+#endif
+        if (pg->fam == FAM_FX && pg->scope != SC_DSND)
             graph_fx(pg, col);                          /* (an FX page with no picture of SLOOP's: its own needles, #31) */
         else
             graph_lane();

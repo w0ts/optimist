@@ -36,9 +36,15 @@
  * read by count (proj_from_np: the parameters added since take their defaults); the formats that numbered
  * SUPER 9 and DX7 / FM6 10 (FM6's 6, 5, 4) get today's numbers: DX7 / FM6 -> FM6 (9), SUPER -> ANALOG on
  * the swarm (proj_trk_from_super) */
+#if !FELUCCA_DRUMS
+#define PROJ_MAGIC 0x46554E43u                 /* "FUNC" (format 12, no drums): FUNB's layout with track 4 a part and a tail
+                                                * (pj_nd_t); FUNB and the formats before are read and converted (proj_nd_of) */
+#define PROJ_MAGIC_B 0x46554E42u               /* "FUNB" */
+#else
 #define PROJ_MAGIC 0x46554E42u                 /* "FUNB" (format 11): format 10 with ENV2's extras packed in the drum
                                                 * track's ANALOG 2 slots (pj_x: SUS2 REL2 and the destinations' amounts
                                                 * PIT SHP OSC2 SDTN, a byte each); the same size */
+#endif
 #define PROJ_MAGIC_VA 0x46554E41u              /* "FUNA" (format 10): format 9's tracks (PJ_NP parameters each, ENV2's
                                                 * SUS2 REL2 DST2 in the drum track's ANALOG 2 slots, a word each),
                                                 * 10-byte steps, the FM6 voices, and the drum record's key
@@ -79,8 +85,23 @@
 #define PJ_NP (P_ENG_END - PROJ_XN)                  /* a track's stored values (SLOOP 2.4's after P_E7: px_pack) */
 #define PJ_E0 (P_E0 - PROJ_XN)                       /* where its P_E0 .. P_E7 are */
 #if FELUCCA_ANALOG2
-_Static_assert(PJ_NP == 69u && PJ_E0 == P_A2ESUS && P_A2WAVE + NPART * PROJ_XW <= PJ_E0,
+_Static_assert(PJ_NP == 69u && PJ_E0 == P_A2ESUS && P_A2WAVE + 3u * PROJ_XW <= PJ_E0,
                "FUNB: a track's stored values as format 10 (FUN8's P_COUNT); the parts' extras in the drum track's ANALOG 2 slots");
+#endif
+#define PJ_NFM6 3u                                   /* the FM6 voices in FUNB's layout (FUNC: part 4's in its tail) */
+#define PJ_NPD 3u                                    /* the parts of FUNB's layout (and of every format before) */
+#if !FELUCCA_DRUMS
+/* FUNC (FELUCCA_DRUMS 0, 2026-10-26): FUNB's layout, track 4 a part, and a tail (one flash sector holds it): part 4's FM6
+ * voice, switches and functions, then what FUNB keeps in its drum track's free slots, each part's own: the ENV2 extras
+ * (pj_x), the macros' positions (MAC_ID), SLOOP 2.4's FILT STRUM VLEAD (px). Not kept: LFO 2 in the drum track's LFO
+ * slots (l2_pack: only SLOOP's importer and test branches of before wrote it) */
+typedef struct {
+    uint8_t fm6[128], fm6_on, rsv;
+    int8_t fm6_fn[16];
+    int16_t x[NPART][PROJ_XW];                 /* the parts' ENV2 extras (a2x_pack) */
+    int16_t mac[4];                            /* the macros' positions (params.c MAC_ID) */
+    int8_t px[NTRK][3];                        /* SLOOP 2.4's values: FILT, STRUM, VLEAD */
+} pj_nd_t;
 #endif
 typedef struct {                               /* one track; the drum track ignores engine / preset */
     int16_t p[PJ_NP];
@@ -95,14 +116,41 @@ typedef struct {
     int16_t g[PJ_NG];                         /* (the G_* up to PJ_NG; the master COMP: mc_pack) */
     uint8_t sel, rsv[3];                       /* the selected track */
     proj_trk_t t[NTRK];
-    uint8_t fm6[NPART][128];                   /* the FM6 parts' voices, DX7 packed (fm6_has: which) */
-    uint8_t fm6_on[NPART], fm6_has;            /* their operator switches (bit n - 1: OP n); bit k: part k */
-    int8_t fm6_fn[NPART][16];                  /* the parts' FM6 functions (FN_PBUP..), [0] < 0: defaults */
+    uint8_t fm6[PJ_NFM6][128];                 /* the FM6 parts' voices, DX7 packed (fm6_has: which) */
+    uint8_t fm6_on[PJ_NFM6], fm6_has;          /* their operator switches (bit n - 1: OP n); bit k: part k */
+    int8_t fm6_fn[PJ_NFM6][16];                /* the parts' FM6 functions (FN_PBUP..), [0] < 0: defaults */
 #if FELUCCA_ANALOG2
     uint32_t dl_hash;                          /* format 10: its drum record's key (dlrec_hash), 0 = the kit as it is */
 #endif
+#if !FELUCCA_DRUMS
+    pj_nd_t nd;                                /* FUNC: part 4's FM6 voice, the drum track's free slots of FUNB */
+#endif
     uint32_t sum;
 } project_t;
+#if !FELUCCA_DRUMS
+/* the last FUNB converted to FUNC (proj_nd_of): its sum before and after. Its records (the FX record, the modulation record,
+ * the motion), kept under the sum of before, follow it (PSUM_IS); proj_apply makes its track 4 a new part */
+static struct { uint32_t from, to; } proj_nd;
+#define PSUM_IS(k, sum) ((k) == (sum) || (proj_nd.to && (sum) == proj_nd.to && (k) == proj_nd.from))
+#else
+#define PSUM_IS(k, sum) ((k) == (sum))
+#endif
+/* part k's FM6 voice, switches, functions (FUNC: part 4's in the tail) */
+#if FELUCCA_DRUMS
+#define PJ_FM6(p, k) ((p)->fm6[k])
+#define PJ_FM6ON(p, k) ((p)->fm6_on[k])
+#define PJ_FM6FN(p, k) ((p)->fm6_fn[k])
+#define PJ_L2(q) ((q)->t[TRK_DRUM].p)            /* (the drum track's LFO slots: LFO 2 of before, l2_pack) */
+#define PROJ_D_N ((uint32_t)sizeof(project_t))   /* (FUNB's size) */
+#else
+#define PJ_FM6(p, k) ((uint32_t)(k) < PJ_NFM6 ? (p)->fm6[(uint32_t)(k) % PJ_NFM6] : (p)->nd.fm6)
+#define PJ_FM6ON(p, k) (*((uint32_t)(k) < PJ_NFM6 ? &(p)->fm6_on[(uint32_t)(k) % PJ_NFM6] : &(p)->nd.fm6_on))
+#define PJ_FM6FN(p, k) ((uint32_t)(k) < PJ_NFM6 ? (p)->fm6_fn[(uint32_t)(k) % PJ_NFM6] : (p)->nd.fm6_fn)
+static const int16_t PJ_L2_NONE[PJ_NP];          /* (FUNC: no LFO 2 tag, l2_tag) */
+#define PJ_L2(q) PJ_L2_NONE
+#define PROJ_D_N ((uint32_t)__builtin_offsetof(project_t, nd) + 4u)   /* FUNB's size: FUNC's bytes before the tail, its sum */
+_Static_assert(FELUCCA_ANALOG2 && NPART == PJ_NFM6 + 1u, "FUNC: FUNB's layout, part 4's in the tail");
+#endif
 #if !FELUCCA_ANALOG2
 typedef struct {                               /* format 5 (SLOOP 2.3 .. plus), read only */
     uint32_t magic, size;
@@ -223,7 +271,19 @@ static void pj_mods_zero(int16_t *s)
 #endif
 }
 #if FELUCCA_ANALOG2
-static int16_t *pj_x(project_t *q, uint32_t part) { return &q->t[TRK_DRUM].p[P_A2WAVE + PROJ_XW * part]; }
+#if !FELUCCA_DRUMS
+/* 1 while a project of a build with drums is read (proj_import, sec_decode): its parts' extras are in its drum track's slots,
+ * where its format's readers convert them; proj_nd_of moves them into the tail */
+static uint8_t pj_x_dr;
+#endif
+static int16_t *pj_x(project_t *q, uint32_t part)
+{
+#if FELUCCA_DRUMS
+    return &q->t[TRK_DRUM].p[P_A2WAVE + PROJ_XW * part];
+#else
+    return pj_x_dr ? &q->t[TRK_DRUM].p[P_A2WAVE + PROJ_XW * (part % 3u)] : q->nd.x[part % NPART];
+#endif
+}
 /* a project read from an older format: the parts' ENV2 SUS2 REL2 and amounts at 0, the sound as it was (the AD
  * envelope of the cutoff) */
 static void pj_x_reset(project_t *q)
@@ -242,7 +302,7 @@ static struct { uint32_t from, to; int8_t dst[NPART]; } proj_va;
 static void proj_va_fix(project_t *q, int8_t *dst)
 {
     uint32_t k;
-    for (k = 0; k < NPART; k++) {
+    for (k = 0; k < PJ_NPD; k++) {
         int16_t *w = pj_x(q, k), x[A2X_N], amt = (int16_t)clamp(q->t[k].p[P_A2FENV], -64, 63);
         int32_t d = clamp(w[2], A2E_CUT, A2E_SDTN);
         x[0] = (int16_t)clamp(w[0], 0, 127);                  /* SUS2, REL2: as a load clamps them */
@@ -261,9 +321,9 @@ static void proj_va_fix(project_t *q, int8_t *dst)
 static int proj_from_va(project_t *q, const void *b, int n)
 {
     const project_t *a = (const project_t *)b;
-    if (!proj_form_ok(b, n, PROJ_MAGIC_VA, sizeof *q))
+    if (!proj_form_ok(b, n, PROJ_MAGIC_VA, PROJ_D_N))
         return 0;
-    memcpy(q, b, sizeof *q);
+    memcpy(q, b, PROJ_D_N - 4u);
     proj_va.from = a->sum;
     proj_va_fix(q, proj_va.dst);
     proj_va.to = q->sum;
@@ -388,7 +448,7 @@ static void proj_from_v3_ok(project_t *q)
         proj_trk_v3_t s;
         memcpy(&s, &v3->t[i], sizeof s);
         memset(&q->t[i], 0, sizeof q->t[i]);
-        proj_trk_from_v3(&q->t[i], &s, i == TRK_DRUM);
+        proj_trk_from_v3(&q->t[i], &s, IS_DRUMK(i));
     }
     memset(q, 0, __builtin_offsetof(project_t, t));
     memset(q->fm6, 0, sizeof *q - __builtin_offsetof(project_t, fm6));
@@ -420,7 +480,7 @@ static int proj_from_v2(project_t *q, const project_v2_t *v2, int n)
     memcpy(v3->g, v2->g, sizeof v3->g);
     v3->sel = v2->sel;
     for (i = 0; i < NTRK; i++)
-        proj_trk_v2_to_v3(&v3->t[i], &v2->t[i], i == TRK_DRUM);
+        proj_trk_v2_to_v3(&v3->t[i], &v2->t[i], IS_DRUMK(i));
     proj_from_v3_ok(q);
     return 1;
 }
@@ -445,7 +505,7 @@ static int proj_from_v1(project_t *q, const project_v1_t *v1, int n)
         q->t[i].engine = (uint8_t)eng_uid(trk_def_engine(i));   /* (a UID) */
         q->t[i].preset = 0xFF;                 /* 0xFF: its default preset (project_load) */
         memset(q->t[i].step, 0, sizeof q->t[i].step);
-        if (i != TRK_DRUM)
+        if (!IS_DRUMK(i))
             for (k = 0; k < NSTEP; k++)
                 q->t[i].step[k].time = ST_REST;
     }
@@ -455,7 +515,7 @@ static int proj_from_v1(project_t *q, const project_v1_t *v1, int n)
 
 #if FELUCCA_ANALOG2
 /* the FM6 voices after the tracks (fm6[][], fm6_on[], fm6_has, fm6_fn[][]: today's and FM6's FUN6 alike) */
-#define PROJ_FM6_N (NPART * 128u + NPART + 1u + NPART * 16u)
+#define PROJ_FM6_N (PJ_NFM6 * 128u + PJ_NFM6 + 1u + PJ_NFM6 * 16u)
 _Static_assert(__builtin_offsetof(project_t, fm6_fn) + sizeof(((project_t *)0)->fm6_fn) - __builtin_offsetof(project_t, fm6) ==
                PROJ_FM6_N,
                "the FM6 voices: one block");
@@ -464,7 +524,7 @@ _Static_assert(__builtin_offsetof(project_t, fm6_fn) + sizeof(((project_t *)0)->
 /* a format 7 project (format 10 without dl_hash) -> slot q: the lanes as the kit (0) */
 #define PROJ_V7_N ((uint32_t)__builtin_offsetof(project_t, dl_hash))
 #define PROJ_V8_N (PROJ_V7_N + (uint32_t)sizeof(dlanes_t) + 4u)   /* format 8: format 7 + the lanes inline */
-_Static_assert(PROJ_V7_N == 3632u && sizeof(project_t) == PROJ_V7_N + 8u && PROJ_V8_N == 3840u,
+_Static_assert(PROJ_V7_N == 3632u && PROJ_D_N == PROJ_V7_N + 8u && PROJ_V8_N == 3840u,
                "FUN7 + the drum record's key; FUN8: FUN7 + the drum lanes");
 static int proj_from_v7(project_t *q, const void *b, int n)
 {
@@ -545,7 +605,7 @@ static int proj_from_np(project_t *q, const void *b, int n, uint32_t magic, uint
         d->engine = s[2u * np];
         d->preset = s[2u * np + 1u];
         memcpy(d->step, s + 2u * np + 2u, sizeof d->step);
-        if (old_eng && i != TRK_DRUM) {
+        if (old_eng && !IS_DRUMK(i)) {
             if (d->engine == 10u)                       /* DX7 (SLOOP plus) or FM6: FM6 */
                 d->engine = ENG_UID_FM6;
             else if (d->engine == 9u)                   /* SUPER: ANALOG's swarm */
@@ -604,6 +664,77 @@ static int proj_from_v5(project_t *q, const project_v5_t *v5, int n)
 }
 #endif
 
+#if !FELUCCA_DRUMS
+static int proj_import_d(project_t *q, const void *b, int n);
+#if SL24_TP
+static int px_dec(const int16_t *d, int16_t (*x)[3]);   /* (below: SLOOP 2.4's track values) */
+static void px_pack(project_t *p, const int16_t (*x)[3]);
+#endif
+/* q, read as FUNB (any format of a build with drums: its readers fill FUNC's first PROJ_D_N bytes) -> FUNC: its drum
+ * track's stored values into the tail (sp: the parts' extras, SLOOP 2.4's, LFO 2's, the macros'), track 4 a new part
+ * (its default engine and values, no step: the drum steps are not notes), part 4's FM6 voice none */
+static void proj_nd_of(project_t *q)
+{
+    const engine_t *e = ENGINES[trk_def_engine(TRK_DRUM)];
+    proj_trk_t *t = &q->t[TRK_DRUM];
+    uint32_t k;
+    memset(&q->nd, 0, sizeof q->nd);
+    for (k = 0; k < 3u; k++)                           /* the parts' ENV2 extras, as FUNB's drum slots hold them */
+        memcpy(q->nd.x[k], &t->p[P_A2WAVE + PROJ_XW * k], sizeof q->nd.x[k]);
+#if FELUCCA_MACROS
+    for (k = 0; k < 4u; k++)                           /* the macros' positions */
+        q->nd.mac[k] = t->p[MAC_ID[k]];
+#endif
+#if SL24_TP
+    {
+        int16_t px[NTRK][3];
+        if (px_dec(t->p, px))
+            px_pack(q, px);
+    }
+#endif
+    memset(q->nd.fm6_fn, 0xFF, sizeof q->nd.fm6_fn);
+    q->fm6_has &= (uint8_t)((1u << PJ_NFM6) - 1u);
+    for (k = 0; k < PJ_NP; k++)
+        t->p[k] = k >= PJ_E0 ? e->edit[k - PJ_E0].def : TP[k].def;
+    pj_mods_zero(t->p);
+    t->engine = (uint8_t)eng_uid(trk_def_engine(TRK_DRUM));
+    t->preset = 0xFF;                                  /* (its default preset: project_load) */
+    memset(t->step, 0, sizeof t->step);
+    for (k = 0; k < NSTEP; k++)
+        t->step[k].time = ST_REST;
+    q->dl_hash = 0;
+    q->g[G_DRCH] = GP[G_DRCH].def;                     /* (the drum channel: track 4's own now, MIDI channel 4) */
+    q->magic = PROJ_MAGIC;
+    q->size = sizeof *q;
+    q->sum = proj_sum(q);
+}
+_Static_assert(G_DRCH < PJ_NG, "a project keeps G_DRCH");
+/* n bytes of a stored project (FUNC, or any format of a build with drums) -> slot q as FUNC; 0 = not a project */
+static int proj_import(project_t *q, const void *b, int n)
+{
+    if (n == (int)sizeof *q && proj_ok((const project_t *)b)) {
+        memcpy(q, b, sizeof *q);
+        return 1;
+    }
+    pj_x_dr = 1;
+    if (proj_form_ok(b, n, PROJ_MAGIC_B, PROJ_D_N)) {
+        memcpy(q, b, PROJ_D_N - 4u);
+        memcpy(&proj_nd.from, (const uint8_t *)b + PROJ_D_N - 4u, 4);   /* (its sum: its records are kept under it) */
+    } else if (!proj_import_d(q, b, n)) {
+        pj_x_dr = 0;
+        return 0;
+    } else {
+        proj_nd.from = 0;                               /* (an older format: its records are not followed, as before) */
+    }
+    pj_x_dr = 0;
+    proj_nd_of(q);
+    proj_nd.to = proj_nd.from ? q->sum : 0u;
+    return 1;
+}
+/* n bytes of a project of a build with drums, but FUNB -> q's first PROJ_D_N bytes */
+static int proj_import_d(project_t *q, const void *b, int n)
+{
+#else
 /* n bytes of a stored project (any format) -> slot q as today's format; 0 = not a project */
 static int proj_import(project_t *q, const void *b, int n)
 {
@@ -611,6 +742,7 @@ static int proj_import(project_t *q, const void *b, int n)
         memcpy(q, b, sizeof *q);
         return 1;
     }
+#endif
 #if FELUCCA_ANALOG2
     if (proj_from_va(q, b, n))                                           /* FUNA: ENV2's one destination */
         return 1;
@@ -661,7 +793,7 @@ static int proj_import(project_t *q, const void *b, int n)
 #define L2_NV 8u                                         /* RATE WAVE TRIG POL DEST A, AMT A, DEST B, AMT B */
 static const uint8_t L2_W0[NPART] = {P_LWAVE, P_LPHASE, P_LFADE};
 static const uint8_t L2_W1[NPART] = {P_LEG_PIT, P_LEG_SHP, P_LEG_AMP};
-static uint32_t l2_tag(const project_t *p) { return (uint16_t)p->t[TRK_DRUM].p[P_LRATE] & 0xFF00u; }
+static uint32_t l2_tag(const project_t *p) { (void)p; return (uint16_t)PJ_L2(p)[P_LRATE] & 0xFF00u; }
 /* the project in p holds LFO 2 values (its drum track's LFO slots are not the drum track's) */
 static int l2_tagged(const project_t *p) { return l2_tag(p) == L2_TAG || l2_tag(p) == L2_TAG_V1; }
 /* part k's LFO 2 in p (its defaults without a tag): v[L2_NV], RATE .. AMT B, each inside its range (a destination
@@ -669,7 +801,7 @@ static int l2_tagged(const project_t *p) { return l2_tag(p) == L2_TAG || l2_tag(
 static void l2_get(const project_t *p, uint32_t k, int16_t *v)
 {
     static const int16_t D[L2_NV] = {60, 0, 0, 0, LT_OFF, 0, LT_OFF, 0};   /* (TP's P_L2RATE ..: every build's) */
-    const int16_t *d = p->t[TRK_DRUM].p;
+    const int16_t *d = PJ_L2(p);
     uint32_t w0 = (uint16_t)d[L2_W0[k]], w1 = (uint16_t)d[L2_W1[k]], j;
     int16_t s[4];
     int32_t spill;
@@ -706,6 +838,10 @@ _Static_assert(P_L2WAVE == P_L2RATE + 1 && P_L2TRIG == P_L2RATE + 2 && P_L2POL =
  * the project it hands to proj_apply; never saved so: proj_capture keeps LFO 2 in the modulation record) */
 static void l2_pack(project_t *p, const int16_t (*x)[L2_NV])
 {
+#if !FELUCCA_DRUMS
+    (void)p, (void)x;                                   /* (FUNC keeps no LFO 2 here: SLOOP's importer needs drums) */
+}
+#else
     int16_t *d = p->t[TRK_DRUM].p;
     uint32_t k, j, any = 0;
     for (k = 0; k < NPART; k++)
@@ -720,6 +856,7 @@ static void l2_pack(project_t *p, const int16_t (*x)[L2_NV])
                                 ((uint32_t)x[k][4] & 31u) << 5 | ((uint32_t)x[k][6] & 31u) << 10);
     }
 }
+#endif
 #endif
 /* -> x, the parts' LFO 2 values (their defaults without a tag, each inside its range); 1 when p has them */
 static int l2_unpack(const project_t *p, int16_t (*x)[L2_NV])
@@ -776,8 +913,8 @@ static void proj_orph_take(uint32_t k, const project_t *p, const track_t *t)   /
     memcpy(o->e, &s->p[PJ_E0], sizeof o->e);          /* (stored: PJ_E0 .., project.c pj_x) */
     memcpy(o->given, &t->p[P_E0], sizeof o->given);
     o->fm6_has = (uint8_t)(!FELUCCA_ENG_FM6 && ((p->fm6_has >> k) & 1u));
-    o->fm6_on = p->fm6_on[k];
-    memcpy(o->fm6, p->fm6[k], sizeof o->fm6);
+    o->fm6_on = PJ_FM6ON(p, k);
+    memcpy(o->fm6, PJ_FM6(p, k), sizeof o->fm6);
 }
 static void proj_orph_give(uint32_t k, project_t *p)                           /* proj_capture, part k */
 {
@@ -789,8 +926,8 @@ static void proj_orph_give(uint32_t k, project_t *p)                           /
     d->preset = o->preset;
     memcpy(&d->p[PJ_E0], o->e, sizeof o->e);
     if (!FELUCCA_ENG_FM6 && o->fm6_has) {
-        memcpy(p->fm6[k], o->fm6, sizeof o->fm6);
-        p->fm6_on[k] = o->fm6_on;
+        memcpy(PJ_FM6(p, k), o->fm6, sizeof o->fm6);
+        PJ_FM6ON(p, k) = o->fm6_on;
         p->fm6_has |= (uint8_t)(1u << k);
     }
 }
@@ -873,7 +1010,7 @@ static void mc_unpack(const project_t *p)
 static int16_t midi_ch_pack(void)
 {
     uint32_t i, w = 0;
-    for (i = 0; i < NPART; i++) {
+    for (i = 0; i < 3u; i++) {                          /* (no drums: part 4's is G_DRCH, as the drum track's) */
         uint32_t c = (uint32_t)clamp(bp_set[BPS_CH0 + i], 0, 16), code = c == i + 1u ? 0u : c ? c : 17u;
         w |= code << (5u * i);
     }
@@ -882,7 +1019,7 @@ static int16_t midi_ch_pack(void)
 static void midi_ch_unpack(int16_t g)
 {
     uint32_t i;
-    for (i = 0; i < NPART; i++) {
+    for (i = 0; i < 3u; i++) {
         uint32_t code = ((uint32_t)(uint16_t)g >> (5u * i)) & 31u;
         bp_set[BPS_CH0 + i] = (int16_t)(code == 0u || code > 17u ? i + 1u : code == 17u ? 0u : code);
     }
@@ -899,11 +1036,42 @@ static void midi_ch_unpack(int16_t g)
  * are 0. Without ANALOG 2 they are not kept. */
 #define PX_TAG 0x5A00u
 #if FELUCCA_ANALOG2
-_Static_assert(P_A2SDTN < PJ_E0 && P_A2WAVE + NPART * PROJ_XW <= P_A2SDTN && P_DETUNE < PJ_E0 &&
+_Static_assert(P_A2SDTN < PJ_E0 && P_A2WAVE + 3u * PROJ_XW <= P_A2SDTN && P_DETUNE < PJ_E0 &&
                P_STRUM == P_TFLT + 1 && P_VLEAD == P_TFLT + 2, "px: the drum track's free slots, the values' order");
 static const uint8_t PX_SLOT[4] = {P_GLMODE, P_PRIO, P_ALLOC, P_DETUNE};
 static uint32_t px7(int32_t v) { return (uint32_t)v & 0x7Fu; }
 static int16_t px7v(uint32_t w) { return (int16_t)((int32_t)((w & 0x7Fu) ^ 0x40u) - 0x40); }
+/* FUNB's drum slots d -> x (0 without the tag); 1 when they hold them */
+static int px_dec(const int16_t *d, int16_t (*x)[3])
+{
+    uint32_t w = (uint16_t)d[P_A2SDTN];
+    memset(x, 0, NTRK * sizeof *x);
+    if ((w & 0xFF00u) != PX_TAG)
+        return 0;
+    x[0][0] = px7v((uint16_t)d[P_GLMODE]), x[1][0] = px7v((uint16_t)d[P_GLMODE] >> 7);
+    x[2][0] = px7v((uint16_t)d[P_PRIO]), x[3][0] = px7v((uint16_t)d[P_PRIO] >> 7);
+    x[0][1] = px7v((uint16_t)d[P_ALLOC]), x[1][1] = px7v((uint16_t)d[P_ALLOC] >> 7);
+    x[2][1] = px7v((uint16_t)d[P_DETUNE]);
+    x[0][2] = (int16_t)(w & 1u), x[1][2] = (int16_t)(w >> 1 & 1u), x[2][2] = (int16_t)(w >> 2 & 1u);
+    return 1;
+}
+#if !FELUCCA_DRUMS
+static void px_pack(project_t *p, const int16_t (*x)[3])   /* (FUNC: a byte each, every track's) */
+{
+    uint32_t k, j;
+    for (k = 0; k < NTRK; k++)
+        for (j = 0; j < 3u; j++)
+            p->nd.px[k][j] = (int8_t)clamp(x[k][j], -64, 63);
+}
+static int px_unpack(const project_t *p, int16_t (*x)[3])
+{
+    uint32_t k, j, any = 0;
+    for (k = 0; k < NTRK; k++)
+        for (j = 0; j < 3u; j++)
+            any |= (uint32_t)(x[k][j] = p->nd.px[k][j]) != 0u;
+    return any != 0u;
+}
+#else
 static void px_pack(project_t *p, const int16_t (*x)[3])
 {
     int16_t *d = p->t[TRK_DRUM].p;
@@ -919,20 +1087,8 @@ static void px_pack(project_t *p, const int16_t (*x)[3])
     d[P_DETUNE] = (int16_t)px7(x[2][1]);
 }
 /* -> x (0 without the tag); 1 when the project has them (its drum slots are not the drum track's then) */
-static int px_unpack(const project_t *p, int16_t (*x)[3])
-{
-    const int16_t *d = p->t[TRK_DRUM].p;
-    uint32_t w = (uint16_t)d[P_A2SDTN];
-    memset(x, 0, NTRK * sizeof *x);
-    if ((w & 0xFF00u) != PX_TAG)
-        return 0;
-    x[0][0] = px7v((uint16_t)d[P_GLMODE]), x[1][0] = px7v((uint16_t)d[P_GLMODE] >> 7);
-    x[2][0] = px7v((uint16_t)d[P_PRIO]), x[3][0] = px7v((uint16_t)d[P_PRIO] >> 7);
-    x[0][1] = px7v((uint16_t)d[P_ALLOC]), x[1][1] = px7v((uint16_t)d[P_ALLOC] >> 7);
-    x[2][1] = px7v((uint16_t)d[P_DETUNE]);
-    x[0][2] = (int16_t)(w & 1u), x[1][2] = (int16_t)(w >> 1 & 1u), x[2][2] = (int16_t)(w >> 2 & 1u);
-    return 1;
-}
+static int px_unpack(const project_t *p, int16_t (*x)[3]) { return px_dec(p->t[TRK_DRUM].p, x); }
+#endif
 #else
 static void px_pack(project_t *p, const int16_t (*x)[3]) { (void)p, (void)x; }
 static int px_unpack(const project_t *p, int16_t (*x)[3]) { (void)p; memset(x, 0, NTRK * sizeof *x); return 0; }
@@ -971,12 +1127,12 @@ static void proj_capture(project_t *p, dlrec_t *d)   /* what is playing now, as 
         if (i < NPART && ENG_IS(ENGINES[trk[i].eng_req % NENGINES], FM6))
             v[P_E0] = fm6_voice_store(v[P_E0]);         /* (VOICE as stored: INIT, or a pack voice by its fixed number) */
 #endif
-        if (i == TRK_DRUM)                              /* (the drum bus's amounts: the FX record's, fx_slots.c) */
+        if (IS_DRUMK(i))                              /* (the drum bus's amounts: the FX record's, fx_slots.c) */
             v[P_DIST] = v[P_CHOR] = v[P_DLY] = v[P_REV] = 0;
         pj_from_p(p->t[i].p, v);
-        if (i == TRK_DRUM)                              /* (the ACCENT amount stored from its default: 0 in a project of before) */
+        if (IS_DRUMK(i))                              /* (the ACCENT amount stored from its default: 0 in a project of before) */
             p->t[i].p[PJ_E0 + (P_DACC - P_E0)] = (int16_t)(v[P_DACC] - DACC_DEF);
-        for (j = 0; i == TRK_DRUM && j < GR_KIT_N; j++)   /* (the kit's GRIDS, core.h P_GRX ..: from their defaults too) */
+        for (j = 0; IS_DRUMK(i) && j < GR_KIT_N; j++)   /* (the kit's GRIDS, core.h P_GRX ..: from their defaults too) */
             if (DRUM_GR_OF(P_GRX + j))
                 p->t[i].p[PJ_E0 + (P_GRX - P_E0) + j] = (int16_t)(v[P_GRX + j] - DRUM_GR_OF(P_GRX + j)->def);
 #if SL24_TP
@@ -992,21 +1148,25 @@ static void proj_capture(project_t *p, dlrec_t *d)   /* what is playing now, as 
     for (i = 0; i < NPART; i++) {                       /* the FM6 parts' voices, edits and all */
         uint32_t k;
         if (ENG_IS(ENGINES[trk[i].eng_req % NENGINES], FM6) && fm6_cur[i]) {
-            fm6_pack(p->fm6[i], fm6_ed[i]);
+            fm6_pack(PJ_FM6(p, i), fm6_ed[i]);
             for (k = 0; k < 6u; k++)
-                p->fm6_on[i] |= (uint8_t)(fm6_ed[i][FV_ON + k] ? 1u << k : 0u);
+                PJ_FM6ON(p, i) |= (uint8_t)(fm6_ed[i][FV_ON + k] ? 1u << k : 0u);
             p->fm6_has |= (uint8_t)(1u << i);
         }
-        memset(p->fm6_fn[i], 0xFF, sizeof p->fm6_fn[i]);
+        memset(PJ_FM6FN(p, i), 0xFF, 16u);
         if (fm6_fnok[i])
             for (k = 0; k < FM6_NFN; k++)
-                p->fm6_fn[i][k] = (int8_t)fm6_ed[i][FN_PBUP + k];
+                PJ_FM6FN(p, i)[k] = (int8_t)fm6_ed[i][FN_PBUP + k];
     }
     for (i = 0; i < NPART; i++)                         /* the orphans as they came (a reduced build) */
         proj_orph_give(i, p);
 #if FELUCCA_ANALOG2
-    dlrec_capture(d);                                   /* the drum lanes and sends (kept in every build) */
+#if FELUCCA_DRUMS
+    dlrec_capture(d);                                   /* the drum lanes and sends (kept in every build with drums) */
     p->dl_hash = dlrec_hash(d);
+#else
+    (void)d;                                            /* (no drums: no drum record, dl_hash 0) */
+#endif
     for (i = 0; i < NPART; i++) {                       /* the parts' ENV2 SUS2 REL2 (pj_x; its amounts of before: 0) */
         proj_patch(v, i);
         v[P_A2EPIT] = v[P_A2ESHP] = v[P_A2EOS2] = v[P_A2ESDT] = 0;
@@ -1017,6 +1177,10 @@ static void proj_capture(project_t *p, dlrec_t *d)   /* what is playing now, as 
 #endif
 #if SL24_TP
     px_pack(p, px);                                     /* (after the drum track's values: in its free slots) */
+#endif
+#if !FELUCCA_DRUMS && FELUCCA_MACROS
+    for (i = 0; i < 4u; i++)                            /* the macros' positions (no drum track to keep them) */
+        p->nd.mac[i] = mac_pos[i];
 #endif
     p->sum = proj_sum(p);
 #if FELUCCA_AUTO
@@ -1066,6 +1230,10 @@ static void proj_apply(const project_t *p, const dlrec_t *d, int all)
     if (all)
         midi_ch_unpack(p->g[G_MIDI]);                   /* the synth tracks' channels (older projects: 0, the defaults) */
 #endif
+#if !FELUCCA_DRUMS && FELUCCA_MACROS
+    for (k = 0; k < 4u; k++)                            /* the macros' positions (FUNC's tail) */
+        mac_pos[k] = (int16_t)clamp(p->nd.mac[k], -64, 63);
+#endif
     for (k = 0; k < NTRK; k++) {
         track_t *t = &trk[k];
         const proj_trk_t *s = &p->t[k];
@@ -1073,28 +1241,32 @@ static void proj_apply(const project_t *p, const dlrec_t *d, int all)
         t->eng_req = (uint8_t)e;
         t->user = 0;                                    /* (no user preset slot is saved) */
         pj_to_p(v, s->p);
-        if (k == TRK_DRUM)                              /* (the ACCENT amount: stored from its default) */
+        if (IS_DRUMK(k))                              /* (the ACCENT amount: stored from its default) */
             v[P_DACC] = (int16_t)(v[P_DACC] + DACC_DEF);
-        for (i = 0; k == TRK_DRUM && i < GR_KIT_N; i++)   /* (the kit's GRIDS: from their defaults) */
+        for (i = 0; IS_DRUMK(k) && i < GR_KIT_N; i++)   /* (the kit's GRIDS: from their defaults) */
             if (DRUM_GR_OF(P_GRX + i))
                 v[P_GRX + i] = (int16_t)(v[P_GRX + i] + DRUM_GR_OF(P_GRX + i)->def);
 #if FELUCCA_ANALOG2
-        if (k == TRK_DRUM)                              /* (its ANALOG 2 slots hold the parts' ENV2 values) */
+        if (IS_DRUMK(k))                              /* (its ANALOG 2 slots hold the parts' ENV2 values) */
             for (i = P_A2WAVE; i < P_E0; i++)
                 v[i] = TP[i].def;
         else
+#if FELUCCA_DRUMS
             a2x_unpack(&v[P_A2ESUS], &p->t[TRK_DRUM].p[P_A2WAVE + PROJ_XW * k]);
+#else
+            a2x_unpack(&v[P_A2ESUS], p->nd.x[k % NPART]);
+#endif
 #endif
 #if SL24_TP
         memcpy(&v[P_TFLT], px[k], sizeof px[k]);
 #if FELUCCA_ANALOG2
-        if (k == TRK_DRUM && pxt)                       /* (its slots that held them: the drum track's defaults) */
+        if (IS_DRUMK(k) && pxt)                       /* (its slots that held them: the drum track's defaults) */
             for (i = 0; i < 4u; i++)
                 v[PX_SLOT[i]] = TP[PX_SLOT[i]].def;
 #endif
         (void)pxt;
 #endif
-        if (k == TRK_DRUM && l2t)                       /* (its LFO slots that held LFO 2: the drum track's defaults) */
+        if (IS_DRUMK(k) && l2t)                       /* (its LFO slots that held LFO 2: the drum track's defaults) */
             l2_slots_def(v);
         if (k < NPART) {                                /* LFO DEST's slots from their stored form (params.c lfo1_load) */
             int32_t spill;
@@ -1108,9 +1280,9 @@ static void proj_apply(const project_t *p, const dlrec_t *d, int all)
             v[P_E0] = fm6_voice_load(v[P_E0]);          /* (the stored VOICE: INIT, or a pack voice; an R or U number of before: INIT) */
 #endif
         for (i = 0; i < P_COUNT; i++) {                 /* every value back inside its range */
-            const param_desc_t *d = k == TRK_DRUM && i == P_E0 ? &DRUM_KIT_DESC :   /* the drum kit */
-                                    k == TRK_DRUM && i == P_DACC ? &DRUM_ACC_DESC :   /* its ACCENT amount */
-                                    k == TRK_DRUM && DRUM_GR_OF(i) ? DRUM_GR_OF(i) :   /* the kit's GRIDS */
+            const param_desc_t *d = IS_DRUMK(k) && i == P_E0 ? &DRUM_KIT_DESC :   /* the drum kit */
+                                    IS_DRUMK(k) && i == P_DACC ? &DRUM_ACC_DESC :   /* its ACCENT amount */
+                                    IS_DRUMK(k) && DRUM_GR_OF(i) ? DRUM_GR_OF(i) :   /* the kit's GRIDS */
                                     i >= P_E0 && i <= P_E7 ? &ENGINES[e]->edit[i - P_E0] : &TP[i];
             t->p[i] = (int16_t)clamp(v[i], d->min, d->max);
         }
@@ -1124,21 +1296,21 @@ static void proj_apply(const project_t *p, const dlrec_t *d, int all)
             proj_orph_take(k, p, t);
         if (k < NPART) {                                /* FM6: its saved voice, else its VOICE afresh */
             fm6_fn_reset(fm6_ed[k]);                    /* its functions (older formats: the defaults) */
-            if (p->fm6_fn[k][0] >= 0)
+            if (PJ_FM6FN(p, k)[0] >= 0)
                 for (i = 0; i < FM6_NFN; i++)
-                    fm6_set(fm6_ed[k], FN_PBUP + i, p->fm6_fn[k][i]);
+                    fm6_set(fm6_ed[k], FN_PBUP + i, PJ_FM6FN(p, k)[i]);
             fm6_fnok[k] = 1;
             fm6_cur[k] = 0;
             if (ENG_IS(ENGINES[e], FM6) && ((p->fm6_has >> k) & 1u)) {
-                fm6_unpack(fm6_ed[k], p->fm6[k]);
+                fm6_unpack(fm6_ed[k], PJ_FM6(p, k));
                 for (i = 0; i < 6u; i++)
-                    fm6_ed[k][FV_ON + i] = (int16_t)((p->fm6_on[k] >> i) & 1u);
+                    fm6_ed[k][FV_ON + i] = (int16_t)((PJ_FM6ON(p, k) >> i) & 1u);
                 fm6_bake_old(fm6_ed[k], v[P_E0 + 1u], v[P_E0 + 2u], v[P_E0 + 3u]);   /* (MOD, M.TIM, C.TIM of before: in the voice) */
                 fm6_cur[k] = (int16_t)(t->p[P_E0] + 1);
             }
         }
         steps_load(t, k, s->step);
-        if (k != TRK_DRUM)
+        if (!IS_DRUMK(k))
             for (i = 0; i < NSTEP; i++) {
                 step_t *st = &t->step[i];
                 uint32_t j;
@@ -1151,9 +1323,11 @@ static void proj_apply(const project_t *p, const dlrec_t *d, int all)
             }
     }
 #if FELUCCA_ANALOG2
+#if FELUCCA_DRUMS
     dlrec_apply(p->dl_hash ? d : 0, p->g[G_DRREV]);    /* the drum lanes and sends, for the kit they were set on
                                                          * (older projects: G_DRREV into the TRK lanes) */
     dl_e0 = TDRUM->p[P_E0];
+#endif
 #else
     (void)d;
 #endif
@@ -1164,6 +1338,20 @@ static void proj_apply(const project_t *p, const dlrec_t *d, int all)
                                                          * after the tracks, which the layout of an older one reads) */
     dlr_apply_store(p);                                 /* its drum lanes' LFOs, the parts' modulation (dlfo_rec.c; none:
                                                          * every LFO off) */
+#if !FELUCCA_DRUMS
+    if (proj_nd.to && p->sum == proj_nd.to) {          /* a project of a build with drums: its drum track's FX and motion
+                                                         * came with its records; track 4 a new part, nothing of the drums */
+        track_t *t = TDRUM;
+        track_defaults(t);
+        set_engine_of(t, trk_def_engine(TRK_DRUM));
+        apply_preset_to(t, trk_def_preset(TRK_DRUM));
+        t->p[P_REV] = 0;
+#if FELUCCA_AUTO
+        AUTO_L(TRK_DRUM)->n = 0;                        /* (the drum track's motion and locks) */
+        auto_w.on &= (uint8_t)~(1u << TRK_DRUM);
+#endif
+    }
+#endif
     MISS_BUMP();                                        /* the main loop says what this build lacks (miss.c) */
 }
 
@@ -1370,7 +1558,7 @@ static int audio_quiet(void)
         for (i = 0; i < NVOICE; i++)
             if (trk[p].v[i].active)
                 return 0;
-    for (i = 0; i < NDRUM; i++)
+    for (i = 0; FELUCCA_DRUMS && i < NDRUM; i++)
         if (drums.v[i].active)
             return 0;
 #if DRUM_X0X

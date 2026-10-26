@@ -42,6 +42,8 @@ static uint16_t lane_col(uint32_t l)
         return COL_KIND_USR;
     return kind_col(dl_src_kit(s) < DRUM_KITS ? dl_src_kit(s) : DRUM_UID_X909);   /* (an X0X voice: X0X's colour) */
 }
+#else
+#define lane_col(l) ((void)(l), C_HI)                    /* (no drums: no lane) */
 #endif
 
 /* track i's colour: its engine's, the drum track's kit kind's */

@@ -152,9 +152,9 @@ static uint32_t sn_tail(const project_t *p, uint8_t *b)
             }
     }
     for (k = 0; k < NPART; k++)
-        if (!((p->fm6_has >> k) & 1u) && p->fm6_fn[k][0] >= 0) {
+        if (!((p->fm6_has >> k) & 1u) && PJ_FM6FN(p, k)[0] >= 0) {
             for (s = 0; s < 16u; s++)                  /* (the defaults, as a load sets them: nothing to keep) */
-                if (p->fm6_fn[k][s] != (s < FM6_NFN ? (int8_t)FM6_FNDEF[s] : -1))
+                if (PJ_FM6FN(p, k)[s] != (s < FM6_NFN ? (int8_t)FM6_FNDEF[s] : -1))
                     break;
             if (s < 16u)
                 m |= 1u << k;
@@ -162,7 +162,7 @@ static uint32_t sn_tail(const project_t *p, uint8_t *b)
     *o++ = (uint8_t)m;
     for (k = 0; k < NPART; k++)
         if ((m >> k) & 1u)
-            memcpy(o, p->fm6_fn[k], 16), o += 16;
+            memcpy(o, PJ_FM6FN(p, k), 16), o += 16;
     return any || m ? (uint32_t)(o - b) : 0u;
 }
 /* a TAIL (n bytes) onto p, decoded from its record: its sum (and its motion's) again; 0 not well formed */
@@ -185,7 +185,7 @@ static int sn_tail_apply(project_t *p, const uint8_t *b, uint32_t n)
         if ((m >> k) & 1u) {
             if (a + 16 > e)
                 return 0;
-            memcpy(p->fm6_fn[k], a, 16), a += 16;
+            memcpy(PJ_FM6FN(p, k), a, 16), a += 16;
         }
     p->sum = proj_sum(p);
 #if FELUCCA_AUTO

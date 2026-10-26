@@ -33,7 +33,7 @@ static void lay_cell(uint32_t k, cell_t *c)
 {
     static const char *const LAB[LY_COUNT][4] = {
         [LY_FX] = {"FILTER", "DUST", "DUCK", "TRK FLT"}, [LY_ROLL] = {"RATE"},
-        [LY_SCALE] = {"CHORD", "SCALE", "KEYS", "TRANSP"}, [LY_MIX] = {"T1", "T2", "T3", "DR"}};
+        [LY_SCALE] = {"CHORD", "SCALE", "KEYS", "TRANSP"}, [LY_MIX] = {"T1", "T2", "T3", TRK4_TAG}};
     uint32_t l = lay.shown % LY_COUNT;
     int16_t *vp;
     const param_desc_t *d = lay_desc(l, k, &vp);

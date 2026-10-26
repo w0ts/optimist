@@ -51,7 +51,7 @@ static int32_t dln_get(uint32_t g, uint32_t l, uint32_t i)
     if (g == DLG_TRK)
         return smute_trk_on(l);
     if (l == DRUM_ACC)
-        return i ? TDRUM->p[P_DACC] : smute_lane_on(DRUM_ACC);
+        return i ? (FELUCCA_DRUMS ? TDRUM->p[P_DACC] : 0) : smute_lane_on(DRUM_ACC);
     return i == 0u ? dlm_pan[l] : i == 1u ? dlm_muted(l) : i == 2u ? dlm_soloed(l) : smute_lane_on(l);
 }
 static void dln_put(uint32_t g, uint32_t l, uint32_t i, int32_t v)
@@ -65,7 +65,7 @@ static void dln_put(uint32_t g, uint32_t l, uint32_t i, int32_t v)
     else if (g == DLG_TRK)
         smute_set_trk(l, v != 0);
     else if (l == DRUM_ACC) {
-        if (i)
+        if (i && FELUCCA_DRUMS)                     /* (no drums: track 4 is a part, its values its own) */
             TDRUM->p[P_DACC] = (int16_t)v;
         else
             smute_set_lane(DRUM_ACC, v != 0);

@@ -41,6 +41,11 @@
 #else
 #define ED_OPTI_MORE ""
 #endif
+#if FELUCCA_DRUMS
+#define ED_OPTI_ND ""
+#else
+#define ED_OPTI_ND "opti_nodrums_1 "  /* (tag 0x67: no drum track, track 4 a synth part like 1..3: core.h FELUCCA_DRUMS) */
+#endif
 static void ed_opti_list(uint32_t tag, const char *s, uint32_t n)   /* a tag of names (n: with the 0 at its end) */
 {
     uint32_t i;
@@ -59,7 +64,7 @@ static void ed_opti_info(void)
 #if FELUCCA_ED_MIRROR
     _Static_assert(MIR_VERSION == 2, "ed_opti.h: opti_mirror_ names MIR_VERSION");
 #endif
-    static const char M[] = ED_OPTI_MORE;
+    static const char M[] = ED_OPTI_MORE ED_OPTI_ND;
     _Static_assert(sizeof M < 128u, "INFO tag 0x67: one 7-bit length");
     ed_b(0x66);
     ed_b(sizeof S - 1u);

@@ -148,7 +148,8 @@ static uint32_t miss_scan(void)
     miss_cnt = 0;
     for (k = 0; k < NPART; k++)
         miss_part(k);
-    miss_drums();
+    if (FELUCCA_DRUMS)
+        miss_drums();
     for (k = 0; !FELUCCA_FX_SLICER && k < NTRK; k++)
         if (trk[k].p[P_SLCR])
             MFX(MF_SLICER, k);
@@ -211,8 +212,8 @@ static char *miss_name(char *p, uint32_t it)
     }
 #if FELUCCA_PATTERNS
     if (ty == MS_PAT) {                                /* "PAT T2 5", "PAT DR 16" */
-        p = miss_cat(p, id >> 4 == TRK_DRUM ? "PAT DR " : "PAT T1 ");
-        if (id >> 4 != TRK_DRUM)
+        p = miss_cat(p, IS_DRUMK(id >> 4) ? "PAT DR " : "PAT T1 ");
+        if (!IS_DRUMK(id >> 4))
             p[-2] = (char)('1' + (id >> 4));
         fmt_int(p, (int32_t)(id & 15u) + 1);
         return p + str_len(p);
@@ -230,7 +231,7 @@ static char *miss_name(char *p, uint32_t it)
         s = NAMES[ty - 1u][id];
     p = miss_cat(p, s);
     if (ty == MS_FX && ((it & 255u) == MF_INS3 || (it & 255u) == MF_ENV1))   /* "3RD INS T2", "3RD INS DR", "ENV DEST T1" */
-        return ((it >> 8) & 3u) == TRK_DRUM ? miss_cat(p, " DR") : (p = miss_cat(p, " T1"), p[-1] = (char)('1' + ((it >> 8) & 3u)), p);
+        return IS_DRUMK(((it >> 8) & 3u)) ? miss_cat(p, " DR") : (p = miss_cat(p, " T1"), p[-1] = (char)('1' + ((it >> 8) & 3u)), p);
     if (ty == MS_ENG || ty == MS_SET)
         p = miss_cat(p, " T1"), p[-1] = (char)('1' + ((it >> 8) & 3u));
     return p;

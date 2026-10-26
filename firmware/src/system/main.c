@@ -168,10 +168,14 @@ static void felucca_init(void)
             t->engine = t->eng_req;
         }
     }
+#if FELUCCA_DRUMS
     TDRUM->p[P_E0] = DRUM_DEFAULT_KIT;        /* the 808 kit */
+#endif
     song.sel = 0;
     song.master_q12 = 2048;
+#if FELUCCA_DRUMS
     dsend_dry();                              /* (the lanes too; a stored project brings its own) */
+#endif
     autosave_resume();                        /* the project as it was left (project.c) */
     song.g[G_VIEW] = (int16_t)settings.view;  /* (a setting, not the project's: ui_overview.c view_sync) */
     song.g[G_SYNC] = sync_boot;               /* (the same: the HOME menu's SYNC, project.c bp23_word) */

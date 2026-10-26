@@ -125,6 +125,8 @@ def built(cfg, key):
     it = R.ITEMS[key]
     if it.parent and not built(cfg, it.parent):
         return False
+    if key in R.DRUMS_ONLY and not built(cfg, "DRUMS"):
+        return False
     return cfg[key] != 0
 
 
@@ -176,7 +178,7 @@ def validate(cfg):
                          ["FX_REVERB"] + revs))
     kits = [k for k in R.ITEMS if k.startswith("KIT_")]
     synths = list(DRUM_SYNTHS)   # (the drum synths, first in Drums: each a drum source on its own)
-    if not any(built(cfg, k) for k in synths + kits):
+    if built(cfg, "DRUMS") and not any(built(cfg, k) for k in synths + kits):
         err.append(Issue("the drum track needs a drum source: a drum synth (the 32 synthesised kits, KAWA, PLAITS, "
                          "X0X 909, X0X 808) or a sampled kit", synths + ["DRUM_SAMPLED"] + kits))
     sets = [k for k in R.ITEMS if k.startswith("SET_")]
@@ -247,6 +249,8 @@ def flags(cfg):
         v = cfg[k]
         if it.parent and not built(cfg, it.parent):
             v = it.default                              # (an option of an item left out: its default, ignored)
+        if any(R.ITEMS[a].head and not cfg[a] for a in R.ancestors(k)) or (k in R.DRUMS_ONLY and not cfg["DRUMS"]):
+            v = 0                                       # (a group's head off: none of its code, registry.h checks it)
         out[it.flag] = v
     out["FELUCCA_USB_AUDIO"] = cfg["USB_AUDIO"]
     out["FELUCCA_CDC"] = cfg["USB_CONSOLE"]

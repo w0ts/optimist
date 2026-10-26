@@ -1813,7 +1813,7 @@ AINL int tcomp_rest(const mc_t *c) { return !c->gr16 && c->g13 == 8192; }
  * the rest of DYN. 0.73 ms of delay while it is on */
 static tlim_t tlim[NTRK];
 static int32_t tlim_dr[TLIM_N];                         /* (the drum bus's right line) */
-#define TLIM_DR(k) ((k) % NTRK == TRK_DRUM ? tlim_dr : (int32_t *)0)
+#define TLIM_DR(k) (IS_DRUMK((k) % NTRK) ? tlim_dr : (int32_t *)0)
 static HOT2 __attribute__((noinline)) void tcomp_run(mc_t *c, int32_t amt, int32_t *l, int32_t *r, uint32_t n, uint32_t k)
 {
     mc_set_t s;
@@ -2741,6 +2741,30 @@ static inline __attribute__((always_inline)) void rets_mix(uint32_t n)
         }
     }
 }
+#if !FELUCCA_DRUMS
+/* the click without a drum track (FELUCCA_DRUMS 0; with drums, the kit's wood blocks 76 / 77: seq.c click_note): a triangle
+ * blip at 1.5 kHz, the bar's first beat (77) at 2 kHz, falling about 25 dB in 10 ms, into the mix before the master */
+static struct { uint32_t ph, inc; int32_t a; } clk_v;
+static void click_note(uint32_t note, uint32_t vel)
+{
+    clk_v.ph = 0;
+    clk_v.inc = (uint32_t)(4294967296.0 * (note == 77u ? 2000.0 : 1500.0) / FS);
+    clk_v.a = (int32_t)(vel > 127u ? 127u : vel) * 96;   /* (127: 12192, half a voice's VOICE_FS) */
+}
+static HOT void click_mix(uint32_t n)
+{
+    uint32_t i;
+    for (i = 0; i < n && clk_v.a > 16; i++) {
+        int32_t t = (int32_t)(clk_v.ph >> 16) - 32768, s;   /* (a ramp -32768..32767 -> a triangle) */
+        s = ((t < 0 ? -t : t) * 2 - 32768) * clk_v.a >> 15;
+        mix_l[i] += s, mix_r[i] += s;
+        clk_v.ph += clk_v.inc;
+        clk_v.a -= clk_v.a >> 7;
+    }
+}
+#else
+#define click_note(note, vel) drum_on(note, vel)
+#endif
 static inline __attribute__((always_inline)) void mix_finish(int32_t *out, uint32_t n)
 {
     uint32_t i;
@@ -2748,6 +2772,9 @@ static inline __attribute__((always_inline)) void mix_finish(int32_t *out, uint3
     BENCH_SIG(4, mix_l, n);
     BENCH_SIG(5, send_r, n);
     rets_mix(n);
+#if !FELUCCA_DRUMS
+    click_mix(n);                                       /* (the click: no drum track to play it) */
+#endif
     if (FELUCCA_FX_PUNCH)
         punch_process(mix_l, mix_r, n);
     mst_run(mix_l, mix_r, n);                           /* the master's insert slots (above) */
@@ -2807,12 +2834,14 @@ static HOT void mix_block(int32_t *out, uint32_t n)
 #endif
     if (FELUCCA_FX_DUCK)
         duck_block(n * (uint32_t)song.g[G_BPM]);
+#if FELUCCA_DRUMS
     drums.a0 = TDRUM->att;                              /* the drums first, alone on the bus (the sums come out the */
     drums.a1 = 32767 - gain_next(TDRUM);                /* same in either order): the drum track's mute / solo fade, */
     SCOPE_DRUMS(scope_drums_mark);                      /* (the SCOPE on the drums: their part of the mix) */
     slicer_drums(mix_l, mix_r, send_r, n);              /* drums_render through the SLICER when on, */
     dbus_run(n);                                        /* its two insert slots and its own sends (above) */
     SCOPE_DRUMS(scope_drums_take);
+#endif
     {
         uint32_t sw = pold_any() ? FAR(pold_in)() : 0u; /* (SLOOP 2.6) the parts fading out after a sound load: this */
         for (i = 0; i < NPART; i++)                     /* block with their old sound (voice.c sound_change) */

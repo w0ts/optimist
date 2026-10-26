@@ -304,12 +304,12 @@ static uint32_t cg_est(void)
         if (on)
             n += cg_ins_part(p);                      /* its insert slots that run (fx.c ins_part) */
     }
-    for (i = 0; i < NDRUM; i++)
+    for (i = 0; FELUCCA_DRUMS && i < NDRUM; i++)
         if (drums.v[i].active) {
             n += CG_COST_DRUMS;
             break;
         }
-    n += cg_ins_bus();                                /* the drum bus's insert slots that run (fx.c dbus_run) */
+    n += FELUCCA_DRUMS ? cg_ins_bus() : 0u;           /* the drum bus's insert slots that run (fx.c dbus_run) */
     n += cg_ins_mst();                                /* the master's (fx.c mst_run) */
     n += cg_ins_rt();                                 /* the returns' other types (fx.c rt_run) */
     n += cg_ins_ut();                                 /* the USB input's (fx.c ut_mix) */
@@ -388,7 +388,7 @@ static int cg_tails(void)
     if (x0x_sounding() >> 11)                         /* (drum_x0x.c: the 808's channels 11..23) */
         return 1;
 #endif
-    for (i = 0; i < NDRUM; i++)
+    for (i = 0; FELUCCA_DRUMS && i < NDRUM; i++)
         if (drums.v[i].active && drums.synth[i])
             return 1;
     return 0;
@@ -402,7 +402,7 @@ static int cg_useful(uint32_t level)
     uint32_t p;
     if (level >= CG_TOP)
         return 1;
-    if (level == CG_L_QUALITY && (cg_tails() || cg_bus_w()))
+    if (level == CG_L_QUALITY && (cg_tails() || (FELUCCA_DRUMS && cg_bus_w())))
         return 1;                                     /* (a drum tail, or the drum bus's DIST / FILTER: L / R only) */
     if (level == CG_L_REVERB)                         /* the reverb bus runs (or would: fx.c rev_live) */
         return REV_LIVE();

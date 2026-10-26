@@ -60,7 +60,7 @@ static void motion_flash_read(uint32_t obj, const project_t *p)
         mf_rec.m.psum = p->sum;
     }
 #endif
-    if (mf_rec.m.psum != p->sum || !motion_valid(&mf_rec.m))
+    if (!PSUM_IS(mf_rec.m.psum, p->sum) || !motion_valid(&mf_rec.m))
         return;
     (void)auto_from_motion(m->l, &mf_rec.m);
     m->on = mf_rec.m.on;

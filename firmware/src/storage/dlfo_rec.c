@@ -27,10 +27,18 @@
 #define MREC_TAG 0xD5u
 #define MREC_TAG_D3 0xD3u
 #define MREC_TAG_D2 0xD2u
-#define MREC_TAG_OK(x) ((x) == MREC_TAG || (x) == MREC_TAG_D3 || (x) == MREC_TAG_D2)
+#define MREC_TAG_4 0xD6u                                /* (FELUCCA_DRUMS 0, 2026-10-26): 0xD5 with four parts' blocks */
+#define MREC_TAG_OK(x) ((x) == MREC_TAG || (x) == MREC_TAG_D3 || (x) == MREC_TAG_D2 || (!FELUCCA_DRUMS && (x) == MREC_TAG_4))
+#if FELUCCA_DRUMS
+#define MREC_TAG_W MREC_TAG                             /* the tag written */
+#else
+#define MREC_TAG_W MREC_TAG_4
+#endif
+#define MREC_IS4(tag) (!FELUCCA_DRUMS && (tag) == MREC_TAG_4)
+#define MREC_NP(tag) (MREC_IS4(tag) ? 4u : 3u)         /* the parts' blocks in a record of tag */
 #define MREC_PART 23u
-#define MREC_PART_OF(tag) ((tag) == MREC_TAG ? MREC_PART : 20u)   /* a part's bytes in a record of tag */
-#define MREC_NGRP(tag) ((tag) == MREC_TAG ? 5u : 4u)              /* its field groups (mrec_grp) */
+#define MREC_PART_OF(tag) ((tag) == MREC_TAG || MREC_IS4(tag) ? MREC_PART : 20u)   /* a part's bytes in a record of tag */
+#define MREC_NGRP(tag) ((tag) == MREC_TAG || MREC_IS4(tag) ? 5u : 4u)              /* its field groups (mrec_grp) */
 /* then (GRIDS_LFO, 2026-10-23) KREC_TAG and the kit's two LFOs (lane_play.c klfo_encode, KLFO_ENC bytes), when they are not at
  * their defaults; a reader of before stops after the parts' block (mrec_decode reads no further) */
 #define KREC_TAG 0xD4u
@@ -90,7 +98,7 @@ static __attribute__((noinline)) uint32_t mrec_part_vals(const uint8_t *a, uint3
 static void mrec_parts_get(const uint8_t *a, uint32_t tag)
 {
     uint32_t k;
-    for (k = 0; k < NPART; k++)
+    for (k = 0; k < NPART && (FELUCCA_DRUMS || k < MREC_NP(tag)); k++)   /* (a record of a build with drums: three) */
         if (mrec_part_vals(a, k, trk[k].p, tag))
             env1_drop |= (uint8_t)(1u << k);
 }
@@ -99,7 +107,7 @@ static void mrec_parts_get(const uint8_t *a, uint32_t tag)
 static uint32_t mrec_encode(uint8_t *o)
 {
     uint32_t n = dlfo_encode(o + 2), parts;
-    o[0] = MREC_TAG, o[1] = (uint8_t)n;
+    o[0] = MREC_TAG_W, o[1] = (uint8_t)n;
     parts = mrec_parts_put(o + 2 + n);
     if (!parts && !n && klfo_is_def())
         return 0;
@@ -124,12 +132,12 @@ static uint32_t mrec_decode(const uint8_t *a, uint32_t n)
     l = a[1];
     if (2u + l > n || (l ? !dlfo_decode(a + 2, l) : !dlfo_decode(0, 0)))
         (void)dlfo_decode(0, 0);
-    if (n < 2u + l + NPART * MREC_PART_OF(a[0])) {
+    if (n < 2u + l + MREC_NP(a[0]) * MREC_PART_OF(a[0])) {
         klfo_decode(0, 0);
         return 0;
     }
     mrec_parts_get(a + 2 + l, a[0]);
-    l += 2u + NPART * MREC_PART_OF(a[0]);              /* (the kit's LFOs after the parts: GRIDS_LFO; else their defaults) */
+    l += 2u + MREC_NP(a[0]) * MREC_PART_OF(a[0]);              /* (the kit's LFOs after the parts: GRIDS_LFO; else their defaults) */
     klfo_decode(n > l && a[l] == KREC_TAG ? a + l + 1u : 0, n > l + 1u ? n - l - 1u : 0u);
     return a[0];
 }
@@ -209,7 +217,7 @@ static void dlr_from_rec(const project_t *p, const uint8_t *r, uint32_t n, uint3
     if (n >= 4u)
         memcpy(&k, r, 4);
     m->psum = p->sum;
-    m->n = (uint16_t)(n > 4u && n <= 4u + DLR_MAX && k == key ? n - 4u : 0u);
+    m->n = (uint16_t)(n > 4u && n <= 4u + DLR_MAX && PSUM_IS(k, key) ? n - 4u : 0u);
     memcpy(m->b, r + 4, m->n);
 }
 /* the autosave's change test: a hash of the LFOs captured with autosave_buf (turned, so it never cancels the FX

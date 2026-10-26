@@ -35,9 +35,9 @@ static int16_t dsend_kit[3] = {DKS_DEF, DKS_DEF, DKS_DEF};
  * tracks)": fx_slots.c lin_slot, the types; was a fixed DIST and COMP): dins_amt[s][l] is lane l's slot s amount (0 off;
  * the FILTER's bipolar value as int8), run per drum voice (fx.c dins_post); kept in the FX record (fx_slots.c), not in the
  * drum record (dlrec_t: unchanged). The default slots S1 DIST, S2 DYN: [0] the DIST amount, [1] the COMP's, as before */
-#define DINS (FELUCCA_FX_DIST || FELUCCA_MASTER_COMP || TFLT_ON || FELUCCA_FX_DUST || FELUCCA_INS_FOLD || FELUCCA_INS_FUZZ || \
+#define DINS (FELUCCA_DRUMS && (FELUCCA_FX_DIST || FELUCCA_MASTER_COMP || TFLT_ON || FELUCCA_FX_DUST || FELUCCA_INS_FOLD || FELUCCA_INS_FUZZ || \
               FELUCCA_INS_PHASER || FELUCCA_INS_FORMANT || FELUCCA_INS_SFOLD || FELUCCA_INS_RECT || \
-              FELUCCA_INS_HARM || FELUCCA_INS_RING || FELUCCA_INS_SLEW)
+              FELUCCA_INS_HARM || FELUCCA_INS_RING || FELUCCA_INS_SLEW))
 /* the insert states (fx.c dins_st): a drum voice's each, then an X0X lane's each (2026-10-18, the user: "no insert on drum
  * lanes" with the X0X kits: their channels are not drums.v voices, drum_x0x.c drums_x0x runs a lane's slots on its
  * channel, one state a lane) */
