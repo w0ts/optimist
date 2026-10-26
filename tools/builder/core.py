@@ -673,14 +673,23 @@ def additive(cfg, costs):
     return total, items, missing
 
 
+# a probe (measure_costs.py PROBE: a check configuration with 4 items changed by a hash, costs.json "checks" NAME~)
+# counts this many items further than it is: a profile's own build PROBE_PENALTY items away or less wins over it.
+# A probe sits on random items, where the sum model is least right (2026-10-26: the default profile less ENG_FM6
+# anchored on dev~, 6 items away, over its own build, 7 away, and its RAM came 176 B over the profile's although the
+# real build has 32 B less: INS_SFOLD's RAM among the other shaper inserts 144 B off)
+PROBE_PENALTY = 2
+
+
 def nearest_anchor(cfg, costs, exclude=(), extra=()):
-    """-> (name, cfg, real sizes, distance) the anchor (anchors) the fewest items away; at the same distance the
-    later one (a real build from this source over costs.json's)"""
-    best = None
+    """-> (name, cfg, real sizes, distance) the anchor (anchors) the fewest items away (a probe PROBE_PENALTY
+    further); at the same distance the later one (a real build from this source over costs.json's)"""
+    best, best_rank = None, None
     for n, acfg, real in anchors(costs, exclude, extra):
         d = distance(cfg, acfg)
-        if best is None or d <= best[3]:
-            best = (n, acfg, real, d)
+        rank = d + (PROBE_PENALTY if n.endswith("~") else 0)
+        if best is None or rank <= best_rank:
+            best, best_rank = (n, acfg, real, d), rank
     return best
 
 
