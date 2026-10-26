@@ -148,6 +148,23 @@ ok(L.cloudConfigUrl("me/o", "optimist-synth-e1fb1e6cc99a2056") === "https://raw.
   && L.cloudConfigUrl("me/o", "../x") === null && L.cloudConfigUrl("me/o", "optimist-synth-e1fb") === null && L.cloudConfigUrl("me/o", null) === null,
   "cloud build: ?cloud=<stem> -> its .config on the cloud-builds branch; anything else is not fetched");
 ok(L.commitOf({ commit: SHA }) === SHA && L.commitOf({ commit: "HEAD" }) === null && L.commitOf(null) === null, "build-info: only a full commit SHA makes a key");
+/* "Build from": the latest published release by default (site.json "latest", make_site.py), main a choice of its own */
+{
+  const REL = "498a3ae47c4f01a6c0cc891c794f8cd2ed78cd66", latest = L.latestOf({ latest: { tag: "v0.2", sha: REL, date: "2026-10-25T19:58:05Z" } });
+  ok(same(latest, { tag: "v0.2", sha: REL, date: "2026-10-25T19:58:05Z" }) && L.latestOf(null) === null && L.latestOf({}) === null
+    && L.latestOf({ latest: { tag: "v0.2", sha: "HEAD" } }) === null && L.latestOf({ latest: { tag: "main", sha: REL } }) === null
+    && L.latestOf({ latest: { tag: "v0.2", sha: REL } }).date === "",
+    "site.json latest: a v tag and a full commit, else none (main)");
+  ok(same(L.pickRef(null, latest), { ref: REL, value: REL }) && same(L.pickRef(null, null), { ref: null, value: "main" })
+    && same(L.pickRef("main", latest), { ref: null, value: "main" }) && same(L.pickRef(SHA, latest), { ref: SHA, value: SHA })
+    && same(L.pickRef("v0.2", latest), { ref: REL, value: REL }) && same(L.pickRef("", null), { ref: null, value: "main" }),
+    "Build from: no ?ref = the latest release; ?ref=main = the site's own copy; ?ref=<commit> = that commit; no release known = main");
+  const at = "https://w0ts.github.io/optimist/webapp/builder/?cloud=x";
+  ok(L.refUrl(at, "main", latest) === at + "&ref=main" && L.refUrl(at, SHA, latest) === `${at}&ref=${SHA}` && L.refUrl(`${at}&ref=main`, REL, latest) === at
+    && L.refUrl(at, REL, null) === `${at}&ref=${REL}`, "Build from: main kept in the URL (?ref=main), a commit too, the latest release = no ?ref");
+  ok(L.buildCommit("main", SHA) === SHA && L.buildCommit("main", null) === "" && L.buildCommit(REL, SHA) === REL && L.buildCommit("", SHA) === "" && L.buildCommit("x", SHA) === "",
+    "cloud build: the commit chosen; main = the site's own commit (unknown: the relay's main)");
+}
 ok(L.pyodideBase("/pyodide/") === "/pyodide/" && L.pyodideBase("https://evil.example/") === L.PYODIDE_CDN && L.pyodideBase("/../x/") === L.PYODIDE_CDN
   && /^https:\/\/cdn\.jsdelivr\.net\/pyodide\/v\d+\.\d+\.\d+\/full\/$/.test(L.PYODIDE_CDN), "Pyodide: the pinned CDN version; a test may only point at this site");
 /* the gauges (the gauges card): used / limit in KiB, the overflow only when over, the limit's mark past it */

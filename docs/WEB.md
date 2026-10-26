@@ -16,7 +16,10 @@ path. Chrome or Edge is needed for Web MIDI.
 installer then offers cloud builds and a `.fwsc` of yours). The published installer offers, newest first, each published
 release (not a draft, not a pre-release) with its published flavours (the profiles marked `publish: yes`), then this
 commit's development build of each flavour in `web/flavours.json`. `pages.yml` downloads the releases' packages into the
-site (`firmware/r/<tag>/`) because a page cannot fetch a GitHub release file itself (no CORS header). The site holds:
+site (`firmware/r/<tag>/`) because a page cannot fetch a GitHub release file itself (no CORS header), and builds the
+latest release's simulators from that tag's own source (its `config/profiles` and `tools/sim.py`: `firmware/r/<tag>/*.wasm`).
+`site.json` names that release (`"latest": {tag, sha, date}`): the builder and the Simulator tab start from it, main's
+development build stays a choice (the user, 2026-10-26). The site holds:
 
 - `webapp/installer/`: the standalone installer. `index.html` (from `web/installer/index.html`) is one offline file: the
   shared header and style and the installer module, inlined. Beside it `installer.js` (the same module as one file, for
@@ -68,7 +71,8 @@ every listed profile. `python3 web/make_site.py --profiles` prints the profiles;
 `.github/workflows/pages.yml` runs on a push to `main` and by hand (Actions > pages > Run workflow). A published release
 asks for a run on `main` (its `redeploy` job), because the `github-pages` environment deploys from `main` only. It
 downloads the JieLi toolchain and SDK files on the runner (`tools/optimist.py setup`; nothing of them is stored or
-published), builds each listed profile and its simulator (Emscripten, `tools/sim.py build --wasm`), makes the site and
+published), builds each listed profile and its simulator (Emscripten, `tools/sim.py build --wasm`), checks out the latest
+release's tag beside the checkout and builds the simulator of each of its packages from there (about 30 s each), makes the site and
 deploys it with `actions/deploy-pages` (actions pinned to commit SHAs; permissions: contents read, pages write, id-token
 write).
 
@@ -241,8 +245,11 @@ old), the **releases** with their published flavours, a **`.fwsc` file**, and **
 1. **Start from** a flavour, a published profile, your last configuration or one of **your configurations** (Save keeps
    the current one under the Name field's name, Delete removes it; `localStorage` `optimist-builder-saved`, which the
    Mirror app's web view keeps too). No development profile and no "registry defaults" are offered.
-2. **Build from** main (the default), a release tag or a branch (the relay's `?refs`). The options are main's: a build
-   from an older tag can be refused for an option that tag does not have; the refusal says which.
+2. **Build from** the latest published release (the default: `site.json` `latest`; no `?ref` in the URL), main
+   (`?ref=main`: the site's own copy, its commit), another release tag or a branch (the relay's `?refs`; `?ref=<commit>`).
+   Everything below (the items, the costs, the profiles, the rules) is that version's (`web/builder/data` of that commit
+   from raw.githubusercontent.com). No `site.json` or no `latest` in it (the local site, the builder alone): main. A
+   build asks for the commit chosen (main: the site's commit).
 3. **Build** (`web/builder/cloud.js`). When `TURNSTILE_SITEKEY` is set (`logic.js`), it needs no GitHub account:
    - Cloudflare Turnstile is loaded at that click only (no third party on the page before) and checks the visitor is
      not a robot, usually without asking anything;
