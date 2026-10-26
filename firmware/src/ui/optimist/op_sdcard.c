@@ -7,14 +7,16 @@
  *   KNOB 3 ITEM   the slot, across the pages                   KNOB 4 VIEW     PROJECTS: NAME, SAVES (the item's versions);
  *                                                                              PRESETS, KITS: FOLDER, NAME; SAMPLES: FOLDER,
  *                                                                              NAME, RECENT
- * A white key picks its slot and runs the action through the confirm (a folder: into it, no question); YES runs it on the
- * ITEM; HOME goes up a folder (SAVES: back to the projects), at the list's own folder back to the mixer. SAVE names first
+ * A white key picks its slot and asks the action on it, the slot's name on screen (a folder: into it, no question); the
+ * same key again, or YES, runs it; another key asks about that one instead (the user, 2026-10-26: "one press shows what
+ * it is and a second press actually loads"). HOME goes up a folder (SAVES: back to the projects), at the list's own folder back to the mixer. SAVE names first
  * (NAME, the slot's name or the work's; the card's rules: sd_layout.c sdl_name_ok); a project has versions, a preset or a
  * kit is written over only when asked over its own slot. USE: the selected synth part's sample, by its hash (the player
  * reads it: storage/sd/sd_mode.c sdm_sample_of). The card's side is storage/sd/sd_mode.c (included after the stores). */
 enum { SDC_PROJ, SDC_PRE, SDC_KIT, SDC_SMP, SDC_N };   /* the card's lists */
 enum { SDV_FOLDER, SDV_NAME, SDV_RECENT, SDV_VERSIONS };   /* the views (sd_browse.c's, and a project's versions) */
-enum { SDO_LOAD, SDO_SAVE, SDO_DELETE, SDO_USE };
+enum { SDO_LOAD, SDO_SAVE, SDO_DELETE, SDO_USE,       /* (ACTION) */
+       SDO_SAVE_LOAD };                                 /* "SAVE <the work>?" before a LOAD (op_prjflow.c PO_SAVE_LOAD is 3: USE) */
 #define SDC_KEYS 16u                                    /* a page's slots (sd_browse.c SDC_KEYS) */
 #define SDC_NAME 64u                                    /* a card name's room (sd_layout.c SDL_NAME_MAX + 1) */
 #define SDC_PNAME 13u                                   /* the flash project's name's (sections.c SEC_NAME_LEN + 1) */
@@ -252,26 +254,23 @@ static void sdc_ask(uint32_t r, uint32_t l, uint32_t op, uint32_t k)
             sdc.item = 0, ui.force = 1;
         return;
     }
-    if (op == SDO_USE) {                                /* (a sample picked: at once; picking again changes it) */
-        sdm_do(op, k);
-        return;
-    }
     str_cpy(a, sdc_name(k), sizeof a);
     prj_arm_op = (uint8_t)op;
     prj_arm_slot = (uint8_t)k;
     sec_name(0, cur);
     if (l == SDC_PROJ && op == SDO_LOAD && work_changed() && cur[0] && !song.playing && !transport_req) {
-        prj_arm_op = PO_SAVE_LOAD;                      /* "SAVE <the work's name>?" first (as the flash slots, op_prjflow.c) */
+        prj_arm_op = SDO_SAVE_LOAD;                     /* "SAVE <the work's name>?" first (as the flash slots, op_prjflow.c) */
         op_arm(SCR_PROJECT, r, 0, "SAVE", cur, 1);
         return;
     }
     op_arm(SCR_PROJECT, r, 0, SDO_NAME_S[op], a,
-           op != SDO_LOAD || (l == SDC_PROJ ? work_changed() : l == SDC_PRE ? snd_edited(song.sel) : snd_edited(TRK_DRUM)));
+           op == SDO_USE ? 0 : op != SDO_LOAD || (l == SDC_PROJ ? work_changed() : l == SDC_PRE ? snd_edited(song.sel)
+                                                                                                : snd_edited(TRK_DRUM)));
     ui.arm_stop = (uint8_t)(l == SDC_PROJ && op == SDO_LOAD && (song.playing || transport_req));
 }
 static int sdc_no(void)                                 /* HOME on "SAVE <the work>?": the LOAD asked next (prj_no's) */
 {
-    if (ui.arm_scr != SCR_PROJECT || prj_arm_op != PO_SAVE_LOAD || sdc_here() != SDC_PROJ)
+    if (ui.arm_scr != SCR_PROJECT || prj_arm_op != SDO_SAVE_LOAD || sdc_here() != SDC_PROJ)
         return 0;
     prj_arm_op = SDO_LOAD;
     op_arm(SCR_PROJECT, ui.arm_row, 0, "LOAD", sdc_name(prj_arm_slot), 1);
@@ -289,7 +288,7 @@ static int sdc_yes(uint32_t r, uint32_t kind, uint32_t ok)
         return 1;
     }
     op = prj_arm_op, k = prj_arm_slot;
-    if (op == PO_SAVE_LOAD) {                           /* YES to "SAVE <the work>?": saved by its name, then loaded */
+    if (op == SDO_SAVE_LOAD) {                          /* YES to "SAVE <the work>?": saved by its name, then loaded */
         char want[SDC_NAME];
         str_cpy(want, sdm_base_of(k), sizeof want);
         sec_name(0, cur);
@@ -309,11 +308,21 @@ static int sdc_yes(uint32_t r, uint32_t kind, uint32_t ok)
 }
 
 /* ---- the keys, OCT, HOME */
+static void op_yes(void);                               /* (op_input.c: SAVE's YES) */
 static void sdc_key(uint32_t kind, int32_t w)
 {
     uint32_t l = sdc_list_of(kind);
-    if (w < 0 || w >= (int32_t)SDC_KEYS || !sdm_ready() || op_armed())
+    if (w < 0 || w >= (int32_t)SDC_KEYS || !sdm_ready())
         return;
+    if (op_armed()) {                                   /* this list's question up: its key again YES, another key asks again */
+        if (ui.arm_scr != SCR_PROJECT || ui.arm_row != ui.row[SCR_PROJECT])
+            return;
+        if ((uint32_t)w == prj_arm_slot) {
+            op_yes();
+            return;
+        }
+        op_disarm();
+    }
     sdc_sync(l);
     sdc.item = (uint8_t)w;
     ui.hot = 2;

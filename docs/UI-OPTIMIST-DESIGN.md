@@ -328,8 +328,9 @@ USER, TOOLS, MEMORY as before. A list row is four small cards (as the mixer's) o
 The page: two columns of eight names, the slots as the white keys sit (left octave, then right), the ITEM framed in white;
 a folder grey with a "/", a name cut with "~" (14 characters a column); our own files without their extension, a version
 as *Version 7*; an empty folder its name and *Empty*; no card *No SD card*. The keys: a file lit, a folder dim, the ITEM
-blinking. A white key picks its slot and runs the ACTION through the confirm (section 2.5; a folder: into it, no
-question; USE at once, picking again changes it); YES runs it on the ITEM; HOME goes up a folder (SAVES: back to the
+blinking. A white key picks its slot and asks the ACTION on it, the slot's name in the question (section 2.5; a
+folder: into it, no question); the same key again, or YES, runs it; another key asks about that slot instead (the user,
+2026-10-26: "one press shows what it is and a second press actually loads"; USE too); HOME goes up a folder (SAVES: back to the
 projects), at the list's own folder to the mixer. The title is the row's name, a sub-folder's or the project whose SAVES
 are shown. The ACTION goes back to LOAD after each action.
 
