@@ -340,11 +340,15 @@ are shown. The ACTION goes back to LOAD after each action.
   a full card or an error: *Card full: in flash* / *Card save failed: in flash*, finished at the next mount).
 - **LOAD** asks red over changed work; a project's LOAD over changed work with a name asks *Save <name>?* first (YES: saved
   to the card, then loaded; HOME: the LOAD asked, red), as the flash slots. Stopped only (*Stop first*).
-- **USE** (SAMPLES): the selected synth part's sample, by its hash (T1..T3; the drum track: *Pick T1 T2 or T3*).
+- **USE** (SAMPLES): the selected synth part's sample, by its hash (T1..T3; the drum track: *Pick T1 T2 or T3*): the
+  part's CARD sample when streaming is built (SAMPLE's SET CARD plays it).
 
 SYSTEM > SD card (4.7): CARD (READY, PREPARING, NOT FAT or NONE, the card's size; YES mounts it again, its folders and
 the samples' index), VERSIONS (0..16, 8), SLACK (0..400 %, 100: the room a file's run gets past its size, SD-CARD-DESIGN
-8), SAMPLES INDEX (YES: the pass again). Written when SYSTEM is left. Tests: `tests/ui_optimist_sdcard.h`.
+8), SAMPLES INDEX (YES: the pass again); with streaming (SD_RING) a second page, PRE-BUFFER (25 / 50 / 100 / 200 ms, 50;
+the KB the project's card samples' heads take beside it). Written when SYSTEM is left. The streams' memory short: *MEM
+FULL CARD*, a part's drop asked with the one confirm (*Drop T2 FM6?*, one at a time), then the longest pre-buffer that
+fits said (*MEM FULL CARD: 25 MS FITS*). Tests: `tests/ui_optimist_sdcard.h`.
 
 ## 5. The drum track
 
