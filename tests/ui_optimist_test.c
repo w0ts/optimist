@@ -4021,6 +4021,9 @@ int main(int argc, char **argv)
     sdu_dx7_tests();
 #endif
     sdu_settings_tests();
+#if FELUCCA_ENG_CZ
+    sdu_cz_tests();
+#endif
     sdcard_cut_tests();
     printf(fails ? "optimist ui test FAILED (%d)\n" : "optimist ui test passed\n", fails);
     return fails != 0;

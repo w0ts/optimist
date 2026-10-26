@@ -570,8 +570,10 @@ checked: only the build time and the commit differ).
   LOAD reads its 128 B from the file and puts it into the selected part's FM6 voice (`sd_mode.c sdm_dx7_*`,
   `fm6_unpack`; the part on FM6 first when it plays another engine; refused like any engine change when memory is
   short); HOME leaves the bank. Only the page's 16 names are in RAM; no received bank (FM6_SYSEX) is needed. A
-  voice kept with its edits goes into a preset (`.OPS`, above). Not yet: CZ tones on the card (they need a RAM slot
-  the CZ engine plays; the flash's U01..U26 are not in the big layout).
+  voice kept with its edits goes into a preset (`.OPS`, above). CZ tones (built 2026-10-26): a Casio CZ single-tone
+  `.SYX` (264 B: F0 44 00 00 7n 20 pp, 256 nibbles low first, F7) under PRESETS, its key pressed: its 128 synthesis
+  bytes into the selected part's tone (`sdm_cz_load`; the part on CZ first), as a single-tone dump: kept until the part's
+  TONE or engine changes (a project keeps the TONE number).
 
 **Factory presets on the card; the SD card zip** (the user, 2026-10-26: "all presets (user or factory) go on the card",
 "card only in SD mode"): SD card mode carries no factory preset tables (core.h `PRESETS_CARD`, `PRESETS_PTR`: each
