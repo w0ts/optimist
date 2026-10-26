@@ -51,10 +51,10 @@ own Bluetooth and has no WiFi.
 | What | Licence | State |
 | --- | --- | --- |
 | The mirror's features ours lacked (section 4) | ours, written again | done on `fm1base-port`, host-tested |
-| Installer: finds the FM-1 under any port name, checks the package's CRCs, checks after resume (`web/fm1ota.js`, `fm1pkg.js`, from Chris Farrell's fm-static) | MPL-2.0 | open: check whether our installer has the port-name problem |
+| Installer: finds the FM-1 under any port name, checks the package's CRCs, checks after resume (`web/fm1ota.js`, `fm1pkg.js`, from Chris Farrell's fm-static) | MPL-2.0 | port names: done d0eb6aa2 (we had the hole: cached names were never probed); package CRC checks and the return check after resume: open |
 | m-bootloader in the installer | MIT | open |
 | USB MIDI host (felucca-bsp `FELUCCA_USB_HOST`) | MPL-2.0 | open: a port onto our USB code |
-| Storage: an unreadable A/B copy refuses the save instead of counting as blank (PR #13) | MPL-2.0 | open: check our store for the same hole |
+| Storage: an unreadable A/B copy refuses the save instead of counting as blank (PR #13) | MPL-2.0 | done cd92ef91 (we had it: a save with both copies unread was lost on the next load) |
 | Screen reader (`announce.c`, eSpeak in the emulator) | MPL-2.0 / GPL | open, if wanted |
 | Key velocity and pressure (`lib/touch.c`, `sense.c`) | MPL-2.0 | open: not compared with ours |
 | WiFi | JieLi binaries | no (GPL) |
@@ -106,5 +106,5 @@ calibration at 0xE8000) or key_mac. The arena, overlays, the LZB boot stream and
   the segment table is 7.7 KB of pool for -1.1 %); every host test of it passes, the three failures left are size checks (the
   builder's drift, the rescue test's slot, the render-loop cost on a profile without those engines).
 - The first exact number: Optimist built on fm1-base, its flash and RAM.
-- Whether our installer and store have the problems fm1-base fixed.
+- The installer's package CRC checks and its check after resume (fm1-base 934e40d), still to compare with ours.
 - The talk with Charles, and with Julius about the two open Bluetooth stacks.
