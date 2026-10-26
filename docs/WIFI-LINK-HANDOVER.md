@@ -50,9 +50,35 @@ or a raw send in the FM-1 emulator (`~/GitHub/fm1-emulator`, `diagnose` with `FM
 register access. `split.py` / `diff_v15.py` compare traces. The SDK libraries are LLVM bitcode:
 `llvm-ar x` + `llvm-dis` give readable IR with names. `fn.sh` (in the local SDK folder) prints one function.
 
+## Blocked for Claude: the join step (please pick this up)
+
+Claude cannot continue this one step. Twice (2026-10-26), a safety classifier stopped Claude's reply while it worked on
+it, and Claude must not try to work around that. Everything before this step and after it is open to Claude.
+
+**What is blocked:** writing the station's join on the FM-1. That means building and sending the 802.11
+open-authentication and association-request frames to the access point, handling its responses, and carrying the
+EAPOL-Key frames of the 4-way handshake over the air between the access point and `wifi_sta_rx_eapol`. Reading the
+unit's Bluetooth address from VM record 102 (for the MAC address) was being done at the moment of the second stop.
+Claude does not know which part the classifier objects to. This is an ordinary client joining the owner's own
+network, from the owner's own device.
+
+**What exists for it** (all on this branch):
+- radio up, scan, receive and transmit work on the FM-1 (`wifiup`, `wifiscan`, `wifirx`, `wifitx`; `hal/fm1_wifi.h`:
+  `fm1_wifi_tx` sends a frame with a Ralink TXWI, `fm1_wifi_rx` gets one with its RXWI);
+- `firmware/src/wifi/wifi_sta.c`: the handshake logic, host-tested (23 checks). It takes M1 and M3 as EAPOL bodies,
+  returns M2 and M4 to send, and installs the keys (the WCID attribute value is unverified, see step 2);
+- `wifi_scan` (console) already parses beacons: BSSID, channel, SSID. The RSN element is not parsed yet;
+- the MAC registers to set before joining: our address `0x1008` / `0x100C`, the BSSID `0x1010` / `0x1014` (Ralink
+  layout, not yet tried), the channel `0x1405C` byte 0 minus 101;
+- VM 102: `docs/BLE-HW-FACTS.md` §11, §14 (BTIF `0x0E9000`; `ble_vm.c` reads the VM; never write there).
+
+**What it needs to deliver:** a console command (e.g. `wifijoin <ssid>`, with the passphrase typed at run time and
+never stored) that ends with the 4-way handshake complete and the keys installed. Then step 2 below checks that the
+MAC decrypts. Claude carries on from there: IP layer, early filter, Link.
+
 ## Next steps
 
-1. **Join wire-in:** Open system authentication and association request / response with RSN element framing over the air, feeding EAPOL frames into `wifi_sta_rx_eapol`. The passphrase comes from the console at run time: never in a file, a commit or a note.
+1. **Join wire-in (blocked for Claude: see above):** Open system authentication and association request / response with RSN element framing over the air, feeding EAPOL frames into `wifi_sta_rx_eapol`. The passphrase comes from the console at run time: never in a file, a commit or a note.
 2. **Key install verification:** `wifi_sta_install_hw_keys` writes the PTK / GTK into the MAC tables (`0x1800`,
    `0x4000`, `0x6000`, `0x6800`, `0x6C00`, `0x7000`). Confirm the MAC decrypts (CCMP) on a real encrypted frame;
    check the WCID attribute value first.
