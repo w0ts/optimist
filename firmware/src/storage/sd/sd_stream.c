@@ -261,7 +261,7 @@ static uint32_t sst_pick(uint32_t limit_ms)
 static uint32_t sst_go(uint32_t limit_ms)
 {
     uint32_t i;
-    if (sst_st.in || sd_gone || !SST_CARD_OK())
+    if (sst_st.in || sd_gone || sd_wr.state != SDW_IDLE || !SST_CARD_OK())   /* (a recording writing: it waits) */
         return 0;
     if (sst_st.backoff) {
         if (sst_us(SD_NOW() - sst_st.backoff_t0) < SST_BACKOFF_MS * 1000u)

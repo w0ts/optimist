@@ -14,7 +14,9 @@
  * LCD and gives it back), so any FatFs call runs from the main loop and the screen draws between its transfers. A card
  * that fails a read or a write (an error, a timeout, a CRC failing twice at 20 MHz) is taken as gone: sd_gone, every
  * later read and write RES_NOTRDY at once (FatFs: FR_DISK_ERR) until a mount starts it again, instead of each waiting
- * out its timeouts. disk_status stays 0 meanwhile, so FatFs never starts the card on its own in some later call.
+ * out its timeouts. disk_status stays 0 meanwhile, so FatFs never starts the card on its own in some later call. While
+ * a recording's multi-block write is open (sd_mmc.c sd_wr: storage/sd/sd_rec.c) the card takes no other command: every
+ * read and write is RES_NOTRDY then too (FatFs: FR_NOT_READY).
  *   sd_map_run(fp, &sector)  an open file's sectors from its pointer (on a sector boundary) to the end of the
  *                     contiguous run they are in, or the file's end, from its cluster-link map (fp->cltbl, made by
  *                     f_lseek(fp, CREATE_LINKMAP)): one CMD18 for sd_rd_*; 0 when there is no map or no data there
@@ -47,7 +49,7 @@ DRESULT disk_read(BYTE pdrv, BYTE *buff, LBA_t sector, UINT count)
     DRESULT r;
     if (pdrv || !count)
         return RES_PARERR;
-    if (sd_gone)
+    if (sd_gone || sd_wr.state != SDW_IDLE)          /* (gone; or a recording's CMD25 open: sd_rec.c) */
         return RES_NOTRDY;
     SD_SESSION();
     r = disk_readblocks(buff, sector, count);
@@ -62,7 +64,7 @@ DRESULT disk_write(BYTE pdrv, const BYTE *buff, LBA_t sector, UINT count)
     UINT i;
     if (pdrv || !count)
         return RES_PARERR;
-    if (sd_gone)
+    if (sd_gone || sd_wr.state != SDW_IDLE)          /* (gone; or a recording's CMD25 open: sd_rec.c) */
         return RES_NOTRDY;
     SD_SESSION();
     for (i = 0; i < count && r == RES_OK; i++)

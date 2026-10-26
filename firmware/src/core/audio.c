@@ -72,6 +72,9 @@ static __attribute__((noinline)) uint32_t ua_take(int32_t *l, int32_t *r, uint32
 }
 #endif
 
+#if FELUCCA_SD_REC
+static void sdr_feed(const int32_t *q15, uint32_t n);    /* storage/sd/sd_rec.c */
+#endif
 static void audio_block(int32_t *out, uint32_t n)       /* mix (fx.c), then Q15 -> 24 bit */
 {
     uint32_t i;
@@ -95,6 +98,9 @@ static void audio_block(int32_t *out, uint32_t n)       /* mix (fx.c), then Q15 
             for (i = 0; i < 2u * n; i++)
                 out[i] = 0;
     }
+#endif
+#if FELUCCA_SD_REC
+    sdr_feed(out, n);                                   /* the master into the card's ring (storage/sd/sd_rec.c) */
 #endif
     for (i = 0; i < n; i++) {                           /* (no scope tap: SLOOP's HOME scope is gone) */
         out[2u * i] <<= OUT_SHIFT;

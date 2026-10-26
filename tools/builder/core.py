@@ -202,6 +202,9 @@ def validate(cfg):
         err.append(Issue("samples from the card (SD_RING) need the card under full FatFs (SDCARD, LAYOUT 1, FAR_OK), "
                          "SAMPLE (its CARD set) and the arena (ARENA: the heads and the rings)",
                          ["SD_RING", "SDCARD", "LAYOUT", "FAR_OK", "ENG_SAMPLE", "ARENA"]))
+    if cfg.get("SD_REC") and not (cfg.get("SDCARD") and cfg.get("LAYOUT") == 1 and cfg.get("FAR_OK")):
+        err.append(Issue("recording to the card (SD_REC) needs the card under full FatFs (SDCARD, LAYOUT 1, FAR_OK)",
+                         ["SD_REC", "SDCARD", "LAYOUT", "FAR_OK"]))
     if cfg.get("FAR_OK") and not cfg.get("LAYOUT"):    # the big slot exists only in the fake SD mode layout
         err.append(Issue("the far probe's answer (FAR_OK) opens the fake SD mode's whole slot: it needs that layout "
                          "(LAYOUT 1)", ["FAR_OK", "LAYOUT"]))

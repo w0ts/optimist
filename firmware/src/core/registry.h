@@ -725,6 +725,11 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
                                             * heads and the rings are an arena block per project: ARENA; the voices are
                                             * SAMPLE's CARD set) */
 #endif
+#ifndef FELUCCA_SD_REC_KB
+#define FELUCCA_SD_REC_KB 0                /* the builder's SD_REC (bit 416): the master recorded to the card, the ring's KB
+                                            * (storage/sd/sd_rec.c: the card's stalls it covers); 0 off */
+#endif
+#define FELUCCA_SD_REC (FELUCCA_SD_FATFS && FELUCCA_SD_REC_KB > 0)   /* (full FatFs: the big layout's) */
 #ifndef FELUCCA_OVERLAY
 #define FELUCCA_OVERLAY 0                  /* the RAMTEXT overlays (core/overlay.c, docs/SD-MODE-DESIGN.md 6): the engines' hot
                                             * code in a slot per part, loaded at an engine change; needs LAYOUT 1 (flash) */
