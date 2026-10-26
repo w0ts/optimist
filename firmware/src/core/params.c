@@ -18,7 +18,21 @@ static const char *const N_L2POL[] = {"BI", "UNI"};
 static const char *const N_LT[LT_N] = {"OFF", "PIT", "FLT", "SHP", "AMP", "RES", "PAN", "LVL", "ATK", "DEC",
                                        "E1", "E2", "E3", "E4", "E5", "E6", "E7", "E8", "CHO", "DLY", "REV", "INS1",
                                        "INS2", "L1 RT", "L1 AMT", "SUS", "REL", "ATK2", "DEC2", "SUS2", "REL2", "E1 AMT",
-                                       "E2 AMT", "OSC2", "SDTN", "L2 RT", "L2 AMT", "FLT B"};
+                                       "E2 AMT", "OSC2", "SDTN", "L2 RT", "L2 AMT", "FLT B",
+                                       /* the values on a synth track's pages (core.h LT_E1FLT ..) */
+                                       "E1 FLT", "E1 PIT", "E1 SHP", "E1 X", "E1 Y", "E1 Z",
+                                       "N2 DSA", "N2 AMA", "N2 DSB", "N2 AMB",
+                                       "L1 WAV", "L1 PHS", "L1 FAD", "L1 DSA", "L1 AMA", "L1 DSB", "L1 AMB",
+                                       "L2 WAV", "L2 TRG", "L2 POL", "L2 DSA", "L2 AMA", "L2 DSB", "L2 AMB",
+                                       "DY RAT", "DY ATK", "DY REL", "DY GN", "DY CL",
+                                       "GATER", "GT PAT", "GT RT", "GT SHP", "JUNO", "JU MOD",
+                                       "FILT", "SLICE", "SL PAT", "SL RT", "SL DEP",
+                                       "ROOT", "SCALE", "QUANT", "CHORD", "TRANS", "STRUM", "VLEAD",
+                                       "O2 WAV", "O2 SEM", "SYNC", "SWARM", "DRIFT", "FTYP", "FB TYP", "FB RES",
+                                       "VOICE", "GLIDE", "GL MOD", "PRIO", "ALLOC", "DETUNE", "VOICES", "DROP",
+                                       "ARP", "AR RT", "AR OCT", "AR GT", "AR SWG", "AR PRB", "AR HLD", "AR ORD",
+                                       "LEN", "DIV", "SWING", "GATE",
+                                       "MUTE", "FX OFF"};
 static const char *const N_AMODE[] = {"OFF", "UP", "DN", "UPDN", "RND", "ORD", "BASS"};   /* (BASS appended: the lowest, then the others in turn) */
 static const char *const N_SCALE[] = {"CHR", "MAJ", "MIN", "DOR", "MIX", "PEN", "MPEN", "HARM",
                                     "PHRY", "LYD", "LOC", "MEL", "BLUES", "WHOLE", "DIMHW", "DIMWH"};
@@ -547,6 +561,10 @@ static void lt_text(const param_desc_t *d, int32_t v, char *val)
         str_cpy(val, v == LT_INS1 ? "S1 --" : "S2 --", 7);   /* (empty: INSERTS' ---- with the slot) */
         return;
     }
+#if FELUCCA_ENG_PROPHET
+    if (v == LT_OSC2 && ENGINES[TSEL->eng_req % NENGINES] == &ENG_PROPHET)
+        s = "A PIT";                                    /* (PROPHET: OSC2 is A's pitch alone, eng_prophet.c) */
+#endif
     if (v >= LT_E1 && v <= LT_E8) {
         const param_desc_t *e = track_desc(TSEL, P_E0 + (uint32_t)(v - LT_E1));
         if (e->label && e->label[0] && e->label[0] != '-')

@@ -85,7 +85,7 @@ static void glo_list_tests(void)
     SCREENS[SCR_GLOBAL].cell(0, 0, &c);
     ok = !strcmp(c.label, "BPM");
     SCREENS[SCR_GLOBAL].cell(1, 1, &c);
-    ok &= !strcmp(c.label, "NUDGE") && c.kind == CK_RO;
+    ok &= !strcmp(c.label, "NUDGE") && c.kind == CK_VAL;   /* (its knob: the clock 1 ms a click) */
     SCREENS[SCR_GLOBAL].cell(2, 2, &c);
     ok &= !strcmp(c.label, "SWING");
     i = SCREENS[SCR_GLOBAL].rows() - 1u;

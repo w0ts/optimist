@@ -11,6 +11,8 @@
  *              never changes). Following an external clock: that clock's offset (CLK OFS, or BT OFS for a Bluetooth
  *              clock: clock_sync.c sync_ofs) 1 ms later / earlier each TEMPO_OFS_MS held, kept; the
  *              NUDGE card shows it and its knob turns it
+ *   NUDGE knob the internal clock moved 1 ms a click, once (+: earlier, -: later; seq.c clk_jog); the card shows the
+ *              ms moved since the page opened, or the held nudge while OCT- / + are down
  *   white key  tap tempo (two taps or more); HOME too (op_combos.c: PLAY held, HOME pressed)
  * The panel: the tempo big, the beat, the nudge, the clock followed (A:USB ...) and its RX light. */
 #define TEMPO_HOLD_MS op_hold_ms()      /* PLAY held this long: the page (shorter: a tap, start / stop; SYSTEM HOLD) */
@@ -23,6 +25,7 @@ static struct {
     uint8_t pend;                       /* PLAY down, nothing done yet: a tap (start / stop) when let go early */
     uint32_t t0;                        /* PLAY's press */
     uint32_t ofs_t;                     /* the offset's last 1 ms step (OCT- / + held, following a clock) */
+    int16_t jog;                        /* the NUDGE knob's ms since the page opened (the card's value) */
 } tp;
 static const uint8_t REC_LENS[3] = {16u, 32u, 64u};    /* LENGTH: 1, 2, 4 bars of 1/16 */
 enum { TPR_TEMPO, TPR_REC, TPR_REC2, TPR_N };          /* the page's rows (GLOBAL's first three too: op_global.c) */
@@ -33,6 +36,7 @@ static void tempo_open(void)
     if (tp.on)
         return;
     tp.on = 1;
+    tp.jog = 0;
     tp.prev = ui.scr;
     ui.scr = SCR_TEMPO;
     ui.hot = 0;
@@ -115,12 +119,21 @@ static void tp_cell(uint32_t r, uint32_t k, cell_t *c)
         cell_param(c, &SY_OFS_D[sync_ofs_ix()], &sync_ofs[sync_ofs_ix()]);
         return;
     }
-    if (!r) {                                           /* NUDGE: what OCT- / OCT+ do now, a read-out */
+    if (!r) {                                           /* NUDGE: OCT- / OCT+ held (%), else the knob's ms moved */
+        char b[8];
         c->label = "NUDGE";
-        c->kind = CK_RO;
-        cell_val(c, clk_nudge < 0 ? "-3.9" : clk_nudge > 0 ? "+3.9" : "0");
-        c->unit = "%";
-        cell_gauge(c, 0, -1, 1, clk_nudge < 0 ? -1 : clk_nudge > 0 ? 1 : 0);
+        c->kind = CK_VAL;
+        if (clk_nudge) {
+            cell_val(c, clk_nudge < 0 ? "-3.9" : "+3.9");
+            c->unit = "%";
+            cell_gauge(c, 0, -1, 1, clk_nudge < 0 ? -1 : 1);
+            return;
+        }
+        str_cpy(b, tp.jog > 0 ? "+" : "", sizeof b);
+        fmt_int(b + str_len(b), tp.jog);
+        cell_val(c, b);
+        c->unit = "ms";
+        cell_gauge(c, 0, -20, 20, ui_clamp(tp.jog, -20, 20));
         return;
     }
     c->kind = CK_VAL;
@@ -147,6 +160,16 @@ static void tp_turn(uint32_t r, uint32_t k, int32_t s, int fine)
     if (!r && k == 1u && sy.src) {                      /* the offset in use (its card above) */
         val_turn(&SY_OFS_D[sync_ofs_ix()], &sync_ofs[sync_ofs_ix()], k, s, fine);
         settings_later = 1;
+        return;
+    }
+    if (!r && k == 1u) {                                /* NUDGE: the internal clock 1 ms a click, once */
+        if (s == OP_RESET) {
+            tp.jog = 0;                                 /* (the card's count from 0; a move made is not taken back) */
+            return;
+        }
+        s = ui_clamp(s, -10, 10);
+        clk_jog = (int8_t)(clk_jog + s);
+        tp.jog = (int16_t)ui_clamp(tp.jog + s, -999, 999);
         return;
     }
     if (r != TPR_REC)

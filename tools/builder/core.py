@@ -530,7 +530,8 @@ def fx_memory(cfg):
     def on(key):
         return int(f.get(R.ITEMS[key].flag, 0) or 0)
     send, cho = dly_send_kb(cfg, f), FXM_CHO_KB if on("FX_CHORUS") else 0
-    kb = {"INS_CHORUS": 2, "INS_DELAY": 8, "INS_JCHORUS": 2, "INS_FLANGER": 1, "INS_XDLY": on("XDLY_LEN") // 256}
+    kb = {"INS_CHORUS": 2, "INS_DELAY": 8, "INS_JCHORUS": 4 if on("JUNO_FINE") else 2, "INS_FLANGER": 1,   # (JUNO_FINE:
+          "INS_XDLY": on("XDLY_LEN") // 256}                                                          # its line 32-bit)
     types = [k for k in FXM_TYPES if on(k)]
     own = (max(0, on("DLY_ARENA") - send) if on("DLY_ARENA") else sum(kb[k] for k in types)) if types else 0
     out = {}

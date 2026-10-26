@@ -651,6 +651,26 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #define FELUCCA_FAVORITES 1                /* mark sounds as favorites and browse only them: SAVE > PRESETS KNOB 3 FAV, KNOB 4
                                             * LIST ALL / FAV (core/favorites.c, model.c; Felucca 1.6; SLOOP's UI) */
 #endif
+/* the effects' finer arithmetic (2026-10-26, a Reddit report of grainy FX; each measured on the host, none heard yet): the
+ * old arithmetic stays the default, each its own builder item */
+#ifndef FELUCCA_CHO_EXACT
+#define FELUCCA_CHO_EXACT 0                /* the chorus send's read points ramped exactly over a block (fx.c CHO_RAMP) */
+#endif
+#ifndef FELUCCA_MIX_FINE
+#define FELUCCA_MIX_FINE 0                 /* a part into the mix 3 bits down, not 4 (fx.c MIX_PAN) */
+#endif
+#ifndef FELUCCA_WIDE_FINE
+#define FELUCCA_WIDE_FINE 0                /* WIDE's all-pass at the part's scale (insfx.c ifx_ap_w) */
+#endif
+#ifndef FELUCCA_TFLT_FINE
+#define FELUCCA_TFLT_FINE 0                /* the track FILTER at the samples' scale, 64-bit products (fx.c tflt_tick_w) */
+#endif
+#ifndef FELUCCA_JUNO_FINE
+#define FELUCCA_JUNO_FINE 0                /* JUNO CHORUS's line at 32 bits: 4 KB of the effects memory (juno_cho.h) */
+#endif
+#ifndef FELUCCA_REV_HB_LONG
+#define FELUCCA_REV_HB_LONG 0              /* the half-rate reverbs behind a 63-tap low-pass (fx.c rhl_dec, rhl_int) */
+#endif
 #ifndef FELUCCA_LIVE_SAVE
 #define FELUCCA_LIVE_SAVE 0                /* saves while playing: no STOP BEFORE SAVE, the waiting writes (sections, song,
                                             * settings, the working project) go to flash with the transport running, one

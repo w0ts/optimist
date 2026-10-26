@@ -332,7 +332,25 @@ enum {                          /* per-track parameters */
 enum { LT_OFF, LT_PIT, LT_FLT, LT_SHP, LT_AMP, LT_RES, LT_PAN, LT_LVL, LT_ATK, LT_DEC,
        LT_E1, LT_E2, LT_E3, LT_E4, LT_E5, LT_E6, LT_E7, LT_E8, LT_CHO, LT_DLY, LT_REV, LT_INS1, LT_INS2,
        LT_L1RT, LT_L1AMT, LT_SUS, LT_REL, LT_ATK2, LT_DEC2, LT_SUS2, LT_REL2, LT_N1AMT, LT_N2AMT, LT_OSC2, LT_SDTN,
-       LT_L2RT, LT_L2AMT, LT_FLTB, LT_N };   /* (FLTB: ANALOG 2's FLT B cutoff, P_A2BCUT) */
+       LT_L2RT, LT_L2AMT, LT_FLTB,           /* (FLTB: ANALOG 2's FLT B cutoff, P_A2BCUT) */
+       /* every other value a synth track's pages show (issue 75, the user 2026-10-26: "all parameter user can see on
+        * screen. for all synths"), each moved as a value (voice.c LT_TAB: LK_P), in the pages' order; a value this build
+        * lacks keeps its number and does nothing. Not: ENGINE and the insert TYPEs (no value of the part: changing them
+        * builds the voice or the slot anew), the EQ3 XDLY values (the slot's own, fx_slots.c) */
+       LT_E1FLT, LT_E1PIT, LT_E1SHP, LT_E1X, LT_E1Y, LT_E1Z,                 /* ENV 1 MOD */
+       LT_N2DA, LT_N2AA, LT_N2DB, LT_N2AB,                                   /* ENV2 DEST */
+       LT_LWAVE, LT_LPHS, LT_LFADE, LT_L1DA, LT_L1AA, LT_L1DB, LT_L1AB,      /* LFO, LFO DEST */
+       LT_L2WAVE, LT_L2TRIG, LT_L2POL, LT_L2DA, LT_L2AA, LT_L2DB, LT_L2AB,   /* LFO 2, LFO2 DEST */
+       LT_TDRAT, LT_TDATK, LT_TDREL, LT_TDGAIN, LT_TDCEIL,                   /* DYN */
+       LT_TGATE, LT_TGPAT, LT_TGRATE, LT_TGSHP, LT_TJCHO, LT_TJMODE,         /* GATER, JUNO CHO */
+       LT_TFLT, LT_SLCR, LT_SLPAT, LT_SLRATE, LT_SLDEP,                      /* FILTER, SLICER */
+       LT_ROOT, LT_SCALE, LT_QUANT, LT_CHORD, LT_TRANS, LT_STRUM, LT_VLEAD,  /* SCL, SCL 2 */
+       LT_A2WAVE, LT_A2SEMI, LT_A2SYNC, LT_A2SWRM, LT_A2DRFT, LT_A2FTYP, LT_A2BTYP, LT_A2BRES,   /* OSC 2 SWARM FLT 2 FLT B */
+       LT_VMODE, LT_GLIDE, LT_GLMODE, LT_PRIO, LT_ALLOC, LT_DETUNE, LT_VOICES, LT_DROP,          /* VOICE, VOICE 2 */
+       LT_AMODE, LT_ARATE, LT_AOCT, LT_AGATE, LT_ASWING, LT_APROB, LT_AHOLD, LT_AORDER,          /* ARP, ARP 2 */
+       LT_SLEN, LT_SDIV, LT_SSWING, LT_SGATE,                                /* PATTERN */
+       LT_MUTE, LT_FXOFF,                                                    /* the mixer's */
+       LT_N };
 #define LT_NB LT_N                             /* the destinations (every build: LFO 2 is always built) */
 /* ENV 1's AMT on FLT (2 x its FLT depth, P_ED_FLT): for an engine that models the envelope's cutoff depth itself
  * (eng_juno.c) */
@@ -342,6 +360,17 @@ enum { LT_OFF, LT_PIT, LT_FLT, LT_SHP, LT_AMP, LT_RES, LT_PAN, LT_LVL, LT_ATK, L
 #define LT_CLASSIC(d) ((uint32_t)(d) - LT_PIT < 4u)   /* PIT FLT SHP AMP: the four depths of before */
 #define LFO_AMT_LO (-128)               /* a slot's AMT */
 #define LFO_AMT_HI 127
+/* a pitch AMT (an LFO's or an envelope's slot on PIT or OSC2, ENV 1's PIT, DROP, a drum lane's TUNE slot) -> its depth at
+ * full, 1/4096 semitone: |a| 1..32 a 32nd of a semitone a step (1 at 32), 33..55 a semitone a step (2..24), past 55 24
+ * (issue 75, the user 2026-10-26: "first a bit and then per full semi tones"; was 3/32 of a semitone a step, LFO's) */
+AINL int32_t pit_depth(int32_t a)
+{
+    int32_t m = a < 0 ? -a : a;
+    m = m <= 32 ? m << 7 : (m < 55 ? m - 31 : 24) << 12;
+    return a < 0 ? -m : m;
+}
+/* a modulator at v (Q15) x pitch AMT a -> 1/4096 semitone (no overflow: the depth over 16 first, exact below 33) */
+AINL int32_t pit_mul(int32_t v, int32_t a) { return (v * (pit_depth(a) >> 4)) >> 11; }
 /* the ids that held the depths PIT FLT SHP AMP (a project's, a user preset's, SLOOP's, a preset's x[]): their stored form */
 #define P_LEG_PIT P_L1DA
 #define P_LEG_FLT P_L1AA

@@ -1173,11 +1173,9 @@ static void op_frame_draw(void)
         memset(ui.sig, 0, sizeof ui.sig);
     }
     if (ov != ui.overlay || ui.force) {                 /* the panel under the overlay: again when it goes */
-        if (ui.overlay == 5u) {                         /* (the popup list covers the cards too: the panel cleared, every band again; the mixer
-                                                         * draws its rows in place, over what was there) */
-            lcd_fill(0, OH_HEAD, 240, 240 - OH_HEAD, C_BLACK);
+        if (ui.overlay == 5u)                           /* (the popup list covers the cards too: every band again, drawn over it; no black
+                                                         * fill first: the panel blinked ~1.5 s after a list value's turn, Reddit 2026-10-26) */
             memset(ui.sig, 0, sizeof ui.sig);
-        }
         ui.overlay = (uint8_t)ov;
         ui.sig[2] = ui.sig[4] = 0;
         ui.sig[3] = 0;                                  /* (the band under a question) */
