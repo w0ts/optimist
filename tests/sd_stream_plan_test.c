@@ -202,6 +202,17 @@ static void run_card(const char *img_path)
     CHECK(sstp.state == SSTP_PLACED && sst_part_src[1] == 1 && sst_src[1].hlen == 17640u && head_ok(1, 2),
           "%s: placed by itself once there is room (%u)", what, sstp.state);
 
+    /* a part's rings: 4 at most (SST_PART_RINGS: the default project's effects leave no room for 8); one 8-voice part */
+    sst_part_set(1, 0);
+    sst_part_set(2, 0);
+    sst_plan_poll();
+    settle();
+    CHECK(sstp.state == SSTP_PLACED && sstp.nring == 4u, "%s: one 8-voice part: 4 rings (%u)", what, sstp.nring);
+    sst_part_set(1, h1);
+    sst_part_set(2, h0);
+    sst_plan_poll();
+    settle();
+    CHECK(sstp.state == SSTP_PLACED && sstp.nring == SST_N, "%s: three 8-voice parts: SST_N rings (%u)", what, sstp.nring);
     /* the rings as many as the CARD parts can sound at once: three one-voice parts, three rings */
     part_voices[0] = part_voices[1] = part_voices[2] = 1;
     sst_plan_poll();

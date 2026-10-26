@@ -927,6 +927,51 @@ static void sdm_load_now(void)
         sdm_load_name(sdm_dl.name);
 }
 
+/* ---- a card preset's name on the part (op_cells.c snd_name; the user, 2026-10-26: the mixer said 808 BOOM after SUB
+ * BASS was loaded). A factory file (PRESETS/FACTORY/<ENGINE>/<nnn> <NAME>) sets the part's preset number nnn: the name
+ * is then the list's everywhere and PRESETS turns on from it. Any other file: its own name, shown while the part's engine
+ * and preset number stay as they were at the load */
+static char sdm_pname[NPART][14];
+static uint16_t sdm_pkey[NPART];
+static uint32_t sdm_pkey_of(const track_t *t) { return (uint32_t)t->eng_req | (uint32_t)t->preset << 8; }
+static int sdm_has(const char *s, const char *w)        /* w somewhere in s */
+{
+    uint32_t i, n = str_len(w);
+    for (; *s; s++) {
+        for (i = 0; i < n && s[i] == w[i]; i++)
+            ;
+        if (i == n)
+            return 1;
+    }
+    return 0;
+}
+static void sdm_named(uint32_t part, const char *file)
+{
+    track_t *t = &trk[part % NPART];
+    uint32_t i, dot = 0, n;
+    char b[sizeof sdm_pname[0]];
+    if (part >= NPART)
+        return;
+    for (i = 0; file[i]; i++)
+        dot = file[i] == '.' ? i : dot;                 /* (the extension's dot: the last) */
+    str_cpy(b, file, dot && dot + 1u < sizeof b ? dot + 1u : sizeof b);
+    sdm_pname[part][0] = 0;
+    if (sdm_has(sdm.path, "/PRESETS/FACTORY/") && b[0] >= '0' && b[0] <= '9' && b[1] >= '0' && b[1] <= '9' &&
+        b[2] >= '0' && b[2] <= '9' && b[3] == ' ') {
+        n = (uint32_t)(b[0] - '0') * 100u + (uint32_t)(b[1] - '0') * 10u + (uint32_t)(b[2] - '0');
+        if (n < ENGINES[t->eng_req % NENGINES]->npresets) {
+            t->preset = (uint8_t)n;
+            return;
+        }
+    }
+    str_cpy(sdm_pname[part], b, sizeof sdm_pname[part]);
+    sdm_pkey[part] = (uint16_t)sdm_pkey_of(t);
+}
+static const char *sdm_part_name(uint32_t k)            /* the card preset part k plays, 0: its engine's or user's name */
+{
+    return k < NPART && sdm_pname[k][0] && sdm_pkey[k] == (uint16_t)sdm_pkey_of(&trk[k]) ? sdm_pname[k] : 0;
+}
+
 /* ---- the actions on slot k of the list shown */
 static void sdm_do(uint32_t op, uint32_t k)
 {
@@ -972,6 +1017,7 @@ static void sdm_do(uint32_t op, uint32_t k)
         else if (!n || up_card_give(sd_blk, n) < 0)
             ui_message("NOT A PRESET");
         else {                                       /* (refused: up_load said why) */
+            sdm_named(song.sel, nm);
             snd_mark(song.sel);
             ui_say("LOADED ", nm);
         }

@@ -293,6 +293,22 @@ static void sdcard_tests(void)
     sdu_key(0);
     tap(B_SAVE);
     check(upc_gives == 1u && upc_rec[0] == (uint8_t)5u && !strcmp((char *)upc_rec + 5, "LEAD"), "LOAD LEAD: its record given");
+    {
+        char b[16];
+        uint32_t was = trk[song.sel].preset;
+        snd_name(song.sel, b);
+        check(!strcmp(b, "LEAD"), "LOAD LEAD: the part named LEAD on the mixer (the file's name, no extension)");
+        trk[song.sel].preset = (uint8_t)(was + 1u);
+        snd_name(song.sel, b);
+        check(strcmp(b, "LEAD") != 0, "... until its preset changes");
+        trk[song.sel].preset = (uint8_t)was;
+        str_cpy(sdm.path, "OPTIMIST/PRESETS/FACTORY/ANALOG/002 SUB BASS.OPS", sizeof sdm.path);
+        trk[song.sel].preset = 0;
+        sdm_named(song.sel, "002 SUB BASS.OPS");
+        check(trk[song.sel].preset == 2u && !sdm_part_name(song.sel),
+              "a factory file (FACTORY/<engine>/002 ...): the part's preset number 2, its name the engine's list's");
+        trk[song.sel].preset = (uint8_t)was;
+    }
     sdu_key(0);
     check(op_armed() && strstr(ui.arm_q, "LEAD") && upc_gives == 1u, "a key: LOAD LEAD? asked, nothing loaded yet (one press shows it)");
     sdu_key(0);
