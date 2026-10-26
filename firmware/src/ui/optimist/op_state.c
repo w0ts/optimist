@@ -54,7 +54,11 @@ static const char *const SCR_NAME[SCR_N] = {"MIX", "SOUND", "MASTER", "PROJECT",
 #define ARM_NONE 0xFFu
 #define ARM_OP 0xFDu                  /* arm_scr: an action of no screen cell, arm_row its OA_*, arm_k its argument */
 enum { OA_SCN_STORE, OA_SCN_CLR, OA_PAT_STORE, OA_PAT_CLR, OA_INIT, OA_EXTRAS, OA_DISCARD, OA_SREC,
-       OA_SCN_LOAD, OA_PART_CUT, OA_DROP };
+       OA_SCN_LOAD, OA_PART_CUT, OA_DROP,
+#if FELUCCA_SD_STREAM
+       OA_SDDROP,                     /* (the card samples' memory short: a part dropped, storage/sd/sd_mode.c) */
+#endif
+};
 
 static struct {
     /* read by the core under SLOOP's names: project.c (menu: autosave waits), main.c (force, page: the crash

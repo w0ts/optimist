@@ -272,6 +272,13 @@ static void sdcard_tests(void)
               "USE snare.wav on T2: its hash and hint in the project");
         check(sdm_sample_path(1, nm2, sizeof nm2) && !strcmp(nm2, "OPTIMIST/SAMPLES/snare.wav"), "... found again by its hash");
     }
+#if FELUCCA_SD_STREAM
+    check(sst_part_hash[1] == sdm_smp[1].hash && sdm_smp[1].hash, "USE (streaming built): the part's CARD sample given to the plan");
+    sst_part_set(1, 0);
+    sdm_smp_key = 0;                                    /* (the project's record read again: a load, a boot) */
+    sdm_smp_sync();
+    check(sst_part_hash[1] == sdm_smp[1].hash, "... and again from the project's record");
+#endif
     turn(EN_K4, 1);
     turn(EN_K4, 1);
     check(!strcmp(sdu_val(3), "RECENT") && sdm_count() == 1u && !strcmp(sdc_name(0), "snare.wav"), "VIEW RECENT: the one used");
@@ -310,6 +317,38 @@ static void sdcard_tests(void)
         sdm_leave();
         sdu_frames(1);
         check(sdp_keep == 8u && sda_scale == 100u, "SHIFT + the knob: 8 versions, 100 %");
+#if FELUCCA_SD_STREAM
+        sys_cell(r + 1u, 0, &c);
+        check(!strcmp(c.label, "PRE-BUFFER") && !strcmp(c.val, "50") && strstr(c.unit, "KB"), "SD CARD page 2: PRE-BUFFER 50 ms, its KB");
+        sys_turn(r + 1u, 0, 1, 0);
+        sys_turn(r + 1u, 0, 1, 0);
+        sys_turn(r + 1u, 0, 1, 0);
+        check(sst_pre_ms == 200u, "PRE-BUFFER knob: 100, 200, stops at 200");
+        sdm_leave();                                    /* (SYSTEM left) */
+        sdu_frames(1);
+        memset(&sdm_rec, 0, sizeof sdm_rec);
+        sst_pre_set(50);
+        sdm_rec_read();
+        check(sst_pre_ms == 200u, "... kept in the log's device record");
+        sdm_set(2, 0);
+        sdm_leave();
+        sdu_frames(1);
+        check(sst_pre_ms == 50u, "SHIFT + the knob: 50 ms");
+        /* the streams' memory short (sd_stream_plan.c refused): MEM FULL CARD, a part's drop asked, then the pre-buffer that fits */
+        sstp.state = SSTP_REFUSED;
+        sstp.said = 0;
+        sstp.drop = 1u << 2;
+        sstp.fit_ms = 25;
+        sdu_frames(1);
+        check(op_armed() && ui.arm_danger && !strncmp(ui.arm_q, "DROP T3", 7), "MEM FULL CARD: DROP T3 asked, red");
+        tap(B_HOME);
+        sdu_frames(1);
+        check(!op_armed() && sdu_msg("25 MS FITS"), "NO: no other part frees enough: the pre-buffer that fits said");
+        sdu_frames(3);
+        check(!op_armed(), "... said once");
+        sstp.state = SSTP_IDLE;
+        sdu_frames(1);
+#endif
     }
     /* ---- a full card: the save kept in flash, finished at the next mount */
     sdu_row(PR_PROJECT);

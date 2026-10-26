@@ -683,6 +683,7 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #endif
 #if FELUCCA_SD_UI && !(FELUCCA_PATTERNS && SEC_LOGGED && FELUCCA_LAYOUT == 1)
 #error "SD card mode needs the projects of the section log (PATTERNS, SECTIONS 8 or 16) in the fake SD mode's layout"
+#endif
 #ifndef FELUCCA_SD_RING_KB
 #define FELUCCA_SD_RING_KB 0               /* the builder's SD_RING (bit 415): samples streamed from the card, the KB of
                                             * lookahead a playing voice keeps (storage/sd/sd_stream.c); 0 off */

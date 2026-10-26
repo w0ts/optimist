@@ -612,6 +612,12 @@ static void op_act(uint32_t a, uint32_t k)
     case OA_DROP:                                       /* memory short: this part a silent placeholder (op_input.c mem_tick) */
         mem_drop(k);
         return;
+#if FELUCCA_SD_STREAM
+    case OA_SDDROP:                                     /* the card samples' memory short: this part a silent placeholder (its
+                                                         * memory back once its switch is done; the plan places by itself) */
+        part_drop(&trk[k % NPART]);
+        return;
+#endif
     case OA_SCN_STORE:
         scene_store_now(k);
         break;

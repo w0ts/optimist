@@ -40,6 +40,8 @@ static void sdm_set(uint32_t what, int32_t s);
 static void sdm_leave(void);
 static void sdm_again(void);
 static uint32_t sdm_state(void);
+static uint32_t sdm_pre_ms(void);                       /* (SD_STREAM: the pre-buffer, its KB) */
+static uint32_t sdm_pre_kb(void);
 static uint32_t sd_card_mb(void);                       /* storage/sd/sdcard.c */
 static void name_card(uint32_t list, const char *prefill, const char *was);   /* op_name.c */
 static void sec_name(uint32_t s, char *b);              /* storage/sections/sections.c */
