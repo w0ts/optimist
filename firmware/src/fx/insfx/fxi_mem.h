@@ -21,7 +21,7 @@
 /* each type's line in units, by its index j (fxi_kern.c FXI_J: 0 CHRS, 1 ECHO, 2 JUNO CHORUS, 3 FLNG, 4 XDLY) */
 #define FXA_Z0 2u
 #define FXA_Z1 8u
-#define FXA_Z2 2u
+#define FXA_Z2 (FELUCCA_JUNO_FINE ? 4u : 2u)             /* (JUNO_FINE: its line at 32 bits) */
 #define FXA_Z3 1u
 #define FXA_Z4 (2u * FELUCCA_XDLY_LEN / FXA_U)
 #define FXI_B0 (FELUCCA_INS_CHORUS != 0)
@@ -47,7 +47,7 @@ _Static_assert(!FELUCCA_DLY_ARENA || FELUCCA_DLY_ARENA >= FXA_S,
 _Static_assert(FXA_T <= 1024u, "the effects memory: 1 MB at most (fxi.c fxa_bm)");
 _Static_assert(!FXI_B0 || FXI_MX(FXA_Z0) >= 1u, "FELUCCA_DLY_ARENA: no room for one CHRS line (2 KB)");
 _Static_assert(!FXI_B1 || FXI_MX(FXA_Z1) >= 1u, "FELUCCA_DLY_ARENA: no room for one ECHO line (8 KB)");
-_Static_assert(!FXI_B2 || FXI_MX(FXA_Z2) >= 1u, "FELUCCA_DLY_ARENA: no room for one JUNO CHORUS line (2 KB)");
+_Static_assert(!FXI_B2 || FXI_MX(FXA_Z2) >= 1u, "FELUCCA_DLY_ARENA: no room for one JUNO CHORUS line (2 KB, 4 with JUNO_FINE)");
 _Static_assert(!FXI_B3 || FXI_MX(FXA_Z3) >= 1u, "FELUCCA_DLY_ARENA: no room for one FLNG line (1 KB)");
 _Static_assert(!FXI_B4 || FXI_MX(FXA_Z4) >= 1u, "FELUCCA_DLY_ARENA: no room for one XDLY (2 lines of FELUCCA_XDLY_LEN)");
 _Static_assert(FELUCCA_XDLY_LEN % 256 == 0 && CHO_LEN % FXA_U == 0, "the lines: whole units");

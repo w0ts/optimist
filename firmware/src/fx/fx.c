@@ -752,6 +752,43 @@ static void rev_tank_clear(void)
  * is an FIR of the send or the tank: at 0 in, 0 out (the idle skip, above, also waits for rev_half_any() to be
  * 0). Blocks are CTL long: an even number of samples. */
 _Static_assert((CTL & 1) == 0, "REV_HALF: the reverb takes the block in pairs");
+#if FELUCCA_REV_HB_LONG
+/* REV_HB_LONG: the same pairs behind a 63-tap low-pass (Kaiser-windowed sinc, fc 9.8 kHz, beta 6; Q15, symmetric: its first
+ * 32 taps, worktrees/fxn-hb-table.py 2026-10-26) instead of the half-band: -0.6 dB at 9 kHz, -8.8 at 10, -45 at 11.025 (the
+ * fold), -74 at 12 kHz, against the half-band's -6 and -11, whose images of 9-11 kHz came back 6-20 dB down (the "lower
+ * bitrate" grit of the half-rate reverbs, measured on the host). In: one output a pair (32 multiplies, the taps paired);
+ * out: each tank sample into two outputs, the even taps and the odd (16 each, paired), x 2. Both phases sum to 16384: DC
+ * passes at exactly 1. Latency 31 samples (0.7 ms). About 48 multiplies a sample more than the half-band; 1 KB of pool */
+static const int16_t RHL_H[32] = {-3, -7, 5, 19, 0, -36, -16, 53, 50, -62, -104, 50, 174, 0, -249, -102, 306, 266, -312, -492,
+                                  227, 767, 0, -1067, -443, 1358, 1248, -1601, -2935, 1764, 10244, 14564};
+static struct {
+    int32_t x[128];              /* the send, newest first, each value twice (rings of 64, no shifting) */
+    int32_t l[64], r[64];        /* the tank's out, newest first, twice (rings of 32) */
+    uint32_t j, k;
+} rhl __attribute__((section(".pool"), aligned(4)));
+AINL int32_t rhl_dec(const int32_t *h)                  /* h[0 .. 62], newest first -> the low-pass's output */
+{
+    int64_t a = (int64_t)RHL_H[31] * h[31];
+    uint32_t i;
+    for (i = 0; i < 31u; i++)
+        a += (int64_t)RHL_H[i] * (h[i] + h[62u - i]);
+    return (int32_t)(a >> 15);
+}
+AINL void rhl_int(const int32_t *p, int32_t *o)         /* p[0 .. 31] newest first -> o[0] (even taps), o[1] (odd), x 2 */
+{
+    int64_t e = 0, d = (int64_t)RHL_H[31] * p[15];
+    uint32_t i;
+    for (i = 0; i < 16u; i++)
+        e += (int64_t)RHL_H[2u * i] * (p[i] + p[31u - i]);
+    for (i = 0; i < 15u; i++)
+        d += (int64_t)RHL_H[2u * i + 1u] * (p[i] + p[30u - i]);
+    o[0] = (int32_t)(e >> 14), o[1] = (int32_t)(d >> 14);
+}
+AINL int32_t rev_half_any(void)                         /* any filter cell non-zero */
+{
+    return fx_any(rhl.x, 128) | fx_any(rhl.l, 64) | fx_any(rhl.r, 64);
+}
+#else
 static struct {
     int32_t e[16], l[16], r[16]; /* rings of 8, each value twice: h[j .. j + 7] newest first, no shifting. e: the */
     int32_t o[8];                /* send's newer sample of each pair, o (4): its older one; l, r: the tank's out */
@@ -765,6 +802,7 @@ AINL int32_t rev_hb(const int32_t *h)                   /* the half-band's eight
 {
     return -14 * (h[0] + h[7]) + 39 * (h[1] + h[6]) - 90 * (h[2] + h[5]) + 321 * (h[3] + h[4]);
 }
+#endif
 /* one sample of tank t at 22.05 kHz (t is a constant at every call: this folds to that tank's step) */
 FX_STEP int32_t rev_tank_step(uint32_t t, int32_t y, int32_t r, int32_t g, int32_t lpk, int32_t *yr, int32_t *wv,
                               const int lng)
@@ -793,6 +831,20 @@ FX_STEP int32_t rev_tank_step(uint32_t t, int32_t y, int32_t r, int32_t g, int32
 FX_STEP void rev_half_pair(uint32_t t, const int32_t *in, int32_t *wl, int32_t *wr, int32_t r, int32_t g, int32_t lpk,
                            int32_t *wv, const int lng)
 {
+#if FELUCCA_REV_HB_LONG
+    uint32_t j = rhl.j = (rhl.j - 2u) & 63u, k = rhl.k = (rhl.k - 1u) & 31u;
+    int32_t y, ol, orr, o[2];
+    rhl.x[j] = rhl.x[j + 64u] = in[1];                  /* (the pair's newer sample first: newest first) */
+    rhl.x[j + 1u] = rhl.x[j + 65u] = in[0];
+    y = rhl_dec(rhl.x + j);
+    ol = rev_tank_step(t, y, r, g, lpk, &orr, wv, lng);
+    rhl.l[k] = rhl.l[k + 32u] = ol;
+    rhl.r[k] = rhl.r[k + 32u] = orr;
+    rhl_int(rhl.l + k, o);
+    wl[0] += o[0], wl[1] += o[1];
+    rhl_int(rhl.r + k, o);
+    wr[0] += o[0], wr[1] += o[1];
+#else
     uint32_t j = rev_half.j = (rev_half.j - 1u) & 7u, q = j & 3u;
     int32_t y, ol, orr, *e = rev_half.e + j, *l = rev_half.l + j, *rr = rev_half.r + j;
     e[0] = e[8] = in[1];
@@ -805,6 +857,7 @@ FX_STEP void rev_half_pair(uint32_t t, const int32_t *in, int32_t *wl, int32_t *
     wr[0] += rev_hb(rr) >> 9;
     wl[1] += l[3];
     wr[1] += rr[3];
+#endif
 }
 /* a block of tank t (fx_buses' run_r); ma, mb: line 0's modulation at both ends */
 FX_STEP void rev_half_run(uint32_t t, const int32_t *rev_in, int32_t *wl, int32_t *wr, uint32_t n, int32_t ma,
@@ -862,8 +915,13 @@ FX_STEP void rev_half_skip(uint32_t t, uint32_t n)      /* idle: n output sample
 static void rev_half_clear(void)                        /* its cells to 0 */
 {
     uint32_t i;
+#if FELUCCA_REV_HB_LONG
+    for (i = 0; i < 128u; i++)
+        rhl.x[i] = rhl.l[i & 63u] = rhl.r[i & 63u] = 0;
+#else
     for (i = 0; i < 16u; i++)
         rev_half.e[i] = rev_half.l[i] = rev_half.r[i] = rev_half.o[i & 7u] = 0;
+#endif
 }
 #define REV_HALF_BUSY() rev_half_any()
 #else
@@ -1452,6 +1510,17 @@ static __attribute__((noinline)) void rs_done(void)   /* (XIP: a call a block, F
         rs_cur[k] = rs_to[k];
 }
 
+/* the read points' ramp over the block (dca, dcb): CHO_EXACT, the whole block's change, i/CTL of it each sample (as the CHRS
+ * insert, fxi_kern.c); else a step a sample cut short once a block (up to ~0.12 sample behind by the block's end, back at
+ * the next: a 1378 Hz jitter of the read point, grit around every partial, 12-15 dB over the exact ramp at 220 Hz-1 kHz,
+ * measured on the host 2026-10-26) */
+#if FELUCCA_CHO_EXACT
+#define CHO_RAMP(d, i) (((d) * (int32_t)(i)) >> CTL_LOG2)
+#define CHO_SLOPE(a0, a1) ((a1) - (a0))
+#else
+#define CHO_RAMP(d, i) ((d) * (int32_t)(i))
+#define CHO_SLOPE(a0, a1) (((a1) - (a0)) >> CTL_LOG2)
+#endif
 /* the chorus' block into wl / wr (its read points ab: ca0 dca cb0 dcb), its CHO RET (cg); -> the block's largest |right|
  * (the mixer's return meter). The delay's into wl / wr added (its divide in dly_block, flash); -> its largest |sample|.
  * From main RAM (HOT2: RAMTEXT is full; fx_buses calls each once a block) */
@@ -1461,7 +1530,7 @@ static HOT2 __attribute__((noinline)) int32_t cho_run(const int32_t *in, int32_t
     uint32_t i;
     int32_t yr = 0, pk = 0;
     for (i = 0; i < n; i++) {
-        wl[i] = cho_step(in[i], ab[0] + ab[1] * (int32_t)i, ab[2] + ab[3] * (int32_t)i, &yr, wc);
+        wl[i] = cho_step(in[i], ab[0] + CHO_RAMP(ab[1], i), ab[2] + CHO_RAMP(ab[3], i), &yr, wc);
         wr[i] = yr;
     }
     if (cg)                                             /* (CHO RET below unity: the chorus' wet alone so far) */
@@ -1519,15 +1588,13 @@ static HOT int fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int3
         ca0 = (400 << 8) + ((s0 + 32768) * cdepth >> 8), ca1 = (400 << 8) + ((s1 + 32768) * cdepth >> 8);
         cb0 = (400 << 8) + ((32767 - s0) * cdepth >> 8), cb1 = (400 << 8) + ((32767 - s1) * cdepth >> 8);
         ma = (REV_MOD << 8) + ((m0 * REV_MOD) >> 7), mb = (REV_MOD << 8) + ((m1 * REV_MOD) >> 7);
-        dca = (ca1 - ca0) >> CTL_LOG2, dcb = (cb1 - cb0) >> CTL_LOG2;
+        dca = CHO_SLOPE(ca0, ca1), dcb = CHO_SLOPE(cb0, cb1);
     }
 #if FELUCCA_REV_ROOM
     room_gains(&g, &lpk);
 #else
     g = lpk = 0;                                        /* (only the ROOM's) */
 #endif
-#define CHO_R0 (ca0 + dca * (int32_t)i)
-#define CHO_R1 (cb0 + dcb * (int32_t)i)
 #if REV_LATE
     if (had && !rvj.done)                               /* (CPU1 down before it ran the kept block: here) */
         rev_job();
@@ -1625,8 +1692,6 @@ static HOT int fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int3
         FAR(rs_done)();
     if (!FX_ALL_IDLE)                                   /* (all idle: wet_r not written, every return 0) */
         fx_ret_tap(cpk, dpk, rpk);
-#undef CHO_R0
-#undef CHO_R1
     fx.cho_q = fx_q(fx.cho_q, wc, n);
     fx.dly_q = fx_q(fx.dly_q, wd, n);
 #if REV_LATE
@@ -1763,22 +1828,49 @@ static HOT int tflt_block(tflt_t *f, int32_t v, tsvf_t *c, int32_t reso)
     tsvf_coef(c, f->cut, reso);
     return 1;
 }
-/* n samples of b through state ch, at 2^sh below their level (the SVF's range: +-140000) */
+#if FELUCCA_TFLT_FINE
+/* TFLT_FINE: dsp.c tsvf_tick at the samples' own scale, the products 64 bits, the states' range 150000 << sh: the same
+ * headroom as at 2^sh below, without its rounding (a high-pass at a low cutoff: x - y left that rounding as loud as a quiet
+ * part; 18-20 dB lower, measured on the host 2026-10-26) */
+AINL int32_t tflt_tick_w(const tsvf_t *c, int32_t in, int32_t *ic1, int32_t *ic2, int32_t lim)
+{
+    int32_t v3 = in - *ic2;
+    int32_t v1 = (int32_t)(((int64_t)c->a1 * *ic1 + (int64_t)c->a2 * v3) >> 13);
+    int32_t v2 = *ic2 + (int32_t)(((int64_t)c->a2 * *ic1 + (int64_t)c->a3 * v3) >> 13);
+    *ic1 = clamp(2 * v1 - *ic1, -lim, lim);
+    *ic2 = clamp(2 * v2 - *ic2, -lim, lim);
+    return v2;
+}
+#endif
+/* n samples of b through state ch, at 2^sh below their level (the SVF's range: +-140000; TFLT_FINE: at their level, the
+ * range 140000 << sh) */
 static HOT void tflt_run(tflt_t *f, const tsvf_t *c, int32_t *b, uint32_t n, uint32_t ch, uint32_t sh)
 {
     uint32_t i;
     int32_t *z = f->z[ch], lp = f->mode < 0;
+#if FELUCCA_TFLT_FINE
+    int32_t in_max = 140000 << sh, st_max = 150000 << sh;   /* (an owner always runs at its own sh: its states at that scale) */
+#define TFLT_IN(v) clamp(v, -in_max, in_max)
+#else
+#define TFLT_IN(v) clamp((v) >> sh, -140000, 140000)
+#endif
     if ((f->seed >> ch) & 1u) {                         /* (SLOOP 2.6 d30d655 fx.c djf_run, GPL-3.0-only) the LP's first */
         f->seed &= (uint8_t)~(1u << ch);                /* block: at rest on its input, the output is the input (DC: */
         if (lp && n) {                                  /* exact), not 0 */
             z[0] = 0;
-            z[1] = clamp(b[0] >> sh, -140000, 140000);
+            z[1] = TFLT_IN(b[0]);
         }
     }
     for (i = 0; i < n; i++) {
-        int32_t x = clamp(b[i] >> sh, -140000, 140000), y = tsvf_lp(c, x, &z[0], &z[1]);
+#if FELUCCA_TFLT_FINE
+        int32_t x = TFLT_IN(b[i]), y = tflt_tick_w(c, x, &z[0], &z[1], st_max);
+        b[i] = lp ? y : x - y;
+#else
+        int32_t x = TFLT_IN(b[i]), y = tsvf_lp(c, x, &z[0], &z[1]);
         b[i] = (lp ? y : x - y) << sh;
+#endif
     }
+#undef TFLT_IN
 }
 /* a part's (b: before its level, up to +-884000: 3 bits down) at amount v (0: it opens, then off) */
 static HOT2 __attribute__((noinline)) void tflt_part(const track_t *t, int32_t v, int32_t *b, uint32_t n)
@@ -1920,6 +2012,14 @@ static HOT2 __attribute__((noinline)) void dust_run(dust_t *s, int32_t d, int32_
     }
 }
 
+/* a part's sample x (|x| < 2^21) times its pan gain g (Q12, 4096 at most) into the mix (mix_part, insfx.c ifx_side_mix):
+ * MIX_FINE drops 3 bits before the product (at most 2^18 x 2^12), not 4: the dry's steps half as coarse, the floor 5.3 dB
+ * lower on every part (host, 2026-10-26) */
+#if FELUCCA_MIX_FINE
+#define MIX_PAN(x, g) ((((x) >> 3) * (g)) >> 9)
+#else
+#define MIX_PAN(x, g) ((((x) >> 4) * (g)) >> 8)
+#endif
 #include "insfx/insfx.c"            /* the further insert types FOLD FUZZ PHSR FLNG FRMT WIDE CHRS ECHO (ins_one, dbus_ins) */
 #include "insfx/fxi.c"              /* the limited types' instances (CHRS ECHO): the main loop hands them out, fxi_poll */
 /* the second-core test image can switch the inserts off (outside the DINS block: the track strips use it too) */
@@ -2426,8 +2526,8 @@ static HOT void mix_part(track_t *t, uint32_t n MIXACC_PARAM)
                 MX(send_d)[i] += mulq15(xs, d);
             if (r)
                 MX(send_r)[i] += mulq15(xs, r);
-            MX(mix_l)[i] += ((x >> 4) * (gl0 + ((dgl * (int32_t)i) >> CTL_LOG2))) >> 8;   /* (x may pass 2^19: >> 4 first) */
-            MX(mix_r)[i] += ((x >> 4) * (gr0 + ((dgr * (int32_t)i) >> CTL_LOG2))) >> 8;
+            MX(mix_l)[i] += MIX_PAN(x, gl0 + ((dgl * (int32_t)i) >> CTL_LOG2));   /* (x may pass 2^19: shifted first) */
+            MX(mix_r)[i] += MIX_PAN(x, gr0 + ((dgr * (int32_t)i) >> CTL_LOG2));
         }
         t->peak = pk;
 #if FELUCCA_INS_WIDTH
