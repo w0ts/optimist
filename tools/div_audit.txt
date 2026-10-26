@@ -277,6 +277,11 @@ src/seq/gen.c:gr_eu_hit:n | n = gr_eu_len() = (gr_u7(v) >> 3) + 1 with gr_u7 0..
 src/seq/seq.c:arp_next:no | BASS: guarded "(q & 1u) && no ?"
 src/seq/seq.c:live_block:ll | guarded: "ll < 2u || live_nbar % ll" (short-circuit); ll is one read of the volatile live_len (the UI, op_layers.c, may write it at any time: two reads of the volatile could have seen 2 then 0)
 src/seq/seq.c:step_add:len | TLEN (len = trk_len(t))
+src/seq/lane_fx.c:lfx_ahead:len | TLEN (seq_ratchets passes trk_len(t) >= 1)
+src/seq/lane_fx.c:lfx_every_miss:COND_B[c] | COND_B is 2..4 and c is taken % AUTO_NCOND (its 9 entries)
+src/seq/lane_fx.c:lfx_sound:(2u*(uint32_t)x+1u) | >= 1 (x a VRAND 1..64; the divide only when x != 0)
+src/seq/lane_fx.c:lfx_sound:(int32_t)(n-1u) | guarded: "r && n > 1u"
+src/seq/lane_fx.c:lfx_time:lfx_hits(s,l) | lfx_hits >= 1 + dstep_rat >= 1 (LFX_HITS >= 1 too)
 src/ui/optimist/op_preset.c:pop_paint:(int32_t)pop.total | pop_paint runs only from draw_pop's cv_tall, after "if (!pop.total || pop.cur >= pop.total) return"
 src/ui/optimist/op_project.c:sys_batt_pct:(uint32_t)(MV[i]-MV[i-1u]) | TABLE MV {3300, 3500, 3700, 3800, 3900, 4000, 4150}, strictly rising: each difference >= 100
 src/ui/optimist/op_songtbl.c:stb_paint:(int32_t)nl | nl = 5 (SCENE) or 2

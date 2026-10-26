@@ -508,6 +508,14 @@ job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/ngate_store_test" tests/ngate_store_test.c -lm
     run "POLY notes' own ends + drum lane events: ids apart, events only in the stored forms (capture / apply), an older project, a scene, the autosave, a pattern copied and launched, TRACK_STEP v12, AUTO_GET / SET, the 2.4 lost bit 5, a full list" "$OUT/ngate_store_test"
 ) >"$U.out" 2>&1 & jobbg
+# the drum lanes' FX (FELUCCA_LANE_FX, seq/lane_fx.c): the events, every value heard; the LANE FX page and the mute held (UI)
+job; ( jobin
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/lane_fx_test" tests/lane_fx_test.c -lm
+    run "drum lane FX: a lane's events (no step's: the tools, the marks, the old motion form leave them), ROLL, CHANCE, FILL, NUDGE late / early, VRAND, FLAM, RAMP, EVERY heard" "$OUT/lane_fx_test"
+    mkdir -p "$OUT/optimist-lfx"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_LANE_FX=1 -DFELUCCA_COND=1 -DFELUCCA_CHANCE=1 -DFELUCCA_MOTION=1 $SEC4 -o "$OUT/ui_optimist_lfx_test" tests/ui_optimist_test.c -lm
+    run "Optimist UI with LANE_FX: a lane's black key held opens its two pages, the knobs write its FX, let go the screen before; the rest as ever" "$OUT/ui_optimist_lfx_test" "$OUT/optimist-lfx"
+) >"$U.out" 2>&1 & jobbg
 # the drum track's ACCENT lane (core.h DRUM_ACC, drums.c dacc_vel, seq/ngate.h): heard, stored, the editor, 2.4; off; with ENERGY
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/drum_accent_test" tests/drum_accent_test.c -lm

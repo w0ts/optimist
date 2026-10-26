@@ -13,7 +13,7 @@
  * views, Scenes, Song (its parts), Settings, as SEQ cycles them (nav_song_view), and row 3 is its PATTERNS row (a PATTERNS build:
  * the client's PATTERN button; the user, 2026-10-24: "SEQ hold: we have just three pages ... and pattern gets its own button"). */
 #if FELUCCA_ED_MIRROR
-_Static_assert(SCR_N == 10u, "109 NAV's screen numbers are SCR_*: web/EDITOR_PROTOCOL.md lists them");
+_Static_assert(SCR_N == 11u, "109 NAV's screen numbers are SCR_*: web/EDITOR_PROTOCOL.md lists them");
 #define NAV_NONE 127u                                   /* (no family, no track: a 7-bit byte) */
 static int nav_free(void) { return !op_armed() && !name_on() && lay_now() == LY_PLAY && !tp.on && !st_holding(); }
 /* MIX lists the selected row's knob sets (MIX INSERT SENDS SOUND; MASTER's RETURNS, A SENDS ...), as SELECT pages them there
@@ -130,7 +130,7 @@ static int nav_walk(uint32_t p)
 static int nav_open(uint32_t scr, uint32_t b)
 {
     uint32_t f;
-    if (!nav_free() || scr >= SCR_N || scr == SCR_TEMPO)
+    if (!nav_free() || scr >= SCR_N || scr == SCR_TEMPO || scr == SCR_LFX)
         return 0;
     if (scr == SCR_SOUND && b == B_FX && mx_on_master())
         scr = SCR_FX;                                   /* (FX on the mixer's MASTER: the master FX, as the panel's, op_input.c) */

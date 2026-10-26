@@ -3090,6 +3090,29 @@
     "provenance_line": "Flowstate (zakariachowdhury/flowstate-fm1) @ 3962560 by Zakaria Chowdhury (GPL-3.0-only)"
    },
    {
+    "key": "LANE_FX",
+    "flag": "FELUCCA_LANE_FX",
+    "label": "drum lane FX: hold a black key (ROLL, CHANCE, FILL, NUDGE)",
+    "group": "Sequencer",
+    "bit": 420,
+    "default": 0,
+    "parent": null,
+    "desc": "On the drum track, a black key held past the hold time opens its lane's FX page until the key is let go: ROLL (every hit of the lane repeats x2 to x8 in its step), CHANCE (each hit plays with this probability), FILL (the lane plays always, only in a fill or never in one: GLO + 9 / 10) and NUDGE (the whole lane early or late, up to half a step). KNOB 1-4 turn them; HOME + a knob resets. Saved with the pattern, as events of its automation (an older build refuses a drum pattern that has them). Needs the automation store.",
+    "experimental": true,
+    "notice": "",
+    "off_warning": "",
+    "env": "",
+    "target_only": false,
+    "symbols": [],
+    "no_image": false,
+    "fixed": false,
+    "choices": [],
+    "provenance": null,
+    "children": [],
+    "tested": "host-tested only, not on a device",
+    "provenance_line": ""
+   },
+   {
     "key": "REC_PLAIN",
     "flag": "FELUCCA_REC_PLAIN",
     "label": "REC plain: every note played is recorded, the voice mode never cuts it",
@@ -5204,7 +5227,9 @@
   "pool": 8192,
   "ramtext": 0
  },
- "needs_auto": [],
+ "needs_auto": [
+  "LANE_FX"
+ ],
  "fit_order": [
   [
    "ENG_SLICE",
@@ -5351,6 +5376,7 @@
    "PATTERNS",
    "UNDO_HISTORY",
    "MACROS",
+   "LANE_FX",
    "REC_PLAIN",
    "NOTEGEN",
    "CHANCE",

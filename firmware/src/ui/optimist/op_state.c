@@ -46,9 +46,9 @@ static __attribute__((noinline)) void cv_text_mid(int32_t y, const felucca_font_
 {
     cv_text(120 - text_w(f, s) / 2, y, f, s, c);
 }
-enum { SCR_HOME, SCR_SOUND, SCR_FX, SCR_PROJECT, SCR_SYSTEM, SCR_STEP, SCR_SONG, SCR_TEMPO, SCR_SCOPE, SCR_GLOBAL, SCR_N };
+enum { SCR_HOME, SCR_SOUND, SCR_FX, SCR_PROJECT, SCR_SYSTEM, SCR_STEP, SCR_SONG, SCR_TEMPO, SCR_SCOPE, SCR_GLOBAL, SCR_LFX, SCR_N };
 static const char *const SCR_NAME[SCR_N] = {"MIX", "SOUND", "MASTER", "PROJECT", "SYSTEM", "STEPS", "SONG", "TEMPO",
-                                            "SCOPE", "GLOBAL"};
+                                            "SCOPE", "GLOBAL", "LANE FX"};
 #define OP_MSG_FRAMES 150u            /* ~2.5 s at the UI's 60 frames a second (main.c paces them at 15 ms) */
 #define OP_ARM_MS 3000u               /* an armed action waits 3 s for its YES */
 #define ARM_NONE 0xFFu
