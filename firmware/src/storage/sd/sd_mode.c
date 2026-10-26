@@ -41,6 +41,10 @@ typedef struct {
 _Static_assert(sizeof(sdm_smp_t) == 64u && sizeof(sdm_smp_t) * NPART <= SEC_REC_MAX, "sd_mode.c: a part's sample record");
 
 #define SDM_DX7 FELUCCA_ENG_FM6                      /* DX7 banks in PRESETS (below: the FM6 collections on the card) */
+#ifndef SDM_REBOOT
+#define SDM_REBOOT() fm1_reboot()
+#endif
+static uint32_t sdm_reboot_at;                       /* (fm1_ms + 1 when a restore asked for the restart: sdm_poll) */
 #define SDM_KEEP_MAX 16u
 #define SDM_SCALE_MAX 16u                            /* (x 25 %: 400 %, sd_alloc.c's cap) */
 static sdm_rec_t sdm_rec;
@@ -224,6 +228,8 @@ static void sdm_mount_try(void)                      /* (PROJECT entered, SYSTEM
 static void sdm_poll(void)
 {
     FRESULT r;
+    if (sdm_reboot_at && fm1_ms - sdm_reboot_at > 1000u)
+        SDM_REBOOT();                                /* (a restore: the settings read at power-on; its message seen) */
     if (sdm_st == SDM_OFF) {                         /* (the first pass: the log is up) */
         sdp_hooks.read = sdm_stage_read;
         sdp_hooks.pend_set = sdm_pend_set;
@@ -850,6 +856,55 @@ static void sdm_leave(void)                          /* SYSTEM left: the setting
     if (sdm_dirty)
         sdm_dirty = 1;
 }
+/* SETTINGS (the user, 2026-10-26: a settings backup on the card): BACKUP writes the device's settings record (project.c
+ * persist_t, as settings_save makes it now) to OPTIMIST/BACKUP/SETTINGS.OPD ("OPST", sdm_small_put); RESTORE reads it
+ * back into flash and starts the FM-1 again (the settings are read at power-on). This FM-1's own stay: its Bluetooth
+ * address and its copy of the radio's calibration always; its pairings too when the file is another FM-1's (another
+ * address: the bonds and remembered devices are that unit's) */
+static int sdm_settings_path(void) { return sdl_path(sdm.path, sizeof sdm.path, SDL_BACKUP, "SETTINGS.OPD") != 0; }
+static void sdm_backup(void)
+{
+    if (!sdm_ready() || !sdm_settings_path()) {
+        ui_message("NO SD CARD");
+        return;
+    }
+    settings_save();                                 /* (the record as the device is now) */
+    (void)sdl_path(sdm.path, sizeof sdm.path, SDL_BACKUP, 0);
+    (void)f_mkdir(sdm.path);
+    (void)sdm_settings_path();
+    ui_message(sdm_was(sdm_small_put(sdm.path, "OPST", (const uint8_t *)&persist_saved, sizeof persist_saved)) == FR_OK
+               ? "SETTINGS SAVED TO CARD" : "SETTINGS NOT SAVED");
+}
+static void sdm_restore(void)
+{
+    persist_t r;
+    if (!sdm_ready() || !sdm_settings_path()) {
+        ui_message("NO SD CARD");
+        return;
+    }
+    if (sdm_small_get(sdm.path, "OPST", (uint8_t *)&r, sizeof r) != sizeof r || r.magic != PERSIST_MAGIC4) {
+        ui_message("NO SETTINGS BACKUP");
+        return;
+    }
+    if (memcmp(r.ble_addr, persist_saved.ble_addr, sizeof r.ble_addr)) {   /* another FM-1's: its pairings are its own */
+        memcpy(r.ble_bond, persist_saved.ble_bond, sizeof r.ble_bond);
+        memcpy(r.ble_dev, persist_saved.ble_dev, sizeof r.ble_dev);
+        memcpy(r.bt_rec, persist_saved.bt_rec, sizeof r.bt_rec);
+        memcpy(r.bt_key, persist_saved.bt_key, sizeof r.bt_key);
+        memcpy(r.bt_kept, persist_saved.bt_kept, sizeof r.bt_kept);
+        memcpy(r.ble_kept, persist_saved.ble_kept, sizeof r.ble_kept);
+    }
+    memcpy(r.ble_addr, persist_saved.ble_addr, sizeof r.ble_addr);   /* (this FM-1's address, its radio's calibration) */
+    memcpy(r.ble_rf, persist_saved.ble_rf, sizeof r.ble_rf);
+    if (st_save(OBJ_SETTINGS, &r, sizeof r)) {
+        ui_message("SETTINGS NOT RESTORED");
+        return;
+    }
+    persist_saved = r;
+    ui_message("RESTORED: RESTARTING");
+    sdm_reboot_at = fm1_ms + 1u;
+}
+
 static void sdm_again(void)                          /* SD CARD's YES: mounted again (or the first time), folders, index */
 {
     if (sd_state == SD_READY)
