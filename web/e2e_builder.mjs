@@ -451,6 +451,13 @@ await metrics(390, 844, true);
 await sleep(400);
 const ph = await scrollW();
 ok(ph.sw <= ph.cw, `390 px phone: no sideways scroll (${ph.sw} <= ${ph.cw})`);
+await metrics(360, 780, true);                       /* (an Android at 1080 px, 3x: Reset to default and the default flavour's
+                                                      * long name widened the page, the size panel no longer stuck: issue 36) */
+await sleep(400);
+const ph360 = await scrollW();
+ok(ph360.sw <= ph360.cw, `360 px phone: no sideways scroll (${ph360.sw} <= ${ph360.cw}; Reset to default wraps)`);
+await metrics(390, 844, true);
+await sleep(400);
 const gut = await run(`const r = document.querySelector("main").getBoundingClientRect(); const p = getComputedStyle(document.querySelector("main")); return { pl: p.paddingLeft, pr: p.paddingRight, w: r.width };`);
 ok(gut.pl === "16px" && gut.pr === "16px", "390 px phone: 16 px gutters");
 await sticky("390 px phone", (top) => top === 0, 190);
