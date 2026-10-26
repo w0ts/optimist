@@ -34,7 +34,7 @@ env:
   ISSUE: ${{ github.event.issue.number }}
   RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
   REPO: ${{ github.repository }}
-  MAX_PER_DAY: "5"
+  MAX_PER_DAY: "20"
   RETAIN_DAYS: "30"
 
 jobs:
