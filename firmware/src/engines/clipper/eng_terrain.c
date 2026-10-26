@@ -108,7 +108,7 @@ static const engine_t ENG_TERRAIN = {
         PU("CUT", F_CUTOFF, 0, 127, 110, 0),
         PU("RES", F_PCT, 0, 127, 0, 0),
     },
-    .presets = TERRAIN_PRESETS,
+    .presets = PRESETS_PTR(TERRAIN_PRESETS),
     .npresets = sizeof(TERRAIN_PRESETS) / sizeof(TERRAIN_PRESETS[0]),
     .fil_page = 1,
     .note_on = terrain_note_on,

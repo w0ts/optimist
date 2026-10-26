@@ -144,7 +144,7 @@ static const engine_t ENG_DIGITAL = {
         PU("FB", F_PCT, 0, 127, 0, 0),
         PU("-", F_INT, 0, 0, 0, 0),
     },
-    DIGITAL_PRESETS, sizeof(DIGITAL_PRESETS) / sizeof(DIGITAL_PRESETS[0]), -1, digital_note_on, OVL_FN(digital_render),
+    PRESETS_OF(DIGITAL_PRESETS), -1, digital_note_on, OVL_FN(digital_render),
     0xFD20, {P_E4, P_E5, P_E6, P_REL},
 };
 #if FELUCCA_ENG_DIGITAL

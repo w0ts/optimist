@@ -250,8 +250,8 @@ static int eng_free(uint32_t e) { (void)e; return 0; }   /* (registry.h: no stan
 static int preset_playable(const engine_t *e, uint32_t pi)
 {
     uint32_t s;
-    if (!ENG_IS(e, SAMPLE) && !ENG_IS(e, GRAIN))
-        return 1;
+    if (PRESETS_CARD || (!ENG_IS(e, SAMPLE) && !ENG_IS(e, GRAIN)))
+        return 1;                                        /* (SD card mode: the card's files, every one listed) */
     s = (uint32_t)e->presets[pi].e[0];
     return s >= SMP_NSETS || SMP_SETS[s].nz != 0;
 }
@@ -259,6 +259,7 @@ static int preset_playable(const engine_t *e, uint32_t pi)
 /* every factory sound as loud as the others: a level trim per preset, 1/2 dB, measured on a phrase
  * that fits the sound (tools/level_presets.py writes preset_trim.h, a row per engine UID, every engine);
  * a track keeps it in P_ED_FX */
+#if !PRESETS_CARD                                        /* (SD card mode: the card's records hold it) */
 #include "preset_trim.h"
 static int16_t preset_trim(uint32_t uid, uint32_t pi)    /* by engine UID */
 {
@@ -268,6 +269,7 @@ static int16_t preset_trim(uint32_t uid, uint32_t pi)    /* by engine UID */
 #endif
     return uid < PT_ENGINES && pi < PT_MAX ? PRESET_TRIM[uid][pi] : 0;
 }
+#endif
 
 /* the bytes engine slot e keeps in its part's memory (0: none) */
 static uint32_t part_mem_bytes(uint32_t e)

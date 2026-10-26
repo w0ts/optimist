@@ -368,8 +368,10 @@ Each step names who does it. Claude never writes to the FM-1.
     pads it to 512 B, so the data starts at byte 512.
   - **The card is held.** While a take writes, the card takes no other command: FatFs' reads and writes are refused
     (`sd_diskio.c`: RES_NOTRDY), and the sample streams wait.
-  - **Starting a take.** From the console for now (`sd rec [ms]`, `sd rec stop`, `sd rec`: the state, blocks, frames
-    lost, the ring's most blocks waiting); the device's UI is to come.
+  - **Starting a take.** REC tapped, then pressed again at once and held (the user, 2026-10-26: "short plus long
+    click on rec"; op_input.c `crec_*`; docs/UI-OPTIMIST-DESIGN.md section 6): `OPTIMIST/RECORD/REC-nnnn.WAV`, the
+    first free name; REC flashes while it records. The console: `sd rec [ms]`, `sd rec stop`, `sd rec` (the state,
+    blocks, frames lost, the ring's most blocks waiting).
   Tests: `tests/sd_wr_test.c` (the writer: 64 blocks by bytes and by DMA, SDHC and SDSC, the screen's bytes between
   them, a 150 ms stall, a 600 ms one, a power cut), `tests/sd_rec_test.c` (2 s checked frame by frame and the header,
   a 150 ms stall covered, 300 ms dropping frames, a take filling its run, FatFs refused while it writes). Cost on
@@ -554,14 +556,43 @@ checked: only the build time and the commit differ).
 - **Presets and kits**: one small file each, `PRESETS/<name>.OPS` ("OPPR": a user preset's record, `upreset.c up_card_*`
   through slot `UP_CARD` = `UP_SLOTS`, RAM only) and `KITS/<name>.OPK` ("OPKT": a user kit and its lanes' sends,
   `drum_kits.c ukit_card_*`), a 16-byte header (magic, version, length, the payload's XXH64), a sector at most
-  (written whole), allocated exact (`SDA_EXACT`). A preset of an FM6 sound keeps its VOICE number, not the operator
-  edits (the flash slots' `UP_FM6` object is not on the card yet). Saved into the folder's top; loaded from any
+  (written whole), allocated exact (`SDA_EXACT`). A preset of an FM6 sound keeps its own voice too, the operator edits
+  and all (`fm6_pack`'s 128 B after the record, as the flash slots' `UP_FM6`; a file of before loads its VOICE). Saved into the folder's top; loaded from any
   sub-folder.
+- **DX7 banks** (the FM6 collections; the user, 2026-10-26): a `.SYX` of 32 voices (4104 B, any case of the extension)
+  anywhere under `PRESETS/` is a folder of its voices in the PRESETS list, 16 a page (OCT for the second); a voice's
+  LOAD reads its 128 B from the file and puts it into the selected part's FM6 voice (`sd_mode.c sdm_dx7_*`,
+  `fm6_unpack`; the part on FM6 first when it plays another engine; refused like any engine change when memory is
+  short); HOME leaves the bank. Only the page's 16 names are in RAM; no received bank (FM6_SYSEX) is needed. A
+  voice kept with its edits goes into a preset (`.OPS`, above). Not yet: CZ tones on the card (they need a RAM slot
+  the CZ engine plays; the flash's U01..U26 are not in the big layout).
+
+**Factory presets on the card; the SD card zip** (the user, 2026-10-26: "all presets (user or factory) go on the card",
+"card only in SD mode"): SD card mode carries no factory preset tables (core.h `PRESETS_CARD`, `PRESETS_PTR`: each
+engine's table named only inside sizeof, its count kept; BANK, the level trims and ANALOG 2's extras left out with them:
+8,740 B of flash on sd-card-mots, 4,160 B of pool for the names). The presets are files,
+`OPTIMIST/PRESETS/FACTORY/<ENGINE>/<nnn> <NAME>.OPS`, made by `tools/sd_factory.c` from the firmware's own sources
+(each preset applied as the device applies it and taken as the card's preset record; `tests/sd_factory_test.c` loads
+every one back and compares every value) and zipped with the card's folders by `tools/sd_zip.py`;
+`optimist.py package` writes `optimist-sd-card.zip` next to an SD card mode package. Unzipped at the card's root.
+- At a mount the names are read once (`sd_mode.c sdm_factory_scan`): the PRESETS lists, the favorites, the console and
+  the web editor show them; a missing file "?".
+- An engine picked, a preset chosen, a fresh track: the engine's defaults at once (the interrupts may be off there), the
+  preset's file on the main loop's next pass (`sdm_factory_ask` / `sdm_factory_poll`: loaded as a user preset loads, the
+  preset's place kept). A project's load or a user preset over it drops the ask. No card: the defaults (*NO SD CARD:
+  PRESETS INIT*, once).
+- The PRESETS knob's whole list goes engine by engine in the tables' order (no BANK: the by-kind order of the flash
+  builds is not kept); its label is the engine's name.
+- Not tested on the host yet: the card path itself (`sdm_factory_*`; the SD UI test runs with `PRESETS_CARD=0`, its
+  harness reads the tables).
 
 **The UI** (`ui/optimist/op_sdcard.c`; docs/UI-OPTIMIST-DESIGN.md 4.14): PROJECT's rows PROJECT (the card's projects
 while a card is ready, else the flash slot with *No SD card: in flash*), PRESETS, KITS, SAMPLES; four small cards (PAGE,
 ACTION, ITEM, VIEW) over the page: two columns of eight names, as the white keys sit. SYSTEM > SD card: CARD (READY and
-its size; YES mounts again), VERSIONS, SLACK, SAMPLES INDEX.
+its size; YES mounts again), VERSIONS, SLACK, SAMPLES INDEX. SYSTEM > SETTINGS: BACKUP writes the device's settings record (`persist_t`, as
+`settings_save` makes it) to `OPTIMIST/BACKUP/SETTINGS.OPD` ("OPST"); RESTORE (asked, red) writes it back into flash and
+restarts the FM-1 a second later (the settings are read at power-on). This unit's Bluetooth address and its copy of the
+radio's calibration always stay; its pairings too when the file comes from another FM-1 (another address).
 
 **Cost** (local measurement builds, not gpufarm). `sd-card-mots` is the SD card mode's build now (the user, 2026-10-26:
 "we are in dev mode: drop whatever you want, but keep the code slim"): SDCARD, ARENA 96, SAMPLE, SD_RING 4, and to fit,

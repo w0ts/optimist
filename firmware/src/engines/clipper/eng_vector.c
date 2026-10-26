@@ -170,7 +170,7 @@ static const engine_t ENG_VECTOR = {
         PN("MOVE", F_ENUM, 0, VM_N - 1, VM_CIRC, N_VMOVE),
         PU("CUT", F_CUTOFF, 0, 127, 100, 0),
     },
-    .presets = VECTOR_PRESETS,
+    .presets = PRESETS_PTR(VECTOR_PRESETS),
     .npresets = sizeof(VECTOR_PRESETS) / sizeof(VECTOR_PRESETS[0]),
     .fil_page = 1,
     .note_on = vector_note_on,

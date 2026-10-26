@@ -148,7 +148,7 @@ static const engine_t ENG_ACID = {
         PU("DRV", F_PCT, 0, 127, 0, 0),
         PU("SLD", F_PCT, 0, 127, 21, 0),
     },
-    .presets = ACID_PRESETS,
+    .presets = PRESETS_PTR(ACID_PRESETS),
     .npresets = sizeof(ACID_PRESETS) / sizeof(ACID_PRESETS[0]),
     .fil_page = 0,
     .note_on = acid_note_on,

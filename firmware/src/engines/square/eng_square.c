@@ -88,7 +88,7 @@ static const engine_t ENG_SQUARE = {
         PU("TRK", F_PCT, 0, 127, 64, 0),                /* the cutoff follows the key */
         PU("DRV", F_PCT, 0, 127, 0, 0),                 /* a soft drive after the filter */
     },
-    .presets = SQ_PRESETS,
+    .presets = PRESETS_PTR(SQ_PRESETS),
     .npresets = sizeof(SQ_PRESETS) / sizeof(SQ_PRESETS[0]),
     .note_on = sq_note_on,
     .render = sq_render,

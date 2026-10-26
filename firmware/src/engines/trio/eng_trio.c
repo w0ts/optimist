@@ -373,7 +373,7 @@ static const engine_t ENG_TRIO = {
         PU("RES", F_PCT, 0, 127, 40, 0),
         PU("PW", F_PCT, 0, 127, 64, 0),
     },
-    TRIO_PRESETS, sizeof(TRIO_PRESETS) / sizeof(TRIO_PRESETS[0]), 1, trio_note_on, OVL_FN(trio_render),
+    PRESETS_OF(TRIO_PRESETS), 1, trio_note_on, OVL_FN(trio_render),
     0xFFE0, {P_E5, P_E6, P_E7, P_E1},
 };
 #if FELUCCA_ENG_TRIO

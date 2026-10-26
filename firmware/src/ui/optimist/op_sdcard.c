@@ -36,6 +36,8 @@ static void sdm_do(uint32_t op, uint32_t k);
 static int sdm_save(uint32_t list, const char *name, const char *was);
 static void sdm_load_name(const char *name);
 static uint32_t sdm_keep(void);                         /* (SYSTEM > SD CARD: op_project.c) */
+static void sdm_backup(void);                           /* (SYSTEM > SETTINGS: to the card and back) */
+static void sdm_restore(void);
 static uint32_t sdm_scale(void);
 static void sdm_set(uint32_t what, int32_t s);
 static void sdm_leave(void);
