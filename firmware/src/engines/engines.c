@@ -115,9 +115,23 @@ typedef union {
 #if FELUCCA_ENG_PLAITS
     pl_voice_t plaits[PL_POLY];
 #endif
+#if FELUCCA_ENG_JUNO                                     /* (2026-10-26: the smaller ones, static until then; never the
+                                                          * largest, so a fixed slot grows by none of them) */
+    juno_mem_t juno;
+#endif
+#if FELUCCA_ENG_DRAWBAR
+    drw_mem_t drawbar;
+#endif
+#if FELUCCA_ENG_CZ
+    cz_mem_t cz;
+#endif
+#if FELUCCA_ENG_SLICE
+    slc_rbuf_t slice;
+#endif
     uint32_t none;
 } part_mem_t;
-#define PART_MEM_ANY (FELUCCA_ENG_FM6 || FELUCCA_ENG_PHYS || FELUCCA_ENG_GRAIN || FELUCCA_ENG_ACID || FELUCCA_ENG_PLAITS)
+#define PART_MEM_ANY (FELUCCA_ENG_FM6 || FELUCCA_ENG_PHYS || FELUCCA_ENG_GRAIN || FELUCCA_ENG_ACID || FELUCCA_ENG_PLAITS || \
+                      FELUCCA_ENG_JUNO || FELUCCA_ENG_DRAWBAR || FELUCCA_ENG_CZ || FELUCCA_ENG_SLICE)
 /* the memories live in the arena (core/arena.c, docs/SD-MODE-DESIGN.md 6b): by default NPART x the largest, placed at
  * fixed slots (ARN_SLOT): the same room and the same places as the fixed memories had, nothing ever refused.
  * FELUCCA_ARENA_BYTES smaller: placed by need, a change that does not fit refused (part_mem_reserve) */
@@ -199,6 +213,18 @@ void *acid_mem(int k) { return PART_MEM_AT((uint32_t)k % NPART); }
 #if FELUCCA_ENG_PLAITS
 AINL pl_voice_t *pl_mem(uint32_t p) { return (pl_voice_t *)PART_MEM_AT(p); }
 #endif
+#if FELUCCA_ENG_JUNO
+AINL juno_mem_t *juno_mem(uint32_t p) { return (juno_mem_t *)PART_MEM_AT(p); }
+#endif
+#if FELUCCA_ENG_DRAWBAR
+AINL drw_mem_t *drw_mem(uint32_t p) { return (drw_mem_t *)PART_MEM_AT(p); }
+#endif
+#if FELUCCA_ENG_CZ
+AINL cz_mem_t *cz_mem(uint32_t p) { return (cz_mem_t *)PART_MEM_AT(p); }
+#endif
+#if FELUCCA_ENG_SLICE
+AINL slc_rbuf_t *slc_mem(uint32_t p) { return (slc_rbuf_t *)PART_MEM_AT(p); }
+#endif
 
 /* the engines built, in UID order (registry.h ENGINE_LIST): the slots */
 #define ENG_PTR_(u, N, fb, s) FIF(FELUCCA_ENG_##N)(&ENG_##N,)
@@ -260,6 +286,22 @@ static uint32_t part_mem_bytes(uint32_t e)
 #if FELUCCA_ENG_PLAITS
     if (e == (uint32_t)ENG_SLOT_PLAITS)
         return sizeof(pl_voice_t) * PL_POLY;
+#endif
+#if FELUCCA_ENG_JUNO
+    if (e == (uint32_t)ENG_SLOT_JUNO)
+        return sizeof(juno_mem_t);
+#endif
+#if FELUCCA_ENG_DRAWBAR
+    if (e == (uint32_t)ENG_SLOT_DRAWBAR)
+        return sizeof(drw_mem_t);
+#endif
+#if FELUCCA_ENG_CZ
+    if (e == (uint32_t)ENG_SLOT_CZ)
+        return sizeof(cz_mem_t);
+#endif
+#if FELUCCA_ENG_SLICE
+    if (e == (uint32_t)ENG_SLOT_SLICE)
+        return sizeof(slc_rbuf_t);
 #endif
     return 0;
 }
@@ -468,6 +510,9 @@ static int part_mem_claim(uint32_t k, uint32_t e)
         w[i] = 0;
 #if FELUCCA_ENG_ACID
     acid_forget((int)k);
+#endif
+#if FELUCCA_ENG_CZ
+    cz_forget(k);                                        /* (its tone built again from the zeroed memory) */
 #endif
 #if FELUCCA_ENG_FM6
     fm6_pt[k].lav = fm6_pt[k].mcur = fm6_pt[k].mlav = fm6_pt[k].mnew = fm6_pt[k].mlive = 0;   /* (into those) */

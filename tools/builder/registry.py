@@ -1053,7 +1053,8 @@ _add("ARENA", "FELUCCA_ARENA_KB", "memory per project (an arena for the engines;
               (64, "64 KB"), (96, "96 KB"), (128, "128 KB"), (160, "160 KB"), (192, "192 KB"), (256, "256 KB")),
      experimental=True, tested="host-tested only (tests/fx_arena_test.c, arena_bufs_test.c, arena_test.c, placeholder_test.c); not on an FM-1",
      desc="Instead of reserving every engine's memory whether a project uses it or not, one pool memory of this size "
-          "holds what the project uses: each synth part's engine state (FM6, PHYS, GRAIN, ACID, PLAITS), placed when "
+          "holds what the project uses: each synth part's engine state (FM6, PHYS, GRAIN, ACID, PLAITS, JUNO, DRAWBAR, "
+          "CZ, SLICE), placed when "
           "an engine is picked, its room free for the others once the part plays an engine that keeps nothing there. "
           "What the arena does not need goes to the undo history. A change that does not fit is refused and the "
           "device proposes a part to drop (DROP T2 FM6); a dropped part plays nothing (NONE) until an engine is picked "
