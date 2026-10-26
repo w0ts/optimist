@@ -341,10 +341,15 @@ Each step names who does it. Claude never writes to the FM-1.
     lane picked sets it; the project's samples record holds the lanes' after the parts' (a record of before reads as
     the parts'), the plan gives a lane its slot only while it is on CARD, and a kit saved to the card carries its
     lanes' samples ("LCRD" after the kit). Tested: `tests/sd_stream_engine_test.c`.
-  - Not built: the slicer from the card (the lanes' user sounds and SLICE read the flash's slots by
-    zone; each would take a source per sound and its own render path: the same reader, `sst_frame`); the sample
-    picker's call (`sst_part_set`) and the hash in the project (the UI's); WAV loop points (smpl) and the root note
-    from the file.
+  - SLICE on the card (`storage/sd/sd_slice.c`, SLICE's SRC CARD): a slicer jumps between slices, so one head a
+    sample cannot start it at once, and a head per slice costs more than the sample (32 x 50 ms of 16-bit: 141 KB).
+    So the part's card sample goes into the streams' arena block whole, as mono IMA ADPCM at its own rate (a one-bar
+    break of 2 s at 44.1 kHz: 44 KB), and is scanned as a user slot (grid, AUTO onsets): REV, AUTO, LOOP play as
+    from the flash. USE with a part on SLICE keeps SLICE and sets SRC CARD; the plan places again when a part goes on
+    or off SLICE CARD (no ring, no head for it). Too big for the arena: refused as any card sample (MEM FULL CARD);
+    nothing placed: silent, never BREAK. Tested: `tests/sd_stream_engine_test.c` (the slices by key, REV, ADPCM
+    25 dB or better), `tests/sd_stream_plan_test.c` (the block, the rings).
+  - Not built: WAV loop points (smpl) and the root note from the file.
 - **Streaming on the bench** (when an FM-1 has the card; a console build: USB_CONSOLE, which needs room in the
   profile): 1. `sd`, then `sd bench` and `sd bench SAMPLES/x.wav`: the clock, the DMA, KB/s by CMD18 (the budget the
   streams share). 2. The index pass, then `sd stream part 1 SAMPLES/x.wav` (and parts 2, 3), SAMPLE on those parts,

@@ -30,9 +30,13 @@
  * 7 s user slot: ~10). DECAY: an exponential fade per slice (127 = none). TONE: a gentle low-pass
  * (SAMPLE's CUT). The last ~1.5 ms of a slice fade out (no click at the cut), a new slice fades in
  * over one block (0.7 ms).
+ * CARD (FELUCCA_SD_STREAM): the part's card sample (the one SAMPLE's CARD plays, picked with USE), whole in the
+ * streams' arena block as IMA ADPCM (mono; 2 s at 44.1 kHz: 44 KB): storage/sd/sd_slice.c reads the WAV when the plan
+ * places it (sd_stream_plan.c: the part on SLICE with SRC CARD), slc_enc_* encode it and scan it as a user slot's;
+ * then it plays as one (REV, AUTO, LOOP alike). Not placed (no room, not on the card): silent, never BREAK.
  * Voice state: ph[0] position (reverse: position + 1), ph[1] fraction Q16, ph[2] slice end (reverse:
  * its start), s[0] predictor (reverse: window start), s[1] step index, s[2] / s[3] previous / current
- * sample, s[4] source | segment << 2 | reverse << 6 | slice << 8 | DIV << 16, s[5] DECAY level Q15,
+ * sample, s[4] source | segment << 3 | reverse << 7 | slice << 8 | DIV << 16, s[5] DECAY level Q15,
  * s[6] 0 to prime, 1 playing, 3 fading out, 2 ended, s[7] low-pass. */
 #define SLC_GRID 128u                /* grid points: decoder states at k * len / SLC_GRID */
 #define SLC_GRID_LOG2 7
@@ -51,6 +55,7 @@ typedef struct {
     uint32_t grid[SLC_GRID];         /* decoder state before sample k * len / SLC_GRID: */
                                      /* (uint16_t)predictor | step index << 16 | segment << 24 */
     uint32_t apos[SLC_AUTO], ast[SLC_AUTO];   /* AUTO slice starts (apos[0] = 0) and their states */
+    const uint8_t *dat;              /* the segments' data: 0 SMP_DATA (BREAK, a user slot), else a CARD's (in RAM) */
 } slc_src_t;
 
 static const slc_src_t SLC_BREAK = SLC_BREAK_INIT;
@@ -58,18 +63,34 @@ static slc_src_t slc_usr[SMP_USER_SLOTS];
 typedef int16_t slc_rbuf_t[NVOICE][SLC_RB];          /* a part's reverse windows, one per voice: its engine memory
                                                        * (engines.c part_mem_t, the arena) */
 AINL slc_rbuf_t *slc_mem(uint32_t p);                 /* (engines.c, after every engine) */
+#define SLC_SRC_CARD 4u
+#if FELUCCA_SD_STREAM
+#define SLC_NSRC 5u
+static const char *const N_SLC_SRC[] = {"BREAK", "USR1", "USR2", "USR3", "CARD"};
+static const slc_src_t *volatile slc_crd[SST_NPART];   /* each part's CARD material, 0 none (storage/sd/sd_slice.c) */
+#else
+#define SLC_NSRC 4u
 static const char *const N_SLC_SRC[] = {"BREAK", "USR1", "USR2", "USR3"};
+#endif
 static const char *const N_SLC_DIV[] = {"4", "8", "16", "32", "AUTO"};
 static const char *const N_SLC_MODE[] = {"ONE", "GATE", "LOOP"};
 static const char *const N_SLC_REV[] = {"OFF", "ON"};
 enum { SLC_ONE, SLC_GATE, SLC_LOOP };
 #define SLC_DIV_AUTO 4u
 
-/* source 0 = BREAK, 1..3 = USR1..3; 0 = no material (an empty or erased slot) */
-static const slc_src_t *slc_get(uint32_t src)
+/* source 0 = BREAK, 1..3 = USR1..3, 4 CARD (part's); 0 = no material (an empty or erased slot, a CARD not placed) */
+static const slc_src_t *slc_get(uint32_t part, uint32_t src)
 {
     if (!src)
         return SLC_BREAK.len ? &SLC_BREAK : 0;
+#if FELUCCA_SD_STREAM
+    if (src == SLC_SRC_CARD) {
+        const slc_src_t *c = part < SST_NPART ? slc_crd[part] : 0;
+        return c && c->len ? c : 0;
+    }
+#else
+    (void)part;
+#endif
     src--;
     return src < SMP_USER_SLOTS && usr_nz[src] && slc_usr[src].len ? &slc_usr[src] : 0;
 }
@@ -78,7 +99,9 @@ static const slc_src_t *slc_get(uint32_t src)
 typedef struct {
     int32_t pred, idx;
     uint32_t pos, seg;
+    const uint8_t *dat;              /* (slc_dat) */
 } slc_dec_t;
+AINL const uint8_t *slc_dat(const slc_src_t *s) { return s->dat ? s->dat : SMP_DATA; }
 static inline void slc_dec_at(slc_dec_t *d, uint32_t pos, uint32_t st)
 {
     d->pos = pos;
@@ -102,7 +125,7 @@ static inline int32_t slc_dec_next(const slc_src_t *s, slc_dec_t *d)
         d->pred = 0;
         d->idx = 0;
     }
-    b = SMP_DATA[g->off + (rel >> 1)];
+    b = d->dat[g->off + (rel >> 1)];
     code = (rel & 1u) ? (b >> 4) : (b & 15u);
     ima_nibble(code, IMA_STEP[d->idx], &d->pred, &d->idx);   /* (dsp.c) */
     d->pos++;
@@ -140,6 +163,7 @@ static void slc_scan(slc_src_t *s, uint32_t len)
     slc_dec_t d;
     uint32_t pos = 0, k = 0, gap = ((s->rate >> 4) * 44100u >> 12) / 20u, last = 0, h0 = 0, st0 = 0;
     int32_t prev = 0, pkd = 0, pkr = 0, envd = 0, envr = 0, thd, thr;
+    d.dat = slc_dat(s);
     slc_dec_at(&d, 0, 0);
     while (pos++ < len) {                               /* pass 1: the largest step and sample */
         int32_t x = slc_dec_next(s, &d), a = x - prev;
@@ -215,6 +239,74 @@ static void slc_user_scan(uint32_t k, int valid)
     s->len = at;
 }
 
+#if FELUCCA_SD_STREAM
+/* ---- a CARD's material (main loop: storage/sd/sd_slice.c): its table, then its ADPCM, in one block of memory.
+ * slc_enc_bytes the block for a sample of frames; slc_enc_begin, slc_enc_put a mono sample (Q15) frame by frame,
+ * slc_enc_end: the table scanned (slc_scan, as a user slot's), its length set last; the table, or 0 */
+typedef struct {
+    slc_src_t *s;
+    uint8_t *d;
+    uint32_t n, frames;
+    int32_t pred, idx;
+} slc_enc_t;
+#define SLC_TAB_BYTES (((uint32_t)sizeof(slc_src_t) + 7u) & ~7u)
+static uint32_t slc_enc_bytes(uint32_t frames) { return SLC_TAB_BYTES + (((frames + 1u) / 2u + 7u) & ~7u); }
+
+static void slc_enc_begin(slc_enc_t *e, void *mem, uint32_t frames, uint32_t rate)   /* (mem 8-byte aligned) */
+{
+    e->s = (slc_src_t *)mem;
+    e->d = (uint8_t *)mem + SLC_TAB_BYTES;
+    e->n = 0;
+    e->frames = frames;
+    e->pred = e->idx = 0;                               /* (a segment's data starts from 0 / 0) */
+    memset(e->s, 0, sizeof *e->s);
+    e->s->rate = rate;
+    e->s->dat = e->d;
+}
+
+static void slc_enc_put(slc_enc_t *e, int32_t x)       /* IMA ADPCM: the code nearest x, decoded as the voice will */
+{
+    int32_t step = IMA_STEP[e->idx], dx = x - e->pred;
+    uint32_t c = 0;
+    if (e->n >= e->frames)
+        return;
+    if (dx < 0) {
+        c = 8u;
+        dx = -dx;
+    }
+    if (dx >= step) {
+        c |= 4u;
+        dx -= step;
+    }
+    if (dx >= step >> 1) {
+        c |= 2u;
+        dx -= step >> 1;
+    }
+    if (dx >= step >> 2)
+        c |= 1u;
+    ima_nibble(c, step, &e->pred, &e->idx);
+    if (e->n & 1u)
+        e->d[e->n >> 1] |= (uint8_t)(c << 4);
+    else
+        e->d[e->n >> 1] = (uint8_t)c;
+    e->n++;
+}
+
+static const slc_src_t *slc_enc_end(slc_enc_t *e)
+{
+    slc_src_t *s = e->s;
+    if (!e->n)
+        return 0;
+    s->nseg = 1;
+    s->seg[0].off = 0;
+    s->seg[0].at = 0;
+    s->seg[0].n = e->n;
+    slc_scan(s, e->n);
+    s->len = e->n;
+    return s;
+}
+#endif
+
 /* ---- voices */
 static int16_t *slc_rb(track_t *t, voice_t *v)
 {
@@ -225,13 +317,13 @@ static int16_t *slc_rb(track_t *t, voice_t *v)
 static void slice_note_on(track_t *t, voice_t *v)
 {
     const int16_t *p = t->p;
-    uint32_t src = (uint32_t)p[P_E0] & 3u, div = (uint32_t)clamp(p[P_E1], 0, SLC_DIV_AUTO), rev = p[P_E5] != 0;
+    uint32_t src = (uint32_t)p[P_E0] < SLC_NSRC ? (uint32_t)p[P_E0] : 0u, div = (uint32_t)clamp(p[P_E1], 0, SLC_DIV_AUTO), rev = p[P_E5] != 0;
     uint32_t a, b, st, n;
     int32_t j;
-    const slc_src_t *s = slc_get(src);
-    if (!s) {                                           /* an empty slot: the built-in BREAK */
+    const slc_src_t *s = slc_get((uint32_t)(t - trk), src);
+    if (!s && src != SLC_SRC_CARD) {                    /* an empty slot: the built-in BREAK */
         src = 0;
-        s = slc_get(0);
+        s = slc_get(0, 0);
     }
     v->ph[1] = 0;
     v->s[2] = v->s[3] = 0;
@@ -247,7 +339,7 @@ static void slice_note_on(track_t *t, voice_t *v)
     slc_bounds(s, div, (uint32_t)j, &a, &b, &st);
     if (b <= a || (rev && !slc_rb(t, v)))
         return;
-    v->s[4] = (int32_t)(src | (st >> 24) << 2 | rev << 6 | (uint32_t)j << 8 | div << 16);
+    v->s[4] = (int32_t)(src | (st >> 24) << 3 | rev << 7 | (uint32_t)j << 8 | div << 16);
     v->s[6] = 0;
     if (rev) {
         v->ph[0] = b;
@@ -275,6 +367,7 @@ static void slc_fill(const slc_src_t *s, int16_t *rb, uint32_t ws, uint32_t n, u
             rb[i] = 0;
         return;
     }
+    d.dat = slc_dat(s);
     k = (ws << SLC_GRID_LOG2) / len;
     while (k + 1u < SLC_GRID && slc_gpos(s, k + 1u) <= ws)
         k++;
@@ -339,10 +432,10 @@ static int32_t slice_amp(track_t *t, voice_t *v, int32_t adsr)
 static void slice_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
     const int16_t *p = t->p;
-    uint32_t pk = (uint32_t)v->s[4], i, frac = v->ph[1], rev = (pk >> 6) & 1u, stepq, rem;
+    uint32_t pk = (uint32_t)v->s[4], i, frac = v->ph[1], rev = (pk >> 7) & 1u, stepq, rem;
     int32_t lp = smp_lp_k((p[P_E7] << 8) + m->cutoff), x;   /* (dsp.c) */
     int loop = p[P_E4] == SLC_LOOP && v->gate;
-    const slc_src_t *s = v->s[6] == 2 ? 0 : slc_get(pk & 3u);
+    const slc_src_t *s = v->s[6] == 2 ? 0 : slc_get((uint32_t)(t - trk), pk & 7u);
     int16_t *rb = slc_rb(t, v);
     slc_dec_t d;
     if (!s) {                                           /* ended, or its slot was erased */
@@ -354,7 +447,8 @@ static void slice_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const
     d.pos = v->ph[0];
     d.pred = v->s[0];
     d.idx = v->s[1];
-    d.seg = (pk >> 2) & 15u;
+    d.seg = (pk >> 3) & 15u;
+    d.dat = slc_dat(s);
     if (!v->s[6]) {                                     /* prime the interpolator */
         if (!(rev ? slc_rev(s, v, rb, 0, &x) : slc_fwd(s, v, &d, 0, &x))) {
             v->active = 0;
@@ -390,7 +484,7 @@ static void slice_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const
         v->ph[0] = d.pos;
         v->s[0] = d.pred;
         v->s[1] = d.idx;
-        v->s[4] = (int32_t)((pk & ~(15u << 2)) | d.seg << 2);
+        v->s[4] = (int32_t)((pk & ~(15u << 3)) | d.seg << 3);
     }
 }
 
@@ -405,7 +499,7 @@ static const preset_t SLICE_PRESETS[] = {
 static const engine_t ENG_SLICE = {
     "SLICE", {"SLCE", "PLAY"},
     {
-        PN("SRC", F_ENUM, 0, 3, 0, N_SLC_SRC),
+        PN("SRC", F_ENUM, 0, SLC_NSRC - 1u, 0, N_SLC_SRC),
         PN("DIV", F_ENUM, 0, 4, 2, N_SLC_DIV),
         PU("START", F_INT, 0, 31, 0, 0),
         PU("PTCH", F_SEMI, -24, 24, 0, 0),

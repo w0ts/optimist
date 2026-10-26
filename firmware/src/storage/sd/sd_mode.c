@@ -1031,12 +1031,20 @@ static void sdm_do(uint32_t op, uint32_t k)
 #endif
 #if FELUCCA_SD_STREAM
         sst_part_set(part, sdm_smp[part].hash);      /* (the part's CARD sample: placed by sd_stream_plan.c) */
-        if (trk[part].eng_req != (uint8_t)ENG_SLOT_SAMPLE) {   /* USE puts the part on SAMPLE (the user, 2026-10-26) */
-            set_engine_of(&trk[part], ENG_SLOT_SAMPLE);
-            if (trk[part].eng_req != (uint8_t)ENG_SLOT_SAMPLE)
-                return;                              /* (refused: memory short, the drop is proposed: model.c) */
+#if FELUCCA_SLICE
+        if (trk[part].eng_req == (uint8_t)ENG_SLOT_SLICE) {   /* a part on SLICE stays on it: its SRC on CARD (the
+                                                               * sample whole, sd_slice.c) */
+            trk[part].p[P_E0] = (int16_t)SLC_SRC_CARD;
+        } else
+#endif
+        {
+            if (trk[part].eng_req != (uint8_t)ENG_SLOT_SAMPLE) {   /* USE puts the part on SAMPLE (the user, 2026-10-26) */
+                set_engine_of(&trk[part], ENG_SLOT_SAMPLE);
+                if (trk[part].eng_req != (uint8_t)ENG_SLOT_SAMPLE)
+                    return;                          /* (refused: memory short, the drop is proposed: model.c) */
+            }
+            trk[part].p[P_E0] = (int16_t)SMP_CARD;   /* .. its SET on CARD (eng_sample.c) */
         }
-        trk[part].p[P_E0] = (int16_t)SMP_CARD;       /* .. its SET on CARD (eng_sample.c) */
         snd_mark(part);
 #endif
         sdm_smp_gen++;

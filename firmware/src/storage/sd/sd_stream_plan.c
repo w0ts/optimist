@@ -33,6 +33,8 @@
 #endif
 /* the card lanes (slots SST_NPART + lane, FELUCCA_SD_LANES): a ring each (a lane's hit cuts its own hit before:
  * drums/lane_card.c), sharing the SST_N rings with the parts */
+/* SLICE on CARD (sd_slice.c, SST_PART_SLICE): that part's sample goes into the block whole (ADPCM), no ring or head for
+ * it; a part going on or off it places again */
 #define SST_RETRY_MS 200u
 #define SST_GATE_MS 20u                              /* the audio's two halves (11.6 ms) and some: no voice reads it */
 enum { SSTP_IDLE = 0, SSTP_GATED, SSTP_PLACED, SSTP_REFUSED };
@@ -48,14 +50,29 @@ static struct {
     uint32_t need, t0;
     int32_t rec[SST_NSRC];                           /* each source's index record (sdx_read), -1 none */
     uint64_t hash[SST_NSRC];
-    uint8_t nsrc, nring;
+    uint8_t use[SST_NSRC];                           /* SSTU_STREAM: a slot streams it, SSTU_SLICE: a SLICE part's */
+    uint8_t nsrc, nring, slc;                        /* slc: the slots on SLICE CARD when placed (sst_slicers) */
 } sstp IN_POOL;
+enum { SSTU_STREAM = 1, SSTU_SLICE = 2 };
+
+static uint32_t sst_slicers(void)                    /* the parts on SLICE with SRC CARD and a card sample, a mask */
+{
+    uint32_t m = 0;
+#ifdef SST_PART_SLICE
+    uint32_t p;
+    for (p = 0; p < SST_NPART; p++)
+        if (sst_part_hash[p] && SST_PART_SLICE(p))
+            m |= 1u << p;
+#endif
+    return m;
+}
 
 static uint32_t sst_nring(void)                      /* the rings the CARD parts and the card lanes can use at once */
 {
     uint32_t p, n = 0;
+    uint32_t sl = sst_slicers();
     for (p = 0; p < SST_NSLOT; p++)
-        if (sst_part_hash[p])
+        if (sst_part_hash[p] && !((sl >> p) & 1u))
             n += p < SST_NPART ? SST_PART_VOICES(p) : 1u;
     return n < SST_N ? n : SST_N;
 }
@@ -94,20 +111,48 @@ static uint32_t sst_need(uint32_t pre_ms)           /* the block at that setting
 {
     static char path[SDX_PATH + 16];
     uint32_t i, b, n = sstp.nring * SST_K * 512u;
-    for (i = 0; i < sstp.nsrc; i++)
-        if (sstp.rec[i] >= 0 && sst_rec_path(sstp.rec[i], path, sizeof path) == FR_OK &&
-            sst_src_need(path, pre_ms, &b) == FR_OK)
+    for (i = 0; i < sstp.nsrc; i++) {
+        if (sstp.rec[i] < 0 || sst_rec_path(sstp.rec[i], path, sizeof path) != FR_OK)
+            continue;
+        if ((sstp.use[i] & SSTU_STREAM) && sst_src_need(path, pre_ms, &b) == FR_OK)
             n += (b + 3u) & ~3u;
+#ifdef SST_PART_SLICE
+        if ((sstp.use[i] & SSTU_SLICE) && ssl_need(path, &b) == FR_OK)
+            n += (b + 3u) & ~3u;
+#endif
+    }
     return n;
 }
 
-static uint32_t sst_pre_kb(uint32_t ms) { return (sst_need(ms) - sstp.nring * SST_K * 512u + 1023u) / 1024u; }
+static uint32_t sst_slice_need(void)                 /* the SLICE parts' samples: no pre-buffer in them */
+{
+#ifdef SST_PART_SLICE
+    static char path[SDX_PATH + 16];
+    uint32_t i, b, n = 0;
+    for (i = 0; i < sstp.nsrc; i++)
+        if ((sstp.use[i] & SSTU_SLICE) && sstp.rec[i] >= 0 && sst_rec_path(sstp.rec[i], path, sizeof path) == FR_OK &&
+            ssl_need(path, &b) == FR_OK)
+            n += (b + 3u) & ~3u;
+    return n;
+#else
+    return 0;
+#endif
+}
+
+static uint32_t sst_pre_kb(uint32_t ms)
+{
+    return (sst_need(ms) - sstp.nring * SST_K * 512u - sst_slice_need() + 1023u) / 1024u;
+}
 
 static void sst_gate(void)                           /* the CARD voices let go: they fade out (eng_sample.c) */
 {
     uint32_t i;
     for (i = 0; i < SST_NSLOT; i++)
         sst_part_src[i] = 0xFF;
+#ifdef SST_PART_SLICE
+    for (i = 0; i < SST_NPART; i++)
+        ssl_set(i, 0);                               /* (SLICE's voices on it fall silent: eng_slice.c slc_get) */
+#endif
     for (i = 0; i < SST_NSRC; i++)
         sst_src[i].ready = 0;
 }
@@ -117,6 +162,7 @@ static void sst_lookup(void)                         /* the slots' hashes -> sou
     uint32_t p, i;
     sstp.nsrc = 0;
     sstp.missing = 0;
+    sstp.slc = (uint8_t)sst_slicers();
     for (p = 0; p < SST_NSLOT; p++) {
         if (!sst_part_hash[p])
             continue;
@@ -125,8 +171,11 @@ static void sst_lookup(void)                         /* the slots' hashes -> sou
         if (i == sstp.nsrc && i < SST_NSRC) {
             sstp.hash[i] = sst_part_hash[p];
             sstp.rec[i] = sdx_find_hash(sst_part_hash[p], &sdx.rec);
+            sstp.use[i] = 0;
             sstp.nsrc++;
         }
+        if (i < sstp.nsrc)
+            sstp.use[i] |= (uint8_t)(((sstp.slc >> p) & 1u) ? SSTU_SLICE : SSTU_STREAM);
         if (i >= sstp.nsrc || sstp.rec[i] < 0)
             sstp.missing |= (uint16_t)(1u << p);
     }
@@ -135,24 +184,45 @@ static void sst_lookup(void)                         /* the slots' hashes -> sou
 static void sst_load_all(uint8_t *mem)               /* the rings, then each source; each part to its source */
 {
     static char path[SDX_PATH + 16];
+    static const void *tab[SST_NSRC];
     uint32_t i, p, at = sstp.nring * SST_K * 512u, used;
     sst_rings(mem, sstp.nring);
     for (i = 0; i < sstp.nsrc; i++) {
-        if (sstp.rec[i] < 0 || sst_rec_path(sstp.rec[i], path, sizeof path) != FR_OK ||
-            sst_src_load(i, path, sst_pre_ms, mem + at, sstp.need - at, &used) != FR_OK) {
-            sstp.rec[i] = -1;                        /* (gone since the lookup, or no longer a WAV it plays) */
+        tab[i] = 0;
+        if (sstp.rec[i] < 0 || sst_rec_path(sstp.rec[i], path, sizeof path) != FR_OK) {
+            sstp.rec[i] = -1;
             continue;
         }
-        sst_src[i].hash = sstp.hash[i];
-        at += (used + 3u) & ~3u;
+        if (sstp.use[i] & SSTU_STREAM) {
+            if (sst_src_load(i, path, sst_pre_ms, mem + at, sstp.need - at, &used) != FR_OK) {
+                sstp.rec[i] = -1;                    /* (gone since the lookup, or no longer a WAV it plays) */
+                continue;
+            }
+            sst_src[i].hash = sstp.hash[i];
+            at += (used + 3u) & ~3u;
+        }
+#ifdef SST_PART_SLICE
+        if (sstp.use[i] & SSTU_SLICE) {
+            tab[i] = ssl_load(path, mem + at, sstp.need - at, &used);
+            if (!tab[i]) {
+                sstp.rec[i] = -1;
+                continue;
+            }
+            at += (used + 3u) & ~3u;
+        }
+#endif
     }
     for (p = 0; p < SST_NSLOT; p++)
         for (i = 0; sst_part_hash[p] && i < sstp.nsrc; i++)
             if (sstp.hash[i] == sst_part_hash[p]) {
-                if (sstp.rec[i] >= 0)
-                    sst_part_src[p] = (uint8_t)i;
-                else
+                if (sstp.rec[i] < 0)
                     sstp.missing |= (uint16_t)(1u << p);
+#ifdef SST_PART_SLICE
+                else if ((sstp.slc >> p) & 1u)
+                    ssl_set(p, tab[i]);
+#endif
+                else
+                    sst_part_src[p] = (uint8_t)i;
             }
 }
 
@@ -203,6 +273,8 @@ static void sst_remount(void)                        /* a mount (sdcard.c): the 
 static void sst_plan_poll(void)
 {
     uint32_t i;
+    if ((sstp.state == SSTP_PLACED || sstp.state == SSTP_REFUSED) && sst_slicers() != sstp.slc)
+        sstp.dirty = 1;                              /* (a part went on or off SLICE CARD: whole, or streamed) */
     if (sstp.state == SSTP_PLACED && sst_nring() != sstp.nring)
         sstp.dirty = 1;                              /* (a CARD part's voices changed: its rings) */
     if (sstp.dirty) {
