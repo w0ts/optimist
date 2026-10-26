@@ -157,8 +157,9 @@ static const uint8_t EFFV_DEST[ENG_UID_N] = {0xF4, 0xFF, 0xF2, 0xF7, 0xF4, 0x4F,
                                              0xF4, 0x04, 0x16, 0xF6, 0x47, 0x15, 0x74, 0x14,   /* STRINGS CUT, VPS CUT / D,
                                                                                          * TERRAIN CUT / RAD, WSEQ CUT,
                                                                                          * VECTOR CUT / X, SID CUT / PW, PROPHET CUT / PW, WAVE CUT / POS */
+                                             0x35,                                       /* CS80 LPF / MIX */
 #if FELUCCA_EX_SQUARE
-                                             0x04,                                       /* SQUARE CUT / PW (the example, UID 26) */
+                                             0x04,                                       /* SQUARE CUT / PW (the example, UID 27) */
 #endif
 };
 #else

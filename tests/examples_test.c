@@ -10,7 +10,7 @@
  *     - on the drum bus: L and R both; its TLV round trip (none when every one is OFF); the motion's stored id
  *       (auto.c MOT_TAIL2: the second tail + 9) both ways.
  *   SQUARE (engines/square/eng_square.c), a synth engine:
- *     - engine UID 26 (27 UIDs), named SQUARE, its fallback ANALOG; every preset on the PRESETS list (model.c BANK);
+ *     - engine UID 27 (28 UIDs), named SQUARE, its fallback ANALOG; every preset on the PRESETS list (model.c BANK);
  *     - every preset: a note held 1 s then let go: audible, bounded, every voice free at the end;
  *     - the pitch: the filter open, one pulse, A3 played: 220 Hz from the zero crossings (within 1 %);
  *     - each EDIT value changes the sound.
@@ -213,9 +213,9 @@ static void t_square(void)
     uint32_t pi, k, ok = 1;
     sq_res_t r, base;
     double hz;
-    check("SQUARE: engine UID 26 of 27, named SQUARE, ANALOG its fallback, 3 presets (model.c BANK: tests/preset_cover_test.c)",
+    check("SQUARE: engine UID 27 of 28, named SQUARE, ANALOG its fallback, 3 presets (model.c BANK: tests/preset_cover_test.c)",
           ENG_IX_SQUARE < NENGINES && !strcmp(e->name, "SQUARE") && eng_uid(ENG_IX_SQUARE) == ENG_UID_SQUARE &&
-          ENG_UID_SQUARE == 26u && ENG_UID_N == 27u && ENG_FALLBACK[ENG_UID_SQUARE] == 0u && eng_built(26u) &&
+          ENG_UID_SQUARE == 27u && ENG_UID_N == 28u && ENG_FALLBACK[ENG_UID_SQUARE] == 0u && eng_built(27u) &&
           e->npresets == 3u);
     for (pi = 0; pi < e->npresets; pi++) {
         r = ex_sq_render(pi, 8, 0, 57);

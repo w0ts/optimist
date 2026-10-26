@@ -72,8 +72,8 @@ working project as a SLOOP 2.7 song file to go the other way.
 ## What is in it
 
 - **Four tracks:** three synth tracks and a drum track with 10 lanes on the black keys, ghost and hard hits, ratchets.
-- **Up to 26 synth engines:** ANALOG 2, FM6 (plays DX7 voices as Dexed does), JUNO, ACID, CZ, PHYS, DIGITAL, PHASE,
-  LOFI, SAMPLE, VOICE, TRIO, WHEEL, GRAIN, SLICE, NOISE, DRONE (a LYRA-style coupled drone with binaural beats), PLAITS (four of Mutable Instruments Plaits' models), Clipper's STRINGS, VPS, TERRAIN, WSEQ, VECTOR and WAVE, SID (the C64's chip, after reSID) and PROPHET (a Prophet-5 style voice). Two LFOs and two envelopes per sound.
+- **Up to 27 synth engines:** ANALOG 2, FM6 (plays DX7 voices as Dexed does), JUNO, ACID, CZ, PHYS, DIGITAL, PHASE,
+  LOFI, SAMPLE, VOICE, TRIO, WHEEL, GRAIN, SLICE, NOISE, DRONE (a LYRA-style coupled drone with binaural beats), PLAITS (four of Mutable Instruments Plaits' models), Clipper's STRINGS, VPS, TERRAIN, WSEQ, VECTOR and WAVE, SID (the C64's chip, after reSID), PROPHET (a Prophet-5 style voice) and CS80 (a CS-80 style voice, after CS-1). Two LFOs and two envelopes per sound.
 - **Drums:** 5 sampled and 34 synthesised kits, the X0X 909 and 808 with eight style kits, every sound editable, your samples and kits.
 - **Effects:** two insert slots on every track, drum sound and the master (DYN, EQ3, filters, drive, chorus, echo, the
   Juno chorus and more), reverb, delay and chorus sends with three returns, punch-in effects.
@@ -127,6 +127,7 @@ listed with its licence and commit in [LICENSING.md](LICENSING.md).
 - **[Melodee](https://github.com/keremimo/melodee)** by Kerem Kilic (Ellic Studio) and contributors: FM6, CZ, the PROPHET voice, USB audio, TRS MIDI in, clock follow, MIDI expression, inserts, the rescue tool's checks, the second core's fault handling.
 - **[Clipper](https://github.com/isod89/clipper-fm1)** by 3dSam: the STRINGS, VPS, TERRAIN, WSEQ, VECTOR and WAVE engines.
 - **[Mini-Tone](https://github.com/eldontyrellcorp/Mini-Tone)** by Stephane Schmitz: the SID engine (after reSID 0.16 by Dag Lem).
+- **[CS-1](https://github.com/twochannels/CS-1)** by twochannels: the CS80 engine's voice design.
 - **[X0X](https://github.com/charlesvestal/fm1-x0x)** by Charles Vestal: the rescue tool, the ACID engine (Open303, TB-3PO), the X0X 909 / 808 kits (9W9, 8W8 by athousanddetails, ER-99 by Matthew Cieplak), the mixer glides, the second core's start.
 - **[Flowstate](https://github.com/zakariachowdhury/flowstate-fm1)** by Zakaria Chowdhury: the performance macros, the CPU guard. **[Jangada](https://github.com/zednaked/jangada)** by zednaked: the SUPER engine, the second core's supply settings. **[Caravel](https://github.com/bonszaimusic/caravel)** by bonszaimusic: the DRONE engine's coupled network. **[fm-106](https://github.com/PatttF/fm-106)** by PatttF, after [Ultramaster KR-106](https://github.com/kayrockscreenprinting/ultramaster_kr106): the JUNO engine and chorus.
 - DaisySP, Rings, Plaits, MAME's uPD933, Airwindows, MSFA and Dexed, sc808; samples from Versilian Studios and Sonic Pi (CC0); fonts Terminus and JetBrains Mono (SIL OFL), Fukiai (MIT); [fm1-emulator](https://github.com/simonjohansson/fm1-emulator) by Simon Johansson; [jl-uboot-tool](https://github.com/kagaimiq/jl-uboot-tool) by kagaimiq.

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The engines ported from the scene (tests/run_tests.sh builds this with $SCENE_ON: Clipper's STRINGS VPS TERRAIN
- * WSEQ VECTOR, engines/clipper/, Mini-Tone's SID, engines/sid/, PROPHET, engines/prophet/, Clipper's WAVE), each engine the same checks:
- *   - its UID and fallback (registry.h), 26 engine UIDs;
+ * WSEQ VECTOR, engines/clipper/, Mini-Tone's SID, engines/sid/, PROPHET, engines/prophet/, Clipper's WAVE, CS80, engines/cs80/), each engine the same checks:
+ *   - its UID and fallback (registry.h), 27 engine UIDs;
  *   - every preset: a 4-note chord held 2 s, the keys up, 10 s more: audible, bounded, no DC, every voice free at the
  *     end, its render's FNV-1a 64 the one in tests/golden_scene_engines.txt (GOLDEN_UPDATE=1 rewrites it); the
  *     presets' level within 9 dB of ANALOG's;
@@ -54,6 +54,7 @@ static const se_eng_t ENGS[] = {
     {ENG_SLOT_SID, ENG_UID_SID, 3, {2, 64, 0, 0, 0, 127, 0, 1}},              /* (a square, the filter off, the 8580) */
     {ENG_SLOT_PROPHET, ENG_UID_PROPHET, 0, {0, 0, 0, -64, 127, 0, 0, 0}},     /* (A's saw alone, the filter open) */
     {ENG_SLOT_WAVE, ENG_UID_WAVE, 0, {0, 0, 0, 0, 127, 0, 0, 0}},             /* (BASIC's first frame, the filter open) */
+    {ENG_SLOT_CS80, ENG_UID_CS80, 0, {0, 0, 1, -64, 0, 127, 0, 0}},           /* (channel I's saw alone, both filters open) */
 };
 #define NENG (sizeof ENGS / sizeof ENGS[0])
 
@@ -352,7 +353,7 @@ int main(int argc, char **argv)
                       "# an intended change.\n");
     for (pi = 0; pi < ENGINES[ENG_SLOT_ANALOG]->npresets; pi++)
         analog_rms += se_render(ENG_SLOT_ANALOG, pi, 0, CHORD, 4, 0).rms / ENGINES[ENG_SLOT_ANALOG]->npresets;
-    check(ENG_UID_N == 26u, "", "26 engine UIDs");
+    check(ENG_UID_N == 27u, "", "27 engine UIDs");
     for (i = 0; i < NENG; i++) {
         const se_eng_t *g = &ENGS[i];
         const engine_t *e = ENGINES[g->slot];

@@ -71,7 +71,7 @@ CONCEPTS = [
     ("engines", "ACID", [r"\bACID\b"]), ("engines", "CZ", [r"\bCZ\b"]), ("engines", "JUNO", [r"\bJUNO\b"]),
     ("engines", "NOISE", [r"\bNOISE\b"]), ("engines", "DRONE", [r"\bDRONE\b"]), ("engines", "PLAITS", [r"\bPLAITS\b"]),
     ("engines", "STRINGS", [r"\bSTRINGS\b"]), ("engines", "VPS", [r"\bVPS\b"]), ("engines", "TERRAIN", [r"\bTERRAIN\b"]),
-    ("engines", "WSEQ", [r"\bWSEQ\b"]), ("engines", "VECTOR", [r"\bVECTOR\b"]), ("engines", "SID", [r"\bSID\b"]), ("engines", "PROPHET", [r"\bPROPHET\b"]), ("engines", "WAVE", [r"\bWAVE\b"]),
+    ("engines", "WSEQ", [r"\bWSEQ\b"]), ("engines", "VECTOR", [r"\bVECTOR\b"]), ("engines", "SID", [r"\bSID\b"]), ("engines", "PROPHET", [r"\bPROPHET\b"]), ("engines", "CS80", [r"\bCS80\b"]), ("engines", "WAVE", [r"\bWAVE\b"]),
     # interface and project
     ("interface", "SHIFT = OCT- held, SHIFT2 = OCT+ held", [r"\bSHIFT2\b", r"OCT-"]),
     ("interface", "both OCT buttons together", [r"(?i)both OCT|OCT- and OCT\+ together|OCT- \+ OCT\+"]),

@@ -80,7 +80,7 @@ Projects, presets and the BUILD report store numbers, so these are never reused 
   (`gen.c` `GT_*`), a **TLV id** in a stored record, a **motion id** (`auto.c` `MOT_TAIL` / `MOT_TAIL2`).
 
 Say in an issue what you are adding before you start, so two branches do not take the same numbers. The examples are a
-special case: so that every other build stays byte for byte the same, their ids (FX type 29, engine UID 26, generator
+special case: so that every other build stays byte for byte the same, their ids (FX type 29, engine UID 27, generator
 types 4 and 5, motion id `AUTO_TAIL2 + 9`) exist only in a build that has them. A real piece added after them takes
 the next numbers in every build, and the example's number moves up (it is never stored outside a test).
 
