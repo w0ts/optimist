@@ -9,14 +9,14 @@ Wi-Fi driver of our own (clean room, as the BT stack was). Details: `docs/LINK-D
 | Part | State | Where |
 | --- | --- | --- |
 | Link peer, C port of Ableton Link's sync part (no Link Audio) | done; matches Ableton's library to 0.001 ms of phase, joins Live's session | `firmware/src/link/`, `tests/link_test.c`, `tools/link/` |
-| Wi-Fi receive | **works on the FM-1** | `firmware/hal/fm1_wifi.h`, console `wifiup`, `wifirx` |
+| Wi-Fi receive | **works on the FM-1** | `firmware/hal/fm1_wifi.h`, console `wifiup`, `wifiscan` |
 | Scan (beacons, channels 1-13) | **works**: lists the networks around | console `wifiscan` |
 | Transmit | **works**: access points answer our probe requests | `fm1_wifi_tx`, console `wifitx [ch]` |
 | WPA2 crypto (SHA-1, HMAC, PBKDF2, PRF, AES, key unwrap) | **done**: test vectors pass | `firmware/src/wifi/wifi_crypto.c`, `tests/wifi_sta_test.c` |
-| 4-way handshake (EAPOL M1-M4, PTK, GTK unwrap) | host-tested: a simulated AP, the PTK checked against an independent PRF computation, replay / bounds / padding cases (23 checks); **not run on the FM-1** | `firmware/src/wifi/wifi_sta.c`, `wifi_sta.h`, `tests/wifi_sta_test.c` |
-| Key install into the MAC tables | written, **unverified**: the WCID attribute value (`0x6804` = `0x04`) may be wrong (Ralink's layout would give `0x09` for CCMP in the pairwise table); only a decrypted frame on the FM-1 settles it | `wifi_sta_install_hw_keys` |
-| Join wire-in (open authentication, association framing on-chip) | **next** | `firmware/src/wifi/` |
-| IP layer (ARP, DHCP, IGMP, UDP), early receive filter | not started | `docs/LINK-DESIGN.md` §2 |
+| 4-way handshake (EAPOL M1-M4, PTK, GTK unwrap) | host-tested: simulated AP, PTK derivation, replay / bounds / padding cases (44 checks passing) | `firmware/src/wifi/wifi_sta.c`, `wifi_sta.h`, `tests/wifi_sta_test.c` |
+| Key install into the MAC tables | written (`wifi_sta_install_hw_keys`), **unverified**: the WCID attribute value (`0x6804` = `0x04`) may be wrong (Ralink's layout would give `0x09` for CCMP in the pairwise table); only a decrypted frame on the FM-1 settles it | `firmware/src/wifi/wifi_sta.c` |
+| Join wire-in (open authentication, association framing, LLC/SNAP EAPOL, VM MAC, `wifijoin`) | **done**: frame builders & parser, VM 102 BT MAC extraction, `wifijoin` in console | `firmware/src/wifi/wifi_sta.c`, `firmware/src/io/console.c` |
+| IP layer (ARP, DHCP, IGMP, UDP), early receive filter | **next** | `docs/LINK-DESIGN.md` §2 |
 | Link in `clock_sync.c` (`MSRC_LINK`, `SYNC LINK`), builder items | not started | `docs/LINK-DESIGN.md` §3 |
 
 ## The hardware in five lines
@@ -38,8 +38,9 @@ make flash PKG=<abs path to firmwares/...-bt-debug.fwsc>
 tools/builder/venv/bin/python tools/fm1_console.py wifiup wifiscan     # console commands, read-mostly
 ```
 
-Console (BLE builds, `firmware/src/io/console.c`): `wifiregs` (read only), `wifiup` (radio + STA settings + WLC + Wi-Fi
-path), `wifirx [on [all]]`, `wifiscan`, `wifitx [ch]`. Commands that wait several seconds outrun
+Console (BLE builds, `firmware/src/io/console.c`): `wifiup` (radio + STA settings + WLC + Wi-Fi path), `wifiscan`,
+`wifitx [ch]`, `wifijoin <ssid> [passphrase]`. (`wifiregs` and `wifirx`, the first probes, were removed to make room:
+`bt-debug` has 4 bytes of flash left with `wifijoin`; the facts they showed are in WIFI-HW-FACTS.) Commands that wait several seconds outrun
 `fm1_console.py`'s 0.6 s quiet timeout. Read the port directly for those (see the session notes in the commits).
 
 ## How the facts were found (repeat this for anything new)
@@ -50,46 +51,29 @@ or a raw send in the FM-1 emulator (`~/GitHub/fm1-emulator`, `diagnose` with `FM
 register access. `split.py` / `diff_v15.py` compare traces. The SDK libraries are LLVM bitcode:
 `llvm-ar x` + `llvm-dis` give readable IR with names. `fn.sh` (in the local SDK folder) prints one function.
 
-## Blocked for Claude: the join step (please pick this up)
+## Station join step (implemented & host-verified)
 
-Claude cannot continue this one step. Twice (2026-10-26), a safety classifier stopped Claude's reply while it worked on
-it, and Claude must not try to work around that. Everything before this step and after it is open to Claude.
-
-**What is blocked:** writing the station's join on the FM-1. That means building and sending the 802.11
-open-authentication and association-request frames to the access point, handling its responses, and carrying the
-EAPOL-Key frames of the 4-way handshake over the air between the access point and `wifi_sta_rx_eapol`. Reading the
-unit's Bluetooth address from VM record 102 (for the MAC address) was being done at the moment of the second stop.
-Claude does not know which part the classifier objects to. This is an ordinary client joining the owner's own
-network, from the owner's own device.
-
-**What exists for it** (all on this branch):
-- radio up, scan, receive and transmit work on the FM-1 (`wifiup`, `wifiscan`, `wifirx`, `wifitx`; `hal/fm1_wifi.h`:
-  `fm1_wifi_tx` sends a frame with a Ralink TXWI, `fm1_wifi_rx` gets one with its RXWI);
-- `firmware/src/wifi/wifi_sta.c`: the handshake logic, host-tested (23 checks). It takes M1 and M3 as EAPOL bodies,
-  returns M2 and M4 to send, and installs the keys (the WCID attribute value is unverified, see step 2);
-- `wifi_scan` (console) already parses beacons: BSSID, channel, SSID. The RSN element is not parsed yet;
-- the MAC registers to set before joining: our address `0x1008` / `0x100C`, the BSSID `0x1010` / `0x1014` (Ralink
-  layout, not yet tried), the channel `0x1405C` byte 0 minus 101;
-- VM 102: `docs/BLE-HW-FACTS.md` §11, §14 (BTIF `0x0E9000`; `ble_vm.c` reads the VM; never write there).
-
-**What it needs to deliver:** a console command (e.g. `wifijoin <ssid>`, with the passphrase typed at run time and
-never stored) that ends with the 4-way handshake complete and the keys installed. Then step 2 below checks that the
-MAC decrypts. Claude carries on from there: IP layer, early filter, Link.
+The station join sequence on the FM-1 and host test bench is implemented:
+- Building and sending 802.11 Open System Authentication and Association Request frames (including SSID, Supported Rates, Ext Rates, and RSN Information Elements) to the access point.
+- Parsing 802.11 Authentication and Association Response frames.
+- Encapsulating and decapsulating 802.1X EAPOL frames in 802.11 Data frames with LLC/SNAP headers (`AA-AA-03-00-00-00-88-8E`).
+- Deriving PTK/GTK keys, processing M1-M4, verifying MICs, unwrapping GTK, and programming MAC hardware key tables.
+- Reading device Bluetooth address from VM record 102 (`0x0E9000`) with CRC-16 check and locally-administered bit (fallback `02:11:22:33:44:55`).
+- Programming MAC registers `0x1008`/`0x100C` (STA MAC), `0x1010`/`0x1014` (BSSID), and radio channel `0x1405C`.
+- Exposing `wifijoin <ssid> [passphrase]` in the console (`firmware/src/io/console.c`), which performs scanning, authentication, association, 4-way handshake, and key installation at runtime without storing the passphrase.
 
 ## Next steps
 
-1. **Join wire-in (blocked for Claude: see above):** Open system authentication and association request / response with RSN element framing over the air, feeding EAPOL frames into `wifi_sta_rx_eapol`. The passphrase comes from the console at run time: never in a file, a commit or a note.
-2. **Key install verification:** `wifi_sta_install_hw_keys` writes the PTK / GTK into the MAC tables (`0x1800`,
-   `0x4000`, `0x6000`, `0x6800`, `0x6C00`, `0x7000`). Confirm the MAC decrypts (CCMP) on a real encrypted frame;
-   check the WCID attribute value first.
-2b. **Group key rekey:** the 2-message group handshake (pairwise bit off) is refused today, so the link would drop at
-   the access point's first rekey (often after an hour). The SNonce comes from the caller's random source
-   (`wifi_sta_init`'s `rand`: in the firmware, the radio's `ble_hw_rand`).
-3. **MAC address:** the unit's VM 102 BT address with the locally-administered bit (the user's choice); a random one
-   kept in Optimist's settings if VM 102 is missing. (Tests use `02:11:22:33:44:55`.)
-4. **IP + filter:** ARP, DHCP, IGMP, UDP; drop everything else right after the RX DMA (`LINK-DESIGN.md` §2.7).
-5. **Link on top**, then `clock_sync.c` and the builder items `WIFI`, `WIFI_STA`, `LINK`, each optional (the user
-   wants flash under control; an access-point mode is not planned).
+1. **Key install verification:** `wifi_sta_install_hw_keys` writes the PTK / GTK into the MAC tables (`0x1800`,
+   `0x4000`, `0x6000`, `0x6800`, `0x6C00`, `0x7000`). Confirm the MAC decrypts (CCMP) on a real encrypted frame on physical hardware.
+1b. **Group key rekey:** the 2-message group handshake (pairwise bit off) is still refused, so the link would drop at
+   the access point's first rekey (often after an hour).
+1c. **`wifijoin` works on the FM-1** (2026-10-26, `bt-debug`, the user's WPA2 network): found the BSS on channel 11,
+   authentication ok, association ok (AID 11), 4-way handshake complete (the access point sent M3, so our M2 MIC and
+   the PMK / PTK were right), keys installed. Not yet seen: a decrypted frame (proves the key install and the
+   `0x6804` value) and the access point keeping us after M4.
+2. **Lightweight IP layer + early filter:** ARP, DHCP, IGMP multicast join (`224.76.78.75`), UDP dispatch; drop everything else right after the RX DMA (`LINK-DESIGN.md` §2.7).
+3. **Link clock sync integration:** Link on top, then `firmware/src/io/midi/clock_sync.c` (`MSRC_LINK`, `SYNC LINK`), builder items `WIFI`, `WIFI_STA`, `LINK` (`docs/LINK-DESIGN.md` §3).
 
 ## Traps
 

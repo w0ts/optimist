@@ -12,8 +12,8 @@ import argparse
 import sys
 import time
 
-READ_ONLY = ("status", "dbg", "boot", "crash", "help", "keys", "keylog", "bletrim", "blevm", "blell", "blell clear", "wifiregs",
-             "wifirx", "wifirx on", "wifirx on all", "wifiup", "wifiscan", "wifitx", "wifitx 11")      # wifirx: no settings changed; it runs the receive path once (RX DMA); "on": the Wi-Fi RF path for those 3 s
+READ_ONLY = ("status", "dbg", "boot", "crash", "help", "keys", "keylog", "bletrim", "blevm", "blell", "blell clear",
+             "wifiup", "wifiscan", "wifitx", "wifitx 11")      # wifiup brings the Wi-Fi side up; wifitx sends one probe request
 FM1_VID = 0x1209                         # usb.c
 QUIET_S = 0.6                            # a reply is over after this long without a byte
 
