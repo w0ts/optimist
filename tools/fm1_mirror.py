@@ -4,6 +4,8 @@
 after fm1-base's tools/fm1_mirror.py).
   fm1_mirror.py shot OUT.png [--state]     the screen now (and, with --state, what the panel holds and lights)
   fm1_mirror.py decode FRAMES.sysex OUT.png   frames saved before (tests/mirror_test.c MIRROR_FIXTURE): no device
+  fm1_mirror.py session [SECONDS]           the test session: the FM-1 restarts as a blank one, its flash never written,
+                                            for SECONDS (or until Ctrl-C), then restarts into its own state (USB only)
 The device sends the whole panel when asked (a catch-up: black, then every band again); the shot is taken once the catch-up is
 in (half a second, or the pushes quiet). The decoder is tests/mirror_dec.h's. Needs python-rtmidi for a device (not mido: its
 frames broke where the FM-1's clock sits inside a SysEx); the PNG is written with zlib alone.
@@ -182,7 +184,8 @@ def state_text(s: list[int]) -> str:
                       f"{'; a test session' if s[28] & 2 else ''}"])
 
 
-def shot(out: Path, want_state: bool) -> None:
+def shot(out: Path, want_state: bool, off: bool = True) -> None:
+    """the screen now as a PNG (off: the mirror asked off after; a test session keeps it on, or it ends)"""
     try:
         import rtmidi
     except ImportError:
@@ -235,7 +238,8 @@ def shot(out: Path, want_state: bool) -> None:
                         began, began_at = True, last
             time.sleep(0.005)
     finally:
-        mo.send_message([0xF0, *HDR, MIRROR, 0, 0xF7])
+        if off:
+            mo.send_message([0xF0, *HDR, MIRROR, 0, 0xF7])
         mi.close_port()
         mo.close_port()
     write_png(out, dec.fb)
@@ -244,10 +248,91 @@ def shot(out: Path, want_state: bool) -> None:
         print(state_text(dec.state))
 
 
+PANEL = 108
+SESSION_WAIT_S = 30.0    # the FM-1 back on USB after a restart, at most this long
+ALIVE_S = 1.0            # the mirror asked again this often (it ends 3 s after the last request; the session with it)
+
+
+def ports():
+    """the FM-1's USB-MIDI in and out (python-rtmidi), or None while it is not there (a restart)"""
+    import rtmidi
+    mi, mo = rtmidi.MidiIn(queue_size_limit=1024), rtmidi.MidiOut()
+    pi = [k for k, n in enumerate(mi.get_ports()) if PORT_RE.search(n) and "bluetooth" not in n.lower()]
+    po = [k for k, n in enumerate(mo.get_ports()) if PORT_RE.search(n) and "bluetooth" not in n.lower()]
+    if not pi or not po:
+        return None
+    mi.ignore_types(sysex=False, timing=True, active_sense=True)
+    mi.open_port(pi[0])
+    mo.open_port(po[0])
+    return mi, mo
+
+
+def request(mi, mo, cmd: int, args: list[int], timeout: float = 1.0) -> list[int] | None:
+    """an editor request (F0 7D 46 4C cmd args F7) and its answer's arguments, None: no answer"""
+    while mi.get_message():
+        pass
+    mo.send_message([0xF0, *HDR, cmd, *args, 0xF7])
+    end = time.monotonic() + timeout
+    while time.monotonic() < end:
+        m = mi.get_message()
+        if m and m[0][:5] == [0xF0, *HDR, cmd] and m[0][-1] == 0xF7:
+            return [b for b in m[0][5:-1] if b < 0x80]
+        time.sleep(0.002)
+    return None
+
+
+def wait_back() -> tuple:
+    """the FM-1 gone and back (a restart): its ports again"""
+    end = time.monotonic() + SESSION_WAIT_S
+    time.sleep(2.0)
+    while time.monotonic() < end:
+        p = ports()
+        if p and request(*p, MIRROR, [1]) is not None:
+            return p
+        if p:
+            p[0].close_port(), p[1].close_port()
+        time.sleep(0.5)
+    sys.exit("the FM-1 did not come back on USB: power-cycle it (its own state is untouched)")
+
+
+def session(seconds: float | None) -> None:
+    """the test session (108 kind 5, opti_mtest_1): the FM-1 as a blank one for `seconds` (None: until Ctrl-C), its own
+    flash never written; then the user's own again (a restart either way)"""
+    try:
+        p = ports()
+    except ImportError:
+        sys.exit("needs python-rtmidi: pip install python-rtmidi")
+    if not p or request(*p, MIRROR, [1]) is None:
+        sys.exit("no answer from the FM-1 over USB (a firmware with ED_MIRROR?)")
+    r = request(*p, PANEL, [5, 1, 0])
+    if not r or r[1] != 0:
+        sys.exit("the FM-1 refused the test session (a firmware without opti_mtest_1, or over Bluetooth)")
+    print("the FM-1 restarts as a blank one...")
+    p[0].close_port(), p[1].close_port()
+    p = wait_back()
+    time.sleep(1.0)
+    shot(Path("fm1-session-blank.png"), True, off=False)     # (the blank FM-1's screen, the mirror left on)
+    print("test session: the FM-1 is blank, nothing is written to its flash" +
+          (f" ({seconds:.0f} s)" if seconds else " (Ctrl-C ends it)"))
+    end = time.monotonic() + seconds if seconds else None
+    try:
+        while end is None or time.monotonic() < end:
+            request(*p, MIRROR, [1], timeout=0.5)       # (the keep-alive: no client, and the session would end)
+            time.sleep(ALIVE_S)
+    except KeyboardInterrupt:
+        pass
+    r = request(*p, PANEL, [5, 0, 0])
+    print("ended: the FM-1 restarts into its own state" if r and r[1] == 0 else
+          "the end was not answered: the session ends by itself within seconds (no client)")
+    p[0].close_port(), p[1].close_port()
+
+
 def main() -> None:
     a = sys.argv[1:]
     if len(a) >= 2 and a[0] == "shot":
         shot(Path(a[1]), "--state" in a[2:])
+    elif a and a[0] == "session":
+        session(float(a[1]) if len(a) > 1 else None)
     elif len(a) == 3 and a[0] == "decode":
         dec = Decoder()
         bad = sum(not dec.frame(f) for f in frames_of(Path(a[1]).read_bytes()))
