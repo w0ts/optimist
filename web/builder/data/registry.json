@@ -3821,7 +3821,9 @@
     "fixed": false,
     "choices": [],
     "provenance": null,
-    "children": [],
+    "children": [
+     "SD_RING"
+    ],
     "tested": "host-tested only (a card model on real FAT16 / FAT32 images); no FM-1 has the mod yet",
     "provenance_line": ""
    },
@@ -3969,6 +3971,50 @@
     "provenance": null,
     "children": [],
     "tested": "needs the far probe's ok on the FM-1 it is installed on",
+    "provenance_line": ""
+   },
+   {
+    "key": "SD_RING",
+    "flag": "FELUCCA_SD_RING_KB",
+    "label": "samples streamed from the SD card (SAMPLE's CARD set): each voice's lookahead",
+    "group": "System",
+    "bit": 415,
+    "default": 0,
+    "parent": "SDCARD",
+    "desc": "SAMPLE's SET gets a last value, CARD: the part plays its sample from the SD card (a WAV of 8 or 16 bits, mono or stereo, up to 176 kHz), streamed, not loaded. Each sample's first moments are kept in memory (the pre-buffer, one setting: 25, 50, 100 or 200 ms, 50 by default; 50 ms of 44.1 kHz 16-bit mono is 4.4 KB a sample) so a note starts at once while the card's first block comes; each playing voice reads ahead into a ring of this size, filled in short bursts of 4 KB between the screen's strips (the screen and the card share a bus). A card that stalls longer than the ring holds makes the voice fade out at once (no click; the console's sd stream counts it). 8 voices take 8 x this of the arena while the project plays card samples, with the heads; a project whose samples do not fit is refused and the device proposes what to drop (a part's engine, or a shorter pre-buffer). A card sample plays at most an octave up (each octave doubles what it reads). Needs LAYOUT and FAR_OK (full FatFs), SAMPLE and ARENA.",
+    "experimental": true,
+    "notice": "",
+    "off_warning": "no samples from the card",
+    "env": "",
+    "target_only": true,
+    "symbols": [],
+    "no_image": false,
+    "fixed": false,
+    "choices": [
+     [
+      0,
+      "off"
+     ],
+     [
+      4,
+      "4 KB a voice (46 ms of 44.1 kHz 16-bit mono)"
+     ],
+     [
+      8,
+      "8 KB a voice (93 ms)"
+     ],
+     [
+      12,
+      "12 KB a voice (139 ms)"
+     ],
+     [
+      16,
+      "16 KB a voice (186 ms)"
+     ]
+    ],
+    "provenance": null,
+    "children": [],
+    "tested": "host-tested only (tests/sd_stream_test.c, sd_stream_plan_test.c: a card model with stalls, an interrupt-driven audio clock); no FM-1 has the card yet",
     "provenance_line": ""
    },
    {

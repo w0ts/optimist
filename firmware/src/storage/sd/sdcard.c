@@ -78,6 +78,16 @@ static void sd_end(void)
 #include "storage/sd/sd_index.c"                  /* SYSTEM/INDEX.BIN: the samples by hash */
 #include "storage/sd/sd_browse.c"                 /* any list as pages of 16 on the keys */
 #include "storage/sd/sd_save.c"                   /* a project saved by name, staged in flash, with versions */
+#if FELUCCA_SD_STREAM
+#define SST_CARD_OK() (sd_state == SD_READY)
+#define SST_IRQ_OFF() fm1_irq_off()
+#define SST_IRQ_ON() fm1_irq_on()
+#define SST_PART_VOICES(p) (trk[p].p[P_VOICE] == V_MONO || trk[p].p[P_VOICE] == V_LEGATO ? 2u : \
+                            ENGINES[trk[p].engine % NENGINES]->poly ? (uint32_t)ENGINES[trk[p].engine % NENGINES]->poly \
+                                                                    : (uint32_t)NVOICE)   /* (mono: the note before's tail) */
+#include "storage/sd/sd_stream.c"                 /* samples streamed from the card: the main loop's runs */
+#include "storage/sd/sd_stream_plan.c"            /* their heads and rings in the arena, per project */
+#endif
 _Static_assert(__builtin_offsetof(FATFS, win) % 4u == 0, "sd_diskio.c: FatFs' window 4-byte aligned for the DMA");
 #endif
 
@@ -145,6 +155,9 @@ static uint32_t sd_mount_modes(uint32_t tries)
         sd_over = 0;
     }
     sd_state = r == FR_OK ? SD_READY : r == FR_NOT_READY ? SD_NOCARD : SD_NOFS;
+#if FELUCCA_SD_STREAM
+    sst_remount();                                   /* (the card's samples looked up again: maybe another card) */
+#endif
     return sd_state;
 }
 static uint32_t sd_mount(void) { return sd_mount_modes(3u); }     /* (the console: every read mode tried) */

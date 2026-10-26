@@ -1094,6 +1094,26 @@ _add("FAR_OK", "FELUCCA_FAR_OK", "the far probe passed on this FM-1: use the fak
           "overlays' table keep its last 64 KB). On an FM-1 whose far probe failed such a build does not start: the "
           "rescue (OCT- at power-on, UBOOT) puts a normal build back.",
      off_warning="the code stays below the old end (568 KiB): a probe build")
+# bit 415 (2026-10-26): the next free one after BT_PROJ's 414; samples streamed from the SD card (storage/sd/sd_stream.c,
+# sd_stream_plan.c, docs/SD-CARD-DESIGN.md 7): the ring's KB a voice, 0 off (registry.h FELUCCA_SD_RING_KB -> SD_STREAM:
+# full FatFs, SAMPLE and the arena too, else it builds nothing)
+_add("SD_RING", "FELUCCA_SD_RING_KB", "samples streamed from the SD card (SAMPLE's CARD set): each voice's lookahead", Y,
+     415, default=0, parent="SDCARD",
+     choices=((0, "off"), (4, "4 KB a voice (46 ms of 44.1 kHz 16-bit mono)"), (8, "8 KB a voice (93 ms)"),
+              (12, "12 KB a voice (139 ms)"), (16, "16 KB a voice (186 ms)")),
+     experimental=True, target_only=True, tested="host-tested only (tests/sd_stream_test.c, sd_stream_plan_test.c: "
+     "a card model with stalls, an interrupt-driven audio clock); no FM-1 has the card yet",
+     desc="SAMPLE's SET gets a last value, CARD: the part plays its sample from the SD card (a WAV of 8 or 16 bits, mono "
+          "or stereo, up to 176 kHz), streamed, not loaded. Each sample's first moments are kept in memory (the "
+          "pre-buffer, one setting: 25, 50, 100 or 200 ms, 50 by default; 50 ms of 44.1 kHz 16-bit mono is 4.4 KB a "
+          "sample) so a note starts at once while the card's first block comes; each playing voice reads ahead "
+          "into a ring of this size, filled in short bursts of 4 KB between the screen's strips (the screen and the "
+          "card share a bus). A card that stalls longer than the ring holds makes the voice fade out at once (no "
+          "click; the console's sd stream counts it). 8 voices take 8 x this of the arena while the project plays "
+          "card samples, with the heads; a project whose samples do not fit is refused and the device proposes what "
+          "to drop (a part's engine, or a shorter pre-buffer). A card sample plays at most an octave up (each octave "
+          "doubles what it reads). Needs LAYOUT and FAR_OK (full FatFs), SAMPLE and ARENA.",
+     off_warning="no samples from the card")
 # bit 412 (2026-10-25): reserved for the RAMTEXT overlays (411: the effects' arena)
 _add("OVERLAY", "FELUCCA_OVERLAY", "engines' fast code loaded per part (RAMTEXT overlays)", Y, 412, default=0,
      experimental=True, target_only=True, tested="host-tested and booted in the emulator only, not on an FM-1",
