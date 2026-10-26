@@ -392,6 +392,7 @@ enum { SI_NONE, SI_BRIGHT, SI_LIGHTS, SI_KEYS, SI_LOWCUT, SI_OUT, SI_SYNC, SI_CH
        SI_BLEFGT, SI_FRESO, SI_BTA, SI_BTAPEER, SI_BTAFMT, SI_BTAST, SI_CLKOFS, SI_BTOFS,
 #if FELUCCA_SD_UI
        SI_SDCARD, SI_SDVERS, SI_SDSLACK, SI_SDINDEX,    /* SD CARD: the card, VERSIONS, SLACK, the sample index (sd_mode.c) */
+       SI_SDPRE,                                        /* (SD_STREAM: the card samples' pre-buffer) */
 #endif
        SI_UAS0 };                                       /* SI_UAS0 + s: USB AUDIO's line of source s (ua_tap.h UAS_*), last */
 /* a core's load number (% of the audio budget) in its colour: green under 60, amber 60..85, red over 85 (the predictive guard's
@@ -473,6 +474,9 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
 #if FELUCCA_SD_UI
     {"SD CARD", {SI_SDCARD, SI_SDVERS, SI_SDSLACK, SI_SDINDEX}},   /* (the card's state, a project's versions kept, the room
                                                          * a file's run gets past its size, the sample index again) */
+#if FELUCCA_SD_STREAM
+    {"SD CARD", {SI_SDPRE, SI_NONE, SI_NONE, SI_NONE}},   /* (the card samples' pre-buffer, its KB beside it) */
+#endif
 #endif
 #if FELUCCA_LIGHTS
     {"KEYS", {SI_LIGHTS, SI_KEYS, SI_NONE, SI_NONE}},
@@ -890,6 +894,17 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
     case SI_SDINDEX:
         cell_act(c, 0, "SAMPLES", "INDEX", 0);
         break;
+    case SI_SDPRE: {                                    /* each card sample's head in RAM, ms, and what the project's take */
+        static char kb[10];
+        uint32_t ms = sdm_pre_ms();
+        c->label = "PRE-BUFFER";
+        fmt_int(c->val, (int32_t)ms);
+        fmt_int(kb, (int32_t)sdm_pre_kb());
+        str_app(kb, " KB", sizeof kb);
+        c->unit = kb;
+        cell_gauge(c, 1, 0, 3, ms <= 25u ? 0 : ms <= 50u ? 1 : ms <= 100u ? 2 : 3);
+        break;
+    }
 #endif
     case SI_ABOUT: {                                    /* a read-out: the version itself (YES still says it whole) */
         const char *v = FELUCCA_VERSION;
@@ -1204,8 +1219,9 @@ static void sys_set(uint32_t it, int32_t s)
     switch (it) {
 #if FELUCCA_SD_UI
     case SI_SDVERS:
-    case SI_SDSLACK:                                    /* (sd_mode.c: into the log when SYSTEM is left) */
-        sdm_set(it == SI_SDSLACK, s ? s : 1);
+    case SI_SDSLACK:
+    case SI_SDPRE:                                      /* (sd_mode.c: into the log when SYSTEM is left) */
+        sdm_set(it - SI_SDVERS - (it == SI_SDPRE), s ? s : 1);
         break;
 #endif
 #if FELUCCA_BRIGHT
@@ -1284,7 +1300,8 @@ static int sys_factory(uint32_t it)
 #if FELUCCA_SD_UI
     case SI_SDVERS:
     case SI_SDSLACK:
-        sdm_set(it == SI_SDSLACK, 0);                   /* (8 versions, 100 %) */
+    case SI_SDPRE:
+        sdm_set(it - SI_SDVERS - (it == SI_SDPRE), 0);   /* (8 versions, 100 %, 50 ms) */
         return 1;
 #endif
 #if FELUCCA_BRIGHT
@@ -1402,7 +1419,7 @@ static int sys_yes(uint32_t r, uint32_t k, uint32_t ok)
         sdm_again();
         return 1;
     }
-    if (it == SI_SDVERS || it == SI_SDSLACK)
+    if (it == SI_SDVERS || it == SI_SDSLACK || it == SI_SDPRE)
         return 0;                                       /* (numbers: the knob) */
 #endif
     if (d) {

@@ -27,7 +27,9 @@ enum { SDM_OFF = 0, SDM_NONE, SDM_MOUNTED, SDM_INDEX, SDM_READY };   /* the card
 typedef struct {
     uint8_t magic[2];                                /* "SD" */
     uint8_t keep, scale;                             /* VERSIONS 0..SDM_KEEP_MAX; SLACK in steps of 25 % (0..16) */
-    uint8_t pend, rsv[3];                            /* a card save pending: p */
+    uint8_t pend;                                    /* a card save pending: p */
+    uint8_t pre;                                     /* the pre-buffer (SD_STREAM): SST_PRE_MS[pre - 1], 0 its default */
+    uint8_t rsv[2];
     sdp_pending p;
 } sdm_rec_t;
 
@@ -57,12 +59,18 @@ static struct {
 } sdm IN_POOL;
 
 static FRESULT sdm_was(FRESULT r) { return sd_was(r); }
+#if FELUCCA_SD_STREAM
+static void sdm_mem_tick(void);
+#endif
 
 /* ---- the device record */
 static void sdm_apply(void)
 {
     sdp_keep = sdm_rec.keep;
     sda_scale = (uint16_t)(sdm_rec.scale * 25u);
+#if FELUCCA_SD_STREAM
+    sst_pre_set(SST_PRE_MS[sdm_rec.pre ? (sdm_rec.pre - 1u) & 3u : 1u]);
+#endif
 }
 static void sdm_rec_read(void)
 {
@@ -72,6 +80,8 @@ static void sdm_rec_read(void)
             sdm_rec.keep = 8;
         if (sdm_rec.scale > SDM_SCALE_MAX)
             sdm_rec.scale = 4;
+        if (sdm_rec.pre > 4u)
+            sdm_rec.pre = 0;
     } else {
         memset(&sdm_rec, 0, sizeof sdm_rec);
         sdm_rec.magic[0] = 'S', sdm_rec.magic[1] = 'D';
@@ -171,6 +181,10 @@ static void sdm_smp_sync(void)                       /* the record read again wh
         memcpy(sdm_smp, sec_rbuf, sizeof sdm_smp);
     else
         memset(sdm_smp, 0, sizeof sdm_smp);
+#if FELUCCA_SD_STREAM
+    for (key = 0; key < NPART; key++)
+        sst_part_set(key, sdm_smp[key].hash);        /* (the project's CARD samples: the plan places them) */
+#endif
     sdm.sc.have = 0xFFFFu;
     sdm_smp_gen++;
 }
@@ -223,6 +237,9 @@ static void sdm_poll(void)
     }
     if (!sdm_smp_dirty)
         sdm_smp_sync();
+#if FELUCCA_SD_STREAM
+    sdm_mem_tick();
+#endif
     if (sdm_st >= SDM_MOUNTED && sd_state != SD_READY) {
         sdm_st = SDM_NONE;
         sdm.b.n = 0;
@@ -567,6 +584,9 @@ static void sdm_do(uint32_t op, uint32_t k)
         sdl_cat(sdm_smp[part].hint, 0, SDM_HINT, sdx.rec.path + sizeof "SAMPLES");   /* (from SAMPLES/, cut) */
         (void)sdx_touch((uint32_t)no);
         sdm_smp_dirty = 1;                           /* (the project's record: sdm_poll writes it, quiet) */
+#if FELUCCA_SD_STREAM
+        sst_part_set(part, sdm_smp[part].hash);      /* (the part's CARD sample: placed by sd_stream_plan.c) */
+#endif
         sdm_smp_gen++;
         str_cpy(t, trk_tag(part), sizeof t);
         str_app(t, ": ", sizeof t);
@@ -616,11 +636,17 @@ static int sdm_save(uint32_t list, const char *name, const char *was)
 /* ---- SYSTEM > SD CARD (op_project.c) */
 static uint32_t sdm_keep(void) { return sdm_rec.keep; }
 static uint32_t sdm_scale(void) { return sdm_rec.scale * 25u; }
-static void sdm_set(uint32_t what, int32_t s)        /* 0 VERSIONS, 1 SLACK: a detent, stopping at the ends; s 0 the default */
+static void sdm_set(uint32_t what, int32_t s)        /* 0 VERSIONS, 1 SLACK, 2 PRE-BUFFER: a detent, stopping at the ends;
+                                                      * s 0 the default */
 {
-    uint8_t *v = what ? &sdm_rec.scale : &sdm_rec.keep;
-    int32_t max = what ? (int32_t)SDM_SCALE_MAX : (int32_t)SDM_KEEP_MAX, x = *v + (s > 0 ? 1 : s < 0 ? -1 : 0);
-    *v = (uint8_t)(!s ? (what ? 4 : 8) : x < 0 ? 0 : x > max ? max : x);
+    static const uint8_t MAX[3] = {SDM_KEEP_MAX, SDM_SCALE_MAX, 4}, DEF[3] = {8, 4, 2};
+    uint8_t *v = what == 2u ? &sdm_rec.pre : what ? &sdm_rec.scale : &sdm_rec.keep;
+    int32_t x;
+    what %= 3u;
+    if (what == 2u && !*v)
+        *v = 2;                                      /* (0: the default, 50 ms) */
+    x = *v + (s > 0 ? 1 : s < 0 ? -1 : 0);
+    *v = (uint8_t)(!s ? DEF[what] : x < (what == 2u) ? (what == 2u) : x > MAX[what] ? MAX[what] : x);
     sdm_apply();
     sdm_dirty = 2;
 }
@@ -638,4 +664,48 @@ static void sdm_again(void)                          /* SD CARD's YES: mounted a
     if (sd_state != SD_READY)
         ui_message("NO SD CARD");
 }
+#if FELUCCA_SD_STREAM
+static uint32_t sdm_pre_ms(void) { return sst_pre_ms; }
+static uint32_t sdm_pre_kb(void) { return sst_pre_kb(sst_pre_ms); }
+/* the card samples' memory short (sd_stream_plan.c sstp: refused): MEM FULL CARD, then a drop proposed with the one
+ * confirm, one part at a time (as model.c mem_offer: only a part whose memory alone makes room, never one asked); none
+ * (or all asked): the longest pre-buffer that fits said. Placed by itself once there is room (the plan's retries) */
+static uint8_t sdm_asked, sdm_offering;
+static void sdm_mem_tick(void)
+{
+    char a[30];
+    uint32_t k;
+    if (sstp.state != SSTP_REFUSED) {
+        sdm_asked = sdm_offering = 0;
+        return;
+    }
+    if (op_armed() || (sstp.said && !sdm_offering))
+        return;
+    sdm_offering = 0;
+    for (k = 0; k < SST_NPART && k < NPART; k++)
+        if ((sstp.drop >> k & 1u) && !(sdm_asked >> k & 1u) && !trk[k].silent) {
+            sdm_asked |= (uint8_t)(1u << k);
+            sdm_offering = 1;
+            sstp.said = 1;
+            str_cpy(a, trk_tag(k), sizeof a);
+            str_app(a, " ", sizeof a);
+            str_app(a, trk_eng_name(&trk[k]), sizeof a);
+            ui_message("MEM FULL CARD");
+            op_arm(ARM_OP, OA_SDDROP, k, "DROP", a, 1);
+            return;
+        }
+    sstp.said = 1;
+    if (sstp.fit_ms) {                               /* "MEM FULL CARD: 25 MS FITS" (SYSTEM > SD card's PRE-BUFFER) */
+        str_cpy(a, "MEM FULL CARD: ", sizeof a);
+        fmt_app(a, (int32_t)sstp.fit_ms);
+        str_app(a, " MS FITS", sizeof a);
+        ui_message(a);
+    } else {
+        ui_message("MEM FULL CARD");
+    }
+}
+#else
+static uint32_t sdm_pre_ms(void) { return 0; }
+static uint32_t sdm_pre_kb(void) { return 0; }
+#endif
 static uint32_t sdm_state(void) { return sd_state == SD_READY ? (sdm_st >= SDM_INDEX ? 3u : 2u) : sd_state == SD_NOFS ? 1u : 0u; }

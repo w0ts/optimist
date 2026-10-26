@@ -17,6 +17,10 @@
 #include "storage/sd/sd_index.c"
 #include "storage/sd/sd_browse.c"
 #include "storage/sd/sd_save.c"
+#if FELUCCA_SD_STREAM                                   /* (UI_SDCARD with SAMPLE, ARENA and SD_RING: the streams' plan) */
+#include "storage/sd/sd_stream.c"
+#include "storage/sd/sd_stream_plan.c"
+#endif
 
 enum { SD_UNMOUNTED = 0, SD_NOCARD, SD_NOFS, SD_READY };   /* (sdcard.c's) */
 static FATFS sd_fs;
