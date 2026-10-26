@@ -17,7 +17,7 @@ static FRESULT ssl_err;
 static FRESULT ssl_need(const char *path, uint32_t *bytes)
 {
     static FIL f IN_POOL;
-    static uint8_t hd[64] __attribute__((aligned(4)));
+    static uint8_t hd[96] __attribute__((aligned(4)));   /* (sst_wav: a chunk header and 60 bytes of smpl) */
     sst_src_t s;
     FRESULT r;
     *bytes = 0;

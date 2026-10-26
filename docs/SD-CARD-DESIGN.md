@@ -349,7 +349,10 @@ Each step names who does it. Claude never writes to the FM-1.
     or off SLICE CARD (no ring, no head for it). Too big for the arena: refused as any card sample (MEM FULL CARD);
     nothing placed: silent, never BREAK. Tested: `tests/sd_stream_engine_test.c` (the slices by key, REV, ADPCM
     25 dB or better), `tests/sd_stream_plan_test.c` (the block, the rings).
-  - Not built: WAV loop points (smpl) and the root note from the file.
+  - A card WAV's "smpl" chunk (before or after the data, `sst_wav`): its unity note is the note that plays it at its
+    rate (C4 when none), and its first loop is what SAMPLE's LOOP repeats (the whole sample when none, or when the
+    loop lies outside the data). LOOP off plays to the end either way. Tested: `tests/sd_stream_test.c` (the parse),
+    `tests/sd_stream_engine_test.c` (root, loop held, LOOP off).
 - **Streaming on the bench** (when an FM-1 has the card; a console build: USB_CONSOLE, which needs room in the
   profile): 1. `sd`, then `sd bench` and `sd bench SAMPLES/x.wav`: the clock, the DMA, KB/s by CMD18 (the budget the
   streams share). 2. The index pass, then `sd stream part 1 SAMPLES/x.wav` (and parts 2, 3), SAMPLE on those parts,

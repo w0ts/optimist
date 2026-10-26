@@ -46,6 +46,8 @@ static void make_file(void)
     run1.n = (DOFS + FRAMES * 2u + 511u) / 512u;
     sst_src[0].run = &run1;
     sst_src[0].nrun = 1;
+    sst_src[0].root = 0;
+    sst_src[0].lps = sst_src[0].lpe = 0;
     sst_src[0].ready = 1;
 }
 
@@ -225,7 +227,7 @@ int main(void)
 {
     track_t *t = &trk[0];
     voice_t *v;
-    uint32_t at, ph;
+    uint32_t at, ph, i;
     int32_t calm, after;
 
     /* a note plays the sample: a second of it at its pitch */
@@ -273,6 +275,38 @@ int main(void)
           v ? v->ph[0] : 0, sst_dry);
     calm = step_max(4410u, at);
     CHECK(calm < 2600, "the loop's seam smooth (largest step %d)", calm);
+
+    /* the file's unity note (smpl): C3, so C4 plays an octave up */
+    setup(t);
+    sst_src[0].root = -12;
+    trk_note_on(t, 60, 100);
+    render(22050u, 0);
+    v = card_voice(t);
+    CHECK(v && v->ph[0] > 44000u && v->ph[0] < 44200u, "root C3: C4 an octave up (%u frames in 0.5 s)", v ? v->ph[0] : 0);
+
+    /* the file's loop (smpl, frames 1000 .. 22049): LOOP held loops it, never past its end; LOOP off plays on */
+    setup(t);
+    sst_src[0].lps = 1000u;
+    sst_src[0].lpe = 22049u;
+    t->p[P_E3] = 1;
+    trk_note_on(t, 60, 100);
+    for (i = 0; i < 30u; i++) {
+        render(4410u, 0);
+        v = card_voice(t);
+        if (!v || v->ph[0] >= 22050u || (i > 6u && v->ph[0] < 1000u))
+            break;
+    }
+    CHECK(i == 30u && sst_dry == 0, "the file's loop held 3 s: inside 1000..22049 (step %u, frame %u, dry %u)", i,
+          v ? v->ph[0] : 0, sst_dry);
+    trk_note_off(t, 60);
+    render(44100u, 0);
+    setup(t);
+    sst_src[0].lps = 1000u;
+    sst_src[0].lpe = 22049u;
+    trk_note_on(t, 60, 100);
+    render(44100u, 0);
+    v = card_voice(t);
+    CHECK(v && v->ph[0] > 44000u, "LOOP off: the file's loop not taken (frame %u)", v ? v->ph[0] : 0);
 
     /* the source taken away (a project change): fades out, not dry */
     sst_src[0].ready = 0;

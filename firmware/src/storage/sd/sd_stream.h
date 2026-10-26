@@ -56,7 +56,9 @@ typedef struct {                                     /* a card sample (the main 
     uint32_t frames;                                 /* dlen / the frame's bytes */
     uint32_t rate;                                   /* its rate / 44100, Q16 */
     uint64_t hash;                                   /* sd_hash.c: the data's XXH64 (its identity in a project) */
+    uint32_t lps, lpe;                               /* the file's loop (smpl): frames lps .. lpe; lpe 0 none */
     uint16_t nrun;
+    int8_t root;                                     /* the file's unity note (smpl) - C4: the note it plays at its rate */
     uint8_t bits, chans;                             /* SST_F8 / SST_F16; 1 or 2 */
     uint8_t fsh;                                     /* log2 of a frame's bytes */
     volatile uint8_t ready;                          /* 1: the audio may play it */
