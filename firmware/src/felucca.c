@@ -91,6 +91,7 @@ static uint8_t live_save_off;            /* an erase held the audio (no suspend)
 #if FELUCCA_USB_AUDIO && FELUCCA_CDC
 #error "USB audio uses the CDC endpoints; build with FELUCCA_CDC=0"
 #endif
+#include "io/midi/midi_rings.c"        /* the MIDI rings: the sequencer's in / out, the clock out (usb.c is a producer and consumer) */
 #include "io/usb/usb.c"
 #ifndef FELUCCA_UART
 #define FELUCCA_UART 1           /* TRS MIDI IN on UART1 (notes, clock); 0 = none (SYNC TRS then hears nothing) */
