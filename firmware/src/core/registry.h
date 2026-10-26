@@ -683,6 +683,14 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #endif
 #if FELUCCA_SD_UI && !(FELUCCA_PATTERNS && SEC_LOGGED && FELUCCA_LAYOUT == 1)
 #error "SD card mode needs the projects of the section log (PATTERNS, SECTIONS 8 or 16) in the fake SD mode's layout"
+#ifndef FELUCCA_SD_RING_KB
+#define FELUCCA_SD_RING_KB 0               /* the builder's SD_RING (bit 415): samples streamed from the card, the KB of
+                                            * lookahead a playing voice keeps (storage/sd/sd_stream.c); 0 off */
+#endif
+#ifndef FELUCCA_SD_STREAM
+#define FELUCCA_SD_STREAM (FELUCCA_SD_FATFS && FELUCCA_SD_RING_KB > 0 && FELUCCA_ENG_SAMPLE && FELUCCA_FX_ARENA)   /* (the
+                                            * heads and the rings are an arena block per project: ARENA; the voices are
+                                            * SAMPLE's CARD set) */
 #endif
 #ifndef FELUCCA_OVERLAY
 #define FELUCCA_OVERLAY 0                  /* the RAMTEXT overlays (core/overlay.c, docs/SD-MODE-DESIGN.md 6): the engines' hot
