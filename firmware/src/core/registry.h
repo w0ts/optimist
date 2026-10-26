@@ -352,6 +352,10 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #ifndef FELUCCA_FX_PUNCH
 #define FELUCCA_FX_PUNCH 1                 /* the 16 punch-in FX on the mix (FX + a white key) */
 #endif
+#ifndef FELUCCA_PUNCH_N
+#define FELUCCA_PUNCH_N 32768u            /* its ring, samples (a power of two): 0.74 s; 16384 frees 32 KiB of pool
+                                            * (fx/punch/punch.c; core/arena_bufs.c in the arena) */
+#endif
 #ifndef FELUCCA_FX_DJF
 #define FELUCCA_FX_DJF 1                   /* MASTER > FILT: the DJ filter */
 #endif
@@ -653,6 +657,9 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #ifndef FELUCCA_MEM_LIST
 #define FELUCCA_MEM_LIST FELUCCA_FX_ARENA  /* the load's memory list page (ui/optimist/op_memlist.c, model.c mem_load_*) */
 #endif
+#define FELUCCA_PUNCH_SW (FELUCCA_FX_PUNCH && FELUCCA_FX_ARENA)   /* a project's PUNCH switch (GLOBAL > Rec): the punch's
+                                            * ring in the arena only while it is on (fx/punch/punch.c, core/arena_bufs.c);
+                                            * without the arena's extras the ring is static and PUNCH always there */
 #define PROJ_SLOTS (FELUCCA_LAYOUT == 1 ? 1u : 16u)   /* the projects the flash keeps (PATTERNS): the fake SD mode one, the
                                             * others kept by the web app or the iOS app over USB (the user, 2026-10-25) */
 #ifndef FELUCCA_FAR_OK

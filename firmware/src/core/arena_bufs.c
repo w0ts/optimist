@@ -7,7 +7,11 @@
  *   - ARB_WAVE (ENG_WAVE): WAVE's table, its band-limited copies and the frame builder's scratch (eng_wave.c wt_mip
  *     wt_fr wt_fi), while a track plays WAVE;
  *   - ARB_X909 / ARB_X808 (DRUM_X0X909 / DRUM_X0X808): the X0X machine's state (drums/x0x x0x_mem), while the kit or a
- *     lane plays the machine, or one of its voices still sounds.
+ *     lane plays the machine, or one of its voices still sounds;
+ *   - ARB_PUNCH (FELUCCA_PUNCH_SW): the punch-in FX's ring of the mix (fx/punch/punch.c), while the project's PUNCH switch
+ *     is on (GLOBAL > Rec; a punch needs the past, so the ring records from the switch on, not from the key), or an
+ *     effect still fades out. FX + a key while it is not placed: let go, PUNCH OFF said (the switch off; refused: the
+ *     MEM FULL PUNCH of its refusal).
  * Only those built have a client. The main loop only (arb_poll every pass, after fxm_poll); nothing is placed or freed
  * in the audio, which reads the pointers. Placed: reserved and taken with the interrupts off (a part's reservation may
  * run in the audio ISR), zeroed, the feature's state reset, then its pointer set with the interrupts off (the audio
@@ -25,6 +29,12 @@
  * Included by fx.c after fx_arena.c */
 #if FXM_NEED
 #define ARB_K(c) (NPART + FXM_NC + (uint32_t)(c))       /* (its arena client) */
+#if FELUCCA_PUNCH_SW                                    /* (fx/punch/punch.c, included after) */
+static uint32_t punch_used(void);
+static void punch_mem(void *p);
+static int punch_asked(void);
+static uint8_t arb_poff;                                /* FX + a key with the switch off: PUNCH OFF to say */
+#endif
 #if ARB_ANY
 static uint8_t arb_st[ARB_NC];                          /* FXM_NONE, FXM_ON, FXM_GOING (fx_arena.c), by client */
 static uint8_t arb_t0[ARB_NC];                          /* fxm_tick when its pointer went to 0 */
@@ -48,6 +58,10 @@ static uint32_t arb_bytes(uint32_t c)                   /* client c's block */
 #if FELUCCA_DRUM_X808
     if (c == (uint32_t)ARB_X808)
         return x0x_mem_bytes(1);
+#endif
+#if FELUCCA_PUNCH_SW
+    if (c == (uint32_t)ARB_PUNCH)
+        return (uint32_t)FELUCCA_PUNCH_N * 2u;
 #endif
     (void)c;
     return 0;
@@ -99,6 +113,10 @@ static uint32_t arb_want(uint32_t c)                    /* client c's feature is
     if (c == (uint32_t)ARB_X808)
         return arb_x0x_want(DRUM_UID_X808);
 #endif
+#if FELUCCA_PUNCH_SW
+    if (c == (uint32_t)ARB_PUNCH)
+        return punch_used();
+#endif
     (void)c;
     return 0;
 }
@@ -133,6 +151,10 @@ static void arb_set(uint32_t c, void *p)
         x0x_mem(1, p);
         xc.live &= (1u << X0X_CH808) - 1u;
     }
+#endif
+#if FELUCCA_PUNCH_SW
+    if (c == (uint32_t)ARB_PUNCH)
+        punch_mem(p);
 #endif
     fm1_irq_on();
 }
@@ -186,6 +208,10 @@ static void arb_poll(void)
             fm1_irq_on();
         }
     }
+#if FELUCCA_PUNCH_SW
+    if (punch_asked())
+        arb_poff |= (uint8_t)!punch_used();             /* (refused: its MEM FULL PUNCH was said) */
+#endif
     if (PART_MEM_SHORT() || fxm_mv)
         return;                                         /* (a part's refused change first; the lines being moved) */
     arb_ord(o);
@@ -232,6 +258,12 @@ static int arb_pending(void)
 static const char *arb_said(void)
 {
     uint32_t c, n = arb_news;
+#if FELUCCA_PUNCH_SW
+    if (arb_poff) {
+        arb_poff = 0;
+        return "PUNCH OFF";
+    }
+#endif
     arb_news = 0;
     for (c = 0; c < ARB_NC; c++) {
         if (!(n >> c & 1u))
@@ -243,6 +275,10 @@ static const char *arb_said(void)
 #if FELUCCA_ENG_WAVE
         if (c == (uint32_t)ARB_WAVE)
             return "MEM FULL WAVE";
+#endif
+#if FELUCCA_PUNCH_SW
+        if (c == (uint32_t)ARB_PUNCH)
+            return "MEM FULL PUNCH";
 #endif
         return "MEM FULL X0X";
     }

@@ -996,6 +996,8 @@ job; ( jobin   # the silent placeholder (docs/SD-MODE-DESIGN.md 6b): a part drop
     run "memory short (an arena of one part's, the core alone): an edit refused, the part to drop proposed, dropped, the change made; a load: every part refused collected (two on one load), placeholders, each in turn on the edit's confirm with the project's sound kept, declined: a placeholder" "$OUT/placeholder_flow_test"
     $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -DFELUCCA_ENG_FM6=1 -DFELUCCA_MEM_LIST=1 "-DFELUCCA_ARENA_BYTES=ARN_SLOT" -o "$OUT/placeholder_list_test" tests/placeholder_test.c -lm
     run "the same with the load's list (MEM_LIST, an extra): settled by itself when room comes, the list's trial, SAVE, HOME, the sound kept" "$OUT/placeholder_list_test"
+    $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -DFELUCCA_ENG_FM6=1 -DFELUCCA_FX_ARENA=1 "-DFELUCCA_ARENA_BYTES=(ARN_SLOT + 262144u)" -o "$OUT/placeholder_extras_test" tests/placeholder_test.c -lm
+    run "with the arena's extras: the PUNCH switch through a save and a load (bit 1 of G_INFO; an older project: off)" "$OUT/placeholder_extras_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin   # the arena (core/arena.c, docs/SD-MODE-DESIGN.md 6b): first fit and the fixed slots
     $CC -O2 -w -Ifirmware/src -o "$OUT/arena_test" tests/arena_test.c
@@ -1018,7 +1020,7 @@ job; ( jobin   # the effects' lines in the arena (fx/fx_arena.c, docs/SD-MODE-DE
     # (the arena: one FM6 3904, the lines 66472, WAVE's table 73216, one SLICER recording 8192, the 909 5360 and the
     #  808 3376 on the host, and 32 B)
     $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA -DFELUCCA_ENG_WAVE=1 -DFELUCCA_DRUM_X909=1 -DFELUCCA_DRUM_X808=1 "-DFELUCCA_ARENA_BYTES=160552u" -o "$OUT/arena_bufs_test" tests/arena_bufs_test.c -lm
-    run "other buffers in the arena (SLICER recordings, WAVE's table, the X0X machines): placed while used, given back, refused (bypassed, FULL, said once) and placed by themselves; a change to WAVE refused as an engine change, on a load the list page; a part's change waits; random switches" "$OUT/arena_bufs_test"
+    run "other buffers in the arena (SLICER recordings, WAVE's table, the X0X machines, the PUNCH ring while its switch is on): placed while used, given back, refused (bypassed, FULL, said once) and placed by themselves; a change to WAVE refused as an engine change, on a load the list page; a part's change waits; random switches" "$OUT/arena_bufs_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin   # the RAMTEXT overlays (core/overlay.c, docs/SD-MODE-DESIGN.md 6): the slots' protocol on the host
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_OVERLAY=1 -DFELUCCA_ENG_STRINGS=1 -o "$OUT/overlay_test" tests/overlay_test.c -lm

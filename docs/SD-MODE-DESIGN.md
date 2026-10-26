@@ -260,6 +260,7 @@ blocks of the arena too, held only while the project uses their feature, placed 
 | WAVE's table: its copies and the frame builder's scratch (`eng_wave.c wt_mip wt_fr wt_fi`, `ENG_WAVE`) | 73,216 | a part plays WAVE (or is switching to it) | the change to WAVE refused as any engine's: the drop proposal, parts first, then the effects; on a load the list page (the table its need) (the night's ruling, 2026-10-25); only if it is lost after that: silent, MEM FULL WAVE |
 | the X0X 909's / 808's state (`x0x_drums.c x0x_mem`, `DRUM_X0X909` / `808`) | 5,344 / 3,376 | the kit or a lane plays the machine, or one of its voices sounds | its hits play the stand-in kit (as the notes the machine lacks) |
 | the ROOM's diffusers (`fx.c rev_ap`, `REV_ROOM`) | 1,994 | in the reverb's block, after its line (fx_arena.c) | as the reverb |
+| the PUNCH ring (`punch.c punch_ring`, `FX_PUNCH`; 2026-10-26) | PUNCH_N x 2 (32,768 / 65,536) | the project's PUNCH switch is on (GLOBAL > Rec), or an effect still fades out | the punch bypassed (the mix as it is), MEM FULL PUNCH once; FX + a key: let go |
 
 - The main loop only (`arb_poll`, every pass after `fxm_poll`): placed (the interrupts off), zeroed, the feature's state
   reset, then its pointer set (the interrupts off); no longer used: its pointer 0 at once, the block given back two
@@ -268,8 +269,7 @@ blocks of the arena too, held only while the project uses their feature, placed 
   `arb_said`), placed by itself once there is room (tried every pass, never while a part's refused change waits or the
   lines are being moved), the largest first. A part's change refused while one of them is on its way back waits for it
   (`fxm_pending`). They are never proposed to drop.
-- Left static (no gain): the PUNCH ring (it records the mix all the time, for loops of what was just played: a punch
-  needs the past, and no project setting says PUNCH is used); FM6's sine table (4,100 B, every FM6 part reads it, built
+- Left static (no gain): FM6's sine table (4,100 B, every FM6 part reads it, built
   at boot); the screen canvas, USB's and Bluetooth's rings, the storage buffers, the undo ring (every project); the
   reverbs' small state (`rv`, `rvj`: a few hundred bytes, in main RAM, read every block).
 - Default profile (`synths_USBaudio_BTaudio_BTmidi`, measured 2026-10-25): ARENA off: the image identical but its build
@@ -313,7 +313,27 @@ split so that every build can have it and only the SD card mode pays for the res
 - The builder: `ARENA` (KB) is the core in a normal build and the core and the extras in the SD card mode
   (`core.py sd_mode`, `arena_mem`, `arena_blocks`); new sizes 24 .. 48 KB for the core alone (the parts' fixed memory
   is 3 x the largest engine's: 38,664 B with PHYS). Off (0) stays the fixed memories, for a tight profile.
-- Tests: `tests/placeholder_test.c` built three ways (fixed; the core: the load's refusals on the confirm; with the list).
+- Tests: `tests/placeholder_test.c` built four ways (fixed; the core: the load's refusals on the confirm; with the list;
+  with the extras: the PUNCH switch through a save and a load).
+
+**The PUNCH switch (3a, 2026-10-26; an extra).** The punch-in FX records the mix all the time (a punch needs the past),
+so its ring cannot wait for the key: a project setting says the project uses it. `FELUCCA_PUNCH_SW` (registry.h: PUNCH
+built and the arena's extras): `punch_sw`, GLOBAL > Rec's PUNCH (TEMPO's REC 2 page with REC MODES), OFF in a new project;
+saved in the project's G_INFO slot, bit 1 = ON (bit 0 stays REC QUANTIZE's). The ring is the arena buffer `ARB_PUNCH`
+(`core/arena_bufs.c`), held while the switch is on or an effect still fades out; not placed, `punch_process` leaves the
+mix as it is and the main loop lets go of FX + a key (`punch_asked`): PUNCH OFF said with the switch off, MEM FULL PUNCH
+once when refused. An extra and not the core: the ring is one of the other buffers (their placement, `arb_poll`, is the
+extras' code), and without the arena's extras the ring stays static and the punch always there, no switch (a normal
+build gains nothing from it: the ring is in its pool either way).
+- **Older projects load with PUNCH OFF** (0 in that bit; recommended and built: nothing a project stores uses the punch,
+  a live control, so it plays the same; the user turns PUNCH on in the projects played live). A build without the switch
+  reads bit 0 only and saves its projects with the bit clear.
+- Measured (2026-10-26, `sd-card-mots` with FX_PUNCH): the static ring does not fit there (SRAM overflowed by 17,344 B);
+  with ARENA 96 it builds: flash 752,424 (+1,940 over ARENA 96 without PUNCH: the punch's code and the switch), RAM
+  107,024, pool 279,960 (the same: the ring only in the arena).
+- Tests: `tests/arena_bufs_test.c` (off: no ring, FX + a key let go, PUNCH OFF; on: placed, recorded, REVERSE plays;
+  off while it plays: kept until faded out, then given back), `tests/placeholder_test.c` (the extras' build: the bit
+  through a save and a load, an older project off).
 
 ## 7. Phases
 
