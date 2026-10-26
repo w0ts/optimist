@@ -365,8 +365,8 @@ for _n in (3, 4):
 # measured here: costs.json holds local measurement builds on sd-card-mots + SDCARD=1, FatFs against Petit
 _SDM = {"SDCARD": 1, "LAYOUT": 1, "FAR_OK": 1, "ENG_SAMPLE": 0, "DRUM_USR": 0, "SNAPSHOTS": 0, "PATTERNS": 1}   # (what
                                                  # the big layout's rule needs from the defaults: a valid configuration)
-PAIRS.append(dict(_SDM))
-PAIRS.append(dict(_SDM, USB_CONSOLE=1))
+PAIRS.append(dict(_SDM))                         # (with the console too it is ~25 KB over SRAM on the defaults: not
+                                                 # measurable as a pair, left out)
 # FM6 off where its tables are in the pool (TAB_IN_POOL): its delta from the defaults frees them from main RAM
 # (2026-10-24, synths_USBaudio_BTaudio_BTmidi: FM6 off freed 16 B of RAM and 608 B of the pool, the estimate said
 # 4,896 B of RAM and 4,260 B more pool; with FM6_SYSEX off too the pair and the triple measured 0: not kept)
