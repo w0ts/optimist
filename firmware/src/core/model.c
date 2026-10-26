@@ -340,12 +340,13 @@ static uint32_t mem_load_items(uint8_t *it)
 }
 static uint32_t mem_load_need(uint32_t sel)           /* the bytes the refused parts want, but those left silent in sel */
 {
-    uint32_t k, n = 0, tab = 0;
+    uint32_t k, n = 0, tabs = 0;
     for (k = 0; k < NPART; k++)
         if ((part_mem_refused.lmask & ~sel) >> k & 1u) {
-            uint32_t t = part_tab_bytes(part_mem_refused.leng[k]);   /* (WAVE's table: one for every WAVE part) */
-            n += part_mem_bytes(part_mem_refused.leng[k]) + (tab ? 0u : t);
-            tab |= t;
+            uint32_t e = part_mem_refused.leng[k], t = part_tab_bytes(e), c = part_tab_k(e);
+            n += part_mem_bytes(e);
+            if (t && !(tabs >> c & 1u))                 /* (a table: one for every part on its engine) */
+                n += t, tabs |= 1u << c;
         }
     return n;
 }
