@@ -3203,6 +3203,12 @@ async function updater() {
   rescue.boot("FM-1_000", "Felucca");
   const recovered = await new Updater(rescue.access).install(image, "FM-1_900");
   ok(recovered === "FM-1_900" && rescue.bad === 0, "fm1ota.js: recovery mode -> loader -> normal firmware");
+  const cachedName = new FakeFM1(image, { name: "USB MIDI Device" });   /* (a Mac's cached name for the FM-1's USB id) */
+  const viaCache = await new Updater(cachedName.access).install(image, "FM-1_900");
+  const otherGear = new FakeFM1(image, { name: "Some Synth" }), otherBt = new FakeFM1(image, { name: "USB MIDI Device Bluetooth" });
+  const none = await new Updater(otherGear.access).find(), noneBt = await new Updater(otherBt.access).find();
+  ok(viaCache === "FM-1_900" && cachedName.bad === 0 && none === null && noneBt === null,
+    "fm1ota.js: an FM-1 under a cached port name (USB MIDI Device) found and installed after its own names; other gear and Bluetooth never probed");
   const failedBoot = new FakeFM1(image, { finalIdentity: "FM-1_000" });
   const rescueSteps = [];
   const bootError = await new Updater(failedBoot.access).install(image, "FM-1_900", (k) => rescueSteps.push(k)).then(() => null, (e) => e);

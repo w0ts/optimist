@@ -135,12 +135,25 @@ export class Updater {
     this.log = log || (() => {});
   }
 
-  // every in/out pair with the same port name that answers the handshake
+  // every in/out pair with the same port name that answers the handshake: the FM-1's own names first, then (none of them
+  // answered) the names a Mac may show it under. macOS names a USB-MIDI port from its cache by the USB id, and the FM-1
+  // firmwares share one id with no serial number, so an FM-1 can show another FM-1 firmware's name or a generic one (after
+  // fm1-base's web/fm1ota.js, charlesvestal/fm1-base 934e40d). Only these: other gear is never probed
   async find(filter) {
+    const ours = /fm-1|felucca|optimist|ota|composite|sinco|usb-midi/i;
+    const cached = /usb midi|midi device|x0x|fomni|ctl-1|loom|melodee|sloop|polly|mocky|nusaw|sph-16|xy-1|monk|velo|template/i;
+    for (const names of [ours, cached]) {
+      const dev = await this.probe(names, filter);
+      if (dev) return dev;
+    }
+    return null;
+  }
+
+  async probe(names, filter) {
     const outs = [...this.access.outputs.values()];
     for (const input of this.access.inputs.values()) {
       if (input.state === "disconnected") continue;
-      if (!/fm-1|felucca|optimist|ota|composite|sinco|usb-midi/i.test(input.name || "")) continue;   // never probe other gear
+      if (!names.test(input.name || "")) continue;   // never probe other gear
       if (/bluetooth/i.test(input.name || "")) continue;   // (an update goes over USB: the FM-1's Bluetooth MIDI port, paired too, never)
       const output = outs.find((o) => o.name === input.name) || (outs.length === 1 ? outs[0] : null);
       if (!output) continue;
