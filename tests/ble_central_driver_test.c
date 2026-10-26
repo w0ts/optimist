@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* Host test of the WL82 driver's central role (firmware/src/ble/ble_hw_wl82_central.c, BLE_CENTRAL; docs/BLE-HW-FACTS.md
  * §21.3, §21.4) with the stack and the fake engine of tests/ble_fake/fm1_ble.h:
  *   initiating   state 3 in the vendor's order: RFPRIO 26, column 8 = 0, the window / interval as scanning, column 6 =

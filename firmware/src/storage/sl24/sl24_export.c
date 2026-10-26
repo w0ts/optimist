@@ -147,9 +147,9 @@ static int32_t sl24_param_out(uint32_t id, uint32_t trk, int e)
     if (id < SL24_COMMON)
         return (int32_t)id;
     if (id >= P_E0 && id <= P_E7)
-        return trk == TRK_DRUM || e ? (int32_t)(SL24_E0 + id - P_E0) : -1;
+        return IS_DRUMK(trk) || e ? (int32_t)(SL24_E0 + id - P_E0) : -1;
 #if defined(SL24_TP) && SL24_TP
-    if (id == P_TFLT || ((id == P_STRUM || id == P_VLEAD) && trk != TRK_DRUM))
+    if (id == P_TFLT || ((id == P_STRUM || id == P_VLEAD) && !IS_DRUMK(trk)))
         return (int32_t)(SL24_TFLT + id - P_TFLT);
 #endif
     return -1;
@@ -205,9 +205,9 @@ static int32_t sl24_g_out(const project_t *q, uint32_t i)
 static uint32_t sl24_trk_out(const project_t *q, uint32_t k, const int16_t *px, uint8_t *o, int *e_ok)
 {
     int16_t v[P_COUNT];
-    uint32_t i, lost = 0, uid = q->t[k].engine, eng = k == TRK_DRUM ? 0u : sl24_eng_out(uid);
+    uint32_t i, lost = 0, uid = q->t[k].engine, eng = IS_DRUMK(k) ? 0u : sl24_eng_out(uid);
     pj_to_p(v, q->t[k].p);
-    if (k == TRK_DRUM && l2_tagged(q))                  /* (its LFO slots held the parts' LFO 2: project.c l2_pack) */
+    if (IS_DRUMK(k) && l2_tagged(q))                  /* (its LFO slots held the parts' LFO 2: project.c l2_pack) */
         l2_slots_def(v);
     for (i = 0; i < SL24_COMMON; i++)
         sl24_w16(o + 2u * i, v[i]);
@@ -244,7 +244,7 @@ static uint32_t sl24_trk_out(const project_t *q, uint32_t k, const int16_t *px, 
     o[2u * SL24_NP + 1u] = q->t[k].preset;
     lost |= v[P_FXOFF] ? SX24_FXOFF : 0u;
     *e_ok = 1;
-    if (k == TRK_DRUM) {
+    if (IS_DRUMK(k)) {
         sl24_w16(o + 2u * SL24_E0, sl24_kit_out(v[P_E0]));
         lost |= v[P_E0] != sl24_kit_out(v[P_E0]) ? SX24_KIT : 0u;
 #if defined(SL24_TP) && SL24_TP
@@ -295,7 +295,7 @@ static uint32_t sl24_tail_out(const stepx_t *x, uint32_t k, int e_ok, int32_t bp
                 lost |= p == -1 ? SX24_LOCK : 0u;
                 continue;
             }
-            if (k == TRK_DRUM && l.param == P_E0) {
+            if (IS_DRUMK(k) && l.param == P_E0) {
                 lost |= l.val != sl24_kit_out(l.val) ? SX24_KIT : 0u;
                 l.val = sl24_kit_out(l.val);
             }
@@ -485,7 +485,7 @@ static uint32_t proj_to_sl24(const project_t *q, const stepx_t *const *x, uint8_
         int e_ok;
         lost |= sl24_trk_out(q, k, px[k], t, &e_ok);
         memcpy(t + 2u * SL24_NP + 2u, q->t[k].step, 640u);
-        lost |= k == TRK_DRUM ? 0u : sl27_flags_out(t + 2u * SL24_NP + 2u);
+        lost |= IS_DRUMK(k) ? 0u : sl27_flags_out(t + 2u * SL24_NP + 2u);
         lost |= sl24_tail_out(x ? x[k] : 0, k, e_ok, q->g[G_BPM], t + SL24_TAIL);
     }
     lost |= sl24_fx_out(o);

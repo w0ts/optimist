@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* BLE-MIDI packets to and from USB-MIDI event packets (ble_midi.h). */
 #include "ble_midi.h"
 #include "ble_cfg.h"

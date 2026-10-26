@@ -60,7 +60,11 @@ static uint8_t sync_reload;                  /* engine / preset / project / user
  * writes the sequencer: every pattern is the one the player records or enters. */
 
 /* the parts' sounds at power-on (engine, preset): bass, pad, lead */
-static const uint8_t TRK_DEF[NPART][2] = {{0, 0}, {1, 0}, {4, 5}};   /* ANALOG 808 BOOM, DIGITAL RHODES, SAMPLE LOFI FLUTE */
+static const uint8_t TRK_DEF[NPART][2] = {{0, 0}, {1, 0}, {4, 5},   /* ANALOG 808 BOOM, DIGITAL RHODES, SAMPLE LOFI FLUTE */
+#if NPART > 3
+                                          {0, 13},  /* (no drums: track 4, ANALOG WARM PAD) */
+#endif
+};
 /* part i's default engine (slot; TRK_DEF holds UIDs: a fallback when not built) and preset */
 static uint32_t trk_def_engine(uint32_t i)
 {
@@ -560,6 +564,8 @@ static const struct __attribute__((packed)) { uint8_t kind : 3, e : 5; const cha
     B(PROPHET, BK_KEYS, ENG_UID_PROPHET, "P5 CLAV")
     B(WAVE, BK_PAD, ENG_UID_WAVE, "PPG PAD") B(WAVE, BK_LEAD, ENG_UID_WAVE, "WT SWEEP") B(WAVE, BK_BASS, ENG_UID_WAVE, "SYNC BASS")
     B(WAVE, BK_PLUCK, ENG_UID_WAVE, "DIGI BELL") B(WAVE, BK_PAD, ENG_UID_WAVE, "VOCAL PAD") B(WAVE, BK_LEAD, ENG_UID_WAVE, "SYNC SCREAM")
+    B(SQUARE, BK_LEAD, ENG_UID_SQUARE, "SQ LEAD") B(SQUARE, BK_BASS, ENG_UID_SQUARE, "SQ BASS")   /* (EX_SQUARE, the example) */
+    B(SQUARE, BK_PLUCK, ENG_UID_SQUARE, "SQ PLUCK")
 #if GR_FALLBACK                                     /* (GRAIN without its presets' sets: eng_grain.c) */
     B(GRAIN, BK_PAD, 8, "GRAIN PAD")
 #endif

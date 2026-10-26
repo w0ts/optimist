@@ -58,8 +58,8 @@ typedef struct {
     int32_t c;                                          /* the closure, Q15: 0 open (the gain 1, at rest) .. 32768 */
     uint32_t ph;                                        /* the phase at the end of the last block (stopped: runs on) */
 } ifx_gt_t;
-static ifx_gt_t ifx_gate[NTRK];                         /* the parts', the drum bus's (IFX_BUS) */
-_Static_assert(IFX_BUS == NPART && NTRK == NPART + 1u, "ifx_gate: a part each, then the drum bus");
+static ifx_gt_t ifx_gate[IFX_BUS + 1u];                 /* the parts', the drum bus's (IFX_BUS; without drums: unused) */
+_Static_assert(IFX_BUS == NPART, "ifx_gate: a part each, then the drum bus");
 #if FELUCCA_USB_AUDIO
 static ifx_gt_t ifx_gate_ut;                            /* the USB input's (fx_slots.c ut: its own PATTERN RATE SHAPE) */
 #endif

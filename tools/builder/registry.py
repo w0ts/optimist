@@ -7,7 +7,8 @@ each switch is in firmware/src/core/registry.h (engines, kits, FX, FM6 options, 
 
 Rules (docs/BUILDER.md):
   - one level: a top-level item and its own options; an option never depends on another option or on another
-    top-level item; options are ignored while their parent is off;
+    top-level item; options are ignored while their parent is off. A group's head (Item.head: DRUMS) is the one
+    exception: the group's items are its options, each with its own options (two levels), all left out with it;
   - "bit" numbers are stable (the BUILD SysEx reports them): append only, never reuse;
   - items backported from another project carry provenance (project, author, licence, commit, url); an item
     from X0X (charlesvestal/fm1-x0x, GPL-3.0-only) shows its notice in the menu when selected. Anything X0X
@@ -167,6 +168,7 @@ class Item:
     symbols: tuple = ()              # ELF symbols that must be gone (or <= 4 B) when the item is off
     tested: str = "emulator-tested only"   # what an EXPERIMENTAL item has been tested on (the warning says it)
     fixed: bool = False              # always on: shown (greyed), never changed (USB MIDI: every build has it)
+    head: bool = False               # the head of its group (DRUMS): the group's items are its options, two levels
     no_image: bool = False           # a build setting, not firmware: nothing in the image (not in the hash or the BUILD
                                      # bits), its costs.json deltas are 0 (written, never built)
     children: list = field(default_factory=list)
@@ -395,6 +397,17 @@ _add("ENG_PROPHET", "FELUCCA_ENG_PROPHET", "PROPHET (a Prophet-5 style voice)", 
      notice="The voice is Melodee's (Kerem Kilic, GPL-3.0-only), with our controls. Tested in the host tests only, not "
             "on a device. Not affiliated with Sequential.")
 # (bit 91, LFO2, retired 2026-10-16: LFO 2, a second LFO on each synth track, is always built; never reuse the bit)
+# the worked examples of CONTRIBUTING.md (2026-10-26): one each of an insert, an engine, note generators; off in every
+# profile, every line they add is under their flag (a build without them is the build from before)
+_EX_TESTED = "host-tested only (tests/examples_test.c), not on a device"
+_EX_NOTE = "An example to copy (CONTRIBUTING.md), not a feature: " + _EX_TESTED + "."
+_add("EX_SQUARE", "FELUCCA_EX_SQUARE", "SQUARE: the example engine (a pulse, its sub, a filter)", E, 422, default=0,
+     experimental=True, tested=_EX_TESTED, notice=_EX_NOTE, symbols=("sq_render",),
+     desc="The worked example of CONTRIBUTING.md for a new synth engine (engines/square/eng_square.c, engine UID 26): a "
+          "band-limited pulse (PW, the track's SHP moves it), a square an octave down (SUB), a second pulse detuned up "
+          "(DTN), white noise (NOIS), a 12 dB low-pass (CUT, RES, TRK: key tracking) and a soft drive (DRV); three "
+          "presets, SQ LEAD, SQ BASS and SQ PLUCK. Integer code. Off in every profile: a build without it is the build "
+          "from before.")
 
 # ---- drums: first the drum synths, the kits made by synthesis (any of them is a drum source on its own; the drum
 # track needs one of these or a sampled kit), then the sampled drums and the drum options (one group: the user,
@@ -403,7 +416,19 @@ D = "Drums"
 # Three drum synths, independent of each other (the user, 2026-10-22): the 32 kits, KAWA, PLAITS. Tick any of them; the
 # code they share (drum_synth.c's voice, the sound table: registry.h DRUM_DS) is built with any one and counted once
 # (measure_costs.py: the pair of all three off; the last one on pays it)
-_add("DRUM_SYNTH", "FELUCCA_DRUM_SYNTH", "drum synth: the 32 synthesised kits", D, 18,
+# DRUMS (2026-10-26, the user: "a builder item AND a group, like fm6 and its sub elements", "it removes every code related to
+# drums"): the head of the group, every drum item its option. Off: no drum track, no drum code, track 4 a fourth synth part
+# (core.h NPART 4); the drum items elsewhere (DRUMS_ONLY) are left out with it
+_add("DRUMS", "FELUCCA_DRUMS", "DRUMS: the drum track (off: track 4 is a 4th synth track)", D, 424, head=True,
+     desc="The drum track and everything of it: the kits, the drum synths, the lanes, their sounds, sends and FX. Off, "
+          "none of that code is built and track 4 is a synth track like tracks 1 to 3 (its own engine, preset, notes "
+          "and effects, on MIDI channel 4 by default; the 8 voices are shared by the four parts); the click is a short "
+          "blip of its own. Its projects are format FUNC (FUNB's layout with a tail: part 4's FM6 voice, the parts' "
+          "values FUNB keeps in the drum track's free slots); a project or song section of a build with drums loads "
+          "with its parts as they were and track 4 a new part (WARM PAD), its drum steps and motion left out. A build "
+          "with drums does not read FUNC. On the default profile: about 117 KB of flash (99 KB of it the PERC samples) "
+          "and 9.8 KB of RAM less; the pool holds about 5 KB more (part 4's state).")
+_add("DRUM_SYNTH", "FELUCCA_DRUM_SYNTH", "drum synth: the 32 synthesised kits", D, 18, parent="DRUMS",
      desc="The drum synth's 32 kits (808-style, 909-style and others), generated by the firmware, so they take no "
           "sample memory. One of three drum synths, each on its own: these 32 kits, KAWA, PLAITS. The synth's voice "
           "they share (about 9.6 KB of flash) is built with any one of them and counted once (the last one switched "
@@ -418,7 +443,7 @@ KAWA_TRK = Provenance("Kawa Tracker (Guizmoh/Kawa-Tracker-Fm1)", "Guizmoh", "GPL
 HORTATOR = Provenance("Hortator (DeadActive/hortator), after Mutable Instruments Plaits (Emilie Gillet, MIT)",
                       "Leo Kuroshita (Hügelton), DEADACTIVE; Emilie Gillet", "GPL-3.0-only (Plaits' algorithms MIT)",
                       "7e34159", "https://github.com/DeadActive/hortator")
-_add("DS_KAWA", "FELUCCA_DS_KAWA", "drum synth: KAWA kit (kit 47)", D, 372,
+_add("DS_KAWA", "FELUCCA_DS_KAWA", "drum synth: KAWA kit (kit 47)", D, 372, parent="DRUMS",
      provenance=KAWA_TRK,
      desc="A drum synth of its own, the KAWA kit, after Kawa Tracker's kit engine: a guiro, a clap with its hands, a "
           "flammed snare, a brush and a shaker that swell in, tight-cluster hats, a ride's bell, ring-modulated toms and "
@@ -429,7 +454,7 @@ _add("DS_KAWA", "FELUCCA_DS_KAWA", "drum synth: KAWA kit (kit 47)", D, 372,
           "kits: the first kit built).",
      notice="From Kawa Tracker's kit engine by Guizmoh (Guizmoh/Kawa-Tracker-Fm1 kawa_drums.c, GPL-3.0). Tested in the "
             "host tests only, not on a device.")
-_add("DS_PLAITS", "FELUCCA_DS_PLAITS", "drum synth: PLAITS kit (kit 48), Plaits' kick and snare", D, 373,
+_add("DS_PLAITS", "FELUCCA_DS_PLAITS", "drum synth: PLAITS kit (kit 48), Plaits' kick and snare", D, 373, parent="DRUMS",
      provenance=HORTATOR,
      desc="A drum synth of its own, the PLAITS kit: two kicks and two snares from Mutable Instruments Plaits' synthetic "
           "bass drum and snare drum models (a distorted sine with FM and a click; two FM sines with filtered noise), the "
@@ -440,7 +465,7 @@ _add("DS_PLAITS", "FELUCCA_DS_PLAITS", "drum synth: PLAITS kit (kit 48), Plaits'
           "(without the 32 kits: the first kit built).",
      notice="Plaits' drum models by Emilie Gillet (MIT), in the integer port of Hortator by Leo Kuroshita and DEADACTIVE "
             "(DeadActive/hortator 7e34159, GPL-3.0). Tested in the host tests only, not on a device.")
-_add("DRUM_X0X909", "FELUCCA_DRUM_X909", "X0X 909 kit (circuit-modelled TR-909)", D, 86, default=0,
+_add("DRUM_X0X909", "FELUCCA_DRUM_X909", "X0X 909 kit (circuit-modelled TR-909)", D, 86, parent="DRUMS", default=0,
      provenance=x0x("80b7d40"), notice=X0X_DRUMS_NOTICE,
      desc="X0X's TR-909 drum kit (kit UID 37; the drum models are circuit-modelled, hi-hats, ride and crash are "
           "samples), on the 16 lanes; SHAKER, CONGA, COWBELL play the synthesised 909's. Big: about 151 KB of flash "
@@ -459,13 +484,13 @@ _add("X0X_TANH", "FELUCCA_X0X_TANH", "X0X 909: saturator curve (tanh) resolution
      choices=((1, "1024 points (4.1 KB)"), (2, "256 points (1 KB)")),
      desc="The 909's saturators read tanh from a table with linear interpolation: 1024 points as before, or 256 points: "
           "3 KB less, within 1e-4 of tanh (80 dB below the signal), no audible change (tests/x0x_drums_test.c measures it)")
-_add("DRUM_X0X808", "FELUCCA_DRUM_X808", "X0X 808 kit (circuit-modelled TR-808)", D, 88, default=0,
+_add("DRUM_X0X808", "FELUCCA_DRUM_X808", "X0X 808 kit (circuit-modelled TR-808)", D, 88, parent="DRUMS", default=0,
      provenance=x0x("80b7d40"), notice=X0X_DRUMS_NOTICE,
      desc="X0X's TR-808 drum kit (kit UID 38; 16 circuit-modelled sounds) on the 16 lanes; MIDI also plays MT, LC, "
           "HC and the claves (note 75). About 30 KB of flash and uses floating point. A build "
           "without it plays the synthesised 808 for it and keeps the kit")
 
-_add("DRUM_SAMPLED", "FELUCCA_DRUM_SAMPLED", "sampled drums (the PERC set, 99 KB)", D, 19, env="PERC",
+_add("DRUM_SAMPLED", "FELUCCA_DRUM_SAMPLED", "sampled drums (the PERC set, 99 KB)", D, 19, parent="DRUMS", env="PERC",
      desc="The recorded drum samples (the PERC set, about 99 KB of flash) behind the five sampled kits below. "
           "Switching this off drops all of them; the drum track then needs a drum synth.")
 _KIT_DESC = {
@@ -480,7 +505,7 @@ for i, (k, n) in enumerate((("ACOUSTIC", "ACOUSTIC"), ("DEEP", "DEEP"), ("TIGHT"
     _add(f"KIT_{k}", f"FELUCCA_KIT_{k}", f"sampled kit {n}", D, 20 + i, parent="DRUM_SAMPLED",
          desc=_KIT_DESC[k] + " It shares the PERC samples with the other sampled kits, so leaving it out saves no "
               "memory (only leaving out all of them does); a project using it plays another kit.")
-_add("DRUM_EDIT", "FELUCCA_DRUM_EDIT", "drum sound editor (EDIT on the drum track)", D, 25,
+_add("DRUM_EDIT", "FELUCCA_DRUM_EDIT", "drum sound editor (EDIT on the drum track)", D, 25, parent="DRUMS",
      desc="Per-lane sound tweaks over the kit (TUNE, DECAY, SNAP, CLICK, BEND, CUT, DRIVE, LEVEL on synthesised "
           "kits; TUNE, DECAY, CUT, LEVEL on sampled ones). About 1.2 KB of flash; off: kits play as they are and "
           "saved tweaks are kept but not applied.")
@@ -491,10 +516,10 @@ _add("DS_NTUNE", "FELUCCA_DS_NTUNE", "drum EDIT: TUNE on the noise sounds (hats,
           "sound. A few dozen bytes.",
      notice="From SLOOP 2.8's drum TUNE by isod89 (isod89/sloop-fm1 b77bf55, GPL-3.0). Tested in the host tests only, "
             "not on a device.")
-_add("DRUM_USR", "FELUCCA_DRUM_USR", "user samples on drum lanes", D, 26,
+_add("DRUM_USR", "FELUCCA_DRUM_USR", "user samples on drum lanes", D, 26, parent="DRUMS",
      desc="A drum lane can play one of your own samples (a hit of a USR slot, with start and length) instead of the "
           "kit's sound. About 1.2 KB of flash; off: such lanes play the kit sound.")
-_add("DRUM_KITS", "FELUCCA_DRUM_KITS", "user drum kits (bank of 16 in data flash)", D, 27,
+_add("DRUM_KITS", "FELUCCA_DRUM_KITS", "user drum kits (bank of 16 in data flash)", D, 27, parent="DRUMS",
      desc="Lane sources from other kits and the X0X machines, and a bank of 16 user kits (each lane's source and "
           "sound tweaks) saved in flash. About 2.8 KB of flash; off: lanes play the kit as it is.")
 # (bit 83, DRUM_SENDS, retired 2026-10: each drum lane's REV / DLY / CHO are the drums' only sends, in every build;
@@ -695,6 +720,12 @@ _add("INS_SPIT", "FELUCCA_INS_SPIT", "SPIT insert (random resonant band, driven)
           "the drive. 0 is off.", symbols=("ifx_spit",),
      notice="From Melodee 1.3.0's SPIT insert by Kerem Kilic (GPL-3.0); fixed point here, the clip follows the "
             "input's level (Melodee's has a fixed ceiling)." + _TS_NOTE)
+_add("EX_GAIN", "FELUCCA_EX_GAIN", "EXGN insert: the example effect (a gain in dB)", F, 421, default=0,
+     experimental=True, tested=_EX_TESTED, notice=_EX_NOTE, symbols=("ifx_exgn",),
+     desc="The worked example of CONTRIBUTING.md for a new insert effect (fx/insfx/exgain.c, FX type 29): EXGN on the "
+          "tracks' insert slots (INSERTS > S1 / S2) and the drum bus's, one amount, its GAIN: OFF (bypassed), then "
+          "-55.5 dB to +7.5 dB (112 is 0 dB), LEVEL's curve, gliding without a click. Not on the master, the returns, "
+          "the USB input or a drum sound. Off in every profile: a build without it is the build from before.")
 # the insert copies of the "once" effects (fx/insfx/fxi_kern.c, fxi.c, 2026-10-13): built or not; how many play at once
 # is what the effects memory holds (DLY_ARENA, fxi_mem.h, 2026-10-23: they were a count each until then, WAS_COUNT); a
 # slot picking one with no room left is bypassed (the INSERTS list says FULL)
@@ -821,6 +852,16 @@ _add("ENERGY", "FELUCCA_ENERGY", "ENERGY bands thin / thicken the drums", Q, 121
      desc="ENERGY also thins or thickens the drum pattern in five bands, walked on the beat: core lanes on the "
           "eighths, no ghosts, as written, harder hits, hat ratchets and a snare fill every second pass. About "
           "0.6 KB of flash.", symbols=("EN_EDGE",))
+_add("LANE_FX", "FELUCCA_LANE_FX", "drum lane FX: hold a black key (ROLL, CHANCE, FILL, NUDGE, VRAND, FLAM, RAMP, EVERY)", Q, 420, default=0,
+     experimental=True, tested="host-tested only, not on a device",
+     desc="On the drum track, a black key held past the hold time opens its lane's FX page until the key is let go: "
+          "ROLL (every hit of the lane repeats x2 to x8 in its step), CHANCE (each hit plays with this probability), "
+          "FILL (the lane plays always, only in a fill or never in one: GLO + 9 / 10) and NUDGE (the whole lane early "
+          "or late, up to half a step); SELECT, the second page: VRAND (each hit's velocity at random, up to 64 either "
+          "way), FLAM (a grace note 5 to 40 ms before the hit), RAMP (a roll's hits fade in or out) and EVERY (the lane "
+          "plays on loop 1:2 .. 4:4 only; with COND). KNOB 1-4 turn them, SHIFT + a knob resets. Saved with the pattern, "
+          "as events of its automation (an older build refuses a drum pattern that has them). Not on STEP (a lane key "
+          "held + a step sets its level there). Needs the automation store.")
 
 _add("REC_PLAIN", "FELUCCA_REC_PLAIN", "REC plain: every note played is recorded, the voice mode never cuts it", Q, 364, default=0,
      desc="Experimental (2026-10-21, off for now). Recording keeps every note you play: a chord stays a chord, an overdub only "
@@ -838,6 +879,13 @@ _add("NOTEGEN", "FELUCCA_NOTEGEN", "note generators (STEP's GEN and GEN OUT)", Q
           "About 6.8 KB of flash and 2 KB of RAM: 6.1 KB of it the generators' framework, shared with GRIDS, EUCLID RANDOM "
           "PULSE themselves 0.7 KB (the builder's measure, 2026-10-22).",
      symbols=("gen_sync",))
+_add("EX_NOTEGEN", "FELUCCA_EX_NOTEGEN", "note generators: the examples WALK and UPDN (they choose the notes)", Q, 423,
+     default=0, parent="NOTEGEN", experimental=True, tested=_EX_TESTED, notice=_EX_NOTE, symbols=("wk_gstep", "ud_gstep"),
+     desc="The worked example of CONTRIBUTING.md for a new note generator (seq/gen_ex.c, generator types 4 and 5): two "
+          "more TYPEs on STEP's GEN page that choose the notes, not only the hits. WALK: a random walk in the track's "
+          "scale over RANGE degrees, at most LEAP degrees a step, DRAW another walk. UPDN: up the scale and back down "
+          "over RANGE degrees, HOP degrees a note, a note every RATE steps. On a drum lane they give hits only. Off in "
+          "every profile: a build without it is the build from before.")
 
 # ---- USB & BT & MIDI (the user, 2026-10-20). USB MIDI (notes, clock, the editor and updates) is in every build. The USB
 # port's two extras, each a checkbox, not both: the controller has three data endpoints (hal/fm1_usb.h EP1..3), USB MIDI
@@ -1268,15 +1316,37 @@ for _it in _ITEMS:
     if _it.group == "FX":
         _it.group = fx_group(_it.key, _it.parent)
 ITEMS = {it.key: it for it in _ITEMS}
+
+
+def _level_ok(it):
+    """one level of options; two under a group's head (Item.head: DRUMS > DRUM_X0X909 > X909_CYM)"""
+    p = ITEMS.get(it.parent)
+    return p is not None and (not p.parent or (not p.head and ITEMS[p.parent].head))
+
+
 for _it in _ITEMS:
     if _it.parent:
-        assert _it.parent in ITEMS and not ITEMS[_it.parent].parent, f"{_it.key}: one level only"
+        assert _level_ok(_it), f"{_it.key}: one level only (two under a group's head)"
         ITEMS[_it.parent].children.append(_it.key)
 assert len({it.bit for it in _ITEMS}) == len(_ITEMS), "registry: duplicate bit"
 assert all(k not in ITEMS for k in FORBIDDEN), "registry: a forbidden item is registered"
 for _it in _ITEMS:
     if _it.provenance and "fm1-x0x" in _it.provenance.project + _it.provenance.url:
         assert _it.notice, f"{_it.key}: an X0X item needs its notice"
+
+
+# the items of other groups that only drums use: left out with DRUMS (core.built), their switches 0 (core.flags)
+DRUMS_ONLY = ("FX_DUCK", "ENERGY", "LANE_FX", "GRIDS_EUCLID", "GRIDS_LFO", "GRIDS_VEL",
+              "SL24_SAFE", "SL24_IMPORT", "SL24_EXPORT", "SL24_EDIMPORT")   # (SLOOP's formats: a drum track)
+
+
+def ancestors(key):
+    """the item's parent, its parent's parent (a group's head)"""
+    out, p = [], ITEMS[key].parent
+    while p:
+        out.append(p)
+        p = ITEMS[p].parent
+    return out
 
 
 def top_level(group=None):
@@ -1294,7 +1364,7 @@ def add_item(item):
     _ITEMS.append(item)
     ITEMS[item.key] = item
     if item.parent:
-        assert item.parent in ITEMS and not ITEMS[item.parent].parent
+        assert _level_ok(item), f"{item.key}: one level only (two under a group's head)"
         ITEMS[item.parent].children.append(item.key)
 
 
@@ -1303,11 +1373,11 @@ def to_json():
     for it in _ITEMS:
         d = {k: getattr(it, k) for k in ("key", "flag", "label", "group", "bit", "default", "parent", "desc",
                                           "experimental", "notice", "off_warning", "env", "target_only", "symbols", "no_image",
-                                          "fixed")}
+                                          "fixed", "head")}
         d["choices"] = [list(c) for c in it.choices]
         d["provenance"] = it.provenance.__dict__ if it.provenance else None
         out.append(d)
-    return {"groups": GROUPS, "items": out, "forbidden": FORBIDDEN}
+    return {"groups": GROUPS, "items": out, "forbidden": FORBIDDEN, "drums_only": list(DRUMS_ONLY)}
 
 
 # the symbol check (tools/builder/verify.py): what an item left out must not leave behind

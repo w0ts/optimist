@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* FM-1 (AC791N / WL82) BR/EDR (Bluetooth Classic) baseband: the registers, the frame control block, the slot clock,
  * the alarm, the slot timers and the interrupt lines, for the EXPERIMENTAL inquiry probe (src/bt/bt_inq.c,
  * FELUCCA_BT_AUDIO). Written only from the clean-room fact sheet docs/BT-CLASSIC.md: every access names

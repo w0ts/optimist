@@ -8,6 +8,8 @@
 /* the engines by the names the UI shows (tools/colors.json "engines"); ENGINE_LIST's own names for two of them */
 #define COL_ENG_FORMANT COL_ENG_VOICE
 #define COL_ENG_DRAWBAR COL_ENG_WHEEL
+#define COL_ENG_SQUARE 0x658Au   /* #62b356 (EX_SQUARE, the example engine: a hue no engine has; not in tools/colors.json,
+                                  * so the web editor shows it in its "other" grey) */
 #define ENG_COLV_(u, N, fb, s) FIF(FELUCCA_ENG_##N)(COL_ENG_##N,)
 static const uint16_t ENG_COL[NENGINES] = {ENGINE_LIST(ENG_COLV_)};   /* by slot (ENGINES[]) */
 
@@ -40,6 +42,8 @@ static uint16_t lane_col(uint32_t l)
         return COL_KIND_USR;
     return kind_col(dl_src_kit(s) < DRUM_KITS ? dl_src_kit(s) : DRUM_UID_X909);   /* (an X0X voice: X0X's colour) */
 }
+#else
+#define lane_col(l) ((void)(l), C_HI)                    /* (no drums: no lane) */
 #endif
 
 /* track i's colour: its engine's, the drum track's kit kind's */

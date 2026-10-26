@@ -459,8 +459,8 @@ static void sg_marks(const track_t *t)
         const auto_ev_t *e = &l->ev[i];
         uint32_t s = e->place & AUTO_STEP, nx = len, a, b;
         uint16_t c = AUTO_IS_LANE(e->param) ? lane_col(AUTO_LANE_L(e->param)) : c0;   /* (a lane's event: its colour, D9) */
-        if (s >= len || s >= hi)
-            continue;                                   /* (past the window: neither its dot nor its tail is in it; no search for
+        if (s >= len || s >= hi || AUTO_IS_LFX(e))
+            continue;                                   /* (a lane's FX: no step's dot; past the window: neither its dot nor its tail is in it; no search for
                                                          * its next event, a pass over every event) */
         if (!(e->place & AUTO_ONLY)) {
             for (j = 0; j < l->n; j++) {

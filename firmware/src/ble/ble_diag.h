@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* Link-layer diagnostics for the console's `blell` (docs/BLE-STACK.md §11): plain counters, the last CONNECT_IND,
  * the last control and ATT opcodes, and a ring of the last 32 timestamped events. RAM only, a few hundred bytes.
  * Written only from the BLE interrupts' context (ble_hw.h: the driver's ISRs, or the main loop with them held), so

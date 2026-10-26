@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* The ATT server (Core Specification Vol 3 Part F) over a static GATT database (Part G), and the BLE-MIDI
  * service's data path.
  *

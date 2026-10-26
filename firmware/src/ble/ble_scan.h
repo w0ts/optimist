@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* The scanner's software half (docs/BLE-DEVICES-DESIGN.md §2, docs/BLE-STACK.md §9.1; BLE-HW-FACTS.md §21.2): the AD structures of an
  * advertising report parsed (Core Specification Supplement Part A: flags, the 128-bit service UUID lists, the
  * shortened and complete local name), and the table of the devices found nearby, which the DEVICES list shows.

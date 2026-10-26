@@ -48,7 +48,7 @@ static int pat_decode(const uint8_t *a, uint32_t n, uint32_t k, proj_trk_t *t, a
     l->n = 0;
 #endif
     if (n < 5u || !(f = a[0], v = f & PF_VER, v == PF_V1 || (v == PF_V2 && !(f & PF_SX))) ||
-        !(f & PF_DRUM) != (k != TRK_DRUM))
+        !(f & PF_DRUM) != (!IS_DRUMK(k)))
         return 0;
     for (i = 0; i < 4u; i++)
         t->p[P_SLEN + i] = a[1u + i];
@@ -163,7 +163,7 @@ static uint32_t pat_encode(const project_t *p, uint32_t k, uint8_t *out)
 {
     const proj_trk_t *t = &p->t[k];
     uint8_t *o = out + 5;
-    uint32_t i, f = PF_V1 | (k == TRK_DRUM ? PF_DRUM : 0u), b = !sec_test_a && sec_b_gain(t, k) > 0;
+    uint32_t i, f = PF_V1 | (IS_DRUMK(k) ? PF_DRUM : 0u), b = !sec_test_a && sec_b_gain(t, k) > 0;
 #if FELUCCA_AUTO
     const auto_store_t *m = auto_of(p);
     const auto_list_t *l = m ? &m->l[k] : 0;
@@ -334,8 +334,8 @@ static int pat_store(uint32_t s, int arena, int playing)
     if (!rc)
         memcpy(pat_cur, pat_bref[0], NTRK);
     else if (rc & 0x10) {
-        msg[0] = (rc & 15) == TRK_DRUM ? 'D' : 'T';
-        msg[1] = (rc & 15) == TRK_DRUM ? 'R' : (char)('1' + (rc & 15));
+        msg[0] = IS_DRUMK((rc & 15)) ? 'D' : 'T';
+        msg[1] = IS_DRUMK((rc & 15)) ? 'R' : (char)('1' + (rc & 15));
         ui_message(msg);
     } else
         ui_message(rc == 1 ? "MEM FULL" : rc == 3 ? "STOP TO SAVE MORE" : "SAVE ERROR");
@@ -569,7 +569,7 @@ static int pat_store_slot(uint32_t k, uint32_t s)
 static int pat_copy(uint32_t k, uint32_t a, uint32_t k2, uint32_t b)
 {
     uint32_t n;
-    if ((k == TRK_DRUM) != (k2 == TRK_DRUM) || (k == k2 && a == b) || (n = pat_get(k, a, sec_rbuf)) == 0) {
+    if ((IS_DRUMK(k)) != (IS_DRUMK(k2)) || (k == k2 && a == b) || (n = pat_get(k, a, sec_rbuf)) == 0) {
         ui_message("NO COPY");
         return 1;
     }

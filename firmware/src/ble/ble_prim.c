@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* Link-layer primitives (ble_prim.h), bit-serial as the Core Specification draws them (Vol 6 Part B): small, and
  * only on a path the baseband engine does not cover. */
 #include "ble_prim.h"

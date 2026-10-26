@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* The baseband driver (ble_hw.h) on the AC791N / WL82 BLE engine, route C (docs/BLE-STACK.md §7, the interface §3; FELUCCA_BLE).
  *
  * Clean room: written from the hardware fact sheet docs/BLE-HW-FACTS.md (feat/ble-facts 41b7374, TX: §8.2 at a3b2f06; "HW §n"

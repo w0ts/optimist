@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* BLE-MIDI in, the whole path on the host (tests/run_tests.sh): a central's ATT Write Commands on the MIDI I/O value
  * (handle 0x000E) -> ble_att.c -> the BLE-MIDI decoder (ble_midi.c) -> midi_ble.c's ring (ble_app_midi_in) -> the
  * TIMER5 tick (ble_midi_poll) -> midi_in_q -> seq.c's events_block -> the synth's voices. The packets are shaped as

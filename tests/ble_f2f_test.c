@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* FM-1 to FM-1 (docs/BLE-DEVICES-DESIGN.md §4.4, §4.2): two whole copies of our BLE stack (tests/ble_f2f_unit.c, one
  * object each) connected through a fake air that carries every PDU (all acknowledged): unit a is the FM-1 that picks
  * the other in DEVICES (central), unit b another FM-1 as it ships (BLE_MIDI_NEED_ENC=0), unit c one built with

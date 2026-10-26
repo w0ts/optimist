@@ -9,9 +9,26 @@
 #include "backports.h"       /* the backported features' build switches (FELUCCA_CHANCE ...) */
 #define NVOICE 8                 /* voices per part, and the budget shared by all parts */
 #define NPOLY 8
+/* FELUCCA_DRUMS 0 (the builder's DRUMS, 2026-10-26): no drum track and no drum code; track 4 is a fourth synth part */
+#ifndef FELUCCA_DRUMS
+#define FELUCCA_DRUMS 1
+#endif
+#if FELUCCA_DRUMS
 #define NPART 3                  /* synth parts: tracks 1..3 */
+#else
+#define NPART 4                  /* synth parts: tracks 1..4 */
+#include "nodrums.h"             /* (every drum switch 0) */
+#endif
 #define NTRK 4                   /* + the drum track */
-#define TRK_DRUM 3
+#define TRK_DRUM 3               /* (its index; without drums track 4 is a part: IS_DRUMK is never true) */
+#define IS_DRUMK(k) (FELUCCA_DRUMS && (uint32_t)(k) == TRK_DRUM)   /* track k is the drum track */
+#if FELUCCA_DRUMS
+#define TRK4_TAG "DR"            /* track 4's short name */
+#define TRK4_NAME "DRUMS"
+#else
+#define TRK4_TAG "T4"
+#define TRK4_NAME "T4"
+#endif
 #if FELUCCA_USB_AUDIO
 /* USB audio capture (usb_audio_stream.c): interleaved mono stems, cleared by mix_block;
  * post insert / level / mute, pre pan / sends / FX buses / master. */
@@ -272,6 +289,12 @@ enum {                          /* per-track parameters */
     P_TTAPE, P_TSPIT,                            /* (TAPE SPIT, 2026-10-19: fx/insfx/tapespit.c, after the shapers' range) */
     P_TXDLY,                                     /* (XDLY, 2026-10-22: fx/insfx/xdly.c, a limited type: its MIX; its TIME 1 TIME 2
                                                   * MOD FDBK the owner's, fx_slots.c xdl_v) */
+#endif
+#if FELUCCA_EX_GAIN
+    /* EXGN, the example insert (EX_GAIN, fx/insfx/exgain.c, CONTRIBUTING.md): a track's GAIN, its amount (0 off, else
+     * -55.5 .. +7.5 dB, 112 = 0 dB: LEVEL's curve). As every insert amount: not part of a sound nor of a user preset; the
+     * FX record keeps it (fx_slots.c fxs_tlv, EXGN's TLV) */
+    P_TEXGN,
 #endif
     /* LFO 2 (voice.c lfo2_tick): a second LFO a part, after every other value so that no id before
      * moves. RATE as LFO's (0..127 free, -1..-10 synced: LSYNC_N), WAVE as LFO's, TRIG (NOTE: a fresh phrase restarts
@@ -599,6 +622,10 @@ typedef struct {
 #undef FELUCCA_DRUM_ACCENT
 #define FELUCCA_DRUM_ACCENT 0    /* (the lane is stored as events of the automation store: without it, none) */
 #endif
+#if FELUCCA_LANE_FX && !FELUCCA_AUTO
+#undef FELUCCA_LANE_FX
+#define FELUCCA_LANE_FX 0        /* (the lanes' FX are events of the automation store: without it, none) */
+#endif
 /* the Optimist UI shows the ACCENT lane (FELUCCA_UI 1 with the lane built): DRUM_UILANES lanes in its grids, its mixer, its
  * walk; the LAST upper key (key 25, the lone F# at the right end) is the lane's key (seq.c kb_drum_lane, drums.c key_of_lane, op_input.c) */
 #ifndef DACC_KEY_ON
@@ -811,7 +838,7 @@ static void ev_at(uint32_t ago)
 }
 #define TSEL (&trk[song.sel])    /* the selected track */
 #define TDRUM (&trk[TRK_DRUM])
-static int is_drum(const track_t *t) { return t == TDRUM; }
+static int is_drum(const track_t *t) { return FELUCCA_DRUMS && t == TDRUM; }   /* (no drums: never) */
 /* step i of track t as bytes (*n of them): the drum track's 16-lane step, a synth step with its own note ends */
 static const uint8_t *trk_step_raw(const track_t *t, uint32_t i, uint32_t *n)
 {

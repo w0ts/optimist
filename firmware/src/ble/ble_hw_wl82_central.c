@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* The WL82 driver's central role (BLE_CENTRAL; docs/BLE-HW-FACTS.md §21), part of ble_hw_wl82.c (included there: it
  * shares the control block, drv and the helpers): scanning (state 1, §21.2), initiating (state 3, §21.3) and the
  * switch to the master of the connection (state 6, §21.3 / §21.4). The master's connection then runs on the

@@ -54,7 +54,7 @@ static void stb_paint(void)
     uint32_t nl = stb.kind == SG_SCENE ? 5u : 2u, lane, i, c0 = stb.col / STB_COLS * STB_COLS;
     int32_t ph = (GL_END - 22 - 16) / (int32_t)nl, y;
     char b[20];
-    static const char *const SN[5] = {"T1", "T2", "T3", "DR", "BARS"}, *const PN[2] = {"SCN", "BARS"};
+    static const char *const SN[5] = {"T1", "T2", "T3", TRK4_TAG, "BARS"}, *const PN[2] = {"SCN", "BARS"};
     for (lane = 0; lane < nl; lane++) {                 /* the lanes' names */
         const char *ln = stb.kind == SG_SCENE ? SN[lane] : PN[lane];
         const felucca_font_t *lf = stb_font(ln, STB_X0 - 5);

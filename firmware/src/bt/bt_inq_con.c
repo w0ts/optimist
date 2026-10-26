@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* EXPERIMENTAL Bluetooth Classic probe (BT_AUDIO): the console side of bt_inq.c, split out of it with no change
  * of behaviour: the options (bti_opts), the printing of what the interrupts copied into the rings (bti_print_rx,
  * bti_print_sec, btclk's result) and the commands btclk, btinq / btscan, bttrace, btrx. Included by bt_inq.c after its

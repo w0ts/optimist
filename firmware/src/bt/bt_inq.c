@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* EXPERIMENTAL Bluetooth Classic (BR/EDR) inquiry (builder item BT_AUDIO, FELUCCA_BT_AUDIO): stage 1 of our own
  * Classic stack, docs/BT-CLASSIC.md §14. Written only from that fact sheet (cited as "BR §n") and
  * the Core specification; no vendor code. Included by io/console.c with the CDC console (USB_CONSOLE), else by

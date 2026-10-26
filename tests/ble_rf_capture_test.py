@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0
 """tools/ble_vm.py and tools/ble_rf_capture.py without the emulator: the VM format (docs/BLE-HW-FACTS.md §14) on the
 V15 extract of docs/ble-traces/v15-vm-trim-map.txt (an emulator result, copied in tests/ble_vm_test.c too), a perturbed
 image, and the capture's cut on synthetic traces: BBP window triples, LUT words with their kick, the trim fields of
@@ -330,8 +330,9 @@ def committed_tests():
     n2 = len(P.unpack(bytes(P.header_array(text, "ble_rf_prog"))))
     check(f"... packed: {len(P.header_array(text, 'ble_rf_prog'))} B of flash for the {n2} B program",
           len(P.header_array(text, "ble_rf_prog")) < n2 * 6 // 10)
-    check("... with the one-line provenance comment and no GENERATED / do-not-commit wording",
-          text.startswith("/* BLE radio start-up values captured from the stock FM-1 V15 firmware (see docs/BLE-STACK.md). */\n")
+    check("... with its Apache-2.0 line, the provenance comment and no GENERATED / do-not-commit wording",
+          text.startswith("/* SPDX-License-Identifier: Apache-2.0 */\n/* BLE radio start-up values captured from the stock "
+                          "FM-1 V15 firmware (see docs/BLE-STACK.md): M-VAVE's FM-1_015.fwsc,\n")
           and "GENERATED" not in text and "do not commit" not in text)
     try:
         stock = C.find_stock(os.environ.get("FM1_STOCK_FWSC") or str(Path.home() / "GitHub" / "fm1-firmware" / "FM-1.fwsc"))

@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* The Classic probe's minimal LMP (bt_lmp.h), from the Core spec Vol 2 Part C; host-tested (tests/bt_lmp_test.c). */
 #include "bt_lmp.h"
 

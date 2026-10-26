@@ -34,6 +34,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [
@@ -62,6 +63,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -85,6 +87,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -108,6 +111,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -131,6 +135,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -157,6 +162,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -183,6 +189,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [
@@ -208,6 +215,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "Felucca-Engines (hugelton/Felucca-Engines)",
@@ -241,6 +249,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -266,6 +275,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -292,6 +302,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -318,6 +329,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -344,6 +356,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -370,6 +383,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -398,6 +412,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "Melodee (keremimo/melodee)",
@@ -438,6 +453,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -461,6 +477,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -486,6 +503,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -511,6 +529,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -536,6 +555,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -561,6 +581,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -586,6 +607,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -612,6 +634,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "Melodee (keremimo/melodee)",
@@ -643,6 +666,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "Felucca (hugelton/Felucca)",
@@ -675,6 +699,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "Caravel 0.3.3 (bonszaimusic/caravel, a Felucca fork)",
@@ -707,6 +732,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "Mutable Instruments Plaits (pichenettes/eurorack)",
@@ -739,6 +765,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "Clipper (isod89/clipper-fm1, Clipper 1.1)",
@@ -771,6 +798,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "Clipper (isod89/clipper-fm1, Clipper 1.1)",
@@ -803,6 +831,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "Clipper (isod89/clipper-fm1, Clipper 1.1)",
@@ -835,6 +864,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "Clipper (isod89/clipper-fm1, Clipper 1.1)",
@@ -867,6 +897,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "Clipper (isod89/clipper-fm1, Clipper 1.1)",
@@ -900,6 +931,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "Clipper (isod89/clipper-fm1, Clipper 1.1)",
@@ -932,6 +964,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "Mini-Tone 1.0.1 (eldontyrellcorp/Mini-Tone), after reSID 0.16 by Dag Lem",
@@ -964,6 +997,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "Melodee (keremimo/melodee): its PROPHET engine's oscillators, Poly-Mod and Curtis filter",
@@ -977,13 +1011,73 @@
     "provenance_line": "Melodee (keremimo/melodee): its PROPHET engine's oscillators, Poly-Mod and Curtis filter @ 398ada1 by Kerem Kilic (GPL-3.0-only)"
    },
    {
+    "key": "EX_SQUARE",
+    "flag": "FELUCCA_EX_SQUARE",
+    "label": "SQUARE: the example engine (a pulse, its sub, a filter)",
+    "group": "Synth engines",
+    "bit": 422,
+    "default": 0,
+    "parent": null,
+    "desc": "The worked example of CONTRIBUTING.md for a new synth engine (engines/square/eng_square.c, engine UID 26): a band-limited pulse (PW, the track's SHP moves it), a square an octave down (SUB), a second pulse detuned up (DTN), white noise (NOIS), a 12 dB low-pass (CUT, RES, TRK: key tracking) and a soft drive (DRV); three presets, SQ LEAD, SQ BASS and SQ PLUCK. Integer code. Off in every profile: a build without it is the build from before.",
+    "experimental": true,
+    "notice": "An example to copy (CONTRIBUTING.md), not a feature: host-tested only (tests/examples_test.c), not on a device.",
+    "off_warning": "",
+    "env": "",
+    "target_only": false,
+    "symbols": [
+     "sq_render"
+    ],
+    "no_image": false,
+    "fixed": false,
+    "head": false,
+    "choices": [],
+    "provenance": null,
+    "children": [],
+    "tested": "host-tested only (tests/examples_test.c), not on a device",
+    "provenance_line": ""
+   },
+   {
+    "key": "DRUMS",
+    "flag": "FELUCCA_DRUMS",
+    "label": "DRUMS: the drum track (off: track 4 is a 4th synth track)",
+    "group": "Drums",
+    "bit": 424,
+    "default": 1,
+    "parent": null,
+    "desc": "The drum track and everything of it: the kits, the drum synths, the lanes, their sounds, sends and FX. Off, none of that code is built and track 4 is a synth track like tracks 1 to 3 (its own engine, preset, notes and effects, on MIDI channel 4 by default; the 8 voices are shared by the four parts); the click is a short blip of its own. Its projects are format FUNC (FUNB's layout with a tail: part 4's FM6 voice, the parts' values FUNB keeps in the drum track's free slots); a project or song section of a build with drums loads with its parts as they were and track 4 a new part (WARM PAD), its drum steps and motion left out. A build with drums does not read FUNC. On the default profile: about 117 KB of flash (99 KB of it the PERC samples) and 9.8 KB of RAM less; the pool holds about 5 KB more (part 4's state).",
+    "experimental": false,
+    "notice": "",
+    "off_warning": "",
+    "env": "",
+    "target_only": false,
+    "symbols": [],
+    "no_image": false,
+    "fixed": false,
+    "head": true,
+    "choices": [],
+    "provenance": null,
+    "children": [
+     "DRUM_SYNTH",
+     "DS_KAWA",
+     "DS_PLAITS",
+     "DRUM_X0X909",
+     "DRUM_X0X808",
+     "DRUM_SAMPLED",
+     "DRUM_EDIT",
+     "DRUM_USR",
+     "DRUM_KITS"
+    ],
+    "tested": "emulator-tested only",
+    "provenance_line": ""
+   },
+   {
     "key": "DRUM_SYNTH",
     "flag": "FELUCCA_DRUM_SYNTH",
     "label": "drum synth: the 32 synthesised kits",
     "group": "Drums",
     "bit": 18,
     "default": 1,
-    "parent": null,
+    "parent": "DRUMS",
     "desc": "The drum synth's 32 kits (808-style, 909-style and others), generated by the firmware, so they take no sample memory. One of three drum synths, each on its own: these 32 kits, KAWA, PLAITS. The synth's voice they share (about 9.6 KB of flash) is built with any one of them and counted once (the last one switched off frees it): with KAWA or PLAITS on, the 32 kits cost about 1.5 KB of flash, alone about 11 KB. Not the X0X 909 / 808 kits: those are separate items, with their own samples. The 32 kits also play the sounds an X0X kit lacks (without them, a sampled kit, else KAWA or PLAITS; with none of those, silent). Without them the kit list starts at the first kit built.",
     "experimental": false,
     "notice": "",
@@ -995,6 +1089,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -1008,7 +1103,7 @@
     "group": "Drums",
     "bit": 372,
     "default": 1,
-    "parent": null,
+    "parent": "DRUMS",
     "desc": "A drum synth of its own, the KAWA kit, after Kawa Tracker's kit engine: a guiro, a clap with its hands, a flammed snare, a brush and a shaker that swell in, tight-cluster hats, a ride's bell, ring-modulated toms and cowbell, a kick with an FM beater. Any lane of another kit can borrow its sounds. It adds four cymbal tunings, the second partial ringing or modulating the tone, re-strikes and a rise to the drum synth, used by this kit only (the other kits sound as before). Needs neither the 32 kits nor PLAITS: about 2.2 KB beside them, 12 KB alone (the synth's voice with it). A build without it plays the 808 kit for KAWA (without the 32 kits: the first kit built).",
     "experimental": false,
     "notice": "From Kawa Tracker's kit engine by Guizmoh (Guizmoh/Kawa-Tracker-Fm1 kawa_drums.c, GPL-3.0). Tested in the host tests only, not on a device.",
@@ -1020,6 +1115,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "Kawa Tracker (Guizmoh/Kawa-Tracker-Fm1)",
@@ -1039,7 +1135,7 @@
     "group": "Drums",
     "bit": 373,
     "default": 1,
-    "parent": null,
+    "parent": "DRUMS",
     "desc": "A drum synth of its own, the PLAITS kit: two kicks and two snares from Mutable Instruments Plaits' synthetic bass drum and snare drum models (a distorted sine with FM and a click; two FM sines with filtered noise), the other lanes the 909's sounds. Any lane of another kit can borrow them. The drum EDIT moves them: TUNE, DECAY, CUT + (their TONE / FM), CLICK (the kick's FM), SNAP (the snare's snap). Integer code with 64-bit products, heavier on the CPU than the other drum sounds. Needs neither the 32 kits nor KAWA: about 4.6 KB beside them, 14 KB alone (the synth's voice with it). A build without it plays the 909 kit for PLAITS (without the 32 kits: the first kit built).",
     "experimental": false,
     "notice": "Plaits' drum models by Emilie Gillet (MIT), in the integer port of Hortator by Leo Kuroshita and DEADACTIVE (DeadActive/hortator 7e34159, GPL-3.0). Tested in the host tests only, not on a device.",
@@ -1052,6 +1148,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "Hortator (DeadActive/hortator), after Mutable Instruments Plaits (Emilie Gillet, MIT)",
@@ -1071,7 +1168,7 @@
     "group": "Drums",
     "bit": 86,
     "default": 0,
-    "parent": null,
+    "parent": "DRUMS",
     "desc": "X0X's TR-909 drum kit (kit UID 37; the drum models are circuit-modelled, hi-hats, ride and crash are samples), on the 16 lanes; SHAKER, CONGA, COWBELL play the synthesised 909's. Big: about 151 KB of flash (see its cymbal option) and uses floating point. A build without it plays the synthesised 909 for it and keeps the kit",
     "experimental": false,
     "notice": "Ported from X0X by Charles Vestal (GPL-3.0), itself from 9W9 / 8W8 by athousanddetails and ER-99 by Matthew Cieplak (GPL-3.0); the 808's rim shot after sc808 (Yoshinosuke Horiuchi / Sam Aaron, MIT). Float DSP.",
@@ -1084,6 +1181,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "X0X (charlesvestal/fm1-x0x)",
@@ -1120,6 +1218,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [
      [
       1,
@@ -1158,6 +1257,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [
      [
       1,
@@ -1192,6 +1292,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [
      [
       1,
@@ -1214,7 +1315,7 @@
     "group": "Drums",
     "bit": 88,
     "default": 0,
-    "parent": null,
+    "parent": "DRUMS",
     "desc": "X0X's TR-808 drum kit (kit UID 38; 16 circuit-modelled sounds) on the 16 lanes; MIDI also plays MT, LC, HC and the claves (note 75). About 30 KB of flash and uses floating point. A build without it plays the synthesised 808 for it and keeps the kit",
     "experimental": false,
     "notice": "Ported from X0X by Charles Vestal (GPL-3.0), itself from 9W9 / 8W8 by athousanddetails and ER-99 by Matthew Cieplak (GPL-3.0); the 808's rim shot after sc808 (Yoshinosuke Horiuchi / Sam Aaron, MIT). Float DSP.",
@@ -1226,6 +1327,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "X0X (charlesvestal/fm1-x0x)",
@@ -1245,7 +1347,7 @@
     "group": "Drums",
     "bit": 19,
     "default": 1,
-    "parent": null,
+    "parent": "DRUMS",
     "desc": "The recorded drum samples (the PERC set, about 99 KB of flash) behind the five sampled kits below. Switching this off drops all of them; the drum track then needs a drum synth.",
     "experimental": false,
     "notice": "",
@@ -1255,6 +1357,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [
@@ -1284,6 +1387,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -1307,6 +1411,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -1330,6 +1435,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -1353,6 +1459,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -1376,6 +1483,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -1389,7 +1497,7 @@
     "group": "Drums",
     "bit": 25,
     "default": 1,
-    "parent": null,
+    "parent": "DRUMS",
     "desc": "Per-lane sound tweaks over the kit (TUNE, DECAY, SNAP, CLICK, BEND, CUT, DRIVE, LEVEL on synthesised kits; TUNE, DECAY, CUT, LEVEL on sampled ones). About 1.2 KB of flash; off: kits play as they are and saved tweaks are kept but not applied.",
     "experimental": false,
     "notice": "",
@@ -1401,6 +1509,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [
@@ -1426,6 +1535,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "SLOOP 2.8 (isod89/sloop-fm1)",
@@ -1445,7 +1555,7 @@
     "group": "Drums",
     "bit": 26,
     "default": 1,
-    "parent": null,
+    "parent": "DRUMS",
     "desc": "A drum lane can play one of your own samples (a hit of a USR slot, with start and length) instead of the kit's sound. About 1.2 KB of flash; off: such lanes play the kit sound.",
     "experimental": false,
     "notice": "",
@@ -1455,6 +1565,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -1468,7 +1579,7 @@
     "group": "Drums",
     "bit": 27,
     "default": 1,
-    "parent": null,
+    "parent": "DRUMS",
     "desc": "Lane sources from other kits and the X0X machines, and a bank of 16 user kits (each lane's source and sound tweaks) saved in flash. About 2.8 KB of flash; off: lanes play the kit as it is.",
     "experimental": false,
     "notice": "",
@@ -1478,6 +1589,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -1501,6 +1613,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -1524,6 +1637,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -1547,6 +1661,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -1570,6 +1685,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -1593,6 +1709,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -1616,6 +1733,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -1639,6 +1757,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -1662,6 +1781,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -1687,6 +1807,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -1712,6 +1833,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [
@@ -1738,6 +1860,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [
      [
       65536,
@@ -1777,6 +1900,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [
@@ -1810,6 +1934,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -1835,6 +1960,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -1860,6 +1986,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -1885,6 +2012,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -1908,6 +2036,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -1933,6 +2062,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -1958,6 +2088,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [
@@ -1983,6 +2114,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [
      [
       4096,
@@ -2017,6 +2149,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [
@@ -2043,6 +2176,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [
      [
       32768,
@@ -2075,6 +2209,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -2098,6 +2233,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -2121,6 +2257,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -2147,6 +2284,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -2170,6 +2308,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "SLOOP 2.4 (isod89/sloop-fm1)",
@@ -2201,6 +2340,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "SLOOP 2.8 (isod89/sloop-fm1)",
@@ -2232,6 +2372,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "Felucca 1.5.6 (hugelton/Felucca)",
@@ -2263,6 +2404,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "Felucca 1.5.6 (hugelton/Felucca)",
@@ -2294,6 +2436,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "Felucca 1.5.6 (hugelton/Felucca)",
@@ -2325,6 +2468,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "Melodee 1.3.1 (keremimo/melodee)",
@@ -2356,6 +2500,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "Melodee 1.3.1 (keremimo/melodee)",
@@ -2387,6 +2532,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -2412,6 +2558,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -2437,6 +2584,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -2462,6 +2610,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -2487,6 +2636,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -2512,6 +2662,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -2537,6 +2688,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "Melodee 1.4.4 (keremimo/melodee)",
@@ -2568,6 +2720,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "Melodee 1.4.4 (keremimo/melodee)",
@@ -2579,6 +2732,32 @@
     "children": [],
     "tested": "emulator-tested only",
     "provenance_line": "Melodee 1.4.4 (keremimo/melodee) @ v1.4.4 4f5fb6d by Kerem Kilic (GPL-3.0-only)"
+   },
+   {
+    "key": "EX_GAIN",
+    "flag": "FELUCCA_EX_GAIN",
+    "label": "EXGN insert: the example effect (a gain in dB)",
+    "group": "FX: any number (each track its own)",
+    "bit": 421,
+    "default": 0,
+    "parent": null,
+    "desc": "The worked example of CONTRIBUTING.md for a new insert effect (fx/insfx/exgain.c, FX type 29): EXGN on the tracks' insert slots (INSERTS > S1 / S2) and the drum bus's, one amount, its GAIN: OFF (bypassed), then -55.5 dB to +7.5 dB (112 is 0 dB), LEVEL's curve, gliding without a click. Not on the master, the returns, the USB input or a drum sound. Off in every profile: a build without it is the build from before.",
+    "experimental": true,
+    "notice": "An example to copy (CONTRIBUTING.md), not a feature: host-tested only (tests/examples_test.c), not on a device.",
+    "off_warning": "",
+    "env": "",
+    "target_only": false,
+    "symbols": [
+     "ifx_exgn"
+    ],
+    "no_image": false,
+    "fixed": false,
+    "head": false,
+    "choices": [],
+    "provenance": null,
+    "children": [],
+    "tested": "host-tested only (tests/examples_test.c), not on a device",
+    "provenance_line": ""
    },
    {
     "key": "INS_CHORUS",
@@ -2599,6 +2778,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -2624,6 +2804,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -2649,6 +2830,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "fm-106 (PatttF/fm-106)",
@@ -2680,6 +2862,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -2705,6 +2888,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "Felucca 1.5.6 (hugelton/Felucca)",
@@ -2736,6 +2920,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [
@@ -2761,6 +2946,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [
      [
       16384,
@@ -2793,6 +2979,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [
      [
       0,
@@ -2859,6 +3046,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -2882,6 +3070,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "SLOOP 2.4 (isod89/sloop-fm1)",
@@ -2911,6 +3100,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [
      [
       16,
@@ -2951,6 +3141,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [
      [
       4,
@@ -2994,6 +3185,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -3017,6 +3209,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -3044,6 +3237,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "Flowstate (zakariachowdhury/flowstate-fm1)",
@@ -3077,6 +3271,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "Flowstate (zakariachowdhury/flowstate-fm1)",
@@ -3088,6 +3283,30 @@
     "children": [],
     "tested": "emulator-tested only",
     "provenance_line": "Flowstate (zakariachowdhury/flowstate-fm1) @ 3962560 by Zakaria Chowdhury (GPL-3.0-only)"
+   },
+   {
+    "key": "LANE_FX",
+    "flag": "FELUCCA_LANE_FX",
+    "label": "drum lane FX: hold a black key (ROLL, CHANCE, FILL, NUDGE, VRAND, FLAM, RAMP, EVERY)",
+    "group": "Sequencer",
+    "bit": 420,
+    "default": 0,
+    "parent": null,
+    "desc": "On the drum track, a black key held past the hold time opens its lane's FX page until the key is let go: ROLL (every hit of the lane repeats x2 to x8 in its step), CHANCE (each hit plays with this probability), FILL (the lane plays always, only in a fill or never in one: GLO + 9 / 10) and NUDGE (the whole lane early or late, up to half a step); SELECT, the second page: VRAND (each hit's velocity at random, up to 64 either way), FLAM (a grace note 5 to 40 ms before the hit), RAMP (a roll's hits fade in or out) and EVERY (the lane plays on loop 1:2 .. 4:4 only; with COND). KNOB 1-4 turn them, SHIFT + a knob resets. Saved with the pattern, as events of its automation (an older build refuses a drum pattern that has them). Not on STEP (a lane key held + a step sets its level there). Needs the automation store.",
+    "experimental": true,
+    "notice": "",
+    "off_warning": "",
+    "env": "",
+    "target_only": false,
+    "symbols": [],
+    "no_image": false,
+    "fixed": false,
+    "head": false,
+    "choices": [],
+    "provenance": null,
+    "children": [],
+    "tested": "host-tested only, not on a device",
+    "provenance_line": ""
    },
    {
     "key": "REC_PLAIN",
@@ -3106,6 +3325,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -3131,6 +3351,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "Felucca (hugelton/Felucca)",
@@ -3139,9 +3360,38 @@
      "commit": "",
      "url": "https://github.com/hugelton/Felucca"
     },
-    "children": [],
+    "children": [
+     "EX_NOTEGEN"
+    ],
     "tested": "emulator-tested only",
     "provenance_line": "Felucca (hugelton/Felucca) by Leo Kuroshita (Hügelton) (GPL-3.0-only)"
+   },
+   {
+    "key": "EX_NOTEGEN",
+    "flag": "FELUCCA_EX_NOTEGEN",
+    "label": "note generators: the examples WALK and UPDN (they choose the notes)",
+    "group": "Sequencer",
+    "bit": 423,
+    "default": 0,
+    "parent": "NOTEGEN",
+    "desc": "The worked example of CONTRIBUTING.md for a new note generator (seq/gen_ex.c, generator types 4 and 5): two more TYPEs on STEP's GEN page that choose the notes, not only the hits. WALK: a random walk in the track's scale over RANGE degrees, at most LEAP degrees a step, DRAW another walk. UPDN: up the scale and back down over RANGE degrees, HOP degrees a note, a note every RATE steps. On a drum lane they give hits only. Off in every profile: a build without it is the build from before.",
+    "experimental": true,
+    "notice": "An example to copy (CONTRIBUTING.md), not a feature: host-tested only (tests/examples_test.c), not on a device.",
+    "off_warning": "",
+    "env": "",
+    "target_only": false,
+    "symbols": [
+     "wk_gstep",
+     "ud_gstep"
+    ],
+    "no_image": false,
+    "fixed": false,
+    "head": false,
+    "choices": [],
+    "provenance": null,
+    "children": [],
+    "tested": "host-tested only (tests/examples_test.c), not on a device",
+    "provenance_line": ""
    },
    {
     "key": "USB_MIDI",
@@ -3160,6 +3410,7 @@
     "symbols": [],
     "no_image": true,
     "fixed": true,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -3183,6 +3434,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -3206,6 +3458,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "Melodee (keremimo/melodee)",
@@ -3235,6 +3488,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -3260,6 +3514,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -3283,6 +3538,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "Melodee (keremimo/melodee)",
@@ -3312,6 +3568,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "SLOOP 2.4 (isod89/sloop-fm1)",
@@ -3341,6 +3598,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -3364,6 +3622,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "Felucca (hugelton/Felucca)",
@@ -3396,6 +3655,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -3419,6 +3679,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -3442,6 +3703,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "X0X (charlesvestal/fm1-x0x)",
@@ -3471,6 +3733,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [
      [
       1,
@@ -3513,6 +3776,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "X0X (charlesvestal/fm1-x0x)",
@@ -3544,6 +3808,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [
@@ -3576,6 +3841,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -3599,6 +3865,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -3622,6 +3889,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -3645,6 +3913,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -3668,6 +3937,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -3691,6 +3961,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -3714,6 +3985,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -3737,6 +4009,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -3760,6 +4033,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [
      [
       0,
@@ -3796,6 +4070,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -3819,6 +4094,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [
@@ -3844,6 +4120,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [
      [
       0,
@@ -3876,6 +4153,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [
      [
       0,
@@ -3944,6 +4222,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -3967,6 +4246,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -3990,6 +4270,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [
      [
       0,
@@ -4034,6 +4315,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -4061,6 +4343,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "Flowstate (zakariachowdhury/flowstate-fm1)",
@@ -4090,6 +4373,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "JIANT 0.9.9 cpu3 (juanjiant-bit/JIANT)",
@@ -4119,6 +4403,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [
      [
       0,
@@ -4159,6 +4444,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -4182,6 +4468,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [
      [
       0,
@@ -4222,6 +4509,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "Melodee (keremimo/melodee)",
@@ -4253,6 +4541,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [
@@ -4282,6 +4571,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -4307,6 +4597,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -4332,6 +4623,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [
      [
       0,
@@ -4371,6 +4663,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [
@@ -4399,6 +4692,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -4424,6 +4718,7 @@
     ],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": null,
     "children": [],
@@ -4447,6 +4742,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "hugelton/Felucca",
@@ -4476,6 +4772,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "hugelton/Felucca",
@@ -4505,6 +4802,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "hugelton/Felucca",
@@ -4534,6 +4832,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "hugelton/Felucca",
@@ -4563,6 +4862,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "hugelton/Felucca",
@@ -4592,6 +4892,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "charlesvestal/fm1-x0x",
@@ -4621,6 +4922,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "hugelton/Felucca",
@@ -4650,6 +4952,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "hugelton/Felucca",
@@ -4679,6 +4982,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "charlesvestal/fm1-x0x",
@@ -4708,6 +5012,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "hugelton/Felucca-Engines",
@@ -4737,6 +5042,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "keremimo/melodee",
@@ -4766,6 +5072,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "PatttF/fm-106",
@@ -4795,6 +5102,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "isod89/sloop-fm1",
@@ -4824,6 +5132,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "isod89/sloop-fm1",
@@ -4853,6 +5162,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "hugelton/Felucca",
@@ -4882,6 +5192,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "hugelton/Felucca",
@@ -4911,6 +5222,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "hugelton/Felucca",
@@ -4940,6 +5252,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "isod89/sloop-fm1",
@@ -4969,6 +5282,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "isod89/sloop-fm1",
@@ -4998,6 +5312,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "isod89/sloop-fm1",
@@ -5027,6 +5342,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "isod89/sloop-fm1",
@@ -5056,6 +5372,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "isod89/sloop-fm1",
@@ -5085,6 +5402,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "isod89/sloop-fm1",
@@ -5114,6 +5432,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "isod89/sloop-fm1",
@@ -5143,6 +5462,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "isod89/sloop-fm1",
@@ -5172,6 +5492,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "isod89/sloop-fm1",
@@ -5201,6 +5522,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "isod89/sloop-fm1",
@@ -5230,6 +5552,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "isod89/sloop-fm1",
@@ -5259,6 +5582,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "hugelton/Felucca",
@@ -5288,6 +5612,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "hugelton/Felucca",
@@ -5317,6 +5642,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "pichenettes/eurorack",
@@ -5350,6 +5676,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "pichenettes/eurorack",
@@ -5379,6 +5706,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "w0ts/optimist",
@@ -5408,6 +5736,7 @@
     "symbols": [],
     "no_image": false,
     "fixed": false,
+    "head": false,
     "choices": [],
     "provenance": {
      "project": "w0ts/optimist",
@@ -5423,7 +5752,19 @@
   ],
   "forbidden": {
    "X0X_BREAKS": "X0X's break player (dsp/breaks*, BB Gen): used by X0X by permission only, no licence"
-  }
+  },
+  "drums_only": [
+   "FX_DUCK",
+   "ENERGY",
+   "LANE_FX",
+   "GRIDS_EUCLID",
+   "GRIDS_LFO",
+   "GRIDS_VEL",
+   "SL24_SAFE",
+   "SL24_IMPORT",
+   "SL24_EXPORT",
+   "SL24_EDIMPORT"
+  ]
  },
  "regions": [
   "flash",
@@ -5443,7 +5784,9 @@
   "flash": 0,
   "sram": 8192
  },
- "needs_auto": [],
+ "needs_auto": [
+  "LANE_FX"
+ ],
  "fit_order": [
   [
    "ENG_SLICE",
@@ -5519,6 +5862,7 @@
    "ENG_WAVE",
    "ENG_SID",
    "ENG_PROPHET",
+   "EX_SQUARE",
    "ENG_PHYS",
    "ENG_ACID",
    "ENG_NOISE",
@@ -5526,15 +5870,7 @@
    "ENG_JUNO"
   ],
   "Drums": [
-   "DRUM_SYNTH",
-   "DS_KAWA",
-   "DS_PLAITS",
-   "DRUM_X0X909",
-   "DRUM_X0X808",
-   "DRUM_SAMPLED",
-   "DRUM_EDIT",
-   "DRUM_USR",
-   "DRUM_KITS"
+   "DRUMS"
   ],
   "Sample sets": [
    "SET_PIANO",
@@ -5565,6 +5901,7 @@
    "INS_SLEW",
    "INS_TAPE",
    "INS_SPIT",
+   "EX_GAIN",
    "RET_FB",
    "INS_GATER",
    "TAB_CODED_ALL"
@@ -5590,6 +5927,7 @@
    "PATTERNS",
    "UNDO_HISTORY",
    "MACROS",
+   "LANE_FX",
    "REC_PLAIN",
    "NOTEGEN",
    "CHANCE",

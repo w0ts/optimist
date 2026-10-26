@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* The radio's stand-ins for the host UI tests (tests/ui_pages_test.c, tests/ui_optimist_test.c): the state midi_ble.c
  * keeps, and firmware/src/io/midi/ble_devices.c (the DEVICES list both UIs show) with its plain parts (the device store,
  * the scanner's table) over a stand-in link layer: ble_ll_scan records what is wanted, the reports come from the test

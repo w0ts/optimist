@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* The one remembered device (ble_store.h). */
 #include "ble_store.h"
 #include "ble_util.h"

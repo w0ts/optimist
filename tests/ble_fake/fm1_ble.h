@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* A host stand-in for hal/fm1_ble.h, for tests/ble_driver_test.c: the WL82 driver (firmware/src/ble/ble_hw_wl82.c)
  * built against a fake engine. The column port and TIMER4 are plain variables the test drives; the column reads
  * are counted per column, and the slot clock (columns 0 / 14) runs backwards now and then, as the FM-1's did

@@ -103,6 +103,32 @@
 #define FELUCCA_ENG_WAVE 0                 /* WAVE (Clipper's wavetables, one table for every WAVE track: engines/clipper/eng_wave.c) */
 #endif
 
+/* ------------------------------------------------------------- examples --- */
+/* The worked examples of CONTRIBUTING.md (2026-10-26): an insert effect, a synth engine and two note generators, each
+ * a builder item (tools/builder/registry.py EX_*), off in every profile. Every line they add elsewhere is under its
+ * flag, so a build without them is byte for byte the build from before; that is also why their ids (FX type 29,
+ * engine UID 26, generator types 4 and 5) exist only in a build that has them. A real feature takes the next id for
+ * good (and the example's id moves up); see CONTRIBUTING.md "Ids are permanent". */
+#ifndef FELUCCA_EX_GAIN
+#define FELUCCA_EX_GAIN 0                  /* EXGN, an insert type: a gain in dB (fx/insfx/exgain.c) */
+#endif
+#ifndef FELUCCA_EX_SQUARE
+#define FELUCCA_EX_SQUARE 0                /* SQUARE, a synth engine: a pulse and its sub, a filter (engines/square/eng_square.c) */
+#endif
+#ifndef FELUCCA_EX_NOTEGEN
+#define FELUCCA_EX_NOTEGEN 0               /* WALK and UPDN, two note generators of STEP's GEN page (seq/gen_ex.c; needs NOTEGEN) */
+#endif
+#define FELUCCA_ENG_SQUARE FELUCCA_EX_SQUARE   /* (ENGINE_LIST reads every engine's switch as FELUCCA_ENG_<NAME>) */
+/* the example engine's line of ENGINE_LIST, only when it is built (a real engine writes its X() into ENGINE_LIST
+ * itself; tools/builder/cpu_costs.py reads that list for the CPU guard's table, which leaves this one out: the guard
+ * counts a SQUARE voice as an ANALOG one) */
+#if FELUCCA_EX_SQUARE
+#define ENGINE_LIST_EX(X) X(26, SQUARE, 0, "SQUARE")
+#define ENG_UID_SQUARE 26u                 /* (fallback: ANALOG) */
+#else
+#define ENGINE_LIST_EX(X)
+#endif
+
 /* X(uid, NAME, fallback uid, the ENG list name): the UID is the engine's number in FUN7 projects and UPB4 user
  * presets. Fallbacks: FM6 -> DIGITAL -> ANALOG, GRAIN -> SAMPLE -> ANALOG, SLICE -> SAMPLE, CZ -> PHASE, VPS -> PHASE, SID -> LOFI, the rest
  * (JUNO, NOISE, DRONE, PLAITS, STRINGS, TERRAIN, WSEQ, VECTOR, PROPHET, WAVE too) -> ANALOG;
@@ -115,8 +141,8 @@
     X(15, NOISE, 0, "NOISE") X(16, DRONE, 0, "DRONE") X(17, PLAITS, 0, "PLAITS") X(18, STRINGS, 0, "STRINGS") \
     X(19, VPS, 2, "VPS") X(20, TERRAIN, 0, "TERRAIN") X(21, WSEQ, 0, "WSEQ") X(22, VECTOR, 0, "VECTOR") \
     X(23, SID, 3, "SID") X(24, PROPHET, 0, "PROPHET") \
-    X(25, WAVE, 0, "WAVE")
-#define ENG_UID_N 26u
+    X(25, WAVE, 0, "WAVE") ENGINE_LIST_EX(X)
+#define ENG_UID_N (26u + FELUCCA_EX_SQUARE)  /* (+ the example engine's UID 26 when it is built: above) */
 #define ENG_UID_PHYS 11u
 #define ENG_UID_ACID 12u
 #define ENG_UID_CZ 13u                     /* (fallback: PHASE) */
@@ -169,7 +195,7 @@ enum { ENGINE_LIST(ENG_GONEE_) ENG_GONE_END_ };
 #define ENG_BANK_ALL (NENGINES - FELUCCA_ENG_SLICE - FELUCCA_ENG_ACID - FELUCCA_ENG_CZ - FELUCCA_ENG_JUNO - FELUCCA_ENG_NOISE - \
                       FELUCCA_ENG_DRONE - FELUCCA_ENG_PLAITS - FELUCCA_ENG_STRINGS - FELUCCA_ENG_VPS - FELUCCA_ENG_TERRAIN - \
                       FELUCCA_ENG_WSEQ - FELUCCA_ENG_VECTOR - FELUCCA_ENG_SID - FELUCCA_ENG_PROPHET - \
-                      FELUCCA_ENG_WAVE == (int)ENG_UID_N - 15)
+                      FELUCCA_ENG_WAVE - FELUCCA_EX_SQUARE == (int)ENG_UID_N - 15 - FELUCCA_EX_SQUARE)
 
 /* UID <-> slot (the tables fold away with every engine built) */
 #define ENG_UIDV_(u, N, fb, s) FIF(FELUCCA_ENG_##N)(u,)
@@ -269,7 +295,7 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 /* Three drum synths, each a switch of its own (the user, 2026-10-22): the 32 kits (FELUCCA_DRUM_SYNTH), KAWA, PLAITS.
  * The synth's voice they share (drum_synth.c, the sound table DS_SNDS) is built with any of them */
 #define DRUM_DS (FELUCCA_DRUM_SYNTH || FELUCCA_DS_KAWA || FELUCCA_DS_PLAITS)
-#if !DRUM_DS && !DRUM_SMASK && !DRUM_X0X
+#if FELUCCA_DRUMS && !DRUM_DS && !DRUM_SMASK && !DRUM_X0X
 #error "the drum track needs a drum source: a drum synth (the 32 synthesised kits, KAWA, PLAITS, X0X 909, X0X 808) or a sampled kit"
 #endif
 #define DRUM_UID_X909 37u
@@ -696,6 +722,10 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #ifndef FELUCCA_OVERLAY
 #define FELUCCA_OVERLAY 0                  /* the RAMTEXT overlays (core/overlay.c, docs/SD-MODE-DESIGN.md 6): the engines' hot
                                             * code in a slot per part, loaded at an engine change; needs LAYOUT 1 (flash) */
+#endif
+#ifndef FELUCCA_LANE_FX
+#define FELUCCA_LANE_FX 0                  /* a black key held on the drum track: its lane's FX page (ROLL CHANCE FILL NUDGE),
+                                            * kept as the pattern's automation events (seq/lane_fx.c, auto.h AUTO_IS_LFX) */
 #endif
 #ifndef FELUCCA_PARAM_HELP
 #define FELUCCA_PARAM_HELP 0              /* the knob's value in plain words on the top bar ("Filter cutoff"), from

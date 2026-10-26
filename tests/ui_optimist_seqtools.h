@@ -576,7 +576,7 @@ static void seqtools_tests(void)
 }
 #endif
 #endif
-#if FELUCCA_COND
+#if FELUCCA_COND && FELUCCA_CHANCE                    /* (the conditions on CHANCE past 100 %) */
 static void cond_card_tests(void)
 {
     track_t *t = &trk[0];
@@ -590,17 +590,23 @@ static void cond_card_tests(void)
     kdown(WK(2));
     frames(HOLD_FRAMES);
     turn(EN_SELECT, 1);                                 /* the EXTRA page */
-    step_cell(0, EX_N - 1u, &c);
-    check(c.label && !strcmp(c.label, "COND") && !strcmp(c.val, "-"), "COND: the held step's EXTRA page, KNOB 4, none: -");
-    kturn(EN_K1 + EX_N - 1u, 2);
-    step_cell(0, EX_N - 1u, &c);
-    check(step_cond(t, 2) == 2u && !strcmp(c.val, "2:2"), "... turned: 1:2, 2:2 (an event of the step)");
-    kturn(EN_K1 + EX_N - 1u, 20);
+    step_cell(0, 0, &c);
+    check(c.label && !strcmp(c.label, "CHANCE") && !strcmp(c.val, "100"),
+          "COND: on the EXTRA page's CHANCE (KNOB 1) past 100 %, no card of its own");
+    kturn(EN_K1, 2);
+    step_cell(0, 0, &c);
+    check(step_cond(t, 2) == 2u && !strcmp(c.val, "2:2") && step_chance_of(t, 2) == 100u, "... turned up: 1:2, 2:2 (an event of the step), the chance 100 %");
+    kturn(EN_K1, 20);
     check(step_cond(t, 2) == AUTO_NCOND, "... stops at 4:4");
+    kturn(EN_K1, -9);
+    check(!step_cond(t, 2) && step_chance_of(t, 2) == 100u, "... down past 1:2: 100 %, no condition");
+    kturn(EN_K1, -2);
+    check(step_chance_of(t, 2) == 90u, "... then percent: 90 %");
+    kturn(EN_K1, 12);
     fm1_in.buttons |= BT(B_OCTDN);
-    kturn(EN_K1 + EX_N - 1u, 1);
+    kturn(EN_K1, 1);
     fm1_in.buttons &= ~BT(B_OCTDN);
-    check(!step_cond(t, 2), "... SHIFT + KNOB 4: cleared");
+    check(!step_cond(t, 2) && step_chance_of(t, 2) == 100u, "... SHIFT + KNOB 1: 100 %, no condition");
     kup(WK(2));
     track_defaults_steps(t);
     AL(t)->n = 0;

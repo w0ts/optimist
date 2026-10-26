@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* The A2DP stream's SBC encoder (firmware/src/bt/bt_sbc.c: AOSP's behind our interface) against a decoder that is not
  * ours: AOSP's (tests/ref/sbc_dec, Apache-2.0, test only). Two tones (1 kHz left, 440 Hz right) for 2 s, encoded as the
  * FM-1 sets the stream, every frame decoded, the tones measured back. Our encoder of before passed a test of its own

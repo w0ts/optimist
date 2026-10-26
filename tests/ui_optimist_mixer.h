@@ -623,7 +623,7 @@ static int head_badge_drawn(void)
 }
 static void header_track_tests(void)
 {
-    static const uint8_t SCR_WANT[SCR_N] = {[SCR_HOME] = 1, [SCR_SOUND] = 1, [SCR_STEP] = 1};   /* (the mixer on a track row: its badge) */
+    static const uint8_t SCR_WANT[SCR_N] = {[SCR_HOME] = 1, [SCR_SOUND] = 1, [SCR_STEP] = 1, [SCR_LFX] = 1};   /* (the mixer on a track row: its badge; LANE FX: the lane's) */
     uint32_t s, l, bad = 0;
     reset_ui();
     song.sel = 0;

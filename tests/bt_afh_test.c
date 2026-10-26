@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* Host test of the audio link's adaptive frequency hopping decisions (firmware/src/bt/bt_afh.c): which channels leave
  * the map from a window's answers per channel, the spec's minimum of 20, and the engine's table and map words. */
 #include <stdint.h>

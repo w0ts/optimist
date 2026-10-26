@@ -46,15 +46,15 @@ static __attribute__((noinline)) void cv_text_mid(int32_t y, const felucca_font_
 {
     cv_text(120 - text_w(f, s) / 2, y, f, s, c);
 }
-enum { SCR_HOME, SCR_SOUND, SCR_FX, SCR_PROJECT, SCR_SYSTEM, SCR_STEP, SCR_SONG, SCR_TEMPO, SCR_SCOPE, SCR_GLOBAL, SCR_N };
+enum { SCR_HOME, SCR_SOUND, SCR_FX, SCR_PROJECT, SCR_SYSTEM, SCR_STEP, SCR_SONG, SCR_TEMPO, SCR_SCOPE, SCR_GLOBAL, SCR_LFX, SCR_N };
 static const char *const SCR_NAME[SCR_N] = {"MIX", "SOUND", "MASTER", "PROJECT", "SYSTEM", "STEPS", "SONG", "TEMPO",
-                                            "SCOPE", "GLOBAL"};
+                                            "SCOPE", "GLOBAL", "LANE FX"};
 #define OP_MSG_FRAMES 150u            /* ~2.5 s at the UI's 60 frames a second (main.c paces them at 15 ms) */
 #define OP_ARM_MS 3000u               /* an armed action waits 3 s for its YES */
 #define ARM_NONE 0xFFu
 #define ARM_OP 0xFDu                  /* arm_scr: an action of no screen cell, arm_row its OA_*, arm_k its argument */
 enum { OA_SCN_STORE, OA_SCN_CLR, OA_PAT_STORE, OA_PAT_CLR, OA_INIT, OA_EXTRAS, OA_DISCARD, OA_SREC,
-       OA_SCN_LOAD, OA_PART_CUT, OA_DROP,
+       OA_SCN_LOAD, OA_PART_CUT, OA_DROP, OA_MISSING,   /* (OA_MISSING: the popup after a load, miss.c; YES or HOME closes it) */
 #if FELUCCA_SD_STREAM
        OA_SDDROP,                     /* (the card samples' memory short: a part dropped, storage/sd/sd_mode.c) */
 #endif
@@ -332,7 +332,7 @@ static const char *op_case(char *b, const char *s, uint32_t n)
 /* "T1".."T3", "DR": a track's short name */
 static const char *trk_tag(uint32_t i)
 {
-    static const char *const T[NTRK] = {"T1", "T2", "T3", "DR"};
+    static const char *const T[NTRK] = {"T1", "T2", "T3", TRK4_TAG};
     return T[i % NTRK];
 }
 
@@ -375,10 +375,20 @@ static void op_arm_hold(void)
 }
 static int op_armed(void)
 {
-    if (ui.arm_scr != ARM_NONE && fm1_ms - ui.arm_ms > OP_ARM_MS)
-        op_disarm();                                    /* 3 s: let go */
+    if (ui.arm_scr != ARM_NONE && fm1_ms - ui.arm_ms > OP_ARM_MS && !(ui.arm_scr == ARM_OP && ui.arm_row == OA_MISSING))
+        op_disarm();                                    /* 3 s: let go (the MISSING popup stays until HOME or YES) */
     return ui.arm_scr != ARM_NONE;
 }
+#if FELUCCA_MISSING_WARN
+/* miss.c: a load used what this build lacks: a popup, "Missing" over the items, amber (it is said, not asked), waiting
+ * for HOME or YES (the user, 2026-10-26: "this should have been a modal popup when loading the project") */
+static void miss_show(const char *items)
+{
+    op_arm(ARM_OP, OA_MISSING, 0, "MISSING", items, 0);
+    str_cpy(ui.arm_verb, "MISSING", sizeof ui.arm_verb);    /* (op_arm's "?": not a question) */
+}
+static int miss_busy(void) { return ui.msg_t || op_armed(); }
+#endif
 
 /* ---- knobs: acceleration by turn speed (knob_accel.h, X0X 61654ba; as SLOOP's ui_input.c accel) */
 static int32_t accel(uint32_t role, int32_t s, int32_t range)

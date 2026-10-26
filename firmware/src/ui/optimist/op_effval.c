@@ -154,9 +154,13 @@ static const uint8_t EFFV_DEST[ENG_UID_N] = {0xF4, 0xFF, 0xF2, 0xF7, 0xF4, 0x4F,
                                              0x12,                                       /* NOISE FREQ / COLR */
                                              0x15,                                       /* DRONE TONE / COUPLE */
                                              0x25,                                       /* PLAITS TONE / TIMB */
-                                             0xF4, 0x04, 0x16, 0xF6, 0x47, 0x15, 0x74, 0x14};   /* STRINGS CUT, VPS CUT / D,
+                                             0xF4, 0x04, 0x16, 0xF6, 0x47, 0x15, 0x74, 0x14,   /* STRINGS CUT, VPS CUT / D,
                                                                                          * TERRAIN CUT / RAD, WSEQ CUT,
                                                                                          * VECTOR CUT / X, SID CUT / PW, PROPHET CUT / PW, WAVE CUT / POS */
+#if FELUCCA_EX_SQUARE
+                                             0x04,                                       /* SQUARE CUT / PW (the example, UID 26) */
+#endif
+};
 #else
 static const uint8_t EFFV_DEST[ENG_UID_N] = {0xF4, 0xFF, 0xF2, 0xF7, 0xF4, 0x4F, 0x75, 0xFF, 0x17, 0xF5, 0x1F, 0xF7};
 #endif                                                  /* (SUPER CUT at 9) */
@@ -272,6 +276,7 @@ static uint32_t effv_cell(cell_t *c)
     if (c->kind != CK_VAL || !c->vp || !c->d || st_holding())
         return 0;
     e = *c->vp;
+#if DL_ANY
     if (c->vp >= dsv && c->vp < dsv + DE_N) {           /* a drum lane value */
         if (effv_lane(effv_lane_l(), (uint32_t)(c->vp - dsv), &val, &mn, &mx) == 1u && val == e)
             r = 2;
@@ -282,7 +287,9 @@ static uint32_t effv_cell(cell_t *c)
             return 0;
         (void)effv_lane(lane_selected(), s->dest - 1u, &val, &mn, &mx);
 #endif
-    } else if (!is_drum(TSEL) && c->vp >= tsel()->p && c->vp < tsel()->p + P_COUNT) {   /* a synth part's value */
+    } else
+#endif
+    if (!is_drum(TSEL) && c->vp >= tsel()->p && c->vp < tsel()->p + P_COUNT) {   /* a synth part's value */
         uint32_t k = effv_synth(song.sel, (uint32_t)(c->vp - tsel()->p), &val, &mn, &mx);
         if (!k)
             return 0;

@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* The one remembered device (firmware/src/ble/ble_store.c; docs/BLE-DEVICES-DESIGN.md §3 and the ruling of 2026-10-09:
  * LAST is a device the FM-1 connected to as a central):
  *   format    70 octets, mark / version / choice, the entry's fields where §3.1 puts them

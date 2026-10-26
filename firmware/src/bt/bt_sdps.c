@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* Our SDP server (Core spec Vol 3 Part B §4): three records, as BlueZ answers the AirPods (a Raspberry Pi's capture,
  * 2026-10-20: the AirPods read the source's Device ID, its A2DP source and its AVRCP target before they take the
  * audio channel; the FM-1 with the A2DP source alone was left "pending" for good):

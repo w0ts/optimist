@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* The stored RF calibration: stock V15's VM read in place, and Optimist's copy of it (ble_vm.h; docs/BLE-HW-FACTS.md
  * §14, §15.4 on feat/ble-facts d907ce3). Read only: nothing here writes or erases flash. */
 #include "ble_vm.h"

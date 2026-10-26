@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* One whole FM-1 BLE stack (the firmware's sources, BLE_API static as in its unity build) behind a fake baseband, for
  * tests/ble_f2f_test.c, which links two (or three) of these into one program and carries the packets between them:
  * FM-1 to FM-1 (docs/BLE-DEVICES-DESIGN.md §4.4, §4.2). Built once per unit with -DF2F_U=<name>: every function here is

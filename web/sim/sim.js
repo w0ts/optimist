@@ -3,7 +3,8 @@
 // AudioWorklet (sim-worklet.js); this module is the page around it, mounted like the installer and the builder:
 //
 //   mountSim(container, {
-//     packages,   the site's flavours [{ id, title, sim }]: sim a URL of the flavour's .wasm (make_site.py)
+//     packages,   the site's flavours [{ id, title, sim, release }]: sim a URL of the flavour's .wasm (make_site.py); the
+//                 latest release's come first (built from its tag) and the first is the default; release "" is main's build
 //     sims,       simulators that come with no package [{ id, title, sim }] (the local one: make web)
 //     repo,       "owner/name": the user's builds with a simulator (the cloud-builds branch, installer.js loadCloud): the
 //                 one asked for (build, openBuild) and the builder's last (installer.js myBuild); no list of everyone's
@@ -201,6 +202,13 @@ function addStyle(doc) {
   doc.head.append(Object.assign(doc.createElement("link"), { id: STYLE_ID, rel: "stylesheet", href: new URL("sim.css", import.meta.url).href }));
 }
 
+/** a site build's name in the picker: its release ("v0.2 · Synths ...") or main's development build; a simulator alone
+    (the local one) by its title */
+export function siteLabel(p) {
+  if (p.release) return `${p.release} · ${p.title}`;
+  return "pkg" in p ? `main (development) · ${p.title}` : p.title;
+}
+
 export function mountSim(container, opts = {}) {
   const packages = [...(opts.packages || []).filter((p) => p.sim), ...(opts.sims || []).filter((p) => p && p.sim)];   /* (sims: the local one) */
   const repo = opts.repo || "w0ts/optimist";
@@ -295,7 +303,7 @@ export function mountSim(container, opts = {}) {
     const opt = (value, text) => h("option", { value }, text);
     const cloud = st.cloud ? st.cloud.builds.filter((b) => b.sim && st.mine.has(b.id)) : [];
     el.pick.replaceChildren(
-      packages.length ? h("optgroup", { label: TEXT.site }, packages.map((p, i) => opt(`site:${i}`, p.title))) : null,
+      packages.length ? h("optgroup", { label: TEXT.site }, packages.map((p, i) => opt(`site:${i}`, siteLabel(p)))) : null,
       cloud.length ? h("optgroup", { label: TEXT.cloud }, cloud.map((b) => opt(`cloud:${b.id}`, `${b.name} · ${b.id} · ${b.date.slice(0, 10)}`))) : null,
       h("optgroup", { label: TEXT.fileGroup }, st.file ? opt("file:", st.file.name) : null, opt("pickfile:", TEXT.pickFile)));
     if (st.choice) el.pick.value = st.choice;
@@ -333,7 +341,10 @@ export function mountSim(container, opts = {}) {
   function current() {
     if (!st.choice) return null;
     const [kind, id] = st.choice.split(":");
-    if (kind === "site") { const p = packages[Number(id)]; return p ? { title: p.title, url: p.sim, id: null, flavour: p.id } : null; }
+    if (kind === "site") {   /* (a release's flavour id is its profile: Configuration opens that profile, the builder at that release) */
+      const p = packages[Number(id)];
+      return p ? { title: siteLabel(p), url: p.sim, id: null, ...(p.release ? { profile: p.id } : { flavour: p.id }) } : null;
+    }
     if (kind === "file") return st.file ? { title: st.file.name, url: `file:${st.file.name}`, bytes: st.file.bytes, id: null } : null;
     const b = st.cloud && st.cloud.builds.find((x) => x.id === id);
     return b && b.sim ? { title: `${b.name} (${b.id})`, url: cloudFileUrl(repo, st.cloud.sha, b.sim), id: b.id, stem: b.stem, sha256: b.simSha256 } : null;
@@ -609,7 +620,7 @@ export function mountSim(container, opts = {}) {
   function configThis() {
     const b = current();
     if (!b) return;
-    const detail = b.stem ? { cloud: b.stem } : b.flavour ? { preset: `flavour:${b.flavour}` } : null;
+    const detail = b.stem ? { cloud: b.stem } : b.flavour ? { preset: `flavour:${b.flavour}` } : b.profile ? { preset: `profile:${b.profile}` } : null;
     if (!detail) return;
     if (opts.onNavigate) opts.onNavigate("build", detail);
     else location.href = `../builder/${detail.cloud ? `?cloud=${detail.cloud}` : ""}`;

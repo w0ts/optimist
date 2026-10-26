@@ -100,6 +100,9 @@ static void op_enter(uint32_t scr)
                                                          * them: ui.scr is SCR_TEMPO) */
     if (tp.on)                                          /* (a screen entered from the TEMPO page: it is closed) */
         tp.on = 0, clk_nudge = 0;
+    lx_undo_end();                                      /* (and from the LANE FX page: its knobs' undo level closed) */
+    lx.on = 0;
+    speek.on = 0;                                          /* (and from a held step's cards) */
     if (scr == SCR_PROJECT && ui.scr != SCR_PROJECT && prj_cur >= 0)
         song.g[G_SLOT] = (int16_t)(prj_cur + 1);        /* (PROJECT opens on the slot loaded or saved last) */
     ui.scr = (uint8_t)(scr % SCR_N);
@@ -286,10 +289,6 @@ static void op_no(void)
             op_disarm();                                /* cancel (op_prjflow.c: "SAVE <open>?" asks the LOAD instead) */
         return;
     }
-#if FELUCCA_MISSING_WARN
-    if (miss_dismiss())
-        return;                                         /* (the MISSING line: HOME lets it go, miss.c) */
-#endif
 #if FELUCCA_BT_UI
     if (dev_listing()) {                                /* the BLE devices: back to SYSTEM's BLUETOOTH row (op_project.c) */
         dev_close();
@@ -486,6 +485,36 @@ static int32_t ret_in_key(uint32_t k)                   /* the mute mode's retur
     return -1;
 }
 static int pick_silent(uint32_t held) { return mute_mod(held) || sel_mod(held) || (song.playing && pick_mod(held)); }
+/* the mute held (the user, 2026-10-26: "holding mute and press and holding long a key mute the track and unmute on
+ * release"): SHIFT + a key flips its mute at once, as a tap; the key held past the hold time flips it back when let go
+ * (a muted track is heard while held), SHIFT let go first or not. A bit a key, its press time */
+static struct {
+    uint32_t keys;                      /* the keys whose mute flipped and are still down */
+    uint16_t t0[27];                    /* each one's press (fm1_ms, low 16 bits) */
+} hm;
+static void hm_flip(uint32_t k)                         /* key k's mute flipped: a track, a lane, a return's input */
+{
+    if (ret_in_key(k) >= 0) {
+        mx_ret_in_toggle((uint32_t)ret_in_key(k));
+    } else {
+        uint32_t r = mx_row_of_smute(smute_key(k));
+        mx_say(r, mx_mute_flip(r) ? " SEQ MUTE" : " SEQ ON");
+    }
+}
+static void hm_down(uint32_t k)
+{
+    hm_flip(k);
+    hm.keys |= 1u << k;
+    hm.t0[k] = (uint16_t)fm1_ms;
+}
+static void hm_frame(void)                              /* each frame: a key let go after a long hold flips back */
+{
+    uint32_t k, up = hm.keys & ~fm1_in.notes;
+    for (k = 0; up; k++, up >>= 1)
+        if ((up & 1u) && (uint16_t)((uint16_t)fm1_ms - hm.t0[k]) >= op_hold_ms())
+            hm_flip(k);
+    hm.keys &= fm1_in.notes;
+}
 static void shift_keys(uint32_t notes, int mute)
 {
     uint32_t id, r;
@@ -494,14 +523,14 @@ static void shift_keys(uint32_t notes, int mute)
         if (((notes >> id) & 1u) && fm6_shift_key(id, mute))   /* (SOUND's FM6 rows: the operator, PIT, GLO, the mode; op_fm6draw.c) */
             continue;
         if (mute && ((notes >> id) & 1u) && ret_in_key(id) >= 0 && !shift_step_key(id)) {   /* (the last three white keys: a return's input) */
-            mx_ret_in_toggle((uint32_t)ret_in_key(id));
+            hm_down(id);
             continue;
         }
         if (!((notes >> id) & 1u) || shift_step_key(id) || (m = smute_key(id)) < 0)
             continue;
         r = mx_row_of_smute(m);
         if (mute) {
-            mx_say(r, mx_mute_flip(r) ? " SEQ MUTE" : " SEQ ON");
+            hm_down(id);
             continue;
         }
         if (m == SMUTE_ACC || m < SMUTE_T0) {           /* a lane: the drum track, that lane */
@@ -1013,8 +1042,10 @@ static void op_drain(uint32_t held, uint32_t pressed, const uint8_t *ord, uint32
             !shift_step_key(e & 0x7Fu))
             continue;                                   /* (a shifted key: no step, ui_input's; its release goes on, as a held step's must;
                                                          * STEP's white keys stay steps) */
-        if ((e >> 8) == LY_STEP)
+        if ((e >> 8) == LY_STEP) {
+            lx_step_key(e & 0x7Fu, (e >> 7) & 1u);       /* (LANE FX over STEP: a step key closes it first, op_lanefx.c) */
             step_key(e & 0x7Fu, (e >> 7) & 1u, h);
+        }
         else
             lay_key(e >> 8, e & 0x7Fu, (e >> 7) & 1u);
     }
@@ -1084,10 +1115,13 @@ static void ui_input(void)
             op_t0[id] = t;
         }
     op_drain(held, pressed, ord, n);                    /* the presses and STEP's and the layers' keys (seq.c lk_q), in order */
+    hm_frame();                                         /* SHIFT + a key held long: its mute back on release */
     if (!op_shift(held))
         mx_s2_done = 0;                                 /* (SHIFT + the volume card's knob: one mute toggle a hold) */
     lay_frame(held);                                    /* the layer held, shown (op_layers.c) */
     tempo_frame(held);                                  /* PLAY held: the TEMPO page, the nudge (op_tempo.c) */
+    lx_frame(held);                                     /* a drum lane's black key held: LANE FX (op_lanefx.c) */
+    sp_frame(held);                                     /* a step held on a drum page: its cards (op_lanefx.c) */
     seq_pick_quiet(is_drum(TSEL) && song.playing && !((song.rec >> TRK_DRUM) & 1u) &&
                    !(held & (1u << panel.btn[B_OCTUP])));   /* (the drum keys only pick the lane while it plays) */
     save_clear_tick(held);                              /* SAVE held on a scene row: its clear, the ring */
@@ -1147,7 +1181,7 @@ static void ui_input(void)
     held = fm1_in.buttons;                              /* the ISR's keys: a layer's, STEP's steps, else they play */
     id = page_owned() ? LY_STEP : lay.lock != LY_PLAY ? lay.lock : pick_silent(held) ? LY_STEP
        : lay.held != LY_PLAY || (held & BIT(B_PLAY)) ? LY_PLAY
-       : step_keys(held) || keys_none() ? LY_STEP : FIF(FELUCCA_PATTERNS)(song_on_pat_row() ? LY_PAT :) LY_PLAY;
+       : step_keys(held) || keys_none() || lx_on_step() ? LY_STEP : FIF(FELUCCA_PATTERNS)(song_on_pat_row() ? LY_PAT :) LY_PLAY;
     if (ly_lock != id)
         ly_lock = (uint8_t)id;
 }

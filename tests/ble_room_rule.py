@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0
 """The rule "BLE replaces samples" as docs/BUILDER.md states it, computed from the budget (costs.json) alone and not
 from tools/builder/room.py, for tests/builder_test.py and tests/builder_menu_test.py: where the build with BLE
 overflows, ONE item goes, the smallest single item that frees enough of every region that overflows, the sample sets
