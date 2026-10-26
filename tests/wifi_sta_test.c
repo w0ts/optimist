@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "../firmware/src/wifi/wifi_crypto.c"
+#include "../firmware/src/wifi/wifi_sta.c"
 
 static int fails, checks;
 static void hex(const char *s, uint8_t *out)
@@ -32,10 +33,41 @@ static void check(const char *what, const uint8_t *got, const char *want_hex, un
     }
 }
 
+/* Helper for mock AP: RFC 3394 Key Wrap */
+static void mock_aes_wrap(const uint8_t kek[16], const uint8_t *in, uint32_t n, uint8_t *out)
+{
+    uint8_t a[8], b[16];
+    uint32_t blocks = n / 8u, i, j, k;
+    for (i = 0; i < 8u; i++)
+        a[i] = 0xA6u;
+    for (i = 0; i < blocks * 8u; i++)
+        out[8u + i] = in[i];
+    for (j = 0; j < 6u; j++) {
+        for (i = 1; i <= blocks; i++) {
+            uint32_t t = blocks * j + i;
+            for (k = 0; k < 8u; k++)
+                b[k] = a[k];
+            for (k = 0; k < 8u; k++)
+                b[8 + k] = out[8u * i + k];
+            wc_aes128_encrypt(kek, b, b);
+            for (k = 0; k < 8u; k++)
+                a[k] = b[k];
+            a[7] ^= (uint8_t)t;
+            a[6] ^= (uint8_t)(t >> 8);
+            a[5] ^= (uint8_t)(t >> 16);
+            a[4] ^= (uint8_t)(t >> 24);
+            for (k = 0; k < 8u; k++)
+                out[8u * i + k] = b[8 + k];
+        }
+    }
+    for (i = 0; i < 8u; i++)
+        out[i] = a[i];
+}
+
 static void t_crypto(void)
 {
     struct wc_sha1 s;
-    uint8_t d[64], k[32], in[32];
+    uint8_t d[64], k[32], in[32], wrap_out[32];
     wc_sha1_init(&s);
     wc_sha1_add(&s, (const uint8_t *)"abc", 3);
     wc_sha1_done(&s, d);
@@ -51,6 +83,10 @@ static void t_crypto(void)
     check("aes enc fips197", d, "69c4e0d86a7b0430d8cdb78070b4c55a", 16);
     wc_aes128_decrypt(k, d, d);
     check("aes dec fips197", d, "00112233445566778899aabbccddeeff", 16);
+
+    mock_aes_wrap(k, in, 16, wrap_out);
+    check("wrap rfc3394", wrap_out, "1fa68b0a8112b447aef34bd8fb5a7b829d3e862371d2cfe5", 24);
+
     hex("1fa68b0a8112b447aef34bd8fb5a7b829d3e862371d2cfe5", in);
     checks++;
     if (!wc_aes_unwrap(k, in, 24, d)) {
@@ -60,9 +96,266 @@ static void t_crypto(void)
     check("unwrap rfc3394", d, "00112233445566778899aabbccddeeff", 16);
 }
 
+static void test_rand(uint8_t *out, uint8_t n)      /* (a test source: the firmware passes the radio's, ble_hw_rand) */
+{
+    static uint32_t x = 0x9E3779B9u;
+    while (n--) {
+        x ^= x << 13, x ^= x >> 17, x ^= x << 5;
+        *out++ = (uint8_t)x;
+    }
+}
+
+/* Hardware MAC table write capture */
+static struct {
+    uint32_t r, v;
+} mac_writes[64];
+static uint32_t mac_write_count;
+
+static void test_mac_wr(uint32_t r, uint32_t v)
+{
+    if (mac_write_count < 64) {
+        mac_writes[mac_write_count].r = r;
+        mac_writes[mac_write_count].v = v;
+        mac_write_count++;
+    }
+}
+
+static uint32_t get_mac_reg(uint32_t r)
+{
+    uint32_t i;
+    for (i = 0; i < mac_write_count; i++)
+        if (mac_writes[i].r == r)
+            return mac_writes[i].v;
+    return 0xFFFFFFFFu;
+}
+
+static void t_ptk_derivation(void)
+{
+    uint8_t pmk[32], spa[6], aa[6], snonce[32], anonce[32], ptk[48];
+    /* Standard test vector */
+    hex("0bd15797054a5e30d09c8877d000864942909f1505363000cd61b05d678a30ef", pmk);
+    hex("000b6b0d952b", spa);
+    hex("00146c7e4080", aa);
+    hex("69d1da42e2cd1e86093d56f685de7da839070ec7419e1fa0a5ad7755ba90bc1b", snonce);
+    hex("09f72c2121e7d084ee0b938c53835cae9231f24d26279f72e90c8a66699a7b55", anonce);
+
+    wifi_sta_derive_ptk(pmk, spa, aa, snonce, anonce, ptk);
+    /* Verify KCK (first 16), KEK (next 16), TK (next 16) */
+    check("ptk kck", ptk, "8fd534464a886e64aeeefa96c0b5e156", 16);
+    check("ptk kek", ptk + 16, "bbd2a5755525a0a9cb3e3565b2c58366", 16);
+    check("ptk tk", ptk + 32, "832fec9a315cb545b9ca9bd000c6b48d", 16);
+}
+
+static void t_handshake_flow(void)
+{
+    struct wifi_sta sta;
+    uint8_t sta_mac[6], ap_bssid[6], anonce[32], gtk[16];
+    uint8_t m1[128], m2[128], m3[256], m4[128];
+    uint32_t m2_len = 0, m4_len = 0;
+    uint8_t gtk_kde[32], enc_kde[40];
+    uint8_t ap_ptk[48];
+    uint8_t ap_mic[16];
+    int res;
+
+    wifi_sta_set_test_mac_wr(test_mac_wr);
+    mac_write_count = 0;
+
+    hex("021122334455", sta_mac);
+    hex("00146c7e4080", ap_bssid);
+    hex("09f72c2121e7d084ee0b938c53835cae9231f24d26279f72e90c8a66699a7b55", anonce);
+    hex("11223344556677889900aabbccddeeff", gtk);
+
+    wifi_sta_init(&sta, sta_mac, test_rand);
+    wifi_sta_set_creds(&sta, "secretpass123", (const uint8_t *)"TestNetwork", 11);
+    wifi_sta_set_ap(&sta, ap_bssid);
+
+    checks++;
+    if (sta.state != WIFI_STA_STATE_WAIT_M1)
+        fails++;
+
+    /* --- AP creates Message 1 --- */
+    memset(m1, 0, 99);
+    m1[0] = 0x01;                       /* 802.1X */
+    m1[1] = 0x03;                       /* EAPOL-Key */
+    write_u16_be(m1 + 2, 95);           /* Body length */
+    m1[4] = 0x02;                       /* RSN */
+    write_u16_be(m1 + 5, 0x008Au);      /* Version 2, Pairwise, Key ACK */
+    write_u16_be(m1 + 7, 16u);          /* Key length */
+    write_u16_be(m1 + 9, 0);            /* Replay counter = 1 */
+    m1[16] = 1;
+    memcpy(m1 + 17, anonce, 32);        /* ANonce */
+
+    /* STA processes M1 -> generates M2 */
+    res = wifi_sta_rx_eapol(&sta, m1, 99, m2, &m2_len);
+    checks++;
+    if (res != 1 || m2_len != 121 || sta.state != WIFI_STA_STATE_WAIT_M3) {
+        fails++;
+        printf("FAIL M1 handling: res=%d, len=%u, state=%d\n", res, m2_len, sta.state);
+    }
+
+    /* AP validates M2: derive PTK using STA's SNonce from M2 */
+    wifi_sta_derive_ptk(sta.pmk, sta_mac, ap_bssid, m2 + 17, anonce, ap_ptk);
+    compute_eapol_mic(ap_ptk, m2, 121, ap_mic);
+    checks++;
+    if (memcmp(m2 + 81, ap_mic, 16) != 0) {
+        fails++;
+        printf("FAIL M2 MIC validation by AP\n");
+    }
+
+    /* --- AP creates Message 3 --- */
+    memset(m3, 0, 256);
+    m3[0] = 0x01;
+    m3[1] = 0x03;
+    m3[4] = 0x02;
+    /* Key Info: Version 2, Pairwise, Install, Key ACK, Key MIC, Secure, Encrypted Key Data */
+    write_u16_be(m3 + 5, 0x13CAu);
+    write_u16_be(m3 + 7, 16u);
+    write_u16_be(m3 + 9, 0);            /* Replay counter = 2 */
+    m3[16] = 2;
+    memcpy(m3 + 17, anonce, 32);
+
+    /* Construct GTK KDE (24 bytes): Tag 0xDD, len 22, OUI 00-0F-AC, type 0x01, KeyId 1, res, GTK */
+    gtk_kde[0] = 0xDD;
+    gtk_kde[1] = 22;
+    gtk_kde[2] = 0x00; gtk_kde[3] = 0x0F; gtk_kde[4] = 0xAC; gtk_kde[5] = 0x01;
+    gtk_kde[6] = 0x01;                  /* Key ID 1 */
+    gtk_kde[7] = 0x00;                  /* Reserved */
+    memcpy(gtk_kde + 8, gtk, 16);
+
+    /* Encrypt GTK KDE with KEK using AES Key Wrap: 24 bytes in -> 32 bytes out */
+    mock_aes_wrap(ap_ptk + 16, gtk_kde, 24, enc_kde);
+    write_u16_be(m3 + 97, 32u);
+    memcpy(m3 + 99, enc_kde, 32);
+    write_u16_be(m3 + 2, 95u + 32u);    /* Body length = 127 */
+    compute_eapol_mic(ap_ptk, m3, 131, m3 + 81);
+
+    /* STA processes M3 -> generates M4, installs keys (8 bytes of padding after the frame: not part of the MIC) */
+    res = wifi_sta_rx_eapol(&sta, m3, 139, m4, &m4_len);
+    checks++;
+    if (res != 1 || m4_len != 99 || sta.state != WIFI_STA_STATE_CONNECTED) {
+        fails++;
+        printf("FAIL M3 handling: res=%d, len=%u, state=%d\n", res, m4_len, sta.state);
+    }
+
+    /* Verify GTK unwrapped correctly by STA */
+    check("sta gtk", sta.gtk, "11223344556677889900aabbccddeeff", 16);
+    checks++;
+    if (sta.gtk_id != 1)
+        fails++;
+
+    /* AP validates M4 */
+    compute_eapol_mic(ap_ptk, m4, 99, ap_mic);
+    checks++;
+    if (memcmp(m4 + 81, ap_mic, 16) != 0) {
+        fails++;
+        printf("FAIL M4 MIC validation by AP\n");
+    }
+
+    /* Verify hardware MAC register writes for key installation */
+    checks++;
+    if (get_mac_reg(0x6804u) != 0x04u) {        /* WCID 1 Attribute = AES-CCMP */
+        fails++;
+        printf("FAIL HW WCID attribute reg\n");
+    }
+    checks++;
+    if (get_mac_reg(0x7000u) != (4u << 4)) {    /* Shared key mode = AES-CCMP for key 1 */
+        fails++;
+        printf("FAIL HW Shared key mode reg\n");
+    }
+}
+
+static void t_negative_cases(void)
+{
+    struct wifi_sta sta;
+    uint8_t sta_mac[6], ap_bssid[6], anonce[32], gtk[16];
+    uint8_t m1[128], m2[128], m3[256], m4[128];
+    uint32_t m2_len = 0, m4_len = 0;
+    uint8_t gtk_kde[32], enc_kde[40];
+    uint8_t ap_ptk[48];
+
+    hex("021122334455", sta_mac);
+    hex("00146c7e4080", ap_bssid);
+    hex("09f72c2121e7d084ee0b938c53835cae9231f24d26279f72e90c8a66699a7b55", anonce);
+    hex("11223344556677889900aabbccddeeff", gtk);
+
+    /* Test 1: Corrupted MIC in M3 */
+    wifi_sta_init(&sta, sta_mac, test_rand);
+    wifi_sta_set_creds(&sta, "secretpass123", (const uint8_t *)"TestNetwork", 11);
+    wifi_sta_set_ap(&sta, ap_bssid);
+
+    memset(m1, 0, 99);
+    m1[0] = 0x01; m1[1] = 0x03;
+    write_u16_be(m1 + 2, 95);
+    m1[4] = 0x02;
+    write_u16_be(m1 + 5, 0x008Au);
+    write_u16_be(m1 + 7, 16u);
+    m1[16] = 1;
+    memcpy(m1 + 17, anonce, 32);
+
+    wifi_sta_rx_eapol(&sta, m1, 99, m2, &m2_len);
+    wifi_sta_derive_ptk(sta.pmk, sta_mac, ap_bssid, m2 + 17, anonce, ap_ptk);
+
+    memset(m3, 0, 256);
+    m3[0] = 0x01; m3[1] = 0x03; m3[4] = 0x02;
+    write_u16_be(m3 + 5, 0x13CAu);
+    write_u16_be(m3 + 7, 16u);
+    m3[16] = 2;
+    memcpy(m3 + 17, anonce, 32);
+
+    gtk_kde[0] = 0xDD; gtk_kde[1] = 22;
+    gtk_kde[2] = 0x00; gtk_kde[3] = 0x0F; gtk_kde[4] = 0xAC; gtk_kde[5] = 0x01;
+    gtk_kde[6] = 0x01; gtk_kde[7] = 0x00;
+    memcpy(gtk_kde + 8, gtk, 16);
+
+    mock_aes_wrap(ap_ptk + 16, gtk_kde, 24, enc_kde);
+    write_u16_be(m3 + 97, 32u);
+    memcpy(m3 + 99, enc_kde, 32);
+    write_u16_be(m3 + 2, 95u + 32u);
+    compute_eapol_mic(ap_ptk, m3, 131, m3 + 81);
+
+    /* Corrupt one byte of MIC */
+    m3[85] ^= 0xFF;
+    int res = wifi_sta_rx_eapol(&sta, m3, 131, m4, &m4_len);
+    checks++;
+    if (res != -1 || sta.state != WIFI_STA_STATE_FAILED) {
+        fails++;
+        printf("FAIL Corrupted MIC should fail\n");
+    }
+
+    /* Test 2: a replayed M3 (its counter not above M1's) is refused */
+    wifi_sta_init(&sta, sta_mac, test_rand);
+    wifi_sta_set_creds(&sta, "secretpass123", (const uint8_t *)"TestNetwork", 11);
+    wifi_sta_set_ap(&sta, ap_bssid);
+    m1[16] = 5;
+    wifi_sta_rx_eapol(&sta, m1, 99, m2, &m2_len);
+    wifi_sta_derive_ptk(sta.pmk, sta_mac, ap_bssid, m2 + 17, anonce, ap_ptk);
+    m3[16] = 5;
+    compute_eapol_mic(ap_ptk, m3, 131, m3 + 81);
+    res = wifi_sta_rx_eapol(&sta, m3, 131, m4, &m4_len);
+    checks++;
+    if (res != -1 || sta.state != WIFI_STA_STATE_WAIT_M3) {
+        fails++;
+        printf("FAIL replayed M3 should be refused (res=%d state=%d)\n", res, sta.state);
+    }
+
+    /* Test 3: key data longer than the frame is refused before any unwrap */
+    m3[16] = 6;
+    write_u16_be(m3 + 97, 200u);
+    compute_eapol_mic(ap_ptk, m3, 131, m3 + 81);
+    res = wifi_sta_rx_eapol(&sta, m3, 131, m4, &m4_len);
+    checks++;
+    if (res != -1) {
+        fails++;
+        printf("FAIL key data past the frame should be refused\n");
+    }
+}
+
 int main(void)
 {
     t_crypto();
+    t_ptk_derivation();
+    t_handshake_flow();
+    t_negative_cases();
     printf("wifi_sta_test: %d checks, %d failed\n", checks, fails);
     return fails;
 }
