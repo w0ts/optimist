@@ -224,7 +224,7 @@ static void ble_rt_push(uint32_t due, uint32_t pkt)   /* the audio ISR, clock_ou
     RING_PUBLISH();
     brt_w++;
 }
-static void ble_rt_drop_after(uint32_t t, uint32_t pkt)   /* (as usb.c rt_out_drop_after: a start's F8s taken back) */
+static void ble_rt_drop_after(uint32_t t, uint32_t pkt)   /* (as midi_rings.c rt_out_drop_after: a start's F8s taken back) */
 {
     uint32_t i;
     for (i = brt_r; i != brt_w; i++)
@@ -233,7 +233,7 @@ static void ble_rt_drop_after(uint32_t t, uint32_t pkt)   /* (as usb.c rt_out_dr
 }
 #endif
 
-static void ble_midi_out(uint32_t pkt)          /* the audio ISR, from usb.c's midi_out_event */
+static void ble_midi_out(uint32_t pkt)          /* the audio ISR, from midi_rings.c's midi_out_event */
 {
     if (!ble_out_on || !(ble_midi_route & BLE_ROUTE_OUT) || bmo_w - bmo_r >= BMQ)
         return;

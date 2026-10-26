@@ -56,7 +56,7 @@ SIZE_FILES = ["ui/colors.c", "ui/splash.c", "storage/storage.c", "storage/uprese
 # optional engines and effects (a new main-loop-only file goes in SIZE_FILES: --check, docs SLIM-CODE.md)
 # (boot and the main loop stay at -Os: at minsize the main loop got slower and the emulator boot check saw a late
 # half, the BLE start-up a link stop over its bound, perf/flash-survey 2026-10-15)
-OS_FILES = ["system/main.c", "system/supply.c", "io/usb/usb.c", "io/usb/usb_audio_route.c",
+OS_FILES = ["system/main.c", "system/supply.c", "io/usb/usb.c", "io/midi/midi_rings.c", "io/usb/usb_audio_route.c",
             "io/usb/usb_audio.c", "storage/motion_flash.c", "display/lcd.c", "display/lcd_dirty.c",
             "display/gfx.c", "system/libc.c", "system/bench.c", "system/simd_probe.c", "system/cpuguard.c",
             "ui/bright.c", "ui/meters.c", "seq/motion.c", "core/macro.c", "fx/master_comp/master_comp.c",
