@@ -993,15 +993,17 @@ job; ( jobin   # the silent placeholder (docs/SD-MODE-DESIGN.md 6b): a part drop
     $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -DFELUCCA_ENG_FM6=1 -o "$OUT/placeholder_test" tests/placeholder_test.c -lm
     run "a dropped part: silent, its memory idle, NONE, through a save and a load until an engine is picked" "$OUT/placeholder_test"
     $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -DFELUCCA_ENG_FM6=1 "-DFELUCCA_ARENA_BYTES=ARN_SLOT" -o "$OUT/placeholder_flow_test" tests/placeholder_test.c -lm
-    run "memory short (an arena of one part's): an edit refused, the part to drop proposed, dropped, the change made; a load: every part refused collected (two on one load), placeholders, settled by itself when room comes, the list's trial, SAVE, HOME, the sound kept" "$OUT/placeholder_flow_test"
+    run "memory short (an arena of one part's, the core alone): an edit refused, the part to drop proposed, dropped, the change made; a load: every part refused collected (two on one load), placeholders, each in turn on the edit's confirm with the project's sound kept, declined: a placeholder" "$OUT/placeholder_flow_test"
+    $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -DFELUCCA_ENG_FM6=1 -DFELUCCA_MEM_LIST=1 "-DFELUCCA_ARENA_BYTES=ARN_SLOT" -o "$OUT/placeholder_list_test" tests/placeholder_test.c -lm
+    run "the same with the load's list (MEM_LIST, an extra): settled by itself when room comes, the list's trial, SAVE, HOME, the sound kept" "$OUT/placeholder_list_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin   # the arena (core/arena.c, docs/SD-MODE-DESIGN.md 6b): first fit and the fixed slots
     $CC -O2 -w -Ifirmware/src -o "$OUT/arena_test" tests/arena_test.c
     run "arena placed by need: reserve, take, reuse, idle reclaimed, refused, what to drop; random switches, some pending" "$OUT/arena_test"
     $CC -O2 -w -Ifirmware/src -DARN_SLOT=1008u -DARN_FIXED=1 -o "$OUT/arena_fixed_test" tests/arena_test.c
     run "arena at fixed slots (the default): the fixed per-part memories' places, never refused" "$OUT/arena_fixed_test"
-    $CC -O2 -w -Ifirmware/src -DARN_TOPS=0xCu -DARN_DROPPABLE=0x3u -o "$OUT/arena_tops_test" tests/arena_test.c
-    run "arena, two parts placed best fit from the top (the effects' lines), never named to drop; random switches" "$OUT/arena_tops_test"
+    $CC -O2 -w -Ifirmware/src -DARN_TOPS=0xCu -o "$OUT/arena_tops_test" tests/arena_test.c
+    run "arena, two parts placed best fit from the top (the effects' lines); random switches" "$OUT/arena_tops_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin   # the effects' lines in the arena (fx/fx_arena.c, docs/SD-MODE-DESIGN.md 6b phase 3b; FELUCCA_FX_ARENA)
     FXA="-DFELUCCA_ENG_FM6=1 -DFELUCCA_FX_ARENA=1 -DFELUCCA_INS_CHORUS=1 -DFELUCCA_INS_DELAY=1 -DFELUCCA_DLY_LEN=16384u"

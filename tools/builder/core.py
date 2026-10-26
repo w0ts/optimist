@@ -244,10 +244,10 @@ def validate(cfg):
                              f"({max(blocks.values()) // 1024} KB): a larger ARENA, or off", ["ARENA"]))
         else:
             fixed = room - arena_mem(cfg)["pool"]
+            what = ("the parts' engine states, the effects' lines, the SLICER's recordings, WAVE's table, the X0X "
+                    "machines" if sd_mode(cfg) else "the parts' engine states")
             note.append(Issue(f"{R.ITEMS['ARENA'].label}: {cfg['ARENA']} KB in place of {fixed // 1024} KB of fixed "
-                              "memories (the parts' engine states, the effects' lines, the SLICER's recordings, WAVE's "
-                              "table, the X0X machines); a project using more is "
-                              "refused and offered what to drop", ["ARENA"]))
+                              f"memories ({what}); a project using more is refused and offered what to drop", ["ARENA"]))
     for k, it in R.ITEMS.items():
         if it.off_warning and not cfg[k] and (not it.parent or built(cfg, it.parent)):
             warn.append(Issue(f"{it.label} off: {it.off_warning}", [k]))
@@ -600,16 +600,25 @@ def arena_bufs(cfg):
     return {k: v for k, v in out.items() if v}
 
 
+def sd_mode(cfg):
+    """the SD card mode (registry.h FELUCCA_SD_MODE: the fake SD mode's layout, LAYOUT 1, until its own flag): the
+    builds that get the arena's extras (the effects' lines, the other buffers, the load's list page)"""
+    return cfg.get("LAYOUT", 0) == 1
+
+
 def arena_mem(cfg):
-    """-> {region: bytes} of the arena (ARENA, KB: core/arena.c, fx/fx_arena.c, core/arena_bufs.c) against the fixed
-    memories it replaces: its own pool less the parts' engine states (part_mem), the delay and chorus sends' lines, the
-    reverb's line (rev_lines: in main RAM without REV_POOL) and the ROOM's diffusers after it, the inserts' own room
-    (fx_memory), the SLICER's recordings (a track each), WAVE's table and the X0X machines' states (arena_bufs); {} with
-    ARENA off. The code and bookkeeping it adds (about 2 KB of flash, 256 B of RAM) is its measured delta (costs.json)"""
+    """-> {region: bytes} of the arena (ARENA, KB: core/arena.c; in the SD card mode fx/fx_arena.c, core/arena_bufs.c
+    too) against the fixed memories it replaces: its own pool less the parts' engine states (part_mem); in the SD card
+    mode (sd_mode) less the delay and chorus sends' lines, the reverb's line (rev_lines: in main RAM without REV_POOL)
+    and the ROOM's diffusers after it, the inserts' own room (fx_memory), the SLICER's recordings (a track each), WAVE's
+    table and the X0X machines' states (arena_bufs); {} with ARENA off. The code and bookkeeping it adds is its measured
+    delta (costs.json)"""
     f, _ = flags(cfg)
     kb = int(f.get(R.ITEMS["ARENA"].flag, 0) or 0)
     if not kb:
         return {}
+    if not sd_mode(cfg):
+        return {"pool": kb * 1024 - part_mem(cfg)["pool"]}
     rev, mem, bufs = rev_lines(cfg), fx_memory(cfg), arena_bufs(cfg)
     lines = (mem["send"] + mem["cho"] + mem["own"]) * 1024 + rev.get("pool", 0) + rev_ap(cfg)
     other = sum(v * (NTRK if k.startswith("a track's") else 1) for k, v in bufs.items())
@@ -629,6 +638,8 @@ def rev_ap(cfg):
 def arena_blocks(cfg):
     """-> {name: bytes} the blocks the arena places (a part's engine state, each effect's line, the other buffers;
     validate: each must fit)"""
+    if not sd_mode(cfg):
+        return {"a part's engine state": part_mem(cfg)["pool"] // NPART}
     rev, mem = rev_lines(cfg), fx_memory(cfg)
     out = {"a part's engine state": part_mem(cfg)["pool"] // NPART, "the delay's line": mem["send"] * 1024,
            "the chorus send's line": mem["cho"] * 1024,

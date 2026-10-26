@@ -187,7 +187,7 @@ GRAIN, ACID, PLAITS) placed in it. By default the arena is exactly the old fixed
 fixed slots: the same room and places, never refused (pool unchanged, +96 B RAM, +620 B flash on the default profile);
 `FELUCCA_ARENA_BYTES` smaller places by need (first fit, blocks never move, a part's own block free for its own next
 engine, idle blocks reclaimed without asking). The main loop reserves before a part's engine changes (model.c
-set_engine_of, project load, user preset load); a refusal records the part, the engine and `arn_drop_for`'s proposal in
+set_engine_of, project load, user preset load); a refusal records the part and the engine in
 `part_mem_refused`; the audio keeps the old engine when a switch finds no room. Not yet: the UI that shows the proposal
 and lets the user pick what to drop, a builder item for the arena's size, the engines' and effects' other static state.
 Tests: `tests/arena_test.c` (first fit and fixed slots; 300,000 random switches with some left pending), the backports
@@ -240,7 +240,7 @@ gpufarm run); a measurement build can also set `OPTIMIST_ARENA_BYTES` and `OPTIM
   up, the send lines whose buses are silent are gated, given back and placed again with it, the largest first, if a
   trial on the arena says that makes it fit (nothing heard is lost: a silent bus's line is all zeros).
 - **Parts first, then the effects** (the user, 2026-10-25): a part's refused change proposes the parts first
-  (`arn_drop_for` names parts only, `ARN_DROPPABLE`), then, in the same confirm, the effects' send lines placed and not
+  (`model.c mem_offer`: parts only), then, in the same confirm, the effects' send lines placed and not
   lent, the largest first ("DROP REV 32 KB", `fxm_offer`); a dropped effect is bypassed as when refused (`fxm_drop`:
   gated, given back two blocks later, FULL, kept in its slot, back by itself once there is room). The inserts' own room
   is not offered (its owners hold their types). A part's change refused while an effect's line is on its way back
@@ -280,7 +280,40 @@ blocks of the arena too, held only while the project uses their feature, placed 
 - Tests: `tests/arena_bufs_test.c` (each buffer placed, used, given back, refused and bypassed, said once, placed by
   itself; a part's change waiting; 20,000 random switches), `tests/fx_arena_test.c` (the ROOM's diffusers in the reverb's
   block; without the SLICER: no other buffer).
-Tests: `tests/fx_arena_test.c` (ROOM; ROOM + FDN8 + SPRING), `tests/arena_test.c` (best fit from the top, never named).
+Tests: `tests/fx_arena_test.c` (ROOM; ROOM + FDN8 + SPRING), `tests/arena_test.c` (best fit from the top).
+
+**The core and the extras (2026-10-26; the user: "the arena will merge into main, default on; not yet").** The arena is
+split so that every build can have it and only the SD card mode pays for the rest:
+
+| | What | Where | Builds |
+|---|---|---|---|
+| Core | the parts' engine states placed by need (`core/arena.c`, `engines.c part_mem_*`), the edit's one confirm ("DROP T2 FM6", `op_input.c mem_tick`), a load's refused parts offered one by one on that confirm with the project's sound kept (`model.c mem_load_next`) | `FELUCCA_ARENA_KB` | every build ARENA is set in |
+| Extras | the effects' lines (`fx/fx_arena.c`), the other buffers (`core/arena_bufs.c`: SLICER, WAVE, X0X, rev_ap), the load's list page (`op_memlist.c`, `model.c mem_load_*`) | `FELUCCA_FX_ARENA`, `FELUCCA_MEM_LIST` | the SD card mode: `FELUCCA_SD_MODE` (registry.h), LAYOUT 1 until the SD card mode's own builder flag; one macro to rewire |
+
+- A load with the core alone: `proj_apply` makes each part it cannot place a silent placeholder (`lmask`), as before; each
+  frame `mem_load_next` turns the first into the edit's refusal (`part_mem_refused.keep`): `mem_retry` waits for every
+  part's switch (the old blocks free after), places it with the project's sound if it fits now, else the confirm
+  proposes what to drop; declined to the end: MEM FULL, the part stays a placeholder; then the next.
+- What to propose (both): `arn_drop_for`'s search over every set of parts is gone; `mem_offer` proposes first the parts
+  whose memory alone would make room (`engines.c part_mem_frees`: `arn_fits` with that part's block given back, the
+  parts dropped before idle by then), then any other, one drop at a time. Two drops that only help together are
+  proposed one after the other (the second named once the first is idle).
+- Slimmed (measured on the reference profile, 2026-10-26, a core arena of 40 KB: flash over the profile without it):
+  the split itself +3,196 -> +740 B (the list page and the load's settle out of the core); the load's settle replaced
+  by the edit's wait -152; `arn_drop_for` replaced by `part_mem_frees` -216; `arn_scan` without the sort or the copies
+  (`arn_end`: each place tried against every block) -8, the same result (2,000,000 random cases against the old one);
+  the idle mask one helper (`arn_idle`); the arena's state one struct (`arn_st_t`: the trials copy it once) +8 in the
+  core, -296 B with the extras (all the above).
+- Measured (2026-10-26, exact builds): the reference profile `synths_USBaudio_BTaudio_BTmidi` (normal layout, slot
+  581,564 B): off flash 581,508, RAM 91,808, pool 328,888; the core (ARENA 24) flash 581,880 (+372, **316 B over the
+  slot**), RAM 91,804, pool 314,800 (-14,088: one PHYS part's 12,888 B and two FM6 parts' fit); the core and the extras
+  (a measurement build, ARENA 96 with `OPTIMIST_FX_ARENA=1`) flash 588,220, RAM 92,156, pool 277,408. `sd-card-mots`
+  (LAYOUT 1, slot 765,696 B): off 743,824 / 106,640 / 313,848; the core alone (`OPTIMIST_ARENA_BYTES=24576`) 744,224 /
+  106,652 / 317,352; ARENA 96 (core and extras) 750,484 / 106,960 / 279,960.
+- The builder: `ARENA` (KB) is the core in a normal build and the core and the extras in the SD card mode
+  (`core.py sd_mode`, `arena_mem`, `arena_blocks`); new sizes 24 .. 48 KB for the core alone (the parts' fixed memory
+  is 3 x the largest engine's: 38,664 B with PHYS). Off (0) stays the fixed memories, for a tight profile.
+- Tests: `tests/placeholder_test.c` built three ways (fixed; the core: the load's refusals on the confirm; with the list).
 
 ## 7. Phases
 

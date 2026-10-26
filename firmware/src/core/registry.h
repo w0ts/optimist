@@ -441,21 +441,13 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
                                             * limited insert type built */
 #endif
 #ifndef FELUCCA_ARENA_KB
-#define FELUCCA_ARENA_KB 0                 /* the builder's ARENA (bit 411): KB of pool for the parts' engine states and
-                                            * the effects' lines, placed by need (core/arena.c, fx/fx_arena.c); 0: the
-                                            * fixed memories as before */
+#define FELUCCA_ARENA_KB 0                 /* the builder's ARENA (bit 411): KB of pool the parts' engine states are placed
+                                            * in by need (core/arena.c, the core: every build it is on in), and in the SD
+                                            * card mode the effects' lines and the other buffers too (the extras:
+                                            * FELUCCA_FX_ARENA below); 0: the fixed memories as before */
 #endif
 #if FELUCCA_ARENA_KB && !defined(FELUCCA_ARENA_BYTES)
 #define FELUCCA_ARENA_BYTES (FELUCCA_ARENA_KB * 1024u)
-#ifndef FELUCCA_FX_ARENA
-#define FELUCCA_FX_ARENA 1
-#endif
-#endif
-#ifndef FELUCCA_FX_ARENA
-#define FELUCCA_FX_ARENA 0                 /* 1: with an arena placed by need (FELUCCA_ARENA_BYTES, engines.c), the effects'
-                                            * big lines (the sends' delay, chorus and reverb lines, the inserts' own room)
-                                            * are placed in it while a project uses them (fx/fx_arena.c); 0: static, as
-                                            * before */
 #endif
 #ifndef FELUCCA_RET_FB
 #define FELUCCA_RET_FB 1                   /* the returns' feedback sends B -> A, C -> A, C -> B (fx_slots.c rs_amt, fx.c rs_fbv) */
@@ -641,6 +633,25 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #ifndef FELUCCA_LAYOUT
 #define FELUCCA_LAYOUT 0                   /* the flash layout (hal/fm1_flash_map.h): 1 the fake SD mode, the app slot to
                                             * 0xD0000 over the user samples and snapshots (docs/SD-MODE-DESIGN.md) */
+#endif
+#ifndef FELUCCA_SD_MODE
+#define FELUCCA_SD_MODE (FELUCCA_LAYOUT == 1)   /* the SD card mode (one builder flag later: the bigger flash, the card,
+                                            * projects by name, banks of 16; the fake SD mode's layout until then): what
+                                            * only it builds keys on this one macro (the arena's extras below) */
+#endif
+#if FELUCCA_ARENA_KB && !defined(FELUCCA_FX_ARENA)
+#define FELUCCA_FX_ARENA FELUCCA_SD_MODE   /* (the arena's extras: the SD card mode's builds) */
+#endif
+#ifndef FELUCCA_FX_ARENA
+#define FELUCCA_FX_ARENA 0                 /* 1: with an arena placed by need (FELUCCA_ARENA_BYTES, engines.c), the arena's
+                                            * extras: the effects' big lines (the sends' delay, chorus and reverb lines,
+                                            * the inserts' own room) placed in it while a project uses them
+                                            * (fx/fx_arena.c), the other buffers (core/arena_bufs.c) and the load's list
+                                            * page (FELUCCA_MEM_LIST); 0: static, as before, a load's refusals offered one
+                                            * by one on the edit's confirm */
+#endif
+#ifndef FELUCCA_MEM_LIST
+#define FELUCCA_MEM_LIST FELUCCA_FX_ARENA  /* the load's memory list page (ui/optimist/op_memlist.c, model.c mem_load_*) */
 #endif
 #define PROJ_SLOTS (FELUCCA_LAYOUT == 1 ? 1u : 16u)   /* the projects the flash keeps (PATTERNS): the fake SD mode one, the
                                             * others kept by the web app or the iOS app over USB (the user, 2026-10-25) */

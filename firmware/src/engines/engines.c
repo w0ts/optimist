@@ -129,15 +129,18 @@ typedef union {
 #define ARN_BYTES FELUCCA_ARENA_BYTES
 #endif
 /* FELUCCA_FX_ARENA with an arena placed by need: the effects' lines (the chorus, delay and reverb sends', the inserts'
- * own room) are blocks of it too, after the parts' (fx/fx_arena.c: a line placed while its effect is used); never
- * named by arn_drop_for (a part's change proposes parts only). Else the lines stay where they were (fx.c) */
+ * own room) are blocks of it too, after the parts' (fx/fx_arena.c: a line placed while its effect is used); proposed
+ * to drop only after every part (model.c mem_offer). Else the lines stay where they were (fx.c) */
 #if FELUCCA_FX_ARENA && !defined(FELUCCA_ARENA_BYTES)
 #error "FELUCCA_FX_ARENA: the effects' lines in an arena placed by need, which needs FELUCCA_ARENA_BYTES"
 #endif
 #ifdef FELUCCA_ARENA_BYTES
 #define FXM_NEED (FELUCCA_FX_ARENA != 0)
+#define MEM_LIST (FELUCCA_MEM_LIST != 0)                 /* a load's refusals on the list page (op_memlist.c), else
+                                                         * offered one by one on the edit's confirm (model.c) */
 #else
 #define FXM_NEED 0
+#define MEM_LIST 0
 #endif
 #if FXM_NEED
 #define FXM_NC 4u                                        /* the effects' blocks (fx_arena.c FXM_CHO DLY REV INS) */
@@ -152,7 +155,6 @@ enum {
 };
 #define ARB_ANY ((FELUCCA_FX_SLICER ? NTRK : 0) + FELUCCA_ENG_WAVE + FELUCCA_DRUM_X909 + FELUCCA_DRUM_X808)   /* (#if) */
 #define ARN_PARTS (NPART + FXM_NC + (uint32_t)ARB_NC)
-#define ARN_DROPPABLE ((1u << NPART) - 1u)
 #define ARN_TOPS (((1u << (FXM_NC + (uint32_t)ARB_NC)) - 1u) << NPART)   /* (the lines and buffers from the top, best fit:
                                                                          * core/arena.c) */
 #else
@@ -259,17 +261,18 @@ static uint32_t part_mem_bytes(uint32_t e)
 }
 
 /* a refused change (the user, 2026-10-25: refuse, and propose what to drop; the UI shows it and offers the drops).
- * An edit's (one part: the engine it asked for, arn_drop_for's proposal; the UI's one confirm, op_input.c mem_tick), and
+ * An edit's (one part: the engine it asked for; the UI's one confirm, op_input.c mem_tick), and
  * a load's apart (every part a project's load could not place, lmask, with the engine each wants, leng: each a silent
  * placeholder meanwhile, the UI's list of what to drop, op_memlist.c; one load's refusals never overwrite each other) */
 static struct {
     uint8_t on, part, eng;
-    int8_t drop;                                         /* arn_drop_for's parts (a bit mask; -1 none would make room) */
     uint8_t asked;                                       /* the parts already proposed (model.c mem_offer: never twice) */
     uint8_t waiting;                                     /* the parts dropped, their switch to the placeholder not done yet */
     uint8_t lmask;                                       /* a load's parts refused (a bit by part): placeholders, waiting */
     uint8_t lseq;                                        /* + 1 at each load (the UI's list starts afresh) */
     uint8_t leng[NPART];                                 /* .. the engine slot each wants */
+    uint8_t keep;                                        /* the edit's refusal is a load's (model.c mem_load_next): the
+                                                          * project's sound kept once placed */
 } part_mem_refused;
 #define PART_MEM_SHORT() (part_mem_refused.on || part_mem_refused.lmask)   /* (the effects wait: a part's sound first) */
 
@@ -331,28 +334,32 @@ static int part_mem_try(uint32_t k, uint32_t e)
  * aside. 0 ok; -1 no room (only with a smaller FELUCCA_ARENA_BYTES): part_mem_refused says what would make room */
 static int part_mem_reserve(uint32_t k, uint32_t e)
 {
-    uint32_t tab = part_tab_bytes(e);
     int r = part_mem_try(k, e);
     if (r) {
         if (!part_mem_refused.on || part_mem_refused.part != k)   /* (a new refusal: nothing asked yet) */
-            part_mem_refused.asked = part_mem_refused.waiting = 0;
+            part_mem_refused.asked = part_mem_refused.waiting = part_mem_refused.keep = 0;
         part_mem_refused.on = 1, part_mem_refused.part = (uint8_t)k, part_mem_refused.eng = (uint8_t)(e % NENGINES);
-#if FXM_NEED && FELUCCA_ENG_WAVE
-        if (tab)                                         /* (WAVE's table: the parts whose blocks would make it room) */
-            part_mem_refused.drop = (int8_t)arn_drop_for(PART_TAB_K, tab);
-        else
-#endif
-            part_mem_refused.drop = (int8_t)arn_drop_for(k, part_mem_bytes(e));
     }
-    (void)tab;
     return r;
+}
+
+/* 1: part j's block given back too would make room for the refused change (model.c mem_offer proposes those first;
+ * the parts already dropped are idle by then, free) */
+static int part_mem_frees(uint32_t j)
+{
+    uint32_t e = part_mem_refused.eng;
+#if FXM_NEED && FELUCCA_ENG_WAVE
+    if (part_tab_bytes(e))                               /* (WAVE's table: what makes it room) */
+        return arn_fits(PART_TAB_K, WT_MEM_BYTES, 1u << j);
+#endif
+    return arn_fits(part_mem_refused.part, part_mem_bytes(e), 1u << j);
 }
 
 /* a project's load (storage/project.c, before its tracks): the refusals of before forgotten (an edit's change waiting
  * included: the load replaces the parts) */
 static void part_mem_load_begin(void)
 {
-    part_mem_refused.on = part_mem_refused.asked = part_mem_refused.waiting = 0;
+    part_mem_refused.on = part_mem_refused.asked = part_mem_refused.waiting = part_mem_refused.keep = 0;
     part_mem_refused.lmask = 0;
     part_mem_refused.lseq++;
 }
