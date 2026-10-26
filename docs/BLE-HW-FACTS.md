@@ -501,8 +501,8 @@ SHA-256 is `db1642b2…`) in the emulator three times (first boot; second boot, 
 to its field, and pins the result's SHA-256 (`30ba97ea…`). The output is committed as `firmware/hal/ble_rf_tables_v15.h`
 (format 3, the program packed 10,706 to 5,795 B, about 40 KB of source), so a BLE build needs no V15 file; the tool is the
 provenance, and `tests/ble_rf_capture_test.py` compares a fresh capture with the committed file when V15 and the emulator are
-there. Format, section markers and build integration: BLE-STACK.md §8.1, §8.3. The repository carries these vendor-derived
-values by the owner's decision (`LICENSING.md`).
+there. Format, section markers and build integration: BLE-STACK.md §8.1, §8.3. These values are JieLi's radio
+start-up as V15 runs it, under Apache-2.0 from JieLi's AC79 SDK and M-VAVE's V15 package (`LICENSING.md`).
 
 ## 18. Hardware bring-up: what is done
 

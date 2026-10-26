@@ -1,7 +1,11 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* BLE radio start-up values captured from the stock FM-1 V15 firmware (see docs/BLE-STACK.md): M-VAVE's FM-1_015.fwsc,
  * Copyright (c) 2026 Zhuhai Shengke / M-VAVE, published under Apache-2.0 as sdk/firmware/FM-1_015.fwsc in
- * https://github.com/m-vave/fm1_open (its THIRD_PARTY.md). */
+ * https://github.com/m-vave/fm1_open (its THIRD_PARTY.md). The writes are V15's rf_init, JieLi's radio start-up
+ * (wl_rf_common.a, btctrler.a), which JieLi publishes under Apache-2.0 in its AC79 AIoT SDK: Copyright (c) 2024-2026
+ * Zhuhai Jieli Technology Co., Ltd., https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK (cpu/wl82/liba/).
+ * Changed by Optimist (Apache-2.0 section 4(b)): not the code but the writes it made, recorded in the emulator by
+ * tools/ble_rf_capture.py, cut into groups, the window-D read-back loop left out, packed by tools/ble_rf_pack.py. */
 #pragma once
 #include <stdint.h>
 #define BLE_RF_TABLES_FORMAT 3
