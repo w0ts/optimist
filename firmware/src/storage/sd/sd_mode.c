@@ -38,7 +38,13 @@ typedef struct {
     uint32_t size;
     char hint[SDM_HINT];                             /* its path under SAMPLES/ when picked (cut), 0 ended */
 } sdm_smp_t;
-_Static_assert(sizeof(sdm_smp_t) == 64u && sizeof(sdm_smp_t) * NPART <= SEC_REC_MAX, "sd_mode.c: a part's sample record");
+#if FELUCCA_SD_LANES
+#define SDM_NSMP (NPART + DRUM_LANES)                /* the parts', then the drum lanes' (drums/lane_card.c; a record of
+                                                      * before has the parts' alone: read so, the lanes none) */
+#else
+#define SDM_NSMP NPART
+#endif
+_Static_assert(sizeof(sdm_smp_t) == 64u && sizeof(sdm_smp_t) * SDM_NSMP <= SEC_REC_MAX, "sd_mode.c: the samples' record");
 
 #define SDM_DX7 FELUCCA_ENG_FM6                      /* DX7 banks in PRESETS (below: the FM6 collections on the card) */
 #ifndef SDM_REBOOT
@@ -55,8 +61,23 @@ static sdm_rec_t sdm_rec;
 static uint8_t sdm_st, sdm_smp_dirty;               /* (the samples' record written once the audio is quiet: sdm_poll) */
 static uint8_t sdm_dirty;                            /* the settings changed: 2 on SYSTEM, 1 SYSTEM left (written, quiet) */
 static uint8_t sdm_dropped;                          /* the boot's pending save was another project's: dropped */
-static sdm_smp_t sdm_smp[NPART];                     /* the open project's samples (the player's) */
+static sdm_smp_t sdm_smp[SDM_NSMP];                  /* the open project's samples (the player's): parts, lanes */
 static uint32_t sdm_smp_key;                         /* the record read (its sequence + 1; 0 none read) */
+#if FELUCCA_SD_LANES
+static uint16_t sdm_lane_on;                         /* the lanes given to the plan with their sample (CARD), 0xFFFF: again */
+/* the lanes on CARD with their sample in the plan, the others' slots free (a lane turned back to KIT, a load) */
+static void sdm_lanes_sync(void)
+{
+    uint32_t l, on = 0;
+    for (l = 0; l < DRUM_LANES; l++)
+        on |= (uint32_t)(dl.src[l] == DL_CARD && sdm_smp[NPART + l].hash) << l;
+    if (on == sdm_lane_on)
+        return;
+    for (l = 0; l < DRUM_LANES; l++)
+        sst_part_set(SST_NPART + l, (on >> l) & 1u ? sdm_smp[NPART + l].hash : 0u);
+    sdm_lane_on = (uint16_t)on;
+}
+#endif
 static uint32_t sdm_smp_gen;                         /* bumped at every change (the player reloads) */
 static struct {
     sdb_t b;                                         /* the list shown */
@@ -191,13 +212,18 @@ static void sdm_smp_sync(void)                       /* the record read again wh
     if (key == sdm_smp_key)
         return;
     sdm_smp_key = key;
-    if (slg_get(SEC_ID_SDSMP, sec_rbuf) == (int)sizeof sdm_smp)
-        memcpy(sdm_smp, sec_rbuf, sizeof sdm_smp);
-    else
+    {
+        int n = slg_get(SEC_ID_SDSMP, sec_rbuf);
         memset(sdm_smp, 0, sizeof sdm_smp);
+        if (n == (int)sizeof sdm_smp || n == (int)(sizeof sdm_smp[0] * NPART))
+            memcpy(sdm_smp, sec_rbuf, (uint32_t)n);
+    }
 #if FELUCCA_SD_STREAM
     for (key = 0; key < NPART; key++)
         sst_part_set(key, sdm_smp[key].hash);        /* (the project's CARD samples: the plan places them) */
+#endif
+#if FELUCCA_SD_LANES
+    sdm_lane_on = 0xFFFFu;                           /* (the lanes' slots set again: sdm_lanes_sync) */
 #endif
     sdm.sc.have = 0xFFFFu;
     sdm_smp_gen++;
@@ -253,6 +279,9 @@ static void sdm_poll(void)
     }
     if (!sdm_smp_dirty)
         sdm_smp_sync();
+#if FELUCCA_SD_LANES
+    sdm_lanes_sync();
+#endif
 #if FELUCCA_SD_STREAM
     sdm_mem_tick();
 #endif
@@ -689,6 +718,42 @@ static void sdm_factory_poll(void)
 }
 #endif
 
+#if FELUCCA_SD_LANES
+/* a kit file's lanes' card samples (the user, 2026-10-26: kits on the card carry them): after the kit's UK_CARD_N bytes,
+ * "LCRD" and DRUM_LANES x (hash 8, size 4); a kit of before (none): its lanes as they are */
+#define SDM_KL_N (4u + DRUM_LANES * 12u)
+_Static_assert(UK_CARD_N + SDM_KL_N <= 496u, "sd_mode.c: a kit with its lanes' samples in one sector");
+static uint32_t sdm_kit_lanes_out(uint8_t *b, uint32_t n)
+{
+    uint32_t l;
+    memcpy(b + n, "LCRD", 4);
+    for (l = 0; l < DRUM_LANES; l++) {
+        uint64_t h = dl.src[l] == DL_CARD ? sdm_smp[NPART + l].hash : 0u;
+        memcpy(b + n + 4u + l * 12u, &h, 8);
+        memcpy(b + n + 12u + l * 12u, &sdm_smp[NPART + l].size, 4);
+    }
+    return n + SDM_KL_N;
+}
+static uint32_t sdm_kit_lanes_in(uint8_t *b, uint32_t n)
+{
+    uint32_t l;
+    if (n != UK_CARD_N + SDM_KL_N || memcmp(b + UK_CARD_N, "LCRD", 4))
+        return n;
+    for (l = 0; l < DRUM_LANES; l++) {
+        uint64_t h;
+        memcpy(&h, b + UK_CARD_N + 4u + l * 12u, 8);
+        if (!h)
+            continue;
+        memset(&sdm_smp[NPART + l], 0, sizeof sdm_smp[0]);
+        sdm_smp[NPART + l].hash = h;
+        memcpy(&sdm_smp[NPART + l].size, b + UK_CARD_N + 12u + l * 12u, 4);
+        sdm_smp_dirty = 1;
+    }
+    sdm_lane_on = 0xFFFFu;
+    return UK_CARD_N;
+}
+#endif
+
 /* ---- the project: the card's file <-> project 0 */
 /* the payload's records (len bytes from the open file's pointer) into project 0: 0 ok, 1 MEM FULL, -1 not a project */
 static int sdm_feed(uint32_t len)
@@ -866,6 +931,9 @@ static void sdm_do(uint32_t op, uint32_t k)
         return;
     } else if (sdm.list == SDC_KIT) {
         n = sdm_small_get(sdm.path, "OPKT", sd_blk, sizeof sd_blk);
+#if FELUCCA_SD_LANES
+        n = sdm_kit_lanes_in(sd_blk, n);             /* (its lanes' card samples into the project's: the kit's own n) */
+#endif
         if (!n || ukit_card_give(sd_blk, n))
             ui_message("NOT A KIT");
         else {
@@ -877,8 +945,12 @@ static void sdm_do(uint32_t op, uint32_t k)
         FILINFO fi;
         char t[8];
         int32_t no = -1;
-        if (part >= NPART) {
-            ui_message("PICK T1 T2 OR T3");
+#if FELUCCA_SD_LANES
+        if (is_drum(TSEL) && lane_picked())          /* a drum lane picked: its sample (drums/lane_card.c) */
+            part = NPART + lane_selected() % DRUM_LANES;
+#endif
+        if (part >= SDM_NSMP) {
+            ui_message(FELUCCA_SD_LANES ? "PICK A PART OR A LANE" : "PICK T1 T2 OR T3");
             return;
         }
         if (sdx_open() == FR_OK && f_stat(sdm.path, &fi) == FR_OK &&
@@ -899,6 +971,17 @@ static void sdm_do(uint32_t op, uint32_t k)
         sdl_cat(sdm_smp[part].hint, 0, SDM_HINT, sdx.rec.path + sizeof "SAMPLES");   /* (from SAMPLES/, cut) */
         (void)sdx_touch((uint32_t)no);
         sdm_smp_dirty = 1;                           /* (the project's record: sdm_poll writes it, quiet) */
+#if FELUCCA_SD_LANES
+        if (part >= NPART) {                         /* the lane on CARD, its sample in the plan (sdm_lanes_sync) */
+            fm1_irq_off();
+            dl.src[part - NPART] = (uint8_t)DL_CARD;
+            fm1_irq_on();
+            snd_mark(TRK_DRUM);
+            sdm_smp_gen++;
+            ui_say("LANE: ", nm);
+            return;
+        }
+#endif
 #if FELUCCA_SD_STREAM
         sst_part_set(part, sdm_smp[part].hash);      /* (the part's CARD sample: placed by sd_stream_plan.c) */
         if (trk[part].eng_req != (uint8_t)ENG_SLOT_SAMPLE) {   /* USE puts the part on SAMPLE (the user, 2026-10-26) */
@@ -942,6 +1025,10 @@ static int sdm_save(uint32_t list, const char *name, const char *was)
             return 0;
         }
         n = list == SDC_PRE ? up_card_take(sd_blk, name) : ukit_card_take(sd_blk);
+#if FELUCCA_SD_LANES
+        if (list == SDC_KIT && n)                    /* (the lanes' card samples after the kit: hash and size each) */
+            n = sdm_kit_lanes_out(sd_blk, n);
+#endif
         sdl_path(sdm.path, sizeof sdm.path, SDM_FOLDER[list], name);
         r = n && sdl_cat(sdm.path, sdl_len(sdm.path), sizeof sdm.path, list == SDC_PRE ? ".OPS" : ".OPK") < sizeof sdm.path
                 ? sdm_was(sdm_small_put(sdm.path, list == SDC_PRE ? "OPPR" : "OPKT", sd_blk, n)) : FR_INT_ERR;
