@@ -63,6 +63,7 @@ static DWORD sd_ms_since(DWORD t0) { return (DWORD)(SD_NOW() - t0) / SD_TICKS_MS
 #define CMD17	(0x40+17)	/* READ_SINGLE_BLOCK */
 #define CMD18	(0x40+18)	/* READ_MULTIPLE_BLOCK */
 #define CMD24	(0x40+24)	/* WRITE_BLOCK */
+#define CMD25	(0x40+25)	/* WRITE_MULTIPLE_BLOCK */
 #define CMD55	(0x40+55)	/* APP_CMD */
 #define CMD58	(0x40+58)	/* READ_OCR */
 #define CMD59	(0x40+59)	/* CRC_ON_OFF */
@@ -527,6 +528,101 @@ static DRESULT disk_writeblock(const BYTE *buf, DWORD sector)
 	}
 	release_spi();
 	return r;
+}
+
+/* ---- a polled multi-block writer (Optimist: the recorder, storage/sd/sd_rec.c; docs/SD-CARD-DESIGN.md 7) ----------
+ * CMD25 from a sector, the blocks one at a time; each call selects the card and lets it go before it returns, so the
+ * screen keeps the bus between blocks and while the card programs (SPI mode: deselecting during a multi-block write's
+ * busy, or between its blocks, leaves the write open; the spec's, not yet seen on an FM-1). Never a wait on busy:
+ *   sd_wr_open(sector)   CMD25 at sector: RES_OK, RES_ERROR (refused)
+ *   sd_wr_poll()         SDW_READY (the next block may go), SDW_BUSY (the card programs), SDW_IDLE (stopped: the
+ *                        write is over), SDW_ERR (busy past 500 ms, a block refused)
+ *   sd_wr_block(buf)     on SDW_READY: the token 0xFC, the block (by DMA where the bus has it), its CRC16 (checked by
+ *                        the card: CMD59); accepted -> busy; refused (a CRC, a write error) -> SDW_ERR
+ *   sd_wr_stop()         on SDW_READY: the stop token 0xFD, then busy until SDW_IDLE
+ *   sd_wr_abort()        after SDW_ERR: the stop sent once the card is ready (waits up to 500 ms: an error's path) */
+enum { SDW_IDLE = 0, SDW_READY, SDW_BUSY, SDW_STOP, SDW_ERR };
+static struct {
+	DWORD t0;							/* the busy's start */
+	BYTE state;							/* SDW_IDLE, SDW_BUSY (a block programs), SDW_STOP (the stop programs), SDW_ERR */
+	DWORD blocks;						/* sent since the open */
+} sd_wr;
+
+static DRESULT sd_wr_open(DWORD sector)
+{
+	if (!(CardType & CT_BLOCK)) sector *= 512;
+	if (send_cmd(CMD25, sector) != 0) {
+		release_spi();
+		sd_wr.state = SDW_ERR;
+		return RES_ERROR;
+	}
+	release_spi();
+	sd_wr.state = SDW_READY;
+	sd_wr.blocks = 0;
+	return RES_OK;
+}
+
+static BYTE sd_wr_poll(void)
+{
+	BYTE d;
+	if (sd_wr.state == SDW_IDLE || sd_wr.state == SDW_ERR || sd_wr.state == SDW_READY) return sd_wr.state;
+	SD_SEL();
+	d = SD_RX();						/* busy: DO held low */
+	release_spi();
+	if (d == 0xFF) return sd_wr.state = sd_wr.state == SDW_STOP ? SDW_IDLE : SDW_READY;
+	if (sd_ms_since(sd_wr.t0) >= 500) sd_wr.state = SDW_ERR;
+	return sd_wr.state == SDW_ERR ? SDW_ERR : SDW_BUSY;
+}
+
+static BYTE sd_wr_block(const BYTE *buf)
+{
+	WORD c;
+	UINT i;
+	BYTE r;
+	if (sd_wr.state != SDW_READY) return sd_wr.state == SDW_ERR ? SDW_ERR : SDW_BUSY;
+	c = sd_crc16(buf, 512);
+	SD_SEL();
+	(void)SD_RX();						/* a byte gap */
+	SD_TX(0xFC);
+	if (SD_DMA_OK() && !((UINT)(uintptr_t)buf & 3)) {
+		SD_TXDMA(buf, 512);
+		if (!SD_DMA_END()) { release_spi(); return sd_wr.state = SDW_ERR; }
+	} else {
+		for (i = 0; i < 512; i++) SD_TX(buf[i]);
+	}
+	SD_TX((BYTE)(c >> 8)); SD_TX((BYTE)c);
+	r = SD_RX() & 0x1F;					/* the data response: 0x05 accepted, 0x0B CRC, 0x0D write error */
+	release_spi();
+	if (r != 0x05) return sd_wr.state = SDW_ERR;
+	sd_wr.blocks++;
+	sd_wr.t0 = SD_NOW();
+	return sd_wr.state = SDW_BUSY;
+}
+
+static BYTE sd_wr_stop(void)
+{
+	if (sd_wr.state != SDW_READY) return sd_wr.state == SDW_ERR ? SDW_ERR : SDW_BUSY;
+	SD_SEL();
+	(void)SD_RX();
+	SD_TX(0xFD);
+	(void)SD_RX();						/* (a byte, then the busy) */
+	release_spi();
+	sd_wr.t0 = SD_NOW();
+	return sd_wr.state = SDW_STOP;
+}
+
+static void sd_wr_abort(void)
+{
+	DWORD t0 = SD_NOW();
+	SD_SEL();
+	while (SD_RX() != 0xFF && sd_ms_since(t0) < 500)
+		;
+	SD_TX(0xFD);
+	(void)SD_RX();
+	while (SD_RX() != 0xFF && sd_ms_since(t0) < 1000)
+		;
+	release_spi();
+	sd_wr.state = SDW_IDLE;
 }
 
 #if !FELUCCA_SD_FATFS

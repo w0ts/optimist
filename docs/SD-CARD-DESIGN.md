@@ -338,7 +338,7 @@ Each step names who does it. Claude never writes to the FM-1.
   - Not built: drum lanes and the slicer from the card (the lanes' user sounds and SLICE read the flash's slots by
     zone; each would take a source per sound and its own render path: the same reader, `sst_frame`); the sample
     picker's call (`sst_part_set`) and the hash in the project (the UI's); WAV loop points (smpl) and the root note
-    from the file; recording.
+    from the file.
 - **Streaming on the bench** (when an FM-1 has the card; a console build: USB_CONSOLE, which needs room in the
   profile): 1. `sd`, then `sd bench` and `sd bench SAMPLES/x.wav`: the clock, the DMA, KB/s by CMD18 (the budget the
   streams share). 2. The index pass, then `sd stream part 1 SAMPLES/x.wav` (and parts 2, 3), SAMPLE on those parts,
@@ -353,10 +353,27 @@ Each step names who does it. Claude never writes to the FM-1.
   voices against 8 SAMPLE (flash) voices: the reader's cost a sample (expected small: one compare, a slot change
   every 256 samples). What decides: the ring size (SD_RING) from `least lead ms` and the dry count under load; the
   run length (`SST_RUN`) from the screen's smoothness against `longest run us`.
-- **Recording needs its own writer**: `pf_write` goes byte by byte through `disk_writep` (one CMD24 a sector) and the
-  sector's end waits for the card's busy in the main loop, up to 500 ms (real cards hit 100-250 ms now and then).
-  Recording needs the mirror of `sd_rd_*`: a polled CMD25 multi-block writer from a ring, never blocking on busy
-  (CMD25 is also several times faster than CMD24 on most cards). Today's write path is backup-grade.
+- **Recording (built 2026-10-26, host-tested only: builder item SD_REC, bit 416)**: the master output, 16-bit stereo
+  at 44.1 kHz (176 KB/s), into `RECORD/REC-nnnn.WAV`. The writer is the mirror of `sd_rd_*`: `sd_mmc.c sd_wr_*`, a
+  polled CMD25 that sends one block a call and never waits on the card's busy; each call selects the card and lets it
+  go, so the screen keeps the bus between blocks and while the card programs. Deselecting during a multi-block write
+  keeps it open by the SD spec; **an FM-1 has not shown it yet** (the bench's first check once the board exists).
+  The recorder (`storage/sd/sd_rec.c`):
+  - **Audio into the card.** The audio interrupt puts each block's frames into a ring of SD_REC KB (32 KB covers
+    186 ms of stalls; `core/audio.c` after the mix). The main loop's passes and its idle wait send whole blocks.
+  - **A full ring.** A frame it cannot hold is dropped and counted, never noise.
+  - **The file.** One contiguous run (`sda_create`, SDA_RECORD: the length asked for, else a minute). A take that
+    reaches the run's end stops there (FULL).
+  - **The header.** It is block 0, written first with no length and again at the end with the take's. A JUNK chunk
+    pads it to 512 B, so the data starts at byte 512.
+  - **The card is held.** While a take writes, the card takes no other command: FatFs' reads and writes are refused
+    (`sd_diskio.c`: RES_NOTRDY), and the sample streams wait.
+  - **Starting a take.** From the console for now (`sd rec [ms]`, `sd rec stop`, `sd rec`: the state, blocks, frames
+    lost, the ring's most blocks waiting); the device's UI is to come.
+  Tests: `tests/sd_wr_test.c` (the writer: 64 blocks by bytes and by DMA, SDHC and SDSC, the screen's bytes between
+  them, a 150 ms stall, a 600 ms one, a power cut), `tests/sd_rec_test.c` (2 s checked frame by frame and the header,
+  a 150 ms stall covered, 300 ms dropping frames, a take filling its run, FatFs refused while it writes). Cost on
+  sd-card-mots: SD_REC 32, about 1.2 KB of flash and the ring's 32 KB of the pool.
 - **Card formats safe over a power cut**: a project or backup written in place destroys the old copy before the new
   one is whole (no journal, fixed-size files). The card's formats get A/B slots with a generation number and a CRC,
   as the settings in flash already do.

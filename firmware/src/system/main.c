@@ -562,6 +562,9 @@ static BOOT_ORDER void fm1_main(void)
         sst_plan_poll();                                /* the card samples' heads and rings in the arena (sd_stream_plan.c) */
         (void)sst_service();                            /* a run for the stream with the least left (sd_stream.c) */
 #endif
+#if FELUCCA_SD_REC
+        (void)sdr_service();                            /* a recording's next block to the card (sd_rec.c) */
+#endif
         autosave_tick();                                /* the working project into flash, when quiet */
 #if FELUCCA_SD_UI
         sdm_poll();                                     /* SD card mode: the card after a mount, a save left pending (sd_mode.c) */
@@ -601,6 +604,9 @@ static BOOT_ORDER void fm1_main(void)
             meter_tap();                        /* (once per audio half: the meters see every one) */
 #if FELUCCA_SD_STREAM
             (void)sst_service();                /* (the card's runs into the streams' rings while the screen idles) */
+#endif
+#if FELUCCA_SD_REC
+            (void)sdr_service();                /* (a recording's blocks while the screen idles) */
 #endif
 #if FELUCCA_OTA && FELUCCA_EDITOR
             ed_service();                       /* editor replies without waiting for the next frame */

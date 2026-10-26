@@ -8,7 +8,11 @@
  * (SD_RXDMA / SD_TXDMA) moves a block only after a few polls of SD_DMA_DONE, and counts any byte the CPU clocks while a
  * DMA is running (the bus is the DMA's then). A power cut (C.cut_at): the card takes that many block writes, then
  * loses its power before the next one lands (a block is written whole or not at all: the model's sectors are atomic,
- * as a card's are meant to be) and answers nothing until card_power_on. Include after setting FELUCCA_SD_FATFS; then
+ * as a card's are meant to be) and answers nothing until card_power_on. CMD25 (the recorder's writer): blocks after
+ * 0xFC tokens, each followed by a busy of C.wbusy ticks (DO low while selected), a longer one once (C.wstall_at: the
+ * block after which the card stalls C.wstall ticks), 0xFD ends it (a busy of C.wbusy too); the card may be deselected
+ * between blocks and during busy (the write stays open); a token or a command sent while busy is counted
+ * (C.wr_misuse). Include after setting FELUCCA_SD_FATFS; then
  * include storage/sd/sd_mmc.c. */
 #include <stdint.h>
 #include <stdio.h>
@@ -49,6 +53,12 @@ typedef struct {
     int cut;                                   /* the cut happened: the card answers nothing */
     uint32_t stall_until;                      /* busy until clk reaches this: a read's next token waits (a card's
                                                 * 100 ms and more now and then); 0 never */
+    int wmulti;                                /* CMD25 open: the blocks go on at waddr until 0xFD */
+    uint32_t busy_until;                       /* a write's busy: DO low while selected until clk reaches it */
+    uint32_t wbusy;                            /* ticks of busy after each CMD25 block (and its stop) */
+    long wstall_at;                            /* >0: after that many CMD25 blocks the card is busy wstall ticks once */
+    uint32_t wstall;
+    long wblocks, cmd25s, wr_misuse;           /* CMD25 blocks written, CMD25s, tokens / commands sent while busy */
 } card_t;
 static card_t C;
 static int t_over;                             /* the host's clock: 1 the faster one (SD_SET_OVER) */
@@ -204,14 +214,15 @@ static void command(void)
         return;
     case 17:
     case 18:
-    case 24: {
+    case 24:
+    case 25: {
         uint32_t s;
         if (C.idle) { q(0x05); return; }
         if (!C.hc && (arg & 511u)) { q(0x40); return; }   /* a byte address off a block */
         s = C.hc ? arg : arg / 512u;
         if (s >= card_sectors()) { q(0x40); return; }
         q(0);
-        if (idx == 24) { C.wstate = 1; C.waddr = s; return; }
+        if (idx == 24 || idx == 25) { C.wstate = 1; C.waddr = s; C.wmulti = idx == 25; C.cmd25s += idx == 25; return; }
         if (C.no_token) return;
         if (idx == 18) { C.cmd18s++; C.rs = 1; C.rsec = s; return; }
         C.cmd17s++;
@@ -237,6 +248,10 @@ static uint8_t xchg(uint8_t in)
         C.lcd_bytes++;
         if (in != 0xFF) C.lcd_bad++;
         return 0xFF;
+    }
+    if (clk < C.busy_until && C.outpos >= C.outlen) {   /* a write's busy: DO low; anything sent but 0xFF is misuse */
+        if (in != 0xFF) C.wr_misuse++;
+        return 0x00;
     }
     rs0 = C.rs;                                /* (a byte the stream's listener took is not taken again below) */
     if (C.rs) {                                /* streaming: the card listens for CMD12 while it sends */
@@ -266,7 +281,12 @@ static uint8_t xchg(uint8_t in)
         return b;
     }
     if (C.wstate == 1) {
-        if (in == 0xFE) { C.wstate = 2; C.wpos = 0; }
+        if (C.wmulti && in == 0xFD) {          /* the multi-block write's stop: busy, then idle */
+            C.wstate = 0; C.wmulti = 0;
+            C.busy_until = clk + 2u + C.wbusy;
+            return 0xFF;
+        }
+        if (in == (C.wmulti ? 0xFC : 0xFE)) { C.wstate = 2; C.wpos = 0; }
         return 0xFF;
     }
     if (C.wstate == 2) {
@@ -287,6 +307,14 @@ static uint8_t xchg(uint8_t in)
             }
             memcpy(p, C.wbuf, 512);
             C.writes++;
+            if (C.wmulti) {                    /* accepted; busy for the block (once longer), then the next token */
+                C.wblocks++;
+                q(0xE5);
+                C.busy_until = clk + 2u + C.wbusy + (C.wstall_at > 0 && C.wblocks == C.wstall_at ? C.wstall : 0u);
+                C.wstate = 1;
+                C.waddr++;
+                return 0xFF;
+            }
             q(0xE5); q(0); q(0); q(0);         /* data accepted, then busy */
         }
         return 0xFF;

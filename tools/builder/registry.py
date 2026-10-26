@@ -1162,6 +1162,21 @@ _add("SD_RING", "FELUCCA_SD_RING_KB", "samples streamed from the SD card (SAMPLE
           "to drop (a part's engine, or a shorter pre-buffer). A card sample plays at most an octave up (each octave "
           "doubles what it reads). Needs LAYOUT and FAR_OK (full FatFs), SAMPLE and ARENA.",
      off_warning="no samples from the card")
+# bit 416 (2026-10-26): the next free one after SD_RING's 415; the master recorded to the SD card (storage/sd/sd_rec.c,
+# docs/SD-CARD-DESIGN.md 7): the ring's KB, 0 off (registry.h FELUCCA_SD_REC_KB -> SD_REC with full FatFs)
+_add("SD_REC", "FELUCCA_SD_REC_KB", "record the master output to the SD card: the buffer for the card's stalls", Y,
+     416, default=0, parent="SDCARD",
+     choices=((0, "off"), (16, "16 KB (93 ms of 44.1 kHz 16-bit stereo)"), (32, "32 KB (186 ms)"), (64, "64 KB (372 ms)")),
+     experimental=True, target_only=True, tested="host-tested only (tests/sd_wr_test.c, sd_rec_test.c: a card model with "
+     "stalls, an interrupt-driven audio clock); no FM-1 has the card yet; for now started from the console (sd rec)",
+     desc="Records what the FM-1 plays (the master, 16-bit stereo at 44.1 kHz) into a WAV on the SD card, "
+          "RECORD/REC-0001.WAV and on. The audio goes into a buffer of this size and the card takes it a block at a "
+          "time between the screen's strips (the screen and the card share a bus); a card that stalls longer than the "
+          "buffer holds loses frames (counted), never writes noise. The file is one contiguous run sized for the "
+          "length asked (a minute when none): a take that reaches its end stops there. While it records, the card "
+          "does nothing else: samples from the card wait, the card's lists and saves say the card is busy. "
+          "Needs LAYOUT and FAR_OK (full FatFs). The buffer is RAM of the pool for as long as the build has it.",
+     off_warning="no recording to the card")
 # bit 412 (2026-10-25): reserved for the RAMTEXT overlays (411: the effects' arena)
 _add("OVERLAY", "FELUCCA_OVERLAY", "engines' fast code loaded per part (RAMTEXT overlays)", Y, 412, default=0,
      experimental=True, target_only=True, tested="host-tested and booted in the emulator only, not on an FM-1",

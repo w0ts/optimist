@@ -411,6 +411,41 @@ static void con_sd_stream_cmd(const char *p)
 }
 #endif
 
+#if FELUCCA_SD_REC
+/* sd rec [ms]: a take of the master into RECORD/REC-nnnn.WAV (the first free name; ms: its run, else a minute);
+ * sd rec stop; sd rec: the state, the blocks written, the frames lost, the ring's most blocks waiting */
+static void con_sd_rec(const char *p)
+{
+    static const char *const ST[] = {"off", "recording", "stopping", "done", "full", "error"};
+    int ok;
+    if (con_word(&p, "stop")) {
+        sdr_stop();
+    } else {
+        uint32_t ms = con_num(&p, &ok), k;
+        if (ok || *p == 0) {
+            char path[32];
+            FRESULT r = FR_EXIST;
+            (void)f_mkdir("RECORD");
+            for (k = 1; k < 10000u && r == FR_EXIST; k++) {
+                str_cpy(path, "RECORD/REC-0000.WAV", sizeof path);
+                path[11] = (char)('0' + k / 1000u), path[12] = (char)('0' + k / 100u % 10u);
+                path[13] = (char)('0' + k / 10u % 10u), path[14] = (char)('0' + k % 10u);
+                r = sdr_busy() ? FR_LOCKED : sdr_start(path, ok ? ms : 0u);
+            }
+            con_kv("sd rec start", (int32_t)r);
+            if (r == FR_OK) {
+                con_puts(path);
+                con_puts("\r\n");
+            }
+        }
+    }
+    con_kv(ST[sdr_state % 6u], (int32_t)sdr.sent);
+    con_kv("  lost frames", (int32_t)sdr.lost);
+    con_kv("  ring most blocks", (int32_t)sdr.lag_max);
+    con_kv("  of", (int32_t)SDR_BLKS);
+}
+#endif
+
 static void con_sd(const char *p)
 {
     if (con_word(&p, "pins")) {
@@ -459,6 +494,10 @@ static void con_sd(const char *p)
 #if FELUCCA_SD_STREAM
     else if (con_word(&p, "stream"))
         con_sd_stream_cmd(p);
+#endif
+#if FELUCCA_SD_REC
+    else if (con_word(&p, "rec"))
+        con_sd_rec(p);
 #endif
     else
         con_sd_mount();

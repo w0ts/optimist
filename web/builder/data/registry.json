@@ -4098,7 +4098,8 @@
     "choices": [],
     "provenance": null,
     "children": [
-     "SD_RING"
+     "SD_RING",
+     "SD_REC"
     ],
     "tested": "host-tested only (a card model on real FAT16 / FAT32 images); no FM-1 has the mod yet",
     "provenance_line": ""
@@ -4296,6 +4297,47 @@
     "provenance": null,
     "children": [],
     "tested": "host-tested only (tests/sd_stream_test.c, sd_stream_plan_test.c: a card model with stalls, an interrupt-driven audio clock); no FM-1 has the card yet",
+    "provenance_line": ""
+   },
+   {
+    "key": "SD_REC",
+    "flag": "FELUCCA_SD_REC_KB",
+    "label": "record the master output to the SD card: the buffer for the card's stalls",
+    "group": "System",
+    "bit": 416,
+    "default": 0,
+    "parent": "SDCARD",
+    "desc": "Records what the FM-1 plays (the master, 16-bit stereo at 44.1 kHz) into a WAV on the SD card, RECORD/REC-0001.WAV and on. The audio goes into a buffer of this size and the card takes it a block at a time between the screen's strips (the screen and the card share a bus); a card that stalls longer than the buffer holds loses frames (counted), never writes noise. The file is one contiguous run sized for the length asked (a minute when none): a take that reaches its end stops there. While it records, the card does nothing else: samples from the card wait, the card's lists and saves say the card is busy. Needs LAYOUT and FAR_OK (full FatFs). The buffer is RAM of the pool for as long as the build has it.",
+    "experimental": true,
+    "notice": "",
+    "off_warning": "no recording to the card",
+    "env": "",
+    "target_only": true,
+    "symbols": [],
+    "no_image": false,
+    "fixed": false,
+    "head": false,
+    "choices": [
+     [
+      0,
+      "off"
+     ],
+     [
+      16,
+      "16 KB (93 ms of 44.1 kHz 16-bit stereo)"
+     ],
+     [
+      32,
+      "32 KB (186 ms)"
+     ],
+     [
+      64,
+      "64 KB (372 ms)"
+     ]
+    ],
+    "provenance": null,
+    "children": [],
+    "tested": "host-tested only (tests/sd_wr_test.c, sd_rec_test.c: a card model with stalls, an interrupt-driven audio clock); no FM-1 has the card yet; for now started from the console (sd rec)",
     "provenance_line": ""
    },
    {

@@ -78,6 +78,9 @@ static void sd_end(void)
 #include "storage/sd/sd_index.c"                  /* SYSTEM/INDEX.BIN: the samples by hash */
 #include "storage/sd/sd_browse.c"                 /* any list as pages of 16 on the keys */
 #include "storage/sd/sd_save.c"                   /* a project saved by name, staged in flash, with versions */
+#if FELUCCA_SD_REC
+#include "storage/sd/sd_rec.c"                    /* the master recorded to the card: a ring, CMD25 a block a call */
+#endif
 #if FELUCCA_SD_STREAM
 #define SST_CARD_OK() (sd_state == SD_READY)
 #define SST_IRQ_OFF() fm1_irq_off()
