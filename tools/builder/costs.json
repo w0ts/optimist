@@ -1480,7 +1480,7 @@
   },
   "ENG_NOISE": {
    "1": {
-    "flash": 2824,
+    "flash": 2828,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -1695,7 +1695,7 @@
    }
   }
  },
- "measured": "2026-10-26 14:08",
+ "measured": "2026-10-26 15:24",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
@@ -2013,9 +2013,9 @@
    },
    "built_hash": "13d78bfb",
    "sizes": {
-    "flash": 761680,
+    "flash": 763596,
     "ram": 98900,
-    "pool": 284632,
+    "pool": 285064,
     "ramtext": 38572
    }
   },
@@ -3054,9 +3054,9 @@
    },
    "built_hash": "2518d6fb",
    "sizes": {
-    "flash": 758820,
+    "flash": 760708,
     "ram": 105316,
-    "pool": 278224,
+    "pool": 278656,
     "ramtext": 38572
    }
   },
@@ -4176,9 +4176,9 @@
    "ramtext": 0
   },
   "SDCARD=1,LAYOUT=1,FAR_OK=1,ENG_SAMPLE=0,DRUM_USR=0,SNAPSHOTS=0,PATTERNS=1": {
-   "flash": 27908,
+   "flash": 29576,
    "ram": 1304,
-   "pool": 5972,
+   "pool": 6404,
    "ramtext": -44
   },
   "ENG_FM6=0,TAB_IN_POOL=1": {
