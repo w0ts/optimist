@@ -293,6 +293,8 @@ static const struct __attribute__((packed)) { uint8_t kind : 3, e : 5; const cha
     B(PROPHET, BK_KEYS, ENG_UID_PROPHET, "P5 CLAV")
     B(WAVE, BK_PAD, ENG_UID_WAVE, "PPG PAD") B(WAVE, BK_LEAD, ENG_UID_WAVE, "WT SWEEP") B(WAVE, BK_BASS, ENG_UID_WAVE, "SYNC BASS")
     B(WAVE, BK_PLUCK, ENG_UID_WAVE, "DIGI BELL") B(WAVE, BK_PAD, ENG_UID_WAVE, "VOCAL PAD") B(WAVE, BK_LEAD, ENG_UID_WAVE, "SYNC SCREAM")
+    B(SQUARE, BK_LEAD, ENG_UID_SQUARE, "SQ LEAD") B(SQUARE, BK_BASS, ENG_UID_SQUARE, "SQ BASS")   /* (EX_SQUARE, the example) */
+    B(SQUARE, BK_PLUCK, ENG_UID_SQUARE, "SQ PLUCK")
 #if GR_FALLBACK                                     /* (GRAIN without its presets' sets: eng_grain.c) */
     B(GRAIN, BK_PAD, 8, "GRAIN PAD")
 #endif
