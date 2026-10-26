@@ -123,6 +123,12 @@ def verdict(ev, err=""):
     if errors:
         raise Refused("The configuration was refused (fix it in the web builder and send it again):\n\n" +
                       "\n".join(f"- {e}" for e in errors))
+    if ev.get("fit") is False:                  # (the estimate: a build that cannot fit is not started; issue 29,
+                                                # 2026-10-25, every engine on, the linker 183 KB over after 30 s)
+        over = [f"- {r}: {v.get('used', 0):,} of {v.get('capacity', 0):,} B, {v.get('over', 0):,} B too many"
+                for r, v in (ev.get("fits") or {}).items() if v.get("over", 0) > 0]
+        raise Refused("The configuration does not fit the FM-1 (the builder's estimate): turn something off in the web "
+                      "builder and send it again.\n\n" + "\n".join(over))
     if not KEY.fullmatch(ev.get("key") or ""):
         raise Refused("The configuration has no cloud key (no commit was given to the check).")
     name = ev.get("name") or ""

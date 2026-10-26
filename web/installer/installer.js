@@ -358,7 +358,7 @@ export function mountInstaller(container, opts = {}) {
     connectBox,
     h("details.o-details.oi-logbox", {}, h("summary", {}, TEXT.logTitle), el.log));
 
-  /* ---- Build your own: its own flow (the builder), a card of its own below Install, as the Mirror app */
+  /* ---- Build your own: its own flow (the builder), a card of its own, first (the user, 2026-10-25), Install under it */
   const ownCard = h("section.o-panel.oi-step.oi-own", { "aria-labelledby": "oi-sown" },
     h("div.o-panel-h", {}, h("h2.oi-h", { id: "oi-sown" }, h("span", {}, TEXT.ownTitle))),
     h("div.o-panel-b", {}, h("p.o-dim", {}, TEXT.buildOwnDesc), el.own));
@@ -382,7 +382,7 @@ export function mountInstaller(container, opts = {}) {
   el.meta = h("p.oi-meta.o-dim");
   const root = h("div.oi", {},
     h("header.oi-intro", {}, h("h1.oi-title", {}, TEXT.title), h("p.oi-what", {}, TEXT.what)),
-    h("div.oi-steps", {}, installCard, ownCard, rescueBox),
+    h("div.oi-steps", {}, ownCard, installCard, rescueBox),
     h("footer.oi-foot", {}, el.meta,
       h("p.o-dim", {}, h("a", { href: srcHref, target: "_blank", rel: "noopener" }, TEXT.source), " · ", link("about", TEXT.about))));
   container.replaceChildren(root);
