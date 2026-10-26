@@ -209,6 +209,7 @@ static void op_undo(int redo)
  * confirm let go without YES (NO, another row, 3 s) passes to the next part; none left: MEM FULL, given up */
 static void mem_tick(void)
 {
+#if PART_DROPS
     uint32_t k;
     char a[24];
 #if FXM_NEED
@@ -250,6 +251,7 @@ static void mem_tick(void)
     str_app(a, " ", sizeof a);
     str_app(a, trk_eng_name(&trk[k]), sizeof a);
     op_arm(ARM_OP, OA_DROP, k, "DROP", a, 1);
+#endif
 }
 
 /* ---- YES and NO */

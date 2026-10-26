@@ -728,14 +728,19 @@ static int pm_play(uint32_t e, uint32_t pi, uint32_t note)
            pk, part_mem_owner[0], busy ? " STILL SOUNDING" : "");
     return acc > 0 && pk <= 32767 && !busy && part_mem_owner[0] == (e == 0u ? part_mem_owner[0] : e + 1u);
 }
+#if PART_DROPS
+#define PM_FIXED_OK 1                                   /* (an arena placed by need: its own size) */
+#else
+#define PM_FIXED_OK (sizeof part_mem == NPART * ARN_SLOT)
+#endif
 static void t_part_mem(void)
 {
     static uint8_t keep[ARN_SLOT];
     int ok;
     reset(120);
     check(ARN_SLOT >= sizeof(fm6_mem_t) && ARN_SLOT >= PHYS_POLY * sizeof(phys_slot_t) &&
-          ARN_SLOT < sizeof(fm6_mem_t) + PHYS_POLY * sizeof(phys_slot_t) && (!ARN_FIXED || sizeof arn_mem == NPART * ARN_SLOT),
-          "part memory: one per part, the largest engine's, not the sum (the arena's fixed slots)");
+          ARN_SLOT < sizeof(fm6_mem_t) + PHYS_POLY * sizeof(phys_slot_t) && PM_FIXED_OK,
+          "part memory: one per part, the largest engine's, not the sum");
     ok = pm_play(ENG_IX_FM6, 0, 60);
     ok &= pm_play(ENG_IX_PHYS, 3, 48);                /* (SYMP-like presets fill the lines) */
     ok &= pm_play(ENG_IX_ACID, 0, 36);

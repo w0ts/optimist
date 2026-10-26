@@ -21,9 +21,7 @@
  *   arn_free_bytes()        the room left (the largest gap, for the MEM message)
  * ARN_PARTS and ARN_BYTES are set by the includer; ARN_TOPS (default none)
  * the parts placed best fit from the arena's top instead of first fit from its bottom (the effects' lines: apart from
- * the engines' blocks, and the gaps they leave filled by size, so the arena cuts up less). With ARN_FIXED, ARN_SLOT (the largest block a part can ask, a
- * multiple of ARN_ALIGN) and an arena of ARN_PARTS x ARN_SLOT, the placement is fixed, part k at k x ARN_SLOT, as the fixed per-part memories were: nothing is
- * ever refused (engines.c's default). A smaller arena places by first fit and may refuse.
+ * the engines' blocks, and the gaps they leave filled by size, so the arena cuts up less). A change that does not fit is refused.
  * A part's own block is free for its own reservation: the new block is written only at the switch, when the old
  * engine is done (as the one fixed memory per part was reused); the other parts' blocks and reservations are not. */
 #ifndef ARN_ALIGN
@@ -50,9 +48,6 @@ static arn_st_t arn;                                    /* (one struct: a trial 
 static uint8_t arn_mem[ARN_BYTES] __attribute__((aligned(8))) IN_POOL;
 
 static uint32_t arn_round(uint32_t n) { return (n + ARN_ALIGN - 1u) & ~(ARN_ALIGN - 1u); }
-#ifndef ARN_FIXED                                       /* (1: the includer's ARN_BYTES is ARN_PARTS x ARN_SLOT) */
-#define ARN_FIXED 0
-#endif
 
 /* block j of the 2 x ARN_PARTS (the parts' blocks, then the reservations), but the parts' blocks in skip (a bit mask of
  * parts whose current block is not counted): its end, 0 none; its start in *o */
@@ -115,12 +110,6 @@ static int arn_reserve(uint32_t k, uint32_t n)
         arn_next[k].len = 0;
         return 0;
     }
-#if ARN_FIXED
-    if (n > arn_round(ARN_SLOT))
-        return arn_has_next[k] = 0, -1;
-    arn_next[k].off = k * arn_round(ARN_SLOT), arn_next[k].len = n, arn_next[k].idle = 0;
-    return 0;
-#endif
     if (arn_cur[k].len >= n) {                          /* its own block holds it: reused at the switch */
         arn_next[k] = arn_cur[k];
         return 0;
@@ -175,10 +164,6 @@ static int arn_fits(uint32_t k, uint32_t n, uint32_t skip)
         return 0;
     if (!n || arn_cur[k].len >= n)
         return 1;
-#if ARN_FIXED
-    (void)skip;
-    return n <= arn_round(ARN_SLOT);
-#endif
     return arn_gap(n, arn_idle() | skip | 1u << k) != ARN_BYTES;
 }
 

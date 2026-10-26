@@ -177,8 +177,9 @@ static void apply_preset_to(track_t *t, uint32_t pi)
 /* the engine's defaults and its first preset. With the audio IRQ off: the ISR sees the old engine with
  * its values or the new one with its own (voice.c engine_block), never one with the other's */
 /* the engine's name as shown: NONE for a silent placeholder (core.h) */
-static const char *trk_eng_name(const track_t *t) { return t->silent ? "NONE" : ENGINES[t->eng_req % NENGINES]->name; }
+static const char *trk_eng_name(const track_t *t) { return T_SILENT(t) ? "NONE" : ENGINES[t->eng_req % NENGINES]->name; }
 
+#if PART_DROPS
 /* a part dropped to make memory room (the user, 2026-10-25): a silent placeholder, its sequence kept, its memory
  * given back at the switch (an engine that keeps nothing in the arena), until an engine is picked (set_engine_of) */
 static void part_drop(track_t *t)
@@ -269,7 +270,6 @@ static int mem_retry(void)
     return 1;
 }
 
-#if !ARN_FIXED
 /* A load's refusals (engines.c part_mem_refused.lmask; the user, 2026-10-25: "the list page as designed"): every part a
  * project's load could not place is a silent placeholder with the project's sound, its engine wanted (leng). The UI's
  * list (ui/optimist/op_memlist.c, MEM_LIST: the arena's extras; the core alone: mem_load_next, below) shows them and what can be dropped: the parts that hold memory, then the effects' lines
@@ -436,8 +436,6 @@ static int mem_load_next(void)
     return 0;
 }
 #endif
-#else
-#define mem_load_next() 0
 #endif
 
 static void set_engine_of(track_t *t, uint32_t ei)
@@ -455,7 +453,9 @@ static void set_engine_of(track_t *t, uint32_t ei)
 #endif
     sound_change(t);                                  /* (SLOOP 2.6: the sound as it is, before anything new is written) */
     t->eng_req = (uint8_t)(ei % NENGINES);
+#if PART_DROPS
     t->silent = 0;                                    /* (an engine picked: the placeholder plays again) */
+#endif
     for (i = 0; i < 8u; i++)
         t->p[P_E0 + i] = e->edit[i].def;
     apply_preset_to(t, eng_first_playable(e));      /* (its first preset; none: INIT) */
