@@ -61,6 +61,13 @@ FM1_INLINE void fm1_lcd_hw_init(void)
 
 FM1_INLINE void fm1_lcd_baud(uint32_t b) { FM1_LCD_SPI_BAUD = b; }
 
+FM1_INLINE void fm1_lcd_cs_gap(void)                    /* CS high long enough for the panel (tCHW 40 ns, ST7789V): a few
+                                                         * register reads at 300 MHz */
+{
+    for (volatile uint32_t i = 0; i < 8u; i++)
+        (void)FM1_LCD_PC_OUT;
+}
+
 /* backlight brightness by software PWM of PA2 (after X0X, charlesvestal/fm1-x0x 61654ba, Charles Vestal,
  * GPL-3.0-only), from the 10 kHz TIMER5 ISR (the key matrix drives port A from that ISR too, so nothing races
  * it there): on for duty of every 16 ticks, 625 Hz; duty 16 = always on (src/bright.c, FELUCCA_BRIGHT).
@@ -97,6 +104,13 @@ FM1_INLINE void fm1_lcd_deselect(void) { FM1_LCD_PC_OUT |= FM1_LCD_IDLE_CS | FM1
 
 FM1_INLINE void fm1_lcd_send_cmd(uint8_t c)
 {
+#if !FM1_LCD_IDLE_CS
+    FM1_LCD_PC_OUT |= FM1_LCD_CS;                       /* the SD mod idles CS low: a CS pulse before each command lets the
+                                                         * panel resync its bit count (a stray clock edge at boot left
+                                                         * the screen black on the FM-1, 2026-10-26); no clock meanwhile:
+                                                         * the card, selected for a moment, sees nothing */
+    fm1_lcd_cs_gap();
+#endif
     FM1_LCD_PC_OUT &= ~FM1_LCD_DC;
     FM1_LCD_PC_OUT &= ~FM1_LCD_CS;
     FM1_LCD_SPI_CON |= 0x4000u;
