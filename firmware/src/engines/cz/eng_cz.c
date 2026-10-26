@@ -29,15 +29,23 @@ typedef struct { cz_env_t eg[2][3]; uint32_t vib_phase, vib_ticks, noise; } cz_v
 /* the EDIT values of a part, as the render takes them (cz_block) */
 typedef struct { uint8_t line, mod, vib, tone; int32_t dcw, det16, detf, wtim, atim; } cz_ed_t;
 
-static cz_voice_t cz_v[NPART][NVOICE];
-static uint8_t cz_tone[NPART][128];                /* the part's tone: Casio's 128 synthesis bytes */
-static cz_env_def_t cz_defs[NPART][2][3];          /* its envelope points (cz_part_defs), for its EDIT times */
-static cz_ed_t cz_ed[NPART];
-static uint32_t cz_key[NPART];                     /* what cz_tone / cz_defs were built for, 0 = nothing yet */
+typedef struct {                                   /* a part's CZ state: its engine memory (engines.c part_mem_t, the
+                                                    * arena; zeroed when the part comes to CZ, cz_forget) */
+    cz_voice_t v[NVOICE];
+    uint8_t tone[128];                             /* the part's tone: Casio's 128 synthesis bytes */
+    cz_env_def_t defs[2][3];                       /* its envelope points (cz_part_defs), for its EDIT times */
+    cz_ed_t ed;
+} cz_mem_t;
+AINL cz_mem_t *cz_mem(uint32_t p);                 /* (engines.c, after every engine) */
+#define cz_tone(p) (cz_mem(p)->tone)
+#define cz_defs(p) (cz_mem(p)->defs)
+#define cz_ed(p) (cz_mem(p)->ed)
+static uint32_t cz_key[NPART];                     /* what the tone / the points were built for, 0 = nothing yet */
+static void cz_forget(uint32_t p) { cz_key[p % NPART] = 0; }   /* (engines.c part_mem_claim: its memory zeroed) */
 
 static cz_voice_t *cz_voice(track_t *t, voice_t *v)
 {
-    return &cz_v[(uint32_t)(t - trk) % NPART][(uint32_t)(v - t->v) % NVOICE];
+    return &cz_mem((uint32_t)(t - trk) % NPART)->v[(uint32_t)(v - t->v) % NVOICE];
 }
 #define cz_cos neg_cos16                            /* -cos, Q15, from a 16-bit phase (dsp.c) */
 
@@ -204,7 +212,7 @@ static void cz_block(track_t *t)
 {
     uint32_t part = (uint32_t)(t - trk) % NPART, tone = (uint32_t)t->p[P_E0] % (CZT_N + CZ_NUSER), key;
     const int16_t *p = t->p;
-    cz_ed_t *ed = &cz_ed[part];
+    cz_ed_t *ed = &cz_ed(part);
     int32_t c = p[P_E3], d16 = c * 16 / 100;
     ed->dcw = p[P_E1] * 8;                            /* DCW: +-512 of the 1023 */
     ed->wtim = p[P_E2];
@@ -220,13 +228,13 @@ static void cz_block(track_t *t)
 #if CZ_NUSER
             const uint8_t *u = czb_tone(tone);           /* a CZ collection slot, as stored (none / empty: INIT) */
             if (u)
-                memcpy(cz_tone[part], u, 128);
+                memcpy(cz_tone(part), u, 128);
             else
 #endif
-            cz_encode(&CZ_TONES[CZ_NUSER && tone >= CZT_N ? CZT_INIT : tone], cz_tone[part]);
+            cz_encode(&CZ_TONES[CZ_NUSER && tone >= CZT_N ? CZT_INIT : tone], cz_tone(part));
         }
         ed->tone = (uint8_t)tone;
-        cz_part_defs(cz_tone[part], cz_defs[part], ed->wtim, ed->atim);
+        cz_part_defs(cz_tone(part), cz_defs(part), ed->wtim, ed->atim);
         cz_key[part] = key;
     }
 }
@@ -256,9 +264,9 @@ static void cz_note_on(track_t *t, voice_t *v)
 static int cz_done(track_t *t, voice_t *v)
 {
     uint32_t part = (uint32_t)(t - trk) % NPART;
-    const uint8_t *b = cz_tone[part];
+    const uint8_t *b = cz_tone(part);
     cz_voice_t *c = cz_voice(t, v);
-    uint32_t ls = cz_lines(b, &cz_ed[part]);
+    uint32_t ls = cz_lines(b, &cz_ed(part));
     uint32_t a = ls == 1u ? 1u : 0u, z = ls >= 2u ? 1u : a;
     return c->eg[a][2].stage > (b[CZ_ENV_END[a][2]] & 7u) &&
            c->eg[z][2].stage > (b[CZ_ENV_END[ls == 2u ? 0u : z][2]] & 7u);

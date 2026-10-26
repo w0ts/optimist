@@ -353,6 +353,34 @@ history (a later step if a flash round pays for it).
   built as the boot's, heard; the tests' arenas grown by the table's 4,104 B), `tests/fx_arena_test.c` (the random
   switches 30,000: the loads' lists rarer with the table).
 
+**The other engines' state (3c, 2026-10-26; the core, and every build).** A survey of every engine's static state
+(an all-engines build's symbols, `sd-card-mots` with every `ENG_*`): what each part keeps for its engine in a static
+array outside the parts' memory. Moved into `engines.c part_mem_t` (a member of the union each, its accessor after it:
+`juno_mem`, `drw_mem`, `cz_mem`, `slc_mem`; zeroed when a part comes to the engine, `part_mem_claim`), so it is held only
+by the parts that play the engine, and with ARENA placed by need. None is the union's largest (FM6's 3,904 B a part,
+PHYS's 12,888), so the fixed slots do not grow: the static arrays' RAM is simply given back, in every build that has
+the engine, ARENA or not:
+
+| Engine | Moved | Bytes (3 parts) | Why it is safe |
+|---|---|---|---|
+| JUNO | the voices' state, the HPF, the RES tables' cache (`juno_v`, `juno_h`, `juno_rc`) | 1,332 (RAM) | a new voice clears its state; `res1` 0 = the cache built again |
+| DRAWBAR | the part's and the voices' state (`drw_t`, `drw_v`) | 2,496 | `init` 0 = a voice set up at its first block |
+| CZ | the voices, the tone, the envelope points, the EDIT values (`cz_v`, `cz_tone`, `cz_defs`, `cz_ed`) | 3,120 | `cz_key` stays static (nbank.c clears it for every part) and is cleared at the claim (`cz_forget`): the tone built again |
+| SLICE | the voices' reverse windows (`slc_rbuf`) | 3,072 | a note starts with no window (`s[0]` 0x7FFFFFFF) |
+
+Left (with why): DRONE (`drone_pt`, `drone_side`: 852 B, 284 B a part: below what pays for the change), ANALOG 2's
+feedback lines (`a2_fb`: 576 B; the default engine, most parts play it: a block each anyway), FM6's EDIT values
+(`fm6_ed`, 1,056 B: a project's, kept whatever the part plays) and its SysEx bank (`fm6_pick`, 4,097 B: a transfer
+buffer of the editor, not a part's: a later arena client of the main loop, if one is wanted), STRINGS' LFOs (24 B),
+FM6's per-part counters (`fm6_pt` etc., small, read by the claim), the voices themselves (`trk`, every engine's shared
+`voice_t`, 8.7 KB). The other engines (ANALOG, DIGITAL, PHASE, LOFI, TRIO, FORMANT, SUPER, the Clipper engines, SID,
+PROPHET, NOISE, PLAITS, PHYS, GRAIN, ACID, FM6, WAVE) keep their state in the voices or already in the part's memory.
+- Measured (2026-10-26, ARENA off): the reference profile RAM 91,792 -> 90,448 (-1,344: JUNO), flash -24; `sd-card-mots`
+  RAM 106,640 -> 96,604 (-10,036: JUNO, DRAWBAR, CZ, SLICE), pool the same. The builder (`core.py PART_MEM`) has the four
+  sizes; their items' measured RAM in costs.json still counts the arrays until a gpufarm re-measure.
+- Tests: the engines' goldens and health (`tests/cz_test.c`, `juno_test.c`, the regressions with every engine built),
+  `tests/nbank_test.c` (the CZ collection: the part's tone through `cz_tone(p)`).
+
 ## 7. Phases
 
 | Phase | What | Device risk |
