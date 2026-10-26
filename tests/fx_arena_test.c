@@ -165,15 +165,17 @@ static void put_chrs(uint32_t k, uint32_t on)
 
 int main(void)
 {
-    uint32_t c, f, k, sum = 0, FM = arn_round(part_mem_bytes(ENG_IX_FM6));
+    uint32_t c, f, k, sum = 0, FM = arn_round(part_mem_bytes(ENG_IX_FM6)), SN = arn_round(FM6_SIN_BYTES);
     track_t *t0 = &trk[0], *t1 = &trk[1], *t2 = &trk[2];
     host_tracks_init();
     fxi_init();
     for (c = 0; c < FXM_NC; c++)
         sum += FXM_BYTES[c];
-    CHECK(ARN_BYTES >= FM + sum && ARN_BYTES < FM + sum + 40u + 1u && ARN_BYTES < 3u * FM + sum - FXM_BYTES[FXM_CHO],
-          "the premise: one FM6 and every line fit, not 3 FM6 and the lines but CHO's (arena %u B: FM6 %u, lines %u %u %u %u)",
-          (unsigned)ARN_BYTES, (unsigned)FM, FXM_BYTES[0], FXM_BYTES[1], FXM_BYTES[2], FXM_BYTES[3]);
+    CHECK(ARN_BYTES >= FM + SN + sum && ARN_BYTES < FM + SN + sum + 40u + 1u &&
+          ARN_BYTES < 3u * FM + SN + sum - FXM_BYTES[FXM_CHO],
+          "the premise: one FM6 (and its sine table) and every line fit, not 3 FM6 and the lines but CHO's (arena %u B: FM6 "
+          "%u + %u, lines %u %u %u %u)", (unsigned)ARN_BYTES, (unsigned)FM, (unsigned)SN, FXM_BYTES[0], FXM_BYTES[1],
+          FXM_BYTES[2], FXM_BYTES[3]);
     if (bad)
         return 1;                                       /* (the checks below are laid out for it) */
     CHECK(fxm_off == 7u && !cho_buf && !dly_buf && !rev_line && !fxa_ins, "at boot: no line placed, every send gated");
@@ -225,8 +227,8 @@ int main(void)
     CHECK(t0->engine == ENG_IX_FM6 && fxa_ins && fxi_state(0, 0) == FXI_OK && arena_ok(),
           "FM6 on part 1, CHRS on track 1: the own room placed, its instance in it: the arena full");
     set_engine_of(t1, ENG_IX_FM6);
-    CHECK(part_mem_refused.on && part_mem_refused.part == 1u && t1->eng_req != ENG_IX_FM6 && part_mem_refused.drop == 1,
-          "FM6 on part 2: refused; the proposal names part 1 (parts only: no effect)");
+    CHECK(part_mem_refused.on && part_mem_refused.part == 1u && t1->eng_req != ENG_IX_FM6 && part_mem_frees(0),
+          "FM6 on part 2: refused; part 1's memory would make room (proposed first: parts before effects)");
     part_mem_refused.on = 0;                            /* (the UI's MEM FULL: given up) */
     fxs_load(3, FXT_NONE);                              /* (REV out: its line on its way back) */
     set_engine_of(t1, ENG_IX_FM6);
@@ -274,8 +276,8 @@ int main(void)
     set_engine_of(t2, ENG_IX_FM6);
     blocks(64);
     settle(2);
-    CHECK(t1->engine == ENG_IX_FM6 && t2->engine == ENG_IX_FM6 && !cho_buf && !arn_fits(FXM_K(FXM_INS), FXM_INS_BYTES) &&
-          arn_fits(FXM_K(FXM_CHO), FXM_BYTES[FXM_CHO]), "three FM6, CHO in no slot: no room for the own room, room for CHO's line");
+    CHECK(t1->engine == ENG_IX_FM6 && t2->engine == ENG_IX_FM6 && !cho_buf && !arn_fits(FXM_K(FXM_INS), FXM_INS_BYTES, 0) &&
+          arn_fits(FXM_K(FXM_CHO), FXM_BYTES[FXM_CHO], 0), "three FM6, CHO in no slot: no room for the own room, room for CHO's line");
     fxm_news = 0;
     put_chrs(2, 1);
     settle(8);
@@ -387,7 +389,8 @@ int main(void)
         uint32_t n, okall = 1, worst = 0, nfull = 0, nref = 0, nlent = 0, nown = 0, nmv = 0, ndrop = 0;
         uint32_t nlist = 0, nfit = 0, nlied = 0;   /* (a load's list: shown, FITS committed, FITS that did not) */
         srand(7);
-        for (n = 0; n < 20000u && okall; n++) {
+        for (n = 0; n < 30000u && okall; n++) {     /* (30,000: FM6's sine table in the arena too, 2026-10-26, makes the
+                                                     * loads' lists rarer; enough of them still) */
             uint32_t r = (uint32_t)rand(), op = r % 9u, a = (r >> 8) % 4u;
             if (op == 0u)
                 fxs_load(1u + a % 3u, (r >> 12) & 1u ? FXS_LT[a % 3u] : FXT_NONE);

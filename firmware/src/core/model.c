@@ -189,7 +189,8 @@ static void part_drop(track_t *t)
 }
 
 /* What to drop when memory is short (the user, 2026-10-25: refuse, and propose what to drop; the UI asks with its one
- * confirm, op_input.c mem_tick). mem_offer: the next part to propose, first those arn_drop_for named, then any other part
+ * confirm, op_input.c mem_tick). mem_offer: the next part to propose, first those whose memory alone would make room
+ * (engines.c part_mem_frees: one drop at a time, each dropped part free when the next is proposed), then any other part
  * whose engine keeps memory, never one already asked, then (FELUCCA_FX_ARENA) the effects' lines placed, the largest
  * first (NPART + fx_arena.c FXM_*); 0 none left. mem_drop: that part a silent placeholder (its memory free once its
  * switch is done), or that effect bypassed as when refused (its line given back two blocks later). mem_retry, each frame: 0 nothing to do or still waiting for a dropped part's switch,
@@ -199,9 +200,8 @@ static int mem_offer(uint32_t *out)
     uint32_t k, pass;
     for (pass = 0; pass < 2u; pass++)
         for (k = 0; k < NPART; k++) {
-            uint32_t named = part_mem_refused.drop > 0 && ((uint32_t)part_mem_refused.drop >> k & 1u);
             if (k == part_mem_refused.part || (part_mem_refused.asked >> k & 1u) || trk[k].silent ||
-                !part_mem_bytes(trk[k].engine) || (pass == 0u && !named))
+                !part_mem_bytes(trk[k].engine) || (pass == 0u && !part_mem_frees(k)))
                 continue;
             *out = k;
             part_mem_refused.asked |= (uint8_t)(1u << k);
@@ -253,15 +253,22 @@ static int mem_retry(void)
     if (part_mem_reserve(p, e))
         return -1;
     part_mem_refused.on = 0;
-    set_engine_of(&trk[p], e);                        /* (the edit asked for: the engine and its first preset; a
-                                                       * load's refusals: mem_load_settle) */
+    if (part_mem_refused.keep) {                      /* (a load's refusal, mem_load_next: the project's sound as
+                                                       * loaded, now on its engine, as mem_load_settle places one) */
+        fm1_irq_off();
+        trk[p].eng_req = (uint8_t)e;
+        trk[p].silent = 0;
+        fm1_irq_on();
+        return 1;
+    }
+    set_engine_of(&trk[p], e);                        /* (the edit asked for: the engine and its first preset) */
     return 1;
 }
 
 #if !ARN_FIXED
 /* A load's refusals (engines.c part_mem_refused.lmask; the user, 2026-10-25: "the list page as designed"): every part a
  * project's load could not place is a silent placeholder with the project's sound, its engine wanted (leng). The UI's
- * list (ui/optimist/op_memlist.c) shows them and what can be dropped: the parts that hold memory, then the effects' lines
+ * list (ui/optimist/op_memlist.c, MEM_LIST: the arena's extras; the core alone: mem_load_next, below) shows them and what can be dropped: the parts that hold memory, then the effects' lines
  * placed (FELUCCA_FX_ARENA; the parts first, the user, 2026-10-25). An item is a part k (k < NPART) or an effect's line
  * NPART + fx_arena.c FXM_*; a set of them a bit mask by item. A refused part is an item too (first; the user,
  * 2026-10-25, the night's ruling): picked, it is left silent (a placeholder, not placed), so the others can fit.
@@ -276,6 +283,27 @@ static int mem_retry(void)
  *   mem_load_commit   the items of sel dropped (parts placeholders, lines bypassed as when refused); the settle places
  *                     the refused parts once their memory is free
  *   mem_load_cancel   HOME: the refused parts stay placeholders (an engine picked later ends one) */
+#if MEM_LIST                                          /* (the list page: the arena's extras, the SD card mode) */
+static int mem_load_settle(void)
+{
+    uint32_t k;
+    if (!part_mem_refused.lmask)
+        return 1;
+    if (fxm_pending())
+        return 0;                                     /* (an effect's line on its way back: its room after) */
+    for (k = 0; k < NPART; k++)
+        if (trk[k].engine != trk[k].eng_req || trk[k].xf_on)
+            return 0;                                 /* (a part still switching: its old block not free yet) */
+    fm1_irq_off();
+    for (k = 0; k < NPART; k++)                       /* (each that fits now, by part: the rest stay refused) */
+        if ((part_mem_refused.lmask >> k & 1u) && !part_mem_aside(k, part_mem_refused.leng[k])) {
+            part_mem_refused.lmask &= (uint8_t)~(1u << k);
+            trk[k].eng_req = part_mem_refused.leng[k];    /* (the project's sound as loaded, now on its engine) */
+            trk[k].silent = 0;
+        }
+    fm1_irq_on();
+    return part_mem_refused.lmask ? -1 : 1;
+}
 static uint32_t mem_load_part(uint32_t k)             /* part k can be dropped: it plays an engine that holds memory */
 {
     return k < NPART && !(part_mem_refused.lmask >> k & 1u) && !trk[k].silent && part_mem_bytes(trk[k].engine) &&
@@ -312,12 +340,13 @@ static uint32_t mem_load_items(uint8_t *it)
 }
 static uint32_t mem_load_need(uint32_t sel)           /* the bytes the refused parts want, but those left silent in sel */
 {
-    uint32_t k, n = 0, tab = 0;
+    uint32_t k, n = 0, tabs = 0;
     for (k = 0; k < NPART; k++)
         if ((part_mem_refused.lmask & ~sel) >> k & 1u) {
-            uint32_t t = part_tab_bytes(part_mem_refused.leng[k]);   /* (WAVE's table: one for every WAVE part) */
-            n += part_mem_bytes(part_mem_refused.leng[k]) + (tab ? 0u : t);
-            tab |= t;
+            uint32_t e = part_mem_refused.leng[k], t = part_tab_bytes(e), c = part_tab_k(e);
+            n += part_mem_bytes(e);
+            if (t && !(tabs >> c & 1u))                 /* (a table: one for every part on its engine) */
+                n += t, tabs |= 1u << c;
         }
     return n;
 }
@@ -342,12 +371,11 @@ static int mem_load_place(uint32_t sel)               /* the refused parts' rese
 }
 static int mem_load_fits(uint32_t sel)
 {
-    arn_blk_t cur[ARN_PARTS], nxt[ARN_PARTS];
-    uint8_t hn[ARN_PARTS];
+    arn_st_t was;
     uint32_t k;
     int ok;
     fm1_irq_off();
-    memcpy(cur, arn_cur, sizeof cur), memcpy(nxt, arn_next, sizeof nxt), memcpy(hn, arn_has_next, sizeof hn);
+    was = arn;
     for (k = 0; k < ARN_PARTS; k++)
         if ((sel & ~(uint32_t)part_mem_refused.lmask) >> k & 1u) {
             if (k < NPART)
@@ -356,29 +384,9 @@ static int mem_load_fits(uint32_t sel)
                 arn_cur[k].len = 0, arn_has_next[k] = 0;     /* (a line dropped: arn_give two blocks later) */
         }
     ok = !mem_load_place(sel);
-    memcpy(arn_cur, cur, sizeof cur), memcpy(arn_next, nxt, sizeof nxt), memcpy(arn_has_next, hn, sizeof hn);
+    arn = was;
     fm1_irq_on();
     return ok;
-}
-static int mem_load_settle(void)
-{
-    uint32_t k;
-    if (!part_mem_refused.lmask)
-        return 1;
-    if (fxm_pending())
-        return 0;                                     /* (an effect's line on its way back: its room after) */
-    for (k = 0; k < NPART; k++)
-        if (trk[k].engine != trk[k].eng_req || trk[k].xf_on)
-            return 0;                                 /* (a part still switching: its old block not free yet) */
-    fm1_irq_off();
-    for (k = 0; k < NPART; k++)                       /* (each that fits now, by part: the rest stay refused) */
-        if ((part_mem_refused.lmask >> k & 1u) && !part_mem_aside(k, part_mem_refused.leng[k])) {
-            part_mem_refused.lmask &= (uint8_t)~(1u << k);
-            trk[k].eng_req = part_mem_refused.leng[k];    /* (the project's sound as loaded, now on its engine) */
-            trk[k].silent = 0;
-        }
-    fm1_irq_on();
-    return part_mem_refused.lmask ? -1 : 1;
 }
 static void mem_load_commit(uint32_t sel)
 {
@@ -401,6 +409,31 @@ static void mem_load_cancel(void)
     part_mem_refused.lmask = 0;
     fm1_irq_on();
 }
+#else
+/* the core alone (no list page, MEM_LIST off): each frame (op_input.c mem_tick, in the list's place), the load's first
+ * part still refused becomes the edit's refusal with the project's sound kept (keep): mem_retry waits for every part's
+ * switch (the old blocks free after), then places it with that sound if it fits now; else the one confirm proposes what
+ * to drop ("DROP T2 FM6"); a placeholder still when nothing is dropped (MEM FULL); then the next. 0: the edit's flow
+ * goes on */
+static int mem_load_next(void)
+{
+    uint32_t k = 0;
+    if (!part_mem_refused.lmask || part_mem_refused.on)
+        return 0;
+    while (!(part_mem_refused.lmask >> k & 1u))
+        k++;
+    fm1_irq_off();
+    part_mem_refused.lmask &= (uint8_t)~(1u << k);
+    fm1_irq_on();
+    part_mem_refused.on = part_mem_refused.keep = 1;
+    part_mem_refused.part = (uint8_t)k, part_mem_refused.eng = part_mem_refused.leng[k];
+    part_mem_refused.asked = 0;
+    part_mem_refused.waiting = (uint8_t)((1u << NPART) - 1u);   /* (every part's switch first: mem_retry) */
+    return 0;
+}
+#endif
+#else
+#define mem_load_next() 0
 #endif
 
 static void set_engine_of(track_t *t, uint32_t ei)

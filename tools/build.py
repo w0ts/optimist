@@ -517,8 +517,9 @@ def build_app():
     if x0x["FELUCCA_DRUM_X909"] == 1 or x0x["FELUCCA_DRUM_X808"] == 1:
         # the X0X drum kits' float models (firmware/src/drums/x0x/, from X0X): their own unit with X0X's FPU flags, as
         # ACID's; the data headers from tools/gen_x0x_drums.py
-        # (the effects' arena, FX_ARENA: the machines' states placed in it, x0x_mem; as registry.h derives it)
-        fx_arena = (CFG_VALUES.get("FELUCCA_ARENA_KB", 0) and CFG_VALUES.get("FELUCCA_FX_ARENA", 1)) or \
+        # (the arena's extras, FX_ARENA: the machines' states placed in it, x0x_mem; as registry.h derives it: the
+        # ARENA in the SD card mode, FELUCCA_SD_MODE = the fake SD mode's layout until its own flag)
+        fx_arena = (CFG_VALUES.get("FELUCCA_ARENA_KB", 0) and CFG_VALUES.get("FELUCCA_FX_ARENA", int(layout() == 1))) or \
             (os.environ.get("OPTIMIST_ARENA_BYTES", "").isdigit() and int(os.environ["OPTIMIST_ARENA_BYTES"]) > 0 and
              os.environ.get("OPTIMIST_FX_ARENA") == "1")
         units.append(("cc", *ACID_CFLAGS, "-I" + GEN_REL, *(f"-D{k}={v}" for k, v in x0x.items()),

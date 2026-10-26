@@ -247,10 +247,10 @@ def validate(cfg):
                              f"({max(blocks.values()) // 1024} KB): a larger ARENA, or off", ["ARENA"]))
         else:
             fixed = room - arena_mem(cfg)["pool"]
+            what = ("the parts' engine states, the effects' lines, the SLICER's recordings, WAVE's table, the X0X "
+                    "machines" if sd_mode(cfg) else "the parts' engine states")
             note.append(Issue(f"{R.ITEMS['ARENA'].label}: {cfg['ARENA']} KB in place of {fixed // 1024} KB of fixed "
-                              "memories (the parts' engine states, the effects' lines, the SLICER's recordings, WAVE's "
-                              "table, the X0X machines); a project using more is "
-                              "refused and offered what to drop", ["ARENA"]))
+                              f"memories ({what}); a project using more is refused and offered what to drop", ["ARENA"]))
     for k, it in R.ITEMS.items():
         if it.off_warning and not cfg[k] and (not it.parent or built(cfg, it.parent)):
             warn.append(Issue(f"{it.label} off: {it.off_warning}", [k]))
@@ -497,7 +497,10 @@ def auto_store(cfg):
 
 # engines.c part_mem: NPART engine states in the pool, a union of the engines built that keep one there; bytes of
 # the array with each member alone (sizes.json "symbols", measure_costs.py holds these against every build it makes)
-PART_MEM = {"ENG_FM6": 11712, "ENG_PHYS": 38664, "ENG_GRAIN": 21072, "ENG_ACID": 1440, "ENG_PLAITS": 1920}   # (2026-10-25: arn_mem)
+# (2026-10-26: JUNO, DRAWBAR, CZ and SLICE's states moved in from their static arrays: their measured item costs in
+# costs.json still count those arrays as RAM until a re-measure)
+PART_MEM = {"ENG_FM6": 11712, "ENG_PHYS": 38664, "ENG_GRAIN": 21072, "ENG_ACID": 1440, "ENG_PLAITS": 1920,
+            "ENG_JUNO": 1344, "ENG_DRAWBAR": 2496, "ENG_CZ": 3120, "ENG_SLICE": 3072}   # (2026-10-25/26: arn_mem)
 PART_MEM_NONE = 0                                   # (none built: not in the image)
 
 
@@ -587,11 +590,15 @@ WAVE_MEM = 16 * 2032 * 2 + 2 * 1024 * 4   # eng_wave.c WT_MEM_BYTES: the table's
 # the X0X machines' states on the FM-1 (x0x_drums.c x909 x808; build/sizes.json of the default profile, 2026-10-25): the
 # 909's 5,344 B with its 6-bit samples (X909_CYM or X909_HAT 2: a field more in each of its 4 sample voices), 5,328 without
 X909_STATE, X808_STATE = (5328, 5344), 3376
+# FM6's sine table (eng_fm6.c FM6_SIN[1025], int32: 4,100 B; in the arena while a part plays FM6, 2026-10-26): what the
+# pool gives back without it, 4,096 B (its packing; measured 2026-10-26 on sd-card-mots and the reference profile)
+FM6_SIN = 4096
 
 
 def arena_bufs(cfg):
     """-> {name: bytes} the other buffers the arena holds only while a project uses them (core/arena_bufs.c; in the
-    pool, static, without ARENA): each track's SLICER recording, WAVE's table, the X0X machines' states"""
+    pool, static, without ARENA): each track's SLICER recording, WAVE's table, the X0X machines' states, the punch's
+    ring (held while the project's PUNCH switch is on), FM6's sine table (while a part plays FM6)"""
     f, _ = flags(cfg)
 
     def on(key):
@@ -599,20 +606,31 @@ def arena_bufs(cfg):
     out = {"a track's SLICER recording": 2 * on("SL_LEN") if built(cfg, "FX_SLICER") else 0,
            "WAVE's table": WAVE_MEM if built(cfg, "ENG_WAVE") else 0,
            "the X0X 909's state": X909_STATE[on("X909_CYM") == 2 or on("X909_HAT") == 2] if built(cfg, "DRUM_X0X909") else 0,
-           "the X0X 808's state": X808_STATE if built(cfg, "DRUM_X0X808") else 0}
+           "the X0X 808's state": X808_STATE if built(cfg, "DRUM_X0X808") else 0,
+           "the PUNCH ring": 2 * on("PUNCH_N") if built(cfg, "FX_PUNCH") else 0,
+           "FM6's sine table": FM6_SIN if built(cfg, "ENG_FM6") else 0}
     return {k: v for k, v in out.items() if v}
 
 
+def sd_mode(cfg):
+    """the SD card mode (registry.h FELUCCA_SD_MODE: the fake SD mode's layout, LAYOUT 1, until its own flag): the
+    builds that get the arena's extras (the effects' lines, the other buffers, the load's list page)"""
+    return cfg.get("LAYOUT", 0) == 1
+
+
 def arena_mem(cfg):
-    """-> {region: bytes} of the arena (ARENA, KB: core/arena.c, fx/fx_arena.c, core/arena_bufs.c) against the fixed
-    memories it replaces: its own pool less the parts' engine states (part_mem), the delay and chorus sends' lines, the
-    reverb's line (rev_lines: in main RAM without REV_POOL) and the ROOM's diffusers after it, the inserts' own room
-    (fx_memory), the SLICER's recordings (a track each), WAVE's table and the X0X machines' states (arena_bufs); {} with
-    ARENA off. The code and bookkeeping it adds (about 2 KB of flash, 256 B of RAM) is its measured delta (costs.json)"""
+    """-> {region: bytes} of the arena (ARENA, KB: core/arena.c; in the SD card mode fx/fx_arena.c, core/arena_bufs.c
+    too) against the fixed memories it replaces: its own pool less the parts' engine states (part_mem); in the SD card
+    mode (sd_mode) less the delay and chorus sends' lines, the reverb's line (rev_lines: in main RAM without REV_POOL)
+    and the ROOM's diffusers after it, the inserts' own room (fx_memory), the SLICER's recordings (a track each), WAVE's
+    table and the X0X machines' states (arena_bufs); {} with ARENA off. The code and bookkeeping it adds is its measured
+    delta (costs.json)"""
     f, _ = flags(cfg)
     kb = int(f.get(R.ITEMS["ARENA"].flag, 0) or 0)
     if not kb:
         return {}
+    if not sd_mode(cfg):
+        return {"pool": kb * 1024 - part_mem(cfg)["pool"]}
     rev, mem, bufs = rev_lines(cfg), fx_memory(cfg), arena_bufs(cfg)
     lines = (mem["send"] + mem["cho"] + mem["own"]) * 1024 + rev.get("pool", 0) + rev_ap(cfg)
     other = sum(v * (NTRK if k.startswith("a track's") else 1) for k, v in bufs.items())
@@ -632,6 +650,8 @@ def rev_ap(cfg):
 def arena_blocks(cfg):
     """-> {name: bytes} the blocks the arena places (a part's engine state, each effect's line, the other buffers;
     validate: each must fit)"""
+    if not sd_mode(cfg):
+        return {"a part's engine state": part_mem(cfg)["pool"] // NPART}
     rev, mem = rev_lines(cfg), fx_memory(cfg)
     out = {"a part's engine state": part_mem(cfg)["pool"] // NPART, "the delay's line": mem["send"] * 1024,
            "the chorus send's line": mem["cho"] * 1024,

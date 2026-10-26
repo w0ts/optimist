@@ -1178,8 +1178,8 @@
   },
   "SDCARD": {
    "1": {
-    "flash": 3364,
-    "ram": 52,
+    "flash": 3380,
+    "ram": 76,
     "pool": 552,
     "ramtext": 0
    }
@@ -1211,6 +1211,7 @@
     "ramtext": 140
    }
   },
+  "BT_PROJ": {},
   "FAR_OK": {},
   "OVERLAY": {},
   "CPU_GUARD": {
@@ -1616,7 +1617,7 @@
    }
   }
  },
- "measured": "2026-10-26 05:49",
+ "measured": "2026-10-26 07:05",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
@@ -4137,79 +4138,6 @@
    "ram": -8,
    "pool": 300,
    "ramtext": 0
-  }
- },
- "groups": {
-  "INS_FX": {
-   "members": [],
-   "shared": {
-    "flash": 0,
-    "ram": 0,
-    "pool": 0,
-    "ramtext": 0
-   }
-  },
-  "INS_SHAPE": {
-   "members": [
-    "INS_FOLD",
-    "INS_FUZZ",
-    "INS_SFOLD",
-    "INS_RECT",
-    "INS_HARM",
-    "INS_RING",
-    "INS_SUBOCT",
-    "INS_SLEW"
-   ],
-   "shared": {
-    "flash": 538,
-    "ram": 590,
-    "pool": 0,
-    "ramtext": 0
-   }
-  },
-  "AUTO": {
-   "members": [
-    "MOTION",
-    "SL24_XSTEP",
-    "CHANCE",
-    "COND"
-   ],
-   "shared": {
-    "flash": 10888,
-    "ram": -338,
-    "pool": 388,
-    "ramtext": 0
-   }
-  },
-  "INS_LIM": {
-   "members": [
-    "INS_CHORUS",
-    "INS_DELAY",
-    "INS_JCHORUS",
-    "INS_FLANGER",
-    "INS_XDLY"
-   ],
-   "shared": {
-    "flash": 3512,
-    "ram": 422,
-    "pool": 144,
-    "ramtext": 2
-   }
-  },
-  "FM6_PACKS": {
-   "members": [
-    "FM6_PK_KEYS",
-    "FM6_PK_BASS",
-    "FM6_PK_BELLS",
-    "FM6_PK_PADS",
-    "FM6_PK_80S"
-   ],
-   "shared": {
-    "flash": 916,
-    "ram": 0,
-    "pool": 0,
-    "ramtext": 0
-   }
   }
  }
 }

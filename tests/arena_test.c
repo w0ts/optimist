@@ -69,15 +69,15 @@ static void fixed_cases(void)
     arn_give(2);
     CHECK(!arn_ptr(0) && !arn_ptr(2) && !arn_has_next[0] && sound(), "given back: no block, no reservation");
     CHECK(sw(2, 400) == 0 && off_of(2) == 2032, "400 B for part 2: the 432 B gap (not the 1000 B ones), at its top");
-    CHECK(arn_fits(2, 1000) && arn_fits(0, 1000) && !arn_fits(0, 1100) && arn_cur[0].len == 0 && !arn_has_next[0],
+    CHECK(arn_fits(2, 1000, 0) && arn_fits(0, 1000, 0) && !arn_fits(0, 1100, 0) && arn_cur[0].len == 0 && !arn_has_next[0],
           "arn_fits: 1000 B would fit, 1100 B not; nothing reserved by asking");
-    CHECK(arn_drop_for(0, 2100) == -1, "2100 B: only with part 2 dropped too, never named (ARN_DROPPABLE): nothing");
-    CHECK(arn_drop_for(0, 2000) == (int32_t)(1u << 1), "2000 B: part 1 named (0 .. 2000)");
+    CHECK(!arn_fits(0, 2100, 1u << 1) && arn_fits(0, 2000, 1u << 1), "2000 B with part 1 given back: 0 .. 2000; 2100 B not");
 #elif !ARN_FIXED
     reset();
     CHECK(sw(0, 1000) == 0 && sw(1, 1000) == 0 && sw(2, 1000) == 0, "three placed");
     arn_give(1);
-    CHECK(!arn_ptr(1) && arn_fits(1, 1000) && !arn_fits(1, 1040) && arn_fits(3, 1032) && !arn_fits(3, 1040) && arn_cur[1].len == 0,
+    CHECK(!arn_ptr(1) && arn_fits(1, 1000, 0) && !arn_fits(1, 1040, 0) && arn_fits(3, 1032, 0) && !arn_fits(3, 1040, 0) &&
+          arn_cur[1].len == 0,
           "arn_give: the block gone; arn_fits says what would fit, nothing reserved");
     reset();
     CHECK(sw(0, 1000) == 0 && sw(1, 1000) == 0 && sw(2, 1000) == 0 && sw(3, 1000) == 0, "four of the largest fit");
@@ -91,10 +91,11 @@ static void fixed_cases(void)
     CHECK(sw(2, 0) == 0 && sw(3, 1400) == 0 && off_of(3) == 2000 && arn_cur[2].len == 0 && sound(),
           "a larger one: part 2's idle block taken back without asking, its own block free for it: 2000..3400");
     CHECK(arn_reserve(0, 2600) == -1, "2600 B for part 0: no room (part 1's 1000 B in the way): refused");
-    CHECK(arn_drop_for(0, 2000) == (int32_t)(1u << 1), "2000 B: drop part 1 (with part 0's own block: 0..2000)");
-    CHECK(arn_drop_for(0, 2600) == (int32_t)((1u << 1) | (1u << 3)), "2600 B: parts 1 and 3 (neither alone)");
-    CHECK(arn_drop_for(0, 5000) == -1, "larger than the arena: nothing would help");
-    CHECK(arn_drop_for(3, 900) == 0, "its own block holds it: fits as it is");
+    CHECK(!arn_fits(0, 2000, 0) && arn_fits(0, 2000, 1u << 1), "2000 B: with part 1 given back (part 0's own block: 0..2000)");
+    CHECK(!arn_fits(0, 2600, 1u << 1) && !arn_fits(0, 2600, 1u << 3) && arn_fits(0, 2600, (1u << 1) | (1u << 3)),
+          "2600 B: parts 1 and 3 (neither alone)");
+    CHECK(!arn_fits(0, 5000, 0xFu), "larger than the arena: nothing would help");
+    CHECK(arn_fits(3, 900, 0), "its own block holds it: fits as it is");
     CHECK(sw(1, 0) == 0 && arn_reserve(0, 2000) == 0 && arn_next[0].off == 0,
           "part 1 dropped: part 0's 2000 B over its own old block and part 1's idle one");
     CHECK(arn_cur[0].len == 1000 && off_of(0) == 0 && sound(), "part 0 still plays from its old block until the switch");
@@ -110,8 +111,8 @@ static void fixed_cases(void)
     CHECK(off_of(0) == 0 && off_of(1) == 1008 && off_of(2) == 2016 && off_of(3) == 3024 && sound(),
           "fixed: part k at k x the slot, as the fixed memories were");
     for (k = 0; k < 4u; k++)
-        CHECK(sw(k, 1008) == 0 && off_of(k) == k * 1008u && arn_drop_for(k, 1008) == 0, "fixed: never refused (part %u)", k);
-    CHECK(arn_reserve(0, 1016) == -1 && arn_drop_for(0, 1016) == -1, "fixed: past the slot: refused, nothing helps");
+        CHECK(sw(k, 1008) == 0 && off_of(k) == k * 1008u && arn_fits(k, 1008, 0), "fixed: never refused (part %u)", k);
+    CHECK(arn_reserve(0, 1016) == -1 && !arn_fits(0, 1016, 0xFu), "fixed: past the slot: refused, nothing helps");
 #endif
 }
 
@@ -129,15 +130,15 @@ int main(void)
             before[i] = arn_cur[i].len ? arn_cur[i].off + 1u : 0u;
         if (op < 4u) {                                  /* reserve, left pending */
             if (arn_reserve(k, n)) {
-                int32_t m = arn_drop_for(k, n);
+                uint32_t j = 0;
                 refused++;
-                CHECK(m != 0, "round %u: refused, yet 'fits as it is'", round);
-                if (m > 0) {                            /* the user drops what it names (no pending switch of theirs) */
-                    for (i = 0; i < ARN_PARTS; i++)
-                        if ((m >> i) & 1)
-                            arn_cur[i].len = 0, arn_has_next[i] = 0;
+                CHECK(!arn_fits(k, n, 0), "round %u: refused, yet 'fits as it is'", round);
+                while (j < ARN_PARTS && (j == k || !arn_cur[j].len || !arn_fits(k, n, 1u << j)))
+                    j++;                                /* (a part whose block alone would make room: proposed first) */
+                if (j < ARN_PARTS) {                    /* the user drops it (no pending switch of theirs) */
+                    arn_cur[j].len = 0, arn_has_next[j] = 0;
                     dropped++;
-                    CHECK(arn_reserve(k, n) == 0, "round %u: dropping what arn_drop_for named did not make room", round);
+                    CHECK(arn_reserve(k, n) == 0, "round %u: dropping the part arn_fits named did not make room", round);
                 }
             }
         } else if (op < 7u) {                           /* the audio switches a part with a reservation */

@@ -108,9 +108,15 @@ static void tp_cell(uint32_t r, uint32_t k, cell_t *c)
         cell_param(c, &GP[g], &song.g[g]);
         return;
     }
+#if FELUCCA_PUNCH_SW
+    if (r == TPR_REC2 && k == 1u) {                     /* the project's PUNCH switch (fx/punch/punch.c: the ring) */
+        cell_param(c, &PUNCH_SW_D, &punch_sw);
+        return;
+    }
+#endif
     cell_clear(c);
     if (r == TPR_REC2 || (!r && k == 3u))
-        return;                                         /* (REC 2: QUANT, then free cells) */
+        return;                                         /* (REC 2: QUANT, PUNCH, then free cells) */
     if (!r && sy.src) {                                 /* following a clock: the offset in use, OCT- / + and the knob */
         cell_param(c, &SY_OFS_D[sync_ofs_ix()], &sync_ofs[sync_ofs_ix()]);
         return;
@@ -144,6 +150,12 @@ static void tp_turn(uint32_t r, uint32_t k, int32_t s, int fine)
         val_turn(&GP[g], &song.g[g], k, s, fine);
         return;
     }
+#if FELUCCA_PUNCH_SW
+    if (r == TPR_REC2 && k == 1u) {
+        val_turn(&PUNCH_SW_D, &punch_sw, k, s, fine);
+        return;
+    }
+#endif
     if (!r && k == 1u && sy.src) {                      /* the offset in use (its card above) */
         val_turn(&SY_OFS_D[sync_ofs_ix()], &sync_ofs[sync_ofs_ix()], k, s, fine);
         settings_later = 1;

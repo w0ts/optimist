@@ -96,6 +96,12 @@ static void *arb_ptr(uint32_t c)                        /* client c's pointer as
         return wt_mip;
     if (c == (uint32_t)ARB_X909)
         return x909_p;
+#if FELUCCA_PUNCH_SW
+    if (c == (uint32_t)ARB_PUNCH)
+        return punch_ring;
+#endif
+    if (c == (uint32_t)ARB_FM6SIN)
+        return FM6_SIN;
     return x808_p;
 }
 static int zeros(const void *p, uint32_t n)
@@ -202,16 +208,18 @@ int main(void)
 {
     uint32_t c, f, k, SL = SL_LEN * 2u, FM = arn_round(part_mem_bytes(ENG_IX_FM6)), lines = 0;
     uint32_t X9 = arn_round(x0x_mem_bytes(0)), X8 = arn_round(x0x_mem_bytes(1)), WT = arn_round(WT_MEM_BYTES);
+    uint32_t SN = arn_round(FM6_SIN_BYTES);
     int64_t e_off, e_on;
     track_t *t0 = &trk[0], *t1 = &trk[1], *t2 = &trk[2];
     host_tracks_init();
     fxi_init();
     for (c = 0; c < FXM_NC; c++)
         lines += arn_round(FXM_BYTES[c]);
-    CHECK(ARB_NC == NTRK + 3u && ARN_BYTES >= FM + lines + WT + SL + X9 + X8 && ARN_BYTES <= FM + lines + WT + SL + X9 + X8 + 64u,
-          "the premise: one FM6, the lines, WAVE's table, one SLICER recording and both X0X machines fit (arena %u B: FM6 %u, "
-          "lines %u, WAVE %u, SLICER %u, 909 %u, 808 %u)", (unsigned)ARN_BYTES, (unsigned)FM, (unsigned)lines,
-          (unsigned)WT, (unsigned)SL, (unsigned)X9, (unsigned)X8);
+    CHECK(ARB_NC == NTRK + 4u + FELUCCA_PUNCH_SW && ARN_BYTES >= FM + SN + lines + WT + SL + X9 + X8 &&
+          ARN_BYTES <= FM + SN + lines + WT + SL + X9 + X8 + 64u,
+          "the premise: one FM6 and its sine table, the lines, WAVE's table, one SLICER recording and both X0X machines fit "
+          "(arena %u B: FM6 %u + %u, lines %u, WAVE %u, SLICER %u, 909 %u, 808 %u)", (unsigned)ARN_BYTES, (unsigned)FM,
+          (unsigned)SN, (unsigned)lines, (unsigned)WT, (unsigned)SL, (unsigned)X9, (unsigned)X8);
     if (bad)
         return 1;
     /* 1. at boot */
@@ -350,9 +358,10 @@ int main(void)
     (void)arb_said();
     set_engine_of(t1, ENG_WAVE);
     CHECK(part_mem_refused.on && part_mem_refused.part == 1u && part_mem_refused.eng == ENG_WAVE &&
-          part_mem_refused.drop > 0 && t1->eng_req != ENG_WAVE && !wt_mip && !arn_has_next[ARB_K(ARB_WAVE)],
-          "WAVE on part 2 with no room for its table: the change refused as any engine's, the parts to drop proposed "
-          "(%d), nothing set aside", part_mem_refused.drop);
+          (part_mem_frees(0) || part_mem_frees(2)) && t1->eng_req != ENG_WAVE && !wt_mip &&
+          !arn_has_next[ARB_K(ARB_WAVE)],
+          "WAVE on part 2 with no room for its table: the change refused as any engine's, a part's memory would make "
+          "it room, nothing set aside");
     {
         uint32_t x;
         CHECK(mem_offer(&x) && x < NPART && x != 1u, "... the proposal: a part first (part %u)", (unsigned)(x + 1u));
@@ -452,6 +461,67 @@ int main(void)
     blocks(64);
     CHECK(!part_mem_refused.on && t2->engine == ENG_IX_FM6 && !wt_mip && arena_ok(), "... the table given back: part 3 on FM6");
     put_chrs(0, 0);
+#if FELUCCA_PUNCH_SW
+    /* the PUNCH switch (fx/punch/punch.c, a project's): the ring held only while it is on */
+    {
+        uint32_t w;
+        const char *m;
+        settle(4);
+        (void)arb_said();
+        CHECK(!punch_sw && !punch_ring && !arn_cur[ARB_K(ARB_PUNCH)].len, "PUNCH off (power-on): no ring in the arena");
+        punch.req = 3;                                  /* (FX + a white key: the ISR's keyboard_block) */
+        pass();
+        m = arb_said();
+        CHECK(punch.req < 0 && !punch_ring && m && !strcmp(m, "PUNCH OFF"), "FX + a key with PUNCH off: let go, PUNCH OFF");
+        blocks(16);
+        CHECK(punch.cur < 0, "... the mix as it is");
+        punch_sw = 1;
+        pass();
+        CHECK(punch_ring && arn_cur[ARB_K(ARB_PUNCH)].len == arn_round(FELUCCA_PUNCH_N * 2u) && !arb_full && arena_ok(),
+              "PUNCH on: its ring placed (%u B)", (unsigned)(FELUCCA_PUNCH_N * 2u));
+        w = punch.w;
+        CHECK(part_play(0, 64) > 0 && punch.w != w, "... the mix recorded into it while a part plays");
+        punch.req = PX_REV;
+        blocks(8);
+        CHECK(punch.cur == PX_REV, "... FX + a key: the punch plays (REVERSE)");
+        punch_sw = 0;                                   /* (switched off while it plays: held until it has faded out) */
+        pass();
+        CHECK(punch_ring && arb_st[ARB_PUNCH] == FXM_ON, "PUNCH off while REVERSE plays: the ring kept for its fade");
+        punch.req = -1;
+        for (w = 0; w < 50u && (punch.cur >= 0 || arn_cur[ARB_K(ARB_PUNCH)].len); w++) {
+            blocks(1);
+            pass();
+        }
+        CHECK(punch.cur < 0 && !punch_ring && !arn_cur[ARB_K(ARB_PUNCH)].len && arena_ok(),
+              "... faded out: the ring given back");
+        punch_sw = 0;
+        settle(4);
+        CHECK(!punch_ring && arena_ok(), "PUNCH off: its ring not held");
+    }
+#endif
+    /* FM6's sine table (eng_fm6.c FM6_SIN): held while a part plays FM6, built where it is placed */
+    {
+        static int32_t ref[1025];
+        uint32_t k2;
+        fm6_sin_fill(ref);
+        set_engine_of(t2, ENG_IX_FM6);
+        blocks(64);
+        settle(4);
+        CHECK(FM6_SIN && arb_st[ARB_FM6SIN] == FXM_ON && !memcmp(FM6_SIN, ref, sizeof ref) && arena_ok(),
+              "a part on FM6: its sine table placed and built (the boot's values)");
+        for (k2 = 0; k2 < NPART; k2++)
+            set_engine_of(&trk[k2], eng_silent_slot());
+        blocks(64);
+        settle(4);
+        CHECK(!FM6_SIN && !arn_cur[ARB_K(ARB_FM6SIN)].len && arena_ok(), "no part on FM6: the table given back");
+        set_engine_of(t0, ENG_IX_FM6);
+        CHECK(arn_has_next[ARB_K(ARB_FM6SIN)] && arn_next[ARB_K(ARB_FM6SIN)].len,
+              "FM6 picked: the table set aside with the part's memory (engines.c part_mem_aside)");
+        blocks(64);
+        settle(4);
+        CHECK(FM6_SIN && !memcmp(FM6_SIN, ref, sizeof ref) && part_play(0, 200) > 0 && arena_ok(),
+              "... placed and built again, FM6 heard");
+    }
     /* 7. random switches */
     quiet();
     {

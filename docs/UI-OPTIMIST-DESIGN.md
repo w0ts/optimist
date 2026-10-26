@@ -262,7 +262,7 @@ A page is one section; sections are never combined to fill a page except one joi
 
 | Screen | Sections |
 |---|---|
-| GLOBAL | Tempo (BPM NUDGE SWING TUNE), Rec (MODE LENGTH START CLICK, then QUANT), MIDI (CLK IN, CLK OUT, MIDI OUT; CLK OFS, BT OFS: the steps that much earlier while following a clock, on the FM-1's output / on Bluetooth audio, TEMPO's nudge too), Channels (T1 T2 T3 DR) |
+| GLOBAL | Tempo (BPM NUDGE SWING TUNE), Rec (MODE LENGTH START CLICK, then QUANT, PUNCH: with the arena's extras only), MIDI (CLK IN, CLK OUT, MIDI OUT; CLK OFS, BT OFS: the steps that much earlier while following a clock, on the FM-1's output / on Bluetooth audio, TEMPO's nudge too), Channels (T1 T2 T3 DR) |
 | SYSTEM | INFO, INTERNALS and USB STATS (debug builds, `SYS_DEBUG`), General (BRIGHT, KNOB COLORS, LOWCUT, FILT RESO; USB SERIAL when it fits), Keys (BUTTONS glow, KEYS), BT MIDI, BT AUDIO, USB AUDIO, Calibrate (PANEL, HOLD), About (VERSION, BUILD, REPO), Credits |
 
 - **INFO** is text only, no bars. The player's page: CPU (KNOB 1 picks NOW / MAX 5S / MAX; CPU0 and CPU1 in a dual-core build, the other core's stop reason in amber), UNDERRUNS (everything lost, the late halves too, with where), BATTERY. With `SYS_DEBUG` it also has DROPS (the late halves alone), clock, GUARD, and **INTERNALS** (LAST RESET, flash interrupts-off time, the second core's counters) and **USB STATS**. SHIFT + SAVE on INFO clears DROPS, UNDERRUNS and the MAX. Code: `system/overload.h`, `sys_info_cell`.
@@ -273,7 +273,7 @@ A page is one section; sections are never combined to fill a page except one joi
 
 ### 4.8 TEMPO
 
-PLAY held (past the hold time; a tap stays start / stop, acting when let go; a key while PLAY is down opens it at once). Rows: TEMPO (BPM NUDGE SWING SYNC), REC (MODE LENGTH START CLICK), REC 2 (QUANT); without REC MODES, QUANT is REC's first card. OCT- / OCT+ held nudge the clock 3.9 % slower / faster (10/256, `seq.c clk_nudge`; BPM never changes; nothing on an external clock); white keys tap the tempo (two taps or more), and HOME while PLAY is held (HOME is then no back, PLAY no start / stop when let go). The panel: the tempo large (amber while nudged), the four beats, the clock followed (*Auto: Int / USB / TRS / BLE*) and its RX light. GLOBAL repeats these rows; TEMPO stays because it opens over any screen. The clock counts whole BPM; a 0.1 BPM FINE was not built.
+PLAY held (past the hold time; a tap stays start / stop, acting when let go; a key while PLAY is down opens it at once). Rows: TEMPO (BPM NUDGE SWING SYNC), REC (MODE LENGTH START CLICK), REC 2 (QUANT, PUNCH with the arena's extras); without REC MODES, QUANT is REC's first card (PUNCH then on GLOBAL only). OCT- / OCT+ held nudge the clock 3.9 % slower / faster (10/256, `seq.c clk_nudge`; BPM never changes; nothing on an external clock); white keys tap the tempo (two taps or more), and HOME while PLAY is held (HOME is then no back, PLAY no start / stop when let go). The panel: the tempo large (amber while nudged), the four beats, the clock followed (*Auto: Int / USB / TRS / BLE*) and its RX light. GLOBAL repeats these rows; TEMPO stays because it opens over any screen. The clock counts whole BPM; a 0.1 BPM FINE was not built.
 
 ### 4.9 The performance layers
 
@@ -326,6 +326,11 @@ Only with an arena placed by need (builder `ARENA`; the default's fixed slots ne
 
 - REC: playing, records the selected track at once, again stops. Stopped, arms: the first note starts the loop, or the free take on an empty project, or the count-in (REC MODES). A take ends at a pattern switch. Overdub and latency compensation as in the core.
 - **REC held** clears. A ring fills after 0.7 s (the press is undone) and 1.3 s later the selected track is cleared (undoable, toast *T2 cleared*); let go before: nothing. With a lane picked only that lane (*Clear SNARE*). **REC held + a knob** clears that parameter's motion and p-locks over the whole track (a lane value: the lane's); the turn stops the ring so the track is never cleared this way. **SHIFT + REC held** clears the track's (the lane's) motion, p-locks, nudges, fills and chance; notes, levels and recorded lengths stay. SHIFT + REC on a SONG scene row clears the scene (asked).
+- **PUNCH** (TEMPO's REC 2 / GLOBAL's Rec, per project, saved in the G_INFO slot, bit 1 = ON; only in a build with the
+  arena's extras, `FELUCCA_PUNCH_SW`, the SD card mode): the punch-in FX's ring of the mix is held in the arena while it
+  is ON (docs/SD-MODE-DESIGN.md 6b). OFF (a new project's, an older project's): FX + a white key plays nothing, *PUNCH
+  OFF*; no room for the ring: *MEM FULL PUNCH*, the punch bypassed until there is room. Other builds: the ring is
+  static, the punch always there, no switch.
 - **REC QUANTIZE** (TEMPO / GLOBAL, per project, saved in the G_INFO slot, bit 0 = OFF): ON (default) snaps a recorded note's start and length to whole steps. OFF keeps the start as the step's nudge (own steps only, with MICRO) and the length as TIE steps plus a GATE lock on the last step (`rec_len_end`): a NOTE plays GATE / 128 of a step. Within 4 of the track's GATE: no lock.
 - **Overlapping notes** (POLY): a note keeps sounding while others are played over it. The new step becomes a chord of the new note and the held ones with the step flag `SF_CARRY` (`step_t.flags` bit 7; chance uses bits 2..6): carried notes already sounding go on, not struck again. MONO / LEGATO / UNISON keep one note a step.
 - **Each note's own end** (POLY, REC QUANTIZE OFF): a note up while others are down ends at its own time. The byte `step_t.ngate` (ends at ngate / 128 of the step) lives in RAM; stored as step-only events `AUTO_NGATE0 + k` (0x78..0x7B, `seq/ngate.h`). A chord's keys up within 1/8 of a step share an end. The STEP card LENGTH shows tenths (*1.8 ST*) through TIEs and carry steps (`note_span`, shared with the web editor's `noteSpan`).
