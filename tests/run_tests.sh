@@ -42,7 +42,7 @@ INSFX_ON="-DFELUCCA_INS_FOLD=1 -DFELUCCA_INS_FUZZ=1 -DFELUCCA_INS_PHASER=1 -DFEL
 # NOISE (FELUCCA_ENG_NOISE) joins the backports test; its own line, not BACKPORTS_ON (engine number 15, beside JUNO's 14)
 BACKPORTS_ON="$BACKPORTS_ON -DFELUCCA_ENG_NOISE=1"
 # the scene's engines, each a builder item: Clipper's six (engines/clipper/), Mini-Tone's SID (engines/sid/), PROPHET (engines/prophet/); tests/scene_engines_test.c
-SCENE_ON="-DFELUCCA_ENG_STRINGS=1 -DFELUCCA_ENG_VPS=1 -DFELUCCA_ENG_TERRAIN=1 -DFELUCCA_ENG_WSEQ=1 -DFELUCCA_ENG_VECTOR=1 -DFELUCCA_ENG_SID=1 -DFELUCCA_ENG_PROPHET=1 -DFELUCCA_ENG_WAVE=1"
+SCENE_ON="-DFELUCCA_ENG_STRINGS=1 -DFELUCCA_ENG_VPS=1 -DFELUCCA_ENG_TERRAIN=1 -DFELUCCA_ENG_WSEQ=1 -DFELUCCA_ENG_VECTOR=1 -DFELUCCA_ENG_SID=1 -DFELUCCA_ENG_PROPHET=1 -DFELUCCA_ENG_WAVE=1 -DFELUCCA_ENG_CS80=1"
 # ENV 1 MOD's test (tests/env1_test.c): every engine built, so every engine's cards are rendered
 ENV1_ENG="-DFELUCCA_ENG_SLICE=1 -DFELUCCA_ENG_PHYS=1 -DFELUCCA_ENG_ACID=1 -DFELUCCA_ENG_CZ=1 -DFELUCCA_ENG_JUNO=1 -DFELUCCA_ENG_NOISE=1 -DFELUCCA_ENG_DRONE=1 -DFELUCCA_ENG_PLAITS=1 $SCENE_ON"
 # the worked examples of CONTRIBUTING.md, each a builder item off by default: EXGN (an insert), SQUARE (an engine), WALK and
@@ -300,7 +300,7 @@ job; ( jobin
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $EX_ON -DFELUCCA_MOTION=1 -o "$OUT/examples_test" tests/examples_test.c -lm
-    run "the examples of CONTRIBUTING.md (EX_GAIN EX_SQUARE EX_NOTEGEN): EXGN bypassed at OFF, its dB, its glide, TLV, motion id; SQUARE UID 26, its presets heard, 220 Hz, every EDIT value; WALK UPDN's notes, in the scale, WRITE" "$OUT/examples_test"
+    run "the examples of CONTRIBUTING.md (EX_GAIN EX_SQUARE EX_NOTEGEN): EXGN bypassed at OFF, its dB, its glide, TLV, motion id; SQUARE UID 27, its presets heard, 220 Hz, every EDIT value; WALK UPDN's notes, in the scale, WRITE" "$OUT/examples_test"
     mkdir -p "$OUT/optimist-ex"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_MICRO=1 -DFELUCCA_FILLS=1 -DFELUCCA_PLOCK=1 -DFELUCCA_CHANCE=1 -DFELUCCA_MOTION=1 -DFELUCCA_COND=1 -DFELUCCA_SEQTOOLS=1 -DFELUCCA_PARAM_HELP=1 $EX_ON $SEC4 -o "$OUT/ui_optimist_ex_test" tests/ui_optimist_test.c -lm
     run "Optimist UI with the examples (EXGN, SQUARE, WALK UPDN): every screen, the names, the colours, every value's help line" "$OUT/ui_optimist_ex_test" "$OUT/optimist-ex"
@@ -316,7 +316,7 @@ job; ( jobin
 job; ( jobin
     # (-ffp-contract=off: PROPHET's float voice as the FM-1's FPU unit computes it, no fused multiply-add: an arm64 host fused them, x86 did not)
     $CC -O2 -w -ffp-contract=off -I"$HGEN" -Ifirmware/src $SCENE_ON -o "$OUT/scene_engines_test" tests/scene_engines_test.c -lm
-    run "the scene's engines (Clipper's STRINGS VPS TERRAIN WSEQ VECTOR WAVE, SID, PROPHET; UIDs 18..25): every preset audible / bounded / silent after, tests/golden_scene_engines.txt, level, each EDIT value acts, corners, deterministic, pitch" "$OUT/scene_engines_test" tests/golden_scene_engines.txt
+    run "the scene's engines (Clipper's STRINGS VPS TERRAIN WSEQ VECTOR WAVE, SID, PROPHET, CS80; UIDs 18..26): every preset audible / bounded / silent after, tests/golden_scene_engines.txt, level, each EDIT value acts, corners, deterministic, pitch" "$OUT/scene_engines_test" tests/golden_scene_engines.txt
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_PHASE_FOLD=1 -o "$OUT/phase_fold_test" tests/phase_fold_test.c -lm

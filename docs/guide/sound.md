@@ -36,6 +36,7 @@ A synth track plays one engine at a time. PRESETS on a synth track loads another
 | WAVE | `ENG_WAVE` | Clipper's wavetables: 8 tables of 16 frames, POS sweeps through them, band-limited; every WAVE track plays one table | WAVE: TABL POS DTN SUB; FLT: CUT RES DRV KTR |
 | SID | `ENG_SID` | The Commodore 64's MOS 6581 / 8580 (reSID, via Mini-Tone): the chip's waveforms, sync, ring and its multimode filter | OSC: WAVE PW MOD RATIO; FILTER: MODE CUT RES MODEL |
 | PROPHET | `ENG_PROPHET` | A Prophet-5 Rev 4 style voice (Melodee's): two oscillators, sync, Poly-Mod, the Curtis 4-pole | OSC: A B B-FRQ MIX; VCF: CUT RES PMOD PW |
+| CS80 | `ENG_CS80` | A Yamaha CS-80 style voice (after CS-1's): two channels a voice, a high-pass and a low-pass in series, the ring modulator | VCO: I II II-FT MIX; VCF: HPF LPF RES RING |
 
 ### Engine notes
 
@@ -102,6 +103,14 @@ A synth track plays one engine at a time. PRESETS on a synth track loads another
   from 0 it bends A's pitch with B (bells, growls, with sync the classic sweeps), down from 0 it moves the cutoff with B.
   **PW** narrows both pulses (the track's SHP moves it). The track's ENV is the amplitude and, through ENV 1's FLT
   card, the filter envelope. Five voices. Our own presets; it plays no Sequential programs.
+- **CS80:** a Yamaha CS-80 style voice after CS-1's (twochannels), with our controls: two channels a voice, each a VCO
+  through a high-pass and a low-pass in series. **I** and **II** are the channels' waves (SAW, PULSE, BOTH, SAW+SIN with
+  the sine added after the filters, NOISE), **II FT** channel II's footage against I's 8' (16' to 2', the fifths
+  between), **MIX** the lever between them (-64 I alone, 0 both, 63 II alone). **HPF** and **LPF** are the two filters
+  (key tracking 1:1), **RES** both resonances (the CS-80's filters never self-oscillate), **RING** the ring modulator's
+  rate (0 off). The track's FLT and ENV > FLT move both filters, as the CS-80's BRILLIANCE and VCF envelope do; SHP is
+  the pulse width, DTUNE (VOICE 2) detunes channel II up to ~20 cents, velocity opens the filters a little. Eight
+  voices. Our own presets; not affiliated with Yamaha.
 - **SAMPLE:** SET plays a built-in set (PIANO, BASS, VIBES, HORNS, STRGS, FLUTE, SCRCH, PERC; the builder chooses which) or your USR1 to USR3 slots ([drums and samples](drums.md#your-samples)).
 
 ## Voices
@@ -164,6 +173,7 @@ The **VOICE** page has four cards: the mode, GLD (glide time), GLMOD and PRIO.
 | WAVE | CUT | PIT | POS | DRV |
 | SID | CUT | PIT | PW | RES |
 | PROPHET | CUT | PIT | PW | PMOD |
+| CS80 | LPF | PIT | PW | RING |
 
 WHEEL's DRV, CLICK and TOP are the organ's, so ENV moves them from the track's newest voice. Every card can be locked on a step and recorded as motion.
 

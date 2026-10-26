@@ -396,6 +396,16 @@ _add("ENG_PROPHET", "FELUCCA_ENG_PROPHET", "PROPHET (a Prophet-5 style voice)", 
           "Floating point (the FPU), its own unit; about 11 KB of flash.",
      notice="The voice is Melodee's (Kerem Kilic, GPL-3.0-only), with our controls. Tested in the host tests only, not "
             "on a device. Not affiliated with Sequential.")
+CS1_CS80 = Provenance("CS-1 (twochannels/CS-1): its CS-80 voice's design", "twochannels", "GPL-3.0-only", "5dce8fa",
+                      "https://github.com/twochannels/CS-1")
+_add("ENG_CS80", "FELUCCA_ENG_CS80", "CS80 (a CS-80 style voice)", E, 431, default=0, provenance=CS1_CS80,
+     desc="A Yamaha CS-80 style voice (engine 26) after CS-1's: two channels a voice (I and II), each a saw, pulse, "
+          "both, saw with a sine or noise through a high-pass and a low-pass in series (HPF, LPF, RES), the MIX lever "
+          "between them, channel II at its own footage (II FT) and detuned by the track's DTUNE, and the ring modulator "
+          "(RING). The track's ENV, ENV > FLT, LFO and SHP (the pulse width) drive it; velocity opens the filters. 12 "
+          "presets of our own. Eight voices, integer code; about 3.5 KB of flash.",
+     notice="After CS-1's CS-80 voice (twochannels, GPL-3.0-only), with our controls; none of CS-1's presets or its "
+            "RANDOM model. Tested in the host tests only, not on a device. Not affiliated with Yamaha.")
 # (bit 91, LFO2, retired 2026-10-16: LFO 2, a second LFO on each synth track, is always built; never reuse the bit)
 # the worked examples of CONTRIBUTING.md (2026-10-26): one each of an insert, an engine, note generators; off in every
 # profile, every line they add is under their flag (a build without them is the build from before)
@@ -403,7 +413,7 @@ _EX_TESTED = "host-tested only (tests/examples_test.c), not on a device"
 _EX_NOTE = "An example to copy (CONTRIBUTING.md), not a feature: " + _EX_TESTED + "."
 _add("EX_SQUARE", "FELUCCA_EX_SQUARE", "SQUARE: the example engine (a pulse, its sub, a filter)", E, 422, default=0,
      experimental=True, tested=_EX_TESTED, notice=_EX_NOTE, symbols=("sq_render",),
-     desc="The worked example of CONTRIBUTING.md for a new synth engine (engines/square/eng_square.c, engine UID 26): a "
+     desc="The worked example of CONTRIBUTING.md for a new synth engine (engines/square/eng_square.c, engine UID 27): a "
           "band-limited pulse (PW, the track's SHP moves it), a square an octave down (SUB), a second pulse detuned up "
           "(DTN), white noise (NOIS), a 12 dB low-pass (CUT, RES, TRK: key tracking) and a soft drive (DRV); three "
           "presets, SQ LEAD, SQ BASS and SQ PLUCK. Integer code. Off in every profile: a build without it is the build "

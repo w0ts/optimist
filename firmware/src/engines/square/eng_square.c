@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 the Optimist contributors */
-/* SQUARE (engine UID 26, FELUCCA_EX_SQUARE, off by default): the example engine of CONTRIBUTING.md, "Add a synth
+/* SQUARE (engine UID 27, FELUCCA_EX_SQUARE, off by default): the example engine of CONTRIBUTING.md, "Add a synth
  * engine". A template, so it is small and every line a new engine must have is marked [ENGINE]. Copy this file to
  * engines/<name>/eng_<name>.c, rename sq_ / SQ_ / SQUARE, and follow CONTRIBUTING.md for the places it is registered.
  *

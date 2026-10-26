@@ -88,11 +88,17 @@
 #if FELUCCA_ENG_WAVE
 #include "clipper/eng_wave.c"                 /* WAVE (Clipper's wavetables): engine 25 */
 #endif
+#if FELUCCA_ENG_CS80 && !FELUCCA_ANALOG2
+#error "the CS80 engine takes its engine number (26) from the ANALOG 2 build"
+#endif
+#if FELUCCA_ENG_CS80
+#include "cs80/eng_cs80.c"                    /* CS80 (a CS-80 style voice after CS-1): engine 26 */
+#endif
 #if FELUCCA_EX_SQUARE && !FELUCCA_ANALOG2
-#error "the SQUARE example engine takes its engine number (26) from the ANALOG 2 build"
+#error "the SQUARE example engine takes its engine number (27) from the ANALOG 2 build"
 #endif
 #if FELUCCA_EX_SQUARE
-#include "square/eng_square.c"                /* SQUARE (the example engine, CONTRIBUTING.md): engine 26 */
+#include "square/eng_square.c"                /* SQUARE (the example engine, CONTRIBUTING.md): engine 27 */
 #endif
 
 /* The part's engine memory: the running state an engine keeps per part beyond its voices (FM6's voices and MONO
