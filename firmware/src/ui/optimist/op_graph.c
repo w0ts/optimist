@@ -711,6 +711,8 @@ static void draw_modal(void)
         cv_text_mid(12, fl, v, C_WHITE);
         cv_text_mid(50, ft, a, tc);
     }
+    if (ui.arm_stop)                                    /* (a load while playing: stopped, loaded, played again) */
+        cv_texts(120 - text_ws("Audio stops shortly") / 2, MODAL_H - 44, "Audio stops shortly", C_WARN);
     cv_texts(24, MODAL_H - 21, "Home no", C_GRAY);   /* (as the panel: HOME left of SAVE; over the box's foot) */
     cv_texts(216 - text_ws("Save yes"), MODAL_H - 21, "Save yes", C_WHITE);
     cv_blit(0, OP_PY);

@@ -509,6 +509,30 @@ static FRESULT sdm_rmdir(char *path, uint32_t n, uint32_t depth)   /* a folder a
     return r == FR_OK ? f_unlink(path) : r;
 }
 
+/* a project's LOAD asked while playing (the user, 2026-10-26: as the flash slots): the transport stops, then the
+ * project loads and plays again (op_edits.c pj_defer, pj_tick). Its file kept now: the list may turn meanwhile */
+static struct {
+    uint8_t ver;                                     /* a version picked (SAVES): that file; else the name's newest whole */
+    char path[sizeof sdm.path], name[sizeof sdm.shown];
+} sdm_dl;
+static void sdm_load_later(uint32_t k)
+{
+    if (!sdm_ready() || !sdb_path(&sdm.b, k, sdm_dl.path, sizeof sdm_dl.path)) {
+        ui_message("NOT ON THE CARD");
+        return;
+    }
+    sdm_dl.ver = (uint8_t)(sdm.view == SDV_VERSIONS);
+    str_cpy(sdm_dl.name, sdm_dl.ver ? sdm.vname : sdb_base(sdm_dl.path), sizeof sdm_dl.name);
+    pj_defer(3, 0);
+}
+static void sdm_load_now(void)
+{
+    if (sdm_dl.ver)
+        sdm_proj_load_file(sdm_dl.path, sdm_dl.name);
+    else
+        sdm_load_name(sdm_dl.name);
+}
+
 /* ---- the actions on slot k of the list shown */
 static void sdm_do(uint32_t op, uint32_t k)
 {
@@ -586,6 +610,13 @@ static void sdm_do(uint32_t op, uint32_t k)
         sdm_smp_dirty = 1;                           /* (the project's record: sdm_poll writes it, quiet) */
 #if FELUCCA_SD_STREAM
         sst_part_set(part, sdm_smp[part].hash);      /* (the part's CARD sample: placed by sd_stream_plan.c) */
+        if (trk[part].eng_req != (uint8_t)ENG_SLOT_SAMPLE) {   /* USE puts the part on SAMPLE (the user, 2026-10-26) */
+            set_engine_of(&trk[part], ENG_SLOT_SAMPLE);
+            if (trk[part].eng_req != (uint8_t)ENG_SLOT_SAMPLE)
+                return;                              /* (refused: memory short, the drop is proposed: model.c) */
+        }
+        trk[part].p[P_E0] = (int16_t)SMP_CARD;       /* .. its SET on CARD (eng_sample.c) */
+        snd_mark(part);
 #endif
         sdm_smp_gen++;
         str_cpy(t, trk_tag(part), sizeof t);

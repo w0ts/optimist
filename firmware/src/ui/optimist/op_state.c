@@ -89,6 +89,7 @@ static struct {
     char arm_verb[12], arm_arg[17];   /* the modal's two lines: "CLEAR?" and its target, "T2" (BLE_NAME_MAX + 1) */
     uint8_t arm_raw;                  /* the target is a name as it was given (a BLE device): never recased */
     uint8_t arm_danger;               /* it destroys something: a red frame (else amber) */
+    uint8_t arm_stop;                 /* it stops the transport first (a project's load while playing): the modal says so */
     uint8_t arm_ring;                 /* a delete asked while its key or button is held: the ring fills (the hold confirms, letting go cancels), not the modal */
     uint8_t toast_t;                  /* frames the toast stays: the result of an action just confirmed */
     uint16_t cards_t;                 /* STEP: frames the four cards stay over the grid (a page change, a value edited: ~1.5 s,
@@ -352,6 +353,7 @@ static void op_arm(uint32_t scr, uint32_t row, uint32_t k, const char *q, const 
     str_app(ui.arm_verb, "?", sizeof ui.arm_verb);
     str_cpy(ui.arm_arg, arg, sizeof ui.arm_arg);
     ui.arm_danger = (uint8_t)(danger != 0u);
+    ui.arm_stop = 0;
     ui.arm_ring = 0;
     ui.arm_raw = 0;
     ui.toast_t = 0;
