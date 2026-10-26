@@ -114,6 +114,7 @@ static void sdu_slice_use(void)
     check(trk[2].engine == (uint8_t)ENG_SLOT_SLICE, "SLICE USE: T3 on SLICE");
     song.sel = 2;
     sdu_key(idx);
+    sdu_key(idx);                                       /* (the second press uses it) */
     check(trk[2].eng_req == (uint8_t)ENG_SLOT_SLICE && trk[2].p[P_E0] == (int16_t)SLC_SRC_CARD && sst_part_hash[2] &&
           sst_part_hash[2] == sdm_smp[2].hash, "USE on a SLICE part: it stays on SLICE, SRC CARD, the sample to the plan");
     for (i = 0; i < 6u && !slc_crd[2]; i++) {           /* (the gate's two halves, then placed) */
@@ -292,6 +293,13 @@ static void sdcard_tests(void)
     sdu_key(0);
     tap(B_SAVE);
     check(upc_gives == 1u && upc_rec[0] == (uint8_t)5u && !strcmp((char *)upc_rec + 5, "LEAD"), "LOAD LEAD: its record given");
+    sdu_key(0);
+    check(op_armed() && strstr(ui.arm_q, "LEAD") && upc_gives == 1u, "a key: LOAD LEAD? asked, nothing loaded yet (one press shows it)");
+    sdu_key(0);
+    check(!op_armed() && upc_gives == 2u, "the same key again: loaded (a second press loads)");
+    sdu_key(0);
+    sdu_key(5);
+    check(!op_armed() && upc_gives == 2u && sdu_msg("EMPTY"), "another key: about that one instead (an empty slot: EMPTY), LEAD not loaded");
     sdu_op(SDO_SAVE);
     sdu_key(1);
     sdu_name("LEAD");
@@ -331,6 +339,10 @@ static void sdcard_tests(void)
     check(ui.scr == SCR_PROJECT && sdm_count() == 2u, "HOME: up a folder");
     song.sel = 1;
     sdu_key(1);
+    check(op_armed() && !ui.arm_danger && !strcmp(ui.arm_q, "USE snare.wav?") && !sdm_smp[1].hash,
+          "a sample's key: USE snare.wav? asked, nothing used yet (one press shows it)");
+    sdu_key(1);
+    check(!op_armed(), "the same key again: YES"); printf("DBG msg=[%s] hash=%llx op=%u\n", ui.msg, (unsigned long long)sdm_smp[1].hash, prj_arm_op);
     {
         sdx_rec rec;
         int32_t no = (sdx_open(), sdx_find_path("SAMPLES/snare.wav", &rec));
