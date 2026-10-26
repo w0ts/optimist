@@ -368,8 +368,10 @@ Each step names who does it. Claude never writes to the FM-1.
     pads it to 512 B, so the data starts at byte 512.
   - **The card is held.** While a take writes, the card takes no other command: FatFs' reads and writes are refused
     (`sd_diskio.c`: RES_NOTRDY), and the sample streams wait.
-  - **Starting a take.** From the console for now (`sd rec [ms]`, `sd rec stop`, `sd rec`: the state, blocks, frames
-    lost, the ring's most blocks waiting); the device's UI is to come.
+  - **Starting a take.** REC tapped, then pressed again at once and held (the user, 2026-10-26: "short plus long
+    click on rec"; op_input.c `crec_*`; docs/UI-OPTIMIST-DESIGN.md section 6): `OPTIMIST/RECORD/REC-nnnn.WAV`, the
+    first free name; REC flashes while it records. The console: `sd rec [ms]`, `sd rec stop`, `sd rec` (the state,
+    blocks, frames lost, the ring's most blocks waiting).
   Tests: `tests/sd_wr_test.c` (the writer: 64 blocks by bytes and by DMA, SDHC and SDSC, the screen's bytes between
   them, a 150 ms stall, a 600 ms one, a power cut), `tests/sd_rec_test.c` (2 s checked frame by frame and the header,
   a 150 ms stall covered, 300 ms dropping frames, a take filling its run, FatFs refused while it writes). Cost on

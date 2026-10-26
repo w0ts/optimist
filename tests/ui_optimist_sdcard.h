@@ -448,3 +448,49 @@ static void sdcard_cut_tests(void)
     card_power_on();
     free(snap);
 }
+
+#if FELUCCA_SD_REC
+/* the card recorder on REC (op_input.c crec_*; the user, 2026-10-26: "short plus long click on rec"): a tap, then REC
+ * pressed again at once and held, starts a take (the tap's arm put back), the same again stops it; a quick second tap
+ * is a plain REC press; REC flashes while the card records */
+static void sdu_rec_take(void)                          /* tap, press, held past CR_HOLD_MS, let go */
+{
+    tap(B_REC);
+    press(B_REC);
+    frames(CR_HOLD_MS / 16u + 2u);
+    release(B_REC);
+}
+static void sdu_rec_service(void)                       /* the main loop's passes: the recorder's blocks */
+{
+    uint32_t i;
+    for (i = 0; i < 64u && sdr_service(); i++)
+        ;
+}
+static void sdu_rec_tests(void)
+{
+    uint8_t rec0;
+    sdu_card();
+    op_enter(SCR_HOME);
+    frames(2);
+    rec0 = song.rec;
+    sdu_rec_take();
+    check(sdr_busy() && sdu_msg("CARD REC") && song.rec == rec0, "REC tap + held: a card take, the tap's arm put back");
+    check(!rh.ring, "... the held press starts no clear ring");
+    sdu_rec_service();
+    frames(4);
+    sdu_rec_take();
+    sdu_rec_service();
+    check(sdr_state == RC_DONE && sdu_msg("CARD STOP") && song.rec == rec0, "the same again: the take stopped, closed");
+    check(sdu_has("OPTIMIST/RECORD/REC-0001.WAV"), "... its file: OPTIMIST/RECORD/REC-0001.WAV");
+    frames(30);                                          /* (past the gap: a fresh gesture) */
+    tap(B_REC);
+    tap(B_REC);
+    frames(2);
+    check(!sdr_busy() && song.rec == rec0, "two quick taps: two plain REC presses (armed, then not), no take");
+    sdu_rec_take();
+    check(sdr_busy() && sdu_msg("REC-0002"), "a second take: REC-0002");
+    sdu_rec_take();
+    sdu_rec_service();
+    check(sdr_state == RC_DONE && sdu_has("OPTIMIST/RECORD/REC-0002.WAV"), "... stopped, its file");
+}
+#endif

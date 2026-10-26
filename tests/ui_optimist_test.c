@@ -3974,6 +3974,9 @@ int main(int argc, char **argv)
     }
     sdu_img = load(argv[2], &sdu_sectors);
     sdcard_tests();
+#if FELUCCA_SD_REC
+    sdu_rec_tests();
+#endif
     sdcard_cut_tests();
     printf(fails ? "optimist ui test FAILED (%d)\n" : "optimist ui test passed\n", fails);
     return fails != 0;

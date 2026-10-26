@@ -17,6 +17,9 @@
 #include "storage/sd/sd_index.c"
 #include "storage/sd/sd_browse.c"
 #include "storage/sd/sd_save.c"
+#if FELUCCA_SD_REC
+#include "storage/sd/sd_rec.c"                    /* (UI_SDCARD with SD_REC: the card recorder on REC) */
+#endif
 #if FELUCCA_SD_STREAM                                   /* (UI_SDCARD with SAMPLE, ARENA and SD_RING: the streams' plan) */
 #include "storage/sd/sd_stream.c"
 #include "storage/sd/sd_stream_plan.c"
