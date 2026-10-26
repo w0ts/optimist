@@ -51,7 +51,7 @@ own Bluetooth and has no WiFi.
 | What | Licence | State |
 | --- | --- | --- |
 | The mirror's features ours lacked (section 4) | ours, written again | done on `fm1base-port`, host-tested |
-| Installer: finds the FM-1 under any port name, checks the package's CRCs, checks after resume (`web/fm1ota.js`, `fm1pkg.js`, from Chris Farrell's fm-static) | MPL-2.0 | port names: done d0eb6aa2 (we had the hole: cached names were never probed); package CRC checks and the return check after resume: open |
+| Installer: finds the FM-1 under any port name, checks the package's CRCs, checks after resume (`web/fm1ota.js`, `fm1pkg.js`, from Chris Farrell's fm-static) | MPL-2.0 | port names: done d0eb6aa2 (we had the hole: cached names were never probed); package CRCs: done de53991e (we had none); the return check after resume: we had it |
 | m-bootloader in the installer | MIT | open |
 | USB MIDI host (felucca-bsp `FELUCCA_USB_HOST`) | MPL-2.0 | open: a port onto our USB code |
 | Storage: an unreadable A/B copy refuses the save instead of counting as blank (PR #13) | MPL-2.0 | done cd92ef91 (we had it: a save with both copies unread was lost on the next load) |
@@ -86,7 +86,7 @@ cache on the client (the device keeps a small table of hashes it sent, sends "th
 | Remote MASTER (op 4), let go (op 0), seq with idempotent answers | 108 kinds 3 and 4, a fourth byte seq (`opti_panelx_1`) | done, host-tested; the web Mirror tab uses seq (a lost key-up is sent again) and let go |
 | Row-segment hashes: what the viewer has is not sent again | `MIR_SKIP` in `ed_mirror_enc.h`, for any blit (theirs: full-width ones only) | done, host-tested; -1.1 % on our UI, 7.7 KB of pool |
 | Frame seq numbers (a gap: the viewer asks a refresh) | not needed: our device never leaves a gap (it drops and catches up whole) | by design |
-| Test session (op 5): a blank FM-1 that never writes its flash | 108 kind 5 (`opti_mtest_1`): a restart into a blank FM-1 (felucca.c `st_blank`: Optimist's own data reads erased, writes are no-ops, sample uploads refused; the user's samples still sound), ended by a restart (asked, the mirror off, no client in 15 s, a crash); USB only | done, host-tested; never run on an FM-1 |
+| Test session (op 5): a blank FM-1 that never writes its flash | 108 kind 5 (`opti_mtest_1`): a restart into a blank FM-1 (felucca.c `st_blank`: Optimist's own data reads erased, writes are no-ops, sample uploads refused; the user's samples still sound), ended by a restart (asked, the mirror off, no client in 15 s, a crash); USB only | done; tried on an FM-1 twice (`tools/fm1_mirror.py session`): blank while it lasts, the screen before and after identical |
 | PNG grab tool (`tools/fm1_mirror.py`) | `tools/fm1_mirror.py shot OUT.png [--state]`, `decode` (tests/fm1_mirror_test.py) | done, host-tested; never run against an FM-1 |
 | Lit keys on a client's keyboard | none: the iOS app has no on-screen keyboard (its keys are the Mac's keyboard as the panel); the app takes seq and let go instead (a lost key-up sent again; keys let go when the app leaves the front) | done; 71 app tests pass (an App Store submission when shipped) |
 
@@ -106,5 +106,4 @@ calibration at 0xE8000) or key_mac. The arena, overlays, the LZB boot stream and
   the segment table is 7.7 KB of pool for -1.1 %); every host test of it passes, the three failures left are size checks (the
   builder's drift, the rescue test's slot, the render-loop cost on a profile without those engines).
 - The first exact number: Optimist built on fm1-base, its flash and RAM.
-- The installer's package CRC checks and its check after resume (fm1-base 934e40d), still to compare with ours.
 - The talk with Charles, and with Julius about the two open Bluetooth stacks.
