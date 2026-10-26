@@ -2270,6 +2270,31 @@ static void tempo_tests(void)
     press(B_OCTDN);
     check(clk_nudge < 0, "OCT- held: slower");
     release(B_OCTDN);
+    {                                                   /* the NUDGE knob: 1 ms a click, once (the user, 2026-10-26) */
+        cell_t c;
+        uint32_t ms = (uint32_t)FS * 120u / 1000u;      /* (1 ms in clock units at 120 BPM) */
+        uint64_t blk = (a1 - a0) / 200u;                /* (a block's advance; a turn is a frame: 22 blocks, then the knob) */
+        b0 = (uint64_t)clk_beat * BEAT_U + clk_pos;
+        turn(EN_K2, 1);
+        turn(EN_K2, 1);
+        for (q = 0; q < 200u; q++)
+            mix_block(o, CTL);
+        b1 = (uint64_t)clk_beat * BEAT_U + clk_pos;
+        tp_cell(TPR_TEMPO, 1, &c);
+        check(b1 - b0 == 244u * blk + 2u * ms && !strcmp(c.val, "+2") && !strcmp(c.unit, "ms"),
+              "TEMPO's NUDGE knob, two clicks: the clock 2 ms ahead, once; the card \"+2 ms\"");
+        b0 = b1;
+        turn(EN_K2, -1);
+        for (q = 0; q < 200u; q++)
+            mix_block(o, CTL);
+        b1 = (uint64_t)clk_beat * BEAT_U + clk_pos;
+        tp_cell(TPR_TEMPO, 1, &c);
+        check(b1 - b0 == 222u * blk - ms && !strcmp(c.val, "+1") && song.g[G_BPM] == 120,
+              "... one click back: 1 ms later, the card \"+1\", the BPM value unchanged");
+        ui.force = 1;
+        frame();
+        ppm("opt-tempo-jog");
+    }
     release(B_PLAY);
     frames(2);
     check(song.playing && clk_nudge == 0, "PLAY let go after the page: still playing (a hold is no stop)");
