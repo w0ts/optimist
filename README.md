@@ -72,8 +72,8 @@ working project as a SLOOP 2.7 song file to go the other way.
 ## What is in it
 
 - **Four tracks:** three synth tracks and a drum track with 10 lanes on the black keys, ghost and hard hits, ratchets.
-- **Up to 27 synth engines:** ANALOG 2, FM6 (plays DX7 voices as Dexed does), JUNO, ACID, CZ, PHYS, DIGITAL, PHASE,
-  LOFI, SAMPLE, VOICE, TRIO, WHEEL, GRAIN, SLICE, NOISE, DRONE (a LYRA-style coupled drone with binaural beats), PLAITS (four of Mutable Instruments Plaits' models), Clipper's STRINGS, VPS, TERRAIN, WSEQ, VECTOR and WAVE, SID (the C64's chip, after reSID), PROPHET (a Prophet-5 style voice) and CS80 (a CS-80 style voice, after CS-1). Two LFOs and two envelopes per sound.
+- **Up to 28 synth engines:** ANALOG 2, FM6 (plays DX7 voices as Dexed does), JUNO, ACID, CZ, PHYS, DIGITAL, PHASE,
+  LOFI, SAMPLE, VOICE, TRIO, WHEEL, GRAIN, SLICE, NOISE, DRONE (a LYRA-style coupled drone with binaural beats), PLAITS (four of Mutable Instruments Plaits' models), Clipper's STRINGS, VPS, TERRAIN, WSEQ, VECTOR and WAVE, SID (the C64's chip, after reSID), PROPHET (a Prophet-5 style voice), CS80 (a CS-80 style voice, after CS-1) and STRETCH (PaulStretch-style stretching of the samples). Two LFOs and two envelopes per sound.
 - **Drums:** 5 sampled and 34 synthesised kits, the X0X 909 and 808 with eight style kits, every sound editable, your samples and kits.
 - **Effects:** two insert slots on every track, drum sound and the master (DYN, EQ3, filters, drive, chorus, echo, the
   Juno chorus and more), reverb, delay and chorus sends with three returns, punch-in effects.

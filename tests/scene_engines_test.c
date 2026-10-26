@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The engines ported from the scene (tests/run_tests.sh builds this with $SCENE_ON: Clipper's STRINGS VPS TERRAIN
  * WSEQ VECTOR, engines/clipper/, Mini-Tone's SID, engines/sid/, PROPHET, engines/prophet/, Clipper's WAVE, CS80, engines/cs80/), each engine the same checks:
- *   - its UID and fallback (registry.h), 27 engine UIDs;
+ *   - its UID and fallback (registry.h), 28 engine UIDs;
  *   - every preset: a 4-note chord held 2 s, the keys up, 10 s more: audible, bounded, no DC, every voice free at the
  *     end, its render's FNV-1a 64 the one in tests/golden_scene_engines.txt (GOLDEN_UPDATE=1 rewrites it); the
  *     presets' level within 9 dB of ANALOG's;
@@ -353,7 +353,7 @@ int main(int argc, char **argv)
                       "# an intended change.\n");
     for (pi = 0; pi < ENGINES[ENG_SLOT_ANALOG]->npresets; pi++)
         analog_rms += se_render(ENG_SLOT_ANALOG, pi, 0, CHORD, 4, 0).rms / ENGINES[ENG_SLOT_ANALOG]->npresets;
-    check(ENG_UID_N == 27u, "", "27 engine UIDs");
+    check(ENG_UID_N == 28u, "", "28 engine UIDs");
     for (i = 0; i < NENG; i++) {
         const se_eng_t *g = &ENGS[i];
         const engine_t *e = ENGINES[g->slot];

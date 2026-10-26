@@ -48,6 +48,9 @@ static const char NM_CELL[] =
     "ANALOG\0ANLG\0"             "DIGITAL\0DGTL\0"            "PHASE\0PHSE\0"              "SAMPLE\0SMPL\0"
     "VOICE\0VOX\0"               "WHEEL\0WHL\0"               "GRAIN\0GRN\0"           "NOISE\0NOIS\0"           "DRONE\0DRON\0"           "PLAITS\0PLTS\0"
     "STRINGS\0STRG\0"            "TERRAIN\0TERR\0"            "VECTOR\0VECT\0"            "PROPHET\0PRPH\0"
+#if FELUCCA_ENG_STRETCH
+    "STRETCH\0STRC\0"
+#endif
 #if FELUCCA_EX_SQUARE
     "SQUARE\0SQR\0"                                           /* (the example engine, EX_SQUARE: its 4-letter cell) */
 #endif

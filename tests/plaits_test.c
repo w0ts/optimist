@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The PLAITS engine (FELUCCA_ENG_PLAITS, engines/plaits/eng_plaits.c: four of Plaits' models; tests/run_tests.sh builds
  * this with the switch on):
- *   - engine UID 17 is PLAITS, its fallback ANALOG (registry.h), 27 engine UIDs;
+ *   - engine UID 17 is PLAITS, its fallback ANALOG (registry.h), 28 engine UIDs;
  *   - every preset: a 4-note chord held 2 s, the keys up, 6 s more: audible, bounded, no DC, every voice free at the
  *     end, its render's FNV-1a 64 the one in tests/golden_plaits.txt (GOLDEN_UPDATE=1 rewrites it); the presets'
  *     level within 9 dB of ANALOG's;
@@ -342,8 +342,8 @@ int main(int argc, char **argv)
 {
     host_tracks_init();
     check(ENG_IX_PLAITS < NENGINES && !strcmp(ENGINES[ENG_IX_PLAITS]->name, "PLAITS") && eng_uid(ENG_IX_PLAITS) == ENG_UID_PLAITS &&
-              ENG_UID_PLAITS == 17u && ENG_UID_N == 27u && ENG_FALLBACK[ENG_UID_PLAITS] == 0u,
-          "engine UID 17 is PLAITS, its fallback ANALOG, 27 engine UIDs");
+              ENG_UID_PLAITS == 17u && ENG_UID_N == 28u && ENG_FALLBACK[ENG_UID_PLAITS] == 0u,
+          "engine UID 17 is PLAITS, its fallback ANALOG, 28 engine UIDs");
     t_level();
     t_presets(argc > 1 ? argv[1] : "tests/golden_plaits.txt");
     t_edits();

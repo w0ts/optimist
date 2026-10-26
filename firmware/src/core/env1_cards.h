@@ -87,6 +87,8 @@ enum { E1L_FLT = 8, E1L_PIT, E1L_SHP };
     E1K_SHP, P_ED_SHP, 1, E1K_MV(6), P_E1X + 0, 6, LT_FLT)   /* (SHP: POS, the move: DRV) */
 #define E1C_CS80 E1C(E1K_FLT, P_ED_FLT, 5, E1K_PIT, P_E1PIT, E1L_PIT, \
     E1K_SHP, P_ED_SHP, E1L_SHP, E1K_MV(7), P_E1X + 0, 7, LT_FLT)   /* (FLT: LPF, SHP: the pulse width, the move: RING) */
+#define E1C_STRETCH E1C(E1K_FLT, P_ED_FLT, 4, E1K_PIT, P_E1PIT, E1L_PIT, \
+    E1K_MV(3), P_E1X + 0, 3, E1K_MV(7), P_E1X + 1, 7, LT_FLT)   /* (FLT: TONE, the moves: SMEAR and BLUR; no shape) */
 /* SQUARE, the example engine (EX_SQUARE, engines/square/eng_square.c): a new engine needs its E1C_<NAME> line here */
 #define E1C_SQUARE E1C(E1K_FLT, P_ED_FLT, 4, E1K_PIT, P_E1PIT, E1L_PIT, \
     E1K_SHP, P_ED_SHP, 0, E1K_MV(5), P_E1X + 0, 5, LT_FLT)   /* (FLT: CUT, SHP: PW, the move: RES) */
