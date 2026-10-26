@@ -20,8 +20,8 @@ return [
   'min_gap_seconds' => 120,
   // one build queued per address: refused while its issue is open, for this long at most (a failed run leaves it open)
   'queue_max_seconds' => 3600,
-  'per_ip_per_day' => 20,
-  'all_per_day' => 250,
+  'per_ip_per_day' => 100,
+  'all_per_day' => 1000,
   // the page's checks (GET ?status= every 20 s while a build runs, ?refs): counted apart, cached
   'polls_per_ip_per_hour' => 400,
   'status_cache_seconds' => 15,

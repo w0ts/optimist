@@ -201,7 +201,7 @@ The branch exists because a release download ends on a host with no CORS header,
 raw.githubusercontent.com sends `Access-Control-Allow-Origin: *`.
 
 **The workflow.**
-- **request** (reads the repository, writes issues): refuses an author past `MAX_PER_DAY` (20) builds that ran in 24 hours (a refused request does not count; the reply says when the next is possible), then runs
+- **request** (reads the repository, writes issues): refuses an author with a build still running (one at a time) or past `MAX_PER_DAY` (100, a backstop) builds that ran in 24 hours (a refused request does not count; the reply says when the next is possible), then runs
   `tools/cloud_build.py` from the default branch, so a request cannot change how it is read. The issue body reaches it
   through an environment variable only. The commit must be a full SHA on a branch of this repository (only maintainers push
   branches, so only published code is built). That commit's own builder checks the configuration (`optimist.py cloud-key
@@ -281,7 +281,7 @@ What the relay holds and refuses (`cloud-relay-config.php`, outside the web root
     build is done or refused), for `queue_max_seconds` at most (a failed run leaves its issue open);
   - `min_gap_seconds` between two builds, `per_ip_per_day` builds; all addresses together, `all_per_day`;
   - the same commit and configuration again from that address within a day answers its first issue.
-- The workflow's own limit (20 a day per issue author) skips the maintainers (owner, members, collaborators): the relay's
+- The workflow's own limits (one at a time, 100 a day per issue author) skips the maintainers (owner, members, collaborators): the relay's
   issues are authored by the token's account, a maintainer's, and the relay counts them per address instead.
 
 Set up: PHP 7.4+ with curl. `cloud-build.php` and `cloud-relay-config.php` (from `cloud-relay-config.example.php`) go

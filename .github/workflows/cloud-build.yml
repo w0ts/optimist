@@ -34,7 +34,7 @@ env:
   ISSUE: ${{ github.event.issue.number }}
   RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
   REPO: ${{ github.repository }}
-  MAX_PER_DAY: "20"
+  MAX_PER_DAY: "100"
   RETAIN_DAYS: "30"
 
 jobs:
@@ -68,6 +68,15 @@ jobs:
         run: |
           # (the maintainers are not counted: the relay's issues are theirs, and tools/cloud_relay counts those per address)
           case "$ROLE" in OWNER|MEMBER|COLLABORATOR) exit 0 ;; esac
+          # one build at a time (the user, 2026-10-26: "allow as much as possible and just protect from hackers"): another
+          # request of this author still open (sent in the last 2 hours), refused; the daily number below is only a backstop
+          recent="$(date -u -d '2 hours ago' +%Y-%m-%dT%H:%M:%SZ)"   # (a failed build leaves its issue open: an older one never blocks)
+          busy="$(gh api -X GET search/issues -f q="repo:$REPO is:issue is:open label:cloud-build author:$AUTHOR created:>$recent" --jq "[.items[].number | select(. != $ISSUE)] | length")"
+          if [ "$busy" -gt 0 ]; then
+            mkdir -p work
+            printf 'Not built: your previous cloud build is still running. Send this one again once it is done (a few minutes).\n' > work/reply.md
+            exit 1
+          fi
           # (the builds that ran: open, or closed as completed; a refused request, the over-limit ones included, does not
           # count: retrying while over the limit used to push the wait further, 16 "sent" against 5, 2026-10-26)
           since="$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%SZ)"
