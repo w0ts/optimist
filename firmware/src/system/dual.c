@@ -297,10 +297,12 @@ static HOT void dual_run(uint32_t mask, uint32_t n, mixacc_t *A)
             if (p < NPART) {
                 mix_part(&trk[p], n, A);
             } else if (p == NPART) {
+#if FELUCCA_DRUMS
                 SCOPE_DRUMS(scope_drums_mark);     /* (the SCOPE on the drums: their part of the mix, as mix_block does) */
                 slicer_drums(mix_l, mix_r, send_r, n);
                 dbus_run(n);                       /* the drum bus's inserts and sends (fx.c; the drums alone) */
                 SCOPE_DRUMS(scope_drums_take);
+#endif
             } else {
 #if REV_LATE
                 if (!rvj.done)                     /* (CPU1 down after it ran it: not twice) */
@@ -945,9 +947,13 @@ static HOT void mix_block_dual(int32_t *out, uint32_t n)
     DSTAGE(0x54);
     sw = pold_any() ? FAR(pold_in)() : 0u;         /* (SLOOP 2.6) the parts fading after a sound load: their old
                                                     * sound for this block, on both cores (voice.c sound_change) */
+#if FELUCCA_DRUMS
     drums.a0 = TDRUM->att;                         /* the drum track's mute / solo fade (before the fork: either */
     drums.a1 = 32767 - gain_next(TDRUM);           /* core may render the drums) */
     jobs = (1u << (NPART + 1u)) - 1u;              /* the parts and the drums */
+#else
+    jobs = (1u << NPART) - 1u;                     /* the parts (no drum track) */
+#endif
 #if REV_LATE
     rev_late = (uint8_t)(dual.up && n == CTL);     /* CPU1 up: the reverb one block late (fx.c fx_buses) */
     jobs |= rvj.pend ? DUAL_JOB_REV : 0u;          /* (its kept block, on either core) */

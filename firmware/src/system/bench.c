@@ -247,8 +247,8 @@ static void bench_setup(void)                              /* boot, after felucc
     {
         uint32_t i, k;
         for (i = 0; i < NTRK; i++)
-            for (k = 0; k < 16u; k += i == TRK_DRUM ? 1u : 2u)
-                if (i == TRK_DRUM)
+            for (k = 0; k < 16u; k += IS_DRUMK(i) ? 1u : 2u)
+                if (IS_DRUMK(i))
                     dstep_set(&trk[i].dstep[k], k % 4u == 0u ? 0u : 4u, LV_NORM, 0);
                 else {
                     trk[i].step[k].note[0] = (uint8_t)(48u + k + 5u * i);

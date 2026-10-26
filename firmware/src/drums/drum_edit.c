@@ -30,7 +30,7 @@ static uint32_t dl_src_kit(uint32_t s)
 }
 AINL uint32_t dl_kit_src(uint32_t k) { return k < DRUM_UID_XKIT ? DL_KIT0 + k : DL_XKIT0 + k - DRUM_UID_XKIT; }
 _Static_assert(DL_KIT0 + DRUM_UID_XKIT <= DL_X909 && DL_X808 + DL_X808_N <= DL_XKIT0, "lane sources: kits 0..46, X0X voices, kits 47..");
-#define DL_ANY 1                 /* the lanes' pages: every build has SOUND 3 at least (their sends, drum_sends.c) */
+#define DL_ANY FELUCCA_DRUMS     /* the lanes' pages: every build with drums has SOUND 3 at least (their sends, drum_sends.c) */
 typedef struct {                 /* a project's drum lanes (204 bytes; user kits keep the same per lane) */
     int8_t ofs[DRUM_LANES][DE_N];          /* offsets from the kit's sound (DE_*), 0 = as the kit */
     uint8_t src[DRUM_LANES];               /* DL_KIT, DL_USR + k, DL_KIT0 + kit, DL_X909 + v, DL_X808 + s */

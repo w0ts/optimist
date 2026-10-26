@@ -11,7 +11,7 @@ static int32_t ua_routed[CTL * UA_CAP_CHANNELS];
 _Static_assert(DRUM_LANES <= 16, "a name for each drum lane");
 static const char *ua_src_name(uint32_t v)             /* (flash only: no RAM a name, the lines' labels point here) */
 {
-    static const char *const N[UAS_DR1 + 16] = {"MASTER", "T1", "T2", "T3", "DRUMS", "DRUM BUS", "DR1", "DR2", "DR3", "DR4",
+    static const char *const N[UAS_DR1 + 16] = {"MASTER", "T1", "T2", "T3", TRK4_NAME, "DRUM BUS", "DR1", "DR2", "DR3", "DR4",
                                                 "DR5", "DR6", "DR7", "DR8", "DR9", "DR10", "DR11", "DR12", "DR13", "DR14",
                                                 "DR15", "DR16"};
     return N[v < UAS_N ? v : 0u];

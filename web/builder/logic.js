@@ -80,18 +80,21 @@ export function sortedKeys(keys, savings, sortBy) {
   }).map(([k]) => k);
 }
 
-/** the list as the menu builds it (rebuild): [{group, items: [{key, children: [key]}]}], groups without a match
-    left out, the children of a matching parent all shown */
+/** the list as the menu builds it (rebuild): [{group, items: [{key, children: [{key, children}]}]}], groups without a
+    match left out, the children of a matching parent all shown (a group's head: two levels, DRUMS > DRUM_X0X909 > X909_CYM) */
 export function treeOf(reg, filter, savings, sortBy) {
   const items = reg.byKey;
+  const hit = (k) => matches(items[k], filter) || items[k].children.some(hit);
+  const node = (k, all) => ({
+    key: k,
+    children: sortedKeys(items[k].children, savings, sortBy).filter((c) => all || matches(items[k], filter) || hit(c))
+      .map((c) => node(c, all || matches(items[k], filter))),
+  });
   const out = [];
   for (const g of reg.groups) {
-    const top = (reg.top[g] || []).filter((k) => matches(items[k], filter) || items[k].children.some((c) => matches(items[c], filter)));
+    const top = (reg.top[g] || []).filter(hit);
     if (!top.length) continue;
-    out.push({ group: g, items: sortedKeys(top, savings, sortBy).map((k) => ({
-      key: k,
-      children: sortedKeys(items[k].children, savings, sortBy).filter((c) => matches(items[c], filter) || matches(items[k], filter)),
-    })) });
+    out.push({ group: g, items: sortedKeys(top, savings, sortBy).map((k) => node(k, false)) });
   }
   return out;
 }
@@ -101,13 +104,14 @@ export function indexRegistry(desc) {
   const byKey = {};
   for (const it of desc.registry.items) byKey[it.key] = it;
   return { groups: desc.registry.groups, top: desc.top, byKey, items: desc.registry.items, limits: desc.limits,
-    spare: desc.spare, kits: desc.kits || [] };
+    spare: desc.spare, kits: desc.kits || [], drumsOnly: desc.registry.drums_only || [] };
 }
 
 /** the item is in the build: on (a choice: non-zero) and its parent on (core.built) */
 export function built(reg, values, key) {
   const it = reg.byKey[key];
   if (it.parent && !built(reg, values, it.parent)) return false;
+  if ((reg.drumsOnly || []).includes(key) && !built(reg, values, "DRUMS")) return false;
   return (values[key] ?? it.default) !== 0;
 }
 

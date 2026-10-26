@@ -45,17 +45,23 @@ static void op_project_new(void)
         }
         fm1_irq_on();
     }
+#if FELUCCA_DRUMS
     TDRUM->p[P_E0] = DRUM_DEFAULT_KIT;
+#elif FELUCCA_MACROS
+    memset(mac_pos, 0, sizeof mac_pos);                 /* (the macros' positions: the drum track's values with drums) */
+#endif
     for (i = 0; i < G_COUNT; i++)
         if (i != G_SLOT && i != G_DRCH && i != G_VIEW && i != G_SYNC)
             song.g[i] = GP[i].def;
     song.g[G_RSIZE] = RSIZE_NEW;                        /* (the reverb a little larger than its default: fx.c) */
     fm1_irq_off();                                      /* (blank, as a project with nothing stored loads: the mixing, the sends, the inserts) */
-#if FELUCCA_ANALOG2
+#if FELUCCA_ANALOG2 && FELUCCA_DRUMS
     dlrec_apply(0, DRREV_MOVED);                        /* the drum lanes (levels, pan, tune...) and their sends */
     dl_e0 = TDRUM->p[P_E0];
 #endif
+#if FELUCCA_DRUMS
     dsend_dry();                                        /* (the lanes: no reverb either) */
+#endif
     (void)fxr_decode(0, 0, 1);                          /* the FX slots, the tracks' and the drum sounds' inserts, the returns at unity, the lanes at the
                                                          * centre, no sequencer mute, the voice counts (fx_rec.c: what a load with no record does) */
     (void)dlfo_decode(0, 0);                            /* the drum lanes' LFOs and envelopes at their defaults */

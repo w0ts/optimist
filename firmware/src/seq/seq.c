@@ -1854,7 +1854,7 @@ static void input_on(track_t *t, uint32_t note, uint32_t vel)
 static void input_off(track_t *t, uint32_t note)
 {
     if (is_drum(t)) {
-        if (ft_on && ft_trk == TRK_DRUM && lane_of_note(note) < DRUM_LANES)
+        if (ft_on && IS_DRUMK(ft_trk) && lane_of_note(note) < DRUM_LANES)
             ft_note_off(lane_of_note(note));
         return;
     }
@@ -1874,7 +1874,7 @@ static void drum_input(uint32_t lane, uint32_t lvl, uint32_t rat, int rec)
         return;                                     /* (no lane) */
     pen_lane = (uint8_t)lane;
     arm_start(t);
-    if (ft_on && ft_trk == TRK_DRUM && lane != DRUM_ACC)
+    if (ft_on && IS_DRUMK(ft_trk) && lane != DRUM_ACC)
         ft_note_on(lane, lvl);
     if (rec && ((song.rec >> TRK_DRUM) & 1u) && song.playing)
         rec_hit(t, lane, lvl, rat);
@@ -1969,11 +1969,11 @@ static void roll_start(uint32_t k, track_t *t, uint32_t note, uint32_t lvl)
 
 static void roll_end(uint32_t r)
 {
-    if (roll[r].on && roll[r].off && roll[r].trk != TRK_DRUM) {
+    if (roll[r].on && roll[r].off && !IS_DRUMK(roll[r].trk)) {
         trk_note_off(&trk[roll[r].trk % NTRK], roll[r].note);
         seq_out_off(&trk[roll[r].trk % NTRK], roll[r].note);
     }
-    if (roll[r].on && roll[r].trk == TRK_DRUM)
+    if (roll[r].on && IS_DRUMK(roll[r].trk))
         seq_out_off(&trk[TRK_DRUM], LANE_NOTE_OF(roll[r].note));
     roll[r].on = 0;
 }
@@ -2307,7 +2307,7 @@ static void key_up(uint32_t k)
     case KS_DRUM:
         if (kb_nt[k][0] == DRUM_ACC)
             return;                                 /* (the ACCENT lane: no note was sent) */
-        if (ft_on && ft_trk == TRK_DRUM)
+        if (ft_on && IS_DRUMK(ft_trk))
             ft_note_off(kb_nt[k][0]);
         mc = trk_midi_ch(TRK_DRUM);
         midi_key_out(mc, LANE_NOTE_OF(kb_nt[k][0]), 0u);
@@ -2413,7 +2413,7 @@ static void click_tick(void)
     click_last = clk_beat;
     ev_at(clk_pos);
     if (mode == CLICK_ON || (mode == CLICK_REC && song.rec) || (mode == CLICK_AUTO && click_auto))
-        drum_on(clk_beat % 4u ? 76u : 77u, clk_beat % 4u ? 72u : 120u);
+        click_note(clk_beat % 4u ? 76u : 77u, clk_beat % 4u ? 72u : 120u);
 }
 
 /* -------------------------------------------------------- sequencer --- */
@@ -3230,7 +3230,7 @@ static void events_block(uint32_t n)
             ci_on = 1;                              /* COUNT: one bar of clicks first (below) */
             ci_u = 0;
             ci_beat = 0;
-            drum_on(77u, 120u);
+            click_note(77u, 120u);
 #endif
         } else {
             seq_start();
@@ -3262,7 +3262,7 @@ static void events_block(uint32_t n)
                     rec_begin();
             } else if (b != ci_beat) {
                 ci_beat = (uint8_t)b;
-                drum_on(76u, 72u);
+                click_note(76u, 72u);
             }
         }
     }

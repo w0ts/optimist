@@ -82,6 +82,7 @@ static uint32_t fm1_ticks(void) { return 0; }   /* (usb.c SYNC_NOW: MIDI timesta
 #define CTL 32
 #define NTRK 4
 #define DRUM_LANES 16
+#define TRK4_NAME "DRUMS"
 #define AINL static inline
 static int32_t track_capture[CTL * NTRK];
 #include "../firmware/src/io/usb/ua_tap.h"

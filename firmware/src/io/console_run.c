@@ -108,7 +108,7 @@ static void con_run_heavy(uint32_t notes)
         ins_put(k, ins);
         for (i = 0; i < INS_N; i++)
             con_run_amt(k, ins_amt(k, i));
-        if (k == TRK_DRUM) {
+        if (IS_DRUMK(k)) {
             for (i = 0; i < NSTEP; i++) {
                 dstep_t *s = &t->dstep[i];
                 memset(s, 0, sizeof *s);

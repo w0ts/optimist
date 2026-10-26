@@ -210,7 +210,7 @@ class Builder(App):
     def node_label(self, key):
         it = R.ITEMS[key]
         v = self.cfg[key]
-        live = not it.parent or C.built(self.cfg, it.parent)
+        live = (not it.parent or C.built(self.cfg, it.parent)) and (key not in R.DRUMS_ONLY or C.built(self.cfg, "DRUMS"))
         if it.is_choice:
             lab = dict(it.choices).get(v, str(v))
             box = f"<{lab}>"
@@ -298,15 +298,19 @@ class Builder(App):
                 continue
             gn = tree.root.add(Text(g, style="bold"), data=("group", g), expand=True)
             for it in items:
-                if it.children:
-                    n = gn.add(self.node_label(it.key), data=it.key,
-                               expand=bool(self.filter) or it.key not in collapsed)
-                    for c in self.sorted_keys(it.children):
-                        if self.matches(c) or self.matches(it.key):
-                            self.nodes[c] = n.add_leaf(self.node_label(c), data=c)
-                else:
-                    n = gn.add_leaf(self.node_label(it.key), data=it.key)
-                self.nodes[it.key] = n
+                self.add_node(gn, it.key, collapsed, it.key)
+
+    def add_node(self, parent, key, collapsed, top):
+        """key under parent, its options under it (a group's head: two levels, DRUMS > DRUM_X0X909 > X909_CYM)"""
+        it = R.ITEMS[key]
+        if it.children:
+            n = parent.add(self.node_label(key), data=key, expand=bool(self.filter) or key not in collapsed)
+            for c in self.sorted_keys(it.children):
+                if self.matches(c) or self.matches(top) or any(self.matches(g) for g in R.ITEMS[c].children):
+                    self.add_node(n, c, collapsed, top)
+        else:
+            n = parent.add_leaf(self.node_label(key), data=key)
+        self.nodes[key] = n
 
     def walk(self, node):
         yield node

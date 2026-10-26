@@ -345,7 +345,7 @@ function renderMsgs() {
 
 function itemRow(key, hasKids) {
   const it = S.reg.byKey[key], v = S.view, val = S.values[key] ?? it.default;
-  const live = !it.parent || built(S.reg, S.values, it.parent);
+  const live = (!it.parent || built(S.reg, S.values, it.parent)) && (!S.reg.drumsOnly.includes(key) || built(S.reg, S.values, "DRUMS"));
   const id = `it-${key}`;
   let ctl;
   if (it.choices.length) {
@@ -399,11 +399,12 @@ function renderTree() {
   for (const g of treeOf(S.reg, S.filter, v ? v.savings : {}, S.sortBy)) {
     const gid = "g:" + g.group, open = !S.collapsed.has(gid) || !!S.filter;
     const list = el("ul", { hidden: !open });
-    for (const t of g.items) {
-      const li = el("li", {}, itemRow(t.key, t.children.length > 0));
-      if (t.children.length && (!S.collapsed.has(t.key) || S.filter)) li.append(el("ul", {}, t.children.map((c) => el("li", {}, itemRow(c, false)))));
-      list.append(li);
-    }
+    const li = (t) => {
+      const n = el("li", {}, itemRow(t.key, t.children.length > 0));
+      if (t.children.length && (!S.collapsed.has(t.key) || S.filter)) n.append(el("ul", {}, t.children.map(li)));
+      return n;
+    };
+    for (const t of g.items) list.append(li(t));
     const head = el("div", { class: "o-panel-h", "data-fold": gid, role: "button", tabindex: "0", "aria-expanded": open ? "true" : "false", "aria-label": `${open ? "Fold" : "Unfold"} ${g.group}`,
       onclick: () => toggleFold(gid), onkeydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleFold(gid); } } },
       el("span", { class: "chev", "aria-hidden": "true", text: open ? "▾" : "▸" }), el("h2", { text: g.group }));

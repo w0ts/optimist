@@ -328,7 +328,7 @@ static const char *op_case(char *b, const char *s, uint32_t n)
 /* "T1".."T3", "DR": a track's short name */
 static const char *trk_tag(uint32_t i)
 {
-    static const char *const T[NTRK] = {"T1", "T2", "T3", "DR"};
+    static const char *const T[NTRK] = {"T1", "T2", "T3", TRK4_TAG};
     return T[i % NTRK];
 }
 

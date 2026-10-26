@@ -20,7 +20,7 @@
  * engine's drive), FILTER (P_TFLT), COMP only in a slot; the sends only in a slot, REV DLY CHO. The drum track's row:
  * its LEVEL (GLO > DRUMS), FILTER, FX on, the kit; its lanes carry the sounds' own values (SOUND 2 and 3: the offsets
  * and the sends). */
-enum { MXR_MASTER, MXR_T1, MXR_DR = MXR_T1 + TRK_DRUM, MXR_LANE0, MXR_LN = MXR_LANE0 + DRUM_UILANES,
+enum { MXR_MASTER, MXR_T1, MXR_DR = MXR_T1 + TRK_DRUM, MXR_LANE0, MXR_LN = MXR_LANE0 + (FELUCCA_DRUMS ? DRUM_UILANES : 0),   /* (MXR_DR: T4 without drums) */
 #if FELUCCA_USB_AUDIO
        MXR_USB = MXR_LN,                         /* the USB input, a track after the drum tracks (fx-rework stage 3; fx.c ut_mix) */
        MXR_N
@@ -395,7 +395,9 @@ static int16_t mx_lmute_v;
 /* an item's descriptor and value on row r (0: none) */
 static const param_desc_t *mx_desc(uint32_t r, const mitem_t *m, int16_t **vp)
 {
+#if DL_ANY
     const param_desc_t *d;
+#endif
     *vp = 0;
     switch (m->kind) {
     case MI_TRK:
@@ -413,6 +415,7 @@ static const param_desc_t *mx_desc(uint32_t r, const mitem_t *m, int16_t **vp)
     case MI_ACC:                                        /* the ACCENT amount: the drum track's own value */
         *vp = &TDRUM->p[P_DACC];
         return &DRUM_ACC_DESC;
+#if DL_ANY
     case MI_LANE:
         if (m->id == LPAN_VID)
             return lane_pan_desc(r - MXR_LANE0, vp);
@@ -420,6 +423,7 @@ static const param_desc_t *mx_desc(uint32_t r, const mitem_t *m, int16_t **vp)
         if (d)
             dsv_rec(r - MXR_LANE0, m->id);              /* (recording: the hold the knob goes on from) */
         return d && !PARAM_HIDDEN(d) ? d : 0;
+#endif
 #if FELUCCA_USB_AUDIO
     case MI_UT:
         return ut_desc(m->id, vp);
@@ -464,7 +468,7 @@ static const param_desc_t *mx_desc(uint32_t r, const mitem_t *m, int16_t **vp)
 static const param_desc_t *mix_desc(uint32_t id, uint32_t k, int16_t **vp)
 {
     *vp = 0;
-    if (k == TRK_DRUM) {
+    if (IS_DRUMK(k)) {
         if (id == P_LEVEL) {
             *vp = &song.g[G_DRLVL];
             return &GP[G_DRLVL];
@@ -726,8 +730,12 @@ static void mx_tick(void)
 {
     uint32_t i, hits, th, lh, r = mx_row();
     fm1_irq_off();
+#if FELUCCA_DRUMS
     hits = drums.hits;
     drums.hits = 0;
+#else
+    hits = 0;
+#endif
     th = trk_hits | smute_thits;                        /* (the muted: what they would have played) */
     trk_hits = smute_thits = 0;
     lh = hits | smute_lhits;

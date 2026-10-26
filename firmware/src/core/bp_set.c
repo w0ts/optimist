@@ -32,7 +32,7 @@ static const param_desc_t BPS_DESC[BPS_COUNT] = {
     [BPS_CH0] = PE("TRK 1", N_MCH, 1),
     [BPS_CH1] = PE("TRK 2", N_MCH, 2),
     [BPS_CH2] = PE("TRK 3", N_MCH, 3),
-    [BPS_CHD] = PE("DRUMS", N_MCH, 10),
+    [BPS_CHD] = PE(FELUCCA_DRUMS ? "DRUMS" : "TRK 4", N_MCH, FELUCCA_DRUMS ? 10 : 4),
     [BPS_MOUT] = PE("OUT", N_MOUT, 0),
     [BPS_MIN] = PE("IN", N_MIN, 0),
 };

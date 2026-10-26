@@ -398,7 +398,7 @@ static const param_desc_t GP[G_COUNT] = {
     [G_ENGGO] = PE("SET", N_GO, 0),
     [G_CLRSEQ] = PE("CLRSQ", N_GO, 0),
     [G_INITSND] = PE("INIT", N_GO, 0),
-    [G_DRCH] = PD("CH", F_INT, 0, 16, 10),            /* GM drum part MIDI channel, 0 = off */
+    [G_DRCH] = PD("CH", F_INT, 0, 16, FELUCCA_DRUMS ? 10 : 4),   /* GM drum part MIDI channel (no drums: track 4's), 0 = off */
     [G_DRLVL] = PD("LVL", F_INT, 0, 127, 100),
     [G_DRREV] = PD("REV", F_INT, 0, 127, 16),        /* retired (no page): a project's DRREV_MOVED, older ones the
                                                        * TRK lanes' REV (drum_sends.c); the default 16 decodes old
@@ -721,6 +721,12 @@ enum { SC_TRACK, SC_GLOBAL, SC_ENGINE, SC_STEP, SC_TRK, SC_SONG, SC_DRUM, SC_FM6
 #if FELUCCA_MACROS
 #define SC_MACRO (SC_DSND + 3)   /* GLO > MACRO (macro.c): COLOR MOTION SPACE ENERGY, kept in the drum track's MAC_ID */
 static const uint8_t MAC_ID[4] = {P_ED_FLT, P_ED_PIT, P_ED_SHP, P_LEG_FLT};   /* (values the drum track never reads) */
+#if FELUCCA_DRUMS
+#define MAC_POS(m) (TDRUM->p[MAC_ID[(m) & 3u]])     /* macro m's position */
+#else
+static int16_t mac_pos[4];                          /* (no drum track: their own; a project's tail, project.c pj_nd_t) */
+#define MAC_POS(m) (mac_pos[(m) & 3u])
+#endif
 #endif
 #define SC_FXSLOT (SC_DSND + 8)  /* FX > SLOTS (fx_slots.c): S1..S4, the type each slot holds */
 /* a track page's cells that are not P_* values (page_id, page_desc): INSERTS' S1 / S2 TYPE (fx_slots.c ins_desc), the
@@ -982,6 +988,8 @@ static int engine_page_used(const page_t *pg)
  * it is not shown either */
 static int page_shown(const page_t *pg)
 {
+    if (!FELUCCA_DRUMS && (pg->scope == SC_DRUM || (pg->scope == SC_GLOBAL && pg->id[0] == G_DRLVL)))
+        return 0;                                     /* (no drums: GLO > DRUMS, the drum track's pages) */
     if ((pg->graph == GR_SLCR && !FELUCCA_FX_SLICER) || ((pg->id[0] == G_DTIME || pg->id[0] == G_DFTYPE) && pg->scope == SC_GLOBAL && !FXS_HAS(FXT_DLY)) ||
         ((pg->id[0] == G_CTHR || pg->id[0] == G_CGAIN) && pg->scope == SC_GLOBAL && !MST_ON(FXT_DYN)) ||   /* (COMP LIMIT:
                                                        * the master's DYN, while one of its slots holds it) */
@@ -999,7 +1007,7 @@ static int page_shown(const page_t *pg)
     if (pg->scope == SC_FXSLOT && pg->id[0] == FXS_ID_RAMT)
         return rt_any();                              /* RET AMT: while a return holds a type that is not a send */
     if (pg->scope == SC_FXSLOT && pg->id[0] >= FXS_ID_TEQ && pg->id[0] < FXS_ID_TEQ + 6u)
-        return INS_ON(song.sel, FXT_EQ3) || (song.sel % NTRK == TRK_DRUM && lin_has(FXT_EQ3));   /* EQ3: the track's (a lane's: DR's) */
+        return INS_ON(song.sel, FXT_EQ3) || (IS_DRUMK(song.sel % NTRK) && lin_has(FXT_EQ3));   /* EQ3: the track's (a lane's: DR's) */
     if (pg->scope == SC_FXSLOT && pg->id[0] >= FXS_ID_MEQ && pg->id[0] < FXS_ID_MEQ + 6u)
         return MST_ON(FXT_EQ3);
     if (pg->scope == SC_FXSLOT && pg->id[0] >= FXS_ID_REQ && pg->id[0] < FXS_ID_REQ + 6u)
@@ -1146,7 +1154,7 @@ static const param_desc_t *page_desc(const page_t *pg, uint32_t slot, int16_t **
     if (pg->scope == SC_MACRO) {                      /* the positions, in the drum track's MAC_ID values */
         static const param_desc_t MAC_DESC[4] = {PD("COLOR", F_BIPCT, -64, 63, 0), PD("MOTN", F_BIPCT, -64, 63, 0),
                                                  PD("SPACE", F_BIPCT, -64, 63, 0), PD("ENRGY", F_BIPCT, -64, 63, 0)};
-        *valp = &TDRUM->p[MAC_ID[id & 3u]];
+        *valp = &MAC_POS(id);
         return &MAC_DESC[id & 3u];
     }
 #endif

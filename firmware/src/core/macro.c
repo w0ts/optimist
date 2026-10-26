@@ -179,7 +179,7 @@ static void mac_pre(void)
     lfo_mac_m = 0;                                     /* (LFO's depths: its slots') */
     dsend_msc = 64, dsend_madd = 0;                    /* (the drum lanes' REV: as authored) */
     for (m = 0; m < 4u; m++) {
-        x[m] = clamp(TDRUM->p[MAC_ID[m]], -64, 63);
+        x[m] = clamp(MAC_POS(m), -64, 63);
         any |= (uint32_t)x[m];
         moved |= x[m] != mrow.x[m];
     }
@@ -242,7 +242,7 @@ static int mac_home(int32_t *x)
 {
     uint32_t m;
     for (m = 0; m < 4u; m++)
-        x[m] = clamp(TDRUM->p[MAC_ID[m]], -64, 63);
+        x[m] = clamp(MAC_POS(m), -64, 63);
     return (x[0] | x[1] | x[2] | x[3]) == 0;
 }
 
@@ -363,7 +363,7 @@ static const dstep_t *en_step(const track_t *t, const dstep_t *s, uint32_t idx)
     uint32_t b, m, l, len = (uint32_t)clamp(t->p[P_SLEN], 1, NSTEP);
     if (clk_beat != en.beat || !idx) {
         en.beat = clk_beat;
-        en.band = (uint8_t)en_band(clamp(TDRUM->p[MAC_ID[3]], -64, 63), en.band);
+        en.band = (uint8_t)en_band(clamp(MAC_POS(3), -64, 63), en.band);
     }
     en.ptr = 0;
     b = en.band;

@@ -1063,7 +1063,7 @@ static void lin_set(uint32_t l, uint32_t id, int32_t v)
  *   DIST   the drum bus's amount (the parts' are P_DIST in project_t), then the 16 drum sounds' (as COMP's)
  *   CHO DLY REV   the drum bus's send */
 #if FELUCCA_MASTER_COMP
-_Static_assert(TRK_DRUM == NPART && NTRK == NPART + 1, "the COMP TLV: the drum bus, then the parts 0 .. NPART - 1");
+_Static_assert(!FELUCCA_DRUMS || (TRK_DRUM == NPART && NTRK == NPART + 1), "the COMP TLV: the drum bus, then the parts 0 .. NPART - 1");
 /* each track's DYN RATIO ATK REL (D6; GP's defaults: params.c G_CRAT G_CATK G_CREL), then (fx-rework, 2026-10-14) its
  * GAIN (0 AUTO: half the static reduction at full scale, the COMP insert of before; 1..16: 0..15 dB) and CEIL (the
  * limiter after it, N_CCEIL: 0 OFF, the default and every project of before); the drum sounds' the drum track's */
@@ -1211,7 +1211,7 @@ static uint32_t fxs_tlv(uint32_t t, uint8_t *o)
 static void fxs_untlv_none(int all)
 {
     uint32_t k;
-    for (k = 0; k < FXT_N; k++)
+    for (k = 0; FELUCCA_DRUMS && k < FXT_N; k++)      /* (no drums: track 4's own, project_t keeps them) */
         if (FXT_BUS[k] != 0xFFu)
             TDRUM->p[FXT_BUS[k]] = 0;
     memset(dins_amt, 0, sizeof dins_amt);

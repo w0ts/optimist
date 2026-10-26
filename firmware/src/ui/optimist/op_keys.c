@@ -126,7 +126,7 @@ static uint32_t lanes_flashing(void)                    /* the drum lanes' black
 static uint32_t mute_playing(int32_t id)
 {
     uint32_t l, any = 0;
-    if (id == SMUTE_T0 + TRK_DRUM) {
+    if (FELUCCA_DRUMS && id == SMUTE_T0 + TRK_DRUM) {
         for (l = 0; l < DRUM_LANES; l++)
             any |= lane_flash(l);
         return any;

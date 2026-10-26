@@ -60,7 +60,11 @@ static uint8_t sync_reload;                  /* engine / preset / project / user
  * writes the sequencer: every pattern is the one the player records or enters. */
 
 /* the parts' sounds at power-on (engine, preset): bass, pad, lead */
-static const uint8_t TRK_DEF[NPART][2] = {{0, 0}, {1, 0}, {4, 5}};   /* ANALOG 808 BOOM, DIGITAL RHODES, SAMPLE LOFI FLUTE */
+static const uint8_t TRK_DEF[NPART][2] = {{0, 0}, {1, 0}, {4, 5},   /* ANALOG 808 BOOM, DIGITAL RHODES, SAMPLE LOFI FLUTE */
+#if NPART > 3
+                                          {0, 13},  /* (no drums: track 4, ANALOG WARM PAD) */
+#endif
+};
 /* part i's default engine (slot; TRK_DEF holds UIDs: a fallback when not built) and preset */
 static uint32_t trk_def_engine(uint32_t i)
 {

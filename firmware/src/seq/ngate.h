@@ -30,7 +30,7 @@
 static inline void steps_store(pstep_t *d, const track_t *t, uint32_t k)
 {
     uint32_t i;
-    if (k == TRK_DRUM) {
+    if (IS_DRUMK(k)) {
         for (i = 0; i < NSTEP; i++)
             memcpy(&d[i], &t->dstep[i], DSTEP_SN);
         return;
@@ -41,7 +41,7 @@ static inline void steps_store(pstep_t *d, const track_t *t, uint32_t k)
 static inline void steps_load(track_t *t, uint32_t k, const pstep_t *s)
 {
     uint32_t i;
-    if (k == TRK_DRUM) {
+    if (IS_DRUMK(k)) {
         memset(t->step, 0, sizeof t->step);          /* (the ACCENT lane too: ngate_fold puts it back) */
         for (i = 0; i < NSTEP; i++)
             memcpy(&t->dstep[i], &s[i], DSTEP_SN);
@@ -71,7 +71,7 @@ static inline uint32_t dacc_unfold(auto_list_t *l, const step_t *st)
 static inline uint32_t ngate_unfold(auto_list_t *l, const step_t *st, uint32_t k)
 {
     uint32_t i, j, cut = 0;
-    if (k == TRK_DRUM)
+    if (IS_DRUMK(k))
         return dacc_unfold(l, st);
     for (i = 0; i < NSTEP; i++)
         for (j = 0; j < 4u; j++) {
@@ -91,7 +91,7 @@ static inline uint32_t ngate_fold(step_t *st, auto_list_t *l, uint32_t k)
         const auto_ev_t *e = &l->ev[i];
         if (e->param == AUTO_ACC) {
             out++;
-            if (k == TRK_DRUM && (e->place & AUTO_ONLY) && (e->value & 1))
+            if (IS_DRUMK(k) && (e->place & AUTO_ONLY) && (e->value & 1))
                 ((dstep_t *)(void *)st)[e->place & AUTO_STEP].acc = (uint8_t)(e->value & 31);
             continue;
         }
@@ -100,7 +100,7 @@ static inline uint32_t ngate_fold(step_t *st, auto_list_t *l, uint32_t k)
             continue;
         }
         out++;
-        if (k != TRK_DRUM && (e->place & AUTO_ONLY) && e->value >= 1) {
+        if (!IS_DRUMK(k) && (e->place & AUTO_ONLY) && e->value >= 1) {
             step_t *s = &st[e->place & AUTO_STEP];
             uint32_t j = e->param - AUTO_NGATE0;
             if (s->time == ST_NOTE && j < s->n)
@@ -114,7 +114,7 @@ static inline uint32_t ngate_fold(step_t *st, auto_list_t *l, uint32_t k)
 static inline int ngate_any(const step_t *st, uint32_t k)
 {
     uint32_t i, j;
-    if (k == TRK_DRUM)
+    if (IS_DRUMK(k))
         return 0;
     for (i = 0; i < NSTEP; i++)
         for (j = 0; j < 4u; j++)

@@ -38,9 +38,17 @@ def check(what, ok):
 
 
 items = R.ITEMS
-check("registry: unique stable bits, one level of options",
+check("registry: unique stable bits, one level of options (two under a group's head: DRUMS)",
       len({it.bit for it in items.values()}) == len(items) and
-      all(not it.parent or not items[it.parent].parent for it in items.values()))
+      all(not it.parent or not items[it.parent].parent or items[items[it.parent].parent].head for it in items.values()))
+_nd = dict(C.defaults(), DRUMS=0, LANE_FX=1, DRUM_X0X909=1)
+_nf = C.flags(_nd)[0]
+check("DRUMS off: every drum switch 0 (its options' options too), the drum-only items elsewhere left out, no drum source "
+      "asked for, PERC not built",
+      _nf["FELUCCA_DRUMS"] == 0 and _nf["FELUCCA_DRUM_X909"] == 0 and _nf["FELUCCA_X909_CYM"] == 0 and
+      _nf["FELUCCA_LANE_FX"] == 0 and _nf["FELUCCA_DRUM_SYNTH"] == 0 and not C.built(_nd, "LANE_FX") and
+      not C.built(_nd, "X909_CYM") and not any("drum source" in e for e in C.validate(_nd)[0]) and
+      "PERC" in C.flags(_nd)[1]["FELUCCA_SAMPLES_SKIP"])
 x0x = [it for it in items.values() if it.provenance and "fm1-x0x" in (it.provenance.project + it.provenance.url)]
 check(f"every X0X-derived item ({len(x0x)}) names Charles Vestal and shows a notice",
       len(x0x) >= 5 and all(it.notice and "Charles Vestal" in it.notice and it.provenance.author == "Charles Vestal"
@@ -237,8 +245,8 @@ NO_DS = dict(DRUM_SYNTH=0, DS_KAWA=0, DS_PLAITS=0)   # (the three drum synths, e
 bad = dict(C.defaults(), DRUM_SAMPLED=0, **NO_DS)
 # the three drum synths independent (the user, 2026-10-22, "3 drum synths, independent of each other"): the 32 kits,
 # KAWA, PLAITS; the code they share (drum_synth.c, the kit tables) is built with any of them
-check("the drum synths: DRUM_SYNTH, DS_KAWA, DS_PLAITS each an item of its own (no parent), on by default",
-      all(not items[k].parent and C.defaults()[k] == 1 for k in NO_DS))
+check("the drum synths: DRUM_SYNTH, DS_KAWA, DS_PLAITS each an item of its own (an option of DRUMS only), on by default",
+      all(items[k].parent == "DRUMS" and C.defaults()[k] == 1 for k in NO_DS))
 for _k in NO_DS:
     _one = dict(C.defaults(), DRUM_SAMPLED=0, **dict(NO_DS, **{_k: 1}))
     _f, _ = C.flags(_one)
