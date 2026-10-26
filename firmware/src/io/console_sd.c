@@ -9,7 +9,7 @@
  *   sd ls [DIR]           the directory's entries
  *   sd cat FILE           the file's first 64 bytes
  *   sd bench              the read modes compared on 64 blocks of the card (CON_SD_N): one line each
- *   sd bench FILE         the whole file read: through Petit FatFs (512 B a call), then a cluster per CMD18
+ *   sd bench FILE         the whole file read: through the filesystem (512 B a call), then a run per CMD18
  *   sd write FILE         a pattern written over the file (its size, up to 64 KB) block by block (CMD24, the data by DMA
  *                         when sd dma is on), read back and compared: KB/s
  *   sd pins [7|8|9|10]    the pin finder (bring-up, before the SD board: a breakout on J12, a multimeter): each of the
@@ -86,8 +86,8 @@ static void con_sd_mount(void)
         con_puts("\r\n");
     }
     if (st == SD_READY) {
-        con_kv("fat", sd_fs.fs_type == FS_FAT32 ? 32 : 16);
-        con_kv("cluster B", (int32_t)sd_fs.csize * 512);
+        con_kv("fat", (int32_t)sd_fat_bits());
+        con_kv("cluster B", (int32_t)sd_cluster_bytes());
     }
 }
 
@@ -188,7 +188,7 @@ static void con_sd_row(const char *name, uint32_t mode, uint32_t dma, uint32_t b
 static void con_sd_bench_modes(void)
 {
     static const uint8_t BAUD[2] = {FM1_SD_BAUD_FAST, FM1_SD_BAUD_OVER};
-    uint32_t s = sd_state == SD_READY ? sd_fs.database : 0, b, cm = fm1_sd_mode == FM1_SD_BITBANG ? FM1_SD_DUPLEX
+    uint32_t s = sd_state == SD_READY ? sd_data_sector() : 0, b, cm = fm1_sd_mode == FM1_SD_BITBANG ? FM1_SD_DUPLEX
                                                                                                   : fm1_sd_mode;
     if (!sd_card_type()) {
         con_puts("sd: no card (mount first: sd)\r\n");
@@ -207,7 +207,7 @@ static void con_sd_bench_modes(void)
     con_puts("(the same sum on every row = the same data; crc_bad 0 = read right)\r\n");
 }
 
-static void con_sd_stream(uint32_t size)             /* the open file a cluster per CMD18, by the set mode */
+static void con_sd_stream(uint32_t size)             /* the open file a run per CMD18, by the set mode */
 {
     uint32_t total = 0, n, j, sec, t0 = fm1_ticks(), bad = 0, st;
     while ((n = sd_file_run(&sec)) != 0) {
@@ -279,11 +279,11 @@ static void con_sd_rw(const char *path, uint32_t what)   /* 0 cat, 1 bench, 2 wr
         return;
     }
     if (what == 2) {
-        n = sd_fs.fsize > 65536u ? 65536u : sd_fs.fsize & ~511u;   /* (whole blocks only) */
+        n = sd_file_size() > 65536u ? 65536u : sd_file_size() & ~511u;   /* (whole blocks only) */
         con_sd_write(path, n);
         return;
     }
-    n = sd_fs.fsize;
+    n = sd_file_size();
     t0 = fm1_ticks();
     for (;;) {
         if (sd_read(sd_blk, 512u, &got) != FR_OK || !got)
@@ -325,7 +325,7 @@ static void con_sd(const char *p)
         int ok;
         uint32_t s = con_num(&p, &ok);
         sd_begin(SD_BAUD());
-        if (disk_readp(sd_blk, (DWORD)s, 0, 64) == RES_OK)
+        if (sd_readp(sd_blk, (DWORD)s, 0, 64) == RES_OK)
             con_bytes("sector", sd_blk, 64);
         else
             con_puts("sd: read failed (mount first: sd)\r\n");
