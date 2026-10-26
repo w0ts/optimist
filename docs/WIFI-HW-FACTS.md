@@ -77,6 +77,11 @@ Read locally (git-ignored): `worktrees/link-ref/ac79-liba/` (the three `.a`, `ll
   set-up); polling bit 17 works. **The missing piece was the coexistence controller's set-up.**
   `wifiscan` (channels 1-13, 150 ms each, beacons and probe responses parsed: BSSID, the DS parameter's channel, the
   RXWI's RSSI byte, SSID): 52 frames, 8 networks on channels 3, 6 and 11 (the user's own on 11), listening only.
+  **Transmit works** (2026-10-26, `wifitx 11`): one broadcast probe request at 1 Mb/s from `02:11:22:33:44:55` (set in
+  MAC `0x1008` / `0x100C`), built as the emulator capture showed (`hal/fm1_wifi.h` `fm1_wifi_tx`: word 0 = MPDU + 22,
+  word 1 = 4 (queue 2), the 16-byte TXWI, the frame; DMA from byte 4, length word 0 + 4, `0x30F10` / `0x30F14`, done
+  = `0x30F04` bit 20): three access points answered with probe responses to that address within 300 ms, twice
+  (`1C:0B:8B:48:EC:60` and `8C:ED:E1:92:50:79`, the user's network, and `42:3E:CC:C2:35:5E`).
 - **Start order** (`wf_rf_common_init`): `wf_clk_rst_init`, `wdma_init`, `wfhw_init` (PHY / MAC reset, SIFS, `wf_phy_init`,
   `wf_rf_init`, `wf_phy_init` again, `rapp_init`, analog control, power 6, channel 6, PA MCS gain, RF DC reload,
   then a temperature trim every 3 s).
@@ -114,6 +119,12 @@ So the BT start-up we replay (`hal/fm1_ble_rf.h`) already is the Wi-Fi radio's s
 The full calibration's measurements are the emulator's, not a radio's: only pass 2 is a usable program.
 `wlrf_get_` (3,850 writes in pass 2) is a strobed analog read (`0x11968` select, `0x11978` strobed 8 times), used by
 the PLL scan (`get_pll_vc_res`) and `wf_rx_tune_test`.
+
+**The TX hand-off** (a raw send, `wifi_send_data`, captured): the shim repacks the Ralink USB frame into `tx_s_buf`:
+word 0 = MPDU length + 22, word 1 = queue bits (1-2: 2) and flags, the TXWI (`0xB0`, `0x00240135` for a 36-byte frame
+at 1 Mb/s: ACK, BA window 13, WCID 1, MPDU length), the frame; then `wl30_mmc_io_rw_extended(write, addr 0, tx_s_buf,
+word 0 + 4)`. It first waits for room in the queue: MAC `0x438` holds each queue's fill level (byte per queue), the
+limits come from the value written to `0x40C` (`RTUSBDoubleWrite` keeps them, `max_txrxq_pcnt`).
 
 **The STA bring-up** (the image with `wl_wifi_sta.a` too, running the SDK's `usb_register` after `tasklet_initialize`,
 the profile `WL_STA_DAT` with `PSMode=CAM`): `rtusb_probe` -> `RtmpOSNetDevAttach` -> `register_netdev` ->
