@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* Legacy Bluetooth authentication and key generation (Core spec Vol 2 Part H §6): SAFER+ as the spec's Ar and A'r,
  * E1 (SRES, ACO), E21 / E22 (link keys from an address / a PIN) and E3 (the E0 cipher key). Written from the
  * specification; portable C, no C library; host-tested against Part G §10 (tests/bt_crypto_test.c).

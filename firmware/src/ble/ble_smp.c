@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* The Security Manager, peripheral (responder) side (Core Specification Vol 3 Part H); with BLE_CENTRAL 1
  * (BLE_CEN_PAIR) also the initiator, for the links we are the master of (ble_smp_init.c, included below). BLE_CENTRAL
  * 3 pairs nothing as master: smp_cen_refuse.

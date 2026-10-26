@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* The link layer, one connection, LE 1M (Core Specification Vol 6 Part B): the peripheral, and with BLE_CENTRAL the
  * scanner, the initiator and the master of a connection (ble_ll_central.c). The baseband engine
  * (ble_hw.h) does the per-event timing, hopping, acknowledgement and instants; this file does the rest:

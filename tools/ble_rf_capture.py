@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0
 """Capture the radio's start-up tables for a BLE build (FELUCCA_BLE=1) from the user's own stock V15 firmware running in
 the FM-1 emulator. The result is committed as firmware/hal/ble_rf_tables_v15.h (a build with neither FM1_STOCK_FWSC nor
 a local cache uses it). With the firmware given, the tool keeps a generated, git-ignored local cache: config/ble/
@@ -637,7 +637,10 @@ def header(prog, addrs, agc, notes, bbp_flags, digest, counts):
     for kind, where, s, w, rid, b, k in FIELDS:
         fields += [REC[rid], b, s, w | (k << 7)]
     return (
-        "/* BLE radio start-up values captured from the stock FM-1 V15 firmware (see docs/BLE-STACK.md). */\n"
+        "/* SPDX-License-Identifier: Apache-2.0 */\n"
+        "/* BLE radio start-up values captured from the stock FM-1 V15 firmware (see docs/BLE-STACK.md): M-VAVE's FM-1_015.fwsc,\n"
+        " * Copyright (c) 2026 Zhuhai Shengke / M-VAVE, published under Apache-2.0 as sdk/firmware/FM-1_015.fwsc in\n"
+        " * https://github.com/m-vave/fm1_open (its THIRD_PARTY.md). */\n"
         "#pragma once\n#include <stdint.h>\n"
         f"#define BLE_RF_TABLES_FORMAT {FORMAT}\n"
         f"#define BLE_RF_SHA256 \"{digest}\"\n"

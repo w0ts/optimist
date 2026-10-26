@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* End-to-end host test of the BLE stack (firmware/src/ble/: link layer, L2CAP, signalling, SMP, ATT / GATT,
  * BLE-MIDI) driven by a simulated central through a fake baseband (ble_hw.h). One connection event: the
  * central's queued PDUs are delivered, then the peripheral's are taken (all acknowledged), then the event ends.

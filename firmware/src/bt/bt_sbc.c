@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* The SBC encoder (bt_sbc.h): AOSP's, its files in bt/sbc/ as Android ships them (Apache-2.0, their own headers kept),
  * compiled here as one unit; this file only sets it as the A2DP stream is configured. */
 #include "bt_sbc.h"

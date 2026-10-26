@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 -->
 # BLE MIDI: our own stack (route C)
 
 How Bluetooth LE MIDI works in Optimist today: the link layer, host, BLE-MIDI, the driver for the FM-1's radio, the radio's

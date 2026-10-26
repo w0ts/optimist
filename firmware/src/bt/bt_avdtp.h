@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* The Classic probe's AVDTP initiator (AVDTP 1.3 §8): the signalling PDUs to find an audio sink's SBC endpoint, its
  * capabilities, configure SBC and open the stream, and the SBC choice (A2DP 1.3 §4.3). Portable C, no C library;
  * host-tested in tests/bt_avdtp_test.c. Written from the specifications, no vendor code. */

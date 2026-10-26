@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* Host test of our SDP server (firmware/src/bt/bt_sdps.c): the three requests a sink sends (Core spec Vol 3 Part B
  * §4.5-4.7) answered, the answers read back with the SDP client's parser (bt_l2cap.c bl_sdp_parse): the A2DP source
  * record (class 0x110A, L2CAP PSM 0x0019, AVDTP 1.3, A2DP 1.3), the AVRCP target (0x110C, AVRCP 1.6) and the Device ID

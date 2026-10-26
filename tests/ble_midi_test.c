@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* Host test of the BLE-MIDI packet codec (firmware/src/ble/ble_midi.c), after the MIDI Association's
  * "Specification for MIDI over Bluetooth Low Energy" 1.0:
  *   decoder   one note; running status with and without its own timestamp octet; a low timestamp that wraps

@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* Host test of the Classic probe's AVDTP initiator (firmware/src/bt/bt_avdtp.c): commands byte for byte (AVDTP 1.3
  * §8), a DISCOVER answer with a source, a sink in use and a free sink, a GET_CAPABILITIES answer with SBC, the SBC
  * choice (A2DP 1.3 §4.3) and SET_CONFIGURATION's parameters. */

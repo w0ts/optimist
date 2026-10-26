@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 -->
 # BLE baseband hardware facts (AC791N / WL82)
 
 What the driver (`firmware/src/ble/ble_hw_wl82.c`, `firmware/hal/fm1_ble.h`, `fm1_ble_rf.h`) depends on: registers,

@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* Host test of Bluetooth Classic authentication and Secure Simple Pairing (SSP) cryptography (firmware/src/bt/bt_safer.c).
  * Tested against Core spec Vol 2 Part G §10 and §7 reference test vectors. */
 #include <stdio.h>

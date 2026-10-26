@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* Host test of the BLE stack's primitives (firmware/src/ble/ble_prim.c, ble_aes.c) against published vectors:
  *   AES-128     FIPS-197 Appendix C.1; the LL session-key sample of the Core Specification (Vol 6 Part C 1:
  *               SK = e(LTK, SKDs || SKDm)); the S-box against one computed from GF(2^8)

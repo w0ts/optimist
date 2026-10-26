@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* Link-layer primitives from the Core Specification, Vol 6 Part B (LE 1M):
  *   CRC24 (3.1.1), data whitening (3.2), Channel Selection Algorithm #1 with the channel map (4.5.8.2),
  *   access-address rules (2.1.2).

@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* Host test of our least AVRCP (firmware/src/bt/bt_avrcp.c): the SetAbsoluteVolume command byte for byte (AVRCP 1.6
  * §6.13.2, AVCTP §6.1, AV/C), and the sink's questions as the AirPods ask them (a Raspberry Pi's capture, 2026-10-21:
  * GetCapabilities, RegisterNotification) answered, a key press accepted, the rest refused the way the spec says. */

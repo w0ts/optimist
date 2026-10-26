@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* The host's side of the central role (BLE_CENTRAL; docs/BLE-STACK.md §9.2, docs/BLE-DEVICES-DESIGN.md §4): one connection out to a
  * BLE-MIDI peripheral, from the initiator to "ready" (MIDI both ways):
  *   ble_central_connect   initiate (ble_ll_connect) to the peer's AdvA; connected as master -> the GATT client

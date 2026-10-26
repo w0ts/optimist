@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* Little helpers shared by the BLE stack: little-endian fields (Bluetooth sends the least significant octet
  * first) and byte copies. No C library: the firmware builds freestanding (-fno-builtin). */
 #ifndef BLE_UTIL_H

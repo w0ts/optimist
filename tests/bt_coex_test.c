@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* Host test of the shared radio's bring-up (firmware/src/ble/rf_share.h): BLE MIDI and Bluetooth audio on the one radio,
  * in either order. The radio's start-up and the LE baseband's init are counting stand-ins (the hardware's are
  * hal/fm1_ble.h's); the two sequences are the callers' as they are written:

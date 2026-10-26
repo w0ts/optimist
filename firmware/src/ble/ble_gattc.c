@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* The ATT client of the central role (BLE_CENTRAL; Core Specification Vol 3 Part F / G), finding a peripheral's
  * BLE-MIDI characteristic and turning its notifications on (MIDI Association, "Specification for MIDI over Bluetooth
  * Low Energy" 1.0):

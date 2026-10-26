@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* Host test of the WL82 driver's scanning (firmware/src/ble/ble_hw_wl82.c, BLE_CENTRAL; docs/BLE-HW-FACTS.md §21.2) with
  * the stack, the scanner's table and the fake engine of tests/ble_fake/fm1_ble.h:
  *   start     from advertising, in the vendor's order: RFPRIO 17, column 8 = 0, window / interval (and the vendor's
