@@ -366,6 +366,49 @@ static int sdm_dx7_open(uint32_t k)                  /* slot k (a .SYX) as a ban
     sdm.bank_page = 0;
     return sdm_dx7_page();
 }
+#if FELUCCA_ENG_CZ
+/* a Casio CZ single tone (the user, 2026-10-26: the CZ collections on the card): a .SYX of 264 B (F0 44 00 00 7n 20 pp,
+ * 256 nibbles low first, F7: what CZ patch sites offer) under PRESETS, its key pressed: its 128 synthesis bytes into the
+ * selected part's tone (eng_cz.c cz_tone; the part on CZ first), as a single-tone dump: kept until the part's TONE or
+ * engine changes (a project keeps the TONE number, not the tone) */
+#define SDM_CZ_LEN 264u
+static int sdm_cz_load(uint32_t k)                   /* 0 loaded (said), -1 not a CZ tone */
+{
+    UINT got = 0;
+    uint32_t i, p = song.sel;
+    track_t *t = &trk[p % NTRK];
+    if (!sdb_path(&sdm.b, k, sdm.bpath, sizeof sdm.bpath) || f_open(&sdm.f, sdm.bpath, FA_READ) != FR_OK)
+        return -1;
+    (void)f_read(&sdm.f, sd_blk, SDM_CZ_LEN, &got);
+    (void)f_close(&sdm.f);
+    if (got != SDM_CZ_LEN || sd_blk[0] != 0xF0 || sd_blk[1] != 0x44 || sd_blk[SDM_CZ_LEN - 1u] != 0xF7)
+        return -1;
+    if (p >= NPART) {
+        ui_message("PICK T1 T2 OR T3");
+        return 0;
+    }
+    if (t->eng_req != (uint8_t)ENG_SLOT_CZ) {
+        set_engine_of(t, ENG_SLOT_CZ);
+        if (t->eng_req != (uint8_t)ENG_SLOT_CZ)
+            return 0;                                /* (refused: memory short, the drop is proposed: model.c) */
+    }
+    fm1_irq_off();
+    if (t->engine != (uint8_t)ENG_SLOT_CZ) {         /* (the switch now, not at the next block: its memory for the tone) */
+        for (i = 0; i < NVOICE; i++)
+            t->v[i].active = 0;                      /* (the old engine's voices: faded already, sound_change) */
+        t->engine = (uint8_t)ENG_SLOT_CZ;
+        part_mem_claim(p, ENG_SLOT_CZ);
+    }
+    for (i = 0; i < 128u; i++)
+        cz_tone(p)[i] = (uint8_t)((sd_blk[7u + 2u * i] & 15u) | (sd_blk[8u + 2u * i] & 15u) << 4);
+    cz_ed(p).tone = (uint8_t)((uint32_t)t->p[P_E0] % (CZT_N + CZ_NUSER));   /* (its TONE as it is: not built again) */
+    cz_key[p] = 0xFFFFFFFFu;                         /* (the points built again from these bytes, cz_block) */
+    fm1_irq_on();
+    snd_mark(p);
+    ui_say("LOADED ", sdb_base(sdm.bpath));
+    return 0;
+}
+#endif
 static void sdm_dx7_load(uint32_t k)                 /* voice k of the page into the selected part */
 {
     uint8_t v[128];
@@ -460,7 +503,11 @@ static int sdm_into(uint32_t k)
         if (sdm_ready() && !sdm_dx7_open(k))
             return 1;
         sdm.bank = 0;
-        ui_message("NOT A DX7 BANK");
+#if FELUCCA_ENG_CZ
+        if (sdm_ready() && !sdm_cz_load(k))
+            return 0;                                /* (a CZ tone: on the part, the list as it was) */
+#endif
+        ui_message("NOT A DX7 BANK OR CZ TONE");
         return 0;
     }
 #endif

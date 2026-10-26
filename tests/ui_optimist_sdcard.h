@@ -637,3 +637,38 @@ static void sdu_factory_tests(void)
     card_power_on();
 }
 #endif
+
+#if FELUCCA_ENG_CZ
+/* a Casio CZ single tone on the card (sd_mode.c sdm_cz_load; the user, 2026-10-26: the CZ collections): its key pressed
+ * in PRESETS puts its 128 synthesis bytes into the part's tone, the part on CZ first */
+static void sdu_cz_tests(void)
+{
+    static uint8_t f[264];
+    FIL fp;
+    UINT w;
+    uint32_t i, ok = 1;
+    sdu_card();
+    f[0] = 0xF0, f[1] = 0x44, f[2] = 0, f[3] = 0, f[4] = 0x70, f[5] = 0x20, f[6] = 0x60, f[263] = 0xF7;
+    for (i = 0; i < 128u; i++) {
+        uint8_t b = (uint8_t)(i * 37u + 5u);
+        f[7u + 2u * i] = b & 15u, f[8u + 2u * i] = b >> 4;
+    }
+    f_mkdir("OPTIMIST/PRESETS/CZ");
+    check(f_open(&fp, "OPTIMIST/PRESETS/CZ/BRASS1.SYX", FA_CREATE_ALWAYS | FA_WRITE) == FR_OK &&
+          f_write(&fp, f, sizeof f, &w) == FR_OK && w == sizeof f && f_close(&fp) == FR_OK, "CZ: a tone written by a computer");
+    sdu_row(PR_CPRE);
+    sdu_op(SDO_LOAD);
+    for (i = 0; i < sdm_count() && strcmp(sdc_name(i), "CZ"); i++)
+        ;
+    sdu_key(i);
+    song.sel = 0;
+    trk[0].eng_req = trk[0].engine = 0;                 /* (another engine: the load puts the part on CZ) */
+    sdu_key(0);
+    sdu_frames(2);
+    for (i = 0; i < 128u; i++)
+        ok &= cz_tone(0)[i] == (uint8_t)(i * 37u + 5u);
+    check(trk[0].eng_req == (uint8_t)ENG_SLOT_CZ && trk[0].engine == (uint8_t)ENG_SLOT_CZ, "CZ: the tone's key puts T1 on CZ");
+    check(ok, "... its 128 bytes in the part's tone, as the file's");
+    check(sdu_msg("LOADED"), "... LOADED said");
+}
+#endif
