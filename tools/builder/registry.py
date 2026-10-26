@@ -395,6 +395,17 @@ _add("ENG_PROPHET", "FELUCCA_ENG_PROPHET", "PROPHET (a Prophet-5 style voice)", 
      notice="The voice is Melodee's (Kerem Kilic, GPL-3.0-only), with our controls. Tested in the host tests only, not "
             "on a device. Not affiliated with Sequential.")
 # (bit 91, LFO2, retired 2026-10-16: LFO 2, a second LFO on each synth track, is always built; never reuse the bit)
+# the worked examples of CONTRIBUTING.md (2026-10-26): one each of an insert, an engine, note generators; off in every
+# profile, every line they add is under their flag (a build without them is the build from before)
+_EX_TESTED = "host-tested only (tests/examples_test.c), not on a device"
+_EX_NOTE = "An example to copy (CONTRIBUTING.md), not a feature: " + _EX_TESTED + "."
+_add("EX_SQUARE", "FELUCCA_EX_SQUARE", "SQUARE: the example engine (a pulse, its sub, a filter)", E, 422, default=0,
+     experimental=True, tested=_EX_TESTED, notice=_EX_NOTE, symbols=("sq_render",),
+     desc="The worked example of CONTRIBUTING.md for a new synth engine (engines/square/eng_square.c, engine UID 26): a "
+          "band-limited pulse (PW, the track's SHP moves it), a square an octave down (SUB), a second pulse detuned up "
+          "(DTN), white noise (NOIS), a 12 dB low-pass (CUT, RES, TRK: key tracking) and a soft drive (DRV); three "
+          "presets, SQ LEAD, SQ BASS and SQ PLUCK. Integer code. Off in every profile: a build without it is the build "
+          "from before.")
 
 # ---- drums: first the drum synths, the kits made by synthesis (any of them is a drum source on its own; the drum
 # track needs one of these or a sampled kit), then the sampled drums and the drum options (one group: the user,
@@ -695,6 +706,12 @@ _add("INS_SPIT", "FELUCCA_INS_SPIT", "SPIT insert (random resonant band, driven)
           "the drive. 0 is off.", symbols=("ifx_spit",),
      notice="From Melodee 1.3.0's SPIT insert by Kerem Kilic (GPL-3.0); fixed point here, the clip follows the "
             "input's level (Melodee's has a fixed ceiling)." + _TS_NOTE)
+_add("EX_GAIN", "FELUCCA_EX_GAIN", "EXGN insert: the example effect (a gain in dB)", F, 421, default=0,
+     experimental=True, tested=_EX_TESTED, notice=_EX_NOTE, symbols=("ifx_exgn",),
+     desc="The worked example of CONTRIBUTING.md for a new insert effect (fx/insfx/exgain.c, FX type 29): EXGN on the "
+          "tracks' insert slots (INSERTS > S1 / S2) and the drum bus's, one amount, its GAIN: OFF (bypassed), then "
+          "-55.5 dB to +7.5 dB (112 is 0 dB), LEVEL's curve, gliding without a click. Not on the master, the returns, "
+          "the USB input or a drum sound. Off in every profile: a build without it is the build from before.")
 # the insert copies of the "once" effects (fx/insfx/fxi_kern.c, fxi.c, 2026-10-13): built or not; how many play at once
 # is what the effects memory holds (DLY_ARENA, fxi_mem.h, 2026-10-23: they were a count each until then, WAS_COUNT); a
 # slot picking one with no room left is bypassed (the INSERTS list says FULL)
@@ -848,6 +865,13 @@ _add("NOTEGEN", "FELUCCA_NOTEGEN", "note generators (STEP's GEN and GEN OUT)", Q
           "About 6.8 KB of flash and 2 KB of RAM: 6.1 KB of it the generators' framework, shared with GRIDS, EUCLID RANDOM "
           "PULSE themselves 0.7 KB (the builder's measure, 2026-10-22).",
      symbols=("gen_sync",))
+_add("EX_NOTEGEN", "FELUCCA_EX_NOTEGEN", "note generators: the examples WALK and UPDN (they choose the notes)", Q, 423,
+     default=0, parent="NOTEGEN", experimental=True, tested=_EX_TESTED, notice=_EX_NOTE, symbols=("wk_gstep", "ud_gstep"),
+     desc="The worked example of CONTRIBUTING.md for a new note generator (seq/gen_ex.c, generator types 4 and 5): two "
+          "more TYPEs on STEP's GEN page that choose the notes, not only the hits. WALK: a random walk in the track's "
+          "scale over RANGE degrees, at most LEAP degrees a step, DRAW another walk. UPDN: up the scale and back down "
+          "over RANGE degrees, HOP degrees a note, a note every RATE steps. On a drum lane they give hits only. Off in "
+          "every profile: a build without it is the build from before.")
 
 # ---- USB & BT & MIDI (the user, 2026-10-20). USB MIDI (notes, clock, the editor and updates) is in every build. The USB
 # port's two extras, each a checkbox, not both: the controller has three data endpoints (hal/fm1_usb.h EP1..3), USB MIDI

@@ -253,6 +253,12 @@ enum {                          /* per-track parameters */
     P_TXDLY,                                     /* (XDLY, 2026-10-22: fx/insfx/xdly.c, a limited type: its MIX; its TIME 1 TIME 2
                                                   * MOD FDBK the owner's, fx_slots.c xdl_v) */
 #endif
+#if FELUCCA_EX_GAIN
+    /* EXGN, the example insert (EX_GAIN, fx/insfx/exgain.c, CONTRIBUTING.md): a track's GAIN, its amount (0 off, else
+     * -55.5 .. +7.5 dB, 112 = 0 dB: LEVEL's curve). As every insert amount: not part of a sound nor of a user preset; the
+     * FX record keeps it (fx_slots.c fxs_tlv, EXGN's TLV) */
+    P_TEXGN,
+#endif
     /* LFO 2 (voice.c lfo2_tick): a second LFO a part, after every other value so that no id before
      * moves. RATE as LFO's (0..127 free, -1..-10 synced: LSYNC_N), WAVE as LFO's, TRIG (NOTE: a fresh phrase restarts
      * it at phase 0; FREE: never), POL (BI -1..+1, UNI 0..+1: SLOOP 2.6's P_LTRIG P_LPOL), and two slots as LFO's

@@ -977,6 +977,31 @@
     "provenance_line": "Melodee (keremimo/melodee): its PROPHET engine's oscillators, Poly-Mod and Curtis filter @ 398ada1 by Kerem Kilic (GPL-3.0-only)"
    },
    {
+    "key": "EX_SQUARE",
+    "flag": "FELUCCA_EX_SQUARE",
+    "label": "SQUARE: the example engine (a pulse, its sub, a filter)",
+    "group": "Synth engines",
+    "bit": 422,
+    "default": 0,
+    "parent": null,
+    "desc": "The worked example of CONTRIBUTING.md for a new synth engine (engines/square/eng_square.c, engine UID 26): a band-limited pulse (PW, the track's SHP moves it), a square an octave down (SUB), a second pulse detuned up (DTN), white noise (NOIS), a 12 dB low-pass (CUT, RES, TRK: key tracking) and a soft drive (DRV); three presets, SQ LEAD, SQ BASS and SQ PLUCK. Integer code. Off in every profile: a build without it is the build from before.",
+    "experimental": true,
+    "notice": "An example to copy (CONTRIBUTING.md), not a feature: host-tested only (tests/examples_test.c), not on a device.",
+    "off_warning": "",
+    "env": "",
+    "target_only": false,
+    "symbols": [
+     "sq_render"
+    ],
+    "no_image": false,
+    "fixed": false,
+    "choices": [],
+    "provenance": null,
+    "children": [],
+    "tested": "host-tested only (tests/examples_test.c), not on a device",
+    "provenance_line": ""
+   },
+   {
     "key": "DRUM_SYNTH",
     "flag": "FELUCCA_DRUM_SYNTH",
     "label": "drum synth: the 32 synthesised kits",
@@ -2581,6 +2606,31 @@
     "provenance_line": "Melodee 1.4.4 (keremimo/melodee) @ v1.4.4 4f5fb6d by Kerem Kilic (GPL-3.0-only)"
    },
    {
+    "key": "EX_GAIN",
+    "flag": "FELUCCA_EX_GAIN",
+    "label": "EXGN insert: the example effect (a gain in dB)",
+    "group": "FX: any number (each track its own)",
+    "bit": 421,
+    "default": 0,
+    "parent": null,
+    "desc": "The worked example of CONTRIBUTING.md for a new insert effect (fx/insfx/exgain.c, FX type 29): EXGN on the tracks' insert slots (INSERTS > S1 / S2) and the drum bus's, one amount, its GAIN: OFF (bypassed), then -55.5 dB to +7.5 dB (112 is 0 dB), LEVEL's curve, gliding without a click. Not on the master, the returns, the USB input or a drum sound. Off in every profile: a build without it is the build from before.",
+    "experimental": true,
+    "notice": "An example to copy (CONTRIBUTING.md), not a feature: host-tested only (tests/examples_test.c), not on a device.",
+    "off_warning": "",
+    "env": "",
+    "target_only": false,
+    "symbols": [
+     "ifx_exgn"
+    ],
+    "no_image": false,
+    "fixed": false,
+    "choices": [],
+    "provenance": null,
+    "children": [],
+    "tested": "host-tested only (tests/examples_test.c), not on a device",
+    "provenance_line": ""
+   },
+   {
     "key": "INS_CHORUS",
     "flag": "FELUCCA_INS_CHORUS",
     "label": "CHRS insert (chorus copies for the tracks)",
@@ -3162,9 +3212,37 @@
      "commit": "",
      "url": "https://github.com/hugelton/Felucca"
     },
-    "children": [],
+    "children": [
+     "EX_NOTEGEN"
+    ],
     "tested": "emulator-tested only",
     "provenance_line": "Felucca (hugelton/Felucca) by Leo Kuroshita (Hügelton) (GPL-3.0-only)"
+   },
+   {
+    "key": "EX_NOTEGEN",
+    "flag": "FELUCCA_EX_NOTEGEN",
+    "label": "note generators: the examples WALK and UPDN (they choose the notes)",
+    "group": "Sequencer",
+    "bit": 423,
+    "default": 0,
+    "parent": "NOTEGEN",
+    "desc": "The worked example of CONTRIBUTING.md for a new note generator (seq/gen_ex.c, generator types 4 and 5): two more TYPEs on STEP's GEN page that choose the notes, not only the hits. WALK: a random walk in the track's scale over RANGE degrees, at most LEAP degrees a step, DRAW another walk. UPDN: up the scale and back down over RANGE degrees, HOP degrees a note, a note every RATE steps. On a drum lane they give hits only. Off in every profile: a build without it is the build from before.",
+    "experimental": true,
+    "notice": "An example to copy (CONTRIBUTING.md), not a feature: host-tested only (tests/examples_test.c), not on a device.",
+    "off_warning": "",
+    "env": "",
+    "target_only": false,
+    "symbols": [
+     "wk_gstep",
+     "ud_gstep"
+    ],
+    "no_image": false,
+    "fixed": false,
+    "choices": [],
+    "provenance": null,
+    "children": [],
+    "tested": "host-tested only (tests/examples_test.c), not on a device",
+    "provenance_line": ""
    },
    {
     "key": "USB_MIDI",
@@ -5305,6 +5383,7 @@
    "ENG_WAVE",
    "ENG_SID",
    "ENG_PROPHET",
+   "EX_SQUARE",
    "ENG_PHYS",
    "ENG_ACID",
    "ENG_NOISE",
@@ -5351,6 +5430,7 @@
    "INS_SLEW",
    "INS_TAPE",
    "INS_SPIT",
+   "EX_GAIN",
    "RET_FB",
    "INS_GATER",
    "TAB_CODED_ALL"

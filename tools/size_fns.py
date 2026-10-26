@@ -105,7 +105,9 @@ AUDIO_FILES = [  # (the A2DP stream's SBC encoder runs in the audio interrupt: b
                "fx/fx.c", "fx/punch/punch.c", "system/dual.c", "core/audio.c", "seq/seq.c", "seq/arranger.c",
                "io/midi/midi_control.c", "io/midi/clock_sync.c", "io/midi/clock_out.c", "io/midi/midi_uart.c",
                "io/usb/usb_audio_stream.c", "seq/seq24.c", "seq/ednote.c", "seq/auto.c", "seq/auto_slot.c", "seq/auto_base.c", "drums/lane_play.c", "seq/seq_mute.c", "seq/lane_fx.c",
-               "seq/gen.c"]
+               "seq/gen.c",
+               # the examples of CONTRIBUTING.md (EX_SQUARE, EX_GAIN, EX_NOTEGEN): the sound side, as what they show how to add
+               "engines/square/eng_square.c", "fx/insfx/exgain.c", "seq/gen_ex.c"]
 # X0X's float units: units of their own (tools/build.py), outside the unity build and these lists
 FLOAT_UNITS = ("drums/x0x/drum808.c", "drums/x0x/drum909.c", "drums/x0x/x0x_drums.c", "engines/acid/acid_dsp.c",
                "engines/acid/bass303.c",
