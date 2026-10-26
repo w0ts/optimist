@@ -61,6 +61,30 @@ function unscramble(bytes, key = 0xFFFF) {
   return p;
 }
 
+// a damaged package caught before anything is sent: the CRC-16s (0x1021, from 0) that tools/fm1pkg_make.py ufw()
+// writes, over the logical image: the header's (bytes 2..0x40, unscrambled; at 0), the parts list's (0x50 bytes a part,
+// as stored; at 2), each part's data (its entry's at 4, from offset 8, length 12). After fm1-base's checkUfw
+// (charlesvestal/fm1-base 934e40d), written again here. Throws an Error that says which; nothing when all match
+const T16 = Array.from({ length: 256 }, (_, i) => {
+  let c = i << 8;
+  for (let k = 0; k < 8; k++) c = c & 0x8000 ? (c << 1) ^ 0x1021 : c << 1;
+  return c & 0xFFFF;
+});
+const crc16 = (d) => d.reduce((c, b) => ((c << 8) & 0xFFFF) ^ T16[((c >> 8) ^ b) & 0xFF], 0);
+export function checkUfw(image) {
+  if (image.length < 0x40) throw new Error("too short");
+  const h = unscramble(image.subarray(0, 0x40));
+  if (crc16(h.subarray(2, 0x40)) !== le(h, 0, 2)) throw new Error("the header's checksum");
+  const n = le(h, 8, 2), end = 0x40 + n * 0x50;
+  if (!n || end > image.length || crc16(image.subarray(0x40, end)) !== le(h, 2, 2)) throw new Error("the list of its parts");
+  for (let i = 0; i < n; i++) {
+    const e = unscramble(image.subarray(0x40 + i * 0x50, 0x90 + i * 0x50));
+    const off = le(e, 8, 4), len = le(e, 12, 4);
+    if (off + len > image.length || crc16(image.subarray(off, off + len)) !== le(e, 4, 2))
+      throw new Error(`part ${le(e, 0, 2)}'s checksum`);
+  }
+}
+
 // the four banks of the official V15 file (validateStockPackage's bytes), checked by their SHA-256
 export async function stockBanks(fwsc) {
   const { image } = await validateStockPackage(fwsc);

@@ -3294,6 +3294,10 @@ async function installerModule() {
   ok(await code(INST.checkPackage(raw, { product: "FM-1_720", sha256: "0".repeat(64) })) === "badpkg"
     && await code(INST.checkPackage(raw, { product: "FM-1_721", sha256: sha })) === "badpkg",
     "installer: checkPackage: a download that is not the site's (checksum, identity) is refused");
+  const hurt = (at) => { const b = fakePackage("FM-1_905"); b[at] ^= 0x01; return b; };
+  ok(await code(INST.checkPackage(fakePackage("FM-1_905"))) === "none" && await code(INST.checkPackage(hurt(0x10))) === "damaged"
+    && await code(INST.checkPackage(hurt(0x2000))) === "damaged" && await code(INST.checkPackage(hurt(0xF000))) === "damaged",
+    "installer: checkPackage: a damaged package (header, flash.bin, ota.bin CRC-16s, fm1pkg.js checkUfw) refused before anything is sent");
   const own = await INST.checkPackage(fakePackage("FM-1_905"));
   const noLoader = fakePackage("FM-1_720");
   noLoader.fill(0, 0x1000, 0x1010);

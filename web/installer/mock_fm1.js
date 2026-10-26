@@ -92,10 +92,38 @@ export class FakeFM1 {
 }
 
 /* a .fwsc that make_site.py and checkPackage accept: the identity in the 20 marker bytes, the loader's marker, filler */
+/* a package laid out as tools/fm1pkg_make.py ufw() writes one: the scrambled header and parts list with their CRC-16s,
+   flash.bin (type 0) and ota.bin (type 100) with theirs (fm1pkg.js checkUfw passes it), the loader's mark at raw 0x1000,
+   the identity in the 20 marker bytes */
+const T16 = Array.from({ length: 256 }, (_, i) => {
+  let c = i << 8;
+  for (let k = 0; k < 8; k++) c = c & 0x8000 ? (c << 1) ^ 0x1021 : c << 1;
+  return c & 0xFFFF;
+});
+const crc16 = (d) => d.reduce((c, b) => ((c << 8) & 0xFFFF) ^ T16[((c >> 8) ^ b) & 0xFF], 0);
+const scramble = (p) => { for (let i = 0, k = 0xFFFF; i < p.length; i++) { p[i] ^= k & 0xFF; k = ((k << 1) ^ (k & 0x8000 ? 0x1021 : 0)) & 0xFFFF; } return p; };
 export function fakePackage(product = "FM-1_720", size = 0x10000) {
+  const img = new Uint8Array(size - 20);
+  for (let i = 0; i < img.length; i++) img[i] = (i * 13 + 7) & 0xFF;
+  img.set(new TextEncoder().encode("FELUCCA-LOADER-1"), 0x1000 - 20);   /* (raw 0x1000: past the 20 marker bytes) */
+  const parts = [[0, 0x400, 0xA000], [100, 0xA400, img.length - 0xA400]];
+  const list = new Uint8Array(0x50 * parts.length), lv = new DataView(list.buffer);
+  parts.forEach(([type, off, len], i) => {
+    lv.setUint16(i * 0x50, type, true); lv.setUint16(i * 0x50 + 2, i, true);
+    lv.setUint16(i * 0x50 + 4, crc16(img.subarray(off, off + len)), true);
+    lv.setUint32(i * 0x50 + 8, off, true); lv.setUint32(i * 0x50 + 12, len, true);
+    scramble(list.subarray(i * 0x50, (i + 1) * 0x50));
+  });
+  const hdr = new Uint8Array(0x40), hv = new DataView(hdr.buffer);
+  hv.setUint32(4, img.length, true); hv.setUint16(8, parts.length, true);
+  hv.setUint16(2, crc16(list), true);
+  hv.setUint16(0, crc16(hdr.subarray(2)), true);
+  img.set(scramble(hdr), 0); img.set(list, 0x40);
   const raw = new Uint8Array(size);
-  for (let i = 0; i < raw.length; i++) raw[i] = (i * 13 + 7) & 0xFF;
-  for (let i = 0; i < 20; i++) raw[i * 0x30 + 0x2F] = i < product.length ? (product.charCodeAt(i) + i + 1) & 0xFF : 0x7D;
-  raw.set(new TextEncoder().encode("FELUCCA-LOADER-1"), 0x1000);
+  for (let i = 0; i < 20; i++) {
+    raw.set(img.subarray(i * 0x2F, (i + 1) * 0x2F), i * 0x30);
+    raw[i * 0x30 + 0x2F] = i < product.length ? (product.charCodeAt(i) + i + 1) & 0xFF : 0x7D;
+  }
+  raw.set(img.subarray(20 * 0x2F), 20 * 0x30);
   return raw;
 }
