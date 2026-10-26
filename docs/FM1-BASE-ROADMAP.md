@@ -34,8 +34,10 @@ own Bluetooth and has no WiFi.
    NimBLE peripheral). The user's call when.
 2. **A shim inside Optimist**: the app's hardware calls renamed to `plat_*` on our own HAL. Costs nothing; shows the real surface.
 3. **Gaps fm1-base needs for us** (each a PR upstream, proposed one at a time):
-   - Bluetooth: `ble = "optimist"` beside `ble = "open"`: LE peripheral and central with bonds, then two links at once (issue #10:
-     neither open stack has it yet; ours: "Not built: two simultaneous links").
+   - Bluetooth: `ble = "optimist"` beside `ble = "open"`: our LE peripheral and central with bonds, and BT audio, as they work
+     in Optimist (the user's call to offer it; licensed for it, 3274ce56). No new Bluetooth work for it (the user, 2026-10-26: "WE
+     HAVE BT THAT WORKS ALREADY"): two links at once (their issue #10) is not on our list. Their Bluetooth changes are backported
+     only once fm1-base uses our stack; as of 934e40d it uses JieLi's (PR #13 is another clean-room stack), so none are.
    - Bluetooth audio: a `plat_bt_audio_*` group and a tap after MASTER (nothing like it upstream).
    - Render control: our commit-aside render, the CPU guard's prediction and shedding, an ISR in RAM (fm1-base has `APP_OVERLOAD`
      only): an "app owns the block" hook.
