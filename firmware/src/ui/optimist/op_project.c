@@ -390,6 +390,9 @@ enum { SI_NONE, SI_BRIGHT, SI_LIGHTS, SI_KEYS, SI_LOWCUT, SI_OUT, SI_SYNC, SI_CH
        SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_HOLD, SI_BLE, SI_KCOL, SI_CLKOUT, SI_CPU1, SI_INFO, SI_BATT, SI_BUILD, SI_REPO,
        SI_DROPS, SI_GUARD, SI_UAINFO, SI_XRUN, SI_DIAG, SI_CREDITS, SI_BLEST, SI_BLEPEER, SI_BLEMIDI, SI_BLELIST, SI_BLEAUTO,
        SI_BLEFGT, SI_FRESO, SI_BTA, SI_BTAPEER, SI_BTAFMT, SI_BTAST, SI_CLKOFS, SI_BTOFS,
+#if FELUCCA_SD_UI
+       SI_SDCARD, SI_SDVERS, SI_SDSLACK, SI_SDINDEX,    /* SD CARD: the card, VERSIONS, SLACK, the sample index (sd_mode.c) */
+#endif
        SI_UAS0 };                                       /* SI_UAS0 + s: USB AUDIO's line of source s (ua_tap.h UAS_*), last */
 /* a core's load number (% of the audio budget) in its colour: green under 60, amber 60..85, red over 85 (the predictive guard's
  * ceiling, system/cpuguard.c CG_CEIL = 85 %: above it the guard sheds quality / voices). Text only (INFO draws no bars). */
@@ -466,6 +469,10 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
     {"GENERAL", {SI_IF(FELUCCA_BRIGHT, SI_BRIGHT), SI_KCOL, SI_LOWCUT, SI_IF(FELUCCA_TFLT_RESO && FELUCCA_TRK_FILT, SI_FRESO)}},
 #if FELUCCA_CDC
     {"USB", {SI_USB, SI_NONE, SI_NONE, SI_NONE}},       /* (USB SERIAL: on General's page when it fits, GL_JOIN) */
+#endif
+#if FELUCCA_SD_UI
+    {"SD CARD", {SI_SDCARD, SI_SDVERS, SI_SDSLACK, SI_SDINDEX}},   /* (the card's state, a project's versions kept, the room
+                                                         * a file's run gets past its size, the sample index again) */
 #endif
 #if FELUCCA_LIGHTS
     {"KEYS", {SI_LIGHTS, SI_KEYS, SI_NONE, SI_NONE}},
@@ -854,6 +861,36 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
     case SI_CALIB:
         cell_act(c, 0, "PANEL", "CALIBRATE", 0);    /* (the action's word, the user 2026-10-13; the list's small face) */
         break;
+#if FELUCCA_SD_UI
+    case SI_SDCARD: {                                   /* the card: READY and its size, else what is wrong (YES: mounted again) */
+        static const char *const ST[4] = {"NONE", "NOT FAT", "PREPARING", "READY"};
+        static char sz[8];
+        uint32_t st = sdm_state(), mb = sd_card_mb();
+        sys_ro(c, "CARD");
+        cell_val(c, ST[st & 3u]);
+        c->col = st == 3u ? C_OK : C_WARN;
+        if (st >= 2u) {                                 /* (its capacity: the CSD's) */
+            fmt_int(sz, (int32_t)(mb >= 1024u ? mb >> 10 : mb));
+            str_app(sz, mb >= 1024u ? " GB" : " MB", sizeof sz);
+            c->unit = sz;
+        }
+        break;
+    }
+    case SI_SDVERS:
+        c->label = "VERSIONS";
+        fmt_int(c->val, (int32_t)sdm_keep());
+        cell_gauge(c, 0, 0, 16, (int32_t)sdm_keep());
+        break;
+    case SI_SDSLACK:
+        c->label = "SLACK";
+        fmt_int(c->val, (int32_t)sdm_scale());
+        c->unit = "%";
+        cell_gauge(c, 0, 0, 400, (int32_t)sdm_scale());
+        break;
+    case SI_SDINDEX:
+        cell_act(c, 0, "SAMPLES", "INDEX", 0);
+        break;
+#endif
     case SI_ABOUT: {                                    /* a read-out: the version itself (YES still says it whole) */
         const char *v = FELUCCA_VERSION;
         sys_ro(c, "VERSION");
@@ -1165,6 +1202,12 @@ static void info_cell(uint32_t pg, uint32_t i, cell_t *c)
 static void sys_set(uint32_t it, int32_t s)
 {
     switch (it) {
+#if FELUCCA_SD_UI
+    case SI_SDVERS:
+    case SI_SDSLACK:                                    /* (sd_mode.c: into the log when SYSTEM is left) */
+        sdm_set(it == SI_SDSLACK, s ? s : 1);
+        break;
+#endif
 #if FELUCCA_BRIGHT
     case SI_BRIGHT:
         bright_set(s ? (uint32_t)ui_clamp((int32_t)bright_level() + (s > 0 ? 1 : -1), 1, 8) : bright_level() % 8u + 1u);
@@ -1238,6 +1281,12 @@ static void sys_set(uint32_t it, int32_t s)
 static int sys_factory(uint32_t it)
 {
     switch (it) {
+#if FELUCCA_SD_UI
+    case SI_SDVERS:
+    case SI_SDSLACK:
+        sdm_set(it == SI_SDSLACK, 0);                   /* (8 versions, 100 %) */
+        return 1;
+#endif
 #if FELUCCA_BRIGHT
     case SI_BRIGHT:
         bright_set(8u);
@@ -1348,6 +1397,14 @@ static int sys_yes(uint32_t r, uint32_t k, uint32_t ok)
         ui_say(FELUCCA_VERSION, " OPTIMIST UI");
         return 1;
     }
+#if FELUCCA_SD_UI
+    if (it == SI_SDCARD || it == SI_SDINDEX) {          /* the card mounted again (or found), its folders, the index's pass */
+        sdm_again();
+        return 1;
+    }
+    if (it == SI_SDVERS || it == SI_SDSLACK)
+        return 0;                                       /* (numbers: the knob) */
+#endif
     if (d) {
         if (!val_toggle(d, vp))
             return 0;
@@ -1361,6 +1418,9 @@ static int sys_yes(uint32_t r, uint32_t k, uint32_t ok)
 }
 static void sys_leave(void)                             /* SYSTEM left: the settings into flash (as SLOOP's menu_close) */
 {
+#if FELUCCA_SD_UI
+    sdm_leave();                                        /* (the card's settings: the log's device record, sd_mode.c) */
+#endif
 #if FELUCCA_BT_UI
     dev_close();                                        /* (the devices list open: it closes, the scan stops) */
 #endif

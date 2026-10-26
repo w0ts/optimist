@@ -223,6 +223,9 @@ static int st_prog(uint32_t off, const void *src, uint32_t n)
 #if FELUCCA_SDCARD
 #include "storage/sd/sdcard.c"         /* a microSD card on the LCD's bus (a hardware mod; Petit FatFs: tools/build.py) */
 #endif
+#if FELUCCA_SD_UI
+#include "storage/sd/sd_mode.c"        /* SD card mode: the boot's card, the projects, presets, kits and samples by name */
+#endif
 #if FELUCCA_OTA
 static uint8_t recovery_active;
 #define OTA_IDENTITY (recovery_active ? "FM-1_000" : FELUCCA_ID)

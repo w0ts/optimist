@@ -44,7 +44,7 @@ SIZE_FILES = ["ui/colors.c", "ui/splash.c", "storage/storage.c", "storage/uprese
               "fx/fx_slots.c", "fx/insfx/fxi.c", "fx/fx_arena.c", "core/arena_bufs.c",
               "fx/fx_rec.c", "fx/fx_rec_log.c", "storage/dlfo_rec.c", "storage/sections/dlfo_rec_log.c", "seq/auto_lane.c", "core/model.c", "core/favorites.c", "storage/persist_rec.c", "drums/dsnd_desc.c",
               "ui/optimist/optimist.c", "ui/optimist/op_state.c", "ui/optimist/op_cells.c", "ui/optimist/op_screens.c",
-              "ui/optimist/op_step.c", "ui/optimist/op_project.c", "ui/optimist/op_bt.c", "ui/optimist/op_prjflow.c", "ui/optimist/op_graph.c", "ui/optimist/op_draw.c",
+              "ui/optimist/op_step.c", "ui/optimist/op_project.c", "ui/optimist/op_bt.c", "ui/optimist/op_prjflow.c", "ui/optimist/op_sdcard.c", "ui/optimist/op_graph.c", "ui/optimist/op_draw.c",
               "ui/optimist/op_stepdraw.c", "ui/optimist/op_input.c", "ui/optimist/op_layers.c", "ui/optimist/op_nav.c",
               "ui/optimist/op_tempo.c", "ui/optimist/op_song.c", "ui/optimist/op_combos.c", "ui/optimist/op_laydraw.c",
               "ui/optimist/op_mixer.c", "ui/optimist/op_mixdraw.c", "ui/optimist/op_scope.c",
@@ -94,7 +94,7 @@ SIZE_FILES += ["bt/bt_afh.c", "bt/bta_mem.c", "ble/ble_hw_wl82.c", "bt/bt_inq.c"
 SIZE_FILES += ["storage/sd/sdcard.c", "storage/sd/sd_mmc.c", "storage/sd/pff.c", "io/console_sd.c",
                "storage/sd/sd_diskio.c", "storage/sd/fatfs/ff.c", "storage/sd/fatfs/ffunicode.c",
                "storage/sd/sd_layout.c", "storage/sd/sd_hash.c", "storage/sd/sd_alloc.c", "storage/sd/sd_index.c",
-               "storage/sd/sd_browse.c", "storage/sd/sd_save.c",
+               "storage/sd/sd_browse.c", "storage/sd/sd_save.c", "storage/sd/sd_mode.c",
                "system/far_probe.c"]
 # the sound side: what the audio ISR, the second core and the voices run (never minsize)
 AUDIO_FILES = [  # (the A2DP stream's SBC encoder runs in the audio interrupt: bt_audio_feed, bt/bt_sbc.c and AOSP's bt/sbc/)

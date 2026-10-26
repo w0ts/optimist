@@ -304,6 +304,10 @@ static void op_no(void)
         held_clear();
         return;
     }
+#if FELUCCA_SD_UI
+    if (sdc_home())
+        return;                                         /* (PROJECT, a card's list: up a folder, SAVES back: op_sdcard.c) */
+#endif
     if (ui.scr == SCR_HOME)
         op_enter(SCR_SCOPE);                            /* at the root: the mixer and the scope, in turn [P] */
     else

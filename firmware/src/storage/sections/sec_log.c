@@ -77,8 +77,16 @@ _Static_assert(SEC_LOG_SECTORS <= 64u, "the index keeps where a record is as sec
  * (project.c), not the log's: opening one must never need room in the log */
 #define SEC_ID_PNAMES 21u
 #define SEC_ID_SAVEAS 20u                              /* a save as under way (sections.c project_save_as: from, to) */
+#if FELUCCA_SD_UI
+#define SEC_ID_SDCARD 22u                              /* SD card mode's device record (storage/sd/sd_mode.c: the card's settings,
+                                                        * a card save pending): device-wide as the names */
+#define SEC_ID_SDSMP 23u                               /* the project's samples on the card (sd_mode.c: hash, size, name hint) */
+#define SLG_GLOBAL(id) ((id) == SEC_ID_PNAMES || (id) == SEC_ID_SDCARD)
+#define SLG_DEV(id) (((id) | 1u) == SEC_ID_PNAMES || (id) == SEC_ID_SDCARD)
+#else
 #define SLG_GLOBAL(id) ((id) == SEC_ID_PNAMES)         /* (the names: no project's record, never copied, cleared or streamed) */
 #define SLG_DEV(id) (((id) | 1u) == SEC_ID_PNAMES)     /* the device-wide records, tagged 0xFF: the names and the marker (20) */
+#endif
 #define SLG_PROJ_GLOBAL 0xFFu
 #define SLG_PROJ_NONE 0xFEu                            /* (slg.proj while booting: the device-wide ids alone) */
 #define SLG_MINE(pr, id) ((pr) == SLG_PROJ_GLOBAL || (pr) == slg.proj)
