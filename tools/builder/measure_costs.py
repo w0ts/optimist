@@ -365,6 +365,13 @@ PAIRS.append({"ENG_FM6": 0, "TAB_IN_POOL": 1})
 for _tca in (1, 2):
     PAIRS.append({"TAB_CODED_ALL": _tca, "ENG_PLAITS": 1})
     PAIRS.append({"TAB_CODED_ALL": _tca, "ENG_JUNO": 1})
+# the reverb off grows RAMTEXT (its delta +1,284 B), which item_delta's clamp of an item switched off counts 0: measured
+# here, beyond the estimate (2026-10-26, cloud build issue 58: estimated 1,752 B of RAMTEXT free, linked 112 B over;
+# from drum-machines~ FX_REVERB=0 really added 2,328 B, the estimate 980)
+PAIRS.append({"FX_REVERB": 0})
+# the assembly is FM6's and ANALOG 2's loops only: without both engines ASM=0 frees none of its 628 B of RAMTEXT
+# (2026-10-26, issue 58: ASM=0 changed nothing in a real build with both off)
+PAIRS.append({"ASM": 0, "ENG_FM6": 0, "ENG_ANALOG": 0})
 
 
 def beyond(sizes, cfg, costs, name):
