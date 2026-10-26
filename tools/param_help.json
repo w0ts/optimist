@@ -291,7 +291,10 @@
       "CUT": "Filter cutoff", "RES": "Filter resonance", "DRV": "Drive", "KTR": "Filter key tracking"}},
     {"kind": "eng", "ctx": "DIGITAL", "if": "FELUCCA_ENG_DIGITAL", "params": {
       "ALG": "FM algorithm", "R2": "Operator 2 ratio", "R3": "Operator 3 ratio", "R4": "Operator 4 ratio",
-      "IDX": "FM amount (brightness)", "MDEC": "FM amount decay", "FB": "Operator 4 feedback"}},
+      "IDX": "FM amount (brightness)", "MDEC": "FM amount decay", "FB": "Operator 4 feedback",
+      "C": "Carrier ratio (the pitch)", "A": "Operator A ratio", "B": "Operators B1 B2 ratio",
+      "A LEV": "A's depth on its carrier", "B LEV": "B's depth, follows ENV", "FDBK": "Feedback amount",
+      "MIX": "Output X, both, Y"}},
     {"kind": "eng", "ctx": "PHASE", "if": "FELUCCA_ENG_PHASE", "params": {
       "WAVE": "Wave", "WAVE2": "Alternate wave", "DCW": "Wave bend (DCW)", "ENV": "Envelope to DCW",
       "DTN": "Line 2 detune (cents)", "LINE": "Line 2: mix or ring", "SUB": "Sub octave level",

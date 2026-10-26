@@ -236,6 +236,13 @@ _add("A2_MS20", "FELUCCA_A2_MS20", "ANALOG 2 filter: MS20 (Sallen-Key, MS-20-sty
 _add("ENG_DIGITAL", "FELUCCA_ENG_DIGITAL", "DIGITAL (4-operator FM)", E, 1,
      desc="Four-operator FM synth: 8 classic algorithms, feedback on operator 4 and one modulation INDEX with its "
           "own envelope. About 2 KB of flash; the stand-in for FM6 when FM6 is left out.")
+_add("DIG_TONE", "FELUCCA_DIG_TONE", "DIGITAL: TONE (Digitone-style routings T1..T8)", E, 432, default=0, parent="ENG_DIGITAL",
+     desc="DIGITAL's ALG gets eight more routings, T1..T8, in the manner of Elektron's Digitone: a carrier C, its "
+          "modulator A and a pair B1 B2, two outputs X and Y that MIX crossfades, feedback on one operator. On them the "
+          "EDIT values are C, A and B (the ratios), A LEV, B LEV (B's depth follows the track's ENV), FDBK and MIX; the "
+          "classic routings 1..8 sound as before. 6 presets of our own. Integer code; about 2.3 KB of flash.",
+     notice="Our routings and code after the Digitone's published design; not affiliated with Elektron. Tested in the "
+            "host tests only, not on a device.")
 _add("ENG_PHASE", "FELUCCA_ENG_PHASE", "PHASE (phase distortion)", E, 2,
      desc="Phase-distortion synth: bends the phase of a cosine wave to get saw, square, pulse and resonant shapes "
           "with a second line to mix or ring-modulate. About 1.4 KB of flash; the stand-in for CZ.")
