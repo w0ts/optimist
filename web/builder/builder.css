@@ -183,3 +183,7 @@
 /* the configuration card stays compact: the key shortened (its title and the key chip say it whole), its note in the chip's tip */
 .ob-root #result #key { display: inline-block; max-width: 11ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; word-break: normal; cursor: copy; }
 .ob-root #result #keynote { display: none; }
+
+/* Reset to default names the default flavour, a long name: it wraps inside the column instead of widening the page (a
+ * phone: the page scrolled sideways and the size panel no longer stayed in place, issue 36) */
+.ob-root #reset { white-space: normal; max-width: 100%; text-align: left; overflow-wrap: anywhere; }
