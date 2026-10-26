@@ -380,11 +380,20 @@ static void ble_bond_restore(void) {}
 
 /* The radio's stored calibration (ble/ble_vm.c; docs/BLE-HW-FACTS.md §14, §15.4): stock V15's VM read in place at
  * every boot (never written by BLE; where it is and what else writes near it: docs/BLE-STACK.md §8.2, docs/BLE-HW-FACTS.md §15), the four RF records kept in a copy with the settings (project.c persist_t.ble_rf),
- * and the precedence VM -> copy -> none. With none the radio is never started: BLUETOOTH shows NO RF CAL, the
- * console's 'bletrim' says why, and nothing is transmitted uncalibrated. */
+ * and the precedence VM -> copy -> measured: with neither, the radio measures its own calibration when it starts
+ * (BLE_RF_MEASURED below; the console's 'bletrim' says which). */
 static uint8_t ble_rf_kept[BLE_RF_COPY_SIZE];   /* the copy (persist_t.ble_rf, project.c) */
 static struct ble_vm_info ble_vm_seen;          /* what this boot's VM scan found (console 'bletrim') */
-static uint8_t ble_rf_src;                      /* BLE_RF_NONE / _FROM_VM / _FROM_COPY */
+static uint8_t ble_rf_src;                      /* BLE_RF_NONE / _FROM_VM / _FROM_COPY / BLE_RF_MEASURED */
+/* none stored: the radio measures its own calibration at its start (hal/fm1_rf_cal.h, JieLi's SDK calibration in C,
+ * docs/RF-CALIBRATION.md in fm1-base): 106 / 107 / 108 the SDK board's constants, 187 measured, about 160 ms */
+#define BLE_RF_MEASURED 3u
+#ifndef FELUCCA_RF_CAL
+#define FELUCCA_RF_CAL 0                        /* 1: measure when none is stored (+5 KB; the shipped profiles are full) */
+#endif
+#if BLE_HW_WL82 && FELUCCA_RF_CAL
+static const struct ble_rf_trims ble_rf_sdk = {{0x0B, 0x0B}, {1, 7, 4, 7, 11, 1, 7}, {0}, {0}};
+#endif
 #if !defined(FELUCCA_FLASH) || FELUCCA_FLASH
 static uint8_t flash_ok;                        /* (felucca.c: the JEDEC id matched, persist_boot) */
 static int st_read(uint32_t off, void *dst, uint32_t n);
@@ -426,7 +435,13 @@ static int ble_radio_start(void)
     ble_init(a, rnd);
     ble_bond_restore();
 #if BLE_HW_WL82
-    ble_rf_copy_get(ble_rf_kept, &use);         /* (the VM's set: ble_rf_choose made the copy from it) */
+#if FELUCCA_RF_CAL
+    if (ble_rf_src == BLE_RF_MEASURED) {
+        use = ble_rf_sdk;
+        fm1_rf_cal_on = 1;                      /* (the replay measures 187: hal/fm1_ble_rf.h) */
+    } else
+#endif
+        ble_rf_copy_get(ble_rf_kept, &use);     /* (the VM's set: ble_rf_choose made the copy from it) */
     ble_hw_wl82_start(&use);                    /* the radio and the baseband (ble/ble_hw_wl82.c) */
 #else
     (void)use;
@@ -457,6 +472,10 @@ static void ble_midi_init(void)                 /* at boot, after the audio and 
     int complete, save;
     complete = ble_vm_scan(ble_vm_rd, 0, &ble_vm_seen, &vm, 0, 0);   /* (flash reads only; the settings are read) */
     ble_rf_src = (uint8_t)ble_rf_choose(complete, &vm, ble_vm_seen.area, ble_rf_kept, &use, &save);
+#if BLE_HW_WL82 && FELUCCA_RF_CAL
+    if (ble_rf_src == BLE_RF_NONE)
+        ble_rf_src = BLE_RF_MEASURED;           /* (measured when the radio starts: ble_radio_start) */
+#endif
     if (save)
         settings_later = 1;                     /* the copy kept with the settings, once quiet (project.c) */
     ble_devices_boot();                         /* LAST and the DEVICES choice (the settings record's device store) */

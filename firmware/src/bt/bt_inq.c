@@ -193,10 +193,24 @@ static int bti_radio_up(void)                      /* the radio's start-up, once
         bti_st.rf_up = 1;
         return 1;
     }
-    if (!ble_vm_scan(bti_vm_rd, 0, &info, &t, 0, 0)) {
+#ifdef BTI_RADIO_TRIMS                             /* (a firmware that gives the trims itself: fm1-base) */
+    (void)info;
+    if (!BTI_RADIO_TRIMS(&t)) {
         bti_st.phase = BTI_NO_TRIMS;
         return 0;
     }
+#else
+    if (!ble_vm_scan(bti_vm_rd, 0, &info, &t, 0, 0)) {
+#if FELUCCA_RF_CAL                                  /* none stored: measured (hal/fm1_rf_cal.h), as midi_ble.c */
+        static const struct ble_rf_trims sdk = {{0x0B, 0x0B}, {1, 7, 4, 7, 11, 1, 7}, {0}, {0}};
+        t = sdk;
+        fm1_rf_cal_on = 1;
+#else
+        bti_st.phase = BTI_NO_TRIMS;
+        return 0;
+#endif
+    }
+#endif
 #if FELUCCA_DUAL >= 2
     dual_radio_hold();                             /* (CPU1 not running while the radio's start-up program runs, as BLE's:
                                                     * system/dual.c; unheld, CPU1 did not come back, 2026-10-20) */

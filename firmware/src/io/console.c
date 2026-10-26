@@ -246,10 +246,11 @@ static void con_blevmdump(void)
 
 static void con_bletrim(void)                       /* what the radio uses, Optimist's copy, what rf_init did */
 {
-    static const char *const SRC[3] = {"none (the radio stays off)", "VM", "Optimist's copy"};
+    static const char *const SRC[4] = {"none (the radio stays off)", "VM", "Optimist's copy",
+                                       "measured at the radio's start (hal/fm1_rf_cal.h)"};
     struct ble_rf_trims t;
     con_puts("source ");
-    con_puts(SRC[ble_rf_src % 3u]);
+    con_puts(SRC[ble_rf_src & 3u]);
     con_puts("\r\n");
     con_kx("vm_area", ble_vm_seen.area);
     con_kx("vm_have", ble_vm_seen.have);

@@ -225,11 +225,15 @@ static void fm1_ble_rf_init(const uint8_t *x106, const uint8_t *x107, const uint
     FM1_BT_C48 = 0xB9u;                                    /* HW §2.2 (0xAD after the BR/EDR init, not done here) */
     FM1_BT_C00 = 0x00FFD144u;                              /* HW §2.2, §5.4: 0x2FC00 - 0x2FC28 [M:t] */
     FM1_BT_C04 = 0x4E143CDFu;
-    FM1_BT_C08 = 0x03100000u;                              /* TODO(hardware) [9:0] / [19:10]: BT TX trims, live from
-                                                            * BBP read-backs on every boot (HW §16.2, not the VM) */
-    FM1_BT_C0C = 0x80808080u;
-    FM1_BT_C10 = 0x80008080u;                              /* TODO(hardware) bytes 0..2: the same (HW §16.2, §12);
-                                                            * stock's first write, not calibrated */
+    {   /* the BT TX IQ / DC trims: bt_rf_analog_init's base values, with our calibration the compensation from the
+         * measured record (fm1_rf_cal.h, RF-CALIBRATION.md §5) */
+        uint32_t c08 = 0x03100000u, c10 = 0x80008080u;
+        if (fm1_rf_cal_on && fm1_rfc_trimmed)
+            fm1_rf_cal_bt_trims(fm1_rfc_x187, &c08, &c10);
+        FM1_BT_C08 = c08;
+        FM1_BT_C0C = 0x80808080u;
+        FM1_BT_C10 = c10;
+    }
     FM1_BT_C14 = 0x80u;
     FM1_BT_C18 = 0;
     FM1_BT_C1C = 0;

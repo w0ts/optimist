@@ -293,7 +293,8 @@ static void att_read(const uint8_t *p, uint16_t n)
     }
     vl = ble_min(vl - off, (uint32_t)batt.mtu - 1u);
     batt.buf[0] = (uint8_t)(p[0] + 1u);
-    ble_cpy(batt.buf + 1, v + off, vl);
+    if (vl)                                       /* (an empty value, the MIDI I/O's, may have no pointer: no NULL + 0) */
+        ble_cpy(batt.buf + 1, v + off, vl);
     att_send((uint16_t)(1u + vl));
 }
 
