@@ -169,6 +169,159 @@ static void con_trims(const struct ble_rf_trims *t, uint8_t have)
         con_bytes("187:", t->x187, sizeof t->x187);
 }
 
+#if BLE_HW_WL82
+/* wifiregs: the Wi-Fi MAC's registers, read only (docs/WIFI-HW-FACTS.md §2): the MAC is Ralink's RT3070, register r
+ * at 0x30000 + r (the SDK's wl30_mmc_io_rw_extended). Read only with the radio started: the BT start-up has clocked the
+ * block then (it loads the BBP through 0x3101C); with the radio off the block may be unclocked, so nothing is read */
+static void con_wifiregs(void)
+{
+    static const uint16_t mac[] = {0x1000u, 0x1004u, 0x1008u, 0x100Cu, 0x1010u, 0x101Cu, 0x1100u, 0x1104u, 0x1200u, 0x1204u};
+    uint32_t i;
+    if (!ble_up) {
+        con_puts("radio off: turn BLUETOOTH on first\r\n");
+        return;
+    }
+    for (i = 0; i < sizeof mac / sizeof *mac; i++) {   /* MAC_CSR0 (ASIC version: RT3070 0x3070xxxx), MAC_SYS_CTRL, MAC_ADDR_DW0 / 1, ... */
+        con_puts("mac ");
+        con_hex(mac[i], 4);
+        con_puts(" = ");
+        con_hex(fm1_wifi_mac_rd(mac[i]), 8);
+        con_puts("\r\n");
+    }
+    con_kx("wdma_30F00", fm1_wifi_rd(FM1_WIFI_WDMA0));
+    con_kx("wdma_30F04", fm1_wifi_rd(FM1_WIFI_WDMA1));
+    for (i = FM1_WIFI_CLK0; i <= FM1_WIFI_CLK_END; i += 4u) {       /* the Wi-Fi clock / reset block (the SDK's wf_clk_rst_init) */
+        con_puts("clk ");
+        con_hex(i, 5);
+        con_puts(" = ");
+        con_hex(fm1_wifi_rd(i), 8);
+        con_puts("\r\n");
+    }
+}
+
+/* wifirx: does the Wi-Fi receiver hear anything, as the BT start-up left it (no channel set by us)? The RX filter, the
+ * RX / TX counters (Ralink's RX_STA_CNT0-2, TX_STA_CNT0-2: they clear when read) twice 1 s apart, then 2 s of
+ * polling for frames: each one fetched by the RX DMA (fm1_wifi_rx), its length and first 48 bytes printed (8 at most).
+ * Writes only what the SDK's receive path writes (0x324 = 2, the RX DMA). "wifirx on": the Wi-Fi RF path (0x14000
+ * bit 1, off after the BT start-up) on for the probe, then off again; no coexistence tables loaded, so BT may stutter
+ * meanwhile. "wifirx on all": also the RX filter opened to every good frame (it reads 0x15F9F: bit 3 drops frames
+ * not from our BSSID, and we have none), the SDK's RX arming (MAC 0x328 = 2, 0x14050 bit 0; interrupt 52 is never
+ * attached here, only its pending bit is read) and 700 ms on each of channels 1, 6, 11; all put back after.
+ * The console waits 3 s (all: 3.1 s) */
+static void con_wifi_cnt(void)
+{
+    uint32_t r;
+    for (r = 0x1700u; r <= 0x1714u; r += 4u) {
+        con_puts(" ");
+        con_hex(fm1_wifi_mac_rd(r), 8);
+    }
+    con_puts("\r\n");
+}
+static int32_t con_wifi_listen(uint32_t *buf, uint32_t ms, uint32_t *got)   /* frames for ms: length + 48 bytes each */
+{
+    uint32_t t0 = fm1_ticks(), i;
+    while (fm1_ticks() - t0 < ms * 1000u * FM1_TICKS_PER_US && *got < 8u) {
+        int32_t n = fm1_wifi_rx(buf);
+        fm1_wdt_feed();
+        if (!n)
+            continue;
+        (*got)++;
+        con_kv("frame_len", n);
+        if (n < 0)
+            return -1;
+        for (i = 0; i < 48u && i < (uint32_t)n; i++)
+            con_hex(((const uint8_t *)buf)[4u + i], 2);
+        con_puts("\r\n");
+    }
+    return 0;
+}
+static void con_wifirx(const char *p)
+{
+    static uint32_t buf[(FM1_WIFI_RX_MAX + 8u) / 4u + 1u];
+    static const uint8_t chans[3] = {1u, 6u, 11u};
+    uint32_t t0, c, got = 0, filt, ch;
+    int on, all;
+    if (!ble_up && !rfs_is_up()) {
+        con_puts("radio off: turn BLUETOOTH on, or wifiup, first\r\n");
+        return;
+    }
+    on = con_word(&p, "on");                              /* wifirx on: the Wi-Fi RF path on for the probe only */
+    all = con_word(&p, "all");                            /* wifirx on all: every good frame (RX filter), channels 1 / 6 / 11 */
+    filt = fm1_wifi_mac_rd(FM1_WIFI_RX_FILTER);
+    ch = fm1_wifi_channel();
+    if (on)
+        fm1_wifi_rf(1);
+    con_kx("irq_en_328", fm1_wifi_mac_rd(FM1_WIFI_IRQ_EN));
+    con_kx("irq_ctl_14050", fm1_wifi_rd(FM1_WIFI_IRQ_CTL));
+    con_kv("irq52_pending", (int32_t)fm1_wifi_irq_pending());
+    if (all) {
+        fm1_wifi_mac_wr(FM1_WIFI_RX_FILTER, FM1_WIFI_RX_FILTER_ALL);
+        fm1_wifi_rx_arm(1);                               /* (interrupt 52 stays unattached: only its pending bit) */
+    }
+    con_kx("wl_en", fm1_wifi_rd(FM1_WL_EN));
+    con_kx("rx_filter", fm1_wifi_mac_rd(FM1_WIFI_RX_FILTER));
+    con_kv("channel", (int32_t)ch);
+    con_kx("wdma_30F04", fm1_wifi_rd(FM1_WIFI_WDMA1));
+    con_puts("cnt rx0 rx1 rx2 tx0 tx1 tx2:");
+    con_wifi_cnt();                                       /* (clears them) */
+    t0 = fm1_ticks();
+    while (fm1_ticks() - t0 < 1000000u * FM1_TICKS_PER_US)
+        fm1_wdt_feed();
+    con_puts("cnt after 1 s:");
+    con_wifi_cnt();
+    if (all) {
+        for (c = 0; c < 3u && got < 8u; c++) {
+            fm1_wifi_set_channel(chans[c]);
+            con_kv("listen_channel", chans[c]);
+            if (con_wifi_listen(buf, 700u, &got) < 0)
+                break;
+        }
+        con_kv("irq52_pending", (int32_t)fm1_wifi_irq_pending());
+        con_kx("wdma_30F04", fm1_wifi_rd(FM1_WIFI_WDMA1));
+        fm1_wifi_rx_arm(0);
+        fm1_wifi_set_channel(ch);
+        fm1_wifi_mac_wr(FM1_WIFI_RX_FILTER, filt);
+    } else {
+        con_wifi_listen(buf, 2000u, &got);
+    }
+    con_kv("frames", (int32_t)got);
+    if (on)
+        fm1_wifi_rf(0);
+}
+
+/* wifiup: the Wi-Fi side brought up as the SDK does on a radio BT has started (usb_register): the radio started by our
+ * start-up program if nothing has (BLUETOOTH and BT audio off: as Bluetooth audio starts it, bt_inq.c, CPU1 held), the
+ * Ralink STA driver's MAC settings (fm1_wifi_sta_init), the coexistence controller's tables (wlc_main: fm1_wifi_wlc_setup,
+ * which sets both RF paths), then "wifirx on all" listens. Off again only by a restart */
+static void con_wifiup(void)
+{
+    struct ble_rf_trims t;
+    if (!ble_up && !rfs_is_up()) {
+        if (!ble_rf_copy_ok(ble_rf_kept)) {
+            con_puts("no stored trims (bletrim)\r\n");
+            return;
+        }
+        ble_rf_copy_get(ble_rf_kept, &t);
+#if FELUCCA_DUAL >= 2
+        dual_radio_hold();
+#endif
+        (void)rfs_rf_up(t.x106, t.x107, t.x108, t.x187);
+#if FELUCCA_DUAL >= 2
+        dual_radio_release();
+#endif
+        con_puts("radio started (no BT)\r\n");
+    } else {
+        con_puts("radio up already (BT)\r\n");
+    }
+    fm1_wifi_sta_settings();
+    fm1_wifi_wlc_setup();
+    con_kx("wl_en", fm1_wifi_rd(FM1_WL_EN));
+    con_kx("rx_filter", fm1_wifi_mac_rd(FM1_WIFI_RX_FILTER));
+    con_kx("mac_sys_ctrl", fm1_wifi_mac_rd(0x1004u));
+    con_kv("channel", (int32_t)fm1_wifi_channel());
+}
+#endif
+
 static void con_blevm(void)                         /* stock V15's VM where the firmware finds it (ble_vm.h's candidates) */
 {
     struct ble_vm_info in;
@@ -1115,6 +1268,14 @@ static void con_exec(const char *p)
         con_blevm();
     else if (con_word(&p, "bletrim"))
         con_bletrim();
+#if BLE_HW_WL82
+    else if (con_word(&p, "wifiregs"))
+        con_wifiregs();
+    else if (con_word(&p, "wifirx"))
+        con_wifirx(p);
+    else if (con_word(&p, "wifiup"))
+        con_wifiup();
+#endif
 #if BLE_DIAG
     else if (con_word(&p, "blell"))
         con_blell(p);
