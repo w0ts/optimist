@@ -56,6 +56,15 @@ AINL uint32_t pow2_q16(int32_t d16)
 #define SMP_USER_CAP(k) ((k) == 2u ? SMP_USR3_END - (SMP_USER_BASE + 2u * SMP_USER_SIZE) : SMP_USER_SIZE)
 #endif
 #define SMP_NALL (SMP_NSETS + SMP_USER_SLOTS)
+/* SET's last value CARD (FELUCCA_SD_STREAM): the part's sample on the SD card, streamed (storage/sd/sd_stream.h); SAMPLE's
+ * own list only (GRAIN's SRC and the MISSING check number the sets as SMP_NALL) */
+#if FELUCCA_SD_STREAM
+#include "../../storage/sd/sd_stream.h"
+#define SMP_CARD SMP_NALL
+#define SMP_NSAMPLE (SMP_NALL + 1)
+#else
+#define SMP_NSAMPLE SMP_NALL
+#endif
 typedef struct {
     uint32_t magic;
     uint16_t version;
@@ -75,7 +84,11 @@ static const smp_zone_t SMP_ZONE_NONE;              /* (n 0: a voice given it en
 #define smp_usr_zone(k, z) ((void)(k), (void)(z), &SMP_ZONE_NONE)
 #endif
 static uint8_t usr_nz[SMP_USER_SLOTS];
-static const char *const SMP_ALL_NAMES[SMP_NALL] = {SMP_SET_NAMES_INIT, "USR1", "USR2", "USR3"};
+static const char *const SMP_ALL_NAMES[SMP_NSAMPLE] = {SMP_SET_NAMES_INIT, "USR1", "USR2", "USR3",
+#if FELUCCA_SD_STREAM
+                                                        "CARD"
+#endif
+};
 
 #ifndef SMP_USER_XIP                                /* host tests: a RAM image of the slots */
 #define SMP_USER_XIP(k) fm1_xip_ptr(SMP_USER_BASE + (k) * SMP_USER_SIZE)
@@ -154,9 +167,116 @@ static inline HOT int32_t sample_next(const smp_zone_t *z, voice_t *v, int loop)
     return v->s[0];
 }
 
+#if FELUCCA_SD_STREAM
+/* CARD: the part's card sample (sst_part_src: sd_stream_plan.c), streamed. The voice: ph[0] the frame, ph[1] the
+ * fraction Q16, s[0] the source, s[1] the sample held while it fades out, s[2] / s[3] the interpolator's two samples,
+ * s[4] SMP_STREAM | the stream, s[5] the fade's samples left (0 none), s[6] ended, s[7] the lo-pass state. A stream
+ * that runs dry (or a source that goes away: a project change) fades out at once over SST_FADE samples from the
+ * sample it was at: no click */
+#define SMP_STREAM 0x5D000000
+#define SST_FADE 64u                                /* 1.5 ms */
+#define SST_UP16 (12 * 16)                          /* a card sample an octave up at most: each octave doubles its reads */
+
+static void smp_card_on(track_t *t, voice_t *v)
+{
+    uint32_t part = (uint32_t)(t - trk), si = part < SST_NPART ? sst_part_src[part] : 0xFFu;
+    int32_t i;
+    if ((uint32_t)(v->s[4] & 0xFF000000) == SMP_STREAM && (uint32_t)(v->s[4] & 0xFF) < SST_N &&
+        sst[v->s[4] & 0xFF].owner == &v->active)
+        sst_stop((uint32_t)(v->s[4] & 0xFF));        /* (this voice's last note: its stream back) */
+    v->ph[0] = v->ph[1] = 0;
+    v->s[0] = (int32_t)si;
+    v->s[1] = v->s[2] = v->s[3] = v->s[5] = v->s[7] = 0;
+    v->s[4] = (int32_t)(SMP_STREAM | 0xFFu);        /* (no stream: the render ends it) */
+    v->s[6] = 1;
+    if (si >= SST_NSRC || !sst_src[si].ready)
+        return;                                      /* (none, or not loaded yet: silent) */
+    i = sst_start(si, t->p[P_E3] != 0, 0, sst_src[si].frames - 1u, sst_rate(&sst_src[si], sst_src[si].rate),
+                  &v->active);
+    if (i < 0)
+        return;
+    v->s[4] = (int32_t)(SMP_STREAM | (uint32_t)i);
+    v->s[6] = 0;
+}
+
+static OVL(sample) void smp_card_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
+{
+    const int16_t *p = t->p;
+    uint32_t k = (uint32_t)(v->s[4] & 0xFF), i, frac = v->ph[1], stepq, r;
+    sst_t *st = &sst[k < SST_N ? k : 0];
+    const sst_src_t *s = &sst_src[(uint32_t)v->s[0] < SST_NSRC ? (uint32_t)v->s[0] : 0];
+    int32_t d16 = clamp(m->pitch16 + p[P_E1] * 16 - 60 * 16, -1536, SST_UP16), x;
+    int32_t bits = p[P_E2], lp = smp_lp_k((p[P_E4] << 8) + m->cutoff), drv = p[P_E6], sh = bits / 10;
+    if (v->s[6] || k >= SST_N) {
+        v->active = 0;
+        return;
+    }
+    r = fine_inc(pow2_q16(d16), m->fine);
+    stepq = (r >> 8) * (s->rate >> 8);
+    st->bpms = sst_rate(s, stepq);
+    st->beat = st->beat + 1u;
+    if (!v->s[5] && (!s->ready || !st->on)) {        /* (the source went away, or the stream was taken back) */
+        sst_stop(k);
+        v->s[5] = SST_FADE;
+        v->s[1] = v->s[3];
+    }
+    if (v->ph[0] == 0 && frac == 0 && v->s[3] == 0 && !v->s[5]) {   /* prime the interpolator: the head's first frame */
+        if (sst_frame(st, s, 0, &x))
+            v->s[3] = x;
+    }
+    for (i = 0; i < n; i++) {
+        int32_t y;
+        if (v->s[5]) {                               /* fading out: the sample it was at, down to 0 */
+            y = v->s[1] * (int32_t)v->s[5] / (int32_t)SST_FADE;
+            if (!--v->s[5])
+                v->s[6] = 1;                         /* (its last sample: then the voice ends) */
+        } else {
+            frac += stepq;
+            while (frac >= 65536u) {
+                frac -= 65536u;
+                v->s[2] = v->s[3];
+                if (++v->ph[0] >= s->frames) {
+                    if (st->lpend)
+                        v->ph[0] = st->lpstart >> s->fsh;
+                    else {                           /* one-shot: its end */
+                        v->s[6] = 1;
+                        v->s[3] = 0;
+                        sst_stop(k);
+                        break;
+                    }
+                }
+                if (!sst_frame(st, s, v->ph[0], &x)) {   /* dry: fade out from here */
+                    sst_ran_dry(k);
+                    v->s[5] = SST_FADE;
+                    v->s[1] = lerp16(v->s[2], v->s[3], frac);
+                    break;
+                }
+                v->s[3] = x;
+            }
+            y = v->s[5] ? v->s[1] : lerp16(v->s[2], v->s[3], frac);
+        }
+        if (sh)
+            y = (y >> sh) << sh;
+        if (drv)
+            y = softclip(y + (((y >> 2) * (drv * 150)) >> 11));
+        v->s[7] += mulq15(y - v->s[7], lp);
+        out[i] += mulq15(mulq15(v->s[7], amp_at(m, i)), VOICE_FS) << 1;
+        if (v->s[6])
+            break;
+    }
+    v->ph[1] = frac;
+}
+#endif
+
 static void sample_note_on(track_t *t, voice_t *v)
 {
-    uint32_t si = (uint32_t)t->p[P_E0] % SMP_NALL, i, zi = 0xFFFFu;
+    uint32_t si = (uint32_t)t->p[P_E0] % SMP_NSAMPLE, i, zi = 0xFFFFu;
+#if FELUCCA_SD_STREAM
+    if (si == SMP_CARD) {
+        smp_card_on(t, v);
+        return;
+    }
+#endif
     if (si < SMP_NSETS) {
         const smp_set_t *set = &SMP_SETS[si];
         for (i = 0; i < set->nz; i++)
@@ -184,7 +304,14 @@ static void sample_note_on(track_t *t, voice_t *v)
 static OVL(sample) void sample_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
     const int16_t *p = t->p;
-    const smp_zone_t *z = smp_zone((uint32_t)v->s[4]);
+    const smp_zone_t *z;
+#if FELUCCA_SD_STREAM
+    if ((uint32_t)(v->s[4] & 0xFF000000) == SMP_STREAM) {
+        smp_card_render(t, v, out, n, m);
+        return;
+    }
+#endif
+    z = smp_zone((uint32_t)v->s[4]);
     uint32_t i, frac = v->ph[1];
     int32_t d16 = clamp(m->pitch16 + p[P_E1] * 16 - z->root16, -1536, 576);   /* <= 3 octaves up: bounded decode load */
     uint32_t r = fine_inc(pow2_q16(d16), m->fine), stepq = (r >> 8) * (z->rate >> 8);   /* Q16 samples per output */
@@ -226,7 +353,7 @@ static OVL(sample) void sample_render(track_t *t, voice_t *v, int32_t *out, uint
 static const engine_t ENG_SAMPLE = {
     "SAMPLE", {"SET", "TONE"},
     {
-        PN("SET", F_ENUM, 0, SMP_NALL - 1, 0, SMP_ALL_NAMES),
+        PN("SET", F_ENUM, 0, SMP_NSAMPLE - 1, 0, SMP_ALL_NAMES),
         PU("TUNE", F_SEMI, -24, 24, 0, 0),
         PU("BITS", F_INT, 0, 127, 0, 0),
         PN("LOOP", F_ENUM, 0, 1, 1, N_ONOFF_E),
