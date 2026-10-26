@@ -310,6 +310,11 @@ split so that every build can have it and only the SD card mode pays for the res
   (a measurement build, ARENA 96 with `OPTIMIST_FX_ARENA=1`) flash 588,220, RAM 92,156, pool 277,408. `sd-card-mots`
   (LAYOUT 1, slot 765,696 B): off 743,824 / 106,640 / 313,848; the core alone (`OPTIMIST_ARENA_BYTES=24576`) 744,224 /
   106,652 / 317,352; ARENA 96 (core and extras) 750,484 / 106,960 / 279,960.
+- After 3a-3c (2026-10-26, exact builds): the reference profile off 581,456 / RAM 90,448 / pool 328,888; the core
+  (ARENA 24) 581,840 (+384, **276 B over the slot**) / 90,460 / 314,800; core and extras (ARENA 96, the measurement
+  build) 588,716 / 90,852 / 273,312. `sd-card-mots`: off 743,800 / 96,604 / 313,848; the core alone (24 KB) 744,108 /
+  96,632 / 317,352 (its parts' fixed memory is 21,072 B: a core arena there pays from 20 KB down); ARENA 96 750,904 /
+  96,980 / 275,864.
 - The builder: `ARENA` (KB) is the core in a normal build and the core and the extras in the SD card mode
   (`core.py sd_mode`, `arena_mem`, `arena_blocks`); new sizes 24 .. 48 KB for the core alone (the parts' fixed memory
   is 3 x the largest engine's: 38,664 B with PHYS). Off (0) stays the fixed memories, for a tight profile.
