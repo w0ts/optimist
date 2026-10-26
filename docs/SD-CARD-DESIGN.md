@@ -210,7 +210,8 @@ a register round trip, the CPU busy the whole block, roughly 1 MB/s. `sd bench` 
 | `src/storage/sd/pff.c`, `pff.h`, `pffconf.h`, `diskio.h` | Petit FatFs R0.03a (ChaN, 1-clause BSD: `LICENSES/BSD-1-Clause-FatFs.txt`), its own compile unit (`tools/build.py`); configured: read, write, seek, directories, FAT16 + FAT32. Every build but the big layout's (the bring-up) |
 | `src/storage/sd/fatfs/` | full FatFs R0.16 (ChaN, the same licence), the big layout's (LAYOUT 1 + FAR_OK: `FELUCCA_SD_FATFS`), its own units: long names in UTF-8 (one static buffer), code page 437 for the aliases, `f_expand`, fast seek, `FF_FS_TINY`, exFAT off (`ffconf.h` says what differs from R0.16: ffunicode.c without its DBCS tables, an `f_expand` fix, `f_unlink_entry`, `ff_string.h` for the freestanding build) |
 | `src/storage/sd/sd_diskio.c` | FatFs' disk layer over `sd_mmc.c`: CMD18 runs with every CRC16 checked (and the auto clock's retry), DMA into aligned buffers only, a bus session per read or write (so FatFs is called directly), a card that fails fails every later call at once; `get_fattime` a placeholder date; `sd_map_run`: a file's contiguous runs from its link map |
-| `src/storage/sd/sd_layout.c`, `sd_hash.c`, `sd_alloc.c`, `sd_index.c`, `sd_browse.c`, `sd_save.c` | the card's layout of section 8 (big layout only; host-tested, `tests/sd_layout_test.c`; no UI calls them yet) |
+| `src/storage/sd/sd_layout.c`, `sd_hash.c`, `sd_alloc.c`, `sd_index.c`, `sd_browse.c`, `sd_save.c` | the card's layout of section 8 (big layout only; host-tested, `tests/sd_layout_test.c`) |
+| `src/storage/sd/sd_mode.c`, `src/ui/optimist/op_sdcard.c` | SD card mode on the device (section 9): the boot's card, the projects, presets, kits and samples by name, the PROJECT page's lists |
 | `src/storage/sd/sdcard.c` | the API the rest calls (`sd_mount`, `sd_open`, `sd_read`, `sd_write`, `sd_seek`, `sd_opendir`, `sd_readdir`), each call taking and giving back the bus |
 | `src/io/console_sd.c` | the `sd` commands (console builds only; included by `src/io/console.c`) |
 | `tests/sd_card_model.h`, `sd_test.c`, `sd_fs_test.c`, `sd_layout_test.c` | the host tests: a byte-level card model (with power cuts) on FAT16 / FAT32 images from a real formatter (`tests/fixtures/sd/make_images.sh`): the driver and Petit FatFs; full FatFs; the card's layout |
@@ -404,7 +405,7 @@ Each step names who does it. Claude never writes to the FM-1.
 - **Sharing**: a project names its samples by hash, so the web / iOS app exports the project with exactly those files
   and an import puts them back under SAMPLES (whatever their names).
 
-### Built (2026-10-26, host-tested only; nothing on the screen yet)
+### Built (2026-10-26, host-tested only; on the screen: section 9)
 
 - **The hash: XXH64** (`sd_hash.c`): 64 bits, a published specification and vectors (the test checks five), 88 B of
   state; its speed does not matter (the card is the bottleneck). A WAV's hash is its `data` chunk's.
@@ -423,3 +424,66 @@ Each step names who does it. Claude never writes to the FM-1.
   A recording's continuation past its run (a new run) waits for the recorder.
 
 Open: the views beyond recent / name / folder.
+
+## 9. SD card mode on the device (2026-10-26, host-tested only)
+
+The user's ruling (2026-10-26): with SD card mode on, projects are saved and loaded **by name** on the card, and **every
+list (projects, samples, presets, kits) is shown as banks of 16 on the white keys**. Built behind `FELUCCA_SD_UI`
+(registry.h: `FELUCCA_SD_MODE && FELUCCA_SD_FATFS`, the mode's layout with the card under full FatFs; `FELUCCA_SD_MODE`
+alone once the mode's one builder flag builds the card in). Every other build is byte-identical (the default profile
+checked: only the build time and the commit differ).
+
+**The device side** (`storage/sd/sd_mode.c`, included after the stores and the UI; main loop only):
+
+- **Boot**: the boot's mount (main.c, before the LCD) as before; then `sdm_poll` (every main-loop pass): the device record
+  read, `sdl_prepare`, a pending save finished (`sdp_boot`: CARD SAVE FINISHED), *SD card: samples* said, then the
+  sample index's pass (`sdx_update`, one per mount; it holds the screen while it hashes new files, never the audio).
+  No card: *NO SD CARD* once, the flash store as before. A card that fails in use: *SD CARD GONE*, the lists empty; a
+  later mount (PROJECT entered, SYSTEM > SD card's YES) takes it again (no card: a few CMD0s).
+- **The working project stays the one-project flash store's** (project 0). A card SAVE is the flash SAVE first
+  (`prj_save_go`), the project's name (its first 12 characters: the flash project's), what waits in RAM flushed, then
+  `sdp_save` from that copy: the staged bytes are project 0's records as one stream (the backup's PJ01 format: u8 id,
+  u16 length, the record, for every id that is not device-wide; read in order by a cursor, no second copy). The save
+  number is the card's copy's + 1. A card LOAD verifies the file (header and payload hash), clears project 0, writes the
+  file's records into it (each id checked: in range, not device-wide, a record's length) and opens it; a load that does
+  not fit (MEM FULL) clears it again, never half a project. A save still pending (its only copy the flash one) is
+  finished before any LOAD, else the LOAD is refused (*CARD SAVE PENDING*).
+- **The device record**: the log's id 22 (`SEC_ID_SDCARD`, device-wide as the names: `SLG_DEV`, `SLG_GLOBAL`): VERSIONS
+  (`sdp_keep`, 0..16, default 8), SLACK (`sda_scale`, 0..400 % by 25, default 100), the pending save (`sdp_hooks`). A
+  pending save whose flash copy is now another project's (NEW, the project's name changed) is dropped, never finished
+  with other work; one still the project's is finished with the copy as it is (saved again without the card: that
+  newer copy). The settings are written when SYSTEM is left and the audio is quiet.
+- **Samples**: the project's id 23 (`SEC_ID_SDSMP`): each synth part's sample, its XXH64 (the index's), size and a name
+  hint (its path under `SAMPLES/`, cut at 51 bytes); a project file on the card carries it. For the player (streaming:
+  another helper): `sdm_sample_of(part, &hash, &hint)` (1: a sample), `sdm_sample_path(part, out, cap)` (its path now,
+  found by the hash: a renamed or moved file too; 0 MISSING), `sdm_smp_gen` bumped at each change. A file not indexed
+  yet (or changed since the pass) is hashed when picked (`sdx_note_written`); the pick marks it used (RECENT).
+- **Presets and kits**: one small file each, `PRESETS/<name>.OPS` ("OPPR": a user preset's record, `upreset.c up_card_*`
+  through slot `UP_CARD` = `UP_SLOTS`, RAM only) and `KITS/<name>.OPK` ("OPKT": a user kit and its lanes' sends,
+  `drum_kits.c ukit_card_*`), a 16-byte header (magic, version, length, the payload's XXH64), a sector at most
+  (written whole), allocated exact (`SDA_EXACT`). A preset of an FM6 sound keeps its VOICE number, not the operator
+  edits (the flash slots' `UP_FM6` object is not on the card yet). Saved into the folder's top; loaded from any
+  sub-folder.
+
+**The UI** (`ui/optimist/op_sdcard.c`; docs/UI-OPTIMIST-DESIGN.md 4.14): PROJECT's rows PROJECT (the card's projects
+while a card is ready, else the flash slot with *No SD card: in flash*), PRESETS, KITS, SAMPLES; four small cards (PAGE,
+ACTION, ITEM, VIEW) over the page: two columns of eight names, as the white keys sit. SYSTEM > SD card: CARD (READY and
+its size; YES mounts again), VERSIONS, SLACK, SAMPLES INDEX.
+
+**Cost** (`sd-card-mots` + `SDCARD=1`, a local measurement build, not gpufarm): flash 757,892 of 765,696 B (7.8 KB left),
+RAM 97,524 B, pool 320,508 B, against 726,400 B / 96,556 / 313,872 without the card: the card, FatFs, the layout and
+this side +31.5 KB of flash, +968 B of RAM, +6.6 KB of pool. To fit, `PARAM_HELP` is off in `sd-card-mots`
+(the help line: -17 KB in that build). This side (the wiring and the UI) is about 11 KB of it (*estimate*: against the modules-reached measurement of section 5).
+
+**Tests**: `tests/ui_optimist_sdcard.h` (`UI_SDCARD`, run on the FAT32 image with the card model): the boot's folders
+and index; PROJECT's list driven by keys and knobs (SAVE by name, a version kept, SAVES listed and loaded, SAVE
+*work*? before a LOAD and HOME to the LOAD, DELETE, 20 projects on two pages: the knob, OCT, ITEM across the pages);
+PRESETS and KITS by name (a name of another file refused, a / refused); SAMPLES (folders first, into and up, USE by hash,
+found again after a move, RECENT); SYSTEM > SD card; a full card (the save pending in flash, finished at the next
+mount); the card pulled; no card at the boot; a power cut at every block write of a save made from the UI (the next boot
+finishes it: the card's project the staged one, the record cleared); a pending save of another project dropped. Not run on an FM-1; the emulator stops at the
+boot's mount in SD builds.
+
+Open: a card LOAD while playing says STOP FIRST (the flash slots stop, load and play again); projects with names the
+NAME page cannot type (lower case from a computer, past 12 characters) load, and save again as their first 12
+characters; the FM6 voice of a card preset; a save into a sub-folder.

@@ -27,7 +27,7 @@ All of it is `firmware/src/ui/optimist/` (about 19,500 lines, one translation un
 | `op_cells.c`, `op_names.c`, `op_effval.c` | cells (label, value, unit, kind) made from the shared pages; the names table; effective values |
 | `op_screens.c`, `op_mixer.c`, `op_mixdraw.c` | SOUND and the master FX; the mixer's rows and sets; its drawing |
 | `op_step.c`, `op_stepdraw.c`, `op_tools.c` | STEP; its grid and roll; TOOLS, GEN, GEN OUT |
-| `op_global.c`, `op_gldraw.c`, `op_bt.c`, `op_project.c`, `op_prjflow.c` | GLOBAL and SYSTEM lists and their drawing, the SYSTEM table; the Bluetooth pages; PROJECT |
+| `op_global.c`, `op_gldraw.c`, `op_bt.c`, `op_project.c`, `op_prjflow.c`, `op_sdcard.c` | GLOBAL and SYSTEM lists and their drawing, the SYSTEM table; the Bluetooth pages; PROJECT; the card's lists (SD card mode) |
 | `op_layers.c`, `op_laydraw.c`, `op_tempo.c`, `op_song.c`, `op_songtbl.c`, `op_scope.c`, `op_name.c`, `op_memlist.c`, `op_fm6.c`, `op_fm6draw.c`, `op_preset.c`, `op_help.c` | the held layers and their maps; TEMPO; SONG; SCOPE; NAME; the load's memory list; the FM6 editor; a preset with its engine; the help line |
 | `op_draw.c`, `op_graph.c` | the renderer, the forms, the SOUND pictures, the modal |
 
@@ -243,7 +243,7 @@ Entered by SAVE held on PROJECT, SEQ held off STEP or SHIFT2 + SEQ (section 1.3)
 
 ### 4.6 PROJECT
 
-Rows: PROJECT, SNAPSHOT, USER, TOOLS (CLEAR SEQ, INIT SOUND, MISSING, NEW), SLOOP (import of SLOOP's slots and autosave, `storage/sl24/`), MEMORY (USED, FREE). A storage row is four cards (`op_prjflow.c`):
+Rows: PROJECT, SNAPSHOT, USER, TOOLS (CLEAR SEQ, INIT SOUND, MISSING, NEW), SLOOP (import of SLOOP's slots and autosave, `storage/sl24/`), MEMORY (USED, FREE). In SD card mode the card's lists come first (PROJECT on the card, PRESETS, KITS, SAMPLES: section 4.14). A storage row is four cards (`op_prjflow.c`):
 
 | Card | |
 |---|---|
@@ -310,6 +310,41 @@ On an FM6 track ENV held is the operator layer (the black keys pick OP1..6, PIT,
 ### 4.13 The load's memory list
 
 Only with an arena placed by need (builder `ARENA`; the default's fixed slots never refuse; `docs/SD-MODE-DESIGN.md` 6b). A project load that cannot place a part's engine makes every such part a silent placeholder with the project's sound; once the parts' switches are done and none of them found room by itself, this page opens (`op_memlist.c`, the user's ruling of 2026-10-25). Header: *MEMORY Load*. The cards' band: the room the picked drops leave against what the refused parts want (*2 KB / 8 KB*), a gauge, FITS in green or SHORT in amber; FITS is the arena's own trial of the commit (`model.c mem_load_fits`), never an estimate. The panel, every row on a white key with its number at the left: the refused parts (their engine in its colour, the KB they want in amber), a rule, then what can be dropped: the parts that hold memory (engine, KB), then the effects' lines placed (REV DLY CHO, `FELUCCA_FX_ARENA`). A white key toggles its row: a refused part is left silent (dim, NONE: the user's ruling of the night of 2026-10-25, so that SAVE can place the others when not all fit; the gauge's need and FITS then leave it out), what can be dropped is dropped (the row and its number red with DROP; no fill). SAVE with FITS drops them (a part a silent placeholder; an effect bypassed, FULL, back by itself once there is room) and the refused parts not left silent get their engines once that memory is free; SAVE while SHORT says NO ROOM. HOME keeps the project as loaded with the refused parts as placeholders (NONE, grey; an engine picked ends one). The keys play nothing, the knobs do nothing, PLAY works. The foot is the modal's (*Home no*, *Save yes*, dim while SHORT). An edit's change keeps the one confirm (*DROP T2 FM6*, section 2.5), after the load's list.
+
+### 4.14 The card's lists (SD card mode)
+
+Only in SD card mode with the card (`FELUCCA_SD_UI`; docs/SD-CARD-DESIGN.md 9; the user, 2026-10-26: "projects saved and
+loaded by name, every list as banks of 16 on the white keys"). PROJECT's rows: PROJECT (the card's projects while a card
+is ready; without one the flash slot as before, its panel saying *No SD card: in flash*), PRESETS, KITS, SAMPLES, then
+USER, TOOLS, MEMORY as before. A list row is four small cards (as the mixer's) over its page (`op_sdcard.c`):
+
+| Card | |
+|---|---|
+| 1 PAGE | the page of 16, *n* over */N*; OCT- / OCT+ tapped too |
+| 2 ACTION | LOAD (the default), SAVE, DELETE; SAVES: LOAD, DELETE; SAMPLES: USE. Red when it destroys or replaces |
+| 3 ITEM | the slot (1..16), across the pages |
+| 4 VIEW | PROJECTS: NAME, SAVES (the item's versions, the title its name); PRESETS, KITS: FOLDER, NAME (every file under it, by name); SAMPLES: FOLDER, NAME, RECENT (the ones used, last first) |
+
+The page: two columns of eight names, the slots as the white keys sit (left octave, then right), the ITEM framed in white;
+a folder grey with a "/", a name cut with "~" (14 characters a column); our own files without their extension, a version
+as *Version 7*; an empty folder its name and *Empty*; no card *No SD card*. The keys: a file lit, a folder dim, the ITEM
+blinking. A white key picks its slot and runs the ACTION through the confirm (section 2.5; a folder: into it, no
+question; USE at once, picking again changes it); YES runs it on the ITEM; HOME goes up a folder (SAVES: back to the
+projects), at the list's own folder to the mixer. The title is the row's name, a sub-folder's or the project whose SAVES
+are shown. The ACTION goes back to LOAD after each action.
+
+- **SAVE** names first (NAME, 4.11: the slot's name, else the work's; a new name is a new project). The card's rules
+  (no / \\ : * ? " < > |, no trailing dot or space): *Name not usable*, NAME stays. A project keeps its earlier saves
+  (VERSIONS, SYSTEM > SD card); a preset or a kit is written over only when the SAVE was asked over its own slot,
+  another name of a file there is *Name taken*. A project's SAVE is the flash SAVE first, then the card (*Saved to card*;
+  a full card or an error: *Card full: in flash* / *Card save failed: in flash*, finished at the next mount).
+- **LOAD** asks red over changed work; a project's LOAD over changed work with a name asks *Save <name>?* first (YES: saved
+  to the card, then loaded; HOME: the LOAD asked, red), as the flash slots. Stopped only (*Stop first*).
+- **USE** (SAMPLES): the selected synth part's sample, by its hash (T1..T3; the drum track: *Pick T1 T2 or T3*).
+
+SYSTEM > SD card (4.7): CARD (READY, PREPARING, NOT FAT or NONE, the card's size; YES mounts it again, its folders and
+the samples' index), VERSIONS (0..16, 8), SLACK (0..400 %, 100: the room a file's run gets past its size, SD-CARD-DESIGN
+8), SAMPLES INDEX (YES: the pass again). Written when SYSTEM is left. Tests: `tests/ui_optimist_sdcard.h`.
 
 ## 5. The drum track
 
