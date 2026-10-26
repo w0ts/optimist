@@ -307,9 +307,10 @@ static void meas_done(struct lk_node *k, int ok, int64_t icpt, int64_t now)
     }
 }
 
-static int64_t rdiv(int64_t a, int64_t d)          /* round(a / d) half away from zero, d 2 or 4 */
+static int64_t rdiv(int64_t a, uint32_t s)         /* round(a / 2^s) half away from zero (no 64-bit division in the firmware) */
 {
-    return a < 0 ? -((-a + d / 2) / d) : (a + d / 2) / d;
+    int64_t h = (int64_t)1 << (s - 1u);
+    return a < 0 ? -((-a + h) >> s) : (a + h) >> s;
 }
 
 static int64_t median2(int64_t *v, uint32_t n)     /* the median of twice-values, halved (Median.hpp) */
@@ -322,8 +323,8 @@ static int64_t median2(int64_t *v, uint32_t n)     /* the median of twice-values
         v[j] = x;
     }
     if (n & 1u)
-        return rdiv(v[n / 2u], 2);
-    return rdiv(v[n / 2u] + v[n / 2u - 1u], 4);
+        return rdiv(v[n / 2u], 1u);
+    return rdiv(v[n / 2u] + v[n / 2u - 1u], 2u);
 }
 
 static void meas_pong(struct lk_node *k, uint32_t ip, uint16_t port, const uint8_t *p, const uint8_t *e, int64_t now)

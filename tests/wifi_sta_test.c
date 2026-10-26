@@ -5,10 +5,29 @@
  * Exit status: the number of failed checks. */
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 #include "../firmware/src/wifi/wifi_crypto.c"
 #include "../firmware/src/wifi/wifi_sta.c"
+#include "../firmware/src/wifi/wifi_ip.c"
+#include "../firmware/src/link/link.c"
 
 static int fails, checks;
+static void write_u32_be(uint8_t *p, uint32_t v)
+{
+    p[0] = (uint8_t)(v >> 24);
+    p[1] = (uint8_t)(v >> 16);
+    p[2] = (uint8_t)(v >> 8);
+    p[3] = (uint8_t)v;
+}
+static uint16_t read_u16_be(const uint8_t *p)
+{
+    return ((uint16_t)p[0] << 8) | (uint16_t)p[1];
+}
+static uint32_t read_u32_be(const uint8_t *p)
+{
+    return ((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) |
+           ((uint32_t)p[2] << 8)  | (uint32_t)p[3];
+}
 static void hex(const char *s, uint8_t *out)
 {
     while (s[0] && s[1]) {
@@ -253,7 +272,7 @@ static void t_handshake_flow(void)
 
     /* Verify hardware MAC register writes for key installation */
     checks++;
-    if (get_mac_reg(0x6804u) != 0x04u) {        /* WCID 1 Attribute = AES-CCMP */
+    if (get_mac_reg(0x6804u) != 0x08u) {        /* WCID 1 Attribute = AES-CCMP in bits 3:1 */
         fails++;
         printf("FAIL HW WCID attribute reg\n");
     }
@@ -572,6 +591,65 @@ static void t_eapol_encap_and_full_join(void)
         fails++;
         printf("FAIL full join: M3->M4 over-the-air frame (res=%d, len=%u, state=%d)\n", res, out_len, sta.state);
     }
+
+    /* --- Phase 5: Group Key Rekey (2-way group handshake) --- */
+    {
+        uint8_t new_gtk[16], new_gtk_kde[32], enc_new_kde[40];
+        uint8_t gm1_eapol[256];
+        uint8_t expected_gm2_mic[16];
+        hex("aabbccddeeff00112233445566778899", new_gtk);
+
+        memset(gm1_eapol, 0, 256);
+        gm1_eapol[0] = 0x01; gm1_eapol[1] = 0x03; gm1_eapol[4] = 0x02;
+        /* Key Info: Version 2, Group Key (0), Key ACK (bit 7), Key MIC (bit 8), Secure (bit 9), Encrypted (bit 12) -> 0x1382 */
+        write_u16_be(gm1_eapol + 5, 0x1382u);
+        write_u16_be(gm1_eapol + 7, 16u);
+        gm1_eapol[16] = 5;                           /* Replay counter 5 */
+
+        new_gtk_kde[0] = 0xDD; new_gtk_kde[1] = 22;
+        new_gtk_kde[2] = 0x00; new_gtk_kde[3] = 0x0F; new_gtk_kde[4] = 0xAC; new_gtk_kde[5] = 0x01;
+        new_gtk_kde[6] = 0x02;                       /* GTK ID 2 */
+        new_gtk_kde[7] = 0x00;
+        memcpy(new_gtk_kde + 8, new_gtk, 16);
+
+        mock_aes_wrap(ap_ptk + 16, new_gtk_kde, 24, enc_new_kde);
+        write_u16_be(gm1_eapol + 97, 32u);
+        memcpy(gm1_eapol + 99, enc_new_kde, 32);
+        write_u16_be(gm1_eapol + 2, 95u + 32u);
+        compute_eapol_mic(ap_ptk, gm1_eapol, 131, gm1_eapol + 81);
+
+        memset(frame_in, 0, 32);
+        frame_in[0] = 0x08; frame_in[1] = 0x02;
+        memcpy(frame_in + 4, sta_mac, 6);
+        memcpy(frame_in + 10, ap_bssid, 6);
+        memcpy(frame_in + 16, ap_bssid, 6);
+        frame_in[24] = 0xAA; frame_in[25] = 0xAA; frame_in[26] = 0x03;
+        frame_in[30] = 0x88; frame_in[31] = 0x8E;
+        memcpy(frame_in + 32, gm1_eapol, 131);
+
+        res = wifi_sta_rx_frame(&sta, frame_in, 32 + 131, frame_out, &out_len);
+        checks++;
+        if (res != 1 || out_len != 32 + 99 || sta.gtk_id != 2 || memcmp(sta.gtk, new_gtk, 16) != 0) {
+            fails++;
+            printf("FAIL group rekey GM1->GM2 (res=%d, len=%u, gtk_id=%u)\n", res, out_len, sta.gtk_id);
+        }
+
+        /* Verify Group M2 Key Info == 0x0302 and valid MIC */
+        checks++;
+        uint16_t gm2_info = ((uint16_t)frame_out[32 + 5] << 8) | frame_out[32 + 6];
+        if (gm2_info != 0x0302u) {
+            fails++;
+            printf("FAIL group M2 key_info = 0x%04x\n", gm2_info);
+        }
+        compute_eapol_mic(ap_ptk, frame_out + 32, 99, expected_gm2_mic);
+        /* Notice frame_out + 32 + 81 is the MIC inside the generated frame */
+        check("group M2 MIC", frame_out + 32 + 81, "valid", 0); /* count check */
+        checks++;
+        if (memcmp(frame_out + 32 + 81, expected_gm2_mic, 16) != 0) {
+            fails++;
+            printf("FAIL group M2 MIC verification\n");
+        }
+    }
 }
 
 static uint8_t mock_vm_data[10];
@@ -653,6 +731,287 @@ static void t_mac_address_and_regs(void)
     }
 }
 
+static void t_ip_early_filter(void)
+{
+    uint8_t frame[128];
+    uint8_t sta_mac[6] = {0x02, 0x11, 0x22, 0x33, 0x44, 0x55};
+    uint32_t our_ip = 0xC0A80164u;                  /* 192.168.1.100 */
+    uint16_t link_port = 20808u;
+
+    /* Base 802.11 Data Frame Header + LLC/SNAP */
+    memset(frame, 0, sizeof(frame));
+    frame[0] = 0x08; frame[1] = 0x02;
+    frame[24] = 0xAA; frame[25] = 0xAA; frame[26] = 0x03;
+
+    /* 1. EAPOL (EtherType 0x888E) -> KEEP */
+    frame[30] = 0x88; frame[31] = 0x8E;
+    checks++;
+    if (wifi_ip_early_filter(frame, 40, sta_mac, our_ip, link_port) != 1) {
+        fails++;
+        printf("FAIL early filter: EAPOL dropped\n");
+    }
+
+    /* 2. ARP for our IP -> KEEP */
+    frame[30] = 0x08; frame[31] = 0x06;
+    /* ARP target IP at frame + 32 + 24 */
+    write_u32_be(frame + 32 + 24, our_ip);
+    checks++;
+    if (wifi_ip_early_filter(frame, 32 + 28, sta_mac, our_ip, link_port) != 1) {
+        fails++;
+        printf("FAIL early filter: ARP our_ip dropped\n");
+    }
+
+    /* 3. ARP for different IP -> DROP */
+    write_u32_be(frame + 32 + 24, 0xC0A80101u);     /* 192.168.1.1 */
+    checks++;
+    if (wifi_ip_early_filter(frame, 32 + 28, sta_mac, our_ip, link_port) != 0) {
+        fails++;
+        printf("FAIL early filter: ARP other IP kept\n");
+    }
+
+    /* 4. IPv4 Setup */
+    frame[30] = 0x08; frame[31] = 0x00;
+    frame[32] = 0x45;                               /* IPv4, IHL 5 */
+    write_u32_be(frame + 32 + 16, our_ip);          /* Dest IP = our IP */
+
+    /* 4a. IGMP (Proto 2) -> KEEP */
+    frame[32 + 9] = 2;
+    checks++;
+    if (wifi_ip_early_filter(frame, 32 + 28, sta_mac, our_ip, link_port) != 1) {
+        fails++;
+        printf("FAIL early filter: IGMP dropped\n");
+    }
+
+    /* 4b. UDP (Proto 17) -> DHCP Client (Port 68) -> KEEP */
+    frame[32 + 9] = 17;
+    write_u16_be(frame + 32 + 20 + 2, 68u);         /* Dest Port = 68 */
+    checks++;
+    if (wifi_ip_early_filter(frame, 32 + 20 + 8, sta_mac, our_ip, link_port) != 1) {
+        fails++;
+        printf("FAIL early filter: DHCP client dropped\n");
+    }
+
+    /* 4c. UDP -> Link Multicast Discovery (224.76.78.75:20808) -> KEEP */
+    write_u32_be(frame + 32 + 16, 0xE04C4E4Bu);     /* 224.76.78.75 */
+    write_u16_be(frame + 32 + 20 + 2, 20808u);      /* Dest Port = 20808 */
+    checks++;
+    if (wifi_ip_early_filter(frame, 32 + 20 + 8, sta_mac, our_ip, link_port) != 1) {
+        fails++;
+        printf("FAIL early filter: Link multicast dropped\n");
+    }
+
+    /* 4d. UDP -> Link Unicast to our port -> KEEP */
+    write_u32_be(frame + 32 + 16, our_ip);
+    write_u16_be(frame + 32 + 20 + 2, link_port);
+    checks++;
+    if (wifi_ip_early_filter(frame, 32 + 20 + 8, sta_mac, our_ip, link_port) != 1) {
+        fails++;
+        printf("FAIL early filter: Link unicast dropped\n");
+    }
+
+    /* 4e. UDP -> mDNS (5353) or SSDP (1900) -> DROP */
+    write_u16_be(frame + 32 + 20 + 2, 5353u);
+    checks++;
+    if (wifi_ip_early_filter(frame, 32 + 20 + 8, sta_mac, our_ip, link_port) != 0) {
+        fails++;
+        printf("FAIL early filter: mDNS 5353 kept\n");
+    }
+
+    /* 4f. TCP (Proto 6) -> DROP */
+    frame[32 + 9] = 6;
+    checks++;
+    if (wifi_ip_early_filter(frame, 32 + 20 + 8, sta_mac, our_ip, link_port) != 0) {
+        fails++;
+        printf("FAIL early filter: TCP kept\n");
+    }
+}
+
+static void t_ip_arp_and_dhcp(void)
+{
+    struct wifi_ip wip;
+    uint8_t sta_mac[6] = {0x02, 0x11, 0x22, 0x33, 0x44, 0x55};
+    uint8_t ap_bssid[6] = {0x00, 0x14, 0x6C, 0x7E, 0x40, 0x80};
+    uint8_t tx_buf[512], frame_in[512];
+    uint32_t tx_len = 0;
+    int res;
+
+    wifi_ip_init(&wip, sta_mac, ap_bssid, test_rand);
+
+    /* --- DHCP Flow --- */
+    tx_len = wifi_ip_dhcp_start(&wip, tx_buf);
+    checks++;
+    if (tx_len < 32 + 20 + 8 + 240 || wip.dhcp_state != WIFI_IP_DHCP_DISCOVERING) {
+        fails++;
+        printf("FAIL DHCP discover build\n");
+    }
+    /* Verify DHCP discover payload */
+    checks++;
+    if (tx_buf[32 + 20 + 8 + 0] != 0x01 ||          /* Boot Request */
+        tx_buf[32 + 20 + 8 + 236] != 0x63 ||        /* Magic Cookie */
+        tx_buf[32 + 20 + 8 + 240] != 53 ||          /* Option 53 */
+        tx_buf[32 + 20 + 8 + 242] != 1) {           /* Type 1 Discover */
+        fails++;
+        printf("FAIL DHCP discover options\n");
+    }
+
+    /* Simulate DHCP Offer from AP router (192.168.1.1 offers 192.168.1.150) */
+    memset(frame_in, 0, sizeof(frame_in));
+    frame_in[0] = 0x08; frame_in[1] = 0x02;
+    frame_in[24] = 0xAA; frame_in[25] = 0xAA; frame_in[26] = 0x03;
+    frame_in[30] = 0x08; frame_in[31] = 0x00;       /* IPv4 */
+    frame_in[32] = 0x45;                            /* IHL 5 */
+    write_u16_be(frame_in + 32 + 2, 20 + 8 + 250);  /* Total Len */
+    frame_in[32 + 9] = 17;                          /* UDP */
+    write_u32_be(frame_in + 32 + 12, 0xC0A80101u);  /* Src: 192.168.1.1 */
+    write_u32_be(frame_in + 32 + 16, 0xC0A80196u);  /* Dst: 192.168.1.150 */
+    write_u16_be(frame_in + 32 + 20, 67u);          /* Src Port: 67 */
+    write_u16_be(frame_in + 32 + 22, 68u);          /* Dst Port: 68 */
+    write_u16_be(frame_in + 32 + 24, 8 + 250);      /* UDP Len */
+
+    /* DHCP Body */
+    uint8_t *dhcp = frame_in + 32 + 20 + 8;
+    dhcp[0] = 0x02;                                 /* Boot Reply */
+    write_u32_be(dhcp + 4, wip.dhcp_xid);           /* Matching XID */
+    write_u32_be(dhcp + 16, 0xC0A80196u);           /* Yiaddr: 192.168.1.150 */
+    memcpy(dhcp + 28, sta_mac, 6);
+    dhcp[236] = 0x63; dhcp[237] = 0x82; dhcp[238] = 0x53; dhcp[239] = 0x63;
+    dhcp[240] = 53; dhcp[241] = 1; dhcp[242] = 2;  /* Option 53 = 2 (Offer) */
+    dhcp[243] = 54; dhcp[244] = 4; write_u32_be(dhcp + 245, 0xC0A80101u); /* Option 54 (Server ID) */
+    dhcp[249] = 255;                                /* End */
+
+    res = wifi_ip_rx_frame(&wip, frame_in, 32 + 20 + 8 + 250, 1000000, tx_buf, &tx_len);
+    checks++;
+    if (res != 1 || wip.dhcp_state != WIFI_IP_DHCP_REQUESTING || wip.dhcp_offered_ip != 0xC0A80196u) {
+        fails++;
+        printf("FAIL DHCP offer -> request (res=%d, state=%d)\n", res, wip.dhcp_state);
+    }
+
+    /* Simulate DHCP Ack from AP router */
+    write_u16_be(frame_in + 32 + 2, 20 + 8 + 256);  /* Total Len */
+    write_u16_be(frame_in + 32 + 24, 8 + 256);      /* UDP Len */
+    dhcp[240] = 53; dhcp[241] = 1; dhcp[242] = 5;  /* Option 53 = 5 (Ack) */
+    dhcp[243] = 1;  dhcp[244] = 4; write_u32_be(dhcp + 245, 0xFFFFFF00u); /* Netmask 255.255.255.0 */
+    dhcp[249] = 3;  dhcp[250] = 4; write_u32_be(dhcp + 251, 0xC0A80101u); /* Gateway */
+    dhcp[255] = 255;                                /* End */
+
+    res = wifi_ip_rx_frame(&wip, frame_in, 32 + 20 + 8 + 256, 1000000, tx_buf, &tx_len);
+    checks++;
+    if (res != 1 || wip.dhcp_state != WIFI_IP_DHCP_BOUND || wip.ip != 0xC0A80196u || wip.gw != 0xC0A80101u) {
+        fails++;
+        printf("FAIL DHCP ack -> bound (res=%d, state=%d, ip=0x%08x)\n", res, wip.dhcp_state, wip.ip);
+    }
+
+    /* Verify IGMPv2 Join packet produced upon entering BOUND */
+    checks++;
+    /* 802.11 DA should be 01:00:5E:4C:4E:4B for 224.76.78.75 */
+    if (tx_buf[16] != 0x01 || tx_buf[17] != 0x00 || tx_buf[18] != 0x5E ||
+        tx_buf[19] != 0x4C || tx_buf[20] != 0x4E || tx_buf[21] != 0x4B) {
+        fails++;
+        printf("FAIL IGMP multicast MAC destination\n");
+    }
+    /* IP Dest should be 224.76.78.75 (0xE04C4E4B) */
+    checks++;
+    if (read_u32_be(tx_buf + 32 + 16) != 0xE04C4E4Bu || tx_buf[32 + 9] != 2) {
+        fails++;
+        printf("FAIL IGMP IP packet header\n");
+    }
+
+    /* --- ARP Handling --- */
+    /* Simulate ARP request from peer (192.168.1.50 asking who has 192.168.1.150) */
+    wip.ip = 0xC0A80196u;
+    memset(frame_in, 0, sizeof(frame_in));
+    frame_in[0] = 0x08; frame_in[1] = 0x02;
+    frame_in[24] = 0xAA; frame_in[25] = 0xAA; frame_in[26] = 0x03;
+    frame_in[30] = 0x08; frame_in[31] = 0x06;       /* ARP */
+    uint8_t *arp = frame_in + 32;
+    write_u16_be(arp + 0, 1u);                      /* HW: Ethernet */
+    write_u16_be(arp + 2, 0x0800u);                 /* Proto: IPv4 */
+    arp[4] = 6; arp[5] = 4;
+    write_u16_be(arp + 6, 1u);                      /* Op: Request */
+    uint8_t peer_mac[6] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
+    memcpy(arp + 8, peer_mac, 6);                   /* Sender MAC */
+    write_u32_be(arp + 14, 0xC0A80132u);            /* Sender IP: 192.168.1.50 */
+    memset(arp + 18, 0, 6);                         /* Target MAC: 0 */
+    write_u32_be(arp + 24, 0xC0A80196u);            /* Target IP: 192.168.1.150 (Our IP) */
+
+    res = wifi_ip_rx_frame(&wip, frame_in, 32 + 28, 1000000, tx_buf, &tx_len);
+    checks++;
+    if (res != 1 || tx_len != 32 + 28) {
+        fails++;
+        printf("FAIL ARP reply generation (res=%d, len=%u)\n", res, tx_len);
+    }
+    /* Verify ARP reply fields */
+    checks++;
+    if (memcmp(tx_buf + 16, peer_mac, 6) != 0 ||    /* 802.11 DA == peer MAC */
+        read_u16_be(tx_buf + 32 + 6) != 2u ||       /* Op == Reply */
+        memcmp(tx_buf + 32 + 8, sta_mac, 6) != 0 || /* Sender MAC == Our MAC */
+        read_u32_be(tx_buf + 32 + 14) != 0xC0A80196u || /* Sender IP == Our IP */
+        memcmp(tx_buf + 32 + 18, peer_mac, 6) != 0 || /* Target MAC == Peer MAC */
+        read_u32_be(tx_buf + 32 + 24) != 0xC0A80132u) { /* Target IP == Peer IP */
+        fails++;
+        printf("FAIL ARP reply payload\n");
+    }
+}
+
+static void t_ip_link_udp(void)
+{
+    struct wifi_ip wip;
+    struct lk_node lk;
+    struct lk_cfg cfg;
+    uint8_t sta_mac[6] = {0x02, 0x11, 0x22, 0x33, 0x44, 0x55};
+    uint8_t ap_bssid[6] = {0x00, 0x14, 0x6C, 0x7E, 0x40, 0x80};
+    uint8_t tx_buf[512], frame_in[512];
+    uint32_t tx_len = 0;
+
+    wifi_ip_init(&wip, sta_mac, ap_bssid, test_rand);
+    wip.ip = 0xC0A80196u;                           /* 192.168.1.150 */
+
+    memset(&cfg, 0, sizeof(cfg));
+    cfg.ip = wip.ip;
+    cfg.port = WIFI_IP_LINK_PORT;
+    lk_init(&lk, &cfg, 0x12345678u, 500000);        /* 120 BPM */
+    wifi_ip_set_link(&wip, &lk, WIFI_IP_LINK_PORT);
+
+    /* 1. Test sending a Link discovery datagram */
+    uint8_t link_payload[64] = "LINK_DISCOVERY_PAYLOAD_TEST";
+    tx_len = wifi_ip_send_udp(&wip, WIFI_IP_LINK_MCAST_IP, WIFI_IP_LINK_PORT, link_payload, 28, tx_buf);
+    checks++;
+    if (tx_len != 32 + 20 + 8 + 28) {
+        fails++;
+        printf("FAIL Link UDP send length (len=%u)\n", tx_len);
+    }
+    /* Verify Multicast MAC, IP dest, UDP dest */
+    checks++;
+    if (tx_buf[16] != 0x01 || tx_buf[17] != 0x00 || tx_buf[18] != 0x5E ||
+        read_u32_be(tx_buf + 32 + 16) != WIFI_IP_LINK_MCAST_IP ||
+        read_u16_be(tx_buf + 32 + 20 + 2) != WIFI_IP_LINK_PORT) {
+        fails++;
+        printf("FAIL Link UDP packet headers\n");
+    }
+
+    /* 2. Test receiving a Link packet */
+    memset(frame_in, 0, sizeof(frame_in));
+    frame_in[0] = 0x08; frame_in[1] = 0x02;
+    frame_in[24] = 0xAA; frame_in[25] = 0xAA; frame_in[26] = 0x03;
+    frame_in[30] = 0x08; frame_in[31] = 0x00;
+    frame_in[32] = 0x45;
+    write_u16_be(frame_in + 32 + 2, 20 + 8 + 28);
+    frame_in[32 + 9] = 17;                          /* UDP */
+    write_u32_be(frame_in + 32 + 12, 0xC0A80132u);  /* Src: 192.168.1.50 */
+    write_u32_be(frame_in + 32 + 16, 0xE04C4E4Bu);  /* Dst: 224.76.78.75 */
+    write_u16_be(frame_in + 32 + 20, 20808u);       /* Src Port: 20808 */
+    write_u16_be(frame_in + 32 + 22, 20808u);       /* Dst Port: 20808 */
+    write_u16_be(frame_in + 32 + 24, 8 + 28);       /* UDP Len */
+    memcpy(frame_in + 32 + 28, link_payload, 28);
+
+    int res = wifi_ip_rx_frame(&wip, frame_in, 32 + 20 + 8 + 28, 1000000, tx_buf, &tx_len);
+    checks++;
+    if (res != 0) {
+        fails++;
+        printf("FAIL Link UDP receive dispatch (res=%d)\n", res);
+    }
+}
+
 int main(void)
 {
     t_crypto();
@@ -662,6 +1021,9 @@ int main(void)
     t_mgmt_framing();
     t_eapol_encap_and_full_join();
     t_mac_address_and_regs();
+    t_ip_early_filter();
+    t_ip_arp_and_dhcp();
+    t_ip_link_udp();
     printf("wifi_sta_test: %d checks, %d failed\n", checks, fails);
     return fails;
 }

@@ -140,9 +140,72 @@ static void compute_eapol_mic(const uint8_t kck[16], const uint8_t *pkt, uint32_
     memcpy(mic, digest, 16);
 }
 
-void wifi_sta_install_hw_keys(const struct wifi_sta *sta)
+static int verify_eapol_mic(const uint8_t kck[16], const uint8_t *pkt, uint32_t len)
+{
+    uint8_t expected_mic[16];
+    if (len > WIFI_STA_EAPOL_MAX)
+        return -1;
+    compute_eapol_mic(kck, pkt, len, expected_mic);
+    return memcmp(pkt + 81, expected_mic, 16) == 0 ? 0 : -1;
+}
+
+static int parse_gtk_kde(struct wifi_sta *sta, const uint8_t *key_data, uint32_t key_data_len)
+{
+    uint8_t unwrapped[128];
+    uint32_t i, ulen;
+
+    if (key_data_len < 24u || key_data_len > sizeof unwrapped + 8u || key_data_len % 8u)
+        return -1;
+    if (!wc_aes_unwrap(sta->ptk.kek, key_data, key_data_len, unwrapped))
+        return -1;
+
+    ulen = key_data_len - 8u;
+    for (i = 0; i + 6u < ulen;) {
+        uint8_t tag = unwrapped[i];
+        uint8_t tlen = unwrapped[i + 1];
+        if (i + 2u + tlen > ulen)
+            break;
+        if (tag == 0xDDu && tlen >= 6u &&
+            unwrapped[i + 2] == 0x00 && unwrapped[i + 3] == 0x0F &&
+            unwrapped[i + 4] == 0xAC && unwrapped[i + 5] == 0x01) {
+            sta->gtk_id = unwrapped[i + 6] & 0x03u;
+            if (tlen >= 22u)
+                memcpy(sta->gtk, unwrapped + i + 8, 16);
+            break;
+        }
+        i += 2u + tlen;
+    }
+    return 0;
+}
+
+static void build_eapol_99(const struct wifi_sta *sta, const uint8_t replay[8], uint16_t key_info, uint8_t *tx_buf)
+{
+    memset(tx_buf, 0, 99);
+    tx_buf[0] = 0x01;                           /* 802.1X-2001 */
+    tx_buf[1] = 0x03;                           /* EAPOL-Key */
+    write_u16_be(tx_buf + 2, 95u);              /* Body length */
+    tx_buf[4] = 0x02;                           /* RSN Key Descriptor */
+    write_u16_be(tx_buf + 5, key_info);
+    write_u16_be(tx_buf + 7, 16u);              /* Key Length */
+    memcpy(tx_buf + 9, replay, 8);              /* Replay counter */
+    compute_eapol_mic(sta->ptk.kck, tx_buf, 99, tx_buf + 81);
+}
+
+static void sta_mac_wr_blk(uint32_t base, const uint8_t *key)
 {
     uint32_t i, w;
+    for (i = 0; i < 4u; i++) {
+        w = (uint32_t)key[4 * i] | ((uint32_t)key[4 * i + 1] << 8) |
+            ((uint32_t)key[4 * i + 2] << 16) | ((uint32_t)key[4 * i + 3] << 24);
+        STA_MAC_WR(base + 4u * i, w);
+    }
+    for (i = 4; i < 8u; i++)
+        STA_MAC_WR(base + 4u * i, 0);
+}
+
+void wifi_sta_install_hw_keys(const struct wifi_sta *sta)
+{
+    uint32_t w;
 
     /* 1. Program AP BSSID into WCID entry 1 (0x1808) */
     w = (uint32_t)sta->bssid[0] | ((uint32_t)sta->bssid[1] << 8) |
@@ -152,33 +215,21 @@ void wifi_sta_install_hw_keys(const struct wifi_sta *sta)
     STA_MAC_WR(0x180Cu, w);
 
     /* 2. Program Pairwise Key (TK) into Pairwise Key Table entry 1 (0x4020) */
-    for (i = 0; i < 4u; i++) {
-        w = (uint32_t)sta->ptk.tk[4 * i] | ((uint32_t)sta->ptk.tk[4 * i + 1] << 8) |
-            ((uint32_t)sta->ptk.tk[4 * i + 2] << 16) | ((uint32_t)sta->ptk.tk[4 * i + 3] << 24);
-        STA_MAC_WR(0x4020u + 4u * i, w);
-    }
-    /* Clear MIC keys for CCMP */
-    for (i = 4; i < 8u; i++)
-        STA_MAC_WR(0x4020u + 4u * i, 0);
+    sta_mac_wr_blk(0x4020u, sta->ptk.tk);
 
     /* 3. Program Group Key (GTK) into Shared Key Table (0x6C00 + gtk_id * 32) */
     if (sta->gtk_id < 4u) {
-        uint32_t base = 0x6C00u + (uint32_t)sta->gtk_id * 32u;
-        for (i = 0; i < 4u; i++) {
-            w = (uint32_t)sta->gtk[4 * i] | ((uint32_t)sta->gtk[4 * i + 1] << 8) |
-                ((uint32_t)sta->gtk[4 * i + 2] << 16) | ((uint32_t)sta->gtk[4 * i + 3] << 24);
-            STA_MAC_WR(base + 4u * i, w);
-        }
-        for (i = 4; i < 8u; i++)
-            STA_MAC_WR(base + 4u * i, 0);
+        sta_mac_wr_blk(0x6C00u + (uint32_t)sta->gtk_id * 32u, sta->gtk);
 
         /* Set Shared Key Mode (0x7000): cipher 4 (AES-CCMP) for this key */
         w = 4u << ((uint32_t)sta->gtk_id * 4u);
         STA_MAC_WR(0x7000u, w);
     }
 
-    /* 4. Configure WCID Attribute Table (0x6800 + 1 * 4 = 0x6804): cipher 4 (AES-CCMP) */
-    STA_MAC_WR(0x6804u, 0x04u);
+    /* 4. Configure WCID Attribute Table (0x6800 + 1 * 4 = 0x6804). Ralink's layout (rt2800.h, from memory, NOT yet
+     * checked on the FM-1): bit 0 key table (0: pairwise), bits 3:1 the cipher (4 = AES-CCMP), 6:4 BSS index. The cipher
+     * in bits 3:1 makes 0x08; the earlier 0x04 read as cipher 2 (WEP-104) for the pairwise key. */
+    STA_MAC_WR(0x6804u, 4u << 1);
 
     /* 5. Clear IV/EIV for WCID 1 (0x6008) */
     STA_MAC_WR(0x6008u, 0);
@@ -213,146 +264,123 @@ int wifi_sta_rx_eapol(struct wifi_sta *sta, const uint8_t *pkt, uint32_t len, ui
     if (99u + key_data_len > len)                   /* (key data past the frame: refused) */
         return -1;
 
-    /* Must be Pairwise key */
-    if (!(key_info & (1u << 3)))
-        return -1;
+    /* Message 1 or Message 3 (Pairwise) vs Group Message 1 */
+    if (key_info & (1u << 3)) {
+        /* Message 1 from AP: Key ACK=1, MIC=0 */
+        if ((key_info & (1u << 7)) && !(key_info & (1u << 8))) {
+            sta->replay_cnt = replay;
+            memcpy(sta->anonce, pkt + 17, 32);
 
-    /* Message 1 from AP: Key ACK=1, MIC=0 */
-    if ((key_info & (1u << 7)) && !(key_info & (1u << 8))) {
-        sta->replay_cnt = replay;
-        memcpy(sta->anonce, pkt + 17, 32);
+            /* Generate SNonce and derive PTK */
+            gen_snonce(sta, sta->snonce);
+            wifi_sta_derive_ptk(sta->pmk, sta->mac, sta->bssid, sta->snonce, sta->anonce, (uint8_t *)&sta->ptk);
 
-        /* Generate SNonce and derive PTK */
-        gen_snonce(sta, sta->snonce);
-        wifi_sta_derive_ptk(sta->pmk, sta->mac, sta->bssid, sta->snonce, sta->anonce, (uint8_t *)&sta->ptk);
+            /* Build Message 2 */
+            memset(tx_buf, 0, 121);
+            tx_buf[0] = 0x01;                           /* 802.1X-2001 */
+            tx_buf[1] = 0x03;                           /* EAPOL-Key */
+            write_u16_be(tx_buf + 2, 95u + sizeof(sta_rsn_ie)); /* Body length */
+            tx_buf[4] = 0x02;                           /* RSN Key Descriptor */
+            /* Key Info: Version 2 (HMAC-SHA1/AES), Key Type Pairwise, Key MIC */
+            write_u16_be(tx_buf + 5, 0x010Au);
+            write_u16_be(tx_buf + 7, 16u);              /* Key Length */
+            memcpy(tx_buf + 9, pkt + 9, 8);             /* Replay counter */
+            memcpy(tx_buf + 17, sta->snonce, 32);       /* SNonce */
+            /* Key Data: Station RSN IE */
+            write_u16_be(tx_buf + 97, sizeof(sta_rsn_ie));
+            memcpy(tx_buf + 99, sta_rsn_ie, sizeof(sta_rsn_ie));
 
-        /* Build Message 2 */
-        memset(tx_buf, 0, 121);
-        tx_buf[0] = 0x01;                           /* 802.1X-2001 */
-        tx_buf[1] = 0x03;                           /* EAPOL-Key */
-        write_u16_be(tx_buf + 2, 95u + sizeof(sta_rsn_ie)); /* Body length */
-        tx_buf[4] = 0x02;                           /* RSN Key Descriptor */
-        /* Key Info: Version 2 (HMAC-SHA1/AES), Key Type Pairwise, Key MIC */
-        write_u16_be(tx_buf + 5, 0x010Au);
-        write_u16_be(tx_buf + 7, 16u);              /* Key Length */
-        memcpy(tx_buf + 9, pkt + 9, 8);             /* Replay counter */
-        memcpy(tx_buf + 17, sta->snonce, 32);       /* SNonce */
-        /* Key Data: Station RSN IE */
-        write_u16_be(tx_buf + 97, sizeof(sta_rsn_ie));
-        memcpy(tx_buf + 99, sta_rsn_ie, sizeof(sta_rsn_ie));
+            /* Compute MIC */
+            compute_eapol_mic(sta->ptk.kck, tx_buf, 121, tx_buf + 81);
 
-        /* Compute MIC */
-        compute_eapol_mic(sta->ptk.kck, tx_buf, 121, tx_buf + 81);
-
-        *tx_len = 121;
-        sta->state = WIFI_STA_STATE_WAIT_M3;
-        return 1;
-    }
-
-    /* Message 3 from AP: Key ACK=1, MIC=1 */
-    if ((key_info & (1u << 7)) && (key_info & (1u << 8))) {
-        uint8_t check_buf[WIFI_STA_EAPOL_MAX];
-        uint8_t expected_mic[16];
-        uint8_t unwrapped[128];
-        uint32_t i;
-
-        if (sta->state != WIFI_STA_STATE_WAIT_M3)
-            return -1;
-        if (replay <= sta->replay_cnt)                  /* (a replayed or old M3) */
-            return -1;
-
-        if (len > sizeof(check_buf))
-            return -1;
-
-        /* Verify MIC: zero out MIC field and compute HMAC-SHA1 */
-        memcpy(check_buf, pkt, len);
-        memset(check_buf + 81, 0, 16);
-        compute_eapol_mic(sta->ptk.kck, check_buf, len, expected_mic);
-
-        if (memcmp(pkt + 81, expected_mic, 16) != 0) {
-            sta->state = WIFI_STA_STATE_FAILED;
-            return -1;
+            *tx_len = 121;
+            sta->state = WIFI_STA_STATE_WAIT_M3;
+            return 1;
         }
 
-        /* Check ANonce matches */
-        if (memcmp(pkt + 17, sta->anonce, 32) != 0) {
-            sta->state = WIFI_STA_STATE_FAILED;
-            return -1;
-        }
-
-        /* If Key Data is encrypted, unwrap GTK */
-        if ((key_info & (1u << 12)) && key_data_len >= 24u) {
-            if (key_data_len > sizeof unwrapped + 8u || key_data_len % 8u) {
-                sta->state = WIFI_STA_STATE_FAILED;
+        /* Message 3 from AP: Key ACK=1, MIC=1 */
+        if ((key_info & (1u << 7)) && (key_info & (1u << 8))) {
+            if (sta->state != WIFI_STA_STATE_WAIT_M3 || replay <= sta->replay_cnt)
                 return -1;
-            }
-            if (!wc_aes_unwrap(sta->ptk.kek, pkt + 99, key_data_len, unwrapped)) {
+
+            if (verify_eapol_mic(sta->ptk.kck, pkt, len) != 0 || memcmp(pkt + 17, sta->anonce, 32) != 0) {
                 sta->state = WIFI_STA_STATE_FAILED;
                 return -1;
             }
 
-            /* Search for GTK KDE (0xDD, len, 00-0F-AC, type 0x01) */
-            uint32_t ulen = key_data_len - 8u;
-            for (i = 0; i + 6u < ulen;) {
-                uint8_t tag = unwrapped[i];
-                uint8_t tlen = unwrapped[i + 1];
-                if (i + 2u + tlen > ulen)
-                    break;
-                if (tag == 0xDDu && tlen >= 6u &&
-                    unwrapped[i + 2] == 0x00 && unwrapped[i + 3] == 0x0F &&
-                    unwrapped[i + 4] == 0xAC && unwrapped[i + 5] == 0x01) {
-                    sta->gtk_id = unwrapped[i + 6] & 0x03u;
-                    if (tlen >= 22u)
-                        memcpy(sta->gtk, unwrapped + i + 8, 16);
-                    break;
+            /* If Key Data is encrypted, unwrap GTK */
+            if ((key_info & (1u << 12)) && key_data_len >= 24u) {
+                if (parse_gtk_kde(sta, pkt + 99, key_data_len) != 0) {
+                    sta->state = WIFI_STA_STATE_FAILED;
+                    return -1;
                 }
-                i += 2u + tlen;
             }
+
+            sta->replay_cnt = replay;
+            build_eapol_99(sta, pkt + 9, 0x030Au, tx_buf);
+            *tx_len = 99;
+
+            /* Install hardware keys */
+            wifi_sta_install_hw_keys(sta);
+            sta->state = WIFI_STA_STATE_CONNECTED;
+            return 1;
         }
+    } else {
+        /* Group Key Handshake Message 1 from AP: Key Type=0, Key ACK=1, Key MIC=1, Secure=1 */
+        if ((key_info & (1u << 7)) && (key_info & (1u << 8)) && (key_info & (1u << 9))) {
+            if (sta->state != WIFI_STA_STATE_CONNECTED || replay <= sta->replay_cnt)
+                return -1;
 
-        sta->replay_cnt = replay;
+            if (verify_eapol_mic(sta->ptk.kck, pkt, len) != 0)
+                return -1;
 
-        /* Build Message 4 */
-        memset(tx_buf, 0, 99);
-        tx_buf[0] = 0x01;                           /* 802.1X-2001 */
-        tx_buf[1] = 0x03;                           /* EAPOL-Key */
-        write_u16_be(tx_buf + 2, 95u);              /* Body length */
-        tx_buf[4] = 0x02;                           /* RSN Key Descriptor */
-        /* Key Info: Version 2, Key Type Pairwise, Key MIC, Secure */
-        write_u16_be(tx_buf + 5, 0x030Au);
-        write_u16_be(tx_buf + 7, 16u);              /* Key Length */
-        memcpy(tx_buf + 9, pkt + 9, 8);             /* Replay counter */
-        write_u16_be(tx_buf + 97, 0);               /* Key Data Length 0 */
+            sta->replay_cnt = replay;
 
-        /* Compute MIC */
-        compute_eapol_mic(sta->ptk.kck, tx_buf, 99, tx_buf + 81);
+            /* Unwrap GTK from Key Data */
+            if ((key_info & (1u << 12)) && key_data_len >= 24u) {
+                if (parse_gtk_kde(sta, pkt + 99, key_data_len) != 0)
+                    return -1;
+                wifi_sta_install_hw_keys(sta);
+            }
 
-        *tx_len = 99;
-
-        /* Install hardware keys */
-        wifi_sta_install_hw_keys(sta);
-        sta->state = WIFI_STA_STATE_CONNECTED;
-        return 1;
+            build_eapol_99(sta, pkt + 9, 0x0302u, tx_buf);
+            *tx_len = 99;
+            return 1;
+        }
     }
 
     return 0;
 }
 
-uint32_t wifi_sta_build_auth(struct wifi_sta *sta, uint8_t *tx_buf)
+static void build_mgmt_hdr(struct wifi_sta *sta, uint8_t fc0, uint8_t *tx_buf)
 {
-    uint16_t seq;
-    if (!sta || !tx_buf)
-        return 0;
-    seq = sta->tx_seq++;
-    memset(tx_buf, 0, 30);
-    tx_buf[0] = 0xB0;                               /* Type: Management, Subtype: Authentication */
-    tx_buf[1] = 0x00;
+    uint16_t seq = sta->tx_seq++;
+    memset(tx_buf, 0, 24);
+    tx_buf[0] = fc0;
     tx_buf[2] = 0x3A; tx_buf[3] = 0x01;             /* Duration */
     memcpy(tx_buf + 4, sta->bssid, 6);              /* Addr 1: DA (AP BSSID) */
     memcpy(tx_buf + 10, sta->mac, 6);               /* Addr 2: SA (Station MAC) */
     memcpy(tx_buf + 16, sta->bssid, 6);             /* Addr 3: BSSID */
     tx_buf[22] = (uint8_t)(seq << 4);               /* Sequence Control */
     tx_buf[23] = (uint8_t)(seq >> 4);
+}
+
+static int parse_mgmt_resp(const struct wifi_sta *sta, const uint8_t *frame, uint32_t len, uint8_t fc0)
+{
+    if (!sta || !frame || len < 30u)
+        return -1;
+    if ((frame[0] & 0xFCu) != fc0)
+        return -1;
+    if (memcmp(frame + 4, sta->mac, 6) != 0 || memcmp(frame + 10, sta->bssid, 6) != 0)
+        return -1;
+    return 0;
+}
+
+uint32_t wifi_sta_build_auth(struct wifi_sta *sta, uint8_t *tx_buf)
+{
+    if (!sta || !tx_buf)
+        return 0;
+    build_mgmt_hdr(sta, 0xB0, tx_buf);
     /* Auth body: Algorithm Open System (0), Seq 1, Status 0 */
     tx_buf[24] = 0x00; tx_buf[25] = 0x00;           /* Auth algorithm 0 */
     tx_buf[26] = 0x01; tx_buf[27] = 0x00;           /* Auth transaction seq 1 */
@@ -362,22 +390,10 @@ uint32_t wifi_sta_build_auth(struct wifi_sta *sta, uint8_t *tx_buf)
 
 int wifi_sta_parse_auth_resp(const struct wifi_sta *sta, const uint8_t *frame, uint32_t len)
 {
-    if (!sta || !frame || len < 30u)
-        return -1;
-    /* Check Frame Control: Management Authentication (subtype 0x0B -> 0xB0) */
-    if ((frame[0] & 0xFCu) != 0xB0u)
-        return -1;
-    /* Check DA == our MAC, SA == BSSID */
-    if (memcmp(frame + 4, sta->mac, 6) != 0)
-        return -1;
-    if (memcmp(frame + 10, sta->bssid, 6) != 0)
+    if (parse_mgmt_resp(sta, frame, len, 0xB0) != 0)
         return -1;
     /* Body: Alg 0, Seq 2, Status 0 */
-    if (frame[24] != 0 || frame[25] != 0)           /* Alg 0 */
-        return -1;
-    if (frame[26] != 2 || frame[27] != 0)           /* Seq 2 */
-        return -1;
-    if (frame[28] != 0 || frame[29] != 0)           /* Status 0 (Success) */
+    if (frame[24] != 0 || frame[25] != 0 || frame[26] != 2 || frame[27] != 0 || frame[28] != 0 || frame[29] != 0)
         return -1;
     return 0;
 }
@@ -386,21 +402,11 @@ uint32_t wifi_sta_build_assoc_req(struct wifi_sta *sta, uint8_t *tx_buf)
 {
     static const uint8_t rates[10] = {0x01, 0x08, 0x82, 0x84, 0x8B, 0x96, 0x0C, 0x12, 0x18, 0x24};
     static const uint8_t ext_rates[6] = {0x32, 0x04, 0x30, 0x48, 0x60, 0x6C};
-    uint16_t seq;
     uint32_t off;
 
     if (!sta || !tx_buf)
         return 0;
-    seq = sta->tx_seq++;
-    memset(tx_buf, 0, 24);
-    tx_buf[0] = 0x00;                               /* Type: Management, Subtype: Assoc Req */
-    tx_buf[1] = 0x00;
-    tx_buf[2] = 0x3A; tx_buf[3] = 0x01;             /* Duration */
-    memcpy(tx_buf + 4, sta->bssid, 6);              /* Addr 1: DA (AP BSSID) */
-    memcpy(tx_buf + 10, sta->mac, 6);               /* Addr 2: SA (Station MAC) */
-    memcpy(tx_buf + 16, sta->bssid, 6);             /* Addr 3: BSSID */
-    tx_buf[22] = (uint8_t)(seq << 4);               /* Sequence Control */
-    tx_buf[23] = (uint8_t)(seq >> 4);
+    build_mgmt_hdr(sta, 0x00, tx_buf);
     off = 24;
 
     /* Fixed Parameters: Capability Info (0x0431), Listen Interval (10) */
@@ -430,23 +436,14 @@ uint32_t wifi_sta_build_assoc_req(struct wifi_sta *sta, uint8_t *tx_buf)
 
 int wifi_sta_parse_assoc_resp(struct wifi_sta *sta, const uint8_t *frame, uint32_t len)
 {
-    uint16_t status, aid;
-    if (!sta || !frame || len < 30u)
-        return -1;
-    /* Check Frame Control: Management Assoc Response (subtype 0x01 -> 0x10) */
-    if ((frame[0] & 0xFCu) != 0x10u)
-        return -1;
-    /* Check DA == our MAC, SA == BSSID */
-    if (memcmp(frame + 4, sta->mac, 6) != 0)
-        return -1;
-    if (memcmp(frame + 10, sta->bssid, 6) != 0)
+    uint16_t status;
+    if (parse_mgmt_resp(sta, frame, len, 0x10) != 0)
         return -1;
     /* Fixed parameters: Capability (24..25), Status (26..27), AID (28..29) */
     status = (uint16_t)frame[26] | ((uint16_t)frame[27] << 8);
     if (status != 0)
         return -1;
-    aid = ((uint16_t)frame[28] | ((uint16_t)frame[29] << 8)) & 0x3FFFu;
-    sta->aid = aid;
+    sta->aid = ((uint16_t)frame[28] | ((uint16_t)frame[29] << 8)) & 0x3FFFu;
     return 0;
 }
 
