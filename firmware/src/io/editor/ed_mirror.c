@@ -19,7 +19,9 @@
  * Mirroring ends 3 s after the last request of any kind (ask again or PING about every 1 s), with 106 0, and when its link goes
  * (a USB reset; no Bluetooth central listening). Over Bluetooth 106 is answered, and INFO (1), 108 PANEL, 109 NAV and 111 CLIP
  * (mir_ble_rx: 18 arguments at most, MBR_CB bytes of them waiting; the main loop runs them as USB's, the reply into the Bluetooth ring: ed_send, mir_bt_reply),
- * nothing else. INFO tag 0x65: 1 byte, the version; 0x66's opti_mirbt_1: PANEL and NAV over Bluetooth too (0x63 was REC's: retired,
+ * nothing else; with BT_PROJ (MBR_PROJ) also the projects' moves: the backup's 43 BK_LIST .. 48 BK_END and 110 PJ_OP, a
+ * BK_DATA's chunk (up to MBR_BIGN bytes) in a slot of its own (the client waits for each reply, so one is enough).
+ * INFO tag 0x65: 1 byte, the version; 0x66's opti_mirbt_1: PANEL and NAV over Bluetooth too (0x63 was REC's: retired,
  * not reused). */
 #include "ed_mirror_enc.h"
 enum { MIR_STALL_MS = 30, MIR_ALIVE_MS = 3000, MIR_USB = 0, MIR_BT = 1,
@@ -49,6 +51,11 @@ static void ed_handle(const uint8_t *f, uint32_t n);   /* (editor.c / ed_lite.c:
 static uint8_t mbr_q[MIR_BLE_RING] IN_POOL;
 #define MBR_RXN 22u                     /* a request's bytes between F0 and F7: 7D 46 4C cmd + 18 arguments at most (CLIP 2: op,
                                          * track, index, the step's 15) */
+#if MBR_PROJ
+#define MBR_BIGN 320u                   /* BK_DATA: 7D 46 4C 46, i, offset 3, CRC 5, a 256 B chunk packed 7 bit (293) */
+#else
+#define MBR_BIGN MBR_RXN
+#endif
 #define MBR_CB 64u                      /* the requests waiting, each its length then its bytes (8 PANELs, or 2 CLIP writes and
                                          * more): PANEL's down / up pairs and a knob's drag come quicker than a main-loop pass.
                                          * A power of 2 (the counters wrap); rows of 23 would take 184 B of the pool's headroom */
@@ -58,10 +65,22 @@ static struct {
     uint32_t base;                      /* the end of the last catch-up's frames: MIR_BLE_LAG counts what came after */
     uint8_t pk, mid;                    /* the radio's side: bytes in the packet peeked; inside a frame (a channel message would end it) */
     volatile uint8_t req;               /* 0x80 | bits: a request came in (mir_ble_rx), for the main loop */
-    uint8_t rx_n, rx[MBR_RXN];          /* the request being received: 7D 46 4C cmd, its arguments */
+    uint16_t rx_n;                      /* the request being received: 7D 46 4C cmd, its arguments (rx) */
+    uint8_t big_n;                      /* MBR_PROJ: a request too long for mbr_cb waits in mbr_big (0: none) */
     volatile uint32_t cw, cr;           /* the INFO / PANEL / NAV / CLIP requests waiting (mbr_cb, bytes), for the main loop */
 } mbr;
 static uint8_t mbr_cb[MBR_CB] IN_POOL;   /* each: its length, then 7D 46 4C cmd args (in the pool: RAM is full) */
+static uint8_t mbr_rx[MBR_BIGN] IN_POOL;  /* the request being received */
+#if MBR_PROJ
+static uint8_t mbr_big[MBR_BIGN] IN_POOL;   /* a long request (BK_DATA) for the main loop; mbr.big_n its length */
+static uint16_t mbr_big_len;
+static int mbr_cmd_ok(uint32_t cmd)       /* the projects' moves: the backup's 43..48, 110 PJ_OP */
+{
+    return (cmd >= 43u && cmd <= 48u) || cmd == 110u;
+}
+#else
+#define mbr_cmd_ok(cmd) 0
+#endif
 static int mbr_put(uint32_t b)
 {
     if (b == 0xF0u) {
@@ -110,19 +129,35 @@ static void mir_ble_flush(void) { mbr.r = mbr.w, mbr.mid = 0, mbr.pk = 0; }   /*
 /* a whole request in rx (rx_n bytes): 106 for mir_poll's own answer; INFO, PANEL, NAV, CLIP queued; anything else dropped */
 static void mbr_take(void)
 {
-    uint32_t cmd = mbr.rx[3], i;
-    if (mbr.rx_n < 4u || mbr.rx[0] != 0x7Du || mbr.rx[1] != 0x46u || mbr.rx[2] != 0x4Cu)
+    uint32_t cmd = mbr_rx[3], i;
+    if (mbr.rx_n < 4u || mbr_rx[0] != 0x7Du || mbr_rx[1] != 0x46u || mbr_rx[2] != 0x4Cu)
         return;
     if (cmd == ED_MIRROR) {
         if (mbr.rx_n == 5u)
-            mbr.req = (uint8_t)(0x80u | mbr.rx[4]);
+            mbr.req = (uint8_t)(0x80u | mbr_rx[4]);
         return;
     }
-    if ((cmd != 1u && cmd != ED_PANEL && cmd != ED_NAV && cmd != 111u) || mbr.cw - mbr.cr + 1u + mbr.rx_n > MBR_CB)
+    if (cmd != 1u && cmd != ED_PANEL && cmd != ED_NAV && cmd != 111u && !mbr_cmd_ok(cmd))
+        return;
+#if MBR_PROJ
+    if (mbr.rx_n > MBR_RXN) {           /* (a long one: its own slot; busy: dropped, the client asks again) */
+        if (!mbr_cmd_ok(cmd))
+            return;                     /* (only the projects' moves come long) */
+        if (!mbr.big_n) {
+            for (i = 0; i < mbr.rx_n; i++)
+                mbr_big[i] = mbr_rx[i];
+            mbr_big_len = mbr.rx_n;
+            RING_PUBLISH();
+            mbr.big_n = 1;
+        }
+        return;
+    }
+#endif
+    if (mbr.cw - mbr.cr + 1u + mbr.rx_n > MBR_CB)
         return;                         /* (full: dropped; the client's request times out and is sent again) */
     mbr_cb[mbr.cw % MBR_CB] = mbr.rx_n;
     for (i = 0; i < mbr.rx_n; i++)
-        mbr_cb[(mbr.cw + 1u + i) % MBR_CB] = mbr.rx[i];
+        mbr_cb[(mbr.cw + 1u + i) % MBR_CB] = mbr_rx[i];
     RING_PUBLISH();
     mbr.cw += 1u + mbr.rx_n;
 }
@@ -135,13 +170,13 @@ static void mir_ble_rx(uint32_t pkt)
         if (b == 0xF0u)
             mbr.rx_n = 0;
         else if (b == 0xF7u) {
-            if (mbr.rx_n <= MBR_RXN)
+            if (mbr.rx_n <= MBR_BIGN)
                 mbr_take();
-            mbr.rx_n = MBR_RXN + 1u;    /* (nothing until the next F0) */
-        } else if (mbr.rx_n < MBR_RXN && b < 0x80u)
-            mbr.rx[mbr.rx_n++] = (uint8_t)b;
+            mbr.rx_n = MBR_BIGN + 1u;   /* (nothing until the next F0) */
+        } else if (mbr.rx_n < MBR_BIGN && b < 0x80u)
+            mbr_rx[mbr.rx_n++] = (uint8_t)b;
         else
-            mbr.rx_n = MBR_RXN + 1u;    /* (too long, or a status inside: not ours) */
+            mbr.rx_n = MBR_BIGN + 1u;   /* (too long, or a status inside: not ours) */
     }
 }
 /* ed_send over Bluetooth (ed_bt): the reply F0 .. F7 into the ring as one frame */
@@ -361,8 +396,22 @@ static void mir_poll(void)
         ed_bt = 0;
         mbr.cr += 1u + n;
     }
-    if (!mir_bt_up())
+#if MBR_PROJ
+    if (mbr.big_n && mir_bt_up()) {     /* a long request (a project's chunk): answered there too */
+        RING_PUBLISH();
+        MIR_SEEN();
+        ed_bt = 1;
+        ed_handle(mbr_big, mbr_big_len);
+        ed_bt = 0;
+        mbr.big_n = 0;
+    }
+#endif
+    if (!mir_bt_up()) {
         mbr.cr = mbr.cw;                /* (no central: nothing to answer) */
+#if MBR_PROJ
+        mbr.big_n = 0;
+#endif
+    }
 #endif
     mir_live();                         /* (the link gone, the keep-alive out: off) */
     if (!mir.on || !mir.behind || ui.overlay == 5u || (mir.link == MIR_BT ? !mir_bt_clear() : so_w != so_r) ||

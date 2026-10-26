@@ -504,6 +504,46 @@ static void bt_tests(void)
         check(mbr.cw == mbr.cr, "no central: the requests waiting dropped");
         fm1_remote_clear();
     }
+#if MBR_PROJ
+    {   /* BT_PROJ: the projects' moves over Bluetooth too: the backup's 43..48 and 110 queued as the others; a long one (a
+         * BK_DATA chunk, 256 B packed) in its own slot, a second one while it waits dropped, a long PANEL never */
+        static uint8_t data[310], data2[310], longpanel[60];
+        static const uint8_t LIST[] = {0xF0, 0x7D, 0x46, 0x4C, 43, 4, 0, 0xF7}, PJ[] = {0xF0, 0x7D, 0x46, 0x4C, 110, 0, 0xF7};
+        uint32_t i, e0;
+        ble_out_on = 1;
+        bt_send(ON, sizeof ON);
+        mir_poll();
+        radio(~0u);
+        data[0] = 0xF0, data[1] = 0x7D, data[2] = 0x46, data[3] = 0x4C, data[4] = 46;
+        for (i = 5; i < sizeof data - 1u; i++)
+            data[i] = (uint8_t)(i & 0x7Fu);
+        data[sizeof data - 1u] = 0xF7;
+        memcpy(data2, data, sizeof data2);
+        longpanel[0] = 0xF0, longpanel[1] = 0x7D, longpanel[2] = 0x46, longpanel[3] = 0x4C, longpanel[4] = 108;
+        for (i = 5; i < sizeof longpanel - 1u; i++)
+            longpanel[i] = 1;
+        longpanel[sizeof longpanel - 1u] = 0xF7;
+        memset(ed_handled, 0, sizeof ed_handled);
+        e0 = ed_replies;
+        bt_send(LIST, sizeof LIST);
+        bt_send(PJ, sizeof PJ);
+        bt_send(data, sizeof data);
+        bt_send(data2, sizeof data2);
+        bt_send(longpanel, sizeof longpanel);
+        check(mbr.big_n == 1u && mbr_big_len == sizeof data - 2u && mbr_big[4 - 1] == 46u,
+              "a BK_DATA of %u bytes waits whole in its slot", (unsigned)(sizeof data - 2u));
+        mir_poll();
+        radio(~0u);
+        check(ed_handled[43] == 1u && ed_handled[110] == 1u && ed_handled[46] == 1u && ed_handled[108] == 0u && !mbr.big_n,
+              "BK_LIST and PJ_OP queued and run, the BK_DATA run once (the second, sent while it waited, dropped), a long PANEL not");
+        check(ed_replies - e0 == 3u && !bad, "their 3 replies came over Bluetooth, whole");
+        bt_send(data, sizeof data);
+        ble_out_on = 0;
+        mir_poll();
+        check(!mbr.big_n, "no central: the long request waiting dropped");
+        ble_out_on = 1;
+    }
+#endif
 }
 
 /* 109 NAV: the reply's shape, each op by the stood-in navigation */

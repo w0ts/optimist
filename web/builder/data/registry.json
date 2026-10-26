@@ -3553,7 +3553,8 @@
      "ED_MIX",
      "ED_SEQ",
      "ED_SCREENS",
-     "ED_MIRROR"
+     "ED_MIRROR",
+     "BT_PROJ"
     ],
     "tested": "emulator-tested only",
     "provenance_line": ""
@@ -3906,6 +3907,29 @@
     "provenance": null,
     "children": [],
     "tested": "host-tested only (tests/fx_arena_test.c, arena_bufs_test.c, arena_test.c, placeholder_test.c); not on an FM-1",
+    "provenance_line": ""
+   },
+   {
+    "key": "BT_PROJ",
+    "flag": "FELUCCA_BT_PROJ",
+    "label": "projects to and from the phone over Bluetooth",
+    "group": "System",
+    "bit": 414,
+    "default": 0,
+    "parent": "EDITOR",
+    "desc": "The web editor's and the phone's project moves (a project read from the FM-1, or one written into it: the backup's project streams and the project command) over Bluetooth MIDI too, not only over the USB cable, so with one project on the FM-1 the phone keeps the others without a cable. Over Bluetooth a project moves at the link's few KB a second (a dense project in a few seconds). About 640 B of the pool (a request's room for the stream's chunks).",
+    "experimental": true,
+    "notice": "",
+    "off_warning": "projects move over the USB cable only",
+    "env": "",
+    "target_only": false,
+    "symbols": [],
+    "no_image": false,
+    "fixed": false,
+    "choices": [],
+    "provenance": null,
+    "children": [],
+    "tested": "host-tested only (tests/mirror_test.c); no client sends it yet",
     "provenance_line": ""
    },
    {

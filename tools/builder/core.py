@@ -191,6 +191,9 @@ def validate(cfg):
             err.append(Issue("the fake SD mode layout keeps no user samples, snapshots or CZ collection and needs "
                              "PATTERNS: " + ", ".join(clash + ([] if cfg.get("PATTERNS") else ["PATTERNS off"])),
                              ["LAYOUT"] + clash + ([] if cfg.get("PATTERNS") else ["PATTERNS"])))
+    if cfg.get("BT_PROJ") and not (cfg.get("BLE") and cfg.get("ED_MIRROR") and cfg.get("PATTERNS") and cfg.get("BACKUP")):
+        err.append(Issue("projects over Bluetooth need Bluetooth MIDI (BLE), the Mirror (ED_MIRROR, its Bluetooth link), the "
+                         "projects (PATTERNS) and the backup (BACKUP)", ["BT_PROJ", "BLE", "ED_MIRROR", "PATTERNS", "BACKUP"]))
     if cfg.get("FAR_OK") and not cfg.get("LAYOUT"):    # the big slot exists only in the fake SD mode layout
         err.append(Issue("the far probe's answer (FAR_OK) opens the fake SD mode's whole slot: it needs that layout "
                          "(LAYOUT 1)", ["FAR_OK", "LAYOUT"]))

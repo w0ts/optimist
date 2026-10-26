@@ -318,6 +318,8 @@ A section's file is a backup file holding its one `Snn ` object (written with `B
 | 4 name | p, name | 4, p, rc: project p's name, up to 12 of ` A-Z 0-9 -._/#+` (the NAME page's; trailing spaces dropped, "" none) |
 
 rc: 0 done, 1 arguments (a character the NAME page has not), 3 the transport plays (nothing done), 4 no flash, 7 not written (MEM FULL, flash), 9 a restore holds the log (between `BK_BEGIN` and `BK_COMMIT`).
+**Over Bluetooth** (`opti_btproj_1` in INFO's tag 0x67, builder item BT_PROJ): the same commands (43..48 and 110) over Bluetooth MIDI too, answered there; one long request (a `BK_DATA` chunk) waits at a time, so send the next after its reply.
+
 **Moving project a of src into project b of dst:** (send: op 1 a on src, its work saved), `BK_READ` src's `PJ(a+1)`; on dst op 3 b (a stream written over a project leaves the records it does not carry, so clear first), `BK_BEGIN` / `DATA` / `COMMIT` dst's `PJ(b+1)`, `BK_END 0` (no restart), op 4 b with the name, op 2 b when b is dst's open project (its work would be the old project's) or when asked. Records the target build would not load are skipped by its restore, as in a full one. The user sample slots a project plays are not part of it.
 
 ## Snapshots (54..57)
