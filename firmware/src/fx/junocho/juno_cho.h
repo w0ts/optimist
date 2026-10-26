@@ -22,9 +22,21 @@
 
 #define JUNO_CHO_LEN 1024u
 #define JUNO_CHO_INL static inline __attribute__((always_inline))
+/* the line's samples: 16 bits (the line holds in >> sh), or with JUNO_CHO_WIDE defined 32 bits at the part's own scale
+ * (Optimist's JUNO_FINE: the wet's steps no longer 8 or 4 units, its side no longer rounded apart in each ear; twice the
+ * memory); the low-pass's products then 64 bits (its states pass 2^17) */
+#ifdef JUNO_CHO_WIDE
+typedef int32_t juno_cho_s;
+#define JUNO_CHO_MAX 3000000                            /* (the Hermite's sums stay within 32 bits; not 2^22: -2^22 reads as a ROM address to build.py's check) */
+#define JUNO_CHO_MUL(k, v) ((int32_t)(((int64_t)(k) * (v)) >> 15))
+#else
+typedef int16_t juno_cho_s;
+#define JUNO_CHO_MAX 32767
+#define JUNO_CHO_MUL(k, v) (((k) * (v)) >> 15)
+#endif
 
 typedef struct {
-    int16_t *ln;                 /* the line: JUNO_CHO_LEN samples, the caller's (Optimist: a slice of the effects
+    juno_cho_s *ln;              /* the line: JUNO_CHO_LEN samples, the caller's (Optimist: a slice of the effects
                                   * memory, fx/insfx/fxi_mem.h) */
     uint32_t wr;                 /* the next write place */
     uint32_t ph;                 /* the triangle's phase */
@@ -43,7 +55,7 @@ JUNO_CHO_INL int32_t juno_cho_herm(int32_t fr, int32_t y0, int32_t y1, int32_t y
     return (int32_t)(((a * fr) >> 15) + y1);
 }
 /* the tap d (16.16 samples back) after the sample at w was written */
-JUNO_CHO_INL int32_t juno_cho_tap(const int16_t *ln, uint32_t w, int32_t d)
+JUNO_CHO_INL int32_t juno_cho_tap(const juno_cho_s *ln, uint32_t w, int32_t d)
 {
     uint32_t r1 = (w - 1u - (uint32_t)(d >> 16)) & (JUNO_CHO_LEN - 1u);
     return juno_cho_herm((d >> 1) & 0x7FFF, ln[(r1 + 1u) & (JUNO_CHO_LEN - 1u)], ln[r1],
@@ -52,7 +64,7 @@ JUNO_CHO_INL int32_t juno_cho_tap(const int16_t *ln, uint32_t w, int32_t d)
 /* the reconstruction low-pass (fm106_bbd_filter_process: g 0.826, a1 0.352) */
 JUNO_CHO_INL int32_t juno_cho_lp(int32_t *s, int32_t in)
 {
-    int32_t v3 = in - s[1], v1 = ((11534 * s[0]) >> 15) + ((9527 * v3) >> 15), v2 = s[1] + ((27066 * v1) >> 15);
+    int32_t v3 = in - s[1], v1 = JUNO_CHO_MUL(11534, s[0]) + JUNO_CHO_MUL(9527, v3), v2 = s[1] + JUNO_CHO_MUL(27066, v1);
     s[0] = (v1 << 1) - s[0];
     s[1] = (v2 << 1) - s[1];
     return v2;
@@ -70,11 +82,11 @@ JUNO_CHO_INL void juno_cho_core(juno_cho_t *c, uint32_t mode, uint32_t mix, cons
     int32_t gd = 32768 - (int32_t)(((32768 - 21209) * mix) / 127u), gw = (int32_t)((30892u * mix) / 127u);
     int32_t dep = DEPTH[mode % 3u];
     uint32_t inc = INC[mode % 3u], i, w = c->wr, ph = c->ph;
-    int16_t *const ln = c->ln;
+    juno_cho_s *const ln = c->ln;
     for (i = 0; i < n; i++) {
         int32_t x = in[i] >> sh, xl = dl[i], xr = dr[i], t, d, wl, wrt;
-        x = x < -32768 ? -32768 : x > 32767 ? 32767 : x;
-        ln[w] = (int16_t)x;
+        x = x < -JUNO_CHO_MAX - 1 ? -JUNO_CHO_MAX - 1 : x > JUNO_CHO_MAX ? JUNO_CHO_MAX : x;
+        ln[w] = (juno_cho_s)x;
         ph += inc;
         t = (int32_t)(ph >> 16) - 32768;
         t = ((t < 0 ? -t : t) - 16384) << 1;           /* the triangle, -32768..32766 */

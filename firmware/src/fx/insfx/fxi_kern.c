@@ -179,6 +179,9 @@ static HOT2 __attribute__((noinline)) void ifx_echo_run(ifx_ec_t *s, int32_t a, 
  * master their L and R, the line fed the mid. From rest the line is zeroed (a word loop, once). Runs from flash (XIP).
  * Its evict flag (fxi.c: its line goes back to a send) fades it out as at MIX 0 */
 #if FELUCCA_INS_JCHORUS
+#if FELUCCA_JUNO_FINE
+#define JUNO_CHO_WIDE 1                                 /* (its line at 32 bits: 4 KB of the effects memory, fxi_mem.h FXA_Z2) */
+#endif
 #include "../junocho/juno_cho.h"
 #if FELUCCA_USB_AUDIO
 #define FXI_UT_JMODE(k) ((k) == IFX_UT ? ut.v[UTV_JMODE] : mst_jmode)   /* (the USB input: its own, fx_slots.c ut) */
@@ -190,7 +193,7 @@ typedef struct {
     int32_t w;                                          /* the MIX now, << 8 */
     uint8_t on, evict;                                  /* running (0: at rest); evict: its line goes back to a send */
 } ifx_jc_t;
-_Static_assert(JUNO_CHO_LEN == FXA_Z2 * FXA_U, "JUNO CHORUS: its line in units of the effects memory");
+_Static_assert(JUNO_CHO_LEN * sizeof(juno_cho_s) == FXA_Z2 * FXA_U * 2u, "JUNO CHORUS: its line in units of the effects memory");
 static ifx_jc_t ifx_jcho[FXI_TN2] __attribute__((section(".pool"), aligned(4)));
 #define IFX_JC_STEP 2048                                /* the MIX's step a block (Q8) */
 static __attribute__((noinline)) void ifx_jchorus(ifx_jc_t *s, uint32_t k, int32_t a, int32_t *l, int32_t *r, uint32_t n,
@@ -216,6 +219,9 @@ static __attribute__((noinline)) void ifx_jchorus(ifx_jc_t *s, uint32_t k, int32
     }
     w += clamp(to - w, -IFX_JC_STEP, IFX_JC_STEP);
     s->w = w;
+#if FELUCCA_JUNO_FINE
+    sh = 0;                                             /* (the 32-bit line keeps the owner's scale) */
+#endif
     if (r)
         juno_cho_st(&s->c, mode, (uint32_t)w >> 8, l, r, n, sh);
     else {
