@@ -289,3 +289,46 @@ src/io/console_sd.c:con_sd_kbs:ticks | the console's sd bench / write: "ticks ? 
 src/io/console_sd.c:con_sd_row:i | the console's sd bench row: "if (!i) { ... return; }" before the three per-block divides
 src/storage/sd/pff.c:pf_mount:fs->csize | pf_mount returns FR_NO_FILESYSTEM before the divide when the boot record's sectors per cluster is 0 (Optimist's guard)
 src/storage/sd/pff.c:pf_lseek:bcs | bcs = csize x 512: pf_lseek needs a mounted filesystem (FR_NOT_ENABLED else), and a mount refuses csize 0
+# the SD card under full FatFs (storage/sd/fatfs/ ChaN R0.16, scanned without its #if: many are in code not built; storage/sd/ the layout on it), 2026-10-26
+src/storage/sd/fatfs/ff.c:change_bitmap:SS(fs) | exFAT only, not built (FF_FS_EXFAT 0); SS(fs) is FF_MAX_SS, the constant 512 (ffconf.h FF_MIN_SS == FF_MAX_SS: ff.c defines SS(fs) as it)
+src/storage/sd/fatfs/ff.c:clmt_clust:SS(fs) | SS(fs) is FF_MAX_SS, the constant 512 (ffconf.h FF_MIN_SS == FF_MAX_SS: ff.c defines SS(fs) as it)
+src/storage/sd/fatfs/ff.c:clmt_clust:fs->csize | a mounted volume's sectors per cluster (or x 512): mount_volume returns FR_NO_FILESYSTEM for csize 0 (and not a power of 2) before any use; every call needs a mounted volume
+src/storage/sd/fatfs/ff.c:create_partition:n_hd | not built (FF_USE_MKFS 0)
+src/storage/sd/fatfs/ff.c:create_partition:n_sc | not built (FF_USE_MKFS 0)
+src/storage/sd/fatfs/ff.c:create_partition:ss | not built (FF_USE_MKFS 0)
+src/storage/sd/fatfs/ff.c:dir_clear:SS(fs) | SS(fs) is FF_MAX_SS, the constant 512 (ffconf.h FF_MIN_SS == FF_MAX_SS: ff.c defines SS(fs) as it)
+src/storage/sd/fatfs/ff.c:dir_next:SS(fs) | SS(fs) is FF_MAX_SS, the constant 512 (ffconf.h FF_MIN_SS == FF_MAX_SS: ff.c defines SS(fs) as it)
+src/storage/sd/fatfs/ff.c:dir_sdi:SS(fs) | SS(fs) is FF_MAX_SS, the constant 512 (ffconf.h FF_MIN_SS == FF_MAX_SS: ff.c defines SS(fs) as it)
+src/storage/sd/fatfs/ff.c:f_expand:n | a mounted volume's sectors per cluster (or x 512): mount_volume returns FR_NO_FILESYSTEM for csize 0 (and not a power of 2) before any use; every call needs a mounted volume
+src/storage/sd/fatfs/ff.c:f_forward:SS(fs) | not built (FF_USE_FORWARD 0); SS(fs) is FF_MAX_SS, the constant 512 (ffconf.h FF_MIN_SS == FF_MAX_SS: ff.c defines SS(fs) as it)
+src/storage/sd/fatfs/ff.c:f_getfree:SS(fs) | SS(fs) is FF_MAX_SS, the constant 512 (ffconf.h FF_MIN_SS == FF_MAX_SS: ff.c defines SS(fs) as it)
+src/storage/sd/fatfs/ff.c:f_lseek:SS(fs) | SS(fs) is FF_MAX_SS, the constant 512 (ffconf.h FF_MIN_SS == FF_MAX_SS: ff.c defines SS(fs) as it)
+src/storage/sd/fatfs/ff.c:f_lseek:bcs | a mounted volume's sectors per cluster (or x 512): mount_volume returns FR_NO_FILESYSTEM for csize 0 (and not a power of 2) before any use; every call needs a mounted volume
+src/storage/sd/fatfs/ff.c:f_mkfs:(ss/SZDIRE) | not built (FF_USE_MKFS 0)
+src/storage/sd/fatfs/ff.c:f_mkfs:(sz_au*ss) | not built (FF_USE_MKFS 0)
+src/storage/sd/fatfs/ff.c:f_mkfs:n_fat | not built (FF_USE_MKFS 0)
+src/storage/sd/fatfs/ff.c:f_mkfs:pau | not built (FF_USE_MKFS 0)
+src/storage/sd/fatfs/ff.c:f_mkfs:ss | not built (FF_USE_MKFS 0)
+src/storage/sd/fatfs/ff.c:f_mkfs:sz_au | not built (FF_USE_MKFS 0)
+src/storage/sd/fatfs/ff.c:f_open:SS(fs) | SS(fs) is FF_MAX_SS, the constant 512 (ffconf.h FF_MIN_SS == FF_MAX_SS: ff.c defines SS(fs) as it)
+src/storage/sd/fatfs/ff.c:f_printf:radix | not built (FF_USE_STRFUNC 0)
+src/storage/sd/fatfs/ff.c:f_read:SS(fs) | SS(fs) is FF_MAX_SS, the constant 512 (ffconf.h FF_MIN_SS == FF_MAX_SS: ff.c defines SS(fs) as it)
+src/storage/sd/fatfs/ff.c:f_write:SS(fs) | SS(fs) is FF_MAX_SS, the constant 512 (ffconf.h FF_MIN_SS == FF_MAX_SS: ff.c defines SS(fs) as it)
+src/storage/sd/fatfs/ff.c:find_bitmap:SS(fs) | exFAT only, not built (FF_FS_EXFAT 0); SS(fs) is FF_MAX_SS, the constant 512 (ffconf.h FF_MIN_SS == FF_MAX_SS: ff.c defines SS(fs) as it)
+src/storage/sd/fatfs/ff.c:find_volume:SS(fs) | SS(fs) is FF_MAX_SS, the constant 512 (ffconf.h FF_MIN_SS == FF_MAX_SS: ff.c defines SS(fs) as it)
+src/storage/sd/fatfs/ff.c:follow_path:SS(fs) | SS(fs) is FF_MAX_SS, the constant 512 (ffconf.h FF_MIN_SS == FF_MAX_SS: ff.c defines SS(fs) as it)
+src/storage/sd/fatfs/ff.c:ftoa:i10x(exp) | not built (FF_USE_STRFUNC 0)
+src/storage/sd/fatfs/ff.c:ftoa:w | not built (FF_USE_STRFUNC 0)
+src/storage/sd/fatfs/ff.c:get_fat:(SS(fs)/2) | SS(fs) is FF_MAX_SS, the constant 512 (ffconf.h FF_MIN_SS == FF_MAX_SS: ff.c defines SS(fs) as it) (/2, /4, /SZDIRE 32: 256, 128, 16)
+src/storage/sd/fatfs/ff.c:get_fat:(SS(fs)/4) | SS(fs) is FF_MAX_SS, the constant 512 (ffconf.h FF_MIN_SS == FF_MAX_SS: ff.c defines SS(fs) as it) (/2, /4, /SZDIRE 32: 256, 128, 16)
+src/storage/sd/fatfs/ff.c:get_fat:SS(fs) | SS(fs) is FF_MAX_SS, the constant 512 (ffconf.h FF_MIN_SS == FF_MAX_SS: ff.c defines SS(fs) as it)
+src/storage/sd/fatfs/ff.c:get_fat:fs->csize | exFAT only, not built (FF_FS_EXFAT 0); a mounted volume's sectors per cluster (or x 512): mount_volume returns FR_NO_FILESYSTEM for csize 0 (and not a power of 2) before any use; every call needs a mounted volume
+src/storage/sd/fatfs/ff.c:mount_volume:(SS(fs)/4) | SS(fs) is FF_MAX_SS, the constant 512 (ffconf.h FF_MIN_SS == FF_MAX_SS: ff.c defines SS(fs) as it) (/2, /4, /SZDIRE 32: 256, 128, 16)
+src/storage/sd/fatfs/ff.c:mount_volume:(SS(fs)/SZDIRE) | SS(fs) is FF_MAX_SS, the constant 512 (ffconf.h FF_MIN_SS == FF_MAX_SS: ff.c defines SS(fs) as it) (/2, /4, /SZDIRE 32: 256, 128, 16)
+src/storage/sd/fatfs/ff.c:mount_volume:SS(fs) | SS(fs) is FF_MAX_SS, the constant 512 (ffconf.h FF_MIN_SS == FF_MAX_SS: ff.c defines SS(fs) as it)
+src/storage/sd/fatfs/ff.c:mount_volume:fs->csize | a mounted volume's sectors per cluster (or x 512): mount_volume returns FR_NO_FILESYSTEM for csize 0 (and not a power of 2) before any use; every call needs a mounted volume
+src/storage/sd/fatfs/ff.c:put_fat:(SS(fs)/2) | SS(fs) is FF_MAX_SS, the constant 512 (ffconf.h FF_MIN_SS == FF_MAX_SS: ff.c defines SS(fs) as it) (/2, /4, /SZDIRE 32: 256, 128, 16)
+src/storage/sd/fatfs/ff.c:put_fat:(SS(fs)/4) | SS(fs) is FF_MAX_SS, the constant 512 (ffconf.h FF_MIN_SS == FF_MAX_SS: ff.c defines SS(fs) as it) (/2, /4, /SZDIRE 32: 256, 128, 16)
+src/storage/sd/fatfs/ff.c:put_fat:SS(fs) | SS(fs) is FF_MAX_SS, the constant 512 (ffconf.h FF_MIN_SS == FF_MAX_SS: ff.c defines SS(fs) as it)
+src/storage/sd/fatfs/ff.c:sync_fs:(fs->n_fatent-2) | exFAT only, not built (FF_FS_EXFAT 0); a mounted volume has n_fatent - 2 >= 1 cluster
+src/storage/sd/sd_diskio.c:sd_map_run:cs | a mounted volume's sectors per cluster (or x 512): mount_volume returns FR_NO_FILESYSTEM for csize 0 (and not a power of 2) before any use; every call needs a mounted volume

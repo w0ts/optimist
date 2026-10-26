@@ -1,3 +1,6 @@
+Vendored in this repository: Petit FatFs R0.03a (firmware/src/storage/sd/pff.c, pff.h, pffconf.h, diskio.h) and FatFs R0.16
+(firmware/src/storage/sd/fatfs/: ff.c, ff.h, ffconf.h, diskio.h, ffunicode.c without its DBCS tables), ChaN, elm-chan.org.
+
 FatFs License
 
 FatFs and Petit-FatFs have being developped as a personal project of the author, ChaN. It is free from the code anyone else wrote at current release. Following code block shows a copy of the FatFs license document that heading the source files.
