@@ -1172,8 +1172,8 @@
   },
   "ED_MIRROR": {
    "1": {
-    "flash": 4260,
-    "ram": 144,
+    "flash": 5680,
+    "ram": 208,
     "pool": 0,
     "ramtext": 0
    }
@@ -1695,7 +1695,7 @@
    }
   }
  },
- "measured": "2026-10-26 16:36",
+ "measured": "2026-10-26 16:53",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
@@ -1816,8 +1816,8 @@
    },
    "built_hash": "6f15bd49",
    "sizes": {
-    "flash": 570576,
-    "ram": 92688,
+    "flash": 571916,
+    "ram": 92736,
     "pool": 328916,
     "ramtext": 28444
    }
@@ -1902,8 +1902,8 @@
    },
    "built_hash": "73315223",
    "sizes": {
-    "flash": 572752,
-    "ram": 95084,
+    "flash": 574148,
+    "ram": 95164,
     "pool": 315148,
     "ramtext": 21240
    }
@@ -2013,8 +2013,8 @@
    },
    "built_hash": "13d78bfb",
    "sizes": {
-    "flash": 756296,
-    "ram": 100508,
+    "flash": 757660,
+    "ram": 100572,
     "pool": 289304,
     "ramtext": 38964
    }
@@ -2125,8 +2125,8 @@
    },
    "built_hash": "33ccaedb",
    "sizes": {
-    "flash": 589848,
-    "ram": 90044,
+    "flash": 591208,
+    "ram": 90060,
     "pool": 316832,
     "ramtext": 26192
    }
@@ -2236,12 +2236,7 @@
     "GRIDS_VEL": 1
    },
    "built_hash": "6cbf6f03",
-   "sizes": {
-    "flash": 580204,
-    "ram": 89968,
-    "pool": 316072,
-    "ramtext": 26192
-   }
+   "failed": "build: the image (581576 B) is past the normal layout's slot (589824 B): until the far probe passed (FAR_OK) everything the boot reads stays below 0x93000"
   },
   "synths-2": {
    "hash": "68d7da84",
@@ -2338,8 +2333,8 @@
    },
    "built_hash": "7cb9a126",
    "sizes": {
-    "flash": 572336,
-    "ram": 76508,
+    "flash": 573716,
+    "ram": 76572,
     "pool": 334908,
     "ramtext": 21148
    }
@@ -2448,8 +2443,8 @@
    },
    "built_hash": "30d18fde",
    "sizes": {
-    "flash": 575804,
-    "ram": 80104,
+    "flash": 577192,
+    "ram": 80152,
     "pool": 317280,
     "ramtext": 28160
    }
@@ -2557,8 +2552,8 @@
    },
    "built_hash": "2fa4512c",
    "sizes": {
-    "flash": 581184,
-    "ram": 90364,
+    "flash": 582544,
+    "ram": 90444,
     "pool": 328912,
     "ramtext": 28836
    }
@@ -2659,8 +2654,8 @@
    },
    "built_hash": "3fbc737b",
    "sizes": {
-    "flash": 534256,
-    "ram": 86068,
+    "flash": 535576,
+    "ram": 86132,
     "pool": 287500,
     "ramtext": 25304
    }
@@ -2762,8 +2757,8 @@
    },
    "built_hash": "46d49863",
    "sizes": {
-    "flash": 528856,
-    "ram": 81344,
+    "flash": 530208,
+    "ram": 81392,
     "pool": 268460,
     "ramtext": 22764
    }
@@ -2866,8 +2861,8 @@
    },
    "built_hash": "1932720f",
    "sizes": {
-    "flash": 559176,
-    "ram": 93976,
+    "flash": 560512,
+    "ram": 94008,
     "pool": 328692,
     "ramtext": 30852
    }
@@ -2947,8 +2942,8 @@
    },
    "built_hash": "28e540d4",
    "sizes": {
-    "flash": 579824,
-    "ram": 94184,
+    "flash": 581188,
+    "ram": 94264,
     "pool": 307544,
     "ramtext": 21240
    }
@@ -3054,8 +3049,8 @@
    },
    "built_hash": "2518d6fb",
    "sizes": {
-    "flash": 753576,
-    "ram": 106908,
+    "flash": 754936,
+    "ram": 106972,
     "pool": 282896,
     "ramtext": 38964
    }
@@ -3164,8 +3159,8 @@
    },
    "built_hash": "5486d7a7",
    "sizes": {
-    "flash": 589360,
-    "ram": 89596,
+    "flash": 590716,
+    "ram": 89612,
     "pool": 316672,
     "ramtext": 26192
    }
@@ -3278,8 +3273,8 @@
    },
    "built_hash": "03888a59",
    "sizes": {
-    "flash": 578052,
-    "ram": 89816,
+    "flash": 579428,
+    "ram": 89880,
     "pool": 316208,
     "ramtext": 24368
    }
@@ -3377,8 +3372,8 @@
    },
    "built_hash": "68024297",
    "sizes": {
-    "flash": 563432,
-    "ram": 74488,
+    "flash": 564812,
+    "ram": 74536,
     "pool": 330760,
     "ramtext": 20096
    }
@@ -3491,8 +3486,8 @@
    },
    "built_hash": "527c8fd0",
    "sizes": {
-    "flash": 587428,
-    "ram": 87580,
+    "flash": 588820,
+    "ram": 87660,
     "pool": 313184,
     "ramtext": 28716
    }
@@ -3598,8 +3593,8 @@
    },
    "built_hash": "2b9ddad8",
    "sizes": {
-    "flash": 596132,
-    "ram": 91372,
+    "flash": 597472,
+    "ram": 91452,
     "pool": 328696,
     "ramtext": 28836
    }
@@ -3700,8 +3695,8 @@
    },
    "built_hash": "2f87c9e1",
    "sizes": {
-    "flash": 532124,
-    "ram": 86260,
+    "flash": 533448,
+    "ram": 86324,
     "pool": 287500,
     "ramtext": 25304
    }
@@ -3807,8 +3802,8 @@
    },
    "built_hash": "191bf167",
    "sizes": {
-    "flash": 535976,
-    "ram": 81240,
+    "flash": 537308,
+    "ram": 81288,
     "pool": 268460,
     "ramtext": 22116
    }
