@@ -360,6 +360,11 @@ PAIRS.append({"GEN_GRIDS": 1, "ED_SEQ": 0})
 _GENS = ({"SEQTOOLS": 1}, {"NOTEGEN": 1}, {"GEN_GRIDS": 1}, {"ED_SEQ": 0})
 for _n in (3, 4):
     PAIRS.extend({k: v for d in _c for k, v in d.items()} for _c in itertools.combinations(_GENS, _n))
+# the SD card in the big layout is full FatFs, not Petit FatFs (registry.h FELUCCA_SD_FATFS, 2026-10-26): its pair
+# the difference; the console's sd commands reach more of FatFs (open, read, write, seek, list, the link map). Until
+# measured here: costs.json holds local measurement builds on sd-card-mots + SDCARD=1, FatFs against Petit
+PAIRS.append({"SDCARD": 1, "LAYOUT": 1, "FAR_OK": 1})
+PAIRS.append({"SDCARD": 1, "LAYOUT": 1, "FAR_OK": 1, "USB_CONSOLE": 1})
 # FM6 off where its tables are in the pool (TAB_IN_POOL): its delta from the defaults frees them from main RAM
 # (2026-10-24, synths_USBaudio_BTaudio_BTmidi: FM6 off freed 16 B of RAM and 608 B of the pool, the estimate said
 # 4,896 B of RAM and 4,260 B more pool; with FM6_SYSEX off too the pair and the triple measured 0: not kept)
