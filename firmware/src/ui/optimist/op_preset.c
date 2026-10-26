@@ -158,13 +158,14 @@ static int pen_avail(int32_t v)
     t = ins_list[v];
     return t == FXT_NONE || (t != ins_slot[k][s ^ 1u] && fxi_can(k, t));
 }
+/* (a list past 64 entries: none but a modulation slot's DEST, 115 since issue 75, the user 2026-10-26) */
 static void pop_enum_open(uint32_t row, uint32_t k)
 {
     cell_t c;
     if ((pop_kind != 0u && pop_kind != 3u && ui.toast_t) || op_armed())
         return;                                         /* (a sound's popup, or a question, is up already) */
     SCR->cell(row, k, &c);
-    if (c.kind != CK_VAL || !c.d || !c.vp || c.d->fmt != F_ENUM || c.d->max - c.d->min < 2 || c.d->max - c.d->min > 63 || is_go(c.d))
+    if (c.kind != CK_VAL || !c.d || !c.vp || c.d->fmt != F_ENUM || c.d->max - c.d->min < 2 || (c.d->max - c.d->min > 63 && pd_names(c.d) != N_LT) || is_go(c.d))
         return;
     pen.d = c.d, pen.vp = c.vp, pen.col = trk_col(song.sel);
     ui.toast_next = 1;

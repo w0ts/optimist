@@ -122,10 +122,10 @@ static void effv_mods(uint32_t k, const voice_t *v, int32_t lfo, effv_mod_t *m)
     if (v && v->vel > 110)                              /* (an accent opens the filter with the envelope) */
         m->cut += (env * 24) >> 7;
     m->shp = lm.m[2];
-    m->pit = lm.m[0] + ((penv * effv_p(k, P_ED_PIT) * 3) >> 7);
+    m->pit = lm.m[0] + pit_mul(penv, effv_p(k, P_ED_PIT));
     m->cut += (env * effv_p(k, P_ED_FLT)) >> 7;       /* ENV 1 MOD's depths on the voices (voice.c track_render, env_plan) */
     m->shp += (env * effv_p(k, P_ED_SHP)) >> 7;
-    m->pit += (((env * 2 * effv_p(k, P_E1PIT)) >> 8) >> 5) << 8;
+    m->pit += pit_mul(env, effv_p(k, P_E1PIT));
 #if FELUCCA_ANALOG2
     for (j = 0; j < 2; j++) {                           /* ENV2 DEST's slots on the voices (voice.c env_plan) */
         int32_t e = v ? (v->env2 & ((1 << 25) - 1)) >> 9 : 0;
@@ -135,7 +135,7 @@ static void effv_mods(uint32_t k, const voice_t *v, int32_t lfo, effv_mod_t *m)
         else if (d == LT_SHP)
             m->shp += (e * a) >> 8;
         else if (d == LT_PIT)
-            m->pit += (((e * a) >> 8) >> 5) << 8;
+            m->pit += pit_mul(e, a);
     }
 #endif
 }
@@ -231,8 +231,8 @@ static uint32_t effv_synth(uint32_t k, uint32_t id, int32_t *val, int32_t *mn, i
         if (!LT_CLASSIC(d))
             return effv_over(k, d, val, mn, mx);        /* (a value moved for the block: voice.c lfo_over) */
         if (d == LT_PIT) {
-            *mn = -192, *mx = 192;                      /* (1/16 semitone: +-12) */
-            *val = ui_clamp(m.pit >> 8, -192, 192);
+            *mn = -384, *mx = 384;                      /* (1/16 semitone: +-24, core.h pit_depth) */
+            *val = ui_clamp(m.pit >> 8, -384, 384);
         } else if (d == LT_AMP) {
             *mn = 0, *mx = 127;
             *val = v ? v->env_out >> 8 : 0;             /* (the voice's level now: envelope, velocity, the LFO's dip) */
@@ -245,8 +245,8 @@ static uint32_t effv_synth(uint32_t k, uint32_t id, int32_t *val, int32_t *mn, i
     case P_ED_PIT:                                      /* (DROP: the pitch drop) */
         if (!effv_p(k, id))
             return 0;
-        *mn = -192, *mx = 192;                          /* (1/16 semitone: +-12) */
-        *val = ui_clamp(m.pit >> 8, -192, 192);
+        *mn = -384, *mx = 384;                          /* (1/16 semitone: +-24, core.h pit_depth) */
+        *val = ui_clamp(m.pit >> 8, -384, 384);
         return 2;
     default:
         break;
