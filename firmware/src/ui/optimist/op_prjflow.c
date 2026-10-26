@@ -17,8 +17,19 @@ static uint32_t up_engine_slot(uint32_t k);             /* storage/upreset.c */
 static int sec_scene_clear(uint32_t s);                 /* sections.c: a section's records gone */
 #endif
 
+#if FELUCCA_SD_UI
+enum { PR_PROJECT, PR_SNAP, PR_USER, PR_TOOLS, PR_A24, PR_MEM, PR_CPRE, PR_CKIT, PR_CSMP };   /* (the card's lists: op_sdcard.c) */
+#else
 enum { PR_PROJECT, PR_SNAP, PR_USER, PR_TOOLS, PR_A24, PR_MEM };
+#endif
 static const uint8_t PRJ[] = {PR_PROJECT,
+#if FELUCCA_SD_UI
+                              PR_CPRE,
+#if FELUCCA_DRUM_KITS
+                              PR_CKIT,
+#endif
+                              PR_CSMP,
+#endif
 #if FELUCCA_SNAPSHOTS
                               PR_SNAP,
 #endif
@@ -31,7 +42,11 @@ static const uint8_t PRJ[] = {PR_PROJECT,
 #endif
 };
 #define NPRJ (sizeof PRJ / sizeof PRJ[0])
+#if FELUCCA_SD_UI
+static const char *const PRJ_NAME[] = {"PROJECT", "SNAPSHOT", "USER", "TOOLS", "SLOOP", "MEMORY", "PRESETS", "KITS", "SAMPLES"};
+#else
 static const char *const PRJ_NAME[] = {"PROJECT", "SNAPSHOT", "USER", "TOOLS", "SLOOP", "MEMORY"};
+#endif
 enum { PO_LOAD, PO_SAVE, PO_DELETE,                      /* the operations, in the knob's order */
        PO_SAVE_LOAD };                                  /* (FELUCCA_PATTERNS: a LOAD while the work changed asks "SAVE <the open project>?":
                                                          * YES saves it then loads, HOME cancels as every question (the user, 2026-10-22);
@@ -68,7 +83,30 @@ static const page_t *tools_page(void)                  /* TOOLS: CLRSQ INIT MISS
 }
 static uint32_t prj_kind(uint32_t r) { return PRJ[r % NPRJ]; }
 static uint32_t prj_rows(void) { return NPRJ; }
+#if FELUCCA_SD_UI
+/* SD card mode: the card's lists (op_sdcard.c, included after this file) */
+static uint32_t sdc_list_of(uint32_t kind);
+static int sdc_listing(void);
+static void sdc_title(uint32_t kind, char *b);
+static void sdc_cell(uint32_t kind, uint32_t k, cell_t *c);
+static void sdc_turn(uint32_t kind, uint32_t k, int32_t s);
+static int sdc_yes(uint32_t r, uint32_t kind, uint32_t ok);
+static int sdc_no(void);
+static void sdc_key(uint32_t kind, int32_t w);
+static uint32_t sdc_bank_avail(void);
+static void sdc_bank_tap(uint32_t up);
+static void sdc_keys_lit(uint32_t *f, uint32_t *d, uint32_t blink);
+static void sdc_draw(uint32_t y, uint32_t h);
+static void sdc_op_reset(void);
+#define SDC_ROW_OF(kind) (sdc_list_of(kind) < 4u)       /* (SDC_N: op_sdcard.c) */
+static void prj_name(uint32_t r, char *b)
+{
+    str_cpy(b, PRJ_NAME[prj_kind(r)], 12);
+    sdc_title(prj_kind(r), b);                          /* (a sub-folder, a project's versions: its name) */
+}
+#else
 static void prj_name(uint32_t r, char *b) { str_cpy(b, PRJ_NAME[prj_kind(r)], 12); }
+#endif
 static uint32_t prj_slot(void) { return (uint32_t)ui_clamp(song.g[G_SLOT], 1, FELUCCA_SECTIONS) - 1u; }
 
 /* ---- the stores: how many slots, which is the item, is it used */
@@ -125,7 +163,11 @@ static uint32_t prj_nops(uint32_t kind) { return kind == PR_PROJECT && !SEC_LOGG
 
 /* ---- the operation: LOAD at first, and again after an action, when the row changes or the screen is left (op_enter) */
 static uint8_t prj_op_v, prj_op_row, prj_arm_op, prj_arm_slot;
+#if FELUCCA_SD_UI
+static void prj_op_reset(void) { prj_op_v = PO_LOAD; sdc_op_reset(); }
+#else
 static void prj_op_reset(void) { prj_op_v = PO_LOAD; }
+#endif
 static uint32_t prj_op(void)
 {
     if (prj_op_row != ui.row[SCR_PROJECT]) {            /* (another row: LOAD) */
@@ -148,6 +190,12 @@ static uint32_t prj_danger(uint32_t kind, uint32_t op, uint32_t s)
 static void prj_cell(uint32_t r, uint32_t k, cell_t *c)
 {
     uint32_t kind = prj_kind(r), op, s;
+#if FELUCCA_SD_UI
+    if (SDC_ROW_OF(kind)) {
+        sdc_cell(kind, k, c);
+        return;
+    }
+#endif
     if (kind == PR_TOOLS) {
         page_cell(tools_page(), k, c);
         return;
@@ -209,6 +257,12 @@ static void prj_turn(uint32_t r, uint32_t k, int32_t s, int fine)
 {
     uint32_t kind = prj_kind(r), cur;
     int32_t d = s > 0 ? 1 : -1;
+#if FELUCCA_SD_UI
+    if (SDC_ROW_OF(kind)) {
+        sdc_turn(kind, k, s);
+        return;
+    }
+#endif
     if (kind == PR_TOOLS) {
         page_turn(tools_page(), k, s, fine);
         return;
@@ -278,6 +332,10 @@ static void prj_ask(uint32_t r, uint32_t kind, uint32_t op, uint32_t s)
  * "if i dont want to save the current project i am in a dead loop"). 0: not that question, HOME cancels as usual */
 static int prj_no(void)
 {
+#if FELUCCA_SD_UI
+    if (sdc_listing())
+        return sdc_no();
+#endif
 #if FELUCCA_PATTERNS
     char l[8], t[16];
     if (ui.arm_scr != SCR_PROJECT || prj_arm_op != PO_SAVE_LOAD)
@@ -346,6 +404,10 @@ static void prj_do(uint32_t kind, uint32_t op, uint32_t s)
 static int prj_yes(uint32_t r, uint32_t k, uint32_t ok)
 {
     uint32_t kind = prj_kind(r);
+#if FELUCCA_SD_UI
+    if (SDC_ROW_OF(kind))
+        return sdc_yes(r, kind, ok);
+#endif
     if (kind == PR_TOOLS)
         return page_yes(SCR_PROJECT, r, tools_page(), k, ok);
     if (kind == PR_MEM)
@@ -387,6 +449,10 @@ static uint32_t prj_bank_avail(void)                    /* the OCT LED bits (B_O
     uint32_t kind, b;
     if (ui.scr != SCR_PROJECT)
         return 0u;
+#if FELUCCA_SD_UI
+    if (sdc_listing())
+        return sdc_bank_avail();                        /* (the card's pages) */
+#endif
     kind = prj_kind(ui.row[SCR_PROJECT]);
     if (!prj_slots_row(kind) || prj_banks(kind) < 2u)
         return 0u;
@@ -397,6 +463,12 @@ static uint32_t prj_bank_tap(uint32_t up)               /* 1: the tap was a bank
 {
     uint32_t kind, cur, n, nb;
     char b[8];
+#if FELUCCA_SD_UI
+    if (ui.scr == SCR_PROJECT && sdc_listing()) {
+        sdc_bank_tap(up);                               /* (the card's page) */
+        return 1u;
+    }
+#endif
     if (ui.scr != SCR_PROJECT || !prj_slots_row(prj_kind(ui.row[SCR_PROJECT])))
         return 0u;
     kind = prj_kind(ui.row[SCR_PROJECT]);
@@ -430,7 +502,15 @@ static int32_t prj_key_slot(uint32_t kind, int32_t w)
 static void prj_key(uint32_t k, uint32_t down)           /* op_input.c op_drain: a key of PROJECT */
 {
     uint32_t kind = prj_kind(ui.row[SCR_PROJECT]);
-    int32_t s = down && !op_armed() ? prj_key_slot(kind, punch_key(k)) : -1;
+    int32_t s;
+#if FELUCCA_SD_UI
+    if (SDC_ROW_OF(kind)) {
+        if (down)
+            sdc_key(kind, punch_key(k));                /* (the card's slot: its action, a folder opened) */
+        return;
+    }
+#endif
+    s = down && !op_armed() ? prj_key_slot(kind, punch_key(k)) : -1;
     if (s < 0)
         return;
     prj_slot_set(kind, (uint32_t)s);                    /* (the ITEM follows the key) */
@@ -444,6 +524,12 @@ static void prj_keys_lit(uint32_t *f, uint32_t *d, uint32_t blink)   /* (op_keys
 {
     uint32_t kind = prj_kind(ui.row[SCR_PROJECT]), w, u = 0, fr = 0;
     int32_t s;
+#if FELUCCA_SD_UI
+    if (SDC_ROW_OF(kind)) {
+        sdc_keys_lit(f, d, blink);
+        return;
+    }
+#endif
     for (w = 0; w < 16u; w++) {
         s = prj_key_slot(kind, (int32_t)w);
         if (s < 0 || ((uint32_t)s == prj_slot_cur(kind) && !blink))
@@ -478,6 +564,12 @@ static void prj_info(uint32_t kind, uint32_t s)         /* the item's name and l
     prj_slot_label(kind, s, l);
     str_cpy(pdp.name, u ? "" : "EMPTY", sizeof pdp.name);
     str_cpy(pdp.d1, u ? "STORED" : "FREE SLOT", sizeof pdp.d1);
+#if FELUCCA_SD_UI
+    if (kind == PR_PROJECT) {                           /* (a card ready: the card's list instead, op_sdcard.c) */
+        str_cpy(pdp.d2, "NO SD CARD: IN FLASH", sizeof pdp.d2);
+        pdp.col2 = C_WARN;
+    }
+#endif
     if (!u)
         return;
     if (kind == PR_PROJECT) {
@@ -488,6 +580,7 @@ static void prj_info(uint32_t kind, uint32_t s)         /* the item's name and l
             str_cpy(pdp.name, "PROJECT ", sizeof pdp.name);
             str_cpy(pdp.name + 8, l, sizeof pdp.name - 8u);
         }
+
     } else if (kind == PR_USER) {
         uint32_t e = up_engine_slot(s);
         up_name(s, pdp.name);
@@ -534,11 +627,21 @@ static void prj_paint(void)                             /* the panel's band in i
     if (pdp.d2[0])
         cv_texts(0, 94, op_case(b, pdp.d2, sizeof b), pdp.col2);
 }
+#if FELUCCA_SD_UI
+static int prj_listing(void) { return ui.scr == SCR_PROJECT && (prj_slots_row(prj_kind(ui.row[SCR_PROJECT])) || sdc_listing()); }
+#else
 static int prj_listing(void) { return ui.scr == SCR_PROJECT && prj_slots_row(prj_kind(ui.row[SCR_PROJECT])); }
+#endif
 static void prj_draw(uint32_t y, uint32_t h)            /* op_draw.c, when prj_listing: lazy, redrawn when what it shows changes */
 {
     uint32_t kind = prj_kind(ui.row[SCR_PROJECT]), s = prj_slot_cur(kind), op = prj_op(), i, sig, base = s & ~15u;
     char l[8];
+#if FELUCCA_SD_UI
+    if (sdc_listing()) {
+        sdc_draw(y, h);                                 /* (the card's page: op_sdcard.c) */
+        return;
+    }
+#endif
     pdp.kind = (uint8_t)kind;
     pdp.op = (uint8_t)op;
     pdp.first = (uint8_t)base;

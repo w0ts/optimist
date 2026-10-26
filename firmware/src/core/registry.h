@@ -674,6 +674,16 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
                                             * ~15 KB fit the big slot: storage/sd/fatfs/, tools/build.py), else Petit FatFs
                                             * (the bring-up's: no files created, 8.3 names) */
 #endif
+#ifndef FELUCCA_SD_UI
+#define FELUCCA_SD_UI (FELUCCA_SD_MODE && FELUCCA_SD_FATFS)   /* the SD card mode's card side (docs/SD-CARD-DESIGN.md 9): the
+                                            * user's data on the card by name, every list as banks of 16 on the keys
+                                            * (storage/sd/sd_mode.c, ui/optimist/op_sdcard.c), the working project the one-
+                                            * project flash store's; the card under full FatFs (SDCARD + FAR_OK). Once the
+                                            * mode's one flag builds the card in: FELUCCA_SD_MODE alone */
+#endif
+#if FELUCCA_SD_UI && !(FELUCCA_PATTERNS && SEC_LOGGED && FELUCCA_LAYOUT == 1)
+#error "SD card mode needs the projects of the section log (PATTERNS, SECTIONS 8 or 16) in the fake SD mode's layout"
+#endif
 #ifndef FELUCCA_OVERLAY
 #define FELUCCA_OVERLAY 0                  /* the RAMTEXT overlays (core/overlay.c, docs/SD-MODE-DESIGN.md 6): the engines' hot
                                             * code in a slot per part, loaded at an engine change; needs LAYOUT 1 (flash) */

@@ -85,7 +85,12 @@ static struct {
 /* the cards 2x2 (op_state.c): everywhere but the mixer's channel and lane rows, which want the height ("but not in mixer !",
  * the user, 2026-10-12); the mixer's MASTER row is one meter and the returns, so it takes the big cards too (the user,
  * 2026-10-17: "Master mixer. 2*2 cards"); a layer's map over the mixer is the layer's screen, so it is 2x2 too */
+#if FELUCCA_SD_UI
+static int sdc_listing(void);                           /* op_sdcard.c: a card's list, four small cards over its page */
+static int cards_2x2(void) { return (ui.scr != SCR_HOME || lay.shown != LY_PLAY || mx_row() == MXR_MASTER) && !sdc_listing(); }
+#else
 static int cards_2x2(void) { return ui.scr != SCR_HOME || lay.shown != LY_PLAY || mx_row() == MXR_MASTER; }
+#endif
 
 static uint32_t lay_now(void) { return lay.lock != LY_PLAY ? lay.lock : lay.held; }   /* the layer at work */
 static int lay_is(uint32_t l) { return lay_now() == l; }

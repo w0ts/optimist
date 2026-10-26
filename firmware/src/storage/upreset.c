@@ -61,18 +61,32 @@ static int up_bank_ok(const void *src, int len)
  * kept for the session. The host keeps the RAM mirror unless a test maps the flash image (storage.c ST_XIP_PTR) */
 #define UP_XIP 1
 static const up_bank_t *up_xip[UP_SLOTS / UP_PER_BANK];
+#if FELUCCA_SD_UI
+static up_rec_t up_card IN_POOL;                 /* SD card mode: a preset on its way to or from the card, slot UP_CARD (sd_mode.c) */
+#define UP_CARD UP_SLOTS
+#endif
 static const up_rec_t *up_rec(uint32_t k)       /* 0: a slot of a bank that is not there (up_valid and up_name take it
                                                   * as empty; every other reader comes after up_used; a 216-byte zero
                                                   * record in flash cost as much, 2026-10-24) */
 {
     uint32_t b = k / UP_PER_BANK;
+#if FELUCCA_SD_UI
+    if (k == UP_CARD)
+        return &up_card;
+#endif
     return up_xip[b] ? &up_xip[b]->r[k % UP_PER_BANK] : 0;
 }
 #else
 #define UP_XIP 0
 static up_bank_t up_bank[UP_SLOTS / UP_PER_BANK] IN_POOL;
 
+#if FELUCCA_SD_UI
+static up_rec_t up_card IN_POOL;                 /* SD card mode: a preset on its way to or from the card, slot UP_CARD (sd_mode.c) */
+#define UP_CARD UP_SLOTS
+static up_rec_t *up_rec(uint32_t k) { return k == UP_CARD ? &up_card : &up_bank[k / UP_PER_BANK].r[k % UP_PER_BANK]; }
+#else
 static up_rec_t *up_rec(uint32_t k) { return &up_bank[k / UP_PER_BANK].r[k % UP_PER_BANK]; }
+#endif
 #endif
 
 #if UP_XIP
@@ -100,7 +114,11 @@ static int up_valid(const up_rec_t *r)
            r->nv <= UP_NV && r->nv >= r->ne0 + 8u;
 }
 
+#if FELUCCA_SD_UI
+static int up_used(uint32_t k) { return k <= UP_CARD && up_valid(up_rec(k)); }   /* (UP_CARD: the card's preset) */
+#else
 static int up_used(uint32_t k) { return k < UP_SLOTS && up_valid(up_rec(k)); }
+#endif
 /* the engine slot of user preset k (the Optimist UI names it beside the preset), NENGINES: empty or not built */
 static uint32_t up_engine_slot(uint32_t k)
 {
@@ -373,6 +391,13 @@ static void up_boot(void)                      /* persist_boot: the banks from f
  * A bank of another format in flash is written over as an empty UPB4 bank with this record */
 static int up_put(uint32_t k, const up_rec_t *r)
 {
+#if FELUCCA_SD_UI
+    if (k == UP_CARD) {                                 /* (the card's: RAM only, sd_mode.c writes the file) */
+        if (r)
+            up_card = *r;
+        return 0;
+    }
+#endif
 #if UP_XIP
     uint32_t b = k / UP_PER_BANK;
     up_bank_t *bk = (up_bank_t *)(void *)st_buf;        /* (built here after upf_set, which reads its object into st_buf) */
@@ -518,6 +543,33 @@ static int up_load(uint32_t k)
     MISS_BUMP();                                        /* (its set, its sends: miss.c) */
     return 0;
 }
+
+#if FELUCCA_SD_UI
+/* SD card mode (storage/sd/sd_mode.c): a preset file's record. up_card_take: the selected part's sound as a record named
+ * name (12 characters at most) -> out (sizeof(up_rec_t)): its size, 0 the drum track. up_card_give: a record (n bytes)
+ * into the selected part, as a user preset's LOAD: 0 loaded, 1 refused (said: MISSING, MEM FULL, the drum track), -1 not
+ * a record of this format. An FM6 sound keeps its VOICE number (the operator edits are the flash slots' UP_FM6 only) */
+static uint32_t up_card_take(uint8_t *out, const char *name)
+{
+    if (up_store(UP_CARD, name))
+        return 0;
+    memcpy(out, &up_card, sizeof up_card);
+    return sizeof up_card;
+}
+static int up_card_give(const uint8_t *in, uint32_t n)
+{
+    int rc;
+    if (n != sizeof up_card)
+        return -1;
+    memcpy(&up_card, in, sizeof up_card);
+    if (!up_valid(&up_card))
+        return -1;
+    rc = up_load(UP_CARD);
+    if (!rc)
+        TSEL->user = 0;                                 /* (no flash slot plays: SAVE asks for a free one) */
+    return rc;
+}
+#endif
 
 static uint32_t up_count(void)                 /* used slots */
 {

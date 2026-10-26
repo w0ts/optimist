@@ -59,6 +59,9 @@
 #include "op_song.c"
 #include "op_combos.c"
 #include "op_prjflow.c"            /* PROJECT: BANK / OPERATION / ITEM, the keys, the info panel */
+#if FELUCCA_SD_UI
+#include "op_sdcard.c"             /* SD card mode: PROJECT's lists of the card, banks of 16 (storage/sd/sd_mode.c) */
+#endif
 #include "op_project.c"
 #include "op_global.c"
 #include "op_graph.c"
