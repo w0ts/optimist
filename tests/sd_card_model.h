@@ -47,6 +47,8 @@ typedef struct {
     long cmd18s, cmd12s, cmd17s;
     long cut_at;                               /* >0: a power cut once that many blocks are written (C.writes) */
     int cut;                                   /* the cut happened: the card answers nothing */
+    uint32_t stall_until;                      /* busy until clk reaches this: a read's next token waits (a card's
+                                                * 100 ms and more now and then); 0 never */
 } card_t;
 static card_t C;
 static int t_over;                             /* the host's clock: 1 the faster one (SD_SET_OVER) */
@@ -98,6 +100,10 @@ static void q_block(uint32_t s, int gap)       /* gap 0xFF bytes, the token, the
 
 static void stream_more(void)                  /* CMD18: the next block when the last has gone out */
 {
+    if (clk < C.stall_until) {                 /* busy: no token yet */
+        q(0xFF);
+        return;
+    }
     if (C.rsec >= card_sectors()) {            /* past the end: an error token, the stream over */
         q(0xFF); q(0x08);
         C.rs = 0;
@@ -105,6 +111,7 @@ static void stream_more(void)                  /* CMD18: the next block when the
     }
     q_block(C.rsec, C.nac_long && C.rsec % 3 == 0 ? 3 + (int)(C.rsec % 7) * 5 : 1 + (int)(C.rsec % 3));
     C.rsec++;
+    if (C.rs == 2) C.rs = 0;                   /* (a CMD17 that waited out a stall: its one block) */
 }
 
 static void csd(uint8_t *c)
@@ -208,6 +215,7 @@ static void command(void)
         if (C.no_token) return;
         if (idx == 18) { C.cmd18s++; C.rs = 1; C.rsec = s; return; }
         C.cmd17s++;
+        if (clk < C.stall_until) { C.rs = 2; C.rsec = s; return; }   /* (busy: the block once the stall is over) */
         q_block(s, 2);
         return;
     }
@@ -216,10 +224,13 @@ static void command(void)
     }
 }
 
+static void (*clk_hook)(void);                 /* called at every tick (a test's interrupt: tests/sd_stream_test.c's audio) */
+
 static uint8_t xchg(uint8_t in)
 {
     int rs0;
     clk++;
+    if (clk_hook) clk_hook();
     if (!C.present)
         return 0xFF;
     if (!C.selected) {                         /* the LCD gets this byte */
@@ -351,7 +362,7 @@ static void rx_block(uint8_t *p, unsigned n)
 #define SD_DMA_END() dma_end()
 #define SD_RD_CRC 1
 #define SD_SEL() (C.selected = 1)
-#define SD_DESEL() (C.selected = 0, C.cmdlen = 0, C.outlen = C.outpos = 0)
+#define SD_DESEL() (C.selected = 0, C.cmdlen = 0, C.outlen = C.outpos = 0, C.rs = C.rs == 2 ? 0 : C.rs)
 #define SD_FAST() ((void)0)
 #define SD_SET_OVER(on) (t_over = (on))
 #define SD_NOW() clk
