@@ -833,9 +833,11 @@ if not _have:
 #    TRK_FILT the FILTER insert's code stays: off saves nothing, +124 B). RAM moves by 16-32 B of alignment as flash does.
 #    With DLY_ARENA set (a fixed effects memory), FX_DELAY off and the shorter XDLY_LEN leave more of it to the limited
 #    inserts, whose instance tables grow (core.dly_arena): measured 2026-10-24 on synths_USBaudio_BTaudio_BTmidi
-#    (DLY_ARENA 64), FX_DELAY off pool +4 B, XDLY_LEN 8192 pool +40 B, as the estimate says
+#    (DLY_ARENA 64), FX_DELAY off pool +4 B, XDLY_LEN 8192 pool +40 B, as the estimate says. DRUMS off is a fourth
+#    synth track: the parts' array a third larger in the pool (measured 2026-10-26, m-DRUMS-0: engines.c part_mem
+#    28,080 B against 21,060)
 _MONO_MOVES = ("REV_POOL", "TAB_IN_POOL", "SECTIONS")
-_MONO_ALLOW = {"DIV_ORDER": "flash", "FX_DJF": "flash", "FX_DELAY": "pool", "XDLY_LEN": "pool"}
+_MONO_ALLOW = {"DIV_ORDER": "flash", "FX_DJF": "flash", "FX_DELAY": "pool", "XDLY_LEN": "pool", "DRUMS": "pool"}
 _MONO_NOISE = {"flash": K.ALIGN_NOISE, "ram": 32, "pool": 0}
 _mono_bad = []
 if costs:
@@ -858,6 +860,12 @@ for _line in _mono_bad:
     print(f"  not monotonic: {_line}")
 check("estimate is monotonic: switching an item off (with its dependants) never raises the flash, RAM or pool, "
       f"in {C.REFERENCE_PROFILE} and the defaults", not _mono_bad)
+if costs:
+    _d0 = C.defaults()
+    _near = K.nearest_anchor(dict(_d0, ENG_FM6=0, ENG_PHASE=0), costs, exclude=["defaults"] + list(costs.get("checks", {})),
+                             extra=[("a~", dict(_d0, ENG_FM6=0), costs["base"]), ("b", _d0, costs["base"])])
+    check(f"estimate's anchor: a configuration's own build up to {K.PROBE_PENALTY} items further wins over a probe (NAME~, "
+          "4 random items off, where the sum model is least right)", _near and _near[0] == "b")
 # ---- the undo history's ring, shown as information (the builder's reserve entries were retired 2026-10-21)
 sys.path.insert(0, str(ROOT / "tools"))
 import build as BUILD  # noqa: E402  (its check() is the real build's refusal)
