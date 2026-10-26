@@ -268,6 +268,13 @@ Each step names who does it. Claude never writes to the FM-1.
   a CMD18 run (deselecting the card aborts it). A 32 KB cluster run is about 16 ms of bus, a visible UI stall: the run
   length is a parameter (8 blocks, 4 KB, about 2.2 ms), runs interleaved with screen strips, measured with
   `fm1_in.ui_gap_max`. The card's presence: a periodic CMD13, CMD0 only when CMD13 gets no answer (section 4, 6).
+- **Streaming's buffers** (the user, 2026-10-26): (1) the PRE-BUFFER, each sample's head kept in RAM so a note starts at
+  once while the card's first block comes (a few ms, 100 ms and more while the card is busy): ONE GLOBAL SETTING in ms
+  (25 / 50 / 100 / 200, default 50; the KB it costs shown beside it: 50 ms at 48 kHz 16-bit mono = 4.7 KB a sample,
+  stereo twice), the heads placed in the arena per project for the samples the project uses (refused + drops proposed
+  when they do not fit); a per-sample override later if wanted; (2) the RING per playing voice, the stream's lookahead
+  filled in runs between screen strips: a builder value (2-3 runs, about 12 KB a voice at most); (3) a voice whose
+  stream runs dry fades out at once (no click) and the console counts it, so the setting is chosen by measurement.
 - **Recording needs its own writer**: `pf_write` goes byte by byte through `disk_writep` (one CMD24 a sector) and the
   sector's end waits for the card's busy in the main loop, up to 500 ms (real cards hit 100-250 ms now and then).
   Recording needs the mirror of `sd_rd_*`: a polled CMD25 multi-block writer from a ring, never blocking on busy
