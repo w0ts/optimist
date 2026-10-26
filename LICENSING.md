@@ -83,9 +83,12 @@ read from JieLi's Apache-2.0 controller library (both in the third-party table b
 Optimist that use the stack and come from Felucca or SLOOP (`midi_ble.c`, the UI pages, storage), which stay
 GPL-3.0-only.
 
-Neither the Bluetooth stack nor the Wi-Fi code below is a clean-room implementation. They are independent: written from the
-specifications and from fact sheets, with no vendor code copied. But the facts were read from JieLi's libraries and
-captured from M-VAVE's stock V15 firmware, and the radio start-up values are that vendor data, kept under its Apache-2.0.
+Neither the Bluetooth stack nor the Wi-Fi code below is a clean-room implementation. The Bluetooth stack was written from
+the specifications and from fact sheets, with no vendor code copied, but those facts were read from JieLi's libraries and
+captured from M-VAVE's stock V15 firmware, and its radio start-up values are that vendor data, kept under its Apache-2.0.
+The Wi-Fi code is a reverse-engineered implementation with captured vendor initialisation data: it was written after
+reading JieLi's Apache-2.0 driver libraries (as LLVM IR) and running them in the emulator to record their register
+writes; no vendor code was copied, and the register values it uses are JieLi's, kept under their Apache-2.0.
 
 ## The Wi-Fi code (GPL-3.0-only OR MPL-2.0)
 
