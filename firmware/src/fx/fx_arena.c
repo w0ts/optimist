@@ -18,8 +18,8 @@
  * effect is bypassed where it is (a send's return adds nothing, the dry signal passes; a limited insert FULL as when
  * the own room is full, fxi.c), kept in the project as it is, shown dim (FULL: op_cells.c) with a MEM FULL message
  * once (op_input.c), and placed by itself as soon as there is room: tried again every pass, except while a part's
- * refused change waits (part_mem_refused: a part's sound first). What to drop is proposed among the parts only
- * (engines.c ARN_DROPPABLE); a part's change refused while an effect's line is on its way back waits for it (model.c
+ * refused change waits (part_mem_refused: a part's sound first). What to drop is proposed among the parts first
+ * (model.c mem_offer), then the send lines (fxm_offer); a part's change refused while an effect's line is on its way back waits for it (model.c
  * mem_retry, fxm_pending). Included by fx.c after fxi.c */
 #if FXM_NEED
 enum { FXM_CHO, FXM_DLY, FXM_REV, FXM_INS };
@@ -227,7 +227,7 @@ static void fxm_ins_init(void)                          /* (fxi_init, the units 
 /* the UI's count (fxi.c fxa_room): the own room not placed counts as empty while the arena would take it */
 static int fxm_ins_could(void)
 {
-    return fxa_ins || arn_fits(FXM_K(FXM_INS), FXM_INS_BYTES);
+    return fxa_ins || arn_fits(FXM_K(FXM_INS), FXM_INS_BYTES, 0);
 }
 #define FXM_INS_NEEDS() (!fxa_ins && fxm_ins_want())
 #else
@@ -270,20 +270,20 @@ static void fxm_ord(uint8_t *o)                         /* the clients, the larg
  * interrupts off, then put back as it was: nothing changed) */
 static int fxm_plan(uint32_t mv, uint32_t need)
 {
-    arn_blk_t cur[ARN_PARTS], nxt[ARN_PARTS];
-    uint8_t hn[ARN_PARTS], o[FXM_NC];
+    arn_st_t was;
+    uint8_t o[FXM_NC];
     uint32_t i, c;
     int ok = 1;
     fxm_ord(o);
     fm1_irq_off();
-    memcpy(cur, arn_cur, sizeof cur), memcpy(nxt, arn_next, sizeof nxt), memcpy(hn, arn_has_next, sizeof hn);
+    was = arn;
     for (c = 0; c < FXM_NC; c++)
         if (mv >> c & 1u)
             arn_cur[FXM_K(c)].len = 0;
     for (i = 0; i < FXM_NC && ok; i++)
         if (need >> o[i] & 1u)
             ok = !arn_reserve(FXM_K(o[i]), FXM_BYTES[o[i]]) && arn_take(FXM_K(o[i])) != 0;
-    memcpy(arn_cur, cur, sizeof cur), memcpy(arn_next, nxt, sizeof nxt), memcpy(arn_has_next, hn, sizeof hn);
+    arn = was;
     fm1_irq_on();
     return ok;
 }

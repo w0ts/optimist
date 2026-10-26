@@ -368,7 +368,17 @@ static uint64_t fm6_mulhi(uint64_t a, uint64_t b);
 /* SLOOP: the sine table is built in RAM at boot (or before the first FM6 block), the 2^x and
  * frequency tables are figured where they are read, from 2^(i / 1024) = FM6_P2A x FM6_P2B: each value
  * equals Dexed's table entry (tools/gen_tables.py, tests/fm6_tables_test.c), ~16 KB of flash less */
+#define FM6_SIN_BYTES (1025u * 4u)
+#if FELUCCA_FX_ARENA
+/* the arena's extras (the SD card mode): the table is a block of the arena (core/arena_bufs.c ARB_FM6SIN) while a part
+ * plays FM6, built there by the main loop (fm6_sin_fill) before its pointer is set; 0 meanwhile: FM6 silent (fm6_block,
+ * fm6_render: the voices wait, as WAVE's while its table is built) */
+static int32_t *FM6_SIN;
+#define FM6_SIN_ON (FM6_SIN != 0)
+#else
 static int32_t FM6_SIN[1025] IN_POOL_AUDIO;               /* (built at boot; the operators read it) */
+#define FM6_SIN_ON 1
+#endif
 static uint8_t fm6_tab_ok;
 
 static uint64_t fm6_p2(uint32_t i)                       /* 2^(i / 1024), i = 0..1024, Q60 */
@@ -381,18 +391,24 @@ static inline int32_t fm6_freq_at(uint32_t i)            /* freqlut.cc: 2^(i / 1
     return (int32_t)((fm6_mulhi(fm6_p2(i) << 2, FM6_FREQ_M) + (1ull << 32)) >> 33);
 }
 
-static void fm6_tables_init(void)
+static void fm6_sin_fill(int32_t *sn)
 {
     int64_t u = 1 << 30, v = 0, u2;
     uint32_t i;
     for (i = 0; i < 512u; i++) {                         /* sin.cc: by rotation */
-        FM6_SIN[i] = (int32_t)((v + 32) >> 6);
-        FM6_SIN[i + 512u] = -(int32_t)((v + 32) >> 6);
+        sn[i] = (int32_t)((v + 32) >> 6);
+        sn[i + 512u] = -(int32_t)((v + 32) >> 6);
         u2 = (u * FM6_SIN_C - v * FM6_SIN_S + (1 << 29)) >> 30;
         v = (u * FM6_SIN_S + v * FM6_SIN_C + (1 << 29)) >> 30;
         u = u2;
     }
-    FM6_SIN[1024] = 0;
+    sn[1024] = 0;
+}
+static void fm6_tables_init(void)
+{
+#if !FELUCCA_FX_ARENA
+    fm6_sin_fill(FM6_SIN);
+#endif
     fm6_tab_ok = 1;
 }
 
@@ -1437,6 +1453,8 @@ static void fm6_out_c(int32_t *out, const vmod_t *m, uint32_t n)
 static void fm6_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
     fm6_voice_t *s = fm6_state(t, v);
+    if (!FM6_SIN_ON)
+        return;                                          /* (silent until the table is there) */
     if (!s->sub)
         fm6_control(t, v, s, m);
     s->sub ^= 1u;
@@ -1521,7 +1539,8 @@ static void fm6_sync(track_t *t, const voice_t *self)
 static void fm6_block(track_t *t)                        /* per part and block: the voice, controllers, LFO */
 {
     fm6_sync(t, 0);
-    fm6_ctl_block(t, fm6_ed[t - trk]);
+    if (FM6_SIN_ON)                                      /* (no sine table yet: nothing runs, FM6_SIN above) */
+        fm6_ctl_block(t, fm6_ed[t - trk]);
 }
 
 /* the part after its voices: Dexed's DC filter on the voices' sum (PluginFx: y = x - x' + (1 - 126 / FS) y',

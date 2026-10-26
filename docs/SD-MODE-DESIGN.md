@@ -187,7 +187,7 @@ GRAIN, ACID, PLAITS) placed in it. By default the arena is exactly the old fixed
 fixed slots: the same room and places, never refused (pool unchanged, +96 B RAM, +620 B flash on the default profile);
 `FELUCCA_ARENA_BYTES` smaller places by need (first fit, blocks never move, a part's own block free for its own next
 engine, idle blocks reclaimed without asking). The main loop reserves before a part's engine changes (model.c
-set_engine_of, project load, user preset load); a refusal records the part, the engine and `arn_drop_for`'s proposal in
+set_engine_of, project load, user preset load); a refusal records the part and the engine in
 `part_mem_refused`; the audio keeps the old engine when a switch finds no room. Not yet: the UI that shows the proposal
 and lets the user pick what to drop, a builder item for the arena's size, the engines' and effects' other static state.
 Tests: `tests/arena_test.c` (first fit and fixed slots; 300,000 random switches with some left pending), the backports
@@ -240,7 +240,7 @@ gpufarm run); a measurement build can also set `OPTIMIST_ARENA_BYTES` and `OPTIM
   up, the send lines whose buses are silent are gated, given back and placed again with it, the largest first, if a
   trial on the arena says that makes it fit (nothing heard is lost: a silent bus's line is all zeros).
 - **Parts first, then the effects** (the user, 2026-10-25): a part's refused change proposes the parts first
-  (`arn_drop_for` names parts only, `ARN_DROPPABLE`), then, in the same confirm, the effects' send lines placed and not
+  (`model.c mem_offer`: parts only), then, in the same confirm, the effects' send lines placed and not
   lent, the largest first ("DROP REV 32 KB", `fxm_offer`); a dropped effect is bypassed as when refused (`fxm_drop`:
   gated, given back two blocks later, FULL, kept in its slot, back by itself once there is room). The inserts' own room
   is not offered (its owners hold their types). A part's change refused while an effect's line is on its way back
@@ -260,6 +260,8 @@ blocks of the arena too, held only while the project uses their feature, placed 
 | WAVE's table: its copies and the frame builder's scratch (`eng_wave.c wt_mip wt_fr wt_fi`, `ENG_WAVE`) | 73,216 | a part plays WAVE (or is switching to it) | the change to WAVE refused as any engine's: the drop proposal, parts first, then the effects; on a load the list page (the table its need) (the night's ruling, 2026-10-25); only if it is lost after that: silent, MEM FULL WAVE |
 | the X0X 909's / 808's state (`x0x_drums.c x0x_mem`, `DRUM_X0X909` / `808`) | 5,344 / 3,376 | the kit or a lane plays the machine, or one of its voices sounds | its hits play the stand-in kit (as the notes the machine lacks) |
 | the ROOM's diffusers (`fx.c rev_ap`, `REV_ROOM`) | 1,994 | in the reverb's block, after its line (fx_arena.c) | as the reverb |
+| FM6's sine table (`eng_fm6.c FM6_SIN`, `ENG_FM6`; 2026-10-26) | 4,100 | a part plays FM6 or is switching to it (set aside with the part's own memory) | the change to FM6 refused as any engine's (the drop proposal); only if lost after that: FM6 silent, MEM FULL FM6 |
+| the PUNCH ring (`punch.c punch_ring`, `FX_PUNCH`; 2026-10-26) | PUNCH_N x 2 (32,768 / 65,536) | the project's PUNCH switch is on (GLOBAL > Rec), or an effect still fades out | the punch bypassed (the mix as it is), MEM FULL PUNCH once; FX + a key: let go |
 
 - The main loop only (`arb_poll`, every pass after `fxm_poll`): placed (the interrupts off), zeroed, the feature's state
   reset, then its pointer set (the interrupts off); no longer used: its pointer 0 at once, the block given back two
@@ -268,9 +270,7 @@ blocks of the arena too, held only while the project uses their feature, placed 
   `arb_said`), placed by itself once there is room (tried every pass, never while a part's refused change waits or the
   lines are being moved), the largest first. A part's change refused while one of them is on its way back waits for it
   (`fxm_pending`). They are never proposed to drop.
-- Left static (no gain): the PUNCH ring (it records the mix all the time, for loops of what was just played: a punch
-  needs the past, and no project setting says PUNCH is used); FM6's sine table (4,100 B, every FM6 part reads it, built
-  at boot); the screen canvas, USB's and Bluetooth's rings, the storage buffers, the undo ring (every project); the
+- Left static (no gain): the screen canvas, USB's and Bluetooth's rings, the storage buffers, the undo ring (every project); the
   reverbs' small state (`rv`, `rvj`: a few hundred bytes, in main RAM, read every block).
 - Default profile (`synths_USBaudio_BTaudio_BTmidi`, measured 2026-10-25): ARENA off: the image identical but its build
   time. ARENA 96: flash +852 B, RAM +104 B, pool -8,720 B (the X0X machines) against ARENA 96 before; against the
@@ -280,7 +280,111 @@ blocks of the arena too, held only while the project uses their feature, placed 
 - Tests: `tests/arena_bufs_test.c` (each buffer placed, used, given back, refused and bypassed, said once, placed by
   itself; a part's change waiting; 20,000 random switches), `tests/fx_arena_test.c` (the ROOM's diffusers in the reverb's
   block; without the SLICER: no other buffer).
-Tests: `tests/fx_arena_test.c` (ROOM; ROOM + FDN8 + SPRING), `tests/arena_test.c` (best fit from the top, never named).
+Tests: `tests/fx_arena_test.c` (ROOM; ROOM + FDN8 + SPRING), `tests/arena_test.c` (best fit from the top).
+
+**The core and the extras (2026-10-26; the user: "the arena will merge into main, default on; not yet").** The arena is
+split so that every build can have it and only the SD card mode pays for the rest:
+
+| | What | Where | Builds |
+|---|---|---|---|
+| Core | the parts' engine states placed by need (`core/arena.c`, `engines.c part_mem_*`), the edit's one confirm ("DROP T2 FM6", `op_input.c mem_tick`), a load's refused parts offered one by one on that confirm with the project's sound kept (`model.c mem_load_next`) | `FELUCCA_ARENA_KB` | every build ARENA is set in |
+| Extras | the effects' lines (`fx/fx_arena.c`), the other buffers (`core/arena_bufs.c`: SLICER, WAVE, X0X, rev_ap), the load's list page (`op_memlist.c`, `model.c mem_load_*`) | `FELUCCA_FX_ARENA`, `FELUCCA_MEM_LIST` | the SD card mode: `FELUCCA_SD_MODE` (registry.h), LAYOUT 1 until the SD card mode's own builder flag; one macro to rewire |
+
+- A load with the core alone: `proj_apply` makes each part it cannot place a silent placeholder (`lmask`), as before; each
+  frame `mem_load_next` turns the first into the edit's refusal (`part_mem_refused.keep`): `mem_retry` waits for every
+  part's switch (the old blocks free after), places it with the project's sound if it fits now, else the confirm
+  proposes what to drop; declined to the end: MEM FULL, the part stays a placeholder; then the next.
+- What to propose (both): `arn_drop_for`'s search over every set of parts is gone; `mem_offer` proposes first the parts
+  whose memory alone would make room (`engines.c part_mem_frees`: `arn_fits` with that part's block given back, the
+  parts dropped before idle by then), then any other, one drop at a time. Two drops that only help together are
+  proposed one after the other (the second named once the first is idle).
+- Slimmed (measured on the reference profile, 2026-10-26, a core arena of 40 KB: flash over the profile without it):
+  the split itself +3,196 -> +740 B (the list page and the load's settle out of the core); the load's settle replaced
+  by the edit's wait -152; `arn_drop_for` replaced by `part_mem_frees` -216; `arn_scan` without the sort or the copies
+  (`arn_end`: each place tried against every block) -8, the same result (2,000,000 random cases against the old one);
+  the idle mask one helper (`arn_idle`); the arena's state one struct (`arn_st_t`: the trials copy it once) +8 in the
+  core, -296 B with the extras (all the above).
+- Measured (2026-10-26, exact builds): the reference profile `synths_USBaudio_BTaudio_BTmidi` (normal layout, slot
+  581,564 B): off flash 581,508, RAM 91,808, pool 328,888; the core (ARENA 24) flash 581,880 (+372, **316 B over the
+  slot**), RAM 91,804, pool 314,800 (-14,088: one PHYS part's 12,888 B and two FM6 parts' fit); the core and the extras
+  (a measurement build, ARENA 96 with `OPTIMIST_FX_ARENA=1`) flash 588,220, RAM 92,156, pool 277,408. `sd-card-mots`
+  (LAYOUT 1, slot 765,696 B): off 743,824 / 106,640 / 313,848; the core alone (`OPTIMIST_ARENA_BYTES=24576`) 744,224 /
+  106,652 / 317,352; ARENA 96 (core and extras) 750,484 / 106,960 / 279,960.
+- After 3a-3c (2026-10-26, exact builds): the reference profile off 581,456 / RAM 90,448 / pool 328,888; the core
+  (ARENA 24) 581,840 (+384, **276 B over the slot**) / 90,460 / 314,800; core and extras (ARENA 96, the measurement
+  build) 588,716 / 90,852 / 273,312. `sd-card-mots`: off 743,800 / 96,604 / 313,848; the core alone (24 KB) 744,108 /
+  96,632 / 317,352 (its parts' fixed memory is 21,072 B: a core arena there pays from 20 KB down); ARENA 96 750,904 /
+  96,980 / 275,864.
+- The builder: `ARENA` (KB) is the core in a normal build and the core and the extras in the SD card mode
+  (`core.py sd_mode`, `arena_mem`, `arena_blocks`); new sizes 24 .. 48 KB for the core alone (the parts' fixed memory
+  is 3 x the largest engine's: 38,664 B with PHYS). Off (0) stays the fixed memories, for a tight profile.
+- Tests: `tests/placeholder_test.c` built four ways (fixed; the core: the load's refusals on the confirm; with the list;
+  with the extras: the PUNCH switch through a save and a load).
+
+**The PUNCH switch (3a, 2026-10-26; an extra).** The punch-in FX records the mix all the time (a punch needs the past),
+so its ring cannot wait for the key: a project setting says the project uses it. `FELUCCA_PUNCH_SW` (registry.h: PUNCH
+built and the arena's extras): `punch_sw`, GLOBAL > Rec's PUNCH (TEMPO's REC 2 page with REC MODES), OFF in a new project;
+saved in the project's G_INFO slot, bit 1 = ON (bit 0 stays REC QUANTIZE's). The ring is the arena buffer `ARB_PUNCH`
+(`core/arena_bufs.c`), held while the switch is on or an effect still fades out; not placed, `punch_process` leaves the
+mix as it is and the main loop lets go of FX + a key (`punch_asked`): PUNCH OFF said with the switch off, MEM FULL PUNCH
+once when refused. An extra and not the core: the ring is one of the other buffers (their placement, `arb_poll`, is the
+extras' code), and without the arena's extras the ring stays static and the punch always there, no switch (a normal
+build gains nothing from it: the ring is in its pool either way).
+- **Older projects load with PUNCH OFF** (0 in that bit; recommended and built: nothing a project stores uses the punch,
+  a live control, so it plays the same; the user turns PUNCH on in the projects played live). A build without the switch
+  reads bit 0 only and saves its projects with the bit clear.
+- Measured (2026-10-26, `sd-card-mots` with FX_PUNCH): the static ring does not fit there (SRAM overflowed by 17,344 B);
+  with ARENA 96 it builds: flash 752,424 (+1,940 over ARENA 96 without PUNCH: the punch's code and the switch), RAM
+  107,024, pool 279,960 (the same: the ring only in the arena).
+- Tests: `tests/arena_bufs_test.c` (off: no ring, FX + a key let go, PUNCH OFF; on: placed, recorded, REVERSE plays;
+  off while it plays: kept until faded out, then given back), `tests/placeholder_test.c` (the extras' build: the bit
+  through a save and a load, an older project off).
+
+**FM6's sine table (3b, 2026-10-26; an extra).** `eng_fm6.c FM6_SIN` (1,025 x int32, built at boot until now) is the
+arena buffer `ARB_FM6SIN` with the extras: held while a part plays FM6, is switching to it or fades out of it; placed by
+the main loop, built there (`fm6_sin_fill`, the interrupts on) before its pointer is set; not there, FM6 is silent
+(`fm6_block` skips the controllers and the LFO, `fm6_render` writes nothing: as WAVE while its table is built). WAVE's
+table's handling made general (`engines.c part_tab_k`, `part_tab_bytes`, `part_mem_aside`): a change to FM6 sets the
+table aside with the part's own memory when no block holds it, and is refused as any engine change when the two do not
+fit (`part_mem_frees`: a part proposed first when its block makes room for both); the load's list counts one table for
+all the parts of an engine. An extra, not the core: the buffer's placement is the extras' code (`arb_poll`), and the
+core alone is already over the reference profile's slot; for a normal build it would give 4 KB of pool back to the undo
+history (a later step if a flash round pays for it).
+- Measured (2026-10-26): `sd-card-mots` ARENA 96: flash 751,012 (+528), RAM 107,000 (+40), pool 275,864 (-4,096: the
+  pool's packing of the 4,100 B array); the reference profile, a measurement build with ARENA 96 and the extras: flash
+  588,740 (+520), pool 273,312 (-4,096). The builder's estimate (`core.py arena_bufs`, `FM6_SIN`) gives the pool to the
+  byte on `sd-card-mots`.
+- Tests: `tests/arena_bufs_test.c` (no part on FM6: no table; FM6 picked: set aside with the part's memory, placed,
+  built as the boot's, heard; the tests' arenas grown by the table's 4,104 B), `tests/fx_arena_test.c` (the random
+  switches 30,000: the loads' lists rarer with the table).
+
+**The other engines' state (3c, 2026-10-26; the core, and every build).** A survey of every engine's static state
+(an all-engines build's symbols, `sd-card-mots` with every `ENG_*`): what each part keeps for its engine in a static
+array outside the parts' memory. Moved into `engines.c part_mem_t` (a member of the union each, its accessor after it:
+`juno_mem`, `drw_mem`, `cz_mem`, `slc_mem`; zeroed when a part comes to the engine, `part_mem_claim`), so it is held only
+by the parts that play the engine, and with ARENA placed by need. None is the union's largest (FM6's 3,904 B a part,
+PHYS's 12,888), so the fixed slots do not grow: the static arrays' RAM is simply given back, in every build that has
+the engine, ARENA or not:
+
+| Engine | Moved | Bytes (3 parts) | Why it is safe |
+|---|---|---|---|
+| JUNO | the voices' state, the HPF, the RES tables' cache (`juno_v`, `juno_h`, `juno_rc`) | 1,332 (RAM) | a new voice clears its state; `res1` 0 = the cache built again |
+| DRAWBAR | the part's and the voices' state (`drw_t`, `drw_v`) | 2,496 | `init` 0 = a voice set up at its first block |
+| CZ | the voices, the tone, the envelope points, the EDIT values (`cz_v`, `cz_tone`, `cz_defs`, `cz_ed`) | 3,120 | `cz_key` stays static (nbank.c clears it for every part) and is cleared at the claim (`cz_forget`): the tone built again |
+| SLICE | the voices' reverse windows (`slc_rbuf`) | 3,072 | a note starts with no window (`s[0]` 0x7FFFFFFF) |
+
+Left (with why): DRONE (`drone_pt`, `drone_side`: 852 B, 284 B a part: below what pays for the change), ANALOG 2's
+feedback lines (`a2_fb`: 576 B; the default engine, most parts play it: a block each anyway), FM6's EDIT values
+(`fm6_ed`, 1,056 B: a project's, kept whatever the part plays) and its SysEx bank (`fm6_pick`, 4,097 B: a transfer
+buffer of the editor, not a part's: a later arena client of the main loop, if one is wanted), STRINGS' LFOs (24 B),
+FM6's per-part counters (`fm6_pt` etc., small, read by the claim), the voices themselves (`trk`, every engine's shared
+`voice_t`, 8.7 KB). The other engines (ANALOG, DIGITAL, PHASE, LOFI, TRIO, FORMANT, SUPER, the Clipper engines, SID,
+PROPHET, NOISE, PLAITS, PHYS, GRAIN, ACID, FM6, WAVE) keep their state in the voices or already in the part's memory.
+- Measured (2026-10-26, ARENA off): the reference profile RAM 91,792 -> 90,448 (-1,344: JUNO), flash -24; `sd-card-mots`
+  RAM 106,640 -> 96,604 (-10,036: JUNO, DRAWBAR, CZ, SLICE), pool the same. The builder (`core.py PART_MEM`) has the four
+  sizes; their items' measured RAM in costs.json still counts the arrays until a gpufarm re-measure.
+- Tests: the engines' goldens and health (`tests/cz_test.c`, `juno_test.c`, the regressions with every engine built),
+  `tests/nbank_test.c` (the CZ collection: the part's tone through `cz_tone(p)`).
 
 ## 7. Phases
 

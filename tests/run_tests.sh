@@ -993,30 +993,34 @@ job; ( jobin   # the silent placeholder (docs/SD-MODE-DESIGN.md 6b): a part drop
     $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -DFELUCCA_ENG_FM6=1 -o "$OUT/placeholder_test" tests/placeholder_test.c -lm
     run "a dropped part: silent, its memory idle, NONE, through a save and a load until an engine is picked" "$OUT/placeholder_test"
     $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -DFELUCCA_ENG_FM6=1 "-DFELUCCA_ARENA_BYTES=ARN_SLOT" -o "$OUT/placeholder_flow_test" tests/placeholder_test.c -lm
-    run "memory short (an arena of one part's): an edit refused, the part to drop proposed, dropped, the change made; a load: every part refused collected (two on one load), placeholders, settled by itself when room comes, the list's trial, SAVE, HOME, the sound kept" "$OUT/placeholder_flow_test"
+    run "memory short (an arena of one part's, the core alone): an edit refused, the part to drop proposed, dropped, the change made; a load: every part refused collected (two on one load), placeholders, each in turn on the edit's confirm with the project's sound kept, declined: a placeholder" "$OUT/placeholder_flow_test"
+    $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -DFELUCCA_ENG_FM6=1 -DFELUCCA_MEM_LIST=1 "-DFELUCCA_ARENA_BYTES=ARN_SLOT" -o "$OUT/placeholder_list_test" tests/placeholder_test.c -lm
+    run "the same with the load's list (MEM_LIST, an extra): settled by itself when room comes, the list's trial, SAVE, HOME, the sound kept" "$OUT/placeholder_list_test"
+    $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -DFELUCCA_ENG_FM6=1 -DFELUCCA_FX_ARENA=1 "-DFELUCCA_ARENA_BYTES=(ARN_SLOT + 262144u)" -o "$OUT/placeholder_extras_test" tests/placeholder_test.c -lm
+    run "with the arena's extras: the PUNCH switch through a save and a load (bit 1 of G_INFO; an older project: off)" "$OUT/placeholder_extras_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin   # the arena (core/arena.c, docs/SD-MODE-DESIGN.md 6b): first fit and the fixed slots
     $CC -O2 -w -Ifirmware/src -o "$OUT/arena_test" tests/arena_test.c
     run "arena placed by need: reserve, take, reuse, idle reclaimed, refused, what to drop; random switches, some pending" "$OUT/arena_test"
     $CC -O2 -w -Ifirmware/src -DARN_SLOT=1008u -DARN_FIXED=1 -o "$OUT/arena_fixed_test" tests/arena_test.c
     run "arena at fixed slots (the default): the fixed per-part memories' places, never refused" "$OUT/arena_fixed_test"
-    $CC -O2 -w -Ifirmware/src -DARN_TOPS=0xCu -DARN_DROPPABLE=0x3u -o "$OUT/arena_tops_test" tests/arena_test.c
-    run "arena, two parts placed best fit from the top (the effects' lines), never named to drop; random switches" "$OUT/arena_tops_test"
+    $CC -O2 -w -Ifirmware/src -DARN_TOPS=0xCu -o "$OUT/arena_tops_test" tests/arena_test.c
+    run "arena, two parts placed best fit from the top (the effects' lines); random switches" "$OUT/arena_tops_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin   # the effects' lines in the arena (fx/fx_arena.c, docs/SD-MODE-DESIGN.md 6b phase 3b; FELUCCA_FX_ARENA)
     FXA="-DFELUCCA_ENG_FM6=1 -DFELUCCA_FX_ARENA=1 -DFELUCCA_INS_CHORUS=1 -DFELUCCA_INS_DELAY=1 -DFELUCCA_DLY_LEN=16384u"
-    $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA "-DFELUCCA_ARENA_BYTES=(sizeof(fm6_mem_t) + 66506u)" -o "$OUT/fx_arena_test" tests/fx_arena_test.c -lm
+    $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA "-DFELUCCA_ARENA_BYTES=(sizeof(fm6_mem_t) + 4104u + 66506u)" -o "$OUT/fx_arena_test" tests/fx_arena_test.c -lm
     run "effects' lines in the arena (ROOM): placed while used, zeroed, gated and given back, refused (bypassed, kept, said once) and restored, a part's change waits for a line going back, the own room, lent instead; random switches" "$OUT/fx_arena_test"
-    $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA -DFELUCCA_REV_FDN8=1 -DFELUCCA_REV_POOL=1 -DFELUCCA_SPRING=1 "-DFELUCCA_ARENA_BYTES=(sizeof(fm6_mem_t) + 81906u)" -o "$OUT/fx_arena_rev_test" tests/fx_arena_test.c -lm
+    $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA -DFELUCCA_REV_FDN8=1 -DFELUCCA_REV_POOL=1 -DFELUCCA_SPRING=1 "-DFELUCCA_ARENA_BYTES=(sizeof(fm6_mem_t) + 4104u + 81906u)" -o "$OUT/fx_arena_rev_test" tests/fx_arena_test.c -lm
     run "the same with ROOM, FDN8 and SPRING (the reverb's TYPE switched, its line 32 KB)" "$OUT/fx_arena_rev_test"
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA -DUI_MEMLIST=1 "-DFELUCCA_ARENA_BYTES=(sizeof(fm6_mem_t) + 57994u)" -o "$OUT/ui_optimist_memlist_test" tests/ui_optimist_test.c -lm
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA -DUI_MEMLIST=1 "-DFELUCCA_ARENA_BYTES=(sizeof(fm6_mem_t) + 4104u + 57994u)" -o "$OUT/ui_optimist_memlist_test" tests/ui_optimist_test.c -lm
     run "a load that does not fit (ui/optimist/op_memlist.c): the refused parts listed, then the parts and the effects' lines on the keys, the gauge and FITS the arena's trial, SAVE drops and places, HOME leaves placeholders, an edit's one confirm" "$OUT/ui_optimist_memlist_test" "$OUT/optimist"
-    $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA -DFELUCCA_FX_SLICER=0 "-DFELUCCA_ARENA_BYTES=(sizeof(fm6_mem_t) + 66506u)" -o "$OUT/fx_arena_nobufs_test" tests/fx_arena_test.c -lm
+    $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA -DFELUCCA_FX_SLICER=0 "-DFELUCCA_ARENA_BYTES=(sizeof(fm6_mem_t) + 4104u + 66506u)" -o "$OUT/fx_arena_nobufs_test" tests/fx_arena_test.c -lm
     run "the same without the SLICER (no other buffer in the arena: core/arena_bufs.c's stubs)" "$OUT/fx_arena_nobufs_test"
-    # (the arena: one FM6 3904, the lines 66472, WAVE's table 73216, one SLICER recording 8192, the 909 5360 and the
-    #  808 3376 on the host, and 32 B)
-    $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA -DFELUCCA_ENG_WAVE=1 -DFELUCCA_DRUM_X909=1 -DFELUCCA_DRUM_X808=1 "-DFELUCCA_ARENA_BYTES=160552u" -o "$OUT/arena_bufs_test" tests/arena_bufs_test.c -lm
-    run "other buffers in the arena (SLICER recordings, WAVE's table, the X0X machines): placed while used, given back, refused (bypassed, FULL, said once) and placed by themselves; a change to WAVE refused as an engine change, on a load the list page; a part's change waits; random switches" "$OUT/arena_bufs_test"
+    # (the arena: one FM6 3904 and its sine table 4104, the lines 66472, WAVE's table 73216, one SLICER recording 8192,
+    #  the 909 5360 and the 808 3376 on the host, and 32 B)
+    $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA -DFELUCCA_ENG_WAVE=1 -DFELUCCA_DRUM_X909=1 -DFELUCCA_DRUM_X808=1 "-DFELUCCA_ARENA_BYTES=164656u" -o "$OUT/arena_bufs_test" tests/arena_bufs_test.c -lm
+    run "other buffers in the arena (SLICER recordings, WAVE's table, the X0X machines, the PUNCH ring while its switch is on): placed while used, given back, refused (bypassed, FULL, said once) and placed by themselves; a change to WAVE refused as an engine change, on a load the list page; a part's change waits; random switches" "$OUT/arena_bufs_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin   # the RAMTEXT overlays (core/overlay.c, docs/SD-MODE-DESIGN.md 6): the slots' protocol on the host
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_OVERLAY=1 -DFELUCCA_ENG_STRINGS=1 -o "$OUT/overlay_test" tests/overlay_test.c -lm
