@@ -524,6 +524,10 @@ static void op_dsnd_set(uint32_t id, int32_t v, int32_t steps)   /* as ui_drums.
             v = steps > 0 ? 4 : 0;
         if (!FELUCCA_DRUM_KITS && v > 3)
             v = 3;
+#if FELUCCA_SD_LANES
+        if (dl.src[l] == DL_CARD)
+            v = 0;                                      /* (off the card: KIT, dsnd_desc.c DSD_CARD) */
+#endif
         lane_set_src(l, dsnd_idx_src((uint32_t)v));   /* (an X0X voice: the lane takes its name) */
         ui.force = 1;
         break;

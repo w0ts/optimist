@@ -6,7 +6,8 @@
  * while the project plays card samples. Main loop only (sst_plan_poll every pass); included by sdcard.c after
  * sd_stream.c and sd_index.c (FELUCCA_SD_STREAM).
  *
- *   sst_part_set(part, hash)   part's CARD sample (0: none): the project's load and the sample picker call it
+ *   sst_part_set(part, hash)   part's CARD sample (0: none): the project's load and the sample picker call it; slot
+ *                              SST_NPART + l: drum lane l's card sample (sd_mode.c, every pass: the lanes on CARD)
  *   sst_pre_set(ms)            the pre-buffer, ms (SST_PRE_MS: 25 50 100 200; default 50)
  *   sst_pre_kb(ms)             what the heads would take at that setting, KB (the setting's page shows it beside it)
  *   sst_remount()              a mount (sdcard.c): every stream stopped, everything looked up and placed again (the
@@ -14,7 +15,8 @@
  *   sst_plan_poll()            places again when something changed: the CARD voices are let go first (their sources
  *                              not ready: they fade out, eng_sample.c), the old block given back two audio halves later,
  *                              each hash looked up in the sample index (sd_index.c), each file's need summed (the rings:
- *                              as many as the CARD parts can sound voices at once, SST_N at most; its runs, its head; a
+ *                              as many as the CARD parts can sound voices at once, a card lane one, SST_N at most; its
+ *                              runs, its head; a
  *                              part's voice count changed is placed again too), the block reserved and taken (the interrupts off), the rings set, the
  *                              sources loaded, each part pointed at its source
  *   sstp                       the plan's state for the UI: SSTP_PLACED, or SSTP_REFUSED (no room): need (bytes), drop
@@ -22,23 +24,26 @@
  *                              mem_offer proposes one drop at a time; 0 none alone), drop_all (1: the three parts'
  *                              together would), fit_ms (the longest pre-buffer that fits as it is, 0 none), said (the UI
  *                              said MEM FULL CARD once);
- *                              missing (a mask of parts whose sample is not on the card: MISSING, never another sound)
+ *                              missing (a mask of slots whose sample is not on the card: MISSING, never another sound)
  * A refusal keeps the project's samples silent (their parts' CARD voices play nothing), the project unchanged, and is
  * tried again every SST_RETRY_MS (a part's change, an effect let go: room): placed by itself once it fits, as the
  * arena's other buffers are (core/arena_bufs.c). */
 #ifndef SST_PART_VOICES
 #define SST_PART_VOICES(p) SST_N                     /* (sdcard.c: the voices part p can sound at once) */
 #endif
+/* the card lanes (slots SST_NPART + lane, FELUCCA_SD_LANES): a ring each (a lane's hit cuts its own hit before:
+ * drums/lane_card.c), sharing the SST_N rings with the parts */
 #define SST_RETRY_MS 200u
 #define SST_GATE_MS 20u                              /* the audio's two halves (11.6 ms) and some: no voice reads it */
 enum { SSTP_IDLE = 0, SSTP_GATED, SSTP_PLACED, SSTP_REFUSED };
 static const uint16_t SST_PRE_MS[4] = {25, 50, 100, 200};
 static uint16_t sst_pre_ms = 50;                     /* (the setting) */
-static uint64_t sst_part_hash[SST_NPART] IN_POOL;    /* each part's CARD sample, 0 none */
+static uint64_t sst_part_hash[SST_NSLOT] IN_POOL;    /* each part's CARD sample, then each card lane's; 0 none */
 
 static struct {
-    uint8_t dirty, state, said, missing;
+    uint8_t dirty, state, said;
     uint8_t drop, drop_all;
+    uint16_t missing;
     uint16_t fit_ms;
     uint32_t need, t0;
     int32_t rec[SST_NSRC];                           /* each source's index record (sdx_read), -1 none */
@@ -46,18 +51,18 @@ static struct {
     uint8_t nsrc, nring;
 } sstp IN_POOL;
 
-static uint32_t sst_nring(void)                      /* the rings the CARD parts can use at once */
+static uint32_t sst_nring(void)                      /* the rings the CARD parts and the card lanes can use at once */
 {
     uint32_t p, n = 0;
-    for (p = 0; p < SST_NPART; p++)
+    for (p = 0; p < SST_NSLOT; p++)
         if (sst_part_hash[p])
-            n += SST_PART_VOICES(p);
+            n += p < SST_NPART ? SST_PART_VOICES(p) : 1u;
     return n < SST_N ? n : SST_N;
 }
 
-static void sst_part_set(uint32_t part, uint64_t hash)
+static void sst_part_set(uint32_t part, uint64_t hash)   /* (part: a slot, SST_NPART + lane a card lane) */
 {
-    if (part < SST_NPART && sst_part_hash[part] != hash) {
+    if (part < SST_NSLOT && sst_part_hash[part] != hash) {
         sst_part_hash[part] = hash;
         sstp.dirty = 1;
     }
@@ -101,18 +106,18 @@ static uint32_t sst_pre_kb(uint32_t ms) { return (sst_need(ms) - sstp.nring * SS
 static void sst_gate(void)                           /* the CARD voices let go: they fade out (eng_sample.c) */
 {
     uint32_t i;
-    for (i = 0; i < SST_NPART; i++)
+    for (i = 0; i < SST_NSLOT; i++)
         sst_part_src[i] = 0xFF;
     for (i = 0; i < SST_NSRC; i++)
         sst_src[i].ready = 0;
 }
 
-static void sst_lookup(void)                         /* the parts' hashes -> sources (one a sample), their records */
+static void sst_lookup(void)                         /* the slots' hashes -> sources (one a sample), their records */
 {
     uint32_t p, i;
     sstp.nsrc = 0;
     sstp.missing = 0;
-    for (p = 0; p < SST_NPART; p++) {
+    for (p = 0; p < SST_NSLOT; p++) {
         if (!sst_part_hash[p])
             continue;
         for (i = 0; i < sstp.nsrc && sstp.hash[i] != sst_part_hash[p]; i++)
@@ -123,7 +128,7 @@ static void sst_lookup(void)                         /* the parts' hashes -> sou
             sstp.nsrc++;
         }
         if (i >= sstp.nsrc || sstp.rec[i] < 0)
-            sstp.missing |= (uint8_t)(1u << p);
+            sstp.missing |= (uint16_t)(1u << p);
     }
 }
 
@@ -141,13 +146,13 @@ static void sst_load_all(uint8_t *mem)               /* the rings, then each sou
         sst_src[i].hash = sstp.hash[i];
         at += (used + 3u) & ~3u;
     }
-    for (p = 0; p < SST_NPART; p++)
+    for (p = 0; p < SST_NSLOT; p++)
         for (i = 0; sst_part_hash[p] && i < sstp.nsrc; i++)
             if (sstp.hash[i] == sst_part_hash[p]) {
                 if (sstp.rec[i] >= 0)
                     sst_part_src[p] = (uint8_t)i;
                 else
-                    sstp.missing |= (uint8_t)(1u << p);
+                    sstp.missing |= (uint16_t)(1u << p);
             }
 }
 

@@ -59,6 +59,9 @@ AINL uint32_t pow2_q16(int32_t d16)
 /* SET's last value CARD (FELUCCA_SD_STREAM): the part's sample on the SD card, streamed (storage/sd/sd_stream.h); SAMPLE's
  * own list only (GRAIN's SRC and the MISSING check number the sets as SMP_NALL) */
 #if FELUCCA_SD_STREAM
+#if FELUCCA_SD_LANES
+#define SST_NLANE ((uint32_t)DRUM_LANES)            /* (the drum lanes' card samples: drums/lane_card.c) */
+#endif
 #include "../../storage/sd/sd_stream.h"
 #define SMP_CARD SMP_NALL
 #define SMP_NSAMPLE (SMP_NALL + 1)
