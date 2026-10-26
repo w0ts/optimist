@@ -83,6 +83,17 @@ read from JieLi's Apache-2.0 controller library (both in the third-party table b
 Optimist that use the stack and come from Felucca or SLOOP (`midi_ble.c`, the UI pages, storage), which stay
 GPL-3.0-only.
 
+## The sliced sector erase (GPL-3.0-only OR MPL-2.0)
+
+The erase that keeps the sound playing (a 4 KiB sector erase suspended and resumed in 1 ms interrupts-off windows) is
+offered the same way, at the recipient's choice: `firmware/hal/fm1_flash_slice.h` and its test `tests/flash_slice_test.c`,
+written for Optimist by hdavid (commit 54d89896, 2026-10-16; git blame gives every line to him). Until 2026-10-26 their
+headers carried the line "Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments": it was copied with the
+header of `fm1_flash.h`, the Felucca / SLOOP file the same commit extended, not a credit for this code (an erase
+suspend, 75h / 7Ah, exists in none of Felucca, SLOOP, felucca-bsp, fm1-base, Melodee, X0X, Jangada or FoMni: checked
+2026-10-26). Not included: the rest of `fm1_flash.h` (SLOOP 2.0's import, GPL-3.0-only here; felucca-bsp has its own
+MPL-2.0 copy of those functions), which stays GPL-3.0-only.
+
 ## Additional permission (GPL-3.0 section 7)
 
 Felucca 0.9-beta's grant, kept as it was given. No Felucca Asset outside the GPL is left in this tree (the
