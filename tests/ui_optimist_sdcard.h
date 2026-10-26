@@ -580,3 +580,60 @@ static void sdu_settings_tests(void)
           persist_saved.ble_bond[0] == 0x66, "another FM-1's backup: its settings, this unit's address, radio and pairings kept");
     (void)mine;
 }
+
+#if PRESETS_CARD
+/* SD card mode's factory presets on the card (sd_mode.c sdm_factory_*; core.h PRESETS_CARD: no tables in the build):
+ * the names read at the mount, a preset's file loaded on the main loop's next pass (never where the interrupts may be
+ * off), a project or a user preset over it dropping the ask, a missing file and no card said */
+static void sdu_factory_put(const char *dir, const char *file, uint8_t fill)
+{
+    char path[160];
+    uint8_t rec[UPC_N];
+    memset(rec, fill, sizeof rec);
+    snprintf(path, sizeof path, "%s/%s", dir, file);
+    check(sdm_small_put(path, "OPPR", rec, sizeof rec) == FR_OK, "factory: a preset file written");
+}
+static void sdu_factory_tests(void)
+{
+    char dir[96];
+    uint32_t e, g0;
+    reset_ui();
+    sdu_card();
+    for (e = 0; e < NENGINES && ENGINES[e]->npresets < 3u; e++)
+        ;
+    check(e < NENGINES, "factory: an engine with 3 presets or more");
+    f_mkdir("OPTIMIST");
+    f_mkdir("OPTIMIST/PRESETS");
+    f_mkdir("OPTIMIST/PRESETS/FACTORY");
+    snprintf(dir, sizeof dir, "OPTIMIST/PRESETS/FACTORY/%s", ENGINES[e]->name);
+    f_mkdir(dir);
+    sdu_factory_put(dir, "000 TEST ONE.OPS", 0x11);
+    sdu_factory_put(dir, "001 TWO.OPS", 0x22);
+    sdm_st = SDM_OFF;                                   /* (a boot: the mount, the index, the names) */
+    sdu_frames(3);
+    check(!strcmp(preset_name(e, 0), "TEST ONE") && !strcmp(preset_name(e, 1), "TWO") && !strcmp(preset_name(e, 2), "?"),
+          "factory: the names from the card, a missing one ?");
+    g0 = upc_gives;
+    song.sel = 0;
+    trk[0].eng_req = trk[0].engine = (uint8_t)e;
+    apply_preset_to(&trk[0], 1);
+    check(upc_gives == g0 && trk[0].preset == 1u, "factory: a preset applied: the engine's defaults now, the file not read yet");
+    sdu_frames(1);
+    check(upc_gives == g0 + 1u && upc_rec[0] == 0x22 && trk[0].preset == 1u, "... read on the next pass: the file's record, its place kept");
+    apply_preset_to(&trk[0], 0);
+    sdm_factory_drop(0);                                /* (a user preset or a project over it) */
+    sdu_frames(1);
+    check(upc_gives == g0 + 1u, "factory: an ask dropped by a sound loaded over it: not read");
+    apply_preset_to(&trk[0], 2);
+    sdu_frames(1);
+    check(upc_gives == g0 + 1u && sdu_msg("PRESET NOT ON THE CARD"), "factory: a missing file: said, the defaults kept");
+    C.present = 0;
+    sd_state = SD_NOCARD;
+    sdm_st = SDM_NONE;
+    apply_preset_to(&trk[0], 0);
+    sdu_frames(1);
+    check(upc_gives == g0 + 1u && sdu_msg("NO SD CARD"), "factory: no card: the defaults, said");
+    C.present = 1;
+    card_power_on();
+}
+#endif
