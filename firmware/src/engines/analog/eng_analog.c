@@ -95,10 +95,10 @@ static HOT void analog_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, 
 static const preset_t ANALOG_PRESETS[] = {
     /* SLOOP hip-hop / drum & bass bank. {WAVE, DTN, MIX, NOIS, CUT, RES, DRV, KTR}, {A D S R}, fenv, mono */
     /* 808s: a sine that decays (SUS 0) with a little pitch drop (ENV -> PITCH) and slides (GLIDE, legato) */
-    {"808 BOOM", {3, 0, 0, 0, 127, 0, 48, 0}, {0, 112, 0, 52}, 0, 1, FX(0, 0, 0, 0), XP(P_GLIDE + 1, 59, P_GLMODE + 1, 1, P_ED_PIT + 1, 18, P_TRANS + 1, -24)},
-    {"808 DIRTY", {3, 0, 0, 0, 96, 12, 118, 30}, {0, 108, 0, 46}, 0, 1, FX(49, 0, 0, 0), XP(P_GLIDE + 1, 56, P_GLMODE + 1, 1, P_ED_PIT + 1, 24, P_TRANS + 1, -24)},
+    {"808 BOOM", {3, 0, 0, 0, 127, 0, 48, 0}, {0, 112, 0, 52}, 0, 1, FX(0, 0, 0, 0), XP(P_GLIDE + 1, 59, P_GLMODE + 1, 1, P_ED_PIT + 1, 34, P_TRANS + 1, -24)},
+    {"808 DIRTY", {3, 0, 0, 0, 96, 12, 118, 30}, {0, 108, 0, 46}, 0, 1, FX(49, 0, 0, 0), XP(P_GLIDE + 1, 56, P_GLMODE + 1, 1, P_ED_PIT + 1, 36, P_TRANS + 1, -24)},
     {"SUB BASS", {3, 0, 0, 0, 127, 0, 10, 0}, {0, 60, 118, 24}, 0, 1, FX(0, 0, 0, 0), XP(P_GLIDE + 1, 40, P_TRANS + 1, -24)},
-    {"808 SLIDE", {3, 0, 0, 0, 127, 0, 72, 0}, {0, 118, 0, 60}, 0, 1, FX(54, 0, 0, 0), XP(P_GLIDE + 1, 82, P_GLMODE + 1, 1, P_ED_PIT + 1, 12, P_TRANS + 1, -24)},
+    {"808 SLIDE", {3, 0, 0, 0, 127, 0, 72, 0}, {0, 118, 0, 60}, 0, 1, FX(54, 0, 0, 0), XP(P_GLIDE + 1, 82, P_GLMODE + 1, 1, P_ED_PIT + 1, 33, P_TRANS + 1, -24)},
     /* acid: one saw, high resonance, the envelope on the filter, slides where notes overlap */
     {"ACID 303", {0, 0, 0, 0, 36, 112, 44, 64}, {0, 56, 24, 20}, 52, 1, FX(40, 0, 22, 10), XP(P_GLIDE + 1, 34, P_GLMODE + 1, 1, P_TRANS + 1, -12)},
     /* plugg / soft trap: a round triangle bass */
@@ -109,7 +109,7 @@ static const preset_t ANALOG_PRESETS[] = {
     /* west coast: a square bass that slides, the high sine-ish lead with a delayed vibrato */
     {"FUNK BASS", {1, 6, 50, 0, 50, 30, 22, 64}, {0, 55, 62, 20}, 30, 1, FX(0, 0, 0, 4), XP(P_GLIDE + 1, 50, P_GLMODE + 1, 1, P_TRANS + 1, -24)},
     {"G-FUNK LD", {2, 0, 0, 0, 92, 0, 10, 64}, {6, 70, 112, 46}, 0, 1, FX(0, 0, 28, 30),
-     XP(P_GLIDE + 1, 74, P_LEG_PIT + 1, 2, P_LRATE + 1, 89, P_LFADE + 1, 50)},
+     XP(P_GLIDE + 1, 74, P_LEG_PIT + 1, 6, P_LRATE + 1, 89, P_LFADE + 1, 50)},
     {"TRAP PLUCK", {0, 8, 64, 0, 52, 35, 20, 64}, {0, 80, 24, 45}, 48, 0, FX(0, 15, 34, 26)},
     {"SYN BRASS", {0, 10, 64, 0, 45, 20, 16, 64}, {12, 70, 96, 35}, 34, 0, FX(0, 15, 12, 24)},
 #if FELUCCA_ANALOG2
@@ -121,7 +121,7 @@ static const preset_t ANALOG_PRESETS[] = {
 #endif
     {"WARM PAD", {4, 12, 64, 6, 52, 8, 0, 32}, {75, 90, 115, 90}, 0, 0, FX(0, 55, 20, 55), XP(P_LRATE + 1, 30, P_LEG_SHP + 1, 20)},
     {"DARK STR", {0, 18, 64, 0, 48, 6, 0, 32}, {60, 90, 118, 85}, 0, 0, FX(0, 50, 18, 60)},
-    {"ATMOS PAD", {4, 25, 64, 20, 60, 15, 0, 32}, {90, 100, 120, 100}, 0, 0, FX(0, 60, 30, 75), XP(P_LRATE + 1, 18, P_LEG_PIT + 1, 1)},
+    {"ATMOS PAD", {4, 25, 64, 20, 60, 15, 0, 32}, {90, 100, 120, 100}, 0, 0, FX(0, 60, 30, 75), XP(P_LRATE + 1, 18, P_LEG_PIT + 1, 3)},
 #if FELUCCA_ANALOG2
     /* SUPER's presets (its engine went into ANALOG 2): the swarm, SUPER's DRFT, FTYP and SUB in A2_PX */
     {"SUPER LEAD", {0, 0, 0, 0, 100, 18, 0, 64}, {2, 80, 110, 50}, 12, 1, FX(0, 20, 40, 45), XP(P_GLIDE + 1, 20)},
@@ -131,7 +131,7 @@ static const preset_t ANALOG_PRESETS[] = {
     {"SUPER PLCK", {0, 0, 0, 0, 60, 30, 0, 64}, {0, 82, 24, 50}, 40, 0, FX(0, 15, 50, 40)},
     /* the rave hoover: wide, a square an octave below (osc 2), a swoop up into each note, a slow glide */
     {"HOOVER SAW", {0, 0, 38, 0, 92, 20, 0, 64}, {6, 70, 110, 40}, 0, 1, FX(35, 40, 20, 30),
-     XP(P_GLIDE + 1, 60, P_GLMODE + 1, 1, P_ED_PIT + 1, -24)},
+     XP(P_GLIDE + 1, 60, P_GLMODE + 1, 1, P_ED_PIT + 1, -36)},
     /* ANALOG 2's own: a hard-sync lead (the envelope sweeps osc 2 through SHP), a 24 dB bass with its
      * own filter envelope, two saws a fifth apart */
     {"SYNC SWEEP", {0, 0, 127, 0, 104, 10, 20, 64}, {2, 70, 96, 30}, 0, 1, FX(0, 15, 30, 30),

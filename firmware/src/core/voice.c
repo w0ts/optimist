@@ -88,7 +88,7 @@ AINL void lfo_dep(const int16_t *s, int32_t *dep)
 /* (lfo_apply) OSC2 SDTN: rare, in XIP flash */
 static __attribute__((noinline)) void lfo_apply_a2(const int32_t *dep, int32_t v, lfo_mod_t *o)
 {
-    o->m[3] += ((v * dep[4] * 3) >> 8) >> 8;
+    o->m[3] += pit_mul(v, dep[4]) >> 8;
     o->m[4] += ((v * dep[5]) >> 8) >> 8;
 }
 /* an LFO at v (Q15: its POL, LFO's fade in) and u ((its wave + 1) / 2, 0..32767) on dep -> o's offsets, *g the gain
@@ -96,7 +96,7 @@ static __attribute__((noinline)) void lfo_apply_a2(const int32_t *dep, int32_t v
 AINL void lfo_apply(const int32_t *dep, int32_t v, int32_t u, lfo_mod_t *o, int32_t *g)
 {
     int32_t a = dep[3];
-    o->m[0] += (v * dep[0] * 3) >> 8;
+    o->m[0] += pit_mul(v, dep[0]);                     /* (core.h pit_depth: the pitch curve) */
     o->m[1] += (v * dep[1]) >> 8;
     o->m[2] += (v * dep[2]) >> 8;
     if (dep[4] | dep[5])                                /* (ANALOG's osc 2 pitch, as PIT; the swarm's spread +-63) */
@@ -109,7 +109,8 @@ AINL void lfo_apply(const int32_t *dep, int32_t v, int32_t u, lfo_mod_t *o, int3
 /* DEST d acts on the voices (PIT FLT SHP AMP OSC2 SDTN), not on a value */
 #define LT_VOICE(d) (LT_CLASSIC(d) || (d) == LT_OSC2 || (d) == LT_SDTN)
 /* slot k (0 A, 1 B) of part values p from first (P_L1DA, P_L2DA) acts on a value (lfo_over, not the voices') */
-#define LT_OVER_AT(p, first, k) ((p)[(first) + 2 * (k)] != LT_OFF && !LT_VOICE((p)[(first) + 2 * (k)]) && (p)[(first) + 2 * (k) + 1])
+#define LT_OVER_AT(p, first, k) ((p)[(first) + 2 * (k)] != LT_OFF && !LT_VOICE((p)[(first) + 2 * (k)]) && (p)[(first) + 2 * (k) + 1] && \
+                                 LT_TAB[(uint32_t)(p)[(first) + 2 * (k)] % LT_N][2] != LC_SEQ)   /* (LC_SEQ: lfo_seq_in's) */
 #if FELUCCA_MACROS
 static int16_t lfo_mac[NPART][4];                      /* LFO's depth of PIT FLT SHP AMP under a macro (AMT units) */
 static uint16_t lfo_mac_m;                             /* bit 4 k + d: lfo_mac[k][d] stands for the slots' (macro.c) */
@@ -182,13 +183,44 @@ AINL void lfo1_voices(const track_t *t, int32_t lfo, lfo_mod_t *o)
  * engine or envelopes read as the voice renders, moved for that voice (env_vmove), LC_PART the part's (the mix, an LFO),
  * moved for the block from the part's newest voice (lfo_over). An LFO moves every value for the block (lfo_over) */
 enum { LK_NONE, LK_V, LK_P, LK_E, LK_RES, LK_XR, LK_XA, LK_INS };
-enum { LC_VOICE, LC_VAL, LC_PART };
+enum { LC_VOICE, LC_VAL, LC_PART, LC_SEQ };
 #if FELUCCA_ANALOG2
 #define LT_A2(id) {LK_P, id, LC_VAL}
 #define LT_N2XA {LK_XA, P_N2DA, LC_VAL}
 #else
 #define LT_A2(id) {LK_NONE, 0, LC_VOICE}
 #define LT_N2XA {LK_NONE, 0, LC_VOICE}
+#endif
+#define LT_PV(id) {LK_P, id, LC_PART}                  /* (a value of the part's, moved for the block) */
+#define LT_VV(id) {LK_P, id, LC_VAL}                   /* (a value a voice renders with) */
+#define LT_SV(id) {LK_P, id, LC_SEQ}                   /* (a value the sequencer reads: lfo_seq_in) */
+#define LT_NONE {LK_NONE, 0, LC_VOICE}                 /* (a value this build lacks: its number kept) */
+#if FELUCCA_ANALOG2
+#define LT_PV_A2(id) LT_PV(id)
+#else
+#define LT_PV_A2(id) LT_NONE
+#endif
+#if FELUCCA_MASTER_COMP
+#define LT_PV_MC(id) LT_PV(id)
+#else
+#define LT_PV_MC(id) LT_NONE
+#endif
+#if INS_FX
+#define LT_PV_IF(id) LT_PV(id)
+#else
+#define LT_PV_IF(id) LT_NONE
+#endif
+#if FELUCCA_INS_JCHORUS
+#define LT_PV_JC(id) LT_PV(id)
+#else
+#define LT_PV_JC(id) LT_NONE
+#endif
+#if SL24_TP
+#define LT_PV_24(id) LT_PV(id)
+#define LT_SV_24(id) LT_SV(id)
+#else
+#define LT_PV_24(id) LT_NONE
+#define LT_SV_24(id) LT_NONE
 #endif
 static const uint8_t LT_TAB[LT_N][3] = {
     {LK_NONE, 0, LC_VOICE}, {LK_V, 3, LC_VOICE}, {LK_V, 1, LC_VOICE}, {LK_V, 2, LC_VOICE}, {LK_V, 0, LC_VOICE},   /* OFF PIT FLT SHP AMP */
@@ -202,9 +234,29 @@ static const uint8_t LT_TAB[LT_N][3] = {
     {LK_XA, P_ED_FLT - 1u, LC_VAL}, LT_N2XA,                                   /* E1 AMT (ENV 1's FLT SHP) E2 AMT */
     {LK_V, 4, LC_VOICE}, {LK_V, 5, LC_VOICE},                                  /* OSC2 SDTN */
     {LK_XR, P_L2RATE, LC_PART}, {LK_XA, P_L2DA, LC_PART},                      /* L2RT L2AMT */
-    LT_A2(P_A2BCUT)};                                                          /* FLTB (ANALOG 2's FLT B FREQ) */
-_Static_assert(LT_N <= 64 && P_COUNT <= 256, "a DEST in 6 bits (project.c l2_pack, env_store.h); an id in a byte");
-#define LO_MAX 32u                                     /* the values moved in a block (24 slots, an XAMT two each: more is
+    LT_A2(P_A2BCUT),                                                           /* FLTB (ANALOG 2's FLT B FREQ) */
+    /* the values on a synth track's pages (core.h LT_E1FLT ..): LC_VAL what a voice renders with (an envelope: each
+     * voice's own), LC_PART the part's (the inserts', the modulators' own), LC_SEQ what the sequencer, the arp and a
+     * note's start read (moved around events_block: lfo_seq_in) */
+    LT_PV(P_ED_FLT), LT_PV(P_E1PIT), LT_PV(P_ED_SHP), LT_PV(P_E1X), LT_PV(P_E1Y), LT_PV(P_E1Z),   /* (env_plan reads them once a block) */
+    LT_PV_A2(P_N2DA), LT_PV_A2(P_N2AA), LT_PV_A2(P_N2DB), LT_PV_A2(P_N2AB),
+    LT_PV(P_LWAVE), LT_SV(P_LPHASE), LT_PV(P_LFADE), LT_PV(P_L1DA), LT_PV(P_L1AA), LT_PV(P_L1DB), LT_PV(P_L1AB),
+    LT_PV(P_L2WAVE), LT_SV(P_L2TRIG), LT_PV(P_L2POL), LT_PV(P_L2DA), LT_PV(P_L2AA), LT_PV(P_L2DB), LT_PV(P_L2AB),
+    LT_PV_MC(P_TDRAT), LT_PV_MC(P_TDATK), LT_PV_MC(P_TDREL), LT_PV_MC(P_TDGAIN), LT_PV_MC(P_TDCEIL),
+    LT_PV_IF(P_TGATE), LT_PV_IF(P_TGPAT), LT_PV_IF(P_TGRATE), LT_PV_IF(P_TGSHP), LT_PV_JC(P_TJCHO), LT_PV_JC(P_TJMODE),
+    LT_PV_24(P_TFLT), LT_PV(P_SLCR), LT_PV(P_SLPAT), LT_PV(P_SLRATE), LT_PV(P_SLDEPTH),
+    LT_SV(P_ROOT), LT_SV(P_SCALE), LT_SV(P_QUANT), LT_SV(P_CHORD), LT_SV(P_TRANS), LT_SV_24(P_STRUM), LT_SV_24(P_VLEAD),
+    LT_A2(P_A2WAVE), LT_A2(P_A2SEMI), LT_A2(P_A2SYNC), LT_A2(P_A2SWRM), LT_A2(P_A2DRFT), LT_A2(P_A2FTYP), LT_A2(P_A2BTYP),
+    LT_A2(P_A2BRES),
+    LT_SV(P_VOICE), LT_VV(P_GLIDE), LT_SV(P_GLMODE), LT_SV(P_PRIO), LT_SV(P_ALLOC), LT_VV(P_DETUNE), LT_SV(P_VOICES),
+    LT_VV(P_ED_PIT),
+    LT_SV(P_AMODE), LT_SV(P_ARATE), LT_SV(P_AOCT), LT_SV(P_AGATE), LT_SV(P_ASWING), LT_SV(P_APROB), LT_SV(P_AHOLD),
+    LT_SV(P_AORDER),
+    LT_SV(P_SLEN), LT_SV(P_SDIV), LT_SV(P_SSWING), LT_SV(P_SGATE),
+    LT_PV(P_MUTE), LT_PV(P_FXOFF)};
+_Static_assert(LT_N <= 128 && P_COUNT <= 256, "a DEST in a signed byte (dlfo_rec.c's record, a user preset, the editor's "
+               "7 bits); an id in a byte. (The stored forms of before keep 5 or 6 bits: project.c l2_pack, env_store.h)");
+#define LO_MAX 48u                                     /* the values moved in a block (36 slots, an XAMT two each: more is
                                                         * left as authored) */
 static struct {
     uint8_t n;
@@ -240,6 +292,17 @@ static __attribute__((noinline)) uint32_t lfo_over_any(void)
         a |= env1_pm_on(&trk[k]) != 0;
     }
     return a;
+}
+/* the authored value of part k's value id now at v: the base lfo_seq_in / lfo_over_in moved it from, else v (the
+ * automation keeps its base from it, auto_base.c auto_take, seq24.c's lock: a lock begun in the sequencer's block
+ * never takes a moved value for the patch) */
+static int16_t lo_base(uint32_t k, uint32_t id, int16_t v)
+{
+    uint32_t i;
+    for (i = 0; i < lfo_ov.n; i++)
+        if (lfo_ov.k[i] == k && lfo_ov.id[i] == id && lfo_ov.put[i] == v)
+            return lfo_ov.old[i];
+    return v;
 }
 /* part t's value id moved to v (its base kept for lfo_over_out) */
 static void lo_put(track_t *t, uint32_t id, int32_t v)
@@ -290,7 +353,10 @@ static const param_desc_t *lo_dest(const track_t *t, int32_t d, uint32_t *q)
  * clamped (op_effval.c: the same, for the bar). An envelope passes 2 x its value: 0 .. the whole range */
 static int32_t lo_move(int32_t base, const param_desc_t *ds, int32_t a, int32_t v)
 {
-    return clamp(base + ((((v * a) >> 7) * (ds->max - ds->min)) >> 16), ds->min, ds->max);   /* ((v a) >> 7: +-1) */
+    int32_t s = ds->max - ds->min, x = (v * a) >> 7;   /* (x: +-1 in Q15) */
+    if (ds->fmt == F_ENUM)                              /* (a choice: its whole range at full, rounded, else a short */
+        return clamp(base + ((x * 2 * s + 32768) >> 16), ds->min, ds->max);   /* list never reaches its end) */
+    return clamp(base + ((x * s) >> 16), ds->min, ds->max);
 }
 /* part t's slot (DEST d, AMT a) of a modulator at v (Q15) on its value; env: an envelope's (v 0..32767: up to the whole
  * range, a RATE up to 127 more) */
@@ -357,6 +423,47 @@ static void lfo_over_out(void)
         if (trk[lfo_ov.k[i]].p[lfo_ov.id[i]] == lfo_ov.put[i])
             trk[lfo_ov.k[i]].p[lfo_ov.id[i]] = lfo_ov.old[i];
     lfo_ov.n = 0;
+}
+/* slot k (0 A, 1 B) of part values p from first acts on a value the sequencer reads (LC_SEQ) */
+#define LT_SEQ_AT(p, first, k) ((uint32_t)(p)[(first) + 2 * (k)] < LT_N && LT_TAB[(p)[(first) + 2 * (k)]][2] == LC_SEQ && \
+                                (p)[(first) + 2 * (k) + 1])
+/* the sequencer's block (events_block: the steps, the arp, the notes' starts) between lfo_seq_in and lfo_seq_out: every
+ * part's slots on a value it reads (LC_SEQ), as lfo_over_in moves the others for the mix (the same list, done before it
+ * starts), from the modulators' values of the block before; -> any moved. In XIP flash: once a block */
+static __attribute__((noinline)) uint32_t lfo_seq_in(void)
+{
+    uint32_t k, s;
+    lfo_ov.n = 0;
+    for (k = 0; k < NPART; k++) {
+        track_t *t = &trk[k];
+        for (s = 0; s < 2u; s++) {
+            if (LT_SEQ_AT(t->p, P_L1DA, s))
+                lo_slot(t, t->p[P_L1DA + 2u * s], t->p[P_L1AA + 2u * s], mulq15(t->lfo_val, t->lfo_fade), 0);
+            if (LT_SEQ_AT(t->p, P_L2DA, s))
+                lo_slot(t, t->p[P_L2DA + 2u * s], t->p[P_L2AA + 2u * s], lfo2[k].v, 0);
+#if FELUCCA_ANALOG2
+            if (LT_SEQ_AT(t->p, P_N2DA, s))
+                lo_slot(t, t->p[P_N2DA + 2u * s], t->p[P_N2AA + 2u * s], env_pv[k][1], 1);
+#endif
+        }
+    }
+    return lfo_ov.n;
+}
+static __attribute__((noinline)) void lfo_seq_out(void) { lfo_over_out(); }
+/* any part's slot may act on a value the sequencer reads (every LC_SEQ is past LT_E1FLT): one compare a DEST, inline
+ * (the idle mix: lfo_seq_in's call and walk cost 9 instructions a sample) */
+AINL uint32_t lfo_seq_any(void)
+{
+    uint32_t k, a = 0;
+    for (k = 0; k < NPART; k++) {
+        const int16_t *p = trk[k].p;
+        a |= (uint32_t)(p[P_L1DA] >= LT_E1FLT) | (uint32_t)(p[P_L1DB] >= LT_E1FLT) | (uint32_t)(p[P_L2DA] >= LT_E1FLT) |
+             (uint32_t)(p[P_L2DB] >= LT_E1FLT);
+#if FELUCCA_ANALOG2
+        a |= (uint32_t)(p[P_N2DA] >= LT_E1FLT) | (uint32_t)(p[P_N2DB] >= LT_E1FLT);
+#endif
+    }
+    return a;
 }
 
 static HOT void track_lfo_tick(track_t *t)
@@ -1174,7 +1281,7 @@ static __attribute__((noinline)) void env_plan(const track_t *t, env_plan_t *pl)
     pl->am[0][EA_AMP] = ENV_AMP_FULL;
     pl->am[0][EA_FLT] = (int16_t)(2 * p[P_ED_FLT]);
     pl->am[0][EA_SHP] = (int16_t)(2 * p[P_ED_SHP]);
-    pl->am[0][EA_PIT] = (int16_t)(2 * p[P_E1PIT]);
+    pl->am[0][EA_PIT] = p[P_E1PIT];                     /* (its card's value: the pitch curve's AMT) */
     pl->xv = pl->am[0][EA_PIT] != 0;
     for (k = 0; k < 4u; k++) {                          /* (the engine's move cards: P_E1X P_E1Y P_E1Z) */
         uint32_t c = env1_card(e, k), id = P_COUNT;
@@ -1200,7 +1307,7 @@ static __attribute__((noinline)) void env_plan(const track_t *t, env_plan_t *pl)
             pl->xv = 1;
         } else if (LT_TAB[d][2] == LC_VAL && pl->nmv < ENV_NMV) {
             pl->mv_src[pl->nmv] = 1, pl->mv_d[pl->nmv] = (uint8_t)d, pl->mv_a[pl->nmv++] = (int16_t)a;
-        } else if (LT_TAB[d][2] == LC_PART) {
+        } else if (LT_TAB[d][2] >= LC_PART) {           /* (LC_SEQ too: lfo_seq_in reads the newest voice's) */
             pl->pv = 1;
         }
     }
@@ -1290,7 +1397,7 @@ AINL int32_t env_gain(int32_t e, int32_t a)
 
 typedef struct {
     int32_t amp;                                        /* the voice's gain (Q15, before its velocity) */
-    int32_t pit;                                        /* added to the pitch (1/16 semitone) */
+    int32_t pit;                                        /* added to the pitch (1/4096 semitone) */
     uint32_t sc;                                        /* amv holds this voice's AMTs (an E1 AMT / E2 AMT slot) */
     int16_t amv[2][EA_N];
     uint32_t nsw;                                       /* values written over for this voice (put back after it) */
@@ -1324,12 +1431,12 @@ static __attribute__((noinline)) void env_post(track_t *t, voice_t *v, const env
         env_pv[(uint32_t)(t - trk) % NPART][1] = (int16_t)env2;
     }
     o->amp = amp;
-    o->pit = (((env * am[0][EA_PIT]) >> 8) >> 5) + (((env2 * am[1][EA_PIT]) >> 8) >> 5);   /* (+-31.5 at full: ENV2's of before) */
+    o->pit = pit_mul(env, am[0][EA_PIT]) + pit_mul(env2, am[1][EA_PIT]);   /* (core.h pit_depth: the pitch curve) */
     m->cutoff = lm->m[1] + ((env * am[0][EA_FLT]) >> 8) + ((env2 * am[1][EA_FLT]) >> 8);
     m->shape = (64 << 8) + lm->m[2] + ((env * am[0][EA_SHP]) >> 8);
     if (am[1][EA_SHP])                                  /* (ENV2's SHP: clamped, as eng_analog2.c had it) */
         m->shape = clamp(m->shape + ((env2 * am[1][EA_SHP]) >> 8), 0, 127 << 8);
-    m->os2 = lm->m[3] + ((((env * am[0][EA_OSC2]) >> 8) + ((env2 * am[1][EA_OSC2]) >> 8)) >> 5);
+    m->os2 = lm->m[3] + ((pit_mul(env, am[0][EA_OSC2]) + pit_mul(env2, am[1][EA_OSC2])) >> 8);
     m->sdt = lm->m[4] + ((((env * am[0][EA_SDTN]) >> 8) + ((env2 * am[1][EA_SDTN]) >> 8)) >> 8);
 }
 /* voice v's values written over by env_pre back (after its render) */
@@ -1446,9 +1553,9 @@ static HOT uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
             continue;                                   /* held at a silent sustain (SUS 0): nothing to render */
         }
         {   /* the pitch in 1/4096 semitone: glide, LFO, the pitch drop, the envelopes; the fraction goes into the increment */
-            int32_t q = (v->pitch_cur << 8) + v->pitch_frac + ((v->penv * p[P_ED_PIT] * 3) >> 7) + lm.m[0] + midi;
-            if (pl.slow)                                /* (the envelopes' PIT: whole 1/16 semitones, env_post) */
-                q += vo.pit << 8;
+            int32_t q = (v->pitch_cur << 8) + v->pitch_frac + pit_mul(v->penv, p[P_ED_PIT]) + lm.m[0] + midi;
+            if (pl.slow)                                /* (the envelopes' PIT, env_post) */
+                q += vo.pit;
             /* FM6's own pitch offset, without the MIDI bend / wheel: FM6 takes the controllers through
              * fm6_midi_expr (its DX7 bend range and wheel routing, as Melodee and Dexed) */
             m.plog = (int32_t)(((int64_t)(q - midi - (v->pitch16 << 8)) * 1398101) >> 12) + v->fine * 5909;   /* -> Q24 */

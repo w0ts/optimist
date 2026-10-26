@@ -12,6 +12,11 @@
  *             clamped), the authored values back after; RES: the engine's EDIT value named RES / RESO / Q
  *   cross     XRATE: the other LFO's free RATE moved (a synced one stays), XAMT: its AMTs x 0..2; both LFOs on
  *             each other for 2000 blocks: every value in range, the authored ones untouched (no runaway)
+ *   pitch     (issue 75) the pitch curve: |AMT| 1..32 a 32nd of a semitone a step, 33..55 a semitone a step, 24 past
+ *   every     (issue 75) every value on a synth track's pages a destination (LT_E1FLT ..): each one this build has moves
+ *             for the block (an ON / OFF turns), authored back; each named, <= 6 characters
+ *   seq       (issue 75) an LFO on LEN: the pattern plays longer (the sequencer's block: lfo_seq_in), LEN authored
+ *             after; lo_base gives the automation the authored value under a move
  *   macros    (MACROS) MOTION gives LFO's FLT depth as before, with or without a slot on FLT
  *   events    an old lock / motion on a depth: onto the slot on it (AMT units), else onto a slot that does nothing
  * Exit status: the number of failed checks. */
@@ -122,11 +127,12 @@ static void t_sound(void)
             lfo = (int32_t)(w * 1031u % 65535u) - 32767;
             o = (lfo_mod_t){{0, 0, 0}, -1, -1};
             lfo1_voices(t, lfo, &o);
-            ok &= o.m[0] == ((lfo * dd[0] * 3) >> 7) && o.m[1] == ((lfo * dd[1]) >> 7) && o.m[2] == 0;
+            ok &= o.m[0] == pit_mul(lfo, 2 * dd[0]) && o.m[1] == ((lfo * dd[1]) >> 7) && o.m[2] == 0;
             ok &= dd[3] ? o.g1 == 32767 - mulq15((lfo + 32768) >> 1, dd[3] * 258) : o.g1 < 0;
         }
     }
-    check(ok, "sound: up to two depths as slots: the pitch, cutoff, shape terms and the gain of before, exactly");
+    check(ok, "sound: up to two depths as slots: the cutoff, shape terms and the gain of before exactly, the pitch on its "
+              "curve (core.h pit_depth, issue 75)");
     init();
     host_preset(t, 0, 3);                              /* (ANALOG: a preset with LFO FLT of before, x[]) */
     {
@@ -441,6 +447,126 @@ static void t_ins_names(void)
     check(!strcmp(b, "S1 --"), "ins names: the selected track's slots, not another's");
 }
 
+static void t_pitch(void)
+{
+    static const int32_t A[][2] = {{0, 0}, {1, 128}, {16, 2048}, {32, 4096}, {33, 2 * 4096}, {40, 9 * 4096},
+                                   {55, 24 * 4096}, {127, 24 * 4096}, {-1, -128}, {-33, -2 * 4096}, {-128, -24 * 4096}};
+    uint32_t i, ok = 1;
+    for (i = 0; i < sizeof A / sizeof A[0]; i++)
+        ok &= pit_depth(A[i][0]) == A[i][1];
+    for (i = 0; i <= 128u; i++) {                      /* (at full: the depth, less than 1/80 of a semitone short) */
+        int32_t x = pit_mul(32767, (int32_t)i), y = pit_mul(-32767, (int32_t)i);
+        ok &= x <= pit_depth((int32_t)i) && x >= pit_depth((int32_t)i) - 48 && y <= -x && y >= -x - 1;
+    }
+    check(ok, "pitch: the curve, a 32nd of a semitone a step to 32, then a semitone a step to 24 (55), held after");
+}
+static void t_every(void)
+{
+    track_t *t = &trk[0];
+    int16_t keep[P_COUNT];
+    uint32_t d, n = 0, ok = 1, named = 1, nseq = 0;
+    char b[16];
+    init();
+    host_preset(t, 0, 0);
+    t->engine = t->eng_req, t->pold = 0;
+    for (d = LT_E1FLT; d < LT_N; d++) {
+        uint32_t id = LT_TAB[d][1], sl = id >= P_L1DA && id <= P_L1AB ? P_L2DA : P_L1DA;
+        const param_desc_t *ds = &TP[id];
+        named &= N_LT[d] && strlen(N_LT[d]) <= 6u;
+        if (LT_TAB[d][0] != LK_P)
+            continue;
+        init();
+        host_preset(t, 0, 0);
+        t->engine = t->eng_req, t->pold = 0;
+        t->p[id] = (int16_t)ds->min;                   /* (from the bottom: up at full) */
+        t->p[sl] = (int16_t)d, t->p[sl + 1u] = 127;
+        memcpy(keep, t->p, sizeof keep);
+        bracket(32767, 32767);
+        if (LT_TAB[d][2] == LC_SEQ) {                  /* (the sequencer's: around events_block, not the mix) */
+            ok &= in_v[id] == ds->min;
+            if (lfo_seq_in())
+                memcpy(in_v, t->p, sizeof in_v), lfo_seq_out();
+            nseq++;
+        }
+        if (in_v[id] <= ds->min || memcmp(keep, t->p, sizeof keep)) {
+            printf("     %s (id %u) not moved: %d\n", N_LT[d], (unsigned)id, in_v[id]);
+            ok = 0;
+        }
+        n++;
+    }
+    dest_text(&TP[P_L1DA], LT_GLIDE, b);
+    check(named && !strcmp(b, "GLIDE"), "every: each destination named, <= 6 characters");
+    check(ok && n > 50u && nseq > 20u, "every: each value on a synth track's pages this build has moves for the block, authored "
+                                       "back; the sequencer's (LC_SEQ) around its block (lfo_seq_in), not the mix's");
+}
+
+/* the notes track 0's voices start over n blocks of the sequencer playing */
+static uint32_t seq_notes(uint32_t n, uint8_t *out, uint32_t max)
+{
+    uint32_t got = 0, last = vage, i, b;
+    int32_t o[CTL * 2];
+    for (b = 0; b < n; b++) {
+        mix_block(o, CTL);
+        if (vage != last) {
+            for (i = 0; i < NVOICE; i++)
+                if (trk[0].v[i].age > last && got < max)
+                    out[got++] = trk[0].v[i].note;
+            last = vage;
+        }
+    }
+    return got;
+}
+static void t_seq(void)
+{
+    track_t *t = &trk[0];
+    uint8_t a[64], b[64];
+    uint32_t i, na, nb, inord = 0, same = 1;
+    for (i = 0; i < 2u; i++) {                         /* (0: no LFO, 1: LFO SQR on TRANS) */
+        uint32_t k;
+        seq_stop();
+        transport_req = 0;
+        for (k = 0; k < NTRK; k++)                     /* (as backports_test.c's reset) */
+            memset(trk[k].v, 0, sizeof trk[k].v), trk[k].seq_n = 0, trk[k].seq_hold = 0;
+        init();
+        for (k = 0; k < NTRK; k++)
+            steps_clear(&trk[k]);
+        memset(&drums, 0, sizeof drums);
+        drums_set = -2;
+        host_preset(t, 0, 7);
+        t->engine = t->eng_req, t->pold = 0;
+        steps_clear(t);
+        song.g[G_BPM] = 120, song.rec = 0;              /* (as backports_test.c's reset) */
+        fm1_in.notes = fm1_in.buttons = 0;
+        t->p[P_SLEN] = 4, t->p[P_TRANS] = 0, t->p[P_VOICE] = V_POLY;   /* (POLY: a voice a step) */
+        put_step(t, 0, 1, (const uint8_t[]){60}, ST_NOTE, 0);
+        put_step(t, 1, 1, (const uint8_t[]){62}, ST_NOTE, 0);
+        put_step(t, 2, 1, (const uint8_t[]){64}, ST_NOTE, 0);
+        put_step(t, 3, 1, (const uint8_t[]){65}, ST_NOTE, 0);
+        t->p[P_LRATE] = 20, t->p[P_LWAVE] = 3;
+        t->p[P_L1DA] = (int16_t)(i ? LT_SLEN : LT_OFF), t->p[P_L1AA] = 127;   /* (SQR at +1: LEN 4 + 7) */
+        transport_req = 1;
+        if (i)
+            nb = seq_notes(2000, b, 64);
+        else
+            na = seq_notes(2000, a, 64);
+    }
+    for (i = 0; i < na; i++)
+        same &= a[i] == (uint8_t[]){60, 62, 64, 65}[i % 4u];
+    for (i = 0; i < nb; i++)
+        inord += b[i] == (uint8_t[]){60, 62, 64, 65}[i % 4u];
+    seq_stop();
+    transport_req = 0;
+    printf("     seq: LEN 4: %u notes; LEN under an LFO (4 + 7): %u\n", (unsigned)na, (unsigned)nb);
+    check(na >= 8u && same && nb > 0u && nb * 2u < na && inord == nb && t->p[P_SLEN] == 4,
+          "seq: an LFO on LEN: the pattern plays longer (the sequencer's block: lfo_seq_in), LEN authored after");
+    lfo_ov.n = 0;
+    t->p[P_TRANS] = 0;
+    lo_put(t, P_TRANS, 5);
+    check(lo_base(0, P_TRANS, t->p[P_TRANS]) == 0 && lo_base(0, P_ROOT, 3) == 3, "seq: lo_base: the authored value under a move");
+    lfo_over_out();
+    check(t->p[P_TRANS] == 0, "seq: ... put back");
+}
+
 int main(void)
 {
     t_depths();
@@ -450,6 +576,9 @@ int main(void)
     t_names();
     t_ins_names();
     t_cross();
+    t_pitch();
+    t_every();
+    t_seq();
 #if FELUCCA_MACROS
     t_macros();
 #endif
