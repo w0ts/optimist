@@ -1312,6 +1312,8 @@ job; ( jobin   # the SD card (SDCARD): ChaN's driver + Petit FatFs on a card mod
 # every write, a stalled host, the keep-alive; then the Optimist UI's whole run through the encoder, the decoded screen its own
 job; ( jobin
     $CC -O2 -w -o "$OUT/mirror_test" tests/mirror_test.c
+    $CC -O2 -w -DMBR_PROJ=1 -o "$OUT/mirror_proj_test" tests/mirror_test.c
+    run "the projects' moves over Bluetooth (BT_PROJ): the backup's commands and PJ_OP queued, a BK_DATA chunk in its own slot" "$OUT/mirror_proj_test"
     run "the screen mirrored, USB and Bluetooth: 3000 random writes decoded to the same panel, long runs, a stalled host falls behind and catches up, the Bluetooth request, a slow radio, the ring overflowing, the keep-alive, a muted write not sent, the meters over USB only" "$OUT/mirror_test"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -DMIRROR_CHECK -o "$OUT/ui_optimist_mirror_test" tests/ui_optimist_test.c -lm
     mkdir -p "$OUT/optimist_mirror"

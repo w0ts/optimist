@@ -644,6 +644,9 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #endif
 #define PROJ_SLOTS (FELUCCA_LAYOUT == 1 ? 1u : 16u)   /* the projects the flash keeps (PATTERNS): the fake SD mode one, the
                                             * others kept by the web app or the iOS app over USB (the user, 2026-10-25) */
+#ifndef FELUCCA_BT_PROJ
+#define FELUCCA_BT_PROJ 0                  /* the projects' moves over Bluetooth too (io/editor/ed_mirror.c MBR_PROJ) */
+#endif
 #ifndef FELUCCA_FAR_OK
 #define FELUCCA_FAR_OK 0                   /* the far probe passed: the code may use the fake SD mode's whole slot (tools/build.py,
                                             * tools/flash_layout.py code_limit; the build only, nothing in C) */

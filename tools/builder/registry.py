@@ -1062,6 +1062,15 @@ _add("ARENA", "FELUCCA_ARENA_KB", "memory per project (an arena for the engines 
           "a MEM FULL message once; a change to WAVE without room for its table is refused as an engine change). Off: every memory reserved as before, nothing ever refused. About 2 KB of flash and 256 B of RAM (the "
           "default profile, measured 2026-10-25); the room is the size chosen, against the engines' and lines' fixed "
           "memories it replaces.")
+# bit 414 (2026-10-26): the next free one after FAR_OK's 413; the fm-1 session's handover (projects off the device)
+_add("BT_PROJ", "FELUCCA_BT_PROJ", "projects to and from the phone over Bluetooth", Y, 414, default=0,
+     parent="EDITOR", experimental=True, tested="host-tested only (tests/mirror_test.c); no client sends it yet",
+     desc="The web editor's and the phone's project moves (a project read from the FM-1, or one written into it: the "
+          "backup's project streams and the project command) over Bluetooth MIDI too, not only over the USB cable, so "
+          "with one project on the FM-1 the phone keeps the others without a cable. Over Bluetooth a project moves at "
+          "the link's few KB a second (a dense project in a few seconds). About 640 B of the pool (a request's room for "
+          "the stream's chunks).",
+     off_warning="projects move over the USB cable only")
 # bit 413 (2026-10-25): the next free one after OVERLAY's 412; the big slot only once the far probe answered on the FM-1
 _add("FAR_OK", "FELUCCA_FAR_OK", "the far probe passed on this FM-1: use the fake SD mode's whole flash", Y, 413, default=0,
      experimental=True, target_only=True, tested="needs the far probe's ok on the FM-1 it is installed on",
