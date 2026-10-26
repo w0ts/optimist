@@ -22,7 +22,10 @@ breakout will tell; then the lines are re-routed.
 - **Single-sided sockets** (the user): a cable turned over must not connect, not connect mirrored (with the provisional
   map a flipped cable puts the backlight's LEDA on CLK, 3V3 on the LCD's CS, RST on MOSI). J3 = top-contact (the LCD's
   own cable arrives gold up, checked); J2's face is what the breakout's mirror check answers, picked then. The
-  double-sided HCTL part goes.
+  double-sided HCTL part goes. Parts found (2026-10-26, LCSC; footprints in `lib/`): **J3 = XUNPU
+  FPC-0.5AS-10PWBH20, C3446068**: 10P 0.5 mm, top contact only, right angle, SMT, a slide lock (no top-contact flip
+  lock in stock); **J2 if bottom contact = XUNPU FPC-05F-10PH20, C2856798** (bottom contact, flip lock); a top-contact
+  J2 would be C3446068 too.
 - **On the breakout, before routing** (the pin finder's session): every pin's line; LEDA's voltage; and the 3.3 V's
   headroom: 33 Ohm (100 mA) from J12's 3V3 to GND with the FM-1 running, the rail and the screen watched. If it sags,
   a Y-tap on the battery plug (right beside the board) into an LDO on the board feeds the card instead.
@@ -34,7 +37,9 @@ breakout will tell; then the lines are re-routed.
   the timing); `sd bench`'s 20 MHz rows decide. With the card deselected at idle, the only D/C overlap left is inside
   a deselect, under half a microsecond (22 mA at 100 Ohm, 34 mA at 47).
 - **J3 a few mm lower** if the head allows: the LCD's bonded flex should not sit under tension for life.
-- ESD protection at the card socket: two USBLC6-2SC6 (C7519) on CLK, CMD, CS, DAT0 (the slot is open to the outside).
+- ESD protection at the card socket: **one** USBLC6-2SC6 (C7519, SOT-23-6, footprint in `lib/`): its four I/O lines
+  are exactly CLK, CMD, CS and DAT0, its VBUS pin on 3V3, GND on the pour (the slot is open to the outside).
+- R1 and the CLK / MOSI series resistors: 100 Ohm 0603, C22775 (JLC basic).
 - **The column** (the user, 2026-10-25 review; `make_board.py` LANE / UP / COL_L, the via list): today five lanes side
   by side for ~35 mm at 0.65 mm pitch, MISO next to CLK (the worst pairing: CLK's edge couples into MISO when the chip
   samples it), no pour between the lanes, one stitching via near the top. Re-route:
