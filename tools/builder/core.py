@@ -584,12 +584,15 @@ WAVE_MEM = 16 * 2032 * 2 + 2 * 1024 * 4   # eng_wave.c WT_MEM_BYTES: the table's
 # the X0X machines' states on the FM-1 (x0x_drums.c x909 x808; build/sizes.json of the default profile, 2026-10-25): the
 # 909's 5,344 B with its 6-bit samples (X909_CYM or X909_HAT 2: a field more in each of its 4 sample voices), 5,328 without
 X909_STATE, X808_STATE = (5328, 5344), 3376
+# FM6's sine table (eng_fm6.c FM6_SIN[1025], int32: 4,100 B; in the arena while a part plays FM6, 2026-10-26): what the
+# pool gives back without it, 4,096 B (its packing; measured 2026-10-26 on sd-card-mots and the reference profile)
+FM6_SIN = 4096
 
 
 def arena_bufs(cfg):
     """-> {name: bytes} the other buffers the arena holds only while a project uses them (core/arena_bufs.c; in the
     pool, static, without ARENA): each track's SLICER recording, WAVE's table, the X0X machines' states, the punch's
-    ring (held while the project's PUNCH switch is on)"""
+    ring (held while the project's PUNCH switch is on), FM6's sine table (while a part plays FM6)"""
     f, _ = flags(cfg)
 
     def on(key):
@@ -598,7 +601,8 @@ def arena_bufs(cfg):
            "WAVE's table": WAVE_MEM if built(cfg, "ENG_WAVE") else 0,
            "the X0X 909's state": X909_STATE[on("X909_CYM") == 2 or on("X909_HAT") == 2] if built(cfg, "DRUM_X0X909") else 0,
            "the X0X 808's state": X808_STATE if built(cfg, "DRUM_X0X808") else 0,
-           "the PUNCH ring": 2 * on("PUNCH_N") if built(cfg, "FX_PUNCH") else 0}
+           "the PUNCH ring": 2 * on("PUNCH_N") if built(cfg, "FX_PUNCH") else 0,
+           "FM6's sine table": FM6_SIN if built(cfg, "ENG_FM6") else 0}
     return {k: v for k, v in out.items() if v}
 
 

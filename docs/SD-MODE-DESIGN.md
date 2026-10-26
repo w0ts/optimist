@@ -260,6 +260,7 @@ blocks of the arena too, held only while the project uses their feature, placed 
 | WAVE's table: its copies and the frame builder's scratch (`eng_wave.c wt_mip wt_fr wt_fi`, `ENG_WAVE`) | 73,216 | a part plays WAVE (or is switching to it) | the change to WAVE refused as any engine's: the drop proposal, parts first, then the effects; on a load the list page (the table its need) (the night's ruling, 2026-10-25); only if it is lost after that: silent, MEM FULL WAVE |
 | the X0X 909's / 808's state (`x0x_drums.c x0x_mem`, `DRUM_X0X909` / `808`) | 5,344 / 3,376 | the kit or a lane plays the machine, or one of its voices sounds | its hits play the stand-in kit (as the notes the machine lacks) |
 | the ROOM's diffusers (`fx.c rev_ap`, `REV_ROOM`) | 1,994 | in the reverb's block, after its line (fx_arena.c) | as the reverb |
+| FM6's sine table (`eng_fm6.c FM6_SIN`, `ENG_FM6`; 2026-10-26) | 4,100 | a part plays FM6 or is switching to it (set aside with the part's own memory) | the change to FM6 refused as any engine's (the drop proposal); only if lost after that: FM6 silent, MEM FULL FM6 |
 | the PUNCH ring (`punch.c punch_ring`, `FX_PUNCH`; 2026-10-26) | PUNCH_N x 2 (32,768 / 65,536) | the project's PUNCH switch is on (GLOBAL > Rec), or an effect still fades out | the punch bypassed (the mix as it is), MEM FULL PUNCH once; FX + a key: let go |
 
 - The main loop only (`arb_poll`, every pass after `fxm_poll`): placed (the interrupts off), zeroed, the feature's state
@@ -269,8 +270,7 @@ blocks of the arena too, held only while the project uses their feature, placed 
   `arb_said`), placed by itself once there is room (tried every pass, never while a part's refused change waits or the
   lines are being moved), the largest first. A part's change refused while one of them is on its way back waits for it
   (`fxm_pending`). They are never proposed to drop.
-- Left static (no gain): FM6's sine table (4,100 B, every FM6 part reads it, built
-  at boot); the screen canvas, USB's and Bluetooth's rings, the storage buffers, the undo ring (every project); the
+- Left static (no gain): the screen canvas, USB's and Bluetooth's rings, the storage buffers, the undo ring (every project); the
   reverbs' small state (`rv`, `rvj`: a few hundred bytes, in main RAM, read every block).
 - Default profile (`synths_USBaudio_BTaudio_BTmidi`, measured 2026-10-25): ARENA off: the image identical but its build
   time. ARENA 96: flash +852 B, RAM +104 B, pool -8,720 B (the X0X machines) against ARENA 96 before; against the
@@ -334,6 +334,24 @@ build gains nothing from it: the ring is in its pool either way).
 - Tests: `tests/arena_bufs_test.c` (off: no ring, FX + a key let go, PUNCH OFF; on: placed, recorded, REVERSE plays;
   off while it plays: kept until faded out, then given back), `tests/placeholder_test.c` (the extras' build: the bit
   through a save and a load, an older project off).
+
+**FM6's sine table (3b, 2026-10-26; an extra).** `eng_fm6.c FM6_SIN` (1,025 x int32, built at boot until now) is the
+arena buffer `ARB_FM6SIN` with the extras: held while a part plays FM6, is switching to it or fades out of it; placed by
+the main loop, built there (`fm6_sin_fill`, the interrupts on) before its pointer is set; not there, FM6 is silent
+(`fm6_block` skips the controllers and the LFO, `fm6_render` writes nothing: as WAVE while its table is built). WAVE's
+table's handling made general (`engines.c part_tab_k`, `part_tab_bytes`, `part_mem_aside`): a change to FM6 sets the
+table aside with the part's own memory when no block holds it, and is refused as any engine change when the two do not
+fit (`part_mem_frees`: a part proposed first when its block makes room for both); the load's list counts one table for
+all the parts of an engine. An extra, not the core: the buffer's placement is the extras' code (`arb_poll`), and the
+core alone is already over the reference profile's slot; for a normal build it would give 4 KB of pool back to the undo
+history (a later step if a flash round pays for it).
+- Measured (2026-10-26): `sd-card-mots` ARENA 96: flash 751,012 (+528), RAM 107,000 (+40), pool 275,864 (-4,096: the
+  pool's packing of the 4,100 B array); the reference profile, a measurement build with ARENA 96 and the extras: flash
+  588,740 (+520), pool 273,312 (-4,096). The builder's estimate (`core.py arena_bufs`, `FM6_SIN`) gives the pool to the
+  byte on `sd-card-mots`.
+- Tests: `tests/arena_bufs_test.c` (no part on FM6: no table; FM6 picked: set aside with the part's memory, placed,
+  built as the boot's, heard; the tests' arenas grown by the table's 4,104 B), `tests/fx_arena_test.c` (the random
+  switches 30,000: the loads' lists rarer with the table).
 
 ## 7. Phases
 

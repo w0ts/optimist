@@ -8,6 +8,9 @@
  *     wt_fr wt_fi), while a track plays WAVE;
  *   - ARB_X909 / ARB_X808 (DRUM_X0X909 / DRUM_X0X808): the X0X machine's state (drums/x0x x0x_mem), while the kit or a
  *     lane plays the machine, or one of its voices still sounds;
+ *   - ARB_FM6SIN (ENG_FM6): FM6's sine table (eng_fm6.c FM6_SIN, 4,100 B), built here before its pointer is set
+ *     (arb_fill), while a part plays FM6 or is switching to it (set aside with the part's own memory: engines.c
+ *     part_mem_aside, as WAVE's table);
  *   - ARB_PUNCH (FELUCCA_PUNCH_SW): the punch-in FX's ring of the mix (fx/punch/punch.c), while the project's PUNCH switch
  *     is on (GLOBAL > Rec; a punch needs the past, so the ring records from the switch on, not from the key), or an
  *     effect still fades out. FX + a key while it is not placed: let go, PUNCH OFF said (the switch off; refused: the
@@ -63,6 +66,10 @@ static uint32_t arb_bytes(uint32_t c)                   /* client c's block */
     if (c == (uint32_t)ARB_PUNCH)
         return (uint32_t)FELUCCA_PUNCH_N * 2u;
 #endif
+#if FELUCCA_ENG_FM6
+    if (c == (uint32_t)ARB_FM6SIN)
+        return FM6_SIN_BYTES;
+#endif
     (void)c;
     return 0;
 }
@@ -117,6 +124,15 @@ static uint32_t arb_want(uint32_t c)                    /* client c's feature is
     if (c == (uint32_t)ARB_PUNCH)
         return punch_used();
 #endif
+#if FELUCCA_ENG_FM6
+    if (c == (uint32_t)ARB_FM6SIN) {                    /* (a part on FM6, switching to it, or fading out of it) */
+        uint32_t k;
+        for (k = 0; k < NPART; k++)
+            if (trk[k].eng_req == (uint8_t)ENG_SLOT_FM6 || trk[k].engine == (uint8_t)ENG_SLOT_FM6)
+                return 1;
+        return 0;
+    }
+#endif
     (void)c;
     return 0;
 }
@@ -156,11 +172,19 @@ static void arb_set(uint32_t c, void *p)
     if (c == (uint32_t)ARB_PUNCH)
         punch_mem(p);
 #endif
+#if FELUCCA_ENG_FM6
+    if (c == (uint32_t)ARB_FM6SIN)
+        FM6_SIN = (int32_t *)p;                         /* (built before: arb_open) */
+#endif
     fm1_irq_on();
 }
-static void arb_open(uint32_t c, void *p)               /* client c placed at p: zeroed, then in use */
+static void arb_open(uint32_t c, void *p)               /* client c placed at p: zeroed (or built), then in use */
 {
     memset(p, 0, arb_bytes(c));
+#if FELUCCA_ENG_FM6
+    if (c == (uint32_t)ARB_FM6SIN)
+        fm6_sin_fill((int32_t *)p);                     /* (the main loop, the interrupts on: about 1,000 steps) */
+#endif
     arb_set(c, p);
     arb_st[c] = FXM_ON;
     arb_full &= ~(1u << c);
@@ -279,6 +303,10 @@ static const char *arb_said(void)
 #if FELUCCA_PUNCH_SW
         if (c == (uint32_t)ARB_PUNCH)
             return "MEM FULL PUNCH";
+#endif
+#if FELUCCA_ENG_FM6
+        if (c == (uint32_t)ARB_FM6SIN)
+            return "MEM FULL FM6";
 #endif
         return "MEM FULL X0X";
     }
