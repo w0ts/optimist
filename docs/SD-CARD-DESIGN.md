@@ -207,12 +207,15 @@ a register round trip, the CPU busy the whole block, roughly 1 MB/s. `sd bench` 
 |---|---|
 | `hal/fm1_sd_bus.h` | the bus: select / deselect through the LCD's CS, byte in / out (three modes), clocks |
 | `src/storage/sd/sd_mmc.c` | ChaN's SPI-mode card driver (Petit FatFs `generic/mmcbbp.c`): MMCv3, SDv1, SDv2 byte or block addressed; the waits timed on TIMER4; the CSD read for the capacity. Added: the polled block reader `sd_rd_*` (CMD17, CMD18 stopped by CMD12), `disk_readblocks`, `disk_writeblock` (CMD24), the CRC16; a whole sector into an aligned buffer by DMA in `disk_readp`. CRCs on (2026-10-25 review): every command's real CRC7 and CMD59, so the card refuses a garbled command (a stray CMD12 on DI during a CMD18 run among them); every block written carries its CRC16; every block read is checked (`SD_RD_CRC` 1, a 32-byte nibble table) |
-| `src/storage/sd/pff.c`, `pff.h`, `pffconf.h`, `diskio.h` | Petit FatFs R0.03a (ChaN, 1-clause BSD: `LICENSES/BSD-1-Clause-FatFs.txt`), its own compile unit (`tools/build.py`); configured: read, write, seek, directories, FAT16 + FAT32 |
+| `src/storage/sd/pff.c`, `pff.h`, `pffconf.h`, `diskio.h` | Petit FatFs R0.03a (ChaN, 1-clause BSD: `LICENSES/BSD-1-Clause-FatFs.txt`), its own compile unit (`tools/build.py`); configured: read, write, seek, directories, FAT16 + FAT32. Every build but the big layout's (the bring-up) |
+| `src/storage/sd/fatfs/` | full FatFs R0.16 (ChaN, the same licence), the big layout's (LAYOUT 1 + FAR_OK: `FELUCCA_SD_FATFS`), its own units: long names in UTF-8 (one static buffer), code page 437 for the aliases, `f_expand`, fast seek, `FF_FS_TINY`, exFAT off (`ffconf.h` says what differs from R0.16: ffunicode.c without its DBCS tables, an `f_expand` fix, `f_unlink_entry`, `ff_string.h` for the freestanding build) |
+| `src/storage/sd/sd_diskio.c` | FatFs' disk layer over `sd_mmc.c`: CMD18 runs with every CRC16 checked (and the auto clock's retry), DMA into aligned buffers only, a bus session per read or write (so FatFs is called directly), a card that fails fails every later call at once; `get_fattime` a placeholder date; `sd_map_run`: a file's contiguous runs from its link map |
+| `src/storage/sd/sd_layout.c`, `sd_hash.c`, `sd_alloc.c`, `sd_index.c`, `sd_browse.c`, `sd_save.c` | the card's layout of section 8 (big layout only; host-tested, `tests/sd_layout_test.c`; no UI calls them yet) |
 | `src/storage/sd/sdcard.c` | the API the rest calls (`sd_mount`, `sd_open`, `sd_read`, `sd_write`, `sd_seek`, `sd_opendir`, `sd_readdir`), each call taking and giving back the bus |
 | `src/io/console_sd.c` | the `sd` commands (console builds only; included by `src/io/console.c`) |
-| `tests/sd_test.c` | the host test: a byte-level card model on FAT16 / FAT32 images from a real formatter (`tests/fixtures/sd/make_images.sh`) |
+| `tests/sd_card_model.h`, `sd_test.c`, `sd_fs_test.c`, `sd_layout_test.c` | the host tests: a byte-level card model (with power cuts) on FAT16 / FAT32 images from a real formatter (`tests/fixtures/sd/make_images.sh`): the driver and Petit FatFs; full FatFs; the card's layout |
 
-**Filesystem limits (Petit FatFs):** FAT16 and FAT32 only (exFAT would need full FatFs with long names, roughly 15-20 KB
+**Filesystem limits (Petit FatFs, every build but the big layout's):** FAT16 and FAT32 only (exFAT would need full FatFs with long names, roughly 15-20 KB
 of flash, *estimate*); 8.3 names (a long name shows as its alias, `LONGFI~1.TXT`); one open file at a time; files are
 never created or grown, a write stays inside the file's size and starts on a sector boundary. The way to use it:
 a computer makes fixed-size files (`BACKUP01.BIN`, `REC01.WAV`, ...), the FM-1 fills them.
@@ -220,6 +223,12 @@ a computer makes fixed-size files (`BACKUP01.BIN`, `REC01.WAV`, ...), the FM-1 f
 **Cost:** 5,032 B of flash, 20 B of RAM and 556 B of pool with the console (measured 2026-10-25 on the default
 profile with `USB_CONSOLE` instead of `USB_AUDIO`; the FATFS state and the console's sector buffer are in the pool).
 That build is 2,316 B over the app slot: a console + SD test build has to leave something out (the user's call).
+
+**Full FatFs (the big layout, 2026-10-26; local measurement builds of `sd-card-mots` + `SDCARD=1`, not gpufarm):** the
+mount only +1,000 B of flash, +516 B of RAM (the long name buffer), +524 B of pool against Petit FatFs; with the console
++7,076 B of flash (the console build then 764,508 of 765,696 B); FatFs' functions the layout uses all reached: +14,092 B
+over no SD at all; with the layout's modules reached too: +20,152 B (764,004 of 765,696: 1.7 KB left in that profile).
+The builder's pairs (`costs.json`) hold the first two until `measure_costs.py --missing` measures them.
 
 ## 6. Bring-up
 
@@ -388,5 +397,22 @@ Each step names who does it. Claude never writes to the FM-1.
 - **Sharing**: a project names its samples by hash, so the web / iOS app exports the project with exactly those files
   and an import puts them back under SAMPLES (whatever their names).
 
-Open: the hash (which 64-bit function), the views beyond recent / name / folder, and whether the FM-1 or the computer
-side creates the folders on a fresh card (the FM-1 can, with full FatFs).
+### Built (2026-10-26, host-tested only; nothing on the screen yet)
+
+- **The hash: XXH64** (`sd_hash.c`): 64 bits, a published specification and vectors (the test checks five), 88 B of
+  state; its speed does not matter (the card is the bottleneck). A WAV's hash is its `data` chunk's.
+- **The folders**: the FM-1 makes `OPTIMIST/` and its eight folders where missing (`sdl_prepare`, at a mount).
+- **The index** (`sd_index.c`): 256-byte records, a pass that hashes only new and changed files, `sdx_note_written`
+  for the FM-1's own writes, the recent view's use numbers; rewritten to `INDEX.TMP` and renamed.
+- **The 16-key pages** (`sd_browse.c`): views folder / by name / recent; the UI needs a page that draws `slot[0..n-1]`
+  (name, folder mark, cut mark), the page number of `pages`, the view; the knob `sdb_turn(+-1)`, a key `sdb_path` (or
+  `sdb_into` for a folder), a way up (`sdb_up`) and a view switch; every list (projects, samples, kits, presets) is a
+  folder view of its own folder.
+- **The save** (`sd_save.c`): as described above, with `sdp_keep` versions and the spare run; the FM-1 side still to
+  wire: the hooks (the staged copy in flash, the pending record in the settings' log) and `sdp_boot` after the boot's
+  mount. A cut rename (FatFs writes the new entry, then removes the old one) leaves one chain under two names: found by
+  the cut tests, completed by `sdl_move` / `sdp_dedupe` with `f_unlink_entry` (the entry only).
+- **The runs** (`sd_alloc.c`): by kind as above, `sda_scale` the setting; no run free: the bytes it needs, else refused.
+  A recording's continuation past its run (a new run) waits for the recorder.
+
+Open: the views beyond recent / name / folder.
