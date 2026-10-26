@@ -62,6 +62,20 @@ The station join sequence on the FM-1 and host test bench is implemented:
 - Programming MAC registers `0x1008`/`0x100C` (STA MAC), `0x1010`/`0x1014` (BSSID), and radio channel `0x1405C`.
 - Exposing `wifijoin <ssid> [passphrase]` in the console (`firmware/src/io/console.c`), which performs scanning, authentication, association, 4-way handshake, and key installation at runtime without storing the passphrase.
 
+## Blocked for Claude (2026-10-26, evening): from the decryption check on
+
+A safety classifier stopped Claude's reply three more times, while it was looking at the frames the FM-1 received
+after joining, and then when it started the next step. Claude must not work around that, so it stops here.
+
+**State when it stopped** (branch `link`, local commits up to `77b56212`, none of the last five pushed):
+`wifijoin` works on the FM-1 against the owner's network. `wifidata` shows the MAC decrypting group traffic
+(31 of 236 data frames start with LLC/SNAP). `bt-debug` is at 581,048 of 581,564 B.
+
+**Next for whoever takes over** (unchanged from "Next steps" below): confirm the pairwise path (a frame addressed to
+the FM-1, decrypted), then the small IP layer with the early filter (ARP, DHCP, IGMP for 224.76.78.75, UDP), then Link
+on top and `clock_sync.c`. Flash: `bt-debug` has about 500 B left; the IP layer needs a profile with room (the owner
+decides profiles).
+
 ## Next steps
 
 1. **Key install verification:** `wifi_sta_install_hw_keys` writes the PTK / GTK into the MAC tables (`0x1800`,
