@@ -38,6 +38,7 @@ static struct {
     uint8_t hdr_due;                                    /* the header's block goes first */
     uint8_t tail_sent;                                  /* the last partial block sent (zeros after the frames) */
     uint8_t full;                                       /* the run ended the take */
+    uint8_t news;                                       /* (the UI's, once: 1 the run ended a take, 2 the card failed) */
 } sdr;
 #define sdr_state sdr.state
 
@@ -129,6 +130,7 @@ static void sdr_fail(void)
     SD_SESSION_END();
     (void)f_close(&sdr_f);
     sdr.state = RC_ERR;
+    sdr.news = 2;
 }
 
 static void sdr_finish(uint8_t end)                     /* the write stopped: the header with the take's length */
@@ -142,6 +144,7 @@ static void sdr_finish(uint8_t end)                     /* the write stopped: th
     SD_SESSION_END();
     (void)f_close(&sdr_f);
     sdr.state = r == RES_OK ? end : RC_ERR;
+    sdr.news = sdr.state == RC_ERR ? 2u : end == RC_FULL ? 1u : 0u;
 }
 
 static int sdr_service(void)
@@ -203,3 +206,44 @@ static int sdr_service(void)
     sdr.sent++;
     return 1;
 }
+
+#ifdef SDL_ROOT                                         /* (the card's layout: sd_layout.c; the device's build) */
+/* a take into OPTIMIST/RECORD/REC-nnnn.WAV, the first free name (a minute's run, or ms); its name in sdr_file */
+static char sdr_file[16];
+static FRESULT sdr_start_next(uint32_t ms)
+{
+    char path[48];
+    FRESULT r = FR_EXIST;
+    uint32_t k;
+    if (sdr_busy())
+        return FR_LOCKED;
+    if (!sdl_path(path, sizeof path, SDL_RECORD, 0))
+        return FR_INVALID_NAME;
+    (void)f_mkdir(path);
+    for (k = 1; k < 10000u && r == FR_EXIST; k++) {
+        str_cpy(sdr_file, "REC-0000.WAV", sizeof sdr_file);
+        sdr_file[4] = (char)('0' + k / 1000u), sdr_file[5] = (char)('0' + k / 100u % 10u);
+        sdr_file[6] = (char)('0' + k / 10u % 10u), sdr_file[7] = (char)('0' + k % 10u);
+        if (!sdl_path(path, sizeof path, SDL_RECORD, sdr_file))
+            return FR_INVALID_NAME;
+        r = sdr_start(path, ms);
+    }
+    return r;
+}
+/* REC tapped then held (op_input.c), the console: a take started (1) or stopped (0); -1 refused (no card, a failure) */
+static int sdr_toggle(void)
+{
+    if (sdr_busy()) {
+        sdr_stop();
+        return 0;
+    }
+    return sdr_start_next(0) == FR_OK ? 1 : -1;      /* (no card, none mounted: FatFs says so) */
+}
+static const char *sdr_name(void) { return sdr_file; }
+static int sdr_news(void)                               /* once: 1 a take ended by its run, 2 the card failed; 0 none */
+{
+    int n = sdr.news;
+    sdr.news = 0;
+    return n;
+}
+#endif
