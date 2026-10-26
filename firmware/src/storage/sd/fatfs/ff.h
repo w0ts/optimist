@@ -334,6 +334,7 @@ FRESULT f_findfirst (DIR* dp, FILINFO* fno, const TCHAR* path, const TCHAR* patt
 FRESULT f_findnext (DIR* dp, FILINFO* fno);							/* Find next file */
 FRESULT f_mkdir (const TCHAR* path);								/* Create a sub directory */
 FRESULT f_unlink (const TCHAR* path);								/* Delete an existing file or directory */
+FRESULT f_unlink_entry (const TCHAR* path);						/* Optimist: an entry removed, its chain kept (a cut rename's other half) */
 FRESULT f_rename (const TCHAR* path_old, const TCHAR* path_new);	/* Rename/Move a file or directory */
 FRESULT f_stat (const TCHAR* path, FILINFO* fno);					/* Get file status */
 FRESULT f_chmod (const TCHAR* path, BYTE attr, BYTE mask);			/* Change attribute of a file/dir */

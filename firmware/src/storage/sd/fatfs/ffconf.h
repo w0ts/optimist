@@ -4,7 +4,8 @@
 /  8.3 aliases, fast seek (a file's cluster-link map) and f_expand (a file as one contiguous run), FF_FS_TINY (the files
 /  share the volume's sector buffer: 512 B less a file), exFAT off (cards over 32 GB reformatted FAT32), the timestamps
 /  from get_fattime (storage/sd/sd_diskio.c: no RTC, a placeholder date). ff.c: one fix (f_expand's search across
-/  the volume's end, tests/sd_fs_test.c expand_wrap) and <string.h> taken from ff_string.h on the FM-1 (freestanding:
+/  the volume's end, tests/sd_fs_test.c expand_wrap), one function added (f_unlink_entry: a rename a power cut left
+/  half done, tests/sd_layout_test.c save_cuts) and <string.h> taken from ff_string.h on the FM-1 (freestanding:
 /  no libc); otherwise R0.16 as is.
 /  Configurations of FatFs Module
 /---------------------------------------------------------------------------*/
