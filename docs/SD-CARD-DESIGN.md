@@ -559,6 +559,13 @@ checked: only the build time and the commit differ).
   (written whole), allocated exact (`SDA_EXACT`). A preset of an FM6 sound keeps its own voice too, the operator edits
   and all (`fm6_pack`'s 128 B after the record, as the flash slots' `UP_FM6`; a file of before loads its VOICE). Saved into the folder's top; loaded from any
   sub-folder.
+- **DX7 banks** (the FM6 collections; the user, 2026-10-26): a `.SYX` of 32 voices (4104 B, any case of the extension)
+  anywhere under `PRESETS/` is a folder of its voices in the PRESETS list, 16 a page (OCT for the second); a voice's
+  LOAD reads its 128 B from the file and puts it into the selected part's FM6 voice (`sd_mode.c sdm_dx7_*`,
+  `fm6_unpack`; the part on FM6 first when it plays another engine; refused like any engine change when memory is
+  short); HOME leaves the bank. Only the page's 16 names are in RAM; no received bank (FM6_SYSEX) is needed. A
+  voice kept with its edits goes into a preset (`.OPS`, above). Not yet: CZ tones on the card (they need a RAM slot
+  the CZ engine plays; the flash's U01..U26 are not in the big layout).
 
 **The UI** (`ui/optimist/op_sdcard.c`; docs/UI-OPTIMIST-DESIGN.md 4.14): PROJECT's rows PROJECT (the card's projects
 while a card is ready, else the flash slot with *No SD card: in flash*), PRESETS, KITS, SAMPLES; four small cards (PAGE,

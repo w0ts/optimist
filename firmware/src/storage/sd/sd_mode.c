@@ -40,6 +40,7 @@ typedef struct {
 } sdm_smp_t;
 _Static_assert(sizeof(sdm_smp_t) == 64u && sizeof(sdm_smp_t) * NPART <= SEC_REC_MAX, "sd_mode.c: a part's sample record");
 
+#define SDM_DX7 FELUCCA_ENG_FM6                      /* DX7 banks in PRESETS (below: the FM6 collections on the card) */
 #define SDM_KEEP_MAX 16u
 #define SDM_SCALE_MAX 16u                            /* (x 25 %: 400 %, sd_alloc.c's cap) */
 static sdm_rec_t sdm_rec;
@@ -55,6 +56,11 @@ static struct {
     uint8_t list, view;
     char vname[SDL_NAME_MAX + 1];                    /* VERSIONS: whose */
     char path[FF_LFN_BUF + 1], shown[SDL_NAME_MAX + 9u];
+#if SDM_DX7
+    uint8_t bank, bank_page;                         /* a DX7 bank's voices shown (its file's path in bpath), the page */
+    char bpath[FF_LFN_BUF + 1];
+    char bvn[SDB_KEYS][11];                          /* the page's voice names */
+#endif
     struct { uint32_t base; uint16_t id, have; } sc; /* the staged stream's cursor (sdm_stage_read) */
 } sdm IN_POOL;
 
@@ -271,15 +277,103 @@ static void sdm_poll(void)
     }
 }
 
+/* ---- DX7 banks (the user, 2026-10-26: the FM6 collections on the card): a .SYX of 32 voices (4104 B: F0 43 0n 09 20 00,
+ * 32 packed voices of 128 B, the checksum, F7: what every DX7 site and editor offers) anywhere under PRESETS is shown as
+ * a folder of its voices, 16 a page; a voice's LOAD reads its 128 B and puts them into the selected part's FM6 voice
+ * (eng_fm6.c fm6_unpack; the part on FM6 first if it plays another engine), as a single-voice dump does. Nothing is
+ * kept in RAM but the page's names: no received bank needed (FM6_SYSEX) */
+#if SDM_DX7
+#define SDM_DX7_LEN 4104u
+static int sdm_dx7_page(void)                        /* the page's 16 names from the file: 0 ok */
+{
+    UINT got;
+    uint32_t k, n;
+    FRESULT r = f_open(&sdm.f, sdm.bpath, FA_READ);
+    for (k = 0; r == FR_OK && k < SDB_KEYS; k++) {
+        n = sdm.bank_page * SDB_KEYS + k;
+        r = f_lseek(&sdm.f, 6u + n * 128u + 118u);
+        if (r == FR_OK && (r = f_read(&sdm.f, sdm.bvn[k], 10, &got)) == FR_OK && got != 10u)
+            r = FR_INT_ERR;
+        for (n = 0; n < 10u; n++)                    /* (7 bits; anything not printable a blank) */
+            if (sdm.bvn[k][n] < 32 || sdm.bvn[k][n] > 126)
+                sdm.bvn[k][n] = ' ';
+        for (n = 10; n && sdm.bvn[k][n - 1u] == ' '; n--)
+            ;
+        sdm.bvn[k][n] = 0;
+    }
+    (void)f_close(&sdm.f);
+    return sdm_was(r) == FR_OK ? 0 : -1;
+}
+static int sdm_dx7_open(uint32_t k)                  /* slot k (a .SYX) as a bank: its voices shown; 0 ok */
+{
+    FILINFO fi;
+    uint8_t h[6];
+    UINT got;
+    if (!sdb_path(&sdm.b, k, sdm.bpath, sizeof sdm.bpath) || f_stat(sdm.bpath, &fi) != FR_OK || fi.fsize != SDM_DX7_LEN ||
+        f_open(&sdm.f, sdm.bpath, FA_READ) != FR_OK)
+        return -1;
+    got = 0;
+    (void)f_read(&sdm.f, h, 6, &got);
+    (void)f_close(&sdm.f);
+    if (got != 6u || h[0] != 0xF0 || h[1] != 0x43 || h[3] != 9u)
+        return -1;
+    sdm.bank = 1;
+    sdm.bank_page = 0;
+    return sdm_dx7_page();
+}
+static void sdm_dx7_load(uint32_t k)                 /* voice k of the page into the selected part */
+{
+    uint8_t v[128];
+    UINT got = 0;
+    uint32_t p = song.sel;
+    track_t *t = &trk[p % NTRK];
+    if (p >= NPART) {
+        ui_message("PICK T1 T2 OR T3");
+        return;
+    }
+    if (f_open(&sdm.f, sdm.bpath, FA_READ) == FR_OK) {
+        if (f_lseek(&sdm.f, 6u + (sdm.bank_page * SDB_KEYS + k) * 128u) == FR_OK)
+            (void)f_read(&sdm.f, v, 128, &got);
+        (void)f_close(&sdm.f);
+    }
+    if (got != 128u) {
+        ui_message("NOT A DX7 BANK");
+        return;
+    }
+    if (t->eng_req != (uint8_t)ENG_SLOT_FM6) {
+        set_engine_of(t, ENG_SLOT_FM6);
+        if (t->eng_req != (uint8_t)ENG_SLOT_FM6)
+            return;                                  /* (refused: memory short, the drop is proposed: model.c) */
+    }
+    fm1_irq_off();
+    fm6_unpack(fm6_ed[p], v);
+    fm6_cur[p] = (int16_t)(t->p[P_E0] + 1);          /* (its VOICE's, no reload over it) */
+    fm1_irq_on();
+    snd_mark(p);
+    ui_say("LOADED ", sdm.bvn[k]);
+}
+#endif
+
 /* ---- the lists (op_sdcard.c): one folder view at a time, SDV_* its view */
 static const uint8_t SDM_FOLDER[SDC_N] = {SDL_PROJECTS, SDL_PRESETS, SDL_KITS, SDL_SAMPLES};
+#if SDM_DX7
+static uint32_t sdm_page(void) { return sdm.bank ? sdm.bank_page : sdm.b.page; }
+static uint32_t sdm_pages(void) { return sdm.bank ? 2u : sdm.b.pages ? sdm.b.pages : 1u; }
+static uint32_t sdm_count(void) { return sdm.bank ? SDB_KEYS : sdm.b.n; }
+#else
 static uint32_t sdm_page(void) { return sdm.b.page; }
 static uint32_t sdm_pages(void) { return sdm.b.pages ? sdm.b.pages : 1u; }
 static uint32_t sdm_count(void) { return sdm.b.n; }
+#endif
 static int sdm_open(uint32_t list, uint32_t view, const char *vname)
 {
     uint32_t n;
     FRESULT r;
+#if SDM_DX7
+    if (sdm.bank && list == sdm.list && view == sdm.view && sdm_ready())
+        return sdm_dx7_page();                       /* (a bank shown: read again, still shown) */
+    sdm.bank = 0;
+#endif
     sdm.list = (uint8_t)list;
     sdm.view = (uint8_t)view;
     sdm.b.n = 0;
@@ -304,13 +398,38 @@ static int sdm_open(uint32_t list, uint32_t view, const char *vname)
 }
 static void sdm_turn(int32_t step)
 {
+#if SDM_DX7
+    if (sdm.bank) {
+        sdm.bank_page = step > 0 ? 1u : step < 0 ? 0u : sdm.bank_page;
+        (void)sdm_dx7_page();
+        return;
+    }
+#endif
     if (sdm_ready())
         (void)sdm_was(sdb_turn(&sdm.b, step));
 }
-static int sdm_into(uint32_t k) { return sdm_ready() && sdm_was(sdb_into(&sdm.b, k)) == FR_OK; }
+static int sdm_into(uint32_t k)
+{
+#if SDM_DX7
+    if (sdm.list == SDC_PRE && !sdm.bank && k < sdm.b.n && !sdm.b.slot[k].dir) {   /* (a .SYX: its voices) */
+        if (sdm_ready() && !sdm_dx7_open(k))
+            return 1;
+        sdm.bank = 0;
+        ui_message("NOT A DX7 BANK");
+        return 0;
+    }
+#endif
+    return sdm_ready() && sdm_was(sdb_into(&sdm.b, k)) == FR_OK;
+}
 static int sdm_up(void)                              /* up a folder; 0 at the list's own folder */
 {
     uint32_t n = sdl_path(sdm.path, sizeof sdm.path, SDM_FOLDER[sdm.list % SDC_N], 0);
+#if SDM_DX7
+    if (sdm.bank) {                                  /* out of a bank: its folder as it was */
+        sdm.bank = 0;
+        return 1;
+    }
+#endif
     if (!sdm_ready() || sdm.b.view != SDB_FOLDER || !n || !sdl_cmp(sdm.b.root, sdm.path))
         return 0;
     return sdm_was(sdb_up(&sdm.b)) == FR_OK;
@@ -318,10 +437,20 @@ static int sdm_up(void)                              /* up a folder; 0 at the li
 static int sdm_at_top(void)
 {
     uint32_t n = sdl_path(sdm.path, sizeof sdm.path, SDM_FOLDER[sdm.list % SDC_N], 0);
+#if SDM_DX7
+    if (sdm.bank)
+        return 0;
+#endif
     return sdm.b.view != SDB_FOLDER || sdm.view == SDV_VERSIONS || !n || !sdl_cmp(sdm.b.root, sdm.path);
 }
 static void sdm_folder(char *b, uint32_t cap)        /* the folder shown: its last part ("SAMPLES", "DRUMS"); VERSIONS: whose */
 {
+#if SDM_DX7
+    if (sdm.bank) {
+        sdl_cat(b, 0, cap, sdb_base(sdm.bpath));
+        return;
+    }
+#endif
     sdl_cat(b, 0, cap, sdm.view == SDV_VERSIONS ? sdm.vname : sdb_base(sdm.b.root));
 }
 static uint32_t sdm_len_is(const char *s, const char *ext)   /* s ends in ext (".OPS"): s's length without it, else 0 */
@@ -329,16 +458,42 @@ static uint32_t sdm_len_is(const char *s, const char *ext)   /* s ends in ext ("
     uint32_t n = sdl_len(s), e = sdl_len(ext);
     return n > e && !sdl_cmp(s + n - e, ext) ? n - e : 0u;
 }
+#if SDM_DX7
+static uint32_t sdm_syx(const char *s)               /* s ends in .SYX, any case: its length without it, else 0 */
+{
+    uint32_t n = sdl_len(s), i;
+    if (n < 5u || s[n - 4u] != '.')
+        return 0;
+    for (i = 1; i < 4u; i++)
+        if ((s[n - 4u + i] & ~0x20) != "SYX"[i - 1u])
+            return 0;
+    return n - 4u;
+}
+#endif
 /* slot k as shown: our own files without their extension, a version as "VERSION 7"; 0: no slot k */
 static const char *sdm_slot(uint32_t k, uint32_t *dir, uint32_t *cut)
 {
     static const char *const EXT[SDC_N] = {".OPP", ".OPS", ".OPK", ""};
     const sdb_item *it = &sdm.b.slot[k % SDB_KEYS];
     uint32_t n, a;
+#if SDM_DX7
+    if (sdm.bank) {                                  /* a bank's voice: its name */
+        *dir = *cut = 0;
+        return k < SDB_KEYS ? sdm.bvn[k] : 0;
+    }
+#endif
     if (k >= sdm.b.n)
         return 0;
     *dir = it->dir;
     *cut = it->cut;
+#if SDM_DX7
+    if (sdm.list == SDC_PRE && !it->dir && !it->cut && (n = sdm_syx(it->name)) != 0) {
+        *dir = 1;                                    /* (a DX7 bank: a folder of its voices) */
+        sdl_cat(sdm.shown, 0, sizeof sdm.shown, it->name);
+        sdm.shown[n] = 0;
+        return sdm.shown;
+    }
+#endif
     sdl_cat(sdm.shown, 0, sizeof sdm.shown, it->name);
     if (sdm.view == SDV_VERSIONS) {                  /* "<name>-0007.OPP": "VERSION 7" */
         a = sdl_len(sdm.vname) + 1u;
@@ -539,6 +694,15 @@ static void sdm_do(uint32_t op, uint32_t k)
     const char *nm;
     uint32_t n, part = song.sel;
     FRESULT r = FR_OK;
+#if SDM_DX7
+    if (sdm.bank) {                                  /* (a bank's voices: LOAD only) */
+        if (op == SDO_LOAD)
+            sdm_dx7_load(k);
+        else
+            ui_message("A DX7 BANK: LOAD ONLY");
+        return;
+    }
+#endif
     if (!sdm_ready() || !sdb_path(&sdm.b, k, sdm.path, sizeof sdm.path)) {
         ui_message("NOT ON THE CARD");
         return;
