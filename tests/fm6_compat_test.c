@@ -160,6 +160,35 @@ static void user_records(void)
     check("a user preset's VOICE: a pack voice by its fixed number (64 + pack x 16 + place, less 64: a byte), read back (every voice)", ok);
 }
 
+#if UP_CARD_ON
+/* a user preset on the SD card (upreset.c up_card_take / up_card_give; the user, 2026-10-26): an FM6 sound keeps its own
+ * voice, the operator edits too, as the flash slots' UP_FM6; a file of before (the record alone) loads its VOICE */
+static void card_voice(void)
+{
+    static uint8_t f[sizeof(up_rec_t) + UP_CARD_FM6];
+    uint32_t n, j, ok = 1, plain = 1;
+    host_tracks_init();
+    song.sel = 0;
+    fm6_part(0, 0);
+    for (j = 0; j < 6u; j++)
+        fm6_ed[0][j * FO_N + FO_OL] = (int16_t)(40 + j);   /* the operators edited: not the voice's */
+    n = up_card_take(f, "EDITED");
+    check("card: an FM6 sound's record carries its voice after it (the record + 128 B)", n == sizeof(up_rec_t) + UP_CARD_FM6);
+    fm6_part(0, 0);
+    check("... the part back on its voice: the edits gone", fm6_ed[0][0 * FO_N + FO_OL] != 40);
+    check("... the file loads", up_card_give(f, n) == 0);
+    for (j = 0; j < 6u; j++)
+        ok &= fm6_ed[0][j * FO_N + FO_OL] == (int16_t)(40 + j);
+    check("... the operator edits back, the voice not loaded over them", ok && fm6_cur[0] == trk[0].p[P_E0] + 1);
+    fm6_part(0, 0);
+    check("a file of before (the record alone) loads", up_card_give(f, sizeof(up_rec_t)) == 0);
+    fm6_sync(&trk[0], 0);
+    for (j = 0; j < 6u; j++)
+        plain &= fm6_ed[0][j * FO_N + FO_OL] != (int16_t)(40 + j);
+    check("... its VOICE afresh, no edits", plain);
+}
+#endif
+
 int main(int argc, char **argv)
 {
     static project_t a;
@@ -193,6 +222,9 @@ int main(int argc, char **argv)
         old_numbers();
         baking();
         user_records();
+#if UP_CARD_ON
+        card_voice();
+#endif
     }
     printf(bad ? "fm6_compat: %d failed\n" : "fm6_compat: all passed\n", bad);
     return bad;
