@@ -172,9 +172,11 @@ enum {
 };
 #define ARB_ANY ((FELUCCA_FX_SLICER ? NTRK : 0) + FELUCCA_ENG_WAVE + FELUCCA_DRUM_X909 + FELUCCA_DRUM_X808 + \
                  FELUCCA_PUNCH_SW + FELUCCA_ENG_FM6)       /* (#if) */
-#define ARN_PARTS (NPART + FXM_NC + (uint32_t)ARB_NC)
-#define ARN_TOPS (((1u << (FXM_NC + (uint32_t)ARB_NC)) - 1u) << NPART)   /* (the lines and buffers from the top, best fit:
-                                                                         * core/arena.c) */
+#define SST_ARN_K (NPART + FXM_NC + (uint32_t)ARB_NC)   /* the card streams' block, after them (FELUCCA_SD_STREAM:
+                                                         * storage/sd/sd_stream_plan.c, the heads and the rings) */
+#define ARN_PARTS (SST_ARN_K + (FELUCCA_SD_STREAM ? 1u : 0u))
+#define ARN_TOPS (((1u << (ARN_PARTS - NPART)) - 1u) << NPART)   /* (the lines and buffers from the top, best fit:
+                                                                 * core/arena.c) */
 #else
 #define ARN_PARTS NPART
 #endif

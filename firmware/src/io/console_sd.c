@@ -12,6 +12,14 @@
  *   sd bench FILE         the whole file read: through the filesystem (512 B a call), then a run per CMD18
  *   sd write FILE         a pattern written over the file (its size, up to 64 KB) block by block (CMD24, the data by DMA
  *                         when sd dma is on), read back and compared: KB/s
+ *   sd stream             the streams (SD_RING builds, storage/sd/sd_stream.c): the rings, the pre-buffer, the plan
+ *                         (placed / refused: its need, what would make room), each source, each stream's fill, and since
+ *                         the last reset: dry voices, notes with no ring, runs, blocks, KB/s, stalls, CRC retries,
+ *                         errors, the longest run (the screen's longest wait for the card), the least lead a run began at
+ *   sd stream reset       those counts from 0 (and the keys' ui gap: console keys)
+ *   sd stream pre MS      the pre-buffer: 25, 50, 100 or 200 ms (placed again)
+ *   sd stream part P FILE part P's CARD sample (1..3): FILE from OPTIMIST/ ("SAMPLES/kick.wav"), by its hash in the
+ *                         index (until the sample picker sets it); no FILE: none
  *   sd pins [7|8|9|10]    the pin finder (bring-up, before the SD board: a breakout on J12, a multimeter): each of the
  *                         LCD's bus lines PC7 CS, PC8 D/C, PC9 CLK, PC10 MOSI (or the one named) held HIGH alone for
  *                         CON_SD_PIN_S seconds, the other three LOW, SPI1 off its pins; a dot a second meanwhile. The
@@ -298,6 +306,111 @@ static void con_sd_rw(const char *path, uint32_t what)   /* 0 cat, 1 bench, 2 wr
         con_sd_stream(n);
 }
 
+#if FELUCCA_SD_STREAM
+static void con_sd_stream_part(const char *p)
+{
+    int ok;
+    uint32_t part = con_num(&p, &ok);
+    while (*p == ' ')
+        p++;
+    if (!ok || part < 1u || part > SST_NPART) {
+        con_puts("sd stream part: 1..3 FILE\r\n");
+        return;
+    }
+    if (!*p) {
+        sst_part_set(part - 1u, 0);
+        return;
+    }
+    if (sdx_open() != FR_OK || sdx_find_path(p, &sdx.rec) < 0) {
+        con_puts("sd stream part: not in the index (SYSTEM/INDEX.BIN; the sample index pass first)\r\n");
+        return;
+    }
+    sst_part_set(part - 1u, sdx.rec.hash);
+    con_kv("part", (int32_t)part);
+    con_puts(" hash ");
+    con_hex((uint32_t)(sdx.rec.hash >> 32), 8);
+    con_hex((uint32_t)sdx.rec.hash, 8);
+    con_puts("\r\n");
+}
+
+static void con_sd_streams(void)
+{
+    uint32_t i, on = 0;
+    con_kv("rings", SST_N);
+    con_kv("ring KB", SST_K / 2u);
+    con_kv("run blocks", SST_RUN);
+    con_kv("pre ms", sst_pre_ms);
+    con_kv("plan", sstp.state);                      /* 0 none, 1 letting go, 2 placed, 3 refused */
+    con_kv("need B", (int32_t)sstp.need);
+    if (sstp.state == SSTP_REFUSED) {
+        con_kv("drop one of parts", sstp.drop);      /* (a mask: any one of those parts' memory would make room) */
+        con_kv("drop all parts fits", sstp.drop_all);
+        con_kv("fits at ms", sstp.fit_ms);
+    }
+    con_kv("missing parts", sstp.missing);
+    for (i = 0; i < SST_NSRC; i++)
+        if (sst_src[i].ready) {
+            con_puts("src ");
+            con_dec((int32_t)i);
+            con_sd_field("rate", (int32_t)((uint64_t)sst_src[i].rate * 44100u >> 16));
+            con_sd_field("bits", sst_src[i].bits == SST_F16 ? 16 : 8);
+            con_sd_field("ch", sst_src[i].chans);
+            con_sd_field("frames", (int32_t)sst_src[i].frames);
+            con_sd_field("head_B", (int32_t)sst_src[i].hlen);
+            con_sd_field("runs", sst_src[i].nrun);
+            con_puts("\r\n");
+        }
+    for (i = 0; i < SST_N; i++)
+        if (sst[i].on) {
+            on++;
+            con_puts("stream ");
+            con_dec((int32_t)i);
+            con_sd_field("src", sst[i].src);
+            con_sd_field("fill", (int32_t)(sst[i].wr - sst[i].rd));
+            con_putc('/');
+            con_dec((int32_t)SST_K);
+            con_sd_field("B/ms", (int32_t)sst[i].bpms);
+            con_puts("\r\n");
+        }
+    con_kv("playing", (int32_t)on);
+    con_kv("dry", (int32_t)sst_dry);
+    con_kv("no ring", (int32_t)sst_nostream);
+    con_kv("runs", (int32_t)sst_st.runs);
+    con_kv("blocks", (int32_t)sst_st.blocks);
+    con_kv("KB/s", (int32_t)sst_kbs());
+    con_kv("stalls", (int32_t)sst_st.stalls);
+    con_kv("crc retries", (int32_t)sst_st.crc);
+    con_kv("errors", (int32_t)sst_st.errors);
+    con_kv("taken back", (int32_t)sst_st.reaped);
+    con_kv("given up (new note)", (int32_t)sst_st.aborted);
+    con_kv("longest run us", (int32_t)sst_st.run_max_us);
+    con_kv("least lead ms", sst_st.lead_min_ms == 0xFFFFFFFFu ? -1 : (int32_t)sst_st.lead_min_ms);
+    con_kv("ui gap max ms", (int32_t)fm1_in.ui_gap_max);
+}
+
+static void con_sd_stream_cmd(const char *p)
+{
+    int ok;
+    if (con_word(&p, "reset")) {
+        sst_stats_reset();
+        fm1_in.ui_gap_max = 0;
+    } else if (con_word(&p, "pre")) {
+        uint32_t ms = con_num(&p, &ok);
+        sst_pre_set(ok ? ms : 50u);
+        con_kv("pre ms", sst_pre_ms);
+        for (ms = 0; ms < 4u; ms++) {                /* (what each setting would take with the project's samples) */
+            con_puts("  ");
+            con_dec(SST_PRE_MS[ms]);
+            con_kv(" ms KB", (int32_t)sst_pre_kb(SST_PRE_MS[ms]));
+        }
+    } else if (con_word(&p, "part")) {
+        con_sd_stream_part(p);
+    } else {
+        con_sd_streams();
+    }
+}
+#endif
+
 static void con_sd(const char *p)
 {
     if (con_word(&p, "pins")) {
@@ -343,6 +456,10 @@ static void con_sd(const char *p)
             con_sd_bench_modes();
     } else if (con_word(&p, "write"))
         con_sd_rw(p, 2);
+#if FELUCCA_SD_STREAM
+    else if (con_word(&p, "stream"))
+        con_sd_stream_cmd(p);
+#endif
     else
         con_sd_mount();
 }

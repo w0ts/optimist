@@ -674,6 +674,15 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
                                             * ~15 KB fit the big slot: storage/sd/fatfs/, tools/build.py), else Petit FatFs
                                             * (the bring-up's: no files created, 8.3 names) */
 #endif
+#ifndef FELUCCA_SD_RING_KB
+#define FELUCCA_SD_RING_KB 0               /* the builder's SD_RING (bit 415): samples streamed from the card, the KB of
+                                            * lookahead a playing voice keeps (storage/sd/sd_stream.c); 0 off */
+#endif
+#ifndef FELUCCA_SD_STREAM
+#define FELUCCA_SD_STREAM (FELUCCA_SD_FATFS && FELUCCA_SD_RING_KB > 0 && FELUCCA_ENG_SAMPLE && FELUCCA_FX_ARENA)   /* (the
+                                            * heads and the rings are an arena block per project: ARENA; the voices are
+                                            * SAMPLE's CARD set) */
+#endif
 #ifndef FELUCCA_OVERLAY
 #define FELUCCA_OVERLAY 0                  /* the RAMTEXT overlays (core/overlay.c, docs/SD-MODE-DESIGN.md 6): the engines' hot
                                             * code in a slot per part, loaded at an engine change; needs LAYOUT 1 (flash) */
