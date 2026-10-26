@@ -223,6 +223,7 @@ static void t_corners(const se_eng_t *g)
     check(ok, e->name, "the corners, notes 24 / 60 / 108: bounded, no DC, silent and free after the release");
 }
 
+static int32_t se_os2;                                   /* (se_direct: vmod_t.os2, OSC2's move, 1/16 semitone) */
 /* the render alone: the first preset with set[] on voice 0, key 57 (220 Hz) at full amplitude, nb blocks into buf */
 static void se_direct(const se_eng_t *g, const int16_t *set, int32_t *buf, uint32_t nb)
 {
@@ -244,6 +245,7 @@ static void se_direct(const se_eng_t *g, const int16_t *set, int32_t *buf, uint3
     m.amp0 = m.amp1 = 32767;
     m.shape = 64 << 8;
     m.envq15 = 32767;
+    m.os2 = se_os2;
     tables();
     e->note_on(t, v);
     memset(buf, 0, nb * CTL * sizeof buf[0]);
@@ -275,6 +277,57 @@ static void t_direct(const se_eng_t *g)
     snprintf(what, sizeof what, "key 57 on a plain setting: the period of 220 Hz (%u samples, %.3f)", best, bc);
     check(best >= 199u && best <= 202u && bc > 0.9, e->name, what);
 }
+
+#if FELUCCA_ENG_PROPHET
+/* PROPHET: OSC2 moves A's pitch alone (issue 75: a sync sweep, B staying) */
+static int32_t se_period(const int32_t *a)
+{
+    uint32_t lag, best = 0, i, n = SE_DN * CTL / 2u;
+    double bc = -1e300;
+    for (lag = 60; lag < 400u; lag++) {
+        double c = 0, e0 = 0, e1 = 0;
+        for (i = n; i < n + 8000u; i++)
+            c += (double)a[i] * a[i + lag], e0 += (double)a[i] * a[i], e1 += (double)a[i + lag] * a[i + lag];
+        c /= sqrt(e0 * e1) + 1;
+        if (c > bc)
+            bc = c, best = lag;
+    }
+    return (int32_t)best;
+}
+static void t_prophet_osc2(void)
+{
+    static int32_t a[SE_DN * CTL], b[SE_DN * CTL];
+    static const int16_t AONLY[8] = {0, 0, 0, -64, 127, 0, 0, 0}, BONLY[8] = {0, 0, 7, 63, 127, 0, 0, 0};
+    static const int16_t SYNC[8] = {3, 0, 0, 0, 127, 0, 0, 0};
+    const se_eng_t *g = 0;
+    uint32_t i;
+    int32_t pa, pb;
+    for (i = 0; i < sizeof ENGS / sizeof ENGS[0]; i++)
+        if (ENGS[i].slot == ENG_SLOT_PROPHET)
+            g = &ENGS[i];
+    if (!g)
+        return;
+    se_os2 = 0;
+    se_direct(g, AONLY, a, SE_DN);
+    se_os2 = 12 * 16;                                    /* (OSC2: an octave up) */
+    se_direct(g, AONLY, b, SE_DN);
+    pa = se_period(a), pb = se_period(b);
+    check(pa >= 199 && pa <= 202 && pb >= 99 && pb <= 101, "PROPHET", "OSC2 +12: A alone an octave up (A's pitch, issue 75)");
+    se_os2 = 0;
+    se_direct(g, BONLY, a, SE_DN);
+    se_os2 = 12 * 16;
+    se_direct(g, BONLY, b, SE_DN);
+    pa = se_period(a), pb = se_period(b);                /* (B a fifth up, 330 Hz: 133.6 samples; MIX 63 leaves A at 1/64) */
+    check(pa >= 132 && pa <= 135 && pb == pa, "PROPHET", "OSC2 +12: B (a fifth up, MIX 63) keeps its period (B stays)");
+    se_os2 = 0;
+    se_direct(g, SYNC, a, SE_DN);
+    se_os2 = 7 * 16;
+    se_direct(g, SYNC, b, SE_DN);
+    pa = se_period(a), pb = se_period(b);
+    check(memcmp(a, b, sizeof a) && pa == pb, "PROPHET", "A synced to B, OSC2 +7: the timbre moves, the period stays B's (a sync sweep)");
+    se_os2 = 0;
+}
+#endif
 
 int main(int argc, char **argv)
 {
@@ -311,6 +364,9 @@ int main(int argc, char **argv)
         t_corners(g);
         t_direct(g);
     }
+#if FELUCCA_ENG_PROPHET
+    t_prophet_osc2();
+#endif
     if (gout) {
         fclose(gout);
         printf("scene: %s rewritten\n", gpath);

@@ -72,6 +72,30 @@ static volatile uint8_t transport_req;   /* 1 start, 2 stop (from the UI) */
  * few percent slower / faster (in 1/256: 10 = 3.9 %), back to 0 when let go; G_BPM never changes. Applied in
  * events_block to the internal clock only */
 static volatile int8_t clk_nudge;
+/* the NUDGE knob's jog (ui/optimist/op_tempo.c): each click moves the internal clock 1 ms, once (+: earlier, -: later).
+ * The UI adds to clk_jog, events_block takes what it has not seen (clk_jog_seen): one writer each, no lock */
+static volatile int8_t clk_jog;
+static int8_t clk_jog_seen;
+static int32_t clk_jog_u;                /* the jog not applied yet, in clock units (n x BPM); a step back only slows */
+static uint32_t clk_jog_take(uint32_t adv)
+{
+    int8_t d = (int8_t)(clk_jog - clk_jog_seen);
+    clk_jog_seen = (int8_t)(clk_jog_seen + d);
+    if (!song.playing) {
+        clk_jog_u = 0;
+        return adv;
+    }
+    clk_jog_u += d * (int32_t)((uint32_t)FS * (uint32_t)song.g[G_BPM] / 1000u);
+    if (clk_jog_u > 0) {
+        adv += (uint32_t)clk_jog_u;
+        clk_jog_u = 0;
+    } else if (clk_jog_u < 0) {
+        uint32_t back = (uint32_t)-clk_jog_u < adv ? (uint32_t)-clk_jog_u : adv;
+        adv -= back;
+        clk_jog_u += (int32_t)back;
+    }
+    return adv;
+}
 static volatile uint8_t panic_req;       /* bit per track: release every sounding note (preset / engine change) */
 
 static uint32_t trk_index(const track_t *t) { return (uint32_t)(t - trk); }
@@ -3356,8 +3380,10 @@ static void events_block(uint32_t n)
         uint32_t a = sync_follow(n);                  /* the clock where the external one will be when heard */
         if (song.playing)
             adv = a;                                  /* (stopped: the arp and rolls at the tempo shown) */
+    } else {
+        adv = clk_jog_take(adv);                      /* (the NUDGE knob's 1 ms clicks; an external clock: its offset) */
     }
-    clk_blk = adv;                                    /* (the synced LFOs this block: voice.c lfo_inc) */
+    clk_blk = adv;                                   /* (the synced LFOs this block: voice.c lfo_inc) */
     for (i = 0; i < NTRK; i++) {
         ASTAGE(0x30 + i);
         seq_tick(&trk[i], adv);

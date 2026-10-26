@@ -170,7 +170,7 @@ static void lfo2ui_tests(void)
         int32_t v, mn, mx;
         check(effv_synth(0, P_L2AA, &v, &mn, &mx) == 0u, "AMT with DEST OFF: nothing moves it, one bar");
         TSEL->p[P_L2DA] = LT_PIT, TSEL->p[P_L2AA] = 20;
-        check(effv_synth(0, P_L2AA, &v, &mn, &mx) == 2u && mn == -192 && mx == 192, "AMT on PIT: an amount, the pitch now (+-12 semitones)");
+        check(effv_synth(0, P_L2AA, &v, &mn, &mx) == 2u && mn == -384 && mx == 384, "AMT on PIT: an amount, the pitch now (+-24 semitones, core.h pit_depth)");
         TSEL->p[P_L2DA] = LT_AMP;
         check(effv_synth(0, P_L2AA, &v, &mn, &mx) == 2u && mn == 0 && mx == 127, "AMT on AMP: the voice's level now, 0 .. 127");
         TSEL->p[P_L2AA] = 0;

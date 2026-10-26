@@ -102,7 +102,7 @@ static const preset_t STRINGS_PRESETS[] = {
     {"LOW STR", {127, 60, 0, 90, 70, 40, 10, 10}, {60, 100, 120, 80}, 0, 0, FX(0, 0, 0, 45), XP(P_TRANS + 1, -12)},
     {"80S STR", {40, 127, 60, 60, 96, 80, 40, 10}, {40, 100, 120, 70}, 0, 0, FX(0, 20, 10, 50)},
     {"TAPE STR", {60, 127, 50, 127, 80, 20, 0, 10}, {60, 100, 120, 80}, 0, 0, FX(0, 0, 10, 55),
-     XP(P_LRATE + 1, 30, P_LEG_PIT + 1, 2)},
+     XP(P_LRATE + 1, 30, P_LEG_PIT + 1, 6)},
 };
 
 static const engine_t ENG_STRINGS = {

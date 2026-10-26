@@ -198,7 +198,7 @@ static void fxi_clear(uint32_t j, uint32_t i)           /* instance i zeroed, at
 #endif
 #if FELUCCA_INS_JCHORUS
     if (j == 2u)
-        memset(&ifx_jcho[i], 0, sizeof ifx_jcho[i]), ifx_jcho[i].c.ln = ln;
+        memset(&ifx_jcho[i], 0, sizeof ifx_jcho[i]), ifx_jcho[i].c.ln = (juno_cho_s *)(void *)ln;   /* (4-byte aligned) */
 #endif
 #if FELUCCA_INS_FLANGER
     if (j == 3u)

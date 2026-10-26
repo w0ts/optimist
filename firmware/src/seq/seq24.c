@@ -91,7 +91,7 @@ static void lock_apply(track_t *t, const uint8_t *lp, const int8_t *lv, uint32_t
                 continue;
             auto_take(t, k, p);                      /* (the base, the first time the automation changes it) */
             lk_param[k][i] = (uint8_t)p;
-            lk_ret[k][i] = t->p[p];
+            lk_ret[k][i] = lo_base(k, p, t->p[p]);   /* (not a modulator's move: voice.c lo_base) */
             lk_n[k]++;
         }
         lock_write(t, p, lv[j]);

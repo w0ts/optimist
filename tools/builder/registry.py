@@ -605,7 +605,48 @@ _add("REV_HALF", "FELUCCA_REV_HALF", "half-rate reverb (half the RAM, no top oct
           "the RAM (-8.7 KB) and it costs less CPU, with the same decay and room size. PLATE and FDN8 already run at "
           "22.05 kHz; here they get half the ring (8 KB), a smaller tank with more audible modes. The reverb loses "
           "its top octave (above ~11 kHz); the dry sound and the other buses are untouched.", symbols=("rev_half",))
-REV_ALGOS = ("REV_ROOM", "REV_PLATE", "REV_FDN8", "SPRING", "REV_AIRWIN")   # at least one with FX_REVERB (configure.py validate)
+# the effects' finer arithmetic (2026-10-26, a Reddit report: the send chorus, JUNO CHORUS, WIDE and the reverbs grainy on
+# in-ear headphones, smooth on Felucca): each measured on the host against the old arithmetic, which stays the default
+_FINE_TESTED = "host-measured only (a sine through the firmware's own code, 2026-10-26); not yet heard on an FM-1"
+_add("CHO_EXACT", "FELUCCA_CHO_EXACT", "chorus: exact modulation ramp (less grit)", F, 425, default=0,
+     parent="FX_CHORUS", experimental=True, tested=_FINE_TESTED,
+     desc="The chorus send moves its two read points by exactly 1/32 of the block's change each sample, as the CHRS "
+          "insert does, instead of a step rounded down once a block. The old way left the read point up to 0.12 sample "
+          "behind by each block's end and snapped it back 1378 times a second: a faint grit around every note, heard "
+          "on headphones. Measured: 12-15 dB less of it from 220 Hz to 1 kHz, about 5 dB at 3 kHz. A few bytes of "
+          "flash, no RAM, two shifts a sample.")
+_add("MIX_FINE", "FELUCCA_MIX_FINE", "mix: finer part level steps (lower noise floor)", F, 426, default=0,
+     experimental=True, tested=_FINE_TESTED,
+     desc="Each synth part (and the side of WIDE, JUNO CHORUS and DRONE's BEAT) goes into the mix with 3 bits dropped "
+          "before its pan gain instead of 4: the steps half as coarse, the noise floor 5.3 dB lower on every part "
+          "(about -65 dB under the signal; a quiet part gains the most). Same headroom (the product stays under "
+          "2^31). No flash or RAM to speak of; every sound changes a little, so it is off by default.")
+_add("WIDE_FINE", "FELUCCA_WIDE_FINE", "WIDE: all-pass at full resolution", F, 427, default=0, parent="INS_WIDTH",
+     experimental=True, tested=_FINE_TESTED,
+     desc="WIDE's all-pass runs at the part's own scale with 64-bit products instead of 4 bits down (the drum bus's "
+          "and the master's: 3): its side, only in the left ear, is no longer rounded to 16 units. Measured: 3.5-4.5 dB "
+          "less noise in that ear (about 7 with MIX_FINE). More headroom than before (+-3 M, was +-0.5 M). A few "
+          "multiplies a sample more.")
+_add("TFLT_FINE", "FELUCCA_TFLT_FINE", "track FILTER: full resolution (quiet high-pass)", F, 428, default=0,
+     experimental=True, tested=_FINE_TESTED,
+     desc="The track FILTER (and the DJ filter) runs at the samples' own scale with 64-bit products instead of 3 bits "
+          "down (the drum bus: 2), with the same headroom. As a high-pass at a low cutoff the old rounding came out of "
+          "x - y as loud as a quiet part (FILT +10: -18 dB); measured: 18-20 dB lower. A few dozen bytes of flash; "
+          "the filter's multiplies become 64-bit ones.")
+_add("JUNO_FINE", "FELUCCA_JUNO_FINE", "JUNO CHORUS: 32-bit line (less grit, twice the memory)", F, 429, default=0,
+     parent="INS_JCHORUS", experimental=True, tested=_FINE_TESTED,
+     desc="JUNO CHORUS keeps its line at 32 bits at the owner's own scale instead of 16 bits 3 bits down (a bus: 2): "
+          "its wet no longer moves in steps of 8, and its side, different in each ear, no longer carries that "
+          "rounding. Measured with the shift gone: 6-12 dB less noise. Each instance takes 4 KB of the effects memory "
+          "instead of 2 (fewer instances fit); more headroom than before (+-3 M, was +-0.26 M on a part).")
+_add("REV_HB_LONG", "FELUCCA_REV_HB_LONG", "half-rate reverbs: steep 63-tap filter (no aliasing)", F, 430, default=0,
+     parent="FX_REVERB", experimental=True, tested=_FINE_TESTED,
+     desc="The reverbs that run at 22.05 kHz (FDN8, PLATE, VTINY, ROOM with REV_HALF) sit behind a 63-tap low-pass "
+          "(9.8 kHz) instead of the 15-tap half-band. The half-band let 9-11 kHz come back mirrored to 11-13 kHz only "
+          "6-20 dB down, the grainy 'lower bitrate' top of these reverbs; the low-pass is -45 dB at the fold (11 kHz) "
+          "and -74 dB at 12 kHz, -0.6 dB at 9 kHz, -9 dB at 10 kHz. About 48 multiplies a sample more, 1 KB of pool, "
+          "0.7 ms of latency (pre-delay) instead of 0.3.")
+REV_ALGOS =("REV_ROOM", "REV_PLATE", "REV_FDN8", "SPRING", "REV_AIRWIN")   # at least one with FX_REVERB (configure.py validate)
 _add("FX_SLICER", "FELUCCA_FX_SLICER", "SLICER (stutter / gate insert)", F, 40,
      desc="A tempo-synced 16-step gate or stutter on each track (not the sample slicer engine): chops the sound "
           "to a pattern. About 1.2 KB of flash and 32 KB of pool at the full capture length.")
