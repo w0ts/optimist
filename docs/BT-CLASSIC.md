@@ -10,8 +10,10 @@ console probe the stack grew from.
 
 ## 1. How the hardware works
 
-Written clean-room from the Bluetooth Core Specification (Vol 2 Part B) and measurements; the implementers did not
-read vendor code. Section numbers below are cited by the code as `BR §n` (`firmware/hal/fm1_bredr.h`,
+Written from the Bluetooth Core Specification (Vol 2 Part B) and measurements, with four exceptions read from JieLi's
+controller library `btctrler.a` (Apache-2.0, JieLi's AC79 AIoT SDK; tagged **[M:s]** where they are used and listed
+in LICENSING.md): the AFH hop table and map, the AFH instant, the key size reduction's octet order. No vendor code
+was copied. Section numbers below are cited by the code as `BR §n` (`firmware/hal/fm1_bredr.h`,
 `firmware/src/bt/*.c`), so they are kept stable. Tags: **[S]** from the spec, **[M]** measured (emulator trace of
 stock V15, or the FM-1), **[I]** inferred, not proven.
 
