@@ -13667,599 +13667,576 @@ function onSong(sg) {
   if (d.snaps != null && d.snaps !== sg.snaps && tab === "snapshots") snRefresh().catch(report);
   d.snaps = sg.snaps;
 }
-function blink(k) {
-  const c = ctl.get(k);
-  if (!c || !c.row) return;
-  c.row.classList.add("pushed");
-  clearTimeout(c.blink);
-  c.blink = setTimeout(() => c.row.classList.remove("pushed"), 400);
+function blink(k) {                                /* a pushed value: its row stays bold for 400 ms */
+  const entry = ctl.get(k);
+  if (entry?.row == null) return;
+  entry.row.classList.add("pushed");
+  clearTimeout(entry.blink);
+  entry.blink = setTimeout(() => { entry.row.classList.remove("pushed"); }, 400);
 }
-async function refreshStep(i) {
-  const d = dev;
+async function refreshStep(i) {                     /* one step read back after an edit: the drum grid's when shown, else the step rows' */
+  const d = dev, grid = drumGrid() && d.dstepsOk;
   try {
-    if (drumGrid() && d.dstepsOk) {
-      const r = parse[CMD.DRUM_STEP](await rq(req.drumStep(i), { key: "dstep:" + i }));
-      if (d !== dev || r.index !== i || !drumGrid()) return;
-      d.dsteps[i] = r;
-      d.steps[i] = drumAsStep(r);
-      renderDrums();
-      ovSet(d.sel, i, r.on !== 0);
+    if (!grid) {
+      const st = parse[CMD.STEP_GET](await rq(req.stepGet(i), { key: "step:" + i }));
+      if (st.index !== i || dev !== d) return;
+      d.steps[i] = st; updateStepRows();
+      ovSet(d.sel, i, st.n > 0 && st.time === 0);
       return;
     }
-    const s = parse[CMD.STEP_GET](await rq(req.stepGet(i), { key: "step:" + i }));
-    if (d !== dev || s.index !== i) return;
-    d.steps[i] = s;
-    updateStepRows();
-    ovSet(d.sel, i, s.n > 0 && s.time === 0);
-  } catch (err) { report(err); }
+    const hit = parse[CMD.DRUM_STEP](await rq(req.drumStep(i), { key: "dstep:" + i }));
+    if (dev !== d || hit.index !== i || !drumGrid()) return;
+    d.dsteps[i] = hit;
+    d.steps[i] = drumAsStep(hit); renderDrums();
+    ovSet(d.sel, i, hit.on !== 0);
+  } catch (e) { report(e); }
 }
-function maybeReload() {
-  if (!dev || busy || !needReload || !dev.dump) return;
-  op(() => afterSoundChange("reloaded"));
+function maybeReload() {                            /* a RELOAD that had to wait: run it once nothing else holds the link */
+  const ready = dev && !busy && needReload && dev.dump;
+  if (ready) op(() => afterSoundChange("reloaded"));
 }
-/* one multi-request operation; polling waits for it */
-async function op(fn) {
-  if (!dev) return;
-  busy++;
-  try { await fn(); } catch (err) { report(err); } finally { busy--; }
+async function op(fn) {                             /* several requests as one operation: the poller stands by until it ends */
+  if (dev == null) return;
+  busy += 1;
+  try { await fn(); }
+  catch (e) { report(e); }
+  finally { busy -= 1; }
 }
-function renderLive() {
+function renderLive() {   /* the link badge: pushed (v9 or older), polled, or nothing before the first DUMP */
   $("live").textContent = !dev || !dev.dump ? "" : t(dev.watch ? (dev.v9 ? "liveV9" : "live") : "polling");
   $("live").dataset.st = dev && dev.watch ? "ok" : "warn";
 }
 
-/* keep-alive: PING when nothing else went out for ~1 s; after a longer gap (hidden tab, a long flash
-   write: Link.onGap) the watch may have ended: WATCH again and re-read what may have been missed */
-let rewatch = false;
-async function keepAlive() {
-  const d = dev;
+/* the link kept awake: a PING once nothing went out for about a second. A longer silence (a hidden tab, a long
+   flash write: Link.onGap) may have ended the watch, so it is asked for again and whatever it missed is read again */
+let rewatch = false;                                /* set when such a gap was seen */
+async function keepAlive() {                        /* every second, and when the page shows again */
+  const d = dev, link = d && d.link;
   if (!d || busy || !d.watch || !d.dump || document.hidden) return;   /* (busy: a long FM6 bank transfer holds the link) */
-  const gap = Date.now() - d.link.lastSent;
-  if (rewatch || gap > 2500) {
-    if (keepAlive.run) return;
-    keepAlive.run = true;
-    try {
-      const on = await startWatch((r, o) => d.link.request(r, o), WATCH.EDIT | WATCH.ENDS);
-      rewatch = false;                              /* (this WATCH itself may have flagged the gap) */
-      if (on) { Object.assign(d, watchCaps(on)); needReload = true; maybeReload(); }
-      else if (d === dev) { d.watch = false; renderLive(); }
-    } catch (e) { /* closed */ } finally { keepAlive.run = false; }
-  } else if (gap > 850 && d.link.idle) {
-    d.link.request(req.ping(), { key: "ping", quiet: true, retries: 0 }).catch(() => {});
+  const quiet = Date.now() - link.lastSent;
+  if (!rewatch && quiet <= 2500) {
+    if (quiet > 850 && link.idle) link.request(req.ping(), { key: "ping", quiet: true, retries: 0 }).catch(() => {});
+    return;
   }
+  if (keepAlive.run === true) return;
+  keepAlive.run = true;                             /* (one WATCH at a time; cleared below) */
+  try {
+    const on = await startWatch((r, o) => d.link.request(r, o), WATCH.EDIT | WATCH.ENDS);
+    rewatch = false;                                /* (the gap flag may come from this very WATCH) */
+    if (on) { Object.assign(d, watchCaps(on)); needReload = true; maybeReload(); }
+    else if (dev === d) { d.watch = false; renderLive(); }
+  } catch (e) { /* the port went away */ }
+  finally { keepAlive.run = false; }
 }
-setInterval(keepAlive, 1000);
-document.addEventListener("visibilitychange", () => { if (!document.hidden && dev && dev.watch) { rewatch = true; keepAlive(); } });
+setInterval(() => keepAlive(), 1000);
+document.addEventListener("visibilitychange", () => { if (document.hidden || !dev || !dev.watch) return; rewatch = true; keepAlive(); });
 document.addEventListener("visibilitychange", () => { if (!document.hidden && tab === "mirror") mirrorStart(); });   /* (the screen: its loop stops while the page is hidden) */
 
-let stepRR = 0;
-setInterval(async () => {
-  if (!dev || busy || dragging || document.hidden || !dev.dump || !dev.link.idle) return;
-  if (needReload) { maybeReload(); return; }
+/* the poller (every 400 ms) for firmware older than v9: DUMP, the mixer, and two steps a round while nothing is pushed */
+let stepRR = 0;                                     /* the step the poller reads next, round robin */
+async function pollRound() {
+  if (!dev || busy || dragging || !dev.dump || document.hidden || !dev.link.idle) return;
+  if (needReload) return maybeReload();
   if (dev.v9) return;                               /* v9: every change is pushed; RELOAD asks for the rest */
-  if (dev.watch && Date.now() - lastDump < 5000) return;
-  busy++;
-  const d = dev;
+  if (dev.watch && Date.now() < lastDump + 5000) return;
+  const d = dev; busy += 1;
   try {
-    const dump = await getDump();
-    if (d !== dev) return;
-    const soundChanged = dump.engine !== d.dump.engine || dump.preset !== d.dump.preset;
-    const engineChanged = dump.engine !== d.dump.engine;
-    const oldLen = d.dump.p[pSlen()];
-    for (const [k, c] of ctl) {
-      const v = c.scope ? dump.g[c.id] : dump.p[c.id];
-      if (touched(k)) { (c.scope ? dump.g : dump.p)[c.id] = c.scope ? d.dump.g[c.id] : d.dump.p[c.id]; continue; }
-      showValue(k, v, false);
+    const dump = await getDump(), was = d.dump;
+    if (dev !== d) return;
+    const engineChanged = dump.engine !== was.engine;
+    const soundChanged = engineChanged || dump.preset !== was.preset, lenBefore = was.p[pSlen()];
+    for (const [k, c] of ctl.entries()) {
+      const fresh = c.scope ? dump.g : dump.p, kept = c.scope ? was.g : was.p;
+      if (touched(k)) fresh[c.id] = kept[c.id];       /* (a value being turned keeps the page's) */
+      else showValue(k, fresh[c.id], false);
     }
-    d.dump = dump;
-    renderSync();
-    if (engineChanged) await rereadEngineDesc();
-    if (hasTracks()) await readMixer();             /* the strips (other tracks push nothing) */
-    if (soundChanged) { updateBrowser(); await loadSteps(); sayK("ready"); return; }
-    if (dump.p[pSlen()] !== oldLen) { renderSteps(); }
-    if (d.watch) return;                            /* steps come as STEP_CHANGED */
-    /* steps are not in DUMP: follow them two at a time */
-    const len = Math.max(1, Math.min(d.info.nstep, dump.p[pSlen()] || 16));
-    for (let n = 0; n < 2; n++) {
-      stepRR = (stepRR + 1) % len;
-      if (performance.now() - (stepEdit.get(stepRR) || 0) < 1500) continue;
-      if (drumGrid() && d.dstepsOk) {
-        const r = await getDrumStep(stepRR), o = d.dsteps[stepRR];
-        d.dsteps[stepRR] = r;
-        d.steps[stepRR] = drumAsStep(r);
-        if (JSON.stringify(o) !== JSON.stringify(r)) renderDrums();
-        continue;
+    d.dump = dump; renderSync();
+    if (engineChanged) { await rereadEngineDesc(); }
+    if (hasTracks()) await readMixer();             /* other tracks push nothing: their strips are read here */
+    if (soundChanged) { updateBrowser(); await loadSteps(); return void sayK("ready"); }
+    if (dump.p[pSlen()] !== lenBefore) renderSteps();
+    if (d.watch) return;                            /* a watching device sends STEP_CHANGED */
+    /* DUMP carries no steps: the poller reads two per round */
+    const len = Math.max(Math.min(dump.p[pSlen()] || 16, d.info.nstep), 1);
+    for (let left = 2; left > 0; left--) {
+      const i = stepRR = (stepRR + 1) % len;
+      if (performance.now() - (stepEdit.get(i) || 0) < 1500) continue;   /* (just edited here: left alone) */
+      if (d.dstepsOk && drumGrid()) {
+        const got = await getDrumStep(i), prev = JSON.stringify(d.dsteps[i]);
+        d.dsteps[i] = got; d.steps[i] = drumAsStep(got);
+        if (JSON.stringify(got) !== prev) renderDrums();
+      } else {
+        const got = await getStep(i), prev = JSON.stringify(d.steps[i]);
+        d.steps[i] = got;
+        if (JSON.stringify(got) !== prev) updateStepRows();
       }
-      const s = await getStep(stepRR);
-      const o = d.steps[stepRR];
-      d.steps[stepRR] = s;
-      if (JSON.stringify(o) !== JSON.stringify(s)) updateStepRows();
     }
-  } catch (err) { report(err); } finally { busy--; }
-}, 400);
+  } catch (e) { report(e); } finally { busy -= 1; }
+}
+setInterval(pollRound, 400);
 
-/* ------------------------------------------------------------ files --- */
-$("savefile").addEventListener("click", () => {
-  if (!dev) return;
-  const engine = dev.dump.engine, preset = dev.dump.preset;
-  const data = { format: "felucca-patch", version: 1, firmware: dev.info.version,
-    engineName: dev.info.engines[engine], presetName: (dev.names[engine] || [])[preset],
-    engine, preset, p: dev.dump.p.slice(), g: dev.dump.g.slice(),
-    steps: dev.steps.map((s) => ({ n: s.n, notes: s.notes.slice(), time: s.time, flags: s.flags, vel: s.vel })) };
-  download(`felucca-${fileSlug(data.engineName || "patch")}-${fileSlug(data.presetName || preset)}.json`, data);
-});
-$("loadfile").addEventListener("click", () => { $("file").value = ""; $("file").click(); });
-$("file").addEventListener("change", async () => {
-  const f = $("file").files[0];
-  if (!f || !dev) return;
-  let data;
+/* ------------------------------------------------------- patch files --- */
+function savePatchFile() {                          /* the track's sound and steps as a felucca-patch JSON */
+  if (dev == null) return;
+  const { engine, preset } = dev.dump;
+  const engineName = dev.info.engines[engine], presetName = (dev.names[engine] || [])[preset];
+  const steps = dev.steps.map(({ n, notes, time, flags, vel }) => ({ n, notes: notes.slice(), time, flags, vel }));
+  const data = { format: "felucca-patch", version: 1, firmware: dev.info.version, engineName, presetName,
+    engine, preset, p: dev.dump.p.slice(), g: dev.dump.g.slice(), steps };
+  download(`felucca-${fileSlug(engineName || "patch")}-${fileSlug(presetName || preset)}.json`, data);
+}
+/* a felucca-patch JSON onto the track: its engine and preset, then each value the build shows, then its steps */
+async function loadPatchFile() {
+  const file = $("file").files[0];
+  if (!dev || !file) return;
+  let data = null;
   try {
-    data = JSON.parse(await f.text());
-    if (!Number.isInteger(data.engine) || !Number.isInteger(data.preset) || !Array.isArray(data.p)) throw new Error("engine / preset / p");
-    if (data.engine < 0 || data.engine >= dev.info.nengines) throw new Error("engine " + data.engine);
-  } catch (e) { sayK("badfile", e.message); return; }
-  busy++;
+    data = JSON.parse(await file.text());
+    const shaped = Number.isInteger(data.engine) && Number.isInteger(data.preset) && Array.isArray(data.p);
+    if (!shaped) throw new Error("engine / preset / p");
+    if (!(data.engine >= 0 && data.engine < dev.info.nengines)) throw new Error("engine " + data.engine);
+  } catch (e) { return void sayK("badfile", e.message); }
+  busy += 1;
   try {
     selfLoad(true);
-    await rq(req.preset(data.engine, data.preset));
-    dev.dump = await getDump();
-    await rereadEngineDesc();
-    const n = Math.min(data.p.length, dev.info.pcount);
-    for (let i = 0; i < n; i++) {
-      const d = dev.pdesc[i];
+    await rq(req.preset(data.engine, data.preset)); dev.dump = await getDump(); await rereadEngineDesc();
+    const count = Math.min(data.p.length, dev.info.pcount);
+    for (let i = 0; i < count; i++) {
+      const d = dev.pdesc[i], v = data.p[i];
       /* (a value this build does not show, "-" with a range, FM6's ENGINE with one mode: kept as the patch has it) */
       if (!d || d.max <= d.min || !Number.isFinite(data.p[i])) continue;
-      if (i % 8 === 0) sayK("applying", `${i}/${n}`);
-      await rq(req.set(0, i, data.p[i]));
+      if (!(i % 8)) sayK("applying", `${i}/${count}`);
+      await rq(req.set(0, i, v));
     }
-    if (Array.isArray(data.steps)) {
-      const m = Math.min(data.steps.length, dev.info.nstep);
-      for (let i = 0; i < m; i++) {
-        const s = data.steps[i] || {};
-        if (i % 8 === 0) sayK("applying", `steps ${i}/${m}`);
-        dev.steps[i] = parse[CMD.STEP_SET](await rq(req.stepSet(i, {
-          n: s.n | 0, notes: Array.isArray(s.notes) ? s.notes : [0, 0, 0, 0], time: s.time ?? 2, flags: s.flags | 0, vel: s.vel | 0 })));
-      }
+    const steps = Array.isArray(data.steps) ? data.steps : [], ns = Math.min(steps.length, dev.info.nstep);
+    for (let i = 0; i < ns; i++) {
+      const s = steps[i] || {}, notes = Array.isArray(s.notes) ? s.notes : [0, 0, 0, 0];
+      if (!(i % 8)) sayK("applying", `steps ${i}/${ns}`);
+      const reply = await rq(req.stepSet(i, { n: s.n | 0, notes, time: s.time ?? 2, flags: s.flags | 0, vel: s.vel | 0 }));
+      dev.steps[i] = parse[CMD.STEP_SET](reply);
     }
-    dev.dump = await getDump();
-    updateBrowser();
-    refreshAll();
-    sayK("applied");
-  } catch (err) { report(err); } finally { busy--; }
-});
+    dev.dump = await getDump(); updateBrowser(); refreshAll(); sayK("applied");
+  } catch (e) { report(e); } finally { busy -= 1; }
+}
+$("savefile").addEventListener("click", savePatchFile);
+$("loadfile").addEventListener("click", () => { const pick = $("file"); pick.value = ""; pick.click(); });
+$("file").addEventListener("change", loadPatchFile);
 
-/* ----------------------------------------------------------- library --- */
-/* Patches live in IndexedDB "felucca-editor": store "patches" (by id), store "meta" ("layout": the
-   parameter keys / engine names the stored values are in). Without IndexedDB (some private windows)
-   the library is kept in memory only. */
-const store = (() => {
-  let dbp = null;
-  const open = () => dbp || (dbp = new Promise((res) => {
-    try {
-      const r = indexedDB.open("felucca-editor", 1);
-      r.onupgradeneeded = () => { r.result.createObjectStore("patches", { keyPath: "id" }); r.result.createObjectStore("meta"); };
-      r.onsuccess = () => res(r.result);
-      r.onerror = r.onblocked = () => res(null);
-    } catch (e) { res(null); }
-  }));
-  const tx = async (name, mode, fn) => {
-    const db = await open();
-    if (!db) return undefined;
-    return new Promise((res, rej) => {
-      const x = db.transaction(name, mode);
-      let out;
-      const r = fn(x.objectStore(name));
-      if (r) r.onsuccess = () => { out = r.result; };
-      x.oncomplete = () => res(out);
-      x.onerror = x.onabort = () => rej(x.error || new Error("IndexedDB"));
+/* ----------------------------------------------------------- the library --- */
+/* The library is the IndexedDB database "felucca-editor" (version 1): object store "patches" keyed by id, and "meta",
+   whose "layout" entry names the parameter keys and engines the stored values follow. Where IndexedDB is missing
+   (some private windows) the library lives in memory until the page closes. */
+const store = (function idbStore() {
+  let opening = null;
+  function open() {
+    if (!opening) opening = new Promise((resolve) => {
+      try {
+        const ask = indexedDB.open("felucca-editor", 1);
+        ask.onupgradeneeded = () => { const db = ask.result; db.createObjectStore("patches", { keyPath: "id" }); db.createObjectStore("meta"); };
+        ask.onsuccess = () => resolve(ask.result);
+        ask.onblocked = () => resolve(null);
+        ask.onerror = () => resolve(null);
+      } catch (e) { resolve(null); }
     });
-  };
+    return opening;
+  }
+  /* one transaction on one object store; work() may return the request whose result is the answer */
+  async function run(storeName, mode, work) {
+    const db = await open(); if (db == null) return undefined;
+    return new Promise((resolve, reject) => {
+      const txn = db.transaction(storeName, mode);
+      const pending = work(txn.objectStore(storeName));
+      let result;
+      if (pending) pending.onsuccess = () => { result = pending.result; };
+      txn.oncomplete = () => resolve(result);
+      txn.onerror = txn.onabort = () => reject(txn.error || new Error("IndexedDB"));
+    });
+  }
   return {
-    ok: async () => !!(await open()),
-    all: () => tx("patches", "readonly", (os) => os.getAll()),
-    putMany: (ps) => tx("patches", "readwrite", (os) => { ps.forEach((p) => os.put(p)); }),
-    del: (id) => tx("patches", "readwrite", (os) => os.delete(id)),
-    getMeta: (k) => tx("meta", "readonly", (os) => os.get(k)),
-    setMeta: (k, v) => tx("meta", "readwrite", (os) => os.put(v, k)),
+    ok: async () => (await open()) !== null,
+    all: () => run("patches", "readonly", (s) => s.getAll()),
+    putMany: (list) => run("patches", "readwrite", (s) => { for (const p of list) s.put(p); }),
+    del: (id) => run("patches", "readwrite", (s) => s.delete(id)),
+    getMeta: (key) => run("meta", "readonly", (s) => s.get(key)),
+    setMeta: (key, value) => run("meta", "readwrite", (s) => s.put(value, key)),
   };
 })();
 
-let lib = [];                  /* patches (cleanPatch + id) */
-let libMeta = { keys: null, engines: null, pe0: null };
-let libPersistent = false;
-let libSel = null, bankSel = null;
-let libBusy = false;           /* a library / bank operation is running */
-const newId = () => (self.crypto && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
-const nowIso = () => new Date().toISOString();
-const slotName = (i) => "U" + String(i + 1).padStart(2, "0");
-const libCtx = () => (dev && dev.keys ? { keys: dev.keys, engines: dev.info.engines, firmware: dev.info.version, pe0: dev.info.pe0 }
-  : { keys: libMeta.keys, engines: libMeta.engines, firmware: "", pe0: libMeta.pe0 });
+let lib = [];                                       /* the stored patches: cleanPatch's shape plus an id */
+let libMeta = { keys: null, engines: null, pe0: null };   /* the layout their values follow */
+let libPersistent = false;                          /* false: no IndexedDB, the library ends with the page */
+let libSel = null, bankSel = null;                  /* the selected library patch (its id) and device slot */
+let libBusy = false;                                /* true while a library or bank operation talks to the device */
+function newId() {
+  if (self.crypto && crypto.randomUUID) return crypto.randomUUID();
+  return Date.now().toString(36) + Math.random().toString(36).slice(2);
+}
+function nowIso() { return new Date().toISOString(); }
+const slotName = (i) => `U${String(i + 1).padStart(2, "0")}`;
+function libCtx() {
+  if (dev && dev.keys) return { keys: dev.keys, engines: dev.info.engines, firmware: dev.info.version, pe0: dev.info.pe0 };
+  return { keys: libMeta.keys, engines: libMeta.engines, firmware: "", pe0: libMeta.pe0 };
+}
+function libById(id) { return lib.find((x) => x.id === id); }
+function libPicked() { return libById(libSel); }
 
-async function libInit() {
+async function libInit() {                          /* at load: what IndexedDB kept, else an empty library in memory */
   try {
-    libPersistent = await store.ok();
-    if (libPersistent) {
-      lib = ((await store.all()) || []).filter((p) => p && p.id);
-      libMeta = (await store.getMeta("layout")) || libMeta;
-    }
-  } catch (e) { console.warn(e); libPersistent = false; }
-  renderLib();
+    libPersistent = Boolean(await store.ok());
+    if (libPersistent) lib = ((await store.all()) || []).filter((p) => p && p.id);
+    const layout = libPersistent && (await store.getMeta("layout"));
+    if (layout) libMeta = layout;
+  } catch (err) { libPersistent = false; console.warn(err); } finally { renderLib(); }
 }
-async function libWrite(ps) {
-  try { await store.putMany(ps); } catch (e) { console.warn(e); sayK("error", "IndexedDB: " + e.message); }
+async function libWrite(list) {
+  try { await store.putMany(list); }
+  catch (err) { console.warn(err); sayK("error", "IndexedDB: " + err.message); }
 }
-async function libAdd(patches) {
-  const add = patches.map((p) => ({ ...cleanPatch(p), id: newId() }));
-  lib.push(...add);
-  if (add.length) libSel = add[add.length - 1].id;
-  await libWrite(add);
-  renderLib();
-  return add;
+async function libAdd(patches) {                    /* new entries (fresh ids); the last one becomes the selection */
+  const fresh = [];
+  for (const p of patches) fresh.push({ ...cleanPatch(p), id: newId() });
+  lib.push(...fresh);
+  if (fresh.length) libSel = fresh[fresh.length - 1].id;
+  await libWrite(fresh); renderLib();
+  return fresh;
 }
-async function libUpdate(p) {
-  p.modified = nowIso();
-  await libWrite([p]);
-  renderLib();
+async function libUpdate(p) {                       /* an edited entry: its date, then stored */
+  Object.assign(p, { modified: nowIso() });
+  await libWrite([p]); renderLib();
 }
-/* the device's parameter layout becomes the library's; patches stored with another layout are mapped by key */
-async function libAdopt(d) {
-  const keys = d.keys, engines = d.info.engines, changed = [];
+async function libAdopt(d) {                        /* the connected device's layout becomes the library's: patches kept under another are mapped key by key */
+  const { keys } = d, engines = d.info.engines, changed = [];
   if (!libMeta.engines || (libMeta.keys && !sameKeys(libMeta.keys, keys)) || !sameKeys(libMeta.engines, engines)) {   /* (no engines yet: DX7 voices imported offline get FM6's index) */
-    for (const p of lib) {
-      const name = p.engineName || (libMeta.engines || [])[p.engine];
-      const e = name ? engines.indexOf(name) : p.engine;
-      p.p = remapParams(p.p, libMeta.keys, keys);
-      if (e >= 0) { p.engine = e; p.engineName = engines[e]; }
-      changed.push(p);
-    }
+    lib.forEach((p) => {
+      const known = p.engineName || (libMeta.engines || [])[p.engine];
+      const idx = known ? engines.indexOf(known) : p.engine;
+      changed.push(Object.assign(p, { p: remapParams(p.p, libMeta.keys, keys) }, idx >= 0 ? { engine: idx, engineName: engines[idx] } : {}));
+    });
   }
-  libMeta = { keys, engines, pe0: d.info.pe0 };
-  if (changed.length) await libWrite(changed);
-  try { await store.setMeta("layout", libMeta); } catch (e) { console.warn(e); }
-  renderLib();
+  libMeta = { keys: keys, engines: engines, pe0: d.info.pe0 };
+  if (changed.length > 0) await libWrite(changed);
+  await store.setMeta("layout", libMeta).catch((err) => console.warn(err)); renderLib();
 }
 const engineOk = (p) => !!dev && (p.dx7 ? dev.info.engines.includes("FM6")
   : p.engine >= 0 && p.engine < dev.info.nengines && (!p.engineName || dev.info.engines[p.engine] === p.engineName));
-/* a full parameter set for UP_PUT: unknown values get the DESC default where it is known, else 0 */
-function fullParams(p) {
-  const out = [];
-  for (let i = 0; i < dev.info.pcount; i++) {
-    let v = p.p[i];
-    if (v == null) {
-      const d = dev.pdesc[i];
-      v = d && (i < dev.info.pe0 || p.engine === dev.dump.engine) ? d.def : 0;
-    }
-    out.push(v);
-  }
-  return out;
+function fullParams(p) {                            /* UP_PUT takes every parameter: one the patch lacks gets its DESC default where known, else 0 */
+  return Array.from({ length: dev.info.pcount }, (_, i) => {
+    if (p.p[i] != null) return p.p[i];
+    const desc = dev.pdesc[i];
+    return desc && (i < dev.info.pe0 || p.engine === dev.dump.engine) ? desc.def : 0;
+  });
 }
 
-function libView() {
-  const q = $("libq").value.trim().toLowerCase(), fe = $("libeng").value, ft = $("libtag").value;
-  const by = {
-    name: (a, b) => a.name.localeCompare(b.name),
-    engine: (a, b) => (a.engineName || "").localeCompare(b.engineName || "") || a.name.localeCompare(b.name),
-    created: (a, b) => b.created.localeCompare(a.created),
-    modified: (a, b) => b.modified.localeCompare(a.modified),
-  }[$("libsort").value] || ((a, b) => b.modified.localeCompare(a.modified));
-  return lib.filter((p) => (!q || p.name.toLowerCase().includes(q) || p.tags.some((x) => x.toLowerCase().includes(q)))
-    && (!fe || p.engineName === fe) && (!ft || p.tags.includes(ft))).sort(by);
+function libView() {                                /* the entries the search, the two filters and the order leave */
+  const q = $("libq").value.trim().toLowerCase();
+  const eng = $("libeng").value, tag = $("libtag").value;
+  const byName = (a, b) => a.name.localeCompare(b.name), newest = (k) => (a, b) => b[k].localeCompare(a[k]);
+  const orders = { name: byName, engine: (a, b) => (a.engineName || "").localeCompare(b.engineName || "") || byName(a, b),
+    created: newest("created"), modified: newest("modified") };
+  const order = orders[$("libsort").value] || orders.modified;
+  const hit = (p) => !q || p.name.toLowerCase().includes(q) || p.tags.some((x) => x.toLowerCase().includes(q));
+  return lib.filter((p) => hit(p) && (!eng || p.engineName === eng) && (!tag || p.tags.includes(tag))).sort(order);
 }
-function fillSelect(sel, opts) {
-  const v = sel.value;
-  sel.replaceChildren(...opts.map(([val, txt]) => el("option", { value: val, text: txt })));
-  if (opts.some(([val]) => val === v)) sel.value = v;
+function fillSelect(sel, opts) {                    /* new options, the chosen one kept while it is still offered */
+  const keep = sel.value;
+  sel.replaceChildren(...opts.map(([value, text]) => el("option", { value, text })));
+  if (opts.some((o) => o[0] === keep)) sel.value = keep;
 }
-function renderLib() {
-  const engs = [...new Set([...(dev ? dev.info.engines : libMeta.engines || []), ...lib.map((p) => p.engineName).filter(Boolean)])];
-  fillSelect($("libeng"), [["", t("allEngines")], ...engs.map((e) => [e, e])]);
-  const tags = [...new Set(lib.flatMap((p) => p.tags))].sort();
-  fillSelect($("libtag"), [["", t("allTags")], ...tags.map((x) => [x, x])]);
-  fillSelect($("libsort"), [["modified", t("sortModified")], ["created", t("sortCreated")], ["name", t("sortName")], ["engine", t("sortEngine")]]);
-  const v = libView();
-  if (libSel && !lib.some((p) => p.id === libSel)) libSel = null;
-  const box = $("liblist");
-  if (!lib.length) box.replaceChildren(el("div", { class: "none", text: t("libEmpty") }));
+/* one library row: click selects, double click auditions, drag onto a device slot stores */
+function libRow(p) {
+  const row = el("tr", { "data-id": p.id, class: libSel === p.id ? "sel" : null, draggable: "true", title: p.name },
+    el("td", {}, (p.pattern && icon("note_eight")) || "", p.name),
+    el("td", { text: p.engineName || `${p.engine}` }),
+    el("td", { text: p.tags.join(", "), }),
+    el("td", { text: new Date(p.modified).toLocaleDateString("en") }));
+  row.addEventListener("click", () => { libSel = p.id; renderLib(); });
+  row.addEventListener("dblclick", () => { libAudition(p.id); });
+  row.addEventListener("dragstart", (e) => { libSel = p.id; const dt = e.dataTransfer; dt.setData("text/x-felucca-lib", p.id); dt.effectAllowed = "copy"; });
+  return row;
+}
+function renderLib() {                              /* the filters' choices, the list, the count, the buttons */
+  const named = lib.map((p) => p.engineName).filter(Boolean);
+  const engs = [...new Set([...(dev ? dev.info.engines : libMeta.engines || []), ...named])];
+  fillSelect($("libeng"), [["", t("allEngines")]].concat(engs.map((e) => [e, e])));
+  const tags = Array.from(new Set(lib.flatMap((p) => p.tags))).sort();
+  fillSelect($("libtag"), [["", t("allTags")]].concat(tags.map((x) => [x, x])));
+  fillSelect($("libsort"), [
+    ["modified", t("sortModified")], ["created", t("sortCreated")], ["name", t("sortName")], ["engine", t("sortEngine")]]);
+  const shown = libView();
+  if (libSel && lib.every((p) => p.id !== libSel)) libSel = null;
+  const box = $("liblist"), empty = lib.length === 0;
+  if (empty) box.replaceChildren(el("div", { class: "none", text: t("libEmpty") }));
   else {
-    const tb = el("table", {}, el("colgroup", {}, el("col"), el("col", { class: "e" }), el("col"), el("col", { class: "d" })),
-      el("tr", {}, el("th", { text: t("name") }), el("th", { text: t("engine") }), el("th", { text: t("tagsCol") }), el("th", { text: t("date") })));
-    for (const p of v) {
-      const tr = el("tr", { "data-id": p.id, class: p.id === libSel ? "sel" : null, draggable: "true", title: p.name },
-        el("td", {}, p.pattern ? icon("note_eight") : "", p.name),
-        el("td", { text: p.engineName || String(p.engine) }),
-        el("td", { text: p.tags.join(", ") }),
-        el("td", { text: new Date(p.modified).toLocaleDateString("en") }));
-      tr.addEventListener("click", () => { libSel = p.id; renderLib(); });
-      tr.addEventListener("dblclick", () => libAudition(p.id));
-      tr.addEventListener("dragstart", (e) => { libSel = p.id; e.dataTransfer.setData("text/x-felucca-lib", p.id); e.dataTransfer.effectAllowed = "copy"; });
-      tb.append(tr);
-    }
-    box.replaceChildren(tb, ...(v.length ? [] : [el("div", { class: "none", text: t("noMatch") })]));
+    const head = el("tr", {}, ...[t("name"), t("engine"), t("tagsCol"), t("date")].map((text) => el("th", { text })));
+    const tb = el("table", {}, el("colgroup", {}, el("col"), el("col", { class: "e" }), el("col"), el("col", { class: "d" })), head);
+    for (const p of shown) tb.append(libRow(p));
+    box.replaceChildren(tb, ...(shown.length ? [] : [el("div", { class: "none", text: t("noMatch") })]));
   }
-  $("libcount").textContent = `${v.length} / ${lib.length}` + (libPersistent ? "" : " " + t("noLibDB"));
-  const sel = lib.find((p) => p.id === libSel);
-  for (const id of ["libren", "libtags", "libdup", "libdel", "libexp1"]) $(id).disabled = !sel;
+  $("libcount").textContent = `${shown.length} / ${lib.length}` + (libPersistent ? "" : ` ${t("noLibDB")}`);
+  const sel = libPicked();
+  ["libren", "libtags", "libdup", "libdel", "libexp1"].forEach((id) => { $(id).disabled = !sel; });
   $("libaud").disabled = !sel || !engineOk(sel) || (sel.dx7 && isDrum()) || libBusy;
   setLabel($("libput"), t("toSlot"));
   $("libput").disabled = !sel || sel.dx7 || libBusy || !dev || !dev.bank || bankSel == null;   /* (a DX7 voice is only auditioned: there is no place to keep it) */
   $("libput").title = sel && sel.dx7 ? t("dx7Store") : "";
-  $("libsave").disabled = !dev || libBusy;
-  $("libexport").disabled = !lib.length;
+  $("libsave").disabled = libBusy || !dev;
+  $("libexport").disabled = lib.length === 0;
 }
-["libq", "libeng", "libtag", "libsort"].forEach((id) => $(id).addEventListener(id === "libq" ? "input" : "change", renderLib));
+$("libq").addEventListener("input", renderLib);
+for (const id of ["libeng", "libtag", "libsort"]) $(id).addEventListener("change", renderLib);
 
-function renderBank() {
-  const pane = $("bankpane");
-  $("bankhint").hidden = !!(dev && dev.bank);
-  $("bankhint").textContent = t(!dev || (!dev.dump && !dev.info.lib) ? "bankConnect" : "bankNone");
-  if (!dev || !dev.bank) { pane.hidden = true; return; }
-  pane.hidden = false;
-  const b = dev.bank, used = b.slots.filter((x) => x.used).length;
-  $("bankhead").textContent = `${used} / ${b.total} ${t("used")}`;
-  const tb = el("table", {}, el("colgroup", {}, el("col", { class: "n" }), el("col"), el("col", { class: "e" })),
-    el("tr", {}, el("th", { text: "#" }), el("th", { text: t("name") }), el("th", { text: t("engine") })));
-  for (const x of b.slots) {
-    const tr = el("tr", { "data-slot": x.slot, class: [x.slot === bankSel ? "sel" : "", x.used ? "" : "empty"].join(" ").trim() || null,
-      draggable: x.used ? "true" : null },
-      el("td", { text: slotName(x.slot) }), el("td", { text: x.used ? x.name : t("empty") }),
-      el("td", { text: x.used ? dev.info.engines[x.engine] || String(x.engine) : "" }));
-    tr.addEventListener("click", () => { bankSel = x.slot; renderBank(); renderLib(); });
-    tr.addEventListener("dblclick", () => { if (x.used) bankLoad(x.slot); });
-    tr.addEventListener("dragstart", (e) => { e.dataTransfer.setData("text/x-felucca-slot", String(x.slot)); e.dataTransfer.effectAllowed = "copy"; });
-    tr.addEventListener("dragover", (e) => { if (e.dataTransfer.types.includes("text/x-felucca-lib")) { e.preventDefault(); tr.classList.add("over"); } });
-    tr.addEventListener("dragleave", () => tr.classList.remove("over"));
-    tr.addEventListener("drop", (e) => {
-      e.preventDefault();
-      tr.classList.remove("over");
-      const id = e.dataTransfer.getData("text/x-felucca-lib");
-      if (id) { bankSel = x.slot; libPut(id, x.slot); }
-    });
-    tb.append(tr);
-  }
-  $("banklist").replaceChildren(tb);
-  const s = bankSel == null ? null : b.slots[bankSel];
-  const idle = !libBusy;
-  $("bkload").disabled = !s || !s.used || !idle;
-  $("bkstore").disabled = !s || !idle;
-  $("bkget").disabled = !s || !s.used || !idle;
-  $("bkerase").disabled = !s || !s.used || !idle;
-  $("bkrefresh").disabled = !idle;
-  $("bkexport").disabled = !used || !idle;
+/* one device slot row: click selects, double click loads, drag onto the library copies; a library patch dropped on it is stored there */
+function bankRow(x) {
+  const LIB = "text/x-felucca-lib", cls = [bankSel === x.slot ? "sel" : "", x.used ? "" : "empty"].join(" ").trim();
+  const row = el("tr", { "data-slot": x.slot, class: cls || null, draggable: x.used ? "true" : null },
+    el("td", { text: slotName(x.slot) }),
+    el("td", { text: x.used ? x.name : t("empty") }),
+    el("td", { text: x.used ? dev.info.engines[x.engine] || `${x.engine}` : "" }));
+  row.addEventListener("click", () => { bankSel = x.slot; renderBank(); renderLib(); });
+  row.addEventListener("dblclick", () => { if (x.used) bankLoad(x.slot); });
+  row.addEventListener("dragstart", (e) => { const dt = e.dataTransfer; dt.setData("text/x-felucca-slot", String(x.slot)); dt.effectAllowed = "copy"; });
+  row.addEventListener("dragover", (e) => { if (!e.dataTransfer.types.includes(LIB)) return; e.preventDefault(); row.classList.add("over"); });
+  row.addEventListener("dragleave", () => { row.classList.remove("over"); });
+  row.addEventListener("drop", (e) => {
+    e.preventDefault(); row.classList.remove("over");
+    const id = e.dataTransfer.getData(LIB);
+    if (!id) return;
+    bankSel = x.slot; libPut(id, x.slot);
+  });
+  return row;
 }
-/* a slot dropped on the library: copy it there */
+function renderBank() {                             /* the device's user slots, or the hint why there are none */
+  const pane = $("bankpane"), hint = $("bankhint");
+  hint.hidden = Boolean(dev && dev.bank);
+  $("bankhint").textContent = t(!dev || (!dev.dump && !dev.info.lib) ? "bankConnect" : "bankNone");
+  pane.hidden = !(dev && dev.bank);
+  if (pane.hidden) return;
+  const b = dev.bank, used = b.slots.reduce((n, x) => n + (x.used ? 1 : 0), 0);
+  $("bankhead").textContent = [`${used} / ${b.total}`, t("used")].join(" ");
+  const head = el("tr", {}, el("th", { text: "#" }), el("th", { text: t("name") }), el("th", { text: t("engine") }));
+  const cols = el("colgroup", {}, el("col", { class: "n" }), el("col"), el("col", { class: "e" }));
+  $("banklist").replaceChildren(el("table", {}, cols, head, ...b.slots.map((x) => bankRow(x))));
+  const s = bankSel == null ? null : b.slots[bankSel], idle = !libBusy;
+  $("bkload").disabled = $("bkget").disabled = $("bkerase").disabled = !(s && s.used && idle);
+  $("bkstore").disabled = !(s && idle);
+  $("bkrefresh").disabled = libBusy;
+  $("bkexport").disabled = !(used && idle);
+}
+/* a device slot dropped onto the library list is copied into it */
+function libDrop(e) {
+  e.preventDefault(); $("liblist").classList.remove("over");
+  const slot = e.dataTransfer.getData("text/x-felucca-slot");
+  if (slot !== "") bankGet(Number(slot));
+}
 $("liblist").addEventListener("dragover", (e) => {
   const ty = e.dataTransfer.types;
   if (ty.includes("text/x-felucca-slot")) { e.preventDefault(); $("liblist").classList.add("over"); }
 });
-$("liblist").addEventListener("dragleave", () => $("liblist").classList.remove("over"));
-$("liblist").addEventListener("drop", (e) => {
-  e.preventDefault();
-  $("liblist").classList.remove("over");
-  const s = e.dataTransfer.getData("text/x-felucca-slot");
-  if (s !== "") bankGet(+s);
-});
+$("liblist").addEventListener("dragleave", () => { $("liblist").classList.remove("over"); });
+$("liblist").addEventListener("drop", libDrop);
 
-/* library operations that talk to the device: one at a time, buttons off meanwhile */
-async function libOp(fn) {
-  if (!dev || libBusy) return;
-  libBusy = true;
-  busy++;
+async function libOp(fn) {                          /* the library's device operations: one at a time, their buttons off until it ends */
+  if (libBusy || !dev) return;
+  libBusy = true; busy += 1;
   renderLib(); renderBank(); renderCz();
   try { await fn(); } catch (err) { report(err); } finally { busy--; libBusy = false; renderLib(); renderBank(); renderCz(); }
 }
-const rqf = (r, o) => rq(r, o);
+function rqf(r, o) { return rq(r, o); }
 const checkRc = (rc) => { if (rc === 3) throw new Error(t("stopFirst")); if (rc) throw new Error(t("flashFail").replace("{rc}", rc)); };
-async function refreshSlot(slot) {
-  const r = parse[CMD.UP_LIST](await rq(req.upList(slot, 1)));
-  if (dev && dev.bank && r.slots[0]) dev.bank.slots[slot] = r.slots[0];
+async function refreshSlot(slot) {                  /* one slot's line read again after a write */
+  const { slots } = parse[CMD.UP_LIST](await rq(req.upList(slot, 1)));
+  if (slots[0] && dev && dev.bank) dev.bank.slots[slot] = slots[0];
 }
+/* asks before a used slot is written over */
+function okOverwrite(slot, name) { return confirm(t("confirmOverwrite").replace("{n}", slotName(slot)).replace("{name}", name)); }
 
-function libAudition(id) {
-  const p = lib.find((x) => x.id === id);
-  if (!p || !dev || libBusy) return;
-  if (isDrum()) { sayK("drumNoSound"); return; }
-  libOp(async () => {
-    if (!engineOk(p)) throw new Error(t("badEngine") + (p.engineName || p.engine));
-    sayK("auditioning", p.name);
-    selfLoad(true);
-    const r = await auditionPatch(rqf, dev.info, p, { gEng: gEng(),
+function libAudition(id) {                          /* a library entry onto the track (a DX7 voice: sent to FM6) */
+  const p = libById(id);
+  if (!dev || !p || libBusy) return;
+  if (isDrum()) return void sayK("drumNoSound");
+  return libOp(async () => {
+    if (!engineOk(p)) throw new Error(`${t("badEngine")}${p.engineName || p.engine}`);
+    sayK("auditioning", p.name); selfLoad(true);
+    const opts = { gEng: gEng(),
       sendDX7: (message) => dev.link.transferDX7(message),
-      progress: (i, n) => { if (i % 8 === 0) sayK("auditioning", `${p.name} ${i}/${n}`); } });
-    await afterSoundChange();
-    sayK(p.dx7 ? "dx7Sent" : r.wrote ? "auditionedPat" : "auditioned", p.name);
+      progress: (i, n) => { if (!(i % 8)) sayK("auditioning", `${p.name} ${i}/${n}`); } };
+    const r = await auditionPatch(rqf, dev.info, p, opts);
+    await afterSoundChange(); sayK(p.dx7 ? "dx7Sent" : r.wrote ? "auditionedPat" : "auditioned", p.name);
   });
 }
-$("libaud").addEventListener("click", () => libAudition(libSel));
+$("libaud").addEventListener("click", () => { libAudition(libSel); });
 
-$("libsave").addEventListener("click", () => libOp(async () => {
-  if (isDrum()) { sayK("drumNoSound"); return; }
-  const def = upName((dev.names[dev.dump.engine] || [])[dev.dump.preset] || dev.info.engines[dev.dump.engine]);
-  const name = prompt(t("promptName"), def);
-  if (name == null) return;
-  const { patch } = await capturePatch(rqf, dev.info, name.trim() || def);
-  await libAdd([patch]);
-  sayK("savedLib", patch.name);
-}));
+async function libSaveSound() {                     /* the track's sound (and pattern) as a new library entry */
+  if (isDrum()) return void sayK("drumNoSound");
+  const { engine, preset } = dev.dump;
+  const def = upName((dev.names[engine] || [])[preset] || dev.info.engines[engine]);
+  const typed = prompt(t("promptName"), def);
+  if (typed == null) return;
+  const { patch } = await capturePatch(rqf, dev.info, typed.trim() || def);
+  await libAdd([patch]); sayK("savedLib", patch.name);
+}
+$("libsave").addEventListener("click", () => libOp(libSaveSound));
 
-/* factory preset -> library: PRESET, then DUMP + steps; its pattern only if it brought one (the device
-   loads a preset's pattern into an empty sequencer, or over one that is still an untouched preset pattern) */
-$("factlib").addEventListener("click", () => libOp(async () => {
-  const e = dev.dump.engine, pi = $("preset").value === "" ? dev.dump.preset : +$("preset").value;
-  const name = (dev.names[e] || [])[pi] || "PRESET";
-  const before = dev.steps.length >= UP.PAT ? patternFromSteps(dev.steps) : null;
-  const wasEmpty = dev.steps.length && dev.steps.every((s) => !s || !s.n);
-  selfLoad(true);
-  await rq(req.preset(e, pi));
-  const { patch } = await capturePatch(rqf, dev.info, name);
-  const brought = wasEmpty || !before || JSON.stringify(before) !== JSON.stringify(patch.pattern || patternFromSteps([]));
-  if (!brought) patch.pattern = null;
-  patch.tags = ["factory"];
-  await libAdd([patch]);
-  await afterSoundChange();
-  sayK("copiedLib", `${dev.info.engines[e]} ${name}`);
-}));
+/* a factory preset into the library: PRESET, then DUMP and the steps. The pattern is kept only when the preset
+   brought one (the device puts a preset's pattern into an empty sequencer, or over a preset pattern left untouched) */
+async function libFromFactory() {
+  const e = dev.dump.engine, pick = $("preset").value;
+  const pi = pick === "" ? dev.dump.preset : Number(pick), name = (dev.names[e] || [])[pi] || "PRESET";
+  const before = dev.steps.length < UP.PAT ? null : patternFromSteps(dev.steps);
+  const wasEmpty = dev.steps.length > 0 && dev.steps.every((s) => !(s && s.n));
+  selfLoad(true); await rq(req.preset(e, pi));
+  const patch = (await capturePatch(rqf, dev.info, name)).patch;
+  const after = JSON.stringify(patch.pattern || patternFromSteps([]));
+  if (!wasEmpty && before && JSON.stringify(before) === after) patch.pattern = null;
+  await libAdd([{ ...patch, tags: ["factory"] }]);
+  await afterSoundChange(); sayK("copiedLib", `${dev.info.engines[e]} ${name}`);
+}
+$("factlib").addEventListener("click", () => libOp(libFromFactory));
 
-function libPut(id, slot) {
-  const p = lib.find((x) => x.id === id);
-  if (!p || !dev || !dev.bank || slot == null || libBusy) return;
+function libPut(id, slot) {                         /* a library entry into a device slot (asks before writing over one) */
+  const p = libById(id);
+  if (!dev || !dev.bank || !p || slot == null || libBusy) return;
   if (p.dx7) { sayK("dx7Store"); return; }
-  const s = dev.bank.slots[slot];
-  if (!engineOk(p)) { sayK("badEngine", p.engineName || p.engine); return; }
-  if (s.used && !confirm(t("confirmOverwrite").replace("{n}", slotName(slot)).replace("{name}", s.name))) return;
-  libOp(async () => {
-    checkRc(await bank.put(rqf, slot, { ...p, name: upName(p.name), p: fullParams(p) }));
-    await refreshSlot(slot);
-    sayK("putDone", `${slotName(slot)} ${upName(p.name)}`);
+  const target = dev.bank.slots[slot];
+  if (!engineOk(p)) return void sayK("badEngine", p.engineName || p.engine);
+  if (target.used && !okOverwrite(slot, target.name)) return;
+  return libOp(async () => {
+    const name = upName(p.name);
+    checkRc(await bank.put(rqf, slot, { ...p, name, p: fullParams(p) })); await refreshSlot(slot);
+    sayK("putDone", `${slotName(slot)} ${name}`);
   });
 }
 $("libput").addEventListener("click", () => {
   libPut(libSel, bankSel);
 });
 
-$("libren").addEventListener("click", () => {
-  const p = lib.find((x) => x.id === libSel);
-  if (!p) return;
-  const v = prompt(t("promptName"), p.name);
-  if (v == null || !v.trim()) return;
-  p.name = v.trim().slice(0, 32);
-  libUpdate(p);
-});
-$("libtags").addEventListener("click", () => {
-  const p = lib.find((x) => x.id === libSel);
-  if (!p) return;
-  const v = prompt(t("promptTags"), p.tags.join(", "));
-  if (v == null) return;
-  p.tags = [...new Set(v.split(",").map((x) => x.trim()).filter(Boolean))];
-  libUpdate(p);
-});
-$("libdup").addEventListener("click", () => {
-  const p = lib.find((x) => x.id === libSel);
-  if (p) libAdd([{ ...p, name: (p.name + " 2").slice(0, 32), created: nowIso(), modified: nowIso() }]);
-});
-$("libdel").addEventListener("click", async () => {
-  const p = lib.find((x) => x.id === libSel);
-  if (!p || !confirm(t("confirmDelete").replace("{name}", p.name))) return;
-  lib = lib.filter((x) => x !== p);
-  libSel = null;
-  try { await store.del(p.id); } catch (e) { console.warn(e); }
-  renderLib();
-});
+function libRename() {
+  const p = libPicked(); if (!p) return;
+  const typed = (prompt(t("promptName"), p.name) ?? "").trim();
+  if (!typed) return;
+  p.name = typed.slice(0, 32); libUpdate(p);
+}
+function libRetag() {
+  const p = libPicked(); if (!p) return;
+  const typed = prompt(t("promptTags"), p.tags.join(", "));
+  if (typed == null) return;
+  p.tags = Array.from(new Set(typed.split(",").map((x) => x.trim()).filter(Boolean))); libUpdate(p);
+}
+function libDuplicate() {
+  const p = libPicked(); if (!p) return;
+  const stamp = nowIso();
+  libAdd([{ ...p, name: `${p.name} 2`.slice(0, 32), created: stamp, modified: stamp }]);
+}
+async function libDelete() {
+  const p = libPicked(); if (!p) return;
+  if (!confirm(t("confirmDelete").replace("{name}", p.name))) return;
+  lib = lib.filter((x) => x.id !== p.id); libSel = null;
+  await store.del(p.id).catch((err) => console.warn(err)); renderLib();
+}
+$("libren").addEventListener("click", libRename);
+$("libtags").addEventListener("click", libRetag);
+$("libdup").addEventListener("click", libDuplicate);
+$("libdel").addEventListener("click", libDelete);
 
 function download(name, obj) { saveBlob(name, new Blob([JSON.stringify(obj, null, 1)], { type: "application/json" })); }
 function saveBlob(name, blob) {
-  const a = el("a", { href: URL.createObjectURL(blob), download: name });
-  document.body.append(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  const url = URL.createObjectURL(blob), link = el("a", { href: url, download: name });
+  document.body.append(link);
+  link.click(); link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
-const fileSlug = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "patch";
-const today = () => new Date().toISOString().slice(0, 10);
-$("libexp1").addEventListener("click", () => {
-  const p = lib.find((x) => x.id === libSel);
-  if (p) download(`felucca-patch-${fileSlug(p.name)}.json`, libraryFile("patch", [p], libCtx()));
-});
-$("libexport").addEventListener("click", () => download(`felucca-library-${today()}.json`, libraryFile("library", lib, libCtx())));
-$("libimport").addEventListener("click", () => { $("libfile").value = ""; $("libfile").click(); });
+function fileSlug(s) { return String(s).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "patch"; }
+const today = () => nowIso().slice(0, 10);
+$("libexp1").addEventListener("click", () => { const p = libPicked(); if (p) download(`felucca-patch-${fileSlug(p.name)}.json`, libraryFile("patch", [p], libCtx())); });
+$("libexport").addEventListener("click", () => { download(`felucca-library-${today()}.json`, libraryFile("library", lib, libCtx())); });
+$("libimport").addEventListener("click", () => { const pick = $("libfile"); pick.value = ""; pick.click(); });
 /* what an import read past, for the message after it ("" when nothing) */
 function dx7Notes(r) {
   const n = [r.badSum && t("dx7BadSum"), r.short && t("dx7Short"), r.others && t("dx7Others").replace("{n}", r.others)];
   return n.filter(Boolean).join(", ");
 }
 $("libfile").addEventListener("change", async () => {
-  let n = 0, skipped = 0;
+  let count = 0, skipped = 0;                       /* entries added, entries a file left out */
   const notes = [];                                 /* what a tolerant DX7 import read past */
-  for (const f of [...$("libfile").files]) {
+  for (const f of Array.from($("libfile").files)) {
     try {
-      const ctx = libCtx();
-      if (/\.syx$/i.test(f.name)) {                 /* DX7 voices / 32-voice banks -> FM6 library entries */
+      const ctx = libCtx(), syx = /\.syx$/i.test(f.name);
+      if (syx) {                                    /* DX7 voices / 32-voice banks -> FM6 library entries */
         const r = readDX7File(new Uint8Array(await f.arrayBuffer()), ctx);
         await libAdd(r.patches);
-        n += r.patches.length;
+        count += r.patches.length;
         const nt = dx7Notes(r);
         if (nt) notes.push(`${f.name}: ${nt}`);
         continue;
       }
-      const obj = JSON.parse(await f.text());
-      const r = readLibraryFile(obj, ctx);
-      if (!ctx.keys && r.keys) {                     /* no layout yet: the file's becomes the library's */
-        libMeta = { keys: r.keys, engines: Array.isArray(obj.engines) ? obj.engines : null, pe0: obj.pE0 ?? null };
-        try { await store.setMeta("layout", libMeta); } catch (e) { console.warn(e); }
+      const obj = JSON.parse(await f.text()), got = readLibraryFile(obj, ctx);
+      if (got.keys && !ctx.keys) {                  /* the library has no layout yet: it takes the file's */
+        libMeta = { keys: got.keys, engines: Array.isArray(obj.engines) ? obj.engines : null, pe0: obj.pE0 ?? null };
+        try { await store.setMeta("layout", libMeta); } catch (err) { console.warn(err); }
       }
-      if (obj.kind === "bank") r.patches.forEach((p) => { if (!p.tags.includes("bank")) p.tags.push("bank"); });
-      await libAdd(r.patches);
-      n += r.patches.length;
-      skipped += r.skipped;
-    } catch (e) { sayK("badfile", `${f.name}: ${e.message}`); return; }
+      if (obj.kind === "bank") for (const p of got.patches) { if (!p.tags.includes("bank")) p.tags.push("bank"); }
+      await libAdd(got.patches);
+      count += got.patches.length; skipped += got.skipped;
+    } catch (err) { return void sayK("badfile", `${f.name}: ${err.message}`); }
   }
-  sayK("imported", n + (skipped ? t("skippedN").replace("{n}", skipped) : t("patchesN")) + (notes.length ? ` (${notes.join("; ")})` : ""));
+  sayK("imported", count + (skipped ? t("skippedN").replace("{n}", skipped) : t("patchesN")) + (notes.length ? ` (${notes.join("; ")})` : ""));
 });
 
 /* device bank */
-function bankLoad(slot) {
-  if (!dev || !dev.bank || slot == null || libBusy) return;
-  if (isDrum()) { sayK("drumNoSound"); return; }
-  const s = dev.bank.slots[slot];
-  libOp(async () => {
-    selfLoad();
-    const rc = await bank.load(rqf, slot);
-    if (rc) { sayK("emptySlot", slotName(slot)); return; }
+function bankLoad(slot) {                           /* a user slot onto the track */
+  if (libBusy || slot == null || !dev || !dev.bank) return;
+  if (isDrum()) return void sayK("drumNoSound");
+  const slotInfo = dev.bank.slots[slot];
+  return libOp(async () => {
+    selfLoad(); if (await bank.load(rqf, slot)) return void sayK("emptySlot", slotName(slot));
     if (!dev.info.lite) await afterSoundChange();    /* (the librarian: no sound to read back) */
-    sayK("loadedUser", `${slotName(slot)} ${s.name}`);
+    sayK("loadedUser", `${slotName(slot)} ${slotInfo.name}`);
   });
 }
-$("bkload").addEventListener("click", () => bankLoad(bankSel));
-$("bkstore").addEventListener("click", () => {
-  const slot = bankSel;
-  if (!dev || !dev.bank || slot == null) return;
-  if (isDrum()) { sayK("drumNoSound"); return; }
-  const s = dev.bank.slots[slot];
-  const name = prompt(t("promptNameAuto"), s.used ? s.name : "");
-  if (name == null) return;
-  if (s.used && !confirm(t("confirmOverwrite").replace("{n}", slotName(slot)).replace("{name}", s.name))) return;
-  libOp(async () => {
-    checkRc(await bank.store(rqf, slot, name.trim()));
-    await refreshSlot(slot);
-    sayK("storedSlot", `${slotName(slot)} ${dev.bank.slots[slot].name}`);
-  });
-});
-function bankGet(slot) {
-  if (!dev || !dev.bank || slot == null || libBusy) return;
-  libOp(async () => {
-    const u = await bank.get(rqf, dev.info, slot);
-    if (!u.used) { sayK("emptySlot", slotName(slot)); return; }
-    await libAdd([{ name: u.name, engine: u.engine, engineName: dev.info.engines[u.engine], p: u.p, pattern: u.pattern, tags: ["device"] }]);
-    sayK("copiedLib", u.name);
+function bankStoreAt(slot) {                        /* the track's sound into a user slot, under a name asked for */
+  if (slot == null || !dev || !dev.bank) return;
+  if (isDrum()) return void sayK("drumNoSound");
+  const cur = dev.bank.slots[slot];
+  const typed = prompt(t("promptNameAuto"), cur.used ? cur.name : "");
+  if (typed == null || (cur.used && !okOverwrite(slot, cur.name))) return;
+  return libOp(async () => {
+    checkRc(await bank.store(rqf, slot, typed.trim())); await refreshSlot(slot); sayK("storedSlot", `${slotName(slot)} ${dev.bank.slots[slot].name}`);
   });
 }
-$("bkget").addEventListener("click", () => bankGet(bankSel));
-$("bkerase").addEventListener("click", () => {
-  const slot = bankSel;
-  if (!dev || !dev.bank || slot == null) return;
-  const s = dev.bank.slots[slot];
-  if (!s.used || !confirm(t("confirmEraseSlot").replace("{n}", slotName(slot)).replace("{name}", s.name))) return;
-  libOp(async () => {
-    checkRc(await bank.erase(rqf, slot));
-    await refreshSlot(slot);
-    sayK("erasedSlot", slotName(slot));
+function bankGet(slot) {                            /* a user slot copied into the library */
+  if (libBusy || slot == null || !dev || !dev.bank) return;
+  return libOp(async () => {
+    const u = await bank.get(rqf, dev.info, slot), { name, engine, p, pattern } = u;
+    if (!u.used) return void sayK("emptySlot", slotName(slot));
+    await libAdd([{ name, engine, engineName: dev.info.engines[engine], p, pattern, tags: ["device"] }]);
+    sayK("copiedLib", name);
   });
-});
-$("bkrefresh").addEventListener("click", () => libOp(async () => {
-  sayK("readingBank");
-  dev.bank = await bank.list(rqf);
-  sayK("ready");
-}));
-$("bkexport").addEventListener("click", () => libOp(async () => {
-  const out = [];
-  for (const x of dev.bank.slots) {
-    if (!x.used) continue;
-    sayK("readingBank", ` ${slotName(x.slot)}`);
-    const u = await bank.get(rqf, dev.info, x.slot);
-    if (u.used) out.push({ name: u.name, engine: u.engine, engineName: dev.info.engines[u.engine], p: u.p, pattern: u.pattern, slot: x.slot });
+}
+function bankEraseAt(slot) {                        /* a used slot emptied, after asking */
+  if (slot == null || !dev || !dev.bank) return;
+  const cur = dev.bank.slots[slot];
+  if (!cur.used) return;
+  if (!confirm(t("confirmEraseSlot").replace("{n}", slotName(slot)).replace("{name}", cur.name))) return;
+  return libOp(async () => {
+    checkRc(await bank.erase(rqf, slot)); await refreshSlot(slot); sayK("erasedSlot", slotName(slot));
+  });
+}
+async function bankExport() {                       /* every used slot read, then saved as one felucca-library file of kind "bank" */
+  const out = [], slots = dev.bank.slots;
+  for (const { used, slot } of slots) {
+    if (!used) continue;
+    sayK("readingBank", ` ${slotName(slot)}`);
+    const u = await bank.get(rqf, dev.info, slot); if (!u.used) continue;
+    out.push({ name: u.name, engine: u.engine, engineName: dev.info.engines[u.engine], p: u.p, pattern: u.pattern, slot });
   }
-  download(`felucca-bank-${today()}.json`, libraryFile("bank", out, libCtx()));
-  sayK("ready");
-}));
+  download(`felucca-bank-${today()}.json`, libraryFile("bank", out, libCtx())); sayK("ready");
+}
+$("bkload").addEventListener("click", () => { bankLoad(bankSel); });
+$("bkstore").addEventListener("click", () => { bankStoreAt(bankSel); });
+$("bkget").addEventListener("click", () => { bankGet(bankSel); });
+$("bkerase").addEventListener("click", () => { bankEraseAt(bankSel); });
+$("bkrefresh").addEventListener("click", () => libOp(async () => { sayK("readingBank"); dev.bank = await bank.list(rqf); sayK("ready"); }));
+$("bkexport").addEventListener("click", () => libOp(bankExport));
 
 /* the CZ collection (cmd 66, after Melodee 0.12): the slots, Casio .syx in and out, a slot onto the track's TONE */
 let czSel = null;
@@ -14346,8 +14323,7 @@ $("devsrc").addEventListener("change", (e) => {   /* another device: let the cur
 $("disconnect").addEventListener("click", () => { wantConnected = false; disconnect(); });
 applyText();
 tipAll();
-showTab(tab);
-libInit();
+showTab(tab); libInit();                            /* the open tab first, then the library from IndexedDB */
 if (QS.get("connect") !== "0" && !APPS.includes(tab)) connect();          /* auto-connect on load (?connect=0: wait for the button) */
 if (QS.get("e2e") === "1") window.fm1E2E = { dev: () => dev, app: () => appState };   /* (?e2e=1: web/e2e_daw.mjs looks at the link) */
 else if (!MOCK && !navigator.requestMIDIAccess) sayK("nomidi");
