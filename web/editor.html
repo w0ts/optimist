@@ -7219,30 +7219,35 @@ const A2_PAGES = (pe0) => pe0 === 61 ? [["OSC 2", 0, [51, 52, 53]], ["SWARM", 0,
 const A2_ENV2 = { t: "ENV 2", pages: [["ENV2", 0, [56, 57, 61, 62]], ["ENV2 DEST", 0, [58, 63, 64, 65]]] };   /* (75 / 67) */
 const P = { LEVEL: 0, SLEN: 29, CHORD: 49, FXOFF: 50 };
 const P24 = () => typeof dev !== "undefined" && dev && dev.info && dev.info.pcount >= 78;   /* SLOOP 2.4's track values (after A2_PAGES: test_web.mjs evaluates A2_PAGES .. LAYOUT alone) */
+/* one page of four ids in a row: [title, scope, [first .. first + 3]] */
+const page4 = (title, scope, first) => [title, scope, [0, 1, 2, 3].map((n) => first + n)];
 const LAYOUT = (pe0, a2) => [
-  { t: "ENV", pages: [["ENV", 0, [1, 2, 3, 4]], ["ENV DEST", 0, [5, 6, 7, 8]]] },
+  { t: "ENV", pages: [page4("ENV", 0, 1), page4("ENV DEST", 0, 5)] },
   ...(a2 && pe0 === 67 ? [A2_ENV2] : []),
-  { t: "LFO", pages: [["LFO", 0, [9, 10, 11, 12]], ["LFO DEST", 0, [13, 14, 15, 16]]] },
+  { t: "LFO", pages: [page4("LFO", 0, 9), page4("LFO DEST", 0, 13)] },
   { t: "EDIT", engine: true, pages: [["EDIT 1", 0, [pe0, pe0 + 1, pe0 + 2, pe0 + 3]], ["EDIT 2", 0, [pe0 + 4, pe0 + 5, pe0 + 6, pe0 + 7]],
     ...(a2 ? A2_PAGES(pe0) : [])] },
-  { t: "VOICE", pages: [["LEVEL", 0, [0]], ["VOICE", 0, [37, 38, 41, 42]], ["VOICE 2", 0, [43, 44, 39, 40]]] },
+  { t: "VOICE", pages: [["LEVEL", 0, [P.LEVEL]], ["VOICE", 0, [37, 38, 41, 42]], ["VOICE 2", 0, [43, 44, 39, 40]]] },   /* (VOICE 2 ends on PAN, MUTE) */
   { t: "FX", pages: [["FX", 0, [33, 34, 35, 36]], ...(P24() ? [["FILTER", 0, [75]]] : []), ["SLICER", 0, [45, 46, 47, 48]], ["BYPASS", 0, [50]]] },   /* (the global delay / reverb / chorus pages are the master strip's FX popups, not the track's Sound) */
   { t: "SCL", pages: [["SCL", 0, [25, 26, 27, 49]], ["SCL 2", 0, P24() ? [28, 76, 77] : [28]]] },
-  { t: "ARP", pages: [["ARP", 0, [17, 18, 19, 20]], ["ARP 2", 0, [21, 22, 23, 24]]] },
-  { t: "SEQ PATTERN", tab: "seqgroups", pages: [["PATTERN", 0, [29, 30, 31, 32]]] },
-  { t: "GLOBAL", tab: "setgroups", pages: [["GLOBAL", 1, [0, 1, 2, 3]]] },
+  { t: "ARP", pages: [page4("ARP", 0, 17), page4("ARP 2", 0, 21)] },
+  { t: "SEQ PATTERN", tab: "seqgroups", pages: [page4("PATTERN", 0, P.SLEN)] },
+  { t: "GLOBAL", tab: "setgroups", pages: [page4("GLOBAL", 1, 0)] },
   { t: "NOTE REPEAT", tab: "setgroups", flat: true, pages: [["MASTER", 1, [30]]] },   /* (the master bus, DLY, REV/CHO, the drums' LVL and REV: the mixer) */
   { t: "DRUMS", tab: "setgroups", pages: [["DRUMS", 1, [24]]] },
   { t: "MIDI CLOCK", tab: "setgroups", pages: [["SYSTEM", 1, [13]]] },
 ];
 /* globals that are actions or placeholders on the device: buttons instead, or hidden; BPM: only in the transport bar */
 const G_SKIP = new Set(["SLOT", "NAME", "LOAD", "SAVE", "ENG", "SET", "CLRSQ", "INIT", "MIDI", "CLK", "VIEW", "CPU", "NEW", "BPM"]);
-const key = (s, id) => s + ":" + id;
-const gEng = () => { const i = dev.gdesc.findIndex((d) => d && d.label === "ENG"); return i >= 0 ? i : 20; };
-const pSlen = () => { const i = dev.pdesc.findIndex((d) => d && d.fmt === F.STEPS); return i >= 0 ? i : P.SLEN; };
-/* mixer ids by DESC label (core.h: P_PAN 39, P_MUTE 40, G_DRLVL 25) */
-const pById = (label, def) => { const i = dev.pdesc.findIndex((d, k) => d && k < dev.info.pe0 && d.label === label); return i >= 0 ? i : def; };
-const pPan = () => pById("PAN", 39), pMute = () => pById("MUTE", 40);
+const key = (s, id) => `${s}:${id}`;
+/* the index of the first DESC in `list` that passes `test` (a hole in the list never does), or `fallback` */
+const descAt = (list, test, fallback) => { const at = list.findIndex((d, k) => !!d && test(d, k)); return at < 0 ? fallback : at; };
+const gEng = () => descAt(dev.gdesc, (d) => d.label === "ENG", 20);
+const pSlen = () => descAt(dev.pdesc, (d) => d.fmt === F.STEPS, P.SLEN);
+/* a track value found by its DESC label among the common ones (below pe0); the core.h id when absent (P_PAN 39, P_MUTE 40) */
+const pById = (label, def) => descAt(dev.pdesc, (d, k) => k < dev.info.pe0 && d.label === label, def);
+const pPan = () => pById("PAN", 39);
+const pMute = () => pById("MUTE", 40);
 /* the FX page (core.h P_DIST P_CHOR P_DLY P_REV 33..36, P_FXOFF 50): the Mix tab's sends */
 const FX_LABELS = ["DST", "CHO", "DLY", "REV"];
 const pFx = () => FX_LABELS.map((n, j) => pById(n, 33 + j)), pFxoff = () => pById("FX", P.FXOFF);
@@ -7263,131 +7268,137 @@ const sendOrder = (rdc) => {
 const slotIds = () => (fxOn() ? [0, 1, 2, 3].map((k) => fxSlotAmt(dev.info, [0, 1, 2, 3].map(fxSend), k)) : pFx());
 const retName = (k) => (dev.fxpRet && k ? FXT_NAMES[dev.fxpRet[k - 1].type] : "");
 const slotLabels = () => (fxOn() ? slotIds().map((id, k) => (id == null ? "--" : retName(k) || (dev.pdesc[id] && dev.pdesc[id].label) || FXT_NAMES[dev.fx.slots[k]] || "--")) : FX_LABELS);
-const gDrLvl = () => { const i = dev.gdesc.findIndex((d, k) => d && k > gEng() && (d.label === "LVL" || d.label === "LEVEL")); return i >= 0 ? i : 25; };
-const isDrum = () => !!dev && !!dev.dump && dev.dump.engine >= dev.info.nengines;
-/* v5 (SLOOP 2.0): the drum track is edited as its 16 lanes (DRUM_STEP); older firmware: as GM notes */
-const drumGrid = () => isDrum() && !!dev.info.proto && dev.info.proto >= 5;
+/* the drums' level: the first LVL / LEVEL global after ENG (core.h G_DRLVL 25) */
+const gDrLvl = () => descAt(dev.gdesc, (d, k) => k > gEng() && ["LVL", "LEVEL"].includes(d.label), 25);
+/* the selected track plays the drums when its engine number is past the synth engines */
+const isDrum = () => Boolean(dev && dev.dump) && dev.dump.engine >= dev.info.nengines;
+/* protocol 5 and later edit the drum track lane by lane (DRUM_STEP); before that its steps are GM notes */
+const drumGrid = () => isDrum() && (dev.info.proto || 0) >= 5;
 
-/* -------------------------------------------------------------- MIDI --- */
+/* ===================================================== MIDI connection === */
 /* connect: on page load (auto), with the Connect button, and again whenever an FM-1 is plugged in (statechange) */
 async function connect() {
-  wantConnected = true;
+  wantConnected = true;                              /* (also when already connected: a later unplug reconnects) */
   if (dev) return;
-  $("connect").disabled = true;
+  const button = $("connect");
+  button.disabled = true;
   sayK("connecting");
   try {
-    if (!access) {
+    if (access == null) {
       if (MOCK) { mock = makeMockDevice({ legacy: QS.get("legacy") === "1", auto: QS.get("auto") !== "0", snapshots: QS.get("snap") !== "0", v9: QS.get("v9") !== "0", rev: QS.has("rev") ? +QS.get("rev") : null, macros: QS.get("macros") === "1", midi: QS.get("midi") === "1", stepx: QS.has("stepx") ? +QS.get("stepx") : 7, pat: QS.get("pat") === "1", fxs: QS.get("fxs") === "1" || QS.get("fxp") === "1", retSends: QS.get("retsends") !== "0", v14: QS.get("v14") !== "0", store: QS.get("store") === "1", ...mockV13(QS) }); access = mock.access;
         window.fm1Test = { mock, dev: () => dev, smpAdd: (files) => addSmpFiles(files), kitAdd: (files, lane) => kpAddFiles(files, lane), roll: () => ({ RG, cell: roll.cell, grid: roll.el && roll.el.grid, scroll: roll.el && roll.el.scroll }),
           proto: () => ({ req, rq, patRecParse, patPoll }) };   /* (?mock=1 only: the e2e) */
       }
       else if (devSrc === "sim") access = (await import("./sim/sim.js")).simAccess();
-      else {
+      else {                                         /* Web MIDI (with SysEx): the browser asks the user */
         const m = await openMidi(navigator);
         if (m.st !== "ok") { sayK(m.st); return; }
         access = m.access;
       }
-      access.onstatechange = onState;
+      access.onstatechange = onState;                /* plug / unplug */
     }
     const ports = findPorts(access, devSrc === "bt");
     if (!ports) { sayK(devSrc === "sim" && !MOCK ? "simoff" : devSrc === "bt" ? "nodevicebt" : "nodevice"); return; }
     const { input, output } = ports;
-    const link = new Link((d) => output.send(d), {
-      timeout: 300,
-      onUnknown: (f) => console.debug("ignored reply", f),
-      onTimeout: () => sayK("noreply"),
-      onPush: (f) => onPush(f),
+    const handlers = {
+      onPush,
       onMirror: (a) => mirrorFrame(a),
-      onGap: () => { rewatch = true; },
-    });
-    input.onmidimessage = (e) => link.receive(e.data);
-    if (input.open) await input.open().catch(() => {});
-    dev = { link, input, output, info: null, pdesc: [], gdesc: [], names: [], dump: null, steps: [], slotUsed: [null, null, null, null],
-      keys: null, watch: false, bank: null, fm6: null, bt: devSrc !== "sim" && isBtPort(input) };   /* (bt: the Mirror page alone, loadBt) */
+      onGap() { rewatch = true; },                   /* a push was missed: start the watch again */
+      onTimeout() { sayK("noreply"); },
+      onUnknown(f) { console.debug("ignored reply", f); },
+    };
+    const link = new Link((bytes) => output.send(bytes), { ...handlers, timeout: 300 });
+    input.onmidimessage = (msg) => link.receive(msg.data);
+    if (typeof input.open === "function") await input.open().catch(() => {});   /* (an already open port: nothing to do) */
+    dev = { link, input, output, info: null, dump: null, keys: null, bank: null, fm6: null, watch: false,
+      pdesc: [], gdesc: [], names: [], steps: [], slotUsed: Array(4).fill(null),
+      bt: devSrc !== "sim" && isBtPort(input) };      /* (bt: the Mirror page alone, loadBt) */
     sets.clear();                                    /* (another FM-1, maybe) */
     await load(dev);
-  } catch (e) {
-    console.error(e);
-    if (dev) {                                       /* not unplugged meanwhile (that says "lost") */
-      const timeout = /^timeout/.test(e.message);
+  } catch (err) {
+    console.error(err);
+    if (dev != null) {                               /* (an unplug during the load already said "lost" and cleared dev) */
+      const silent = String(err.message).startsWith("timeout");
       disconnect();
-      sayK(timeout ? "noreply" : "error", timeout ? "" : e.message);
+      if (silent) sayK("noreply"); else sayK("error", err.message);
     }
   } finally {
-    $("connect").disabled = false;
+    button.disabled = false;
   }
 }
 
+/* forget the device (the port stays open in `access`) and redraw every view empty */
 function disconnect(reasonKey = "disconnected") {
   closePop();
-  if (dev) {
-    dev.link.close();
-    dev.input.onmidimessage = null;
-  }
+  const was = dev;
   dev = null;
-  busy = 0;
-  needReload = false;
-  renderPanels();
-  renderMixer();
-  renderSysinfo();
-  renderLive();
-  renderLib();
-  renderBank();
-  renderCz();
+  if (was) { was.input.onmidimessage = null; was.link.close(); }
+  [busy, needReload] = [0, false];
+  for (const draw of [renderPanels, renderMixer, renderSysinfo, renderLive, renderLib, renderBank, renderCz]) draw();
   $("version").textContent = "";
   sayK(reasonKey);
 }
 
+/* MIDIAccess statechange: our port went away (lost), or an FM-1 appeared while the user wants one (connect, after 800 ms) */
 function onState(e) {
-  const p = e.port;
-  if (!p || !/felucca|optimist/i.test(p.name || "")) return;
-  if (dev && p.state === "disconnected" && (p.id === dev.input.id || p.id === dev.output.id)) {
-    disconnect("lost");
-  } else if (wantsReconnect(e, !!dev, wantConnected)) {
-    clearTimeout(onState.tm);                       /* the device came (back): connect */
-    onState.tm = setTimeout(() => { if (!dev && wantConnected) connect(); }, 800);
-  }
+  const port = e.port;
+  if (!port || !/felucca|optimist/i.test(port.name || "")) return;
+  const ours = !!dev && [dev.input.id, dev.output.id].includes(port.id);
+  if (ours && port.state === "disconnected") { disconnect("lost"); return; }
+  if (!wantsReconnect(e, !!dev, wantConnected)) return;
+  clearTimeout(onState.tm);                         /* the device came (back): connect */
+  onState.tm = setTimeout(() => { if (wantConnected && !dev) connect(); }, 800);
 }
 
-const rq = (r, opt) => dev.link.request(r, opt);
-async function getDesc(scope, id) { return parse[CMD.DESC](await rq(req.desc(scope, id))); }
-async function getDump() { lastDump = Date.now(); return parse[CMD.DUMP](await rq(req.dump()), dev.info); }
-async function getStep(i) { return parse[CMD.STEP_GET](await rq(req.stepGet(i))); }
-async function getDrumStep(i) { return parse[CMD.DRUM_STEP](await rq(req.drumStep(i))); }
-/* a drum step as an old step (firmware ed_dstep_old): for what still reads dev.steps */
+/* one request to the connected device, and the usual reads parsed */
+const rq = (frame, options) => dev.link.request(frame, options);
+const getDesc = async (scope, id) => parse[CMD.DESC](await rq(req.desc(scope, id)));
+const getStep = async (i) => parse[CMD.STEP_GET](await rq(req.stepGet(i)));
+const getDrumStep = async (i) => parse[CMD.DRUM_STEP](await rq(req.drumStep(i)));
+async function getDump() {
+  lastDump = Date.now();
+  const frame = await rq(req.dump());
+  return parse[CMD.DUMP](frame, dev.info);
+}
+/* a DRUM_STEP seen as a v1 step (as the firmware's ed_dstep_old answers): up to four lanes' GM notes, for the code that
+   still reads dev.steps; no hit: an empty step (time 2) */
 function drumAsStep(d) {
-  const notes = [];
-  for (let l = 0; l < DRUM_LANES.length && notes.length < 4; l++) if ((d.on >> l) & 1) notes.push(DRUM_LANES[l][0]);
-  return { index: d.index, n: notes.length, notes: [...notes, 0, 0, 0, 0].slice(0, 4), time: notes.length ? 0 : 2, flags: 0, vel: notes.length ? 100 : 0 };
+  const hits = DRUM_LANES.filter((lane, l) => (d.on >> l) & 1).slice(0, 4).map((lane) => lane[0]);
+  const n = hits.length;
+  return { index: d.index, n, notes: hits.concat([0, 0, 0, 0]).slice(0, 4), time: n > 0 ? 0 : 2, flags: 0, vel: n > 0 ? 100 : 0 };
 }
 
-/* the whole connect sequence */
+/* connecting: read everything the views need, then draw them */
 async function load(d) {
   if (d.bt) return loadBt(d);
   busy++;
   try {
-    /* the first frame after opening the port can be lost: a few tries */
-    d.info = parse[CMD.INFO](await d.link.request(req.info(), { timeout: 500, retries: 3 }));
-    $("version").textContent = d.info.version;
-    $("aboutver").textContent = d.info.version;
+    /* INFO is asked up to four times, 500 ms each: the port's first frame may be dropped */
+    d.info = parse[CMD.INFO](await d.link.request(req.info(), { retries: 3, timeout: 500 }));
+    for (const id of ["version", "aboutver"]) $(id).textContent = d.info.version;   /* (the header and About) */
     if (d.info.lite) return await loadLite(d);       /* (a backup-only firmware: nothing else to read) */
-    const total = d.info.pcount + d.info.gcount;
-    for (let i = 0; i < d.info.pcount; i++) { sayK("reading", `${i + 1}/${total}`); d.pdesc[i] = await getDescOrNull(0, i); }
-    for (let i = 0; i < d.info.gcount; i++) { sayK("reading", `${d.info.pcount + i + 1}/${total}`); d.gdesc[i] = await getDescOrNull(1, i); }
-    const kd = d.pdesc[d.info.pe0];
-    if (kd && kd.label === "KIT" && kd.names.length) d.kitNames = kd.names;   /* (the drum track was selected) */
+    /* every DESC, the track values (scope 0) then the globals (scope 1), counted together on the status line */
+    const { pcount, gcount } = d.info, all = pcount + gcount;
+    for (let n = 0; n < all; n++) {
+      sayK("reading", `${n + 1}/${all}`);
+      if (n < pcount) d.pdesc[n] = await getDescOrNull(0, n);
+      else d.gdesc[n - pcount] = await getDescOrNull(1, n - pcount);
+    }
+    const first = d.pdesc[d.info.pe0];               /* the drum track is selected: its first engine value is KIT */
+    if (first && first.label === "KIT" && first.names.length > 0) d.kitNames = first.names;
     d.titles = [];
-    for (let e = 0; e < d.info.nengines; e++) {
-      const r = parse[CMD.NAMES](await d.link.request(req.names(e)));
-      d.names[e] = r.names;
-      d.titles[e] = r.titles;
+    for (let eng = 0; eng < d.info.nengines; eng++) {
+      const { names, titles } = parse[CMD.NAMES](await d.link.request(req.names(eng)));
+      [d.names[eng], d.titles[eng]] = [names, titles];
     }
-    for (let k = 0; k < 4; k++) {                    /* PROJECT op 2: is the slot used */
-      try { d.slotUsed[k] = parse[CMD.PROJECT](await d.link.request(req.project(2, k))).used; }
-      catch (e) { if (e.message === "closed") throw e; }
+    /* PROJECT op 2 per slot: used or empty (no answer: unknown, null) */
+    for (const slot of [0, 1, 2, 3]) {
+      try { d.slotUsed[slot] = parse[CMD.PROJECT](await d.link.request(req.project(2, slot))).used; }
+      catch (err) { if (err.message === "closed") throw err; }
     }
-    try { d.smp = parse[CMD.SMP_INFO](await d.link.request(req.smpInfo())); }
-    catch (e) { if (e.message === "closed") throw e; d.smp = null; }   /* older firmware, or no flash */
+    d.smp = null;                                     /* the sample slots (none: older firmware, or no flash for them) */
+    try { const reply = await d.link.request(req.smpInfo()); d.smp = parse[CMD.SMP_INFO](reply); }
+    catch (err) { if (err.message === "closed") throw err; }
     await drumsReadOrNone(d);                         /* the drum lanes, the user kits (none: older firmware) */
     d.pages = await readDevicePages((r, o) => d.link.request(r, o));   /* the device's pages (null: older firmware, LAYOUT) */
     d.rtype = await readReverbType((r, o) => d.link.request(r, o), d.info);   /* REVERB > TYPE (null: one algorithm) */
@@ -7411,38 +7422,34 @@ async function load(d) {
     try {
       d.s24in = !!parse[CMD.SL24_PUT](await d.link.request(req.sl24Commit(), { timeout: 400, retries: 0, quiet: true }));
     } catch (e) { if (e.message === "closed") throw e; }   /* (a build without it: no reply) */
-    d.keys = paramKeys(d.pdesc, d.info.pe0, d.info.pcount);
+    d.keys = paramKeys(d.pdesc, d.info.pe0, pcount);   /* (the values a library sound carries) */
     await libAdopt(d);
-    if (d.info.ntrk) d.sel = parse[CMD.TRACK](await d.link.request(req.track())).sel;   /* v3: the selected track */
+    const tracks = d.info.ntrk;                       /* (protocol 3 and later: several tracks, one selected) */
+    if (tracks) d.sel = parse[CMD.TRACK](await d.link.request(req.track())).sel;
     d.dump = await getDump();
-    buildUI();
-    renderPanels();
+    buildUI(); renderPanels();
     await loadSteps();
-    if (d.info.ntrk) await readMixer();
+    if (tracks) await readMixer();
     if (d.info.ntrk) for (let i = 0; i < d.info.ntrk; i++) { sayK("steploading", `${t("track")} ${i + 1}`); await readOverview(i); }   /* the strips' step overviews */
-    /* protocol v2: live pushes and the user bank; older firmware: DUMP polling, no bank */
-    const rqd = (r, o) => d.link.request(r, o);
+    /* the watch (protocol 2 on): the device pushes its changes and has a user bank; without it: DUMP polls, no bank */
+    const rqd = (frame, options) => d.link.request(frame, options);
     Object.assign(d, watchCaps(await startWatch(rqd, WATCH.EDIT | WATCH.ENDS)));   /* v4: TRACK_PARAM / TRACK_CHANGED; v9: pushes for everything */
     if (d.watch) {
       sayK("readingBank");
-      try { d.bank = await bank.list((r, o) => d.link.request(r, { ...o, quiet: true })); }
-      catch (e) { if (e.message === "closed") throw e; d.bank = null; }
+      d.bank = null;
+      const quietly = (r, o) => d.link.request(r, Object.assign({}, o, { quiet: true }));
+      try { d.bank = await bank.list(quietly); }
+      catch (err) { if (err.message === "closed") throw err; }
     }
     if (d.info.engines.includes("CZ")) {            /* the CZ collection (cmd 66): none in this build, no reply */
       try { d.cz = await czRead((r) => d.link.request(r, { timeout: 400, retries: 0, quiet: true })); }
       catch (e) { if (e.message === "closed") throw e; d.cz = null; }
     }
-    renderLive();
-    renderLib();
-    renderBank();
-    renderCz();
-    renderSysinfo();
-    renderKit();
-    renderSnaps();
-    renderBackup();
-    renderSync();
+    [renderLive, renderLib, renderBank, renderCz, renderSysinfo, renderKit, renderSnaps, renderBackup, renderSync].forEach((draw) => draw());
     sayK("ready");
-  } finally { busy--; }
+  } finally {
+    busy -= 1;
+  }
 }
 /* a backup-only firmware (INFO tag 0x64, builder ED_LIVE off): what Backup and restore need, the sample slots (a
  * restore writes the USR slots), the snapshots (their area), the object list; the page shows the Backup alone */
@@ -7479,48 +7486,56 @@ async function loadLite(d) {
   if (d.info.lib) { renderLibr(); renderLib(); renderBank(); }
   sayK("ready");
 }
-async function getDescOrNull(s, i) { try { return await getDesc(s, i); } catch (e) { if (e.message === "closed") throw e; return null; } }
-
-/* rebuilds the controls only when the engine or its parameters changed (a slider being dragged survives) */
-async function rereadEngineDesc() {
-  const pe0 = dev.info.pe0;
-  const before = JSON.stringify(dev.pdesc.slice(pe0));
-  for (let i = 0; i < 8 && pe0 + i < dev.info.pcount; i++) dev.pdesc[pe0 + i] = await getDescOrNull(0, pe0 + i);
-  const kd = dev.pdesc[pe0];
-  if (kd && kd.label === "KIT" && kd.names.length) dev.kitNames = kd.names;   /* the drum track's kits, for the mixer */
-  const pb = JSON.stringify(dev.pages);              /* the pages shown follow the engine and the track (PAGES) */
-  if (dev.pages) dev.pages = await readDevicePages(rq) || dev.pages;
-  if (dev.built !== dev.dump.engine || JSON.stringify(dev.pdesc.slice(pe0)) !== before || JSON.stringify(dev.pages) !== pb) buildGroups();
+/* a DESC, or null when the device does not answer for that id (a closed link still throws) */
+async function getDescOrNull(s, i) {
+  try { return await getDesc(s, i); }
+  catch (err) { if (err.message === "closed") throw err; }
+  return null;
 }
 
+/* after an engine or track change: the engine's eight DESCs again; the controls are rebuilt only when something they show
+   changed (so a slider the user is dragging is kept) */
+async function rereadEngineDesc() {
+  const { pe0, pcount } = dev.info;
+  const engDescs = () => JSON.stringify(dev.pdesc.slice(pe0));
+  const was = engDescs();
+  for (let id = pe0; id < Math.min(pe0 + 8, pcount); id++) dev.pdesc[id] = await getDescOrNull(0, id);
+  const head = dev.pdesc[pe0];                        /* the drum track: its kit names, for the mixer */
+  if (head && head.label === "KIT" && head.names.length > 0) dev.kitNames = head.names;
+  const pb = JSON.stringify(dev.pages);              /* the pages shown follow the engine and the track (PAGES) */
+  if (dev.pages) dev.pages = await readDevicePages(rq) || dev.pages;
+  const changed = dev.built !== dev.dump.engine || engDescs() !== was || JSON.stringify(dev.pages) !== pb;
+  if (changed) buildGroups();
+}
+
+/* every step of the selected track (a drum track with protocol 5: its lanes, DRUM_STEP, kept beside an old-style copy) */
 async function loadSteps() {
   dev.sx = {};                                     /* (the step extras are read again) */
-  const n = dev.info.nstep, drum = drumGrid();
-  if (!dev.dsteps) dev.dsteps = [];
-  for (let i = 0; i < n; i++) {
-    if (i % 8 === 0) sayK("steploading", `${i}/${n}`);
-    if (drum) { dev.dsteps[i] = await getDrumStep(i); dev.steps[i] = drumAsStep(dev.dsteps[i]); }
-    else dev.steps[i] = await getStep(i);
+  const count = dev.info.nstep, lanes = drumGrid();
+  dev.dsteps = dev.dsteps || [];
+  for (let at = 0; at < count; at++) {
+    if (!(at % 8)) sayK("steploading", `${at}/${count}`);
+    if (!lanes) { dev.steps[at] = await getStep(at); continue; }
+    const ds = await getDrumStep(at);
+    dev.dsteps[at] = ds;
+    dev.steps[at] = drumAsStep(ds);
   }
-  dev.dstepsOk = drum;
+  dev.dstepsOk = lanes;
   renderSteps();
 }
 
-/* --------------------------------------------------------------- UI --- */
+/* ==================================================================== views === */
+/* after a connect: the engine list, the parameter groups, the browser, the slots, the samples, the device facts */
 function buildUI() {
-  const sel = $("engine");
-  sel.replaceChildren(...dev.info.engines.map((n, i) => el("option", { value: i, text: n })));
+  const options = dev.info.engines.map((name, i) => el("option", { value: i, text: name }));
+  $("engine").replaceChildren(...options);
   dev.mix = null;
-  buildGroups();
-  updateBrowser();
-  renderSlots();
-  renderSamples();
-  renderSysinfo();
+  for (const draw of [buildGroups, updateBrowser, renderSlots, renderSamples, renderSysinfo]) draw();
 }
 
-/* the track selector (v3): T1..T3 synth parts, T4 the drum track; the editor shows the selected one */
+/* the track buttons (protocol 3 on): the synth tracks, then the drum track; the editor follows the selected one */
 function renderTrackbar() {
-  const ntrk = hasTracks() ? dev.info.ntrk : 0;
+  const ntrk = !hasTracks() ? 0 : dev.info.ntrk;
   for (const box of [$("trackbtns")]) {              /* (the page's own tab row is gone: the strips' heads are the selector) */
     if (box.children.length !== ntrk) {
       box.replaceChildren(...Array.from({ length: ntrk }, (_, i) => el("button", { type: "button", "data-i": i, style: `--c: var(--t${i + 1})`,
@@ -7562,54 +7577,55 @@ $("tabs").addEventListener("click", (e) => {
 });
 function selectTrack(i, done) {
   if (!dev || !hasTracks() || i === dev.sel) { if (done) done(); return; }
-  op(async () => {
-    dev.sel = parse[CMD.TRACK](await rq(req.track(i))).sel;
+  op(async () => {                                    /* TRACK with an index selects it; the reply says which one is */
+    const reply = await rq(req.track(i));
+    dev.sel = parse[CMD.TRACK](reply).sel;
     await afterSoundChange();
   }).finally(() => { if (done) done(); });
 }
 
-/* settings > system: what the device reported */
+/* Settings > System: the device's own facts, one table row each */
 function renderSysinfo() {
-  const box = $("sysinfo");
-  if (!dev || !dev.info) { box.replaceChildren(); return; }
-  const i = dev.info;
-  const rows = [
-    ["firmware", i.version], ["sync", t(dev.watch ? "live" : "polling")], ["enginesL", i.engines.join(", ")],
-    ["tracksN", i.ntrk ? String(i.ntrk) : "1"], ["stepsN", String(i.nstep)],
-    ["smpSlots", dev.smp ? `${dev.smp.nslots} × ${dev.smp.slotKiB} KiB` : t("none")],
-    ["userBank", dev.bank ? String(dev.bank.total) : t("none")],
+  const table = $("sysinfo");
+  const info = dev && dev.info;
+  if (!info) { table.replaceChildren(); return; }
+  const orNone = (have, text) => (have ? text : t("none"));
+  const facts = [
+    ["firmware", info.version],
+    ["sync", t(dev.watch ? "live" : "polling")],
+    ["enginesL", info.engines.join(", ")],
+    ["tracksN", String(info.ntrk || 1)],
+    ["stepsN", String(info.nstep)],
+    ["smpSlots", orNone(dev.smp, dev.smp && `${dev.smp.nslots} × ${dev.smp.slotKiB} KiB`)],
+    ["userBank", orNone(dev.bank, dev.bank && String(dev.bank.total))],
   ];
-  box.replaceChildren(...rows.map(([k, v]) => el("tr", {}, el("th", { text: t(k) }), el("td", { text: v }))));
+  table.replaceChildren(...facts.map(([name, value]) => el("tr", {}, el("th", { text: t(name) }), el("td", { text: value }))));
 }
 
+/* the engine and preset pickers and what goes with them, for the selected track */
 function updateBrowser() {
-  const e = dev.dump.engine;
-  const sel = $("engine");
-  const drum = e >= dev.info.nengines;              /* the drum track: no engine, no presets */
+  const e = dev.dump.engine, sel = $("engine");
+  const drum = !(e < dev.info.nengines);            /* (the drum track has neither an engine nor presets) */
   renderTrackbar();
-  sel.disabled = drum;
-  $("preset").disabled = drum;
-  $("init").disabled = drum;
-  $("factlib").disabled = drum;
+  for (const c of [sel, $("preset"), $("init"), $("factlib")]) c.disabled = drum;
   $("drumsound").hidden = !drum;
   { const x = dev.mix && dev.mix.tracks[dev.sel]; if (x && !drum && (x.engine !== e || x.preset !== dev.dump.preset)) { x.engine = e; x.preset = dev.dump.preset; if (mixCtl.length === dev.mix.ntrk) updateStrip(dev.sel); } }   /* (an engine / preset change: the strip and the title follow) */
   if (nav.pop && (nav.pop.id === "sound" || nav.pop.id === "sequence")) { nav.pop.track = dev.sel; $("poptitle").textContent = popTitle(nav.pop.id, dev.sel); }
   soundTitle();
   if (drum) renderDrumSound();
-  $("browser").hidden = drum;
-  $("groups").hidden = drum;
-  $("ctlhelp").hidden = drum;
-  if (document.activeElement !== sel) sel.value = drum ? "" : String(e);
-  const ps = $("preset");
-  const names = dev.names[e] || [];
-  if (ps.dataset.engine !== String(e)) {
-    ps.replaceChildren(...names.map((n, i) => el("option", { value: i, text: n })));
-    ps.dataset.engine = String(e);
+  for (const id of ["browser", "groups", "ctlhelp"]) $(id).hidden = drum;
+  const focused = document.activeElement;
+  if (focused !== sel) sel.value = drum ? "" : String(e);
+  const presets = $("preset");
+  if (presets.dataset.engine !== String(e)) {         /* the preset names are rebuilt only for another engine */
+    presets.replaceChildren(...(dev.names[e] || []).map((name, i) => el("option", { value: i, text: name })));
+    presets.dataset.engine = String(e);
   }
-  if (document.activeElement !== ps) ps.value = String(dev.dump.preset);
+  if (focused !== presets) presets.value = String(dev.dump.preset);
 }
 
-function visible(d) { return d && d.max > d.min && d.label !== "-"; }
+/* a value worth a control: a range, and not the device's "-" placeholder */
+function visible(d) { return d && d.label !== "-" && d.max > d.min; }
 
 /* the device's PATTERN page of an Optimist UI build lists DIV and SWG only: LEN (the steps) and the pattern GATE are on the device's other screens; the editor shows all four (D5) */
 function patternIds(p, ids) {
@@ -7617,13 +7633,14 @@ function patternIds(p, ids) {
   const gate = dev.pdesc.findIndex((d, k) => d && d.label === "GATE" && k > 24 && k < dev.info.pe0);
   return [...new Set([pSlen(), ...ids, ...(gate >= 0 ? [gate] : [])])];
 }
+/* the Sound, Sequencer and Settings groups of controls, registered afresh in ctl */
 function buildGroups() {
   ctl.clear();
-  dev.built = dev.dump.engine;
+  dev.built = dev.dump.engine;                       /* (rereadEngineDesc compares with it) */
   /* Sound: the selected track's parameters (knobs; the device's pages when it gives them, PAGES, else the editor's LAYOUT);
      Sequencer: its pattern settings; Settings: globals and drums */
-  const groups = { groups: [], seqgroups: [], setgroups: [] };
   const { info } = dev;
+  const groups = { groups: [], seqgroups: [], setgroups: [] };   /* (keyed by the id of the box that shows them) */
   const layoutOk = EXPECTS.some((x) => info.pcount === x.pcount && info.gcount === x.gcount && info.pe0 === x.pe0);
   const group = (g, knobs) => {
     const div = el("div", { class: "group", "data-fam": g.t.toLowerCase() },
@@ -7658,20 +7675,22 @@ function buildGroups() {
     }
   }
   if (!layoutOk && !(dev.pages && dev.pages.length)) {
-    /* unknown firmware layout: everything in id order */
-    const a = el("div", { class: "group" }, el("h2", { ic: HEAD_IC.INSTRUMENT, text: "INSTRUMENT" }), el("p", { class: "dim", text: t("layout") }));
-    const b = el("div", { class: "group" }, el("h2", { ic: HEAD_IC.EDIT, text: "EDIT" }));
-    const c = el("div", { class: "group" }, el("h2", { ic: HEAD_IC.GLOBAL, text: "GLOBAL" }));
-    for (let i = 0; i < info.pcount; i++) { const r = paramRow(0, i); if (r) (i >= info.pe0 ? b : a).append(r); }
-    for (let i = 0; i < info.gcount; i++) { const r = paramRow(1, i); if (r) c.append(r); }
-    groups.groups.push(a, b);
-    groups.setgroups.push(c);
+    /* a layout this editor does not know and no pages from the device: every value as a row, in id order */
+    const box = (name, ...more) => el("div", { class: "group" }, el("h2", { ic: HEAD_IC[name], text: name }), ...more);
+    const common = box("INSTRUMENT", el("p", { class: "dim", text: t("layout") })), engine = box("EDIT"), globals = box("GLOBAL");
+    for (let id = 0; id < info.pcount; id++) {
+      const row = paramRow(0, id);
+      if (row) (id < info.pe0 ? common : engine).append(row);
+    }
+    for (let id = 0; id < info.gcount; id++) { const row = paramRow(1, id); if (row) globals.append(row); }
+    groups.groups.push(common, engine);
+    groups.setgroups.push(globals);
   }
   { const mg = midiSetGroup(); if (mg) groups.setgroups.push(mg); }   /* (the MIDI channels, OUT, IN) */
   if (scrnOn()) groups.setgroups = [];   /* (the device's own GLOBAL and SYSTEM lines below cover every one of these: GLOBAL, NOTE REPEAT, DRUMS, MIDI CLOCK, the MIDI channels; no second copy) */
   dev.scaleGroups = groups.groups.filter((g) => /^(scl|arp)$/.test(g.dataset.fam));   /* (the header's scale panel and the strips' ARP button hold them) */
   groups.groups = groups.groups.filter((g) => !dev.scaleGroups.includes(g));
-  for (const [id, divs] of Object.entries(groups)) $(id).replaceChildren(...divs);
+  Object.keys(groups).forEach((boxId) => $(boxId).replaceChildren(...groups[boxId]));
   /* the tempo lives in the transport bar only: its input follows pushes / polling like any control */
   const bi = dev.gdesc.findIndex((d) => d && d.label === "BPM");
   $("bpmbox").hidden = bi < 0;
@@ -7686,9 +7705,9 @@ function buildGroups() {
 /* a parameter as a knob (an enum, a note, ON / OFF: a dropdown with its label), for the Sound tab; registered in ctl
    like paramRow's controls (showValue, pushes, polling) */
 function paramKnob(s, id, title) {
-  const d = s ? dev.gdesc[id] : dev.pdesc[id];
-  if (!visible(d) || (s === 1 && G_SKIP.has(d.label))) return null;
-  if (d.fmt === F.ENUM || d.fmt === F.NOTE || d.fmt === F.ONOFF) {
+  const d = shownDesc(s, id);
+  if (d === null) return null;
+  if (listFmt(d)) {
     const r = paramRow(s, id, title);                /* (its select, its value) */
     const c = ctl.get(key(s, id));
     return el("label", { class: "pk" }, el("span", { class: "kl", text: d.label }), c.input);
@@ -7705,144 +7724,174 @@ function paramKnob(s, id, title) {
   return kb.el;
 }
 
-function paramRow(s, id, title) {
-  const d = s ? dev.gdesc[id] : dev.pdesc[id];
-  if (!visible(d) || (s === 1 && G_SKIP.has(d.label))) return null;
-  const k = key(s, id);
-  let input;
-  if (d.fmt === F.ENUM || d.fmt === F.NOTE || d.fmt === F.ONOFF) {
-    const wave = RICH_SELECT && d.fmt === F.ENUM && /^WAVE2?$/.test(d.label);
-    input = el("select", { class: wave ? "wave" : null });
-    /* the closed select shows a copy of the chosen option (icon span included), not its bare text */
-    if (wave) input.append(el("button", {}, el("selectedcontent")));
-    for (let v = d.min; v <= d.max; v++) {
+/* the DESC of (s, id) when it gets a control (a range, not a placeholder, not a global shown elsewhere), else null */
+function shownDesc(s, id) {
+  const d = (s ? dev.gdesc : dev.pdesc)[id];
+  if (!visible(d)) return null;
+  return s === 1 && G_SKIP.has(d.label) ? null : d;
+}
+/* the formats chosen from a list rather than turned */
+const listFmt = (d) => [F.ENUM, F.NOTE, F.ONOFF].includes(d.fmt);
+/* an enum, a note or ON / OFF as a dropdown (WAVE / WAVE2 with their icons where the browser draws rich options) */
+function paramSelect(s, id, d) {
+  const wave = RICH_SELECT && /^WAVE2?$/.test(d.label) && d.fmt === F.ENUM;
+  const box = el("select", { class: wave ? "wave" : null });
+  if (wave) box.append(el("button", {}, el("selectedcontent")));   /* (closed, it shows the chosen option itself, its icon too) */
+  for (let v = d.min; v <= d.max; v += 1) {
       if (d.fmt === F.ENUM && d.names[v - d.min] === "") continue;   /* a value this build leaves out (FM6's ENGINE modes) */
-      const [txt] = fmtValue(d, v);
-      const name = (d.fmt === F.ENUM && d.names[v - d.min] == null ? String(v) : txt);
-      input.append(el("option", { value: v, ic: wave && WAVE_IC[name] }, name));
-    }
-    input.addEventListener("change", () => userSet(s, id, +input.value, true));
-  } else {
-    input = el("input", { type: "range", min: d.min, max: d.max, step: 1 });
-    input.addEventListener("pointerdown", () => { dragging = k; });
-    input.addEventListener("input", () => userSet(s, id, +input.value, false));
-    input.addEventListener("change", () => userSet(s, id, +input.value, true));
-    input.addEventListener("dblclick", () => { input.value = d.def; userSet(s, id, d.def, true); });
-    /* fine adjust: wheel over the focused slider, Shift+arrows in steps of 10 (plain arrows are native) */
-    const nudge = (dv) => {
-      const nv = Math.max(d.min, Math.min(d.max, +input.value + dv));
-      if (nv !== +input.value) { input.value = String(nv); userSet(s, id, nv, true); }
-    };
-    let acc = 0;
-    input.addEventListener("wheel", (e) => {
-      if (document.activeElement !== input) return;
-      e.preventDefault();
-      acc += (e.deltaMode === 1 ? 33 : 1) * (Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? -e.deltaY : e.deltaX);
-      const n = Math.trunc(acc / 50);
-      if (n) { acc -= n * 50; nudge(n * (e.shiftKey ? 10 : 1)); }
-    }, { passive: false });
-    input.addEventListener("keydown", (e) => {
-      const dir = { ArrowUp: 1, ArrowRight: 1, ArrowDown: -1, ArrowLeft: -1 }[e.key];
-      if (!dir || !e.shiftKey) return;
-      e.preventDefault();
-      nudge(dir * 10);
-    });
+    const label = d.fmt === F.ENUM && d.names[v - d.min] == null ? String(v) : fmtValue(d, v)[0];
+    box.append(el("option", { value: v, ic: wave && WAVE_IC[label] }, label));
   }
+  box.addEventListener("change", () => userSet(s, id, Number(box.value), true));
+  return box;
+}
+/* a number as a slider: dragged (sent as it moves, final on release), double-click for the default; finer steps with the
+   wheel while it has the focus (50 units a step) and Shift+arrows by 10 (the plain arrows are the browser's) */
+function paramSlider(s, id, d, k) {
+  const sl = el("input", { type: "range", min: d.min, max: d.max, step: 1 });
+  const send = (final) => () => userSet(s, id, Number(sl.value), final);
+  sl.addEventListener("pointerdown", () => { dragging = k; });
+  sl.addEventListener("input", send(false));
+  sl.addEventListener("change", send(true));
+  sl.addEventListener("dblclick", () => { sl.value = d.def; userSet(s, id, d.def, true); });
+  const moveBy = (delta) => {
+    const now = Number(sl.value), to = Math.min(d.max, Math.max(d.min, now + delta));
+    if (to === now) return;
+    sl.value = String(to);
+    userSet(s, id, to, true);
+  };
+  let wheelSum = 0;
+  sl.addEventListener("wheel", (ev) => {
+    if (sl !== document.activeElement) return;
+    ev.preventDefault();
+    const vertical = Math.abs(ev.deltaY) >= Math.abs(ev.deltaX);
+    wheelSum += (vertical ? -ev.deltaY : ev.deltaX) * (ev.deltaMode === 1 ? 33 : 1);   /* (deltaMode 1: lines, about 33 px each) */
+    const steps = Math.trunc(wheelSum / 50);
+    if (steps === 0) return;
+    wheelSum -= 50 * steps;
+    moveBy(ev.shiftKey ? 10 * steps : steps);
+  }, { passive: false });   /* (passive: false, or preventDefault would not stop the page scrolling) */
+  const ARROWS = { ArrowUp: 1, ArrowRight: 1, ArrowDown: -1, ArrowLeft: -1 };
+  sl.addEventListener("keydown", (ev) => {
+    if (!ev.shiftKey || !Object.hasOwn(ARROWS, ev.key)) return;
+    ev.preventDefault();
+    moveBy(10 * ARROWS[ev.key]);
+  });
+  return sl;
+}
+/* a parameter as a row: its label, its control, its value text; registered in ctl for showValue, pushes and polling */
+function paramRow(s, id, title) {
+  const d = shownDesc(s, id);
+  if (d === null) return null;
+  const k = key(s, id), listed = listFmt(d);
+  const input = listed ? paramSelect(s, id, d) : paramSlider(s, id, d, k);
   input.title = d.label;
   setHelp(input, paramHelp(s, id, d, title));
-  const out = el("span", { class: "v" });
-  const row = el("div", { class: "row" }, el("span", { text: d.label }), input, out);
-  ctl.set(k, { input, out, desc: d, scope: s, id, row });
-  showValue(k, s ? dev.dump.g[id] : dev.dump.p[id], true);
+  const out = el("span", { class: "v" }), row = el("div", { class: "row" }, el("span", { text: d.label }), input, out);
+  ctl.set(k, { scope: s, id, desc: d, input, out, row });
+  showValue(k, (s ? dev.dump.g : dev.dump.p)[id], true);
   return row;
 }
 
+/* a value arrived (or was set here): the live views, then its control's text, and the control itself unless the user holds it */
 function showValue(k, v, force) {
   liveValue(k, v);
   if (k.startsWith("1:")) renderSync();          /* (SYNC / CLK: the transport bar's clock pill) */                                  /* (an open popup's own controls) */
   const c = ctl.get(k);
-  if (!c || v == null) return;
+  if (v == null || c === undefined) return;
   const [txt, unit] = fmtValue(c.desc, v);
   c.out.textContent = (unit ? `${txt} ${unit}` : txt);
   if (c.desc.label === "SYNC" && c.desc.names && c.desc.names[v] === "AUTO" && dev && dev.dump) {   /* AUTO: the clock followed now (global CLK) */
     const i = dev.gdesc.findIndex((d) => d && d.label === "CLK");
     if (i >= 0) c.out.textContent = "AUTO:" + (["INT", "USB", "TRS", "BLE"][dev.dump.g[i]] ?? "?");
   }
-  if (force || !touched(k)) c.input.value = String(v);
+  if (!force && touched(k)) return;
+  c.input.value = String(v);
 }
-/* the user is working on this control: polling and pushes must not move it */
+/* true while the user is on this control (dragging it, an open dropdown, a change of theirs in the last 600 ms, or a SET of
+   it not answered yet): nothing from the device moves it then */
 function touched(k) {
-  const c = ctl.get(k), st = sets.get(k);
-  if (dragging === k) return true;
-  if (c && c.input.tagName === "SELECT" && document.activeElement === c.input) return true;
-  if (st && performance.now() - st.last < 600) return true;
-  return pendingSet(k);
+  if (k === dragging) return true;
+  const c = ctl.get(k);
+  const openList = !!c && c.input.tagName === "SELECT" && c.input === document.activeElement;
+  const st = sets.get(k);
+  const recent = !!st && performance.now() - st.last < 600;
+  return openList || recent || pendingSet(k);
 }
 /* a SET of this control queued or in flight */
 function pendingSet(k) { return !!dev && (dev.link.hasQueued(k) || (!!dev.link.cur && dev.link.cur.key === k)); }
 
-window.addEventListener("pointerup", () => { if (dragging) { const k = dragging; dragging = null; const c = ctl.get(k); if (c) userSet(c.scope, c.id, +c.input.value, true); } });
-window.addEventListener("pointercancel", () => { dragging = null; });
+/* a released drag sends its value once more as final (anywhere on the page: the pointer may have left the slider) */
+window.addEventListener("pointerup", () => {
+  const held = dragging && ctl.get(dragging);
+  dragging = null;
+  if (held) userSet(held.scope, held.id, Number(held.input.value), true);
+});
+window.addEventListener("pointercancel", () => { dragging = null; });   /* (no final value) */
 
-/* SET as fast as the device answers: one SET per control in flight and at most one queued, which
-   always carries the latest value (Link coalesces by key), so a drag never builds a backlog */
+/* a value the user changed: the local copy, the views, and a SET. The SETs go at the device's pace: per control one is
+   in flight and one waits, the waiting one replaced by each newer value (Link keys them), so a long drag never queues up */
 function userSet(s, id, v, final) {
-  if (!dev) return;
-  const k = key(s, id);
-  (s ? dev.dump.g : dev.dump.p)[id] = v;
+  if (dev == null) return;
+  const values = s ? dev.dump.g : dev.dump.p, k = key(s, id);
+  values[id] = v;                                   /* (the local copy first: the views follow at once) */
   showValue(k, v, false);
   mixFromDump();
   if (!sets.user(k, v, pendingSet(k), performance.now())) return;   /* the pending request already carries it */
   sendSet(s, id, k);
 }
+/* the SET of the latest local value (keyed: Link keeps one queued per control); its reply is the value the device kept (it
+   clamps), shown unless something newer is on its way */
 async function sendSet(s, id, k) {
-  if (!dev) return;
-  const st = sets.get(k);
-  const v = (s ? dev.dump.g : dev.dump.p)[id];
-  st.sent = v;
+  if (dev == null) return;
+  const st = sets.get(k), store = () => (s ? dev.dump.g : dev.dump.p);
+  const asked = store()[id];
+  st.sent = asked;
   try {
-    const r = parse[CMD.SET](await rq(req.set(s, id, v), { key: k }));
-    if (dev && dragging !== k && st.sent === v && !dev.link.hasQueued(k)) {   /* the device's value after clamping */
-      (s ? dev.dump.g : dev.dump.p)[id] = r.value;
-      showValue(k, r.value, false);
-      mixFromDump();
-    }
-  } catch (e) { if (e.message !== "closed") console.warn(e); }
+    const kept = parse[CMD.SET](await rq(req.set(s, id, asked), { key: k })).value;
+    const stale = !dev || k === dragging || st.sent !== asked || dev.link.hasQueued(k);
+    if (!stale) { store()[id] = kept; showValue(k, kept, false); mixFromDump(); }
+  } catch (err) { if (err.message !== "closed") console.warn(err); }
 }
 
-/* engine / preset browser */
-$("engine").addEventListener("change", () => choosePreset(+$("engine").value, 0));
-$("preset").addEventListener("change", () => { if (dev) choosePreset(dev.dump.engine, +$("preset").value); });
+/* the engine and preset pickers */
+$("engine").addEventListener("change", () => choosePreset(Number($("engine").value), 0));
+$("preset").addEventListener("change", () => dev && choosePreset(dev.dump.engine, Number($("preset").value)));
 async function choosePreset(e, p) {
-  if (!dev) return;
-  busy++;
+  if (dev == null) return;
+  busy += 1;
   try {
     selfLoad(true);
-    parse[CMD.PRESET](await rq(req.preset(e, p)));
+    const reply = await rq(req.preset(e, p));
+    parse[CMD.PRESET](reply);                        /* (checks the answer) */
     await afterSoundChange();
-  } catch (err) { report(err); } finally { busy--; }
+  } catch (err) { report(err); }
+  finally { busy -= 1; }
 }
 async function afterSoundChange(msg = "ready") {
-  needReload = false;                               /* this re-reads everything a RELOAD asks for */
+  needReload = false;                               /* (a RELOAD waiting is covered: all of it is read again here) */
   sets.clear();                                     /* another track / sound under the controls: a value equal to the one
                                                        sent before is sent again (SetGate) */
   dev.dump = await getDump();
   await rereadEngineDesc();
-  updateBrowser();
-  refreshAll();
-  await loadSteps();                                /* a preset can bring a pattern */
-  if (hasTracks()) await readMixer();               /* the sound names and the selected strip */
+  updateBrowser(); refreshAll();
+  await loadSteps();                                /* (a preset may come with a pattern) */
+  if (hasTracks()) await readMixer();               /* (the strips: sound names, the selected one) */
   sayK(msg);
 }
+/* INIT: the engine set to itself (G ENG) resets the sound */
 $("init").addEventListener("click", async () => {
-  if (!dev || !confirm(t("confirmInit"))) return;
-  busy++;
+  if (!dev) return;
+  if (!confirm(t("confirmInit"))) return;
+  busy += 1;
   try { selfLoad(true); await rq(req.set(1, gEng(), dev.dump.engine)); await afterSoundChange(); }
-  catch (err) { report(err); } finally { busy--; }
+  catch (err) { report(err); }
+  finally { busy -= 1; }
 });
 
+/* every control from dev.dump (not where the user holds one), and the steps */
 function refreshAll() {
-  for (const [k, c] of ctl) showValue(k, c.scope ? dev.dump.g[c.id] : dev.dump.p[c.id], false);
+  ctl.forEach((c, k) => showValue(k, (c.scope ? dev.dump.g : dev.dump.p)[c.id], false));
   renderSteps();
 }
 function report(err) { if (err && err.message !== "closed") { console.warn(err); sayK("error", err.message); } }
@@ -7850,31 +7899,34 @@ function report(err) { if (err && err.message !== "closed") { console.warn(err);
 /* projects: the protocol cannot ask whether a slot is used without loading or saving it. The state byte: 0 empty,
    1 used, 2 a SLOOP 2.4 project kept under an empty section (FELUCCA_SL24_SAFE; never erased), 3 another firmware's */
 const SLOT_STATE = ["empty", "used", "sl24", "notOurs"];
+/* the four project slots: number, state, Load, Save (four cells a slot in the grid) */
 function renderSlots() {
-  const box = $("slots");
-  box.replaceChildren();
-  for (let i = 0; i < 4; i++) {
-    const u = dev.slotUsed[i];
-    box.append(el("span", { text: String(i + 1) }),
-      el("span", { class: "dim", text: u == null ? t("unknown") : t(SLOT_STATE[u] || "used") }),
-      el("button", { ic: "symbol_folder_open", onclick: () => project(0, i) }, t("load")),
-      el("button", { ic: "port_disk", onclick: () => project(1, i) }, t("save")));
-  }
+  const cells = [0, 1, 2, 3].flatMap((slot) => {
+    const used = dev.slotUsed[slot];
+    const state = used == null ? t("unknown") : t(SLOT_STATE[used] || "used");
+    return [el("span", { text: String(slot + 1) }), el("span", { class: "dim", text: state }),
+      el("button", { ic: "symbol_folder_open", onclick: () => project(0, slot) }, t("load")),
+      el("button", { ic: "port_disk", onclick: () => project(1, slot) }, t("save"))];
+  });
+  $("slots").replaceChildren(...cells);
 }
+/* PROJECT op 0 loads slot `slot`, op 1 saves into it (after the user confirms) */
 async function project(op, slot) {
-  if (!dev) return;
-  if (!confirm(t(op ? "confirmSave" : "confirmLoad").replace("{n}", slot + 1))) return;
-  busy++;
+  if (dev == null) return;
+  const ask = t(op === 0 ? "confirmLoad" : "confirmSave").replace("{n}", slot + 1);
+  if (!confirm(ask)) return;
+  busy += 1;
   try {
-    /* save writes flash: a long timeout and no retry */
-    if (!op) selfLoad();
-    const r = parse[CMD.PROJECT](await rq(req.project(op, slot), { timeout: 4000, retries: 0 }));
+    if (op === 0) selfLoad();
+    /* (a save writes the flash: given 4 s, never repeated) */
+    const r = parse[CMD.PROJECT](await rq(req.project(op, slot), { retries: 0, timeout: 4000 }));
     if (r.busy) throw new Error("Stop playback before loading or saving a section.");
     dev.slotUsed[slot] = r.used;
     renderSlots();
     if (!op && r.used === 1 && !dev.info.lite) await afterSoundChange();   /* (the librarian: nothing live to read back) */
     sayK(op ? "savedSlot" : r.used === 1 ? "loadedSlot" : r.used > 1 ? "keptSlot" : "emptySlot", String(slot + 1));
-  } catch (err) { report(err); } finally { busy--; }
+  } catch (err) { report(err); }
+  finally { busy -= 1; }
 }
 
 /* ---------------------------------------------------------- librarian --- */
@@ -8076,7 +8128,7 @@ function renderLibr() {
     }) }, t("reload"))));
 }
 
-/* ---------------------------------------------------------- steps --- */
+/* ================================================== the selected track's steps === */
 /* The Sequence popup: the synth part as a piano roll (ROLL, rollAdd ...), the drum track as its 16 lanes (renderDrums).
    The roll: rows are notes (a keyboard on the left, octave labels, scrolled to the notes used), columns the steps up to
    LEN with the bar / beat grid of DIV; above it the step numbers (a click picks the step) and the ACC / SLIDE rows,
@@ -8186,11 +8238,11 @@ function renderStepHead() { if (dev && SQ.steps.length) renderSteps(); }
 const stepLen = () => slotEd ? Math.max(1, Math.min(64, slotEd.rec.hdr[0])) : Math.max(1, Math.min(dev.info.nstep, dev.dump.p[pSlen()] || 16));
 const pSdiv = () => { const i = dev.pdesc.findIndex((d, k) => d && k < dev.info.pe0 && d.label === "DIV" && d.fmt === F.ENUM); return i >= 0 ? i : 30; };
 const divName = () => { const d = dev.pdesc[pSdiv()]; return d && d.names ? d.names[((slotEd ? slotEd.rec.hdr[1] : dev.dump.p[pSdiv()]) | 0) - d.min] : "1/16"; };
-function renderSteps() {
+function renderSteps() {   /* the Sequence view: the drum grid or the piano roll */
   slotCheck();
   if (!dev || !SQ.steps.length) return;
   const dg = drumGrid() && !!SQ.dstepsOk;
-  $("drumbar").hidden = $("drumgrid").hidden = !dg;
+  for (const id of ["drumbar", "drumgrid"]) $(id).hidden = !dg;
   $("roll").hidden = dg;
   $("noteshelp").textContent = t(dg ? "drumGridHelp" : "rollHelp");
   if (dg) { renderDrums(); return; }
@@ -8687,23 +8739,26 @@ async function writeStepObj(i) {
     if (d !== dev || d.link.hasQueued("step:" + i) || r.index !== i) return;
     d.steps[i] = r;                                  /* what the device has now */
     if (!roll.drag) { drawRoll(); rollPanel(); }
-  } catch (err) { report(err); }
+  } catch (err) {
+    report(err);
+  }
 }
-/* ---- v5: the drum track's 16 lanes. A click puts a hit with the level / roll chosen above, or takes it
-   away when it already has them; Shift+click steps the level of a hit. One DRUM_STEP per step in flight
-   and one queued with the latest lanes (Link coalesces by key). */
-const paint = { lvl: 0, rat: 0 };
+/* ---- the drum grid (protocol 5): a step x lane cell. Clicking an empty cell, or one with another level or ratchet, sets it
+   to the level and ratchet picked in the bar; clicking a cell that already has exactly those clears it; Shift+click cycles
+   a hit's level. Each step is one keyed DRUM_STEP (Link sends one, holds the newest one back). */
+const paint = { lvl: 0, rat: 0 };   /* (the bar's choice: a level index, a ratchet 0..3) */
 const drumView = { page: 0 };   /* the grid shows one page of 16 steps */
+/* the bar above the grid: the kit, the level and the ratchet a click paints, the page of 16 steps shown */
 function renderDrumBar() {
-  const box = $("drumbar");
-  const kd = dev.pdesc[dev.info.pe0], pe0 = dev.info.pe0;
-  if (!box.children.length) {
-    const kit = el("select", { id: "drumkit", title: t("kit") });
-    kit.addEventListener("change", () => userSet(0, pe0, +kit.value, true));
-    const seg = (label, vals, name, k) => el("span", { class: "seg", role: "group", "aria-label": label },
-      ...vals.map((v) => el("button", { type: "button", "data-k": k, "data-v": v, onclick: () => { paint[k] = v; renderDrumBar(); } }, name(v))));
-    box.replaceChildren(el("label", {}, t("kit") + " ", kit), el("span", { class: "dim" }, t("hitLevel")),
-      seg(t("hitLevel"), LV_ORDER, (v) => LV_NAMES[v], "lvl"),
+  const box = $("drumbar"), pe0 = dev.info.pe0, kd = dev.pdesc[pe0];
+  if (box.children.length === 0) {                  /* (built once) */
+    const pick = el("select", { id: "drumkit", title: t("kit") });
+    pick.addEventListener("change", () => userSet(0, pe0, Number(pick.value), true));
+    /* a row of toggle buttons that set paint[field] */
+    const seg = (label, values, text, field) => el("span", { class: "seg", role: "group", "aria-label": label },
+      ...values.map((v) => el("button", { type: "button", "data-k": field, "data-v": v, onclick() { paint[field] = v; renderDrumBar(); } }, text(v))));
+    box.replaceChildren(el("label", {}, `${t("kit")} `, pick), el("span", { class: "dim" }, t("hitLevel")),
+      seg(t("hitLevel"), LV_ORDER, (lv) => LV_NAMES[lv], "lvl"),
       el("span", { class: "dim" }, t("ratchet")), seg(t("ratchet"), [0, 1, 2, 3], (v) => "x" + (v + 1), "rat"),
       el("span", { class: "dim", id: "drumpagelab" }, t("drumPage")), el("span", { class: "seg", id: "drumpages", role: "group", "aria-label": t("drumPage") }));
   }
@@ -8715,44 +8770,45 @@ function renderDrumBar() {
       onclick: () => { drumView.page = i; renderDrums(); } }, String(i + 1))));
     for (const b of pg.children) b.setAttribute("aria-pressed", +b.dataset.pg === drumView.page ? "true" : "false");
   }
+  /* the kit list: shown when the first engine value is a list of kits */
   const kit = $("drumkit");
-  const names = kd && kd.fmt === F.ENUM && kd.names.length ? kd.names : null;
-  kit.hidden = !names;
-  if (names && kit.dataset.n !== String(names.length)) {
+  const names = !!kd && kd.fmt === F.ENUM && kd.names.length > 0 ? kd.names : null;
+  kit.hidden = names === null;
+  if (names !== null && kit.dataset.n !== String(names.length)) {
     /* the kits in their groups, each with its kind (DRUM_SRCS, else by name) */
     const fk = kitPicker("", false);
     for (const o of fk.querySelectorAll("option")) o.value = String(+o.value.slice(1));
     kit.replaceChildren(...fk.children);
-    kit.dataset.n = String(names.length);
+    kit.dataset.n = `${names.length}`;               /* (rebuilt when the count changes) */
   }
-  if (names && document.activeElement !== kit) kit.value = String(dev.dump.p[pe0]);
-  for (const b of box.querySelectorAll("button[data-k]")) b.setAttribute("aria-pressed", paint[b.dataset.k] === +b.dataset.v ? "true" : "false");
+  if (names !== null && kit !== document.activeElement) kit.value = String(dev.dump.p[pe0]);
+  box.querySelectorAll("button[data-k]").forEach((b) => b.setAttribute("aria-pressed", String(paint[b.dataset.k] === Number(b.dataset.v))));
 }
 /* the drum grid: 16 lanes (their names and what plays them, in its kind's colour), the steps up to LEN in rows of 16 with
    the beat / bar marks of DIV; a hit's level by its shade (GHOST, SOFT, NORM, HARD framed), its ratchet as a number; the
    step playing lit (STATUS) */
 const laneColor = (l) => (l === 16 ? "" : UI_C);   /* (one colour: no kind colour per lane) */
+/* the grid, rebuilt when its shape (length, beat, page, lane count) changes, then every cell from SQ.dsteps */
 function renderDrums() {
   renderDrumBar();
   const box = $("drumgrid"), len = stepLen(), { spb, bar } = rollGrid(divName());
   drumView.page = Math.min(drumView.page, drumPages(len) - 1);
   const nl = accOn() ? 17 : 16, shape = `${len}:${spb}:${drumView.page}:${nl}`;
-  if (box.dataset.shape !== shape) {
-    box.dataset.shape = shape;
+  if (shape !== box.dataset.shape) {
     const cols = Math.min(DRUM_PAGE, len);
-    box.style.gridTemplateColumns = `auto repeat(${cols}, minmax(16px, 1fr))`;
-    const kids = [];
+    Object.assign(box.style, { gridTemplateColumns: `auto repeat(${cols}, minmax(16px, 1fr))` });
+    Object.assign(box.dataset, { shape });
+    const kids = [el("span", { class: "hd" })];     /* (the corner above the lane names) */
     {
       const b0 = drumPageRange(drumView.page, len).from;
-      kids.push(el("span", { class: "hd" }));
       for (let i = b0; i < b0 + cols; i++) kids.push(el("span", { class: "hd" + (i % bar === 0 ? " bar" : ""), "data-h": i, text: i < len && i % spb === 0 ? String(i + 1) : "", title: i < len ? `${t("rollStep")} ${i + 1}` : "",
         onclick: i < len ? () => { sa.step = i; saSoon(); saApplyMarks(); } : null }));
       for (let l = 0; l < nl; l++) {
         kids.push(el("span", { class: "ln", "data-ln": l }));
-        for (let i = b0; i < b0 + cols; i++) {
-          if (i >= len) { kids.push(el("span")); continue; }
-          kids.push(el("button", { type: "button", "data-i": i, "data-l": l, class: [i % spb === 0 && "beat", i % bar === 0 && "bar"].filter(Boolean).join(" ") || null,
-            onclick: (e) => drumClick(i, l, e.shiftKey) }));
+        for (let i = b0, end = b0 + cols; i < end; i++) {
+          const marks = [i % spb === 0 && "beat", i % bar === 0 && "bar"].filter(Boolean).join(" ") || null;
+          kids.push(i < len ? el("button", { type: "button", "data-i": i, "data-l": l, class: marks, onclick: (ev) => drumClick(i, l, ev.shiftKey) })
+            : el("span"));                           /* (past LEN on the last page: an empty cell) */
         }
       }
     }
@@ -8763,52 +8819,72 @@ function renderDrums() {
     n.textContent = laneName(l);
     n.style.setProperty("--kc", kc || "var(--line)");
   }
-  for (const b of box.querySelectorAll("button[data-i]")) {
+  box.querySelectorAll("button[data-i]").forEach((b) => {
     const i = +b.dataset.i, l = +b.dataset.l, d = SQ.dsteps[i];
-    const on = !!d && ((d.on >> l) & 1) === 1;
+    const on = Boolean(d) && Boolean((d.on >> l) & 1);
     b.classList.toggle("on", on);
     b.style.setProperty("--kc", laneColor(l) || "var(--fg)");
-    for (let k = 1; k < 4; k++) b.classList.toggle("l" + k, on && d.lvl[l] === k);
-    b.textContent = on && d.rat[l] ? String(d.rat[l] + 1) : "";
+    [1, 2, 3].forEach((lv) => b.classList.toggle(`l${lv}`, on && d.lvl[l] === lv));   /* (level 0 has no class) */
+    b.textContent = on && d.rat[l] > 0 ? `${d.rat[l] + 1}` : "";
     b.title = `${i + 1} ${laneName(l)}${on ? ` ${LV_NAMES[d.lvl[l]]} x${d.rat[l] + 1}` : ""}`;
     b.setAttribute("aria-label", b.title);
-  }
+  });
   saSoon();
 }
+/* a click on the cell of step i, lane l (see above) */
 function drumClick(i, l, shift) {
   if (!dev || !SQ.dsteps[i]) return;
   sa.step = i; sa.lane = l;                          /* (the step and the sound the automation panel follows) */
   const d = { ...SQ.dsteps[i], lvl: SQ.dsteps[i].lvl.slice(), rat: SQ.dsteps[i].rat.slice() };
-  const on = (d.on >> l) & 1;
-  if (on && shift) d.lvl[l] = LV_ORDER[(LV_ORDER.indexOf(d.lvl[l]) + 1) % 4];   /* louder, then GHOST again */
-  else if (on && d.lvl[l] === paint.lvl && d.rat[l] === paint.rat) { d.on &= ~(1 << l); d.lvl[l] = d.rat[l] = 0; }
-  else { d.on |= 1 << l; d.lvl[l] = paint.lvl; d.rat[l] = paint.rat; }
+  const bit = 1 << l, on = (d.on & bit) !== 0;
+  const same = on && d.lvl[l] === paint.lvl && d.rat[l] === paint.rat;
+  if (on && shift) {
+    const at = LV_ORDER.indexOf(d.lvl[l]);
+    d.lvl[l] = LV_ORDER[(at + 1) % 4];               /* (the next level up, the loudest wraps to GHOST) */
+  } else if (same) {
+    d.on &= ~bit;
+    d.lvl[l] = 0; d.rat[l] = 0;
+  } else {
+    d.on |= bit;
+    [d.lvl[l], d.rat[l]] = [paint.lvl, paint.rat];
+  }
   SQ.dsteps[i] = d;
   SQ.steps[i] = drumAsStep(d);
-  stepEdit.set(i, performance.now());
+  stepEdit.set(i, performance.now());                 /* (polls leave the step alone a moment) */
   if (on && !((d.on >> l) & 1)) saDropLane(dev.sel, i, l);   /* (its hit gone: the sound's locks there go too, the device's rule D4) */
   renderDrums();
   if (slotEd) slotSave();
   else writeDrum(i);
 }
+/* one step's lanes to the device; its answer is kept unless the device changed or a newer write of the step waits */
 async function writeDrum(i) {
-  const d = dev;
+  const was = dev, k = `dstep:${i}`;
   try {
-    const r = parse[CMD.DRUM_STEP](await rq(req.drumStep(i, d.dsteps[i]), { key: "dstep:" + i }));
-    if (d !== dev || d.link.hasQueued("dstep:" + i) || r.index !== i) return;
-    d.dsteps[i] = r;                                 /* what the device has now */
-    d.steps[i] = drumAsStep(r);
+    const got = parse[CMD.DRUM_STEP](await rq(req.drumStep(i, was.dsteps[i]), { key: k }));
+    const keep = was === dev && !was.link.hasQueued(k) && got.index === i;
+    if (!keep) return;
+    was.dsteps[i] = got;
+    was.steps[i] = drumAsStep(got);
     renderDrums();
-  } catch (err) { report(err); }
+  } catch (err) {
+    report(err);
+  }
 }
+/* Reload: every step read again (a slot being edited: the slot as the FM-1 has it) */
 $("reloadsteps").addEventListener("click", async () => {
-  if (!dev) return;
+  if (dev == null) return;
   if (slotEd) { const se = slotEd; op(() => slotOpen(se.k, se.s)); return; }   /* (the slot as the FM-1 has it) */
-  busy++;
-  try { await loadSteps(); sayK("ready"); } catch (err) { report(err); } finally { busy--; }
+  busy += 1;
+  try {
+    await loadSteps();
+    sayK("ready");
+  } catch (err) { report(err); }
+  finally { busy -= 1; }
 });
+/* Clear: every step emptied, on the device one by one (or in the slot being edited) */
 $("clearseq").addEventListener("click", async () => {
-  if (!dev || !confirm(t("confirmClear"))) return;
+  if (dev == null) return;
+  if (!confirm(t("confirmClear"))) return;
   if (slotEd) {                                      /* every step of the slot, written back */
     slotEd.rec.raw = slotEd.rec.raw.map(() => patRawEmpty(slotEd.drum));
     slotModel(slotEd);
@@ -8816,52 +8892,64 @@ $("clearseq").addEventListener("click", async () => {
     slotSave();
     return;
   }
-  busy++;
+  busy += 1;
   try {
     const drum = drumGrid() && SQ.dstepsOk;
-    for (let i = 0; i < dev.info.nstep; i++) {
-      if (i % 8 === 0) sayK("applying", `${i}/${dev.info.nstep}`);
+    const count = dev.info.nstep;
+    for (let i = 0; i < count; i++) {
+      if (!(i % 8)) sayK("applying", `${i}/${count}`);
       if (drum) { SQ.dsteps[i] = parse[CMD.DRUM_STEP](await rq(req.drumStep(i, emptyDrum()))); SQ.steps[i] = drumAsStep(SQ.dsteps[i]); }
       else SQ.steps[i] = parse[CMD.STEP_SET](await rq(req.stepSet(i, { n: 0, notes: [0, 0, 0, 0], time: 2, flags: 0, vel: 0 })));
     }
-    renderSteps();
-    sayK("ready");
-  } catch (err) { report(err); } finally { busy--; }
+    renderSteps(); sayK("ready");
+  } catch (err) { report(err); }
+  finally { busy -= 1; }
 });
 
-/* ---------------------------------------------------------- samples --- */
-const smpDraft = [0, 1, 2].map(() => ({ name: "", files: [] }));
-let smpBusy = false;
-const SMP_RC = { 1: "size", 2: "header", 3: "data CRC", 4: "flash", 5: "zones" };
-const kib = (n) => (n / 1024).toFixed(1);
+/* ================================================================ samples === */
+/* a draft per user slot (USR1..USR3): its name and the decoded files */
+const smpDraft = Array.from({ length: 3 }, () => ({ name: "", files: [] }));
+let smpBusy = false;                                  /* (a slot being written) */
+/* SMP_COMMIT's error codes, for the message */
+const SMP_RC = [null, "size", "header", "data CRC", "flash", "zones"];   /* (index: the rc; 0 is no error) */
+const kib = (bytes) => (bytes / 1024).toFixed(1);
 
-/* auto key split, as in buildSlot (for the preview) */
+/* the key range each file plays when none is given: split half-way between neighbouring roots, the lowest from key 0, the
+   highest up to 127 (buildSlot does the same, this is the preview's copy); a chop keeps its own lo..hi */
 function splitKeys(files) {
-  const z = files.map((f, i) => ({ i, root: f.root })).sort((a, b) => a.root - b.root);
-  const out = [];
-  z.forEach((x, j) => {
-    out[x.i] = [j === 0 ? 0 : Math.floor((z[j - 1].root + x.root) / 2) + 1, j === z.length - 1 ? 127 : Math.floor((x.root + z[j + 1].root) / 2)];
+  const byRoot = files.map((f, i) => [f.root, i]).sort((a, b) => a[0] - b[0]);
+  const ranges = [];
+  byRoot.forEach(([root, i], j) => {
+    const below = byRoot[j - 1], above = byRoot[j + 1];
+    const lo = below ? Math.floor((below[0] + root) / 2) + 1 : 0;
+    const hi = above ? Math.floor((root + above[0]) / 2) : 127;
+    ranges[i] = [lo, hi];
   });
-  files.forEach((f, i) => { if (f.lo != null) out[i] = [f.lo, f.hi]; });   /* (chops: their own keys) */
-  return out;
+  files.forEach((f, i) => { if (f.lo != null) ranges[i] = [f.lo, f.hi]; });
+  return ranges;
 }
 
-const draftBytes = (d) => d.files.reduce((a, f) => a + ((f.s.length + 1) >> 1), 0);
+/* a draft's size on the device: 4-bit ADPCM, two samples a byte */
+const draftBytes = (d) => d.files.reduce((sum, f) => sum + ((f.s.length + 1) >> 1), 0);
 
+/* a dropped file as 22050 Hz mono, normalised; a WAV is read here, anything else the browser decodes (mixed down to
+   mono); the root key from the file name */
 async function decodeFile(f) {
-  const buf = await f.arrayBuffer();
-  let x;
+  const bytes = await f.arrayBuffer();
+  let mono;
   try {
-    const w = parseWav(buf);
-    x = resample(w.x, w.sr, SMP.RATE);
-  } catch (e) {                                     /* not a plain WAV: let the browser decode it */
-    const Ctx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
-    const ab = await new Ctx(1, 1, SMP.RATE).decodeAudioData(buf.slice(0));
-    x = new Float64Array(ab.length);
-    for (let c = 0; c < ab.numberOfChannels; c++) { const d = ab.getChannelData(c); for (let i = 0; i < d.length; i++) x[i] += d[i] / ab.numberOfChannels; }
+    const wav = parseWav(bytes);
+    mono = resample(wav.x, wav.sr, SMP.RATE);
+  } catch (notWav) {
+    const Offline = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    const audio = await new Offline(1, 1, SMP.RATE).decodeAudioData(bytes.slice(0));
+    const chans = audio.numberOfChannels;
+    mono = new Float64Array(audio.length);
+    for (let c = 0; c < chans; c++) audio.getChannelData(c).forEach((v, i) => { mono[i] += v / chans; });
   }
-  if (!x.length) throw new Error("no audio");
-  return { fname: f.name, s: normalize(x), root: rootFromName(f.name.replace(/\.[^.]*$/, "")) };
+  if (mono.length === 0) throw new Error("no audio");
+  const base = f.name.replace(/\.[^.]*$/, "");
+  return { fname: f.name, s: normalize(mono), root: rootFromName(base) };
 }
 
 /* ------------------------------------------------ the Samples page: three steps (SLOOP 2.4's page, onto our slots) --- */
@@ -8913,21 +9001,23 @@ function drawKeymap(cv, files, keys) {
 async function addSmpFiles(list) {
   const d = smpDraft[smpPage.slot];
   let full = false;
-  for (const f of list) {
-    try {
-      const z = await decodeFile(f);
-      if (d.files.length >= SMP.MAX_ZONES) { full = true; break; }
-      d.files.push(z);
-      if (!d.name) d.name = f.name.replace(/\.[^.]*$/, "").toUpperCase().replace(/[^\x20-\x7E]/g, "").slice(0, 8);
-    } catch (e) { sayK("smpDecodeFail", `${f.name} (${e.message})`); }
+  for (const file of list) {
+    let zone;
+    try { zone = await decodeFile(file); }
+    catch (err) { sayK("smpDecodeFail", `${file.name} (${err.message})`); continue; }
+    if (d.files.length >= SMP.MAX_ZONES) { full = true; break; }
+    d.files.push(zone);
+    /* the first file names an unnamed draft: up to 8 printable ASCII characters, upper case */
+    if (!d.name) d.name = file.name.replace(/\.[^.]*$/, "").toUpperCase().replace(/[^\x20-\x7E]/g, "").slice(0, 8);
   }
   if (full) sayK("smpFull");
   renderSamples();
 }
+/* the Samples page: CHOP, then the slots' three steps */
 function renderSamples() {
   chopUI();                                         /* (once; then its parts follow the device) */
   chopRender();
-  const box = $("smpslots");                        /* the tab says when there are no slots (renderPanels) */
+  const box = $("smpslots");                        /* (no slots at all: the tab itself says so, renderPanels) */
   if (!dev || !dev.smp) { box.replaceChildren(); smpPage.ui = null; return; }
   const P = smpPage, n = dev.smp.nslots;
   if (P.slot >= n) P.slot = 0;
@@ -9879,18 +9969,24 @@ async function kpSend() {
   renderKit();
 }
 
-async function smpInfo() { dev.smp = parse[CMD.SMP_INFO](await rq(req.smpInfo())); }
+/* the sample slots' state again (SMP_INFO) */
+async function smpInfo() {
+  const reply = await rq(req.smpInfo());
+  dev.smp = parse[CMD.SMP_INFO](reply);
+}
 
+/* draft k into USR k+1: built (header + ADPCM), checked against the slot's room, confirmed (ask), sent; true when done */
 async function smpUpload(k, prog, ask = true) {
-  const d = smpDraft[k];
-  let built, done = false;
-  try { built = buildSlot(d.name, d.files.map((f) => ({ s: f.s, root: f.root, lo: f.lo, hi: f.hi }))); }
-  catch (e) { sayK("smpFail", e.message); return false; }
-  if (ask && !confirm(t("confirmUpload").replace("{n}", k + 1))) return false;
-  const { hdr, data } = built;
+  const draft = smpDraft[k];
+  const zones = draft.files.map(({ s, root, lo, hi }) => ({ s, root, lo, hi }));
+  let slot = null, done = false;
+  try { slot = buildSlot(draft.name, zones); }
+  catch (err) { sayK("smpFail", err.message); return false; }
+  const go = !ask || confirm(t("confirmUpload").replace("{n}", k + 1));
+  if (!go) return false;
+  const { hdr, data } = slot;
   if (data.length > usrCapData(k)) { sayK("smpFail", t("smpTooBig")); return false; }
-  smpBusy = true;
-  renderSamples();
+  smpBusy = true; renderSamples();                  /* (the page shows the slot busy) */
   prog = (smpPage.ui && smpPage.ui.prog) || prog;
   if (prog) prog.hidden = false;
   done = await smpSend(k, hdr, data, prog);
@@ -9902,26 +9998,28 @@ async function smpUpload(k, prog, ask = true) {
 async function smpSend(k, hdr, data, prog) {
   let done = false;
   busy++;
+  const CHUNK = 256, started = performance.now();
   try {
-    const t0 = performance.now();
-    let r = parse[CMD.SMP_BEGIN](await rq(req.smpBegin(k), { timeout: 1000, retries: 0 }));
+    const r = parse[CMD.SMP_BEGIN](await rq(req.smpBegin(k), { retries: 0, timeout: 1000 }));
     if (r.rc) throw new Error(r.rc === 3 ? t("stopFirst") : "begin rc " + r.rc);
-    for (let off = 0; off < data.length; off += 256) {
-      const a = SMP.DATA_OFF + off;
-      const w = parse[CMD.SMP_WRITE](await rq(req.smpWrite(k, a, data.subarray(off, off + 256)), { timeout: 1000, retries: 1 }));
+    for (let off = 0; off < data.length; off += CHUNK) {
+      const a = SMP.DATA_OFF + off, end = Math.min(data.length, off + CHUNK);
+      const w = parse[CMD.SMP_WRITE](await rq(req.smpWrite(k, a, data.subarray(off, off + CHUNK)), { retries: 1, timeout: 1000 }));
       if (w.rc) throw new Error(w.rc === 5 ? t("stopFirst") : `write at 0x${a.toString(16)} rc ${w.rc}`);
       if (prog) prog.value = (off + 256) / data.length;
-      sayK("smpUploading", `${k + 1}  ${kib(Math.min(data.length, off + 256))} / ${kib(data.length)} KiB`);
+      sayK("smpUploading", `${k + 1}  ${kib(end)} / ${kib(data.length)} KiB`);
     }
-    r = parse[CMD.SMP_END](await rq(req.smpEnd(k, hdr), { timeout: 2000, retries: 0 }));
-    if (r.rc) throw new Error(`end rc ${r.rc} (${SMP_RC[r.rc] || "?"})`);
-    sayK("smpDone", `${k + 1}  ${((performance.now() - t0) / 1000).toFixed(1)} s`);
+    const fin = parse[CMD.SMP_END](await rq(req.smpEnd(k, hdr), { retries: 0, timeout: 2000 }));
+    if (fin.rc) throw new Error(`end rc ${fin.rc} (${SMP_RC[fin.rc] || "?"})`);
+    const secs = (performance.now() - started) / 1000;
+    sayK("smpDone", `${k + 1}  ${secs.toFixed(1)} s`);
     done = true;
-  } catch (e) {
-    if (e.message !== "closed") sayK("smpFail", e.message);
+  } catch (err) {
+    if (err.message !== "closed") sayK("smpFail", err.message);
   } finally {
-    try { if (dev) await smpInfo(); } catch (e) { /* shown by the next action */ }
-    busy--;
+    /* the slots as the device has them now, whatever happened (a failure here shows with the next action) */
+    if (dev) await smpInfo().catch(() => {});
+    busy -= 1;
   }
   return done;
 }
