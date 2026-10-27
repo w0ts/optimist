@@ -36,11 +36,15 @@
  *   sd_opendir / sd_readdir     a directory's entries (fname: the long name under FatFs, the 8.3 one under Petit)
  *   sd_card_mb(), sd_card_type()  the card's capacity, MB (its CSD); its type (CT_*)
  *   sd_fat_bits(), sd_cluster_bytes(), sd_data_sector()   the volume: FAT 12 / 16 / 32, a cluster, its first data sector */
+#ifndef SD_MMC_C
+#define SD_MMC_C "storage/sd/sd_mmc.c"            /* the card driver: ChaN's on the FM-1's bus; another in its place (an
+                                                      * fm1-base app: the card on its plat_sd_*) defines SD_MMC_C first */
+#endif
 #if FELUCCA_SD_FATFS
-#include "storage/sd/sd_mmc.c"
+#include SD_MMC_C
 #else
 #include "storage/sd/pff.h"
-#include "storage/sd/sd_mmc.c"
+#include SD_MMC_C
 #endif
 
 enum { SD_UNMOUNTED = 0, SD_NOCARD, SD_NOFS, SD_READY };
