@@ -1532,7 +1532,7 @@
   <section id="connectcard" class="connectcard" aria-live="polite">
     <h1 class="clogo"><img src="../../icon.svg" alt="" width="32" height="32" style="vertical-align:-6px;margin-right:12px">Optimist</h1>
     <p><button id="connect" class="big" data-t="connect" data-ic="port_usb_c"></button></p>
-    <p><label class="dim"><span data-t="devSource"></span> <select id="devsrc"><option value="usb" data-t="devUsb"></option><option value="bt" data-t="devBt"></option><option value="sim" data-t="devSim"></option></select></label></p>
+    <p><label class="dim"><span data-t="devSource"></span> <select id="devsrc"><option value="usb" data-t="devUsb"></option><option value="bt" data-t="devBt"></option><option value="sim" data-t="devSim"></option><option value="emu" data-t="devEmu"></option></select></label></p>
     <p id="cstatus"></p>
     <p class="dim" data-t="connectHint"></p>
     <p><a class="dim" href="#install" data-t="installerLink"></a></p>
@@ -1674,6 +1674,7 @@
     <details class="pghelp"><summary title="About this page" aria-label="About this page">i</summary><p class="dim" data-t="bkHelp"></p></details>
     <div id="backup"></div>
     <progress id="bkprog" max="1" value="0" hidden></progress>
+    <div id="comp"></div>
   </section>
 
   <!-- snapshots: their own screen, one click from the transport bar (shown when the firmware has them: commands 54..57) -->
@@ -2076,6 +2077,286 @@ function readBackupFile(b) {
   });
   return { device: hdr.device || {}, created: hdr.created, objects };
 }
+/* ------------------------------------------- fm1-base's companion services --- */
+/* Any fm1-base firmware built with companion = true (fm1-base's docs/COMPANION.md), Optimist as an fm1-base app (the
+   trial) among them: the capability query (0x60: what the firmware is and has), its files (0x61: named objects listed,
+   read by offset, written whole and checked by CRC-32 before they count) and its parameters (0x62: described by the
+   firmware, got, set, told when one changes on the FM-1). In the update's framing, F0 pk(00 59 cmd len24 body ~sum8) F7,
+   pk: 8-bit bytes as 7-bit groups, least significant bit first (not this page's pack7). Optimist's own firmware ignores
+   these frames (its ota.c acts on 0x11 alone): no answer, so the page knows. One request at a time through the same Link
+   as Optimist's own commands (Link.raw); the parameters' changes come unasked (Link.onRaw -> Comp.push). */
+const CP = { HELLO: 0x60, FILES: 0x61, PARAMS: 0x62, READ: 256, WRITE: 512,
+  SERVICES: ["capability query", "files", "parameters", "backup", "mirror", "screen reader", "Bluetooth MIDI", "WiFi",
+    "USB audio in", "USB audio out", "the app's own SysEx", "the app's own commands", "the second core", "USB MIDI host",
+    "Bluetooth audio"],
+  KINDS: ["other", "project", "preset", "sample", "bank", "pattern", "settings", "text", "log"],
+  STATUS: ["ok", "busy (the FM-1 plays: stop it first)", "no such file", "not allowed", "out of range", "CRC-32 mismatch",
+    "the flash refused", "out of order", "a malformed request", "an unknown operation"],
+  F_READ: 1, F_WRITE: 2, F_DELETE: 4, F_PLAYING: 8 };
+function cpPk(bytes) {                              /* 8-bit -> 7-bit, LSB first */
+  const out = [];
+  let acc = 0, nb = 0;
+  for (const b of bytes) {
+    acc |= (b & 0xFF) << nb;
+    nb += 8;
+    for (; nb >= 7; nb -= 7) { out.push(acc & 0x7F); acc >>= 7; }
+  }
+  if (nb) out.push(acc & 0x7F);
+  return out;
+}
+function cpUnpk(a) {
+  const out = [];
+  let acc = 0, nb = 0;
+  for (const b of a) {
+    acc |= (b & 0x7F) << nb;
+    nb += 7;
+    for (; nb >= 8; nb -= 8) { out.push(acc & 0xFF); acc >>= 8; }
+  }
+  return Uint8Array.from(out);
+}
+const cpLe = (v, k) => Array.from({ length: k }, (_, i) => Math.floor(v / 2 ** (8 * i)) & 0xFF);
+const cpRd = (a, o, k) => { let v = 0; for (let i = k - 1; i >= 0; i--) v = v * 256 + a[o + i]; return v; };
+const cpStr = (a, o) => { let e = o; while (e < a.length && a[e]) e++; return [String.fromCharCode(...a.subarray(o, e)), e + 1]; };
+function cpFrame(cmd, body = []) {
+  const sum = body.reduce((s, b) => s + b, 0);
+  return [0xF0, ...cpPk([0, 0x59, cmd, ...cpLe(body.length, 3), ...body, ~sum & 0xFF]), 0xF7];
+}
+function cpUnframe(m) {                             /* a companion frame -> { cmd, body }, else null (notes, our FL frames) */
+  if (!m || m.length < 9 || m[0] !== 0xF0 || m[m.length - 1] !== 0xF7 || m[1] === 0x7D) return null;
+  const u = cpUnpk(m.subarray ? m.subarray(1, m.length - 1) : m.slice(1, -1));
+  if (u.length < 7 || u[0] !== 0 || u[1] !== 0x59) return null;
+  const n = cpRd(u, 3, 3);
+  if (u.length < n + 7 || ((~u.subarray(6, 6 + n).reduce((s, b) => s + b, 0)) & 0xFF) !== u[6 + n]) return null;
+  return { cmd: u[2], body: u.slice(6, 6 + n) };
+}
+class CpError extends Error {                       /* a status other than 0 from the FM-1 (CP.STATUS) */
+  constructor(what, st) { super(`${what}: ${CP.STATUS[st] || "status " + st}`); this.status = st; }
+}
+/* the capability query's answer */
+function cpHelloParse(b) {
+  const h = { version: b[0], services: cpRd(b, 1, 4), readMax: cpRd(b, 5, 2), writeMax: cpRd(b, 7, 2), nfiles: cpRd(b, 9, 2),
+    nparams: cpRd(b, 11, 2), extras: {} };
+  let p = 13;
+  [h.identity, p] = cpStr(b, p);
+  [h.name, p] = cpStr(b, p);
+  [h.appVersion, p] = cpStr(b, p);
+  [h.extrasText, p] = cpStr(b, p);
+  for (const kv of h.extrasText.split(";")) { const q = kv.indexOf("="); if (q > 0) h.extras[kv.slice(0, q)] = kv.slice(q + 1); }
+  h.list = CP.SERVICES.filter((s, k) => Math.floor(h.services / 2 ** k) % 2 === 1);
+  return h;
+}
+class Comp {
+  constructor(link) { Object.assign(this, { link, onchange: null }); }
+  ask(cmd, body, match, opt = {}) {                 /* -> the answer's body (match: is it this request's) */
+    return this.link.raw(Uint8Array.from(cpFrame(cmd, body)), (m) => {
+      const f = cpUnframe(m);
+      return f && f.cmd === cmd && match(f.body) ? f.body : undefined;
+    }, { timeout: 1500, retries: 1, ...opt });
+  }
+  push(m) {                                         /* a frame nobody asked for: a parameter changed on the FM-1 (op 6) */
+    const f = cpUnframe(m);
+    if (!f || f.cmd !== CP.PARAMS || f.body[0] !== 6 || !this.onchange) return;
+    for (let k = 0, p = 3; k < f.body[2]; k++, p += 6) this.onchange(cpRd(f.body, p, 2), cpRd(f.body, p + 2, 4) << 0);
+  }
+  async hello(opt) { return cpHelloParse(await this.ask(CP.HELLO, [], () => true, opt)); }
+  /* ---- files */
+  fop(op, i, rest = [], opt) {
+    return this.ask(CP.FILES, [op, i & 0xFF, i >> 8, ...rest], (b) => b[0] === op && cpRd(b, 2, 2) === i, opt);
+  }
+  async file(i) {                                   /* file i: { i, count, kind, flags, size, room, name }; null past the last */
+    const b = await this.fop(0, i);
+    if (b[1] === 2) return null;
+    if (b[1]) throw new CpError(`list ${i}`, b[1]);
+    return { i, count: cpRd(b, 4, 2), kind: b[6], kindName: CP.KINDS[b[6]] || "other", flags: b[7], size: cpRd(b, 8, 4),
+      room: cpRd(b, 12, 4), name: cpStr(b, 16)[0] };
+  }
+  async files() {
+    const first = await this.file(0), out = first ? [first] : [];
+    for (let i = 1; first && i < first.count; i++) out.push(await this.file(i));
+    return out;
+  }
+  async readRange(i, off, n, prog) {                /* n bytes of file i from off (fewer at its end) */
+    const out = new Uint8Array(n);
+    let got = 0;
+    while (got < n) {
+      const b = await this.fop(1, i, [...cpLe(off + got, 4), ...cpLe(Math.min(CP.READ, n - got), 2)]);
+      if (b[1]) throw new CpError(`read ${i}`, b[1]);
+      const c = b.subarray(8);
+      if (cpRd(b, 4, 4) !== off + got) continue;    /* (an answer to an older try) */
+      if (!c.length) break;
+      out.set(c.subarray(0, n - got), got);
+      got += c.length;
+      if (prog) prog(c.length);
+    }
+    return got < n ? out.slice(0, got) : out;
+  }
+  async read(f, prog) {                             /* file f ({ i, size }) whole, checked by the FM-1's CRC-32 of it */
+    const data = await this.readRange(f.i, 0, f.size, prog);
+    const s = await this.fop(2, f.i);
+    if (s[1]) throw new CpError(`sum ${f.i}`, s[1]);
+    if (cpRd(s, 4, 4) !== data.length || cpRd(s, 8, 4) !== crc32(data)) throw new Error(`file ${f.i}: CRC (it changed while read?)`);
+    return data;
+  }
+  async write(i, data, prog) {                      /* file i := data: begin, the data in order, commit (checked whole) */
+    let b = await this.fop(3, i, [...cpLe(data.length, 4), ...cpLe(crc32(data), 4)], { timeout: 4000, retries: 0 });
+    if (b[1]) throw new CpError(`begin ${i}`, b[1]);
+    for (let off = cpRd(b, 4, 4), stuck = 0; off < data.length;) {
+      const c = data.subarray(off, off + CP.WRITE);
+      b = await this.fop(4, i, [...cpLe(off, 4), ...c], { timeout: 3000, retries: 1 });
+      if (b[1] && b[1] !== 7) throw new CpError(`data ${i} at ${off}`, b[1]);
+      const next = cpRd(b, 4, 4);                   /* (out of order: the FM-1 says where it stands) */
+      if (next <= off && ++stuck > 2) throw new CpError(`data ${i} at ${off}`, b[1] || 7);
+      if (next > off) stuck = 0;
+      if (prog && next > off) prog(next - off);
+      off = next;
+    }
+    b = await this.fop(5, i, [], { timeout: 5000, retries: 0 });
+    if (b[1]) throw new CpError(`commit ${i}`, b[1]);
+  }
+  async remove(i) {
+    const b = await this.fop(6, i, [], { timeout: 5000, retries: 0 });
+    if (b[1]) throw new CpError(`delete ${i}`, b[1]);
+  }
+  /* ---- parameters */
+  pop(op, rest, match, opt) { return this.ask(CP.PARAMS, [op, ...rest], (b) => b[0] === op && match(b), opt); }
+  async params() {                                  /* every parameter: { i, id, name, unit, type, group, groupName, flags, min, max, def, labels } */
+    const out = [], groups = {};
+    for (let i = 0, n = 1; i < n; i++) {
+      const b = await this.pop(0, cpLe(i, 2), (r) => cpRd(r, 2, 2) === i);
+      if (b[1]) break;
+      n = cpRd(b, 4, 2);
+      const p = { i, id: cpRd(b, 6, 2), type: b[8], group: b[9], flags: b[10], min: cpRd(b, 11, 4) << 0, max: cpRd(b, 15, 4) << 0,
+        def: cpRd(b, 19, 4) << 0, nlabels: cpRd(b, 23, 2), labels: [] };
+      let q = 25;
+      [p.name, q] = cpStr(b, q);
+      [p.unit] = cpStr(b, q);
+      while (p.labels.length < p.nlabels) {
+        const l = await this.pop(1, [...cpLe(i, 2), ...cpLe(p.labels.length, 2)], (r) => cpRd(r, 2, 2) === i && cpRd(r, 4, 2) === p.labels.length);
+        if (l[1] || !l[6]) break;
+        for (let k = 0, r = 7; k < l[6]; k++) { const [s, e] = cpStr(l, r); p.labels.push(s); r = e; }
+      }
+      if (!(p.group in groups)) {
+        const g = await this.pop(2, [p.group], (r) => r[2] === p.group);
+        groups[p.group] = g[1] ? `${p.group}` : cpStr(g, 4)[0];
+      }
+      p.groupName = groups[p.group];
+      out.push(p);
+    }
+    return out;
+  }
+  async get(ids) {                                  /* -> Map id -> value (32 at a time) */
+    const m = new Map();
+    for (let k = 0; k < ids.length; k += 32) {
+      const part = ids.slice(k, k + 32), b = await this.pop(3, part.flatMap((id) => cpLe(id, 2)), () => true);
+      for (let j = 0, p = 3; j < b[2]; j++, p += 6) m.set(cpRd(b, p, 2), cpRd(b, p + 2, 4) << 0);
+    }
+    return m;
+  }
+  async set(id, v) {                                /* -> the value the FM-1 took (clamped) */
+    const b = await this.pop(4, [...cpLe(id, 2), ...cpLe(v >>> 0, 4)], (r) => cpRd(r, 2, 2) === id);
+    if (b[1]) throw new CpError(`set ${id}`, b[1]);
+    return cpRd(b, 4, 4) << 0;
+  }
+  async watch(on) { const b = await this.pop(5, [on ? 1 : 0], () => true, { quiet: true }); return !!b[2]; }
+}
+/* a stored zip (zipStore's) -> [{ name, data }] */
+function zipEntries(zip) {
+  const dv = new DataView(zip.buffer, zip.byteOffset, zip.length), out = [];
+  let e = zip.length - 22;
+  while (e >= 0 && dv.getUint32(e, true) !== 0x06054B50) e--;
+  if (e < 0) throw new Error("not a zip file");
+  for (let n = dv.getUint16(e + 10, true), p = dv.getUint32(e + 16, true); n > 0; n--) {
+    if (dv.getUint32(p, true) !== 0x02014B50 || dv.getUint16(p + 10, true) !== 0) throw new Error("a zip entry this page cannot read (compressed?)");
+    const len = dv.getUint32(p + 20, true), fl = dv.getUint16(p + 28, true), x = dv.getUint16(p + 30, true), cm = dv.getUint16(p + 32, true);
+    const name = new TextDecoder().decode(zip.subarray(p + 46, p + 46 + fl)), at = dv.getUint32(p + 42, true);
+    const start = at + 30 + dv.getUint16(at + 26, true) + dv.getUint16(at + 28, true);
+    const data = zip.slice(start, start + len);
+    if (crc32(data) !== dv.getUint32(p + 16, true)) throw new Error(`${name}: CRC`);
+    out.push({ name, data });
+    p += 46 + fl + x + cm;
+  }
+  return out;
+}
+/* the FM-1's ports among a MIDI access's: the fm1-base emulator's (port_client.js, "NAME (emulator)") are FM-1s whatever
+   their name: the first pair */
+function emuPorts(access) {
+  if (!access) return null;
+  for (const input of access.inputs.values()) {
+    const output = [...access.outputs.values()].find((o) => o.name === input.name && o.state !== "disconnected");
+    if (output && input.state !== "disconnected") return { input, output };
+  }
+  return null;
+}
+
+/* ---- Optimist's backup as companion files (the trial: firmware io/editor/ed_comp.c, INFO's opti_cpfiles_1): each object of
+   BK_LIST a file by its tag, in the same order; BKINFO (BK_LIST's head, each object's kind and flags, bk_caps) and BKCTL
+   (one byte: 0 the session ends, 1 it ends and the FM-1 restarts to load what came, 2 the commits only check, 3 they
+   write) after them. The list in BK_LIST's form (bkListAll's), each object with its file and L.comp, so the pages above
+   run unchanged; a read checks each file whole by the FM-1's CRC-32 (o.crc stays null) */
+async function cpBkList(c) {
+  const files = await c.files(), by = (n) => files.find((f) => f.name === n);
+  const info = by("BKINFO"), ctl = by("BKCTL");
+  if (!info || !ctl) throw new Error("no BKINFO / BKCTL among the files: not Optimist's backup");
+  const a = await c.read(info), n = a[1];
+  const L = { version: a[0], n, switches: a[2] | (a[3] << 7), magic: String.fromCharCode(...a.subarray(4, 8)), chunk: a[8] | (a[9] << 7),
+    objs: [], count: n, comp: c, ctl: ctl.i, mode: 0 };
+  for (let k = 0; k < n; k++) {
+    const f = files[k], kind = a[12 + 2 * k], fl = a[13 + 2 * k];
+    L.objs.push({ i: k, file: f.i, tag: f.name.padEnd(4, " "), kind: BK.KIND[kind] || "usr", inBuild: !!(fl & 1), hasData: f.size > 0,
+      fm6: !!(fl & 8), len: f.size, crc: null, room: f.room, flags: f.flags });
+  }
+  L.caps = bkCaps(a, 12 + 2 * n);
+  return L;
+}
+const cpBkCtl = (L, v) => L.comp.write(L.ctl, Uint8Array.of(v)).then(() => { if (v >= 2) L.mode = v; else L.mode = 0; });
+async function cpBkWrite(L, i, data, prog) {        /* object i := data (the commits write: BKCTL 3 first, once) */
+  if (L.mode !== 3) await cpBkCtl(L, 3);
+  await L.comp.write(L.objs[i].file, data, prog);
+}
+/* bkCheckAll's: every storage object sent with the commits only checking (BKCTL 2); one the firmware would not load is
+   refused (the flash refused, CP status 6): its tag; BKCTL 3 again whatever happens */
+async function cpBkCheckAll(L, objs, prog) {
+  const bad = [];
+  await cpBkCtl(L, 2);
+  try {
+    for (const x of objs) {
+      try { await L.comp.write(L.objs[x.d.i].file, x.o.data, prog); }
+      catch (e) { if (e.status === 6) bad.push(x.o.tag); else throw e; }
+    }
+  } finally { await cpBkCtl(L, 3); }
+  return bad;
+}
+/* the sample slots (USR1..USR3) as SMP_INFO gives them: each one's header read (its zones, name, data) */
+async function cpSmpInfo(L) {
+  const slots = [], caps = [];
+  for (const k of [1, 2, 3]) {
+    const o = L.objs.find((x) => x.tag === `USR${k}`);
+    let zones = 0, name = "", kib = 0;
+    if (o && o.len >= SMP.HDR_LEN) {
+      const h = await L.comp.readRange(o.file, 0, 24), dv = new DataView(h.buffer);
+      if (dv.getUint32(0, true) === 0x504D5346) {
+        zones = h[6];
+        name = String.fromCharCode(...h.subarray(8, 16)).replace(/[^\x20-\x7E].*$/, "");
+        kib = Math.ceil(dv.getUint32(16, true) / 1024);
+      }
+    }
+    slots.push({ zones, name, kib });
+    caps.push(o ? Math.floor(o.room / 1024) : 0);
+  }
+  return { nslots: 3, slotKiB: SMP.SLOT_SIZE / 1024, slots, caps };
+}
+/* slot k (0..2) := header (480 bytes) and data: the file its header page (the rest of it 0xFF, as the flash) then the data;
+   end: the session it opened ends (BKCTL 0; not inside a restore, whose BKCTL 1 ends it) */
+async function cpSmpSend(L, k, hdr, data, prog, end = true) {
+  const o = L.objs.find((x) => x.tag === `USR${k + 1}`);
+  if (!o) throw new Error(`no USR${k + 1}`);
+  const f = new Uint8Array(SMP.DATA_OFF + data.length).fill(0xFF, 0, SMP.DATA_OFF);
+  f.set(hdr.subarray(0, SMP.HDR_LEN));
+  f.set(data, SMP.DATA_OFF);
+  try { await L.comp.write(o.file, f, prog); }
+  finally { if (end) await cpBkCtl(L, 0); }
+}
+
 /* the objects of a file against the device's list: what can be written, and why not (never a truncated object:
    a sample slot larger than this build's slot is skipped whole) */
 function bkPlan(file, L) {
@@ -2089,6 +2370,14 @@ function bkPlan(file, L) {
   });
 }
 const bit = (m, i) => Math.floor(m / 2 ** i) % 2 === 1;
+/* bk_caps (ed_backup.c) at a[p..]: BK_LIST's last page ends with it, the companion's BKINFO too */
+function bkCaps(a, p) {
+  const c = { eng: rd7(a, p, 2), kits: rd7(a, p + 2, 5) + rd7(a, p + 7, 1) * 2 ** 35, sets: rd7(a, p + 8, 2), sections: a[p + 10],
+    usrCap: [rd7(a, p + 11, 3), rd7(a, p + 14, 3), rd7(a, p + 17, 3)], engAt: rd7(a, p + 20, 2), trk: rd7(a, p + 22, 2),
+    kitAt: rd7(a, p + 24, 2), e0At: rd7(a, p + 26, 2), np: a[p + 28], pe0: a[p + 29], slen: a[p + 30], bits: [] };
+  for (let i = 0, n = a[p + 31]; i < n && p + 32 + i < a.length; i++) c.bits.push(a[p + 32 + i]);
+  return c;
+}
 /* a FUNA / FUNB project's tracks (the same layout): [{engine, e0}] x 4 (ed_backup.c bk_caps: the offsets) */
 function projTracks(d, c) {
   const dv = new DataView(d.buffer, d.byteOffset, d.length);
@@ -2912,13 +3201,8 @@ const parse = {   /* the replies' readers, by command */
       o.objs.push({ i: o.first + k, tag: String.fromCharCode(...a.slice(p, p + 4)), kind: BK.KIND[a[p + 4]] || "usr",
         inBuild: !!(f & 1), hasData: !!(f & 2), fm6: !!(f & 8), len: rd7(a, p + 6, 3), crc: rd7(a, p + 9, 5) });
     }
-    if (a[0] >= 2 && o.first + o.count >= o.n && p + 32 <= a.length) {   /* v2: what the build holds (ed_backup.c bk_caps; v3: the last page) */
-      const c = { eng: rd7(a, p, 2), kits: rd7(a, p + 2, 5) + rd7(a, p + 7, 1) * 2 ** 35, sets: rd7(a, p + 8, 2), sections: a[p + 10],
-        usrCap: [rd7(a, p + 11, 3), rd7(a, p + 14, 3), rd7(a, p + 17, 3)], engAt: rd7(a, p + 20, 2), trk: rd7(a, p + 22, 2),
-        kitAt: rd7(a, p + 24, 2), e0At: rd7(a, p + 26, 2), np: a[p + 28], pe0: a[p + 29], slen: a[p + 30], bits: [] };
-      for (let i = 0, n = a[p + 31]; i < n && p + 32 + i < a.length; i++) c.bits.push(a[p + 32 + i]);
-      o.caps = c;
-    }
+    if (a[0] >= 2 && o.first + o.count >= o.n && p + 32 <= a.length) o.caps = bkCaps(a, p);   /* v2: what the build holds
+                                                       (ed_backup.c bk_caps; v3: the last page) */
     return o;
   },
   [CMD.BK_READ](a) { return { i: a[0], off: rd7(a, 1, 3), crc: rd7(a, 4, 5), data: unpack7(a.slice(9)) }; },
@@ -3230,6 +3514,7 @@ class Link {
     this.onPush = hook("onPush");
     this.onMirror = opts.onMirror || (() => {});   /* (a: the bytes after the command) the screen's pushes, 106 MIRROR */
     this.onGap = hook("onGap");                     /* (ms) the wire was quiet that long: the device's WATCH may have run out */
+    this.onRaw = opts.onRaw || (() => {});           /* (midi) SysEx not in our FL frames: the companion's pushes (Comp.push) */
   }
   get idle() { return this.cur == null && this.q.length === 0; }
   hasQueued(key) { return this.q.some((item) => item.key === key); }   /* still waiting (not in flight) */
@@ -3243,6 +3528,15 @@ class Link {
       this.q.push({ cmd: null, yam: { send, value }, res, rej, timeout: 0, retries: 0, settle: opt.settle ?? 120 });
       this.pump();
     });
+  }
+  /* another protocol's request through the same queue (fm1-base's companion services, Comp): bytes sent as they are; its
+     answer the first message match(midi) gives a value for (undefined: not it). opt as request's */
+  raw(bytes, match, opt = {}) {
+    if (this.closed) return Promise.reject(new Error("closed"));
+    const item = { cmd: null, raw: { bytes, match }, quiet: !!opt.quiet, timeout: opt.timeout || this.timeout, retries: opt.retries ?? 1 };
+    item.promise = new Promise((ok, fail) => Object.assign(item, { res: ok, rej: fail }));
+    this.q[opt.front ? "unshift" : "push"](item);
+    return this.pump(), item.promise;
   }
   /* a single voice into the FM6 track's voice (the device replaces its voice; no readback) */
   transferDX7(message, opt = {}) {
@@ -3280,13 +3574,13 @@ class Link {
       if (this.lastSent && now - this.lastSent > 2500) this.onGap(now - this.lastSent);
       this.lastSent = now;
     }
-    try { this.sendRaw(y ? y.send : frame(c.cmd, c.args)); } catch (e) { this.finish(null, e); return; }
+    try { this.sendRaw(y ? y.send : c.raw ? c.raw.bytes : frame(c.cmd, c.args)); } catch (e) { this.finish(null, e); return; }
     if (y) { c.timer = setTimeout(() => { if (this.cur === c) this.finish(y.value); }, c.settle); return; }
     const expire = () => {
       if (this.cur !== c) return;                   /* answered in the meantime */
       if (c.retries-- > 0) { this.fire(); return; }
       if (!c.quiet) this.onTimeout(c.cmd);
-      this.finish(null, new Error("timeout (cmd " + c.cmd + ")"));
+      this.finish(null, new Error("timeout (cmd " + (c.raw ? "0x" + (cpUnframe(Uint8Array.from(c.raw.bytes)) || { cmd: 0 }).cmd.toString(16) : c.cmd) + ")"));
     };
     c.timer = setTimeout(expire, c.timeout);
   }
@@ -3300,8 +3594,12 @@ class Link {
   /* bytes from the MIDI input: a frame of ours is a push, the answer to cur, or unexpected */
   receive(midi) {
     if (this.cur && this.cur.yam && midi[0] === 0xF0 && midi[1] === 0x43) return;   /* (a Yamaha frame: the device sends none) */
+    if (this.cur && this.cur.raw) {                 /* (another protocol's request: its answer?) */
+      const v = this.cur.raw.match(midi);
+      if (v !== undefined) { this.finish(v); return; }
+    }
     const f = unframe(midi);
-    if (!f) return;                                 /* someone else's: notes, clock, other SysEx */
+    if (!f) { if (midi[0] === 0xF0) this.onRaw(midi); return; }   /* someone else's: notes, clock, other SysEx (the companion's pushes) */
     if (f.cmd === CMD.MIRROR && !(f.a.length === 6 && f.a[0] <= 1 && f.a[1] >= 1)) { this.onMirror(f.a); return; }   /* (the screen's
                                                        pushes, also without a dump (a backup-only firmware); the reply: on, 1, w, h) */
     if (PUSH.has(f.cmd)) return void this.onPush(f);
@@ -7036,6 +7334,13 @@ const TEXT = {                                      /* the page's words, by key 
   s24Rc2: "the transfer failed (CRC): try again", s24Rc3: "stop the song first", s24Rc8: "not a SLOOP 2.4 project", s24Rc9: "the FM-1 is busy (a restore): try again", s24Rc1: "the transfer was cut: try again", s24Rc6: "too long",
   system: "System", firmware: "Firmware", sync: "Sync", tracksN: "Tracks", stepsN: "Steps", enginesL: "Engines",
   smpSlots: "Sample slots", userBank: "User presets", none: "none",
+  devEmu: "fm1-base emulator", emuoff: "No fm1-base emulator is running in this browser: open it (its page on this site) and start it; it connects by itself.",
+  cpTitle: "This FM-1 (companion services)", cpHelp: "What any fm1-base firmware offers a computer: what it runs, its files and its settings, from the FM-1 itself.",
+  cpFirmware: "Firmware", cpIdentity: "Identity", cpServices: "Services", cpParams: "Settings", cpFiles: "Files",
+  cpBackupAll: "Back up all files", cpRestoreAll: "Restore files…", cpSaved: "Files saved: ", cpRestored: "Files written: ",
+  cpConfirmRestore: "Write {n} files to the FM-1 (each replaces the file of the same name)?", cpNoFiles: "No file of this FM-1 in it.",
+  cpDownload: "Download", cpUpload: "Replace…", cpDelete: "Delete", cpConfirmDelete: "Delete {n} on the FM-1?", cpTooBig: "is larger than the FM-1's room for it: ",
+  cpReadOnly: "(read only)", cpWhilePlaying: "(also while playing)", cpEmpty: "empty",
 
 };
 const t = (k) => TEXT[k] ?? k;   /* English only */
@@ -7053,7 +7358,7 @@ function applyText() {
   for (const [id, k, key] of [["helpbtn", "help", keyFor("help")]]) { $(id).title = withKey(t(k), key); $(id).setAttribute("aria-label", $(id).title); }
   $("libq").setAttribute("placeholder", t("libSearch"));
   for (const draw of [renderLive, renderLib, renderBank, renderCz, renderPanels]) draw();
-  if (dev) { renderSlots(); renderStepHead(); renderSamples(); renderKit(); renderSnaps(); renderBackup(); renderTrackbar(); renderMixer(); renderSysinfo(); }
+  if (dev) { renderSlots(); renderStepHead(); renderSamples(); renderKit(); renderSnaps(); renderBackup(); renderComp(); renderTrackbar(); renderMixer(); renderSysinfo(); }
 }
 $("helpbtn").addEventListener("click", () => openPop("help", 0));
 
@@ -7346,7 +7651,7 @@ let wantConnected = false;
 /* the device the editor talks to: the FM-1 over USB, or the simulator (web/sim/sim.js simAccess: its "Optimist (sim)" port
    pair, there while the Simulator tab runs one); a choice of the user's, remembered here */
 const DEVSRC_KEY = "optimist-editor-device";
-let devSrc = (() => { try { const v = localStorage.getItem(DEVSRC_KEY); return v === "sim" || v === "bt" ? v : "usb"; } catch (e) { return "usb"; } })();
+let devSrc = (() => { try { const v = localStorage.getItem(DEVSRC_KEY); return ["sim", "bt", "emu"].includes(v) ? v : "usb"; } catch (e) { return "usb"; } })();
 const ctl = new Map(); /* key "s:id" -> {input, out, desc, scope, id, row} */
 const sets = new SetGate(); /* key -> {last: time of the user's last change, sent: the value last requested} */
 let needReload = false; /* a RELOAD push came: re-read DESC, DUMP and steps when free */
@@ -7449,6 +7754,7 @@ async function connect() {
           proto: () => ({ req, rq, patRecParse, patPoll }) };   /* (?mock=1 only: the e2e) */
       }
       else if (devSrc === "sim") access = (await import("./sim/sim.js")).simAccess();
+      else if (devSrc === "emu") access = await emuOpen();   /* (fm1-base's browser emulator in another tab: its port part) */
       else {                                         /* Web MIDI (with SysEx): the browser asks the user */
         const m = await openMidi(navigator);
         if (m.st !== "ok") { sayK(m.st); return; }
@@ -7456,8 +7762,8 @@ async function connect() {
       }
       access.onstatechange = onState;                /* plug / unplug */
     }
-    const ports = findPorts(access, devSrc === "bt");
-    if (!ports) { sayK(devSrc === "sim" && !MOCK ? "simoff" : devSrc === "bt" ? "nodevicebt" : "nodevice"); return; }
+    const ports = devSrc === "emu" ? emuPorts(access) : findPorts(access, devSrc === "bt") || (devSrc === "usb" && !MOCK ? await cpFind(access) : null);
+    if (!ports) { sayK(devSrc === "sim" && !MOCK ? "simoff" : devSrc === "emu" ? "emuoff" : devSrc === "bt" ? "nodevicebt" : "nodevice"); return; }
     const { input, output } = ports;
     const handlers = {
       onPush,
@@ -7465,6 +7771,7 @@ async function connect() {
       onGap() { rewatch = true; },                   /* a push was missed: start the watch again */
       onTimeout() { sayK("noreply"); },
       onUnknown(f) { console.debug("ignored reply", f); },
+      onRaw(m) { if (dev && dev.comp) dev.comp.push(m); },   /* (the companion's pushes: a parameter changed on the FM-1) */
     };
     const link = new Link((bytes) => output.send(bytes), { ...handlers, timeout: 300 });
     input.onmidimessage = (msg) => link.receive(msg.data);
@@ -7486,14 +7793,37 @@ async function connect() {
   }
 }
 
+/* fm1-base's browser emulator as a MIDI access (its port part, port_client.js: same site, another tab; ?emu=URL of that
+   file, by default the site's emu/parts/port_client.js), its ports there a moment after it is asked */
+async function emuOpen() {
+  const url = QS.get("emu") || new URL("emu/parts/port_client.js", location.href).href;
+  const a = (await import(url)).emuAccess();
+  await sleep(400);
+  return a;
+}
+/* an FM-1 of another fm1-base firmware over USB: the first port pair (not Bluetooth) whose firmware answers the companion's
+   capability query (the Optimist and Felucca ports are found by name first) */
+async function cpFind(access) {
+  if (!access) return null;
+  for (const input of access.inputs.values()) {
+    const output = [...access.outputs.values()].find((o) => o.name === input.name);
+    if (!output || isBtPort(input) || input.state === "disconnected") continue;
+    const l = new Link((b) => output.send(b), { timeout: 300 });
+    input.onmidimessage = (m) => l.receive(m.data);
+    try { await new Comp(l).hello({ timeout: 300, retries: 0, quiet: true }); return { input, output }; }
+    catch (e) { /* (not an fm1-base firmware with companion services) */ }
+    finally { l.close(); input.onmidimessage = null; }
+  }
+  return null;
+}
 /* forget the device (the port stays open in `access`) and redraw every view empty */
 function disconnect(reasonKey = "disconnected") {
   closePop();
   const was = dev;
   dev = null;
-  if (was) { was.input.onmidimessage = null; was.link.close(); }
+  if (was) { was.input.onmidimessage = null; was.link.close(); clearInterval(was.cpKeep); }
   [busy, needReload] = [0, false];
-  for (const draw of [renderPanels, renderMixer, renderSysinfo, renderLive, renderLib, renderBank, renderCz]) draw();
+  for (const draw of [renderPanels, renderMixer, renderSysinfo, renderLive, renderLib, renderBank, renderCz, renderComp]) draw();
   $("version").textContent = "";
   sayK(reasonKey);
 }
@@ -7532,8 +7862,18 @@ async function load(d) {
   if (d.bt) return loadBt(d);
   busy++;
   try {
+    /* fm1-base's capability query first (no answer in 300 ms: no companion services; Optimist's own firmware ignores it):
+       a firmware that names another editor than ours is shown by the companion's services alone */
+    d.comp = null;
+    try { const c = new Comp(d.link); d.hello = await c.hello({ timeout: 300, retries: 0, quiet: true }); d.comp = c; }
+    catch (e) { if (e.message === "closed") throw e; d.hello = null; }
+    if (d.hello && d.hello.extras.editor !== "optimist") return await loadComp(d);
     /* INFO is asked up to four times, 500 ms each: the port's first frame may be dropped */
     d.info = parse[CMD.INFO](await d.link.request(req.info(), { retries: 3, timeout: 500 }));
+    /* Optimist as an fm1-base app: its backup's objects and sample slots are the companion's files (opti_cpfiles_1, in place
+       of opti_backup_4): the Backup, Projects and Library pages use them through the same lists */
+    d.cpfiles = !!d.comp && !!d.info.opti && d.info.opti.opti_cpfiles === 1 && !!(d.hello.services & 2);
+    if (d.cpfiles) d.info.opti.opti_backup = OPTI.backup;
     for (const id of ["version", "aboutver"]) $(id).textContent = d.info.version;   /* (the header and About) */
     if (d.info.lite) return await loadLite(d);       /* (a backup-only firmware: nothing else to read) */
     /* every DESC, the track values (scope 0) then the globals (scope 1), counted together on the status line */
@@ -7556,7 +7896,7 @@ async function load(d) {
       catch (err) { if (err.message === "closed") throw err; }
     }
     d.smp = null;                                     /* the sample slots (none: older firmware, or no flash for them) */
-    try { const reply = await d.link.request(req.smpInfo()); d.smp = parse[CMD.SMP_INFO](reply); }
+    try { d.smp = d.cpfiles ? await cpSmpInfo(await bkList(d)) : parse[CMD.SMP_INFO](await d.link.request(req.smpInfo())); }
     catch (err) { if (err.message === "closed") throw err; }
     await drumsReadOrNone(d);                         /* the drum lanes, the user kits (none: older firmware) */
     d.pages = await readDevicePages((r, o) => d.link.request(r, o));   /* the device's pages (null: older firmware, LAYOUT) */
@@ -7573,8 +7913,9 @@ async function load(d) {
     d.autoOk = false;                                 /* the automation store (v11, AUTO_GET 92): chance, condition, nudge, fill, locks, a drum lane's locks; no reply: none */
     try { d.autoOk = !!parse[CMD.AUTO_GET](await d.link.request(req.autoGet(0, 0), { timeout: 400, retries: 0, quiet: true })); }
     catch (e) { if (e.message === "closed") throw e; }
-    try { d.bk = await bkListAll((r, o) => d.link.request(r, o), { ...wait, quiet: true }); }
+    try { d.bk = await bkList(d, { ...wait, quiet: true }); }
     catch (e) { if (e.message === "closed") throw e; d.bk = null; }   /* (older firmware: no backup) */
+    if (d.comp) await cpLoad(d);
     try { d.s24 = parse[CMD.SL24_GET](await d.link.request(req.sl24Get(0, 0), { timeout: 400, retries: 0, quiet: true })).rc === 0; }
     catch (e) { if (e.message === "closed") throw e; d.s24 = false; }   /* (a build without the SLOOP export; part 0, the only one since 2.7) */
     d.s24in = false;                                  /* the SLOOP 2.4 import (90: a commit with none begun says rc 1) */
@@ -7631,12 +7972,19 @@ async function loadBt(d) {
 }
 async function loadLite(d) {
   const quiet = { timeout: 400, retries: 0, quiet: true };
-  try { d.smp = parse[CMD.SMP_INFO](await d.link.request(req.smpInfo())); }
-  catch (e) { if (e.message === "closed") throw e; d.smp = null; }
+  if (!d.cpfiles) {
+    try { d.smp = parse[CMD.SMP_INFO](await d.link.request(req.smpInfo())); }
+    catch (e) { if (e.message === "closed") throw e; d.smp = null; }
+  }
   try { d.sn = parse[CMD.SN_LIST](await d.link.request(req.snList(), quiet)); }
   catch (e) { if (e.message === "closed") throw e; d.sn = null; }
-  try { d.bk = await bkListAll((r, o) => d.link.request(r, o), quiet); }
+  try { d.bk = await bkList(d, quiet); }
   catch (e) { if (e.message === "closed") throw e; d.bk = null; }
+  if (d.cpfiles) {
+    try { d.smp = d.bk ? await cpSmpInfo(d.bk) : null; }
+    catch (e) { if (e.message === "closed") throw e; d.smp = null; }
+  }
+  if (d.comp) await cpLoad(d);
   d.s24 = d.s24in = false;
   if (d.info.lib) await libLiteRead(d);
   tab = d.info.lib ? "projects" : "backup";
@@ -7644,6 +7992,37 @@ async function loadLite(d) {
   renderBackup();
   if (d.info.lib) { renderLibr(); renderLib(); renderBank(); }
   sayK("ready");
+}
+/* another fm1-base firmware (or one whose capability query names another editor): its companion services alone, on the
+   Backup page (what it runs, its settings, its files), as a backup-only firmware is shown */
+async function loadComp(d) {
+  const h = d.hello;
+  d.info = { lite: true, lib: false, cponly: true, version: `${h.name} ${h.appVersion}`, nengines: 0, pcount: 0, gcount: 0, ntrk: 0, opti: { opti_backup: OPTI.backup } };
+  for (const id of ["version", "aboutver"]) $(id).textContent = d.info.version;
+  d.bk = null; d.smp = null; d.sn = null;
+  await cpLoad(d);
+  tab = "backup";
+  renderPanels();
+  renderBackup();
+  sayK("ready");
+}
+/* the companion's files and settings (each a part: a firmware may have one, both or neither), the settings kept up to
+   date while connected (a watch, asked again every 4 s: it ends after 10 s without a request) */
+async function cpLoad(d) {
+  const c = d.comp;
+  d.cpFiles = null; d.cpParams = null; d.cpVals = new Map();
+  try { if (d.hello.services & 2) d.cpFiles = await c.files(); }
+  catch (e) { if (e.message === "closed") throw e; }
+  try {
+    if (d.hello.services & 4 && d.hello.nparams) {
+      d.cpParams = await c.params();
+      d.cpVals = await c.get(d.cpParams.map((q) => q.id));
+      c.onchange = (id, v) => { if (dev === d) { d.cpVals.set(id, v); cpShowValue(id); } };
+      await c.watch(true);
+      d.cpKeep = setInterval(() => { if (dev === d && d.link.idle && !busy) c.watch(true).catch(() => {}); }, 4000);
+    }
+  } catch (e) { if (e.message === "closed") throw e; d.cpParams = null; }
+  renderComp();
 }
 /* a DESC, or null when the device does not answer for that id (a closed link still throws) */
 async function getDescOrNull(s, i) {
@@ -8126,6 +8505,7 @@ async function lbrOp(fn) {
 const secLetter = (k) => String.fromCharCode(65 + k);
 const secObj = (k) => dev.bk && dev.bk.objs.find((o) => o.tag === `S${String(k + 1).padStart(2, "0")} `);
 async function bkReadObj(o) {     /* one object of the list, CRC-checked chunks */
+  if (dev.bk && dev.bk.comp && o.file != null) return dev.bk.comp.read({ i: o.file, size: o.len });   /* (a companion file) */
   const data = new Uint8Array(o.len);
   for (let off = 0, tries = 0; off < o.len;) {
     const r = parse[CMD.BK_READ](await rq(req.bkRead(o.i, off), { timeout: 1500, retries: 2 }));
@@ -8145,12 +8525,12 @@ function lbrSection(k, opn) {
   if (opn === 0 && dev.slotUsed[k] !== 1) return;
   lbrOp(async () => {
     await project(opn, k);
-    dev.bk = await bkListAll(rq, { timeout: 1500, retries: 1 });   /* (a save changes the section's object) */
+    dev.bk = await bkList(dev);                    /* (a save changes the section's object) */
   });
 }
 function lbrSecExport(k) {
   lbrOp(async () => {
-    dev.bk = await bkListAll(rq, { timeout: 1500, retries: 1 });
+    dev.bk = await bkList(dev);
     const o = secObj(k);
     if (!o || !o.hasData) { sayK("emptySlot", secLetter(k)); return; }
     const data = await bkReadObj(o), d = dev.info;
@@ -8170,7 +8550,7 @@ async function lbrSecImport(k, f) {
   if (dev.slotUsed[k] && !confirm(t("lbrConfirmImport").replace("{x}", `${t("section")} ${secLetter(k)}`) + "\n\n" + t("bkStopped"))) return;
   lbrOp(async () => {
     await bkWriteObj(o.i, x.data);
-    await rq(req.bkEnd(true), { timeout: 1500, retries: 0 });   /* (the FM-1 restarts and loads it, as after a restore) */
+    await bkEnd(dev.bk, true);                       /* (the FM-1 restarts and loads it, as after a restore) */
     sayK("lbrImported", `${t("section")} ${secLetter(k)}`);
   });
 }
@@ -8281,7 +8661,7 @@ function renderLibr() {
   box.replaceChildren(el("h2", { text: t("lbrTitle") }), el("p", { class: "dim", text: t("lbrHelp") }),
     ...lbrSections(), ...lbrPatterns(), ...lbrKits(),
     el("p", { class: "bar" }, el("button", { ic: "control_arrow_loop", disabled: lbr.busy, onclick: () => lbrOp(async () => {
-      dev.bk = await bkListAll(rq, { timeout: 1500, retries: 1 });
+      dev.bk = await bkList(dev);
       await libLiteRead(dev);
       renderBank();
     }) }, t("reload"))));
@@ -9852,6 +10232,12 @@ async function ukitExport(u) {
   renderKit();
 }
 async function smpReadBytes(k, off, n) {
+  if (dev.cpfiles) {                                 /* (the companion's file USRk) */
+    const L = dev.bk && dev.bk.comp ? dev.bk : await bkList(dev), o = L.objs.find((x) => x.tag === `USR${k + 1}`);
+    const r = await L.comp.readRange(o.file, off, n), out = new Uint8Array(n);
+    out.set(r);
+    return out;
+  }
   const out = new Uint8Array(n);
   for (let o = 0; o < n; o += 256) {
     const r = parse[CMD.SMP_READ](await rq(req.smpRead(k, off + o, Math.min(256, n - o))));
@@ -10130,6 +10516,7 @@ async function kpSend() {
 
 /* the sample slots' state again (SMP_INFO) */
 async function smpInfo() {
+  if (dev.cpfiles) { dev.bk = await bkList(dev); dev.smp = await cpSmpInfo(dev.bk); return; }   /* (the companion's USR1..USR3) */
   const reply = await rq(req.smpInfo());
   dev.smp = parse[CMD.SMP_INFO](reply);
 }
@@ -10154,11 +10541,22 @@ async function smpUpload(k, prog, ask = true) {
   return done;
 }
 /* a slot's header (480 B) and ADPCM data into USR k+1: BEGIN, WRITE x n, END; then SMP_INFO and the FM6 bank again */
-async function smpSend(k, hdr, data, prog) {
+async function smpSend(k, hdr, data, prog, inRestore = false) {
   let done = false;
   busy++;
   const CHUNK = 256, started = performance.now();
   try {
+    if (dev.cpfiles) {                              /* (the companion's file USRk: its header page, then the data) */
+      const L = dev.bk && dev.bk.comp ? dev.bk : await bkList(dev);
+      let sent = 0;
+      await cpSmpSend(L, k, hdr, data, (n) => {
+        sent += n;
+        if (prog) prog.value = sent / (data.length + SMP.DATA_OFF);
+        sayK("smpUploading", `${k + 1}  ${kib(sent)} / ${kib(data.length + SMP.DATA_OFF)} KiB`);
+      }, !inRestore);
+      sayK("smpDone", `${k + 1}  ${((performance.now() - started) / 1000).toFixed(1)} s`);
+      return (done = true);
+    }
     const r = parse[CMD.SMP_BEGIN](await rq(req.smpBegin(k), { retries: 0, timeout: 1000 }));
     if (r.rc) throw new Error(r.rc === 3 ? t("stopFirst") : "begin rc " + r.rc);
     for (let off = 0; off < data.length; off += CHUNK) {
@@ -10190,15 +10588,22 @@ async function smpSend(k, hdr, data, prog) {
    the new one is written; sample slots: the sample upload; the FM6 bank: its DX7 bank SysEx, last), then BK_END:
    the device restarts and loads it all (its usual migrations). Stopped only. */
 const bkDraft = { file: null, sel: {}, samples: false, busy: false, name: "" };
+/* the device's backup list: BK_LIST's pages, or the companion's files (an Optimist trial: cpBkList, the same form) */
+const bkList = (d, opt = { timeout: 1500, retries: 1 }) => (d.cpfiles ? cpBkList(d.comp) : bkListAll((r, o) => d.link.request(r, o), opt));
 const bkLabel = (tag) => BK.NAMES[tag] || tag;
 function bkProgress(v) { const p = $("bkprog"); if (p) { p.hidden = v == null; p.value = v || 0; } }
 async function bkReadAll(withSamples, prog) {
-  const L = await bkListAll(rq, { timeout: 1500, retries: 1 });
+  const L = await bkList(dev);
   const pick = L.objs.filter((o) => o.hasData && (o.kind !== "usr" || o.fm6 || withSamples));
   const total = pick.reduce((s, o) => s + o.len, 0) || 1;
   let done = 0;
   const objects = [];
   for (const o of pick) {
+    if (L.comp) {                                   /* (a companion file: read whole, its CRC-32 the FM-1's) */
+      const data = await L.comp.read({ i: o.file, size: o.len }, (n) => { done += n; if (prog) prog(done / total, o.tag); });
+      objects.push({ tag: o.tag, kind: o.kind, fm6: o.fm6, data });
+      continue;
+    }
     const data = new Uint8Array(o.len);
     for (let off = 0, tries = 0; off < o.len;) {
       const r = parse[CMD.BK_READ](await rq(req.bkRead(o.i, off), { timeout: 1500, retries: 2 }));
@@ -10219,6 +10624,7 @@ async function bkReadAll(withSamples, prog) {
   return { list: L, objects };
 }
 async function bkWriteObj(i, data, prog) {     /* one storage object: BEGIN, DATA (a chunk again on rc 2), COMMIT */
+  if (dev.cpfiles) return cpBkWrite(dev.bk && dev.bk.comp ? dev.bk : await bkList(dev), i, data, prog);   /* (its companion file) */
   let r = parse[CMD.BK_BEGIN](await rq(req.bkBegin(i, data.length, crc32(data)), { timeout: 4000, retries: 0 }));
   if (r.rc) throw new Error(`BEGIN: ${BK.RC[r.rc] || r.rc}`);
   for (let off = 0, tries = 0; off < data.length;) {
@@ -10234,22 +10640,24 @@ async function bkWriteObj(i, data, prog) {     /* one storage object: BEGIN, DAT
   if (r.rc) throw new Error(`COMMIT: ${BK.RC[r.rc] || r.rc}`);
 }
 async function bkRestore(file, sel, prog) {
-  const L = await bkListAll(rq, { timeout: 1500, retries: 1 });
+  const L = await bkList(dev);
   const plan = bkPlan(file, L).filter((x) => sel[x.o.tag] && !x.why);
   const stObjs = plan.filter((x) => x.o.kind === "st");
   const total = (plan.reduce((s, x) => s + x.o.data.length, 0) + (L.version >= 4 ? stObjs.reduce((s, x) => s + x.o.data.length, 0) : 0)) || 1;
   let done = 0;
   const step = (n) => { done += n; if (prog) prog(done / total); };
   const skipped = bkPlan(file, L).filter((x) => sel[x.o.tag] && x.why).map((x) => x.o.tag);
-  const bad = await bkCheckAll(rq, L, stObjs, step);
+  const bad = L.comp ? await cpBkCheckAll(L, stObjs, step) : await bkCheckAll(rq, L, stObjs, step);
   if (bad.length) {                                  /* nothing is written: the device would not load these */
-    await rq(req.bkEnd(false), { timeout: 1500, retries: 0 });
+    await bkEnd(L, false);
     throw new Error(`${bad.join(" ")}: ${BK.RC[8]}. ${t("bkNothingWritten")}`);
   }
-  for (const x of plan.filter((x) => x.o.kind !== "usr" && x.o.kind !== "snp")) { await bkWriteObj(x.d.i, x.o.data, step); }
+  for (const x of plan.filter((x) => x.o.kind !== "usr" && x.o.kind !== "snp")) {
+    if (L.comp) await cpBkWrite(L, x.d.i, x.o.data, step); else await bkWriteObj(x.d.i, x.o.data, step);
+  }
   for (const x of plan.filter((x) => x.o.kind === "usr" && !x.o.fm6)) {
     const p = bkSlotParts(x.o.data);
-    if (!await smpSend(+x.o.tag[3] - 1, p.hdr, p.data)) throw new Error(`${x.o.tag}: ${t("smpFail")}`);
+    if (!await smpSend(+x.o.tag[3] - 1, p.hdr, p.data, null, true)) throw new Error(`${x.o.tag}: ${t("smpFail")}`);
     step(x.o.data.length);
   }
   for (const x of plan.filter((x) => x.o.kind === "snp")) {   /* the snapshots: each slot through the import */
@@ -10260,8 +10668,13 @@ async function bkRestore(file, sel, prog) {
     }
     step(x.o.data.length);
   }
-  const e = parse[CMD.BK_END](await rq(req.bkEnd(true), { timeout: 1500, retries: 0 }));
+  const e = await bkEnd(L, true);
   return { written: plan.map((x) => x.o.tag), skipped, rc: e.rc };
+}
+/* BK_END: the session ends (done: the FM-1 restarts and loads what came); the companion's BKCTL 1 / 0 */
+async function bkEnd(L, done) {
+  if (L && L.comp) { await cpBkCtl(L, done ? 1 : 0); return { rc: 0 }; }
+  return parse[CMD.BK_END](await rq(req.bkEnd(done), { timeout: 1500, retries: 0 }));
 }
 async function backupDo() {
   bkDraft.busy = true;
@@ -10293,9 +10706,107 @@ async function restoreDo() {
   bkDraft.busy = false;
   renderBackup();
 }
+/* the companion's section (under the Backup page): the firmware, its settings (a control each, by group, kept up to date
+   while shown), its files (download, replace, delete; all of them into one zip, or written back from one) */
+function renderComp() {
+  const box = $("comp");
+  if (!box) return;
+  const d = dev;
+  if (!d || !d.comp || !d.hello) { box.replaceChildren(); return; }
+  const h = d.hello, rows = [[t("cpFirmware"), `${h.name} ${h.appVersion}`], [t("cpIdentity"), h.identity], [t("cpServices"), h.list.join(", ")]];
+  const parts = [el("h2", { text: t("cpTitle") }), el("p", { class: "dim", text: t("cpHelp") }),
+    el("table", {}, ...rows.map(([k, v]) => el("tr", {}, el("th", { text: k }), el("td", { text: v }))))];
+  if (d.cpParams && d.cpParams.length) {
+    parts.push(el("h3", { text: t("cpParams") }));
+    for (const g of [...new Set(d.cpParams.map((q) => q.groupName))]) {
+      parts.push(el("h4", { text: g }));
+      for (const q of d.cpParams.filter((x) => x.groupName === g)) parts.push(cpParamRow(q));
+    }
+  }
+  if (d.cpFiles && d.cpFiles.length) {
+    const any = d.cpFiles.some((f) => f.flags & CP.F_READ && f.size);
+    const pick = el("input", { type: "file", accept: ".zip,application/zip", hidden: true });
+    pick.addEventListener("change", async () => { const f = pick.files[0]; pick.value = ""; if (f) await cpRestoreZip(f); });
+    parts.push(el("h3", { text: t("cpFiles") }),
+      el("p", { class: "bar" }, pick, el("button", { ic: "symbol_download", disabled: !any, onclick: () => cpBackupZip() }, t("cpBackupAll")),
+        el("button", { ic: "symbol_upload", onclick: () => pick.click() }, t("cpRestoreAll"))),
+      el("table", {}, ...d.cpFiles.map(cpFileRow)));
+  }
+  box.replaceChildren(...parts);
+}
+function cpParamRow(q) {
+  const d = dev, v = d.cpVals.get(q.id) ?? q.def, ro = !!(q.flags & 1), id = `cp${q.id}`;
+  const out = el("span", { class: "dim", id: id + "v", text: cpFmt(q, v) });
+  let ctl;
+  if (q.type === 1) {
+    ctl = el("select", { id, disabled: ro }, ...q.labels.map((l, k) => el("option", { value: String(q.min + k), text: l })));
+    ctl.value = String(v);
+  } else ctl = el("input", { id, type: "range", min: String(q.min), max: String(q.max), value: String(v), disabled: ro });
+  ctl.addEventListener(q.type === 1 ? "change" : "input", () => {
+    const want = +ctl.value;
+    out.textContent = cpFmt(q, want);
+    op(async () => { const got = await d.comp.set(q.id, want); d.cpVals.set(q.id, got); cpShowValue(q.id); });
+  });
+  return el("p", { class: "bar" }, el("label", { for: id, text: q.name + (q.unit ? ` (${q.unit})` : "") }), ctl, out);
+}
+const cpFmt = (q, v) => (q.type === 1 ? q.labels[v - q.min] ?? String(v) : String(v));
+function cpShowValue(id) {                          /* a value changed (on the FM-1, or the answer to a set): its control */
+  const q = dev && dev.cpParams && dev.cpParams.find((x) => x.id === id), v = dev && dev.cpVals.get(id);
+  const c = $(`cp${id}`), o = $(`cp${id}v`);
+  if (!q || !c || v == null) return;
+  if (document.activeElement !== c) c.value = String(v);
+  o.textContent = cpFmt(q, v);
+}
+function cpFileRow(f) {
+  const d = dev, acts = [];
+  if (f.flags & CP.F_READ) acts.push(el("button", { ic: "symbol_download", disabled: !f.size, onclick: () => op(async () => {
+    saveBlob(f.name, new Blob([await d.comp.read(f)], { type: "application/octet-stream" }));
+  }) }, t("cpDownload")));
+  if (f.flags & CP.F_WRITE) {
+    const pick = el("input", { type: "file", hidden: true });
+    pick.addEventListener("change", () => {
+      const file = pick.files[0];
+      pick.value = "";
+      if (!file) return;
+      if (file.size > f.room) { sayK("error", `${file.name} ${t("cpTooBig")}${kib(f.room)} KiB`); return; }
+      op(async () => { await d.comp.write(f.i, new Uint8Array(await file.arrayBuffer())); await cpRefreshFiles(); });
+    });
+    acts.push(pick, el("button", { ic: "symbol_upload", onclick: () => pick.click() }, t("cpUpload")));
+  }
+  if (f.flags & CP.F_DELETE) acts.push(el("button", { ic: "symbol_trash", class: "warn", disabled: !f.size, onclick: () => {
+    if (confirm(t("cpConfirmDelete").replace("{n}", f.name))) op(async () => { await d.comp.remove(f.i); await cpRefreshFiles(); });
+  } }, t("cpDelete")));
+  const note = !(f.flags & CP.F_WRITE) ? t("cpReadOnly") : f.flags & CP.F_PLAYING ? t("cpWhilePlaying") : "";
+  return el("tr", {}, el("td", { text: f.name }), el("td", { class: "dim", text: `${f.kindName} ${note}` }),
+    el("td", { text: f.size ? `${kib(f.size)} / ${kib(f.room)} KiB` : t("cpEmpty") }), el("td", {}, ...acts));
+}
+async function cpRefreshFiles() { dev.cpFiles = await dev.comp.files(); renderComp(); }
+async function cpBackupZip() {                      /* every readable file that holds something, into one zip */
+  await op(async () => {
+    const d = dev, entries = [];
+    for (const f of d.cpFiles.filter((x) => x.flags & CP.F_READ && x.size)) { sayK("bkReading", f.name); entries.push({ name: f.name, data: await d.comp.read(f) }); }
+    const zip = zipStore(entries), slug = fileSlug(d.hello.name);
+    saveBlob(`${slug}-${today()}.zip`, new Blob([zip], { type: "application/zip" }));
+    sayK("cpSaved", `${entries.length} / ${kib(zip.length)} KiB`);
+  });
+}
+async function cpRestoreZip(file) {                 /* each entry named as a writable file of the FM-1: written */
+  let entries;
+  try { entries = zipEntries(new Uint8Array(await file.arrayBuffer())); }
+  catch (e) { sayK("bkBadFile", e.message); return; }
+  const d = dev, plan = entries.map((e) => ({ e, f: d.cpFiles.find((x) => x.name === e.name && x.flags & CP.F_WRITE && e.data.length <= x.room) })).filter((x) => x.f);
+  if (!plan.length) { sayK("error", t("cpNoFiles")); return; }
+  if (!confirm(t("cpConfirmRestore").replace("{n}", plan.length))) return;
+  await op(async () => {
+    for (const x of plan) await d.comp.write(x.f.i, x.e.data);
+    await cpRefreshFiles();
+    sayK("cpRestored", plan.map((x) => x.f.name).join(" "));
+  });
+}
 function renderBackup() {
   const box = $("backup");
   if (!box) return;
+  if (dev && dev.info && dev.info.cponly) { box.replaceChildren(); return; }   /* (another fm1-base firmware: the companion's part alone) */
   const s24 = [];
   if (dev && dev.s24) {
     s24.push(el("p", { class: "bar" },
@@ -10317,7 +10828,7 @@ function renderBackup() {
     bkDraft.asking = true;
     bkDraft.askedFor = dev;
     box.replaceChildren(el("p", { class: "dim", text: t("bkAsking") }), ...s24);
-    bkListAll(rq, { timeout: 1500, retries: 1 }).then((L) => { dev.bk = L; }, () => {}).finally(() => { bkDraft.asking = false; renderBackup(); });
+    bkList(dev).then((L) => { dev.bk = L; }, () => {}).finally(() => { bkDraft.asking = false; renderBackup(); });
     return;
   }
   if (!dev || !dev.bk) { box.replaceChildren(el("p", { class: "dim", text: dev ? t(opti("backup") ? "bkNoAnswer" : "bkNone") : "" }), ...s24); return; }
@@ -10511,9 +11022,14 @@ async function smpErase(slot) {
   const setBusy = (on) => { busy += on ? 1 : -1; smpBusy = on; renderSamples(); };
   setBusy(true);
   try {
-    const reply = await rq(req.smpErase(slot), { retries: 0, timeout: 2500 });
-    const r = parse[CMD.SMP_ERASE](reply);
-    if (r.rc) throw new Error(r.rc === 3 ? t("stopFirst") : "erase rc " + r.rc);
+    if (dev.cpfiles) {                              /* (the companion's file USRk deleted) */
+      const L = dev.bk && dev.bk.comp ? dev.bk : await bkList(dev);
+      await L.comp.remove(L.objs.find((x) => x.tag === `USR${slot + 1}`).file);
+    } else {
+      const reply = await rq(req.smpErase(slot), { retries: 0, timeout: 2500 });
+      const r = parse[CMD.SMP_ERASE](reply);
+      if (r.rc) throw new Error(r.rc === 3 ? t("stopFirst") : "erase rc " + r.rc);
+    }
     sayK("smpErased", `${label}`);
   } catch (err) {
     if (err.message === "closed") { /* the port went away: nothing to say */ } else sayK("smpFail", err.message);
@@ -14570,7 +15086,7 @@ $("czfile").addEventListener("change", () => {
 $("connect").addEventListener("click", () => connect());
 $("devsrc").value = devSrc;
 $("devsrc").addEventListener("change", (e) => {   /* another device: let the current one go, ask the new source next time */
-  devSrc = e.target.value === "sim" || e.target.value === "bt" ? e.target.value : "usb";
+  devSrc = ["sim", "bt", "emu"].includes(e.target.value) ? e.target.value : "usb";
   try { localStorage.setItem(DEVSRC_KEY, devSrc); } catch (err) { /* no storage */ }
   if (dev) disconnect();
   if (access) access.onstatechange = null;
