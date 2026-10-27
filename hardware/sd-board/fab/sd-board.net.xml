@@ -2,7 +2,7 @@
 <export version="E">
   <design>
     <source>/Users/mots/GitHub/optimist/worktrees/sd-mm/hardware/sd-board/sd-board.kicad_sch</source>
-    <date>2026-10-27T11:40:28</date>
+    <date>2026-10-27T12:37:01</date>
     <tool>Eeschema 10.0.7</tool>
     <sheet number="1" name="/" tstamps="/">
       <title_block>
@@ -180,6 +180,141 @@
         </unit>
       </units>
     </comp>
+    <comp ref="JP1">
+      <value>cut to swap</value>
+      <footprint>Jumper:SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm</footprint>
+      <fields>
+        <field name="LCSC"/>
+        <field name="Footprint">Jumper:SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="Jumper" part="SolderJumper_2_Bridged" description="Solder Jumper, 2-pole, closed/bridged"/>
+      <property name="LCSC" value=""/>
+      <property name="Sheetname" value="sd-board"/>
+      <property name="Sheetfile" value="sd-board.kicad_sch"/>
+      <property name="exclude_from_bom"/>
+      <property name="ki_keywords" value="solder jumper SPST"/>
+      <property name="ki_fp_filters" value="SolderJumper*Bridged*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>a02f1606-47d4-5144-9620-5427e193d4a3</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="JP2">
+      <value>cut to swap</value>
+      <footprint>Jumper:SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm</footprint>
+      <fields>
+        <field name="LCSC"/>
+        <field name="Footprint">Jumper:SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="Jumper" part="SolderJumper_2_Bridged" description="Solder Jumper, 2-pole, closed/bridged"/>
+      <property name="LCSC" value=""/>
+      <property name="Sheetname" value="sd-board"/>
+      <property name="Sheetfile" value="sd-board.kicad_sch"/>
+      <property name="exclude_from_bom"/>
+      <property name="ki_keywords" value="solder jumper SPST"/>
+      <property name="ki_fp_filters" value="SolderJumper*Bridged*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>86e1497d-424f-598b-9fbf-3259baf57a8f</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="JP3">
+      <value>cut to swap</value>
+      <footprint>Jumper:SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm</footprint>
+      <fields>
+        <field name="LCSC"/>
+        <field name="Footprint">Jumper:SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="Jumper" part="SolderJumper_2_Bridged" description="Solder Jumper, 2-pole, closed/bridged"/>
+      <property name="LCSC" value=""/>
+      <property name="Sheetname" value="sd-board"/>
+      <property name="Sheetfile" value="sd-board.kicad_sch"/>
+      <property name="exclude_from_bom"/>
+      <property name="ki_keywords" value="solder jumper SPST"/>
+      <property name="ki_fp_filters" value="SolderJumper*Bridged*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>8a1cdbda-2716-58f7-b928-55f05d842638</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="JP4">
+      <value>cut to swap</value>
+      <footprint>Jumper:SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm</footprint>
+      <fields>
+        <field name="LCSC"/>
+        <field name="Footprint">Jumper:SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="Jumper" part="SolderJumper_2_Bridged" description="Solder Jumper, 2-pole, closed/bridged"/>
+      <property name="LCSC" value=""/>
+      <property name="Sheetname" value="sd-board"/>
+      <property name="Sheetfile" value="sd-board.kicad_sch"/>
+      <property name="exclude_from_bom"/>
+      <property name="ki_keywords" value="solder jumper SPST"/>
+      <property name="ki_fp_filters" value="SolderJumper*Bridged*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>470e27f3-03e0-5046-9ee4-deda6adeb3eb</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="JP5">
+      <value>cut to swap</value>
+      <footprint>Jumper:SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm</footprint>
+      <fields>
+        <field name="LCSC"/>
+        <field name="Footprint">Jumper:SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="Jumper" part="SolderJumper_2_Bridged" description="Solder Jumper, 2-pole, closed/bridged"/>
+      <property name="LCSC" value=""/>
+      <property name="Sheetname" value="sd-board"/>
+      <property name="Sheetfile" value="sd-board.kicad_sch"/>
+      <property name="exclude_from_bom"/>
+      <property name="ki_keywords" value="solder jumper SPST"/>
+      <property name="ki_fp_filters" value="SolderJumper*Bridged*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>b4390883-389a-5892-b6ed-8b88f3dfea22</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
     <comp ref="R1">
       <value>100</value>
       <footprint>sdboard:R0603</footprint>
@@ -336,6 +471,110 @@
         </unit>
       </units>
     </comp>
+    <comp ref="TP1">
+      <value>J12 6</value>
+      <footprint>TestPoint:TestPoint_Pad_D1.0mm</footprint>
+      <fields>
+        <field name="LCSC"/>
+        <field name="Footprint">TestPoint:TestPoint_Pad_D1.0mm</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="Connector" part="TestPoint" description="test point"/>
+      <property name="LCSC" value=""/>
+      <property name="Sheetname" value="sd-board"/>
+      <property name="Sheetfile" value="sd-board.kicad_sch"/>
+      <property name="exclude_from_bom"/>
+      <property name="ki_keywords" value="test point tp"/>
+      <property name="ki_fp_filters" value="Pin* Test*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>8084a293-6f53-52d0-8bc1-1a3553f26c8f</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="TP2">
+      <value>J12 8</value>
+      <footprint>TestPoint:TestPoint_Pad_D1.0mm</footprint>
+      <fields>
+        <field name="LCSC"/>
+        <field name="Footprint">TestPoint:TestPoint_Pad_D1.0mm</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="Connector" part="TestPoint" description="test point"/>
+      <property name="LCSC" value=""/>
+      <property name="Sheetname" value="sd-board"/>
+      <property name="Sheetfile" value="sd-board.kicad_sch"/>
+      <property name="exclude_from_bom"/>
+      <property name="ki_keywords" value="test point tp"/>
+      <property name="ki_fp_filters" value="Pin* Test*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>a7b39696-5713-504e-80e1-251c14f82066</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="TP3">
+      <value>J12 9</value>
+      <footprint>TestPoint:TestPoint_Pad_D1.0mm</footprint>
+      <fields>
+        <field name="LCSC"/>
+        <field name="Footprint">TestPoint:TestPoint_Pad_D1.0mm</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="Connector" part="TestPoint" description="test point"/>
+      <property name="LCSC" value=""/>
+      <property name="Sheetname" value="sd-board"/>
+      <property name="Sheetfile" value="sd-board.kicad_sch"/>
+      <property name="exclude_from_bom"/>
+      <property name="ki_keywords" value="test point tp"/>
+      <property name="ki_fp_filters" value="Pin* Test*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>62d5fc5b-a856-5fc8-af02-e08d67cffb75</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="TP4">
+      <value>J12 G</value>
+      <footprint>TestPoint:TestPoint_Pad_D1.0mm</footprint>
+      <fields>
+        <field name="LCSC"/>
+        <field name="Footprint">TestPoint:TestPoint_Pad_D1.0mm</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="Connector" part="TestPoint" description="test point"/>
+      <property name="LCSC" value=""/>
+      <property name="Sheetname" value="sd-board"/>
+      <property name="Sheetfile" value="sd-board.kicad_sch"/>
+      <property name="exclude_from_bom"/>
+      <property name="ki_keywords" value="test point tp"/>
+      <property name="ki_fp_filters" value="Pin* Test*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>e230f513-1143-564c-8757-eb5d99f5c210</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
     <comp ref="U1">
       <value>74LVC1G04</value>
       <footprint>sdboard:SOT-23-5_L3.0-W1.7-P0.95-LS2.8-BR</footprint>
@@ -360,6 +599,66 @@
             <pin num="1"/>
             <pin num="5"/>
             <pin num="3"/>
+            <pin num="4"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="U2">
+      <value>USBLC6-2SC6</value>
+      <footprint>sdboard:SOT-23-6_L2.9-W1.6-P0.95-LS2.8-BL</footprint>
+      <fields>
+        <field name="LCSC">C7519</field>
+        <field name="Footprint">sdboard:SOT-23-6_L2.9-W1.6-P0.95-LS2.8-BL</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="Power_Protection" part="USBLC6-2P6" description="Very low capacitance ESD protection diode, 2 data-line, SOT-666"/>
+      <property name="LCSC" value="C7519"/>
+      <property name="Sheetname" value="sd-board"/>
+      <property name="Sheetfile" value="sd-board.kicad_sch"/>
+      <property name="ki_keywords" value="usb ethernet video"/>
+      <property name="ki_fp_filters" value="SOT?666*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>9ec147f5-b931-5d34-937c-99a78bae7a0f</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="3"/>
+            <pin num="5"/>
+            <pin num="2"/>
+            <pin num="6"/>
+            <pin num="4"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="U3">
+      <value>USBLC6-2SC6</value>
+      <footprint>sdboard:SOT-23-6_L2.9-W1.6-P0.95-LS2.8-BL</footprint>
+      <fields>
+        <field name="LCSC">C7519</field>
+        <field name="Footprint">sdboard:SOT-23-6_L2.9-W1.6-P0.95-LS2.8-BL</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="Power_Protection" part="USBLC6-2P6" description="Very low capacitance ESD protection diode, 2 data-line, SOT-666"/>
+      <property name="LCSC" value="C7519"/>
+      <property name="Sheetname" value="sd-board"/>
+      <property name="Sheetfile" value="sd-board.kicad_sch"/>
+      <property name="ki_keywords" value="usb ethernet video"/>
+      <property name="ki_fp_filters" value="SOT?666*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>d2b7b08f-90ec-5c2c-980f-dba251d73904</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="3"/>
+            <pin num="5"/>
+            <pin num="2"/>
+            <pin num="6"/>
             <pin num="4"/>
           </pins>
         </unit>
@@ -415,6 +714,23 @@
         <pin num="8" name="DAT1" type="bidirectional"/>
         <pin num="9" name="DET" type="passive"/>
         <pin num="SH" name="SHIELD" type="passive"/>
+      </pins>
+    </libpart>
+    <libpart lib="Connector" part="TestPoint">
+      <description>test point</description>
+      <footprints>
+        <fp>Pin*</fp>
+        <fp>Test*</fp>
+      </footprints>
+      <fields>
+        <field name="Reference">TP</field>
+        <field name="Value">TestPoint</field>
+        <field name="Footprint"/>
+        <field name="Datasheet"/>
+        <field name="Description">test point</field>
+      </fields>
+      <pins>
+        <pin num="1" name="1" type="passive"/>
       </pins>
     </libpart>
     <libpart lib="Connector_Generic_MountingPin" part="Conn_01x10_MountingPin">
@@ -477,6 +793,45 @@
         <pin num="2" name="" type="passive"/>
       </pins>
     </libpart>
+    <libpart lib="Jumper" part="SolderJumper_2_Bridged">
+      <description>Solder Jumper, 2-pole, closed/bridged</description>
+      <footprints>
+        <fp>SolderJumper*Bridged*</fp>
+      </footprints>
+      <fields>
+        <field name="Reference">JP</field>
+        <field name="Value">SolderJumper_2_Bridged</field>
+        <field name="Footprint"/>
+        <field name="Datasheet"/>
+        <field name="Description">Solder Jumper, 2-pole, closed/bridged</field>
+      </fields>
+      <pins>
+        <pin num="1" name="A" type="passive"/>
+        <pin num="2" name="B" type="passive"/>
+      </pins>
+    </libpart>
+    <libpart lib="Power_Protection" part="USBLC6-2P6">
+      <description>Very low capacitance ESD protection diode, 2 data-line, SOT-666</description>
+      <docs>https://www.st.com/resource/en/datasheet/usblc6-2.pdf</docs>
+      <footprints>
+        <fp>SOT?666*</fp>
+      </footprints>
+      <fields>
+        <field name="Reference">U</field>
+        <field name="Value">USBLC6-2P6</field>
+        <field name="Footprint">Package_TO_SOT_SMD:SOT-666</field>
+        <field name="Datasheet">https://www.st.com/resource/en/datasheet/usblc6-2.pdf</field>
+        <field name="Description">Very low capacitance ESD protection diode, 2 data-line, SOT-666</field>
+      </fields>
+      <pins>
+        <pin num="1" name="I/O1" type="passive"/>
+        <pin num="2" name="GND" type="passive"/>
+        <pin num="3" name="I/O2" type="passive"/>
+        <pin num="4" name="I/O2" type="passive"/>
+        <pin num="5" name="VBUS" type="passive"/>
+        <pin num="6" name="I/O1" type="passive"/>
+      </pins>
+    </libpart>
   </libparts>
   <libraries>
     <library logical="74xGxx">
@@ -491,21 +846,24 @@
     <library logical="Device">
       <uri>${KICAD10_SYMBOL_DIR}/Device.kicad_sym</uri>
     </library>
+    <library logical="Jumper">
+      <uri>${KICAD10_SYMBOL_DIR}/Jumper.kicad_sym</uri>
+    </library>
+    <library logical="Power_Protection">
+      <uri>${KICAD10_SYMBOL_DIR}/Power_Protection.kicad_sym</uri>
+    </library>
   </libraries>
   <nets>
     <net code="1" name="/3V3" class="Default">
-      <node ref="C1" pin="1" pintype="passive"/>
-      <node ref="C2" pin="1" pintype="passive"/>
-      <node ref="J1" pin="4" pinfunction="VDD_4" pintype="power_in"/>
       <node ref="J2" pin="7" pinfunction="Pin_7_7" pintype="passive"/>
       <node ref="J3" pin="4" pinfunction="Pin_4_4" pintype="passive"/>
-      <node ref="R2" pin="2" pintype="passive"/>
-      <node ref="R3" pin="1" pintype="passive"/>
-      <node ref="U1" pin="5" pinfunction="VCC_5" pintype="power_in"/>
+      <node ref="JP5" pin="2" pinfunction="B_2" pintype="passive"/>
     </net>
     <net code="2" name="/CARD_CS" class="Default">
       <node ref="J1" pin="2" pinfunction="DAT3/CD_2" pintype="bidirectional"/>
       <node ref="U1" pin="4" pintype="output"/>
+      <node ref="U2" pin="1" pinfunction="I/O1_1" pintype="passive"/>
+      <node ref="U2" pin="6" pinfunction="I/O1_6" pintype="passive"/>
     </net>
     <net code="3" name="/CLK" class="Default">
       <node ref="J2" pin="4" pinfunction="Pin_4_4" pintype="passive"/>
@@ -513,12 +871,14 @@
       <node ref="R5" pin="2" pintype="passive"/>
     </net>
     <net code="4" name="/CLK_SD" class="Default">
-      <node ref="J1" pin="5" pinfunction="CLK_5" pintype="input"/>
+      <node ref="JP3" pin="2" pinfunction="B_2" pintype="passive"/>
       <node ref="R5" pin="1" pintype="passive"/>
     </net>
     <net code="5" name="/DAT0" class="Default">
       <node ref="J1" pin="7" pinfunction="DAT0_7" pintype="bidirectional"/>
       <node ref="R1" pin="2" pintype="passive"/>
+      <node ref="U3" pin="1" pinfunction="I/O1_1" pintype="passive"/>
+      <node ref="U3" pin="6" pinfunction="I/O1_6" pintype="passive"/>
     </net>
     <net code="6" name="/DAT1" class="Default">
       <node ref="J1" pin="8" pinfunction="DAT1_8" pintype="bidirectional"/>
@@ -540,30 +900,35 @@
       <node ref="J3" pin="10" pinfunction="Pin_10_10" pintype="passive"/>
       <node ref="J3" pin="MP" pinfunction="MountPin_MP" pintype="passive"/>
       <node ref="R4" pin="1" pintype="passive"/>
+      <node ref="TP4" pin="1" pinfunction="1_1" pintype="passive"/>
       <node ref="U1" pin="3" pinfunction="GND_3" pintype="power_in"/>
+      <node ref="U2" pin="2" pinfunction="GND_2" pintype="passive"/>
+      <node ref="U3" pin="2" pinfunction="GND_2" pintype="passive"/>
     </net>
     <net code="9" name="/LCD_6" class="Default">
       <node ref="J2" pin="6" pinfunction="Pin_6_6" pintype="passive"/>
       <node ref="J3" pin="5" pinfunction="Pin_5_5" pintype="passive"/>
+      <node ref="TP1" pin="1" pinfunction="1_1" pintype="passive"/>
     </net>
     <net code="10" name="/LCD_8" class="Default">
       <node ref="J2" pin="8" pinfunction="Pin_8_8" pintype="passive"/>
       <node ref="J3" pin="3" pinfunction="Pin_3_3" pintype="passive"/>
+      <node ref="TP2" pin="1" pinfunction="1_1" pintype="passive"/>
     </net>
     <net code="11" name="/LCD_9" class="Default">
       <node ref="J2" pin="9" pinfunction="Pin_9_9" pintype="passive"/>
       <node ref="J3" pin="2" pinfunction="Pin_2_2" pintype="passive"/>
+      <node ref="TP3" pin="1" pinfunction="1_1" pintype="passive"/>
     </net>
     <net code="12" name="/LCD_CS" class="Default">
       <node ref="J2" pin="3" pinfunction="Pin_3_3" pintype="passive"/>
       <node ref="J3" pin="8" pinfunction="Pin_8_8" pintype="passive"/>
-      <node ref="R4" pin="2" pintype="passive"/>
-      <node ref="U1" pin="2" pintype="input"/>
+      <node ref="JP2" pin="2" pinfunction="B_2" pintype="passive"/>
     </net>
     <net code="13" name="/MISO" class="Default">
       <node ref="J2" pin="2" pinfunction="Pin_2_2" pintype="passive"/>
       <node ref="J3" pin="9" pinfunction="Pin_9_9" pintype="passive"/>
-      <node ref="R1" pin="1" pintype="passive"/>
+      <node ref="JP1" pin="2" pinfunction="B_2" pintype="passive"/>
     </net>
     <net code="14" name="/MOSI" class="Default">
       <node ref="J2" pin="5" pinfunction="Pin_5_5" pintype="passive"/>
@@ -571,13 +936,45 @@
       <node ref="R6" pin="2" pintype="passive"/>
     </net>
     <net code="15" name="/MOSI_SD" class="Default">
-      <node ref="J1" pin="3" pinfunction="CMD_3" pintype="input"/>
+      <node ref="JP4" pin="2" pinfunction="B_2" pintype="passive"/>
       <node ref="R6" pin="1" pintype="passive"/>
     </net>
-    <net code="16" name="unconnected-(J1-DET-Pad9)" class="Default">
+    <net code="16" name="/SD_CLK" class="Default">
+      <node ref="J1" pin="5" pinfunction="CLK_5" pintype="input"/>
+      <node ref="JP3" pin="1" pinfunction="A_1" pintype="passive"/>
+      <node ref="U3" pin="3" pinfunction="I/O2_3" pintype="passive"/>
+      <node ref="U3" pin="4" pinfunction="I/O2_4" pintype="passive"/>
+    </net>
+    <net code="17" name="/SD_CSIN" class="Default">
+      <node ref="JP2" pin="1" pinfunction="A_1" pintype="passive"/>
+      <node ref="R4" pin="2" pintype="passive"/>
+      <node ref="U1" pin="2" pintype="input"/>
+    </net>
+    <net code="18" name="/SD_DI" class="Default">
+      <node ref="J1" pin="3" pinfunction="CMD_3" pintype="input"/>
+      <node ref="JP4" pin="1" pinfunction="A_1" pintype="passive"/>
+      <node ref="U2" pin="3" pinfunction="I/O2_3" pintype="passive"/>
+      <node ref="U2" pin="4" pinfunction="I/O2_4" pintype="passive"/>
+    </net>
+    <net code="19" name="/SD_DO" class="Default">
+      <node ref="JP1" pin="1" pinfunction="A_1" pintype="passive"/>
+      <node ref="R1" pin="1" pintype="passive"/>
+    </net>
+    <net code="20" name="/SD_VDD" class="Default">
+      <node ref="C1" pin="1" pintype="passive"/>
+      <node ref="C2" pin="1" pintype="passive"/>
+      <node ref="J1" pin="4" pinfunction="VDD_4" pintype="power_in"/>
+      <node ref="JP5" pin="1" pinfunction="A_1" pintype="passive"/>
+      <node ref="R2" pin="2" pintype="passive"/>
+      <node ref="R3" pin="1" pintype="passive"/>
+      <node ref="U1" pin="5" pinfunction="VCC_5" pintype="power_in"/>
+      <node ref="U2" pin="5" pinfunction="VBUS_5" pintype="passive"/>
+      <node ref="U3" pin="5" pinfunction="VBUS_5" pintype="passive"/>
+    </net>
+    <net code="21" name="unconnected-(J1-DET-Pad9)" class="Default">
       <node ref="J1" pin="9" pinfunction="DET_9" pintype="passive+no_connect"/>
     </net>
-    <net code="17" name="unconnected-(U1-NC-Pad1)" class="Default">
+    <net code="22" name="unconnected-(U1-NC-Pad1)" class="Default">
       <node ref="U1" pin="1" pinfunction="NC_1" pintype="no_connect"/>
     </net>
   </nets>

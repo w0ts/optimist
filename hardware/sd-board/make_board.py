@@ -193,6 +193,26 @@ R2 = P(LIB, "R0603", "R2", "47k", 89.6, 12.9, 0, "C25819")
 R3 = P(LIB, "R0603", "R3", "47k", CARD_C - 7.6, BUS, 0, "C25819")
 R5 = P(LIB, "R0603", "R5", "100", 94.25, 49.0, 90, "C22775")    # (CLK and MOSI in series where the SD branch leaves
 R6 = P(LIB, "R0603", "R6", "100", 95.05, 45.5, 90, "C22775")    # the through-lines, at the J2 end of the column)
+# ESD at the card's contacts: two USBLC6-2SC6, each line straight through one of its columns (pins 1 and 6 are one
+# line, 3 and 4 the other: flow-through, no stub); U3 on DAT0 and CLK with its GND pin right over the card's ground
+# contact, U2 on CMD (DI) and CS, turned so its VBUS pin sits over the bottom 3V3 bus
+SOT6 = "SOT-23-6_L2.9-W1.6-P0.95-LS2.8-BL"
+U3 = P(LIB, SOT6, "U3", "USBLC6-2SC6", 82.32, 14.2, 0, "C7519")
+U2 = P(LIB, SOT6, "U2", "USBLC6-2SC6", 86.57, 16.6, 180, "C7519")
+# the swap block (Julius and the user, 2026-10-27): between J2 and the SD part, each line's two pads joined by a thin
+# copper bridge (a solder jumper, bridged: no part to place). If a line from J12 is not what we think, cut its bridge
+# and wire any J12 line (a jumper's right pad, or the test pads TP1-TP3 for J12's unprobed pins 6, 8, 9) to the SD
+# part's input (a jumper's left pad). Staggered, each row's left pad clear of the rows below it
+JUMPER = os.path.join(KICAD_FP, "Jumper.pretty")
+TPAD = os.path.join(KICAD_FP, "TestPoint.pretty")
+SJ = "SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm"
+SWAP = (("JP1", "MISO", "SD_DO", 83.6, 38.6, "DO"), ("JP2", "LCD_CS", "SD_CSIN", 84.8, 35.9, "CS"),
+        ("JP3", "CLK_SD", "SD_CLK", 86.0, 33.2, "CLK"), ("JP4", "MOSI_SD", "SD_DI", 87.2, 30.5, "DI"),
+        ("JP5", "3V3", "SD_VDD", 88.4, 27.8, "3V3"))
+JP = {ref: P(JUMPER, SJ, ref, "cut to swap", u, v, 0, "") for ref, _, _, u, v, _ in SWAP}
+TPS = (("TP1", "LCD_6", 83.6, 64.2, "6"), ("TP2", "LCD_8", 83.6, 66.6, "8"), ("TP3", "LCD_9", 83.6, 69.0, "9"),
+       ("TP4", "GND", 83.6, 61.8, "G"))
+TP = {ref: P(TPAD, "TestPoint_Pad_D1.0mm", ref, f"J12 {lab}", u, v, 0, "") for ref, _, u, v, lab in TPS}
 
 # the tray's lips run over the board's edges (make_tray.py): no part within 2 mm of the left edge, nor of the right
 # edge below the right post's top (RIGHT_END there); every placed part's box checked
@@ -206,10 +226,10 @@ for fp in board.GetFootprints():
 
 # ---- the nets: J12's pin map as probed (Julius, 2026-10-27), the same on J2 and J3 (every line straight through, J3
 # pin n = J2 pin n; the cable from J12 must arrive unmirrored: the breakout's check). Pin 7 as 3V3 is still to confirm
-# (a reset line reads 3.3 V as well): nothing here may be ordered before that
+# (a reset line reads 3.3 V as well): the swap block lets a wrong guess be rewired by hand
 LCD_PINS = {1: "GND", 2: "MISO", 3: "LCD_CS", 4: "CLK", 5: "MOSI", 6: "LCD_6", 7: "3V3", 8: "LCD_8",
             9: "LCD_9", 10: "GND", 11: "GND", 12: "GND"}
-for num, name in ((1, "DAT2"), (2, "CARD_CS"), (3, "MOSI_SD"), (4, "3V3"), (5, "CLK_SD"), (6, "GND"), (7, "DAT0"),
+for num, name in ((1, "DAT2"), (2, "CARD_CS"), (3, "SD_DI"), (4, "SD_VDD"), (5, "SD_CLK"), (6, "GND"), (7, "DAT0"),
                   (8, "DAT1"), (10, "GND"), (11, "GND"), (12, "GND"), (13, "GND")):
     connect(J1, num, name)
 for num, name in LCD_PINS.items():
@@ -218,18 +238,27 @@ for num, name in LCD_PINS.items():
 for fp in (J2, J3):
     for num in (1, 10):                          # (the 0.5 mm pitch leaves room for one thermal spoke only: the
         pad(fp, num).SetLocalZoneConnection(pcbnew.ZONE_CONNECTION_FULL)   # ground pins join the pour solid)
-for num, name in ((2, "LCD_CS"), (3, "GND"), (4, "CARD_CS"), (5, "3V3")):
+for num, name in ((2, "SD_CSIN"), (3, "GND"), (4, "CARD_CS"), (5, "SD_VDD")):
     connect(U1, num, name)
-for fp, a, b in ((R1, "MISO", "DAT0"), (R2, "DAT2", "3V3"), (R3, "3V3", "DAT1"), (R4, "GND", "LCD_CS"),
-                 (C1, "3V3", "GND"), (C2, "3V3", "GND"), (R5, "CLK_SD", "CLK"), (R6, "MOSI_SD", "MOSI")):
+for fp, a, b in ((R1, "SD_DO", "DAT0"), (R2, "DAT2", "SD_VDD"), (R3, "SD_VDD", "DAT1"), (R4, "GND", "SD_CSIN"),
+                 (C1, "SD_VDD", "GND"), (C2, "SD_VDD", "GND"), (R5, "CLK_SD", "CLK"), (R6, "MOSI_SD", "MOSI")):
     connect(fp, 1, a)
     connect(fp, 2, b)
+for fp, io1, io2 in ((U3, "DAT0", "SD_CLK"), (U2, "CARD_CS", "SD_DI")):
+    for num, name in ((1, io1), (6, io1), (3, io2), (4, io2), (2, "GND"), (5, "SD_VDD")):
+        connect(fp, num, name)
+for ref, jside, sdside, _, _, _ in SWAP:        # (pad 1 left: the SD part's side; pad 2 right: J12's)
+    connect(JP[ref], 1, sdside)
+    connect(JP[ref], 2, jside)
+for ref, name, _, _, _ in TPS:
+    connect(TP[ref], 1, name)
 
-# ---- the column (right of the speaker plug), top layer, one lane each from J2 down to the SD part. The order is J2's
-# (no crossing): MISO, LCD_CS, a ground guard, CLK, MOSI, 3V3: MISO's neighbour is the quiet chip select, CLK's edges
-# are a ground lane away from it (the 2026-10-25 review); the bottom layer under the column is solid ground
+# ---- the column (right of the speaker plug), top layer, one lane each from J2 down to the swap block. The order is
+# J2's (no crossing): MISO, LCD_CS, a ground guard, CLK, MOSI, 3V3: MISO's neighbour is the quiet chip select, CLK's
+# edges are a ground lane away from it (the 2026-10-25 review); the bottom layer under the column is solid ground
 LANE = {"MISO": 92.1, "LCD_CS": 92.75, "GUARD": 93.45, "CLK": 94.25, "MOSI": 95.05, "3V3": 95.9}
 PIN = {name: num for num, name in LCD_PINS.items() if name in LANE}
+ROW = {jside: (ref, v) for ref, jside, _, _, v, _ in SWAP}
 SLANT = 52.4                                     # (from here up, every lane slants left at 45 degrees onto its J2 pin)
 for name in ("MISO", "LCD_CS", "CLK", "MOSI", "3V3"):
     x, tx = LANE[name], A(J2, PIN[name])
@@ -238,59 +267,82 @@ for name in ("MISO", "LCD_CS", "CLK", "MOSI", "3V3"):
     if name in ("CLK", "MOSI"):                  # (the column's top through R5 / R6, the SD side below them)
         r = R5 if name == "CLK" else R6
         R(name, [A(r, 2), (x, SLANT), *top], w)
-        R(name + "_SD", [A(r, 1), (x, {"CLK": 26.0, "MOSI": 25.3}[name])], w)
+        ref, v = ROW[name + "_SD"]
+        R(name + "_SD", [A(r, 1), (x, v), A(JP[ref], 2)], w)
     else:
-        R(name, [(x, {"MISO": 30.5, "LCD_CS": 28.8, "3V3": 16.2}[name]), (x, SLANT), *top], w)
-GUARD_V = (29.6, 34.0, 39.0, 44.0, 51.0)         # (the guard's ends and its vias to the bottom pour, about 5 mm apart;
+        ref, v = ROW[name]
+        R(name, [A(JP[ref], 2), (x, v), (x, SLANT), *top], w)
+GUARD_V = (34.5, 39.0, 44.0, 51.0)               # (the guard's ends and its vias to the bottom pour, about 5 mm apart;
 R("GND", [(LANE["GUARD"], GUARD_V[0]), (LANE["GUARD"], GUARD_V[-1])])   # none beside R5's pads)
 
-# ---- the SD part, top: each lane turns left in turn, the leftmost first and highest, onto its card contact; LCD_CS
-# alone crosses CLK and MOSI, on the bottom (a via each end: it changes only at a card session's start and end)
+# ---- from the swap block down to the SD part, top: each left pad drops in turn (the rows staggered so no drop
+# crosses a lower row); SD_CSIN alone crosses CLK and DI, on the bottom (a via each end: it changes only at a card
+# session's start and end); 3V3 (SD_VDD after its jumper) goes back right to the rail down the right edge
 C = {n: A(J1, n) for n in range(1, 9)}
-R("MISO", [(LANE["MISO"], 30.5), (C[7][0], 30.5), A(R1, 1)])
-R("DAT0", [A(R1, 2), C[7]])
-R("CLK_SD", [(LANE["CLK"], 26.0), (C[5][0], 26.0), C[5]])
-R("MOSI_SD", [(LANE["MOSI"], 25.3), (C[3][0], 25.3), C[3]])
-CS_VIA = (91.0, 21.4)
-R("LCD_CS", [(LANE["LCD_CS"], 28.8), (LANE["LCD_CS"], CS_VIA[1]), CS_VIA], TRACK, pcbnew.B_Cu)
-R("LCD_CS", [A(R4, 2), CS_VIA, A(U1, 2)])
-R("CARD_CS", [A(U1, 4), (A(U1, 4)[0], 15.2), (C[2][0], 15.2), C[2]])
+L = {ref: A(JP[ref], 1) for ref in JP}
+R("SD_DO", [L["JP1"], (L["JP1"][0], 29.0), (C[7][0], 27.27), A(R1, 1)])
+R("DAT0", [A(R1, 2), (A(U3, 1)[0], A(R1, 2)[1]), A(U3, 6), A(U3, 1), (A(U3, 1)[0], C[7][1])])
+R("SD_CLK", [L["JP3"], (L["JP3"][0], 27.4), (A(U3, 3)[0], 25.3), A(U3, 4), A(U3, 3), (A(U3, 3)[0], C[5][1])])
+R("SD_DI", [L["JP4"], (L["JP4"][0], 26.5), (A(U2, 3)[0], 25.57), A(U2, 4), A(U2, 3), C[3]])
+CS_IN, CS_VIA = (L["JP2"][0], 34.5), (91.0, 21.4)
+R("SD_CSIN", [L["JP2"], CS_IN])
+R("SD_CSIN", [CS_IN, (CS_VIA[0], CS_IN[1] - (CS_VIA[0] - CS_IN[0])), CS_VIA], TRACK, pcbnew.B_Cu)
+R("SD_CSIN", [A(R4, 2), CS_VIA, A(U1, 2)])
+R("CARD_CS", [A(U1, 4), (88.3, A(U1, 4)[1]), (88.3, 18.6), (A(U2, 6)[0], 18.6), A(U2, 6), A(U2, 1),
+              (A(U2, 1)[0], 13.6), (C[2][0], 12.8), C[2]])
 R("DAT2", [C[1], (C[1][0], A(R2, 1)[1]), A(R2, 1)])
-R("3V3", [(LANE["3V3"], 16.2), A(C2, 1), A(U1, 5)], POWER)
-R("3V3", [(LANE["3V3"], 16.2), (LANE["3V3"], A(R2, 2)[1]), A(R2, 2)], POWER)
+RAIL = LANE["3V3"]
+R("SD_VDD", [L["JP5"], (L["JP5"][0], 26.2), (RAIL, 26.2), (RAIL, 16.2), A(C2, 1), A(U1, 5)], POWER)
+R("SD_VDD", [(RAIL, 16.2), (RAIL, A(R2, 2)[1]), A(R2, 2)], POWER)
 R("DAT1", [C[8], (C[8][0], BUS), A(R3, 2)])
-R("GND", [C[6], (C[6][0], 15.2)])
-R("3V3", [C[4], (C[4][0], BUS)], POWER)
-R("3V3", [A(R3, 1), (76.0, BUS)], POWER)
-R("3V3", [A(C1, 1), (76.0, 19.8)], POWER)
+R("GND", [C[6], A(U3, 2)])
+R("SD_VDD", [C[4], (C[4][0], BUS)], POWER)
+R("SD_VDD", [A(U3, 5), (A(U3, 5)[0], 16.5)])
+R("SD_VDD", [A(U2, 5), (A(U2, 5)[0], 14.2)])
+R("GND", [A(U2, 2), (A(U2, 2)[0], 19.3)])
+R("SD_VDD", [A(R3, 1), (76.0, BUS)], POWER)
+R("SD_VDD", [A(C1, 1), (76.0, 19.8)], POWER)
 R("GND", [A(U1, 3), (89.3, 19.6)])
 R("GND", [A(R4, 1), (88.0, 21.4)])
 R("GND", [A(C2, 2), (93.4, 18.7)])
 R("GND", [A(C1, 2), (77.4, A(C1, 2)[1])])
 
-# ---- J3 to J2: every line straight through (down from J3's pins, a step right, down onto J2's pins from above); the
-# ground pins join the sockets' tabs (above J3's pins) and the pours
+# ---- J3 to J2: every line straight through (down from J3's pins, a step right, down onto J2's pins from above), the
+# steps 1 mm apart for a via on the unprobed lines (6, 8, 9: to their test pads); the ground pins join the sockets'
+# tabs (above J3's pins) and the pours
+TURN = {n: 69.0 - (9 - n) * 1.0 for n in range(2, 10)}
 for n in range(2, 10):
     a, b = A(J3, J3_AT[n]), A(J2, n)
-    turn = 69.0 - (9 - n) * 0.5                  # (a staircase: each turns right in turn, the rightmost first and
-    R(LCD_PINS[n], [a, (a[0], turn), (b[0], turn), b], POWER if LCD_PINS[n] == "3V3" else TRACK)   # highest)
+    R(LCD_PINS[n], [a, (a[0], TURN[n]), (b[0], TURN[n]), b], POWER if LCD_PINS[n] == "3V3" else TRACK)
 for n in (1, 10):
     g = A(J3, J3_AT[n])
     tab = min((A(J3, 11), A(J3, 12)), key=lambda t: abs(t[0] - g[0]))
     R("GND", [g, (g[0], 72.5), (tab[0], 72.5)])
-
-# ---- the bottom: 3V3 across, from the rail to the card's 3V3 contact and to R3
 B = pcbnew.B_Cu
-R("3V3", [(76.0, 19.8), (76.0, BUS), (LANE["3V3"], BUS)], POWER, B)
-for u, v in ((76.0, 19.8), (76.0, BUS), (C[4][0], BUS), (LANE["3V3"], BUS)):
-    V("3V3", u, v)
-V("LCD_CS", LANE["LCD_CS"], 28.8)
-V("LCD_CS", *CS_VIA)
+TP_VIA = 84.9                                    # (each test pad's via; the bottom runs from the line's step to it)
+for (ref, name, u, v, _), jog in zip(TPS[:3], (86.3, 85.6, None)):
+    n = int(name[-1])
+    mid = ((A(J3, J3_AT[n])[0] + A(J2, n)[0]) / 2, TURN[n])
+    path = [mid, (jog, TURN[n]), (jog, v), (TP_VIA, v)] if jog else [mid, (TP_VIA, v)]
+    R(name, path, TRACK, B)
+    V(name, *mid)
+    V(name, TP_VIA, v)
+    R(name, [(TP_VIA, v), A(TP[ref], 1)])
+
+# ---- the bottom: 3V3 (SD_VDD) across, from the rail to the card's VDD contact, the ESD chips' VBUS and R3
+BUS_X = (76.0, A(U3, 5)[0], C[4][0], A(U2, 5)[0], RAIL)
+R("SD_VDD", [(76.0, 19.8), *[(x, BUS) for x in BUS_X]], POWER, B)
+R("SD_VDD", [(A(U3, 5)[0], 16.5), (A(U3, 5)[0], BUS)], TRACK, B)
+R("SD_VDD", [(A(U2, 5)[0], 14.2), (A(U2, 5)[0], BUS)], TRACK, B)
+for u, v in ((76.0, 19.8), (76.0, BUS), (C[4][0], BUS), (RAIL, BUS), (A(U3, 5)[0], 16.5), (A(U2, 5)[0], 14.2)):
+    V("SD_VDD", u, v)
+V("SD_CSIN", *CS_IN)
+V("SD_CSIN", *CS_VIA)
 for v in GUARD_V:
     V("GND", LANE["GUARD"], v)
-for u, v in ((C[6][0], 15.2), (89.3, 19.6), (88.0, 21.4), (93.4, 18.7), (77.4, A(C1, 2)[1]),
-             (76.0, 5.0), (76.0, 25.0), (79.0, 25.0), (95.9, 6.0), (76.0, 34.0), (86.0, 34.0),   # (the pours
-             (87.0, 53.5), (86.9, 64.0), (83.3, 70.0), (95.9, 53.5), (95.9, 64.0), (95.7, 74.5)):   # stitched)
+for u, v in ((89.3, 19.6), (88.0, 21.4), (93.4, 18.7), (77.4, A(C1, 2)[1]), (A(U2, 2)[0], 19.3),
+             (76.0, 5.0), (76.0, 25.0), (79.0, 25.0), (95.9, 6.0), (76.0, 34.0),   # (the pours stitched, the
+             (87.0, 53.5), (83.3, 71.0), (95.9, 53.5), (95.9, 64.0), (95.7, 74.5)):   # head's too)
     V("GND", u, v)
 R("GND", [A(J2, 1), (A(J2, 1)[0], 59.2), (88.6, 59.2)])
 R("GND", [A(J2, 10), (A(J2, 10)[0], 59.2), (95.4, 59.2)])
@@ -337,9 +389,14 @@ def label(text, x, y, size=0.8, rot=0.0):
 
 
 label("OPTIMIST SD", *T(77.5, 29.0), 0.8, 90)
+for _, _, _, u, v, lab in SWAP:                  # (the swap block: each row's line; J12's side right, the card's left)
+    label(lab, *T(u - 2.2, v), 0.6)
+label("CUT+WIRE", *T(88.6, 39.2), 0.6)
+for _, _, u, v, lab in TPS:
+    label(lab, *T(u, v + 1.0), 0.6)
 # which way each cable goes in: J3 touches the top face only (the LCD's cable arrives gold up, the user); J2 still
 # touches both, so a cable turned over there connects MIRRORED (pin 1 on pin 10) until its face is picked
-label("LCD: gold UP", *T(88.0, 69.6), 0.7)
+label("LCD: gold UP", *T(89.6, 69.9), 0.7)
 label("IN: gold DOWN", *T(92.2, 53.0), 0.7)
 
 board.GetDesignSettings().SetAuxOrigin(pcbnew.VECTOR2I(MM(X0), MM(YB)))   # (the lower left: the Gerbers, the drill
@@ -351,7 +408,7 @@ print("saved", out)
 # ---- JLCPCB's assembly files: the parts list (BOM) and the placement (CPL); the holes are not parts
 FAB = os.path.join(HERE, "fab")
 os.makedirs(FAB, exist_ok=True)
-parts = [fp for fp in board.GetFootprints() if not fp.GetReference().startswith("H")]
+parts = [fp for fp in board.GetFootprints() if not fp.GetReference().startswith(("H", "JP", "TP"))]
 groups = {}
 for fp in parts:
     lcsc = fp.GetFieldText("LCSC")

@@ -868,6 +868,781 @@
 		)
 		(embedded_fonts no)
 	)
+(symbol "Connector:TestPoint"
+		(pin_numbers
+			(hide yes)
+		)
+		(pin_names
+			(offset 0.762)
+			(hide yes)
+		)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(duplicate_pin_numbers_are_jumpers no)
+		(property "Reference" "TP"
+			(at 0 6.858 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "TestPoint"
+			(at 0 5.08 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 5.08 0 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 5.08 0 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "test point"
+			(at 0 0 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "ki_keywords" "test point tp"
+			(at 0 0 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "ki_fp_filters" "Pin* Test*"
+			(at 0 0 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(symbol "TestPoint_0_1"
+			(circle
+				(center 0 3.302)
+				(radius 0.762)
+				(stroke
+					(width 0)
+					(type default)
+				)
+				(fill
+					(type none)
+				)
+			)
+		)
+		(symbol "TestPoint_1_1"
+			(pin passive line
+				(at 0 0 90)
+				(length 2.54)
+				(name "1"
+					(effects
+						(font
+							(size 1.27 1.27)
+						)
+					)
+				)
+				(number "1"
+					(effects
+						(font
+							(size 1.27 1.27)
+						)
+					)
+				)
+			)
+		)
+		(embedded_fonts no)
+	)
+(symbol "Power_Protection:USBLC6-2P6"
+		(pin_names
+			(hide yes)
+		)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(duplicate_pin_numbers_are_jumpers no)
+		(property "Reference" "U"
+			(at 0.635 5.715 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "USBLC6-2P6"
+			(at 0.635 3.81 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "Package_TO_SOT_SMD:SOT-666"
+			(at 1.016 -6.731 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+					(italic yes)
+				)
+				(justify left)
+			)
+		)
+		(property "Datasheet" "https://www.st.com/resource/en/datasheet/usblc6-2.pdf"
+			(at 1.016 -8.636 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Description" "Very low capacitance ESD protection diode, 2 data-line, SOT-666"
+			(at 0 0 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "ki_keywords" "usb ethernet video"
+			(at 0 0 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "ki_fp_filters" "SOT?666*"
+			(at 0 0 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(symbol "USBLC6-2P6_0_0"
+			(circle
+				(center -1.524 0)
+				(radius 0.0001)
+				(stroke
+					(width 0.508)
+					(type default)
+				)
+				(fill
+					(type none)
+				)
+			)
+			(circle
+				(center -0.508 2.032)
+				(radius 0.0001)
+				(stroke
+					(width 0.508)
+					(type default)
+				)
+				(fill
+					(type none)
+				)
+			)
+			(circle
+				(center -0.508 -4.572)
+				(radius 0.0001)
+				(stroke
+					(width 0.508)
+					(type default)
+				)
+				(fill
+					(type none)
+				)
+			)
+			(circle
+				(center 0.508 2.032)
+				(radius 0.0001)
+				(stroke
+					(width 0.508)
+					(type default)
+				)
+				(fill
+					(type none)
+				)
+			)
+			(circle
+				(center 0.508 -4.572)
+				(radius 0.0001)
+				(stroke
+					(width 0.508)
+					(type default)
+				)
+				(fill
+					(type none)
+				)
+			)
+			(circle
+				(center 1.524 -2.54)
+				(radius 0.0001)
+				(stroke
+					(width 0.508)
+					(type default)
+				)
+				(fill
+					(type none)
+				)
+			)
+		)
+		(symbol "USBLC6-2P6_0_1"
+			(polyline
+				(pts
+					(xy -2.54 0) (xy 2.54 0)
+				)
+				(stroke
+					(width 0)
+					(type default)
+				)
+				(fill
+					(type none)
+				)
+			)
+			(polyline
+				(pts
+					(xy -2.54 -2.54) (xy 2.54 -2.54)
+				)
+				(stroke
+					(width 0)
+					(type default)
+				)
+				(fill
+					(type none)
+				)
+			)
+			(polyline
+				(pts
+					(xy -2.032 0.508) (xy -1.016 0.508) (xy -1.524 1.524) (xy -2.032 0.508)
+				)
+				(stroke
+					(width 0)
+					(type default)
+				)
+				(fill
+					(type none)
+				)
+			)
+			(polyline
+				(pts
+					(xy -2.032 -3.048) (xy -1.016 -3.048)
+				)
+				(stroke
+					(width 0)
+					(type default)
+				)
+				(fill
+					(type none)
+				)
+			)
+			(polyline
+				(pts
+					(xy -1.016 1.524) (xy -2.032 1.524)
+				)
+				(stroke
+					(width 0)
+					(type default)
+				)
+				(fill
+					(type none)
+				)
+			)
+			(polyline
+				(pts
+					(xy -1.016 -4.064) (xy -2.032 -4.064) (xy -1.524 -3.048) (xy -1.016 -4.064)
+				)
+				(stroke
+					(width 0)
+					(type default)
+				)
+				(fill
+					(type none)
+				)
+			)
+			(polyline
+				(pts
+					(xy -0.508 -1.143) (xy -0.508 -0.762) (xy 0.508 -0.762)
+				)
+				(stroke
+					(width 0)
+					(type default)
+				)
+				(fill
+					(type none)
+				)
+			)
+			(polyline
+				(pts
+					(xy 0 2.54) (xy -0.508 2.032) (xy 0.508 2.032) (xy 0 1.524) (xy 0 -4.064) (xy -0.508 -4.572) (xy 0.508 -4.572)
+					(xy 0 -5.08)
+				)
+				(stroke
+					(width 0)
+					(type default)
+				)
+				(fill
+					(type none)
+				)
+			)
+			(polyline
+				(pts
+					(xy 0.508 -1.778) (xy -0.508 -1.778) (xy 0 -0.762) (xy 0.508 -1.778)
+				)
+				(stroke
+					(width 0)
+					(type default)
+				)
+				(fill
+					(type none)
+				)
+			)
+			(polyline
+				(pts
+					(xy 1.016 1.524) (xy 2.032 1.524)
+				)
+				(stroke
+					(width 0)
+					(type default)
+				)
+				(fill
+					(type none)
+				)
+			)
+			(polyline
+				(pts
+					(xy 1.016 -3.048) (xy 2.032 -3.048)
+				)
+				(stroke
+					(width 0)
+					(type default)
+				)
+				(fill
+					(type none)
+				)
+			)
+			(polyline
+				(pts
+					(xy 2.032 0.508) (xy 1.016 0.508) (xy 1.524 1.524) (xy 2.032 0.508)
+				)
+				(stroke
+					(width 0)
+					(type default)
+				)
+				(fill
+					(type none)
+				)
+			)
+			(polyline
+				(pts
+					(xy 2.032 -4.064) (xy 1.016 -4.064) (xy 1.524 -3.048) (xy 2.032 -4.064)
+				)
+				(stroke
+					(width 0)
+					(type default)
+				)
+				(fill
+					(type none)
+				)
+			)
+		)
+		(symbol "USBLC6-2P6_1_1"
+			(rectangle
+				(start -2.54 2.794)
+				(end 2.54 -5.334)
+				(stroke
+					(width 0.254)
+					(type default)
+				)
+				(fill
+					(type background)
+				)
+			)
+			(polyline
+				(pts
+					(xy -0.508 2.032) (xy -1.524 2.032) (xy -1.524 -4.572) (xy -0.508 -4.572)
+				)
+				(stroke
+					(width 0)
+					(type default)
+				)
+				(fill
+					(type none)
+				)
+			)
+			(polyline
+				(pts
+					(xy 0.508 -4.572) (xy 1.524 -4.572) (xy 1.524 2.032) (xy 0.508 2.032)
+				)
+				(stroke
+					(width 0)
+					(type default)
+				)
+				(fill
+					(type none)
+				)
+			)
+			(pin passive line
+				(at -5.08 0 0)
+				(length 2.54)
+				(name "I/O1"
+					(effects
+						(font
+							(size 1.27 1.27)
+						)
+					)
+				)
+				(number "1"
+					(effects
+						(font
+							(size 1.27 1.27)
+						)
+					)
+				)
+			)
+			(pin passive line
+				(at 0 -7.62 90)
+				(length 2.54)
+				(name "GND"
+					(effects
+						(font
+							(size 1.27 1.27)
+						)
+					)
+				)
+				(number "2"
+					(effects
+						(font
+							(size 1.27 1.27)
+						)
+					)
+				)
+			)
+			(pin passive line
+				(at -5.08 -2.54 0)
+				(length 2.54)
+				(name "I/O2"
+					(effects
+						(font
+							(size 1.27 1.27)
+						)
+					)
+				)
+				(number "3"
+					(effects
+						(font
+							(size 1.27 1.27)
+						)
+					)
+				)
+			)
+			(pin passive line
+				(at 5.08 -2.54 180)
+				(length 2.54)
+				(name "I/O2"
+					(effects
+						(font
+							(size 1.27 1.27)
+						)
+					)
+				)
+				(number "4"
+					(effects
+						(font
+							(size 1.27 1.27)
+						)
+					)
+				)
+			)
+			(pin passive line
+				(at 0 5.08 270)
+				(length 2.54)
+				(name "VBUS"
+					(effects
+						(font
+							(size 1.27 1.27)
+						)
+					)
+				)
+				(number "5"
+					(effects
+						(font
+							(size 1.27 1.27)
+						)
+					)
+				)
+			)
+			(pin passive line
+				(at 5.08 0 180)
+				(length 2.54)
+				(name "I/O1"
+					(effects
+						(font
+							(size 1.27 1.27)
+						)
+					)
+				)
+				(number "6"
+					(effects
+						(font
+							(size 1.27 1.27)
+						)
+					)
+				)
+			)
+		)
+		(embedded_fonts no)
+	)
+(symbol "Jumper:SolderJumper_2_Bridged"
+		(pin_numbers
+			(hide yes)
+		)
+		(pin_names
+			(offset 0)
+			(hide yes)
+		)
+		(exclude_from_sim no)
+		(in_bom no)
+		(on_board yes)
+		(in_pos_files yes)
+		(duplicate_pin_numbers_are_jumpers no)
+		(property "Reference" "JP"
+			(at 0 2.032 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "SolderJumper_2_Bridged"
+			(at 0 -2.54 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 0 0 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 0 -6.35 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Solder Jumper, 2-pole, closed/bridged"
+			(at 0 -5.08 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "ki_keywords" "solder jumper SPST"
+			(at 0 0 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "ki_fp_filters" "SolderJumper*Bridged*"
+			(at 0 0 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(symbol "SolderJumper_2_Bridged_0_1"
+			(rectangle
+				(start -0.508 0.508)
+				(end 0.508 -0.508)
+				(stroke
+					(width 0.1524)
+					(type default)
+				)
+				(fill
+					(type outline)
+				)
+			)
+			(polyline
+				(pts
+					(xy -0.254 1.016) (xy -0.254 -1.016)
+				)
+				(stroke
+					(width 0.1524)
+					(type default)
+				)
+				(fill
+					(type none)
+				)
+			)
+			(arc
+				(start -0.254 -1.016)
+				(mid -1.2656 0)
+				(end -0.254 1.016)
+				(stroke
+					(width 0.1524)
+					(type default)
+				)
+				(fill
+					(type outline)
+				)
+			)
+			(arc
+				(start 0.254 1.016)
+				(mid 1.2656 0)
+				(end 0.254 -1.016)
+				(stroke
+					(width 0.1524)
+					(type default)
+				)
+				(fill
+					(type outline)
+				)
+			)
+			(polyline
+				(pts
+					(xy 0.254 1.016) (xy 0.254 -1.016)
+				)
+				(stroke
+					(width 0.1524)
+					(type default)
+				)
+				(fill
+					(type none)
+				)
+			)
+		)
+		(symbol "SolderJumper_2_Bridged_1_1"
+			(pin passive line
+				(at -5.08 0 0)
+				(length 3.81)
+				(name "A"
+					(effects
+						(font
+							(size 1.27 1.27)
+						)
+					)
+				)
+				(number "1"
+					(effects
+						(font
+							(size 1.27 1.27)
+						)
+					)
+				)
+			)
+			(pin passive line
+				(at 5.08 0 180)
+				(length 3.81)
+				(name "B"
+					(effects
+						(font
+							(size 1.27 1.27)
+						)
+					)
+				)
+				(number "2"
+					(effects
+						(font
+							(size 1.27 1.27)
+						)
+					)
+				)
+			)
+		)
+		(embedded_fonts no)
+	)
 (symbol "Connector_Generic_MountingPin:Conn_01x10_MountingPin"
 		(pin_names
 			(offset 1.016)
@@ -1416,32 +2191,32 @@
 (symbol (lib_id "Connector:Micro_SD_Card_Det1") (at 170.18 88.9 0) (unit 1) (exclude_from_sim no) (in_bom yes) (on_board yes) (dnp no) (uuid "7ddb8f82-cfbe-537d-9383-8fc72a835b71") (property "Reference" "J1" (at 170.18 74.9 0) (effects (font (size 1.27 1.27)))) (property "Value" "TF-01A push-push" (at 170.18 102.9 0) (effects (font (size 1.27 1.27)))) (property "Footprint" "sdboard:TF-SMD_TF-01A" (at 170.18 88.9 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Datasheet" "" (at 170.18 88.9 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "LCSC" "C91145" (at 170.18 88.9 0) (effects (font (size 1.27 1.27)) (hide yes))) (pin "1" (uuid "1ed1bea4-002b-5459-a8b7-8a3503a2a589")) (pin "2" (uuid "ee89e4c2-5214-579f-8f48-60a833d82d94")) (pin "3" (uuid "f1911c15-c5ae-5a1b-a58f-d270df96c1e7")) (pin "4" (uuid "c7ab897b-a2d5-500d-84b6-874260a69847")) (pin "5" (uuid "7bc9adea-95a4-5537-ab11-f211e76d4749")) (pin "6" (uuid "e9dd7342-ae1e-5287-ac44-cf4bc32e90e2")) (pin "7" (uuid "f3529295-4ac9-5028-8c16-2924e39af7b7")) (pin "8" (uuid "b3f8ddc9-96a5-5f67-9da1-42cebdb8e366")) (pin "9" (uuid "b6070d90-e917-5d24-8139-287592976afd")) (pin "SH" (uuid "74f3faa4-47ed-50c1-aa14-289e9dac7193")) (instances (project "sd-board" (path "/766c70bd-1acb-59f5-b703-96c0315a8041" (reference "J1") (unit 1)))))
 (label "DAT2" (at 147.32 78.74 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "b019be9a-e475-5e57-adc1-9a20a424bcf7"))
 (label "CARD_CS" (at 147.32 81.28 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "a7e3adc9-59fc-5f0c-b2f3-0a04d24b9916"))
-(label "MOSI_SD" (at 147.32 83.82 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "c4cbe036-aeb7-57eb-95b4-f5b9cb960277"))
-(label "3V3" (at 147.32 86.36 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "657ad69f-a1c5-509e-ad54-f429a33d2668"))
-(label "CLK_SD" (at 147.32 88.9 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "0d98df6a-d4c7-5a6c-9a31-925561e68a78"))
+(label "SD_DI" (at 147.32 83.82 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "c4cbe036-aeb7-57eb-95b4-f5b9cb960277"))
+(label "SD_VDD" (at 147.32 86.36 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "657ad69f-a1c5-509e-ad54-f429a33d2668"))
+(label "SD_CLK" (at 147.32 88.9 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "0d98df6a-d4c7-5a6c-9a31-925561e68a78"))
 (label "GND" (at 147.32 91.44 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "b2a94f34-af88-568a-a9e6-5b0dda934aa3"))
 (label "DAT0" (at 147.32 93.98 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "55bc1c9d-ecc2-539f-b81d-89bfddbbd795"))
 (label "DAT1" (at 147.32 96.52 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "140c726f-6a5e-5cda-bddd-24c93d2c09c3"))
 (label "GND" (at 190.5 101.6 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "48acbd1c-64e4-5490-8d26-4d54263025c8"))
 (no_connect (at 147.32 101.6) (uuid "8bee3699-cf65-5ae3-a55f-b752dd3adbe7"))
 (symbol (lib_id "74xGxx:74LVC1G04") (at 71.12 71.12 0) (unit 1) (exclude_from_sim no) (in_bom yes) (on_board yes) (dnp no) (uuid "e9c70f2e-fa66-59f0-923b-b1edc269e462") (property "Reference" "U1" (at 71.12 57.120000000000005 0) (effects (font (size 1.27 1.27)))) (property "Value" "74LVC1G04" (at 71.12 85.12 0) (effects (font (size 1.27 1.27)))) (property "Footprint" "sdboard:SOT-23-5_L3.0-W1.7-P0.95-LS2.8-BR" (at 71.12 71.12 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Datasheet" "" (at 71.12 71.12 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "LCSC" "C7827" (at 71.12 71.12 0) (effects (font (size 1.27 1.27)) (hide yes))) (pin "1" (uuid "ac9d71aa-2fa2-50d9-82c7-48b1695beec5")) (pin "2" (uuid "69ee3b7b-4161-5f7e-ad1c-b972fb4afed2")) (pin "3" (uuid "13efd899-8faa-55f5-af75-53aee1cecaaa")) (pin "4" (uuid "a8d56ea7-890b-5624-8dbc-4cd94c141553")) (pin "5" (uuid "f7d09c63-41ff-547a-987a-a9e60bcba7f8")) (instances (project "sd-board" (path "/766c70bd-1acb-59f5-b703-96c0315a8041" (reference "U1") (unit 1)))))
-(label "LCD_CS" (at 55.88 71.12 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "55444381-305a-5cd6-8c09-e43bcf667dda"))
+(label "SD_CSIN" (at 55.88 71.12 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "55444381-305a-5cd6-8c09-e43bcf667dda"))
 (label "GND" (at 66.04 81.28 270) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "ac696103-e435-5f1c-8a98-b2ab9f2d581e"))
 (label "CARD_CS" (at 83.82 71.12 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "7516fbf9-a25f-54bb-84df-4be1900fca2f"))
-(label "3V3" (at 66.04 60.96 90) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "8695be08-9e9e-5a75-b5cc-4f417b119857"))
+(label "SD_VDD" (at 66.04 60.96 90) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "8695be08-9e9e-5a75-b5cc-4f417b119857"))
 (no_connect (at 63.5 68.58) (uuid "dd35fb0f-5005-556b-94f3-6c8f6ee6b414"))
 (symbol (lib_id "Device:R") (at 109.22 124.46 0) (unit 1) (exclude_from_sim no) (in_bom yes) (on_board yes) (dnp no) (uuid "6d3a0cc3-136e-5f75-b052-7077a46af1bb") (property "Reference" "R1" (at 109.22 110.46 0) (effects (font (size 1.27 1.27)))) (property "Value" "100" (at 109.22 138.45999999999998 0) (effects (font (size 1.27 1.27)))) (property "Footprint" "sdboard:R0603" (at 109.22 124.46 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Datasheet" "" (at 109.22 124.46 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "LCSC" "C22775" (at 109.22 124.46 0) (effects (font (size 1.27 1.27)) (hide yes))) (pin "1" (uuid "b5e33968-5a59-5799-b3ae-1ee261a633a8")) (pin "2" (uuid "3c1576b1-d2b4-501f-abdb-75c10015b744")) (instances (project "sd-board" (path "/766c70bd-1acb-59f5-b703-96c0315a8041" (reference "R1") (unit 1)))))
-(label "MISO" (at 109.22 120.65 90) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "fcd9c01e-cbe3-5127-b6cc-859df6904345"))
+(label "SD_DO" (at 109.22 120.65 90) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "fcd9c01e-cbe3-5127-b6cc-859df6904345"))
 (label "DAT0" (at 109.22 128.27 270) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "c0667d4f-5f20-560f-87fa-41b46709c8a3"))
 (symbol (lib_id "Device:R") (at 124.46 124.46 0) (unit 1) (exclude_from_sim no) (in_bom yes) (on_board yes) (dnp no) (uuid "8a5e2d04-2450-59a4-a575-1b4315b13535") (property "Reference" "R2" (at 124.46 110.46 0) (effects (font (size 1.27 1.27)))) (property "Value" "47k" (at 124.46 138.45999999999998 0) (effects (font (size 1.27 1.27)))) (property "Footprint" "sdboard:R0603" (at 124.46 124.46 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Datasheet" "" (at 124.46 124.46 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "LCSC" "C25819" (at 124.46 124.46 0) (effects (font (size 1.27 1.27)) (hide yes))) (pin "1" (uuid "c3583a78-9eea-59db-825e-8bbcd77d36f2")) (pin "2" (uuid "45a5d768-192e-53d2-af7a-775d4c0eb0aa")) (instances (project "sd-board" (path "/766c70bd-1acb-59f5-b703-96c0315a8041" (reference "R2") (unit 1)))))
 (label "DAT2" (at 124.46 120.65 90) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "66ecb1a0-0760-5b65-b449-3bcbe93027ff"))
-(label "3V3" (at 124.46 128.27 270) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "1737260c-e703-5584-abe5-3ffc50138a4b"))
+(label "SD_VDD" (at 124.46 128.27 270) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "1737260c-e703-5584-abe5-3ffc50138a4b"))
 (symbol (lib_id "Device:R") (at 139.7 124.46 0) (unit 1) (exclude_from_sim no) (in_bom yes) (on_board yes) (dnp no) (uuid "85545ef3-56d6-56c0-ab94-437aba3b6584") (property "Reference" "R3" (at 139.7 110.46 0) (effects (font (size 1.27 1.27)))) (property "Value" "47k" (at 139.7 138.45999999999998 0) (effects (font (size 1.27 1.27)))) (property "Footprint" "sdboard:R0603" (at 139.7 124.46 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Datasheet" "" (at 139.7 124.46 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "LCSC" "C25819" (at 139.7 124.46 0) (effects (font (size 1.27 1.27)) (hide yes))) (pin "1" (uuid "05413c5c-1cd0-52a0-ae5f-2f96fe33f970")) (pin "2" (uuid "8435fc35-da88-596f-91df-c5d1e4509413")) (instances (project "sd-board" (path "/766c70bd-1acb-59f5-b703-96c0315a8041" (reference "R3") (unit 1)))))
-(label "3V3" (at 139.7 120.65 90) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "ddf5f4c1-57c1-5e4a-b030-352d33baa351"))
+(label "SD_VDD" (at 139.7 120.65 90) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "ddf5f4c1-57c1-5e4a-b030-352d33baa351"))
 (label "DAT1" (at 139.7 128.27 270) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "3ee2fe47-58e8-509f-86c6-a66ea6265b01"))
 (symbol (lib_id "Device:R") (at 45.72 71.12 0) (unit 1) (exclude_from_sim no) (in_bom yes) (on_board yes) (dnp no) (uuid "0fa0ffa3-854f-5ac3-8017-f6fb4988bf04") (property "Reference" "R4" (at 45.72 57.120000000000005 0) (effects (font (size 1.27 1.27)))) (property "Value" "47k" (at 45.72 85.12 0) (effects (font (size 1.27 1.27)))) (property "Footprint" "sdboard:R0603" (at 45.72 71.12 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Datasheet" "" (at 45.72 71.12 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "LCSC" "C25819" (at 45.72 71.12 0) (effects (font (size 1.27 1.27)) (hide yes))) (pin "1" (uuid "6a3dd091-6a5a-5899-a324-092ed07ff5f0")) (pin "2" (uuid "7eda90d9-3627-50be-9363-19bdbd7dc497")) (instances (project "sd-board" (path "/766c70bd-1acb-59f5-b703-96c0315a8041" (reference "R4") (unit 1)))))
 (label "GND" (at 45.72 67.31 90) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "920c3471-fcfe-5e47-a883-55982f928575"))
-(label "LCD_CS" (at 45.72 74.93 270) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "fa5d1bc1-f6d3-5dfb-9020-e6b8a340c0a4"))
+(label "SD_CSIN" (at 45.72 74.93 270) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "fa5d1bc1-f6d3-5dfb-9020-e6b8a340c0a4"))
 (symbol (lib_id "Device:R") (at 154.94 124.46 0) (unit 1) (exclude_from_sim no) (in_bom yes) (on_board yes) (dnp no) (uuid "8768d16b-2d5e-59cc-a0ae-4d7ccf37f85b") (property "Reference" "R5" (at 154.94 110.46 0) (effects (font (size 1.27 1.27)))) (property "Value" "100" (at 154.94 138.45999999999998 0) (effects (font (size 1.27 1.27)))) (property "Footprint" "sdboard:R0603" (at 154.94 124.46 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Datasheet" "" (at 154.94 124.46 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "LCSC" "C22775" (at 154.94 124.46 0) (effects (font (size 1.27 1.27)) (hide yes))) (pin "1" (uuid "630f1157-7785-59c2-8651-72f6aa10aa46")) (pin "2" (uuid "c8046165-7bdb-561c-a0d6-f44257086fde")) (instances (project "sd-board" (path "/766c70bd-1acb-59f5-b703-96c0315a8041" (reference "R5") (unit 1)))))
 (label "CLK_SD" (at 154.94 120.65 90) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "7546a984-fc0d-5bbc-becd-2f8d3ef8aceb"))
 (label "CLK" (at 154.94 128.27 270) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "2771bab8-3e8f-5975-8341-eea490288ba4"))
@@ -1449,11 +2224,48 @@
 (label "MOSI_SD" (at 170.18 120.65 90) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "e6e8ee84-acc0-5160-953b-091fd59baa44"))
 (label "MOSI" (at 170.18 128.27 270) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "2b612ec1-3552-5101-b7d9-ad7ca91564bc"))
 (symbol (lib_id "Device:C") (at 60.96 124.46 0) (unit 1) (exclude_from_sim no) (in_bom yes) (on_board yes) (dnp no) (uuid "1ddadac2-c390-5262-a9c4-13658d4b422e") (property "Reference" "C1" (at 60.96 110.46 0) (effects (font (size 1.27 1.27)))) (property "Value" "10uF" (at 60.96 138.45999999999998 0) (effects (font (size 1.27 1.27)))) (property "Footprint" "sdboard:C0805" (at 60.96 124.46 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Datasheet" "" (at 60.96 124.46 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "LCSC" "C15850" (at 60.96 124.46 0) (effects (font (size 1.27 1.27)) (hide yes))) (pin "1" (uuid "700f0ee7-ec8c-5db5-a37b-fc1f8d30fe84")) (pin "2" (uuid "96769bd8-3aca-5bc0-9a8c-d64fb396d19d")) (instances (project "sd-board" (path "/766c70bd-1acb-59f5-b703-96c0315a8041" (reference "C1") (unit 1)))))
-(label "3V3" (at 60.96 120.65 90) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "ea7c76d5-7683-5338-bbea-b498d6ebc6d8"))
+(label "SD_VDD" (at 60.96 120.65 90) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "ea7c76d5-7683-5338-bbea-b498d6ebc6d8"))
 (label "GND" (at 60.96 128.27 270) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "ef19b24d-5e26-500e-984c-08c7f1770492"))
 (symbol (lib_id "Device:C") (at 76.2 124.46 0) (unit 1) (exclude_from_sim no) (in_bom yes) (on_board yes) (dnp no) (uuid "9f268560-3bfb-5461-81e9-67fdbbe37c8d") (property "Reference" "C2" (at 76.2 110.46 0) (effects (font (size 1.27 1.27)))) (property "Value" "100nF" (at 76.2 138.45999999999998 0) (effects (font (size 1.27 1.27)))) (property "Footprint" "sdboard:C0603" (at 76.2 124.46 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Datasheet" "" (at 76.2 124.46 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "LCSC" "C14663" (at 76.2 124.46 0) (effects (font (size 1.27 1.27)) (hide yes))) (pin "1" (uuid "a82e52ef-d7df-5101-98c0-2dfa41d26992")) (pin "2" (uuid "459e9fe6-70e6-5507-9da9-dd2f3bfe745b")) (instances (project "sd-board" (path "/766c70bd-1acb-59f5-b703-96c0315a8041" (reference "C2") (unit 1)))))
-(label "3V3" (at 76.2 120.65 90) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "1f2148a2-d2db-5532-ba6c-b2f5e88bd4ba"))
+(label "SD_VDD" (at 76.2 120.65 90) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "1f2148a2-d2db-5532-ba6c-b2f5e88bd4ba"))
 (label "GND" (at 76.2 128.27 270) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "39cc8e67-2558-5f3f-87b7-c9064741b5bb"))
+(symbol (lib_id "Power_Protection:USBLC6-2P6") (at 200.66 139.7 0) (unit 1) (exclude_from_sim no) (in_bom yes) (on_board yes) (dnp no) (uuid "9ec147f5-b931-5d34-937c-99a78bae7a0f") (property "Reference" "U2" (at 200.66 125.69999999999999 0) (effects (font (size 1.27 1.27)))) (property "Value" "USBLC6-2SC6" (at 200.66 153.7 0) (effects (font (size 1.27 1.27)))) (property "Footprint" "sdboard:SOT-23-6_L2.9-W1.6-P0.95-LS2.8-BL" (at 200.66 139.7 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Datasheet" "" (at 200.66 139.7 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "LCSC" "C7519" (at 200.66 139.7 0) (effects (font (size 1.27 1.27)) (hide yes))) (pin "1" (uuid "8ea717d9-fdb2-55d8-af19-e1319639c3e9")) (pin "2" (uuid "f11bf502-6309-5d4d-9e82-a2fe60910967")) (pin "3" (uuid "c0c1a50a-dd9e-5133-bc3f-6b74ba4058bd")) (pin "4" (uuid "f68a1dec-c3cb-5c54-bb91-900cc1a07da8")) (pin "5" (uuid "b43f938f-6b9f-5eb2-9909-82515804a141")) (pin "6" (uuid "515e6dfa-859c-5faa-bc1a-b43e17df2401")) (instances (project "sd-board" (path "/766c70bd-1acb-59f5-b703-96c0315a8041" (reference "U2") (unit 1)))))
+(label "CARD_CS" (at 195.58 139.7 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "3459917d-71cb-5070-9a81-526f00617f66"))
+(label "CARD_CS" (at 205.74 139.7 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "bdcd37bb-fe10-5701-b041-c002289e887b"))
+(label "SD_DI" (at 195.58 142.24 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "4da5b270-fafa-5110-8760-e4fde9de0480"))
+(label "SD_DI" (at 205.74 142.24 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "8ce427f6-6033-5190-9b4a-b57424ffe671"))
+(label "GND" (at 200.66 147.32 270) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "f0e37c7f-3ea6-59bc-ac7d-542efae1a188"))
+(label "SD_VDD" (at 200.66 134.62 90) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "f1ac1ff7-8679-5d96-9f4e-480a4f861f1e"))
+(symbol (lib_id "Power_Protection:USBLC6-2P6") (at 231.14 139.7 0) (unit 1) (exclude_from_sim no) (in_bom yes) (on_board yes) (dnp no) (uuid "d2b7b08f-90ec-5c2c-980f-dba251d73904") (property "Reference" "U3" (at 231.14 125.69999999999999 0) (effects (font (size 1.27 1.27)))) (property "Value" "USBLC6-2SC6" (at 231.14 153.7 0) (effects (font (size 1.27 1.27)))) (property "Footprint" "sdboard:SOT-23-6_L2.9-W1.6-P0.95-LS2.8-BL" (at 231.14 139.7 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Datasheet" "" (at 231.14 139.7 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "LCSC" "C7519" (at 231.14 139.7 0) (effects (font (size 1.27 1.27)) (hide yes))) (pin "1" (uuid "50018db5-bc34-542d-8f04-87ed921bc097")) (pin "2" (uuid "54133c96-5767-54a3-bfee-aaa90485360a")) (pin "3" (uuid "33130258-b1fb-5e63-abfb-9c1ec4114927")) (pin "4" (uuid "f6dbdfc6-26d2-5e1f-83f7-57e80098565e")) (pin "5" (uuid "78906b28-86da-5550-b090-5d096881a9fa")) (pin "6" (uuid "4247946a-15ca-5b9c-ba9c-99cec16df9c0")) (instances (project "sd-board" (path "/766c70bd-1acb-59f5-b703-96c0315a8041" (reference "U3") (unit 1)))))
+(label "DAT0" (at 226.06 139.7 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "6e01a92b-af99-5b4b-8b30-fa4303a5b7f4"))
+(label "DAT0" (at 236.22 139.7 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "7b914845-78df-52e9-ac13-4767ff3345ae"))
+(label "SD_CLK" (at 226.06 142.24 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "23db65fd-3232-5724-af5b-aead0dd02aec"))
+(label "SD_CLK" (at 236.22 142.24 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "832c9de7-1dff-5abf-9535-f42f9730a03b"))
+(label "GND" (at 231.14 147.32 270) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "4540081c-065c-59bb-8e11-998505b3d08a"))
+(label "SD_VDD" (at 231.14 134.62 90) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "3f3f4725-46d4-5a0b-94e6-6463cca48209"))
+(symbol (lib_id "Jumper:SolderJumper_2_Bridged") (at 40.64 175.26 0) (unit 1) (exclude_from_sim no) (in_bom no) (on_board yes) (dnp no) (uuid "a02f1606-47d4-5144-9620-5427e193d4a3") (property "Reference" "JP1" (at 40.64 161.26 0) (effects (font (size 1.27 1.27)))) (property "Value" "cut to swap" (at 40.64 189.26 0) (effects (font (size 1.27 1.27)))) (property "Footprint" "Jumper:SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm" (at 40.64 175.26 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Datasheet" "" (at 40.64 175.26 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "LCSC" "" (at 40.64 175.26 0) (effects (font (size 1.27 1.27)) (hide yes))) (pin "1" (uuid "5447c402-b67a-5b4e-b78c-1f999dca6222")) (pin "2" (uuid "164d779d-a40d-5d8c-afce-058049404d19")) (instances (project "sd-board" (path "/766c70bd-1acb-59f5-b703-96c0315a8041" (reference "JP1") (unit 1)))))
+(label "SD_DO" (at 35.56 175.26 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "7357917c-bee2-521a-9cff-cb15d95bb768"))
+(label "MISO" (at 45.72 175.26 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "94ab8940-9453-5f96-b921-f6ebe0f7d6c7"))
+(symbol (lib_id "Jumper:SolderJumper_2_Bridged") (at 66.04 175.26 0) (unit 1) (exclude_from_sim no) (in_bom no) (on_board yes) (dnp no) (uuid "86e1497d-424f-598b-9fbf-3259baf57a8f") (property "Reference" "JP2" (at 66.04 161.26 0) (effects (font (size 1.27 1.27)))) (property "Value" "cut to swap" (at 66.04 189.26 0) (effects (font (size 1.27 1.27)))) (property "Footprint" "Jumper:SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm" (at 66.04 175.26 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Datasheet" "" (at 66.04 175.26 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "LCSC" "" (at 66.04 175.26 0) (effects (font (size 1.27 1.27)) (hide yes))) (pin "1" (uuid "461b720a-c7b6-54bb-afd1-340190fdba2f")) (pin "2" (uuid "fdbb7e3e-71fb-5ece-9fea-01928ba1ec73")) (instances (project "sd-board" (path "/766c70bd-1acb-59f5-b703-96c0315a8041" (reference "JP2") (unit 1)))))
+(label "SD_CSIN" (at 60.96 175.26 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "de526b2f-ff38-5538-b644-236251af631c"))
+(label "LCD_CS" (at 71.12 175.26 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "5eccbb84-04cc-5bd9-8fb7-00912ac55727"))
+(symbol (lib_id "Jumper:SolderJumper_2_Bridged") (at 88.9 175.26 0) (unit 1) (exclude_from_sim no) (in_bom no) (on_board yes) (dnp no) (uuid "8a1cdbda-2716-58f7-b928-55f05d842638") (property "Reference" "JP3" (at 88.9 161.26 0) (effects (font (size 1.27 1.27)))) (property "Value" "cut to swap" (at 88.9 189.26 0) (effects (font (size 1.27 1.27)))) (property "Footprint" "Jumper:SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm" (at 88.9 175.26 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Datasheet" "" (at 88.9 175.26 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "LCSC" "" (at 88.9 175.26 0) (effects (font (size 1.27 1.27)) (hide yes))) (pin "1" (uuid "77c6b3e5-c380-5187-9b01-89f96cfdb4f8")) (pin "2" (uuid "1db29f2b-a160-50f5-99d7-cf70928d9455")) (instances (project "sd-board" (path "/766c70bd-1acb-59f5-b703-96c0315a8041" (reference "JP3") (unit 1)))))
+(label "SD_CLK" (at 83.82 175.26 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "6302fad3-4579-591b-86a4-36ee3cb35636"))
+(label "CLK_SD" (at 93.98 175.26 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "99bf32a7-7563-56b0-9b67-48225a02a60e"))
+(symbol (lib_id "Jumper:SolderJumper_2_Bridged") (at 114.3 175.26 0) (unit 1) (exclude_from_sim no) (in_bom no) (on_board yes) (dnp no) (uuid "470e27f3-03e0-5046-9ee4-deda6adeb3eb") (property "Reference" "JP4" (at 114.3 161.26 0) (effects (font (size 1.27 1.27)))) (property "Value" "cut to swap" (at 114.3 189.26 0) (effects (font (size 1.27 1.27)))) (property "Footprint" "Jumper:SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm" (at 114.3 175.26 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Datasheet" "" (at 114.3 175.26 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "LCSC" "" (at 114.3 175.26 0) (effects (font (size 1.27 1.27)) (hide yes))) (pin "1" (uuid "2092ea04-4396-5149-a13d-e771c6425bde")) (pin "2" (uuid "0df5a8bf-ad0c-5291-9826-0aa5cca31f03")) (instances (project "sd-board" (path "/766c70bd-1acb-59f5-b703-96c0315a8041" (reference "JP4") (unit 1)))))
+(label "SD_DI" (at 109.22 175.26 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "f27f90eb-9c9f-5331-8f53-69a17e775a70"))
+(label "MOSI_SD" (at 119.38 175.26 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "baa3db2e-08d8-5b38-86bb-02fe7f15e5c2"))
+(symbol (lib_id "Jumper:SolderJumper_2_Bridged") (at 139.7 175.26 0) (unit 1) (exclude_from_sim no) (in_bom no) (on_board yes) (dnp no) (uuid "b4390883-389a-5892-b6ed-8b88f3dfea22") (property "Reference" "JP5" (at 139.7 161.26 0) (effects (font (size 1.27 1.27)))) (property "Value" "cut to swap" (at 139.7 189.26 0) (effects (font (size 1.27 1.27)))) (property "Footprint" "Jumper:SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm" (at 139.7 175.26 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Datasheet" "" (at 139.7 175.26 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "LCSC" "" (at 139.7 175.26 0) (effects (font (size 1.27 1.27)) (hide yes))) (pin "1" (uuid "0e0713d9-b77b-5cfa-a82b-f4c2ce59c088")) (pin "2" (uuid "67f95ddb-8bda-5f0c-81f8-d488ff8f39c6")) (instances (project "sd-board" (path "/766c70bd-1acb-59f5-b703-96c0315a8041" (reference "JP5") (unit 1)))))
+(label "SD_VDD" (at 134.62 175.26 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "2d29b9ce-8e64-5c8d-9b4e-9e32ba0112b8"))
+(label "3V3" (at 144.78 175.26 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "030bf552-9e21-5569-b6f2-c1c853afeed6"))
+(symbol (lib_id "Connector:TestPoint") (at 170.18 175.26 0) (unit 1) (exclude_from_sim no) (in_bom no) (on_board yes) (dnp no) (uuid "8084a293-6f53-52d0-8bc1-1a3553f26c8f") (property "Reference" "TP1" (at 170.18 161.26 0) (effects (font (size 1.27 1.27)))) (property "Value" "J12 6" (at 170.18 189.26 0) (effects (font (size 1.27 1.27)))) (property "Footprint" "TestPoint:TestPoint_Pad_D1.0mm" (at 170.18 175.26 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Datasheet" "" (at 170.18 175.26 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "LCSC" "" (at 170.18 175.26 0) (effects (font (size 1.27 1.27)) (hide yes))) (pin "1" (uuid "2cd85dd1-5bd4-5edc-b30e-8536f479c8f1")) (instances (project "sd-board" (path "/766c70bd-1acb-59f5-b703-96c0315a8041" (reference "TP1") (unit 1)))))
+(label "LCD_6" (at 170.18 175.26 270) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "9996e52c-2d8b-56df-a9a5-54be416ba9c9"))
+(symbol (lib_id "Connector:TestPoint") (at 185.42 175.26 0) (unit 1) (exclude_from_sim no) (in_bom no) (on_board yes) (dnp no) (uuid "a7b39696-5713-504e-80e1-251c14f82066") (property "Reference" "TP2" (at 185.42 161.26 0) (effects (font (size 1.27 1.27)))) (property "Value" "J12 8" (at 185.42 189.26 0) (effects (font (size 1.27 1.27)))) (property "Footprint" "TestPoint:TestPoint_Pad_D1.0mm" (at 185.42 175.26 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Datasheet" "" (at 185.42 175.26 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "LCSC" "" (at 185.42 175.26 0) (effects (font (size 1.27 1.27)) (hide yes))) (pin "1" (uuid "26947b18-7117-55c1-b34a-a1a1e87364ef")) (instances (project "sd-board" (path "/766c70bd-1acb-59f5-b703-96c0315a8041" (reference "TP2") (unit 1)))))
+(label "LCD_8" (at 185.42 175.26 270) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "067bb7cd-10a4-5115-87fd-1c412c1f423c"))
+(symbol (lib_id "Connector:TestPoint") (at 200.66 175.26 0) (unit 1) (exclude_from_sim no) (in_bom no) (on_board yes) (dnp no) (uuid "62d5fc5b-a856-5fc8-af02-e08d67cffb75") (property "Reference" "TP3" (at 200.66 161.26 0) (effects (font (size 1.27 1.27)))) (property "Value" "J12 9" (at 200.66 189.26 0) (effects (font (size 1.27 1.27)))) (property "Footprint" "TestPoint:TestPoint_Pad_D1.0mm" (at 200.66 175.26 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Datasheet" "" (at 200.66 175.26 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "LCSC" "" (at 200.66 175.26 0) (effects (font (size 1.27 1.27)) (hide yes))) (pin "1" (uuid "3b9493c3-03e7-5b74-ac07-9c81e425c03a")) (instances (project "sd-board" (path "/766c70bd-1acb-59f5-b703-96c0315a8041" (reference "TP3") (unit 1)))))
+(label "LCD_9" (at 200.66 175.26 270) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "92567046-ff98-5502-9c50-2901beb3c045"))
+(symbol (lib_id "Connector:TestPoint") (at 215.9 175.26 0) (unit 1) (exclude_from_sim no) (in_bom no) (on_board yes) (dnp no) (uuid "e230f513-1143-564c-8757-eb5d99f5c210") (property "Reference" "TP4" (at 215.9 161.26 0) (effects (font (size 1.27 1.27)))) (property "Value" "J12 G" (at 215.9 189.26 0) (effects (font (size 1.27 1.27)))) (property "Footprint" "TestPoint:TestPoint_Pad_D1.0mm" (at 215.9 175.26 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Datasheet" "" (at 215.9 175.26 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "LCSC" "" (at 215.9 175.26 0) (effects (font (size 1.27 1.27)) (hide yes))) (pin "1" (uuid "9c46f283-b3d9-537f-960e-07e14c88fc93")) (instances (project "sd-board" (path "/766c70bd-1acb-59f5-b703-96c0315a8041" (reference "TP4") (unit 1)))))
+(label "GND" (at 215.9 175.26 270) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "7de5dd69-63f6-5a1a-834d-4e8a5de13549"))
 (symbol (lib_id "Connector_Generic_MountingPin:Conn_01x10_MountingPin") (at 231.14 88.9 0) (unit 1) (exclude_from_sim no) (in_bom yes) (on_board yes) (dnp no) (uuid "b2695cd3-90aa-5393-8b74-704865b6b24b") (property "Reference" "J2" (at 231.14 74.9 0) (effects (font (size 1.27 1.27)))) (property "Value" "FPC 10P 0.5mm (IN)" (at 231.14 102.9 0) (effects (font (size 1.27 1.27)))) (property "Footprint" "sdboard:FPC-SMD_10P-P0.50_HC-FPC-05-09-10RLTAG" (at 231.14 88.9 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Datasheet" "" (at 231.14 88.9 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "LCSC" "C5213750" (at 231.14 88.9 0) (effects (font (size 1.27 1.27)) (hide yes))) (pin "1" (uuid "b7d1af43-93be-5e0a-b32c-9cee22794e90")) (pin "2" (uuid "5c3ca00b-a573-58e5-bbcf-77deab441566")) (pin "3" (uuid "582cc1a1-1879-50d2-98ad-4702657563b7")) (pin "4" (uuid "a0fdacbd-3edd-5c93-be89-5a22865d13c1")) (pin "5" (uuid "1689108a-08a5-57c2-8eb9-431f325297e3")) (pin "6" (uuid "64dfe955-f20c-58c1-96a0-f770330dbe15")) (pin "7" (uuid "0dbc086e-6f00-5ea5-ad48-779a1db107e2")) (pin "8" (uuid "5b4a567e-c836-5b21-968c-901b31ba7578")) (pin "9" (uuid "1660250b-5126-5d8b-afed-5a0aea868dca")) (pin "10" (uuid "926f4a0d-1a7c-51ae-a766-761267ee8f33")) (pin "MP" (uuid "cd2b3a30-43aa-5ea6-a66e-eb9f2e445e8e")) (instances (project "sd-board" (path "/766c70bd-1acb-59f5-b703-96c0315a8041" (reference "J2") (unit 1)))))
 (label "GND" (at 226.06 78.74 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "fe814ba1-09bb-5064-b9e8-a97e1dc3f229"))
 (label "MISO" (at 226.06 81.28 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "e0094e4d-770a-5f12-8762-85c1efe3afb1"))
@@ -1482,5 +2294,7 @@
 (label "3V3" (at 40.64 149.86 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "7da47807-b2c2-545d-bcf8-f559aadfea1d"))
 (symbol (lib_id "power:PWR_FLAG") (at 55.88 149.86 0) (unit 1) (exclude_from_sim no) (in_bom no) (on_board no) (dnp no) (uuid "216b2527-ad5c-58f9-8559-8b88131b8ea8") (property "Reference" "#FLG02" (at 55.88 135.86 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Value" "PWR_FLAG" (at 55.88 163.86 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Footprint" "" (at 55.88 149.86 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Datasheet" "" (at 55.88 149.86 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "LCSC" "" (at 55.88 149.86 0) (effects (font (size 1.27 1.27)) (hide yes))) (pin "1" (uuid "bf2ed4e6-1a1e-5893-8a6d-b3d4adeb47eb")) (instances (project "sd-board" (path "/766c70bd-1acb-59f5-b703-96c0315a8041" (reference "#FLG02") (unit 1)))))
 (label "GND" (at 55.88 149.86 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "97a24f0b-d08f-5a63-b63b-83e30bd2b7c2"))
+(symbol (lib_id "power:PWR_FLAG") (at 71.12 149.86 0) (unit 1) (exclude_from_sim no) (in_bom no) (on_board no) (dnp no) (uuid "7a38fd2f-2e6b-5e26-896f-db2a4c7496fe") (property "Reference" "#FLG03" (at 71.12 135.86 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Value" "PWR_FLAG" (at 71.12 163.86 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Footprint" "" (at 71.12 149.86 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Datasheet" "" (at 71.12 149.86 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "LCSC" "" (at 71.12 149.86 0) (effects (font (size 1.27 1.27)) (hide yes))) (pin "1" (uuid "b9573ec1-7ef2-5163-9a5c-f2f5b232f496")) (instances (project "sd-board" (path "/766c70bd-1acb-59f5-b703-96c0315a8041" (reference "#FLG03") (unit 1)))))
+(label "SD_VDD" (at 71.12 149.86 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "4e492106-9fc3-5125-9af8-f2a21c26ec08"))
 (sheet_instances (path "/" (page "1")))
 )
