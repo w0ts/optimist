@@ -2549,112 +2549,108 @@ const parse = {   /* the replies' readers, by command */
     for (let i = 0; i < 5; i++) o.hash += r.b() * 2 ** (7 * i);
     const n = r.i < a.length ? r.b() : 0;
     for (let i = 0; i < n && r.i < a.length; i++) o.bits.push(r.b());
-    return o;
-  },
+    return o; },
   [CMD.GET](a) { const r = new Reader(a); return { scope: r.b(), id: r.id(), value: r.v() }; },
-  [CMD.SET](a) { return parse[CMD.GET](a); },
-  /* needs the counts from INFO */
-  [CMD.DUMP](a, info) {
-    const r = new Reader(a);
-    const o = { engine: r.b(), preset: r.b(), p: [], g: [] };
-    for (let i = 0; i < info.pcount; i++) o.p.push(r.v());
-    for (let i = 0; i < info.gcount; i++) o.g.push(r.v());
-    return o;
+  [CMD.SET]: (a) => parse[CMD.GET](a),          /* SET answers like GET */
+  /* DUMP: the counts come from INFO (P_COUNT values, then G_COUNT globals) */
+  [CMD.DUMP](a, { pcount, gcount }) {
+    const rd = new Reader(a), head = { engine: rd.b(), preset: rd.b() };
+    const p = Array.from({ length: pcount }, () => rd.v());
+    return { ...head, p, g: Array.from({ length: gcount }, () => rd.v()) };
   },
-  [CMD.DESC](a) {
-    const r = new Reader(a);
+  [CMD.DESC]: (a) => {
+    const rd = new Reader(a), r = rd;
     const o = { scope: r.b(), id: r.id(), fmt: r.b(), min: r.v(), max: r.v(), def: r.v(), label: r.s(), unit: r.s(), names: [] };
-    if (o.fmt === F.ENUM) for (let i = 0; i <= o.max - o.min && i < 64 && r.i < a.length; i++) o.names.push(r.s());
+    if (o.fmt !== F.ENUM) return o;
+    for (let k = 0; k <= o.max - o.min && k < 64 && rd.i < a.length; k++) o.names.push(rd.s());   /* at most 64 choice names */
     return o;
   },
-  [CMD.STEP_GET](a) {
-    const r = new Reader(a);
-    const o = { index: r.b(), n: r.b(), notes: [r.b(), r.b(), r.b(), r.b()], time: r.b(), flags: r.b(), vel: r.b() };
-    return stepExt(r, a, o);
+  [CMD.STEP_GET]: (a) => {
+    const rd = new Reader(a), index = rd.b(), n = rd.b();
+    const notes = [rd.b(), rd.b(), rd.b(), rd.b()];
+    const time = rd.b(), flags = rd.b(), vel = rd.b();
+    return stepExt(rd, a, { index, n, notes, time, flags, vel });
   },
-  [CMD.STEP_SET](a) { return parse[CMD.STEP_GET](a); },
-  [CMD.PRESET](a) { const r = new Reader(a); return { engine: r.b(), preset: r.b() }; },
-  [CMD.PROJECT](a) { const r = new Reader(a); return { op: r.b(), slot: r.b(), used: r.b(), busy: a.length > 3 && a[3] === 1 }; },
-  [CMD.NAMES](a) {
-    const r = new Reader(a);
-    const o = { engine: r.b(), names: [] };
-    const n = r.b();
-    for (let i = 0; i < n; i++) o.names.push(r.s());
-    if (!o.names.length) o.names.push("INIT");   /* an engine without a factory preset: its defaults (PRESET 0) */
-    o.titles = [];
-    try { o.titles.push(r.s(), r.s()); } catch (e) { o.titles = []; }   /* older firmware: no page titles */
-    return o;
+  [CMD.STEP_SET]: (a) => parse[CMD.STEP_GET](a),
+  [CMD.PRESET](a) { const rd = new Reader(a), engine = rd.b(); return { engine, preset: rd.b() }; },
+  [CMD.PROJECT](a) { const rd = new Reader(a), op = rd.b(), slot = rd.b(), used = rd.b(); return { op, slot, used, busy: a.length > 3 && a[3] === 1 }; },
+  [CMD.NAMES]: (a) => {
+    const rd = new Reader(a), engine = rd.b(), count = rd.b(), names = [];
+    while (names.length < count) names.push(rd.s());
+    if (!names.length) names.push("INIT");   /* an engine without a factory preset: its defaults (PRESET 0) */
+    let titles;
+    try { const t0 = rd.s(), t1 = rd.s(); titles = [t0, t1]; } catch (e) { titles = []; }   /* page titles; an older firmware sends none */
+    return { engine, names, titles };
   },
-  [CMD.SMP_BEGIN](a) { const r = new Reader(a); return { slot: r.b(), rc: r.b() }; },
-  [CMD.SMP_WRITE](a) { const r = new Reader(a); return { slot: r.b(), offset: r.b() | (r.b() << 7) | (r.b() << 14), rc: r.b() }; },
-  [CMD.SMP_END](a) { return parse[CMD.SMP_BEGIN](a); },
-  [CMD.SMP_ERASE](a) { return parse[CMD.SMP_BEGIN](a); },
-  [CMD.SMP_INFO](a) {
-    const r = new Reader(a);
-    const o = { nslots: r.b(), slotKiB: r.b(), slots: [] };
-    for (let i = 0; i < o.nslots; i++) o.slots.push({ zones: r.b(), name: r.s(), kib: r.b() });
+  [CMD.SMP_BEGIN](a) { const rd = new Reader(a), slot = rd.b(); return { slot, rc: rd.b() }; },
+  [CMD.SMP_WRITE](a) {
+    const rd = new Reader(a), slot = rd.b(), b0 = rd.b(), b1 = rd.b(), b2 = rd.b();
+    return { slot, offset: b0 | (b1 << 7) | (b2 << 14), rc: rd.b() };
+  },
+  [CMD.SMP_END]: (a) => parse[CMD.SMP_BEGIN](a),   /* these four answer (slot, rc) like SMP_BEGIN */
+  [CMD.SMP_ERASE]: (a) => parse[CMD.SMP_BEGIN](a),
+  [CMD.SMP_INFO]: (a) => {
+    const rd = new Reader(a), r = rd, nslots = rd.b(), slotKiB = rd.b(), slots = [];
+    for (let k = 0; k < nslots; k++) { const zones = rd.b(), name = rd.s(); slots.push({ zones, name, kib: rd.b() }); }
+    const o = { nslots, slotKiB, slots };
     o.caps = o.slots.map((u) => (r.i < a.length ? r.b() : o.slotKiB));   /* (drum kits firmware) each slot's KiB */
     return o;
   },
-  [CMD.UP_LIST](a) {
-    const r = new Reader(a);
-    const o = { start: r.b(), count: r.b(), total: r.b(), slots: [] };
-    for (let i = 0; i < o.count; i++) o.slots.push({ slot: o.start + i, used: r.b(), engine: r.b(), name: r.s() });
-    return o;
+  [CMD.UP_LIST]: (a) => {
+    const rd = new Reader(a), start = rd.b(), count = rd.b(), total = rd.b(), slots = [];
+    for (let k = 0; k < count; k++) { const used = rd.b(), engine = rd.b(); slots.push({ slot: start + k, used, engine, name: rd.s() }); }
+    return { start, count, total, slots };
   },
-  /* needs P_COUNT from INFO */
-  [CMD.UP_GET](a, info) {
-    const r = new Reader(a);
-    const o = { slot: r.b(), used: r.b(), engine: r.b(), name: r.s(), p: [], pattern: [] };
-    for (let i = 0; i < info.pcount; i++) o.p.push(r.v());
-    for (let i = 0; i < UP.PAT; i++) o.pattern.push([r.b(), r.b()]);
-    return o;
+  /* UP_GET: P_COUNT (from INFO) values, then the UP.PAT pattern steps as [note, flags] */
+  [CMD.UP_GET](a, { pcount }) {
+    const rd = new Reader(a), slot = rd.b(), used = rd.b(), engine = rd.b(), name = rd.s();
+    const p = Array.from({ length: pcount }, () => rd.v());
+    const pattern = Array.from({ length: UP.PAT }, () => { const note = rd.b(); return [note, rd.b()]; });
+    return { slot, used, engine, name, p, pattern };
   },
-  [CMD.UP_PUT](a) { return parse[CMD.SMP_BEGIN](a); },
-  [CMD.UP_STORE](a) { return parse[CMD.SMP_BEGIN](a); },
-  [CMD.UP_LOAD](a) { return parse[CMD.SMP_BEGIN](a); },
-  [CMD.UP_ERASE](a) { return parse[CMD.SMP_BEGIN](a); },
-  [CMD.WATCH](a) { return { on: new Reader(a).b() }; },
-  [CMD.CHANGED](a) { return parse[CMD.GET](a); },
-  [CMD.RELOAD](a) { const r = new Reader(a); return { engine: r.b(), preset: r.b(), track: r.i < a.length ? r.b() : 0 }; },
-  [CMD.PING](a) { return {}; },
-  [CMD.STEP_CHANGED](a) { const r = new Reader(a); return { index: r.b(), track: r.i < a.length ? r.b() : 0 }; },
-  /* v3: tracks. engine === NENGINES: the drum track */
-  [CMD.TRACK](a) {
-    const r = new Reader(a);
-    const o = { sel: r.b(), ntrk: r.b(), tracks: [] };
-    for (let i = 0; i < o.ntrk; i++) o.tracks.push({ engine: r.b(), preset: r.b(), level: r.v(), mute: r.b(), armed: r.b() });
-    o.solo = r.i < a.length ? r.b() : 0;             /* v5: the tracks soloed (bit per track) */
-    return o;
+  [CMD.UP_PUT]: (a) => parse[CMD.SMP_BEGIN](a),
+  [CMD.UP_STORE]: (a) => parse[CMD.SMP_BEGIN](a),
+  [CMD.UP_LOAD]: (a) => parse[CMD.SMP_BEGIN](a),
+  [CMD.UP_ERASE]: (a) => parse[CMD.SMP_BEGIN](a),
+  [CMD.WATCH]: (a) => ({ on: new Reader(a).b() }),
+  [CMD.CHANGED]: (a) => parse[CMD.GET](a),        /* a push, shaped like GET */
+  [CMD.RELOAD](a) { const rd = new Reader(a), engine = rd.b(), preset = rd.b(); return { engine, preset, track: rd.i < a.length ? rd.b() : 0 }; },
+  [CMD.PING]: () => ({}),
+  [CMD.STEP_CHANGED](a) { const rd = new Reader(a), index = rd.b(); return { index, track: rd.i < a.length ? rd.b() : 0 }; },
+  /* v3: the tracks; a track whose engine is NENGINES is the drum track */
+  [CMD.TRACK]: (a) => {
+    const rd = new Reader(a), sel = rd.b(), ntrk = rd.b(), tracks = [];
+    while (tracks.length < ntrk) {
+      const engine = rd.b(), preset = rd.b(), level = rd.v(), mute = rd.b();
+      tracks.push({ engine, preset, level, mute, armed: rd.b() });
+    }
+    return { sel, ntrk, tracks, solo: rd.i < a.length ? rd.b() : 0 };   /* v5: solo, one bit per track */
   },
-  [CMD.TRACK_MIX](a) { const r = new Reader(a); return { track: r.b(), level: r.v(), mute: r.b() }; },
-  [CMD.TRACK_DUMP](a, info) {
-    const r = new Reader(a);
-    const o = { track: r.b(), engine: r.b(), preset: r.b(), p: [] };
-    for (let i = 0; i < info.pcount; i++) o.p.push(r.v());
-    return o;
+  [CMD.TRACK_MIX](a) { const rd = new Reader(a), track = rd.b(), level = rd.v(); return { track, level, mute: rd.b() }; },
+  [CMD.TRACK_DUMP](a, { pcount }) {
+    const rd = new Reader(a), track = rd.b(), engine = rd.b(), preset = rd.b();
+    return { track, engine, preset, p: Array.from({ length: pcount }, () => rd.v()) };
   },
-  [CMD.TRACK_STEP](a) {
-    const r = new Reader(a);
-    return stepExt(r, a, { track: r.b(), index: r.b(), n: r.b(), notes: [r.b(), r.b(), r.b(), r.b()], time: r.b(), flags: r.b(), vel: r.b() });
+  [CMD.TRACK_STEP]: (a) => {
+    const track = new Reader(a).b();   /* the track, then the bytes of a STEP_GET reply */
+    return { track, ...parse[CMD.STEP_GET](a.slice(1)) };
   },
   /* v5: the drum track's step: the lanes on (16 bits; bit 16, 2026-10-14: the ACCENT lane), their levels and ratchets (2 bits each) */
-  [CMD.DRUM_STEP](a) {
-    const r = new Reader(a);
+  [CMD.DRUM_STEP]: (a) => {
+    const rd = new Reader(a), r = rd;
     const o = { index: r.b(), on: r.b() | (r.b() << 7) | ((r.b() & 7) << 14), lvl: [], rat: [] };
-    let lv = 0, rt = 0;
-    for (let k = 0; k < 5; k++) lv += r.b() * 2 ** (7 * k);
-    for (let k = 0; k < 5; k++) rt += r.b() * 2 ** (7 * k);
+    const word35 = () => { let w = 0; for (let k = 0; k < 5; k++) w += rd.b() * 2 ** (7 * k); return w; };   /* 5 x 7 bits */
+    const levels = word35(), ratchets = word35();
     for (let l = 0; l < 17; l++) {
-      const on = (o.on >> l) & 1;
-      o.lvl.push(on ? Math.floor(lv / 4 ** l) % 4 : 0);
-      o.rat.push(on ? Math.floor(rt / 4 ** l) % 4 : 0);
+      const hit = ((o.on >> l) & 1) === 1;
+      o.lvl.push(hit ? Math.floor(levels / 4 ** l) % 4 : 0);
+      o.rat.push(hit ? Math.floor(ratchets / 4 ** l) % 4 : 0);
     }
     return o;
   },
-  /* v4: a parameter of any track (the selection stays), and its push for a track that is not selected */
+  /* v4: one parameter of any track (the selected track stays); TRACK_CHANGED pushes it for a track not selected */
   [CMD.TRACK_PARAM](a) { const r = new Reader(a); return { track: r.b(), id: r.id(), value: r.v() }; },
-  [CMD.TRACK_CHANGED](a) { return parse[CMD.TRACK_PARAM](a); },
+  [CMD.TRACK_CHANGED]: (a) => parse[CMD.TRACK_PARAM](a),
   /* the drum lanes and the user kits (cmds 36..42) */
   /* (v2: 2 then 252 bytes, 289 in all; v1: 204 bytes, 234) */
   [CMD.DRUM_LANES](a) { return a.length === 289 && a[0] === 2 ? { ...lanesFrom(unpack7(a.slice(1))), v2: true } : lanesFrom(unpack7(a)); },
@@ -2979,8 +2975,8 @@ const parse = {   /* the replies' readers, by command */
   [CMD.SN_WRITE](a) { return a[0] === 1 ? { op: 1, slot: a[1], off: rd7(a, 2, 3), rc: a[5] } : { op: a[0], slot: a[1], rc: a[2] }; },
 };
 
-/* a name the device accepts: printable ASCII, 1..12 characters */
-function upName(s) { return String(s ?? "").replace(/[^\x20-\x7E]/g, "").trim().slice(0, UP.NAME_MAX) || "PATCH"; }
+/* a patch name as the device takes it: printable ASCII only, trimmed, 1..UP.NAME_MAX characters ("PATCH" when nothing is left) */
+function upName(s) { const clean = String(s ?? "").replace(/[^\x20-\x7E]/g, "").trim(); return clean.slice(0, UP.NAME_MAX) || "PATCH"; }
 /* the note generators (firmware/src/seq/gen.c GEN_TYPES, GEN_MODE): name, three values [label, min, max (0: the track's LEN), default, unit] */
 const GEN_TYPES = [
   { name: "EUCLID", par: [["HITS", 0, 64, 4, ""], ["STEPS", 1, 0, 16, ""], ["ROT", 0, 63, 0, ""]] },
@@ -2990,47 +2986,57 @@ const GEN_TYPES = [
 ];
 const GEN_MODE = ["REPLACE", "ADD", "MASK"];
 
-const req = {
-  info: () => [CMD.INFO, []],
+/* the requests: each builds [cmd, args] (7-bit bytes) */
+const req7 = (x) => x & 0x7F, bareReq = (cmd) => () => [cmd, []];   /* a byte's low 7 bits; a request without arguments */
+const req = {                                       /* each: (arguments) -> [cmd, args] */
+  info: bareReq(CMD.INFO),
   get: (scope, id) => [CMD.GET, [scope, ...idEnc(id)]],
   set: (scope, id, v) => [CMD.SET, [scope, ...idEnc(id), ...v14enc(v)]],
-  dump: () => [CMD.DUMP, []],
+  dump: bareReq(CMD.DUMP),
   desc: (scope, id) => [CMD.DESC, [scope, ...idEnc(id)]],
-  stepGet: (i) => [CMD.STEP_GET, [i]],
-  stepSet: (i, st) => {
-    const n = Math.max(0, Math.min(4, st.n | 0));
-    const notes = [0, 1, 2, 3].map((k) => (st.notes[k] | 0) & 0x7F);
+  stepGet: (index) => [CMD.STEP_GET, [index]],
+  stepSet(i, st) {
+    const clamp = (x, hi) => Math.max(0, Math.min(hi, x | 0));
+    const notes = [0, 1, 2, 3].map((k) => req7(st.notes[k] | 0));
     const ends = Array.isArray(st.ends) ? [0, 1, 2, 3].map((k) => (st.ends[k] | 0) & 0x7F) : null;
     const ext = st.lvl == null && st.rat == null && !ends && !((st.flags | 0) & 0x80) ? []   /* v5: level / ratchet kept (older
                                                          firmware ignores them); v12: the carry flag (hi bit 2), the own ends */
       : [(st.lvl | 0) & 0x7F, (((st.lvl | 0) >> 7) & 1) | ((((st.rat | 0) >> 7) & 1) << 1) | (((st.flags | 0) & 0x80) ? 4 : 0),
          (st.rat | 0) & 0x7F, ...(ends || [])];
-    return [CMD.STEP_SET, [i, n, ...notes, Math.max(0, Math.min(2, st.time | 0)), st.flags & 3, (st.vel | 0) & 0x7F, ...ext]];
+    const body = [i, clamp(st.n, 4), ...notes, clamp(st.time, 2), st.flags & 3, req7(st.vel | 0)];
+    return [CMD.STEP_SET, body.concat(ext)];
   },
   /* v5: get (d == null) or set the drum track's step i: {on: 16 bits (bit 16: the ACCENT lane, 2026-10-14), lvl[17], rat[17]} */
-  drumStep: (i, d) => {
-    if (!d) return [CMD.DRUM_STEP, [i & 0x7F]];
-    let lv = 0, rt = 0;
+  drumStep(i, d) {
+    if (!d) return [CMD.DRUM_STEP, [req7(i)]];
+    let lv = 0, rt = 0;                             /* 2 bits per lane, lane l at 4 ** l */
     for (let l = 0; l < 17; l++) if ((d.on >> l) & 1) { lv += ((d.lvl[l] | 0) & 3) * 4 ** l; rt += ((d.rat[l] | 0) & 3) * 4 ** l; }
-    const g7 = (x, n) => Array.from({ length: n }, (_, k) => Math.floor(x / 2 ** (7 * k)) & 0x7F);
+    const g7 = (word, count) => { const out = []; for (let k = 0; k < count; k++) out.push(Math.floor(word / 2 ** (7 * k)) & 0x7F); return out; };   /* 7 bits per byte, low first */
     return [CMD.DRUM_STEP, [i & 0x7F, ...g7(d.on & 0x1FFFF, 3), ...g7(lv, 5), ...g7(rt, 5)]];
   },
-  preset: (e, p) => [CMD.PRESET, [e & 0x7F, p & 0x7F]],
-  project: (op, slot) => { if (![0, 1, 2].includes(op)) throw new Error("bad PROJECT op"); return [CMD.PROJECT, [op, slot & 3]]; },   /* 0 load, 1 save, 2 query */
-  names: (e) => [CMD.NAMES, [e & 0x7F]],
-  smpBegin: (s) => [CMD.SMP_BEGIN, [s & 0x7F]],
-  smpWrite: (s, off, bytes) => [CMD.SMP_WRITE, [s & 0x7F, off & 0x7F, (off >> 7) & 0x7F, (off >> 14) & 0x7F, ...pack7(bytes)]],
-  smpEnd: (s, hdr) => [CMD.SMP_END, [s & 0x7F, ...pack7(hdr)]],
-  smpErase: (s) => [CMD.SMP_ERASE, [s & 0x7F]],
-  smpInfo: () => [CMD.SMP_INFO, []],
-  upList: (start, count) => [CMD.UP_LIST, [start & 0x7F, Math.max(1, Math.min(UP.LIST_MAX, count | 0))]],
-  upGet: (s) => [CMD.UP_GET, [s & 0x7F]],
-  /* patch: {engine, name, p: P_COUNT values, pattern: 16 x [note, flags]} */
-  upPut: (s, pt) => [CMD.UP_PUT, [s & 0x7F, pt.engine & 0x7F, ...strEnc(upName(pt.name)), ...pt.p.flatMap((v) => v14enc(v ?? 0)),
-    ...Array.from({ length: UP.PAT }, (_, i) => { const x = (pt.pattern || [])[i] || [0, 0]; return [x[0] & 0x7F, x[1] & 7]; }).flat()]],
-  upStore: (s, name) => [CMD.UP_STORE, [s & 0x7F, ...strEnc(name ? upName(name) : "")]],   /* "": the device names it ("ANALOG 07") */
-  upLoad: (s) => [CMD.UP_LOAD, [s & 0x7F]],
-  upErase: (s) => [CMD.UP_ERASE, [s & 0x7F]],
+  preset: (e, p) => [CMD.PRESET, [req7(e), req7(p)]],
+  project: (op, slot) => {   /* op 0 loads, 1 saves, 2 asks */
+    if (op !== 0 && op !== 1 && op !== 2) throw new Error("bad PROJECT op");
+    return [CMD.PROJECT, [op, slot & 3]];
+  },
+  names: (e) => [CMD.NAMES, [req7(e)]],
+  smpBegin: (s) => [CMD.SMP_BEGIN, [req7(s)]],
+  smpWrite: (s, off, bytes) => [CMD.SMP_WRITE, [req7(s), req7(off), req7(off >> 7), req7(off >> 14)].concat(pack7(bytes))],   /* offset: 3 x 7 bits */
+  smpEnd: (s, hdr) => [CMD.SMP_END, [req7(s)].concat(pack7(hdr))],
+  smpErase: (s) => [CMD.SMP_ERASE, [req7(s)]],
+  smpInfo: bareReq(CMD.SMP_INFO),
+  upList: (start, count) => [CMD.UP_LIST, [req7(start), Math.min(UP.LIST_MAX, Math.max(1, count | 0))]],
+  upGet: (s) => [CMD.UP_GET, [req7(s)]],
+  /* pt = {engine, name, p (P_COUNT values), pattern (UP.PAT steps of [note, flags])} */
+  upPut: (s, pt) => {
+    const steps = [];
+    for (let k = 0; k < UP.PAT; k++) { const st = (pt.pattern || [])[k] || [0, 0]; steps.push(req7(st[0]), st[1] & 7); }
+    const values = pt.p.flatMap((v) => v14enc(v ?? 0));
+    return [CMD.UP_PUT, [req7(s), req7(pt.engine), ...strEnc(upName(pt.name)), ...values, ...steps]];
+  },
+  upStore: (s, name) => [CMD.UP_STORE, [req7(s), ...strEnc(name ? upName(name) : "")]],   /* an empty name: the device picks one ("ANALOG 07") */
+  upLoad: (s) => [CMD.UP_LOAD, [req7(s)]],
+  upErase: (s) => [CMD.UP_ERASE, [req7(s)]],
   /* on: WATCH bits (1 pushes, 2 TRACK_CHANGED (v4), 4 v9 pushes, 8 the status stream); true = 1. A firmware answers the
      bits it knows: v8 at most 3, v3 1 */
   watch: (on) => [CMD.WATCH, [typeof on === "number" ? on & (WATCH.ALL | WATCH.ENDS) : on ? 1 : 0]],
@@ -3048,13 +3054,13 @@ const req = {
   autoSet: (tr, op, place, param, v) => [CMD.AUTO_SET, op === AUTO.OP.SET || op === AUTO.OP.DEL
     ? [tr & 0x7F, op, place & 0x7F, param & 0x7F, (param >> 7) & 0x7F, ...(op === AUTO.OP.SET ? v14enc(v | 0) : [])]
     : [tr & 0x7F, op, (place | 0) & 0x7F]],
-  ping: () => [CMD.PING, []],
-  /* v3: tracks 0..3 (3 = drums) */
-  track: (sel) => [CMD.TRACK, sel == null ? [] : [sel & 0x7F]],
-  trackMix: (tr, level, mute) => [CMD.TRACK_MIX, level == null ? [tr & 0x7F] : [tr & 0x7F, ...v14enc(level), mute ? 1 : 0]],
-  trackDump: (tr) => [CMD.TRACK_DUMP, [tr & 0x7F]],
-  trackStep: (tr, i, st) => [CMD.TRACK_STEP, st ? [tr & 0x7F, ...req.stepSet(i, st)[1]] : [tr & 0x7F, i & 0x7F]],
-  /* v4: get (v == null) or set parameter id (P_*) of track tr, clamped as SET */
+  ping: bareReq(CMD.PING),
+  /* v3: the tracks 0..3, 3 being the drums; no argument asks which is selected */
+  track: (sel) => [CMD.TRACK, sel == null ? [] : [req7(sel)]],
+  trackMix: (tr, level, mute) => [CMD.TRACK_MIX, [req7(tr)].concat(level == null ? [] : [...v14enc(level), mute ? 1 : 0])],
+  trackDump: (tr) => [CMD.TRACK_DUMP, [req7(tr)]],
+  trackStep: (tr, i, st) => [CMD.TRACK_STEP, [req7(tr)].concat(st ? req.stepSet(i, st)[1] : [req7(i)])],
+  /* v4: read (v == null) or write the parameter id (P_*) of track tr; a write is clamped like SET */
   trackParam: (tr, id, v) => [CMD.TRACK_PARAM, v == null ? [tr & 0x7F, ...idEnc(id)] : [tr & 0x7F, ...idEnc(id), ...v14enc(v)]],
   /* the drum lanes: all 16 (get, or set with o = {lanes, ukit, name}); one lane (get, or set with x); v2: with sends */
   drumLanes: (o, v2) => [CMD.DRUM_LANES, v2 ? [2, ...(o ? pack7(lanesBytes(o, true)) : [])] : o ? pack7(lanesBytes(o)) : []],
@@ -3170,21 +3176,21 @@ const req = {
   patWrite: (k, s, off, total, bytes) => [CMD.PAT_WRITE, [k & 3, s & 15, off & 0x7F, (off >> 7) & 0x7F, total & 0x7F, (total >> 7) & 0x7F, ...pack7(bytes)]],
 };
 
-/* which reply belongs to which request (the device echoes these) */
+/* does reply a answer the request (cmd, args)? The device echoes the leading arguments of most commands */
 function replyMatches(cmd, args, a) {
+  const head = (n) => { for (let k = 0; k < n; k++) if (a[k] !== args[k]) return false; return true; };
   switch (cmd) {
     case CMD.GET: case CMD.SET: case CMD.DESC: return a[0] === args[0] && a[1] === args[1] && a[2] === args[2];   /* (scope, id 2 x 7 bit) */
-    case CMD.STEP_GET: case CMD.STEP_SET: case CMD.NAMES:
-    case CMD.SMP_BEGIN: case CMD.SMP_END: case CMD.SMP_ERASE: return a[0] === args[0];
-    case CMD.SMP_WRITE: return a[0] === args[0] && a[1] === args[1] && a[2] === args[2] && a[3] === args[3];
-    case CMD.PROJECT: return a[0] === args[0] && a[1] === args[1];
-    case CMD.UP_LIST: case CMD.UP_GET: case CMD.UP_PUT: case CMD.UP_STORE: case CMD.UP_LOAD: case CMD.UP_ERASE:
+    case CMD.SMP_WRITE: return head(4);             /* slot and the 3-byte offset */
+    case CMD.PROJECT: return head(2);               /* op, slot */
+    case CMD.STEP_GET: case CMD.STEP_SET: case CMD.NAMES: case CMD.SMP_BEGIN: case CMD.SMP_END: case CMD.SMP_ERASE:
+    case CMD.UP_GET: case CMD.UP_PUT: case CMD.UP_LIST: case CMD.UP_LOAD: case CMD.UP_STORE: case CMD.UP_ERASE:   /* (slot; UP_LIST: its first slot) */
     case CMD.TRACK_MIX: case CMD.TRACK_DUMP: case CMD.DRUM_STEP: case CMD.DRUM_SRCS: case CMD.DRUM_SHOW: case CMD.PAGES: case CMD.MACRO:
     case CMD.LOCK_GET: case CMD.MICRO_GET: case CMD.FILL_GET: return a[0] === args[0];
     case CMD.AUTO_GET: return a[0] === args[0] && a[4] === (args[1] | 0);
     case CMD.AUTO_SET: return a[0] === args[0] && a[1] === args[1];
     case CMD.LOCK_SET: case CMD.MICRO_SET: case CMD.FILL_SET: return a[0] === args[0] && a[1] === args[1] && (cmd !== CMD.LOCK_SET || a[2] === args[2]);
-    case CMD.WATCH: return (a[0] & 1) === (args[0] & 1);   /* bit 1: v4 firmware only */
+    case CMD.WATCH: return ((a[0] ^ args[0]) & 1) === 0;   /* only bit 0 is compared: a v3 firmware knows no other */
     case CMD.TRACK_STEP: return a[0] === args[0] && a[1] === args[1];
     case CMD.TRACK_PARAM: return a[0] === args[0] && a[1] === args[1] && a[2] === args[2];   /* (track, id 2 x 7 bit) */
     case CMD.SN_OP: case CMD.SN_WRITE: case CMD.CZ_BANK: case CMD.SCENE: return a[0] === args[0] && a[1] === args[1];
@@ -3205,28 +3211,28 @@ function replyMatches(cmd, args, a) {
     case CMD.SN_READ: return a[0] === args[0] && a[1] === args[1] && a[2] === args[2] && a[3] === args[3];
     case CMD.SL24_GET: return a[0] === args[0] && a[12] === args[1] && a[13] === args[2] && a[14] === args[3];
     case CMD.SL24_PUT: return a[0] === args[0] && (args[0] !== 1 || (a[1] === args[1] && a[2] === args[2] && a[3] === args[3]));
-    default: return true;
   }
+  return true;                                      /* a command without an echo: any reply of its kind */
 }
 
-/* strict request/response: one frame in flight, the rest queued. Push frames (CHANGED, RELOAD,
-   STEP_CHANGED) can come at any time, also between a request and its reply: they go to onPush. */
+/* The link to the device: one request on the wire at a time (cur), the others wait in q. Pushes
+   (CHANGED, RELOAD, STEP_CHANGED and the rest of PUSH) may arrive whenever, even between a request
+   and its answer; they are handed to onPush and never taken for an answer. */
+const LINK_NOOP = () => {};
 class Link {
-  constructor(send, opts = {}) {
-    this.sendRaw = send;
-    this.q = [];
-    this.cur = null;
-    this.closed = false;
-    this.lastSent = 0;                              /* Date.now() of the last frame sent (WATCH keep-alive) */
-    this.timeout = opts.timeout || 300;
-    this.onUnknown = opts.onUnknown || (() => {});
-    this.onTimeout = opts.onTimeout || (() => {});
-    this.onPush = opts.onPush || (() => {});
+  constructor(sendFrame, opts = {}) {
+    Object.assign(this, { sendRaw: sendFrame, q: [], cur: null, closed: false });
+    this.lastSent = 0;                              /* when (Date.now()) the last frame went out, for the WATCH keep-alive */
+    this.timeout = opts.timeout || 300;             /* ms per try */
+    const hook = (name) => opts[name] || LINK_NOOP;
+    this.onUnknown = hook("onUnknown");
+    this.onTimeout = hook("onTimeout");
+    this.onPush = hook("onPush");
     this.onMirror = opts.onMirror || (() => {});   /* (a: the bytes after the command) the screen's pushes, 106 MIRROR */
-    this.onGap = opts.onGap || (() => {});         /* (ms) nothing was sent for that long (WATCH may have ended) */
+    this.onGap = hook("onGap");                     /* (ms) the wire was quiet that long: the device's WATCH may have run out */
   }
-  get idle() { return !this.cur && !this.q.length; }
-  hasQueued(key) { return this.q.some((r) => r.key === key); }
+  get idle() { return this.cur == null && this.q.length === 0; }
+  hasQueued(key) { return this.q.some((item) => item.key === key); }   /* still waiting (not in flight) */
   /* DX7 import: ported from Melodee (Kerem Kilic, github.com/keremimo/melodee), GPL-3.0-only.
      One Yamaha SysEx frame through the queue (fm6_sysex.c): sent, then the queue waits `settle` ms (the device holds
      one Yamaha frame at a time and drops one arriving too soon) and the promise gives `value`. The device only
@@ -3248,30 +3254,27 @@ class Link {
     } catch (e) { return Promise.reject(e); }
     return this.yamaha(dx7Message(voice), voice, opt);
   }
-  /* r = [cmd, args]; opt: {timeout, retries, key (coalesce queued requests: the latest args win), front,
-     quiet (a timeout is expected: no onTimeout)} */
-  request(r, opt = {}) {
-    if (this.closed) return Promise.reject(new Error("closed"));
-    const [cmd, args] = r;
-    if (opt.key) {
-      const old = this.q.find((x) => x.key === opt.key);
-      if (old) { old.cmd = cmd; old.args = args; return old.promise; }
+  /* queue r = [cmd, args]. opt.timeout / opt.retries per request; opt.key: a request still waiting with the
+     same key takes the new arguments instead of queueing another (the newest wins); opt.front jumps the queue;
+     opt.quiet: a timeout is no news (onTimeout is not called) */
+  request(rq, opt = {}) {
+    if (this.closed) { return Promise.reject(new Error("closed")); }
+    const [cmd, args] = rq, waiting = opt.key ? this.q.find((x) => x.key === opt.key) : undefined;
+    if (waiting) {
+      waiting.cmd = cmd;
+      waiting.args = args;
+      return waiting.promise;
     }
-    let res, rej;
-    const promise = new Promise((a, b) => { res = a; rej = b; });
-    const item = { cmd, args, key: opt.key, res, rej, promise, quiet: !!opt.quiet,
-      timeout: opt.timeout || this.timeout, retries: opt.retries ?? 1 };
-    if (opt.front) this.q.unshift(item); else this.q.push(item);
-    this.pump();
-    return promise;
+    const item = { cmd, args, key: opt.key, quiet: !!opt.quiet, timeout: opt.timeout || this.timeout, retries: opt.retries ?? 1 };
+    item.promise = new Promise((ok, fail) => Object.assign(item, { res: ok, rej: fail }));
+    this.q[opt.front ? "unshift" : "push"](item);
+    return this.pump(), item.promise;
   }
-  pump() {
-    if (this.cur || this.closed || !this.q.length) return;
-    this.cur = this.q.shift();
-    this.fire();
+  pump() {                                          /* start the next request when the wire is free */
+    if (!this.closed && !this.cur && this.q.length > 0) { this.cur = this.q.shift(); this.fire(); }
   }
-  fire() {
-    const c = this.cur;
+  fire() {                                          /* (re)send cur and arm its timer */
+    const { cur: c } = this;
     const now = Date.now(), y = c.yam;
     if (!y) {                                       /* (Yamaha frames do not keep the device's WATCH alive) */
       if (this.lastSent && now - this.lastSent > 2500) this.onGap(now - this.lastSent);
@@ -3279,356 +3282,381 @@ class Link {
     }
     try { this.sendRaw(y ? y.send : frame(c.cmd, c.args)); } catch (e) { this.finish(null, e); return; }
     if (y) { c.timer = setTimeout(() => { if (this.cur === c) this.finish(y.value); }, c.settle); return; }
-    c.timer = setTimeout(() => {
-      if (this.cur !== c) return;
+    const expire = () => {
+      if (this.cur !== c) return;                   /* answered in the meantime */
       if (c.retries-- > 0) { this.fire(); return; }
       if (!c.quiet) this.onTimeout(c.cmd);
       this.finish(null, new Error("timeout (cmd " + c.cmd + ")"));
-    }, c.timeout);
+    };
+    c.timer = setTimeout(expire, c.timeout);
   }
-  finish(val, err) {
-    const c = this.cur;
-    if (!c) return;
-    clearTimeout(c.timer);
-    this.cur = null;
-    if (err) c.rej(err); else c.res(val);
-    this.pump();
+  finish(val, err) {                                /* settle cur (an answer or an error), then go on with the queue */
+    const done = this.cur;
+    if (done == null) return;
+    this.cur = null; clearTimeout(done.timer);
+    err ? done.rej(err) : done.res(val);
+    this.pump();                                    /* the next one, if any */
   }
-  /* raw incoming MIDI bytes */
-  receive(data) {
-    if (this.cur && this.cur.yam && data[0] === 0xF0 && data[1] === 0x43) return;   /* (a Yamaha frame: the device sends none) */
-    const f = unframe(data);
-    if (!f) return;                                  /* not ours (notes, clock, other SysEx) */
+  /* bytes from the MIDI input: a frame of ours is a push, the answer to cur, or unexpected */
+  receive(midi) {
+    if (this.cur && this.cur.yam && midi[0] === 0xF0 && midi[1] === 0x43) return;   /* (a Yamaha frame: the device sends none) */
+    const f = unframe(midi);
+    if (!f) return;                                 /* someone else's: notes, clock, other SysEx */
     if (f.cmd === CMD.MIRROR && !(f.a.length === 6 && f.a[0] <= 1 && f.a[1] >= 1)) { this.onMirror(f.a); return; }   /* (the screen's
                                                        pushes, also without a dump (a backup-only firmware); the reply: on, 1, w, h) */
-    if (PUSH.has(f.cmd)) { this.onPush(f); return; }
-    const c = this.cur;
-    if (!c || f.cmd !== c.cmd || !replyMatches(c.cmd, c.args, f.a)) { this.onUnknown(f); return; }
-    this.finish(f.a);
+    if (PUSH.has(f.cmd)) return void this.onPush(f);
+    const c = this.cur, answers = !!c && f.cmd === c.cmd && replyMatches(c.cmd, c.args, f.a);
+    if (answers) this.finish(f.a); else this.onUnknown(f);
   }
-  close() {
-    this.closed = true;
-    const all = (this.cur ? [this.cur] : []).concat(this.q);
-    if (this.cur) clearTimeout(this.cur.timer);
-    this.cur = null;
-    this.q = [];
-    for (const r of all) r.rej(new Error("closed"));
+  close() {                                         /* reject everything in flight or waiting */
+    const pending = this.cur ? [this.cur, ...this.q] : [...this.q];
+    if (this.cur) { clearTimeout(this.cur.timer); }
+    Object.assign(this, { closed: true, cur: null, q: [] });
+    pending.forEach((r) => r.rej(new Error("closed")));
   }
 }
 
-/* ------------------------------------------------------------- formatting --- */
-const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
-const noteName = (n) => NOTE_NAMES[n % 12] + (Math.floor(n / 12) - 1);   /* 60 = C4 */
-/* GM drum notes (35..81) by short names, for the drum track's steps */
-const GM_DRUM = { 35: "KICK2", 36: "KICK", 37: "RIM", 38: "SNARE", 39: "CLAP", 40: "SNARE2", 41: "LTOM2", 42: "CHH", 43: "LTOM",
-  44: "PHH", 45: "MTOM2", 46: "OHH", 47: "MTOM", 48: "HTOM2", 49: "CRASH", 50: "HTOM", 51: "RIDE", 52: "CHINA", 53: "BELL",
-  54: "TAMB", 55: "SPLASH", 56: "COWBELL", 57: "CRASH2", 58: "VIBRA", 59: "RIDE2", 60: "HBONGO", 61: "LBONGO", 62: "MCONGA",
-  63: "HCONGA", 64: "LCONGA", 65: "HTIMB", 66: "LTIMB", 67: "HAGOGO", 68: "LAGOGO", 69: "CABASA", 70: "MARACA", 71: "SWHIS",
-  72: "LWHIS", 73: "SGUIRO", 74: "LGUIRO", 75: "CLAVES", 76: "HWOOD", 77: "LWOOD", 78: "MCUICA", 79: "OCUICA", 80: "MTRI", 81: "OTRI" };
-const GM_DRUM_BY_NAME = Object.fromEntries(Object.entries(GM_DRUM).map(([n, s]) => [s, +n]));
-const drumName = (n) => GM_DRUM[n] || String(n);
-/* a note token: a number, a note name (C4, F#3, Bb2) or a GM drum name (KICK, CHH) */
-function parseNote(tok) {
-  const dn = GM_DRUM_BY_NAME[tok.toUpperCase()];
-  if (dn != null) return dn;
-  if (/^\d+$/.test(tok)) { const n = +tok; return n <= 127 ? n : null; }
-  const m = /^([A-Ga-g])([#b]?)(-?\d)$/.exec(tok);
-  if (!m) return null;
-  const base = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 }[m[1].toUpperCase()];
-  const n = base + (m[2] === "#" ? 1 : m[2] === "b" ? -1 : 0) + (parseInt(m[3], 10) + 1) * 12;
-  return n >= 0 && n <= 127 ? n : null;
+/* ------------------------------------------------- formatting (names, notes, values) --- */
+const NOTE_NAMES = "C C# D D# E F F# G G# A A# B".split(" ");
+const noteName = (n) => `${NOTE_NAMES[n % 12]}${Math.floor(n / 12) - 1}`;   /* MIDI 60 is C4 */
+/* short names of the General MIDI drum notes 35..81, for the drum track's steps */
+const GM_DRUM = Object.fromEntries(("KICK2 KICK RIM SNARE CLAP SNARE2 LTOM2 CHH LTOM PHH MTOM2 OHH MTOM HTOM2 CRASH HTOM RIDE CHINA BELL "
+  + "TAMB SPLASH COWBELL CRASH2 VIBRA RIDE2 HBONGO LBONGO MCONGA HCONGA LCONGA HTIMB LTIMB HAGOGO LAGOGO CABASA MARACA SWHIS "
+  + "LWHIS SGUIRO LGUIRO CLAVES HWOOD LWOOD MCUICA OCUICA MTRI OTRI").split(" ").map((nm, k) => [35 + k, nm]));
+const GM_DRUM_BY_NAME = {};
+for (const [num, nm] of Object.entries(GM_DRUM)) GM_DRUM_BY_NAME[nm] = Number(num);
+const drumName = (note) => GM_DRUM[note] || String(note);   /* (no GM name: the number) */
+const PITCH_CLASS = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+/* one note: its number, a note name (C4, F#3, Bb2) or a GM drum name (KICK, CHH); null if none of them or out of 0..127 */
+function parseNote(token) {
+  const drum = GM_DRUM_BY_NAME[token.toUpperCase()];
+  if (drum != null) return drum;
+  let n;
+  if (/^\d+$/.test(token)) n = Number(token);
+  else {
+    const m = token.match(/^([A-Ga-g])([#b]?)(-?\d)$/);
+    if (m == null) return null;
+    const acc = { "#": 1, b: -1 }[m[2]] || 0;
+    n = PITCH_CLASS[m[1].toUpperCase()] + acc + 12 * (Number.parseInt(m[3], 10) + 1);
+  }
+  return n >= 0 && n < 128 ? n : null;
 }
-/* "C4 E4 G4" -> [60, 64, 67]; null on a bad token or more than 4 notes */
-function parseNotes(s) {
-  const t = s.trim().split(/[\s,]+/).filter(Boolean);
-  if (t.length > 4) return null;
-  const out = t.map(parseNote);
-  return out.includes(null) ? null : out;
+/* up to 4 notes separated by spaces or commas ("C4 E4 G4" gives [60, 64, 67]); null when a token is bad or there are more */
+function parseNotes(text) {
+  const toks = text.trim().split(/[\s,]+/).filter((t) => t !== "");
+  if (toks.length > 4) return null;
+  const notes = [];
+  for (const t of toks) { const n = parseNote(t); if (n == null) return null; notes.push(n); }
+  return notes;
 }
 
-/* close to the device's param_format (params.c), tables from tools/gen_tables.py */
+/* a value as the device prints it (param_format in params.c; the curves come from tools/gen_tables.py) */
 const LSYNC_NAMES = ["4BAR", "3BAR", "2BAR", "1BARD", "1BAR", "1/2D", "1T", "1/2", "1/4D", "2T", "1/4", "1/8D", "4T", "1/8", "1/16D", "8T", "1/16", "1/32D", "16T", "1/32", "32T", "1/64"];   /* params.c N_DUR: RATE -1 .. -22 */
 const SLOOP_LSYNC_DUR = [0, 2, 4, 7, 10, 13, 15, 16, 18, 19];   /* 2.6's SYNC 1..10 as a DUR index (core.h SLOOP_LSYNC_DUR) */
 function fmtValue(d, v) {
-  const sign = (x) => (x > 0 ? "+" + x : String(x));
+  const signed = (x) => (x > 0 ? `+${x}` : `${x}`);
+  const pct = (x) => [String(x), "%"];
   switch (d.fmt) {
-    case F.PCT: return [String(d.max > 0 ? Math.trunc((v * 100 + Math.trunc(d.max / 2)) / d.max) : v), "%"];
-    case F.SWING: return [String(50 + Math.trunc((Math.max(0, Math.min(100, v)) + 2) / 4)), "%"];   /* MPC: 50 % straight .. 75 % */
+    case F.PCT: return pct(d.max > 0 ? Math.trunc((v * 100 + Math.trunc(d.max / 2)) / d.max) : v);   /* rounded share of max */
+    case F.SWING: return pct(50 + Math.trunc((Math.min(100, Math.max(0, v)) + 2) / 4));   /* as on an MPC: 50 % is straight, 75 % the most */
     case F.GATE: return [String(Math.trunc((v * 100 + 32) / 64)), "%"];   /* 1/64 of the step: 64 is 100 % (params.c F_GATE, c71ce50d) */
-    case F.FILT: return !v ? ["OFF", ""] : v < 0 ? ["LP" + Math.trunc((-v * 100 + 32) / 64), "%"] : ["HP" + Math.trunc((v * 100 + 31) / 63), "%"];
-    case F.BIPCT: return [sign(Math.trunc(v * 100 / (d.max > 63 ? 128 : 64))), "%"];   /* (an LFO slot's AMT: -128..127) */
+    case F.FILT:                                    /* below 0 a low-pass, above a high-pass, 0 none */
+      if (!v) return ["OFF", ""];
+      return v < 0 ? [`LP${Math.trunc((-v * 100 + 32) / 64)}`, "%"] : [`HP${Math.trunc((v * 100 + 31) / 63)}`, "%"];
+    case F.BIPCT: return [signed(Math.trunc(v * 100 / (d.max > 63 ? 128 : 64))), "%"];   /* (an LFO slot's AMT: -128..127) */
     case F.TIME: {
       if (d.label === "REL2" && !v) return ["=DEC", ""];   /* ANALOG 2 ENV2: the release takes DEC2's time */
-      const ms10 = Math.round(10 * Math.pow(10000, (v & 127) / 127));
-      if (ms10 < 100) return [(ms10 / 10).toFixed(1), "ms"];
-      if (ms10 < 10000) return [String(Math.round(ms10 / 10)), "ms"];
-      return [(ms10 / 10000).toFixed(2), "s"];
+      const tenths = Math.round(10 * Math.pow(10000, (v & 127) / 127));   /* 1 ms .. 10 s, in 0.1 ms */
+      if (tenths >= 10000) return [(tenths / 10000).toFixed(2), "s"];
+      return tenths >= 100 ? [String(Math.round(tenths / 10)), "ms"] : [(tenths / 10).toFixed(1), "ms"];
     }
     case F.LFOHZ: {   /* (below 0: the LFO's RATE synced, a note value of the tempo: params.c N_LSYNC) */
       if (v < 0) return [LSYNC_NAMES[Math.min(-v, LSYNC_NAMES.length) - 1], ""];
       const h = 0.05 * Math.pow(800, (v & 127) / 127); return [h < 10 ? h.toFixed(2) : h.toFixed(1), "Hz"];
     }
-    case F.CUTOFF: { const h = 30 * Math.pow(16000 / 30, (v & 127) / 127); return h < 1000 ? [String(Math.round(h)), "Hz"] : [(h / 1000).toFixed(1), "kHz"]; }
-    case F.DB: return v <= 0 ? ["OFF", ""] : [((v - 112) / 2).toFixed(1), "dB"];
-    case F.SEMI: return [sign(v), "st"];
+    case F.CUTOFF: {                                /* 30 Hz .. 16 kHz, exponential */
+      const hz = 30 * Math.pow(16000 / 30, (v & 127) / 127);
+      return hz >= 1000 ? [(hz / 1000).toFixed(1), "kHz"] : [String(Math.round(hz)), "Hz"];
+    }
+    case F.DB: return v <= 0 ? ["OFF", ""] : [((v - 112) / 2).toFixed(1), "dB"];   /* half dB steps, 112 = 0 dB */
+    case F.SEMI: return [signed(v), "st"];
     case F.ENUM: { const n = d.names[v - d.min]; return [n === "" ? "(not in this build)" : n ?? String(v), d.unit || ""]; }
-    case F.BPM: return [String(v), "BPM"];
-    case F.NOTE: return [NOTE_NAMES[((v % 12) + 12) % 12], ""];
-    case F.ONOFF: return [v ? "ON" : "OFF", ""];
-    case F.STEPS: return [String(v), "STEP"];
+    case F.BPM: return [`${v}`, "BPM"];
+    case F.NOTE: return [NOTE_NAMES[(v % 12 + 12) % 12], ""];   /* the pitch class only */
+    case F.ONOFF: return [["OFF", "ON"][v ? 1 : 0], ""];
+    case F.STEPS: return [`${v}`, "STEP"];
     default: return d.label === "THRS" && !v ? ["OFF", ""] : [String(v), d.unit || ""];   /* (COMP > THRS 0: off) */
   }
 }
 
-/* ---------------------------------------------------------- user samples --- */
-/* A port of tools/sampleio.py (read_any_wav, resample, to_int16, ima_encode, user_slot),
-   byte for byte: web/test_web.mjs compares them. */
-const SMP = { SLOT_SIZE: 0x14000, DATA_OFF: 512, RATE: 22050, HDR_LEN: 32 + 16 * 28, MAX_ZONES: 16 };
-SMP.MAX_DATA = SMP.SLOT_SIZE - SMP.DATA_OFF;
+/* ------------------------------------------------- user samples (WAV in, slot out) --- */
+/* The browser side of tools/sampleio.py (read_any_wav, resample, to_int16, ima_encode, user_slot). The output
+   must equal the Python's byte for byte; web/test_web.mjs checks it. */
+const SMP = { SLOT_SIZE: 0x14000, DATA_OFF: 512, RATE: 22050, HDR_LEN: 32 + 28 * 16, MAX_ZONES: 16 };   /* header: 32 B, then 28 B for each of the 16 zones */
+SMP.MAX_DATA = SMP.SLOT_SIZE - SMP.DATA_OFF;        /* the slot after its header page */
 
-/* groups of up to 7 bytes, each preceded by their top bits */
-function pack7(b) {
-  const out = [];
-  for (let i = 0; i < b.length; i += 7) {
-    const g = Array.from(b.slice(i, i + 7));
-    out.push(g.reduce((m, x, j) => m | (((x >> 7) & 1) << j), 0));
-    for (const x of g) out.push(x & 0x7F);
+/* 8-bit bytes to 7-bit MIDI data: per group of (at most) 7 bytes, one byte of their high bits (bit j: byte j), then the 7 low bits of each */
+function pack7(src) {
+  const out = [];                                  /* 8 bytes out per 7 in */
+  for (let at = 0; at < src.length; at += 7) {
+    const grp = Array.from(src.slice(at, at + 7));
+    let hi = 0;
+    grp.forEach((x, j) => { hi |= ((x >> 7) & 1) << j; });
+    out.push(hi, ...grp.map((x) => x & 0x7F));
   }
   return out;
 }
-function unpack7(a) {
-  const out = [];
-  for (let i = 0; i < a.length; i += 8) {
-    const top = a[i];
-    for (let j = 0; j < 7 && i + 1 + j < a.length; j++) out.push(a[i + 1 + j] | (((top >> j) & 1) << 7));
+/* the reverse: 8-byte groups (high bits, then up to 7 bytes) back to bytes; a short last group gives what it holds */
+function unpack7(packed) {
+  const out = [];                                  /* 7 bytes out per 8 in */
+  for (let at = 0; at < packed.length; at += 8) {
+    const hi = packed[at], end = Math.min(packed.length, at + 8);
+    for (let k = at + 1; k < end; k++) out.push(packed[k] | (((hi >> (k - at - 1)) & 1) << 7));
   }
-  return Uint8Array.from(out);
+  return new Uint8Array(out);
 }
 
-const CRC_TABLE = (() => {
-  const t = new Uint32Array(256);
-  for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; }
-  return t;
-})();
-function crc32(b) { let c = 0xFFFFFFFF; for (let i = 0; i < b.length; i++) c = CRC_TABLE[(c ^ b[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
-
-const IMA_STEP = [7, 8, 9, 10, 11, 12, 13, 14, 16, 17, 19, 21, 23, 25, 28, 31, 34, 37, 41, 45, 50, 55, 60, 66, 73, 80, 88,
-  97, 107, 118, 130, 143, 157, 173, 190, 209, 230, 253, 279, 307, 337, 371, 408, 449, 494, 544, 598, 658,
-  724, 796, 876, 963, 1060, 1166, 1282, 1411, 1552, 1707, 1878, 2066, 2272, 2499, 2749, 3024, 3327, 3660,
-  4026, 4428, 4871, 5358, 5894, 6484, 7132, 7845, 8630, 9493, 10442, 11487, 12635, 13899, 15289, 16818,
-  18500, 20350, 22385, 24623, 27086, 29794, 32767];
-const IMA_IDX = [-1, -1, -1, -1, 2, 4, 6, 8];
-/* IMA ADPCM, 4 bit, low nibble first, from predictor 0 / index 0 -> {data, pred, idx} (state at loopStart) */
-function imaEncode(s, loopStart = 0) {
-  let pred = 0, idx = 0, atLoop = [0, 0];
-  const nib = new Uint8Array(s.length + (s.length & 1));
-  for (let n = 0; n < s.length; n++) {
-    if (n === loopStart) atLoop = [pred, idx];
-    const step = IMA_STEP[idx];
-    let diff = s[n] - pred, code = 0;
-    if (diff < 0) { code = 8; diff = -diff; }
-    let vd = step >> 3;
-    if (diff >= step) { code |= 4; diff -= step; vd += step; }
-    if (diff >= step >> 1) { code |= 2; diff -= step >> 1; vd += step >> 1; }
-    if (diff >= step >> 2) { code |= 1; vd += step >> 2; }
-    pred = Math.max(-32768, Math.min(32767, code & 8 ? pred - vd : pred + vd));
-    idx = Math.max(0, Math.min(88, idx + IMA_IDX[code & 7]));
-    nib[n] = code;
-  }
-  const out = new Uint8Array(nib.length >> 1);
-  for (let k = 0; k < nib.length; k += 2) out[k >> 1] = nib[k] | (nib[k + 1] << 4);
-  return { data: out, pred: atLoop[0], idx: atLoop[1] };
+/* CRC-32 (zlib's: reflected, polynomial 0xEDB88320) */
+const CRC_TABLE = new Uint32Array(256).map((_, n) => {
+  let c = n;
+  for (let bit = 0; bit < 8; bit++) c = (c & 1) ? (c >>> 1) ^ 0xEDB88320 : c >>> 1;
+  return c >>> 0;
+});
+function crc32(b) {
+  let c = ~0 >>> 0;
+  for (const x of b) c = CRC_TABLE[(c ^ x) & 0xFF] ^ (c >>> 8);
+  return ~c >>> 0;
 }
 
-/* WAV: PCM 8/16/24/32 or float, any channel count, mixed to mono -> {sr, x} (gen_samples.read_any_wav) */
-function parseWav(buf) {
-  const d = new Uint8Array(buf), v = new DataView(d.buffer, d.byteOffset, d.byteLength);
-  const id = (i) => String.fromCharCode(d[i], d[i + 1], d[i + 2], d[i + 3]);
-  if (d.length < 12 || id(0) !== "RIFF" || id(8) !== "WAVE") throw new Error("not a WAV file");
-  let i = 12, fmt = null, data = null;
-  while (i + 8 <= d.length) {
-    const cid = id(i), n = v.getUint32(i + 4, true);
-    if (cid === "fmt ") {
-      let tag = v.getUint16(i + 8, true);
-      const ch = v.getUint16(i + 10, true), sr = v.getUint32(i + 12, true), bits = v.getUint16(i + 22, true);
-      if (tag === 0xFFFE) tag = v.getUint16(i + 32, true);
-      fmt = { tag, ch, sr, bits };
-    } else if (cid === "data") {
-      data = [i + 8, Math.min(d.length, i + 8 + n)];
-      break;
+/* IMA ADPCM: the 89 step sizes, and the index change per magnitude code (0..7) */
+const IMA_STEP = [7, 8, 9, 10, 11, 12, 13, 14, 16, 17, 19, 21, 23, 25, 28, 31, 34, 37, 41, 45, 50, 55, 60, 66, 73, 80, 88, 97, 107,
+  118, 130, 143, 157, 173, 190, 209, 230, 253, 279, 307, 337, 371, 408, 449, 494, 544, 598, 658, 724, 796, 876, 963, 1060, 1166,
+  1282, 1411, 1552, 1707, 1878, 2066, 2272, 2499, 2749, 3024, 3327, 3660, 4026, 4428, 4871, 5358, 5894, 6484, 7132, 7845, 8630,
+  9493, 10442, 11487, 12635, 13899, 15289, 16818, 18500, 20350, 22385, 24623, 27086, 29794, 32767];
+const IMA_IDX = [-1, -1, -1, -1, 2, 4, 6, 8];     /* the index step for codes 0..7 (the sign bit aside) */
+/* 16-bit samples to 4-bit IMA ADPCM (two per byte, the earlier in the low nibble), starting from predictor 0, index 0.
+   Gives {data, pred, idx}: pred / idx are the coder's state when it reached sample loopStart */
+function imaEncode(pcm, loopStart = 0) {
+  let pred = 0, idx = 0, loopPred = 0, loopIdx = 0;
+  const codes = new Uint8Array(pcm.length + (pcm.length & 1));   /* (an odd count gets a zero nibble at the end) */
+  pcm.forEach((sample, n) => {
+    if (n === loopStart) { loopPred = pred; loopIdx = idx; }
+    const step = IMA_STEP[idx];                   /* this sample's quantiser step */
+    let diff = sample - pred, code = diff < 0 ? 8 : 0, delta = step >> 3;
+    if (code) diff = -diff;
+    for (let bit = 4, part = step; bit; bit >>= 1, part >>= 1) {   /* bits 4, 2, 1 against step, step / 2, step / 4 */
+      if (diff >= part) { code |= bit; delta += part; if (bit > 1) diff -= part; }
     }
-    i += 8 + n + (n & 1);
-  }
-  if (!fmt || !data) throw new Error("WAV without fmt/data");
-  const { tag, ch, sr, bits } = fmt, bps = bits >> 3, frame = bps * ch;
-  if (!(tag === 1 || tag === 3) || !bps || !ch) throw new Error("unsupported WAV format");
-  const nfr = Math.floor((data[1] - data[0]) / frame), x = new Float64Array(nfr);
-  for (let f = 0; f < nfr; f++) {
-    let acc = 0;
-    for (let c = 0; c < ch; c++) {
-      const o = data[0] + f * frame + c * bps;
-      let s;
-      if (tag === 3) s = bps === 4 ? v.getFloat32(o, true) : v.getFloat64(o, true);
-      else if (bps === 2) s = v.getInt16(o, true) / 32768;
-      else if (bps === 3) s = (((d[o] | (d[o + 1] << 8) | (d[o + 2] << 16)) << 8) >> 8) / 8388608;
-      else if (bps === 4) s = v.getInt32(o, true) / 2147483648;
-      else s = (d[o] - 128) / 128;
-      acc += s;
-    }
-    x[f] = acc / ch;
-  }
-  return { sr, x };
-}
-
-/* gen_samples.resample: moving average over the ratio, then linear interpolation */
-function resample(x, sr, to) {
-  if (sr === to) return Array.from(x);
-  if (sr > to) {
-    const k = Math.max(1, pyRound(sr / to));
-    if (k > 1) {
-      const y = new Array(x.length);
-      for (let i = 0; i < x.length; i++) { let s = 0; for (let j = i; j < Math.min(x.length, i + k); j++) s += x[j]; y[i] = s / k; }
-      x = y;
-    }
-  }
-  const step = sr / to, out = [];
-  let p = 0;
-  while (p < x.length - 1) { const i = Math.floor(p), f = p - i; out.push(x[i] * (1 - f) + x[i + 1] * f); p += step; }
-  return out;
-}
-function pyRound(v) { const f = Math.floor(v), r = v - f; return r > 0.5 ? f + 1 : r < 0.5 ? f : (f % 2 ? f + 1 : f); }
-
-/* mono float -> int16, peak normalised to 30000 */
-function normalize(x) {
-  let pk = 1e-9;
-  for (const v of x) pk = Math.max(pk, Math.abs(v));
-  return Int16Array.from(x, (v) => Math.max(-32768, Math.min(32767, Math.trunc(v / pk * 30000))));
-}
-
-/* root from a file name like "piano_C4" or "F#3" (C4 = 60), else 60 (sampleio.note_from_name) */
-function rootFromName(name) {
-  const m = /(?<![A-Za-z])([A-G])([#b]?)(-?\d)(?!\d)/.exec(name);
-  if (!m) return 60;
-  const n = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 }[m[1]] + (m[2] === "#" ? 1 : m[2] === "b" ? -1 : 0) + (parseInt(m[3], 10) + 1) * 12;
-  return Math.max(0, Math.min(127, n));
-}
-
-/* zones: [{s: Int16Array (22050 Hz), root, lo?, hi?}] -> {hdr (480 B), data, zones} (sampleio.user_slot) */
-function buildSlot(name, zonesIn) {
-  const zones = [], parts = [];
-  let len = 0;
-  for (const z of zonesIn) {
-    const e = imaEncode(z.s, 0);
-    zones.push({ off: len, n: z.s.length, ls: 0, le: z.s.length - 1, root: z.root, lo: z.lo ?? null, hi: z.hi ?? null, pred: e.pred, idx: e.idx });
-    parts.push(e.data);
-    len += e.data.length;
-  }
-  const data = new Uint8Array(len);
-  let o = 0;
-  for (const p of parts) { data.set(p, o); o += p.length; }
-  if (len > SMP.MAX_DATA) throw new Error(`too long: ${len} B (max ${SMP.MAX_DATA} B)`);
-  if (!zones.length || zones.length > SMP.MAX_ZONES) throw new Error("1..16 files per slot");
-  zones.sort((a, b) => a.root - b.root);
-  zones.forEach((z, j) => {
-    if (z.lo == null) {
-      z.lo = j === 0 ? 0 : Math.floor((zones[j - 1].root + z.root) / 2) + 1;
-      z.hi = j === zones.length - 1 ? 127 : Math.floor((z.root + zones[j + 1].root) / 2);
-    }
+    pred = Math.min(32767, Math.max(-32768, code & 8 ? pred - delta : pred + delta));
+    idx = Math.min(88, Math.max(0, idx + IMA_IDX[code & 7]));
+    codes[n] = code;
   });
-  const hdr = new Uint8Array(SMP.HDR_LEN), v = new DataView(hdr.buffer);
-  v.setUint32(0, 0x504D5346, true);
-  v.setUint16(4, 1, true);
-  hdr[6] = zones.length;
-  const nm = String(name).toUpperCase().replace(/[^\x20-\x7E]/g, "").slice(0, 8);
-  for (let i = 0; i < nm.length; i++) hdr[8 + i] = nm.charCodeAt(i);
-  v.setUint32(16, len, true);
-  v.setUint32(20, crc32(data), true);
-  const rate = pyRound(SMP.RATE / 44100 * 65536);
-  zones.forEach((z, j) => {
-    const b = 32 + j * 28;
-    [z.off, z.n, z.ls, z.le, rate].forEach((x, k) => v.setUint32(b + k * 4, x >>> 0, true));
-    v.setInt16(b + 20, z.root * 16, true);
-    v.setInt16(b + 22, z.pred, true);
-    hdr[b + 24] = z.idx; hdr[b + 25] = z.lo; hdr[b + 26] = z.hi; hdr[b + 27] = 0;
+  const data = new Uint8Array(codes.length / 2);
+  for (let k = 0; k < data.length; k++) data[k] = codes[2 * k] | (codes[2 * k + 1] << 4);
+  return { data, pred: loopPred, idx: loopIdx };
+}
+
+/* a WAV file (integer PCM of 8, 16, 24 or 32 bits, or float; any number of channels, averaged to mono) -> {sr, x}
+   as gen_samples.read_any_wav reads it */
+function parseWav(file) {
+  const u8 = new Uint8Array(file), dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
+  const fourcc = (at) => String.fromCharCode(...u8.subarray(at, at + 4));
+  if (u8.length < 12 || fourcc(0) !== "RIFF" || fourcc(8) !== "WAVE") throw new Error("not a WAV file");
+  let fmt = null, span = null;
+  for (let at = 12; at + 8 <= u8.length && !span; ) {   /* the chunks, up to "data" */
+    const kind = fourcc(at), size = dv.getUint32(at + 4, true);
+    if (kind === "fmt ") {
+      const ext = dv.getUint16(at + 8, true) === 0xFFFE;   /* WAVE_FORMAT_EXTENSIBLE: the real tag is in the sub-format */
+      fmt = { tag: dv.getUint16(at + (ext ? 32 : 8), true), ch: dv.getUint16(at + 10, true), sr: dv.getUint32(at + 12, true), bits: dv.getUint16(at + 22, true) };
+    } else if (kind === "data") span = [at + 8, Math.min(u8.length, at + 8 + size)];
+    at += 8 + size + (size & 1);
+  }
+  if (!fmt || !span) throw new Error("WAV without fmt/data");
+  const { tag, ch, sr } = fmt, width = fmt.bits >> 3, stride = width * ch;
+  if ((tag !== 1 && tag !== 3) || !width || !ch) throw new Error("unsupported WAV format");
+  const sampleAt = (o) => {
+    if (tag === 3) return width === 4 ? dv.getFloat32(o, true) : dv.getFloat64(o, true);
+    switch (width) {
+      case 2: return dv.getInt16(o, true) / 32768;
+      case 3: return (((u8[o] | (u8[o + 1] << 8) | (u8[o + 2] << 16)) << 8) >> 8) / 8388608;   /* sign-extended 24 bit */
+      case 4: return dv.getInt32(o, true) / 2147483648;
+      default: return (u8[o] - 128) / 128;     /* 8 bit is unsigned */
+    }
+  };
+  const frames = Math.floor((span[1] - span[0]) / stride), mono = new Float64Array(frames);
+  for (let fr = 0; fr < frames; fr++) {
+    const base = span[0] + fr * stride;
+    let sum = 0;
+    for (let c = 0; c < ch; c++) sum += sampleAt(base + c * width);
+    mono[fr] = sum / ch;
+  }
+  return { sr, x: mono };
+}
+
+/* as gen_samples.resample: going down, first a box filter as wide as the (rounded) ratio, then linear interpolation */
+function resample(src, sr, to) {
+  if (sr === to) return Array.from(src);   /* (a copy) */
+  const width = sr > to ? Math.max(1, pyRound(sr / to)) : 1;
+  let x = src;
+  if (width > 1) {
+    const avg = new Array(x.length);
+    for (let i = 0; i < x.length; i++) {
+      let acc = 0;
+      const stop = Math.min(x.length, i + width);
+      for (let j = i; j < stop; j++) acc += x[j];
+      avg[i] = acc / width;
+    }
+    x = avg;
+  }
+  const out = [], ratio = sr / to;
+  for (let pos = 0; pos < x.length - 1; pos += ratio) {
+    const i = Math.floor(pos), frac = pos - i;
+    out.push(x[i] * (1 - frac) + x[i + 1] * frac);
+  }
+  return out;                                      /* (at the new rate) */
+}
+/* Python's round(): halves go to the even neighbour */
+function pyRound(v) {
+  const fl = Math.floor(v), rest = v - fl;
+  if (rest !== 0.5) return rest > 0.5 ? fl + 1 : fl;
+  return fl % 2 === 0 ? fl : fl + 1;
+}
+
+/* float mono to Int16, scaled so the peak is 30000 */
+function normalize(src) {
+  const peak = src.reduce((m, v) => Math.max(m, Math.abs(v)), 1e-9);
+  return Int16Array.from(src, (v) => Math.min(32767, Math.max(-32768, Math.trunc(v / peak * 30000))));
+}
+
+/* the root note in a file name ("piano_C4", "F#3": C4 is 60), clamped to 0..127; 60 when there is none (sampleio.note_from_name) */
+function rootFromName(fileName) {
+  const noteInName = /(?<![A-Za-z])([A-G])([#b]?)(-?\d)(?!\d)/;   /* a letter not inside a word, then an octave digit not followed by another */
+  const m = noteInName.exec(fileName);
+  if (m == null) return 60;
+  const acc = m[2] === "#" ? 1 : m[2] === "b" ? -1 : 0;
+  return Math.min(127, Math.max(0, PITCH_CLASS[m[1]] + acc + 12 * (Number.parseInt(m[3], 10) + 1)));
+}
+
+/* zonesIn: [{s: Int16Array at 22050 Hz, root, lo?, hi?}] -> {hdr (SMP.HDR_LEN bytes), data, zones}, as sampleio.user_slot */
+function buildSlot(name, inputs) {
+  let total = 0;
+  const enc = inputs.map((z) => {
+    const e = imaEncode(z.s, 0), zone = { off: total, n: z.s.length, ls: 0, le: z.s.length - 1, root: z.root, lo: z.lo ?? null, hi: z.hi ?? null, pred: e.pred, idx: e.idx };
+    total += e.data.length;
+    return { zone, bytes: e.data };
   });
+  const data = new Uint8Array(total);
+  enc.forEach(({ zone, bytes }) => data.set(bytes, zone.off));
+  if (total > SMP.MAX_DATA) throw new Error(`too long: ${total} B (max ${SMP.MAX_DATA} B)`);
+  const zones = enc.map((e) => e.zone);
+  if (zones.length < 1 || zones.length > SMP.MAX_ZONES) throw new Error("1..16 files per slot");
+  zones.sort((p, q) => p.root - q.root);
+  const last = zones.length - 1;
+  for (let j = 0; j <= last; j++) {                 /* no range given: split halfway between neighbouring roots */
+    const z = zones[j];
+    if (z.lo != null) continue;
+    z.lo = j > 0 ? Math.floor((zones[j - 1].root + z.root) / 2) + 1 : 0;
+    z.hi = j < last ? Math.floor((z.root + zones[j + 1].root) / 2) : 127;
+  }
+  const hdr = new Uint8Array(SMP.HDR_LEN), dv = new DataView(hdr.buffer);
+  dv.setUint32(0, 0x504D5346, true);                /* "FSMP" */
+  dv.setUint16(4, 1, true);                         /* version */
+  dv.setUint8(6, zones.length);                     /* zone count */
+  [...String(name).toUpperCase().replace(/[^\x20-\x7E]/g, "").slice(0, 8)].forEach((ch, k) => { hdr[8 + k] = ch.charCodeAt(0); });
+  dv.setUint32(16, total, true);
+  dv.setUint32(20, crc32(data), true);
+  const rate = pyRound(SMP.RATE / 44100 * 65536);   /* the playback increment, 16.16 */
+  for (let j = 0; j <= last; j++) {
+    const z = zones[j], at = 32 + 28 * j;
+    const words = [z.off, z.n, z.ls, z.le, rate];
+    for (let k = 0; k < words.length; k++) dv.setUint32(at + 4 * k, words[k] >>> 0, true);
+    dv.setInt16(at + 20, z.root * 16, true);
+    dv.setInt16(at + 22, z.pred, true);
+    hdr.set([z.idx, z.lo, z.hi, 0], at + 24);
+  }
   return { hdr, data, zones };
 }
 
-/* ------------------------------------------------------------------- chop --- */
-/* Chopping a recording into a slot (the CHOP block of the samples tab). All at SMP.RATE, positions
-   in samples. These are pure: test_web.mjs runs them. */
-const CHOP = { HOP: 128, MAX: 16, FADE_IN: 22, FADE_OUT: 132, PRE: 32 };   /* 5.8 ms frames; fades 1 / 6 ms; start 1.5 ms early */
+/* --------------------------------------------------- chop (cutting a recording) --- */
+/* CHOP (on the samples tab): a recording cut into a slot's zones. Everything at SMP.RATE, positions in
+   samples; no side effects, so test_web.mjs calls these directly. */
+const CHOP = { HOP: 128, MAX: 16, FADE_IN: 22, FADE_OUT: 132, PRE: 32 };   /* frames of 5.8 ms; fades of 1 and 6 ms; cuts 1.5 ms before the attack */
 
-/* onset novelty per frame: the rise of the log energy of the signal's first difference (the attack
-   of a hit, not its body), over the louder of the two frames before */
-function chopNovelty(x) {
-  const H = CHOP.HOP, F = Math.ceil(x.length / H), L = new Float64Array(F), P = new Float64Array(F), nov = new Float64Array(F);
-  let top = 1e-12, ptop = 1e-12;
-  for (let f = 0; f < F; f++) {
-    let e = 0, p = 0;
-    for (let i = f * H, n = Math.min(x.length, i + H); i < n; i++) { const d = x[i] - (i ? x[i - 1] : 0); e += d * d; p += x[i] * x[i]; }
-    L[f] = e;
-    P[f] = p;
-    if (e > top) top = e;
-    if (p > ptop) ptop = p;
+/* per frame, how sharply it starts a hit: the rise of the log energy of the first difference (so the attack
+   counts, not the body) over the larger of the two frames before. nov.level: each frame's log power */
+function chopNovelty(sig) {
+  const H = CHOP.HOP, frames = Math.ceil(sig.length / H);
+  const edge = new Float64Array(frames), power = new Float64Array(frames), nov = new Float64Array(frames);
+  let edgeMax = 1e-12, powMax = 1e-12;
+  for (let f = 0; f < frames; f++) {
+    const end = Math.min(sig.length, (f + 1) * H);
+    let e = 0, p = 0;                               /* energy of the difference, power */
+    for (let i = f * H; i < end; i++) { const d = sig[i] - (i > 0 ? sig[i - 1] : 0); e += d * d; p += sig[i] * sig[i]; }
+    edge[f] = e;
+    power[f] = p;
+    if (e > edgeMax) edgeMax = e;
+    if (p > powMax) powMax = p;
   }
-  for (let f = 0; f < F; f++) { L[f] = Math.log10(L[f] / top + 1e-9); P[f] = Math.log10(P[f] / ptop + 1e-9); }   /* 0 = the loudest */
-  for (let f = 0; f < F; f++) {
-    const before = Math.max(f ? L[f - 1] : -9, f > 1 ? L[f - 2] : -9);
-    nov[f] = L[f] > -3.5 ? Math.max(0, L[f] - before) : 0;              /* (under -35 dB: no hit) */
+  edge.forEach((e, f) => { edge[f] = Math.log10(e / edgeMax + 1e-9); });   /* log10, the loudest frame at 0 */
+  power.forEach((p, f) => { power[f] = Math.log10(p / powMax + 1e-9); });
+  for (let f = 0; f < frames; f++) {
+    const prev = Math.max(f >= 1 ? edge[f - 1] : -9, f >= 2 ? edge[f - 2] : -9);
+    nov[f] = edge[f] > -3.5 ? Math.max(0, edge[f] - prev) : 0;   /* (quieter than -35 dB: never a hit) */
   }
-  nov.level = P;                                                         /* (log10 power, 0 = the loudest frame) */
-  return nov;
+  nov.level = power;
+  return nov;                                      /* (with .level) */
 }
 
-/* the first sample of the hit in frame f: where the signal first reaches 30 % of its peak over the
-   frames f-1..f+2, then PRE samples earlier (the attack is kept whole) */
-function chopAttack(x, f) {
-  const H = CHOP.HOP, a = Math.max(0, (f - 1) * H), b = Math.min(x.length, (f + 3) * H);
-  let pk = 0;
-  for (let i = a; i < b; i++) pk = Math.max(pk, Math.abs(x[i]));
-  for (let i = a; i < b; i++) if (Math.abs(x[i]) >= 0.3 * pk) return Math.max(0, i - CHOP.PRE);
-  return a;
+/* where the hit of frame f starts: the first sample within frames f-1..f+2 at 30 % of their peak or more,
+   moved PRE samples earlier so the whole attack stays */
+function chopAttack(sig, f) {
+  const from = Math.max(0, (f - 1) * CHOP.HOP), to = Math.min(sig.length, (f + 3) * CHOP.HOP);
+  let peak = 0;
+  for (let i = from; i < to; i++) peak = Math.max(peak, Math.abs(sig[i]));
+  const lim = 0.3 * peak;
+  for (let i = from; i < to; i++) if (Math.abs(sig[i]) >= lim) return Math.max(0, i - CHOP.PRE);
+  return from;
 }
 
-/* hits: sens 1 (only the hardest and loudest) .. 10 (every small one); at least 60 ms apart. A hit is a
-   sharp rise (nov over thr) to a level (its loudest frame within 3) over the gate */
-function chopHits(x, nov, sens) {
-  const k = Math.max(1, Math.min(10, sens)), thr = 0.15 + (10 - k) * 0.08, gate = -(0.5 + k * 0.35);
-  const gap = Math.round(0.06 * SMP.RATE / CHOP.HOP), L = nov.level;
-  const out = [];
-  let last = -1e9;
-  for (let f = 0; f < nov.length - 1; f++) {        /* (a hit on the very first frame counts too) */
-    if (nov[f] < thr || (f && nov[f] < nov[f - 1]) || nov[f] < nov[f + 1]) continue;
-    if (L && Math.max(L[f], L[Math.min(L.length - 1, f + 1)], L[Math.min(L.length - 1, f + 2)]) < gate) continue;
-    if (f - last < gap) {
-      if (out.length && nov[f] > nov[last]) { out[out.length - 1] = chopAttack(x, f); last = f; }
-      continue;
-    }
-    out.push(chopAttack(x, f));
-    last = f;
+/* the hits at sensitivity sens, 1 (the hardest, loudest only) .. 10 (every little one), at least 60 ms apart.
+   A hit: a local peak of nov over thr whose level (the loudest of it and the 2 frames after) clears the gate */
+function chopHits(sig, nov, sens) {
+  const k = Math.min(10, Math.max(1, sens)), thr = 0.15 + (10 - k) * 0.08, gate = -(0.5 + k * 0.35);
+  const minGap = Math.round(0.06 * SMP.RATE / CHOP.HOP), lvl = nov.level, top = lvl ? lvl.length - 1 : 0;
+  const hits = [];
+  let prev = -1e9;
+  for (let f = 0; f + 1 < nov.length; f++) {        /* (frame 0 can be a hit as well) */
+    const v = nov[f];
+    if (v < thr || v < nov[f + 1] || (f > 0 && v < nov[f - 1])) continue;
+    if (lvl && Math.max(lvl[f], lvl[Math.min(top, f + 1)], lvl[Math.min(top, f + 2)]) < gate) continue;
+    if (f - prev >= minGap) { hits.push(chopAttack(sig, f)); prev = f; continue; }
+    if (hits.length && v > nov[prev]) { hits[hits.length - 1] = chopAttack(sig, f); prev = f; }   /* too close: keep the stronger */
   }
-  return out;
+  return hits;
 }
 
-/* a tap at pos (as heard) moved to the hit it meant: the strongest attack within +-win s, if any */
-function chopSnap(x, nov, pos, win = 0.05) {
-  const H = CHOP.HOP, w = Math.round(win * SMP.RATE / H), c = Math.round(pos / H);
-  let best = -1, bv = 0.12;
-  for (let f = Math.max(1, c - w); f <= Math.min(nov.length - 1, c + w); f++) if (nov[f] > bv) { bv = nov[f]; best = f; }
-  return best < 0 ? Math.max(0, Math.min(x.length - 1, Math.round(pos))) : chopAttack(x, best);
+/* a tap at pos (where it was heard) moved onto the hit it was meant for: the strongest attack within +-win seconds, else pos */
+function chopSnap(sig, nov, pos, win = 0.05) {
+  const reach = Math.round(win * SMP.RATE / CHOP.HOP), mid = Math.round(pos / CHOP.HOP);
+  let at = -1, strongest = 0.12;
+  const hi = Math.min(nov.length - 1, mid + reach);
+  for (let f = Math.max(1, mid - reach); f <= hi; f++) if (nov[f] > strongest) { strongest = nov[f]; at = f; }
+  if (at >= 0) return chopAttack(sig, at);
+  return Math.min(sig.length - 1, Math.max(0, Math.round(pos)));
 }
 
-/* markers every `beats` beats at bpm from start to end */
-function chopGrid(start, end, bpm, beats) {
-  const step = SMP.RATE * 60 / bpm * beats, out = [];
-  for (let p = start; p < end - step * 0.25 && out.length < 64; p += step) out.push(Math.round(p));
-  return out;
+/* a marker every `beats` beats at bpm, from start up to end (at most 64) */
+function chopGrid(from, to, bpm, beats) {
+  const step = SMP.RATE * 60 / bpm * beats, stop = to - step * 0.25, marks = [];
+  for (let p = from; p < stop && marks.length < 64; p += step) marks.push(Math.round(p));
+  return marks;
 }
 
-/* n equal parts of start..end */
-function chopEqual(start, end, n) {
-  return Array.from({ length: n }, (_, i) => Math.round(start + (end - start) * i / n));
+/* start..end cut into n equal parts: their starts */
+function chopEqual(from, to, n) {
+  const marks = [];
+  for (let i = 0; i < n; i++) marks.push(Math.round(from + (to - from) * i / n));
+  return marks;
 }
 
 /* CHOP of any length: from SLOOP 2.3 (isod89/sloop-fm1 d691ba7, GPL-3.0)
@@ -3637,13 +3665,15 @@ function chopEqual(start, end, n) {
    opt[i] (optional) = {off: left out of the slot, len: its own length in samples, over maxLen};
    a chop is never longer than up to the next marker (`full`) */
 function chopList(marks, total, maxLen = 0, opt = null) {
-  return marks.map((m, i) => {
+  const chops = [];
+  marks.forEach((m, i) => {
     const full = Math.max(m + 1, i + 1 < marks.length ? marks[i + 1] : total), o = (opt && opt[i]) || {};
     let e = full;
     if (o.len > 0) e = Math.min(e, m + o.len);
     else if (maxLen > 0) e = Math.min(e, m + maxLen);
-    return { start: m, end: Math.max(m + 1, e), i, off: !!o.off, full };
+    chops.push({ start: m, end: Math.max(m + 1, e), i, off: !!o.off, full });
   });
+  return chops;
 }
 
 /* the chops the slot gets: mode 0 the kept ones, the first CHOP.MAX of them; mode 1 the chop `sel` */
