@@ -1216,7 +1216,6 @@
     "ramtext": 0
    }
   },
-  "LAYOUT": {},
   "ARENA": {
    "24": {
     "flash": 1188,
@@ -1279,11 +1278,6 @@
     "ramtext": -88
    }
   },
-  "BT_PROJ": {},
-  "FAR_OK": {},
-  "SD_RING": {},
-  "SD_REC": {},
-  "OVERLAY": {},
   "CPU_GUARD": {
    "1": {
     "flash": 3448,
@@ -1670,6 +1664,22 @@
     "ramtext": -4
    }
   },
+  "LAYOUT": {
+   "1": {
+    "flash": -568,
+    "ram": 48,
+    "pool": -104,
+    "ramtext": 0
+   }
+  },
+  "BT_PROJ": {
+   "1": {
+    "flash": 1324,
+    "ram": 12,
+    "pool": 8892,
+    "ramtext": -112
+   }
+  },
   "MICRO": {
    "1": {
     "flash": 1024,
@@ -1693,9 +1703,71 @@
     "pool": 1200,
     "ramtext": 0
    }
+  },
+  "FAR_OK": {
+   "1": {
+    "flash": 0,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
+   }
+  },
+  "OVERLAY": {
+   "1": {
+    "flash": -7476,
+    "ram": 144,
+    "pool": 0,
+    "ramtext": -2596
+   }
+  },
+  "SD_RING": {
+   "4": {
+    "flash": 40924,
+    "ram": 1744,
+    "pool": 15472,
+    "ramtext": 1744
+   },
+   "8": {
+    "flash": 40956,
+    "ram": 2044,
+    "pool": 15472,
+    "ramtext": 1764
+   },
+   "12": {
+    "flash": 40940,
+    "ram": 2264,
+    "pool": 15472,
+    "ramtext": 1736
+   },
+   "16": {
+    "flash": 40916,
+    "ram": 2532,
+    "pool": 15472,
+    "ramtext": 1724
+   }
+  },
+  "SD_REC": {
+   "16": {
+    "flash": 29672,
+    "ram": 3120,
+    "pool": 27052,
+    "ramtext": -44
+   },
+   "32": {
+    "flash": 29688,
+    "ram": 3120,
+    "pool": 43436,
+    "ramtext": -44
+   },
+   "64": {
+    "flash": 29688,
+    "ram": 3120,
+    "pool": 76204,
+    "ramtext": -44
+   }
   }
  },
- "measured": "2026-10-27 12:00",
+ "measured": "2026-10-27 14:19",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
@@ -4393,9 +4465,9 @@
    "ramtext": 0
   },
   "SDCARD=1,LAYOUT=1,FAR_OK=1,ENG_SAMPLE=0,DRUM_USR=0,SNAPSHOTS=0,PATTERNS=1": {
-   "flash": 26880,
-   "ram": 2536,
-   "pool": 10564,
+   "flash": 27448,
+   "ram": 2488,
+   "pool": 10668,
    "ramtext": -44
   },
   "ENG_FM6=0,TAB_IN_POOL=1": {
