@@ -8,7 +8,7 @@ import CoreMIDI
 import Foundation
 import os
 
-final class MirrorLink: ObservableObject, Transport {
+final class MirrorLink: ObservableObject, Transport, CompanionTransport {
     enum State: Equatable {
         case searching            // no FM-1 port
         case asking               // a port, no reply yet
@@ -18,6 +18,8 @@ final class MirrorLink: ObservableObject, Transport {
 
     @Published private(set) var state: State = .searching
     @Published private(set) var portName = ""
+    /// An fm1-base app answered the companion capability query (0x60) and not Optimist's INFO: what it says it is (Companion/)
+    @Published private(set) var companion: CompanionInfo?
     @Published private(set) var bluetooth = false   // the port in use is the Bluetooth one
     @Published private(set) var ports: [String] = []   // every MIDI port with both directions, by name (the picker)
     /// .. of them, the ones online: the Mac keeps a Bluetooth port it paired listed while it is away (offline), so the
@@ -64,11 +66,18 @@ final class MirrorLink: ObservableObject, Transport {
         var rowsLeft = 0
         var lastFrame = Date()
         var pending: Pending?     // the editor request waiting for its reply
+        var cpending: CPending?   // the companion request waiting for its answer
         var token = 0
     }
     private struct Pending {
         var cmd: UInt8
         var args: [UInt8]
+        var token: Int
+        var continuation: CheckedContinuation<[UInt8], Error>
+    }
+    private struct CPending {
+        var cmd: UInt8
+        var body: [UInt8]
         var token: Int
         var continuation: CheckedContinuation<[UInt8], Error>
     }
@@ -217,6 +226,7 @@ final class MirrorLink: ObservableObject, Transport {
             $0.btInfo = 0
             $0.btKnown = false
         }
+        companion = nil
         guard let src, dst != nil else {
             portName = ""
             state = .searching
@@ -244,6 +254,12 @@ final class MirrorLink: ObservableObject, Transport {
         if asked >= Self.unanswered, state != .mirroring { state = .noMirror }
         let f = lock.withLock { $0.features }
         if f == nil {                   // INFO first: another firmware may give 106 another meaning (ed_opti.h)
+            if companion != nil { return }   // (an fm1-base app: it has been identified, nothing else is asked)
+            if asked >= Self.unanswered, asked % 2 == 1 {   // INFO went unanswered: is it an fm1-base app? (every other ask)
+                sendFrame(CompanionWire.frame(CompanionWire.hello))
+                asked += 1
+                return
+            }
             send([1])
             asked += 1
             return
@@ -267,8 +283,18 @@ final class MirrorLink: ObservableObject, Transport {
     }
 
     private func send(_ body: [UInt8]) {
+        sendInner([0x7D, 0x46, 0x4C] + body)
+    }
+
+    /// A whole F0 .. F7 frame (the companion services', in the update's framing)
+    private func sendFrame(_ f: [UInt8]) {
+        guard f.count >= 2 else { return }
+        sendInner(Array(f[1..<(f.count - 1)]))
+    }
+
+    private func sendInner(_ inner: [UInt8]) {
         guard destination != 0 else { return }
-        let words = SysExAssembler.packets([0x7D, 0x46, 0x4C] + body)
+        let words = SysExAssembler.packets(inner)
         let size = 64 + words.count / 2 * 32          // (a long request: a few hundred bytes, in 6-byte packets)
         let raw = UnsafeMutableRawPointer.allocate(byteCount: size, alignment: 8)
         defer { raw.deallocate() }
@@ -399,6 +425,33 @@ final class MirrorLink: ObservableObject, Transport {
         c?.resume(throwing: WireError.timeout(cmd))
     }
 
+    // MARK: - an fm1-base app's companion requests
+
+    /// One companion request (CompanionTransport), in its turn with the mirror's and the editor's.
+    @MainActor
+    func companion(_ cmd: UInt8, _ body: [UInt8], timeout: TimeInterval) async throws -> [UInt8] {
+        await gate.acquire()
+        defer { gate.release() }
+        guard destination != 0 else { throw CompanionError.silent(cmd) }
+        return try await withCheckedThrowingContinuation { (c: CheckedContinuation<[UInt8], Error>) in
+            let token = lock.withLock { s -> Int in
+                s.token += 1
+                s.cpending = CPending(cmd: cmd, body: body, token: s.token, continuation: c)
+                return s.token
+            }
+            sendFrame(CompanionWire.frame(cmd, body))
+            let lock = self.lock
+            DispatchQueue.global().asyncAfter(deadline: .now() + timeout) {
+                let c = lock.withLock { s -> CheckedContinuation<[UInt8], Error>? in
+                    guard let p = s.cpending, p.token == token else { return nil }
+                    s.cpending = nil
+                    return p.continuation
+                }
+                c?.resume(throwing: CompanionError.silent(cmd))
+            }
+        }
+    }
+
     // MARK: - what the FM-1 sends (CoreMIDI's thread)
 
     private func receive(_ list: UnsafePointer<MIDIEventList>) {
@@ -420,13 +473,20 @@ final class MirrorLink: ObservableObject, Transport {
         }
         guard !frames.isEmpty else { return }
         let got = frames
-        let (replied, identified, answers) = lock.withLock { s -> (Bool, Bool, [(CheckedContinuation<[UInt8], Error>, [UInt8])]) in
+        let (replied, identified, answers, companionInfo) = lock.withLock { s -> (Bool, Bool, [(CheckedContinuation<[UInt8], Error>, [UInt8])], CompanionInfo?) in
             var identified = false
+            var companionInfo: CompanionInfo?
             var on = false
             var answers: [(CheckedContinuation<[UInt8], Error>, [UInt8])] = []
             for f in got {
                 s.bytes += f.count
-                if !MirrorDecoder.isMirror(f), let u = Wire.unframe(f) {         // an editor reply
+                if f.count > 1, f[1] == 0x00, let c = CompanionWire.decode(f) {      // an fm1-base app's answer (never Optimist's: F0 7D ..)
+                    if c.cmd == CompanionWire.hello, let i = try? CompanionInfo.parse(c.body), s.features == nil { companionInfo = i }
+                    if let p = s.cpending, p.cmd == c.cmd, CompanionWire.matches(p.cmd, p.body, c.body) {
+                        s.cpending = nil
+                        answers.append((p.continuation, c.body))
+                    }
+                } else if !MirrorDecoder.isMirror(f), let u = Wire.unframe(f) {         // an editor reply
                     if u.cmd == 1, s.features == nil, let i = try? DeviceInfo.parse(u.args) { s.features = i.features; identified = true }
                     else if u.cmd == 1, s.btInfo > 0, !s.btKnown, let i = try? DeviceInfo.parse(u.args) {
                         s.features = i.features   // (Bluetooth: the whole list now, opti_mirbt among it)
@@ -456,7 +516,7 @@ final class MirrorLink: ObservableObject, Transport {
                     s.generation += 1
                 }
             }
-            return (on, identified, answers)
+            return (on, identified, answers, companionInfo)
         }
         for (c, a) in answers { c.resume(returning: a) }
         if replied {
@@ -467,6 +527,7 @@ final class MirrorLink: ObservableObject, Transport {
         } else if identified {          // (INFO in: the mirror's own requests start counting now)
             DispatchQueue.main.async { self.asked = 0; self.tick() }
         }
+        if let companionInfo { DispatchQueue.main.async { if self.companion != companionInfo { self.companion = companionInfo } } }
     }
 }
 
