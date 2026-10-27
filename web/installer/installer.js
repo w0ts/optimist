@@ -4,8 +4,9 @@
 // The Optimist installer as a module: mountInstaller(container, options) puts the four steps (Connect, Choose,
 // Install, When something goes wrong) into `container`. The same module runs the standalone page
 // (web/installer/index.html, webapp/installer/ on the site) and is shipped as webapp/installer/installer.js for the
-// one-page app, where the editor mounts it as a tab. The update itself is web/fm1ota.js and web/fm1pkg.js, unchanged
-// (the M-UPGRADE protocol over Web MIDI; the return to the official V15 after Felucca 1.0.1). docs/WEB.md.
+// one-page app, where the editor mounts it as a tab. The update itself is fm-1-base's web/fm1base/fm1ota.js and fm1pkg.js,
+// unchanged (the M-UPGRADE protocol over Web MIDI), with Optimist's extras in web/fm1ota_optimist.js (the loader
+// identities, the return to the official V15 and its voice banks). docs/WEB.md.
 //
 //   mountInstaller(container, {
 //     packages,      [{ id, title, description, pkg, product, sha256 }]: the site's flavours (web/flavours.json via
@@ -23,8 +24,8 @@
 //     links,         { build, backup, editor, about, docs }: the hrefs of those (defaults: the site's relative paths)
 //     midi,          (options) => Promise<MIDIAccess>: default navigator.requestMIDIAccess (tests pass a mock)
 //   }) -> { unmount(), busy }    busy: true while writing (the host must not unload or hide the page then)
-import { OFFICIAL_LOADER, OUR_LOADER, Updater } from "../fm1ota.js";
-import { STOCK_V15_SHA256, logicalImage, productOf, sha256hex, stockBanks, validateStockPackage } from "../fm1pkg.js";
+import { checkUfw, logicalImage, productOf, sha256hex } from "../fm1base/fm1pkg.js";
+import { STOCK_V15_SHA256, OptimistUpdater, stockBanks, validateStockPackage } from "../fm1ota_optimist.js";
 
 const STYLE_ID = "optimist-installer-style";
 const BUNDLED_CSS = null;                           /* make_site.py puts web/installer/installer.css here */
@@ -95,6 +96,16 @@ export const TEXT = {
   rescueBack: "Written, but the FM-1 started in USB rescue: the new firmware did not start. Install again, or choose another package.",
   foreign: "The FM-1 is in the update mode of another firmware. Finish that update with its own updater (M-UPGRADE), then press Install again: ",
   badreq: "The FM-1 asked for data outside the package. Replug the cable and press Install again.",
+  open: "This FM-1 runs M-VAVE's Open firmware, which takes only M-VAVE's own firmware: put the official firmware back first (step 4, Back to the official firmware V15), then install this. ",
+  bootrefused: "The firmware is installed, but m-bootloader could not be: nothing else was changed.",
+  /* other MIDI ports, when no FM-1 answered: the user picks one to try (a name that is none of the usual ones) */
+  portsHead: "Other MIDI ports on this computer. If one is your FM-1, try it:",
+  tryPort: "Try", portsWait: "Asking…", portsEmpty: "No other MIDI ports.",
+  portNone: "No FM-1 answered on {port}.", portOk: "Found {id} on {port}. This browser remembers it. Press the button again.",
+  /* m-bootloader */
+  bootOpt: "Also install m-bootloader: hold PLAY while switching on for a recovery menu, or REC for update mode, even when a firmware will not start.",
+  bootWhy: "An open bootloader by Julius Vitkauskas (MIT). It replaces M-VAVE's bootloader and stays through firmware updates; Back to the official firmware puts M-VAVE's back. Its menu's WIPE USER DATA erases everything firmwares have saved. The FM-1 restarts once more for it.",
+  bootDoing: "Installing m-bootloader: the FM-1 restarts by itself…", doneBoot: " With m-bootloader.",
   /* step 4 */
   r1h: "The install stopped halfway", r1: "The FM-1 stays in update mode. Press Install again: it finishes.",
   r2h: "Optimist is installed but does not start", r2: "Hold OCT− alone while switching the FM-1 on. The screen says OPTIMIST USB RESCUE; install again from here. After two start-ups that crash, the FM-1 starts in USB rescue by itself.",
@@ -154,7 +165,9 @@ export async function checkPackage(bytes, expect = null) {
   if (!has(bytes, LOADER_MARK)) throw codeError("noloaderpkg");
   const sha256 = globalThis.crypto && globalThis.crypto.subtle ? await sha256hex(bytes) : "";
   if (expect && expect.sha256 && sha256 && sha256 !== expect.sha256) throw codeError("badpkg", `sha256 ${sha256}, expected ${expect.sha256}`);
-  return { product, sha256, image: logicalImage(bytes), stock: false };
+  const image = logicalImage(bytes);
+  try { checkUfw(image); } catch (e) { throw codeError("badpkg", e.message); }      /* (fm-1-base's CRC check, before anything is sent) */
+  return { product, sha256, image, stock: false };
 }
 
 /* the official V15 file of step 4 (yours, or the copy the site keeps: opts.stock), with its voice banks (fm1pkg.js
@@ -180,7 +193,7 @@ export function progressOf(k, a, addr, imageLength, prev = 0) {
 /* an error's message, plainly */
 export function errorText(e) {
   if (e && e.code === "mismatch" && e.detail === "FM-1_000") return TEXT.rescueBack;
-  if (e && e.code && typeof TEXT[e.code] === "string") return TEXT[e.code] + (["model", "mismatch", "foreign", "notours", "loadfail"].includes(e.code) ? e.detail || "" : "");
+  if (e && e.code && typeof TEXT[e.code] === "string") return TEXT[e.code] + (["model", "mismatch", "foreign", "notours", "loadfail", "open"].includes(e.code) ? e.detail || "" : "");
   return TEXT.error + (e && e.message ? e.message : String(e));
 }
 
@@ -240,12 +253,22 @@ export async function loadCloud(repo, fetchFn = fetch) {
   return { sha, builds: cloudBuilds(await ix.json()) };
 }
 
-/* fm1ota.js's Updater, unchanged, that also keeps the address of the last read (its serve() hands it to onProgress;
-   install() and write() pass only the count on), for a bar that follows the write */
-class TrackedUpdater extends Updater {
-  serve(link, image, finishAddr, idleMs, onProgress) {
-    return super.serve(link, image, finishAddr, idleMs, (n, addr) => { this.lastAddr = addr; if (onProgress) onProgress(n, addr); });
-  }
+/* ports the user picked although their names are none of the usual ones (Try): remembered in this browser (the key
+   fm1-base's pages use), asked like the usual ones from then on */
+const PICKED_KEY = "fm1-ports";
+function pickedPorts() {
+  try { return JSON.parse(localStorage.getItem(PICKED_KEY) || "[]").filter((x) => typeof x === "string"); } catch (_) { return []; }
+}
+function rememberPort(name) {
+  const list = pickedPorts();
+  if (list.includes(name)) return;
+  try { localStorage.setItem(PICKED_KEY, JSON.stringify([...list, name])); } catch (_) { /* until the page is closed */ }
+}
+/* an updater that asks the remembered ports too */
+function newUpdater(midi, log) {
+  const up = new OptimistUpdater(midi, log);
+  pickedPorts().forEach((n) => up.allow(n));
+  return up;
 }
 
 /* ------------------------------------------------------------------ the page */
@@ -300,8 +323,11 @@ export function mountInstaller(container, opts = {}) {
   el.found = h("p.oi-found", { role: "status", "aria-live": "polite" }, TEXT.unchecked);
   el.help = h("ul.oi-help", { hidden: true }, TEXT.notfoundHelp.map((t) => h("li", {}, t)));
   el.browser = h("p.o-msg.err.oi-browser", { hidden: true, role: "alert" });
+  el.portsList = h("ul.oi-portlist");
+  el.portsMsg = h("p.oi-portmsg", { role: "status", "aria-live": "polite" });
+  el.ports = h("div.oi-ports", { hidden: true }, h("p.o-dim", {}, TEXT.portsHead), el.portsList, el.portsMsg);
   /* (the FM-1 found, under the Install button: the Mirror app's footer) */
-  const connectBox = h("div.oi-conn", {}, el.browser, h("div.oi-row", {}, el.found, el.find), h("p.o-dim.oi-how", {}, TEXT.connectHow), el.help);
+  const connectBox = h("div.oi-conn", {}, el.browser, h("div.oi-row", {}, el.found, el.find), h("p.o-dim.oi-how", {}, TEXT.connectHow), el.help, el.ports);
 
   /* ---- 2 Choose */
   /* a release: its version, then its flavour (two menus in one row, as the Mirror app); st.choice is the package's index */
@@ -340,6 +366,8 @@ export function mountInstaller(container, opts = {}) {
   el.pkginfo = h("p.oi-pkg", { role: "status", "aria-live": "polite" });
 
   /* ---- 3 Install */
+  el.boot = h("input.oi-boot", { type: "checkbox", id: "oi-boot" });
+  el.bootRow = h("div.oi-bootopt", { hidden: true }, h("label", { for: "oi-boot" }, el.boot, " ", TEXT.bootOpt), h("p.o-dim", {}, TEXT.bootWhy));
   el.go = h("button.o-btn.primary.big.oi-go", { type: "button", disabled: true, onclick: () => install() }, TEXT.install);
   el.phases = h("ol.oi-phases", {}, TEXT.phases.map((t) => h("li", { "data-st": "wait" }, t)));
   el.bar = h("progress.o-progress.oi-bar", { max: "100", value: "0", "aria-label": TEXT.s3 });
@@ -352,7 +380,7 @@ export function mountInstaller(container, opts = {}) {
      progress and the FM-1 found, together in one card (the Mirror app's Firmware tab, the user 2026-10-25) */
   const installCard = card("install", TEXT.s3,
     h("fieldset.oi-choices", {}, h("legend.o-sr", {}, TEXT.chooseLegend), relRow, el.mineRow, fileRow, el.stockRow),
-    el.pkginfo, el.stockWarn,
+    el.pkginfo, el.stockWarn, el.bootRow,
     el.go, h("p.o-dim.oi-keep", {}, TEXT.keep),
     el.phases, el.bar, el.status, el.err, el.ok,
     connectBox,
@@ -488,6 +516,8 @@ export function mountInstaller(container, opts = {}) {
     el.go.disabled = !p || st.busy || !midiOf || !secure;
     el.find.disabled = st.busy || !midiOf || !secure;
     el.stockWarn.hidden = !(p && p.stock);
+    el.bootRow.hidden = !st.boot || !!(p && p.stock);                   /* (never on the return to the official firmware) */
+    el.boot.disabled = st.busy;
     el.meta.replaceChildren(...(p ? [h("span", {}, `${p.title}${p.version ? " " + p.version : ""}`), " · ", h("span", {}, p.product),
       source && !p.stock && st.choice !== "file" && st.choice !== "mine" ? [" · ", TEXT.builtFrom, h("span.o-mono", {}, source)] : [],
       p.sha256 ? [" · sha256 ", h("code.oi-sha", {}, p.sha256)] : []] : []).flat());
@@ -510,13 +540,38 @@ export function mountInstaller(container, opts = {}) {
     say(el.found, TEXT.looking);
     el.help.hidden = true;
     try {
-      const dev = await new Updater(await access(), log).find();
-      if (dev) { dev.link.close(); say(el.found, TEXT.found + describeIdentity(dev.id), "ok"); }
-      else { say(el.found, TEXT.notfoundShort, "err"); el.help.hidden = false; }
+      const midi = await access();
+      const dev = await newUpdater(midi, log).find();
+      if (dev) { dev.link.close(); say(el.found, TEXT.found + describeIdentity(dev.id), "ok"); el.ports.hidden = true; }
+      else { say(el.found, TEXT.notfoundShort, "err"); el.help.hidden = false; showPorts(midi); }
       el.find.textContent = TEXT.findAgain;
     } catch (e) {
       if (user || e.code !== "denied") say(el.found, errorText(e), "err");
     }
+  }
+
+  /* the ports no name asked (the usual FM-1 names, the remembered ones): each with Try, which asks it and, when an FM-1
+     answers, remembers it */
+  function showPorts(midi) {
+    const up = newUpdater(midi, log);
+    const names = up.ports().filter((n) => !up.askable(n));
+    el.portsList.replaceChildren(...(names.length ? names.map((n) => h("li", {}, h("span", {}, n),
+      h("button.o-btn.sm", { type: "button", "aria-label": `${TEXT.tryPort}: ${n}`, onclick: (ev) => tryPort(midi, n, ev.currentTarget) }, TEXT.tryPort)))
+      : [h("li", {}, TEXT.portsEmpty)]));
+    el.ports.hidden = false;
+  }
+  async function tryPort(midi, name, button) {
+    if (st.busy) return;
+    button.disabled = true;
+    say(el.portsMsg, TEXT.portsWait);
+    let id = null;
+    try { id = await newUpdater(midi, log).probe(name); } catch (_) { /* no answer */ }
+    button.disabled = false;
+    if (!id) { say(el.portsMsg, TEXT.portNone.replace("{port}", name), "err"); return; }
+    rememberPort(name);
+    showPorts(midi);
+    say(el.portsMsg, TEXT.portOk.replace("{port}", name).replace("{id}", id.text), "ok");
+    detect(false);
   }
 
   /* ---- install */
@@ -567,25 +622,31 @@ export function mountInstaller(container, opts = {}) {
     try { midi = await access(); }
     catch (e) { showError(e, phase); return; }
     st.busy = true; syncChoice(); render();
+    el.ports.hidden = true;
     if (st.detecting) await st.detecting;            /* (one handshake at a time on the port) */
     try {
-      const up = new TrackedUpdater(midi, log);
+      const up = newUpdater(midi, log);
+      const withBoot = !pkg.stock && !!st.boot && el.boot.checked;
       const onStep = (k, a) => step(k, a, k === "write" ? up.lastAddr : undefined);
       const ota = await up.find(isOta);
       let back;
       if (ota) {                                     /* an interrupted install (or return to V15): finish it */
         ota.link.close();
         setPhase(2);
-        const finished = await up.resume(pkg.image, onStep, pkg.stock ? OFFICIAL_LOADER : OUR_LOADER, pkg.product);
+        const finished = await up.resume(pkg.image, onStep, pkg.product);
         if (!finished) throw codeError("stopped");
         back = pkg.product;
       } else {
-        back = await up.install(pkg.image, pkg.product, onStep);
+        back = await up.install(pkg.image, pkg.product, onStep, pkg.sha256);
+      }
+      if (withBoot) {                                /* m-bootloader after the firmware (fm-1-base's installBoot) */
+        say(el.status, TEXT.bootDoing);
+        back = await up.installBoot(st.boot, pkg.product, onStep);
       }
       setPhase(4, "done");
       el.bar.value = 100;
       say(el.status, "");
-      el.ok.replaceChildren(h("span", {}, `${TEXT.done}${pkg.title} (${back}).`), " ",
+      el.ok.replaceChildren(h("span", {}, `${TEXT.done}${pkg.title} (${back}).${withBoot ? TEXT.doneBoot : ""}`), " ",
         pkg.stock ? (pkg.banks ? h("div.oi-banks", {}, h("p.o-dim", {}, TEXT.banksNote),
           h("button.o-btn.sm.oi-banksgo", { type: "button", onclick: () => restoreBanks(pkg.banks) }, TEXT.banksBtn)) : null)
           : h("button.o-btn.sm", { type: "button", onclick: () => (opts.onNavigate ? opts.onNavigate("editor") : (location.href = links.editor)) }, TEXT.openEditor));
@@ -593,10 +654,24 @@ export function mountInstaller(container, opts = {}) {
       el.go.textContent = TEXT.installAgain;
     } catch (e) {
       showError(e, phase);
+      if (e && e.code === "notfound") showPorts(midi);
       log(String(e && e.stack || e));
     }
     st.busy = false; syncChoice(); render();
     if (!el.ok.hidden) el.go.textContent = TEXT.installAgain;
+  }
+  /* m-bootloader (opts.boot: the site's { pkg, sha256 }): offered only when its package is here and is the one the site
+     was made with (the checksum), and says it is the FM-1_099 installer */
+  async function loadBoot() {
+    if (!opts.boot || !opts.boot.pkg) return;
+    try {
+      const r = await fetch(opts.boot.pkg);
+      if (!r.ok) return;
+      const raw = new Uint8Array(await r.arrayBuffer());
+      if (await sha256hex(raw) !== opts.boot.sha256 || productOf(raw) !== "FM-1_099") return;
+      st.boot = logicalImage(raw);
+      render();
+    } catch (_) { /* no option, then */ }
   }
   /* the official voice banks back into the V15 just installed (fm1ota.js restoreBanks) */
   async function restoreBanks(banks) {
@@ -638,6 +713,7 @@ export function mountInstaller(container, opts = {}) {
   }
   syncChoice();
   loadChoice();
+  loadBoot();
   return {
     unmount() { window.removeEventListener("beforeunload", beforeUnload); if (st.access) st.access.onstatechange = null; container.replaceChildren(); },
     get busy() { return st.busy; },
