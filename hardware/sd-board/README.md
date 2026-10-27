@@ -12,9 +12,10 @@ round the cover's pole there; a column goes up the right of the speaker plug to 
 
 The card goes in through the case's bottom wall, flush with the outside, 81.7 mm from the left wall. **No soldering.**
 Status (2026-10-25): designed and checked (KiCad: no design-rule error, the schematic's nets equal the board's); sizes
-measured with calipers (`MEASUREMENTS.md`); **NOT READY TO ORDER: which J12 pin is which line is a PROVISIONAL guess**
-(`LCD_PINS` in `make_board.py`), and whether the LCD cable arrives mirrored is still to check. The pin finder and a
-breakout will tell; then the lines are re-routed.
+measured with calipers (`MEASUREMENTS.md`); **NOT READY TO ORDER: the board is routed to a PROVISIONAL J12 guess**
+(`LCD_PINS` in `make_board.py`) that Julius's probing (2026-10-27) contradicts from pin 3 on (table below), and
+whether the LCD cable arrives mirrored is still to check (the breakout). Then the lines are re-routed, with the list
+under "Before ordering".
 
 ![top](render-top.png)
 
@@ -65,6 +66,8 @@ breakout will tell; then the lines are re-routed.
 
 1. **This board**, ordered assembled (below).
 2. **A 10-pin 0.5 mm cable**, 60 or 80 mm (the user has both types, A and B: the sockets take either), from J12 to J2.
+   The listing the user ordered from: https://www.aliexpress.com/item/4000022050815.html (pick 10 pin, 0.5 mm pitch,
+   the length; the type, A or B, follows J2's contact face, picked after the breakout's mirror check).
 3. **The tray** (`sd-tray.stl`, 3D print): the board slides in from the bottom end until it meets the collar.
 4. **A slot in the bottom wall** for the card: about 15 x 2.5 mm, the card's left side 81.7 mm from the left wall's
    inside (the socket's 2 mm further left).
@@ -91,15 +94,19 @@ Check the fit first: `mockup-printable.stl` (3D print, one piece: the board and 
 
 ## The FFC socket's pins
 
-| J2 / J3 pin | Line (PROVISIONAL, until J12 is measured) |
-|---|---|
-| 1, 10 | GND |
-| 2 | MISO = the LCD's D/C (PC8) |
-| 3 | CLK (PC9) |
-| 4 | MOSI (PC10) |
-| 5 | LCD CS (PC7) |
-| 6 | 3.3 V |
-| 7, 8, 9 | the LCD's reset and backlight: only through |
+The board is still routed to the provisional guess. J12 as probed (Julius, 2026-10-27, docs/SD-CARD-DESIGN.md
+section 3) differs from pin 3 on, so the board must be re-routed before ordering.
+
+| J2 / J3 pin | Routed today (PROVISIONAL guess) | J12 as probed |
+|---|---|---|
+| 1, 10 | GND | GND |
+| 2 | MISO = the LCD's D/C (PC8) | PC8, D/C |
+| 3 | CLK (PC9) | PC7, LCD CS |
+| 4 | MOSI (PC10) | PC9, CLK |
+| 5 | LCD CS (PC7) | PC10, MOSI |
+| 6 | 3.3 V | not probed |
+| 7 | through | 3.3 V (to confirm: beep to U2 pin 16 / chip pin 28) |
+| 8, 9 | the LCD's reset and backlight: only through | not probed |
 
 ## The design
 
