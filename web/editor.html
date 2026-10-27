@@ -3691,89 +3691,91 @@ function chopFit(chops, room) {
   return lo;
 }
 
-/* chops -> slot zones {s (Int16Array, one gain for all: their levels are kept), root, lo, hi, fname}.
-   mode 0: the kept chops (chopPick), one key each from key0 (each key plays its chop at its own speed,
-   the keys between are silent); mode 1: the chop `sel` alone over the whole keyboard, at its own speed
-   on key0. The file names keep the chop's own number. */
-function chopZones(x, chops, key0, mode = 0, sel = 0) {
-  const use = chopPick(chops, mode, sel);
-  let pk = 1e-9;
-  for (const c of use) for (let i = c.start; i < c.end; i++) pk = Math.max(pk, Math.abs(x[i]));
-  return use.map((c, j) => {
-    const n = c.end - c.start, s = new Int16Array(n), fi = Math.min(CHOP.FADE_IN, n >> 2), fo = Math.min(CHOP.FADE_OUT, n >> 2);
-    for (let i = 0; i < n; i++) {
-      let g = 1;
-      if (i < fi) g = i / fi;
-      if (i >= n - fo) g = Math.min(g, (n - i) / fo);
-      s[i] = Math.max(-32768, Math.min(32767, Math.trunc(x[c.start + i] / pk * 30000 * g)));
+/* Chops become the key zones of a sample slot: {s (Int16Array), root, lo, hi, fname}. One gain scales every chop, so
+   the chops keep their levels against each other. mode 0 puts each kept chop (chopPick) on its own key upward from
+   key0, played at its own speed, with silence on the keys between; mode 1 spreads the single chop `sel` over all 128
+   keys, its root on key0. Each file is named after the chop's own number. */
+function chopZones(samples, chops, key0, mode = 0, sel = 0) {
+  const picked = chopPick(chops, mode, sel), spread = mode === 1;
+  let peak = 1e-9;
+  picked.forEach(({ start, end }) => { for (let k = start; k < end; k++) peak = Math.max(peak, Math.abs(samples[k])); });
+  return picked.map((c, j) => {
+    const len = c.end - c.start, out = new Int16Array(len);
+    const rise = Math.min(CHOP.FADE_IN, len >> 2), fall = Math.min(CHOP.FADE_OUT, len >> 2);
+    for (let k = 0; k < len; k++) {
+      const up = k < rise ? k / rise : 1, down = k >= len - fall ? (len - k) / fall : 1;
+      out[k] = Math.max(-32768, Math.min(32767, Math.trunc(samples[c.start + k] / peak * 30000 * Math.min(up, down))));
     }
-    const key = Math.min(127, key0 + (mode === 1 ? 0 : j));
-    return { s, root: key, lo: mode === 1 ? 0 : key, hi: mode === 1 ? 127 : key,
-      fname: `CHOP${String((c.i != null ? c.i : mode === 1 ? sel : j) + 1).padStart(2, "0")}_${NOTE_NAMES[key % 12]}${Math.floor(key / 12) - 1}.wav` };
+    const key = Math.min(127, spread ? key0 : key0 + j);
+    const num = c.i != null ? c.i : spread ? sel : j, octave = Math.floor(key / 12) - 1;
+    return { s: out, root: key, lo: spread ? 0 : key, hi: spread ? 127 : key,
+      fname: `CHOP${String(num + 1).padStart(2, "0")}_${NOTE_NAMES[key % 12]}${octave}.wav` };
   });
 }
 
-/* a mono 16-bit WAV at SMP.RATE */
-function wavFile(s) {
-  const b = new Uint8Array(44 + s.length * 2), v = new DataView(b.buffer);
-  const str = (o, t) => { for (let i = 0; i < t.length; i++) b[o + i] = t.charCodeAt(i); };
-  str(0, "RIFF"); v.setUint32(4, 36 + s.length * 2, true); str(8, "WAVEfmt "); v.setUint32(16, 16, true);
-  v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, SMP.RATE, true); v.setUint32(28, SMP.RATE * 2, true);
-  v.setUint16(32, 2, true); v.setUint16(34, 16, true); str(36, "data"); v.setUint32(40, s.length * 2, true);
-  for (let i = 0; i < s.length; i++) v.setInt16(44 + i * 2, s[i], true);
-  return b;
-}
-
-/* files [{name, data: Uint8Array}] -> a ZIP (stored, no compression) */
-function zipStore(files) {
-  const parts = [], dir = [];
-  let off = 0;
-  for (const f of files) {
-    const nm = new TextEncoder().encode(f.name), crc = crc32(f.data), h = new Uint8Array(30 + nm.length), v = new DataView(h.buffer);
-    v.setUint32(0, 0x04034B50, true); v.setUint16(4, 20, true); v.setUint32(14, crc, true);
-    v.setUint32(18, f.data.length, true); v.setUint32(22, f.data.length, true); v.setUint16(26, nm.length, true); h.set(nm, 30);
-    const c = new Uint8Array(46 + nm.length), w = new DataView(c.buffer);
-    w.setUint32(0, 0x02014B50, true); w.setUint16(4, 20, true); w.setUint16(6, 20, true); w.setUint32(16, crc, true);
-    w.setUint32(20, f.data.length, true); w.setUint32(24, f.data.length, true); w.setUint16(28, nm.length, true);
-    w.setUint32(42, off, true); c.set(nm, 46);
-    parts.push(h, f.data);
-    dir.push(c);
-    off += h.length + f.data.length;
-  }
-  const size = dir.reduce((a, c) => a + c.length, 0), end = new Uint8Array(22), e = new DataView(end.buffer);
-  e.setUint32(0, 0x06054B50, true); e.setUint16(8, files.length, true); e.setUint16(10, files.length, true);
-  e.setUint32(12, size, true); e.setUint32(16, off, true);
-  const out = new Uint8Array(off + size + 22);
-  let o = 0;
-  for (const p of [...parts, ...dir, end]) { out.set(p, o); o += p.length; }
+/* 16-bit mono PCM in a RIFF / WAVE container, at SMP.RATE */
+function wavFile(pcm) {
+  const bytes = pcm.length * 2, out = new Uint8Array(44 + bytes), dv = new DataView(out.buffer);
+  const tag = (at, text) => [...text].forEach((ch, k) => { out[at + k] = ch.charCodeAt(0); });
+  const u16 = (at, n) => dv.setUint16(at, n, true), u32 = (at, n) => dv.setUint32(at, n, true);
+  tag(0, "RIFF"); u32(4, 36 + bytes); tag(8, "WAVE");
+  tag(12, "fmt "); u32(16, 16); u16(20, 1); u16(22, 1); u32(24, SMP.RATE); u32(28, SMP.RATE * 2); u16(32, 2); u16(34, 16);
+  tag(36, "data"); u32(40, bytes);
+  pcm.forEach((v, k) => dv.setInt16(44 + 2 * k, v, true));
   return out;
 }
 
-/* -------------------------------------------------------------- librarian --- */
-/* A patch (library entry, user preset):
-     {name, engine (index), engineName, p: [P_COUNT values by parameter id, null = unknown],
-      pattern: 16 x [note 0..127 (0 rest), flags 1 accent | 2 slide | 4 tie] or null, tags: [], created, modified,
+/* entries [{name, data: Uint8Array}] -> one ZIP archive, every member stored as is (method 0) */
+function zipStore(entries) {
+  const chunks = [], central = [];
+  let pos = 0;
+  for (const { name, data } of entries) {
+    const fn = new TextEncoder().encode(name), sum = crc32(data), len = data.length;
+    const local = new Uint8Array(30 + fn.length), lv = new DataView(local.buffer);
+    lv.setUint32(0, 0x04034B50, true); lv.setUint16(4, 20, true);
+    lv.setUint32(14, sum, true); lv.setUint32(18, len, true); lv.setUint32(22, len, true);
+    lv.setUint16(26, fn.length, true); local.set(fn, 30);
+    const entry = new Uint8Array(46 + fn.length), cv = new DataView(entry.buffer);
+    cv.setUint32(0, 0x02014B50, true); cv.setUint16(4, 20, true); cv.setUint16(6, 20, true);
+    cv.setUint32(16, sum, true); cv.setUint32(20, len, true); cv.setUint32(24, len, true);
+    cv.setUint16(28, fn.length, true); cv.setUint32(42, pos, true); entry.set(fn, 46);
+    chunks.push(local, data);
+    central.push(entry);
+    pos += local.length + len;
+  }
+  const dirLen = central.reduce((n, e) => n + e.length, 0), tail = new Uint8Array(22), tv = new DataView(tail.buffer);
+  tv.setUint32(0, 0x06054B50, true); tv.setUint16(8, entries.length, true); tv.setUint16(10, entries.length, true);
+  tv.setUint32(12, dirLen, true); tv.setUint32(16, pos, true);
+  const zip = new Uint8Array(pos + dirLen + 22);
+  [...chunks, ...central, tail].reduce((at, part) => { zip.set(part, at); return at + part.length; }, 0);
+  return zip;
+}
+
+/* --------------------------------------------------------- the librarian --- */
+/* One patch, as the library, the device's user presets and the files keep it:
+     {name, engine (its index), engineName, p: [one value per parameter id, P_COUNT long; null where unknown],
+      pattern: 16 steps of [note 0..127 with 0 a rest, flags 1 accent | 2 slide | 4 tie], or null; tags: [], created, modified,
       dx7?: [155 seven-bit VCED bytes] (an FM6 voice imported from a DX7 .syx; also kept in JSON exports)}
 
-   Library / bank / single-patch file (JSON):
+   The JSON file for a whole library, a bank or one patch:
      {
-       "format": "felucca-library", "version": 1,
-       "kind": "library" | "bank" | "patch",
-       "firmware": "FELUCCA 0.5 ...",          device version string when exported ("" if unknown)
-       "pCount": 57, "pE0": 49,                 P_COUNT and the first engine parameter id
-       "paramLabels": ["LVL", "ATK", ...],      one key per parameter id: the DESC label, "#2", "#3" appended to
-                                                a repeated label (PIT, PIT#2), and "E0".."E7" for the engine
-                                                parameters (their labels depend on the engine)
-       "engines": ["ANALOG", ...],              engine names by index
-       "exported": "2026-10-03T12:00:00.000Z",
-       "patches": [{ "name", "engine", "engineName", "params": [pCount numbers or null],
-                     "pattern": [[note, flags] x 16] or null, "tags": [...], "created", "modified",
+       "format": "felucca-library", "version": 1,   both fixed
+       "kind": "library" | "bank" | "patch",    what the file holds
+       "firmware": "FELUCCA 0.5 ...",          the device's version string at export ("" when not known)
+       "pCount": 57, "pE0": 49,                 P_COUNT, and the id of the first engine parameter
+       "paramLabels": ["LVL", "ATK", ...],      a key for each parameter id: its DESC label, with "#2", "#3" added when
+                                                a label comes back (PIT, PIT#2); "E0".."E7" stand for the engine
+                                                parameters, whose labels change with the engine
+       "engines": ["ANALOG", ...],              the engine names, by index
+       "exported": "2026-10-03T12:00:00.000Z",  when the file was written (ISO 8601)
+       "patches": [{ "name", "engine", "engineName", "params": [pCount numbers, or null each],
+                     "pattern": 16 x [note, flags] or null, "tags": [...], "created", "modified",
                      "slot": n (bank files only, 0-based), "dx7": [155 numbers] (DX7 voices only) }]
      }
-   Reading maps every parameter by its key, so a firmware with other ids (or more parameters) still gets
-   the right values; parameters the file does not have are null (left at the engine default). Engines are
-   matched by name. The old single-sound file ("felucca-patch" version 1, "Save to file") is read too. */
-const LIB = { FORMAT: "felucca-library", VERSION: 1 };
+   A file is read key by key, never by position: a firmware that numbers its parameters otherwise (or has more of
+   them) still gets each value where it belongs, and a parameter missing from the file stays null (the engine's
+   default). Engines match by name. The older one-sound file ("felucca-patch" version 1, "Save to file") reads too. */
+const LIB = { VERSION: 1, FORMAT: "felucca-library" };
 
 /* DX7 voices for the FM6 engine (engine 10, eng_fm6.c / fm6_sysex.c).
    DX7 import: ported from Melodee (Kerem Kilic, github.com/keremimo/melodee), GPL-3.0-only.
@@ -3957,19 +3959,18 @@ function readDX7File(bytes, ctx = {}) {
    DROP (2026-10-14: ENV DEST PIT, the pitch drop, renamed) keeps the key PIT. ENV DEST's and ENV2 DEST's slots (after
    P_E7) take DST A#n ..: a file of before has none, its ENV DEST FLT SHP and ENV2 amounts go to their words, which the
    firmware reads as the depths of before (upreset.c up_vals_put) */
-function paramKeys(pdesc, pe0, pcount) {
-  const seen = {}, out = [];
-  for (let i = 0; i < pcount; i++) {
-    if (i >= pe0 && i < pe0 + 8) { out.push("E" + (i - pe0)); continue; }   /* (after them: SLOOP 2.4's FILT STRUM VLEAD) */
-    const l0 = (pdesc[i] && pdesc[i].label) || "P" + i, l = l0 === "DROP" ? "PIT" : l0;   /* (DROP: ENV DEST PIT before 2026-10-14) */
-    if (l === "DST A" && !seen[l])
-      for (const x of ["PIT", "FLT", "SHP"]) seen[x] = (seen[x] || 0) + 1;
-    seen[l] = (seen[l] || 0) + 1;
-    out.push(seen[l] > 1 ? `${l}#${seen[l]}` : l);
-  }
-  return out;
+function paramKeys(descs, pe0, pcount) {
+  const count = {};
+  return Array.from({ length: pcount }, (_, id) => {
+    if (id >= pe0 && id < pe0 + 8) return "E" + (id - pe0);   /* (after them: SLOOP 2.4's FILT STRUM VLEAD) */
+    const raw = (descs[id] && descs[id].label) || "P" + id, label = raw === "DROP" ? "PIT" : raw;   /* (DROP: ENV DEST PIT before 2026-10-14) */
+    if (label === "DST A" && !count[label])
+      for (const depth of ["PIT", "FLT", "SHP"]) count[depth] = (count[depth] || 0) + 1;
+    count[label] = (count[label] || 0) + 1;
+    return count[label] > 1 ? `${label}#${count[label]}` : label;
+  });
 }
-const sameKeys = (a, b) => !!a && !!b && a.length === b.length && a.every((k, i) => k === b[i]);
+const sameKeys = (a, b) => Boolean(a && b) && a.length === b.length && a.every((key, i) => key === b[i]);
 /* LFO DEST: the depths PIT FLT SHP AMP of before (a file from a firmware before 2026-10) -> its two slots [DEST A, AMT A,
    DEST B, AMT B], as the firmware reads them (params.c lfo_from_depths: the two of the most weight, AMP's at half, in
    the depths' order; AMT 2 x, AMP 1 x) */
@@ -3988,14 +3989,16 @@ const A2_AMT_KEYS = ["FLT#3", "PIT#3", "SHP#3", "OSC2", "ENV2"];
 /* values by fromKeys -> values by toKeys (null where the source has no such key). ANALOG 2's older keys: FATK FDEC
    (69 / 61) are ATK2 DEC2; FENV (69 / 61) is FLT's amount; AMT2 with DST2 (72 / 64) goes to that destination's
    amount, the others 0: the same sound (firmware core.h a2x_from_dst) */
-function remapParams(p, fromKeys, toKeys) {
-  if (!fromKeys || !toKeys || sameKeys(fromKeys, toKeys)) return p.slice();
-  const at = new Map(fromKeys.map((k, i) => [k, i]));
-  const out = toKeys.map((k) => (at.has(k) ? p[at.get(k)] ?? null : null));
+function remapParams(vals, fromKeys, toKeys) {
+  const same = !fromKeys || !toKeys || sameKeys(fromKeys, toKeys);
+  if (same) return vals.slice();
+  const at = new Map(fromKeys.map((key, idx) => [key, idx]));
+  const val = (k) => (at.has(k) ? vals[at.get(k)] ?? null : null);
+  const out = toKeys.map(val);
   const put = (k, v) => { const i = toKeys.indexOf(k); if (i >= 0 && !at.has(k)) out[i] = v; };
-  const val = (k) => (at.has(k) ? p[at.get(k)] ?? null : null);
-  if (toKeys.includes("DST A") && !at.has("DST A") && ["PIT#2", "FLT#2", "SHP#2", "AMP"].some((k) => at.has(k))) {
-    const s = lfoSlotsFromDepths(["PIT#2", "FLT#2", "SHP#2", "AMP"].map((k) => val(k) ?? 0));   /* (a file of before) */
+  const depths = ["PIT#2", "FLT#2", "SHP#2", "AMP"];
+  if (toKeys.includes("DST A") && !at.has("DST A") && depths.some((k) => at.has(k))) {
+    const s = lfoSlotsFromDepths(depths.map((k) => val(k) ?? 0));   /* (a file of before) */
     ["DST A", "AMT A", "DST B", "AMT B"].forEach((k, i) => put(k, s[i]));
   }
   if (toKeys.includes("OSC2") && !toKeys.includes("DST2")) {
@@ -4010,199 +4013,231 @@ function remapParams(p, fromKeys, toKeys) {
   return out;
 }
 
-/* one pattern step as the firmware keeps it (up_pat_norm): a tie has no note, a rest no flags */
-const patNorm = (n, f) => (f & 4 ? [0, 4] : [n & 0x7F, n ? f & 3 : 0]);
-/* sequencer steps (STEP_GET objects) -> 16-step pattern, as the firmware's UP_STORE does (up_pat_from):
-   the first note of a NOTE step, flag 4 for a TIE step */
-function patternFromSteps(steps) {
-  return Array.from({ length: UP.PAT }, (_, i) => {
-    const s = steps[i];
-    if (!s) return [0, 0];
-    return patNorm(s.time === 0 && s.n ? s.notes[0] : 0, s.time === 1 ? 4 : s.flags);
-  });
-}
-/* pattern -> 16 STEP_SET objects, as the firmware loads one (load_pat16; velocity 96) */
-function stepsFromPattern(pat) {
-  return Array.from({ length: UP.PAT }, (_, i) => {
-    const [n, f] = (pat && pat[i]) || [0, 0];
-    return { n: n ? 1 : 0, notes: [n & 0x7F, 0, 0, 0], time: f & 4 ? 1 : n ? 0 : 2, flags: n ? f & 3 : 0, vel: n ? 96 : 0 };
-  });
-}
-const patternUsed = (pat) => !!pat && pat.some((x) => x && x[0]);
-
-function cleanPatch(pt) {
-  const now = new Date().toISOString();
-  const pat = Array.isArray(pt.pattern) && pt.pattern.length
-    ? Array.from({ length: UP.PAT }, (_, i) => { const x = pt.pattern[i]; return Array.isArray(x) ? patNorm(x[0] | 0, x[1] | 0) : [0, 0]; })
-    : null;
-  const o = {
-    name: String(pt.name ?? "PATCH").slice(0, 32) || "PATCH",
-    engine: pt.engine | 0, engineName: String(pt.engineName ?? ""),
-    p: Array.from(pt.p || pt.params || [], (v) => (Number.isFinite(v) ? Math.round(v) : null)),
-    pattern: patternUsed(pat) ? pat : null,
-    tags: Array.isArray(pt.tags) ? [...new Set(pt.tags.map((x) => String(x).trim()).filter(Boolean))] : [],
-    created: pt.created || now, modified: pt.modified || pt.created || now,
-  };
-  if (Number.isInteger(pt.slot)) o.slot = pt.slot;
-  if (pt.dx7 != null) { o.dx7 = dx7Voice(pt.dx7); o.engineName = "FM6"; }
-  return o;
-}
-
-/* ctx: {keys, engines, firmware, pe0} of the library (the device's when connected) */
-function libraryFile(kind, patches, ctx) {
-  return {
-    format: LIB.FORMAT, version: LIB.VERSION, kind, firmware: ctx.firmware || "",
-    pCount: ctx.keys ? ctx.keys.length : 0, pE0: ctx.pe0 ?? null, paramLabels: ctx.keys || [], engines: ctx.engines || [],
-    exported: new Date().toISOString(),
-    patches: patches.map((x) => {
-      const c = cleanPatch(x);
-      const o = { name: c.name, engine: c.engine, engineName: c.engineName || (ctx.engines || [])[c.engine] || "",
-        params: c.p, pattern: c.pattern, tags: c.tags, created: c.created, modified: c.modified };
-      if (Number.isInteger(x.slot)) o.slot = x.slot;
-      if (c.dx7) o.dx7 = c.dx7;
-      return o;
-    }),
-  };
-}
-/* -> {patches, skipped, keys (the file's, for a library that has none yet)}; throws on a file it cannot read */
-function readLibraryFile(obj, ctx) {
-  if (!obj || typeof obj !== "object") throw new Error("not JSON");
-  const engIndex = (name, idx, fileEngines) => {
-    const nm = name || (fileEngines || [])[idx];
-    if (ctx.engines && ctx.engines.length) {
-      if (nm) return ctx.engines.indexOf(nm);
-      return idx < ctx.engines.length ? idx : -1;
-    }
-    return idx;
-  };
-  if (obj.format === "felucca-patch") {               /* "Save to file": the whole current sound */
-    if (!Array.isArray(obj.p) || !Number.isInteger(obj.engine)) throw new Error("felucca-patch without engine / p");
-    const e = engIndex(obj.engineName, obj.engine);
-    if (e < 0) return { patches: [], skipped: 1, keys: null };
-    return { patches: [cleanPatch({ name: obj.presetName || obj.engineName || "PATCH", engine: e, engineName: obj.engineName,
-      p: obj.p.slice(0, ctx.keys ? ctx.keys.length : obj.p.length), pattern: Array.isArray(obj.steps) ? patternFromSteps(obj.steps) : null, tags: ["file"] })],
-      skipped: 0, keys: null };
-  }
-  if (obj.format !== LIB.FORMAT) throw new Error("unknown format");
-  if (!(obj.version >= 1)) throw new Error("version");
-  if (!Array.isArray(obj.patches)) throw new Error("no patches");
-  const fileKeys = Array.isArray(obj.paramLabels) && obj.paramLabels.length ? obj.paramLabels.map(String) : null;
+/* a pattern step the way the firmware stores it (up_pat_norm): a tie carries no note, a rest no flags */
+const patNorm = (note, flags) => {
+  if (flags & 4) return [0, 4];
+  return [note & 0x7F, note ? flags & 3 : 0];
+};
+/* sequencer steps (STEP_GET replies) -> the 16-step pattern the firmware's UP_STORE keeps (up_pat_from): a NOTE
+   step gives its first note, a TIE step the flag 4 */
+function patternFromSteps(seq) {
   const out = [];
-  let skipped = 0;
-  for (const x of obj.patches) {
-    if (!x || !Array.isArray(x.params)) { skipped++; continue; }
-    const e = engIndex(x.dx7 != null ? "FM6" : x.engineName, x.engine | 0, obj.engines);
-    if (e < 0 && x.dx7 == null) { skipped++; continue; }   /* (a DX7 voice is kept: it needs no engine to be stored) */
-    const p = remapParams(x.params, fileKeys, ctx.keys);
-    out.push(cleanPatch({ ...x, engine: e, engineName: (ctx.engines || [])[e] || x.engineName || (obj.engines || [])[x.engine], p }));
+  for (let i = 0; i < UP.PAT; i++) {
+    const st = seq[i];
+    if (!st) { out.push([0, 0]); continue; }
+    const note = st.time === 0 && st.n ? st.notes[0] : 0;
+    out.push(patNorm(note, st.time === 1 ? 4 : st.flags));
   }
-  return { patches: out, skipped, keys: fileKeys };
+  return out;
+}
+/* a pattern -> the 16 STEP_SET objects the firmware would load from it (load_pat16, velocity 96) */
+function stepsFromPattern(pattern) {
+  const out = [];
+  for (let i = 0; i < UP.PAT; i++) {
+    const [note, fl] = (pattern && pattern[i]) || [0, 0];
+    const tie = (fl & 4) !== 0;
+    out.push({ n: note ? 1 : 0, notes: [note & 0x7F, 0, 0, 0], time: tie ? 1 : note ? 0 : 2, flags: note ? fl & 3 : 0, vel: note ? 96 : 0 });
+  }
+  return out;
+}
+const patternUsed = (pat) => Boolean(pat) && pat.some((st) => st && st[0]);
+
+/* any patch-like object -> a patch in the library's shape (cut to size, numbers rounded, tags unique) */
+function cleanPatch(src) {
+  const stamp = new Date().toISOString();
+  let steps16 = null;
+  if (Array.isArray(src.pattern) && src.pattern.length) {
+    steps16 = [];
+    for (let i = 0; i < UP.PAT; i++) { const st = src.pattern[i]; steps16.push(Array.isArray(st) ? patNorm(st[0] | 0, st[1] | 0) : [0, 0]); }
+  }
+  const name = String(src.name ?? "PATCH").slice(0, 32);
+  const values = Array.from(src.p || src.params || [], (v) => (Number.isFinite(v) ? Math.round(v) : null));
+  const tags = Array.isArray(src.tags) ? [...new Set(src.tags.map((t) => String(t).trim()).filter(Boolean))] : [];
+  const clean = {
+    name: name || "PATCH",
+    engine: src.engine | 0,
+    engineName: String(src.engineName ?? ""),
+    p: values,
+    pattern: patternUsed(steps16) ? steps16 : null,
+    tags,
+    created: src.created || stamp,
+    modified: src.modified || src.created || stamp,
+  };
+  if (Number.isInteger(src.slot)) clean.slot = src.slot;
+  if (src.dx7 != null) { clean.dx7 = dx7Voice(src.dx7); clean.engineName = "FM6"; }
+  return clean;
 }
 
-/* device side; rq(r, opt) -> reply args (Link.request), info from INFO */
-const FLASH_OPT = { timeout: 2500, retries: 0 };
+/* ctx: the library's {keys, engines, firmware, pe0} (the device's while one is connected) */
+function libraryFile(kind, list, ctx) {
+  const engines = ctx.engines || [], keys = ctx.keys;
+  const entry = (src) => {
+    const { name, engine, engineName, p, pattern, tags, created, modified, dx7 } = cleanPatch(src);
+    const row = { name, engine, engineName: engineName || engines[engine] || "", params: p, pattern, tags, created, modified };
+    if (Number.isInteger(src.slot)) row.slot = src.slot;
+    if (dx7) row.dx7 = dx7;
+    return row;
+  };
+  return {
+    format: LIB.FORMAT, version: LIB.VERSION,
+    kind, firmware: ctx.firmware || "",
+    pCount: keys ? keys.length : 0, pE0: ctx.pe0 ?? null, paramLabels: keys || [], engines,
+    exported: new Date().toISOString(), patches: list.map(entry),
+  };
+}
+/* -> {patches, skipped, keys (the file's own, for a library that has none yet)}; throws when it cannot read the file */
+function readLibraryFile(file, ctx) {
+  if (file === null || typeof file !== "object") throw new Error("not JSON");
+  const known = ctx.engines && ctx.engines.length ? ctx.engines : null;
+  /* an engine's index here: by name when the device lists its engines (-1 when it lacks that one), else as stored */
+  const engineAt = (name, idx, listed) => {
+    if (!known) return idx;
+    const nm = name || (listed || [])[idx];
+    if (nm) return known.indexOf(nm);
+    return idx < known.length ? idx : -1;
+  };
+  if (file.format === "felucca-patch") {               /* "Save to file": the whole sound as it was */
+    if (!Number.isInteger(file.engine) || !Array.isArray(file.p)) throw new Error("felucca-patch without engine / p");
+    const e = engineAt(file.engineName, file.engine);
+    if (e < 0) return { patches: [], skipped: 1, keys: null };   /* (an engine this device lacks) */
+    const one = cleanPatch({ name: file.presetName || file.engineName || "PATCH", engine: e, engineName: file.engineName,
+      p: file.p.slice(0, ctx.keys ? ctx.keys.length : file.p.length),
+      pattern: Array.isArray(file.steps) ? patternFromSteps(file.steps) : null, tags: ["file"] });
+    return { patches: [one], skipped: 0, keys: null };
+  }
+  const problem = file.format !== LIB.FORMAT ? "unknown format"
+    : !(file.version >= 1) ? "version"
+    : !Array.isArray(file.patches) ? "no patches" : "";
+  if (problem) throw new Error(problem);
+  const labels = file.paramLabels, fileKeys = Array.isArray(labels) && labels.length ? labels.map(String) : null;
+  const patches = [];
+  let skipped = 0;                                   /* entries that cannot be used */
+  for (const x of file.patches) {
+    if (!x || !Array.isArray(x.params)) { skipped += 1; continue; }
+    const dx7 = x.dx7 != null;
+    const e = engineAt(dx7 ? "FM6" : x.engineName, x.engine | 0, file.engines);
+    if (e < 0 && !dx7) { skipped += 1; continue; }   /* (a DX7 voice is kept: it needs no engine to be stored) */
+    const engineName = (ctx.engines || [])[e] || x.engineName || (file.engines || [])[x.engine];
+    patches.push(cleanPatch({ ...x, engine: e, engineName, p: remapParams(x.params, fileKeys, ctx.keys) }));
+  }
+  return { patches, skipped, keys: fileKeys };
+}
+
+/* the device's user bank; rq(r, opt) -> the reply's args (Link.request), info from INFO */
+const FLASH_OPT = { retries: 0, timeout: 2500 };
 const bank = {
-  async list(rq) {
-    const first = parse[CMD.UP_LIST](await rq(req.upList(0, UP.LIST_MAX)));
-    const slots = first.slots.slice();
-    while (slots.length < first.total) {
-      const r = parse[CMD.UP_LIST](await rq(req.upList(slots.length, Math.min(UP.LIST_MAX, first.total - slots.length))));
-      if (!r.count) break;
-      slots.push(...r.slots);
+  /* every slot, UP.LIST_MAX per request until the device's total is reached */
+  async list(request) {
+    const head = parse[CMD.UP_LIST](await request(req.upList(0, UP.LIST_MAX)));
+    const slots = [...head.slots];
+    for (let more = head.total - slots.length; more > 0; more = head.total - slots.length) {
+      const page = parse[CMD.UP_LIST](await request(req.upList(slots.length, Math.min(UP.LIST_MAX, more))));
+      if (!page.count) break;
+      slots.push(...page.slots);
     }
-    return { total: first.total, slots };
+    return { total: head.total, slots };
   },
-  async get(rq, info, slot) { return parse[CMD.UP_GET](await rq(req.upGet(slot)), info); },
-  /* -> rc (0 ok) */
-  async put(rq, slot, pt) {
+  async get(request, info, slot) {
+    const r = await request(req.upGet(slot));
+    return parse[CMD.UP_GET](r, info);
+  },
+  /* put / store / load / erase -> the device's rc (0 ok) */
+  async put(request, slot, pt) {
     if (pt.dx7) throw new Error("A DX7 voice cannot go to a user preset slot");
-    return parse[CMD.UP_PUT](await rq(req.upPut(slot, pt), FLASH_OPT)).rc;
+    const r = await request(req.upPut(slot, pt), FLASH_OPT);
+    return parse[CMD.UP_PUT](r).rc;
   },
-  async store(rq, slot, name) { return parse[CMD.UP_STORE](await rq(req.upStore(slot, name), FLASH_OPT)).rc; },
-  async load(rq, slot) { return parse[CMD.UP_LOAD](await rq(req.upLoad(slot), { timeout: 1000 })).rc; },
-  async erase(rq, slot) { return parse[CMD.UP_ERASE](await rq(req.upErase(slot), FLASH_OPT)).rc; },
+  async store(request, slot, name) { const r = await request(req.upStore(slot, name), FLASH_OPT); return parse[CMD.UP_STORE](r).rc; },
+  async load(request, slot) { const r = await request(req.upLoad(slot), { timeout: 1000 }); return parse[CMD.UP_LOAD](r).rc; },
+  async erase(request, slot) { const r = await request(req.upErase(slot), FLASH_OPT); return parse[CMD.UP_ERASE](r).rc; },
 };
 
-/* the current sound: DUMP + the first 16 steps */
-async function capturePatch(rq, info, name) {
-  const dump = parse[CMD.DUMP](await rq(req.dump()), info);
-  const steps = [];
-  for (let i = 0; i < UP.PAT && i < info.nstep; i++) steps.push(parse[CMD.STEP_GET](await rq(req.stepGet(i))));
-  return { patch: cleanPatch({ name, engine: dump.engine, engineName: info.engines[dump.engine], p: dump.p, pattern: patternFromSteps(steps) }), dump, steps };
+/* the sound as it plays now: its DUMP and its first 16 steps */
+async function capturePatch(rq, info, label) {
+  const reply = await rq(req.dump()), dump = parse[CMD.DUMP](reply, info);
+  const steps = [], count = Math.min(UP.PAT, info.nstep);
+  for (let i = 0; i < count; i++) steps.push(parse[CMD.STEP_GET](await rq(req.stepGet(i))));
+  const patch = cleanPatch({ name: label, engine: dump.engine, engineName: info.engines[dump.engine], p: dump.p, pattern: patternFromSteps(steps) });
+  return { patch, dump, steps };
 }
 
-/* what loading a sound leaves alone (firmware ui.c param_kept): the mix (LEVEL, PAN, MUTE), the pattern
-   parameters (LEN, DIV, SWG, GATE) and the key the part plays in (ROOT, SCL, QNT; CHORD from SLOOP 2.0) */
+/* what loading a sound does not touch (firmware ui.c param_kept): the track's mix (LEVEL, PAN, MUTE), its pattern
+   settings (LEN, DIV, SWG, GATE) and the key it plays in (ROOT, SCL, QNT; CHORD since SLOOP 2.0) */
 const keptIds = (info) => new Set([0, 25, 26, 27, 29, 30, 31, 32, 39, 40, ...(info.pe0 > 49 ? [49] : []),
   ...(info.pcount >= 78 ? [75, 76, 77] : []), ...(fxType(info, FXT.COMP) ? [fxType(info, FXT.COMP).amt] : [])]);   /* (SLOOP 2.4's FILT STRUM
    VLEAD: the track's; v10 the COMP insert's amount: not part of a sound either, firmware D8) */
-/* play a patch without writing flash, as UP_LOAD would load it: SET the engine (G_ENGSEL, engine defaults),
-   then every parameter of the sound that differs. Never the pattern (LIVE: a sound never changes the
+/* play a patch the way UP_LOAD would load it, without writing flash: first SET the engine (G_ENGSEL, which brings the
+   engine's defaults), then each parameter of the sound that differs. Never the pattern (LIVE: a sound never changes the
    sequence), the mix or the key. opt: {gEng: G_ENGSEL id, progress(i, n),
    sendDX7(message): a DX7 voice (pt.dx7) goes to the FM6 part after the engine is set} -> {wrote: false} */
-async function auditionPatch(rq, info, pt, opt = {}) {
+async function auditionPatch(rq, info, pt, options = {}) {
   const voice = pt.dx7 ? dx7Message(pt.dx7) : null;
   const engine = voice ? info.engines.indexOf("FM6") : pt.engine;
-  if (voice && (engine < 0 || !opt.sendDX7)) throw new Error("FM6 voice transfer unavailable");
+  if (voice && (engine < 0 || !options.sendDX7)) throw new Error("FM6 voice transfer unavailable");
   if (voice && parse[CMD.DUMP](await rq(req.dump()), info).engine >= info.nengines)
     throw new Error("Select a synth track to audition a DX7 voice");
-  await rq(req.set(1, opt.gEng ?? 20, engine));
-  const dump = parse[CMD.DUMP](await rq(req.dump()), info);
-  const n = Math.min(info.pcount, pt.p.length), kept = keptIds(info);
-  for (let i = 0; i < n; i++) {
-    const v = pt.p[i];
-    if (opt.progress) opt.progress(i, n);
-    if (v == null || kept.has(i) || v === dump.p[i]) continue;
-    await rq(req.set(0, i, v));
+  await rq(req.set(1, options.gEng ?? 20, engine));
+  const before = parse[CMD.DUMP](await rq(req.dump()), info);
+  const kept = keptIds(info), count = Math.min(info.pcount, pt.p.length);
+  for (let id = 0; id < count; id++) {
+    const want = pt.p[id];
+    if (options.progress) options.progress(id, count);
+    const skip = want == null || kept.has(id) || want === before.p[id];
+    if (!skip) await rq(req.set(0, id, want));
   }
-  if (voice) await opt.sendDX7(voice);
-  return { wrote: false };
+  if (voice) await options.sendDX7(voice);
+  return { wrote: false };   /* (nothing reached flash) */
 }
 
 /* WATCH on, asking for everything (TRACK_CHANGED, v9's pushes and stream): false when the firmware does not know it (older
    than protocol v2), else the bits it granted: 1, 3 with TRACK_PARAM / TRACK_CHANGED (v4), 15 with v9 (every track's
    changes pushed, the status stream: no polling). ask: the bits to ask for (7: no stream) */
 async function startWatch(rq, ask = WATCH.EDIT) {
-  try { const on = parse[CMD.WATCH](await rq(req.watch(ask), { timeout: 300, retries: 1, quiet: true })).on; return on & 1 ? on & (WATCH.ALL | WATCH.ENDS) : false; }
-  catch (e) { if (e.message === "closed") throw e; return false; }
+  let on;
+  try { on = parse[CMD.WATCH](await rq(req.watch(ask), { timeout: 300, retries: 1, quiet: true })).on; }
+  catch (err) { if (err.message === "closed") throw err; return false; }
+  return on & 1 ? on & (WATCH.ALL | WATCH.ENDS) : false;
 }
 /* what a WATCH reply means: {watch, v4, v9, stream} */
 const watchCaps = (on) => ({ watch: on || false, v4: !!(on & WATCH.V4), v9: !!(on & WATCH.V9), stream: !!(on & WATCH.STREAM),
   ends: !!(on & WATCH.ENDS) });
 
-/* ------------------------------------------------------------ mixer (v3) --- */
-/* The TRACKS page in the editor: TRACK (engine, preset, level, mute of all four) and TRACK_DUMP
-   of each track for its P_PAN. Level and mute go through TRACK_MIX (any track; the drum level is
-   G_DRLVL). Pan: TRACK_PARAM (v4, any track); with v3 firmware a plain SET, which reaches only the
-   selected track: another track is selected for it and the selection is put back (TRACK pushes no
-   RELOAD). ids: {pan: P_PAN id} */
+/* ----------------------------------------------------------- the mixer (v3) --- */
+/* The editor's TRACKS page: TRACK (engine, preset, level and mute of all four tracks) and each track's TRACK_DUMP for
+   its P_PAN. Level and mute go out as TRACK_MIX (any track; the drums' level is G_DRLVL). Pan: TRACK_PARAM (v4, any
+   track); on v3 firmware a plain SET, which only reaches the selected track, so the other track is selected for it
+   and the selection then put back (TRACK pushes no RELOAD). ids: {pan: P_PAN id} */
 const mixer = {
-  async read(rq, info, ids) {
-    const tr = parse[CMD.TRACK](await rq(req.track()));
-    for (let i = 0; i < tr.ntrk; i++) {
-      const d = parse[CMD.TRACK_DUMP](await rq(req.trackDump(i)), info);
-      tr.tracks[i].pan = ids.pan == null ? null : d.p[ids.pan];
-      tr.tracks[i].e0 = d.p[info.pe0];               /* the drum track: its kit */
-      tr.tracks[i].fx = ids.fx ? ids.fx.map((id) => (id == null ? null : d.p[id])) : null;   /* the FX page's four (v10: the slots' amounts) */
-      tr.tracks[i].p = d.p;                          /* (every value: the drum strip's BUS, a slot loaded later) */
-      tr.tracks[i].fxoff = ids.fxoff == null ? null : d.p[ids.fxoff] ? 1 : 0;
+  async read(request, info, ids) {
+    const all = parse[CMD.TRACK](await request(req.track()));
+    for (let t = 0; t < all.ntrk; t++) {
+      const d = parse[CMD.TRACK_DUMP](await request(req.trackDump(t)), info), row = all.tracks[t];
+      row.pan = ids.pan == null ? null : d.p[ids.pan];
+      row.e0 = d.p[info.pe0];                        /* the drum track: its kit */
+      row.fx = ids.fx ? ids.fx.map((id) => (id == null ? null : d.p[id])) : null;   /* the FX page's four (v10: the slots' amounts) */
+      row.p = d.p;                                   /* (every value: the drum strip's BUS, a slot loaded later) */
+      row.fxoff = ids.fxoff == null ? null : d.p[ids.fxoff] ? 1 : 0;
     }
-    return tr;
+    return all;
   },
   /* -> parameter id of any track after clamping (a send, FX bypass): v4 TRACK_PARAM; v3 the select / restore of setPan */
-  async setParam(rq, track, sel, id, v, v4, key) {
-    if (v4) return parse[CMD.TRACK_PARAM](await rq(req.trackParam(track, id, v), { key })).value;
-    return mixer.setPan(rq, track, sel, id, v, false);
+  async setParam(request, track, sel, id, value, v4, key) {
+    if (v4) return parse[CMD.TRACK_PARAM](await request(req.trackParam(track, id, value), { key })).value;
+    return mixer.setPan(request, track, sel, id, value, false);
   },
-  /* -> {track, level, mute} as the device has them now */
-  async setMix(rq, track, level, mute, opt) { return parse[CMD.TRACK_MIX](await rq(req.trackMix(track, level, mute), opt)); },
-  /* -> the pan value after clamping. v4: TRACK_PARAM, the selection stays */
-  async setPan(rq, track, sel, panId, v, v4) {
-    if (v4) return parse[CMD.TRACK_PARAM](await rq(req.trackParam(track, panId, v), { key: "pan:" + track })).value;
-    if (track === sel) return parse[CMD.SET](await rq(req.set(0, panId, v))).value;
-    await rq(req.track(track));
-    try { return parse[CMD.SET](await rq(req.set(0, panId, v))).value; }
-    finally { await rq(req.track(sel)).catch(() => {}); }
+  /* -> {track, level, mute}, as the device now has them */
+  async setMix(request, track, level, mute, opt) {
+    const r = await request(req.trackMix(track, level, mute), opt);
+    return parse[CMD.TRACK_MIX](r);
+  },
+  /* -> the pan after clamping. v4: TRACK_PARAM, and the selection stays */
+  async setPan(request, track, sel, panId, value, v4) {
+    if (v4) return parse[CMD.TRACK_PARAM](await request(req.trackParam(track, panId, value), { key: "pan:" + track })).value;
+    const setIt = async () => parse[CMD.SET](await request(req.set(0, panId, value))).value;
+    if (track === sel) return setIt();
+    await request(req.track(track));
+    try { return await setIt(); }
+    finally { await request(req.track(sel)).catch(() => {}); }
   },
 };
 
@@ -4789,17 +4824,17 @@ function syncState(syncName, clkName) {
   const st = ext ? "ok" : syncName === "USB" || syncName === "TRS" ? "warn" : "";
   return { text, st };
 }
-/* ------------------------------------------------------------ mock device --- */
+/* ------------------------------------------------------- the mock device --- */
 /* Implements the protocol like firmware/src/io/editor/editor.c, with tables copied from params.c
    and the engine sources. Used with ?mock=1 (add &legacy=1 for a firmware without cmds 16..26; &rev=15: the reverb's
    algorithms built, INFO tag 52's mask).
-   opt: {legacy: no user bank / WATCH, v3: no TRACK_PARAM / TRACK_CHANGED (firmware 0.8),
+   opt: {legacy: neither the user bank nor WATCH, v3: without TRACK_PARAM / TRACK_CHANGED (firmware 0.8),
          auto: false = no simulated knobs (tests drive sim.*),
          watchMs: how long WATCH lasts after the last request (3000), slots: user bank size (32),
          sync: false = firmware without INFO tag 53 (RELOAD after the editor's own PRESET / G_ENGSEL too)} */
 /* params.c N_LT: an LFO slot's DEST (core.h LT_*; XRATE XAMT with LFO 2) */
 const LT_NAMES = ["OFF", "PIT", "FLT", "SHP", "AMP", "RES", "PAN", "LVL", "ATK", "DEC", "E1", "E2", "E3", "E4", "E5", "E6", "E7", "E8", "CHO", "DLY", "REV", "INS1", "INS2", "L1 RT", "L1 AMT", "SUS", "REL", "ATK2", "DEC2", "SUS2", "REL2", "E1 AMT", "E2 AMT", "OSC2", "SDTN", "L2 RT", "L2 AMT", "FLT B", "E1 FLT", "E1 PIT", "E1 SHP", "E1 X", "E1 Y", "E1 Z", "N2 DSA", "N2 AMA", "N2 DSB", "N2 AMB", "L1 WAV", "L1 PHS", "L1 FAD", "L1 DSA", "L1 AMA", "L1 DSB", "L1 AMB", "L2 WAV", "L2 TRG", "L2 POL", "L2 DSA", "L2 AMA", "L2 DSB", "L2 AMB", "DY RAT", "DY ATK", "DY REL", "DY GN", "DY CL", "GATER", "GT PAT", "GT RT", "GT SHP", "JUNO", "JU MOD", "FILT", "SLICE", "SL PAT", "SL RT", "SL DEP", "ROOT", "SCALE", "QUANT", "CHORD", "TRANS", "STRUM", "VLEAD", "O2 WAV", "O2 SEM", "SYNC", "SWARM", "DRIFT", "FTYP", "FB TYP", "FB RES", "VOICE", "GLIDE", "GL MOD", "PRIO", "ALLOC", "DETUNE", "VOICES", "DROP", "ARP", "AR RT", "AR OCT", "AR GT", "AR SWG", "AR PRB", "AR HLD", "AR ORD", "LEN", "DIV", "SWING", "GATE", "MUTE", "FX OFF"];   /* firmware params.c N_LT */
-function makeMockDevice(opt = {}) {
+function makeMockDevice(opt = {}) {                /* (opt: see above) */
   /* the v13 commands a firmware may leave out (the builder's ED_* items): opt.fxp / opt.scrn switch their groups on (the old way: FXP + DLAN, the other six), and
      opt.dlan, opt.scrn, opt.songc, opt.tools, opt.scrs, opt.fav, opt.scope = false switch one off, so the editor is tested with any subset;
      opt.toolParts / opt.genTypes: what TOOLS says is built (bit 0 the tools, bit 1 the generators, bit 2 EUCLID's ops; 7 by default) and
@@ -4807,23 +4842,23 @@ function makeMockDevice(opt = {}) {
   const has = (k, grp) => (opt[k] === undefined ? !!opt[grp] : !!opt[k]);
   const m13 = { fxp: has("fxp", "fxp"), dlan: has("dlan", "fxp"), scrn: has("scrn", "scrn"), songc: has("songc", "scrn"), tools: has("tools", "scrn"), scrs: has("scrs", "scrn"), fav: has("fav", "scrn"), scope: has("scope", "scrn"), usb: has("usb", "fxp"), accent: has("accent", "fxp") };
   const NONOFF = ["OFF", "ON"], NDUR = LSYNC_NAMES /* (params.c N_DUR: every note value, 03b676ad) */, NGO = ["--", "GO"], NDASH = ["--"];
-  const D = (label, fmt, min, max, def, names = null, unit = "") => ({ label, fmt, min, max, def, names, unit });
-  const E = (label, names, def) => D(label, F.ENUM, 0, names.length - 1, def, names);
-  const TP = [
-    D("LVL", F.DB, 0, 127, 104),
-    D("ATK", F.TIME, 0, 127, 10), D("DEC", F.TIME, 0, 127, 70), D("SUS", F.PCT, 0, 127, 90), D("REL", F.TIME, 0, 127, 60),
-    D("FLT", F.BIPCT, -64, 63, 0), D("PIT", F.BIPCT, -64, 63, 0), D("SHP", F.BIPCT, -64, 63, 0), D("TRIM", F.INT, -64, 63, 0),
-    D("RATE", F.LFOHZ, -22, 127, 60), E("WAVE", ["SIN", "TRI", "SAW", "SQR", "S&H"], 0), D("PHS", F.INT, 0, 127, 0), D("FADE", F.TIME, 0, 127, 0),
-    E("DST A", LT_NAMES, 0), D("AMT A", F.BIPCT, -128, 127, 0), E("DST B", LT_NAMES, 0), D("AMT B", F.BIPCT, -128, 127, 0),
+  const D = (...a) => { const [label, fmt, min, max, def, names = null, unit = ""] = a; return { label, fmt, min, max, def, names, unit }; };
+  const E = (label, names, def) => { const top = names.length - 1; return D(label, F.ENUM, 0, top, def, names); };
+  /* the track parameters by id (params.c), one page of four per line where the pages are */
+  const TP = [D("LVL", F.DB, 0, 127, 104),
+    /* 1 ENV */ D("ATK", F.TIME, 0, 127, 10), D("DEC", F.TIME, 0, 127, 70), D("SUS", F.PCT, 0, 127, 90), D("REL", F.TIME, 0, 127, 60),
+    /* 5 ENV DEST */ D("FLT", F.BIPCT, -64, 63, 0), D("PIT", F.BIPCT, -64, 63, 0), D("SHP", F.BIPCT, -64, 63, 0), D("TRIM", F.INT, -64, 63, 0),
+    /* 9 LFO */ D("RATE", F.LFOHZ, -22, 127, 60), E("WAVE", ["SIN", "TRI", "SAW", "SQR", "S&H"], 0), D("PHS", F.INT, 0, 127, 0), D("FADE", F.TIME, 0, 127, 0),
+    /* 13 LFO DEST */ E("DST A", LT_NAMES, 0), D("AMT A", F.BIPCT, -128, 127, 0), E("DST B", LT_NAMES, 0), D("AMT B", F.BIPCT, -128, 127, 0),
     E("MODE", ["OFF", "UP", "DN", "UPDN", "RND", "ORD", "BASS"], 0), E("RATE", NDUR, 16), D("OCT", F.INT, 1, 4, 1), D("GATE", F.GATE, 1, 127, 32),
-    D("SWG", F.SWING, 0, 100, 0), D("PROB", F.PCT, 0, 127, 127), E("HOLD", NONOFF, 0), E("ORD", ["NOTE", "PLAY"], 0),
+    /* 21 ARP 2 */ D("SWG", F.SWING, 0, 100, 0), D("PROB", F.PCT, 0, 127, 127), E("HOLD", NONOFF, 0), E("ORD", ["NOTE", "PLAY"], 0),
     D("ROOT", F.NOTE, 0, 11, 0), E("SCL", ["CHR", "MAJ", "MIN", "DOR", "MIX", "PEN", "MPEN", "HARM", "PHRY", "LYD", "LOC", "MEL", "BLUES", "WHOLE", "DIMHW", "DIMWH"], 0), E("QNT", ["OFF", "SNAP", "WHITE", "ALL"], 0), D("TRN", F.SEMI, -24, 24, 0),
     D("LEN", F.STEPS, 1, 64, 16), E("DIV", NDUR, 16), D("SWG", F.SWING, 0, 100, 0), D("GATE", F.PCT, 1, 127, 64),
-    D("DST", F.PCT, 0, 127, 0), D("CHO", F.PCT, 0, 127, 0), D("DLY", F.PCT, 0, 127, 0), D("REV", F.PCT, 0, 127, 0),
-    E("VCE", ["POLY", "MONO", "LEG", "UNI"], 0), D("GLD", F.TIME, 0, 127, 0), D("PAN", F.BIPCT, -64, 63, 0), E("MUTE", NONOFF, 0),
-    E("GLMOD", ["RATE", "TIME"], 0), E("PRIO", ["LAST", "LOW", "HIGH"], 0), E("ALLOC", ["ROT", "REUSE"], 0), D("DTUNE", F.INT, 0, 127, 40),
+    /* 33 FX sends */ D("DST", F.PCT, 0, 127, 0), D("CHO", F.PCT, 0, 127, 0), D("DLY", F.PCT, 0, 127, 0), D("REV", F.PCT, 0, 127, 0),
+    /* 37 VOICE */ E("VCE", ["POLY", "MONO", "LEG", "UNI"], 0), D("GLD", F.TIME, 0, 127, 0), D("PAN", F.BIPCT, -64, 63, 0), E("MUTE", NONOFF, 0),
+    /* 41 */ E("GLMOD", ["RATE", "TIME"], 0), E("PRIO", ["LAST", "LOW", "HIGH"], 0), E("ALLOC", ["ROT", "REUSE"], 0), D("DTUNE", F.INT, 0, 127, 40),
     E("SLCR", ["OFF", "GATE", "STUT"], 0), D("PAT", F.INT, 1, 16, 1), E("RATE", NDUR, 16), D("DEPTH", F.PCT, 0, 127, 127),
-    E("CHORD", ["OFF", "TRIAD", "7TH", "9TH", "SUS4", "POWER"], 0),
+    /* 49 P_CHORD */ E("CHORD", ["OFF", "TRIAD", "7TH", "9TH", "SUS4", "POWER"], 0),
     E("FX", ["ON", "OFF"], 0),                    /* P_FXOFF: the FX bypass (SLOOP 2.3) */
     /* ANALOG 2 (FELUCCA_ANALOG2): OSC 2, SWARM, FLT 2, ENV 2 (ENV2, ENV2 DEST), shown on an ANALOG track */
     E("WAVE2", ["=1", "SAW", "SQR", "TRI", "SIN", "PWM"], 0), D("SEMI", F.SEMI, -24, 24, 0), E("SYNC", NONOFF, 0),
@@ -4833,24 +4868,23 @@ function makeMockDevice(opt = {}) {
     /* ENV2 DEST: its amounts (FLT above: the cutoff); ENV2: the swarm's spread (the SWARM page) */
     D("PIT", F.BIPCT, -64, 63, 0), D("SHP", F.BIPCT, -64, 63, 0), D("OSC2", F.BIPCT, -64, 63, 0), D("ENV2", F.BIPCT, -64, 63, 0),
   ];
-  const GP = [
-    D("BPM", F.BPM, 40, 240, 90), D("SWING", F.SWING, 0, 100, 0), E("CLICK", ["OFF", "REC", "ON"], 0), D("TUNE", F.INT, -50, 50, 0),
+  /* the global parameters by id (scope 1), likewise */
+  const GP = [/* 0 GLOBAL */ D("BPM", F.BPM, 40, 240, 90), D("SWING", F.SWING, 0, 100, 0), E("CLICK", ["OFF", "REC", "ON"], 0), D("TUNE", F.INT, -50, 50, 0),
     E("TIME", NDUR, 13), D("FDBK", F.PCT, 0, 120, 60), D("FREQ", F.CUTOFF, 0, 127, 107), D("MIX", F.PCT, 0, 127, 90),
-    D("SIZE", F.PCT, 0, 127, 90), D("DAMP", F.PCT, 0, 127, 60), D("CRT", F.LFOHZ, 0, 127, 40), D("CDP", F.PCT, 0, 127, 60),
+    /* 8 REV/CHO */ D("SIZE", F.PCT, 0, 127, 90), D("DAMP", F.PCT, 0, 127, 60), D("CRT", F.LFOHZ, 0, 127, 40), D("CDP", F.PCT, 0, 127, 60),
     E("CLK", ["INT", "USB", "TRS", "BLE"], 0), E("SYNC", ["INT", "USB", "TRS", "AUTO", "BLE"], 3), E("VIEW", ["PAGE", "ALL"], 1), D("CPU", F.INT, 0, 0, 0),
-    D("SLOT", F.INT, 1, 4, 1), E("NAME", NDASH, 0), E("LOAD", NGO, 0), E("SAVE", NGO, 0),
-    E("ENG", ["ANALOG", "DIGITAL", "PHASE", "LOFI", "SAMPLE", "VOICE", "TRIO", "WHEEL",
-      "GRAIN", "FM6"], 0), E("SET", NGO, 0),
-    E("CLRSQ", NGO, 0), E("INIT", NGO, 0),
-    D("CH", F.INT, 0, 16, 10), D("LVL", F.INT, 0, 127, 100), D("REV", F.INT, 0, 127, 16),
-    D("DUST", F.PCT, 0, 127, 0), D("DUCK", F.PCT, 0, 127, 0), D("FILT", F.FILT, -64, 63, 0),
+    /* 16 PROJECT */ D("SLOT", F.INT, 1, 4, 1), E("NAME", NDASH, 0), E("LOAD", NGO, 0), E("SAVE", NGO, 0),
+    /* 20 G_ENGSEL */ E("ENG", ["ANALOG", "DIGITAL", "PHASE", "LOFI", "SAMPLE", "VOICE", "TRIO", "WHEEL", "GRAIN", "FM6"], 0), E("SET", NGO, 0),
+    /* 22 TOOLS */ E("CLRSQ", NGO, 0), E("INIT", NGO, 0),
+    /* 24 DRUMS */ D("CH", F.INT, 0, 16, 10), D("LVL", F.INT, 0, 127, 100), D("REV", F.INT, 0, 127, 16),
+    /* 27 MASTER */ D("DUST", F.PCT, 0, 127, 0), D("DUCK", F.PCT, 0, 127, 0), D("FILT", F.FILT, -64, 63, 0),
     E("ROLL", NDUR, 16), E("NEW", NGO, 0),
     /* COMP, LIMIT (G_CTHR..G_CCEIL) */
     D("THRS", F.INT, -30, 0, 0, null, "dB"), E("RATIO", ["1.5:1", "2:1", "3:1", "4:1", "6:1", "8:1", "20:1", "INF"], 1),
     E("ATK", ["0.1ms", "0.3ms", "1ms", "3ms", "10ms", "30ms"], 4), E("REL", ["50ms", "100ms", "200ms", "300ms", "600ms", "1.2s", "AUTO"], 6),
     D("GAIN", F.INT, 0, 15, 0, null, "dB"), E("CEIL", ["OFF", "-0.1", "-0.3", "-0.5", "-1.0", "-2.0", "-3.0", "-6.0"], 6),
   ];
-  /* the drum track's P_E0: its kit (drums.c DRUM_KIT_NAMES; 5 = 808, the power-on kit) */
+  /* P_E0 of the drum track holds its kit (drums.c DRUM_KIT_NAMES; 5 is the 808, the kit at power-on) */
   const KIT = E("KIT", DRUM_KIT_NAMES, 0);
   /* params.c PAGES (this mock: ANALOG 2 with ENV2 DEST, P_E0 67): [title, family, scope (9: the drum track's SOUND pages,
      SC_DSND = 8), ids, ANALOG only] */
@@ -4870,12 +4904,11 @@ function makeMockDevice(opt = {}) {
   /* a source's kind as ed_dsrc.c gives it: KIT, USR, the sampled kits 0..4, the X0X kits (not built: + 8), synthesised */
   const mockKind = (src) => src === 0 ? SRC_KIND.KIT : src < DL.KIT0 ? SRC_KIND.USR : srcKit(src) < 5 ? SRC_KIND.SAMPLED
     : srcKit(src) >= 37 && srcKit(src) < XKIT ? SRC_KIND.X0X + 8 : SRC_KIND.SYNTH;   /* (37..46: the X0X kits and their styles, not built here) */
-  /* a GM note -> its drum lane (drums.c LANE_OF_GM: 35..81) */
   /* a GM note -> the mock's lane (drums.c lane_of_note with a fresh project's 10 lanes; -1: no lane near it) */
   const LANE_OF_GM = [0, 0, 7, 1, 2, 1, 5, 3, 5, 3, 5, 4, 5, 6, 8, 6, 9, 8, 9, -1, 8, -1, 8, -1, 9, -1, -1, -1, -1, -1, -1, -1, -1,
     -1, -1, -1, -1, -1, -1, -1, -1, 7, 7, -1, -1, -1, -1];
   const laneOf = (n) => (n < 35 ? 0 : n > 81 ? -1 : LANE_OF_GM[n - 35]);
-  const v5 = !opt.legacy && !opt.v3;              /* SLOOP 2.0: steps with level / ratchet, DRUM_STEP, TRACK solo */
+  const v5 = !(opt.legacy || opt.v3);             /* SLOOP 2.0 and later: steps with a level and a ratchet, DRUM_STEP, the TRACK solo */
   const v9 = v5 && opt.v9 !== false && opt.status !== false;   /* protocol v9 (opt.v9 false: a v8 firmware) */
   const sync = v5 && opt.sync !== false;          /* INFO tag 53 01 3: no RELOAD after the editor's own sound load */
   /* opt.rev: the reverb's algorithms built (INFO tag 52: bit 0 ROOM, 1 SPRING, 2 PLATE, 3 FDN8, 4 VTINY; rev_type.c); two or
@@ -4886,92 +4919,164 @@ function makeMockDevice(opt = {}) {
   const MIDI_DESC = [E("TRK 1", CH_NAMES, 1), E("TRK 2", CH_NAMES, 2), E("TRK 3", CH_NAMES, 3), E("DRUMS", CH_NAMES, 10),
     E("OUT", ["KEYS", "BOTH", "SEQ"], 0), E("IN", ["NOTES", "CLOCK"], 0)];
   const REV_DESC = revBuilt.length >= 2 ? D("TYPE", F.ENUM, 0, revBuilt.length - 1, 0, revBuilt) : null;
-  /* the drum step as an old (v1..v4) step: its first 4 lanes as GM notes, ACC when one is hard (editor.c ed_dstep_old) */
-  const dOld = (d) => {
-    const notes = [];
-    let hard = 0;
-    for (let l = 0; l < DRUM_LANES.length && notes.length < 4; l++) if ((d.on >> l) & 1) { notes.push(DRUM_LANES[l][0]); hard |= d.lvl[l] === 3; }
-    const n = notes.length;
-    return { n, notes: [...notes, 0, 0, 0, 0].slice(0, 4), time: n ? 0 : 2, flags: hard ? 1 : 0, vel: n ? 100 : 0, lvl: 0, rat: 0 };
+  /* a drum step read as an old (v1..v4) step: the first four lanes that play, as GM notes, ACC when one of them is hard
+     (editor.c ed_dstep_old) */
+  const dOld = (hit) => {
+    const gm = [];
+    let accent = false;
+    for (let l = 0; l < DRUM_LANES.length && gm.length < 4; l++) {
+      if (!((hit.on >> l) & 1)) continue;
+      gm.push(DRUM_LANES[l][0]);
+      if (hit.lvl[l] === 3) accent = true;
+    }
+    const n = gm.length;
+    while (gm.length < 4) gm.push(0);
+    return { n, notes: gm, time: n ? 0 : 2, flags: accent ? 1 : 0, vel: n ? 100 : 0, lvl: 0, rat: 0 };
   };
-  /* an old step written into the drum track: its notes onto their lanes (ed_dstep_from_old) */
-  const dFromOld = (d, n, notes, time, flags) => {
-    Object.assign(d, emptyDrum());
-    if (time !== 0) return;
-    for (let i = 0; i < Math.min(4, n); i++) { const l = laneOf(notes[i] & 0x7F); if (l >= 0) { d.on |= 1 << l; d.lvl[l] = flags & 1 ? 3 : 0; } }
+  /* an old-style step written to the drum track: each of its notes onto its lane (ed_dstep_from_old) */
+  const dFromOld = (hit, n, notes, time, flags) => {
+    for (const [k, v] of Object.entries(emptyDrum())) hit[k] = v;
+    if (time !== 0) return;                       /* a tie or a rest: no hit */
+    const level = flags & 1 ? 3 : 0;
+    for (let k = 0, m = Math.min(4, n); k < m; k++) {
+      const l = laneOf(notes[k] & 0x7F);
+      if (l < 0) continue;
+      hit.on |= 1 << l;
+      hit.lvl[l] = level;
+    }
   };
-  /* a step's bytes as STEP_GET sends them (v5: + lvl, hi, rat) */
-  const stepOut = (b, x) => {
-    b(x.n); x.notes.forEach(b); b(x.time); b(x.flags); b(x.vel);
-    if (v5) { b(x.lvl | 0); b((((x.lvl | 0) >> 7) & 1) | ((((x.rat | 0) >> 7) & 1) << 1)); b(x.rat | 0); }
+  /* a step's bytes in a STEP_GET reply (v5 adds lvl, hi, rat) */
+  const stepOut = (put, x) => {
+    for (const v of [x.n, ...x.notes, x.time, x.flags, x.vel]) put(v);
+    if (!v5) return;
+    const lvl = x.lvl | 0, rat = x.rat | 0;
+    put(lvl); put(((lvl >> 7) & 1) | (((rat >> 7) & 1) << 1)); put(rat);
   };
-  /* a step written (n, 4 notes, time, flags, vel [, lvl, hi, rat]) */
-  const stepIn = (x, a) => {
-    x.n = Math.min(4, a[0]); x.notes = a.slice(1, 5); x.time = Math.min(2, a[5]); x.flags = a[6] & 3; x.vel = a[7];
-    x.lvl = a.length >= 11 ? (a[8] & 0x7F) | ((a[9] & 1) << 7) : 0;
-    x.rat = a.length >= 11 ? (a[10] & 0x7F) | (((a[9] >> 1) & 1) << 7) : 0;
+  /* a STEP_SET's step (n, 4 notes, time, flags, vel [, lvl, hi, rat]) into x */
+  const stepIn = (x, args) => {
+    const wide = args.length >= 11, hi = args[9];
+    Object.assign(x, { n: Math.min(4, args[0]), notes: args.slice(1, 5), time: Math.min(2, args[5]), flags: args[6] & 3, vel: args[7],
+      lvl: wide ? (args[8] & 0x7F) | ((hi & 1) << 7) : 0, rat: wide ? (args[10] & 0x7F) | (((hi >> 1) & 1) << 7) : 0 });
   };
-  const NONE = D("-", F.INT, 0, 0, 0);
-  const RATIO = [".5", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "14", "16"];
-  const P = (name, e, env = [10, 70, 90, 60], mono = 0, pat = 0) => ({ name, e, env, mono, pat });
+  const NONE = D("-", F.INT, 0, 0, 0);             /* an EDIT slot the engine leaves unused */
+  const RATIO = [".5", ...Array.from({ length: 12 }, (_, i) => String(i + 1)), "14", "16"];
+  const P = (name, e, env, mono = 0, pat = 0) => ({ name, e, env: env === undefined ? [10, 70, 90, 60] : env, mono, pat });
   const slotTag = (c, i) => c + String(i + 1).padStart(2, "0");
-  const ENG = [
-    { name: "ANALOG", titles: ["OSC", "FLT"], edit: [E("WAVE", ["SAW", "SQR", "TRI", "SIN", "PWM"], 0), D("DTN", F.INT, 0, 127, 10, null, "ct"), D("MIX", F.PCT, 0, 127, 64),
-        D("NOIS", F.PCT, 0, 127, 0), D("CUT", F.CUTOFF, 0, 127, 90), D("RES", F.PCT, 0, 127, 30), D("DRV", F.PCT, 0, 127, 0), D("KTR", F.PCT, 0, 127, 64)],
-      presets: [P("808 BOOM", [3, 0, 0, 0, 127, 0, 48, 0], [0, 112, 0, 52], 1), P("808 DIRTY", [3, 0, 0, 0, 96, 12, 118, 30], [0, 108, 0, 46], 1),
-        P("SUB BASS", [3, 0, 0, 0, 127, 0, 10, 0], [0, 60, 118, 24], 1), P("REESE", [0, 22, 64, 0, 56, 22, 36, 40], [0, 70, 118, 28], 1),
-        P("WOBBLE", [0, 9, 64, 0, 38, 72, 62, 30], [0, 64, 127, 22], 1, 1), P("FUNK BASS", [1, 6, 50, 0, 50, 30, 22, 64], [0, 55, 62, 20], 1),
-        P("G-FUNK LD", [2, 0, 0, 0, 92, 0, 10, 64], [6, 70, 112, 46], 1), P("TRAP PLUCK", [0, 8, 64, 0, 30, 35, 0, 64], [0, 58, 0, 45], 0),
-        P("SYN BRASS", [0, 10, 64, 0, 45, 20, 16, 64], [12, 70, 96, 35], 0), P("WARM PAD", [4, 12, 64, 6, 52, 8, 0, 32], [75, 90, 115, 90], 0),
-        P("DARK STR", [0, 18, 64, 0, 48, 6, 0, 32], [60, 90, 118, 85], 0), P("ATMOS PAD", [4, 25, 64, 20, 60, 15, 0, 32], [90, 100, 120, 100], 0),
+  const SAMPLE_SETS = ["PIANO", "BASS", "VIBES", "HORNS", "STRGS", "FLUTE", "SCRCH", "PERC", "USR1", "USR2", "USR3"];
+  /* the engines by index: name, the two page titles, EDIT 1..8 (two pages of four), the factory presets
+     P(name, EDIT values, [ATK DEC SUS REL], mono, pattern) */
+  const ENG = [                                     /* by engine index */
+    { name: "ANALOG", titles: ["OSC", "FLT"],
+      edit: [E("WAVE", ["SAW", "SQR", "TRI", "SIN", "PWM"], 0), D("DTN", F.INT, 0, 127, 10, null, "ct"), D("MIX", F.PCT, 0, 127, 64), D("NOIS", F.PCT, 0, 127, 0),
+        D("CUT", F.CUTOFF, 0, 127, 90), D("RES", F.PCT, 0, 127, 30), D("DRV", F.PCT, 0, 127, 0), D("KTR", F.PCT, 0, 127, 64)],
+      presets: [
+        P("808 BOOM", [3, 0, 0, 0, 127, 0, 48, 0], [0, 112, 0, 52], 1),
+        P("808 DIRTY", [3, 0, 0, 0, 96, 12, 118, 30], [0, 108, 0, 46], 1),
+        P("SUB BASS", [3, 0, 0, 0, 127, 0, 10, 0], [0, 60, 118, 24], 1),
+        P("REESE", [0, 22, 64, 0, 56, 22, 36, 40], [0, 70, 118, 28], 1),
+        P("WOBBLE", [0, 9, 64, 0, 38, 72, 62, 30], [0, 64, 127, 22], 1, 1),
+        P("FUNK BASS", [1, 6, 50, 0, 50, 30, 22, 64], [0, 55, 62, 20], 1),
+        P("G-FUNK LD", [2, 0, 0, 0, 92, 0, 10, 64], [6, 70, 112, 46], 1),
+        P("TRAP PLUCK", [0, 8, 64, 0, 30, 35, 0, 64], [0, 58, 0, 45], 0),
+        P("SYN BRASS", [0, 10, 64, 0, 45, 20, 16, 64], [12, 70, 96, 35], 0),
+        P("WARM PAD", [4, 12, 64, 6, 52, 8, 0, 32], [75, 90, 115, 90], 0),
+        P("DARK STR", [0, 18, 64, 0, 48, 6, 0, 32], [60, 90, 118, 85], 0),
+        P("ATMOS PAD", [4, 25, 64, 20, 60, 15, 0, 32], [90, 100, 120, 100], 0),
         /* SUPER's presets, ANALOG 2's swarm (the mock leaves out their SWARM / SDTN / DRFT values) */
-        P("SUPER LEAD", [0, 0, 0, 0, 100, 18, 0, 64], [2, 80, 110, 50], 1), P("SUPER PAD", [0, 0, 0, 0, 64, 12, 0, 64], [90, 90, 118, 100], 0),
-        P("SUPER CHRD", [0, 0, 0, 0, 70, 22, 0, 64], [0, 72, 70, 40], 0), P("SUPER PLCK", [0, 0, 0, 0, 60, 30, 0, 64], [0, 82, 24, 50], 0),
-        P("HOOVER SAW", [0, 0, 38, 0, 92, 20, 0, 64], [6, 70, 110, 40], 1), P("SYNC SWEEP", [0, 0, 127, 0, 104, 10, 20, 64], [2, 70, 96, 30], 1),
-        P("LP24 BASS", [0, 6, 50, 0, 34, 70, 30, 64], [0, 70, 100, 20], 1), P("FIFTH LEAD", [0, 6, 54, 0, 84, 24, 16, 64], [4, 70, 104, 36], 1)] },
-    { name: "DIGITAL", titles: ["OPS", "MOD"], edit: [E("ALG", ["1", "2", "3", "4", "5", "6", "7", "8"], 0), E("R2", RATIO, 1), E("R3", RATIO, 1), E("R4", RATIO, 1),
-        D("IDX", F.PCT, 0, 127, 60), D("MDEC", F.TIME, 0, 127, 60), D("FB", F.PCT, 0, 127, 0), NONE],
-      presets: [P("RHODES", [4, 1, 1, 14, 26, 35, 0, 0], [0, 85, 35, 55], 0), P("DX RHODES", [4, 1, 1, 14, 85, 45, 0, 0], [0, 82, 40, 55], 0),
-        P("WURLI", [4, 1, 2, 3, 62, 35, 8, 0], [0, 75, 30, 45], 0), P("CLAV", [3, 1, 3, 5, 90, 25, 20, 0], [0, 50, 20, 18], 0),
-        P("TRAP BELL", [4, 8, 1, 4, 80, 70, 0, 0], [0, 92, 0, 70], 0), P("MUSIC BOX", [4, 4, 3, 9, 45, 75, 0, 0], [0, 90, 0, 75], 0),
-        P("MARIMBA", [4, 4, 1, 1, 60, 30, 0, 0], [0, 80, 0, 60], 0), P("FM BASS", [0, 1, 1, 1, 34, 40, 8, 0], [0, 60, 70, 25], 1)] },
-    { name: "PHASE", titles: ["PHS", "LINE"], edit: [E("WAVE", ["SAW", "SQR", "PLS", "DSIN", "SPLS", "RSAW", "RTRI", "RTRP"], 0),
-        E("WAVE2", ["--", "SAW", "SQR", "PLS", "DSIN", "SPLS", "RSAW", "RTRI", "RTRP"], 0), D("DCW", F.PCT, 0, 127, 60), D("ENV", F.PCT, 0, 127, 64),
+        P("SUPER LEAD", [0, 0, 0, 0, 100, 18, 0, 64], [2, 80, 110, 50], 1),
+        P("SUPER PAD", [0, 0, 0, 0, 64, 12, 0, 64], [90, 90, 118, 100], 0),
+        P("SUPER CHRD", [0, 0, 0, 0, 70, 22, 0, 64], [0, 72, 70, 40], 0),
+        P("SUPER PLCK", [0, 0, 0, 0, 60, 30, 0, 64], [0, 82, 24, 50], 0),
+        P("HOOVER SAW", [0, 0, 38, 0, 92, 20, 0, 64], [6, 70, 110, 40], 1),
+        P("SYNC SWEEP", [0, 0, 127, 0, 104, 10, 20, 64], [2, 70, 96, 30], 1),
+        P("LP24 BASS", [0, 6, 50, 0, 34, 70, 30, 64], [0, 70, 100, 20], 1),
+        P("FIFTH LEAD", [0, 6, 54, 0, 84, 24, 16, 64], [4, 70, 104, 36], 1),
+      ] },
+    { name: "DIGITAL", titles: ["OPS", "MOD"],
+      edit: [E("ALG", ["1", "2", "3", "4", "5", "6", "7", "8"], 0), E("R2", RATIO, 1), E("R3", RATIO, 1), E("R4", RATIO, 1),
+        /* EDIT 2 */ D("IDX", F.PCT, 0, 127, 60), D("MDEC", F.TIME, 0, 127, 60), D("FB", F.PCT, 0, 127, 0), NONE],
+      presets: [
+        P("RHODES", [4, 1, 1, 14, 26, 35, 0, 0], [0, 85, 35, 55], 0),
+        P("DX RHODES", [4, 1, 1, 14, 85, 45, 0, 0], [0, 82, 40, 55], 0),
+        P("WURLI", [4, 1, 2, 3, 62, 35, 8, 0], [0, 75, 30, 45], 0),
+        P("CLAV", [3, 1, 3, 5, 90, 25, 20, 0], [0, 50, 20, 18], 0),
+        P("TRAP BELL", [4, 8, 1, 4, 80, 70, 0, 0], [0, 92, 0, 70], 0),
+        P("MUSIC BOX", [4, 4, 3, 9, 45, 75, 0, 0], [0, 90, 0, 75], 0),
+        P("MARIMBA", [4, 4, 1, 1, 60, 30, 0, 0], [0, 80, 0, 60], 0),
+        P("FM BASS", [0, 1, 1, 1, 34, 40, 8, 0], [0, 60, 70, 25], 1),
+      ] },
+    { name: "PHASE", titles: ["PHS", "LINE"],
+      edit: [E("WAVE", ["SAW", "SQR", "PLS", "DSIN", "SPLS", "RSAW", "RTRI", "RTRP"], 0), E("WAVE2", ["--", "SAW", "SQR", "PLS", "DSIN", "SPLS", "RSAW", "RTRI", "RTRP"], 0),
+        D("DCW", F.PCT, 0, 127, 60), D("ENV", F.PCT, 0, 127, 64),
         D("DTN", F.INT, 0, 127, 0, null, "ct"), E("LINE", ["MIX", "RING"], 0), D("SUB", F.PCT, 0, 127, 0), D("FOLD", F.PCT, 0, 127, 0)],
-      presets: [P("CZ BASS", [5, 0, 28, 70, 0, 0, 40, 0], [0, 60, 50, 22], 1), P("SOFT KEYS", [3, 0, 40, 70, 0, 0, 0, 0], [0, 80, 20, 50], 0),
-        P("CZ STRING", [0, 4, 50, 40, 12, 0, 0, 0], [50, 90, 105, 75], 0), P("RESO PLUCK", [5, 0, 60, 60, 0, 0, 0, 0], [0, 70, 30, 60], 0, 1),
-        P("CZ BRASS", [0, 0, 30, 90, 0, 0, 0, 0], [8, 70, 90, 40], 0)] },
-    { name: "LOFI", titles: ["CHIP", "MOTN"], edit: [E("CHIP", ["4BIT", "4B/2", "8BIT", "1BIT", "STEP"], 0), E("WAVE", ["PLS", "TRI", "SAW", "NOIS", "WRAM"], 0), D("DUTY", F.INT, 0, 127, 64),
-        D("CRSH", F.PCT, 0, 127, 0), D("SWP", F.PCT, 0, 127, 0), D("VIB", F.PCT, 0, 127, 0), E("ARP", ["OFF", "OCT", "MAJ", "MIN"], 0), D("TONE", F.PCT, 0, 127, 127)],
-      presets: [P("GAME LEAD", [0, 0, 32, 0, 0, 20, 0, 127], [0, 60, 90, 30], 1), P("GB BASS", [1, 1, 0, 0, 0, 0, 0, 90], [0, 50, 70, 20], 1),
-        P("8BIT ARP", [2, 0, 96, 0, 0, 0, 2, 110], [0, 60, 80, 40], 0)] },
-    { name: "SAMPLE", titles: ["SET", "TONE"], edit: [E("SET", ["PIANO", "BASS", "VIBES", "HORNS", "STRGS", "FLUTE", "SCRCH", "PERC", "USR1", "USR2", "USR3"], 0), D("TUNE", F.SEMI, -24, 24, 0), D("BITS", F.INT, 0, 127, 0),
-        E("LOOP", NONOFF, 1), D("CUT", F.INT, 0, 127, 127), NONE, D("DRV", F.PCT, 0, 127, 0), NONE],
-      presets: [P("DUSTY PNO", [0, 0, 20, 1, 104, 0, 14, 0], [0, 127, 127, 52], 0), P("UP BASS", [1, 0, 0, 1, 118, 0, 12, 0], [0, 127, 127, 26], 1),
-        P("VIBES", [2, 0, 0, 1, 127, 0, 0, 0], [0, 127, 127, 72], 0), P("HORN STAB", [3, 0, 0, 1, 120, 0, 20, 0], [0, 127, 127, 22], 0),
-        P("STRING STB", [4, 0, 0, 1, 122, 0, 10, 0], [0, 127, 127, 26], 0), P("LOFI FLUTE", [5, 0, 12, 1, 100, 0, 0, 0], [12, 80, 120, 60], 1),
-        P("SCRATCH", [6, 0, 0, 1, 127, 0, 8, 0], [0, 127, 127, 18], 0), P("GM KIT", [7, 0, 0, 0, 127, 0, 0, 0], [0, 127, 127, 60], 0),
-        P("LOFI KEYS", [0, 0, 45, 1, 78, 0, 30, 0], [0, 127, 110, 60], 0), P("DEEP BASS", [1, -12, 0, 1, 90, 0, 40, 0], [0, 127, 127, 30], 1)] },
-    { name: "VOICE", titles: ["VOWL", "TONE"], edit: [D("VOWL", F.INT, 0, 127, 0), D("VOWL2", F.INT, 0, 127, 64), D("TALK", F.TIME, 0, 127, 0),
-        D("SHIFT", F.SEMI, -12, 12, 0), D("BUZZ", F.PCT, 0, 127, 64), D("BRTH", F.PCT, 0, 127, 10), D("Q", F.PCT, 0, 127, 64), D("RAND", F.PCT, 0, 127, 0)],
-      presets: [P("CHOIR AAH", [0, 0, 0, 0, 40, 22, 60, 0], [85, 90, 115, 95], 0), P("SOUL OOH", [110, 0, 0, 0, 30, 30, 55, 0], [70, 90, 115, 90], 0),
-        P("TALKBOX", [32, 95, 60, 0, 100, 4, 75, 0], [4, 70, 110, 40], 1), P("WOW BASS", [95, 0, 68, 0, 100, 0, 80, 0], [0, 70, 70, 30], 1)] },
-    { name: "TRIO", titles: ["OSC", "TONE"], edit: [E("WAVE", ["SAW3", "PLS3", "PPT", "SST", "TRI3", "S&T", "P&S", "P+N", "NOIS", "SYNC", "SYNCP", "SYNC3",
-        "RING", "RING3", "R+S", "R+SP"], 0), D("INT2", F.SEMI, -24, 24, 0), D("INT3", F.SEMI, -24, 24, -12), D("DTN", F.INT, 0, 50, 6, null, "ct"),
-        E("MODE", ["LP", "BP", "HP", "NOT"], 0), D("CUT", F.CUTOFF, 0, 127, 80), D("RES", F.PCT, 0, 127, 40), D("PW", F.PCT, 0, 127, 64)],
-      presets: [P("FAT BASS", [0, 0, -12, 9, 0, 62, 45, 64], [0, 62, 60, 25], 1), P("MIN STAB", [0, 3, 7, 6, 0, 80, 20, 64], [0, 50, 0, 30], 0),
-        P("MIN7 STAB", [3, 3, 10, 5, 0, 75, 15, 64], [0, 60, 20, 40], 0), P("SYNC LEAD", [9, 9, 0, 0, 0, 82, 30, 64], [2, 70, 100, 40], 1),
-        P("HOOVER", [0, 0, -12, 40, 0, 70, 20, 64], [10, 70, 110, 40], 1)] },
-    { name: "WHEEL", titles: ["BARS", "TONE"], edit: [E("REG", ["FLUTE", "MELLO", "HOLLW", "SMOOT", "3BAR", "BLUES", "GOSPL", "ROCK",
-        "TOPS", "CLARI", "REED", "STRNG", "CHAPL", "BRITE", "BASS", "FULL"], 4), D("SUB", F.INT, -8, 8, 0), D("BODY", F.INT, -8, 8, 0), D("TOP", F.INT, -8, 8, 0),
-        E("PERC", ["OFF", "2ND", "3RD", "2SOFT", "3SOFT", "2SLOW", "3SLOW"], 0), D("CLICK", F.PCT, 0, 127, 40), D("DRV", F.PCT, 0, 127, 0), E("ROTR", ["OFF", "SLOW", "FAST"], 1)],
-      presets: [P("SOUL ORGAN", [3, 0, 0, 0, 0, 25, 10, 1], [0, 64, 127, 40], 0), P("GOSPEL", [6, 0, 0, 0, 1, 60, 40, 2], [0, 64, 127, 45], 0),
-        P("JAZZ ORGAN", [4, 0, 0, 0, 2, 50, 8, 1], [0, 64, 127, 40], 0), P("DIRTY B3", [5, 0, 0, 0, 0, 60, 90, 2], [0, 64, 127, 40], 0)] },
-    { name: "GRAIN", titles: ["GRAN", "SPRY"], edit: [E("SRC", ["PIANO", "BASS", "VIBES", "HORNS", "STRGS", "FLUTE", "SCRCH", "PERC", "USR1", "USR2", "USR3"], 0),
-        D("POS", F.PCT, 0, 127, 32), D("SIZE", F.PCT, 0, 127, 80), D("DENS", F.PCT, 0, 127, 80),
-        D("PTCH", F.SEMI, -24, 24, 0), D("SPRD", F.PCT, 0, 127, 30), D("RAND", F.PCT, 0, 127, 10), D("TONE", F.PCT, 0, 127, 127)],
-      presets: [P("LOFI CLOUD", [0, 45, 95, 85, 0, 35, 12, 80], [70, 90, 120, 90], 0), P("VIBE HAZE", [2, 30, 100, 90, 0, 25, 10, 90], [50, 100, 120, 95], 0),
-        P("FLUTE DUST", [5, 50, 108, 72, 0, 10, 10, 85], [50, 100, 127, 100], 0)] },
+      presets: [
+        P("CZ BASS", [5, 0, 28, 70, 0, 0, 40, 0], [0, 60, 50, 22], 1),
+        P("SOFT KEYS", [3, 0, 40, 70, 0, 0, 0, 0], [0, 80, 20, 50], 0),
+        P("CZ STRING", [0, 4, 50, 40, 12, 0, 0, 0], [50, 90, 105, 75], 0),
+        P("RESO PLUCK", [5, 0, 60, 60, 0, 0, 0, 0], [0, 70, 30, 60], 0, 1),
+        P("CZ BRASS", [0, 0, 30, 90, 0, 0, 0, 0], [8, 70, 90, 40], 0),
+      ] },
+    { name: "LOFI", titles: ["CHIP", "MOTN"],
+      edit: [E("CHIP", ["4BIT", "4B/2", "8BIT", "1BIT", "STEP"], 0), E("WAVE", ["PLS", "TRI", "SAW", "NOIS", "WRAM"], 0), D("DUTY", F.INT, 0, 127, 64), D("CRSH", F.PCT, 0, 127, 0),
+        D("SWP", F.PCT, 0, 127, 0), D("VIB", F.PCT, 0, 127, 0), E("ARP", ["OFF", "OCT", "MAJ", "MIN"], 0), D("TONE", F.PCT, 0, 127, 127)],
+      presets: [
+        P("GAME LEAD", [0, 0, 32, 0, 0, 20, 0, 127], [0, 60, 90, 30], 1),
+        P("GB BASS", [1, 1, 0, 0, 0, 0, 0, 90], [0, 50, 70, 20], 1),
+        P("8BIT ARP", [2, 0, 96, 0, 0, 0, 2, 110], [0, 60, 80, 40], 0),
+      ] },
+    { name: "SAMPLE", titles: ["SET", "TONE"],
+      edit: [E("SET", [...SAMPLE_SETS], 0), D("TUNE", F.SEMI, -24, 24, 0), D("BITS", F.INT, 0, 127, 0), E("LOOP", NONOFF, 1),
+        D("CUT", F.INT, 0, 127, 127), NONE, D("DRV", F.PCT, 0, 127, 0), NONE],
+      presets: [
+        P("DUSTY PNO", [0, 0, 20, 1, 104, 0, 14, 0], [0, 127, 127, 52], 0),
+        P("UP BASS", [1, 0, 0, 1, 118, 0, 12, 0], [0, 127, 127, 26], 1),
+        P("VIBES", [2, 0, 0, 1, 127, 0, 0, 0], [0, 127, 127, 72], 0),
+        P("HORN STAB", [3, 0, 0, 1, 120, 0, 20, 0], [0, 127, 127, 22], 0),
+        P("STRING STB", [4, 0, 0, 1, 122, 0, 10, 0], [0, 127, 127, 26], 0),
+        P("LOFI FLUTE", [5, 0, 12, 1, 100, 0, 0, 0], [12, 80, 120, 60], 1),
+        P("SCRATCH", [6, 0, 0, 1, 127, 0, 8, 0], [0, 127, 127, 18], 0),
+        P("GM KIT", [7, 0, 0, 0, 127, 0, 0, 0], [0, 127, 127, 60], 0),
+        P("LOFI KEYS", [0, 0, 45, 1, 78, 0, 30, 0], [0, 127, 110, 60], 0),
+        P("DEEP BASS", [1, -12, 0, 1, 90, 0, 40, 0], [0, 127, 127, 30], 1),
+      ] },
+    { name: "VOICE", titles: ["VOWL", "TONE"],
+      edit: [D("VOWL", F.INT, 0, 127, 0), D("VOWL2", F.INT, 0, 127, 64), D("TALK", F.TIME, 0, 127, 0), D("SHIFT", F.SEMI, -12, 12, 0),
+        D("BUZZ", F.PCT, 0, 127, 64), D("BRTH", F.PCT, 0, 127, 10), D("Q", F.PCT, 0, 127, 64), D("RAND", F.PCT, 0, 127, 0)],
+      presets: [
+        P("CHOIR AAH", [0, 0, 0, 0, 40, 22, 60, 0], [85, 90, 115, 95], 0),
+        P("SOUL OOH", [110, 0, 0, 0, 30, 30, 55, 0], [70, 90, 115, 90], 0),
+        P("TALKBOX", [32, 95, 60, 0, 100, 4, 75, 0], [4, 70, 110, 40], 1),
+        P("WOW BASS", [95, 0, 68, 0, 100, 0, 80, 0], [0, 70, 70, 30], 1),
+      ] },
+    { name: "TRIO", titles: ["OSC", "TONE"],
+      edit: [E("WAVE", ["SAW3", "PLS3", "PPT", "SST", "TRI3", "S&T", "P&S", "P+N", "NOIS", "SYNC", "SYNCP", "SYNC3", "RING", "RING3", "R+S", "R+SP"], 0),
+        D("INT2", F.SEMI, -24, 24, 0), D("INT3", F.SEMI, -24, 24, -12), D("DTN", F.INT, 0, 50, 6, null, "ct"),
+        /* EDIT 2 */ E("MODE", ["LP", "BP", "HP", "NOT"], 0), D("CUT", F.CUTOFF, 0, 127, 80), D("RES", F.PCT, 0, 127, 40), D("PW", F.PCT, 0, 127, 64)],
+      presets: [
+        P("FAT BASS", [0, 0, -12, 9, 0, 62, 45, 64], [0, 62, 60, 25], 1),
+        P("MIN STAB", [0, 3, 7, 6, 0, 80, 20, 64], [0, 50, 0, 30], 0),
+        P("MIN7 STAB", [3, 3, 10, 5, 0, 75, 15, 64], [0, 60, 20, 40], 0),
+        P("SYNC LEAD", [9, 9, 0, 0, 0, 82, 30, 64], [2, 70, 100, 40], 1),
+        P("HOOVER", [0, 0, -12, 40, 0, 70, 20, 64], [10, 70, 110, 40], 1),
+      ] },
+    { name: "WHEEL", titles: ["BARS", "TONE"],
+      edit: [E("REG", ["FLUTE", "MELLO", "HOLLW", "SMOOT", "3BAR", "BLUES", "GOSPL", "ROCK", "TOPS", "CLARI", "REED", "STRNG", "CHAPL", "BRITE", "BASS", "FULL"], 4),
+        D("SUB", F.INT, -8, 8, 0), D("BODY", F.INT, -8, 8, 0), D("TOP", F.INT, -8, 8, 0),
+        /* EDIT 2 */ E("PERC", ["OFF", "2ND", "3RD", "2SOFT", "3SOFT", "2SLOW", "3SLOW"], 0), D("CLICK", F.PCT, 0, 127, 40), D("DRV", F.PCT, 0, 127, 0), E("ROTR", ["OFF", "SLOW", "FAST"], 1)],
+      presets: [
+        P("SOUL ORGAN", [3, 0, 0, 0, 0, 25, 10, 1], [0, 64, 127, 40], 0),
+        P("GOSPEL", [6, 0, 0, 0, 1, 60, 40, 2], [0, 64, 127, 45], 0),
+        P("JAZZ ORGAN", [4, 0, 0, 0, 2, 50, 8, 1], [0, 64, 127, 40], 0),
+        P("DIRTY B3", [5, 0, 0, 0, 0, 60, 90, 2], [0, 64, 127, 40], 0),
+      ] },
+    { name: "GRAIN", titles: ["GRAN", "SPRY"],
+      edit: [E("SRC", [...SAMPLE_SETS], 0), D("POS", F.PCT, 0, 127, 32), D("SIZE", F.PCT, 0, 127, 80), D("DENS", F.PCT, 0, 127, 80),
+        /* EDIT 2 */ D("PTCH", F.SEMI, -24, 24, 0), D("SPRD", F.PCT, 0, 127, 30), D("RAND", F.PCT, 0, 127, 10), D("TONE", F.PCT, 0, 127, 127)],
+      presets: [
+        P("LOFI CLOUD", [0, 45, 95, 85, 0, 35, 12, 80], [70, 90, 120, 90], 0),
+        P("VIBE HAZE", [2, 30, 100, 90, 0, 25, 10, 90], [50, 100, 120, 95], 0),
+        P("FLUTE DUST", [5, 50, 108, 72, 0, 10, 10, 85], [50, 100, 127, 100], 0),
+      ] },
     /* FM6 (eng_fm6.c ENG_FM6): VOICE = INIT VOICE (a build with voice packs adds theirs; the mock has none), EDIT 2..5 "-",
        6..8 the filter after the part (LPF 0 open, RES, HPF 0 off; the FILT page); its DX7 SysEx in: yamaha() below. Presets:
        INIT VOICE / INIT WIDE / INIT MONO, ADSR open (the mock keeps no FX sends) */
@@ -4980,41 +5085,55 @@ function makeMockDevice(opt = {}) {
       presets: [P("INIT VOICE", [0, 0, 0, 0, 0, 0, 0, 0], [0, 127, 127, 127], 0), P("INIT WIDE", [0, 0, 0, 0, 0, 0, 0, 0], [0, 127, 127, 127], 0),
         P("INIT MONO", [0, 0, 0, 0, 0, 0, 0, 0], [0, 127, 127, 127], 1)] },
   ];
-  /* demo patterns of the mock only (the LIVE firmware has no factory patterns: a preset never writes the
-     sequencer); used to seed the mock's user presets and track 1 as if they had been recorded */
-  const T_ = 4;
-  const PATTERNS = [
-    [[45, 45, 57, 45, 0, 48, 45, 55, 45, 0, 57, 52, 45, 48, 0, 50], [1, 0, 2, 0, 0, 0, 1, 2, 0, 0, 1, 0, 0, 2, 0, 1]],
-    [[0, 36, 0, 36, 0, 36, 0, 48, 0, 36, 0, 36, 0, 39, 0, 43], [0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0]],
-    [[60, 0, 67, 0, 72, 67, 0, 64, 62, 0, 69, 0, 74, 69, 0, 67], [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0]],
-    [[72, 0, 0, 74, 0, 0, 76, 0, 79, 0, 76, 0, 74, 0, 0, 0], [1, T_, 0, 2, T_, 0, 0, 0, 1, 0, 2, 0, 0, T_, T_, 0]],
-    [[60, 0, 0, 0, 0, 0, 0, 0, 57, 0, 0, 0, 55, 0, 0, 0], [0, T_, T_, T_, T_, T_, T_, 0, 0, T_, T_, 0, 0, T_, T_, 0]],
-    [[0, 0, 60, 0, 0, 63, 0, 0, 0, 0, 60, 0, 0, 65, 0, 63], [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0]],
-    [[72, 0, 0, 79, 0, 0, 84, 0, 0, 0, 76, 0, 0, 0, 0, 0], [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0]],
-    [[36, 0, 0, 0, 0, 0, 0, 36, 0, 0, 34, 0, 0, 0, 0, 0], [1, T_, T_, T_, 0, 0, 0, 0, 0, 0, 0, T_, T_, T_, 0, 0]],
-    [[60, 61, 62, 67, 64, 65, 60, 69, 68, 70, 62, 67, 72, 72, 74, 64], [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0]],
-    [[60, 60, 61, 61, 62, 0, 63, 63, 64, 65, 65, 0, 66, 66, 66, 67], [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0]],
-    [[60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75], [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0]],
+  /* demo patterns that only the mock has (a LIVE firmware ships none: loading a preset never writes the sequencer); they
+     seed the mock's user presets and track 1 as though someone had recorded them. Each: [16 notes (0 a rest), 16 flags
+     (1 accent, 2 slide, T_ a tie)] */
+  const T_ = 4, PATTERNS = [
+    [[45, 45, 57, 45, 0, 48, 45, 55, 45, 0, 57, 52, 45, 48, 0, 50],
+      [1, 0, 2, 0, 0, 0, 1, 2, 0, 0, 1, 0, 0, 2, 0, 1]],
+    [[0, 36, 0, 36, 0, 36, 0, 48, 0, 36, 0, 36, 0, 39, 0, 43],
+      [0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0]],
+    [[60, 0, 67, 0, 72, 67, 0, 64, 62, 0, 69, 0, 74, 69, 0, 67],
+      [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0]],
+    [[72, 0, 0, 74, 0, 0, 76, 0, 79, 0, 76, 0, 74, 0, 0, 0],
+      [1, T_, 0, 2, T_, 0, 0, 0, 1, 0, 2, 0, 0, T_, T_, 0]],
+    [[60, 0, 0, 0, 0, 0, 0, 0, 57, 0, 0, 0, 55, 0, 0, 0],
+      [0, T_, T_, T_, T_, T_, T_, 0, 0, T_, T_, 0, 0, T_, T_, 0]],
+    [[0, 0, 60, 0, 0, 63, 0, 0, 0, 0, 60, 0, 0, 65, 0, 63],
+      [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0]],
+    [[72, 0, 0, 79, 0, 0, 84, 0, 0, 0, 76, 0, 0, 0, 0, 0],
+      [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0]],
+    [[36, 0, 0, 0, 0, 0, 0, 36, 0, 0, 34, 0, 0, 0, 0, 0],
+      [1, T_, T_, T_, 0, 0, 0, 0, 0, 0, 0, T_, T_, T_, 0, 0]],
+    [[60, 61, 62, 67, 64, 65, 60, 69, 68, 70, 62, 67, 72, 72, 74, 64],
+      [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0]],
+    [[60, 60, 61, 61, 62, 0, 63, 63, 64, 65, 65, 0, 66, 66, 66, 67],
+      [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0]],
+    [[60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75],
+      [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0]],
   ];
   /* opt.fxs: a v10 firmware with the FX slots (INFO tag 0x56, FX 86): the COMP insert's amount P_TCOMP (75, "CMP") after P_E7 */
   const P_COUNT = opt.fxs ? 76 : 75, G_COUNT = 38, NSTEP = 64, P_E0 = 67, G_ENGSEL = 20, P_SLCR = 45, P_CHORD = 49, P_FXOFF = 50, P_TCOMP = 75;
   const CMPD = D("CMP", F.PCT, 0, 127, 0);
   /* the types built (fx_slots.c): id, kind (1 an insert), the amount's P_* id, SOUND 3's value id */
   const FX_TYPES = [[FXT.DIST, 1, 33, 19], [FXT.CHO, 0, 34, 18], [FXT.DLY, 0, 35, 17], [FXT.REV, 0, 36, 16], [FXT.COMP, 1, P_TCOMP, 20]];
-  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-  /* four tracks (firmware v3); engine / preset / p / step below are the selected track's */
-  const NTRK = 4, TRK_DRUM = 3;
-  const newTrack = (i) => ({ engine: 0, preset: 0, drum: i === TRK_DRUM,
-    p: TP.map((d) => d.def).concat(i === TRK_DRUM ? [5, 0, 0, 0, 0, 0, 0, 0] : new Array(8).fill(0), opt.fxs ? [0] : []),
-    step: Array.from({ length: NSTEP }, () => ({ n: 0, notes: [0, 0, 0, 0], time: 2, flags: 0, vel: 0, lvl: 0, rat: 0 })),
-    dstep: i === TRK_DRUM ? Array.from({ length: NSTEP }, emptyDrum) : null });
-  const st = {
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  /* the four tracks (firmware v3); engine, preset, p and step further down stand for the selected one's */
+  const TRK_DRUM = 3, NTRK = 4;
+  const newTrack = (i) => {
+    const drum = i === TRK_DRUM;
+    return { engine: 0, preset: 0, drum,
+      p: [...TP.map((d) => d.def), ...(drum ? [5, 0, 0, 0, 0, 0, 0, 0] : new Array(8).fill(0)), ...(opt.fxs ? [0] : [])],
+      step: Array.from({ length: NSTEP }, () => ({ n: 0, notes: [0, 0, 0, 0], time: 2, flags: 0, vel: 0, lvl: 0, rat: 0 })),   /* all rests */
+      dstep: drum ? Array.from({ length: NSTEP }, emptyDrum) : null };
+  };
+  const st = {                                       /* the mock's whole state */
     tracks: [0, 1, 2, 3].map(newTrack), sel: 0, rec: 0, solo: 0, recState: 0, retMute: 0,
-    g: GP.map((d) => d.def),
+    g: GP.map(({ def }) => def),
     rtype: [0, 0, 0, 0, 0, 1, 2, 3, 10, 0, 0],       /* REVERB > TYPE (opt.rev, scope 9 id 0); the MIDI settings (opt.midi) at 5..10 */
-    slots: [null, null, null, null],
-    smp: [0, 1, 2].map(() => ({ flash: new Uint8Array(SMP.SLOT_SIZE).fill(0xFF), zones: 0, name: "", len: 0, next: SMP.DATA_OFF })),
-    bank: new Array(opt.slots || 32).fill(null),     /* user presets: {engine, name, p, pattern} */
+    slots: new Array(4).fill(null),
+    smp: Array.from({ length: 3 }, () => ({ flash: new Uint8Array(SMP.SLOT_SIZE).fill(0xFF), zones: 0, name: "", len: 0, next: SMP.DATA_OFF })),
+    bank: Array.from({ length: opt.slots || 32 }, () => null),   /* the user presets, each {engine, name, p, pattern} */
     dl: lanesBytes({ lanes: Array.from({ length: 16 }, emptyLane), ukit: 0, name: "" }, true),   /* the drum lanes + sends (252) */
     ukits: new Array(DL.NKIT).fill(null),             /* user kits (drum_kits.c ukit_t bytes + the sends: 252) */
     playing: false,                                    /* (the transport: a restore is refused while it plays) */
@@ -5025,10 +5144,10 @@ function makeMockDevice(opt = {}) {
     notes: [],                                         /* note messages received (the kit editor's audition) */
     fx: { slots: m13.fxp ? [FXT.NONE, FXT.CHO, FXT.DLY, FXT.REV] : [FXT.DIST, FXT.CHO, FXT.DLY, FXT.REV], cset: [1, 4, 6], dist: new Array(16).fill(0), comp: new Array(16).fill(0) },   /* (opt.fxs) */
   };
-  for (const k of ["engine", "preset", "p", "step"]) {
-    Object.defineProperty(st, k, { enumerable: false, get: () => st.tracks[st.sel][k], set: (v) => { st.tracks[st.sel][k] = v; } });
-  }
-  const drumSel = () => st.tracks[st.sel].drum;
+  /* engine, preset, p and step read and write the selected track's own */
+  ["engine", "preset", "p", "step"].forEach((k) => Object.defineProperty(st, k, {
+    enumerable: false, get: () => st.tracks[st.sel][k], set: (v) => { st.tracks[st.sel][k] = v; } }));
+  const drumSel = () => st.tracks[st.sel].drum === true;
   const smpCap = (k) => (k === 2 ? DL.USR3_KIB * 1024 : SMP.SLOT_SIZE);   /* (the banks took USR3's last 16 KiB) */
   /* fm6_sysex.c fm6_service: a DX7 voice (F0 43 0n 00 01 1B <155> <chk> F7) replaces the voice of the FM6 track: the selected
      track if it plays FM6, else track n + 1, else the first FM6 track, else the message FM6: NO FM6 TRACK. A 32-voice frame
@@ -5047,8 +5166,8 @@ function makeMockDevice(opt = {}) {
     }
     return null;
   }
-  const engOf = (t) => (t.drum ? ENG.length : t.engine);   /* the engine byte: NENGINES = drums */
-  const watchMs = opt.watchMs || 3000;
+  const engOf = ({ drum, engine }) => (drum ? ENG.length : engine);   /* the engine byte; NENGINES stands for the drums */
+  const watchMs = opt.watchMs ? opt.watchMs : 3000;
   const tdesc = (t, id) => (t.drum && id === P_E0 ? KIT : opt.fxs && id === P_TCOMP ? CMPD : id >= P_E0 ? ENG[t.engine].edit[id - P_E0] : TP[id]);
   const desc = (scope, id) => (scope === 0 && id < P_COUNT ? tdesc(st.tracks[st.sel], id) : scope === 1 && id < G_COUNT ? GP[id] :
     scope === 9 && id === 0 ? REV_DESC : scope === 9 && opt.midi && id >= 5 && id <= 10 ? MIDI_DESC[id - 5] : null);
@@ -5186,65 +5305,64 @@ function makeMockDevice(opt = {}) {
     b(op); b(rc); b(st.sel); b(0); b(len); b(p[0]); b(p[1]); b(p[2]); b(tls.on && tls.type === 0 ? 1 : 0); s(a1); s(b1);
     b(tls.type); b(tls.mode); b(tls.on ? 1 : 0);
   };
-  const seqEmpty = () => st.step.every((s) => !s.n);
-  function loadPat16(pat) {                       /* ui.c load_pat16 */
-    const ps = stepsFromPattern(pat);
-    st.step.forEach((s, i) => Object.assign(s, i < 16 ? ps[i] : { n: 0, notes: [0, 0, 0, 0], time: 2, flags: 0, vel: 0 }));
-    st.p[29] = 16;
+  const seqEmpty = () => !st.step.some((s) => s.n);
+  function loadPat16(pat) {                       /* ui.c load_pat16: the 16 steps, the others cleared, LEN 16 */
+    const first = stepsFromPattern(pat);
+    for (let i = 0; i < st.step.length; i++)
+      Object.assign(st.step[i], i < 16 ? first[i] : { n: 0, notes: [0, 0, 0, 0], time: 2, flags: 0, vel: 0 });
+    st.p[29] = 16;                                /* LEN */
   }
-  const loadPattern = (k) => loadPat16(PATTERNS[k][0].map((n, i) => [n, PATTERNS[k][1][i]]));
-  function applyPreset(pi, demo) {                 /* demo: seed the mock (never from a command) */
-    if (drumSel()) return;
-    const e = ENG[st.engine];
-    pi %= e.presets.length;
-    const pr = e.presets[pi];
-    st.preset = pi;
-    for (let i = 0; i < 8; i++) st.p[P_E0 + i] = pr.e[i];
-    [1, 2, 3, 4].forEach((id, k) => { st.p[id] = pr.env[k]; });
-    st.p[37] = pr.mono ? 2 : 0;
-    st.p[33] = 0; st.p[34] = 24; st.p[35] = 28; st.p[36] = 36;
-    for (let i = P_SLCR; i < P_CHORD; i++) st.p[i] = TP[i].def;   /* a factory preset turns the SLICER off (CHORD stays: the key) */
-    if (demo && pr.pat && seqEmpty()) loadPattern(pr.pat - 1);
+  const loadPattern = (k) => { const [notes, flags] = PATTERNS[k]; loadPat16(notes.map((n, i) => [n, flags[i]])); };
+  function applyPreset(pi, demo) {                 /* demo: seeding the mock (a command never asks for it) */
+    if (drumSel()) return;                        /* (not on the drum track) */
+    const presets = ENG[st.engine].presets;
+    const idx = pi % presets.length, preset = presets[idx];
+    st.preset = idx;
+    for (let k = 0; k < 8; k++) st.p[P_E0 + k] = preset.e[k];
+    preset.env.forEach((v, k) => { st.p[1 + k] = v; });   /* ATK DEC SUS REL */
+    st.p[37] = preset.mono ? 2 : 0;                     /* VCE: LEG, else POLY */
+    [[33, 0], [34, 24], [35, 28], [36, 36]].forEach(([id, v]) => { st.p[id] = v; });   /* the sends DST CHO DLY REV */
+    for (let id = P_SLCR; id < P_CHORD; id++) st.p[id] = TP[id].def;   /* a factory preset turns the SLICER off (CHORD stays: the key) */
+    if (demo && preset.pat && seqEmpty()) loadPattern(preset.pat - 1);
   }
-  function setEngine(ei) {
-    if (drumSel()) return;
-    st.engine = ei % ENG.length;
-    for (let i = 0; i < 8; i++) st.p[P_E0 + i] = ENG[st.engine].edit[i].def;
-    applyPreset(0);
+  function setEngine(index) {
+    if (drumSel()) return;                        /* (the drum track has no engine) */
+    st.engine = index % ENG.length;
+    ENG[st.engine].edit.forEach((d, k) => { st.p[P_E0 + k] = d.def; });
+    applyPreset(0);                               /* its first preset */
   }
-  const clearSteps = () => st.step.forEach((s) => Object.assign(s, { n: 0, notes: [0, 0, 0, 0], time: 2, flags: 0, vel: 0, lvl: 0, rat: 0 }));
-  const snapshot = (name) => ({ engine: st.engine, name, p: st.p.slice(), pattern: patternFromSteps(st.step) });
-  /* a few user presets to start with */
-  [[0, 0, 0, "MY LEAD"], [1, 1, 1, "GLASS BELL"], [2, 2, 3, "PHASE RESO"], [5, 3, 2, "8BIT ARP"]].forEach(([slot, e, p, name]) => {
-    setEngine(e); clearSteps(); applyPreset(p, true);
-    st.bank[slot] = snapshot(name);
-    clearSteps();
-  });
-  [[1, 1, 5], [2, 3, 0]].forEach(([i, e, p]) => { st.sel = i; setEngine(e); applyPreset(p); clearSteps(); });   /* MUSIC BOX, GAME LEAD */
-  /* a mix to look at: pads left, lead right, and a GM drum pattern on track 4 */
-  st.tracks[1].p[39] = -24; st.tracks[2].p[39] = 20; st.tracks[2].p[0] = 92; st.tracks[TRK_DRUM].p[39] = 0;
+  const clearSteps = () => { for (const s of st.step) Object.assign(s, { n: 0, notes: [0, 0, 0, 0], time: 2, flags: 0, vel: 0, lvl: 0, rat: 0 }); };
+  const snapshot = (name) => ({ engine: st.engine, name, p: [...st.p], pattern: patternFromSteps(st.step) });
+  /* four user presets to begin with: [slot, engine, preset, name] */
+  const SEED = [[0, 0, 0, "MY LEAD"], [1, 1, 1, "GLASS BELL"], [2, 2, 3, "PHASE RESO"], [5, 3, 2, "8BIT ARP"]];
+  for (const [slot, eng, pre, label] of SEED) {
+    setEngine(eng); clearSteps(); applyPreset(pre, true);
+    st.bank[slot] = snapshot(label); clearSteps();
+  }
+  for (const [i, e, p] of [[1, 1, 5], [2, 3, 0]]) { st.sel = i; setEngine(e); applyPreset(p); clearSteps(); }   /* tracks 2 and 3: MUSIC BOX, GAME LEAD */
+  /* something to look at in the mixer: the pads to the left, the lead to the right, a GM drum pattern on track 4 */
+  [[1, 39, -24], [2, 39, 20], [2, 0, 92], [TRK_DRUM, 39, 0]].forEach(([t, id, v]) => { st.tracks[t].p[id] = v; });   /* PAN (39), track 3's LVL */
   /* a boom bap beat on the 10 lanes: kick 0, snare 1, clap 2, closed hat 3, open hat 4; a ghost snare, a hat roll (x2) */
   const KICK = 0, SNARE = 1, CLAP = 2, HAT = 3, OHAT = 4;
-  [[KICK, HAT], [HAT], [HAT], [HAT], [SNARE, HAT], [HAT], [HAT], [KICK, OHAT], [KICK, HAT], [HAT], [KICK], [HAT, SNARE], [SNARE, CLAP], [HAT], [HAT], [OHAT]]
-    .forEach((ls, i) => {
-      const d = st.tracks[TRK_DRUM].dstep[i];
-      for (const l of ls) d.on |= 1 << l;
-      if (i === 11) d.lvl[SNARE] = 1;               /* GHOST */
-      if (i === 14) d.rat[HAT] = 1;                 /* x2 */
+  [[KICK, HAT], [HAT], [HAT], [HAT], [SNARE, HAT], [HAT], [HAT], [KICK, OHAT],   /* steps 1..8 */
+    [KICK, HAT], [HAT], [KICK], [HAT, SNARE], [SNARE, CLAP], [HAT], [HAT], [OHAT]]   /* 9..16 */
+    .forEach((lanes, step) => {
+      const hit = st.tracks[TRK_DRUM].dstep[step];
+      lanes.forEach((l) => { hit.on |= 1 << l; });
+      if (step === 11) hit.lvl[SNARE] = 1;           /* a ghost note */
+      if (step === 14) hit.rat[HAT] = 1;             /* a x2 roll */
     });
-  st.sel = 0;
-  setEngine(0);
-  clearSteps();
-  applyPreset(4, true);                             /* WOBBLE, a recorded-looking pattern on track 1 (mock only) */
-  if (opt.drums !== false) {                        /* a user kit to look at: the 808 with a 909 snare, the kick lower */
+  st.sel = 0; setEngine(0); clearSteps();           /* back on track 1 */
+  applyPreset(4, true);                             /* WOBBLE, with a pattern on track 1 as if recorded (the mock only) */
+  if (opt.drums !== false) {                        /* user kit 1, for the eye: the 808 with a 909 snare and a lower kick */
     const lanes = Array.from({ length: 16 }, emptyLane);
     lanes.forEach((l) => { l.src = DL.KIT0 + 5; });
     lanes[2].src = DL.KIT0 + 6;
     lanes[0].ofs[0] = -2; lanes[0].ofs[1] = 12;
     st.ukits[0] = kitBytes({ base: 5, lanes }, true);
   }
-  const project = () => JSON.parse(JSON.stringify({ tracks: st.tracks, sel: st.sel, g: st.g }));
-  st.slots[0] = project();
+  const project = () => { const { tracks, sel, g } = st; return JSON.parse(JSON.stringify({ tracks, sel, g })); };   /* a deep copy */
+  st.slots[0] = project();                          /* PROJECT slot 1 holds the start */
 
   /* v14 (opt.v14): the undo levels of the editor's own step writes (ed_undo.c: writes to one track within 800 ms are one level), notes held, solo and mute */
   const un = { stack: [], redo: [], at: 0, tr: -1, track: 0 };
