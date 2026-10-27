@@ -19,7 +19,13 @@ targets:
   OptimistMirror:
     type: application
     platform: iOS
-    sources: [Sources, Resources]
+    sources:
+      - Sources
+      - path: Resources
+        excludes: [Fm1Base]
+      - path: Resources/Fm1Base      # (fm1-base's pages, MPL-2.0, unchanged: a folder, its sub-folders kept)
+        type: folder
+        buildPhase: resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.w0ts.optimist.mirror
