@@ -59,7 +59,7 @@ def files():
     py = {"needs_auto": list(C.NEEDS_AUTO),
           "files": {f: (ROOT / f).read_text(encoding="utf-8") for f in PY_FILES}}
     return {"python.json": _json(py), "registry.json": _json(web_api.registry_view()),
-            "costs.json": (BUILDER / "costs.json").read_text(encoding="utf-8"),
+            "costs.json": C.costs_file().read_text(encoding="utf-8"),
             "profiles.json": _json({"profiles": profiles(), "flavours": flavours()})}
 
 

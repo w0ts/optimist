@@ -1,0 +1,3 @@
+[submodule "fm1base"]
+	path = fm1base
+	url = git@github.com:w0ts/fm1-base.git
