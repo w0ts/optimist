@@ -51,6 +51,7 @@ static int ed_smp_erase(uint32_t k, uint32_t all)  /* header sector, or the whol
     ed_smp_inval(k);
     return rc;
 }
+#if !FELUCCA_ED_COMPANION                              /* (the companion's files write the slots: ed_comp.c) */
 /* (noinline: inlined into ed_user, 32 B more flash) */
 static __attribute__((noinline)) int ed_smp_end(uint32_t k, const uint8_t *a, uint32_t na)
 {
@@ -76,6 +77,7 @@ static __attribute__((noinline)) int ed_smp_end(uint32_t k, const uint8_t *a, ui
     smp_user_scan(k);
     return usr_nz[k] ? 0 : 5;
 }
+#endif
 
 /* a command of 11..21; 0 = not one of them, or a frame too short (no reply). The ones that answer slot, rc break to
  * the one reply at the end */
@@ -83,6 +85,7 @@ static int ed_user(uint32_t cmd, const uint8_t *a, uint32_t na)
 {
     uint32_t i, rc = 0;
     switch (cmd) {
+#if !FELUCCA_ED_COMPANION                              /* (11..15: the companion's files USR1..USR3, ed_comp.c) */
     case ED_SMP_BEGIN:                                     /* slot -> slot, rc */
     case ED_SMP_ERASE:
         if (na < 1u || a[0] >= SMP_USER_SLOTS || !flash_ok)
@@ -131,6 +134,7 @@ static int ed_user(uint32_t cmd, const uint8_t *a, uint32_t na)
         for (i = 0; i < SMP_USER_SLOTS; i++)               /* (appended) each slot's KiB: USR3 64 */
             ed_b(SMP_USER_CAP(i) / 1024u);
         return 1;
+#endif
 #if ED_LIB
     case ED_UP_LIST: {                                     /* start, count -> start, count, total, per slot: used, engine, name */
         uint32_t s0, cnt;
