@@ -81,11 +81,11 @@ PARTS = [
     ("U3", "Power_Protection:USBLC6-2P6", "USBLC6-2SC6", "sdboard:SOT-23-6_L2.9-W1.6-P0.95-LS2.8-BL", "C7519", 230, 140,
      {"1": "DAT0", "6": "DAT0", "3": "SD_CLK", "4": "SD_CLK", "2": "GND", "5": "SD_VDD"}),
     # (the swap block: a bridged solder jumper per line, J12's side on pin 2; test pads on J12's unprobed lines)
-    *[(ref, "Jumper:SolderJumper_2_Bridged", "cut to swap", "Jumper:SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm",
+    *[(ref, "Jumper:SolderJumper_2_Bridged", "cut to swap", "sdboard:SolderJumper-2_Cut_P3.0mm_Pad1.5x2.0mm",
        "", 40 + 25 * i, 175, {"1": sd, "2": j}) for i, (ref, j, sd) in enumerate((
            ("JP1", "MISO", "SD_DO"), ("JP2", "LCD_CS", "SD_CSIN"), ("JP3", "CLK_SD", "SD_CLK"),
            ("JP4", "MOSI_SD", "SD_DI"), ("JP5", "3V3", "SD_VDD")))],
-    *[(ref, "Connector:TestPoint", f"J12 {lab}", "TestPoint:TestPoint_Pad_D1.0mm", "", 170 + 15 * i, 175, {"1": net})
+    *[(ref, "Connector:TestPoint", f"J12 {lab}", "TestPoint:TestPoint_Pad_D1.5mm", "", 170 + 15 * i, 175, {"1": net})
       for i, (ref, net, lab) in enumerate((("TP1", "LCD_6", "6"), ("TP2", "LCD_8", "8"), ("TP3", "LCD_9", "9"),
                                           ("TP4", "GND", "G")))],
     # (J2 from J12, J3 the LCD's cable, every line through; J3 single-sided top contact, J2's face after the breakout)

@@ -205,14 +205,14 @@ U2 = P(LIB, SOT6, "U2", "USBLC6-2SC6", 86.57, 16.6, 180, "C7519")
 # part's input (a jumper's left pad). Staggered, each row's left pad clear of the rows below it
 JUMPER = os.path.join(KICAD_FP, "Jumper.pretty")
 TPAD = os.path.join(KICAD_FP, "TestPoint.pretty")
-SJ = "SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm"
-SWAP = (("JP1", "MISO", "SD_DO", 83.6, 38.6, "DO"), ("JP2", "LCD_CS", "SD_CSIN", 84.8, 35.9, "CS"),
-        ("JP3", "CLK_SD", "SD_CLK", 86.0, 33.2, "CLK"), ("JP4", "MOSI_SD", "SD_DI", 87.2, 30.5, "DI"),
-        ("JP5", "3V3", "SD_VDD", 88.4, 27.8, "3V3"))
-JP = {ref: P(JUMPER, SJ, ref, "cut to swap", u, v, 0, "") for ref, _, _, u, v, _ in SWAP}
-TPS = (("TP1", "LCD_6", 83.6, 64.2, "6"), ("TP2", "LCD_8", 83.6, 66.6, "8"), ("TP3", "LCD_9", 83.6, 69.0, "9"),
-       ("TP4", "GND", 83.6, 61.8, "G"))
-TP = {ref: P(TPAD, "TestPoint_Pad_D1.0mm", ref, f"J12 {lab}", u, v, 0, "") for ref, _, u, v, lab in TPS}
+SJ = "SolderJumper-2_Cut_P3.0mm_Pad1.5x2.0mm"      # (lib/: 1.5 x 2 mm pads, a 1.5 mm bare bridge to cut; the user)
+SWAP = (("JP1", "MISO", "SD_DO", 83.6, 38.4, "DO"), ("JP2", "LCD_CS", "SD_CSIN", 85.1, 35.7, "CS"),
+        ("JP3", "CLK_SD", "SD_CLK", 86.6, 33.0, "CLK"), ("JP4", "MOSI_SD", "SD_DI", 88.1, 30.3, "DI"),
+        ("JP5", "3V3", "SD_VDD", 89.6, 27.6, "3V3"))
+JP = {ref: P(LIB, SJ, ref, "cut to swap", u, v, 0, "") for ref, _, _, u, v, _ in SWAP}
+TPS = (("TP1", "LCD_6", 83.7, 63.6, "6"), ("TP2", "LCD_8", 83.7, 66.3, "8"), ("TP3", "LCD_9", 83.7, 69.0, "9"),
+       ("TP4", "GND", 83.7, 60.9, "G"))
+TP = {ref: P(TPAD, "TestPoint_Pad_D1.5mm", ref, f"J12 {lab}", u, v, 0, "") for ref, _, u, v, lab in TPS}
 
 # the tray's lips run over the board's edges (make_tray.py): no part within 2 mm of the left edge, nor of the right
 # edge below the right post's top (RIGHT_END there); every placed part's box checked
@@ -280,11 +280,11 @@ R("GND", [(LANE["GUARD"], GUARD_V[0]), (LANE["GUARD"], GUARD_V[-1])])   # none b
 # session's start and end); 3V3 (SD_VDD after its jumper) goes back right to the rail down the right edge
 C = {n: A(J1, n) for n in range(1, 9)}
 L = {ref: A(JP[ref], 1) for ref in JP}
-R("SD_DO", [L["JP1"], (L["JP1"][0], 29.0), (C[7][0], 27.27), A(R1, 1)])
+R("SD_DO", [L["JP1"], (L["JP1"][0], 29.0), (C[7][0], 29.0 - (L["JP1"][0] - C[7][0])), A(R1, 1)])
 R("DAT0", [A(R1, 2), (A(U3, 1)[0], A(R1, 2)[1]), A(U3, 6), A(U3, 1), (A(U3, 1)[0], C[7][1])])
-R("SD_CLK", [L["JP3"], (L["JP3"][0], 27.4), (A(U3, 3)[0], 25.3), A(U3, 4), A(U3, 3), (A(U3, 3)[0], C[5][1])])
-R("SD_DI", [L["JP4"], (L["JP4"][0], 26.5), (A(U2, 3)[0], 25.57), A(U2, 4), A(U2, 3), C[3]])
-CS_IN, CS_VIA = (L["JP2"][0], 34.5), (91.0, 21.4)
+R("SD_CLK", [L["JP3"], (L["JP3"][0], 27.2), (A(U3, 3)[0], 27.2 - (L["JP3"][0] - A(U3, 3)[0])), A(U3, 4), A(U3, 3), (A(U3, 3)[0], C[5][1])])
+R("SD_DI", [L["JP4"], (L["JP4"][0], 26.3), (A(U2, 3)[0], 26.3 - (L["JP4"][0] - A(U2, 3)[0])), A(U2, 4), A(U2, 3), C[3]])
+CS_IN, CS_VIA = (L["JP2"][0], 34.1), (91.0, 21.4)
 R("SD_CSIN", [L["JP2"], CS_IN])
 R("SD_CSIN", [CS_IN, (CS_VIA[0], CS_IN[1] - (CS_VIA[0] - CS_IN[0])), CS_VIA], TRACK, pcbnew.B_Cu)
 R("SD_CSIN", [A(R4, 2), CS_VIA, A(U1, 2)])
@@ -292,7 +292,7 @@ R("CARD_CS", [A(U1, 4), (88.3, A(U1, 4)[1]), (88.3, 18.6), (A(U2, 6)[0], 18.6), 
               (A(U2, 1)[0], 13.6), (C[2][0], 12.8), C[2]])
 R("DAT2", [C[1], (C[1][0], A(R2, 1)[1]), A(R2, 1)])
 RAIL = LANE["3V3"]
-R("SD_VDD", [L["JP5"], (L["JP5"][0], 26.2), (RAIL, 26.2), (RAIL, 16.2), A(C2, 1), A(U1, 5)], POWER)
+R("SD_VDD", [L["JP5"], (L["JP5"][0], 26.0), (RAIL, 26.0), (RAIL, 16.2), A(C2, 1), A(U1, 5)], POWER)
 R("SD_VDD", [(RAIL, 16.2), (RAIL, A(R2, 2)[1]), A(R2, 2)], POWER)
 R("DAT1", [C[8], (C[8][0], BUS), A(R3, 2)])
 R("GND", [C[6], A(U3, 2)])
@@ -319,7 +319,7 @@ for n in (1, 10):
     tab = min((A(J3, 11), A(J3, 12)), key=lambda t: abs(t[0] - g[0]))
     R("GND", [g, (g[0], 72.5), (tab[0], 72.5)])
 B = pcbnew.B_Cu
-TP_VIA = 84.9                                    # (each test pad's via; the bottom runs from the line's step to it)
+TP_VIA = 85.25                                   # (each test pad's via; the bottom runs from the line's step to it)
 for (ref, name, u, v, _), jog in zip(TPS[:3], (86.3, 85.6, None)):
     n = int(name[-1])
     mid = ((A(J3, J3_AT[n])[0] + A(J2, n)[0]) / 2, TURN[n])
@@ -389,9 +389,11 @@ def label(text, x, y, size=0.8, rot=0.0):
 
 
 label("OPTIMIST SD", *T(77.5, 29.0), 0.8, 90)
-for _, _, _, u, v, lab in SWAP:                  # (the swap block: each row's line; J12's side right, the card's left)
-    label(lab, *T(u - 2.2, v), 0.6)
-label("CUT+WIRE", *T(88.6, 39.2), 0.6)
+J12_PIN = {name: n for n, name in LCD_PINS.items() if n <= 10}
+for _, jside, _, u, v, lab in SWAP:              # (the swap block: each row's line left of its card side pad, the J12
+    label(lab, *T(u - 2.5 - 0.32 * len(lab), v), 0.6)              # pin its J12 side pad carries right of it)
+    label(str(J12_PIN[jside.removesuffix("_SD")]), *T(u + 2.75, v + 0.7), 0.6)
+label("CUT+WIRE", *T(90.0, 39.3), 0.6)
 for _, _, u, v, lab in TPS:
     label(lab, *T(u, v + 1.0), 0.6)
 # which way each cable goes in: J3 touches the top face only (the LCD's cable arrives gold up, the user); J2 still
