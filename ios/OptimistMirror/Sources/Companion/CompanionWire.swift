@@ -86,6 +86,15 @@ struct CompanionInfo: Equatable {
     let files: Int, params: Int
     let identity: String, name: String, appVersion: String
     let extras: [String: String]
+    /// the backup's format (protocol 2, the answer's end): nil for a version 1 answer or an app without backup
+    var backup: BackupFormat? = nil
+
+    /// What a backup file of this firmware is: its magic (4 ASCII letters), format version and file extension
+    struct BackupFormat: Equatable {
+        let magic: String
+        let version: Int
+        let ext: String
+    }
 
     var serviceList: [String] { Self.serviceNames.enumerated().filter { services >> UInt32($0.offset) & 1 == 1 }.map(\.element) }
     var hasFiles: Bool { services & 2 != 0 }
@@ -104,14 +113,19 @@ struct CompanionInfo: Equatable {
 
     static func parse(_ b: [UInt8]) throws -> CompanionInfo {
         guard b.count >= 14, b[0] >= 1 else { throw CompanionError.malformed("capability query") }
-        let (s, _) = CompanionWire.strings(b, 13, 4)
+        let (s, end) = CompanionWire.strings(b, 13, 4)
+        var backup: BackupFormat?
+        if b[0] >= 2, b.count >= end + 7, b[end..<end + 4].contains(where: { $0 != 0 }), b[end..<end + 4].allSatisfy({ $0 >= 0x20 && $0 < 0x7F }) {
+            backup = BackupFormat(magic: String(decoding: b[end..<end + 4], as: UTF8.self), version: CompanionWire.u16(b, end + 4),
+                                  ext: CompanionWire.strings(b, end + 6, 1).0[0])
+        }
         var extras: [String: String] = [:]
         for kv in s[3].split(separator: ";") {
             let p = kv.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
             extras[String(p[0])] = p.count > 1 ? String(p[1]) : ""
         }
         return CompanionInfo(version: Int(b[0]), services: CompanionWire.u32(b, 1), readMax: CompanionWire.u16(b, 5), writeMax: CompanionWire.u16(b, 7),
-                             files: CompanionWire.u16(b, 9), params: CompanionWire.u16(b, 11), identity: s[0], name: s[1], appVersion: s[2], extras: extras)
+                             files: CompanionWire.u16(b, 9), params: CompanionWire.u16(b, 11), identity: s[0], name: s[1], appVersion: s[2], extras: extras, backup: backup)
     }
 }
 

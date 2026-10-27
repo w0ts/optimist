@@ -59,8 +59,8 @@ Optimist firmware answers INFO first and is treated exactly as before. For such 
 
 - **Pages**: fm1-base's own mirror, backup, installer and companion pages, bundled (`Resources/Fm1Base`, MPL-2.0, unchanged; see its
   README for the origin commit), filled in for the app and run through the same Web MIDI bridge as the editor's pages
-  (`Sources/Companion/Fm1Base*.swift`). The backup page needs the app's `backup_magic`, `backup_version` (and `backup_ext`) tags in its
-  companion extras; the installer needs the `.fwsc` chosen in the app.
+  (`Sources/Companion/Fm1Base*.swift`). The backup page takes the backup's magic, version and file extension from the firmware's capability answer (protocol 2;
+  an older firmware's own `backup_magic`, `backup_version`, `backup_ext` extras tags are read only as a fallback); the installer needs the `.fwsc` chosen in the app.
 - **Files**: the app's files, saved one by one or all in one backup file (each checked against the FM-1's CRC-32).
 - **Parameters**: the app's parameters by group, read and set.
 
