@@ -1,139 +1,110 @@
 <!doctype html>
 <!-- SPDX-License-Identifier: GPL-3.0-only
      Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments -->
-<!-- Felucca web editor. One file, no libraries. Protocol: EDITOR_PROTOCOL.md.
+<!-- Felucca's editor page: a single self-contained file without libraries; the wire format is EDITOR_PROTOCOL.md.
      Add ?mock=1 to the URL to use a built-in simulated device (&macros=1: one with GLO > MACRO). -->
 <html lang="en" data-conn="off">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="../../icon.svg" type="image/svg+xml"><link rel="icon" href="../../favicon.ico" sizes="32x32"><link rel="apple-touch-icon" href="../../apple-touch-icon.png">
 <title>Optimist Editor</title>
 <style>
-  /* Fukiai: Hügelton Instruments' icon font (MIT, FUKIAI-LICENSE.txt). Icons are text in .ic spans;
-     they stay hidden until the face has loaded (html.fk), so a missing font never shows boxes. */
-  @font-face { font-family: "Fukiai"; src: url("fukiai.ttf") format("truetype"); font-display: block; unicode-range: U+EA00-EB09; }
+  /* Icons come from Fukiai, Hügelton Instruments' MIT icon font (FUKIAI-LICENSE.txt): each icon is a character in a .ic
+     span, kept invisible until the face is ready (html.fk) so a font that never arrives draws no empty boxes. */
+  @font-face { src: url("fukiai.ttf") format("truetype"); font-family: "Fukiai"; unicode-range: U+EA00-EB09; font-display: block; }
   :root { --bg: #fff; --fg: #000; --dim: #666; --line: #ccc; --panel: var(--bg); --accent: var(--fg);
           --ok: #2e9e5b; --warn: #c98a12; --err: #d23c3c; }   /* status: green OK / live, amber notice, red error or distortion */
-  html { color-scheme: light dark; }
-  body { margin: 0; background: var(--bg); color: var(--fg);
-         font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
-         font-variant-numeric: tabular-nums; }
-  main { max-width: 1100px; margin: 0 auto; padding: 16px; }
-  h1 { font-size: 18px; font-weight: 600; margin: 0 0 8px; }
-  h2 { font-size: 13px; font-weight: 600; margin: 0 0 4px; padding-bottom: 2px; border-bottom: 1px solid var(--fg); }
-  h3 { font-size: 11px; font-weight: 400; color: var(--dim); margin: 4px 0 0; }
-  a { color: inherit; }
-  button { font: inherit; background: var(--fg); color: var(--bg); border: 0; padding: 2px 10px; cursor: pointer; }
-  button:disabled { opacity: .3; cursor: default; }
-  select, input[type=text], input[type=number], input[type=search] {
-    font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); padding: 1px 3px; border-radius: 0; }
-  input[type=range] { width: 100%; margin: 0; accent-color: var(--fg); }
-  input[type=checkbox] { accent-color: var(--fg); margin: 0; }
+  html { color-scheme: light dark; } body { color: var(--fg); background: var(--bg); margin: 0;
+    font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif; font-variant-numeric: tabular-nums; }
+  main { padding: 16px; margin: 0 auto; max-width: 1100px; }
+  h1, h2 { font-weight: 600; margin-top: 0; margin-right: 0; margin-left: 0; }
+  h1 { font-size: 18px; margin-bottom: 8px; }
+  h2 { font-size: 13px; margin-bottom: 4px; padding-bottom: 2px; border-bottom: 1px solid var(--fg); }
+  h3 { margin: 4px 0 0; color: var(--dim); font-weight: 400; font-size: 11px; }
+  button { cursor: pointer; border: 0; padding: 2px 10px; background: var(--fg); color: var(--bg); font: inherit; }
+  a { color: inherit; } button:disabled { cursor: default; opacity: .3; }
+  input[type=text], input[type=number], input[type=search], select {
+    border: 1px solid var(--line); border-radius: 0; padding: 1px 3px; background: var(--bg); color: var(--fg); font: inherit; }
+  input[type=range], input[type=checkbox] { margin: 0; accent-color: var(--fg); }
+  input[type=range] { width: 100%; }
   #p-sequencer.slotmode #seqgroups { display: none; }
   #slotbar label { display: inline-flex; gap: 4px; align-items: center; }
   #slotbar input.num { width: 4.5em; }
   #slotbar #slotstate[data-st=err] { color: var(--err); }
-  .bar { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; margin: 0 0 8px; }
-  .dim { color: var(--dim); }
-  #status { min-height: 1.4em; }
-  section { margin: 12px 0; }
-  .groups { columns: 250px; column-gap: 20px; }
-  .group { break-inside: avoid; margin: 0 0 12px; }
-  .row { display: grid; grid-template-columns: 46px 1fr 70px; gap: 6px; align-items: center; min-height: 22px; }
-  .row .v { text-align: right; white-space: nowrap; }
-  .row select { width: 100%; }
-  .browser { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; }
-  .browser select[size] { min-width: 150px; }
+  .bar { margin: 0 0 8px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+  .dim { color: var(--dim); }  #status { min-height: 1.4em; }  section { margin: 12px 0; }
+  .groups { column-gap: 20px; columns: 250px; }  .group { margin: 0 0 12px; break-inside: avoid; }
+  .row { min-height: 22px; display: grid; align-items: center; gap: 6px; grid-template-columns: 46px 1fr 70px; }
+  .row .v { white-space: nowrap; text-align: right; }  .row select { width: 100%; }
+  .browser { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 12px; }  .browser select[size] { min-width: 150px; }
   table.snaps td { padding: 2px 8px 2px 0; vertical-align: middle; }
   table.snaps td.nm { min-width: 9em; font-weight: 600; }
   table.snaps button { margin: 0 2px; }
-  .slots { display: grid; grid-template-columns: auto auto auto auto; gap: 3px 8px; align-items: center; justify-content: start; }
-  table { border-collapse: collapse; }
-  th { font-weight: 400; color: var(--dim); text-align: left; padding: 0 6px 2px 0; }
-  td { padding: 1px 6px 1px 0; }
-  td.i { color: var(--dim); text-align: right; }
-  .smp { margin: 0 0 14px; padding: 6px 0 0; border-top: 1px solid var(--line); }
-  .smp.over { outline: 1px solid var(--fg); outline-offset: 2px; }
-  .smp .head { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; }
-  .smp .head b { font-weight: 600; min-width: 40px; }
-  .smp progress { width: 160px; height: 6px; accent-color: var(--fg); }
-  .smp table { margin: 4px 0; }
-  .smp input.name { width: 80px; text-transform: uppercase; }
-  .smp input.root { width: 48px; }
-  .smp .bad { text-decoration: underline wavy; }
-  .chop canvas.wave { display: block; width: 100%; height: 150px; margin: 6px 0; border: 1px solid var(--line); cursor: default; touch-action: none; }
-  .chop canvas.wave:focus { outline: 1px solid var(--fg); }
-  .chop .head { margin: 3px 0; }
-  .chop .sep { width: 8px; }
-  .chop input.num { width: 56px; }
-  .chop input[type=range] { width: 90px; accent-color: var(--fg); }
-  .chop button.tap { min-width: 72px; }
-  .chop .chops { display: flex; flex-wrap: wrap; gap: 3px; margin: 4px 0; }
-  .chop .chip { background: none; color: var(--fg); border: 1px solid var(--line); padding: 1px 6px; }
-  .chop .chip.on { background: var(--fg); color: var(--bg); }
+  .slots { display: grid; grid-template-columns: repeat(4, auto); justify-content: start; align-items: center; gap: 3px 8px; }
+  table { border-collapse: collapse; }  th { padding: 0 6px 2px 0; text-align: left; font-weight: 400; color: var(--dim); }
+  td { padding: 1px 6px 1px 0; }  td.i { text-align: right; color: var(--dim); }
+  .smp { border-top: 1px solid var(--line); padding: 6px 0 0; margin: 0 0 14px; }
+  .smp.over { outline-offset: 2px; outline: 1px solid var(--fg); }
+  .smp .head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }  .smp .head b { min-width: 40px; font-weight: 600; }
+  .smp progress { height: 6px; width: 160px; accent-color: var(--fg); }  .smp table { margin: 4px 0; }
+  .smp input.name { text-transform: uppercase; width: 80px; }  .smp input.root { width: 48px; }  .smp .bad { text-decoration: underline wavy; }
+  .chop canvas.wave { touch-action: none; cursor: default; display: block; margin: 6px 0; width: 100%; height: 150px; border: 1px solid var(--line); }
+  .chop canvas.wave:focus { outline: 1px solid var(--fg); }  .chop .head { margin: 3px 0; }  .chop .sep { width: 8px; }
+  .chop input.num { width: 56px; }  .chop input[type=range] { accent-color: var(--fg); width: 90px; }  .chop button.tap { min-width: 72px; }
+  .chop .chops { margin: 4px 0; display: flex; flex-wrap: wrap; gap: 3px; }
+  .chop .chip { padding: 1px 6px; border: 1px solid var(--line); color: var(--fg); background: none; }
+  .chop .chip.on { color: var(--bg); background: var(--fg); }
   .chop .chip { display: inline-flex; align-items: center; gap: 3px; cursor: pointer; user-select: none; }
   .chop .chip input { margin: 0; accent-color: var(--fg); }
-  .chop .chip.off { color: var(--dim); text-decoration: line-through; }
+  .chop .chip.off { text-decoration: line-through; color: var(--dim); }
   .chop .chip.on input { accent-color: var(--bg); }
   .chop input.len { width: 160px; }
   .chop .selrow[hidden] { display: none; }
-  .row.pushed .v { font-weight: 600; }
-  /* librarian: local library and the device's user bank side by side, stacked on a phone */
-  .libcols { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 8px 24px; margin-top: 6px; }
-  .libcols > div { min-width: 0; }
-  .libcols .bar input[type=search] { flex: 1 1 120px; min-width: 0; }
-  .list { height: 260px; overflow: auto; border: 1px solid var(--line); resize: vertical; }
-  .list table { width: 100%; table-layout: fixed; }
-  .list th { position: sticky; top: 0; background: var(--bg); padding: 1px 6px; }
-  .list td { padding: 1px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row.pushed .v { font-weight: 600; }   /* a value that just moved on the device blinks bold (blink) */
+  /* the librarian: this computer's library beside the FM-1's user bank, one under the other on a phone */
+  .libcols { margin-top: 6px; display: grid; gap: 8px 24px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); }
+  .libcols > div { min-width: 0; }  .libcols .bar input[type=search] { min-width: 0; flex: 1 1 120px; }
+  .list { resize: vertical; border: 1px solid var(--line); overflow: auto; height: 260px; }
+  .list table { table-layout: fixed; width: 100%; }  .list th { padding: 1px 6px; background: var(--bg); position: sticky; top: 0; }
+  .list td { padding: 1px 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .list tr[data-id], .list tr[data-slot], .list tr[data-fm6] { cursor: pointer; }
-  .list tr.sel td { background: var(--fg); color: var(--bg); }
-  .list tr.empty td { color: var(--dim); }
-  .list tr.over td { outline: 1px dashed var(--fg); outline-offset: -1px; }
-  .list.over { outline: 1px solid var(--fg); }
-  .list .none { padding: 6px; color: var(--dim); }
-  .list col.n { width: 40px; } .list col.e { width: 72px; } .list col.d { width: 78px; }
-  .ic { font-family: "Fukiai"; font-style: normal; font-weight: 400; font-synthesis: none; line-height: 1; margin-right: .3em; }
+  .list tr.sel td { color: var(--bg); background: var(--fg); }  .list tr.empty td { color: var(--dim); }
+  .list tr.over td { outline: 1px dashed var(--fg); outline-offset: -1px; }  .list.over { outline: 1px solid var(--fg); }
+  .list .none { color: var(--dim); padding: 6px; }
+  .list col.d { width: 78px; } .list col.e { width: 72px; } .list col.n { width: 40px; }
+  .ic { margin-right: .3em; line-height: 1; font-family: "Fukiai"; font-style: normal; font-weight: 400; font-synthesis: none; }
   html:not(.fk) .ic { display: none; }
-  /* wave choices: a page-drawn picker so the options can carry an icon (Chrome 135+); native menus get words only */
-  @supports (appearance: base-select) {
-    select.wave, select.wave::picker(select) { appearance: base-select; }
-    select.wave { padding: 1px 3px; min-block-size: 0; border: 1px solid var(--line); border-radius: 0; background: var(--bg); color: var(--fg); }
-    select.wave > button { font: inherit; background: none; color: inherit; padding: 0; text-align: start; }
-    select.wave::picker(select) { border: 1px solid var(--line); background: var(--bg); color: var(--fg); padding: 0; }
-    select.wave option { padding: 1px 6px; min-block-size: 0; }
-    select.wave option:checked { font-weight: 600; }
-    select.wave option:hover, select.wave option:focus-visible { background: var(--fg); color: var(--bg); }
-    select.wave option::checkmark { display: none; }
+  /* the wave menus draw their own picker, so each choice can show its icon; a native menu shows the words alone */
+  @supports (appearance: base-select) {   /* (Chrome 135 and later) */
+    select.wave::picker(select), select.wave { appearance: base-select; }
+    select.wave { color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 0; min-block-size: 0; padding: 1px 3px; }
+    select.wave > button { text-align: start; padding: 0; color: inherit; background: none; font: inherit; }
+    select.wave::picker(select) { padding: 0; color: var(--fg); background: var(--bg); border: 1px solid var(--line); }
+    select.wave option { min-block-size: 0; padding: 1px 6px; }  select.wave option:checked { font-weight: 600; }
+    select.wave option:hover, select.wave option:focus-visible { color: var(--bg); background: var(--fg); }  select.wave option::checkmark { display: none; }
   }
-  /* tabs: a wrapping row of plain buttons, the open one inverted; header stays at the top on wide screens */
+  /* the page tabs: plain buttons in a row that wraps, the open one inverted */
   .top { position: sticky; top: var(--menubar-h, 46px); z-index: 5; background: var(--bg); padding: 4px 0 0; }
-  @media (max-width: 600px) { .top { position: static; } }
-  .tabs { display: flex; flex-wrap: wrap; gap: 0; border-bottom: 1px solid var(--fg); margin: 6px 0 0; }
-  .tabs button { background: none; color: var(--dim); padding: 4px 10px; border: 1px solid transparent; border-bottom: 0; white-space: nowrap; }
-  .tabs button:hover { color: var(--fg); }
-  .tabs button[aria-selected="true"] { background: var(--fg); color: var(--bg); }
-  .trackbar { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--line); }
-  .seg { display: inline-flex; flex-wrap: wrap; }
-  .seg button, button.tog { background: var(--bg); color: var(--fg); border: 1px solid var(--fg); padding: 1px 10px; }
-  .seg button + button { border-left: 0; }
-  .seg button[aria-pressed="true"], button.tog[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
-  .panel { margin: 12px 0; }
-  .hint { margin: 16px 0; color: var(--dim); }
-  /* v5: the drum track as 16 lanes x LEN steps; a hit's level by its shade, its ratchet as a number */
-  .dgrid { display: grid; gap: 1px; margin: 6px 0 12px; overflow-x: auto; }
-  .dgrid .ln { font-size: 10px; color: var(--dim); white-space: nowrap; padding-right: 6px; align-self: center; }
-  .dgrid .hd { font-size: 9px; color: var(--dim); }
-  .dgrid .gap { grid-column: 1 / -1; height: 8px; }
-  .dgrid button { background: var(--bg); color: var(--bg); border: 1px solid var(--line); padding: 0; min-width: 16px; height: 18px;
-                  font-size: 9px; line-height: 1; font-weight: 700; }
+  @media (max-width: 600px) { .top { position: static; } }   /* (the header sticks to the top except on a phone) */
+  .tabs { margin: 6px 0 0; border-bottom: 1px solid var(--fg); display: flex; flex-wrap: wrap; gap: 0; }
+  .tabs button { white-space: nowrap; padding: 4px 10px; border: 1px solid transparent; border-bottom: 0; color: var(--dim); background: none; }
+  .tabs button:hover { color: var(--fg); }  .tabs button[aria-selected="true"] { color: var(--bg); background: var(--fg); }
+  .trackbar { border-bottom: 1px solid var(--line); padding: 6px 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+  .seg { flex-wrap: wrap; display: inline-flex; }  .seg button + button { border-left: 0; }
+  .seg button, button.tog { padding: 1px 10px; border: 1px solid var(--fg); color: var(--fg); background: var(--bg); }
+  button.tog[aria-pressed="true"], .seg button[aria-pressed="true"] { color: var(--bg); background: var(--fg); }
+  .panel { margin: 12px 0; }  .hint { color: var(--dim); margin: 16px 0; }
+  /* (v5) the drum track: 16 lanes by LEN steps, a hit's level shown by its shade and its ratchet by a digit */
+  .dgrid { overflow-x: auto; margin: 6px 0 12px; display: grid; gap: 1px; }
+  .dgrid .ln { align-self: center; padding-right: 6px; white-space: nowrap; color: var(--dim); font-size: 10px; }
+  .dgrid .hd { color: var(--dim); font-size: 9px; }  .dgrid .gap { height: 8px; grid-column: 1 / -1; }
+  .dgrid button { min-width: 16px; height: 18px; padding: 0; border: 1px solid var(--line);
+                  background: var(--bg); color: var(--bg); font-size: 9px; font-weight: 700; line-height: 1; }
   .dgrid button.beat { border-left-color: var(--dim); }
   .dgrid button.bar { border-left-color: var(--fg); }
   .dgrid button.on { background: var(--kc, var(--fg)); border-color: var(--kc, var(--fg)); color: #000; opacity: .85; }
-  .dgrid button.on.l1 { opacity: .3; }
-  .dgrid button.on.l2 { opacity: .6; }
-  .dgrid button.on.l3 { opacity: 1; box-shadow: 0 0 0 1px var(--fg); }
+  .dgrid button.on.l1 { opacity: .3; }  .dgrid button.on.l2 { opacity: .6; }
+  .dgrid button.on.l3 { box-shadow: 0 0 0 1px var(--fg); opacity: 1; }
   .dgrid .hd.bar { color: var(--fg); }
   .dgrid .ln { border-left: 4px solid var(--kc, var(--line)); padding-left: 4px; }
   /* the piano roll: header (numbers, ACC, SLIDE), the keys and notes (scrolls), velocity, the picked step's panel */
@@ -147,24 +118,21 @@
   .roll .rnote { display: inline-flex; gap: 4px; align-items: center; border: 1px solid var(--line); padding: 2px 6px; }
   .roll .rnote button { padding: 0 6px; }
   .roll input.num { width: 4.2em; }
-  .strip .solo { font-size: 11px; font-weight: 600; visibility: hidden; }
-  .strip .solo.on { visibility: visible; }
-  /* mixer: four channel strips as on the device's TRACKS page */
+  .strip .solo { visibility: hidden; font-weight: 600; font-size: 11px; }  .strip .solo.on { visibility: visible; }
+  /* the mixer: a channel strip per track, like the TRACKS page on the FM-1 */
   /* (the master, last: two columns, its head / bus knobs / meter, then its FX groups two by two: wider, never taller) */
   .mixer { display: flex; align-items: stretch; gap: 8px; margin: 6px 0; overflow-x: auto; }
   .mixer > .strip { flex: 1 1 150px; min-width: 150px; }
   .mixer > .strip.master { flex: 1.6 1 340px; min-width: 340px; }
-  .strip { border: 1px solid var(--line); padding: 6px 4px; display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; }
-  .strip.sel { border-color: var(--fg); box-shadow: inset 0 0 0 1px var(--fg); }
-  .strip .num { font-size: 18px; font-weight: 600; line-height: 1; }
-  .strip .snd { font-size: 11px; line-height: 1.3; width: 100%; text-align: center; overflow-wrap: anywhere; min-height: 2.6em; }
-  .strip input.fader { writing-mode: vertical-lr; direction: rtl; width: 28px; height: 150px; }
-  .strip .v { font-size: 11px; white-space: nowrap; }
-  .strip .pan { width: 100%; }
-  .strip.muted .fader, .strip.muted .lv { opacity: .35; }
-  .strip button { width: 100%; padding: 1px 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  #sysinfo th { padding-right: 16px; }
-  [hidden] { display: none !important; }
+  .strip { min-width: 0; padding: 6px 4px; border: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .strip.sel { box-shadow: inset 0 0 0 1px var(--fg); border-color: var(--fg); }
+  .strip .num { line-height: 1; font-weight: 600; font-size: 18px; }
+  .strip .snd { min-height: 2.6em; width: 100%; text-align: center; overflow-wrap: anywhere; font-size: 11px; line-height: 1.3; }
+  .strip input.fader { width: 28px; height: 150px; writing-mode: vertical-lr; direction: rtl; }
+  .strip .v { white-space: nowrap; font-size: 11px; }  .strip .pan { width: 100%; }
+  .strip.muted .lv, .strip.muted .fader { opacity: .35; }
+  .strip button { padding: 1px 2px; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #sysinfo th { padding-right: 16px; }  [hidden] { display: none !important; }
   /* not connected: the connect card only (html[data-conn=off], renderPanels) */
   html[data-conn=off] .panel, html[data-conn=off] .tbar > :not(#mock), html[data-conn=off] #status,
   html[data-conn=off] #hint { display: none !important; }
@@ -644,8 +612,7 @@
   progress::-webkit-progress-value { background: var(--trk); }
   progress::-moz-progress-bar { background: var(--trk); }
   .seg button, button.tog { background: var(--s2); color: var(--dim); border: 0; padding: 4px 12px; }
-  .seg { gap: 2px; }
-  .seg button + button { border-left: 0; }
+  .seg { gap: 2px; }  .seg button + button { border-left: 0; }
   .seg button[aria-pressed="true"], button.tog[aria-pressed="true"] { background: var(--trk); color: var(--on); border: 0; }
   button.ib { background: var(--s2); color: var(--fg); border: 0; }
   button.ib:hover { background: var(--s3); border: 0; }
@@ -693,31 +660,26 @@
   .devcard #version { color: var(--fg2); }
   .devcard .inst { font-size: 14px; }
   .top { position: sticky; top: var(--menubar-h, 46px); z-index: 5; background: var(--bg); padding: 4px 0 0; }
-  @media (max-width: 600px) { .top { position: static; } }
-  .tabs { display: flex; flex-wrap: wrap; gap: 0; border-bottom: 1px solid var(--fg); margin: 6px 0 0; }
-  .tabs button { background: none; color: var(--dim); padding: 4px 10px; border: 1px solid transparent; border-bottom: 0; white-space: nowrap; }
-  .tabs button:hover { color: var(--fg); }
-  .tabs button[aria-selected="true"] { background: var(--fg); color: var(--bg); }
-  .trackbar { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--line); }
-  .seg { display: inline-flex; flex-wrap: wrap; }
-  .seg button, button.tog { background: var(--bg); color: var(--fg); border: 1px solid var(--fg); padding: 1px 10px; }
-  .seg button + button { border-left: 0; }
-  .seg button[aria-pressed="true"], button.tog[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
-  .panel { margin: 12px 0; }
-  .hint { margin: 16px 0; color: var(--dim); }
-  /* v5: the drum track as 16 lanes x LEN steps; a hit's level by its shade, its ratchet as a number */
-  .dgrid { display: grid; gap: 1px; margin: 6px 0 12px; overflow-x: auto; }
-  .dgrid .ln { font-size: 10px; color: var(--dim); white-space: nowrap; padding-right: 6px; align-self: center; }
-  .dgrid .hd { font-size: 9px; color: var(--dim); }
-  .dgrid .gap { grid-column: 1 / -1; height: 8px; }
-  .dgrid button { background: var(--bg); color: var(--bg); border: 1px solid var(--line); padding: 0; min-width: 16px; height: 18px;
-                  font-size: 9px; line-height: 1; font-weight: 700; }
+  @media (max-width: 600px) { .top { position: static; } }   /* (as above, again under the new frame: a phone scrolls it away) */
+  .tabs { margin: 6px 0 0; border-bottom: 1px solid var(--fg); display: flex; flex-wrap: wrap; gap: 0; }
+  .tabs button { white-space: nowrap; padding: 4px 10px; border: 1px solid transparent; border-bottom: 0; color: var(--dim); background: none; }
+  .tabs button:hover { color: var(--fg); }  .tabs button[aria-selected="true"] { color: var(--bg); background: var(--fg); }
+  .trackbar { border-bottom: 1px solid var(--line); padding: 6px 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+  .seg { flex-wrap: wrap; display: inline-flex; }  .seg button + button { border-left: 0; }
+  .seg button, button.tog { padding: 1px 10px; border: 1px solid var(--fg); color: var(--fg); background: var(--bg); }
+  button.tog[aria-pressed="true"], .seg button[aria-pressed="true"] { color: var(--bg); background: var(--fg); }
+  .panel { margin: 12px 0; }  .hint { color: var(--dim); margin: 16px 0; }
+  /* (v5) the drum grid: a row per lane, a column per step; the shade is the hit's level, the digit its ratchet */
+  .dgrid { overflow-x: auto; margin: 6px 0 12px; display: grid; gap: 1px; }
+  .dgrid .ln { align-self: center; padding-right: 6px; white-space: nowrap; color: var(--dim); font-size: 10px; }
+  .dgrid .hd { color: var(--dim); font-size: 9px; }  .dgrid .gap { height: 8px; grid-column: 1 / -1; }
+  .dgrid button { min-width: 16px; height: 18px; padding: 0; border: 1px solid var(--line);
+                  background: var(--bg); color: var(--bg); font-size: 9px; font-weight: 700; line-height: 1; }
   .dgrid button.beat { border-left-color: var(--dim); }
   .dgrid button.bar { border-left-color: var(--fg); }
   .dgrid button.on { background: var(--kc, var(--fg)); border-color: var(--kc, var(--fg)); color: #000; opacity: .85; }
-  .dgrid button.on.l1 { opacity: .3; }
-  .dgrid button.on.l2 { opacity: .6; }
-  .dgrid button.on.l3 { opacity: 1; box-shadow: 0 0 0 1px var(--fg); }
+  .dgrid button.on.l1 { opacity: .3; }  .dgrid button.on.l2 { opacity: .6; }
+  .dgrid button.on.l3 { box-shadow: 0 0 0 1px var(--fg); opacity: 1; }
   .dgrid .hd.bar { color: var(--fg); }
   .dgrid .ln { border-left: 4px solid var(--kc, var(--line)); padding-left: 4px; }
   /* the piano roll: header (numbers, ACC, SLIDE), the keys and notes (scrolls), velocity, the picked step's panel */
@@ -731,24 +693,21 @@
   .roll .rnote { display: inline-flex; gap: 4px; align-items: center; border: 1px solid var(--line); padding: 2px 6px; }
   .roll .rnote button { padding: 0 6px; }
   .roll input.num { width: 4.2em; }
-  .strip .solo { font-size: 11px; font-weight: 600; visibility: hidden; }
-  .strip .solo.on { visibility: visible; }
-  /* mixer: four channel strips as on the device's TRACKS page */
+  .strip .solo { visibility: hidden; font-weight: 600; font-size: 11px; }  .strip .solo.on { visibility: visible; }
+  /* the mixer once more: a strip per track as the FM-1's TRACKS page lays them out */
   /* (the master, last: two columns, its head / bus knobs / meter, then its FX groups two by two: wider, never taller) */
   .mixer { display: flex; align-items: stretch; gap: 8px; margin: 6px 0; overflow-x: auto; }
   .mixer > .strip { flex: 1 1 150px; min-width: 150px; }
   .mixer > .strip.master { flex: 1.6 1 340px; min-width: 340px; }
-  .strip { border: 1px solid var(--line); padding: 6px 4px; display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; }
-  .strip.sel { border-color: var(--fg); box-shadow: inset 0 0 0 1px var(--fg); }
-  .strip .num { font-size: 18px; font-weight: 600; line-height: 1; }
-  .strip .snd { font-size: 11px; line-height: 1.3; width: 100%; text-align: center; overflow-wrap: anywhere; min-height: 2.6em; }
-  .strip input.fader { writing-mode: vertical-lr; direction: rtl; width: 28px; height: 150px; }
-  .strip .v { font-size: 11px; white-space: nowrap; }
-  .strip .pan { width: 100%; }
-  .strip.muted .fader, .strip.muted .lv { opacity: .35; }
-  .strip button { width: 100%; padding: 1px 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  #sysinfo th { padding-right: 16px; }
-  [hidden] { display: none !important; }
+  .strip { min-width: 0; padding: 6px 4px; border: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .strip.sel { box-shadow: inset 0 0 0 1px var(--fg); border-color: var(--fg); }
+  .strip .num { line-height: 1; font-weight: 600; font-size: 18px; }
+  .strip .snd { min-height: 2.6em; width: 100%; text-align: center; overflow-wrap: anywhere; font-size: 11px; line-height: 1.3; }
+  .strip input.fader { width: 28px; height: 150px; writing-mode: vertical-lr; direction: rtl; }
+  .strip .v { white-space: nowrap; font-size: 11px; }  .strip .pan { width: 100%; }
+  .strip.muted .lv, .strip.muted .fader { opacity: .35; }
+  .strip button { padding: 1px 2px; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #sysinfo th { padding-right: 16px; }  [hidden] { display: none !important; }
   /* not connected: the connect card only (html[data-conn=off], renderPanels) */
   html[data-conn=off] .panel, html[data-conn=off] .tbar > :not(#mock), html[data-conn=off] #status,
   html[data-conn=off] #hint { display: none !important; }
@@ -1146,8 +1105,7 @@
   progress::-webkit-progress-value { background: var(--trk); }
   progress::-moz-progress-bar { background: var(--trk); }
   .seg button, button.tog { background: var(--s2); color: var(--dim); border: 0; padding: 4px 12px; }
-  .seg { gap: 2px; }
-  .seg button + button { border-left: 0; }
+  .seg { gap: 2px; }  .seg button + button { border-left: 0; }
   .seg button[aria-pressed="true"], button.tog[aria-pressed="true"] { background: var(--trk); color: var(--on); border: 0; }
   button.ib { background: var(--s2); color: var(--fg); border: 0; }
   button.ib:hover { background: var(--s3); border: 0; }
@@ -1546,7 +1504,7 @@
   <p class="dim sidenote" id="sidenote" role="note" hidden></p>
   <div class="devcard">
     <span class="devline"><span id="live" class="pill"></span></span>
-    <span id="version" class="dim"></span>
+    <span class="dim" id="version"></span>
     <button id="disconnect" data-t="disconnect" data-ic="port_usb_c"></button>
   </div>
 </div>
@@ -1554,7 +1512,7 @@
   <!-- the top: the page, the status line, the transport and the four tracks (one click selects the track the editors act on) -->
   <header class="top" id="transport">
         <div class="tbar">
-      <span id="mock" class="dim" hidden data-t="mock"></span>
+      <span class="dim" id="mock" data-t="mock" hidden></span>
       <span id="status"></span>
       <span class="tp" id="undotp" hidden>
         <button type="button" id="undobtn" class="ib" disabled aria-label="Undo" title="Undo (Ctrl / Cmd + Z)">&#8630;</button>
@@ -1569,7 +1527,7 @@
     </div>
   </header>
   <div class="kbd" id="kbd" role="group" aria-label="Keyboard" hidden></div>
-  <p class="hint" id="hint" hidden></p>
+  <p id="hint" class="hint" hidden></p>
   <!-- not connected: nothing but this (no mixer, no values); everything else appears once a device answers -->
   <section id="connectcard" class="connectcard" aria-live="polite">
     <h1 class="clogo"><img src="../../icon.svg" alt="" width="32" height="32" style="vertical-align:-6px;margin-right:12px">Optimist</h1>
@@ -1582,33 +1540,29 @@
 
   <section class="panel pp" id="p-sound" data-pop="sound" hidden>
     <h2 class="stitle" id="soundtitle"></h2>
-    <div class="browser" id="browser">
-      <label><span data-t="engine"></span><br><select id="engine"></select></label>
-      <label><span data-t="presets"></span><br><select id="preset" size="8"></select></label>
+    <div id="browser" class="browser">
+      <label><span data-t="engine"></span><br><select id="engine"></select></label> <label><span data-t="presets"></span><br><select size="8" id="preset"></select></label>
       <div>
-        <p class="bar"><button id="init" data-t="initSound"></button>
-          <button id="factlib" data-t="factoryToLib" data-ic="symbol_folder"></button></p>
-        <p class="bar"><button id="savefile" data-t="saveFile" data-ic="symbol_download"></button>
-          <button id="loadfile" data-t="loadFile" data-ic="symbol_upload"></button>
-          <input type="file" id="file" accept=".json,application/json" hidden></p>
+        <p class="bar"><button data-t="initSound" id="init"></button> <button data-ic="symbol_folder" data-t="factoryToLib" id="factlib"></button></p>
+        <p class="bar"><button data-ic="symbol_download" data-t="saveFile" id="savefile"></button> <button data-ic="symbol_upload" data-t="loadFile" id="loadfile"></button>
+          <input id="file" type="file" hidden accept=".json,application/json"></p>
       </div>
     </div>
     <div id="drumsound" hidden></div>
-    <p class="dim" id="ctlhelp" data-t="ctlHelp"></p>
-    <div class="groups" id="groups"></div>
+    <p id="ctlhelp" class="dim" data-t="ctlHelp"></p>
+    <div id="groups" class="groups"></div>
   </section>
 
   <section class="panel pp" id="p-sequencer" data-pop="sequence" hidden>
-    <div class="groups" id="seqgroups"></div>
+    <div id="seqgroups" class="groups"></div>
     <div id="steps">
       <p class="bar" id="slotbar" hidden></p>
-      <h2 data-t="steps" data-ic="note_eight"></h2>
-      <p class="bar"><button id="reloadsteps" data-t="reload" data-ic="control_arrow_loop"></button>
-        <button id="clearseq" data-t="clearSeq" data-ic="symbol_trash"></button>
-        <span class="dim" id="noteshelp"></span></p>
+      <h2 data-ic="note_eight" data-t="steps"></h2>
+      <p class="bar"><button data-ic="control_arrow_loop" data-t="reload" id="reloadsteps"></button> <button data-ic="symbol_trash" data-t="clearSeq" id="clearseq"></button>
+        <span id="noteshelp" class="dim"></span></p>
       <div class="stepx" id="stepx" hidden></div>
-      <div class="bar" id="drumbar" hidden></div>
-      <div class="dgrid" id="drumgrid" hidden></div>
+      <div id="drumbar" class="bar" hidden></div>
+      <div id="drumgrid" class="dgrid" hidden></div>
       <div class="roll" id="roll"></div>
     </div>
   </section>
@@ -1619,10 +1573,10 @@
   <section class="panel appview o-host" id="p-sim" data-tab="sim" hidden><div class="appnote dim" id="sim-note" role="status"></div><div id="sim-host"></div></section>
 
   <section class="panel" id="p-mixer" data-tab="mixer" data-dev hidden>
-    <div class="mixer" id="mixer"></div>
+    <div id="mixer" class="mixer"></div>
   </section>
 
-  <!-- works without a device too (the device bank shows while connected) -->
+  <!-- usable with no device as well; the device's bank column appears once one is connected -->
   <section class="panel" id="p-mirror" data-tab="mirror" data-dev hidden>
     <details class="pghelp"><summary title="About this page" aria-label="About this page">i</summary><p class="dim" data-t="mirHelp"></p></details>
     <div class="mirbar" id="mirbar"></div>
@@ -1637,56 +1591,42 @@
     </div>
   </section>
   <section class="panel" id="p-library" data-tab="library" hidden>
-    <div class="libcols" id="libsec">
+    <div id="libsec" class="libcols">
       <div id="libpane">
-        <div class="bar">
-          <input type="search" id="libq" spellcheck="false">
-          <select id="libeng"></select>
-          <select id="libtag"></select>
-          <select id="libsort"></select>
-        </div>
-        <div class="list" id="liblist"></div>
-        <p class="bar" style="margin-top:6px">
-          <button id="libaud" data-t="audition" data-ic="symbol_audio"></button>
-          <button id="libput" data-t="toSlot" data-ic="symbol_upload"></button>
-          <button id="libren" data-t="rename"></button>
-          <button id="libtags" data-t="tags"></button>
-          <button id="libdup" data-t="duplicate"></button>
-          <button id="libdel" data-t="delete" data-ic="symbol_trash"></button>
-          <button id="libexp1" data-t="exportPatch" data-ic="symbol_download"></button>
+        <div class="bar"><input id="libq" type="search" spellcheck="false"> <select id="libeng"></select> <select id="libtag"></select> <select id="libsort"></select></div>
+        <div id="liblist" class="list"></div>
+        <p style="margin-top:6px" class="bar">
+          <button data-ic="symbol_audio" data-t="audition" id="libaud"></button> <button data-ic="symbol_upload" data-t="toSlot" id="libput"></button>
+          <button data-t="rename" id="libren"></button> <button data-t="tags" id="libtags"></button> <button data-t="duplicate" id="libdup"></button>
+          <button data-ic="symbol_trash" data-t="delete" id="libdel"></button> <button data-ic="symbol_download" data-t="exportPatch" id="libexp1"></button>
         </p>
         <p class="bar">
-          <button id="libsave" data-t="saveToLib" data-ic="port_disk"></button>
-          <button id="libimport" data-t="import" data-ic="symbol_upload"></button>
-          <button id="libexport" data-t="exportLib" data-ic="symbol_download"></button>
+          <button data-ic="port_disk" data-t="saveToLib" id="libsave"></button> <button data-ic="symbol_upload" data-t="import" id="libimport"></button>
+          <button data-ic="symbol_download" data-t="exportLib" id="libexport"></button>
           <input type="file" id="libfile" accept=".json,.syx,application/json" multiple hidden>
-          <span class="dim" id="libcount"></span>
+          <span id="libcount" class="dim"></span>
         </p>
         <p class="dim" data-t="dx7Help"></p>
       </div>
       <div>
-        <h2 data-t="bank" data-ic="port_disk"></h2>
-        <p class="dim" id="bankhint"></p>
-        <div id="bankpane" hidden>
-          <div class="bar"><b id="bankhead"></b></div>
-          <div class="list" id="banklist"></div>
-          <p class="bar" style="margin-top:6px">
-            <button id="bkload" data-t="bankLoad" data-ic="symbol_folder_open"></button>
-            <button id="bkstore" data-t="bankStore" data-ic="port_disk"></button>
-            <button id="bkget" data-t="bankGet" data-ic="symbol_download"></button>
-            <button id="bkerase" data-t="erase" data-ic="symbol_trash"></button>
+        <h2 data-ic="port_disk" data-t="bank"></h2>
+        <p id="bankhint" class="dim"></p>
+        <div id="bankpane" hidden><div class="bar"><b id="bankhead"></b></div>
+          <div id="banklist" class="list"></div>
+          <p style="margin-top:6px" class="bar">
+            <button data-ic="symbol_folder_open" data-t="bankLoad" id="bkload"></button> <button data-ic="port_disk" data-t="bankStore" id="bkstore"></button>
+            <button data-ic="symbol_download" data-t="bankGet" id="bkget"></button> <button data-ic="symbol_trash" data-t="erase" id="bkerase"></button>
           </p>
           <p class="bar">
-            <button id="bkrefresh" data-t="reload" data-ic="control_arrow_loop"></button>
-            <button id="bkexport" data-t="exportBank" data-ic="symbol_download"></button>
-            <span class="dim" data-t="dndHelp"></span>
+            <button data-ic="control_arrow_loop" data-t="reload" id="bkrefresh"></button> <button data-ic="symbol_download" data-t="exportBank" id="bkexport"></button>
+            <span data-t="dndHelp" class="dim"></span>
           </p>
         </div>
       </div>
       <div id="czbox" hidden>
         <h2 data-t="czBank" data-ic="ui_knob"></h2>
         <div class="list" id="czlist"></div>
-        <p class="bar" style="margin-top:6px">
+        <p style="margin-top:6px" class="bar">
           <button id="czuse" data-t="fm6Use" data-ic="symbol_audio"></button>
           <button id="czclear" data-t="erase" data-ic="symbol_trash"></button>
           <button id="czimport" data-t="fm6Import" data-ic="symbol_upload"></button>
@@ -1699,7 +1639,7 @@
     </div>
   </section>
 
-  <section class="panel" id="p-samples" data-tab="samples" data-dev hidden>
+  <section class="panel" id="p-samples" data-tab="samples" hidden data-dev>
     <div class="smp chop" id="chop" hidden></div>   <!-- (moved into step 2 of the page, renderSamples) -->
     <div id="smpslots"></div>
   </section>
@@ -1723,9 +1663,9 @@
   </section>
   <section class="panel pp" id="p-dyn" data-pop="dyn" hidden></section>
 
-  <section class="panel" id="p-projects" data-tab="projects" data-dev hidden>
+  <section class="panel" id="p-projects" data-tab="projects" hidden data-dev>
     <details class="pghelp"><summary title="About this page" aria-label="About this page">i</summary><p class="dim" data-t="projHelp"></p></details>
-    <div class="slots" id="slots"></div>
+    <div id="slots" class="slots"></div>
     <div id="libr"></div>
   </section>
 
@@ -1752,18 +1692,17 @@
 
   <!-- the FM-1's own screen (106 MIRROR) and, as in the Mirror app, the touch buttons (109 NAV), the computer keys and knob drags
        (108 PANEL), the notes of a synth track's clip on STEPS (111 CLIP) -->
-  <section class="panel" id="p-settings" data-tab="settings" data-dev hidden>
-    <div class="groups" id="setgroups"></div>
+  <section class="panel" id="p-settings" data-tab="settings" hidden data-dev>
+    <div id="setgroups" class="groups"></div>
     <div class="groups" id="devscr" hidden></div>
-    <div class="group" style="margin-top:12px">
-      <h2 data-t="system" data-ic="symbol_cog"></h2>
-      <table id="sysinfo"></table>
+    <div style="margin-top:12px" class="group">
+      <h2 data-ic="symbol_cog" data-t="system"></h2><table id="sysinfo"></table>
     </div>
   </section>
 
   <dialog id="pop" aria-labelledby="poptitle">
     <div class="pophead"><h2 id="poptitle"></h2>
-      <div class="trackbar" id="trackbar" hidden><span class="dim" data-t="track"></span><span class="seg" id="trackbtns" role="group"></span></div>
+      <div id="trackbar" class="trackbar" hidden><span class="dim" data-t="track"></span><span id="trackbtns" class="seg" role="group"></span></div>
       <button type="button" id="popx" class="popx" aria-label="Close (Esc)" title="Close (Esc)">&times;</button></div>
     <div id="popbody"></div>
   </dialog>
@@ -1785,14 +1724,13 @@
 <script>
 "use strict";
 /*PROTO-BEGIN*/
-/* ---------------------------------------------------------------- protocol --- */
-const HDR = [0x7D, 0x46, 0x4C];
-const CMD = { INFO: 1, GET: 2, SET: 3, DUMP: 4, DESC: 5, STEP_GET: 6, STEP_SET: 7, PRESET: 8, PROJECT: 9, NAMES: 10,
-  SMP_BEGIN: 11, SMP_WRITE: 12, SMP_END: 13, SMP_ERASE: 14, SMP_INFO: 15,
-  UP_LIST: 16, UP_GET: 17, UP_PUT: 18, UP_STORE: 19, UP_LOAD: 20, UP_ERASE: 21,
-  WATCH: 22, CHANGED: 23, RELOAD: 24, PING: 25, STEP_CHANGED: 26,
-  TRACK: 27, TRACK_MIX: 28, TRACK_DUMP: 29, TRACK_STEP: 30,
-  TRACK_PARAM: 31, TRACK_CHANGED: 32,
+/* ------------------------------------------------------------ the wire protocol --- */
+const HDR = [0x7D, 0x46, 0x4C];   /* after F0: 7D (the non-commercial manufacturer id), then "F", "L" */
+const CMD = {
+  INFO: 1, GET: 2, SET: 3, DUMP: 4, DESC: 5, STEP_GET: 6, STEP_SET: 7, PRESET: 8, PROJECT: 9, NAMES: 10,   /* (by number) */
+  SMP_BEGIN: 11, SMP_WRITE: 12, SMP_END: 13, SMP_ERASE: 14, SMP_INFO: 15, UP_LIST: 16, UP_GET: 17, UP_PUT: 18,
+  UP_STORE: 19, UP_LOAD: 20, UP_ERASE: 21, WATCH: 22, CHANGED: 23, RELOAD: 24, PING: 25, STEP_CHANGED: 26,
+  TRACK: 27, TRACK_MIX: 28, TRACK_DUMP: 29, TRACK_STEP: 30, TRACK_PARAM: 31, TRACK_CHANGED: 32,
   DRUM_STEP: 33,
   DRUM_LANES: 36, DRUM_LANE: 37, UKIT_LIST: 38, UKIT_GET: 39, UKIT_PUT: 40, UKIT_OP: 41, SMP_READ: 42,
   BK_LIST: 43, BK_READ: 44, BK_BEGIN: 45, BK_DATA: 46, BK_COMMIT: 47, BK_END: 48, BUILD: 49,
@@ -1901,10 +1839,11 @@ const PUSH = new Set([CMD.CHANGED, CMD.RELOAD, CMD.STEP_CHANGED, CMD.TRACK_CHANG
 const WATCH = { ON: 1, V4: 2, V9: 4, STREAM: 8, ALL: 15, ENDS: 16, EDIT: 7 };   /* ENDS (v12): STEPS pushes with the notes' own ends; EDIT: what
    the editor asks for, every push but the status stream (an editor, not a remote DAW: no meters, no playhead) */
 const PARAMS_GLOBAL = 127;                         /* a PARAMS entry's "where" for a global G_* */
-/* user preset bank: name 1..12 printable ASCII, a 16-step pattern of (note, flags 1 acc 2 slide 4 tie) */
-const UP = { NAME_MAX: 12, PAT: 16, LIST_MAX: 16 };
-const F = { INT: 0, PCT: 1, BIPCT: 2, TIME: 3, LFOHZ: 4, CUTOFF: 5, DB: 6, SEMI: 7, ENUM: 8, BPM: 9, NOTE: 10, ONOFF: 11, OCT: 12, STEPS: 13,
-  SWING: 14, FILT: 15, GATE: 16 };
+/* the user preset bank: a name of 1..12 printable ASCII characters and a 16-step pattern, each step (note, flags: 1 accent,
+   2 slide, 4 tie) */
+const UP = { PAT: 16, LIST_MAX: 16, NAME_MAX: 12 };
+const F = { INT: 0, PCT: 1, BIPCT: 2, TIME: 3, LFOHZ: 4, CUTOFF: 5, DB: 6, SEMI: 7, ENUM: 8,   /* how a value shows (fmtValue) */
+  BPM: 9, NOTE: 10, ONOFF: 11, OCT: 12, STEPS: 13, SWING: 14, FILT: 15, GATE: 16 };
 /* the drum track's 10 lanes (2026-10-16; firmware drums.c LANE_DEF_INST, INST_NOTE / INST_NAME): a fresh project's
    instruments, each lane's GM note and name; the device names a lane after the instrument it plays (DRUM_SHOW). The
    messages keep the 16 lanes' width (lanes 11..16 zero) and lane 16 the ACCENT lane (drums.c EDW_ACC). A hit has a level
@@ -1912,14 +1851,14 @@ const F = { INT: 0, PCT: 1, BIPCT: 2, TIME: 3, LFOHZ: 4, CUTOFF: 5, DB: 6, SEMI:
 const DRUM_LANES = [[36, "KICK"], [38, "SNARE"], [39, "CLAP"], [42, "CLOSED HAT"], [46, "OPEN HAT"], [43, "LOW TOM"], [48, "HI TOM"],
   [37, "RIM"], [49, "CRASH"], [51, "RIDE"]];
 const DRUM_LANE = (l) => DRUM_LANES[l] || [0, "LANE " + (l + 1)];   /* (a lane past the 10: the wire's padding) */
-const LV_NAMES = ["NORM", "GHOST", "SOFT", "HARD"];
+const LV_NAMES = "NORM GHOST SOFT HARD".split(" ");   /* a hit's level by its number 0..3 */
 /* the kits (drums.c DRUM_KIT_NAMES; their numbers are stored in projects and user kits; 37 / 38: the X0X kits, 39..46 their
    style kits, built or not) */
 const DRUM_KIT_NAMES = ["ACOUSTIC", "DEEP", "TIGHT", "BRIGHT", "DUST", "808", "909", "606", "80S", "VINTAGE", "TRAP", "DRILL", "BOOMBAP", "LO-FI", "PHONK", "HOUSE", "D.HOUSE", "TECHNO", "MINIMAL", "ELECTRO", "DISCO", "GARAGE", "JUNGLE", "DUBSTEP", "DEMBOW", "AMAPIANO", "AFRO", "LATIN", "TRIBAL", "SYNTHWV", "CHIP", "ARCADE", "GLITCH", "INDUSTR", "HYPER", "AMBIENT", "JAZZ", "X0X 909", "X0X 808",
   "X9 TECH", "X9 HOUSE", "X9 UKG", "X9 ACID", "X8 TRAP", "X8 BOOM", "X8 ELEC", "X8 MIAMI", "KAWA", "PLAITS"];   /* (47..: the
    synthesised kits after the X0X ones, gen_drumkits.py XKITS) */
-const LV_ORDER = [1, 2, 0, 3];                       /* by loudness: GHOST SOFT NORM HARD (as the device's LEVEL knob) */
-/* an empty drum step: no lane on */
+const LV_ORDER = [1, 2, 0, 3];   /* the levels from quiet to loud, as the device's LEVEL knob steps them */
+/* a drum step with every lane off */
 const emptyDrum = () => ({ on: 0, lvl: new Array(17).fill(0), rat: new Array(17).fill(0) });   /* (lane 16: the ACCENT lane) */
 
 /* drum lanes and user kits (firmware drum_edit.c, drum_kits.c, ed_drums.c; cmds 36..42): every lane of the drum
@@ -2495,52 +2434,62 @@ async function snWriteAll(rq, slot, stream, prog) {
   if (r.rc) throw rcErr("import", r.rc);
 }
 
-const v14enc = (v) => { const u = Math.max(-8192, Math.min(8191, Math.round(v))) + 8192; return [u & 0x7F, (u >> 7) & 0x7F]; };
-const v14dec = (lo, hi) => (lo | (hi << 7)) - 8192;
+const v14enc = (v) => {   /* a signed value as two 7-bit bytes, low first, offset by 8192 (clamped to -8192..8191) */
+  const u = 8192 + Math.min(8191, Math.max(-8192, Math.round(v)));
+  return [u & 0x7F, u >> 7 & 0x7F];
+};
+const v14dec = (lo, hi) => ((hi << 7) | lo) - 8192;
 const idEnc = (x) => [x & 0x7F, (x >> 7) & 0x7F];   /* a parameter id, 2 x 7 bit (protocol 7) */
 const PG_NONE = 0x3FFF;                              /* PAGES: an empty card (127 127) */
-function strEnc(s) { const a = []; for (const c of String(s)) a.push(c.charCodeAt(0) & 0x7F); a.push(0); return a; }
+function strEnc(s) { return [...String(s)].map((ch) => ch.charCodeAt(0) & 0x7F).concat(0); }   /* 7-bit text, 0-ended */
 
-/* only ever builds F0 7D 46 4C ... F7 */
-function frame(cmd, args = []) {
-  for (const b of args) if (!(Number.isInteger(b) && b >= 0 && b <= 0x7F)) throw new Error("bad data byte " + b);
-  return [0xF0, ...HDR, cmd & 0x7F, ...args, 0xF7];
+/* the one frame this page sends: F0 7D 46 4C, the command, its data bytes (each checked to be 0..127), F7 */
+function frame(cmd, data = []) {
+  const msg = [0xF0, HDR[0], HDR[1], HDR[2], cmd & 0x7F];
+  for (const b of data) {
+    if (!Number.isInteger(b) || b < 0 || b > 0x7F) throw new Error("bad data byte " + b);
+    msg.push(b);
+  }
+  msg.push(0xF7);
+  return msg;
 }
-/* -> {cmd, a} or null when it is not an editor frame */
-function unframe(d) {
-  if (!d || d.length < 6 || d[0] !== 0xF0 || d[d.length - 1] !== 0xF7) return null;
-  if (d[1] !== HDR[0] || d[2] !== HDR[1] || d[3] !== HDR[2]) return null;
-  return { cmd: d[4], a: Array.from(d.slice(5, d.length - 1)) };
+/* an incoming message -> { cmd, a: its data bytes }, or null for anything that is not one of ours */
+function unframe(m) {
+  const n = m ? m.length : 0;
+  if (n < 6 || m[0] !== 0xF0 || m[n - 1] !== 0xF7) return null;
+  for (let k = 0; k < HDR.length; k++) if (m[1 + k] !== HDR[k]) return null;
+  return { cmd: m[4], a: Array.from(m.slice(5, n - 1)) };
 }
 
+/* walks a reply's data: b a byte, v a signed 14-bit value, id a parameter id, s a 0-ended string; past the end it throws */
 class Reader {
-  constructor(a) { this.a = a; this.i = 0; }
-  b() { if (this.i >= this.a.length) throw new Error("short reply"); return this.a[this.i++]; }
-  v() { const lo = this.b(); return v14dec(lo, this.b()); }
+  constructor(bytes) { this.i = 0; this.a = bytes; }
+  b() { if (this.i < this.a.length) return this.a[this.i++]; throw new Error("short reply"); }
+  v() { const lo = this.b(), hi = this.b(); return v14dec(lo, hi); }
   id() { const lo = this.b(); return lo | (this.b() << 7); }   /* a parameter id, 2 x 7 bit (protocol 7) */
-  s() { let s = ""; for (;;) { const c = this.b(); if (!c) return s; s += String.fromCharCode(c); } }
+  s() { let out = ""; for (let c = this.b(); c !== 0; c = this.b()) out += String.fromCharCode(c); return out; }
 }
 
 /* v5 steps end with level / ratchet (2 bits per note, 7-bit bytes: lvl, hi (bit 0 lvl, bit 1 rat, v12 bit 2 the carry flag
    0x80), rat); v12: then each note's own end (0 = the step's GATE, 1..127 / 128 of the step) */
 function stepExt(r, a, o) {
-  if (r.i + 3 <= a.length) {
-    const lo = r.b(), hi = r.b(), rt = r.b();
-    o.lvl = lo | ((hi & 1) << 7);
-    o.rat = rt | (((hi >> 1) & 1) << 7);
+  if (a.length - r.i >= 3) {
+    const lvl = r.b(), hi = r.b(), rat = r.b();
+    o.lvl = lvl | (hi & 1) << 7;
+    o.rat = rat | (hi & 2) << 6;
     if (hi & 4) o.flags |= 0x80;
   }
   if (r.i + 4 <= a.length) o.ends = [r.b(), r.b(), r.b(), r.b()];
   return o;
 }
 
-const parse = {
-  [CMD.INFO](a) {
-    const r = new Reader(a);
+const parse = {   /* the replies' readers, by command */
+  [CMD.INFO](a) {   /* the firmware's name, its engines, then (by protocol version) the rest and the tagged blocks */
+    const r = new Reader(a), more = () => r.i < a.length;
     const o = { version: r.s(), nengines: r.b(), pcount: r.id(), gcount: r.id(), nstep: r.b(), pe0: r.id(), engines: [] };   /* (ids 2 x 7 bit) */
-    for (let i = 0; i < o.nengines; i++) o.engines.push(r.s());
-    o.ntrk = r.i < a.length ? r.b() : 0;             /* v3: tracks (0 = older firmware, one instrument) */
-    o.proto = r.i < a.length ? r.b() : 0;            /* v5: the protocol version (0 = older firmware) */
+    while (o.engines.length < o.nengines) o.engines.push(r.s());
+    o.ntrk = more() ? r.b() : 0;                     /* v3 on: how many tracks (0: an older one-instrument firmware) */
+    o.proto = more() ? r.b() : 0;                    /* v5 on: the protocol version it speaks (0: older) */
     o.uids = [];                                     /* v6: each engine slot's stable UID (firmware registry.h) */
     for (let i = 0; o.proto >= 6 && i < o.nengines && r.i < a.length; i++) o.uids.push(r.b());
     o.syncCaps = 0;                                  /* then tagged blocks (id, length, bytes); 53: live sync, bit 0 */
