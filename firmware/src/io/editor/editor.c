@@ -10,6 +10,15 @@
 #define ED_HDR0 0x7D
 #define ED_HDR1 0x46
 #define ED_HDR2 0x4C
+/* FELUCCA_ED_COMPANION: the backup's objects and the sample slots are fm1-base companion files instead of cmds 43..48 and
+ * 11..15 (ed_comp.c; the trial, Optimist as an fm1-base app, sets it with fm1.toml companion = true). Optimist's own
+ * firmware: 0, those commands as they are */
+#ifndef FELUCCA_ED_COMPANION
+#define FELUCCA_ED_COMPANION 0
+#endif
+#if FELUCCA_ED_COMPANION && (FELUCCA_ED_LIVE || !FELUCCA_FLASH || !FELUCCA_BACKUP)
+#error "FELUCCA_ED_COMPANION: the editor without live editing, with BACKUP (ed_lite.c, ed_backup.c)"
+#endif
 enum { ED_INFO = 1, ED_GET, ED_SET, ED_DUMP, ED_DESC, ED_STEP_GET, ED_STEP_SET, ED_PRESET, ED_PROJECT, ED_NAMES,
        ED_SMP_BEGIN, ED_SMP_WRITE, ED_SMP_END, ED_SMP_ERASE, ED_SMP_INFO,
        ED_UP_LIST, ED_UP_GET, ED_UP_PUT, ED_UP_STORE, ED_UP_LOAD, ED_UP_ERASE,   /* v2: user presets */
