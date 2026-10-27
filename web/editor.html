@@ -10216,35 +10216,35 @@ function renderSnaps() {
     L.fits ? "" : el("span", { class: "pill", "data-st": "err", text: t("snFull") })));
 }
 
-async function smpErase(k) {
-  if (!dev || !confirm(t("confirmErase").replace("{n}", k + 1))) return;
-  busy++;
-  smpBusy = true;
-  renderSamples();
+/* empty user sample slot k on the device (after the user confirms), then reread the slot table */
+async function smpErase(slot) {
+  const label = slot + 1;
+  if (!dev) return;
+  if (!confirm(t("confirmErase").replace("{n}", label))) return;
+  const setBusy = (on) => { busy += on ? 1 : -1; smpBusy = on; renderSamples(); };
+  setBusy(true);
   try {
-    const r = parse[CMD.SMP_ERASE](await rq(req.smpErase(k), { timeout: 2500, retries: 0 }));
+    const reply = await rq(req.smpErase(slot), { retries: 0, timeout: 2500 });
+    const r = parse[CMD.SMP_ERASE](reply);
     if (r.rc) throw new Error(r.rc === 3 ? t("stopFirst") : "erase rc " + r.rc);
-    sayK("smpErased", String(k + 1));
-  } catch (e) {
-    if (e.message !== "closed") sayK("smpFail", e.message);
-  } finally {
-    try { if (dev) await smpInfo(); } catch (e) { /* ignore */ }
-    smpBusy = false;
-    busy--;
-    renderSamples();
+    sayK("smpErased", `${label}`);
+  } catch (err) {
+    if (err.message === "closed") { /* the port went away: nothing to say */ } else sayK("smpFail", err.message);
   }
+  if (dev) await smpInfo().catch(() => { /* the table stays as it was */ });
+  setBusy(false);
 }
 
-/* ---------------------------------------------------------------- CHOP --- */
-/* Load a recording, mark the chops (live: TAP / space while it plays, each tap moved to the hit it
-   meant; or by hits, a tempo grid, equal parts; double-click adds, drag moves, Delete removes),
+/* ================================================================ CHOP ===== */
+/* Chopping a recording. Mark the chops either live (TAP or space while it plays; each tap lands on the
+   onset it was aimed at) or by detected hits, a tempo grid or equal parts; double-click adds a marker, drag moves one, Delete removes it;
    audition them (click, keys 1-9 0), keep or leave out each one and set its length (a recording longer
    than a slot: keep the chops you want, shorten them, or Fit to slot), then one chop per key into
    USR1..3 or as WAV files. CH.opt[i] = {off, len} goes with marker i. */
 const CH = { x: null, nov: null, name: "", marks: [], opt: [], sel: -1, v0: 0, v1: 1, ctx: null, src: null, t0: 0, raf: 0,
   drag: -1, dragEnd: false, key0: 60, mode: 0, maxLen: 0, ui: null };
-const chR = () => SMP.RATE;
-const chSecs = (n) => (n / SMP.RATE).toFixed(2) + " s";
+const chR = () => SMP.RATE;                          /* the chopper works at the slot's rate */
+const chSecs = (samples) => `${(samples / chR()).toFixed(2)} s`;
 
 function chopChops() { return CH.x ? chopList(CH.marks, CH.x.length, Math.round(CH.maxLen * SMP.RATE), CH.opt) : []; }
 function chopUsed() {                                /* the chops the slot gets, their samples, and each chop's key */
@@ -10279,30 +10279,35 @@ function chopFitAll() {                              /* shorten the longest kept
   chopRender();
 }
 
-async function chopDecode(buf) {                    /* any file the browser decodes -> mono Float64 at SMP.RATE */
-  try { const w = parseWav(buf); return resample(w.x, w.sr, SMP.RATE); } catch (e) { /* not a plain WAV */ }
-  const Ctx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
-  const ab = await new Ctx(1, 1, SMP.RATE).decodeAudioData(buf.slice(0));
-  const x = new Float64Array(ab.length);
-  for (let c = 0; c < ab.numberOfChannels; c++) { const d = ab.getChannelData(c); for (let i = 0; i < d.length; i++) x[i] += d[i] / ab.numberOfChannels; }
-  return x;
+/* a dropped file as mono Float64 samples at the slot rate: our WAV reader first, the browser's decoder for the rest */
+async function chopDecode(bytes) {
+  let wav = null;
+  try { wav = parseWav(bytes); } catch (err) { wav = null; }
+  if (wav) return resample(wav.x, wav.sr, chR());
+  const Offline = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+  const decoded = await new Offline(1, 1, chR()).decodeAudioData(bytes.slice(0));
+  const chans = decoded.numberOfChannels, mono = new Float64Array(decoded.length);
+  for (let ch = 0; ch < chans; ch++) {
+    const data = decoded.getChannelData(ch);
+    data.forEach((s, i) => { mono[i] += s / chans; });
+  }
+  return mono;
 }
 
-async function chopLoad(f) {
+/* a short upper-case slot name from a file name: letters and digits only, 8 at most */
+const chopNameOf = (fname) => fname.replace(/\.[^.]*$/, "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8) || "CHOP";
+
+async function chopLoad(file) {
   chopStop();
   try {
-    const x = await chopDecode(await f.arrayBuffer());
-    if (!x.length) throw new Error("no audio");
-    CH.x = x;
-    CH.nov = chopNovelty(x);
-    CH.name = f.name.replace(/\.[^.]*$/, "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8) || "CHOP";
-    CH.marks = [];
-    CH.opt = [];
-    CH.sel = -1;
-    CH.v0 = 0;
-    CH.v1 = x.length;
-    sayK("chopLoaded", `${f.name} (${chSecs(x.length)})`);
-  } catch (e) { sayK("smpDecodeFail", `${f.name} (${e.message})`); }
+    const audio = await chopDecode(await file.arrayBuffer());
+    if (audio.length === 0) throw new Error("no audio");
+    Object.assign(CH, { x: audio, nov: chopNovelty(audio), name: chopNameOf(file.name),
+      marks: [], opt: [], sel: -1, v0: 0, v1: audio.length });
+    sayK("chopLoaded", `${file.name} (${chSecs(audio.length)})`);
+  } catch (err) {
+    sayK("smpDecodeFail", `${file.name} (${err.message})`);
+  }
   chopRender();
 }
 
@@ -10319,95 +10324,116 @@ function chopSetMarks(m, opt = null) {
   pairs.sort((a, b) => a[0] - b[0]);
   CH.marks = pairs.map((q) => q[0]);
   CH.opt = pairs.map((q) => q[1]);
-  if (CH.sel >= CH.marks.length) CH.sel = CH.marks.length - 1;
+  CH.sel = Math.min(CH.sel, CH.marks.length - 1);
   chopRender();
 }
-function chopAdd(pos) {                              /* a new marker; one within 30 ms is moved there instead */
-  const near = CH.marks.findIndex((m) => Math.abs(m - pos) < 0.03 * chR());
+/* add a marker at pos; when one already sits within 30 ms, that one moves to pos instead */
+function chopAdd(pos) {
+  const tol = chR() * 0.03, near = CH.marks.findIndex((mk) => Math.abs(mk - pos) < tol);
   const m = CH.marks.slice(), opt = CH.marks.map((_, i) => CH.opt[i]);
   if (near >= 0) m[near] = pos; else { m.push(pos); opt.push(null); }
   chopSetMarks(m, opt);
-  CH.sel = CH.marks.indexOf(Math.round(pos));
+  CH.sel = CH.marks.indexOf(Math.round(pos));       /* (the new or moved marker is the selected one) */
   chopDraw();
 }
 
-/* ---- audio */
+/* ---- playback through the page's own AudioContext */
 function chopCtx() {
-  if (!CH.ctx) CH.ctx = new (window.AudioContext || window.webkitAudioContext)();
-  if (CH.ctx.state === "suspended") CH.ctx.resume();
-  return CH.ctx;
+  CH.ctx = CH.ctx || new (window.AudioContext || window.webkitAudioContext)();
+  if (CH.ctx.state === "suspended") CH.ctx.resume();   /* (browsers start it suspended until a gesture) */
+  return CH.ctx;                                    /* (one context for the page's lifetime) */
 }
-function chopBuffer(a, b) {
-  const ctx = chopCtx(), n = Math.max(1, b - a), buf = ctx.createBuffer(1, n, SMP.RATE), d = buf.getChannelData(0);
-  for (let i = 0; i < n; i++) d[i] = CH.x[a + i];
-  return buf;
+/* samples [from, to) of the recording as a one-channel AudioBuffer (at least one sample long) */
+function chopBuffer(from, to) {
+  const len = Math.max(1, to - from), out = chopCtx().createBuffer(1, len, chR());
+  const ch0 = out.getChannelData(0);   /* (CH.x is a plain Array from resample() or a Float64Array from the decoder) */
+  for (let k = 0; k < len; k++) ch0[k] = CH.x[from + k];
+  return out;
 }
 function chopStop() {
-  if (CH.src) { try { CH.src.stop(); } catch (e) { /* ended */ } CH.src = null; }
-  cancelAnimationFrame(CH.raf);
-  if (CH.ui) { CH.ui.play.textContent = t("chopPlay"); chopDraw(); }
+  const playing = CH.src;
+  CH.src = null;
+  if (playing) { try { playing.stop(); } catch (err) { /* it had already ended */ } }
+  cancelAnimationFrame(CH.raf);                      /* (the playhead stops moving) */
+  if (!CH.ui) return;
+  CH.ui.play.textContent = t("chopPlay");
+  chopDraw();
 }
-/* play a..b; whole = the transport (a playhead, TAP marks), else an audition */
-function chopPlay(a, b, whole) {
-  if (!CH.x) return;
+/* fade the end of an audition the way the slot will (CHOP.FADE_OUT, a quarter of the chop at most) */
+function chopFade(gain, startAt, len) {
+  const stopAt = startAt + len / chR(), fadeSecs = Math.min(CHOP.FADE_OUT, len >> 2) / chR();
+  gain.setValueAtTime(1, startAt);
+  gain.setValueAtTime(1, Math.max(startAt, stopAt - fadeSecs));
+  gain.linearRampToValueAtTime(0, stopAt);
+}
+/* play samples from..to. whole: the transport (moving playhead, TAP adds markers); otherwise a single audition */
+function chopPlay(from, to, whole) {
+  if (CH.x == null) return;
   chopStop();
-  const ctx = chopCtx(), src = ctx.createBufferSource();
-  const g = ctx.createGain();
-  src.buffer = chopBuffer(a, b);
-  src.connect(g).connect(ctx.destination);
-  if (!whole) {                                     /* the fades the slot will have */
-    const n = b - a, fo = Math.min(CHOP.FADE_OUT, n >> 2) / SMP.RATE, now = ctx.currentTime + 0.005, end = now + n / SMP.RATE;
-    g.gain.setValueAtTime(1, now);
-    g.gain.setValueAtTime(1, Math.max(now, end - fo));
-    g.gain.linearRampToValueAtTime(0, end);
-  }
-  CH.t0 = ctx.currentTime + 0.005 - a / SMP.RATE;
-  src.start(ctx.currentTime + 0.005);
-  src.onended = () => { if (CH.src === src) { CH.src = null; if (whole) chopStop(); } };
-  CH.src = src;
-  CH.src.whole = whole;
-  if (whole) {
-    CH.ui.play.textContent = t("chopStop");
-    const tick = () => { chopDraw(); if (CH.src === src) CH.raf = requestAnimationFrame(tick); };
-    CH.raf = requestAnimationFrame(tick);
-  }
+  const ctx = chopCtx(), node = ctx.createBufferSource(), amp = ctx.createGain(), at = ctx.currentTime + 0.005;
+  node.buffer = chopBuffer(from, to);
+  node.connect(amp).connect(ctx.destination);
+  if (!whole) chopFade(amp.gain, at, to - from);
+  CH.t0 = at - from / chR();
+  node.start(at);
+  node.onended = () => {
+    if (CH.src !== node) return;
+    CH.src = null;
+    if (whole) chopStop();
+  };
+  node.whole = whole;
+  CH.src = node;
+  if (!whole) return;
+  CH.ui.play.textContent = t("chopStop");
+  const frame = () => {
+    chopDraw();
+    if (CH.src === node) CH.raf = requestAnimationFrame(frame);
+  };
+  CH.raf = requestAnimationFrame(frame);
 }
-/* where the listener is now, in samples (what comes out of the speakers, not what is computed) */
+/* the sample position being heard right now (the speakers' time, output latency included); ev: the tap's event, for its timestamp */
 function chopHeard(ev) {
-  const ctx = CH.ctx;
-  let ct = ctx.currentTime - (ctx.outputLatency || ctx.baseLatency || 0);
-  if (ev && ctx.getOutputTimestamp) {
-    const ts = ctx.getOutputTimestamp();
-    if (ts.performanceTime > 0) ct = ts.contextTime + (ev.timeStamp - ts.performanceTime) / 1000;
-  }
-  return (ct - CH.t0) * SMP.RATE;
+  const ctx = CH.ctx, stamp = ev && ctx.getOutputTimestamp ? ctx.getOutputTimestamp() : null;
+  const now = stamp && stamp.performanceTime > 0
+    ? stamp.contextTime + (ev.timeStamp - stamp.performanceTime) / 1000
+    : ctx.currentTime - (ctx.outputLatency || ctx.baseLatency || 0);
+  return (now - CH.t0) * chR();
 }
-function chopTap(ev) {                               /* TAP while it plays: a marker on the hit you meant */
-  if (!CH.src || !CH.src.whole) return;
-  const p = chopHeard(ev);
-  if (p < 0 || p >= CH.x.length) return;
-  chopAdd(CH.ui.snap.checked ? chopSnap(CH.x, CH.nov, p) : Math.round(p));
+/* TAP during the transport: a marker where it was heard, moved onto the nearby onset when Snap is on */
+function chopTap(ev) {
+  const playing = CH.src && CH.src.whole;
+  if (!playing) return;
+  const at = chopHeard(ev);
+  if (!(at >= 0 && at < CH.x.length)) return;
+  chopAdd(CH.ui.snap.checked ? chopSnap(CH.x, CH.nov, at) : Math.round(at));
 }
-function chopAudition(i) {
-  const c = chopChops()[i];
-  if (!c) return;
-  CH.sel = i;
-  chopPlay(c.start, c.end, false);
+function chopAudition(idx) {
+  const chop = chopChops()[idx];
+  if (!chop) return;
+  CH.sel = idx;
+  chopPlay(chop.start, chop.end, false);
   chopRender();
 }
 
-/* ---- drawing (the page's own two colours) */
+/* ---- the waveform canvas, painted in the page's own colour tokens */
+const chopToken = (style, name) => style.getPropertyValue(name).trim();
 function chopDraw() {
-  const u = CH.ui;
-  if (!u) return;
-  const cv = u.cv, dpr = window.devicePixelRatio || 1, W = Math.max(200, cv.clientWidth), Hh = 150;
-  if (cv.width !== Math.round(W * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(Hh * dpr); }
-  const g = cv.getContext("2d"), cs = getComputedStyle(document.documentElement);
-  const FG = cs.getPropertyValue("--fg").trim(), DIM = cs.getPropertyValue("--dim").trim(), LINE = cs.getPropertyValue("--line").trim();
-  g.setTransform(dpr, 0, 0, dpr, 0, 0);
-  g.clearRect(0, 0, W, Hh);
-  if (!CH.x) { g.fillStyle = DIM; g.font = "12px sans-serif"; g.fillText(t("chopDrop"), 8, Hh / 2); return; }
-  const x = CH.x, v0 = CH.v0, span = CH.v1 - CH.v0, X = (p) => (p - v0) / span * W, mid = Hh / 2 + 6;
+  const u = CH.ui;                                  /* (nothing to draw on before chopUI) */
+  if (u == null) return;
+  const cv = u.cv, ratio = window.devicePixelRatio || 1, Hh = 150, W = Math.max(200, cv.clientWidth);
+  const pxW = Math.round(W * ratio);
+  if (cv.width !== pxW) { cv.width = pxW; cv.height = Math.round(Hh * ratio); }
+  const g = cv.getContext("2d"), root = getComputedStyle(document.documentElement);
+  const FG = chopToken(root, "--fg"), DIM = chopToken(root, "--dim"), LINE = chopToken(root, "--line");
+  g.setTransform(ratio, 0, 0, ratio, 0, 0);
+  g.clearRect(0, 0, W, Hh);                          /* (in CSS pixels, after the transform) */
+  if (!CH.x) {
+    Object.assign(g, { fillStyle: DIM, font: "12px sans-serif" });
+    g.fillText(t("chopDrop"), 8, Hh / 2);
+    return;
+  }
+  const x = CH.x, v0 = CH.v0, span = CH.v1 - v0, mid = Hh / 2 + 6;
+  const X = (pos) => W * (pos - v0) / span;
   const U = chopUsed(), { all: chops, use } = U;
   const hatch = (a, b) => {                          /* what the slot does not get */
     g.save(); g.beginPath(); g.rect(a, 12, b - a, Hh - 12); g.clip(); g.strokeStyle = LINE;
@@ -10418,24 +10444,30 @@ function chopDraw() {
   chops.forEach((c, i) => {                          /* the chops: the selected one filled, left-out parts hatched */
     const a = X(c.start), b = X(c.end), f = X(c.full);
     if (f < 0 || a > W) return;
-    if (i === CH.sel) { g.fillStyle = LINE; g.fillRect(a, 12, b - a, Hh - 12); }
+    if (CH.sel === i) {
+      g.fillStyle = LINE;
+      g.fillRect(a, 12, b - a, Hh - 12);
+    }
     if (!use.includes(c)) hatch(a, f); else if (c.end < c.full) hatch(b, f);
   });
-  g.fillStyle = FG;
-  for (let px = 0; px < W; px++) {                   /* the wave: min / max per pixel */
-    const a = Math.floor(v0 + px / W * span), b = Math.min(x.length, Math.max(a + 1, Math.floor(v0 + (px + 1) / W * span)));
-    let lo = 0, hi = 0;
-    for (let i = a; i < b; i += Math.max(1, (b - a) >> 6)) { if (x[i] < lo) lo = x[i]; if (x[i] > hi) hi = x[i]; }
-    g.fillRect(px, mid - hi * (Hh / 2 - 8), 1, Math.max(1, (hi - lo) * (Hh / 2 - 8)));
+  /* the waveform: one column per CSS pixel spanning that column's lowest and highest sample (up to 64 probes per column) */
+  const amp = Hh / 2 - 8, at = (col) => Math.floor(v0 + col / W * span);
+  g.fillStyle = FG;                                  /* the wave in the text colour */
+  for (let col = 0; col < W; col++) {
+    const first = at(col), last = Math.min(x.length, Math.max(first + 1, at(col + 1))), stride = Math.max(1, (last - first) >> 6);
+    let low = 0, high = 0;
+    for (let s = first; s < last; s += stride) { low = Math.min(low, x[s]); high = Math.max(high, x[s]); }
+    g.fillRect(col, mid - high * amp, 1, Math.max(1, (high - low) * amp));
   }
-  g.font = "10px sans-serif";
-  CH.marks.forEach((m, i) => {                       /* the markers, numbered; the chop's key above */
-    const px = X(m);
-    if (px < -1 || px > W + 1) return;
-    g.fillStyle = FG;
-    g.fillRect(Math.round(px), 0, i === CH.sel ? 2 : 1, Hh);
-    g.fillText(String(i + 1) + chopKeyName(U, i), px + 3, 10);
-  });
+  /* each marker: a line (2 px when selected) and its number, plus the chop's key */
+  g.font = "10px sans-serif";                        /* (the markers' labels) */
+  for (let i = 0; i < CH.marks.length; i++) {
+    const mx = X(CH.marks[i]);
+    if (mx < -1 || mx > W + 1) continue;
+    g.fillStyle = FG;                                /* (the hatching changed it) */
+    g.fillRect(Math.round(mx), 0, CH.sel === i ? 2 : 1, Hh);
+    g.fillText(String(i + 1) + chopKeyName(U, i), mx + 3, 10);
+  }
   const sc = chops[CH.sel];
   if (sc) {                                          /* the selected chop's end: a handle at the bottom, drag it */
     const px = Math.round(X(sc.end));
@@ -10443,38 +10475,52 @@ function chopDraw() {
     g.fillRect(px - 1, Hh - 30, 2, 30);
     g.beginPath(); g.moveTo(px, Hh - 30); g.lineTo(px - 7, Hh - 38); g.lineTo(px - 7, Hh - 22); g.closePath(); g.fill();
   }
-  if (CH.src && CH.src.whole && CH.ctx) {            /* the playhead, as heard */
-    const p = X(chopHeard());
-    g.fillStyle = DIM;
-    g.fillRect(Math.round(p), 12, 1, Hh - 12);
+  const transport = CH.ctx && CH.src && CH.src.whole;
+  if (transport) {                                   /* where the listener is, as a dim line */
+    g.fillStyle = DIM;                               /* (dimmer than the markers) */
+    g.fillRect(Math.round(X(chopHeard())), 12, 1, Hh - 12);
   }
 }
 
-/* ---- the block */
+/* ---- building the CHOP block (once, into #chop) */
+/* a <select> from [label, value] pairs */
+const chopSelect = (pairs) => el("select", {}, ...pairs.map(([label, value]) => el("option", { value, text: label })));
 function chopUI() {
-  const box = $("chop");
-  if (!box || CH.ui) return;
-  const u = CH.ui = {};
-  const file = el("input", { type: "file", accept: "audio/*,.wav,.mp3,.aif,.aiff,.flac,.ogg,.m4a", hidden: true });
-  file.addEventListener("change", () => { if (file.files[0]) chopLoad(file.files[0]); file.value = ""; });
-  u.info = el("span", { class: "dim" });
-  u.cv = el("canvas", { class: "wave", tabindex: "0", title: t("chopHint") });
-  u.play = el("button", { onclick: () => { if (CH.src && CH.src.whole) chopStop(); else if (CH.x) chopPlay(Math.round(CH.v0), CH.x.length, true); } }, t("chopPlay"));
-  u.tap = el("button", { class: "tap", onpointerdown: (e) => { e.preventDefault(); chopTap(e); } }, t("chopTap"));
-  u.snap = el("input", { type: "checkbox", checked: true });
-  u.sens = el("input", { type: "range", min: 1, max: 10, value: 5, title: t("chopSens") });
-  u.bpm = el("input", { type: "number", min: 40, max: 240, step: 0.1, value: 90, class: "num" });
-  u.div = el("select", {}, ...[["1 bar", 4], ["1/2", 2], ["1/4", 1], ["1/8", 0.5], ["1/16", 0.25]].map(([n, v]) => el("option", { value: v, text: n })));
-  u.div.value = "1";
-  u.n = el("select", {}, ...[2, 3, 4, 6, 8, 12, 16].map((n) => el("option", { value: n, text: String(n) })));
-  u.n.value = "8";
-  u.key = el("select", {}, ...Array.from({ length: 49 }, (_, i) => 36 + i).map((n) => el("option", { value: n, text: noteName(n) })));
-  u.key.value = String(CH.key0);
-  u.mode = el("select", {}, el("option", { value: 0, text: t("chopModeKeys") }), el("option", { value: 1, text: t("chopModeOne") }));
-  u.max = el("select", {}, ...[["—", 0], ["0.25 s", 0.25], ["0.5 s", 0.5], ["1 s", 1], ["2 s", 2]].map(([n, v]) => el("option", { value: v, text: n })));
-  u.meter = el("progress", { max: SMP.MAX_DATA * 2, value: 0 });
-  u.room = el("span", { class: "dim" });
-  u.list = el("div", { class: "chops" });
+  const box = $("chop");                            /* (the Samples tab's CHOP block) */
+  if (CH.ui || !box) return;
+  const u = {};
+  CH.ui = u;
+  const AUDIO_TYPES = "audio/*,.wav,.mp3,.aif,.aiff,.flac,.ogg,.m4a";
+  const file = el("input", { hidden: true, type: "file", accept: AUDIO_TYPES });
+  file.addEventListener("change", () => {
+    const picked = file.files[0];
+    if (picked) chopLoad(picked);
+    file.value = "";
+  });
+  const playOrStop = () => {
+    if (CH.src && CH.src.whole) { chopStop(); return; }
+    if (CH.x) chopPlay(Math.round(CH.v0), CH.x.length, true);
+  };
+  u.info = el("span", { class: "dim" });            /* name, length, chop count */
+  u.cv = el("canvas", { tabindex: "0", class: "wave", title: t("chopHint") });
+  u.play = el("button", { onclick: playOrStop }, t("chopPlay"));
+  u.tap = el("button", { class: "tap", onpointerdown: (ev) => { ev.preventDefault(); chopTap(ev); } }, t("chopTap"));
+  u.snap = el("input", { checked: true, type: "checkbox" });
+  u.sens = el("input", { type: "range", value: 5, min: 1, max: 10, title: t("chopSens") });
+  u.bpm = el("input", { class: "num", type: "number", value: 90, min: 40, max: 240, step: 0.1 });
+  u.div = chopSelect([["1 bar", 4], ["1/2", 2], ["1/4", 1], ["1/8", 0.5], ["1/16", 0.25]]);
+  u.div.value = "1";                                /* a beat */
+  u.n = chopSelect([2, 3, 4, 6, 8, 12, 16].map((k) => [String(k), k]));
+  u.n.value = "8";                                  /* eight equal parts */
+  const keyRange = [];
+  for (let note = 36; note <= 84; note++) keyRange.push([noteName(note), note]);
+  u.key = chopSelect(keyRange);
+  u.key.value = `${CH.key0}`;
+  u.mode = chopSelect([[t("chopModeKeys"), 0], [t("chopModeOne"), 1]]);
+  u.max = chopSelect([["—", 0], ["0.25 s", 0.25], ["0.5 s", 0.5], ["1 s", 1], ["2 s", 2]]);
+  u.meter = el("progress", { value: 0, max: 2 * SMP.MAX_DATA });
+  u.room = el("span", { class: "dim" });            /* used / room in seconds */
+  u.list = el("div", { class: "chops" });           /* a chip per chop */
   /* the selected chop: keep it or not, its length; and all of them at once */
   u.selName = el("b", { class: "selname" });
   u.keep = el("input", { type: "checkbox", onchange: () => chopKeep(CH.sel, u.keep.checked) });
@@ -10487,39 +10533,46 @@ function chopUI() {
     el("span", { text: t("chopLen") }), u.len, u.lenTxt, u.selPlay, u.full);
   u.fit = el("button", { onclick: chopFitAll }, t("chopFit"));
   u.send = [];                                      /* (the page's step 3 sends it) */
-  const region = () => {                             /* first..last marker when there are two, else all */
-    const m = CH.marks;
-    return m.length >= 2 ? [m[0], m[m.length - 1]] : [m[0] || 0, CH.x.length];
+  /* the stretch the grid and equal splits cover: from the first to the last marker if there are two or more, else to the end */
+  const region = () => {
+    const mk = CH.marks, last = mk.length - 1;
+    if (last >= 1) return [mk[0], mk[last]];
+    return [mk[0] || 0, CH.x.length];
   };
-  u.key.addEventListener("change", () => { CH.key0 = +u.key.value; chopRender(); });
-  u.mode.addEventListener("change", () => { CH.mode = +u.mode.value; chopRender(); });
-  u.max.addEventListener("change", () => { CH.maxLen = +u.max.value; chopRender(); });
+  const onPick = (sel, apply) => sel.addEventListener("change", () => { apply(Number(sel.value)); chopRender(); });
+  onPick(u.key, (v) => { CH.key0 = v; });
+  onPick(u.mode, (v) => { CH.mode = v; });
+  onPick(u.max, (v) => { CH.maxLen = v; });
+  const withAudio = (fn) => () => { if (CH.x) fn(); };   /* (the buttons do nothing before a recording is loaded) */
+  const byGrid = withAudio(() => {
+    const [from, to] = region(), bpm = Math.max(40, Number(u.bpm.value) || 90);
+    chopSetMarks(chopGrid(from, to, bpm, Number(u.div.value)));
+  });
+  const byEqual = withAudio(() => { const [from, to] = region(); chopSetMarks(chopEqual(from, to, Number(u.n.value))); });
+  const byHits = withAudio(() => chopSetMarks(chopHits(CH.x, CH.nov, Number(u.sens.value))));
+  const row = (...kids) => el("div", { class: "head" }, ...kids);
+  const gap = () => el("span", { class: "sep" });
   box.append(
-    el("div", { class: "head" }, el("b", { text: "CHOP" }),
-      el("button", { ic: "symbol_folder_open", onclick: () => file.click() }, t("chopOpen")), file, u.info),
+    row(el("b", { text: "CHOP" }), el("button", { ic: "symbol_folder_open", onclick: () => file.click() }, t("chopOpen")), file, u.info),
     u.cv,
-    el("div", { class: "head" }, u.play, u.tap, el("label", {}, u.snap, " " + t("chopSnap")),
-      el("button", { onclick: () => { if (CH.x) chopSetMarks([]); } }, t("chopClear")),
-      el("span", { class: "dim", text: t("chopHint") })),
-    el("div", { class: "head" },
-      el("button", { onclick: () => { if (CH.x) chopSetMarks(chopHits(CH.x, CH.nov, +u.sens.value)); } }, t("chopHits")), u.sens,
-      el("span", { class: "sep" }),
-      el("button", { onclick: () => { if (CH.x) { const [a, b] = region(); chopSetMarks(chopGrid(a, b, Math.max(40, +u.bpm.value || 90), +u.div.value)); } } }, t("chopGrid")),
-      u.bpm, el("span", { text: "BPM" }), u.div,
-      el("span", { class: "sep" }),
-      el("button", { onclick: () => { if (CH.x) { const [a, b] = region(); chopSetMarks(chopEqual(a, b, +u.n.value)); } } }, t("chopEqual")), u.n),
-    el("div", { class: "head" }, el("span", { text: t("chopKey") }), u.key, u.mode,
-      el("span", { text: t("chopMax") }), u.max, u.meter, u.room),
+    row(u.play, u.tap, el("label", {}, u.snap, ` ${t("chopSnap")}`),
+      el("button", { onclick: withAudio(() => chopSetMarks([])) }, t("chopClear")),
+      el("span", { text: t("chopHint"), class: "dim" })),
+    row(el("button", { onclick: byHits }, t("chopHits")), u.sens, gap(),
+      el("button", { onclick: byGrid }, t("chopGrid")), u.bpm, el("span", { text: "BPM" }), u.div, gap(),
+      el("button", { onclick: byEqual }, t("chopEqual")), u.n),
+    row(el("span", { text: t("chopKey") }), u.key, u.mode, el("span", { text: t("chopMax") }), u.max, u.meter, u.room),
     el("div", { class: "head" }, el("button", { onclick: () => chopKeepAll(true) }, t("chopAll")),
       el("button", { onclick: () => chopKeepAll(false) }, t("chopNone")), u.fit,
       el("span", { class: "dim", text: t("chopKeepHint") })),
     u.list, u.selRow,
     el("div", { class: "head" }, el("button", { ic: "symbol_download", onclick: chopZip }, t("chopZip"))));
-  /* the wave: click = select + listen, double-click = a marker, drag a marker, wheel = zoom */
-  const posAt = (e) => { const r = u.cv.getBoundingClientRect(); return CH.v0 + (e.clientX - r.left) / r.width * (CH.v1 - CH.v0); };
-  const markAt = (e) => {
-    const r = u.cv.getBoundingClientRect(), per = (CH.v1 - CH.v0) / r.width;
-    return CH.marks.findIndex((m) => Math.abs(m - posAt(e)) < 5 * per);
+  /* on the canvas: a click picks a chop and plays it, a double-click adds a marker, markers drag, the wheel zooms and scrolls */
+  const box0 = () => u.cv.getBoundingClientRect();
+  const posAt = (ev) => { const rc = box0(); return CH.v0 + (CH.v1 - CH.v0) * (ev.clientX - rc.left) / rc.width; };
+  const markAt = (ev) => {                          /* the marker within 5 px of the pointer, or -1 */
+    const tol = 5 * (CH.v1 - CH.v0) / box0().width, at = posAt(ev);
+    return CH.marks.findIndex((mk) => Math.abs(mk - at) < tol);
   };
   const endAt = (e) => {                            /* on the selected chop's end handle (the bottom of the wave)? */
     const c = chopChops()[CH.sel];
@@ -10527,16 +10580,21 @@ function chopUI() {
     const r = u.cv.getBoundingClientRect(), per = (CH.v1 - CH.v0) / r.width;
     return e.clientY - r.top > r.height - 40 && Math.abs(c.end - posAt(e)) < 7 * per;
   };
-  u.cv.addEventListener("pointerdown", (e) => {
-    if (!CH.x) { file.click(); return; }
-    u.cv.focus();
+  u.cv.addEventListener("pointerdown", (e) => {      /* grab an end handle or a marker, else audition the chop under it */
+    if (CH.x == null) return file.click();          /* an empty canvas opens the file picker */
+    u.cv.focus();                                   /* (its keys work from here on) */
     if (endAt(e)) { CH.dragEnd = true; u.cv.setPointerCapture(e.pointerId); return; }
-    const k = markAt(e);
-    if (k >= 0) { CH.drag = k; CH.sel = k; u.cv.setPointerCapture(e.pointerId); chopDraw(); return; }
-    const p = posAt(e), i = chopChops().findIndex((c) => p >= c.start && p < c.end);
-    if (i >= 0) chopAudition(i);
+    const hit = markAt(e);
+    if (hit < 0) {
+      const at = posAt(e), idx = chopChops().findIndex((ch) => at >= ch.start && at < ch.end);
+      if (idx >= 0) chopAudition(idx);
+      return;
+    }
+    CH.drag = CH.sel = hit;
+    u.cv.setPointerCapture(e.pointerId);
+    chopDraw();
   });
-  u.cv.addEventListener("pointermove", (e) => {
+  u.cv.addEventListener("pointermove", (e) => {      /* drag a handle / marker; otherwise the cursor tells what is grabbable */
     if (CH.dragEnd) {                                /* the selected chop's length; up to the next marker = full */
       const c = chopChops()[CH.sel];
       if (!c) return;
@@ -10546,71 +10604,92 @@ function chopUI() {
       return;
     }
     if (CH.drag < 0) { u.cv.style.cursor = CH.x && (markAt(e) >= 0 || endAt(e)) ? "ew-resize" : "default"; return; }
-    const m = CH.marks, k = CH.drag, lo = k ? m[k - 1] + 1 : 0, hi = k + 1 < m.length ? m[k + 1] - 1 : CH.x.length - 1;
-    m[k] = Math.round(Math.max(lo, Math.min(hi, posAt(e))));
+    /* a dragged marker stays between its neighbours (and inside the recording) */
+    const mk = CH.marks, at = CH.drag;
+    const floor = at > 0 ? mk[at - 1] + 1 : 0, ceil = at < mk.length - 1 ? mk[at + 1] - 1 : CH.x.length - 1;
+    mk[at] = Math.round(Math.max(floor, Math.min(ceil, posAt(e))));
     chopDraw();
   });
   u.cv.addEventListener("pointerup", () => {
     if (CH.dragEnd) { CH.dragEnd = false; chopRender(); }
     if (CH.drag >= 0) { CH.drag = -1; chopRender(); }
   });
-  u.cv.addEventListener("dblclick", (e) => { if (CH.x) chopAdd(u.snap.checked ? chopSnap(CH.x, CH.nov, posAt(e), 0.02) : Math.round(posAt(e))); });
+  u.cv.addEventListener("dblclick", (e) => {
+    if (CH.x == null) return;
+    const at = posAt(e);
+    chopAdd(u.snap.checked ? chopSnap(CH.x, CH.nov, at, 0.02) : Math.round(at));
+  });
+  /* the view CH.v0..CH.v1: a sideways (or shift) wheel scrolls it, an up / down wheel zooms around the pointer (50 ms at the closest) */
+  const clampView = (start, width) => { CH.v0 = Math.max(0, Math.min(CH.x.length - width, start)); CH.v1 = CH.v0 + width; };
   u.cv.addEventListener("wheel", (e) => {
-    if (!CH.x) return;
+    if (CH.x == null) return;
     e.preventDefault();
-    const n = CH.x.length, span = CH.v1 - CH.v0;
-    if (e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
-      const d = (e.deltaX || e.deltaY) / 400 * span, v0 = Math.max(0, Math.min(n - span, CH.v0 + d));
-      CH.v0 = v0; CH.v1 = v0 + span;
+    const width = CH.v1 - CH.v0, sideways = e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY);
+    if (sideways) {
+      clampView(CH.v0 + width * (e.deltaX || e.deltaY) / 400, width);
     } else {
-      const p = posAt(e), z = Math.exp(e.deltaY / 300), ns = Math.max(SMP.RATE * 0.05, Math.min(n, span * z));
-      CH.v0 = Math.max(0, Math.min(n - ns, p - (p - CH.v0) / span * ns));
-      CH.v1 = CH.v0 + ns;
+      const at = posAt(e), wider = Math.max(0.05 * SMP.RATE, Math.min(CH.x.length, width * Math.exp(e.deltaY / 300)));
+      clampView(at - wider * (at - CH.v0) / width, wider);
     }
     chopDraw();
   }, { passive: false });
   u.cv.dataset.ownSpace = "1";                           /* its Space: TAP / play the recording */
-  u.cv.addEventListener("keydown", (e) => {
-    if (!CH.x) return;
-    const k = e.key;
-    if (k === " ") { e.preventDefault(); if (CH.src && CH.src.whole) chopTap(e); else chopPlay(Math.round(CH.v0), CH.x.length, true); }
-    else if (k === "Enter" || k === "Escape") { e.preventDefault(); if (CH.src) chopStop(); else chopPlay(Math.round(CH.v0), CH.x.length, true); }
-    else if (/^[0-9]$/.test(k)) { e.preventDefault(); chopAudition(k === "0" ? 9 : +k - 1); }
+  /* keys on the focused canvas: Space taps (or starts the transport), Enter / Escape start or stop, 1-9 and 0 play chops 1-10,
+     Delete removes the selected marker, K keeps or leaves it out, the arrows nudge it */
+  const fromView = () => chopPlay(Math.round(CH.v0), CH.x.length, true);
+  u.cv.addEventListener("keydown", (e) => {          /* (ownSpace: the page leaves its Space to it) */
+    if (CH.x == null) return;                       /* (nothing loaded: the keys are the page's) */
+    const k = e.key, digit = "1234567890".indexOf(k);
+    if (k === " ") {
+      e.preventDefault();
+      if (CH.src && CH.src.whole) chopTap(e); else fromView();
+    } else if (k === "Escape" || k === "Enter") {
+      e.preventDefault();
+      if (CH.src) chopStop(); else fromView();
+    } else if (k.length === 1 && digit >= 0) { e.preventDefault(); chopAudition(digit); }
     else if ((k === "Delete" || k === "Backspace") && CH.sel >= 0) {
       e.preventDefault();
       chopSetMarks(CH.marks.filter((_, i) => i !== CH.sel), CH.marks.map((_, i) => CH.opt[i]).filter((_, i) => i !== CH.sel));
     }
     else if ((k === "k" || k === "K") && CH.sel >= 0) { e.preventDefault(); chopKeep(CH.sel); }
-    else if ((k === "ArrowLeft" || k === "ArrowRight") && CH.sel >= 0) {   /* nudge the selected marker: 2 ms, shift 20 ms */
-      e.preventDefault();
-      const m = CH.marks.slice();
-      m[CH.sel] += (k === "ArrowLeft" ? -1 : 1) * Math.round((e.shiftKey ? 0.02 : 0.002) * SMP.RATE);
-      const keep = CH.sel;
-      chopSetMarks(m, CH.marks.map((_, i) => CH.opt[i]));
-      CH.sel = keep;
+    else if (CH.sel >= 0 && (k === "ArrowRight" || k === "ArrowLeft")) {
+      e.preventDefault();                            /* the selected marker moves 2 ms, 20 ms with shift */
+      const step = Math.round(SMP.RATE * (e.shiftKey ? 0.02 : 0.002)), was = CH.sel, moved = [...CH.marks];
+      moved[was] += k === "ArrowRight" ? step : -step;
+      chopSetMarks(moved, CH.marks.map((_, i) => CH.opt[i]));
+      CH.sel = was;
       chopRender();
     }
   });
-  box.addEventListener("dragover", (e) => { e.preventDefault(); box.classList.add("over"); });
-  box.addEventListener("dragleave", () => box.classList.remove("over"));
-  box.addEventListener("drop", (e) => { e.preventDefault(); box.classList.remove("over"); if (e.dataTransfer.files[0]) chopLoad(e.dataTransfer.files[0]); });
-  window.addEventListener("resize", () => chopDraw());
+  /* drop an audio file anywhere on the block */
+  const hover = (on) => box.classList.toggle("over", on);
+  box.addEventListener("dragover", (e) => { e.preventDefault(); hover(true); });
+  box.addEventListener("dragleave", () => hover(false));
+  box.addEventListener("drop", (e) => {
+    e.preventDefault();
+    hover(false);
+    const dropped = e.dataTransfer.files[0];
+    if (dropped) chopLoad(dropped);
+  });
+  window.addEventListener("resize", () => { chopDraw(); });   /* (the canvas follows the page width) */
   chopRender();
 }
 
+/* the CHOP block's texts, chips, meter and selected-chop row from CH, then the canvas */
 function chopRender() {
-  const u = CH.ui;
-  if (!u) return;
+  const u = CH.ui;                                  /* (null until chopUI built the block) */
+  if (u == null) return;
   const U = chopUsed(), { all, use, n } = U, room = SMP.MAX_DATA * 2, over = use.reduce((a, q) => a + ((q.end - q.start + 1) >> 1), 0) > SMP.MAX_DATA;
   const kept = all.filter((c) => !c.off).length;
   u.info.textContent = CH.x ? `${CH.name} · ${chSecs(CH.x.length)} · ${all.length} ${t("chopChops")}` +
     (kept < all.length ? ` (${kept} ${t("chopKept")})` : "") : t("chopHelp");
-  u.meter.value = Math.min(room, n);
+  u.meter.value = n > room ? room : n;
   u.room.textContent = `${chSecs(n)} / ${chSecs(room)}` + (over ? " " + t("chopTooLong") + " " + t("chopOverHint") : "") +
     (CH.mode === 0 && kept > CHOP.MAX ? " " + t("chopTooMany") : "");
-  u.room.className = over ? "bad" : "dim";
+  u.room.className = over ? "bad" : "dim";          /* (too long for the slot: flagged) */
   u.fit.disabled = !over;
-  u.send.forEach((b) => { b.disabled = !use.length || over || smpBusy || !dev || !dev.smp; });
+  const canSend = use.length > 0 && !over && !smpBusy && !!dev && !!dev.smp;
+  for (const btn of u.send) btn.disabled = !canSend;
   u.list.replaceChildren(...all.map((c, i) => {      /* a chip per chop: the box keeps it, the rest listens */
     const box = el("input", { type: "checkbox", title: t("chopKeep"), onclick: (e) => { e.stopPropagation(); chopKeep(i, box.checked); } });
     box.checked = !c.off;
@@ -10634,50 +10713,60 @@ function chopRender() {
   chopDraw();
 }
 
-/* the chops into slot k's list (it shows below), then the usual upload */
+/* the chop zones for the current mode (the selected chop alone in one-sample mode) */
+const chopZonesNow = () => chopZones(CH.x, chopChops(), CH.key0, CH.mode, Math.max(0, CH.sel));
+/* send the kept chops to user slot k: they become its draft (listed in the slot's block) and go up like any upload */
 async function chopSend(k) {
-  if (!CH.x || smpBusy) return;
-  const { use } = chopUsed();
-  if (!use.length) return;
-  const zones = chopZones(CH.x, chopChops(), CH.key0, CH.mode, Math.max(0, CH.sel));
-  smpDraft[k].name = CH.name;
-  smpDraft[k].files = zones;
+  if (smpBusy || !CH.x) return;
+  if (chopUsed().use.length === 0) return;
+  const zones = chopZonesNow();
+  Object.assign(smpDraft[k], { name: CH.name, files: zones });
   renderSamples();
   if (await smpUpload(k, smpPage.ui && smpPage.ui.prog)) sayK("chopSent", `USR${k + 1}: ${zones.length} ${t("chopChops")}, ${noteName(zones[0].lo === 0 ? zones[0].root : zones[0].lo)}…`);
 }
 
+/* the chops as WAV files in one stored (uncompressed) zip, NAME/<file>.wav each, downloaded as NAME-chops.zip */
 function chopZip() {
-  if (!CH.x) return;
-  const zones = chopZones(CH.x, chopChops(), CH.key0, CH.mode, Math.max(0, CH.sel));
-  if (!zones.length) return;
-  const blob = new Blob([zipStore(zones.map((z) => ({ name: `${CH.name}/${z.fname}`, data: wavFile(z.s) })))], { type: "application/zip" });
-  const a = el("a", { href: URL.createObjectURL(blob), download: `${CH.name}-chops.zip` });
-  document.body.append(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  const zones = CH.x ? chopZonesNow() : [];
+  if (zones.length === 0) return;
+  const entries = zones.map((zone) => ({ name: `${CH.name}/${zone.fname}`, data: wavFile(zone.s) }));
+  const url = URL.createObjectURL(new Blob([zipStore(entries)], { type: "application/zip" }));
+  const link = el("a", { download: `${CH.name}-chops.zip`, href: url });
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-/* ---------------------------------------------------------- mixer (v3) --- */
+/* ===================================================== the mixer (v3) ===== */
 /* dev.mix = TRACK reply + pan per track ({sel, ntrk, tracks: [{engine, preset, level, mute, pan}]}).
-   Read on connect, after every RELOAD / sound change, with the slow safety DUMP and when the tab opens.
-   The selected track's level / pan / mute are also Sound parameters: both views follow each other. */
-let mixDrag = null;                 /* "lv:i" / "pan:i" while a strip control is dragged */
-const mixEdit = new Map();          /* "lv:i" / "pan:i" -> time of the user's last change */
-const mixCtl = [];                  /* per track: the strip's elements */
-let panning = false;                /* v3 firmware: another track is selected for a moment (pan of a track that is not selected) */
-const mixTouched = (kind, i) => mixDrag === `${kind}:${i}` || performance.now() - (mixEdit.get(`${kind}:${i}`) || 0) < 600
-  || (!!dev && kind === "lv" && dev.link.hasQueued("mix:" + i))
-  || (kind === "pan" && (panWant.has(i) || (!!dev && dev.link.hasQueued("pan:" + i))));
+   It is read when the editor connects, when the mixer tab opens, after each RELOAD or sound change and with the slow
+   safety DUMP. Level, pan and mute of the selected track double as Sound parameters, so the two views mirror each other. */
+let mixDrag = null;                 /* the strip control held right now, as "lv:<track>" or "pan:<track>" */
+const mixEdit = new Map();          /* the same keys -> performance.now() of the user's latest change */
+const mixCtl = [];                  /* the elements of each track's strip, by track */
+let panning = false;                /* v3 firmware only: a track is selected briefly so its pan can be set */
+/* a strip value the user owns for now (held, changed within 600 ms, or still queued to the device): a read leaves it alone */
+const mixTouched = (kind, i) => {
+  const key = `${kind}:${i}`;
+  if (mixDrag === key || performance.now() - (mixEdit.get(key) || 0) < 600) return true;
+  const queued = (name) => !!dev && dev.link.hasQueued(name);
+  if (kind === "lv") return queued(`mix:${i}`);
+  if (kind === "pan") return panWant.has(i) || queued(`pan:${i}`);
+  return false;
+};
 const drumTrack = (i) => !!dev && !!dev.mix && i === drumIndex();
-function trackName(x) {
-  if (x.engine >= dev.info.nengines) return ["DRUMS", (dev.kitNames || [])[x.e0]].filter(Boolean).join(" ");
-  return [dev.info.engines[x.engine], (dev.names[x.engine] || [])[x.preset]].filter(Boolean).join(" ");
+/* "ENGINE PRESET" for a synth track, "DRUMS KIT" for the drum track (either word left out when unknown) */
+function trackName(tr) {
+  const isDrum = tr.engine >= dev.info.nengines;
+  const words = isDrum ? ["DRUMS", (dev.kitNames || [])[tr.e0]] : [dev.info.engines[tr.engine], (dev.names[tr.engine] || [])[tr.preset]];
+  return words.filter((w) => !!w).join(" ");
 }
 
+/* read the mixer (and before it what the strips' knobs depend on: FX slots, drum lanes, the returns) */
 async function readMixer() {
-  const d = dev;
-  if (!d || !hasTracks()) return;
+  const d = dev;                                    /* the device this read belongs to (it may go away meanwhile) */
+  if (d == null || !hasTracks()) return;
   let moved = false;
   if (d.info.fxs) {                                  /* v10: the slots first (the strips' FX knobs are theirs) */
     const f = await readFx(rq, d.info);
@@ -10692,19 +10781,22 @@ async function readMixer() {
     d.fxpRet = rr;
   }
   const m = await mixer.read(rq, d.info, { pan: pPan(), fx: slotIds(), fxoff: pFxoff() });
-  if (d !== dev) return;
+  if (dev !== d) return;                          /* (another device since) */
   if (moved) { mixCtl.length = 0; d.mix = null; }   /* (rebuilt: other knobs, other labels) */
-  if (d.mix) m.tracks.forEach((x, i) => {           /* what the user is moving stays */
-    const o = d.mix.tracks[i];
-    if (!o) return;
-    if (mixTouched("lv", i)) { x.level = o.level; x.mute = o.mute; }
-    if (mixTouched("pan", i)) x.pan = o.pan;
+  const before = d.mix ? d.mix.tracks : [];
+  m.tracks.forEach((x, i) => {                      /* a value under the user's hand keeps the page's copy */
+    const o = before[i];
+    if (!o) return;                                 /* (a track the page did not show yet) */
+    const keep = (...keys) => keys.forEach((key) => { x[key] = o[key]; });
+    if (mixTouched("lv", i)) keep("level", "mute");
+    if (mixTouched("pan", i)) keep("pan");
     if (x.fx && o.fx) x.fx = x.fx.map((v, j) => (mixTouched("fx" + j, i) ? o.fx[j] : v));
-    if (mixTouched("fxoff", i)) x.fxoff = o.fxoff;
+    if (mixTouched("fxoff", i)) keep("fxoff");
   });
-  d.mix = m;
-  if (m.sel !== d.sel && !panning) { d.sel = m.sel; needReload = true; }   /* selected on the device, push missed */
-  renderMixer();
+  const lostPush = !panning && d.sel !== m.sel;     /* the device changed track and its push got lost */
+  Object.assign(d, { mix: m }, lostPush ? { sel: m.sel } : {});
+  if (lostPush) needReload = true;
+  renderMixer();                                    /* the strips from the merged read */
   if (moved && d.built != null) await fxPagesAgain(d);
 }
 const js2 = (x) => JSON.stringify(x);
@@ -11935,34 +12027,42 @@ const sendsGrid = (items, cls = "") => el("div", { class: `fx ${cls}`.trim(), ro
 function stripInsert(i, snd) {
   return { inst: stripInst(i, snd), ...stripSlotRows(i, `strip-${i + 1}`) };
 }
-/* the Sound view's values of the selected track (and the drum level, a global) -> the strips */
+/* Sound view -> strips: the selected track's level, mute, pan, FX and FX-off as the dump has them, plus the drum
+   track's level (a global, GLO > DRUMS); values the user is still moving on a strip are not overwritten */
 function mixFromDump() {
-  if (!dev || !dev.mix || !dev.dump || panning) return;
-  const m = dev.mix, ds = drumIndex(), x = m.tracks[dev.sel];
-  if (ds >= 0 && !mixTouched("lv", ds)) m.tracks[ds].level = dev.dump.g[gDrLvl()];   /* (the drum track's LEVEL: GLO > DRUMS; none: none) */
-  if (x) {
-    if (!mixTouched("lv", dev.sel)) {
-      if (dev.sel !== ds) x.level = dev.dump.p[P.LEVEL];
-      x.mute = dev.dump.p[pMute()] ? 1 : 0;
+  const ready = dev && dev.mix && dev.dump && !panning;
+  if (!ready) return;
+  const m = dev.mix, sel = dev.sel, ds = drumIndex(), p = dev.dump.p, x = m.tracks[sel];
+  const flag = (id) => (p[id] ? 1 : 0);
+  if (ds >= 0 && !mixTouched("lv", ds)) m.tracks[ds].level = dev.dump.g[gDrLvl()];
+  if (x) {                                          /* (the selected track is in the mixer) */
+    if (!mixTouched("lv", sel)) {
+      if (sel !== ds) x.level = p[P.LEVEL];       /* (the drum track's level is the global above) */
+      x.mute = flag(pMute());
     }
-    if (!mixTouched("pan", dev.sel)) x.pan = dev.dump.p[pPan()];
-    if (x.fx) x.fx = x.fx.map((v, j) => (mixTouched("fx" + j, dev.sel) || slotIds()[j] == null ? v : dev.dump.p[slotIds()[j]]));
-    if (x.p) x.p = dev.dump.p.slice();
-    if (x.fxoff != null && !mixTouched("fxoff", dev.sel)) x.fxoff = dev.dump.p[pFxoff()] ? 1 : 0;
+    if (!mixTouched("pan", sel)) x.pan = p[pPan()];
+    if (x.fx) x.fx = x.fx.map((v, j) => (mixTouched("fx" + j, sel) || slotIds()[j] == null ? v : p[slotIds()[j]]));
+    if (x.p) x.p = p.slice();
+    if (x.fxoff != null && !mixTouched("fxoff", sel)) x.fxoff = flag(pFxoff());
   }
-  if (mixCtl.length === m.ntrk) m.tracks.forEach((_, i) => updateStrip(i));
+  if (m.ntrk === mixCtl.length) for (let i = 0; i < m.tracks.length; i++) updateStrip(i);
   drumSoundRefresh();
   updateMaster();
 }
-/* a strip's values -> the Sound view (selected track; the drum level always) */
+/* strip i -> Sound view: the drum level always (a global), level / mute / pan only for the selected track */
 function mixToSound(i) {
-  const x = dev.mix.tracks[i];
-  const put = (s, id, v) => { if (v == null) return; (s ? dev.dump.g : dev.dump.p)[id] = v; showValue(key(s, id), v, false); };
-  if (drumTrack(i)) put(1, gDrLvl(), x.level);
-  if (i !== dev.sel) return;
-  if (!drumTrack(i)) put(0, P.LEVEL, x.level);
-  put(0, pMute(), x.mute ? 1 : 0);
-  put(0, pPan(), x.pan);
+  const x = dev.mix.tracks[i], drum = drumTrack(i);
+  const write = (isGlobal, id, v) => {
+    if (v === undefined || v === null) return;
+    const store = isGlobal ? dev.dump.g : dev.dump.p;
+    store[id] = v;
+    showValue(key(isGlobal ? 1 : 0, id), v, false);
+  };
+  if (drum) write(true, gDrLvl(), x.level);
+  if (dev.sel !== i) return;
+  if (!drum) write(false, P.LEVEL, x.level);
+  write(false, pMute(), x.mute ? 1 : 0);
+  write(false, pPan(), x.pan);
 }
 
 /* The mixer view (home): a strip per track and the master. Each strip is headed by its engine's colour (the drum track:
@@ -12429,12 +12529,13 @@ document.addEventListener("keydown", (e) => {
   if (drum) { if (n < 16) kbdDown(`k${k}`, n); } else kbdDown(`k${k}`, 12 * (kbd.oct + 1) + n);
 }, true);
 document.addEventListener("keyup", (e) => { const k = e.key.toLowerCase(); if (kbd.held.has(`k${k}`)) kbdUp(`k${k}`); }, true);
+/* the mixer home: the strips are built again when the track count changed (or after a reset), then all of them refresh */
 function renderMixer() {
-  const box = $("mixer");
+  const box = $("mixer");                           /* (the home view) */
   if (!dev || !dev.mix) { box.replaceChildren(); mixCtl.length = 0; laneCtl.length = 0; return; }
-  const m = dev.mix;
-  if (mixCtl.length !== m.ntrk) {
-    mixCtl.length = 0;
+  const m = dev.mix, rebuild = mixCtl.length !== m.ntrk;
+  if (rebuild) {
+    mixCtl.splice(0);
     dev.stripFx = [];
     masterCtl.knobs = [];                              /* (the returns' bus knobs and the master's: one list) */
     box.classList.toggle("pat", !!dev.info.pat);
@@ -12446,7 +12547,7 @@ function renderMixer() {
     syncLaneStrips();
     patRender();
   }
-  m.tracks.forEach((_, i) => updateStrip(i));
+  for (let t0 = 0; t0 < m.tracks.length; t0++) updateStrip(t0);
   updateMaster();
   renderTrackbar();
 }
@@ -12527,26 +12628,28 @@ setInterval(patPoll, 1000);
 const withKey = (label, k) => (k ? `${label} \u00b7 ${keyLabel(k)}` : label);
 const popBtn = (id, ic, label, track, lane, extra = {}) => iconBtn(id, withKey(`${label} (${t("track")} ${track + 1})`, keyFor(id, lane || 0)), () => openPop(id, track, lane),
   { "data-pop": id, ...extra });
+/* track i's strip; its parts are kept in mixCtl[i] for updateStrip */
+const LEVEL_FALLBACK = { fmt: F.INT, min: 0, max: 127, def: 100 }, PAN_FALLBACK = { fmt: F.BIPCT, min: -64, max: 63, def: 0 };
 function buildStrip(i) {
-  const drum = drumTrack(i);
-  const lvDesc = (drum ? dev.gdesc[gDrLvl()] : dev.pdesc[P.LEVEL]) || { fmt: F.INT, min: 0, max: 127, def: 100 };
-  const pDesc = dev.pdesc[pPan()] || { fmt: F.BIPCT, min: -64, max: 63, def: 0 };
+  const drum = drumTrack(i);                        /* (the drum track: kit, lanes and their sends) */
+  const lvDesc = (drum ? dev.gdesc[gDrLvl()] : dev.pdesc[P.LEVEL]) || LEVEL_FALLBACK;   /* (the drum level: GLO > DRUMS) */
+  const pDesc = dev.pdesc[pPan()] || PAN_FALLBACK;
   const fader = el("input", { type: "range", class: "fader", id: `strip-${i + 1}-fader`, min: 0, max: 127, step: 1, "aria-label": `${t("level")} ${i + 1}`, title: t("level") });
   setHelp(fader, phText("page", "TRACKS", "level"));
-  fader.addEventListener("pointerdown", () => { mixDrag = "lv:" + i; });
-  fader.addEventListener("input", () => setLevel(i, +fader.value));
-  fader.addEventListener("change", () => setLevel(i, +fader.value));
-  fader.addEventListener("dblclick", () => setLevel(i, Math.max(0, Math.min(127, lvDesc.def))));
+  const toLevel = () => setLevel(i, Number(fader.value));
+  fader.addEventListener("pointerdown", () => { mixDrag = `lv:${i}`; });
+  for (const evName of ["input", "change"]) fader.addEventListener(evName, toLevel);
+  fader.addEventListener("dblclick", () => setLevel(i, Math.min(127, Math.max(0, lvDesc.def))));   /* back to the default */
   const pan = knob({ tip: true, label: t("pan"), aria: `${t("pan")} ${i + 1}`, help: phText("page", "VOICE 2", "PAN"), min: pDesc.min, max: pDesc.max, def: pDesc.def, value: dev.mix.tracks[i].pan | 0,
     fmt: (v) => fmtValue(pDesc, v).filter(Boolean).join(" "), set: (v, final) => setPan(i, v, final) });
-  const c = {
-    lvDesc, pDesc, fader, pan,
+  const c = {                                        /* the strip's parts, for updateStrip */
+    fader, pan, lvDesc, pDesc,
     num: el("span", { class: "num", text: String(i + 1) }),
     eng: el("span", { class: "eng" }),
     snd: el("span", { class: "l2" }),
     solo: el("button", { type: "button", class: "tog sol", id: `strip-${i + 1}-solo`, "aria-pressed": "false", ...(dev.info.solo ? {} : { "aria-disabled": "true" }), title: dev.info.solo ? `${t("solo")} ${i + 1}` : t("soloTip"),
       "aria-label": `${t("solo")} ${i + 1}`, onclick: () => (dev.info.solo ? soloTrack(i) : null) }, "S"),
-    lvOut: el("span", { class: "v lv" }),
+    lvOut: el("span", { class: "lv v" }),
     mute: el("button", { type: "button", class: "tog act mute", id: `strip-${i + 1}-mute`, "aria-pressed": "false", title: `${t("mute")} ${i + 1}`, "aria-label": `${t("mute")} ${i + 1}`,
       onclick: () => setMute(i, !dev.mix.tracks[i].mute) }, String(i + 1)),
     ov: el("div", { class: "ov", title: withKey(t("popSeq"), keyFor("sequence")), onclick: () => openPop("sequence", i) }),
@@ -12587,8 +12690,7 @@ function buildStrip(i) {
     r("slot1").remove();
     r("slot2").remove();
   }
-  mixCtl[i] = c;
-  return c.strip;
+  return (mixCtl[i] = c).strip;                      /* (kept for updateStrip) */
 }
 /* the strip's FX sends as four knobs in the same places on every track: DST CHO DLY REV (a synth part's insert and three sends) and
    the FX / DRY toggle. The drum track: the SELECTED sound's CHO DLY REV (0..31, drum_sends.c; its sends are the drums' only ones),
@@ -12739,11 +12841,12 @@ async function setCset(n, v) {
     updateMaster();
   } catch (e) { report(e); }
 }
+/* strip i from dev.mix: selection, head, names, lanes, instrument, level, mute, pan and sends */
 function updateStrip(i) {
-  const c = mixCtl[i], x = dev && dev.mix && dev.mix.tracks[i];
-  if (!c || !x) return;
+  const x = dev && dev.mix && dev.mix.tracks[i], c = mixCtl[i];
+  if (!x || !c) return;
   const sel = i === dev.sel, drum = drumTrack(i);
-  c.strip.classList.toggle("sel", sel);
+  c.strip.classList.toggle("sel", sel);              /* (the selected track's strip is marked) */
   c.head.setAttribute("aria-pressed", sel ? "true" : "false");
   c.head.title = `${t(sel ? "selectedTrack" : "selectTrack")}: ${t("track")} ${i + 1} \u00b7 \u2190 \u2192`;
   c.head.setAttribute("aria-label", c.head.title);
@@ -12755,8 +12858,7 @@ function updateStrip(i) {
   c.eng.textContent = drum ? `DRUMS · ${KIND_TAG[kitKind(x.e0)]}` : ename;
   if (drum) { c.strip.dataset.kind = kd; delete c.strip.dataset.engine; } else c.strip.dataset.engine = ename.toLowerCase();
   const nm = drum ? (dev.dl && dev.dl.ukit ? kitName(dev.dl.ukit - 1) : kitNamesNow()[x.e0] || "") : (dev.names[x.engine] || [])[x.preset] || "";
-  c.snd.textContent = nm;
-  c.snd.title = trackName(x);
+  Object.assign(c.snd, { textContent: nm, title: trackName(x) });
   if (c.lanes && dev.dl) {
     const list = kitSources();
     for (const b of c.lanes.children) {
@@ -12774,15 +12876,17 @@ function updateStrip(i) {
   const inst = c.strip.querySelector("[data-inst]");
   if (inst && !drum && document.activeElement !== inst) { inst.value = String(x.engine); const l1 = c.strip.querySelector(`#strip-${i + 1}-inst-open .l1`); if (l1) l1.textContent = dev.info.engines[x.engine] || "\u2014"; }
   if (inst && drum && document.activeElement !== inst) { inst.value = String(x.e0); const l1 = c.strip.querySelector(`#strip-${i + 1}-inst-open .l1`); if (l1 && inst.selectedOptions[0]) l1.textContent = inst.selectedOptions[0].textContent; }
-  if (!mixTouched("lv", i)) c.fader.value = String(x.level);
-  const [lt, lu] = fmtValue(c.lvDesc, x.level);
-  c.lvOut.textContent = lu ? `${lt} ${lu}` : lt;
+  if (!mixTouched("lv", i)) c.fader.value = `${x.level}`;   /* (a fader in the user's hand stays where it is) */
+  const [lvText, lvUnit] = fmtValue(c.lvDesc, x.level);
+  c.lvOut.textContent = lvUnit ? lvText + " " + lvUnit : lvText;
   c.fader.title = `${t("level")}: ${c.lvOut.textContent}`;
   { const ab = c.strip.querySelector(".arpb"); if (ab) ab.setAttribute("aria-pressed", arpOn(x) ? "true" : "false"); }
-  c.mute.setAttribute("aria-pressed", x.mute ? "true" : "false");
-  c.strip.classList.toggle("muted", !!x.mute || !x.level);
+  const silent = Boolean(x.mute) || !x.level;        /* (muted, or at level 0: the strip is drawn muted) */
+  c.mute.setAttribute("aria-pressed", String(!!x.mute));
+  c.strip.classList.toggle("muted", silent);
   if (x.pan != null && !mixTouched("pan", i)) c.pan.value(x.pan, false);
-  c.solo.classList.toggle("on", !!((dev.mix.solo >> i) & 1));   /* v5: soloed on the device (GLO + key) */
+  const soloed = ((dev.mix.solo >> i) & 1) === 1;    /* v5: the device's solo bits (GLO + key) */
+  c.solo.classList.toggle("on", soloed);
   if (c.fxk && drum && c.fxmode) drumFxShow(c);
   else if (c.fxk && drum) laneSendsShow(c);
   else if (c.fxk && x.fx) c.fxk.forEach((k, j) => k.value(x.fx[j], false));
@@ -12977,77 +13081,80 @@ function setLaneSend(l, f, v, final) {
   laneSend(l, false).catch(report);
   void final;
 }
-window.addEventListener("pointerup", () => { mixDrag = null; });
-window.addEventListener("pointercancel", () => { mixDrag = null; });
+/* letting go anywhere ends a strip drag */
+for (const evName of ["pointerup", "pointercancel"]) window.addEventListener(evName, () => { mixDrag = null; });
 
-/* level and mute: TRACK_MIX, one in flight per track and one queued with the latest values (as SET) */
-function setLevel(i, v) {
-  if (!dev || !dev.mix) return;
-  dev.mix.tracks[i].level = v;
-  mixEdit.set("lv:" + i, performance.now());
+/* Level and mute go out as TRACK_MIX: per track one request in flight and one queued that carries the newest values (like SET). */
+/* change one strip field of track i: the page first (strip and Sound view), then the device */
+function mixChange(i, field, value) {
+  if (!(dev && dev.mix)) return;
+  dev.mix.tracks[i][field] = value;
+  mixEdit.set(`lv:${i}`, performance.now());
   updateStrip(i);
   mixToSound(i);
   sendMix(i);
 }
-function setMute(i, on) {
-  if (!dev || !dev.mix) return;
-  dev.mix.tracks[i].mute = on ? 1 : 0;
-  mixEdit.set("lv:" + i, performance.now());
-  updateStrip(i);
-  mixToSound(i);
-  sendMix(i);
-}
+function setLevel(i, v) { mixChange(i, "level", v); }
+function setMute(i, on) { mixChange(i, "mute", on ? 1 : 0); }
 async function sendMix(i) {
-  const d = dev, x = d.mix.tracks[i];
+  const d = dev, tr = d.mix.tracks[i], qkey = `mix:${i}`;
   try {
-    const r = await mixer.setMix(rq, i, x.level, x.mute, { key: "mix:" + i });
-    if (d !== dev || !d.mix || mixDrag === "lv:" + i || d.link.hasQueued("mix:" + i)) return;
-    const y = d.mix.tracks[i];                      /* the device's values after clamping */
-    y.level = r.level; y.mute = r.mute;
+    const reply = await mixer.setMix(rq, i, tr.level, tr.mute, { key: qkey });
+    const stale = dev !== d || !d.mix || mixDrag === `lv:${i}` || d.link.hasQueued(qkey);
+    if (stale) return;                              /* (a newer value is on its way, or the user still holds it) */
+    Object.assign(d.mix.tracks[i], { level: reply.level, mute: reply.mute });   /* what the device kept after clamping */
     updateStrip(i);
     mixToSound(i);
-  } catch (e) { report(e); }
+  } catch (err) { report(err); }
 }
-/* pan: the selected track as any Sound parameter; another track with TRACK_PARAM (v4: while dragging, one in
-   flight and one queued with the latest value), or with v3 firmware on release (it is selected for a moment) */
-const panWant = new Map();
+/* Pan. The selected track's pan is an ordinary Sound parameter. Any other track: TRACK_PARAM on v4 firmware (live while
+   dragging, one request in flight plus one queued with the newest value); v3 firmware selects that track for a moment, on release only. */
+const panWant = new Map();                           /* v3: track -> the pan still to be written */
 function setPan(i, v, final) {
-  if (!dev || !dev.mix) return;
-  dev.mix.tracks[i].pan = v;
-  mixEdit.set("pan:" + i, performance.now());
+  if (!(dev && dev.mix)) return;
+  dev.mix.tracks[i].pan = v;                        /* the page first, the device follows */
+  mixEdit.set(`pan:${i}`, performance.now());
   updateStrip(i);
-  if (i === dev.sel) { userSet(0, pPan(), v, final); return; }
-  if (dev.v4) panTrack(i, v);
-  else if (final) panOther(i, v);
+  if (dev.sel === i) userSet(0, pPan(), v, final);
+  else if (dev.v4) panTrack(i, v);
+  else if (final) panOther(i, v);                   /* (v3: on release only) */
 }
 async function panTrack(i, v) {
-  const d = dev;
+  const d = dev, qkey = `pan:${i}`;
   try {
-    const r = await mixer.setPan(rq, i, d.sel, pPan(), v, true);
-    if (d !== dev || !d.mix || mixDrag === "pan:" + i || d.link.hasQueued("pan:" + i)) return;
-    d.mix.tracks[i].pan = r;                        /* the device's value after clamping */
+    const got = await mixer.setPan(rq, i, d.sel, pPan(), v, true);
+    if (dev !== d || !d.mix || mixDrag === qkey || d.link.hasQueued(qkey)) return;
+    d.mix.tracks[i].pan = got;                      /* (clamped by the device) */
     updateStrip(i);
-    if (i === d.sel) mixToSound(i);
-  } catch (e) { report(e); }
+    if (d.sel === i) mixToSound(i);
+  } catch (err) { report(err); }
 }
+/* v3: write the wanted pans one by one, never while another multi-request operation runs; one runner at a time */
 async function panOther(i, v) {
-  panWant.set(i, v);
-  if (panOther.run) return;
+  panWant.set(i, v);                                /* (the newest value per track wins) */
+  if (panOther.run) return;                         /* (the running loop picks it up) */
   panOther.run = true;
   const d = dev;
+  const writeAll = async () => {
+    while (panWant.size > 0 && dev === d) {
+      const [tr, val] = [...panWant][0];
+      panWant.delete(tr);
+      const got = await mixer.setPan(rq, tr, d.sel, pPan(), val);
+      if (!d.mix || panWant.has(tr)) continue;       /* (moved again meanwhile: the newer value follows) */
+      d.mix.tracks[tr].pan = got;
+      updateStrip(tr);
+    }
+  };
   try {
-    while (busy && d === dev) await sleep(20);      /* not in the middle of another multi-request operation */
-    busy++;
-    panning = true;
-    try {
-      while (panWant.size && d === dev) {
-        const [tr, val] = panWant.entries().next().value;
-        panWant.delete(tr);
-        const r = await mixer.setPan(rq, tr, d.sel, pPan(), val);
-        if (d.mix && !panWant.has(tr)) { d.mix.tracks[tr].pan = r; updateStrip(tr); }
-      }
-    } finally { panning = false; busy--; }
-  } catch (e) { report(e); } finally { panOther.run = false; panWant.clear(); }
+    while (busy && dev === d) await sleep(20);
+    busy++; panning = true;                         /* (others wait; pushes about the borrowed track are ignored) */
+    try { await writeAll(); } finally { busy--; panning = false; }
+  } catch (err) {
+    report(err);
+  } finally {
+    panWant.clear();
+    panOther.run = false;
+  }
 }
 
 /* ---------------------------------------------------- the popups built on demand --- */
@@ -13368,73 +13475,96 @@ new MutationObserver(() => {
   requestAnimationFrame(() => { tipQueued = false; tipAll(); });
 }).observe(document.body, { childList: true, subtree: true });
 
-/* ------------------------------------------------- live sync / polling --- */
-/* With WATCH (protocol v2) the device pushes CHANGED / RELOAD / STEP_CHANGED; the editor PINGs about
-   once a second so the watch stays on (it ends 3 s after the last request), and DUMPs every 5 s as a
-   safety net. Older firmware: DUMP every 400 ms and two steps per round. */
+/* ======================================================== live sync / polling ===== */
+/* Protocol v2 and later (WATCH): the device pushes CHANGED, RELOAD and STEP_CHANGED by itself. The editor PINGs about once a
+   second to keep the watch alive (it lapses 3 s after the last request) and DUMPs every 5 s in case a push went missing.
+   Firmware without WATCH is polled instead: a DUMP every 400 ms, two steps per round. */
+/* CHANGED: one parameter of the selected track (scope 0) or a global (scope 1) */
+function pushChanged(d, c) {
+  if (!c.scope && panning) return;                  /* (about the track borrowed for a pan, not the one shown) */
+  const store = c.scope ? d.dump.g : d.dump.p;
+  if (c.id >= store.length) return;
+  const k = key(c.scope, c.id);
+  if (touched(k)) return;                           /* the user's own value wins: their SET is on its way */
+  const before = store[c.id];
+  store[c.id] = c.value;
+  showValue(k, c.value, false);
+  const desc = c.scope ? d.gdesc[c.id] : null;
+  if (desc && desc.label === "CLK") {               /* a clock change shows on SYNC as well */
+    const syncAt = d.gdesc.findIndex((g) => g && g.label === "SYNC");
+    if (syncAt >= 0) showValue(key(1, syncAt), d.dump.g[syncAt], false);
+  }
+  blink(k);
+  mixFromDump();
+  if (c.scope) return;
+  if (c.id === pSlen() && before !== c.value) renderSteps();
+  if (c.id === d.info.pe0 && drumGrid() && d.dstepsOk) renderDrumBar();   /* (the drum kit was changed on the device) */
+}
+/* RELOAD: everything again, unless it answers one of our own changes */
+function pushReload(d, a) {
+  d.sel = parse[CMD.RELOAD](a).track;               /* (v3: the device may have selected another track) */
+  const ours = selfReload.n > 0 && Date.now() < selfReload.until;
+  if (ours) { selfReload.n -= 1; return; }
+  needReload = true;
+  maybeReload();
+}
+/* v9 PARAMS: coalesced values of any track and of the globals, each routed as if it had come alone */
+function pushParams(d, a) {
+  fxpPing();                                        /* (inserts' amounts are track parameters: an open FX popup reads again) */
+  for (const c of parse[CMD.PARAMS](a)) {
+    if (c.id === d.info.pe0 && c.track === drumOf(d.info)) onKit(c.value);   /* (the drum kit: what kitPoll would find) */
+    if (c.track < 0) onPush({ cmd: CMD.CHANGED, a: [1, c.id, ...v14enc(c.value)] });
+    else if (c.track !== d.sel) onTrackParam(c);
+    else onPush({ cmd: CMD.CHANGED, a: [0, c.id, ...v14enc(c.value)] });
+  }
+}
+/* v4 TRACK_CHANGED: level, pan, mute (and newer: sends, FX off) of a track other than the selected one */
+function pushTrackChanged(d, a) {
+  const c = parse[CMD.TRACK_CHANGED](a), tr = c.track, x = d.mix && d.mix.tracks[tr];
+  if (!x || tr === d.sel) return;
+  if (x.p && c.id < x.p.length) x.p[c.id] = c.value;
+  const slot = x.fx ? slotIds().indexOf(c.id) : -1;   /* (a send: newer firmware; on v10 an FX slot's amount) */
+  let field = null, value = c.value, guard = "lv";
+  if (c.id === pPan()) { field = "pan"; guard = "pan"; }
+  else if (c.id === pMute()) { field = "mute"; value = c.value ? 1 : 0; }
+  else if (c.id === P.LEVEL && !drumTrack(tr)) field = "level";
+  else if (slot >= 0) guard = "fx" + slot;
+  else if (c.id === pFxoff() && x.fxoff != null) { field = "fxoff"; guard = "fxoff"; value = c.value ? 1 : 0; }
+  else return;
+  if (!mixTouched(guard, tr)) {
+    if (field) x[field] = value;
+    else if (slot >= 0) x.fx[slot] = value;
+  }
+  updateStrip(tr);
+}
+/* a push from the device, by its command */
 function onPush(f) {
-  const d = dev;
-  if (!d || !d.dump || !d.info) return;
+  const d = dev;                                    /* (the device this push came from) */
+  if (!d || !d.info || !d.dump) return;             /* (not connected yet: nothing to update) */
+  const a = f.a;
   try {
-    if (f.cmd === CMD.CHANGED) {
-      const c = parse[CMD.CHANGED](f.a);
-      if (panning && !c.scope) return;              /* about the track selected for a moment, not ours */
-      const arr = c.scope ? d.dump.g : d.dump.p;
-      if (c.id >= arr.length) return;
-      const k = key(c.scope, c.id);
-      if (touched(k)) return;                       /* the user's value wins; their SET follows */
-      const old = arr[c.id];
-      arr[c.id] = c.value;
-      showValue(k, c.value, false);
-      if (c.scope && d.gdesc[c.id] && d.gdesc[c.id].label === "CLK") {   /* the clock followed: SYNC shows it */
-        const si = d.gdesc.findIndex((x) => x && x.label === "SYNC");
-        if (si >= 0) showValue(key(1, si), d.dump.g[si], false);
+    switch (f.cmd) {
+      case CMD.CHANGED: pushChanged(d, parse[CMD.CHANGED](a)); break;
+      case CMD.RELOAD: pushReload(d, a); break;
+      case CMD.STEP_CHANGED: {
+        const at = parse[CMD.STEP_CHANGED](a).index;
+        if (at < d.info.nstep) refreshStep(at);
+        break;
       }
-      blink(k);
-      mixFromDump();
-      if (!c.scope && c.id === pSlen() && old !== c.value) { renderSteps(); }
-      if (!c.scope && c.id === d.info.pe0 && drumGrid() && d.dstepsOk) renderDrumBar();   /* the kit, changed on the device */
-    } else if (f.cmd === CMD.RELOAD) {
-      d.sel = parse[CMD.RELOAD](f.a).track;          /* v3: another track may be selected on the device */
-      if (selfReload.n > 0 && Date.now() < selfReload.until) { selfReload.n--; return; }
-      needReload = true;
-      maybeReload();
-    } else if (f.cmd === CMD.STEP_CHANGED) {
-      const { index } = parse[CMD.STEP_CHANGED](f.a);
-      if (index < d.info.nstep) refreshStep(index);
-    } else if (f.cmd === CMD.PARAMS) {              /* v9: parameters of any track and globals, coalesced */
-      fxpPing();                                    /* (an insert's amount is a track parameter: an open FX popup follows) */
-      for (const c of parse[CMD.PARAMS](f.a)) {
-        if (c.track === drumOf(d.info) && c.id === d.info.pe0) onKit(c.value);   /* the drum kit: the kit editor (kitPoll's job) */
-        if (c.track < 0) onPush({ cmd: CMD.CHANGED, a: [1, c.id, ...v14enc(c.value)] });
-        else if (c.track === d.sel) onPush({ cmd: CMD.CHANGED, a: [0, c.id, ...v14enc(c.value)] });
-        else onTrackParam(c);
-      }
-    } else if (f.cmd === CMD.STEPS) {               /* v9: steps of any track, with their bytes */
-      onSteps(parse[CMD.STEPS](f.a, d.info, d.ends));
-    } else if (f.cmd === CMD.LANE) {                /* v9: a drum lane's sound changed on the device */
-      onLane(parse[CMD.LANE](f.a));
-    } else if (f.cmd === CMD.TRACKS) {              /* v9: an engine, preset or solo of any track */
-      onTracks(parse[CMD.TRACKS](f.a));
-    } else if (f.cmd === CMD.FX_PUSH) {             /* v10: the FX slots, the COMP settings, a drum sound's insert */
-      onFx(parse[CMD.FX_PUSH](f.a)).catch(report);
-      fxpPing();                                    /* (v13: an open FX popup reads its slots again) */
-      if (d.info.dlan) readDlMix().then(dlMixShow).catch(report);   /* (the lanes' mutes / solos, the sequencer mutes) */
-    } else if (f.cmd === CMD.SONG) {                /* v9: the sections stored, the song, the snapshot list */
-      onSong(parse[CMD.SONG](f.a));
-    } else if (f.cmd === CMD.TRACK_CHANGED) {       /* v4: level / pan / mute of a track that is not selected */
-      const c = parse[CMD.TRACK_CHANGED](f.a), x = d.mix && d.mix.tracks[c.track];
-      if (!x || c.track === d.sel) return;
-      if (x.p && c.id < x.p.length) x.p[c.id] = c.value;
-      if (c.id === pPan()) { if (!mixTouched("pan", c.track)) x.pan = c.value; }
-      else if (c.id === pMute()) { if (!mixTouched("lv", c.track)) x.mute = c.value ? 1 : 0; }
-      else if (c.id === P.LEVEL && !drumTrack(c.track)) { if (!mixTouched("lv", c.track)) x.level = c.value; }
-      else if (x.fx && slotIds().includes(c.id)) { const j = slotIds().indexOf(c.id); if (!mixTouched("fx" + j, c.track)) x.fx[j] = c.value; }   /* (the sends: newer firmware; v10 the slots') */
-      else if (c.id === pFxoff() && x.fxoff != null) { if (!mixTouched("fxoff", c.track)) x.fxoff = c.value ? 1 : 0; }
-      else return;
-      updateStrip(c.track);
+      case CMD.PARAMS: pushParams(d, a); break;                          /* v9 */
+      case CMD.STEPS: onSteps(parse[CMD.STEPS](a, d.info, d.ends)); break;   /* v9: steps of any track, bytes included */
+      case CMD.LANE: onLane(parse[CMD.LANE](a)); break;                  /* v9: a drum lane's sound, changed on the device */
+      case CMD.TRACKS: onTracks(parse[CMD.TRACKS](a)); break;            /* v9: engine, preset or solo of any track */
+      case CMD.FX_PUSH:                                                  /* v10: FX slots, COMP settings, a drum sound's insert */
+        onFx(parse[CMD.FX_PUSH](a)).catch(report);
+        fxpPing();                                                       /* (v13: an open FX popup reads its slots again) */
+        if (d.info.dlan) readDlMix().then(dlMixShow).catch(report);     /* (lane mutes / solos, sequencer mutes) */
+        break;
+      case CMD.SONG: onSong(parse[CMD.SONG](a)); break;                  /* v9: stored sections, the song, the snapshot list */
+      case CMD.TRACK_CHANGED: pushTrackChanged(d, a); break;
+      default: break;
     }
-  } catch (e) { console.warn("bad push", f, e); }
+  } catch (err) { console.warn("bad push", f, err); }
 }
 /* v9: a parameter of a track that is not selected (PARAMS): the strip's controls, its kit, its overview's length */
 function onTrackParam(c) {
