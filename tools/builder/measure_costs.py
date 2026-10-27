@@ -392,6 +392,12 @@ PAIRS.append(dict(_SDM))                         # (with the console too it is ~
 # (2026-10-24, synths_USBaudio_BTaudio_BTmidi: FM6 off freed 16 B of RAM and 608 B of the pool, the estimate said
 # 4,896 B of RAM and 4,260 B more pool; with FM6_SYSEX off too the pair and the triple measured 0: not kept)
 PAIRS.append({"ENG_FM6": 0, "TAB_IN_POOL": 1})
+# TAB_IN_POOL in the SD card mode moves another set (core.h IN_POOL_AUDIO): FM6's sine table is an arena block there
+# (eng_fm6.c, FELUCCA_FX_ARENA) and the card's stream tables (sd_stream.h sst, sst_src) move instead. 2026-10-27:
+# sd-card-mots moved 6,528 B of RAM to the pool, its delta from the defaults said 8,992 (builder_test: the estimate
+# from its probe 2,464 B of RAM and 1,768 of pool off)
+PAIRS.append({"LAYOUT": 1, "SDCARD": 1, "TAB_IN_POOL": 1})
+PAIR_WITH["LAYOUT=1,SDCARD=1,TAB_IN_POOL=1"] = dict(_LAYOUT, FAR_OK=1, ARENA=192)
 # with TAB_CODED_ALL, PLAITS' waveshapers (2,570 B) and JUNO's cutoff steps (1,025 B) leave flash for the pool too
 # (gen_tables.py's "plaits" and "juno" groups, 2026-10-24): the base has neither engine, so neither delta sees it
 for _tca in (1, 2):
