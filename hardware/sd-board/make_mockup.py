@@ -17,7 +17,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 THICK = 1.6
 CARD = sys.argv[1] if len(sys.argv) > 1 else ""
 CARD_W, CARD_L, CARD_T, CARD_OUT = 11.0, 15.0, 0.8, 4.0   # (a microSD card: 11 x 15 x 0.7-1.0 mm)
-HEIGHT = {"J1": 1.85, "J2": 1.0, "J3": 1.0, "U1": 1.1, "C1": 1.3, "C2": 0.8}    # (mm above the board; the resistors 0.55)
+HEIGHT = {"J1": 1.85, "J2": 1.0, "J3": 2.0, "U1": 1.1, "U2": 1.1, "U3": 1.1, "C1": 1.3,
+          "C2": 0.8}                             # (mm above the board; the resistors 0.55; J3 the XUNPU H20: 2.0 mm)
 
 board = pcbnew.LoadBoard(os.path.join(HERE, "sd-board.kicad_pcb"))
 outline = pcbnew.SHAPE_POLY_SET()
@@ -28,8 +29,8 @@ pts = [(pcbnew.ToMM(ring.CPoint(i).x), -pcbnew.ToMM(ring.CPoint(i).y)) for i in 
 blocks = []
 for fp in board.GetFootprints():
     court = fp.GetCourtyard(pcbnew.F_CrtYd)
-    if not court.OutlineCount():
-        continue
+    if not court.OutlineCount() or fp.GetReference().startswith(("JP", "TP")):   # (the swap jumpers, the test pads:
+        continue                                                                   # copper only, nothing stands)
     bb = court.BBox()
     x0, x1 = pcbnew.ToMM(bb.GetLeft()), pcbnew.ToMM(bb.GetRight())
     y0, y1 = -pcbnew.ToMM(bb.GetBottom()), -pcbnew.ToMM(bb.GetTop())
