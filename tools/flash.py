@@ -30,7 +30,7 @@ import stamp  # noqa: E402
 TOOL = HERE / "fm1_install.py"
 OPTIMIST_ID = re.compile(r"FM-1_7(00|[2-6]\d)|FM-1_79\d{2}(\d{4})?")   # (Optimist: 700 development, 720..769 releases;
                                                         # BUILDING.md; FM-1_79: the release on fm1-base, fm1.toml id_prefix)
-RELEASE = [True]                                        # (the release's packages: fm1-base's update tool when the FM-1 is not
+RELEASE = [os.environ.get("OPTIMIST_CLASSIC") != "1"]                                        # (the release's packages: fm1-base's update tool when the FM-1 is not
                                                         # running Optimist; set_flavour)
 FM1B_PORT = "Optimist"                                  # (the USB-MIDI port name fm1-base's tool is given)
 NEED = "needs mido and python-rtmidi in the builder venv: run `make setup` (python tools/optimist.py setup)"
@@ -189,4 +189,5 @@ def preflight(package, port=None, notes=None):
 def install(plan, capture=True, on_line=None):
     """write the plan's package (the caller has asked) -> (exit code, output). Never --force. on_line: see run_tool"""
     args = [str(plan.package), "--yes", *(["--port", plan.port] if plan.port else [])]
-    return run_tool(args, capture, on_line, plan.tool) if on_line else run_tool(args, capture, tool=plan.tool)
+    extra = {"tool": plan.tool} if plan.tool else {}      # (Optimist's own tool: as it was called before the release)
+    return run_tool(args, capture, on_line, **extra) if on_line else run_tool(args, capture, **extra)

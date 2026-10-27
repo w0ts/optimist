@@ -7,6 +7,7 @@ it until the next b. No build here. Needs Textual: run with the builder's venv (
 tests/run_tests.sh uses it when it is there)."""
 import asyncio
 import os
+os.environ.setdefault("OPTIMIST_CLASSIC", "1")   # (Optimist's own firmware's tests: not the release on fm1-base)
 import shutil
 import subprocess
 import sys
