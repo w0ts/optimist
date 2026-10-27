@@ -790,6 +790,10 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #ifndef FELUCCA_FM6_SYSEX
 #define FELUCCA_FM6_SYSEX 1                /* DX7 SysEx in: a voice replaces the track's, a 32-voice bank is a pick list in PRESETS */
 #endif
+#if !FELUCCA_ENG_FM6 && FELUCCA_FM6_SYSEX  /* (without FM6 nothing takes a voice: until 2026-10-27 the receiver and its */
+#undef FELUCCA_FM6_SYSEX                   /*  4 KB bank buffer were built anyway, so FM6 off freed no pool) */
+#define FELUCCA_FM6_SYSEX 0
+#endif
 #ifndef FELUCCA_FM6_PK_KEYS
 #define FELUCCA_FM6_PK_KEYS 0              /* pack 1: keys and e-pianos, 16 voices */
 #endif
