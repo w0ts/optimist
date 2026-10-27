@@ -54,26 +54,29 @@ PINS = {
 }
 LABEL_ANGLE = {0: 180, 180: 0, 90: 270, 270: 90}   # (the label away from the body)
 
-LCD10 = {"1": "GND", "2": "MISO", "3": "CLK", "4": "MOSI", "5": "LCD_CS", "6": "3V3", "7": "LCD_RST", "8": "LCD_LEDA",
-         "9": "LCD_LEDK", "10": "GND", "MP": "GND"}   # (as LCD_PINS in make_board.py: PROVISIONAL)
+LCD10 = {"1": "GND", "2": "MISO", "3": "LCD_CS", "4": "CLK", "5": "MOSI", "6": "LCD_6", "7": "3V3", "8": "LCD_8",
+         "9": "LCD_9", "10": "GND", "MP": "GND"}   # (as LCD_PINS in make_board.py: J12 as probed, pin 7 to confirm)
 # (ref, lib_id, value, footprint, LCSC, x, y, {pin: net})
 PARTS = [
     ("J1", "Connector:Micro_SD_Card_Det1", "TF-01A push-push", "sdboard:TF-SMD_TF-01A", "C91145", 170, 90,
-     {"1": "DAT2", "2": "CARD_CS", "3": "MOSI", "4": "3V3", "5": "CLK", "6": "GND", "7": "DAT0", "8": "DAT1",
+     {"1": "DAT2", "2": "CARD_CS", "3": "MOSI_SD", "4": "3V3", "5": "CLK_SD", "6": "GND", "7": "DAT0", "8": "DAT1",
       "SH": "GND"}),
     ("U1", "74xGxx:74LVC1G04", "74LVC1G04", "sdboard:SOT-23-5_L3.0-W1.7-P0.95-LS2.8-BR", "C7827", 70, 70,
      {"2": "LCD_CS", "3": "GND", "4": "CARD_CS", "5": "3V3"}),
-    ("R1", "Device:R", "220", "sdboard:R0603", "C22962", 110, 125, {"1": "MISO", "2": "DAT0"}),
-    ("R2", "Device:R", "47k", "sdboard:R0603", "C25819", 125, 125, {"1": "3V3", "2": "DAT2"}),
+    ("R1", "Device:R", "100", "sdboard:R0603", "C22775", 110, 125, {"1": "MISO", "2": "DAT0"}),
+    ("R2", "Device:R", "47k", "sdboard:R0603", "C25819", 125, 125, {"1": "DAT2", "2": "3V3"}),
     ("R3", "Device:R", "47k", "sdboard:R0603", "C25819", 140, 125, {"1": "3V3", "2": "DAT1"}),
-    ("R4", "Device:R", "47k", "sdboard:R0603", "C25819", 45, 70, {"1": "LCD_CS", "2": "3V3"}),
+    ("R4", "Device:R", "47k", "sdboard:R0603", "C25819", 45, 70, {"1": "GND", "2": "LCD_CS"}),
+    ("R5", "Device:R", "100", "sdboard:R0603", "C22775", 155, 125, {"1": "CLK_SD", "2": "CLK"}),
+    ("R6", "Device:R", "100", "sdboard:R0603", "C22775", 170, 125, {"1": "MOSI_SD", "2": "MOSI"}),
     ("C1", "Device:C", "10uF", "sdboard:C0805", "C15850", 60, 125, {"1": "3V3", "2": "GND"}),
-    ("C2", "Device:C", "100nF", "sdboard:C0603", "C14663", 75, 125, {"1": "GND", "2": "3V3"}),
-    # (v5: J2 from J12, J3 the LCD's cable, every line through; the pin order PROVISIONAL until J12 is measured)
+    ("C2", "Device:C", "100nF", "sdboard:C0603", "C14663", 75, 125, {"1": "3V3", "2": "GND"}),
+    # (J2 from J12, J3 the LCD's cable, every line through; J3 single-sided top contact, J2's face after the breakout)
     ("J2", "Connector_Generic_MountingPin:Conn_01x10_MountingPin", "FPC 10P 0.5mm (IN)",
      "sdboard:FPC-SMD_10P-P0.50_HC-FPC-05-09-10RLTAG", "C5213750", 230, 90, LCD10),
-    ("J3", "Connector_Generic_MountingPin:Conn_01x10_MountingPin", "FPC 10P 0.5mm (LCD)",
-     "sdboard:FPC-SMD_10P-P0.50_HC-FPC-05-09-10RLTAG", "C5213750", 260, 90, LCD10),
+    ("J3", "Connector_Generic_MountingPin:Conn_01x10_MountingPin", "FPC 10P 0.5mm top contact (LCD)",
+     "sdboard:FPC-SMD_10P-P0.50_XUNPU_FPC-0.5AS-10PWBH20", "C3446068", 260, 90,
+     {**{str(11 - int(k)): v for k, v in LCD10.items() if k != "MP"}, "MP": "GND"}),   # (turned on the board: J3_AT)
     ("#FLG01", "power:PWR_FLAG", "PWR_FLAG", "", "", 40, 150, {"1": "3V3"}),
     ("#FLG02", "power:PWR_FLAG", "PWR_FLAG", "", "", 55, 150, {"1": "GND"}),
 ]
