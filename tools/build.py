@@ -572,7 +572,10 @@ def build_app():
         meas = (ld_text.replace(f"LENGTH = 0x{slot:X}", f"LENGTH = 0x{slot + 0x60000:X}")
                 .replace("ORIGIN = 0x01C00100, LENGTH = 0x73F00", f"ORIGIN = 0x01C00100, LENGTH = {MEASURE_SRAM:#x}")
                 .replace("ORIGIN = 0x01C7C000", "ORIGIN = 0x01E00000")   # (NOINIT moved up: addresses for sizes only)
-                .replace('ASSERT(ORIGIN(SRAM) + LENGTH(SRAM) == _guard0', 'ASSERT(1'))
+                .replace('ASSERT(ORIGIN(SRAM) + LENGTH(SRAM) == _guard0', 'ASSERT(1')
+                # (the far probe right after the code, not at its place: a measured build's code may run past it,
+                # 2026-10-27: the defaults with LAYOUT 1 overlapped it at link; sizes only, its address unused)
+                .replace(f".text_far (ORIGIN(XIP) + {FAR_OFF:#x})", ".text_far"))
         if meas.count(f"LENGTH = {MEASURE_SRAM:#x}") != 1 or "ORIGIN = 0x01E00000" not in meas:
             raise SystemExit("build: app.ld changed: the measurement link's SRAM / NOINIT lines no longer match")
         ld.write_text(meas)
@@ -624,7 +627,9 @@ def build_app():
     CODE_LEN = len(img)             # (the code and the boot stream: what the builder's flash budget counts; the far probe
                                     # and the overlays' table past it keep their own place: flash_layout.code_limit)
     far = (OUT / "far.bin").read_bytes() if (OUT / "far.bin").exists() else b""
-    if far:                         # the far probe: after everything the boot needs, at its own offset past 0x93000
+    if far and MEASURE:             # (a measurement build: its bytes after the image, not at an address: sizes only)
+        img += far
+    elif far:                       # the far probe: after everything the boot needs, at its own offset past 0x93000
         if len(img) > FAR_OFF or (not far_ok() and len(img) > flash_layout.app_slot(0)):
             raise SystemExit(f"build: the image ({len(img)} B) is past {'the far probe' if far_ok() else 'the normal layout' + chr(39) + 's slot'} "
                              f"({min(FAR_OFF, LIMITS['flash'])} B): " + ("the far probe and the overlays' table keep the "
@@ -634,7 +639,7 @@ def build_app():
         print(f"far      probe {len(far)} B at app offset {FAR_OFF:#x} (flash {0x4120 + FAR_OFF:#x})")
     if OVL:                         # the overlay table and the slots' code, after the far probe (_ovl_rom: the big layout)
         rom = ovl_rom(ovl_others, syms)
-        at = symv("_ovl_rom") - APP_XIP
+        at = len(img) if MEASURE else symv("_ovl_rom") - APP_XIP   # (measured: after the image, as the far probe)
         if at < len(img):
             raise SystemExit(f"_ovl_rom {at + APP_XIP:#x}: inside the image before it")
         img += b"\xff" * (at - len(img)) + rom
