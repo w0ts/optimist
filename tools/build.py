@@ -394,6 +394,8 @@ def build_app():
         flags.append("-DFELUCCA_CDC_FORCE=1")
     if os.environ.get("OPTIMIST_MEMBENCH") == "1":    # (a bench build: the console's membench, io/console_mem.c)
         flags.append("-DFELUCCA_MEMBENCH=1")
+    if os.environ.get("OPTIMIST_MUL64_CLEAR") == "1":   # (not FELUCCA_*: the builder strips those) the asm loops with no
+        flags.append("-DFELUCCA_MUL64_CLEAR=1")          # load beside a 64-bit multiply (hal/fm1_dsp_asm.h); unset: as before
     if os.environ.get("OPTIMIST_DUAL_PARK") in ("0", "1") and os.environ.get("FELUCCA_DUAL_PARK") is None:   # a DUAL build parks CPU1 (never started)
         flags.append(f"-DFELUCCA_DUAL_PARK={os.environ['OPTIMIST_DUAL_PARK']}")   # unless 0: a hardware test build (2026-10-15, dual_mode.h)
     if os.environ.get("OPTIMIST_DUALCFG") == "1":   # (the switchable second-core test image: the console's dualcfg)
