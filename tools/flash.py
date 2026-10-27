@@ -28,7 +28,11 @@ import progress  # noqa: E402  (stream: the tool's output as it arrives)
 import stamp  # noqa: E402
 
 TOOL = HERE / "fm1_install.py"
-OPTIMIST_ID = re.compile(r"FM-1_7(00|[2-6]\d)")         # (Optimist: 700 development, 720..769 releases; BUILDING.md)
+OPTIMIST_ID = re.compile(r"FM-1_7(00|[2-6]\d)|FM-1_79\d{2}(\d{4})?")   # (Optimist: 700 development, 720..769 releases;
+                                                        # BUILDING.md; FM-1_79: the release on fm1-base, fm1.toml id_prefix)
+RELEASE = [True]                                        # (the release's packages: fm1-base's update tool when the FM-1 is not
+                                                        # running Optimist; set_flavour)
+FM1B_PORT = "Optimist"                                  # (the USB-MIDI port name fm1-base's tool is given)
 NEED = "needs mido and python-rtmidi in the builder venv: run `make setup` (python tools/optimist.py setup)"
 RECOVER = ("If the install is cut off the FM-1 stays in update mode: run flash again to finish. If it no longer "
            "starts: hold OCT- alone while switching on (USB rescue) and flash again, or go back to the official "
@@ -42,8 +46,9 @@ class FlashError(Exception):
 
 
 class Plan:
-    def __init__(self, package, product, running, port, notes=()):
+    def __init__(self, package, product, running, port, notes=(), tool=None):
         self.package, self.product, self.running, self.port = Path(package), product, running, port
+        self.tool = tool                                 # (None: Optimist's own update tool; else fm1-base's)
         self.notes = list(notes)                         # where the package comes from, and what to know about it
 
     def lines(self):
@@ -54,6 +59,11 @@ class Plan:
                 "",
                 "This replaces the firmware on the FM-1 now. Do not unplug it while it writes (about a minute).",
                 RECOVER]
+
+
+def set_flavour(classic):
+    """classic: Optimist's own firmware (its update path only); else the release (fm1-base's tool as the fallback)"""
+    RELEASE[0] = not classic
 
 
 def last_package(build=None):
@@ -76,19 +86,20 @@ def midi_python():
     return None
 
 
-def run_tool(args, capture=True, on_line=None):
+def run_tool(args, capture=True, on_line=None, tool=None):
     """fm1_install.py with args under a Python that has the MIDI modules -> (exit code, output). The only place
     a device is reached. on_line: called with each line and each \\r progress update as the tool prints it (the
     menu's progress bar; progress.parse_flash reads them)"""
     py = midi_python()
     if not py:
         raise FlashError(NEED)
+    tool = tool or TOOL
     writing = "--info" not in args                      # (a write: Ctrl+C is refused until it is done, FI.no_interrupt in the tool too)
     with (FI.no_interrupt() if writing else contextlib.nullcontext()):
         if on_line:
-            rc, out = progress.stream([py, str(TOOL), *args], on_line=on_line, env=dict(os.environ, PYTHONUNBUFFERED="1"))
+            rc, out = progress.stream([py, str(tool), *args], on_line=on_line, env=dict(os.environ, PYTHONUNBUFFERED="1"))
             return rc, out.strip()
-        r = subprocess.run([py, str(TOOL), *args], capture_output=capture, text=True)
+        r = subprocess.run([py, str(tool), *args], capture_output=capture, text=True)
     return r.returncode, ((r.stdout or "") + (r.stderr or "")).strip()
 
 
@@ -143,6 +154,15 @@ def source_notes(path, root=ROOT):
     return out
 
 
+def fm1base_tool():
+    """fm1base/tools/fm1_install.py of the submodule, or None when it is not checked out"""
+    import fm1base
+    try:
+        return fm1base.install_tool()
+    except fm1base.FM1BaseError:
+        return None
+
+
 def preflight(package, port=None, notes=None):
     """-> Plan; FlashError (with an exit code) when the package or the FM-1 is not right. Reads the FM-1's
     identity (fm1_install.py --info); writes nothing. notes: the lines about the package's source (default:
@@ -153,13 +173,20 @@ def preflight(package, port=None, notes=None):
     product = check_package(package)
     notes = source_notes(package) if notes is None else notes
     rc, text = run_tool(["--info", *(["--port", port] if port else [])])
+    tool = None
+    if rc == 3 and RELEASE[0] and not port:             # (no Optimist FM-1: an fm1-base one, its tool, its port name)
+        fm1b = fm1base_tool()
+        if fm1b:
+            rc2, text2 = run_tool(["--info", "--port", FM1B_PORT], tool=fm1b)
+            if rc2 == 0:
+                rc, text, tool, port = 0, text2, fm1b, FM1B_PORT
     if rc:
         raise FlashError(("no FM-1 found over USB-MIDI (data cable? another app using it?): " if rc == 3
                           else f"cannot read the FM-1's identity (exit {rc}): ") + text, rc)
-    return Plan(package, product, text, port, notes)
+    return Plan(package, product, text, port, notes, tool)
 
 
 def install(plan, capture=True, on_line=None):
     """write the plan's package (the caller has asked) -> (exit code, output). Never --force. on_line: see run_tool"""
     args = [str(plan.package), "--yes", *(["--port", plan.port] if plan.port else [])]
-    return run_tool(args, capture, on_line) if on_line else run_tool(args, capture)
+    return run_tool(args, capture, on_line, plan.tool) if on_line else run_tool(args, capture, tool=plan.tool)

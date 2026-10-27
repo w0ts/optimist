@@ -528,7 +528,7 @@ def main(argv=None):
     logd = Path(a.log)
     if a.part_mem:
         return measure_part_mem(logd)
-    old = C.load_costs() or {}
+    old = C.load_costs(C.costs_file(True)) or {}
     if a.check and not a.missing:
         ap.error("--check goes with --missing")
     if a.missing:
@@ -612,7 +612,7 @@ def run(a, old, logd, new_pairs, write):
             out["deltas"][k][str(v)] = {r: s[r] - base[r] - par.get(r, 0) - terms[r] for r in REG}
             print(f"  {k}={v}: {out['deltas'][k][str(v)]}  ({time.time() - t0:.0f} s)", flush=True)
         if write:
-            C.COSTS.write_text(json.dumps(out, indent=1) + "\n")
+            C.costs_file(True).write_text(json.dumps(out, indent=1) + "\n")
     out["groups"] = {n: g for n, g in old.get("groups", {}).items() if n.split("|")[0] in GROUPS} \
         if a.only is not None else {}
     for gname, members in GROUPS.items():               # (before the pairs: their builds may hold several members)
@@ -638,8 +638,8 @@ def run(a, old, logd, new_pairs, write):
     out["checks"] = measure_checks(logd)
     if not write:                                       # (the plan pass: the builds are listed, nothing is written)
         return 0
-    C.COSTS.write_text(json.dumps(out, indent=1) + "\n")
-    print(f"measure_costs: {C.COSTS} ({time.time() - t0:.0f} s)")
+    C.costs_file(True).write_text(json.dumps(out, indent=1) + "\n")
+    print(f"measure_costs: {C.costs_file(True)} ({time.time() - t0:.0f} s)")
     import cpu_costs                                    # the CPU guard's model follows the CPU baseline (CPU_GUARD)
     cpu_costs.main([])
 

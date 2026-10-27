@@ -156,9 +156,14 @@ jobs:
     permissions:
       contents: read
     steps:
+      # The firmware is the release, Optimist on fm1-base (tools/fm1base.py): the fm1base/ submodule, and its nested bsp, are
+      # fetched with the commit. The fork (w0ts/fm1-base) is not public yet: FM1BASE_TOKEN (a repository secret: a token or
+      # deploy-key access with read on the fork and on its bsp) is what lets this checkout reach it. Not set: this fails.
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ needs.request.outputs.commit }}
+          submodules: recursive
+          token: ${{ secrets.FM1BASE_TOKEN || github.token }}
           persist-credentials: false
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:

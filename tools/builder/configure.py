@@ -68,6 +68,7 @@ def _noted():
     if CONFIG_SHARED:
         shared.note("profiles", CONFIG)         # (OPTIMIST_LOCAL_PROFILES=1 uses this worktree's own)
 COSTS = HERE / "costs.json"
+COSTS_RELEASE = HERE / "costs-fm1base.json"            # the release's (fm1-base's build), measured by measure_costs.py
 
 
 BLE_DROP_HELP = ("with BLE on: the item to remove to make room for it when the build would overflow, a sample set "
@@ -228,9 +229,24 @@ def apply_env(cfg, env):
 
 
 # ---- the budget (measured deltas, tools/builder/costs.json)
-def load_costs(path=COSTS):
+def costs_file(strict=False):
+    """the costs the budget reads: the release's own (costs-fm1base.json, measured through fm1-base's build:
+    measure_costs.py) once there is one, else Optimist's classic costs.json (the same items, measured on the classic
+    firmware: an estimate for the release until it is measured; a real build is exact whatever these say). strict: the
+    release's file even when it is not there yet (what measure_costs.py writes)"""
+    if classic() or (not strict and not COSTS_RELEASE.is_file()):
+        return COSTS
+    return COSTS_RELEASE
+
+
+def costs_measured():
+    """False: the release's budget is estimated from the classic firmware's measurements (no costs-fm1base.json yet)"""
+    return classic() or COSTS_RELEASE.is_file()
+
+
+def load_costs(path=None):
     try:
-        return json.loads(Path(path).read_text())
+        return json.loads(Path(path or costs_file()).read_text())
     except (OSError, ValueError):
         return None
 
@@ -253,6 +269,19 @@ K.setup(needs_auto=NEEDS_AUTO)
 
 
 EXACT = ROOT / "build" / "exact-sizes.json"      # the sizes of real builds, by configuration and source
+EXACT_RELEASE = ROOT / "build" / "exact-sizes-fm1base.json"   # (the release build's: another firmware, other sizes)
+
+# Which firmware a build makes: the release (Optimist as an fm1-base app, the submodule fm1base/: tools/fm1base.py) or
+# Optimist's own, the classic one (tools/optimist.py --classic, make classic; OPTIMIST_CLASSIC=1)
+CLASSIC = False
+
+
+def classic():
+    return CLASSIC or os.environ.get("OPTIMIST_CLASSIC") == "1"
+
+
+def exact_file():
+    return EXACT if classic() else EXACT_RELEASE
 
 
 _SOURCE_STATE = [0.0, None]                      # (when, value): one budget asks for it twice
@@ -272,6 +301,8 @@ def _source_state():
         r = subprocess.run(["git", "-C", str(ROOT), *args], capture_output=True, text=True)
         return r.stdout if r.returncode == 0 else ""
     paths = ["firmware", "assets", "tools/build.py", ":(glob)tools/gen*.py"]
+    if not classic():
+        paths += ["fm1base", "tools/fm1base.py"]       # (the release: fm1-base's commit builds it)
     tree = git("ls-files", "-s", "--", *paths)
     dirty = git("diff", "HEAD", "--", *paths) + git("ls-files", "--others", "--exclude-standard", "--", *paths)
     return f"{fnv32(tree):08x}-{fnv32(dirty) if dirty else 0:08x}"
@@ -284,7 +315,7 @@ def exact_key(cfg):
 def exact_builds():
     """-> {exact_key: {region: bytes, "cfg", "built_hash"}} the real builds remembered (remember_sizes)"""
     try:
-        known = json.loads(EXACT.read_text())
+        known = json.loads(exact_file().read_text())
     except (OSError, ValueError):
         return {}
     return known if isinstance(known, dict) else {}
@@ -303,10 +334,11 @@ def remember_sizes(cfg, sizes):
     with _EXACT_LOCK:
         known = exact_builds()
         known[exact_key(cfg)] = dict({r: sizes[r] for r in REGIONS}, **anchor_record(cfg))   # (an anchor: budget)
-        EXACT.parent.mkdir(parents=True, exist_ok=True)
-        tmp = EXACT.with_name(f"{EXACT.name}.{os.getpid()}.tmp")
+        dst = exact_file()
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        tmp = dst.with_name(f"{dst.name}.{os.getpid()}.tmp")
         tmp.write_text(json.dumps(dict(list(known.items())[-64:]), indent=1) + "\n")   # (the last 64 builds)
-        os.replace(tmp, EXACT)      # (whole or not at all: another process may be reading it)
+        os.replace(tmp, dst)      # (whole or not at all: another process may be reading it)
 
 
 def exact_anchors():
@@ -430,7 +462,12 @@ def build(cfg, name, measure=False, log=None, extra=(), echo=False, on_line=None
            *(["--measure"] if measure else []), *extra]
     out, rc = "", 1
     (bdir / "sizes.json").unlink(missing_ok=True)   # (a failed build must not report the last one's)
-    for attempt in range(3):                            # (Docker: clang crashes now and then, and the mount has
+    if not classic():
+        rc, out = release_build(cfgfile, bdir, measure, extra, echo, on_line)
+        if log:
+            Path(log).write_text(out)
+        return _sized(cfg, bdir, rc, measure, out)
+    for attempt in range(3):                          # (Docker: clang crashes now and then, and the mount has
                                                         # shown stale files to the tools; a retry works)
         rc, out = _run(cmd, env, echo, on_line)
         flaky = ("core dumped" in out or "Segmentation" in out or "No such file" in out or "Bus error" in out or
@@ -442,6 +479,11 @@ def build(cfg, name, measure=False, log=None, extra=(), echo=False, on_line=None
         __import__("time").sleep(2 + 3 * attempt)        # (let the mount settle before the next try)
     if log:
         Path(log).write_text(out)
+    return _sized(cfg, bdir, rc, measure, out)
+
+
+def _sized(cfg, bdir, rc, measure, out):
+    """a build's result -> (ok, sizes dict, output): its sizes.json, remembered as exact"""
     sizes = None
     try:
         sizes = json.loads((bdir / "sizes.json").read_text())
@@ -449,7 +491,22 @@ def build(cfg, name, measure=False, log=None, extra=(), echo=False, on_line=None
         pass
     if sizes and all(r in sizes for r in REGIONS):
         remember_sizes(cfg, sizes)                       # (the menu shows these, exact, from now on)
+    if measure and not classic():
+        rc = 0 if sizes else 1       # (fm1-base has no measurement mode: a build over the slot stops at its package, its sizes.json is written first)
     return rc == 0, sizes, out
+
+
+def release_build(cfgfile, bdir, measure, extra, echo, on_line):
+    """the release: fm1-base's build of this .config (tools/fm1base.py) -> (returncode, output). extra: --release X.Y"""
+    import fm1base
+    release = extra[extra.index("--release") + 1] if "--release" in extra else None
+    try:
+        return fm1base.build(cfgfile, bdir, build_python(), lambda cmd, env: _run(cmd, env, echo, on_line), release,
+                             f"optimist-{release or version()}")
+    except fm1base.FM1BaseError as e:
+        if echo:
+            print(f"build: {e}", file=sys.stderr)
+        return 2, f"build: {e}"
 
 
 def version():
@@ -475,7 +532,7 @@ def package(cfg, name, outdir, stem=None, echo=False, summary=None, release=None
     ok, sizes, out = build(cfg, name, measure=False, echo=echo, extra=["--release", release] if release else ())
     pkg, ui = build_dir() / "felucca.fwsc", build_dir() / "felucca-ui.zip"   # (OPTIMIST_BUILD_DIR's, as build's)
     result = {"ok": False, "name": name, "hash": f"{cfg_hash(cfg):08x}", "sizes": sizes, "fwsc": None, "ui": None}
-    if not ok or not pkg.exists() or not ui.exists():
+    if not ok or not pkg.exists() or (classic() and not ui.exists()):
         if not echo:
             print(out[-2000:])
         print("package: the build failed or does not fit: nothing copied")
@@ -484,15 +541,16 @@ def package(cfg, name, outdir, stem=None, echo=False, summary=None, release=None
     slug = stem or f"optimist-{release or version()}-" + re.sub(r"[^a-z0-9]+", "-", (name or "custom").lower()).strip("-")
     outdir.mkdir(parents=True, exist_ok=True)
     (outdir / f"{slug}.fwsc").write_bytes(pkg.read_bytes())
-    (outdir / f"{slug}-ui.zip").write_bytes(ui.read_bytes())
+    if ui.exists():                     # (the release, fm1-base's app, has no web editor sidecar)
+        (outdir / f"{slug}-ui.zip").write_bytes(ui.read_bytes())
     notices = ("LICENSE", "LICENSING.md") + tuple(sorted("LICENSES/" + p.name for p in (ROOT / "LICENSES").glob("*.txt")))
     for f in notices:                   # next to the package (JieLi SDK files, Apache-2.0; the MIT / BSD-3-Clause parts)
         dst = outdir / "LICENSES" / Path(f).name if f.startswith("LICENSES/") else outdir / f
         dst.parent.mkdir(parents=True, exist_ok=True)
         dst.write_bytes((ROOT / f).read_bytes())
-    print(f"package: {outdir / (slug + '.fwsc')} (+ -ui.zip): " +
+    print(f"package: {outdir / (slug + '.fwsc')} " + ("(+ -ui.zip)" if ui.exists() else "") + ": " +
           ", ".join(f"{r} {sizes[r]:,}" for r in REGIONS))
-    result.update(ok=True, fwsc=str(outdir / f"{slug}.fwsc"), ui=str(outdir / f"{slug}-ui.zip"))
+    result.update(ok=True, fwsc=str(outdir / f"{slug}.fwsc"), ui=str(outdir / f"{slug}-ui.zip") if ui.exists() else None)
     _summary(summary, result)
     return 0
 
@@ -550,6 +608,9 @@ def fmt_budget(cfg, costs):
         rows.append(f"  (not measured: {', '.join(b['unmeasured'])})")
     head = ("exact (the last real build of this configuration from this source):" if b.get("exact")
             else f"estimate (from the real build of {b['anchor']}, {b['distance']} items away, and the measured deltas):")
+    if not costs_measured():
+        rows.append("  (costs: Optimist's classic measurements, none through fm1-base's build yet: "
+                    "tools/builder/measure_costs.py; a real build is exact)")
     return head + "\n" + "\n".join(rows)
 
 

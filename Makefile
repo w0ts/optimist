@@ -1,20 +1,25 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # Shortcuts for tools/optimist.py (which works without make: BUILDING.md). `make help` lists them.
 .DEFAULT_GOAL := help
-.PHONY: help setup sdk builder build package flash profiles publish unpublish share delete web emu emu-list emu-update test costs costs-all gate emu-check mirror
+.PHONY: help setup sdk builder build classic package flash profiles publish unpublish share delete web emu emu-list emu-update test costs costs-all gate emu-check mirror
 
 PY ?= python3
 PROFILE ?= synths_USBaudio_BTaudio_BTmidi
 FW ?=
+CLASSIC ?=
+CL = $(if $(CLASSIC),--classic)
 CPU ?=
 IMAGES ?= firmwares
 
 help:
 	@echo "make setup                     check and fetch what the build and the emulator need"
 	@echo "make sdk                       fetch the AC79 SDK files into ./sdk when missing or stale (build, builder, package, test run it first)"
+	@echo "The firmware is the release: Optimist as an fm1-base app (the submodule fm1base/: git submodule update --init"
+	@echo "--recursive; docs/BUILDING.md, The release build). CLASSIC=1 on any command (or make classic): Optimist's own firmware."
 	@echo "make builder                   the firmware builder menu (pick features, build: build/optimist-<version>-*.fwsc)"
 	@echo "make build   [PROFILE=name]    build a profile without the menu ($(PROFILE))"
-	@echo "make package [PROFILE=name]    build a profile and copy .fwsc + -ui.zip into $(IMAGES)/"
+	@echo "make classic [PROFILE=name]    the same, Optimist's own firmware (main's): what make build did before the release"
+	@echo "make package [PROFILE=name]    build a profile and copy .fwsc (+ -ui.zip, classic) into $(IMAGES)/"
 	@echo "make flash   [PKG=file.fwsc]   build $(PROFILE) and install it (or PKG as it is) on an FM-1 over USB-MIDI; shows both identities and asks"
 	@echo "make profiles                  the profiles: published (CI builds them), shipped, mine"
 	@echo "make publish   PROFILE=name    CI builds this shipped profile (# publish: yes; commit it)"
@@ -26,7 +31,8 @@ help:
 	@echo "                              its saved flash is kept between runs (emulator/state/), FRESH=1 starts without it"
 	@echo "make emu-list                  list the firmware the emulator finds (build/ and $(IMAGES)/)"
 	@echo "make emu-update                fetch and rebuild the emulator (emulator/fm1-emulator)"
-	@echo "make test   [PROFILE=name]    the host tests on the last build (with PROFILE: build it first)"
+	@echo "make test   [PROFILE=name]    the host tests: Optimist's (on the last classic build; with PROFILE: build it first), then"
+	@echo "                              the release's (fm1base/optimist/run.sh none + dev, fm1base/tests/run_tests.sh)"
 	@echo "make costs                     measure what tools/builder/costs.json lacks (new items); run after merging a batch"
 	@echo "make costs-all [JOBS=n]        measure every item again (flash, RAM, pool, RAMTEXT; ~440 builds, JOBS at once,"
 	@echo "                              default the Docker VM's CPUs less two; a progress line with the time left) for the terminal and"
@@ -49,18 +55,22 @@ sdk:
 	@$(PY) -c "import sys; sys.path.insert(0, 'tools'); import toolchain as t, deps; d = t.sdk_dir(); (d == t.default_sdk_dir() or t.sdk_missing(d)) and deps.fetch_sdk(d)"
 
 builder: sdk
-	$(PY) tools/optimist.py builder
+	$(PY) tools/optimist.py builder $(CL)
 
 build: sdk
-	$(PY) tools/optimist.py build --profile $(PROFILE)
+	$(PY) tools/optimist.py build --profile $(PROFILE) $(CL)
+
+# Optimist's own firmware, as make build made it before the release (what main ships)
+classic: sdk
+	$(PY) tools/optimist.py build --classic --profile $(PROFILE)
 
 package: sdk
-	$(PY) tools/optimist.py package --profile $(PROFILE) --out $(IMAGES)
+	$(PY) tools/optimist.py package --profile $(PROFILE) --out $(IMAGES) $(CL)
 
 # (builds PROFILE first unless PKG is given, so it never flashes an old file; asks first. Needs mido + python-rtmidi:
 # make setup)
 flash:
-	$(PY) tools/optimist.py flash $(if $(PKG),$(PKG),--profile $(PROFILE))
+	$(PY) tools/optimist.py flash $(if $(PKG),$(PKG),--profile $(PROFILE)) $(CL)
 
 profiles:
 	$(PY) tools/optimist.py config --profiles
@@ -86,16 +96,16 @@ test: sdk
 ifeq ($(origin PROFILE),file)
 	@if [ -f build/felucca.fwsc ]; then echo "testing the last build (make test PROFILE=x builds x first)"; $(PY) tools/optimist.py test --no-build; else $(PY) tools/optimist.py test; fi
 else
-	$(PY) tools/optimist.py build --profile $(PROFILE) && $(PY) tools/optimist.py test --no-build
+	$(PY) tools/optimist.py build --classic --profile $(PROFILE) && $(PY) tools/optimist.py test --no-build
 endif
 
 costs: sdk
-	$(PY) tools/optimist.py costs
+	$(PY) tools/optimist.py costs $(CL)
 	$(PY) tools/export_builder_web.py
 
 # (every item, pair, group and check configuration again: what --missing keeps when an item's code changed)
 costs-all: sdk
-	$(PY) tools/builder/measure_costs.py $(if $(JOBS),--jobs $(JOBS))
+	$(PY) tools/optimist.py costs $(CL) $(if $(CLASSIC),$(if $(JOBS),--jobs $(JOBS)),--jobs 1)
 	$(PY) tools/export_builder_web.py
 
 # (tools/gate.py --help)

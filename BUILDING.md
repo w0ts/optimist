@@ -29,7 +29,7 @@ python tools/optimist.py emu        # pick a firmware (build/ or firmwares/) and
 | --- | --- |
 | `setup [--check] [--yes] [--no-emu]` | check the prerequisites; fetch the builder's venv (Textual, Pillow), the three SDK files and the toolchain (Linux x86-64) or its Docker image (elsewhere). `--check` fetches nothing, `--yes` does not ask |
 | `builder [--profile P \| --config F]` | the interactive builder menu (docs/BUILDER.md) |
-| `build [--profile P \| --config F \| --defaults] [--set KEY=V] [--release X.Y] [--measure] [--summary F]` | build without the menu. Default profile: `synths_USBaudio_BTaudio_BTmidi` |
+| `build [--profile P \| --config F \| --defaults] [--set KEY=V] [--release X.Y] [--measure] [--summary F] [--classic]` | build without the menu (the release on fm1-base; `--classic`: Optimist's own firmware, any command). Default profile: `synths_USBaudio_BTaudio_BTmidi` |
 | `package [... the same ...] [--out DIR]` | build, then copy `optimist-<version>-<profile>.fwsc` and its `-ui.zip` to `DIR` (default `firmwares/`) |
 | `flash [PACKAGE.fwsc \| --no-build] [--profile P \| --config F] [--port NAME] [--yes]` | install a build on an FM-1 over USB-MIDI (below, "Install") |
 | `config ...` | the builder without the menu (`--list`, `--budget`, `--fit`, `--write`, `--profiles`, `--publish`, `--share`, `--delete`; `tools/builder/configure.py --help`) |
@@ -48,9 +48,55 @@ files, sizes, the configuration's hash). The same profile and configuration give
 toolchain runs (see "Reproducibility").
 
 On macOS and Linux `make` has the same shortcuts (`make help` lists them): `make builder`, `build`, `package`, `flash`,
-`test`, `setup`, `profiles`, `publish` / `share` / `delete PROFILE=name`, `web` (`PORT=`, `SIM=1`), `emu` (`FW=`,
+`test`, `classic`, `setup`, `profiles`, `publish` / `share` / `delete PROFILE=name`, `web` (`PORT=`, `SIM=1`), `emu` (`FW=`,
 `CPU=`, `FRESH=1`), `emu-list`, `emu-update`, `costs`, `costs-all`, `gate`, `emu-check`; also `tools/menuconfig`,
 `tools/emu.sh` and `./build.sh`.
+
+## The release build (Optimist on fm1-base)
+
+The firmware `make`, `make package`, `optimist.py build|package|builder|flash` and the web builder make is the next
+release: Optimist as an app of fm1-base (the FM-1 platform: its build, its update loader, its USB, its second core), in
+the submodule `fm1base/` (the fork `git@github.com:w0ts/fm1-base.git`; the app is `fm1base/optimist/`, its bsp the nested
+submodule `fm1base/bsp`). Optimist's own firmware, what `main` still ships, stays available as `--classic`.
+
+```
+git submodule update --init --recursive      # once, and after a pull that moves fm1base
+make package [PROFILE=name]                  # the release: firmwares/optimist-<version>-<profile>.fwsc (+ -ui.zip)
+make classic [PROFILE=name]                  # Optimist's own firmware (build/), as `make build` was
+make test                                    # Optimist's tests, then the release's (below)
+make flash PKG=firmwares/optimist-....fwsc   # the user installs it
+```
+
+**The fork must be reachable.** It is not public yet, so the submodule fetch needs access to `w0ts/fm1-base` and to the
+bsp it points at (a commit of the fork's `felucca-bsp`); until the fork and its bsp commits are pushed, a clone cannot
+fetch them and `git submodule update` fails (a checkout that has them locally works). Without the submodule the build says
+so (`fm1base/ is empty: run git submodule update --init --recursive`); `--classic` needs none of it.
+
+How a build goes: the builder's chosen profile or `.config` (`--profile`, `--config`, `--set`: the same items and
+profiles) is written as `build/builder.config`, and `tools/fm1base.py` runs `fm1base/tools/build.py optimist` with
+`OPTIMIST` = this checkout and `OPT_CONFIG` = that file (the app's `gen_optimist.py` makes the configuration header and the
+generated tables from it through the builder's own `configure.py`; Bluetooth, Bluetooth audio and CACHE_RAM are off for lack
+of support on fm1-base). An SD card mode profile (`LAYOUT=1`) builds with `FM1B_APP_END=0xCE000`, fm1-base's bigger app slot,
+by design with fewer flash projects. The toolchain is `JIELI_TOOLCHAIN` (default `~/.jieli/toolchain`), the SDK files
+`AC79_SDK` (`make sdk`). The package lands where Optimist's does (`build/felucca.fwsc`, `build/optimist-<version>.fwsc`,
+`firmwares/` for `package`); `build/sizes.json` comes from fm1-base's `build/sizes.json` (flash against the same 581,564 B
+slot, the packed SRAM). One fm1-base build runs at a time (its build directory is the app's own, `fm1base/optimist/build`).
+
+The builder's size model: `tools/builder/costs-fm1base.json` (measured through this build: `make costs-all`, one build at a
+time; on the farm, never `ac79-min`) once it exists; until then the budget uses `costs.json` (Optimist's classic
+measurements) and says so; a real build is exact and remembered in `build/exact-sizes-fm1base.json`. The web builder's data
+(`web/builder/data/costs.json`) is whichever of the two the CLI reads.
+
+`make test` runs Optimist's own tests (they build and test the classic firmware, as ever), then the release's:
+`fm1base/optimist/run.sh` (the app on fm1-base's host simulator, with Optimist's source defaults and the dev profile, against
+Optimist's own simulator) and `fm1base/tests/run_tests.sh`, with the builder venv's Python first on `PATH`.
+
+`flash`: Optimist's update tool when the FM-1 runs Optimist; otherwise (none answers) fm1-base's
+`fm1base/tools/fm1_install.py PACKAGE --port Optimist`. It shows both identities and asks; never run it unattended.
+
+Cloud builds (`.github/workflows/cloud-build.yml`) build the release: the checkout fetches the submodules, which needs a
+repository secret `FM1BASE_TOKEN` (read access to the fork and its bsp) while the fork is private, and pushed commits for the
+gitlinks.
 
 ## Prerequisites
 
@@ -281,7 +327,7 @@ only the generated drum kit.
 ## Tests
 
 ```
-python tools/optimist.py test             # the builds below, then tests/run_tests.sh
+python tools/optimist.py test             # the builds below, then tests/run_tests.sh, then the release's (fm1base/)
 python tools/optimist.py test --in-docker # the same in the toolchain image (Linux; also from Windows)
 python tools/optimist.py test --python    # the Python tests only (any host, no build, no C compiler)
 ```
