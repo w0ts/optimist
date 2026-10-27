@@ -171,6 +171,27 @@ for _k in C.NEEDS_AUTO:
     for _v in ([c[0] for c in R.ITEMS[_k].choices] if R.ITEMS[_k].is_choice else [0, 1]):
         if _v != R.ITEMS[_k].default:
             WITH.setdefault((_k, _v), {"MOTION": 1})
+# the SD card mode's items: none is valid on the defaults (2026-10-27: --missing skipped all eleven, so builder_test
+# found them unmeasured): each measured with what configure.validate asks of it, less those items' own deltas. The big
+# layout (LAYOUT 1) wants the sample engine, the user drums and the snapshots out and the patterns in; FAR_OK, OVERLAY
+# and the card's recorder and rings want LAYOUT 1 (measured first: they subtract it); the rings want SAMPLE and an
+# arena that holds the delay's 128 KB line beside them (192 KB: every SD_RING value validates there)
+_LAYOUT = {"ENG_SAMPLE": 0, "DRUM_USR": 0, "SNAPSHOTS": 0, "PATTERNS": 1}
+WITH[("LAYOUT", 1)] = dict(_LAYOUT)
+WITH[("FAR_OK", 1)] = dict(_LAYOUT, LAYOUT=1)
+WITH[("OVERLAY", 1)] = dict(_LAYOUT, LAYOUT=1)
+WITH[("BT_PROJ", 1)] = {"BLE": 1, "ED_MIRROR": 1, "PATTERNS": 1}
+for _v in (16, 32, 64):
+    WITH[("SD_REC", _v)] = dict(_LAYOUT, LAYOUT=1, FAR_OK=1)
+for _v in (4, 8, 12, 16):
+    WITH[("SD_RING", _v)] = dict(_LAYOUT, LAYOUT=1, FAR_OK=1, ENG_SAMPLE=1, ARENA=192)
+
+
+def with_depth(k):
+    """-> 1 + the deepest chain of WITH items k is measured with that are themselves measured WITH something (they
+    must be measured before k: its delta subtracts theirs)"""
+    deps = {d for (wk, _), w in WITH.items() if wk == k for d in w if d != k and any(x[0] == d for x in WITH)}
+    return 1 + max((with_depth(d) for d in deps), default=0)
 def parent_on(p):
     """the value an option is measured under: a bool parent on; a choice parent at its default, or at its first
     value that builds it when the default leaves it out (DUAL's 0: STOCK_SUPPLY measured 0 B under it)"""
@@ -549,7 +570,7 @@ def run(a, old, logd, new_pairs, write):
     out = {"base": base, "deltas": dict(old.get("deltas", {})) if a.only is not None else {},
            "measured": time.strftime("%Y-%m-%d %H:%M"), "cpu": old.get("cpu", {}), "checks": old.get("checks", {}),
            "pairs": dict(old.get("pairs", {}))}         # (the interim writes keep the pairs: an aborted run loses none)   # (cpu: the emulator's scale)
-    later = [k for k in R.ITEMS if any(w[0] == k for w in WITH)]
+    later = sorted((k for k in R.ITEMS if any(w[0] == k for w in WITH)), key=with_depth)   # (stable: registry order)
     for k in [k for k in R.ITEMS if k not in later] + later:
         it = R.ITEMS[k]
         if a.only is not None and k not in a.only:
