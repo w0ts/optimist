@@ -2781,7 +2781,9 @@ static void seq_step(track_t *t, const step_t *s, uint32_t slen, uint32_t skip)
 #endif
     uint32_t i, j, gate = slen * (uint32_t)t->p[P_SGATE] / 128u, keep = 0;
     uint32_t slide_in = t->seq_hold && t->seq_n;
-    step_t nxs;
+#if GEN_ON
+    step_t nxs;                                     /* (the generator's merged step: GEN_NEXT's out without one unused) */
+#endif
     const step_t *nx = GEN_NEXT(t, (t->seq_idx + 1u) % trk_len(t), &nxs);   /* (the next step as it plays: a TIE or a
                                                                              * carry keeps them) */
     if (s->time == ST_TIE) {

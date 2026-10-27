@@ -436,8 +436,11 @@ static OVL(analog) void a2_filter(int32_t *b, int32_t *s, int32_t c0, int32_t cu
 static OVL(analog) __attribute__((noinline)) void a2_fltb(const track_t *t, const voice_t *v, int32_t *b, uint32_t n)
 {
     const int16_t *p = t->p;
-    uint32_t k = (uint32_t)(t - trk), w = (uint32_t)p[P_A2BTYP], mdl = w / A2M_MODES - 1u, mode = w % A2M_MODES, i;
+    uint32_t k = (uint32_t)(t - trk), w = (uint32_t)p[P_A2BTYP], mode = w % A2M_MODES, i;
     int32_t *f, s[8], cut = clamp(p[P_A2BCUT], 0, 127) << 8, c0;
+#if FELUCCA_A2_MODELS
+    uint32_t mdl = w / A2M_MODES - 1u;
+#endif
     if (k >= NPART)
         return;
     f = a2_fb[k][(uint32_t)(v - t->v) % NVOICE];
@@ -598,7 +601,10 @@ static OVL(analog) void analog_render(track_t *t, voice_t *v, int32_t *out, uint
     static const int8_t COPY_AT[6] = {1, -1, 2, -2, 3, -3};   /* spread steps of copy k */
     const int16_t *p = t->p;
     uint32_t w1 = (uint32_t)p[P_E0] % 5u, w2 = p[P_A2WAVE] ? (uint32_t)(p[P_A2WAVE] - 1) % 5u : w1;
-    uint32_t fmdl = (uint32_t)p[P_A2FTYP] / A2M_MODES, ftyp = (uint32_t)p[P_A2FTYP] % A2M_MODES, ncopy = super_copies((uint32_t)p[P_A2SWRM]), j, k;
+    uint32_t ftyp = (uint32_t)p[P_A2FTYP] % A2M_MODES, ncopy = super_copies((uint32_t)p[P_A2SWRM]), j, k;
+#if FELUCCA_A2_MODELS
+    uint32_t fmdl = (uint32_t)p[P_A2FTYP] / A2M_MODES;
+#endif
     int32_t det = p[P_E1], m2 = p[P_E2] * 258, nz = p[P_E3] * 100, drv = p[P_E6], kd = a2_k(p[P_E5]);
     int32_t shape = m->shape, sdtn = p[P_A2SDTN], cut, c0;
     int32_t b[CTL];
