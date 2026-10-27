@@ -337,9 +337,9 @@ static uint32_t mx_items_value(uint32_t r, mitem_t *it)   /* the row's value ite
             return mx_items_sends(it, n, L, MI_LANE, S, MI_LANE, LPAN_VID);
         }
     }
-    if (r == MXR_DR) {                                  /* the drum track: its level | its insert slots | its send levels
+    if (FELUCCA_DRUMS && r == MXR_DR) {                 /* the drum track: its level | its insert slots | its send levels
                                                          * (2026-10-12, the user: "it should be like any other track") |
-                                                         */
+                                                         * (no drums: T4 a synth part's, its own LEVEL: issue #87) */
         n = mx_add(it, n, MG_MIX, "VOLUME", MI_GLOB, G_DRLVL);
         n = mx_items_ins(it, n);
         {
