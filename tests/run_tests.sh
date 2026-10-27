@@ -27,6 +27,7 @@
 # default 8) when set. A compile that fails stops the run, as before (the units already running finish first).
 set -e
 cd "$(dirname "$0")/.."
+export OPTIMIST_CLASSIC=1   # (these tests are Optimist's own firmware's: the classic build, not the release on fm1-base; BUILDING.md)
 export AC79_SDK="${AC79_SDK:-$(python3 -c 'import sys; sys.path.insert(0, "tools"); import toolchain; print(toolchain.sdk_dir())')}"
 OUT=build/host
 mkdir -p "$OUT"
@@ -1717,6 +1718,7 @@ job; ( jobin
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     run "optimist.py: the command line, toolchain backends, SDK lookup, emulator launcher" python3 tests/optimist_cli_test.py
+    run "the release build: fm1-base submodule, the builder's configuration into its build, sizes, flash identity" python3 tests/fm1base_test.py
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     run "emu-check --jobs: the driver built once by the parent, the checks' processes never run cargo (integration57's race)" python3 tests/emu_driver_once_test.py

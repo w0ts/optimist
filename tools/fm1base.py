@@ -153,5 +153,6 @@ def build(cfgfile, bdir, python, run, release=None, name_stem="optimist"):
         if rc == 0:
             collect(bdir, release, name_stem, cfgfile)
         elif (OUT / "sizes.json").is_file():
+            Path(bdir).mkdir(parents=True, exist_ok=True)
             shutil.copy(OUT / "sizes.json", Path(bdir) / "sizes.json")
     return rc, out

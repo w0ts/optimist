@@ -7,6 +7,7 @@ import contextlib
 import io
 import json
 import os
+os.environ.setdefault("OPTIMIST_CLASSIC", "1")   # (Optimist's own firmware's tests: not the release on fm1-base)
 import re
 import subprocess
 import sys
