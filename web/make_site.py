@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
 # Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
-"""Make the site (GitHub Pages):
-
-  index.html                  redirect to the installer
+"""Builds the GitHub Pages site. What OUT_DIR receives:
+  index.html                  a page that forwards to the installer
   firmware/optimist-VER-ID.fwsc  the development packages: one per flavour in web/flavours.json, built from this commit
   firmware/r/TAG/optimist-VER-PROFILE.fwsc  each published release's packages (--releases): its published flavours
   firmware/r/TAG/optimist-VER-PROFILE.wasm  their simulators, when pages.yml built them from the tag's source (the latest
@@ -18,8 +17,8 @@
   webapp/builder/             the web builder (web/builder/; data/ exported fresh by tools/export_builder_web.py,
                               build-info.json: the commit for the cloud key, none when the tree is modified)
   LICENSE, LICENSING.md, LICENSES/*.txt            the notices the package needs
-  src/                        not touched
-
+  src/                        left alone
+Usage:
   web/make_site.py --flavours web/flavours.json X.Y OUT_DIR [--releases DIR]
                                                                the packages the manifest lists (each "file" is a glob,
                                                                relative to the repository; the newest match is used), and
@@ -32,33 +31,33 @@
   web/make_site.py --release-sims DIR                          "TAG SHA PROFILE" per package of the latest release in DIR
                                                                (CI builds their simulators from the tag's source)
   web/make_site.py --builder OUT_DIR                           only OUT_DIR/webapp/builder (no package needed)
-
-The package identity (Optimist FM-1_7xx, Felucca / SLOOP FM-1_9xx) is read from the package; the device reports it
-after the install.
+Each package names its own identity (Optimist FM-1_7xx, Felucca / SLOOP FM-1_9xx), read here from its bytes; once
+installed, the device reports the same name.
 """
-import base64
-import glob
-import hashlib
-import json
-import re
-import os
-import shutil
-import subprocess
-import sys
+import base64, glob, hashlib, json, os, re, shutil, subprocess, sys   # (stdlib only: CI runs it with a bare Python)
 from pathlib import Path
 
-HERE = Path(__file__).resolve().parent
-BLOCKS, BLK, KEEP = 20, 0x30, 0x2F
+HERE = Path(os.path.realpath(__file__)).parent      # web/
+ID_MARKS = 20            # the identity: one character hidden in each of the first 20 blocks of the package
+ID_STRIDE = 0x30         # a block on disk: 0x2F image bytes, then the marker byte
+ID_AT = 0x2F
+ID_NONE = 0x7D           # a marker that carries no character
 
 
-def strip_module(src):
-    src = re.sub(r"^export\s+", "", src, flags=re.M)
-    return re.sub(r"^import .*?;\n", "", src, flags=re.M)
+def as_plain_script(src):
+    """an ES module's text as plain script: no import lines, no export keywords (to inline it in a page)"""
+    without_imports = re.sub(r"^import .*?;\n", "", src, flags=re.M)
+    return re.sub(r"^export\s+", "", without_imports, flags=re.M)
 
 
-def product_of(raw):
-    """the package identity: one marker byte after each of the first 20 blocks (fm1pkg.js productOf)"""
-    return "".join(chr((m - i - 1) & 0xFF) for i in range(BLOCKS) if (m := raw[i * BLK + KEEP]) != 0x7D)
+def package_identity(raw):
+    """the identity a package carries, e.g. FM-1_906 (the same decoding as fm1pkg.js productOf)"""
+    chars = []
+    for k in range(ID_MARKS):
+        mark = raw[k * ID_STRIDE + ID_AT]
+        if mark != ID_NONE:
+            chars.append(chr((mark - (k + 1)) % 256))
+    return "".join(chars)
 
 
 ICONS = ("icon.svg", "favicon.ico", "apple-touch-icon.png", "icon-32.png", "icon-192.png", "icon-512.png")
@@ -98,7 +97,7 @@ def installer_module(inline):
     src = (HERE / "installer" / "installer.js").read_text(encoding="utf-8")
     if len(INSTALLER_IMPORTS.findall(src)) != 2 or src.count(CSS_MARK) != 1:
         raise SystemExit("web/installer/installer.js: its two imports or BUNDLED_CSS moved; update make_site.py")
-    lib = "".join(strip_module((HERE / f).read_text(encoding="utf-8")) + "\n" for f in ("fm1pkg.js", "fm1ota.js"))
+    lib = "".join(as_plain_script((HERE / f).read_text(encoding="utf-8")) + "\n" for f in ("fm1pkg.js", "fm1ota.js"))
     css = (HERE / "installer" / "installer.css").read_text(encoding="utf-8")
     src = INSTALLER_IMPORTS.sub("", src).replace(CSS_MARK, f"const BUNDLED_CSS = {json.dumps(css)};")
     if not inline:
@@ -305,10 +304,10 @@ def release_sims(folder):
 def package_entry(path, name, flavour, release="", date=""):
     """one package of the site: checked (an Optimist / Felucca identity, the update loader in it) -> its site.json entry"""
     raw = Path(path).read_bytes()
-    product = product_of(raw)
+    product = package_identity(raw)
     if not re.fullmatch(r"FM-1_[79]\d\d", product):
         raise SystemExit(f"{path}: identity {product!r} is not an Optimist (FM-1_7xx) or Felucca (FM-1_9xx) package")
-    if b"FELUCCA-LOADER-1" not in raw:                  # marker of firmware/loader
+    if raw.find(b"FELUCCA-LOADER-1") < 0:              # the update loader (firmware/loader) carries this tag
         raise SystemExit(f"{path}: no Felucca update loader in it")
     return {"id": flavour["id"], "title": flavour["title"], "description": flavour.get("description", ""),
             "pkg": "../../firmware/" + name, "product": product, "release": release, "date": date,
@@ -356,18 +355,20 @@ def main(version, out, flavours=None, releases=None, sims=None):
     if latest:                                          # (the builder's and the simulator's default: builder.js, sim.js)
         site["latest"] = latest
     meta = json.dumps(site)
-    for mark in ("/*INSTALLER*/", "/*META*/"):
-        if html.count(mark) != 1:
-            raise SystemExit(f"web/installer/index.html must contain {mark} once; update make_site.py")
+    missing = [m for m in ("/*INSTALLER*/", "/*META*/") if html.count(m) != 1]
+    if missing:          # each placeholder exactly once, or the page and this script disagree
+        raise SystemExit(f"web/installer/index.html must contain {missing[0]} once; update make_site.py")
     html = html.replace("/*INSTALLER*/", installer_module(inline=True)).replace("/*META*/", meta)
     html = styled(html, "installer", "web/installer/index.html")
-    inst, ed, fw = out / "webapp" / "installer", out / "webapp" / "editor", out / "firmware"
-    for d in (inst, ed, fw):
-        d.mkdir(parents=True, exist_ok=True)
-    for old in list(fw.glob("felucca-*.fwsc")) + list(fw.glob("sloop-*.fwsc")) + list(fw.glob("optimist-*.fwsc")) + list(fw.glob("optimist-*.wasm")):   # only the current packages
-        old.unlink()
+    webapp, fw = out / "webapp", out / "firmware"
+    inst, ed = webapp / "installer", webapp / "editor"
+    for folder in (inst, ed, fw):
+        folder.mkdir(parents=True, exist_ok=True)
+    stale = ("felucca-*.fwsc", "sloop-*.fwsc", "optimist-*.fwsc", "optimist-*.wasm")    # only the current packages stay
+    for old in [hit for pattern in stale for hit in fw.glob(pattern)]:
+        os.remove(old)
     shutil.rmtree(fw / "r", ignore_errors=True)
-    (inst / "index.html").write_text(html, encoding="utf-8")
+    (inst / "index.html").write_text(html, encoding="utf-8")   # the standalone installer
     (inst / "installer.js").write_text(installer_module(inline=False), encoding="utf-8")   # for the one-page app
     (inst / "site.json").write_text(json.dumps(site, indent=1) + "\n", encoding="utf-8")
     for src, name in files:
@@ -377,9 +378,9 @@ def main(version, out, flavours=None, releases=None, sims=None):
     builder_site(out)
     editor_modules(ed, out, site)
     shutil.copy(HERE / "TERMINUS-LICENSE.txt", inst / "TERMINUS-LICENSE.txt")      # (the style's font)
-    for f in ("fukiai.ttf", "FUKIAI-LICENSE.txt", "TERMINUS-LICENSE.txt", "JETBRAINSMONO-LICENSE.txt"):
-        if (HERE / f).exists():
-            shutil.copy(HERE / f, ed / f)
+    fonts = ("fukiai.ttf", "FUKIAI-LICENSE.txt", "TERMINUS-LICENSE.txt", "JETBRAINSMONO-LICENSE.txt")
+    for name in filter(lambda n: (HERE / n).exists(), fonts):     # the editor's font files, those present
+        shutil.copy(HERE / name, ed / name)
     for f in ICONS:                                 # the icon: the site root, linked relatively by every page
         shutil.copy(HERE.parent / "assets" / "logo" / f, out / f)
     (out / "manifest.webmanifest").write_text(json.dumps({
@@ -391,12 +392,13 @@ def main(version, out, flavours=None, releases=None, sims=None):
         dst = out / f
         dst.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy(HERE.parent / f, dst)
-    (out / "index.html").write_text(
-        '<!doctype html><meta charset="utf-8"><title>Optimist</title>'
-        '<link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="icon" href="favicon.ico" sizes="32x32">'
-        '<link rel="apple-touch-icon" href="apple-touch-icon.png"><link rel="manifest" href="manifest.webmanifest">'
-        '<meta http-equiv="refresh" content="0; url=webapp/installer/">'
-        '<a href="webapp/installer/">Optimist installer</a>\n', encoding="utf-8")
+    landing = "".join((
+        '<!doctype html><meta charset="utf-8"><title>Optimist</title>',
+        '<link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="icon" href="favicon.ico" sizes="32x32">',
+        '<link rel="apple-touch-icon" href="apple-touch-icon.png"><link rel="manifest" href="manifest.webmanifest">',
+        '<meta http-equiv="refresh" content="0; url=webapp/installer/">',          # straight on to the installer
+        '<a href="webapp/installer/">Optimist installer</a>\n'))
+    (out / "index.html").write_text(landing, encoding="utf-8")
     print(f"site: {out}: webapp/installer, webapp/editor, webapp/builder, " + ", ".join(f"firmware/{n}" for _, n in files))
 
 
@@ -416,4 +418,4 @@ if __name__ == "__main__":
     elif args[:1] == ["--local"] and len(args) == 3:
         main(args[1], args[2])
     else:
-        sys.exit(__doc__)
+        sys.exit(__doc__)          # a usage error: the docstring is the usage
