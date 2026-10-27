@@ -142,7 +142,7 @@ static int ed_drums(uint32_t cmd, const uint8_t *a, uint32_t na)
         return 1;
     }
 #endif
-#if DL_ANY
+#if DL_ANY && !FELUCCA_ED_COMPANION                       /* (the companion's files USR1..USR3 read them: ed_comp.c) */
     case ED_SMP_READ: {                                     /* (export: a user sample with its kit) */
         uint32_t off, n;
         if (na < 6u || a[0] >= SMP_USER_SLOTS || !flash_ok)

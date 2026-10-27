@@ -119,11 +119,16 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
     case ED_BUILD:                                        /* v6: what this build contains (tools/builder) */
         ed_str(FELUCCA_CFG_NAME, 16);
         ed_b32((uint32_t)FELUCCA_CFG_HASH, 5);
+#if FELUCCA_ED_COMPANION
+        ed_b(sizeof bk_bits);                             /* (ed_backup.c's copy: BKINFO's caps end with it) */
+        ed_bs(bk_bits, sizeof bk_bits);
+#else
         {
             static const uint8_t bits[] = FELUCCA_CFG_BITS;
             ed_b(sizeof bits);
             ed_bs(bits, sizeof bits);
         }
+#endif
         break;
     case ED_PING:
         ed_b(0);

@@ -826,6 +826,7 @@ static void bk_close(void)
 #endif
 }
 
+#if !FELUCCA_ED_COMPANION
 /* a backup / restore command; 0 = not one of them: no reply */
 static int ed_backup(uint32_t cmd, const uint8_t *a, uint32_t na)
 {
@@ -1008,3 +1009,7 @@ static int ed_backup(uint32_t cmd, const uint8_t *a, uint32_t na)
     return 1;
 }
 #define ED_BACKUP_FN ed_backup,             /* (editor.c: its table of commands) */
+#else
+#include "ed_comp.c"           /* the same objects as fm1-base companion files (the trial: Optimist as an fm1-base app) */
+#define ED_BACKUP_FN
+#endif
