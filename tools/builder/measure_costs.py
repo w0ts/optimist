@@ -397,6 +397,10 @@ PAIRS.append({"ENG_FM6": 0, "TAB_IN_POOL": 1})
 # sd-card-mots moved 6,528 B of RAM to the pool, its delta from the defaults said 8,992 (builder_test: the estimate
 # from its probe 2,464 B of RAM and 1,768 of pool off)
 PAIRS.append({"LAYOUT": 1, "SDCARD": 1, "TAB_IN_POOL": 1})
+# the mirror over BLE (ed_mirror.c mbr_q, mbr_cb, mbr_rx, mbr_big: in the pool) is built only with both: 2026-10-27,
+# synths_USBaudio_BTaudio_BTmidi's BLE off freed 8,280 B of pool, the estimate said +4 (BLE's own delta, from the
+# defaults: no mirror there)
+PAIRS.append({"BLE": 1, "ED_MIRROR": 1})
 PAIR_WITH["LAYOUT=1,SDCARD=1,TAB_IN_POOL=1"] = dict(_LAYOUT, FAR_OK=1, ARENA=192)
 # with TAB_CODED_ALL, PLAITS' waveshapers (2,570 B) and JUNO's cutoff steps (1,025 B) leave flash for the pool too
 # (gen_tables.py's "plaits" and "juno" groups, 2026-10-24): the base has neither engine, so neither delta sees it
