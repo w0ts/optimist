@@ -29,7 +29,8 @@ Six wires, one inverter, two resistors, no pin of the main chip touched.
 **For everyone: the SD board (hardware/sd-board/, 2026-10-25).** One small board with the socket (push-push), the
 inverter, the resistors and the capacitors, ordered assembled from JLCPCB with the files in `hardware/sd-board/fab/` (or
 from OSHWLab once published there). v2 (20 x 45.5 mm, the back of the board above the battery) takes a 6-pin 0.5 mm flat cable from a tap board at J12, so nothing is soldered; the tap board is still to design (J12's pin map is in section 3; pin 7's supply is to
-confirm). The taps on the FM-1's board: `hardware/sd-board/j12-wiring-points.png`. See `hardware/sd-board/README.md`.
+confirm). The taps on the FM-1's board: `hardware/sd-board/j12-wiring-points.png`; the chip's pins 28-32, J12's numbering
+and the two 74HC595s' VCC / GND: `hardware/sd-board/j12-chip-pins.png`. See `hardware/sd-board/README.md`.
 
 
 **The kit (2026-10-25, for every user: off the shelf, through-hole, no board to order):**
