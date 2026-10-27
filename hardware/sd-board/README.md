@@ -3,8 +3,8 @@
 > [!WARNING]
 > ## 🚧 WORK IN PROGRESS: DO NOT ORDER 🚧
 >
-> This board has **never been built or tested**. J12's pin 7, the cable's mirror check and the ESD protection are still
-> open ("Still open before ordering" below). Ordering it today may give a board that does not work or harms the FM-1.
+> This board has **never been built or tested**. J12's pin 7 and the cable's mirror check are still open ("Still
+> open before ordering" below). Ordering it today may give a board that does not work or harms the FM-1.
 
 A board with everything the SD card mod needs (docs/SD-CARD-DESIGN.md), and the splitter too: a push-push microSD
 socket, the chip-select inverter, the 220 Ohm on the card's data out, the pull-ups, the decoupling, and two 10-pin
@@ -18,7 +18,7 @@ round the cover's pole there; a column goes up the right of the speaker plug to 
 
 The card goes in through the case's bottom wall, flush with the outside, 81.7 mm from the left wall. **No soldering.**
 Status (v6, 2026-10-27): **rerouted to J12's pin map as Julius probed it** (docs/SD-CARD-DESIGN.md section 3) and
-checked (KiCad: no design-rule error, the schematic's nets equal the board's, 48 pins); sizes measured with calipers
+checked (KiCad: no design-rule error, the schematic's nets equal the board's, 74 pins); sizes measured with calipers
 (`MEASUREMENTS.md`). **STILL NOT READY TO ORDER**: the items under "Still open" come first.
 
 ![top](render-top.png)
@@ -38,6 +38,16 @@ checked (KiCad: no design-rule error, the schematic's nets equal the board's, 48
   bottom layer under the column is solid ground. LCD_CS crosses CLK and MOSI on the bottom (a via each end; it
   changes only at a card session's start and end). The column keeps its width: no room for stitching vias outside
   the lanes.
+- **ESD at the card**: two **USBLC6-2SC6** (C7519, two lines each), every card line straight through one of their
+  columns (pins 1 and 6 are one line, 3 and 4 the other: no stub): U3 on DAT0 and CLK (its GND pin over the card's
+  ground contact), U2 on CMD and CS; VBUS on the card's 3.3 V. (The 4-line USBLC6-4SC6 cannot sit across these lines
+  without stubs.)
+- **The swap block** (Julius's idea, 2026-10-27): between J2 and the SD part, each line (DO, CS, CLK, DI, 3V3) runs
+  through two pads joined by a thin copper bridge (KiCad's bridged solder jumper: copper only, nothing to assemble).
+  If J12's pin map is wrong, **cut the bridge** and wire the right J12 line to the SD part's input: the right pad of
+  each row is J12's side, the left pad the SD part's. Test pads in the head reach J12's unprobed pins 6, 8, 9 and
+  GND (TP1-TP4, labelled 6, 8, 9, G), so any J12 line can feed any input. Solder the bridge back (or a blob) to
+  undo a cut. The same pads probe every line.
 - **Parts off the tray's lips**: U1, R2, R4, C2 moved left (U1's box ends 4.3 mm from the right edge); `make_board.py`
   now asserts a 2 mm keep-out on every part's box (the left edge the whole length, the right to the right post's top,
   24 mm).
@@ -49,10 +59,6 @@ checked (KiCad: no design-rule error, the schematic's nets equal the board's, 48
 - **The mirror check** (the breakout): whether the cable from J12 arrives with pin 1 on J2 pin 1, which picks J2's
   face: J2 is still the HCTL part with contacts on both faces (a cable turned over connects mirrored). Bottom contact:
   XUNPU FPC-05F-10PH20, C2856798; top contact: C3446068 as J3. Both footprints are in `lib/`.
-- **ESD at the card socket: not placed.** The part picked on 2026-10-25, USBLC6-2SC6 (C7519), protects **two** lines,
-  not four (LCSC's page: "2 data-line protection"). The four-line one is **USBLC6-4SC6** (ST, C111212; I/O on pins 1, 3,
-  4, 6, GND 2, VBUS 5, to check on ST's datasheet). It needs a stub from each line to its pads (the lines reach the
-  card's contacts in an order a SOT-23-6 cannot sit across); not routed yet.
 - **J3 lower** (the LCD's bonded flex not under tension for life): not done; v6's opening is 0.6 mm higher than v5's.
   How low it may go is for the mockup (the LCD's cable only just reaches).
 - **The cable is the weakest part of the path**: 80 mm, 10 lines at 0.5 mm, ground only on pins 1 and 10; MISO, CS,
@@ -117,6 +123,9 @@ As J12 (Julius, 2026-10-27): J2 pin n = J12 pin n; J3 by place (its n-th contact
 | R5, R6 | 100 Ohm 0603: in series on CLK and MOSI where the SD branch leaves the through-lines | C22775 |
 | R2, R3 | 47 kOhm 0603: DAT2, DAT1 pulled up (unused in SPI mode) | C25819 |
 | R4 | 47 kOhm 0603: the inverter's input pulled DOWN while the FM-1 resets (the card deselected) | C25819 |
+| U2, U3 | USBLC6-2SC6, ESD for two lines each (flow-through), SOT-23-6 | C7519 |
+| JP1-JP5 | the swap block: bridged solder jumpers (copper only, not in the BOM) | - |
+| TP1-TP4 | test pads, 1 mm: J12's pins 6, 8, 9 and GND (copper only, not in the BOM) | - |
 | C1 | 10 uF 0805 | C15850 |
 | C2 | 100 nF 0603 at U1 | C14663 |
 

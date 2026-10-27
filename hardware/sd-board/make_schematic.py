@@ -29,7 +29,8 @@ def block(text, name):
     raise ValueError(name)
 
 
-LIBS = {"Device": ["R", "C"], "74xGxx": ["74LVC1G04"], "Connector": ["Micro_SD_Card_Det1"],
+LIBS = {"Device": ["R", "C"], "74xGxx": ["74LVC1G04"], "Connector": ["Micro_SD_Card_Det1", "TestPoint"],
+        "Power_Protection": ["USBLC6-2P6"], "Jumper": ["SolderJumper_2_Bridged"],
         "Connector_Generic_MountingPin": ["Conn_01x10_MountingPin"], "power": ["PWR_FLAG"]}
 lib_symbols = []
 for lib, names in LIBS.items():
@@ -51,6 +52,10 @@ PINS = {
     "Connector_Generic_MountingPin:Conn_01x10_MountingPin": {**{str(n): (-5.08, 10.16 - 2.54 * (n - 1), 0)
                                                               for n in range(1, 11)}, "MP": (0, -17.78, 90)},
     "power:PWR_FLAG": {"1": (0, 0, 90)},
+    "Power_Protection:USBLC6-2P6": {"1": (-5.08, 0, 0), "2": (0, -7.62, 90), "3": (-5.08, -2.54, 0),
+                                    "4": (5.08, -2.54, 180), "5": (0, 5.08, 270), "6": (5.08, 0, 180)},
+    "Jumper:SolderJumper_2_Bridged": {"1": (-5.08, 0, 0), "2": (5.08, 0, 180)},
+    "Connector:TestPoint": {"1": (0, 0, 90)},
 }
 LABEL_ANGLE = {0: 180, 180: 0, 90: 270, 270: 90}   # (the label away from the body)
 
@@ -59,18 +64,30 @@ LCD10 = {"1": "GND", "2": "MISO", "3": "LCD_CS", "4": "CLK", "5": "MOSI", "6": "
 # (ref, lib_id, value, footprint, LCSC, x, y, {pin: net})
 PARTS = [
     ("J1", "Connector:Micro_SD_Card_Det1", "TF-01A push-push", "sdboard:TF-SMD_TF-01A", "C91145", 170, 90,
-     {"1": "DAT2", "2": "CARD_CS", "3": "MOSI_SD", "4": "3V3", "5": "CLK_SD", "6": "GND", "7": "DAT0", "8": "DAT1",
+     {"1": "DAT2", "2": "CARD_CS", "3": "SD_DI", "4": "SD_VDD", "5": "SD_CLK", "6": "GND", "7": "DAT0", "8": "DAT1",
       "SH": "GND"}),
     ("U1", "74xGxx:74LVC1G04", "74LVC1G04", "sdboard:SOT-23-5_L3.0-W1.7-P0.95-LS2.8-BR", "C7827", 70, 70,
-     {"2": "LCD_CS", "3": "GND", "4": "CARD_CS", "5": "3V3"}),
-    ("R1", "Device:R", "100", "sdboard:R0603", "C22775", 110, 125, {"1": "MISO", "2": "DAT0"}),
-    ("R2", "Device:R", "47k", "sdboard:R0603", "C25819", 125, 125, {"1": "DAT2", "2": "3V3"}),
-    ("R3", "Device:R", "47k", "sdboard:R0603", "C25819", 140, 125, {"1": "3V3", "2": "DAT1"}),
-    ("R4", "Device:R", "47k", "sdboard:R0603", "C25819", 45, 70, {"1": "GND", "2": "LCD_CS"}),
+     {"2": "SD_CSIN", "3": "GND", "4": "CARD_CS", "5": "SD_VDD"}),
+    ("R1", "Device:R", "100", "sdboard:R0603", "C22775", 110, 125, {"1": "SD_DO", "2": "DAT0"}),
+    ("R2", "Device:R", "47k", "sdboard:R0603", "C25819", 125, 125, {"1": "DAT2", "2": "SD_VDD"}),
+    ("R3", "Device:R", "47k", "sdboard:R0603", "C25819", 140, 125, {"1": "SD_VDD", "2": "DAT1"}),
+    ("R4", "Device:R", "47k", "sdboard:R0603", "C25819", 45, 70, {"1": "GND", "2": "SD_CSIN"}),
     ("R5", "Device:R", "100", "sdboard:R0603", "C22775", 155, 125, {"1": "CLK_SD", "2": "CLK"}),
     ("R6", "Device:R", "100", "sdboard:R0603", "C22775", 170, 125, {"1": "MOSI_SD", "2": "MOSI"}),
-    ("C1", "Device:C", "10uF", "sdboard:C0805", "C15850", 60, 125, {"1": "3V3", "2": "GND"}),
-    ("C2", "Device:C", "100nF", "sdboard:C0603", "C14663", 75, 125, {"1": "3V3", "2": "GND"}),
+    ("C1", "Device:C", "10uF", "sdboard:C0805", "C15850", 60, 125, {"1": "SD_VDD", "2": "GND"}),
+    ("C2", "Device:C", "100nF", "sdboard:C0603", "C14663", 75, 125, {"1": "SD_VDD", "2": "GND"}),
+    ("U2", "Power_Protection:USBLC6-2P6", "USBLC6-2SC6", "sdboard:SOT-23-6_L2.9-W1.6-P0.95-LS2.8-BL", "C7519", 200, 140,
+     {"1": "CARD_CS", "6": "CARD_CS", "3": "SD_DI", "4": "SD_DI", "2": "GND", "5": "SD_VDD"}),
+    ("U3", "Power_Protection:USBLC6-2P6", "USBLC6-2SC6", "sdboard:SOT-23-6_L2.9-W1.6-P0.95-LS2.8-BL", "C7519", 230, 140,
+     {"1": "DAT0", "6": "DAT0", "3": "SD_CLK", "4": "SD_CLK", "2": "GND", "5": "SD_VDD"}),
+    # (the swap block: a bridged solder jumper per line, J12's side on pin 2; test pads on J12's unprobed lines)
+    *[(ref, "Jumper:SolderJumper_2_Bridged", "cut to swap", "Jumper:SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm",
+       "", 40 + 25 * i, 175, {"1": sd, "2": j}) for i, (ref, j, sd) in enumerate((
+           ("JP1", "MISO", "SD_DO"), ("JP2", "LCD_CS", "SD_CSIN"), ("JP3", "CLK_SD", "SD_CLK"),
+           ("JP4", "MOSI_SD", "SD_DI"), ("JP5", "3V3", "SD_VDD")))],
+    *[(ref, "Connector:TestPoint", f"J12 {lab}", "TestPoint:TestPoint_Pad_D1.0mm", "", 170 + 15 * i, 175, {"1": net})
+      for i, (ref, net, lab) in enumerate((("TP1", "LCD_6", "6"), ("TP2", "LCD_8", "8"), ("TP3", "LCD_9", "9"),
+                                          ("TP4", "GND", "G")))],
     # (J2 from J12, J3 the LCD's cable, every line through; J3 single-sided top contact, J2's face after the breakout)
     ("J2", "Connector_Generic_MountingPin:Conn_01x10_MountingPin", "FPC 10P 0.5mm (IN)",
      "sdboard:FPC-SMD_10P-P0.50_HC-FPC-05-09-10RLTAG", "C5213750", 230, 90, LCD10),
@@ -79,6 +96,7 @@ PARTS = [
      {**{str(11 - int(k)): v for k, v in LCD10.items() if k != "MP"}, "MP": "GND"}),   # (turned on the board: J3_AT)
     ("#FLG01", "power:PWR_FLAG", "PWR_FLAG", "", "", 40, 150, {"1": "3V3"}),
     ("#FLG02", "power:PWR_FLAG", "PWR_FLAG", "", "", 55, 150, {"1": "GND"}),
+    ("#FLG03", "power:PWR_FLAG", "PWR_FLAG", "", "", 70, 150, {"1": "SD_VDD"}),   # (3V3 after its swap jumper)
 ]
 
 
@@ -95,7 +113,7 @@ for ref, lib, value, fp, lcsc, x, y, pins in PARTS:
     x, y = round(round(x / 2.54) * 2.54, 2), round(round(y / 2.54) * 2.54, 2)   # (on KiCad's connection grid)
     pins_txt = " ".join(f'(pin "{p}" (uuid "{uid(ref, "pin", p)}"))' for p in PINS[lib])
     flag = ref.startswith("#")
-    out.append(f'(symbol (lib_id "{lib}") (at {x} {y} 0) (unit 1) (exclude_from_sim no) (in_bom {"no" if flag or ref.startswith("H") else "yes"})'
+    out.append(f'(symbol (lib_id "{lib}") (at {x} {y} 0) (unit 1) (exclude_from_sim no) (in_bom {"no" if flag or ref.startswith(("H", "JP", "TP")) else "yes"})'
                f' (on_board {"no" if flag else "yes"}) (dnp no) (uuid "{uid(ref)}")'
                f' {prop("Reference", ref, x, y - 14, flag)} {prop("Value", value, x, y + 14, flag)}'
                f' {prop("Footprint", fp, x, y, True)} {prop("Datasheet", "", x, y, True)} {prop("LCSC", lcsc, x, y, True)}'
