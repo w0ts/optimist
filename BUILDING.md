@@ -257,7 +257,7 @@ and the string the `.fwsc` marker bytes carry. **Optimist is `FM-1_700`** for de
 `--release X.Y`: 0.1 is `FM-1_721`, 1.0 `FM-1_730`, up to 4.9 `FM-1_769` (`build.py release_product`). Its update
 loader answers `ota-FM-1_700`. `optimist flash` takes only these identities.
 
-- The installers split the identity at `_`: the model before it must be `FM-1` and digits must follow (`fm1ota.js`,
+- The installers split the identity at `_`: the model before it must be `FM-1` and digits must follow (`web/fm1base/fm1ota.js`,
   `fm1_install.py`). The `.fwsc` marker holds at most 20 characters.
 - The stock updater refuses only the identity it is already running; package content is not authenticated. M-VAVE's
   stock is `FM-1_0XX` (V15 is `FM-1_015`), Baud Girl `020`-`09X`, Felucca / SLOOP / X0X `9XX`. 7XX sits between them. In
