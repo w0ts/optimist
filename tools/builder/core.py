@@ -630,6 +630,25 @@ def arena_bufs(cfg):
     return {k: v for k, v in out.items() if v}
 
 
+# TAB_IN_POOL's set (core.h IN_POOL_AUDIO) beyond the defaults' one, where its delta is measured: with the arena's
+# extras (FELUCCA_FX_ARENA: the SD card mode with an arena) FM6's sine table is an arena block, not moved; the card's
+# stream tables (sd_stream.h sst[8] and sst_src[16], with FELUCCA_SD_STREAM) move as well. Their sizes from the
+# sd-card-mots build's symbols, 2026-10-27 (sst 800 B, sst_src 832 B; FM6_SIN[1025] int32 4,100 B): that build moved
+# 6,528 B of RAM to the pool where TAB_IN_POOL's delta says 8,992
+FM6_SIN_RAM, SST_TABLES = 4100, 800 + 832
+
+
+def tab_pool(cfg):
+    """-> {region: bytes} what TAB_IN_POOL moves from RAM to the pool beyond the defaults' set (model_terms)"""
+    if not built(cfg, "TAB_IN_POOL"):
+        return {}
+    fx_arena = sd_mode(cfg) and cfg.get("ARENA", 0) > 0
+    stream = (fx_arena and built(cfg, "SDCARD") and cfg.get("FAR_OK", 0) and cfg.get("SD_RING", 0) > 0
+              and built(cfg, "ENG_SAMPLE"))
+    moved = (SST_TABLES if stream else 0) - (FM6_SIN_RAM if fx_arena and built(cfg, "ENG_FM6") else 0)
+    return {"ram": -moved, "pool": moved}
+
+
 def sd_mode(cfg):
     """the SD card mode (registry.h FELUCCA_SD_MODE: the fake SD mode's layout, LAYOUT 1, until its own flag): the
     builds that get the arena's extras (the effects' lines, the other buffers, the load's list page)"""
@@ -681,11 +700,11 @@ def arena_blocks(cfg):
 def model_terms(cfg):
     """-> {region: bytes} the computed part of the estimate, against the default build: what is not a sum of
     per-item deltas (the reverb's line buffer, rev_lines; the automation store, auto_store; the engines' part
-    states, part_mem; the delay arena, dly_arena; the arena for both, arena_mem)"""
+    states, part_mem; the delay arena, dly_arena; the arena for both, arena_mem; TAB_IN_POOL's set, tab_pool)"""
     d = defaults()
     arena = ({"pool": dly_arena(cfg)["pool"]}, {"pool": dly_arena(d)["pool"]})
     terms = [(rev_lines(cfg), rev_lines(d)), (auto_store(cfg), auto_store(d)), (part_mem(cfg), part_mem(d)), arena,
-             (arena_mem(cfg), arena_mem(d))]
+             (arena_mem(cfg), arena_mem(d)), (tab_pool(cfg), tab_pool(d))]
     return {r: sum(a.get(r, 0) - b.get(r, 0) for a, b in terms) for r in REGIONS}
 
 

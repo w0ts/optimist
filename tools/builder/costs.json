@@ -4512,12 +4512,6 @@
    "pool": 0,
    "ramtext": 692
   },
-  "LAYOUT=1,SDCARD=1,TAB_IN_POOL=1": {
-   "flash": 6340,
-   "ram": 448,
-   "pool": -8,
-   "ramtext": 156
-  },
   "BLE=1,ED_MIRROR=1": {
    "flash": 1252,
    "ram": -20,
