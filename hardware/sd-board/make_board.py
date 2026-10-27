@@ -11,16 +11,18 @@ measured (MEASUREMENTS.md). Generates sd-board.kicad_pcb with KiCad's own Python
 Then make_fab.sh checks it (DRC, the schematic's nets) and writes the JLCPCB files (Gerbers, drill, BOM, placement).
 
 Nets (microSD pins: 1 DAT2, 2 DAT3/CS, 3 CMD, 4 VDD, 5 CLK, 6 VSS, 7 DAT0, 8 DAT1, 9 card detect, 10-13 shell;
-v5: J2 (IN, from J12) and J3 (the LCD's cable), 10 pins each, every line through; which pin is which is PROVISIONAL
-(LCD_PINS below) until J12's pin map is measured; the lines below are as on the old 6-pin socket):
-  3V3      J2 1 -> J1 4, U1 VCC, C1 10 uF, C2 100 nF, the pull-ups
-  LCD_CS   J2 2 -> U1 A (74LVC1G04 in); R4 47k pull-up (the line floats while the FM-1 resets)
+v6: J2 (IN, from J12) and J3 (the LCD's cable), 10 pins each, every line through, J2 pin n = J12 pin n = J3's n-th
+contact from the left (J3 is turned: its own numbering runs the other way, J3_AT);
+J12's pin map as Julius probed it, 2026-10-27, docs/SD-CARD-DESIGN.md section 3; pin 7's 3.3 V still to confirm):
+  GND      J2 1, 10 -> J1 6, the shell, U1 GND, R4, the sockets' tabs
+  MISO     J2 2 (PC8, the LCD's D/C) -> R1 100 -> J1 7 (DAT0): R1 takes any overlap with the D/C drive
+  LCD_CS   J2 3 (PC7) -> U1 A (74LVC1G04 in); R4 47k pull-DOWN (the card deselected while the FM-1 resets)
+  CLK      J2 4 (PC9) -> R5 100 -> CLK_SD -> J1 5
+  MOSI     J2 5 (PC10) -> R6 100 -> MOSI_SD -> J1 3 (CMD)
+  3V3      J2 7 -> J1 4, U1 VCC, C1 10 uF, C2 100 nF, the pull-ups
   CARD_CS  U1 Y  -> J1 2
-  MOSI     J2 3 -> J1 3 (CMD)
-  GND      J2 4 -> J1 6, the shell, U1 GND, J2's tabs
-  CLK      J2 5 -> J1 5
-  MISO     J2 6 -> R1 220 -> J1 7 (DAT0): the FM-1's PC8 is the LCD's D/C too (R1 takes any overlap)
   DAT1/DAT2  47k pull-ups (unused in SPI mode, not left floating)
+  LCD_6, LCD_8, LCD_9: the LCD's own lines (not probed: reset, backlight), only through
 """
 import math
 import os
@@ -162,100 +164,138 @@ def V(name, u, v):
 
 
 # ---- the parts: the card socket at the bottom, its opening on the bottom wall's outside (the card flush, the user);
-# U1 and its parts right of it. The board is also the splitter (the user, 2026-10-25): two 10-pin 0.5 mm sockets in
-# its head under the jacks, J3 for the LCD's own cable (right under the gap between the black jacks, against them:
-# the cable only just reaches) and J2 for a cable from J12 (lower: the user gets a longer cable). Both are HCTL
-# HC-FPC-05-09-10RLTAG (C5213750, JLCPCB stock): contacts on both sides, so a cable fits gold up or down; 1 mm tall.
+# U1 and its parts above it on the right, 2 mm or more inside the tray's lips (KEEP_OUT below). The board is also the
+# splitter (the user, 2026-10-25): two 10-pin 0.5 mm sockets in its head under the jacks, J3 for the LCD's own cable
+# (right under the gap between the black jacks, against them: the cable only just reaches) and J2 for a cable from J12
+# (lower: the user gets a longer cable). J3 is single-sided, top contact (the LCD's cable arrives gold up: the user's
+# ruling, 2026-10-25 review): a cable turned over does not connect. J2 stays the HCTL part (contacts on both faces)
+# until the breakout's mirror check picks its face (README, Before ordering).
 CARD_C = CARD_L + 5.5                            # (the card, 11 mm wide, taken as centred in its socket: UNMEASURED)
 BUS = 13.3                                       # (the 3V3 line across, on the bottom)
 FPC10 = "FPC-SMD_10P-P0.50_HC-FPC-05-09-10RLTAG"
+FPC10_TOP = "FPC-SMD_10P-P0.50_XUNPU_FPC-0.5AS-10PWBH20"
 CARD_PROUD = 0.5                                 # (the card 0.5 mm out past the case's outside, to grip: the user)
 J1 = P(LIB, "TF-SMD_TF-01A", "J1", "TF-01A push-push", CARD_C, WALL_OUT - CARD_PROUD + 9.62, 0, "C91145")
-J3 = P(LIB, FPC10, "J3", "FPC 10P 0.5mm (LCD)", 86.5, 74.55, 180, "C5213750")   # (3.5 mm left of B, the user)
+J3 = P(LIB, FPC10_TOP, "J3", "FPC 10P 0.5mm top contact (LCD)", 88.0, 72.3, 180, "C3446068")   # (its body 10.8
+                                                 # mm wide: 1.5 mm right of v5's J3 to stay on the head; turned so
+                                                 # its opening faces the top edge, as v5's, the pins below the body)
+J3_AT = {n: 11 - n for n in range(1, 11)}        # (turned, XUNPU's own pin 1 is the right end: J3 is wired by place,
+                                                 # line n where v5's pin n was, left to right as on J2)
 J2 = P(LIB, FPC10, "J2", "FPC 10P 0.5mm (IN)", 92.4, 57.0, 180, "C5213750")   # (5 mm lower for a 6 cm cable,
                                                  # the user; 1 mm right so the column's lines reach it)
-U1 = P(LIB, "SOT-23-5_L3.0-W1.7-P0.95-LS2.8-BR", "U1", "74LVC1G04", 93.6, 17.5, 90, "C7827")
-R4 = P(LIB, "R0603", "R4", "47k", 94.35, 20.7, 0, "C25819")
+U1 = P(LIB, "SOT-23-5_L3.0-W1.7-P0.95-LS2.8-BR", "U1", "74LVC1G04", 91.0, 17.5, 90, "C7827")
+R4 = P(LIB, "R0603", "R4", "47k", 89.6, 21.4, 0, "C25819")
 C1 = P(LIB, "C0805", "C1", "10uF", 76.0, 17.5, 270, "C15850")
-C2 = P(LIB, "C0603", "C2", "100nF", 94.0, 14.1, 0, "C14663")
-R1 = P(LIB, "R0603", "R1", "220", CARD_C - 4.36, 17.5, 270, "C22962")   # (220 ohm, not 1k: the card
-                                                 # reads at 20 MHz through it; the firmware leaves D/C high at idle)
-R2 = P(LIB, "R0603", "R2", "47k", 94.3, 12.6, 180, "C25819")
+C2 = P(LIB, "C0603", "C2", "100nF", 93.4, 17.0, 90, "C14663")
+R1 = P(LIB, "R0603", "R1", "100", CARD_C - 4.36, 17.5, 270, "C22775")   # (100 ohm: 220 likely misses 20 MHz,
+                                                 # SD-CARD-DESIGN.md section 4; the D/C overlap is under half a us)
+R2 = P(LIB, "R0603", "R2", "47k", 89.6, 12.9, 0, "C25819")
 R3 = P(LIB, "R0603", "R3", "47k", CARD_C - 7.6, BUS, 0, "C25819")
+R5 = P(LIB, "R0603", "R5", "100", 94.25, 49.0, 90, "C22775")    # (CLK and MOSI in series where the SD branch leaves
+R6 = P(LIB, "R0603", "R6", "100", 95.05, 45.5, 90, "C22775")    # the through-lines, at the J2 end of the column)
 
-# ---- the nets. J12's pin map is NOT KNOWN yet (the breakout and the pin finder will tell): LCD_PINS is a PROVISIONAL
-# guess, the same on J2 and J3 (every line straight through, J3 pin n = J2 pin n; whether the LCD cable arrives
-# mirrored is also still to check). Re-route once the map is measured: nothing here may be ordered before that.
-LCD_PINS = {1: "GND", 2: "MISO", 3: "CLK", 4: "MOSI", 5: "LCD_CS", 6: "3V3", 7: "LCD_RST", 8: "LCD_LEDA",
-            9: "LCD_LEDK", 10: "GND", 11: "GND", 12: "GND"}
-for num, name in ((1, "DAT2"), (2, "CARD_CS"), (3, "MOSI"), (4, "3V3"), (5, "CLK"), (6, "GND"), (7, "DAT0"),
+# the tray's lips run over the board's edges (make_tray.py): no part within 2 mm of the left edge, nor of the right
+# edge below the right post's top (RIGHT_END there); every placed part's box checked
+KEEP_OUT, RIGHT_END = 2.0, 24.0
+for fp in board.GetFootprints():
+    bb = fp.GetBoundingBox(False)
+    left, right = pcbnew.ToMM(bb.GetLeft()) - 100.0, pcbnew.ToMM(bb.GetRight()) - 100.0
+    low = 200.0 - pcbnew.ToMM(bb.GetBottom())
+    assert left >= U0 + KEEP_OUT or low > V1, f"{fp.GetReference()} on the tray's left lip ({left:.2f})"
+    assert right <= U1_ - KEEP_OUT or low >= RIGHT_END, f"{fp.GetReference()} on the tray's right lip ({right:.2f})"
+
+# ---- the nets: J12's pin map as probed (Julius, 2026-10-27), the same on J2 and J3 (every line straight through, J3
+# pin n = J2 pin n; the cable from J12 must arrive unmirrored: the breakout's check). Pin 7 as 3V3 is still to confirm
+# (a reset line reads 3.3 V as well): nothing here may be ordered before that
+LCD_PINS = {1: "GND", 2: "MISO", 3: "LCD_CS", 4: "CLK", 5: "MOSI", 6: "LCD_6", 7: "3V3", 8: "LCD_8",
+            9: "LCD_9", 10: "GND", 11: "GND", 12: "GND"}
+for num, name in ((1, "DAT2"), (2, "CARD_CS"), (3, "MOSI_SD"), (4, "3V3"), (5, "CLK_SD"), (6, "GND"), (7, "DAT0"),
                   (8, "DAT1"), (10, "GND"), (11, "GND"), (12, "GND"), (13, "GND")):
     connect(J1, num, name)
+for num, name in LCD_PINS.items():
+    connect(J2, num, name)
+    connect(J3, J3_AT.get(num, num), name)
 for fp in (J2, J3):
-    for num, name in LCD_PINS.items():
-        connect(fp, num, name)
+    for num in (1, 10):                          # (the 0.5 mm pitch leaves room for one thermal spoke only: the
+        pad(fp, num).SetLocalZoneConnection(pcbnew.ZONE_CONNECTION_FULL)   # ground pins join the pour solid)
 for num, name in ((2, "LCD_CS"), (3, "GND"), (4, "CARD_CS"), (5, "3V3")):
     connect(U1, num, name)
-for fp, a, b in ((R1, "MISO", "DAT0"), (R2, "3V3", "DAT2"), (R3, "3V3", "DAT1"), (R4, "LCD_CS", "3V3"),
-                 (C1, "3V3", "GND"), (C2, "GND", "3V3")):
+for fp, a, b in ((R1, "MISO", "DAT0"), (R2, "DAT2", "3V3"), (R3, "3V3", "DAT1"), (R4, "GND", "LCD_CS"),
+                 (C1, "3V3", "GND"), (C2, "3V3", "GND"), (R5, "CLK_SD", "CLK"), (R6, "MOSI_SD", "MOSI")):
     connect(fp, 1, a)
     connect(fp, 2, b)
 
-# ---- the copper, top, the SD part (as in v4): MISO, CLK, MOSI turn left one under the other and come down onto their
-# contacts; LCD_CS and 3V3 turn right, to U1 and to a 3V3 rail down the right edge; U1's output comes down onto CS.
-# They start from five points where the old 6-pin socket was (P2) and go up the column to J2.
-P2 = {"3V3": (92.25, 24.71), "LCD_CS": (91.75, 24.71), "MOSI": (91.25, 24.71), "CLK": (90.25, 24.71),
-      "MISO": (89.75, 24.71)}
+# ---- the column (right of the speaker plug), top layer, one lane each from J2 down to the SD part. The order is J2's
+# (no crossing): MISO, LCD_CS, a ground guard, CLK, MOSI, 3V3: MISO's neighbour is the quiet chip select, CLK's edges
+# are a ground lane away from it (the 2026-10-25 review); the bottom layer under the column is solid ground
+LANE = {"MISO": 92.1, "LCD_CS": 92.75, "GUARD": 93.45, "CLK": 94.25, "MOSI": 95.05, "3V3": 95.9}
+PIN = {name: num for num, name in LCD_PINS.items() if name in LANE}
+SLANT = 52.4                                     # (from here up, every lane slants left at 45 degrees onto its J2 pin)
+for name in ("MISO", "LCD_CS", "CLK", "MOSI", "3V3"):
+    x, tx = LANE[name], A(J2, PIN[name])
+    top = [(tx[0], SLANT + x - tx[0]), tx]
+    w = POWER if name == "3V3" else TRACK
+    if name in ("CLK", "MOSI"):                  # (the column's top through R5 / R6, the SD side below them)
+        r = R5 if name == "CLK" else R6
+        R(name, [A(r, 2), (x, SLANT), *top], w)
+        R(name + "_SD", [A(r, 1), (x, {"CLK": 26.0, "MOSI": 25.3}[name])], w)
+    else:
+        R(name, [(x, {"MISO": 30.5, "LCD_CS": 28.8, "3V3": 16.2}[name]), (x, SLANT), *top], w)
+GUARD_V = (29.6, 34.0, 39.0, 44.0, 51.0)         # (the guard's ends and its vias to the bottom pour, about 5 mm apart;
+R("GND", [(LANE["GUARD"], GUARD_V[0]), (LANE["GUARD"], GUARD_V[-1])])   # none beside R5's pads)
+
+# ---- the SD part, top: each lane turns left in turn, the leftmost first and highest, onto its card contact; LCD_CS
+# alone crosses CLK and MOSI, on the bottom (a via each end: it changes only at a card session's start and end)
 C = {n: A(J1, n) for n in range(1, 9)}
-RAIL = 95.8
-for name, card, turn in (("MISO", 7, 21.5), ("CLK", 5, 20.7), ("MOSI", 3, 19.9)):
-    R(name, [P2[name], (P2[name][0], turn), (C[card][0], turn), A(R1, 1) if name == "MISO" else C[card]])
+R("MISO", [(LANE["MISO"], 30.5), (C[7][0], 30.5), A(R1, 1)])
 R("DAT0", [A(R1, 2), C[7]])
-R("LCD_CS", [P2["LCD_CS"], (P2["LCD_CS"][0], 23.1), (93.6, 21.25), A(U1, 2)])
-R("3V3", [P2["3V3"], (P2["3V3"][0], 23.7), (RAIL, 23.7), (RAIL, A(R2, 1)[1]), A(R2, 1)], POWER)
-R("3V3", [A(C1, 1), (76.0, 19.8)], POWER)
-R("3V3", [A(R4, 2), (RAIL, A(R4, 2)[1])], POWER)
-R("3V3", [A(U1, 5), (RAIL, A(U1, 5)[1])], POWER)
-R("3V3", [A(C2, 2), (RAIL, A(C2, 2)[1])], POWER)
-R("CARD_CS", [A(U1, 4), (C[2][0], A(U1, 4)[1]), C[2]])
-R("DAT2", [C[1], (C[1][0], A(R2, 2)[1]), A(R2, 2)])
+R("CLK_SD", [(LANE["CLK"], 26.0), (C[5][0], 26.0), C[5]])
+R("MOSI_SD", [(LANE["MOSI"], 25.3), (C[3][0], 25.3), C[3]])
+CS_VIA = (91.0, 21.4)
+R("LCD_CS", [(LANE["LCD_CS"], 28.8), (LANE["LCD_CS"], CS_VIA[1]), CS_VIA], TRACK, pcbnew.B_Cu)
+R("LCD_CS", [A(R4, 2), CS_VIA, A(U1, 2)])
+R("CARD_CS", [A(U1, 4), (A(U1, 4)[0], 15.2), (C[2][0], 15.2), C[2]])
+R("DAT2", [C[1], (C[1][0], A(R2, 1)[1]), A(R2, 1)])
+R("3V3", [(LANE["3V3"], 16.2), A(C2, 1), A(U1, 5)], POWER)
+R("3V3", [(LANE["3V3"], 16.2), (LANE["3V3"], A(R2, 2)[1]), A(R2, 2)], POWER)
 R("DAT1", [C[8], (C[8][0], BUS), A(R3, 2)])
 R("GND", [C[6], (C[6][0], 15.2)])
 R("3V3", [C[4], (C[4][0], BUS)], POWER)
 R("3V3", [A(R3, 1), (76.0, BUS)], POWER)
-R("GND", [A(U1, 3), (91.9, 20.1)])
-R("GND", [A(C2, 1), (92.3, 14.6)])
+R("3V3", [A(C1, 1), (76.0, 19.8)], POWER)
+R("GND", [A(U1, 3), (89.3, 19.6)])
+R("GND", [A(R4, 1), (88.0, 21.4)])
+R("GND", [A(C2, 2), (93.4, 18.7)])
 R("GND", [A(C1, 2), (77.4, A(C1, 2)[1])])
 
-# ---- up the column (right of the speaker plug) to J2: each line steps right into its lane one after the other, the
-# rightmost first; in the head, they slant left together onto their J2 pins (provisional order, LCD_PINS)
-LANE = {"MISO": 92.1, "CLK": 92.75, "MOSI": 93.4, "LCD_CS": 94.05, "3V3": 94.7}   # (the column from 91.5: 1.5 mm
-                                                 # clear of the speaker plug, the user)
-UP = {"3V3": 26.0, "LCD_CS": 28.5, "MOSI": 31.0, "CLK": 33.5, "MISO": 36.3}       # (where each steps right)
-PIN = {name: num for num, name in LCD_PINS.items() if name in LANE}
-for name, (u, v) in P2.items():
-    x = LANE[name]
-    tx = A(J2, PIN[name])
-    R(name, [(u, v), (u, UP[name]), (x, UP[name] + x - u), (x, 52.4),
-             (tx[0], 52.4 + (x - tx[0]) / 0.4), tx], POWER if name == "3V3" else TRACK)   # (all slant together at
-                                                 # 22 degrees from 52.4 mm up, onto J2's pins under its body)
-
-# ---- J3 to J2: every line straight through (under J3's body, a step right, down onto J2's pins from above); the
-# ground pins join through the pours
+# ---- J3 to J2: every line straight through (down from J3's pins, a step right, down onto J2's pins from above); the
+# ground pins join the sockets' tabs (above J3's pins) and the pours
 for n in range(2, 10):
-    a, b = A(J3, n), A(J2, n)
-    turn = 72.3 - (9 - n) * 0.5                  # (a staircase: each turns right in turn, the rightmost first and
+    a, b = A(J3, J3_AT[n]), A(J2, n)
+    turn = 69.0 - (9 - n) * 0.5                  # (a staircase: each turns right in turn, the rightmost first and
     R(LCD_PINS[n], [a, (a[0], turn), (b[0], turn), b], POWER if LCD_PINS[n] == "3V3" else TRACK)   # highest)
+for n in (1, 10):
+    g = A(J3, J3_AT[n])
+    tab = min((A(J3, 11), A(J3, 12)), key=lambda t: abs(t[0] - g[0]))
+    R("GND", [g, (g[0], 72.5), (tab[0], 72.5)])
 
 # ---- the bottom: 3V3 across, from the rail to the card's 3V3 contact and to R3
 B = pcbnew.B_Cu
-R("3V3", [(76.0, 19.8), (76.0, BUS), (RAIL, BUS)], POWER, B)
-for u, v in ((76.0, 19.8), (76.0, BUS), (C[4][0], BUS), (RAIL, BUS)):
+R("3V3", [(76.0, 19.8), (76.0, BUS), (LANE["3V3"], BUS)], POWER, B)
+for u, v in ((76.0, 19.8), (76.0, BUS), (C[4][0], BUS), (LANE["3V3"], BUS)):
     V("3V3", u, v)
-for u, v in ((C[6][0], 15.2), (91.9, 20.1), (92.3, 14.6), (77.4, A(C1, 2)[1]),
-             (76.0, 5.0), (76.0, 25.0), (79.0, 25.0), (95.9, 6.0), (76.0, 34.0),   # (from here: the pours stitched,
-             (87.0, 53.5), (86.9, 66.0), (83.3, 70.5), (95.9, 53.5), (95.7, 66.0), (95.7, 74.5)):   # the head's too)
+V("LCD_CS", LANE["LCD_CS"], 28.8)
+V("LCD_CS", *CS_VIA)
+for v in GUARD_V:
+    V("GND", LANE["GUARD"], v)
+for u, v in ((C[6][0], 15.2), (89.3, 19.6), (88.0, 21.4), (93.4, 18.7), (77.4, A(C1, 2)[1]),
+             (76.0, 5.0), (76.0, 25.0), (79.0, 25.0), (95.9, 6.0), (76.0, 34.0), (86.0, 34.0),   # (the pours
+             (87.0, 53.5), (86.9, 64.0), (83.3, 70.0), (95.9, 53.5), (95.9, 64.0), (95.7, 74.5)):   # stitched)
     V("GND", u, v)
+R("GND", [A(J2, 1), (A(J2, 1)[0], 59.2), (88.6, 59.2)])
+R("GND", [A(J2, 10), (A(J2, 10)[0], 59.2), (95.4, 59.2)])
+V("GND", 88.6, 59.2)
+V("GND", 95.4, 59.2)
 
 # ---- the outline, the ground pours, the labels
 def edge(ax, ay, bx, by):
@@ -297,8 +337,8 @@ def label(text, x, y, size=0.8, rot=0.0):
 
 
 label("OPTIMIST SD", *T(77.5, 29.0), 0.8, 90)
-# which way each cable goes in: the sockets touch both faces, so a cable turned over connects MIRRORED (pin 1 on
-# pin 10): the LCD's cable arrives gold up (the user), the cable from J12 (type A) gold down
+# which way each cable goes in: J3 touches the top face only (the LCD's cable arrives gold up, the user); J2 still
+# touches both, so a cable turned over there connects MIRRORED (pin 1 on pin 10) until its face is picked
 label("LCD: gold UP", *T(88.0, 69.6), 0.7)
 label("IN: gold DOWN", *T(92.2, 53.0), 0.7)
 
