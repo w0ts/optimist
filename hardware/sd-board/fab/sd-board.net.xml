@@ -2,7 +2,7 @@
 <export version="E">
   <design>
     <source>/Users/mots/GitHub/optimist/worktrees/sd-mm/hardware/sd-board/sd-board.kicad_sch</source>
-    <date>2026-10-27T12:37:01</date>
+    <date>2026-10-27T14:21:07</date>
     <tool>Eeschema 10.0.7</tool>
     <sheet number="1" name="/" tstamps="/">
       <title_block>
@@ -182,10 +182,10 @@
     </comp>
     <comp ref="JP1">
       <value>cut to swap</value>
-      <footprint>Jumper:SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm</footprint>
+      <footprint>sdboard:SolderJumper-2_Cut_P3.0mm_Pad1.5x2.0mm</footprint>
       <fields>
         <field name="LCSC"/>
-        <field name="Footprint">Jumper:SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm</field>
+        <field name="Footprint">sdboard:SolderJumper-2_Cut_P3.0mm_Pad1.5x2.0mm</field>
         <field name="Datasheet"/>
         <field name="Description"/>
       </fields>
@@ -209,10 +209,10 @@
     </comp>
     <comp ref="JP2">
       <value>cut to swap</value>
-      <footprint>Jumper:SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm</footprint>
+      <footprint>sdboard:SolderJumper-2_Cut_P3.0mm_Pad1.5x2.0mm</footprint>
       <fields>
         <field name="LCSC"/>
-        <field name="Footprint">Jumper:SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm</field>
+        <field name="Footprint">sdboard:SolderJumper-2_Cut_P3.0mm_Pad1.5x2.0mm</field>
         <field name="Datasheet"/>
         <field name="Description"/>
       </fields>
@@ -236,10 +236,10 @@
     </comp>
     <comp ref="JP3">
       <value>cut to swap</value>
-      <footprint>Jumper:SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm</footprint>
+      <footprint>sdboard:SolderJumper-2_Cut_P3.0mm_Pad1.5x2.0mm</footprint>
       <fields>
         <field name="LCSC"/>
-        <field name="Footprint">Jumper:SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm</field>
+        <field name="Footprint">sdboard:SolderJumper-2_Cut_P3.0mm_Pad1.5x2.0mm</field>
         <field name="Datasheet"/>
         <field name="Description"/>
       </fields>
@@ -263,10 +263,10 @@
     </comp>
     <comp ref="JP4">
       <value>cut to swap</value>
-      <footprint>Jumper:SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm</footprint>
+      <footprint>sdboard:SolderJumper-2_Cut_P3.0mm_Pad1.5x2.0mm</footprint>
       <fields>
         <field name="LCSC"/>
-        <field name="Footprint">Jumper:SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm</field>
+        <field name="Footprint">sdboard:SolderJumper-2_Cut_P3.0mm_Pad1.5x2.0mm</field>
         <field name="Datasheet"/>
         <field name="Description"/>
       </fields>
@@ -290,10 +290,10 @@
     </comp>
     <comp ref="JP5">
       <value>cut to swap</value>
-      <footprint>Jumper:SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm</footprint>
+      <footprint>sdboard:SolderJumper-2_Cut_P3.0mm_Pad1.5x2.0mm</footprint>
       <fields>
         <field name="LCSC"/>
-        <field name="Footprint">Jumper:SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm</field>
+        <field name="Footprint">sdboard:SolderJumper-2_Cut_P3.0mm_Pad1.5x2.0mm</field>
         <field name="Datasheet"/>
         <field name="Description"/>
       </fields>
@@ -473,10 +473,10 @@
     </comp>
     <comp ref="TP1">
       <value>J12 6</value>
-      <footprint>TestPoint:TestPoint_Pad_D1.0mm</footprint>
+      <footprint>TestPoint:TestPoint_Pad_D1.5mm</footprint>
       <fields>
         <field name="LCSC"/>
-        <field name="Footprint">TestPoint:TestPoint_Pad_D1.0mm</field>
+        <field name="Footprint">TestPoint:TestPoint_Pad_D1.5mm</field>
         <field name="Datasheet"/>
         <field name="Description"/>
       </fields>
@@ -499,10 +499,10 @@
     </comp>
     <comp ref="TP2">
       <value>J12 8</value>
-      <footprint>TestPoint:TestPoint_Pad_D1.0mm</footprint>
+      <footprint>TestPoint:TestPoint_Pad_D1.5mm</footprint>
       <fields>
         <field name="LCSC"/>
-        <field name="Footprint">TestPoint:TestPoint_Pad_D1.0mm</field>
+        <field name="Footprint">TestPoint:TestPoint_Pad_D1.5mm</field>
         <field name="Datasheet"/>
         <field name="Description"/>
       </fields>
@@ -525,10 +525,10 @@
     </comp>
     <comp ref="TP3">
       <value>J12 9</value>
-      <footprint>TestPoint:TestPoint_Pad_D1.0mm</footprint>
+      <footprint>TestPoint:TestPoint_Pad_D1.5mm</footprint>
       <fields>
         <field name="LCSC"/>
-        <field name="Footprint">TestPoint:TestPoint_Pad_D1.0mm</field>
+        <field name="Footprint">TestPoint:TestPoint_Pad_D1.5mm</field>
         <field name="Datasheet"/>
         <field name="Description"/>
       </fields>
@@ -551,10 +551,10 @@
     </comp>
     <comp ref="TP4">
       <value>J12 G</value>
-      <footprint>TestPoint:TestPoint_Pad_D1.0mm</footprint>
+      <footprint>TestPoint:TestPoint_Pad_D1.5mm</footprint>
       <fields>
         <field name="LCSC"/>
-        <field name="Footprint">TestPoint:TestPoint_Pad_D1.0mm</field>
+        <field name="Footprint">TestPoint:TestPoint_Pad_D1.5mm</field>
         <field name="Datasheet"/>
         <field name="Description"/>
       </fields>

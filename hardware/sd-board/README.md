@@ -124,8 +124,8 @@ As J12 (Julius, 2026-10-27): J2 pin n = J12 pin n; J3 by place (its n-th contact
 | R2, R3 | 47 kOhm 0603: DAT2, DAT1 pulled up (unused in SPI mode) | C25819 |
 | R4 | 47 kOhm 0603: the inverter's input pulled DOWN while the FM-1 resets (the card deselected) | C25819 |
 | U2, U3 | USBLC6-2SC6, ESD for two lines each (flow-through), SOT-23-6 | C7519 |
-| JP1-JP5 | the swap block: bridged solder jumpers (copper only, not in the BOM) | - |
-| TP1-TP4 | test pads, 1 mm: J12's pins 6, 8, 9 and GND (copper only, not in the BOM) | - |
+| JP1-JP5 | the swap block: 1.5 x 2 mm pads 3 mm apart, a 1.5 mm bare copper bridge to cut (copper only, not in the BOM) | - |
+| TP1-TP4 | test pads, 1.5 mm: J12's pins 6, 8, 9 and GND (copper only, not in the BOM) | - |
 | C1 | 10 uF 0805 | C15850 |
 | C2 | 100 nF 0603 at U1 | C14663 |
 
