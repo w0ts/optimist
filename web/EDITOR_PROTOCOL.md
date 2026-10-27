@@ -16,7 +16,9 @@ Every request gets exactly one reply with the same header and `<cmd>`; a request
 - One request at a time: wait for the reply (about 10-50 ms) before the next. The device holds one incoming frame.
 - A request with cmd below 11 is cut at 64 bytes. A reply is at most 640 bytes (`ed_out.h`), so long lists come in pages.
 - While the editor watches (below) the device also pushes frames at any time; match replies by cmd. Pushes are 24, 59..63, 87.
-- Updates of the firmware use the same port with other SysEx (`F0 22 24 35 ...`, `00 59 ...`): never send those from the editor.
+- Updates of the firmware use the same port with other SysEx (`F0 22 24 35 ...`, `00 59 ...`): never send those from the editor,
+  but for fm1-base's companion services (`00 59` cmds 0x60..0x62, below: Optimist's own firmware answers none of them, its
+  `ota.c` acts on 0x11 alone).
 - Only `PROJECT` save, the sample-slot commands, `UP_PUT` / `UP_STORE` / `UP_ERASE`, `UKIT_PUT` / `UKIT_OP`, `SN_OP`
   save / load / clear / rename, `SN_WRITE`, `BK_COMMIT` (and the session's first `BK_BEGIN`, which saves what is in RAM) and the pattern
   commands that store (81, 82, 84) write flash, and only Felucca's own storage areas, never the app or the update area.
@@ -78,6 +80,32 @@ The web editor used none of these and no build answers them (the page still carr
 SLOOP 2.4's step extras 72..77 (`LOCK_*`, `MICRO_*`, `FILL_*`: the automation store 92 / 93 has them), the pushes `CHANGED` 23,
 `STEP_CHANGED` 26 and `TRACK_CHANGED` 32 (and `WATCH` bits 1 and 3), the 2.4 settings and FM6 bank parts of 78 (parts 1..3, rc 1) and
 `SL24_BANK` 91, FM6's user-bank commands. Numbers 34, 35, 85, 88 and 89 are unused (reserved).
+
+## fm1-base's companion services
+
+Optimist as an fm1-base app (the trial) and any fm1-base firmware built with `companion = true` answer fm1-base's capability
+query (0x60), files (0x61) and parameters (0x62), in the update's framing `F0 pk(00 59 cmd len24 body ~sum8) F7` (fm1-base
+`docs/COMPANION.md`). The editor asks the capability query first (300 ms, once); no answer: Optimist's own protocol alone,
+as before. An answer whose extras do not say `editor=optimist` is another firmware: the Backup page then shows its
+companion services alone (what it runs, its settings, its files: one zip of them all, written back from one). With
+`editor=optimist` the editor reads INFO as always and shows the companion's settings and files on the Backup page too.
+
+**Optimist's backup as companion files** (`opti_cpfiles_1` in INFO's tag 66, in place of `opti_backup_4`; the trial with
+companion on, `firmware/src/io/editor/ed_comp.c`, `FELUCCA_ED_COMPANION`): cmds 11..15, 42 and 43..48 are not answered;
+the same objects are files, in BK_LIST's order, each named by its tag (a trailing space dropped: `S01`), its size BK_LIST's
+length, read as BK_READ reads it (each file checked whole by the FM-1's CRC-32 of it), written as BK_BEGIN / DATA / COMMIT
+write it (a storage object received whole and checked as a load checks it; a project stream's records written as they
+come); USR1..USR3 are the sample slots (their header page, 512 bytes, then the data; written header last; delete erases
+the slot), read only where their room is 0. After them:
+
+| File | Bytes |
+| --- | --- |
+| `BKINFO` (read only) | BK_LIST's head (version 4, n, switches 2 x 7 bit, the project magic, the chunk 2 x 7 bit, 0, n), each object's kind and flags (bit 0 in this build, 2 written by BEGIN..COMMIT, 3 a slot holding the FM6 bank), then `bk_caps`: 7-bit bytes as BK_LIST has them |
+| `BKCTL` (one byte written; also while playing) | the session: 0 it ends (BK_END 0), 1 it ends and the FM-1 restarts to load what came (BK_END 1), 2 the commits from now on only check (BK_COMMIT i 1: a refused one is the flash refused, status 6), 3 they write again |
+
+A session opens at the first write (what is only in RAM saved first) and ends with BKCTL 0 / 1 or 10 s without a write.
+Writes are refused while the transport plays (status 1). The editor's Backup, Projects and Library pages read and write
+through these files with the same lists (`cpBkList` gives BK_LIST's form).
 
 ## INFO (1) and BUILD (49)
 
