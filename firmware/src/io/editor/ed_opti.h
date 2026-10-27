@@ -8,7 +8,10 @@
 #ifndef ED_OPTI_H
 #define ED_OPTI_H
 #define ED_OPTI_FULL (FELUCCA_ED_LIVE || FELUCCA_LIBRARIAN)   /* (live editing, or the librarian: presets, sections) */
-#if FELUCCA_FLASH && FELUCCA_BACKUP
+#if FELUCCA_FLASH && FELUCCA_BACKUP && FELUCCA_ED_COMPANION
+#define ED_OPTI_BK "opti_cpfiles_1 "    /* (the backup's objects and the sample slots as fm1-base companion files, BKINFO and
+                                       * BKCTL beside them: ed_comp.c; 43..48 and 11..15 not answered) */
+#elif FELUCCA_FLASH && FELUCCA_BACKUP
 #define ED_OPTI_BK "opti_backup_4 "     /* (ed_backup.c BK_VERSION) */
 #else
 #define ED_OPTI_BK ""
