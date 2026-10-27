@@ -13,6 +13,17 @@ the browser, install it from the browser.</b><br>
 Free software (GPL-3.0-only), built on <a href="https://github.com/isod89/sloop-fm1">SLOOP</a>, Felucca, Melodee, X0X and other
 FM-1 projects (see <a href="#credits">Credits</a>).</p>
 
+> [!WARNING]
+> ## 🚧 `sdcard` branch: WORK IN PROGRESS 🚧
+>
+> **This branch is an experiment, not a release.** The SD card mod (a microSD card on the FM-1's LCD bus, a bigger
+> flash layout, projects and samples on the card) is **not finished and has never run on a modded FM-1**.
+>
+> - **Do not order the SD board yet**: `hardware/sd-board/` is not ready (J12's pin 7, the cable's mirror check and
+>   the ESD protection are still open; see its README).
+> - **Do not install these builds on an FM-1 you depend on.** Use the releases from the `main` branch.
+> - Anything here may change or be dropped without notice.
+
 > [!CAUTION]
 > **Early access: work in progress, no warranty, use at your own risk.** Optimist runs on real FM-1s, but most features
 > are tested in the emulator and on the host, and formats can change between versions. An install could fail or erase
