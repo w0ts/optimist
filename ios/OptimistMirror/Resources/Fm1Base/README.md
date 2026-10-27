@@ -24,8 +24,8 @@ stay as they are: `Sources/Companion/Fm1BaseSite.swift` fills them in and serves
 (`Fm1BaseWeb.swift`), with Web MIDI from the app's own `WebMIDIBridge`.
 
 - `mirror/`, `companion/`: need only the app's name.
-- `backup/`: also needs the app's backup magic and version (app.h `APP_BACKUP_MAGIC`, `APP_BACKUP_VERSION`), which the
-  capability query does not carry. The page is offered when the app lists them in its companion extras
-  (`APP_COMPANION_EXTRAS`): `backup_magic=ABCD;backup_version=1;backup_ext=bak`. Without them the app's files can still be
-  saved natively (Files tab).
+- `backup/`: also needs the app's backup magic, version and file extension (app.h `APP_BACKUP_MAGIC`, `APP_BACKUP_VERSION`,
+  fm1.toml `backup_ext`), which the capability query carries from protocol 2 on (fm1-base `docs/COMPANION.md`). From an older
+  firmware (protocol 1) they are read from the app's companion extras (`APP_COMPANION_EXTRAS`) as a fallback:
+  `backup_magic=ABCD;backup_version=1;backup_ext=bak`. Without either the app's files can still be saved natively (Files tab).
 - `installer.html`: the package is not on any site here: the user chooses the `.fwsc` in the app (Pages tab), which serves it to the page.

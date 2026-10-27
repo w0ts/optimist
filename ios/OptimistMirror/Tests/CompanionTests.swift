@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // The fm1-base companion services against frames the fm1-base host simulator recorded (Fixtures/companion_transcript.txt: the
-// CPTEST app of tests/companion_app, driven by tools/fm1_companion.py at fm1-base 99151caf): every request the app encodes must be
+// CPTEST app of tests/companion_app, driven by tools/fm1_companion.py at fm1-base 786fa65): every request the app encodes must be
 // one the recorded client sent, byte for byte, and every recorded answer must read as what the client saw. No device.
 import XCTest
 import WebKit
@@ -65,10 +65,11 @@ final class CompanionTests: XCTestCase {
         XCTAssertEqual(i.appVersion, "1.2")
         XCTAssertEqual(i.identity, "FM-1_1400")
         XCTAssertEqual(i.idPrefix, "FM-1_14")
-        XCTAssertEqual(i.version, 1)
-        XCTAssertEqual(i.services, 1831)
-        XCTAssertTrue(i.hasFiles && i.hasParams && !i.hasBackup && !i.hasMirror)
-        XCTAssertEqual(i.serviceList, ["capability query", "files", "parameters", "screen reader", "USB audio in", "USB audio out", "the app's own SysEx"])
+        XCTAssertEqual(i.version, 2)
+        XCTAssertEqual(i.services, 1831 | 8)
+        XCTAssertTrue(i.hasFiles && i.hasParams && i.hasBackup && !i.hasMirror)
+        XCTAssertEqual(i.backup, CompanionInfo.BackupFormat(magic: "CPTB", version: 2, ext: "cpb"))
+        XCTAssertEqual(i.serviceList, ["capability query", "files", "parameters", "backup", "screen reader", "USB audio in", "USB audio out", "the app's own SysEx"])
         XCTAssertEqual(i.readMax, 256)
         XCTAssertEqual(i.writeMax, 512)
         XCTAssertEqual(i.files, 3)
@@ -149,10 +150,11 @@ final class CompanionTests: XCTestCase {
 
     // MARK: the pages
 
-    private func site(_ extras: String = "", services: UInt32 = 1831) -> Fm1BaseSite {
-        let info = CompanionInfo(version: 1, services: services, readMax: 256, writeMax: 512, files: 3, params: 6, identity: "FM-1_1400", name: "CP\"<TEST",
+    private func site(_ extras: String = "", services: UInt32 = 1831, version: Int = 1, backup: CompanionInfo.BackupFormat? = nil) -> Fm1BaseSite {
+        let info = CompanionInfo(version: version, services: services, readMax: 256, writeMax: 512, files: 3, params: 6, identity: "FM-1_1400", name: "CP\"<TEST",
                                  appVersion: "1.2", extras: Dictionary(uniqueKeysWithValues: extras.split(separator: ";").map { kv in
-                                     let p = kv.split(separator: "=", maxSplits: 1).map(String.init); return (p[0], p[1]) }))
+                                     let p = kv.split(separator: "=", maxSplits: 1).map(String.init); return (p[0], p[1]) }),
+                                 backup: backup)
         return Fm1BaseSite(info: info, package: nil, root: Bundle(for: MirrorLink.self).url(forResource: "Fm1Base", withExtension: nil)!)
     }
 
@@ -175,7 +177,23 @@ final class CompanionTests: XCTestCase {
         XCTAssertNil(s.response("/nothing"))
     }
 
-    func testBackupPageNeedsTheAppsMagic() throws {
+    func testBackupPageTakesTheFormatFromTheCapabilityAnswer() throws {
+        XCTAssertNil(site(services: 1831 | 8, version: 2).response("/backup/"))               // protocol 2 without a format: no page
+        XCTAssertFalse(site(services: 1831 | 8, version: 2).pages.contains(.backup))
+        XCTAssertNil(site(services: 1831, version: 2, backup: .init(magic: "CPTB", version: 2, ext: "cpb")).backupHints)   // no backup service
+        // the tags are not read from a protocol 2 firmware
+        XCTAssertNil(site("backup_magic=CPBK;backup_version=3", services: 1831 | 8, version: 2).backupHints)
+        let s = site(services: 1831 | 8, version: 2, backup: .init(magic: "CPTB", version: 2, ext: "cpb"))
+        let t = try text(s, "/backup/")
+        XCTAssertNil(t.range(of: #"\{\{[A-Z_]+\}\}"#, options: .regularExpression))
+        XCTAssertTrue(t.contains("magic: \"CPTB\""))
+        XCTAssertTrue(t.contains("version: Number(\"2\")"))
+        XCTAssertTrue(t.contains("ext: \"cpb\""))
+        XCTAssertTrue(t.contains("id: \"FM-1_14\""))
+        XCTAssertTrue(s.pages.contains(.backup))
+    }
+
+    func testBackupPageFallsBackToTheExtrasTagsOfAProtocol1Firmware() throws {
         XCTAssertNil(site(services: 1831 | 8).response("/backup/"))
         XCTAssertFalse(site(services: 1831 | 8).pages.contains(.backup))
         let s = site("backup_magic=CPBK;backup_version=3;backup_ext=cpb", services: 1831 | 8)
@@ -183,9 +201,16 @@ final class CompanionTests: XCTestCase {
         XCTAssertNil(t.range(of: #"\{\{[A-Z_]+\}\}"#, options: .regularExpression))
         XCTAssertTrue(t.contains("magic: \"CPBK\""))
         XCTAssertTrue(t.contains("version: Number(\"3\")"))
-        XCTAssertTrue(t.contains("id: \"FM-1_14\""))
         XCTAssertTrue(s.pages.contains(.backup))
         XCTAssertNil(site("backup_magic=TOOLONG;backup_version=3", services: 1831 | 8).backupHints)
+    }
+
+    func testCapabilityAnswerOfProtocol1HasNoBackupFormat() throws {
+        var b: [UInt8] = [1, 0x27, 0x07, 0, 0, 0, 1, 0, 2, 3, 0, 0, 0]
+        b += Array("FM-1_1400\0X\01\0\0".utf8)
+        let i = try CompanionInfo.parse(b)
+        XCTAssertEqual(i.version, 1)
+        XCTAssertNil(i.backup)
     }
 
     func testTheChosenPackageIsServedAndNamedForTheInstaller() throws {

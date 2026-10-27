@@ -22,9 +22,13 @@ struct Fm1BaseSite {
         String(s.unicodeScalars.filter { $0.value >= 0x20 && $0.value < 0x7F && !"<>&\"'\\`$".unicodeScalars.contains($0) })
     }
 
-    /// The backup page needs the app's magic (4 letters) and version, which only the app's own extras carry
+    /// The backup page needs the app's magic (4 letters), version and file extension: the firmware says them in its capability
+    /// answer (protocol 2). An older firmware (protocol 1) does not: the app's own extras tags (backup_magic, backup_version,
+    /// backup_ext) are read then, as a fallback only.
     var backupHints: (magic: String, version: Int, ext: String)? {
-        guard info.hasBackup, let m = info.extras["backup_magic"], m.utf8.count == 4, m.allSatisfy(\.isASCII),
+        guard info.hasBackup else { return nil }
+        if let b = info.backup { return (Self.safe(b.magic), b.version, Self.safe(b.ext.isEmpty ? "bak" : b.ext)) }
+        guard info.version < 2, let m = info.extras["backup_magic"], m.utf8.count == 4, m.allSatisfy(\.isASCII),
               let v = info.extras["backup_version"].flatMap(Int.init) else { return nil }
         return (Self.safe(m), v, Self.safe(info.extras["backup_ext"] ?? "bak"))
     }
