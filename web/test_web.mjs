@@ -1056,12 +1056,12 @@ async function editorMixSends() {
   const mx = await E.mixer.read(rq, info, { pan: 39, fx: FX, fxoff: FXOFF });
   ok(a === 90 && b === 127 && c === 1 && mx.tracks[2].fx[3] === 90 && mx.tracks[1].fx[0] === 127 && mx.tracks[2].fxoff === 1 && mx.tracks[0].fxoff === 0
     && mx.sel === 0 && mx.tracks.every((x) => x.fx.length === 4), "mix: sends of any track (TRACK_PARAM, clamped), read back with the strips");
-  const pushes = ev.pushes.length;
+  const seenBefore = ev.pushes.length;
   m.sim.param(1, 35, 44);
   m.sim.param(0, 34, 12);
   await sleep(10);
-  const tc = ev.pushes.slice(pushes).filter((f) => f.cmd === C.TRACK_CHANGED).map((f) => E.parse[C.TRACK_CHANGED](f.a));
-  const ch = ev.pushes.slice(pushes).filter((f) => f.cmd === C.CHANGED).map((f) => E.parse[C.CHANGED](f.a));
+  const tc = ev.pushes.slice(seenBefore).filter((f) => f.cmd === C.TRACK_CHANGED).map((f) => E.parse[C.TRACK_CHANGED](f.a));
+  const ch = ev.pushes.slice(seenBefore).filter((f) => f.cmd === C.CHANGED).map((f) => E.parse[C.CHANGED](f.a));
   ok(tc.length === 1 && tc[0].track === 1 && tc[0].id === 35 && tc[0].value === 44 && ch.length === 1 && ch[0].id === 34 && ch[0].value === 12,
     "mix: a send moved on the device: TRACK_CHANGED (another track), CHANGED (the selected one)");
   /* the drum strip's send row: the selected sound's sends, DRUM_LANE v2 (the drum track has no REV of its own) */
