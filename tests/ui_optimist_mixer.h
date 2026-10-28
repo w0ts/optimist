@@ -492,6 +492,26 @@ static void mixer_rows_tests(void)
         frames(30);
         check(seen, "T1's row: its VU meter fills from the left while it plays");
     }
+    {   /* the VU's gradient: its own colour up to -12 dB, amber and red above it (a full-scale peak ends in red) */
+        uint32_t i, red = 0, amb = 0, y = mx_row_y(MXR_T1) + MXL_VY;
+        for (i = 0; i < 3u; i++) {
+            mt.ui[0] = 12000;                           /* -8.7 dBFS: lights up to the -12 dB tick */
+            frame();
+        }
+        amb = (uint32_t)px_in(MXL_VX, y, MXL_VW, MXL_VH, C_WARN);
+        check(!amb && !px_in(MXL_VX, y, MXL_VW, MXL_VH, C_ERR), "T1's VU at the -12 dB tick: no amber, no red");
+        for (i = 0; i < 3u; i++) {
+            mt.ui[0] = 32767;                           /* 0 dBFS */
+            frame();
+        }
+        ppm("opt-mixer-vu-full");
+        red = (uint32_t)px_in(MXL_VX + MXL_VW * 39 / 44 - 3, y, 8, MXL_VH, C_ERR);
+        check(red && px_in(MXL_VX, y, MXL_VW * 36 / 44, MXL_VH, C_OK), "T1's VU at 0 dBFS: green below -12 dB, red at the top");
+        check(!px_in(MXL_VX + MXL_VW * 36 / 44 + 1, y, 3, MXL_VH, C_OK) && !px_in(MXL_VX + MXL_VW * 41 / 44, y, 20, MXL_VH, C_OK),
+              "... the columns above -12 dB are shaded, not the base colour");
+        mt.ui[0] = 0;
+        frames(30);
+    }
 #if FELUCCA_MASTER_COMP
     {   /* the compressors' reduction: a bar from the right, only where one works */
         uint32_t x = MXM_GX + MXM_GW;

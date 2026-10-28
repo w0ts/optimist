@@ -302,6 +302,27 @@ static uint32_t mx_gr_px(uint32_t r, int32_t w)         /* row r's reduction as 
     uint32_t gr = mx_gr_q4(r) * MX_GR_PX / 4u;
     return gr > (uint32_t)w ? (uint32_t)w : gr;
 }
+/* the lit bar's colour: its own below -12 dB; from there each column goes on to amber, then red where the bar tops out
+ * (a full-scale peak: 32767 lights 40/44 of the width).
+ * The scale is op_draw.c meter_h's: log2 of the peak in 6 dB steps, a tick each at i * 4 + 4 of 44, so the columns stand for dB. Integer RGB565 lerps */
+#define MX_KNEE_PK 8192                                 /* -12 dBFS: the bar it lights ends at the tick, 36/44 of the width */
+static uint16_t mx_lerp(uint16_t a, uint16_t b, uint32_t t)   /* a to b, t 0 .. 256 */
+{
+    uint32_t rb = ((a & 0xF81Fu) * (256u - t) + (b & 0xF81Fu) * t) >> 8;
+    uint32_t g = (((uint32_t)a & 0x07E0u) * (256u - t) + ((uint32_t)b & 0x07E0u) * t) >> 8;
+    return (uint16_t)((rb & 0xF81Fu) | (g & 0x07E0u));
+}
+static void mx_vu_fill(int32_t x, int32_t y, int32_t w, int32_t h, int32_t px, uint16_t col)
+{
+    int32_t k = (int32_t)(mx_vu_lv(MX_KNEE_PK) * (uint32_t)w / MX_LV), e = (int32_t)(mx_vu_lv(32767) * (uint32_t)w / MX_LV), c;
+    cv_rect(x, y, px < k ? px : k, h, col);
+    for (c = k; c < px; c++) {                          /* (a column each: at most ~20 above the knee) */
+        uint32_t u = e > k ? (uint32_t)(c - k) * 256u / (uint32_t)(e - k - 1 > 0 ? e - k - 1 : 1) : 256u;
+        if (u > 256u)
+            u = 256u;
+        cv_rect(x + c, y, 1, h, u < 128u ? mx_lerp(col, C_WARN, u * 2u) : mx_lerp(C_WARN, C_ERR, (u - 128u) * 2u));
+    }
+}
 /* row r's meter at x, y of the canvas, w x h: its level pk (0 .. MX_LV) from the left, the reduction gr px from the
  * right (its own canvas, or the band: mx_paint draws the live parts with the rows, so a row drawn again never shows
  * them gone) */
@@ -310,7 +331,7 @@ static void mx_vu_paint(uint32_t r, int32_t x, int32_t y, int32_t w, int32_t h, 
     int32_t px = (int32_t)(pk * (uint32_t)w / MX_LV);
     cv_rect(x, y, w, h, C_BLACK);
     cv_rect(x, y + h - 1, w, 1, C_LINE);                /* the track: a line on black */
-    cv_rect(x, y, px, h, pk > MX_LV - 10u ? C_ERR : r >= MXR_LANE0 ? mx_col(r) : C_OK);   /* (the returns' meters too: the channels' green) */
+    mx_vu_fill(x, y, w, h, px, r >= MXR_LANE0 ? mx_col(r) : C_OK);   /* (the returns' meters too: the channels' green) */
     if (gr)
         cv_rect(x + w - (int32_t)gr, y, (int32_t)gr, h, C_WARN);   /* the reduction, from the right */
 }
