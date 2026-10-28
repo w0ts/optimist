@@ -1753,6 +1753,7 @@ job; ( jobin
     BPY="$(python3 -c 'import sys; sys.path.insert(0, "tools"); import deps; print(deps.venv_python())')"
     if [ -x "$BPY" ] && "$BPY" -c 'import textual' 2>/dev/null; then
         run "firmware builder menu (headless): an error marks its items' lines at once, CANNOT BUILD kept" "$BPY" tests/builder_menu_test.py
+        run "builder build step: progress, the failure in plain words (XIP overflow), q kills a hung build" "$BPY" tests/builder_build_step_test.py
     else
         echo "== builder menu: skipped (no Textual; run tools/menuconfig once to make tools/builder/venv)"
     fi

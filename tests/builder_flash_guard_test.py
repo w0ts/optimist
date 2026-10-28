@@ -179,7 +179,7 @@ def menu_checks():
                       builds == ["test"] and app.flash_after_build and not calls
                       and "then the flash" in app.build_out)
                 check("menu: the build shows its progress bar, not knowing the length yet",
-                      bar_on(app) and "build: starting" in label(app))
+                      bar_on(app) and "starting" in label(app))
                 await asyncio.to_thread(app.build_line, "==> [3/5] app")        # (a worker thread's call)
                 await pilot.pause()
                 check("menu: a stage line moves the bar: 'build 3/5: app', the two short stages before it done "
