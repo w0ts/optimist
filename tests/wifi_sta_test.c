@@ -113,6 +113,57 @@ static void t_crypto(void)
         printf("FAIL unwrap integrity\n");
     }
     check("unwrap rfc3394", d, "00112233445566778899aabbccddeeff", 16);
+
+    /* the PMK as a job in slices equals wc_pmk (the IEEE 802.11i example, and a 63-character passphrase) at any slice size */
+    {
+        static const char *const PW[2] = {"password", "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ-"};
+        static const char *const SS[2] = {"IEEE", "a-very-long-ssid-of-32-bytes-exactly"};
+        static const uint32_t SL[3] = {1u, 256u, 100000u};
+        uint32_t a, b, calls;
+        for (a = 0; a < 2u; a++)
+            for (b = 0; b < 3u; b++) {
+                struct wc_pmk_job j;
+                uint8_t want[32], got[32];
+                uint32_t sl = (uint32_t)strlen(SS[a]);
+                wc_pmk(PW[a], (const uint8_t *)SS[a], sl, want);
+                wc_pmk_begin(&j, PW[a], (const uint8_t *)SS[a], sl);
+                for (calls = 0; !wc_pmk_step(&j, SL[b], got) && calls < 20000u; calls++)
+                    ;
+                checks++;
+                if (memcmp(got, want, 32) || memcmp(j.pass, (uint8_t[64]){0}, 64)) {
+                    fails++;
+                    printf("FAIL pmk job (pass %u, slice %u)\n", (unsigned)a, (unsigned)SL[b]);
+                }
+            }
+    }
+
+    /* CCMP (AES-CCM) TX encryption, cross-checked against tools/ccmp_ref.py (its CCM core verified vs RFC 3610 #1) */
+    {
+        uint8_t tk[16], a2[6], frame[128], want[80];
+        uint8_t pn[6] = {0x01, 0, 0, 0, 0, 0};
+        uint32_t flen;
+        hex("c97c1f67ce371185514a8a19f2bdd52f", tk);
+        hex("0020e0a69f08", a2);
+        hex("08410000112233445566" "0020e0a69f08" "aabbccddeeff" "0010", frame);          /* 24-byte 802.11 header */
+        hex("aaaa03000000080045000012" "000102030405060708090a0b0c0d0e0f10111213", frame + 24);  /* 32-byte body */
+        flen = wc_ccmp_encrypt(tk, a2, pn, 0, frame, 24u, 32u);
+        checks++;
+        if (flen != 72u) {
+            fails++;
+            printf("FAIL ccmp len: %u\n", (unsigned)flen);
+        }
+        hex("084100001122334455660020e0a69f08aabbccddeeff00100100002000000000"
+            "6d514200817a95015eec5693b175c4fd968705651b6df41afb4fb5eeb4176239232a16a9e9d2dd6a", want);
+        checks++;
+        if (memcmp(frame, want, 72u)) {
+            unsigned i;
+            fails++;
+            printf("FAIL ccmp enc: ");
+            for (i = 0; i < 72u; i++)
+                printf("%02x", frame[i]);
+            printf("\n");
+        }
+    }
 }
 
 static void test_rand(uint8_t *out, uint8_t n)      /* (a test source: the firmware passes the radio's, ble_hw_rand) */
@@ -272,14 +323,36 @@ static void t_handshake_flow(void)
 
     /* Verify hardware MAC register writes for key installation */
     checks++;
-    if (get_mac_reg(0x6804u) != 0x08u) {        /* WCID 1 Attribute = AES-CCMP in bits 3:1 */
+    if (get_mac_reg(0x6804u) != 0x09u) {        /* WCID 1 Attribute = AES-CCMP (bits 3:1) + KeyTabFlag (bit 0 = pairwise table) */
         fails++;
         printf("FAIL HW WCID attribute reg\n");
+    }
+    checks++;
+    if (get_mac_reg(0x6008u) != 0x20000001u) {  /* WCID 1 TX IV: ExtIV bit set + initial PN (CCMP) */
+        fails++;
+        printf("FAIL HW WCID IV reg\n");
     }
     checks++;
     if (get_mac_reg(0x7000u) != (4u << 4)) {    /* Shared key mode = AES-CCMP for key 1 */
         fails++;
         printf("FAIL HW Shared key mode reg\n");
+    }
+    {   /* leaving: the deauth frame (reason 3, to the AP), and the MAC's key state back to boot (no cipher, no key, no IV) */
+        uint8_t d[40];
+        uint32_t dl = wifi_sta_build_deauth(&sta, d);
+        checks++;
+        if (dl != 26u || d[0] != 0xC0u || memcmp(d + 4, sta.bssid, 6) || memcmp(d + 10, sta.mac, 6) || d[24] != 3u || d[25] != 0u) {
+            fails++;
+            printf("FAIL deauth frame\n");
+        }
+        mac_write_count = 0;                         /* (a clean log: the recorder returns the first write it has) */
+        wifi_sta_clear_hw_keys();
+        checks++;
+        if (get_mac_reg(0x6804u) != 0u || get_mac_reg(0x6008u) != 0u || get_mac_reg(0x4020u) != 0u || get_mac_reg(0x402Cu) != 0u ||
+            get_mac_reg(0x7000u) != 0u) {
+            fails++;
+            printf("FAIL clear hw keys\n");
+        }
     }
 }
 
