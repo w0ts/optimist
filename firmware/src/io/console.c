@@ -169,6 +169,681 @@ static void con_trims(const struct ble_rf_trims *t, uint8_t have)
         con_bytes("187:", t->x187, sizeof t->x187);
 }
 
+#ifndef FELUCCA_WIFI_CON
+#define FELUCCA_WIFI_CON 0                            /* the console's Wi-Fi test commands (OPTIMIST_WIFI=1; =2 builds without them) */
+#endif
+#ifndef FELUCCA_WIFI
+#define FELUCCA_WIFI 0                                /* Wi-Fi (work in progress, docs/WIFI-LINK-HANDOVER.md): a test build
+                                                       * sets it with OPTIMIST_WIFI=1 (tools/build.py); no builder item yet */
+#endif
+#if BLE_HW_WL82 && FELUCCA_WIFI
+#include "../../hal/fm1_wifi.h"
+#include "../wifi/wifi_crypto.c"                      /* (the station: used by wifijoin only, so far) */
+#include "../wifi/wifi_sta.c"
+#include "../wifi/wifi_ip.c"                          /* ARP, DHCP, IGMP, UDP; the early filter */
+#include "../link/link.c"                             /* Ableton Link (the sync part) */
+
+#define CON_WIFI_MAX 1024u                                /* the largest frame taken, with its 16-byte receive header: Link's datagrams are at most 512 B,
+                                                           * DHCP and EAPOL under 700, a beacon about 600; a larger one is not for us and is dropped by the
+                                                           * receive routine unread (hal/fm1_wifi.h fm1_wifi_rx: n > max). Was 2400, one whole frame (2.4 KB of RAM) */
+static uint32_t con_wifi_buf[(CON_WIFI_MAX + 8u) / 4u + 1u];   /* (wifiscan, wifitx and wifijoin share it) */
+#include "../wifi/wifi_link.c"                        /* wifilink: DHCP + Link after the join (the service runs from the main loop) */
+#include "../wifi/wifi_conn.c"                        /* the connection manager: radio, scan, join, Link, a step a pass (the SYSTEM > WI-FI page) */
+#if FELUCCA_WIFI_AP
+#include "../wifi/wifi_ap.c"                          /* MODE AP: the authenticator, beacons, management answers */
+#include "../wifi/wifi_ap_dhcp.c"                     /* .. its DHCP server */
+#include "../wifi/wifi_apd.c"                         /* .. and the radio side: clients, keys, a step a pass */
+#endif
+
+#if FELUCCA_WIFI_CON
+/* A console command that waits on the radio (a scan, a join) holds the main loop for seconds. The watchdog is fed, and the
+ * dual-core starvation clock too: 1.5 s without a main-loop pass stops CPU1 for the rest of the boot (SYSTEM > INFO:
+ * "CPU1 overload", system/main.c DUAL_STARVE_MS), which these commands did. The Wi-Fi page waits in no loop at all. */
+static void con_wifi_alive(void)
+{
+    fm1_wdt_feed();
+    felucca_dbg.loop_ms = fm1_ms ? fm1_ms : 1u;
+}
+
+/* wifiup: the Wi-Fi side brought up as the SDK does on a radio BT has started (usb_register): the radio started by our
+ * start-up program if nothing has (BLUETOOTH and BT audio off: as Bluetooth audio starts it, bt_inq.c, CPU1 held), the
+ * Ralink STA driver's MAC settings (fm1_wifi_sta_init), the coexistence controller's tables (wlc_main: fm1_wifi_wlc_setup,
+ * which sets both RF paths); then wifiscan / wifitx / wifijoin. Off again only by a restart */
+static void con_wifiup(void)
+{
+    int r = wifi_radio_up();
+    if (r < 0) {
+        con_puts("no stored trims (bletrim)\r\n");
+        return;
+    }
+    con_puts(r == 1 ? "radio started (no BT)\r\n" : "radio up already (BT)\r\n");
+    /* try23's PA-gain + 0x14008 writes REGRESSED TX (handshake went 10/10 fail vs try19's intermittent success at the same
+     * 3-4 m); reverted. The default pa_mcs_gain table is likely a placeholder the device trim overrides, and/or 0x14008
+     * disturbed the PHY. Proper TX-gain needs the device's own pa_trim via wf_rf_init - and a reliable signal measurement
+     * to tune against, which we lack. fm1_wifi_pa_gain_init() etc. remain in the HAL for when that's set up. */
+    con_kx("wl_en", fm1_wifi_rd(FM1_WL_EN));
+    con_kx("rx_filter", fm1_wifi_mac_rd(FM1_WIFI_RX_FILTER));
+    con_kx("mac_sys_ctrl", fm1_wifi_mac_rd(0x1004u));
+    con_kv("channel", (int32_t)fm1_wifi_channel());
+}
+/* wifiscan: the networks around, from their beacons (and probe responses): channels 1-13, 150 ms each (a beacon is
+ * every 102 ms), the RX filter open meanwhile; each new BSSID listed with its channel (the beacon's DS parameter),
+ * the RSSI byte of the receive header and its SSID. Needs the Wi-Fi side up (wifiup). Listens only */
+struct con_bss { uint8_t bssid[6], ch; int8_t rssi; char ssid[33]; };
+static void con_wifi_beacon(const uint8_t *f, uint32_t n, struct con_bss *t, uint32_t *nt, uint32_t ch)
+{
+    const uint8_t *h = f + FM1_WIFI_RXWI, *e;
+    uint32_t len = fm1_wifi_rx_mpdu_len(f), i;
+    struct con_bss b;
+    if (len + FM1_WIFI_RXWI > n || len < 36u || (h[0] != 0x80u && h[0] != 0x50u))
+        return;                                           /* (beacon 0x80, probe response 0x50) */
+    for (i = 0; i < 6u; i++)
+        b.bssid[i] = h[16u + i];
+    for (i = 0; i < *nt; i++)
+        if (!memcmp(t[i].bssid, b.bssid, 6))
+            return;
+    b.ch = (uint8_t)ch;
+    b.rssi = (int8_t)fm1_wifi_rx_rssi(f);
+    b.ssid[0] = 0;
+    e = h + len;
+    for (h += 36u; h + 2u <= e && h + 2u + h[1] <= e; h += 2u + h[1]) {
+        if (h[0] == 0u && h[1] <= 32u) {                  /* SSID */
+            for (i = 0; i < h[1]; i++)
+                b.ssid[i] = (h[2 + i] >= 32u && h[2 + i] < 127u) ? (char)h[2 + i] : '.';
+            b.ssid[h[1]] = 0;
+        } else if (h[0] == 3u && h[1] == 1u) {           /* DS parameter: the AP's own channel */
+            b.ch = h[2];
+        }
+    }
+    if (*nt < 8u)
+        t[(*nt)++] = b;
+}
+static void con_wifiscan(void)
+{
+    uint32_t *buf = con_wifi_buf;
+    static struct con_bss t[8];
+    uint32_t nt = 0, ch, frames = 0, i, filt, ch0, t0;
+    if (!rfs_is_up() || !(fm1_wifi_rd(FM1_WL_EN) & FM1_WL_EN_WIFI)) {
+        con_puts("Wi-Fi not up: wifiup first\r\n");
+        return;
+    }
+    filt = fm1_wifi_mac_rd(FM1_WIFI_RX_FILTER);
+    ch0 = fm1_wifi_channel();
+    fm1_wifi_mac_wr(FM1_WIFI_RX_FILTER, FM1_WIFI_RX_FILTER_ALL);
+    for (ch = 1; ch <= 13u; ch++) {
+        fm1_wifi_set_channel(ch);
+        t0 = fm1_ticks();
+        while (fm1_ticks() - t0 < 150000u * FM1_TICKS_PER_US) {
+            int32_t n = fm1_wifi_rx(buf, CON_WIFI_MAX);
+            con_wifi_alive();
+            if (n < 0)
+                continue;                                 /* (a frame too long for the buffer: skipped) */
+            if (n > 0) {
+                frames++;
+                con_wifi_beacon((const uint8_t *)buf + 4u, (uint32_t)n, t, &nt, ch);
+            }
+        }
+    }
+    fm1_wifi_set_channel(ch0);
+    fm1_wifi_mac_wr(FM1_WIFI_RX_FILTER, filt);
+    con_kv("frames", (int32_t)frames);
+    for (i = 0; i < nt; i++) {
+        uint32_t k;
+        con_puts("bss ");
+        for (k = 0; k < 6u; k++) {
+            con_hex(t[i].bssid[k], 2);
+            con_putc(k < 5u ? ':' : ' ');
+        }
+        con_puts("ch ");
+        con_hex(t[i].ch, 2);
+        con_puts(" rssi ");
+        con_hex((uint8_t)t[i].rssi, 2);
+        con_puts(" \"");
+        con_puts(t[i].ssid);
+        con_puts("\"\r\n");
+    }
+}
+/* wifidata: after wifijoin, 3 s of the data frames on the joined channel (the station RX filter left as wifijoin set it):
+ * each one's frame control, its protected bit and 16 bytes after the 802.11 header (24, or 26 with QoS). Frames whose
+ * payload starts with LLC/SNAP AA AA 03 came in decrypted: the MAC's CCMP and the installed keys work. Listens only */
+static void con_wifidata(void)
+{
+    uint32_t *buf = con_wifi_buf, t0, i, n_data = 0, n_snap = 0, n_shown = 0;
+    if (!rfs_is_up() || !(fm1_wifi_rd(FM1_WL_EN) & FM1_WL_EN_WIFI)) {
+        con_puts("Wi-Fi not up: wifiup and wifijoin first\r\n");
+        return;
+    }
+    t0 = fm1_ticks();
+    while (fm1_ticks() - t0 < 3000000u * FM1_TICKS_PER_US) {
+        int32_t n = fm1_wifi_rx(buf, CON_WIFI_MAX);
+        const uint8_t *f = (const uint8_t *)buf + 4u, *h = f + FM1_WIFI_RXWI, *p;
+        uint32_t hl;
+        con_wifi_alive();
+        if (n <= 0 || (h[0] & 0x0Cu) != 0x08u)
+            continue;                                     /* (data frames only) */
+        n_data++;
+        hl = (h[0] & 0x80u) ? 26u : 24u;                  /* (QoS data: 2 more bytes) */
+        p = h + hl;
+        if (p[0] == 0xAAu && p[1] == 0xAAu && p[2] == 0x03u)
+            n_snap++;
+        if (n_shown++ < 6u) {
+            con_hex(h[0], 2);
+            con_hex(h[1], 2);
+            con_puts((h[1] & 0x40u) ? " prot " : " open ");
+            for (i = 0; i < 16u; i++)
+                con_hex(p[i], 2);
+            con_puts("\r\n");
+        }
+    }
+    con_kv("data_frames", (int32_t)n_data);
+    con_kv("llc_snap", (int32_t)n_snap);
+}
+
+/* wifipow [N]: read, or set, the TX power byte (byte 2 of 0x1405C) the stock firmware leaves at 6. For sweeping the
+ * handshake's link margin without reflashing: set it, then wifijoin again and watch the AP-side RSSI / 4-way progress.
+ * Preserved across wifijoin (set_channel only rewrites byte 0), so a value set here stays for the next join. */
+static void con_wifipow(const char *p)
+{
+    int ok;
+    uint32_t v;
+    if (!rfs_is_up() || !(fm1_wifi_rd(FM1_WL_EN) & FM1_WL_EN_WIFI)) {
+        con_puts("Wi-Fi not up: wifiup first\r\n");
+        return;
+    }
+    v = con_num(&p, &ok);
+    if (ok)
+        fm1_wifi_set_power(v);
+    con_kv("power", (int32_t)fm1_wifi_power());
+    con_kx("chan_reg", fm1_wifi_rd(FM1_WIFI_CHAN));
+}
+
+/* wifiwcid [N]: read, or set, the TXWI WirelessCliID used for software-CCMP TX. 0 = the no-key entry (HW cipher engine
+ * bypassed, our software-encrypted frame injected raw). Sweep 0/1/255 if the AP still rejects, to find the pass-through. */
+static void con_wifiwcid(const char *p)
+{
+    int ok;
+    uint32_t v = con_num(&p, &ok);
+    if (ok)
+        fm1_wifi_tx_wcid = v;
+    con_kv("tx_wcid", (int32_t)fm1_wifi_tx_wcid);
+}
+
+/* wifiswc [N]: 1 = CCMP in software in wl_send (pair with a keyless wifiwcid), 0 = the MAC encrypts (default) */
+static void con_wifiswc(const char *p)
+{
+    int ok;
+    uint32_t v = con_num(&p, &ok);
+    if (ok)
+        fm1_wifi_sw_ccmp = v ? 1u : 0u;
+    con_kv("sw_ccmp", (int32_t)fm1_wifi_sw_ccmp);
+}
+
+/* wifikey: read back the Ralink key-table / WCID registers after a join, to prove the writes actually land on the wl30
+ * core. The MAC CSRs (0x1xxx -> MMIO 0x31xxx) are known to work; the key tables live higher (0x4020 key, 0x6804 attr,
+ * 0x6008 IV -> MMIO 0x34020 / 0x36804 / 0x36008) and may be outside the decoded window. If these read back as 0 (not
+ * what wifi_sta_install_hw_keys wrote), the HW never got the key and TX encryption can't work regardless of the values. */
+static void con_wifikey(const char *p)
+{
+    (void)p;
+    con_kx("wcid1_rx_lo_0x1808", fm1_wifi_mac_rd(0x1808u));
+    con_kx("key_tk0_0x4020", fm1_wifi_mac_rd(0x4020u));
+    con_kx("key_tk1_0x4024", fm1_wifi_mac_rd(0x4024u));
+    con_kx("wcid1_attr_0x6804", fm1_wifi_mac_rd(0x6804u));
+    con_kx("wcid1_iv_0x6008", fm1_wifi_mac_rd(0x6008u));
+    con_kx("wcid1_eiv_0x600C", fm1_wifi_mac_rd(0x600Cu));
+}
+
+/* wifidma: can the frame DMA address the pool? Write a pool address and a main-RAM address to the TX pointer register
+ * (no transfer starts: the length register 0x30F14 is the kick) and read each back. High bits dropped on the pool
+ * address = the DMA wraps at 128 KiB onto RAMTEXT, which is why every IN_POOL TX buffer went out as garbage. */
+static void con_wifidma(const char *p)
+{
+    (void)p;
+    if (!rfs_is_up() || !(fm1_wifi_rd(FM1_WL_EN) & FM1_WL_EN_WIFI)) {
+        con_puts("Wi-Fi not up: wifiup first\r\n");
+        return;
+    }
+    fm1_wifi_wr(FM1_WIFI_TX_ADDR, 0x01C20004u);
+    con_kx("wrote_pool_0x01C20004_read", fm1_wifi_rd(FM1_WIFI_TX_ADDR));
+    fm1_wifi_wr(FM1_WIFI_TX_ADDR, 0x01C08004u);
+    con_kx("wrote_ram__0x01C08004_read", fm1_wifi_rd(FM1_WIFI_TX_ADDR));
+    fm1_wifi_wr(FM1_WIFI_TX_ADDR, 0x01C7C004u);
+    con_kx("wrote_hi___0x01C7C004_read", fm1_wifi_rd(FM1_WIFI_TX_ADDR));
+}
+
+/* wifiscan's engine for the networks code: channels 1-13, ms each, every beacon and probe response into t (wn_scan_add:
+ * one row a BSSID, strongest first). The AP's own channel is the DS parameter (wn_parse_beacon), not the one it was
+ * heard on: wifijoin used to take the listening channel, and a join to a neighbour channel timed out */
+static struct wn_scan con_scan IN_POOL;                 /* (main loop only, no DMA: the pool is fine) */
+static void con_wifi_scan_all(struct wn_scan *t, uint32_t ms)
+{
+    uint32_t *buf = con_wifi_buf, ch, t0;
+    wn_scan_clear(t);
+    fm1_wifi_mac_wr(FM1_WIFI_RX_FILTER, FM1_WIFI_RX_FILTER_ALL);
+    for (ch = 1; ch <= 13u; ch++) {
+        fm1_wifi_set_channel(ch);
+        t0 = fm1_ticks();
+        while (fm1_ticks() - t0 < ms * 1000u * FM1_TICKS_PER_US) {
+            int32_t n = fm1_wifi_rx(buf, CON_WIFI_MAX);
+            const uint8_t *f = (const uint8_t *)buf + 4u;
+            uint32_t mpdu;
+            struct wn_ap ap;
+            con_wifi_alive();
+            if (n <= 0)
+                continue;
+            mpdu = fm1_wifi_rx_mpdu_len(f);
+            if (mpdu + FM1_WIFI_RXWI <= (uint32_t)n &&
+                wn_parse_beacon(f + FM1_WIFI_RXWI, mpdu, (uint8_t)ch, (int8_t)fm1_wifi_rx_rssi(f), &ap))
+                wn_scan_add(t, &ap);
+        }
+    }
+}
+
+/* the join: scan, the strongest AP of the SSID (or the pinned BSSID), auth, assoc, the 4-way handshake. The credential
+ * is the passphrase, or a saved network's PMK. A join that completes is saved (wn_put: SSID + PMK, never the password):
+ * only a key a real handshake accepted ever lands in the list. 1 = keys installed (the link service is attached) */
+static int con_wifi_connect(const char *target_ssid, uint32_t target_ssid_len, const char *pass, const uint8_t *pmk,
+                            const uint8_t *pin_bssid)
+{
+    static uint32_t tx[(FM1_WIFI_TX_HDR + 256u) / 4u];
+    uint8_t *frame_tx = (uint8_t *)tx + FM1_WIFI_TX_HDR;
+    uint32_t *buf = con_wifi_buf;
+    uint8_t target_bssid[6] = {0};
+    uint32_t target_ch = 0, k;
+    uint8_t sta_mac[6];
+    struct wifi_sta sta;
+    uint32_t t0, tx_len = 0, hs_rx = 0;
+    int retry, ai = -1;
+
+    if (wn_st.mode != WN_MODE_OFF) {
+        con_puts("the Wi-Fi page's MODE is on: wifimode off first (the console join blocks the main loop)\r\n");
+        return 0;
+    }
+    if (!rfs_is_up() || !(fm1_wifi_rd(FM1_WL_EN) & FM1_WL_EN_WIFI)) {
+        con_puts("Wi-Fi not up: running wifiup\r\n");
+        con_wifiup();
+    }
+
+    con_puts("searching for \"");
+    con_puts(target_ssid);
+    con_puts("\"...\r\n");
+
+    con_wifi_scan_all(&con_scan, 150u);
+    if (pin_bssid) {
+        for (k = 0; k < con_scan.n; k++)
+            if (!memcmp(con_scan.ap[k].bssid, pin_bssid, 6) && con_scan.ap[k].ssid_len == target_ssid_len &&
+                !memcmp(con_scan.ap[k].ssid, target_ssid, target_ssid_len))
+                ai = (int)k;
+    } else {
+        ai = wn_scan_best_for(&con_scan, (const uint8_t *)target_ssid, target_ssid_len);
+    }
+    if (ai < 0) {
+        con_puts("SSID not found\r\n");
+        return 0;
+    }
+    memcpy(target_bssid, con_scan.ap[ai].bssid, 6);
+    target_ch = con_scan.ap[ai].ch;
+
+    con_puts("found bss ");
+    for (k = 0; k < 6u; k++) {
+        con_hex(target_bssid[k], 2);
+        con_putc(k < 5u ? ':' : ' ');
+    }
+    con_puts("ch ");
+    con_hex(target_ch, 2);
+    con_puts(" rssi ");
+    con_dec((int32_t)con_scan.ap[ai].rssi);
+    con_puts("\r\n");
+    if (con_scan.ap[ai].sec != WN_SEC_PSK)
+        con_puts("note: not WPA2-PSK with CCMP (the join will fail)\r\n");
+
+    /* Obtain station MAC address and set up MAC hardware registers */
+    wifi_sta_get_mac(sta_mac);
+    wifi_sta_set_mac_regs(sta_mac, target_bssid, target_ch);
+
+    wifi_sta_init(&sta, sta_mac, ble_hw_rand);
+    if (pmk)
+        wifi_sta_set_pmk(&sta, pmk, (const uint8_t *)target_ssid, target_ssid_len);
+    else
+        wifi_sta_set_creds(&sta, pass, (const uint8_t *)target_ssid, target_ssid_len);
+    wifi_sta_set_ap(&sta, target_bssid);
+
+    /* 1. Open System Authentication */
+    sta.state = WIFI_STA_STATE_AUTH;
+    con_puts("authenticating...");
+    for (retry = 0; retry < 3 && sta.state == WIFI_STA_STATE_AUTH; retry++) {
+        uint32_t flen = wifi_sta_build_auth(&sta, frame_tx);
+        fm1_wifi_tx_prepare(tx, flen);
+        fm1_wifi_tx(tx);
+
+        t0 = fm1_ticks();
+        while (fm1_ticks() - t0 < 300000u * FM1_TICKS_PER_US && sta.state == WIFI_STA_STATE_AUTH) {
+            int32_t n = fm1_wifi_rx(buf, CON_WIFI_MAX);
+            const uint8_t *f;
+            uint32_t mpdu_len;
+            con_wifi_alive();
+            if (n <= 0)
+                continue;
+            f = (const uint8_t *)buf + 4u;
+            mpdu_len = fm1_wifi_rx_mpdu_len(f);
+            if (mpdu_len + FM1_WIFI_RXWI <= (uint32_t)n)
+                wifi_sta_rx_frame(&sta, f + FM1_WIFI_RXWI, mpdu_len, frame_tx, &tx_len);
+        }
+    }
+
+    if (sta.state != WIFI_STA_STATE_ASSOC) {
+        con_puts(" auth timeout / failed\r\n");
+        return 0;
+    }
+    con_puts(" ok\r\n");
+
+    /* 2. Association Request */
+    con_puts("associating...");
+    for (retry = 0; retry < 3 && sta.state == WIFI_STA_STATE_ASSOC; retry++) {
+        uint32_t flen = wifi_sta_build_assoc_req(&sta, frame_tx);
+        fm1_wifi_tx_prepare(tx, flen);
+        fm1_wifi_tx(tx);
+
+        t0 = fm1_ticks();
+        while (fm1_ticks() - t0 < 300000u * FM1_TICKS_PER_US && sta.state == WIFI_STA_STATE_ASSOC) {
+            int32_t n = fm1_wifi_rx(buf, CON_WIFI_MAX);
+            const uint8_t *f;
+            uint32_t mpdu_len;
+            con_wifi_alive();
+            if (n <= 0)
+                continue;
+            f = (const uint8_t *)buf + 4u;
+            mpdu_len = fm1_wifi_rx_mpdu_len(f);
+            if (mpdu_len + FM1_WIFI_RXWI <= (uint32_t)n)
+                wifi_sta_rx_frame(&sta, f + FM1_WIFI_RXWI, mpdu_len, frame_tx, &tx_len);
+        }
+    }
+
+    if (sta.state != WIFI_STA_STATE_WAIT_M1) {
+        con_puts(" assoc timeout / failed\r\n");
+        return 0;
+    }
+    con_puts(" ok aid ");
+    con_dec((int32_t)sta.aid);
+    con_puts("\r\n");
+
+    /* 3. 4-Way WPA2 Handshake */
+    con_puts("handshake...");
+    t0 = fm1_ticks();
+    while (fm1_ticks() - t0 < 6000000u * FM1_TICKS_PER_US && sta.state != WIFI_STA_STATE_CONNECTED && sta.state != WIFI_STA_STATE_FAILED) {
+        int32_t n = fm1_wifi_rx(buf, CON_WIFI_MAX);
+        const uint8_t *f;
+        uint32_t mpdu_len;
+        con_wifi_alive();
+        if (n <= 0)
+            continue;
+        f = (const uint8_t *)buf + 4u;
+        mpdu_len = fm1_wifi_rx_mpdu_len(f);
+        if (mpdu_len + FM1_WIFI_RXWI <= (uint32_t)n) {
+            int res = wifi_sta_rx_frame(&sta, f + FM1_WIFI_RXWI, mpdu_len, frame_tx, &tx_len);
+            hs_rx++;
+            if (res == 1) {
+                fm1_wifi_tx_prepare(tx, tx_len);
+                fm1_wifi_tx(tx);
+            }
+        }
+    }
+
+    if (sta.state == WIFI_STA_STATE_CONNECTED) {
+        con_puts(" ok, connected, keys installed\r\n");
+        wl_attach(&sta);
+        if (wn_put(&wn_st, (const uint8_t *)target_ssid, target_ssid_len, sta.pmk) == 0) {
+            settings_later = 1;                            /* (written with the settings, once quiet) */
+            con_puts("saved (SSID + key, not the password)\r\n");
+        }
+        return 1;
+    }
+    con_puts(" handshake failed / timeout\r\n");
+    con_puts(sta.state == WIFI_STA_STATE_WAIT_M1 ? "  never saw M1 (the AP's first key frame)"
+             : sta.state == WIFI_STA_STATE_WAIT_M3 ? "  M1 seen, M2 sent, M3 never came (weak uplink, or the AP never heard M2)"
+             : sta.state == WIFI_STA_STATE_FAILED ? "  a key frame failed its check (wrong password?)" : "  state ?");
+    con_puts(", frames in the window: ");
+    con_dec((int32_t)hs_rx);
+    con_puts("\r\n");
+    return 0;
+}
+
+/* wifijoin <ssid> [passphrase] [bssid]: the passphrase, then the join; [bssid] pins one AP of the SSID */
+static void con_wifijoin(const char *p)
+{
+    char ssid[33] = {0}, pass[65] = {0}, bssid_arg[24] = {0};
+    uint8_t pin[6] = {0};
+    uint32_t k, n = 0;
+    int nib = 0;
+    if (!con_str(&p, ssid, sizeof ssid)) {
+        con_puts("usage: wifijoin <ssid> [passphrase] [bssid]\r\n");
+        return;
+    }
+    con_str(&p, pass, sizeof pass);
+    if (con_str(&p, bssid_arg, sizeof bssid_arg)) {         /* any hex, separators ignored */
+        for (k = 0; bssid_arg[k] && nib < 12; k++) {
+            char c2 = bssid_arg[k];
+            int v2 = (c2 >= '0' && c2 <= '9') ? c2 - '0'
+                   : (c2 >= 'a' && c2 <= 'f') ? c2 - 'a' + 10
+                   : (c2 >= 'A' && c2 <= 'F') ? c2 - 'A' + 10 : -1;
+            if (v2 < 0)
+                continue;
+            if (nib & 1)
+                pin[nib / 2] |= (uint8_t)v2;
+            else
+                pin[nib / 2] = (uint8_t)(v2 << 4);
+            nib++;
+        }
+    }
+    while (ssid[n])
+        n++;
+    con_wifi_connect(ssid, n, pass, 0, nib == 12 ? pin : 0);
+    memset(pass, 0, sizeof pass);
+}
+
+/* wifinets: the saved networks (never the keys) */
+static void con_wifinets(const char *p)
+{
+    uint32_t i;
+    (void)p;
+    con_kv("mode", (int32_t)wn_st.mode);
+    for (i = 0; i < WN_SLOTS; i++) {
+        char nm[33];
+        if (wn_st.n[i].used != 1u)
+            continue;
+        memcpy(nm, wn_st.n[i].ssid, wn_st.n[i].ssid_len);
+        nm[wn_st.n[i].ssid_len] = 0;
+        con_dec((int32_t)i + 1);
+        con_puts(" ");
+        con_puts(nm);
+        con_puts("  (key saved)\r\n");
+    }
+    if (!wn_count(&wn_st))
+        con_puts("none saved: wifijoin <ssid> <passphrase> saves a network once it joined\r\n");
+}
+
+/* wifigo [n]: join saved network n (1 = the latest) with its saved key: no password */
+static void con_wifigo(const char *p)
+{
+    int ok;
+    uint32_t n = con_num(&p, &ok);
+    char nm[33];
+    uint32_t slot = ok && n >= 1u ? n - 1u : 0u;
+    if (slot >= WN_SLOTS || wn_st.n[slot].used != 1u) {
+        con_puts("no such saved network (wifinets)\r\n");
+        return;
+    }
+    memcpy(nm, wn_st.n[slot].ssid, wn_st.n[slot].ssid_len);
+    nm[wn_st.n[slot].ssid_len] = 0;
+    con_wifi_connect(nm, wn_st.n[slot].ssid_len, 0, wn_st.n[slot].pmk, 0);
+}
+
+/* wififorget <n>: saved network n and its key are deleted */
+static void con_wififorget(const char *p)
+{
+    int ok;
+    uint32_t n = con_num(&p, &ok);
+    if (!ok || n < 1u || n > WN_SLOTS || wn_st.n[n - 1u].used != 1u) {
+        con_puts("usage: wififorget <n> (wifinets)\r\n");
+        return;
+    }
+    wn_forget(&wn_st, n - 1u);
+    settings_later = 1;
+    con_puts("forgotten\r\n");
+}
+
+
+/* wifiman [scan on|off] [join N [password]] [drop]: the connection manager (wifi_conn.c) from the console, to test it before
+ * the page: state, the APs it has heard (N), a scan on or off, a join (a saved network needs no password), let go */
+static void con_wifiman(const char *p)
+{
+    static const char *const ST[] = {"OFF", "RADIO", "IDLE", "SCAN", "PMK", "AUTH", "ASSOC", "HS", "UP", "FAIL", "LINK", "PRE"};
+    static const char *const FL[] = {"-", "NO CAL", "NO AP", "AUTH", "ASSOC", "HANDSHAKE", "WRONG PASSWORD"};
+    uint32_t i;
+    int ok;
+    if (con_word(&p, "scan")) {
+        wc.scan_want = (uint8_t)con_word(&p, "on");
+        if (wc.scan_want)
+            wc_scan_clear();
+    } else if (con_word(&p, "drop")) {
+        wc_disconnect();
+    } else if (con_word(&p, "join")) {
+        uint32_t n = con_num(&p, &ok);
+        char pass[65] = {0};
+        int sv;
+        if (!ok || n < 1u || n > wc_tab.n) {
+            con_puts("usage: wifiman join <n> [password] (the AP's number in the list)\r\n");
+            return;
+        }
+        con_str(&p, pass, sizeof pass);
+        sv = wn_find(&wn_st, wc_tab.ap[n - 1u].ssid, wc_tab.ap[n - 1u].ssid_len);
+        if (pass[0])
+            wc_join(&wc_tab.ap[n - 1u], 0, pass);
+        else if (sv >= 0)
+            wc_join(&wc_tab.ap[n - 1u], wn_st.n[sv].pmk, 0);
+        else
+            con_puts("not a saved network: give its password\r\n");
+        memset(pass, 0, sizeof pass);
+    }
+    con_puts("state ");
+    con_puts(ST[wc.st % 12u]);
+    con_puts(wc.st == WC_FAIL ? " " : "");
+    con_puts(wc.st == WC_FAIL ? FL[wc.fail % 7u] : "");
+    con_puts("\r\n");
+    con_kv("mode", (int32_t)wn_st.mode);
+    con_kv("scan_want", wc.scan_want);
+    con_kv("sweeps", (int32_t)wc.sweeps);
+    con_kv("join_attempt", wc.attempt);
+    con_kv("join_frames", (int32_t)wc.d_n);
+    con_kv("join_mgmt_to_us", (int32_t)wc.d_mg);
+    con_kx("last_ap_mgmt", wc.d_sub);
+    con_kv("last_status", (int32_t)wc.d_stat);
+    if (wc.st == WC_UP)
+        con_wl_ip("ip", wl.ip.ip);
+    for (i = 0; i < wc_tab.n; i++) {
+        char nm[33];
+        const struct wn_ap *a = &wc_tab.ap[i];
+        memcpy(nm, a->ssid, a->ssid_len);
+        nm[a->ssid_len] = 0;
+        con_dec((int32_t)i + 1);
+        con_puts(" ");
+        con_hex(a->bssid[4], 2);
+        con_hex(a->bssid[5], 2);
+        con_puts(" ch");
+        con_dec((int32_t)a->ch);
+        con_puts(" ");
+        con_dec((int32_t)a->rssi);
+        con_puts(a->sec == WN_SEC_PSK ? " psk " : a->sec == WN_SEC_OPEN ? " open " : " other ");
+        con_puts(wn_find(&wn_st, a->ssid, a->ssid_len) >= 0 ? "SAVED " : "");
+        con_puts(nm);
+        con_puts("\r\n");
+    }
+}
+
+/* wifimode [off|man|auto]: read or set, as the Bluetooth pages: OFF the radio stays off, MAN joins when told, AUTO joins the
+ * best saved network heard (start-up and whenever none is joined: the page and the service, next) */
+static void con_wifimode(const char *p)
+{
+    if (con_word(&p, "off"))
+        wn_st.mode = WN_MODE_OFF, settings_later = 1;
+    else if (con_word(&p, "man"))
+        wn_st.mode = WN_MODE_MAN, settings_later = 1;
+    else if (con_word(&p, "auto"))
+        wn_st.mode = WN_MODE_AUTO, settings_later = 1;
+    con_puts(wn_st.mode == WN_MODE_AUTO ? "mode AUTO\r\n" : wn_st.mode == WN_MODE_MAN ? "mode MAN\r\n" : "mode OFF\r\n");
+}
+#if FELUCCA_WIFI_AP
+/* wifiap <ssid> <passphrase> [channel] [mc]: MODE AP from the console (needs wifimode off); `wifiap off` stops it; no argument
+ * prints the state, the clients and the counters. mc: 0 group frames as unicast to each client (default), N the group key at WCID N */
+static void con_wifiap(const char *p)
+{
+    static const char *const ST[] = {"OFF", "KEY", "RADIO", "UP", "FAIL"};
+    char ssid[33] = {0}, pass[65] = {0};
+    uint32_t i, n = 0, ch = 6u, mc = 0u;
+    int ok;
+    if (con_word(&p, "off")) {
+        wa_stop();
+        con_puts("AP off\r\n");
+        return;
+    }
+    if (con_str(&p, ssid, sizeof ssid)) {
+        con_str(&p, pass, sizeof pass);
+        i = con_num(&p, &ok);
+        if (ok)
+            ch = i;
+        i = con_num(&p, &ok);
+        if (ok)
+            mc = i;
+        while (ssid[n])
+            n++;
+        if (wa_start((const uint8_t *)ssid, n, pass, ch, mc) != 0)
+            con_puts("not started: wifimode off first; a name, a passphrase of 8 to 63 characters, channel 1..13\r\n");
+        memset(pass, 0, sizeof pass);
+    }
+    con_puts("AP ");
+    con_puts(ST[wa.st]);
+    con_puts("\r\n");
+    con_kv("channel", (int32_t)wa.ch);
+    con_kv("mc", (int32_t)wa.mc);
+    for (i = 0; i < WIFI_AP_CLIENTS; i++) {
+        if (wa.ap.clients[i].state == WIFI_AP_CL_NONE)
+            continue;
+        con_dec((int32_t)i + 1);
+        con_puts(" client state ");
+        con_dec((int32_t)wa.ap.clients[i].state);
+        con_puts(" hs ");
+        con_dec((int32_t)wa.hs[i].state);
+        con_puts(wa.keyed[i] ? " KEYED " : " ");
+        con_hex(((uint32_t)wa.ap.clients[i].mac[0] << 16) | ((uint32_t)wa.ap.clients[i].mac[1] << 8) | wa.ap.clients[i].mac[2], 6);
+        con_hex(((uint32_t)wa.ap.clients[i].mac[3] << 16) | ((uint32_t)wa.ap.clients[i].mac[4] << 8) | wa.ap.clients[i].mac[5], 6);
+        con_puts("\r\n");
+    }
+    con_kv("beacons", (int32_t)wa.n.beacon);
+    con_kv("mgmt", (int32_t)wa.n.mgmt);
+    con_kv("probes", (int32_t)wa.n.probe);
+    con_kv("probe_answers", (int32_t)wa.n.probe_tx);
+    con_kv("auth", (int32_t)wa.n.auth);
+    con_kv("assoc", (int32_t)wa.n.assoc);
+    con_kv("eapol", (int32_t)wa.n.eapol);
+    con_kv("m2", (int32_t)wa.n.m2);
+    con_kv("m4", (int32_t)wa.n.m4);
+    con_kv("bad_key_frames", (int32_t)wa.n.bad);
+    con_kv("data_to_us", (int32_t)wa.n.data);
+    con_kv("data_decrypted", (int32_t)wa.n.dec);
+    con_kv("data_still_protected", (int32_t)wa.n.prot);
+    con_kv("dhcp_replies", (int32_t)wa.n.dhcp);
+    con_kv("peers", (int32_t)lk_peers(&wl_lk));
+    con_kv("link_rx", (int32_t)wa.n.link_rx);          /* UDP datagrams to Link's port from a client (multicast or not) */
+    con_kv("link_unicast_rx", (int32_t)wa.n.link_uc);
+    con_kv("link_copies_tx", (int32_t)wa.n.mc_tx);     /* group frames sent, one copy a client */
+    con_kv("strays_told", (int32_t)wa.n.stray);        /* deauths to stations that sent data and were not ours */
+    con_kv("tx", (int32_t)wa.n.tx);
+    con_kv("tx_err", (int32_t)wa.n.tx_err);
+}
+#endif
+#endif /* FELUCCA_WIFI_CON */
+#endif
+
 static void con_blevm(void)                         /* stock V15's VM where the firmware finds it (ble_vm.h's candidates) */
 {
     struct ble_vm_info in;
@@ -1116,6 +1791,9 @@ static void con_exec(const char *p)
 #endif
 #if FELUCCA_BLE
                  "  blevm  blevmdump  bletrim"
+#if BLE_HW_WL82 && FELUCCA_WIFI && FELUCCA_WIFI_CON
+                 "  wifiup  wifiscan  wifijoin  wifidata  wifilink  wifibig [N]  wifipow [N]  wifiwcid [N]  wifiswc [N]  wifikey  wifidma  wifinets  wifigo [N]  wififorget N  wifimode [off|man|auto]  wifiman [scan on|off | join N [pw] | drop]"
+#endif
 #if BLE_DIAG
                  "  blell [clear|regs]"
 #endif
@@ -1196,6 +1874,44 @@ static void con_exec(const char *p)
         con_blevm();
     else if (con_word(&p, "bletrim"))
         con_bletrim();
+#if BLE_HW_WL82 && FELUCCA_WIFI && FELUCCA_WIFI_CON
+    else if (con_word(&p, "wifiup"))
+        con_wifiup();
+    else if (con_word(&p, "wifilink"))
+        con_wifilink(p);
+    else if (con_word(&p, "wifiscan"))
+        con_wifiscan();
+    else if (con_word(&p, "wifidata"))
+        con_wifidata();
+    else if (con_word(&p, "wifijoin"))
+        con_wifijoin(p);
+    else if (con_word(&p, "wifibig"))
+        con_wifibig(p);
+    else if (con_word(&p, "wifipow"))
+        con_wifipow(p);
+    else if (con_word(&p, "wifiwcid"))
+        con_wifiwcid(p);
+    else if (con_word(&p, "wifiswc"))
+        con_wifiswc(p);
+    else if (con_word(&p, "wifikey"))
+        con_wifikey(p);
+    else if (con_word(&p, "wifidma"))
+        con_wifidma(p);
+    else if (con_word(&p, "wifinets"))
+        con_wifinets(p);
+    else if (con_word(&p, "wifigo"))
+        con_wifigo(p);
+    else if (con_word(&p, "wififorget"))
+        con_wififorget(p);
+    else if (con_word(&p, "wifimode"))
+        con_wifimode(p);
+    else if (con_word(&p, "wifiman"))
+        con_wifiman(p);
+#if FELUCCA_WIFI_AP
+    else if (con_word(&p, "wifiap"))
+        con_wifiap(p);
+#endif
+#endif
 #if BLE_DIAG
     else if (con_word(&p, "blell"))
         con_blell(p);

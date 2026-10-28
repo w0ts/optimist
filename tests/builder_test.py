@@ -949,5 +949,26 @@ if real.exists() and "dual_job:" in real.read_text():
     d, path = BUILD.cpu1_stack(real.read_text())
     check(f"build.py CPU1 stack: the real DUAL build's ({d} B, {path[-1]}) within {BUILD.CPU1_STACK_ROOM} B",
           0 < d <= BUILD.CPU1_STACK_ROOM)
+
+# Wi-Fi (2026-10-28): WIFI_LINK (bit 434) needs BLE and the console, WIFI_AP (bit 435) is its option; FELUCCA_LINK follows
+# FELUCCA_WIFI; both off by default, target only (the host tests keep their own default)
+_wd = K.defaults()
+_wl = dict(_wd, BLE=1, USB_CONSOLE=1, WIFI_LINK=1)
+_wf = K.flags(_wl)[0]
+check("Wi-Fi: WIFI_LINK 434 (FELUCCA_WIFI) and its option WIFI_AP 435 (FELUCCA_WIFI_AP), off by default, target only",
+      items["WIFI_LINK"].bit == 434 and items["WIFI_AP"].bit == 435 and items["WIFI_AP"].parent == "WIFI_LINK" and
+      items["WIFI_LINK"].flag == "FELUCCA_WIFI" and items["WIFI_AP"].flag == "FELUCCA_WIFI_AP" and
+      items["WIFI_LINK"].default == 0 and items["WIFI_AP"].default == 0 and
+      items["WIFI_LINK"].target_only and items["WIFI_AP"].target_only)
+check("Wi-Fi: WIFI_AP is honest about the device: experimental, its description says not tested",
+      items["WIFI_AP"].experimental and "not tested" in items["WIFI_AP"].desc.lower())
+check("Wi-Fi: with BLE and the console it is valid, FELUCCA_WIFI and FELUCCA_LINK 1 in the header, the AP flag 0",
+      not K.validate(_wl)[0] and _wf["FELUCCA_WIFI"] == 1 and _wf["FELUCCA_LINK"] == 1 and _wf["FELUCCA_WIFI_AP"] == 0 and
+      "#define FELUCCA_LINK 1" in K.header(_wl))
+check("Wi-Fi: WIFI_AP on sets FELUCCA_WIFI_AP; with Wi-Fi off its flag stays at the default 0",
+      K.flags(dict(_wl, WIFI_AP=1))[0]["FELUCCA_WIFI_AP"] == 1 and
+      K.flags(dict(_wd, WIFI_AP=1))[0]["FELUCCA_WIFI_AP"] == 0 and K.flags(_wd)[0]["FELUCCA_LINK"] == 0)
+check("Wi-Fi: without BLE or without the console the build is refused",
+      bool(K.validate(dict(_wl, BLE=0))[0]) and bool(K.validate(dict(_wl, USB_CONSOLE=0))[0]) and not K.validate(_wd)[0])
 print("builder test " + ("FAILED" if fails else "passed"))
 sys.exit(1 if fails else 0)

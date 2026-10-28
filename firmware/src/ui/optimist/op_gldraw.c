@@ -73,7 +73,11 @@ static void gl_lrow(const cell_t *c, int32_t y, gl_lrow_t *r)
 {
     char lv[14];
     cut(r->nm, nm_card(c->label ? c->label : "", 0, r->nm, sizeof r->nm), 12);
+#if WIFI_UI
+    cut(r->v, gl_text(c, lv), c->wide ? 15u : 13u);
+#else
     cut(r->v, gl_text(c, lv), 13);
+#endif
     r->uw = c->kind != CK_ACT && c->unit[0] ? text_ws(c->unit) : 0;
     r->f = r->nf = &FONT_S;
     r->ty = r->fy = gl_ty(y, GL_BH);                    /* (the text, then the bar, centred in the line) */
@@ -220,6 +224,17 @@ static void gl_paint(void)
         return;
     }
 #endif
+#if WIFI_UI
+    if (gld.s && wf_pg_shown()) {                       /* the WI-FI page with nothing joined: the same (op_wifi.c wf_pg_paint) */
+        for (i = gld.first; i < gld.end; i++, y += gl_pitch())
+            if (i == gld.first || i == gld.first + 3u) {
+                gl_cell(gld.s, i, &c);
+                gl_line_draw(i - gld.first, y, &c, i == gld.cur);
+            }
+        wf_pg_paint(gl_y0() + gl_pitch(), gl_y0() + 3 * gl_pitch(), gld.bar);
+        return;
+    }
+#endif
     for (i = gld.first; i < gld.end; i++) {
         gl_cell(gld.s, i, &c);
         gl_line_draw(i - gld.first, y, &c, i == gld.cur);
@@ -246,6 +261,10 @@ static void gl_draw(void)
 #if FELUCCA_BT_UI
     if (gld.s && bt_pg_shown())
         sig = hu(sig, bt_pg_sig(bt_pg_shown() - 1u));   /* (a Bluetooth page's devices) */
+#endif
+#if WIFI_UI
+    if (gld.s && wf_pg_shown())
+        sig = hu(sig, wf_pg_sig());                     /* (the WI-FI page's networks) */
 #endif
     if (gl_info())
         for (i = 0; i < info_lines(gl_info() - 1u); i++) {   /* (the info pages: their read-outs) */
