@@ -80,5 +80,14 @@ check(s.x.sim_status() === 0, 'no drums, restarted on its own flash: boots');
 s.run(2);
 const r4 = noteRms(s, 4);
 check(r4 > 50, `no drums, restarted: track 4 plays (rms ${r4.toFixed(0)})`);
+// ---- HOME, the mixer: T4's VOLUME is its own LEVEL (issue #87: it turned the drum track's, which nothing reads)
+const enc = (name, d) => { s.x.sim_enc(names(s.x.sim_enc_names()).indexOf(name), d); s.run(0.05); };
+function names(p) { const m = new Uint8Array(s.x.memory.buffer); let e = p; while (m[e]) e++; return Buffer.from(m.slice(p, e)).toString().split('\n'); }
+const t1 = noteRms(s, 1);
+for (let i = 0; i < 3; i++) enc('ALGORITHM', 1);       // (booted on the mixer, T1's row; ALGORITHM to T4's. HOME: SCOPE)
+for (let i = 0; i < 40; i++) enc('KNOB 1', -4);       // (VOLUME down)
+const q4 = noteRms(s, 4), q1 = noteRms(s, 1);
+check(q4 < r4 * 0.5, `no drums, HOME: T4's VOLUME down turns track 4 down (rms ${r4.toFixed(0)} -> ${q4.toFixed(0)})`);
+check(Math.abs(q1 - t1) < t1 * 0.1, `no drums, HOME: track 1 untouched (rms ${t1.toFixed(0)} -> ${q1.toFixed(0)})`);
 console.log(fails ? `ND SIM FAILED (${fails})` : 'ND SIM PASSED');
 process.exit(fails ? 1 : 0);
