@@ -469,6 +469,7 @@
       "BRIGHT": {"text": "Backlight (8: full)", "if": "FELUCCA_BRIGHT"},
       "KNOB COLORS": "Knob numbers in cap colours",
       "LOWCUT": "Output low cut or bass boost", "FILT RESO": "Track filter resonance"}},
+    {"kind": "op", "ctx": "METERS", "params": {"VU FLOOR": "Level at the meters' bottom"}},
     {"kind": "op", "ctx": "KEYS", "if": "FELUCCA_LIGHTS", "params": {
       "BUTTONS": "Buttons glow in the dark", "KEYS": "Which keys glow"}},
     {"kind": "op", "ctx": "USB", "if": "FELUCCA_CDC", "params": {"SERIAL": "USB serial console (restart)"}},
