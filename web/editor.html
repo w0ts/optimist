@@ -14670,7 +14670,7 @@ function renderSync() {
 }
 $("syncbtn").addEventListener("click", () => {
   showTab("settings");
-  const si = dev ? dev.gdesc.findIndex((d) => d && d.label === "SYNC") : -1, c = si >= 0 && ctl.get(key(1, si));
+  const si = dev ? dev.gdesc.findIndex((d) => d && d.label === "SYNC") : -1, c = si >= 0 && ctlMap.get(key(1, si));
   const at = c && [c.input, c.row].find((x) => x && x.isConnected && x.closest);
   const target = (at && (at.closest(".group") || at)) || $("setgroups");
   target.scrollIntoView({ block: "center" });
@@ -14902,7 +14902,7 @@ function onSong(sg) {
   d.snaps = sg.snaps;
 }
 function pulseRow(k) {                                /* a pushed value: its row stays bold for 400 ms */
-  const entry = ctl.get(k);
+  const entry = ctlMap.get(k);
   if (entry?.row == null) return;
   entry.row.classList.add("pushed");
   clearTimeout(entry.blink);
