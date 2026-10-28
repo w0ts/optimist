@@ -112,6 +112,9 @@ struct RootView: View {
     var body: some View {
         ZStack {                        // (the tabs made once, the welcome screen over them: made again after a USB -> Bluetooth
             tabs                        //  switch, under the Bluetooth sheet, the Mac's tab bar took no click; the user, 2026-10-24)
+            if link.state != .searching, let info = link.companion {   // (an fm1-base app: its own screens over Optimist's tabs)
+                Fm1BaseRoot(link: link, info: info)
+            }
             if link.state != .searching {   // (Disconnect, top right: back to the home page, where the connection is made; the user, 2026-10-25)
                 Button { link.disconnect() } label: {
                     Image(systemName: "eject.fill").font(.body.weight(.semibold)).frame(width: 34, height: 34)
