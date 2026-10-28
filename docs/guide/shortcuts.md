@@ -48,6 +48,8 @@ Every button, knob and key gesture, grouped by what you want to do, then the one
 |---|---|---|
 | KNOB 1-4 | a page | card 1-4; the turned card is the cursor and the help line names it |
 | SHIFT + a knob | a page | the value back to its default (the mixer's volume and return cards: their mute, see Mixing) |
+| SHIFT + the VOLUME pot | any page | the USB input's VOLUME (the computer's audio): half the pot's travel is its whole range, from where it was; the headphones' volume holds until the pot is back where it was [USB_AUDIO] |
+| SHIFT2 + the VOLUME pot, 15 % | any page, Bluetooth audio on | the output switched between Bluetooth and the FM-1's own, or the last device reconnected [BT_AUDIO] |
 | LFO + a knob | any page | the finer path: a value by one, PATTERN's LEN by one step, not in powers of two |
 | REC + a knob | any page, no step held | that value's motion and p-locks cleared on every step of the track (see Clearing) |
 | SAVE | a card that is an action, an on / off or a GO | does it (an action asks first) |

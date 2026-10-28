@@ -637,13 +637,14 @@ static void bt_poll(void)
 
 #if FELUCCA_BT_AUDIO
 #include "op_volgest.h"
-/* SHIFT + the volume knob (system/main.c master_pot, a reading at a time): 15 % of its travel switches the output
+/* SHIFT2 + the volume knob (system/main.c master_pot, a reading at a time): 15 % of its travel switches the output
  * between Bluetooth audio and the FM-1's own, while audio streams (op_volgest.h); 1: the volume holds. BT AUDIO's side
- * only: BT MIDI's link is not touched */
+ * only: BT MIDI's link is not touched. SHIFT2, not SHIFT: SHIFT + the knob is the USB input's VOLUME (op_mixer.c
+ * ut_vol_hold; the user, 2026-10-28) */
 static struct vgest bt_vg;
 static int bt_vol_hold(int32_t knob)
 {
-    int t, held = vgest_step(&bt_vg, btn_held(B_OCTDN), knob, &t);
+    int t, held = vgest_step(&bt_vg, btn_held(B_OCTUP) && !btn_held(B_OCTDN), knob, &t);
     if (t) {
         char nm[BLE_NAME_MAX + 1u];
         int on = bt_mode(BT_AUD) != BT_OFF;
