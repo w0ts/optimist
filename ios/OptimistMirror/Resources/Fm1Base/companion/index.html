@@ -1,0 +1,234 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: MPL-2.0
+     Copyright (C) 2026 Henri David
+     The companion page (docs/COMPANION.md): any fm1-base firmware built with companion = true, over Web MIDI or the
+     browser emulator (its port part, web/emu/parts/port_client.js, when the site has it): what the FM-1 runs and has,
+     the app's files (download, upload, delete) and its parameters (edited, kept up to date while shown). Nothing of
+     any one app here: everything comes from the FM-1 (device/companion.c). companion.js beside it is the protocol;
+     tools/make_site.py puts both in a site's companion/ with companion = true. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FM-1 Companion</title>
+<meta name="description" content="See what an FM-1 runs, move its files to and from this computer, and edit its settings. Chrome or Edge.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600&family=Barlow+Semi+Condensed:wght@600;700&display=swap">
+<style>
+:root { --ground: #faf4e8; --ink: #48392f; --muted: #725f4c; --rule: #e6dccb; --accent: #e0683a; --teal: #1f8a80; --card: #fffaf1;
+        --accent-ink: #b4481c; --on-accent: #2a140a; color-scheme: light; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --ground: #1c1814; --ink: #f2e8d8; --muted: #b3a28e; --rule: #3a322a; --accent: #f28a5a; --teal: #4cc3b6; --card: #26201b;
+                                    --accent-ink: #f28a5a; color-scheme: dark; }
+}
+:root[data-theme="dark"] { --ground: #1c1814; --ink: #f2e8d8; --muted: #b3a28e; --rule: #3a322a; --accent: #f28a5a; --teal: #4cc3b6; --card: #26201b;
+                           --accent-ink: #f28a5a; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { background: var(--ground); color: var(--ink); margin: 0; padding-inline: 16px; padding-block: 32px 64px;
+       font: 400 17px/1.55 "Barlow", "Helvetica Neue", Arial, sans-serif; }
+main { max-width: 46rem; margin: 0 auto; }
+h1 { font: 700 2.2rem/1.1 "Barlow Semi Condensed", "Barlow", sans-serif; margin: 0 0 .6rem; }
+h2 { font: 600 1.3rem/1.2 "Barlow Semi Condensed", "Barlow", sans-serif; margin: 0 0 .6rem; }
+h3 { font: 600 1rem/1.2 "Barlow Semi Condensed", "Barlow", sans-serif; margin: .8rem 0 .3rem; color: var(--muted);
+     text-transform: uppercase; letter-spacing: .04em; }
+p { margin: 0 0 .8rem; }
+:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+.lede { color: var(--muted); margin-bottom: 1.4rem; }
+.card { background: var(--card); border: 1px solid var(--rule); border-radius: 12px; padding: 1rem 1.1rem; margin: 0 0 1rem; }
+button, label.pick { font: 600 .95rem "Barlow", sans-serif; border-radius: 999px; padding: .35em 1.1em; cursor: pointer;
+                     border: 1px solid var(--accent); display: inline-block; background: var(--ground); color: var(--ink); }
+button.primary { background: var(--accent); color: var(--on-accent); }
+button.quiet, label.pick { border-color: var(--rule); }
+button:disabled { opacity: .35; cursor: default; }
+label.pick input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+label.pick:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.row { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; }
+.status { border-left: 4px solid var(--teal); background: var(--card); border-radius: 0 10px 10px 0; padding: .7rem 1rem; margin: 0 0 1rem; }
+.status.err { border-left-color: var(--accent); }
+.status p { margin: 0; }
+progress { width: 100%; height: 6px; accent-color: var(--teal); }
+progress[hidden], [hidden] { display: none !important; }
+dl { display: grid; grid-template-columns: max-content 1fr; gap: .2rem 1rem; margin: 0; }
+dt { color: var(--muted); }
+dd { margin: 0; overflow-wrap: anywhere; }
+.chips { display: flex; flex-wrap: wrap; gap: .3rem; }
+.chip { font-size: .85rem; border: 1px solid var(--rule); border-radius: 999px; padding: 0 .6em; }
+table { width: 100%; border-collapse: collapse; font-size: .95rem; }
+th { text-align: left; color: var(--muted); font-weight: 600; border-bottom: 1px solid var(--rule); padding: .3rem .4rem; }
+td { border-bottom: 1px solid var(--rule); padding: .4rem; vertical-align: middle; }
+td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.table-wrap { overflow-x: auto; }
+.param { display: grid; grid-template-columns: minmax(7rem, 1fr) 2fr minmax(5.5rem, auto); gap: .6rem; align-items: center;
+         padding: .25rem 0; }
+.param input[type=range] { width: 100%; accent-color: var(--teal); }
+.param input[type=number], .param select { font: inherit; width: 100%; padding: .15rem .3rem; border: 1px solid var(--rule);
+         border-radius: 6px; background: var(--ground); color: var(--ink); }
+.param .ro { color: var(--muted); }
+.small { color: var(--muted); font-size: .92rem; }
+@media (max-width: 30rem) { .param { grid-template-columns: 1fr 1fr; } .param .ctl { grid-column: 1 / -1; grid-row: 2; } }
+</style>
+</head>
+<body>
+<main>
+<h1>FM-1 Companion</h1>
+<p class="lede">See what an FM-1 runs, move its files to and from this computer, and change its settings. Connect the FM-1
+with a USB cable, or open the firmware's emulator in another tab. Chrome or Edge; nothing to install.</p>
+
+<div class="status" id="statusBox"><p id="status" role="status">Press Connect.</p><p id="alert" role="alert"></p></div>
+<div class="row" style="margin-bottom:1rem"><button class="primary" id="connect">Connect</button></div>
+<div class="card" id="pick" hidden><h2>Which FM-1?</h2><div id="ports" class="row"></div></div>
+
+<section class="card" id="infoCard" hidden aria-labelledby="infoTitle">
+  <h2 id="infoTitle">This FM-1</h2>
+  <dl id="info"></dl>
+</section>
+
+<section class="card" id="filesCard" hidden aria-labelledby="filesTitle">
+  <div class="row" style="justify-content:space-between"><h2 id="filesTitle">Files</h2><button class="quiet" id="refreshFiles">Refresh</button></div>
+  <progress id="fileProgress" max="1" value="0" hidden></progress>
+  <div class="table-wrap"><table><thead><tr><th>Name</th><th>Kind</th><th>Size</th><th></th></tr></thead><tbody id="files"></tbody></table></div>
+  <p class="small">A file sent counts only once the FM-1 has checked it whole. A transfer cut short goes on where it stopped when you send the same file again.</p>
+</section>
+
+<section class="card" id="paramsCard" hidden aria-labelledby="paramsTitle">
+  <h2 id="paramsTitle">Settings</h2>
+  <div id="params"></div>
+  <p class="small">Changes on the FM-1 show here while this page is open.</p>
+</section>
+</main>
+
+<script type="module">
+import { Companion, findCompanions, F_READ, F_WRITE, F_DELETE, F_PLAYING } from "./companion.js";
+
+const $ = (id) => document.getElementById(id);
+const el = (tag, props = {}, ...kids) => { const e = Object.assign(document.createElement(tag), props); e.append(...kids); return e; };
+const say = (msg, err = false) => { $("status").textContent = err ? "" : msg; $("alert").textContent = err ? msg : ""; $("statusBox").classList.toggle("err", err); };
+const size = (n) => n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1048576).toFixed(2)} MB`;
+let dev = null, keep = null;
+
+async function access() {                       // Web MIDI's ports and the emulator's, side by side
+  const inputs = new Map(), outputs = new Map();
+  if (navigator.requestMIDIAccess) {
+    try {
+      const a = await navigator.requestMIDIAccess({ sysex: true });
+      for (const [k, v] of a.inputs) inputs.set(k, v);
+      for (const [k, v] of a.outputs) outputs.set(k, v);
+    } catch (e) { say("This page needs MIDI with SysEx: allow it in the browser's site settings.", true); }
+  }
+  try {
+    const { emuAccess } = await import("../emu/parts/port_client.js");
+    const e = emuAccess();
+    await new Promise((r) => setTimeout(r, 300));  // (the emulators answer "who" within a moment)
+    for (const [k, v] of e.inputs) inputs.set(k, v);
+    for (const [k, v] of e.outputs) outputs.set(k, v);
+  } catch (e) { /* (no emulator part on this site) */ }
+  return { inputs, outputs };
+}
+
+$("connect").onclick = async () => {
+  say("Looking for FM-1s…");
+  const found = await findCompanions(await access());
+  if (!found.length) {
+    say("No FM-1 with companion services answered. Is it plugged in and running an fm1-base firmware built with companion = true?", true);
+    return;
+  }
+  if (found.length === 1) return use(found[0]);
+  $("ports").replaceChildren(...found.map((f) => el("button", { className: "quiet", onclick: () => use(f) },
+    `${f.hello.name} ${f.hello.appVersion} on ${f.name}`)));
+  $("pick").hidden = false;
+  say(`${found.length} FM-1s answered: pick one.`);
+};
+
+async function use(f) {
+  $("pick").hidden = true;
+  if (dev) dev.close();
+  if (keep) clearInterval(keep);
+  dev = new Companion(f.input, f.output);
+  const h = f.hello;
+  say(`Connected to ${h.name} ${h.appVersion} on ${f.name}.`);
+  const rows = [["Firmware", `${h.name} ${h.appVersion}`], ["Identity", h.identity], ["Port", f.name]];
+  $("info").replaceChildren(...rows.flatMap(([k, v]) => [el("dt", {}, k), el("dd", {}, v)]),
+    el("dt", {}, "Has"), el("dd", {}, el("div", { className: "chips" }, ...h.services.map((s) => el("span", { className: "chip" }, s)))),
+    ...Object.entries(h.extras).flatMap(([k, v]) => [el("dt", {}, k), el("dd", {}, v)]));
+  $("infoCard").hidden = false;
+  $("filesCard").hidden = !h.services.includes("files");
+  $("paramsCard").hidden = !h.services.includes("parameters");
+  try {
+    if (!$("filesCard").hidden) await showFiles();
+    if (!$("paramsCard").hidden) await showParams();
+  } catch (e) { say(e.message, true); }
+}
+
+// ------------------------------------------------------------------ files
+$("refreshFiles").onclick = () => showFiles().catch((e) => say(e.message, true));
+const progress = (at, n) => { $("fileProgress").hidden = false; $("fileProgress").value = n ? at / n : 1; };
+async function busy(what, fn) {
+  try { say(what); await fn(); say("Done."); } catch (e) { say(e.message, true); } finally { $("fileProgress").hidden = true; }
+}
+async function showFiles() {
+  const fs = await dev.files();
+  $("files").replaceChildren(...fs.map((f) => {
+    const acts = el("div", { className: "row" });
+    if (f.flags & F_READ) acts.append(el("button", { className: "quiet", disabled: !f.size, onclick: () => busy(`Reading ${f.name}…`, async () => {
+      const data = await dev.read(f.index, progress);
+      const a = el("a", { href: URL.createObjectURL(new Blob([data])), download: f.name });
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+    }) }, "Download"));
+    if (f.flags & F_WRITE) {
+      const input = el("input", { type: "file", onchange: () => busy(`Sending to ${f.name}…`, async () => {
+        const file = input.files[0];
+        if (!file) return;
+        if (file.size > f.room) throw new Error(`${file.name} is ${size(file.size)}: ${f.name} takes ${size(f.room)} at most.`);
+        await dev.write(f.index, new Uint8Array(await file.arrayBuffer()), progress);
+        input.value = "";
+        await showFiles();
+      }) });
+      acts.append(el("label", { className: "pick" }, "Upload", input));
+    }
+    if (f.flags & F_DELETE) acts.append(el("button", { className: "quiet", disabled: !f.size, onclick: () => {
+      if (confirm(`Delete ${f.name} on the FM-1?`)) busy(`Deleting ${f.name}…`, async () => { await dev.remove(f.index); await showFiles(); });
+    } }, "Delete"));
+    return el("tr", {}, el("td", {}, f.name), el("td", {}, f.kind + (f.flags & F_PLAYING ? " (also while playing)" : "")),
+      el("td", { className: "num" }, `${size(f.size)} / ${size(f.room)}`), el("td", {}, acts));
+  }));
+}
+
+// ------------------------------------------------------------- parameters
+const ctls = new Map();                          // id -> (value) => the control shows it
+async function showParams() {
+  const ps = await dev.params(), vals = await dev.get(ps.map((p) => p.id)), groups = new Map();
+  ctls.clear();
+  for (const p of ps) {
+    if (!groups.has(p.group)) groups.set(p.group, []);
+    groups.get(p.group).push(row(p, vals.get(p.id) ?? p.def));
+  }
+  $("params").replaceChildren(...[...groups].flatMap(([g, rows]) => [el("h3", {}, g), ...rows]));
+  dev.onchange = (id, v) => { const f = ctls.get(id); if (f) f(v); };
+  await dev.watch(true);
+  keep = setInterval(() => { if (!document.hidden) dev.watch(true).catch(() => {}); }, 3000);
+}
+function row(p, v) {
+  const id = `p${p.id}`, name = el("label", { htmlFor: id }, p.name + (p.unit ? ` (${p.unit})` : ""));
+  const ro = p.flags & 1, send = async (x) => { try { show(await dev.set(p.id, x)); } catch (e) { say(e.message, true); } };
+  let ctl, out, show;
+  if (p.type === "enum") {
+    ctl = el("select", { id, disabled: ro, onchange: () => send(+ctl.value) },
+      ...p.labels.map((l, k) => el("option", { value: p.min + k }, l)));
+    out = el("span");
+    show = (x) => { ctl.value = x; };
+  } else {
+    const num = el("input", { type: "number", min: p.min, max: p.max, disabled: ro, onchange: () => send(+num.value) });
+    ctl = el("input", { type: "range", id, min: p.min, max: p.max, disabled: ro, oninput: () => { num.value = ctl.value; },
+      onchange: () => send(+ctl.value) });
+    out = num;
+    show = (x) => { ctl.value = x; num.value = x; };
+  }
+  ctls.set(p.id, show);
+  show(v);
+  return el("div", { className: "param" }, name, el("div", { className: "ctl" }, ctl), ro ? el("span", { className: "ro" }, out, " (read only)") : out);
+}
+</script>
+</body>
+</html>

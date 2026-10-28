@@ -1,0 +1,622 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: MPL-2.0
+     Copyright (C) 2026 Charles Vestal
+     The screen mirror (device/mirror.c, fm1.toml mirror = true): the FM-1's screen and panel live in the browser, and
+     the panel played from it (Control). From Polly's. tools/make_site.py fills in the firmware's name ({{...}}). The
+     part between the "decoder" markers is what tests/mirror_test.mjs runs in Node. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mirror · {{NAME}}</title>
+<meta name="description" content="See the screen and panel of an FM-1 running {{NAME}} live on your computer. You can also play the panel from here.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600&family=Barlow+Semi+Condensed:wght@600;700&display=swap">
+<style>
+:root { --ground: #faf4e8; --ink: #48392f; --muted: #725f4c; --rule: #e6dccb; --accent: #e0683a; --teal: #1f8a80; --card: #fffaf1;
+        --accent-ink: #b4481c; color-scheme: light; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --ground: #1c1814; --ink: #f2e8d8; --muted: #b3a28e; --rule: #3a322a; --accent: #f28a5a; --teal: #4cc3b6; --card: #26201b;
+                                    --accent-ink: #f28a5a; color-scheme: dark; }
+}
+:root[data-theme="dark"] { --ground: #1c1814; --ink: #f2e8d8; --muted: #b3a28e; --rule: #3a322a; --accent: #f28a5a; --teal: #4cc3b6; --card: #26201b;
+                           --accent-ink: #f28a5a; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { background: var(--ground); color: var(--ink); margin: 0; padding-inline: 16px; padding-block: 24px 48px;
+       font: 400 16px/1.55 "Barlow", "Helvetica Neue", Arial, sans-serif; }
+main { max-width: 1040px; margin: 0 auto; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; gap: .3rem 1.2rem; margin: 0 0 .8rem; }
+h1 { font: 700 2rem/1.1 "Barlow Semi Condensed", "Barlow", sans-serif; margin: 0; }
+header p { margin: 0; color: var(--muted); }
+a { color: var(--accent-ink); }
+:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+.device svg g[tabindex]:focus-visible { outline: none; }
+.device svg g[tabindex]:focus-visible .btnface, .device svg g[tabindex]:focus-visible .keyface,
+.device svg g[tabindex]:focus-visible .knobface { stroke: #f6b48e; stroke-width: 5; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+.bar { display: flex; flex-wrap: wrap; gap: .5rem 1rem; align-items: center; margin: 0 0 1rem; padding: .6rem .8rem;
+       background: var(--card); border: 1px solid var(--rule); border-radius: 12px; font-size: .95rem; }
+.bar label { color: var(--muted); display: inline-flex; gap: .4rem; align-items: center; }
+.bar select, .bar button { font: inherit; color: var(--ink); background: var(--ground); border: 1px solid var(--rule);
+                           border-radius: 8px; padding: .25em .6em; max-width: 14rem; }
+.bar button { cursor: pointer; }
+.bar button.primary { background: var(--accent); border-color: var(--accent); color: #2a140a; font-weight: 600; }
+.bar button[aria-pressed="true"] { border-color: var(--teal); box-shadow: inset 0 0 0 1px var(--teal); }
+.bar .zoom { display: inline-flex; gap: .25rem; }
+.dot { width: .7rem; height: .7rem; border-radius: 50%; background: var(--rule); display: inline-block; flex: none; }
+.dot.on { background: var(--teal); }
+.dot.wait { background: #e2a63c; }
+#status { flex: 1 1 14rem; min-width: 0; }
+.nums { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; flex: none; min-width: 19ch; text-align: right; }
+.stage { display: flex; flex-wrap: wrap; gap: 1.2rem; align-items: flex-start; justify-content: center; }
+.big { flex: none; max-width: 100%; }
+.big canvas { display: block; width: 480px; max-width: calc(100vw - 54px); aspect-ratio: 1; image-rendering: pixelated; image-rendering: crisp-edges;
+              background: #000; border-radius: 6px; box-shadow: 0 0 0 10px #111214, 0 0 0 11px var(--rule); margin: 11px; }
+.device { position: relative; flex: 1 1 420px; max-width: 760px; aspect-ratio: 1000 / 640; }
+.device svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.controlling .device svg g { cursor: pointer; }
+.controlling .device svg { touch-action: none; }
+.device canvas { position: absolute; left: 31.8%; top: 9.6875%; width: 20%; height: 31.25%; background: #000; border-radius: 2px; }
+.btnface, .keyface { transition: fill .06s, stroke .06s; }
+.lit .btnface { fill: #f28a5a; }
+.lit.green .btnface { fill: #4cc36a; }
+.lit text.btn { fill: #2a140a; }
+.held .btnface, .held .keyface { stroke: #4cc3b6; stroke-width: 4; }
+.held .btnface { fill: #3c5f5b; }
+.held.lit .btnface { fill: #f28a5a; }
+.lit .keyface.white { fill: #f6b48e; }
+.lit .keyface.black { fill: #4cc3b6; }
+.held .keyface.white { fill: #b9ddd8; }
+.held .keyface.black { fill: #8fd6ce; }
+.ring { fill: none; stroke: #f28a5a; stroke-width: 5; opacity: 0; }
+.ring.pulse { animation: pulse .5s ease-out; }
+@keyframes pulse { from { opacity: 1; } to { opacity: 0; } }
+.delta { opacity: 0; font: 700 22px "Barlow Semi Condensed", "Arial Narrow", Arial, sans-serif; fill: #f6b48e; }
+.delta.show { animation: rise .9s ease-out; }
+@keyframes rise { 0% { opacity: 1; transform: translateY(0); } 70% { opacity: 1; } 100% { opacity: 0; transform: translateY(-14px); } }
+.needs { margin: 0 0 .8rem; color: var(--muted); max-width: 70ch; }
+.help { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 1rem 2rem; margin: 1.6rem 0 0; }
+.help h2 { font: 600 1.1rem "Barlow Semi Condensed", "Barlow", sans-serif; margin: 0 0 .3rem; }
+.help p, .help ol { margin: 0; color: var(--muted); max-width: 60ch; }
+.help ol { padding-left: 1.1rem; }
+.err { color: var(--accent-ink); font-weight: 600; }
+@media (prefers-reduced-motion: reduce) { .ring.pulse, .delta.show { animation-duration: .01s; } }
+</style>
+</head>
+<body>
+<main>
+<header>
+  <h1>{{NAME}} Mirror</h1>
+  <p>See the FM-1's screen and panel live on your computer.</p>
+</header>
+<p class="needs">You need Chrome or Edge, and the FM-1 running {{NAME}} plugged in with a USB cable. When you press Connect, the browser
+  asks for permission to use MIDI devices: allow it.</p>
+
+<div class="bar" role="group" aria-label="Connection">
+  <span class="dot" id="dot" aria-hidden="true"></span>
+  <span id="status" role="status" aria-live="polite">Not connected.</span>
+  <button id="connect" class="primary" type="button">Connect</button>
+  <label>In <select id="inSel" aria-label="MIDI input (from the FM-1)"></select></label>
+  <label>Out <select id="outSel" aria-label="MIDI output (to the FM-1)"></select></label>
+  <span class="zoom" role="group" aria-label="Screen size">
+    <button type="button" data-zoom="2" aria-pressed="true"><span aria-hidden="true">&times;2</span><span class="sr">2 times</span></button>
+    <button type="button" data-zoom="3" aria-pressed="false"><span aria-hidden="true">&times;3</span><span class="sr">3 times</span></button>
+  </span>
+  <button id="refresh" type="button" title="Ask for the whole screen again">Refresh</button>
+  <button id="png" type="button" title="Save the screen as a PNG">Save PNG</button>
+  <button id="control" type="button" aria-pressed="false" disabled
+          title="Play the panel from here. Click buttons and keys, and they stay pressed while you hold the mouse. Scroll over a knob to turn it."
+          aria-describedby="controlHow">Control</button>
+  <span class="nums" id="nums"></span>
+</div>
+
+<div class="stage">
+  <div class="big"><canvas id="screen" width="240" height="240" role="img"
+       aria-label="The FM-1's screen, as {{NAME}} draws it. The picture is visual only: to hear the screen, use the FM-1 Screen Reader page (see Screen reader, below)."></canvas></div>
+  <div class="device">
+    <svg id="panel" viewBox="0 0 1000 640" role="group" aria-label="The FM-1's panel: lit buttons and keys, held ones outlined, knobs as turned"></svg>
+    <canvas id="small" width="240" height="240" aria-hidden="true"></canvas>
+  </div>
+</div>
+
+<section class="help">
+  <div>
+    <h2>How</h2>
+    <ol>
+      <li>Plug the FM-1 running {{NAME}} into this computer.</li>
+      <li>Open this page in Chrome or Edge. Press <b>Connect</b> and allow MIDI with SysEx.</li>
+      <li>The page finds {{NAME}} by itself. If it doesn't, choose its ports (named after {{NAME}} or the FM-1) in both lists above.</li>
+    </ol>
+  </div>
+  <div>
+    <h2>What you see</h2>
+    <p>The screen updates as {{NAME}} draws it. Buttons and keys light up as their LEDs do. Held ones are outlined in teal.
+      A knob you turn flashes and shows its steps. If you unplug the FM-1 or it sleeps, the page waits and reconnects.</p>
+  </div>
+  <div>
+    <h2>Control (for testing)</h2>
+    <p id="controlHow">Turn on <b>Control</b> to play the FM-1 from this page. Click a button or key, and it stays pressed while you hold
+      the mouse. Scroll over a knob to turn it. With the keyboard, Tab to a button or key on the panel and hold Space or Enter
+      to hold it; on a knob, the arrow keys turn it. When you turn Control off, close the page or unplug the cable, {{NAME}} lets
+      go of everything. Scripts can play the panel too, with fm1-base's tools/fm1_remote.py.</p>
+  </div>
+  <div>
+    <h2>Screen reader</h2>
+    <p>This page shows the screen as a picture. To hear what it says, open the
+      <a href="https://charlesvestal.github.io/fm1-reader/">FM-1 Screen Reader</a> in another tab: it reads {{NAME}}'s screen
+      with your own screen reader or its own voice, and it can run beside this page.</p>
+  </div>
+  <div>
+    <h2>Speed</h2>
+    <p>{{NAME}} sends the screen after the notes and the clock, so the music always comes first. When the computer is busy,
+      the page skips frames, but the picture always catches up.</p>
+  </div>
+</section>
+</main>
+
+<script>
+"use strict";
+// --- decoder: begin (tests/host/mirror_test.mjs runs this part in Node) ---
+// the mirror's frames (fm1-base device/mirror.c): F0 pack7(00 59 cmd len24 body ~sum8(body)) F7.
+const MR_REQ = 0x50, MR_RECT = 0x51, MR_FILL = 0x52, MR_INPUT = 0x53, MR_REMOTE = 0x54;
+function mrPack7(bytes) {
+  const out = [];
+  let acc = 0, nb = 0;
+  for (const b of bytes) {
+    acc |= b << nb; nb += 8;
+    while (nb >= 7) { out.push(acc & 0x7F); acc >>= 7; nb -= 7; }
+  }
+  if (nb) out.push(acc & 0x7F);
+  return out;
+}
+function mrUnpack7(src) {
+  const out = [];
+  let acc = 0, nb = 0;
+  for (const b of src) {
+    acc |= (b & 0x7F) << nb; nb += 7;
+    if (nb >= 8) { out.push(acc & 0xFF); acc >>= 8; nb -= 8; }
+  }
+  return out;
+}
+// a request to the FM-1: 0 off, 1 on (also the keep-alive), 2 refresh
+function mrRequest(op) {
+  return Uint8Array.from([0xF0, ...mrPack7([0x00, 0x59, MR_REQ, 1, 0, 0, op, ~op & 0xFF]), 0xF7]);
+}
+// the remote (mirror version 2): seq, op (1 button, 2 key, 3 turn, 4 MASTER, 0 let go), a, b; answered with seq, op, done
+function mrRemote(seq, op, a = 0, b = 0) {
+  const body = [seq & 255, op & 255, a & 255, b & 255, 0], sum = body.reduce((x, v) => x + v, 0);
+  return Uint8Array.from([0xF0, ...mrPack7([0x00, 0x59, MR_REMOTE, 5, 0, 0, ...body, ~sum & 0xFF]), 0xF7]);
+}
+const mrHash = (c) => (Math.imul(c, 40503) >>> 10) & 63;
+// on: { rect(x, y, w, h), input(state), hello(info), gap() }; screen: 240 x 240 RGB565
+function createMirror(on = {}) {
+  const screen = new Uint16Array(240 * 240);
+  const stats = { bytes: 0, frames: 0, rects: 0, fills: 0, inputs: 0, bad: 0, gaps: 0 };
+  let buf = [], inSx = false, seq = -1;
+  function rect(b) {
+    const x = b[0], y = b[1], w = b[2], h = b[3], total = w * h, cache = new Uint16Array(64);
+    let i = 5, p = 0, cur = 0;
+    if (!w || !h || x + w > 240 || y + h > 240) return false;
+    const put = (c, n) => {
+      if (p + n > total) return false;
+      for (let k = 0; k < n; k++, p++) screen[(y + (p / w | 0)) * 240 + x + p % w] = c;
+      return true;
+    };
+    while (i < b.length) {
+      const op = b[i++];
+      if (op < 0x80) { if (!put(cur, op + 1)) return false; }
+      else if (op < 0xC0) { cur = cache[op & 63]; if (!put(cur, 1)) return false; }
+      else {
+        if (i + 2 > b.length) return false;
+        cur = b[i] << 8 | b[i + 1]; i += 2;
+        cache[mrHash(cur)] = cur;
+        if (!put(cur, (op & 63) + 1)) return false;
+      }
+    }
+    return p === total;
+  }
+  function frame(raw) {
+    const m = mrUnpack7(raw);
+    if (m.length < 7 || m[0] !== 0 || m[1] !== 0x59) return;          // not the mirror's
+    const n = m[3] | m[4] << 8 | m[5] << 16;
+    let sum = 0;
+    for (let i = 6; i < 6 + n; i++) sum += m[i];
+    if (n + 7 !== m.length || (~sum & 0xFF) !== m[6 + n]) { stats.bad++; return; }
+    const cmd = m[2], b = m.slice(6, 6 + n);
+    stats.frames++;
+    if (cmd === MR_RECT || cmd === MR_FILL) {
+      if (seq >= 0 && b[4] !== seq) { stats.gaps++; on.gap?.(); }
+      seq = (b[4] + 1) & 255;
+    }
+    if (cmd === MR_RECT) {
+      if (!rect(b)) { stats.bad++; on.gap?.(); }
+      stats.rects++;
+      on.rect?.(b[0], b[1], b[2], b[3]);
+    } else if (cmd === MR_FILL && n >= 7) {
+      const c = b[5] << 8 | b[6], x = b[0], y = b[1], w = b[2], h = b[3];
+      for (let j = y; j < Math.min(240, y + h); j++) screen.fill(c, j * 240 + x, j * 240 + Math.min(240, x + w));
+      stats.fills++;
+      on.rect?.(x, y, w, h);
+    } else if (cmd === MR_INPUT && n >= 21) {
+      const u32 = (o) => (b[o] | b[o + 1] << 8 | b[o + 2] << 16 | b[o + 3] << 24) >>> 0;
+      const lit = b[15] | b[16] << 8;
+      stats.inputs++;
+      on.input?.({ buttons: b[0] | b[1] << 8, keys: u32(2), enc: Array.from(b.slice(6, 13), (v) => (v << 24) >> 24),
+                   master: b[13] | b[14] << 8, litButtons: lit & 0x7FFF, playRed: !!(lit & 0x8000), litKeys: u32(17) });
+    } else if (cmd === MR_REQ && n >= 4) {
+      on.hello?.({ version: b[0], on: !!b[1], w: b[2] + 1, h: b[3] + 1 });
+    } else if (cmd === MR_REMOTE && n >= 3) {
+      on.remote?.({ seq: b[0], op: b[1], ok: !!b[2] });
+    }
+  }
+  function feed(data) {
+    for (const v of data) {
+      stats.bytes++;
+      if (v === 0xF0) { inSx = true; buf = []; }
+      else if (!inSx || v >= 0xF8) continue;                          // (real-time bytes may come inside a SysEx)
+      else if (v === 0xF7) { inSx = false; frame(buf); }
+      else if (v & 0x80) inSx = false;                                // a status byte: that SysEx is cut
+      else buf.push(v);
+    }
+  }
+  return { feed, screen, stats, resync() { seq = -1; } };
+}
+// --- decoder: end ---
+
+if (typeof document !== "undefined") {
+const NAME = "{{NAME}}", SLUG = NAME.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+const NAME_RE = new RegExp(NAME.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+// ---------------------------------------------------------------- the panel (web/emu's drawing)
+const NS = "http://www.w3.org/2000/svg";
+const BTN = { FX: 0, SEL: 1, ENV: 2, LFO: 3, EDIT: 4, GLO: 5, HOME: 6, SAVE: 7, ARP: 8, SEQ: 9, PLAY: 10, REC: 11, "OCT-": 12, "OCT+": 13 };
+const ENC = { SELECT: 0, ALGORITHM: 1, PRESETS: 2, KNOB1: 3, KNOB2: 4, KNOB3: 5, KNOB4: 6 };
+const WHITE_K = [0, 2, 4, 6, 7, 9, 11, 12, 14, 16, 18, 19, 21, 23, 24, 26];
+const BLACK_K = [1, 3, 5, 8, 10, 13, 15, 17, 20, 22, 25];
+const BLACK_AFTER = [0, 1, 2, 4, 5, 7, 8, 9, 11, 12, 14];
+const BODY = "#3a3d42", TRAY = "#26282c", KEY_W = "#d9dadc", KEY_B = "#c9cacd", KNOB = "#1f2124", BTNC = "#2e3135", LABEL = "#e8e8ea";
+const svg = document.getElementById("panel");
+function el(tag, attrs, parent = svg) {
+  const e = document.createElementNS(NS, tag);
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+  parent.appendChild(e);
+  return e;
+}
+function text(parent, x, y, s, size, fill = LABEL) {
+  const t = el("text", { x, y, "text-anchor": "middle", "font-family": "'Barlow Semi Condensed', 'Arial Narrow', Arial, sans-serif",
+                         "font-size": size, "font-weight": 600, fill, "letter-spacing": ".05em", class: "btn" }, parent);
+  t.textContent = s;
+  return t;
+}
+el("rect", { x: 4, y: 4, width: 992, height: 632, rx: 44, fill: BODY });
+const knobs = {}, byRole = [];
+function knob(x, y, r, label, role) {
+  const g = el("g", {});
+  el("circle", { cx: x, cy: y, r: r + 5, fill: TRAY }, g);
+  const ring = el("circle", { cx: x, cy: y, r: r + 9, class: "ring" }, g);
+  el("circle", { cx: x, cy: y, r, fill: KNOB, stroke: "#44474c", "stroke-width": 2, class: "knobface" }, g);
+  const ind = el("line", { x1: x, y1: y - r + 5, x2: x, y2: y - r + 15, stroke: LABEL, "stroke-width": 3, "stroke-linecap": "round" }, g);
+  text(g, x, y - r - 12, label, 17);
+  const delta = el("text", { x: x + r + 14, y: y + 8, class: "delta", "text-anchor": "start" }, g);
+  const k = { g, ind, ring, delta, x, y, angle: 0, sum: 0, t: 0, label };
+  knobs[label] = k;
+  if (role !== undefined) byRole[role] = k;
+  return k;
+}
+knob(105, 100, 24, "MASTER");
+knob(215, 100, 24, "SELECT", ENC.SELECT);
+knob(105, 205, 24, "PRESETS", ENC.PRESETS);
+knob(215, 205, 24, "ALGORITHM", ENC.ALGORITHM);
+for (let i = 0; i < 4; i++) knob(610 + i * 104, 100, 22, `KNOB${i + 1}`, ENC[`KNOB${i + 1}`]);
+const buttons = [];
+function button(x, y, w, h, label, two) {
+  const g = el("g", {});
+  el("rect", { x, y, width: w, height: h, rx: 9, fill: BTNC, stroke: "#4a4d52", "stroke-width": 1.5, class: "btnface" }, g);
+  if (two) { text(g, x + w / 2, y + h / 2 - 1, label, 12); text(g, x + w / 2, y + h / 2 + 12, two, 12); }
+  else text(g, x + w / 2, y + h / 2 + 5, label, 15);
+  buttons[BTN[label]] = { g, label: two ? `${label} ${two}` : label };
+}
+el("rect", { x: 58, y: 258, width: 210, height: 58, rx: 14, fill: TRAY });
+button(72, 268, 82, 38, "OCT-"); button(170, 268, 82, 38, "OCT+");
+el("rect", { x: 300, y: 44, width: 236, height: 236, rx: 26, fill: "#111214" });
+el("rect", { x: 568, y: 160, width: 400, height: 140, rx: 18, fill: TRAY });
+const ROW1 = ["FX", "SEL", "ENV", "LFO", "EDIT", "GLO"], ROW2 = ["HOME", "SAVE", "ARP", "SEQ", "PLAY", "REC"];
+for (let i = 0; i < 6; i++) {
+  button(582 + i * 63, 174, 54, 48, ROW1[i]);
+  if (ROW2[i] === "PLAY") button(582 + i * 63, 236, 54, 48, "PLAY", "STOP"); else button(582 + i * 63, 236, 54, 48, ROW2[i]);
+}
+const keys = [];
+(function keybed(x0, y0, w, h) {
+  el("rect", { x: x0, y: y0, width: w, height: h, rx: 18, fill: TRAY });
+  const pitch = (w - 24) / 16, kw = pitch * 0.78;
+  for (let i = 0; i < 16; i++) {
+    const g = el("g", {});
+    el("rect", { x: x0 + 12 + i * pitch + (pitch - kw) / 2, y: y0 + h * 0.43, width: kw, height: h * 0.52, rx: kw / 2, fill: KEY_W, class: "keyface white" }, g);
+    keys[WHITE_K[i]] = { g, label: `white key ${i + 1}` };
+  }
+  BLACK_AFTER.forEach((a, k) => {
+    const g = el("g", {});
+    el("rect", { x: x0 + 12 + (a + 1) * pitch - kw / 2, y: y0 + h * 0.06, width: kw, height: h * 0.33, rx: kw / 2, fill: KEY_B, class: "keyface black" }, g);
+    keys[BLACK_K[k]] = { g, label: `black key ${k + 1}` };
+  });
+})(36, 340, 928, 270);
+
+function restart(e, cls) { e.classList.remove(cls); void e.getBoundingClientRect(); e.classList.add(cls); }
+function turned(k, n) {
+  const now = performance.now();
+  k.sum = now - k.t < 700 ? k.sum + n : n;
+  k.t = now;
+  k.angle = (k.angle + n * 18) % 360;
+  k.ind.setAttribute("transform", `rotate(${k.angle} ${k.x} ${k.y})`);
+  k.delta.textContent = (k.sum > 0 ? "+" : "−") + Math.abs(k.sum);
+  restart(k.ring, "pulse");
+  restart(k.delta, "show");
+}
+let lastMaster = -1;
+function showInput(s) {
+  buttons.forEach((b, i) => {
+    b.g.classList.toggle("held", !!(s.buttons & (1 << i)));
+    if (control) b.g.setAttribute("aria-pressed", s.buttons & (1 << i) ? "true" : "false");
+    b.g.classList.toggle("lit", !!(s.litButtons & (1 << i)));
+    if (i === BTN.PLAY) b.g.classList.toggle("green", !s.playRed);
+  });
+  keys.forEach((k, i) => {
+    k.g.classList.toggle("held", !!(s.keys & (1 << i)));
+    if (control) k.g.setAttribute("aria-pressed", s.keys & (1 << i) ? "true" : "false");
+    k.g.classList.toggle("lit", !!(s.litKeys & (1 << i)));
+  });
+  s.enc.forEach((n, r) => { if (n && byRole[r]) turned(byRole[r], n); });
+  if (s.master !== lastMaster) {                       // gain = position^2: the knob's position back
+    const m = knobs.MASTER, pos = Math.min(1, Math.sqrt(s.master * 256) / 1023);
+    if (lastMaster >= 0 && Math.abs(s.master - lastMaster) >= 32) restart(m.ring, "pulse");
+    lastMaster = s.master;
+    m.ind.setAttribute("transform", `rotate(${-135 + 270 * pos} ${m.x} ${m.y})`);
+  }
+}
+
+// ---------------------------------------------------------------- the screen
+const big = document.getElementById("screen"), bctx = big.getContext("2d");
+const sctx = document.getElementById("small").getContext("2d");
+const img = bctx.createImageData(240, 240);
+let pending = false, painted = 0;
+const R5 = Array.from({ length: 32 }, (_, i) => Math.round(i * 255 / 31)), G6 = Array.from({ length: 64 }, (_, i) => Math.round(i * 255 / 63));
+const mirror = createMirror({
+  rect(x, y, w, h) {
+    const d = img.data, s = mirror.screen;
+    for (let j = y; j < y + h; j++)
+      for (let i = x; i < x + w; i++) {
+        const p = j * 240 + i, v = s[p], o = p * 4;
+        d[o] = R5[v >> 11]; d[o + 1] = G6[(v >> 5) & 63]; d[o + 2] = R5[v & 31]; d[o + 3] = 255;
+      }
+    if (!pending) { pending = true; requestAnimationFrame(paint); }
+  },
+  input: showInput,
+  hello(h) {
+    heardHello = true;
+    if (!h.on) say(`${NAME} stopped mirroring.`, "wait");
+    controlBtn.disabled = h.version < 2;
+    controlBtn.title = h.version < 2 ? `This ${NAME} mirrors the screen but takes no input. Update it to use Control.` : controlTitle;
+  },
+  remote(r) { remoteAnswer(r); },
+  gap() { askRefresh(); },
+});
+function paint() {
+  pending = false;
+  painted++;
+  bctx.putImageData(img, 0, 0);
+  sctx.drawImage(big, 0, 0);
+}
+for (let i = 3; i < img.data.length; i += 4) img.data[i] = 255;
+paint();
+
+document.querySelectorAll("[data-zoom]").forEach((b) => b.addEventListener("click", () => {
+  const z = +b.dataset.zoom;
+  big.style.width = `${240 * z}px`;
+  document.querySelectorAll("[data-zoom]").forEach((o) => o.setAttribute("aria-pressed", String(o === b)));
+  try { localStorage.setItem(`${SLUG}-mirror-zoom`, String(z)); } catch {}
+}));
+try { const z = localStorage.getItem(`${SLUG}-mirror-zoom`); if (z) document.querySelector(`[data-zoom="${z}"]`)?.click(); } catch {}
+document.getElementById("png").addEventListener("click", () => {
+  big.toBlob((b) => {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(b);
+    a.download = `${SLUG}-${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}.png`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+});
+
+// ---------------------------------------------------------------- MIDI
+const statusEl = document.getElementById("status"), dot = document.getElementById("dot"), nums = document.getElementById("nums");
+const inSel = document.getElementById("inSel"), outSel = document.getElementById("outSel"), connectBtn = document.getElementById("connect");
+let access = null, inPort = null, outPort = null, lastHeard = 0, heardHello = false, lastAsk = 0;
+function say(t, state) {
+  if (statusEl.textContent !== t) statusEl.textContent = t;     // (the same words again would be read again)
+  statusEl.classList.toggle("err", state === "err");
+  dot.className = "dot" + (state === "on" ? " on" : state === "wait" ? " wait" : "");
+}
+function send(op) { try { outPort?.send(mrRequest(op)); } catch { /* the port went away: the state change says so */ } }
+function askRefresh() {
+  const t = performance.now();
+  if (t - lastAsk < 1000) return;
+  lastAsk = t;
+  mirror.resync();
+  send(2);
+}
+function fill(sel, ports, saved) {
+  const names = ports.map((p) => p.name);
+  sel.replaceChildren(...ports.map((p) => new Option(p.name, p.id)));
+  const pick = ports.find((p) => p.name === saved) || ports.find((p) => NAME_RE.test(p.name)) || ports.find((p) => /fm-?1/i.test(p.name));
+  if (pick) sel.value = pick.id;
+  sel.disabled = !names.length;
+}
+function pickPorts() {
+  const ins = [...access.inputs.values()].filter((p) => p.state === "connected");
+  const outs = [...access.outputs.values()].filter((p) => p.state === "connected");
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem(`${SLUG}-mirror-ports`) || "{}"); } catch {}
+  fill(inSel, ins, saved.in);
+  fill(outSel, outs, saved.out);
+  attach();
+}
+function attach() {
+  const i = access.inputs.get(inSel.value) || null, o = access.outputs.get(outSel.value) || null;
+  if (i !== inPort) {
+    if (inPort) inPort.onmidimessage = null;
+    inPort = i;
+    if (inPort) inPort.onmidimessage = (e) => { lastHeard = performance.now(); mirror.feed(e.data); };
+  }
+  const fresh = o !== outPort;
+  outPort = o;
+  if (!inPort || !outPort) { say(`Waiting for ${NAME}. Plug the FM-1 in, or pick its ports.`, "wait"); return; }
+  try { localStorage.setItem(`${SLUG}-mirror-ports`, JSON.stringify({ in: inPort.name, out: outPort.name })); } catch {}
+  if (fresh) { heardHello = false; lastHeard = performance.now(); mirror.resync(); send(2); say(`Asking ${outPort.name}...`, "wait"); }
+}
+inSel.addEventListener("change", attach);
+outSel.addEventListener("change", () => { outPort = null; attach(); });
+document.getElementById("refresh").addEventListener("click", () => { lastAsk = 0; askRefresh(); });
+async function connect() {
+  if (!navigator.requestMIDIAccess) { say("This browser has no Web MIDI. Use Chrome or Edge.", "err"); return; }
+  try {
+    access = await navigator.requestMIDIAccess({ sysex: true });
+  } catch (e) {
+    say("MIDI wasn't allowed. Press Connect again and allow MIDI with SysEx.", "err");
+    return;
+  }
+  connectBtn.hidden = true;
+  const seen = new Map();                              // each port's last state: plugged, unplugged (not open / closed)
+  for (const p of [...access.inputs.values(), ...access.outputs.values()]) seen.set(p.id, p.state);
+  access.onstatechange = (e) => {
+    const p = e.port;
+    if (seen.get(p.id) === p.state) return;
+    seen.set(p.id, p.state);
+    if (inPort) inPort.onmidimessage = null;           // the FM-1 back (or gone): the ports picked afresh, a refresh
+    inPort = outPort = null;
+    pickPorts();
+  };
+  pickPorts();
+}
+connectBtn.addEventListener("click", connect);
+navigator.permissions?.query({ name: "midi", sysex: true }).then((p) => { if (p.state === "granted") connect(); }).catch(() => {});
+
+// ---------------------------------------------------------------- control (testing): one request at a time, answered
+const controlBtn = document.getElementById("control"), controlTitle = controlBtn.title;
+let control = false, rseq = 0, rq = [], rbusy = null;
+function rsend(op, a = 0, b = 0) {
+  if (!control || !outPort) return;
+  rq.push([op, a, b]);
+  rpump();
+}
+function rpump() {
+  if (rbusy || !rq.length) return;
+  rseq = (rseq + 1) & 255;
+  rbusy = { seq: rseq, msg: mrRemote(rseq, ...rq.shift()), tries: 0, t: 0 };
+  rtry();
+}
+function rtry() {
+  if (!rbusy) return;
+  if (rbusy.tries++ >= 5) { rbusy = null; rq = []; say(`${NAME} doesn't take input from the panel here.`, "err"); return; }
+  try { outPort?.send(rbusy.msg); } catch { /* the port went away */ }
+  rbusy.t = setTimeout(rtry, 300);                   // (the same seq again: the FM-1 does it once)
+}
+function remoteAnswer(r) {
+  if (!rbusy || r.seq !== rbusy.seq) return;
+  clearTimeout(rbusy.t);
+  rbusy = null;
+  if (!r.ok) { rq = []; say(`${NAME} refused the input. Is mirroring off?`, "wait"); return; }
+  rpump();
+}
+const SVG_A = (g, a) => { for (const [k, v] of Object.entries(a)) v == null ? g.removeAttribute(k) : g.setAttribute(k, v); };
+function panelKeys(on) {
+  const order = [...["SELECT", "PRESETS", "ALGORITHM", "KNOB1", "KNOB2", "KNOB3", "KNOB4"].map((n) => [knobs[n], "knob"]),
+                 ...[12, 13, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((i) => [buttons[i], "button"]),
+                 ...keys.map((k) => [k, "key"])];
+  for (const [c, kind] of order) {
+    SVG_A(c.g, on ? { tabindex: "0", role: "button", "aria-label": c.label,
+                      "aria-description": kind === "knob" ? "Turn with the arrow keys" : "Hold Space or Enter to hold it down" }
+                  : { tabindex: null, role: null, "aria-label": null, "aria-description": null, "aria-pressed": null });
+    if (on && kind !== "knob") c.g.setAttribute("aria-pressed", c.g.classList.contains("held") ? "true" : "false");
+  }
+  // (in tab order: the knobs, the buttons, the keys; SVG keeps document order, so they move to the end in it)
+  if (on) for (const [c] of order) svg.appendChild(c.g);
+}
+function keyHold(g, op, id) {
+  let down = false;
+  g.addEventListener("keydown", (e) => {
+    if (!control || (e.key !== " " && e.key !== "Enter")) return;
+    e.preventDefault();
+    if (!down && !e.repeat) { down = true; rsend(op, id, 1); }
+  });
+  const up = (e) => { if (down && (!e || e.key === " " || e.key === "Enter")) { down = false; rsend(op, id, 0); } };
+  g.addEventListener("keyup", up);
+  g.release = () => up();             // on leaving it (a focus listener on an SVG element would make Chrome focus it always)
+}
+document.addEventListener("focusout", (e) => e.target.release?.());
+buttons.forEach((b, i) => keyHold(b.g, 1, i));
+keys.forEach((k, i) => keyHold(k.g, 2, i));
+byRole.forEach((k, r) => k.g.addEventListener("keydown", (e) => {
+  if (!control) return;
+  const n = { ArrowUp: 1, ArrowRight: 1, ArrowDown: -1, ArrowLeft: -1, PageUp: 5, PageDown: -5 }[e.key];
+  if (!n) return;
+  e.preventDefault();
+  for (let i = 0; i < Math.abs(n); i++) rsend(3, r, n > 0 ? 1 : 255);
+}));
+function setControl(on) {
+  rq = [];
+  if (rbusy) { clearTimeout(rbusy.t); rbusy = null; }
+  if (control && !on) {                                // off: everything let go
+    rseq = (rseq + 1) & 255;
+    try { outPort?.send(mrRemote(rseq, 0)); } catch { /* gone: the FM-1 lets go by itself */ }
+  }
+  control = on;
+  panelKeys(on);
+  controlBtn.setAttribute("aria-pressed", String(on));
+  document.body.classList.toggle("controlling", on);
+}
+controlBtn.addEventListener("click", () => setControl(!control));
+function hold(g, op, id) {                             // a button or key: held while the pointer is down
+  let down = false;
+  g.addEventListener("pointerdown", (e) => {
+    if (!control) return;
+    e.preventDefault();
+    g.setPointerCapture?.(e.pointerId);
+    down = true;
+    rsend(op, id, 1);
+  });
+  const up = () => { if (down) { down = false; rsend(op, id, 0); } };
+  g.addEventListener("pointerup", up);
+  g.addEventListener("pointercancel", up);
+  g.addEventListener("lostpointercapture", up);
+}
+buttons.forEach((b, i) => hold(b.g, 1, i));
+keys.forEach((k, i) => hold(k.g, 2, i));
+byRole.forEach((k, r) => {                             // a knob: one detent a wheel notch
+  let acc = 0;
+  k.g.addEventListener("wheel", (e) => {
+    if (!control) return;
+    e.preventDefault();
+    acc += e.deltaY;
+    while (Math.abs(acc) >= 40) { rsend(3, r, acc < 0 ? 1 : 255); acc -= Math.sign(acc) * 40; }
+  }, { passive: false });
+});
+
+// keep-alive (the FM-1 stops after 6 s without one), reconnection, the numbers
+let lastBytes = 0, lastPainted = 0;
+setInterval(() => {
+  if (!outPort) return;
+  const quiet = performance.now() - lastHeard;
+  if (quiet > 4000) { heardHello = false; mirror.resync(); send(2); say(`No answer. Is ${NAME} running? Asking again...`, "wait"); }
+  else { send(1); if (heardHello) say(`Mirroring ${inPort ? inPort.name : ""}.`, "on"); }
+}, 2000);
+setInterval(() => {
+  const b = mirror.stats.bytes - lastBytes, f = painted - lastPainted;
+  lastBytes = mirror.stats.bytes; lastPainted = painted;
+  /* fixed width: the bar never reflows as the numbers change */
+  nums.textContent = `${String(f).padStart(2, "\u2007")} fps · ${(b / 1024).toFixed(1).padStart(5, "\u2007")} kB/s`;
+  nums.title = mirror.stats.gaps ? `${mirror.stats.gaps} gaps (dropped and resent)` : "";
+}, 1000);
+addEventListener("pagehide", () => { if (control) setControl(false); send(0); });
+}
+</script>
+</body>
+</html>

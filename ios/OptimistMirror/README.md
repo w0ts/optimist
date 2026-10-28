@@ -50,3 +50,18 @@ Over Bluetooth the FM-1 answers the screen, the buttons and knobs, the navigatio
 `Tests/Fixtures/make_fixtures.mjs` regenerates the web-written files the tests read (`web_*`) and checks the other
 direction: the tests write the app's files into `$FM1_EXPORT_DIR` (`TEST_RUNNER_FM1_EXPORT_DIR=<folder> xcodebuild test ...`),
 and `node ios/OptimistMirror/Tests/Fixtures/make_fixtures.mjs read <folder>` opens them with the web editor's functions.
+
+## Other fm1-base apps
+
+An FM-1 that does not answer Optimist's INFO but answers fm1-base's companion capability query (cmd 0x60, `docs/COMPANION.md` in
+fm1-base) is shown as the fm1-base app it is (name, version, identity, services) instead of the Optimist tabs. Over USB only; an
+Optimist firmware answers INFO first and is treated exactly as before. For such an app the app offers:
+
+- **Pages**: fm1-base's own mirror, backup, installer and companion pages, bundled (`Resources/Fm1Base`, MPL-2.0, unchanged; see its
+  README for the origin commit), filled in for the app and run through the same Web MIDI bridge as the editor's pages
+  (`Sources/Companion/Fm1Base*.swift`). The backup page takes the backup's magic, version and file extension from the firmware's capability answer (protocol 2;
+  an older firmware's own `backup_magic`, `backup_version`, `backup_ext` extras tags are read only as a fallback); the installer needs the `.fwsc` chosen in the app.
+- **Files**: the app's files, saved one by one or all in one backup file (each checked against the FM-1's CRC-32).
+- **Parameters**: the app's parameters by group, read and set.
+
+`Tests/CompanionTests.swift` replays a transcript the fm1-base host simulator recorded (`Tests/Fixtures/companion_transcript.txt`).
