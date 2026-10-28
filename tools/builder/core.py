@@ -315,9 +315,16 @@ def validate(cfg):
     if cfg.get("ARENA", 0):
         blocks, room = arena_blocks(cfg), cfg["ARENA"] * 1024
         big = [n for n, b in blocks.items() if b > room]
+        sends = arena_sends(blocks)
         if big:
             err.append(Issue(f"the arena ({cfg['ARENA']} KB) cannot hold {', '.join(big)} "
                              f"({max(blocks.values()) // 1024} KB): a larger ARENA, or off", ["ARENA"]))
+        elif sum(sends.values()) > room:
+            need = -(-sum(sends.values()) // 1024)
+            err.append(Issue(f"the arena ({cfg['ARENA']} KB) cannot hold the sends' lines together ("
+                             + ", ".join(f"{k} {v // 1024} KB" for k, v in sends.items())
+                             + f": {need} KB): a new project's sends would stay silent (MEM FULL): ARENA at least "
+                             f"{need} KB, a shorter DLY_LEN, or ARENA off", ["ARENA", "DLY_LEN"]))
         else:
             fixed = room - arena_mem(cfg)["pool"]
             what = ("the parts' engine states, the effects' lines, the SLICER's recordings, WAVE's table, the X0X "
@@ -767,6 +774,17 @@ def arena_blocks(cfg):
            "the reverb's line": sum(rev.values()) + rev_ap(cfg) if built(cfg, "FX_REVERB") else 0,
            "the inserts' own room": mem["own"] * 1024, **arena_bufs(cfg)}
     return {k: v for k, v in out.items() if v}
+
+
+SEND_LINES = ("the delay's line", "the chorus send's line", "the reverb's line")
+
+
+def arena_sends(blocks):
+    """-> {name: bytes} the send lines among arena_blocks: a new project has the chorus, the delay and the reverb in
+    its master slots (fx/fx_arena.c places each line while its type is in one), so the arena must hold them together,
+    or the ones that do not fit are refused and their returns stay silent (the FM-1, 2026-10-28: ARENA 32 with a
+    32 KB delay line and a 32 KB reverb line, no reverb and no chorus at all)"""
+    return {k: blocks[k] for k in SEND_LINES if blocks.get(k)}
 
 
 def model_terms(cfg):

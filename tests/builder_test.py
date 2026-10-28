@@ -606,6 +606,20 @@ check("... under the delay's line: an error; the delay's line alone holds one XD
       and any("XDLY cannot play while the delay is on the master" in e and "at least 128 KB" in e
               for e in C.validate(dict(C.defaults(), INS_XDLY=1, DLY_LEN=32768, DLY_ARENA=64))[0])
       and not C.validate(dict(C.defaults(), INS_XDLY=1, XDLY_LEN=8192, DLY_LEN=16384, DLY_ARENA=64))[0])
+# the FM-1, 2026-10-28 (the fm1-next release, ARENA 32 in the SD card mode): no reverb, no chorus at all. The arena
+# holds the sends' lines while a project uses them (fx/fx_arena.c), and a new project has all three in its master
+# slots: a 32 KB delay line and a 32 KB reverb line never fit in 32 KB together, the refused ones bypassed (MEM FULL)
+_sd = dict(LAYOUT=1, ENG_SAMPLE=0, DRUM_USR=0, SNAPSHOTS=0, PATTERNS=1, FX_PUNCH=0, DLY_LEN=16384, REV_FDN8=1, REV_POOL=1,
+           REV_ROOM=0)   # (the user's profile's sends; the fake SD mode's needs, no PUNCH ring: its 64 KB block alone)
+_e = C.validate(dict(C.defaults(), ARENA=32, **_sd))[0]
+check("an SD card mode arena that cannot hold the sends' lines together (32 KB for the delay's 32, the chorus' 4 and "
+      "the reverb's 32 KB): an error naming ARENA and the room they need",
+      any("ARENA" in e.keys and "sends' lines together" in e and "68 KB" in e for e in _e))
+check("... 64 KB (the two big lines, no room for the chorus'): still the error; 96 KB: none (the sends all placed, "
+      "measured on the release's host simulator); outside the SD card mode the arena holds no lines: none",
+      any("sends' lines together" in e for e in C.validate(dict(C.defaults(), ARENA=64, **_sd))[0])
+      and not [e for e in C.validate(dict(C.defaults(), ARENA=96, **_sd))[0] if "sends' lines" in e]
+      and not [e for e in C.validate(dict(C.defaults(), ARENA=32, **dict(_sd, LAYOUT=0)))[0] if "sends' lines" in e])
 _cfg, _ = C.parse("INS_CHORUS=2\nINS_DELAY=4\nINS_JCHORUS=3\nINS_FLANGER=1\nINS_XDLY=2\n", warn=lambda m: None)
 check("an old .config's instance counts (INS_CHORUS=2 ...) load as built: no setting lost, no error",
       all(_cfg[k] == 1 for k in C.FXM_TYPES) and not [e for e in C.validate(_cfg)[0] if set(e.keys) & set(C.FXM_TYPES)]
