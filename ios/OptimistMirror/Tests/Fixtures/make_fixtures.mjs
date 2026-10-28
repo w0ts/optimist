@@ -10,7 +10,7 @@ import vm from "node:vm";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const html = readFileSync(join(HERE, "../../../../web/editor.html"), "utf8");
-const proto = html.slice(html.indexOf("/*PROTO-BEGIN*/"), html.indexOf("/*PROTO-END*/"));
+const proto = html.slice(html.indexOf("/*wire-section:begin*/"), html.indexOf("/*wire-section:end*/"));
 const E = vm.runInNewContext(proto + `;({ backupFile, readBackupFile, libraryFile, readLibraryFile, bkPlan, crc32, BK, LBR_FORMAT: "optimist-pattern" })`,
   { setTimeout, clearTimeout, setInterval, clearInterval, console, TextEncoder, TextDecoder });
 
