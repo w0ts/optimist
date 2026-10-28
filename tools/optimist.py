@@ -105,7 +105,7 @@ def cmd_toolchain(_a):
     sdk = TC.sdk_dir()
     missing = TC.sdk_missing(sdk)
     print(f"SDK files  {sdk}" + (f" (missing {', '.join(missing)})" if missing else ""))
-    print(f"Pillow     {'yes' if TC.have_module('PIL') else 'no'} ({sys.executable}); build Python "
+    print(f"Pillow     {'yes' if TC.have_module('PIL.Image') else 'no'} ({sys.executable}); build Python "
           f"{C.build_python()}")
     return 0 if ok and not missing else 1
 
@@ -554,14 +554,14 @@ def fm1base_tests(py, env, python_only):
 def cmd_test(a):
     """Optimist's own tests (they build the classic firmware and test it: as ever), then the release's (fm1base_tests)"""
     rc = test_classic(a)
-    return 1 if (fm1base_tests([sys.executable if TC.have_module("PIL") else C.build_python()],
+    return 1 if (fm1base_tests([sys.executable if TC.have_module("PIL.Image") else C.build_python()],
                                dict(os.environ), a.python) or rc) else 0
 
 
 def test_classic(a):
     C.CLASSIC = True
     os.environ["OPTIMIST_CLASSIC"] = "1"                     # (the tests' own builds and costs are the classic firmware's)
-    py = [sys.executable] if TC.have_module("PIL") else [C.build_python()]
+    py = [sys.executable] if TC.have_module("PIL.Image") else [C.build_python()]
     env = dict(os.environ, AC79_SDK=str(TC.sdk_dir()))      # (the rescue test reads the SDK's uboot.boot)
     if py[0] != sys.executable:                              # (run_tests.sh calls python3: the one with Pillow first, as CI's runner has none)
         env["PATH"] = str(Path(py[0]).parent) + os.pathsep + env.get("PATH", "")
@@ -689,7 +689,7 @@ def parser():
     return ap
 
 
-PASSTHROUGH = {"config": cmd_config, "emu": cmd_emu, "cpu": cmd_cpu, "gate": cmd_gate, "emu-check": cmd_emu_check}
+PASSTHROUGH = {"config": cmd_config, "emu": cmd_emu, "cpu": cmd_cpu, "gate": cmd_gate, "emu-check": cmd_emu_check, "costs": cmd_costs}
 
 
 def main(argv=None):
