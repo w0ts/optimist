@@ -65,9 +65,16 @@ typedef struct {
 } gl_lrow_t;
 /* the name in the large face too, when the name and the value both fit large (Felucca's look: "large fonts are much
  * more enjoyable on screen", a player, 2026-10-25) */
+#define GL_NM_GAP 4                                     /* (the room kept between a large name and its value) */
 static int gl_big_nm(const char *name, const char *v, int32_t uw, uint32_t tog)
 {
-    return 6 + text_w(font_big(), name) + 12 + text_w(font_big(), v) + uw + (tog ? GL_CK + 6 : 0) <= 236;
+    return 6 + text_w(font_big(), name) + GL_NM_GAP + text_w(font_big(), v) + uw + (tog ? GL_CK + 6 : 0) <= 236;
+}
+/* a name's shorter form for a line whose large name would not fit beside its value (the large face everywhere beats the
+ * long name: SYSTEM's KNOB COLORS), or 0 */
+static const char *gl_short_nm(const char *name)
+{
+    return str_eq(name, "KNOB COLORS") ? "COLORS" : 0;
 }
 static void gl_lrow(const cell_t *c, int32_t y, gl_lrow_t *r)
 {
@@ -88,6 +95,9 @@ static void gl_lrow(const cell_t *c, int32_t y, gl_lrow_t *r)
         r->fy = y + 1;
         r->ty = r->fy + (int32_t)font_big()->h / 2 - 4;
         r->by = r->fy + (int32_t)font_big()->h - 2;
+        if (!gl_big_nm(r->nm, r->v, r->uw, gl_tog(c)) && gl_short_nm(r->nm) &&
+            gl_big_nm(gl_short_nm(r->nm), r->v, r->uw, gl_tog(c)))
+            str_cpy(r->nm, gl_short_nm(r->nm), sizeof r->nm);
         if (gl_big_nm(r->nm, r->v, r->uw, gl_tog(c)))
             r->nf = font_big();
     }
@@ -192,7 +202,14 @@ static void gl_info_draw(int32_t y0)
             fy = y + (ph - (int32_t)font_big()->h) / 2;
             ty = fy + (int32_t)font_big()->h / 2 - 4;
         }
-        cv_texts(6, ty, nm, f == &FONT_S ? C_GRAY : C_WHITE);
+        if (f != &FONT_S && gl_big_nm(nm, lv, uw, 0)) {     /* (the name large too where both fit: one size on a row) */
+            cv_text(6, fy, f, nm, C_WHITE);
+        } else if (f != &FONT_S) {                      /* (else the whole row small, never a large value by a small name) */
+            f = &FONT_S;
+            fy = ty = y + (ph - (int32_t)FONT_S.h) / 2;
+            cv_texts(6, ty, nm, C_GRAY);
+        } else
+            cv_texts(6, ty, nm, C_GRAY);
         x = 236 - uw - text_w(f, lv);
         cv_text(x, fy, f, lv, vc);
         if (uw)
