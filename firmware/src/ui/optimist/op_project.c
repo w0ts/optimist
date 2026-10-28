@@ -411,6 +411,7 @@ static uint32_t pw_leds(uint32_t *d);
 #endif
 
 #include "../../system/dual_mode.h"                     /* 2ND CORE: DUALM_*, dual_why_name, and the INFO text helpers dual_cat / dual_cnum / dual_chex (LAST RESET: every UI=1 build; pure, no state) */
+#include "../../system/stackmark.h"                     /* INFO's RAM line: how deep the stacks went (painted at boot: stk_boot) */
 /* ---- SYSTEM: SLOOP's HOME-held menu as rows (ui/sloop/ui_menu.c) */
 enum { SI_NONE, SI_BRIGHT, SI_LIGHTS, SI_KEYS, SI_LOWCUT, SI_OUT, SI_SYNC, SI_CH1, SI_CH2,
        SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_HOLD, SI_BLE, SI_KCOL, SI_CLKOUT, SI_CPU1, SI_INFO, SI_BATT, SI_BUILD, SI_REPO,
@@ -422,18 +423,20 @@ enum { SI_NONE, SI_BRIGHT, SI_LIGHTS, SI_KEYS, SI_LOWCUT, SI_OUT, SI_SYNC, SI_CH
        SI_SDBACK, SI_SDREST,                            /* SETTINGS: BACKUP to the card, RESTORE from it (sd_mode.c) */
 #endif
        SI_WFMODE, SI_WFNET, SI_WFSIG, SI_WFST,           /* SYSTEM > WI-FI (op_wifi.c): MODE, NETWORK, SIGNAL, STATE */
+       SI_RAM,                                          /* INFO: the SRAM free at link, the stacks' least room left (stackmark.h) */
        SI_UAS0 };                                       /* SI_UAS0 + s: USB AUDIO's line of source s (ua_tap.h UAS_*), last */
 /* a core's load number (% of the audio budget) in its colour: green under 60, amber 60..85, red over 85 (the predictive guard's
- * ceiling, system/cpuguard.c CG_CEIL = 85 %: above it the guard sheds quality / voices). Text only (INFO draws no bars). */
+ * ceiling, system/cpuguard.c CG_CEIL = 85 %: above it the guard sheds quality / voices); INFO's bars and ticks the same. */
 #define LOAD_AMBER 60
 #define LOAD_RED 85
 static uint16_t load_col(int32_t pct) { return pct > LOAD_RED ? C_ERR : pct >= LOAD_AMBER ? C_WARN : C_OK; }
-/* INFO's overload lines (system/overload.h, cpuguard.c): the CPU lines' measure (KNOB 1: NOW, MAX 5S, MAX), DROPS, UNDERRUNS,
+/* INFO's overload lines (system/overload.h, cpuguard.c): the CPU lines (a bar of the load now, the ticks of its 10 s and
+ * 1 min peaks; the number by KNOB 1: NOW, MAX 10S, MAX 1M, MAX), DROPS, UNDERRUNS,
  * GUARD; DROPS, UNDERRUNS, MAX and the voices shed counted from a baseline SHIFT + YES on INFO sets (op_global.c info_clear;
  * the counters themselves go on: the console still reads them since boot) */
 #define DROPS_RED_MS 5000u                              /* DROPS red while a late half came within this long, else amber */
 static uint32_t info_shed0;
-static uint8_t info_mode;                               /* the CPU lines' measure: OVL_NOW, OVL_MAX5, OVL_MAXALL (INFO's KNOB 1) */
+static uint8_t info_mode;                               /* the CPU lines' number: OVL_NOW, OVL_MAX10, OVL_MAX60, OVL_MAXALL (INFO's KNOB 1) */
 /* UNDERRUNS: everything else lost since boot: USB audio's playback / capture under- and overruns and missed frames (USB audio
  * builds), MIDI in that found its ring full (USB, TRS, BLE) */
 static uint32_t info_ua_xruns(void)
@@ -456,15 +459,28 @@ static void info_clear_counts(void)                     /* SHIFT + YES on INFO: 
     info_shed0 = cg.sheds;
 #endif
 }
-/* a CPU line's value in the measure chosen: NOW (now: the smoothed load given), MAX 5S, MAX (ring's maxima); its label's suffix */
+/* a CPU line's number in the measure chosen: NOW (now: the smoothed load given), MAX 10S, MAX 1M, MAX (the ring's maxima); its
+ * label's suffix */
 static int32_t info_load(uint32_t ring, int32_t now)
 {
-    return info_mode == OVL_MAX5 ? (int32_t)ovl_max5_pct(ring, fm1_ms) : info_mode == OVL_MAXALL ? (int32_t)ovl_maxall_pct(ring) : now;
+    return info_mode == OVL_MAX10 ? (int32_t)ovl_win_pct(ring, fm1_ms, OVL_W10)
+         : info_mode == OVL_MAX60 ? (int32_t)ovl_win_pct(ring, fm1_ms, OVL_W60)
+         : info_mode == OVL_MAXALL ? (int32_t)ovl_maxall_pct(ring) : now;
 }
-static const char *const INFO_MODE_SFX[OVL_NMODE] = {"", " MAX 5S", " MAX"};
-static void info_label(cell_t *c, const char *base)     /* "CPU0" + the measure's suffix ("CPU0 MAX 5S"), in a buffer of its own */
+/* a CPU line's form: its bar the load now (0..100), the bright tick at the last ~10 s's peak, the dim one at the last ~1 min's
+ * (op_gldraw.c gl_info_bar; the user, 2026-10-28: "VU peak-hold style"), each in the load's colours there */
+static void info_bar(cell_t *c, uint32_t ring, int32_t now)
 {
-    static char b[2][16];
+    uint32_t p10 = ovl_win_pct(ring, fm1_ms, OVL_W10), p60 = ovl_win_pct(ring, fm1_ms, OVL_W60);
+    cell_gauge(c, 0, 0, 100, now < 100 ? now : 100);
+    c->pkbar = 1;
+    c->hold[0] = (int16_t)(p10 < 100u ? p10 : 100u);
+    c->hold[1] = (int16_t)(p60 < 100u ? p60 : 100u);
+}
+static const char *const INFO_MODE_SFX[OVL_NMODE] = {"", " MAX 10S", " MAX 1M", " MAX"};
+static void info_label(cell_t *c, const char *base)     /* "CPU0" + the measure's suffix ("CPU0 MAX 10S"), in a buffer of its own */
+{
+    static char b[2][20];
     char *t = b[base[3] == '1'];
     str_cpy(t, base, sizeof b[0]);
     str_app(t, INFO_MODE_SFX[info_mode % OVL_NMODE], sizeof b[0]);
@@ -622,6 +638,41 @@ static void sys_ro(cell_t *c, const char *label)    /* a read-out line */
     c->label = label;
     c->kind = CK_RO;
 }
+static void info_kb(char *b, uint32_t n)                /* n bytes as INFO writes them: "41K"; under 10 KB one decimal, "1.9K" */
+{
+    uint32_t t = n * 10u / 1024u;
+    fmt_int(b, (int32_t)(n < 10240u ? t / 10u : n / 1024u));
+    if (n < 10240u) {
+        uint32_t k = str_len(b);
+        b[k] = '.', b[k + 1u] = (char)('0' + t % 10u), b[k + 2u] = 0;
+    }
+    str_app(b, "K", 8);
+}
+/* INFO's RAM line (the user, 2026-10-28): the name with the SRAM nothing is linked into (fixed at link; the undo history's room
+ * in an UNDO_HISTORY build), the value the least room any stack has had left since boot (system/stackmark.h: CPU0's main and
+ * interrupt stacks, CPU1's jobs'), amber under STK_LOW; "?" when no stack was measured */
+static void info_ram(cell_t *c)
+{
+    static char lb[20];
+    uint32_t k, free = stk_sram_free();
+    int32_t l = stk_least(&k);
+    (void)k;
+    str_cpy(lb, "RAM", sizeof lb);
+    if (free) {
+        str_app(lb, " ", sizeof lb);
+        info_kb(lb + str_len(lb), free);
+        str_app(lb, " FREE", sizeof lb);
+    }
+    sys_ro(c, lb);
+    if (l < 0) {
+        cell_val(c, "?");
+        c->col = C_DIM;
+    } else {
+        info_kb(c->val, (uint32_t)l);
+        c->col = (uint32_t)l < STK_LOW ? C_WARN : C_OK;
+    }
+    c->unit = " STACK LEFT";
+}
 static void sys_onoff(cell_t *c, const char *label, uint32_t on)   /* an ON / OFF line */
 {
     cell_list(c, label, on ? "ON" : "OFF", 1, on != 0u);
@@ -726,8 +777,8 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         wf_cell(it, c);
         break;
 #endif
-    case SI_CPU: {                                      /* (DUAL: its wait for CPU1 counts in it); KNOB 1: NOW, MAX 5S, MAX (over 100: late) */
-        int32_t pct = info_load(OVL_CPU0, (int32_t)(song.cpu_q8 * 100u / 256u));
+    case SI_CPU: {                                      /* (DUAL: its wait for CPU1 counts in it); KNOB 1: NOW, MAX 10S, MAX 1M, MAX (over 100: late) */
+        int32_t now = (int32_t)(song.cpu_q8 * 100u / 256u), pct = info_load(OVL_CPU0, now);
         const char *nm = DUAL_LOAD ? "CPU0" : FELUCCA_SYS_DEBUG ? "LOAD" : "CPU LOAD";   /* (DUAL: CPU0 beside CPU1, on the
                                                          * player's INFO too: the user, 2026-10-18) */
         if (info_mode == OVL_NOW)
@@ -738,9 +789,12 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         fmt_int(c->val, pct);
         c->col = load_col(pct);
         c->unit = "%";
-        cell_gauge(c, 0, 0, 100, pct < 100 ? pct : 100);
+        info_bar(c, OVL_CPU0, now);
         break;
     }
+    case SI_RAM:
+        info_ram(c);
+        break;
 #if FELUCCA_SYS_DEBUG
     case SI_DROPS: {                                    /* late halves (gaps in the sound) since boot or the last clear */
         uint32_t n = ovl_drops();
@@ -810,8 +864,9 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
             c->unit = "";
             c->col = C_WARN;
             cell_gauge(c, 0, 0, 100, 0);
-        } else {                                        /* (KNOB 1: NOW, MAX 5S, MAX: its jobs' longest half) */
-            pct = info_load(OVL_CPU1, pct);
+        } else {                                        /* (KNOB 1: NOW, MAX 10S, MAX 1M, MAX: its jobs' longest half) */
+            int32_t now = pct;
+            pct = info_load(OVL_CPU1, now);
             if (info_mode == OVL_NOW && FELUCCA_SYS_DEBUG)
                 c->label = "2ND CORE ON";
             else
@@ -819,7 +874,7 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
             fmt_int(c->val, pct);
             c->unit = "%";
             c->col = load_col(pct);
-            cell_gauge(c, 0, 0, 100, pct < 100 ? pct : 100);
+            info_bar(c, OVL_CPU1, now);
         }
 #else
         sys_ro(c, "2ND CORE");
@@ -1151,14 +1206,14 @@ static void sys_rst_cell(cell_t *c)
 #endif
 /* SYSTEM's read-out pages (op_gldraw.c gl_info_draw; the user, 2026-10-15: "the 1st system screen would gain to be split in two
  * pages with easier-to-read text"), each drawn whole, text only:
- *   INFO (page 0, what a musician reads): the clock, the CPU (KNOB 1: now, max 5 s, max), the 2ND CORE (ON + load, OFF + why, NOT IN
- *        BUILD), DROPS, UNDERRUNS, GUARD (CPU_GUARD builds), the battery
+ *   INFO (page 0, what a musician reads): the clock, the CPU (a bar with its peaks; KNOB 1: now, max 10 s, max 1 min, max), the
+ *        2ND CORE (ON + load, OFF + why, NOT IN BUILD), RAM, DROPS, UNDERRUNS, GUARD (CPU_GUARD builds), the battery
  *   INTERNALS (page 1): LAST RESET, the longest flash interrupts-off time, the second core's internals (DUAL builds)
  *   USB STATS (page 2, USB audio builds): the USB audio counters */
 #if FELUCCA_SYS_DEBUG
-#define INFO_BASE (6u + (uint32_t)FELUCCA_CPU_GUARD)
+#define INFO_BASE (7u + (uint32_t)FELUCCA_CPU_GUARD)
 #else
-#define INFO_BASE (3u + (uint32_t)DUAL_LOAD)             /* (without the debug pages: CPU LOAD (CPU0, CPU1), UNDERRUNS, BATTERY) */
+#define INFO_BASE (4u + (uint32_t)DUAL_LOAD)             /* (without the debug pages: CPU LOAD (CPU0, CPU1), RAM, UNDERRUNS, BATTERY) */
 #endif
 #define INFO_N INFO_BASE                                /* INFO's lines */
 #ifndef FELUCCA_STOCK_SUPPLY
@@ -1169,7 +1224,7 @@ static void sys_rst_cell(cell_t *c)
 static void sys_info_cell(uint32_t i, cell_t *c)        /* INFO's line i */
 {
 #if FELUCCA_SYS_DEBUG
-    static const uint8_t INFO[INFO_BASE] = {SI_MHZ, SI_CPU, SI_CPU1, SI_DROPS, SI_XRUN,
+    static const uint8_t INFO[INFO_BASE] = {SI_MHZ, SI_CPU, SI_CPU1, SI_RAM, SI_DROPS, SI_XRUN,
 #if FELUCCA_CPU_GUARD
                                             SI_GUARD,
 #endif
@@ -1179,6 +1234,7 @@ static void sys_info_cell(uint32_t i, cell_t *c)        /* INFO's line i */
 #if DUAL_LOAD
                                             SI_CPU1,    /* (both cores' load: the user, 2026-10-18) */
 #endif
+                                            SI_RAM,     /* (the user, 2026-10-28) */
                                             SI_XRUN, SI_BATT};   /* (what a player wants, the user 2026-10-17) */
 #endif
     sys_it_cell(INFO[i % INFO_N], c);
