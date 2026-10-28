@@ -405,8 +405,11 @@ def write_header(cfg, name, path=ROOT / "build" / "gen" / "felucca_config.h"):
 
 def build_python():
     """a Python with Pillow for tools/build.py (the generators need it): this one, else the builder's venv"""
-    if importlib.util.find_spec("PIL") is not None:
-        return sys.executable
+    try:                                                # (PIL.Image: a removed Pillow's empty PIL folder imports)
+        if importlib.util.find_spec("PIL.Image") is not None:
+            return sys.executable
+    except ModuleNotFoundError:
+        pass
     sys.path.insert(0, str(HERE.parent))
     import deps                                         # (the venv: BUILDER_VENV, ./tools/builder/venv or the main checkout's)
     venv = deps.venv_dir()
@@ -426,10 +429,10 @@ def in_container():
             or os.environ.get("JIELI_BACKEND") in ("docker", "image"))
 
 
-def _run(cmd, env, echo, on_line=None):
+def _run(cmd, env, echo, on_line=None, cancel=None):
     """-> (returncode, output); echo: print each line as it comes (the CLI), else quiet (the menu); on_line: called
-    with each line as it comes (the menu's progress bar reads the stage lines)"""
-    if not echo and not on_line:
+    with each line as it comes (the menu's progress bar reads the stage lines); cancel: an Event that ends the run"""
+    if not echo and not on_line and cancel is None:
         p = subprocess.run(cmd, cwd=ROOT, env=env, capture_output=True, text=True, encoding="utf-8",
                            errors="replace")
         return p.returncode, p.stdout + p.stderr
@@ -442,7 +445,7 @@ def _run(cmd, env, echo, on_line=None):
             print(ln, flush=True)
         if on_line:
             on_line(ln)
-    return PR.stream(cmd, on_line=each, cwd=ROOT, env=env)
+    return PR.stream(cmd, on_line=each, cwd=ROOT, env=env, cancel=cancel)
 
 
 def build_dir(outdir=None):
@@ -450,10 +453,12 @@ def build_dir(outdir=None):
     return Path(outdir) if outdir else ROOT / (os.environ.get("OPTIMIST_BUILD_DIR") or "build")
 
 
-def build(cfg, name, measure=False, log=None, extra=(), echo=False, on_line=None, outdir=None):
+def build(cfg, name, measure=False, log=None, extra=(), echo=False, on_line=None, outdir=None, cancel=None):
     """a real build of this configuration (tools/build.py) -> (ok, sizes dict, output text); extra: more
     build.py arguments (--release X.Y); on_line: called with each output line while it builds; outdir: another
-    build directory inside the tree than build/ (OPTIMIST_BUILD_DIR: parallel measurement builds, one each)"""
+    build directory inside the tree than build/ (OPTIMIST_BUILD_DIR: parallel measurement builds, one each);
+    cancel: an Event; set, the build is killed (the output ends with "build: cancelled"). A failed build's output ends
+    with the line "build: exit status N" """
     err, _, _ = validate(cfg)
     if err:
         msg = "configuration errors:\n  " + "\n  ".join(err)
@@ -471,16 +476,16 @@ def build(cfg, name, measure=False, log=None, extra=(), echo=False, on_line=None
     out, rc = "", 1
     (bdir / "sizes.json").unlink(missing_ok=True)   # (a failed build must not report the last one's)
     if not classic():
-        rc, out = release_build(cfgfile, bdir, measure, extra, echo, on_line, parallel=bool(outdir))
+        rc, out = release_build(cfgfile, bdir, measure, extra, echo, on_line, parallel=bool(outdir), cancel=cancel)
         if log:
             Path(log).write_text(out)
         return _sized(cfg, bdir, rc, measure, out)
     for attempt in range(3):                          # (Docker: clang crashes now and then, and the mount has
                                                         # shown stale files to the tools; a retry works)
-        rc, out = _run(cmd, env, echo, on_line)
+        rc, out = _run(cmd, env, echo, on_line, cancel)
         flaky = ("core dumped" in out or "Segmentation" in out or "No such file" in out or "Bus error" in out or
                  ("felucca_config.h" in out and "error:" in out))
-        if rc == 0 or not flaky or attempt == 2 or not in_container():
+        if rc == 0 or rc == 130 or not flaky or attempt == 2 or not in_container():
             break
         if echo:
             print(f"build: the toolchain failed in a way a retry fixes; again ({attempt + 2} of 3)")
@@ -501,15 +506,17 @@ def _sized(cfg, bdir, rc, measure, out):
         remember_sizes(cfg, sizes)                       # (the menu shows these, exact, from now on)
     if measure and not classic():
         rc = 0 if sizes else 1       # (fm1-base has no measurement mode: a build over the slot stops at its package, its sizes.json is written first)
+    if rc:
+        out += f"\nbuild: exit status {rc}"
     return rc == 0, sizes, out
 
 
-def release_build(cfgfile, bdir, measure, extra, echo, on_line, parallel=False):
+def release_build(cfgfile, bdir, measure, extra, echo, on_line, parallel=False, cancel=None):
     """the release: fm1-base's build of this .config (tools/fm1base.py) -> (returncode, output). extra: --release X.Y"""
     import fm1base
     release = extra[extra.index("--release") + 1] if "--release" in extra else None
     try:
-        return fm1base.build(cfgfile, bdir, build_python(), lambda cmd, env: _run(cmd, env, echo, on_line), release,
+        return fm1base.build(cfgfile, bdir, build_python(), lambda cmd, env: _run(cmd, env, echo, on_line, cancel), release,
                              f"optimist-{release or version()}", parallel=parallel, measure=measure)
     except fm1base.FM1BaseError as e:
         if echo:

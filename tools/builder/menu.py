@@ -13,6 +13,7 @@ Keys: space / enter toggle (a choice: next value) | / search | p profiles | s sa
 Everything it does goes through configure.py (the plain module the tests use)."""
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -174,6 +175,12 @@ class Builder(App):
         self.built = None                                # ST.Stamp of the last successful build (f flashes only it)
         self.flash_after_build = False                   # f found no current build: build, then go on to the flash
         self.flash_track = PG.FlashTracker()
+        self.cancel_build = threading.Event()            # set by q / ctrl+c: the running build is killed, its thread ends
+        self.building = False                            # a build is running (b again is refused until it ends)
+        self.build_t0 = 0.0                              # when it started, and the last thing it printed (the bar's label)
+        self.build_last = ""
+        self.build_stage = None                          # (n, total, label) of the last stage line, if the build prints them
+        self.build_shown = 0.0                           # when the bar was last moved by an output line (throttle)
         self.flashing = False                            # the FM-1 is being written: q and ctrl+c are refused (action_quit)
         self.code0 = ST.code_fingerprint()               # the builder's code as it started (changed: f refuses)
         self.source = ST.source_line(C.ROOT)             # the checkout and commit a build compiles
@@ -200,6 +207,7 @@ class Builder(App):
         yield Footer()
 
     def on_mount(self):
+        self.set_interval(1.0, self.build_tick)
         tree = self.query_one("#tree")
         tree.show_root = False
         self.rebuild()
@@ -631,11 +639,29 @@ class Builder(App):
         self.query_one("#prog").remove_class("on")
 
     def build_line(self, ln):
-        """each line of a running build (from its worker thread): a stage line moves the bar"""
+        """each line of a running build (from its worker thread): a stage line (the classic build) moves the bar; any
+        other line (the release build prints none) becomes the bar's label, with the time, on a bar that only moves"""
         st = PG.parse_stage(ln)
         if st:
-            n, total, label = st
-            self.call_from_thread(self.progress_show, f"build {n}/{total}: {label}", PG.build_percent(n, total))
+            self.build_stage = st
+            self.call_from_thread(self.build_tick)
+            return
+        label = PG.build_label(ln)
+        now = time.monotonic()
+        if label and now - self.build_shown >= 0.1:      # (a burst of lines is not worth a redraw each)
+            self.build_last, self.build_shown = label, now
+            self.call_from_thread(self.build_tick)
+
+    def build_tick(self):
+        """once a second and on each output line, while building: the bar's label (elapsed time, stage or last line)"""
+        if not self.building:
+            return
+        secs = int(time.time() - self.build_t0)
+        if self.build_stage:
+            n, total, label = self.build_stage
+            self.progress_show(f"build {n}/{total}: {label} ({secs} s)", PG.build_percent(n, total))
+        else:
+            self.progress_show(f"build ({secs} s): {self.build_last or 'starting'}", None)
 
     def flash_line(self, ln):
         """each line of the running install (from its worker thread): the tool's progress moves the bar"""
@@ -659,7 +685,12 @@ class Builder(App):
                           (", then the flash (it asks before it writes)" if self.flash_after_build else "") +
                           f"\n  {self.source}")
         self.refresh_msgs()
-        self.progress_show("build: starting", None)
+        if self.building:
+            self.notify("already building", title="build", timeout=4)
+            return False
+        self.cancel_build.clear()
+        self.building, self.build_t0, self.build_last, self.build_stage = True, time.time(), "", None
+        self.progress_show("build (0 s): starting", None)
         self.run_build(dict(self.cfg), self.cfg_name, then_emu)
         return True
 
@@ -669,18 +700,34 @@ class Builder(App):
 
     @work(thread=True, exclusive=True)
     def run_build(self, cfg, name, then_emu=False):
+        """the build step, in a worker thread. However it ends (done, failed, an exception, quit) it ends: the menu is
+        told once (show_build), never left on a bar that does not move"""
+        try:
+            text, sizes, built = self.build_steps(cfg, name, then_emu)
+        except Exception as e:                           # (a bug here must show, not leave the bar running)
+            text, sizes, built = f"BUILD FAILED: the builder itself broke: {type(e).__name__}: {e}", None, None
+        if self.cancel_build.is_set():                   # (quitting: the app is going away; nothing to show)
+            return
+        try:
+            self.call_from_thread(self.show_build, text, sizes, built, C.cfg_hash(cfg))
+        except Exception:                                # (the app ended while this ran)
+            pass
+
+    def build_steps(self, cfg, name, then_emu):
+        """-> (the panel's text, sizes or None, the Stamp of a package that fits or None)"""
         b = self.budget(cfg)
         fit = b and all(o <= 0 for _, _, o in C.fits(b["total"], cfg).values())
         started = time.time()
-        ok, sizes, out = C.build(cfg, name, measure=not fit, on_line=self.build_line)
-        if not ok and fit:                               # (the estimate fitted, the exact build did not)
-            ok, sizes, out = C.build(cfg, name, measure=True, on_line=self.build_line)
+        go = lambda measure: C.build(cfg, name, measure=measure, on_line=self.build_line, cancel=self.cancel_build)
+        ok, sizes, out = go(not fit)
+        if not ok and fit and not self.cancel_build.is_set():    # (the estimate fitted, the exact build did not)
+            ok, sizes, out = go(True)
             fit = False
         elif ok and not fit and sizes and self.sizes_fit(sizes, cfg):   # (the estimate overflowed, the build fits)
-            ok, sizes, out = C.build(cfg, name, measure=False, on_line=self.build_line)
+            ok, sizes, out = go(False)
             fit = ok
-            if not ok:                                   # (the real link refused what the measurement fitted)
-                ok, sizes, out = C.build(cfg, name, measure=True, on_line=self.build_line)
+            if not ok and not self.cancel_build.is_set():    # (the real link refused what the measurement fitted)
+                ok, sizes, out = go(True)
         lines = []
         if sizes:
             for r, (used, cap, over) in C.fits({k: sizes[k] for k in C.REGIONS}, cfg).items():
@@ -688,9 +735,22 @@ class Builder(App):
                              (f"OVER by {over:,}" if over > 0 else f"{-over:,} free"))
         pkg = C.build_dir() / "felucca.fwsc"
         keep = ("over", "FAIL", "package", "error", "Error", "ld:", "overflowed", "undefined reference")
-        tail = [ln for ln in out.splitlines() if ln.strip().startswith(keep) or any(k in ln for k in keep[3:])]
-        tail = tail[-12:] if ok else tail[-20:]          # a failure keeps the compiler's own lines
-        res = ("BUILD OK" if ok else "BUILD FAILED") + (" (measurement build: does not fit)" if ok and not fit else "")
+        log = C.build_dir() / "builder-last.log"
+        try:
+            log.write_text(out)
+        except OSError:
+            log = None
+        if ok:
+            tail = [ln for ln in out.splitlines() if ln.strip().startswith(keep) or any(k in ln for k in keep[3:])][-12:]
+        else:                                            # a failure: the raw lines it ended on (a filter hid ld's own)
+            tail = [ln for ln in out.splitlines() if ln.strip() and not ln.startswith("size: kept at")][-25:]
+            if log:
+                tail.append(f"  full output: {log}")
+        if ok:
+            res = "BUILD OK" + (" (measurement build: does not fit)" if not fit else "")
+        else:
+            code = PG.exit_status(out)
+            res = f"BUILD FAILED: {PG.failure_reason(out)}" + (f" (exit status {code})" if code is not None else "")
         text = res + "\n" + "\n".join(lines + tail) + f"\n  {self.source}"
         built = None
         if ok and fit and pkg.exists():
@@ -706,7 +766,7 @@ class Builder(App):
         stale = ST.changed_code(self.code0)
         if stale:
             text += f"\n  WARNING: the builder's own code changed since it started ({', '.join(stale)}): {ST.RESTART}"
-        self.call_from_thread(self.show_build, text, sizes, built, C.cfg_hash(cfg))
+        return text, sizes, built
 
     def launch_emu(self):
         """the newest named package of this build in the emulator, in the background -> one line for the panel"""
@@ -727,6 +787,7 @@ class Builder(App):
         return all(o <= 0 for _, _, o in C.fits({k: sizes[k] for k in C.REGIONS}, cfg).values())
 
     def show_build(self, text, sizes, built=None, cfg_hash=None):
+        self.building = False
         self.progress_hide()
         if sizes and cfg_hash is not None:               # the panel's bars and overflow lines: this build's sizes now
             self.exact = (cfg_hash, {k: sizes[k] for k in C.REGIONS})
@@ -750,6 +811,7 @@ class Builder(App):
             self.notify("flashing: not quitting until the write is done (do not unplug the FM-1)", title="quit refused",
                         severity="warning", timeout=6)
             return
+        self.cancel_build.set()                          # (a running build is killed; its thread ends with it)
         self.exit()
 
     def action_flash(self):
