@@ -297,6 +297,171 @@
 		)
 		(embedded_fonts no)
 	)
+(symbol "Device:FerriteBead"
+		(pin_numbers
+			(hide yes)
+		)
+		(pin_names
+			(offset 0)
+		)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(duplicate_pin_numbers_are_jumpers no)
+		(property "Reference" "FB"
+			(at -3.81 0.635 90)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "FerriteBead"
+			(at 3.81 0 90)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at -1.778 0 90)
+			(show_name no)
+			(do_not_autoplace no)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 0 0 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Ferrite bead"
+			(at 0 0 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "ki_keywords" "L ferrite bead inductor filter"
+			(at 0 0 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "ki_fp_filters" "Inductor_* L_* *Ferrite*"
+			(at 0 0 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(symbol "FerriteBead_0_1"
+			(polyline
+				(pts
+					(xy -2.7686 0.4064) (xy -1.7018 2.2606) (xy 2.7686 -0.3048) (xy 1.6764 -2.159) (xy -2.7686 0.4064)
+				)
+				(stroke
+					(width 0)
+					(type default)
+				)
+				(fill
+					(type none)
+				)
+			)
+			(polyline
+				(pts
+					(xy 0 1.27) (xy 0 1.2954)
+				)
+				(stroke
+					(width 0)
+					(type default)
+				)
+				(fill
+					(type none)
+				)
+			)
+			(polyline
+				(pts
+					(xy 0 -1.27) (xy 0 -1.2192)
+				)
+				(stroke
+					(width 0)
+					(type default)
+				)
+				(fill
+					(type none)
+				)
+			)
+		)
+		(symbol "FerriteBead_1_1"
+			(pin passive line
+				(at 0 3.81 270)
+				(length 2.54)
+				(name ""
+					(effects
+						(font
+							(size 1.27 1.27)
+						)
+					)
+				)
+				(number "1"
+					(effects
+						(font
+							(size 1.27 1.27)
+						)
+					)
+				)
+			)
+			(pin passive line
+				(at 0 -3.81 90)
+				(length 2.54)
+				(name ""
+					(effects
+						(font
+							(size 1.27 1.27)
+						)
+					)
+				)
+				(number "2"
+					(effects
+						(font
+							(size 1.27 1.27)
+						)
+					)
+				)
+			)
+		)
+		(embedded_fonts no)
+	)
 (symbol "74xGxx:74LVC1G04"
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -2197,15 +2362,15 @@
 (label "GND" (at 147.32 91.44 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "b2a94f34-af88-568a-a9e6-5b0dda934aa3"))
 (label "DAT0" (at 147.32 93.98 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "55bc1c9d-ecc2-539f-b81d-89bfddbbd795"))
 (label "DAT1" (at 147.32 96.52 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "140c726f-6a5e-5cda-bddd-24c93d2c09c3"))
+(label "CARD_DET" (at 147.32 101.6 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "9a0cf1e6-86a2-5392-b5f2-5e1bc869decd"))
 (label "GND" (at 190.5 101.6 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "48acbd1c-64e4-5490-8d26-4d54263025c8"))
-(no_connect (at 147.32 101.6) (uuid "8bee3699-cf65-5ae3-a55f-b752dd3adbe7"))
 (symbol (lib_id "74xGxx:74LVC1G04") (at 71.12 71.12 0) (unit 1) (exclude_from_sim no) (in_bom yes) (on_board yes) (dnp no) (uuid "e9c70f2e-fa66-59f0-923b-b1edc269e462") (property "Reference" "U1" (at 71.12 57.120000000000005 0) (effects (font (size 1.27 1.27)))) (property "Value" "74LVC1G04" (at 71.12 85.12 0) (effects (font (size 1.27 1.27)))) (property "Footprint" "sdboard:SOT-23-5_L3.0-W1.7-P0.95-LS2.8-BR" (at 71.12 71.12 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Datasheet" "" (at 71.12 71.12 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "LCSC" "C7827" (at 71.12 71.12 0) (effects (font (size 1.27 1.27)) (hide yes))) (pin "1" (uuid "ac9d71aa-2fa2-50d9-82c7-48b1695beec5")) (pin "2" (uuid "69ee3b7b-4161-5f7e-ad1c-b972fb4afed2")) (pin "3" (uuid "13efd899-8faa-55f5-af75-53aee1cecaaa")) (pin "4" (uuid "a8d56ea7-890b-5624-8dbc-4cd94c141553")) (pin "5" (uuid "f7d09c63-41ff-547a-987a-a9e60bcba7f8")) (instances (project "sd-board" (path "/766c70bd-1acb-59f5-b703-96c0315a8041" (reference "U1") (unit 1)))))
 (label "SD_CSIN" (at 55.88 71.12 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "55444381-305a-5cd6-8c09-e43bcf667dda"))
 (label "GND" (at 66.04 81.28 270) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "ac696103-e435-5f1c-8a98-b2ab9f2d581e"))
 (label "CARD_CS" (at 83.82 71.12 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "7516fbf9-a25f-54bb-84df-4be1900fca2f"))
 (label "SD_VDD" (at 66.04 60.96 90) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "8695be08-9e9e-5a75-b5cc-4f417b119857"))
 (no_connect (at 63.5 68.58) (uuid "dd35fb0f-5005-556b-94f3-6c8f6ee6b414"))
-(symbol (lib_id "Device:R") (at 109.22 124.46 0) (unit 1) (exclude_from_sim no) (in_bom yes) (on_board yes) (dnp no) (uuid "6d3a0cc3-136e-5f75-b052-7077a46af1bb") (property "Reference" "R1" (at 109.22 110.46 0) (effects (font (size 1.27 1.27)))) (property "Value" "100" (at 109.22 138.45999999999998 0) (effects (font (size 1.27 1.27)))) (property "Footprint" "sdboard:R0603" (at 109.22 124.46 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Datasheet" "" (at 109.22 124.46 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "LCSC" "C22775" (at 109.22 124.46 0) (effects (font (size 1.27 1.27)) (hide yes))) (pin "1" (uuid "b5e33968-5a59-5799-b3ae-1ee261a633a8")) (pin "2" (uuid "3c1576b1-d2b4-501f-abdb-75c10015b744")) (instances (project "sd-board" (path "/766c70bd-1acb-59f5-b703-96c0315a8041" (reference "R1") (unit 1)))))
+(symbol (lib_id "Device:R") (at 109.22 124.46 0) (unit 1) (exclude_from_sim no) (in_bom yes) (on_board yes) (dnp no) (uuid "6d3a0cc3-136e-5f75-b052-7077a46af1bb") (property "Reference" "R1" (at 109.22 110.46 0) (effects (font (size 1.27 1.27)))) (property "Value" "220" (at 109.22 138.45999999999998 0) (effects (font (size 1.27 1.27)))) (property "Footprint" "sdboard:R0603" (at 109.22 124.46 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Datasheet" "" (at 109.22 124.46 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "LCSC" "C22962" (at 109.22 124.46 0) (effects (font (size 1.27 1.27)) (hide yes))) (pin "1" (uuid "b5e33968-5a59-5799-b3ae-1ee261a633a8")) (pin "2" (uuid "3c1576b1-d2b4-501f-abdb-75c10015b744")) (instances (project "sd-board" (path "/766c70bd-1acb-59f5-b703-96c0315a8041" (reference "R1") (unit 1)))))
 (label "SD_DO" (at 109.22 120.65 90) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "fcd9c01e-cbe3-5127-b6cc-859df6904345"))
 (label "DAT0" (at 109.22 128.27 270) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "c0667d4f-5f20-560f-87fa-41b46709c8a3"))
 (symbol (lib_id "Device:R") (at 124.46 124.46 0) (unit 1) (exclude_from_sim no) (in_bom yes) (on_board yes) (dnp no) (uuid "8a5e2d04-2450-59a4-a575-1b4315b13535") (property "Reference" "R2" (at 124.46 110.46 0) (effects (font (size 1.27 1.27)))) (property "Value" "47k" (at 124.46 138.45999999999998 0) (effects (font (size 1.27 1.27)))) (property "Footprint" "sdboard:R0603" (at 124.46 124.46 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Datasheet" "" (at 124.46 124.46 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "LCSC" "C25819" (at 124.46 124.46 0) (effects (font (size 1.27 1.27)) (hide yes))) (pin "1" (uuid "c3583a78-9eea-59db-825e-8bbcd77d36f2")) (pin "2" (uuid "45a5d768-192e-53d2-af7a-775d4c0eb0aa")) (instances (project "sd-board" (path "/766c70bd-1acb-59f5-b703-96c0315a8041" (reference "R2") (unit 1)))))
@@ -2217,12 +2382,21 @@
 (symbol (lib_id "Device:R") (at 45.72 71.12 0) (unit 1) (exclude_from_sim no) (in_bom yes) (on_board yes) (dnp no) (uuid "0fa0ffa3-854f-5ac3-8017-f6fb4988bf04") (property "Reference" "R4" (at 45.72 57.120000000000005 0) (effects (font (size 1.27 1.27)))) (property "Value" "47k" (at 45.72 85.12 0) (effects (font (size 1.27 1.27)))) (property "Footprint" "sdboard:R0603" (at 45.72 71.12 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Datasheet" "" (at 45.72 71.12 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "LCSC" "C25819" (at 45.72 71.12 0) (effects (font (size 1.27 1.27)) (hide yes))) (pin "1" (uuid "6a3dd091-6a5a-5899-a324-092ed07ff5f0")) (pin "2" (uuid "7eda90d9-3627-50be-9363-19bdbd7dc497")) (instances (project "sd-board" (path "/766c70bd-1acb-59f5-b703-96c0315a8041" (reference "R4") (unit 1)))))
 (label "GND" (at 45.72 67.31 90) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "920c3471-fcfe-5e47-a883-55982f928575"))
 (label "SD_CSIN" (at 45.72 74.93 270) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "fa5d1bc1-f6d3-5dfb-9020-e6b8a340c0a4"))
-(symbol (lib_id "Device:R") (at 154.94 124.46 0) (unit 1) (exclude_from_sim no) (in_bom yes) (on_board yes) (dnp no) (uuid "8768d16b-2d5e-59cc-a0ae-4d7ccf37f85b") (property "Reference" "R5" (at 154.94 110.46 0) (effects (font (size 1.27 1.27)))) (property "Value" "100" (at 154.94 138.45999999999998 0) (effects (font (size 1.27 1.27)))) (property "Footprint" "sdboard:R0603" (at 154.94 124.46 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Datasheet" "" (at 154.94 124.46 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "LCSC" "C22775" (at 154.94 124.46 0) (effects (font (size 1.27 1.27)) (hide yes))) (pin "1" (uuid "630f1157-7785-59c2-8651-72f6aa10aa46")) (pin "2" (uuid "c8046165-7bdb-561c-a0d6-f44257086fde")) (instances (project "sd-board" (path "/766c70bd-1acb-59f5-b703-96c0315a8041" (reference "R5") (unit 1)))))
+(symbol (lib_id "Device:R") (at 154.94 124.46 0) (unit 1) (exclude_from_sim no) (in_bom yes) (on_board yes) (dnp no) (uuid "8768d16b-2d5e-59cc-a0ae-4d7ccf37f85b") (property "Reference" "R5" (at 154.94 110.46 0) (effects (font (size 1.27 1.27)))) (property "Value" "510" (at 154.94 138.45999999999998 0) (effects (font (size 1.27 1.27)))) (property "Footprint" "sdboard:R0603" (at 154.94 124.46 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Datasheet" "" (at 154.94 124.46 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "LCSC" "C23193" (at 154.94 124.46 0) (effects (font (size 1.27 1.27)) (hide yes))) (pin "1" (uuid "630f1157-7785-59c2-8651-72f6aa10aa46")) (pin "2" (uuid "c8046165-7bdb-561c-a0d6-f44257086fde")) (instances (project "sd-board" (path "/766c70bd-1acb-59f5-b703-96c0315a8041" (reference "R5") (unit 1)))))
 (label "CLK_SD" (at 154.94 120.65 90) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "7546a984-fc0d-5bbc-becd-2f8d3ef8aceb"))
 (label "CLK" (at 154.94 128.27 270) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "2771bab8-3e8f-5975-8341-eea490288ba4"))
-(symbol (lib_id "Device:R") (at 170.18 124.46 0) (unit 1) (exclude_from_sim no) (in_bom yes) (on_board yes) (dnp no) (uuid "b314119e-d6b1-560c-9ddc-86685bac7c46") (property "Reference" "R6" (at 170.18 110.46 0) (effects (font (size 1.27 1.27)))) (property "Value" "100" (at 170.18 138.45999999999998 0) (effects (font (size 1.27 1.27)))) (property "Footprint" "sdboard:R0603" (at 170.18 124.46 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Datasheet" "" (at 170.18 124.46 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "LCSC" "C22775" (at 170.18 124.46 0) (effects (font (size 1.27 1.27)) (hide yes))) (pin "1" (uuid "b97fdec5-6efe-5035-b693-7a57328fcfae")) (pin "2" (uuid "9b496362-6eca-59fc-af89-ff0cc285e527")) (instances (project "sd-board" (path "/766c70bd-1acb-59f5-b703-96c0315a8041" (reference "R6") (unit 1)))))
+(symbol (lib_id "Device:R") (at 170.18 124.46 0) (unit 1) (exclude_from_sim no) (in_bom yes) (on_board yes) (dnp no) (uuid "b314119e-d6b1-560c-9ddc-86685bac7c46") (property "Reference" "R6" (at 170.18 110.46 0) (effects (font (size 1.27 1.27)))) (property "Value" "510" (at 170.18 138.45999999999998 0) (effects (font (size 1.27 1.27)))) (property "Footprint" "sdboard:R0603" (at 170.18 124.46 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Datasheet" "" (at 170.18 124.46 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "LCSC" "C23193" (at 170.18 124.46 0) (effects (font (size 1.27 1.27)) (hide yes))) (pin "1" (uuid "b97fdec5-6efe-5035-b693-7a57328fcfae")) (pin "2" (uuid "9b496362-6eca-59fc-af89-ff0cc285e527")) (instances (project "sd-board" (path "/766c70bd-1acb-59f5-b703-96c0315a8041" (reference "R6") (unit 1)))))
 (label "MOSI_SD" (at 170.18 120.65 90) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "e6e8ee84-acc0-5160-953b-091fd59baa44"))
 (label "MOSI" (at 170.18 128.27 270) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "2b612ec1-3552-5101-b7d9-ad7ca91564bc"))
+(symbol (lib_id "Device:R") (at 185.42 124.46 0) (unit 1) (exclude_from_sim no) (in_bom yes) (on_board yes) (dnp no) (uuid "adb931b3-061c-5030-b55b-19e6406ebd5b") (property "Reference" "R7" (at 185.42 110.46 0) (effects (font (size 1.27 1.27)))) (property "Value" "47k" (at 185.42 138.45999999999998 0) (effects (font (size 1.27 1.27)))) (property "Footprint" "sdboard:R0603" (at 185.42 124.46 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Datasheet" "" (at 185.42 124.46 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "LCSC" "C25819" (at 185.42 124.46 0) (effects (font (size 1.27 1.27)) (hide yes))) (pin "1" (uuid "eb3ec6fd-8dee-53a8-ba23-dad3d025353f")) (pin "2" (uuid "0f0bdae9-e27c-5a86-ab19-1bd215ff1a31")) (instances (project "sd-board" (path "/766c70bd-1acb-59f5-b703-96c0315a8041" (reference "R7") (unit 1)))))
+(label "SD_VDD" (at 185.42 120.65 90) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "69ff3e8d-5c7a-5014-90bc-5fcf41a322f3"))
+(label "DAT0" (at 185.42 128.27 270) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "403a53fe-8346-5180-b512-f1087f50a4a9"))
+(symbol (lib_id "Device:C") (at 88.9 124.46 0) (unit 1) (exclude_from_sim no) (in_bom yes) (on_board yes) (dnp no) (uuid "31d2558f-500d-549c-8ca4-605884a57fdc") (property "Reference" "C3" (at 88.9 110.46 0) (effects (font (size 1.27 1.27)))) (property "Value" "100nF" (at 88.9 138.45999999999998 0) (effects (font (size 1.27 1.27)))) (property "Footprint" "sdboard:C0603" (at 88.9 124.46 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Datasheet" "" (at 88.9 124.46 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "LCSC" "C14663" (at 88.9 124.46 0) (effects (font (size 1.27 1.27)) (hide yes))) (pin "1" (uuid "0a58ad01-5868-5d90-b918-88994b87de3b")) (pin "2" (uuid "48737354-ddd9-5f6d-a915-0424d5861042")) (instances (project "sd-board" (path "/766c70bd-1acb-59f5-b703-96c0315a8041" (reference "C3") (unit 1)))))
+(label "SD_VDD" (at 88.9 120.65 90) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "a4c22d54-4362-55ae-9ab5-6eee0493012b"))
+(label "GND" (at 88.9 128.27 270) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "0b937b73-06ef-5717-b037-6791038f015f"))
+(symbol (lib_id "Device:FerriteBead") (at 40.64 124.46 0) (unit 1) (exclude_from_sim no) (in_bom yes) (on_board yes) (dnp no) (uuid "881df22f-636a-57f0-a1d7-2355bbc6be71") (property "Reference" "FB1" (at 40.64 110.46 0) (effects (font (size 1.27 1.27)))) (property "Value" "600R@100MHz" (at 40.64 138.45999999999998 0) (effects (font (size 1.27 1.27)))) (property "Footprint" "sdboard:R0603" (at 40.64 124.46 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Datasheet" "" (at 40.64 124.46 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "LCSC" "C1002" (at 40.64 124.46 0) (effects (font (size 1.27 1.27)) (hide yes))) (pin "1" (uuid "866a7785-792d-5e4e-b4d0-33f6f0babff2")) (pin "2" (uuid "81826388-6d86-5e01-8957-ebf414ce85ee")) (instances (project "sd-board" (path "/766c70bd-1acb-59f5-b703-96c0315a8041" (reference "FB1") (unit 1)))))
+(label "SD_VIN" (at 40.64 120.65 90) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "238a6188-c6da-506c-800f-762d6768521e"))
+(label "SD_VDD" (at 40.64 128.27 270) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "9192ee83-1221-58b2-bcaf-d503673b7490"))
 (symbol (lib_id "Device:C") (at 60.96 124.46 0) (unit 1) (exclude_from_sim no) (in_bom yes) (on_board yes) (dnp no) (uuid "1ddadac2-c390-5262-a9c4-13658d4b422e") (property "Reference" "C1" (at 60.96 110.46 0) (effects (font (size 1.27 1.27)))) (property "Value" "10uF" (at 60.96 138.45999999999998 0) (effects (font (size 1.27 1.27)))) (property "Footprint" "sdboard:C0805" (at 60.96 124.46 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Datasheet" "" (at 60.96 124.46 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "LCSC" "C15850" (at 60.96 124.46 0) (effects (font (size 1.27 1.27)) (hide yes))) (pin "1" (uuid "700f0ee7-ec8c-5db5-a37b-fc1f8d30fe84")) (pin "2" (uuid "96769bd8-3aca-5bc0-9a8c-d64fb396d19d")) (instances (project "sd-board" (path "/766c70bd-1acb-59f5-b703-96c0315a8041" (reference "C1") (unit 1)))))
 (label "SD_VDD" (at 60.96 120.65 90) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "ea7c76d5-7683-5338-bbea-b498d6ebc6d8"))
 (label "GND" (at 60.96 128.27 270) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "ef19b24d-5e26-500e-984c-08c7f1770492"))
@@ -2256,7 +2430,7 @@
 (label "SD_DI" (at 109.22 175.26 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "f27f90eb-9c9f-5331-8f53-69a17e775a70"))
 (label "MOSI_SD" (at 119.38 175.26 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "baa3db2e-08d8-5b38-86bb-02fe7f15e5c2"))
 (symbol (lib_id "Jumper:SolderJumper_2_Bridged") (at 139.7 175.26 0) (unit 1) (exclude_from_sim no) (in_bom no) (on_board yes) (dnp no) (uuid "b4390883-389a-5892-b6ed-8b88f3dfea22") (property "Reference" "JP5" (at 139.7 161.26 0) (effects (font (size 1.27 1.27)))) (property "Value" "cut to swap" (at 139.7 189.26 0) (effects (font (size 1.27 1.27)))) (property "Footprint" "sdboard:SolderJumper-2_Cut_P3.0mm_Pad1.5x2.0mm" (at 139.7 175.26 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Datasheet" "" (at 139.7 175.26 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "LCSC" "" (at 139.7 175.26 0) (effects (font (size 1.27 1.27)) (hide yes))) (pin "1" (uuid "0e0713d9-b77b-5cfa-a82b-f4c2ce59c088")) (pin "2" (uuid "67f95ddb-8bda-5f0c-81f8-d488ff8f39c6")) (instances (project "sd-board" (path "/766c70bd-1acb-59f5-b703-96c0315a8041" (reference "JP5") (unit 1)))))
-(label "SD_VDD" (at 134.62 175.26 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "2d29b9ce-8e64-5c8d-9b4e-9e32ba0112b8"))
+(label "SD_VIN" (at 134.62 175.26 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "2d29b9ce-8e64-5c8d-9b4e-9e32ba0112b8"))
 (label "3V3" (at 144.78 175.26 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "030bf552-9e21-5569-b6f2-c1c853afeed6"))
 (symbol (lib_id "Connector:TestPoint") (at 170.18 175.26 0) (unit 1) (exclude_from_sim no) (in_bom no) (on_board yes) (dnp no) (uuid "8084a293-6f53-52d0-8bc1-1a3553f26c8f") (property "Reference" "TP1" (at 170.18 161.26 0) (effects (font (size 1.27 1.27)))) (property "Value" "J12 6" (at 170.18 189.26 0) (effects (font (size 1.27 1.27)))) (property "Footprint" "TestPoint:TestPoint_Pad_D1.5mm" (at 170.18 175.26 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Datasheet" "" (at 170.18 175.26 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "LCSC" "" (at 170.18 175.26 0) (effects (font (size 1.27 1.27)) (hide yes))) (pin "1" (uuid "2cd85dd1-5bd4-5edc-b30e-8536f479c8f1")) (instances (project "sd-board" (path "/766c70bd-1acb-59f5-b703-96c0315a8041" (reference "TP1") (unit 1)))))
 (label "LCD_6" (at 170.18 175.26 270) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "9996e52c-2d8b-56df-a9a5-54be416ba9c9"))
@@ -2266,6 +2440,8 @@
 (label "LCD_9" (at 200.66 175.26 270) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "92567046-ff98-5502-9c50-2901beb3c045"))
 (symbol (lib_id "Connector:TestPoint") (at 215.9 175.26 0) (unit 1) (exclude_from_sim no) (in_bom no) (on_board yes) (dnp no) (uuid "e230f513-1143-564c-8757-eb5d99f5c210") (property "Reference" "TP4" (at 215.9 161.26 0) (effects (font (size 1.27 1.27)))) (property "Value" "J12 G" (at 215.9 189.26 0) (effects (font (size 1.27 1.27)))) (property "Footprint" "TestPoint:TestPoint_Pad_D1.5mm" (at 215.9 175.26 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Datasheet" "" (at 215.9 175.26 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "LCSC" "" (at 215.9 175.26 0) (effects (font (size 1.27 1.27)) (hide yes))) (pin "1" (uuid "9c46f283-b3d9-537f-960e-07e14c88fc93")) (instances (project "sd-board" (path "/766c70bd-1acb-59f5-b703-96c0315a8041" (reference "TP4") (unit 1)))))
 (label "GND" (at 215.9 175.26 270) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "7de5dd69-63f6-5a1a-834d-4e8a5de13549"))
+(symbol (lib_id "Connector:TestPoint") (at 231.14 175.26 0) (unit 1) (exclude_from_sim no) (in_bom no) (on_board yes) (dnp no) (uuid "afa02e6c-57a8-5a69-bdae-2ed90d384df8") (property "Reference" "TP5" (at 231.14 161.26 0) (effects (font (size 1.27 1.27)))) (property "Value" "J12 DET" (at 231.14 189.26 0) (effects (font (size 1.27 1.27)))) (property "Footprint" "TestPoint:TestPoint_Pad_D1.5mm" (at 231.14 175.26 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Datasheet" "" (at 231.14 175.26 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "LCSC" "" (at 231.14 175.26 0) (effects (font (size 1.27 1.27)) (hide yes))) (pin "1" (uuid "b7d3e765-5f06-56b7-a87c-58f4b9aca6f0")) (instances (project "sd-board" (path "/766c70bd-1acb-59f5-b703-96c0315a8041" (reference "TP5") (unit 1)))))
+(label "CARD_DET" (at 231.14 175.26 270) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "0488c378-6934-57e5-b223-be4c46b649f0"))
 (symbol (lib_id "Connector_Generic_MountingPin:Conn_01x10_MountingPin") (at 231.14 88.9 0) (unit 1) (exclude_from_sim no) (in_bom yes) (on_board yes) (dnp no) (uuid "b2695cd3-90aa-5393-8b74-704865b6b24b") (property "Reference" "J2" (at 231.14 74.9 0) (effects (font (size 1.27 1.27)))) (property "Value" "FPC 10P 0.5mm (IN)" (at 231.14 102.9 0) (effects (font (size 1.27 1.27)))) (property "Footprint" "sdboard:FPC-SMD_10P-P0.50_HC-FPC-05-09-10RLTAG" (at 231.14 88.9 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Datasheet" "" (at 231.14 88.9 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "LCSC" "C5213750" (at 231.14 88.9 0) (effects (font (size 1.27 1.27)) (hide yes))) (pin "1" (uuid "b7d1af43-93be-5e0a-b32c-9cee22794e90")) (pin "2" (uuid "5c3ca00b-a573-58e5-bbcf-77deab441566")) (pin "3" (uuid "582cc1a1-1879-50d2-98ad-4702657563b7")) (pin "4" (uuid "a0fdacbd-3edd-5c93-be89-5a22865d13c1")) (pin "5" (uuid "1689108a-08a5-57c2-8eb9-431f325297e3")) (pin "6" (uuid "64dfe955-f20c-58c1-96a0-f770330dbe15")) (pin "7" (uuid "0dbc086e-6f00-5ea5-ad48-779a1db107e2")) (pin "8" (uuid "5b4a567e-c836-5b21-968c-901b31ba7578")) (pin "9" (uuid "1660250b-5126-5d8b-afed-5a0aea868dca")) (pin "10" (uuid "926f4a0d-1a7c-51ae-a766-761267ee8f33")) (pin "MP" (uuid "cd2b3a30-43aa-5ea6-a66e-eb9f2e445e8e")) (instances (project "sd-board" (path "/766c70bd-1acb-59f5-b703-96c0315a8041" (reference "J2") (unit 1)))))
 (label "GND" (at 226.06 78.74 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "fe814ba1-09bb-5064-b9e8-a97e1dc3f229"))
 (label "MISO" (at 226.06 81.28 180) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "e0094e4d-770a-5f12-8762-85c1efe3afb1"))

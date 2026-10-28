@@ -15,13 +15,16 @@ v6: J2 (IN, from J12) and J3 (the LCD's cable), 10 pins each, every line through
 contact from the left (J3 is turned: its own numbering runs the other way, J3_AT);
 J12's pin map as Julius probed it, 2026-10-27, docs/SD-CARD-DESIGN.md section 3; pin 7's 3.3 V still to confirm):
   GND      J2 1, 10 -> J1 6, the shell, U1 GND, R4, the sockets' tabs
-  MISO     J2 2 (PC8, the LCD's D/C) -> R1 100 -> J1 7 (DAT0): R1 takes any overlap with the D/C drive
+  MISO     J2 2 (PC8, the LCD's D/C) -> R1 220 -> J1 7 (DAT0): R1 takes any overlap with the D/C drive; R7 47k
+           pulls DAT0 up at the card (an empty slot reads 0xFF without PC8's own pull-up)
   LCD_CS   J2 3 (PC7) -> U1 A (74LVC1G04 in); R4 47k pull-DOWN (the card deselected while the FM-1 resets)
-  CLK      J2 4 (PC9) -> R5 100 -> CLK_SD -> J1 5
-  MOSI     J2 5 (PC10) -> R6 100 -> MOSI_SD -> J1 3 (CMD)
-  3V3      J2 7 -> J1 4, U1 VCC, C1 10 uF, C2 100 nF, the pull-ups
+  CLK      J2 4 (PC9) -> R5 510 -> CLK_SD -> J1 5
+  MOSI     J2 5 (PC10) -> R6 510 -> MOSI_SD -> J1 3 (CMD)
+  3V3      J2 7 -> (JP5) SD_VIN -> FB1 ferrite -> SD_VDD: J1 4, C3 100 nF by it, U1 VCC, C1 10 uF, C2 100 nF, the
+           pull-ups (the card's hot insertion kept off the LCD's rail: Julius's review, 2026-10-28)
   CARD_CS  U1 Y  -> J1 2
   DAT1/DAT2  47k pull-ups (unused in SPI mode, not left floating)
+  CARD_DET J1 9 -> TP5 (the socket's card switch, unused by the firmware: a pad to try it)
   LCD_6, LCD_8, LCD_9: the LCD's own lines (not probed: reset, backlight), only through
 """
 import math
@@ -187,12 +190,23 @@ U1 = P(LIB, "SOT-23-5_L3.0-W1.7-P0.95-LS2.8-BR", "U1", "74LVC1G04", 91.0, 17.5, 
 R4 = P(LIB, "R0603", "R4", "47k", 89.6, 21.4, 0, "C25819")
 C1 = P(LIB, "C0805", "C1", "10uF", 76.0, 17.5, 270, "C15850")
 C2 = P(LIB, "C0603", "C2", "100nF", 93.4, 17.0, 90, "C14663")
-R1 = P(LIB, "R0603", "R1", "100", CARD_C - 4.36, 17.5, 270, "C22775")   # (100 ohm: 220 likely misses 20 MHz,
-                                                 # SD-CARD-DESIGN.md section 4; the D/C overlap is under half a us)
+R1 = P(LIB, "R0603", "R1", "220", CARD_C - 4.36, 17.5, 270, "C22962")   # (220 ohm (Julius's review, 2026-10-28):
+                                                 # a card left in SPI mode drives DO against D/C while the LCD idles
+                                                 # with CS high (Felucca, SLOOP): 15 mA at most, not 33; his 270
+                                                 # ran SLOOP so. The cost: the spec's slowest card misses 20 MHz
+                                                 # into the DO net's ~35 pF (SD-CARD-DESIGN.md 4); the auto clock
+                                                 # steps down then)
+R7 = P(LIB, "R0603", "R7", "47k", 79.2, 17.5, 270, "C25819")   # (DAT0's pull-up at the card, the SD spec's 10-100k)
+C3 = P(LIB, "C0603", "C3", "100nF", 84.52, 19.9, 90, "C14663")   # (the card's own 100 nF, over its VDD contact's line)
+FB1 = P(LIB, "R0603", "FB1", "600R@100MHz", 93.5, 25.3, 0, "C1002")   # (GZ1608D601TF, 0.45 ohm, 200 mA: in
+                                                 # series from JP5, the card's supply apart from the LCD's; JieLi's
+                                                 # AC791N guide has 1 ohm there, the bead the same footprint)
 R2 = P(LIB, "R0603", "R2", "47k", 89.6, 12.9, 0, "C25819")
 R3 = P(LIB, "R0603", "R3", "47k", CARD_C - 7.6, BUS, 0, "C25819")
-R5 = P(LIB, "R0603", "R5", "100", 94.25, 49.0, 90, "C22775")    # (CLK and MOSI in series where the SD branch leaves
-R6 = P(LIB, "R0603", "R6", "100", 95.05, 45.5, 90, "C22775")    # the through-lines, at the J2 end of the column)
+R5 = P(LIB, "R0603", "R5", "510", 94.25, 49.0, 90, "C23193")    # (CLK and MOSI in series where the SD branch leaves
+R6 = P(LIB, "R0603", "R6", "510", 95.05, 45.5, 90, "C23193")    # the through-lines, at the J2 end of the column; 510
+                                                 # ohm, Julius's prototype: stock firmware's screen blank with a card in
+                                                 # its native mode with CLK direct, distorted at 150, fine at 510)
 # ESD at the card's contacts: two USBLC6-2SC6, each line straight through one of its columns (pins 1 and 6 are one
 # line, 3 and 4 the other: flow-through, no stub); U3 on DAT0 and CLK with its GND pin right over the card's ground
 # contact, U2 on CMD (DI) and CS, turned so its VBUS pin sits over the bottom 3V3 bus
@@ -208,10 +222,10 @@ TPAD = os.path.join(KICAD_FP, "TestPoint.pretty")
 SJ = "SolderJumper-2_Cut_P3.0mm_Pad1.5x2.0mm"      # (lib/: 1.5 x 2 mm pads, a 1.5 mm bare bridge to cut; the user)
 SWAP = (("JP1", "MISO", "SD_DO", 83.6, 38.4, "DO"), ("JP2", "LCD_CS", "SD_CSIN", 85.1, 35.7, "CS"),
         ("JP3", "CLK_SD", "SD_CLK", 86.6, 33.0, "CLK"), ("JP4", "MOSI_SD", "SD_DI", 88.1, 30.3, "DI"),
-        ("JP5", "3V3", "SD_VDD", 89.6, 27.6, "3V3"))
+        ("JP5", "3V3", "SD_VIN", 89.6, 27.6, "3V3"))
 JP = {ref: P(LIB, SJ, ref, "cut to swap", u, v, 0, "") for ref, _, _, u, v, _ in SWAP}
 TPS = (("TP1", "LCD_6", 83.7, 63.6, "6"), ("TP2", "LCD_8", 83.7, 66.3, "8"), ("TP3", "LCD_9", 83.7, 69.0, "9"),
-       ("TP4", "GND", 83.7, 60.9, "G"))
+       ("TP4", "GND", 83.7, 60.9, "G"), ("TP5", "CARD_DET", 74.9, 7.2, "DET"))
 TP = {ref: P(TPAD, "TestPoint_Pad_D1.5mm", ref, f"J12 {lab}", u, v, 0, "") for ref, _, u, v, lab in TPS}
 
 # the tray's lips run over the board's edges (make_tray.py): no part within 2 mm of the left edge, nor of the right
@@ -230,7 +244,7 @@ for fp in board.GetFootprints():
 LCD_PINS = {1: "GND", 2: "MISO", 3: "LCD_CS", 4: "CLK", 5: "MOSI", 6: "LCD_6", 7: "3V3", 8: "LCD_8",
             9: "LCD_9", 10: "GND", 11: "GND", 12: "GND"}
 for num, name in ((1, "DAT2"), (2, "CARD_CS"), (3, "SD_DI"), (4, "SD_VDD"), (5, "SD_CLK"), (6, "GND"), (7, "DAT0"),
-                  (8, "DAT1"), (10, "GND"), (11, "GND"), (12, "GND"), (13, "GND")):
+                  (8, "DAT1"), (9, "CARD_DET"), (10, "GND"), (11, "GND"), (12, "GND"), (13, "GND")):
     connect(J1, num, name)
 for num, name in LCD_PINS.items():
     connect(J2, num, name)
@@ -241,7 +255,8 @@ for fp in (J2, J3):
 for num, name in ((2, "SD_CSIN"), (3, "GND"), (4, "CARD_CS"), (5, "SD_VDD")):
     connect(U1, num, name)
 for fp, a, b in ((R1, "SD_DO", "DAT0"), (R2, "DAT2", "SD_VDD"), (R3, "SD_VDD", "DAT1"), (R4, "GND", "SD_CSIN"),
-                 (C1, "SD_VDD", "GND"), (C2, "SD_VDD", "GND"), (R5, "CLK_SD", "CLK"), (R6, "MOSI_SD", "MOSI")):
+                 (C1, "SD_VDD", "GND"), (C2, "SD_VDD", "GND"), (R5, "CLK_SD", "CLK"), (R6, "MOSI_SD", "MOSI"),
+                 (R7, "SD_VDD", "DAT0"), (C3, "SD_VDD", "GND"), (FB1, "SD_VIN", "SD_VDD")):
     connect(fp, 1, a)
     connect(fp, 2, b)
 for fp, io1, io2 in ((U3, "DAT0", "SD_CLK"), (U2, "CARD_CS", "SD_DI")):
@@ -292,7 +307,8 @@ R("CARD_CS", [A(U1, 4), (88.3, A(U1, 4)[1]), (88.3, 18.6), (A(U2, 6)[0], 18.6), 
               (A(U2, 1)[0], 13.6), (C[2][0], 12.8), C[2]])
 R("DAT2", [C[1], (C[1][0], A(R2, 1)[1]), A(R2, 1)])
 RAIL = LANE["3V3"]
-R("SD_VDD", [L["JP5"], (L["JP5"][0], 26.0), (RAIL, 26.0), (RAIL, 16.2), A(C2, 1), A(U1, 5)], POWER)
+R("SD_VIN", [L["JP5"], (L["JP5"][0], A(FB1, 1)[1]), A(FB1, 1)], POWER)
+R("SD_VDD", [A(FB1, 2), (RAIL, A(FB1, 2)[1]), (RAIL, 16.2), A(C2, 1), A(U1, 5)], POWER)
 R("SD_VDD", [(RAIL, 16.2), (RAIL, A(R2, 2)[1]), A(R2, 2)], POWER)
 R("DAT1", [C[8], (C[8][0], BUS), A(R3, 2)])
 R("GND", [C[6], A(U3, 2)])
@@ -306,6 +322,14 @@ R("GND", [A(U1, 3), (89.3, 19.6)])
 R("GND", [A(R4, 1), (88.0, 21.4)])
 R("GND", [A(C2, 2), (93.4, 18.7)])
 R("GND", [A(C1, 2), (77.4, A(C1, 2)[1])])
+R("DAT0", [A(R7, 2), A(R1, 2)])                  # (R7: DAT0 up to the card's supply, by C1's)
+R("SD_VDD", [A(R7, 1), (A(R7, 1)[0], 19.8), (76.0, 19.8)])
+R("SD_VDD", [A(C3, 1), C[4]], POWER)             # (C3 down the VDD contact's own line, between U3 and U2)
+R("GND", [A(C3, 2), (A(C3, 2)[0], 21.8)])
+DET_VIA = (A(J1, 9)[0], 12.3)
+R("CARD_DET", [A(J1, 9), DET_VIA])              # (J1 9 up onto a via under DAT1's line, the bottom under the socket
+R("CARD_DET", [DET_VIA, (DET_VIA[0], 9.0), (74.9, 9.0)], TRACK, pcbnew.B_Cu)   # to TP5 left of it)
+R("CARD_DET", [(74.9, 9.0), A(TP["TP5"], 1)])
 
 # ---- J3 to J2: every line straight through (down from J3's pins, a step right, down onto J2's pins from above), the
 # steps 1 mm apart for a via on the unprobed lines (6, 8, 9: to their test pads); the ground pins join the sockets'
@@ -337,10 +361,12 @@ R("SD_VDD", [(A(U2, 5)[0], 14.2), (A(U2, 5)[0], BUS)], TRACK, B)
 for u, v in ((76.0, 19.8), (76.0, BUS), (C[4][0], BUS), (RAIL, BUS), (A(U3, 5)[0], 16.5), (A(U2, 5)[0], 14.2)):
     V("SD_VDD", u, v)
 V("SD_CSIN", *CS_IN)
+V("CARD_DET", *DET_VIA)
+V("CARD_DET", 74.9, 9.0)
 V("SD_CSIN", *CS_VIA)
 for v in GUARD_V:
     V("GND", LANE["GUARD"], v)
-for u, v in ((89.3, 19.6), (88.0, 21.4), (93.4, 18.7), (77.4, A(C1, 2)[1]), (A(U2, 2)[0], 19.3),
+for u, v in ((A(C3, 2)[0], 21.8), (89.3, 19.6), (88.0, 21.4), (93.4, 18.7), (77.4, A(C1, 2)[1]), (A(U2, 2)[0], 19.3),
              (76.0, 5.0), (76.0, 25.0), (79.0, 25.0), (95.9, 6.0), (76.0, 34.0),   # (the pours stitched, the
              (87.0, 53.5), (83.3, 71.0), (95.9, 53.5), (95.9, 64.0), (95.7, 74.5)):   # head's too)
     V("GND", u, v)
@@ -395,7 +421,7 @@ for _, jside, _, u, v, lab in SWAP:              # (the swap block: each row's l
     label(str(J12_PIN[jside.removesuffix("_SD")]), *T(u + 2.75, v + 0.7), 0.6)
 label("CUT+WIRE", *T(90.0, 39.3), 0.6)
 for _, _, u, v, lab in TPS:
-    label(lab, *T(u, v + 1.0), 0.6)
+    label(lab, *T(u, v + 1.4), 0.6)                # (above its pad, clear of it)
 # which way each cable goes in: J3 touches the top face only (the LCD's cable arrives gold up, the user); J2 still
 # touches both, so a cable turned over there connects MIRRORED (pin 1 on pin 10) until its face is picked
 label("LCD: gold UP", *T(89.6, 69.9), 0.7)
