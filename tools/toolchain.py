@@ -347,13 +347,18 @@ def sdk_missing(root):
 
 
 def have_module(name):
-    return importlib.util.find_spec(name) is not None
+    """name importable (a dotted name: its package too; "PIL.Image", as an empty PIL folder a removed Pillow leaves
+    behind imports as a namespace package)"""
+    try:
+        return importlib.util.find_spec(name) is not None
+    except ModuleNotFoundError:
+        return False
 
 
 def preflight(env=None):
     """the checks build.py runs before it starts -> (Backend, SDK dir); SystemExit with what to do"""
     env = os.environ if env is None else env
-    if not have_module("PIL"):
+    if not have_module("PIL.Image"):
         raise SystemExit("build: this Python has no Pillow: python tools/optimist.py setup "
                          "(or pip install -r tools/requirements.txt)")
     try:
