@@ -506,7 +506,7 @@ def release_build(cfgfile, bdir, measure, extra, echo, on_line, parallel=False):
     release = extra[extra.index("--release") + 1] if "--release" in extra else None
     try:
         return fm1base.build(cfgfile, bdir, build_python(), lambda cmd, env: _run(cmd, env, echo, on_line), release,
-                             f"optimist-{release or version()}", parallel=parallel)
+                             f"optimist-{release or version()}", parallel=parallel, measure=measure)
     except fm1base.FM1BaseError as e:
         if echo:
             print(f"build: {e}", file=sys.stderr)

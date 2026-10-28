@@ -192,6 +192,27 @@ def with_depth(k):
     must be measured before k: its delta subtracts theirs)"""
     deps = {d for (wk, _), w in WITH.items() if wk == k for d in w if d != k and any(x[0] == d for x in WITH)}
     return 1 + max((with_depth(d) for d in deps), default=0)
+# The release (fm1-base's build of Optimist) does not build every configuration: the all-defaults one is not among them
+# (fm1base/optimist/ui/opt_editor.h: "ED_LIVE off ... the live editor is not wired"; the X0X unit built with neither kit
+# lacks FM_SETUP: opt_fpu_x0x.c). So the release is measured from the nearest one that builds: the defaults with these
+# set, and an item whose default is another value (ED_LIVE 1) is measured from that side, its delta the build without
+# it against the build with it where there is one, else the classic one's (costs-fm1base.json "unbuildable" names them). The deltas stay
+# what costs.json's are, bytes against the defaults; "base" is the defaults' build the model implies (not a real one)
+RELEASE_BASE = {"ED_LIVE": 0, "DRUM_X0X909": 1, "DRUM_X0X808": 1}
+
+
+def start():
+    """-> the configuration every measurement starts from: the defaults, the classic firmware's; the release's, the
+    defaults with RELEASE_BASE (the nearest to them that builds)"""
+    return dict(C.defaults(), **({} if C.classic() else RELEASE_BASE))
+
+
+def moved():
+    """-> [keys] the items start() sets away from their defaults (measured first: the others' deltas subtract theirs)"""
+    d = C.defaults()
+    return [k for k, v in start().items() if v != d[k]]
+
+
 def parent_on(p):
     """the value an option is measured under: a bool parent on; a choice parent at its default, or at its first
     value that builds it when the default leaves it out (DUAL's 0: STOCK_SUPPLY measured 0 B under it)"""
@@ -215,10 +236,11 @@ def _key(cfg):
 def run_build(cfg, name, log):
     """a measurement build -> (ok, sizes, output): recorded (and faked) in the plan pass, made already by
     build_all(), else made here, in build/"""
-    if _PLAN is not None:
-        _PLAN.append((dict(cfg), name, log))
-        return True, {r: 0 for r in REG}, ""
     got = _DONE.get(_key(cfg))
+    if _PLAN is not None:
+        if got is None:
+            _PLAN.append((dict(cfg), name, log))
+        return got if got is not None else (True, {r: 0 for r in REG}, "")
     return got if got is not None else C.build(cfg, name, measure=True, log=log)
 
 
@@ -301,13 +323,30 @@ def pool_overflow(out):
     return int(m.group(1)) if m else None
 
 
-def measure(cfg, name, log, like=None):
+LAST_ERROR = [""]       # (why the last optional measurement did not build)
+# what the release needs beside an item that does not build alone (the items measured first: their deltas are subtracted):
+# Bluetooth audio and its options want BLE (op_bt.c), the central wants the bond too, the SD card its layout (opt_sd_mmc.c)
+LADDER = ({"BLE": 1}, {"BLE": 1, "BLE_BOND": 1},
+          {"LAYOUT": 1, "FAR_OK": 1, "ENG_SAMPLE": 0, "DRUM_USR": 0, "SNAPSHOTS": 0, "PATTERNS": 1})
+UNBUILDABLE = {}        # (a run's: "KEY=value" -> why the release does not build it, costs-fm1base.json "unbuildable")
+
+
+def last_error(out, log):
+    text = out or (Path(log).read_text(errors="replace") if log and Path(log).exists() else "")
+    lines = [x.strip() for x in text.splitlines() if "error" in x]
+    return (lines[0] if lines else (text.strip().splitlines() or ["failed"])[-1])[:240]
+
+
+def measure(cfg, name, log, like=None, optional=False):
     """the sizes of a measurement build; like: the sizes of the same item's previous value. A value whose lines no
     pool holds, even the measurement link's (the link is the one thing that fails: "region SRAM overflowed by N"),
     is its pool exactly (the region and N) and everything else as `like`'s (the lines are the pool: the code is the
     same for 3 lines as for 2), so the estimate knows what a configuration of the item costs, built or not"""
     ok, sizes, out = run_build(cfg, name, log)
     _FULL[name] = sizes
+    if not (ok and sizes) and optional and not C.classic():
+        LAST_ERROR[0] = last_error(out, log)             # (the release does not build it: None, the caller says so)
+        return None
     over = None if ok and sizes else pool_overflow(out)
     if over is None and (not ok or not sizes):
         over = pool_overflow(Path(log).read_text(errors="replace") if log and Path(log).exists() else "")
@@ -457,8 +496,9 @@ def check_configs(probes=False):
     for d in CHECK_DIRS:
         for p in sorted(d.glob("*.config")):
             out[p.stem] = C.parse(p.read_text())[0]
-    import optimist                                     # (tools/: the BLE builds optimist.py test makes)
-    out.update(optimist.ble_test_configs())
+    if C.classic():                                     # (tools/: the BLE builds optimist.py test makes for Optimist's own emulator tests: the release has none)
+        import optimist
+        out.update(optimist.ble_test_configs())
     if probes:
         out.update({f"{n}{PROBE}": probe(n, cfg) for n, cfg in list(out.items())})
     return out
@@ -566,33 +606,110 @@ def main(argv=None):
     else:
         new_pairs = set()
     logd.mkdir(parents=True, exist_ok=True)
+    if a.only is None and not a.missing:                # (a full run: from nothing; the budget of a half-written file chooses no BLE builds)
+        C.costs_file(True).unlink(missing_ok=True)
     jobs = a.jobs or default_jobs()
     if jobs > 1:                                        # plan, build them all in parallel, then the real pass
         global _PLAN
-        _PLAN = []
-        try:
-            with contextlib.redirect_stdout(io.StringIO()):
-                run(a, old, logd, new_pairs, write=False)
-            plan = _PLAN
-        finally:
-            _PLAN = None
-        build_all(plan, jobs)
+        for _round in range(6):                         # (what a build says plans the next: a failed one gets its context's builds)
+            _PLAN = []
+            try:
+                with contextlib.redirect_stdout(io.StringIO()):
+                    run(a, old, logd, new_pairs, write=False)
+                plan = _PLAN
+            finally:
+                _PLAN = None
+            if not any(_key(cfg) not in _DONE for cfg, _, _ in plan):
+                break
+            build_all(plan, jobs)
     return run(a, old, logd, new_pairs, write=True)
+
+
+def dv(out, k, v):
+    """-> the delta measured for item k at value v ({} for its default or what is not measured yet)"""
+    return out["deltas"].get(k, {}).get(str(v), {}) if v != R.ITEMS[k].default else {}
+
+
+_CLASSIC = []
+
+
+def classic_delta(k, v):
+    """-> the classic firmware's measured delta of item k at value v (costs.json), or zeros: the stand-in for what the release
+    does not build (never measurable there: an estimate of a configuration it cannot build is only a guide)"""
+    if not _CLASSIC:
+        try:
+            _CLASSIC.append(json.loads(C.COSTS.read_text()))
+        except (OSError, ValueError):
+            _CLASSIC.append({})
+    got = _CLASSIC[0].get("deltas", {}).get(k, {}).get(str(v))
+    return {r: got.get(r, 0) for r in REG} if got else {r: 0 for r in REG}
+
+
+def with_context(out, cfg, name, log):
+    """-> (sizes, the configuration they are of): the build of cfg, else (the release) of cfg with what LADDER adds, the
+    first that builds; (None, cfg) when none does"""
+    s = measure(cfg, name, log, optional=True)
+    for i, extra in enumerate(LADDER if s is None and not C.classic() else ()):
+        more = dict(cfg, **extra)
+        if more == cfg or C.validate(more)[0]:
+            continue
+        s = measure(more, f"{name}+{i}"[:16], log.with_name(log.stem + f"+{i}.log"), optional=True)
+        if s is not None:
+            return s, more
+    return s, cfg
+
+
+def item_delta_of(out, k, v, cfg, base, logd, prev_sizes, ladder=False):
+    """-> (the delta of item k at value v against the defaults, the build's sizes): from the build of cfg (the start
+    configuration with k = v, its parent on and what it needs), less the deltas of what cfg has beyond the start (its parent
+    and what it was measured with) and the computed terms; where the start itself has k away from its default, against
+    the build of cfg with k at its default (the release: ED_LIVE, the X0X kits). None sizes: the release does not build it
+    (UNBUILDABLE): 0, nothing measured. ladder False: None where the build of cfg itself does not link (the release: it
+    is measured last, with what LADDER adds, once the deltas of those items are known)"""
+    s0, name = start(), f"m-{k}-{v}"[:16]
+    if s0[k] != R.ITEMS[k].default:                     # (measured against itself at its default: the start's other side)
+        ref = dict(cfg, **{k: R.ITEMS[k].default})
+        sv = base if cfg == s0 else measure(cfg, name, logd / f"{k}-{v}.log", like=prev_sizes, optional=True)
+        sr = measure(ref, f"m-{k}-def"[:16], logd / f"{k}-def.log", optional=True) if sv else None
+        if not sv or not sr:
+            bad = R.ITEMS[k].default if sv else v       # (the side that does not build: the one measured against)
+            UNBUILDABLE[f"{k}={bad}"] = LAST_ERROR[0]
+            print(f"  {k}={bad}: the release does not build it ({LAST_ERROR[0]}): delta of {k}={v} from costs.json", flush=True)
+            return classic_delta(k, v), prev_sizes
+        t, tr = C.model_terms(cfg), C.model_terms(ref)
+        return {r: sv[r] - sr[r] - (t[r] - tr[r]) for r in REG}, sv
+    if ladder:
+        s, cfg = with_context(out, cfg, name, logd / f"{k}-{v}.log")
+    else:
+        s = measure(cfg, name, logd / f"{k}-{v}.log", like=prev_sizes, optional=True)
+        if s is None and not C.classic():
+            return None
+    if s is None:
+        UNBUILDABLE[f"{k}={v}"] = LAST_ERROR[0]
+        print(f"  {k}={v}: the release does not build it ({LAST_ERROR[0]}): delta from costs.json", flush=True)
+        return classic_delta(k, v), prev_sizes
+    ctx = {r: 0 for r in REG}                           # (what cfg has beyond the start, counted by its own deltas)
+    for j, x in cfg.items():
+        if j != k and x != s0[j]:
+            for r in REG:
+                ctx[r] += dv(out, j, x).get(r, 0) - dv(out, j, s0[j]).get(r, 0)
+    terms, t0 = C.model_terms(cfg), C.model_terms(s0)   # (computed, not a delta: the reverb's line buffer, the automation store)
+    return {r: s[r] - base[r] - ctx[r] - (terms[r] - t0[r]) for r in REG}, s
 
 
 def run(a, old, logd, new_pairs, write):
     """measure what a asks for (main's arguments; old: costs.json as it was) -> 0; write: False in the plan pass
     (run_build only records the builds: nothing is written, no CPU model)"""
     t0 = time.time()
-    base = measure(C.defaults(), "measure-base", logd / "base.log")
+    UNBUILDABLE.clear()
+    base = measure(start(), "measure-base", logd / "base.log")
     limits = release_limits()
-    if a.missing:
-        base = refreshed_base(old.get("base"), base)
     out = {"base": base, **({"limits": limits} if limits else {}), "deltas": dict(old.get("deltas", {})) if a.only is not None else {},
            "measured": time.strftime("%Y-%m-%d %H:%M"), "cpu": old.get("cpu", {}), "checks": old.get("checks", {}),
            "pairs": dict(old.get("pairs", {}))}         # (the interim writes keep the pairs: an aborted run loses none)   # (cpu: the emulator's scale)
     later = sorted((k for k in R.ITEMS if any(w[0] == k for w in WITH)), key=with_depth)   # (stable: registry order)
-    for k in [k for k in R.ITEMS if k not in later] + later:
+    first, deferred = moved(), []
+    for k in first + [k for k in R.ITEMS if k not in later and k not in first] + [k for k in later if k not in first]:
         it = R.ITEMS[k]
         if a.only is not None and k not in a.only:
             continue
@@ -605,7 +722,7 @@ def run(a, old, logd, new_pairs, write):
             if it.no_image:                             # (a reserve: nothing in the image, so 0, never built)
                 out["deltas"][k][str(v)] = {r: 0 for r in REG}
                 continue
-            cfg = C.defaults()
+            cfg = start()
             cfg[k] = v
             if it.parent:
                 cfg[it.parent] = parent_on(R.ITEMS[it.parent])
@@ -614,28 +731,35 @@ def run(a, old, logd, new_pairs, write):
             if err:                                     # (e.g. the last FM6 mode: measured with another off)
                 print(f"  {k}={v}: skipped ({'; '.join(err)})")
                 continue
-            s = measure(cfg, f"m-{k}-{v}"[:16], logd / f"{k}-{v}.log", like=prev_sizes)
-            prev_sizes = s
-            par = {}                                    # (an option of a parent off by default: its own bytes only)
-            if it.parent and cfg[it.parent] != R.ITEMS[it.parent].default:
-                par = out["deltas"].get(it.parent, {}).get(str(cfg[it.parent]), {})
-            par = dict(par)
-            for wk, wv in WITH.get((k, v), {}).items():      # (the items it was measured with)
-                for r, n in out["deltas"].get(wk, {}).get(str(wv), {}).items():
-                    par[r] = par.get(r, 0) + n
-            terms = C.model_terms(cfg)                  # (computed, not a delta: the reverb's line buffer, the automation store)
-            out["deltas"][k][str(v)] = {r: s[r] - base[r] - par.get(r, 0) - terms[r] for r in REG}
+            delta = item_delta_of(out, k, v, cfg, base, logd, prev_sizes)
+            if delta is None:                           # (the release: not alone; below, with what it needs)
+                deferred.append((k, v, cfg))
+                continue
+            prev_sizes = delta[1]
+            out["deltas"][k][str(v)] = delta[0]
             print(f"  {k}={v}: {out['deltas'][k][str(v)]}  ({time.time() - t0:.0f} s)", flush=True)
         if write:
             C.costs_file(True).write_text(json.dumps(out, indent=1) + "\n")
+    for k, v, cfg in deferred:                          # (what did not build alone: with the context LADDER names)
+        out["deltas"][k][str(v)], _ = item_delta_of(out, k, v, cfg, base, logd, None, ladder=True)
+        print(f"  {k}={v}: {out['deltas'][k][str(v)]}  (with context, {time.time() - t0:.0f} s)", flush=True)
+    t0r, m = C.model_terms(start()), moved()            # (the base: the defaults' build the model implies; the start's own build less
+    out["base"] = {r: base[r] - t0r[r] - sum(dv(out, j, start()[j]).get(r, 0) for j in m) for r in REG}   # its moved items' deltas)
+    out["unbuildable"] = dict(old.get("unbuildable", {}) if a.only is not None else {}, **UNBUILDABLE)
+    if a.missing and m == []:
+        refreshed_base(old.get("base"), out["base"])
     out["groups"] = {n: g for n, g in old.get("groups", {}).items() if n.split("|")[0] in GROUPS} \
         if a.only is not None else {}
     for gname, members in GROUPS.items():               # (before the pairs: their builds may hold several members)
         if a.only is not None and gname in out["groups"] and not any(k in a.only for k in members):
             continue
         out["groups"].pop(gname, None)
-        cfg = dict(C.defaults(), **{k: 1 for k in members})
-        s = measure(cfg, f"m-grp-{gname}"[:16], logd / f"group-{gname}.log")
+        cfg = dict(start(), **{k: 1 for k in members})
+        s = measure(cfg, f"m-grp-{gname}"[:16], logd / f"group-{gname}.log", optional=True)
+        if s is None:                                   # (the release does not build them together: nothing shared to count)
+            UNBUILDABLE[f"group {gname}"] = LAST_ERROR[0]
+            out["groups"][gname] = {"members": list(members), "shared": {r: 0 for r in REG}}
+            continue
         est = C.budget(cfg, dict(out, pairs={}), use_exact=False, anchor=False)["total"]
         out["groups"][gname] = {"members": list(members),
                                 "shared": {r: round((est[r] - s[r]) / (len(members) - 1)) for r in REG}}
@@ -646,10 +770,16 @@ def run(a, old, logd, new_pairs, write):
         name = pair_name(pair)
         if a.only is not None and name not in new_pairs and not any(k in a.only for k in pair):
             continue
-        cfg = dict(C.defaults(), **pair, **PAIR_WITH.get(name, {}))
-        s = measure(cfg, f"m-pair-{PAIRS.index(pair)}", logd / f"pair-{name.replace(',', '-')}.log")
+        cfg = dict(start(), **pair, **PAIR_WITH.get(name, {}))
+        s = measure(cfg, f"m-pair-{PAIRS.index(pair)}", logd / f"pair-{name.replace(',', '-')}.log", optional=True)
+        if s is None:                                   # (the release does not build them together: nothing beyond to count)
+            UNBUILDABLE[f"pair {name}"] = LAST_ERROR[0]
+            out["pairs"][name] = {r: 0 for r in REG}
+            continue
         out["pairs"][name] = beyond(s, cfg, out, name)
         print(f"  {name}: {out['pairs'][name]} beyond the estimate without it  ({time.time() - t0:.0f} s)", flush=True)
+    if write:                                           # (the check configurations are chosen by the budget these deltas make:
+        C.costs_file(True).write_text(json.dumps(out, indent=1) + "\n")   # optimist.py ble_test_configs, room.make_room)
     out["checks"] = measure_checks(logd)
     if not write:                                       # (the plan pass: the builds are listed, nothing is written)
         return 0
