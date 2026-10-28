@@ -11,19 +11,20 @@
 //   fm1pkg.js    productOf and logicalImage on build/felucca.fwsc (only when that build exists)
 //   fm1ota.js    one whole install, and a cable pulled mid-write, against a simulated FM-1
 import vm from "node:vm";
-import { tmpdir } from "node:os";
-import { fileURLToPath } from "node:url";
-import { join } from "node:path";
-import { createHash } from "node:crypto";
-import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import * as os from "node:os";
+import * as nodeUrl from "node:url";
+import * as nodePath from "node:path";
+import * as crypto from "node:crypto";
+import * as cp from "node:child_process";
+import * as fs from "node:fs";
 import { logicalImage, productOf } from "./fm1base/fm1pkg.js";
 import { OFFICIAL_LOADER, OUR_LOADER, OptimistUpdater, STOCK_BANKS_SIZE, STOCK_V15_SHA256, stockBanks, validateStockPackage } from "./fm1ota_optimist.js";
 import { FakeFM1, fakePackage } from "./installer/mock_fm1.js";
 import * as INST from "./installer/installer.js";
 import { findButton } from "./sim/buttons.js";
 
-const HERE = fileURLToPath(new URL("./", import.meta.url));   /* web/, with its trailing slash */
+const { join } = nodePath, { tmpdir } = os, { createHash } = crypto, { execFileSync } = cp, { existsSync, mkdtempSync, readFileSync, writeFileSync } = fs;
+const HERE = nodeUrl.fileURLToPath(new URL("./", import.meta.url));   /* web/, with its trailing slash */
 const PYTHON = process.env.PYTHON || (process.platform !== "win32" ? "python3" : "python");
 /* run a Python snippet with arguments; its stdout as a Buffer (big enough for a firmware image) */
 const py = (code, ...args) => execFileSync(PYTHON, ["-c", code, ...args], { maxBuffer: 64 * 1024 * 1024 });
@@ -63,7 +64,7 @@ const editorMock = async () => {
   const port = { in: dev.access.inputs.values().next().value, out: dev.access.outputs.values().next().value };
   const link = new E.Link((bytes) => port.out.send(bytes), { timeout: 300 });
   port.in.onmidimessage = (msg) => link.receive(msg.data);
-  const rq = (r, o) => link.request(r, o);
+  const rq = (req, opts) => link.request(req, opts);
   const C = E.CMD, P = E.parse, R = E.req;
   const info = P[C.INFO](await rq(R.info()));
   ok(info.nengines === 10 && info.engines[9] === "FM6" && info.engines[5] === "VOICE" && info.engines[6] === "TRIO" && info.engines[7] === "WHEEL" && info.engines[8] === "GRAIN" && !info.engines.includes("SUPER") && info.pcount === 75 && info.pe0 === 67 && info.engines[4] === "SAMPLE",
@@ -755,7 +756,7 @@ const editorMixer = async () => {
     && td2.p[0] === 70 && td2.p[MUTE] === 1 && m1.sel === 0, "mixer: TRACK_MIX level and mute read back (drums: G_DRLVL, clamped)");
   /* panning another track: it is selected for the SET and the old selection restored, with no RELOAD push */
   ok(await E.startWatch(rq, 3), "mixer: WATCH on");
-  const pushes = ev.pushes.length;   /* none may come from here on */
+  const pushes = ev.pushes.length;   /* pushes seen so far */   /* none may come from here on */
   /* (the v3 way: firmware 0.8 lacks TRACK_PARAM) */
   const p2 = await MX.setPan(rq, 2, 0, PAN, -40);
   const p0 = await MX.setPan(rq, 0, 0, PAN, 99);
@@ -856,7 +857,7 @@ function editorSetGate() {
 /* ======== editor v5 (SLOOP 2.0): drum lanes, step levels, ratchets ======== */
 const editorV5 = async () => {
   const C = E.CMD, P = E.parse, R = E.req;
-  const { m, rq, ev, done } = attachMock({ watchMs: 1000 });   /* (the watch is never started here) */
+  const { m, rq, ev, done } = attachMock({ watchMs: 1e3 });   /* (the watch is never started here) */
   const info = P[C.INFO](await rq(R.info()));
   ok(info.proto === 7 && info.uids.length === info.nengines && /OPTIMIST/.test(info.version) && info.pcount === 75 && info.gcount === 38 && info.pe0 === 67, "v5/v6: INFO ends with the protocol version (7: ids 2 x 7 bit) and the engine UIDs");
   /* and the firmware agrees: ED_DRUM_STEP is command 33, INFO sends 5, P_CHORD and the master globals as in the mock */
@@ -1070,7 +1071,7 @@ async function editorMixSends() {
     "mix: a drum sound's sends from the strip (DRUM_LANE v2: that lane only; the others as they are, REV 4)");
   done();
   /* firmware 0.8 (v3): no TRACK_PARAM: a send of another track by selecting it for a moment */
-  const o = attachMock({ v3: true });
+  const o = attachMock({ v3: true });   /* the v3 mock: no TRACK_PARAM */
   await infoOf(o.rq);
   const v = await E.mixer.setParam(o.rq, 2, 0, 35, 20, false);
   const td = E.parse[C.TRACK_DUMP](await o.rq(E.req.trackDump(2)), info);
@@ -1854,7 +1855,7 @@ async function editorDaw() {
   ok(html.includes('$("pop").addEventListener("cancel"') && html.includes('e.target === $("pop")') && html.includes('$("popx").addEventListener("click"'),
     "daw: the popup closes by Escape (cancel), a click outside (the backdrop) and its x");
   /* STATUS: PLAY / STOP, the steps playing, meters; a firmware without it: no reply */
-  const { m, rq, done } = attachMock({});
+  const { m, rq, done } = attachMock({ });
   const info = await infoOf(rq);
   const s0 = E.parse[C.STATUS](await rq(E.req.status()));
   await rq(E.req.status(1));
@@ -2409,7 +2410,7 @@ async function editorSnapshots() {
   const rcs = (sc.match(/enum \{ SNE_OK,([^}]*)\}/) || ["", ""])[1].split(",").length + 1;
   ok(/ED_SN_LIST = 54, ED_SN_OP, ED_SN_READ, ED_SN_WRITE/.test(ed) && C.SN_LIST === 54 && C.SN_WRITE === 57 && rcs === E.SN.RC.length,
     "snapshots: cmds 54..57 and the rc names == ed_snap.c / snapshots.c");
-  const { m, rq, done } = attachMock({});
+  const { m, rq, done } = attachMock({ });
   let L = E.parse[C.SN_LIST](await rq(E.req.snList()));
   ok(L.version === 1 && L.shown === 4 && L.nslot === 9 && L.sectors === 8 && L.free === 8 && L.slots.every((s) => s.state === "empty"),
     "snapshots: SN_LIST of an empty area (4 slots + BEFORE LOAD, 8 sectors)");
@@ -2981,9 +2982,9 @@ function editorTabs() {   /* the screens, the popups and the strings */
 /* ------------------------------- the master strip: one icon + knob per FX, Settings without mixer parameters --- */
 async function masterStrip() {
   const m = E.makeMockDevice();
-  const inp = [...m.access.inputs.values()][0], out = [...m.access.outputs.values()][0];
-  const link = new E.Link((d) => out.send(d), { timeout: 300 });
-  inp.onmidimessage = (e) => link.receive(e.data);
+  const [inp] = m.access.inputs.values(), [out] = m.access.outputs.values();
+  const link = new E.Link((bytes) => out.send(bytes), { timeout: 300 });
+  inp.onmidimessage = (ev) => link.receive(ev.data);
   const info = E.parse[E.CMD.INFO](await link.request(E.req.info()));
   const G = [];
   for (let i = 0; i < info.gcount; i++) G.push(E.parse[E.CMD.DESC](await link.request(E.req.desc(1, i))).label);

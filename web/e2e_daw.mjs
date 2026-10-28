@@ -13,9 +13,9 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, 
 import { createServer } from "node:http";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath as toFsPath } from "node:url";
 
-const HERE = fileURLToPath(new URL(".", import.meta.url));
+const HERE = toFsPath(import.meta.url).replace(/[^/\\]*$/, "");
 
 /* downloads never reach ~/Downloads: Chrome saves them under the repo's work area, and the run asserts ~/Downloads got nothing new */
 const DL_HOME = join(homedir(), "Downloads"), DL_DIR = join(homedir(), "GitHub", "optimist-work", "e2e-downloads", String(process.pid));

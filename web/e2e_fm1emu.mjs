@@ -14,9 +14,9 @@ import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { createServer } from "node:http";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath as toFsPath } from "node:url";
 
-const HERE = fileURLToPath(new URL(".", import.meta.url));
+const HERE = toFsPath(import.meta.url).replace(/[^/\\]*$/, "");
 const EMU = resolve(process.argv[2] || "");
 if (!existsSync(join(EMU, "app.wasm")) || !existsSync(join(EMU, "parts", "port_client.js"))) {
   console.log(`e2e_fm1emu: no emulator with its port part at ${EMU} (fm1-base: tools/build.py optimist --web)`);
