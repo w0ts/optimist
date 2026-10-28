@@ -19,8 +19,8 @@ FM-1 projects (see <a href="#credits">Credits</a>).</p>
 > **This branch is an experiment, not a release.** The SD card mod (a microSD card on the FM-1's LCD bus, a bigger
 > flash layout, projects and samples on the card) is **not finished and has never run on a modded FM-1**.
 >
-> - **Do not order the SD board yet**: `hardware/sd-board/` is not ready (the cable's mirror check is still open;
->   see its README).
+> - **The SD board is an untested prototype**: `hardware/sd-board/` is being ordered for its first bench tests (see
+>   its README); build one only if you are ready to rework it.
 > - **Do not install these builds on an FM-1 you depend on.** Use the releases from the `main` branch.
 > - Anything here may change or be dropped without notice.
 
