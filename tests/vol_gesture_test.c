@@ -57,6 +57,35 @@ int main(void)
     vgest_step(&g, 1, k0 + VG_NEAR * 4, &t);
     held = vgest_step(&g, 0, k0 + VG_NEAR * 4, &t);
     check("SHIFT pressed (an octave), the knob 4 % off but no switch: it follows at once (the user, 2026-10-21)", !held);
+    {   /* vlevel_step: SHIFT + the knob, the USB input's VOLUME (0 .. 127) */
+        int16_t lv = 112;
+        g = (struct vgest){0};
+        held = vlevel_step(&g, 0, k0, 127, &lv);
+        check("level, no SHIFT: the volume follows, the level untouched", !held && lv == 112);
+        held = vlevel_step(&g, 1, k0, 127, &lv);
+        check("level, SHIFT down: the volume holds, the level untouched (no jump to the knob)", held && lv == 112);
+        held = vlevel_step(&g, 1, k0 - VG_LVL_SPAN / 2, 127, &lv);
+        check("level, SHIFT + a quarter of the travel down: the level half its range down", held && lv == 112 - 63);
+        vlevel_step(&g, 1, 0, 127, &lv);
+        check("level, the knob to its end: the level stops at 0", lv == 0);
+        vlevel_step(&g, 1, VG_LVL_SPAN / 4, 127, &lv);
+        check("level, turned back from the end: it moves from 0 (a quarter of its range)", lv == 31);
+        held = vlevel_step(&g, 0, VG_LVL_SPAN / 4, 127, &lv);
+        check("level, SHIFT let go, the knob far from where it was: the volume holds", held && lv == 31);
+        held = vlevel_step(&g, 0, k0 - VG_NEAR / 2, 127, &lv);
+        check("level, the knob back where it was: the volume follows again, the level kept", !held && lv == 31);
+        g = (struct vgest){0};
+        lv = 120;
+        vlevel_step(&g, 1, k0, 127, &lv);
+        vlevel_step(&g, 1, VG_FULL, 127, &lv);
+        check("level, up past the top: stops at the max", lv == 127);
+        g = (struct vgest){0};
+        lv = 50;
+        vlevel_step(&g, 1, k0, 127, &lv);
+        vlevel_step(&g, 1, k0 + 4, 127, &lv);
+        held = vlevel_step(&g, 0, k0 + 4, 127, &lv);
+        check("level, SHIFT pressed (an octave), the level not moved: the volume follows at once", !held && lv == 50);
+    }
     printf("vol_gesture: %d failed\n", fails);
     return fails != 0;
 }

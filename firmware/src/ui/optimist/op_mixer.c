@@ -754,6 +754,28 @@ static void mix_turn(uint32_t r, uint32_t k, int32_t s, int fine)
         }
     }
 }
+#if FELUCCA_USB_AUDIO
+#include "op_volgest.h"
+/* SHIFT (OCT-) + the volume knob (system/main.c master_pot, a reading at a time), on every page: the USB input's VOLUME,
+ * moved by the knob's moves from where it was (op_volgest.h vlevel_step; the user, 2026-10-28: "left shift + volume for
+ * input"), a turn clearing its mute as its volume card's does; the toast its value. 1: the master volume holds */
+static struct vgest ut_vg;
+static int ut_vol_hold(int32_t knob)
+{
+    int16_t v = ut.v[UTV_LVL];
+    int held = vlevel_step(&ut_vg, btn_held(B_OCTDN), knob, ut_vd(UTV_LVL)->max, &v);
+    if (v != ut.v[UTV_LVL]) {
+        char val[16];
+        const char *unit;
+        ut.v[UTV_LVL] = v;
+        mx_unmute(MXR_USB, 0);
+        param_format(ut_vd(UTV_LVL), v, val, &unit);
+        str_cpy(val + str_len(val), unit, sizeof val - str_len(val));
+        ui_say("USB IN ", val);
+    }
+    return held;
+}
+#endif
 /* YES on the mixer: none (the user, 2026-10-12, D6: SAVE tapped there is PROJECT, always, op_input.c). FX on and MUTE are
  * knobs; a row's SOUND row is EDIT's first; MASTER's effects are FX on its row */
 static int mix_yes(uint32_t r, uint32_t k, uint32_t ok)
