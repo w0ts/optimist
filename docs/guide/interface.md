@@ -59,7 +59,7 @@ A muted track or lane is **struck through**: a line through its mixer row name, 
 PLAY held past the hold time opens the tempo page; let go and the screen before returns. A short tap of PLAY stays start / stop. The page has TEMPO (BPM, NUDGE, SWING, SYNC), REC (MODE, LENGTH, START, CLICK) and REC 2 (QUANT).
 
 - **BPM** 40 to 240. **SWING** 0 to 100.
-- **NUDGE:** OCT- or OCT+ held makes the clock about 3.9 % slower or faster while held. The BPM value never changes, and nothing happens while an external clock is followed.
+- **NUDGE:** on the FM-1's own clock, OCT- or OCT+ held makes the clock about 3.9 % slower or faster while held, and the knob moves it 1 ms a click, once; the BPM value never changes and nothing is saved. While a clock is followed (USB, TRS or Ableton Link; Bluetooth MIDI) the card is that source's offset instead, CLK OFS (BT OFS for Bluetooth MIDI), in ms: the knob sets it, OCT- / OCT+ held move it 1 ms later / earlier, and it is saved with the settings, the same value GLOBAL's MIDI page shows.
 - **Tap tempo:** with PLAY held, tap a white key; two taps or more set the tempo.
 - **SYNC** (the MIDI clock to follow): INT, USB, TRS, BLE or AUTO (AUTO shows the clock it follows, as A:USB). On GLOBAL it is CLK IN.
 - **REC:** MODE FREE or TEMPO, LENGTH 1, 2 or 4 bars, START NOTE or COUNT (count-in), CLICK OFF, REC or ON. **QUANT** ON snaps a recorded note to the grid; OFF keeps its start as a nudge and its length as a gate lock.
@@ -84,7 +84,7 @@ PROJECT is where storage lives. A storage row (PROJECT, SNAPSHOT, USER) has up t
 GLOBAL and SYSTEM are settings lists: one setting on a line, the name left and the value right, in pages of 4. SELECT moves a page at a time; knob k edits line k and makes it the cursor; ALGORITHM moves the cursor a line; SAVE is YES on the cursor line (an on / off value toggles, an action line runs); SHIFT + a knob returns a value to its default.
 
 **GLOBAL**
-- **Tempo:** BPM, NUDGE (read-out), SWING, TUNE (the master tuning, -50 to 50 cents).
+- **Tempo:** BPM, NUDGE (as on the tempo page: the clock's offset while a clock is followed), SWING, TUNE (the master tuning, -50 to 50 cents).
 - **Rec:** MODE, LENGTH, START, CLICK, QUANT.
 - **MIDI:** CLK IN (the clock to follow: INT, USB, TRS, BLE, AUTO), CLK OUT (ON or OFF; amber when ON but there is nowhere to send it), MIDI OUT; CLK OFS and BT OFS ([midi-usb.md](midi-usb.md#midi-clock)). There is no MIDI IN line: notes come in through the track channels.
 - **Channels:** T1, T2, T3, DR (the MIDI channel of each track).

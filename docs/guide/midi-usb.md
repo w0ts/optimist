@@ -12,7 +12,7 @@ A keyboard or a DAW on USB or the TRS MIDI IN jack plays the FM-1. Each track ha
 
 ## MIDI clock
 
-**CLK IN** (saved with the project): **AUTO** follows an external clock when one comes in (TRS first, then USB, then Bluetooth MIDI), else the FM-1's tempo; **INT** ignores clocks; **USB**, **TRS** or **BLE** follows only that input. Start begins at step 1 on the first pulse after it, Continue resumes at the song position sent, Stop stops. The tempo shown, the delay, the arp, the rolls and the slicer follow the measured tempo. The source changes only while stopped. **CLK OFS** plays the steps that much earlier while following a clock, **BT OFS** the same while the audio goes to Bluetooth.
+**CLK IN** (saved with the project): **AUTO** follows an external clock when one comes in (TRS first, then USB, then Bluetooth MIDI), else the FM-1's tempo; **INT** ignores clocks; **USB**, **TRS** or **BLE** follows only that input. Start begins at step 1 on the first pulse after it, Continue resumes at the song position sent, Stop stops. The tempo shown, the delay, the arp, the rolls and the slicer follow the measured tempo. The source changes only while stopped. **CLK OFS** plays the steps that much earlier while following a clock (USB, TRS or Ableton Link; it is also the NUDGE card of the PLAY-held tempo page while one is followed, saved with the settings), **BT OFS** the same while the audio goes to Bluetooth.
 
 **CLK OUT** (off by default) sends MIDI clock on USB and to a Bluetooth MIDI device that listens (the TRS jack is input only): 24 pulses a beat, also while stopped, Start and Stop with the transport, Song Position and Continue when it continues a song. The pulses never swing. Nothing is sent back to the input being followed.
 

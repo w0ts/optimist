@@ -3856,6 +3856,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_picker.h"                   /* STEP: the note picker (the cards down) */
 #include "ui_optimist_master.h"                    /* PRESETS = the sound only; ALGORITHM to MASTER */
 #include "ui_optimist_knobcol.h"                   /* SYSTEM > SCREEN > KNOB COLORS */
+#include "ui_optimist_syncnudge.h"                /* PLAY held > NUDGE: the sync offset while following a clock */
 #include "ui_optimist_clkout.h"                    /* SYSTEM > CLOCK OUT */
 #include "ui_optimist_uasel.h"                     /* SYSTEM > USB AUDIO */
 #include "ui_optimist_core.h"                       /* SYSTEM > CPU > 2ND CORE (DUAL builds), the CPU1 cell's reason */
@@ -4137,6 +4138,7 @@ int main(int argc, char **argv)
     algo_inplace_tests();
     knobcol_tests();
     clkout_tests();
+    syncnudge_tests();
     uasel_tests();
     newproj_tests();
 #if FELUCCA_SYS_DEBUG
