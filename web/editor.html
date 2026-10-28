@@ -8019,7 +8019,7 @@ async function openPort() {
   setStatusKey("connecting");
   try {
     if (access == null) {
-      if (MOCK) { mockDev = makeMockDevice({ legacy: QS.get("legacy") === "1", auto: QS.get("auto") !== "0", snapshots: QS.get("snap") !== "0", v9: QS.get("v9") !== "0", rev: QS.has("rev") ? +QS.get("rev") : null, macros: QS.get("macros") === "1", midi: QS.get("midi") === "1", stepx: QS.has("stepx") ? +QS.get("stepx") : 7, pat: QS.get("pat") === "1", wifi: QS.get("wifi") === "1" || QS.get("wifiap") === "1", wifiap: QS.get("wifiap") === "1", fxs: QS.get("fxs") === "1" || QS.get("fxp") === "1", retSends: QS.get("retsends") !== "0", v14: QS.get("v14") !== "0", store: QS.get("store") === "1", ...mockV13(QS) }); access = mock.access;
+      if (MOCK) { mockDev = makeMockDevice({ legacy: QS.get("legacy") === "1", auto: QS.get("auto") !== "0", snapshots: QS.get("snap") !== "0", v9: QS.get("v9") !== "0", rev: QS.has("rev") ? +QS.get("rev") : null, macros: QS.get("macros") === "1", midi: QS.get("midi") === "1", stepx: QS.has("stepx") ? +QS.get("stepx") : 7, pat: QS.get("pat") === "1", wifi: QS.get("wifi") === "1" || QS.get("wifiap") === "1", wifiap: QS.get("wifiap") === "1", fxs: QS.get("fxs") === "1" || QS.get("fxp") === "1", retSends: QS.get("retsends") !== "0", v14: QS.get("v14") !== "0", store: QS.get("store") === "1", ...mockV13(QS) }); access = mockDev.access;
         window.fm1Test = { mock: mockDev, dev: () => dev, smpAdd: (files) => addSmpFiles(files), kitAdd: (files, lane) => kpAddFiles(files, lane), roll: () => ({ RG, cell: roll.cell, grid: roll.el && roll.el.grid, scroll: roll.el && roll.el.scroll }),
           proto: () => ({ req, rq, patRecParse, patPoll }) };   /* (?mock=1 only: the e2e) */
       }
