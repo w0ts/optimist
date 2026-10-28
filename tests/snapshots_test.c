@@ -627,6 +627,13 @@ static void projects_backup_test(void)
     ok &= state_save() == 0;
     arrangement.count = 2, arrangement.entry[0].scene = 0, arrangement.entry[1].scene = 2;
     ok &= sec_song_put_all(&arrangement) == 0 && sec_name_set(0, "ONE") == 0;
+    for (k = 0; k < 3u; k++) {                         /* the MIDI tracks' ids (sec_log.c, phase 0: a later firmware's): a
+                                                        * pattern, a scene's refs, a working copy; in the stream, restored */
+        uint32_t id = k == 0u ? SLG_ID_MPAT0 + 5u : k == 1u ? SLG_ID_MSCN0 + 2u : SLG_IDS - 1u, j;
+        for (j = 0; j < 40u + 30u * k; j++)
+            q[j] = (uint8_t)(k * 50u + j);
+        ok &= slg_put(id, q, 40u + 30u * k, 0) == 0;
+    }
     ok &= project_scope_set(1) == 0;
     make(24);
     project_save(5);                                   /* scene F of project 2 */
@@ -660,6 +667,9 @@ static void projects_backup_test(void)
     ok &= project_scope_set(0) == 0 && project_used(0) && project_used(2) && !project_used(5) && arrangement.count == 2u &&
           arrangement.entry[1].scene == 2u && state_load() == 1;
     check("... project 2 has scene F alone, project 1 its scenes A B C, its chain and its state; the names", ok);
+    ok = slg_get(SLG_ID_MPAT0 + 5u, q) == 40 && q[39] == 39u && slg_get(SLG_ID_MSCN0 + 2u, q) == 70 && q[69] == 50u + 69u &&
+         slg_get(SLG_IDS - 1u, q) == 100 && q[99] == 100u + 99u;
+    check("... project 1's MIDI tracks' records (ids 142..225, phase 0) restored as they were", ok);
     fresh_flash();                                     /* a restore cut after its first chunk: the open project's index again (bk_close) */
     a[0] = (uint8_t)i2;
     put7(a + 1, l2, 3);
