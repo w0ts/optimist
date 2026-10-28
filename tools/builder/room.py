@@ -143,5 +143,8 @@ def after_toggle(before, after, key, room, costs=None):
     """the user toggled `key` (before -> after configurations): -> (cfg, Room). Ticking BLE removes nothing, as any other
     tick (the user, 2026-10-21: "like ANY other tick: the meters go over and it tells you it does not fit"; the rule
     that unticked an item behind the user's back made BLE ON show more free flash than OFF). make_room stays for
-    the headless --ble-drop, which names the item explicitly"""
-    return after, NONE
+    the headless --ble-drop, which names the item explicitly. MEMORY (the front) sets the items it fronts; any other
+    change reads MEMORY back from them"""
+    if key == "MEMORY":
+        return C.set_memory(before, after["MEMORY"]), NONE
+    return C.sync_memory(after), NONE

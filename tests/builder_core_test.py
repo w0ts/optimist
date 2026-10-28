@@ -262,6 +262,45 @@ def once(M):
          "kits": M.kit_shared(costs), "defaults": M.defaults(), "needs_auto": list(M.NEEDS_AUTO)}))
 
 
+# ---- the memory management group (the user, 2026-10-28): first, MEMORY a front for LAYOUT / SDCARD / FAR_OK
+import room as RM  # noqa: E402
+
+check("groups: Memory management first, Connectivity (not USB & BT & MIDI) holds Wi-Fi and Link",
+      R.GROUPS[0] == "Memory management" and "USB & BT & MIDI" not in R.GROUPS
+      and R.ITEMS["WIFI_LINK"].group == R.ITEMS["WIFI_AP"].group == "Connectivity")
+check("groups: LAYOUT SDCARD FAR_OK ARENA SD_RING SD_REC OVERLAY are in Memory management, MEMORY first",
+      all(R.ITEMS[k].group == "Memory management" for k in ("LAYOUT", "SDCARD", "FAR_OK", "ARENA", "SD_RING", "SD_REC", "OVERLAY"))
+      and R.top_level("Memory management")[0].key == "MEMORY")
+check("RAM_PACKED: an info line in the group, fixed on, nothing in the image",
+      R.ITEMS["RAM_PACKED"].fixed and R.ITEMS["RAM_PACKED"].no_image and R.ITEMS["RAM_PACKED"].group == "Memory management")
+_d = K.defaults()
+check("MEMORY: the defaults read normal", _d["MEMORY"] == 0 == K.derive_memory(_d))
+_red, _sd = K.parse("LAYOUT=1\n")[0], K.parse("LAYOUT=1\nSDCARD=1\nFAR_OK=1\n")[0]
+check("MEMORY: an old config with LAYOUT=1 and no card reads reduced user flash; with SDCARD and FAR_OK, SD card mode",
+      _red["MEMORY"] == 1 and _sd["MEMORY"] == 2)
+check("MEMORY: LAYOUT=1 with the card but no FAR_OK still reads reduced; the card on the normal layout reads normal",
+      K.parse("LAYOUT=1\nSDCARD=1\n")[0]["MEMORY"] == 1 and K.parse("SDCARD=1\n")[0]["MEMORY"] == 0)
+_p = RM.after_toggle(_d, dict(_d, MEMORY=2), "MEMORY", RM.NONE)[0]
+check("MEMORY: picking SD card mode sets LAYOUT 1, SDCARD 1, FAR_OK 1",
+      (_p["LAYOUT"], _p["SDCARD"], _p["FAR_OK"], _p["MEMORY"]) == (1, 1, 1, 2))
+_q = RM.after_toggle(_p, dict(_p, MEMORY=1), "MEMORY", RM.NONE)[0]
+check("MEMORY: reduced user flash from SD card mode: the card and its streams off, LAYOUT 1 kept",
+      (_q["LAYOUT"], _q["SDCARD"], _q["SD_RING"], _q["SD_REC"], _q["MEMORY"]) == (1, 0, 0, 0, 1))
+_n = RM.after_toggle(_p, dict(_p, MEMORY=0), "MEMORY", RM.NONE)[0]
+check("MEMORY: normal from SD card mode is the default memory layout again",
+      all(_n[k] == _d[k] for k in ("LAYOUT", "SDCARD", "FAR_OK", "OVERLAY", "SD_RING", "SD_REC")) and _n["MEMORY"] == 0)
+check("MEMORY: setting LAYOUT by hand reads back through the toggle",
+      RM.after_toggle(_d, dict(_d, LAYOUT=1), "LAYOUT", RM.NONE)[0]["MEMORY"] == 1)
+check("MEMORY: --set MEMORY=2 and a .config line MEMORY=2 do what the pick does",
+      K.parse("MEMORY=2\n")[0]["SDCARD"] == 1 and K.parse("MEMORY=2\n")[0]["FAR_OK"] == 1)
+check("MEMORY: never written to a .config (the items it fronts are), and a written config reads back the same",
+      "MEMORY" not in K.dump(_p, full=True) and K.parse(K.dump(_p))[0] == _p)
+check("MEMORY: no image: the header and the hash are the same for a configuration with it set or not",
+      K.cfg_hash(dict(_p, MEMORY=0)) == K.cfg_hash(_p) and K.flags(dict(_p, MEMORY=0)) == K.flags(_p))
+check("MEMORY: a .config written under the old group names still loads (legacy header kept)",
+      K.parse("# USB & BT & MIDI\nUSB_CONSOLE=1\n")[0]["USB_CONSOLE"] == 1 and "USB & BT & MIDI" in R.LEGACY_GROUPS)
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--against", metavar="REF", help="compare with configure.py at this git ref")

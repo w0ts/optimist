@@ -76,7 +76,7 @@ def _cfg(values):
     for k, v in (values or {}).items():
         if k in cfg and isinstance(v, int) and not isinstance(v, bool):
             cfg[k] = v
-    return cfg
+    return K.sync_memory(cfg)
 
 
 def view(values, name="", commit=None):

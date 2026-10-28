@@ -92,6 +92,36 @@ def defaults():
     return {k: it.default for k, it in R.ITEMS.items()}
 
 
+# ---- the memory front (registry.py MEMORY): a view of LAYOUT, SDCARD and FAR_OK, never stored in a .config
+def derive_memory(cfg):
+    """-> MEMORY's value for these LAYOUT / SDCARD / FAR_OK: 2 SD card mode (the card on, the big slot), 1 reduced user
+    flash (LAYOUT 1 otherwise), 0 normal"""
+    if cfg.get("LAYOUT", 0) != 1:
+        return 0
+    return 2 if cfg.get("SDCARD", 0) and cfg.get("FAR_OK", 0) else 1
+
+
+def sync_memory(cfg):
+    """-> cfg with MEMORY read back from the items it fronts (a copy)"""
+    return dict(cfg, MEMORY=derive_memory(cfg))
+
+
+def set_memory(cfg, mode):
+    """-> cfg with MEMORY = mode and the items it fronts set to match (a copy): 0 normal (LAYOUT, FAR_OK, SDCARD and the
+    card's streams off); 1 reduced user flash (LAYOUT 1, no card: SDCARD and the card's streams off, FAR_OK as it was);
+    2 SD card mode (LAYOUT, SDCARD and FAR_OK on)"""
+    if mode not in (0, 1, 2):
+        raise ConfigError(f"MEMORY={mode}: 0, 1 or 2")
+    out = dict(cfg)
+    if mode == 2:
+        out.update(LAYOUT=1, SDCARD=1, FAR_OK=1)
+    else:
+        out.update(LAYOUT=mode, SDCARD=0, SD_RING=0, SD_REC=0)
+        if mode == 0:
+            out.update(FAR_OK=0, OVERLAY=0)
+    return sync_memory(out)
+
+
 def parse(text, base=None, strict=True, warn=None, reject_unknown=False):
     """.config text -> (values, name); values start from base (default: the registry defaults). warn: called with
     each warning (default: printed on stderr); strict=False: an unknown key is ignored without a word;
@@ -113,6 +143,9 @@ def parse(text, base=None, strict=True, warn=None, reject_unknown=False):
         if not m:
             raise ConfigError(f"line {n}: expected KEY=number, got {s!r}")
         k, v = m.group(1), int(m.group(2))
+        if k == "MEMORY":                               # (the front: sets LAYOUT, SDCARD, FAR_OK; the lines after it refine)
+            cfg = set_memory(cfg, v)
+            continue
         if k in R.FORBIDDEN:
             raise ConfigError(f"{k}: never offered ({R.FORBIDDEN[k]})")
         if k in R.MERGED:                               # (merged into another: the survivor is on if either was)
@@ -139,6 +172,7 @@ def parse(text, base=None, strict=True, warn=None, reject_unknown=False):
     for k, it in R.ITEMS.items():                      # (a fixed item: what every build has, whatever the text says)
         if it.fixed:
             cfg[k] = it.default
+    cfg = sync_memory(cfg)                              # (MEMORY: read from LAYOUT, SDCARD and FAR_OK, whatever the text says)
     for into, on in merged_on.items():                  # (a survivor the text does not set: what its old items were, so
         cfg[into] = cfg[into] | on if into in named else on   # an older .config with all of them off keeps it off)
     return cfg, name
@@ -151,7 +185,7 @@ def dump(cfg, name="", full=False):
     for g in R.GROUPS:
         rows = []
         for k, it in R.ITEMS.items():
-            if it.group == g and (full or cfg[k] != it.default):
+            if it.group == g and k != "MEMORY" and (full or cfg[k] != it.default):
                 rows.append(f"{k}={cfg[k]}")
         if rows:
             out.append(f"# {g}")
@@ -397,6 +431,8 @@ def item_delta(costs, key, value):
     placed again, and the figure grew as a feature went). Not the other way: an item on that saves a region is often
     real (TAB_IN_POOL's RAM to the pool, X909_CYM=2's smaller cymbals)"""
     d = costs.get("deltas", {}).get(key, {}).get(str(value))
+    if d is None and R.ITEMS[key].no_image:             # (a front or a record, MEMORY / RAM_PACKED: nothing in the image)
+        return {r: 0 for r in REGIONS}
     if d is None or not value < R.ITEMS[key].default:
         return d
     return {r: min(0, b) for r, b in d.items()}
