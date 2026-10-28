@@ -670,7 +670,7 @@ static void bank_resolve(void)
 #define NLIST (NBANK + bank_ni)                      /* and the INIT ones: then the user presets */
 static uint32_t preset_all_pos(uint32_t *total)      /* list index of the selected track's preset, in the whole list */
 {
-    uint32_t i, j, cur = 0;
+    uint32_t i, cur = 0;
     if (!bank_ready)
         bank_resolve();
     for (i = 0; i < NBANK; i++)
@@ -683,11 +683,14 @@ static uint32_t preset_all_pos(uint32_t *total)      /* list index of the select
         cur = NLIST + up_rank(user_of(TSEL));
     *total = NLIST + up_count();
 #if FELUCCA_NB_LIST
-    for (j = 0; j < NB_NK; j++) {                        /* (every engine's own collection: nbank.c) */
-        uint32_t at, n = nb_list_of(nb_kind_at(j), &i, ~0u, &at);
-        if (i < n)
-            cur = *total + i;
-        *total += n;
+    {
+        uint32_t j;
+        for (j = 0; j < NB_NK; j++) {                    /* (every engine's own collection: nbank.c) */
+            uint32_t at, n = nb_list_of(nb_kind_at(j), &i, ~0u, &at);
+            if (i < n)
+                cur = *total + i;
+            *total += n;
+        }
     }
 #endif
     return cur;

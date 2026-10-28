@@ -410,6 +410,7 @@ static int cg_useful(uint32_t level)
         const track_t *t = &trk[p];
         const engine_t *e = ENGINES[t->engine];
         uint32_t i, on = 0;
+        (void)e;                                        /* (CG_ACID, CG_SWARMED: 0 without ACID and ANALOG 2) */
         for (i = 0; i < NVOICE; i++)
             on |= t->v[i].active;
         if (!on)
