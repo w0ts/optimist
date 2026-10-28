@@ -872,9 +872,10 @@ import build as BUILD  # noqa: E402  (its check() is the real build's refusal)
 check("reserve: the retired items are not offered", "RESERVE_UNDO_KB" not in items and "RESERVE_FLASH_KB" not in items and
       "RESERVE_UNDO_KB" in R.RETIRED and "RESERVE_FLASH_KB" in R.RETIRED)
 tot = {"flash": 500000, "ram": 80000, "pool": 300000, "ramtext": 30000}
-ring = 474880 - 8192 - (80000 + 300000 + 30000)
-check("undo ring: the estimate shows it, 474,880 - 8,192 - (RAM + pool + RAM code): the packed SRAM's rest",
-      C.undo_ring(tot) == ring == 56688 and C.undo_ring(dict(tot, ram=100000, pool=400000)) == 0 and
+sram = K.limits_in_use()["sram"]                         # (the SRAM of the firmware the costs are of: 474,880 classic, app.ld's 475,136 the release's)
+ring = sram - 8192 - (80000 + 300000 + 30000)
+check(f"undo ring: the estimate shows it, {sram:,} - 8,192 - (RAM + pool + RAM code): the packed SRAM's rest",
+      C.undo_ring(tot) == ring == sram - 8192 - 410000 and C.undo_ring(dict(tot, ram=100000, pool=400000)) == 0 and
       "undo ring" in C.fmt_budget(C.defaults(), dict(costs, base=dict(costs["base"], **tot))))
 check("a .config naming a retired reserve item still loads (the setting is ignored, with a warning)",
       "RESERVE_UNDO_KB" not in C.parse("RESERVE_UNDO_KB=8\nRESERVE_FLASH_KB=16\n", strict=False)[0])

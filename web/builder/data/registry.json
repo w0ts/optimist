@@ -6051,7 +6051,11 @@
  ],
  "limits": {
   "flash": 581564,
-  "sram": 474880
+  "sram": 475136,
+  "far": false,
+  "flash_by_layout": {
+   "1": 823228
+  }
  },
  "spare": {
   "flash": 0,

@@ -66,8 +66,9 @@ check("configure.budget without real builds = core.budget",
 # at distance 0), the whole margin one item away with the very same figures (2026-10-24: synth, its own check build
 # 264 B under the RAM limit, was "over" by 184 B of the 448 B margin; fit() and the BLE check failed on it)
 _in = 184
-_sram = K.LIMITS["sram"] - K.SPARE["sram"] - _in                 # (the SRAM parts sum to _in inside; flash well inside)
-_base = {"flash": K.LIMITS["flash"] - 4096, "ram": 90000, "pool": _sram - 90000 - 30000, "ramtext": 30000}
+_lim = K.limits_in_use()                                         # (the slots of the costs in use: the release's or the classic's)
+_sram = _lim["sram"] - K.SPARE["sram"] - _in                     # (the SRAM parts sum to _in inside; flash well inside)
+_base = {"flash": _lim["flash"] - 4096, "ram": 90000, "pool": _sram - 90000 - 30000, "ramtext": 30000}
 _one = dict(d, LCD_DIRTY=1 - d["LCD_DIRTY"])
 _tc = dict(costs, base=_base, checks={},
            deltas=dict(costs["deltas"], LCD_DIRTY={str(_one["LCD_DIRTY"]): {r: 0 for r in K.REGIONS}}))

@@ -87,5 +87,27 @@ check("without costs-fm1base.json the release's budget reads costs.json (and say
 check("flash accepts the release's identity FM-1_7900 and FM-1_79010203, not FM-1_781",
       all(flash.OPTIMIST_ID.fullmatch(x) for x in ("FM-1_7900", "FM-1_79010203", "FM-1_700", "FM-1_731"))
       and not flash.OPTIMIST_ID.fullmatch("FM-1_781"))
+import core as K  # noqa: E402
+import fm1base_ld  # noqa: E402
+total = {"flash": 700000, "ram": 100000, "pool": 100000, "ramtext": 30000}
+check("the classic slots: a LAYOUT 1 build counts the big flash only with FAR_OK",
+      K.fits(total, {"LAYOUT": 1})["flash"][1] == 581564 and K.fits(total, {"LAYOUT": 1, "FAR_OK": 1})["flash"][1] == 765696)
+K.setup(limits={"flash": 581564, "sram": 475136, "flash_by_layout": {"1": 823228}})
+check("the release's slots (costs-fm1base.json limits): LAYOUT 1 is the SD card mode's app area, FAR_OK or not; SRAM is app.ld's",
+      K.fits(total, {"LAYOUT": 1})["flash"][1] == 823228 and K.fits(total, {})["flash"][1] == 581564
+      and K.fits(total, {})["sram"][1] == 475136 - K.SPARE["sram"] and K.describe()["limits"]["sram"] == 475136)
+K.setup(limits=None)
+check("without them the classic slots again", K.fits(total, {})["sram"][1] == K.LIMITS["sram"] - K.SPARE["sram"])
+if fm1base.BUILD_PY.is_file():
+    ld = (fm1base.DIR / "device" / "app.ld").read_text()
+    got = fm1base_ld.measure_script(ld)
+    check("a measurement build links fm1-base's app.ld with room (XIP, SRAM, NOINIT beyond it, no stack-guard assert)",
+          got is not None and "LENGTH = 0x800000" in got and "LENGTH = 0x180000" in got and "ORIGIN = 0x01E00000" in got
+          and "ASSERT(_sram_end" not in got)
+    check("another linker script (the update loader's) is left as it is", fm1base_ld.measure_script("MEMORY { RAM : ORIGIN = 0, LENGTH = 1 }") is None)
+    sizes = {"app_slot": 581564}
+    lim = fm1base.limits(sizes)
+    check("the release's limits: the slot of the build's sizes.json, the SD card mode's grown by its app area, app.ld's SRAM",
+          lim == {"flash": 581564, "flash_by_layout": {"1": 581564 + 0xCE000 - 0x93000}, "sram": 0x74000})
 print("fm1base: all passed" if not fails else f"fm1base: {fails} FAILED")
 sys.exit(1 if fails else 0)

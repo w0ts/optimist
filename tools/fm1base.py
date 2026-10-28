@@ -14,6 +14,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import threading
 import zipfile
 from pathlib import Path
@@ -77,10 +78,39 @@ def slot_app(bdir):
     return app, app / "build"
 
 
-def env_for(cfgfile, slot=None):
+def measure_toolchain():
+    """-> the directory to give fm1-base's build as JIELI_TOOLCHAIN for a measurement build: the real toolchain's entries
+    linked, its pi32v2/bin/ld the wrapper tools/fm1base_ld.py (room for any build: fm1-base has no measurement mode).
+    Made once (ROOT/build/measure-toolchain), shared by parallel builds"""
+    real = Path(toolchain_env()["JIELI_TOOLCHAIN"]).resolve()
+    shim = ROOT / "build" / "measure-toolchain"
+    ld = shim / "pi32v2" / "bin" / "ld"
+    if ld.is_file() and (shim / "real").resolve() == real:
+        return shim
+    shutil.rmtree(shim, ignore_errors=True)
+    for src in real.iterdir():
+        if src.name != "pi32v2":
+            (shim / src.name).parent.mkdir(parents=True, exist_ok=True)
+            (shim / src.name).symlink_to(src)
+    (shim / "pi32v2" / "bin").mkdir(parents=True)
+    for sub in (real / "pi32v2").iterdir():
+        if sub.name != "bin":
+            (shim / "pi32v2" / sub.name).symlink_to(sub)
+    for tool in (real / "pi32v2" / "bin").iterdir():
+        if tool.name != "ld":
+            (shim / "pi32v2" / "bin" / tool.name).symlink_to(tool)
+    ld.write_text(f"#!/bin/sh\nFM1B_REAL_LD={real / 'pi32v2' / 'bin' / 'ld'} exec {sys.executable} {HERE / 'fm1base_ld.py'} \"$@\"\n")
+    ld.chmod(0o755)
+    (shim / "real").symlink_to(real)
+    return shim
+
+
+def env_for(cfgfile, slot=None, measure=False):
     env = {k: v for k, v in os.environ.items() if not k.startswith("FELUCCA_")}
     env.update(toolchain_env())
     env.update(OPTIMIST=str(ROOT), OPT_CONFIG=str(Path(cfgfile).resolve()), OPT_TREE_COPY="1")
+    if measure:
+        env["JIELI_TOOLCHAIN"] = str(measure_toolchain())
     if slot:
         env["FM1B_JOBS"] = "2"       # (builds side by side: each one's compile pool small)
     env.pop("OPT_PROFILE", None)
@@ -171,16 +201,17 @@ def ui_sidecar(pkg, cfgfile):
     return out
 
 
-def build(cfgfile, bdir, python, run, release=None, name_stem="optimist", parallel=False):
+def build(cfgfile, bdir, python, run, release=None, name_stem="optimist", parallel=False, measure=False):
     """one release build of the .config at cfgfile -> (returncode, output); run(cmd, env) -> (rc, output) streams it.
-    A build that is over the slot still leaves its sizes.json (a measurement), and no package. parallel: in a copy of
+    A build that is over the slot still leaves its sizes.json (a measurement), and no package. measure: with the linker wrapper (measure_toolchain: the link succeeds whatever the size).
+    parallel: in a copy of
     the app directory of its own (slot_app), so builds may run side by side (measure_costs.py --jobs N)"""
     app = out_dir = None
     with _LOCKS_GUARD:
         lock = LOCKS.setdefault(str(bdir), threading.Lock()) if parallel else LOCKS.setdefault("", threading.Lock())
     with lock:
         app, out_dir = slot_app(bdir) if parallel else (APP, OUT)
-        cmd, env = command(python, release, app), env_for(cfgfile, parallel)
+        cmd, env = command(python, release, app), env_for(cfgfile, parallel, measure)
         for stale in (out_dir / "sizes.json", out_dir / "optimist.fwsc"):
             stale.unlink(missing_ok=True)
         rc, out = run(cmd, env)

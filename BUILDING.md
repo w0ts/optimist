@@ -82,10 +82,16 @@ by design with fewer flash projects. The toolchain is `JIELI_TOOLCHAIN` (default
 `firmwares/` for `package`); `build/sizes.json` comes from fm1-base's `build/sizes.json` (flash against the same 581,564 B
 slot, the packed SRAM). One fm1-base build runs at a time (its build directory is the app's own, `fm1base/optimist/build`).
 
-The builder's size model: `tools/builder/costs-fm1base.json` (measured through this build: `make costs-all`, one build at a
-time; on the farm, never `ac79-min`) once it exists; until then the budget uses `costs.json` (Optimist's classic
-measurements) and says so; a real build is exact and remembered in `build/exact-sizes-fm1base.json`. The web builder's data
-(`web/builder/data/costs.json`) is whichever of the two the CLI reads.
+The builder's size model: `tools/builder/costs-fm1base.json`, measured through this build (`make costs-all`, `JOBS=N` builds
+N at once, each in a copy of the app directory, `fm1base/optimist-<n>`, removed afterwards; on the farm, never `ac79-min`).
+fm1-base has no measurement mode, so a measurement build uses a linker wrapper (`tools/fm1base_ld.py`: room for any
+configuration, native toolchain only) and its `sizes.json` is read although the build then reports it over the slot. The
+release builds not every configuration (not the defaults: `ED_LIVE` is not wired, the X0X unit wants a kit), so the deltas are
+measured from the defaults with `RELEASE_BASE` (`measure_costs.py`); what the release does not build at all is listed in the
+file's `"unbuildable"` (its delta is the classic one from `costs.json`: a guide for a configuration the release cannot build). The file's `"limits"` are the release's slots (the app slot of `sizes.json`, the SD card
+mode's bigger one for `LAYOUT 1`, the SRAM of `app.ld`), which the fit checks use (`core.fits`) instead of the classic's. Without
+the file the budget uses `costs.json` (Optimist's classic measurements) and says so; a real build is exact and remembered in
+`build/exact-sizes-fm1base.json`. The web builder's data (`web/builder/data/costs.json`) is whichever of the two the CLI reads.
 
 `make test` runs Optimist's own tests (they build and test the classic firmware, as ever), then the release's:
 `fm1base/optimist/run.sh` (the app on fm1-base's host simulator, with Optimist's source defaults and the dev profile, against
