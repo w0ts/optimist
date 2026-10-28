@@ -2,17 +2,17 @@
 /* tests/ui_optimist_test.c, builder item SYS_DEBUG off (the user, 2026-10-17: "remove all the debugging stuff and replace by
  * what people want: CPU load, underruns and battery"): SYSTEM has no INTERNALS or USB STATS page; INFO is three read-outs,
  * CPU LOAD, UNDERRUNS (the drop-outs counted in: red just after one) and BATTERY, in the large face; KNOB 1 walks
- * the CPU line's NOW / MAX 5S / MAX (2026-10-18: KNOB 1, not 2). DUAL builds (DUAL_LOAD): CPU0 and CPU1 for CPU LOAD (the user,
+ * the CPU line's NOW / MAX 10S / MAX 1M / MAX (2026-10-18: KNOB 1, not 2). DUAL builds (DUAL_LOAD): CPU0 and CPU1 for CPU LOAD (the user,
  * 2026-10-18: "shows the load of only one cpu out of 2"). Screen opt-info-lean.ppm. Built by tests/run_tests.sh with -DFELUCCA_SYS_DEBUG=0. */
 static void sysdbg_off_tests(void)
 {
 #if !FELUCCA_SYS_DEBUG
 #if DUAL_LOAD
-    static const char *const L[4] = {"CPU0", "CPU1", "UNDERRUNS", "BATTERY"};
-    const char *mx = "CPU0 MAX 5S";
+    static const char *const L[5] = {"CPU0", "CPU1", "RAM", "UNDERRUNS", "BATTERY"};
+    const char *mx = "CPU0 MAX 10S";
 #else
-    static const char *const L[3] = {"CPU LOAD", "UNDERRUNS", "BATTERY"};
-    const char *mx = "CPU LOAD MAX 5S";
+    static const char *const L[4] = {"CPU LOAD", "RAM", "UNDERRUNS", "BATTERY"};
+    const char *mx = "CPU LOAD MAX 10S";
 #endif
     const uint32_t nl = sizeof L / sizeof L[0], xr = nl - 2u;
     uint32_t i, ok = 1, half = OVL_HALF_US;
@@ -38,10 +38,10 @@ static void sysdbg_off_tests(void)
     check(!strcmp(c.val, "50") && c.col == C_OK, "SYS_DEBUG off: CPU LOAD 50 %, green");
     turn(EN_K1, 1);
     sys_info_cell(0, &c);
-    check(info_mode == OVL_MAX5 && !strcmp(c.label, mx), "SYS_DEBUG off: KNOB 1 on INFO: CPU LOAD MAX 5S (CPU0 MAX 5S, DUAL)");
+    check(info_mode == OVL_MAX10 && !strcmp(c.label, mx), "SYS_DEBUG off: KNOB 1 on INFO: CPU LOAD MAX 10S (CPU0 MAX 10S, DUAL)");
 #if DUAL_LOAD
     sys_info_cell(1, &c);
-    check(!strcmp(c.label, "CPU1 MAX 5S"), "SYS_DEBUG off, DUAL: KNOB 1 on INFO: CPU1 MAX 5S too");
+    check(!strcmp(c.label, "CPU1 MAX 10S"), "SYS_DEBUG off, DUAL: KNOB 1 on INFO: CPU1 MAX 10S too");
 #endif
     turn(EN_K1, -1);
     sys_info_cell(xr, &c);
