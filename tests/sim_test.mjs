@@ -101,13 +101,14 @@ const bk = ask(sim, 43, [4, 0]);
 check(bk && bk.length > 10, `BK_LIST: ${bk ? bk.length + ' bytes' : 'no reply'}`);
 // a track parameter changed, the project saved to slot 0
 const PID = 0;
-const desc = ask(sim, 5, [0, PID]);
-const get = ask(sim, 2, [0, PID]);
+const PIDB = [PID & 0x7F, PID >> 7];                   // (the id: 2 x 7 bit, protocol 7)
+const desc = ask(sim, 5, [0, ...PIDB]);
+const get = ask(sim, 2, [0, ...PIDB]);
 check(desc && get, `DESC / GET track parameter ${PID}`);
-const lo = fromV14(desc[3], desc[4]), hi = fromV14(desc[5], desc[6]), was = fromV14(get[2], get[3]);
+const lo = fromV14(desc[4], desc[5]), hi = fromV14(desc[6], desc[7]), was = fromV14(get[3], get[4]);
 const want = was + 3 <= hi ? was + 3 : Math.max(lo, was - 3);
-const set = ask(sim, 3, [0, PID, ...v14(want)]);
-check(set && fromV14(set[2], set[3]) === want, `SET parameter ${PID}: ${was} -> ${want}`);
+const set = ask(sim, 3, [0, ...PIDB, ...v14(want)]);
+check(set && fromV14(set[3], set[4]) === want, `SET parameter ${PID}: ${was} -> ${want}`);
 const rev0 = x.sim_flash_rev();
 const save = ask(sim, 9, [1, 0], 3);
 check(save && save[0] === 1, `PROJECT save slot 0 (flash rev ${rev0} -> ${x.sim_flash_rev()})`);
@@ -119,8 +120,8 @@ sim = make(image);
 sim.x.sim_boot();
 sim.run(1);
 const q = ask(sim, 9, [0, 0], 3);
-const after = ask(sim, 2, [0, PID]);
-check(q && after && fromV14(after[2], after[3]) === want, `after a restart and PROJECT load: parameter ${PID} = ${after ? fromV14(after[2], after[3]) : '?'} (want ${want})`);
+const after = ask(sim, 2, [0, ...PIDB]);
+check(q && after && fromV14(after[3], after[4]) === want, `after a restart and PROJECT load: parameter ${PID} = ${after ? fromV14(after[3], after[4]) : '?'} (want ${want})`);
 
 // ---- backup and restore (the editor's 43..48): the working project (AUTO) read from this instance, written into a
 // blank one, which restarts (status 1); a fresh instance on its flash has the parameter
@@ -143,7 +144,7 @@ function bkObjects(s) {
   }
 }
 const want2 = want - 1 >= lo ? want - 1 : want + 1;
-ask(sim, 3, [0, PID, ...v14(want2)]);
+ask(sim, 3, [0, ...PIDB, ...v14(want2)]);
 sim.run(12);                                      // (the autosave: 10 s after the last change)
 const objs = bkObjects(sim);
 const auto = objs && objs.find((o) => o.tag === 'AUTO');
@@ -178,8 +179,8 @@ check(st === 1, `the restore restarts (status ${st})`);
 const restored = make(blank.flash());
 restored.x.sim_boot();
 restored.run(0.5);
-const rget = ask(restored, 2, [0, PID]);
-check(rget && fromV14(rget[2], rget[3]) === want2, `after the restore: parameter ${PID} = ${rget ? fromV14(rget[2], rget[3]) : '?'} (want ${want2})`);
+const rget = ask(restored, 2, [0, ...PIDB]);
+check(rget && fromV14(rget[3], rget[4]) === want2, `after the restore: parameter ${PID} = ${rget ? fromV14(rget[3], rget[4]) : '?'} (want ${want2})`);
 
 // ---- a restore's restart / UBOOT end the run with their status
 sim.midiIn([0xF0, 0x22, 0x24, 0x35, 0x7D, 0xF7]);
