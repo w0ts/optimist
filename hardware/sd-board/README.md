@@ -3,8 +3,8 @@
 > [!WARNING]
 > ## 🚧 WORK IN PROGRESS: DO NOT ORDER 🚧
 >
-> This board has **never been built or tested**. J12's pin 7 and the cable's mirror check are still open ("Still
-> open before ordering" below). Ordering it today may give a board that does not work or harms the FM-1.
+> This board has **never been built or tested**. The cable's mirror check is still open ("Still open before
+> ordering" below). Ordering it today may give a board that does not work or harms the FM-1.
 
 A board with everything the SD card mod needs (docs/SD-CARD-DESIGN.md), and the splitter too: a push-push microSD
 socket, the chip-select inverter, the 220 Ohm on the card's data out, the pull-ups, the decoupling, and two 10-pin
@@ -69,10 +69,8 @@ checked (KiCad: no design-rule error, the schematic's nets equal the board's, 74
 - **Must-pass bench test (Julius)**: stock and SLOOP, **cold boot with a card in** (the card stays in native mode the
   whole session): the screen must stay right. If it does not, raise R5 (and R6). Optimist puts the card in SPI mode
   before its first LCD command; other firmware does not.
-- **Hot insertion**: as part of J12-7's load test, insert a card while the FM-1 runs and watch the screen.
-- **J12 pin 7 = 3.3 V** (a reset line reads 3.3 V as well): beep J12-7 to U2 pin 16 (74HC595 VCC) or chip pin 28
-  (IOVDD) with the FM-1 off. The breakout's load test too: 33 Ohm (100 mA) from J12's 3V3 to GND with the FM-1 running,
-  the rail and the screen watched; if it sags, a Y-tap on the battery plug into an LDO on the board feeds the card.
+- **Hot insertion**: insert a card while the FM-1 runs and watch the screen.
+- Done: **J12 pin 7 = 3.3 V** (Julius, 2026-10-28): his working prototype powers the card from it.
 - **The mirror check** (the breakout): whether the cable from J12 arrives with pin 1 on J2 pin 1, which picks J2's
   face: J2 is still the HCTL part with contacts on both faces (a cable turned over connects mirrored). Bottom contact:
   XUNPU FPC-05F-10PH20, C2856798; top contact: C3446068 as J3. Both footprints are in `lib/`.
@@ -119,7 +117,11 @@ Check the fit first: `mockup-printable.stl` (3D print, one piece: the board and 
 
 ## The FFC socket's pins
 
-As J12 (Julius, 2026-10-27): J2 pin n = J12 pin n; J3 by place (its n-th contact from the left).
+As J12 (Julius, 2026-10-27): J2 pin n = J12 pin n; J3 by place (its n-th contact from the left). **J12 counts from
+the right**: pin 1 is the leg by the FM-1 board's dot, the right end with the connector's opening up
+(`j12-wiring-points.png`). The LCD's flex turns over on its way to J3 (its contacts face the FM-1 board at J12, up at
+J3), so J12's right end lands on J3's left end: line 1 on J3's first contact from the left, as wired. The printed
+mockup's check confirms it.
 
 | J2 pin | Line |
 |---|---|
@@ -129,7 +131,7 @@ As J12 (Julius, 2026-10-27): J2 pin n = J12 pin n; J3 by place (its n-th contact
 | 4 | CLK (PC9) |
 | 5 | MOSI (PC10) |
 | 6 | not probed: only through |
-| 7 | 3.3 V (to confirm) |
+| 7 | 3.3 V (confirmed: Julius's prototype runs the card from it) |
 | 8, 9 | not probed (the LCD's reset and backlight?): only through |
 
 ## The design
