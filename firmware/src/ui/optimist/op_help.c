@@ -272,6 +272,7 @@ static uint32_t hl_src_synth(uint32_t id, char *b)
     const track_t *t = TSEL;
     uint32_t k = song.sel % NTRK, m = 0, j, s, n;
     int32_t dc = effv_dest(t, 0), ds = effv_dest(t, 1);
+    (void)k;                                            /* (without PLOCK, MOTION and MACROS: unused) */
 #if FELUCCA_PLOCK
     for (j = 0; j < lk_n[k] && j < NLOCK; j++)
         if (lk_param[k][j] == id)
@@ -344,7 +345,7 @@ static uint32_t hl_src(char *b)
                     m |= 4u << j, hl_word(b, SL[j][s]);
             }
 #endif
-        (void)j, (void)s;
+        (void)j, (void)s, (void)l, (void)v;             /* (no drum lane locks, motion or LFOs in the build: unused) */
         return m;
     }
 #endif

@@ -30,6 +30,7 @@ static uint32_t nb_kind(const track_t *t)
 #define NB_FM6_RX (FELUCCA_FM6_SYSEX ? 32u : 0u)          /* the received bank's slots, after the packs' */
 #else
 #define NB_FM6_RX 0u
+#undef FM6_NPKV                                          /* (eng_fm6.c's, of the packs: no list of them here) */
 #define FM6_NPKV 0u
 #endif
 static uint32_t nb_slots(uint32_t kind) { return kind == NB_FM6 ? FM6_NPKV + NB_FM6_RX : kind == NB_CZ ? CZ_NUSER : 0u; }

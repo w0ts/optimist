@@ -192,12 +192,13 @@ def with_depth(k):
     must be measured before k: its delta subtracts theirs)"""
     deps = {d for (wk, _), w in WITH.items() if wk == k for d in w if d != k and any(x[0] == d for x in WITH)}
     return 1 + max((with_depth(d) for d in deps), default=0)
-# The release (fm1-base's build of Optimist) does not build every configuration: the all-defaults one is not among them
-# (fm1base/optimist/ui/opt_editor.h: "ED_LIVE off ... the live editor is not wired"; the X0X unit built with neither kit
-# lacks FM_SETUP: opt_fpu_x0x.c). So the release is measured from the nearest one that builds: the defaults with these
-# set, and an item whose default is another value (ED_LIVE 1) is measured from that side, its delta the build without
-# it against the build with it where there is one, else the classic one's (costs-fm1base.json "unbuildable" names them). The deltas stay
-# what costs.json's are, bytes against the defaults; "base" is the defaults' build the model implies (not a real one)
+# The release (fm1-base's build of Optimist) was measured from the nearest configuration to the defaults that it built
+# then (the live editor not wired, fm1base/optimist/ui/opt_editor.h; the X0X unit built with neither kit lacked FM_SETUP,
+# opt_fpu_x0x.c): the defaults with these set. Both build since trial/optimist-allbuild (2026-10-28); the start stays so
+# the deltas stay those of costs-fm1base.json (a start of the defaults themselves is a whole new measurement). An item
+# whose default is another value (ED_LIVE 1) is measured from that side, its delta the build without it against the
+# build with it where there is one, else the classic one's (costs-fm1base.json "unbuildable" names them). The deltas
+# stay what costs.json's are, bytes against the defaults; "base" is the defaults' build the model implies (not a real one)
 RELEASE_BASE = {"ED_LIVE": 0, "DRUM_X0X909": 1, "DRUM_X0X808": 1}
 
 
@@ -625,6 +626,12 @@ def main(argv=None):
     return run(a, old, logd, new_pairs, write=True)
 
 
+def model_counts(cfg, k):
+    """the sum model counts item k's own delta in cfg: its parent is in the build (core.py sum_items)"""
+    p = R.ITEMS[k].parent
+    return not p or C.built(cfg, p)
+
+
 def dv(out, k, v):
     """-> the delta measured for item k at value v ({} for its default or what is not measured yet)"""
     return out["deltas"].get(k, {}).get(str(v), {}) if v != R.ITEMS[k].default else {}
@@ -688,11 +695,14 @@ def item_delta_of(out, k, v, cfg, base, logd, prev_sizes, ladder=False):
         UNBUILDABLE[f"{k}={v}"] = LAST_ERROR[0]
         print(f"  {k}={v}: the release does not build it ({LAST_ERROR[0]}): delta from costs.json", flush=True)
         return classic_delta(k, v), prev_sizes
-    ctx = {r: 0 for r in REG}                           # (what cfg has beyond the start, counted by its own deltas)
-    for j, x in cfg.items():
-        if j != k and x != s0[j]:
-            for r in REG:
-                ctx[r] += dv(out, j, x).get(r, 0) - dv(out, j, s0[j]).get(r, 0)
+    ctx = {r: 0 for r in REG}                           # (what cfg has beyond the start, counted by its own deltas, as the
+    for j, x in cfg.items():                            # sum model counts them: an item whose parent is off not at all,
+        if j == k:                                      # so the start's moved items count where k leaves them out too:
+            continue                                    # EDITOR 0 drops ED_LIVE 0's saving, DRUMS 0 the X0X kits' cost)
+        a = dv(out, j, x) if model_counts(cfg, j) else {}
+        b = dv(out, j, s0[j]) if model_counts(s0, j) else {}
+        for r in REG:
+            ctx[r] += a.get(r, 0) - b.get(r, 0)
     terms, t0 = C.model_terms(cfg), C.model_terms(s0)   # (computed, not a delta: the reverb's line buffer, the automation store)
     return {r: s[r] - base[r] - ctx[r] - (terms[r] - t0[r]) for r in REG}, s
 
@@ -745,7 +755,10 @@ def run(a, old, logd, new_pairs, write):
         print(f"  {k}={v}: {out['deltas'][k][str(v)]}  (with context, {time.time() - t0:.0f} s)", flush=True)
     t0r, m = C.model_terms(start()), moved()            # (the base: the defaults' build the model implies; the start's own build less
     out["base"] = {r: base[r] - t0r[r] - sum(dv(out, j, start()[j]).get(r, 0) for j in m) for r in REG}   # its moved items' deltas)
-    out["unbuildable"] = dict(old.get("unbuildable", {}) if a.only is not None else {}, **UNBUILDABLE)
+    # (--only: the other items' entries kept; those measured again say again whether they build)
+    kept = {n: why for n, why in old.get("unbuildable", {}).items() if n.split("=")[0] not in a.only} \
+        if a.only is not None else {}
+    out["unbuildable"] = dict(kept, **UNBUILDABLE)
     if a.missing and m == []:
         refreshed_base(old.get("base"), out["base"])
     out["groups"] = {n: g for n, g in old.get("groups", {}).items() if n.split("|")[0] in GROUPS} \
