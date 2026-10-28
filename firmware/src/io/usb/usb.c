@@ -188,8 +188,8 @@ static void midi_out_event(uint32_t pkt)            /* from the audio ISR */
 #if FELUCCA_USB_AUDIO
 #include "usb_audio_stream.c"
 #include "usb_audio_route.c"                            /* the capture channels' sources (SYSTEM > USB AUDIO) */
-static const uint8_t DEV_DESC[18] = {18, 1, 0x00, 0x02, 0xEF, 0x02, 0x01, 64, 0x09, 0x12, 0x01, 0x00, 0x11, 0x03,
-                                     1, 2, 0, 1};        /* misc/IAD, bcdDevice 3.11: audio, capture channels named (hosts re-read it) */
+static const uint8_t DEV_DESC[18] = {18, 1, 0x00, 0x02, 0xEF, 0x02, 0x01, 64, 0x09, 0x12, 0x01, 0x00, 0x12, 0x03,
+                                     1, 2, 0, 1};        /* misc/IAD, bcdDevice 3.12: audio, the capture input a line (#96; hosts re-read it) */
 static const uint8_t CFG_DESC[411] = {
     9, 2, 0x9B, 0x01, 6, 1, 0, 0x80, 50,               /* 411 bytes, six interfaces */
     8, 0x0B, 0, 2, 1, 1, 0, 0,                          /* IAD: MIDI (IF 0-1) */
