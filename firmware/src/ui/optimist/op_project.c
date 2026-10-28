@@ -415,7 +415,7 @@ static uint32_t pw_leds(uint32_t *d);
 enum { SI_NONE, SI_BRIGHT, SI_LIGHTS, SI_KEYS, SI_LOWCUT, SI_OUT, SI_SYNC, SI_CH1, SI_CH2,
        SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_HOLD, SI_BLE, SI_KCOL, SI_CLKOUT, SI_CPU1, SI_INFO, SI_BATT, SI_BUILD, SI_REPO,
        SI_DROPS, SI_GUARD, SI_UAINFO, SI_XRUN, SI_DIAG, SI_CREDITS, SI_BLEST, SI_BLEPEER, SI_BLEMIDI, SI_BLELIST, SI_BLEAUTO,
-       SI_BLEFGT, SI_FRESO, SI_BTA, SI_BTAPEER, SI_BTAFMT, SI_BTAST, SI_CLKOFS, SI_BTOFS,
+       SI_BLEFGT, SI_FRESO, SI_VUFLOOR, SI_BTA, SI_BTAPEER, SI_BTAFMT, SI_BTAST, SI_CLKOFS, SI_BTOFS,
 #if FELUCCA_SD_UI
        SI_SDCARD, SI_SDVERS, SI_SDSLACK, SI_SDINDEX,    /* SD CARD: the card, VERSIONS, SLACK, the sample index (sd_mode.c) */
        SI_SDPRE,                                        /* (SD_STREAM: the card samples' pre-buffer) */
@@ -499,6 +499,7 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
 #if FELUCCA_CDC
     {"USB", {SI_USB, SI_NONE, SI_NONE, SI_NONE}},       /* (USB SERIAL: on General's page when it fits, GL_JOIN) */
 #endif
+    {"METERS", {SI_VUFLOOR, SI_NONE, SI_NONE, SI_NONE}},   /* (VU FLOOR: the dB at every level meter's bottom, core/vufloor.h) */
 #if FELUCCA_SD_UI
     {"SD CARD", {SI_SDCARD, SI_SDVERS, SI_SDSLACK, SI_SDINDEX}},   /* (the card's state, a project's versions kept, the room
                                                          * a file's run gets past its size, the sample index again) */
@@ -896,6 +897,12 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
     case SI_KCOL:                                       /* the knob caps' colours on dials, labels, cards (core/knobcol.h) */
         sys_onoff(c, "KNOB COLORS", knob_colors);       /* (the settings list has the room: op_gldraw.c) */
         break;
+    case SI_VUFLOOR:                                    /* the dB at the meters' bottom (core/vufloor.h; op_draw.c meter_h) */
+        c->label = "VU FLOOR";
+        fmt_int(c->val, vuf_db(vu_floor_i));
+        c->unit = "dB";
+        cell_gauge(c, 1, 0, (int32_t)VUF_N - 1, (int32_t)vu_floor_i);
+        break;
 #if FELUCCA_MIDI_CLKOUT
     case SI_CLKOUT:                                     /* MIDI clock out (io/midi/clock_out.c) */
         sys_onoff(c, "CLK OUT", clko_on);
@@ -1292,6 +1299,10 @@ static void sys_set(uint32_t it, int32_t s)
         knob_colors = (uint8_t)sys_step(knob_colors, s, 1);
         ui.force = 1;                                   /* (every band's colours move) */
         break;
+    case SI_VUFLOOR:                                    /* (kept in the settings record: persist_rec.c rsv_pj[0]) */
+        vu_floor_i = (uint8_t)sys_step(vu_floor_i, s, (int32_t)VUF_N - 1);
+        ui.force = 1;                                   /* (the MASTER scale and every meter's height move) */
+        break;
 #if FELUCCA_MIDI_CLKOUT
     case SI_CLKOUT:                                     /* (kept in the settings word: settings_word.c) */
         clko_on = (uint8_t)sys_step(clko_on, s, 1);
@@ -1382,6 +1393,10 @@ static int sys_factory(uint32_t it)
         break;
     case SI_KCOL:
         knob_colors = 0;
+        ui.force = 1;
+        break;
+    case SI_VUFLOOR:
+        vu_floor_i = VUF_DEF;
         ui.force = 1;
         break;
 #if FELUCCA_MIDI_CLKOUT

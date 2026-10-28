@@ -164,21 +164,30 @@ static uint32_t mx_rets(uint8_t *ret)
             ret[n++] = (uint8_t)FXS_LN(t);
     return n;
 }
-/* MASTER alone: the tall meter's dB scale (a tick each 6 dB, 0 -12 -24 -48 named), "GR", the returns' names (its name is the
- * header's badge) */
+/* MASTER alone: the tall meter's dB scale (a tick each 6 dB from 0 down to the VU FLOOR, some named), "GR", the returns' names
+ * (its name is the header's badge). A dB d sits at (|floor| + 6 + d) / (|floor| + 6) of the width (op_draw.c meter_h) */
+static int32_t mx_db_x(int32_t d)
+{
+    int32_t w = -vuf_db(vu_floor_i) + 6;
+    return MXM_X + (int32_t)(MXM_W * (uint32_t)(w + d) / (uint32_t)w);
+}
 static void mx_paint_master(void)
 {
-    static const int8_t DB[4] = {0, -12, -24, -48};
+    /* the named ticks of each floor (-80 .. -20): 0 and every 12 dB, skipping the one the next label's text would touch; 0 ends on its tick */
+    static const int8_t DB[VUF_N][6] = {{0, -12, -24, -48, -72, 1}, {0, -12, -24, -48, -60, 1}, {0, -12, -24, -48, 1, 1}, {0, -12, -24, -48, 1, 1},
+                                        {0, -12, -24, -36, 1, 1}, {0, -12, -24, 1, 1, 1}, {0, -6, -12, -18, 1, 1}};
+    const int8_t *nm = DB[vu_floor_i % VUF_N];
     uint32_t i, n;
+    int32_t d;
     uint8_t ret[3];
     char b[8];
     cv_hline(OP_PH - 1, C_LINE);
     cv_rect(2, 3, 3, OP_PH - 7, C_HI);                  /* the colour chip */
-    for (i = 0; i <= 10u; i++)                          /* the scale: lg 5 .. 15 (op_draw.c meter_h), 6 dB a tick */
-        cv_rect(MXM_X + (int32_t)((i * 4u + 4u) * MXM_W / 44u) - 1, MXM_VY + MXM_VH + 1, 1, 3, C_LINE);
-    for (i = 0; i < 4u; i++) {
-        int32_t x = MXM_X + (int32_t)(((15u - (uint32_t)(-DB[i] / 6) - 5u) * 4u + 4u) * MXM_W / 44u);
-        fmt_int(b, DB[i]);
+    for (d = 0; d >= vuf_db(vu_floor_i); d -= 6)        /* the scale: a tick each 6 dB */
+        cv_rect(mx_db_x(d) - 1, MXM_VY + MXM_VH + 1, 1, 3, C_LINE);
+    for (i = 0; i < 6u && nm[i] <= 0; i++) {
+        int32_t x = mx_db_x(nm[i]);
+        fmt_int(b, nm[i]);
         cv_texts(x - text_ws(b) + (i ? text_ws(b) / 2 : 0), MXM_VY + MXM_VH + 4, b, C_DIM);
     }
     cv_texts(MXM_X, MXM_GY - 5, "GR", C_DIM);
