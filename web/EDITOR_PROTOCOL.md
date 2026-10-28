@@ -23,10 +23,10 @@ Every request gets exactly one reply with the same header and `<cmd>`; a request
 
 ## Values and formats
 
-| Item | Encoding |
-| --- | --- |
+| What | On the wire |
+|:---|:---|
 | v14 value | 2 bytes, LSB first, value + 8192: `value = (lo \| hi << 7) - 8192`, -8192..8191 |
-| string | ASCII bytes, ended by a 0 byte |
+| string | ASCII, terminated by a zero byte |
 | scope | 0 = parameter of the selected track (`P_*`, 0..P_COUNT-1); 1 = global parameter (`G_*`, 0..G_COUNT-1); 9 = the reverb type and MIDI settings (tags 52, 54) |
 | track | 0..2 the synth parts, 3 the drum track (NTRK = 4) |
 | engine byte | 0..NENGINES-1; NENGINES = the drum track (no engine, no presets) |
@@ -52,7 +52,7 @@ The web editor is a set of builder items (`docs/BUILDER.md`). A build that leave
 answer its commands; the page hides what needs them and keeps the rest (its mock device serves any subset, `?off=dlan,scope`).
 
 | Item | Commands | INFO tags |
-| --- | --- | --- |
+|:---|:---|:---|
 | `EDITOR` (base, 212 B) | frames, 1 INFO, 25 PING, 49 BUILD | 64 (lite builds) |
 | `BACKUP` | 43..48 backup; with live editing off also 11..15 sample slots and 54..57 snapshots | 64 |
 | `LIBRARIAN` | 16..21 user presets, 38..41 user kits (`DRUM_KITS`); with live editing off also 9 PROJECT, 42 SMP_READ, 79..84 patterns | 55 (patterns), 64 bit 1 |
@@ -678,7 +678,7 @@ rc: 0 ok, 1 arguments / no import begun, 2 CRC, 3 the transport plays, 6 a lengt
 The engine's EDIT value 0 `VOICE` is an enum: `INIT VOICE` then the voice packs the build has (builder items `FM6_PK_KEYS`, `BASS`, `BELLS`, `PADS`, `80S`; 16 voices each); its range and names depend on the build. The editor has no FM6 panel and no bank: a DX7 voice of the library is only auditioned
 (it selects FM6 on the track if needed and sends the single voice).
 
-## Notes for the editor
+## Editor guidance
 
 - **Following the device.** `WATCH` (with bit 4) and `PING` about every 1 s; every change is pushed. Without a reply to `WATCH` the firmware is too old to follow: poll `DUMP` about every 300-500 ms while the page is visible.
 - **Step automation** (Sequence popup): a step of the track shown, written through `AUTO_GET` / `AUTO_SET` (and, with `ED_SEQ`, `STEPLANE`): CHANCE, COND, NUDGE and FILL are the step-only pseudo-parameter events and a default deletes the event; a lock is the step-only event of a `P_*` id or of a drum sound's value (`AUTO_LANE`).

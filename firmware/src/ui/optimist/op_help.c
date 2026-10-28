@@ -160,7 +160,19 @@ static const char *hl_lt_line(int32_t d, char *t)
     case LT_L2RT: pg = "LFO 2", lb = "RATE"; break;
     case LT_OSC2: pg = "OSC 2", lb = "SEMI"; break;
     case LT_SDTN: pg = "SWARM"; break;
-    default: return 0;
+    default: {                                          /* (a value on a synth track's pages: the page's own line) */
+        uint32_t i, j, id = LT_TAB[(uint32_t)d % LT_N][1];
+        if (d < LT_E1FLT || LT_TAB[(uint32_t)d % LT_N][0] != LK_P)
+            return 0;
+        for (i = 0; i < NPAGES && !pg; i++)
+            for (j = 0; j < 4u; j++)
+                if (PAGES[i].scope == SC_TRACK && PAGES[i].id[j] == id) {
+                    pg = PAGES[i].title, lb = TP[id].label;
+                    break;
+                }
+        if (!pg)
+            return 0;
+    }
     }
     o = ph_find(PH_PAGE, pg, lb);
     return o ? ph_text(o, t) : 0;

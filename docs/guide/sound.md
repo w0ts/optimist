@@ -11,7 +11,7 @@ A synth track plays one engine at a time. PRESETS on a synth track loads another
 | Engine | Builder item | What it is | EDIT 1 / EDIT 2 cards |
 |---|---|---|---|
 | ANALOG 2 | `ENG_ANALOG` | Two band-limited oscillators with hard sync, a swarm of up to 6 detuned copies, two filters | OSC: WAVE DTN MIX NOIS; FLT: CUT RES DRV KTR. Extra pages OSC 2, SWARM, FLT 2, FLT B, and ENV2 (below) |
-| DIGITAL | `ENG_DIGITAL` | Four-operator FM, 8 algorithms, feedback on operator 4, one modulation INDEX with its own envelope | OPS: ALG R2 R3 R4; MOD: IDX MDEC FB |
+| DIGITAL | `ENG_DIGITAL` | Four-operator FM, 8 algorithms, feedback on operator 4, one modulation INDEX with its own envelope; TONE (`DIG_TONE`) adds T1..T8, Digitone-style routings | OPS: ALG R2 R3 R4; MOD: IDX MDEC FB (T1..T8: C A B; A LEV B LEV FDBK MIX) |
 | PHASE | `ENG_PHASE` | Phase distortion: a cosine with a bent phase, a second line to mix or ring-modulate; FOLD a sine wavefolder (`PHASE_FOLD`) | PHS: WAVE WAVE2 DCW ENV; LINE: DTN LINE SUB FOLD |
 | LOFI | `ENG_LOFI` | Chip voice: pulse, triangle, saw, noise, a 4-bit wavetable, bit crush, a pitch sweep | CHIP: CHIP WAVE DUTY CRSH; MOTN: SWP VIB ARP TONE |
 | SAMPLE | `ENG_SAMPLE` | Built-in sample sets and your own USR1 to USR3 samples across the keys, with loops | SET: SET TUNE BITS LOOP; TONE: CUT DRV |
@@ -36,6 +36,8 @@ A synth track plays one engine at a time. PRESETS on a synth track loads another
 | WAVE | `ENG_WAVE` | Clipper's wavetables: 8 tables of 16 frames, POS sweeps through them, band-limited; every WAVE track plays one table | WAVE: TABL POS DTN SUB; FLT: CUT RES DRV KTR |
 | SID | `ENG_SID` | The Commodore 64's MOS 6581 / 8580 (reSID, via Mini-Tone): the chip's waveforms, sync, ring and its multimode filter | OSC: WAVE PW MOD RATIO; FILTER: MODE CUT RES MODEL |
 | PROPHET | `ENG_PROPHET` | A Prophet-5 Rev 4 style voice (Melodee's): two oscillators, sync, Poly-Mod, the Curtis 4-pole | OSC: A B B-FRQ MIX; VCF: CUT RES PMOD PW |
+| STRETCH | `ENG_STRETCH` | PaulStretch-style extreme time stretching of the SAMPLE material: random phases, a smooth endless sound | SRC: SRC POS STRCH SMEAR; SPEC: TONE SUB SHIM BLUR |
+| CS80 | `ENG_CS80` | A Yamaha CS-80 style voice (after CS-1's): two channels a voice, a high-pass and a low-pass in series, the ring modulator | VCO: I II II-FT MIX; VCF: HPF LPF RES RING |
 
 ### Engine notes
 
@@ -102,6 +104,27 @@ A synth track plays one engine at a time. PRESETS on a synth track loads another
   from 0 it bends A's pitch with B (bells, growls, with sync the classic sweeps), down from 0 it moves the cutoff with B.
   **PW** narrows both pulses (the track's SHP moves it). The track's ENV is the amplitude and, through ENV 1's FLT
   card, the filter envelope. Five voices. Our own presets; it plays no Sequential programs.
+- **DIGITAL TONE** (builder item `DIG_TONE`): ALG's T1..T8 are routings in the manner of Elektron's Digitone (ours;
+  not affiliated with Elektron): a carrier **C**, its modulator **A** and a pair **B** (B1 B2, the same ratio), two
+  outputs X and Y that **MIX** crossfades (-64 X, 63 Y), **FDBK** on one operator. **C**, **A** and **B** are the
+  ratios (C sets the pitch), **A LEV** A's depth (steady; ENV 1's card moves it), **B LEV** the pair's depth, which
+  follows the track's ENV. The classic routings 1..8 sound as before; on them EDIT 8 is "-".
+- **STRETCH:** extreme time stretching of the SAMPLE material in the manner of Paul Nasca's PaulStretch (our code; AEther,
+  an fm1-base app, was the reference). The source is read through a 4096-sample window, every frequency bin is turned
+  by a random phase and the result overlapped every 46 ms: the transients smear into a smooth, endless sound. **SRC**
+  is the sample set or user slot, **POS** where the scan starts, **STRCH** how many times slower (up to ~8000x; 127
+  freezes it), **SMEAR** the random phases (0 keeps them: a plain, phasey stretch), **TONE** a low-pass on the spectrum
+  (the track's FLT moves it), **SUB** and **SHIM** an octave below and above, **BLUR** tones into noise bands. Every
+  voice plays the zone of its part's newest note at its own pitch. One part plays STRETCH at a time (it holds 45 KB
+  of the pool once); a second part on STRETCH waits until the first is silent. Latency 46..93 ms: a pad engine.
+- **CS80:** a Yamaha CS-80 style voice after CS-1's (twochannels), with our controls: two channels a voice, each a VCO
+  through a high-pass and a low-pass in series. **I** and **II** are the channels' waves (SAW, PULSE, BOTH, SAW+SIN with
+  the sine added after the filters, NOISE), **II FT** channel II's footage against I's 8' (16' to 2', the fifths
+  between), **MIX** the lever between them (-64 I alone, 0 both, 63 II alone). **HPF** and **LPF** are the two filters
+  (key tracking 1:1), **RES** both resonances (the CS-80's filters never self-oscillate), **RING** the ring modulator's
+  rate (0 off). The track's FLT and ENV > FLT move both filters, as the CS-80's BRILLIANCE and VCF envelope do; SHP is
+  the pulse width, DTUNE (VOICE 2) detunes channel II up to ~20 cents, velocity opens the filters a little. Eight
+  voices. Our own presets; not affiliated with Yamaha.
 - **SAMPLE:** SET plays a built-in set (PIANO, BASS, VIBES, HORNS, STRGS, FLUTE, SCRCH, PERC; the builder chooses which) or your USR1 to USR3 slots ([drums and samples](drums.md#your-samples)).
 
 ## Voices
@@ -164,6 +187,8 @@ The **VOICE** page has four cards: the mode, GLD (glide time), GLMOD and PRIO.
 | WAVE | CUT | PIT | POS | DRV |
 | SID | CUT | PIT | PW | RES |
 | PROPHET | CUT | PIT | PW | PMOD |
+| CS80 | LPF | PIT | PW | RING |
+| STRETCH | TONE | PIT | SMEAR | BLUR |
 
 WHEEL's DRV, CLICK and TOP are the organ's, so ENV moves them from the track's newest voice. Every card can be locked on a step and recorded as motion.
 

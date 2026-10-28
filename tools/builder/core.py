@@ -221,6 +221,8 @@ def validate(cfg):
     if built(cfg, "DRUMS") and not any(built(cfg, k) for k in synths + kits):
         err.append(Issue("the drum track needs a drum source: a drum synth (the 32 synthesised kits, KAWA, PLAITS, "
                          "X0X 909, X0X 808) or a sampled kit", synths + ["DRUM_SAMPLED"] + kits))
+    if built(cfg, "ENG_STRETCH") and not built(cfg, "ENG_SAMPLE"):
+        err.append(Issue("STRETCH stretches SAMPLE's material: it needs SAMPLE", ["ENG_STRETCH", "ENG_SAMPLE"]))
     sets = [k for k in R.ITEMS if k.startswith("SET_")]
     if any(cfg[k] for k in sets) and not built(cfg, "ENG_SAMPLE") and not built(cfg, "ENG_GRAIN"):
         warn.append(Issue("sample sets without SAMPLE or GRAIN: nothing plays them (only the drums use PERC)",
@@ -557,7 +559,8 @@ def fx_memory(cfg):
     def on(key):
         return int(f.get(R.ITEMS[key].flag, 0) or 0)
     send, cho = dly_send_kb(cfg, f), FXM_CHO_KB if on("FX_CHORUS") else 0
-    kb = {"INS_CHORUS": 2, "INS_DELAY": 8, "INS_JCHORUS": 2, "INS_FLANGER": 1, "INS_XDLY": on("XDLY_LEN") // 256}
+    kb = {"INS_CHORUS": 2, "INS_DELAY": 8, "INS_JCHORUS": 4 if on("JUNO_FINE") else 2, "INS_FLANGER": 1,   # (JUNO_FINE:
+          "INS_XDLY": on("XDLY_LEN") // 256}                                                          # its line 32-bit)
     types = [k for k in FXM_TYPES if on(k)]
     own = (max(0, on("DLY_ARENA") - send) if on("DLY_ARENA") else sum(kb[k] for k in types)) if types else 0
     out = {}
@@ -801,14 +804,23 @@ def additive(cfg, costs):
     return total, items, missing
 
 
+# a probe (measure_costs.py PROBE: a check configuration with 4 items changed by a hash, costs.json "checks" NAME~)
+# counts this many items further than it is: a profile's own build PROBE_PENALTY items away or less wins over it.
+# A probe sits on random items, where the sum model is least right (2026-10-26: the default profile less ENG_FM6
+# anchored on dev~, 6 items away, over its own build, 7 away, and its RAM came 176 B over the profile's although the
+# real build has 32 B less: INS_SFOLD's RAM among the other shaper inserts 144 B off)
+PROBE_PENALTY = 2
+
+
 def nearest_anchor(cfg, costs, exclude=(), extra=()):
-    """-> (name, cfg, real sizes, distance) the anchor (anchors) the fewest items away; at the same distance the
-    later one (a real build from this source over costs.json's)"""
-    best = None
+    """-> (name, cfg, real sizes, distance) the anchor (anchors) the fewest items away (a probe PROBE_PENALTY
+    further); at the same distance the later one (a real build from this source over costs.json's)"""
+    best, best_rank = None, None
     for n, acfg, real in anchors(costs, exclude, extra):
         d = distance(cfg, acfg)
-        if best is None or d <= best[3]:
-            best = (n, acfg, real, d)
+        rank = d + (PROBE_PENALTY if n.endswith("~") else 0)
+        if best is None or rank <= best_rank:
+            best, best_rank = (n, acfg, real, d), rank
     return best
 
 

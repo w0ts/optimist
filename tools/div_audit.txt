@@ -342,3 +342,5 @@ src/storage/sd/sd_diskio.c:sd_map_run:cs | a mounted volume's sectors per cluste
 src/storage/sd/sd_index.c:sdx_scan_path:count | only in the loop over count records (count > 0 there); its one caller passes oldn when oldn is not 0
 src/storage/sd/sd_stream.c:sst_kbs:ms | only when ms is not 0 (the test before it)
 src/storage/sd/sd_stream.c:sst_lead:(st->bpms?st->bpms:1u) | 1 when bpms is 0
+# 2026-10-26: STRETCH (PaulStretch-style), once a frame
+src/engines/stretch/eng_stretch.c:pst_adv_q16:pow2_q16 | pow2_q16 of 0..1586 (1/16 semitone) is 2^0 .. 2^8.3 in Q16: 65536 or more, never 0

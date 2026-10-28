@@ -1,9 +1,10 @@
 /* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* The baseband driver (ble_hw.h) on the AC791N / WL82 BLE engine, route C (docs/BLE-STACK.md §7, the interface §3; FELUCCA_BLE).
  *
- * Clean room: written from the hardware fact sheet docs/BLE-HW-FACTS.md (feat/ble-facts 41b7374, TX: §8.2 at a3b2f06; "HW §n"
+ * Written from the hardware fact sheet docs/BLE-HW-FACTS.md (feat/ble-facts 41b7374, TX: §8.2 at a3b2f06; "HW §n"
  * below), the Bluetooth Core Specification (Vol 6 Part B) and the answers the emulator's engine model gave from
- * stock V15 running in it (fm1-emulator feat/ble-engine 6531e20; "model" below). No vendor code, IR or disassembly.
+ * stock V15 running in it (fm1-emulator feat/ble-engine 6531e20; "model" below). The author read no vendor code, IR or disassembly and copied none; the fact sheet itself was read from the
+ * vendor's binary by a separate reader, and the radio start-up values are captured data (hal/ble_rf_tables_v15.h, Apache-2.0).
  * The registers are reached through hal/fm1_ble.h; this file owns the baseband RAM block and the control block,
  * plain SRAM the engine reads and writes by DMA (HW §3, §4).
  *

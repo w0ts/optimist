@@ -522,16 +522,18 @@ static void env2_run(uint32_t n) { part_capture(&trk[0], n, xbuf, 0); }   /* n s
  * the same loop run on both trees). The amounts at 0 are left out: DST2 PITCH at 0 still took the pitch from
  * pitch16 then (no unison detune, fine tune, LFO or bend fraction); an amount at 0 now leaves the pitch alone.
  * Set-up 6 (glide, LFO pitch, osc 2 an octave down) hashed again when osc 2 took osc 1's fine pitch
- * (vmod_t.fine_all, tests/osc2_fine_test.c): before, osc 2 left out the glide and LFO fraction */
+ * (vmod_t.fine_all, tests/osc2_fine_test.c): before, osc 2 left out the glide and LFO fraction. Destinations PIT and
+ * OSC2 (1, 3) and set-up 6 (LFO PIT 40) hashed again for the pitch curve (core.h pit_depth, issue 75, 2026-10-26); the
+ * others unchanged */
 static const uint32_t ENV2_OLD[8][5][4] = {
-    {{0x54c57eb3u, 0x3dd5dc91u, 0xa69fab01u, 0x677fb337u}, {0x7b8ebab5u, 0x31e32ccbu, 0x89111ffdu, 0xd71f8cedu}, {0x1c7cc08du, 0x1c7cc08du, 0x1c7cc08du, 0x1c7cc08du}, {0xeff6f0efu, 0x79e32ee1u, 0x0b94b2a9u, 0xb091a539u}, {0x1c7cc08du, 0x1c7cc08du, 0x1c7cc08du, 0x1c7cc08du}},
-    {{0x79e35601u, 0x3519191bu, 0x3e8992fdu, 0xe7359835u}, {0x5f8c050fu, 0xeb56f1d1u, 0x80aa7de3u, 0x17f4b03du}, {0x06b1ae19u, 0x682404f9u, 0xaff2a9efu, 0xf2eeeb19u}, {0x6f5aa953u, 0x9c3ccd2fu, 0x988e1ee1u, 0x4d346a6fu}, {0x3be6594du, 0x3be6594du, 0x3be6594du, 0x3be6594du}},
-    {{0xdc7f3eebu, 0x3b8a140bu, 0x07faedcfu, 0xf2dc9ed1u}, {0x8ad9ee4bu, 0x6483eb97u, 0xef0103f3u, 0x2d14fa27u}, {0x5c59c1fbu, 0x5c59c1fbu, 0x5c59c1fbu, 0x5c59c1fbu}, {0xcebdea6du, 0xc298dd61u, 0xbc344d03u, 0x46ce8743u}, {0x5c59c1fbu, 0x5c59c1fbu, 0x5c59c1fbu, 0x5c59c1fbu}},
-    {{0xf00323a7u, 0xf23f1f09u, 0xae352787u, 0x9b89d241u}, {0x33b4ac43u, 0x60a3bd97u, 0x7f009b89u, 0xe235a87bu}, {0xa525b64du, 0xa525b64du, 0xa525b64du, 0xa525b64du}, {0x8abd9677u, 0x98dcb3a1u, 0x8c73d083u, 0x98faecedu}, {0xa525b64du, 0xa525b64du, 0xa525b64du, 0xa525b64du}},
-    {{0xbeb59d23u, 0x24a68f3du, 0x02e191d9u, 0xad1c80a3u}, {0x757b9621u, 0xec924137u, 0x15bf0aefu, 0x7a9bdd6fu}, {0x24ddee2bu, 0x24ddee2bu, 0x24ddee2bu, 0x24ddee2bu}, {0xf78e9555u, 0x323d389bu, 0xf8b6a3f7u, 0xed5bb391u}, {0x0019f8b3u, 0x15d62aa1u, 0xd18f137du, 0x92cda0f5u}},
-    {{0xbc5ba631u, 0xdb275a23u, 0x937ad6fdu, 0xd955eb59u}, {0x9359ac1bu, 0xb61f0b5du, 0x3772ff93u, 0x061e60adu}, {0xb137ba11u, 0xa9b138edu, 0xa4959e05u, 0xb9eda723u}, {0x44476141u, 0x67d0fcbfu, 0x51958b19u, 0x1cfd854bu}, {0xe05ef3cdu, 0x8852331du, 0xa824e961u, 0x6467e243u}},
-    {{0x2c411f59u, 0x86ee76d1u, 0x56053a9fu, 0xb5371647u}, {0x50634f79u, 0x5dca78efu, 0xcc89af79u, 0xf2b3d2c3u}, {0xa7bcc77du, 0xa7bcc77du, 0xa7bcc77du, 0xa7bcc77du}, {0xf3879c93u, 0x3705ea6du, 0x6007b793u, 0x76c12cbdu}, {0x00597bc7u, 0xb19a7c97u, 0x007110b9u, 0xcbdf999bu}},
-    {{0x0a8da6c9u, 0x3de42e7bu, 0x2d546e8fu, 0x94114311u}, {0x6bf23223u, 0x7f9aa7f7u, 0xe5679b2du, 0xf7ab32d3u}, {0x656ece25u, 0x656ece25u, 0x656ece25u, 0x656ece25u}, {0xda421c03u, 0x4e40b83fu, 0x7a0c5983u, 0xe2439db1u}, {0xd696bd37u, 0x144ded37u, 0xa4637ed9u, 0x84730155u}},
+    {{0x54c57eb3u, 0x3dd5dc91u, 0xa69fab01u, 0x677fb337u}, {0xa5a8cfc7u, 0x54e60387u, 0x45883095u, 0x4af77399u}, {0x1c7cc08du, 0x1c7cc08du, 0x1c7cc08du, 0x1c7cc08du}, {0x36db961fu, 0xdc607575u, 0x6aff646fu, 0x5df680cbu}, {0x1c7cc08du, 0x1c7cc08du, 0x1c7cc08du, 0x1c7cc08du}},
+    {{0x79e35601u, 0x3519191bu, 0x3e8992fdu, 0xe7359835u}, {0x12e8e8e3u, 0xc3424babu, 0x0ae4399du, 0x89ce1a43u}, {0x06b1ae19u, 0x682404f9u, 0xaff2a9efu, 0xf2eeeb19u}, {0xe1490409u, 0x4cd6f519u, 0x97537c01u, 0x8e23972bu}, {0x3be6594du, 0x3be6594du, 0x3be6594du, 0x3be6594du}},
+    {{0xdc7f3eebu, 0x3b8a140bu, 0x07faedcfu, 0xf2dc9ed1u}, {0xf56d0dbfu, 0xb7830cddu, 0xb4ce1fabu, 0x9d7713e7u}, {0x5c59c1fbu, 0x5c59c1fbu, 0x5c59c1fbu, 0x5c59c1fbu}, {0x053307e9u, 0x3548bf17u, 0x84b042d7u, 0xdae6fa79u}, {0x5c59c1fbu, 0x5c59c1fbu, 0x5c59c1fbu, 0x5c59c1fbu}},
+    {{0xf00323a7u, 0xf23f1f09u, 0xae352787u, 0x9b89d241u}, {0x96a16d4bu, 0xdab30139u, 0x6453f0a9u, 0xd75eeee7u}, {0xa525b64du, 0xa525b64du, 0xa525b64du, 0xa525b64du}, {0x32bdee07u, 0xd9fde96du, 0xa3e2c227u, 0x2d74ea6bu}, {0xa525b64du, 0xa525b64du, 0xa525b64du, 0xa525b64du}},
+    {{0xbeb59d23u, 0x24a68f3du, 0x02e191d9u, 0xad1c80a3u}, {0xf5dc8ac1u, 0xf7061a2bu, 0x79ec06c3u, 0x164d1361u}, {0x24ddee2bu, 0x24ddee2bu, 0x24ddee2bu, 0x24ddee2bu}, {0x5f84ccddu, 0x294d1f1bu, 0xccd8e713u, 0x2ff06e83u}, {0x0019f8b3u, 0x15d62aa1u, 0xd18f137du, 0x92cda0f5u}},
+    {{0xbc5ba631u, 0xdb275a23u, 0x937ad6fdu, 0xd955eb59u}, {0x5c4436dfu, 0x43b87401u, 0x1064c4fdu, 0xf42dd4f3u}, {0xb137ba11u, 0xa9b138edu, 0xa4959e05u, 0xb9eda723u}, {0xb5e6b719u, 0xcc77d59fu, 0xbce9687du, 0xf6142edbu}, {0xe05ef3cdu, 0x8852331du, 0xa824e961u, 0x6467e243u}},
+    {{0x5c9acb03u, 0x2528c4b1u, 0xe62308bfu, 0xef5e90d3u}, {0xcea3abb3u, 0x3304052bu, 0xe62c079du, 0x3047cacbu}, {0xa2df39f3u, 0xa2df39f3u, 0xa2df39f3u, 0xa2df39f3u}, {0xf9064439u, 0xe7db2515u, 0xb4144fcdu, 0x77e1339fu}, {0x02e4e8d5u, 0x7e9f2c2bu, 0xfe90ed09u, 0x3c53427bu}},
+    {{0x0a8da6c9u, 0x3de42e7bu, 0x2d546e8fu, 0x94114311u}, {0x50f03a45u, 0x4ca57c7fu, 0x74fdc2e5u, 0x423450cbu}, {0x656ece25u, 0x656ece25u, 0x656ece25u, 0x656ece25u}, {0x590e3c25u, 0x0a1fb14fu, 0xd129fb0du, 0x9ef78795u}, {0xd696bd37u, 0x144ded37u, 0xa4637ed9u, 0x84730155u}},
 };
 static uint32_t env2_case(int c, int d, int amt)
 {
@@ -626,7 +628,7 @@ static int env2_test(int quiet)
         top = env2_level(&trk[0]) > top ? env2_level(&trk[0]) : top;
     }
     ok &= top == (1 << 24);
-    env2_setup(0, 30, 127, 0, 0, A2E_PITCH);          /* PITCH: AMT2 63 at the top = +31.5 st */
+    env2_setup(0, 30, 127, 0, 0, A2E_PITCH);          /* PITCH: AMT2 63 at the top = +24 st (core.h pit_depth) */
     trk_note_on(&trk[0], 48, 100);
     env2_run(FS / 10u);
     c0 = env2_crossings(FS);
@@ -634,7 +636,7 @@ static int env2_test(int quiet)
     trk_note_on(&trk[0], 48, 100);
     env2_run(FS / 10u);
     c1 = env2_crossings(FS);
-    want = pow(2, 31.5 * (127.0 * 131072 / 16777216) / 12);   /* (held at SUS2 127: 127 / 128 of the top) */
+    want = pow(2, 24 * (127.0 * 131072 / 16777216) / 12);   /* (held at SUS2 127: 127 / 128 of the top) */
     ok &= fabs((double)c1 / c0 / want - 1) < 0.02;
     for (k = 0; k < 5; k++) {                         /* every destination moves something */
         uint32_t i;
@@ -671,7 +673,7 @@ static int env2_test(int quiet)
     }
     if (!quiet)
         printf("env2: SUS2 64 held %.3f, let go after 50 ms: REL2 =DEC %.3f, REL2 20 %.3f, slow attack let go: top %.3f, "
-               "PITCH +31.5 st: x%.3f (want %.3f)\n", held / 16777216.0, rel_dec / 16777216.0, rel_fast / 16777216.0,
+               "PITCH +24 st: x%.3f (want %.3f)\n", held / 16777216.0, rel_dec / 16777216.0, rel_fast / 16777216.0,
                top / 16777216.0, (double)c1 / c0, want);
     return ok;
 }

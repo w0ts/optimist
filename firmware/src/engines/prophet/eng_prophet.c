@@ -10,6 +10,8 @@
  *   EDIT 2 (VCF)  CUT RES  the Curtis 4-pole (keyboard tracking half, the track's FLT moves CUT)
  *                 PMOD  Poly-Mod from oscillator B: 1..63 on A's pitch (to an octave either way), -1..-64 on the cutoff
  *                 PW    both oscillators' pulse width, 50 % at 0 to 5 % at 127 (the track's SHP moves it: PWM)
+ * A modulator's OSC2 moves A's pitch alone, B staying (the synced oscillator's, as ANALOG's osc 2: a sync sweep; its DEST
+ * card names it A PIT here; issue 75, jsmonzani: "separate pitch A from pitch B")
  * Five voices, as the Prophet-5. Voice state: ph[0] A, ph[1] B; s[0..3] the filter's stages, s[4] B's triangle, s[5]
  * the sync's carry-over (floats as bits, p5_dsp.c), s[6] the last block's cutoff (Q8, P5_NOCUT: a fresh note). */
 #include "p5_dsp.h"
@@ -44,7 +46,7 @@ static void prophet_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, con
     if (n == 0 || n > CTL)
         return;
     pw = clamp(pw, 1024, 31744);
-    g.inc_a = m->inc;
+    g.inc_a = m->os2 ? fine_inc(pitch_inc((uint32_t)clamp(m->pitch16 + m->os2, 0, 2047)), m->fine_all) : m->inc;   /* (OSC2: A alone) */
     g.inc_b = fine_inc(pitch_inc((uint32_t)clamp(m->pitch16 + clamp(p[P_E2], -24, 24) * 16, 0, 2047)), m->fine_all);
     g.pw_a = g.pw_b = (uint32_t)pw << 17;
     g.mix = mix;
@@ -74,7 +76,7 @@ static const preset_t PROPHET_PRESETS[] = {
     {"P5 CLAV", {1, 2, 0, 0, 70, 30, 0, 90}, {0, 50, 0, 30}, 40, 0, FX(0, 10, 10, 20)},
     {"P5 GROWL", {0, 0, 7, -40, 45, 70, 30, 0}, {0, 70, 90, 30}, 30, 1, FX(20, 0, 10, 15)},
     {"P5 WAH SWEEP", {2, 0, 0, -20, 30, 90, -40, 40}, {10, 80, 90, 50}, 40, 0, FX(0, 20, 30, 40)},
-    {"P5 SYNC SWEEP", {3, 1, 7, -64, 100, 20, 30, 0}, {0, 90, 80, 50}, 10, 1, FX(0, 0, 30, 30), XP(P_ED_PIT + 1, 20)},
+    {"P5 SYNC SWEEP", {3, 1, 7, -64, 100, 20, 30, 0}, {0, 90, 80, 50}, 10, 1, FX(0, 0, 30, 30), XP(P_ED_PIT + 1, 35)},
     {"P5 HOLLOW", {1, 1, 12, 10, 80, 20, 0, 20}, {20, 80, 100, 70}, 10, 0, FX(0, 30, 20, 50)},
 };
 

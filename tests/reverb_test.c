@@ -41,7 +41,7 @@ static void rev_clear(void)                     /* every line, diffuser and filt
     memset(fx.line_lp, 0, sizeof fx.line_lp);
     fx.rev_q = FX_Q_MAX;
 #if FELUCCA_REV_HALF
-    memset(&rev_half, 0, sizeof rev_half);
+    rev_half_clear();                                   /* (fx.c: either filter, REV_HB_LONG's rhl too) */
 #endif
 }
 

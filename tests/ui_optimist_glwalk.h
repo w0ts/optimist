@@ -24,6 +24,7 @@ static uint32_t glw_state(void)                        /* every setting a GLOBAL
     h = glw_mix(h, &hold_sel, 1);
     h = glw_mix(h, &TSEL->p[P_SLEN], sizeof TSEL->p[P_SLEN]);
     h = glw_mix(h, sync_ofs, sizeof sync_ofs);      /* (CLK OFS, BT OFS: clock_sync.c) */
+    h = glw_mix(h, (const void *)&clk_jog, 1);      /* (NUDGE: the clock moved 1 ms a click, seq.c) */
 #if FELUCCA_REC_MODES
     h = glw_mix(h, &rec_tempo, 1);
     h = glw_mix(h, &rec_count, 1);
@@ -135,7 +136,7 @@ static int glw_walk_line(uint32_t scr, uint32_t i)
 /* SHIFT held + PRESETS on a line with no descriptor: its FACTORY value, what a blank FM-1 / an empty settings record gives
  * (the user, 2026-10-13; panel.c settings_init, bright.c bright_boot, settings_word.c read as 0); BLE is never reset */
 static const struct { const char *label, *val; } GLW_FACTORY[] = {
-    {"MODE", "FREE"}, {"LENGTH", "1"}, {"START", "NOTE"}, {"CLK OUT", "OFF"}, {"BRIGHT", "8"},
+    {"MODE", "FREE"}, {"NUDGE", "0"}, {"LENGTH", "1"}, {"START", "NOTE"}, {"CLK OUT", "OFF"}, {"BRIGHT", "8"},
     {"KNOB COLORS", "OFF"}, {"BUTTONS", "OFF"}, {"KEYS", "OFF"}, {"LOWCUT", "OFF"}, {"SERIAL", "OFF"}, {"HOLD", "350"},
     {"MASTER", "NONE"}, {"T1", "1"}, {"T2", "2"}, {"T3", "3"}, {"DRUMS", "4"}, {"DRUM BUS", "NONE"}, {"DR1", "NONE"},
     {"DR2", "NONE"}, {"DR3", "NONE"}, {"DR4", "NONE"}, {"DR5", "NONE"}, {"DR6", "NONE"}, {"DR7", "NONE"}, {"DR8", "NONE"},

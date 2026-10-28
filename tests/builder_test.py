@@ -860,6 +860,12 @@ for _line in _mono_bad:
     print(f"  not monotonic: {_line}")
 check("estimate is monotonic: switching an item off (with its dependants) never raises the flash, RAM or pool, "
       f"in {C.REFERENCE_PROFILE} and the defaults", not _mono_bad)
+if costs:
+    _d0 = C.defaults()
+    _near = K.nearest_anchor(dict(_d0, ENG_FM6=0, ENG_PHASE=0), costs, exclude=["defaults"] + list(costs.get("checks", {})),
+                             extra=[("a~", dict(_d0, ENG_FM6=0), costs["base"]), ("b", _d0, costs["base"])])
+    check(f"estimate's anchor: a configuration's own build up to {K.PROBE_PENALTY} items further wins over a probe (NAME~, "
+          "4 random items off, where the sum model is least right)", _near and _near[0] == "b")
 # ---- the undo history's ring, shown as information (the builder's reserve entries were retired 2026-10-21)
 sys.path.insert(0, str(ROOT / "tools"))
 import build as BUILD  # noqa: E402  (its check() is the real build's refusal)
