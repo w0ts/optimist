@@ -26,11 +26,28 @@ KEY_TAG = "optimist-cloud/1"
 NEEDS_AUTO = ()                 # (setup: the items the firmware switches off without the automation store)
 
 
-def setup(needs_auto=None):
-    """the data the core cannot read itself: needs_auto, the keys of configure._needs_auto (firmware headers)"""
-    global NEEDS_AUTO
+_UNSET = object()
+RELEASE_LIMITS = None           # (setup: the release's slots, costs-fm1base.json "limits"; None: the classic firmware's, LIMITS)
+
+
+def setup(needs_auto=None, limits=_UNSET):
+    """the data the core cannot read itself: needs_auto, the keys of configure._needs_auto (firmware headers); limits:
+    the "limits" of the costs in use ({"flash", "sram", "flash_by_layout": {layout: bytes}}: the release's slots, fm1-base's
+    build), None for the classic firmware's (LIMITS, FLASH_BY_LAYOUT)"""
+    global NEEDS_AUTO, RELEASE_LIMITS
     if needs_auto is not None:
         NEEDS_AUTO = tuple(needs_auto)
+    if limits is not _UNSET:
+        RELEASE_LIMITS = dict(limits) if limits else None
+
+
+def limits_in_use():
+    """-> {"flash", "sram", "flash_by_layout": {layout: bytes}, "far": whether a layout's bigger slot needs FAR_OK}: the
+    release's (setup) or the classic firmware's"""
+    if RELEASE_LIMITS:
+        return {"flash": RELEASE_LIMITS["flash"], "sram": RELEASE_LIMITS["sram"], "far": False,
+                "flash_by_layout": {int(k): v for k, v in RELEASE_LIMITS.get("flash_by_layout", {}).items()}}
+    return dict(LIMITS, flash_by_layout=dict(FLASH_BY_LAYOUT), far=True)
 
 
 def _stderr(msg):
@@ -863,17 +880,17 @@ def budget(cfg, costs, anchor=True, exclude=(), exact=None, extra_anchors=()):
 def undo_ring(total):
     """the undo history's ring a build leaves (app.ld _undo_*): the SRAM after the pool, less its 8 KiB spare
     (docs/MEMORY-MAP.md 2.1); never below 0"""
-    return max(0, LIMITS["sram"] - SPARE["sram"] - used(total, "sram"))
+    return max(0, limits_in_use()["sram"] - SPARE["sram"] - used(total, "sram"))
 
 
 def fits(total, cfg=None):
     """-> {budget: (used, capacity, over)} for flash and the packed SRAM: over > 0 overflows (SRAM keeps its 8 KiB
     spare); the flash by the configuration's layout (LAYOUT: tools/flash_layout.py)"""
-    out = {}
+    out, lim = {}, limits_in_use()
     for b in BUDGETS:
-        u, cap = used(total, b), LIMITS[b] - SPARE[b]
-        if b == "flash" and cfg and cfg.get("LAYOUT") in FLASH_BY_LAYOUT and cfg.get("FAR_OK"):
-            cap = FLASH_BY_LAYOUT[cfg["LAYOUT"]] - SPARE["flash"]
+        u, cap = used(total, b), lim[b] - SPARE[b]
+        if b == "flash" and cfg and cfg.get("LAYOUT") in lim["flash_by_layout"] and (cfg.get("FAR_OK") or not lim["far"]):
+            cap = lim["flash_by_layout"][cfg["LAYOUT"]] - SPARE["flash"]
         out[b] = (u, cap, u - cap)
     return out
 
@@ -1161,7 +1178,7 @@ def cloud_key(cfg, commit):
 def describe():
     """-> the registry and the constants a front end needs, JSON-serialisable"""
     return {"key_tag": KEY_TAG, "registry": R.to_json(), "regions": list(REGIONS), "budgets": list(BUDGETS),
-            "limits": dict(LIMITS),
+            "limits": limits_in_use(),
             "spare": dict(SPARE), "needs_auto": list(NEEDS_AUTO), "fit_order": [list(x) for x in FIT_ORDER]}
 
 

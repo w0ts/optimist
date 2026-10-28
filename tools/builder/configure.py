@@ -245,10 +245,14 @@ def costs_measured():
 
 
 def load_costs(path=None):
+    """the costs (the release's or the classic's: costs_file) -> dict or None; their "limits" (the release's slots) go to
+    the core, so every fit check after it counts against the slots the costs were measured for"""
     try:
-        return json.loads(Path(path or costs_file()).read_text())
+        costs = json.loads(Path(path or costs_file()).read_text())
     except (OSError, ValueError):
         return None
+    K.setup(limits=costs.get("limits"))
+    return costs
 
 
 def _needs_auto():
@@ -463,7 +467,7 @@ def build(cfg, name, measure=False, log=None, extra=(), echo=False, on_line=None
     out, rc = "", 1
     (bdir / "sizes.json").unlink(missing_ok=True)   # (a failed build must not report the last one's)
     if not classic():
-        rc, out = release_build(cfgfile, bdir, measure, extra, echo, on_line)
+        rc, out = release_build(cfgfile, bdir, measure, extra, echo, on_line, parallel=bool(outdir))
         if log:
             Path(log).write_text(out)
         return _sized(cfg, bdir, rc, measure, out)
@@ -496,13 +500,13 @@ def _sized(cfg, bdir, rc, measure, out):
     return rc == 0, sizes, out
 
 
-def release_build(cfgfile, bdir, measure, extra, echo, on_line):
+def release_build(cfgfile, bdir, measure, extra, echo, on_line, parallel=False):
     """the release: fm1-base's build of this .config (tools/fm1base.py) -> (returncode, output). extra: --release X.Y"""
     import fm1base
     release = extra[extra.index("--release") + 1] if "--release" in extra else None
     try:
         return fm1base.build(cfgfile, bdir, build_python(), lambda cmd, env: _run(cmd, env, echo, on_line), release,
-                             f"optimist-{release or version()}")
+                             f"optimist-{release or version()}", parallel=parallel)
     except fm1base.FM1BaseError as e:
         if echo:
             print(f"build: {e}", file=sys.stderr)

@@ -203,6 +203,7 @@ def parent_on(p):
 # ---- the builds: a plan pass lists them (building nothing), build_all() makes them in parallel, each in its own
 # build directory, and the real pass reads them back (the same code, so it asks for the same configurations)
 _PLAN = None            # a list during the plan pass: (cfg, name, log) of every build the run asks for
+_FULL = {}              # a measurement build's whole sizes.json by name (app_slot too: release_limits)
 _DONE = {}              # the configuration's items -> (ok, sizes, output) of the builds build_all() made
 SLOTS = C.ROOT / "build" / "slots"
 
@@ -306,6 +307,7 @@ def measure(cfg, name, log, like=None):
     is its pool exactly (the region and N) and everything else as `like`'s (the lines are the pool: the code is the
     same for 3 lines as for 2), so the estimate knows what a configuration of the item costs, built or not"""
     ok, sizes, out = run_build(cfg, name, log)
+    _FULL[name] = sizes
     over = None if ok and sizes else pool_overflow(out)
     if over is None and (not ok or not sizes):
         over = pool_overflow(Path(log).read_text(errors="replace") if log and Path(log).exists() else "")
@@ -318,6 +320,15 @@ def measure(cfg, name, log, like=None):
         raise SystemExit(f"measure_costs: {name} failed (log {log})\n{out[-1500:]}")
     check_terms(cfg, sizes, name)
     return {r: sizes[r] for r in REG}
+
+
+def release_limits():
+    """-> the release's slots (fm1base.limits: the default build's sizes.json app_slot, the SD card mode's bigger app
+    area, the SRAM region) for costs-fm1base.json "limits"; None for the classic firmware (core.LIMITS)"""
+    if C.classic() or _PLAN is not None:
+        return None
+    import fm1base
+    return fm1base.limits(_FULL["measure-base"])
 
 
 def measure_part_mem(logd):
@@ -529,6 +540,9 @@ def main(argv=None):
     if a.part_mem:
         return measure_part_mem(logd)
     old = C.load_costs(C.costs_file(True)) or {}
+    if not C.classic() and not old:                     # (the release's first run: the CPU scale is the emulator's, one for both firmwares)
+        old = {"cpu": (C.load_costs(C.COSTS) or {}).get("cpu", {})}
+        C.K.setup(limits=None)
     if a.check and not a.missing:
         ap.error("--check goes with --missing")
     if a.missing:
@@ -571,9 +585,10 @@ def run(a, old, logd, new_pairs, write):
     (run_build only records the builds: nothing is written, no CPU model)"""
     t0 = time.time()
     base = measure(C.defaults(), "measure-base", logd / "base.log")
+    limits = release_limits()
     if a.missing:
         base = refreshed_base(old.get("base"), base)
-    out = {"base": base, "deltas": dict(old.get("deltas", {})) if a.only is not None else {},
+    out = {"base": base, **({"limits": limits} if limits else {}), "deltas": dict(old.get("deltas", {})) if a.only is not None else {},
            "measured": time.strftime("%Y-%m-%d %H:%M"), "cpu": old.get("cpu", {}), "checks": old.get("checks", {}),
            "pairs": dict(old.get("pairs", {}))}         # (the interim writes keep the pairs: an aborted run loses none)   # (cpu: the emulator's scale)
     later = sorted((k for k in R.ITEMS if any(w[0] == k for w in WITH)), key=with_depth)   # (stable: registry order)

@@ -45,7 +45,7 @@ def init(costs, needs_auto=(), standalone=False):
     around (the page), so room.py gets the stand-in configure module"""
     global COSTS
     COSTS = costs
-    K.setup(needs_auto=needs_auto)
+    K.setup(needs_auto=needs_auto, limits=(costs or {}).get("limits"))
     if standalone and "configure" not in sys.modules:
         sys.modules["configure"] = _configure_shim()
     return {"items": len(R.ITEMS), "costs": bool(COSTS)}

@@ -105,7 +105,7 @@ costs: sdk
 
 # (every item, pair, group and check configuration again: what --missing keeps when an item's code changed)
 costs-all: sdk
-	$(PY) tools/optimist.py costs $(CL) $(if $(CLASSIC),$(if $(JOBS),--jobs $(JOBS)),--jobs 1)
+	$(PY) tools/optimist.py costs $(CL) $(if $(JOBS),--jobs $(JOBS),$(if $(CLASSIC),,--jobs 1))
 	$(PY) tools/export_builder_web.py
 
 # (tools/gate.py --help)

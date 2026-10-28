@@ -24,7 +24,9 @@ DIR = ROOT / "fm1base"
 APP = DIR / "optimist"
 OUT = APP / "build"
 BUILD_PY = DIR / "tools" / "build.py"
-LOCK = threading.Lock()
+LOCKS = {}                       # app directory -> its lock: one fm1-base build at a time in each
+_LOCKS_GUARD = threading.Lock()
+APP_END = 0x93000                # fm1-base's normal app area end (tools/build.py APP_END)
 FETCH = ("git submodule update --init --recursive (the fork, git@github.com:w0ts/fm1-base.git, is not public yet: "
          "its access is needed; docs/BUILDING.md, \"The release build\")")
 
@@ -59,14 +61,28 @@ def toolchain_env():
     return env
 
 
-def command(python, release=None):
-    return [python, str(ready()), str(APP), "--sdk", toolchain_env()["AC79_SDK"], *(["--release", release] if release else [])]
+def command(python, release=None, app=None):
+    return [python, str(ready()), str(app or APP), "--sdk", toolchain_env()["AC79_SDK"],
+            *(["--release", release] if release else [])]
 
 
-def env_for(cfgfile):
+def slot_app(bdir):
+    """-> (app directory, its build directory) for a build that is to run beside others (measure_costs.py --jobs): a copy
+    of the app directory next to it (fm1base/optimist-<bdir's name>, removed by the caller), made again at every build; the
+    default build directory (ROOT/build) and a missing bdir build in the app itself"""
+    if bdir is None or Path(bdir).resolve() == (ROOT / "build").resolve():
+        return APP, OUT
+    app = DIR / f"optimist-{Path(bdir).name}"
+    shutil.copytree(APP, app, dirs_exist_ok=True, ignore=shutil.ignore_patterns("build", "__pycache__", "tests"))
+    return app, app / "build"
+
+
+def env_for(cfgfile, slot=None):
     env = {k: v for k, v in os.environ.items() if not k.startswith("FELUCCA_")}
     env.update(toolchain_env())
     env.update(OPTIMIST=str(ROOT), OPT_CONFIG=str(Path(cfgfile).resolve()), OPT_TREE_COPY="1")
+    if slot:
+        env["FM1B_JOBS"] = "2"       # (builds side by side: each one's compile pool small)
     env.pop("OPT_PROFILE", None)
     env.pop("FM1B_APP_END", None)
     end = app_end(cfgfile)
@@ -86,9 +102,22 @@ def app_end(cfgfile):
     return SD_APP_END if configure.flags(cfg)[0].get("FELUCCA_LAYOUT", 0) == 1 else None
 
 
-def collect(bdir, release, name_stem, cfgfile):
-    """fm1-base's outputs -> bdir, under Optimist's names -> the package's path or None"""
-    bdir = Path(bdir)
+def limits(base_sizes):
+    """-> the slots the release's budget counts against, from a real build's sizes.json (the default build's): {"flash": the
+    app slot (sizes.json app_slot), "flash_by_layout": {"1": the SD card mode's, FM1B_APP_END = SD_APP_END: the slot grows by
+    the app area's growth}, "sram": the SRAM region (fm1base/device/app.ld)}"""
+    import re
+    flash = int(base_sizes["app_slot"])
+    ld = (DIR / "device" / "app.ld").read_text()
+    m = re.search(r"SRAM\s*\(rwx\)\s*:\s*ORIGIN = 0x[0-9A-Fa-f]+, LENGTH = (0x[0-9A-Fa-f]+)", ld)
+    if not m:
+        raise FM1BaseError(f"{DIR / 'device' / 'app.ld'}: no SRAM region")
+    return {"flash": flash, "flash_by_layout": {"1": flash + int(SD_APP_END, 0) - APP_END}, "sram": int(m.group(1), 0)}
+
+
+def collect(bdir, release, name_stem, cfgfile, out=OUT):
+    """fm1-base's outputs (in out) -> bdir, under Optimist's names -> the package's path or None"""
+    bdir, OUT = Path(bdir), Path(out)
     sizes = OUT / "sizes.json"
     bdir.mkdir(parents=True, exist_ok=True)
     if sizes.is_file():
@@ -142,17 +171,22 @@ def ui_sidecar(pkg, cfgfile):
     return out
 
 
-def build(cfgfile, bdir, python, run, release=None, name_stem="optimist"):
+def build(cfgfile, bdir, python, run, release=None, name_stem="optimist", parallel=False):
     """one release build of the .config at cfgfile -> (returncode, output); run(cmd, env) -> (rc, output) streams it.
-    A build that is over the slot still leaves its sizes.json (a measurement), and no package"""
-    cmd, env = command(python, release), env_for(cfgfile)
-    with LOCK:
-        for stale in (OUT / "sizes.json", OUT / "optimist.fwsc"):
+    A build that is over the slot still leaves its sizes.json (a measurement), and no package. parallel: in a copy of
+    the app directory of its own (slot_app), so builds may run side by side (measure_costs.py --jobs N)"""
+    app = out_dir = None
+    with _LOCKS_GUARD:
+        lock = LOCKS.setdefault(str(bdir), threading.Lock()) if parallel else LOCKS.setdefault("", threading.Lock())
+    with lock:
+        app, out_dir = slot_app(bdir) if parallel else (APP, OUT)
+        cmd, env = command(python, release, app), env_for(cfgfile, parallel)
+        for stale in (out_dir / "sizes.json", out_dir / "optimist.fwsc"):
             stale.unlink(missing_ok=True)
         rc, out = run(cmd, env)
         if rc == 0:
-            collect(bdir, release, name_stem, cfgfile)
-        elif (OUT / "sizes.json").is_file():
+            collect(bdir, release, name_stem, cfgfile, out_dir)
+        elif (out_dir / "sizes.json").is_file():
             Path(bdir).mkdir(parents=True, exist_ok=True)
-            shutil.copy(OUT / "sizes.json", Path(bdir) / "sizes.json")
+            shutil.copy(out_dir / "sizes.json", Path(bdir) / "sizes.json")
     return rc, out
