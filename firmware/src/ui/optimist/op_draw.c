@@ -1055,10 +1055,10 @@ static void draw_list(void)
 }
 
 /* ---- pieces of the mixer's rows (op_mixdraw.c) */
-static uint32_t meter_h(int32_t pk)                     /* a peak (32767 = 0 dBFS) as a height: 6 dB a step */
+static uint32_t meter_h(int32_t pk)                     /* a peak (32767 = 0 dBFS) as a height: 6 dB a step, rounded up to the next tick (0 dBFS: full) */
 {
-    uint32_t lg = 0, a = pk > 0 ? (uint32_t)pk : 0u;
-    while (a >>= 1)
+    uint32_t lg = 0, a = pk > 0 ? (uint32_t)pk - 1u : 0u;   /* (log2 rounded up: 2^n exactly is the tick n) */
+    for (; a; a >>= 1)
         lg++;
     return lg < 5u ? 0u : (uint32_t)ui_clamp(((int32_t)(lg - 5u) * 4 + 4) * METER_H / 44, 0, METER_H);
 }

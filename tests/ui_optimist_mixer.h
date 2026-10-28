@@ -495,7 +495,7 @@ static void mixer_rows_tests(void)
     {   /* the VU's gradient: its own colour up to -12 dB, amber and red above it (a full-scale peak ends in red) */
         uint32_t i, red = 0, amb = 0, y = mx_row_y(MXR_T1) + MXL_VY;
         for (i = 0; i < 3u; i++) {
-            mt.ui[0] = 12000;                           /* -8.7 dBFS: lights up to the -12 dB tick */
+            mt.ui[0] = 8192;                            /* -12 dBFS: lights up to the -12 dB tick */
             frame();
         }
         amb = (uint32_t)px_in(MXL_VX, y, MXL_VW, MXL_VH, C_WARN);
@@ -505,10 +505,17 @@ static void mixer_rows_tests(void)
             frame();
         }
         ppm("opt-mixer-vu-full");
-        red = (uint32_t)px_in(MXL_VX + MXL_VW * 39 / 44 - 3, y, 8, MXL_VH, C_ERR);
+        red = (uint32_t)px_in(MXL_VX + MXL_VW - 4, y, 4, MXL_VH, C_ERR);
         check(red && px_in(MXL_VX, y, MXL_VW * 36 / 44, MXL_VH, C_OK), "T1's VU at 0 dBFS: green below -12 dB, red at the top");
-        check(!px_in(MXL_VX + MXL_VW * 36 / 44 + 1, y, 3, MXL_VH, C_OK) && !px_in(MXL_VX + MXL_VW * 41 / 44, y, 20, MXL_VH, C_OK),
+        check(!px_in(MXL_VX + MXL_VW * 36 / 44 + 1, y, 3, MXL_VH, C_OK) && !px_in(MXL_VX + MXL_VW * 41 / 44, y, 20, MXL_VH, C_OK) && px_at(MXL_VX + MXL_VW - 1, y, C_ERR),
               "... the columns above -12 dB are shaded, not the base colour");
+        mt.ui[0] = 0;
+        frames(30);
+        for (i = 0; i < 3u; i++) {
+            mt.ui[0] = 8192;
+            frame();
+        }
+        ppm("opt-mixer-vu-m12");
         mt.ui[0] = 0;
         frames(30);
     }
