@@ -2847,7 +2847,7 @@ ok(E.DRUM_PAGE === 16 && E.drumPages(1) === 1 && E.drumPages(16) === 1 && E.drum
   teardown();
 }
 
-/* --------------------------------- the CZ collection and Casio CZ .syx (after Melodee 0.12, GPL-3.0-only) --- */
+/* --------------------------------- the CZ collection and Casio CZ .syx (Casio CZ-1 MIDI Specification) ------------ */
 function czTone(seed, name) {                       /* a CZ-1 tone in range (czSyx.valid), its name */
   let x = 99 + seed * 7919;
   const b = Array.from({ length: 128 }, () => ((x = (x * 1103515245 + 12345) >>> 0) >>> 16) & 255);
@@ -2867,7 +2867,7 @@ async function editorCZ() {
   const r101 = S.parse(Uint8Array.from(c101))[0];
   ok(c101.length === 264 && r101 && S.valid(r101) && eq(r101.slice(0, 16), t1.slice(0, 16)) && (r101[16] >> 4) === 0 && r101[19] === E.CZ.KW1[3]
     && (r101[20] >> 4) === 15 && (r101[57 + 54] >> 4) === 15 && S.name(r101) === "",
-    "CZ .syx: a CZ-101 tone (cmd 20, 128 bytes, channel 4) gets the CZ-1's level / key follow / velocity bytes (Melodee)");
+    "CZ .syx: a CZ-101 tone (cmd 20, 128 bytes, channel 4) gets the CZ-1's level / key follow / velocity bytes");
   const c30 = [0xF0, 0x44, 0, 0, 0x70, 0x30, ...t2.flatMap((v) => [v & 15, v >> 4]), 0xF7];
   const bad = S.message(t1.map((v, i) => (i === 3 ? 60 : v)));   /* (detune note 60: out of range) */
   const junk = [1, 2, 0xF0, 0x43, 0, 9, 0xF7, ...S.message(t2).slice(0, 100), 0xF0, ...bad, ...c30];
