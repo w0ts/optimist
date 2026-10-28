@@ -139,6 +139,10 @@ static int shift2_combo(uint32_t b)
         }
         return 1;
     }
+    if (b == B_HOME && ui.scr == SCR_HOME) {           /* SHIFT2 + HOME on the mixer: across, or by row again (issue #97) */
+        mx_across_flip();
+        return 1;
+    }
     if (l == LY_PLAY)
         return 0;
     lay_lock(l);

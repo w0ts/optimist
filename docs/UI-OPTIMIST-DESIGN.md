@@ -204,6 +204,8 @@ SELECT pages the row's knob sets, in one order on every row: the mix, the insert
 | MASTER | its insert slots; DYN's THRS RATIO GAIN CEIL while a master slot holds DYN; the returns A B C levels; A SENDS and B SENDS (the sends between the returns, left to right; C SENDS and the feedback ones with `RET_FB`); DUCK |
 | USB IN | VOLUME PAN FX ON \| its slots, then each insert's settings (USB EQ3, EQ3 F, GATER, JUNO) \| its sends |
 
+**ACROSS** (SHIFT2 + HOME on the mixer, again: by row; issue #97, the user 2026-10-28): the four knobs are the four rows of the cursor's group, T1 T2 T3 DR or the lanes 1-4, 5-8, 9-10 + ACCENT, each on its value n (VOLUME first: a four-track recorder's faders). SELECT steps n one value a detent, ALGORITHM walks the groups (MASTER, the channels, the lanes by four, USB IN); the header says *Tracks* or *Lanes* with n/N, the group's rows are outlined on the panel. Only the first card with a value is labelled while the four share it, each card in its row's colour. MASTER and USB IN keep their own cards. SHIFT + a knob mutes that card's row (each row once a hold). RAM only, on until toggled (`mx_across`, `op_mixer.c`).
+
 Mute is not a card: SHIFT + the row's volume knob mutes the sequencer (a return: SHIFT + its card's knob; USB IN keeps its own mute). There is no solo. SAVE tapped always opens PROJECT (the mixer has no YES). FX tapped on MASTER: the master FX; on USB IN: its inserts. PRESETS browses the row's sound. HOME tapped opens SCOPE. A layer held over the mixer is the layer's own 2 x 2 screen.
 
 ### 4.2 STEP

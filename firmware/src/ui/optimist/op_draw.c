@@ -154,6 +154,8 @@ static void head_pos(uint32_t scr, uint32_t row, char *p)
     p[0] = 0;
     if (scr == SCR_STEP && st.held && ui.cards_t)
         at = st.hp, n = hp_count();
+    else if (scr == SCR_HOME && mx_across(row % MXR_N))
+        at = mx_an(row % MXR_N), n = mx_avals(row % MXR_N);   /* (across: the value n of the group's, op_mixer.c) */
     else if (scr == SCR_HOME)
         at = mx_set(row % MXR_N), n = mx_sets(row % MXR_N);
     else if (gl_scr(scr))                               /* GLOBAL, SYSTEM: the page (whole sections, op_global.c), within the screen */

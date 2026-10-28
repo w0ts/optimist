@@ -142,9 +142,13 @@ static void mx_steps_paint(uint32_t r, int32_t x, int32_t y);
 static uint32_t mx_gr_px(uint32_t r, int32_t w);
 /* the selected row: framed in its colour on black, no fill (the user, 2026-10-18: the tinted ground made it hard to read);
  * its code and preset white */
+static int mx_in_grp(uint32_t i)                        /* row i one of the knobs' rows: the cursor's, across its group's */
+{
+    return i == mx_row() || (mx_across(mx_row()) && i >= mx_grp0(mx_row()) && i < mx_grp_end(mx_row()));
+}
 static void mx_paint_ground(uint32_t i, const mrect_t *q, uint16_t c)
 {
-    if (i == mx_row()) {
+    if (mx_in_grp(i)) {
         cv_frame(q->x, q->y, q->w, q->h - 1, c);
     } else {
         cv_rect(q->x, q->y + q->h - 1, q->w, 1, C_LINE);   /* (black, a rule under it: no grey ground) */
@@ -197,7 +201,7 @@ static void mx_paint_row(uint32_t i)                    /* a channel's or a lane
     mx_rect(i, &q);
     cy += q.y;
     mx_paint_ground(i, &q, c);
-    cv_rect(q.x + 2, q.y + 3, 3, q.h - 7, i == mx_row() ? c : C_GRAY);   /* the colour chip: grey off the selected row */
+    cv_rect(q.x + 2, q.y + 3, 3, q.h - 7, mx_in_grp(i) ? c : C_GRAY);   /* the colour chip: grey off the knobs' rows */
     text_st(q.x + 6, cy, &FONT_S, mx_code(i), cc, mu);  /* (a muted row: its name struck through, the user, 2026-10-15) */
     if (mx_is_usb(i) || i < MXR_LANE0) {                /* the USB input: its name and whether it streams; a channel: its engine
                                                          * and preset; their M badge */
@@ -225,7 +229,7 @@ static void mx_paint(void)                              /* the group in view (cv
 }
 static uint32_t mx_static_sig(void)
 {
-    uint32_t i, sig = hu(hu(hu(0x3A1u, settings.palette), mx_row()), mxd.first);
+    uint32_t i, sig = hu(hu(hu(hu(0x3A1u, settings.palette), mx_row()), mxd.first), mx.across);
     char en[10], pr[16];
     for (i = mxd.first; i < mxd.last; i++) {
         sig = hs(hu(sig, mx_col(i)), mx_code(i));
