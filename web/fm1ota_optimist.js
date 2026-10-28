@@ -81,7 +81,7 @@ function optFrame(cmd, payload) {
   return [0xF0, ...pack7([0x00, 0x59, cmd, payload.length & 0xFF, payload.length >> 8, 0, ...payload, ~s & 0xFF]), 0xF7];
 }
 function optParseReply(pkt) {
-  const u = unpack7(pkt.slice(1, -1));
+  const u = unpack7(pkt.slice(1, pkt.length - 1));
   if (u.length < 7 || u[0] !== 0 || u[1] !== 0x59 || (u[3] | (u[4] << 8) | (u[5] << 16)) !== u.length - 7) return null;
   let s = 0;
   for (let i = 6; i < u.length; i++) s += u[i];
@@ -102,7 +102,7 @@ function optRequestAddr(pkt) {
 //  - resume(image, onStep, product, accept): a loader `accept` does not name is refused (foreign) before anything is written
 //  - restoreBanks: the official voice banks back into a running V15
 export class OptimistUpdater extends Updater {
-  async serve(link, image, finishAddr, idleMs, onProgress) {
+  async serve(link, image, finishAddr, idleMs, onProgress) {   // (wraps link.read to remember the last address asked)
     const read = link.read.bind(link);
     link.read = async (ms) => { const p = await read(ms); const a = optRequestAddr(p); if (a >= 0) this.lastAddr = a; return p; };
     try { return await super.serve(link, image, finishAddr, idleMs, onProgress); } finally { link.read = read; }

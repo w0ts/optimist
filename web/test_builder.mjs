@@ -12,14 +12,14 @@
 import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath as toFsPath } from "node:url";
 import * as L from "./builder/logic.js";
 
 let failed = 0;
 const ok = (cond, what) => { console.log(`${what.padEnd(78)} ${cond ? "ok" : "FAIL"}`); if (!cond) failed++; };
-const HERE = fileURLToPath(new URL(".", import.meta.url));
+const HERE = toFsPath(import.meta.url).replace(/[^/\\]*$/, "");
 const ROOT = join(HERE, "..");
-const PYTHON = process.env.PYTHON || (process.platform === "win32" ? "python" : "python3");
+const PYTHON = process.env.PYTHON || ["python3", "python"][Number(process.platform === "win32")];
 const run = (args, input) => execFileSync(PYTHON, args, { cwd: ROOT, input, maxBuffer: 1 << 28, encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] });
 const data = (f) => JSON.parse(readFileSync(join(HERE, "builder", "data", f), "utf8"));
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
