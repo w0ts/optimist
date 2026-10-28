@@ -571,6 +571,37 @@ job; ( jobin
 job; ( jobin
     $CC -O2 -w -o "$OUT/wifi_sta_test" tests/wifi_sta_test.c
     run "Wi-Fi station WPA2-PSK: SHA-1, HMAC, PBKDF2 PMK, AES-128, AES wrap/unwrap, PTK derivation, 4-way handshake, key install" "$OUT/wifi_sta_test"
+    $CC -O2 -w -o "$OUT/wifi_ap_test" tests/wifi_ap_test.c
+    run "Wi-Fi AP authenticator: 4-way handshake against the station, RFC 3394 wrap vector, tamper and replay refusals" "$OUT/wifi_ap_test"
+    $CC -O2 -w -o "$OUT/wifi_apip_test" tests/wifi_apip_test.c
+    run "Wi-Fi AP IP layer: FromDS frames, ARP and DHCP for a client, the group address, learned stations, QoS EAPOL, deauth" "$OUT/wifi_apip_test"
+    $CC -O2 -w -o "$OUT/wifi_apd_test" tests/wifi_apd_test.c -lm
+    run "Wi-Fi AP daemon over a stand-in radio: key job, beacons, a client's join and keys, DHCP / ping, group frames, leave, retry, MODE, channel, forget" "$OUT/wifi_apd_test"
+) >"$U.out" 2>&1 & jobbg
+job; ( jobin
+    $CC -O2 -w -o "$OUT/wifi_nets_test" tests/wifi_nets_test.c
+    run "Wi-Fi networks: the saved list (order, replace, overflow, forget, damaged records), the scan table, beacon security classification" "$OUT/wifi_nets_test"
+) >"$U.out" 2>&1 & jobbg
+job; ( jobin
+    $CC -O2 -w -o "$OUT/wifi_wlc_test" tests/wifi_wlc_test.c
+    run "Wi-Fi coexistence table: the packed words come back as they were recorded" "$OUT/wifi_wlc_test"
+) >"$U.out" 2>&1 & jobbg
+job; ( jobin
+    $CC -O2 -w -o "$OUT/wifi_pw_test" tests/wifi_pw_test.c
+    run "Wi-Fi password buffer (the entry's text): the four families, knobs round, cursor, add / erase, 8 to 63, the window, the wipe" "$OUT/wifi_pw_test"
+) >"$U.out" 2>&1 & jobbg
+mkdir -p "$OUT/optimist-wifi"
+job; ( jobin
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_BLE=1 -DFELUCCA_CDC=1 -DFELUCCA_WIFI=1 -DBLE_HW_WL82=1 $SEC4 -o "$OUT/ui_optimist_wifi_test" tests/ui_optimist_test.c -lm
+    run "Optimist UI with WIFI_UI: SYSTEM > WI-FI (MODE, the list, SAVE / SAVE held, failures said once) and the password entry; the rest as ever" "$OUT/ui_optimist_wifi_test" "$OUT/optimist-wifi"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_BLE=1 -DFELUCCA_CDC=1 -DFELUCCA_WIFI=1 -DFELUCCA_WIFI_AP=1 -DBLE_HW_WL82=1 $SEC4 -o "$OUT/ui_optimist_wifiap_test" tests/ui_optimist_test.c -lm
+    run "Optimist UI with WIFI_UI and MODE AP: MODE AP, NAME / CHANNEL / STATE, the AP's password entry, CLEAR KEY, leaving AP" "$OUT/ui_optimist_wifiap_test" "$OUT/optimist-wifi"
+) >"$U.out" 2>&1 & jobbg
+job; ( jobin
+    $CC -O2 -w -Ifirmware/src -o "$OUT/ed_wifi_test" tests/ed_wifi_test.c
+    run "editor cmd 112 (Wi-Fi networks): state, mode, forget, join (password wiped, never echoed), refusals" "$OUT/ed_wifi_test"
+    $CC -O2 -w -Ifirmware/src -DFELUCCA_WIFI_AP=1 -o "$OUT/ed_wifiap_test" tests/ed_wifi_test.c
+    run "editor cmd 112 with MODE AP: the AP block of the state, MODE 3, the AP's password (wiped, refusals), the channel, the key cleared" "$OUT/ed_wifiap_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/clock_out_test" tests/clock_out_test.c -lm

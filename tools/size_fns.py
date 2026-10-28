@@ -89,7 +89,9 @@ SIZE_FILES += ["bt/bt_afh.c", "bt/bta_mem.c", "ble/ble_hw_wl82.c", "bt/bt_inq.c"
                "bt/bt_acl.c", "bt/bt_l2cap.c", "bt/bt_audio.c", "bt/bt_page.c",
                "bt/bt_inq_core.c", "bt/bt_lmp.c", "bt/bt_sdps.c", "ble/ble_att.c", "ble/ble_host.c", "bt/bt_avdtp.c",
                "ble/ble_midi.c", "io/midi/ble_devices.c",
-               "wifi/wifi_crypto.c", "wifi/wifi_sta.c", "wifi/wifi_ip.c", "wifi/wifi_link.c", "link/link.c"]
+               "wifi/wifi_crypto.c", "wifi/wifi_sta.c", "wifi/wifi_ip.c", "wifi/wifi_link.c", "link/link.c",
+               "wifi/wifi_conn.c", "wifi/wifi_nets.c", "wifi/wifi_saved.c", "wifi/wifi_ap.c", "wifi/wifi_ap_dhcp.c", "wifi/wifi_apd.c",
+               "io/editor/ed_wifi.c", "ui/optimist/op_wifi.c"]
 # the sound side: what the audio ISR, the second core and the voices run (never minsize)
 AUDIO_FILES = [  # (the A2DP stream's SBC encoder runs in the audio interrupt: bt_audio_feed, bt/bt_sbc.c and AOSP's bt/sbc/)
                "bt/bt_sbc.c", "bt/sbc/sbc_analysis.c", "bt/sbc/sbc_dct.c", "bt/sbc/sbc_dct_coeffs.c",
