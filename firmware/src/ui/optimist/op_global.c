@@ -85,7 +85,7 @@ static int glo_yes(uint32_t r, uint32_t k, uint32_t ok)
 #else
 #define GL_NCDC 0u
 #endif
-#define GL_NSYSL (11u + GL_NBRI + GL_NUA + GL_NLIT + GL_NCDC + GL_NBLE + 4u * WIFI_UI)   /* (WI-FI: MODE NETWORK SIGNAL STATE) */
+#define GL_NSYSL (11u + GL_NBRI + GL_NUA + GL_NLIT + GL_NCDC + GL_NBLE + 4u * WIFI_UI + 2u * USBH_UI)   /* (WI-FI: MODE NETWORK SIGNAL STATE; USB: MODE DEVICE) */
 #define GL_MAXL (GL_NSYSL > 24u ? GL_NSYSL : 24u)
 #if FELUCCA_BT_UI
 #define GL_DEV BDV_OPEN                         /* SYSTEM shows the BLE devices list (op_project.c) */
