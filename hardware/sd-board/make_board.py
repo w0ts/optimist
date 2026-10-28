@@ -13,7 +13,7 @@ Then make_fab.sh checks it (DRC, the schematic's nets) and writes the JLCPCB fil
 Nets (microSD pins: 1 DAT2, 2 DAT3/CS, 3 CMD, 4 VDD, 5 CLK, 6 VSS, 7 DAT0, 8 DAT1, 9 card detect, 10-13 shell;
 v6: J2 (IN, from J12) and J3 (the LCD's cable), 10 pins each, every line through, J2 pin n = J12 pin n = J3's n-th
 contact from the left (J3 is turned: its own numbering runs the other way, J3_AT);
-J12's pin map as Julius probed it, 2026-10-27, docs/SD-CARD-DESIGN.md section 3; pin 7's 3.3 V still to confirm):
+J12's pin map as Julius probed it, 2026-10-27, docs/SD-CARD-DESIGN.md section 3; pin 7's 3.3 V confirmed 2026-10-28; J12 counts from the right):
   GND      J2 1, 10 -> J1 6, the shell, U1 GND, R4, the sockets' tabs
   MISO     J2 2 (PC8, the LCD's D/C) -> R1 220 -> J1 7 (DAT0): R1 takes any overlap with the D/C drive; R7 47k
            pulls DAT0 up at the card (an empty slot reads 0xFF without PC8's own pull-up)
@@ -239,8 +239,8 @@ for fp in board.GetFootprints():
     assert right <= U1_ - KEEP_OUT or low >= RIGHT_END, f"{fp.GetReference()} on the tray's right lip ({right:.2f})"
 
 # ---- the nets: J12's pin map as probed (Julius, 2026-10-27), the same on J2 and J3 (every line straight through, J3
-# pin n = J2 pin n; the cable from J12 must arrive unmirrored: the breakout's check). Pin 7 as 3V3 is still to confirm
-# (a reset line reads 3.3 V as well): the swap block lets a wrong guess be rewired by hand
+# pin n = J2 pin n; the cable from J12 must arrive unmirrored: the breakout's check). Pin 7 is 3V3 (Julius's prototype
+# runs the card from it, 2026-10-28); the swap block still lets any line be rewired by hand
 LCD_PINS = {1: "GND", 2: "MISO", 3: "LCD_CS", 4: "CLK", 5: "MOSI", 6: "LCD_6", 7: "3V3", 8: "LCD_8",
             9: "LCD_9", 10: "GND", 11: "GND", 12: "GND"}
 for num, name in ((1, "DAT2"), (2, "CARD_CS"), (3, "SD_DI"), (4, "SD_VDD"), (5, "SD_CLK"), (6, "GND"), (7, "DAT0"),
