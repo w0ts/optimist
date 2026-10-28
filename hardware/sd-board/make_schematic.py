@@ -61,7 +61,7 @@ PINS = {
 LABEL_ANGLE = {0: 180, 180: 0, 90: 270, 270: 90}   # (the label away from the body)
 
 LCD10 = {"1": "GND", "2": "MISO", "3": "LCD_CS", "4": "CLK", "5": "MOSI", "6": "LCD_6", "7": "3V3", "8": "LCD_8",
-         "9": "LCD_9", "10": "GND", "MP": "GND"}   # (as LCD_PINS in make_board.py: J12 as probed, pin 7 to confirm)
+         "9": "LCD_9", "10": "GND", "MP": "GND"}   # (as LCD_PINS in make_board.py: J12 as probed, pin 7 3.3 V confirmed)
 # (ref, lib_id, value, footprint, LCSC, x, y, {pin: net})
 PARTS = [
     ("J1", "Connector:Micro_SD_Card_Det1", "TF-01A push-push", "sdboard:TF-SMD_TF-01A", "C91145", 170, 90,
