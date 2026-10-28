@@ -7117,7 +7117,7 @@ const TEXT = {                                      /* the page's words, by key 
   load: "Load", save: "Save", used: "used", empty: "empty", unknown: "—", sl24: "SLOOP (kept)", notOurs: "not ours (kept)",
   keptSlot: "Not loaded: another firmware's project is kept there (SLOOP), slot ",
   steps: "Steps", reload: "Reload", clearSeq: "Clear sequence",
-  notesHelp: "Enter notes like C4 E4 G4 (up to 4, C4 = 60).",
+  notesHelp: "Type up to 4 note names, e.g. C4 E4 G4 (C4 is note 60).",
   rollHelp: "Click: a note / take it away. Drag a note's right edge (or right after putting it): its length. Shift+click a note, or click a step number: that step's notes (level, ratchet), velocity, accent, slide. Up to 4 notes a step. ACC / SLIDE rows: click to switch; VEL: drag.",
   rollHead: "Steps (click: pick a step), ACC and SLIDE (click: switch)", rollGrid: "Piano roll: notes by steps", rollVel: "Velocity of each step (drag)",
   rollPick: "Click a note with Shift, or a step number, to edit that step.", rollFull: "Four notes on that step already (the most a step holds)",
@@ -7125,7 +7125,7 @@ const TEXT = {                                      /* the page's words, by key 
   rollLen: "Length (steps)", rollStep: "Step",
   notes: "Notes", time: "Time", acc: "Accent", slide: "Slide", vel: "Velocity",
   aboutBtn: "about", aboutTitle: "About Optimist",
-  foot: "Works in Chrome or Edge.", iconsCredit: "Icons: Fukiai (MIT), Hügelton Instruments",
+  foot: "Made for Chrome or Edge.", iconsCredit: "Icons: Fukiai (MIT), Hügelton Instruments",
   nomidi: "This browser has no Web MIDI. Open the page in Chrome or Edge.",
   denied: "MIDI (SysEx) access was not allowed. Allow MIDI for this page (the icon in the address bar), then press Connect.",
   connectHint: "Plug the FM-1 in by USB: the editor finds it by itself. It needs Optimist on the FM-1 and Chrome or Edge.",
@@ -7134,13 +7134,13 @@ const TEXT = {                                      /* the page's words, by key 
   nodevicebt: "No FM-1 over Bluetooth: turn Bluetooth on in the FM-1's SYSTEM page, then connect it to this computer (Mac: Audio MIDI Setup, Window > Show MIDI Studio, the Bluetooth button). It connects as soon as its port appears.",
   readyBt: "Connected over Bluetooth: the Mirror page only (the rest of the editor needs the USB cable).",
   connecting: "Connecting", reading: "Reading ", steploading: "Reading steps ",
-  ready: "Connected", disconnected: "Disconnected", lost: "The FM-1 was unplugged",
-  noreply: "No reply from the device", error: "Error: ", busy: "Busy",
-  applying: "Writing ", applied: "Loaded", badfile: "Cannot read the file: ",
+  ready: "Connected", disconnected: "Disconnected", lost: "The FM-1 is no longer on the USB port",
+  noreply: "The device did not answer", error: "Error: ", busy: "Busy",
+  applying: "Writing ", applied: "Loaded", badfile: "The file could not be read: ",
   savedSlot: "Saved to slot ", loadedSlot: "Loaded slot ", emptySlot: "Empty slot: ",
-  confirmSave: "Overwrite slot {n}?", confirmLoad: "Load slot {n}? The current sound and pattern will be replaced.",
-  confirmClear: "Clear the whole sequence?", confirmInit: "Reset the sound to the engine defaults?",
-  samples: "Samples", smpHelp: "Drop or choose WAV files. Up to 16 files per slot, stored as mono 22050 Hz ADPCM (about 7 s in all). Select USR1–USR3 with SET on the SAMPLE engine (or SRC on the SLICE engine).",
+  confirmSave: "Replace the contents of slot {n}?", confirmLoad: "Loading slot {n} overwrites the sound and pattern now in use. Continue?",
+  confirmClear: "Empty the entire sequence?", confirmInit: "Put the sound back to the engine's default values?",
+  samples: "Samples", smpHelp: "Drop WAV files here or pick them. A slot takes at most 16 files, kept as 22050 Hz mono ADPCM (roughly 7 s together). Choose USR1–USR3 with SET on the SAMPLE engine, or with SRC on the SLICE engine.",
   tabDrums: "Drum sounds", drumSounds: "The 16 drum sounds", drumHelp: "Each of the drum track's 16 sounds: its source (the kit, a sample of USR1–USR3, another kit's sound for it, any voice of X0X's 909 or 808), the sample's hit (zone), start and length (1/1024 of the hit), and the sound editor's 8 offsets (0 = as the kit). On the device: EDIT on the drum track.",
   userKits: "User kits", ukitHelp: "16 kits, KIT 1 to KIT 16 (every lane's source and offsets). Loading one puts it into the project's drums. Export writes the kit and the samples of the USR slots it plays into one file.",
   tabInstall: "Firmware", tabBuild: "Build", tabSim: "Simulator", tabMirror: "Mirror",
@@ -7190,7 +7190,7 @@ const TEXT = {                                      /* the page's words, by key 
   chopSnap: "snap to the hit", chopClear: "Clear markers", chopHits: "Find hits", chopSens: "sensitivity",
   chopGrid: "Grid", chopEqual: "Equal parts", chopKey: "First key", chopModeKeys: "one key per chop",
   chopModeOne: "selected chop, whole keyboard", chopMax: "max length", chopTo: "Send to", chopZip: "Download WAVs",
-  chopChops: "chops", chopTooLong: "too long for a slot", chopTooMany: "(16 chops at most: the rest are left out)",
+  chopChops: "chops", chopTooLong: "longer than a slot can hold", chopTooMany: "(only the first 16 chops are used)",
   chopLoaded: "Loaded: ", chopSent: "Chops in ",
   chopSel: "Chop", chopKeep: "keep", chopLen: "length", chopFull: "Up to the next marker", chopAll: "Keep all", chopNone: "Keep none",
   chopFit: "Fit to slot", chopKept: "kept", chopFitted: "Long chops shortened to at most ",
@@ -7199,8 +7199,8 @@ const TEXT = {                                      /* the page's words, by key 
   chopHint: "space: TAP while it plays (play/stop when stopped) · 1–9 0: listen · double-click: add · drag: move · ← →: nudge · K: keep / leave out · bottom handle: length · Del: remove · wheel: zoom",
   smpTooBig: "too large", smpDecodeFail: "Cannot read: ", smpUploading: "Uploading USR", smpDone: "Uploaded USR",
   smpFail: "Sample upload failed: ", smpErased: "Erased USR",
-  confirmErase: "Erase USR{n}?", confirmUpload: "Write to USR{n}? Its current contents will be replaced.",
-  layout: "(The firmware has a different parameter count; showing a plain list.)",
+  confirmErase: "Erase USR{n}?", confirmUpload: "Upload to USR{n}? What it holds now is overwritten.",
+  layout: "(The firmware's parameter count does not match, so the parameters are listed plainly.)",
   ctlHelp: "Knobs: drag up / down or the wheel (Shift: fine), arrow keys; double-click resets. Sliders (Sequencer, Settings): click, then the wheel or arrow keys (Shift: steps of 10). The pages are the device's.",
   live: "● Live", liveV9: "● Live (v9: changes pushed)", polling: "○ Polling (older firmware)",
   library: "Library", libSearch: "Search name or tag", allEngines: "All engines", allTags: "All tags",
@@ -7220,20 +7220,20 @@ const TEXT = {                                      /* the page's words, by key 
   
   fm6Playing: "Playing on the track: ", 
   dx7Track: "Select a synth track to audition a DX7 voice.",
-  factoryToLib: "Copy to library", libEmpty: "The library is empty. Add sounds with \"Save current sound\", by copying a factory preset or a device slot, or by importing a file.",
-  noMatch: "No match", noLibDB: "(this browser cannot store it: it is gone after a reload)",
+  factoryToLib: "Copy to library", libEmpty: "Nothing in the library yet. Fill it with \"Save current sound\", copy a factory preset or a device slot into it, or import a file.",
+  noMatch: "No match", noLibDB: "(this browser cannot keep it, so it disappears when the page reloads)",
   bank: "User presets on the device", bankLoad: "Load", bankStore: "Store current sound", bankGet: "To library",
-  exportBank: "Export bank", dndHelp: "You can also drag between the library and the slots.",
-  confirmOverwrite: "Overwrite slot {n} ({name})?", confirmEraseSlot: "Erase slot {n} ({name})?",
-  confirmDelete: "Delete \"{name}\" from the library?",
-  promptName: "Name (the device keeps 12 ASCII characters)", promptTags: "Tags (comma separated)",
-  promptNameAuto: "Name (12 ASCII characters; empty: the device names it)",
+  exportBank: "Export bank", dndHelp: "Dragging works too, between the library and the slots.",
+  confirmOverwrite: "Replace slot {n} ({name})?", confirmEraseSlot: "Empty slot {n} ({name})?",
+  confirmDelete: "Remove \"{name}\" from the library?",
+  promptName: "Name (the device stores at most 12 ASCII characters)", promptTags: "Tags (separated by commas)",
+  promptNameAuto: "Name (max 12 ASCII characters; leave blank and the device picks one)",
   auditioning: "Preparing audition ", auditioned: "Auditioning: ", auditionedPat: "Auditioning (pattern written too): ",
   savedLib: "Saved to the library: ", copiedLib: "Copied to the library: ", imported: "Imported: ",
   skippedN: " ({n} unreadable)", patchesN: " patches",
   dx7BadSum: "wrong checksum (read anyway)", dx7Short: "cut short (whole voices kept)", dx7Others: "{n} other messages skipped",
   putDone: "Written to the device: slot ", storedSlot: "Stored on the device: slot ", erasedSlot: "Erased slot ",
-  loadedUser: "Loaded ", reloaded: "The sound changed on the device: read again", readingBank: "Reading the slots",
+  loadedUser: "Loaded ", reloaded: "The device changed the sound; it was reloaded", readingBank: "Reading the slots",
   badEngine: "This firmware has no such engine: ", flashFail: "Write failed (rc {rc})", stopFirst: "The FM-1 is playing: stop it (PLAY), then try again.",
   installer: "Optimist installer",
   tabSeq: "Sequencer", tabTracks: "Tracks", tabSettings: "Settings",
@@ -7290,16 +7290,16 @@ const TEXT = {                                      /* the page's words, by key 
   kpStep3: "Send", kpSend: "Send to the FM-1", kpStore: "Also store the lanes as user kit", kpNone: "Put at least one sound on a pad",
   kpFull: "All 16 pads are taken", kpSent: "Kit sent: the sounds are in USR", kpMeter: "of the slot",
   kpWhere: "On the FM-1: the drum track's lanes now play your sounds from the slot. Save the project to keep them; user kits (Kit popup) keep the lane settings.",
-  needDevice: "Connect the FM-1 to edit.", smpNone: "This firmware has no user sample slots.",
-  bankConnect: "Connect the FM-1 to see its user presets too.", bankNone: "This firmware has no user presets.",
-  drumNote: "The drum track has no engine or presets. Level, pan and mute: Tracks; the kit and the pattern: Sequencer.",
+  needDevice: "Editing needs a connected FM-1.", smpNone: "No user sample slots in this firmware.",
+  bankConnect: "Its user presets appear once the FM-1 is connected.", bankNone: "No user presets in this firmware.",
+  drumNote: "The drum track has no engine or presets. Tracks holds its level, pan and mute; Sequencer holds the kit and the pattern.",
   drumGridHelp: "Click: a hit / clear it (same level and roll). Shift+click: a hit one level louder (GHOST, SOFT, NORM, HARD). The 16 sounds of the white keys F3..G5. A pattern longer than 16 steps shows one page of 16 at a time (Page 1, 2, ..).",
-  drumNoSound: "The drum track has no sound: select track 1, 2 or 3.",
+  drumNoSound: "The drum track has no sound of its own: pick track 1, 2 or 3.",
   kit: "Kit", hitLevel: "Level", ratchet: "Roll", solo: "SOLO", drumPage: "Page",
-  drumHelp: "Enter drums by GM name or number, like KICK SNARE CHH (up to 4).",
+  drumHelp: "Type drums as GM names or numbers, e.g. KICK SNARE CHH (max 4).",
   mixer: "Mixer", mixHelp: "Each strip: its engine (colour), its sound, one button per editor (a popup: x, Esc or a click outside closes it), the steps (the playing one lit), the meter beside the fader (firmware with protocol v9: green, amber above −6 dB, red at clip, a line holding the peak; the master strip's: the output), the level, pan, the FX sends. The drum track: its 16 sounds, each one click away. The master: the master bus (DUST, DUCK, FILT) and, per effect (Delay, Reverb, Chorus), its return knob and a button to its parameters. The four tracks of the device's TRACKS page. The fader is the level (drums: GLO > DRUMS LEVEL). Pan is written to any track without changing the selection (firmware 0.8: by selecting it for a moment).",
   level: "Level", pan: "Pan", mute: "Mute", rec: "REC", selectTrack: "Select", selectedTrack: "Selected",
-  projHelp: "A project keeps the whole device state: the sound and pattern of all four tracks, the selected track and the global settings.",
+  projHelp: "A project stores the full device state: sound and pattern of the four tracks, the selected track and the global settings.",
   snTitle: "Snapshots", snHelp: "A snapshot keeps everything in the current work: the working project, every section and the song. In a slot of the FM-1 (and in files here, as many as you like). Loading one replaces the work; the state before is kept in BEFORE LOAD. User samples, presets and kits stay as they are (MISSING says when one is gone).",
   snNone: "This firmware has no snapshots.", snSave: "Save", snLoad: "Load", snClear: "Clear", snRename: "Rename",
   snExport: "Export", snImport: "Import file", snBefore: "before the last load", snEmpty: "empty", snBad: "damaged", snOther: "another build",
@@ -7643,11 +7643,11 @@ $("mock").hidden = !MOCK;
 let mock = null;
 
 /* -------------------------------------------------------------- state --- */
-let access = null;     /* MIDIAccess */
+let access = null;     /* the Web MIDI access object */
 let dev = null;        /* {link, input, output, info, pdesc[], gdesc[], names[][], dump, steps[], slotUsed[],
                           keys[] (paramKeys), watch (pushes on), bank ({total, slots[]} or null: no user bank)} */
-let busy = 0;          /* multi-request operations in progress: no polling */
-let dragging = null;   /* key of the slider being dragged */
+let busy = 0;          /* count of running multi-request operations (polling waits) */
+let dragging = null;   /* key of the slider under the pointer */
 let wantConnected = false;
 /* the device the editor talks to: the FM-1 over USB, or the simulator (web/sim/sim.js simAccess: its "Optimist (sim)" port
    pair, there while the Simulator tab runs one); a choice of the user's, remembered here */
@@ -7655,8 +7655,8 @@ const DEVSRC_KEY = "optimist-editor-device";
 let devSrc = (() => { try { const v = localStorage.getItem(DEVSRC_KEY); return ["sim", "bt", "emu"].includes(v) ? v : "usb"; } catch (e) { return "usb"; } })();
 const ctl = new Map(); /* key "s:id" -> {input, out, desc, scope, id, row} */
 const sets = new SetGate(); /* key -> {last: time of the user's last change, sent: the value last requested} */
-let needReload = false; /* a RELOAD push came: re-read DESC, DUMP and steps when free */
-let lastDump = 0;      /* Date.now() of the last DUMP */
+let needReload = false; /* set when a RELOAD push arrives: DESC, DUMP and steps are read again once idle */
+let lastDump = 0;      /* time of the latest DUMP (Date.now()) */
 /* the device also pushes RELOAD after loads the editor asked for (PROJECT load, UP_LOAD; firmware without INFO tag
    53 bit 1 also after SET of G_ENGSEL and PRESET); the editor re-reads after those anyway, so it skips that many
    RELOADs for a moment. sound: a PRESET / G_ENGSEL load (newer firmware sends no RELOAD for it: none to skip) */
@@ -7667,7 +7667,7 @@ function selfLoad(sound = false) {
   selfReload.n = now < selfReload.until ? selfReload.n + 1 : 1;
   selfReload.until = now + 1500;
 }
-const stepEdit = new Map(); /* index -> time of the last edit */
+const stepEdit = new Map(); /* step index -> time it was last edited */
 
 /* parameter ids (firmware/src/core/core.h); used only when P_COUNT / G_COUNT match */
 /* SLOOP plus (59 / 51); with ANALOG 2 (FELUCCA_ANALOG2, 69 / 61): its pages OSC 2, SWARM, FLT 2 on an ANALOG track;
@@ -8459,7 +8459,7 @@ async function project(op, slot) {
     if (op === 0) selfLoad();
     /* (a save writes the flash: given 4 s, never repeated) */
     const r = parse[CMD.PROJECT](await rq(req.project(op, slot), { retries: 0, timeout: 4000 }));
-    if (r.busy) throw new Error("Stop playback before loading or saving a section.");
+    if (r.busy) throw new Error("Playback must be stopped before a section can be loaded or saved.");
     dev.slotUsed[slot] = r.used;
     renderSlots();
     if (!op && r.used === 1 && !dev.info.lite) await afterSoundChange();   /* (the librarian: nothing live to read back) */
