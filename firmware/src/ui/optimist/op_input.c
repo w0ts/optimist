@@ -669,6 +669,8 @@ static void op_tap(uint32_t b, uint32_t id)
     else if (b == B_SAVE && !op_armed() && hold) {
         if (bt_key(B_SAVE, 1))
             ;                                           /* (SYSTEM > Bluetooth: forget the remembered device, op_global.c) */
+        else if (wf_key(B_SAVE, 1))
+            ;                                           /* (SYSTEM > WI-FI: forget the network, op_wifi.c) */
         else if (ui.scr == SCR_PROJECT || ui.scr == SCR_SONG)
             save_hold();                                /* SAVE held alone on PROJECT: SONG; on SONG: PROJECT */
         else
@@ -677,6 +679,8 @@ static void op_tap(uint32_t b, uint32_t id)
     }                                                   /* (held elsewhere: nothing, no YES, as when it was the scenes' layer) */
     else if (b == B_SAVE && bt_key(B_SAVE, 0))
         ;                                               /* (SYSTEM > Bluetooth: disconnect, else connect, op_global.c) */
+    else if (b == B_SAVE && wf_key(B_SAVE, 0))
+        ;                                               /* (SYSTEM > WI-FI: let go, else join, op_wifi.c) */
     else if (b == B_SAVE)
         mx_quiet() ? op_enter(SCR_PROJECT) : op_yes();     /* the mixer: PROJECT */
     else if (b == B_HOME) {
@@ -1027,6 +1031,9 @@ static void ui_input(void)
     op_pass.t = fm1_ticks();
 #if FELUCCA_BT_UI
     bt_poll();                                          /* SYSTEM > Bluetooth: AUTO at boot, a connect given up (op_bt.c) */
+#endif
+#if WIFI_UI
+    wf_poll();                                          /* SYSTEM > WI-FI: the scan follows the page, a failure said once (op_wifi.c) */
 #endif
     enc_hold = 0;                                       /* (panel.c: every knob readable this pass) */
     if (pressed || notes)

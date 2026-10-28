@@ -41,6 +41,15 @@
 #else
 #define ED_OPTI_MORE ""
 #endif
+#if defined(FELUCCA_WIFI) && FELUCCA_WIFI && FELUCCA_BLE && BLE_HW_WL82 && FELUCCA_CDC
+#define ED_OPTI_WIFI "opti_wifi_1 "     /* (tag 0x67: 112 the Wi-Fi networks, ed_wifi.c, included by felucca.c after console.c) */
+#define ED_HAS_WIFI 1
+#define ED_WIFI_FN ed_wifi,             /* (editor.c, ed_lite.c: their tables of commands; the function is defined later) */
+static int ed_wifi(uint32_t cmd, const uint8_t *a, uint32_t na);
+#else
+#define ED_OPTI_WIFI ""
+#define ED_WIFI_FN
+#endif
 #if FELUCCA_DRUMS
 #define ED_OPTI_ND ""
 #else
@@ -64,7 +73,7 @@ static void ed_opti_info(void)
 #if FELUCCA_ED_MIRROR
     _Static_assert(MIR_VERSION == 2, "ed_opti.h: opti_mirror_ names MIR_VERSION");
 #endif
-    static const char M[] = ED_OPTI_MORE ED_OPTI_ND;
+    static const char M[] = ED_OPTI_MORE ED_OPTI_ND ED_OPTI_WIFI;
     _Static_assert(sizeof M < 128u, "INFO tag 0x67: one 7-bit length");
     ed_b(0x66);
     ed_b(sizeof S - 1u);
