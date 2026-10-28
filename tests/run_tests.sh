@@ -1507,10 +1507,17 @@ for x in "0 0 0" "1 1 1"; do
 done
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/sec_log_test" tests/sec_log_test.c -lm
-    run "song sections: the log (restarts, compaction, writes and erases cut, MEM FULL and its reserve; the patterns' ids 24..87 kept, 16 busy codec B sections)" "$OUT/sec_log_test"
+    run "song sections: the log (restarts, compaction, writes and erases cut, MEM FULL and its reserve; the patterns' ids 24..87 and the MIDI tracks' 142..225 kept, 16 busy codec B sections)" "$OUT/sec_log_test"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DSLG_V2=1 -DSEC_LOG_SECTORS=8u -o "$OUT/sec_log_v2_test" tests/sec_log_test.c -lm
-    run "the log, format 2 (PATTERNS: every record tagged with its project; 8 sectors here, 32 / 20 at 0xA0000 in a build): the same, then two projects apart, a device-wide id, cuts in either, dead marks, MEM FULL across projects" "$OUT/sec_log_v2_test"
+    run "the log, format 2 (PATTERNS: every record tagged with its project; 8 sectors here, 32 / 20 at 0xA0000 in a build): the same, then two projects apart, a device-wide id, cuts in either, dead marks, MEM FULL across projects; a later firmware's ids (226..255) kept byte for byte through compactions and cuts, cleared and copied with their project" "$OUT/sec_log_v2_test"
 ) >"$U.out" 2>&1 & jobbg
+for f in 1 2; do                                     # (the log's format 1 and 2: this build's loader against the previous firmware's)
+    job; ( jobin
+        $CC -O2 -w -I"$HGEN" -Ifirmware/src -DSLG_V2=$((f - 1)) -DSEC_LOG_SECTORS=7u -o "$OUT/sec_log_compat_new$f" tests/sec_log_compat_test.c -lm
+        $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/src/storage/sections -DSLG_PREV=1 -DSLG_V2=$((f - 1)) -DSEC_LOG_SECTORS=7u -o "$OUT/sec_log_compat_prev$f" tests/sec_log_compat_test.c -lm
+        run "the log, format $f, across firmware versions (MIDI tracks' phase 0): an old log (golden) loads here identically; this build's log, its MIDI ids among the others, read and compacted by the previous firmware (tests/compat/sec_log_142.c) without loss of what it knows" sh tests/sec_log_compat.sh "$OUT/sec_log_compat$f" "$OUT/sec_log_compat_new$f" "$OUT/sec_log_compat_prev$f" $f
+    ) >"$U.out" 2>&1 & jobbg
+done
 for s in 6 8 12; do                                  # (SNAPSHOTS 2 / 4 / 8)
     job; ( jobin
         $CC -DSN_SECTORS=${s}u -o "$OUT/snap_store_test$s" tests/snap_store_test.c
