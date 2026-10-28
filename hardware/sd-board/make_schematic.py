@@ -93,8 +93,9 @@ PARTS = [
       for i, (ref, net, lab) in enumerate((("TP1", "LCD_6", "6"), ("TP2", "LCD_8", "8"), ("TP3", "LCD_9", "9"),
                                           ("TP4", "GND", "G"), ("TP5", "CARD_DET", "DET")))],
     # (J2 from J12, J3 the LCD's cable, every line through; J3 single-sided top contact, J2's face after the breakout)
-    ("J2", "Connector_Generic_MountingPin:Conn_01x10_MountingPin", "FPC 10P 0.5mm (IN)",
-     "sdboard:FPC-SMD_10P-P0.50_HC-FPC-05-09-10RLTAG", "C5213750", 230, 90, LCD10),
+    ("J2", "Connector_Generic_MountingPin:Conn_01x10_MountingPin", "FPC 10P 0.5mm bottom contact (IN)",
+     "sdboard:FPC-SMD_10P-P0.50_XUNPU_FPC-05F-10PH20", "C2856798", 230, 90,
+     {**{str(11 - int(k)): v for k, v in LCD10.items() if k != "MP"}, "MP": "GND"}),   # (turned on the board: J2_AT)
     ("J3", "Connector_Generic_MountingPin:Conn_01x10_MountingPin", "FPC 10P 0.5mm top contact (LCD)",
      "sdboard:FPC-SMD_10P-P0.50_XUNPU_FPC-0.5AS-10PWBH20", "C3446068", 260, 90,
      {**{str(11 - int(k)): v for k, v in LCD10.items() if k != "MP"}, "MP": "GND"}),   # (turned on the board: J3_AT)

@@ -17,7 +17,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 THICK = 1.6
 CARD = sys.argv[1] if len(sys.argv) > 1 else ""
 CARD_W, CARD_L, CARD_T, CARD_OUT = 11.0, 15.0, 0.8, 4.0   # (a microSD card: 11 x 15 x 0.7-1.0 mm)
-HEIGHT = {"J1": 1.85, "J2": 1.0, "J3": 2.0, "U1": 1.1, "U2": 1.1, "U3": 1.1, "C1": 1.3,
+HEIGHT = {"J1": 1.85, "J2": 2.0, "J3": 2.0, "U1": 1.1, "U2": 1.1, "U3": 1.1, "C1": 1.3,
           "C2": 0.8, "C3": 0.8, "FB1": 0.8}      # (mm above the board; the resistors 0.55; J3 the XUNPU H20: 2.0 mm)
 
 board = pcbnew.LoadBoard(os.path.join(HERE, "sd-board.kicad_pcb"))
