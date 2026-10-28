@@ -303,9 +303,9 @@ static uint32_t mx_gr_px(uint32_t r, int32_t w)         /* row r's reduction as 
     return gr > (uint32_t)w ? (uint32_t)w : gr;
 }
 /* the lit bar's colour: its own below -12 dB; from there each column goes on to amber, then red where the bar tops out
- * (a full-scale peak: 32767 lights 40/44 of the width).
+ * (a full-scale peak: 32767 lights the whole width, the 0 tick).
  * The scale is op_draw.c meter_h's: log2 of the peak in 6 dB steps, a tick each at i * 4 + 4 of 44, so the columns stand for dB. Integer RGB565 lerps */
-#define MX_KNEE_PK 8192                                 /* -12 dBFS: the bar it lights ends at the tick, 36/44 of the width */
+#define MX_KNEE_PK 8192                                 /* -12 dBFS: the bar it lights ends at the -12 tick, 36/44 of the width */
 static uint16_t mx_lerp(uint16_t a, uint16_t b, uint32_t t)   /* a to b, t 0 .. 256 */
 {
     uint32_t rb = ((a & 0xF81Fu) * (256u - t) + (b & 0xF81Fu) * t) >> 8;
