@@ -1,9 +1,9 @@
 {
  "base": {
-  "flash": 722156,
-  "ram": 106724,
+  "flash": 724788,
+  "ram": 106780,
   "pool": 359608,
-  "ramtext": 54656
+  "ramtext": 54780
  },
  "limits": {
   "flash": 581564,
@@ -31,10 +31,10 @@
   },
   "ED_LIVE": {
    "0": {
-    "flash": -16308,
-    "ram": -216,
+    "flash": -18940,
+    "ram": -272,
     "pool": -2224,
-    "ramtext": 20
+    "ramtext": -104
    }
   },
   "ENG_ANALOG": {
@@ -311,7 +311,7 @@
   },
   "ENG_PROPHET": {
    "1": {
-    "flash": 11068,
+    "flash": 11204,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -343,10 +343,10 @@
   },
   "DRUMS": {
    "0": {
-    "flash": -149816,
-    "ram": -7132,
-    "pool": 1040,
-    "ramtext": -7716
+    "flash": -149868,
+    "ram": -7148,
+    "pool": 1080,
+    "ramtext": -10380
    }
   },
   "DRUM_SYNTH": {
@@ -1093,10 +1093,10 @@
   },
   "USB_CONSOLE": {
    "1": {
-    "flash": 11292,
-    "ram": 3224,
+    "flash": -1648,
+    "ram": -15504,
     "pool": 0,
-    "ramtext": 0
+    "ramtext": 36
    }
   },
   "USB_AUDIO": {
@@ -1157,7 +1157,7 @@
   },
   "PARAM_HELP": {
    "1": {
-    "flash": 13208,
+    "flash": 13500,
     "ram": 32,
     "pool": 0,
     "ramtext": 0
@@ -1165,10 +1165,10 @@
   },
   "SYS_DEBUG": {
    "1": {
-    "flash": 2288,
-    "ram": 64,
+    "flash": 1544,
+    "ram": 48,
     "pool": 0,
-    "ramtext": 0
+    "ramtext": 44
    }
   },
   "KNOB_ACCEL": {
@@ -1203,10 +1203,10 @@
   },
   "EDITOR": {
    "0": {
-    "flash": -8444,
-    "ram": -224,
-    "pool": -640,
-    "ramtext": 172
+    "flash": -27384,
+    "ram": -496,
+    "pool": -2864,
+    "ramtext": 68
    }
   },
   "BACKUP": {
@@ -1289,10 +1289,10 @@
   },
   "SDCARD": {
    "1": {
-    "flash": 32024,
-    "ram": 1352,
-    "pool": 7068,
-    "ramtext": 16
+    "flash": 1172,
+    "ram": 532,
+    "pool": 556,
+    "ramtext": 0
    }
   },
   "ARENA": {
@@ -1443,16 +1443,16 @@
   },
   "BLE_CENTRAL": {
    "1": {
-    "flash": 20764,
-    "ram": 2224,
+    "flash": 25756,
+    "ram": 3712,
     "pool": 0,
-    "ramtext": 0
+    "ramtext": 80
    },
    "3": {
-    "flash": 12352,
-    "ram": 1520,
+    "flash": 15580,
+    "ram": 2960,
     "pool": 0,
-    "ramtext": 0
+    "ramtext": 20
    }
   },
   "BT_AUDIO": {
@@ -1585,10 +1585,10 @@
   },
   "LIGHTS": {
    "1": {
-    "flash": 792,
+    "flash": 472,
     "ram": 64,
     "pool": 0,
-    "ramtext": 0
+    "ramtext": 48
    }
   },
   "DIV_ORDER": {
@@ -1846,7 +1846,7 @@
    }
   }
  },
- "measured": "2026-10-28 06:10",
+ "measured": "2026-10-28 07:49",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
@@ -1966,7 +1966,12 @@
     "GRIDS_VEL": 1
    },
    "built_hash": "2076d070",
-   "failed": "build: pi32v2/bin/clang failed"
+   "sizes": {
+    "flash": 605076,
+    "ram": 108160,
+    "pool": 292472,
+    "ramtext": 51060
+   }
   },
   "dev": {
    "hash": "3cc9c6cf",
@@ -2157,7 +2162,12 @@
     "GRIDS_VEL": 1
    },
    "built_hash": "4ae32e8c",
-   "failed": "build: pi32v2/bin/clang failed"
+   "sizes": {
+    "flash": 643744,
+    "ram": 140276,
+    "pool": 270076,
+    "ramtext": 40848
+   }
   },
   "sd-card-mots": {
    "hash": "152be9f3",
@@ -2263,7 +2273,12 @@
     "GRIDS_VEL": 1
    },
    "built_hash": "45e955f0",
-   "failed": "build: pi32v2/bin/clang failed"
+   "sizes": {
+    "flash": 826972,
+    "ram": 136180,
+    "pool": 244564,
+    "ramtext": 63696
+   }
   },
   "sd-card": {
    "hash": "2da34a1f",
@@ -2370,7 +2385,12 @@
     "GRIDS_VEL": 1
    },
    "built_hash": "3d21da2c",
-   "failed": "build: pi32v2/bin/clang failed"
+   "sizes": {
+    "flash": 627944,
+    "ram": 103640,
+    "pool": 288308,
+    "ramtext": 49692
+   }
   },
   "sd-dev": {
    "hash": "3cc9c6cf",
@@ -2586,7 +2606,12 @@
     "GRIDS_LFO": 1
    },
    "built_hash": "1c1f7ed9",
-   "failed": "build: pi32v2/bin/clang failed"
+   "sizes": {
+    "flash": 626032,
+    "ram": 103140,
+    "pool": 287552,
+    "ramtext": 49676
+   }
   },
   "synths-2": {
    "hash": "779bc947",
@@ -2682,7 +2707,12 @@
     "SEQTOOLS": 1
    },
    "built_hash": "3ad0dc6b",
-   "failed": "build: pi32v2/bin/clang failed"
+   "sizes": {
+    "flash": 648172,
+    "ram": 113292,
+    "pool": 302124,
+    "ramtext": 44352
+   }
   },
   "synths": {
    "hash": "6dc32400",
@@ -2787,7 +2817,12 @@
     "GRIDS_VEL": 1
    },
    "built_hash": "151b3ea7",
-   "failed": "build: pi32v2/bin/clang failed"
+   "sizes": {
+    "flash": 653028,
+    "ram": 116868,
+    "pool": 288760,
+    "ramtext": 51528
+   }
   },
   "synths_USBaudio_BTaudio_BTmidi": {
    "hash": "213e1d75",
@@ -2994,7 +3029,12 @@
     "GRIDS_VEL": 1
    },
    "built_hash": "5c465bc2",
-   "failed": "build: pi32v2/bin/clang failed"
+   "sizes": {
+    "flash": 592036,
+    "ram": 107696,
+    "pool": 293280,
+    "ramtext": 52988
+   }
   },
   "dev~": {
    "hash": "6d88c881",
@@ -3174,7 +3214,12 @@
     "GRIDS_VEL": 1
    },
    "built_hash": "144f5c93",
-   "failed": "build: pi32v2/bin/clang failed"
+   "sizes": {
+    "flash": 650804,
+    "ram": 140272,
+    "pool": 262468,
+    "ramtext": 39960
+   }
   },
   "sd-card-mots~": {
    "hash": "7229f2ad",
@@ -3276,7 +3321,12 @@
     "GRIDS_VEL": 1
    },
    "built_hash": "0cedaab2",
-   "failed": "build: pi32v2/bin/clang failed"
+   "sizes": {
+    "flash": 824544,
+    "ram": 142692,
+    "pool": 238032,
+    "ramtext": 63696
+   }
   },
   "sd-card~": {
    "hash": "2e4cb23b",
@@ -3381,7 +3431,12 @@
     "GRIDS_VEL": 1
    },
    "built_hash": "5c2d5938",
-   "failed": "build: pi32v2/bin/clang failed"
+   "sizes": {
+    "flash": 627528,
+    "ram": 103624,
+    "pool": 288148,
+    "ramtext": 49252
+   }
   },
   "sd-dev~": {
    "hash": "379ebacf",
@@ -3598,7 +3653,12 @@
     "GRIDS_LFO": 1
    },
    "built_hash": "4ac903db",
-   "failed": "build: pi32v2/bin/clang failed"
+   "sizes": {
+    "flash": 623712,
+    "ram": 102788,
+    "pool": 287688,
+    "ramtext": 47828
+   }
   },
   "synths-2~": {
    "hash": "7367bb2c",
@@ -3692,7 +3752,12 @@
     "SEQTOOLS": 1
    },
    "built_hash": "46b40544",
-   "failed": "build: pi32v2/bin/clang failed"
+   "sizes": {
+    "flash": 638448,
+    "ram": 110572,
+    "pool": 304120,
+    "ramtext": 45020
+   }
   },
   "synths~": {
    "hash": "23bd493a",
@@ -3801,7 +3866,12 @@
     "GRIDS_VEL": 1
    },
    "built_hash": "252ad005",
-   "failed": "build: pi32v2/bin/clang failed"
+   "sizes": {
+    "flash": 661748,
+    "ram": 126692,
+    "pool": 272376,
+    "ramtext": 54388
+   }
   },
   "synths_USBaudio_BTaudio_BTmidi~": {
    "hash": "497bdac3",
@@ -3902,7 +3972,12 @@
     "GRIDS_VEL": 1
    },
    "built_hash": "59b64e14",
-   "failed": "build: pi32v2/bin/clang failed"
+   "sizes": {
+    "flash": 653424,
+    "ram": 129172,
+    "pool": 283628,
+    "ramtext": 52712
+   }
   }
  },
  "pairs": {
@@ -3922,25 +3997,25 @@
    "flash": 0,
    "ram": 0,
    "pool": 0,
-   "ramtext": 20
+   "ramtext": 0
   },
   "ED_LIVE=0,BACKUP=0": {
    "flash": 0,
    "ram": 0,
    "pool": 0,
-   "ramtext": 108
+   "ramtext": 88
   },
   "ED_LIVE=0,BACKUP=0,LIBRARIAN=0": {
    "flash": -1184,
    "ram": -64,
    "pool": 0,
-   "ramtext": 64
+   "ramtext": 84
   },
   "DUAL=0,USB_CONSOLE=1": {
-   "flash": 0,
+   "flash": 252,
    "ram": 0,
    "pool": 0,
-   "ramtext": 0
+   "ramtext": 120
   },
   "REV_PLATE=1,REV_FDN8=1,SPRING=0": {
    "flash": -1068,
@@ -4027,14 +4102,14 @@
    "ramtext": 32
   },
   "BLE=1,USB_CONSOLE=1": {
-   "flash": 0,
-   "ram": 0,
+   "flash": 128,
+   "ram": -48,
    "pool": 0,
-   "ramtext": 0
+   "ramtext": -56
   },
   "BLE=1,BLE_DIAG=1,USB_CONSOLE=1": {
-   "flash": 0,
-   "ram": 0,
+   "flash": 4188,
+   "ram": 2400,
    "pool": 0,
    "ramtext": 0
   },
@@ -4075,58 +4150,58 @@
    "ramtext": 0
   },
   "BLE=1,BLE_BOND=1,BLE_CENTRAL=1": {
-   "flash": 0,
+   "flash": -20,
    "ram": 0,
    "pool": 0,
-   "ramtext": 0
+   "ramtext": -20
   },
   "BLE=1,BLE_CENTRAL=1,BLE_DIAG=1": {
-   "flash": 0,
-   "ram": 0,
+   "flash": 5288,
+   "ram": 2816,
    "pool": 0,
-   "ramtext": 0
+   "ramtext": -4
   },
   "BLE=1,BLE_BOND=1,BLE_CENTRAL=1,BLE_DIAG=1": {
-   "flash": 0,
+   "flash": 4,
    "ram": 0,
    "pool": 0,
-   "ramtext": 0
+   "ramtext": 20
   },
   "BLE=1,BLE_BOND=1,BLE_CENTRAL=1,USB_CONSOLE=1": {
-   "flash": 0,
-   "ram": 0,
+   "flash": 604,
+   "ram": 16,
    "pool": 0,
-   "ramtext": 0
+   "ramtext": 28
   },
   "BLE=1,BLE_CENTRAL=1,BLE_DIAG=1,USB_CONSOLE=1": {
-   "flash": 0,
-   "ram": 0,
+   "flash": -3696,
+   "ram": -2368,
    "pool": 0,
-   "ramtext": 0
+   "ramtext": 20
   },
   "BLE=1,BLE_BOND=1,BLE_CENTRAL=1,BLE_DIAG=1,USB_CONSOLE=1": {
-   "flash": 0,
-   "ram": 0,
+   "flash": -604,
+   "ram": -16,
    "pool": 0,
-   "ramtext": 0
+   "ramtext": -28
   },
   "BLE=1,BLE_BOND=1,BLE_CENTRAL=3": {
-   "flash": 0,
-   "ram": 0,
+   "flash": 3944,
+   "ram": 432,
    "pool": 0,
-   "ramtext": 0
+   "ramtext": -20
   },
   "BLE=1,BLE_CENTRAL=3,BLE_DIAG=1": {
-   "flash": 0,
-   "ram": 0,
+   "flash": 5344,
+   "ram": 2816,
    "pool": 0,
-   "ramtext": 0
+   "ramtext": -64
   },
   "BLE=1,BLE_BOND=1,BLE_CENTRAL=3,BLE_DIAG=1": {
-   "flash": 0,
-   "ram": 0,
+   "flash": -284,
+   "ram": -16,
    "pool": 0,
-   "ramtext": 0
+   "ramtext": 20
   },
   "BLE=1,BT_AUDIO=1": {
    "flash": 0,
@@ -4135,22 +4210,22 @@
    "ramtext": 0
   },
   "BLE=1,BLE_CENTRAL=1,BT_AUDIO=1": {
-   "flash": 0,
-   "ram": 0,
+   "flash": -1048,
+   "ram": 16,
    "pool": 0,
-   "ramtext": 0
+   "ramtext": -20
   },
   "BLE=1,BLE_BOND=1,BLE_CENTRAL=1,BT_AUDIO=1": {
-   "flash": 0,
+   "flash": 4,
    "ram": 0,
    "pool": 0,
-   "ramtext": 0
+   "ramtext": 20
   },
   "BLE=1,BLE_CENTRAL=3,BT_AUDIO=1": {
-   "flash": 0,
+   "flash": -736,
    "ram": 0,
    "pool": 0,
-   "ramtext": 0
+   "ramtext": -20
   },
   "BT_AUDIO=1,BT_DIAG=1": {
    "flash": 0,
@@ -4159,14 +4234,14 @@
    "ramtext": 0
   },
   "BT_AUDIO=1,USB_CONSOLE=1": {
-   "flash": 0,
-   "ram": 0,
+   "flash": 36560,
+   "ram": 7696,
    "pool": 0,
-   "ramtext": 0
+   "ramtext": 408
   },
   "BT_AUDIO=1,BT_DIAG=1,USB_CONSOLE=1": {
-   "flash": 0,
-   "ram": 0,
+   "flash": 5076,
+   "ram": 48,
    "pool": 0,
    "ramtext": 0
   },
@@ -4267,10 +4342,10 @@
    "ramtext": 0
   },
   "SDCARD=1,LAYOUT=1,FAR_OK=1,ENG_SAMPLE=0,DRUM_USR=0,SNAPSHOTS=0,PATTERNS=1": {
-   "flash": 0,
-   "ram": 0,
-   "pool": 0,
-   "ramtext": 140
+   "flash": 30852,
+   "ram": 820,
+   "pool": 6512,
+   "ramtext": 136
   },
   "ENG_FM6=0,TAB_IN_POOL=1": {
    "flash": -4,
@@ -4321,17 +4396,7 @@
    "ramtext": 776
   }
  },
- "unbuildable": {
-  "ED_LIVE=1": "optimist-3/core/../ui/opt_editor.h:23:2: error: \"the trial's editor: ED_LIVE off (the dev profile's: backup, librarian, mirror); the live editor is not wired\"",
-  "ENG_PROPHET=1": "build: pi32v2/bin/ld failed",
-  "DRUMS=0": "optimist-1/build/optimist/firmware/src/drums/x0x/x0x_drums.c:164:8: error: unknown type name 'FM_SETUP'",
-  "USB_CONSOLE=1": "optimist-2/build/optimist/firmware/src/ui/optimist/op_project.c:645:32: error: use of undeclared identifier 'usb_serial'",
-  "PARAM_HELP=1": "optimist-2/build/optimist/firmware/src/ui/optimist/../ph_blob.c:11:10: fatal error: 'felucca_param_help.h' file not found",
-  "SYS_DEBUG=1": "optimist-3/build/optimist/firmware/src/ui/optimist/op_project.c:1175:13: error: use of undeclared identifier 'supply'",
-  "BLE_CENTRAL=1": "optimist-6/build/optimist/firmware/src/io/midi/ble_connect.c:68:21: error: field has incomplete type 'struct ble_keys'",
-  "BLE_CENTRAL=3": "optimist-7/build/optimist/firmware/src/io/midi/ble_connect.c:144:21: error: variable has incomplete type 'struct ble_peer'",
-  "LIGHTS=1": "optimist-4/build/optimist/firmware/src/ui/optimist/op_input.c:1527:13: error: use of undeclared identifier 'fm1_led_bg'"
- },
+ "unbuildable": {},
  "groups": {
   "INS_FX": {
    "members": [],
