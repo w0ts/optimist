@@ -53,12 +53,23 @@ struct wifi_ip {
     struct wifi_arp_entry arp_tbl[4];
     uint16_t tx_seq;                       /* 802.11 sequence counter */
     uint8_t protect;                       /* 1: our data frames carry the Protected bit (keys installed: the MAC encrypts) */
+    uint8_t ap;                            /* 1: MODE AP: we are the access point (our data frames are FromDS, mac == bssid) */
+    void (*send)(uint32_t len);            /* a finished frame (at tx_buf, len bytes) out: the owner's transmit, else the station's */
+    uint32_t (*udp_srv)(struct wifi_ip *wip, const uint8_t *src_mac, const uint8_t *msg, uint32_t n, uint8_t *tx_buf);
+                                           /* AP: a datagram to UDP port 67 (the DHCP server): the reply frame's length, 0 for none */
     int64_t igmp_t;                        /* host time (us) the next membership report is due */
     void (*rand)(uint8_t *out, uint8_t n);
 };
 
 /* Initialize IP layer state */
 void wifi_ip_init(struct wifi_ip *wip, const uint8_t sta_mac[6], const uint8_t bssid[6], void (*rand_fn)(uint8_t *out, uint8_t n));
+
+/* MODE AP: this is the access point at ip (host order): FromDS frames, the /24 netmask, no DHCP client, no gateway */
+void wifi_ip_ap_init(struct wifi_ip *wip, const uint8_t ap_mac[6], uint32_t ip, void (*rand_fn)(uint8_t *out, uint8_t n));
+/* a station's address, learned (the DHCP server's lease, a packet's source) */
+void wifi_ip_arp_learn(struct wifi_ip *wip, uint32_t ip, const uint8_t mac[6]);
+/* one UDP datagram to a given MAC and IP, from any source port (the DHCP server's reply). Returns the frame length. */
+uint32_t wifi_ip_reply_udp(struct wifi_ip *wip, const uint8_t dst_mac[6], uint32_t dst_ip, uint16_t src_port, uint16_t dst_port, const uint8_t *payload, uint32_t payload_len, uint8_t *tx_buf);
 
 /* Attach Link peer node and unicast port */
 void wifi_ip_set_link(struct wifi_ip *wip, struct lk_node *lk, uint16_t link_port);

@@ -46,6 +46,7 @@ struct wifi_sta {
 
 void wifi_sta_init(struct wifi_sta *sta, const uint8_t sta_mac[6], void (*rand)(uint8_t *out, uint8_t n));
 void wifi_sta_set_creds(struct wifi_sta *sta, const char *pass, const uint8_t *ssid, uint32_t ssid_len);
+void wifi_sta_set_pmk(struct wifi_sta *sta, const uint8_t pmk[32], const uint8_t *ssid, uint32_t ssid_len);   /* a saved key */
 void wifi_sta_set_ap(struct wifi_sta *sta, const uint8_t bssid[6]);
 void wifi_sta_derive_ptk(const uint8_t pmk[32], const uint8_t spa[6], const uint8_t aa[6],
                          const uint8_t snonce[32], const uint8_t anonce[32], uint8_t ptk[48]);
@@ -56,6 +57,8 @@ int wifi_sta_rx_eapol(struct wifi_sta *sta, const uint8_t *pkt, uint32_t len, ui
 
 /* Install derived PTK and GTK into RT3070 MAC hardware tables (0x1800, 0x4000, 0x6000, 0x6800, 0x6C00, 0x7000). */
 void wifi_sta_install_hw_keys(const struct wifi_sta *sta);
+void wifi_sta_clear_hw_keys(void);                 /* WCID 1 back to no cipher, no key (before a join, on leaving) */
+uint32_t wifi_sta_build_deauth(struct wifi_sta *sta, uint8_t *tx_buf);   /* leaving: reason 3 */
 
 /* 802.11 Authentication Frame: builds Open System Auth (Seq 1) frame. Returns frame byte count. */
 uint32_t wifi_sta_build_auth(struct wifi_sta *sta, uint8_t *tx_buf);

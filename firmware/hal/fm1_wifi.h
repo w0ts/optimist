@@ -28,21 +28,44 @@
 
 /* one frame out by the TX DMA, as the SDK's usb_submit_urb / wl30_mmc_io_rw_extended (addr 0) hand it over (the emulator
  * capture of a raw send, docs/WIFI-HW-FACTS.md §2b). buf (4-aligned): word 0 = MPDU length + 22; word 1 = 4 (bits 1-2:
- * queue 2); a 16-byte Ralink TXWI (word 0 PHY / MCS: 0xB0 for 1 Mb/s CCK; word 1 = ACK | BA window 13 << 2 | WCID 1
- * << 8 | MPDU length << 16); then the 802.11 frame. The DMA takes word 0 + 4 bytes from buf + 4. Returns 0, or -1 if
- * the DMA did not finish within 10 ms. No queue-room check (MAC 0x438: one frame at a time here) */
+ * queue 2); a 16-byte Ralink TXWI (word 0 PHY / MCS: 0xB0 for 1 Mb/s CCK, bit 15 WIV: 0 = driver inserts the IV/EIV
+ * itself (none, for our unprotected management/EAPOL frames), 1 = the MAC generates and inserts the CCMP IV/EIV and
+ * encrypts the payload with the WCID's pairwise/shared key - set here from the frame's own Protected bit (802.11
+ * Frame Control, buf + FM1_WIFI_TX_HDR, byte 1, 0x40), since try1/try3 left it clear even for protected data frames,
+ * so the MAC likely sent them out with no CCMP header at all and the AP dropped them; word 1 = ACK | BA window 13 << 2
+ * | WCID 1 << 8 | MPDU length << 16); then the 802.11 frame. On Ralink's TXWI, MPDU_TOTAL_BYTE_COUNT (here, the
+ * length folded into word 3) is documented to span the whole over-the-air MPDU once the MAC is asked to encrypt it.
+ * try5/try6/try8 had wifi_ip.c reserve and write an 8-byte CCMP IV/EIV header itself, with the TXWI length bumped by
+ * the trailing 8-byte MIC the MAC appends but never writes back - DHCP still failed identically at the time, but
+ * try9's RX-symmetry revert (no reserved IV/EIV space on TX) also failed, and a real AP-side packet capture
+ * (ap-capture-finding.md) then showed transmit + CCMP encryption genuinely work, with the decrypted payload merely
+ * garbled/short - exactly the signature of the MAC needing the 8-byte IV/EIV room reserved by software on TX even
+ * though it auto-strips the full envelope on RX (an asymmetry, not a contradiction). try10: wifi_ip.c reserves the
+ * CCMP IV/EIV header again (try6-style), so the TXWI length here goes back to adding only the trailing 8-byte MIC
+ * the MAC appends but never writes into our buffer - the IV/EIV is present in our own TX buffer once more. The DMA
+ * transfer length (word 0) is unaffected: it still only moves the bytes we actually wrote (now including the
+ * reserved IV/EIV space again). Returns 0, or -1 if the DMA did not finish within 10 ms. No queue-room check
+ * (MAC 0x438: one frame at a time here) */
 #define FM1_WIFI_TX_ADDR 0x30F10u
 #define FM1_WIFI_TX_LEN 0x30F14u
 #define FM1_WIFI_TX_CLR (1u << 10)       /* 0x30F04: written before / after each TX transfer */
 #define FM1_WIFI_TX_DONE (1u << 20)      /* 0x30F04: the TX DMA transfer finished */
 #define FM1_WIFI_TX_HDR 24u              /* bytes before the 802.11 frame in buf */
+/* try20: HW TX encryption never engaged on this single-shot DMA path (keys are readback-verified correct, TXWI matches
+ * the vendor field-for-field, yet protected frames never reach the AP - this 0x30F10 path is the raw/mgmt inject, which
+ * does not run frames through the MAC cipher engine). So CCMP is now done in SOFTWARE (wl_send -> wc_ccmp_encrypt) and
+ * the finished frame - 802.11 header + CCMP header + ciphertext + MIC - is injected raw. The TXWI therefore just carries
+ * the full frame length; no HW IV/EIV, no overhead. WCID 0 (the no-key entry) so the HW cipher engine can't touch it. */
+extern uint32_t fm1_wifi_tx_wcid;        /* TXWI WirelessCliID (runtime, wifiwcid): 1 = the pairwise key, the MAC encrypts */
+extern uint32_t fm1_wifi_tx_ack;         /* TXWI ACK flag (1: wait for the receiver's ACK, retry; MODE AP clears it for beacons and group frames) */
+extern uint32_t fm1_wifi_sw_ccmp;        /* runtime (wifiswc): 1 = wl_send encrypts in software instead (then use a keyless WCID) */
 FM1_INLINE void fm1_wifi_tx_prepare(uint32_t *buf, uint32_t mpdu_len)
 {
-    buf[0] = mpdu_len + 22u;
+    buf[0] = mpdu_len + 22u;         /* DMA transfer length: the full frame we built (software already encrypted it) */
     buf[1] = 4u;
-    buf[2] = 0xB0u;
-    buf[3] = 1u | 13u << 2 | 1u << 8 | (mpdu_len & 0xFFFu) << 16;
-    buf[4] = buf[5] = 0;
+    buf[2] = 0xB0u;                  /* TXWI Word1: 1 Mb/s CCK */
+    buf[3] = (fm1_wifi_tx_ack & 1u) | 13u << 2 | (fm1_wifi_tx_wcid & 0xFFu) << 8 | (mpdu_len & 0xFFFu) << 16;   /* ACK | BAwin 13 | WCID | len */
+    buf[4] = buf[5] = 0;             /* TXWI Word3/4 (IV/EIV): unused, software built the CCMP header in the frame */
 }
 FM1_INLINE int fm1_wifi_tx(uint32_t *buf)
 {
@@ -71,6 +94,7 @@ FM1_INLINE int32_t fm1_wifi_rx_rssi(const uint8_t *f) { return (int8_t)f[8]; }
 FM1_INLINE uint32_t fm1_wifi_mac_rd(uint32_t r) { return *(const volatile uint32_t *)(uintptr_t)(FM1_WIFI_MAC + r); }
 FM1_INLINE void fm1_wifi_mac_wr(uint32_t r, uint32_t v) { *(volatile uint32_t *)(uintptr_t)(FM1_WIFI_MAC + r) = v; }
 FM1_INLINE uint32_t fm1_wifi_rd(uint32_t a) { return *(const volatile uint32_t *)(uintptr_t)a; }   /* the DMA / clock words */
+FM1_INLINE void fm1_wifi_wr(uint32_t a, uint32_t v) { *(volatile uint32_t *)(uintptr_t)a = v; }
 
 #define FM1_WIFI_RX_FILTER 0x1400u       /* MAC: Ralink's RX_FILTR_CFG (bit n set = drop that kind) */
 #define FM1_WIFI_RX_FILTER_ALL 0x1u      /* .. drop only frames with a bad CRC */
@@ -80,6 +104,14 @@ FM1_INLINE void fm1_wifi_set_channel(uint32_t ch)
 {
     volatile uint32_t *c = (volatile uint32_t *)(uintptr_t)FM1_WIFI_CHAN;
     *c = (*c & ~0xFFu) | ((ch + 101u) & 0xFFu);
+}
+/* byte 2 of 0x1405C is the TX power the stock wfhw_init leaves at 6 (docs/WIFI-HW-FACTS.md: 0x4706006B); our
+ * set_channel preserves it. Exposed so the handshake's link margin can be swept at runtime (wifipow) */
+FM1_INLINE uint32_t fm1_wifi_power(void) { return (fm1_wifi_rd(FM1_WIFI_CHAN) >> 16) & 0xFFu; }
+FM1_INLINE void fm1_wifi_set_power(uint32_t p)
+{
+    volatile uint32_t *c = (volatile uint32_t *)(uintptr_t)FM1_WIFI_CHAN;
+    *c = (*c & ~0x00FF0000u) | ((p & 0xFFu) << 16);
 }
 #define FM1_WIFI_IRQ_EN 0x328u           /* MAC: 2 = the receive interrupt on (the SDK's wfhw_iqr_init) */
 #define FM1_WIFI_IRQ_CTL 0x14050u        /* bit 0: the block's interrupt (wfhw_iqr_en; the handler clears it) */
@@ -113,14 +145,48 @@ FM1_INLINE void fm1_wifi_sta_settings(void)
     for (i = 0; i < sizeof fm1_wifi_sta_init / sizeof *fm1_wifi_sta_init; i++)
         fm1_wifi_mac_wr(fm1_wifi_sta_init[i][0], fm1_wifi_sta_init[i][1]);
 }
+/* BBP indirect register write via BBP_CSR_CFG (0x101C), as the SDK's bbp_set: wait for the busy bit (17), then write
+ * (reg << 8) | val | 0x80000 (parallel mode) | 0x20000 (busy/kick). Needed to reach the PHY's TX-backend gain registers. */
+FM1_INLINE void fm1_wifi_bbp_set(uint32_t reg, uint32_t val)
+{
+    uint32_t i;
+    for (i = 0; i < 1000u && (fm1_wifi_mac_rd(0x101Cu) & 0x20000u); i++)
+        ;
+    fm1_wifi_mac_wr(0x101Cu, ((reg & 0xFFu) << 8) | (val & 0xFFu) | 0xA0000u);
+}
+/* TX-backend register write (SDK tx_backend_wr): address to BBP 0xD1, data to 0xD2, kick 0xD0 = 1 */
+FM1_INLINE void fm1_wifi_tx_backend_wr(uint32_t adr, uint32_t dat)
+{
+    fm1_wifi_bbp_set(0xD1u, adr);
+    fm1_wifi_bbp_set(0xD2u, dat);
+    fm1_wifi_bbp_set(0xD0u, 1u);
+}
+/* The PA per-MCS digital TX gain (SDK pa_mcs_dgain_init, wf_cfr_init.c): the default gain table the stock bring-up
+ * programs and our wifiup never did - the likely cause of the ~30 dB-weak TX (RX is fine). Values from the SDK's
+ * default pa_mcs_gain table "      ++&&   ++&&   " mapped to backend regs 11..33. */
+FM1_INLINE void fm1_wifi_pa_gain_init(void)
+{
+    fm1_wifi_tx_backend_wr(11u, 0x20u);
+    fm1_wifi_tx_backend_wr(13u, 0x20u);
+    fm1_wifi_tx_backend_wr(15u, 0x20u);
+    fm1_wifi_tx_backend_wr(17u, 0x20u);
+    fm1_wifi_tx_backend_wr(27u, 0x20u);
+    fm1_wifi_tx_backend_wr(29u, 0x2Bu);
+    fm1_wifi_tx_backend_wr(31u, 0x26u);
+    fm1_wifi_tx_backend_wr(33u, 0x20u);
+    fm1_wifi_tx_backend_wr(19u, 0x20u);
+    fm1_wifi_tx_backend_wr(21u, 0x2Bu);
+    fm1_wifi_tx_backend_wr(23u, 0x26u);
+    fm1_wifi_tx_backend_wr(25u, 0x20u);
+}
 #define FM1_WL_EN 0x14000u
 FM1_INLINE void fm1_wifi_wlc_setup(void)   /* the SDK's wlc_main: both RF paths on, then the WLC tables (fm1_wifi_wlc.h) */
 {
     volatile uint32_t *e = (volatile uint32_t *)(uintptr_t)0x14000u, *w = (volatile uint32_t *)(uintptr_t)FM1_WLC_PORT;
     uint32_t i;
     *e |= 3u;
-    for (i = 0; i < sizeof fm1_wlc_init / sizeof *fm1_wlc_init; i++)
-        *w = fm1_wlc_init[i];
+    for (i = 0; i < FM1_WLC_N; i++)
+        *w = FM1_WLC_WORD(i);
 }               /* bit 0 BT, bit 1 Wi-Fi: the RF path on (the SDK's wifi_rf_on / wifi_rf_off) */
 #define FM1_WL_EN_WIFI 2u
 FM1_INLINE void fm1_wifi_rf(int on)           /* the Wi-Fi side of the shared RF on / off (the clock words left as they are) */

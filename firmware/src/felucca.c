@@ -204,6 +204,9 @@ static int st_prog(uint32_t off, const void *src, uint32_t n)
 #include "storage/storage.c"
 #endif
 #include "storage/upreset.c"          /* user presets (RAM mirror; flash with FELUCCA_FLASH) */
+#if FELUCCA_WIFI
+#include "wifi/wifi_saved.c"          /* the saved Wi-Fi networks (wn_st), before the settings record that keeps them */
+#endif
 #include "storage/project.c"
 #if FELUCCA_DRUM_KITS
 #if !FELUCCA_FLASH
@@ -297,6 +300,12 @@ static uint32_t mir_meters_off(void) { return 0; }
 #endif
 #if FELUCCA_CDC
 #include "io/console.c"
+#ifdef ED_HAS_WIFI
+#include "io/editor/ed_wifi.c"         /* cmd 112: the Wi-Fi networks for the web editor (needs wifi_conn.c, so after the console) */
+#if WIFI_UI
+#include "ui/optimist/op_wifi.c"         /* SYSTEM > WI-FI: the page and the password entry (drives wifi_conn.c, so after the console) */
+#endif
+#endif
 #elif FELUCCA_BT_AUDIO
 static inline void con_puts(const char *s) { (void)s; }
 static inline void con_putc(char c) { (void)c; }

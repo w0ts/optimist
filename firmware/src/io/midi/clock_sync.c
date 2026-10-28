@@ -201,12 +201,13 @@ static uint32_t sy_allowed(uint32_t s)
 }
 
 #if FELUCCA_LINK
-/* AUTO's preference: TRS 4, USB 3, LINK 2, BLE 1 (the most jitter last), none 0 */
+/* AUTO's preference: LINK 5 (a session the user joined on purpose wins over any cable clock, 2026-10-27), TRS 4,
+ * USB 3, BLE 1 (the most jitter last), none 0 */
 static uint32_t sy_rank(uint32_t s)
 {
+    if (s == MSRC_LINK) return 5u;
     if (s == MSRC_TRS) return 4u;
     if (s == MSRC_USB) return 3u;
-    if (s == MSRC_LINK) return 2u;
     if (s == MSRC_BLE) return 1u;
     return 0u;
 }
