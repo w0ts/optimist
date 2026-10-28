@@ -403,13 +403,14 @@ static void wf_ap_state_cell(cell_t *c)
     } else if (st == WAS_STOPPED) {
         v = "SAVE: START";                              /* (AP MAN: off until SAVE) */
     } else if (st == WAS_UP) {
-        if (wl_peers()) {                               /* Link peers heard: the number the user cares about on a jam ("1 LINK PEER") */
-            fmt_int(b, (int32_t)wl_peers());
-            str_app(b, wl_peers() == 1u ? " LINK PEER" : " LINK PEERS", sizeof b);
-            v = b;
-        } else if (n) {
+        if (n && (!wl_peers() || ((fm1_ms >> 11) & 1u) == 0u)) {   /* both numbers, the user's way (2026-10-28): the line alternates every 2 s between the clients
+                                                         * and the Link peers, in full words */
             fmt_int(b, (int32_t)n);
             str_app(b, n == 1u ? " CLIENT" : " CLIENTS", sizeof b);
+            v = b;
+        } else if (wl_peers()) {
+            fmt_int(b, (int32_t)wl_peers());
+            str_app(b, wl_peers() == 1u ? " LINK PEER" : " LINK PEERS", sizeof b);
             v = b;
         } else {
             v = "ACTIVE";
