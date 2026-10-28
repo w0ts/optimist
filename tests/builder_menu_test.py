@@ -129,7 +129,7 @@ async def estimate_over_build_fits_test():
         app.budget = lambda cfg=None: dict(est, total=dict(cap, flash=cap["flash"] + 19046), exact=False)
         real = dict(cap, flash=cap["flash"] - 14072)
         calls, saved = [], C.build
-        C.build = lambda cfg, name, measure=False, on_line=None: (calls.append(measure) or (True, real, ""))
+        C.build = lambda cfg, name, measure=False, on_line=None, cancel=None: (calls.append(measure) or (True, real, ""))
         try:
             app.run_build(dict(app.cfg), "default")
             for _ in range(60):

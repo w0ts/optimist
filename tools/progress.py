@@ -8,8 +8,12 @@
 Nothing here touches a device or a toolchain."""
 import codecs
 import os
+import queue
 import re
+import signal
 import subprocess
+import threading
+import time
 
 # the stages of a build, in order (build.py prints one stage line before each; a measurement build stops after
 # the checks). The labels avoid the words the menu's output filter keeps (package, error, FAIL, over).
@@ -88,16 +92,34 @@ class FlashTracker:
         return self.top
 
 
-def stream(cmd, on_line=None, cwd=None, env=None):
+def stream(cmd, on_line=None, cwd=None, env=None, cancel=None):
     """run cmd (stderr merged into stdout) -> (exit code, the whole output). on_line(text) gets every line and every
     carriage-return update (ANSI codes stripped) as it arrives; an exception in it is ignored: progress is never
-    worth a failed build or flash. A program that cannot start is (127, the reason)"""
+    worth a failed build or flash. A program that cannot start is (127, the reason).
+    The run ends when the program ends, not when its pipe closes (a grandchild that outlives it, as a toolchain's
+    helper in a container, keeps the pipe open): the output is read for a moment more and left. It has no stdin (a
+    program that reads the terminal under a full-screen menu would stop there for good) and its own process group.
+    cancel: a threading.Event; set, the program is killed and the result is (130, the output so far + a note)"""
     try:
-        p = subprocess.Popen(cmd, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=0)
+        p = subprocess.Popen(cmd, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=0,
+                             stdin=subprocess.DEVNULL, **({"start_new_session": True} if os.name == "posix" else {}))
     except OSError as e:
         return 127, f"{cmd[0]}: {e}"
     dec = codecs.getincrementaldecoder("utf-8")(errors="replace")
     chunks, tail = [], ""
+    q = queue.Queue()
+
+    def reader():                                       # (a daemon thread: it may stay blocked on a leftover pipe)
+        fd = p.stdout.fileno()
+        try:
+            while True:
+                data = os.read(fd, 4096)
+                q.put(data)
+                if not data:
+                    return
+        except (OSError, ValueError):
+            q.put(b"")
+    threading.Thread(target=reader, daemon=True).start()
 
     def emit(segments):
         for seg in segments:
@@ -108,9 +130,25 @@ def stream(cmd, on_line=None, cwd=None, env=None):
                 except Exception:
                     pass
 
-    fd = p.stdout.fileno()
+    def kill():
+        try:
+            os.killpg(p.pid, signal.SIGKILL) if os.name == "posix" else p.kill()
+        except (OSError, ProcessLookupError):
+            pass
+    cancelled, grace = False, None
     while True:
-        data = os.read(fd, 4096)
+        try:
+            data = q.get(timeout=0.2)
+        except queue.Empty:
+            if cancel is not None and cancel.is_set():
+                cancelled = True
+                kill()
+                break
+            if p.poll() is not None:                    # (ended, its pipe still open: a little more output, then go)
+                grace = grace or time.monotonic() + 1.0
+                if time.monotonic() > grace:
+                    break
+            continue
         if not data:
             break
         text = dec.decode(data)
@@ -121,5 +159,45 @@ def stream(cmd, on_line=None, cwd=None, env=None):
     rest = dec.decode(b"", final=True)
     chunks.append(rest)
     emit(re.split(r"[\r\n]", tail + rest))
-    p.stdout.close()
+    try:
+        p.stdout.close()
+    except OSError:
+        pass
+    if cancelled:
+        p.wait()
+        return 130, "".join(chunks) + "\nbuild: cancelled"
     return p.wait(), "".join(chunks)
+
+
+# ---- the release build (fm1-base's build.py prints no stage lines): what it prints, as a label and a verdict
+NOISE_RE = re.compile(r"^\s*(warn|note)\b", re.I)
+OVERFLOW_RE = re.compile(r"region `(\w+)' overflowed by (\d+) bytes")
+ERROR_RE = re.compile(r"\b(error|failed|fail|undefined reference|cannot|no such file)\b", re.I)
+EXIT_RE = re.compile(r"^build: exit status (\d+)$", re.M)
+
+
+def build_label(line):
+    """one line of a build's output -> a short label for the bar (the line itself, trimmed), or None for noise"""
+    s = ANSI_RE.sub("", line).strip()
+    if not s or NOISE_RE.match(s):
+        return None
+    return s if len(s) <= 90 else s[:89] + "\u2026"
+
+
+def failure_reason(out):
+    """the output of a failed build -> one plain line: the linker's overflow ("does not fit: XIP overflowed by 9,836 B"),
+    else the last line that looks like an error, else the last line"""
+    text = ANSI_RE.sub("", out or "")
+    over = OVERFLOW_RE.findall(text)
+    if over:
+        return "does not fit: " + ", ".join(f"{r} overflowed by {int(n):,} B" for r, n in dict.fromkeys(over))
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip() and not NOISE_RE.match(ln) and not EXIT_RE.match(ln.strip())]
+    errs = [ln for ln in lines if ERROR_RE.search(ln)]
+    pick = (errs or lines or ["the build left no output"])[-1]
+    return pick if len(pick) <= 160 else pick[:159] + "\u2026"
+
+
+def exit_status(out):
+    """-> the exit status build() noted at the end of a failed build's output, or None"""
+    m = EXIT_RE.findall(out or "")
+    return int(m[-1]) if m else None
