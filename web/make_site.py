@@ -33,6 +33,11 @@ Usage:
   web/make_site.py --release-sims DIR                          "TAG SHA PROFILE" per package of the latest release in DIR
                                                                (CI builds their simulators from the tag's source)
   web/make_site.py --builder OUT_DIR                           only OUT_DIR/webapp/builder (no package needed)
+  web/make_site.py --release-site X.Y OUT_DIR PKG              only the release's own site, OUT_DIR (fm1-base's make_site on
+                                                               the app: install page with m-bootloader, manual, emulator; the
+                                                               front page, name, tagline and repo are fm1base/optimist's, the
+                                                               manual is built from docs/guide); PKG: the release build's package
+  --release-pkg PKG                                            with --local or --flavours: also that, in OUT_DIR/release/
 Each package names its own identity (Optimist FM-1_7xx, Felucca / SLOOP FM-1_9xx), read here from its bytes; once
 installed, the device reports the same name.
 """
@@ -415,8 +420,24 @@ def main(version, out, flavours=None, releases=None, sims=None):
     print(f"site: {out}: webapp/installer, webapp/editor, webapp/builder, " + ", ".join(f"firmware/{n}" for _, n in files))
 
 
+def release_site(version, out, pkg, emu=True):
+    """the release's own site (the release build: Optimist as an fm1-base app) into out: its front page, install page (the
+    package, m-bootloader offered after it), manual, emulator and package (tools/fm1base.py site)"""
+    sys.path.insert(0, str(HERE.parent / "tools"))
+    import fm1base
+    try:
+        print(fm1base.site(pkg, version, out, emu=emu))
+    except fm1base.FM1BaseError as e:
+        raise SystemExit(f"release site: {e}")
+
+
 if __name__ == "__main__":
     args = sys.argv[1:]
+    release_pkg = None
+    if "--release-pkg" in args:                 # (beside --local or --flavours: the release's site under OUT_DIR/release)
+        k = args.index("--release-pkg")
+        release_pkg = args[k + 1] if k + 1 < len(args) else sys.exit(__doc__)
+        del args[k:k + 2]
     if args[:1] == ["--builder"] and len(args) == 2:
         Path(args[1]).mkdir(parents=True, exist_ok=True)
         for f in ICONS:                             # (the page's icon links: ../../icon.svg ...)
@@ -430,5 +451,11 @@ if __name__ == "__main__":
         main(args[2], args[3], flavours_of(args[1]), releases_of(args[5], args[1]) if len(args) == 6 else None)
     elif args[:1] == ["--local"] and len(args) == 3:
         main(args[1], args[2])
+    elif args[:1] == ["--release-site"] and len(args) == 4:
+        release_site(args[1], args[2], args[3])
+        release_pkg = None
     else:
         sys.exit(__doc__)          # a usage error: the docstring is the usage
+    if release_pkg and args[:1] in (["--local"], ["--flavours"]):
+        version = args[1] if args[0] == "--local" else args[2]
+        release_site(version, str(Path(args[-1] if args[0] == "--local" else args[3]) / "release"), release_pkg)
