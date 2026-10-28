@@ -4208,45 +4208,92 @@ function dx7Init() {
    is no bank in the device to read or write: the user SAVEs AS on the device */
 const FM6 = { INIT: "INIT VOICE" };
 
-/* The CZ collection (nbank.c, cmd 66; FELUCCA_NATIVE_BANKS with CZ) and Casio CZ .syx files. After Melodee 0.12
-   (Kerem Kilic, github.com/keremimo/melodee: cz_patch.h, cz_bank.c, web/editor.html at v0.12), GPL-3.0-only.
-   A tone is the CZ-1's 144 bytes (Casio's MIDI layout, pp. 83-98): 128 synthesis bytes, the 16-byte name. On the wire
-   and in files every byte is two nibbles, low first. Files: F0 44 00 00 7n 20 pp <256 nibbles> F7 (a CZ-101 / 1000 /
-   3000 / 5000 tone, no name), F0 44 00 00 7n 21 pp <288 nibbles> F7 (a CZ-1 tone and name), the same without pp
-   (cmd 30); a bank is such messages one after another. Export: CZ-1 messages (the name kept), pp 60 (one tone) or
-   20 + slot (a bank). The slots play as TONE U01..U26 on a CZ track. */
-const CZ = { SLOTS: 26, KW1: [0, 31, 44, 57, 70, 83, 96, 111, 146, 255] };
+/* Casio CZ tones as SysEx: a clean-room implementation from Casio's "CZ-1 MIDI Specification" (timbre data,
+   SEND/RECEIVE REQUEST 1 and 2) and the CZ-101/1000/5000 MIDI data format. A tone is 144 bytes in the CZ-1's
+   layout: 128 bytes of CZ-101 timbre data (line 1 from byte 14, line 2 from byte 71, 57 bytes each), whose high
+   nibbles carry the CZ-1's DCA level (key follow byte) and velocities (end step bytes), then a 16-character name. */
+const CZ = {
+  SLOTS: 26,                                    /* the device's CZ collection */
+  /* DCW key follow 0..9 -> MWMV, CZ-1 timbre data (SEND/RECEIVE REQUEST 2) */
+  KW1: [0x00, 0x19, 0x33, 0x4E, 0x6A, 0x86, 0xA3, 0xC1, 0xDF, 0xFF],
+  TONE: 144, OLD: 128, NAME: 16,                /* CZ-1 tone, CZ-101 tone, name length (bytes) */
+  LINES: [14, 71],                              /* where each line's data starts: MFW / SFW */
+  KF_A: 2, KF_W: 4, END: [6, 23, 40],           /* from a line's start: DCA key follow, DCW key follow, DCA/DCW/DCO end step */
+  CASIO: [0x44, 0x00, 0x00],                    /* maker id and sub ids after F0 */
+  RECV1: 0x20, RECV2: 0x21, DUMP: 0x30,         /* RECEIVE REQUEST 1 / 2 (pp then data), the CZ's data reply (data) */
+  SOUND: 0x60, INTERNAL: 0x20,                  /* program: the sound area; the first internal tone of a bank */
+};
 const czSyx = {
-  /* Melodee cz_patch_valid: the bytes the CZ-1 can hold */
+  /* every byte in range: 144 bytes, line select / octave, detune, key follows 0..9, end steps 1..8, an ASCII name */
   valid(b) {
-    if (b.length !== 144 || (b[0] & 0xF0) || (b[0] >> 2) > 2 || b[1] > 1 || (b[2] & 3) || b[3] > 47) return false;
-    return [0, 57].every((o) => (b[16 + o] & 15) <= 9 && (b[16 + o] >> 4) <= 14 && b[18 + o] <= 9 && [20, 37, 54].every((j) => !(b[j + o] & 8)));
+    if (!b || b.length !== CZ.TONE) return false;
+    for (let i = 0; i < CZ.TONE; i++) if (!Number.isInteger(b[i]) || b[i] < 0 || b[i] > 255) return false;
+    if ((b[0] & 0xF0) || ((b[0] >> 2) & 3) === 3 || b[1] > 1 || (b[2] & 3) || b[3] > 47) return false;
+    for (const o of CZ.LINES) {
+      if ((b[o + CZ.KF_A] & 15) > 9 || (b[o + CZ.KF_A] >> 4) > 14 || b[o + CZ.KF_W] > 9) return false;   /* level 1..15 = E..0 */
+      if (CZ.END.some((e) => (b[o + e] & 15) > 7)) return false;
+    }
+    return true;
   },
-  name: (b) => String.fromCharCode(...b.slice(128, 144)).replace(/[^\x20-\x7E]/g, " ").trimEnd(),
-  /* every tone in a file's bytes -> [144-byte tones]; a CZ-101 tone gets the CZ-1's own bytes as Melodee's import does */
-  parse(d) {
-    const out = [];
-    for (let i = 0; i < d.length; i++) {
-      if (d[i] !== 0xF0 || d[i + 1] !== 0x44 || d[i + 2] || d[i + 3] || (d[i + 4] & 0xF0) !== 0x70) continue;
-      const c = d[i + 5], at = i + (c === 0x30 ? 6 : 7);
-      let e = at;
-      while (e < d.length && d[e] < 16) e++;
-      const n = (e - at) >> 1;
-      if (![0x20, 0x21, 0x30].includes(c) || d[e] !== 0xF7 || (n !== 128 && n !== 144) || e - at !== 2 * n) continue;
-      const b = Array.from({ length: 144 }, (_, k) => (k < n ? d[at + 2 * k] | (d[at + 2 * k + 1] << 4) : 32));
-      if (n === 128) for (const o of [0, 57]) {
-        b[16 + o] &= 15; b[19 + o] = CZ.KW1[b[18 + o] & 15] ?? 0;
-        for (const j of [20, 37, 54]) b[j + o] |= 0xF0;
-      }
-      if (czSyx.valid(b)) out.push(b);
-      i = e;
+  /* the tone's name: bytes outside printable ASCII shown as blanks, trailing blanks dropped ("" for none) */
+  name(b) {
+    if (!b || b.length < CZ.TONE) return "";
+    const chars = Array.from(b).slice(CZ.OLD, CZ.TONE).map((k) => (k >= 0x20 && k <= 0x7E ? k : 0x20));
+    return String.fromCharCode(...chars).replace(/ +$/, "");
+  },
+  /* a copy of tone b (128 or 144 bytes) with name nm as typed: cut to 16, padded with blanks, 7-bit ASCII (Casio: names are ASCII) */
+  named(b, nm) {
+    const chars = String(nm ?? "").slice(0, CZ.NAME).padEnd(CZ.NAME, " ");
+    const name = Array.from(chars, (c) => c.charCodeAt(0) & 0x7F);
+    return [...Array.from(b).slice(0, CZ.OLD), ...name];
+  },
+  /* RECEIVE REQUEST 2: F0 44 00 00 70 21 pp, the 144 bytes as nibbles (low first), F7 = 296 bytes */
+  message(b, pp = CZ.SOUND) {
+    const data = Array.from(b).slice(0, CZ.TONE).flatMap((v) => [v & 15, (v >> 4) & 15]);
+    return [0xF0, ...CZ.CASIO, 0x70, CZ.RECV2, pp & 0x7F, ...data, 0xF7];
+  },
+  /* the messages of every tone in a bank (null = empty slot), program 20 + slot */
+  bank(tones) {
+    return Array.from(tones ?? []).slice(0, CZ.SLOTS).flatMap((t, k) => (t ? czSyx.message(t, CZ.INTERNAL + k) : []));
+  },
+  /* a CZ-101/1000/5000 tone (128 bytes) as a CZ-1 would hold it: DCA level 15, velocities 0, the CZ-1's DCW
+     key follow values, a blank name */
+  fromOld(d) {
+    const t = czSyx.named(d, "");
+    for (const o of CZ.LINES) {
+      t[o + CZ.KF_A] &= 15;                                       /* level 15 is sent as 0 */
+      for (const e of CZ.END) t[o + e] = 0xF0 | (t[o + e] & 15);  /* velocity 0 is sent as F */
+      if (t[o + CZ.KF_W] <= 9) t[o + CZ.KF_W + 1] = CZ.KW1[t[o + CZ.KF_W]];
+    }
+    return t;
+  },
+  /* one SysEx message (F0..F7, no F0 inside) -> its tone, or null */
+  tone(m) {
+    if (m.length < 7 || CZ.CASIO.some((v, i) => m[1 + i] !== v) || (m[4] & 0xF0) !== 0x70) return null;
+    const cmd = m[5], from = cmd === CZ.DUMP ? 6 : cmd === CZ.RECV1 || cmd === CZ.RECV2 ? 7 : -1;
+    if (from < 0) return null;
+    const nib = m.slice(from, m.length - 1);
+    if ((nib.length !== 2 * CZ.TONE && nib.length !== 2 * CZ.OLD) || nib.some((v) => v > 15)) return null;
+    const d = [];
+    for (let i = 0; i < nib.length; i += 2) d.push(nib[i] | (nib[i + 1] << 4));
+    const t = d.length === CZ.OLD ? czSyx.fromOld(d) : d;
+    return czSyx.valid(t) ? t : null;
+  },
+  /* a .syx file's bytes -> the tones it carries, in order (other SysEx, cut messages and bad tones skipped) */
+  parse(bytes) {
+    const a = Array.from(bytes ?? []), out = [];
+    for (let i = 0; i < a.length; i++) {
+      if (a[i] !== 0xF0) continue;
+      let j = i + 1;
+      while (j < a.length && a[j] !== 0xF7 && a[j] !== 0xF0) j++;
+      if (j >= a.length) break;
+      if (a[j] === 0xF0) { i = j - 1; continue; }               /* cut: the next message starts here */
+      const t = czSyx.tone(a.slice(i, j + 1));
+      if (t) out.push(t);
+      i = j;
     }
     return out;
   },
-  message: (b, pp = 0x60) => [0xF0, 0x44, 0, 0, 0x70, 0x21, pp, ...b.flatMap((v) => [v & 15, v >> 4]), 0xF7],
-  bank: (tones) => tones.flatMap((b, k) => (b ? czSyx.message(b, 0x20 + k) : [])),
-  /* a tone named nm (16 characters, padded) */
-  named: (b, nm) => [...b.slice(0, 128), ...Array.from(String(nm).padEnd(16).slice(0, 16), (c) => c.charCodeAt(0) & 0x7F)],
 };
 /* the device's collection: [26 tones or null], one GET a slot (rq: FrameLink.request) */
 async function czRead(rq) {
