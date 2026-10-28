@@ -1671,6 +1671,7 @@ static void autosave_resume(void)              /* power-on: the project as it wa
 
 /* settings + learned panel table: one flash object. The flash copy wins at
  * boot (the .noinit copies are garbage after a power-off). */
+#include "../core/vufloor.h"                 /* VU FLOOR (kept in the settings record: rsv_pj[0]) */
 #include "settings_word.c"                 /* bp23_word / bp23_from_word: the settings word */
 #if BP23_SET
 /* the settings word changed by something that is no menu (a page, the editor): saved as the menu's are, at once when
@@ -1885,6 +1886,7 @@ static void persist_boot(void)                    /* before settings_init / pane
             open_proj = (uint8_t)(p.open_proj < PROJ_SLOTS ? p.open_proj : 0u);   /* (the open project: sections.c) */
 #endif
             persist_ofs_load(&p);
+            vu_floor_i = vuf_dec(p.rsv_pj[0]);       /* (VU FLOOR, core/vufloor.h: a record from before reads 0 = -60) */
             persist_saved = p;
         } else if (n == (int)(8u + sizeof(panel_t)) && p3.magic == 0x50455231u) {   /* "PER1": palette, panel */
             const uint32_t *w = (const uint32_t *)&p3;
@@ -1973,6 +1975,7 @@ static void settings_save(void)
     p.open_proj = open_proj;                       /* (the open project: sections.c; the chain above is a copy, the log's is read) */
 #endif
     persist_ofs_save(&p);
+    p.rsv_pj[0] = vuf_enc(vu_floor_i);             /* (VU FLOOR) */
 #if FELUCCA_FAVORITES
     persist_fav_save(&p);
 #endif
