@@ -23,7 +23,8 @@ const dbg = process.env.E2E_DEBUG ? (...a) => console.log("  .", ...a) : () => {
 const ok = (pass, label) => { console.log(`${label.padEnd(76)} ${pass ? "ok" : "FAIL"}`); if (!pass) failed++; };
 
 const html = readFileSync(new URL("./editor.html", import.meta.url), "utf8");
-const proto = html.slice(html.indexOf("/*PROTO-BEGIN*/"), html.indexOf("/*PROTO-END*/"));
+const [protoFrom, protoTo] = ["/*PROTO-BEGIN*/", "/*PROTO-END*/"].map((mark) => html.indexOf(mark));
+const proto = html.slice(protoFrom, protoTo);
 const E = vm.runInNewContext(`${proto}
 ;({ CMD, parse, req, Link, Comp, CP, cpBkList, cpBkCheckAll, cpBkWrite, cpBkCtl, cpSmpInfo, emuPorts, backupFile, readBackupFile,
    bkPlan, crc32, zipStore, zipEntries })`, { setTimeout, clearTimeout, setInterval, clearInterval, console, TextEncoder, TextDecoder });

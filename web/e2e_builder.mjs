@@ -13,10 +13,10 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync
 import { homedir } from "node:os";
 import { createServer } from "node:http";
 import { extname, join, normalize } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath as toFsPath } from "node:url";
 import { PYODIDE_VERSION } from "./builder/logic.js";
 
-const HERE = fileURLToPath(new URL(".", import.meta.url));
+const HERE = toFsPath(import.meta.url).replace(/[^/\\]*$/, "");
 
 /* downloads never reach ~/Downloads: Chrome saves them under the repo's work area, and the run asserts ~/Downloads got nothing new */
 const DL_HOME = join(homedir(), "Downloads"), DL_DIR = join(homedir(), "GitHub", "optimist-work", "e2e-downloads", String(process.pid));
@@ -35,7 +35,7 @@ const CHROMES = [process.env.CHROME, "/Applications/Google Chrome.app/Contents/M
   "/usr/bin/chromium", "/usr/bin/chromium-browser", "C:/Program Files/Google/Chrome/Application/chrome.exe"].filter(Boolean);
 const chrome = CHROMES.find((p) => existsSync(p));
 if (!chrome) { console.log("e2e: no Chrome found (CHROME=path)"); process.exit(0); }
-const PYTHON = process.env.PYTHON || (process.platform === "win32" ? "python" : "python3");
+const PYTHON = process.env.PYTHON || ["python3", "python"][Number(process.platform === "win32")];
 const py = (args, input) => execFileSync(PYTHON, args, { cwd: ROOT, input, maxBuffer: 1 << 28, encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] });
 let failed = 0;
 const ok = (c, what) => { console.log(`${what.padEnd(78)} ${c ? "ok" : "FAIL"}`); if (!c) failed++; };

@@ -42,7 +42,8 @@ Each package names its own identity (Optimist FM-1_7xx, Felucca / SLOOP FM-1_9xx
 installed, the device reports the same name.
 """
 import base64, glob, hashlib, json, os, re, shutil, subprocess, sys   # (stdlib only: CI runs it with a bare Python)
-from pathlib import Path
+import pathlib
+Path = pathlib.Path
 
 HERE = Path(os.path.realpath(__file__)).parent      # web/
 ID_MARKS = 20            # the identity: one character hidden in each of the first 20 blocks of the package
