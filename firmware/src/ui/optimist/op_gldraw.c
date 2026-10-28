@@ -130,8 +130,8 @@ static void gl_line_draw(uint32_t k, int32_t y, const cell_t *c, uint32_t on)
     }
 }
 /* SYSTEM's first page, INFO: not 4 lines but every read-out at once, compact: the name left, the value right, text
- * only, no bars (the clock, the load of each core, the battery). No knob
- * does anything here and no line is the cursor */
+ * only but the CPU lines' bars (gl_info_bar: the load now and its peaks; the clock, the load of each core, RAM, the battery). KNOB 1 sets
+ * the CPU lines' number (op_global.c info_knob); no line is the cursor */
 #define GL_INFO_PH 26                                   /* a read-out page's line pitch at most */
 static uint32_t gl_sys_item(void)                       /* SYSTEM's page shown is the one whose first line is this item (SI_NONE: not SYSTEM) */
 {
@@ -178,35 +178,54 @@ static void gl_cred_draw(int32_t y0)
     }
 }
 #define GL_INFO_BIG 40                                  /* a read-out page's pitch from which its values take the large face */
+#define GL_INFO_BGAP 4                                  /* a CPU line: its text, this gap, its bar (GL_BH) */
+#define GL_INFO_TK 2                                    /* ... the peak ticks: this wide, standing this far over and under the bar */
+/* a CPU line's bar under its text (op_project.c info_bar; the user, 2026-10-28): the screen's width as the settings' bars,
+ * filled to the load now in the load's colours, the dim tick at the 1 min peak, the bright one at the 10 s peak over it; the
+ * text never on it */
+static void gl_info_bar(int32_t by, const cell_t *c)
+{
+    int32_t span = c->gmax - c->gmin, k;
+    cell_t g = *c;
+    draw_gauge(GL_BX, by, GL_BW, GL_BH, &g, load_col(c->gv), C_LINE);
+    for (k = 1; k >= 0; k--) {
+        int32_t v = c->hold[k], x;
+        if (v <= 0 || span <= 0)
+            continue;
+        x = GL_BX + (v - c->gmin) * (GL_BW - GL_INFO_TK) / span;
+        cv_rect(x, by - GL_INFO_TK, GL_INFO_TK, GL_BH + 2 * GL_INFO_TK, k ? col_shade(load_col(v), 4u) : load_col(v));
+    }
+}
 static void gl_info_draw(int32_t y0)
 {
     uint32_t i, pg = gl_info() - 1u, n = info_lines(pg);
     int32_t ph = (GL_END - y0) / (int32_t)n, cap = ph >= GL_INFO_BIG ? gl_pitch() : GL_INFO_PH, ty, fy, uw, x;
-    char b[16], lv[14];
+    char b[20], lv[14];
     const char *nm;
     cell_t c;
     if (ph > cap)
         ph = cap;                                       /* (a short page: a list's pitch, from the top) */
     for (i = 0; i < n; i++) {
-        int32_t y = y0 + (int32_t)i * ph;
+        int32_t y = y0 + (int32_t)i * ph, tp;
         uint16_t vc;
         const felucca_font_t *f = &FONT_S;
         info_cell(pg, i, &c);
+        tp = c.pkbar ? ph - (GL_INFO_BGAP + GL_BH + GL_INFO_TK) : ph;   /* (the text's room: a CPU line's bar under it) */
         vc = c.col ? c.col : C_GRAY;
-        ty = fy = y + (ph - (int32_t)FONT_S.h) / 2;
+        ty = fy = y + (tp - (int32_t)FONT_S.h) / 2;
         uw = c.unit[0] ? text_ws(c.unit) : 0;
         nm = nm_card(c.label, 0, b, sizeof b);
         cut(lv, c.val, 13);
         if (ph >= GL_INFO_BIG && gl_big(nm, lv, uw, 0)) {   /* (few read-outs: the values large, as the settings' lines) */
             f = font_big();
-            fy = y + (ph - (int32_t)font_big()->h) / 2;
+            fy = y + (tp - (int32_t)font_big()->h) / 2;
             ty = fy + (int32_t)font_big()->h / 2 - 4;
         }
         if (f != &FONT_S && gl_big_nm(nm, lv, uw, 0)) {     /* (the name large too where both fit: one size on a row) */
             cv_text(6, fy, f, nm, C_WHITE);
         } else if (f != &FONT_S) {                      /* (else the whole row small, never a large value by a small name) */
             f = &FONT_S;
-            fy = ty = y + (ph - (int32_t)FONT_S.h) / 2;
+            fy = ty = y + (tp - (int32_t)FONT_S.h) / 2;
             cv_texts(6, ty, nm, C_GRAY);
         } else
             cv_texts(6, ty, nm, C_GRAY);
@@ -214,6 +233,8 @@ static void gl_info_draw(int32_t y0)
         cv_text(x, fy, f, lv, vc);
         if (uw)
             cv_texts(236 - uw, ty, c.unit, C_DIM);
+        if (c.pkbar)
+            gl_info_bar(fy + (int32_t)f->h + GL_INFO_BGAP, &c);
     }
 }
 static void gl_paint(void)
@@ -286,7 +307,7 @@ static void gl_draw(void)
     if (gl_info())
         for (i = 0; i < info_lines(gl_info() - 1u); i++) {   /* (the info pages: their read-outs) */
             info_cell(gl_info() - 1u, i, &c);
-            sig = hc(sig, &c);
+            sig = hu(hc(sig, &c), (uint32_t)(uint16_t)c.hold[0] << 16 ^ (uint16_t)c.hold[1] ^ (uint32_t)c.pkbar << 15);
         }
     if (sig == ui.sig[2])
         return;

@@ -269,6 +269,8 @@ static uint32_t healthy_since, main_m;
 static BOOT_ORDER void fm1_main(void)
 {
     MAIN_VARS
+    stk_boot();                                     /* the stacks below what is live marked: INFO's RAM line reads how deep they go
+                                                     * (system/stackmark.h; fm1_cstart's frame above, its boot decoder's 6.5 KB with it) */
     if (felucca_dbg.magic != DBG_MAGIC) {
         memset(&felucca_dbg, 0, sizeof felucca_dbg);
         felucca_dbg.magic = DBG_MAGIC;
