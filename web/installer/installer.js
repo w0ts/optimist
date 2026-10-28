@@ -95,7 +95,7 @@ export const TEXT = {
   noreturn: "The FM-1 did not come back after writing. Switch it off and on.",
   mismatch: "Written, but the FM-1 reports another firmware: ",
   rescueBack: "Written, but the FM-1 started in USB rescue: the new firmware did not start. Install again, or choose another package.",
-  foreign: "The FM-1 is in the update mode of another firmware. Finish that update with its own updater (M-UPGRADE), then press Install again: ",
+  foreign: "The FM-1 is waiting in another firmware's update mode. Complete that update with its own updater (M-UPGRADE), then click Install again:",
   badreq: "The FM-1 asked for data outside the package. Replug the cable and press Install again.",
   open: "This FM-1 runs M-VAVE's Open firmware, which takes only M-VAVE's own firmware: put the official firmware back first (step 4, Back to the official firmware V15), then install this. ",
   bootrefused: "The firmware is installed, but m-bootloader could not be: nothing else was changed.",
