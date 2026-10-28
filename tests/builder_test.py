@@ -950,7 +950,7 @@ if real.exists() and "dual_job:" in real.read_text():
     check(f"build.py CPU1 stack: the real DUAL build's ({d} B, {path[-1]}) within {BUILD.CPU1_STACK_ROOM} B",
           0 < d <= BUILD.CPU1_STACK_ROOM)
 
-# Wi-Fi (2026-10-28): WIFI_LINK (bit 434) needs BLE and the console, WIFI_AP (bit 435) is its option; FELUCCA_LINK follows
+# Wi-Fi (2026-10-28): WIFI_LINK (bit 434) needs BLE (and the console on the classic firmware), WIFI_AP (bit 435) is its option; FELUCCA_LINK follows
 # FELUCCA_WIFI; both off by default, target only (the host tests keep their own default)
 _wd = K.defaults()
 _wl = dict(_wd, BLE=1, USB_CONSOLE=1, WIFI_LINK=1)
@@ -968,7 +968,14 @@ check("Wi-Fi: with BLE and the console it is valid, FELUCCA_WIFI and FELUCCA_LIN
 check("Wi-Fi: WIFI_AP on sets FELUCCA_WIFI_AP; with Wi-Fi off its flag stays at the default 0",
       K.flags(dict(_wl, WIFI_AP=1))[0]["FELUCCA_WIFI_AP"] == 1 and
       K.flags(dict(_wd, WIFI_AP=1))[0]["FELUCCA_WIFI_AP"] == 0 and K.flags(_wd)[0]["FELUCCA_LINK"] == 0)
-check("Wi-Fi: without BLE or without the console the build is refused",
-      bool(K.validate(dict(_wl, BLE=0))[0]) and bool(K.validate(dict(_wl, USB_CONSOLE=0))[0]) and not K.validate(_wd)[0])
+_hook = K.CLASSIC_HOOK
+K.CLASSIC_HOOK = lambda: True
+_classic_no_con = bool(K.validate(dict(_wl, USB_CONSOLE=0))[0])
+K.CLASSIC_HOOK = lambda: False
+_release_no_con = not K.validate(dict(_wl, USB_CONSOLE=0))[0] and bool(K.validate(dict(_wl, BLE=0, USB_CONSOLE=0))[0])
+K.CLASSIC_HOOK = _hook
+check("Wi-Fi: without BLE the build is refused; without the console too on Optimist's own firmware, not in the release "
+      "(fm1-base's own Wi-Fi stack: no console)",
+      bool(K.validate(dict(_wl, BLE=0))[0]) and _classic_no_con and _release_no_con and not K.validate(_wd)[0])
 print("builder test " + ("FAILED" if fails else "passed"))
 sys.exit(1 if fails else 0)
