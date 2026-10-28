@@ -62,7 +62,8 @@ typedef struct {
 #define MX_FLASH 3u                                     /* frames the mute mode's key flashes full on a note (~50 ms) */
 static struct {
     uint8_t set;                                        /* the knob set shown (SELECT) */
-    uint8_t lit[DRUM_LANES];                            /* frames a lane's hit stays lit (falling) */
+    uint8_t across, an;                                 /* ACROSS on (SHIFT2 + HOME), its value n (SELECT): mx_across */
+    uint8_t lit[DRUM_LANES];                           /* frames a lane's hit stays lit (falling) */
     uint8_t tlit[NTRK];                                 /* frames a track's key flash stays (MX_FLASH): a note on, or one muted */
     uint8_t llit[DRUM_LANES];                           /* the same, a lane's: a hit, or one muted */
 } mx;
@@ -381,15 +382,58 @@ static uint32_t mx_set(uint32_t r)                      /* the set shown on row 
     uint32_t n = mx_sets(r);
     return mx.set < n ? mx.set : n - 1u;
 }
-static int mx_item(uint32_t r, uint32_t k, mitem_t *out)   /* row r's cell k in the set shown */
+/* ACROSS (SHIFT2 + HOME; the user, 2026-10-28, issue #97: "all 4 cards control the nth parameter of track 1/2/3/4"): the
+ * knobs are the four rows of the cursor's group, T1 T2 T3 DR, the lanes 1-4, 5-8, 9-10 + ACCENT, each on its value n (the
+ * row's items as its sets lay them out, so VOLUME and the inserts line up). SELECT steps n by one, ALGORITHM the groups;
+ * the label on the first card alone while the four share it. MASTER and USB IN as ever. On until SHIFT2 + HOME again (RAM) */
+static int mx_across(uint32_t r) { return mx.across && r >= MXR_T1 && r < MXR_LN; }
+static uint32_t mx_grp0(uint32_t r) { return r < MXR_LANE0 ? MXR_T1 : MXR_LANE0 + (r - MXR_LANE0) / 4u * 4u; }
+static uint32_t mx_grp_end(uint32_t r)                  /* past the group's last row */
+{
+    uint32_t e = r < MXR_LANE0 ? MXR_LANE0 : MXR_LN;
+    return mx_grp0(r) + 4u < e ? mx_grp0(r) + 4u : e;
+}
+static uint32_t mx_avals(uint32_t r)                    /* the group's values: its longest row's */
 {
     mitem_t it[MX_MAXI];
-    uint32_t n = mx_items(r, it), i = mx_set(r) * 4u + (k & 3u);
+    uint32_t g, n = 0, m;
+    for (g = mx_grp0(r); g < mx_grp_end(r); g++)
+        n = (m = mx_items(g, it)) > n ? m : n;
+    return n;
+}
+static uint32_t mx_an(uint32_t r)                       /* the value shown across (kept within the count) */
+{
+    uint32_t n = mx_avals(r);
+    return mx.an < n ? mx.an : n - 1u;
+}
+static void mx_across_flip(void)
+{
+    mx.across = (uint8_t)!mx.across;
+    mx.an = (uint8_t)(mx.set * 4u);                     /* (from the set shown: its first value) */
+    ui.hot = 0;
+    ui.hot_lit = 0;
+    ui_message(mx.across ? "MIX ACROSS" : "MIX BY ROW");
+    op_repaint();
+}
+/* row *r's cell k in the set shown; across, the group's row k's value n (*r: that row) */
+static int mx_item_at(uint32_t *r, uint32_t k, mitem_t *out)
+{
+    mitem_t it[MX_MAXI];
+    uint32_t n, i = mx_set(*r) * 4u + (k & 3u);
+    if (mx_across(*r)) {
+        uint32_t g = mx_grp0(*r) + (k & 3u);
+        if (g >= mx_grp_end(*r))
+            return 0;
+        i = mx_an(*r);
+        *r = g;
+    }
+    n = mx_items(*r, it);
     if (i >= n)
         return 0;
     *out = it[i];
     return out->kind != MI_NONE;
 }
+static int mx_item(uint32_t r, uint32_t k, mitem_t *out) { return mx_item_at(&r, k, out); }   /* (the row's cell k, as shown) */
 static const param_desc_t MX_LMUTE = PE("MUTE", N_ONOFF, 0);
 static int16_t mx_lmute_v;
 /* an item's descriptor and value on row r (0: none) */
@@ -490,6 +534,10 @@ static void mix_name(uint32_t r, char *b)
     mitem_t it[MX_MAXI];
     uint32_t g;
     r %= MXR_N;
+    if (mx_across(r)) {                                 /* (the group: its rows outlined on the panel, n/N the value) */
+        str_cpy(b, r < MXR_LANE0 ? "TRACKS" : "LANES", 12);
+        return;
+    }
     mx_items(r, it);
     g = it[mx_set(r) * 4u].grp;
     if (r == MXR_MASTER)                                /* (as the master FX's pages; the badge says MASTER) */
@@ -499,14 +547,45 @@ static void mix_name(uint32_t r, char *b)
         str_cpy(b, G[g & 7u], 12);
 }
 static int mx_is_vol(const mitem_t *m);
+static const char *mx_label(uint32_t r, uint32_t k)    /* card k's label as mix_cell gives it (0: an empty card) */
+{
+    mitem_t m;
+    int16_t *vp;
+    const param_desc_t *d;
+    if (!mx_item_at(&r, k, &m))
+        return 0;
+    d = mx_desc(r, &m, &vp);
+    return m.label ? m.label : d ? d->label : 0;
+}
+/* across: the first card with a value names it, the others only while the four share it (the user, 2026-10-28: "we display
+ * the name only on track 1 (if all track have the same param for the nth slot of course!)"); 1: card k's label hidden */
+static int mx_label_shared(uint32_t r, uint32_t k)
+{
+    const char *l, *first = 0;
+    uint32_t j;
+    if (!mx_across(r))
+        return 0;
+    for (j = 0; j < 4u; j++) {
+        if (!(l = mx_label(r, j)))
+            continue;
+        if (!first)
+            first = l;
+        else if (!str_eq(l, first))
+            return 0;
+        else if (j == k)
+            return 1;
+    }
+    return 0;
+}
 static void mix_cell(uint32_t r, uint32_t k, cell_t *c)
 {
     mitem_t m;
     int16_t *vp;
     const param_desc_t *d;
+    uint32_t r0;
     cell_clear(c);
-    r %= MXR_N;
-    if (!mx_item(r, k, &m))
+    r0 = r %= MXR_N;
+    if (!mx_item_at(&r, k, &m))
         return;
     switch (m.kind) {
     default:
@@ -526,12 +605,22 @@ static void mix_cell(uint32_t r, uint32_t k, cell_t *c)
     }
     if (m.label)
         c->label = m.label;
-    c->strike |= (uint8_t)(mx_is_vol(&m) && mx_snd_muted(r));   /* (a sound mute only: the sequencer mute leaves the volume alone) */
+    if (mx_across(r0) && c->vp) {                       /* across: the card's own copy (a lane's values share dsnd_desc's dsv,
+                                                         * the actual-value bar reads the selected one's: none here) */
+        static int16_t av[4];
+        av[k & 3u] = *c->vp;
+        c->vp = &av[k & 3u];
+    }
+    c->strike |=(uint8_t)(mx_is_vol(&m) && mx_snd_muted(r));   /* (a sound mute only: the sequencer mute leaves the volume alone) */
     c->strike |= (uint8_t)(m.kind == MI_RET && (fx_rmute >> (m.id - G_CRET) & 1u));   /* (a muted return's card) */
     if (m.kind == MI_ACC)
         c->hlp = "ACCENT LEVEL";
     if (m.kind == MI_RSND)
         c->hlp = "RET SEND";                            /* (a send between the returns: one line, whatever the target holds) */                        /* (op_help.c: its own line, the amount) */
+    if (mx_label_shared(r0, k)) {                       /* (the value alone, in its row's colour; the help line keeps its name) */
+        c->hlp = c->hlp ? c->hlp : c->label;
+        c->label = "";
+    }
     c->col = mx_col(r);
 }
 static void mx_lane_set(uint32_t l, uint32_t id, int32_t v)   /* lane l's value id (the offsets and the sends) */
@@ -546,7 +635,8 @@ static void mx_lane_set(uint32_t l, uint32_t id, int32_t v)   /* lane l's value 
 /* SHIFT (OCT- held: off, the shifts' language, 2026-10-16) on the volume card (VOLUME, a lane's LEVEL, the ACCENT lane's
  * amount, the USB input's VOLUME) or a return's card: its mute toggles, once per hold (the MUTE card is gone, 2026-10-14).
  * 1: the card is one of those (the turn is taken, nothing else changes; its reset is no gesture here) */
-static uint8_t mx_s2_done;                              /* toggled in this hold (ui_input clears it when OCT- is let go) */
+static uint32_t mx_s2_done;                             /* a bit a row (a return: 24 + its line) toggled in this hold (ui_input
+                                                         * clears it when OCT- is let go; across, each card's row once) */
 static int mx_is_vol(const mitem_t *m)                  /* the volume card: VOLUME, a lane's LEVEL, the ACCENT amount, the USB VOLUME */
 {
     return (m->kind == MI_TRK && m->id == P_LEVEL) || (m->kind == MI_GLOB && m->id == G_DRLVL) ||
@@ -576,9 +666,9 @@ static void mx_unmute(uint32_t r, const mitem_t *m)
 static int mx_ret_mute(const mitem_t *m)
 {
     uint32_t ln = (uint32_t)(m->id - G_CRET) % 3u;
-    if (mx_s2_done)
+    if (mx_s2_done >> (24u + ln) & 1u)
         return 1;
-    mx_s2_done = 1;
+    mx_s2_done |= 1u << (24u + ln);
     fx_rmute = (uint8_t)(fx_rmute ^ (1u << ln));
     ui_say(fxs_ret_label(ln), (fx_rmute >> ln & 1u) ? " MUTE" : " ON");
     return 1;
@@ -603,9 +693,9 @@ static int mx_mute_toggle(uint32_t r, const mitem_t *m)
         return mx_ret_mute(m);
     if (!mx_is_vol(m))
         return 0;
-    if (mx_s2_done)
+    if (mx_s2_done >> r & 1u)
         return 1;
-    mx_s2_done = 1;
+    mx_s2_done |= 1u << r;
     mx_say(r, mx_mute_flip(r) ? " SEQ MUTE" : " SEQ ON");
     return 1;
 }
@@ -615,7 +705,7 @@ static void mix_turn(uint32_t r, uint32_t k, int32_t s, int fine)
     int16_t *vp;
     const param_desc_t *d;
     r %= MXR_N;
-    if (!mx_item(r, k, &m))
+    if (!mx_item_at(&r, k, &m))
         return;
     if (btn_held(B_OCTDN) && mx_mute_toggle(r, &m))
         return;
@@ -719,10 +809,34 @@ static void mx_page(int32_t d)                         /* SELECT: the knob sets,
                                                          * GLOBAL since 2026-10-12: op_global.c) */
 {
     uint32_t n = mx_sets(mx_row()), s = mx_set(mx_row());
+    if (mx_across(mx_row())) {                          /* (across: the value n, one a detent) */
+        mx.an = (uint8_t)step_in(mx_an(mx_row()), d, mx_avals(mx_row()));
+        ui.hot = 0;
+        ui.hot_lit = 0;
+        return;
+    }
     s = (uint32_t)step_in(s, d, n);
     mx.set = (uint8_t)s;
     ui.hot = 0;
     ui.hot_lit = 0;
+}
+/* ALGORITHM across: s groups from row p (MASTER, the channels, the lanes by four, USB IN), each entered on its first row */
+static uint32_t mx_walk_across(uint32_t p, int32_t s)
+{
+    uint32_t q;
+    for (; s > 0; s--) {
+        q = mx_across(p) ? mx_grp_end(p) : p + 1u;
+        if (q >= MXR_N)
+            break;
+        p = q;
+    }
+    for (; s < 0; s++) {
+        q = mx_across(p) ? mx_grp0(p) : p;
+        if (q == MXR_MASTER)
+            break;
+        p = mx_across(q - 1u) ? mx_grp0(q - 1u) : q - 1u;
+    }
+    return p;
 }
 /* once a frame: the cursor follows the track selected elsewhere (ALGORITHM on another screen, the editor) and the
  * lane picked (HOME + a key); the lanes' hits (drums.c drums.hits, as SLOOP's kit pads take them) */
