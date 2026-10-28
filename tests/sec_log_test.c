@@ -158,6 +158,43 @@ static void foreign_ids(void)
           ok && same_as_model() && slg_has(30) && slg_has(3));
 }
 
+/* MIDI tracks' phase 0 (docs/MIDI-TRACKS-DESIGN.md 3): the ids 142..225 (64 MIDI patterns, 16 scenes' MIDI refs, 4
+ * working copies), as a later firmware writes them, read, counted and kept by this build, beside the sections and the
+ * synth patterns, across restarts and compactions */
+static void midi_ids(void)
+{
+    uint32_t i, k, n, ok = 1, e0, before;
+    int rc = 0;
+    log_reset();
+    check("the MIDI tracks' ids: 142..205 patterns, 206..221 the scenes' refs, 222..225 the working copies, SLG_IDS 226",
+          SLG_ID_MPAT0 == 142u && SLG_ID_MSCN0 == 206u && SLG_ID_MWORK0 == 222u && SLG_IDS == 226u);
+    for (i = SLG_ID_MPAT0; i < SLG_IDS && !rc; i++) {   /* every MIDI id: small records (the log's 28 KiB in mind) */
+        n = i < SLG_ID_MSCN0 ? 20u + rnd(70) : i < SLG_ID_MWORK0 ? 4u : 60u + rnd(120);
+        make(n, 11000 + i);
+        rc = put(i, n, 0);
+    }
+    for (i = 0; i < SEC_IDS && !rc; i += 3u) {         /* a few sections and synth patterns beside them */
+        make(400, 11300 + i);
+        rc = put(i, 400, 0);
+        make(120, 11400 + i);
+        rc |= put(SEC_ID_PAT0 + i, 120, 0);
+    }
+    before = slg_live_bytes();
+    slg_boot();
+    check("... a record at every MIDI id beside sections and patterns: all back after a restart, counted in the gauge",
+          !rc && same_as_model() && slg_live_bytes() == before);
+    for (k = 0, e0 = erases; k < 300u; k++) {           /* sections stored over and over: compactions move them all */
+        uint32_t id = rnd(SEC_IDS);
+        n = 200u + rnd(700);
+        make(n, 11500 + k);
+        rc = put(id, n, 1);
+        if (k % 13u == 0u)
+            slg_boot();
+        ok &= same_as_model() && rc != -1;
+    }
+    check("... 300 section stores after (compactions, restarts): every MIDI record kept, byte for byte", ok && erases > e0 + 10u);
+}
+
 /* codec B: the busy 64-step section (tests/sec_projects.h) as codec A wrote it and as codec B does: how many fit
  * (the reserve kept); 16 busy codec B sections and 16 pattern records, stores of the playing one cut at a random
  * program (compactions in them): each section decodes to its project after every restart */
@@ -279,6 +316,183 @@ static uint32_t pcount(uint32_t proj, uint32_t id)
         }
     }
     return n;
+}
+/* ---- a later firmware's ids (past SLG_IDS: 226..255) in format 2: never indexed here, kept byte for byte */
+/* the newest valid record of (proj, id) in the whole area, read from the flash as it is: its length (0 a clear, -1
+ * none), its bytes -> b, its head -> *ho */
+static int fnewest(uint32_t proj, uint32_t id, uint8_t *b, sec_rhead_t *ho, uint32_t *off)
+{
+    uint32_t s, p, best = 0;
+    int n = -1;
+    for (s = 0; s < SEC_LOG_SECTORS; s++) {
+        sec_shead_t sh;
+        memcpy(&sh, nor + slg_off(s), sizeof sh);
+        if (sh.magic != SEC_MAGIC || sh.hcrc != st_crc32(&sh, 12))
+            continue;
+        for (p = SEC_HEAD; p + SEC_HEAD <= SEC_SECT;) {
+            sec_rhead_t h;
+            memcpy(&h, nor + slg_off(s) + p, sizeof h);
+            if (h.magic != SEC_RMAGIC || h.len > SEC_REC_MAX || p + SEC_HEAD + h.len > SEC_SECT)
+                break;
+            if (h.state == 0x00u && h.proj == proj && h.id == id && (!best || h.seq > ho->seq) &&
+                slg_rcrc(&h, nor + slg_off(s) + p + SEC_HEAD) == h.crc) {
+                best = slg_off(s) + p, *ho = h, n = h.len;
+                if (b)
+                    memcpy(b, nor + best + SEC_HEAD, h.len);
+            }
+            p += SEC_ALIGN(SEC_HEAD + h.len);
+        }
+    }
+    if (off)
+        *off = best;
+    return n;
+}
+/* a later firmware's record of (proj, id), n bytes (0: a clear), written as that firmware writes it: room first (this
+ * build's compaction: it must keep what is there), the record, then its key's older record marked dead (mark 0: that
+ * mark cut). The index read again (a restart) */
+static uint32_t put_future(uint32_t id, uint32_t proj, const uint8_t *b, uint32_t n, int mark)
+{
+    sec_rhead_t h, o;
+    uint32_t off, old = 0, done = 0;
+    if (slg_make_room(SEC_ALIGN(SEC_HEAD + n), SLG_IDS))
+        return 0;
+    (void)fnewest(proj, id, 0, &o, &old);
+    off = slg_off(slg.head) + slg.fill;
+    h.magic = SEC_RMAGIC, h.id = (uint8_t)id, h.state = 0xFFu, h.seq = slg.seq++, h.len = (uint16_t)n, h.proj = (uint8_t)proj;
+    h.dead = 0xFFu;
+    h.crc = slg_rcrc(&h, b);
+    st_prog(off, &h, sizeof h);
+    if (n)
+        st_prog(off + SEC_HEAD, b, n);
+    st_prog(off + 3u, &done, 1);
+    if (old && mark)
+        st_prog(old + 11u, &done, 1);
+    slg_boot();
+    return off;
+}
+static uint32_t plive(uint32_t proj, uint32_t id)     /* (proj, id)'s records with bytes, not marked dead */
+{
+    uint32_t s, p, n = 0;
+    for (s = 0; s < SEC_LOG_SECTORS; s++) {
+        sec_shead_t sh;
+        memcpy(&sh, nor + slg_off(s), sizeof sh);
+        if (sh.magic != SEC_MAGIC)
+            continue;
+        for (p = SEC_HEAD; p + SEC_HEAD <= SEC_SECT;) {
+            sec_rhead_t h;
+            memcpy(&h, nor + slg_off(s) + p, sizeof h);
+            if (h.magic != SEC_RMAGIC || h.len > SEC_REC_MAX)
+                break;
+            n += h.state == 0x00u && h.dead == 0xFFu && h.len && h.proj == proj && h.id == id;
+            p += SEC_ALIGN(SEC_HEAD + h.len);
+        }
+    }
+    return n;
+}
+#define FK 40u
+static struct { uint32_t id, proj, seq; int len; uint8_t b[200]; } fut[FK];   /* what each later firmware's key holds */
+static int fut_same(void)                              /* every key's newest record in the flash as fut says, byte for byte */
+{
+    uint32_t k;
+    sec_rhead_t h;
+    for (k = 0; k < FK; k++) {
+        int n = fnewest(fut[k].proj, fut[k].id, got, &h, 0);
+        if (fut[k].len <= 0 ? n > 0 : n != fut[k].len || h.seq != fut[k].seq || memcmp(got, fut[k].b, (uint32_t)n))
+            return 0;
+    }
+    return 1;
+}
+static void future_ids(void)
+{
+    uint32_t k, n, i, ok = 1, e0, cuts = 0, l0, l1, fb = 0;
+    int rc;
+    memset(nor, 0xFF, sizeof nor);
+    memset(pmlen, 0, sizeof pmlen);
+    slg_boot();
+    for (i = 0; i < 6u; i++) {                          /* sections of both projects */
+        make(500, 12000 + i);
+        ok &= pput(i & 1u, i, 500, 0) == 0;
+    }
+    slg_open_proj(PJ[0]);
+    l0 = slg_live_bytes();
+    for (k = 0; k < FK; k++) {                          /* 30 ids of project PJ[0], 5 of PJ[1], 5 device-wide */
+        fut[k].id = k < 30u ? SLG_IDS + k : SLG_IDS + 2u * (k % 5u) + (k >= 35u);
+        fut[k].proj = k < 30u ? PJ[0] : k < 35u ? PJ[1] : 0xFFu;
+        fut[k].len = (int)(1u + rnd(199));
+        make((uint32_t)fut[k].len, 12100 + k);
+        memcpy(fut[k].b, data, (uint32_t)fut[k].len);
+        fut[k].seq = slg.seq;
+        ok &= put_future(fut[k].id, fut[k].proj, data, (uint32_t)fut[k].len, 1) != 0;
+        fb += SEC_ALIGN(SEC_HEAD + (uint32_t)fut[k].len);
+    }
+    l1 = slg_live_bytes();
+    check("a later firmware's ids (226..255; two projects, device-wide): written, then a restart: each there, counted in the gauge",
+          ok && fut_same() && l1 == l0 + fb && psame(0) && psame(1));
+    for (k = 0; k < 16u; k++) {                         /* newer versions and clears, as that firmware writes them */
+        uint32_t j = k * 2u + 1u;
+        n = k < 10u ? 1u + rnd(199) : 0u;
+        make(n, 12200 + k);
+        fut[j].seq = slg.seq;
+        ok &= put_future(fut[j].id, fut[j].proj, data, n, k % 3u != 0u) != 0;   /* (every third dead mark cut) */
+        fut[j].len = (int)n;
+        memcpy(fut[j].b, data, n);
+    }
+    check("... newer versions and clears of 16 of them (a third of their dead marks cut): the newest of each as written",
+          ok && fut_same());
+    for (k = 0, e0 = erases; k < 500u; k++) {           /* this build: stores in both projects, cut at random, restarts */
+        uint32_t j = rnd(2), id = rnd(SEC_IDS), p0;
+        n = 200u + rnd(900);
+        make(n, 12300 + k);
+        if (slg.proj != PJ[j])
+            slg_open_proj(PJ[j]);
+        p0 = progs;
+        fail_after = rnd(4) ? -1 : (int)rnd(30);
+        rc = slg_put(id, data, n, 1);
+        fail_after = -1;
+        if (rc == 1)
+            rc = slg_put(id, data, 0, 1), n = 0;
+        if (rc == 0)
+            memcpy(pmodel[j][id], data, n), pmlen[j][id] = n;
+        cuts += rc != 0 && progs > p0;
+        if (k % 7u == 0u || rc != 0)
+            slg_boot();
+        ok &= fut_same() && psame(j) && psame(1u - j);
+    }
+    printf("later firmware's ids: %u compactions' erases, %u cut writes\n", erases - e0, cuts);
+    check("... 500 stores of this build's (compactions, cuts, restarts): every later firmware's record byte for byte (id, project, sequence, bytes), no clear undone, no older version back",
+          ok && erases > e0 + 20u && cuts > 20u);
+    for (k = 1, ok = 1; k < FK; k += 2u)                /* superseded: at most one live record each (the newest) */
+        ok &= pcount(fut[k].proj, fut[k].id) <= 1u;
+    check("... the superseded versions all gone (each key at most its newest record live)", ok);
+    {   /* a project's clear (sections.c proj_tomb) and copy (proj_copy) of those ids: slg_unk_clear, slg_unk_copy */
+        sec_rhead_t h;
+        ok = slg_unk_copy(PJ[0], 9u) == 0;
+        for (k = 0; k < 30u; k++) {
+            int c = fnewest(9u, fut[k].id, got, &h, 0);
+            ok &= fut[k].len > 0 ? c == fut[k].len && !memcmp(got, fut[k].b, (uint32_t)c) : c < 0;
+        }
+        check("slg_unk_copy: project PJ[0]'s later firmware's records into project 9, bytes as they are, the clears not copied",
+              ok && fut_same());
+        ok = slg_unk_clear(PJ[0]) == 0;
+        slg_boot();
+        for (k = 0; k < 30u; k++)
+            ok &= fnewest(PJ[0], fut[k].id, 0, &h, 0) <= 0 && plive(PJ[0], fut[k].id) == 0u;
+        for (k = 30u; k < FK; k++)
+            ok &= fut[k].len <= 0 || fnewest(fut[k].proj, fut[k].id, got, &h, 0) == fut[k].len;
+        check("slg_unk_clear: project PJ[0]'s later firmware's ids cleared (a clear each, the older marked dead), the others' kept",
+              ok && psame(0) && psame(1));
+        for (k = 0, ok = 1; k < 200u; k++) {            /* compactions after: nothing cleared comes back */
+            make(1000, 12900 + k);
+            rc = pput(k & 1u, rnd(SEC_IDS), 1000, 0);
+            ok &= rc != -1;
+        }
+        slg_boot();
+        for (k = 0; k < 30u; k++) {
+            int c = fnewest(9u, fut[k].id, got, &h, 0);
+            ok &= fnewest(PJ[0], fut[k].id, 0, &h, 0) <= 0 && (fut[k].len > 0 ? c == fut[k].len && !memcmp(got, fut[k].b, (uint32_t)c) : c < 0);
+        }
+        check("... 200 stores after (compactions): the cleared stay cleared, project 9's copies kept", ok && psame(0) && psame(1));
+    }
 }
 static void scoped_log(void)
 {
@@ -431,7 +645,7 @@ int main(void)
             slg_boot();
         ok &= same_as_model();
     }
-    check("400 writes over the 88 ids (sections, songs, patterns; compaction, restarts): each as last written", ok && erases > comp0);
+    check("400 writes over the 226 ids (sections, songs, patterns, MIDI; compaction, restarts): each as last written", ok && erases > comp0);
     /* a write cut at every program, with compaction in it: the old version stays */
     for (k = 0; k < 400u && cut_ok; k++) {
         static uint8_t snap[SEC_LOG_SECTORS * SEC_SECT];
@@ -535,9 +749,11 @@ int main(void)
     printf("log: %u sectors of 4 KiB, room %u B (a raw section %u B kept in reserve); 500-byte sections: %u fit\n",
            SEC_LOG_SECTORS, SEC_ROOM, SEC_REC_MAX, slg_more(500));
     foreign_ids();
+    midi_ids();
     busy_sections();
 #if SLG_V2
     scoped_log();
+    future_ids();
 #endif
     printf("sec log test %s\n", bad ? "FAILED" : "passed");
     return bad != 0;

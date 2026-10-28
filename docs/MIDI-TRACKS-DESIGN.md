@@ -1,6 +1,6 @@
 # MIDI tracks (design, evaluation, 2026-10-28)
 
-Nothing here is built. This page sets out what it would take to add **4 MIDI-only tracks** (M1..M4) to the release in
+Only phase 0 is built (section 3: the log ids kept). This page sets out what it would take to add **4 MIDI-only tracks** (M1..M4) to the release in
 **LAYOUT 1** only: the SD card mode and the reduced user flash mode (fm1-base's app slot up to 0xCE000, one project
 in flash). A MIDI track has no sound engine. It sequences external gear over MIDI, as a mono, poly or drum track.
 The aim is to give the user enough to decide. **M** = measured (how is given), **E** = estimated.
@@ -65,6 +65,18 @@ get around the id problem either: its stream uses the same u8 ids.
   launch. This takes them out of the log, but it needs card I/O while playing and does not exist without the card.
   Not recommended for phase 1.
 
+**Phase 0 as built (2026-10-28, host-tested only, not on an FM-1).** `sec_log.c`: `SLG_IDS` 226, the ids named
+`SLG_ID_MPAT0` 142 (142 + 16 x M + slot), `SLG_ID_MSCN0` 206 (206 + scene), `SLG_ID_MWORK0` 222 (222 + M); nothing writes
+them yet. They are indexed, counted in the gauge, kept by compaction, streamed by a card SAVE and the PJ backup, and
+restored from both. An id past 225 (a firmware after this one's) is never indexed. In format 2 it is counted with the
+other projects' records and copied through by a compaction unchanged (id, project, sequence number, bytes; one that a
+newer record of its key supersedes is not copied). A project's DELETE writes it a tombstone and marks the older records
+dead, and a save as copies it. Format 1 still drops it (no build with MIDI tracks writes format 1). `sdm_feed` skips a
+record of such an id and loads the rest; a broken length is still a LOAD ERROR. The editor's PJ restore takes 142..225
+as they are and skips the ids past them. Tests: `sec_log_test` (both formats), `project_scope_test`, the SD card UI test,
+`snapshots_test projects`, and `sec_log_compat_test`, which runs the previous loader (`tests/compat/sec_log_142.c`,
+fm1-next's) on this build's logs and this build on its logs (golden: `tests/sec_log_compat_golden.txt`).
+
 ## 4. UI pages (Optimist UI)
 
 | Where | What changes |
@@ -124,7 +136,7 @@ have.
 
 | Phase | What | Effort (E) |
 |---|---|---|
-| 0 | `SLG_IDS` 226 indexed and kept, `sdm_feed` / restore skip unknown ids. Ships alone, first | 0.5 day |
+| 0 | `SLG_IDS` 226 indexed and kept, `sdm_feed` / restore skip unknown ids. Ships alone, first. **Built (branch fm1-next-mt0, host-tested, see below)** | 0.5 day |
 | 1 | `seqc_t` core shared by `track_t` and `mtrk_t`; the goldens identical | 2..3 days |
 | 2 | M1..M4 play: `events_block` ticks them; channel, mode, range, drum map, VEL, mute; note-off bookkeeping rows 4..7 | 1 day |
 | 3 | UI: selection, MIDI page, step page, mixer rows, SONG columns | 2..3 days |
@@ -136,15 +148,19 @@ In all, about 9..11 days for phases 0..5.
 
 ## 9. Open questions for the user
 
+Questions 2, 4 and 7 are answered (marked below); the rest are open.
+
 1. Only LAYOUT 1 (with and without the card), or the normal layout too later?
 2. DRUM mode: one channel per track with a note per lane, or a channel per lane? Is the ACCENT lane a velocity boost,
-   as on DR?
+   as on DR? **Answered (the user, 2026-10-28): one channel, a note per lane (a drum map).** The ACCENT lane is still open.
 3. POLY: are 4 notes a step (the synth tracks' limit) enough?
 4. Pattern slots per MIDI track: 16 as the synth tracks, or 8 to save log room (32 ids, about half the bytes)?
+   **Answered (the user, 2026-10-28): 16 slots a track** (64 pattern ids, 142..205).
 5. Live recording into M tracks (panel keys, MIDI IN) in the first version, or later?
 6. Locks, chance, conditions, generators, CC lanes on M tracks: first version or later?
 7. Do M tracks always send, or only when MIDI OUT is SEQ / BOTH? Which outputs: every MIDI OUT (USB, BLE), or one
-   picked per track?
+   picked per track? **Answered (the user, 2026-10-28): M tracks send to the USB device, TRS out, Bluetooth MIDI and
+   USB host.** Whether they depend on MIDI OUT = SEQ / BOTH is still open.
 8. With an M track selected, do the panel keys play the external gear live on its channel?
 9. Arp on M tracks?
 10. Program change (and bank) per pattern or per scene?
