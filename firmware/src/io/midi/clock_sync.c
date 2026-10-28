@@ -139,11 +139,19 @@ static int32_t sync_lead_t(void)                           /* the offset now: th
 #ifndef FELUCCA_LINK
 #define FELUCCA_LINK 0                                     /* (params.c: LINK offered only in builds with it) */
 #endif
-#if FELUCCA_LINK
-#define SY_SRC_LAST MSRC_LINK                              /* the last source sync_select looks at */
+#ifndef FELUCCA_USB_HOST
+#define FELUCCA_USB_HOST 0                                 /* the USB MIDI host (the release: fm1-base's; MSRC_USBH) */
+#endif
+#if FELUCCA_USB_HOST
+#define SY_SRC_LAST MSRC_USBH                              /* the last source sync_select looks at */
+#elif FELUCCA_LINK
+#define SY_SRC_LAST MSRC_LINK
 #else
 #define SY_SRC_LAST MSRC_BLE
 #endif
+/* a USB host's device (MSRC_USBH) is the USB port's clock: SYNC USB follows it, AUTO ranks it as USB, CLK shows USB */
+#define SY_USB(s) ((s) == MSRC_USB || (FELUCCA_USB_HOST && (s) == MSRC_USBH))
+#define SY_SHOWN(s) (FELUCCA_USB_HOST && (s) == MSRC_USBH ? (uint32_t)MSRC_USB : (uint32_t)(s))
 static struct { uint32_t last, dt; uint8_t cnt; } sy_pr[SY_SRC_LAST + 1];   /* per source (MSRC_*): presence */
 
 static uint32_t sy_div(uint64_t n, uint32_t d)            /* n / d (no 64-bit division in the runtime) */
@@ -193,7 +201,7 @@ static int sy_present(uint32_t s, uint32_t now)
 static uint32_t sy_allowed(uint32_t s)
 {
     uint32_t m = (uint32_t)song.g[G_SYNC];
-    return m == SYNC_AUTO || (m == SYNC_USB && s == MSRC_USB) || (m == SYNC_TRS && s == MSRC_TRS) ||
+    return m == SYNC_AUTO || (m == SYNC_USB && SY_USB(s)) || (m == SYNC_TRS && s == MSRC_TRS) ||
 #if FELUCCA_LINK
            (m == SYNC_LINK && s == MSRC_LINK) ||
 #endif
@@ -207,13 +215,13 @@ static uint32_t sy_rank(uint32_t s)
 {
     if (s == MSRC_LINK) return 5u;
     if (s == MSRC_TRS) return 4u;
-    if (s == MSRC_USB) return 3u;
+    if (SY_USB(s)) return 3u;
     if (s == MSRC_BLE) return 1u;
     return 0u;
 }
 #else
 /* AUTO's preference: TRS 3, USB 2, BLE 1 (the most jitter last), none 0 */
-static uint32_t sy_rank(uint32_t s) { return s == MSRC_BLE ? 1u : s; }
+static uint32_t sy_rank(uint32_t s) { return s == MSRC_BLE ? 1u : SY_USB(s) ? (uint32_t)MSRC_USB : s; }
 #endif
 
 static void sy_follow_src(uint32_t s)                     /* a new source: its clock from scratch */
@@ -235,8 +243,8 @@ static void sync_select(uint32_t now)
         else
             sy_follow_src(0);
     }
-    if (song.g[G_MIDI] != sy.src)
-        song.g[G_MIDI] = (int16_t)sy.src;                  /* (read-only: the source shown, the editor) */
+    if (song.g[G_MIDI] != (int16_t)SY_SHOWN(sy.src))
+        song.g[G_MIDI] = (int16_t)SY_SHOWN(sy.src);        /* (read-only: the source shown, the editor) */
     if (song.playing || sy.arm)
         return;
     for (s = MSRC_USB; s <= SY_SRC_LAST; s++)
@@ -244,8 +252,8 @@ static void sync_select(uint32_t now)
             best = s;
     if (best != sy.src)
         sy_follow_src(best);
-    if (song.g[G_MIDI] != sy.src)
-        song.g[G_MIDI] = (int16_t)sy.src;                  /* (read-only: the source shown, the editor) */
+    if (song.g[G_MIDI] != (int16_t)SY_SHOWN(sy.src))
+        song.g[G_MIDI] = (int16_t)SY_SHOWN(sy.src);        /* (read-only: the source shown, the editor) */
 }
 
 /* an F8 of the source followed */
