@@ -60,6 +60,10 @@ void fm1_timer5_irq(void)
     if (sub % 5u == 4u)
         ble_midi_poll();                        /* 2 kHz: BLE MIDI in -> the router (midi_ble.c) */
 #endif
+#if FELUCCA_WIFI && FELUCCA_CDC && BLE_HW_WL82
+    if (sub % 5u == 3u)
+        wl_midi_poll();                         /* 2 kHz: Link's clock ticks whose time has come -> the router (wifi/wifi_link.c) */
+#endif
 #if FELUCCA_BRIGHT
     fm1_lcd_bl_tick(BL_DUTY[bl_dim & 7u]);      /* MENU > BRIGHT: the backlight PWM (bright.c) */
 #endif
@@ -517,6 +521,13 @@ static BOOT_ORDER void fm1_main(void)
         }
 #if FELUCCA_CDC
         cdc_task();
+#if FELUCCA_WIFI && BLE_HW_WL82
+        wc_poll();                                      /* the Wi-Fi manager: a step a pass (wifi/wifi_conn.c) */
+#if FELUCCA_WIFI_AP
+        wa_poll();                                      /* MODE AP: beacons, the clients' handshakes (wifi/wifi_apd.c) */
+#endif
+        wl_poll();                                      /* Wi-Fi + Link, once a pass (wifi/wifi_link.c; wifilink starts it) */
+#endif
 #endif
 #if FELUCCA_BT_AUDIO
         bti_poll();                                     /* the Classic probe's 1a at boot, its prints (bt/bt_inq.c) */

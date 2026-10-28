@@ -1860,6 +1860,10 @@ static void persist_boot(void)                    /* before settings_init / pane
             _Static_assert(sizeof p.bt_kept == BT_KEPT_SIZE, "the record's remembered audio devices: their size");
             bt_kept_in(p.bt_kept);                 /* the other remembered audio devices, their keys (op_bt.c) */
 #endif
+#if FELUCCA_WIFI
+            _Static_assert(sizeof p.wifi_nets == WN_STORE_SIZE, "the record's saved Wi-Fi networks: their size");
+            wifi_nets_in(p.wifi_nets);             /* the saved Wi-Fi networks (wifi/wifi_saved.c) */
+#endif
 #if FELUCCA_DUAL && FELUCCA_DUALCFG
             if (p.dualcfg.magic == DUALCFG_MAGIC)
                 dualcfg = p.dualcfg;               /* (else the defaults: dualcfg_boot) */
@@ -1981,6 +1985,9 @@ static void settings_save(void)
 #if FELUCCA_BT_AUDIO
     bt_key_out(p.bt_key);
     bt_kept_out(p.bt_kept);
+#endif
+#if FELUCCA_WIFI
+    wifi_nets_out(p.wifi_nets);                    /* (a build without Wi-Fi keeps the field as read: p = persist_saved) */
 #endif
 #if FELUCCA_DUAL && FELUCCA_DUALCFG
     p.dualcfg = dualcfg;

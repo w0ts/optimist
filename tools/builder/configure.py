@@ -284,6 +284,9 @@ def classic():
     return CLASSIC or os.environ.get("OPTIMIST_CLASSIC") == "1"
 
 
+K.CLASSIC_HOOK = classic                          # (the core's rules for the firmware built: Wi-Fi's console)
+
+
 def exact_file():
     return EXACT if classic() else EXACT_RELEASE
 

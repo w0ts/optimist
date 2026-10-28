@@ -55,7 +55,7 @@ const E = vm.runInNewContext(`${proto}
    openMidi, findPorts, wantsReconnect, syncState, ROLL, rollRest, rollNotes, noteSpan, rollAdd, rollRemove, rollToggle, rollSetLength, rollSetNote, rollSetStep, rollChanged, rollGrid, rollLen, DRUM_PAGE, drumPages, drumPageRange, COLORS, engineColor, kindColor, contrast, textOn, MASTER_FX, MASTER_BUS, fxInline, FX_INLINE_MAX, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth, KEYS, KEY_FIXED, LANE_KEYS, keyFor, keyLabel, keyPlan, stepxBuilt, PAT, patSlotView, patUsers,
    PATREC, patRecParse, patRecBuild, patRawEmpty, patStepFrom, patStepRaw, patDrumFrom, patDrumRaw, patReadAll, patWriteAll,
    FXT, FXT_NAMES, fxsLoad, fxType, fxSlotAmt, readFx, keptIds, AUTO, autoLane, SetGate,
-   FXP, FXP_TABLE, SCRN_TABLE, SCRS_TABLE, EQ_FL_HZ, EQ_FH_HZ, fxpClass, fxpName, fxpTypeName, fxpAllows, fxpFmt, readFxpOwner, readFxpSlot, panelKey, panelKeyName, navParse, navTracksParse, navKnobs, navKnobAt, MNAV })`,
+   FXP, FXP_TABLE, SCRN_TABLE, SCRS_TABLE, EQ_FL_HZ, EQ_FH_HZ, fxpClass, fxpName, fxpTypeName, fxpAllows, fxpFmt, readFxpOwner, readFxpSlot, panelKey, panelKeyName, navParse, navTracksParse, navKnobs, navKnobAt, MNAV, WIFI, wifiCheck, wifiApCheck, wifiBusy, wifiText, pack7, unpack7 })`,
 { setTimeout, clearTimeout, setInterval, clearInterval, console, TextEncoder, TextDecoder });
 
 const editorMock = async () => {
@@ -1527,6 +1527,180 @@ async function editorV14() {
   done();
 }
 
+/* ------------------------------------------------ the Wi-Fi networks (cmd 112; ed_wifi.c, INFO tag 67 opti_wifi_1) --- */
+async function editorWifi() {
+  const C = E.CMD, W = E.WIFI, enc = (x) => new TextEncoder().encode(x);
+  ok(C.WIFI === 112 && W.UP === 8 && W.FAIL === 9 && W.SLOTS === 4, "wifi: command 112; the manager's states as the firmware numbers them");
+  /* a firmware without it: no tag, no answer, nothing offered */
+  let h = attachMock({});
+  let info = E.parse[C.INFO](await h.rq(E.req.info()));
+  ok(!(info.opti && info.opti.opti_wifi) && await h.rq(E.req.wifiState(), { timeout: 60, retries: 0, quiet: true }).then(() => false, () => true), "wifi: a firmware without opti_wifi_1 does not answer 112");
+  h.done();
+  h = attachMock({ wifi: true });
+  const { rq } = h;
+  info = E.parse[C.INFO](await rq(E.req.info()));
+  ok(info.opti && info.opti.opti_wifi === 1, "wifi: INFO tag 67 lists opti_wifi_1");
+  let s = E.parse[C.WIFI](await rq(E.req.wifiState()));
+  ok(s.op === 0 && s.mode === 2 && s.st === W.IDLE && s.fail === 0 && s.ip === 0 && s.nets.length === 1 && s.nets[0].text === "HOME" && s.nets[0].slot === 0 && s.cur.len === 0,
+    "wifi: STATE: mode MAN, idle, one saved network HOME, nothing in hand");
+  /* MODE */
+  let r = E.parse[C.WIFI](await rq(E.req.wifiMode(1)));
+  ok(r.op === 1 && r.rc === 0 && r.v === 1 && E.parse[C.WIFI](await rq(E.req.wifiState())).mode === 1, "wifi: MODE AUTO");
+  r = E.parse[C.WIFI](await rq(E.req.wifiMode(3)));
+  ok(r.rc === 1 && r.v === 1, "wifi: MODE 3 refused, the mode stays");
+  r = E.parse[C.WIFI](await rq(E.req.wifiMode(2)));
+  /* JOIN: the checks before anything is sent */
+  ok(E.wifiCheck("", "12345678", false).err === "wifiBadSsid" && E.wifiCheck("x".repeat(33), "12345678", false).err === "wifiBadSsid" && E.wifiCheck("é".repeat(17), "12345678", false).err === "wifiBadSsid",
+    "wifi: an SSID of 0 or more than 32 bytes (bytes, not characters) is refused before it is sent");
+  ok(E.wifiCheck("A", "short", false).err === "wifiBadPass" && E.wifiCheck("A", "x".repeat(64), false).err === "wifiBadPass" && E.wifiCheck("A", "naïve-pass", false).err === "wifiBadPass"
+    && E.wifiCheck("A", "p@ss W0rd!~", false).pass === "p@ss W0rd!~" && E.wifiCheck("A", "", false).err === "wifiBadPass" && E.wifiCheck("A", "", true).pass === "", "wifi: password 8..63 printable ASCII (an empty one only for a saved network)");
+  /* the request's bytes: SSID as pack7 (any byte), the password plain after it, all 7 bit */
+  const odd = Uint8Array.from([99, 97, 102, 0xC3, 0xA9, 32, 1, 120, 0xFF, 33]);
+  const jr = E.req.wifiJoin(odd, "p@ss W0rd!~");
+  ok(jr[0] === 112 && jr[1][0] === 3 && jr[1][1] === 10 && jr[1][2] === 11 && jr[1].length === 3 + 12 + 11 && jr[1].every((x) => x >= 0 && x < 128)
+    && E.unpack7(jr[1].slice(3, 15)).join() === odd.join() && String.fromCharCode(...jr[1].slice(15)) === "p@ss W0rd!~", "wifi: JOIN bytes: lengths, the SSID in pack7, the password after it");
+  /* JOIN a new network: accepted; two reads later it is up and saved first; the reply and the state carry no password */
+  const sent = [];
+  const pw = "hunter2-hunter2";
+  let rep = await rq(E.req.wifiJoin(enc("Studio"), pw));
+  const raw = JSON.stringify(rep);
+  ok(rep.length >= 2 && !raw.includes(pw), "wifi: JOIN's reply is a status only (no echo of the password)");
+  rep = E.parse[C.WIFI](rep);
+  ok(rep.op === 3 && rep.rc === 0, "wifi: JOIN accepted");
+  s = E.parse[C.WIFI](await rq(E.req.wifiState()));
+  ok(s.st === W.SCAN && E.wifiBusy(s) && s.cur.text === "Studio", "wifi: first read: looking for Studio");
+  s = E.parse[C.WIFI](await rq(E.req.wifiState()));
+  ok(s.st === W.HS && E.wifiBusy(s), "wifi: second read: the handshake");
+  s = E.parse[C.WIFI](await rq(E.req.wifiState()));
+  ok(s.st === W.UP && s.ip === 0xC0A80117 && s.ch === 6 && s.joined === 1 && s.nets.map((n) => n.text).join() === "Studio,HOME" && s.cur.text === "Studio" && !E.wifiBusy(s),
+    "wifi: third read: connected, 192.168.1.23, Studio saved first (joined slot 1)");
+  ok(!JSON.stringify(s).includes(pw), "wifi: the state carries no password");
+  /* a wrong password ends in FAIL with the wrong-key reason, and the network is not saved */
+  rep = E.parse[C.WIFI](await rq(E.req.wifiJoin(enc("Cafe"), "wrongpass")));
+  for (let i = 0; i < 3; i++) s = E.parse[C.WIFI](await rq(E.req.wifiState()));
+  ok(rep.rc === 0 && s.st === W.FAIL && s.fail === 6 && !s.nets.some((n) => n.text === "Cafe"), "wifi: a wrong password: FAIL, reason 6 (WCF_KEY), the network is not saved");
+  /* a saved network by its stored key (empty password); a new one without a password is refused */
+  rep = E.parse[C.WIFI](await rq(E.req.wifiJoin(enc("HOME"), "")));
+  ok(rep.rc === 0, "wifi: JOIN HOME with an empty password uses the stored key");
+  rep = E.parse[C.WIFI](await rq(E.req.wifiJoin(enc("Nowhere"), "")));
+  ok(rep.rc === 3, "wifi: JOIN of an unknown network without a password: rc 3");
+  rep = E.parse[C.WIFI](await rq([112, [3, 3, 8, ...E.pack7(enc("abc")), 49, 50]]));
+  ok(rep.rc === 1, "wifi: a cut JOIN frame: rc 1");
+  /* LEAVE and FORGET */
+  for (let i = 0; i < 3; i++) await rq(E.req.wifiState());
+  s = E.parse[C.WIFI](await rq(E.req.wifiState()));
+  rep = E.parse[C.WIFI](await rq(E.req.wifiLeave()));
+  s = E.parse[C.WIFI](await rq(E.req.wifiState()));
+  ok(rep.op === 4 && rep.rc === 0 && s.st === W.IDLE, "wifi: LEAVE lets go of the network");
+  rep = E.parse[C.WIFI](await rq(E.req.wifiForget(0)));
+  s = E.parse[C.WIFI](await rq(E.req.wifiState()));
+  ok(rep.op === 2 && rep.rc === 0 && s.nets.length === 1 && s.nets[0].text === "Studio" && s.nets[0].slot === 0, "wifi: FORGET slot 0: the rest closes up");
+  rep = E.parse[C.WIFI](await rq(E.req.wifiForget(9)));
+  ok(rep.rc === 1, "wifi: FORGET past the slots: rc 1");
+  /* MODE OFF stops the manager; a join is then refused */
+  await rq(E.req.wifiMode(0));
+  s = E.parse[C.WIFI](await rq(E.req.wifiState()));
+  rep = E.parse[C.WIFI](await rq(E.req.wifiJoin(enc("HOME"), "")));
+  ok(s.mode === 0 && s.st === W.OFF && rep.rc === 2, "wifi: MODE OFF: the manager is off, a JOIN gets rc 2");
+  /* an SSID with any byte survives the round trip */
+  h.m.stop && 0;
+  h.done();
+  ok(E.wifiText(Uint8Array.from([0x48, 0x69])) === "Hi" && E.wifiText(Uint8Array.from([0xFF, 0x41])) === "ÿA" && E.wifiText(enc("café")) === "café", "wifi: an SSID is shown as UTF-8, else Latin-1");
+  /* the page: a Wi-Fi tab only with the feature, the password handled as asked */
+  const wifiJs = html.slice(html.indexOf("const wf = {"), html.indexOf("function renderBackup() {"));
+  ok(/b\.dataset\.tab === "wifi"\) b\.hidden = !opti\("wifi"\)/.test(html) && /const OPTI = \{[^}]*\bwifi: 1\b/.test(html) && /data-tab="wifi"/.test(html) && /id="p-wifi"/.test(html),
+    "wifi: the tab shows only when the firmware lists opti_wifi_1");
+  ok(/type: "password"/.test(wifiJs) && /autocomplete: "off"/.test(wifiJs) && /pw\.value = ""/.test(wifiJs) && /r\[1\]\.fill\(0\)/.test(wifiJs) && !/localStorage|console\.|sessionStorage|location\./.test(wifiJs) && !/<form/.test(html.slice(html.indexOf('id="p-wifi"'), html.indexOf('id="p-device"'))),
+    "wifi: the password field is type=password, autocomplete off, in no form, cleared as it is sent; no storage, no log, no URL");
+
+  /* MODE AP (ed_wifi.c): the state's AP block, the op builders, the mock round trip */
+  const apBlock = (cap, key, status, clients, ch, nm) => [cap, ...(cap ? [key, status, clients, ch, nm.length, ...E.pack7(enc(nm))] : [])];
+  const stateTail = (...blk) => { const base = [0, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]; return Uint8Array.from([...base, ...blk]); };   /* mode MAN, no network, no cur SSID */
+  let p = E.parse[C.WIFI](stateTail(0));
+  ok(p.ap.cap === 0 && p.cur.len === 0 && p.nets.length === 0, "wifi AP: a block of the single 0 byte: cap 0");
+  p = E.parse[C.WIFI](Uint8Array.from([0, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]));
+  ok(p.ap.cap === 0 && p.mode === 2, "wifi AP: a reply from an older firmware (no block at all): cap 0");
+  p = E.parse[C.WIFI](stateTail(...apBlock(1, 1, 3, 2, 11, "FM1-0042")));
+  ok(p.ap.cap === 1 && p.ap.key === 1 && p.ap.status === 3 && p.ap.clients === 2 && p.ap.ch === 11 && p.ap.name.len === 8 && p.ap.name.text === "FM1-0042", "wifi AP: the block decodes: key, status, clients, channel, name");
+  ok(p.peers === 0, "wifi peers: an AP block with no peers byte after it (older firmware): 0");
+  p = E.parse[C.WIFI](stateTail(...apBlock(1, 1, 3, 2, 11, "FM1-0042"), 3));
+  ok(p.peers === 3 && p.ap.name.text === "FM1-0042", "wifi peers: the byte after the AP block: 3 Link peers");
+  p = E.parse[C.WIFI](stateTail(0, 2));
+  ok(p.ap.cap === 0 && p.peers === 2, "wifi peers: after a cap 0 block too");
+  const kr = E.req.wifiApKey(enc("Studio AP!"), "p@ss W0rd!~");
+  ok(kr[0] === 112 && kr[1][0] === 5 && kr[1][1] === 10 && kr[1][2] === 11 && E.unpack7(kr[1].slice(3, 3 + 12)).join() === enc("Studio AP!").join() && String.fromCharCode(...kr[1].slice(15)) === "p@ss W0rd!~" && kr[1].every((x) => x < 128),
+    "wifi AP: op 5 bytes: lengths, the name as pack7, the password (all 7-bit)");
+  ok(E.req.wifiApKey(enc(""), "12345678")[1].join() === [5, 0, 8, ...enc("12345678")].join(), "wifi AP: op 5 with the automatic name: slen 0, no pack7 bytes");
+  ok(E.req.wifiApChannel(11)[1].join() === "6,11" && E.req.wifiApClear()[1].join() === "7", "wifi AP: ops 6 and 7");
+  ok(E.wifiApCheck("", "12345678").name.length === 0 && E.wifiApCheck(enc("é".repeat(16)), "12345678").name.length === 32 && E.wifiApCheck("x".repeat(33), "12345678").err === "wifiBadSsid"
+    && E.wifiApCheck("", "short").err === "wifiBadPass" && E.wifiApCheck("", "x".repeat(64)).err === "wifiBadPass" && E.wifiApCheck("", "naïve-pass").err === "wifiBadPass", "wifi AP: the check: name 0..32 bytes, password 8..63 printable");
+  /* a build without MODE AP: cap 0, mode 3 refused, ops 5..7 refused */
+  h = attachMock({ wifi: true });
+  const rq0 = h.rq;
+  s = E.parse[C.WIFI](await rq0(E.req.wifiState()));
+  ok(s.ap.cap === 0 && E.parse[C.WIFI](await rq0(E.req.wifiMode(3))).rc === 1 && E.parse[C.WIFI](await rq0(E.req.wifiApKey(enc(""), "12345678"))).rc === 1 && E.parse[C.WIFI](await rq0(E.req.wifiApClear())).rc === 1,
+    "wifi AP: without wifiap: cap 0, MODE 3 and ops 5, 7 refused (rc 1)");
+  h.done();
+  h = attachMock({ wifi: true, wifiap: true });
+  const q = h.rq;
+  const W3 = async (r) => E.parse[C.WIFI](await q(r));
+  s = await W3(E.req.wifiState());
+  ok(s.ap.cap === 1 && s.ap.key === 0 && s.ap.status === 0 && s.ap.ch === 6 && s.ap.name.text === "FM1-0042", "wifi AP: the mock with wifiap: cap 1, no key, status OFF (MODE is MAN), channel 6, the automatic name");
+  ok((await W3(E.req.wifiApKey(enc(""), "12345678"))).rc === 2, "wifi AP: op 5 while MODE is not AP: rc 2");
+  r = await W3(E.req.wifiMode(3));
+  ok(r.rc === 0 && r.v === 3, "wifi AP: MODE 3 accepted with cap 1");
+  s = await W3(E.req.wifiState());
+  ok(s.mode === 3 && s.ap.status === 1 && !E.wifiBusy(s), "wifi AP: MODE AP without a key: status NO PASSWORD");
+  const pwa = "apSecret#9";
+  const raw2 = await q(E.req.wifiApKey(enc("Studio AP"), pwa));
+  ok(raw2.length === 2 && raw2[0] === 5 && raw2[1] === 0, "wifi AP: op 5's reply is a status only (op, rc)");
+  s = await W3(E.req.wifiState());
+  ok(s.ap.key === 1 && s.ap.status === 2 && E.wifiBusy(s) && s.ap.name.text === "Studio AP", "wifi AP: password set: key kept, first read STARTING, the custom name");
+  s = await W3(E.req.wifiState());
+  ok(s.ap.status === 3 && s.ap.clients === 1 && !E.wifiBusy(s) && !JSON.stringify(s).includes(pwa), "wifi AP: second read ON AIR, 1 client; the state carries no password");
+  r = await W3(E.req.wifiApChannel(11));
+  s = await W3(E.req.wifiState());
+  ok(r.op === 6 && r.rc === 0 && r.v === 11 && s.ap.ch === 11, "wifi AP: op 6 stores the channel");
+  ok((await W3(E.req.wifiApChannel(14))).rc === 1 && (await W3(E.req.wifiApChannel(0))).rc === 1, "wifi AP: a channel of 0 or 14: rc 1");
+  ok((await W3(E.req.wifiApKey(enc(""), "short"))).rc === 1, "wifi AP: a 5-character password: rc 1");
+  ok((await W3(E.req.wifiApKey(Uint8Array.from(Array(33).fill(65)), "12345678"))).rc === 1, "wifi AP: a 33-byte name: rc 1");
+  ok((await W3([112, [5, 0, 8, 49, 50]])).rc === 1, "wifi AP: a cut op 5 frame: rc 1");
+  await W3(E.req.wifiApKey(enc(""), "12345678"));
+  s = await W3(E.req.wifiState());
+  ok(s.ap.key === 1 && s.ap.name.text === "FM1-0042", "wifi AP: an empty name is the automatic one again");
+  r = await W3(E.req.wifiApClear());
+  s = await W3(E.req.wifiState());
+  ok(r.op === 7 && r.rc === 0 && s.ap.key === 0 && s.ap.status === 1, "wifi AP: op 7 clears the key: status NO PASSWORD");
+
+  /* AP MAN (mode 4): off until started; op 8 starts / stops; refused outside AP MAN and with no key */
+  r = await W3(E.req.wifiApRun(true));
+  ok(r.op === 8 && r.rc === 2, "wifi AP: op 8 outside AP MAN: rc 2");
+  r = await W3(E.req.wifiMode(4));
+  s = await W3(E.req.wifiState());
+  ok(r.rc === 0 && s.mode === 4 && s.ap.status === 1, "wifi AP: mode 4 (AP MAN) accepted; no key: NO PASSWORD");
+  r = await W3(E.req.wifiApRun(true));
+  ok(r.op === 8 && r.rc === 3, "wifi AP: op 8 start with no key: rc 3");
+  await W3(E.req.wifiApKey(enc(""), "12345678"));
+  s = await W3(E.req.wifiState());
+  ok(s.ap.key === 1 && s.ap.status === 2, "wifi AP: a password typed in AP MAN starts it (STARTING)");
+  s = await W3(E.req.wifiState());
+  s = await W3(E.req.wifiState());
+  ok(s.ap.status === 3, "wifi AP: ... then ACTIVE");
+  r = await W3(E.req.wifiApRun(false));
+  s = await W3(E.req.wifiState());
+  ok(r.rc === 0 && s.ap.status === 5 && !E.wifiBusy(s), "wifi AP: op 8 stop: STOPPED (5), not busy");
+  r = await W3(E.req.wifiApRun(true));
+  s = await W3(E.req.wifiState());
+  ok(r.rc === 0 && s.ap.status !== 5, "wifi AP: op 8 start: running again");
+  await W3(E.req.wifiMode(3));
+  h.done();
+  /* the page: the panel only with cap 1, in MODE AP, in place of the station's list and form; the password cleared as it is sent */
+  ok(/s\.ap\.cap === 1/.test(wifiJs) && /root\.hidden = !on/.test(wifiJs) && /wf\.add\.hidden = inAp/.test(wifiJs) && /ap \? \[\.\.\.WIFI\.MODES, WIFI\.MODE_APMAN, WIFI\.MODE_AP\]/.test(wifiJs),
+    "wifi AP: the panel and the fourth mode show only with cap 1 (hidden with cap 0)");
+  ok(/pw\.value = ""/.test(wifiJs.slice(wifiJs.indexOf("function wifiApForm"), wifiJs.indexOf("function wifiForm"))) && /type: "password"/.test(wifiJs.slice(wifiJs.indexOf("function wifiApForm"), wifiJs.indexOf("function wifiForm"))),
+    "wifi AP: its password field is type=password and cleared as it is sent");
+}
+
 /* ------------------------------------------------ the automation store (cmds 92, 93, v11; ed_stepx.c) --- */
 async function editorAuto() {
   const C = E.CMD, A = E.AUTO;
@@ -1675,7 +1849,7 @@ async function editorDaw() {
   }
   const openers = ids.every((id) => html.includes(`popBtn("${id}"`) || html.includes(`"data-pop": "${id}"`) || html.includes(`data-pop="${id}"`) || html.includes(`g("${id}", `) || (E.MASTER_FX.some((f) => f.id === id) && /"data-pop": f\.id/.test(html)) || (id === "fxslot" && /dataset\.pop = bus1 \|\| "fxslot"/.test(html)));
   ok(flat && openers && ids.length === 16 && !("project" in E.NAV) && E.navScreen({ screen: "mixer", pop: { id: "sound" } }, "library").pop === null
-    && E.navKey({ screen: "mixer", pop: null }, "Escape").screen === "mixer" && js(E.SCREENS) === js(["mixer", "mirror", "library", "samples", "drumkit", "projects", "backup", "snapshots", "device", "settings"]),
+    && E.navKey({ screen: "mixer", pop: null }, "Escape").screen === "mixer" && js(E.SCREENS) === js(["mixer", "mirror", "library", "samples", "drumkit", "projects", "backup", "snapshots", "wifi", "device", "settings"]),
     "daw: every popup is one click from a strip of the mixer, Escape returns to it, one popup at a time, a screen closes it");
   ok(html.includes('$("pop").addEventListener("cancel"') && html.includes('e.target === $("pop")') && html.includes('$("popx").addEventListener("click"'),
     "daw: the popup closes by Escape (cancel), a click outside (the backdrop) and its x");
@@ -2762,7 +2936,7 @@ function editorTabs() {   /* the screens, the popups and the strings */
   const tabs = all(/<button role="tab" data-tab="(\w+)"/g).map(([, name]) => name);
   const panels = all(/<section class="panel" id="p-(\w+)" data-tab="(\w+)"/g).map(([, id, tab]) => [id, tab]);
   const TABS = JSON.parse((/const SCREENS = (\[[^\]]*\]);/.exec(html) || [])[1] || "[]");
-  ok(tabs.length === 12 && js(tabs.slice(0, 2)) === js(["install", "sim"]) && js(tabs.slice(2)) === js(TABS) && js(panels.map((x) => x[1])) === js(TABS) && panels.every(([a, b]) => a === b) && TABS[0] === "mixer"
+  ok(tabs.length === 13 && js(tabs.slice(0, 2)) === js(["install", "sim"]) && js(tabs.slice(2)) === js(TABS) && js(panels.map((x) => x[1])) === js(TABS) && panels.every(([a, b]) => a === b) && TABS[0] === "mixer"
     && /id="p-build" data-tab="build"/.test(html),
     `editor: ${tabs.length} screens, one panel each, the mixer first, Build inside Firmware (no tab of its own) (${tabs.join(" ")})`);
   {   /* the full backup is its own screen, after Projects: not inside the Projects panel; lite firmware shows it, the not-connected state hides it */
@@ -3517,7 +3691,7 @@ const SUITE = [
   editorMock, editorMirror, editorLibrarian, editorFM6Engine, editorDX7, editorDX7Transfer,
   editorFM6Sysex, editorCZ, editorLive, editorTracks, editorMixer, editorTrackParam, editorV5,
   editorDrums, editorKitEditor, editorMixSends, editorPages, editorFxSlots, editorFxp,
-  editorV13Optional, editorMacro, editorAuto, editorV14, editorStepx, editorDaw, editorBackup,
+  editorV13Optional, editorMacro, editorAuto, editorWifi, editorV14, editorStepx, editorDaw, editorBackup,
   editorSnapshots, editorSl24, editorSl24Lost2, editorSl24In, editorPatterns, editorV9, editorNoteEnds,
   editorTabs, editorKeys, editorSetGate, masterStrip, reverbType, midiSettings, editorUiPass,
   editorPianoRoll, editorIcons, editorParamHelp, samplesMatch, chopTests, packages, updater,

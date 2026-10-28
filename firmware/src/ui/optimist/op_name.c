@@ -53,7 +53,7 @@ static int sec_name_set(uint32_t s, const char *nm);
 static int up_store(uint32_t k, const char *name);     /* storage/upreset.c */
 static void op_play(void);                              /* op_input.c */
 
-static int name_on(void) { return nm.kind != NK_NONE; }
+static int name_on(void) { return nm.kind != NK_NONE || pw_on(); }   /* (the Wi-Fi password entry holds NAME's gates too: op_wifi.c) */
 static void name_close(void)
 {
     nm.kind = NK_NONE;
@@ -304,6 +304,12 @@ static void name_frame(uint32_t pressed, uint32_t held)
 {
     uint32_t k, hb = (1u << panel.btn[B_HOME]);
     int32_t s;
+#if WIFI_UI
+    if (pw_on()) {
+        pw_frame(pressed, held);                        /* (a Wi-Fi password, not a name: op_wifi.c) */
+        return;
+    }
+#endif
     if (nm.later && !song.playing && !transport_req) { /* (the save asked while playing, now stopped) */
         nm.later = 0;
         name_ok();
@@ -377,6 +383,10 @@ static void name_frame(uint32_t pressed, uint32_t held)
 static uint32_t name_leds(uint32_t *d)
 {
     uint32_t k, m = 0;
+#if WIFI_UI
+    if (pw_on())
+        return pw_leds(d);
+#endif
     *d = 0;
     for (k = 0; k < 27u; k++) {
         int32_t w = punch_key(k);
@@ -395,6 +405,12 @@ static uint32_t name_leds(uint32_t *d)
 static void name_title(char *t, uint32_t n)
 {
     char l[4];
+#if WIFI_UI
+    if (pw_on()) {
+        pw_title(t, n);
+        return;
+    }
+#endif
     str_cpy(t, "NAME ", n);
     if (nm.kind == NK_USER) {
         up_slot_label(l, nm.slot);
@@ -505,7 +521,14 @@ static void name_draw_foot(void)
 }
 static void name_draw(void)                             /* the cards' band, the panel, the hints (op_draw.c op_frame_draw) */
 {
-    uint32_t sig = name_sig();
+    uint32_t sig;
+#if WIFI_UI
+    if (pw_on()) {
+        pw_draw();
+        return;
+    }
+#endif
+    sig = name_sig();
     if (sig == ui.sig[1] && sig == ui.sig[2])
         return;
     ui.sig[1] = ui.sig[2] = sig;
