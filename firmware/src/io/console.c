@@ -1116,8 +1116,9 @@ static void con_status(void)
     }
 #endif
     con_kv("audio_max_pct", (int32_t)felucca_dbg.pk_all);   /* system/overload.h: INFO's MAX, % of a half */
-    con_kv("audio_max5_pct", (int32_t)felucca_dbg.pk_5s);   /* INFO's MAX 5S */
-    con_kv("cpu1_max5_pct", (int32_t)felucca_dbg.pk1_5s);   /* CPU1's jobs, MAX 5S */
+    con_kv("audio_max5_pct", (int32_t)felucca_dbg.pk_5s);   /* the longest half of the last ~5 s (the reset-kept record's) */
+    con_kv("cpu1_max5_pct", (int32_t)felucca_dbg.pk1_5s);   /* CPU1's jobs, the same */
+    stk_report(con_kv, con_kx);                         /* the stacks: their bottom, size, room never used (system/stackmark.h) */
 #if FELUCCA_FX_REVERB
     con_kv("rev_state", (int32_t)rgd.st);               /* (fx.c RG_*: 0 on, 1 fading out, 2 clearing, 3 off) */
     con_kv("rev_live", (int32_t)rev_live);

@@ -53,14 +53,14 @@ static void core_row_tests(void)
 #else
     sys_info_cell(2, &c);
     check(!strcmp(c.label, "2ND CORE") && !strcmp(c.val, "NOT IN BUILD") && !strcmp(c.unit, "") && c.gk != GK_NONE, "a single-core build: 2ND CORE, NOT IN BUILD");
-    check(INFO_N == 6u + FELUCCA_CPU_GUARD, "the INFO page: clock, CPU, 2ND CORE, DROPS, UNDERRUNS, [GUARD,] battery in every build (the internals: DIAGNOSTICS)");
+    check(INFO_N == 7u + FELUCCA_CPU_GUARD, "the INFO page: clock, CPU, 2ND CORE, RAM, DROPS, UNDERRUNS, [GUARD,] battery in every build (the internals: DIAGNOSTICS)");
 #endif
     reset_ui();
 }
 
 /* the overload monitor (system/overload.h; the user, 2026-10-15: "a MAX of the last few seconds and a DROP-OUT DETECTOR", "the
  * second encoder should switch between CURRENT, MAX OVER A FEW SECONDS, MAX FOR EVER. And we should also monitor UNDERRUNS"):
- * INFO's CPU line in the measure KNOB 1 picks (NOW, MAX 5S, MAX: % of a half, the load's colours, over 100 late), DROPS (late
+ * INFO's CPU line in the measure KNOB 1 picks (NOW, MAX 10S, MAX 1M, MAX: % of a half, the load's colours, over 100 late), DROPS (late
  * halves, amber / red), UNDERRUNS (MIDI in lost, USB audio's), GUARD (the CPU guard's level, the voices shed), SHIFT + YES on
  * INFO clearing the displays, and the header's rule for ~1 s after a drop (red) or an underrun (amber), on every page. The ISR's
  * part is fed here as audio.c would (ovl_half) */
@@ -96,20 +96,33 @@ static void overload_tests(void)
     frame();
     sys_info_cell(1, &c);
     check(!strcmp(c.label, cpu) && !strcmp(c.val, "50") && c.col == C_OK, "the CPU line: NOW, the load (50 %, green)");
+    check(c.pkbar && c.gk == GK_BAR && c.gv == 50 && c.hold[0] == 70 && c.hold[1] == 70,
+          "the CPU line's bar: filled to the load now (50), both peak ticks at the longest half (70)");
     turn(EN_K1, 1);
     sys_info_cell(1, &c);
-    snprintf(lb, sizeof lb, "%s MAX 5S", cpu);
-    check(info_mode == OVL_MAX5 && !strcmp(c.label, lb) && !strcmp(c.val, "70") && !strcmp(c.unit, "%") && c.col == C_WARN &&
-          ui.scr == SCR_SYSTEM, "KNOB 1 on INFO: MAX 5S, the longest half (70 %, amber)");
+    snprintf(lb, sizeof lb, "%s MAX 10S", cpu);
+    check(info_mode == OVL_MAX10 && !strcmp(c.label, lb) && !strcmp(c.val, "70") && !strcmp(c.unit, "%") && c.col == C_WARN &&
+          c.gv == 50 && ui.scr == SCR_SYSTEM, "KNOB 1 on INFO: MAX 10S, the longest half (70 %, amber); the bar still the load now");
     ovl_half(half * 133u / 100u, 1, t + 1500u);         /* (the user's log: 7,693 us, 133 % of a half) */
     fm1_ms = t + 1600u;
     sys_info_cell(1, &c);
-    check(!strcmp(c.val, "133") && c.col == C_ERR, "MAX 5S over 100 %: 133, red (a late half)");
-    for (i = 1; i <= 6u; i++)
-        ovl_half(half / 2u, 0, t + 1500u + i * 1024u);  /* (6 s of light halves: the 133 % ages out of the window) */
-    fm1_ms = t + 1500u + 6u * 1024u;
+    check(!strcmp(c.val, "133") && c.col == C_ERR && c.hold[0] == 100 && c.hold[1] == 100,
+          "MAX 10S over 100 %: 133, red (a late half); the ticks at the bar's end");
+    for (i = 1; i <= 11u; i++)
+        ovl_half(half / 2u, 0, t + 1500u + i * 1024u);  /* (11 s of light halves: the 133 % ages out of the 10 s window) */
+    fm1_ms = t + 1500u + 11u * 1024u;
     sys_info_cell(1, &c);
-    check(!strcmp(c.val, "50") && c.col == C_OK, "MAX 5S: ~5 s later the window forgets it (50 %, green)");
+    check(!strcmp(c.val, "50") && c.col == C_OK && c.hold[0] == 50 && c.hold[1] == 100,
+          "MAX 10S: ~10 s later the window forgets it (50 %, green); the bright tick follows, the 1 min tick holds 100");
+    turn(EN_K1, 1);
+    sys_info_cell(1, &c);
+    snprintf(lb, sizeof lb, "%s MAX 1M", cpu);
+    check(info_mode == OVL_MAX60 && !strcmp(c.label, lb) && !strcmp(c.val, "133") && c.col == C_ERR, "KNOB 1 again: MAX 1M, 133 % within the minute");
+    for (i = 12u; i <= 62u; i++)
+        ovl_half(half / 2u, 0, t + 1500u + i * 1024u);  /* (a minute more: the 1 min window forgets it too) */
+    fm1_ms = t + 1500u + 62u * 1024u;
+    sys_info_cell(1, &c);
+    check(!strcmp(c.val, "50") && c.hold[1] == 50, "MAX 1M: ~1 min later it forgets it (50 %), the dim tick too");
     turn(EN_K1, 1);
     sys_info_cell(1, &c);
     snprintf(lb, sizeof lb, "%s MAX", cpu);

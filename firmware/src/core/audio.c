@@ -25,7 +25,7 @@ struct felucca_dbg {
      * it first went DUAL_STARVE_MS without one); where: bit 0 in dual_join, bit 1 in the audio render */
     uint32_t loop_ms, loop_gap_max, starve_ms, where;
     uint32_t prev_loop_gap_max, prev_starve_ms, prev_where, prev_in_audio, prev_cpu_q8, prev_late;
-    /* the audio's peaks (system/overload.h, the INFO's MAX 5S / MAX), % of a half (over 100: late), each half: kept by a reset */
+    /* the audio's peaks (system/overload.h: since boot as INFO's MAX, the last ~5 s), % of a half (over 100: late), each half: kept by a reset */
     uint32_t pk_all, pk_5s, pk1_5s, drops;
     uint32_t prev_pk_all, prev_pk_5s, prev_pk1_5s, prev_drops;
     uint32_t us_sum;                      /* every half's render us added (wraps; the console: the mean between two polls) */

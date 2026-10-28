@@ -319,9 +319,9 @@ static int gls_info_page(void)
         }
         song.cpu_q8 = 0;
     }
-    for (i = 0; i < INFO_N; i++) {                      /* no line is the memory's any more */
+    for (i = 0; i < INFO_N; i++) {                      /* no line is the image's memory (the RAM line: the stacks' room, 2026-10-28) */
         sys_info_cell(i, &c);
-        ok &= strcmp(c.label, "FLASH") && strcmp(c.label, "RAM") && strcmp(c.label, "POOL") && strcmp(c.label, "RAM CODE");
+        ok &= strcmp(c.label, "FLASH") && strcmp(c.label, "POOL") && strcmp(c.label, "RAM CODE");
     }
     op_enter(SCR_SYSTEM);
     ui.row[SCR_SYSTEM] = 0;
@@ -330,10 +330,11 @@ static int gls_info_page(void)
     ppm("opt-info-cpu70");
     song.cpu_q8 = 0;
     frame();
-    for (i = 0; i < INFO_BASE; i++) {                   /* the page draws text only, no bar under any line */
+    for (i = 0; i < INFO_BASE; i++) {                   /* the page draws text only, no bar under any line but the CPU lines' */
         int32_t a, b, y = OH_HEAD + gl_y0() + (int32_t)i * ph, ty = y + (ph - (int32_t)FONT_S.h) / 2, by = ty + (int32_t)FONT_S.h + 2;
         sys_info_cell(i, &c);
-        ok &= gls_rowpx(by + 2, 0, 240, &a, &b) == 0u;   /* (no bar under the text: the row below the glyphs is empty) */
+        if (!c.pkbar)
+            ok &= gls_rowpx(by + 2, 0, 240, &a, &b) == 0u;   /* (no bar under the text: the row below the glyphs is empty) */
     }
     if (!ok)
         printf("  glstyle: info page wrong (pitch %d)\n", ph);
