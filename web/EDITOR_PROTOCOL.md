@@ -63,6 +63,7 @@ answer its commands; the page hides what needs them and keeps the rest (its mock
 | `ED_SEQ` (needs ED_LIVE) | 97 SONGC (arranger), 98 TOOLS (`SEQTOOLS` or `NOTEGEN`), 105 STEPLANE (automation store) | 5A, 5B, 62 |
 | `ED_SCREENS` (needs ED_LIVE) | 96 SCRN, 99 SCRS, 101 SCOPE | 59, 5C, 5E |
 | `ED_MIRROR` (live editing or not; default off) | 106 MIRROR and its pushes, 108 PANEL, 109 NAV, 111 CLIP | 65, 67 |
+| Wi-Fi (`FELUCCA_WIFI` with `FELUCCA_BLE`; no builder item yet) | 112 WIFI | 67 |
 
 Other switches: 36..42 need the drum lanes (kits: `DRUM_KITS`), 65 `MACROS`, 66 the CZ collection, 78 / 90 `SL24_EXPORT` / `SL24_EDIMPORT`
 (default off), 92 / 93 the automation store, 100 `FAVORITES`, 79..84 `PATTERNS`, 54..57 `SNAPSHOTS`.
@@ -134,7 +135,7 @@ strings, NTRK, the protocol byte (7), each engine slot's UID, then tagged blocks
 | 64 | `01 flags` | lite build: bit 0 backup only, bit 1 the librarian |
 | 65 | `01 version` | MIRROR (below, "The screen mirrored"): `MIR_VERSION` (2) |
 | 66 | `n` ASCII | the features by name and version, space-separated (`ed_opti.h`): `opti_backup_4` (43..48, `BK_VERSION`), `opti_mirror_2` (106, `MIR_VERSION`), `opti_panel_1` (108), `opti_nav_1` (109), `opti_mirbt_1` (INFO, 108 and 109 over Bluetooth MIDI too, with `BLE`), `opti_library_1` (16..21), `opti_projects_1` (9), `opti_patterns_1` (79..84), `opti_proj_1` (110). Every Felucca-family firmware answers `INFO` with the same header but numbers its other commands its own way (SLOOP's backup is 34..36; 78 is Melodee's CZ), so a client sends nothing else until it has read this tag, and offers a feature only when its name and a version it reads are listed. A number goes up only when an older client would misread the new form. Over Bluetooth (only 106, `INFO`, 108, 109 and 111 answered) the firmware is also known by its advertised name, "Optimist ..." |
-| 67 | `n` ASCII | more feature names, the same form as 66 (66 is full: one 7-bit length): `opti_clip_1` (111, `ED_MIRROR`); `opti_nodrums_1`: a build without the drum track (the builder's DRUMS off): track 4 is a synth part like 1..3 (its steps, notes and pages a part's, no drum lanes, kits or drum sources), named T4. A client reads both and merges them; one that knows only 66 skips 67 by its length |
+| 67 | `n` ASCII | more feature names, the same form as 66 (66 is full: one 7-bit length): `opti_clip_1` (111, `ED_MIRROR`); `opti_wifi_1` (112, the Wi-Fi networks; only a build with Wi-Fi); `opti_nodrums_1`: a build without the drum track (the builder's DRUMS off): track 4 is a synth part like 1..3 (its steps, notes and pages a part's, no drum lanes, kits or drum sources), named T4. A client reads both and merges them; one that knows only 66 skips 67 by its length |
 
 `BUILD` (no args): the build's name string (16), its config hash (5 x 7 bit), the item bytes count and bytes (bit n = registry item n
 built, 7 a byte). The backup file records it.
@@ -616,6 +617,53 @@ own history, as a step key's (writes to one track within 800 ms are one level), 
 note longer than its step goes on through TIE steps (every note sounding at that step's start goes on) or a carry step naming it
 (`SF_CARRY`, hi bit 2: one note of a chord alone), its end inside a step that step's own end (`seq.c` `note_span`); a client
 writes them as the recorder does (`ios/OptimistMirror/Sources/Clip/Clip.swift`).
+
+## Wi-Fi (112 WIFI; INFO tag 67 `opti_wifi_1`)
+
+`ed_wifi.c` (`FELUCCA_WIFI` with `FELUCCA_BLE`; a build without Wi-Fi has none of it and does not answer 112). The saved networks, the
+mode and the connection of the FM-1's Wi-Fi (`wifi/wifi_conn.c`, `wifi/wifi_nets.c`); the web page's Wi-Fi tab. USB only. The FM-1 keeps up
+to 4 networks (SSID and the key made from the password, never the password); **no reply carries a key byte or the password**. An older client
+or the Mirror app does not know the name and sends nothing; the command, its tag and its numbers are additions, no version changes.
+
+| op | Request args | Reply |
+| --- | --- | --- |
+| 0 STATE | | `0, mode, st, fail, joined, ch, ip (5 x 7 bit, host order), n, n x (slot, len, SSID as pack7), len, SSID as pack7, cap [, key, status, clients, channel, len, name as pack7]` |
+| 1 MODE | mode | `1, rc, mode` |
+| 2 FORGET | slot | `2, rc, slot` |
+| 3 JOIN | slen, plen, SSID as pack7 (slen + ceil(slen / 7) bytes), password (plen bytes) | `3, rc` |
+| 4 LEAVE | | `4, rc` |
+| 5 AP KEY | slen, plen, name as pack7, password (plen bytes, 32..126, 8..63; slen 0 = the automatic name) | `5, rc` |
+| 6 AP CHANNEL | channel | `6, rc, channel` |
+| 7 AP CLEAR | | `7, rc` |
+
+- `mode` is the store's number: 0 OFF (the manager stops), 1 AUTO (joins the best saved network heard, at start-up and whenever none is joined),
+  2 MAN (joins when told), 3 AP (MODE AP, only when the state's `cap` is 1; the FM-1 is the network, see below). It is saved with the settings (written once the transport stops).
+- MODE AP's block ends the state, after the network in hand's SSID: `cap` 0 means this build has no MODE AP and nothing follows (a reply from an older
+  firmware has no block at all: read it as cap 0); with `cap` 1: `key` (1: a password is kept), `status` (0 OFF, 1 NO PASSWORD, 2 STARTING, 3 ACTIVE,
+  4 NO CAL, 5 STOPPED: AP MAN, not started), `clients`, `channel` (the one shown: the store's, else 6), `len` and the `name` as pack7 (the stored one, else FM1- and four digits).
+  Then, in every build, one more byte: `peers`, the Link peers heard (0 when Link is not running; a reply from an older firmware ends before it: read it as 0).
+- MODE (op 1) takes 0 OFF, 1 AUTO, 2 MAN and, with `cap` 1, 3 AP AUTO (the access point starts at power-on and stays up) and 4 AP MAN (off at power-on; started by AP RUN or SAVE on the FM-1's page; the switch is never kept). AP RUN (op 8, `on`): start (1) or stop (0) in AP MAN; rc 2 MODE is not AP MAN, 3 no key kept. A password typed in AP MAN starts it.
+- AP KEY (op 5): MODE AP's password (and name): the access point stops, the key is derived (a slice a pass), kept and the access point starts again; the
+  state says how it goes. The password is 8..63 printable ASCII characters (32..126, one byte each, after the pack7 name); `slen` 0 is the automatic name,
+  else 1..32 bytes. The password goes to the FM-1 once, becomes a key there and is not kept; the firmware wipes it and the received frame's bytes, and never
+  echoes, logs or stores it. The FM-1 gives out the addresses 192.168.4.2 to 192.168.4.5.
+- AP CHANNEL (op 6): MODE AP's channel 1..13 (the access point restarts when it has rested); the reply carries the channel shown.
+- AP CLEAR (op 7): MODE AP's key cleared (no access point runs without one).
+- `st` is the manager's state: 0 OFF, 1 RADIO (starting), 2 IDLE, 3 SCAN, 4 PMK (the key from the password), 5 AUTH, 6 ASSOC, 7 HS (the 4-way
+  handshake), 8 UP, 9 FAIL, 10 LINK (joined, before DHCP), 11 PRE. `fail` says why the last join failed (read with FAIL, 0 otherwise): 1 no radio
+  calibration, 2 no access point of that SSID heard, 3 authentication, 4 association, 5 handshake timed out, 6 wrong password (the key frames
+  failed their check, every attempt). `joined` is 1 + the saved slot joined (0 none); `ch` the channel; `ip` the IPv4 address once DHCP answered
+  (0 before, and unless `st` is 8).
+- The list: `slot` 0..3 (most recently used first; a slot is the index for FORGET, and the slots close up after one), `len` 0..32 SSID bytes, any
+  byte, as pack7. The last pair is the network in hand: the SSID being looked for or joined (`st` 3..7, 10, 11, 8; or a request waiting), `len` 0 none.
+- JOIN: the SSID is 1..32 bytes; the password is 8..63 printable ASCII characters (32..126, one byte each, so it is plain after the pack7 SSID),
+  or `plen` 0 to join a **saved** network of that SSID by its stored key. The manager scans, joins the strongest access point of that SSID and
+  saves the network (SSID and key) only after the 4-way handshake accepted the key. A client reads STATE about once a second while `st` is 1, 3..7,
+  10, or 8 with no address, and stops after UP, FAIL or IDLE. Do not resend a JOIN on a timeout: a second request restarts the scan.
+  The firmware copies the password once into a small buffer for `wc_request`, wipes it and the received frame's bytes, and never echoes, logs or stores it.
+- `rc`: 0 done / accepted, 1 arguments (a mode above 2, or above 3 with no MODE AP, a slot past 3, an SSID or password out of range, a channel out of 1..13, a short
+  frame, or ops 5..7 in a build with no MODE AP), 2 MODE OFF (op 5: MODE is not AP), 3 no password and not a saved network, 4 the radio is not up yet (right after MODE; ask again in a few seconds). FORGET of an empty slot is rc 0. LEAVE does nothing unless `st` is 8 or 10.
+- A bad op (above 7), or MODE / FORGET / JOIN / AP CHANNEL without their arguments: no reply.
 
 ## Undo (102 UNDO; INFO tag 5F)
 

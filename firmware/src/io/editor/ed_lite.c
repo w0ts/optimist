@@ -61,7 +61,7 @@
 #endif
 typedef int (*ed_cmd_lite_t)(uint32_t cmd, const uint8_t *a, uint32_t na);
 #define ED_TAG_LITE 0x64u                               /* INFO's tag: this build answers backup and restore only */
-static const ed_cmd_lite_t ED_CMDS[] = {ED_USER_FN ED_DRUMS_FN ED_PAT_FN ED_BACKUP_FN ED_SNAP_FN ED_PROJ_FN ED_CLIP_FN 0};
+static const ed_cmd_lite_t ED_CMDS[] = {ED_USER_FN ED_DRUMS_FN ED_PAT_FN ED_BACKUP_FN ED_SNAP_FN ED_PROJ_FN ED_CLIP_FN ED_WIFI_FN 0};
 #define ED_LITE_LIB (FELUCCA_LIBRARIAN ? 2u : 0u)        /* (tag 0x64's bit 1: the librarian's commands answer) */
 static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0 and F7 */
 {

@@ -365,6 +365,12 @@ static int head_other(head_t *h)
         h->eng = "NAME";
         name_title(b, sizeof b);                        /* ("NAME U03": the slot after the screen's word) */
         nm_title(b + 5, h->t, sizeof h->t);
+#if WIFI_UI
+        if (pw_on()) {
+            h->eng = "WI-FI";
+            str_cpy(h->t, b + 5, sizeof h->t);          /* (the network's name as it is: never re-cased) */
+        }
+#endif
         return 1;
     }
     if (lay.shown != LY_PLAY) {
