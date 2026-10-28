@@ -933,7 +933,12 @@ static HOT void mix_block_dual(int32_t *out, uint32_t n)
         send_c[i] = send_d[i] = send_r[i] = mix_l[i] = mix_r[i] = 0;
     dual_clear(A, n);
     DSTAGE(0x12);
-    FAR(events_block)(n);                          /* (the sequencer stays in XIP) */
+    {
+        uint32_t sq = lfo_seq_any() ? FAR(lfo_seq_in)() : 0u;   /* (the modulators on what the sequencer reads) */
+        FAR(events_block)(n);                      /* (the sequencer stays in XIP) */
+        if (sq)
+            FAR(lfo_seq_out)();
+    }
     DSTAGE(0x50);
     BENCH_BLOCK();
 #if FELUCCA_MACROS

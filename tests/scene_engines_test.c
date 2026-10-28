@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The engines ported from the scene (tests/run_tests.sh builds this with $SCENE_ON: Clipper's STRINGS VPS TERRAIN
- * WSEQ VECTOR, engines/clipper/, Mini-Tone's SID, engines/sid/, PROPHET, engines/prophet/, Clipper's WAVE), each engine the same checks:
- *   - its UID and fallback (registry.h), 26 engine UIDs;
+ * WSEQ VECTOR, engines/clipper/, Mini-Tone's SID, engines/sid/, PROPHET, engines/prophet/, Clipper's WAVE, CS80, engines/cs80/), each engine the same checks:
+ *   - its UID and fallback (registry.h), 28 engine UIDs;
  *   - every preset: a 4-note chord held 2 s, the keys up, 10 s more: audible, bounded, no DC, every voice free at the
  *     end, its render's FNV-1a 64 the one in tests/golden_scene_engines.txt (GOLDEN_UPDATE=1 rewrites it); the
  *     presets' level within 9 dB of ANALOG's;
@@ -54,6 +54,7 @@ static const se_eng_t ENGS[] = {
     {ENG_SLOT_SID, ENG_UID_SID, 3, {2, 64, 0, 0, 0, 127, 0, 1}},              /* (a square, the filter off, the 8580) */
     {ENG_SLOT_PROPHET, ENG_UID_PROPHET, 0, {0, 0, 0, -64, 127, 0, 0, 0}},     /* (A's saw alone, the filter open) */
     {ENG_SLOT_WAVE, ENG_UID_WAVE, 0, {0, 0, 0, 0, 127, 0, 0, 0}},             /* (BASIC's first frame, the filter open) */
+    {ENG_SLOT_CS80, ENG_UID_CS80, 0, {0, 0, 1, -64, 0, 127, 0, 0}},           /* (channel I's saw alone, both filters open) */
 };
 #define NENG (sizeof ENGS / sizeof ENGS[0])
 
@@ -223,6 +224,7 @@ static void t_corners(const se_eng_t *g)
     check(ok, e->name, "the corners, notes 24 / 60 / 108: bounded, no DC, silent and free after the release");
 }
 
+static int32_t se_os2;                                   /* (se_direct: vmod_t.os2, OSC2's move, 1/16 semitone) */
 /* the render alone: the first preset with set[] on voice 0, key 57 (220 Hz) at full amplitude, nb blocks into buf */
 static void se_direct(const se_eng_t *g, const int16_t *set, int32_t *buf, uint32_t nb)
 {
@@ -244,6 +246,7 @@ static void se_direct(const se_eng_t *g, const int16_t *set, int32_t *buf, uint3
     m.amp0 = m.amp1 = 32767;
     m.shape = 64 << 8;
     m.envq15 = 32767;
+    m.os2 = se_os2;
     tables();
     e->note_on(t, v);
     memset(buf, 0, nb * CTL * sizeof buf[0]);
@@ -276,6 +279,57 @@ static void t_direct(const se_eng_t *g)
     check(best >= 199u && best <= 202u && bc > 0.9, e->name, what);
 }
 
+#if FELUCCA_ENG_PROPHET
+/* PROPHET: OSC2 moves A's pitch alone (issue 75: a sync sweep, B staying) */
+static int32_t se_period(const int32_t *a)
+{
+    uint32_t lag, best = 0, i, n = SE_DN * CTL / 2u;
+    double bc = -1e300;
+    for (lag = 60; lag < 400u; lag++) {
+        double c = 0, e0 = 0, e1 = 0;
+        for (i = n; i < n + 8000u; i++)
+            c += (double)a[i] * a[i + lag], e0 += (double)a[i] * a[i], e1 += (double)a[i + lag] * a[i + lag];
+        c /= sqrt(e0 * e1) + 1;
+        if (c > bc)
+            bc = c, best = lag;
+    }
+    return (int32_t)best;
+}
+static void t_prophet_osc2(void)
+{
+    static int32_t a[SE_DN * CTL], b[SE_DN * CTL];
+    static const int16_t AONLY[8] = {0, 0, 0, -64, 127, 0, 0, 0}, BONLY[8] = {0, 0, 7, 63, 127, 0, 0, 0};
+    static const int16_t SYNC[8] = {3, 0, 0, 0, 127, 0, 0, 0};
+    const se_eng_t *g = 0;
+    uint32_t i;
+    int32_t pa, pb;
+    for (i = 0; i < sizeof ENGS / sizeof ENGS[0]; i++)
+        if (ENGS[i].slot == ENG_SLOT_PROPHET)
+            g = &ENGS[i];
+    if (!g)
+        return;
+    se_os2 = 0;
+    se_direct(g, AONLY, a, SE_DN);
+    se_os2 = 12 * 16;                                    /* (OSC2: an octave up) */
+    se_direct(g, AONLY, b, SE_DN);
+    pa = se_period(a), pb = se_period(b);
+    check(pa >= 199 && pa <= 202 && pb >= 99 && pb <= 101, "PROPHET", "OSC2 +12: A alone an octave up (A's pitch, issue 75)");
+    se_os2 = 0;
+    se_direct(g, BONLY, a, SE_DN);
+    se_os2 = 12 * 16;
+    se_direct(g, BONLY, b, SE_DN);
+    pa = se_period(a), pb = se_period(b);                /* (B a fifth up, 330 Hz: 133.6 samples; MIX 63 leaves A at 1/64) */
+    check(pa >= 132 && pa <= 135 && pb == pa, "PROPHET", "OSC2 +12: B (a fifth up, MIX 63) keeps its period (B stays)");
+    se_os2 = 0;
+    se_direct(g, SYNC, a, SE_DN);
+    se_os2 = 7 * 16;
+    se_direct(g, SYNC, b, SE_DN);
+    pa = se_period(a), pb = se_period(b);
+    check(memcmp(a, b, sizeof a) && pa == pb, "PROPHET", "A synced to B, OSC2 +7: the timbre moves, the period stays B's (a sync sweep)");
+    se_os2 = 0;
+}
+#endif
+
 int main(int argc, char **argv)
 {
     const char *gpath = argc > 1 ? argv[1] : "tests/golden_scene_engines.txt";
@@ -299,7 +353,7 @@ int main(int argc, char **argv)
                       "# an intended change.\n");
     for (pi = 0; pi < ENGINES[ENG_SLOT_ANALOG]->npresets; pi++)
         analog_rms += se_render(ENG_SLOT_ANALOG, pi, 0, CHORD, 4, 0).rms / ENGINES[ENG_SLOT_ANALOG]->npresets;
-    check(ENG_UID_N == 26u, "", "26 engine UIDs");
+    check(ENG_UID_N == 28u, "", "28 engine UIDs");
     for (i = 0; i < NENG; i++) {
         const se_eng_t *g = &ENGS[i];
         const engine_t *e = ENGINES[g->slot];
@@ -311,6 +365,9 @@ int main(int argc, char **argv)
         t_corners(g);
         t_direct(g);
     }
+#if FELUCCA_ENG_PROPHET
+    t_prophet_osc2();
+#endif
     if (gout) {
         fclose(gout);
         printf("scene: %s rewritten\n", gpath);

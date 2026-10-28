@@ -1,4 +1,4 @@
 {
-  "private": true,
-  "type": "module"
+  "type": "module",
+  "private": true
 }

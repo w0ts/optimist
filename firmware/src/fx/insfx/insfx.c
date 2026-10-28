@@ -514,6 +514,24 @@ AINL uint32_t ifx_wix(uint32_t i)
 static int32_t ifx_side[NPART][CTL];                    /* a part's side this block (before its level): ifx_side_mix */
 static uint8_t ifx_sd[NPART];                           /* its side is set this block */
 #define IFX_WD_RATE 13                                  /* ~0.1 Hz */
+#if FELUCCA_WIDE_FINE
+/* WIDE_FINE: ifx_ap at the part's own scale (u, px, py within +-3 M, the product 64 bits): no headroom shift, so the side
+ * (y - x) is no longer rounded to 16 units in the left ear only; 4.5 dB lower there, measured on the host 2026-10-26 */
+#define IFX_WD_MAX 3000000                              /* (not 2^22: -2^22 reads as a ROM address to build.py's check) */
+AINL int32_t ifx_ap_w(int32_t *px, int32_t *py, int32_t c, int32_t u)
+{
+    uint32_t st;
+    for (st = 0; st < IFX_AP; st++) {
+        int32_t y = clamp(px[st] + (int32_t)(((int64_t)c * (u - py[st]) + 8192) >> 14), -IFX_WD_MAX, IFX_WD_MAX);
+        px[st] = u, py[st] = y;
+        u = y;
+    }
+    return u;
+}
+#define IFX_WD_AP(px, py, c, x, sh) ifx_ap_w(px, py, c, clamp(x, -IFX_WD_MAX, IFX_WD_MAX))
+#else
+#define IFX_WD_AP(px, py, c, x, sh) (ifx_ap(px, py, c, clamp((x) >> (sh), -32767, 32767)) << (sh))
+#endif
 /* the difference into d (n samples of b; 0: none, nothing written) */
 static HOT2 __attribute__((noinline)) int ifx_width(ifx_wd_t *s, int32_t a, const int32_t *b, int32_t *d, uint32_t n,
                                                      uint32_t sh)
@@ -531,7 +549,7 @@ static HOT2 __attribute__((noinline)) int ifx_width(ifx_wd_t *s, int32_t a, cons
     }
     c = ifx_ap_coef(16384u + (ifx_tri(s->ph + (n >> 1) * inc) >> 1));   /* (a quarter around the middle: ~1 kHz) */
     for (i = 0; i < n; i++) {
-        int32_t x = b[i], y = ifx_ap(s->px, s->py, c, clamp(x >> sh, -32767, 32767)) << sh;
+        int32_t x = b[i], y = IFX_WD_AP(s->px, s->py, c, x, sh);
         w += clamp(to - w, -IFX_SLOPE, IFX_SLOPE);
         d[i] = w >= 32768 ? y - x : mulq16(y - x, (uint32_t)w << 1);
     }
@@ -552,7 +570,7 @@ static HOT2 __attribute__((noinline)) void ifx_side_mix(const int32_t *sd, int32
         int32_t g = ga + (((gb - ga) * (int32_t)i) >> CTL_LOG2);
         if (g < 32767)
             x = (x >> 4) * (g >> 3) >> 8;
-        x = ((x >> 4) * 4096) >> 8;                     /* (the centre's gain, as the dry's) */
+        x = MIX_PAN(x, 4096);                           /* (the centre's gain, as the dry's: fx.c) */
         ml[i] += x, mr[i] -= x;
     }
 }

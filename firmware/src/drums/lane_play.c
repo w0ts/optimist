@@ -459,8 +459,10 @@ AINL uint32_t dl_play_ofs(uint32_t l, uint32_t *w)
             m = g == 2u ? denv_now(l) : dlfo_now(g ? &dlfo2[l] : &dlfo[l], l);
             n = m ? lfo_slots_pairs(sl, d, a) : 0u;
             for (k = 0; k < n; k++) {
-                v = d[k] - 1u;
-                o[v] = (int8_t)clamp(o[v] + lfo_slot_mod(m, a[k], DE_MAX[v] - DE_MIN[v]), DE_MIN[v], DE_MAX[v]);
+                int32_t x;
+                v = d[k] - 1u;                          /* (TUNE: the pitch curve, core.h pit_depth, in whole steps) */
+                x = v == DE_TUNE ? (pit_mul(m, a[k]) + 2048) >> 12 : lfo_slot_mod(m, a[k], DE_MAX[v] - DE_MIN[v]);
+                o[v] = (int8_t)clamp(o[v] + x, DE_MIN[v], DE_MAX[v]);
             }
         }
     }

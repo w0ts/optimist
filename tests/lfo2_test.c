@@ -151,7 +151,7 @@ static void t_maths(void)
     for (a = -128; a <= 127; a++) {                    /* SQR: +32767 in the first half, -32767 in the second */
         l2_set(t, 0, 3, 0, 0, LT_PIT, a);
         o = tick_at(0, 0x20000000u);
-        ok &= o.m[0] == (32767 * a * 3) >> 8 && !o.m[1] && !o.m[2] && o.g2 < 0;
+        ok &= o.m[0] == pit_mul(32767, a) && !o.m[1] && !o.m[2] && o.g2 < 0;
         t->p[P_L2DA] = LT_FLT;
         o = tick_at(0, 0xA0000000u);
         ok &= o.m[1] == (-32767 * a) >> 8 && !o.m[0];
@@ -163,9 +163,9 @@ static void t_maths(void)
         ok &= o.m[2] == (32767 * (a + 20)) >> 8;
         t->p[P_L2DB] = LT_PIT, t->p[P_L2AB] = 7;       /* (one each) */
         o = tick_at(0, 0x20000000u);
-        ok &= o.m[2] == (32767 * a) >> 8 && o.m[0] == (32767 * 7 * 3) >> 8;
+        ok &= o.m[2] == (32767 * a) >> 8 && o.m[0] == pit_mul(32767, 7);
     }
-    check(ok, "maths: PIT (v AMT 3) >> 8, FLT and SHP (v AMT) >> 8 (a depth d of before is AMT 2 d), two slots summed");
+    check(ok, "maths: PIT on the pitch curve (core.h pit_mul), FLT and SHP (v AMT) >> 8 (a depth d of before is AMT 2 d), two slots summed");
     l2_set(t, 0, 2, 0, 0, LT_FLT, 126);                /* SAW: (ph >> 16) - 32768 */
     for (w = 0, ok = 1; w < 224u; w++) {
         ph = w * 0x01230000u;

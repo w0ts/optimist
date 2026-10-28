@@ -1,9 +1,9 @@
 /* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* FM-1 (AC791N / WL82) BLE baseband: the registers, the link-column port, the interrupt lines and the radio
- * bring-up, for the route C driver (src/ble/ble_hw_wl82.c, FELUCCA_BLE). Written only from the clean-room fact
- * sheet docs/BLE-HW-FACTS.md (branch feat/ble-facts, 41b7374; §14-§17 from d907ce3): every register access names its
- * section there as "HW §n". Nothing in this file ran on a real FM-1; the emulator models only the baseband engine
- * (fm1-emulator feat/ble-engine), not the radio analog side.
+ * bring-up, for the route C driver (src/ble/ble_hw_wl82.c, FELUCCA_BLE). Written only from the fact
+ * sheet docs/BLE-HW-FACTS.md (facts read from the vendor's binary, no vendor code; branch feat/ble-facts, 41b7374;
+ * §14-§17 from d907ce3): every register access names its section there as "HW §n". Nothing in this file ran on a
+ * real FM-1; the emulator models only the baseband engine (fm1-emulator feat/ble-engine), not the radio analog side.
  *
  *   fm1_ble_rf_init(trims)      the radio in stock's second-boot order (HW §16): the captured Wi-Fi front end with
  *                               the stored trims (hal/fm1_ble_rf.h), clocks and power, the BT analog block (HW §5.1,

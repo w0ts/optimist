@@ -107,6 +107,13 @@ static void c2_roll_tests(void)
     tap(B_OCTUP);
     roll_range(TSEL);
     check(rg.lo == lo0 && song.octave == 0, "OCT+ from -1: the fit again, octave 0 (one tap, one octave)");
+    press(B_OCTUP);                                     /* (the user, 2026-10-26: "pressing oct for long should not change octave") */
+    frames(HOLD_FRAMES);
+    release(B_OCTUP);
+    press(B_OCTDN);
+    frames(HOLD_FRAMES);
+    release(B_OCTDN);
+    check(song.octave == 0, "OCT+ / OCT- held long, let go: no octave (a short press only)");
     for (i = 0; i < 6u; i++)                            /* the top: the keyboard octave stops at +3, the view with it */
         tap(B_OCTUP);
     roll_range(TSEL);

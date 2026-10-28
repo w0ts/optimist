@@ -55,7 +55,7 @@ static int16_t lk_ret[NTRK][NLOCK];                  /* the value each lets go t
 static void auto_take(const track_t *t, uint32_t k, uint32_t id)
 {
     if (!AB_ON(k, id)) {
-        motion_base[k][id] = t->p[id];
+        motion_base[k][id] = lo_base(k, id, t->p[id]);   /* (not a modulator's move: voice.c lo_base) */
         motion_active[k][id / 32u] |= 1u << (id % 32u);
     }
 }

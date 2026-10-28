@@ -276,7 +276,7 @@ static void t_plain(void)
     trk_note_on(&trk[0], 40, 100);
     brun(300, &h2);
     check(h1 == h2, "plain: the plain path and env_post render ENV 1's FLT the same, sample for sample");
-    {   /* PIT 63 at ENV's top: the pitch +31.5 st (env_post: whole 1/16 semitones, as the PIT slots) */
+    {   /* PIT 63 at ENV's top: the pitch +24 st (env_post: core.h pit_depth, as the PIT slots; 1/4096 semitone) */
         env_plan_t pl;
         env_vo_t vo;
         vmod_t m;
@@ -288,11 +288,16 @@ static void t_plain(void)
         memset(&vo, 0, sizeof vo);
         trk_note_on(&trk[0], 48, 100);
         env_post(&trk[0], &trk[0].v[0], &pl, &vo, 32767, &nw, &m, &lm);
-        check(pl.slow && vo.pit >= 503 && vo.pit <= 505 && vo.amp == 32767, "plain: PIT 63: +31.5 st at ENV's top, the amplitude ENV itself");
+        check(pl.slow && vo.pit == pit_mul(32767, 63) && vo.pit > 24 * 4096 - 8 && vo.amp == 32767,
+              "plain: PIT 63: +24 st at ENV's top (the pitch curve), the amplitude ENV itself");
         trk[0].p[P_E1PIT] = -64;
         env_plan(&trk[0], &pl);
         env_post(&trk[0], &trk[0].v[0], &pl, &vo, 32767, &nw, &m, &lm);
-        check(vo.pit <= -511 && vo.pit >= -513, "plain: PIT -64: -32 st");
+        check(vo.pit == pit_mul(32767, -64) && vo.pit < -24 * 4096 + 8, "plain: PIT -64: -24 st (the pitch curve)");
+        trk[0].p[P_E1PIT] = 16;
+        env_plan(&trk[0], &pl);
+        env_post(&trk[0], &trk[0].v[0], &pl, &vo, 32767, &nw, &m, &lm);
+        check(vo.pit > 2040 && vo.pit <= 2048, "plain: PIT 16: half a semitone (the curve's fine part)");
     }
 }
 

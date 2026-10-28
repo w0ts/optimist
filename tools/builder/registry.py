@@ -236,6 +236,13 @@ _add("A2_MS20", "FELUCCA_A2_MS20", "ANALOG 2 filter: MS20 (Sallen-Key, MS-20-sty
 _add("ENG_DIGITAL", "FELUCCA_ENG_DIGITAL", "DIGITAL (4-operator FM)", E, 1,
      desc="Four-operator FM synth: 8 classic algorithms, feedback on operator 4 and one modulation INDEX with its "
           "own envelope. About 2 KB of flash; the stand-in for FM6 when FM6 is left out.")
+_add("DIG_TONE", "FELUCCA_DIG_TONE", "DIGITAL: TONE (Digitone-style routings T1..T8)", E, 432, default=0, parent="ENG_DIGITAL",
+     desc="DIGITAL's ALG gets eight more routings, T1..T8, in the manner of Elektron's Digitone: a carrier C, its "
+          "modulator A and a pair B1 B2, two outputs X and Y that MIX crossfades, feedback on one operator. On them the "
+          "EDIT values are C, A and B (the ratios), A LEV, B LEV (B's depth follows the track's ENV), FDBK and MIX; the "
+          "classic routings 1..8 sound as before. 6 presets of our own. Integer code; about 2.3 KB of flash.",
+     notice="Our routings and code after the Digitone's published design; not affiliated with Elektron. Tested in the "
+            "host tests only, not on a device.")
 _add("ENG_PHASE", "FELUCCA_ENG_PHASE", "PHASE (phase distortion)", E, 2,
      desc="Phase-distortion synth: bends the phase of a cosine wave to get saw, square, pulse and resonant shapes "
           "with a second line to mix or ring-modulate. About 1.4 KB of flash; the stand-in for CZ.")
@@ -396,6 +403,25 @@ _add("ENG_PROPHET", "FELUCCA_ENG_PROPHET", "PROPHET (a Prophet-5 style voice)", 
           "Floating point (the FPU), its own unit; about 11 KB of flash.",
      notice="The voice is Melodee's (Kerem Kilic, GPL-3.0-only), with our controls. Tested in the host tests only, not "
             "on a device. Not affiliated with Sequential.")
+CS1_CS80 = Provenance("CS-1 (twochannels/CS-1): its CS-80 voice's design", "twochannels", "GPL-3.0-only", "5dce8fa",
+                      "https://github.com/twochannels/CS-1")
+_add("ENG_CS80", "FELUCCA_ENG_CS80", "CS80 (a CS-80 style voice)", E, 431, default=0, provenance=CS1_CS80,
+     desc="A Yamaha CS-80 style voice (engine 26) after CS-1's: two channels a voice (I and II), each a saw, pulse, "
+          "both, saw with a sine or noise through a high-pass and a low-pass in series (HPF, LPF, RES), the MIX lever "
+          "between them, channel II at its own footage (II FT) and detuned by the track's DTUNE, and the ring modulator "
+          "(RING). The track's ENV, ENV > FLT, LFO and SHP (the pulse width) drive it; velocity opens the filters. 12 "
+          "presets of our own. Eight voices, integer code; about 3.5 KB of flash.",
+     notice="After CS-1's CS-80 voice (twochannels, GPL-3.0-only), with our controls; none of CS-1's presets or its "
+            "RANDOM model. Tested in the host tests only, not on a device. Not affiliated with Yamaha.")
+_add("ENG_STRETCH", "FELUCCA_ENG_STRETCH", "STRETCH (PaulStretch-style stretching)", E, 433, default=0,
+     desc="Extreme time stretching of the SAMPLE material (engine 27), in the manner of Paul Nasca's PaulStretch: the "
+          "source read through a 4096-sample window, a fixed-point FFT, every bin turned by a random phase (SMEAR), the "
+          "spectrum moved to each voice's pitch, one inverse FFT and an overlap-add, a frame every 46 ms. STRCH sets how "
+          "many times slower (up to frozen), POS where the scan starts, TONE a spectral low-pass, SUB and SHIM octaves, "
+          "BLUR tones into noise bands: a smooth, endless sound from any sample. One part plays it at a time (45 KB of "
+          "the pool, once). 8 presets of our own. Integer code; about 6 KB of flash.",
+     notice="Our code, after PaulStretch's algorithm (Paul Nasca) and AEther's design (an fm1-base app) as a reference; "
+            "none of their code. Tested in the host tests only, not on a device.")
 # (bit 91, LFO2, retired 2026-10-16: LFO 2, a second LFO on each synth track, is always built; never reuse the bit)
 # the worked examples of CONTRIBUTING.md (2026-10-26): one each of an insert, an engine, note generators; off in every
 # profile, every line they add is under their flag (a build without them is the build from before)
@@ -403,7 +429,7 @@ _EX_TESTED = "host-tested only (tests/examples_test.c), not on a device"
 _EX_NOTE = "An example to copy (CONTRIBUTING.md), not a feature: " + _EX_TESTED + "."
 _add("EX_SQUARE", "FELUCCA_EX_SQUARE", "SQUARE: the example engine (a pulse, its sub, a filter)", E, 422, default=0,
      experimental=True, tested=_EX_TESTED, notice=_EX_NOTE, symbols=("sq_render",),
-     desc="The worked example of CONTRIBUTING.md for a new synth engine (engines/square/eng_square.c, engine UID 26): a "
+     desc="The worked example of CONTRIBUTING.md for a new synth engine (engines/square/eng_square.c, engine UID 28): a "
           "band-limited pulse (PW, the track's SHP moves it), a square an octave down (SUB), a second pulse detuned up "
           "(DTN), white noise (NOIS), a 12 dB low-pass (CUT, RES, TRK: key tracking) and a soft drive (DRV); three "
           "presets, SQ LEAD, SQ BASS and SQ PLUCK. Integer code. Off in every profile: a build without it is the build "
@@ -605,7 +631,48 @@ _add("REV_HALF", "FELUCCA_REV_HALF", "half-rate reverb (half the RAM, no top oct
           "the RAM (-8.7 KB) and it costs less CPU, with the same decay and room size. PLATE and FDN8 already run at "
           "22.05 kHz; here they get half the ring (8 KB), a smaller tank with more audible modes. The reverb loses "
           "its top octave (above ~11 kHz); the dry sound and the other buses are untouched.", symbols=("rev_half",))
-REV_ALGOS = ("REV_ROOM", "REV_PLATE", "REV_FDN8", "SPRING", "REV_AIRWIN")   # at least one with FX_REVERB (configure.py validate)
+# the effects' finer arithmetic (2026-10-26, a Reddit report: the send chorus, JUNO CHORUS, WIDE and the reverbs grainy on
+# in-ear headphones, smooth on Felucca): each measured on the host against the old arithmetic, which stays the default
+_FINE_TESTED = "host-measured only (a sine through the firmware's own code, 2026-10-26); not yet heard on an FM-1"
+_add("CHO_EXACT", "FELUCCA_CHO_EXACT", "chorus: exact modulation ramp (less grit)", F, 425, default=0,
+     parent="FX_CHORUS", experimental=True, tested=_FINE_TESTED,
+     desc="The chorus send moves its two read points by exactly 1/32 of the block's change each sample, as the CHRS "
+          "insert does, instead of a step rounded down once a block. The old way left the read point up to 0.12 sample "
+          "behind by each block's end and snapped it back 1378 times a second: a faint grit around every note, heard "
+          "on headphones. Measured: 12-15 dB less of it from 220 Hz to 1 kHz, about 5 dB at 3 kHz. A few bytes of "
+          "flash, no RAM, two shifts a sample.")
+_add("MIX_FINE", "FELUCCA_MIX_FINE", "mix: finer part level steps (lower noise floor)", F, 426, default=0,
+     experimental=True, tested=_FINE_TESTED,
+     desc="Each synth part (and the side of WIDE, JUNO CHORUS and DRONE's BEAT) goes into the mix with 3 bits dropped "
+          "before its pan gain instead of 4: the steps half as coarse, the noise floor 5.3 dB lower on every part "
+          "(about -65 dB under the signal; a quiet part gains the most). Same headroom (the product stays under "
+          "2^31). No flash or RAM to speak of; every sound changes a little, so it is off by default.")
+_add("WIDE_FINE", "FELUCCA_WIDE_FINE", "WIDE: all-pass at full resolution", F, 427, default=0, parent="INS_WIDTH",
+     experimental=True, tested=_FINE_TESTED,
+     desc="WIDE's all-pass runs at the part's own scale with 64-bit products instead of 4 bits down (the drum bus's "
+          "and the master's: 3): its side, only in the left ear, is no longer rounded to 16 units. Measured: 3.5-4.5 dB "
+          "less noise in that ear (about 7 with MIX_FINE). More headroom than before (+-3 M, was +-0.5 M). A few "
+          "multiplies a sample more.")
+_add("TFLT_FINE", "FELUCCA_TFLT_FINE", "track FILTER: full resolution (quiet high-pass)", F, 428, default=0,
+     experimental=True, tested=_FINE_TESTED,
+     desc="The track FILTER (and the DJ filter) runs at the samples' own scale with 64-bit products instead of 3 bits "
+          "down (the drum bus: 2), with the same headroom. As a high-pass at a low cutoff the old rounding came out of "
+          "x - y as loud as a quiet part (FILT +10: -18 dB); measured: 18-20 dB lower. A few dozen bytes of flash; "
+          "the filter's multiplies become 64-bit ones.")
+_add("JUNO_FINE", "FELUCCA_JUNO_FINE", "JUNO CHORUS: 32-bit line (less grit, twice the memory)", F, 429, default=0,
+     parent="INS_JCHORUS", experimental=True, tested=_FINE_TESTED,
+     desc="JUNO CHORUS keeps its line at 32 bits at the owner's own scale instead of 16 bits 3 bits down (a bus: 2): "
+          "its wet no longer moves in steps of 8, and its side, different in each ear, no longer carries that "
+          "rounding. Measured with the shift gone: 6-12 dB less noise. Each instance takes 4 KB of the effects memory "
+          "instead of 2 (fewer instances fit); more headroom than before (+-3 M, was +-0.26 M on a part).")
+_add("REV_HB_LONG", "FELUCCA_REV_HB_LONG", "half-rate reverbs: steep 63-tap filter (no aliasing)", F, 430, default=0,
+     parent="FX_REVERB", experimental=True, tested=_FINE_TESTED,
+     desc="The reverbs that run at 22.05 kHz (FDN8, PLATE, VTINY, ROOM with REV_HALF) sit behind a 63-tap low-pass "
+          "(9.8 kHz) instead of the 15-tap half-band. The half-band let 9-11 kHz come back mirrored to 11-13 kHz only "
+          "6-20 dB down, the grainy 'lower bitrate' top of these reverbs; the low-pass is -45 dB at the fold (11 kHz) "
+          "and -74 dB at 12 kHz, -0.6 dB at 9 kHz, -9 dB at 10 kHz. About 48 multiplies a sample more, 1 KB of pool, "
+          "0.7 ms of latency (pre-delay) instead of 0.3.")
+REV_ALGOS =("REV_ROOM", "REV_PLATE", "REV_FDN8", "SPRING", "REV_AIRWIN")   # at least one with FX_REVERB (configure.py validate)
 _add("FX_SLICER", "FELUCCA_FX_SLICER", "SLICER (stutter / gate insert)", F, 40,
      desc="A tempo-synced 16-step gate or stutter on each track (not the sample slicer engine): chops the sound "
           "to a pattern. About 1.2 KB of flash and 32 KB of pool at the full capture length.")

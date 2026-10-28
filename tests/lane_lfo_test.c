@@ -118,6 +118,8 @@ static int32_t want_lfo(int32_t rate, uint32_t wave, uint32_t phase, uint32_t n)
 }
 static int32_t want_val(int32_t base, int32_t lfo, int32_t amt, uint32_t v)
 {
+    if (v == DE_TUNE)                                  /* (TUNE: the pitch curve, core.h pit_depth, whole steps) */
+        return clamp(base + ((pit_mul(lfo, amt) + 2048) >> 12), DE_MIN[v], DE_MAX[v]);
     return clamp(base + ((lfo * amt * (DE_MAX[v] - DE_MIN[v])) >> 22), DE_MIN[v], DE_MAX[v]);
 }
 
