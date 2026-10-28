@@ -134,7 +134,7 @@ const U = `const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 /* the mock behind requestMIDIAccess, before any page script (?nomidi: a browser without Web MIDI) */
 const MOCK = `(() => {
   if (location.search.includes("nomidi")) { Object.defineProperty(Navigator.prototype, "requestMIDIAccess", { configurable: true, value: undefined }); return; }
-  const ready = Promise.all([import("${ORIGIN}/src/installer/mock_fm1.js"), import("${ORIGIN}/src/fm1pkg.js")]).then(([m, p]) => {
+  const ready = Promise.all([import("${ORIGIN}/src/installer/mock_fm1.js"), import("${ORIGIN}/src/fm1base/fm1pkg.js")]).then(([m, p]) => {
     window.__M = m; window.__dev = new m.FakeFM1(p.logicalImage(m.fakePackage("${PRODUCT}")), { plugged: false, identity: "FM-1_015", finalIdentity: "${PRODUCT}", writeBlocks: 127 });
   });
   window.__midiCalls = 0;
@@ -219,6 +219,16 @@ ok(res.ok && /FM-1_720/.test(res.ok) && !res.err && res.bad === 0 && /update mod
   "replugged in update mode: found as such, Install again finishes the write and checks the FM-1 comes back");
 const none = await run(`${U} D().unplug(); await sleep(800); $(".oi-go").click(); await until(() => vis(".oi-err"), 20000); return $(".oi-err").textContent;`);
 ok(/^No FM-1 found\. Check the cable \(see under the Install button\)/.test(none), "no FM-1 at Install: said, pointing at step 1");
+
+/* ---- fm-1-base's discovery: an FM-1 under a name nobody knows is listed with Try, remembered once it answers; m-bootloader is offered */
+const odd = await run(`${U} D().plug("FM-1_015", "Mystery Port"); await sleep(300); $(".oi-conn .o-btn").click(); await until(() => $(".oi-portlist li button"), 10000);
+  const before = [...document.querySelectorAll(".oi-portlist li")].map((l) => l.textContent);
+  const btn = $(".oi-portlist li button"); btn.click(); await until(() => /^Found FM-1_015 on Mystery Port/.test($(".oi-portmsg").textContent), 10000);
+  await until(() => $(".oi-found").dataset.kind === "ok", 10000);
+  return { before, msg: $(".oi-portmsg").textContent, found: $(".oi-found").textContent, kept: localStorage.getItem("fm1-ports"), boot: vis(".oi-bootopt") };`);
+ok(odd.before.join() === "Mystery PortTry" && /This browser remembers it/.test(odd.msg) && /Found: the official firmware V15/.test(odd.found) && odd.kept === '["Mystery Port"]',
+  "step 1: an FM-1 under an unknown port name: listed with Try, asked, remembered, then found");
+ok(odd.boot, "step 3: m-bootloader is offered beside Install");
 
 /* ---- a file of yours: not a package -> refused in words; a SLOOP package -> ready */
 const doc = await send("DOM.getDocument", { depth: -1 });

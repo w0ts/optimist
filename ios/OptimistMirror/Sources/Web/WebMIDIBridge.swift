@@ -2,7 +2,7 @@
 // Web MIDI for the web editor inside the app (the user, 2026-10-25: the web's other tabs in the app, "web + MIDI bridge"):
 // WKWebView has no navigator.requestMIDIAccess, so the page gets a stand-in (shim, put in before the page's own scripts)
 // that talks to this bridge: the app's CoreMIDI ports (USB and Bluetooth) as MIDIInput / MIDIOutput, bytes both ways.
-// Only what the pages use (web/editor.html, fm1ota.js, installer.js, sim.js): requestMIDIAccess, inputs / outputs and their
+// Only what the pages use (web/editor.html, fm1base/fm1ota.js, installer.js, sim.js): requestMIDIAccess, inputs / outputs and their
 // values(), a port's id name state connection open() close() onmidimessage send(), access.onstatechange, an event's data
 // and timeStamp.
 import CoreMIDI

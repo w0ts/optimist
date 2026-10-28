@@ -9,11 +9,13 @@
                               release); site.json "latest": {tag, sha, date}, where the builder and the simulator start
   firmware/FM-1_015.fwsc      M-VAVE's official V15, unchanged (web/stock/, Apache-2.0): the installer's return to stock
   icon.svg, favicon.ico, apple-touch-icon.png, icon-*.png, manifest.webmanifest   the icon (assets/logo/)
-  webapp/installer/index.html the standalone installer (web/installer/index.html): the installer module with fm1pkg.js,
-                              fm1ota.js and its CSS, the site's packages (site.json) and the shared style inlined
+  firmware/m-bootloader-X.Y.fwsc  m-bootloader (MIT, web/fm1base/m-bootloader/), which the installer offers after the firmware
+  webapp/installer/index.html the standalone installer (web/installer/index.html): the installer module with fm-1-base's
+                              fm1pkg.js and fm1ota.js (web/fm1base/), fm1ota_optimist.js and its CSS, the site's packages
+                              (site.json) and the shared style inlined
   webapp/installer/installer.js  the same module as one file (mountInstaller), for the one-page app; site.json the packages
   webapp/editor/index.html    editor.html (+ fukiai.ttf, FUKIAI-LICENSE.txt), with a link to the builder; beside it what its Install and Build
-                              tabs import: style/optimist.css, fm1ota.js, fm1pkg.js, installer/ (installer.js, .css, site.json), builder/
+                              tabs import: style/optimist.css, fm1ota_optimist.js, fm1base/, installer/ (installer.js, .css, site.json), builder/
   webapp/builder/             the web builder (web/builder/; data/ exported fresh by tools/export_builder_web.py,
                               build-info.json: the commit for the cloud key, none when the tree is modified)
   LICENSE, LICENSING.md, LICENSES/*.txt            the notices the package needs
@@ -82,22 +84,26 @@ def source_ref():
 BUILDER_FILES = ("index.html", "app.html", "logic.js", "ui.js", "builder.js", "cloud.js", "builder.css", "py-worker.js")
 
 
-INSTALLER_IMPORTS = re.compile(r'^import \{[^}]*\} from "\.\./(fm1ota|fm1pkg)\.js";\n', re.M)
+INSTALLER_IMPORTS = re.compile(r'^import \{[^}]*\} from "\.\./(?:fm1base/)?(?:fm1ota|fm1pkg|fm1ota_optimist)\.js";\n', re.M)
+# fm-1-base's two files (web/fm1base/, MPL-2.0, unchanged), then Optimist's extras: the order they are inlined in
+LIB_FILES = ("fm1base/fm1pkg.js", "fm1base/fm1ota.js", "fm1ota_optimist.js")
+MBOOT_VERSION = "1.2"                              # web/fm1base/m-bootloader/fm1-uboot-X.Y.fwsc (MIT): the installer's extra choice
+MBOOT_NAME = f"m-bootloader-{MBOOT_VERSION}.fwsc"
 CSS_MARK = "const BUNDLED_CSS = null;"
 
 
 STOCK_NAME = "FM-1_015.fwsc"                       # web/stock/: M-VAVE's FM-1 V15, unchanged (its FM1 Open kit, Apache-2.0)
-STOCK_SHA256 = "db1642b2b6fa5c2cccb11ffd13878068bb28601678d3644049f99dc40e7edb8a"   # (web/fm1pkg.js, tools/fm1_rescue.py)
+STOCK_SHA256 = "db1642b2b6fa5c2cccb11ffd13878068bb28601678d3644049f99dc40e7edb8a"   # (web/fm1base/fm1pkg.js STOCK_FILES, tools/fm1_rescue.py)
 
 
 def installer_module(inline):
-    """web/installer/installer.js as one file: web/fm1pkg.js and web/fm1ota.js in place of its imports (their exports
+    """web/installer/installer.js as one file: web/fm1base/*.js and web/fm1ota_optimist.js in place of its imports (their exports
     dropped), web/installer/installer.css in BUNDLED_CSS. inline=False: a module that still exports mountInstaller and
     its helpers (webapp/installer/installer.js, for the one-page app); inline=True: the page's own <script type=module>"""
     src = (HERE / "installer" / "installer.js").read_text(encoding="utf-8")
     if len(INSTALLER_IMPORTS.findall(src)) != 2 or src.count(CSS_MARK) != 1:
         raise SystemExit("web/installer/installer.js: its two imports or BUNDLED_CSS moved; update make_site.py")
-    lib = "".join(as_plain_script((HERE / f).read_text(encoding="utf-8")) + "\n" for f in ("fm1pkg.js", "fm1ota.js"))
+    lib = "".join(as_plain_script((HERE / f).read_text(encoding="utf-8")) + "\n" for f in LIB_FILES)
     css = (HERE / "installer" / "installer.css").read_text(encoding="utf-8")
     src = INSTALLER_IMPORTS.sub("", src).replace(CSS_MARK, f"const BUNDLED_CSS = {json.dumps(css)};")
     if not inline:
@@ -195,14 +201,17 @@ def builder_site(out, dst=None):
 
 def editor_modules(ed, out, site):
     """what the editor's Install and Build tabs import, next to webapp/editor/index.html (editor.html loads ./style/optimist.css,
-    ./installer/installer.js + installer.css + site.json and ./builder/builder.js on first use; installer.js imports ../fm1ota.js
-    and ../fm1pkg.js): the shared style and its font, fm1ota.js, fm1pkg.js, installer/, builder/ (with its data)"""
+    ./installer/installer.js + installer.css + site.json and ./builder/builder.js on first use; installer.js imports ../fm1base/fm1pkg.js
+    and ../fm1ota_optimist.js): the shared style and its font, fm1ota_optimist.js, fm1base/ (the two files it imports), installer/, builder/
+    (with its data)"""
     (ed / "style").mkdir(parents=True, exist_ok=True)
     (ed / "installer").mkdir(parents=True, exist_ok=True)
     for f in ("optimist.css", "terminus.ttf"):
         shutil.copy(HERE / "style" / f, ed / "style" / f)
-    for f in ("fm1ota.js", "fm1pkg.js"):
+    (ed / "fm1base").mkdir(parents=True, exist_ok=True)
+    for f in LIB_FILES:
         shutil.copy(HERE / f, ed / f)
+    shutil.copy(HERE / "fm1base" / "README.md", ed / "fm1base" / "README.md")
     for f in ("installer.js", "installer.css"):
         shutil.copy(HERE / "installer" / f, ed / "installer" / f)
     (ed / "sim").mkdir(parents=True, exist_ok=True)
@@ -343,6 +352,9 @@ def main(version, out, flavours=None, releases=None, sims=None):
     if stock_sha != STOCK_SHA256:
         raise SystemExit(f"{stock}: sha256 {stock_sha}, not M-VAVE's V15 ({STOCK_SHA256})")
     files.append((stock, STOCK_NAME))
+    boot = HERE / "fm1base" / "m-bootloader" / f"fm1-uboot-{MBOOT_VERSION}.fwsc"   # m-bootloader (MIT): offered after the firmware
+    files.append((boot, MBOOT_NAME))
+    files.append((HERE / "fm1base" / "m-bootloader" / "LICENSE", "m-bootloader-LICENSE.txt"))
     sim_list = []
     for x in sims:                                      # (a simulator alone: no firmware to install from it)
         name = f"optimist-sim-{x['id']}.wasm"
@@ -350,7 +362,8 @@ def main(version, out, flavours=None, releases=None, sims=None):
         files.append((Path(x["sim"]), name))
     site = {"version": version, "source": source_ref(), "packages": packages, "sims": sim_list,
             "repo": os.environ.get("GITHUB_REPOSITORY") or "w0ts/optimist",     # (the cloud builds' list: installer.js)
-            "stock": {"pkg": "../../firmware/" + STOCK_NAME, "sha256": stock_sha}}
+            "stock": {"pkg": "../../firmware/" + STOCK_NAME, "sha256": stock_sha},
+            "boot": {"pkg": "../../firmware/" + MBOOT_NAME, "version": MBOOT_VERSION, "sha256": hashlib.sha256(boot.read_bytes()).hexdigest()}}
     latest = latest_of(releases)
     if latest:                                          # (the builder's and the simulator's default: builder.js, sim.js)
         site["latest"] = latest

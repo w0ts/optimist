@@ -17,8 +17,8 @@ import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { STOCK_BANKS_SIZE, STOCK_V15_SHA256, logicalImage, productOf, stockBanks, validateStockPackage } from "./fm1pkg.js";
-import { OFFICIAL_LOADER, OUR_LOADER, Updater } from "./fm1ota.js";
+import { logicalImage, productOf } from "./fm1base/fm1pkg.js";
+import { OFFICIAL_LOADER, OUR_LOADER, OptimistUpdater, STOCK_BANKS_SIZE, STOCK_V15_SHA256, stockBanks, validateStockPackage } from "./fm1ota_optimist.js";
 import { FakeFM1, fakePackage } from "./installer/mock_fm1.js";
 import * as INST from "./installer/installer.js";
 import { findButton } from "./sim/buttons.js";
@@ -3271,58 +3271,52 @@ async function updater() {   /* every outcome of install() and resume() */
   const failure = (p) => p.then(() => null, (err) => err);
   const run = new FakeFM1(image);
   const progress = [];
-  const product = await new Updater(run.access).install(image, "FM-1_900", (step) => progress.push(step));
+  const product = await new OptimistUpdater(run.access).install(image, "FM-1_900", (step) => progress.push(step));
   ok(product === "FM-1_900" && !run.bad && progress.includes("write") && progress[progress.length - 1] === "done",
     `fm1ota.js: install goes running firmware -> loader -> Felucca (${run.served} reads)`);
 
   const fromRecovery = new FakeFM1(image);
   fromRecovery.boot("FM-1_000", "Felucca");
-  const recovered = await new Updater(fromRecovery.access).install(image, "FM-1_900");
+  const recovered = await new OptimistUpdater(fromRecovery.access).install(image, "FM-1_900");
   ok(recovered === "FM-1_900" && !fromRecovery.bad, "fm1ota.js: from recovery mode -> loader -> the normal firmware");
-  const cachedName = new FakeFM1(image, { name: "USB MIDI Device" });   /* (a Mac's cached name for the FM-1's USB id) */
-  const viaCache = await new Updater(cachedName.access).install(image, "FM-1_900");
-  const otherGear = new FakeFM1(image, { name: "Some Synth" }), otherBt = new FakeFM1(image, { name: "USB MIDI Device Bluetooth" });
-  const none = await new Updater(otherGear.access).find(), noneBt = await new Updater(otherBt.access).find();
-  ok(viaCache === "FM-1_900" && !cachedName.bad && none === null && noneBt === null,
-    "fm1ota.js: an FM-1 under a cached port name (USB MIDI Device) found and installed after its own names; other gear and Bluetooth never probed");
   const intoRecovery = new FakeFM1(image, { finalIdentity: "FM-1_000" });
   const seen = [];
-  const bootError = await failure(new Updater(intoRecovery.access).install(image, "FM-1_900", (step) => seen.push(step)));
+  const bootError = await failure(new OptimistUpdater(intoRecovery.access).install(image, "FM-1_900", (step) => seen.push(step)));
   ok(bootError?.code === "mismatch" && !seen.includes("done"), "fm1ota.js: ending up in recovery is not called a successful install");
 
   const pulled = new FakeFM1(image, { unplugAfter: 3 });
   pulled.boot("ota-FM-1_900", "Felucca Update");
   const started = Date.now();
-  const finished = await new Updater(pulled.access).resume(image);
+  const finished = await new OptimistUpdater(pulled.access).resume(image);
   ok(finished === false && Date.now() - started < 6000, "fm1ota.js: unplugged mid-write -> it stops right away");
 
-  const early = await failure(new Updater(new FakeFM1(image, { unplugAfter: 2 }).access).install(image, "FM-1_900"));
+  const early = await failure(new OptimistUpdater(new FakeFM1(image, { unplugAfter: 2 }).access).install(image, "FM-1_900"));
   ok(early?.code === "lost", "fm1ota.js: unplugged in step 1 -> error code 'lost'");
-  const nobody = await failure(new Updater({ inputs: new Map(), outputs: new Map() }).install(image, "FM-1_900"));
+  const nobody = await failure(new OptimistUpdater({ inputs: new Map(), outputs: new Map() }).install(image, "FM-1_900"));
   ok(nobody?.code === "notfound", "fm1ota.js: no device at all -> error code 'notfound'");
   const theirs = new FakeFM1(image);
   theirs.boot("ota-FM-1_015", "FM-1 Update");
-  const foreign = await failure(new Updater(theirs.access).resume(image));
+  const foreign = await failure(new OptimistUpdater(theirs.access).resume(image));
   ok(foreign?.code === "foreign" && foreign.detail === "ota-FM-1_015" && theirs.served === 0, "fm1ota.js: a loader of another firmware is never resumed ('foreign')");
 
   /* return to the official V15 (installer page, after Felucca 1.0.1): our firmware stages the official
    * loader, which writes V15; an interrupted return is resumed with the official loader only on request */
   const back = new FakeFM1(image, { identity: "FM-1_700", loaderIdentity: "ota-FM-1_015", finalIdentity: "FM-1_015" });
-  const v15 = await new Updater(back.access).install(image, "FM-1_015");
+  const v15 = await new OptimistUpdater(back.access).install(image, "FM-1_015");
   ok(v15 === "FM-1_015" && back.bad === 0, "fm1ota.js: Optimist -> official loader -> V15 (return to stock)");
   const half = new FakeFM1(image);
   half.boot("ota-FM-1_015", "FM-1 Update");
-  const resumed = await new Updater(half.access).resume(image, null, OFFICIAL_LOADER);
+  const resumed = await new OptimistUpdater(half.access).resume(image, null, undefined, OFFICIAL_LOADER);
   ok(resumed === true && half.bad === 0, "fm1ota.js: resume(image, step, OFFICIAL_LOADER) finishes an interrupted return to V15");
   /* SLOOP 2.3: a resumed return is checked once the FM-1 is back, as install() checks it */
   const half2 = new FakeFM1(image, { finalIdentity: "FM-1_015" });
   half2.boot("ota-FM-1_015", "FM-1 Update");
   const steps2 = [];
-  const resumed2 = await new Updater(half2.access).resume(image, (k, a) => steps2.push(`${k}:${a ?? ""}`), OFFICIAL_LOADER, "FM-1_015");
+  const resumed2 = await new OptimistUpdater(half2.access).resume(image, (k, a) => steps2.push(`${k}:${a ?? ""}`), "FM-1_015", OFFICIAL_LOADER);
   ok(resumed2 === true && steps2.includes("done:FM-1_015"), "fm1ota.js: resume(..., product) waits for the FM-1 and checks it reports FM-1_015");
   const half3 = new FakeFM1(image, { finalIdentity: "FM-1_000" });
   half3.boot("ota-FM-1_015", "FM-1 Update");
-  const e4 = await new Updater(half3.access).resume(image, null, OFFICIAL_LOADER, "FM-1_015").then(() => null, (x) => x);
+  const e4 = await new OptimistUpdater(half3.access).resume(image, null, "FM-1_015", OFFICIAL_LOADER).then(() => null, (x) => x);
   ok(e4?.code === "mismatch" && e4.detail === "FM-1_000", "fm1ota.js: a resumed return that comes back as something else is reported ('mismatch')");
   ok(OFFICIAL_LOADER({ text: "ota-FM-1_015" }) && !OFFICIAL_LOADER({ text: "ota-FM-1_700" }) && !OFFICIAL_LOADER({ text: "ota-FM-1_905" }),
      "fm1ota.js OFFICIAL_LOADER: the stock loader (ota-FM-1_0XX), not ours");
@@ -3343,12 +3337,31 @@ async function updater() {   /* every outcome of install() and resume() */
      "fm1pkg.js stockBanks: V15's four voice banks (16 KiB, SHA-256 checked; the first voice PIANO 1)");
   const v15dev = new FakeFM1(image, { identity: "FM-1_015" });
   const prog = [];
-  await new Updater(v15dev.access).restoreBanks(banks, (n) => prog.push(n));
+  await new OptimistUpdater(v15dev.access).restoreBanks(banks, (n) => prog.push(n));
   const ops = v15dev.bankOps.join("");
   ok(v15dev.banks.every((b, i) => b === banks[i]) && ops === ("33" + "34".repeat(8)).repeat(4) && prog.at(-1) === 16384,
      "fm1ota.js restoreBanks: per bank an erase (33), eight 512 B writes (34), each acknowledged: the banks as V15 has them");
+  /* fm1base's own features, through our updater: a port under any name (Try), the address of the last read, m-bootloader */
+  const odd = new FakeFM1(image, { name: "My Synth" });
+  const oddUp = new OptimistUpdater(odd.access);
+  const none = await oddUp.find(), listed = oddUp.ports();
+  const probed = await oddUp.probe("My Synth");
+  ok(none === null && listed.join() === "My Synth" && probed?.text === "FM-1_015" && (await oddUp.find())?.name === "My Synth",
+    "fm1ota_optimist.js: a port with an unusual name is listed, asked with Try (probe) and then found (fm1base's discovery)");
+  const bt = new FakeFM1(image, { name: "FM-1 Bluetooth" });
+  ok(await new OptimistUpdater(bt.access).find() === null && new OptimistUpdater(bt.access).ports().length === 0, "fm1ota_optimist.js: a Bluetooth MIDI port is never asked or listed");
+  const tracked = new FakeFM1(image), upT = new OptimistUpdater(tracked.access), addrs = [];
+  await upT.install(image, "FM-1_900", (k) => { if (k === "write") addrs.push(upT.lastAddr); });
+  ok(addrs.length > 1 && addrs.every((a) => a % 512 === 0 && a < image.length) && addrs.includes(512), `fm1ota_optimist.js: lastAddr follows the write (${addrs.join(" ")})`);
+  const withBoot = new FakeFM1(image, { identity: "FM-1_720", loaderIdentity: "FM-1_720" });
+  const bootSteps = [];
+  const bootBack = await new OptimistUpdater(withBoot.access).installBoot(image, "FM-1_720", (k) => bootSteps.push(k));
+  ok(bootBack === "FM-1_720" && bootSteps.join() === "bootstart,bootwrite,bootdone" && !withBoot.bad, "fm1ota_optimist.js: installBoot (m-bootloader) goes through fm1base's steps");
+  const openFw = new FakeFM1(image, { identity: "FM1_OFFICIAL_OPEN" });
+  const eOpen = await new OptimistUpdater(openFw.access).install(image, "FM-1_720").then(() => null, (x) => x);
+  ok(eOpen?.code === "open" && openFw.served === 0, "fm1ota_optimist.js: M-VAVE's Open firmware takes only the official firmware (open), nothing is written");
   const notV15 = new FakeFM1(image, { identity: "FM-1_720" });
-  const e5 = await new Updater(notV15.access).restoreBanks(banks).then(() => null, (x) => x);
+  const e5 = await new OptimistUpdater(notV15.access).restoreBanks(banks).then(() => null, (x) => x);
   ok(e5?.code === "notfound" && !notV15.bankOps, "fm1ota.js restoreBanks: only an FM-1 running V15 (FM-1_015)");
   const cs = await INST.checkStock(kept);
   ok(cs.stock && cs.banks && cs.banks.length === STOCK_BANKS_SIZE, "installer: checkStock: the V15 with its voice banks (the restore after the install)");
@@ -3385,9 +3398,9 @@ async function installerModule() {
   const phases = ["start", "verify", "loader", "write", "reboot", "done"].map((k) => INST.progressOf(k, 1, 0, 0x10000, 0).phase);
   ok(seq.every((v, i) => i === 0 || v >= seq[i - 1]) && seq[2] === 10 && seq.at(-1) === 100 && seq[7] === 95 && JSON.stringify(phases) === "[0,0,1,2,3,4]",
     `installer: the bar only goes forward, the write fills 15-95 by address (${seq.join(" ")})`);
-  const codes = ["notfound", "model", "stopped", "noloader", "lost", "noreturn", "mismatch", "badreq", "foreign", "denied", "badpkg", "notours", "noloaderpkg"];
-  const ota = readFileSync(join(HERE, "fm1ota.js"), "utf8");
-  const thrown = [...new Set([...ota.matchAll(/fail\("(\w+)"/g), ...ota.matchAll(/fail\(s\d\.lost \? "(\w+)" : "(\w+)"/g)].flatMap((m) => m.slice(1)).filter(Boolean))];
+  const codes = ["notfound", "model", "stopped", "noloader", "lost", "noreturn", "mismatch", "badreq", "foreign", "denied", "badpkg", "notours", "noloaderpkg", "open", "bootrefused"];
+  const ota = readFileSync(join(HERE, "fm1base", "fm1ota.js"), "utf8") + readFileSync(join(HERE, "fm1ota_optimist.js"), "utf8").replaceAll("optFail(", "fail(");
+  const thrown = [...new Set([...ota.matchAll(/fail\("(\w+)"/g), ...ota.matchAll(/fail\(s\d?\.lost \? "(\w+)" : "(\w+)"/g)].flatMap((m) => m.slice(1)).filter(Boolean))];
   ok(thrown.length >= 8 && thrown.every((c) => codes.includes(c)) && codes.every((c) => typeof T[c] === "string" && !INST.errorText({ code: c }).startsWith(T.error)),
     `installer: every error fm1ota.js throws has its own message (${thrown.join(" ")})`);
   ok(INST.errorText({ code: "mismatch", detail: "FM-1_000" }) === T.rescueBack && INST.errorText({ code: "mismatch", detail: "FM-1_905" }).endsWith("FM-1_905")
