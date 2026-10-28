@@ -625,8 +625,14 @@ static uint32_t bk_info(uint32_t i, uint32_t *crc)
         *crc = h.crc;
         return h.len;
     } else {
-        const smp_user_hdr_t *h = (const smp_user_hdr_t *)smp_user_xip(o->id);
+        const smp_user_hdr_t *h;
         uint32_t n = 0;
+        /* a slot with no room holds nothing (smp_user_scan's rule): its header is never read. FELUCCA_LAYOUT 1 (the
+         * slots' flash is the app's) and USR1 with PATTERNS (the section log); on fm1-base such a slot is outside the
+         * data windows, smp_user_xip NULL (fm1_compat.h plat_data): reading it was the editor connect's CPU exception */
+        if (SMP_USER_CAP(o->id) <= SMP_USER_DATA)
+            return 0;
+        h = (const smp_user_hdr_t *)smp_user_xip(o->id);
         if (h->magic == SMP_USER_MAGIC && h->version == 1 && h->data_len <= SMP_USER_CAP(o->id) - SMP_USER_DATA)
             n = SMP_USER_DATA + h->data_len;                    /* a sample set: header, its data */
 #ifdef FM6_MAGIC
@@ -879,8 +885,8 @@ static int ed_backup(uint32_t cmd, const uint8_t *a, uint32_t na)
         off = ed_r32(a + 1, 3);
         n = bk_info(i, &crc);
         n = off < n ? (n - off > BK_CHUNK ? BK_CHUNK : n - off) : 0u;
-        {
-            const uint8_t *p = BK_OBJS[i].kind == BK_ST ? st_buf + off : BK_PJ_BUF(i, off, n) BK_SEC_BUF(i, off) BK_SNP_BUF(i, off, n)
+        {                                              /* (nothing to read: no object's pointer, a slot's maybe NULL) */
+            const uint8_t *p = !n ? st_buf : BK_OBJS[i].kind == BK_ST ? st_buf + off : BK_PJ_BUF(i, off, n) BK_SEC_BUF(i, off) BK_SNP_BUF(i, off, n)
                                BK_OBJS[i].kind == BK_FM6 ? fm6_bank_xip + off : smp_user_xip(BK_OBJS[i].id) + off;
             ed_b(i);
             ed_b32(off, 3);
