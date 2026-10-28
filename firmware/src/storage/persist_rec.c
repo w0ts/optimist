@@ -7,6 +7,7 @@
  * are the last field: a record of any older length reads whole, with none; a build without them reads ours as its prefix
  * (it saves it back shorter, so it forgets them). Included by project.c after sl24_guard.c (sl_word_in). */
 #include "../core/favorites.c"
+#include "../core/vufloor.h"                      /* rsv_pj[0]: VU FLOOR (vuf_enc / vuf_dec) */
 #define PERSIST_UA_SRC 24u                         /* the sources' room in the record: every one ua_tap.h has, and more */
 #if FELUCCA_USB_AUDIO
 _Static_assert(UAS_N <= PERSIST_UA_SRC, "the record holds every USB source");
@@ -189,7 +190,8 @@ typedef struct {
     uint8_t ua_dst[PERSIST_UA_SRC];
     uint32_t ua_mark3;
     uint8_t bt_rec[32], bt_key[32];
-    uint8_t open_proj, rsv_pj[3];                  /* 2026-10-22: the open project (PATTERNS: sections.c); a record from before: 0 */
+    uint8_t open_proj, rsv_pj[3];                  /* 2026-10-22: the open project (PATTERNS: sections.c); a record from before: 0.
+                                                    * rsv_pj[0]: VU FLOOR (core/vufloor.h vuf_enc: 0 = -60), 2026-10-28 */
     int16_t clk_ofs[2];                            /* 2026-10-24: GLOBAL > MIDI CLK OFS, BT OFS, ms (clock_sync.c sync_ofs);
                                                     * a record from before: 0 */
     uint8_t bt_kept[PERSIST4_BT_KEPT];             /* 2026-10-24: BT AUDIO's other remembered devices (op_bt.c bt_kept_out);

@@ -1055,22 +1055,33 @@ static void draw_list(void)
 }
 
 /* ---- pieces of the mixer's rows (op_mixdraw.c) */
-/* a peak (32767 = 0 dBFS) as a height 0 .. METER_H, linear in dB: 64 units a 6 dB step (a tick each, at 4/44 of METER_H), the
- * step from the leading bit, the place inside it from the next 3 mantissa bits (METER_T: 64 * log2(1 + k/8), the rest
- * interpolated linearly: within 0.05 dB). 2^14 is the -6 tick, 2^13 the -12 tick, 32767 the end; below 32 (-60 dB) nothing */
+/* a peak (32767 = 0 dBFS) as a height 0 .. METER_H, linear in dB: 64 units a 6 dB step (a tick each, at 4/44 of METER_H with
+ * the floor -60), the step from the leading bit, the place inside it from the next 3 mantissa bits (METER_T: 64 * log2(1 +
+ * k/8), the rest interpolated linearly: within 0.05 dB). 2^14 is the -6 tick, 2^13 the -12 tick, 32767 the end.
+ * The floor (vu_floor_i, SYSTEM > METERS VU FLOOR, -80 .. -20): a peak under it draws nothing; the scale is the floor + 6 dB
+ * wide (the -60 floor: 66 dB, 704 / 66 = 64 / 6 as before), so the floor's own tick stands 6 / (|floor| + 6) in. A peak
+ * of 1 .. 7 has fewer than 3 mantissa bits: the table's index is the bits it has */
 static const uint8_t METER_T[9] = {0, 11, 21, 29, 37, 45, 52, 58, 64};
 static uint32_t meter_h(int32_t pk)
 {
-    uint32_t a = pk > 0 ? (uint32_t)pk : 0u, lg, rem, idx, r, sh, f;
-    if (a < 32u)
+    uint32_t a = pk > 0 ? (uint32_t)pk : 0u, lg, rem, idx, r, sh;
+    int32_t fl = -vuf_db(vu_floor_i), d = fl + 6, f, l;     /* (l: 64 a 6 dB step, 960 = 0 dBFS) */
+    if (a == 0u)
         return 0u;
     lg = 31u - (uint32_t)__builtin_clz(a);
     rem = a - (1u << lg);
-    sh = lg - 3u;                                       /* (lg >= 5) */
-    idx = rem >> sh;
-    r = rem & ((1u << sh) - 1u);
-    f = METER_T[idx] + (((uint32_t)METER_T[idx + 1u] - METER_T[idx]) * r + (1u << (sh - 1u))) / (1u << sh);
-    return (uint32_t)ui_clamp((int32_t)((lg - 5u) * 64u + 64u + f), 0, METER_H);
+    if (lg >= 4u) {
+        sh = lg - 3u;
+        idx = rem >> sh;
+        r = rem & ((1u << sh) - 1u);
+        f = (int32_t)(METER_T[idx] + (((uint32_t)METER_T[idx + 1u] - METER_T[idx]) * r + (1u << (sh - 1u))) / (1u << sh));
+    } else {
+        f = METER_T[rem << (3u - lg)];
+    }
+    l = (int32_t)lg * 64 + f;
+    if (l < 960 - fl * 32 / 3)
+        return 0u;
+    return (uint32_t)ui_clamp(METER_H - ((960 - l) * 66 + d / 2) / d, 0, METER_H);
 }
 /* ---- the note played on the keys, at the screen's bottom left (the user, 2026-10-24, after Melodee): its name (A#4; a
  * chord's lowest) while a note key is down and NN_FRAMES after the last one is let go. A build with the help band: the

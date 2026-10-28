@@ -3856,6 +3856,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_picker.h"                   /* STEP: the note picker (the cards down) */
 #include "ui_optimist_master.h"                    /* PRESETS = the sound only; ALGORITHM to MASTER */
 #include "ui_optimist_knobcol.h"                   /* SYSTEM > SCREEN > KNOB COLORS */
+#include "ui_optimist_vufloor.h"                   /* SYSTEM > METERS > VU FLOOR: meter_h at each floor, the MASTER scale */
 #include "ui_optimist_syncnudge.h"                /* PLAY held > NUDGE: the sync offset while following a clock */
 #include "ui_optimist_clkout.h"                    /* SYSTEM > CLOCK OUT */
 #include "ui_optimist_uasel.h"                     /* SYSTEM > USB AUDIO */
@@ -4141,6 +4142,7 @@ int main(int argc, char **argv)
     master_tests();
     algo_inplace_tests();
     knobcol_tests();
+    vufloor_tests();
     clkout_tests();
     syncnudge_tests();
     uasel_tests();
