@@ -1394,8 +1394,8 @@ _add("BT_DIAG", "FELUCCA_BT_DIAG", "Bluetooth audio diagnostics: the console's b
           "works the same without it.",
      symbols=("con_btrx",))
 # Wi-Fi (2026-10-28; docs/WIFI-UI-DESIGN.md, docs/WIFI-LINK-HANDOVER.md). Needs BLE (the Wi-Fi driver is the BLE
-# driver's radio, BLE_HW_WL82) and the USB console build (the manager and the web editor's Wi-Fi command run through
-# the CDC console): core.validate says so. FELUCCA_LINK follows FELUCCA_WIFI (core.flags). The console's Wi-Fi test
+# driver's radio, BLE_HW_WL82); on the classic firmware the USB console build too (the manager and the web editor's
+# Wi-Fi command run through the CDC console; the release has them on fm1-base's own stack): core.validate says so. FELUCCA_LINK follows FELUCCA_WIFI (core.flags). The console's Wi-Fi test
 # commands and the software CCMP (FELUCCA_WIFI_CON, FELUCCA_WIFI_SWCCMP) are not items: OPTIMIST_WIFI=1 (tools/build.py).
 _add("WIFI_LINK", "FELUCCA_WIFI", "Wi-Fi + Link: join a network, Ableton Link as a clock", M, 434,
      default=0, target_only=True, experimental=True,
@@ -1403,9 +1403,9 @@ _add("WIFI_LINK", "FELUCCA_WIFI", "Wi-Fi + Link: join a network, Ableton Link as
      desc="The FM-1 joins a Wi-Fi network (WPA2-PSK with CCMP) on the radio BLE already uses: SYSTEM > WI-FI scans, lists "
           "the access points heard, keeps the saved networks and joins one (the password typed on the keys), and the web "
           "editor has a Wi-Fi tab. Ableton Link is a clock source: SYNC gets LINK (AUTO ranks it first), the session's "
-          "tempo and beat are the MIDI clock. Needs BLE (the same radio, the on-chip driver) and the serial console "
-          "(USB_CONSOLE): the Wi-Fi manager and the editor's Wi-Fi command run on it, so a build without either "
-          "is refused. Off by default. Measured 2026-10-28 on the bt-debug configuration, with and without it: "
+          "tempo and beat are the MIDI clock. Needs BLE (the same radio, the on-chip driver). On Optimist's own "
+          "firmware it needs the serial console (USB_CONSOLE) too: the Wi-Fi manager and the editor's Wi-Fi command run "
+          "on it; the release runs them on fm1-base's own Wi-Fi stack (wifi_stack = own), with no console. Off by default. Measured 2026-10-28 on the bt-debug configuration, with and without it: "
           "26.6 KB of flash, 1.9 KB of RAM and 3.7 KB of the pool. Open and WPA3-only networks, TKIP and networks "
           "that need protected management frames are shown grey and cannot be joined. The console's Wi-Fi test "
           "commands and the software CCMP are not part of it (the OPTIMIST_WIFI=1 dev build, +9.9 KB of flash).",

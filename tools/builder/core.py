@@ -27,6 +27,15 @@ NEEDS_AUTO = ()                 # (setup: the items the firmware switches off wi
 
 
 _UNSET = object()
+
+
+def _release():
+    """which firmware the rules are for: configure.py sets CLASSIC_HOOK to its classic() (Optimist's own firmware,
+    OPTIMIST_CLASSIC=1); the default is the release (Optimist as an fm1-base app)"""
+    return False
+
+
+CLASSIC_HOOK = _release
 RELEASE_LIMITS = None           # (setup: the release's slots, costs-fm1base.json "limits"; None: the classic firmware's, LIMITS)
 
 
@@ -289,9 +298,12 @@ def validate(cfg):
                 warn.append(Issue(f"{it.label}: EXPERIMENTAL ({it.tested})", [k]))
             if it.notice:
                 note.append(Issue(f"{it.label}: {it.notice}", [k]))
-    if built(cfg, "WIFI_LINK") and not (built(cfg, "BLE") and cfg["USB_CONSOLE"]):
-        err.append(Issue("Wi-Fi + Link runs on BLE's radio driver and the serial console's manager: switch on BLE and "
-                         "USB_CONSOLE (or Wi-Fi off)", ["WIFI_LINK", "BLE", "USB_CONSOLE"]))
+    if built(cfg, "WIFI_LINK") and not built(cfg, "BLE"):
+        err.append(Issue("Wi-Fi + Link runs on the radio BLE starts: switch on BLE (or Wi-Fi off)", ["WIFI_LINK", "BLE"]))
+    elif built(cfg, "WIFI_LINK") and CLASSIC_HOOK() and not cfg["USB_CONSOLE"]:
+        err.append(Issue("Wi-Fi + Link on Optimist's own firmware runs its manager on the serial console: switch on "
+                         "USB_CONSOLE (or Wi-Fi off; the release runs it on fm1-base's own Wi-Fi stack)",
+                         ["WIFI_LINK", "USB_CONSOLE"]))
     if cfg["USB_CONSOLE"] and cfg["USB_AUDIO"]:
         err.append(Issue("the serial console or USB audio, not both: the USB port has three data endpoints, USB MIDI "
                          "takes one and USB audio the other two", ["USB_CONSOLE", "USB_AUDIO"]))
