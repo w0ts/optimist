@@ -76,7 +76,7 @@ static int ed_cp_file(uint32_t i, char *name, uint32_t *kind, uint32_t *flags, u
     if (i >= ED_CP_N)
         return -1;
     if (i >= BK_N) {
-        memcpy(name, i == ED_CP_INFO ? "BKINFO" : "BKCTL", 7);
+        memcpy(name, i == ED_CP_INFO ? "BKINFO" : "BKCTL\0", 7);   /* (7 bytes each: "BKCTL" alone is 6, read past) */
         *kind = 0;
         *flags = i == ED_CP_INFO ? 1u : 2u | 8u;
         *size = i == ED_CP_INFO ? ED_CP_INFO_N : 0u;
@@ -115,6 +115,8 @@ static int ed_cp_read(uint32_t i, uint32_t off, uint8_t *dst, uint32_t n)
     len = bk_info(i, &crc);
     if (off + n > len)
         return -1;
+    if (!n)
+        return 0;                                    /* (no object's pointer: a slot with no room's is NULL on fm1-base) */
     p = BK_OBJS[i].kind == BK_ST ? st_buf + off : BK_PJ_BUF(i, off, n) BK_SEC_BUF(i, off) BK_SNP_BUF(i, off, n)
         BK_OBJS[i].kind == BK_FM6 ? fm6_bank_xip + off : smp_user_xip(BK_OBJS[i].id) + off;
     memcpy(dst, p, n);
