@@ -507,6 +507,10 @@ static BOOT_ORDER void fm1_main(void)
 #if FELUCCA_CDC
         cdc_task();
 #if FELUCCA_WIFI && BLE_HW_WL82
+        wc_poll();                                      /* the Wi-Fi manager: a step a pass (wifi/wifi_conn.c) */
+#if FELUCCA_WIFI_AP
+        wa_poll();                                      /* MODE AP: beacons, the clients' handshakes (wifi/wifi_apd.c) */
+#endif
         wl_poll();                                      /* Wi-Fi + Link, once a pass (wifi/wifi_link.c; wifilink starts it) */
 #endif
 #endif

@@ -1,6 +1,20 @@
 /* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* WPA2-PSK crypto (wifi_crypto.h). Small over fast: run a few times per join, never per frame. */
 #include "wifi_crypto.h"
+#ifndef FELUCCA_WIFI_SWCCMP
+#define FELUCCA_WIFI_SWCCMP 0                           /* software CCMP, and the AES encrypt it needs: a host test, or OPTIMIST_WIFI=1 */
+#endif
+#ifndef FELUCCA_WIFI_CON
+#define FELUCCA_WIFI_CON 0
+#endif
+#ifndef FELUCCA_WIFI_AP
+#define FELUCCA_WIFI_AP 0                               /* MODE AP: the AES encrypt for the key wrap (the authenticator's M3) */
+#endif
+#if defined(__PI32V2__) || defined(FM1_FIRMWARE)
+#define WC_FW 1
+#else
+#define WC_FW 0
+#endif
 
 /* ---- SHA-1 (FIPS 180-4) */
 static uint32_t rol(uint32_t x, int n) { return x << n | x >> (32 - n); }
@@ -96,6 +110,7 @@ void wc_hmac_sha1(const uint8_t *key, uint32_t kn, const uint8_t *p, uint32_t n,
 }
 
 /* ---- the PMK (PBKDF2, RFC 8018, 4096 rounds, two blocks of 20 for 32 bytes) */
+#if FELUCCA_WIFI_CON || !WC_FW
 void wc_pmk(const char *pass, const uint8_t *ssid, uint32_t ssid_n, uint8_t pmk[32])
 {
     uint8_t u[20], t[20], salt[32 + 4];
@@ -118,6 +133,56 @@ void wc_pmk(const char *pass, const uint8_t *ssid, uint32_t ssid_n, uint8_t pmk[
         for (j = 0; j < 20u && (blk - 1u) * 20u + j < 32u; j++)
             pmk[(blk - 1u) * 20u + j] = t[j];
     }
+}
+#endif
+
+/* ---- the PMK as a job in slices (the Wi-Fi page: a main-loop pass does a few hundred of the 8192 HMACs, never the lot).
+ * The same PBKDF2 as wc_pmk: two blocks of 4096 rounds; the passphrase is copied into the job and wiped when it is done */
+void wc_pmk_begin(struct wc_pmk_job *j, const char *pass, const uint8_t *ssid, uint32_t ssid_n)
+{
+    uint32_t i;
+    for (j->pn = 0; pass[j->pn] && j->pn < 63u; j->pn++)
+        j->pass[j->pn] = (uint8_t)pass[j->pn];
+    for (i = 0; i < ssid_n && i < 32u; i++)
+        j->salt[i] = ssid[i];
+    j->sn = i;
+    j->blk = 1;
+    j->round = 0;
+    j->done = 0;
+}
+/* up to n rounds; 1 when pmk is complete (and the passphrase wiped) */
+int wc_pmk_step(struct wc_pmk_job *j, uint32_t n, uint8_t pmk[32])
+{
+    uint32_t k, c;
+    while (n && !j->done) {
+        if (j->round == 0u) {                          /* a block's first round: U1 = HMAC(P, salt || INT(blk)) */
+            uint8_t s[36];
+            for (k = 0; k < j->sn; k++)
+                s[k] = j->salt[k];
+            s[j->sn] = 0, s[j->sn + 1] = 0, s[j->sn + 2] = 0, s[j->sn + 3] = (uint8_t)j->blk;
+            wc_hmac_sha1(j->pass, j->pn, s, j->sn + 4u, j->u);
+            for (k = 0; k < 20u; k++)
+                j->t[k] = j->u[k];
+            j->round = 1;
+        } else {
+            wc_hmac_sha1(j->pass, j->pn, j->u, 20, j->u);
+            for (k = 0; k < 20u; k++)
+                j->t[k] ^= j->u[k];
+            j->round++;
+        }
+        n--;
+        if (j->round == 4096u) {                       /* the block done */
+            for (c = 0; c < 20u && (j->blk - 1u) * 20u + c < 32u; c++)
+                pmk[(j->blk - 1u) * 20u + c] = j->t[c];
+            j->round = 0;
+            if (++j->blk > 2u) {
+                for (k = 0; k < sizeof j->pass; k++)
+                    j->pass[k] = 0;                    /* (the job is a caller's object: the store is not dead) */
+                j->done = 1;
+            }
+        }
+    }
+    return j->done;
 }
 
 /* ---- the PRF (§12.7.1.2): HMAC-SHA1(K, A || 0 || B || i) for i = 0, 1, ... */
@@ -196,6 +261,7 @@ static void expand(const uint8_t key[16], uint8_t rk[176])
     }
 }
 
+#if FELUCCA_WIFI_SWCCMP || FELUCCA_WIFI_AP || !WC_FW
 void wc_aes128_encrypt(const uint8_t key[16], const uint8_t in[16], uint8_t out[16])
 {
     uint8_t rk[176], s[16], t[16];
@@ -220,6 +286,7 @@ void wc_aes128_encrypt(const uint8_t key[16], const uint8_t in[16], uint8_t out[
     for (i = 0; i < 16u; i++)
         out[i] = s[i];
 }
+#endif
 
 void wc_aes128_decrypt(const uint8_t key[16], const uint8_t in[16], uint8_t out[16])
 {
@@ -277,3 +344,146 @@ int wc_aes_unwrap(const uint8_t kek[16], const uint8_t *in, uint32_t n, uint8_t 
             return 0;
     return 1;
 }
+
+#if FELUCCA_WIFI_SWCCMP || FELUCCA_WIFI_AP || !WC_FW
+/* RFC 3394 wrap: in n bytes (a multiple of 8, >= 16), out n + 8 bytes (the authenticator's group key, M3) */
+void wc_aes_wrap(const uint8_t kek[16], const uint8_t *in, uint32_t n, uint8_t *out)
+{
+    uint8_t a[8], b[16];
+    uint32_t blocks = n / 8u, i, j, k;
+    for (i = 0; i < 8u; i++)
+        a[i] = 0xA6u;
+    for (i = 0; i < blocks * 8u; i++)
+        out[8 + i] = in[i];
+    for (j = 0; j < 6u; j++)
+        for (i = 1; i <= blocks; i++) {
+            uint32_t t = blocks * j + i;
+            for (k = 0; k < 8u; k++)
+                b[k] = a[k];
+            for (k = 0; k < 8u; k++)
+                b[8 + k] = out[8u * i + k];
+            wc_aes128_encrypt(kek, b, b);
+            for (k = 0; k < 8u; k++)
+                a[k] = b[k];
+            a[7] ^= (uint8_t)t, a[6] ^= (uint8_t)(t >> 8), a[5] ^= (uint8_t)(t >> 16), a[4] ^= (uint8_t)(t >> 24);
+            for (k = 0; k < 8u; k++)
+                out[8u * i + k] = b[8 + k];
+        }
+    for (i = 0; i < 8u; i++)
+        out[i] = a[i];
+}
+#endif
+
+
+#if FELUCCA_WIFI_SWCCMP || !WC_FW
+/* ---- CCMP (AES-CCM) transmit encryption, IEEE 802.11-2016 12.5.3 / RFC 3610.
+ * In place: frame = [802.11 hdr (hdr_len, 24 for 3-addr non-QoS)] [body (body_len)], with >= 16 bytes slack after the
+ * body. Returns a frame of hdr_len + 8 (CCMP header) + body_len + 8 (MIC): the body is shifted up 8 bytes, the CCMP
+ * header inserted, the body CTR-encrypted, the 8-byte MIC appended. tk = pairwise TK, a2 = our MAC, pn[0] = PN LSB. */
+static void ccm_xor16(uint8_t *a, const uint8_t *b)
+{
+    uint32_t i;
+    for (i = 0; i < 16u; i++)
+        a[i] ^= b[i];
+}
+
+uint32_t wc_ccmp_encrypt(const uint8_t tk[16], const uint8_t a2[6], const uint8_t pn[6], uint8_t keyid,
+                         uint8_t *frame, uint32_t hdr_len, uint32_t body_len)
+{
+    uint8_t nonce[13], b[16], t[16], s0[16], a[16];
+    uint8_t *body;
+    uint32_t i, off, blk, n;
+
+    /* AAD (non-QoS, 3-address): length 22 */
+    uint8_t ad[22];
+    uint16_t fc = (uint16_t)(frame[0] | ((uint16_t)frame[1] << 8));
+    uint16_t sc;
+    fc &= (uint16_t)~0x3800u;                          /* clear Retry, PwrMgmt, MoreData */
+    fc |= 0x4000u;                                      /* Protected */
+    ad[0] = (uint8_t)(fc & 0xffu);
+    ad[1] = (uint8_t)(fc >> 8);
+    for (i = 0; i < 18u; i++)
+        ad[2 + i] = frame[4 + i];                      /* A1, A2, A3 */
+    sc = (uint16_t)((frame[22] | ((uint16_t)frame[23] << 8)) & 0x000fu);   /* keep fragment, mask sequence number */
+    ad[20] = (uint8_t)(sc & 0xffu);
+    ad[21] = (uint8_t)(sc >> 8);
+
+    /* Nonce: flags(priority 0) | A2 | PN (big-endian) */
+    nonce[0] = 0;
+    for (i = 0; i < 6u; i++)
+        nonce[1 + i] = a2[i];
+    for (i = 0; i < 6u; i++)
+        nonce[7 + i] = pn[5 - i];
+
+    /* Make room for the 8-byte CCMP header between the 802.11 header and the body (shift the body up) */
+    body = frame + hdr_len + 8u;
+    for (i = body_len; i-- > 0;)
+        body[i] = frame[hdr_len + i];
+
+    /* CBC-MAC: B_0, then the AAD blocks, then the plaintext blocks */
+    b[0] = 0x59;                                        /* Adata=1, M=(8-2)/2=3, L=2-1=1 */
+    for (i = 0; i < 13u; i++)
+        b[1 + i] = nonce[i];
+    b[14] = (uint8_t)(body_len >> 8);
+    b[15] = (uint8_t)(body_len & 0xffu);
+    wc_aes128_encrypt(tk, b, t);
+    for (i = 0; i < 16u; i++)                           /* AAD block 0: 2-byte length + first 14 AAD bytes */
+        b[i] = 0;
+    b[0] = (uint8_t)(22u >> 8);
+    b[1] = (uint8_t)(22u & 0xffu);
+    for (i = 0; i < 14u; i++)
+        b[2 + i] = ad[i];
+    ccm_xor16(t, b);
+    wc_aes128_encrypt(tk, t, t);
+    for (i = 0; i < 16u; i++)                           /* AAD block 1: remaining 8 AAD bytes, zero-padded */
+        b[i] = 0;
+    for (i = 0; i < 8u; i++)
+        b[i] = ad[14 + i];
+    ccm_xor16(t, b);
+    wc_aes128_encrypt(tk, t, t);
+    for (off = 0; off < body_len; off += 16u) {         /* plaintext blocks, zero-padded */
+        blk = body_len - off < 16u ? body_len - off : 16u;
+        for (i = 0; i < 16u; i++)
+            b[i] = 0;
+        for (i = 0; i < blk; i++)
+            b[i] = body[off + i];
+        ccm_xor16(t, b);
+        wc_aes128_encrypt(tk, t, t);
+    }                                                   /* t[0..7] is now the MIC */
+
+    /* CTR keystream: A_i = flags(L-1=1) | nonce | counter(2 bytes) */
+    a[0] = 0x01;
+    for (i = 0; i < 13u; i++)
+        a[1 + i] = nonce[i];
+    a[14] = 0;
+    a[15] = 0;
+    wc_aes128_encrypt(tk, a, s0);                       /* S_0 encrypts the MIC */
+    n = 1u;
+    for (off = 0; off < body_len; off += 16u) {
+        uint8_t ks[16];
+        a[14] = (uint8_t)(n >> 8);
+        a[15] = (uint8_t)(n & 0xffu);
+        wc_aes128_encrypt(tk, a, ks);
+        blk = body_len - off < 16u ? body_len - off : 16u;
+        for (i = 0; i < blk; i++)
+            body[off + i] ^= ks[i];
+        n++;
+    }
+
+    /* CCMP header */
+    frame[hdr_len + 0] = pn[0];
+    frame[hdr_len + 1] = pn[1];
+    frame[hdr_len + 2] = 0;
+    frame[hdr_len + 3] = (uint8_t)((keyid << 6) | 0x20u);   /* ExtIV = 1 */
+    frame[hdr_len + 4] = pn[2];
+    frame[hdr_len + 5] = pn[3];
+    frame[hdr_len + 6] = pn[4];
+    frame[hdr_len + 7] = pn[5];
+
+    /* Encrypted MIC (8 bytes) after the ciphertext */
+    for (i = 0; i < 8u; i++)
+        body[body_len + i] = (uint8_t)(t[i] ^ s0[i]);
+
+    return hdr_len + 8u + body_len + 8u;
+}
+#endif /* software CCMP */

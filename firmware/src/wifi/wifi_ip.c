@@ -12,6 +12,17 @@ void *memcpy(void *d, const void *s, unsigned n);
 void *memset(void *d, int c, unsigned n);
 int memcmp(const void *a, const void *b, unsigned n);
 #include "../../hal/fm1_wifi.h"
+#if FELUCCA_WIFI_SWCCMP
+uint32_t fm1_wifi_sw_ccmp = 0u;          /* 1 = CCMP in software (wl_send); 0 = plaintext body + Protected bit, the MAC
+                                          * encrypts with WCID 1's key (try26: HW CCMP works on this DMA path once the TX
+                                          * buffer is in main RAM; software CCMP at WCID 1 got double-encrypted, at a
+                                          * keyless WCID dropped). wifiswc [N] flips it at runtime. */
+#endif
+uint32_t fm1_wifi_tx_ack = 1u;           /* TXWI ACK flag: a frame waits for the receiver's ACK (MODE AP: 0 for beacons and group frames) */
+uint32_t fm1_wifi_tx_wcid = 1u;          /* TXWI WCID. 1 works for the handshake (EAPOL, pre-key). After keys install,
+                                          * WCID 1 has a key -> HW garbles protected frames; set a KEYLESS WCID (wifiwcid
+                                          * 2..) for software-CCMP data TX so the HW passes our encrypted frame through raw.
+                                          * WCID 0 is a special drop entry - do not use. */
 #else
 #include <string.h>
 #endif
@@ -108,6 +119,22 @@ void wifi_ip_init(struct wifi_ip *wip, const uint8_t sta_mac[6], const uint8_t b
     wip->dhcp_state = WIFI_IP_DHCP_IDLE;
 }
 
+void wifi_ip_ap_init(struct wifi_ip *wip, const uint8_t ap_mac[6], uint32_t ip, void (*rand_fn)(uint8_t *out, uint8_t n))
+{
+    wifi_ip_init(wip, ap_mac, ap_mac, rand_fn);
+    wip->ap = 1;
+    wip->ip = ip;
+    wip->netmask = 0xFFFFFF00u;
+    wip->dhcp_state = WIFI_IP_DHCP_BOUND;           /* (no client to run: the address is ours) */
+    wip->igmp_t = (int64_t)1 << 62;                 /* (no membership reports: we are the router) */
+}
+
+void wifi_ip_arp_learn(struct wifi_ip *wip, uint32_t ip, const uint8_t mac[6])
+{
+    if (wip)
+        arp_cache_insert(wip, ip, mac);
+}
+
 void wifi_ip_set_link(struct wifi_ip *wip, struct lk_node *lk, uint16_t link_port)
 {
     if (!wip)
@@ -171,6 +198,10 @@ int wifi_ip_early_filter(const uint8_t *frame, uint32_t len, const uint8_t sta_m
         if (proto == 2u)
             return 1;
 
+        /* ICMP echo request to our address (MODE AP answers a ping) */
+        if (proto == 1u)
+            return (our_ip != 0 && wip_read_u32_be(ip_pkt + 16) == our_ip);
+
         /* UDP (Protocol 17) */
         if (proto == 17u) {
             uint32_t ihl = (ip_pkt[0] & 0x0Fu) * 4u;
@@ -180,8 +211,8 @@ int wifi_ip_early_filter(const uint8_t *frame, uint32_t len, const uint8_t sta_m
             dport = wip_read_u16_be(udp + 2);
             dst_ip = wip_read_u32_be(ip_pkt + 16);
 
-            /* DHCP Client (Port 68) */
-            if (dport == WIFI_IP_DHCP_PORT_CLIENT)
+            /* DHCP Client (Port 68), and the DHCP server's (67: only an access point acts on it) */
+            if (dport == WIFI_IP_DHCP_PORT_CLIENT || dport == WIFI_IP_DHCP_PORT_SERVER)
                 return 1;
 
             /* Link Multicast Discovery (224.76.78.75:20808) */
@@ -202,15 +233,28 @@ static uint32_t build_80211_data_hdr(struct wifi_ip *wip, const uint8_t da[6], u
     uint16_t seq = wip->tx_seq++;
     memset(tx_buf, 0, 32);
     tx_buf[0] = 0x08;                               /* Type: Data, Subtype: Data */
-    tx_buf[1] = (uint8_t)(0x01u | (wip->protect ? 0x40u : 0u));   /* ToDS = 1, FromDS = 0; Protected once keys are in */
     tx_buf[2] = 0x00; tx_buf[3] = 0x00;             /* Duration */
-    memcpy(tx_buf + 4, wip->bssid, 6);              /* Addr 1: RA (AP BSSID) */
-    memcpy(tx_buf + 10, wip->mac, 6);               /* Addr 2: TA/SA (Our Station MAC) */
-    memcpy(tx_buf + 16, da, 6);                     /* Addr 3: DA (Destination MAC) */
+    if (wip->ap) {                                  /* MODE AP: FromDS, RA = DA, TA = BSSID = us, addr3 = SA = us */
+        tx_buf[1] = (uint8_t)(0x02u | (wip->protect ? 0x40u : 0u));
+        memcpy(tx_buf + 4, da, 6);
+        memcpy(tx_buf + 10, wip->mac, 6);
+        memcpy(tx_buf + 16, wip->mac, 6);
+    } else {
+        tx_buf[1] = (uint8_t)(0x01u | (wip->protect ? 0x40u : 0u));   /* ToDS = 1, FromDS = 0; Protected once keys are in */
+        memcpy(tx_buf + 4, wip->bssid, 6);          /* Addr 1: RA (AP BSSID) */
+        memcpy(tx_buf + 10, wip->mac, 6);           /* Addr 2: TA/SA (Our Station MAC) */
+        memcpy(tx_buf + 16, da, 6);                 /* Addr 3: DA (Destination MAC) */
+    }
     tx_buf[22] = (uint8_t)(seq << 4);
     tx_buf[23] = (uint8_t)(seq >> 4);
 
-    /* LLC/SNAP Header (8 bytes) */
+    /* try15: hardware CCMP the standard Ralink way (vendor SDK TXWI_STRUC). Software hands the MAC ONLY the plaintext
+     * 802.11 frame (24-byte header + LLC/SNAP + payload); it reserves no inline IV/EIV. The CCMP IV/EIV are TXWI words
+     * 3/4 (left 0 so the MAC fills the PN) and encryption is driven by the WCID key table, not by any TXWI flag. The
+     * CCMP is now applied in software (wl_send -> wc_ccmp_encrypt) before the frame is injected; the TXWI just carries
+     * the full length. This builder only sets the Protected bit so the AP knows to decrypt. */
+
+    /* LLC/SNAP Header (8 bytes): plaintext the MAC encrypts */
     tx_buf[24] = 0xAA;
     tx_buf[25] = 0xAA;
     tx_buf[26] = 0x03;
@@ -222,11 +266,11 @@ static uint32_t build_80211_data_hdr(struct wifi_ip *wip, const uint8_t da[6], u
     return 32u;
 }
 
-static void get_dst_mac(const struct wifi_ip *wip, uint32_t dst_ip, uint8_t dst_mac[6])
+static int get_dst_mac(const struct wifi_ip *wip, uint32_t dst_ip, uint8_t dst_mac[6])   /* 0: not known (AP: nothing to send to) */
 {
     if (dst_ip == 0xFFFFFFFFu) {
         memset(dst_mac, 0xFF, 6);
-        return;
+        return 1;
     }
     if ((dst_ip & 0xF0000000u) == 0xE0000000u) {   /* Multicast: 01:00:5E:[low 23 bits] */
         dst_mac[0] = 0x01;
@@ -235,27 +279,25 @@ static void get_dst_mac(const struct wifi_ip *wip, uint32_t dst_ip, uint8_t dst_
         dst_mac[3] = (uint8_t)((dst_ip >> 16) & 0x7Fu);
         dst_mac[4] = (uint8_t)((dst_ip >> 8) & 0xFFu);
         dst_mac[5] = (uint8_t)(dst_ip & 0xFFu);
-        return;
+        return 1;
     }
     if (arp_lookup(wip, dst_ip, dst_mac))
-        return;
+        return 1;
+    if (wip->ap)
+        return 0;                                   /* (the AP has no router to hand an unknown address to) */
     if (wip->gw && arp_lookup(wip, wip->gw, dst_mac))
-        return;
+        return 1;
     /* Fallback: AP BSSID */
     memcpy(dst_mac, wip->bssid, 6);
+    return 1;
 }
 
-uint32_t wifi_ip_send_udp(struct wifi_ip *wip, uint32_t dst_ip, uint16_t dst_port, const uint8_t *payload, uint32_t payload_len, uint8_t *tx_buf)
+static uint32_t build_udp(struct wifi_ip *wip, const uint8_t dst_mac[6], uint32_t dst_ip, uint16_t src_port, uint16_t dst_port, const uint8_t *payload, uint32_t payload_len, uint8_t *tx_buf)
 {
-    uint8_t dst_mac[6];
     uint32_t off;
     uint8_t *ip_hdr, *udp_hdr;
     uint16_t ip_len, udp_len;
 
-    if (!wip || !tx_buf)
-        return 0;
-
-    get_dst_mac(wip, dst_ip, dst_mac);
     off = build_80211_data_hdr(wip, dst_mac, 0x0800u, tx_buf);
 
     ip_hdr = tx_buf + off;
@@ -274,7 +316,7 @@ uint32_t wifi_ip_send_udp(struct wifi_ip *wip, uint32_t dst_ip, uint16_t dst_por
 
     udp_hdr = ip_hdr + 20;
     udp_len = 8u + (uint16_t)payload_len;
-    wip_write_u16_be(udp_hdr + 0, wip->link_port);  /* Source Port */
+    wip_write_u16_be(udp_hdr + 0, src_port);        /* Source Port */
     wip_write_u16_be(udp_hdr + 2, dst_port);        /* Destination Port */
     wip_write_u16_be(udp_hdr + 4, udp_len);
     wip_write_u16_be(udp_hdr + 6, 0x0000u);         /* UDP checksum optional */
@@ -283,6 +325,24 @@ uint32_t wifi_ip_send_udp(struct wifi_ip *wip, uint32_t dst_ip, uint16_t dst_por
         memcpy(udp_hdr + 8, payload, payload_len);
 
     return off + 20u + 8u + payload_len;
+}
+
+uint32_t wifi_ip_send_udp(struct wifi_ip *wip, uint32_t dst_ip, uint16_t dst_port, const uint8_t *payload, uint32_t payload_len, uint8_t *tx_buf)
+{
+    uint8_t dst_mac[6];
+
+    if (!wip || !tx_buf)
+        return 0;
+    if (!get_dst_mac(wip, dst_ip, dst_mac))
+        return 0;
+    return build_udp(wip, dst_mac, dst_ip, wip->link_port, dst_port, payload, payload_len, tx_buf);
+}
+
+uint32_t wifi_ip_reply_udp(struct wifi_ip *wip, const uint8_t dst_mac[6], uint32_t dst_ip, uint16_t src_port, uint16_t dst_port, const uint8_t *payload, uint32_t payload_len, uint8_t *tx_buf)
+{
+    if (!wip || !dst_mac || !tx_buf)
+        return 0;
+    return build_udp(wip, dst_mac, dst_ip, src_port, dst_port, payload, payload_len, tx_buf);
 }
 
 uint32_t wifi_ip_igmp_join(struct wifi_ip *wip, uint32_t group_ip, uint8_t *tx_buf)
@@ -488,6 +548,33 @@ int wifi_ip_rx_frame(struct wifi_ip *wip, const uint8_t *frame, uint32_t len, in
         if (len < hlen + 8u + ihl || ip_tot_len < ihl)
             return -1;
 
+        /* MODE AP: a ping to our address is answered (the quickest check of the whole path from a laptop) */
+        if (wip->ap && proto == 1u && wip_read_u32_be(ip_hdr + 16) == wip->ip && tx_buf && tx_len) {
+            const uint8_t *icmp = ip_hdr + ihl;
+            uint32_t n = ip_tot_len - ihl, off;
+            uint8_t *o;
+            if (n < 8u || n > 512u || icmp[0] != 8u || len < hlen + 8u + ihl + n)
+                return 0;
+            off = build_80211_data_hdr(wip, frame + 10, 0x0800u, tx_buf);   /* (the sender's address: ToDS addr2) */
+            o = tx_buf + off;
+            memset(o, 0, 20);
+            o[0] = 0x45;
+            wip_write_u16_be(o + 2, (uint16_t)(20u + n));
+            wip_write_u16_be(o + 4, wip->tx_seq);
+            wip_write_u16_be(o + 6, 0x4000u);
+            o[8] = 64u;
+            o[9] = 1u;
+            wip_write_u32_be(o + 12, wip->ip);
+            wip_write_u32_be(o + 16, src_ip);
+            wip_write_u16_be(o + 10, ip_chksum(o, 20));
+            memcpy(o + 20, icmp, n);
+            o[20] = 0u;                                 /* echo reply */
+            o[22] = o[23] = 0;
+            wip_write_u16_be(o + 22, ip_chksum(o + 20, n));
+            *tx_len = off + 20u + n;
+            return 1;
+        }
+
         /* UDP Dispatch */
         if (proto == 17u) {
             const uint8_t *udp = ip_hdr + ihl;
@@ -506,6 +593,15 @@ int wifi_ip_rx_frame(struct wifi_ip *wip, const uint8_t *frame, uint32_t len, in
                 return -1;
             payload = udp + 8;
             payload_len = (uint32_t)udp_len - 8u;
+
+            /* MODE AP: a client's DHCP request (port 67) goes to the server */
+            if (wip->ap && dst_port == WIFI_IP_DHCP_PORT_SERVER) {
+                if (wip->udp_srv && tx_buf && tx_len) {
+                    *tx_len = wip->udp_srv(wip, frame + 10, payload, payload_len, tx_buf);
+                    return *tx_len ? 1 : 0;
+                }
+                return 0;
+            }
 
             /* DHCP Response (Port 68) */
             if (dst_port == WIFI_IP_DHCP_PORT_CLIENT && payload_len >= 240u) {
@@ -615,19 +711,25 @@ uint32_t wifi_ip_poll(struct wifi_ip *wip, int64_t now_us, uint8_t *tx_buf)
 #ifndef IN_POOL
 #define IN_POOL
 #endif
-static uint32_t link_tx_buf[(FM1_WIFI_TX_HDR + 576u) / 4u] IN_POOL;
+static uint32_t wifi_txb[(FM1_WIFI_TX_HDR + 576u) / 4u];   /* THE transmit buffer (wifi_link.c, wifi_conn.c, Link): main RAM, not the pool, the
+                                                         * frame DMA can't fetch the pool (2026-10-27); one buffer is enough: a send is from the main
+                                                         * loop and waits for the DMA before it returns */
 int wifi_ip_link_send(void *ctx, uint32_t ip, uint16_t port, const uint8_t *p, uint32_t n)
 {
     struct wifi_ip *wip = (struct wifi_ip *)ctx;
-    uint8_t *tx_frame = (uint8_t *)link_tx_buf + FM1_WIFI_TX_HDR;
+    uint8_t *tx_frame = (uint8_t *)wifi_txb + FM1_WIFI_TX_HDR;
     uint32_t len;
     if (!wip || !p || n > LK_MSG_MAX)
         return -1;
     len = wifi_ip_send_udp(wip, ip, port, p, n, tx_frame);
     if (!len)
         return -1;
-    fm1_wifi_tx_prepare(link_tx_buf, len);
-    fm1_wifi_tx(link_tx_buf);
+    if (wip->send) {
+        wip->send(len);
+        return 0;
+    }
+    fm1_wifi_tx_prepare(wifi_txb, len);
+    fm1_wifi_tx(wifi_txb);
     return 0;
 }
 #else

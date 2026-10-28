@@ -13,6 +13,12 @@ void wc_sha1_add(struct wc_sha1 *s, const uint8_t *p, uint32_t n);
 void wc_sha1_done(struct wc_sha1 *s, uint8_t out[20]);
 void wc_hmac_sha1(const uint8_t *key, uint32_t kn, const uint8_t *p, uint32_t n, uint8_t out[20]);
 /* the PMK: PBKDF2-HMAC-SHA1(passphrase, ssid, 4096, 32) */
+struct wc_pmk_job {                                 /* wc_pmk in slices (wifi_crypto.c) */
+    uint8_t pass[64], salt[32], u[20], t[20];
+    uint32_t pn, sn, blk, round, done;
+};
+void wc_pmk_begin(struct wc_pmk_job *j, const char *pass, const uint8_t *ssid, uint32_t ssid_n);
+int wc_pmk_step(struct wc_pmk_job *j, uint32_t n, uint8_t pmk[32]);   /* up to n rounds; 1: pmk complete, passphrase wiped */
 void wc_pmk(const char *pass, const uint8_t *ssid, uint32_t ssid_n, uint8_t pmk[32]);
 /* PRF-X(K, A, B): label A (its text), data B, out_n bytes (§12.7.1.2) */
 void wc_prf(const uint8_t *k, uint32_t kn, const char *label, const uint8_t *b, uint32_t bn, uint8_t *out, uint32_t out_n);
@@ -20,4 +26,11 @@ void wc_aes128_decrypt(const uint8_t key[16], const uint8_t in[16], uint8_t out[
 void wc_aes128_encrypt(const uint8_t key[16], const uint8_t in[16], uint8_t out[16]);
 /* RFC 3394 unwrap: in n bytes (a multiple of 8, >= 24), out n - 8 bytes; 1 if the integrity check holds */
 int wc_aes_unwrap(const uint8_t kek[16], const uint8_t *in, uint32_t n, uint8_t *out);
+/* RFC 3394 wrap: in n bytes (a multiple of 8, >= 16), out n + 8 bytes (MODE AP: the group key in M3) */
+void wc_aes_wrap(const uint8_t kek[16], const uint8_t *in, uint32_t n, uint8_t *out);
+
+/* CCMP (AES-CCM) TX encryption in place; returns the new frame length (hdr + 8 CCMP header + body + 8 MIC). The buffer
+ * must hold >= 16 bytes of slack after the body. See wifi_crypto.c. */
+uint32_t wc_ccmp_encrypt(const uint8_t tk[16], const uint8_t a2[6], const uint8_t pn[6], uint8_t keyid,
+                         uint8_t *frame, uint32_t hdr_len, uint32_t body_len);
 #endif

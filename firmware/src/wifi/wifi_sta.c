@@ -3,6 +3,9 @@
  * state machine (EAPOL-Key M1-M4), GTK unwrapping, 802.11 Auth/Assoc framing, LLC/SNAP
  * EAPOL encapsulation, MAC address discovery, and MAC key table installation. */
 #include "wifi_sta.h"
+#ifndef FELUCCA_WIFI_CON
+#define FELUCCA_WIFI_CON 0
+#endif
 
 #if defined(__PI32V2__) || defined(FM1_FIRMWARE)
 /* (the firmware's own C library, system/libc.c: no <string.h> in the toolchain's freestanding build) */
@@ -61,6 +64,7 @@ void wifi_sta_init(struct wifi_sta *sta, const uint8_t sta_mac[6], void (*rand)(
     sta->rand = rand;
 }
 
+#if FELUCCA_WIFI_CON || !(defined(__PI32V2__) || defined(FM1_FIRMWARE))
 void wifi_sta_set_creds(struct wifi_sta *sta, const char *pass, const uint8_t *ssid, uint32_t ssid_len)
 {
     if (ssid_len > WIFI_STA_SSID_MAX)
@@ -68,6 +72,16 @@ void wifi_sta_set_creds(struct wifi_sta *sta, const char *pass, const uint8_t *s
     memcpy(sta->ssid, ssid, ssid_len);
     sta->ssid_len = ssid_len;
     wc_pmk(pass, ssid, ssid_len, sta->pmk);
+}
+#endif
+
+void wifi_sta_set_pmk(struct wifi_sta *sta, const uint8_t pmk[32], const uint8_t *ssid, uint32_t ssid_len)
+{
+    if (ssid_len > WIFI_STA_SSID_MAX)
+        ssid_len = WIFI_STA_SSID_MAX;
+    memcpy(sta->ssid, ssid, ssid_len);
+    sta->ssid_len = ssid_len;
+    memcpy(sta->pmk, pmk, 32);                      /* a saved network: its key, derived once (wifi_nets.h) */
 }
 
 void wifi_sta_set_ap(struct wifi_sta *sta, const uint8_t bssid[6])
@@ -226,14 +240,34 @@ void wifi_sta_install_hw_keys(const struct wifi_sta *sta)
         STA_MAC_WR(0x7000u, w);
     }
 
-    /* 4. Configure WCID Attribute Table (0x6800 + 1 * 4 = 0x6804). Ralink's layout (rt2800.h, from memory, NOT yet
-     * checked on the FM-1): bit 0 key table (0: pairwise), bits 3:1 the cipher (4 = AES-CCMP), 6:4 BSS index. The cipher
-     * in bits 3:1 makes 0x08; the earlier 0x04 read as cipher 2 (WEP-104) for the pairwise key. */
-    STA_MAC_WR(0x6804u, 4u << 1);
+    /* 4. WCID Attribute Table (0x6800 + Wcid*4 = 0x6804), VERIFIED against the SDK's AsicUpdateWcidAttributeEntry
+     * (cmm_asic.c): reg = (Wcid<<2)|0x6800; value = (KeyTabFlag&1) | ((cipher&7)<<1) | ((cipher>>3)<<10) | bss bits.
+     * BUG FIX: KeyTabFlag (bit 0) selects the key table - 1 = PAIRWISE table (0x4000, where we put the TK), 0 = SHARED
+     * table (0x6c00). WPAInstallPairwiseKey (cmm_wpa.c) passes KeyTabFlag=1 for a pairwise key. We had 0, so the MAC
+     * looked in the shared table for WCID 1's TX key and could not encrypt. AES-CCMP (cipher 4), BSS 0, pairwise:
+     * value = (4<<1) | 1 = 0x09. */
+    STA_MAC_WR(0x6804u, (4u << 1) | 1u);
 
-    /* 5. Clear IV/EIV for WCID 1 (0x6008) */
-    STA_MAC_WR(0x6008u, 0);
+    /* 5. WCID TX IV/EIV (0x6000 + Wcid*8 = 0x6008 / 0x600C), VERIFIED against the SDK's RTMPSetWcidSecurityInfo +
+     * AsicUpdateWCIDIVEIV: for AES-CCMP the IV MUST carry the ExtIV bit (0x20) in the KeyID octet, else the MAC emits a
+     * CCMP header with ExtIV=0 and the AP drops the frame (this was the bug: we wrote 0, so rx_packets stayed at the 2
+     * EAPOL frames). Vendor value = ((KeyID<<6 | 0x20) << 24) | 1 = 0x20000001 for KeyID 0; EIV = 0. */
+    STA_MAC_WR(0x6008u, 0x20000001u);
     STA_MAC_WR(0x600Cu, 0);
+}
+
+/* The MAC as it is at boot, before a join: WCID 1 has no cipher and no key, its IV is clear. A key left from the last join
+ * would stay in use for the frames of the next one (the MAC encrypts what it has a key for), which made a re-join fail
+ * after a join that had worked. */
+void wifi_sta_clear_hw_keys(void)
+{
+    uint32_t i;
+    STA_MAC_WR(0x6804u, 0);                         /* WCID 1 attribute: no cipher, the shared table */
+    STA_MAC_WR(0x6008u, 0);                         /* IV, EIV */
+    STA_MAC_WR(0x600Cu, 0);
+    for (i = 0; i < 4u; i++)
+        STA_MAC_WR(0x4020u + 4u * i, 0);            /* the pairwise key's 16 bytes */
+    STA_MAC_WR(0x7000u, 0);                         /* the shared key mode */
 }
 
 int wifi_sta_rx_eapol(struct wifi_sta *sta, const uint8_t *pkt, uint32_t len, uint8_t *tx_buf, uint32_t *tx_len)
@@ -396,6 +430,16 @@ int wifi_sta_parse_auth_resp(const struct wifi_sta *sta, const uint8_t *frame, u
     if (frame[24] != 0 || frame[25] != 0 || frame[26] != 2 || frame[27] != 0 || frame[28] != 0 || frame[29] != 0)
         return -1;
     return 0;
+}
+
+/* Deauthentication, reason 3 (the sending station is leaving): the AP forgets us, so a later join starts clean */
+uint32_t wifi_sta_build_deauth(struct wifi_sta *sta, uint8_t *tx_buf)
+{
+    if (!sta || !tx_buf)
+        return 0;
+    build_mgmt_hdr(sta, 0xC0, tx_buf);
+    tx_buf[24] = 0x03; tx_buf[25] = 0x00;
+    return 26u;
 }
 
 uint32_t wifi_sta_build_assoc_req(struct wifi_sta *sta, uint8_t *tx_buf)
