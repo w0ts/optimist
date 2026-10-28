@@ -280,6 +280,18 @@ const se = await run(`${U} const s = $("#search"); s.value = "reverb"; s.dispatc
 const desc = (a) => a.filter((x) => x !== null).every((x, i, l) => i === 0 || l[i - 1] >= x);
 ok(se.shownRows.length > 3 && se.shownRows.length < 40 && se.shownRows.includes("FX_REVERB"), `page: the search narrows the list (${se.shownRows.length} rows for "reverb")`);
 ok(se.fl.length > 2 && desc(se.fl), "page: sort by flash, largest first within a group (the menu's o)");
+const mem = await run(`${U} const gs = [...document.querySelectorAll(".group")].map((g) => g.dataset.group);
+  const keysOf = (n) => [...document.querySelectorAll('.group[data-group="' + n + '"] .row')].map((r) => r.dataset.key);
+  const before = { ...B.state.values };
+  await B.setItem("MEMORY", 2); const sd = { L: B.state.values.LAYOUT, S: B.state.values.SDCARD, F: B.state.values.FAR_OK, M: B.state.values.MEMORY };
+  await B.setItem("MEMORY", 0); const back = { L: B.state.values.LAYOUT, S: B.state.values.SDCARD, F: B.state.values.FAR_OK, M: B.state.values.MEMORY };
+  return { first: gs[0], gs, memKeys: keysOf("Memory management"), conn: keysOf("Connectivity"), sd, back };`);
+ok(mem.first === "Memory management" && !mem.gs.includes("USB & BT & MIDI") && mem.gs.includes("Connectivity")
+   && mem.memKeys[0] === "MEMORY" && ["RAM_PACKED", "LAYOUT", "SDCARD", "FAR_OK", "ARENA", "SD_RING", "SD_REC", "OVERLAY"].every((k) => mem.memKeys.includes(k)),
+   "page: Memory management is the first section (MEMORY, the RAM info line, LAYOUT, SDCARD, FAR_OK, ARENA ...), Connectivity replaces USB & BT & MIDI");
+ok(mem.conn.includes("WIFI_LINK") && mem.conn.includes("WIFI_AP"), "page: Connectivity lists Wi-Fi + Link and the access point");
+ok(mem.sd.L === 1 && mem.sd.S === 1 && mem.sd.F === 1 && mem.sd.M === 2 && mem.back.L === 0 && mem.back.S === 0 && mem.back.F === 0 && mem.back.M === 0,
+   "page: picking SD card mode sets LAYOUT, SDCARD and FAR_OK; normal clears them");
 const dlEarly = events.filter((e) => e.method === "Page.downloadWillBegin").length;
 const dl = await run(`${U} let got = null; const orig = URL.createObjectURL; URL.createObjectURL = (b) => { got = b; return orig(b); };
   $("#download").click(); await until(() => got, 3000); URL.createObjectURL = orig; return { text: await got.text(), name: document.querySelector("a[download]") ? document.querySelector("a[download]").download : "gone" };`);

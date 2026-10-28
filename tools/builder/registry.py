@@ -193,7 +193,10 @@ def fx_group(key, parent=None):
     return FX_ONCE if (parent or key) in FX_ONCE_KEYS else FX_ANY
 
 
-GROUPS = ["Reserve", "Synth engines", "Drums", "Sample sets", FX_ANY, FX_ONCE, "Sequencer", "USB & BT & MIDI", "UI", "System"]
+MEM = "Memory management"
+GROUPS = [MEM, "Reserve", "Synth engines", "Drums", "Sample sets", FX_ANY, FX_ONCE, "Sequencer", "Connectivity", "UI", "System"]
+
+LEGACY_GROUPS = ("USB & BT & MIDI",)     # (a group renamed: the old .config files still carry its "# header")
 
 _ITEMS = []
 
@@ -954,11 +957,11 @@ _add("EX_NOTEGEN", "FELUCCA_EX_NOTEGEN", "note generators: the examples WALK and
           "over RANGE degrees, HOP degrees a note, a note every RATE steps. On a drum lane they give hits only. Off in "
           "every profile: a build without it is the build from before.")
 
-# ---- USB & BT & MIDI (the user, 2026-10-20). USB MIDI (notes, clock, the editor and updates) is in every build. The USB
+# ---- Connectivity (was "USB & BT & MIDI"; Wi-Fi + Link since 2026-10-28) (the user, 2026-10-20). USB MIDI (notes, clock, the editor and updates) is in every build. The USB
 # port's two extras, each a checkbox, not both: the controller has three data endpoints (hal/fm1_usb.h EP1..3), USB MIDI
 # takes EP1, USB audio EP2 both ways and EP3 IN, the console EP2 and EP3 (io/usb/usb.c). (bit 47, USB_MODE, the one
 # choice before: MIGRATE reads it; never reuse the bit)
-M = "USB & BT & MIDI"
+M = "Connectivity"
 _add("USB_MIDI", "", "USB MIDI (always: notes, clock, the editor, updates)", M, 362, default=1, no_image=True,
      fixed=True,
      desc="USB MIDI is in every build: notes and clock both ways, the web editor, and firmware updates (the installer "
@@ -1132,8 +1135,27 @@ _add("LIVE_SAVE", "FELUCCA_LIVE_SAVE", "save while playing (flash writes in shor
           "for the stop again until the next start. Snapshots, backup restores, sample uploads, the web editor's writes "
           "and the working project's autosave still wait for the stop. About 240 B of flash, 1 byte of RAM.",
      off_warning="saves refused (STOP BEFORE SAVE) or held until the transport stops, as before")
+# ---- Memory management (the user, 2026-10-28): the first group. MEMORY is a front for three real items (LAYOUT, SDCARD,
+# FAR_OK), no firmware switch and no image of its own (no_image): core.sync_memory reads it from them (an older .config
+# and every profile keep loading as they did), core.set_memory writes them when it is picked (room.after_toggle), and
+# dump() leaves it out. Bits 436 and 437 are the next free after Wi-Fi's 434 / 435.
+MEMORY_CHOICES = ((0, "normal: the user data keeps its flash"),
+                  (1, "reduced user flash: more code space, one project in flash"),
+                  (2, "SD card mode: the user data on the SD card"))
+_add("MEMORY", "", "memory: where the user data lives", MEM, 436, default=0, choices=MEMORY_CHOICES, no_image=True,
+     experimental=True, target_only=True, tested="host-tested only; the layouts need the far probe on the FM-1 (docs/SD-MODE-DESIGN.md)",
+     desc="One choice for the three items below it. Normal: the flash layout as before. Reduced user flash (LAYOUT): "
+          "the code grows from 568 KiB to 816 KiB over the sample slots, the snapshots and most of the projects' room; "
+          "one project stays in flash (the web or iOS app keeps the others), no SD card. SD card mode (LAYOUT + SDCARD "
+          "+ FAR_OK): the same flash layout with the user data on the SD card (a hardware mod, docs/SD-CARD-DESIGN.md). "
+          "Picking one sets those items; setting them by hand reads back here. FAR_OK is ticked only once the console's "
+          "far probe passed on the FM-1.")
+_add("RAM_PACKED", "", "RAM: one packed region, always", MEM, 437, default=1, no_image=True, fixed=True,
+     desc="The RAM is one packed region in every build (the code RAM, the data and the pool share it: docs/MEMORY-MAP.md), "
+          "so there is no switch for it. Shown for the record, it cannot be switched off.")
+
 # bit 409 (2026-10-25): the first free one after the reverted font items' 399..408 (never reused)
-_add("SDCARD", "FELUCCA_SDCARD", "SD card on the LCD bus (a hardware mod)", Y, 409, default=0,
+_add("SDCARD", "FELUCCA_SDCARD", "SD card on the LCD bus (a hardware mod)", MEM, 409, default=0,
      experimental=True, target_only=True, tested="host-tested only (a card model on real FAT16 / FAT32 images); no FM-1 "
      "has the mod yet",
      desc="Reads and writes a microSD card wired to the LCD's SPI bus: the card's clock and data in on the LCD's, its data "
@@ -1148,7 +1170,7 @@ _add("SDCARD", "FELUCCA_SDCARD", "SD card on the LCD bus (a hardware mod)", Y, 4
           "(measured 2026-10-25, Petit FatFs).",
      off_warning="no SD card")
 # bit 410 (2026-10-25): the next free one after SDCARD's 409
-_add("LAYOUT", "FELUCCA_LAYOUT", "flash layout: fake SD mode (more room for code, little user data)", Y, 410, default=0,
+_add("LAYOUT", "FELUCCA_LAYOUT", "flash layout: fake SD mode (more room for code, little user data)", MEM, 410, default=0,
      choices=((0, "normal"), (1, "fake SD mode: 816 KiB app")),
      experimental=True, target_only=True, tested="host-tested only; the first install on an FM-1 is the far probe "
      "(docs/SD-MODE-DESIGN.md)",
@@ -1166,7 +1188,7 @@ _add("LAYOUT", "FELUCCA_LAYOUT", "flash layout: fake SD mode (more room for code
 # (registry.h FELUCCA_SD_MODE: LAYOUT 1 until its own flag): the effects' lines, the other buffers, the load's list page
 # (FELUCCA_FX_ARENA, FELUCCA_MEM_LIST). The pool estimate: core.py arena_mem (sd_mode)
 _add("ARENA", "FELUCCA_ARENA_KB", "memory per project (an arena for the engines; in the SD card mode the effects' lines too)",
-     Y, 411, default=0,
+     MEM, 411, default=0,
      choices=((0, "off: every memory reserved, as before"), (24, "24 KB"), (32, "32 KB"), (40, "40 KB"), (48, "48 KB"),
               (64, "64 KB"), (96, "96 KB"), (128, "128 KB"), (160, "160 KB"), (192, "192 KB"), (256, "256 KB")),
      experimental=True, tested="host-tested only (tests/fx_arena_test.c, arena_bufs_test.c, arena_test.c, placeholder_test.c); not on an FM-1",
@@ -1201,7 +1223,7 @@ _add("BT_PROJ", "FELUCCA_BT_PROJ", "projects to and from the phone over Bluetoot
           "the stream's chunks).",
      off_warning="projects move over the USB cable only")
 # bit 413 (2026-10-25): the next free one after OVERLAY's 412; the big slot only once the far probe answered on the FM-1
-_add("FAR_OK", "FELUCCA_FAR_OK", "the far probe passed on this FM-1: use the fake SD mode's whole flash", Y, 413, default=0,
+_add("FAR_OK", "FELUCCA_FAR_OK", "the far probe passed on this FM-1: use the fake SD mode's whole flash", MEM, 413, default=0,
      experimental=True, target_only=True, tested="needs the far probe's ok on the FM-1 it is installed on",
      desc="The fake SD mode layout (LAYOUT) frees the flash past the old end, but a build keeps its code below that end "
           "until the console's far command (on the probe build) has said the FM-1 runs code and reads data past it. "
@@ -1212,7 +1234,7 @@ _add("FAR_OK", "FELUCCA_FAR_OK", "the far probe passed on this FM-1: use the fak
 # bit 415 (2026-10-26): the next free one after BT_PROJ's 414; samples streamed from the SD card (storage/sd/sd_stream.c,
 # sd_stream_plan.c, docs/SD-CARD-DESIGN.md 7): the ring's KB a voice, 0 off (registry.h FELUCCA_SD_RING_KB -> SD_STREAM:
 # full FatFs, SAMPLE and the arena too, else it builds nothing)
-_add("SD_RING", "FELUCCA_SD_RING_KB", "samples streamed from the SD card (SAMPLE's CARD set): each voice's lookahead", Y,
+_add("SD_RING", "FELUCCA_SD_RING_KB", "samples streamed from the SD card (SAMPLE's CARD set): each voice's lookahead", MEM,
      415, default=0, parent="SDCARD",
      choices=((0, "off"), (4, "4 KB a voice (46 ms of 44.1 kHz 16-bit mono)"), (8, "8 KB a voice (93 ms)"),
               (12, "12 KB a voice (139 ms)"), (16, "16 KB a voice (186 ms)")),
@@ -1231,7 +1253,7 @@ _add("SD_RING", "FELUCCA_SD_RING_KB", "samples streamed from the SD card (SAMPLE
      off_warning="no samples from the card")
 # bit 416 (2026-10-26): the next free one after SD_RING's 415; the master recorded to the SD card (storage/sd/sd_rec.c,
 # docs/SD-CARD-DESIGN.md 7): the ring's KB, 0 off (registry.h FELUCCA_SD_REC_KB -> SD_REC with full FatFs)
-_add("SD_REC", "FELUCCA_SD_REC_KB", "record the master output to the SD card: the buffer for the card's stalls", Y,
+_add("SD_REC", "FELUCCA_SD_REC_KB", "record the master output to the SD card: the buffer for the card's stalls", MEM,
      416, default=0, parent="SDCARD",
      choices=((0, "off"), (16, "16 KB (93 ms of 44.1 kHz 16-bit stereo)"), (32, "32 KB (186 ms)"), (64, "64 KB (372 ms)")),
      experimental=True, target_only=True, tested="host-tested only (tests/sd_wr_test.c, sd_rec_test.c: a card model with "
@@ -1245,7 +1267,7 @@ _add("SD_REC", "FELUCCA_SD_REC_KB", "record the master output to the SD card: th
           "Needs LAYOUT and FAR_OK (full FatFs). The buffer is RAM of the pool for as long as the build has it.",
      off_warning="no recording to the card")
 # bit 412 (2026-10-25): reserved for the RAMTEXT overlays (411: the effects' arena)
-_add("OVERLAY", "FELUCCA_OVERLAY", "engines' fast code loaded per part (RAMTEXT overlays)", Y, 412, default=0,
+_add("OVERLAY", "FELUCCA_OVERLAY", "engines' fast code loaded per part (RAMTEXT overlays)", MEM, 412, default=0,
      experimental=True, target_only=True, tested="host-tested and booted in the emulator only, not on an FM-1",
      desc="The engines' fast code (the sound loops run from the 32 KB code RAM) is no longer all in that RAM from "
           "start-up: each synth part has a slot there, and the code of the engine the part plays is copied into its "
