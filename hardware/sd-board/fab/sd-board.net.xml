@@ -2,7 +2,7 @@
 <export version="E">
   <design>
     <source>/Users/mots/GitHub/optimist/worktrees/sd-mm/hardware/sd-board/sd-board.kicad_sch</source>
-    <date>2026-10-28T11:21:20</date>
+    <date>2026-10-28T12:36:16</date>
     <tool>Eeschema 10.0.7</tool>
     <sheet number="1" name="/" tstamps="/">
       <title_block>
@@ -163,16 +163,16 @@
       </units>
     </comp>
     <comp ref="J2">
-      <value>FPC 10P 0.5mm (IN)</value>
-      <footprint>sdboard:FPC-SMD_10P-P0.50_HC-FPC-05-09-10RLTAG</footprint>
+      <value>FPC 10P 0.5mm bottom contact (IN)</value>
+      <footprint>sdboard:FPC-SMD_10P-P0.50_XUNPU_FPC-05F-10PH20</footprint>
       <fields>
-        <field name="LCSC">C5213750</field>
-        <field name="Footprint">sdboard:FPC-SMD_10P-P0.50_HC-FPC-05-09-10RLTAG</field>
+        <field name="LCSC">C2856798</field>
+        <field name="Footprint">sdboard:FPC-SMD_10P-P0.50_XUNPU_FPC-05F-10PH20</field>
         <field name="Datasheet"/>
         <field name="Description"/>
       </fields>
       <libsource lib="Connector_Generic_MountingPin" part="Conn_01x10_MountingPin" description="Generic connectable mounting pin connector, single row, 01x10, script generated (kicad-library-utils/schlib/autogen/connector/)"/>
-      <property name="LCSC" value="C5213750"/>
+      <property name="LCSC" value="C2856798"/>
       <property name="Sheetname" value="sd-board"/>
       <property name="Sheetfile" value="sd-board.kicad_sch"/>
       <property name="ki_keywords" value="connector"/>
@@ -978,7 +978,7 @@
   </libraries>
   <nets>
     <net code="1" name="/3V3" class="Default">
-      <node ref="J2" pin="7" pinfunction="Pin_7_7" pintype="passive"/>
+      <node ref="J2" pin="4" pinfunction="Pin_4_4" pintype="passive"/>
       <node ref="J3" pin="4" pinfunction="Pin_4_4" pintype="passive"/>
       <node ref="JP5" pin="2" pinfunction="B_2" pintype="passive"/>
     </net>
@@ -993,7 +993,7 @@
       <node ref="TP5" pin="1" pinfunction="1_1" pintype="passive"/>
     </net>
     <net code="4" name="/CLK" class="Default">
-      <node ref="J2" pin="4" pinfunction="Pin_4_4" pintype="passive"/>
+      <node ref="J2" pin="7" pinfunction="Pin_7_7" pintype="passive"/>
       <node ref="J3" pin="7" pinfunction="Pin_7_7" pintype="passive"/>
       <node ref="R5" pin="2" pintype="passive"/>
     </net>
@@ -1035,32 +1035,32 @@
       <node ref="U3" pin="2" pinfunction="GND_2" pintype="passive"/>
     </net>
     <net code="10" name="/LCD_6" class="Default">
-      <node ref="J2" pin="6" pinfunction="Pin_6_6" pintype="passive"/>
+      <node ref="J2" pin="5" pinfunction="Pin_5_5" pintype="passive"/>
       <node ref="J3" pin="5" pinfunction="Pin_5_5" pintype="passive"/>
       <node ref="TP1" pin="1" pinfunction="1_1" pintype="passive"/>
     </net>
     <net code="11" name="/LCD_8" class="Default">
-      <node ref="J2" pin="8" pinfunction="Pin_8_8" pintype="passive"/>
+      <node ref="J2" pin="3" pinfunction="Pin_3_3" pintype="passive"/>
       <node ref="J3" pin="3" pinfunction="Pin_3_3" pintype="passive"/>
       <node ref="TP2" pin="1" pinfunction="1_1" pintype="passive"/>
     </net>
     <net code="12" name="/LCD_9" class="Default">
-      <node ref="J2" pin="9" pinfunction="Pin_9_9" pintype="passive"/>
+      <node ref="J2" pin="2" pinfunction="Pin_2_2" pintype="passive"/>
       <node ref="J3" pin="2" pinfunction="Pin_2_2" pintype="passive"/>
       <node ref="TP3" pin="1" pinfunction="1_1" pintype="passive"/>
     </net>
     <net code="13" name="/LCD_CS" class="Default">
-      <node ref="J2" pin="3" pinfunction="Pin_3_3" pintype="passive"/>
+      <node ref="J2" pin="8" pinfunction="Pin_8_8" pintype="passive"/>
       <node ref="J3" pin="8" pinfunction="Pin_8_8" pintype="passive"/>
       <node ref="JP2" pin="2" pinfunction="B_2" pintype="passive"/>
     </net>
     <net code="14" name="/MISO" class="Default">
-      <node ref="J2" pin="2" pinfunction="Pin_2_2" pintype="passive"/>
+      <node ref="J2" pin="9" pinfunction="Pin_9_9" pintype="passive"/>
       <node ref="J3" pin="9" pinfunction="Pin_9_9" pintype="passive"/>
       <node ref="JP1" pin="2" pinfunction="B_2" pintype="passive"/>
     </net>
     <net code="15" name="/MOSI" class="Default">
-      <node ref="J2" pin="5" pinfunction="Pin_5_5" pintype="passive"/>
+      <node ref="J2" pin="6" pinfunction="Pin_6_6" pintype="passive"/>
       <node ref="J3" pin="6" pinfunction="Pin_6_6" pintype="passive"/>
       <node ref="R6" pin="2" pintype="passive"/>
     </net>

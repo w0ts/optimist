@@ -1,10 +1,10 @@
 # The FM-1 SD board (v6)
 
 > [!WARNING]
-> ## 🚧 WORK IN PROGRESS: DO NOT ORDER 🚧
+> ## 🚧 PROTOTYPE: UNTESTED 🚧
 >
-> This board has **never been built or tested**. The cable's mirror check is still open ("Still open before
-> ordering" below). Ordering it today may give a board that does not work or harms the FM-1.
+> This board has **never been built or tested**: the first order (2026-10-28) is the prototype. Expect to rework it
+> (the bench tests below).
 
 A board with everything the SD card mod needs (docs/SD-CARD-DESIGN.md), and the splitter too: a push-push microSD
 socket, the chip-select inverter, the 220 Ohm on the card's data out, the pull-ups, the decoupling, and two 10-pin
@@ -18,8 +18,9 @@ round the cover's pole there; a column goes up the right of the speaker plug to 
 
 The card goes in through the case's bottom wall, flush with the outside, 81.7 mm from the left wall. **No soldering.**
 Status (v6, 2026-10-27): **rerouted to J12's pin map as Julius probed it** (docs/SD-CARD-DESIGN.md section 3) and
-checked (KiCad: no design-rule error, the schematic's nets equal the board's, 74 pins); sizes measured with calipers
-(`MEASUREMENTS.md`). **STILL NOT READY TO ORDER**: the items under "Still open" come first.
+checked (KiCad: no design-rule error, the schematic's nets equal the board's, 82 pins); sizes measured with calipers
+(`MEASUREMENTS.md`). **Ready to order as a prototype** (2026-10-28): J12's pin 7 and the cable's face are settled; the
+bench tests under "Still open" come with the first boards.
 
 ![top](render-top.png)
 
@@ -70,15 +71,17 @@ checked (KiCad: no design-rule error, the schematic's nets equal the board's, 74
   now asserts a 2 mm keep-out on every part's box (the left edge the whole length, the right to the right post's top,
   24 mm).
 
-**Still open before ordering:**
+**Still open (bench tests with the first boards; the mockup checks before ordering if the print is at hand):**
 - **Must-pass bench test (Julius)**: stock and SLOOP, **cold boot with a card in** (the card stays in native mode the
   whole session): the screen must stay right. If it does not, raise R5 (and R6). Optimist puts the card in SPI mode
   before its first LCD command; other firmware does not.
 - **Hot insertion**: insert a card while the FM-1 runs and watch the screen.
 - Done: **J12 pin 7 = 3.3 V** (Julius, 2026-10-28): his working prototype powers the card from it.
-- **The mirror check** (the breakout): whether the cable from J12 arrives with pin 1 on J2 pin 1, which picks J2's
-  face: J2 is still the HCTL part with contacts on both faces (a cable turned over connects mirrored). Bottom contact:
-  XUNPU FPC-05F-10PH20, C2856798; top contact: C3446068 as J3. Both footprints are in `lib/`.
+- Done: **the mirror check** (2026-10-28, from `MEASUREMENTS.md`): at J12 the cable's contacts face the FM-1 board, and
+  round the board's edge they keep facing it, so at J2 they face our board (gold DOWN). With J12 counting from the
+  right and J2's opening to the top edge, J12 pin 1 lands on J2's first contact from the left: no mirror with the type A
+  cable. **J2 is now single-sided, bottom contact** (XUNPU FPC-05F-10PH20, C2856798, turned and wired by place as J3,
+  `J2_AT`): a cable turned over does not connect.
 - **J3's numbering by place** (`J3_AT`, reversed): check it against the LCD's flex on the printed mockup before
   ordering. Every LCD line depends on it.
 - **J3 lower** (the LCD's bonded flex not under tension for life): not done; v6's opening is 0.6 mm higher than v5's.
@@ -93,9 +96,9 @@ checked (KiCad: no design-rule error, the schematic's nets equal the board's, 74
 ## The kit
 
 1. **This board**, ordered assembled (below).
-2. **A 10-pin 0.5 mm cable**, 60 or 80 mm (the user has both types, A and B: the sockets take either), from J12 to J2.
-   The listing the user ordered from: https://www.aliexpress.com/item/4000022050815.html (pick 10 pin, 0.5 mm pitch,
-   the length; the type, A or B, follows J2's contact face, picked after the breakout's mirror check).
+2. **A 10-pin 0.5 mm cable, type A** (contacts on the same face at both ends), 80 mm, from J12 to J2, gold facing the
+   FM-1 board at J12 and our board at J2. The listing the user ordered from:
+   https://www.aliexpress.com/item/4000022050815.html (10 pin, 0.5 mm pitch, type A).
 3. **The tray** (`sd-tray.stl`, 3D print): the board slides in from the bottom end until it meets the collar.
 4. **A slot in the bottom wall** for the card: about 15 x 2.5 mm, the card's left side 81.7 mm from the left wall's
    inside (the socket's 2 mm further left).
@@ -107,8 +110,7 @@ checked (KiCad: no design-rule error, the schematic's nets equal the board's, 74
 3. Upload `fab/bom.csv` (the parts) and `fab/cpl.csv` (where they go). Every part is a JLC part (LCSC numbers in the BOM).
 4. Check the placement preview: the card socket's opening past the bottom edge, both 10-pin sockets' openings facing the top,
    U1's pin 1 dot as on the render.
-3b. JLC warns "multiple lines matched to the same part" on J2/J3 (same socket, two values): correct, tick both.
-5. Order. JLC quote of 2026-10-25 (v5 files; v6 adds R5, R6, R7, C3 and FB1, basic parts, and J3 is another extended part: quote again; Economic, 2-day PCB, before the ESD chip and the 33 ohm resistors):
+5. Order. JLC quote of 2026-10-25 (v5 files; v6 adds R5, R6, R7, C3 and FB1, basic parts, and J2 and J3 are other extended parts: quote again; Economic, 2-day PCB, before the ESD chip and the 33 ohm resistors):
    2 assembled of 5 bare 26.99 USD, 5: 28.99, 10: 33.31, 20: 42.86, 30: 49.81, 50: 65.56. About 19 USD of it is fixed per
    order (setup 8.24, stencil 1.55, three extended parts 9.27: card socket, 10-pin socket, inverter). The ESD chip adds one
    more extended part (about 3.50). Shipping to Belgium for 5 (0.29 kg): Global Standard 8.16 (12-16 days), EuroPacket
@@ -122,13 +124,13 @@ Check the fit first: `mockup-printable.stl` (3D print, one piece: the board and 
 
 ## The FFC socket's pins
 
-As J12 (Julius, 2026-10-27): J2 pin n = J12 pin n; J3 by place (its n-th contact from the left). **J12 counts from
+As J12 (Julius, 2026-10-27): J12 pin n on J2's and J3's n-th contact from the left (both wired by place). **J12 counts from
 the right**: pin 1 is the leg by the FM-1 board's dot, the right end with the connector's opening up
 (`j12-wiring-points.png`). The LCD's flex turns over on its way to J3 (its contacts face the FM-1 board at J12, up at
 J3), so J12's right end lands on J3's left end: line 1 on J3's first contact from the left, as wired. The printed
 mockup's check confirms it.
 
-| J2 pin | Line |
+| J12 pin (contact from the left on J2, J3) | Line |
 |---|---|
 | 1, 10 | GND |
 | 2 | MISO = the LCD's D/C (PC8) |
@@ -144,7 +146,7 @@ mockup's check confirms it.
 | Ref | Part | LCSC |
 |---|---|---|
 | J1 | microSD socket, push-push (Korean Hroparts TF-01A) | C91145 |
-| J2 | FPC socket, 10 pins, 0.5 mm, contacts on both sides, flip lock, 1 mm high (HCTL HC-FPC-05-09-10RLTAG): until the mirror check picks its face | C5213750 |
+| J2 | FPC socket, 10 pins, 0.5 mm, bottom contact only, right angle, 2 mm high (XUNPU FPC-05F-10PH20) | C2856798 |
 | J3 | FPC socket, 10 pins, 0.5 mm, top contact only, right angle, slide lock (XUNPU FPC-0.5AS-10PWBH20) | C3446068 |
 | U1 | 74LVC1G04 single inverter, SOT-23-5 (TI SN74LVC1G04DBVR) | C7827 |
 | R1 | 220 Ohm 0603: the card's DO to the FM-1's PC8 (shared with the LCD's D/C) | C22962 |
