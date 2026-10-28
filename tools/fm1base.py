@@ -7,6 +7,8 @@
                           .config: -> (returncode, output); its package and sizes.json are copied into bdir as
                           Optimist's own build leaves them (felucca.fwsc, optimist-<version>.fwsc, sizes.json)
   install_tool()          fm1base/tools/fm1_install.py (the update tool of the fm1-base side)
+  site(pkg, version, out) the release's own site (its install page with m-bootloader, the manual, the browser emulator,
+                          the package): fm1base/tools/make_site.py on the app's directory with Optimist's site inputs
 
 Optimist's own firmware build stays available as `--classic` (tools/optimist.py, make classic). One fm1-base build at
 a time (its build directory is the app's own: fm1base/optimist/build, git-ignored): builds here are serialized."""
@@ -221,3 +223,50 @@ def build(cfgfile, bdir, python, run, release=None, name_stem="optimist", parall
             Path(bdir).mkdir(parents=True, exist_ok=True)
             shutil.copy(out_dir / "sizes.json", Path(bdir) / "sizes.json")
     return rc, out
+
+
+def emu_build(cfgfile=None, python=sys.executable):
+    """the release's browser emulator (fm1base/tools/build.py optimist --web: Emscripten) -> its directory (APP/build/emu);
+    cfgfile: a builder .config, else the app's own profile copy. No toolchain: the emulator is the host build"""
+    ready()
+    env = {k: v for k, v in os.environ.items() if not k.startswith("FELUCCA_")}
+    env["OPTIMIST"] = str(ROOT)
+    env.pop("OPT_CONFIG", None)
+    if cfgfile:
+        env["OPT_CONFIG"] = str(Path(cfgfile).resolve())
+    r = subprocess.run([python, str(BUILD_PY), str(APP), "--web"], env=env, capture_output=True, text=True)
+    if r.returncode:
+        raise FM1BaseError(f"the emulator did not build:\n{r.stdout[-2000:]}{r.stderr[-2000:]}")
+    return APP / "build" / "emu"
+
+
+def site(pkg, version, out, cfgfile=None, emu=True, python=sys.executable):
+    """the release's site into out: fm1-base's tools/make_site.py on a staging copy of the app's directory (fm1base/
+    optimist-site, removed after) that has Optimist's inputs: the front page (APP/site/landing.md), the manual built from
+    docs/guide (tools/site_manual.py), the name, tagline and repo of fm1.toml; its emulator is APP/build/emu (built here
+    unless emu is False: a directory with app.wasm is there already). pkg: the release build's package (identity
+    FM-1_79 and the version's six digits: tools/build.py --release)"""
+    import site_manual
+    ready()
+    if emu:
+        emu_build(cfgfile, python)
+    if not (APP / "build" / "emu" / "app.wasm").is_file():
+        raise FM1BaseError(f"{APP / 'build' / 'emu'}: no app.wasm (the emulator: {BUILD_PY} {APP} --web)")
+    stage = DIR / "optimist-site"
+    shutil.rmtree(stage, ignore_errors=True)
+    try:
+        shutil.copytree(APP, stage, ignore=shutil.ignore_patterns("build", "__pycache__", "tests", "profiles"))
+        (stage / "docs").mkdir(exist_ok=True)
+        (stage / "docs" / "MANUAL.md").write_text(site_manual.build(), encoding="utf-8")
+        (stage / "build").mkdir()
+        shutil.copytree(APP / "build" / "emu", stage / "build" / "emu")
+        if (APP / "web" / "words").is_dir():
+            (stage / "web").mkdir(exist_ok=True)
+            shutil.copytree(APP / "web" / "words", stage / "web" / "words", dirs_exist_ok=True)
+        r = subprocess.run([python, str(DIR / "tools" / "make_site.py"), str(stage), str(pkg), version, str(out)],
+                           capture_output=True, text=True)
+        if r.returncode:
+            raise FM1BaseError(f"make_site.py failed:\n{r.stdout}{r.stderr}")
+        return r.stdout.strip()
+    finally:
+        shutil.rmtree(stage, ignore_errors=True)
