@@ -492,6 +492,57 @@ static void mixer_rows_tests(void)
         frames(30);
         check(seen, "T1's row: its VU meter fills from the left while it plays");
     }
+    {   /* the VU's gradient: its own colour up to -12 dB, amber and red above it (a full-scale peak ends in red) */
+        uint32_t i, red = 0, amb = 0, y = mx_row_y(MXR_T1) + MXL_VY;
+        for (i = 0; i < 3u; i++) {
+            mt.ui[0] = 8192;                            /* -12 dBFS: lights up to the -12 dB tick */
+            frame();
+        }
+        amb = (uint32_t)px_in(MXL_VX, y, MXL_VW, MXL_VH, C_WARN);
+        check(!amb && !px_in(MXL_VX, y, MXL_VW, MXL_VH, C_ERR), "T1's VU at the -12 dB tick: no amber, no red");
+        for (i = 0; i < 3u; i++) {
+            mt.ui[0] = 32767;                           /* 0 dBFS */
+            frame();
+        }
+        ppm("opt-mixer-vu-full");
+        red = (uint32_t)px_in(MXL_VX + MXL_VW - 4, y, 4, MXL_VH, C_ERR);
+        check(red && px_in(MXL_VX, y, MXL_VW * 36 / 44, MXL_VH, C_OK), "T1's VU at 0 dBFS: green below -12 dB, red at the top");
+        check(!px_in(MXL_VX + MXL_VW * 36 / 44 + 1, y, 3, MXL_VH, C_OK) && !px_in(MXL_VX + MXL_VW * 41 / 44, y, 20, MXL_VH, C_OK) && px_at(MXL_VX + MXL_VW - 1, y, C_ERR),
+              "... the columns above -12 dB are shaded, not the base colour");
+        mt.ui[0] = 0;
+        frames(30);
+        for (i = 0; i < 3u; i++) {
+            mt.ui[0] = 8192;
+            frame();
+        }
+        ppm("opt-mixer-vu-m12");
+        mt.ui[0] = 0;
+        frames(30);
+        {   /* the scale is linear in dB: where the bar ends for -12, -6, -3 and 0 dBFS (a tick each 6 dB, 4/44 of the width) */
+            static const struct { uint32_t pk, n; const char *name; } pt[4] = {
+                {8192, 36, "-12 dBFS: the -12 tick"}, {16384, 40, "-6 dBFS: the -6 tick"},
+                {23197, 42, "-3 dBFS: half-way to 0"}, {32767, 44, "0 dBFS: the whole bar"}};
+            uint32_t q, j;
+            for (q = 0; q < 4u; q++) {
+                int32_t end = 0, want = (int32_t)(MXL_VW * pt[q].n / 44u), d;
+                char nm[64];
+                for (j = 0; j < 3u; j++) {
+                    mt.ui[0] = (int32_t)pt[q].pk;
+                    frame();
+                }
+                for (j = 0; j < MXL_VW; j++)
+                    if (screen[y * 240u + MXL_VX + j] != swap16(C_BLACK))
+                        end = (int32_t)j + 1;
+                d = end - want;
+                snprintf(nm, sizeof nm, "T1's VU at %s (ends within 1 px)", pt[q].name);
+                check(d >= -1 && d <= 1, nm);
+                if (q == 2u)
+                    ppm("opt-mixer-vu-m3");
+                mt.ui[0] = 0;
+                frames(30);
+            }
+        }
+    }
 #if FELUCCA_MASTER_COMP
     {   /* the compressors' reduction: a bar from the right, only where one works */
         uint32_t x = MXM_GX + MXM_GW;

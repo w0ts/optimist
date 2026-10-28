@@ -17,7 +17,7 @@
 #define ROW_H (OP_FOOT ? 19 : 20)       /* a list row: 5 under the 2x2 cards, over the help band too (99 rows: 19 each) */
 #define OH_BODY OP_PH                 /* the panel to the help band (or the screen's foot): no footer (the user, 2026-10-08) */
 #define ROWS_SHOWN ((uint32_t)OH_BODY / ROW_H)   /* 5 rows under the 2x2 cards (draw_list) */
-#define METER_H 90                      /* meter_h's scale (op_mixdraw.c scales it to a row's meter) */
+#define METER_H 704                     /* meter_h's scale (op_mixdraw.c scales it to a row's meter) */
 static int draw_step_panel(void);                      /* op_stepdraw.c: STEP's grid / roll */
 static void step_frame(void);
 static void lay_title(char *t, uint32_t n);             /* op_laydraw.c: a performance layer's map */
@@ -1055,12 +1055,22 @@ static void draw_list(void)
 }
 
 /* ---- pieces of the mixer's rows (op_mixdraw.c) */
-static uint32_t meter_h(int32_t pk)                     /* a peak (32767 = 0 dBFS) as a height: 6 dB a step */
+/* a peak (32767 = 0 dBFS) as a height 0 .. METER_H, linear in dB: 64 units a 6 dB step (a tick each, at 4/44 of METER_H), the
+ * step from the leading bit, the place inside it from the next 3 mantissa bits (METER_T: 64 * log2(1 + k/8), the rest
+ * interpolated linearly: within 0.05 dB). 2^14 is the -6 tick, 2^13 the -12 tick, 32767 the end; below 32 (-60 dB) nothing */
+static const uint8_t METER_T[9] = {0, 11, 21, 29, 37, 45, 52, 58, 64};
+static uint32_t meter_h(int32_t pk)
 {
-    uint32_t lg = 0, a = pk > 0 ? (uint32_t)pk : 0u;
-    while (a >>= 1)
-        lg++;
-    return lg < 5u ? 0u : (uint32_t)ui_clamp(((int32_t)(lg - 5u) * 4 + 4) * METER_H / 44, 0, METER_H);
+    uint32_t a = pk > 0 ? (uint32_t)pk : 0u, lg, rem, idx, r, sh, f;
+    if (a < 32u)
+        return 0u;
+    lg = 31u - (uint32_t)__builtin_clz(a);
+    rem = a - (1u << lg);
+    sh = lg - 3u;                                       /* (lg >= 5) */
+    idx = rem >> sh;
+    r = rem & ((1u << sh) - 1u);
+    f = METER_T[idx] + (((uint32_t)METER_T[idx + 1u] - METER_T[idx]) * r + (1u << (sh - 1u))) / (1u << sh);
+    return (uint32_t)ui_clamp((int32_t)((lg - 5u) * 64u + 64u + f), 0, METER_H);
 }
 /* ---- the note played on the keys, at the screen's bottom left (the user, 2026-10-24, after Melodee): its name (A#4; a
  * chord's lowest) while a note key is down and NN_FRAMES after the last one is let go. A build with the help band: the
