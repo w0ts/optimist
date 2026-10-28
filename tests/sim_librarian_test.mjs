@@ -10,7 +10,7 @@ import vm from "node:vm";
 const HTML = new URL("../web/editor.html", import.meta.url).pathname;
 const WASM = process.argv[2] || new URL("../build/sim/sim-lib.wasm", import.meta.url).pathname;
 const html = readFileSync(HTML, "utf8");
-const proto = html.slice(html.indexOf("/*PROTO-BEGIN*/"), html.indexOf("/*PROTO-END*/"));
+const proto = html.slice(html.indexOf("/*wire-section:begin*/"), html.indexOf("/*wire-section:end*/"));
 const E = vm.runInNewContext(proto + `;({ parse, req, CMD, bank, bkListAll, backupFile, readBackupFile, patReadAll, patWriteAll, crc32, BK, PATREC, patRecBuild, patRawEmpty })`,
   { setTimeout, clearTimeout, setInterval, clearInterval, console, TextEncoder, TextDecoder });
 const module = new WebAssembly.Module(readFileSync(WASM));
