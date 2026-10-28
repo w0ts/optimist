@@ -87,6 +87,11 @@
 /* the FM-1 found, under the button */
 .oi-conn { margin-top: var(--sp-3); padding-top: var(--sp-3); border-top: 1px solid var(--line); }
 .oi-conn .oi-row { margin-bottom: var(--sp-1); }
+.oi-portlist { list-style: none; margin: var(--sp-1) 0; padding: 0; }
+.oi-portlist li { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); margin: 0 0 var(--sp-1); }
+.oi-portmsg:empty { display: none; }
+.oi-bootopt { margin: var(--sp-2) 0; }
+.oi-bootopt label { display: block; }
 .oi-how { margin: 0 0 var(--sp-2); font-size: var(--fs-1); }
 .oi-logbox { margin-top: var(--sp-3); }
 .oi-log { margin: 0; max-height: 180px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text-dim); font-family: var(--font-mono); font-size: var(--fs-1); }

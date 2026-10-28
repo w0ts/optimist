@@ -5,7 +5,7 @@
 The fake device is the one in web/test_web.mjs: identity on the handshake,
 then "device asks, host answers" reads of the logical image. Run from the repo root:
   python3 tests/install_test.py
-Also checks logical_image/product_of against web/fm1pkg.js (needs node and
+Also checks logical_image/product_of against web/fm1base/fm1pkg.js (needs node and
 build/felucca.fwsc, skipped otherwise)."""
 import io
 import queue
@@ -307,11 +307,11 @@ def against_js():
         return
     js = ("import { logicalImage, productOf } from %r; import { readFileSync } from 'node:fs';"
           "const p = readFileSync(process.argv[1]); process.stderr.write(productOf(p));"
-          "process.stdout.write(logicalImage(p));") % str(ROOT / "web/fm1pkg.js")
+          "process.stdout.write(logicalImage(p));") % str(ROOT / "web/fm1base/fm1pkg.js")
     r = subprocess.run(["node", "--input-type=module", "-e", js, str(clean)], capture_output=True, check=True)
     raw = clean.read_bytes()
     ok(I.logical_image(raw) == r.stdout and I.product_of(raw) == r.stderr.decode(),
-       f"logical_image / product_of == fm1pkg.js ({clean.name}, {I.product_of(raw)})")
+       f"logical_image / product_of == web/fm1base/fm1pkg.js ({clean.name}, {I.product_of(raw)})")
     ok(I.LOADER_MARK in raw, f"{clean.name} carries the Felucca loader marker")
 
 

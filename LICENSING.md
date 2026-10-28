@@ -59,6 +59,14 @@ firmware derived from it, you must also give your recipients its complete corres
 source under the same licence. That includes devices that ship with modified Optimist
 inside.
 
+## The web installer's update code (MPL-2.0, MIT)
+
+`web/fm1base/fm1ota.js` and `web/fm1base/fm1pkg.js` are fm-1-base's own files, MPL-2.0 (full text in `LICENSES/MPL-2.0.txt`),
+kept byte for byte with their headers (Charles Vestal, Leo Kuroshita, Chris Farrell; `web/fm1base/README.md` names the commit).
+A file under the MPL stays under the MPL beside our GPL-3.0-only code; Optimist's own additions are in `web/fm1ota_optimist.js`
+(GPL-3.0-only). `web/fm1base/m-bootloader/` is m-bootloader 1.2 by Julius Vitkauskas (MIT, its `LICENSE` beside it), which the
+installer offers after the firmware.
+
 ## The Bluetooth stack (GPL-3.0-only OR MPL-2.0)
 
 Optimist's own Bluetooth code is offered under either GPL-3.0-only or the Mozilla Public License 2.0 (`MPL-2.0`, full

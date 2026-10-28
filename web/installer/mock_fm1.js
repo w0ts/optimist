@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // A simulated FM-1 on Web MIDI, for the tests only (never shipped: make_site.py does not copy it): its identity, then the
 // update's "device asks, host answers" reads of the image (step 1: the running firmware; step 2: the update loader),
-// then the new identity. web/test_web.mjs drives web/fm1ota.js with it in Node; web/e2e_installer.mjs puts it behind
+// then the new identity. web/test_web.mjs drives web/fm1base/fm1ota.js with it in Node; web/e2e_installer.mjs puts it behind
 // navigator.requestMIDIAccess in a headless Chrome.
-import { pack7, unpack7 } from "../fm1ota.js";
+import { pack7, unpack7 } from "../fm1base/fm1ota.js";
 
 const HS = [0xF0, 0x00, 0x32, 0x45, 0x00, 0x00, 0x00, 0x40, 0x7F, 0xF7];
 const UPGRADE = [0xF0, 0x22, 0x24, 0x35, 0x7F, 0xF7];
@@ -91,39 +91,28 @@ export class FakeFM1 {
   }
 }
 
-/* a .fwsc that make_site.py and checkPackage accept: the identity in the 20 marker bytes, the loader's marker, filler */
-/* a package laid out as tools/fm1pkg_make.py ufw() writes one: the scrambled header and parts list with their CRC-16s,
-   flash.bin (type 0) and ota.bin (type 100) with theirs (fm1pkg.js checkUfw passes it), the loader's mark at raw 0x1000,
-   the identity in the 20 marker bytes */
-const T16 = Array.from({ length: 256 }, (_, i) => {
-  let c = i << 8;
-  for (let k = 0; k < 8; k++) c = c & 0x8000 ? (c << 1) ^ 0x1021 : c << 1;
-  return c & 0xFFFF;
-});
-const crc16 = (d) => d.reduce((c, b) => ((c << 8) & 0xFFFF) ^ T16[((c >> 8) ^ b) & 0xFF], 0);
-const scramble = (p) => { for (let i = 0, k = 0xFFFF; i < p.length; i++) { p[i] ^= k & 0xFF; k = ((k << 1) ^ (k & 0x8000 ? 0x1021 : 0)) & 0xFFFF; } return p; };
+/* a .fwsc that make_site.py and checkPackage accept: the identity in the 20 marker bytes, the loader's marker, filler, and
+   one UFW part with the header and checksums fm1base's checkUfw wants (the header and the entry list ciphered with the
+   key 0xFFFF; CRC-16 0x1021) */
+const crc16 = (d) => { let c = 0; for (const b of d) { c ^= b << 8; for (let k = 0; k < 8; k++) c = (c & 0x8000 ? (c << 1) ^ 0x1021 : c << 1) & 0xFFFF; } return c; };
+const cipher = (b) => { for (let i = 0, k = 0xFFFF; i < b.length; i++) { b[i] ^= k & 0xFF; k = ((k << 1) ^ (k & 0x8000 ? 0x1021 : 0)) & 0xFFFF; } return b; };
 export function fakePackage(product = "FM-1_720", size = 0x10000) {
   const img = new Uint8Array(size - 20);
   for (let i = 0; i < img.length; i++) img[i] = (i * 13 + 7) & 0xFF;
-  img.set(new TextEncoder().encode("FELUCCA-LOADER-1"), 0x1000 - 20);   /* (raw 0x1000: past the 20 marker bytes) */
-  const parts = [[0, 0x400, 0xA000], [100, 0xA400, img.length - 0xA400]];
-  const list = new Uint8Array(0x50 * parts.length), lv = new DataView(list.buffer);
-  parts.forEach(([type, off, len], i) => {
-    lv.setUint16(i * 0x50, type, true); lv.setUint16(i * 0x50 + 2, i, true);
-    lv.setUint16(i * 0x50 + 4, crc16(img.subarray(off, off + len)), true);
-    lv.setUint32(i * 0x50 + 8, off, true); lv.setUint32(i * 0x50 + 12, len, true);
-    scramble(list.subarray(i * 0x50, (i + 1) * 0x50));
-  });
-  const hdr = new Uint8Array(0x40), hv = new DataView(hdr.buffer);
-  hv.setUint32(4, img.length, true); hv.setUint16(8, parts.length, true);
-  hv.setUint16(2, crc16(list), true);
-  hv.setUint16(0, crc16(hdr.subarray(2)), true);
-  img.set(scramble(hdr), 0); img.set(list, 0x40);
+  img.set(new TextEncoder().encode("FELUCCA-LOADER-1"), 0x1000 - 20);
+  const off = 0x90, part = img.subarray(off);
+  const entry = new Uint8Array(0x50);
+  new DataView(entry.buffer).setUint16(4, crc16(part), true);
+  new DataView(entry.buffer).setUint32(8, off, true);
+  new DataView(entry.buffer).setUint32(12, part.length, true);
+  img.set(cipher(entry), 0x40);
+  const head = new Uint8Array(0x40), hv = new DataView(head.buffer);
+  hv.setUint16(2, crc16(img.subarray(0x40, 0x90)), true);
+  hv.setUint16(8, 1, true);
+  hv.setUint16(0, crc16(head.subarray(2)), true);
+  img.set(cipher(head), 0);
   const raw = new Uint8Array(size);
-  for (let i = 0; i < 20; i++) {
-    raw.set(img.subarray(i * 0x2F, (i + 1) * 0x2F), i * 0x30);
-    raw[i * 0x30 + 0x2F] = i < product.length ? (product.charCodeAt(i) + i + 1) & 0xFF : 0x7D;
-  }
+  for (let i = 0; i < 20; i++) { raw.set(img.subarray(i * 0x2F, i * 0x2F + 0x2F), i * 0x30); raw[i * 0x30 + 0x2F] = i < product.length ? (product.charCodeAt(i) + i + 1) & 0xFF : 0x7D; }
   raw.set(img.subarray(20 * 0x2F), 20 * 0x30);
   return raw;
 }
