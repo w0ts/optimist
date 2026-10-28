@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 Henri David
-// The editor's protocol code (editor.html between PROTO-BEGIN and PROTO-END) against Optimist as an fm1-base app (the
+// The editor's protocol code (editor.html between wire-section:begin and wire-section:end) against Optimist as an fm1-base app (the
 // trial) in fm1-base's browser emulator, headless under Node: the emulator's app.wasm (fm1-base tools/build.py optimist
 // --web) behind its "port" part's channel (fm1-base web/emu/parts/port.js: BroadcastChannel "fm1-emu", "here" / "to" /
 // "from"), the page's side through fm1-base's own port_client.js emuAccess(), as the editor's "fm1-base emulator" device
@@ -23,10 +23,10 @@ const dbg = process.env.E2E_DEBUG ? (...a) => console.log("  .", ...a) : () => {
 const ok = (pass, label) => { console.log(`${label.padEnd(76)} ${pass ? "ok" : "FAIL"}`); if (!pass) failed++; };
 
 const html = readFileSync(new URL("./editor.html", import.meta.url), "utf8");
-const [protoFrom, protoTo] = ["/*PROTO-BEGIN*/", "/*PROTO-END*/"].map((mark) => html.indexOf(mark));
+const [protoFrom, protoTo] = ["/*wire-section:begin*/", "/*wire-section:end*/"].map((mark) => html.indexOf(mark));
 const proto = html.slice(protoFrom, protoTo);
 const E = vm.runInNewContext(`${proto}
-;({ CMD, parse, req, Link, Comp, CP, cpBkList, cpBkCheckAll, cpBkWrite, cpBkCtl, cpSmpInfo, emuPorts, backupFile, readBackupFile,
+;({ CMD, parse, req, FrameLink, Comp, CP, cpBkList, cpBkCheckAll, cpBkWrite, cpBkCtl, cpSmpInfo, emuPorts, backupFile, readBackupFile,
    bkPlan, crc32, zipStore, zipEntries })`, { setTimeout, clearTimeout, setInterval, clearInterval, console, TextEncoder, TextDecoder });
 
 /* ---- the emulator's side: app.wasm, rendered in steps of simulated time, its port on the channel */
@@ -85,13 +85,13 @@ const fmMs = () => ex.web_now();
 const waitFm = async (ms) => { const t0 = fmMs(); while (fmMs() - t0 < ms) await new Promise((r) => setTimeout(r, 5)); };
 await waitFm(1500);                                 /* (the FM-1 powers on) */
 
-/* ---- the page's side: fm1-base's port_client.js, the editor's Link and companion client */
+/* ---- the page's side: fm1-base's port_client.js, the editor's FrameLink and companion client */
 const { emuAccess } = await import(pathToFileURL(join(tree, "web", "emu", "parts", "port_client.js")).href);
 const access = emuAccess();
 await new Promise((r) => setTimeout(r, 400));
 const ports = E.emuPorts(access);
 ok(!!ports && ports.input.name === name, "the editor's fm1-base emulator device: emuAccess() lists the trial's ports");
-const link = new E.Link((b) => ports.output.send(b), { timeout: 1500, onRaw: (m) => comp.push(m) });
+const link = new E.FrameLink((b) => ports.output.send(b), { timeout: 1500, onRaw: (m) => comp.push(m) });
 ports.input.addEventListener("midimessage", (m) => link.receive(m.data));
 const comp = new E.Comp(link);
 
