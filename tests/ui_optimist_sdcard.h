@@ -500,6 +500,77 @@ static void sdcard_tests(void)
 }
 /* a power cut at every block write of a SAVE made from the UI: the next boot (the device record read again, the card
  * mounted) finishes it from the flash copy; the card's project then the staged one, the record cleared */
+/* MIDI tracks' phase 0 (docs/MIDI-TRACKS-DESIGN.md 3): a card project with records of ids this build does not know (a
+ * later firmware's, past SLG_IDS) loads: each is skipped, the rest loaded (before phase 0 the whole file was refused);
+ * a record of the MIDI tracks' reserved ids (142..225) is loaded as it is and saved to the card again */
+static uint8_t sdu_strm[64 * 1024];
+static uint32_t sdu_strm_n;
+static int sdu_strm_read(uint32_t at, void *p, uint32_t n)
+{
+    if (at + n > sdu_strm_n)
+        return -1;
+    memcpy(p, sdu_strm + at, n);
+    return 0;
+}
+static void sdu_strm_rec(uint32_t id, uint32_t n, uint32_t tag)   /* a record (id, n bytes) appended to the stream */
+{
+    uint32_t i;
+    sdu_strm[sdu_strm_n] = (uint8_t)id, sdu_strm[sdu_strm_n + 1u] = (uint8_t)n, sdu_strm[sdu_strm_n + 2u] = (uint8_t)(n >> 8);
+    for (i = 0; i < n; i++)
+        sdu_strm[sdu_strm_n + 3u + i] = (uint8_t)(tag + i * 3u);
+    sdu_strm_n += 3u + n;
+}
+static void sdu_unknown_tests(void)
+{
+    static uint8_t org[64 * 1024], b[SEC_REC_MAX];
+    int (*rd)(uint32_t, void *, uint32_t) = sdp_hooks.read;
+    uint32_t n, first, i, ok = 1;
+    FRESULT r;
+    sdu_card();
+    sdu_row(PR_PROJECT);
+    trk[0].p[P_DEC] = 71;
+    check(sdm_proj_save("FUTURE") == FR_OK, "a later firmware's card file: this build's project saved to the card first");
+    n = sdm_stage_len();
+    ok = n > 0u && n < sizeof org && sdm_stage_read(0, org, n) == 0;
+    first = 3u + ((uint32_t)org[1] | (uint32_t)org[2] << 8);   /* (the first record's end) */
+    sdu_strm_n = 0;
+    sdu_strm_rec(SLG_IDS + 3u, 40u, 5u);                /* (a later firmware's: before the first) */
+    memcpy(sdu_strm + sdu_strm_n, org, first), sdu_strm_n += first;
+    sdu_strm_rec(250u, 700u, 9u);                       /* (one between) */
+    sdu_strm_rec(SLG_ID_MPAT0 + 17u, 90u, 11u);         /* (a MIDI pattern: reserved here, kept) */
+    sdu_strm_rec(SLG_ID_MWORK0 + 3u, 120u, 13u);        /* (a MIDI track's working copy) */
+    memcpy(sdu_strm + sdu_strm_n, org + first, n - first), sdu_strm_n += n - first;
+    sdu_strm_rec(0xFFu, 1u, 17u);                       /* (the last id, one byte, at the end) */
+    sdp_hooks.read = sdu_strm_read;
+    r = sdp_save("FUTURE", 9, sdu_strm_n, sd_blk);
+    sdp_hooks.read = rd;
+    ok &= r == FR_OK && sdu_proj_ok("FUTURE", 9, 0);
+    trk[0].p[P_DEC] = 72;
+    sdm_proj_load_file("OPTIMIST/PROJECTS/FUTURE/FUTURE.OPP", "FUTURE");
+    check(ok && sdu_msg("LOADED") && trk[0].p[P_DEC] == 71,
+          "... its file with four records of unknown ids (first, between, last) and two MIDI ones: LOADED, the project as saved");
+    for (i = SLG_IDS, ok = 1; i < 256u; i++)
+        ok &= !slg_has(i);
+    n = slg_get(SLG_ID_MPAT0 + 17u, b);
+    ok &= n == 90 && b[0] == 11u && b[89] == (uint8_t)(11u + 89u * 3u);
+    n = slg_get(SLG_ID_MWORK0 + 3u, b);
+    ok &= n == 120 && b[119] == (uint8_t)(13u + 119u * 3u);
+    check(ok, "... the unknown ids skipped (none in the log), the MIDI tracks' records loaded as they are");
+    n = sdm_stage_len();
+    ok = n == sdu_strm_n - (3u + 40u) - (3u + 700u) - (3u + 1u);
+    check(ok, "... the next card SAVE streams the MIDI records too (the stream as loaded, less the unknown ids)");
+    sdu_strm_n = 0;                                     /* (a broken one: an unknown record's length past the payload) */
+    memcpy(sdu_strm, org, first), sdu_strm_n = first;
+    sdu_strm_rec(SLG_IDS + 1u, 50u, 3u);
+    sdu_strm[sdu_strm_n - 50u - 2u] = 0xFF, sdu_strm[sdu_strm_n - 50u - 1u] = 0x7F;   /* (32,767 bytes: past the end) */
+    sdp_hooks.read = sdu_strm_read;
+    r = sdp_save("BROKEN", 1, sdu_strm_n, sd_blk);
+    sdp_hooks.read = rd;
+    trk[0].p[P_DEC] = 73;
+    sdm_proj_load_file("OPTIMIST/PROJECTS/BROKEN/BROKEN.OPP", "BROKEN");
+    check(r == FR_OK && !sdu_msg("LOADED") && sdu_msg("LOAD ERROR") && trk[0].p[P_DEC] == 73,
+          "... an unknown record running past the payload: LOAD ERROR, the work as it was");
+}
 static void sdcard_cut_tests(void)
 {
     uint8_t *snap = malloc((size_t)sdu_sectors * 512u);

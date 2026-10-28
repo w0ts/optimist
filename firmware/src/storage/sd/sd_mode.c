@@ -813,7 +813,13 @@ static int sdm_feed(uint32_t len)
         if (f_read(&sdm.f, h, 3, &got) != FR_OK || got != 3u)
             return -1;
         id = h[0], rl = (uint32_t)h[1] | (uint32_t)h[2] << 8;
-        if (id >= SLG_IDS || SLG_DEV(id) || !rl || rl > SEC_REC_MAX || at + 3u + rl > len ||
+        if (SLG_UNK(id)) {                           /* a later firmware's id: skipped, the rest loaded (MIDI tracks' phase */
+            if (at + 3u + rl > len || f_lseek(&sdm.f, f_tell(&sdm.f) + rl) != FR_OK)   /* 0; before it: the whole */
+                return -1;                           /* file refused) */
+            at += 3u + rl;
+            continue;
+        }
+        if (SLG_DEV(id) || !rl || rl > SEC_REC_MAX || at + 3u + rl > len ||
             f_read(&sdm.f, sec_rbuf, rl, &got) != FR_OK || got != rl)
             return -1;
         if ((rc = slg_put(id, sec_rbuf, rl, 1)) != 0)

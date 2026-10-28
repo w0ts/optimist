@@ -514,7 +514,10 @@ static uint32_t bk_pj_record(uint32_t id, uint32_t n)
         ok = n > 4u && n <= sizeof fxr_rbuf;
     else if ((id >= DLR_ID0 && id <= DLR_ID_AUTO) || id == DLR_ID_STATE)
         ok = n > 4u && n <= sizeof dlr_rbuf;
-    sec_stage_id = -1;                                 /* (the stage was the check's scratch) */
+    else if (id >= SLG_ID_MPAT0 && id < SLG_IDS)
+        ok = 1;                                        /* (the MIDI tracks' ids, sec_log.c: reserved, nothing here reads them;
+                                                        * kept as they are for the firmware that writes them) */
+    sec_stage_id = -1;                                /* (the stage was the check's scratch) */
     if (!ok)
         return 2;
     return slg_put(id, BK_BUF, n, 1) ? 7u : 0u;
