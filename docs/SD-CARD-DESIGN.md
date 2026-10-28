@@ -154,9 +154,11 @@ code takes the bus between two screen transfers:
    (a normal build, the stock update loader) selects the card: **the card comes out before such an update**.
 6. **At boot** the card is put in SPI mode (`sd_mount_boot`: the set read mode once, `main.c`) before the screen's first command: a card still in
    its native mode (fresh, or hot-plugged) parses the LCD's traffic on CMD, may find a valid command in it and answer on
-   CMD (open-drain) against PC10. The socket's card-detect is not wired, so a hot-plugged card is not seen; for
+   CMD (open-drain) against PC10. The socket's card-detect reaches only a test pad (TP5), so a hot-plugged card is not seen; for
    streaming, a periodic CMD13 (status) checks the card and only a CMD13 with no answer sends CMD0 (CMD0 resets a card
-   in use). The board's MOSI branch gets 100 Ohm in series, which bounds that fight to about 15 mA.
+   in use). The board's MOSI branch gets 510 Ohm in series (R6; CLK the same, R5), which bounds that fight to about
+   6 mA. Other firmware never sends the card to SPI mode: Julius's prototype (2026-10-28) lost the stock screen with a
+   card in from a cold boot with CLK wired direct, had it distorted at 150 Ohm and fine at 510.
 
 The card's start-up runs at 400 kHz (SPI1 BAUD 149: 60 MHz / 150), then 20 MHz (BAUD 2). The screen runs at 60 MHz
 (`LCD_BAUD` 0 in every profile; 30 MHz, BAUD 1, is the fallback if the column's stub disturbs it). PC8 can be driven
@@ -167,8 +169,12 @@ R1 (220 Ohm on the board) keeps that to about 15 mA.
 14 ns (tODLY, SD default speed) after CLK's falling edge; the FM-1 samples on the rising edge, 25 ns later at 20 MHz.
 The DO / D/C net (the PC8 pad, the panel's D/C input through its flex, the 80 mm cable, the 55 mm column, the socket)
 is about 35 pF. R1 220 Ohm: a 7.7 ns time constant, about 15 ns to a clean level: 14 + 15 = 29 ns, past 25 before the
-host's (unknown) setup time. 100 Ohm: 14 + 7 = 21 ns, a marginal pass; 47 Ohm: 17 ns, comfortable. So the board is
-ordered with **R1 100 Ohm** and 47 Ohm on the shelf; `sd bench`'s 20 MHz CRC rows decide. 30 MHz is not expected.
+host's (unknown) setup time. 100 Ohm: 14 + 7 = 21 ns, a marginal pass; 47 Ohm: 17 ns, comfortable. The board still
+takes **R1 220 Ohm** (Julius's review and the user, 2026-10-28): a card left in SPI mode by an earlier session drives DO
+against D/C whenever a firmware idles the LCD's CS high, up to 33 mA at 100 Ohm, 15 at 220. Real cards (5-8 ns)
+reach 20 MHz through 220; the spec's slowest does not, and the auto clock (below) steps down for it. `sd bench`'s
+20 MHz CRC rows decide. Julius's hand wiring (510 / 510 / 270 Ohm at the card end of a 10 cm stub) read clean CRCs up
+to 6 MHz and failed from 8; the board's short traces are expected to do better (unmeasured). 30 MHz is not expected.
 
 **The card's clock: the fastest it proves** (the user, 2026-10-25). SPI1 gives 20 or 30 MHz (60 / (BAUD + 1)). The
 spec's 14 ns tODLY fits 20 MHz, not 30; real cards are usually 5-8 ns and do make 30, so it is measured per card at
@@ -281,6 +287,20 @@ Each step names who does it. Claude never writes to the FM-1.
      card in and out, then normal use; any stripe or shifted bytes: the profile goes to `LCD_BAUD` 1 (30 MHz). Also
      watch for corruption that persists and clears on a card access (section 4, CS idle low).
 5. **Claude**: from what the console printed, fixes the mode / timing and makes the working mode the default.
+
+**Measured on a hand-built prototype** (Julius, 2026-10-28: a microSD breakout, a 74HC04 and through-hole resistors on
+the probed J12 pins; SD reads, a FAT32 reader and a flash-slot loader in m-bootloader on it):
+- Card reads work with SPI1 CON = 0x4029 (the LCD's 0x4021 plus bit 3: separate DI and DO), PC8 an input with its
+  pull-up; CON bit 12 is not needed. That is `FM1_SD_DUPLEX` (`hal/fm1_sd_bus.h`). The LCD NOP before each session works.
+- The stock firmware runs the LCD at about 12 MHz and keeps its CS low while idle, with high gaps of up to about
+  2.8 ms and no clock edges while CS is high.
+- Clean reads (CRC16 checked) up to 6 MHz with 510 Ohm on CLK and DI and 270 on DO at the card end of a ~10 cm wire
+  stub; they fail from 8 MHz. That says nothing yet about the board's 20 MHz.
+- The stock screen went blank with a card in (cold boot: the card in native mode) with CLK direct and DI through
+  510 Ohm, while the LCD traffic looked identical on a logic analyzer; 150 Ohm on CLK distorted the image, 510 fixed
+  it (the board: R5, R6 510, section 4). m-bootloader's own screen worked in every case.
+- The card stays in SPI mode across a warm reset until it loses power: after a bootloader-driven firmware switch (a
+  chip reset) the next firmware starts with the card already in SPI mode.
 
 ## 7. What comes after the bring-up
 

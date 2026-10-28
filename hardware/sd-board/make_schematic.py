@@ -29,7 +29,7 @@ def block(text, name):
     raise ValueError(name)
 
 
-LIBS = {"Device": ["R", "C"], "74xGxx": ["74LVC1G04"], "Connector": ["Micro_SD_Card_Det1", "TestPoint"],
+LIBS = {"Device": ["R", "C", "FerriteBead"], "74xGxx": ["74LVC1G04"], "Connector": ["Micro_SD_Card_Det1", "TestPoint"],
         "Power_Protection": ["USBLC6-2P6"], "Jumper": ["SolderJumper_2_Bridged"],
         "Connector_Generic_MountingPin": ["Conn_01x10_MountingPin"], "power": ["PWR_FLAG"]}
 lib_symbols = []
@@ -43,6 +43,7 @@ for lib, names in LIBS.items():
 PINS = {
     "Device:R": {"1": (0, 3.81, 270), "2": (0, -3.81, 90)},
     "Device:C": {"1": (0, 3.81, 270), "2": (0, -3.81, 90)},
+    "Device:FerriteBead": {"1": (0, 3.81, 270), "2": (0, -3.81, 90)},
     "74xGxx:74LVC1G04": {"1": (-7.62, 2.54, 0), "2": (-15.24, 0, 0), "3": (-5.08, -10.16, 90), "4": (12.7, 0, 180),
                          "5": (-5.08, 10.16, 270)},
     "Connector:Micro_SD_Card_Det1": {"1": (-22.86, 10.16, 0), "2": (-22.86, 7.62, 0), "3": (-22.86, 5.08, 0),
@@ -65,15 +66,18 @@ LCD10 = {"1": "GND", "2": "MISO", "3": "LCD_CS", "4": "CLK", "5": "MOSI", "6": "
 PARTS = [
     ("J1", "Connector:Micro_SD_Card_Det1", "TF-01A push-push", "sdboard:TF-SMD_TF-01A", "C91145", 170, 90,
      {"1": "DAT2", "2": "CARD_CS", "3": "SD_DI", "4": "SD_VDD", "5": "SD_CLK", "6": "GND", "7": "DAT0", "8": "DAT1",
-      "SH": "GND"}),
+      "9": "CARD_DET", "SH": "GND"}),
     ("U1", "74xGxx:74LVC1G04", "74LVC1G04", "sdboard:SOT-23-5_L3.0-W1.7-P0.95-LS2.8-BR", "C7827", 70, 70,
      {"2": "SD_CSIN", "3": "GND", "4": "CARD_CS", "5": "SD_VDD"}),
-    ("R1", "Device:R", "100", "sdboard:R0603", "C22775", 110, 125, {"1": "SD_DO", "2": "DAT0"}),
+    ("R1", "Device:R", "220", "sdboard:R0603", "C22962", 110, 125, {"1": "SD_DO", "2": "DAT0"}),
     ("R2", "Device:R", "47k", "sdboard:R0603", "C25819", 125, 125, {"1": "DAT2", "2": "SD_VDD"}),
     ("R3", "Device:R", "47k", "sdboard:R0603", "C25819", 140, 125, {"1": "SD_VDD", "2": "DAT1"}),
     ("R4", "Device:R", "47k", "sdboard:R0603", "C25819", 45, 70, {"1": "GND", "2": "SD_CSIN"}),
-    ("R5", "Device:R", "100", "sdboard:R0603", "C22775", 155, 125, {"1": "CLK_SD", "2": "CLK"}),
-    ("R6", "Device:R", "100", "sdboard:R0603", "C22775", 170, 125, {"1": "MOSI_SD", "2": "MOSI"}),
+    ("R5", "Device:R", "510", "sdboard:R0603", "C23193", 155, 125, {"1": "CLK_SD", "2": "CLK"}),
+    ("R6", "Device:R", "510", "sdboard:R0603", "C23193", 170, 125, {"1": "MOSI_SD", "2": "MOSI"}),
+    ("R7", "Device:R", "47k", "sdboard:R0603", "C25819", 185, 125, {"1": "SD_VDD", "2": "DAT0"}),
+    ("C3", "Device:C", "100nF", "sdboard:C0603", "C14663", 90, 125, {"1": "SD_VDD", "2": "GND"}),
+    ("FB1", "Device:FerriteBead", "600R@100MHz", "sdboard:R0603", "C1002", 40, 125, {"1": "SD_VIN", "2": "SD_VDD"}),
     ("C1", "Device:C", "10uF", "sdboard:C0805", "C15850", 60, 125, {"1": "SD_VDD", "2": "GND"}),
     ("C2", "Device:C", "100nF", "sdboard:C0603", "C14663", 75, 125, {"1": "SD_VDD", "2": "GND"}),
     ("U2", "Power_Protection:USBLC6-2P6", "USBLC6-2SC6", "sdboard:SOT-23-6_L2.9-W1.6-P0.95-LS2.8-BL", "C7519", 200, 140,
@@ -84,10 +88,10 @@ PARTS = [
     *[(ref, "Jumper:SolderJumper_2_Bridged", "cut to swap", "sdboard:SolderJumper-2_Cut_P3.0mm_Pad1.5x2.0mm",
        "", 40 + 25 * i, 175, {"1": sd, "2": j}) for i, (ref, j, sd) in enumerate((
            ("JP1", "MISO", "SD_DO"), ("JP2", "LCD_CS", "SD_CSIN"), ("JP3", "CLK_SD", "SD_CLK"),
-           ("JP4", "MOSI_SD", "SD_DI"), ("JP5", "3V3", "SD_VDD")))],
+           ("JP4", "MOSI_SD", "SD_DI"), ("JP5", "3V3", "SD_VIN")))],
     *[(ref, "Connector:TestPoint", f"J12 {lab}", "TestPoint:TestPoint_Pad_D1.5mm", "", 170 + 15 * i, 175, {"1": net})
       for i, (ref, net, lab) in enumerate((("TP1", "LCD_6", "6"), ("TP2", "LCD_8", "8"), ("TP3", "LCD_9", "9"),
-                                          ("TP4", "GND", "G")))],
+                                          ("TP4", "GND", "G"), ("TP5", "CARD_DET", "DET")))],
     # (J2 from J12, J3 the LCD's cable, every line through; J3 single-sided top contact, J2's face after the breakout)
     ("J2", "Connector_Generic_MountingPin:Conn_01x10_MountingPin", "FPC 10P 0.5mm (IN)",
      "sdboard:FPC-SMD_10P-P0.50_HC-FPC-05-09-10RLTAG", "C5213750", 230, 90, LCD10),

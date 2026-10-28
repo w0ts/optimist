@@ -2,7 +2,7 @@
 <export version="E">
   <design>
     <source>/Users/mots/GitHub/optimist/worktrees/sd-mm/hardware/sd-board/sd-board.kicad_sch</source>
-    <date>2026-10-27T14:21:07</date>
+    <date>2026-10-28T10:34:41</date>
     <tool>Eeschema 10.0.7</tool>
     <sheet number="1" name="/" tstamps="/">
       <title_block>
@@ -67,6 +67,58 @@
       <property name="ki_fp_filters" value="C_*"/>
       <sheetpath names="/" tstamps="/"/>
       <tstamps>9f268560-3bfb-5461-81e9-67fdbbe37c8d</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="C3">
+      <value>100nF</value>
+      <footprint>sdboard:C0603</footprint>
+      <fields>
+        <field name="LCSC">C14663</field>
+        <field name="Footprint">sdboard:C0603</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="Device" part="C" description="Unpolarized capacitor"/>
+      <property name="LCSC" value="C14663"/>
+      <property name="Sheetname" value="sd-board"/>
+      <property name="Sheetfile" value="sd-board.kicad_sch"/>
+      <property name="ki_keywords" value="cap capacitor"/>
+      <property name="ki_fp_filters" value="C_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>31d2558f-500d-549c-8ca4-605884a57fdc</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="FB1">
+      <value>600R@100MHz</value>
+      <footprint>sdboard:R0603</footprint>
+      <fields>
+        <field name="LCSC">C1002</field>
+        <field name="Footprint">sdboard:R0603</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="Device" part="FerriteBead" description="Ferrite bead"/>
+      <property name="LCSC" value="C1002"/>
+      <property name="Sheetname" value="sd-board"/>
+      <property name="Sheetfile" value="sd-board.kicad_sch"/>
+      <property name="ki_keywords" value="L ferrite bead inductor filter"/>
+      <property name="ki_fp_filters" value="Inductor_* L_* *Ferrite*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>881df22f-636a-57f0-a1d7-2355bbc6be71</tstamps>
       <units>
         <unit name="A">
           <pins>
@@ -316,16 +368,16 @@
       </units>
     </comp>
     <comp ref="R1">
-      <value>100</value>
+      <value>220</value>
       <footprint>sdboard:R0603</footprint>
       <fields>
-        <field name="LCSC">C22775</field>
+        <field name="LCSC">C22962</field>
         <field name="Footprint">sdboard:R0603</field>
         <field name="Datasheet"/>
         <field name="Description"/>
       </fields>
       <libsource lib="Device" part="R" description="Resistor"/>
-      <property name="LCSC" value="C22775"/>
+      <property name="LCSC" value="C22962"/>
       <property name="Sheetname" value="sd-board"/>
       <property name="Sheetfile" value="sd-board.kicad_sch"/>
       <property name="ki_keywords" value="R res resistor"/>
@@ -420,16 +472,16 @@
       </units>
     </comp>
     <comp ref="R5">
-      <value>100</value>
+      <value>510</value>
       <footprint>sdboard:R0603</footprint>
       <fields>
-        <field name="LCSC">C22775</field>
+        <field name="LCSC">C23193</field>
         <field name="Footprint">sdboard:R0603</field>
         <field name="Datasheet"/>
         <field name="Description"/>
       </fields>
       <libsource lib="Device" part="R" description="Resistor"/>
-      <property name="LCSC" value="C22775"/>
+      <property name="LCSC" value="C23193"/>
       <property name="Sheetname" value="sd-board"/>
       <property name="Sheetfile" value="sd-board.kicad_sch"/>
       <property name="ki_keywords" value="R res resistor"/>
@@ -446,22 +498,48 @@
       </units>
     </comp>
     <comp ref="R6">
-      <value>100</value>
+      <value>510</value>
       <footprint>sdboard:R0603</footprint>
       <fields>
-        <field name="LCSC">C22775</field>
+        <field name="LCSC">C23193</field>
         <field name="Footprint">sdboard:R0603</field>
         <field name="Datasheet"/>
         <field name="Description"/>
       </fields>
       <libsource lib="Device" part="R" description="Resistor"/>
-      <property name="LCSC" value="C22775"/>
+      <property name="LCSC" value="C23193"/>
       <property name="Sheetname" value="sd-board"/>
       <property name="Sheetfile" value="sd-board.kicad_sch"/>
       <property name="ki_keywords" value="R res resistor"/>
       <property name="ki_fp_filters" value="R_*"/>
       <sheetpath names="/" tstamps="/"/>
       <tstamps>b314119e-d6b1-560c-9ddc-86685bac7c46</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="R7">
+      <value>47k</value>
+      <footprint>sdboard:R0603</footprint>
+      <fields>
+        <field name="LCSC">C25819</field>
+        <field name="Footprint">sdboard:R0603</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="Device" part="R" description="Resistor"/>
+      <property name="LCSC" value="C25819"/>
+      <property name="Sheetname" value="sd-board"/>
+      <property name="Sheetfile" value="sd-board.kicad_sch"/>
+      <property name="ki_keywords" value="R res resistor"/>
+      <property name="ki_fp_filters" value="R_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>adb931b3-061c-5030-b55b-19e6406ebd5b</tstamps>
       <units>
         <unit name="A">
           <pins>
@@ -567,6 +645,32 @@
       <property name="ki_fp_filters" value="Pin* Test*"/>
       <sheetpath names="/" tstamps="/"/>
       <tstamps>e230f513-1143-564c-8757-eb5d99f5c210</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="TP5">
+      <value>J12 DET</value>
+      <footprint>TestPoint:TestPoint_Pad_D1.5mm</footprint>
+      <fields>
+        <field name="LCSC"/>
+        <field name="Footprint">TestPoint:TestPoint_Pad_D1.5mm</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="Connector" part="TestPoint" description="test point"/>
+      <property name="LCSC" value=""/>
+      <property name="Sheetname" value="sd-board"/>
+      <property name="Sheetfile" value="sd-board.kicad_sch"/>
+      <property name="exclude_from_bom"/>
+      <property name="ki_keywords" value="test point tp"/>
+      <property name="ki_fp_filters" value="Pin* Test*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>afa02e6c-57a8-5a69-bdae-2ed90d384df8</tstamps>
       <units>
         <unit name="A">
           <pins>
@@ -776,6 +880,25 @@
         <pin num="2" name="" type="passive"/>
       </pins>
     </libpart>
+    <libpart lib="Device" part="FerriteBead">
+      <description>Ferrite bead</description>
+      <footprints>
+        <fp>Inductor_*</fp>
+        <fp>L_*</fp>
+        <fp>*Ferrite*</fp>
+      </footprints>
+      <fields>
+        <field name="Reference">FB</field>
+        <field name="Value">FerriteBead</field>
+        <field name="Footprint"/>
+        <field name="Datasheet"/>
+        <field name="Description">Ferrite bead</field>
+      </fields>
+      <pins>
+        <pin num="1" name="" type="passive"/>
+        <pin num="2" name="" type="passive"/>
+      </pins>
+    </libpart>
     <libpart lib="Device" part="R">
       <description>Resistor</description>
       <footprints>
@@ -865,32 +988,38 @@
       <node ref="U2" pin="1" pinfunction="I/O1_1" pintype="passive"/>
       <node ref="U2" pin="6" pinfunction="I/O1_6" pintype="passive"/>
     </net>
-    <net code="3" name="/CLK" class="Default">
+    <net code="3" name="/CARD_DET" class="Default">
+      <node ref="J1" pin="9" pinfunction="DET_9" pintype="passive"/>
+      <node ref="TP5" pin="1" pinfunction="1_1" pintype="passive"/>
+    </net>
+    <net code="4" name="/CLK" class="Default">
       <node ref="J2" pin="4" pinfunction="Pin_4_4" pintype="passive"/>
       <node ref="J3" pin="7" pinfunction="Pin_7_7" pintype="passive"/>
       <node ref="R5" pin="2" pintype="passive"/>
     </net>
-    <net code="4" name="/CLK_SD" class="Default">
+    <net code="5" name="/CLK_SD" class="Default">
       <node ref="JP3" pin="2" pinfunction="B_2" pintype="passive"/>
       <node ref="R5" pin="1" pintype="passive"/>
     </net>
-    <net code="5" name="/DAT0" class="Default">
+    <net code="6" name="/DAT0" class="Default">
       <node ref="J1" pin="7" pinfunction="DAT0_7" pintype="bidirectional"/>
       <node ref="R1" pin="2" pintype="passive"/>
+      <node ref="R7" pin="2" pintype="passive"/>
       <node ref="U3" pin="1" pinfunction="I/O1_1" pintype="passive"/>
       <node ref="U3" pin="6" pinfunction="I/O1_6" pintype="passive"/>
     </net>
-    <net code="6" name="/DAT1" class="Default">
+    <net code="7" name="/DAT1" class="Default">
       <node ref="J1" pin="8" pinfunction="DAT1_8" pintype="bidirectional"/>
       <node ref="R3" pin="2" pintype="passive"/>
     </net>
-    <net code="7" name="/DAT2" class="Default">
+    <net code="8" name="/DAT2" class="Default">
       <node ref="J1" pin="1" pinfunction="DAT2_1" pintype="bidirectional"/>
       <node ref="R2" pin="1" pintype="passive"/>
     </net>
-    <net code="8" name="/GND" class="Default">
+    <net code="9" name="/GND" class="Default">
       <node ref="C1" pin="2" pintype="passive"/>
       <node ref="C2" pin="2" pintype="passive"/>
+      <node ref="C3" pin="2" pintype="passive"/>
       <node ref="J1" pin="6" pinfunction="VSS_6" pintype="power_in"/>
       <node ref="J1" pin="SH" pinfunction="SHIELD_SH" pintype="passive"/>
       <node ref="J2" pin="1" pinfunction="Pin_1_1" pintype="passive"/>
@@ -905,76 +1034,79 @@
       <node ref="U2" pin="2" pinfunction="GND_2" pintype="passive"/>
       <node ref="U3" pin="2" pinfunction="GND_2" pintype="passive"/>
     </net>
-    <net code="9" name="/LCD_6" class="Default">
+    <net code="10" name="/LCD_6" class="Default">
       <node ref="J2" pin="6" pinfunction="Pin_6_6" pintype="passive"/>
       <node ref="J3" pin="5" pinfunction="Pin_5_5" pintype="passive"/>
       <node ref="TP1" pin="1" pinfunction="1_1" pintype="passive"/>
     </net>
-    <net code="10" name="/LCD_8" class="Default">
+    <net code="11" name="/LCD_8" class="Default">
       <node ref="J2" pin="8" pinfunction="Pin_8_8" pintype="passive"/>
       <node ref="J3" pin="3" pinfunction="Pin_3_3" pintype="passive"/>
       <node ref="TP2" pin="1" pinfunction="1_1" pintype="passive"/>
     </net>
-    <net code="11" name="/LCD_9" class="Default">
+    <net code="12" name="/LCD_9" class="Default">
       <node ref="J2" pin="9" pinfunction="Pin_9_9" pintype="passive"/>
       <node ref="J3" pin="2" pinfunction="Pin_2_2" pintype="passive"/>
       <node ref="TP3" pin="1" pinfunction="1_1" pintype="passive"/>
     </net>
-    <net code="12" name="/LCD_CS" class="Default">
+    <net code="13" name="/LCD_CS" class="Default">
       <node ref="J2" pin="3" pinfunction="Pin_3_3" pintype="passive"/>
       <node ref="J3" pin="8" pinfunction="Pin_8_8" pintype="passive"/>
       <node ref="JP2" pin="2" pinfunction="B_2" pintype="passive"/>
     </net>
-    <net code="13" name="/MISO" class="Default">
+    <net code="14" name="/MISO" class="Default">
       <node ref="J2" pin="2" pinfunction="Pin_2_2" pintype="passive"/>
       <node ref="J3" pin="9" pinfunction="Pin_9_9" pintype="passive"/>
       <node ref="JP1" pin="2" pinfunction="B_2" pintype="passive"/>
     </net>
-    <net code="14" name="/MOSI" class="Default">
+    <net code="15" name="/MOSI" class="Default">
       <node ref="J2" pin="5" pinfunction="Pin_5_5" pintype="passive"/>
       <node ref="J3" pin="6" pinfunction="Pin_6_6" pintype="passive"/>
       <node ref="R6" pin="2" pintype="passive"/>
     </net>
-    <net code="15" name="/MOSI_SD" class="Default">
+    <net code="16" name="/MOSI_SD" class="Default">
       <node ref="JP4" pin="2" pinfunction="B_2" pintype="passive"/>
       <node ref="R6" pin="1" pintype="passive"/>
     </net>
-    <net code="16" name="/SD_CLK" class="Default">
+    <net code="17" name="/SD_CLK" class="Default">
       <node ref="J1" pin="5" pinfunction="CLK_5" pintype="input"/>
       <node ref="JP3" pin="1" pinfunction="A_1" pintype="passive"/>
       <node ref="U3" pin="3" pinfunction="I/O2_3" pintype="passive"/>
       <node ref="U3" pin="4" pinfunction="I/O2_4" pintype="passive"/>
     </net>
-    <net code="17" name="/SD_CSIN" class="Default">
+    <net code="18" name="/SD_CSIN" class="Default">
       <node ref="JP2" pin="1" pinfunction="A_1" pintype="passive"/>
       <node ref="R4" pin="2" pintype="passive"/>
       <node ref="U1" pin="2" pintype="input"/>
     </net>
-    <net code="18" name="/SD_DI" class="Default">
+    <net code="19" name="/SD_DI" class="Default">
       <node ref="J1" pin="3" pinfunction="CMD_3" pintype="input"/>
       <node ref="JP4" pin="1" pinfunction="A_1" pintype="passive"/>
       <node ref="U2" pin="3" pinfunction="I/O2_3" pintype="passive"/>
       <node ref="U2" pin="4" pinfunction="I/O2_4" pintype="passive"/>
     </net>
-    <net code="19" name="/SD_DO" class="Default">
+    <net code="20" name="/SD_DO" class="Default">
       <node ref="JP1" pin="1" pinfunction="A_1" pintype="passive"/>
       <node ref="R1" pin="1" pintype="passive"/>
     </net>
-    <net code="20" name="/SD_VDD" class="Default">
+    <net code="21" name="/SD_VDD" class="Default">
       <node ref="C1" pin="1" pintype="passive"/>
       <node ref="C2" pin="1" pintype="passive"/>
+      <node ref="C3" pin="1" pintype="passive"/>
+      <node ref="FB1" pin="2" pintype="passive"/>
       <node ref="J1" pin="4" pinfunction="VDD_4" pintype="power_in"/>
-      <node ref="JP5" pin="1" pinfunction="A_1" pintype="passive"/>
       <node ref="R2" pin="2" pintype="passive"/>
       <node ref="R3" pin="1" pintype="passive"/>
+      <node ref="R7" pin="1" pintype="passive"/>
       <node ref="U1" pin="5" pinfunction="VCC_5" pintype="power_in"/>
       <node ref="U2" pin="5" pinfunction="VBUS_5" pintype="passive"/>
       <node ref="U3" pin="5" pinfunction="VBUS_5" pintype="passive"/>
     </net>
-    <net code="21" name="unconnected-(J1-DET-Pad9)" class="Default">
-      <node ref="J1" pin="9" pinfunction="DET_9" pintype="passive+no_connect"/>
+    <net code="22" name="/SD_VIN" class="Default">
+      <node ref="FB1" pin="1" pintype="passive"/>
+      <node ref="JP5" pin="1" pinfunction="A_1" pintype="passive"/>
     </net>
-    <net code="22" name="unconnected-(U1-NC-Pad1)" class="Default">
+    <net code="23" name="unconnected-(U1-NC-Pad1)" class="Default">
       <node ref="U1" pin="1" pinfunction="NC_1" pintype="no_connect"/>
     </net>
   </nets>
