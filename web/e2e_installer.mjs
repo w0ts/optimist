@@ -14,10 +14,10 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { dirname, extname, join, normalize } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath as toFsPath } from "node:url";
 import { fakePackage } from "./installer/mock_fm1.js";
 
-const HERE = fileURLToPath(new URL(".", import.meta.url));
+const HERE = toFsPath(import.meta.url).replace(/[^/\\]*$/, "");
 const ROOT = join(HERE, "..");
 const arg = (k) => (process.argv.includes(k) ? process.argv[process.argv.indexOf(k) + 1] : null);
 const shots = arg("--shots"), styleFile = arg("--style");
@@ -25,7 +25,7 @@ const CHROMES = [process.env.CHROME, "/Applications/Google Chrome.app/Contents/M
   "/usr/bin/chromium", "/usr/bin/chromium-browser", "C:/Program Files/Google/Chrome/Application/chrome.exe"].filter(Boolean);
 const chrome = CHROMES.find((p) => existsSync(p));
 if (!chrome) { console.log("e2e: no Chrome found (CHROME=path)"); process.exit(0); }
-const PYTHON = process.env.PYTHON || (process.platform === "win32" ? "python" : "python3");
+const PYTHON = process.env.PYTHON || ["python3", "python"][Number(process.platform === "win32")];
 let failed = 0;
 const ok = (c, what) => { console.log(`${what.padEnd(84)} ${c ? "ok" : "FAIL"}`); if (!c) failed++; };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

@@ -1965,7 +1965,7 @@ function b64dec(s) {
     if (i + 2 < s.length) out.push((n >> 8) & 0xFF);
     if (i + 3 < s.length) out.push(n & 0xFF);
   }
-  return Uint8Array.from(out);
+  return new Uint8Array(out);
 }
 /* version 2: each lane with its sends (snd: {rev, dly, cho}); version 1 files read with every send TRK / 0 */
 function kitFile(kit, slots = {}) {
@@ -2112,7 +2112,7 @@ function cpUnpk(a) {
     nb += 7;
     for (; nb >= 8; nb -= 8) { out.push(acc & 0xFF); acc >>= 8; }
   }
-  return Uint8Array.from(out);
+  return new Uint8Array(out);
 }
 const cpLe = (v, k) => Array.from({ length: k }, (_, i) => Math.floor(v / 2 ** (8 * i)) & 0xFF);
 const cpRd = (a, o, k) => { let v = 0; for (let i = k - 1; i >= 0; i--) v = v * 256 + a[o + i]; return v; };
@@ -2693,7 +2693,7 @@ async function patReadAll(rq, k, s) {
     out.push(...r.data);
     off += r.data.length;
   } while (off < total);
-  return Uint8Array.from(out);
+  return new Uint8Array(out);
 }
 /* a record into slot (k, s): in order, the last chunk stores it (rc: see parse[PAT_WRITE]; a busy device is asked again) */
 async function patWriteAll(rq, k, s, bytes) {
@@ -2761,15 +2761,15 @@ class Reader {
 
 /* v5 steps end with level / ratchet (2 bits per note, 7-bit bytes: lvl, hi (bit 0 lvl, bit 1 rat, v12 bit 2 the carry flag
    0x80), rat); v12: then each note's own end (0 = the step's GATE, 1..127 / 128 of the step) */
-function stepExt(r, a, o) {
-  if (a.length - r.i >= 3) {
-    const lvl = r.b(), hi = r.b(), rat = r.b();
-    o.lvl = lvl | (hi & 1) << 7;
-    o.rat = rat | (hi & 2) << 6;
-    if (hi & 4) o.flags |= 0x80;
+function stepExt(rd, bytes, step) {
+  if (bytes.length - rd.i >= 3) {
+    const lvl = rd.b(), hi = rd.b(), rat = rd.b();
+    step.lvl = lvl | ((hi & 1) << 7);
+    step.rat = rat | ((hi & 2) << 6);
+    if (hi & 4) step.flags |= 0x80;
   }
-  if (r.i + 4 <= a.length) o.ends = [r.b(), r.b(), r.b(), r.b()];
-  return o;
+  if (rd.i + 4 <= bytes.length) step.ends = [rd.b(), rd.b(), rd.b(), rd.b()];
+  return step;
 }
 
 const parse = {   /* the replies' readers, by command */
@@ -3461,7 +3461,7 @@ const req = {                                       /* each: (arguments) -> [cmd
 };
 
 /* does reply a answer the request (cmd, args)? The device echoes the leading arguments of most commands */
-function replyMatches(cmd, args, a) {
+const replyMatches = (cmd, args, a) => {
   const head = (n) => { for (let k = 0; k < n; k++) if (a[k] !== args[k]) return false; return true; };
   switch (cmd) {
     case CMD.GET: case CMD.SET: case CMD.DESC: return a[0] === args[0] && a[1] === args[1] && a[2] === args[2];   /* (scope, id 2 x 7 bit) */
@@ -3498,7 +3498,7 @@ function replyMatches(cmd, args, a) {
     case CMD.SL24_PUT: return a[0] === args[0] && (args[0] !== 1 || (a[1] === args[1] && a[2] === args[2] && a[3] === args[3]));
   }
   return true;                                      /* a command without an echo: any reply of its kind */
-}
+};
 
 /* The link to the device: one request on the wire at a time (cur), the others wait in q. Pushes
    (CHANGED, RELOAD, STEP_CHANGED and the rest of PUSH) may arrive whenever, even between a request
@@ -3524,16 +3524,16 @@ class Link {
      one Yamaha frame at a time and drops one arriving too soon) and the promise gives `value`. The device only
      receives DX7 SysEx: it sends nothing back (a dump request gets no answer), so nothing is confirmed */
   yamaha(send, value, opt = {}) {
-    if (this.closed) return Promise.reject(new Error("closed"));
-    return new Promise((res, rej) => {
-      this.q.push({ cmd: null, yam: { send, value }, res, rej, timeout: 0, retries: 0, settle: opt.settle ?? 120 });
+    if (this.closed) return Promise.reject(Error("closed"));
+    return new Promise((resolve, reject) => {
+      this.q.push({ cmd: null, yam: { send, value }, res: resolve, rej: reject, timeout: 0, retries: 0, settle: opt.settle ?? 120 });
       this.pump();
     });
   }
   /* another protocol's request through the same queue (fm1-base's companion services, Comp): bytes sent as they are; its
      answer the first message match(midi) gives a value for (undefined: not it). opt as request's */
   raw(bytes, match, opt = {}) {
-    if (this.closed) return Promise.reject(new Error("closed"));
+    if (this.closed) return Promise.reject(Error("closed"));
     const item = { cmd: null, raw: { bytes, match }, quiet: !!opt.quiet, timeout: opt.timeout || this.timeout, retries: opt.retries ?? 1 };
     item.promise = new Promise((ok, fail) => Object.assign(item, { res: ok, rej: fail }));
     this.q[opt.front ? "unshift" : "push"](item);
@@ -3572,8 +3572,9 @@ class Link {
     const { cur: c } = this;
     const now = Date.now(), y = c.yam;
     if (!y) {                                       /* (Yamaha frames do not keep the device's WATCH alive) */
-      if (this.lastSent && now - this.lastSent > 2500) this.onGap(now - this.lastSent);
-      this.lastSent = now;
+      const quiet = now - this.lastSent;
+      if (this.lastSent && quiet > 2500) this.onGap(quiet);
+      this.lastSent = now;   /* (the keep-alive clock) */
     }
     try { this.sendRaw(y ? y.send : c.raw ? c.raw.bytes : frame(c.cmd, c.args)); } catch (e) { this.finish(null, e); return; }
     if (y) { c.timer = setTimeout(() => { if (this.cur === c) this.finish(y.value); }, c.settle); return; }
@@ -3800,10 +3801,10 @@ function resample(src, sr, to) {
   if (width > 1) {
     const avg = new Array(x.length);
     for (let i = 0; i < x.length; i++) {
-      let acc = 0;
+      let total = 0;
       const stop = Math.min(x.length, i + width);
-      for (let j = i; j < stop; j++) acc += x[j];
-      avg[i] = acc / width;
+      for (let j = i; j < stop; j++) total += x[j];
+      avg[i] = total / width;
     }
     x = avg;
   }
@@ -3873,7 +3874,7 @@ function buildSlot(name, inputs) {
     dv.setInt16(at + 22, z.pred, true);
     hdr.set([z.idx, z.lo, z.hi, 0], at + 24);
   }
-  return { hdr, data, zones };
+  return { zones, data, hdr };
 }
 
 /* --------------------------------------------------- chop (cutting a recording) --- */
@@ -4331,7 +4332,7 @@ function patternFromSteps(seq) {
 }
 /* a pattern -> the 16 STEP_SET objects the firmware would load from it (load_pat16, velocity 96) */
 function stepsFromPattern(pattern) {
-  const out = [];
+  const out = new Array();
   for (let i = 0; i < UP.PAT; i++) {
     const [note, fl] = (pattern && pattern[i]) || [0, 0];
     const tie = (fl & 4) !== 0;
@@ -5800,7 +5801,7 @@ function makeMockDevice(opt = {}) {                /* (opt: see above) */
           L.ev.slice(first, first + n).forEach((e) => { b(e.place); b(e.param & 127); b(e.param >> 7); v(e.v); });
           break;
         }
-        if (a.length < 2) return null;
+        if (a.length <= 1) return null;
         const op = a[1], place = a[2] | 0, param = (a[3] | 0) | ((a[4] | 0) << 7), at = L.ev.findIndex((e) => e.place === place && e.param === param);
         let rc = 0, val = 0;
         b(op);
@@ -5844,7 +5845,7 @@ function makeMockDevice(opt = {}) {                /* (opt: see above) */
       }
       case CMD.GET: case CMD.SET: {               /* scope, id (2 x 7 bit) [, v14] */
         const id = aid(1);
-        if (a.length < 3) return null;
+        if (a.length <= 2) return null;
         const d = desc(a[0], id);
         if (d == null) return null;                 /* (no such parameter: no reply) */
         const arr = a[0] === 9 ? st.rtype : a[0] ? st.g : st.p;   /* (9: REVERB > TYPE) */
@@ -5924,7 +5925,7 @@ function makeMockDevice(opt = {}) {                /* (opt: see above) */
         break;
       }
       case CMD.DESC: {                            /* scope, id (2 x 7 bit) */
-        if (a.length < 3) return null;
+        if (a.length <= 2) return null;
         const d = desc(a[0], aid(1));
         if (d == null) return null;
         b(a[0]); bi(aid(1)); b(d.fmt); v(d.min); v(d.max); v(d.def); s(d.label); s(d.unit || "");
@@ -6357,14 +6358,14 @@ function makeMockDevice(opt = {}) {                /* (opt: see above) */
           const k = st.ukits[u] || new Array(DL.KIT2).fill(0);
           b(a[0]); b(st.ukits[u] ? 1 : 0); out.push(...pack7(w ? k : k.slice(0, DL.KIT)));
         } else if (cmd === CMD.UKIT_PUT) {
-          if (a.length < 1) return null;
+          if (a.length === 0) return null;
           const u = a[0] & 15, w = (a[0] & ~15) === DL.V2 && v2;
           const x = unpack7(a.slice(1)), k = x.length === (w ? DL.KIT2 : DL.KIT) ? kitFrom(x) : null;   /* (v1: sends TRK / 0) */
           let rc = 1;
           if ((a[0] < DL.NKIT || w) && k) { st.ukits[u] = k.used ? kitBytes(k, true) : null; rc = 0; }
           b(a[0]); b(rc);
         } else if (cmd === CMD.UKIT_OP) {
-          if (a.length < 2) return null;
+          if (a.length <= 1) return null;
           const u = a[0];
           let rc = 1;
           if (u < DL.NKIT && a[1] < 3) {
@@ -6674,7 +6675,7 @@ function makeMockDevice(opt = {}) {                /* (opt: see above) */
           B.cur = null;
           b(a[0]); b(rc);
         } else {
-          if (a.length < 1) return null;
+          if (a.length === 0) return null;
           if (a[0] === 1 && B.open) B.reboots++;
           B.open = false; B.cur = null;
           b(0);
@@ -6696,7 +6697,7 @@ function makeMockDevice(opt = {}) {                /* (opt: see above) */
         const d = Array.from(msg);
         setTimeout(() => {
           const r = yamaha(d);
-          if (r && input.onmidimessage) input.onmidimessage({ data: Uint8Array.from(r) });
+          if (r && input.onmidimessage) input.onmidimessage({ data: new Uint8Array(r) });
         }, d.length > 200 ? 150 : 5);
         return;
       }
@@ -7111,19 +7112,31 @@ glyphsReady().then((ok) => { if (ok) document.documentElement.classList.add("fk"
 
 const TEXT = {                                      /* the page's words, by key (t(), data-t) */
   connect: "Connect", disconnect: "Disconnect", mock: "Mock device (no hardware)",
-  sound: "Sound", engine: "Engine", presets: "Presets", initSound: "Init sound",
-  track: "Track", drum: "Drums",
-  saveFile: "Save to file", loadFile: "Load file", projects: "Projects",
+  sound: "Sound",
+  engine: "Engine",
+  presets: "Presets",
+  initSound: "Init sound",
+  track: "Track",
+  drum: "Drums",
+  saveFile: "Save to file",
+  loadFile: "Load file",
+  projects: "Projects",
   load: "Load", save: "Save", used: "used", empty: "empty", unknown: "—", sl24: "SLOOP (kept)", notOurs: "not ours (kept)",
   keptSlot: "Not loaded: another firmware's project is kept there (SLOOP), slot ",
-  steps: "Steps", reload: "Reload", clearSeq: "Clear sequence",
+  steps: "Steps",
+  reload: "Reload",
+  clearSeq: "Clear sequence",
   notesHelp: "Type up to 4 note names, e.g. C4 E4 G4 (C4 is note 60).",
   rollHelp: "Click: a note / take it away. Drag a note's right edge (or right after putting it): its length. Shift+click a note, or click a step number: that step's notes (level, ratchet), velocity, accent, slide. Up to 4 notes a step. ACC / SLIDE rows: click to switch; VEL: drag.",
   rollHead: "Steps (click: pick a step), ACC and SLIDE (click: switch)", rollGrid: "Piano roll: notes by steps", rollVel: "Velocity of each step (drag)",
   rollPick: "Click a note with Shift, or a step number, to edit that step.", rollFull: "Four notes on that step already (the most a step holds)",
   rollRemove: "Remove", rollVelTip: "Velocity of the step's notes (1..127)", rollAccTip: "Accent on this step", rollSlideTip: "Slide into the next step",
   rollLen: "Length (steps)", rollStep: "Step",
-  notes: "Notes", time: "Time", acc: "Accent", slide: "Slide", vel: "Velocity",
+  notes: "Notes",
+  time: "Time",
+  acc: "Accent",
+  slide: "Slide",
+  vel: "Velocity",
   aboutBtn: "about", aboutTitle: "About Optimist",
   foot: "Made for Chrome or Edge.", iconsCredit: "Icons: Fukiai (MIT), Hügelton Instruments",
   nomidi: "This browser has no Web MIDI. Open the page in Chrome or Edge.",
@@ -7133,11 +7146,15 @@ const TEXT = {                                      /* the page's words, by key 
   nodevice: "No FM-1 found. Plug it in by USB: it connects as soon as it appears.",
   nodevicebt: "No FM-1 over Bluetooth: turn Bluetooth on in the FM-1's SYSTEM page, then connect it to this computer (Mac: Audio MIDI Setup, Window > Show MIDI Studio, the Bluetooth button). It connects as soon as its port appears.",
   readyBt: "Connected over Bluetooth: the Mirror page only (the rest of the editor needs the USB cable).",
-  connecting: "Connecting", reading: "Reading ", steploading: "Reading steps ",
+  connecting: "Connecting",
+  reading: "Reading ",
+  steploading: "Reading steps ",
   ready: "Connected", disconnected: "Disconnected", lost: "The FM-1 is no longer on the USB port",
   noreply: "The device did not answer", error: "Error: ", busy: "Busy",
   applying: "Writing ", applied: "Loaded", badfile: "The file could not be read: ",
-  savedSlot: "Saved to slot ", loadedSlot: "Loaded slot ", emptySlot: "Empty slot: ",
+  savedSlot: "Saved to slot ",
+  loadedSlot: "Loaded slot ",
+  emptySlot: "Empty slot: ",
   confirmSave: "Replace the contents of slot {n}?", confirmLoad: "Loading slot {n} overwrites the sound and pattern now in use. Continue?",
   confirmClear: "Empty the entire sequence?", confirmInit: "Put the sound back to the engine's default values?",
   samples: "Samples", smpHelp: "Drop WAV files here or pick them. A slot takes at most 16 files, kept as 22050 Hz mono ADPCM (roughly 7 s together). Choose USR1–USR3 with SET on the SAMPLE engine, or with SRC on the SLICE engine.",
@@ -7183,31 +7200,73 @@ const TEXT = {                                      /* the page's words, by key 
   dlConfirmErase: "Erase user kit {n}?", dlConfirmStore: "Overwrite user kit {n}?",
   dlConfirmImport: "Overwrite {n} with this kit's samples?", dlFail: "Drums: error ", dlDone: "User kit ",
   dlExported: "Exported ", dlImported: "Imported ", dlReading: "Reading ", drumsNone: "This firmware has no drum sound editing",
-  zones: "zones", smpName: "Name", chooseFiles: "Choose files", upload: "Upload", erase: "Erase", clearList: "Clear list",
-  file: "File", root: "Root", keys: "Keys", length: "Length", remove: "Remove",
+  zones: "zones",
+  smpName: "Name",
+  chooseFiles: "Choose files",
+  upload: "Upload",
+  erase: "Erase",
+  clearList: "Clear list",
+  file: "File",
+  root: "Root",
+  keys: "Keys",
+  length: "Length",
+  remove: "Remove",
   chopOpen: "Open a sound", chopHelp: "Open or drop a recording (WAV, MP3, AIFF…), mark the chops, send them to a slot: one chop per key. Any length: a recording longer than a slot (7 s) works, keep the chops you want and adjust them.",
-  chopDrop: "Drop a recording here, or click", chopPlay: "▶ Play", chopStop: "■ Stop", chopTap: "TAP",
-  chopSnap: "snap to the hit", chopClear: "Clear markers", chopHits: "Find hits", chopSens: "sensitivity",
-  chopGrid: "Grid", chopEqual: "Equal parts", chopKey: "First key", chopModeKeys: "one key per chop",
-  chopModeOne: "selected chop, whole keyboard", chopMax: "max length", chopTo: "Send to", chopZip: "Download WAVs",
+  chopDrop: "Drop a recording here, or click",
+  chopPlay: "▶ Play",
+  chopStop: "■ Stop",
+  chopTap: "TAP",
+  chopSnap: "snap to the hit",
+  chopClear: "Clear markers",
+  chopHits: "Find hits",
+  chopSens: "sensitivity",
+  chopGrid: "Grid",
+  chopEqual: "Equal parts",
+  chopKey: "First key",
+  chopModeKeys: "one key per chop",
+  chopModeOne: "selected chop, whole keyboard",
+  chopMax: "max length",
+  chopTo: "Send to",
+  chopZip: "Download WAVs",
   chopChops: "chops", chopTooLong: "longer than a slot can hold", chopTooMany: "(only the first 16 chops are used)",
-  chopLoaded: "Loaded: ", chopSent: "Chops in ",
+  chopLoaded: "Loaded: ",
+  chopSent: "Chops in ",
   chopSel: "Chop", chopKeep: "keep", chopLen: "length", chopFull: "Up to the next marker", chopAll: "Keep all", chopNone: "Keep none",
   chopFit: "Fit to slot", chopKept: "kept", chopFitted: "Long chops shortened to at most ",
   chopOverHint: "— untick chops, shorten them, or press Fit to slot",
   chopKeepHint: "Unticked chops go neither to the slot nor to the WAVs: from a long recording, keep only what you want.",
   chopHint: "space: TAP while it plays (play/stop when stopped) · 1–9 0: listen · double-click: add · drag: move · ← →: nudge · K: keep / leave out · bottom handle: length · Del: remove · wheel: zoom",
-  smpTooBig: "too large", smpDecodeFail: "Cannot read: ", smpUploading: "Uploading USR", smpDone: "Uploaded USR",
-  smpFail: "Sample upload failed: ", smpErased: "Erased USR",
+  smpTooBig: "too large",
+  smpDecodeFail: "Cannot read: ",
+  smpUploading: "Uploading USR",
+  smpDone: "Uploaded USR",
+  smpFail: "Sample upload failed: ",
+  smpErased: "Erased USR",
   confirmErase: "Erase USR{n}?", confirmUpload: "Upload to USR{n}? What it holds now is overwritten.",
   layout: "(The firmware's parameter count does not match, so the parameters are listed plainly.)",
   ctlHelp: "Knobs: drag up / down or the wheel (Shift: fine), arrow keys; double-click resets. Sliders (Sequencer, Settings): click, then the wheel or arrow keys (Shift: steps of 10). The pages are the device's.",
   live: "● Live", liveV9: "● Live (v9: changes pushed)", polling: "○ Polling (older firmware)",
-  library: "Library", libSearch: "Search name or tag", allEngines: "All engines", allTags: "All tags",
-  sortModified: "Recently changed", sortCreated: "Recently added", sortName: "Name", sortEngine: "Engine",
-  name: "Name", tagsCol: "Tags", date: "Changed",
-  audition: "Audition", toSlot: "To device slot", rename: "Rename", tags: "Tags", duplicate: "Duplicate", delete: "Delete",
-  exportPatch: "Export", saveToLib: "Save current sound", import: "Import", exportLib: "Export library",
+  library: "Library",
+  libSearch: "Search name or tag",
+  allEngines: "All engines",
+  allTags: "All tags",
+  sortModified: "Recently changed",
+  sortCreated: "Recently added",
+  sortName: "Name",
+  sortEngine: "Engine",
+  name: "Name",
+  tagsCol: "Tags",
+  date: "Changed",
+  audition: "Audition",
+  toSlot: "To device slot",
+  rename: "Rename",
+  tags: "Tags",
+  duplicate: "Duplicate",
+  delete: "Delete",
+  exportPatch: "Export",
+  saveToLib: "Save current sound",
+  import: "Import",
+  exportLib: "Export library",
   dx7Help: "Import library JSON or DX7 .syx voices and 32-voice banks. Audition a DX7 voice on an FM6 track: the device takes the voice for that track. The device keeps none: SAVE AS on the device.",
   dx7Sent: "DX7 voice sent to the FM6 track (not confirmed by the device; SAVE AS on the device keeps it): ", dx7Store: "A DX7 voice is only auditioned here: the device keeps none (SAVE AS on the device).",
   fm6Use: "Play on track", fm6Import: "Import .syx", 
@@ -7222,21 +7281,33 @@ const TEXT = {                                      /* the page's words, by key 
   dx7Track: "Select a synth track to audition a DX7 voice.",
   factoryToLib: "Copy to library", libEmpty: "Nothing in the library yet. Fill it with \"Save current sound\", copy a factory preset or a device slot into it, or import a file.",
   noMatch: "No match", noLibDB: "(this browser cannot keep it, so it disappears when the page reloads)",
-  bank: "User presets on the device", bankLoad: "Load", bankStore: "Store current sound", bankGet: "To library",
+  bank: "User presets on the device",
+  bankLoad: "Load",
+  bankStore: "Store current sound",
+  bankGet: "To library",
   exportBank: "Export bank", dndHelp: "Dragging works too, between the library and the slots.",
   confirmOverwrite: "Replace slot {n} ({name})?", confirmEraseSlot: "Empty slot {n} ({name})?",
   confirmDelete: "Remove \"{name}\" from the library?",
   promptName: "Name (the device stores at most 12 ASCII characters)", promptTags: "Tags (separated by commas)",
   promptNameAuto: "Name (max 12 ASCII characters; leave blank and the device picks one)",
-  auditioning: "Preparing audition ", auditioned: "Auditioning: ", auditionedPat: "Auditioning (pattern written too): ",
-  savedLib: "Saved to the library: ", copiedLib: "Copied to the library: ", imported: "Imported: ",
-  skippedN: " ({n} unreadable)", patchesN: " patches",
+  auditioning: "Preparing audition ",
+  auditioned: "Auditioning: ",
+  auditionedPat: "Auditioning (pattern written too): ",
+  savedLib: "Saved to the library: ",
+  copiedLib: "Copied to the library: ",
+  imported: "Imported: ",
+  skippedN: " ({n} unreadable)",
+  patchesN: " patches",
   dx7BadSum: "wrong checksum (read anyway)", dx7Short: "cut short (whole voices kept)", dx7Others: "{n} other messages skipped",
-  putDone: "Written to the device: slot ", storedSlot: "Stored on the device: slot ", erasedSlot: "Erased slot ",
+  putDone: "Written to the device: slot ",
+  storedSlot: "Stored on the device: slot ",
+  erasedSlot: "Erased slot ",
   loadedUser: "Loaded ", reloaded: "The device changed the sound; it was reloaded", readingBank: "Reading the slots",
   badEngine: "This firmware has no such engine: ", flashFail: "Write failed (rc {rc})", stopFirst: "The FM-1 is playing: stop it (PLAY), then try again.",
   installer: "Optimist installer",
-  tabSeq: "Sequencer", tabTracks: "Tracks", tabSettings: "Settings",
+  tabSeq: "Sequencer",
+  tabTracks: "Tracks",
+  tabSettings: "Settings",
   dlMix: "Mix", dlLfo: "LFO", seqMute: "Sequencer mute", seqMuteHelp: "The track's steps stop triggering (no note for the sound, none for MIDI out; keys played live still sound)", tabDevice: "Device screens", favOnly: "\u2605 Favorites only", favOnlyTip: "Browse only the favorites: the device's PRESETS list follows (SHIFT2 + SELECT on the panel)", favMark: "Favorite", favTip: "Mark as a favorite (the device's own marks)", favFull: "Favorites full",
   scsSource: "Source", scsPages: "Pages", scsStep: "Held step", scsStepHelp: "Hold a step: its cards as the device shows them (STEP, EXTRA, the lock pages)", scsAll: "All pages", scsOpenLane: "Device pages", scsScreen: "Screen", scsNone: "This firmware has no device screens (they come with the Optimist UI).",
   scsHelp: "The screens of the FM-1 as it draws them, row for row: the same pages, names, units, ranges and questions. A bar is a slider, a list steps, a double-click is the default; an action asks first, as the device does.",
@@ -7298,7 +7369,12 @@ const TEXT = {                                      /* the page's words, by key 
   kit: "Kit", hitLevel: "Level", ratchet: "Roll", solo: "SOLO", drumPage: "Page",
   drumHelp: "Type drums as GM names or numbers, e.g. KICK SNARE CHH (max 4).",
   mixer: "Mixer", mixHelp: "Each strip: its engine (colour), its sound, one button per editor (a popup: x, Esc or a click outside closes it), the steps (the playing one lit), the meter beside the fader (firmware with protocol v9: green, amber above −6 dB, red at clip, a line holding the peak; the master strip's: the output), the level, pan, the FX sends. The drum track: its 16 sounds, each one click away. The master: the master bus (DUST, DUCK, FILT) and, per effect (Delay, Reverb, Chorus), its return knob and a button to its parameters. The four tracks of the device's TRACKS page. The fader is the level (drums: GLO > DRUMS LEVEL). Pan is written to any track without changing the selection (firmware 0.8: by selecting it for a moment).",
-  level: "Level", pan: "Pan", mute: "Mute", rec: "REC", selectTrack: "Select", selectedTrack: "Selected",
+  level: "Level",
+  pan: "Pan",
+  mute: "Mute",
+  rec: "REC",
+  selectTrack: "Select",
+  selectedTrack: "Selected",
   projHelp: "A project stores the full device state: sound and pattern of the four tracks, the selected track and the global settings.",
   snTitle: "Snapshots", snHelp: "A snapshot keeps everything in the current work: the working project, every section and the song. In a slot of the FM-1 (and in files here, as many as you like). Loading one replaces the work; the state before is kept in BEFORE LOAD. User samples, presets and kits stay as they are (MISSING says when one is gone).",
   snNone: "This firmware has no snapshots.", snSave: "Save", snLoad: "Load", snClear: "Clear", snRename: "Rename",
@@ -7333,8 +7409,15 @@ const TEXT = {                                      /* the page's words, by key 
   s24Work: "working", s24Pick: "Which project? ({list})", s24Imported: "Imported as the working project: SAVE it in a section.",
   
   s24Rc2: "the transfer failed (CRC): try again", s24Rc3: "stop the song first", s24Rc8: "not a SLOOP 2.4 project", s24Rc9: "the FM-1 is busy (a restore): try again", s24Rc1: "the transfer was cut: try again", s24Rc6: "too long",
-  system: "System", firmware: "Firmware", sync: "Sync", tracksN: "Tracks", stepsN: "Steps", enginesL: "Engines",
-  smpSlots: "Sample slots", userBank: "User presets", none: "none",
+  system: "System",
+  firmware: "Firmware",
+  sync: "Sync",
+  tracksN: "Tracks",
+  stepsN: "Steps",
+  enginesL: "Engines",
+  smpSlots: "Sample slots",
+  userBank: "User presets",
+  none: "none",
   devEmu: "fm1-base emulator", emuoff: "No fm1-base emulator is running in this browser: open it (its page on this site) and start it; it connects by itself.",
   cpTitle: "This FM-1 (companion services)", cpHelp: "What any fm1-base firmware offers a computer: what it runs, its files and its settings, from the FM-1 itself.",
   cpFirmware: "Firmware", cpIdentity: "Identity", cpServices: "Services", cpParams: "Settings", cpFiles: "Files",
@@ -7630,8 +7713,8 @@ window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", ()
 });
 try { localStorage.removeItem("optimist-editor-theme"); } catch (e) { /* no storage */ }   /* the old theme picker's preference */
 
-const QS = new URLSearchParams(location.search);
-const MOCK = QS.get("mock") === "1";
+const QS = new URL(location.href).searchParams;
+const MOCK = String(QS.get("mock")) === "1";
 /* the v13 commands the mock serves: ?fxp=1 the FX owners' slots and the lanes' mix, ?scrn=1 (or ?fxp=1) the other six; ?off=dlan,scope,... leaves any out, as a firmware built without
    those builder items (ED_MIX: fxp dlan, ED_SEQ: songc tools, ED_SCREENS: scrn scrs scope; fav: FAVORITES) */
 function mockV13(qs) {
@@ -7639,13 +7722,14 @@ function mockV13(qs) {
   const on = { fxp: fx, dlan: fx, scrn: ui, songc: ui, tools: ui, scrs: ui, fav: ui, scope: ui, usb: fx, accent: fx };
   return Object.fromEntries(Object.entries(on).map(([k, v]) => [k, v && !off.has(k)]));
 }
-$("mock").hidden = !MOCK;
+$("mock").hidden = MOCK === false;
+function rethrowIfClosed(err) { if (err.message === "closed") throw err; }   /* (a closed link ends the read; any other miss is an older firmware) */
 let mock = null;
 
-/* -------------------------------------------------------------- state --- */
+/* ------------------------------------------------------ what the page holds --- */
 let access = null;     /* the Web MIDI access object */
-let dev = null;        /* {link, input, output, info, pdesc[], gdesc[], names[][], dump, steps[], slotUsed[],
-                          keys[] (paramKeys), watch (pushes on), bank ({total, slots[]} or null: no user bank)} */
+let dev = null;        /* the open device: {link, input, output, info, pdesc[], gdesc[], names[][], dump, steps[],
+                          slotUsed[], keys[] (paramKeys), watch (pushes on), bank ({total, slots[]}, null without a user bank)} */
 let busy = 0;          /* count of running multi-request operations (polling waits) */
 let dragging = null;   /* key of the slider under the pointer */
 let wantConnected = false;
@@ -7653,19 +7737,19 @@ let wantConnected = false;
    pair, there while the Simulator tab runs one); a choice of the user's, remembered here */
 const DEVSRC_KEY = "optimist-editor-device";
 let devSrc = (() => { try { const v = localStorage.getItem(DEVSRC_KEY); return ["sim", "bt", "emu"].includes(v) ? v : "usb"; } catch (e) { return "usb"; } })();
-const ctl = new Map(); /* key "s:id" -> {input, out, desc, scope, id, row} */
+const ctl = new Map(); /* "scope:id" -> {input, out, desc, scope, id, row}, one per control on screen */
 const sets = new SetGate(); /* key -> {last: time of the user's last change, sent: the value last requested} */
 let needReload = false; /* set when a RELOAD push arrives: DESC, DUMP and steps are read again once idle */
 let lastDump = 0;      /* time of the latest DUMP (Date.now()) */
 /* the device also pushes RELOAD after loads the editor asked for (PROJECT load, UP_LOAD; firmware without INFO tag
    53 bit 1 also after SET of G_ENGSEL and PRESET); the editor re-reads after those anyway, so it skips that many
    RELOADs for a moment. sound: a PRESET / G_ENGSEL load (newer firmware sends no RELOAD for it: none to skip) */
-const selfReload = { n: 0, until: 0 };
+const selfReload = { until: 0, n: 0 };
 function selfLoad(sound = false) {
   if (!dev || !dev.watch || (sound && dev.info && dev.info.syncCaps & 2)) return;
-  const now = Date.now();
-  selfReload.n = now < selfReload.until ? selfReload.n + 1 : 1;
-  selfReload.until = now + 1500;
+  const now = Date.now(), inWindow = now < selfReload.until;
+  selfReload.n = inWindow ? selfReload.n + 1 : 1;
+  selfReload.until = 1500 + now;
 }
 const stepEdit = new Map(); /* step index -> time it was last edited */
 
@@ -7825,7 +7909,7 @@ function disconnect(reasonKey = "disconnected") {
   if (was) { was.input.onmidimessage = null; was.link.close(); clearInterval(was.cpKeep); }
   [busy, needReload] = [0, false];
   for (const draw of [renderPanels, renderMixer, renderSysinfo, renderLive, renderLib, renderBank, renderCz, renderComp]) draw();
-  $("version").textContent = "";
+  $("version").replaceChildren();
   sayK(reasonKey);
 }
 
@@ -7910,10 +7994,10 @@ async function load(d) {
     catch (e) { if (e.message === "closed") throw e; d.sn = null; }   /* (older firmware: no snapshots) */
     d.stepx = null;                                   /* SLOOP 2.4's step extras: which the build has (BUILD bits 177..179; no reply: none) */
     try { d.stepx = stepxBuilt(parse[CMD.BUILD](await d.link.request(req.build(), { timeout: 400, retries: 0, quiet: true }))); }
-    catch (e) { if (e.message === "closed") throw e; }
+    catch (e) { rethrowIfClosed(e); }
     d.autoOk = false;                                 /* the automation store (v11, AUTO_GET 92): chance, condition, nudge, fill, locks, a drum lane's locks; no reply: none */
     try { d.autoOk = !!parse[CMD.AUTO_GET](await d.link.request(req.autoGet(0, 0), { timeout: 400, retries: 0, quiet: true })); }
-    catch (e) { if (e.message === "closed") throw e; }
+    catch (e) { rethrowIfClosed(e); }
     try { d.bk = await bkList(d, { ...wait, quiet: true }); }
     catch (e) { if (e.message === "closed") throw e; d.bk = null; }   /* (older firmware: no backup) */
     if (d.comp) await cpLoad(d);
@@ -7974,7 +8058,9 @@ async function loadBt(d) {
 async function loadLite(d) {
   const quiet = { timeout: 400, retries: 0, quiet: true };
   if (!d.cpfiles) {
-    try { d.smp = parse[CMD.SMP_INFO](await d.link.request(req.smpInfo())); }
+    try {
+      d.smp = parse[CMD.SMP_INFO](await d.link.request(req.smpInfo()));
+    }
     catch (e) { if (e.message === "closed") throw e; d.smp = null; }
   }
   try { d.sn = parse[CMD.SN_LIST](await d.link.request(req.snList(), quiet)); }
@@ -8178,7 +8264,7 @@ function buildGroups() {
   dev.built = dev.dump.engine;                       /* (rereadEngineDesc compares with it) */
   /* Sound: the selected track's parameters (knobs; the device's pages when it gives them, PAGES, else the editor's LAYOUT);
      Sequencer: its pattern settings; Settings: globals and drums */
-  const { info } = dev;
+  const info = dev.info;
   const groups = { groups: [], seqgroups: [], setgroups: [] };   /* (keyed by the id of the box that shows them) */
   const layoutOk = EXPECTS.some((x) => info.pcount === x.pcount && info.gcount === x.gcount && info.pe0 === x.pe0);
   const group = (g, knobs) => {
@@ -8324,7 +8410,7 @@ function paramRow(s, id, title) {
   if (d === null) return null;
   const k = key(s, id), listed = listFmt(d);
   const input = listed ? paramSelect(s, id, d) : paramSlider(s, id, d, k);
-  input.title = d.label;
+  input.setAttribute("title", d.label);
   setHelp(input, paramHelp(s, id, d, title));
   const out = el("span", { class: "v" }), row = el("div", { class: "row" }, el("span", { text: d.label }), input, out);
   ctl.set(k, { scope: s, id, desc: d, input, out, row });
@@ -8338,7 +8424,7 @@ function showValue(k, v, force) {
   if (k.startsWith("1:")) renderSync();          /* (SYNC / CLK: the transport bar's clock pill) */                                  /* (an open popup's own controls) */
   const c = ctl.get(k);
   if (v == null || c === undefined) return;
-  const [txt, unit] = fmtValue(c.desc, v);
+  const shown = fmtValue(c.desc, v), [txt, unit] = shown;
   c.out.textContent = (unit ? `${txt} ${unit}` : txt);
   if (c.desc.label === "SYNC" && c.desc.names && c.desc.names[v] === "AUTO" && dev && dev.dump) {   /* AUTO: the clock followed now (global CLK) */
     const i = dev.gdesc.findIndex((d) => d && d.label === "CLK");
@@ -8853,7 +8939,7 @@ function drawRoll() {
   /* the grid: white / black key rows, the bar / beat lines, the notes (engine colour) */
   {
     const g = roll.el.grid.getContext("2d"), H = (RG.HI - RG.LO + 1) * RG.ROW;
-    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.setTransform(new DOMMatrix([dpr, 0, 0, dpr, 0, 0]));
     g.fillStyle = c.bg; g.fillRect(0, 0, w, H);
     for (let p = RG.LO; p <= RG.HI; p++) {
       const y = rollY(p);
@@ -8883,7 +8969,7 @@ function drawRoll() {
   /* the header: step numbers on the beats (the picked step framed), ACC and SLIDE marks */
   {
     const g = roll.el.head.getContext("2d"), H = RG.NUM + 2 * RG.FLAG;
-    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.setTransform(new DOMMatrix([dpr, 0, 0, dpr, 0, 0]));
     g.fillStyle = c.bg; g.fillRect(0, 0, w, H);
     g.font = "9px sans-serif"; g.textBaseline = "middle";
     g.fillStyle = c.dim; g.fillText("ACC", 3, RG.NUM + RG.FLAG / 2); g.fillText("SLIDE", 3, RG.NUM + RG.FLAG * 1.5);
@@ -8903,7 +8989,7 @@ function drawRoll() {
   /* the velocity lane: a bar per step with notes */
   {
     const g = roll.el.vel.getContext("2d"), H = RG.VEL;
-    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.setTransform(new DOMMatrix([dpr, 0, 0, dpr, 0, 0]));
     g.fillStyle = c.bg; g.fillRect(0, 0, w, H);
     g.fillStyle = c.line; g.fillRect(0, 0, w, 1);
     g.fillStyle = c.dim; g.font = "9px sans-serif"; g.textBaseline = "middle"; g.fillText("VEL", 3, H / 2);
@@ -9311,7 +9397,7 @@ function renderDrumBar() {
     for (const b of pg.children) b.setAttribute("aria-pressed", +b.dataset.pg === drumView.page ? "true" : "false");
   }
   /* the kit list: shown when the first engine value is a list of kits */
-  const kit = $("drumkit");
+  const kit = document.getElementById("drumkit");
   const names = !!kd && kd.fmt === F.ENUM && kd.names.length > 0 ? kd.names : null;
   kit.hidden = names === null;
   if (names !== null && kit.dataset.n !== String(names.length)) {
@@ -10146,7 +10232,7 @@ function renderKitExtras() {
   const box = $("dlanes"), kits = $("ukits");
   if (!box || !kits) return;
   if (!dev || !dev.dl) { box.replaceChildren(); kits.replaceChildren(); return; }
-  const file = el("input", { type: "file", accept: ".wav,audio/wav,audio/x-wav,audio/*", multiple: true, hidden: true });
+  const file = el("input", { hidden: true, multiple: true, type: "file", accept: ".wav,audio/wav,audio/x-wav,audio/*" });
   file.addEventListener("change", async () => {
     dlDraft.files = [];
     for (const f of [...file.files].slice(0, 16)) { try { dlDraft.files.push(await decodeFile(f)); } catch (e) { sayK("smpDecodeFail", `${f.name} (${e.message})`); } }
@@ -11381,7 +11467,8 @@ function chopUI() {
   const endAt = (e) => {                            /* on the selected chop's end handle (the bottom of the wave)? */
     const c = chopChops()[CH.sel];
     if (!c) return false;
-    const r = u.cv.getBoundingClientRect(), per = (CH.v1 - CH.v0) / r.width;
+    const r = u.cv.getBoundingClientRect();
+    const per = (CH.v1 - CH.v0) / r.width;
     return e.clientY - r.top > r.height - 40 && Math.abs(c.end - posAt(e)) < 7 * per;
   };
   u.cv.addEventListener("pointerdown", (e) => {      /* grab an end handle or a marker, else audition the chop under it */
@@ -11425,14 +11512,14 @@ function chopUI() {
   });
   /* the view CH.v0..CH.v1: a sideways (or shift) wheel scrolls it, an up / down wheel zooms around the pointer (50 ms at the closest) */
   const clampView = (start, width) => { CH.v0 = Math.max(0, Math.min(CH.x.length - width, start)); CH.v1 = CH.v0 + width; };
-  u.cv.addEventListener("wheel", (e) => {
+  u.cv.addEventListener("wheel", (ev) => {
     if (CH.x == null) return;
-    e.preventDefault();
-    const width = CH.v1 - CH.v0, sideways = e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY);
+    ev.preventDefault();
+    const width = CH.v1 - CH.v0, sideways = ev.shiftKey || Math.abs(ev.deltaX) > Math.abs(ev.deltaY);
     if (sideways) {
-      clampView(CH.v0 + width * (e.deltaX || e.deltaY) / 400, width);
+      clampView(CH.v0 + width * (ev.deltaX || ev.deltaY) / 400, width);
     } else {
-      const at = posAt(e), wider = Math.max(0.05 * SMP.RATE, Math.min(CH.x.length, width * Math.exp(e.deltaY / 300)));
+      const at = posAt(ev), wider = Math.max(0.05 * SMP.RATE, Math.min(CH.x.length, width * Math.exp(ev.deltaY / 300)));
       clampView(at - wider * (at - CH.v0) / width, wider);
     }
     chopDraw();
@@ -11498,7 +11585,7 @@ function chopRender() {
     const box = el("input", { type: "checkbox", title: t("chopKeep"), onclick: (e) => { e.stopPropagation(); chopKeep(i, box.checked); } });
     box.checked = !c.off;
     return el("span", {
-      class: "chip" + (i === CH.sel ? " on" : "") + (use.includes(c) ? "" : " off"),
+      class: ["chip", i === CH.sel && "on", !use.includes(c) && "off"].filter(Boolean).join(" "),
       title: `${chSecs(c.start)} · ${chSecs(c.end - c.start)}` + (c.end < c.full ? ` / ${chSecs(c.full - c.start)}` : ""),
       onclick: () => chopAudition(i),
     }, box, `${i + 1}` + chopKeyName(U, i));
@@ -11574,7 +11661,7 @@ async function readMixer() {
   let moved = false;
   if (d.info.fxs) {                                  /* v10: the slots first (the strips' FX knobs are theirs) */
     const f = await readFx(rq, d.info);
-    if (d !== dev) return;
+    if (dev !== d) return;
     if (f) { moved = !!d.fx && f.slots.join() !== d.fx.slots.join(); d.fx = f; }
   }
   if (d.info.dlan) { await readDlMix(); if (d !== dev) return; }

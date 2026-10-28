@@ -143,7 +143,7 @@ built, 7 a byte). The backup file records it.
 
 | cmd | Request | Reply |
 | --- | --- | --- |
-| 2 GET | scope, id | scope, id, v14 |
+| 2 GET | scope, id | the same scope, id, then v14 |
 | 3 SET | scope, id, v14 | scope, id, v14 (clamped; a fixed-range value stays). `SET` of `G_ENGSEL` (the global labelled "ENG") changes the engine with its defaults |
 | 4 DUMP | - | engine byte, preset, P_COUNT x v14 (the selected track), G_COUNT x v14 (globals) |
 | 5 DESC | scope, id | scope, id, then the body: fmt, min v14, max v14, def v14, label (8), unit (8), for an enum (fmt 8) one name (8) per value (at most 64) |
@@ -188,7 +188,7 @@ Lanes (`drums.c` `LANE_NOTE`): one per white key from F3; a black key plays the 
 | --- | --- | --- |
 | 11 SMP_BEGIN | slot 0..2 | slot, rc (0 ok, 3 the transport plays). Erases the slot's header sector: the slot is empty from now on |
 | 12 SMP_WRITE | slot, offset (3 x 7 bit), pack7 data (<= 256 bytes) | slot, offset (3 x 7 bit), rc: 0 ok, 1 arguments, 2 erase, 3 write, 4 slot in use (send `SMP_BEGIN` first), 5 the transport plays. Offset >= 512 and a multiple of 256, in increasing order |
-| 13 SMP_END | slot, pack7 header (480 bytes) | slot, rc: 0 ok, 1 size, 2 header, 3 data CRC, 4 flash, 5 zones |
+| 13 SMP_END | slot, then the 480-byte pack7 header | slot, then rc (0 ok, 1 size, 2 header, 3 data CRC, 4 flash, 5 zones) |
 | 14 SMP_ERASE | slot | slot, rc (0 ok, 3 the transport plays). ~1 s |
 | 15 SMP_INFO | - | slots, slot KiB, per slot: zone count (0 empty), name (8), data KiB; then per slot its capacity in KiB |
 | 42 SMP_READ | slot, offset (3 x 7 bit), count (2 x 7 bit, <= 256) | slot, offset, pack7 bytes of the slot's flash (fewer at its end) |
