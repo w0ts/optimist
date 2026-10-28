@@ -1608,7 +1608,7 @@ async function editorWifi() {
   ok(E.wifiText(Uint8Array.from([0x48, 0x69])) === "Hi" && E.wifiText(Uint8Array.from([0xFF, 0x41])) === "ÿA" && E.wifiText(enc("café")) === "café", "wifi: an SSID is shown as UTF-8, else Latin-1");
   /* the page: a Wi-Fi tab only with the feature, the password handled as asked */
   const wifiJs = html.slice(html.indexOf("const wf = {"), html.indexOf("function renderBackup() {"));
-  ok(/b\.dataset\.tab === "wifi"\) b\.hidden = !opti\("wifi"\)/.test(html) && /wifi: 1 \}/.test(html) && /data-tab="wifi"/.test(html) && /id="p-wifi"/.test(html),
+  ok(/b\.dataset\.tab === "wifi"\) b\.hidden = !opti\("wifi"\)/.test(html) && /const OPTI = \{[^}]*\bwifi: 1\b/.test(html) && /data-tab="wifi"/.test(html) && /id="p-wifi"/.test(html),
     "wifi: the tab shows only when the firmware lists opti_wifi_1");
   ok(/type: "password"/.test(wifiJs) && /autocomplete: "off"/.test(wifiJs) && /pw\.value = ""/.test(wifiJs) && /r\[1\]\.fill\(0\)/.test(wifiJs) && !/localStorage|console\.|sessionStorage|location\./.test(wifiJs) && !/<form/.test(html.slice(html.indexOf('id="p-wifi"'), html.indexOf('id="p-device"'))),
     "wifi: the password field is type=password, autocomplete off, in no form, cleared as it is sent; no storage, no log, no URL");
