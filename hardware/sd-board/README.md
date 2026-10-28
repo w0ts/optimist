@@ -38,6 +38,11 @@ checked (KiCad: no design-rule error, the schematic's nets equal the board's, 74
   CLK, and was fine with 510 on both. R1 at 220 bounds a card left in SPI mode driving DO against D/C (firmware that idles
   the LCD's CS high selects the card) to 15 mA, not 33; it costs timing margin with the spec's slowest card at 20 MHz
   (`docs/SD-CARD-DESIGN.md` section 4), where the auto clock steps down.
+  **The three to retune on the bench** (Julius's values were found by trial on hand wiring, not calculated: "510 is a
+  bit high but works"): R1, R5, R6 sit on 0603 **hand-solder pads** (longer, an iron reaches each end) so they can be
+  swapped. If the screen misbehaves with a card in, go up (R5/R6 to 680-1k); if `sd bench` shows CRC errors at 20 MHz
+  and the screen is fine, go down (R5/R6 to 330, R1 to 150 or 100). No trimmers: a pot on a 20 MHz clock line adds
+  more trouble than it solves.
 - **R7, 47 kOhm: DAT0 pulled up** at the card (the SD spec's 10-100 kOhm on DAT): an empty slot reads 0xFF without
   relying on PC8's internal pull-up.
 - **The card's supply on its own**: 3V3 from JP5 goes through **FB1**, a ferrite bead (Sunlord GZ1608D601TF, 600 Ohm
