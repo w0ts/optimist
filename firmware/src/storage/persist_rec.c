@@ -173,6 +173,7 @@ static int persist_upgrade(persist_v3_t *pp, int n)
 #define PERSIST4_FAV 136u                          /* core/favorites.c fav_t (its bytes: the type is the build's) */
 #define PERSIST4_BT_KEPT 120u                      /* ui/optimist/op_bt.c BT_KEPT_SIZE: 3 devices x 40 */
 #define PERSIST4_BLE_KEPT 198u                     /* io/midi/ble_devices.c ble_kept: 3 devices x 66 (struct ble_dev) */
+#define PERSIST4_WIFI_NETS 336u                    /* wifi/wifi_nets.h WN_STORE_SIZE: mode + 4 saved networks (SSID, PMK) + MODE AP's network */
 typedef struct {
     uint32_t magic, palette, lowcut, zoom;
     panel_t panel;
@@ -195,6 +196,10 @@ typedef struct {
                                                     * a record from before: none */
     uint8_t ble_kept[PERSIST4_BLE_KEPT];           /* 2026-10-24: BT MIDI's other remembered devices (io/midi/ble_devices.c
                                                     * ble_kept, struct ble_dev x 3); a record from before: none */
+    uint8_t wifi_nets[PERSIST4_WIFI_NETS];         /* 2026-10-27: the saved Wi-Fi networks (wifi/wifi_saved.c wn_st: SSID and
+                                                    * the WPA2 key, never the password; MODE AP's name, channel and key at its end);
+                                                    * a record from before (268 octets, or none): none, zeros after; a build
+                                                    * without Wi-Fi keeps it as read */
 #if FELUCCA_DUAL && FELUCCA_DUALCFG
     dualcfg_t dualcfg;                             /* (the second-core test image only: after everything) */
 #endif

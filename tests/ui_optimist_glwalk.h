@@ -45,6 +45,9 @@ static uint32_t glw_state(void)                        /* every setting a GLOBAL
 #if FELUCCA_BT_AUDIO
     h = glw_mix(h, &bt.mode, 1);                        /* (BT AUDIO's MODE: op_bt.c) */
 #endif
+#if WIFI_UI
+    h = glw_mix(h, &wn_st.mode, 1);                     /* (WI-FI's MODE: wn_st) */
+#endif
 #if FELUCCA_MIDI_CLKOUT
     h = glw_mix(h, &clko_on, 1);
 #endif
@@ -176,6 +179,19 @@ static void glw_factory_tests(void)
                 release(B_OCTDN);
                 ble_ok &= ble_on == 1u && bt_mode(BT_MIDI) == 1u;
                 bt_enter(BT_MIDI, was);
+                continue;
+            }
+#endif
+#if WIFI_UI
+            if (scr == SCR_SYSTEM && i < gl_n(1) && sys_item(gl_ent(1, i) >> 2, gl_ent(1, i) & 3u) == SI_WFMODE) {   /* WI-FI's
+                                                         * MODE: never reset (a network joined stays) */
+                uint8_t was = wn_st.mode;
+                wn_st.mode = WN_MODE_MAN;
+                press(B_OCTDN);
+                turn(LINE_KNOB(i), 1);
+                release(B_OCTDN);
+                ble_ok &= wn_st.mode == WN_MODE_MAN;
+                wn_st.mode = was;
                 continue;
             }
 #endif

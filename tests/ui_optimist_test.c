@@ -168,6 +168,9 @@ static uint8_t dual_mode;                      /* the 2ND CORE setting */
 static struct { uint8_t up, why, boot_mode; } dual;   /* up, DUAL_* why it is down, the setting this boot started with */
 #endif
 #include "../firmware/src/ui/optimist/optimist.c"
+#if WIFI_UI
+#include "wifi_ui_stubs.h"                    /* the Wi-Fi manager's stand-ins, then ui/optimist/op_wifi.c (felucca.c includes it after the console) */
+#endif
 /* the stores the UI calls. With FELUCCA_PATTERNS (phase 4's switch set: SONG, the scenes, the patterns) the real
  * section log on a simulated NOR (as tests/patterns_ui_test.c), else doubles that count */
 static uint32_t saves, loads, up_ops[3];
@@ -449,6 +452,9 @@ static void forms_of(uint32_t scr)
                                                          * names, text only) */
                    (scr == SCR_SYSTEM && (sys_item_of(r, k) == SI_BLE || sys_item_of(r, k) == SI_BTA)) ||   /* (BT MIDI's and BT
                                                          * AUDIO's MODE: OFF, MAN, AUTO, words) */
+#if WIFI_UI
+                   (scr == SCR_SYSTEM && sys_item_of(r, k) >= SI_WFMODE && sys_item_of(r, k) <= SI_WFSIG) ||   /* (WI-FI's MODE, NETWORK, SIGNAL: words) */
+#endif
                    (scr == SCR_SONG && !(c.val[0] >= '0' && c.val[0] <= '9'));   /* (SONG: "KEEP", "--", "SEC") */
             if ((c.kind == CK_VAL || c.kind == CK_RO) && !name && c.gk == GK_NONE) {
                 printf("  no form: screen %u row %u cell %u '%s'\n", scr, r, k, c.label ? c.label : "");
@@ -3860,6 +3866,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_rechold.h"                   /* REC held: the track cleared */
 #include "ui_optimist_drenv.h"                     /* the drum track's ENV: the lane's envelope values */
 #include "ui_optimist_ble.h"                        /* with FELUCCA_BLE: SYSTEM > BLUETOOTH, the settings word's bits */
+#include "ui_optimist_wifi.h"                       /* with FELUCCA_WIFI: SYSTEM > WI-FI and the password entry */
 #include "ui_optimist_stepmove.h"                  /* a held step moved: PRESETS in time, ALGORITHM in pitch / lane; REC held on a lane */
 #include "ui_optimist_overlap.h"                   /* a synth note past another: the picked note seen, moved past (snap), LENGTH over */
 #include "ui_optimist_stephold.h"                  /* STEP: a tap toggles the step, a hold opens its cards only */
@@ -4213,6 +4220,13 @@ int main(int argc, char **argv)
     screens_tests();
 #if FELUCCA_BLE
     ble_tests();
+#endif
+#if WIFI_UI
+    wf_ui_tests();
+    wf_pw_tests();
+#if FELUCCA_WIFI_AP
+    wf_ap_tests();
+#endif
 #endif
     premiss_tests();
     missline_tests();

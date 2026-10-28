@@ -390,6 +390,15 @@ def build_app():
         flags += ["-DBLE_LL_ENC=1", "-DBLE_SMP_LEGACY=1"]
         flags += {"2": ["-DBLE_SMP_SEC_REQ=1"], "3": ["-DBLE_MIDI_NEED_ENC=1"]}.get(v, [])
     flags += ["-include", f"{GEN_REL}/felucca_config.h"]   # the builder's configuration (tools/builder)
+    # Wi-Fi: the builder item WIFI_LINK sets FELUCCA_WIFI and FELUCCA_LINK in the header (WIFI_AP: FELUCCA_WIFI_AP), no
+    # environment variable needed (2026-10-28). OPTIMIST_WIFI is the dev switch beside it: 2 the same slim build without
+    # the item (3: with MODE AP), 1 (also MODE AP) also the console's wifi test commands and the software CCMP (with the item on or off)
+    if os.environ.get("OPTIMIST_WIFI") in ("1", "2", "3"):
+        flags += ["-DFELUCCA_WIFI=1", "-DFELUCCA_LINK=1"]   # (LINK: SYNC LINK, clock_sync.c follows the session's MIDI clock, wifi/wifi_link.c)
+        if os.environ.get("OPTIMIST_WIFI") == "1":
+            flags += ["-DFELUCCA_WIFI_CON=1", "-DFELUCCA_WIFI_SWCCMP=1"]
+        if os.environ.get("OPTIMIST_WIFI") in ("1", "3"):
+            flags.append("-DFELUCCA_WIFI_AP=1")        # (MODE AP, wifi/wifi_apd.c; 1 = the dev build, 3 = the slim build with it)
     if os.environ.get("OPTIMIST_CDC_FORCE") == "1":   # (a debug build: the CDC console presented without USB SERIAL ON)
         flags.append("-DFELUCCA_CDC_FORCE=1")
     if os.environ.get("OPTIMIST_MEMBENCH") == "1":    # (a bench build: the console's membench, io/console_mem.c)
