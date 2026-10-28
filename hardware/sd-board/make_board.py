@@ -190,7 +190,11 @@ U1 = P(LIB, "SOT-23-5_L3.0-W1.7-P0.95-LS2.8-BR", "U1", "74LVC1G04", 91.0, 17.5, 
 R4 = P(LIB, "R0603", "R4", "47k", 89.6, 21.4, 0, "C25819")
 C1 = P(LIB, "C0805", "C1", "10uF", 76.0, 17.5, 270, "C15850")
 C2 = P(LIB, "C0603", "C2", "100nF", 93.4, 17.0, 90, "C14663")
-R1 = P(LIB, "R0603", "R1", "220", CARD_C - 4.36, 17.5, 270, "C22962")   # (220 ohm (Julius's review, 2026-10-28):
+# R1, R5, R6: the values the bench may change (Julius: room to retune them), on KiCad's 0603 hand-solder pads (longer,
+# an iron reaches each end; the same JLC parts)
+RTUNE = os.path.join(KICAD_FP, "Resistor_SMD.pretty")
+R_HAND = "R_0603_1608Metric_Pad0.98x0.95mm_HandSolder"
+R1 = P(RTUNE, R_HAND, "R1", "220", CARD_C - 4.36, 17.6, 270, "C22962")   # (220 ohm (Julius's review, 2026-10-28):
                                                  # a card left in SPI mode drives DO against D/C while the LCD idles
                                                  # with CS high (Felucca, SLOOP): 15 mA at most, not 33; his 270
                                                  # ran SLOOP so. The cost: the spec's slowest card misses 20 MHz
@@ -203,8 +207,8 @@ FB1 = P(LIB, "R0603", "FB1", "600R@100MHz", 93.5, 25.3, 0, "C1002")   # (GZ1608D
                                                  # AC791N guide has 1 ohm there, the bead the same footprint)
 R2 = P(LIB, "R0603", "R2", "47k", 89.6, 12.9, 0, "C25819")
 R3 = P(LIB, "R0603", "R3", "47k", CARD_C - 7.6, BUS, 0, "C25819")
-R5 = P(LIB, "R0603", "R5", "510", 94.25, 49.0, 90, "C23193")    # (CLK and MOSI in series where the SD branch leaves
-R6 = P(LIB, "R0603", "R6", "510", 95.05, 45.5, 90, "C23193")    # the through-lines, at the J2 end of the column; 510
+R5 = P(RTUNE, R_HAND, "R5", "510", 94.25, 49.0, 90, "C23193")    # (CLK and MOSI in series where the SD branch leaves
+R6 = P(RTUNE, R_HAND, "R6", "510", 95.05, 45.5, 90, "C23193")    # the through-lines, at the J2 end of the column; 510
                                                  # ohm, Julius's prototype: stock firmware's screen blank with a card in
                                                  # its native mode with CLK direct, distorted at 150, fine at 510)
 # ESD at the card's contacts: two USBLC6-2SC6, each line straight through one of its columns (pins 1 and 6 are one
