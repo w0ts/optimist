@@ -80,7 +80,7 @@ def descriptors(audio, cdc):
         # Each AC header lists only its own streaming interface, and its
         # wTotalLength covers exactly one terminal pair.
         for ac_if, as_if, chain in ((2, 3, [(2, 1, 0x0101, None), (3, 2, 0x0301, 1)]),
-                                    (4, 5, [(2, 3, 0x0713, None), (3, 4, 0x0101, 3)])):
+                                    (4, 5, [(2, 3, 0x0603, None), (3, 4, 0x0101, 3)])):
             start = next(i for i, d in enumerate(records) if d[1] == 4 and d[2] == ac_if)
             ac = []
             for d in records[start + 1:]:

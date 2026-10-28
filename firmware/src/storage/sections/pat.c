@@ -22,7 +22,7 @@
  * still plays as it is). */
 #define PAT_ID(k, s) (SEC_ID_PAT0 + PAT_N * (k) + (s))
 #define SEC_ID_PSTATE 17u                              /* the working copies' sources (pat_cur), with the autosave */
-_Static_assert(PAT_ID(NTRK - 1u, PAT_N - 1u) < 88u, "the patterns' log ids: 24..87");
+_Static_assert(PAT_ID(NTRK - 1u, PAT_N - 1u) < 88u && PAT_N == SLG_MPAT_N, "the patterns' log ids: 24..87 (the MIDI tracks' 142..205, sec_log.c)");
 enum { PF_MOT = 1, PF_B = 2, PF_DRUM = 4, PF_ON = 8, PF_SX = 16, PF_V1 = 0x20, PF_V2 = 0x40, PF_VER = 0xE0 };
 static uint32_t pat_missing;                           /* patterns a scene named and the log did not have */
 
