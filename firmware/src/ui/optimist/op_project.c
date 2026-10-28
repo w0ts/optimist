@@ -384,12 +384,39 @@ static int ble_forget_yes(uint32_t r, uint32_t k, uint32_t ok)   /* FORGET LAST:
 #endif
 #endif
 
+#if WIFI_UI
+/* SYSTEM > WI-FI and the password entry (op_wifi.c). That file drives the Wi-Fi manager (wifi/wifi_conn.c), whose state is
+ * defined after the UI in the unity build, so it is included late (felucca.c, after io/console.c); the UI above it knows only
+ * these. Without WIFI_UI each folds to nothing and the pages are as they were. */
+static void wf_cell(uint32_t it, cell_t *c);            /* a WI-FI line: MODE, NETWORK, SIGNAL, STATE */
+static void wf_mode_set(int32_t s);
+static int wf_turn(int32_t s);                          /* NETWORK's knob: the list's cursor -> 1 when the list is shown */
+static int wf_ch_turn(int32_t s);                       /* CHANNEL's knob in MODE AP -> 1 taken */
+static void wf_save(void);                              /* SAVE tapped on the page */
+static void wf_forget_do(void);                         /* the FORGET question answered YES */
+static int wf_key(uint32_t b, int held);                /* op_input.c: SAVE tapped / held on the WI-FI page -> 1 taken */
+static uint32_t wf_pg_shown(void);                      /* the page on screen shows its networks (the two middle lines give way) */
+static void wf_pg_paint(int32_t y0, int32_t y1, uint16_t col);
+static uint32_t wf_pg_sig(void);
+static void wf_poll(void);                              /* every UI pass: the scan follows the page, a failure said once */
+static int pw_on(void);                                 /* the password entry is open (NAME's gates hold: name_on) */
+static void pw_frame(uint32_t pressed, uint32_t held);
+static void pw_draw(void);
+static void pw_title(char *t, uint32_t n);
+static uint32_t pw_leds(uint32_t *d);
+#else
+#define wf_key(b, held) 0
+#define wf_pg_shown() 0u
+#define pw_on() 0
+#endif
+
 #include "../../system/dual_mode.h"                     /* 2ND CORE: DUALM_*, dual_why_name, and the INFO text helpers dual_cat / dual_cnum / dual_chex (LAST RESET: every UI=1 build; pure, no state) */
 /* ---- SYSTEM: SLOOP's HOME-held menu as rows (ui/sloop/ui_menu.c) */
 enum { SI_NONE, SI_BRIGHT, SI_LIGHTS, SI_KEYS, SI_LOWCUT, SI_OUT, SI_SYNC, SI_CH1, SI_CH2,
        SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_HOLD, SI_BLE, SI_KCOL, SI_CLKOUT, SI_CPU1, SI_INFO, SI_BATT, SI_BUILD, SI_REPO,
        SI_DROPS, SI_GUARD, SI_UAINFO, SI_XRUN, SI_DIAG, SI_CREDITS, SI_BLEST, SI_BLEPEER, SI_BLEMIDI, SI_BLELIST, SI_BLEAUTO,
        SI_BLEFGT, SI_FRESO, SI_BTA, SI_BTAPEER, SI_BTAFMT, SI_BTAST, SI_CLKOFS, SI_BTOFS,
+       SI_WFMODE, SI_WFNET, SI_WFSIG, SI_WFST,           /* SYSTEM > WI-FI (op_wifi.c): MODE, NETWORK, SIGNAL, STATE */
        SI_UAS0 };                                       /* SI_UAS0 + s: USB AUDIO's line of source s (ua_tap.h UAS_*), last */
 /* a core's load number (% of the audio budget) in its colour: green under 60, amber 60..85, red over 85 (the predictive guard's
  * ceiling, system/cpuguard.c CG_CEIL = 85 %: above it the guard sheds quality / voices). Text only (INFO draws no bars). */
@@ -475,6 +502,9 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
 #endif
 #if FELUCCA_BT_AUDIO
     {"BT AUDIO", {SI_BTA, SI_BTAPEER, SI_BTAFMT, SI_BTAST}},   /* MODE, DEVICE, FORMAT, STATE */
+#endif
+#if WIFI_UI
+    {"WI-FI", {SI_WFMODE, SI_WFNET, SI_WFSIG, SI_WFST}},   /* the same pattern as the Bluetooth pages (the user, 2026-10-27: "it should be very similar") */
 #endif
 #if FELUCCA_USB_AUDIO
     /* where each source goes (the user, 2026-10-17: "each track, including master, can be assigned to none, 1, 2, 1+2, 3, 4,
@@ -674,6 +704,14 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
             c->kind = CK_RO, c->label = "LAST DEVICE", cell_val(c, "NONE");
         break;
 #endif
+#endif
+#if WIFI_UI
+    case SI_WFMODE:
+    case SI_WFNET:
+    case SI_WFSIG:
+    case SI_WFST:
+        wf_cell(it, c);
+        break;
 #endif
     case SI_CPU: {                                      /* (DUAL: its wait for CPU1 counts in it); KNOB 1: NOW, MAX 5S, MAX (over 100: late) */
         int32_t pct = info_load(OVL_CPU0, (int32_t)(song.cpu_q8 * 100u / 256u));
@@ -1214,6 +1252,11 @@ static void sys_set(uint32_t it, int32_t s)
     case SI_BTA:                                        /* BT AUDIO's MODE: the same, BT MIDI left as it is */
         bt_mode_set(BT_AUD, s);
         break;
+#if WIFI_UI
+    case SI_WFMODE:                                     /* WI-FI's MODE: OFF, MAN, AUTO (kept in the settings record, wn_st.mode) */
+        wf_mode_set(s);
+        break;
+#endif
 #if BLE_CENTRAL
     case SI_BLEAUTO:                                    /* (kept in the device store, saved with the settings: ble_devices.c) */
         ble_auto_set(s);
@@ -1297,6 +1340,12 @@ static void sys_turn(uint32_t r, uint32_t k, int32_t s, int fine)
     if ((it == SI_BTAPEER || it == SI_BLEPEER) && bt_pg_turn(it == SI_BTAPEER ? BT_AUD : BT_MIDI, s))
         return;                                         /* (a Bluetooth page's DEVICE knob: the cursor through its devices) */
 #endif
+#if WIFI_UI
+    if (it == SI_WFNET && wf_turn(s))
+        return;                                         /* (the WI-FI page's NETWORK knob: the cursor through the networks heard) */
+    if (it == SI_WFSIG && wf_ch_turn(s))
+        return;                                         /* (MODE AP: the channel) */
+#endif
     if (s == OP_RESET && !d) {                          /* SHIFT held: no descriptor, the factory value */
         sys_factory(it);
         return;
@@ -1324,6 +1373,15 @@ static int sys_yes(uint32_t r, uint32_t k, uint32_t ok)
         bt_save(BT_AUD);
         return 1;
     }
+#if WIFI_UI
+    if (it == SI_WFMODE || it == SI_WFNET || it == SI_WFSIG || it == SI_WFST) {   /* the WI-FI page, any line */
+        if (ok)
+            wf_forget_do();                             /* (the FORGET question, asked by SAVE held: op_wifi.c wf_forget) */
+        else
+            wf_save();
+        return 1;
+    }
+#endif
     if (it == SI_BLELIST) {                             /* DEVICES: the devices nearby */
         dev_open(BT_MIDI);
         return 1;

@@ -26,7 +26,7 @@
   a { color: inherit; }
   button { font: inherit; background: var(--fg); color: var(--bg); border: 0; padding: 2px 10px; cursor: pointer; }
   button:disabled { opacity: .3; cursor: default; }
-  select, input[type=text], input[type=number], input[type=search] {
+  select, input[type=text], input[type=password], input[type=number], input[type=search] {
     font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); padding: 1px 3px; border-radius: 0; }
   input[type=range] { width: 100%; margin: 0; accent-color: var(--fg); }
   input[type=checkbox] { accent-color: var(--fg); margin: 0; }
@@ -620,7 +620,7 @@
   button:disabled { opacity: 1; color: var(--mute); background: var(--s1); }
   button:focus-visible, select:focus-visible, input:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--trk); outline-offset: 1px; }
   button.big { font-size: 16px; padding: 8px 16px; background: var(--trk); color: var(--on); }
-  select, input[type=text], input[type=number], input[type=search] { color: var(--fg); background: var(--bg); border: 1px solid var(--s3); padding: 3px 6px; }
+  select, input[type=text], input[type=password], input[type=number], input[type=search] { color: var(--fg); background: var(--bg); border: 1px solid var(--s3); padding: 3px 6px; }
   select { appearance: none; padding-right: 22px; cursor: pointer;
            background: var(--bg) linear-gradient(45deg, transparent 50%, var(--dim) 50%) no-repeat calc(100% - 9px) 55% / 5px 5px,
                        linear-gradient(-45deg, transparent 50%, var(--dim) 50%) no-repeat calc(100% - 4px) 55% / 5px 5px; }
@@ -1122,7 +1122,7 @@
   button:disabled { opacity: 1; color: var(--mute); background: var(--s1); }
   button:focus-visible, select:focus-visible, input:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--trk); outline-offset: 1px; }
   button.big { font-size: 16px; padding: 8px 16px; background: var(--trk); color: var(--on); }
-  select, input[type=text], input[type=number], input[type=search] { color: var(--fg); background: var(--bg); border: 1px solid var(--s3); padding: 3px 6px; }
+  select, input[type=text], input[type=password], input[type=number], input[type=search] { color: var(--fg); background: var(--bg); border: 1px solid var(--s3); padding: 3px 6px; }
   select { appearance: none; padding-right: 22px; cursor: pointer;
            background: var(--bg) linear-gradient(45deg, transparent 50%, var(--dim) 50%) no-repeat calc(100% - 9px) 55% / 5px 5px,
                        linear-gradient(-45deg, transparent 50%, var(--dim) 50%) no-repeat calc(100% - 4px) 55% / 5px 5px; }
@@ -1537,6 +1537,7 @@
     <button role="tab" data-tab="projects" data-t="projects" data-ic="symbol_folder" class="ionly"></button>
     <button role="tab" data-tab="backup" data-t="bkTitle" data-ic="port_disk" class="ionly"></button>
     <button role="tab" data-tab="snapshots" data-t="snTitle" data-si="snapshot" class="ionly" hidden></button>
+    <button role="tab" data-tab="wifi" data-t="wifiTab" data-ic="symbol_waves" class="ionly" hidden></button>
     <span class="navh" role="separator" aria-orientation="vertical"></span>
     <button role="tab" data-tab="device" data-t="tabDevice" data-ic="ui_knob" class="ionly" hidden></button>
     <button role="tab" data-tab="settings" data-t="tabSettings" data-ic="symbol_cog" class="ionly"></button>
@@ -1743,6 +1744,12 @@
     <progress id="snprog" max="1" value="0" hidden></progress>
   </section>
 
+  <!-- the FM-1's Wi-Fi networks (112 WIFI, only with opti_wifi_1): the mode, the saved networks, a network added by name and password -->
+  <section class="panel" id="p-wifi" data-tab="wifi" data-dev hidden>
+    <details class="pghelp"><summary title="About this page" aria-label="About this page">i</summary><p class="dim" data-t="wifiHelp"></p></details>
+    <div id="wifi"></div>
+  </section>
+
   <section class="panel" id="p-device" data-tab="device" data-dev hidden>
     <details class="pghelp"><summary title="About this page" aria-label="About this page">i</summary><p class="dim" data-t="scsHelp"></p></details>
     <div class="scbar" id="scbar"></div>
@@ -1804,7 +1811,7 @@ const CMD = { INFO: 1, GET: 2, SET: 3, DUMP: 4, DESC: 5, STEP_GET: 6, STEP_SET: 
   SL24_PUT: 90,   /* (a SLOOP 2.4 backup file's project in: ed_sl24.c; 91, SL24_BANK, is retired) */
   AUTO_GET: 92, AUTO_SET: 93,   /* (v11: the automation store, ed_stepx.c; a firmware before it does not answer) */
   FXP: 94, DLAN: 95, SCRN: 96, SONGC: 97, TOOLS: 98, SCRS: 99, FAVS: 100, SCOPE: 101,
-  UNDO: 102, NOTE: 103, SOLO: 104, STEPLANE: 105, MIRROR: 106, REC: 107, PANEL: 108, NAV: 109 };   /* (PANEL, NAV: the Mirror page's keys, knob drags and touch buttons, ED_MIRROR; INFO 66) */   /* (MIRROR: the screen, ED_MIRROR; INFO tag 65) */   /* (v14: undo / redo, notes, solo and mute, a step in the context of a drum lane; INFO tags 5F..62) */   /* (v13: every effect slot of every owner, ed_fxp.c; INFO tag 0x57) */
+  UNDO: 102, NOTE: 103, SOLO: 104, STEPLANE: 105, MIRROR: 106, REC: 107, PANEL: 108, NAV: 109, WIFI: 112 };   /* (WIFI: the Wi-Fi networks, ed_wifi.c, INFO 67 opti_wifi_1) */   /* (PANEL, NAV: the Mirror page's keys, knob drags and touch buttons, ED_MIRROR; INFO 66) */   /* (MIRROR: the screen, ED_MIRROR; INFO tag 65) */   /* (v14: undo / redo, notes, solo and mute, a step in the context of a drum lane; INFO tags 5F..62) */   /* (v13: every effect slot of every owner, ed_fxp.c; INFO tag 0x57) */
 /* the automation store (firmware seq/auto.h): an event's place (bits 0..5 the step, bit 6 STEP-ONLY: a lock; else a hold
    event, motion), its parameter (a stored P_* id, or a pseudo-parameter), its value (a signed byte) */
 const AUTO = { ONLY: 0x40, STEP: 0x3F, COND: 0xFC, NUDGE: 0xFD, FILL: 0xFE, CHANCE: 0xFF, MAX: 128, PAGE: 64,   /* (COND 1..9: 1:2 2:2 1:3 2:3 3:3 1:4 2:4 3:4 4:4, Felucca 1.5.6) */
@@ -2850,6 +2857,22 @@ const parse = {
   },
   /* v14 UNDO (ed_undo.c): op, rc, done, all (2 x 7 bits each), track, can_undo, can_redo */
   [CMD.UNDO](a) { const r = new Reader(a); const o = { op: r.b(), rc: r.b() }; o.done = r.b() | (r.b() << 7); o.all = r.b() | (r.b() << 7); o.track = r.b(); o.canUndo = !!r.b(); o.canRedo = !!r.b(); return o; },
+  /* WIFI (ed_wifi.c): op 0 the state; 1 MODE, 2 FORGET: op, rc, mode / slot; 3 JOIN, 4 LEAVE, 5 AP KEY, 7 AP CLEAR: op, rc; 6 AP CHANNEL: op, rc, channel (v).
+     Never a key byte, never the password */
+  [CMD.WIFI](a) {
+    const r = new Reader(a), op = r.b();
+    if (op !== 0) return { op, rc: r.b(), v: r.i < a.length ? r.b() : 0 };
+    const ssid = (len) => { const n = r.b(), b = unpack7(a.slice(r.i, r.i + n + Math.ceil(n / 7))); r.i += n + Math.ceil(n / 7); return { len: n, bytes: b, text: wifiText(b) }; };
+    const o = { op, mode: r.b(), st: r.b(), fail: r.b(), joined: r.b(), ch: r.b(), ip: 0, nets: [] };
+    for (let k = 0; k < 5; k++) o.ip += r.b() * 2 ** (7 * k);
+    for (let n = r.b(); n > 0; n--) { const slot = r.b(); o.nets.push({ slot, ...ssid() }); }
+    o.cur = ssid();
+    /* MODE AP's block (ed_wifi.c): cap 0 = none in this build, nothing follows; an older firmware sends no block at all (cap 0) */
+    o.ap = { cap: 0 };
+    if (r.i < a.length && r.b() === 1) { o.ap = { cap: 1, key: r.b(), status: r.b(), clients: r.b(), ch: r.b() }; o.ap.name = ssid(); }
+    o.peers = r.i < a.length ? r.b() : 0;   /* the Link peers heard (after the AP block; an older firmware sends none) */
+    return o;
+  },
   /* v14 NOTE (ed_note.c): op, rc, track, note, held */
   [CMD.NOTE](a) { const r = new Reader(a); return { op: r.b(), rc: r.b(), track: r.b(), note: r.b(), held: r.b() }; },
   /* v14 SOLO (ed_solo.c): op, rc, solo, mute, silent (track masks), lane solo / mute masks (3 x 7 bits: lanes 0..6, 7..13, 14..15) */
@@ -3150,6 +3173,17 @@ const req = {
   noteAll: (tr) => [CMD.NOTE, [2, tr & 0x7F]],
   recGet: () => [CMD.REC, [0]],
   recToggle: () => [CMD.REC, [1]],
+  wifiState: () => [CMD.WIFI, [0]],
+  wifiMode: (m) => [CMD.WIFI, [1, m & 0x7F]],                                  /* 0 OFF, 1 AUTO, 2 MAN (the store's numbers) */
+  wifiForget: (slot) => [CMD.WIFI, [2, slot & 0x7F]],
+  /* JOIN: the SSID's bytes and the password (ASCII 32..126, or "" for a saved network); the password is only in this array */
+  wifiJoin: (ssid, pass) => [CMD.WIFI, [3, ssid.length, pass.length, ...pack7(ssid), ...Array.from(pass, (c) => c.charCodeAt(0))]],
+  wifiLeave: () => [CMD.WIFI, [4]],
+  /* MODE AP (ed_wifi.c): name = the network name's bytes (empty: the automatic one), pass = 8..63 ASCII characters (32..126); the password is only in this array */
+  wifiApKey: (name, pass) => [CMD.WIFI, [5, name.length, pass.length, ...pack7(name), ...Array.from(pass, (c) => c.charCodeAt(0))]],
+  wifiApChannel: (ch) => [CMD.WIFI, [6, ch & 0x7F]],
+  wifiApRun: (on) => [CMD.WIFI, [8, on ? 1 : 0]],   /* AP MAN: start (1) or stop (0) */
+  wifiApClear: () => [CMD.WIFI, [7]],
   soloGet: () => [CMD.SOLO, [0]],
   soloOp: (op, n, on) => [CMD.SOLO, [op & 0x7F, n & 0x7F, on & 0x7F]],      /* 1 TRACK SOLO, 2 TRACK MUTE, 3 LANE SOLO, 4 LANE MUTE; on 0 / 1 / 2 toggle */
   fxpGet: (ow) => [CMD.FXP, [0, ow & 0x7F]],
@@ -3246,7 +3280,7 @@ function replyMatches(cmd, args, a) {
     case CMD.UNDO: case CMD.REC: return a[0] === args[0];
     case CMD.STEPLANE: return a[0] === args[0] && (args[0] === 0 ? a[1] === args[1] && a[2] === args[2] : args[0] === 1 ? a[1] === args[1] && a[2] === args[2] && a[3] === args[3] : a[2] === args[1] && a[3] === args[2]);
     case CMD.NOTE: return a[0] === args[0] && a[2] === args[1] && (args[0] === 2 || a[3] === args[2]);
-    case CMD.SOLO: return a[0] === args[0];
+    case CMD.SOLO: case CMD.WIFI: return a[0] === args[0];
     case CMD.PANEL: case CMD.NAV: return a[0] === args[0];
     case CMD.FAVS: return a[0] === args[0] && (args[0] === 0 || args[0] === 3 || a[1] === args[1]) && (args[0] !== 2 || a[2] === args[2]);
     case CMD.SCRS: return a[0] === args[0] && a[1] === args[1] && (args[0] === 0 || a[2] === args[5]);
@@ -3454,6 +3488,31 @@ function unpack7(a) {
     for (let j = 0; j < 7 && i + 1 + j < a.length; j++) out.push(a[i + 1 + j] | (((top >> j) & 1) << 7));
   }
   return Uint8Array.from(out);
+}
+
+/* an SSID's bytes as text: UTF-8 when they are, else Latin-1 (an SSID is any 0..32 bytes) */
+function wifiText(b) {
+  try { return new TextDecoder("utf-8", { fatal: true }).decode(b); } catch (e) { return String.fromCharCode(...b); }
+}
+/* the manager's states and failures (firmware wifi/wifi_conn.c; web/EDITOR_PROTOCOL.md "Wi-Fi") */
+const WIFI = { OFF: 0, RADIO: 1, IDLE: 2, SCAN: 3, PMK: 4, AUTH: 5, ASSOC: 6, HS: 7, UP: 8, FAIL: 9, LINK: 10, PRE: 11,
+  MODES: [[0, "OFF"], [2, "MAN"], [1, "AUTO"]], MODE_APMAN: [4, "AP MAN"], MODE_AP: [3, "AP AUTO"], AP: { OFF: 0, NOPASS: 1, STARTING: 2, ON: 3, NOCAL: 4, STOPPED: 5 }, CH_MIN: 1, CH_MAX: 13, SLOTS: 4, SSID_MAX: 32, PASS_MIN: 8, PASS_MAX: 63 };
+const wifiBusy = (w) => w.st === WIFI.RADIO || w.st === WIFI.SCAN || (w.st >= WIFI.PMK && w.st <= WIFI.HS) || w.st === WIFI.LINK || w.st === WIFI.PRE || (w.st === WIFI.UP && !w.ip) || (w.mode >= 3 && !!w.ap && w.ap.cap === 1 && w.ap.status === WIFI.AP.STARTING);
+/* the join request's check, before anything is sent (name: the typed text, or a saved network's bytes): {ssid bytes, pass} or {err: a TEXT key} */
+function wifiCheck(name, pass, saved) {
+  const ssid = typeof name === "string" ? new TextEncoder().encode(name) : name;
+  if (ssid.length < 1 || ssid.length > WIFI.SSID_MAX) return { err: "wifiBadSsid" };
+  if (!pass && saved) return { ssid, pass: "" };
+  if (pass.length < WIFI.PASS_MIN || pass.length > WIFI.PASS_MAX || /[^\x20-\x7e]/.test(pass)) return { err: "wifiBadPass" };
+  return { ssid, pass };
+}
+
+/* MODE AP's password (and name) check before anything is sent: {name bytes, pass} or {err: a TEXT key}; an empty name is the automatic one */
+function wifiApCheck(name, pass) {
+  const nm = typeof name === "string" ? new TextEncoder().encode(name) : name;
+  if (nm.length > WIFI.SSID_MAX) return { err: "wifiBadSsid" };
+  if (pass.length < WIFI.PASS_MIN || pass.length > WIFI.PASS_MAX || /[^\x20-\x7e]/.test(pass)) return { err: "wifiBadPass" };
+  return { name: nm, pass };
 }
 
 const CRC_TABLE = (() => {
@@ -4680,7 +4739,7 @@ const textOn = (bg) => (contrast(bg, "#000000") >= contrast(bg, "#ffffff") ? "#0
    the transport bar; every track editor is a popup one click from a strip, closed by its x, Escape or a click outside,
    back to the mixer as it was. NAV lists every popup with the strip button that opens it (opener: CSS selector inside
    the strip of track `strip` (0..3, "master")). The tests walk it: depth 1, Esc back to the mixer */
-const SCREENS = ["mixer", "mirror", "library", "samples", "drumkit", "projects", "backup", "snapshots", "device", "settings"];   /* (Mirror beside the Editor: the user, 2026-10-25) */
+const SCREENS = ["mixer", "mirror", "library", "samples", "drumkit", "projects", "backup", "snapshots", "wifi", "device", "settings"];   /* (Mirror beside the Editor: the user, 2026-10-25) */
 const NAV = {
   sound: { strip: "synth", opener: "[data-pop=sound]" },
   sequence: { strip: "any", opener: "[data-pop=sequence]" },
@@ -5379,6 +5438,7 @@ function makeMockDevice(opt = {}) {
         if (v5 && opt.pat) { b(0x55); b(2); b(PAT.N); b(16); }   /* tag: the per-track patterns (editor.c) */
         if (v5 && opt.fxs) { b(0x56); b(2 + 4 * FX_TYPES.length); b(1); b(FX_TYPES.length); FX_TYPES.flat().forEach(b); }   /* tag: the FX slots (ed_fxs.c) */
         if (v5 && opt.v14) { b(0x5F); b(2); b(1); b(1); b(0x60); b(2); b(1); b(3); b(0x61); b(2); b(4); b((m13.usb ? 1 : 0) | 2); b(0x63); b(2); b(1); b(1); }   /* tags: undo (many levels), notes, solo (ed_undo.c, ed_note.c, ed_solo.c) */
+        if (opt.wifi) { const w = "opti_wifi_1"; b(0x67); b(w.length); for (const c of w) b(c.charCodeAt(0)); }   /* tag 67: the features by name (ed_opti.h) */
         if (v5 && m13.fxp) { b(0x57); b(3); b(1); b(m13.usb ? 1 : 0); b(FXP.N); }   /* tag: every FX slot by owner (ed_fxp.c) */
         if (v5 && m13.dlan) { b(0x58); b(2); b(1); b(3); }   /* tag: the lanes' mix, LFOs and mutes (ed_dlan.c) */
         if (v5 && m13.scrn) { b(0x59); b(2); b(1); b(2); }   /* tag: GLOBAL and SYSTEM as lines (ed_scrn.c) */
@@ -5767,6 +5827,68 @@ function makeMockDevice(opt = {}) {
         const um = fxm && m13.usb ? (fxm.get(FXP.USB, 2, 2) ? 2 : 0) : 0;
         b((st.usbSolo ? 1 : 0) | um | (st.usbSolo || !solo ? 0 : 4));
         b((st.retMute || 0) & 7);
+        break;
+      }
+      /* the Wi-Fi networks (ed_wifi.c; opt.wifi): the manager is simulated, a join takes two state reads; the password "wrongpass" fails (WCF_KEY) */
+      case CMD.WIFI: {
+        if (!opt.wifi || a.length < 1 || a[0] > 8) return null;
+        const w = st.wifi || (st.wifi = { mode: 2, st: WIFI.IDLE, fail: 0, joined: 0, nets: [new TextEncoder().encode("HOME")], req: null, polls: 0,
+          ap: { key: 0, ch: 6, name: null, apPolls: 0 } });   /* (ap: MODE AP, only with opt.wifiap; name null: the automatic FM1-0042) */
+        const rc = (x) => { b(a[0]); b(x); };
+        if (a[0] === 0) {
+          if (w.req && ++w.polls >= 3) {
+            if (w.req.bad) { w.st = WIFI.FAIL; w.fail = 6; }
+            else { w.st = WIFI.UP; w.fail = 0; w.nets = [w.req.ssid, ...w.nets.filter((n) => wifiText(n) !== wifiText(w.req.ssid))].slice(0, WIFI.SLOTS); w.joined = 1; }
+            w.req = null;
+          } else if (w.req) w.st = w.polls === 1 ? WIFI.SCAN : WIFI.HS;
+          b(0); b(w.mode); b(w.st); b(w.fail); b(w.st === WIFI.UP ? w.joined : 0); b(w.st === WIFI.UP ? 6 : 0);
+          for (let k = 0; k < 5; k++) b(w.st === WIFI.UP ? Math.floor(0xC0A80117 / 2 ** (7 * k)) % 128 : 0);
+          b(w.nets.length);
+          w.nets.forEach((n, i) => { b(i); b(n.length); pack7(n).forEach(b); });
+          const cur = w.req ? w.req.ssid : w.st === WIFI.UP ? w.nets[0] : new Uint8Array(0);
+          b(cur.length); pack7(cur).forEach(b);
+          const mockPeers = () => (w.mode >= 3 && opt.wifiap && w.ap.key && w.ap.run !== 0 && w.ap.apPolls >= 2) || w.st === WIFI.UP ? 1 : 0;   /* a Link peer once the network is up */
+          if (!opt.wifiap) { b(0); b(mockPeers()); }   /* MODE AP's block: cap 0, nothing follows; then the Link peers */
+          else {
+            const ap = w.ap, nm = ap.name || new TextEncoder().encode("FM1-0042");
+            const stopped = w.mode === 4 && !ap.run;                      /* AP MAN: off until Start */
+            if (ap.key && w.mode >= 3 && !stopped) ap.apPolls++;
+            const stt = w.mode < 3 ? 0 : !ap.key ? 1 : stopped ? 5 : ap.apPolls < 2 ? 2 : 3;   /* a password set: STARTING on the first read, ACTIVE on the second */
+            b(1); b(ap.key); b(stt); b(stt === 3 ? 1 : 0); b(ap.ch); b(nm.length); pack7(nm).forEach(b);
+            b(mockPeers());
+          }
+        } else if (a[0] >= 5) {
+          const ap = w.ap;
+          if (!opt.wifiap) { rc(1); if (a[0] === 6) b(0); break; }
+          if (a[0] === 5) {
+            const sl = a[1], pl = a[2], pb = sl + Math.ceil(sl / 7);
+            if (a.length < 3 + pb + pl || sl > WIFI.SSID_MAX || pl < 8 || pl > 63 || a.slice(3 + pb, 3 + pb + pl).some((x) => x < 32 || x > 126)) rc(1);
+            else if (w.mode < 3) rc(2);
+            else { if (w.mode === 4) ap.run = 1; ap.name = sl ? unpack7(a.slice(3, 3 + pb)) : null; ap.key = 1; ap.apPolls = 0; rc(0); }
+          } else if (a[0] === 6) {
+            if (a.length < 2) return null;
+            if (a[1] < WIFI.CH_MIN || a[1] > WIFI.CH_MAX) rc(1); else { ap.ch = a[1]; ap.apPolls = 0; rc(0); }
+            b(ap.ch);
+          } else if (a[0] === 8) {
+            if (a.length < 2) return null;
+            if (w.mode !== 4) rc(2); else if (a[1] && !ap.key) rc(3); else { ap.run = a[1] ? 1 : 0; ap.apPolls = 0; rc(0); }
+          } else { ap.key = 0; ap.apPolls = 0; rc(0); }
+        } else if (a[0] === 1) {
+          if (a.length < 2) return null;
+          if (a[1] > 2 && !(a[1] <= 4 && opt.wifiap)) rc(1); else { w.mode = a[1]; if (w.ap) w.ap.run = 0; if (a[1] >= 3) { w.st = WIFI.IDLE; w.req = null; w.joined = 0; } else if (!a[1]) { w.st = WIFI.OFF; w.req = null; w.joined = 0; } else if (w.st === WIFI.OFF) w.st = WIFI.IDLE; rc(0); }
+          b(w.mode);
+        } else if (a[0] === 2) {
+          if (a.length < 2) return null;
+          if (a[1] >= WIFI.SLOTS) rc(1); else { if (a[1] < w.nets.length) { w.nets.splice(a[1], 1); if (w.joined === a[1] + 1) { w.joined = 0; w.st = WIFI.IDLE; } } rc(0); }
+          b(a[1]);
+        } else if (a[0] === 3) {
+          const sl = a[1], pl = a[2], pb = sl + Math.ceil(sl / 7);
+          if (a.length < 3 + pb + pl || sl < 1 || sl > WIFI.SSID_MAX || (pl && (pl < 8 || pl > 63))) { rc(1); break; }
+          const ssid = unpack7(a.slice(3, 3 + pb)), pass = String.fromCharCode(...a.slice(3 + pb, 3 + pb + pl));
+          const known = w.nets.some((n) => wifiText(n) === wifiText(ssid));
+          if (!w.mode) rc(2); else if (!pl && !known) rc(3);
+          else { w.req = { ssid, bad: pass === "wrongpass" }; w.polls = 0; w.st = WIFI.SCAN; w.joined = 0; w.fail = 0; rc(0); }
+        } else { if (w.st === WIFI.UP) { w.st = WIFI.IDLE; w.joined = 0; } rc(0); }
         break;
       }
       case CMD.SCOPE: {
@@ -6876,6 +6998,32 @@ const TEXT = {
   lbrSections: "Sections", lbrPatterns: "Patterns", lbrKits: "User drum kits", lbrPatHelp: "Click a pattern to pick it, drag it onto another slot to copy it. LEN is shown in the slot.",
   lbrExport: "Export", lbrImport: "Import", lbrClear: "Clear", lbrNoPat: "This build has no per-track patterns.", lbrNoKits: "This build has no user drum kits.",
   lbrBadFile: "Not a file of this kind: ", lbrExported: "Exported: ", lbrImported: "Imported: ", lbrConfirmImport: "Replace {x} with the file's?",
+  wifiTab: "Wi-Fi", wifiNone: "This FM-1 has no Wi-Fi (a build with Wi-Fi and Bluetooth lists opti_wifi_1).",
+  wifiHelp: "The Wi-Fi networks of the FM-1: choose the mode, join a network by its name and password, forget one. The FM-1 keeps up to 4 networks, most recent first, and only the key made from the password: the password itself is never stored, and neither the FM-1 nor this page shows a key. A network is kept once the FM-1 has really joined it. The FM-1 joins WPA2 personal (PSK, AES) networks.",
+  wifiAsking: "Asking the FM-1…", wifiNoAnswer: "The FM-1 did not answer the Wi-Fi request.", wifiRefresh: "Refresh",
+  wifiMode: "Mode", wifiModeOff: "Off: the radio stays off", wifiModeMan: "Manual: joins a network only when told", wifiModeAuto: "Auto: joins the best saved network heard, at start-up and whenever none is joined",
+  wifiOff: "Wi-Fi is off.", wifiRadio: "Starting the radio…", wifiIdle: "Not connected.", wifiScan: "Looking for “{n}”…", wifiJoining: "Joining “{n}”…",
+  wifiUp: "Connected to “{n}”, address {ip}, channel {ch}.", wifiAddr: "Joined; waiting for an address from the router…",
+  wifiFail0: "The connection failed.", wifiFail1: "The Wi-Fi radio cannot start: this FM-1 has no stored radio calibration.",
+  wifiFail2: "No access point of that name was heard. Check the name, and that the FM-1 is within reach of the router.",
+  wifiFail3: "The access point did not accept the FM-1 (authentication).", wifiFail4: "The access point refused the connection (association). Try again.",
+  wifiFail5: "The key exchange did not finish. Try again, closer to the router.",
+  wifiFail6: "Wrong password (or the network is not WPA2 personal with AES).",
+  wifiSaved: "Saved networks", wifiNoNets: "None yet. Add one below: it is kept once the FM-1 has joined it.", wifiHere: "connected",
+  wifiConnect: "Connect", wifiLeave: "Disconnect", wifiForget: "Forget", wifiForgetSure: "Sure? Forget",
+  wifiAdd: "Add a network", wifiSsid: "Network name (SSID)", wifiPass: "Password", wifiShow: "Show the password", wifiJoin: "Join",
+  wifiAddHelp: "The password goes to the FM-1 once, is turned into a key there and is not kept anywhere. Empty: the saved network of that name, with its stored key.",
+  wifiBadSsid: "The network name must be 1 to 32 bytes.",
+  wifiModeAp: "Access point, automatic: the FM-1 is the network from power-on (a laptop or phone joins it)", wifiModeApMan: "Access point, manual: the FM-1 is the network only after Start (or SAVE on its page)", wifiApStopped: "Access point stopped: press Start.", wifiApStart: "Start", wifiApStop: "Stop", wifiAp: "Access point", wifiApName: "Network name", wifiApCustom: "Custom name (empty: automatic, FM1-xxxx)",
+  wifiApPass: "Password", wifiApSet: "Set password", wifiApChan: "Channel", wifiApClear: "Clear key", wifiApClearSure: "Sure? Clear key",
+  wifiPeers1: "· 1 Link peer", wifiPeersN: "· {n} Link peers",
+  wifiApOff: "The access point is off.", wifiApNoPass: "No password yet.", wifiApStarting: "Starting the access point…", wifiApOn: "Active, {n} clients.", wifiApOn1: "Active, 1 client.",
+  wifiApNoCal: "No radio calibration: the access point cannot start.",
+  wifiApKeyOn: "A key is kept.", wifiApKeyOff: "No key is kept.",
+  wifiApHelp: "The password goes to the FM-1 once, becomes a key there and is not kept anywhere. A laptop or phone joins the FM-1's network with that password; the FM-1 gives out the addresses 192.168.4.2 to 192.168.4.5. Without a key no access point runs. Setting the password also sets the name (empty: the automatic one).",
+  wifiApRc1: "The FM-1 refused the name, the password or the channel.", wifiApRc2: "Choose the access point mode first.", wifiBadPass: "The password must be 8 to 63 characters, letters, digits and symbols (no accents).",
+  wifiRc1: "The FM-1 refused the name or the password.", wifiRc2: "Wi-Fi is off: choose Manual or Auto first.",
+  wifiRc3: "That network is not saved: type its password.", wifiRc4: "The radio is still starting: try again in a few seconds.",
   bkTitle: "Backup", bkHelp: "Everything the FM-1 keeps (projects, the working project, user presets, drum kits, drum sounds, settings, the samples if you like) in one file. Do it before installing a firmware.",
   bkBackup: "Back up", bkSamples: "with the samples ({n} KiB)", bkRestore: "Restore from a file…", bkRestoreGo: "Restore the ticked ones",
   bkStopped: "Stopped only. The FM-1 restarts when done.", bkConfirm: "Write {n} objects back into the FM-1 (what is there is replaced)?",
@@ -7117,7 +7265,7 @@ $("about").addEventListener("mousedown", (e) => { if (e.target === $("about")) $
 $("popx").addEventListener("click", () => closePop());
 $("pop").addEventListener("cancel", (e) => { e.preventDefault(); closePop(); });   /* Escape */
 $("pop").addEventListener("mousedown", (e) => { if (e.target === $("pop")) closePop(); });   /* a click outside (the backdrop) */
-const OPTI = { backup: 4, mirror: 2, library: 1, projects: 1, panel: 1, nav: 1, mirbt: 1 };   /* (the versions this page reads) */
+const OPTI = { backup: 4, mirror: 2, library: 1, projects: 1, panel: 1, nav: 1, mirbt: 1, wifi: 1 };   /* (the versions this page reads) */
 const opti = (f) => !!dev && !!dev.info && !!dev.info.opti && dev.info.opti["opti_" + f] === OPTI[f];
 const hasKitPage = () => !!dev && !!dev.dl && !!dev.smp;   /* the build has drum lanes (36..) and sample slots */
 const hasSnaps = () => !!dev && !!dev.sn;            /* the firmware has snapshots (protocol v8, commands 54..57) */
@@ -7126,7 +7274,8 @@ function renderPanels() {
   const tb = $("tabs").querySelector(`button[data-tab="${want}"]`);
   for (const b of $("tabs").querySelectorAll("button[data-tab]")) {
     if (b.dataset.tab === "drumkit") b.hidden = !hasKitPage();   /* (the Drum kit page: drum lanes and sample slots) */
-    if (b.dataset.tab === "snapshots") b.hidden = !hasSnaps();   /* (the Snapshots screen: only with snapshots) */
+    if (b.dataset.tab === "snapshots") b.hidden = !hasSnaps();
+    if (b.dataset.tab === "wifi") b.hidden = !opti("wifi");   /* (the Wi-Fi networks: only a build that lists opti_wifi_1) */   /* (the Snapshots screen: only with snapshots) */
     if (b.dataset.tab === "device" || b.dataset.tab === "settings") b.hidden = true;   /* (not in the tab bar: the user, 2026-10-25; the
        sync button opens Settings at SYNC, a popup's "device pages" the Device screens) */
     if (b.dataset.tab === "mirror") b.hidden = !mirrorOn() || !opti("mirror");   /* (the device's own screen: ED_MIRROR) */
@@ -7156,6 +7305,8 @@ function renderPanels() {
     if (show && want === "device" && !scrsOn()) { show = false; hint = "scsNone"; }
     if (show && want === "device") renderDevice().catch(report);
     if (show && want === "snapshots" && !hasSnaps()) { show = false; hint = "snNone"; }
+    if (show && want === "wifi" && !opti("wifi")) { show = false; hint = "wifiNone"; }
+    if (show && want === "wifi") wifiStart();
     if (show && want === "mirror" && !mirrorOn()) { show = false; hint = "mirrorNone"; }
     if (show && want === "mirror") mirrorStart();
     p.hidden = !show;
@@ -7298,7 +7449,7 @@ async function connect() {
   sayK("connecting");
   try {
     if (!access) {
-      if (MOCK) { mock = makeMockDevice({ legacy: QS.get("legacy") === "1", auto: QS.get("auto") !== "0", snapshots: QS.get("snap") !== "0", v9: QS.get("v9") !== "0", rev: QS.has("rev") ? +QS.get("rev") : null, macros: QS.get("macros") === "1", midi: QS.get("midi") === "1", stepx: QS.has("stepx") ? +QS.get("stepx") : 7, pat: QS.get("pat") === "1", fxs: QS.get("fxs") === "1" || QS.get("fxp") === "1", retSends: QS.get("retsends") !== "0", v14: QS.get("v14") !== "0", store: QS.get("store") === "1", ...mockV13(QS) }); access = mock.access;
+      if (MOCK) { mock = makeMockDevice({ legacy: QS.get("legacy") === "1", auto: QS.get("auto") !== "0", snapshots: QS.get("snap") !== "0", v9: QS.get("v9") !== "0", rev: QS.has("rev") ? +QS.get("rev") : null, macros: QS.get("macros") === "1", midi: QS.get("midi") === "1", stepx: QS.has("stepx") ? +QS.get("stepx") : 7, pat: QS.get("pat") === "1", wifi: QS.get("wifi") === "1" || QS.get("wifiap") === "1", wifiap: QS.get("wifiap") === "1", fxs: QS.get("fxs") === "1" || QS.get("fxp") === "1", retSends: QS.get("retsends") !== "0", v14: QS.get("v14") !== "0", store: QS.get("store") === "1", ...mockV13(QS) }); access = mock.access;
         window.fm1Test = { mock, dev: () => dev, smpAdd: (files) => addSmpFiles(files), kitAdd: (files, lane) => kpAddFiles(files, lane), roll: () => ({ RG, cell: roll.cell, grid: roll.el && roll.el.grid, scroll: roll.el && roll.el.scroll }),
           proto: () => ({ req, rq, patRecParse, patPoll }) };   /* (?mock=1 only: the e2e) */
       }
@@ -10056,6 +10207,191 @@ async function restoreDo() {
   bkProgress(null);
   bkDraft.busy = false;
   renderBackup();
+}
+/* ---------------------------------------------------------- Wi-Fi (112 WIFI) --- */
+/* The FM-1's Wi-Fi networks (firmware io/editor/ed_wifi.c; web/EDITOR_PROTOCOL.md "Wi-Fi"). The password is typed here, sent once and
+   cleared: not in the URL, the console, localStorage or a reply. The state is read again about once a second while a join runs. */
+const wf = { d: null, s: null, msg: "", timer: 0, until: 0, stop: 0, forget: -1, forgetT: 0, top: null, list: null, add: null, apf: null, apClear: 0 };
+const wifiIp = (n) => [24, 16, 8, 0].map((sh) => Math.floor(n / 2 ** sh) % 256).join(".");
+const wifiSame = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
+function wifiApStatus(ap) {   /* MODE AP's status as [words, status colour] */
+  if (ap.status === WIFI.AP.NOPASS) return [t("wifiApNoPass"), "warn"];
+  if (ap.status === WIFI.AP.STARTING) return [t("wifiApStarting"), "warn"];
+  if (ap.status === WIFI.AP.ON) return [ap.clients === 1 ? t("wifiApOn1") : t("wifiApOn").replace("{n}", ap.clients), "ok"];
+  if (ap.status === WIFI.AP.NOCAL) return [t("wifiApNoCal"), "err"];
+  if (ap.status === WIFI.AP.STOPPED) return [t("wifiApStopped"), ""];
+  return [t("wifiApOff"), ""];
+}
+const wifiPeers = (s) => (s.peers ? " " + (s.peers === 1 ? t("wifiPeers1") : t("wifiPeersN").replace("{n}", s.peers)) : "");   /* (" · 2 Link peers") */
+function wifiStatus(s) {   /* the state as [words, status colour] */
+  const nm = s.cur.text;
+  if (s.mode >= 3 && s.ap.cap === 1) { const [x, c] = wifiApStatus(s.ap); return [x + (s.ap.status === WIFI.AP.ON ? wifiPeers(s) : ""), c]; }
+  if (!s.mode || s.st === WIFI.OFF) return [t("wifiOff"), ""];
+  if (s.st === WIFI.RADIO) return [t("wifiRadio"), "warn"];
+  if (s.st === WIFI.SCAN) return [t("wifiScan").replace("{n}", nm), "warn"];
+  if (s.st === WIFI.UP) return s.ip ? [t("wifiUp").replace("{n}", nm).replace("{ip}", wifiIp(s.ip)).replace("{ch}", s.ch) + wifiPeers(s), "ok"] : [t("wifiAddr"), "warn"];
+  if (s.st === WIFI.FAIL) return [TEXT["wifiFail" + s.fail] ?? t("wifiFail0"), "err"];
+  if (wifiBusy(s)) return [t("wifiJoining").replace("{n}", nm), "warn"];
+  return [t("wifiIdle"), ""];
+}
+async function wifiPoll() {
+  clearTimeout(wf.timer);
+  wf.timer = 0;
+  const d = dev;
+  if (!d || d !== wf.d || tab !== "wifi") return;
+  try { wf.s = parse[CMD.WIFI](await rq(req.wifiState(), { timeout: 600, retries: 1, quiet: true })); }
+  catch (e) { if (e.message === "closed") return; wf.s = null; wf.msg = t("wifiNoAnswer"); }
+  if (d !== dev || tab !== "wifi") return;
+  wifiRender();
+  const now = performance.now();
+  if (wf.s && now < wf.stop && (wifiBusy(wf.s) || now < wf.until)) wf.timer = setTimeout(wifiPoll, 1000);
+}
+function wifiWatch(ms) {   /* poll for a while: a join takes seconds (the scan, the key, the handshake, the address) */
+  wf.until = performance.now() + 2500;
+  wf.stop = performance.now() + ms;
+  wifiPoll();
+}
+function wifiStart() {
+  if (wf.d !== dev) Object.assign(wf, { d: dev, s: null, msg: "", forget: -1, top: null, list: null, add: null, apf: null, apClear: 0 });
+  const box = $("wifi");
+  if (!wf.top || !wf.top.isConnected) {
+    wf.top = el("div"); wf.list = el("div"); wf.add = wifiForm(); wf.apf = wifiApForm();
+    box.replaceChildren(wf.top, wf.list, wf.add, wf.apf.root);
+  }
+  wifiRender();
+  wifiWatch(8000);
+}
+async function wifiSend(r, opt) {   /* one WIFI request; its reply, or null (no answer) */
+  try { return parse[CMD.WIFI](await rq(r, opt)); }
+  catch (e) { if (e.message !== "closed") wf.msg = t("wifiNoAnswer"); return null; }
+  finally { r[1].fill(0); }   /* (a join's password was in these bytes) */
+}
+async function wifiJoin(name, pass, saved) {
+  const c = wifiCheck(name, pass, saved);
+  if (c.err) { wf.msg = t(c.err); wifiRender(); return false; }
+  const d = dev, rep = await wifiSend(req.wifiJoin(c.ssid, c.pass), { timeout: 1500, retries: 0 });   /* (no retry: a second request would restart the scan) */
+  if (d !== dev) return false;
+  wf.msg = rep ? (rep.rc ? t("wifiRc" + rep.rc) : "") : wf.msg;
+  wifiRender();
+  if (rep && !rep.rc) wifiWatch(90000);
+  return !!rep && !rep.rc;
+}
+async function wifiApSend(r, opt) {   /* one MODE AP request: the message from its rc, then the state again */
+  const d = dev, rep = await wifiSend(r, opt);
+  if (d !== dev) return null;
+  if (rep) wf.msg = rep.rc ? t("wifiApRc" + rep.rc) : "";
+  wifiWatch(8000);
+  return rep;
+}
+function wifiApForm() {   /* the Access point panel (MODE AP): built once, so what is typed survives the state being read again */
+  const nameNow = el("b", { text: "" }), keyNow = el("span", { class: "dim", text: "" }), status = el("span", { class: "pill", role: "status", text: "" });
+  const text = (ph) => ({ type: "text", autocomplete: "off", autocapitalize: "off", autocorrect: "off", spellcheck: "false", title: ph, "aria-label": ph, placeholder: ph });
+  const name = el("input", text(t("wifiApCustom")));
+  const pw = el("input", { ...text(t("wifiApPass")), type: "password" });
+  const show = el("input", { type: "checkbox" });
+  show.addEventListener("change", () => { pw.type = show.checked ? "text" : "password"; });
+  const chan = el("select", { title: t("wifiApChan"), "aria-label": t("wifiApChan") });
+  for (let c = WIFI.CH_MIN; c <= WIFI.CH_MAX; c++) chan.append(el("option", { value: c, text: String(c) }));
+  chan.addEventListener("change", () => wifiApSend(req.wifiApChannel(+chan.value), { timeout: 800, retries: 1 }));
+  const set = async () => {
+    const typed = pw.value, nm = name.value;
+    const c = wifiApCheck(nm, typed);
+    if (c.err) { wf.msg = t(c.err); wifiRender(); return; }
+    pw.value = "";   /* (cleared as it is sent) */
+    show.checked = false;
+    pw.type = "password";
+    const rep = await wifiApSend(req.wifiApKey(c.name, c.pass), { timeout: 1500, retries: 0 });   /* (no retry: the key is derived once) */
+    if (rep && !rep.rc) name.value = "";
+    wifiRender();
+  };
+  const setBtn = el("button", { type: "button", ic: "symbol_upload", onclick: set }, t("wifiApSet"));
+  pw.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); set(); } });
+  const clear = el("button", { type: "button", ic: "symbol_trash", onclick: async () => {
+    if (!(wf.apClear && performance.now() - wf.apClear < 4000)) { wf.apClear = performance.now(); wifiRender(); setTimeout(wifiRender, 4100); return; }
+    wf.apClear = 0;
+    await wifiApSend(req.wifiApClear(), { timeout: 800, retries: 1 });
+  } }, t("wifiApClear"));
+  const run = el("button", { type: "button", ic: "symbol_upload", onclick: async () => {
+    await wifiApSend(req.wifiApRun(!(wf.s && wf.s.ap.status !== WIFI.AP.STOPPED)), { timeout: 800, retries: 1 });
+  } }, t("wifiApStart"));
+  const root = el("div", { class: "group", hidden: true }, el("h2", { text: t("wifiAp") }),
+    el("p", { class: "bar" }, status, run),
+    el("p", { class: "bar" }, el("span", { class: "dim", text: t("wifiApName") }), nameNow, keyNow),
+    el("p", { class: "bar" }, name, pw, el("label", {}, show, " ", t("wifiShow")), setBtn),
+    el("p", { class: "bar" }, el("label", {}, t("wifiApChan"), " ", chan), clear),
+    el("p", { class: "dim", text: t("wifiApHelp") }));
+  const update = (s) => {   /* shown only in MODE AP with a build that has it */
+    const on = !!s && s.mode >= 3 && s.ap.cap === 1;
+    root.hidden = !on;
+    if (!on) return;
+    const [txt, st] = wifiStatus(s);
+    status.textContent = txt;
+    status.dataset.st = st;
+    nameNow.textContent = s.ap.name.text;
+    keyNow.textContent = s.ap.key ? t("wifiApKeyOn") : t("wifiApKeyOff");
+    if (document.activeElement !== chan) chan.value = String(s.ap.ch);
+    clear.lastChild.textContent = wf.apClear && performance.now() - wf.apClear < 4000 ? t("wifiApClearSure") : t("wifiApClear");
+    clear.disabled = !s.ap.key;
+    run.hidden = s.mode !== 4;                              /* AP MAN only: start / stop */
+    run.disabled = !s.ap.key;
+    run.textContent = s.ap.status === WIFI.AP.STOPPED ? t("wifiApStart") : t("wifiApStop");
+  };
+  return { root, update };
+}
+function wifiForm() {
+  const name = el("input", { type: "text", autocomplete: "off", autocapitalize: "off", autocorrect: "off", spellcheck: "false", title: t("wifiSsid"), "aria-label": t("wifiSsid"), placeholder: t("wifiSsid") });
+  const pw = el("input", { type: "password", autocomplete: "off", autocapitalize: "off", autocorrect: "off", spellcheck: "false", title: t("wifiPass"), "aria-label": t("wifiPass"), placeholder: t("wifiPass") });
+  const show = el("input", { type: "checkbox" });
+  show.addEventListener("change", () => { pw.type = show.checked ? "text" : "password"; });
+  const go = async () => {
+    const typed = pw.value, nm = name.value, ssid = new TextEncoder().encode(nm);
+    pw.value = "";   /* (cleared as it is sent) */
+    show.checked = false;
+    pw.type = "password";
+    const ok = await wifiJoin(nm, typed, !!wf.s && wf.s.nets.some((n) => wifiSame(n.bytes, ssid)));
+    if (ok) name.value = "";
+  };
+  const join = el("button", { type: "button", ic: "symbol_upload", onclick: go }, t("wifiJoin"));
+  for (const i of [name, pw]) i.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); go(); } });
+  return el("div", { class: "group" }, el("h2", { text: t("wifiAdd") }),
+    el("p", { class: "bar" }, name, pw, el("label", {}, show, " ", t("wifiShow")), join),
+    el("p", { class: "dim", text: t("wifiAddHelp") }));
+}
+function wifiRender() {
+  if (!wf.top || !wf.top.isConnected) return;
+  const s = wf.s;
+  if (!s) { wf.top.replaceChildren(el("p", { class: "dim", text: wf.msg || t("wifiAsking") })); wf.list.replaceChildren(); return; }
+  const [txt, st] = wifiStatus(s);
+  const tip = { 0: t("wifiModeOff"), 2: t("wifiModeMan"), 1: t("wifiModeAuto") };
+  const ap = s.ap.cap === 1, inAp = ap && s.mode >= 3;
+  if (ap) { tip[3] = t("wifiModeAp"); tip[4] = t("wifiModeApMan"); }
+  const modes = el("span", { class: "seg", role: "group", "aria-label": t("wifiMode") }, ...(ap ? [...WIFI.MODES, WIFI.MODE_APMAN, WIFI.MODE_AP] : WIFI.MODES).map(([m, label]) =>
+    el("button", { type: "button", "aria-pressed": s.mode === m ? "true" : "false", title: tip[m], "aria-label": tip[m], onclick: async () => {
+      const r = await wifiSend(req.wifiMode(m), { timeout: 800, retries: 1 });
+      if (r && r.rc) wf.msg = t("wifiRc" + r.rc); else if (r) wf.msg = "";
+      wifiWatch(8000);
+    } }, label)));
+  wf.top.replaceChildren(el("p", { class: "bar" }, el("b", { text: t("wifiMode") }), modes,
+      el("button", { type: "button", onclick: () => wifiWatch(8000) }, t("wifiRefresh"))),
+    el("p", { class: "bar" }, el("span", { class: "pill", "data-st": st, role: "status", text: txt })),
+    ...(wf.msg ? [el("p", { class: "dim", role: "alert", text: wf.msg })] : []));
+  if (wf.apf) wf.apf.update(s);
+  if (wf.add) wf.add.hidden = inAp;
+  if (inAp) { wf.list.replaceChildren(); return; }
+  const rows = s.nets.map((n) => {
+    const here = s.joined === n.slot + 1 && s.st === WIFI.UP;
+    const sure = wf.forget === n.slot && performance.now() - wf.forgetT < 4000;
+    return el("p", { class: "bar" }, el("b", { text: n.text }), here ? el("span", { class: "pill", "data-st": "ok", text: t("wifiHere") }) : "",
+      here ? el("button", { type: "button", onclick: async () => { await wifiSend(req.wifiLeave(), { timeout: 800, retries: 1 }); wifiWatch(8000); } }, t("wifiLeave"))
+        : el("button", { type: "button", disabled: !s.mode, onclick: () => wifiJoin(n.bytes, "", true) }, t("wifiConnect")),
+      el("button", { type: "button", ic: "symbol_trash", onclick: async () => {
+        if (!sure) { wf.forget = n.slot; wf.forgetT = performance.now(); wifiRender(); setTimeout(wifiRender, 4100); return; }
+        wf.forget = -1;
+        await wifiSend(req.wifiForget(n.slot), { timeout: 800, retries: 1 });
+        wifiWatch(8000);
+      } }, sure ? t("wifiForgetSure") : t("wifiForget")));
+  });
+  wf.list.replaceChildren(el("h2", { text: `${t("wifiSaved")} (${s.nets.length}/${WIFI.SLOTS})` }), ...(rows.length ? rows : [el("p", { class: "dim", text: t("wifiNoNets") })]));
 }
 function renderBackup() {
   const box = $("backup");
@@ -13385,7 +13721,7 @@ const TIPS = {
   libeng: "Show the presets of one engine", libtag: "Show the presets with one tag", libsort: "Sort the library",
   "tab:mixer": "Mixer: the four tracks and the master (home)", "tab:library": "Library: your presets in this browser",
   "tab:samples": "Samples: your sample slots on the FM-1", "tab:projects": "Projects: load / save, sections, song, backup",
-  "tab:snapshots": "Snapshots: the whole work in a slot or a file", "tab:settings": "Settings: global, drums, MIDI clock",
+  "tab:snapshots": "Snapshots: the whole work in a slot or a file", "tab:wifi": "Wi-Fi: the networks the FM-1 knows, add one, forget one", "tab:settings": "Settings: global, drums, MIDI clock",
 };
 const TIP_SEL = "button, [role=tab], select, input:not([type=hidden]):not([type=file]), a[href]";
 function tipFor(e) {

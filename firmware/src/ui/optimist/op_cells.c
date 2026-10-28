@@ -17,7 +17,7 @@ static int op_global_go(uint32_t id);                  /* op_screens.c: TOOLS' G
 
 typedef struct {
     const char *label;                  /* the card's label (0: an empty cell) */
-    char val[14];                       /* the value as text */
+    char val[WIFI_UI ? 16 : 14];        /* the value as text */
     const char *unit;
     uint8_t kind;                       /* CK_* */
     uint16_t col;                       /* the value's colour, 0 = the palette's */
@@ -35,6 +35,9 @@ typedef struct {
     uint8_t strike;                     /* a muted row's volume card: label and value struck through (op_draw.c) */
     uint8_t big;                        /* a settings line: its value in the large face where it fits (op_gldraw.c) */
     uint8_t dr;                         /* the drum track's own value, shown with a drum lane picked: drawn tagged "DR" (op_draw.c) */
+#if WIFI_UI
+    uint8_t wide;                       /* a settings line's value of up to 15 characters, not 13 (WI-FI's address) */
+#endif
 } cell_t;
 
 static void cell_clear(cell_t *c)
@@ -42,7 +45,7 @@ static void cell_clear(cell_t *c)
     memset(c, 0, sizeof *c);
     c->unit = "";
 }
-static __attribute__((noinline)) void cell_val(cell_t *c, const char *s) { str_cpy(c->val, s, sizeof c->val); }   /* (42 sites) */
+static __attribute__((noinline)) void cell_val(cell_t *c, const char *s) { str_cpy(c->val, s, 14); }   /* (42 sites; 13 characters, the field of a WIFI_UI build too: WI-FI's SIGNAL fills it whole) */
 /* an action's card: the verb is its val when set, else its label (the list's narrow columns draw the label); the small
  * label above is obj, else the label over a val ("PANEL" over CALIBRATE), else none (op_draw.c act_text) */
 static void cell_act(cell_t *c, const char *obj, const char *label, const char *verb, uint32_t danger)

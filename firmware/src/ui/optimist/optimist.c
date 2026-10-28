@@ -22,7 +22,8 @@
  * op_song.c (SONG), op_combos.c (SAVE / SHIFT + a button), op_prjflow.c (PROJECT), op_project.c (SYSTEM), op_global.c (GLOBAL, GLO
  * tapped; the screen table),
  * op_graph.c (the forms of values, the SOUND graphs, the modal), op_preset.c (a preset named with its engine),
- * op_name.c (NAME: a user preset or a project named on the device), op_draw.c (the renderer, the mixer's strips),
+ * op_name.c (NAME: a user preset or a project named on the device), op_wifi.c (SYSTEM > WI-FI and its password entry; not in this list
+ * of includes: it drives the Wi-Fi manager, so felucca.c includes it after io/console.c; op_pwbuf.h is its pure text buffer), op_draw.c (the renderer, the mixer's strips),
  * op_edits.c (the sound's edits, the work changed: what a load asks),
  * op_gldraw.c (GLOBAL and SYSTEM's settings list), op_help.c (the help line on the screen's foot),
  * op_mixdraw.c (the mixer's rows: meters, steps), op_scope.c (SCOPE), op_stepdraw.c (STEP's
@@ -34,6 +35,11 @@
 #endif
 #ifndef FELUCCA_BT_UI
 #define FELUCCA_BT_UI (FELUCCA_BLE || FELUCCA_BT_AUDIO)   /* SYSTEM > Bluetooth: with either (felucca.c; host tests here) */
+#endif
+#if defined(FELUCCA_WIFI) && FELUCCA_WIFI && FELUCCA_BLE && FELUCCA_CDC && BLE_HW_WL82   /* (the manager is in the console: io/console.c) */
+#define WIFI_UI 1                       /* SYSTEM > WI-FI and the password entry (op_wifi.c, included late: felucca.c after the manager, io/console.c) */
+#else
+#define WIFI_UI 0
 #endif
 #include "../colors.c"                  /* the colour language (engine, kit kind; the web editor's too) */
 #if FELUCCA_BRIGHT
