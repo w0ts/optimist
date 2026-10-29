@@ -93,7 +93,7 @@ static int16_t *inst_line(uint32_t j, uint32_t i)      /* instance i of type j's
 #endif
 #if FELUCCA_INS_JCHORUS
     if (j == 2u)
-        return ifx_jcho[i].c.ln;
+        return (int16_t *)(void *)ifx_jcho[i].c.ln;   /* (32-bit samples: the units are 512 int16) */
 #endif
 #if FELUCCA_INS_FLANGER
     if (j == 3u)
