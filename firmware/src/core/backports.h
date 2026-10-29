@@ -28,8 +28,7 @@
 #ifndef FELUCCA_CHANCE
 #define FELUCCA_CHANCE 0         /* +832 B flash; nothing changes until a step's chance is turned down */
 #endif
-/* Retired 2026-10-29: the keys always light the notes played (Felucca 1.0.1 20c275e #38, renebohne/sloop-fm1 e2e5099; MENU >
- * NOTES switches it at run time) and the screen's backlight is always full (X0X's BRIGHT is gone) */
+/* Retired 2026-10-29: the keys always light the notes played (Felucca 1.0.1 20c275e #38, renebohne/sloop-fm1 e2e5099) and the screen's backlight is always full (X0X's BRIGHT is gone) */
 #if defined(FELUCCA_KEYLIT) && !FELUCCA_KEYLIT
 #error "FELUCCA_KEYLIT was retired: the keys always light the notes played"
 #endif

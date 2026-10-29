@@ -384,7 +384,7 @@ Items taken out of the registry are listed in `registry.RETIRED` with the reason
 `.config` that names one loads, warns "dropped" and goes on without it. They include the whole FM6 mode set (`FM6_MARK1`,
 `FM6_MODERN`, `FM6_OPL`, `FM6_MKI_FLASH`, `FM6_STORE`, `FM6_VOICES`, `FM6_ALL`, `FM6_ALGO`: FM6 has one synthesis, Dexed's
 MODERN, and the on-device operator editor), `UI` (SLOOP's UI is gone; the Optimist UI is the only one), `SIMD` (wrong on
-the real FM-1), `KEYLIT`, `LIGHTS` (always built; MENU > NOTES, BUTTONS and KEYS are the run-time switches), `BRIGHT` (the backlight is always full), `KEYS_DMA`, `SPLASH`, `LFO2`, and the old editor pieces (`ED_REC`, `ED_UNDO`, ...). Old data that named a
+the real FM-1), `KEYLIT`, `LIGHTS` (always built; SYSTEM > KEYS has BUTTONS and KEYS as run-time settings), `BRIGHT` (the backlight is always full), `KEYS_DMA`, `SPLASH`, `LFO2`, and the old editor pieces (`ED_REC`, `ED_UNDO`, ...). Old data that named a
 retired FM6 voice (an R or U number) plays the voice it holds inline, or starts from INIT VOICE; an old MOD / M.TIM /
 C.TIM over an inline voice is baked into it once on load, approximately.
 
