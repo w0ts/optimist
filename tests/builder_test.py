@@ -739,7 +739,7 @@ if shared:
 # item and made BLE on show more free flash than off). `--ble-drop ITEM` is the explicit headless choice: it removes that
 # one item (make_room: the named one, or the smallest single item that frees enough); the checks below hold it to the
 # same figures as before. Nothing here is pinned: every figure comes from costs.json as it is (BLE's measured cost, with
-# and without BLE_DIAG), and the expected item is computed per profile from the budget alone, not from room.py.
+# and without its option BLE_BOND), and the expected item is computed per profile from the budget alone, not from room.py.
 dflt_real, _ = C.load_profile(C.REFERENCE_PROFILE)
 check("BLE, measured cost (costs.json): the reference profile (synths_USBaudio_BTaudio_BTmidi, BLE on) with BLE fits as it is",
       not C.over_any(dict(dflt_real, BLE=1), costs))
@@ -759,14 +759,14 @@ def refused(profile, sets, drop):
     return False
 
 
-def room_scenarios(prof, diag):
-    tag = f"BLE room, {prof}{' + BLE_DIAG' if diag else ''}"
+def room_scenarios(prof, opt):
+    tag = f"BLE room, {prof}{' + BLE_BOND' if opt else ''}"
     base, _ = C.load_profile(prof)
     if base["BLE"]:                                     # (the rule is BLE ticked on a profile without it)
         print(f"{tag}: the profile has BLE on already, not a case")
         return
-    sets = ["BLE=1"] + (["BLE_DIAG=1"] if diag else [])
-    withble = with_ble(base, diag)
+    sets = ["BLE=1"] + (["BLE_BOND=1"] if opt else [])
+    withble = with_ble(base, opt)
     over, order, chosen = expected_room(withble, costs)
     cfg0, rm0 = RM.after_toggle(base, withble, "BLE", RM.NONE, costs)
     check(f"{tag}: BLE ticked in a menu: nothing is removed, no message, whether it fits or not (like any other tick)",
@@ -818,12 +818,12 @@ def room_scenarios(prof, diag):
 
 PROFILES_BLE = tuple(C.profile_names())     # (the ones with BLE on already are no case: synths and synths-2 are)
 for _prof in PROFILES_BLE:
-    for _diag in (0, 1):
-        room_scenarios(_prof, _diag)
+    for _opt in (0, 1):
+        room_scenarios(_prof, _opt)
 _removing = [(p, d) for p in PROFILES_BLE for d in (0, 1)
              if expected_room(with_ble(C.load_profile(p)[0], d), costs)[2]]
 check("BLE room: at least one profile has BLE overflow and a single item that frees enough (the rule is exercised): "
-      + ", ".join(f"{p}{'+diag' if d else ''}" for p, d in _removing), bool(_removing))
+      + ", ".join(f"{p}{'+bond' if d else ''}" for p, d in _removing), bool(_removing))
 try:
     with contextlib.redirect_stdout(io.StringIO()):
         C.resolve_cli(argparse.Namespace(config=None, profile="synths", set=[], name=None, ble_drop="FLUTE"))
@@ -834,7 +834,7 @@ check("--ble-drop with BLE off: refused with a ConfigError", _off)
 check("tools/optimist.py: build and package take --ble-drop, and the BLE test package is made with it",
       O.parser().parse_args(["build", "--set", "BLE=1", "--ble-drop", "FLUTE"]).ble_drop == "FLUTE" and
       'ble_drop="FLUTE"' in (ROOT / "tools" / "optimist.py").read_text() and
-      '"BLE_DIAG=1"' in (ROOT / "tools" / "optimist.py").read_text() and "SET_FLUTE=0" not in
+      '"BLE_CENTRAL=1"' in (ROOT / "tools" / "optimist.py").read_text() and "SET_FLUTE=0" not in
       (ROOT / "tools" / "optimist.py").read_text())
 # the estimate against real builds (docs/BUILDER.md, Budget). configure.py budget: the real build of the nearest
 # configuration whose build is known (an anchor: the defaults, costs.json "checks", a real build from this source)

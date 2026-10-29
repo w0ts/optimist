@@ -79,8 +79,8 @@ int main(void)
     /* (pairing and encryption: bt_ssp.c answers them before btl_answer, tests/bt_ssp_test.c; the opcodes are the spec's,
      * checked against Wireshark's table 2026-10-19: io_capability is escape-4 25 / 26, start_encryption_req 17) */
     in[0] = BTL_ESCAPE << 1 | 1, in[1] = BTL_X_IO_CAPABILITY_REQ;
-    check("pairing opcodes: io_capability_req is escape-4 25, named as such",
-          btl_opcode(in, 2, &n) == (BTL_ESCAPE << 8 | 25u) && !strcmp(btl_name(BTL_ESCAPE << 8 | 25u), "io_capability_req") &&
+    check("pairing opcodes: io_capability_req is escape-4 25",
+          btl_opcode(in, 2, &n) == (BTL_ESCAPE << 8 | 25u) && BTL_X_IO_CAPABILITY_REQ == 25 &&
               BTL_START_ENCRYPTION_REQ == 17 && BTL_AU_RAND == 11 && BTL_SRES == 12 && BTL_DHKEY_CHECK == 65);
     (void)o;
     in[0] = 60 << 1 | 1;
@@ -91,9 +91,11 @@ int main(void)
           btl_answer(in, 2, "X", o) == 0 && (in[0] = 7 << 1, btl_answer(in, 2, "X", o) == 0) &&
               (in[0] = 49 << 1 | 1, btl_answer(in, 1, "X", o) == 0));
     check("a short PDU: no opcode", btl_opcode(in, 0, &tid) == 0 && (in[0] = 127 << 1, btl_opcode(in, 1, &tid) == 0));
-    check("names: host_connection_req, features_res_ext, ?",
-          !strcmp(btl_name(51), "host_connection_req") && !strcmp(btl_name(127 << 8 | 4), "features_res_ext") &&
-              !strcmp(btl_name(99), "?"));
+    in[0] = BTL_HOST_CONN_REQ << 1 | 1;
+    check("opcodes: host_connection_req 51 (its TID), features_res_ext escape-4 4, an escape with no second octet none",
+          BTL_HOST_CONN_REQ == 51 && btl_opcode(in, 1, &tid) == 51u && tid == 1u &&
+              (in[0] = BTL_ESCAPE << 1, in[1] = BTL_X_FEATURES_RES, btl_opcode(in, 2, &tid) == (127u << 8 | 4u)) &&
+              BTL_X_FEATURES_RES == 4 && btl_opcode(in, 1, &tid) == 0u);
     printf(fails ? "bt_lmp_test: %d FAILED\n" : "bt_lmp_test: all ok\n", fails);
     return fails != 0;
 }

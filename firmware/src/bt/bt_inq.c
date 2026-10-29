@@ -5,24 +5,22 @@
  * felucca.c; the radio carries BLE and BR/EDR at the same time (one start-up, ble/rf_share.h; the arbitration: §9.1 and
  * BTI_ACL_PRIO below). The registers are hal/fm1_bredr.h's.
  *
- *   1a  the BR/EDR block's clock and interrupts, by `btclk run` (the console): the radio's start-up
- *       with the stored trims (hal/fm1_ble.h, the VM only), the BR/EDR init (BR §10.2), then 3 s of the slot clock
- *       (expect +1,600 a second), the 18-slot alarm (IRQ 40 bit 9) and slot timer 0 every 1,600 slots (IRQ 41).
- *       Nothing is transmitted. `btclk` prints the result (bti_st: the emulator check reads it)
- *   1b  `btinq [SECONDS] [OPTIONS]`: an inquiry with the GIAC (BR §8.1; default 10.24 s): one frame, procedure 8, ID
- *       trains by the engine, FHS and EIR responses printed as `btinq:` lines, a status line a second
- *   1c  `btscan [SECONDS] [OPTIONS]`: an inquiry scan as stock V15 runs it (BR §8.2, its frame as measured): a phone or
- *       a computer searching finds "OPTIMIST BT" (a random address each boot); the IDs heard are counted
+ *   1a  the BR/EDR block's clock and interrupts (bti_clk_start): the radio's start-up with the stored trims
+ *       (hal/fm1_ble.h, the VM only), the BR/EDR init (BR §10.2), then 3 s of the slot clock (expect +1,600 a second),
+ *       the 18-slot alarm (IRQ 40 bit 9) and slot timer 0 every 1,600 slots (IRQ 41). Nothing is transmitted (bti_st:
+ *       the emulator check reads it)
+ *   1b  an inquiry with the GIAC (BR §8.1; default 10.24 s): one frame, procedure 8, ID trains by the engine, FHS and
+ *       EIR responses (bt_audio.c's scan)
+ *   1c  an inquiry scan as stock V15 runs it (BR §8.2, its frame as measured)
  *
- *   OPTIONS (the hardware's unknowns, BR §12): even | odd | all (the exchange entries open), agc=N (a fixed RX gain
- *   step 0-15; default: start at 8 and follow each packet's RSSI, as the library), win=N (the receive window),
- *   frq=+-N (every hop table entry moved by N channels), pll=+-N (the carrier offset, in the library's crystal units),
- *   sweep (pll through the library's 9 steps, one a 1.28 s), pwr=N (TX level 0-11), ble (the LE block's enable too, as
- *   stock V15 runs it beside the BR/EDR one)
- *   `bttrace [N]` prints the first interrupts of the last run (pending bits, buffers, hop indexes, RX status, RSSI).
+ *   The run's options (bti_defaults; the hardware's unknowns, BR §12): the exchange entries' parity, the RX gain
+ *   (follow each packet's RSSI, as the library), the receive window, the hop table's offset, the carrier offset and
+ *   its sweep through the library's 9 steps, the TX level, the LE block's enable beside the BR/EDR one. The console's
+ *   btclk / btinq / btscan / btpage / bttrace / btrx and the options on their command line went with the BT_DIAG item
+ *   (2026-10-29).
  *
- * The interrupts copy what came into rings and re-arm; the main loop (bti_poll) decodes and prints (bt_inq_con.c:
- * the options, the printing and the console commands). Nothing here
+ * The interrupts copy what came into rings and re-arm; the main loop (bti_poll) decodes them (bt_inq_con.c; its lines
+ * compile to nothing, io/console.c). Nothing here
  * writes flash. */
 #include "fm1_ble.h"                               /* the radio's start-up (fm1_ble_rf_init), the LE block's init */
 #include "fm1_bredr.h"                             /* the BR/EDR block */
@@ -66,7 +64,6 @@ static uint8_t bti_le_bb[64] IN_POOL __attribute__((aligned(4)));    /* the LE b
 /* ---- what the probe saw (the emulator check reads the first 17 words: tests/bt_inq_emu_test.py) */
 enum { BTI_IDLE, BTI_CLK_RUN, BTI_CLK_DONE, BTI_INQ_RUN, BTI_INQ_DONE, BTI_NO_TRIMS = 0xE1, BTI_LATCH_HUNG = 0xE2 };
 #define BTI_MAGIC 0x31495442u                      /* "BTI1" */
-#define BTI_NH 8u
 struct bti_stat {
     uint32_t magic, phase, rf_up;
     uint32_t clk0, clk1, ms0, ms1, fine_max;       /* 1a: CLKN and ms at the start and the end */
@@ -74,8 +71,6 @@ struct bti_stat {
     uint32_t unknown40, irq41, slot0, latch_spins; /* unknown pending bits seen (OR), IRQ 41 entries, timer 0 */
     uint32_t alarm_late;                           /* the largest CLKN at the alarm minus its slot */
     uint32_t fhs, eir, dropped, trains, ids;       /* 1b / 1c */
-    uint32_t rs_key[BTI_NH], rs_n[BTI_NH], rs_other;   /* RX status words (all 16 bits) seen and their counts */
-    uint32_t pd_key[BTI_NH], pd_n[BTI_NH], pd_other;   /* IRQ 40 pending words seen and their counts */
 };
 static struct bti_stat bti_st = {BTI_MAGIC};
 
@@ -92,32 +87,8 @@ struct bti_rx {
 static struct bti_rx bti_ring[BTI_RING] IN_POOL;
 static volatile uint32_t bti_rw, bti_rr;
 
-/* the first interrupts of a run (bttrace) */
-#define BTI_TRACE 96u
-struct bti_tr {
-    uint32_t t, pend;                              /* TIMER4 ticks, IRQ 40 pending */
-    uint16_t rxstat[2], rxphdr[2], linkcntl[2], rssi[4], rx_clkn_lo, rxbit;
-    uint8_t rxtog, txtog, txfreq, rxfreq, txbufcntl[2], rxbufcntl[2];
-};
-#if FELUCCA_BT_DIAG
-static struct bti_tr bti_trace[BTI_TRACE] IN_POOL;
-#endif
-static volatile uint32_t bti_tn;
-
 enum { BTI_M_INQ, BTI_M_SCAN, BTI_M_PAGE, BTI_M_CONN };
 
-/* every reception of a run (btrx): the first BTI_RXLOG */
-#define BTI_RXLOG 128u
-struct bti_rxl {
-    uint32_t t;                                    /* TIMER4 ticks */
-    uint16_t stat, hdr, rxbit, clkn;
-    int16_t pll;
-    uint8_t mode, sub, idx, rxfreq;
-};
-#if FELUCCA_BT_DIAG
-static struct bti_rxl bti_rxlog_buf[BTI_RXLOG] IN_POOL;
-#endif
-static volatile uint32_t bti_rxn;
 static struct {
     uint32_t end_clkn, next_slot0, train_clkn, last_rx_clkn, inq_slots, sec_ms, sec_clk, alarm_at, sweep_clkn;
     uint8_t bredr_up, want_eir, train, nseen, mode, agc, sweep_i, le_up;
@@ -130,7 +101,7 @@ static struct {
     int16_t o_pll, pll_now;
     uint16_t o_win;
 } bti;
-/* the run's options as the console has them by default (bt_inq_con.c bti_opts starts from these). The screen's scan and
+/* the run's options by default. The screen's scan and
  * connect (bt_audio.c) set them too: before, they ran on the zeroed struct, TX power 0, the gain fixed at 0, the
  * interrupt at priority 0 under the audio's (the user, 2026-10-20: the AirPods answered the page, never our FHS) */
 static void bti_defaults(void)
@@ -154,25 +125,6 @@ static void bti_alarm_arm(uint32_t slots)          /* BR §6.4 (its slot kept: n
 {
     bti.alarm_at = (bti_clkn() + slots) & BTI_CLK;
     fm1_br_alarm_at(bti.alarm_at);
-}
-
-static void bti_count(uint32_t *key, uint32_t *n, uint32_t *other, uint32_t v)   /* (BT_DIAG: the status histograms) */
-{
-    uint32_t i;
-    if (!FELUCCA_BT_DIAG)
-        return;
-    for (i = 0; i < BTI_NH; i++) {
-        if (n[i] && key[i] == v) {
-            n[i]++;
-            return;
-        }
-        if (!n[i]) {
-            key[i] = v;
-            n[i] = 1;
-            return;
-        }
-    }
-    (*other)++;
 }
 
 /* ---- the radio and the BR/EDR block */
@@ -243,38 +195,6 @@ static void bti_frq_table(void)                    /* frq_table[0] (BR §7.1), m
 }
 
 /* ---- interrupts */
-static void bti_trace_add(uint32_t pend)
-{
-#if FELUCCA_BT_DIAG
-    struct fm1_br_frame *f = fm1_br_frame(bti_tab, 0);
-    struct bti_tr *t;
-    uint32_t i;
-    if (bti_tn >= BTI_TRACE)
-        return;
-    t = &bti_trace[bti_tn];
-    t->t = fm1_ticks();
-    t->pend = pend;
-    for (i = 0; i < 2u; i++) {
-        t->rxstat[i] = f->rxstat[i];
-        t->rxphdr[i] = f->rxphdr[i];
-        t->linkcntl[i] = f->linkcntl[i];
-        t->txbufcntl[i] = f->txbufcntl[i];
-        t->rxbufcntl[i] = f->rxbufcntl[i];
-    }
-    for (i = 0; i < 4u; i++)
-        t->rssi[i] = f->rssi[i];
-    t->rx_clkn_lo = f->rx_clkn_lo;
-    t->rxbit = f->rxbit;
-    t->rxtog = f->rxtog;
-    t->txtog = f->txtog;
-    t->txfreq = f->txfreq;
-    t->rxfreq = f->rxfreq;
-    bti_tn++;
-#else
-    (void)pend;
-#endif
-}
-
 static void bti_push(uint32_t kind, uint32_t idx, uint32_t stat, uint32_t clkn, const uint8_t *src, uint32_t len)
 {
     struct fm1_br_frame *f = fm1_br_frame(bti_tab, 0);
@@ -317,29 +237,6 @@ static void bti_agc_follow(struct fm1_br_frame *f)   /* BR §4 RSSI1: step up be
     f->rxgain0 = bti.agc;
 }
 
-static void bti_rxlog(uint32_t idx, uint32_t stat)   /* one reception into btrx's log (BT_DIAG) */
-{
-#if FELUCCA_BT_DIAG
-    struct fm1_br_frame *f = fm1_br_frame(bti_tab, 0);
-    struct bti_rxl *l;
-    if (bti_rxn >= BTI_RXLOG)
-        return;
-    l = &bti_rxlog_buf[bti_rxn++];
-    l->t = fm1_ticks();
-    l->stat = (uint16_t)stat;
-    l->hdr = f->rxphdr[idx];
-    l->rxbit = f->rxbit;
-    l->clkn = f->rx_clkn_lo;
-    l->pll = bti.pll_now;
-    l->mode = bti.mode;
-    l->sub = 0;
-    l->idx = (uint8_t)idx;
-    l->rxfreq = f->rxfreq;
-#else
-    (void)idx, (void)stat;
-#endif
-}
-
 static void bp_rx(void);
 static int bp_alarm(uint32_t now);
 
@@ -351,8 +248,6 @@ static void bti_rx_frame(void)                     /* BR §8.1 "On IRQ 40 RX": t
     if (clkn == bti.last_rx_clkn)
         return;                                    /* (this frame has nothing new: BR §6.2) */
     bti.last_rx_clkn = clkn;
-    bti_count(bti_st.rs_key, bti_st.rs_n, &bti_st.rs_other, stat);
-    bti_rxlog(idx, stat);
     if ((stat >> 8) == 0x8Fu)
         bti_agc_follow(f);
     if (bti.mode == BTI_M_SCAN) {                  /* an inquiry scan hears IDs (BR §8.2); the engine answers */
@@ -441,11 +336,6 @@ void bti_bt_irq(void)                              /* IRQ 40 (BR §6.2), via isr
 {
     uint32_t p = fm1_br_ipnd();
     bti_st.irq40++;
-    if (bti_st.phase == BTI_INQ_RUN) {
-        bti_count(bti_st.pd_key, bti_st.pd_n, &bti_st.pd_other, p);
-        if (p != (1u << 9))
-            bti_trace_add(p);
-    }
     bti_st.unknown40 |= p & ~(uint32_t)FM1_BR_IPND_KNOWN;
     if (p & ~(uint32_t)FM1_BR_IPND_KNOWN)          /* (acknowledged too: an unacknowledged bit would hold the line) */
         fm1_br_iack(p & ~(uint32_t)FM1_BR_IPND_KNOWN & 0xFFFFu);
@@ -628,8 +518,6 @@ static void bti_go(uint32_t slots)
         if (i >= 17u)
             ((uint32_t *)&bti_st)[i] = 0;
     bti_st.rx_irqs = bti_st.irq40 = bti_st.alarms = bti_st.other40 = bti_st.unknown40 = 0;
-    bti_tn = 0;
-    bti_rxn = 0;
     bti_rr = bti_rw;
     if (bti.mode == BTI_M_INQ)
         bti.nseen = 0;
@@ -705,14 +593,8 @@ static void bta_named(const uint8_t a[6], const char *nm);
 
 static void bti_poll(void)                         /* the main loop */
 {
-#if FELUCCA_CDC && FELUCCA_BT_DIAG
-    static uint8_t done_printed;
-#endif
     if (bti_st.phase == BTI_CLK_RUN && fm1_ms - bti_st.ms0 >= 3000u) {
         bti_clk_end();
-#if FELUCCA_CDC && FELUCCA_BT_DIAG
-        bti_clk_print();                           /* (shown only with a terminal open: `btclk` again) */
-#endif
     }
     while (bti_rr != bti_rw) {
         RING_PUBLISH();
@@ -724,34 +606,7 @@ static void bti_poll(void)                         /* the main loop */
         bp_poll();
     if (bti_st.phase == BTI_INQ_RUN && fm1_ms - bti.sec_ms >= 1000u) {   /* once a second */
         bti.sec_ms += 1000u;
-#if FELUCCA_CDC && FELUCCA_BT_DIAG               /* (the console's lines: with no console they print nothing) */
-        if (bti.mode >= BTI_M_PAGE)
-            bp_print_sec();
-        else
-            bti_print_sec();
-#endif
         if (bti.mode >= BTI_M_PAGE)
             bp_sec_tick();                         /* (the link's channel assessment, bt_afh.c; its channel line) */
     }
-#if FELUCCA_CDC && FELUCCA_BT_DIAG
-    if (bti_st.phase == BTI_INQ_RUN) {
-        done_printed = 0;
-    } else if (bti_st.phase == BTI_INQ_DONE && !done_printed) {
-        done_printed = 1;
-        if (bti.mode >= BTI_M_PAGE) {
-            bp_print_sec();
-            con_puts(bti.mode == BTI_M_CONN ? "btpage: the link is closed" : "btpage: page timeout, no answer");
-            con_puts(" ('btrx' for every reception)\r\n");
-            return;
-        }
-        bti_print_sec();
-        con_puts(bti_tag());
-        bti_kv("done ", bti.inq_slots * 5u / 8u);
-        if (bti.mode == BTI_M_INQ)
-            bti_kv(" ms, devices=", bti.nseen);
-        else
-            bti_kv(" ms, IDs heard=", bti_st.ids);
-        con_puts(" ('bttrace' for the first interrupts, 'btrx' for every reception)\r\n");
-    }
-#endif
 }

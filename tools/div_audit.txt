@@ -243,7 +243,6 @@ src/seq/auto_slot.c:sa_knob:trk_len(t) | trk_len (seq.c) returns P_SLEN when abo
 src/storage/project.c:dly_map:(a[i+1u]-a[i]) | a is DLYC_X or DLYC_Y (dly_freq_in / dly_freq_out), both strictly rising: neighbouring entries differ
 src/drums/lane_play.c:denv_fix:c->atk | guarded on the same line (c->atk ? 32768u / c->atk : 0u)
 src/drums/lane_play.c:denv_fix:c->dec | guarded on the same line (c->dec ? 32768u / c->dec : 0u)
-src/bt/bt_inq_con.c:bti_clk_print:ms | guarded on the same line (ms ? ... : 0): a 1a run that has not lasted a millisecond prints 0
 src/fx/insfx/tapespit.c:__attribute__:(20+3*a) | ifx_ts_block: a is the amount, 0 .. 127 (uint8_t s->a): 20 .. 401
 src/fx/insfx/tapespit.c:__attribute__:(uint32_t)(s->env>256?s->env:256) | ifx_ts_block: at least 256 by the ternary on the same line
 src/ui/optimist/op_tools.c:tl_quantize:(int32_t)(div==2u||div==4u?div:1u) | 2, 4, or 1 by the ternary on the same line
@@ -269,7 +268,6 @@ src/engines/clipper/eng_wave.c:wt_build_frame:(H+1u-h0) | H = 128 >> l >= 2, h0 
 src/engines/clipper/eng_wave.c:wt_ifft:len | starts at 2 and doubles: >= 2
 src/engines/clipper/eng_wave.c:wt_level:inc | guarded: inc ? .. : 1000
 # 2026-10-23: the durations table (DUR_48), the ANALOG 2 filter models, the effects memory, BT diagnostics
-src/bt/bt_page.c:bp_print_sec:n | guarded: each of the three divides is inside "if (n)" (the RSSI and the rxbit averages, n read with the IRQs held)
 src/core/voice.c:lfo_wave:(DUR_U48*(d)) | the LSYNC_KE macro (LSYNC_KT's const initializer; the scanner names the function after it): d is a DUR_LIST entry (768 .. 3) and DUR_U48 = BEAT_U / 48 a constant: a compile-time constant >= 3 x BEAT_U / 48
 src/engines/analog/a2_models.c:__attribute__:(27.f+9.f*x2) | a2m_tanh (float): x2 = x * x >= 0, so >= 27
 src/engines/analog/a2_models.c:__attribute__:(1.f+g) | a2m_ladder (float): g = a2m_g() = tan(pi fc / FS) with fc = 30 x 2^(cut ...) > 0 and at most 0.45 FS (cut clamped 0 .. 127 << 8 by analog_render): g > 0, so > 1

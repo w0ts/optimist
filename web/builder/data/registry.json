@@ -5059,7 +5059,7 @@
     "bit": 252,
     "default": 0,
     "parent": null,
-    "desc": "BLE MIDI as the stock firmware offers it (named Optimist XXXX, the BLE-MIDI service), from a stack written for Optimist (docs/BLE-STACK.md): BLE in plays the synth, the FM-1's own notes go out with real timestamps. Tested on an FM-1 with macOS Audio MIDI Setup (not yet with iOS or Windows). The radio's start-up tables, captured from the stock V15 firmware, are included: no V15 file is needed (FM1_STOCK_FWSC makes a fresh capture instead, with the same result). Bluetooth starts OFF: switch it on in SYSTEM > Bluetooth. About 32 KB of flash and 6.5 KB of RAM (the menu shows the measured figures; BLE_DIAG below adds more); where the build then overflows, ticking it removes the smallest single item that frees enough (sample sets first, then other items), or the one you pick instead.",
+    "desc": "BLE MIDI as the stock firmware offers it (named Optimist XXXX, the BLE-MIDI service), from a stack written for Optimist (docs/BLE-STACK.md): BLE in plays the synth, the FM-1's own notes go out with real timestamps. Tested on an FM-1 with macOS Audio MIDI Setup (not yet with iOS or Windows). The radio's start-up tables, captured from the stock V15 firmware, are included: no V15 file is needed (FM1_STOCK_FWSC makes a fresh capture instead, with the same result). Bluetooth starts OFF: switch it on in SYSTEM > Bluetooth. About 32 KB of flash and 6.5 KB of RAM (the menu shows the measured figures); where the build then overflows, ticking it removes the smallest single item that frees enough (sample sets first, then other items), or the one you pick instead.",
     "experimental": false,
     "notice": "",
     "off_warning": "",
@@ -5074,41 +5074,12 @@
     "choices": [],
     "provenance": null,
     "children": [
-     "BLE_DIAG",
      "BLE_BOND",
      "BLE_CENTRAL"
     ],
     "hidden": false,
     "shown_under": null,
     "tested": "tested on an FM-1 with macOS Audio MIDI Setup, not yet with iOS or Windows",
-    "provenance_line": ""
-   },
-   {
-    "key": "BLE_DIAG",
-    "flag": "FELUCCA_BLE_DIAG",
-    "label": "BLE diagnostics: the console's blell, counters and rings",
-    "group": "Connectivity",
-    "bit": 253,
-    "default": 0,
-    "parent": "BLE",
-    "desc": "For finding BLE faults: the console's blell command (needs the serial console, USB_CONSOLE) and the counters and rings behind it (link-layer events, the radio's receive and transmit state, the protocol packets, BLE-MIDI in). About 6 KB of flash and 2.3 KB of RAM, and 6 KB of flash more with the console (USB_CONSOLE) for blell itself. Leave it off for normal use: BLE works the same without it; bletrim and blevm stay, and so does the boot breadcrumb.",
-    "experimental": false,
-    "notice": "",
-    "off_warning": "",
-    "env": "",
-    "target_only": true,
-    "symbols": [
-     "con_blell"
-    ],
-    "no_image": false,
-    "fixed": false,
-    "head": false,
-    "choices": [],
-    "provenance": null,
-    "children": [],
-    "hidden": false,
-    "shown_under": null,
-    "tested": "emulator-tested only",
     "provenance_line": ""
    },
    {
@@ -5203,40 +5174,10 @@
     "head": false,
     "choices": [],
     "provenance": null,
-    "children": [
-     "BT_DIAG"
-    ],
-    "hidden": false,
-    "shown_under": null,
-    "tested": "on the FM-1: AirPods, a Sony WH-1000XM4 and a Bose SoundLink Mini, with BLE MIDI and the Mirror app at once (the user, 2026-10-25); host-tested (SSP, SAFER+, SBC encoder, AVDTP, L2CAP)",
-    "provenance_line": ""
-   },
-   {
-    "key": "BT_DIAG",
-    "flag": "FELUCCA_BT_DIAG",
-    "label": "Bluetooth audio diagnostics: the console's btrx / bttrace, counters and logs",
-    "group": "Connectivity",
-    "bit": 363,
-    "default": 0,
-    "parent": "BT_AUDIO",
-    "desc": "For finding Bluetooth audio faults on a console build (USB_CONSOLE): the btrx and bttrace logs, the status histograms and the per-second counters (receive status bits, signal level, gain), and the live btpage pll= / agc= / follow= commands, and every line the Bluetooth stack writes to the console (btinq, btpage). About 14 KB of flash and 6.4 KB of RAM with the console. Leave it off for normal use: the audio works the same without it.",
-    "experimental": false,
-    "notice": "",
-    "off_warning": "",
-    "env": "",
-    "target_only": true,
-    "symbols": [
-     "con_btrx"
-    ],
-    "no_image": false,
-    "fixed": false,
-    "head": false,
-    "choices": [],
-    "provenance": null,
     "children": [],
     "hidden": false,
     "shown_under": null,
-    "tested": "emulator-tested only",
+    "tested": "on the FM-1: AirPods, a Sony WH-1000XM4 and a Bose SoundLink Mini, with BLE MIDI and the Mirror app at once (the user, 2026-10-25); host-tested (SSP, SAFER+, SBC encoder, AVDTP, L2CAP)",
     "provenance_line": ""
    },
    {
