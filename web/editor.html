@@ -3622,6 +3622,18 @@ function wifiCheck(name, pass, saved) {
   return { ssid, pass };
 }
 
+/* The default password of an Optimist access point: a function of its name alone (the FM-1's wifi_ap_default_key, wifi/wifi_ap.c: two
+ * FNV-1a runs over the salts "OPTIMIST-AP-KEY/1:" and "/2:" and the name, five bits a character, 23 letters without i l o and 8 digits
+ * without 0 1, the table's last place repeating w). The FM-1 never sends it: this page works it out from the name. */
+function wifiApDefaultKey(name) {
+  const T = "abcdefghjkmnpqrstuvwxyz23456789w", enc = new TextEncoder();
+  const fnv = (salt) => { let h = 0x811C9DC5; for (const c of [...enc.encode(salt), ...name]) h = Math.imul(h ^ c, 0x01000193) >>> 0; return h; };
+  const a = fnv("OPTIMIST-AP-KEY/1:"), b = fnv("OPTIMIST-AP-KEY/2:");
+  let k = "";
+  for (let i = 0; i < 6; i++) k += T[(a >>> (27 - 5 * i)) & 31];
+  for (let i = 0; i < 2; i++) k += T[(b >>> (27 - 5 * i)) & 31];
+  return k;
+}
 /* MODE AP's password (and name) check before anything is sent: {name bytes, pass} or {err: a TEXT key}; an empty name is the automatic one */
 function wifiApCheck(name, pass) {
   const nm = typeof name === "string" ? new TextEncoder().encode(name) : name;
@@ -10933,18 +10945,6 @@ async function cpRestoreZip(file) {                 /* each entry named as a wri
 const wf = { d: null, s: null, msg: "", timer: 0, until: 0, stop: 0, forget: -1, forgetT: 0, top: null, list: null, add: null, apf: null, apClear: 0 };
 const wifiIp = (n) => [24, 16, 8, 0].map((sh) => Math.floor(n / 2 ** sh) % 256).join(".");
 const wifiSame = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
-/* The default password of an Optimist access point: a function of its name alone (the FM-1's wifi_ap_default_key, wifi/wifi_ap.c: two
- * FNV-1a runs over the salts "OPTIMIST-AP-KEY/1:" and "/2:" and the name, five bits a character, 23 letters without i l o and 8 digits
- * without 0 1, the table's last place repeating w). The FM-1 never sends it: this page works it out from the name. */
-function wifiApDefaultKey(name) {
-  const T = "abcdefghjkmnpqrstuvwxyz23456789w", enc = new TextEncoder();
-  const fnv = (salt) => { let h = 0x811C9DC5; for (const c of [...enc.encode(salt), ...name]) h = Math.imul(h ^ c, 0x01000193) >>> 0; return h; };
-  const a = fnv("OPTIMIST-AP-KEY/1:"), b = fnv("OPTIMIST-AP-KEY/2:");
-  let k = "";
-  for (let i = 0; i < 6; i++) k += T[(a >>> (27 - 5 * i)) & 31];
-  for (let i = 0; i < 2; i++) k += T[(b >>> (27 - 5 * i)) & 31];
-  return k;
-}
 function wifiApStatus(ap) {   /* MODE AP's status as [words, status colour] */
   if (ap.status === WIFI.AP.NOPASS) return [t("wifiApNoPass"), "warn"];
   if (ap.status === WIFI.AP.STARTING) return [t("wifiApStarting"), "warn"];
