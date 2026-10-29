@@ -1421,14 +1421,6 @@
     "ramtext": 420
    }
   },
-  "BT_AFH": {
-   "0": {
-    "flash": 0,
-    "ram": 0,
-    "pool": 0,
-    "ramtext": 0
-   }
-  },
   "BT_DIAG": {
    "1": {
     "flash": 5752,
@@ -3023,7 +3015,6 @@
     "CACHE_RAM": 2,
     "BLE": 1,
     "BT_AUDIO": 1,
-    "BT_AFH": 0,
     "CHANCE": 1,
     "KEYLIT": 0,
     "QNT_SEQ": 1,

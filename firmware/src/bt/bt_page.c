@@ -5,9 +5,7 @@
  * features, version and host connection requests, the answers to what the device asks, setup complete. Every step is
  * printed as a `btpage:` line. Included by bt_inq.c (its frame, rings, options and printing). No vendor code. */
 #include "bt_lmp.c"
-#if FELUCCA_BT_AFH
 #include "bt_afh.c"                                /* the channels the device fails on out of the hopping (LMP_set_AFH) */
-#endif
 
 #define BP_OFF_FHS 4252u                           /* our FHS for the page (18 B) */
 #define BP_OFF_TX0 4272u                           /* the two LMP TX payloads (17 B each) */
@@ -395,7 +393,6 @@ static int bp_alarm(uint32_t now)                  /* the alarm in the page / co
         bti_run_stop();
         return 1;
     }
-#if FELUCCA_BT_AFH
     if (bp.afh_pending) {                          /* the hop set announced (LMP_set_AFH) switches at its instant: the
                                                     * alarm lands on it (Part C 4.1.4: the slave switches there too) */
         uint32_t left = (bp.afh_at - now) & BTI_CLK;
@@ -410,7 +407,6 @@ static int bp_alarm(uint32_t now)                  /* the alarm in the page / co
             return 1;
         }
     }
-#endif
     bti_alarm_arm(18u);
     return 1;
 }
@@ -685,7 +681,6 @@ static void bp_print_sec(void)
         }
 #if FELUCCA_BT_DIAG
         bti_kv(" flow0=", bp.flow0);
-#if FELUCCA_BT_AFH
         {
             uint32_t used = 0;
             for (i = 0; i < 79u; i++)
@@ -694,7 +689,6 @@ static void bp_print_sec(void)
             bti_kv("/", bp.afh_switches);
             con_puts(bp.afh_pending ? "p" : "");
         }
-#endif
         con_puts(" pll=");
         con_dec(bti.pll_now);
         {
@@ -766,7 +760,6 @@ static void bp_print_sec(void)
 }
 
 #endif
-#if FELUCCA_BT_AFH
 static void bp_afh_send(uint32_t on)               /* the hop set to the engine's AFH table and map, LMP_set_AFH to the
                                                     * device with the switch's instant (bp_alarm switches there) */
 {
@@ -796,7 +789,6 @@ static void bp_afh_assess(const uint16_t ch[80])  /* every BP_CH_SEC s of the li
     if (bt_afh_classify(ch, bp.afh_map))
         bp_afh_send(1);
 }
-#endif
 static void bp_sec_tick(void)                      /* the main loop, once a second in the page / connection modes */
 {
     uint16_t ch[80];
@@ -822,11 +814,7 @@ static void bp_sec_tick(void)                      /* the main loop, once a seco
     bti_kv("| ", ch[79]);
     con_puts("}\r\n");
 #endif
-#if FELUCCA_BT_AFH
     bp_afh_assess(ch);
-#else
-    (void)ch;
-#endif
 }
 static void bp_poll(void)                          /* the main loop, page / connection modes */
 {
@@ -921,7 +909,7 @@ static int bp_start(const uint8_t addr[6], uint32_t slots)
     for (i = 0; i < 9u; i++)
         bp.afh_map[i] = 0xFFu;                     /* (a new link hops over all 79: the device's holes measured again) */
     bp.afh_map[9] = 0x7Fu;
-    bp.afh_on = FELUCCA_BT_AFH && !FELUCCA_BT_DIAG;   /* (a diagnostics build switches only when told: btpage afh=) */
+    bp.afh_on = !FELUCCA_BT_DIAG;   /* (a diagnostics build switches only when told: btpage afh=) */
     bp.afh_pending = 0;
     bp.afh_switches = 0;
     bp_mq.r = bp_mq.w;                            /* (a new link: no audio queued) */
@@ -995,7 +983,6 @@ static void con_btpage(const char *p)
         con_puts(bp.agc_follow ? "btpage: agc follows\r\n" : "btpage: agc fixed\r\n");
         return;
     }
-#if FELUCCA_BT_AFH
     if (bti_opt_num(&p, "afh", &v)) {             /* AFH in the running link (a diagnostics build switches only when
                                                     * told, bp_start): 0 off (all 79 again), 1 on (the map as assessed,
                                                     * the switch at once), 3 the map reset to all 79 then on (the
@@ -1032,7 +1019,6 @@ static void con_btpage(const char *p)
         con_puts("\r\n");
         return;
     }
-#endif
 #endif
     if (!bp_parse_addr(&p, a)) {
         con_puts("btpage AA:BB:CC:DD:EE:FF [SECONDS] [OPTIONS] | stop\r\n");

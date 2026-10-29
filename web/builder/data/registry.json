@@ -5204,40 +5204,11 @@
     "choices": [],
     "provenance": null,
     "children": [
-     "BT_AFH",
      "BT_DIAG"
     ],
     "hidden": false,
     "shown_under": null,
     "tested": "on the FM-1: AirPods, a Sony WH-1000XM4 and a Bose SoundLink Mini, with BLE MIDI and the Mirror app at once (the user, 2026-10-25); host-tested (SSP, SAFER+, SBC encoder, AVDTP, L2CAP)",
-    "provenance_line": ""
-   },
-   {
-    "key": "BT_AFH",
-    "flag": "FELUCCA_BT_AFH",
-    "label": "Bluetooth audio: adaptive frequency hopping (the channels the headset fails on skipped)",
-    "group": "Connectivity",
-    "bit": 395,
-    "default": 1,
-    "parent": "BT_AUDIO",
-    "desc": "What every phone's Bluetooth controller does: the FM-1 counts the headset's answers per radio channel (79 of them) every 30 s and takes the channels it fails on out of the hopping (LMP_set_AFH; at least 20 stay), so a few bad channels no longer stall the stream. Measured need and result (2026-10-23, a WH-1000XM4): as the FM-1 warmed, channels 7 MHz apart went deaf (a clock harmonic's comb) and the stream stalled and crackled on them; with this on, 6 channels dropped over 6 minutes, every switch held and not one audio packet was lost. A console build (BT_DIAG) switches only when told (btpage afh=0 / 1 / 3).",
-    "experimental": false,
-    "notice": "",
-    "off_warning": "",
-    "env": "",
-    "target_only": true,
-    "symbols": [
-     "bt_afh_classify"
-    ],
-    "no_image": false,
-    "fixed": false,
-    "head": false,
-    "choices": [],
-    "provenance": null,
-    "children": [],
-    "hidden": false,
-    "shown_under": null,
-    "tested": "emulator-tested only",
     "provenance_line": ""
    },
    {

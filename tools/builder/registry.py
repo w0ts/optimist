@@ -114,6 +114,7 @@ RETIRED = {
     "STOCK_SUPPLY": "the core rails are raised to the FM-1's stock values at start-up in every build for the FM-1 (retired 2026-10-29, bit 62; any old STOCK_SUPPLY value is ignored)",
     "REV_HALF": "the half-rate reverb (the ROOM at 22.05 kHz, a half-size ring for PLATE / FDN8 / VTINY) was dropped (2026-10-29, bit 123; the user: \"drop those\"): an old .config with REV_HALF=1 builds the full-rate reverb",
     "REV_HB_LONG": "the steep 63-tap filter of the half-rate reverbs was dropped (2026-10-29, bit 430; the user: \"drop those\"): the reverbs keep the 15-tap half-band",
+    "BT_AFH": "Bluetooth audio always hops adaptively, the channels the headset fails on skipped (bt/bt_afh.c; retired 2026-10-29, bit 395; the user: \"always on\"; any old BT_AFH value is ignored)",
     "KNOB_ONEREST": "the knobs are always read with Felucca 1.6's decoder (one rest state a detent, fast turns counted; "
                     "retired 2026-10-14, released in Felucca 1.1.5 #126 and unchanged since)",
 }
@@ -127,7 +128,7 @@ WAS_COUNT = frozenset({"INS_CHORUS", "INS_DELAY", "INS_JCHORUS", "INS_FLANGER", 
                        "ARENA"})   # (ARENA: its KB until 2026-10-29, the free RAM since: on)
 
 ALWAYS_ON_TARGET = {"FELUCCA_DUAL": 2, "FELUCCA_STOCK_SUPPLY": 1}   # (target builds only, no item: system/dual.c, system/supply.c; 2026-10-29)
-HASH_AS = {"KEYLIT": 1, "LIGHTS": 1, "BRIGHT": 0, "SIMD": 0, "KNOB_ONEREST": 1, "MONO_RELEASE": 1, "ST_STRICT": 1, "USB_FLOW": 1, "SHED_FADE": 1, "KEYS_FAST": 1, "TRS_NOISE": 1, "BK_CHECK": 1, "LAYER_QUIET": 1, "DLY_HALVE": 1, "LFO2": 1, "GLIDE": 1, "UI": 1, "ICONS": 0, "OVERVIEW": 0, "OV_ARP": 1, "DRUM_STEP": 1, "CHORD_NAMES": 1, "BPM_LOCK": 0, "MOTION_MARK": 1, "SEL_PAGES": 0, "BIGVALS": 0, "DRUM_ACCENT": 1, "PAGE_LINES": 1, "TAB_IN_POOL": 1, "VOICE_OWN": 1, "DLY_DOT": 1, "CHO_EXACT": 1, "JUNO_FINE": 1, "DUAL": 2, "STOCK_SUPPLY": 1, "REV_HALF": 0, "REV_HB_LONG": 0}   # (each was its default in every profile)
+HASH_AS = {"KEYLIT": 1, "LIGHTS": 1, "BRIGHT": 0, "SIMD": 0, "KNOB_ONEREST": 1, "MONO_RELEASE": 1, "ST_STRICT": 1, "USB_FLOW": 1, "SHED_FADE": 1, "KEYS_FAST": 1, "TRS_NOISE": 1, "BK_CHECK": 1, "LAYER_QUIET": 1, "DLY_HALVE": 1, "LFO2": 1, "GLIDE": 1, "UI": 1, "ICONS": 0, "OVERVIEW": 0, "OV_ARP": 1, "DRUM_STEP": 1, "CHORD_NAMES": 1, "BPM_LOCK": 0, "MOTION_MARK": 1, "SEL_PAGES": 0, "BIGVALS": 0, "DRUM_ACCENT": 1, "PAGE_LINES": 1, "TAB_IN_POOL": 1, "VOICE_OWN": 1, "DLY_DOT": 1, "CHO_EXACT": 1, "JUNO_FINE": 1, "DUAL": 2, "STOCK_SUPPLY": 1, "REV_HALF": 0, "REV_HB_LONG": 0, "BT_AFH": 1}   # (each was its default in every profile)
 
 # Never offered: used by X0X only by permission of its author, no licence
 FORBIDDEN = {
@@ -1368,15 +1369,8 @@ _add("BT_AUDIO", "FELUCCA_BT_AUDIO", "Bluetooth Classic Audio (A2DP Source, SBC)
           "e Simple Pairing (Just Works), E0 encryption, L2CAP, AVDTP and a fixed-point SBC encoder. Streams on "
           "the FM-1 to AirPods, a Sony WH-1000XM4 and a Bose SoundLink Mini (2026-10-23).",
      symbols=("ba_sbc", "bt_sbc_encode"))
-_add("BT_AFH", "FELUCCA_BT_AFH", "Bluetooth audio: adaptive frequency hopping (the channels the headset fails on skipped)", M,
-     395, default=1, parent="BT_AUDIO", target_only=True,
-     desc="What every phone's Bluetooth controller does: the FM-1 counts the headset's answers per radio channel "
-          "(79 of them) every 30 s and takes the channels it fails on out of the hopping (LMP_set_AFH; at least 20 "
-          "stay), so a few bad channels no longer stall the stream. Measured need and result (2026-10-23, a "
-          "WH-1000XM4): as the FM-1 warmed, channels 7 MHz apart went deaf (a clock harmonic's comb) and the stream "
-          "stalled and crackled on them; with this on, 6 channels dropped over 6 minutes, every switch held and not "
-          "one audio packet was lost. A console build (BT_DIAG) switches only when told (btpage afh=0 / 1 / 3).",
-     symbols=("bt_afh_classify",))
+# (bit 395, BT_AFH, retired 2026-10-29: Bluetooth audio always skips the channels the headset fails on, bt/bt_afh.c; RETIRED above;
+#  never reuse the bit)
 _add("BT_DIAG", "FELUCCA_BT_DIAG", "Bluetooth audio diagnostics: the console's btrx / bttrace, counters and logs", M,
      363, default=0, parent="BT_AUDIO", target_only=True,
      desc="For finding Bluetooth audio faults on a console build (USB_CONSOLE): the btrx and bttrace logs, the "
