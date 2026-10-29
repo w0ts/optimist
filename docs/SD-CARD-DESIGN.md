@@ -623,6 +623,24 @@ checked: only the build time and the commit differ).
   bytes into the selected part's tone (`sdm_cz_load`; the part on CZ first), as a single-tone dump: kept until the part's
   TONE or engine changes (a project keeps the TONE number).
 
+**The sample sets on the card** (the user, 2026-10-29: "in SD card mode, ticking a sample set must NOT grow the flash";
+built 2026-10-29, host-tested only). SD card mode (the builder's `core.card_sets`: LAYOUT 1 with SDCARD) builds no set
+into the image, ticked or not (`gen_samples.py`, FELUCCA_SAMPLES_CARD=1: each of PIANO BASS VIBES HORNS STRGS FLUTE
+SCRCH an empty set, its number and its presets kept, its bit in `SMP_CARD_SETS`; PERC stays with the sampled kits); the
+estimate counts the sets 0 B there (`core.py image_cfg`) and the menu says "on the card". The ticks choose what the SD
+card zip carries: `OPTIMIST/SAMPLES/<SET>/Z0.WAV ..` (`gen_samples.py --card`), one file a zone in key order, the very
+ADPCM the flash would hold decoded to 16-bit mono PCM at 22.05 kHz, its root and loop in "smpl" (the flash loop restarts
+from the state stored at ls, so the card's loop is ls - 1 .. le - 1), its keys in "inst" (`sst_wav` reads them). SAMPLE
+on a card set (`eng_sample.c smp_bank_on`): the zone whose keys hold the note, streamed as a CARD sample is (its head
+the pre-buffer, a ring a voice); the plan (`sd_stream_plan.c`, `SST_PART_BANK`) finds the zones by path (no index
+needed; the parts on one set share them) and counts the part's rings as a CARD part's. A set not on the card: the part
+silent, "PIANO NOT ON CARD" said once (`sd_mode.c sdm_bank_tick`), never another set; MISSING after a load is not said
+for it (`miss.c`). A card set plays two octaves above a zone's root at most (a 22.05 kHz file reads as a 44.1 kHz one an
+octave up), the flash's three: within that, `tests/sd_sets_test.c` renders every set's factory presets from the card
+bit-identical to the flash's. GRAIN (and STRETCH) jump through a set's samples, which a stream cannot follow: on a card
+set they are silent and a load says MISSING (loading a set whole into the arena, as SLICE CARD does, would be the way:
+PIANO is 44 KB of ADPCM, beside the effects' lines in a 96 KB arena: not built).
+
 **Factory presets on the card; the SD card zip** (the user, 2026-10-26: "all presets (user or factory) go on the card",
 "card only in SD mode"): SD card mode carries no factory preset tables (core.h `PRESETS_CARD`, `PRESETS_PTR`: each
 engine's table named only inside sizeof, its count kept; BANK, the level trims and ANALOG 2's extras left out with them:

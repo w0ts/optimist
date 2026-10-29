@@ -61,6 +61,7 @@ typedef struct {                                     /* a card sample (the main 
     int8_t root;                                     /* the file's unity note (smpl) - C4: the note it plays at its rate */
     uint8_t bits, chans;                             /* SST_F8 / SST_F16; 1 or 2 */
     uint8_t fsh;                                     /* log2 of a frame's bytes */
+    uint8_t lo, hi;                                  /* the file's keys ("inst"; none: 0 .. 127): a card set's zone */
     volatile uint8_t ready;                          /* 1: the audio may play it */
 } sst_src_t;
 
@@ -102,6 +103,9 @@ typedef struct {
 static sst_src_t sst_src[SST_NSRC] IN_POOL_AUDIO;
 static uint8_t sst_part_src[SST_NSLOT] = {[0 ... SST_NSLOT - 1u] = 0xFF};   /* the source each part's CARD (each card
                                                                              * lane) plays, 0xFF none (sd_stream_plan.c) */
+/* a part on a card set (SD card mode's built-in sets: gen_samples.py SMP_CARD_SETS, sd_stream_plan.c SST_PART_BANK):
+ * its zones, sources sst_bank_src[part] .. + sst_bank_n[part] - 1 (one a Z<k>.WAV, in key order), 0 none */
+static uint8_t sst_bank_src[SST_NPART], sst_bank_n[SST_NPART];
 static sst_t sst[SST_N] IN_POOL_AUDIO;
 static volatile uint32_t sst_dry;                    /* streams that ran dry (the console's sd stream) */
 static volatile uint32_t sst_nostream;               /* notes on a card sample with no ring free (silent) */

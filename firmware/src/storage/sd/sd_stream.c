@@ -304,6 +304,8 @@ static FRESULT sst_wav(FIL *fp, sst_src_t *s, uint8_t *buf)
     s->dlen = 0;
     s->lps = s->lpe = 0;
     s->root = 0;
+    s->lo = 0;
+    s->hi = 127;
     while (at + 8u <= size) {
         if ((r = f_lseek(fp, at)) != FR_OK || (r = f_read(fp, buf, 8, &got)) != FR_OK)
             return r;
@@ -325,6 +327,13 @@ static FRESULT sst_wav(FIL *fp, sst_src_t *s, uint8_t *buf)
         } else if (!memcmp(buf, "data", 4)) {
             s->dofs = at + 8u;
             s->dlen = n < size - s->dofs ? n : size - s->dofs;
+        } else if (!memcmp(buf, "inst", 4) && n >= 7u) {   /* (its keys: a card set's zone, gen_samples.py card_wav) */
+            if ((r = f_read(fp, buf + 8, 7, &got)) != FR_OK)
+                return r;
+            if (got == 7u && buf[8 + 3] <= buf[8 + 4] && buf[8 + 4] <= 127u) {
+                s->lo = buf[8 + 3];
+                s->hi = buf[8 + 4];
+            }
         } else if (!memcmp(buf, "smpl", 4) && n >= 36u) {
             if ((r = f_read(fp, buf + 8, 36 + 24, &got)) != FR_OK)
                 return r;
