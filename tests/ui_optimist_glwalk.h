@@ -67,7 +67,7 @@ static int glw_moves(uint32_t scr, uint32_t i, uint32_t role)
 {
     cell_t c;
     char v0[16], v1[16];
-    uint32_t h0 = glw_state(), h1, n = 0;
+    uint32_t h0 = glw_state(), h1, n = 0, det;
     int32_t s = 1;
     glw_line(scr, i, &c, v0);
     turn(role, s);
@@ -77,18 +77,21 @@ static int glw_moves(uint32_t scr, uint32_t i, uint32_t role)
     }
     for (n = 1, glw_line(scr, i, &c, v1); !strcmp(v0, v1) && n < 4u; n++, glw_line(scr, i, &c, v1))
         turn(role, s);
-    if (!strcmp(v0, v1)) {                              /* still the same text: a value at its top end (LINK's default, ON+S/S): back, the other way */
-        while (n--)
-            turn(role, -s);
+    if (!strcmp(v0, v1)) {                              /* still the same text after four turns: a value at its end (LINK's default, ON+S/S, is the top
+                                                         * of its list): those turns stopped there and moved nothing, so no undo; the other way */
         s = -s;
-        for (n = 0; !strcmp(v0, v1) && n < 4u; n++) {
+        for (n = 0; !strcmp(v0, v1) && n < 4u; ) {
             turn(role, s);
+            n++;
             glw_line(scr, i, &c, v1);
         }
     }
     h1 = glw_state();
+    det = n;
     while (n--)
         turn(role, -s);
+    if (!(h1 != h0 && strcmp(v0, v1) != 0 && ui.row[scr] == i))
+        printf("  glwalk: %s moved %s -> %s (turning %d, %u detents), state %s, row %u of %u\n", c.label ? c.label : "-", v0, v1, (int)s, det, h1 != h0 ? "changed" : "same", ui.row[scr], i);
     return h1 != h0 && strcmp(v0, v1) != 0 && ui.row[scr] == i;   /* (back: an accelerated knob may land near) */
 }
 static int glw_still(uint32_t role)                     /* a control turned both ways: no setting changed */
