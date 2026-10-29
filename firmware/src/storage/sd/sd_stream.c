@@ -64,6 +64,7 @@ static DWORD sst_map[SST_MAP_N] IN_POOL;
 
 static uint32_t sst_us(uint32_t ticks) { return (uint32_t)((uint64_t)ticks * 1000u / SD_TICKS_MS); }
 
+static void sst_rc_stats_reset(void);             /* (sd_stream_rc.c) */
 static void sst_stats_reset(void)
 {
     sst_dry = sst_nostream = 0;
@@ -71,6 +72,7 @@ static void sst_stats_reset(void)
     sst_st.run_max_us = 0;
     sst_st.lead_min_ms = SST_NONE;
     sst_st.t0 = SD_NOW();
+    sst_rc_stats_reset();
 }
 
 static void sst_rings(uint8_t *mem, uint32_t n)
@@ -238,8 +240,12 @@ static void sst_run(uint32_t i)
         sd_gone = 1;                                 /* (as a disk read's failure: every later call fails at once) */
 }
 
+#include "sd_stream_rc.c"                            /* the caches read in any order (GRAIN, STRETCH) */
+
+/* the stream with the least time left, or a part's cache (SST_N + part) whose want has (a stream first on a tie) */
 static uint32_t sst_pick(uint32_t limit_ms)
 {
+    static sst_rcw_t w;
     uint32_t i, best = SST_NONE, lead, best_lead = SST_NONE, now = SD_NOW();
     for (i = 0; i < SST_N; i++) {
         lead = sst_lead(i, now);
@@ -248,9 +254,17 @@ static uint32_t sst_pick(uint32_t limit_ms)
             best = i;
         }
     }
+    for (i = 0; i < SST_NPART; i++) {
+        lead = sst_rc_lead(i, &w);
+        if (lead < best_lead) {
+            best_lead = lead;
+            best = SST_N + i;
+            sst_rcw = w;
+        }
+    }
     if (best == SST_NONE || best_lead >= limit_ms)
         return SST_NONE;
-    if (best_lead < sst_st.lead_min_ms)
+    if (best_lead < sst_st.lead_min_ms && best_lead != SST_RC_IDLE)
         sst_st.lead_min_ms = best_lead;
     return best;
 }
@@ -270,8 +284,10 @@ static uint32_t sst_go(uint32_t limit_ms)
     }
     sst_st.in = 1;
     i = sst_pick(limit_ms);
-    if (i != SST_NONE)
+    if (i < SST_N)
         sst_run(i);
+    else if (i != SST_NONE)
+        sst_rc_run(i - SST_N, &sst_rcw);
     sst_st.in = 0;
     return i != SST_NONE;
 }

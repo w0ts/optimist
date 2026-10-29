@@ -46,8 +46,10 @@ src/engines/formant/eng_formant.c:formant_render:((tp>>16)|1u) | "| 1"
 src/engines/formant/eng_formant.c:formant_render:f | guarded: "f > 0" in the same condition
 src/engines/grain/eng_grain.c:gr_run:(int32_t)m | guarded: "m ? ... : 0"
 src/engines/grain/eng_grain.c:gr_spawn:(iv?iv:1u) | "iv ? iv : 1"
-src/engines/grain/eng_grain.c:gr_spawn:(step>>8) | step is clamped to >= 256 just before
-src/engines/grain/eng_grain.c:gr_spawn:len | returns when len < 16 before this divide
+src/engines/grain/eng_grain.c:gr_geom:(step>>8) | step is clamped to >= 256 just before (both fits: a short zone, the card's cap)
+src/engines/grain/eng_grain.c:gr_spawn:o.len | gr_geom returns 0 (no grain) when len < 16
+src/engines/grain/grain_card.c:gr_card_run:(int32_t)m | guarded: "m ? ... : 0" (as gr_run)
+src/engines/grain/grain_card.c:gr_plan:nact | guarded: "nact > 1 ?" (as grain_render)
 src/engines/grain/eng_grain.c:grain_render:nact | guarded: "nact > 1 ?"
 src/engines/phase/eng_phase.c:pd_slope:(len?len:1u) | "len ? len : 1"
 src/engines/sample/eng_sample.c:pow2_q16:(pitch_inc(1600)>>16) | constant table entry (pitch_inc(1600) >> 16 = 102)

@@ -94,7 +94,7 @@ SIZE_FILES += ["bt/bt_afh.c", "bt/bta_mem.c", "ble/ble_hw_wl82.c", "bt/bt_inq.c"
 SIZE_FILES += ["storage/sd/sdcard.c", "storage/sd/sd_mmc.c", "storage/sd/pff.c", "io/console_sd.c",
                "storage/sd/sd_diskio.c", "storage/sd/fatfs/ff.c", "storage/sd/fatfs/ffunicode.c",
                "storage/sd/sd_layout.c", "storage/sd/sd_hash.c", "storage/sd/sd_alloc.c", "storage/sd/sd_index.c",
-               "storage/sd/sd_stream.c", "storage/sd/sd_slice.c", "storage/sd/sd_stream_plan.c",
+               "storage/sd/sd_stream.c", "storage/sd/sd_stream_rc.c", "storage/sd/sd_slice.c", "storage/sd/sd_stream_plan.c",
                "storage/sd/sd_browse.c", "storage/sd/sd_save.c", "storage/sd/sd_rec.c", "storage/sd/sd_mode.c",
                "system/far_probe.c"]
 # Wi-Fi + Link (WIFI_LINK, WIFI_AP)
@@ -109,7 +109,7 @@ AUDIO_FILES = [  # (the A2DP stream's SBC encoder runs in the audio interrupt: b
                "engines/engines.c", "core/arena.c", "core/overlay.c", "dsp/dsp.c", "engines/analog/eng_analog.c", "engines/analog/eng_analog2.c",
                "engines/digital/eng_digital.c", "engines/phase/eng_phase.c", "engines/lofi/eng_lofi.c",
                "engines/sample/eng_sample.c", "engines/formant/eng_formant.c", "engines/trio/eng_trio.c",
-               "engines/drawbar/eng_drawbar.c", "engines/grain/eng_grain.c", "engines/super/eng_super.c",
+               "engines/drawbar/eng_drawbar.c", "engines/grain/eng_grain.c", "engines/grain/grain_card.c", "engines/super/eng_super.c",
                "engines/fm6/eng_fm6.c", "engines/slice/eng_slice.c", "drums/drums.c", "drums/lane_card.c", "drums/synth/drum_synth.c", "drums/synth/drum_plaits.c",
                "drums/drum_edit.c", "drums/x0x/drum_x0x.c", "core/params.c", "core/voice.c", "fx/slicer/slicer.c", "fx/insfx/insfx.c", "fx/insfx/fxi_kern.c", "fx/insfx/gater.c", "fx/insfx/eq3.c", "fx/insfx/tapespit.c", "fx/insfx/xdly.c",
                "engines/juno/eng_juno.c", "engines/noise/eng_noise.c", "engines/drone/eng_drone.c", "engines/plaits/eng_plaits.c", "engines/clipper/eng_strings.c", "engines/clipper/eng_vps.c",
